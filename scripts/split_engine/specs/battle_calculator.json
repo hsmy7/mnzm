@@ -1,0 +1,24 @@
+{
+ "files": [
+  {
+   "name": "BattleCalculatorCombatOps",
+   "header": "// ── 战斗技能/DOT/支援结算域（自 BattleCalculator 拆出，行为零变更） ────────────",
+   "fns": [
+    "selectSkill",
+    "usableSkills",
+    "tryTacticalSkill",
+    "selectEconomySkill",
+    "selectTarget",
+    "processDotEffects",
+    "dotRealmFactor",
+    "executeSupportSkill",
+    "computeHealAmounts",
+    "buildSkillBuffs",
+    "updateCombatantCooldowns",
+    "updateCombatantBuffsOnly",
+    "calculateCombatantDodgeChance",
+    "tryDodge"
+   ]
+  }
+ ]
+}

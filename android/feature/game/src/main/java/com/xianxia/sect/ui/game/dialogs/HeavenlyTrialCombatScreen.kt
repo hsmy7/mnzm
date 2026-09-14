@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.Canvas
@@ -28,6 +28,7 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.engine.domain.battle.ActionType
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.battle.EnemyAction
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.CloseButton
@@ -61,7 +62,7 @@ import com.xianxia.sect.ui.components.clickableWithSound
 
 
 
-/** 天劫试炼战斗界面状态（HeavenlyTrialCombatScreen 拆分）：队伍/回合/动画状态 + 结算方法 */
+/** 天劫试炼战斗界面状态：队伍/回合/动画状态 + 结算方法 */
 private class HeavenlyTrialCombatState(
     viewModel: HeavenlyTrialViewModel
 ) {
@@ -71,7 +72,7 @@ private class HeavenlyTrialCombatState(
     var selectedIsAlly by mutableStateOf(false)
     var playerTeam by mutableStateOf(viewModel.playerCombatants)
     var enemyTeam by mutableStateOf(viewModel.enemyCombatants)
-    // D-39：不可变集合 + 赋值更新（既有更新路径均为 copy 风格，无原地 mutate）
+    // 不可变集合 + 赋值更新（既有更新路径均为 copy 风格，无原地 mutate）
     var isDefending by mutableStateOf(emptySet<String>())
     var showExitConfirm by mutableStateOf(false)
     var currentRound by mutableIntStateOf(1)
@@ -179,14 +180,18 @@ fun HeavenlyTrialCombatScreen(
     HeavenlyTrialCombatEffects(state = state, viewModel = viewModel)
     Box(modifier = Modifier.fillMaxSize()) {
         HeavenlyTrialBattleBackdrop()
-        HeavenlyTrialBattleGrid(state = state, currentCombatant = state.currentCombatant)
+        HeavenlyTrialBattleGrid(
+            state = state,
+            currentCombatant = state.currentCombatant,
+            random = viewModel.presentationRandom
+        )
         HeavenlyTrialDamageOverlay(state = state)
         HeavenlyTrialTopBar(currentRound = state.currentRound, onClose = { state.showExitConfirm = true })
         HeavenlyTrialSkipButton(state = state, coroutineScope = coroutineScope)
         state.currentCombatant?.let {
             HeavenlyTrialBattleBar(state = state, currentCombatant = it, coroutineScope = coroutineScope)
         }
-        // 战斗结算（P-2：结算面板提取）
+        // 战斗结算
         BattleResultPanel(
             showResult = viewModel.showResult, won = viewModel.resultWon,
             durationSeconds = viewModel.resultDuration, totalRounds = state.currentRound,
@@ -213,7 +218,7 @@ fun HeavenlyTrialCombatScreen(
     }
 }
 
-/** 战斗副作用（HeavenlyTrialCombatScreen 拆分）：胜负判定 + 敌方回合 + 结算展示 */
+/** 战斗副作用：胜负判定 + 敌方回合 + 结算展示 */
 @Composable
 private fun HeavenlyTrialCombatEffects(
     state: HeavenlyTrialCombatState,
@@ -238,7 +243,7 @@ private fun HeavenlyTrialCombatEffects(
     }
 }
 
-/** 敌方回合逐个行动（HeavenlyTrialCombatScreen 拆分）：边算边播确保血量实时 */
+/** 敌方回合逐个行动：边算边播确保血量实时 */
 private suspend fun runEnemyTurnSequence(
     state: HeavenlyTrialCombatState,
     viewModel: HeavenlyTrialViewModel
@@ -258,8 +263,8 @@ private suspend fun runEnemyTurnSequence(
             attacker = enemy,
             playerTeam = state.playerTeam,   // 最新血量
             allyTeam = state.enemyTeam.filter { it.id != enemy.id },
-            // C2 对抗性审查修复：敌方 AI 决策走当前战斗的本地 PRNG——
-            // 原实现 UI 线程消费全局 BATTLE 分区，数百次消费使引擎侧战斗序列不可重放
+            // 敌方 AI 决策必须走当前战斗的本地 PRNG——在 UI 线程消费
+            // 全局 BATTLE 分区会使引擎侧战斗序列不可重放
             rng = currentCombatRng()
         )
         val (animEvent, updatedEnemyTeam) = buildEnemyAnimEvent(
@@ -282,7 +287,7 @@ private suspend fun runEnemyTurnSequence(
     }
 }
 
-/** 敌方行动 → 动画事件（HeavenlyTrialCombatScreen 拆分）：buff 分支同步返回更新后的敌方队伍 */
+/** 敌方行动 → 动画事件：buff 分支同步返回更新后的敌方队伍 */
 private fun buildEnemyAnimEvent(
     enemy: Combatant,
     action: EnemyAction,
@@ -325,8 +330,7 @@ private fun buildEnemyAnimEvent(
     return event to enemyTeam
 }
 
-/** 敌方技能攻击事件（HeavenlyTrialCombatScreen 拆分）：AoE 或单体 */
-// 拆分搬移:多出口与原函数一致
+/** 敌方技能攻击事件：AoE 或单体 */
 @Suppress("ReturnCount")
 private fun buildEnemyAttackEvent(
     enemy: Combatant,
@@ -370,7 +374,7 @@ private fun buildEnemyAttackEvent(
     ))
 }
 
-/** 敌方普攻事件（HeavenlyTrialCombatScreen 拆分） */
+/** 敌方普攻事件 */
 private fun buildEnemyNormalAttackEvent(
     enemy: Combatant,
     target: Combatant,
@@ -390,8 +394,7 @@ private fun buildEnemyNormalAttackEvent(
     ))
 }
 
-/** 敌方单体 Buff/治疗事件（HeavenlyTrialCombatScreen 拆分）：立即应用并返回更新后的敌方队伍 */
-// 拆分搬移:参数保留原签名语义
+/** 敌方单体 Buff/治疗事件：立即应用并返回更新后的敌方队伍 */
 @Suppress("UnusedParameter")
 private fun buildEnemyBuffAllyEvent(
     enemy: Combatant,
@@ -416,7 +419,7 @@ private fun buildEnemyBuffAllyEvent(
     )) to updatedTeam
 }
 
-/** 敌方自身 Buff/治疗事件（HeavenlyTrialCombatScreen 拆分）：立即应用并返回更新后的敌方队伍 */
+/** 敌方自身 Buff/治疗事件：立即应用并返回更新后的敌方队伍 */
 private fun buildEnemyBuffSelfEvent(
     enemy: Combatant,
     skill: CombatSkill,
@@ -438,7 +441,7 @@ private fun buildEnemyBuffSelfEvent(
     )) to updatedTeam
 }
 
-/** 播放敌方动画事件并结算（HeavenlyTrialCombatScreen 拆分） */
+/** 播放敌方动画事件并结算 */
 private suspend fun playEnemyAnimEvent(
     animEvent: AnimEvent?,
     state: HeavenlyTrialCombatState
@@ -475,7 +478,7 @@ private suspend fun playEnemyAnimEvent(
     }
 }
 
-/** 战斗背景 + 网格线（HeavenlyTrialCombatScreen 拆分） */
+/** 战斗背景 + 网格线 */
 @Composable
 private fun BoxScope.HeavenlyTrialBattleBackdrop() {
     // 背景
@@ -500,11 +503,12 @@ private fun BoxScope.HeavenlyTrialBattleBackdrop() {
     }
 }
 
-/** 6×6 战斗网格（HeavenlyTrialCombatScreen 拆分） */
+/** 6×6 战斗网格 */
 @Composable
 private fun HeavenlyTrialBattleGrid(
     state: HeavenlyTrialCombatState,
-    currentCombatant: Combatant?
+    currentCombatant: Combatant?,
+    random: PresentationRandom
 ) {
     // 6×6 战斗网格（36格）
     // 单位布局: 己方 col=1(第二列), 敌方 col=4(第五列), rows=1-3
@@ -524,6 +528,7 @@ private fun HeavenlyTrialBattleGrid(
                         state = state,
                         gridPositions = gridPositions,
                         currentCombatant = currentCombatant,
+                        random = random,
                         row = row,
                         col = col
                     )
@@ -533,14 +538,14 @@ private fun HeavenlyTrialBattleGrid(
     }
 }
 
-/** 战斗网格单元格（HeavenlyTrialCombatScreen 拆分）：单位定位 + 选中/飞行/抖动状态 */
-// 拆分搬移:分支结构与原函数一致
+/** 战斗网格单元格：单位定位 + 选中/飞行/抖动状态 */
 @Suppress("CyclomaticComplexMethod")
 @Composable
 private fun RowScope.HeavenlyTrialBattleGridCell(
     state: HeavenlyTrialCombatState,
     gridPositions: Map<String, Pair<Int, Int>>,
     currentCombatant: Combatant?,
+    random: PresentationRandom,
     row: Int,
     col: Int
 ) {
@@ -571,6 +576,7 @@ private fun RowScope.HeavenlyTrialBattleGridCell(
 
     CombatUnitCell(
         combatant = cellCombatant,
+        random = random,
         isCurrent = isCurrent,
         isAllySelected = allySelected,
         isEnemySelected = enemySelected,
@@ -601,8 +607,7 @@ private fun RowScope.HeavenlyTrialBattleGridCell(
     )
 }
 
-/** 单元格飞行动画计算（HeavenlyTrialCombatScreen 拆分） */
-// 拆分搬移:多出口与原函数一致
+/** 单元格飞行动画计算 */
 @Suppress("ReturnCount")
 private fun cellFlightAnim(
     state: HeavenlyTrialCombatState,
@@ -627,7 +632,7 @@ private fun cellFlightAnim(
     return FlightAnimState()
 }
 
-/** 伤害数字覆盖层（HeavenlyTrialCombatScreen 拆分） */
+/** 伤害数字覆盖层 */
 @Composable
 private fun BoxScope.HeavenlyTrialDamageOverlay(state: HeavenlyTrialCombatState) {
     // 动画覆盖层（仅伤害数字；本体飞行由网格格子自身的位移实现）
@@ -659,7 +664,7 @@ private fun BoxScope.HeavenlyTrialDamageOverlay(state: HeavenlyTrialCombatState)
     }
 }
 
-/** 回合数 + 关闭按钮（HeavenlyTrialCombatScreen 拆分） */
+/** 回合数 + 关闭按钮 */
 @Composable
 private fun BoxScope.HeavenlyTrialTopBar(
     currentRound: Int,
@@ -685,7 +690,7 @@ private fun BoxScope.HeavenlyTrialTopBar(
     )
 }
 
-/** 跳过按钮（HeavenlyTrialCombatScreen 拆分）：随时可点击即时结算 */
+/** 跳过按钮：随时可点击即时结算 */
 @Composable
 private fun BoxScope.HeavenlyTrialSkipButton(
     state: HeavenlyTrialCombatState,
@@ -734,7 +739,7 @@ private fun BoxScope.HeavenlyTrialSkipButton(
     }
 }
 
-/** 跳过战斗即时结算（HeavenlyTrialCombatScreen 拆分）：超轮上限按血量比判定 */
+/** 跳过战斗即时结算：超轮上限按血量比判定 */
 private fun skipBattle(state: HeavenlyTrialCombatState) {
     state.isAnimating = true
     val (finalPlayers, finalEnemies) = simulateInstantResolve(
@@ -762,7 +767,7 @@ private fun skipBattle(state: HeavenlyTrialCombatState) {
     }
 }
 
-/** 战斗栏（HeavenlyTrialCombatScreen 拆分）：防御 + 技能 + 普攻 */
+/** 战斗栏：防御 + 技能 + 普攻 */
 @Composable
 private fun BoxScope.HeavenlyTrialBattleBar(
     state: HeavenlyTrialCombatState,
@@ -787,7 +792,8 @@ private fun BoxScope.HeavenlyTrialBattleBar(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                "${currentCombatant.name}  HP:${currentCombatant.hp}/${currentCombatant.maxHp}  MP:${currentCombatant.mp}/${currentCombatant.maxMp}",
+                "${currentCombatant.name}  HP:${currentCombatant.hp}/${currentCombatant.maxHp}  " +
+                    "MP:${currentCombatant.mp}/${currentCombatant.maxMp}",
                 fontSize = 10.sp,
                 color = Color.White,
                 fontWeight = FontWeight.Bold
@@ -825,7 +831,7 @@ private fun BoxScope.HeavenlyTrialBattleBar(
     }
 }
 
-/** 防御按钮（HeavenlyTrialCombatScreen 拆分） */
+/** 防御按钮 */
 @Composable
 private fun HeavenlyTrialDefendButton(
     state: HeavenlyTrialCombatState,
@@ -860,7 +866,7 @@ private fun HeavenlyTrialDefendButton(
     }
 }
 
-/** 技能按钮（HeavenlyTrialCombatScreen 拆分） */
+/** 技能按钮 */
 @Composable
 private fun HeavenlyTrialSkillButton(
     state: HeavenlyTrialCombatState,
@@ -892,7 +898,7 @@ private fun HeavenlyTrialSkillButton(
     }
 }
 
-/** 玩家技能执行（HeavenlyTrialCombatScreen 拆分）：扣 MP → 分支播放/结算 → 回合推进 */
+/** 玩家技能执行：扣 MP → 分支播放/结算 → 回合推进 */
 private suspend fun executePlayerSkillAction(
     state: HeavenlyTrialCombatState,
     attacker: Combatant,
@@ -955,7 +961,7 @@ private suspend fun executePlayerSkillAction(
     }
 }
 
-/** 玩家 AoE 技能攻击（HeavenlyTrialCombatScreen 拆分）：一次飞行 + 全体同时受击 */
+/** 玩家 AoE 技能攻击：一次飞行 + 全体同时受击 */
 private suspend fun playPlayerAoeAttack(
     state: HeavenlyTrialCombatState,
     attacker: Combatant,
@@ -991,7 +997,7 @@ private suspend fun playPlayerAoeAttack(
     }
 }
 
-/** 玩家单体技能攻击（HeavenlyTrialCombatScreen 拆分）：飞行动画 + 命中结算 */
+/** 玩家单体技能攻击：飞行动画 + 命中结算 */
 private suspend fun playPlayerSingleAttack(
     state: HeavenlyTrialCombatState,
     attacker: Combatant,
@@ -1034,7 +1040,7 @@ private suspend fun playPlayerSingleAttack(
     }
 }
 
-/** 普攻按钮（HeavenlyTrialCombatScreen 拆分） */
+/** 普攻按钮 */
 @Composable
 private fun HeavenlyTrialNormalAttackButton(
     state: HeavenlyTrialCombatState,
@@ -1062,7 +1068,7 @@ private fun HeavenlyTrialNormalAttackButton(
     }
 }
 
-/** 玩家普攻（HeavenlyTrialCombatScreen 拆分）：目标选取 + 飞行动画 + 回合推进 */
+/** 玩家普攻：目标选取 + 飞行动画 + 回合推进 */
 private suspend fun playPlayerNormalAttack(
     state: HeavenlyTrialCombatState,
     attacker: Combatant
@@ -1114,7 +1120,7 @@ private suspend fun playPlayerNormalAttack(
     }
 }
 
-/** P-2：天道试炼战斗结算面板（从 HeavenlyTrialCombatScreen 提取，行为逐行一致）。 */
+/** P-2：天道试炼战斗结算面板。 */
 @Composable
 private fun BattleResultPanel(
     showResult: Boolean,

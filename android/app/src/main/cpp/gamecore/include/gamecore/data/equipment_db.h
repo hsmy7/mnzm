@@ -6,7 +6,7 @@
 #include <vector>
 
 // ============================================================
-// 装备模板静态表（Kotlin EquipmentDatabase 提取，批次 2）
+// 装备模板静态表（与 Kotlin EquipmentDatabase 同源）
 // 字段与 EquipmentTemplate 构造参数一致；slot 为 EquipmentSlot.name
 // ============================================================
 namespace gamecore::data {

@@ -1,5 +1,5 @@
 // ============================================================
-// year_settlement_test — 年变结算黄金序列守护（T2.3）
+// year_settlement_test — 年变结算黄金序列守护
 //
 // 守护目标：固定状态 → SettlementEngine::onYearChange（runYearSettlement）
 // 跨年边界推进 → 断言年报快照/annual* 清零/年俸发放面/忠诚惩罚逐位符合手算期望。
@@ -218,11 +218,11 @@ TEST(YearSettlementTest, GhostBlankNameDiscipleSkipped) {
 }
 
 TEST(YearSettlementTest, YearChangeConsumesOnlySystemPartition) {
-    // 批 Y-4b（T2-③ 商人收购）下沉后年变行为基线：T2-③ 收购刷新每年
+    // 商人收购下沉后年变行为基线：收购刷新每年
     // 消费 SYSTEM 分区（数量 1×nextInt(9) + 每 item 品阶/选池/库存/grade/
     // 价格波动）；其余 8 分区（BATTLE/BREAKTHROUGH/EXPLORATION/ENEMY_GEN/
     // MAIL/AI_SECT/SECRET_REALM/MISSION）保持播种初值不变（零消耗）。
-    // 场景无 sectDetails/worldMapSects → T2-④ 交易刷新与 T2-② AI 招募零效果。
+    // 场景无 sectDetails/worldMapSects → 交易刷新与 AI 招募零效果。
     const int64_t seed = 77;
     auto core = makeCore(seed);
     auto& st = core->state();
@@ -234,7 +234,7 @@ TEST(YearSettlementTest, YearChangeConsumesOnlySystemPartition) {
         core->rng().getRng(rng::RngPartition::kSystem).snapshot();
     core->advancePhases(1);
 
-    // SYSTEM 分区被 T2-③ 消耗
+    // SYSTEM 分区被商人收购刷新消耗
     EXPECT_NE(sysBefore,
               core->rng().getRng(rng::RngPartition::kSystem).snapshot());
     // 其余分区不变（遍历 0..8 跳过 SYSTEM）
@@ -248,12 +248,12 @@ TEST(YearSettlementTest, YearChangeConsumesOnlySystemPartition) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 批 Y-1：年变零 RNG 小件黄金序列（T1-①/②/⑤/⑥/⑦/⑧ + T2-①/⑥/⑦/⑨/⑩）
+// 年变零 RNG 小件黄金序列
 // 每件直接调 detail:: 函数（runYearSettlement 内部同源），零 RNG 断言。
 // ════════════════════════════════════════════════════════════════
 
 TEST(YearSettlementTest, Y1T1VassalTributeDeductsByIncomeRatio) {
-    // T1-① 附庸年贡：income=10000 → tribute=5000（0.5 比例）；钱包扣 LOW
+    // 附庸年贡：income=10000 → tribute=5000（0.5 比例）；钱包扣 LOW
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.suzerainSectId = "ai-1";
@@ -291,7 +291,7 @@ TEST(YearSettlementTest, Y1T1VassalTributePositiveIncomeUsesMin) {
 }
 
 TEST(YearSettlementTest, Y1T1YearlyVassalTributeGrantsBySectLevel) {
-    // T1-② 附属年贡：中型（level=1）→ 800000；lastTributeYear 更新；
+    // 附属年贡：中型（level=1）→ 800000；lastTributeYear 更新；
     // 已贡（lastTributeYear==year）跳过；宗门不存在 → 契约移除
     auto core = makeCore(42);
     auto& st = core->state();
@@ -328,7 +328,7 @@ TEST(YearSettlementTest, Y1T1YearlyVassalTributeGrantsBySectLevel) {
 }
 
 TEST(YearSettlementTest, Y1T1AutoRejectFiltersBySpiritRootCount) {
-    // T1-⑤ 自动拒绝：filter {1} → 1 灵根 recruit 移除、2 灵根保留、
+    // 自动拒绝：filter {1} → 1 灵根 recruit 移除、2 灵根保留、
     // 损坏条目（空白名）保留；返回 1
     auto core = makeCore(42);
     auto& st = core->state();
@@ -379,7 +379,7 @@ TEST(YearSettlementTest, Y1T1AutoRejectIdleWhenNoValidMatch) {
 }
 
 TEST(YearSettlementTest, Y1T1MerchantRefreshChanceGrantedEvery30Years) {
-    // T1-⑥ 商人刷新机会：lastGrant=0 → 首次授予；差值 30 → 再授；差值 29 跳过
+    // 商人刷新机会：lastGrant=0 → 首次授予；差值 30 → 再授；差值 29 跳过
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.merchantRefreshChances = 1;
@@ -409,7 +409,8 @@ TEST(YearSettlementTest, Y1T1MerchantRefreshChanceCapped) {
 }
 
 TEST(YearSettlementTest, Y1T1YearlyAgingCullsDeadPastThreshold) {
-    // T1-⑦ 年度老化：deathYears<=currentYear-1 移除；未来死亡保留
+    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
+    // 年度老化：deathYears<=currentYear-1 移除；未来死亡保留
     auto core = makeCore(42);
     auto& st = core->state();
     for (const char* id : {"1", "2", "3"}) {
@@ -423,7 +424,7 @@ TEST(YearSettlementTest, Y1T1YearlyAgingCullsDeadPastThreshold) {
     st.disciples.deathYears[1] = 3;   // 未来死亡 → 保留
     st.disciples.deathYears[2] = 0;   // 无条目（存活语义）→ 保留
 
-    system::detail::processYearlyAging(st, /*currentYear=*/2);
+    system::detail::processYearlyAging(st, /*currentYear=*/2, world);
 
     ASSERT_EQ(2u, st.disciples.size());
     EXPECT_EQ("2", st.disciples.materialize(0).id);
@@ -431,7 +432,8 @@ TEST(YearSettlementTest, Y1T1YearlyAgingCullsDeadPastThreshold) {
 }
 
 TEST(YearSettlementTest, Y1T1RecruitAgingAgesAndSanitizes) {
-    // T1-⑧ 招募老化：age+1；超寿元移除；净化（损坏移除）
+    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
+    // 招募老化：age+1；超寿元移除；净化（损坏移除）
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.recruitList.clear();
@@ -460,7 +462,7 @@ TEST(YearSettlementTest, Y1T1RecruitAgingAgesAndSanitizes) {
     corrupt.spiritRootType = "fire";
     st.gameData.recruitList.push_back(corrupt);
 
-    system::detail::processRecruitAging(st);
+    system::detail::processRecruitAging(st, world);
 
     ASSERT_EQ(1u, st.gameData.recruitList.size());
     EXPECT_EQ("r1", st.gameData.recruitList[0].id);
@@ -468,7 +470,7 @@ TEST(YearSettlementTest, Y1T1RecruitAgingAgesAndSanitizes) {
 }
 
 TEST(YearSettlementTest, Y1T2SectDisciplesAgingFiltersOverMaxAge) {
-    // T2-① AI 弟子老化：非玩家宗门 age+1 + 超寿元过滤；玩家宗门不动
+    // AI 弟子老化：非玩家宗门 age+1 + 超寿元过滤；玩家宗门不动
     auto core = makeCore(42);
     auto& st = core->state();
     state::WorldSect aiSect;
@@ -506,7 +508,7 @@ TEST(YearSettlementTest, Y1T2SectDisciplesAgingFiltersOverMaxAge) {
 }
 
 TEST(YearSettlementTest, Y1T2AllianceExpiryDissolvesAndClearsSects) {
-    // T2-⑥ 联盟到期：startYear 5 年前 → 解散 + 成员宗门清 alliance 字段
+    // 联盟到期：startYear 5 年前 → 解散 + 成员宗门清 alliance 字段
     auto core = makeCore(42);
     auto& st = core->state();
     state::Alliance expired;
@@ -541,7 +543,7 @@ TEST(YearSettlementTest, Y1T2AllianceExpiryDissolvesAndClearsSects) {
 }
 
 TEST(YearSettlementTest, Y1T2AllianceFavorDropDissolvesLowFavor) {
-    // T2-⑦ 联盟好感过低（<80）自动解散；player 哨兵匹配
+    // 联盟好感过低（<80）自动解散；player 哨兵匹配
     auto core = makeCore(42);
     auto& st = core->state();
     state::Alliance alliance;
@@ -595,7 +597,7 @@ TEST(YearSettlementTest, Y1T2AllianceFavorDropKeepsHighFavor) {
 }
 
 TEST(YearSettlementTest, Y1T2FavorDecayAppliesOnlyToPlayerRelations) {
-    // T2-⑨ 好感衰减：玩家相关 + favor>80 + 距上次交互 ≥1 年 → 减 1 保底 80
+    // 好感衰减：玩家相关 + favor>80 + 距上次交互 ≥1 年 → 减 1 保底 80
     auto core = makeCore(42);
     auto& st = core->state();
     state::WorldSect playerSect;
@@ -637,7 +639,8 @@ TEST(YearSettlementTest, Y1T2FavorDecayAppliesOnlyToPlayerRelations) {
 }
 
 TEST(YearSettlementTest, Y1T2GriefExpiryClearsExpiredSentinel) {
-    // T2-⑩ 哀悼期到期：griefEndYears 到期（>= currentYear）→ 置 -1
+    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
+    // 哀悼期到期：griefEndYears 到期（>= currentYear）→ 置 -1
     auto core = makeCore(42);
     auto& st = core->state();
     for (const char* id : {"1", "2"}) {
@@ -650,18 +653,19 @@ TEST(YearSettlementTest, Y1T2GriefExpiryClearsExpiredSentinel) {
     st.disciples.griefEndYears[0] = 2;   // 到期（currentYear=2）
     st.disciples.griefEndYears[1] = 5;   // 未到期
 
-    system::detail::processGriefExpiry(st, /*currentYear=*/2);
+    system::detail::processGriefExpiry(st, /*currentYear=*/2, world);
 
     EXPECT_EQ(-1, st.disciples.griefEndYears[0]);
     EXPECT_EQ(5, st.disciples.griefEndYears[1]);
 }
 
 // ════════════════════════════════════════════════════════════════
-// 批 Y-2：年变中件黄金序列（T1-⑨ 思过释放 + T1-⑩ 驻军轮换）
+// 年变中件黄金序列（思过释放 + 驻军轮换）
 // ════════════════════════════════════════════════════════════════
 
 TEST(YearSettlementTest, Y2T1ReflectionReleaseFreesAndBonuses) {
-    // T1-⑨ 思过到期释放：IDLE + 道德/忠诚 +5（cap 200/100）+ 清思过字段；
+    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
+    // 思过到期释放：IDLE + 道德/忠诚 +5（cap 200/100）+ 清思过字段；
     // 未到期弟子保留 REFLECTING。到期弟子道德 50 ≥ 阈值 → 零 SYSTEM 抽取。
     auto core = makeCore(42);
     auto& st = core->state();
@@ -688,7 +692,7 @@ TEST(YearSettlementTest, Y2T1ReflectionReleaseFreesAndBonuses) {
     pending.statusData["reflectionEndYear"] = "5";
     st.disciples.appendDisciple(pending);
 
-    system::detail::processReflectionRelease(st, /*year=*/2, core->rng());
+    system::detail::processReflectionRelease(st, /*year=*/2, core->rng(), world);
 
     const auto r1 = st.disciples.materialize(0);
     EXPECT_EQ("IDLE", r1.status);
@@ -701,6 +705,7 @@ TEST(YearSettlementTest, Y2T1ReflectionReleaseFreesAndBonuses) {
 }
 
 TEST(YearSettlementTest, Y2T1ReflectionReleaseMoralityCap) {
+    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
     // 道德 198 → +5 cap 200；忠诚 198 → cap 100
     auto core = makeCore(42);
     auto& st = core->state();
@@ -717,7 +722,7 @@ TEST(YearSettlementTest, Y2T1ReflectionReleaseMoralityCap) {
     due.loyalty = 198;
     st.disciples.appendDisciple(due);
 
-    system::detail::processReflectionRelease(st, /*year=*/2, core->rng());
+    system::detail::processReflectionRelease(st, /*year=*/2, core->rng(), world);
 
     const auto r = st.disciples.materialize(0);
     EXPECT_EQ(200, r.morality);                    // min(203, 200)
@@ -725,6 +730,7 @@ TEST(YearSettlementTest, Y2T1ReflectionReleaseMoralityCap) {
 }
 
 TEST(YearSettlementTest, Y2T1ReflectionReleaseLowMoralityTriggersTheft) {
+    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
     // 释放后道德 < 阈值（30）→ 单弟子偷盗判定触发——SYSTEM 分区快照变化
     //（偷盗链至少 1 次 nextDouble）；前置链构造：灵石 >0、平均忠诚 <50、
     // IDLE、保护期外（recruitedMonths 默认 0）、年/月/年上限未满。
@@ -755,7 +761,7 @@ TEST(YearSettlementTest, Y2T1ReflectionReleaseLowMoralityTriggersTheft) {
     const int64_t before = core->rng()
         .getRng(rng::RngPartition::kSystem)
         .snapshot();
-    system::detail::processReflectionRelease(st, /*year=*/2, core->rng());
+    system::detail::processReflectionRelease(st, /*year=*/2, core->rng(), world);
     const int64_t after = core->rng()
         .getRng(rng::RngPartition::kSystem)
         .snapshot();
@@ -765,7 +771,7 @@ TEST(YearSettlementTest, Y2T1ReflectionReleaseLowMoralityTriggersTheft) {
 }
 
 TEST(YearSettlementTest, Y2T1GarrisonRotationFillsOccupiedSlots) {
-    // T1-⑩ 驻军轮换：玩家宗门 + AI 占领宗门（occupier ai-1）+ 12 存活弟子
+    // 驻军轮换：玩家宗门 + AI 占领宗门（occupier ai-1）+ 12 存活弟子
     // → 前 10 留守（不入 garrison）、第 11/12 名填占领宗门 10 槽的前 2 槽
     auto core = makeCore(42);
     auto& st = core->state();
@@ -845,7 +851,7 @@ TEST(YearSettlementTest, Y2T1GarrisonRotationNoOccupiedSectsIdempotent) {
 }
 
 TEST(YearSettlementTest, Y2T2SecretRealmSpawnGeneratesRealm) {
-    // T2-⑪ 秘境年变刷新：冷却满（year - cooldown >= 50）→ 生成（SECRET_REALM
+    // 秘境年变刷新：冷却满（year - cooldown >= 50）→ 生成（SECRET_REALM
     // 分区位置 + 变体）；断言 id 空（镜像生成）、位置在边界内、spawnYear/month、
     // spriteIndex ∈ [0,3)
     auto core = makeCore(2026);
@@ -907,7 +913,7 @@ TEST(YearSettlementTest, Y2T2SecretRealmSpawnAlreadyPresentSkips) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 批 Y-3：年变招募刷新（T1-④）黄金序列
+// 年变招募刷新黄金序列
 // ════════════════════════════════════════════════════════════════
 
 TEST(YearSettlementTest, Y3T1RefreshRecruitListSkipsWhenIntervalNotMet) {
@@ -991,7 +997,7 @@ TEST(YearSettlementTest, Y3T1RefreshRecruitListNoPlayerFallback) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 批 Y-3（T1-③ 弟子老化死亡链）黄金序列
+// 弟子老化死亡链黄金序列
 // ════════════════════════════════════════════════════════════════
 
 TEST(YearSettlementTest, Y3T1AgingAliveDisciplesWithoutDeath) {
@@ -1112,7 +1118,7 @@ TEST(YearSettlementTest, Y3T1AgingSlotCleanupClearsElder) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 批 Y-4a（T2-④）：AI 宗门交易列表刷新黄金序列
+// AI 宗门交易列表刷新黄金序列
 // 局部种子确定性 RNG（sectId.hashCode()+year）——**零分区 RNG 消耗**，
 // 每用例断言全部分区快照不变（抽取次数与顺序锁定的最强形式）。
 // id/itemId 为镜像生成字段（静态计数器自增），断言排除具体 id 值。
@@ -1290,7 +1296,7 @@ TEST(YearSettlementTest, Y4aT2SectTradeGenerateHandlesAllTypes) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 批 Y-4b（T2-③）：商人收购刷新黄金序列
+// 商人收购刷新黄金序列
 // SYSTEM 分区消费（数量 1×nextInt(9) + 每 item 品阶/选池/库存/grade/价格）。
 // id/itemId 为镜像生成字段（静态计数器自增），断言排除具体 id 值。
 // ════════════════════════════════════════════════════════════════
@@ -1412,7 +1418,7 @@ TEST(YearSettlementTest, Y4bT2CreatePillItemAppliesGradePrice) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 批 Y-4c（T2-②）：AI 宗门周期性招募黄金序列
+// AI 宗门周期性招募黄金序列
 // AI 独立分区 RNG（种子 systemSeed + AI_SECT.id(6)×31337——不入 rngStates
 // 分区；断言 AI RNG 快照变化/不变 + SYSTEM 等分区零扰动）。
 // Disciple.id 为镜像生成字段（静态计数器自增），断言排除具体 id 值。

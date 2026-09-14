@@ -24,11 +24,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import com.xianxia.sect.core.engine.system.resolveOverflowItemId
 
 /**
- * 库存动作 native 转发（计划 v2 批 8-2，C-06 转发收尾首个生产接线家族）。
+ * 库存动作 native 转发。
  *
- * 契约（行为审计 2026-08-29，见 docs/cpp-engine.md 批 8-2 行）：
+ * 契约：
  * - C++ handleInventory 的 add/remove 家族与 Kotlin InventorySystem 全语义对拍
  *   （DiffInventoryTest 同源系统函数）；remove 全等价，add 唯一缺口是溢出邮件
  *   只计数不落库——由 [deliverOverflowDrafts] 补齐：C++ 信封回传 overflowDrafts
@@ -61,6 +62,7 @@ internal object InventoryNativeForward {
         )?.also { data -> deliverOverflowDrafts(gameEngine, data) }
     }
 
+    /** 溢出邮件投递（战斗死亡袋物化/背包结算草稿 → Kotlin 同一投递通道）。 */
     // ── 溢出邮件投递（C++ 草稿 → Kotlin 同一解析/投递通道）──────────────
 
     private fun deliverOverflowDrafts(gameEngine: GameEngine, data: JsonElement) {
@@ -73,7 +75,7 @@ internal object InventoryNativeForward {
 
     /** 投递单条草稿（字段缺失即静默跳过——溢出草稿缺失只影响邮件精度，不影响仓库状态）。 */
     @Suppress("ReturnCount")  // 逐字段早退为防御性契约（草稿字段缺失仅损失邮件精度）
-    private fun deliverDraft(system: InventorySystem, obj: JsonObject) {
+    internal fun deliverDraft(system: InventorySystem, obj: JsonObject) {
         val quantity = obj["quantity"]?.jsonPrimitive?.long?.toInt() ?: return
         val itemType = obj.str("itemType") ?: return
         val itemName = obj.str("itemName") ?: return

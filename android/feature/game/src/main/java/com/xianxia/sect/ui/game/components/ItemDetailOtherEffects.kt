@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.components
 
 import com.xianxia.sect.core.GameConfig
@@ -123,7 +123,7 @@ internal fun getMerchantItemEffects(item: MerchantItem): List<String> = buildLis
     }
 }
 
-/** 商人物品头部信息（getMerchantItemEffects 拆分） */
+/** 商人物品头部信息 */
 private fun MutableList<String>.addMerchantItemHeader(item: MerchantItem) {
     val typeName = when (item.type) {
         "equipment" -> "装备"
@@ -145,7 +145,7 @@ private fun MutableList<String>.addMerchantItemHeader(item: MerchantItem) {
     add("")
 }
 
-/** 商人物品装备信息（getMerchantItemEffects 拆分） */
+/** 商人物品装备信息 */
 private fun MutableList<String>.addMerchantEquipmentInfo(item: MerchantItem) {
     val template = EquipmentDatabase.getTemplateByName(item.name)
     if (template != null) {
@@ -163,8 +163,7 @@ private fun MutableList<String>.addMerchantEquipmentInfo(item: MerchantItem) {
     }
 }
 
-/** 商人物品功法信息（getMerchantItemEffects 拆分） */
-// 拆分搬移:嵌套/条件结构与原函数一致
+/** 商人物品功法信息 */
 @Suppress("NestedBlockDepth")
 private fun MutableList<String>.addMerchantManualInfo(item: MerchantItem) {
     if (ManualDatabase.isInitialized) {
@@ -192,7 +191,7 @@ private fun MutableList<String>.addMerchantManualInfo(item: MerchantItem) {
     }
 }
 
-/** 商人物品丹药信息（getMerchantItemEffects 拆分） */
+/** 商人物品丹药信息 */
 private fun MutableList<String>.addMerchantPillInfo(item: MerchantItem) {
     val pillTemplate = ItemDatabase.getPillById(item.itemId)
         ?: ItemDatabase.getPillByName(item.name)
@@ -217,8 +216,7 @@ private fun MutableList<String>.addMerchantPillInfo(item: MerchantItem) {
     }
 }
 
-/** 商人物品丹药是否一次性效果（getMerchantItemEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
+/** 商人物品丹药是否一次性效果 */
 @Suppress("CyclomaticComplexMethod")
 private fun merchantPillIsInstant(pill: ItemDatabase.PillTemplate): Boolean =
     pill.category == PillCategory.FUNCTIONAL ||
@@ -242,8 +240,7 @@ private fun merchantPillIsInstant(pill: ItemDatabase.PillTemplate): Boolean =
     pill.moralityAdd > 0 ||
     pill.miningAdd > 0
 
-/** 商人物品丹药功能类效果（getMerchantItemEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
+/** 商人物品丹药功能类效果 */
 @Suppress("CyclomaticComplexMethod")
 private fun MutableList<String>.addFunctionalPillTemplateEffects(pill: ItemDatabase.PillTemplate) {
     if (pill.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(pill.breakthroughChance)}")
@@ -273,7 +270,7 @@ private fun MutableList<String>.addFunctionalPillTemplateEffects(pill: ItemDatab
     if (pill.speedAdd > 0) add("  速度 +${pill.speedAdd}")
 }
 
-/** 商人物品丹药修炼类效果（getMerchantItemEffects 拆分） */
+/** 商人物品丹药修炼类效果 */
 private fun MutableList<String>.addCultivationPillTemplateEffects(pill: ItemDatabase.PillTemplate) {
     if (pill.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(pill.cultivationSpeedPercent)}")
     if (pill.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(pill.skillExpSpeedPercent)}")
@@ -286,7 +283,7 @@ private fun MutableList<String>.addCultivationPillTemplateEffects(pill: ItemData
     if (pill.isAscension) add("  可用于渡劫")
 }
 
-/** 商人物品丹药战斗类效果（getMerchantItemEffects 拆分） */
+/** 商人物品丹药战斗类效果 */
 private fun MutableList<String>.addBattlePillTemplateEffects(pill: ItemDatabase.PillTemplate) {
     if (pill.physicalAttackAdd > 0) add("  物理攻击 +${pill.physicalAttackAdd}")
     if (pill.magicAttackAdd > 0) add("  法术攻击 +${pill.magicAttackAdd}")
@@ -299,7 +296,7 @@ private fun MutableList<String>.addBattlePillTemplateEffects(pill: ItemDatabase.
     if (pill.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(pill.critEffectAdd)}")
 }
 
-/** 商人物品材料信息（getMerchantItemEffects 拆分） */
+/** 商人物品材料信息 */
 private fun MutableList<String>.addMerchantMaterialInfo(item: MerchantItem) {
     val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
     if (materialData != null && materialData.description.isNotBlank()) {
@@ -327,7 +324,7 @@ private fun MutableList<String>.addMerchantMaterialInfo(item: MerchantItem) {
     }
 }
 
-/** 商人物品灵草信息（getMerchantItemEffects 拆分） */
+/** 商人物品灵草信息 */
 private fun MutableList<String>.addMerchantHerbInfo(item: MerchantItem) {
     val herbData = HerbDatabase.getHerbById(item.itemId)
         ?: HerbDatabase.getHerbByName(item.name)
@@ -356,7 +353,7 @@ private fun MutableList<String>.addMerchantHerbInfo(item: MerchantItem) {
     }
 }
 
-/** 商人物品种子信息（getMerchantItemEffects 拆分） */
+/** 商人物品种子信息 */
 private fun MutableList<String>.addMerchantSeedInfo(item: MerchantItem) {
     val seedData = HerbDatabase.getSeedByName(item.name)
     if (seedData != null && seedData.description.isNotBlank()) {
@@ -393,6 +390,23 @@ private fun MutableList<String>.addMerchantSeedInfo(item: MerchantItem) {
     }
 }
 
+/** 储物袋未知类型物品效果兜底：直接按 ItemEffect 字段铺开 */
+private fun MutableList<String>.addStorageBagEffectFallback(item: StorageBagItem) {
+    item.effect?.let { effect ->
+        add("效果:")
+        if (effect.cultivationSpeedPercent >
+            0) { add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}") }
+        if (effect.cultivationAdd > 0) { add("  修为 +${effect.cultivationAdd}") }
+        if (effect.hpAdd > 0) { add("  生命 +${effect.hpAdd}") }
+        if (effect.mpAdd > 0) { add("  灵力 +${effect.mpAdd}") }
+        if (effect.physicalAttackAdd > 0) { add("  物理攻击 +${effect.physicalAttackAdd}") }
+        if (effect.magicAttackAdd > 0) { add("  法术攻击 +${effect.magicAttackAdd}") }
+        if (effect.physicalDefenseAdd > 0) { add("  物理防御 +${effect.physicalDefenseAdd}") }
+        if (effect.magicDefenseAdd > 0) { add("  法术防御 +${effect.magicDefenseAdd}") }
+        if (effect.speedAdd > 0) { add("  速度 +${effect.speedAdd}") }
+    }
+}
+
 internal fun getStorageBagItemEffects(item: StorageBagItem): List<String> = buildList {
     addStorageBagItemHeader(item = item)
 
@@ -403,24 +417,11 @@ internal fun getStorageBagItemEffects(item: StorageBagItem): List<String> = buil
         "material" -> addStorageBagMaterialInfo(item = item)
         "herb" -> addStorageBagHerbInfo(item = item)
         "seed" -> addStorageBagSeedInfo(item = item)
-        else -> {
-            item.effect?.let { effect ->
-                add("效果:")
-                if (effect.cultivationSpeedPercent > 0) { add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}") }
-                if (effect.cultivationAdd > 0) { add("  修为 +${effect.cultivationAdd}") }
-                if (effect.hpAdd > 0) { add("  生命 +${effect.hpAdd}") }
-                if (effect.mpAdd > 0) { add("  灵力 +${effect.mpAdd}") }
-                if (effect.physicalAttackAdd > 0) { add("  物理攻击 +${effect.physicalAttackAdd}") }
-                if (effect.magicAttackAdd > 0) { add("  法术攻击 +${effect.magicAttackAdd}") }
-                if (effect.physicalDefenseAdd > 0) { add("  物理防御 +${effect.physicalDefenseAdd}") }
-                if (effect.magicDefenseAdd > 0) { add("  法术防御 +${effect.magicDefenseAdd}") }
-                if (effect.speedAdd > 0) { add("  速度 +${effect.speedAdd}") }
-            }
-        }
+        else -> addStorageBagEffectFallback(item)
     }
 }
 
-/** 储物袋物品头部信息（getStorageBagItemEffects 拆分） */
+/** 储物袋物品头部信息 */
 private fun MutableList<String>.addStorageBagItemHeader(item: StorageBagItem) {
     val typeName = when (item.itemType) {
         "equipment" -> "装备"
@@ -440,8 +441,7 @@ private fun MutableList<String>.addStorageBagItemHeader(item: StorageBagItem) {
     add("")
 }
 
-/** 储物袋物品装备信息（getStorageBagItemEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
+/** 储物袋物品装备信息 */
 @Suppress("CyclomaticComplexMethod")
 private fun MutableList<String>.addStorageBagEquipmentInfo(item: StorageBagItem) {
     val template = EquipmentDatabase.getTemplateByName(item.name)
@@ -473,8 +473,7 @@ private fun MutableList<String>.addStorageBagEquipmentInfo(item: StorageBagItem)
     }
 }
 
-/** 储物袋物品功法信息（getStorageBagItemEffects 拆分） */
-// 拆分搬移:嵌套/条件结构与原函数一致
+/** 储物袋物品功法信息 */
 @Suppress("NestedBlockDepth")
 private fun MutableList<String>.addStorageBagManualInfo(item: StorageBagItem) {
     if (ManualDatabase.isInitialized) {
@@ -502,8 +501,7 @@ private fun MutableList<String>.addStorageBagManualInfo(item: StorageBagItem) {
     }
 }
 
-/** 储物袋物品丹药信息（getStorageBagItemEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
+/** 储物袋物品丹药信息 */
 @Suppress("CyclomaticComplexMethod")
 private fun MutableList<String>.addStorageBagPillInfo(item: StorageBagItem) {
     val pillCategoryDisplayName = when (item.effect?.pillCategory) {
@@ -538,8 +536,7 @@ private fun MutableList<String>.addStorageBagPillInfo(item: StorageBagItem) {
     }
 }
 
-/** 储物袋丹药是否一次性效果（getStorageBagItemEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
+/** 储物袋丹药是否一次性效果 */
 @Suppress("CyclomaticComplexMethod")
 private fun storageBagPillIsInstant(effect: ItemEffect): Boolean =
     effect.pillCategory == PillCategory.FUNCTIONAL.name ||
@@ -563,8 +560,7 @@ private fun storageBagPillIsInstant(effect: ItemEffect): Boolean =
     effect.moralityAdd > 0 ||
     effect.miningAdd > 0
 
-/** 储物袋丹药功能类效果（getStorageBagItemEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
+/** 储物袋丹药功能类效果 */
 @Suppress("CyclomaticComplexMethod")
 private fun MutableList<String>.addStorageBagFunctionalPillEffects(effect: ItemEffect) {
     if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
@@ -594,7 +590,7 @@ private fun MutableList<String>.addStorageBagFunctionalPillEffects(effect: ItemE
     if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
 }
 
-/** 储物袋丹药修炼类效果（getStorageBagItemEffects 拆分） */
+/** 储物袋丹药修炼类效果 */
 private fun MutableList<String>.addStorageBagCultivationPillEffects(effect: ItemEffect) {
     if (effect.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")
     if (effect.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(effect.skillExpSpeedPercent)}")
@@ -607,7 +603,7 @@ private fun MutableList<String>.addStorageBagCultivationPillEffects(effect: Item
     if (effect.isAscension) add("  可用于渡劫")
 }
 
-/** 储物袋丹药战斗类效果（getStorageBagItemEffects 拆分） */
+/** 储物袋丹药战斗类效果 */
 private fun MutableList<String>.addStorageBagBattlePillEffects(effect: ItemEffect) {
     if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
     if (effect.magicAttackAdd > 0) add("  法术攻击 +${effect.magicAttackAdd}")
@@ -620,7 +616,7 @@ private fun MutableList<String>.addStorageBagBattlePillEffects(effect: ItemEffec
     if (effect.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(effect.critEffectAdd)}")
 }
 
-/** 储物袋物品材料信息（getStorageBagItemEffects 拆分） */
+/** 储物袋物品材料信息 */
 private fun MutableList<String>.addStorageBagMaterialInfo(item: StorageBagItem) {
     val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
     if (materialData != null && materialData.description.isNotBlank()) {
@@ -644,7 +640,7 @@ private fun MutableList<String>.addStorageBagMaterialInfo(item: StorageBagItem) 
     }
 }
 
-/** 储物袋物品灵草信息（getStorageBagItemEffects 拆分） */
+/** 储物袋物品灵草信息 */
 private fun MutableList<String>.addStorageBagHerbInfo(item: StorageBagItem) {
     val herbData = HerbDatabase.getHerbById(item.itemId)
         ?: HerbDatabase.getHerbByName(item.name)
@@ -672,7 +668,7 @@ private fun MutableList<String>.addStorageBagHerbInfo(item: StorageBagItem) {
     }
 }
 
-/** 储物袋物品种子信息（getStorageBagItemEffects 拆分） */
+/** 储物袋物品种子信息 */
 private fun MutableList<String>.addStorageBagSeedInfo(item: StorageBagItem) {
     val seedData = HerbDatabase.getSeedByName(item.name)
     if (seedData != null && seedData.description.isNotBlank()) {

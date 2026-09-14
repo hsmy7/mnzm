@@ -53,7 +53,7 @@ fun RecruitDialog(
             RecruitListContent(
                 recruitList = recruitList,
                 onReject = { disciple -> showRejectConfirm = disciple.id },
-                onAccept = { disciple -> viewModel.recruitDisciple(disciple) }
+                onAccept = { disciple -> viewModel.disciple.recruitDisciple(disciple) }
             )
         }
     }
@@ -74,7 +74,7 @@ fun RecruitDialog(
             confirmLabel = "拒绝",
             onConfirm = {
                 val id = showRejectConfirm ?: return@StandardPromptDialog
-                viewModel.rejectDiscipleFromList(id)
+                viewModel.disciple.rejectDiscipleFromList(id)
                 showRejectConfirm = null
             },
             dismissLabel = "取消",
@@ -83,7 +83,7 @@ fun RecruitDialog(
     }
 }
 
-/** 招募列表内容（RecruitDialog 拆分）：空态或弟子网格 */
+/** 招募列表内容：空态或弟子网格 */
 @Composable
 private fun RecruitListContent(
     recruitList: List<DiscipleAggregate>,
@@ -187,7 +187,7 @@ private fun RecruitManagementDialog(
                 onToggle = { count ->
                     val newFilter = if (count in recruitFilter) recruitFilter - count else recruitFilter + count
                     recruitFilter = newFilter
-                    viewModel.setAutoRecruitFilter(newFilter)
+                    viewModel.disciple.setAutoRecruitFilter(newFilter)
                 }
             )
 
@@ -208,7 +208,7 @@ private fun RecruitManagementDialog(
                 onToggle = { count ->
                     val newFilter = if (count in rejectFilter) rejectFilter - count else rejectFilter + count
                     rejectFilter = newFilter
-                    viewModel.setAutoRejectFilter(newFilter)
+                    viewModel.disciple.setAutoRejectFilter(newFilter)
                 }
             )
 
@@ -225,7 +225,7 @@ private fun RecruitManagementDialog(
     }
 }
 
-/** 灵根数筛选网格（RecruitManagementDialog 拆分） */
+/** 灵根数筛选网格 */
 @Composable
 private fun RootCountFilterGrid(
     filter: Set<Int>,

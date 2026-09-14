@@ -37,13 +37,13 @@ fun XianxiaTheme(
         typography = Typography,
         shapes = Shapes,
         content = {
-            // 全局禁用涟漪（Bugly #9076 SIGABRT：RippleHostView 硬件水波纹动画在特定 ROM +
-            // 快速点击下触发 RenderNode.addAnimator 原生 abort，应用侧唯一可靠根治是禁用
+            // 全局禁用涟漪：RippleHostView 硬件水波纹动画在特定 ROM +
+            // 快速点击下触发 RenderNode.addAnimator 原生 abort，应用侧唯一可靠防御是禁用
             // ripple。本游戏主按钮均为缩放反馈，无涟漪视觉依赖）。
             // LocalRippleConfiguration provides null → DelegatingThemeAwareRippleNode
             // 收到 null 配置时 removeRipple() 真正卸载 ripple 节点（RippleHostView 不再创建）。
-            // 实测证明 rippleAlpha=0 无效（节点与硬件动画照常运行，仅画透明）——
-            // 见 RippleHostViewProbeTest 与对抗性审查记录。
+            // rippleAlpha=0 无法达到同样效果（节点与硬件动画照常运行，仅画透明）——
+            // 见 RippleHostViewProbeTest。
             CompositionLocalProvider(
                 LocalRippleConfiguration provides null
             ) {

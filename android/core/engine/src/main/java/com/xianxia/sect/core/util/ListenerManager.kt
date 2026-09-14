@@ -25,6 +25,7 @@ class ListenerManager<T>(private val tag: String = "ListenerManager") {
 
     fun isNotEmpty(): Boolean = _listeners.isNotEmpty()
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun notify(action: (T) -> Unit) {
         _listeners.forEach { listener ->
             try {
@@ -35,6 +36,7 @@ class ListenerManager<T>(private val tag: String = "ListenerManager") {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun notifySafe(action: (T) -> Unit): Int {
         var errorCount = 0
         _listeners.forEach { listener ->
@@ -48,6 +50,7 @@ class ListenerManager<T>(private val tag: String = "ListenerManager") {
         return errorCount
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun <R> mapNotNull(transform: (T) -> R?): List<R> {
         return _listeners.mapNotNull { listener ->
             try {

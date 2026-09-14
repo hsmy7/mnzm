@@ -74,7 +74,7 @@ class MainGameScreenTest {
         assertEquals("第1个buildingId应为炼丹房", "炼丹房", buildings[0].displayName)
         // 验证 result 的 nameIdx（第5列）——但nameIdx依赖BUILDING_NAME_INDEX映射，
         // 而 BUILDING_NAME_INDEX 是 private 的。
-        // 改为验证 gridX 顺序（gridX 1→2→3 对应插入顺序）
+        // 因此验证 gridX 顺序（gridX 1→2→3 对应插入顺序）
         assertEquals("第1个建筑gridX应为1", 1f, result[0], 0.001f)
         assertEquals("第2个建筑gridX应为2", 2f, result[5], 0.001f)
         assertEquals("第3个建筑gridX应为3", 3f, result[10], 0.001f)
@@ -132,7 +132,7 @@ class MainGameScreenTest {
     }
 
     // ============================================================
-    // buildSpiritCropData（WP6）— 灵田作物渲染数据装配
+    // buildSpiritCropData — 灵田作物渲染数据装配
     // ============================================================
 
     /** 灵田建筑（gridX, gridY, instanceId） */
@@ -274,7 +274,7 @@ class MainGameScreenTest {
     }
 
     // ============================================================
-    // buildDemolishHighlightData（2026-08-11）— 拆除高亮标记装配
+    // buildDemolishHighlightData — 拆除高亮标记装配
     // ============================================================
 
     /**
@@ -351,7 +351,7 @@ class MainGameScreenTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 建筑作用域同源谓词 buildingsInSectScope（2026-08-16 修复）
+    // 建筑作用域同源谓词 buildingsInSectScope
     // 渲染总线与点击/瓦片/渲染帧共用同一谓词——进入被占宗门后渲染与点击作用域不可能分叉
     // ════════════════════════════════════════════════════════════════
 

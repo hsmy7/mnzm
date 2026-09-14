@@ -11,11 +11,11 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 列级写入 changedId 追踪测试（2026-08-01 增量组装基建）。
+ * 列级写入 changedId 追踪测试。
  *
- * 修复前：列级 setter（cultivations[id]=v 等）只标记 dirtyTracker 列，不记录弟子 id，
- * 导致每旬事务 changedIds 恒空 → 提交段全量 assembleAll 兜底（"增量组装"承诺落空）。
- * 本测试守卫：任意列级写入必须产生对应弟子 id 的 changedId。
+ * 守卫：任意列级 setter（cultivations[id]=v 等）除标记 dirtyTracker 列外，
+ * 还必须记录对应弟子 id——漏记会使每旬事务 changedIds 恒空，
+ * 提交段退化为全量 assembleAll 兜底（增量组装失效）。
  */
 @RunWith(RobolectricTestRunner::class)
 class DiscipleTablesChangedIdTest {
@@ -145,7 +145,7 @@ class DiscipleTablesChangedIdTest {
     }
 
     // ════════════════════════════════════════════════════════════
-    // T4（2026-08-05）：容量拒绝 → 强制全量组装标志
+    // 容量拒绝 → 强制全量组装标志
     // ════════════════════════════════════════════════════════════
 
     @Test
@@ -184,7 +184,7 @@ class DiscipleTablesChangedIdTest {
     }
 
     // ════════════════════════════════════════════════════════════
-    // C3（2026-08-05）：MAX_SAFE_CAPACITY 降至 1M 的边界守卫
+    // MAX_SAFE_CAPACITY 上限的边界守卫
     // ════════════════════════════════════════════════════════════
 
     @Test

@@ -18,15 +18,24 @@ class RoadTilingTest {
     fun `tileType maps all forms`() {
         assertEquals(RoadTileType.SINGLE, RoadTiling.tileTypeForBitmask(0))
         assertEquals(RoadTileType.VERTICAL, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_DOWN))
-        assertEquals(RoadTileType.HORIZONTAL, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_LEFT or RoadTiling.DIR_RIGHT))
-        assertEquals(RoadTileType.CORNER_TOP_LEFT, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_LEFT))
-        assertEquals(RoadTileType.CORNER_TOP_RIGHT, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_RIGHT))
-        assertEquals(RoadTileType.CORNER_BOTTOM_LEFT, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_DOWN or RoadTiling.DIR_LEFT))
-        assertEquals(RoadTileType.CORNER_BOTTOM_RIGHT, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_DOWN or RoadTiling.DIR_RIGHT))
-        assertEquals(RoadTileType.T_UP, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_LEFT or RoadTiling.DIR_RIGHT))
-        assertEquals(RoadTileType.T_RIGHT, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_DOWN or RoadTiling.DIR_RIGHT))
-        assertEquals(RoadTileType.T_DOWN, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_DOWN or RoadTiling.DIR_LEFT or RoadTiling.DIR_RIGHT))
-        assertEquals(RoadTileType.T_LEFT, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_DOWN or RoadTiling.DIR_LEFT))
+        assertEquals(RoadTileType.HORIZONTAL,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_LEFT or RoadTiling.DIR_RIGHT))
+        assertEquals(RoadTileType.CORNER_TOP_LEFT,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_LEFT))
+        assertEquals(RoadTileType.CORNER_TOP_RIGHT,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_RIGHT))
+        assertEquals(RoadTileType.CORNER_BOTTOM_LEFT,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_DOWN or RoadTiling.DIR_LEFT))
+        assertEquals(RoadTileType.CORNER_BOTTOM_RIGHT,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_DOWN or RoadTiling.DIR_RIGHT))
+        assertEquals(RoadTileType.T_UP,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_LEFT or RoadTiling.DIR_RIGHT))
+        assertEquals(RoadTileType.T_RIGHT,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_DOWN or RoadTiling.DIR_RIGHT))
+        assertEquals(RoadTileType.T_DOWN,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_DOWN or RoadTiling.DIR_LEFT or RoadTiling.DIR_RIGHT))
+        assertEquals(RoadTileType.T_LEFT,
+            RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_DOWN or RoadTiling.DIR_LEFT))
         assertEquals(RoadTileType.CROSS, RoadTiling.tileTypeForBitmask(RoadTiling.MASK_ALL))
         // 死路（道路端点）按方向归为直路
         assertEquals(RoadTileType.VERTICAL, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP))
@@ -51,7 +60,7 @@ class RoadTilingTest {
             RoadData(3, 4, 0, RoadTileType.SINGLE.name),
             RoadData(4, 4, 0, RoadTileType.SINGLE.name)
         )
-        // ★ 2026-08-31 根因修复：数组值为 1-based（0=非道路，1=单格道路，2..16=掩码 1..15）——
+        // ★ 数组值为 1-based（0=非道路，1=单格道路，2..16=掩码 1..15）——
         // 渲染端取 raw-1 还原；此处还原后再映射形态
         val mask = RoadTiling.buildRoadMaskArray(roads, 10, 10)
         val m34 = mask!![4 * 10 + 3] - 1
@@ -63,7 +72,7 @@ class RoadTilingTest {
     @Test
     fun `single road renders as mask 1 not 0`() {
         // 根因守护：单格道路（无邻居，邻接掩码 0）在渲染数组中必须是 1（非 0）——
-        // 0 表示"非道路格"，旧实现把单格道路存成 0 → 渲染端 mask==0 跳过 → 永不显示
+        // 0 表示"非道路格"，单格道路若存成 0 → 渲染端 mask==0 跳过 → 永不显示
         val roads = listOf(RoadData(5, 5, 0, RoadTileType.SINGLE.name))
         val mask = RoadTiling.buildRoadMaskArray(roads, 10, 10)!!
         assertEquals("单格道路数组值应为 1（原掩码 0 + 1）", 1, mask[5 * 10 + 5])

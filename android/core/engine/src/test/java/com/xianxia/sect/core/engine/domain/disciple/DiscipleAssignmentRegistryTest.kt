@@ -20,11 +20,6 @@ class DiscipleAssignmentRegistryTest {
         slotType = "alchemy:0",
         slotId = "production_alchemy_0"
     )
-    private val spiritMineSlotRef = SlotRef(
-        category = SlotCategory.SPIRIT_MINE,
-        slotType = "miner:0",
-        slotId = "spiritMine_miner_0"
-    )
 
     @Before
     fun setUp() {

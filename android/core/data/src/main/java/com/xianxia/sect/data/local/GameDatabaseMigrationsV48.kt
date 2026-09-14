@@ -11,10 +11,9 @@ private const val TAG = "GameDatabase"
 /**
  * v47→v48: overflow_mail_drafts 新增 item_id 列
  *
- * 背景（溢出邮件领取发放错误物品）：溢出邮件附件此前只携带 name/rarity，
- * 领取时按稀有度随机生成物品（如领取"回气丹"溢出邮件可能得到同稀有度的
- * 其它丹药）。新增 item_id 列持久化物品模板 id，drain 构建附件时透传，
- * 领取方据此精确还原原物品。
+ * 背景（溢出邮件领取精确还原）：溢出邮件附件持久化物品模板 id（item_id），
+ * drain 构建附件时透传，领取方据此精确还原原物品；不带 item_id 的草稿
+ * 走按稀有度随机生成的回退逻辑。
  *
  * 仅 ALTER TABLE ADD COLUMN（新增列不删列，DEFAULT '' 兼容旧行——旧草稿
  * 无模板 id 时领取方仍按既有回退逻辑处理）。

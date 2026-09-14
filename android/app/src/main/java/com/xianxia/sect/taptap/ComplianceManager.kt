@@ -53,10 +53,11 @@ object ComplianceManager {
      *
      * - [callback] 每次都更新（登出/重登后绑定最新宿主）；
      * - SDK 监听器仅在未注册时（重）注册——注册失败只记日志，**下次调用自动重试**，
-     *   根治"冷启动路径注册早于 SDK 就绪导致注册失败、之后永久失去回调"（根因 A）。
+     *   覆盖"冷启动路径注册早于 SDK 就绪导致注册失败"场景，避免永久失去回调。
      *
      * 调用时机：startup 之前必须调用（登录成功回调 / 已登录冷启动兜底 / 验证启动前置）。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun ensureCallbackRegistered(callback: ComplianceCallback) {
         this.callback = callback
         if (!isCallbackRegistered) {
@@ -124,6 +125,7 @@ object ComplianceManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun startup(activity: Activity, userIdentifier: String) {
         Log.d(
             TAG,
@@ -152,6 +154,7 @@ object ComplianceManager {
      * 字段名按候选列表依次尝试（SDK 升级/混淆后字段名可能变化），全部失败时
      * 日志携带字段名与异常，便于升级后快速定位。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun resetSdkRunningState() {
         val candidateFieldNames = listOf("isRunning", "mIsRunning", "running")
         val clazz = try {
@@ -174,6 +177,7 @@ object ComplianceManager {
         Log.e(TAG, "复位 TapComplianceInternal.isRunning 失败：候选字段 $candidateFieldNames 均不可用")
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun exit() {
         Log.d(TAG, "退出合规认证")
         try {

@@ -25,7 +25,7 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.TimeUnit
 
 /**
- * DialogSystemBarGuard 冻结感知测试（2026-08 第四根因键盘频闪根治）：
+ * DialogSystemBarGuard 冻结感知测试：
  *
  * 输入对话框（freezeSystemBars=true）挂载期间本窗口经 DialogSystemBarFreezeScope
  * 冻结——只隐藏状态栏、不隐藏导航栏（切断 HIDE_NAVIGATION×IME 冲突面）；

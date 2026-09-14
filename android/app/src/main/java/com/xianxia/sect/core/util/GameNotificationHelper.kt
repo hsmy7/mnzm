@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.xianxia.sect.ui.game.GameActivity
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,10 +32,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class GameNotificationHelper @Inject constructor(
-    @ApplicationContext private val appContext: Context
 ) {
     companion object {
-        private const val TAG = "GameNotificationHelper"
 
         /** 前台服务通知渠道 ID */
         const val CHANNEL_ID = "game_foreground"
@@ -51,8 +48,6 @@ class GameNotificationHelper @Inject constructor(
         const val STOP_ACTION = "com.xianxia.sect.action.STOP"
 
         private const val REQUEST_CODE_CONTENT = 1000
-        private const val REQUEST_CODE_PAUSE = 1001
-        private const val REQUEST_CODE_STOP = 1002
     }
 
     /**
@@ -144,29 +139,9 @@ class GameNotificationHelper @Inject constructor(
      * 创建暂停按钮 PendingIntent — 发送 [PAUSE_ACTION] 到
      * [GameForegroundService]，由 Service.onStartCommand 处理。
      */
-    private fun createPauseIntent(context: Context): PendingIntent {
-        val intent = Intent(context, GameForegroundService::class.java).apply {
-            action = GameForegroundService.ACTION_PAUSE
-            setPackage(context.packageName)
-        }
-        return PendingIntent.getService(
-            context, REQUEST_CODE_PAUSE, intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-    }
 
     /**
      * 创建退出按钮 PendingIntent — 发送 [STOP_ACTION] 到
      * [GameForegroundService]，由 Service.onStartCommand 处理。
      */
-    private fun createStopIntent(context: Context): PendingIntent {
-        val intent = Intent(context, GameForegroundService::class.java).apply {
-            action = GameForegroundService.ACTION_STOP
-            setPackage(context.packageName)
-        }
-        return PendingIntent.getService(
-            context, REQUEST_CODE_STOP, intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-    }
 }

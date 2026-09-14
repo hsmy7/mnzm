@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.*
@@ -38,8 +38,6 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-
-
 @Composable
 fun PatrolTowerDialog(
     buildingInstanceId: String = "",
@@ -74,7 +72,7 @@ fun PatrolTowerDialog(
                 patrolTowerViewModel.updateRequireFullStatus(towerIndex, requireFullStatus)
             },
             onOpenAttackRangeDialog = { showAttackRangeDialog = true },
-            onDiscipleClicked = { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) },
+            onDiscipleClicked = { d -> viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) },
             onSelectSlot = { index, swapMode -> isSwapMode = swapMode; selectingSlotIndex = index },
             onSlotDismissed = { index -> patrolTowerViewModel.removeDiscipleAsync(towerIndex, index) }
         )
@@ -108,7 +106,7 @@ fun PatrolTowerDialog(
     }
 }
 
-/** 巡视楼框架回调（PatrolTowerDialog 拆分） */
+/** 巡视楼框架回调 */
 private data class PatrolFrameCallbacks(
     val onDismiss: () -> Unit,
     val onToggleRequireFullStatus: () -> Unit,
@@ -118,7 +116,7 @@ private data class PatrolFrameCallbacks(
     val onSlotDismissed: (Int) -> Unit
 )
 
-/** 主对话框框架（PatrolTowerDialog 拆分）：UnifiedGameDialog + 顶部栏 + 槽位网格 */
+/** 主对话框框架：UnifiedGameDialog + 顶部栏 + 槽位网格 */
 @Composable
 private fun PatrolTowerDialogFrame(
     requireFullStatus: Boolean,
@@ -165,7 +163,7 @@ private fun PatrolTowerDialogFrame(
     }
 }
 
-/** 顶部栏（PatrolTowerDialog 拆分）：满状态勾选 + 进攻范围/一键任命 */
+/** 顶部栏：满状态勾选 + 进攻范围/一键任命 */
 @Composable
 private fun PatrolTowerHeader(
     requireFullStatus: Boolean,
@@ -213,7 +211,7 @@ private fun PatrolTowerHeader(
     }
 }
 
-/** 巡视弟子槽位网格（PatrolTowerDialog 拆分） */
+/** 巡视弟子槽位网格 */
 @Composable
 private fun PatrolSlotsGrid(
     slots: List<PatrolSlot>,
@@ -250,7 +248,7 @@ private fun PatrolSlotsGrid(
     }
 }
 
-/** 巡视弟子选择弹窗数据（PatrolTowerDialog 拆分） */
+/** 巡视弟子选择弹窗数据 */
 private data class PatrolSelectorData(
     val gameData: GameData,
     val towerIndex: Int,
@@ -259,7 +257,7 @@ private data class PatrolSelectorData(
     val isSwapMode: Boolean
 )
 
-/** 巡视弟子选择弹窗装配（PatrolTowerDialog 拆分） */
+/** 巡视弟子选择弹窗装配 */
 @Composable
 private fun PatrolDiscipleSelector(
     data: PatrolSelectorData,
@@ -301,7 +299,7 @@ private fun PatrolDiscipleSelector(
     )
 }
 
-/** 槽位指派/交换执行（PatrolTowerDialog 拆分） */
+/** 槽位指派/交换执行 */
 private suspend fun performSlotAction(
     patrolTowerViewModel: PatrolTowerViewModel,
     towerIndex: Int,
@@ -313,7 +311,7 @@ private suspend fun performSlotAction(
     else patrolTowerViewModel.assignDiscipleAsync(towerIndex, slotIndex, discipleId)
 }
 
-/** 选择确认动作（PatrolTowerDialog 拆分）：点击时读取当前槽位/模式并指派 */
+/** 选择确认动作：点击时读取当前槽位/模式并指派 */
 private fun buildConfirmAction(
     scope: CoroutineScope,
     patrolTowerViewModel: PatrolTowerViewModel,
@@ -331,7 +329,7 @@ private fun buildConfirmAction(
     onDone()
 }
 
-/** 进攻范围弹窗装配（PatrolTowerDialog 拆分） */
+/** 进攻范围弹窗装配 */
 @Composable
 private fun PatrolAttackRangeDialog(
     config: PatrolConfig,
@@ -375,7 +373,7 @@ private fun AttackRangeDialog(
         title = "进攻范围",
         mode = DialogMode.Half,
         scrollableContent = false,
-        // 含数量输入框：冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        // 含数量输入框：冻结宿主窗口系统栏操作，避免键盘弹出时部分机型频闪
         freezeSystemBars = true
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -415,7 +413,7 @@ private fun AttackRangeDialog(
     }
 }
 
-/** 境界多选网格（AttackRangeDialog 拆分） */
+/** 境界多选网格 */
 @Composable
 private fun RealmOptionGrid(
     realmOptions: List<Pair<Int, String>>,
@@ -450,8 +448,8 @@ private fun RealmOptionGrid(
 }
 
 /**
- * 妖兽数量输入行（AttackRangeDialog 拆分）：点击数量框弹出自绘数字面板
- * （NumberInputPanel，2026-09 IME 状态机根治：数字输入绕开系统 IME）。
+ * 妖兽数量输入行：点击数量框弹出自绘数字面板
+ * （NumberInputPanel：数字输入绕开系统 IME）。
  */
 @Composable
 private fun MaxCountInput(
@@ -496,8 +494,7 @@ private fun MaxCountInput(
     }
 }
 
-/** 取消/保存按钮行（AttackRangeDialog 拆分） */
-// 拆分搬移:参数保留原签名语义
+/** 取消/保存按钮行 */
 @Suppress("UnusedParameter")
 @Composable
 private fun AttackRangeActionButtons(
@@ -531,7 +528,7 @@ private fun AttackRangeActionButtons(
 /** 进攻妖兽数量上限（数量输入钳制目标，命名常量防魔法数字） */
 private const val PATROL_MAX_BEAST_COUNT = 13
 
-/** 数量输入规范化（AttackRangeDialog 拆分）：1~13 数字限制 */
+/** 数量输入规范化：1~13 数字限制 */
 private fun sanitizeBeastCount(raw: String): String {
     val filtered = raw.filter { it.isDigit() }
     val num = filtered.toIntOrNull()
@@ -543,7 +540,7 @@ private fun sanitizeBeastCount(raw: String): String {
     }
 }
 
-/** 未保存更改确认弹窗（AttackRangeDialog 拆分） */
+/** 未保存更改确认弹窗 */
 @Composable
 private fun UnsavedPromptDialog(
     onConfirm: () -> Unit,
@@ -560,7 +557,7 @@ private fun UnsavedPromptDialog(
     )
 }
 
-/** 保存配置构造（AttackRangeDialog 拆分） */
+/** 保存配置构造 */
 private fun buildPatrolConfig(
     config: PatrolConfig,
     selectedRealms: Set<Int>,

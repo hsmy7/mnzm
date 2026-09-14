@@ -10,7 +10,7 @@
 #include "gamecore/rng/rng_manager.h"
 
 // ============================================================
-// 品阶时间进度曲线（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-4）
+// 品阶时间进度曲线
 //
 // 等价移植 Kotlin RarityTimeProgression（旅行商人 / 收购 / 宗门交易共用）：
 //   - maxRarityForYear：分段开放品阶范围（[1,20) 凡 → [20,80) 凡~灵 →

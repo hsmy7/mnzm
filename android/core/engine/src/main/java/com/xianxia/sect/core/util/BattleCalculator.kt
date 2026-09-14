@@ -1,11 +1,9 @@
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.BuffType
-import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
-import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.engine.domain.battle.Combatant
@@ -58,25 +56,26 @@ data class DamageZones(
     // 境界压制独立乘算因子（buildDamageZones 按层差填充；与 buff 乘区分开，独立乘算不衰减）
     val realmGapDamageAmplification: Double = 0.0,
     val realmGapDamageReduction: Double = 0.0,
+    /** 跨大境界增伤因子（每高 1 大境界 +100%，累加不封顶；仅增伤方向） */
     // 跨大境界增伤因子（每高 1 大境界 +100%，独立乘算，与小层境界压制因子可叠加）
     val majorRealmDamageAmplification: Double = 0.0,
 )
 
 object BattleCalculator {
     // ── 技能选择概率常量 ──
-    private const val PROB_SUPPORT_LOW_HP = 0.80
-    private const val PROB_CONTROL_UNCONTROLLED = 0.60
-    private const val PROB_AOE_MANY_ENEMIES = 0.70
-    private const val PROB_TARGET_LOW_HP = 0.70
-    private const val PROB_TARGET_HIGH_THREAT = 0.50
-    private const val PROB_TARGET_LOW_DEFENSE = 0.40
-    private const val LOW_HP_THRESHOLD = 0.30
-    private const val LOW_MP_THRESHOLD = 0.30
-    private const val AOE_MIN_ENEMIES = 3
+    internal const val PROB_SUPPORT_LOW_HP = 0.80
+    internal const val PROB_CONTROL_UNCONTROLLED = 0.60
+    internal const val PROB_AOE_MANY_ENEMIES = 0.70
+    internal const val PROB_TARGET_LOW_HP = 0.70
+    internal const val PROB_TARGET_HIGH_THREAT = 0.50
+    internal const val PROB_TARGET_LOW_DEFENSE = 0.40
+    internal const val LOW_HP_THRESHOLD = 0.30
+    internal const val LOW_MP_THRESHOLD = 0.30
+    internal const val AOE_MIN_ENEMIES = 3
 
     // ── 境界压制斩杀常量 ──
     /** 每个大境界包含的小层数（所有境界 maxLayers 均为 9，见 GameConfig.Realm.CONFIGS） */
-    private const val LAYERS_PER_REALM = 9
+    internal const val LAYERS_PER_REALM = 9
 
     /**
      * 带 RNG 的便捷入口 — 使用 BATTLE 分区 RNG。
@@ -90,11 +89,18 @@ object BattleCalculator {
      */
     class BattleCalculatorWithRng(internal val rng: DeterministicRng) {
         fun calculateDamageVariance(): Double = BattleCalculator.calculateDamageVariance(rng)
-        fun calculateDamage(attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0, isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1, dodgeChanceModifier: Double = 0.5, zones: DamageZones = DamageZones()): DamageResult =
-            BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier, isPhysicalAttack, skillName, skillHits, dodgeChanceModifier, zones, rng)
-        fun calculateCombatantDamage(attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null, enableInstantKill: Boolean = false): DamageResult =
-            BattleCalculator.calculateCombatantDamage(attacker, defender, skill, damageModifier, zones, enableInstantKill, rng)
-        fun selectSkill(combatant: Combatant, enemies: List<Combatant>, allies: List<Combatant>, isSilenced: Boolean): CombatSkill? =
+        fun calculateDamage(attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0,
+            isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1,
+                dodgeChanceModifier: Double = 0.5, zones: DamageZones = DamageZones()): DamageResult =
+            BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier, isPhysicalAttack, skillName,
+                skillHits, dodgeChanceModifier, zones, rng)
+        fun calculateCombatantDamage(attacker: Combatant, defender: Combatant, skill: CombatSkill? = null,
+            damageModifier: Double = 1.0, zones: DamageZones? = null,
+                enableInstantKill: Boolean = false): DamageResult =
+            BattleCalculator.calculateCombatantDamage(attacker, defender, skill, damageModifier, zones,
+                enableInstantKill, rng)
+        fun selectSkill(combatant: Combatant, enemies: List<Combatant>, allies: List<Combatant>,
+            isSilenced: Boolean): CombatSkill? =
             BattleCalculator.selectSkill(combatant, enemies, allies, isSilenced, rng)
         fun selectTarget(attacker: Combatant, targets: List<Combatant>): Combatant =
             BattleCalculator.selectTarget(attacker, targets, rng)
@@ -107,10 +113,10 @@ object BattleCalculator {
      * @param defender 防守方（可选，提供 damageReduction + 体质减伤/防御加成）
      * @param extraAmplification 外部额外增伤（如政策加成），直接加到 damageAmplification 乘区
      */
-    fun buildDamageZones(attacker: Combatant, defender: Combatant? = null, extraAmplification: Double = 0.0): DamageZones {
+    fun buildDamageZones(attacker: Combatant, defender: Combatant? = null,
+        extraAmplification: Double = 0.0): DamageZones {
         // 物理/魔法攻击 Buff 分桶求和：避免物理加成误加到魔法攻击。
-        // T-C4（2026-08-05）：原 6 次 filter+sumOf 各 O(B) 遍历合并为单次 O(B)
-        // when 分桶累加——遍历序与累加序逐位一致，数学等价。
+        // 单次 O(B) when 分桶累加——遍历序与累加序逐位一致，数学等价。
         var physBoost = 0.0
         var physReduce = 0.0
         var magBoost = 0.0
@@ -225,7 +231,8 @@ object BattleCalculator {
         } ?: RealmGapFactors()
 
     fun calculateDamageVariance(rng: DeterministicRng): Double {
-        val variancePercent = rng.nextDouble() * GameConfig.Battle.DAMAGE_VARIANCE_PERCENT * 2 - GameConfig.Battle.DAMAGE_VARIANCE_PERCENT
+        val variancePercent = rng.nextDouble() * GameConfig.Battle.DAMAGE_VARIANCE_PERCENT * 2 - GameConfig.Battle
+            .DAMAGE_VARIANCE_PERCENT
         val roundedVariancePercent = (variancePercent * 10).toInt() / 10.0
         return 1.0 + roundedVariancePercent / 100.0
     }
@@ -278,7 +285,7 @@ object BattleCalculator {
      *
      * 注意：传入的 `zones` 应为"不含境界因子"的空乘区（默认 [DamageZones] 即可）——
      * 本入口会把境界三因子（含大境界因子）以加法注入 zones，若传入已含境界因子的 zones
-     * （如 [buildDamageZones] 产物）会造成因子二次叠加（对抗性审查发现，仅测试路径可达）。
+     * （如 [buildDamageZones] 产物）会造成因子二次叠加（仅测试路径可达）。
      */
     fun calculateDamage(
         attacker: CombatantStats,
@@ -338,72 +345,6 @@ object BattleCalculator {
         )
     }
 
-    fun calculateDodgeChance(
-        attacker: CombatantStats,
-        defender: CombatantStats,
-        modifier: Double = 0.5
-    ): Double {
-        val speedDiff = attacker.speed - defender.speed
-        val totalSpeed = (attacker.speed + defender.speed).coerceAtLeast(1)
-        return (speedDiff.toDouble() / totalSpeed * modifier).coerceIn(0.0, GameConfig.Battle.MAX_DODGE_CHANCE)
-    }
-
-    /**
-     * 跨境界压制因子（独立乘算，不进乘区，不会被同一乘区加算稀释）。
-     *
-     * realm 数值越小境界越高（0=仙人，9=炼气），realmLayer 1~9（1=初层）。
-     * 小层差距沿用 [checkInstantKill] 的归一化公式：
-     *   layerGap = (defenderRealm - attackerRealm) × LAYERS_PER_REALM + (attackerLayer - defenderLayer)
-     * layerGap > 0 表示攻击方境界更高：增伤因子 = 每层加成 × layerGap（不封顶）
-     * layerGap < 0 表示防守方境界更高：减伤 = min(1.0, 每层减伤 × (-layerGap))（封顶 100%）
-     * 大境界差 = defenderRealm - attackerRealm，> 0 表示攻击方高 N 个大境界：
-     *   大境界增伤因子 = 每大境界加成 × 大境界差（仅增伤方向，反向无对称减伤）。
-     * 三因子各自独立乘算，可同时生效（大境界加成与小层加成叠加）。
-     *
-     * 注意（对抗性审查结论）：直伤路径上高 2 个大境界及以上时 [checkInstantKill] 必杀优先，
-     * 大境界加成仅在"高 1 个大境界"及 DoT 路径完整生效；因子仍按大境界差累加计算（DoT 全档生效）。
-     *
-     * @param attackerRealm 攻击方境界（数值越小境界越高）
-     * @param attackerLayer 攻击方小层（1~9，0/越界按初层 1 回退）
-     * @param defenderRealm 防守方境界
-     * @param defenderLayer 防守方小层
-     */
-    fun calculateRealmGapFactors(
-        attackerRealm: Int,
-        attackerLayer: Int,
-        defenderRealm: Int,
-        defenderLayer: Int,
-        damageBonusPerLayer: Double = GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_LAYER,
-        damageReductionPerLayer: Double = GameConfig.Battle.RealmGap.DAMAGE_REDUCTION_PER_LAYER,
-        damageBonusPerMajorRealm: Double = GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_MAJOR_REALM
-    ): RealmGapFactors {
-        // 存档篡改防御：realm 无合法域校验（Room 列无 CHECK 约束），钳制到 [0,9] 防止
-        // 负值/超大值导致增伤因子无上限爆炸（口径与 GameConfig.Realm 0~9 对齐）；
-        // 与 safeLayer 同级的 realm 防御（对抗性审查发现 1）
-        val attackerRealmSafe = safeRealm(attackerRealm)
-        val defenderRealmSafe = safeRealm(defenderRealm)
-        // Long 中间运算防存档篡改后 Int 溢出回绕
-        val majorGap = defenderRealmSafe.toLong() - attackerRealmSafe.toLong()
-        val layerGap = majorGap * LAYERS_PER_REALM + (safeLayer(attackerLayer) - safeLayer(defenderLayer))
-        val damageAmplification = if (layerGap > 0L) damageBonusPerLayer * layerGap else 0.0
-        // 防守方境界更高：每高 1 小层 +30% 减伤（封顶 100%）
-        val damageReduction = if (layerGap < 0L) minOf(1.0, damageReductionPerLayer * (-layerGap)) else 0.0
-        // 大境界加成仅增伤方向：攻击方每高 1 大境界 +100%，反向无对称减伤。
-        // 配置为负值时钳制为 0（负因子 × 减伤超额会"负负得正"反转伤害语义，对抗性审查发现 3）
-        val majorRealmAmplification = if (majorGap > 0L) maxOf(0.0, damageBonusPerMajorRealm * majorGap) else 0.0
-        return RealmGapFactors(
-            damageAmplification = damageAmplification,
-            damageReduction = damageReduction,
-            majorRealmDamageAmplification = majorRealmAmplification
-        )
-    }
-
-    /** 小层境界安全钳制（1~9）：0/越界（未知、存档篡改）回退合法层数 */
-    private fun safeLayer(layer: Int): Int = layer.coerceIn(1, LAYERS_PER_REALM)
-
-    /** 大境界安全钳制（0~9，0=仙人，9=炼气）：负值/越界（存档篡改）回退合法域，与 [GameConfig.Realm] 口径一致 */
-    private fun safeRealm(realm: Int): Int = realm.coerceIn(0, GameConfig.Realm.MAX_REALM_INDEX)
-
     /** 境界压制三因子（小层增伤 + 小层减伤 + 大境界增伤），与 buff/体质/词条乘区独立乘算 */
     data class RealmGapFactors(
         val damageAmplification: Double = 0.0,
@@ -411,25 +352,6 @@ object BattleCalculator {
         /** 跨大境界增伤因子（每高 1 大境界 +100%，累加不封顶；仅增伤方向） */
         val majorRealmDamageAmplification: Double = 0.0
     )
-
-    fun generateBattleMessage(
-        attackerName: String,
-        targetName: String,
-        result: DamageResult
-    ): String {
-        if (result.isDodged) {
-            return "$targetName 闪避了 $attackerName 的攻击！"
-        }
-
-        val damageType = if (result.isPhysical) "物理" else "法术"
-        val skillPrefix = result.skillName?.let { "使用[$it] " } ?: ""
-        var message = "$attackerName ${skillPrefix}对 $targetName 造成 ${result.damage} 点${damageType}伤害"
-
-        if (result.isCrit) message += "（暴击！）"
-        if (result.hits > 1) message += "（${result.hits}连击）"
-
-        return message
-    }
 
     fun calculateCombatantDamage(
         attacker: Combatant,
@@ -453,13 +375,14 @@ object BattleCalculator {
         skill: CombatSkill?,
         enableInstantKill: Boolean
     ): DamageResult? {
-        if (!enableInstantKill || !checkInstantKill(attacker.realm, defender.realm, attacker.realmLayer, defender.realmLayer)) {
+        if (!enableInstantKill || !checkInstantKill(attacker.realm, defender.realm, attacker.realmLayer,
+            defender.realmLayer)) {
             return null
         }
         val isPhysical = if (skill != null) skill.damageType == DamageType.PHYSICAL
             else attacker.physicalAttack >= attacker.magicAttack
         return DamageResult(
-            // T-C2（2026-08-05）：maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
+            // maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
             damage = defender.maxHp.coerceAtLeast(0),
             isCrit = false,
             isPhysical = isPhysical,
@@ -467,31 +390,6 @@ object BattleCalculator {
             skillName = skill?.name,
             hits = skill?.hits ?: 1,
             isInstantKill = true
-        )
-    }
-
-    /** 闪避判定（calculateCombatantDamage 提取）：抽数位置保持（斩杀检查之后、暴击之前） */
-    private fun tryDodge(
-        attacker: Combatant,
-        defender: Combatant,
-        skill: CombatSkill?,
-        isSkillAttack: Boolean,
-        rng: DeterministicRng
-    ): DamageResult? {
-        val dodgeModifier = if (isSkillAttack) 0.3 else 0.5
-        val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE
-        else GameConfig.Battle.MAX_DODGE_CHANCE
-        val dodgeChance = calculateCombatantDodgeChance(attacker, defender, dodgeModifier, maxDodgeChance)
-
-        if (rng.nextDouble() >= dodgeChance) return null
-        return DamageResult(
-            damage = 0,
-            isCrit = false,
-            isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true
-            else attacker.physicalAttack >= attacker.magicAttack,
-            isDodged = true,
-            skillName = skill?.name,
-            hits = skill?.hits ?: 1
         )
     }
 
@@ -524,7 +422,7 @@ object BattleCalculator {
         )
 
         // 多段技能总伤害 = 单段伤害 × 段数（与 estimateDamage 的 AI 估算一致）。
-        // 对抗性审查修复：hits 篡改为 0/负值时钳制为 1（否则 0 伤害/负伤害回血），
+        // hits 篡改为 0/负值时钳制为 1（否则 0 伤害/负伤害回血），
         // Long 乘法防 Int 溢出回绕（单段伤害 × 段数超过 Int.MAX 时钳制到 Int.MAX）
         val safeHits = (skill?.hits ?: 1).coerceAtLeast(1)
         val finalDamage = (calculateFinalDamage(
@@ -572,7 +470,7 @@ object BattleCalculator {
         val damageZones = baseZones.copy(
             attackBuffs = baseZones.attackBuffs +
                 (if (isPhysical) baseZones.physicalAttackBuffs else baseZones.magicAttackBuffs),
-            // T-C1（2026-08-05）：damageModifier 注入（与 calculateCombatantDamage 同式），
+            // damageModifier 注入（与 calculateCombatantDamage 同式），
             // 严苛训练 +5% 时 AI 决策估算与实际伤害一致
             damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)
         )
@@ -607,273 +505,6 @@ object BattleCalculator {
             .coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
     }
 
-    private fun calculateCombatantDodgeChance(
-        attacker: Combatant,
-        defender: Combatant,
-        modifier: Double,
-        maxDodgeChance: Double = GameConfig.Battle.MAX_DODGE_CHANCE
-    ): Double {
-        val speedDiff = attacker.effectiveSpeed - defender.effectiveSpeed
-        val totalSpeed = (attacker.effectiveSpeed + defender.effectiveSpeed).coerceAtLeast(1)
-        return (speedDiff.toDouble() / totalSpeed * modifier).coerceIn(0.0, maxDodgeChance)
-    }
-
-    fun selectSkill(
-        combatant: Combatant,
-        enemies: List<Combatant>,
-        allies: List<Combatant>,
-        isSilenced: Boolean,
-        rng: DeterministicRng
-    ): CombatSkill? {
-        if (isSilenced) return null
-        if (combatant.skills.isEmpty()) return null
-
-        val availableSkills = combatant.skills.filter {
-            it.currentCooldown == 0 && combatant.mp >= it.mpCost
-        }
-        if (availableSkills.isEmpty()) return null
-
-        val supportSkills = availableSkills.filter { it.skillType == SkillType.SUPPORT }
-        val attackSkills = availableSkills.filter { it.skillType == SkillType.ATTACK }
-
-        val lowHpAllies = allies.filter { it.hpPercent < LOW_HP_THRESHOLD }
-        if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && rng.nextDouble() < PROB_SUPPORT_LOW_HP) {
-            return supportSkills.first()
-        }
-
-        val controlSkills = attackSkills.filter { skill ->
-            val localBuffType = skill.buffType
-            localBuffType != null && skill.buffDuration > 0 && localBuffType.isDebuff &&
-                localBuffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
-        }
-        val uncontrolledEnemies = enemies.filter { enemy -> !enemy.hasControlEffect }
-        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && rng.nextDouble() < PROB_CONTROL_UNCONTROLLED) {
-            return controlSkills.first()
-        }
-
-        val aoeSkills = attackSkills.filter { it.isAoe }
-        if (enemies.size >= AOE_MIN_ENEMIES && aoeSkills.isNotEmpty() && rng.nextDouble() < PROB_AOE_MANY_ENEMIES) {
-            return aoeSkills.maxByOrNull { it.damageMultiplier }
-        }
-
-        if (combatant.mpPercent < LOW_MP_THRESHOLD && attackSkills.isNotEmpty()) {
-            val cheapSkill = attackSkills.minByOrNull { it.mpCost }
-            if (cheapSkill != null && combatant.mp >= cheapSkill.mpCost * 2) {
-                return cheapSkill
-            }
-            return null
-        }
-
-        if (attackSkills.isNotEmpty()) {
-            return attackSkills.maxByOrNull { it.damageMultiplier / it.mpCost.coerceAtLeast(1) }
-        }
-
-        return availableSkills.firstOrNull()
-    }
-
-    fun selectTarget(attacker: Combatant, targets: List<Combatant>, rng: DeterministicRng): Combatant {
-        val lowHpTargets = targets.filter { it.hpPercent < LOW_HP_THRESHOLD }
-        if (lowHpTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_LOW_HP) {
-            return lowHpTargets[rng.nextInt(lowHpTargets.size)]
-        }
-
-        val highThreatTargets = targets.filter { target ->
-            target.skills.isNotEmpty() && target.effectivePhysicalAttack > attacker.effectivePhysicalDefense
-        }
-        if (highThreatTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_HIGH_THREAT) {
-            return highThreatTargets[rng.nextInt(highThreatTargets.size)]
-        }
-
-        val lowDefenseTargets = targets.filter { target ->
-            val avgDefense = (target.effectivePhysicalDefense + target.effectiveMagicDefense) / 2.0
-            avgDefense < attacker.effectivePhysicalAttack * 0.5
-        }
-        if (lowDefenseTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_LOW_DEFENSE) {
-            return lowDefenseTargets[rng.nextInt(lowDefenseTargets.size)]
-        }
-
-        return targets[rng.nextInt(targets.size)]
-    }
-
-    fun processDotEffects(combatants: List<Combatant>): List<DotResult> {
-        val results = mutableListOf<DotResult>()
-
-        for (combatant in combatants) {
-            val poisonBuffs = combatant.buffs.filter { it.type == BuffType.POISON && it.remainingDuration > 0 }
-            val burnBuffs = combatant.buffs.filter { it.type == BuffType.BURN && it.remainingDuration > 0 }
-
-            // 对抗性审查修复：Long 累加防多段 DoT Int 溢出回绕（两段 Int.MAX 累加成负数 → 伤害失真兜底 1），
-            // 最后钳制到 [MIN_DAMAGE, Int.MAX]，与 computeDamagePipeline 多段伤害同款模式
-            var dotDamage = 0L
-            poisonBuffs.forEach { buff ->
-                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toLong()
-            }
-            burnBuffs.forEach { buff ->
-                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toLong()
-            }
-            val dotDamageFinal = dotDamage
-                .coerceIn(GameConfig.Battle.MIN_DAMAGE.toLong(), Int.MAX_VALUE.toLong())
-                .toInt()
-
-            if (dotDamageFinal > 0) {
-                val newHp = maxOf(0, combatant.hp - dotDamageFinal)
-                results.add(DotResult(combatant, dotDamageFinal, newHp))
-            }
-        }
-
-        return results
-    }
-
-    /** DoT 境界压制倍率 = (1 + 小层增伤) × (1 + 大境界增伤) × (1 - 减伤)（与普攻/技能伤害同公式，独立乘算不进乘区） */
-    private fun dotRealmFactor(buff: CombatBuff, defender: Combatant): Double {
-        val factors = calculateRealmGapFactors(
-            buff.sourceRealm, buff.sourceRealmLayer, defender.realm, defender.realmLayer
-        )
-        return (1.0 + factors.damageAmplification) *
-            (1.0 + factors.majorRealmDamageAmplification) *
-            (1.0 - factors.damageReduction)
-    }
-
-    fun executeSupportSkill(
-        caster: Combatant,
-        allies: List<Combatant>,
-        skill: CombatSkill,
-        allCombatants: List<Combatant> = emptyList()
-    ): SupportResult {
-        val targets = when (skill.targetScope) {
-            "team" -> allies
-            "ally" -> emptyList() // Single ally resolved by caller
-            else -> listOf(caster)
-        }
-
-        val (healAmount, healFixedAmount) = computeHealAmounts(caster, skill)
-        val totalHeal = healAmount + healFixedAmount
-        val teamBuffs = buildSkillBuffs(skill, targets, caster.realm, caster.realmLayer)
-
-        return SupportResult(
-            healAmount = totalHeal,
-            healedIds = if (totalHeal > 0) targets.map { it.id } else emptyList(),
-            teamBuffs = teamBuffs,
-            turnAdvancePercent = skill.turnAdvancePercent,
-            healType = skill.healType
-        )
-    }
-
-    /** 治疗量计算（executeSupportSkill 提取）：百分比 + 固定值 */
-    private fun computeHealAmounts(caster: Combatant, skill: CombatSkill): Pair<Int, Int> {
-        var healAmount = 0
-        var healFixedAmount = 0
-
-        // Percentage healing
-        if (skill.healPercent > 0) {
-            healAmount = if (skill.healType == HealType.MP) {
-                (caster.maxMp * skill.healPercent).toInt()
-            } else {
-                (caster.maxHp * skill.healPercent).toInt()
-            }
-        }
-
-        // Fixed-value healing
-        if (skill.healFixed > 0) {
-            healFixedAmount = skill.healFixed
-        }
-        return healAmount to healFixedAmount
-    }
-
-    /** 团队 BUFF 构建（executeSupportSkill 提取）：护盾/伤害分担/旧单 BUFF/多 BUFF 列表 */
-    private fun buildSkillBuffs(
-        skill: CombatSkill,
-        targets: List<Combatant>,
-        sourceRealm: Int,
-        sourceRealmLayer: Int
-    ): Map<String, List<CombatBuff>> {
-        val teamBuffs = mutableMapOf<String, List<CombatBuff>>()
-
-        // Shield buff
-        if (skill.shieldPercent > 0 && skill.buffDuration > 0) {
-            val shieldBuff = CombatBuff(
-                type = BuffType.SHIELD,
-                value = skill.shieldPercent,
-                remainingDuration = skill.buffDuration,
-                sourceRealm = sourceRealm,
-                sourceRealmLayer = sourceRealmLayer
-            )
-            for (member in targets) {
-                teamBuffs[member.id] = listOf(shieldBuff)
-            }
-        }
-
-        // Damage share buff
-        if (skill.damageSharePercent > 0 && skill.buffDuration > 0) {
-            val shareBuff = CombatBuff(
-                type = BuffType.DAMAGE_SHARE,
-                value = skill.damageSharePercent,
-                remainingDuration = skill.buffDuration,
-                sourceRealm = sourceRealm,
-                sourceRealmLayer = sourceRealmLayer
-            )
-            for (member in targets) {
-                teamBuffs[member.id] = listOf(shareBuff)
-            }
-        }
-
-        // Legacy single buffType
-        val skillBuffType = skill.buffType
-        if (skillBuffType != null && skill.buffDuration > 0) {
-            val buff = CombatBuff(
-                type = skillBuffType,
-                value = skill.buffValue,
-                remainingDuration = skill.buffDuration,
-                sourceRealm = sourceRealm,
-                sourceRealmLayer = sourceRealmLayer
-            )
-            for (member in targets) {
-                teamBuffs[member.id] = listOf(buff)
-            }
-        }
-
-        // Multi-buff list
-        for ((buffType, buffValue, buffDuration) in skill.buffs) {
-            val buff = CombatBuff(
-                type = buffType,
-                value = buffValue,
-                remainingDuration = buffDuration,
-                sourceRealm = sourceRealm,
-                sourceRealmLayer = sourceRealmLayer
-            )
-            for (member in targets) {
-                val existing = teamBuffs[member.id] ?: emptyList()
-                teamBuffs[member.id] = existing + buff
-            }
-        }
-        return teamBuffs
-    }
-
-    fun updateCombatantCooldowns(combatant: Combatant, usedSkill: CombatSkill): Combatant {
-        val updatedSkills = combatant.skills.map { skill ->
-            if (skill.name == usedSkill.name) {
-                skill.copy(currentCooldown = skill.cooldown)
-            } else {
-                skill.copy(currentCooldown = maxOf(0, skill.currentCooldown - 1))
-            }
-        }
-        val existingBuffs = combatant.buffs
-            .map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }
-            .filter { it.remainingDuration > 0 }
-        return combatant.copy(
-            mp = combatant.mp - usedSkill.mpCost,
-            skills = updatedSkills,
-            buffs = existingBuffs
-        )
-    }
-
-    fun updateCombatantBuffsOnly(combatant: Combatant): Combatant {
-        val newBuffs = combatant.buffs
-            .map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }
-            .filter { it.remainingDuration > 0 }
-        return combatant.copy(buffs = newBuffs)
-    }
-
     /**
      * 跨境界斩杀判定（境界压制必杀）。
      *
@@ -881,9 +512,9 @@ object BattleCalculator {
      * （攻击方层数越高越强，差距增大；防御方层数越高越强，差距缩小）。
      * 攻击方比防御方高 [GameConfig.Battle.RealmGap.INSTANT_KILL_GAP] 个以上大境界（层数微调）时触发斩杀。
      *
-     * 对抗性审查修复：与 [calculateRealmGapFactors] 同族——realm/realmLayer 经存档篡改可越界，
-     * 原 Int 运算会溢出回绕（realmLayer=Int.MAX_VALUE 误斩秒杀任意目标、巨大 realm 漏斩），
-     * 改用 Long 中间运算 + safeRealm/safeLayer 钳制。
+     * realm/realmLayer 经存档篡改可越界，Int 运算会溢出回绕
+     * （realmLayer=Int.MAX_VALUE 误斩秒杀任意目标、巨大 realm 漏斩），
+     * 故使用 Long 中间运算 + safeRealm/safeLayer 钳制。
      *
      * @param attackerRealm 攻击方境界（数值越小境界越高）
      * @param defenderRealm 防御方境界（数值越小境界越高）
@@ -892,85 +523,6 @@ object BattleCalculator {
         val gap = (safeRealm(defenderRealm).toLong() - safeRealm(attackerRealm).toLong()) * LAYERS_PER_REALM +
             (safeLayer(attackerLayer).toLong() - safeLayer(defenderLayer).toLong())
         return gap > GameConfig.Battle.RealmGap.INSTANT_KILL_GAP * LAYERS_PER_REALM
-    }
-
-    /**
-     * Calculate shield absorption. Returns (absorbed, remaining damage).
-     * Shield absorbs damage before HP deduction. Multiple shields take the max value.
-     */
-    fun calculateShieldAbsorption(defender: Combatant, incomingDamage: Int): ShieldResult {
-        val shieldBuff = defender.buffs
-            .filter { it.type == BuffType.SHIELD && it.remainingDuration > 0 }
-            .maxByOrNull { it.value }
-            ?: return ShieldResult(0, incomingDamage)
-
-        // 对抗性审查修复：护盾 value 语义为最大生命比例（0~1），篡改负值会让
-        // absorbed 为负 → 伤害放大；+Infinity → 无限护盾；NaN.toInt()=0 已天然安全。
-        // 钳制到 [0,1] 防御存档篡改
-        val safeValue = shieldBuff.value.coerceIn(0.0, 1.0)
-        val shieldValue = (defender.maxHp * safeValue).toInt().coerceAtLeast(0)
-        val absorbed = minOf(shieldValue, incomingDamage)
-        val remaining = incomingDamage - absorbed
-        val newShieldValue = (shieldValue - absorbed).coerceAtLeast(0)
-
-        return ShieldResult(
-            absorbed = absorbed,
-            remainingDamage = remaining,
-            shieldBuff = shieldBuff,
-            remainingShield = newShieldValue
-        )
-    }
-
-    /**
-     * Apply damage share redistribution.
-     * Returns a map of (combatantId -> extraDamageToTake) from sharing.
-     */
-    fun calculateDamageShare(
-        targetId: String,
-        targetSide: CombatantSide,
-        incomingDamage: Int,
-        team: List<Combatant>,
-        beasts: List<Combatant>
-    ): Map<String, Int> {
-        val extraDamage = mutableMapOf<String, Int>()
-        val allies = if (targetSide == CombatantSide.DEFENDER) team else beasts
-
-        for (ally in allies) {
-            if (ally.id == targetId || ally.isDead) continue
-            val shareBuff = ally.buffs.find {
-                it.type == BuffType.DAMAGE_SHARE && it.remainingDuration > 0
-            } ?: continue
-            val shareDamage = (incomingDamage * shareBuff.value).toInt()
-            extraDamage[ally.id] = (extraDamage[ally.id] ?: 0) + shareDamage
-        }
-
-        return extraDamage
-    }
-
-    /**
-     * Calculate linked damage. Returns additional damage to apply to the linked enemy.
-     */
-    fun calculateLinkedDamage(
-        attacker: Combatant,
-        target: Combatant,
-        damage: Int,
-        beasts: List<Combatant>,
-        team: List<Combatant>
-    ): Map<String, Int> {
-        val linkedDamage = mutableMapOf<String, Int>()
-        val enemies = if (attacker.side == CombatantSide.DEFENDER) beasts else team
-
-        for (enemy in enemies) {
-            if (enemy.id == target.id || enemy.isDead) continue
-            val linkBuff = enemy.buffs.find {
-                it.type == BuffType.DAMAGE_LINK && it.remainingDuration > 0
-            } ?: continue
-            val linkDamage = (damage * linkBuff.value).toInt().coerceAtLeast(1)
-            linkedDamage[enemy.id] = linkDamage
-            break // Only one enemy can be linked at a time
-        }
-
-        return linkedDamage
     }
 
     data class ShieldResult(

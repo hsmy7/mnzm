@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
@@ -45,8 +45,6 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
-
 
 @Composable
 fun MissionHallDialog(
@@ -109,13 +107,14 @@ fun MissionHallDialog(
             data = ActiveMissionDisplayData(mission, currentYear, currentMonth),
             disciples = disciples,
             hpRatioById = hpRatioById,
-            onDiscipleClick = { it?.let { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } },
+            onDiscipleClick = { it?.let { d -> viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(d,
+                disciples)) } },
             onDismiss = { showActiveMissionDetail = false; selectedActiveMission = null }
         )
     }
 }
 
-/** 任务列表内容区（MissionHallDialog 拆分）：空态提示 + 活动/可接任务 LazyColumn */
+/** 任务列表内容区：空态提示 + 活动/可接任务 LazyColumn */
 @Composable
 private fun MissionHallContent(
     gameData: GameData?,
@@ -322,7 +321,7 @@ private fun ActiveMissionDetailDialog(
     }
 }
 
-// ── ActiveMissionDetailDialog 子组件（2026-08-11 拆分；难度行归并回 Block、进度/奖励归并为 Section，
+// ── ActiveMissionDetailDialog 子组件（难度行归并回 Block、进度/奖励归并为 Section，
 //    以控制单文件函数数 ≤15，函数体均 ≤60 行）──
 
 @Composable
@@ -500,7 +499,8 @@ private fun formatSpiritStoneReward(rewards: MissionRewardConfig): String {
     val parts = mutableListOf<String>()
     if (rewards.spiritStones > 0 || rewards.spiritStonesMax > 0) {
         if (rewards.spiritStonesMax > 0) {
-            parts.add("${GameUtils.formatNumber(rewards.spiritStones)}~${GameUtils.formatNumber(rewards.spiritStonesMax)}灵石")
+            parts.add("${GameUtils.formatNumber(rewards.spiritStones)}" +
+                "~${GameUtils.formatNumber(rewards.spiritStonesMax)}灵石")
         } else {
             parts.add("${GameUtils.formatNumber(rewards.spiritStones)}灵石")
         }
@@ -547,12 +547,14 @@ private fun MissionDispatchDialog(
     onDismiss: () -> Unit
 ) {
     var selectingSlotIndex by remember { mutableIntStateOf(-1) }
-    val selectedSlotIds = remember { mutableStateListOf<String?>(*Array(6) { null }) }
+    val selectedSlotIds = remember { mutableStateListOf<String?>().apply { repeat(6) { add(null) } } }
     val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
     val battleAndExplorationIds = remember(gameData) {
         if (gameData != null) {
-            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+                .toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }
+                .toSet()
             battleIds + explorationIds
         } else {
             emptySet()
@@ -605,7 +607,7 @@ private fun MissionDispatchDialog(
 
 }
 
-/** 派遣弹窗内容区（MissionDispatchDialog 拆分） */
+/** 派遣弹窗内容区 */
 @Composable
 private fun MissionDispatchDialogContent(
     mission: Mission,
@@ -643,17 +645,17 @@ private fun MissionDispatchDialogContent(
             onDismiss = onDismiss,
             onDispatch = {
                 val selected = eligibleDisciples.filter { it.id in selectedSlotIds.filterNotNull() }
-                viewModel.startMission(mission, selected)
+                viewModel.mission.startMission(mission, selected)
                 onDismiss()
             },
             onDiscipleClick = { disciple ->
-                viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, allDisciples))
+                viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(disciple, allDisciples))
             }
         )
     }
 }
 
-/** 任务信息卡 + 一键任命 + 派遣弟子标题（MissionDispatchDialog 拆分） */
+/** 任务信息卡 + 一键任命 + 派遣弟子标题 */
 @Composable
 private fun MissionInfoAndAssignRow(
     mission: Mission,
@@ -714,7 +716,7 @@ private fun MissionInfoAndAssignRow(
     )
 }
 
-/** 3×2 槽位网格 + 底部按钮（MissionDispatchDialog 拆分） */
+/** 3×2 槽位网格 + 底部按钮 */
 @Composable
 private fun MissionSlotGridAndButtons(
     selectedSlotIds: MutableList<String?>,

@@ -1,0 +1,18 @@
+{
+  "files": [
+    {
+      "name": "ExplorationServiceBeastRaidOps",
+      "header": "// ── 妖兽袭击域（自 ExplorationService 拆出，行为零变更） ─────────────────────",
+      "fns": [
+        "executeScheduledBeastAttacks",
+        "executeScheduledBeastAttack",
+        "resolveBeastAttackFight",
+        "resolveEncounterPath",
+        "launchEncounterBattle",
+        "selectBeastDefenders",
+        "markBeastDefeated",
+        "processBeastCasualties"
+      ]
+    }
+  ]
+}

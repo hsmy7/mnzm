@@ -29,7 +29,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 private const val SECRET_REALM_DESCRIPTION =
     "上古大能陨落之地，藏有无数机缘与凶险。每逢天地灵气波动之际现世，五十年一遇。"
 
-/** 秘境详情内容数据（SecretRealmDetailDialog 拆分） */
+/** 秘境详情内容数据 */
 private data class SecretRealmContentData(
     val realm: MapItem.SecretRealm,
     val gameData: GameData?,
@@ -110,7 +110,7 @@ fun SecretRealmDetailDialog(
     }
 }
 
-/** 槽位初始值（SecretRealmDetailDialog 拆分）：继续探索时由会话成员快照填充，否则 4 空槽 */
+/** 槽位初始值：继续探索时由会话成员快照填充，否则 4 空槽 */
 private fun initialSecretRealmSlots(
     hasSession: Boolean,
     session: SecretRealmExplorationSession?
@@ -124,7 +124,7 @@ private fun initialSecretRealmSlots(
         listOf(null, null, null, null)
     }
 
-/** 一键任命（SecretRealmDetailDialog 拆分）：引擎按境界优先选出 4 人，填入空槽 */
+/** 一键任命：引擎按境界优先选出 4 人，填入空槽 */
 private fun autoAppointTeam(
     hasSession: Boolean,
     slots: List<String?>,
@@ -147,7 +147,7 @@ private fun autoAppointTeam(
     }
 }
 
-/** 秘境详情对话框骨架（SecretRealmDetailDialog 拆分） */
+/** 秘境详情对话框骨架 */
 @Composable
 private fun SecretRealmDetailFrame(
     onDismiss: () -> Unit,
@@ -168,7 +168,7 @@ private fun SecretRealmDetailFrame(
     }
 }
 
-/** 顶部区（SecretRealmDetailDialog 拆分）：秘境精灵图 + 描述 / 探索一队 + 一键任命 */
+/** 顶部区：秘境精灵图 + 描述 / 探索一队 + 一键任命 */
 @Composable
 private fun SecretRealmTopSection(
     data: SecretRealmContentData,
@@ -234,7 +234,7 @@ private fun SecretRealmTopSection(
     }
 }
 
-/** 槽位与出发区（SecretRealmDetailDialog 拆分）：4 槽位 + 倒计时 + 出发探索按钮 */
+/** 槽位与出发区：4 槽位 + 倒计时 + 出发探索按钮 */
 @Composable
 private fun SecretRealmSlotAndActions(
     data: SecretRealmContentData,
@@ -296,8 +296,7 @@ private fun SecretRealmSlotAndActions(
     )
 }
 
-/** 秘境队伍弟子选择（SecretRealmDetailDialog 拆分）：过滤空闲/未被占用/秘境成员 */
-// 拆分搬移:参数保留原签名语义
+/** 秘境队伍弟子选择：过滤空闲/未被占用/秘境成员 */
 @Suppress("UnusedParameter")
 @Composable
 private fun SecretRealmDiscipleSelector(

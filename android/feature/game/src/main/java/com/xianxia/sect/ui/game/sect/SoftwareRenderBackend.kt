@@ -53,7 +53,7 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
         host.softwareRenderer?.release()
     }
 
-    // ── 内部拆分（2026-08-10 detekt：LongMethod/Cyclomatic/NestedBlockDepth 收敛） ──
+    // ── 内部拆分 ──
 
     /** 合并独立相机通道 + 命令总线建筑快照到帧契约（与 Vulkan 路径同语义） */
     private fun mergeCameraAndBuildingData(frame: RenderFrame): RenderFrame {
@@ -111,12 +111,15 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
                 atlas = atlas,
                 vpW = viewportW.coerceAtLeast(1),
                 vpH = viewportH.coerceAtLeast(1),
-                // ★ 地图淡入 alpha（WP4）：渲染线程每帧计算，合成 paint.alpha 应用
+                // 地图淡入 alpha：渲染线程每帧计算，合成 paint.alpha 应用
                 fadeAlpha = host.fadeAlpha,
-                // ★ 云层实例数据（渲染线程逐帧快照——与 Vulkan 路径同一份数据）
+                // 云层实例数据（渲染线程逐帧快照——与 Vulkan 路径同一份数据）
                 cloudData = cloudData,
-                // ★ 天空渐变配置（渲染侧单一真相源；天气/时间系统改此即可切换天际）
-                skyConfig = host.skyConfig
+                // 天空渐变配置（渲染侧单一真相源；天气/时间系统改此即可切换天际）
+                skyConfig = host.skyConfig,
+                // 崖壁独立纹理位图集（软渲染路径专用；Vulkan/GLES 走 GPU 纹理）。
+                // null（未加载/全失败）→ 崖壁层整层跳过，不画白
+                cliffTextures = host.islandCliffTextures.bitmaps.value
             )
         } catch (e: RuntimeException) {
             android.util.Log.e("SoftwareRenderBackend", "renderFrame failed: ${e.message}", e)
@@ -163,7 +166,7 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
                 if (surfaceCanvas == null) {
                     RenderMetrics.lockCanvasRetries.incrementAndGet()
                     retries--
-                    // ★ 对抗性审查修复：continue 前退出标志已由 while 条件重查（时序安全）
+                    // continue 前退出标志已由 while 条件重查（时序安全）
                     continue
                 }
                 commitBitmap(surfaceCanvas, rendered)
@@ -182,7 +185,7 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
      *
      * render scale = 1.0 时走逐位兼容的直贴路径（drawBitmap 原尺寸零缩放）；
      * render scale < 1.0 时降采样帧缓冲双线性上采样拉伸到物理 surface
-     * （render scale 2026-08-14 平板省电——与 Vulkan 路径 vkCmdBlitImage 同语义）。
+     * （render scale 平板省电策略——与 Vulkan 路径 vkCmdBlitImage 同语义）。
      */
     private fun commitBitmap(surfaceCanvas: android.graphics.Canvas, rendered: Bitmap) {
         val rs = host.softwareRenderer?.renderScale ?: 1.0f

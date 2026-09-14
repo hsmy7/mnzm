@@ -22,10 +22,10 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
-
-
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 @Composable
+@Suppress("UnusedParameter") // manuals: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun LibraryDialog(
     manuals: List<ManualInstance>,
     disciples: List<DiscipleAggregate>,
@@ -53,7 +53,7 @@ fun LibraryDialog(
             onRemove = { productionViewModel.removeDiscipleFromLibrarySlot(it) },
             onSwap = { showDiscipleSelection = it },
             onSlotClick = { disciple ->
-                viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
+                viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
             }
         )
     }
@@ -70,7 +70,7 @@ fun LibraryDialog(
 
 }
 
-/** 藏经阁槽位网格（LibraryDialog 拆分）：描述文案 + 3 列槽位行 */
+/** 藏经阁槽位网格：描述文案 + 3 列槽位行 */
 @Composable
 private fun LibrarySlotsGrid(
     slots: List<LibrarySlot>,
@@ -111,7 +111,7 @@ private fun LibrarySlotsGrid(
     }
 }
 
-/** 入驻弟子选择对话框（LibraryDialog 拆分）：境界筛选 + 槽位分配确认 */
+/** 入驻弟子选择对话框：境界筛选 + 槽位分配确认 */
 @Composable
 private fun LibraryDiscipleSelector(
     slotIndex: Int?,
@@ -148,7 +148,7 @@ private fun LibraryDiscipleSelector(
             onConfirm = { selected ->
                 selected.firstOrNull()?.let { disciple ->
                     if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                        viewModel.releaseDiscipleForReassignment(disciple.id)
+                        viewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                     }
                     productionViewModel.assignDiscipleToLibrarySlot(selectedIndex, disciple.id, disciple.name)
                     onDismiss()
@@ -158,6 +158,7 @@ private fun LibraryDiscipleSelector(
     }
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun LibrarySlotItem(
     slot: LibrarySlot,
@@ -180,7 +181,7 @@ private fun LibrarySlotItem(
         val borderColor = if (disciple != null) {
             try {
                 Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 GameColors.Border
             }
         } else {

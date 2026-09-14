@@ -1,27 +1,11 @@
 package com.xianxia.sect.data.crypto
 
-import android.content.Context
-import android.os.Build
 import android.util.Log
-import com.xianxia.sect.data.config.StorageConfig
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.security.SecureRandom
-import java.util.Arrays
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.crypto.Cipher
-import javax.crypto.Mac
-import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
@@ -62,7 +46,7 @@ import javax.crypto.spec.SecretKeySpec
  * 4. 至少保留一个完整版本的兼容期，确保所有用户数据可迁移
  */
 object SaveCrypto {
-    private const val TAG = "SaveCrypto"
+    internal const val TAG = "SaveCrypto"
 
     // ==================== 密钥版本化系�?====================
 
@@ -92,38 +76,15 @@ object SaveCrypto {
     }
 
     /** 当前活跃的加密版�?*/
-    @Volatile
-    private var activeVersion: KeyVersion = KeyVersion.ARGON2ID_AES_GCM
 
-    /**
-     * 切换加密算法版本（用�?A/B 测试或渐进式迁移�?
-     *
-     * 注意：切换版本后，新加密的数据将使用新格式，
-     * 但旧数据仍可解密（多版本兼容读取）�?
-     *
-     * @param version 目标版本
-     * @throws IllegalArgumentException 如果版本不支�?
-     */
-    @Throws(IllegalArgumentException::class)
-    fun setActiveVersion(version: KeyVersion) {
-        require(version in supportedVersions) { "Unsupported key version: $version" }
-        activeVersion = version
-        Log.i(TAG, "Active crypto version switched to: ${version.description}")
-    }
 
-    /** 获取当前活跃的加密版�?*/
-    fun getActiveVersion(): KeyVersion = activeVersion
 
     /** 当前支持的版本列�?*/
-    private val supportedVersions = setOf(
-        KeyVersion.ARGON2ID_AES_GCM,
-        KeyVersion.XCHACHA20_POLY1305
-    )
 
     // ==================== 加密算法常量 ====================
 
     /** AES-GCM 加密变换：认证加密模式，提供机密性和完整�?*/
-    private const val TRANSFORMATION_AES_GCM = "AES/GCM/NoPadding"
+    internal const val TRANSFORMATION_AES_GCM = "AES/GCM/NoPadding"
 
     /**
      * XChaCha20-Poly1305 加密变换（预留）
@@ -136,22 +97,20 @@ object SaveCrypto {
      *
      * 可用性：Android API 26+ (BouncyCastle �?Conscrypt 实现)
      */
-    private const val TRANSFORMATION_XCHACHA20_POLY1305 = "ChaCha20-Poly1305/None/NoPadding"
 
     /** 对称密钥算法：AES-256 */
-    private const val KEY_ALGORITHM_AES = "AES"
+    internal const val KEY_ALGORITHM_AES = "AES"
 
     /** XChaCha20 密钥算法标识 */
-    private const val KEY_ALGORITHM_CHACHA20 = "ChaCha20"
 
     /** 密钥长度�?56位（AES-256 / ChaCha20 均为 256 位） */
-    private const val KEY_SIZE = 256
+    internal const val KEY_SIZE = 256
 
     /** GCM 认证标签长度�?28位（最大强度） */
-    private const val GCM_TAG_LENGTH = 128
+    internal const val GCM_TAG_LENGTH = 128
 
     /** GCM 初始化向量长度：12字节�?6位，GCM推荐值） */
-    private const val GCM_IV_LENGTH = 12
+    internal const val GCM_IV_LENGTH = 12
 
     /**
      * XChaCha20-Poly1305 nonce 长度�?4字节�?92位）
@@ -159,16 +118,15 @@ object SaveCrypto {
      * XChaCha20 使用扩展 nonce（XNonce），�?16 字节密钥派生的子密钥 + 8 字节随机 nonce 组成�?
      * 随机生成�?24 字节 nonce 空间极大�?^192），无需担心重用问题�?
      */
-    private const val XCHACHA20_NONCE_LENGTH = 24
 
     /** HMAC 算法：SHA-256 */
-    private const val HMAC_ALGORITHM = "HmacSHA256"
+    internal const val HMAC_ALGORITHM = "HmacSHA256"
 
     /** HMAC 输出长度�?2字节（SHA-256输出长度�?*/
-    private const val HMAC_LENGTH = 32
+    internal const val HMAC_LENGTH = 32
 
     /** 盐值长度：32字节（足够防止彩虹表攻击�?*/
-    private const val SALT_LENGTH = 32
+    internal const val SALT_LENGTH = 32
 
     /**
      * 当前标准 PBKDF2 迭代次数�?10,000（OWASP 2023 推荐值）
@@ -180,7 +138,7 @@ object SaveCrypto {
      * - 在低端设备上�?500-800ms（可接受，PBKDF2 仅作�?Argon2id �?fallback�?
      * - Argon2id 仍是首选密钥派生算法（API 30+），PBKDF2 仅用于旧设备
      */
-    private const val PBKDF2_ITERATIONS = 310_000
+    internal const val PBKDF2_ITERATIONS = 310_000
 
     /**
      * 历史版本 PBKDF2 迭代次数�?0,000（OWASP 2021 推荐值，已过时）
@@ -190,7 +148,6 @@ object SaveCrypto {
      *
      * 版本化策略详见文件头�?"迭代次数版本化策�? 章节�?
      */
-    private const val PBKDF2_LEGACY_ITERATIONS = 60_000
 
     // ==================== Argon2id 常量 (OWASP 2025 推荐) ====================
 
@@ -211,44 +168,24 @@ object SaveCrypto {
      * 变更记录 (v2->v3): �?16MB 提升�?64MB 默认值，
      * 符合 OWASP 2025 对抗 GPU/ASIC 攻击的最新建议�?
      */
-    private val ARGON2ID_MEMORY_KIB_DEFAULT = 65536  // 64MB - OWASP 2025 recommended
+    internal const val ARGON2ID_MEMORY_KIB_DEFAULT = 65536  // 64MB - OWASP 2025 recommended
 
     /** Argon2id 并行度：2（平衡性能与安全性） */
-    private const val ARGON2ID_PARALLELISM = 2
+    internal const val ARGON2ID_PARALLELISM = 2
 
     /** Argon2id 迭代次数�?（配合高内存参数，符�?RFC 9106 推荐�?*/
-    private const val ARGON2ID_ITERATIONS = 3
+    internal const val ARGON2ID_ITERATIONS = 3
 
     /** Argon2id 输出长度�?2 字节�?56 位密钥） */
-    private const val ARGON2ID_OUTPUT_LENGTH = 32
+    internal const val ARGON2ID_OUTPUT_LENGTH = 32
 
     // ==================== 版本标识常量 ====================
 
     /** 版本头：Argon2id (当前生产版本) */
-    private val VERSION_ARGON2ID: Byte = KeyVersion.ARGON2ID_AES_GCM.byteValue
+    internal val VERSION_ARGON2ID: Byte = KeyVersion.ARGON2ID_AES_GCM.byteValue
 
     /** HKDF 信息标签：用于密钥派生上下文绑定 */
-    private const val HKDF_INFO_DEFAULT = "xianxia.save.key.v3"
-
-    /**
-     * 统一缓存 TTL�?分钟
-     *
-     * v3 重构变更：从原来�?2 分钟统一�?5 分钟�?
-     * �?StorageConfig.DEFAULT_KEY_CACHE_DURATION_MS (300000L) 和清理间隔对齐�?
-     *
-     * 设计考量�?
-     * - 游戏安全性优先，�?5 分钟仍在合理范围
-     * - Argon2id/PBKDF2 派生在中端设备上�?100-200ms
-     * - 缓存仅在内存中，进程终止即清�?
-     * - 统一 TTL 和清理间隔消除时间窗口不一致导致的状态不一�?
-     */
-    private val UNIFIED_CACHE_TTL_MS = TimeUnit.MINUTES.toMillis(5)
-
-    /** 最大缓存条目数�?0（数据量有限，减少内存中密钥驻留�?*/
-    private const val MAX_CACHE_SIZE = 10
-
-    /** 统一清理间隔�?分钟（与 TTL 一致，确保过期键及时清理） */
-    private val CACHE_CLEANUP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5)
+    internal const val HKDF_INFO_DEFAULT = "xianxia.save.key.v3"
 
     // ==================== 实例变量 ====================
 
@@ -265,66 +202,14 @@ object SaveCrypto {
     //         从根本上消除双缓存不一致的可能性�?
     //
 
-    /**
-     * 密钥来源枚举（用于统一缓存的来源追踪）
-     */
-    private enum class KeySource {
-        /** 启动时预计算（precomputeDerivedKey() 触发�?*/
-        PRECOMPUTED,
-
-        /** 实时派生（encrypt/decrypt 时按需计算�?*/
-        DERIVED
-    }
-
-    /**
-     * 统一缓存数据结构 (v3)
-     *
-     * 合并了原 CachedDerivedKey �?PrecomputedKeyEntry 的功能，
-     * 通过 source 字段区分密钥来源以便监控和调试�?
-     */
-    private data class UnifiedCachedKey(
-        val key: ByteArray,
-        val createdAt: Long,
-        val salt: ByteArray,
-        val source: KeySource
-    )
-
-    /**
-     * 统一密钥派生结果缓存 (v3 - 单一缓存架构)
-     *
-     * 结构：cacheKey -> UnifiedCachedKey
-     * - cacheKey �?password + salt 的哈希构�?
-     * - 包含派生密钥、创建时间戳、原始盐值、来源标�?
-     * - TTL = 5 分钟（与清理间隔一致）
-     *
-     * 线程安全保证�?
-     * - ConcurrentHashMap 保证单个操作的原子�?
-     * - 复合操作（检�?然后-操作）通过函数式方法保证一致�?
-     */
-    private val unifiedKeyCache = ConcurrentHashMap<String, UnifiedCachedKey>()
-
     // ==================== 协程管理（懒初始化）====================
 
     /** CoroutineScopeProvider 引用（通过 initialize() 注入） */
-    private lateinit var scopeProvider: CoroutineScopeProvider
 
-    /**
-     * 初始化 SaveCrypto 的 CoroutineScopeProvider。
-     *
-     * 由于 SaveCrypto 是 object 单例，无法使用 Hilt 构造器注入，
-     * 需在 Application.onCreate() 中调用此方法。
-     *
-     * @param provider 应用级 CoroutineScope 提供者
-     */
-    fun initialize(provider: CoroutineScopeProvider) {
-        scopeProvider = provider
-    }
 
     /** 定期清理协程作用域（用于缓存过期条目清理） */
-    private val cleanupScope get() = scopeProvider.ioScope
 
     /** 定期清理 Job 引用（可取消�?*/
-    private var cacheCleanupJob: Job? = null
 
     /**
      * 清理器懒初始化标志位 (v3 重构)
@@ -336,20 +221,7 @@ object SaveCrypto {
      * 2. 应用冷启动时不产生不必要的资源开销
      * 3. 如果 SaveCrypto 从未被使用，不会浪费线程资源
      */
-    private val cleanupInitialized = AtomicBoolean(false)
 
-    /**
-     * 确保清理器已初始化（懒加载模式）
-     *
-     * 使用 compareAndSet 保证只执行一次初始化�?
-     * 即使多线程并发调用也只会启动一个清理协程�?
-     */
-    private fun ensureCleanupInitialized() {
-        if (cleanupInitialized.compareAndSet(false, true)) {
-            startPeriodicCacheCleanup()
-            Log.d(TAG, "Lazy cache cleanup initialized on first access")
-        }
-    }
 
     // ==================== 公共加密方法（API 签名不变�?===================
 
@@ -362,10 +234,10 @@ object SaveCrypto {
      */
     @Throws(CryptoException::class)
     fun encrypt(data: ByteArray, password: String): ByteArray {
-        ensureCleanupInitialized()
+        SaveCryptoKeyCache.ensureCleanupInitialized()
         val salt = generateSecureRandomBytes(SALT_LENGTH)
         val iv = generateSecureRandomBytes(GCM_IV_LENGTH)
-        val key = deriveKeyArgon2id(password, salt)
+        val key = SaveCryptoKeyDerivation.deriveKeyArgon2id(password, salt)
         return encryptInternal(data, key, salt, iv, VERSION_ARGON2ID)
     }
 
@@ -378,48 +250,13 @@ object SaveCrypto {
      */
     @Throws(CryptoException::class)
     fun encrypt(data: ByteArray, key: ByteArray): ByteArray {
-        ensureCleanupInitialized()
+        SaveCryptoKeyCache.ensureCleanupInitialized()
         val salt = generateSecureRandomBytes(SALT_LENGTH)
         val iv = generateSecureRandomBytes(GCM_IV_LENGTH)
-        val derivedKey = deriveKeyFromKey(key, salt)
+        val derivedKey = SaveCryptoKeyDerivation.deriveKeyFromKey(key, salt)
         return encryptInternal(data, derivedKey, salt, iv, VERSION_ARGON2ID)
     }
 
-    /**
-     * 使用密码 + 硬件密钥双重加密（最高安全级别）
-     *
-     * 通过 SecureKeyManager 获取 Android Keystore 硬件级密钥，
-     * 结合 Argon2id 派生的软件密钥，实现双重加密保护�?
-     *
-     * 加密流程�?
-     * 1. 使用 Argon2id 从密码派生主密钥
-     * 2. 获取 SecureKeyManager 的硬件级密钥
-     * 3. 使用 HKDF 将两个密钥合并为最终加密密�?
-     * 4. 执行 AES-GCM 加密
-     *
-     * @param data 待加密数�?
-     * @param password 用户密码
-     * @param context Android Context（用于访�?Keystore�?
-     * @return 加密后的数据（格式：[version(1)] [salt(32)] [iv(12)] [ciphertext] [hmac(32)]�?
-     */
-    @Throws(CryptoException::class)
-    fun encryptWithHardwareKey(data: ByteArray, password: String, context: Context): ByteArray {
-        ensureCleanupInitialized()
-        val salt = generateSecureRandomBytes(SALT_LENGTH)
-        val iv = generateSecureRandomBytes(GCM_IV_LENGTH)
-
-        // Argon2id 密钥派生
-        val softwareKey = deriveKeyArgon2id(password, salt)
-
-        // 硬件级密钥（Android Keystore�?
-        val hardwareKey = SecureKeyManager.getOrCreateKey(context)
-
-        // 合并密钥：HKDF(softwareKey || hardwareKey)
-        val combinedKeyMaterial = softwareKey + hardwareKey
-        val finalKey = deriveKeyHKDF(combinedKeyMaterial, salt, "xianxia.save.hw_key.v4".toByteArray(Charsets.UTF_8))
-
-        return encryptInternal(data, finalKey, salt, iv, VERSION_ARGON2ID)
-    }
 
     // ==================== 公共解密方法（API 签名不变�?===================
 
@@ -433,7 +270,7 @@ object SaveCrypto {
      * @return 解密后的明文，如果解密失败则返回 null
      */
     fun decrypt(data: ByteArray, password: String): ByteArray? {
-        ensureCleanupInitialized()
+        SaveCryptoKeyCache.ensureCleanupInitialized()
         if (data.size < 1 + SALT_LENGTH + GCM_IV_LENGTH + HMAC_LENGTH + 1) {
             Log.e(TAG, "Data too short for decryption")
             return null
@@ -442,19 +279,21 @@ object SaveCrypto {
         // 仅接�?Argon2id 格式
         val version = data[0]
         if (version != VERSION_ARGON2ID) {
-            Log.e(TAG, "Unsupported version header: 0x${version.toString(16)}, expected 0x${VERSION_ARGON2ID.toString(16)}")
+            Log.e(TAG,
+                "Unsupported version header: 0x${version.toString(16)}, expected 0x${VERSION_ARGON2ID.toString(16)}")
             return null
         }
 
         Log.d(TAG, "Detected Argon2id format (version=0x02)")
         return decryptWithVersion(data, password, SALT_LENGTH) { pwd, salt ->
-            deriveKeyArgon2id(pwd, salt)
+            SaveCryptoKeyDerivation.deriveKeyArgon2id(pwd, salt)
         }
     }
 
     /**
      * 使用版本化格式解密（带版本头的统一格式�?
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun decryptWithVersion(
         data: ByteArray,
         password: String,
@@ -477,7 +316,8 @@ object SaveCrypto {
             val key = keyDerivation(password, salt)
 
             // 时序安全的签名验�?
-            val computedSignature = computeHmac(data.copyOfRange(0, data.size - HMAC_LENGTH), key)
+            val computedSignature = SaveCryptoKeyDerivation.computeHmac(
+                data.copyOfRange(0, data.size - SaveCrypto.HMAC_LENGTH), key)
             if (!timingSafeEqual(storedSignature, computedSignature)) {
                 Log.w(TAG, "HMAC verification failed for versioned format")
                 return null
@@ -506,7 +346,7 @@ object SaveCrypto {
      * @return 解密后的明文，如果解密失败则返回 null
      */
     fun decrypt(data: ByteArray, key: ByteArray): ByteArray? {
-        ensureCleanupInitialized()
+        SaveCryptoKeyCache.ensureCleanupInitialized()
         if (data.size < 1 + SALT_LENGTH + GCM_IV_LENGTH + HMAC_LENGTH + 1) {
             Log.e(TAG, "Data too short for decryption")
             return null
@@ -525,6 +365,7 @@ object SaveCrypto {
     /**
      * 使用密钥（非密码）尝试解密（带版本头的格式）
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun tryDecryptWithKeyVersioned(
         data: ByteArray,
         key: ByteArray,
@@ -541,10 +382,10 @@ object SaveCrypto {
             val encrypted = data.copyOfRange(1 + saltLength + GCM_IV_LENGTH, data.size - HMAC_LENGTH)
             val storedSignature = data.copyOfRange(data.size - HMAC_LENGTH, data.size)
 
-            val derivedKey = deriveKeyFromKey(key, salt)
+            val derivedKey = SaveCryptoKeyDerivation.deriveKeyFromKey(key, salt)
 
             // 时序安全的签名验�?
-            val computedSignature = computeHmac(
+            val computedSignature = SaveCryptoKeyDerivation.computeHmac(
                 data.copyOfRange(0, data.size - HMAC_LENGTH),
                 derivedKey
             )
@@ -611,49 +452,6 @@ object SaveCrypto {
 
     // ==================== 密钥预计算方法（v3: 使用统一缓存�?===================
 
-    /**
-     * 预计算派生密钥（推荐在应用启动时调用�?
-     *
-     * 当已知用户密码时（如从登录状态获取），可在后台预计算密钥�?
-     * 避免首次加密/解密时的延迟。预计算的密钥会被存入统一缓存�?
-     * 后续调用可直接复用�?
-     *
-     * v3 重构变更�?
-     * - 不再维护独立�?precomputedKeys 缓存
-     * - 直接写入 unifiedKeyCache，source 标记�?PRECOMPUTED
-     * - 消除了双缓存状态不一致的风险
-     *
-     * 使用示例�?
-     * ```kotlin
-     * // 应用启动时或获取密码�?
-     * lifecycleScope.launch {
-     *     SaveCrypto.precomputeDerivedKey(userPassword, appSalt)
-     * }
-     * ```
-     *
-     * @param password 用户密码
-     * @param salt 可选的固定盐值。如果为 null，将生成随机盐值（仅适用于单次使用场景）
-     * @return 是否成功预计�?
-     */
-    suspend fun precomputeDerivedKey(
-        password: String,
-        salt: ByteArray? = null
-    ): Boolean = withContext(Dispatchers.Default) {
-        try {
-            ensureCleanupInitialized()
-            val effectiveSalt = salt ?: generateSecureRandomBytes(SALT_LENGTH)
-            val key = deriveKeyArgon2id(password, effectiveSalt)
-
-            val cacheKey = buildCacheKey(password, effectiveSalt)
-            putToUnifiedCache(cacheKey, key, effectiveSalt, KeySource.PRECOMPUTED)
-
-            Log.d(TAG, "Precomputed derived key for cacheKey=${cacheKey.take(8)}... (unified cache)")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to precompute derived key", e)
-            false
-        }
-    }
 
     /**
      * 清除所有预计算密钥 (v3: 操作统一缓存)
@@ -663,137 +461,26 @@ object SaveCrypto {
 
     // ==================== 工具方法（委托到 CryptoHashUtils）====================
 
-    /**
-     * 计算 SHA-256 哈希
-     */
-    fun sha256(data: ByteArray): ByteArray = CryptoHashUtils.sha256(data)
 
-    /**
-     * 计算 SHA-256 哈希并返回十六进制字符串
-     */
-    fun sha256Hex(data: ByteArray): String = CryptoHashUtils.sha256Hex(data)
 
-    /**
-     * 生成数据的校验和（SHA-256）
-     */
-    fun generateChecksum(data: ByteArray): ByteArray = CryptoHashUtils.generateChecksum(data)
 
-    /**
-     * 验证校验和是否匹配（时序安全比较）
-     */
-    fun verifyChecksum(data: ByteArray, expectedChecksum: ByteArray): Boolean =
-        CryptoHashUtils.verifyChecksum(data, expectedChecksum)
 
-    /**
-     * 将校验和嵌入数据头部
-     */
-    fun embedChecksum(data: ByteArray): ByteArray = CryptoHashUtils.embedChecksum(data)
 
-    /**
-     * 从嵌入数据中提取校验和与数据
-     */
-    fun extractChecksumAndData(embeddedData: ByteArray): Pair<ByteArray, ByteArray>? =
-        CryptoHashUtils.extractChecksumAndData(embeddedData)
 
-    /**
-     * 验证嵌入的校验和是否有效
-     */
-    fun verifyEmbeddedChecksum(embeddedData: ByteArray): Boolean =
-        CryptoHashUtils.verifyEmbeddedChecksum(embeddedData)
 
     // ==================== 缓存管理方法（v3: 统一缓存接口�?===================
 
-    /**
-     * 获取当前缓存大小（用于监控和调试�?
-     */
-    fun getDerivedKeyCacheSize(): Int = unifiedKeyCache.size
 
-    /**
-     * 清除所有缓存的派生密钥（安全清理敏感数据）
-     */
-    fun clearDerivedKeyCache() {
-        unifiedKeyCache.values.forEach { cached ->
-            securelyClear(cached.key)
-            securelyClear(cached.salt)
-        }
-        unifiedKeyCache.clear()
-        Log.d(TAG, "Unified key cache cleared (securely wiped)")
-    }
 
-    /**
-     * 启动定期缓存清理协程 (v3: 仅通过懒初始化调用)
-     *
-     * �?5 分钟检查一次过期条目并清理�?
-     * 防止密钥在内存中驻留时间过长（安全优先）�?
-     * 使用 SupervisorJob 确保单个清理失败不影响后续调度�?
-     *
-     * v3 变更：不再从 init 块直接调用，
-     * �?ensureCleanupInitialized() 按需触发�?
-     */
-    private fun startPeriodicCacheCleanup() {
-        cacheCleanupJob?.cancel()
-        cacheCleanupJob = cleanupScope.launch {
-            while (isActive) {
-                try {
-                    delay(CACHE_CLEANUP_INTERVAL_MS)
-                    val removed = clearExpiredCacheEntries()
-                    if (removed > 0) {
-                        Log.d(TAG, "Periodic cache cleanup: removed $removed expired entries")
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Periodic cache cleanup error", e)
-                }
-            }
-        }
-        Log.d(TAG, "Periodic cache cleanup started (interval=${CACHE_CLEANUP_INTERVAL_MS}ms, ttl=${UNIFIED_CACHE_TTL_MS}ms)")
-    }
 
-    /**
-     * 停止定期缓存清理协程
-     *
-     * 在应用退出或需要释放资源时调用�?
-     */
-    fun stopPeriodicCacheCleanup() {
-        cacheCleanupJob?.cancel()
-        cacheCleanupJob = null
-        // 重置懒初始化标志，允许后续重新启�?
-        cleanupInitialized.set(false)
-        Log.d(TAG, "Periodic cache cleanup stopped (lazy-init flag reset)")
-    }
 
-    /**
-     * 清理过期的缓存条�?(v3: 操作统一缓存)
-     *
-     * @param ttlMs 自定义TTL（毫秒），默认使用统一�?5 分钟 TTL
-     * @return 清除的过期条目数
-     */
-    fun clearExpiredCacheEntries(ttlMs: Long = UNIFIED_CACHE_TTL_MS): Int {
-        val now = System.currentTimeMillis()
-        val effectiveTtl = StorageConfig.DEFAULT_KEY_CACHE_DURATION_MS.coerceAtLeast(ttlMs)
-        val expiredKeys = unifiedKeyCache.filter {
-            now - it.value.createdAt > effectiveTtl
-        }.keys.toList()
-
-        expiredKeys.forEach { key ->
-            val removed = unifiedKeyCache.remove(key)
-            if (removed != null) {
-                securelyClear(removed.key)
-                securelyClear(removed.salt)
-            }
-        }
-
-        if (expiredKeys.isNotEmpty()) {
-            Log.d(TAG, "Cleared ${expiredKeys.size} expired cache entries (unified cache)")
-        }
-        return expiredKeys.size
-    }
 
     // ==================== 内部实现方法 ====================
 
     /**
      * 生成指定长度的安全随机字�?
      */
-    private fun generateSecureRandomBytes(length: Int): ByteArray {
+    internal fun generateSecureRandomBytes(length: Int): ByteArray {
         val bytes = ByteArray(length)
         secureRandom.nextBytes(bytes)
         return bytes
@@ -804,485 +491,66 @@ object SaveCrypto {
      *
      * 输出格式：[version (1 byte)] [salt (32 bytes)] [iv (12 bytes)] [ciphertext] [hmac (32 bytes)]
      */
-    private fun encryptInternal(
-        data: ByteArray,
-        key: ByteArray,
-        salt: ByteArray,
-        iv: ByteArray,
-        version: Byte = VERSION_ARGON2ID
-    ): ByteArray {
-        val cipher = Cipher.getInstance(TRANSFORMATION_AES_GCM)
-        val secretKey = SecretKeySpec(key, KEY_ALGORITHM_AES)
-        val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec)
 
-        val encrypted = cipher.doFinal(data)
-
-        // 组装输出：version + salt + iv + ciphertext + hmac
-        val result = ByteArray(1 + SALT_LENGTH + GCM_IV_LENGTH + encrypted.size + HMAC_LENGTH)
-        result[0] = version
-        System.arraycopy(salt, 0, result, 1, SALT_LENGTH)
-        System.arraycopy(iv, 0, result, 1 + SALT_LENGTH, GCM_IV_LENGTH)
-        System.arraycopy(encrypted, 0, result, 1 + SALT_LENGTH + GCM_IV_LENGTH, encrypted.size)
-
-        // 计算并附�?HMAC（覆�?version + salt + iv + ciphertext�?
-        val signature = computeHmac(result.copyOfRange(0, result.size - HMAC_LENGTH), key)
-        System.arraycopy(signature, 0, result, result.size - HMAC_LENGTH, HMAC_LENGTH)
-
-        return result
-    }
 
     // ==================== 密钥派生方法 ====================
 
-    /**
-     * 核心 PBKDF2 密钥派生实现
-     *
-     * 安全注意事项�?
-     * - PBEKeySpec 包含敏感信息（密码字符数组），必须在使用后立即清�?
-     * - 使用 clear() 方法将字符数组归�?
-     */
-    private fun deriveKeyInternal(
-        password: String,
-        salt: ByteArray,
-        iterations: Int
-    ): ByteArray {
-        var spec: PBEKeySpec? = null
-        return try {
-            spec = PBEKeySpec(password.toCharArray(), salt, iterations, KEY_SIZE)
-            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            factory.generateSecret(spec).encoded
-        } finally {
-            spec?.let { Arrays.fill(it.password, ' ') }
-            spec = null
-        }
-    }
 
-    /**
-     * Argon2id 密钥派生 (v3: 修复参数规格，使�?Argon2ParameterSpec)
-     *
-     * ## v3 关键修复
-     *
-     * **P0 问题**：v2 版本�?API >= 30 时使�?`SecretKeyFactory.getInstance("Argon2id")`
-     * 配合 `PBEKeySpec` 传递参数。但 `PBEKeySpec` **不包�?memoryKiB �?parallelism 参数**�?
-     * 导致 Argon2id 实际运行时可能使用了不安全的默认参数（如 memory=16MB 而非预期�?64MB），
-     * 或者完全忽略了这些关键的安全参数�?
-     *
-     * **v3 修复**：改�?`Argon2ParameterSpec`（RFC 9106 标准），正确传递所有参数：
-     * - `memoryKiB`: 内存成本（根据设备自适应�?
-     * - `parallelism`: 并行度（固定�?2�?
-     * - `iterations`: 迭代次数（固定为 3�?
-     * - `outputLength`: 输出长度�?2 字节 = 256 位）
-     * - `salt`: 盐值（通过 Argon2ParameterSpec 传递）
-     *
-     * Password 仍需通过 `PBEKeySpec` 传递（因为 Argon2ParameterSpec 不包�?password 字段）�?
-     *
-     * ## 参数配置（自适应�?
-     *
-     * - Android API 30+: 使用系统内置 Argon2id 实现 + 正确�?Argon2ParameterSpec
-     * - Android API < 30: fallback �?PBKDF2-60K（增强安全性）
-     *
-     * ## OWASP 2025 推荐参数
-     *
-     * | 参数 | �?| 说明 |
-     * |------|------|------|
-     * | memoryKiB | 65536 (64MB) | 高端设备默认，抵�?GPU/ASIC |
-     * | parallelism | 2 | 平衡性能与安全�?|
-     * | iterations | 3 | 配合高内存参�?|
-     * | outputLength | 32 bytes | 256 位密�?|
-     *
-     * @param password 用户密码
-     * @param salt 随机盐值（32 字节�?
-     * @param context 可选的 Android Context（用于设备内存检测），若�?null 则使用保守默认�?
-     * @return 派生�?256 位密�?
-     */
-    fun deriveKeyArgon2id(password: String, salt: ByteArray, context: Context? = null): ByteArray {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            try {
-                // 根据设备内存自动调整 Argon2id 内存参数
-                val effectiveMemoryKib = resolveEffectiveMemoryKib(context)
 
-                // ========== v3 修复：使用正确的 Argon2ParameterSpec ==========
-                // Argon2ParameterSpec 包含所�?RFC 9106 要求的参数：
-                // memoryKiB, parallelism, iterations, outputLength, salt
-                //
-                // Password 通过 PBEKeySpec 传递（Argon2ParameterSpec 不包�?password�?
-                @Suppress("NewApi")
-                val argon2Spec = try {
-                    val specClass = Class.forName("javax.crypto.spec.Argon2ParameterSpec")
-                    val builderClass = Class.forName("javax.crypto.spec.Argon2ParameterSpec\$Builder")
-                    val builder = builderClass.getDeclaredConstructor().newInstance()
-                    builderClass.getMethod("memoryKiB", Int::class.java).invoke(builder, effectiveMemoryKib)
-                    builderClass.getMethod("parallelism", Int::class.java).invoke(builder, ARGON2ID_PARALLELISM)
-                    builderClass.getMethod("iterations", Int::class.java).invoke(builder, ARGON2ID_ITERATIONS)
-                    builderClass.getMethod("outputLength", Int::class.java).invoke(builder, ARGON2ID_OUTPUT_LENGTH)
-                    builderClass.getMethod("salt", ByteArray::class.java).invoke(builder, salt)
-                    builderClass.getMethod("build").invoke(builder)
-                } catch (cnfe: ClassNotFoundException) {
-                    null
-                }
 
-                // PBEKeySpec 仅用于传�?password（salt 已在 argon2Spec 中设置，此处传空数组�?
-                // iterations �?keySize 也由 argon2Spec 控制，此处仅作兼容性占�?
-                val pbeSpec = PBEKeySpec(
-                    password.toCharArray(),
-                    ByteArray(0),  // salt 已在 Argon2ParameterSpec 中设�?
-                    ARGON2ID_ITERATIONS,
-                    KEY_SIZE
-                )
-                try {
-                    val factory = SecretKeyFactory.getInstance("Argon2id")
-                    // 优先尝试使用 Argon2ParameterSpec（正确方式）
-                    val key = if (argon2Spec != null) {
-                        try {
-                            factory.generateSecret(argon2Spec as java.security.spec.KeySpec).encoded
-                        } catch (specEx: ClassCastException) {
-                            Log.w(TAG, "Argon2ParameterSpec type mismatch, using PBEKeySpec fallback", specEx)
-                            factory.generateSecret(pbeSpec).encoded
-                        } catch (specEx: Exception) {
-                            Log.w(TAG, "Argon2ParameterSpec direct call failed, trying PBEKeySpec fallback", specEx)
-                            factory.generateSecret(pbeSpec).encoded
-                        }
-                    } else {
-                        factory.generateSecret(pbeSpec).encoded
-                    }
-                    Arrays.fill(pbeSpec.password, ' ')
-                    Log.d(TAG, "Argon2id derivation completed (memory=${effectiveMemoryKib}KiB, parallelism=$ARGON2ID_PARALLELISM, iterations=$ARGON2ID_ITERATIONS) [v3: Argon2ParameterSpec]")
-                    key
-                } finally {
-                    Arrays.fill(pbeSpec.password, ' ')
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Argon2id failed, falling back to PBKDF2-${PBKDF2_ITERATIONS}", e)
-                deriveKeyInternal(password, salt, PBKDF2_ITERATIONS)
-            }
-        } else {
-            Log.i(TAG, "API ${Build.VERSION.SDK_INT} < 30, using PBKDF2-${PBKDF2_ITERATIONS} as Argon2id fallback")
-            deriveKeyInternal(password, salt, PBKDF2_ITERATIONS)
-        }
-    }
 
-    /**
-     * 根据设备总内存解�?Argon2id 应使用的内存参数
-     *
-     * 分级策略（v3 更新：提升高端设备默认值至 64MB）：
-     * - < 2GB RAM: 8MB（避�?OOM，低端设备安全优先）
-     * - < 4GB RAM: 16MB（标准移动端安全级别�?
-     * - >= 4GB RAM: 64MB（默认值，符合 OWASP 2025 高安全性推荐）
-     *
-     * v3 变更记录�?
-     * - 原来 >= 4GB 使用 16MB（过于保守）
-     * - 现在 >= 4GB 使用 64MB（OWASP 2025 推荐值）
-     * - 提升了对 GPU/ASIC 攻击的抵抗力
-     *
-     * @param context 可选的 Android Context（用�?ActivityManager 内存查询），
-     *                若为 null �?API < 30 则使用保守默认�?
-     * @return 实际应使用的 Argon2id 内存参数（单位：KiB�?
-     */
-    // v3: 移除冗余 @JvmStatic（object 单例中该注解无实际效果）
-    fun resolveEffectiveMemoryKib(context: Context?): Int {
-        if (context == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            return ARGON2ID_MEMORY_KIB_DEFAULT  // API < 30 或无 Context：使�?OWASP 推荐默认�?64MB
-        }
 
-        return try {
-            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
-                ?: return ARGON2ID_MEMORY_KIB_DEFAULT
-            val memInfo = android.app.ActivityManager.MemoryInfo()
-            activityManager.getMemoryInfo(memInfo)
-            val totalMemMB = memInfo.totalMem / (1024 * 1024)
 
-            when {
-                totalMemMB < 2048 -> {
-                    Log.i(TAG, "Low-end device detected (${totalMemMB}MB RAM), using 8MB Argon2id memory")
-                    8192   // < 2GB: 8MB
-                }
-                totalMemMB < 4096 -> {
-                    Log.d(TAG, "Mid-range device detected (${totalMemMB}MB RAM), using 16MB Argon2id memory")
-                    16384  // < 4GB: 16MB
-                }
-                else -> {
-                    // v3: �?16MB 提升�?64MB（OWASP 2025 推荐�?
-                    Log.d(TAG, "High-end device detected (${totalMemMB}MB RAM), using 64MB Argon2id memory (OWASP 2025)")
-                    ARGON2ID_MEMORY_KIB_DEFAULT  // >= 4GB: 64MB
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to detect device memory, using conservative default", e)
-            ARGON2ID_MEMORY_KIB_DEFAULT  // 检测失败时使用 OWASP 推荐默认�?64MB
-        }
-    }
 
-    /**
-     * 从已有密钥通过 HKDF 派生子密�?
-     *
-     * HKDF（HMAC-based Key Derivation Function）基�?RFC 5869
-     * 用于从主密钥派生出多个独立的子密�?
-     */
-    private fun deriveKeyFromKey(key: ByteArray, salt: ByteArray): ByteArray {
-        return deriveKeyHKDF(key, salt, HKDF_INFO_DEFAULT.toByteArray(Charsets.UTF_8))
-    }
 
-    /**
-     * HKDF 实现（RFC 5869�?
-     *
-     * 两阶段过程：
-     * 1. Extract：从输入密钥和盐值提取伪随机密钥（PRK�?
-     * 2. Expand：使�?PRK �?info 字符串扩展出输出密钥材料（OKM�?
-     *
-     * @param masterKey 输入主密�?
-     * @param salt 可选盐值（可为空）
-     * @param info 上下文信息（用于绑定密钥用途）
-     * @return 派生密钥
-     */
-    internal fun deriveKeyHKDF(
-        masterKey: ByteArray,
-        salt: ByteArray,
-        info: ByteArray? = null
-    ): ByteArray {
-        return try {
-            val effectiveInfo = info ?: HKDF_INFO_DEFAULT.toByteArray(Charsets.UTF_8)
 
-            // === Extract 阶段 ===
-            val extractMac = Mac.getInstance(HMAC_ALGORITHM)
-            if (salt.isNotEmpty()) {
-                extractMac.init(SecretKeySpec(salt, HMAC_ALGORITHM))
-            } else {
-                // 空盐值时使用全零密钥（RFC 5869 规范要求�?
-                extractMac.init(SecretKeySpec(ByteArray(HMAC_LENGTH), HMAC_ALGORITHM))
-            }
-            val prk = extractMac.doFinal(masterKey)
-
-            // === Expand 阶段 ===
-            val expandMac = Mac.getInstance(HMAC_ALGORITHM)
-            expandMac.init(SecretKeySpec(prk, HMAC_ALGORITHM))
-
-            // 添加计数器字节（RFC 5869 要求�?
-            val infoWithCounter = effectiveInfo + byteArrayOf(0x01.toByte())
-            val okm = expandMac.doFinal(infoWithCounter)
-
-            okm.copyOf(KEY_SIZE / 8)
-        } catch (e: Exception) {
-            Log.e(TAG, "HKDF derivation failed, falling back to legacy method", e)
-            deriveKeyLegacyHmac(masterKey, salt)
-        }
-    }
-
-    /**
-     * Legacy HMAC 密钥派生（降级方案）
-     *
-     * �?HKDF 不可用时的简单回退方案
-     * 注意：此方法的安全性低�?HKDF，仅作为最后手�?
-     */
-    private fun deriveKeyLegacyHmac(key: ByteArray, salt: ByteArray): ByteArray {
-        val mac = Mac.getInstance(HMAC_ALGORITHM)
-        mac.init(SecretKeySpec(key, HMAC_ALGORITHM))
-        return mac.doFinal(salt).copyOf(KEY_SIZE / 8)
-    }
-
-    /**
-     * 计算 HMAC-SHA256
-     */
-    private fun computeHmac(data: ByteArray, key: ByteArray): ByteArray {
-        val mac = Mac.getInstance(HMAC_ALGORITHM)
-        mac.init(SecretKeySpec(key, HMAC_ALGORITHM))
-        return mac.doFinal(data)
-    }
 
     // ==================== 统一缓存辅助方法 (v3) ====================
 
-    /**
-     * 构建缓存键：password + salt �?SHA-256 哈希组合
-     *
-     * 使用双重哈希确保�?
-     * - 密码明文不会出现在缓存键�?
-     * - 固定长度便于 HashMap 性能优化
-     */
-    private fun buildCacheKey(password: String, salt: ByteArray): String {
-        val passwordHash = sha256Hex(password.toByteArray())
-        val saltHash = sha256Hex(salt)
-        return "${passwordHash}_${saltHash}"
-    }
 
-    /**
-     * 将密钥存入统一缓存 (v3)
-     *
-     * 自动处理缓存容量限制和淘汰策�?
-     */
-    private fun putToUnifiedCache(
-        cacheKey: String,
-        key: ByteArray,
-        salt: ByteArray,
-        source: KeySource
-    ) {
-        // 容量检查和淘汰
-        if (unifiedKeyCache.size >= MAX_CACHE_SIZE) {
-            clearExpiredCacheEntries()
-            if (unifiedKeyCache.size >= MAX_CACHE_SIZE) {
-                aggressiveCacheEviction(MAX_CACHE_SIZE / 2)
-            }
-        }
 
-        // 存储副本，防止外部修改影响缓�?
-        unifiedKeyCache[cacheKey] = UnifiedCachedKey(
-            key = key.copyOf(),
-            createdAt = System.currentTimeMillis(),
-            salt = salt.copyOf(),
-            source = source
-        )
-    }
-
-    /**
-     * 激进缓存淘汰策�?(v3: 操作统一缓存)
-     *
-     * 当缓存满且无过期条目时，移除最早创建的条目
-     * 被移除的条目会安全擦除其中的敏感数据
-     */
-    private fun aggressiveCacheEviction(targetSize: Int) {
-        val entriesToRemove = unifiedKeyCache.size - targetSize
-        if (entriesToRemove <= 0) return
-
-        val sortedEntries = unifiedKeyCache.entries
-            .sortedBy { it.value.createdAt }
-
-        var removedCount = 0
-        for (i in 0 until minOf(entriesToRemove, sortedEntries.size)) {
-            val entry = sortedEntries[i]
-            // 安全清除敏感数据
-            securelyClear(entry.value.key)
-            securelyClear(entry.value.salt)
-            unifiedKeyCache.remove(entry.key)
-            removedCount++
-        }
-
-        Log.d(TAG, "Aggressive cache eviction: securely removed $removedCount entries from unified cache")
-    }
 
     // ==================== XChaCha20-Poly1305 支持（预留接口）====================
 
-    /**
-     * 检�?XChaCha20-Poly1305 是否可用
-     *
-     * XChaCha20-Poly1305 �?2025 年推荐的现代 AEAD 算法�?
-     * 相比 AES-GCM 具有以下优势�?
-     * - 24 字节随机 nonce（无需计数器管理）
-     * - 纯软件实现（�?AES-NI 依赖，ARM 设备性能稳定�?
-     * - IETF RFC 8439 标准�?
-     *
-     * 可用条件：Android API 26+ �?BouncyCastle �?Conscrypt 提供者可�?
-     */
-    fun isXChaCha20Available(): Boolean {
-        return try {
-            Cipher.getInstance(TRANSFORMATION_XCHACHA20_POLY1305)
-            true
-        } catch (e: Exception) {
-            Log.d(TAG, "XChaCha20-Poly1305 not available: ${e.message}")
-            false
-        }
-    }
 
-    /**
-     * 使用 XChaCha20-Poly1305 加密数据（实验性接口）
-     *
-     * 注意：此方法输出的数据格式与 AES-GCM 不同�?
-     * 解密时需要使用对应的 decryptXChaCha20() 方法�?
-     *
-     * 当前状态：预留接口，默认不启用�?
-     * 可通过 setActiveVersion(KeyVersion.XCHACHA20_POLY1305) 切换�?
-     *
-     * @param data 待加密数�?
-     * @param password 用户密码
-     * @return 加密后的数据，如果不支持则抛�?CryptoException
-     */
-    @Throws(CryptoException::class)
-    fun encryptXChaCha20(data: ByteArray, password: String): ByteArray {
-        if (!isXChaCha20Available()) {
-            throw CryptoException("XChaCha20-Poly1305 not available on this device")
-        }
 
-        ensureCleanupInitialized()
-        val salt = generateSecureRandomBytes(SALT_LENGTH)
-        val nonce = generateSecureRandomBytes(XCHACHA20_NONCE_LENGTH)
-        val key = deriveKeyArgon2id(password, salt)
-
-        return try {
-            val cipher = Cipher.getInstance(TRANSFORMATION_XCHACHA20_POLY1305)
-            val secretKey = SecretKeySpec(key, KEY_ALGORITHM_CHACHA20)
-            // ChaCha20-Poly1305 使用 IvParameterSpec 传入 24 字节 nonce（XChaCha20 nonce 长度�?
-            // 注意：不能使�?GCMParameterSpec，那是为 AES-GCM 设计�?
-            val paramSpec = IvParameterSpec(nonce)
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey, paramSpec)
-            val encrypted = cipher.doFinal(data)
-
-            // 组装输出：[version(1)] [salt(32)] [nonce(24)] [ciphertext+tag]
-            val result = ByteArray(1 + SALT_LENGTH + XCHACHA20_NONCE_LENGTH + encrypted.size)
-            result[0] = KeyVersion.XCHACHA20_POLY1305.byteValue
-            System.arraycopy(salt, 0, result, 1, SALT_LENGTH)
-            System.arraycopy(nonce, 0, result, 1 + SALT_LENGTH, XCHACHA20_NONCE_LENGTH)
-            System.arraycopy(encrypted, 0, result, 1 + SALT_LENGTH + XCHACHA20_NONCE_LENGTH, encrypted.size)
-
-            result
-        } catch (e: Exception) {
-            throw CryptoException("XChaCha20-Poly1305 encryption failed", e)
-        }
-    }
-
-    /**
-     * 使用 XChaCha20-Poly1305 解密数据（实验性接口）
-     *
-     * @param data 加密数据（由 encryptXChaCha20 生成�?
-     * @param password 用户密码
-     * @return 解密后的明文，失败返�?null
-     */
-    fun decryptXChaCha20(data: ByteArray, password: String): ByteArray? {
-        if (!isXChaCha20Available()) {
-            Log.w(TAG, "XChaCha20-Poly1305 not available")
-            return null
-        }
-
-        ensureCleanupInitialized()
-        val expectedVersion = KeyVersion.XCHACHA20_POLY1305.byteValue
-        val minSize = 1 + SALT_LENGTH + XCHACHA20_NONCE_LENGTH + 16  // 16 = minimum tag size
-        if (data.size < minSize || data[0] != expectedVersion) {
-            Log.e(TAG, "Invalid XChaCha20 data format")
-            return null
-        }
-
-        return try {
-            val salt = data.copyOfRange(1, 1 + SALT_LENGTH)
-            val nonce = data.copyOfRange(1 + SALT_LENGTH, 1 + SALT_LENGTH + XCHACHA20_NONCE_LENGTH)
-            val encrypted = data.copyOfRange(1 + SALT_LENGTH + XCHACHA20_NONCE_LENGTH, data.size)
-
-            val key = deriveKeyArgon2id(password, salt)
-
-            val cipher = Cipher.getInstance(TRANSFORMATION_XCHACHA20_POLY1305)
-            val secretKey = SecretKeySpec(key, KEY_ALGORITHM_CHACHA20)
-            // ChaCha20-Poly1305 使用 IvParameterSpec 传入 24 字节 nonce（与 encrypt 对称�?
-            val paramSpec = IvParameterSpec(nonce)
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, paramSpec)
-            cipher.doFinal(encrypted)
-        } catch (e: Exception) {
-            Log.d(TAG, "XChaCha20 decryption failed", e)
-            null
-        }
-    }
 
     // ==================== 安全工具方法（委托到 SecurityPrimitives.kt 顶层函数）====================
 
-    /**
-     * 清除所有密钥缓存 (v3: 统一缓存清理)
-     */
-    fun clearAllKeyCache() {
-        // 停止定期清理协程
-        stopPeriodicCacheCleanup()
-
-        val snapshot = unifiedKeyCache.entries.toList()
-        unifiedKeyCache.clear()
-        snapshot.forEach { (_, entry) ->
-            securelyClear(entry.key)
-            securelyClear(entry.salt)
-        }
-        Log.d(TAG, "All unified key caches securely cleared (including periodic cleanup stopped)")
-    }
 }
 
 class CryptoException(message: String, cause: Throwable? = null) : Exception(message, cause)
+/**
+ * 加密封装原语:输出 [version(1)] [salt(32)] [iv(12)] [ciphertext] [hmac(32)] 信封。
+ * (SaveCrypto 的对象体内存编排剥离至此的纯函数形态)
+ */
+internal fun encryptInternal(
+    data: ByteArray,
+    key: ByteArray,
+    salt: ByteArray,
+    iv: ByteArray,
+    version: Byte = SaveCrypto.VERSION_ARGON2ID
+): ByteArray {
+    val cipher = Cipher.getInstance(SaveCrypto.TRANSFORMATION_AES_GCM)
+    val secretKey = SecretKeySpec(key, SaveCrypto.KEY_ALGORITHM_AES)
+    val gcmSpec = GCMParameterSpec(SaveCrypto.GCM_TAG_LENGTH, iv)
+    cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec)
+
+    val encrypted = cipher.doFinal(data)
+
+    // 组装输出：version + salt + iv + ciphertext + hmac
+    val result = ByteArray(
+        1 + SaveCrypto.SALT_LENGTH + SaveCrypto.GCM_IV_LENGTH + encrypted.size + SaveCrypto.HMAC_LENGTH
+    )
+    result[0] = version
+    System.arraycopy(salt, 0, result, 1, SaveCrypto.SALT_LENGTH)
+    System.arraycopy(iv, 0, result, 1 + SaveCrypto.SALT_LENGTH, SaveCrypto.GCM_IV_LENGTH)
+    System.arraycopy(encrypted, 0, result, 1 + SaveCrypto.SALT_LENGTH + SaveCrypto.GCM_IV_LENGTH, encrypted.size)
+
+    // 计算并附加 HMAC（覆盖 version + salt + iv + ciphertext）
+    val signature = SaveCryptoKeyDerivation.computeHmac(
+        result.copyOfRange(0, result.size - SaveCrypto.HMAC_LENGTH), key)
+    System.arraycopy(signature, 0, result, result.size - SaveCrypto.HMAC_LENGTH, SaveCrypto.HMAC_LENGTH)
+
+    return result
+}

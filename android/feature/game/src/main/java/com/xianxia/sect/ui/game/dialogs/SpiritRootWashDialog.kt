@@ -34,6 +34,8 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.game.delegate.confirmSpiritRootWash
+import com.xianxia.sect.ui.game.delegate.washSpiritRoot
 
 /** 玉符不足提示文案（需求：点洗炼/继续洗炼且玉符不足时弹提示框） */
 private const val INSUFFICIENT_JADE_TEXT = "玉符不足，无法洗炼"
@@ -118,7 +120,7 @@ private fun SpiritRootWashContent(
     val jadeInsufficient = jadeSymbols < GameConfig.SpiritRoot.WASH_JADE_COST
 
     // 同帧连点防重入：washing 是 Compose 状态，同帧内第二次点击读旧值 false → 双扣玉符；
-    // AtomicBoolean compareAndSet 立即生效不等重组（对抗性审查 2026-08-09 状态破坏者发现）
+    // AtomicBoolean compareAndSet 立即生效不等重组（同 TraitWashDialog）
     val washInFlight = remember { AtomicBoolean(false) }
 
     fun onWashClick() {
@@ -128,7 +130,7 @@ private fun SpiritRootWashContent(
         scope.launch {
             try {
                 handleWashResult(
-                    result = vm.washSpiritRoot(disciple.id, pityCount),
+                    result = vm.disciple.washSpiritRoot(disciple.id, pityCount),
                     onSuccess = { root, pity ->
                         washResult = root
                         pityCount = pity
@@ -153,7 +155,7 @@ private fun SpiritRootWashContent(
         scope.launch {
             try {
                 handleConfirmResult(
-                    result = vm.confirmSpiritRootWash(disciple.id, current),
+                    result = vm.disciple.confirmSpiritRootWash(disciple.id, current),
                     onSuccess = onDismiss,
                     onError = { message -> errorText = message }
                 )
@@ -314,10 +316,10 @@ private fun handleConfirmResult(
 /**
  * 错误提示框（平台 Dialog 独立窗口）。
  *
- * 原实现用嵌套 InlineStandardPromptDialog：其 fillMaxSize 填满洗炼弹窗内容区后，
+ * 禁用嵌套 InlineStandardPromptDialog：其 fillMaxSize 填满洗炼弹窗内容区后，
  * 内部 50%W×55%H 弹窗超出内容区，被外层弹窗 clip 裁剪——错误文案（玉符不足/洗炼失败）
- * 完全不可见，玩家点击洗炼后"无任何反馈"误判为洗炼无效（2026-08-11 修复，
- * 与 TraitWashDialog.ErrorDialog 同源缺陷）。
+ * 完全不可见，玩家点击洗炼后"无任何反馈"误判为洗炼无效
+ *（与 TraitWashDialog.ErrorDialog 同源缺陷）。
  * 平台 Dialog 创建独立 Window 全屏覆盖，不受父级布局约束，必定可见。
  */
 @Composable

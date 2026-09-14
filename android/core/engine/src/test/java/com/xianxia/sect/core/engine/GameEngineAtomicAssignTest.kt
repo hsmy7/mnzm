@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
@@ -43,10 +44,10 @@ class GameEngineAtomicAssignTest {
     private lateinit var engine: GameEngine
     private lateinit var discipleFacade: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 
-    private val DISCIPLE_A = "1"
-    private val DISCIPLE_B = "2"
-    private val BUILDING_ID = "residence_b1"
-    private val SLOT_0 = 0
+    private val discipleA = "1"
+    private val discipleB = "2"
+    private val buildingId = "residence_b1"
+    private val slot0 = 0
 
     @Before
     fun setUp() {
@@ -83,7 +84,7 @@ class GameEngineAtomicAssignTest {
             gameEngineCore = mock(),
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mock(),
             cultivationFacade = mockCultivationFacade,
             economyFacade = mockEconomyFacade,
@@ -91,12 +92,12 @@ class GameEngineAtomicAssignTest {
         )
     }
 
-    /** 测试弟子与槽位初始化（setUp 拆分）：两个事务分别创建 DiscipleTables 与槽位数据 */
+    /** 测试弟子与槽位初始化：两个事务分别创建 DiscipleTables 与槽位数据 */
     private fun createTestData() {
         // 创建测试弟子（在事务内初始化 DiscipleTables，tables 实例被 store 持久化）
         store.update {
             discipleTables.writeAllowed = true
-            val a = DISCIPLE_A.toInt()
+            val a = discipleA.toInt()
             discipleTables.addId(a)
             discipleTables.names[a] = "弟子A"
             discipleTables.statuses[a] = DiscipleStatus.IDLE
@@ -105,7 +106,7 @@ class GameEngineAtomicAssignTest {
             discipleTables.realmLayers[a] = 1
             discipleTables.portraitRes[a] = "portrait_a"
 
-            val b = DISCIPLE_B.toInt()
+            val b = discipleB.toInt()
             discipleTables.addId(b)
             discipleTables.names[b] = "弟子B"
             discipleTables.statuses[b] = DiscipleStatus.IDLE
@@ -120,10 +121,10 @@ class GameEngineAtomicAssignTest {
         store.update {
             gameData = gameData.copy(
                 placedBuildings = listOf(
-                    GridBuildingData(instanceId = BUILDING_ID, displayName = "初级单人住所")
+                    GridBuildingData(instanceId = buildingId, displayName = "初级单人住所")
                 ),
                 residenceSlots = listOf(
-                    ResidenceSlot(buildingInstanceId = BUILDING_ID, slotIndex = SLOT_0)
+                    ResidenceSlot(buildingInstanceId = buildingId, slotIndex = slot0)
                 ),
                 patrolSlots = listOf(
                     PatrolSlot(index = 0),
@@ -137,41 +138,41 @@ class GameEngineAtomicAssignTest {
 
     @Test
     fun `assignToResidenceAtomic 空槽位分配成功`() = runTest {
-        val result = engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
+        val result = engine.assignToResidenceAtomic(buildingId, slot0, discipleA)
 
         assertTrue("应为 Success", result.isSuccess)
-        val slot = store.latestGameData.residenceSlots[SLOT_0]
-        assertEquals("槽位应写入弟子 A", DISCIPLE_A, slot.discipleId)
+        val slot = store.latestGameData.residenceSlots[slot0]
+        assertEquals("槽位应写入弟子 A", discipleA, slot.discipleId)
         assertEquals("槽位名应正确", "弟子A", slot.discipleName)
-        assertFalse("住所不注册 gate", gate.isAssigned(DISCIPLE_A))
+        assertFalse("住所不注册 gate", gate.isAssigned(discipleA))
     }
 
     @Test
     fun `assignToResidenceAtomic 覆盖原住户时释放旧弟子`() = runTest {
-        engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
+        engine.assignToResidenceAtomic(buildingId, slot0, discipleA)
 
-        val result = engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_B)
+        val result = engine.assignToResidenceAtomic(buildingId, slot0, discipleB)
 
         assertTrue("覆盖应成功", result.isSuccess)
-        val slot = store.latestGameData.residenceSlots[SLOT_0]
-        assertEquals("槽位应写入弟子 B", DISCIPLE_B, slot.discipleId)
-        assertFalse("住所不在 gate 中", gate.isAssigned(DISCIPLE_A))
-        assertFalse("住所不在 gate 中", gate.isAssigned(DISCIPLE_B))
+        val slot = store.latestGameData.residenceSlots[slot0]
+        assertEquals("槽位应写入弟子 B", discipleB, slot.discipleId)
+        assertFalse("住所不在 gate 中", gate.isAssigned(discipleA))
+        assertFalse("住所不在 gate 中", gate.isAssigned(discipleB))
     }
 
     @Test
     fun `assignToResidenceAtomic 不存在的弟子返回 Failure`() = runTest {
-        val result = engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, "999")
+        val result = engine.assignToResidenceAtomic(buildingId, slot0, "999")
         assertTrue("应为 Failure", result.isFailure)
     }
 
     @Test
     fun `assignToResidenceAtomic 入住不改变弟子状态`() = runTest {
         val prevStatus = store.latestGameData.let {
-            engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
+            engine.assignToResidenceAtomic(buildingId, slot0, discipleA)
             // 分配后检查状态不变（初始为 IDLE）
             val tables = store.discipleTables
-            tables.statuses[DISCIPLE_A.toInt()]
+            tables.statuses[discipleA.toInt()]
         }
         assertEquals("状态应保持 IDLE", DiscipleStatus.IDLE, prevStatus)
     }
@@ -180,18 +181,18 @@ class GameEngineAtomicAssignTest {
 
     @Test
     fun `removeFromResidenceAtomic 移除后槽位清空`() = runTest {
-        engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
+        engine.assignToResidenceAtomic(buildingId, slot0, discipleA)
 
-        val result = engine.removeFromResidenceAtomic(BUILDING_ID, SLOT_0)
+        val result = engine.removeFromResidenceAtomic(buildingId, slot0)
 
         assertTrue("移除应成功", result.isSuccess)
-        assertEquals("槽位应清空", "", store.latestGameData.residenceSlots[SLOT_0].discipleId)
-        assertFalse("gate 不受影响", gate.isAssigned(DISCIPLE_A))
+        assertEquals("槽位应清空", "", store.latestGameData.residenceSlots[slot0].discipleId)
+        assertFalse("gate 不受影响", gate.isAssigned(discipleA))
     }
 
     @Test
     fun `removeFromResidenceAtomic 空槽位不做操作`() = runTest {
-        val result = engine.removeFromResidenceAtomic(BUILDING_ID, SLOT_0)
+        val result = engine.removeFromResidenceAtomic(buildingId, slot0)
         assertTrue("空槽位移除应 Success", result.isSuccess)
     }
 
@@ -200,63 +201,63 @@ class GameEngineAtomicAssignTest {
         // 模拟 A 在巡视楼中
         store.update {
             val slots = gameData.patrolSlots.toMutableList()
-            slots[0] = PatrolSlot(index = 0, discipleId = DISCIPLE_A, discipleName = "弟子A")
+            slots[0] = PatrolSlot(index = 0, discipleId = discipleA, discipleName = "弟子A")
             gameData = gameData.copy(patrolSlots = slots)
         }
 
-        engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
+        engine.assignToResidenceAtomic(buildingId, slot0, discipleA)
 
-        assertEquals("巡视楼槽位不应被清除", DISCIPLE_A, store.latestGameData.patrolSlots[0].discipleId)
+        assertEquals("巡视楼槽位不应被清除", discipleA, store.latestGameData.patrolSlots[0].discipleId)
     }
 
     // ── 巡视楼分配 ──
 
     @Test
     fun `assignPatrolAtomic 分配成功设状态 PATROLLING`() = runTest {
-        val result = engine.assignPatrolAtomic(DISCIPLE_A, globalIndex = 0)
+        val result = engine.assignPatrolAtomic(discipleA, globalIndex = 0)
 
         assertTrue("分配应成功", result.isSuccess)
-        assertEquals("槽位应写入弟子 A", DISCIPLE_A, store.latestGameData.patrolSlots[0].discipleId)
-        assertTrue("gate 应注册", gate.isAssigned(DISCIPLE_A))
+        assertEquals("槽位应写入弟子 A", discipleA, store.latestGameData.patrolSlots[0].discipleId)
+        assertTrue("gate 应注册", gate.isAssigned(discipleA))
     }
 
     @Test
     fun `assignPatrolAtomic 使用塔索引重载`() = runTest {
-        val result = engine.assignPatrolAtomic(DISCIPLE_A, towerIndex = 0, slotOffset = 0, slotsPerTower = 2)
+        val result = engine.assignPatrolAtomic(discipleA, towerIndex = 0, slotOffset = 0, slotsPerTower = 2)
         assertTrue("便利重载应成功", result.isSuccess)
-        assertEquals("槽位 0 应写入弟子 A", DISCIPLE_A, store.latestGameData.patrolSlots[0].discipleId)
+        assertEquals("槽位 0 应写入弟子 A", discipleA, store.latestGameData.patrolSlots[0].discipleId)
     }
 
     @Test
     fun `assignPatrolAtomic 更换时同步旧 occupant 状态`() = runTest {
         // A 在槽 0，B 在槽 1
-        engine.assignPatrolAtomic(DISCIPLE_A, globalIndex = 0)
-        engine.assignPatrolAtomic(DISCIPLE_B, globalIndex = 1)
+        engine.assignPatrolAtomic(discipleA, globalIndex = 0)
+        engine.assignPatrolAtomic(discipleB, globalIndex = 1)
 
         // 更换：B 顶替 A 的槽位 0
-        val result = engine.assignPatrolAtomic(DISCIPLE_B, globalIndex = 0)
+        val result = engine.assignPatrolAtomic(discipleB, globalIndex = 0)
 
         assertTrue("更换应成功", result.isSuccess)
-        assertEquals("槽位 0 应为弟子 B", DISCIPLE_B, store.latestGameData.patrolSlots[0].discipleId)
-        assertTrue("新弟子 gate 应注册", gate.isAssigned(DISCIPLE_B))
-        assertFalse("旧弟子 gate 应释放", gate.isAssigned(DISCIPLE_A))
-        // 回归守卫：旧 occupant 必须被同步状态（修复前从不 sync，
-        // statuses 残留 PATROLLING 从选择弹窗消失）。A 的 sync 调用 = 第 1 次分配(新弟子) + 本次更换(旧 occupant) = 2 次
-        verify(discipleFacade, times(2)).syncSingleDiscipleStatus(DISCIPLE_A)
-        verify(discipleFacade, times(2)).syncSingleDiscipleStatus(DISCIPLE_B)
+        assertEquals("槽位 0 应为弟子 B", discipleB, store.latestGameData.patrolSlots[0].discipleId)
+        assertTrue("新弟子 gate 应注册", gate.isAssigned(discipleB))
+        assertFalse("旧弟子 gate 应释放", gate.isAssigned(discipleA))
+        // 旧 occupant 必须被同步状态（否则 statuses 残留 PATROLLING，从选择弹窗消失）。
+        // A 的 sync 调用 = 第 1 次分配(新弟子) + 本次更换(旧 occupant) = 2 次
+        verify(discipleFacade, times(2)).syncSingleDiscipleStatus(discipleA)
+        verify(discipleFacade, times(2)).syncSingleDiscipleStatus(discipleB)
     }
 
     // ── 巡视楼移除 ──
 
     @Test
     fun `removePatrolAtomic 移除后槽位清空 gate 释放`() = runTest {
-        engine.assignPatrolAtomic(DISCIPLE_A, globalIndex = 0)
+        engine.assignPatrolAtomic(discipleA, globalIndex = 0)
 
         val result = engine.removePatrolAtomic(globalIndex = 0)
 
         assertTrue("移除应成功", result.isSuccess)
         assertEquals("槽位应清空", "", store.latestGameData.patrolSlots[0].discipleId)
-        assertFalse("gate 应释放", gate.isAssigned(DISCIPLE_A))
+        assertFalse("gate 应释放", gate.isAssigned(discipleA))
     }
 
     @Test
@@ -269,37 +270,37 @@ class GameEngineAtomicAssignTest {
 
     @Test
     fun `swapPatrolAtomic 交换两个槽位`() = runTest {
-        engine.assignPatrolAtomic(DISCIPLE_A, globalIndex = 0)
-        engine.assignPatrolAtomic(DISCIPLE_B, globalIndex = 1)
+        engine.assignPatrolAtomic(discipleA, globalIndex = 0)
+        engine.assignPatrolAtomic(discipleB, globalIndex = 1)
 
         val result = engine.swapPatrolAtomic(fromGlobalIndex = 0, toGlobalIndex = 1)
 
         assertTrue("交换应成功", result.isSuccess)
         val d = store.latestGameData
-        assertEquals("槽位 0 应为弟子 B", DISCIPLE_B, d.patrolSlots[0].discipleId)
-        assertEquals("槽位 1 应为弟子 A", DISCIPLE_A, d.patrolSlots[1].discipleId)
+        assertEquals("槽位 0 应为弟子 B", discipleB, d.patrolSlots[0].discipleId)
+        assertEquals("槽位 1 应为弟子 A", discipleA, d.patrolSlots[1].discipleId)
     }
 
     @Test
     fun `swapPatrolAtomic 相同索引不做操作`() = runTest {
-        engine.assignPatrolAtomic(DISCIPLE_A, globalIndex = 0)
+        engine.assignPatrolAtomic(discipleA, globalIndex = 0)
         val result = engine.swapPatrolAtomic(fromGlobalIndex = 0, toGlobalIndex = 0)
         assertTrue("同索引交换应 Success", result.isSuccess)
-        assertEquals("槽位不变", DISCIPLE_A, store.latestGameData.patrolSlots[0].discipleId)
+        assertEquals("槽位不变", discipleA, store.latestGameData.patrolSlots[0].discipleId)
     }
 
     // ── 批量分配 ──
 
     @Test
     fun `autoAssignPatrolAtomic 批量分配成功`() = runTest {
-        val result = engine.autoAssignPatrolAtomic(listOf(0 to DISCIPLE_A, 1 to DISCIPLE_B))
+        val result = engine.autoAssignPatrolAtomic(listOf(0 to discipleA, 1 to discipleB))
 
         assertTrue("批量分配应成功", result.isSuccess)
         val d = store.latestGameData
-        assertEquals("槽位 0 为 A", DISCIPLE_A, d.patrolSlots[0].discipleId)
-        assertEquals("槽位 1 为 B", DISCIPLE_B, d.patrolSlots[1].discipleId)
-        assertTrue("A gate 注册", gate.isAssigned(DISCIPLE_A))
-        assertTrue("B gate 注册", gate.isAssigned(DISCIPLE_B))
+        assertEquals("槽位 0 为 A", discipleA, d.patrolSlots[0].discipleId)
+        assertEquals("槽位 1 为 B", discipleB, d.patrolSlots[1].discipleId)
+        assertTrue("A gate 注册", gate.isAssigned(discipleA))
+        assertTrue("B gate 注册", gate.isAssigned(discipleB))
     }
 
     // ── CancellationException ──
@@ -315,7 +316,7 @@ class GameEngineAtomicAssignTest {
 
     @Test
     fun `已入住弟子不在 gate 注册中`() = runTest {
-        engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
+        engine.assignToResidenceAtomic(buildingId, slot0, discipleA)
 
         // 住所不注册 gate（住所与工作槽位共存）
         val residentSlotsWithDisciple = store.latestGameData.residenceSlots.filter { it.discipleId.isNotEmpty() }

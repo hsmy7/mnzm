@@ -3,7 +3,7 @@ package com.xianxia.sect.core.state
 import org.junit.Assert.fail
 
 /**
- * 轮询等待辅助（2026-08-01 时序测试抖动修复）。
+ * 轮询等待辅助。
  *
  * 固定 delay/Thread.sleep 在慢 CI 上可能不足 → flaky；本工具轮询目标状态而非
  * 固定时长，状态达成即返回，超时才 fail。

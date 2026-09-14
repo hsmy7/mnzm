@@ -7,6 +7,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.dialogs.AlchemyDialogInputs
+import com.xianxia.sect.ui.game.dialogs.ForgeDialogInputs
 import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.dialogs.AlchemyDialog
 import com.xianxia.sect.ui.game.dialogs.BloodRefiningPoolDialog
@@ -90,12 +92,11 @@ private fun renderAlchemy(
     val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
     DeferredContent {
         AlchemyDialog(
+            inputs = AlchemyDialogInputs(
+                alchemySlots = alchemySlots, materials = materials, herbs = herbs,
+                gameData = gameData, disciples = aliveDisciples
+            ),
             buildingInstanceId = type.buildingInstanceId,
-            alchemySlots = alchemySlots,
-            materials = materials,
-            herbs = herbs,
-            gameData = gameData,
-            disciples = aliveDisciples,
             viewModel = viewModel,
             productionViewModel = vms.production,
             alchemyViewModel = vms.alchemy,
@@ -118,11 +119,11 @@ private fun renderForge(
     val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
     DeferredContent {
         ForgeDialog(
+            inputs = ForgeDialogInputs(
+                forgeSlots = forgeSlots, materials = materials,
+                gameData = gameData, disciples = aliveDisciples
+            ),
             buildingInstanceId = type.buildingInstanceId,
-            forgeSlots = forgeSlots,
-            materials = materials,
-            gameData = gameData,
-            disciples = aliveDisciples,
             viewModel = viewModel,
             productionViewModel = vms.production,
             forgeViewModel = vms.forge,

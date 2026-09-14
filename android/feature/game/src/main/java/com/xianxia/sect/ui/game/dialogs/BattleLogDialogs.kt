@@ -1,47 +1,35 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.beastSpriteRes
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.core.model.BattleLog
-import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
-import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.YearlyReport
-import com.xianxia.sect.ui.components.clickableWithSound
+import androidx.compose.animation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 
-/** 日志对话框标签页枚举 */
-private enum class BattleLogTab(val label: String) {
-    LOGS("战斗日志"),
-    REPORT("年报日志")
-}
+
+
 
 private fun resolveBeastImageRes(enemyName: String): Int? {
     val idx = GameConfig.Beast.TYPES.indexOfFirst { enemyName.endsWith(it.name) }
@@ -52,7 +40,7 @@ private fun resolveBeastImageRes(enemyName: String): Int? {
  * 推断战斗日志的具体战斗名称。
  * PVE 被妖兽战和任务战复用，需结合 details 区分。
  */
-private fun resolveBattleTypeName(log: BattleLog): String = when (log.type) {
+internal fun resolveBattleTypeName(log: BattleLog): String = when (log.type) {
     BattleType.SECT_WAR ->
         if (log.attackerName == "玩家队伍") "宗门战" else "宗门防守战"
     BattleType.SCOUT -> "探查战"
@@ -119,7 +107,8 @@ internal fun BattleLogDetailDialog(
                 if (log.rounds.isNotEmpty()) {
                     item { BattleRoundsHeader() }
 
-                    itemsIndexed(log.rounds, key = { index, round -> "round_${round.roundNumber}_$index" }) { _, round ->
+                    itemsIndexed(log.rounds, key = { index, round -> "round_${round.roundNumber}_$index" }) { _,
+                        round ->
                         BattleRoundItem(round = round)
                     }
                 }
@@ -128,9 +117,9 @@ internal fun BattleLogDetailDialog(
     }
 }
 
-/** 战斗结果徽标（BattleLogDetailDialog/BattleLogListItem 共用拆分） */
+/** 战斗结果徽标 */
 @Composable
-private fun BattleResultBadge(resultColor: Color, resultText: String) {
+internal fun BattleResultBadge(resultColor: Color, resultText: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
@@ -146,7 +135,7 @@ private fun BattleResultBadge(resultColor: Color, resultText: String) {
     }
 }
 
-/** 战斗详情头部（BattleLogDetailDialog 拆分）：日期 + 结果徽标 + 回合数 + 我方弟子标题 */
+/** 战斗详情头部：日期 + 结果徽标 + 回合数 + 我方弟子标题 */
 @Composable
 private fun BattleDetailHeader(
     log: BattleLog,
@@ -182,7 +171,7 @@ private fun BattleDetailHeader(
     Spacer(modifier = Modifier.height(8.dp))
 }
 
-/** 我方弟子一行（BattleLogDetailDialog 拆分）：4 槽位 + 空位占位 */
+/** 我方弟子一行：4 槽位 + 空位占位 */
 @Composable
 private fun BattleMemberRow(members: List<BattleLogMember>) {
     Row(
@@ -207,7 +196,7 @@ private fun BattleMemberRow(members: List<BattleLogMember>) {
     }
 }
 
-/** 敌方阵营标题（BattleLogDetailDialog 拆分） */
+/** 敌方阵营标题 */
 @Composable
 private fun BattleEnemyHeader(log: BattleLog) {
     Spacer(modifier = Modifier.height(16.dp))
@@ -225,7 +214,7 @@ private fun BattleEnemyHeader(log: BattleLog) {
     Spacer(modifier = Modifier.height(8.dp))
 }
 
-/** 敌方一行（BattleLogDetailDialog 拆分）：含妖兽精灵图兜底解析 */
+/** 敌方一行：含妖兽精灵图兜底解析 */
 @Composable
 private fun BattleEnemyRow(enemies: List<BattleLogEnemy>) {
     Row(
@@ -254,7 +243,7 @@ private fun BattleEnemyRow(enemies: List<BattleLogEnemy>) {
     }
 }
 
-/** 战利品/被掠夺物品区（BattleLogDetailDialog 拆分） */
+/** 战利品/被掠夺物品区 */
 @Composable
 private fun BattleDropsSection(log: BattleLog) {
     Spacer(modifier = Modifier.height(12.dp))
@@ -276,594 +265,26 @@ private fun BattleDropsSection(log: BattleLog) {
     }
 }
 
-/** 战斗过程标题（BattleLogDetailDialog 拆分） */
-@Composable
-private fun BattleRoundsHeader() {
-    Spacer(modifier = Modifier.height(16.dp))
-    HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
-    Spacer(modifier = Modifier.height(12.dp))
-    Text(
-        text = "战斗过程",
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        color = Color.Black
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-}
+/** SpiritStoneSource.key → 中文显示名映射表（sourceDisplayName 查表） */
+internal val SPIRIT_STONE_SOURCE_NAMES: Map<String, String> = mapOf(
+    "Mine" to "灵矿", "Battle" to "战斗", "Quest" to "任务",
+    "Mail" to "邮件", "MerchantTrade" to "交易",
+    "Exploration" to "探索", "RedeemCode" to "兑换码", "Cave" to "洞府",
+    "HeavenlyTrial" to "天道试炼", "SectLevelReward" to "宗门等级奖励",
+    "Salary" to "俸禄", "StorageBag" to "储物袋", "Refund" to "退款",
+    "Sell" to "售卖", "SecretRealm" to "秘境", "Internal" to "内部"
+)
 
-@Composable
-internal fun BattleRoundItem(
-    round: BattleLogRound
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Text(
-            text = "第${round.roundNumber}回合",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+/** SpiritStoneReason.key → 中文显示名映射表（reasonDisplayName 查表） */
+internal val SPIRIT_STONE_REASON_NAMES: Map<String, String> = mapOf(
+    "Building" to "建筑", "PolicyCost" to "政策消耗", "Salary" to "年俸",
+    "Gift" to "赠礼", "Diplomacy" to "外交", "VassalTribute" to "附属上贡",
+    "Purchase" to "购买", "AutoSell" to "自动售卖", "Exchange" to "兑换",
+    "Theft" to "盗窃", "ExplorationLoot" to "探索战利品", "BeastTribute" to "妖兽上贡",
+    "Internal" to "内部"
+)
 
-        round.actions.forEach { action ->
-            BattleActionItem(action = action)
-        }
-    }
-}
-
-@Composable
-internal fun BattleActionItem(
-    action: BattleLogAction
-) {
-    val actionColor = when {
-        action.isKill -> GameColors.Error
-        action.isCrit -> GameColors.Warning
-        else -> Color.Black
-    }
-
-    val typeIcon = when (action.type) {
-        "skill" -> "✦"
-        "support" -> "♡"
-        else -> "⚔"
-    }
-
-    val typeColor = when (action.type) {
-        "skill" -> Color(0xFF9C27B0)
-        "support" -> GameColors.Success
-        else -> Color.Black
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp, top = 2.dp)
-    ) {
-        if (action.message.isNotEmpty()) {
-            Text(
-                text = "$typeIcon ${action.message}",
-                fontSize = 10.sp,
-                color = actionColor
-            )
-        } else {
-            val critText = if (action.isCrit) " [暴击]" else ""
-            val killText = if (action.isKill) " [击杀]" else ""
-            val skillText = action.skillName?.let { " [$it]" } ?: ""
-            Text(
-                text = "$typeIcon ${action.attacker} → ${action.target}: ${action.damage}${skillText}${critText}${killText}",
-                fontSize = 10.sp,
-                color = actionColor
-            )
-        }
-    }
-}
-
-@Composable
-internal fun BattleLogListDialog(
-    battleLogs: List<BattleLog>,
-    yearlyReports: List<YearlyReport> = emptyList(),
-    onDismiss: () -> Unit
-) {
-    var selectedBattleLog by remember { mutableStateOf<BattleLog?>(null) }
-    var selectedTab by remember { mutableStateOf(BattleLogTab.LOGS) }
-    var selectedReport by remember { mutableStateOf<YearlyReport?>(null) }
-    val recentLogs = remember(battleLogs) {
-        battleLogs.sortedByDescending { it.timestamp }.take(30)
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "日志",
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(Modifier.fillMaxSize()) {
-            // 标签栏（同 MerchantDialog 模式）
-            BattleLogTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
-
-            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
-
-            // 内容区必须用 weight(1f) 约束高度，否则内部 LazyColumn 会收到无穷高度报错
-            BattleLogTabContent(
-                selectedTab = selectedTab,
-                recentLogs = recentLogs,
-                yearlyReports = yearlyReports,
-                onLogClick = { selectedBattleLog = it },
-                onReportClick = { selectedReport = it }
-            )
-        }
-    }
-
-    selectedBattleLog?.let { log ->
-        BattleLogDetailDialog(
-            log = log,
-            onDismiss = { selectedBattleLog = null }
-        )
-    }
-
-    selectedReport?.let { report ->
-        YearlyReportDetailDialog(
-            report = report,
-            onDismiss = { selectedReport = null }
-        )
-    }
-}
-
-/** 日志对话框标签栏（BattleLogListDialog 拆分） */
-@Composable
-private fun BattleLogTabBar(
-    selectedTab: BattleLogTab,
-    onTabSelected: (BattleLogTab) -> Unit
-) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-        BattleLogTab.entries.forEach { tab ->
-            val isActive = selectedTab == tab
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.weight(1f).clickableWithSound { onTabSelected(tab) }
-            ) {
-                Text(tab.label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    color = if (isActive) Color.Black else Color.Gray)
-                Box(Modifier.fillMaxWidth().height(2.dp)
-                    .background(if (isActive) GameColors.GoldDark else Color.Gray))
-            }
-        }
-    }
-}
-
-/** 标签页内容区（BattleLogListDialog 拆分） */
-@Composable
-private fun ColumnScope.BattleLogTabContent(
-    selectedTab: BattleLogTab,
-    recentLogs: List<BattleLog>,
-    yearlyReports: List<YearlyReport>,
-    onLogClick: (BattleLog) -> Unit,
-    onReportClick: (YearlyReport) -> Unit
-) {
-    Box(Modifier.weight(1f).fillMaxWidth()) {
-        when (selectedTab) {
-            BattleLogTab.LOGS -> {
-                if (recentLogs.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("暂无战斗记录", fontSize = 14.sp, color = Color.Black)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(recentLogs, key = { it.id }, contentType = { "battle_log" }) { log ->
-                            BattleLogListItem(log = log, onClick = { onLogClick(log) })
-                        }
-                    }
-                }
-            }
-            BattleLogTab.REPORT -> {
-                YearlyReportList(
-                    reports = yearlyReports,
-                    onDetail = onReportClick
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun BattleLogListItem(
-    log: BattleLog,
-    onClick: () -> Unit
-) {
-    val resultColor = when (log.result) {
-        BattleResult.WIN -> GameColors.Success
-        BattleResult.LOSE -> GameColors.Error
-        BattleResult.DRAW -> GameColors.Warning
-    }
-
-    val resultText = when (log.result) {
-        BattleResult.WIN -> "胜利"
-        BattleResult.LOSE -> "失败"
-        BattleResult.DRAW -> "平局"
-    }
-
-    val typeText = resolveBattleTypeName(log)
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickableWithSound(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = typeText,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "第${log.year}年${log.month}月",
-                        fontSize = 11.sp,
-                        color = Color.Black
-                    )
-                }
-                Text(
-                    text = "回合: ${log.turns} | 敌人: ${log.enemies.size}",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-            }
-
-            BattleResultBadge(resultColor = resultColor, resultText = resultText)
-        }
-    }
-}
-
-// ══════════════════════════════════════════════════════════════
-// 年报日志组件（共9行：汇总行 + 8项指标各自独立数据行）
-// ══════════════════════════════════════════════════════════════
-
-/**
- * 年报列表——第一级界面
- */
-@Composable
-private fun YearlyReportList(
-    reports: List<YearlyReport>,
-    onDetail: (YearlyReport) -> Unit
-) {
-    if (reports.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("暂无年报数据", fontSize = 13.sp, color = Color(0xFF888888))
-        }
-        return
-    }
-    val sorted = remember(reports) { reports.sortedByDescending { it.year } }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        itemsIndexed(sorted, key = { index, r -> "report_${r.year}_$index" }) { _, report ->
-            Card(
-                modifier = Modifier.fillMaxWidth().clickableWithSound { onDetail(report) },
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // weight + ellipsis 防窄屏横向溢出（年份行占满剩余空间）
-                    Text(
-                        "第${report.year}年", fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold, color = Color.Black,
-                        modifier = Modifier.weight(1f, fill = false),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                    Row(
-                        Modifier.weight(1f, fill = false),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // 弟子净变化 = 新增 - 死亡 - 脱离
-                        val discipleDelta = report.newDisciples - report.deceasedDisciples - report.desertedDisciples
-                        val discipleColor = when {
-                            discipleDelta > 0 -> GameColors.Success
-                            discipleDelta < 0 -> GameColors.Error
-                            else -> Color.Black
-                        }
-                        Text(
-                            "弟子: ${formatSigned(discipleDelta)}", fontSize = 11.sp,
-                            color = discipleColor, maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                        // 灵石净变化 = 收入 - 支出
-                        val stoneDelta = report.totalIncome - report.totalExpenditure
-                        val stoneColor = when {
-                            stoneDelta > 0 -> GameColors.Success
-                            stoneDelta < 0 -> GameColors.Error
-                            else -> Color.Black
-                        }
-                        Text(
-                            "灵石: ${formatSigned(stoneDelta)}", fontSize = 11.sp,
-                            color = stoneColor, maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 年报详情对话框——第二级界面
- *
- * 共 7 行：
- *   Row1 汇总     — FlowRow 自适应排列 8 项指标
- *   Row2 灵石收入来源 — 来源明细（灵矿、战斗等）
- *   Row3 灵石支出来源 — 来源明细（商人购买、年俸等）
- *   Row4 总锻造装备数量
- *   Row5 总炼制丹药数量
- *   Row6 总收获草药数量
- *   Row7 弟子变动    — 含新增/死亡/脱离
- */
-@Composable
-private fun YearlyReportDetailDialog(
-    report: YearlyReport,
-    onDismiss: () -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "第${report.year}年年度报告",
-        mode = DialogMode.Half,
-        scrollableContent = false  // 内容已内部使用 verticalScroll，避免嵌套
-    ) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-
-            // ── Row 1: 汇总 ──
-            ReportSummarySection(report = report)
-
-            ReportDivider()
-
-            // ── Row 2: 灵石收入来源 ──
-            ReportIncomeSection(report = report)
-
-            ReportDivider()
-
-            // ── Row 3: 灵石支出来源 ──
-            ReportExpenditureSection(report = report)
-
-            ReportDivider()
-
-            // ── Row 4: 装备来源（品阶 + 途径） ──
-            ReportEquipmentSection(report = report)
-
-            ReportDivider()
-
-            // ── Row 5: 丹药来源（品阶 + 途径） ──
-            ReportPillSection(report = report)
-
-            ReportDivider()
-
-            // ── Row 6: 草药来源（途径） ──
-            ReportHerbSection(report = report)
-
-            ReportDivider()
-
-            // ── Row 7: 弟子变动（新增/死亡/脱离合并一行） ──
-            ReportDiscipleChangesSection(report = report)
-        }
-    }
-}
-
-// ── 年报详情子组件 ──
-
-/** 年报汇总区（YearlyReportDetailDialog 拆分）：8 项指标 FlowRow */
-@Composable
-private fun ReportSummarySection(report: YearlyReport) {
-    SectionTitle("【汇总】")
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        SummaryCard("灵石总收入", "+${report.totalIncome}", GameColors.Success)
-        SummaryCard("灵石总支出", "-${report.totalExpenditure}", GameColors.Error)
-        SummaryCard("总锻造装备", "${report.forgeCompleted}")
-        SummaryCard("总炼制丹药", "${report.alchemyCompleted}")
-        SummaryCard("总收获草药", "${report.herbsHarvested}")
-        SummaryCard("新增弟子", "+${report.newDisciples}", GameColors.Success)
-        SummaryCard("死亡弟子", "-${report.deceasedDisciples}", GameColors.Error)
-        SummaryCard("脱离弟子", "-${report.desertedDisciples}", GameColors.Error)
-    }
-}
-
-/** 灵石收入来源区（YearlyReportDetailDialog 拆分） */
-@Composable
-private fun ReportIncomeSection(report: YearlyReport) {
-    SectionTitle("【灵石收入来源】")
-    // 过滤 0 值条目（读档/历史存档可能残留 0 值键），空判以过滤后集合为准
-    val mergedIncome = remember(report) {
-        mergeSellEntries(report.incomeBySource).filterValues { it > 0 }
-    }
-    if (mergedIncome.isEmpty()) {
-        EmptyDataText("无")
-    } else {
-        mergedIncome.entries.sortedByDescending { it.value }.forEach { (key, value) ->
-            DataText("  ${sourceDisplayName(key)}: +$value")
-        }
-    }
-}
-
-/** 灵石支出来源区（YearlyReportDetailDialog 拆分） */
-@Composable
-private fun ReportExpenditureSection(report: YearlyReport) {
-    SectionTitle("【灵石支出来源】")
-    val filteredExpenditure = remember(report) {
-        report.expenditureByReason.filterValues { it > 0 }
-    }
-    if (filteredExpenditure.isEmpty()) {
-        EmptyDataText("无")
-    } else {
-        filteredExpenditure.entries.sortedByDescending { it.value }.forEach { (key, value) ->
-            DataText("  ${reasonDisplayName(key)}: -$value")
-        }
-    }
-}
-
-/** 装备来源区（品阶 + 途径）（YearlyReportDetailDialog 拆分） */
-@Composable
-private fun ReportEquipmentSection(report: YearlyReport) {
-    SectionTitle("【装备来源】")
-    val equipItems = remember(report) { report.equipmentBySource.entries.filter { it.value > 0 } }
-    if (equipItems.isEmpty()) {
-        EmptyDataText("无")
-    } else {
-        // 按品阶汇总
-        val byGrade = equipItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }
-        DataText(byGrade.entries.sortedByDescending { it.key.toIntOrNull() ?: 0 }.joinToString("  ") { (g, c) -> "${g}阶 ×$c" })
-        // 按途径汇总
-        val bySrc = equipItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }
-        DataText(bySrc.entries.sortedByDescending { it.value }.joinToString("  ") { (s, c) -> "${equipSourceName(s)} ×$c" })
-    }
-}
-
-/** 丹药来源区（品阶 + 途径）（YearlyReportDetailDialog 拆分） */
-@Composable
-private fun ReportPillSection(report: YearlyReport) {
-    SectionTitle("【丹药来源】")
-    val pillItems = remember(report) { report.pillBySource.entries.filter { it.value > 0 } }
-    if (pillItems.isEmpty()) {
-        EmptyDataText("无")
-    } else {
-        // 按品阶汇总
-        val byGrade = pillItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }
-        DataText(byGrade.entries.sortedByDescending { it.value }.joinToString("  ") { (g, c) ->
-            val name = when (g) { "HIGH" -> "上品"; "MEDIUM" -> "中品"; else -> "下品" }
-            "$name ×$c"
-        })
-        // 按途径汇总
-        val bySrc = pillItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }
-        DataText(bySrc.entries.sortedByDescending { it.value }.joinToString("  ") { (s, c) -> "${pillSourceName(s)} ×$c" })
-    }
-}
-
-/** 草药来源区（途径）（YearlyReportDetailDialog 拆分） */
-@Composable
-private fun ReportHerbSection(report: YearlyReport) {
-    SectionTitle("【草药来源】")
-    val herbItems = remember(report) { report.herbBySource.entries.filter { it.value > 0 } }
-    if (herbItems.isEmpty()) {
-        EmptyDataText("无")
-    } else {
-        DataText(herbItems.sortedByDescending { it.value }.joinToString("  ") { (key, count) ->
-            "${herbSourceName(key)} ×$count"
-        })
-    }
-}
-
-/** 弟子变动区（新增/死亡/脱离）（YearlyReportDetailDialog 拆分） */
-@Composable
-private fun ReportDiscipleChangesSection(report: YearlyReport) {
-    SectionTitle("【弟子变动】")
-    DataText("  新增弟子: ${report.newDisciples} 人")
-    DataText("  死亡弟子: ${report.deceasedDisciples} 人")
-    DataText("  脱离弟子: ${report.desertedDisciples} 人")
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-    Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-    Spacer(Modifier.height(4.dp))
-}
-
-@Composable
-private fun DataText(text: String) {
-    Text(text, fontSize = 11.sp, color = Color(0xFF333333))
-}
-
-@Composable
-private fun EmptyDataText(text: String) {
-    Text("  $text", fontSize = 11.sp, color = Color(0xFF888888))
-}
-
-@Composable
-private fun ReportDivider() {
-    Spacer(Modifier.height(8.dp))
-    HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
-    Spacer(Modifier.height(8.dp))
-}
-
-/**
- * 汇总区单个指标卡片
- */
-@Composable
-private fun SummaryCard(label: String, value: String, valueColor: Color = Color.Black) {
-    Column(
-        modifier = Modifier
-            .width(80.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFFF5F5F5))
-            .padding(6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(label, fontSize = 9.sp, color = Color(0xFF666666))
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = valueColor)
-    }
-}
-
-// ══════════════════════════════════════════════════════════════
-// 工具函数
-// ══════════════════════════════════════════════════════════════
-
-/**
- * 归并 Sell(*) 条目为统一的"售卖"条目。
- */
-private fun mergeSellEntries(map: Map<String, Long>): Map<String, Long> {
-    val result = mutableMapOf<String, Long>()
-    map.forEach { (key, value) ->
-        if (key.startsWith("Sell")) {
-            result["Sell"] = (result["Sell"] ?: 0L) + value
-        } else {
-            result[key] = value
-        }
-    }
-    return result
-}
-
-/** SpiritStoneSource.key → 中文显示名 */
-private fun sourceDisplayName(key: String): String = when (key) {
-    "Mine" -> "灵矿"; "Battle" -> "战斗"; "Quest" -> "任务"
-    "Mail" -> "邮件"; "MerchantTrade" -> "交易"
-    "Exploration" -> "探索"; "RedeemCode" -> "兑换码"; "Cave" -> "洞府"
-    "HeavenlyTrial" -> "天道试炼"; "SectLevelReward" -> "宗门等级奖励"
-    "Salary" -> "俸禄"; "StorageBag" -> "储物袋"; "Refund" -> "退款"
-    "Sell" -> "售卖"; "SecretRealm" -> "秘境"; "Internal" -> "内部"
-    else -> key
-}
-
-/** SpiritStoneReason.key → 中文显示名 */
-private fun reasonDisplayName(key: String): String = when (key) {
-    "Building" -> "建筑"; "PolicyCost" -> "政策消耗"; "Salary" -> "年俸"
-    "Gift" -> "赠礼"; "Diplomacy" -> "外交"; "VassalTribute" -> "附属上贡"
-    "Purchase" -> "购买"; "AutoSell" -> "自动售卖"; "Exchange" -> "兑换"
-    "Theft" -> "盗窃"; "ExplorationLoot" -> "探索战利品"; "BeastTribute" -> "妖兽上贡"
-    "Internal" -> "内部"
-    else -> key
-}
-
-private val EQUIP_SOURCE_NAMES: Map<String, String> = mapOf(
+internal val EQUIP_SOURCE_NAMES: Map<String, String> = mapOf(
     "forge" to "锻造", "battle" to "战斗", "exploration" to "探索",
     "quest" to "任务", "mail" to "邮件", "cave" to "洞府",
     "trial" to "天道试炼", "merchant" to "商人",
@@ -875,7 +296,7 @@ private val EQUIP_SOURCE_NAMES: Map<String, String> = mapOf(
     "disciple_expel" to "逐出弟子"
 )
 
-private val PILL_SOURCE_NAMES: Map<String, String> = mapOf(
+internal val PILL_SOURCE_NAMES: Map<String, String> = mapOf(
     "alchemy" to "炼丹", "battle" to "战斗", "exploration" to "探索",
     "quest" to "任务", "mail" to "邮件", "cave" to "洞府",
     "trial" to "天道试炼", "merchant" to "商人",
@@ -887,7 +308,7 @@ private val PILL_SOURCE_NAMES: Map<String, String> = mapOf(
     "disciple_expel" to "逐出弟子"
 )
 
-private val HERB_SOURCE_NAMES: Map<String, String> = mapOf(
+internal val HERB_SOURCE_NAMES: Map<String, String> = mapOf(
     "spirit_field" to "灵田", "exploration" to "探索", "battle" to "战斗",
     "quest" to "任务", "mail" to "邮件", "storage_bag" to "储物袋",
     "cave" to "洞府", "trial" to "天道试炼", "merchant" to "商人",
@@ -896,16 +317,3 @@ private val HERB_SOURCE_NAMES: Map<String, String> = mapOf(
     "secret_realm" to "秘境", "sect_trade" to "宗门交易",
     "confiscate" to "没收", "disciple_expel" to "逐出弟子"
 )
-
-/** 装备来源名（exploration/sect_level 保留映射：历史存档可能残留旧键） */
-private fun equipSourceName(key: String): String = EQUIP_SOURCE_NAMES[key] ?: key
-
-/** 丹药来源名（exploration/sect_level 保留映射：历史存档可能残留旧键） */
-private fun pillSourceName(key: String): String = PILL_SOURCE_NAMES[key] ?: key
-
-/** 草药来源名（exploration 保留映射：历史存档可能残留旧键） */
-private fun herbSourceName(key: String): String = HERB_SOURCE_NAMES[key] ?: key
-
-/** 带符号格式化：正数加 "+"，负数保留 "-" */
-private fun formatSigned(value: Long): String = if (value > 0) "+$value" else "$value"
-private fun formatSigned(value: Int): String = if (value > 0) "+$value" else "$value"

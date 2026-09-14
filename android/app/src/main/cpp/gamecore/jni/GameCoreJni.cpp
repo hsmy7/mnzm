@@ -16,6 +16,7 @@
 
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -23,6 +24,7 @@
 #include "gamecore/state/json_codec.h"
 #include "gamecore/map/road_system.h"
 #include "gamecore/map/road_compositor.h"
+#include "gamecore/map/terrain.h"
 #include "gamecore/rng/fdlibm.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/rng/rng_manager.h"
@@ -77,7 +79,7 @@ std::string jbytesToString(JNIEnv* env, jbyteArray array) {
     return out;
 }
 
-/// jstring → std::string（UTF-8；批 13-4a 对拍通道）
+/// jstring → std::string（UTF-8；对拍通道）
 std::string jstringToString(JNIEnv* env, jstring s) {
     if (!s) return {};
     const jsize len = env->GetStringUTFLength(s);
@@ -98,7 +100,7 @@ jbyteArray stringToJbytes(JNIEnv* env, const std::string& s) {
     return out;
 }
 
-/// JNI jstring → std::string（copy；G7-2 AI 攻击决策 id 参数用）
+/// JNI jstring → std::string（copy；AI 攻击决策 id 参数用）
 std::string jstringToStd(JNIEnv* env, jstring s) {
     if (!s) return {};
     const char* chars = env->GetStringUTFChars(s, nullptr);
@@ -145,7 +147,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNextDouble(
     return g_rng ? g_rng->nextDouble() : 0.0;
 }
 
-// C-12：正态分布跨语言精度对拍（StrictMath fdlibm vs 内嵌 fdlibm——
+// 正态分布跨语言精度对拍（StrictMath fdlibm vs 内嵌 fdlibm——
 // log/cos 经 fdlibm.h 内嵌保证位级一致，sqrt 沿用 std:: 对拍验证）
 extern "C" JNIEXPORT jdouble JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNextGaussian(
@@ -159,7 +161,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeSnapshot(
     return g_rng ? g_rng->snapshot() : 0L;
 }
 
-// 批 13-4a：中文名继承对拍（Kotlin NameService.inheritName 分区 rng 版 vs
+// 中文名继承对拍（Kotlin NameService.inheritName 分区 rng 版 vs
 // C++ name_service.h——数据表逐项一致 + RNG 序列逐位一致，名字逐字符对拍）
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNameInherit(
@@ -189,7 +191,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNameInherit(
     return env->NewStringUTF(result.fullName.c_str());
 }
 
-// 批 13-4b：弟子创建对拍（Kotlin DiscipleFactory.create vs C++ disciple_factory.h
+// 弟子创建对拍（Kotlin DiscipleFactory.create vs C++ disciple_factory.h
 // createDisciple——同种子同消费序，逐字段位级一致）。输入 seed JSON，返回
 // 弟子生成结果 JSON（g_rng 为随机源，与 Kotlin 侧同一底层 PRNG 独立同序列消费）。
 extern "C" JNIEXPORT jstring JNICALL
@@ -256,7 +258,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeManagerInit(
     delete g_rngManager;
     g_rngManager = new RngManager();
     g_rngManager->initSystemSeed(static_cast<int64_t>(seed));
-    // 同步重置 GameCore 内部 RNG（批次 4c 灵田收获走 core->rng()，需与对拍 seed 对齐）
+    // 同步重置 GameCore 内部 RNG（灵田收获走 core->rng()，需与对拍 seed 对齐）
     if (g_core) {
         g_core->rng().initSystemSeed(static_cast<int64_t>(seed));
     }
@@ -310,13 +312,26 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreImportStateNoRng
     return g_core->importStateJsonNoRng(jbytesToString(env, stateJson)) ? JNI_TRUE : JNI_FALSE;
 }
 
-// ── 反向增量通道（计划 v2 阶段 3：applyReverseDirty 对拍用）──────
+// ── 反向增量通道（applyReverseDirty 对拍用）──────
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreApplyReverseDirty(
     JNIEnv* env, jobject /*thiz*/, jbyteArray dirtyJson) {
     if (!g_core) return JNI_FALSE;
     return g_core->applyReverseDirty(jbytesToString(env, dirtyJson)) ? JNI_TRUE : JNI_FALSE;
+}
+
+// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉
+// 对拍用：协议与生产 GameCoreBridge.nativeManualRecruitFromList 一致）
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreManualRecruitFromList(
+    JNIEnv* env, jobject /*thiz*/, jstring discipleId) {
+    if (!g_core) {
+        return stringToJbytes(env,
+            R"({"ok":false,"newId":"","age":0,"name":"","reason":"UNKNOWN"})");
+    }
+    return stringToJbytes(
+        env, g_core->manualRecruitFromList(jstringToString(env, discipleId)));
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
@@ -326,7 +341,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportState(
     return stringToJbytes(env, g_core->exportStateJson());
 }
 
-// ── 变更集通道（计划 v2 阶段 1：exportDirty 对拍用）────────────
+// ── 变更集通道（exportDirty 对拍用）────────────
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportDirty(
@@ -335,7 +350,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportDirty(
     return stringToJbytes(env, g_core->exportDirtyJson());
 }
 
-// ── 时间推进通道（批次 3：对拍用）──────────────────────────────
+// ── 时间推进通道（对拍用）────────────────────────────────────────
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreAdvancePhases(
@@ -344,7 +359,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreAdvancePhases(
     return static_cast<jint>(g_core->advancePhases(static_cast<int>(phaseCount)).phasesAdvanced);
 }
 
-// ── AUTHORITATIVE tick 标量通道（计划 v2 阶段 2d：对拍用）────────
+// ── AUTHORITATIVE tick 标量通道（对拍用）────────
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreSettlePhase(
@@ -405,7 +420,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreInitMode(
     g_core->initialize(config);
 }
 
-// ── 引擎循环 + 看门狗通道（计划 v2 阶段 5：对拍用）────────────────
+// ── 引擎循环 + 看门狗通道（对拍用）────────────────
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopStart(
@@ -417,7 +432,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopReset(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     // 测试隔离：JUnit 用例间重建循环基准（tick 计数/速度/累积/帧状态清零）。
-    // nativeCoreInit 幂等复用单例（阶段 1 既有设计），EngineLoop 生命周期
+    // nativeCoreInit 幂等复用单例（既有设计），EngineLoop 生命周期
     // 跨用例残留——Kotlin 侧每用例 new GameTimeClock 是干净的，对拍须对齐。
     if (g_core) g_core->loop().resetForTest();
 }
@@ -545,7 +560,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
 }
 
 // ============================================================
-// 弟子属性计算通道（批次 5：对拍用）
+// 弟子属性计算通道（对拍用）
 //
 // 协议：Kotlin 侧 DiffDiscipleBridge 传入参数 JSON（纯计算，不落状态），
 // C++ 侧直接计算并返回结果 JSON。Kotlin 侧用真实 DiscipleStatCalculator
@@ -568,7 +583,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
 //   {"op":"soulPowerBreakthroughBonus", "soulPower":40}
 //   {"op":"aptitudeCultivationBonus", "aptitude":90}
 //
-// 天赋/词条/体质注册表通道（T2.4a 填表：trait_db → 聚合函数，对拍用）：
+// 天赋/词条/体质注册表通道（trait_db → 聚合函数，对拍用）：
 //   {"op":"talentEffects", "talentIds":["r1_bat_hp",...]}
 //       → {"effects":{"maxHp":0.1,...}}（TalentDatabase.calculateTalentEffects 对拍）
 //   {"op":"affixEffects", "affixIds":["r1_aff_bat_hp",...]}
@@ -616,7 +631,7 @@ std::vector<std::string> stringListFromJson(const nlohmann::json& op,
     return out;
 }
 
-/// 天赋/词条/体质注册表通道（T2.4a 填表）：id 列表 → 效果聚合对拍
+/// 天赋/词条/体质注册表通道：id 列表 → 效果聚合对拍
 nlohmann::json execTraitEffectsOp(const nlohmann::json& op,
                                   const std::string& opName) {
     namespace stats = gamecore::stats;
@@ -688,7 +703,7 @@ nlohmann::json execTraitEffectsOp(const nlohmann::json& op,
 /// 执行弟子属性计算操作（返回结果 JSON 片段）
 nlohmann::json execDiscipleOp(const nlohmann::json& op) {
     const std::string opName = op.at("op").get<std::string>();
-    // T2.4a 注册表通道先行分派（未命中返回空 → 落入既有公式通道）
+    // 注册表通道先行分派（未命中返回空 → 落入既有公式通道）
     nlohmann::json traitResult = execTraitEffectsOp(op, opName);
     if (!traitResult.empty()) return traitResult;
     nlohmann::json result;
@@ -804,7 +819,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreDiscipleOp(
 }
 
 // ============================================================
-// 修炼推进计算通道（批次 5b：对拍用）
+// 修炼推进计算通道（对拍用）
 //
 // 操作 JSON 格式（纯计算，不落状态）：
 //   {"op":"maxCultivation", "realm":9, "realmLayer":1, "cultivation":0.0}
@@ -907,7 +922,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreCultivationOp(
 }
 
 // ============================================================
-// 内政计算通道（批次 7：对拍用）
+// 内政计算通道（对拍用）
 //
 // 操作 JSON 格式（纯计算，可操作状态）：
 //   {"op":"zoneCalculate", "base":100.0, "zones":[0.2,0.5,-0.1]}
@@ -986,7 +1001,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreGovernmentOp(
 }
 
 // ============================================================
-// 探索计算通道（批次 8a：对拍用）
+// 探索计算通道（对拍用）
 //
 // 操作 JSON 格式（纯计算）：
 //   {"op":"checkExpired", "year":3, "month":3, "level":{...}}
@@ -1034,7 +1049,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExplorationOp(
 }
 
 // ============================================================
-// 批 13-1：AI 兽袭目标预计算直调通道（对拍用）
+// AI 兽袭目标预计算直调通道（对拍用）
 //
 // 直接作用于 g_core 当前状态（导入/导出经 nativeCoreImportState/
 // nativeCoreExportState 通道），与 Kotlin
@@ -1050,7 +1065,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCorePrecomputeTarget
     gamecore::system::detail::precomputeTargets(g_core->state(), g_core->rng());
 }
 
-// G7-2：AI 攻击决策直调（对拍用，作用于 g_core 当前状态——导入经
+// AI 攻击决策直调（对拍用，作用于 g_core 当前状态——导入经
 // nativeCoreImportState，与 Kotlin AISectAttackManager 决策逐位对拍 BATTLE 分区）
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreCheckAttackConditions(
@@ -1107,7 +1122,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreDecidePlayerAtta
 }
 
 // ============================================================
-// execute 分发表通道（批次 9：对拍用）
+// execute 分发表通道（对拍用）
 // Kotlin 侧经 ActionIds 协议调用 C++ GameCore.execute（与 Android 桥同入口）
 // ============================================================
 
@@ -1122,7 +1137,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExecute(
 
 
 // ============================================================
-// 战斗计算通道（批次 6a：对拍用）
+// 战斗计算通道（对拍用）
 //
 // 操作 JSON 格式（纯计算，不落状态）：
 //   {"op":"finalDamage", "rawAttack":100, "defense":500, "skillMultiplier":1.0,
@@ -1211,7 +1226,7 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
             {"remainingShield", r.remainingShield},
         };
     } else if (opName == "combatantDamage") {
-        // 战斗批次 A：完整伤害管线（斩杀→闪避→暴击→波动→分桶注入→段数钳制）
+        // 完整伤害管线（斩杀→闪避→暴击→波动→分桶注入→段数钳制）
         const auto attacker = combatantFromJson(op.at("attacker"));
         const auto defender = combatantFromJson(op.at("defender"));
         std::optional<CombatSkill> skill;
@@ -1249,14 +1264,14 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
             result = damageResultToJson(r);
         }
     } else if (opName == "estimateDamage") {
-        // 战斗批次 A：确定性伤害估算（无 RNG——AI 决策用）
+        // 确定性伤害估算（无 RNG——AI 决策用）
         const auto attacker = combatantFromJson(op.at("attacker"));
         const auto defender = combatantFromJson(op.at("defender"));
         const auto skill = skillFromJson(op.at("skill"));
         result["value"] = gamecore::battle::estimateDamage(
             attacker, defender, skill, nullptr, op.value("damageModifier", 1.0));
     } else if (opName == "decideAction") {
-        // 战斗批次 B：统一战斗 AI 决策（decideAction 8 层级联，g_rng 随机源）
+        // 统一战斗 AI 决策（decideAction 8 层级联，g_rng 随机源）
         const auto unit = combatantFromJson(op.at("unit"));
         std::vector<Combatant> allies;
         if (op.contains("allies") && op["allies"].is_array()) {
@@ -1275,7 +1290,7 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
             if (action.targetId.has_value()) result["targetId"] = *action.targetId;
         }
     } else if (opName == "executeBattle") {
-        // 战斗批次 C：回合编排全链（executeBattle 状态段；日志保持 Kotlin diff 排除）
+        // 回合编排全链（executeBattle 状态段；日志保持 Kotlin diff 排除）
         std::vector<Combatant> team;
         if (op.contains("team") && op["team"].is_array()) {
             for (const auto& t : op.at("team")) team.push_back(combatantFromJson(t));
@@ -1306,7 +1321,7 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
             for (const auto& c : out.beasts) result["beasts"].push_back(combatantToJson(c));
         }
     } else if (opName == "executeAiBattle") {
-        // 战斗批次 D-3：AI 宗门战第三引擎（executeUnifiedAIBattle 对拍）
+        // AI 宗门战第三引擎（executeUnifiedAIBattle 对拍）
         std::vector<Combatant> attackers;
         if (op.contains("attackers") && op["attackers"].is_array()) {
             for (const auto& a : op.at("attackers")) attackers.push_back(combatantFromJson(a));
@@ -1589,7 +1604,7 @@ nlohmann::json execOp(gamecore::GameCore* core, nlohmann::json& result,
         else if (type == "seed") ok = gamecore::system::removeSeed(state, id, qty, bypass);
         result["lastRemove"] = ok;
     } else if (opName == "spiritFieldHarvest") {
-        // 灵田收获：设置当前年/月后执行（批次 4c）
+        // 灵田收获：设置当前年/月后执行
         if (op.contains("year")) gd.gameYear = op.at("year").get<int32_t>();
         if (op.contains("month")) gd.gameMonth = op.at("month").get<int32_t>();
         gamecore::system::OverflowMailCollector mail;
@@ -1631,7 +1646,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExecOps(
 }
 
 // ============================================================
-// 道路系统对拍通道（批次 R：求解器双端一致性）
+// 道路系统对拍通道（求解器双端一致性）
 //
 // 操作 JSON 格式（纯计算，不落状态）：
 //   {"op":"tileType", "mask": 11}            → 形态枚举 int
@@ -1679,8 +1694,9 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeRoadOp(
             }
             result["value"] = mask;
         } else if (opName == "compose") {
-            // 道路渲染合成器（计划 v2 阶段 6）：单格绘制操作序列
-            // [[sprite, x, y, w, h], ...]——sprite 序 = RoadSprite 枚举序
+            // 道路渲染合成器：单格绘制操作序列
+            // [[sprite, x, y, w, h, flip], ...]——sprite 序 = RoadSprite 枚举序，
+            // flip = flipU 水平镜像标志（2.4 边缘条方向修正，0/1）
             const int mask = op.at("mask").get<int>();
             const int tileSize = op.at("tileSize").get<int>();
             gamecore::map::RoadDrawOp ops[gamecore::map::kMaxRoadDrawOpsPerTile];
@@ -1688,7 +1704,8 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeRoadOp(
             nlohmann::json arr = nlohmann::json::array();
             for (int i = 0; i < n; i++) {
                 arr.push_back({static_cast<int>(ops[i].sprite),
-                               ops[i].x, ops[i].y, ops[i].w, ops[i].h});
+                               ops[i].x, ops[i].y, ops[i].w, ops[i].h,
+                               ops[i].flipU ? 1 : 0});
             }
             result["ops"] = arr;
         } else {
@@ -1699,6 +1716,56 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeRoadOp(
         nlohmann::json err = {{"error", e.what()}};
         return stringToJbytes(env, err.dump());
     }
+}
+
+// ============================================================
+// 宗门地图地形生成（与 Android GameCoreBridge.nativeGenerateSectTerrain
+// 同签名同语义；DiffSectTerrainTest 双端全数组逐位对拍用）
+// ============================================================
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeGenerateSectTerrain(
+    JNIEnv* env, jobject /*thiz*/,
+    jint seed, jint width, jint height, jfloat density, jint borderTreeRing,
+    jint gateX, jint gateY, jint gateWidth, jint gateHeight, jint gateSpriteY) {
+
+    if (width <= 0 || height <= 0) return nullptr;
+
+    gamecore::map::terrain::GateBox gate;
+    gate.x = static_cast<int32_t>(gateX);
+    gate.y = static_cast<int32_t>(gateY);
+    gate.width = static_cast<int32_t>(gateWidth);
+    gate.height = static_cast<int32_t>(gateHeight);
+    gate.spriteY = static_cast<int32_t>(gateSpriteY);
+
+    const std::vector<int32_t> tiles = gamecore::map::terrain::generateTileData(
+        static_cast<int32_t>(width), static_cast<int32_t>(height),
+        static_cast<float>(density), static_cast<int32_t>(seed),
+        static_cast<int32_t>(borderTreeRing), gate);
+
+    const jsize n = static_cast<jsize>(tiles.size());
+    jintArray out = env->NewIntArray(n);
+    if (out == nullptr) return nullptr;
+    env->SetIntArrayRegion(out, 0, n,
+                           reinterpret_cast<const jint*>(tiles.data()));
+    return out;
+}
+
+// 位级对拍探针：terrain cellHash（jfloat 直传保 IEEE binary32 位型）
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeSectCellHash(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint x, jint y, jint seed) {
+    return gamecore::map::terrain::cellHash(
+        static_cast<int32_t>(x), static_cast<int32_t>(y), static_cast<int32_t>(seed));
+}
+
+// 位级对拍探针：terrain smoothNoise
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeSectSmoothNoise(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint x, jint y, jint scale, jint seed) {
+    return gamecore::map::terrain::smoothNoise(
+        static_cast<int32_t>(x), static_cast<int32_t>(y),
+        static_cast<int32_t>(scale), static_cast<int32_t>(seed));
 }
 
 // ============================================================

@@ -6,7 +6,7 @@ package com.xianxia.sect.core.thermal
  * 行业依据：低电量（<20%）时系统可能自动砍帧；充电/电池双策略是游戏行业通行做法
  * （UE EnergySavingPlugin、Unity BatteryAwareScheduler）。
  *
- * 平台能力接口化（计划 v2 阶段 7 / R-02）：接口与降载策略纯函数留在引擎层，
+ * 平台能力接口化：接口与降载策略纯函数留在引擎层，
  * Android 实现（app 层 `platform.BatteryAwareController`）经 sticky 广播读取；
  * **iOS 对等**：`UIDevice.batteryLevel` + `UIDevice.batteryState`（需
  * `UIDevice.current.isBatteryMonitoringEnabled = true`）+
@@ -18,7 +18,7 @@ interface BatteryStatusProvider {
     /** 是否低电量（≤20%）且未充电 */
     val isLowBattery: Boolean
 
-    /** 系统是否处于省电模式（2026-08-14：`PowerManager.isPowerSaveMode` 监听） */
+    /** 系统是否处于省电模式（`PowerManager.isPowerSaveMode` 监听） */
     val isPowerSaveMode: Boolean
 
     /** 帧率上限（低电量未充电 45 / 系统省电模式 30 / 正常 60，取 min） */
@@ -36,7 +36,7 @@ object BatteryPolicy {
     /** 低电量帧率上限（未充电时 60→45，防止掉帧式降压同时保留基础流畅） */
     const val LOW_BATTERY_FPS_CAP = 45
 
-    /** 系统省电模式帧率上限（2026-08-14：省电模式 30fps——用户主动省电意愿最强，
+    /** 系统省电模式帧率上限（省电模式 30fps——用户主动省电意愿最强，
      *  行业对标 Android 官方 Game Mode BATTERY 档位行为） */
     const val POWER_SAVE_FPS_CAP = 30
 
@@ -56,7 +56,7 @@ object NoopBatteryStatus : BatteryStatusProvider {
 }
 
 /**
- * 省电模式/电量/充电状态 → 降载策略纯函数（2026-08-14 扩展，测试直接覆盖）。
+ * 省电模式/电量/充电状态 → 降载策略纯函数（测试直接覆盖）。
  *
  * fpsCap = min(低电量 45, 省电模式 30, 正常 60)——两级降载各自独立生效，
  * 经 [com.xianxia.sect.core.GameEngineCore.updateRenderFrameRate] 既有 min 链

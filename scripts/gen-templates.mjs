@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * gen-templates.mjs — 静态数据模板提取生成器（Kotlin→C++ 迁移批次 2）
+ * gen-templates.mjs — 静态数据模板提取生成器
  *
  * 从 Kotlin Registry 源码（EquipmentDatabase.kt 的 Map 字面量）提取模板数据，
  * 生成两份产物（提交 git 防漂移）：
@@ -209,7 +209,7 @@ function genCppHerbTable(herbs, seeds) {
 }
 
 // ── main ──────────────────────────────────────────────────────────────
-// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+// 静态数据单一源——数据权威在 scripts/data/*.json
 //（中性源），生成器只读中性源产出 C++ 表 + 测试快照；Kotlin Registry 由
 // 单一源守卫测试（StaticDataSingleSourceGuardTest）全量比对兜底防漂移。
 

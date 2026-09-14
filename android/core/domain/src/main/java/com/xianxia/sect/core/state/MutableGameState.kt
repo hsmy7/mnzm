@@ -122,7 +122,7 @@ fun MutableGameState.recordGameEvent(
     if (relatedEntityId.length > 50) return
     if (relatedEntityName.length > 50) return
     val d = gameData
-    // P-9：追加序号分配（消息列表稳定 key；旧档全 0 时从 1 开始，maxOf 对 ≤200 条 O(N) 可接受）
+    // 追加序号分配（消息列表稳定 key；旧档全 0 时从 1 开始，maxOf 对 ≤200 条 O(N) 可接受）
     val nextSeq = nextEventSequenceId(gameData.gameEventRecords)
     gameData = gameData.copy(
         gameEventRecords = (gameData.gameEventRecords + GameEventRecord(

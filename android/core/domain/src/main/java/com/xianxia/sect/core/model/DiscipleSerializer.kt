@@ -38,7 +38,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         encoder.encodeSerializableValue(DiscipleSurrogate.serializer(), surrogate)
     }
 
-    /** 构建平铺代理对象（serialize 拆分）：直接字段 + 各 @Embedded 段 copy 填充 */
+    /** 构建平铺代理对象：直接字段 + 各 @Embedded 段 copy 填充 */
     private fun buildSurrogate(value: Disciple): DiscipleSurrogate {
         var surrogate = DiscipleSurrogate(
             // ===== 直接字段 =====
@@ -80,7 +80,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         return surrogate
     }
 
-    /** 战斗属性 + 丹药效果段（serialize 拆分） */
+    /** 战斗属性 + 丹药效果段 */
     private fun withCombatPillFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
         surrogate.copy(
             // ===== CombatAttributes @Embedded =====
@@ -122,7 +122,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             activePillTypes = value.pillEffects.activePillTypes.toList()
         )
 
-    /** 装备 + 社交 + 使用追踪段（serialize 拆分） */
+    /** 装备 + 社交 + 使用追踪段 */
     private fun withEquipmentSocialUsageFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
         surrogate.copy(
             // ===== EquipmentSet @Embedded =====
@@ -158,7 +158,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             hasClearAllEffect = value.usage.hasClearAllEffect
         )
 
-    /** 技能属性段（serialize 拆分） */
+    /** 技能属性段 */
     private fun withSkillFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
         surrogate.copy(
             // ===== SkillStats @Embedded =====
@@ -186,7 +186,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         return buildDisciple(surrogate = surrogate)
     }
 
-    /** 从平铺代理对象构建 Disciple（deserialize 拆分）：直接字段 + 各 @Embedded 段 copy 填充 */
+    /** 从平铺代理对象构建 Disciple：直接字段 + 各 @Embedded 段 copy 填充 */
     private fun buildDisciple(surrogate: DiscipleSurrogate): Disciple {
         var disciple = Disciple(
             // ===== 直接字段 =====
@@ -229,7 +229,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         return disciple
     }
 
-    /** 战斗属性 + 丹药效果段（deserialize 拆分） */
+    /** 战斗属性 + 丹药效果段 */
     private fun withCombatPillValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
         disciple.copy(
             combat = CombatAttributes(
@@ -272,7 +272,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             )
         )
 
-    /** 装备 + 社交 + 使用追踪段（deserialize 拆分） */
+    /** 装备 + 社交 + 使用追踪段 */
     private fun withEquipmentSocialUsageValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
         disciple.copy(
             equipment = EquipmentSet(
@@ -309,7 +309,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             )
         )
 
-    /** 技能属性段（deserialize 拆分） */
+    /** 技能属性段 */
     private fun withSkillsValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
         disciple.copy(
             skills = SkillStats(

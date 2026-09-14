@@ -71,8 +71,12 @@ internal fun DropdownFilterButton(
     }
 }
 
+// LongParameterList 豁免：8 个调用面共享的 state-hoisting 复用过滤组件，
+// 参数面即 API 契约（双区过滤状态 + 回调 + 折叠开关）；分组为配置包需 8 处
+// 调用点同步维护同型回调包，错序风险高于收益（按 §2.24 惯例附理由压制）
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
+@Suppress("LongParameterList")
 internal fun SpiritRootAttributeFilterBar(
     selectedSpiritRootFilter: Set<Int>,
     selectedAttributeSort: String?,
@@ -144,8 +148,7 @@ internal fun SpiritRootAttributeFilterBar(
     }
 }
 
-/** 过滤条按钮行（SpiritRootAttributeFilterBar 拆分）：灵根/属性/境界按钮 + 显示全部勾选 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 过滤条按钮行：灵根/属性/境界按钮 + 显示全部勾选 */
 @Suppress("LongParameterList")
 @Composable
 private fun FilterBarTopRow(
@@ -209,7 +212,7 @@ private fun FilterBarTopRow(
     }
 }
 
-/** 灵根过滤区（SpiritRootAttributeFilterBar 拆分）：展开后显示灵根数过滤芯片 */
+/** 灵根过滤区：展开后显示灵根数过滤芯片 */
 @Composable
 private fun SpiritRootFilterSection(
     spiritRootExpanded: Boolean,
@@ -245,7 +248,7 @@ private fun SpiritRootFilterSection(
     }
 }
 
-/** 属性过滤区（SpiritRootAttributeFilterBar 拆分）：展开后按 5 列分行的属性排序芯片 */
+/** 属性过滤区：展开后按 5 列分行的属性排序芯片 */
 @Composable
 private fun AttributeFilterSection(
     attributeExpanded: Boolean,
@@ -289,7 +292,7 @@ private fun AttributeFilterSection(
     }
 }
 
-/** 境界过滤区（SpiritRootAttributeFilterBar 拆分）：展开后显示境界过滤芯片流式布局 */
+/** 境界过滤区：展开后显示境界过滤芯片流式布局 */
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun RealmFilterSection(

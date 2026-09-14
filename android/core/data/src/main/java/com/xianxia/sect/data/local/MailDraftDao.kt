@@ -1,4 +1,4 @@
-// MailDraftDao.kt — D-01 溢出邮件事务化根治：草稿持久化表（事务提交钩子落盘 + drain 消费）
+// MailDraftDao.kt — 溢出邮件草稿持久化表（事务提交钩子落盘 + drain 消费）
 package com.xianxia.sect.data.local
 
 import androidx.room.Dao

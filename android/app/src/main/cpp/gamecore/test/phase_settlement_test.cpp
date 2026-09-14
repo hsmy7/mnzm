@@ -1,5 +1,5 @@
 // ============================================================
-// phase_settlement_test — 每旬弟子结算黄金序列守护（T2.1）
+// phase_settlement_test — 每旬弟子结算黄金序列守护
 //
 // 守护目标：固定种子 + 固定状态 → SettlementEngine.onPhaseSettle
 // （runPhaseSettlement）推进 N 旬 → 断言字段值序列逐位符合手算期望。
@@ -60,21 +60,21 @@ Disciple baseDisciple(const std::string& id) {
 }
 
 TEST(PhaseSettlementTest, CultivationAccumulatesWithCapGoldenSequence) {
-    // rate = 19.0（炼气单灵根、无任何乘区）；maxCult(9,1) = 98
-    // 序列：50→69→88→min(107,98)=98。
+    // rate = 19.0（炼气单灵根、无任何乘区）；maxCult(9,1) = 490
+    // 序列：442→461→480→min(499,490)=490。
     // 设非满血 HP/MP：避免第三旬累积到满值后当旬触发突破（该交互由
     // BreakthroughTriggersSamePhaseAsReachingCap 单独守护）
     auto core = makeCore(42);
     auto& st = core->state();
     st.disciples.appendDisciple(baseDisciple("1"));
-    st.disciples.cultivations[0] = 50.0;
+    st.disciples.cultivations[0] = 442.0;
     // 低血量：三旬恢复窗口内 HP/MP 恒不满（0→40→80→120 / 0→15→30→45），
     // 防止第三旬累积到满值后当旬触发突破（该交互由
     // BreakthroughTriggersSamePhaseAsReachingCap 单独守护）
     st.disciples.currentHps[0] = 0;
     st.disciples.currentMps[0] = 0;
 
-    const double seq[] = {69.0, 88.0, 98.0};
+    const double seq[] = {461.0, 480.0, 490.0};
     for (int i = 0; i < 3; ++i) {
         core->advancePhases(1);
         EXPECT_DOUBLE_EQ(seq[i], st.disciples.materialize(0).cultivation) << "phase " << i;
@@ -84,12 +84,12 @@ TEST(PhaseSettlementTest, CultivationAccumulatesWithCapGoldenSequence) {
 TEST(PhaseSettlementTest, BreakthroughTriggersSamePhaseAsReachingCap) {
     // 组合语义守护：每旬先累积后突破检测——修为当旬达到满值即当旬尝试突破。
     // seed=42 首抽 0.9629 ≥ 0.90 → 失败分支（确定性）。
-    // 旬内轨迹：80 +19 → clamp 98（满）→ 候选成立 → 抽卡失败 → 修为清零 +
-    // HP/MP 折算（基础口径 max×0.1 至少 1）+ checkpoint=写回前 live 值(98)
+    // 旬内轨迹：480 +19 → clamp 490（满）→ 候选成立 → 抽卡失败 → 修为清零 +
+    // HP/MP 折算（基础口径 max×0.1 至少 1）+ checkpoint=写回前 live 值(490)
     auto core = makeCore(42);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
-    d.cultivation = 80.0;
+    d.cultivation = 480.0;
     d.currentHp = -1;   // -1 = 满（血量哨兵）
     d.currentMp = -1;
     st.disciples.appendDisciple(d);
@@ -101,7 +101,7 @@ TEST(PhaseSettlementTest, BreakthroughTriggersSamePhaseAsReachingCap) {
     EXPECT_EQ(1, after.breakthroughFailCount);
     EXPECT_EQ(20, after.currentHp);
     EXPECT_EQ(7, after.currentMp);
-    EXPECT_DOUBLE_EQ(98.0, after.cultivationCheckpoint);
+    EXPECT_DOUBLE_EQ(490.0, after.cultivationCheckpoint);
 }
 
 TEST(PhaseSettlementTest, HpMpRecoveryGoldenSequence) {
@@ -214,7 +214,7 @@ TEST(PhaseSettlementTest, BreakthroughBothBranchesAndRngAudit) {
     auto core = makeCore(seed);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
-    d.cultivation = 98.0;          // maxCult(9,1) = 98 满
+    d.cultivation = 490.0;         // maxCult(9,1) = 490 满
     d.currentHp = -1;              // -1 = 满（血量哨兵）
     d.currentMp = -1;
     st.disciples.appendDisciple(d);
@@ -258,14 +258,14 @@ TEST(PhaseSettlementTest, BreakthroughBothBranchesAndRngAudit) {
 
 TEST(PhaseSettlementTest, MajorRealmBreakthroughRecordsEvent) {
     // 满层大境界突破（炼气九层 → 筑基）：记录消息栏事件 + 寿命增益。
-    // 层9满修为 = 98 + 8×(390-98)/9 = 357.56（非 98）；
+    // 层9满修为 = 490 + 8×(1950-490)/9 ≈ 1787.8（非 490）；
     // seed=7 首抽 0.5313 < 0.80（层9 chance=表(8,1)）→ 成功分支
     const int64_t seed = 7;
     auto core = makeCore(seed);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
     d.realmLayer = 9;               // 炼气满层
-    d.cultivation = 98.0 + 8.0 * (390.0 - 98.0) / 9.0;   // 层9满值
+    d.cultivation = 490.0 + 8.0 * (1950.0 - 490.0) / 9.0;   // 层9满值
     d.currentHp = -1;
     d.currentMp = -1;
     st.disciples.appendDisciple(d);
@@ -275,8 +275,8 @@ TEST(PhaseSettlementTest, MajorRealmBreakthroughRecordsEvent) {
     EXPECT_EQ(8, after.realm);      // 大境界推进：炼气 → 筑基
     EXPECT_EQ(1, after.realmLayer);
     EXPECT_DOUBLE_EQ(0.0, after.cultivation);
-    // 寿命增益 = lifespanGainForRealm(8) = 50（无天赋词条加成）
-    EXPECT_EQ(130, after.lifespan);
+    // 寿命增益 = lifespanGainForRealm(8) = 40（无天赋词条加成）
+    EXPECT_EQ(120, after.lifespan);
     ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
     const auto& ev = st.gameData.gameEventRecords[0];
     EXPECT_EQ("breakthrough", ev.eventType);
@@ -334,15 +334,15 @@ TEST(PhaseSettlementTest, EmptyStateIsSafe) {
     EXPECT_EQ(99999L, st.gameData.spiritStones);
 }
 
-// ── 2026-08-31 新增：A1 突破丹逐颗扣减 / C1-C3 服用门槛 / A2 孕养度丹 ──
+// ── 突破丹逐颗扣减 / 服用门槛 / 孕养度丹 ──────────────────────────
 
 TEST(PhaseSettlementTest, BreakthroughPillDeductsPerUnitFromWarehouseStack) {
-    // A1 回归：仓库突破丹堆叠 quantity=3，一次突破尝试消耗 1 颗 → 剩 2
-    //（此前 EntityStore.minus 整叠删除：3 颗全丢）
+    // 回归守护：仓库突破丹堆叠 quantity=3，一次突破尝试消耗 1 颗 → 剩 2
+    //（逐颗扣减，禁止整叠删除）
     auto core = makeCore(42);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
-    d.cultivation = 98.0;          // maxCult(9,1) = 98 满
+    d.cultivation = 490.0;         // maxCult(9,1) = 490 满
     d.currentHp = -1;              // 满血哨兵 → 满足突破前置
     d.currentMp = -1;
     d.statusData["followed"] = "true";
@@ -370,7 +370,7 @@ TEST(PhaseSettlementTest, BreakthroughPillDeductsPerUnitFromBagStack) {
     auto core = makeCore(42);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
-    d.cultivation = 98.0;
+    d.cultivation = 490.0;
     d.currentHp = -1;
     d.currentMp = -1;
     d.statusData["followed"] = "true";
@@ -453,7 +453,7 @@ TEST(PhaseSettlementTest, CultivationPillSkippedAtFullCultivation) {
     auto core = makeCore(42);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
-    d.cultivation = 98.0;          // maxCult(9,1) = 98 满
+    d.cultivation = 490.0;         // maxCult(9,1) = 490 满
     d.currentHp = 100;             // 不满血 → 突破候选不成立
     d.currentMp = 50;
     StorageBagItem pillItem;
@@ -471,7 +471,7 @@ TEST(PhaseSettlementTest, CultivationPillSkippedAtFullCultivation) {
     core->advancePhases(1);
     const auto after = st.disciples.materialize(0);
     ASSERT_EQ(1u, after.storageBagItems.size());       // 满修为跳过
-    EXPECT_DOUBLE_EQ(98.0, after.cultivation);         // 累积封顶仍 98
+    EXPECT_DOUBLE_EQ(490.0, after.cultivation);        // 累积封顶仍 490
 }
 
 TEST(PhaseSettlementTest, NurturePillDistributesToEquippedInstances) {
@@ -516,7 +516,7 @@ TEST(PhaseSettlementTest, NurturePillDistributesToEquippedInstances) {
     EXPECT_EQ(0, st.equipmentInstances[0].nurtureLevel);
 }
 
-// ── 2026-08-31 B 批：自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换） ──
+// ── 自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换） ──
 
 TEST(PhaseSettlementTest, AutoEquipFromWarehouseFillsEmptySlot) {
     // 仓库有武器堆叠 + 空槽 → 自动装备且堆叠减一（回归：背包为空常态）
@@ -782,7 +782,7 @@ TEST(PhaseSettlementTest, AutoGearSecretRealmMemberSkipped) {
 }
 
 // ============================================================
-// P0 守护：每旬核心批次并行化 == 串行（确定性红线）
+// 守护：每旬核心批次并行化 == 串行（确定性红线）
 //
 // runPhaseCoreBatchParallel（JobSystem 分块并行）必须与串行
 // runPhaseCoreBatch **逐位一致**——零 RNG、逐弟子独立写、读静态列，
@@ -860,9 +860,11 @@ TEST(PhaseSettlementTest, CoreBatchParallelMatchesSerial) {
     GameState serial = makePhaseCoreState();
     GameState par = makePhaseCoreState();
 
-    system::runPhaseCoreBatch(serial);
+    ecs::World serialWorld;   // 串行路径迭代域同样经 sync 行序桥接
+    system::runPhaseCoreBatch(serial, serialWorld);
     ecs::JobSystem jobs(4);   // 多线程并行，真正分块
-    system::runPhaseCoreBatchParallel(par, jobs);
+    ecs::World world;         // E1：临时实体集（首旬惰性装配路径）
+    system::runPhaseCoreBatchParallel(par, jobs, world);
 
     // 全状态 JSON 逐字节比对（零 RNG 批次 → 并行必须与串行完全一致）
     nlohmann::json js;
@@ -877,6 +879,63 @@ TEST(PhaseSettlementTest, CoreBatchParallelMatchesSerial) {
     EXPECT_EQ(1u, serial.gameData.manualProficiencies.count("1"));
     EXPECT_EQ(1u, serial.gameData.manualProficiencies.count("2"));
     EXPECT_GT(serial.equipmentInstances[0].nurtureProgress, 0.0);
+}
+
+// ECS 调度同构路径守护——核心批次经 SystemScheduler::runAll(World)
+// 驱动（PhaseCoreBatchSystem::run 真用 World/View），结果必须与串行逐位
+// 一致。game_core.cpp 的 onCoreSettle 即本形状（runAll(ecsWorld_)）。
+TEST(PhaseSettlementTest, CoreBatchThroughEcsSchedulerMatchesSerial) {
+    GameState serial = makePhaseCoreState();
+    GameState par = makePhaseCoreState();
+
+    ecs::World serialWorld;   // 串行路径迭代域同样经 sync 行序桥接
+    system::runPhaseCoreBatch(serial, serialWorld);
+
+    ecs::JobSystem jobs(4);
+    ecs::World world;
+    ecs::SystemScheduler scheduler;
+    scheduler.attach(std::make_unique<system::PhaseCoreBatchSystem>(par, jobs));
+    scheduler.runAll(world);
+
+    nlohmann::json js;
+    gamecore::state::to_json(js, serial);
+    nlohmann::json jp;
+    gamecore::state::to_json(jp, par);
+    EXPECT_EQ(js.dump(), jp.dump()) << "ECS 调度路径必须与串行逐位一致";
+}
+
+// 保序验证（桥接规范红线）：弟子增删后实体集漂移
+// （行前移 + 旧 DiscipleRef 过期），system 内 syncDiscipleEntities 必须重建
+// 恢复"View 序 == 行序"，结算结果仍与串行逐位一致。
+// 旁证行级独立性：核心批次逐弟子独立写（修为/HP/MP/熟练度按 id 键控/
+// 孕养按装备 id）——先结算后删行 == 先删行后结算（对剩余行）。
+TEST(PhaseSettlementTest, CoreBatchResyncsStaleWorldAfterStoreShrink) {
+    GameState serial = makePhaseCoreState();
+    GameState par = makePhaseCoreState();
+
+    // par：先按上一旬行数装配实体集（4 行），随后弟子"3"离店——store 行
+    // 前移而实体集未跟随（生产中即招募/叛逃一旬后的过期 World）。
+    ecs::JobSystem jobs(4);
+    ecs::World world;
+    ecs::buildDiscipleEntities(world, par.disciples.size());
+    par.disciples.removeById("3");
+    ASSERT_EQ(par.disciples.size(), 3u);
+
+    ecs::SystemScheduler scheduler;
+    scheduler.attach(std::make_unique<system::PhaseCoreBatchSystem>(par, jobs));
+    scheduler.runAll(world);   // sync 检测数量漂移 → 重建 → 按新行序结算
+
+    ecs::World serialWorld;   // 串行路径迭代域同样经 sync 行序桥接
+    system::runPhaseCoreBatch(serial, serialWorld);
+    serial.disciples.removeById("3");   // 串行基线做同样裁剪
+
+    nlohmann::json js;
+    gamecore::state::to_json(js, serial);
+    nlohmann::json jp;
+    gamecore::state::to_json(jp, par);
+    EXPECT_EQ(js.dump(), jp.dump()) << "过期实体集重建后必须与串行逐位一致";
+    // World 侧实体集已与新行数对齐（重建发生）
+    EXPECT_EQ(world.registry().storage<ecs::DiscipleRef>().size(), 3u);
 }
 
 }  // namespace

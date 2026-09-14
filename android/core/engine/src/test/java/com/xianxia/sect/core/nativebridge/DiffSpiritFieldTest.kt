@@ -19,7 +19,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffSpiritFieldTest — 灵田收获跨语言差分对拍（批次 4c 验收核心）。
+ * DiffSpiritFieldTest — 灵田收获跨语言差分对拍。
  *
  * 守护目标：C++ processSpiritFieldHarvest（成熟判定/灵草入库/种子奖励/续种/
  * 年度报告）与 Kotlin ProductionProcessor.processSpiritFieldHarvest 语义一致。

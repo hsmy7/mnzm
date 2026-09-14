@@ -11,7 +11,7 @@
 // 移植要点（与 Kotlin 语义逐项对齐）：
 //   - state/increment 为 64 位回绕乘法（uint64 溢出 = JVM Long 溢出）
 //   - nextInt: 64→32 xorshift 后**先截断 32 位再做 32 位循环旋转**
-//     （Kotlin 原实现 2026-08 修复过 64 位域旋转偏差，此处照抄修复后语义）
+//     （先截断后旋转的次序不可颠倒，须与 Kotlin DeterministicRng 逐位一致）
 //   - nextInt(bound): Lemire 无偏回绝采样，low32 按**有符号 Int 比较**（JVM 语义）
 //   - nextDouble: (nextInt() & 0x7FFFFFFF) / 2^31（double 精确表示）
 //   - nextGaussian: Box-Muller，不缓存配对值（保持 snapshot/restore 确定性）

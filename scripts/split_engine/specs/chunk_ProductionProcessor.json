@@ -1,0 +1,93 @@
+{
+ "files": [
+  {
+   "name": "ProductionProcessor处理Ops1",
+   "header": "// ── ProductionProcessor 拆分域 1/5（行为零变更） ──",
+   "fns": [
+    "processBuildingProduction",
+    "processForgeCompletion",
+    "processAlchemyCompletion",
+    "rollProductionSuccess",
+    "producePill",
+    "produceForgeEquipment",
+    "completeForgeSlot",
+    "completeAlchemySlot",
+    "resetSlotToIdle",
+    "processSpiritFieldHarvest",
+    "addHarvestedHerb",
+    "addHarvestedSeed"
+   ]
+  },
+  {
+   "name": "ProductionProcessor构筑Ops2",
+   "header": "// ── ProductionProcessor 拆分域 2/5（行为零变更） ──",
+   "fns": [
+    "buildHarvestStores",
+    "updateSlotAfterHarvest",
+    "buildHarvestMaturityContext",
+    "calculateSpiritFieldMaturityBonus",
+    "buildHerbGardenMaturityZones",
+    "processAutoAlchemy",
+    "processAutoAlchemySlot",
+    "processAutoForge",
+    "processAutoForgeSlot",
+    "findCraftableForgeRecipe",
+    "hasMaterials",
+    "validateAutoSlot"
+   ]
+  },
+  {
+   "name": "ProductionProcessorCleaOps3",
+   "header": "// ── ProductionProcessor 拆分域 3/5（行为零变更） ──",
+   "fns": [
+    "clearSlotAssignment",
+    "processAutoAssign",
+    "applyAutoAssignments",
+    "batchAssignToProductionSlots",
+    "writeBatchAssignmentToRepo",
+    "rollbackMirrorBatchAssignment",
+    "isDiscipleFollowed",
+    "alignMirrorFromRepository",
+    "restoreRepositoryFromMirror",
+    "processMonthlyProductionOnSlots",
+    "batchAutoAlchemy",
+    "autoAlchemyRestartSlot"
+   ]
+  },
+  {
+   "name": "ProductionProcessorBatcOps4",
+   "header": "// ── ProductionProcessor 拆分域 4/5（行为零变更） ──",
+   "fns": [
+    "batchAutoForge",
+    "autoForgeRestartSlot",
+    "batchBuildingCompletion",
+    "batchForgeCompletion",
+    "isCompleteForgeSlot",
+    "produceForgeEquipmentShadow",
+    "settleForgeCompletionShadow",
+    "batchAlchemyCompletion",
+    "produceAlchemyPill",
+    "settleAlchemyCompletionShadow",
+    "batchSpiritFieldHarvest",
+    "findRecipe"
+   ]
+  },
+  {
+   "name": "ProductionProcessorFindOps5",
+   "header": "// ── ProductionProcessor 拆分域 5/5（行为零变更） ──",
+   "fns": [
+    "findForgeRecipe",
+    "consumeHerbsForRecipeLocal",
+    "consumeMaterialsForRecipeLocal",
+    "isSlotCompleteDynamic",
+    "recalculateAllCompletionMonths",
+    "recalculateSuccessRate",
+    "computeResidenceAssignments",
+    "buildResidenceBuildingIds",
+    "computeResidenceAssignmentsForSlots",
+    "takeCandidates",
+    "precomputeCandidates"
+   ]
+  }
+ ]
+}

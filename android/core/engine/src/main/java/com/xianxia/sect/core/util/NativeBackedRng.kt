@@ -2,7 +2,7 @@ package com.xianxia.sect.core.util
 
 /**
  * NativeRngChannel — RNG 分区抽取的 native 委托通道接口
- * （计划 v2 阶段 2d / T2.4 AUTHORITATIVE 单一真相源接缝）。
+ * （AUTHORITATIVE 单一真相源接缝）。
  *
  * AUTHORITATIVE 过渡模式下，Kotlin 引擎的全部随机抽取经此通道写入 C++
  * RngManager 分区（PCG-XSH-RR 标量通道），保证：

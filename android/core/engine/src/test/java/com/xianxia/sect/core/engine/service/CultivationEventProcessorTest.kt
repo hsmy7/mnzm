@@ -29,8 +29,8 @@ import org.mockito.kotlin.whenever
 class CultivationEventProcessorTest {
 
     // ═══════════════════════════════════════════════════════════════
-    // updateDiscipleHpMpAfterBattle — 死亡标记收敛回归（P2A）
-    // 重构后：幸存者更新 HP/MP，死亡标记统一走 DiscipleDeathHandler
+    // updateDiscipleHpMpAfterBattle — 死亡标记收敛回归
+    // 幸存者更新 HP/MP，死亡标记统一走 DiscipleDeathHandler
     // ═══════════════════════════════════════════════════════════════
 
     @Test

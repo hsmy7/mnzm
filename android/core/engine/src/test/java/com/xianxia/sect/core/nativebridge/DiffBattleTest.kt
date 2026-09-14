@@ -10,9 +10,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
+import com.xianxia.sect.core.util.calculateRealmGapFactors
 
 /**
- * DiffBattleTest — 战斗计算跨语言差分对拍（批次 6a 验收核心）。
+ * DiffBattleTest — 战斗计算跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::battle（乘区法最终伤害/境界压制/斩杀/闪避/护盾）与
  * Kotlin BattleCalculator 公式**逐位一致**。

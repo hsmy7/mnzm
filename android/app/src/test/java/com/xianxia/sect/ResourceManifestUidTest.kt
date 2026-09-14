@@ -9,7 +9,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * UID 稳定性守卫（2026-08-13 资源管线 codegen，对标 Godot UID 稳定引用）。
+ * UID 稳定性守卫（资源管线 codegen，对标 Godot UID 稳定引用）。
  *
  * 调用 resource-manifest.mjs 的 --dir 模式（单目录扫描）验证：
  * 1. 重复生成 → UID 与基线完全一致（内容未变不重新分配）

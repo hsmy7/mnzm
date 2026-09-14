@@ -8,7 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /**
- * CameraAnimator 时间源确定性测试（2026-08-10 新增，WP2）。
+ * CameraAnimator 时间源确定性测试。
  *
  * 覆盖维度：
  * - 注入假 [TimeSource] 后动画插值完全确定（不依赖墙钟）
@@ -126,8 +126,7 @@ class CameraAnimatorTest {
         val camera = FakeCameraState()
         val animator = CameraAnimator(camera, this, time)
 
-        // 对抗性审查修复：非正时长直接瞬时跳转目标——
-        // 旧实现下 progress 恒负 → t 恒 0 → `if (t >= 1f) break` 永不触发 → 死循环
+        // 非正时长直接瞬时跳转目标，不启动逐帧插值协程
         animator.animateTo(CameraTarget(100f, 200f, scale = 2f), durationMs = -100L)
 
         assertEquals("负时长应瞬时到达目标 X", 100f, camera.cameraX, 0.001f)
@@ -171,9 +170,7 @@ class CameraAnimatorTest {
 
     @Test
     fun `animateTo - 位置序列与原实现参考曲线全等（迁移回归）`() = runTest {
-        // 2026-08-13 EngineTween 迁移回归测试：原实现（协程内逐帧 delay + 手写插值循环）
-        // 每帧按 墙钟 elapsed → EaseOutCubic(t) → lerp 写入相机。
-        // 迁移后由 EngineTween 驱动，本测试逐帧采样位置序列并与参考曲线全等——
+        // EngineTween 驱动回归：本测试逐帧采样位置序列并与参考曲线全等——
         // 若驱动方式改变（起始时刻捕获偏移/跳帧/缓动曲线漂移/缺末帧），序列即偏离。
         val time = FakeTimeSource()
         val camera = FakeCameraState()
@@ -193,7 +190,7 @@ class CameraAnimatorTest {
         advanceTimeBy(16)
         samples += 400L to camera.cameraX
 
-        // 参考曲线：x(t) = 0 + (100-0) × EaseOutCubic(t/400)，与原实现同公式
+        // 参考曲线：x(t) = 0 + (100-0) × EaseOutCubic(t/400)
         assertEquals("首帧 t=0 应写起点", 0f, samples.first().second, 0.001f)
         assertEquals("末帧应达目标", 100f, samples.last().second, 0.001f)
         for ((elapsedMs, x) in samples) {

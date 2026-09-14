@@ -3,6 +3,7 @@ package com.xianxia.sect.taptap
 import android.util.Log
 import com.xianxia.sect.data.prefs.KeyValueStore
 import com.xianxia.sect.taptap.TapTapLeaderboardApi.LeaderboardApiException
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,8 +13,8 @@ import javax.inject.Singleton
  * - 上报与查询均要求 TapTap 登录；未登录时上报静默跳过、查询返回 NeedLogin。
  * - 上报失败仅记日志次日重试（不阻塞游戏）。
  * - 错误经 [LeaderboardResult] 返回，不抛裸异常。
- * - 存储：MMKV 统一偏好（docs/architecture.md 待办 D-29），旧 SharedPreferences
- *   一次性迁移（首次访问时懒执行，幂等）。
+ * - 存储：MMKV 统一偏好；旧 SharedPreferences 数据一次性迁移
+ *   （首次访问时懒执行，幂等）。
  */
 @Singleton
 class LeaderboardManager @Inject constructor(
@@ -96,18 +97,25 @@ class LeaderboardManager @Inject constructor(
             } else {
                 LeaderboardResult.Success(entries, myRanking)
             }
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 画面退出取消时上抛, 不以排行榜 Error 冒充
         } catch (e: LeaderboardApiException) {
-            when (e.code) {
-                LeaderboardApiExceptionCodes.NOT_LOGGED_IN -> LeaderboardResult.NeedLogin
-                LeaderboardApiExceptionCodes.PERIOD_EXPIRED ->
-                    LeaderboardResult.Error("本周期排行榜已结束，请等待下个周期")
-                LeaderboardApiExceptionCodes.ID_NOT_FOUND ->
-                    LeaderboardResult.Error("排行榜不存在，请稍后重试")
-                else -> LeaderboardResult.Error(e.message ?: LeaderboardConstants.UNAVAILABLE_MESSAGE)
-            }
+            mapLeaderboardApiException(e)
         } catch (e: Exception) {
             Log.e(TAG, "拉取排行榜异常", e)
             LeaderboardResult.Error(e.message ?: LeaderboardConstants.UNAVAILABLE_MESSAGE)
+        }
+    }
+
+    /** LeaderboardApiException 错误码 → 可展示结果映射（fetchLeaderboard 拆分，零行为变更） */
+    private fun mapLeaderboardApiException(e: LeaderboardApiException): LeaderboardResult {
+        return when (e.code) {
+            LeaderboardApiExceptionCodes.NOT_LOGGED_IN -> LeaderboardResult.NeedLogin
+            LeaderboardApiExceptionCodes.PERIOD_EXPIRED ->
+                LeaderboardResult.Error("本周期排行榜已结束，请等待下个周期")
+            LeaderboardApiExceptionCodes.ID_NOT_FOUND ->
+                LeaderboardResult.Error("排行榜不存在，请稍后重试")
+            else -> LeaderboardResult.Error(e.message ?: LeaderboardConstants.UNAVAILABLE_MESSAGE)
         }
     }
 }

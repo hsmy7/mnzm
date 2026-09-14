@@ -43,7 +43,7 @@ internal fun DialogType.renderSystemRoutes(
         }
         DialogType.RenameSect -> {
             val onConfirm = remember(viewModel) {
-                { newName: String -> viewModel.renameSect(newName) }
+                { newName: String -> viewModel.sectDelegate.renameSect(newName) }
             }
             RenameSectDialog(
                 currentName = gameData.sectName,
@@ -90,7 +90,7 @@ internal fun DialogType.renderSystemRoutes(
     }
 }
 
-/** 玉符信息对话框路由（拆出保持 renderSystemRoutes ≤60 行；D-35 小驼峰命名）。 */
+/** 玉符信息对话框路由（拆出保持 renderSystemRoutes ≤60 行）。 */
 @Composable
 private fun jadeSymbolDialogRoute(
     viewModel: GameViewModel,
@@ -102,7 +102,7 @@ private fun jadeSymbolDialogRoute(
     )
 }
 
-/** 玉符广告确认对话框路由（拆出保持 renderSystemRoutes ≤60 行；D-35 小驼峰命名）。 */
+/** 玉符广告确认对话框路由（拆出保持 renderSystemRoutes ≤60 行）。 */
 @Composable
 private fun jadeSymbolAdDialogRoute(
     viewModel: GameViewModel,

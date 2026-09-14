@@ -131,7 +131,7 @@ class FavorDomainTest {
 
     @Test
     fun `calculateGiftFavorIncrease - 薄礼基础2`() {
-        val increase = FavorDomain.calculateGiftFavorIncrease(
+        val increase = calculateGiftFavorIncrease(
             currentFavor = 50, tier = 1, sectLevel = 0,
             preference = GiftPreferenceType.NONE
         )
@@ -142,11 +142,11 @@ class FavorDomainTest {
 
     @Test
     fun `calculateGiftFavorIncrease - 偏好灵石时乘数13x`() {
-        val normal = FavorDomain.calculateGiftFavorIncrease(
+        val normal = calculateGiftFavorIncrease(
             currentFavor = 50, tier = 1, sectLevel = 0,
             preference = GiftPreferenceType.NONE
         )
-        val preferred = FavorDomain.calculateGiftFavorIncrease(
+        val preferred = calculateGiftFavorIncrease(
             currentFavor = 50, tier = 1, sectLevel = 0,
             preference = GiftPreferenceType.SPIRIT_STONE
         )
@@ -160,14 +160,14 @@ class FavorDomainTest {
     @Test
     fun `calculateTradePriceMultiplier - 普通好感无折扣`() {
         val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 50))
-        val multiplier = FavorDomain.calculateTradePriceMultiplier(relations, emptyList(), "target", "player")
+        val multiplier = calculateTradePriceMultiplier(relations, emptyList(), "target", "player")
         assertEquals(1.0, multiplier, 0.001)
     }
 
     @Test
     fun `calculateTradePriceMultiplier - 高好感有折扣`() {
         val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 80))
-        val multiplier = FavorDomain.calculateTradePriceMultiplier(relations, emptyList(), "target", "player")
+        val multiplier = calculateTradePriceMultiplier(relations, emptyList(), "target", "player")
         // 1.0 - (80-70)*0.01 = 0.9
         assertEquals(0.9, multiplier, 0.001)
     }
@@ -178,7 +178,7 @@ class FavorDomainTest {
         val alliances = listOf(
             Alliance(id = "a1", sectIds = listOf("player", "target"), startYear = 1, initiatorId = "player")
         )
-        val multiplier = FavorDomain.calculateTradePriceMultiplier(relations, alliances, "target", "player")
+        val multiplier = calculateTradePriceMultiplier(relations, alliances, "target", "player")
         // 0.9 * (1.0 - (80-70)*0.01) = 0.81, clamp at 0.85
         assertEquals(0.85, multiplier, 0.001)
     }
@@ -256,13 +256,13 @@ class FavorDomainTest {
     @Test
     fun `calculateDecayedFavor - 衰减1点`() {
         val r = SectRelation(sectId1 = "a", sectId2 = "b", favor = 90)
-        assertEquals(89, FavorDomain.calculateDecayedFavor(r))
+        assertEquals(89, calculateDecayedFavor(r))
     }
 
     @Test
     fun `calculateDecayedFavor - 不低于衰减下限`() {
         val r = SectRelation(sectId1 = "a", sectId2 = "b", favor = FavorConfig.DECAY_THRESHOLD)
-        assertEquals(FavorConfig.DECAY_THRESHOLD, FavorDomain.calculateDecayedFavor(r))
+        assertEquals(FavorConfig.DECAY_THRESHOLD, calculateDecayedFavor(r))
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -271,16 +271,16 @@ class FavorDomainTest {
 
     @Test
     fun `calculatePreferenceMultiplier - 无偏好返回1`() {
-        assertEquals(1.0, FavorDomain.calculatePreferenceMultiplier(GiftPreferenceType.NONE, true), 0.001)
+        assertEquals(1.0, calculatePreferenceMultiplier(GiftPreferenceType.NONE, true), 0.001)
     }
 
     @Test
     fun `calculatePreferenceMultiplier - 灵石偏好且送灵石返回13`() {
-        assertEquals(1.3, FavorDomain.calculatePreferenceMultiplier(GiftPreferenceType.SPIRIT_STONE, true), 0.001)
+        assertEquals(1.3, calculatePreferenceMultiplier(GiftPreferenceType.SPIRIT_STONE, true), 0.001)
     }
 
     @Test
     fun `calculatePreferenceRejectModifier - 灵石偏好减15pct拒绝`() {
-        assertEquals(-15, FavorDomain.calculatePreferenceRejectModifier(GiftPreferenceType.SPIRIT_STONE, true))
+        assertEquals(-15, calculatePreferenceRejectModifier(GiftPreferenceType.SPIRIT_STONE, true))
     }
 }

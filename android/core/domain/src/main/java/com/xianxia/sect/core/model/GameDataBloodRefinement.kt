@@ -4,7 +4,7 @@ import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 
-// GameDataBloodRefinement.kt — 血炼进度/加成（P-2 从 GameData.kt 拆分，同包模型，序列化字段不变）
+// GameDataBloodRefinement.kt — 血炼进度/加成（同包模型，序列化字段不变）
 
 // 血炼进度数据
 @Keep
@@ -17,19 +17,19 @@ data class BloodRefinementProgress(
     @ProtoNumber(5) val startYear: Int = 0,
     @ProtoNumber(6) val startMonth: Int = 0,
     @ProtoNumber(7) val durationMonths: Int = 0,
-    @ProtoNumber(8) val selectedStat: String = "",    // "speed"/"hp"/"physicalAttack"/"magicAttack"/"physicalDefense"/"magicDefense"
+    @ProtoNumber(8) val selectedStat: String = "",
+    //"speed"/"hp"/"physicalAttack"/"magicAttack"/"physicalDefense"/"magicDefense"
     @ProtoNumber(9) val bonusPercent: Double = 0.0
 )
 
 /**
  * 血炼加成累计记录（单利计算基准，旧格式）。
  *
- * 用于修复血炼加成复利叠加 bug（#8）：
- * - 旧实现每次血炼 bonus = 当前 base × bonusPercent，导致 baseₙ = base₀ × (1+p)ⁿ 复利叠加
- * - 修复后 bonus = (当前 base - 已累计 bonus) × bonusPercent，实现单利
+ * 单利语义：每次血炼 bonus = (当前 base - 已累计 bonus) × bonusPercent，
+ * 保证累计结果不产生复利叠加。
  *
- * 此字段已被 [BloodRefinementPctTotal] 替代。新系统将血炼改造为乘区百分比，
- * 不再直接修改 DiscipleTables.base* 列。仅用于旧存档迁移。
+ * 当前血炼使用 [BloodRefinementPctTotal]（乘区百分比，不直接修改
+ * DiscipleTables.base* 列）；本类仅用于旧存档读取与迁移。
  *
  * @see com.xianxia.sect.core.domain.disciple.DiscipleStatCalculator.calculateSimpleInterestBonus
  */

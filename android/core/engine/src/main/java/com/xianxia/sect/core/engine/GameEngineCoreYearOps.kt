@@ -15,13 +15,13 @@ import kotlinx.serialization.json.jsonPrimitive
 private const val YEAR_TAG = "GameEngineCore"
 
 /**
- * 年变真相源切换批（Y-switch + Y-3 T1-③ 死亡链）的信封数据——
+ * 年变真相源切换（死亡链）的信封数据——
  * nativeSettleYear 回传平台效应草稿（C++ 死亡链状态面完成后的 Kotlin 残留输入）。
  */
 internal data class YearSettlementEnvelope(
-    /** T1-③ 死亡弟子草稿（袋物品物化/DAO 清理/DeathEvent/死亡记录档案） */
+    /** 死亡弟子草稿（袋物品物化/DAO 清理/DeathEvent/死亡记录档案） */
     val agedDeaths: List<AgedDeathDraft>,
-    /** T1-③ 丧亲事件草稿（lifeEvents 瞬态列写入） */
+    /** 丧亲事件草稿（lifeEvents 瞬态列写入） */
     val bereavements: List<BereavementDraft>
 )
 
@@ -93,10 +93,10 @@ internal fun parseYearSettlementEnvelope(envJson: String): YearSettlementEnvelop
 }
 
 /**
- * 年变真相源切换管线（批 Y-switch）：生产年变路径从 Kotlin YearSettlementExecutor
+ * 年变真相源切换管线：生产年变路径从 Kotlin YearSettlementExecutor
  * 编排切换为 C++ `runYearSettlement` + Kotlin 残留执行器互插——
  * ① nativeSettleYear——C++ 完整年变（T1 已下沉面 + T2 已下沉面 + 年报 + 年俸），
- *    信封含 T1-③ 死亡链平台效应草稿（agedDeaths/bereavements）；
+ *    信封含死亡链平台效应草稿（agedDeaths/bereavements）；
  * ② applyDirtyFromNative——增量镜像（失败先全量兜底，仍失败异常传播）；
  * ③ Kotlin 残留执行器（单事务：死亡链 ③ 平台效应 + 招募生成 ④ + AI 招募 ② +
  *    商人收购 ③ + 交易刷新 ④ + 物化/丧亲/死亡档案）；
@@ -107,7 +107,7 @@ internal fun parseYearSettlementEnvelope(envJson: String): YearSettlementEnvelop
  * 失败必须抛异常传播（processAuthoritativeTick 的 refund + 看门狗自愈），
  * 不得回退 Kotlin 编排**（否则 C++ 已结算 + Kotlin 再结算 = 双份执行）。
  *
- * 失败语义与旬/月变管线同构；RNG 行为基线（T1-⑨ 先于 T1-④）登记于
+ * 失败语义与旬/月变管线同构；RNG 行为基线（思过释放先于招募生成）登记于
  * YearSettlementResidualExecutor KDoc。
  */
 @Suppress("TooGenericExceptionCaught")  // 降级契约：native 链路失败统一 refund+重抛

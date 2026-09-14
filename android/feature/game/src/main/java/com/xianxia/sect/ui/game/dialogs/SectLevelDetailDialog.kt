@@ -81,7 +81,7 @@ fun SectLevelDetailDialog(
             ),
             onPrevious = { viewedLevel-- },
             onNext = { viewedLevel++ },
-            onUpgrade = { viewModel.upgradeSectLevel() },
+            onUpgrade = { viewModel.sectDelegate.upgradeSectLevel() },
             onRewardClick = { showRewardDialog = true }
         )
     }
@@ -96,7 +96,7 @@ fun SectLevelDetailDialog(
     }
 }
 
-/** 宗门等级详情内容数据（SectLevelDetailDialog 拆分） */
+/** 宗门等级详情内容数据 */
 private data class SectLevelContentData(
     val viewedLevel: Int,
     val playerLevel: Int,
@@ -106,7 +106,7 @@ private data class SectLevelContentData(
     val rewardClaimable: Boolean
 )
 
-/** 宗门等级详情内容（SectLevelDetailDialog 拆分）：区域 1 翻页 + 区域 2 条件 + 右下角奖励按钮 */
+/** 宗门等级详情内容：区域 1 翻页 + 区域 2 条件 + 右下角奖励按钮 */
 @Composable
 private fun SectLevelDialogContent(
     contentData: SectLevelContentData,
@@ -157,7 +157,7 @@ private fun SectLevelDialogContent(
     }
 }
 
-/** 升级条件状态计算（SectLevelDetailDialog 拆分）：仅当前等级且未满级时计算 */
+/** 升级条件状态计算：仅当前等级且未满级时计算 */
 private fun computeUpgradeConditions(
     viewedLevel: Int,
     playerLevel: Int,
@@ -178,7 +178,7 @@ private fun computeUpgradeConditions(
         emptyList()
     }
 
-/** 等级名称 + 左右翻页箭头（SectLevelDetailDialog 拆分） */
+/** 等级名称 + 左右翻页箭头 */
 @Composable
 private fun SectLevelHeaderRow(
     viewedLevel: Int,
@@ -242,7 +242,7 @@ private fun SectLevelHeaderRow(
     }
 }
 
-/** 升级条件 + 晋升按钮（SectLevelDetailDialog 拆分） */
+/** 升级条件 + 晋升按钮 */
 @Composable
 private fun SectLevelUpgradeSection(
     viewedLevel: Int,
@@ -300,7 +300,7 @@ private fun SectLevelUpgradeSection(
     }
 }
 
-/** 每周奖励按钮（右下角，含红点）（SectLevelDetailDialog 拆分） */
+/** 每周奖励按钮（右下角，含红点） */
 @Composable
 private fun BoxScope.SectLevelRewardButton(
     rewardClaimable: Boolean,

@@ -50,6 +50,7 @@ class SpiritMineViewModel @Inject constructor(
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun assignSpiritMineDeacon(slotIndex: Int, discipleId: String) {
         gameEngine.launchOnEngine {
             try {
@@ -74,6 +75,7 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun removeSpiritMineDeacon(slotIndex: Int) {
         gameEngine.launchOnEngine {
             try {
@@ -115,6 +117,7 @@ class SpiritMineViewModel @Inject constructor(
                 .thenByDescending { it.realmLayer })
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun assignDisciplesToSpiritMineSlots(selectedDisciples: List<DiscipleAggregate>, mineIndex: Int = 0) {
         gameEngine.launchOnEngine {
             try {
@@ -127,6 +130,7 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun removeDiscipleFromSpiritMineSlot(slotIndex: Int) {
         gameEngine.launchOnEngine {
             try {
@@ -155,6 +159,8 @@ class SpiritMineViewModel @Inject constructor(
     }
 
 
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("UnusedParameter", "TooGenericExceptionCaught")
     fun swapSpiritMineDisciple(slotIndex: Int, newDiscipleId: String, mineIndex: Int = 0) {
         gameEngine.launchOnEngine {
             try {
@@ -172,7 +178,8 @@ class SpiritMineViewModel @Inject constructor(
                 if (slotIndex < allSlots.size) {
                     val oldDiscipleId = allSlots[slotIndex].discipleId
                     val newName = gameEngine.getDiscipleAggregate(newDiscipleId)?.name ?: ""
-                    allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName, sectId = allSlots[slotIndex].sectId)
+                    allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName,
+                        sectId = allSlots[slotIndex].sectId)
                     gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }
 
                     if (oldDiscipleId.isNotEmpty()) {
@@ -192,6 +199,7 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun autoAssignSpiritMineMiners(mineIndex: Int = 0) {
         gameEngine.launchOnEngine {
             try {
@@ -206,7 +214,8 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
-    private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>, mineIndex: Int = 0) {
+    private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>,
+        mineIndex: Int = 0) {
         val currentGameData = gameEngine.gameDataSnapshot
         val mineSectId = currentGameData.placedBuildings
             .filter { it.displayName == "灵矿场" }

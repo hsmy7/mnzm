@@ -10,11 +10,10 @@
 #include "gamecore/system/settlement.h"
 
 // ============================================================
-// 引擎循环（计划 v2 阶段 5：游戏循环入 C++）
+// 引擎循环（游戏循环入 C++）
 //
 // PhaseClock —— Kotlin core/engine/system/GameTimeClock 逐位移植：
-// 墙钟消费/速度/暂停/refundPhases 状态机（阶段 2 T2.4 明确推迟到本阶段的
-// "C++ 累积器接管"）。语义锚点（GameTimeClock.kt）：
+// 墙钟消费/速度/暂停/refundPhases 状态机。语义锚点（GameTimeClock.kt）：
 //   - accumulatedGameMs += wallDeltaMs * speed（speed: 0/1/2）
 //   - phases = accumulatedGameMs / msPerPhase（msPerPhase = 2000ms @1x / 1000 @2x）
 //   - phaseCap = MAX_PHASES_PER_TICK(3) × speed：单 tick 追补上限，
@@ -142,7 +141,7 @@ public:
         }
         const int64_t perPhase = msPerPhase();
         int phases = static_cast<int>(accumulatedGameMs_.load(std::memory_order_relaxed) / perPhase);
-        const int phaseCap = kMaxPhasesPerTick * std::max(s, 1);
+        const int phaseCap = maxPhasesPerTick(s);  // 单一来源
         if (phases > phaseCap) {
             if (logger_) {
                 logger_->log(LogLevel::kWarn, "EngineLoop",
@@ -278,11 +277,24 @@ public:
     /// 用户活跃通知（输入端口：Kotlin onUserActivity → JNI）
     void notifyUserActivity() { lastUserActivityNs_ = phaseClock_.nowMs() * 1'000'000; }
 
-    /// 循环紧急重启（换线程）：帧状态清零（Kotlin LoopIterationState(0, now)）
+    /// 循环紧急重启（换线程）：帧状态清零（Kotlin LoopIterationState(0, now)）。
+    /// 同时置位 owner 重锚标志（桥层守卫专用）：Kotlin 紧急重启会用
+    /// 全新 GameDispatcher 线程驱动循环（recreateGameDispatcher），桥层
+    /// "owner 线程"必须重锚到新驱动线程，否则 debug 守卫会把新引擎线程
+    /// 误判为违规进入而 abort。
     void onLoopRestart() {
         accumulatorNs_ = 0;
         lastFrameNs_ = 0;
         hasLastFrame_ = false;
+        ownerRebasePending_.store(true, std::memory_order_relaxed);
+    }
+
+    /// 消费 owner 待重锚标志（读后清除）；标志置位后的首次调用返回 true。
+    /// 桥层在**新驱动线程的首个 nativeLoopFrame** 进入时调用（该入口是
+    /// 循环启动的必然首站，且只在驱动线程运行）——消费后把 owner 重锚到
+    /// 当前线程，再进入常规守卫校验。release 构建守卫擦除，本通道零语义。
+    bool consumeOwnerRebasePending() {
+        return ownerRebasePending_.exchange(false, std::memory_order_relaxed);
     }
 
     /// 测试隔离专用：完全重置循环状态（tick 计数/速度/累积/帧状态/活跃基准）。
@@ -296,6 +308,7 @@ public:
         hasLastFrame_ = false;
         lastUserActivityNs_ = 0;
         lastThermalState_ = static_cast<int>(ThermalState::kNone);
+        ownerRebasePending_.store(false, std::memory_order_relaxed);
         phaseClock_.resetForTest();
     }
 
@@ -309,7 +322,7 @@ public:
     }
 
 private:
-    /// 热状态变化遥测（阶段 5 端口消费点：帧率降级判据留 Kotlin/阶段 6）
+    /// 热状态变化遥测（端口消费点：帧率降级判据留 Kotlin）
     void reportThermalTelemetry() {
         if (!telemetry_ || !thermal_) return;
         const int state = static_cast<int>(thermal_->currentState());
@@ -330,6 +343,8 @@ private:
     bool hasLastFrame_ = false;
     int64_t lastUserActivityNs_ = 0;
     int lastThermalState_ = static_cast<int>(ThermalState::kNone);
+    /// owner 待重锚标志（onLoopRestart 置位；桥层新驱动线程首帧消费）
+    std::atomic<bool> ownerRebasePending_{false};
 };
 
 }  // namespace gamecore::system

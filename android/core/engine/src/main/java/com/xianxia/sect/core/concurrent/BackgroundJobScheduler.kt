@@ -55,6 +55,7 @@ class BackgroundJobScheduler @Inject constructor(
      * @param block 后台执行的计算（纯函数，禁止修改游戏状态）
      * @return Job 句柄（可用于取消）
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun submit(label: String, block: suspend () -> Unit): Job {
         if (queuedJobCount >= QUEUE_WARNING_THRESHOLD) {
             DomainLog.w(TAG, "Background job queue full ($queuedJobCount), dropping: $label")

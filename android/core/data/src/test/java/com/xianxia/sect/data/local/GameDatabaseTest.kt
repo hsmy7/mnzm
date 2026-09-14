@@ -34,7 +34,7 @@ class GameDatabaseTest {
         try {
             try {
                 db.execSQL("PRAGMA mmap_size = 0")
-            } catch (e: android.database.sqlite.SQLiteException) {
+            } catch (ignored: android.database.sqlite.SQLiteException) {
                 // Robolectric 嵌入式 SQLite 不支持此 pragma，跳过
                 return
             }
@@ -74,12 +74,12 @@ class GameDatabaseTest {
             androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
                 .name(name)
                 .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
-                    override fun onCreate(db: SupportSQLiteDatabase) {}
+                    override fun onCreate(db: SupportSQLiteDatabase) = Unit
                     override fun onUpgrade(
                         db: SupportSQLiteDatabase,
                         oldVersion: Int,
                         newVersion: Int
-                    ) {}
+                    ) = Unit
                 })
                 .build()
         )

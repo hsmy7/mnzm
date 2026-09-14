@@ -18,7 +18,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
 import kotlin.math.roundToInt
 
 sealed class GameItem : HasId {
-    override abstract val id: String
+    abstract override val id: String
     abstract val name: String
     abstract val rarity: Int
     abstract val description: String
@@ -102,7 +102,8 @@ data class EquipmentStack(
         mp = mp
     )
 
-    fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null, isEquipped: Boolean = true): EquipmentInstance = EquipmentInstance(
+    fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null,
+        isEquipped: Boolean = true): EquipmentInstance = EquipmentInstance(
         id = id,
         slotId = slotId,
         name = name,
@@ -230,7 +231,7 @@ data class EquipmentInstance(
 
     companion object {
         /**
-         * C2（P1-C）：装备最终属性缓存。
+         * 装备最终属性缓存（引用/值语义，避免重复计算）。
          *
          * 键语义：EquipmentInstance 是不可变 COW data class（全字段不可变，
          * 唯一 var slotId 实际均经 copy 创建新实例）——内容即版本，值语义键
@@ -433,7 +434,8 @@ data class ManualStack(
 
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
 
-    fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null, isLearned: Boolean = true): ManualInstance = ManualInstance(
+    fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null,
+        isLearned: Boolean = true): ManualInstance = ManualInstance(
         id = id,
         slotId = slotId,
         name = name,
@@ -557,34 +559,38 @@ data class ManualInstance(
 
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
 
-    private fun parseBuffType(bt: String): BuffType? = when (bt) {
-        "physical_attack" -> BuffType.PHYSICAL_ATTACK_BOOST
-        "magic_attack" -> BuffType.MAGIC_ATTACK_BOOST
-        "physical_defense" -> BuffType.PHYSICAL_DEFENSE_BOOST
-        "magic_defense" -> BuffType.MAGIC_DEFENSE_BOOST
-        "hp" -> BuffType.HP_BOOST
-        "mp" -> BuffType.MP_BOOST
-        "speed" -> BuffType.SPEED_BOOST
-        "crit_rate" -> BuffType.CRIT_RATE_BOOST
-        "physical_attack_reduce" -> BuffType.PHYSICAL_ATTACK_REDUCE
-        "magic_attack_reduce" -> BuffType.MAGIC_ATTACK_REDUCE
-        "physical_defense_reduce" -> BuffType.PHYSICAL_DEFENSE_REDUCE
-        "magic_defense_reduce" -> BuffType.MAGIC_DEFENSE_REDUCE
-        "speed_reduce" -> BuffType.SPEED_REDUCE
-        "crit_rate_reduce" -> BuffType.CRIT_RATE_REDUCE
-        "poison" -> BuffType.POISON
-        "burn" -> BuffType.BURN
-        "stun" -> BuffType.STUN
-        "freeze" -> BuffType.FREEZE
-        "silence" -> BuffType.SILENCE
-        "taunt" -> BuffType.TAUNT
-        "damage_boost" -> BuffType.DAMAGE_BOOST
-        "damage_reduction" -> BuffType.DAMAGE_REDUCTION
-        "shield" -> BuffType.SHIELD
-        "damage_share" -> BuffType.DAMAGE_SHARE
-        "damage_link" -> BuffType.DAMAGE_LINK
-        "turn_advance" -> BuffType.TURN_ADVANCE
-        else -> null
+    private fun parseBuffType(bt: String): BuffType? = BUFF_TYPE_BY_KEY[bt]
+
+    companion object {
+        /** buffType 键 → 枚举映射：未知键为 null */
+        private val BUFF_TYPE_BY_KEY: Map<String, BuffType> = mapOf(
+            "physical_attack" to BuffType.PHYSICAL_ATTACK_BOOST,
+            "magic_attack" to BuffType.MAGIC_ATTACK_BOOST,
+            "physical_defense" to BuffType.PHYSICAL_DEFENSE_BOOST,
+            "magic_defense" to BuffType.MAGIC_DEFENSE_BOOST,
+            "hp" to BuffType.HP_BOOST,
+            "mp" to BuffType.MP_BOOST,
+            "speed" to BuffType.SPEED_BOOST,
+            "crit_rate" to BuffType.CRIT_RATE_BOOST,
+            "physical_attack_reduce" to BuffType.PHYSICAL_ATTACK_REDUCE,
+            "magic_attack_reduce" to BuffType.MAGIC_ATTACK_REDUCE,
+            "physical_defense_reduce" to BuffType.PHYSICAL_DEFENSE_REDUCE,
+            "magic_defense_reduce" to BuffType.MAGIC_DEFENSE_REDUCE,
+            "speed_reduce" to BuffType.SPEED_REDUCE,
+            "crit_rate_reduce" to BuffType.CRIT_RATE_REDUCE,
+            "poison" to BuffType.POISON,
+            "burn" to BuffType.BURN,
+            "stun" to BuffType.STUN,
+            "freeze" to BuffType.FREEZE,
+            "silence" to BuffType.SILENCE,
+            "taunt" to BuffType.TAUNT,
+            "damage_boost" to BuffType.DAMAGE_BOOST,
+            "damage_reduction" to BuffType.DAMAGE_REDUCTION,
+            "shield" to BuffType.SHIELD,
+            "damage_share" to BuffType.DAMAGE_SHARE,
+            "damage_link" to BuffType.DAMAGE_LINK,
+            "turn_advance" to BuffType.TURN_ADVANCE
+        )
     }
 
     private fun parseBuffsJson(json: String): List<Triple<BuffType, Double, Int>> {
@@ -1092,7 +1098,7 @@ data class Seed(
 }
 
 /**
- * 从装备实例重建堆叠（旧存档兜底，2026-08-01 堆叠序列化缺陷修复）。
+ * 从装备实例重建堆叠（旧存档兜底）。
  *
  * 历史缺陷：SaveData 中 equipmentStacks 曾被标记 @Transient，备份文件/云存档不含堆叠，
  * 恢复路径会永久清空仓库堆叠。本函数仅对"未装备且无归属"的实例按 (name, rarity, slot)
@@ -1110,7 +1116,7 @@ fun rebuildEquipmentStacks(instances: List<EquipmentInstance>): List<EquipmentSt
 }
 
 /**
- * 从功法实例重建堆叠（旧存档兜底，2026-08-01 堆叠序列化缺陷修复）。
+ * 从功法实例重建堆叠（旧存档兜底）。
  * 语义同 [rebuildEquipmentStacks]，仅重建未学习（ownerId == null && !isLearned）的实例。
  *
  * @param instances 功法实例列表

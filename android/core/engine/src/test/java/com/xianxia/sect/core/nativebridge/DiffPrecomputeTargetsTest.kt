@@ -21,7 +21,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffPrecomputeTargetsTest — AI 兽袭目标预计算跨语言差分对拍（批 13-1）。
+ * DiffPrecomputeTargetsTest — AI 兽袭目标预计算跨语言差分对拍。
  *
  * 守护目标：C++ `gamecore::system::detail::precomputeTargets`（经
  * [DiffRngBridge.nativeCorePrecomputeTargets] 直调）与 Kotlin
@@ -109,7 +109,7 @@ class DiffPrecomputeTargetsTest {
                 WorldSect(id = "ai-2", name = "赤水宗", x = 1500f, y = 100f),
                 WorldSect(id = "ai-3", name = "玄水宗", x = 1600f, y = 100f)
             )
-            // @Transient 瞬态字段（批 13-1：C++ 快照协议顶层承载）
+            // @Transient 瞬态字段（C++ 快照协议顶层承载）
             aiSectDisciples = mapOf(
                 "ai-1" to (1..10).map { aiDisciple("a$it") },
                 "ai-3" to (1..5).map { aiDisciple("c$it") }
@@ -122,7 +122,7 @@ class DiffPrecomputeTargetsTest {
         }
         return NativeGameState(
             gameData = gameData,
-            // 批 10-4 + 批 13-1：@Transient 字段经顶层承载（与 C++ 导出键对齐）
+            // @Transient 字段经顶层承载（与 C++ 导出键对齐）
             aiSectDisciples = gameData.aiSectDisciples,
             aiSectBeastDirectTargets = gameData.aiSectBeastDirectTargets,
             aiSectBeastSkipCooldowns = gameData.aiSectBeastSkipCooldowns,
@@ -139,10 +139,8 @@ class DiffPrecomputeTargetsTest {
         }
         val gameRng = GameRngManager().also { it.restoreStates(snapshot.gameData.rngStates) }
         val processor = AISectBeastAttackProcessor(
-            stateStore = store,
             battleSystem = mockSmart(),
             rngManager = gameRng,
-            encounterBattleService = mockSmart()
         )
         store.update {
             processor.precomputeTargets(this, gameData.gameYear, gameData.gameMonth)

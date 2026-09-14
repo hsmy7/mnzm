@@ -6,6 +6,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 
 /**
  * 计算弟子当前血量比例（含血炼 finalStats 口径）。

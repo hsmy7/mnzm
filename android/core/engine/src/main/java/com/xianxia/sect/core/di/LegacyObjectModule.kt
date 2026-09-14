@@ -14,7 +14,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-/** 为历史 object 单体提供 DI 绑定，已逐步迁移为 @Inject class */
+/** 为 object 单体形态的服务（未声明为 @Inject class）提供 DI 绑定 */
 @Module
 @InstallIn(SingletonComponent::class)
 object LegacyObjectModule {

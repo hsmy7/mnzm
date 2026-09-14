@@ -11,7 +11,7 @@ namespace gamecore::rng {
 //                 u2 = nextDouble();
 //                 z = sqrt(-2*ln(u1)) * cos(2*PI*u2); return z*stddev + mean; }
 //
-// 精度（C-12 清偿）：JVM StrictMath.log/cos/sqrt 为纯 Java fdlibm（无平台
+// 精度：JVM StrictMath.log/cos/sqrt 为纯 Java fdlibm（无平台
 // intrinsic）——C++ 内嵌 fdlibm（gamecore/rng/fdlibm.h：log + cos）保证
 // 与 Kotlin 权威（StrictMath）跨平台位级一致；实测 std::log/std::cos 在
 // 部分输入差最后一位（glibc 与 fdlibm 版本差异）。sqrt 沿用 std::（对拍

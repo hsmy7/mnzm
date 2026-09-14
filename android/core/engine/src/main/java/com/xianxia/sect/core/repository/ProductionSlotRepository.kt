@@ -23,7 +23,14 @@ class ProductionSlotRepository @Inject constructor(
     private val scopeProvider: CoroutineScopeProvider
 ) {
     companion object {
-        private const val TAG = "ProductionSlotRepository"
+        /**
+         * 单用户定向补偿邮件（MailService 扩展，独立文件）。
+         *
+         * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
+         * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
+         * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
+         */
+        internal const val TAG = "ProductionSlotRepository"
 
         private val BUILDING_ID_MAP = mapOf(
             BuildingType.ALCHEMY to "alchemy",
@@ -44,12 +51,12 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    private val shardedLock = ShardedSlotLock()
+    internal val shardedLock = ShardedSlotLock()
     private val globalMutex = ReentrantLock()
     /**
-     * 进程级协程写锁（2026-08-09 B5 根治 + 2026-08-09 对抗性审查 M1 扩展）：
-     * 串行化"缓存 RMW + DAO 写"整段。分片锁是 JVM 锁无法包 suspend 的 DAO 写，
-     * 原实现 DAO 写在锁外——月变 resetSlotToIdle 与 auto-restart 排班并发时
+     * 进程级协程写锁：串行化"缓存 RMW + DAO 写"整段。
+     * 分片锁是 JVM 锁无法包 suspend 的 DAO 写——若 DAO 写在锁外，
+     * 月变 resetSlotToIdle 与 auto-restart 排班并发时
      * DAO 乱序，缓存与数据库分叉（排班结果丢失/材料双扣）。
      *
      * 覆盖范围：全部"改缓存 + 写 DAO"的挂起入口（update 族 + addSlot/removeSlot/
@@ -60,7 +67,8 @@ class ProductionSlotRepository @Inject constructor(
      * 不存在死锁；锁内 transform 均为纯 copy 表达式（无锁内二次获取）。
      */
     private val writeMutex = Mutex()
-    private val cache = SlotCache()
+    internal val cache = SlotCache()
+    /** 后台协程作用域 — 使用 [DeviceCapabilityProfiler.backgroundDispatcher] */
     private val scope get() = scopeProvider.scope
 
     private val _slots = MutableStateFlow<List<ProductionSlot>>(emptyList())
@@ -90,6 +98,11 @@ class ProductionSlotRepository @Inject constructor(
             initialValue = emptyList()
         )
 
+    /**
+     * 初始化建筑配置（每次 boot 经 `ResourcePreloader.preloadGameResources` 调用）。
+     * 重复调用直接跳过，避免 `config/buildings.json` 重复 I/O（首次加载失败已回退默认配置，
+     * 无需重试语义）。
+     */
     fun initialize() {
         globalMutex.withLock {
             val loaded = sanitizeSlots(dao.getAllSync())
@@ -124,28 +137,6 @@ class ProductionSlotRepository @Inject constructor(
         return cache.getByBuildingIdIndex(buildingId, slotIndex)
     }
 
-    fun getSlotsByType(buildingType: BuildingType): List<ProductionSlot> {
-        return cache.getByType(buildingType)
-    }
-
-    fun getSlotsByBuildingId(buildingId: String): List<ProductionSlot> {
-        return cache.getByBuildingId(buildingId)
-    }
-
-    fun getWorkingSlots(): List<ProductionSlot> = cache.getWorkingSlots()
-
-    fun getCompletedSlots(): List<ProductionSlot> = cache.getCompletedSlots()
-
-    fun getIdleSlots(): List<ProductionSlot> = cache.getIdleSlots()
-
-    fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot> {
-        return cache.getFinishedSlots(currentYear, currentMonth)
-    }
-
-    fun getSlotById(slotId: String): ProductionSlot? {
-        return cache.getById(slotId)
-    }
-
     suspend fun updateSlot(
         buildingType: BuildingType,
         slotIndex: Int,
@@ -174,7 +165,8 @@ class ProductionSlotRepository @Inject constructor(
             }
 
             if (targetIndex < 0) {
-                return@withLock Pair(null, Result.failure(IllegalArgumentException("Slot not found: $buildingType[$slotIndex]")))
+                return@withLock Pair(null,
+                    Result.failure(IllegalArgumentException("Slot not found: $buildingType[$slotIndex]")))
             }
 
             val currentSlot = currentSlots[targetIndex]
@@ -183,7 +175,8 @@ class ProductionSlotRepository @Inject constructor(
             if (currentSlot.status != newSlot.status) {
                 val validation = SlotStateMachine.validateTransition(currentSlot.status, newSlot.status)
                 if (validation.isFailure) {
-                    return@withLock Pair(null, Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Slot state transition validation failed without exception")))
+                    return@withLock Pair(null, Result.failure(validation.exceptionOrNull() ?:
+                        IllegalStateException("Slot state transition validation failed without exception")))
                 }
             }
 
@@ -192,7 +185,8 @@ class ProductionSlotRepository @Inject constructor(
             _slots.value = newSlots
             cache.updateCache(newSlots)
 
-            DomainLog.d(TAG, "Updated slot: ${buildingType.name}[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
+            DomainLog
+                .d(TAG, "Updated slot: ${buildingType.name}[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
             Pair(newSlot, Result.success(newSlot))
         }
     }
@@ -211,7 +205,8 @@ class ProductionSlotRepository @Inject constructor(
                 it.buildingId == buildingId && it.slotIndex == slotIndex
             }
 
-            if (index < 0) return@withLock Result.failure(IllegalArgumentException("Slot not found: $buildingId[$slotIndex]"))
+            if (index < 0) return@withLock Result
+                .failure(IllegalArgumentException("Slot not found: $buildingId[$slotIndex]"))
 
             val currentSlot = currentSlots[index]
             val newSlot = transform(currentSlot)
@@ -219,7 +214,8 @@ class ProductionSlotRepository @Inject constructor(
             if (currentSlot.status != newSlot.status) {
                 val validation = SlotStateMachine.validateTransition(currentSlot.status, newSlot.status)
                 if (validation.isFailure) {
-                    return@withLock Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Slot state transition validation failed without exception"))
+                    return@withLock Result.failure(validation.exceptionOrNull() ?:
+                        IllegalStateException("Slot state transition validation failed without exception"))
                 }
             }
 
@@ -253,7 +249,7 @@ class ProductionSlotRepository @Inject constructor(
     suspend fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> = writeMutex.withLock {
         if (updates.isEmpty()) return@withLock Result.success(emptyList())
 
-        // 回滚基准：DAO 写失败时恢复内存（对抗性审查发现 2 修复）。
+        // 回滚基准：DAO 写失败时恢复内存。
         // 批量版是"全有或全无"语义（单次 updateAll），失败必须整体回滚内存，
         // 否则内存已清/DB 未清分叉（读档后槽位复活或残留占用）。
         val oldSlots = _slots.value
@@ -265,18 +261,15 @@ class ProductionSlotRepository @Inject constructor(
                 val index = currentSlots.indexOfFirst {
                     it.buildingType == update.buildingType && it.slotIndex == update.slotIndex
                 }
-                if (index < 0) continue
+                val currentSlot = currentSlots.getOrNull(index)
+                val newSlot = currentSlot?.let { update.transform(it) }
+                // 槽位不存在或状态转换非法的更新跳过（不进入 DAO 批量写）
+                val isValidUpdate = currentSlot != null && newSlot != null &&
+                    (currentSlot.status == newSlot.status ||
+                        SlotStateMachine.validateTransition(currentSlot.status, newSlot.status).isSuccess)
+                if (!isValidUpdate) continue
 
-                val currentSlot = currentSlots[index]
-                val newSlot = update.transform(currentSlot)
-
-                if (currentSlot.status != newSlot.status) {
-                    val validation = SlotStateMachine.validateTransition(currentSlot.status, newSlot.status)
-                    if (validation.isFailure) continue
-                }
-
-                // 内存写回必须与 DAO 同步（此前漏写：仅 result 入 DAO，_slots 仍为旧值，
-                // 内存与数据库分叉——本方法首次启用（死亡清理批处理）时暴露）
+                // 内存写回必须与 DAO 同步——只写 DAO 会使内存与数据库分叉
                 currentSlots[index] = newSlot
                 result.add(newSlot)
             }
@@ -316,7 +309,8 @@ class ProductionSlotRepository @Inject constructor(
                 it.buildingType == slot.buildingType && it.slotIndex == slot.slotIndex
             }
             if (exists) {
-                return@withLock Result.failure(IllegalArgumentException("Slot already exists: ${slot.buildingType}[${slot.slotIndex}]"))
+                return@withLock Result
+                    .failure(IllegalArgumentException("Slot already exists: ${slot.buildingType}[${slot.slotIndex}]"))
             }
 
             currentSlots.add(slot)
@@ -365,7 +359,7 @@ class ProductionSlotRepository @Inject constructor(
                 BuildingType.entries.forEach { buildingType ->
                     if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return@forEach
                     val slotCount = configService.getSlotCountByType(buildingType)
-                    (0 until slotCount).forEach { idx ->
+                    for (idx in 0 until slotCount) {
                         slots.add(ProductionSlot.createIdle(
                             slotIndex = idx,
                             buildingType = buildingType,
@@ -441,27 +435,6 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    fun getStatistics(): SlotCacheStatistics {
-        return cache.getStatistics()
-    }
-
-    fun isCacheDirty(): Boolean = cache.isDirty()
-    
-    fun getLockStatistics() = shardedLock.getLockStatistics()
-
-    /**
-     * 净化外部数据源（读档/DAO）携带的 null 槽位元素（Bugly #13014）。
-     * 非空类型上的 null 比较是编译器警告但运行时正确——null 只可能由
-     * 损坏存档反序列化或旧版本写入产生。
-     */
-    @Suppress("SENSELESS_COMPARISON")
-    private fun sanitizeSlots(slots: List<ProductionSlot>): List<ProductionSlot> {
-        val sanitized = if (slots.any { it == null }) slots.filterNotNull() else slots
-        if (sanitized.size != slots.size) {
-            DomainLog.w(TAG, "净化 ${slots.size - sanitized.size} 个 null 生产槽位")
-        }
-        return sanitized
-    }
 }
 
 data class SlotUpdate(

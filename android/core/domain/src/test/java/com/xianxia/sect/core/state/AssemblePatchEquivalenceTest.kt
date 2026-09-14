@@ -11,7 +11,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * P-3 子对象级 patch 组装等价性测试（2026-08-02）。
+ * 子对象级 patch 组装等价性测试。
  *
  * 守卫：assembleAllPatched 与 assembleAll 在任何写列组合下逐字段等价——
  * 包括 per-phase 典型写列（cultivation/HP/MP/熟练度）、混合组写列、全组脏、

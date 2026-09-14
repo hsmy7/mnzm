@@ -42,8 +42,7 @@ data class UiError(
     }
 }
 
-/** 存储域错误 → (展示文案, 严重度, 可恢复性) 映射（fromAppError 拆分） */
-// 拆分搬移:分支结构与原函数一致
+/** 存储域错误 → (展示文案, 严重度, 可恢复性) 映射 */
 @Suppress("CyclomaticComplexMethod")
 private fun mapStorageError(error: AppError.Domain.Storage): Triple<String, UiErrorSeverity, Boolean> = when (error) {
     is AppError.Domain.Storage.SlotNotFound -> Triple("存档不存在", UiErrorSeverity.INFO, true)
@@ -68,14 +67,14 @@ private fun mapStorageError(error: AppError.Domain.Storage): Triple<String, UiEr
     is AppError.Domain.Storage.Unknown -> Triple("存储错误", UiErrorSeverity.ERROR, false)
 }
 
-/** 网络域错误映射（fromAppError 拆分） */
+/** 网络域错误映射 */
 private fun mapNetworkError(error: AppError.Domain.Network): Triple<String, UiErrorSeverity, Boolean> = when (error) {
     is AppError.Domain.Network.NoConnection -> Triple("网络连接失败，请检查网络设置", UiErrorSeverity.WARNING, true)
     is AppError.Domain.Network.Timeout -> Triple("网络请求超时，请稍后重试", UiErrorSeverity.WARNING, true)
     is AppError.Domain.Network.Unknown -> Triple("网络错误", UiErrorSeverity.WARNING, true)
 }
 
-/** 生产域错误映射（fromAppError 拆分） */
+/** 生产域错误映射 */
 private fun mapProductionError(
     error: AppError.Domain.Production
 ): Triple<String, UiErrorSeverity, Boolean> = when (error) {
@@ -92,7 +91,7 @@ private fun mapProductionError(
     is AppError.Domain.Production.Unknown -> Triple("生产操作失败", UiErrorSeverity.ERROR, false)
 }
 
-/** 校验域错误映射（fromAppError 拆分） */
+/** 校验域错误映射 */
 private fun mapValidationError(
     error: AppError.Domain.Validation
 ): Triple<String, UiErrorSeverity, Boolean> = when (error) {
@@ -102,7 +101,7 @@ private fun mapValidationError(
     is AppError.Domain.Validation.EmptyValue -> Triple(error.message, UiErrorSeverity.INFO, true)
 }
 
-/** 游戏状态域错误映射（fromAppError 拆分） */
+/** 游戏状态域错误映射 */
 private fun mapGameStateError(
     error: AppError.Domain.GameState
 ): Triple<String, UiErrorSeverity, Boolean> = when (error) {
@@ -111,7 +110,7 @@ private fun mapGameStateError(
     is AppError.Domain.GameState.PermissionDenied -> Triple("权限不足", UiErrorSeverity.ERROR, false)
 }
 
-/** 游戏循环域错误映射（fromAppError 拆分） */
+/** 游戏循环域错误映射 */
 private fun mapGameLoopError(error: AppError.Domain.GameLoop): Triple<String, UiErrorSeverity, Boolean> = when (error) {
     is AppError.Domain.GameLoop.TickTimeout -> Triple("游戏运行缓慢", UiErrorSeverity.WARNING, true)
     is AppError.Domain.GameLoop.StateInconsistency -> Triple("游戏状态异常", UiErrorSeverity.ERROR, true)
@@ -119,7 +118,7 @@ private fun mapGameLoopError(error: AppError.Domain.GameLoop): Triple<String, Ui
     is AppError.Domain.GameLoop.Unknown -> Triple("游戏运行错误", UiErrorSeverity.ERROR, false)
 }
 
-/** 弟子域错误映射（fromAppError 拆分） */
+/** 弟子域错误映射 */
 private fun mapDiscipleError(error: AppError.Domain.Disciple): Triple<String, UiErrorSeverity, Boolean> = when (error) {
     is AppError.Domain.Disciple.NotFound -> Triple("弟子不存在：${error.discipleId}", UiErrorSeverity.INFO, false)
     is AppError.Domain.Disciple.NotAlive -> Triple("弟子已死亡：${error.discipleId}", UiErrorSeverity.INFO, false)
@@ -128,7 +127,7 @@ private fun mapDiscipleError(error: AppError.Domain.Disciple): Triple<String, Ui
     is AppError.Domain.Disciple.SlotInvalid -> Triple(error.detail, UiErrorSeverity.INFO, false)
 }
 
-/** 仓库域错误映射（fromAppError 拆分） */
+/** 仓库域错误映射 */
 private fun mapInventoryError(
     error: AppError.Domain.Inventory
 ): Triple<String, UiErrorSeverity, Boolean> = when (error) {
@@ -143,7 +142,7 @@ private fun mapInventoryError(
     is AppError.Domain.Inventory.DuplicateId -> Triple("物品ID重复：${error.itemId}", UiErrorSeverity.INFO, false)
 }
 
-/** 建筑域错误映射（fromAppError 拆分） */
+/** 建筑域错误映射 */
 private fun mapBuildingError(error: AppError.Domain.Building): Triple<String, UiErrorSeverity, Boolean> = when (error) {
     is AppError.Domain.Building.BuildingNotFound -> Triple("建筑不存在：${error.buildingId}", UiErrorSeverity.INFO, false)
     is AppError.Domain.Building.DiscipleBusy -> Triple("弟子正在忙：${error.discipleId}", UiErrorSeverity.INFO, false)

@@ -28,12 +28,6 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 
-data class RewardItem(
-    val name: String,
-    val quantity: Int = 1,
-    val rarityColor: Color = Color.Black
-)
-
 @Composable
 fun RewardDialog(
     title: String,
@@ -83,3 +77,10 @@ fun RewardDialog(
         }
     }
 }
+
+/** 奖励条目（声明置于 [RewardDialog] 之后，使首个顶层声明与文件名一致） */
+data class RewardItem(
+    val name: String,
+    val quantity: Int = 1,
+    val rarityColor: Color = Color.Black
+)

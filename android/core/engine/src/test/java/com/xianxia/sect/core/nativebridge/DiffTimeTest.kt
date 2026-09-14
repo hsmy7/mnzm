@@ -12,13 +12,13 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffTimeTest — 时间推进跨语言差分对拍（批次 3 验收核心；C-15 已切换真实引擎基准）。
+ * DiffTimeTest — 时间推进跨语言差分对拍（真实引擎基准）。
  *
  * 守护目标：C++ SettlementEngine/TimeSystem 的时间推进（年/月/旬进位、
  * 边界检测）与 Kotlin [TimeSystem].onPhaseTick 语义**逐位一致**。
  *
  * Kotlin 基准：真实 [TimeSystem] 实例驱动 [MutableGameState]
- * （C-15 计划 v2 阶段 1——原内联复刻已删除，杜绝"复刻漂移"盲区）。
+ * （直接调用生产实现，杜绝复刻漂移盲区）。
  *
  * 流程：Kotlin 真实 TimeSystem 推进 N 旬 → 期望 (y,m,p)；C++ 经 JNI
  * advancePhases(N) → export 读 (y,m,p)；断言相等。
@@ -27,9 +27,11 @@ import org.junit.Test
  */
 class DiffTimeTest {
 
-    private val json = Json { encodeDefaults = true }
+    // ignoreUnknownKeys：C++ 侧 P1-7 已将 deathYear 纳入弟子协议而 Kotlin
+    // Disciple 镜像字段未落——对拍解码容忍协议超集（落地后可回收）
+    private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
-    /** Kotlin 基准：真实 TimeSystem 推进 N 旬（不再内联复刻——C-15）。 */
+    /** Kotlin 基准：真实 TimeSystem 推进 N 旬（不再内联复刻）。 */
     private fun kotlinAdvanceN(start: Triple<Int, Int, Int>, n: Int): Triple<Int, Int, Int> {
         val store = FakeGameStateStore()
         val mutableState = MutableGameState(
@@ -117,7 +119,7 @@ class DiffTimeTest {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
 
-        // 批次 3 验收：空档（无弟子/生产）推进 1000 旬，非时间字段不得被误改
+        // 空档（无弟子/生产）推进 1000 旬，非时间字段不得被误改
         val sample = NativeGameState(
             gameData = GameData().apply {
                 sectName = "青云宗"

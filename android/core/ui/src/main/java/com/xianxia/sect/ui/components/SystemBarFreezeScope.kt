@@ -12,7 +12,7 @@ private const val TAG = "ImeGuard"
 /**
  * 输入对话框挂载期间的窗口系统栏操作冻结作用域。
  *
- * 背景（2026-08 荣耀 X70 键盘频闪根治；2026-09 泄漏自愈升级）：
+ * 背景：
  * Activity 的 [android.view.WindowInsetsControllerCompat.hide]（hideSystemBars）会与
  * Android 15 强制 edge-to-edge 下"IME 可见期间系统接管导航栏"的行为对抗；
  * 荣耀 MagicOS 在键盘弹出/收起期间存在窗口焦点抖动（onWindowFocusChanged 反复回调），
@@ -20,7 +20,7 @@ private const val TAG = "ImeGuard"
  * 输入对话框挂载期间冻结一切系统栏窗口操作，切断该回路的放大器环节；
  * 对话框销毁后解冻并通过监听器触发宿主恢复系统栏隐藏。
  *
- * 泄漏自愈（2026-09 IME 状态机根治）：freezeCount 依赖 Compose onDispose 对称调用，
+ * 泄漏自愈：freezeCount 依赖 Compose onDispose 对称调用，
  * 异常路径（快速销毁 / key() 强制重组 / 组合中断）可致 onDispose 未执行 → 计数泄漏 →
  * isFrozen 恒 true → 系统栏永久不隐藏。现记录冻结起始时间戳，[isFrozen] 查询时若
  * 冻结时长超过 [FREEZE_LEAK_THRESHOLD_MS] 即强制归零并触发解冻监听器（Log.w 记录），

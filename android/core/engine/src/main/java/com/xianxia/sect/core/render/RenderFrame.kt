@@ -89,6 +89,19 @@ data class RenderFrame(
      */
     val roadData: IntArray? = null,
 
+    /**
+     * 浮空岛崖壁布局数据 `[texIdx, x, y, w, h, u0, v0, u1, v1, flags] × N`
+     * （世界像素；texIdx = [IslandCliffBridge.TextureIndex] 的纹理下标）。
+     *
+     * 由 [com.xianxia.sect.core.render.IslandCliffBridge.compose] 一次性预计算
+     * （地图尺寸/种子变化时重建；Camera 平移/缩放不重建——本引用稳定）。
+     * 双后端（Vulkan/Canvas）据同一份数据绘制，z 序：天空 → 崖壁 → 地面。
+     * 崖壁走**独立纹理**（单张最大 1180×3552，超出 4096² 图集容量），纹理 ID
+     * 由渲染宿主单独注入（非本帧数据）。
+     * null = 无崖壁（native 通道不可用降级 / 地图尺寸为 0），两端跳过整层。
+     */
+    val islandCliffData: FloatArray? = null,
+
     /** 建筑数据 [gx, gy, w, h, nameIdx] × N（可选，无建筑时为 null） */
     val buildingData: FloatArray? = null,
     val buildingCount: Int = 0,
@@ -140,7 +153,7 @@ data class RenderFrame(
      * [previewBoxValid] 控制绿/红色），框内再叠精灵图，两者永不同帧脱节。
      * 由 Compose/快通道按放置/移动合法性与位置实时供给（见 FastPreviewChannel）。
      *
-     * @property previewBoxVisible 是否绘制预览框（false = 只画精灵，旧行为）
+     * @property previewBoxVisible 是否绘制预览框（false = 只画精灵）
      * @property previewBoxValid true=可放置（绿）/ false=不可放置（红）
      */
     val previewBoxVisible: Boolean = false,

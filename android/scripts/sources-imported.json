@@ -1715,11 +1715,11 @@
     },
     {
       "drawable": "ui_build_button",
-      "source": "ui/建造按钮.png",
-      "hash": "c0838409ce7d29424d4cf1f2f6787fc8",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1512,\"height\":1462}}",
-      "width": 1512,
-      "height": 1462
+      "source": "ui/建造.png",
+      "hash": "54c78384276b7cc16879520db45c3767",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1938}}",
+      "width": 2048,
+      "height": 1938
     },
     {
       "drawable": "ui_warehouse_button",
@@ -1731,19 +1731,19 @@
     },
     {
       "drawable": "ui_team_button",
-      "source": "ui/弟子按钮（圆形）.png",
-      "hash": "fa5a0c720f8e12977e9defdb4e2b00e8",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":866,\"height\":792}}",
-      "width": 866,
-      "height": 792
+      "source": "ui/人物.png",
+      "hash": "207fa6ad6e0eef0f2aa1d9f16c791a68",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1666,\"height\":2048}}",
+      "width": 1666,
+      "height": 2048
     },
     {
       "drawable": "ui_map_button",
-      "source": "ui/地图按钮(圆形）.png",
-      "hash": "2d90374e24b97348bae574c92939eb37",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3585,\"height\":3003}}",
-      "width": 3585,
-      "height": 3003
+      "source": "ui/地图.png",
+      "hash": "83c65e8477f19c78d4dd28106a7e7708",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1742}}",
+      "width": 2048,
+      "height": 1742
     },
     {
       "drawable": "ui_planting_button",
@@ -1755,27 +1755,27 @@
     },
     {
       "drawable": "ui_recruit_button",
-      "source": "ui/招募按钮（圆形）.png",
-      "hash": "8f01a845f9849175144b49d6eee40716",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1022,\"height\":991}}",
-      "width": 1022,
-      "height": 991
+      "source": "ui/招募.png",
+      "hash": "41197780a7266e3141b6ca63b98f9718",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2036,\"height\":2048}}",
+      "width": 2036,
+      "height": 2048
     },
     {
       "drawable": "ui_mail_button",
-      "source": "ui/邮件按钮.png",
-      "hash": "ea5980dd4a2b1be66bb4dcee314d71d3",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1944}}",
-      "width": 2048,
-      "height": 1944
+      "source": "ui/邮件.png",
+      "hash": "a4228dfc8c358d58a759946cc3b01604",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1254}}",
+      "width": 1254,
+      "height": 1254
     },
     {
       "drawable": "ui_log_button",
-      "source": "ui/日志按钮（圆形）.png",
-      "hash": "9b8efa001fc4f914feedab501d4ad336",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":995}}",
-      "width": 1024,
-      "height": 995
+      "source": "ui/日志.png",
+      "hash": "8f4ee1f38456827e2bbc708a7167a877",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":2010}}",
+      "width": 2048,
+      "height": 2010
     },
     {
       "drawable": "dialog_box",
@@ -1819,11 +1819,11 @@
     },
     {
       "drawable": "ui_settings_button",
-      "source": "ui/设置按钮（圆形）.png",
-      "hash": "26920b673fbd6e2e35f58f27aa119029",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":958}}",
-      "width": 1024,
-      "height": 958
+      "source": "ui/设置.png",
+      "hash": "4f61fbe714d184ae0cb3923636a082bd",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2044,\"height\":2048}}",
+      "width": 2044,
+      "height": 2048
     },
     {
       "drawable": "ui_start_button",
@@ -2312,6 +2312,150 @@
       "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1405,\"height\":1091}}",
       "width": 1405,
       "height": 1091
+    },
+    {
+      "drawable": "map_grass_1",
+      "source": "装饰物/草皮.png",
+      "hash": "c6dd88c0cf862279c69df19dbba41a8d",
+      "bakeKey": "{\"bake\":{\"maxDim\":64,\"seamless\":true},\"target\":{\"width\":64,\"height\":64}}",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "drawable": "sect_gate",
+      "source": "建筑/宗门门楼.png",
+      "hash": "dd29aec3d3151020ef14c1d04730cec6",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1361,\"height\":800}}",
+      "width": 1361,
+      "height": 800
+    },
+    {
+      "drawable": "decoration_grass1",
+      "source": "装饰物/花草1.png",
+      "hash": "e2557ee8dd2f8e63d5ae70d88285d8f1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2176,\"height\":1888}}",
+      "width": 2176,
+      "height": 1888
+    },
+    {
+      "drawable": "decoration_grass2",
+      "source": "装饰物/花草2.png",
+      "hash": "89dfe367c86c43cc41a525b4c3798ecd",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2206,\"height\":1760}}",
+      "width": 2206,
+      "height": 1760
+    },
+    {
+      "drawable": "decoration_grass3",
+      "source": "装饰物/花草3.png",
+      "hash": "68aff5e7a2bbaff5f9c26df456af8ab9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2272,\"height\":1972}}",
+      "width": 2272,
+      "height": 1972
+    },
+    {
+      "drawable": "decoration_grass4",
+      "source": "装饰物/花草4.png",
+      "hash": "fbb6905c9acc51aa29d54657981f6b13",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1919,\"height\":2044}}",
+      "width": 1919,
+      "height": 2044
+    },
+    {
+      "drawable": "decoration_stone1",
+      "source": "装饰物/石头1.png",
+      "hash": "b792cafbf8dafe6a64254a27f0007f61",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2314,\"height\":1664}}",
+      "width": 2314,
+      "height": 1664
+    },
+    {
+      "drawable": "decoration_stone2",
+      "source": "装饰物/石头2.png",
+      "hash": "a9ad8173ca62b0d72cc4be80f870766a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2487,\"height\":1696}}",
+      "width": 2487,
+      "height": 1696
+    },
+    {
+      "drawable": "decoration_stone3",
+      "source": "装饰物/石头3.png",
+      "hash": "4ef9fe312d315ae08b22d24afbf59dcf",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2240,\"height\":1856}}",
+      "width": 2240,
+      "height": 1856
+    },
+    {
+      "drawable": "decoration_tree1",
+      "source": "装饰物/树木1.png",
+      "hash": "ba84bfd9ccdbf03c0f11a953cf1a2bd4",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1789,\"height\":2208}}",
+      "width": 1789,
+      "height": 2208
+    },
+    {
+      "drawable": "decoration_tree2",
+      "source": "装饰物/树木2.png",
+      "hash": "3ee4f2657dd0143d7f8a44d2ec1ba311",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2079,\"height\":2176}}",
+      "width": 2079,
+      "height": 2176
+    },
+    {
+      "drawable": "map_edge_left_1",
+      "source": "宗门地图边缘/边缘1.png",
+      "hash": "5d697c9baa44225e25b6c0ea697d2721",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1176,\"height\":3552}}",
+      "width": 1176,
+      "height": 3552
+    },
+    {
+      "drawable": "map_edge_left_2",
+      "source": "宗门地图边缘/边缘2.png",
+      "hash": "33c1ca91a698682c6511ded755f29fd2",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1120,\"height\":3368}}",
+      "width": 1120,
+      "height": 3368
+    },
+    {
+      "drawable": "map_edge_left_3",
+      "source": "宗门地图边缘/边缘3.png",
+      "hash": "2601ad6843e246aef39f16a1213f3fc5",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1180,\"height\":3552}}",
+      "width": 1180,
+      "height": 3552
+    },
+    {
+      "drawable": "map_edge_bottom_1",
+      "source": "宗门地图边缘/边缘4.png",
+      "hash": "1f710d39a9055fd59b8049939cddc8ea",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":2560,\"height\":1696}}",
+      "width": 2560,
+      "height": 1696
+    },
+    {
+      "drawable": "map_edge_bottom_2",
+      "source": "宗门地图边缘/边缘5.png",
+      "hash": "3b4ce62e2bb42b5a10edf3f6691e7d35",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":2304,\"height\":1888}}",
+      "width": 2304,
+      "height": 1888
+    },
+    {
+      "drawable": "map_edge_corner_bl",
+      "source": "宗门地图边缘/边缘6.png",
+      "hash": "69fef73b5bdbfa2b31f43c8576a0a3ac",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1832,\"height\":2400}}",
+      "width": 1832,
+      "height": 2400
+    },
+    {
+      "drawable": "map_edge_corner_br",
+      "source": "宗门地图边缘/边缘7.png",
+      "hash": "fa818b6e57b057e5d6b396c8ce708541",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1828,\"height\":2396}}",
+      "width": 1828,
+      "height": 2396
     }
   ]
 }

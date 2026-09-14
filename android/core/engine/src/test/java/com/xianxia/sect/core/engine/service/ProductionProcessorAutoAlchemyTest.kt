@@ -56,7 +56,7 @@ class ProductionProcessorAutoAlchemyTest {
         assertTrue("应返回最高阶配方（全草药充足）", recipe!!.tier == 6)
     }
 
-    /** 1-3 阶全草药清单（`sorts by tier descending` 测试拆分） */
+    /** 1-3 阶全草药清单 */
     private fun buildTierOneToThreeHerbs(): List<Herb> = listOf(
         // tier 1
         Herb(name = "聚灵草", rarity = 1, quantity = 999, category = "grass", description = ""),
@@ -90,7 +90,7 @@ class ProductionProcessorAutoAlchemyTest {
         Herb(name = "天元果", rarity = 3, quantity = 999, category = "fruit", description = "")
     )
 
-    /** 4-6 阶全草药清单（`sorts by tier descending` 测试拆分） */
+    /** 4-6 阶全草药清单 */
     private fun buildTierFourToSixHerbs(): List<Herb> = listOf(
         // tier 4
         Herb(name = "玄冰草", rarity = 4, quantity = 999, category = "grass", description = ""),

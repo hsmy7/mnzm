@@ -2,10 +2,11 @@ package com.xianxia.sect.data.result
 
 sealed class StorageResult<out T> {
     data class Success<T>(val data: T) : StorageResult<T>()
-    data class Failure(val error: StorageError, val message: String = "", val cause: Throwable? = null) : StorageResult<Nothing>()
+    data class Failure(val error: StorageError, val message: String = "",
+        val cause: Throwable? = null) : StorageResult<Nothing>()
 
     /**
-     * 操作部分完成（T9，2026-08-05）：主流程成功，附属步骤（如备份写入）被跳过。
+     * 操作部分完成：主流程成功，附属步骤（如备份写入）被跳过。
      * 非失败、非成功——调用方应如实记录跳过原因，不得谎报成功。
      */
     data class Skipped(val message: String) : StorageResult<Nothing>()

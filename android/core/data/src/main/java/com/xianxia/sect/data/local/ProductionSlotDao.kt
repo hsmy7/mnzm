@@ -7,6 +7,9 @@ import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface ProductionSlotDao {
     @Query("SELECT * FROM production_slots WHERE buildingType = :buildingType ORDER BY slotIndex")
     fun getByBuildingType(buildingType: BuildingType): Flow<List<ProductionSlot>>

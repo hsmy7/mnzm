@@ -1,3 +1,12 @@
+// 本文件的 internal MutableStateFlow 字段（_xxxFlow/_updateVersion）是镜像面引擎写通道的
+// backing 属性——下划线前缀为 Kotlin backing-property 惯例，detekt 无 internal 命名模式旋钮，
+// 故文件级豁免 VariableNaming（仅命名风格，非债务）。
+@file:Suppress("VariableNaming", "TooManyFunctions", "LargeClass")
+// TooManyFunctions/LargeClass 文件级豁免：GameStateStore 接口 38 个成员的 override 契约下界——
+// override 必须驻留类体承载多态分发（4 个测试 Fake 同协议），拆分即改契约面；类行数由
+// 38 override × 镜像列协议承载，与函数数豁免同源（§2.28 契约面豁免先例）。
+// internal 镜像通道与更新事务为接口承诺的实现本体，非可下放助手。
+
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
@@ -57,7 +66,7 @@ class GameStateStoreImpl @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val repository: GameStateRepository,
     /**
-     * RNG 事务钩子（P0-1 K 项根治）：事务失败回滚时同步回滚分区 PRNG 状态。
+     * RNG 事务钩子：事务失败回滚时同步回滚分区 PRNG 状态。
      * 默认 [NoopRngSnapshotPort] 供非注入测试环境使用；Hilt 注入真实实现
      * （App 层委托 GameRngManager）。
      */
@@ -65,19 +74,19 @@ class GameStateStoreImpl @Inject constructor(
 ) : GameStateStore {
 
     /**
-     * P-5：弟子聚合结果流——由 assemble 写回点同步更新（与组装对齐，
+     * 弟子聚合结果流——由 assemble 写回点同步更新（与组装对齐，
      * 消除常驻 10Hz 采样管道）。无订阅时仍持有最新值（每旬一次增量归并，成本微秒级）。
      */
     private val _aggregatesFlow = MutableStateFlow<List<DiscipleAggregate>>(emptyList())
 
     /**
-     * P-5：聚合代际版本号——与 [discipleVersion] 对齐。
+     * 聚合代际版本号——与 [discipleVersion] 对齐。
      * 不匹配时 [discipleAggregatesSnapshot] 按需重算一次（load/reset 清缓存窗口兜底）。
      */
     @Volatile
     private var aggregatesGen = -1L
 
-    /** P-5：宗门战力——与聚合同步计算（同刻可观察），血炼变化在 update 提交处重算 */
+    /** 宗门战力——与聚合同步计算（同刻可观察），血炼变化在 update 提交处重算 */
     private val _combatPowerFlow = MutableStateFlow(0L)
 
     /**
@@ -92,7 +101,7 @@ class GameStateStoreImpl @Inject constructor(
         Dispatchers.Default.limitedParallelism(1)
 
     /**
-     * 弟子数据代际版本号（2026-08-01 修复）。
+     * 弟子数据代际版本号。
      *
      * loadFromSnapshot/reset 会整体替换弟子数据——递增版本号使 assembleDispatcher
      * 上排队中的陈旧增量组装任务被作废（协程首行校验版本号），防止"load 完成写回
@@ -105,7 +114,7 @@ class GameStateStoreImpl @Inject constructor(
     var unsafeAllowMainThreadUpdateForTest = false
 
     /**
-     * 主线程违规上报钩子（2026-08-13 批次 5）：Release 构建下主线程违规
+     * 主线程违规上报钩子：Release 构建下主线程违规
      * update 不再仅日志——DI 注入崩溃上报自定义事件（如 Bugly），使架构
      * 违规可观测。默认 null = 仅日志（测试/无上报环境）。
      */
@@ -119,10 +128,6 @@ class GameStateStoreImpl @Inject constructor(
 
     @Volatile
     override var activeSubDialogs: Set<String> = emptySet()
-
-    // ── Dirty 标志（已按 WS-0.a 移除） ──
-    // 注：原 _stateDirty/_discipleDirty + markDirty()/consumeDirty() 为 write-only 死代码
-    //（markDirty/consumeDirty 全库零调用者），故整链删除；状态变更由外层 stateStore.update{} 事务统一管理。
 
     companion object {
         private const val TAG = "GameStateStore"
@@ -146,12 +151,12 @@ class GameStateStoreImpl @Inject constructor(
         // Mutable 列 unmodifiable 防御：Debug/CI 开启（原地修改立即抛错），Release 零成本
         DiscipleTables.mutableValueGuardEnabled = BuildConfig.DEBUG
     }
-    /** P-3：最近一次 update 事务的脏列索引（供锁外 patch 组装复用子对象引用） */
+    /** 最近一次 update 事务的脏列索引（供锁外 patch 组装复用子对象引用） */
     @Volatile
     private var lastDirtyColumns: Set<Int> = emptySet()
     override val discipleTables: DiscipleTables get() = _discipleTables
 
-    // ── 反向增量通道（计划 v2 阶段 3）────────────────────────────────
+    // ── 反向增量通道────────────────────────────────
 
     /** 反向增量累加器：事务级捕获累积，AUTHORITATIVE tick 步骤 ⑤ flush 消费 */
     private val reverseDirtyAccumulator = ReverseDirtyAccumulator()
@@ -159,7 +164,7 @@ class GameStateStoreImpl @Inject constructor(
     private val transactionLock = ReentrantLock()
 
     /**
-     * 反向增量累加器（计划 v2 阶段 3）：事务级捕获累积 + 旬末 flush 消费。
+     * 反向增量累加器：事务级捕获累积 + 旬末 flush 消费。
      *
      * 同步契约：捕获在 transactionLock 内（update 提交阶段），消费在引擎线程
      * （AUTHORITATIVE tick 步骤 ⑤）——异步系统事务（Alchemy/Forge scope.launch）
@@ -214,7 +219,7 @@ class GameStateStoreImpl @Inject constructor(
         }
     }
 
-    // ── D-01 事务世代号与观察者（溢出草稿按事务提交/回滚落盘/丢弃） ──
+    // ── 事务世代号与观察者（溢出草稿按事务提交/回滚落盘/丢弃） ──
 
     /**
      * 已提交顶层事务计数——新顶层事务的世代号 = committed + 1（单调递增）。
@@ -265,15 +270,14 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 显式重入计数，替代原 thread identity 检测。
+     * 显式重入计数：检测 update() 重入。
      *
      * - reentrantCount > 0 表示当前线程已持有锁，嵌套 update() 直接操作 buffer 后返回
      * - reentrantBuffer 保存最外层 update() 的 buffer 引用，供嵌套调用读取
      *
-     * 原实现用 [transactionOwnerThread] AtomicReference<Thread?> 检测重入，
-     * 但该方案依赖"所有引擎代码在同一线程运行"的约定——任何调度器切换
-     *（如 withContext(IO)）会导致 identity 检查失败、同线程死锁。
-     * 显式计数方案不依赖线程身份，调度器切换后 count 仍正确。
+     * 重入检测不依赖线程身份——线程 identity 检查在任何调度器切换
+     *（如 withContext(IO)）后都会失效并导致同线程死锁；
+     * 显式计数在调度器切换后仍正确。
      */
     private val reentrantCount = AtomicInteger(0)
     private val reentrantBuffer = AtomicReference<MutableGameState?>(null)
@@ -293,7 +297,7 @@ class GameStateStoreImpl @Inject constructor(
     internal val _battleLogsFlow = MutableStateFlow<List<BattleLog>>(emptyList())
     internal val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
     internal val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
-    /** 通知队列（替代单值 _pendingNotificationFlow） */
+    /** 通知队列 */
     internal val _notificationsFlow = MutableStateFlow<List<GameNotification>>(emptyList())
     private val notificationQueue = java.util.concurrent.ConcurrentLinkedQueue<GameNotification>()
     internal val _pendingBattleRewardCardsFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
@@ -323,10 +327,7 @@ class GameStateStoreImpl @Inject constructor(
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
     internal val _updateVersion = MutableStateFlow(0L)
 
-    // ── 发射节流（R19）：批量结算时抑制个体字段发射，仅依赖 _updateVersion ──
-    // ⚠ 已移除自动批量发射模式（auto-batch emission mode）——该优化在 ≥3 字段变化时
-    // 抑制个体 StateFlow 发射，导致时间/仓库显示冻结而修炼（异步组装）持续更新。
-    // 个体 StateFlow 已有 !!! 引用比较做变化检测，无性能问题。
+    // ── 发射节流：个体 StateFlow 以引用比较做变化检测，无需批量发射抑制个体更新 ──
     /** 预留接口，已弃用（不再自动触发） */
     override fun enterBatchEmissionMode() { /* no-op */ }
     /** 预留接口，已弃用（不再自动触发） */
@@ -502,24 +503,21 @@ class GameStateStoreImpl @Inject constructor(
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.ConfigState())
 
     /**
-     * 聚合缓存（P-5）：assemble 写回点同步写入。
-     * 修复前 [discipleAggregatesSnapshot] 在调用线程全量 toAggregate()——
-     * UI 打开弹窗触发多次主线程 O(D) 扫描（ProductionViewModel 8 处等）。
-     * 现为 O(1) 缓存读取；仅 load/reset 清缓存后、写回点未覆盖的窗口
-     * 按需重算一次（见 getter 代际校验）。
+     * 聚合缓存：assemble 写回点同步写入。
+     * [discipleAggregatesSnapshot] 为 O(1) 缓存读取；仅 load/reset 清缓存后、
+     * 写回点未覆盖的窗口按需重算一次（见 getter 代际校验）。
      */
     @Volatile
     private var cachedAggregates: List<DiscipleAggregate> = emptyList()
 
     override val discipleAggregatesSnapshot: List<DiscipleAggregate>
         get() {
-            // P-5：写回点未覆盖窗口（loadFromSnapshot 清缓存后到 assemble 协程
+            // 写回点未覆盖窗口（loadFromSnapshot 清缓存后到 assemble 协程
             // 执行完成之间、失败回滚后）按需重算一次并同步 flow——随后写回点接管。
             if (aggregatesGen != discipleVersion.get()) {
-                // S2 修复（对抗性审查）：TOCTOU——计算期间 load/reset 可能递增代际
-                // 并清空缓存，本 getter 不取锁，计算完成后必须校验代际未变才写缓存，
-                // 否则陈旧聚合被盖上"当前代"印章持久化（读档后 UI 显示旧档数据直到
-                // 下一笔弟子事务）。恢复旧 derivedAggregation 的"计算后校验"模式。
+                // TOCTOU 防护：计算期间 load/reset 可能递增代际并清空缓存，本 getter
+                // 不取锁，计算完成后必须校验代际未变才写缓存——否则陈旧聚合被盖上
+                // "当前代"印章持久化（读档后 UI 显示旧档数据直到下一笔弟子事务）。
                 val gen = discipleVersion.get()
                 val disciples = _disciplesFlow.value
                 val fresh = disciples.map { it.toAggregate() }
@@ -527,7 +525,7 @@ class GameStateStoreImpl @Inject constructor(
                     // 代际已变（load/reset 发生）：丢弃本次结果，下次调用重算
                     return cachedAggregates
                 }
-                // P-5：战力与聚合同步（先算后写，避免中间状态窗口）
+                // 战力与聚合同步（先算后写，避免中间状态窗口）
                 val power = computeCombatPower(
                     fresh, _gameDataFlow.value.bloodRefinementPctTotals
                 )
@@ -549,24 +547,20 @@ class GameStateStoreImpl @Inject constructor(
 
     // 中间流：直接从独立 MutableStateFlow 派生
     // 这些独立流只在对应字段实际变化时才发射，所以 combine 的频率大幅降低
-    // （disciplesFlow 已随 P-5 聚合管道移除——聚合改为 assemble 写回点同步计算）
     private val bloodRefinementPctFlow = _gameDataFlow
         .map { it.bloodRefinementPctTotals }
         .distinctUntilChanged { old, new -> old === new }
 
-    private val equipmentInstancesFlow = _equipmentInstancesFlow
         .distinctUntilChanged { old, new -> old === new }
 
-    private val manualInstancesFlow = _manualInstancesFlow
         .distinctUntilChanged { old, new -> old === new }
 
     /**
-     * P-5：聚合计算写回点（由 assemble 协程在写回 [disciplesFlow] 后同步调用）。
+     * 聚合计算写回点（由 assemble 协程在写回 [disciplesFlow] 后同步调用）。
      *
-     * 原 10Hz 常驻 combine/sample 管道（无 UI 订阅也持续轮询 + O(D) 深比较）移除，
-     * 聚合改为"组装完成即计算"（assembleDispatcher 单线程串行，无竞争）——
-     * 空闲零成本，更新零延迟（原 ≤100ms 采样延迟）。
-     * 增量归并（[mergeAggregatesIncremental]）语义不变：仅新增/变更弟子重算
+     * "组装完成即计算"（assembleDispatcher 单线程串行，无竞争）——
+     * 空闲零成本，更新零延迟。
+     * 增量归并（[mergeAggregatesIncremental]）语义：仅新增/变更弟子重算
      * toAggregate，未变弟子复用旧 Aggregate 对象（UI 引用稳定）。
      *
      * @param disciples 组装后的完整弟子列表（id 升序）
@@ -624,22 +618,21 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 双指针增量归并（2026-08-01）：prev（升序）与 disciples（升序）diff，
+     * 双指针增量归并：prev（升序）与 disciples（升序）diff，
      * 仅对新增/变更弟子调用 [Disciple.toAggregate]，未变弟子复用旧对象。
      *
      * 变化判定：`prev.sourceRef === disciples[j]`（引用相等）——增量组装
      * （assembleAllIncremental）保证未变弟子复用旧 Disciple 对象引用、变更弟子
-     * 产出新对象。2026-08-01 修复：仅按 id 匹配复用会丢失列级变更
-     * （同 id 新 Disciple 的修为/生死/属性不反映到聚合）。
+     * 产出新对象。仅按 id 匹配复用会丢失列级变更（同 id 新 Disciple 的
+     * 修为/生死/属性不反映到聚合），故以引用相等判定。
      * 两列表 size 不等或 diff 失序时由调用方退化全量。
      */
     internal fun mergeAggregatesIncremental(
         prev: List<DiscipleAggregate>,
         disciples: List<Disciple>
     ): List<DiscipleAggregate> {
-        // 2026-08-01 对抗性审查优化：一次性预解析两侧 id 数组 + 升序校验——
-        // 旧实现在双指针循环内每次 toIntOrNull() 字符串解析（300 次×2），
-        // 遍历开销与 toAggregate 同量级，增量收益被吃掉大半；
+        // 一次性预解析两侧 id 数组 + 升序校验：避免双指针循环内逐次 toIntOrNull()
+        // 字符串解析（遍历开销与 toAggregate 同量级，会吃掉增量收益）；
         // 解析失败/失序时退化为全量（安全兜底）
         val prevIds = parseOrderedIds(prev.size) { prev[it].id }
         val curIds = parseOrderedIds(disciples.size) { disciples[it].id }
@@ -668,7 +661,7 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 预解析弟子 id 数组并校验升序（2026-08-01 增量聚合辅助）。
+     * 预解析弟子 id 数组并校验升序（增量聚合辅助）。
      * 解析失败（非数值 id）或失序时返回 null——调用方退化为全量。
      *
      * @param size 弟子数量
@@ -791,8 +784,8 @@ class GameStateStoreImpl @Inject constructor(
         notificationQueue.offer(notification)
         if (notificationQueue.size > 200) notificationQueue.poll() // 上限 200，丢弃最旧
         _notificationsFlow.value = notificationQueue.toList()
-        // 2026-08-01 修复：bump 版本号——unifiedState 依赖 _updateVersion 发射，
-        // 旧实现不 bump 导致依赖统一快照的 UI 看不到通知变更（隐式契约缺口）
+        // bump 版本号：unifiedState 依赖 _updateVersion 发射，
+        // 不 bump 则依赖统一快照的 UI 看不到通知变更
         _updateVersion.value++
     }
 
@@ -856,7 +849,7 @@ class GameStateStoreImpl @Inject constructor(
     /**
      * update() 事务起始快照——字段变化检测基准。
      *
-     * 将事务前全部 StateFlow 值聚合为单一对象，避免 diffAndEmit/markDirty/
+     * 将事务前全部 StateFlow 值聚合为单一对象，避免 diffAndEmit/
      * detectFieldChanges 等辅助函数出现超长参数列表（聚合 data class 模式）。
      */
     private data class UpdateBaseline(
@@ -887,8 +880,9 @@ class GameStateStoreImpl @Inject constructor(
         val proposalsChanged: Boolean
     )
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     override fun update(block: MutableGameState.() -> Unit) {
-        // ★ 运行时监护：主线程调用 update 是架构违规，
+        // 运行时监护：主线程调用 update 是架构违规，
         // 第一层防护（launchOnEngine）已确保所有调用通过引擎线程，
         // 若此处触发说明有代码绕过防护直接调用了 update。
         if (!unsafeAllowMainThreadUpdateForTest && Looper.myLooper() == Looper.getMainLooper()) {
@@ -902,8 +896,8 @@ class GameStateStoreImpl @Inject constructor(
                         "必须通过 GameEngine.launchOnEngine 派发到引擎线程。",
                     IllegalStateException("主线程调用堆栈")
                 )
-                // 2026-08-13 批次 5：违规上报化——静默丢弃 → 可观测
-                //（DI 注入 Bugly 自定义事件；上报自身失败不得影响跳过语义）
+                // 违规上报：静默丢弃 → 可观测
+                //（DI 注入崩溃上报自定义事件；上报自身失败不得影响跳过语义）
                 try {
                     mainThreadViolationReporter?.invoke()
                 } catch (e: Exception) {
@@ -913,10 +907,10 @@ class GameStateStoreImpl @Inject constructor(
             }
         }
 
-        // D-01：锁内事务主体（重入检测 + COW 提交 + 提交/回滚钩子）拆分到辅助函数
+        // 锁内事务主体（重入检测 + COW 提交 + 提交/回滚钩子）在 executeUpdateTransaction 中
         val outcome = executeUpdateTransaction(block = block)
 
-        // D-01：提交成功（锁外、事务线程）——提交钩子同步落盘（草稿持久化；
+        // 提交成功（锁外、事务线程）——提交钩子同步落盘（草稿持久化；
         // 观察者异常由 fireCommitted 内部捕获，不得破坏状态提交）
         if (outcome.committed && outcome.txGen > 0L) fireCommitted(outcome.txGen)
 
@@ -924,7 +918,7 @@ class GameStateStoreImpl @Inject constructor(
         // 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
         // 只重新组装有变化的弟子，与全量缓存合并。
         // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
-        // ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
+        // 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
         //   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
         if (outcome.disciplesNeedReassemble) {
             dispatchAssemble()
@@ -932,10 +926,10 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 镜像专用事务更新（2026-08-31 根因修复）：事务语义与 [update] 完全一致，
+     * 镜像专用事务更新：事务语义与 [update] 完全一致，
      * 仅**跳过反向增量捕获**——C++ → Kotlin 前向镜像写入的变更由 C++ 产生、无需
-     * 回导，不再污染玩家操作捕获窗口（旧依赖 tick ②' 无条件清空累加器，误清玩家
-     * 放置/消耗捕获 → Kotlin 侧灵石扣除等变更永不同步 C++ 真相源，被前向镜像覆盖）。
+     * 回导；跳过捕获避免镜像变更污染玩家操作捕获窗口（误清玩家放置/消耗捕获
+     * 会导致 Kotlin 侧灵石扣除等变更永不同步 C++ 真相源，被前向镜像覆盖）。
      */
     override fun updateMirror(block: MutableGameState.() -> Unit) {
         // 与 update 同构：主线程监护 + 锁内事务 + 锁外提交钩子/增量组装
@@ -958,7 +952,7 @@ class GameStateStoreImpl @Inject constructor(
         }
     }
 
-    /** update 事务结果（update 拆分）：锁外阶段（fireCommitted/dispatchAssemble）所需状态 */
+    /** update 事务结果：锁外阶段（fireCommitted/dispatchAssemble）所需状态 */
     private data class TransactionOutcome(
         val txGen: Long,
         val committed: Boolean,
@@ -968,7 +962,7 @@ class GameStateStoreImpl @Inject constructor(
     /**
      * update 拆分：锁内事务主体（重入检测 + COW 提交 + 提交/回滚钩子）。
      *
-     * D-01 事务世代号：本次顶层事务的世代号（0 = 无事务/重入路径）。
+     * 事务世代号：本次顶层事务的世代号（0 = 无事务/重入路径）。
      * committed 标记事务是否成功提交——异常/取消传播到锁外时 finally 据此
      * fireRollback（草稿丢弃，防复制）；成功则在锁外 fireCommitted（草稿落盘）。
      *
@@ -985,7 +979,7 @@ class GameStateStoreImpl @Inject constructor(
         try {
             transactionLock.withLock {
                 val lockStartNs = System.nanoTime()
-                // ★ 显式重入检测（在锁内，跨线程安全）
+                // 显式重入检测（在锁内，跨线程安全）
                 if (reentrantCount.get() > 0) {
                     val buffer = reentrantBuffer.get() ?: return@withLock
                     buffer.block()
@@ -995,7 +989,7 @@ class GameStateStoreImpl @Inject constructor(
                 }
                 try {
                     reentrantCount.set(1)
-                    // D-01：分配本事务世代号（嵌套事务重入路径不达此处，归外层事务）
+                    // 分配本事务世代号（嵌套事务重入路径不达此处，归外层事务）
                     txGen = committedGeneration.incrementAndGet()
                     pendingGeneration = txGen
                     reentrantBuffer.set(reusableMutableState)
@@ -1004,7 +998,7 @@ class GameStateStoreImpl @Inject constructor(
                     val notificationBeforeBlock = reusableMutableState.pendingNotification
                     val proposalsBeforeBlock = reusableMutableState.pendingMarriageProposals
                     executeBlockWithRngGuard(block)
-                    // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化
+                    // 冻结 EntityStore 快照，确保 items 引用正确反映变化
                     freezeStores()
                     val flags = resolveCommitFlags(
                         baseline = baseline,
@@ -1012,8 +1006,6 @@ class GameStateStoreImpl @Inject constructor(
                         proposalsChanged = reusableMutableState.pendingMarriageProposals !== proposalsBeforeBlock
                     )
                     // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
-                    // ★ 已移除自动批量发射模式：该模式在 ≥3 字段变化时抑制个体发射，
-                    // 导致时间和仓库显示冻结，而修炼流（锁外异步组装）继续更新。
                     emitStateFlows(baseline = baseline, flags = flags)
                     disciplesNeedReassemble = commitUpdateState(
                         baseline = baseline, flags = flags, captureReverse = captureReverse
@@ -1027,8 +1019,8 @@ class GameStateStoreImpl @Inject constructor(
             }
             committed = true
         } finally {
-            // D-01：世代号复位 + 回滚钩子（异常/取消传播路径；草稿丢弃防复制）。
-            // ★ 嵌套（重入）update 不分配世代号（txGen=0），不得清零 pendingGeneration——
+            // 世代号复位 + 回滚钩子（异常/取消传播路径；草稿丢弃防复制）。
+            // 嵌套（重入）update 不分配世代号（txGen=0），不得清零 pendingGeneration——
             // 否则外层事务尚未提交，草稿入队读 gen=0 走立即落盘路径，回滚时草稿已持久化（复制）。
             if (txGen > 0L) pendingGeneration = 0
             if (!committed && txGen > 0L) fireRollback(txGen)
@@ -1057,18 +1049,14 @@ class GameStateStoreImpl @Inject constructor(
         // 所有生产写路径（列级写入/insert/update/remove/replaceAll/
         // markDead/clear）均伴随列级 onWrite → dirtyTracker 标记。
         val disciplesNeedReassemble = reusableMutableState.discipleTables.dirtyTracker.isDirty
-        // 锁内仅标记，实际 assembleAll() 在锁外执行
-        // 减少 transactionMutex 持有时间，降低游戏循环锁争用
-        // 注：原 _discipleDirty 标记为死代码（无读者），已按 WS-0.a 移除
-        markDirtyFor(baseline, disciplesNeedReassemble)
         // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
         if (detectFieldChanges(baseline, disciplesNeedReassemble, flags)) {
             _updateVersion.value++
         }
-        // P-5：血炼百分比变化（不触发弟子组装）时同步重算战力——
+        // 血炼百分比变化（不触发弟子组装）时同步重算战力——
         // 指纹缓存使仅血炼弟子重算、其余命中（O(D) 引用比较 + 缓存查找，微秒级）；
         // 弟子同时变化时由锁外 assemble 写回点（updateAggregates）统一重算。
-        // S3 修复（对抗性审查）：cachedAggregates 为空（load/reset 窗口）时跳过——
+        // cachedAggregates 为空（load/reset 窗口）时跳过——
         // 空缓存重算战力=0 会闪 0，且此时全量冷算在锁内（load 已清指纹缓存）；
         // 由随后的 assemble 写回点用最新血炼补算。
         if (reusableMutableState.gameData.bloodRefinementPctTotals
@@ -1080,14 +1068,14 @@ class GameStateStoreImpl @Inject constructor(
             )
         }
         _discipleTables = reusableMutableState.discipleTables
-        _discipleTables.writeAllowed = false  // ★ 出厂后锁定，防止绕过 update{} 直接写
-        // P-3：捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
+        _discipleTables.writeAllowed = false  // 出厂后锁定，防止绕过 update{} 直接写
+        // 捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
         // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
         lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
-        // 阶段 3：反向增量捕获（锁内提交阶段；非消费 peek，dispatchAssemble 随后正常消费）。
-        // ★ 2026-08-31 根因修复：镜像事务（updateMirror）跳过捕获——C++ → Kotlin 前向
-        //   镜像变更无需回导，不再污染玩家操作捕获窗口（旧 tick ②' 无条件清空累加器
-        //   会误清玩家放置/消耗捕获 → Kotlin 侧灵石扣除永不同步 C++ 真相源）
+        // 反向增量捕获（锁内提交阶段；非消费 peek，dispatchAssemble 随后正常消费）。
+        // 镜像事务（updateMirror）跳过捕获：C++ → Kotlin 前向镜像变更无需回导，
+        // 跳过捕获避免污染玩家操作捕获窗口（无条件清空累加器会误清玩家放置/消耗
+        // 捕获 → Kotlin 侧灵石扣除等变更永不同步 C++ 真相源）
         if (captureReverse) {
             captureReverseDirty(baseline = baseline, disciplesNeedReassemble = disciplesNeedReassemble)
         }
@@ -1095,7 +1083,7 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 捕获本事务的反向增量（计划 v2 阶段 3；锁内提交阶段调用）。
+     * 捕获本事务的反向增量（锁内提交阶段调用）。
      *
      * 三通道：弟子脏 id（changedIdTracker 非消费 peek）/ gameData 整对象引用变化 /
      * 实体集合引用变化（全量实体 + 消失 id）。捕获产物累积到 [reverseDirtyAccumulator]，
@@ -1106,10 +1094,21 @@ class GameStateStoreImpl @Inject constructor(
         // 1. 弟子脏 id（非消费 peek——dispatchAssemble 按原路径 consume，互不干扰）
         if (disciplesNeedReassemble) {
             val tracker = reusableMutableState.discipleTables.changedIdTracker
-            acc.captureDisciples(
-                ids = tracker.snapshotChangedIds(),
-                rejected = tracker.snapshotRejectedRecord()
-            )
+            // 逐域关闭（batch-21）：弟子通道关闭后不再累积脏 id（省去消费侧的
+            // 全实体组装与 JSON 序列化）；但 peek 仍执行——关闭后若有弟子侧写入
+            // 即为回导缺口，必须可观测（见 ReverseChannelPolicy 关闭检测）
+            if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
+                acc.captureDisciples(
+                    ids = tracker.snapshotChangedIds(),
+                    rejected = tracker.snapshotRejectedRecord()
+                )
+            } else if (tracker.snapshotChangedIds().isNotEmpty()) {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
+                    ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
+                    "captureReverseDirty"
+                )
+            }
         }
         // 2. gameData 整对象引用变化（任一字段 copy 即新实例）
         if (reusableMutableState.gameData !== baseline.gameData) {
@@ -1144,6 +1143,15 @@ class GameStateStoreImpl @Inject constructor(
         current: List<*>
     ) {
         if (baseline === current) return
+        // 逐域关闭（batch-21）：关闭集合不构造捕获载荷——O(n) 差集与后续全实体
+        // JSON 序列化随之省去；引用变化本身仍被观测（关闭后集合若仍被 Kotlin
+        // 改写即为回导缺口，登记检测并从快照剔除）
+        if (!ReverseChannelPolicy.isCollectionTransported(name)) {
+            ReverseChannelPolicy.noteClosedWrite(
+                ReverseChannelPolicy.Kind.COLLECTION, name, "captureCollection"
+            )
+            return
+        }
         val removedIds = baseline.mapTo(HashSet()) { (it as HasId).id } -
             current.mapTo(HashSet()) { (it as HasId).id }
         @Suppress("UNCHECKED_CAST")
@@ -1156,7 +1164,7 @@ class GameStateStoreImpl @Inject constructor(
         )
     }
 
-    // === 反向增量通道公开 API（阶段 3） ===
+    // === 反向增量通道公开 API ===
 
     override fun consumeReverseDirty(): GameStateStore.ReverseDirtySnapshot? {
         val snap = reverseDirtyAccumulator.consume()
@@ -1167,7 +1175,7 @@ class GameStateStoreImpl @Inject constructor(
         reverseDirtyAccumulator.reset()
     }
 
-    /** ANR 诊断（update 拆分）：记录锁内耗时超过阈值的 update 调用 */
+    /** ANR 诊断：记录锁内耗时超过阈值的 update 调用 */
     private fun logSlowLockTime(lockStartNs: Long) {
         val lockElapsedMs = (System.nanoTime() - lockStartNs) / 1_000_000
         if (lockElapsedMs > UPDATE_WARN_THRESHOLD_MS) {
@@ -1178,7 +1186,7 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 事务块执行 + RNG 快照/回滚（P0-1 K 项根治）。
+     * 事务块执行 + RNG 快照/回滚。
      *
      * 事务失败（block 抛异常）时 COW 缓冲被丢弃（状态回滚），但事务内消费的
      * 分区 PRNG 已前进——若不恢复，状态与随机序列永久分叉，读档重放不可复现
@@ -1209,7 +1217,7 @@ class GameStateStoreImpl @Inject constructor(
             }
             throw e
         } catch (e: OutOfMemoryError) {
-            // F7 对抗性审查修复：OOM 是 Error 非 Exception——COW 缓冲丢弃（状态回滚）
+            // OOM 是 Error 非 Exception（上方 catch 接不住）——COW 缓冲丢弃（状态回滚）
             // 但 RNG 已前进。与 loadFromSnapshot 的 OOM 处理对称，尽力恢复 RNG
             //（8×Long 赋值成本可忽略，内存耗尽时亦应尝试），再原样抛出
             try {
@@ -1329,24 +1337,6 @@ class GameStateStoreImpl @Inject constructor(
             _pendingMarriageProposalsFlow.value = reusableMutableState.pendingMarriageProposals
     }
 
-    /** 仓库脏标记（repository 持久化调度依据）。 */
-    private fun markDirtyFor(baseline: UpdateBaseline, disciplesNeedReassemble: Boolean) {
-        repository.markDirty(
-            gameData = reusableMutableState.gameData !== baseline.gameData,
-            disciples = disciplesNeedReassemble,
-            equipmentStacks = reusableMutableState.equipmentStacks.items !== baseline.equipmentStacks,
-            equipmentInstances = reusableMutableState.equipmentInstances.items !== baseline.equipmentInstances,
-            manualStacks = reusableMutableState.manualStacks.items !== baseline.manualStacks,
-            manualInstances = reusableMutableState.manualInstances.items !== baseline.manualInstances,
-            pills = reusableMutableState.pills.items !== baseline.pills,
-            materials = reusableMutableState.materials.items !== baseline.materials,
-            herbs = reusableMutableState.herbs.items !== baseline.herbs,
-            seeds = reusableMutableState.seeds.items !== baseline.seeds,
-            storageBags = reusableMutableState.storageBags.items !== baseline.storageBags,
-            battleLogs = reusableMutableState.battleLogs !== baseline.battleLogs
-        )
-    }
-
     /** 事务内是否有字段变化（决定是否递增版本号触发 unifiedState 重建）。 */
     @Suppress("CyclomaticComplexMethod")  // 17 路字段比较，逻辑不可简化（原 update 内联时同复杂度）
     private fun detectFieldChanges(
@@ -1377,37 +1367,36 @@ class GameStateStoreImpl @Inject constructor(
      * 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
      * 只重新组装有变化的弟子，与全量缓存合并。
      * 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
-     * ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
+     * 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
      *   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
      */
     private fun dispatchAssemble() {
         // 捕获提交时代的版本号：load/reset 会递增版本号作废排队中的陈旧组装任务
         val gen = discipleVersion.get()
         val changedIds = _discipleTables.changedIdTracker.consumeChangedIds()
-        // T4（2026-08-05）：容量拒绝标志——大 id 弟子未被 changedIds 记录，
+        // 容量拒绝标志：大 id 弟子未被 changedIds 记录，
         // 增量组装会保留其陈旧快照数据；置位时强制走全量兜底分支
         val forceFullAssemble = _discipleTables.changedIdTracker.consumeRejectedRecord()
-        // P-3：本事务脏列索引（update 提交处捕获，patch 组装按组复用子对象引用）
+        // 本事务脏列索引（update 提交处捕获，patch 组装按组复用子对象引用）
         val dirtyColumns = lastDirtyColumns
         if (changedIds.isNotEmpty() && !forceFullAssemble) {
             applicationScopeProvider.scope.launch(assembleDispatcher) {
                 if (discipleVersion.get() != gen) return@launch
                 val prevSnapshot = _disciplesFlow.value
-                // 2026-08-01：变更覆盖大部分弟子时增量归并无收益（增量还需组装每
-                // 个变更弟子 + 归并）；P-3 起全量路径改用 patch 组装——仅重装脏列
-                // 所属子对象组，未脏组复用 prev 引用（每旬 cultivation 全量场景
-                // 消除 ~67 列读 + 6 子对象分配/弟子）
+                // 变更覆盖大部分弟子时增量归并无收益（增量还需组装每个变更弟子 +
+                // 归并）；全量路径用 patch 组装——仅重装脏列所属子对象组，未脏组
+                // 复用 prev 引用（每旬 cultivation 全量场景消除 ~67 列读 + 6 子对象分配/弟子）
                 val list = if (changedIds.size >= prevSnapshot.size / 2) {
                     _discipleTables.assembleAllPatched(prevSnapshot, changedIds, dirtyColumns)
                 } else {
                     _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
                 }
-                // P-14 H1 加固（2026-08-05）：publish 前二次版本检查——首次检查通过后、
+                // publish 前二次版本检查：首次检查通过后、
                 // assemble 执行期间若 load/reset 已锁内替换表并递增版本，陈旧结果必须丢弃，
                 // 不得用旧 changedIds 组装出的部分结果覆盖加载列表
                 if (discipleVersion.get() != gen) return@launch
                 _disciplesFlow.value = list
-                // P-5：聚合与组装对齐（单线程串行，无竞争；组装完成即聚合新鲜）
+                // 聚合与组装对齐（单线程串行，无竞争；组装完成即聚合新鲜）
                 updateAggregates(list, gen)
             }
         } else {
@@ -1415,7 +1404,7 @@ class GameStateStoreImpl @Inject constructor(
             applicationScopeProvider.scope.launch(assembleDispatcher) {
                 if (discipleVersion.get() != gen) return@launch
                 val list = _discipleTables.assembleAll()
-                // P-14 H1 加固（2026-08-05）：同增量分支——assemble 期间版本变化则丢弃
+                // 同增量分支：publish 前二次版本检查——assemble 期间版本变化则丢弃
                 if (discipleVersion.get() != gen) return@launch
                 _disciplesFlow.value = list
                 updateAggregates(list, gen)
@@ -1431,7 +1420,7 @@ class GameStateStoreImpl @Inject constructor(
         }
         return result as R
     }
-    /** loadFromSnapshot 失败回滚基线（C-8 拆分——旧值快照聚合） */
+    /** loadFromSnapshot 失败回滚基线（旧值快照聚合） */
     private data class LoadBaseline(
         val gameData: GameData,
         val disciples: List<Disciple>,
@@ -1448,9 +1437,9 @@ class GameStateStoreImpl @Inject constructor(
         val isPaused: Boolean,
         val isLoading: Boolean,
         val isSaving: Boolean,
-        val deathRecords: List<DeathRecord>
     )
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
@@ -1469,10 +1458,10 @@ class GameStateStoreImpl @Inject constructor(
         isSaving: Boolean
     ) {
         transactionLock.withLock {
-            // P0-1：读档前快照 RNG 状态——loadFromSnapshot 失败回滚（rollbackLoad）
+            // 读档前快照 RNG 状态——loadFromSnapshot 失败回滚（rollbackLoad）
             // 时同步恢复，保证状态与随机序列一致（状态/RNG 错配的确定性修复）
             val rngBaseline = rngSnapshotPort.snapshot()
-            // 2026-08-01 修复：版本号递增必须**最先**执行（clear 之前）——
+            // 版本号递增必须**最先**执行（clear 之前）——
             // 排队中的增量组装若在 load 获取锁前通过 gen 检查，会与 clear+insert 并发
             discipleVersion.incrementAndGet()
             // 缓存清除在所有写入之前执行；聚合缓存同时失效——load 整体替换
@@ -1481,7 +1470,7 @@ class GameStateStoreImpl @Inject constructor(
             aiDisciplePowerCache.clear()
             cachedAggregates = emptyList()
 
-            // 保存旧值用于失败回滚（C-8 拆分：LoadBaseline 聚合）
+            // 保存旧值用于失败回滚（LoadBaseline 聚合）
             val baseline = captureLoadBaseline()
 
             try {
@@ -1521,7 +1510,7 @@ class GameStateStoreImpl @Inject constructor(
                 _discipleTables.writeAllowed = false
             }
         }
-        // ★ 锁外投递组装（版本号已在锁内最先递增——2026-08-01 修复）
+        // 锁外投递组装（版本号已在锁内最先递增）
         dispatchAssembleAfterLoad()
     }
 
@@ -1529,10 +1518,9 @@ class GameStateStoreImpl @Inject constructor(
     private fun captureLoadBaseline(): LoadBaseline {
         return LoadBaseline(
             gameData = _gameDataFlow.value,
-            // ★ 2026-08-09 修复：disciples 必须用同步组装而非 _disciplesFlow.value——
-            // flow 由 assembleDispatcher 异步发布，update{} 刚提交后立即读档时
-            // flow 可能仍是旧值/空（GameStateStoreRollbackTest 偶发失败根因），
-            // 回滚会重建出空弟子列表 → 读档失败即丢全部弟子。表状态同步可读。
+            // disciples 必须用同步组装而非 _disciplesFlow.value——flow 由
+            // assembleDispatcher 异步发布，update{} 刚提交后立即读档时 flow 可能
+            // 仍是旧值/空，回滚会重建出空弟子列表 → 读档失败即丢全部弟子。表状态同步可读。
             disciples = _discipleTables.assembleAll(),
             equipmentStacks = _equipmentStacksFlow.value,
             equipmentInstances = _equipmentInstancesFlow.value,
@@ -1547,14 +1535,12 @@ class GameStateStoreImpl @Inject constructor(
             isPaused = _isPaused.value,
             isLoading = _isLoading.value,
             isSaving = _isSaving.value,
-            // clear() 现会清空 _deathRecords——回滚时需恢复
-            deathRecords = _discipleTables.deathRecords.toList()
         )
     }
 
     /** loadFromSnapshot 拆分：游戏数据 + 弟子表应用（含血炼旧绝对值→百分比迁移） */
     private fun applyLoadedCore(gameData: GameData, disciples: List<Disciple>) {
-        // P-9：旧档事件 sequenceId 一次性回填（旧档全 0 → 按列表序分配，
+        // 旧档事件 sequenceId 一次性回填（旧档全 0 → 按列表序分配，
         // 保证消息列表稳定 key；新档无 0 序号时零成本跳过）
         _gameDataFlow.value = backfillEventSequenceIds(gameData)
         _disciplesFlow.value = disciples
@@ -1594,9 +1580,9 @@ class GameStateStoreImpl @Inject constructor(
     )
 
     /**
-     * loadFromSnapshot 拆分：加载收尾——状态三连/仓库激活/脏标记/版本号/RNG 恢复。
+     * loadFromSnapshot 拆分：加载收尾——状态三连/仓库激活/版本号/RNG 恢复。
      *
-     * P0-1：状态 + RNG 锁内原子切换——读档成功后用存档内的 rngStates 覆盖当前
+     * 状态 + RNG 锁内原子切换——读档成功后用存档内的 rngStates 覆盖当前
      * PRNG 状态（原在 SaveLoadViewModel 的 UI 协程中 restoreStates，位置在 loadData
      * 之后：load 成功但其后失败会错过恢复 → 状态/RNG 错配）
      */
@@ -1610,17 +1596,38 @@ class GameStateStoreImpl @Inject constructor(
         _isLoading.value = isLoading
         _isSaving.value = isSaving
         repository.setActiveSlot(gameData.slotId)
-        repository.markAllDirty()
         _updateVersion.value++
         if (gameData.rngStates.isNotEmpty()) {
             rngSnapshotPort.restore(gameData.rngStates)
         }
+        // 换档统一清瞬态：loadFromSnapshot 原样保留全部瞬态队列——
+        // 上一档的战斗结算/兽袭/婚配提议/奖励卡会幽灵弹窗到新档
+        clearTransientQueues()
+    }
+
+    /**
+     * 瞬态队列统一清空（ 派生）：reset 与 loadFromSnapshot
+     * 两条换档路径统一调用。瞬态本就不持久化，跨档残留即「换档幽灵弹窗」。
+     * 调用契约：状态锁内执行。
+     * 守卫测试 [GameStateStoreTransientQueueGuardTest] 反射枚举 _pending* /
+     * notification 字段断言 reset 后全空——新增 Pending* flow 漏登记即失败
+     * （错误消息带操作指引）。
+     */
+    private fun clearTransientQueues() {
+        _pendingBeastAttacksFlow.value = emptyList()
+        _pendingMarriageProposalsFlow.value = emptyList()  // §0 补充发现：reset 原也漏清
+        _pendingBattleResultFlow.value = null
+        _pendingBattleRewardCardsFlow.value = emptyList()
+        _rewardCardQueueFlow.value = emptyList()
+        _pendingNotificationFlow.value = null
+        _notificationsFlow.value = emptyList()
+        while (notificationQueue.poll() != null) { /* drain queue */ }
     }
 
     /**
      * loadFromSnapshot 拆分：OOM 失败路径——尽力回滚后转 IllegalStateException。
      *
-     * C3-c（2026-08-05）：OOM 是 Error 非 Exception，原 catch 接不住——crafted 大 id
+     * OOM 是 Error 非 Exception，Exception catch 接不住——crafted 大 id
      * 弟子扩容千万级平铺表（≈7GB）直接崩溃且重试即崩溃循环。状态已撕裂必须先回滚
      * （内存耗尽时尽力而为），再转 IllegalStateException 使外层统一走失败处理。
      */
@@ -1645,27 +1652,27 @@ class GameStateStoreImpl @Inject constructor(
     /**
      * loadFromSnapshot 拆分：锁外全量组装投递。
      *
-     * ★ 递增版本号作废 assembleDispatcher 队列中基于旧数据的排队任务，并将本组装
-     * 投递到同一单线程调度器——避免与增量组装协程并发交错（2026-08-01 修复）。
+     * 递增版本号作废 assembleDispatcher 队列中基于旧数据的排队任务，并将本组装
+     * 投递到同一单线程调度器——避免与增量组装协程并发交错。
      */
     private fun dispatchAssembleAfterLoad() {
         val gen = discipleVersion.get()
         applicationScopeProvider.scope.launch(assembleDispatcher) {
             if (discipleVersion.get() != gen) return@launch
             val list = _discipleTables.assembleAll()
-            // P-14 H1 加固（2026-08-05）：publish 前二次版本检查——load 投递后、
+            // publish 前二次版本检查：load 投递后、
             // 执行前若又有新 load 递增版本，本任务结果同样丢弃（保队列内后入者胜）
             if (discipleVersion.get() != gen) return@launch
             _disciplesFlow.value = list
-            // P-5：load 后聚合同步新鲜（getter 代际校验兜底窗口收敛到协程执行完成）
+            // load 后聚合同步新鲜（getter 代际校验兜底窗口收敛到协程执行完成）
             updateAggregates(list, gen)
         }
     }
 
     /**
-     * C-8：loadFromSnapshot 失败回滚——恢复全部 Flow 旧值 + 重建 DiscipleTables。
+     * loadFromSnapshot 失败回滚——恢复全部 Flow 旧值 + 重建 DiscipleTables。
      *
-     * ★ COW 快照隔离：不能依赖 oldTables.deepCopy()（共享 store 会被 clear()
+     * COW 快照隔离：不能依赖 oldTables.deepCopy()（共享 store 会被 clear()
      * 原地清空——提交后的列是 owned 状态不触发私有化）。回滚直接用内存中的
      * oldDisciples 列表（不受 clear 影响）重建。
      *
@@ -1674,7 +1681,7 @@ class GameStateStoreImpl @Inject constructor(
      */
     private fun rollbackLoad(baseline: LoadBaseline, e: Exception, rngBaseline: Map<Int, Long>) {
         DomainLog.e(TAG, "loadFromSnapshot 失败，执行回滚: ${e.message}", e)
-        // P0-1：读档失败回滚时同步恢复 RNG 到读档前状态（与状态回滚一致）
+        // 读档失败回滚时同步恢复 RNG 到读档前状态（与状态回滚一致）
         try {
             rngSnapshotPort.restore(rngBaseline)
         } catch (@Suppress("TooGenericExceptionCaught") restoreFailure: Exception) {
@@ -1683,7 +1690,7 @@ class GameStateStoreImpl @Inject constructor(
         }
         _gameDataFlow.value = baseline.gameData
         _disciplesFlow.value = baseline.disciples
-        // P-5：回滚路径同步恢复聚合（load 开头已清空缓存）
+        // 回滚路径同步恢复聚合（load 开头已清空缓存）
         cachedAggregates = baseline.disciples.map { it.toAggregate() }
         _aggregatesFlow.value = cachedAggregates
         _combatPowerFlow.value = computeCombatPower(
@@ -1692,7 +1699,6 @@ class GameStateStoreImpl @Inject constructor(
         aggregatesGen = discipleVersion.get()
         _discipleTables.apply { writeAllowed = true }.clear()
         baseline.disciples.forEach { _discipleTables.insert(it) }
-        baseline.deathRecords.forEach { _discipleTables.addDeathRecord(it) }
         _equipmentStacksFlow.value = baseline.equipmentStacks
         _equipmentInstancesFlow.value = baseline.equipmentInstances
         _manualStacksFlow.value = baseline.manualStacks
@@ -1709,15 +1715,15 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * P-9：旧档事件 [GameEventRecord.sequenceId] 一次性回填。
+     * 旧档事件 [GameEventRecord.sequenceId] 一次性回填。
      *
      * 旧档（v4.0.83 之前）全部 sequenceId=0，消息列表头部 takeLast 移除后
      * 全部 key 位移导致整列表重建；加载后按列表序回填 1..N。无 0 序号时零成本返回原对象。
      * O(N) 一次（列表上限 200 条）。
      *
-     * T1 修复（2026-08-05）：存在任一 0 序号时**整体重编号 1..N（列表序）**——
-     * 原实现只重编号 0 条目（[0,0,5] → [6,7,5]），靠前 0 序号拿到比靠后非零条目
-     * 更大的序号，破坏"序号随列表位置递增"的稳定 key 语义。
+     * 存在任一 0 序号时**整体重编号 1..N（列表序）**——仅重编号 0 条目会让
+     * 靠前 0 序号拿到比靠后非零条目更大的序号（如 [0,0,5] → [6,7,5]），
+     * 破坏"序号随列表位置递增"的稳定 key 语义。
      *
      * @param gameData 待加载的游戏数据
      * @return 回填后的 GameData（无变化时返回原引用）
@@ -1733,13 +1739,13 @@ class GameStateStoreImpl @Inject constructor(
 
     override suspend fun reset() {
         transactionLock.withLock {
-            // 2026-08-01 修复：版本号递增必须**最先**执行（clear 之前）——
+            // 版本号递增必须**最先**执行（clear 之前）——
             // 若在锁内末尾递增，排队中的增量组装可在 reset 获取锁前通过 gen 检查，
             // 与 clear 并发遍历表（组装出半截列表覆盖空列表）
             discipleVersion.incrementAndGet()
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
-            // 2026-08-01：聚合缓存失效（同 load 语义）
+            // 聚合缓存失效（同 load 语义）
             cachedAggregates = emptyList()
             _gameDataFlow.value = GameData()
             _disciplesFlow.value = emptyList()
@@ -1755,29 +1761,22 @@ class GameStateStoreImpl @Inject constructor(
             _seedsFlow.value = emptyList()
             _storageBagsFlow.value = emptyList()
             _battleLogsFlow.value = emptyList()
-            _pendingBattleResultFlow.value = null
-            _pendingNotificationFlow.value = null
-            _notificationsFlow.value = emptyList()
-            while (notificationQueue.poll() != null) { /* drain queue */ }
-            _pendingBattleRewardCardsFlow.value = emptyList()
-            _rewardCardQueueFlow.value = emptyList()
-            _pendingBeastAttacksFlow.value = emptyList()
+            clearTransientQueues()
             _isPaused.value = true
             _isLoading.value = false
             _isSaving.value = false
             _updateVersion.value++
-            repository.clearDirty()
         }
-        // 2026-08-01 对抗性审查修复：reset 后投递同调度器全量组装（镜像 load 做法）——
+        // reset 后投递同调度器全量组装（镜像 load 做法）——
         // 版本号检查是"检查后执行"单点模式，排队任务若在 reset 锁前通过 gen 检查，
         // 会在 reset 清表后把陈旧列表写回（覆盖空列表）。投递组装任务使其成为
-        // 最后写者（FIFO），彻底闭合 TOCTOU 窗口。
+        // 最后写者（FIFO），闭合 TOCTOU 窗口。
         val gen = discipleVersion.get()
         applicationScopeProvider.scope.launch(assembleDispatcher) {
             if (discipleVersion.get() != gen) return@launch
             val list = _discipleTables.assembleAll()
             _disciplesFlow.value = list
-            // P-5：reset 后聚合同步新鲜
+            // reset 后聚合同步新鲜
             updateAggregates(list, gen)
         }
     }
@@ -1812,26 +1811,28 @@ class GameStateStoreImpl @Inject constructor(
             val spdOrig = _discipleTables.baseSpeeds[dId] - old.speedBonus
 
             // 跳过数据损坏的条目：原始 base <= 0 意味着数据不一致
-            if (hpOrig <= 0 || paOrig <= 0 || maOrig <= 0 ||
-                pdOrig <= 0 || mdOrig <= 0 || spdOrig <= 0) continue
+            val hasCorruptedBase = listOf(
+                hpOrig, paOrig, maOrig, pdOrig, mdOrig, spdOrig
+            ).any { it <= 0 }
+            if (!hasCorruptedBase) {
+                migrated[discipleId] = BloodRefinementPctTotal(
+                    discipleId = discipleId,
+                    hpBonusPct = old.hpBonus.toDouble() / hpOrig,
+                    physicalAttackBonusPct = old.physicalAttackBonus.toDouble() / paOrig,
+                    magicAttackBonusPct = old.magicAttackBonus.toDouble() / maOrig,
+                    physicalDefenseBonusPct = old.physicalDefenseBonus.toDouble() / pdOrig,
+                    magicDefenseBonusPct = old.magicDefenseBonus.toDouble() / mdOrig,
+                    speedBonusPct = old.speedBonus.toDouble() / spdOrig
+                )
 
-            migrated[discipleId] = BloodRefinementPctTotal(
-                discipleId = discipleId,
-                hpBonusPct = old.hpBonus.toDouble() / hpOrig,
-                physicalAttackBonusPct = old.physicalAttackBonus.toDouble() / paOrig,
-                magicAttackBonusPct = old.magicAttackBonus.toDouble() / maOrig,
-                physicalDefenseBonusPct = old.physicalDefenseBonus.toDouble() / pdOrig,
-                magicDefenseBonusPct = old.magicDefenseBonus.toDouble() / mdOrig,
-                speedBonusPct = old.speedBonus.toDouble() / spdOrig
-            )
-
-            // 从 base* 列回退历史血炼绝对值（防止计算时双算）
-            _discipleTables.baseHps[dId] = hpOrig
-            _discipleTables.basePhysicalAttacks[dId] = paOrig
-            _discipleTables.baseMagicAttacks[dId] = maOrig
-            _discipleTables.basePhysicalDefenses[dId] = pdOrig
-            _discipleTables.baseMagicDefenses[dId] = mdOrig
-            _discipleTables.baseSpeeds[dId] = spdOrig
+                // 从 base* 列回退历史血炼绝对值（防止计算时双算）
+                _discipleTables.baseHps[dId] = hpOrig
+                _discipleTables.basePhysicalAttacks[dId] = paOrig
+                _discipleTables.baseMagicAttacks[dId] = maOrig
+                _discipleTables.basePhysicalDefenses[dId] = pdOrig
+                _discipleTables.baseMagicDefenses[dId] = mdOrig
+                _discipleTables.baseSpeeds[dId] = spdOrig
+            }
         }
 
         _gameDataFlow.value = gd.copy(

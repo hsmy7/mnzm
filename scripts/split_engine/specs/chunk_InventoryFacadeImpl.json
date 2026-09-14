@@ -1,0 +1,23 @@
+{
+ "files": [
+  {
+   "name": "InventoryFacadeImplApplOps",
+   "header": "// ── InventoryFacadeImpl 拆分域 1/1（行为零变更） ──",
+   "fns": [
+    "applyConfiscationResult",
+    "deductStack",
+    "grantMerchantSpiritStones",
+    "reduceMerchantStock",
+    "deductSoldSpiritStones",
+    "isInvalidTradeRequest",
+    "warehouseCount",
+    "warehouseSpiritStoneCount",
+    "removeMatching",
+    "generateStorageBagRewards",
+    "generateEquipmentReward",
+    "generateManualReward",
+    "generateSpiritStoneReward"
+   ]
+  }
+ ]
+}

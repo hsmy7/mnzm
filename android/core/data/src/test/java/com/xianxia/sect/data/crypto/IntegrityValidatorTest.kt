@@ -140,14 +140,14 @@ class IntegrityValidatorTest {
     @Test
     fun `embedChecksum and verifyEmbeddedChecksum roundtrip consistency`() {
         val originalData = "important game save data here".toByteArray(Charsets.UTF_8)
-        val embedded = SaveCrypto.embedChecksum(originalData)
-        assertTrue(SaveCrypto.verifyEmbeddedChecksum(embedded))
+        val embedded = SaveCryptoDigest.embedChecksum(originalData)
+        assertTrue(SaveCryptoDigest.verifyEmbeddedChecksum(embedded))
     }
 
     @Test
     fun `extractChecksumAndData returns null for short data less than 32 bytes`() {
         val shortData = ByteArray(16) { it.toByte() }
-        assertNull(SaveCrypto.extractChecksumAndData(shortData))
+        assertNull(SaveCryptoDigest.extractChecksumAndData(shortData))
     }
 
     @Test

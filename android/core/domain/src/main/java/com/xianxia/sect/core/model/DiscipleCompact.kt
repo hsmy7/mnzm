@@ -100,21 +100,16 @@ data class DiscipleCompact(
             val spdVar = 1.0 + c.speedVariance / 100.0
 
             // 天赋效果汇总
-            val talentEffects = mutableMapOf<String, Double>()
-            TalentDatabase.getTalentsByIds(disciple.talentIds).forEach { t ->
-                t.effects.forEach { (k, v) ->
-                    talentEffects[k] = (talentEffects[k] ?: 0.0) + v
-                }
-            }
+            val talentEffects = mergeTalentEffects(disciple)
 
             // 血炼与天赋同乘区加算
             val br = bloodRefinementPct
-            val attackBonus = (talentEffects["physicalAttack"] ?: 0.0) + (br?.physicalAttackBonusPct ?: 0.0)
-            val magicAttackBonus = (talentEffects["magicAttack"] ?: 0.0) + (br?.magicAttackBonusPct ?: 0.0)
-            val defenseBonus = (talentEffects["physicalDefense"] ?: 0.0) + (br?.physicalDefenseBonusPct ?: 0.0)
-            val magicDefenseBonus = (talentEffects["magicDefense"] ?: 0.0) + (br?.magicDefenseBonusPct ?: 0.0)
-            val hpBonus = (talentEffects["maxHp"] ?: 0.0) + (br?.hpBonusPct ?: 0.0)
-            val speedBonus = (talentEffects["speed"] ?: 0.0) + (br?.speedBonusPct ?: 0.0)
+            val attackBonus = combinedBonus(talentEffects, br, "physicalAttack") { it.physicalAttackBonusPct }
+            val magicAttackBonus = combinedBonus(talentEffects, br, "magicAttack") { it.magicAttackBonusPct }
+            val defenseBonus = combinedBonus(talentEffects, br, "physicalDefense") { it.physicalDefenseBonusPct }
+            val magicDefenseBonus = combinedBonus(talentEffects, br, "magicDefense") { it.magicDefenseBonusPct }
+            val hpBonus = combinedBonus(talentEffects, br, "maxHp") { it.hpBonusPct }
+            val speedBonus = combinedBonus(talentEffects, br, "speed") { it.speedBonusPct }
 
             val pa = (realmConfig.basePhysicalAttack * paVar * layerMult * (1.0 + attackBonus)).roundToInt()
             val ma = (realmConfig.baseMagicAttack * maVar * layerMult * (1.0 + magicAttackBonus)).roundToInt()
@@ -128,6 +123,25 @@ data class DiscipleCompact(
                     (pd.toLong() + md.toLong()) * 3L +
                     spd.toLong() * 2L
         }
+
+        /** 天赋效果汇总：同名键加算合并 */
+        private fun mergeTalentEffects(disciple: Disciple): MutableMap<String, Double> {
+            val talentEffects = mutableMapOf<String, Double>()
+            TalentDatabase.getTalentsByIds(disciple.talentIds).forEach { t ->
+                t.effects.forEach { (k, v) ->
+                    talentEffects[k] = (talentEffects[k] ?: 0.0) + v
+                }
+            }
+            return talentEffects
+        }
+
+        /** 天赋 + 血炼同乘区加算：缺省 0.0 */
+        private fun combinedBonus(
+            talentEffects: Map<String, Double>,
+            br: BloodRefinementPctTotal?,
+            talentKey: String,
+            brSelector: (BloodRefinementPctTotal) -> Double?
+        ): Double = (talentEffects[talentKey] ?: 0.0) + (br?.let(brSelector) ?: 0.0)
 
         fun fromDisciple(
             disciple: Disciple,

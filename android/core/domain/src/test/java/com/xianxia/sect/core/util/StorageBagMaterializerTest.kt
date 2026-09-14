@@ -20,7 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * D-03 储物袋物化迁移测试（StorageBagMaterializer）。
+ * 储物袋物化迁移测试（StorageBagMaterializer）。
  *
  * 老存档袋条目是引用式（itemId 指向仓库堆叠/实例）。物化把引用式条目转换为
  * 持有数据的独立条目（payload 非空）并从仓库扣减对应数量——防同一物品双持有。

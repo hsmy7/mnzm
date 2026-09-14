@@ -44,9 +44,12 @@ fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
     val listedItemIds = remember(gameData?.playerListedItems) {
         gameData?.playerListedItems?.map { it.itemId }?.toSet() ?: emptySet()
     }
-    val sortedEquipment = remember(equipment, listedItemIds, watchedKeys) { filterAndSortItems(equipment, listedItemIds, watchedKeys) }
-    val sortedManuals = remember(manuals, listedItemIds, watchedKeys) { filterAndSortItems(manuals, listedItemIds, watchedKeys) }
-    val sortedPills = remember(pills, listedItemIds, watchedKeys) { filterAndSortItems(pills, listedItemIds, watchedKeys) }
+    val sortedEquipment = remember(equipment, listedItemIds, watchedKeys) { filterAndSortItems(equipment, listedItemIds,
+        watchedKeys) }
+    val sortedManuals = remember(manuals, listedItemIds, watchedKeys) { filterAndSortItems(manuals, listedItemIds,
+        watchedKeys) }
+    val sortedPills = remember(pills, listedItemIds, watchedKeys) { filterAndSortItems(pills, listedItemIds,
+        watchedKeys) }
 
     UnifiedGameDialog(onDismissRequest = onDismiss, title = "选择上架道具", mode = DialogMode.Full, scrollableContent = false,
         headerActions = {
@@ -64,13 +67,10 @@ fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
                         onClick = { selectedFilter = filter })
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(4.dp)) {
-                when (selectedFilter) {
-                    ListingFilter.ALL -> AllItemsSelectGrid(equipment = sortedEquipment, manuals = sortedManuals, pills = sortedPills, selectedItems = selectedItems, watchedKeys = watchedKeys, viewModel = viewModel)
-                    ListingFilter.EQUIPMENT -> InventorySelectGrid(items = sortedEquipment, selectedItems = selectedItems, emptyMessage = "暂无装备", watchedKeys = watchedKeys, viewModel = viewModel)
-                    ListingFilter.MANUAL -> InventorySelectGrid(items = sortedManuals, selectedItems = selectedItems, emptyMessage = "暂无功法", watchedKeys = watchedKeys, viewModel = viewModel)
-                    ListingFilter.PILL -> InventorySelectGrid(items = sortedPills, selectedItems = selectedItems, emptyMessage = "暂无丹药", watchedKeys = watchedKeys, viewModel = viewModel)
-                }
+            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground,
+                RoundedCornerShape(4.dp)).padding(4.dp)) {
+                ItemsSelectPane(selectedFilter, sortedEquipment, sortedManuals, sortedPills,
+                    selectedItems, watchedKeys, viewModel)
             }
         }
     }
@@ -80,12 +80,83 @@ fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
             onConfirm = {
                 if (!isSubmitting) {
                     isSubmitting = true
-                    viewModel.listItemsToMerchant(selectedItems.entries.map { it.key to it.value })
+                    viewModel.inventory.listItemsToMerchant(selectedItems.entries.map { it.key to it.value })
                     selectedItems.clear(); showConfirmDialog = false; onDismiss()
                 }
             },
             onDismiss = { showConfirmDialog = false })
     }
+}
+
+/** 按当前筛选 tab 渲染对应的上架选择网格。 */
+@Composable
+private fun ItemsSelectPane(
+    selectedFilter: ListingFilter,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
+    pills: List<Pill>,
+    selectedItems: MutableMap<String, Int>,
+    watchedKeys: Set<String>,
+    viewModel: GameViewModel
+) {
+    when (selectedFilter) {
+        ListingFilter.ALL -> AllItemsSelectGrid(equipment = equipment, manuals = manuals, pills = pills,
+            selectedItems = selectedItems, watchedKeys = watchedKeys, viewModel = viewModel)
+        ListingFilter.EQUIPMENT -> InventorySelectGrid(items = equipment, selectedItems = selectedItems,
+            emptyMessage = "暂无装备", watchedKeys = watchedKeys, viewModel = viewModel)
+        ListingFilter.MANUAL -> InventorySelectGrid(items = manuals, selectedItems = selectedItems,
+            emptyMessage = "暂无功法", watchedKeys = watchedKeys, viewModel = viewModel)
+        ListingFilter.PILL -> InventorySelectGrid(items = pills, selectedItems = selectedItems,
+            emptyMessage = "暂无丹药", watchedKeys = watchedKeys, viewModel = viewModel)
+    }
+}
+
+/** 上架网格条目键（InventorySelectGrid 用）：装备/功法/丹药按 id，未知类型退化为身份哈希 */
+private fun <T> selectGridItemKey(item: T): String = when (item) {
+    is EquipmentStack -> "eq_${item.id}"
+    is ManualStack -> "mn_${item.id}"
+    is Pill -> "pl_${item.id}"
+    else -> "unk_${System.identityHashCode(item)}"
+}
+
+/** 全部道具网格条目键（AllItemsSelectGrid 用）：丹药键含数量以区分不同数量堆叠 */
+private fun <T> allItemsGridItemKey(item: T): String = when (item) {
+    is EquipmentStack -> "eq_${item.id}"
+    is ManualStack -> "mn_${item.id}"
+    is Pill -> "pl_${item.id}_${item.quantity}"
+    else -> "unk_${System.identityHashCode(item)}"
+}
+
+/** 网格条目 id（两网格共用）：未知类型退化为空串 */
+private fun <T> inventoryItemId(item: T): String = when (item) {
+    is EquipmentStack -> item.id
+    is ManualStack -> item.id
+    is Pill -> item.id
+    else -> ""
+}
+
+/** 网格条目名称（两网格共用）：未知类型退化为空串 */
+private fun <T> inventoryItemName(item: T): String = when (item) {
+    is EquipmentStack -> item.name
+    is ManualStack -> item.name
+    is Pill -> item.name
+    else -> ""
+}
+
+/** 网格条目稀有度（两网格共用）：未知类型退化为 1 */
+private fun <T> inventoryItemRarity(item: T): Int = when (item) {
+    is EquipmentStack -> item.rarity
+    is ManualStack -> item.rarity
+    is Pill -> item.rarity
+    else -> 1
+}
+
+/** 网格条目数量（两网格共用）：未知类型退化为 1 */
+private fun <T> inventoryItemQuantity(item: T): Int = when (item) {
+    is EquipmentStack -> item.quantity
+    is ManualStack -> item.quantity
+    is Pill -> item.quantity
+    else -> 1
 }
 
 @Composable
@@ -100,17 +171,16 @@ private fun <T> InventorySelectGrid(
     var showDetailDialog by remember { mutableStateOf(false) }
 
     if (items.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(emptyMessage, fontSize = 12.sp, color = GameColors.TextSecondary) }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(emptyMessage, fontSize = 12.sp,
+            color = GameColors.TextSecondary) }
     } else {
         LazyVerticalGrid(columns = GridCells.Adaptive(60.dp), modifier = Modifier.fillMaxSize().padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items, key = {
-                when (it) { is EquipmentStack -> "eq_${it.id}"; is ManualStack -> "mn_${it.id}"; is Pill -> "pl_${it.id}"; else -> "unk_${System.identityHashCode(it)}" }
-            }, contentType = { "inventory_item" }) { item ->
-                val id = when (item) { is EquipmentStack -> item.id; is ManualStack -> item.id; is Pill -> item.id; else -> "" }
-                val name = when (item) { is EquipmentStack -> item.name; is ManualStack -> item.name; is Pill -> item.name; else -> "" }
-                val rar = when (item) { is EquipmentStack -> item.rarity; is ManualStack -> item.rarity; is Pill -> item.rarity; else -> 1 }
-                val qty = when (item) { is EquipmentStack -> item.quantity; is ManualStack -> item.quantity; is Pill -> item.quantity; else -> 1 }
+            items(items, key = { selectGridItemKey(it) }, contentType = { "inventory_item" }) { item ->
+                val id = inventoryItemId(item)
+                val name = inventoryItemName(item)
+                val rar = inventoryItemRarity(item)
+                val qty = inventoryItemQuantity(item)
                 val isSelected = selectedItems.containsKey(id)
                 UnifiedItemCard(data = ItemCardData(id = id, name = name, rarity = rar, quantity = qty,
                     grade = (item as? Pill)?.grade?.displayName, isManual = item is ManualStack, isPill = item is Pill),
@@ -148,27 +218,22 @@ private fun AllItemsSelectGrid(
         items.sortedByWatchedThenRarity(
             watchedKeys,
             keyOf = { watchKeyOf(it) },
-            rarityOf = { it ->
-                when (it) { is EquipmentStack -> it.rarity; is ManualStack -> it.rarity; is Pill -> it.rarity; else -> 1 }
-            },
-            nameOf = { it ->
-                when (it) { is EquipmentStack -> it.name; is ManualStack -> it.name; is Pill -> it.name; else -> "" }
-            }
+            rarityOf = { item -> inventoryItemRarity(item) },
+            nameOf = { item -> inventoryItemName(item) }
         )
     }
 
     if (allItems.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无道具", fontSize = 12.sp, color = GameColors.TextSecondary) }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无道具", fontSize = 12.sp,
+            color = GameColors.TextSecondary) }
     } else {
         LazyVerticalGrid(columns = GridCells.Adaptive(60.dp), modifier = Modifier.fillMaxSize().padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(allItems, key = {
-                when (it) { is EquipmentStack -> "eq_${it.id}"; is ManualStack -> "mn_${it.id}"; is Pill -> "pl_${it.id}_${it.quantity}"; else -> "unk_${System.identityHashCode(it)}" }
-            }, contentType = { "inventory_item" }) { item ->
-                val id = when (item) { is EquipmentStack -> item.id; is ManualStack -> item.id; is Pill -> item.id; else -> "" }
-                val name = when (item) { is EquipmentStack -> item.name; is ManualStack -> item.name; is Pill -> item.name; else -> "" }
-                val rarity = when (item) { is EquipmentStack -> item.rarity; is ManualStack -> item.rarity; is Pill -> item.rarity; else -> 1 }
-                val qty = when (item) { is EquipmentStack -> item.quantity; is ManualStack -> item.quantity; is Pill -> item.quantity; else -> 1 }
+            items(allItems, key = { allItemsGridItemKey(it) }, contentType = { "inventory_item" }) { item ->
+                val id = inventoryItemId(item)
+                val name = inventoryItemName(item)
+                val rarity = inventoryItemRarity(item)
+                val qty = inventoryItemQuantity(item)
                 val isSelected = selectedItems.containsKey(id)
                 UnifiedItemCard(data = ItemCardData(id = id, name = name, rarity = rarity, quantity = qty,
                     grade = (item as? Pill)?.grade?.displayName, isManual = item is ManualStack, isPill = item is Pill),

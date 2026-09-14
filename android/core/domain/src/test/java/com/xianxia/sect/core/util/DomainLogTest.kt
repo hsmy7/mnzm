@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [DomainLog] 契约测试（S-07 清偿守护）。
+ * [DomainLog] 契约测试（守护保存-恢复能力）。
  *
  * 覆盖：setLogger 返回旧实现（保存-恢复能力）、日志路由到当前实现、
  * 以及恢复旧实现后不再路由到被替换的实现（基准测试 finally 恢复语义）。

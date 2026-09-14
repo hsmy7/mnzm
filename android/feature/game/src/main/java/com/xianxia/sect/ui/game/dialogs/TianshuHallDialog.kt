@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
@@ -38,8 +38,39 @@ import com.xianxia.sect.ui.game.HERB_GARDEN_THEME
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
-
-
+import com.xianxia.sect.ui.game.assignElder
+import com.xianxia.sect.ui.game.getViceSectMasterIntelligenceBonus
+import com.xianxia.sect.ui.game.removeElder
+import com.xianxia.sect.ui.game.removeViceSectMaster
+import com.xianxia.sect.ui.game.setViceSectMaster
+import com.xianxia.sect.ui.game.toggleAlchemyIncentive
+import com.xianxia.sect.ui.game.toggleAsceticTraining
+import com.xianxia.sect.ui.game.toggleBenevolentGovernance
+import com.xianxia.sect.ui.game.toggleCultivationSubsidy
+import com.xianxia.sect.ui.game.toggleCurfew
+import com.xianxia.sect.ui.game.toggleEnhancedSecurity
+import com.xianxia.sect.ui.game.toggleForgeIncentive
+import com.xianxia.sect.ui.game.toggleFrugality
+import com.xianxia.sect.ui.game.toggleHerbCultivation
+import com.xianxia.sect.ui.game.toggleManualResearch
+import com.xianxia.sect.ui.game.toggleMoralEducation
+import com.xianxia.sect.ui.game.toggleOpenRecruitment
+import com.xianxia.sect.ui.game.toggleRelaxedMgmt
+import com.xianxia.sect.ui.game.toggleRewardPunish
+import com.xianxia.sect.ui.game.toggleSpiritMineBoost
+import com.xianxia.sect.ui.game.toggleSpiritSpring
+import com.xianxia.sect.ui.game.toggleStrictTraining
+import com.xianxia.sect.core.usecase.toggleAlchemyIncentive
+import com.xianxia.sect.core.usecase.toggleCurfew
+import com.xianxia.sect.core.usecase.toggleEnhancedSecurity
+import com.xianxia.sect.core.usecase.toggleForgeIncentive
+import com.xianxia.sect.core.usecase.toggleFrugality
+import com.xianxia.sect.core.usecase.toggleHerbCultivation
+import com.xianxia.sect.core.usecase.toggleManualResearch
+import com.xianxia.sect.core.usecase.toggleRelaxedMgmt
+import com.xianxia.sect.core.usecase.toggleRewardPunish
+import com.xianxia.sect.core.usecase.toggleSpiritSpring
+import com.xianxia.sect.core.usecase.toggleStrictTraining
 
 @Composable
 fun TianshuHallDialog(
@@ -81,7 +112,7 @@ fun TianshuHallDialog(
     )
 }
 
-/** 天枢殿子弹窗开关（TianshuHallDialog 拆分）：remember 语义与原 7 个 mutableStateOf 一致 */
+/** 天枢殿子弹窗开关：7 项 mutableStateOf 开关状态 */
 private class TianshuHallFlags {
     var showViceSectMasterSelectDialog by mutableStateOf(false)
     var showAlchemyElderSelectDialog by mutableStateOf(false)
@@ -92,7 +123,7 @@ private class TianshuHallFlags {
     var showSectPoliciesDialog by mutableStateOf(false)
 }
 
-/** 天枢殿派生状态（TianshuHallDialog 拆分） */
+/** 天枢殿派生状态 */
 private data class TianshuHallState(
     val gameData: GameData?,
     val disciples: List<DiscipleAggregate>,
@@ -105,7 +136,7 @@ private data class TianshuHallState(
     val battleAndExplorationIds: Set<String>
 )
 
-/** 天枢殿派生状态计算（TianshuHallDialog 拆分） */
+/** 天枢殿派生状态计算 */
 @Composable
 private fun rememberTianshuHallState(
     gameData: GameData?,
@@ -115,8 +146,10 @@ private fun rememberTianshuHallState(
     val discipleMap = disciples.associateBy { it.id }
     val battleAndExplorationIds = remember(gameData) {
         if (gameData != null) {
-            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+                .toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }
+                .toSet()
             battleIds + explorationIds
         } else emptySet()
     }
@@ -133,7 +166,7 @@ private fun rememberTianshuHallState(
     )
 }
 
-/** 天枢殿长老区（TianshuHallDialog 拆分）：副宗主/纳徒长老/生产长老/操作按钮 */
+/** 天枢殿长老区：副宗主/纳徒长老/生产长老/操作按钮 */
 @Composable
 private fun TianshuHallElderSection(
     state: TianshuHallState,
@@ -186,7 +219,7 @@ private fun TianshuHallElderSection(
     }
 }
 
-/** 副宗主槽位（TianshuHallDialog 拆分） */
+/** 副宗主槽位 */
 @Composable
 private fun TianshuViceSectMasterSlot(
     viceSectMaster: DiscipleAggregate?,
@@ -210,7 +243,7 @@ private fun TianshuViceSectMasterSlot(
             disciple = viceSectMaster,
             showActions = true,
             onSlotClick = {
-                viceSectMaster?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                viceSectMaster?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onEmptySlotClick = onSelect,
             onDismiss = onRemove,
@@ -219,7 +252,7 @@ private fun TianshuViceSectMasterSlot(
     }
 }
 
-/** 纳徒长老槽位（TianshuHallDialog 拆分） */
+/** 纳徒长老槽位 */
 @Composable
 private fun TianshuRecruitingElderSlot(
     recruitingElder: DiscipleAggregate?,
@@ -243,7 +276,7 @@ private fun TianshuRecruitingElderSlot(
                 color = Color.Black
             )
             ElderBonusInfoButton(
-                bonusInfo = ElderBonusInfoProvider.getRecruitingElderInfo()
+                bonusInfo = ElderBonusInfoProvider.recruitingElderInfo
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -252,7 +285,7 @@ private fun TianshuRecruitingElderSlot(
             disciple = recruitingElder,
             showActions = true,
             onSlotClick = {
-                recruitingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                recruitingElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onEmptySlotClick = onSelect,
             onDismiss = onRemove,
@@ -261,7 +294,7 @@ private fun TianshuRecruitingElderSlot(
     }
 }
 
-/** 生产长老行（TianshuHallDialog 拆分）：炼丹/锻造/灵田三槽位 */
+/** 生产长老行：炼丹/锻造/灵田三槽位 */
 @Composable
 private fun TianshuProductionEldersRow(
     state: TianshuHallState,
@@ -283,7 +316,7 @@ private fun TianshuProductionEldersRow(
             theme = ALCHEMY_THEME,
             elder = alchemyElder,
             onSlotClick = {
-                alchemyElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                alchemyElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) },
             onSwap = onAlchemySwap
@@ -293,7 +326,7 @@ private fun TianshuProductionEldersRow(
             theme = FORGE_THEME,
             elder = forgeElder,
             onSlotClick = {
-                forgeElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                forgeElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) },
             onSwap = onForgeSwap
@@ -303,7 +336,7 @@ private fun TianshuProductionEldersRow(
             theme = HERB_GARDEN_THEME,
             elder = herbGardenElder,
             onSlotClick = {
-                herbGardenElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                herbGardenElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onElderRemove = { productionViewModel.removeElder(ElderSlotType.HERB_GARDEN) },
             onSwap = onHerbGardenSwap
@@ -311,7 +344,7 @@ private fun TianshuProductionEldersRow(
     }
 }
 
-/** 宗门操作按钮行（TianshuHallDialog 拆分）：宗门管理/宗门政策 */
+/** 宗门操作按钮行：宗门管理/宗门政策 */
 @Composable
 private fun TianshuSectActionRow(
     onOpenSectAffairs: () -> Unit,
@@ -335,7 +368,7 @@ private fun TianshuSectActionRow(
     }
 }
 
-/** 天枢殿长老选择子弹窗组（TianshuHallDialog 拆分） */
+/** 天枢殿长老选择子弹窗组 */
 @Composable
 private fun TianshuElderSelectionDialogs(
     flags: TianshuHallFlags,
@@ -401,7 +434,7 @@ private fun TianshuElderSelectionDialogs(
     }
 }
 
-/** 副宗主选择弹窗（TianshuHallDialog 拆分） */
+/** 副宗主选择弹窗 */
 @Composable
 private fun TianshuViceSectMasterSelectionDialog(
     state: TianshuHallState,
@@ -453,7 +486,7 @@ private fun TianshuViceSectMasterSelectionDialog(
     )
 }
 
-/** 生产长老选择弹窗（TianshuHallDialog 拆分）：炼丹/锻造/灵田共用 */
+/** 生产长老选择弹窗：炼丹/锻造/灵田共用 */
 @Composable
 private fun TianshuProductionElderSelectionDialog(
     state: TianshuHallState,
@@ -475,7 +508,7 @@ private fun TianshuProductionElderSelectionDialog(
     )
 }
 
-/** 纳徒长老选择弹窗（TianshuHallDialog 拆分） */
+/** 纳徒长老选择弹窗 */
 @Composable
 private fun TianshuRecruitingElderSelectionDialog(
     state: TianshuHallState,
@@ -488,7 +521,7 @@ private fun TianshuRecruitingElderSelectionDialog(
             buildingId = "recruiting",
             displayName = "天枢殿",
             elderTitle = "纳徒长老",
-            elderBonusInfo = ElderBonusInfoProvider.getRecruitingElderInfo(),
+            elderBonusInfo = ElderBonusInfoProvider.recruitingElderInfo,
             coreAttributeName = "魅力",
             coreAttributeColor = Color(0xFFFF69B4),
             defaultBorderColor = Color(0xFFFF69B4),
@@ -522,7 +555,7 @@ private fun TianshuRecruitingElderSelectionDialog(
     )
 }
 
-/** 宗门管理/政策子弹窗组（TianshuHallDialog 拆分） */
+/** 宗门管理/政策子弹窗组 */
 @Composable
 private fun TianshuSectDialogs(
     flags: TianshuHallFlags,
@@ -549,6 +582,7 @@ private fun TianshuSectDialogs(
 }
 
 @Composable
+@Suppress("UnusedParameter") // viewModel: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 private fun SectPoliciesDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
@@ -574,7 +608,7 @@ private fun SectPoliciesDialog(
     }
 }
 
-/** 宗门政策内容区（SectPoliciesDialog 拆分）：四类政策分组列表 */
+/** 宗门政策内容区：四类政策分组列表 */
 @Composable
 private fun ColumnScope.SectPoliciesContent(
     gameData: GameData?,
@@ -615,7 +649,7 @@ private fun ColumnScope.SectPoliciesContent(
     }
 }
 
-/** 生产类政策列表（SectPoliciesDialog 拆分） */
+/** 生产类政策列表 */
 @Composable
 private fun SectPoliciesProductionList(
     sectPolicies: SectPolicies?,
@@ -672,7 +706,7 @@ private fun SectPoliciesProductionList(
     )
 }
 
-/** 修行类政策列表（SectPoliciesDialog 拆分） */
+/** 修行类政策列表 */
 @Composable
 private fun SectPoliciesCultivationList(
     sectPolicies: SectPolicies?,
@@ -705,7 +739,7 @@ private fun SectPoliciesCultivationList(
     )
 }
 
-/** 治安类政策列表（SectPoliciesDialog 拆分） */
+/** 治安类政策列表 */
 @Composable
 private fun SectPoliciesSecurityList(
     sectPolicies: SectPolicies?,
@@ -738,8 +772,7 @@ private fun SectPoliciesSecurityList(
     )
 }
 
-/** 管理类政策列表（SectPoliciesDialog 拆分） */
-// 拆分搬移:参数保留原签名语义
+/** 管理类政策列表 */
 @Suppress("UnusedParameter")
 @Composable
 private fun SectPoliciesManagementList(

@@ -65,7 +65,7 @@ class SecretRealmServiceTest {
         ).thenAnswer { inv ->
             inv.getArgument<() -> Any>(1).invoke()
         }
-        // D-03 死亡统一入口透传：mock 需模拟真实 markDead 语义（否则死亡标记被吞）
+        // 死亡统一入口透传：mock 需模拟真实 markDead 语义（否则死亡标记被吞）
         whenever(inventorySystem.materializeDiscipleBagAndMarkDead(any(), any(), any(), any()))
             .thenAnswer { inv ->
                 val id = inv.getArgument<Int>(1)

@@ -57,9 +57,8 @@ data class SaveData(
     /**
      * 堆叠数据是否已序列化。
      *
-     * 历史缺陷（2026-08-01 修复前）：equipmentStacks/manualStacks 曾被标记 @Transient，
-     * 备份文件与云存档中不含堆叠，恢复路径会永久清空仓库堆叠。
-     * 新存档恒为 true；旧存档（false）由 SaveDataReconciler 从实例重建堆叠兜底。
+     * false 表示存档来自堆叠未序列化的旧格式（旧备份/云档），堆叠数据缺失，
+     * 由 SaveDataReconciler 从实例重建兜底。
      */
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(55) val stacksSerialized: Boolean = false,

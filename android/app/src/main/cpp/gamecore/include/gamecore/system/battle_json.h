@@ -2,8 +2,8 @@
 // battle_json.h — 战斗 JSON 编解码（桌面对拍桥 + Android 生产桥共享）
 //
 // Combatant/CombatSkill/CombatBuff 的 JSON 双向编解码（对拍协议 + 生产
-// 战斗执行通道共用）。从 GameCoreJni.cpp 匿名命名空间提取——双桥复用
-// 防双份实现漂移（批次 D：AI 兽战生产接线引入生产桥执行通道）。
+// 战斗执行通道共用）。对拍桥与生产桥执行通道复用同一实现，防双份
+// 编解码漂移。
 //
 // 字段键与 Kotlin 侧 Diff 测试序列化（combatantJson/skillJson/buffJson）
 // 逐键对应；解析宽松（默认值兜底），序列化仅输出模型字段。

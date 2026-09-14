@@ -10,7 +10,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * DiffNativeForwardTest — 批次 9 剩余转发层对拍守护。
+ * DiffNativeForwardTest — 转发层对拍守护。
  *
  * 守护目标：
  *   1. feature flag 关闭时 tryExecuteNative 静默降级 null（Kotlin 引擎照常）

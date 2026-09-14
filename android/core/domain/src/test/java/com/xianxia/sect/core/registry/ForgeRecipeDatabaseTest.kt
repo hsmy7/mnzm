@@ -144,7 +144,7 @@ class ForgeRecipeDatabaseTest {
     }
 
     // ============================================================
-    // getCraftableRecipes maxTier 过滤（职业系统，2026-08-09）
+    // getCraftableRecipes maxTier 过滤（职业系统）
     // ============================================================
 
     @Test

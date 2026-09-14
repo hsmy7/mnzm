@@ -14,7 +14,7 @@ object DomainLog {
      * 替换当前日志实现，并返回替换前的旧实现。
      *
      * 调用方（如基准测试）可在变更前保存返回值、在 finally 中恢复，
-     * 避免 setLogger 后无法还原旧 logger（S-07 清偿：恢复能力）。
+     * 避免 setLogger 后无法还原旧 logger（恢复能力）。
      *
      * @param logger 新的日志实现
      * @return 替换前的旧实现——保存后可在 [setLogger] 中传回以恢复

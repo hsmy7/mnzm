@@ -2,6 +2,7 @@ package com.xianxia.sect.core
 
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
+import com.xianxia.sect.core.VulkanPolicy.DeviceTier
 import com.xianxia.sect.core.VulkanPolicy.RenderStrategy
 import org.junit.Assert.*
 import org.junit.Before
@@ -35,7 +36,7 @@ class VulkanPolicyTest {
     @Config(sdk = [Build.VERSION_CODES.O]) // API 26
     fun `getRenderStrategy API26 非白名单返回GLES_PREFERRED`() {
         // Robolectric 默认 Build.MANUFACTURER = "unknown" → 非白名单；旧 API 非白名单
-        // 设备有 GPU 但 Vulkan 驱动不可靠 → GPU GLES 中间层（2026-09 改变：原为 SOFTWARE_ONLY）
+        // 设备有 GPU 但 Vulkan 驱动不可靠 → GPU GLES 中间层
         val strategy = VulkanPolicy.getRenderStrategy(context)
         assertEquals("API 26 非白名单设备应走 GPU GLES",
             RenderStrategy.GLES_PREFERRED, strategy)
@@ -92,5 +93,66 @@ class VulkanPolicyTest {
         // 硬件加速保持开启
         val disabled = VulkanPolicy.isAccelerationDisabled()
         assertFalse("API 31+ 应保持硬件加速开启", disabled)
+    }
+
+    // ── 失败台账策略测试（布尔标记 → 计数+窗口+衰减台账） ──
+
+    private fun seedKillCount(count: Int, lastFailureAtMs: Long = System.currentTimeMillis()) {
+        context.getSharedPreferences("crash_recovery", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putInt("vk_kill_count", count)
+            .putLong("vk_last_failure_at", lastFailureAtMs)
+            .commit()
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `kill 达 3 窗口内返回 GLES_PREFERRED`() {
+        seedKillCount(3)
+        assertEquals(
+            "崩溃循环设备下次启动应降 GPU GLES（仍是 GPU，不是软件）",
+            RenderStrategy.GLES_PREFERRED, VulkanPolicy.getRenderStrategy(context)
+        )
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `kill 未达阈值保持 VULKAN_PREFERRED 重试`() {
+        seedKillCount(2)
+        assertEquals(
+            "未达台账阈值应保留干净启动重试",
+            RenderStrategy.VULKAN_PREFERRED, VulkanPolicy.getRenderStrategy(context)
+        )
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `台账 3 天窗口外不再降级`() {
+        seedKillCount(3, lastFailureAtMs = System.currentTimeMillis() - 4 * 24 * 3_600_000L)
+        assertEquals(
+            "窗口外失败不累积——应重试 Vulkan",
+            RenderStrategy.VULKAN_PREFERRED, VulkanPolicy.getRenderStrategy(context)
+        )
+    }
+
+    // ── 黑名单降为遥测队列（PROBLEMATIC → WARNING/cohort） ──
+
+    @Test
+    @Config(sdk = [31])
+    fun `名单内机型走 VULKAN_PREFERRED 且 tier 为 WARNING`() {
+        // Robolectric 注解无法直接改 Build.MODEL——反射设置（小米 14 Pro 的 model）
+        val field = Build::class.java.getDeclaredField("MODEL")
+        field.isAccessible = true
+        field.set(null, "23127pn0cc")
+
+        assertEquals(
+            "名单命中只打 cohort 遥测标记，不再未试先降",
+            DeviceTier.WARNING, VulkanPolicy.detectTier(context)
+        )
+        assertEquals(
+            "WARNING tier → VULKAN_PREFERRED（运行时回退链兜底）",
+            RenderStrategy.VULKAN_PREFERRED, VulkanPolicy.getRenderStrategy(context)
+        )
+        assertTrue("cohort 标志置位供遥测事件消费", VulkanPolicy.inProblemModelCohort)
     }
 }

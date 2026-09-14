@@ -10,8 +10,19 @@ using system::EngineLoop;
 using system::LoopFramePlan;
 using system::PhaseClock;
 
+// 追补公式双端对拍：本用例锁定 C++ 侧公式
+// maxPhasesPerTick(speed)=3×max(speed,1)（settlement.h 单一来源）；
+// Kotlin 侧对应 GameTimeClockPhaseCapParityTest（Kotlin core/engine tests）
+// 以同公式同常量锁定——两测互为锚点，改值须双端同步。
+TEST(PhaseCapParityTest, FormulaMatchesDocumentedConstant) {
+    EXPECT_EQ(system::maxPhasesPerTick(0), 3);
+    EXPECT_EQ(system::maxPhasesPerTick(1), 3);
+    EXPECT_EQ(system::maxPhasesPerTick(2), 6);
+    EXPECT_EQ(system::maxPhasesPerTick(-1), 3);  // 负速度消毒为 1x 档
+}
+
 // ============================================================
-// 引擎循环测试（计划 v2 阶段 5）
+// 引擎循环测试
 // PhaseClock 用例与 Kotlin GameTimeClockTest 逐条对齐（双端锚定
 // GameTimeClock 语义）；EngineLoop 用例锚定 GameEngineCore
 // gameLoopIteration 帧迭代判据。
@@ -168,7 +179,7 @@ TEST_F(PhaseClockTest, NowMsTracksTimeSource) {
     EXPECT_EQ(before + 1234, clock.nowMs());
 }
 
-// refundPhases：整批回滚归还（P1-A F2 语义）
+// refundPhases：整批回滚归还（整批回滚语义）
 TEST_F(PhaseClockTest, RefundPhasesRestoresAccumulation) {
     clock.start();
     EXPECT_EQ(1, simulateTick(2000));
@@ -322,6 +333,30 @@ TEST_F(EngineLoopTest, LoopRestartClearsFrameState) {
     const LoopFramePlan plan = loop.iterate(false, false);
     EXPECT_EQ(0, plan.frameDeltaNs);
     EXPECT_EQ(0, plan.tickCount);
+}
+
+// owner 重锚标志：紧急重启（onLoopRestart 换线程）置位，
+// 桥层消费一次即清除——新驱动线程首个 nativeLoopFrame 完成重锚
+TEST_F(EngineLoopTest, LoopRestartArmsOwnerRebaseConsumedOnce) {
+    EXPECT_FALSE(loop.consumeOwnerRebasePending());
+    loop.onLoopRestart();
+    EXPECT_TRUE(loop.consumeOwnerRebasePending());
+    EXPECT_FALSE(loop.consumeOwnerRebasePending());
+}
+
+// 正常启动（start，驱动线程不变）不置位重锚标志
+TEST_F(EngineLoopTest, StartDoesNotArmOwnerRebase) {
+    loop.onLoopRestart();        // 先置位
+    EXPECT_TRUE(loop.consumeOwnerRebasePending());  // 消费
+    loop.start();                // 正常启动不得重新置位
+    EXPECT_FALSE(loop.consumeOwnerRebasePending());
+}
+
+// resetForTest（测试隔离）清除重锚标志
+TEST_F(EngineLoopTest, ResetForTestClearsOwnerRebase) {
+    loop.onLoopRestart();
+    loop.resetForTest();
+    EXPECT_FALSE(loop.consumeOwnerRebasePending());
 }
 
 // resetForTest（测试隔离专用）：tick 计数/速度/累积/帧状态/活跃基准全部归零。

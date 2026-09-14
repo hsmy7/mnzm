@@ -54,9 +54,9 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalLocale
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
-
-/** 锻造坊派生状态（ForgeDialog 拆分） */
+/** 锻造坊派生状态 */
 private data class ForgeDialogState(
     val buildingIndex: Int,
     val slotIndex: Int,
@@ -70,7 +70,7 @@ private data class ForgeDialogState(
     val gameData: GameData?
 )
 
-/** 锻造坊对话框回调组（ForgeDialog 拆分） */
+/** 锻造坊对话框回调组 */
 private data class ForgeDialogActions(
     val onWorkerSlotEmptyClick: () -> Unit,
     val onWorkerDismiss: () -> Unit,
@@ -80,19 +80,29 @@ private data class ForgeDialogActions(
     val onIdleClick: () -> Unit
 )
 
+/** 锻造弹窗输入快照（ForgeDialog 参数分组）：槽位 + 材料 + 档案 + 弟子 */
+data class ForgeDialogInputs(
+    val forgeSlots: List<ForgeSlot>,
+    val materials: List<Material>,
+    val gameData: GameData?,
+    val disciples: List<DiscipleAggregate>
+)
+
 @Composable
+@Suppress("UnusedParameter") // productionViewModel: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun ForgeDialog(
+    inputs: ForgeDialogInputs,
     buildingInstanceId: String = "",
-    forgeSlots: List<ForgeSlot>,
-    materials: List<Material>,
-    gameData: GameData?,
-    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     forgeViewModel: ForgeViewModel,
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
 ) {
+    val forgeSlots = inputs.forgeSlots
+    val materials = inputs.materials
+    val gameData = inputs.gameData
+    val disciples = inputs.disciples
     var showEquipmentSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
@@ -150,7 +160,7 @@ fun ForgeDialog(
     }
 }
 
-/** 锻造坊派生状态计算（ForgeDialog 拆分） */
+/** 锻造坊派生状态计算 */
 @Composable
 private fun rememberForgeDialogState(
     buildingInstanceId: String,
@@ -164,8 +174,10 @@ private fun rememberForgeDialogState(
 
     val battleAndExplorationIds = remember(gameData) {
         if (gameData != null) {
-            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+                .toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }
+                .toSet()
             battleIds + explorationIds
         } else emptySet()
     }
@@ -193,7 +205,7 @@ private fun rememberForgeDialogState(
     )
 }
 
-/** 锻造坊主内容区（ForgeDialog 拆分） */
+/** 锻造坊主内容区 */
 @Composable
 private fun ColumnScope.ForgeDialogBody(
     state: ForgeDialogState,
@@ -258,7 +270,7 @@ private fun ColumnScope.ForgeDialogBody(
     }
 }
 
-/** 锻造弟子区（ForgeDialog 拆分） */
+/** 锻造弟子区 */
 @Composable
 private fun ForgeWorkerSection(
     workerDisciple: DiscipleAggregate?,
@@ -289,7 +301,8 @@ private fun ForgeWorkerSection(
         DiscipleSlot(
             disciple = workerDisciple,
             showActions = true,
-            onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
+            onSlotClick = { workerDisciple?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it,
+                disciples)) } },
             onEmptySlotClick = onEmptySlotClick,
             onDismiss = onDismiss,
             onSwap = onSwap
@@ -297,7 +310,7 @@ private fun ForgeWorkerSection(
     }
 }
 
-/** 锻造槽位条目（ForgeDialog 拆分） */
+/** 锻造槽位条目 */
 @Composable
 private fun ForgeSlotItem(
     mySlot: ForgeSlot?,
@@ -329,7 +342,7 @@ private fun ForgeSlotItem(
     )
 }
 
-/** 锻造弟子选择区块（ForgeDialog 拆分） */
+/** 锻造弟子选择区块 */
 @Composable
 private fun ForgeWorkerSelectionSection(
     state: ForgeDialogState,
@@ -379,7 +392,7 @@ private fun ForgeWorkerSelectionSection(
             val disciple = state.discipleMap[discipleId]
             state.coroutineScope.launch {
                 if (state.showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
-                    viewModel.releaseDiscipleForReassignment(discipleId)
+                    viewModel.disciple.releaseDiscipleForReassignment(discipleId)
                 }
                 val d = state.discipleMap[discipleId]
                 forgeViewModel.assignWorker(state.buildingIndex, discipleId, d?.name ?: "")
@@ -390,7 +403,7 @@ private fun ForgeWorkerSelectionSection(
     )
 }
 
-/** 装备选择弹窗区块（ForgeDialog 拆分） */
+/** 装备选择弹窗区块 */
 @Composable
 private fun ForgeEquipmentSelectionSection(
     slotIdx: Int,
@@ -415,13 +428,13 @@ private fun ForgeEquipmentSelectionSection(
     )
 }
 
-/** 配方 + 可制作状态（EquipmentSelectionDialog 拆分） */
+/** 配方 + 可制作状态 */
 private data class EquipmentRecipeWithStatus(
     val recipe: ForgeRecipeDatabase.ForgeRecipe,
     val canCraft: Boolean
 )
 
-/** 装备配方可制作状态（EquipmentSelectionDialog 拆分） */
+/** 装备配方可制作状态 */
 private fun equipmentRecipesWithStatus(
     allRecipes: List<ForgeRecipeDatabase.ForgeRecipe>,
     materialIndex: Map<Pair<String, Int>, Int>
@@ -436,7 +449,7 @@ private fun equipmentRecipesWithStatus(
     EquipmentRecipeWithStatus(recipe, canCraft)
 }
 
-/** 装备配方排序：已关注优先 → 稀有度降序（EquipmentSelectionDialog 拆分） */
+/** 装备配方排序：已关注优先 → 稀有度降序 */
 private fun sortEquipmentRecipes(
     recipesWithStatus: List<EquipmentRecipeWithStatus>,
     watchedKeys: Set<String>
@@ -540,7 +553,7 @@ private fun EquipmentSelectionDialog(
     }
 }
 
-/** 装备配方网格（EquipmentSelectionDialog 拆分） */
+/** 装备配方网格 */
 @Composable
 private fun ColumnScope.EquipmentRecipeGrid(
     sortedRecipes: List<EquipmentRecipeWithStatus>,
@@ -594,10 +607,7 @@ private fun EquipmentDetailDialog(
     viewModel: GameViewModel? = null,
     onDismiss: () -> Unit
 ) {
-    SmallScreenDialog(
-        onDismissRequest = onDismiss,
-        title = recipe.name
-    ) {
+    SmallScreenDialog(onDismissRequest = onDismiss, title = recipe.name) {
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -618,14 +628,26 @@ private fun EquipmentDetailDialog(
 
                     val template = com.xianxia.sect.core.registry.EquipmentDatabase.getTemplateByName(recipe.name)
                     if (template != null) {
-                        if (template.physicalAttack > 0) Text(text = "物理攻击 +${template.physicalAttack}", fontSize = 11.sp, color = Color.Black)
-                        if (template.magicAttack > 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp, color = Color.Black)
-                        if (template.physicalDefense > 0) Text(text = "物理防御 +${template.physicalDefense}", fontSize = 11.sp, color = Color.Black)
-                        if (template.magicDefense > 0) Text(text = "法术防御 +${template.magicDefense}", fontSize = 11.sp, color = Color.Black)
-                        if (template.speed > 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp, color = Color.Black)
+                        if (template.physicalAttack > 0) Text(text = "物理攻击 +${template.physicalAttack}",
+                            fontSize = 11.sp, color = Color.Black)
+                        if (template.magicAttack > 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp,
+                            color = Color.Black)
+                        if (template.physicalDefense > 0) Text(text = "物理防御 +${template.physicalDefense}",
+                            fontSize = 11.sp, color = Color.Black)
+                        if (template.magicDefense > 0) Text(text = "法术防御 +${template.magicDefense}", fontSize = 11.sp,
+                            color = Color.Black)
+                        if (template.speed > 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp,
+                            color = Color.Black)
                         if (template.hp > 0) Text(text = "生命 +${template.hp}", fontSize = 11.sp, color = Color.Black)
                         if (template.mp > 0) Text(text = "法力 +${template.mp}", fontSize = 11.sp, color = Color.Black)
-                        if (template.critChance > 0) Text(text = "暴击率 +${String.format(LocalLocale.current.platformLocale, "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color.Black)
+                        if (template.critChance > 0) {
+                            val critRateText = String.format(
+                                LocalLocale.current.platformLocale, "%.1f", template.critChance * 100)
+                            Text(
+                                text = "暴击率 +$critRateText%",
+                                fontSize = 11.sp, color = Color.Black,
+                            )
+                        }
                     }
                 }
 
@@ -634,16 +656,12 @@ private fun EquipmentDetailDialog(
 
                 // 关注按钮：viewModel 非空时显示（装备按名称关注），位于底部操作区
                 if (viewModel != null) {
-                    val watchedKeys =
-                        viewModel.watchedItemIds.collectAsStateWithLifecycle().value
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start
-                    ) {
+                    val watchedKeys = viewModel.watchedItemIds.collectAsStateWithLifecycle().value
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         WatchItemButton(
                             watchKey = watchKey("equipment", recipe.name),
                             watchedKeys = watchedKeys,
-                            onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
+                            onToggleWatch = { key -> viewModel.inventory.toggleWatchItem(key) }
                         )
                     }
                 }
@@ -652,7 +670,7 @@ private fun EquipmentDetailDialog(
     }
 }
 
-/** 所需材料列表（EquipmentDetailDialog 拆分） */
+/** 所需材料列表 */
 @Composable
 private fun EquipmentMaterialRequirementList(
     recipe: ForgeRecipeDatabase.ForgeRecipe,

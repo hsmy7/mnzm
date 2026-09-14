@@ -22,7 +22,7 @@ internal fun SellConfirmDialog(
         onConfirm = { onConfirm(sellQuantity) },
         dismissLabel = "取消",
         onDismiss = onDismiss,
-        // 含数量常驻输入框：挂载期间冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        // 含数量常驻输入框：挂载期间冻结宿主窗口系统栏操作，避免键盘弹出时部分机型频闪
         freezeSystemBars = true
     ) {
         Spacer(modifier = Modifier.weight(1f))

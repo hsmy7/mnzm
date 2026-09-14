@@ -9,6 +9,7 @@ import kotlinx.serialization.EncodeDefault
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
 import kotlin.reflect.KType
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
@@ -20,9 +21,9 @@ import kotlin.reflect.jvm.isAccessible
  * 并提示开发者添加 @ProtoNumber。
  *
  * ## 设计原则
- * - 运行时字段应直接标注 @kotlinx.serialization.Transient 排除，不应加入 EXCLUDED_FIELDS
- * - EXCLUDED_FIELDS 仅为无法标注 @Transient 的 computed property 提供逃生门
- * - 新增字段时优先加 @ProtoNumber，其次 @Transient，最后才考虑 EXCLUDED_FIELDS
+ * - 运行时字段应直接标注 @kotlinx.serialization.Transient 排除，不应加入 excludedFields
+ * - excludedFields 仅为无法标注 @Transient 的 computed property 提供逃生门
+ * - 新增字段时优先加 @ProtoNumber，其次 @Transient，最后才考虑 excludedFields
  */
 class ProtoNumberCoverageTest {
 
@@ -36,7 +37,7 @@ class ProtoNumberCoverageTest {
      * 所有可添加 @Transient 的运行时字段应直接标注 @kotlinx.serialization.Transient，
      * 不应写入此表。此表仅为无法标注 @Transient 的字段提供逃生门。
      */
-    private val EXCLUDED_FIELDS = mapOf(
+    private val excludedFields = mapOf(
         // GameData 计算属性（仅 getter，无 backing field → 无 @Transient）
         "displayTime" to "格式化显示时间 getter",
         "worldMap" to "世界地图聚合 getter",
@@ -120,8 +121,9 @@ class ProtoNumberCoverageTest {
 
         for (prop in clazz.memberProperties) {
             val fullName = "$prefix${prop.name}"
-            if (prop.annotations.any { it is Transient }) continue
-            if (fullName in EXCLUDED_FIELDS || prop.name in EXCLUDED_FIELDS) continue
+            val isSkipped = prop.annotations.any { it is Transient } ||
+                fullName in excludedFields || prop.name in excludedFields
+            if (isSkipped) continue
             val hasProtoNumber = prop.annotations.any { it is ProtoNumber }
             if (!hasProtoNumber) {
                 errors.add("${className}.${fullName}: ${prop.returnType}")
@@ -140,27 +142,30 @@ class ProtoNumberCoverageTest {
      * 从属性类型中提取所有 [Serializable] 嵌套类（含泛型参数中的）。
      */
     private fun collectNestedSerializableClasses(type: KType): Set<KClass<*>> {
-        val result = mutableSetOf<KClass<*>>()
-        val classifier = type.classifier as? KClass<*> ?: return result
-        if (classifier.qualifiedName?.startsWith("kotlin") == true) return result
-        if (classifier.java.isEnum) return result
-        if (classifier.java.name.startsWith("java.lang")) return result
+        val classifier = type.classifier as? KClass<*> ?: return emptySet()
+        if (isNonSerializableCarrierType(classifier)) return emptySet()
 
+        val result = mutableSetOf<KClass<*>>()
         // 检查类型本身（跳过已知非序列化类型）
-        if (classifier in SKIP_TYPES) return result
         if (classifier.annotations.any { it is Serializable }) {
             result.add(classifier)
         }
         // 检查泛型参数
         for (arg in type.arguments) {
             val argClass = arg.type?.classifier as? KClass<*> ?: continue
-            if (argClass.qualifiedName?.startsWith("kotlin") == true) continue
-            if (argClass !in SKIP_TYPES && argClass.annotations.any { it is Serializable }) {
+            if (argClass !in skipTypes && argClass.annotations.any { it is Serializable }) {
                 result.add(argClass)
             }
         }
         return result
     }
+
+    /** 非序列化载体类型判定：kotlin 标准库/枚举/java.lang/已知跳过类型 */
+    private fun isNonSerializableCarrierType(classifier: KClass<*>): Boolean =
+        classifier.qualifiedName?.startsWith("kotlin") == true ||
+            classifier.java.isEnum ||
+            classifier.java.name.startsWith("java.lang") ||
+            classifier in skipTypes
 
     // ── 递归检查 @EncodeDefault 覆盖 ───────────────────────────────────
 
@@ -184,10 +189,7 @@ class ProtoNumberCoverageTest {
 
         for (prop in clazz.memberProperties) {
             val fullName = "$prefix${prop.name}"
-            if (prop.annotations.any { it is Transient }) continue
-            if (fullName in EXCLUDED_FIELDS || prop.name in EXCLUDED_FIELDS) continue
-            if (prop.annotations.none { it is ProtoNumber }) continue
-            if (prop.annotations.any { it is EncodeDefault }) continue
+            if (isEncodeDefaultFieldSkipped(prop, fullName)) continue
 
             prop.isAccessible = true
             val value = prop.getter.call(instance)
@@ -203,14 +205,34 @@ class ProtoNumberCoverageTest {
                 }
             } else {
                 // 集合/Map 类型：用默认构造实例递归元素类型（空集合时无法从运行时取值）
-                collectNestedSerializableClasses(prop.returnType).forEach { nested ->
-                    try {
-                        val defaultInstance = nested.java.getDeclaredConstructor().newInstance()
-                        checkEncodeDefaultCoverage(className, nested, errors, defaultInstance, "$fullName.")
-                    } catch (_: Exception) {
-                        // 元素类型无可访问默认构造，跳过递归
-                    }
-                }
+                recurseEncodeDefaultIntoElements(className, prop.returnType, errors, fullName)
+            }
+        }
+    }
+
+    /** 字段跳过判定：@Transient/排除清单/无 @ProtoNumber/已标注 @EncodeDefault */
+    private fun isEncodeDefaultFieldSkipped(prop: KProperty1<*, *>, fullName: String): Boolean =
+        prop.annotations.any { it is Transient } ||
+            fullName in excludedFields || prop.name in excludedFields ||
+            prop.annotations.none { it is ProtoNumber } ||
+            prop.annotations.any { it is EncodeDefault }
+
+    /**
+     * 集合/Map 元素类型递归：空集合时无法从运行时
+     * 取值，用默认构造实例递归；元素类型无可访问默认构造则跳过递归。
+     */
+    private fun recurseEncodeDefaultIntoElements(
+        className: String,
+        returnType: KType,
+        errors: MutableList<String>,
+        fullName: String
+    ) {
+        collectNestedSerializableClasses(returnType).forEach { nested ->
+            try {
+                val defaultInstance = nested.java.getDeclaredConstructor().newInstance()
+                checkEncodeDefaultCoverage(className, nested, errors, defaultInstance, "$fullName.")
+            } catch (_: Exception) {
+                // 元素类型无可访问默认构造，跳过递归
             }
         }
     }
@@ -218,7 +240,7 @@ class ProtoNumberCoverageTest {
     // ── 辅助方法 ───────────────────────────────────────────────────────
 
     /** 类型/类的跳过列表 — 非序列化实体或枚举 */
-    private val SKIP_TYPES = setOf(
+    private val skipTypes = setOf(
         java.lang.String::class,
         java.util.UUID::class,
     )
@@ -253,7 +275,7 @@ class ProtoNumberCoverageTest {
         sb.appendLine()
         sb.appendLine("请为每个字段添加 @ProtoNumber(n)，其中 n 为全局唯一的编号。")
         sb.appendLine("如该字段不应参与云存档序列化，请标注 @kotlinx.serialization.Transient。")
-        sb.appendLine("仅对无法标注 @Transient 的 computed property，才加入 EXCLUDED_FIELDS。")
+        sb.appendLine("仅对无法标注 @Transient 的 computed property，才加入 excludedFields。")
         sb.appendLine("========================================")
         return sb.toString()
     }

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
@@ -59,8 +60,8 @@ class GameEngineMarriageProposalTest {
     private lateinit var store: MarriageProposalTestStore
     private lateinit var engine: GameEngine
 
-    private val MALE_ID = "1"
-    private val FEMALE_ID = "2"
+    private val maleId = "1"
+    private val femaleId = "2"
 
     @Before
     fun setUp() {
@@ -68,7 +69,7 @@ class GameEngineMarriageProposalTest {
         // 初始化弟子
         store.update {
             discipleTables.writeAllowed = true
-            val m = MALE_ID.toInt()
+            val m = maleId.toInt()
             discipleTables.addId(m)
             discipleTables.names[m] = "男A"
             discipleTables.statuses[m] = DiscipleStatus.IDLE
@@ -78,7 +79,7 @@ class GameEngineMarriageProposalTest {
             discipleTables.portraitRes[m] = "portrait_a"
             discipleTables.genders[m] = "male"
 
-            val f = FEMALE_ID.toInt()
+            val f = femaleId.toInt()
             discipleTables.addId(f)
             discipleTables.names[f] = "女A"
             discipleTables.statuses[f] = DiscipleStatus.IDLE
@@ -94,7 +95,7 @@ class GameEngineMarriageProposalTest {
         store.update {
             gameData = gameData.copy(daoCompanionConsentRequired = true)
             pendingMarriageProposals = listOf(
-                PendingMarriageProposal(MALE_ID, "男A", FEMALE_ID, "女A")
+                PendingMarriageProposal(maleId, "男A", femaleId, "女A")
             )
         }
 
@@ -120,7 +121,7 @@ class GameEngineMarriageProposalTest {
             gameEngineCore = mock(),
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mock(),
             cultivationFacade = mockCultivationFacade,
             economyFacade = mockEconomyFacade,
@@ -132,35 +133,35 @@ class GameEngineMarriageProposalTest {
 
     @Test
     fun `approve - proposers become partners`() {
-        engine.approveMarriageProposal(MALE_ID, FEMALE_ID)
+        engine.approveMarriageProposal(maleId, femaleId)
         // 检查 companion 设定
-        assertEquals(FEMALE_ID, store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
-        assertEquals(MALE_ID, store._discipleTables.partnerIds.getOrNull(FEMALE_ID.toInt()))
+        assertEquals(femaleId, store.fakeDiscipleTables.partnerIds.getOrNull(maleId.toInt()))
+        assertEquals(maleId, store.fakeDiscipleTables.partnerIds.getOrNull(femaleId.toInt()))
         // 提议应被清除
         assertTrue("approve 后提议应被移除", store.pendingMarriageProposalsValue.isEmpty())
     }
 
     @Test
     fun `approve - invalid male ID does nothing`() {
-        engine.approveMarriageProposal("999", FEMALE_ID)
-        assertNull(store._discipleTables.partnerIds.getOrNull(999))
+        engine.approveMarriageProposal("999", femaleId)
+        assertNull(store.fakeDiscipleTables.partnerIds.getOrNull(999))
         assertEquals(1, store.pendingMarriageProposalsValue.size)
     }
 
     @Test
     fun `approve - non-existent proposal does nothing`() {
-        engine.approveMarriageProposal(MALE_ID, "999")
-        assertNull(store._discipleTables.partnerIds.getOrNull(FEMALE_ID.toInt()))
+        engine.approveMarriageProposal(maleId, "999")
+        assertNull(store.fakeDiscipleTables.partnerIds.getOrNull(femaleId.toInt()))
     }
 
     @Test
     fun `approve - already partnered male skips pairing and removes proposal`() {
         store.update {
-            discipleTables.partnerIds[MALE_ID.toInt()] = "99"
+            discipleTables.partnerIds[maleId.toInt()] = "99"
         }
-        engine.approveMarriageProposal(MALE_ID, FEMALE_ID)
+        engine.approveMarriageProposal(maleId, femaleId)
         // 原有配套不应被覆盖
-        assertEquals("99", store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
+        assertEquals("99", store.fakeDiscipleTables.partnerIds.getOrNull(maleId.toInt()))
         // 提议应被清理
         assertTrue("已有道侣时提议应被移除", store.pendingMarriageProposalsValue.isEmpty())
     }
@@ -168,26 +169,26 @@ class GameEngineMarriageProposalTest {
     @Test
     fun `approve - already partnered female skips pairing`() {
         store.update {
-            discipleTables.partnerIds[FEMALE_ID.toInt()] = "99"
+            discipleTables.partnerIds[femaleId.toInt()] = "99"
         }
-        engine.approveMarriageProposal(MALE_ID, FEMALE_ID)
-        assertNull("女性已有道侣，男性不应被配对", store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
+        engine.approveMarriageProposal(maleId, femaleId)
+        assertNull("女性已有道侣，男性不应被配对", store.fakeDiscipleTables.partnerIds.getOrNull(maleId.toInt()))
     }
 
     // ── reject ──────────────────────────────────────────────────
 
     @Test
     fun `reject - proposal is removed`() {
-        engine.rejectMarriageProposal(MALE_ID, FEMALE_ID)
+        engine.rejectMarriageProposal(maleId, femaleId)
         assertTrue("reject 后提议应被移除", store.pendingMarriageProposalsValue.isEmpty())
         // 不应产生配对
-        assertNull(store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
-        assertNull(store._discipleTables.partnerIds.getOrNull(FEMALE_ID.toInt()))
+        assertNull(store.fakeDiscipleTables.partnerIds.getOrNull(maleId.toInt()))
+        assertNull(store.fakeDiscipleTables.partnerIds.getOrNull(femaleId.toInt()))
     }
 
     @Test
     fun `reject - non-existent proposal is no-op`() {
-        engine.rejectMarriageProposal(MALE_ID, "999")
+        engine.rejectMarriageProposal(maleId, "999")
         assertEquals("无关提议应保留", 1, store.pendingMarriageProposalsValue.size)
     }
 }
@@ -196,7 +197,7 @@ class GameEngineMarriageProposalTest {
 
 private class MarriageProposalTestStore : GameStateStore {
     // 持久化 DiscipleTables（跨 update 持久化）
-    val _discipleTables = DiscipleTables()
+    val fakeDiscipleTables = DiscipleTables()
     private val _gameData = MutableStateFlow(GameData())
     private val _pendingProposals = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
     private val _updateVersion = MutableStateFlow(0L)
@@ -213,7 +214,7 @@ private class MarriageProposalTestStore : GameStateStore {
     // GameStateStore 必需实现（最小化存根）
     override val gameData: StateFlow<GameData> get() = _gameData
     override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
-    override val discipleTables: DiscipleTables get() = _discipleTables
+    override val discipleTables: DiscipleTables get() = fakeDiscipleTables
     override val equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())
     override val equipmentInstances = MutableStateFlow<List<EquipmentInstance>>(emptyList())
     override val manualStacks = MutableStateFlow<List<ManualStack>>(emptyList())
@@ -263,31 +264,31 @@ private class MarriageProposalTestStore : GameStateStore {
     override fun getCurrentSeeds(): List<Seed> = emptyList()
     override fun getCurrentHerbs(): List<Herb> = emptyList()
     override fun getCurrentMaterials(): List<Material> = emptyList()
-    override fun enqueueNotification(notification: GameNotification) {}
+    override fun enqueueNotification(notification: GameNotification) = Unit
     override fun consumeNotification(): GameNotification? = null
     @Deprecated("Notifications are now queued. Use consumeNotification() instead.")
-    override fun clearPendingNotification() {}
-    override fun setPendingBattleResult(result: BattleResultUIData) {}
-    override fun clearPendingBattleResult() {}
-    override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {}
-    override fun clearPendingBeastAttacks() {}
-    override fun removePendingBeastAttack(beastLevelId: String) {}
-    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {}
-    override fun clearPendingBattleRewardCards() {}
-    override fun enqueueRewardCards(items: List<RewardCardItem>) {}
-    override fun clearRewardCardQueue(count: Int) {}
-    override fun advanceBootPhase() {}
-    override fun resetBootPhase() {}
-    override fun setPlaying() {}
-    override fun setReloading() {}
-    override fun setIdle() {}
-    override fun setLoading() {}
-    override fun setPausedDirect(paused: Boolean) {}
-    override fun setLoadingDirect(loading: Boolean) {}
-    override fun setSavingDirect(saving: Boolean) {}
+    override fun clearPendingNotification() = Unit
+    override fun setPendingBattleResult(result: BattleResultUIData) = Unit
+    override fun clearPendingBattleResult() = Unit
+    override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit
+    override fun clearPendingBeastAttacks() = Unit
+    override fun removePendingBeastAttack(beastLevelId: String) = Unit
+    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) = Unit
+    override fun clearPendingBattleRewardCards() = Unit
+    override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
+    override fun clearRewardCardQueue(count: Int) = Unit
+    override fun advanceBootPhase() = Unit
+    override fun resetBootPhase() = Unit
+    override fun setPlaying() = Unit
+    override fun setReloading() = Unit
+    override fun setIdle() = Unit
+    override fun setLoading() = Unit
+    override fun setPausedDirect(paused: Boolean) = Unit
+    override fun setLoadingDirect(loading: Boolean) = Unit
+    override fun setSavingDirect(saving: Boolean) = Unit
     override fun takeAtomicSnapshot() = GameStateStore.GameSnapshot()
-    override fun enterBatchEmissionMode() {}
-    override fun exitBatchEmissionMode() {}
+    override fun enterBatchEmissionMode() = Unit
+    override fun exitBatchEmissionMode() = Unit
 
     // update() 实现：允许通过闭包修改持久化状态
     private var inUpdate = false
@@ -320,7 +321,7 @@ private class MarriageProposalTestStore : GameStateStore {
         try {
             // 当前值
             val curGame = _gameData.value
-            val curTables = _discipleTables
+            val curTables = discipleTables
             val curProposals = _pendingProposals.value
 
             reusableMutableState.apply {
@@ -328,7 +329,7 @@ private class MarriageProposalTestStore : GameStateStore {
                 discipleTables = curTables.also { }
                 pendingMarriageProposals = curProposals
             }
-            // 注：此 Fake 直接操作持久化实例 _discipleTables，
+            // 注：此 Fake 直接操作持久化实例 discipleTables，
             // 但 block 中使用的是 reusableMutableState.discipleTables
             // 在近似实现中我们仅关注 gameData + pendingMarriageProposals
             val gameBefore = reusableMutableState.gameData
@@ -339,10 +340,10 @@ private class MarriageProposalTestStore : GameStateStore {
             if (gameChanged) _gameData.value = reusableMutableState.gameData
             if (proposalsChanged) _pendingProposals.value = reusableMutableState.pendingMarriageProposals
             // 特殊处理 discipleTables 的 partnerIds 变更
-            if (reusableMutableState.discipleTables.partnerIds !== _discipleTables.partnerIds) {
+            if (reusableMutableState.discipleTables.partnerIds !== fakeDiscipleTables.partnerIds) {
                 // 如果 block 创建了新的 tables，只复制 partnerIds
                 for (id in reusableMutableState.discipleTables.ids) {
-                    _discipleTables.partnerIds[id] = reusableMutableState.discipleTables.partnerIds.getOrNull(id)
+                    fakeDiscipleTables.partnerIds[id] = reusableMutableState.discipleTables.partnerIds.getOrNull(id)
                 }
             }
             if (gameChanged || proposalsChanged) _updateVersion.value++
@@ -368,7 +369,7 @@ private class MarriageProposalTestStore : GameStateStore {
         seeds: List<Seed>, storageBags: List<StorageBag>,
         battleLogs: List<BattleLog>,
         isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
-    ) {}
+    ) = Unit
 
-    override suspend fun reset() {}
+    override suspend fun reset() = Unit
 }

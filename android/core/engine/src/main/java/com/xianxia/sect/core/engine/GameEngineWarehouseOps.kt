@@ -9,6 +9,12 @@ import kotlin.coroutines.cancellation.CancellationException
 
 // GameEngineWarehouseOps.kt — 仓库驻守 GameEngine 扩展入口
 // （对照 GameEngineAtomicAssign.kt 的原子事务 + gate 模式）
+//
+// batch-15 native 臂：AUTHORITATIVE 稳态下 C++ 事务（appointment_tx.h
+// warehouseGarrisonAssignTx——校验链 + 旧 occupant 捕获 + 全槽清理数据段 +
+// 条目替换）先行；成功后 Kotlin 仅执行事务外残差（Gate 注册表 + Room 清理 +
+// 状态同步，[applyWarehouseGarrisonResiduals] 与回退臂共用同一序列）。
+// flag 关闭 / 桥未加载 / 失败信封 → 回退 Kotlin 原事务体（双实现并行契约）。
 
 /**
  * 原子化分配弟子到仓库驻守槽位（按建筑实例 ID）。
@@ -24,6 +30,14 @@ fun GameEngine.assignWarehouseGarrisonAtomic(
     sectId: String
 ) {
     gameEngineCore.launchInScope {
+        // native 臂（batch-15）：失败信封/降级 null → 回退 Kotlin 原事务体
+        val receipt = tryAssignWarehouseGarrisonNative(
+            buildingInstanceId, discipleId, discipleName, sectId
+        )
+        if (receipt != null) {
+            applyWarehouseGarrisonResiduals(buildingInstanceId, discipleId, receipt.oldOccupantId)
+            return@launchInScope
+        }
         var oldOccupantId = ""
         stateStore.update {
             val id = discipleId.toIntOrNull()
@@ -32,8 +46,7 @@ fun GameEngine.assignWarehouseGarrisonAtomic(
             // 覆写前捕获旧 occupant（事务内读取，避免快照竞态）
             oldOccupantId = gameData.warehouseGarrisons
                 .find { it.buildingInstanceId == buildingInstanceId }?.discipleId.orEmpty()
-            // 清理新弟子全部槽位（回归：此前直写 GameData，勾选"显示所有弟子"
-            // 可从巡逻/长老等岗位直接拉入仓库驻守，旧槽位残留）
+            // 清理新弟子全部槽位（否则可从巡逻/长老等岗位直接拉入仓库驻守，旧槽位残留）
             gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(gameData, discipleId)
             gameData = gameData.copy(
                 warehouseGarrisons = gameData.warehouseGarrisons.filter {
@@ -47,27 +60,39 @@ fun GameEngine.assignWarehouseGarrisonAtomic(
             )
         }
         // 事务成功后才操作 gate（失败回滚时不触碰注册表）
-        assignmentGate.release(discipleId)
+        applyWarehouseGarrisonResiduals(buildingInstanceId, discipleId, oldOccupantId)
+    }
+}
+
+/**
+ * 驻守事务成功后的运行态残差（native 臂与 Kotlin 回退臂共用，batch-12
+ * applyPatrolResiduals 同款提取）：gate 释放/登记 + 双存储同步 + 双方状态同步。
+ */
+private fun GameEngine.applyWarehouseGarrisonResiduals(
+    buildingInstanceId: String,
+    discipleId: String,
+    oldOccupantId: String
+) {
+    assignmentGate.release(discipleId)
+    if (oldOccupantId.isNotEmpty() && oldOccupantId != discipleId) {
+        assignmentGate.release(oldOccupantId)
+    }
+    assignmentGate.confirmAssign(
+        discipleId,
+        SlotRef(SlotCategory.WAREHOUSE_GARRISON, buildingInstanceId, "warehouse_$buildingInstanceId")
+    )
+    // 双存储同步：清 Room 生产槽 Repository
+    clearDiscipleFromProductionRepository(discipleId)
+    // 同步新弟子与旧 occupant 状态（不 release/sync 会注册表/状态残留）
+    @Suppress("TooGenericExceptionCaught")
+    try {
+        discipleFacade.syncSingleDiscipleStatus(discipleId)
         if (oldOccupantId.isNotEmpty() && oldOccupantId != discipleId) {
-            assignmentGate.release(oldOccupantId)
+            discipleFacade.syncSingleDiscipleStatus(oldOccupantId)
         }
-        assignmentGate.confirmAssign(
-            discipleId,
-            SlotRef(SlotCategory.WAREHOUSE_GARRISON, buildingInstanceId, "warehouse_$buildingInstanceId")
-        )
-        // 双存储同步：清 Room 生产槽 Repository
-        clearDiscipleFromProductionRepository(discipleId)
-        // 同步新弟子与旧 occupant 状态（回归：此前旧 occupant 从不 release/sync）
-        @Suppress("TooGenericExceptionCaught")
-        try {
-            discipleFacade.syncSingleDiscipleStatus(discipleId)
-            if (oldOccupantId.isNotEmpty() && oldOccupantId != discipleId) {
-                discipleFacade.syncSingleDiscipleStatus(oldOccupantId)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.w("GameEngine", "assignWarehouseGarrison: sync 失败", e)
-        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "assignWarehouseGarrison: sync 失败", e)
     }
 }

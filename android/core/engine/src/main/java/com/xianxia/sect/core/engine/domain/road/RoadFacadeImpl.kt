@@ -1,17 +1,24 @@
 package com.xianxia.sect.core.engine.domain.road
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.RoadData
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.RoadPlacementResult
 import com.xianxia.sect.core.util.RoadTileType
 import com.xianxia.sect.core.util.RoadTiling
-import javax.inject.Inject
-import javax.inject.Singleton
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.put
 
 /**
  * 道路门面实现。
@@ -19,10 +26,21 @@ import javax.inject.Singleton
  * 玩家只负责放置/删除道路，本类按邻接位掩码自动拼接，并只重算「当前格 + 上下左右」
  * 最多 5 格（O(1) 局部更新，满足大规模地图性能要求）。所有改动经 [GameStateStore]
  * 原子事务提交，不直接触碰 UI 层。
+ *
+ * batch-07 写者下沉：AUTHORITATIVE 稳态下放置/删除事务经 [roadNativeTx] 转发
+ * C++（road_tx.h——校验链/灵石扣减/邻域掩码重算 C++ 唯一真相），成功臂经
+ * 脏段镜像回读同步 gameData.roads/spiritStones；native 降级或失败信封回退
+ * Kotlin 原路径（下方原实现保留为回退臂，语义逐字不变）。
+ *
+ * DI 装配：本类不经 @Inject 构造注入——镜像通道是 GameEngineCore 手工持有的
+ * StateSyncService 单例（其 reverseSender 默认 lambda 无 Dagger 绑定，构造注入
+ * 会 MissingBinding 且分叉反向通道实例），由 [createRoadFacade] 工厂接线、
+ * CoreModule @Provides 提供单例。构造器的 stateSyncService 形参仅供测试直传。
  */
-@Singleton
-class RoadFacadeImpl @Inject constructor(
-    private val stateStore: GameStateStore
+class RoadFacadeImpl(
+    private val stateStore: GameStateStore,
+    // 镜像通道（native 臂脏段回读用）；null = 测试替身场景，恒走 Kotlin 回退臂
+    private val stateSyncService: StateSyncService? = null
 ) : RoadFacade {
 
     private val width get() = GameConfig.SectMap.WORLD_WIDTH_CELLS
@@ -35,8 +53,9 @@ class RoadFacadeImpl @Inject constructor(
         return canPlaceCell(gridX, gridY, occupied, data)
     }
 
-    @Suppress("ReturnCount")  // 多 return 为放置失败分支（Blocked 原因逐级短路），有 RoadFacadeImplTest 守护
+    @Suppress("ReturnCount")  // 多 return 为放置失败分支（Blocked 原因逐级短路）+ native 臂降级，有 RoadFacadeImplTest 守护
     override fun placeRoad(gridX: Int, gridY: Int): RoadPlacementResult {
+        roadNativeTx(ActionIds.ROAD_PLACE, gridX, gridY)?.let { return it }
         val data = stateStore.gameDataSnapshot
         val occupied = buildingOccupiedCells(data) + FixedSectGateway.blockedCells
         if (!canPlaceCell(gridX, gridY, occupied, data)) {
@@ -58,6 +77,7 @@ class RoadFacadeImpl @Inject constructor(
     }
 
     override fun removeRoad(gridX: Int, gridY: Int): RoadPlacementResult {
+        roadNativeTx(ActionIds.ROAD_REMOVE, gridX, gridY)?.let { return it }
         val existed = stateStore.gameDataSnapshot.roads.any {
             it.gridX == gridX && it.gridY == gridY
         }
@@ -68,6 +88,48 @@ class RoadFacadeImpl @Inject constructor(
             gameData = gd.copy(roads = recomputeNeighborhood(remaining, gridX, gridY))
         }
         return RoadPlacementResult.Success(neighborhoodCells(gridX, gridY))
+    }
+
+    /**
+     * 道路事务 native 转发（batch-07 写者下沉——稳态写者归 C++ 唯一真相）。
+     *
+     * AUTHORITATIVE 门控 + 镜像回读：tryExecuteNative 成功后经
+     * applyDirtyFromNative 把 C++ 脏段（gameData.roads/spiritStones）回读镜像；
+     * 失败信封/降级返回 null（调用方回退 Kotlin 原路径重执行校验链——双实现
+     * 并行契约，Blocked 文案由 Kotlin 臂产出）。roads 为 gameData 快照列，
+     * 成功臂无 Room 回放需求（与生产槽位不同）。
+     *
+     * 占用集合在 Kotlin 组装（本宗建筑占地 ∪ 固定结构）：C++ GridBuildingData
+     * 无 sectId 字段（models.h 本批禁改），宗门过滤不可在 C++ 复现——见
+     * road_tx.h 头注释。镜像写入不参与反向捕获，GameEngineRoadOps 的即时
+     * 回导对本臂为空窗口零发送（契约自洽）。
+     */
+    private fun roadNativeTx(actionId: Int, gridX: Int, gridY: Int): RoadPlacementResult? {
+        if (!NativeEngineFlag.authoritative) return null
+        if (stateSyncService == null) return null
+        GameEngineNativeOps.tryExecuteNative(
+            stateSyncService = stateSyncService,
+            actionId = actionId,
+            paramsJson = params {
+                put("gridX", gridX)
+                put("gridY", gridY)
+                put("width", width)
+                put("height", height)
+                put("border", border)
+                put("cost", GameConfig.Road.COST_PER_CELL)
+                put(
+                    "occupiedCells",
+                    JsonArray(occupiedCellsForNative().map { JsonPrimitive(it) })
+                )
+            }
+        ) ?: return null
+        return RoadPlacementResult.Success(neighborhoodCells(gridX, gridY))
+    }
+
+    /** 占用格集合（packed cell）展开为协议数组：本宗建筑占地 ∪ 固定结构禁建格。 */
+    private fun occupiedCellsForNative(): List<Long> {
+        val data = stateStore.gameDataSnapshot
+        return (buildingOccupiedCells(data) + FixedSectGateway.blockedCells).toList()
     }
 
     // ── 可建造判定（独立方法，逻辑不散落 UI）────────────────────────
@@ -150,3 +212,11 @@ class RoadFacadeImpl @Inject constructor(
         return cells
     }
 }
+
+/**
+ * DI 装配工厂（CoreModule @Provides 调用）：镜像通道取 [GameEngineCore] 手工
+ * 持有的 StateSyncService 单例（internal 可见性限定在本模块内接线，:app 不直读），
+ * 保证与引擎 tick ⑤/即时回导共用同一反向通道实例。
+ */
+fun createRoadFacade(stateStore: GameStateStore, gameEngineCore: GameEngineCore): RoadFacadeImpl =
+    RoadFacadeImpl(stateStore, gameEngineCore.stateSyncServiceRef)

@@ -194,100 +194,67 @@ class SimpleBloomFilter(
  */
 @Singleton
 class GameDataCacheManager @Inject constructor(
-    @ApplicationContext private val context: Context,
-    @Suppress("UNUSED_PARAMETER") private val database: GameDatabase, // Kept for DI compatibility; disk I/O handled by StorageEngine
+    @ApplicationContext internal val context: Context,
+    @Suppress("UNUSED_PARAMETER") private val database: GameDatabase,
+    //Kept for DI compatibility; disk I/O handled by StorageEngine
     private val config: CacheConfig = CacheConfig.DEFAULT,
-    private val memoryManager: DynamicMemoryManager? = null,
+    internal val memoryManager: DynamicMemoryManager? = null,
     private val scopeProvider: CoroutineScopeProvider
 ) : MemoryEventListener, ComponentCallbacks2 {
     companion object {
-        private const val TAG = "GameDataCacheManager"
-        private const val CLEANUP_INTERVAL_MS = 30_000L
-        private const val STATS_LOG_INTERVAL_MS = 300_000L
+        internal const val TAG = "GameDataCacheManager"
+        internal const val STATS_LOG_INTERVAL_MS = 300_000L
         private const val MEMORY_CHECK_INTERVAL_MS = 10_000L
     }
 
     // ==================== Core in-memory cache ====================
 
-    private val memoryCache = object : LinkedHashMap<String, CacheEntry>(
+    internal val memoryCache = object : LinkedHashMap<String, CacheEntry>(
         16, 0.75f, true
     ) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CacheEntry>): Boolean = false
     }
 
-    fun <T : Any> getSync(key: String): T? = synchronized(memoryCache) {
-        val entry = memoryCache[key] ?: return null
-        if (entry.isExpired) {
-            memoryCache.remove(key)
-            return null
-        }
-        @Suppress("UNCHECKED_CAST")
-        entry.data as? T
-    }
 
-    fun putSync(key: String, value: Any, ttl: Long = CacheKey.DEFAULT_TTL) = synchronized(memoryCache) {
-        memoryCache[key] = CacheEntry(value, System.currentTimeMillis(), ttl)
-        bloomFilter.put(key)
-        while (memoryCache.size > currentConfig.maxEntryCount) {
-            val eldest = memoryCache.keys.firstOrNull() ?: break
-            memoryCache.remove(eldest)
-            evictedCount.incrementAndGet()
-        }
-    }
 
-    fun removeSync(key: String) = synchronized(memoryCache) {
-        memoryCache.remove(key)
-    }
 
-    fun containsSync(key: String): Boolean = synchronized(memoryCache) {
-        val entry = memoryCache[key] ?: return false
-        if (entry.isExpired) {
-            memoryCache.remove(key)
-            return false
-        }
-        return true
-    }
 
-    fun clearSync() = synchronized(memoryCache) {
-        memoryCache.clear()
-        bloomFilter.clear()
-    }
 
-    fun sizeSync(): Int = synchronized(memoryCache) { memoryCache.size }
 
-    private val bloomFilter: SimpleBloomFilter = SimpleBloomFilter(
+    internal val bloomFilter: SimpleBloomFilter = SimpleBloomFilter(
         expectedItems = 10000,
         falsePositiveRate = 0.01
     )
 
-    private val scope get() = scopeProvider.ioScope
+    internal val scope get() = scopeProvider.ioScope
 
     // ==================== Statistics counters ====================
 
-    private val hitCount = AtomicLong(0)
-    private val missCount = AtomicLong(0)
-    private val evictedCount = AtomicLong(0)
+    internal val hitCount = AtomicLong(0)
+    internal val missCount = AtomicLong(0)
+    internal val evictedCount = AtomicLong(0)
 
     // ==================== Stats StateFlow ====================
 
-    private val _cacheStats = MutableStateFlow(CacheStats())
+    // internal 镜像通道 backing 属性(GameDataCacheMaintenance updateStats 跨文件写)
+    @Suppress("VariableNaming")
+    internal val _cacheStats = MutableStateFlow(CacheStats())
     val cacheStats: StateFlow<CacheStats> = _cacheStats.asStateFlow()
 
-    private val lastCleanupTime = AtomicLong(System.currentTimeMillis())
-    private val lastStatsLogTime = AtomicLong(System.currentTimeMillis())
-    private var lastMemoryCheckTime = AtomicLong(System.currentTimeMillis())
+    internal val lastCleanupTime = AtomicLong(System.currentTimeMillis())
+    internal val lastStatsLogTime = AtomicLong(System.currentTimeMillis())
 
     /** Current memory pressure level */
     @Volatile
-    private var currentPressureLevel: MemoryPressureLevel = MemoryPressureLevel.LOW
+    internal var currentPressureLevel: MemoryPressureLevel = MemoryPressureLevel.LOW
 
     /** Dynamic config reference (supports runtime updates) */
     @Volatile
-    private var currentConfig: CacheConfig = config
+    internal var currentConfig: CacheConfig = config
 
     /** Smoothed pressure ratio [0.1, 1.0] */
     @Volatile
-    private var currentSmoothedPressureRatio: Float = 0.1f
+    internal var currentSmoothedPressureRatio: Float = 0.1f
 
     /** Hit rate alert threshold */
     var hitRateAlertThreshold: Float = 0.5f
@@ -297,21 +264,22 @@ class GameDataCacheManager @Inject constructor(
 
     /** Whether hit rate alert has been fired (debounce) */
     @Volatile
-    private var hitRateAlertFired: Boolean = false
+    internal var hitRateAlertFired: Boolean = false
 
     // ==================== Slot isolation ====================
 
     @Volatile
-    private var slotIsolationEnabled: Boolean = true
 
     // ==================== Coroutine Jobs ====================
 
-    private var cleanupJob: Job? = null
-    private var memoryMonitorJob: Job? = null
+    internal var cleanupJob: Job? = null
+    internal var memoryMonitorJob: Job? = null
 
     // ==================== Initialization ====================
 
     init {
+        // 防御兜底: 回调注册失败不阻断启动, 异常类型不可枚举
+        @Suppress("TooGenericExceptionCaught")
         try {
             (context.applicationContext as Application).registerComponentCallbacks(this)
             Log.i(TAG, "ComponentCallbacks2 registered for onTrimMemory")
@@ -327,7 +295,8 @@ class GameDataCacheManager @Inject constructor(
         Log.i(TAG, "  - ConcurrentHashMap (in-memory): ${config.memoryCacheSize / (1024 * 1024)}MB limit")
         Log.i(TAG, "  - SimpleBloomFilter (Anti-penetration)")
         if (memoryManager != null) {
-            Log.i(TAG, "DynamicMemoryManager integration enabled - Device tier: ${memoryManager.deviceTier.displayName}")
+            Log.i(TAG,
+                "DynamicMemoryManager integration enabled - Device tier: ${memoryManager.deviceTier.displayName}")
         }
     }
 
@@ -368,94 +337,11 @@ class GameDataCacheManager @Inject constructor(
         scope.launch { emergencyPurge() }
     }
 
-    private fun evictByRatio(ratio: Float) {
-        val entries = synchronized(memoryCache) { memoryCache.keys.toList() }
-        val toRemove = entries.take((entries.size * (1 - ratio)).toInt())
-        toRemove.forEach { removeSync(it) }
-        evictedCount.addAndGet(toRemove.size.toLong())
-        if (toRemove.isNotEmpty()) {
-            Log.d(TAG, "Evicted ${toRemove.size} entries (ratio=$ratio)")
-        }
-    }
 
-    private fun emergencyPurge() {
-        Log.e(TAG, "Emergency purge triggered!")
-        val beforeSize = sizeSync()
-        clearSync()
-        evictedCount.addAndGet(beforeSize.toLong())
-        memoryManager?.forceGcAndWait()
-        Log.e(TAG, "Emergency purge completed: cleared $beforeSize entries")
-    }
 
-    /**
-     * Smoothed sigmoid curve mapping trimLevel to reduction ratio
-     */
-    @Suppress("DEPRECATION")
-    private fun smoothPressureCurve(trimLevel: Int): Float {
-        val normalizedLevel = when (trimLevel) {
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> 0.15f
-            ComponentCallbacks2.TRIM_MEMORY_MODERATE -> 0.35f
-            ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> 0.55f
-            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> 0.85f
-            else -> 0.0f
-        }
-        return (1.0f / (1.0f + kotlin.math.exp(8.0 * (normalizedLevel - 0.5)).toFloat()))
-            .coerceIn(0.1f, 1.0f)
-    }
 
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
 
-    /**
-     * Startup memory budget check
-     */
-    private fun performStartupMemoryBudgetCheck() {
-        try {
-            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
-                ?: run {
-                    Log.i(TAG, "Startup memory budget check skipped: ActivityManager unavailable")
-                    return
-                }
-
-            val memInfo = android.app.ActivityManager.MemoryInfo()
-            activityManager.getMemoryInfo(memInfo)
-
-            val totalMemMb = memInfo.totalMem / (1024.0 * 1024)
-            val availMemMb = memInfo.availMem / (1024.0 * 1024)
-            val lowMemoryThreshold = memInfo.threshold / (1024.0 * 1024)
-
-            Log.i(TAG, "Startup memory budget: total=${"%.0f".format(totalMemMb)}MB, " +
-                    "avail=${"%.0f".format(availMemMb)}MB, " +
-                    "lowThreshold=${"%.0f".format(lowMemoryThreshold)}MB, " +
-                    "lowMemory=${memInfo.lowMemory}")
-
-            val adjustedConfig = when {
-                availMemMb < 512 -> {
-                    Log.w(TAG, "Low memory device detected (${"%.0f".format(availMemMb)}MB available), reducing cache limit")
-                    currentConfig.copy(memoryCacheSize = 2 * 1024 * 1024L)
-                }
-                availMemMb < 1024 -> {
-                    Log.w(TAG, "Medium-low memory device (${"%.0f".format(availMemMb)}MB available), reducing cache limit")
-                    currentConfig.copy(memoryCacheSize = 3 * 1024 * 1024L)
-                }
-                else -> {
-                    Log.i(TAG, "Sufficient memory available (${"%.0f".format(availMemMb)}MB)")
-                    null
-                }
-            }
-
-            if (adjustedConfig != null) {
-                this.currentConfig = adjustedConfig
-                Log.i(TAG, "Cache config adjusted for low-memory device: ${adjustedConfig.memoryCacheSize / (1024 * 1024)}MB")
-            }
-
-            if (memInfo.lowMemory) {
-                Log.w(TAG, "System reports low memory status, performing preemptive cleanup")
-                scope.launch { evictColdData() }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Startup memory budget check failed, using default config", e)
-        }
-    }
 
     // ==================== MemoryEventListener ====================
 
@@ -466,7 +352,8 @@ class GameDataCacheManager @Inject constructor(
 
     override fun onPressureChanged(snapshot: MemorySnapshot) {
         currentPressureLevel = snapshot.pressureLevel
-        Log.d(TAG, "Memory pressure changed to: ${snapshot.pressureLevel.name} (${snapshot.availablePercent}% available)")
+        Log.d(TAG,
+            "Memory pressure changed to: ${snapshot.pressureLevel.name} (${snapshot.availablePercent}% available)")
         adjustCacheForPressure(snapshot)
     }
 
@@ -496,82 +383,11 @@ class GameDataCacheManager @Inject constructor(
 
     // ==================== Memory pressure response ====================
 
-    private fun adjustCacheForPressure(snapshot: MemorySnapshot) {
-        val pressureOrdinal = snapshot.pressureLevel.ordinalValue
-        val adjustedEntries = currentConfig.getAdjustedMaxEntryCount(pressureOrdinal)
 
-        Log.d(TAG, "Adjusting cache for pressure ${snapshot.pressureLevel.name}: maxEntries=$adjustedEntries")
 
-        while (sizeSync() > adjustedEntries) {
-            val key = synchronized(memoryCache) { memoryCache.keys.firstOrNull() } ?: break
-            removeSync(key)
-            evictedCount.incrementAndGet()
-        }
-    }
 
-    private fun reduceCacheSize(ratio: Float) {
-        Log.w(TAG, "Reducing cache size by ratio: $ratio")
-        val targetSize = (sizeSync() * ratio).toInt()
-        while (sizeSync() > targetSize) {
-            val key = synchronized(memoryCache) { memoryCache.keys.firstOrNull() } ?: break
-            removeSync(key)
-            evictedCount.incrementAndGet()
-        }
-    }
 
-    /**
-     * Evict cold data (public interface, called by ProactiveMemoryGuard)
-     */
-    fun evictColdData(): Int {
-        val beforeSize = sizeSync()
-        val targetSize = beforeSize / 2
-        var evicted = 0
-        val keysToEvict = synchronized(memoryCache) {
-            memoryCache.entries
-                .sortedBy { it.value.createdAt }
-                .take(beforeSize - targetSize)
-                .map { it.key }
-        }
-        keysToEvict.forEach { key ->
-            removeSync(key)
-            evicted++
-        }
-        evictedCount.addAndGet(evicted.toLong())
-        if (evicted > 0) {
-            Log.d(TAG, "Evicted $evicted cold entries (before=$beforeSize, after=${sizeSync()})")
-        }
-        return evicted
-    }
 
-    /**
-     * Force evict cold data (convenience method)
-     */
-    fun forceEvictColdData(): Int {
-        return evictColdData()
-    }
-
-    private fun triggerGcIfNeeded() {
-        if (currentConfig.pressureResponseConfig.enableAutoGcOnHighPressure) {
-            scope.launch {
-                try {
-                    val freed = memoryManager?.forceGcAndWait() ?: 0L
-                    if (freed < 0) {
-                        Log.d(TAG, "GC freed ${-freed / 1024} KB")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to trigger GC", e)
-                }
-            }
-        }
-    }
-
-    private fun updateCacheForMemoryPressure() {
-        memoryManager?.let { manager ->
-            val snapshot = manager.getMemorySnapshot()
-            currentPressureLevel = snapshot.pressureLevel
-            adjustCacheForPressure(snapshot)
-        }
-    }
 
     // ==================== Background tasks ====================
 
@@ -591,33 +407,6 @@ class GameDataCacheManager @Inject constructor(
         }
     }
 
-    private fun checkMemoryPressure() {
-        if (memoryManager == null) return
-
-        try {
-            val snapshot = memoryManager.getMemorySnapshot()
-            val previousPressure = currentPressureLevel
-            currentPressureLevel = snapshot.pressureLevel
-
-            if (snapshot.pressureLevel.ordinalValue > previousPressure.ordinalValue) {
-                Log.w(TAG, "Memory pressure increased: ${previousPressure.name} -> ${snapshot.pressureLevel.name}")
-                adjustCacheForPressure(snapshot)
-
-                when (snapshot.pressureLevel) {
-                    MemoryPressureLevel.HIGH -> {
-                        evictColdData()
-                        triggerGcIfNeeded()
-                    }
-                    MemoryPressureLevel.CRITICAL -> {
-                        emergencyPurge()
-                    }
-                    else -> { /* No additional action needed */ }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking memory pressure", e)
-        }
-    }
 
     // ==================== Config dynamic update ====================
 
@@ -744,140 +533,18 @@ class GameDataCacheManager @Inject constructor(
 
     // ==================== Periodic cleanup ====================
 
-    private suspend fun performCleanup() {
-        val now = System.currentTimeMillis()
-
-        if (now - lastCleanupTime.get() >= currentConfig.cleanupIntervalMs) {
-            var evicted = 0
-            val expiredKeys = synchronized(memoryCache) {
-                memoryCache.entries.filter { it.value.isExpired }.map { it.key }
-            }
-            expiredKeys.forEach { key ->
-                removeSync(key)
-                evicted++
-            }
-
-            while (sizeSync() > currentConfig.maxEntryCount) {
-                val eldest = synchronized(memoryCache) { memoryCache.keys.firstOrNull() } ?: break
-                removeSync(eldest)
-                evicted++
-            }
-            evictedCount.addAndGet(evicted.toLong())
-
-            lastCleanupTime.set(now)
-
-            if (evicted > 0) {
-                Log.d(TAG, "Cleanup completed: evicted=$evicted (expired=${expiredKeys.size})")
-            }
-        }
-
-        if (now - lastStatsLogTime.get() >= STATS_LOG_INTERVAL_MS) {
-            updateStats()
-            lastStatsLogTime.set(now)
-        }
-    }
 
     // ==================== Statistics ====================
 
-    private fun updateStats() {
-        val hits = hitCount.get()
-        val misses = missCount.get()
-        val total = hits + misses
-        val hitRate = if (total > 0) hits.toDouble() / total else 0.0
 
-        val stats = CacheStats(
-            memoryHitCount = hits,
-            memoryMissCount = misses,
-            memorySize = 0L,
-            memoryEntryCount = sizeSync(),
-            memoryHitRate = hitRate,
-            evictedCount = evictedCount.get(),
-            memoryPressureLevel = currentPressureLevel.ordinalValue
-        )
 
-        _cacheStats.value = stats
-
-        // Hit rate alert detection
-        if (hitRate < hitRateAlertThreshold && !hitRateAlertFired && total > 10) {
-            hitRateAlertFired = true
-            onHitRateDroppedBelowThreshold?.invoke(hitRate.toFloat())
-            Log.w(TAG, "Hit rate alert: hitRate=${"%.3f".format(hitRate)} below threshold=$hitRateAlertThreshold")
-        } else if (hitRate >= hitRateAlertThreshold) {
-            hitRateAlertFired = false
-        }
-
-        Log.d(TAG, "Cache stats: hitRate=${"%.2f".format(hitRate)}, " +
-                "entries=${sizeSync()}, " +
-                "hits=$hits, misses=$misses, " +
-                "evicted=${evictedCount.get()}, " +
-                "pressure=${currentPressureLevel.name}, " +
-                "pressureRatio=${"%.3f".format(currentSmoothedPressureRatio)}")
-    }
-
-    fun getStats(): CacheStats {
-        updateStats()
-        return _cacheStats.value
-    }
-
-    /**
-     * Get current smoothed pressure ratio
-     */
-    fun getCurrentPressureRatio(): Float = currentSmoothedPressureRatio
 
     // ==================== Preload / warmup ====================
 
-    fun preloadData(dataMap: Map<CacheKey, Any>) {
-        dataMap.forEach { (key, value) ->
-            putWithoutTracking(key, value)
-        }
-        Log.i(TAG, "Preloaded ${dataMap.size} entries")
-    }
 
-    fun warmupCache(keys: List<CacheKey>, loader: suspend (CacheKey) -> Any?) {
-        scope.launch {
-            keys.forEach { key ->
-                try {
-                    val value = loader(key)
-                    if (value != null) {
-                        putWithoutTracking(key, value)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to warmup cache for key: $key", e)
-                }
-            }
-            Log.i(TAG, "Cache warmup completed for ${keys.size} keys")
-        }
-    }
 
     // ==================== Shutdown ====================
 
-    fun shutdown() {
-        Log.i(TAG, "Shutting down GameDataCacheManager...")
-
-        // 1. Unregister ComponentCallbacks2
-        try {
-            (context.applicationContext as Application).unregisterComponentCallbacks(this)
-            Log.d(TAG, "ComponentCallbacks2 unregistered")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to unregister ComponentCallbacks2: ${e.message}")
-        }
-
-        // 2. Cancel background tasks
-        cleanupJob?.cancel()
-        cleanupJob = null
-        memoryMonitorJob?.cancel()
-        memoryMonitorJob = null
-
-        // 3. Remove memory listener
-        memoryManager?.removeListener(this)
-
-        // 4. Clear bloom filter
-        bloomFilter.clear()
-
-        clearSync()
-
-        Log.i(TAG, "GameDataCacheManager shutdown completed. Final stats: ${getStats().formatSummary()}")
-    }
 }
 
 // ==================== Data classes ====================

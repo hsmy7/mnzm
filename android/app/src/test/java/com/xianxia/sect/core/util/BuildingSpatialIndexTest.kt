@@ -115,14 +115,14 @@ class BuildingSpatialIndexTest {
         assertNull(index.findBuildingAt(0, 3))
     }
 
-    // ── 2026-08-06 修复：命中区域扩展为占地 ∪ 精灵包围盒（高层建筑悬空上半身可点）──
+    // ── 命中区域：占地 ∪ 精灵包围盒（高层建筑悬空上半身可点） ──
 
     @Test
     fun rebuild_tallBuilding_withSpriteSizes_hitsSpriteAreaAboveFootprint() {
-        // 问道塔：占地 4×3，精灵 4×8（底部对齐 → 精灵向上延伸 5 格）
+        // 问道塔：占地 4×2（塔基），精灵 4×8（底部对齐 → 精灵向上延伸 6 格）
         val tower = GridBuildingData(
             buildingId = "t1", displayName = "问道塔",
-            gridX = 10, gridY = 10, width = 4, height = 3,
+            gridX = 10, gridY = 10, width = 4, height = 2,
             instanceId = "t1", sectId = ""
         )
         val spriteSizes = mapOf("问道塔" to GridSnapHelper.BuildingSize(4, 8))
@@ -130,12 +130,12 @@ class BuildingSpatialIndexTest {
 
         // 占地格仍命中
         assertEquals(tower, index.findBuildingAt(10, 10))
-        assertEquals(tower, index.findBuildingAt(13, 12))
-        // 精灵悬空上半身（占地上方 y=10+(3-8)=5 至占地顶 10）命中
+        assertEquals(tower, index.findBuildingAt(13, 11))
+        // 精灵悬空上半身（占地上方 y=10+(2-8)=4 至占地顶 10）命中
         assertEquals("塔尖悬空部分应可点击", tower, index.findBuildingAt(10, 5))
         assertEquals(tower, index.findBuildingAt(13, 6))
         // 精灵包围盒之外（塔尖上方、两侧）不命中
-        assertNull(index.findBuildingAt(10, 4))
+        assertNull(index.findBuildingAt(10, 3))
         assertNull(index.findBuildingAt(9, 10))
         assertNull(index.findBuildingAt(14, 5))
     }
@@ -147,7 +147,7 @@ class BuildingSpatialIndexTest {
             gridX = 10, gridY = 10, width = 4, height = 3,
             instanceId = "t1", sectId = ""
         )
-        // 不传 spriteSizes：仅占地命中（默认参数兼容旧调用方）
+        // 不传 spriteSizes：仅占地命中（默认参数调用方）
         index.rebuild(listOf(tower))
 
         assertEquals(tower, index.findBuildingAt(10, 10))
@@ -156,7 +156,7 @@ class BuildingSpatialIndexTest {
 
     @Test
     fun rebuild_corruptedHugeSize_clampsHitAreaWithoutHang() {
-        // 2026-08-06 对抗性审查 F2：损坏存档 width/height 异常巨大（如 Int.MAX_VALUE）时，
+        // 损坏存档 width/height 异常巨大（如 Int.MAX_VALUE）时，
         // 循环范围被钳制为 MAX_HIT_EXTENT_CELLS=128 以内，防止主线程亿级迭代 ANR
         val corrupted = GridBuildingData(
             buildingId = "c1", displayName = "未知损坏建筑",
@@ -173,29 +173,29 @@ class BuildingSpatialIndexTest {
 
     @Test
     fun findBuildingAt_overlappingSprites_returnsTopmostByDrawOrder() {
-        // 两座问道塔上下相邻：b1 占地 y 0-2（精灵向上 5-2），b2 占地 y 3-5（精灵 0-5）
-        // 重叠格 y ∈ 0..2：渲染按 gridY+height 升序，b2（键 8）后绘制压住 b1（键 5）
+        // 两座问道塔上下相邻（占地 4×2）：b1 占地 y 0-1（精灵 −6..1），b2 占地 y 5-6（精灵 −1..6）
+        // 重叠格 y ∈ −1..1：渲染按 gridY+height（地面接触点）升序，b2（键 7）后绘制压住 b1（键 2）
         val b1 = GridBuildingData(
             buildingId = "b1", displayName = "问道塔",
-            gridX = 0, gridY = 0, width = 4, height = 3,
+            gridX = 0, gridY = 0, width = 4, height = 2,
             instanceId = "b1", sectId = ""
         )
         val b2 = GridBuildingData(
             buildingId = "b2", displayName = "问道塔",
-            gridX = 0, gridY = 5, width = 4, height = 3,
+            gridX = 0, gridY = 5, width = 4, height = 2,
             instanceId = "b2", sectId = ""
         )
         val spriteSizes = mapOf("问道塔" to GridSnapHelper.BuildingSize(4, 8))
         index.rebuild(listOf(b1, b2), spriteSizes)
 
         assertEquals("重叠格应命中绘制顺序更上层的 b2", b2, index.findBuildingAt(0, 0))
-        assertEquals("b1 独占的塔尖格命中 b1", b1, index.findBuildingAt(0, -1))
+        assertEquals("b1 独占的塔尖格命中 b1", b1, index.findBuildingAt(0, -2))
         assertEquals("b2 独占的占地格命中 b2", b2, index.findBuildingAt(1, 5))
     }
 
     @Test
     fun rebuild_unregisteredName_withSpriteSizes_hitsSpriteAreaWithoutCrash() {
-        // B1（2026-08-08）：displayName 不在 BuildingFeatureRegistry（损坏/改档可达）时，
+        // displayName 不在 BuildingFeatureRegistry（损坏/改档可达）时，
         // fpW/fpH 回退 building.width/height，但精灵包围盒仍按 spriteSizes 计算——
         // 渲染端仍用索引 0 精灵画出，命中区域不因 feature 缺失而缩小（点击端不可静默吞）
         val unregistered = GridBuildingData(

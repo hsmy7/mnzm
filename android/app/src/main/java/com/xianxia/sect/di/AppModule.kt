@@ -51,6 +51,7 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
+@Suppress("TooManyFunctions") // DI @Provides 样板面：函数数=依赖图装配点数（detekt.yml thresholdInObjects 注记认定的样板代码）
 object AppModule {
     private const val TAG = "AppModule"
     
@@ -63,9 +64,8 @@ object AppModule {
     /**
      * GameDatabase 单例提供者 — 使用统一实例创建方法
      *
-     * 路由改造说明：
-     * - 原路径可能使用 per-slot 数据库（已废弃）
-     * - 新路径：统一单实例 DB (xianxia_sect.db)，所有 slot 共享同一数据库文件
+     * 存储路由：
+     * - 统一单实例 DB (xianxia_sect.db)，所有 slot 共享同一数据库文件
      * - transactionalSaveManager 通过 slot 字段区分不同存档的数据行
      *
      * @see GameDatabase.create 统一实例工厂方法
@@ -169,7 +169,8 @@ object AppModule {
     fun provideDiscipleCoreDao(database: GameDatabase): DiscipleCoreDao = database.discipleCoreDao()
 
     @Provides
-    fun provideDiscipleCombatStatsDao(database: GameDatabase): DiscipleCombatStatsDao = database.discipleCombatStatsDao()
+    fun provideDiscipleCombatStatsDao(database: GameDatabase): DiscipleCombatStatsDao = database
+        .discipleCombatStatsDao()
 
     @Provides
     fun provideDiscipleEquipmentDao(database: GameDatabase): DiscipleEquipmentDao = database.discipleEquipmentDao()
@@ -238,11 +239,11 @@ object AppModule {
     @Singleton
     fun provideDialogManager(impl: DialogManagerImpl): DialogManager = impl
 
-    // ==================== RNG 事务钩子（P0-1 确定性加固） ====================
+    // ==================== RNG 事务钩子 ====================
 
     /**
      * RNG 事务钩子：事务失败回滚时同步回滚 8 分区 PRNG 状态，
-     * 保证读档重放确定性（K 项根治）。
+     * 保证读档重放确定性。
      */
     @Provides
     @Singleton

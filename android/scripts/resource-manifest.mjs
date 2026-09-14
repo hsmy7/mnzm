@@ -97,7 +97,7 @@ export function buildManifest(appDir, gameDir, uidMap = new Map()) {
     }
   }
 
-  // UID 唯一性校验（对抗性审查 2026-08-13 边界#6）：按**名称**去重后校验——
+  // UID 唯一性校验：按**名称**去重后校验——
   // 双模块同名副本共享同一 UID 合法（同名同 UID），跨名称重复 UID 才破坏稳定引用契约
   const uidByName = new Map();
   for (const e of sorted) {
@@ -141,8 +141,7 @@ export function ensureManifest(appDir, gameDir, outPath, uidMapPath = null) {
       // 解析失败视为损坏，重新生成
     }
   }
-  // 重建分支同样持久化 UID（对抗性审查 2026-08-13 边界#12：原实现不传
-  // uidMapPath 导致 UID 全新分配且不写回——下次构建 UID 漂移）
+  // 重建分支同样持久化 UID——不传 uidMapPath 时 UID 全新分配且不写回，导致 UID 漂移
   return writeManifest(appDir, gameDir, outPath, uidMapPath);
 }
 
@@ -158,7 +157,6 @@ export function writeManifest(appDir, gameDir, outPath, uidMapPath = null) {
   const content = JSON.stringify(manifest, null, 2) + '\n';
   // 增量跳过：剥离 generatedAt 后内容不变则不重写——mtime 稳定，
   // 下游 build-atlas.mjs hash 增量与 CMake 头文件依赖检查不再每构建失效
-  //（对抗性审查 2026-08-13 边界#1/逆向#2 发现）
   const previous = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : '';
   if (stripGeneratedAt(previous) === stripGeneratedAt(content)) return manifest;
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
@@ -171,7 +169,7 @@ function stripGeneratedAt(text) {
   return text.replace(/"generatedAt": "[^"]*"/, '"generatedAt": ""');
 }
 
-/** 读取 UID 映射文件（不存在 = 空映射；非法条目过滤——对抗性审查 2026-08-13 边界#6） */
+/** 读取 UID 映射文件（不存在 = 空映射；非法条目过滤） */
 function readUidMap(uidMapPath) {
   const map = new Map();
   if (!uidMapPath || !fs.existsSync(uidMapPath)) return map;

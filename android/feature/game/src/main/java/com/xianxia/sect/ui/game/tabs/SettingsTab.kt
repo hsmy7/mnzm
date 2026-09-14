@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.tabs
 
 import androidx.compose.foundation.Image
@@ -23,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -42,8 +41,8 @@ import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.TextInputDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
@@ -53,6 +52,9 @@ import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
+import com.xianxia.sect.ui.game.cancelSaveLoad
+import com.xianxia.sect.ui.game.checkCloudSave
+import com.xianxia.sect.ui.game.saveGame
 
 @Composable
 internal fun RedeemCodeDialog(
@@ -89,7 +91,7 @@ internal fun RedeemCodeDialog(
         onCodeChange = { codeInput = it.uppercase(Locale.getDefault()) },
         onConfirm = {
             if (codeInput.isNotBlank()) {
-                viewModel.redeemCode(codeInput.trim())
+                viewModel.redeem.redeemCode(codeInput.trim())
             }
         },
         onDismiss = onDismiss
@@ -113,7 +115,7 @@ internal fun RedeemCodeDialog(
     }
 }
 
-/** 兑换码输入区（RedeemCodeDialog 拆分）：内联输入框 + 兑换/取消动作 */
+/** 兑换码输入区：统一文本输入对话框（独立平台 Dialog 窗口） */
 @Composable
 private fun RedeemCodeInput(
     codeInput: String,
@@ -121,32 +123,25 @@ private fun RedeemCodeInput(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    InlineStandardPromptDialog(
+    TextInputDialog(
         onDismissRequest = onDismiss,
         title = "兑换码",
+        value = codeInput,
+        onValueChange = onCodeChange,
+        label = "请输入兑换码",
         confirmLabel = "兑换",
-        onConfirm = onConfirm,
         dismissLabel = "取消",
-        onDismiss = onDismiss,
-        // 含输入框：挂载期间冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
-        freezeSystemBars = true
-    ) {
-        OutlinedTextField(
-            value = codeInput,
-            onValueChange = onCodeChange,
-            label = { Text("请输入兑换码", fontSize = 12.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            textStyle = TextStyle(fontSize = 14.sp)
-        )
-    }
+        onConfirm = onConfirm,
+        onDismiss = onDismiss
+    )
 }
 
-/** 兑换奖励项映射（RedeemCodeDialog 拆分）：奖励明细 → 弹窗展示项（纯函数） */
+/** 兑换奖励项映射：奖励明细 → 弹窗展示项（纯函数） */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 探针/可选增强失败即降级默认值, 异常类型不可枚举
 private fun redeemRewardToItem(reward: RewardSelectedItem): RewardItem {
     val rarityColor = try {
         Color(android.graphics.Color.parseColor(GameConfig.Rarity.getColor(reward.rarity)))
-    } catch (e: Exception) { Color.Black }
+    } catch (ignored: Exception) { Color.Black }
     return RewardItem(
         name = when (reward.type) {
             "spiritStones" -> "${reward.quantity}灵石"
@@ -208,7 +203,7 @@ internal fun SettingsTab(
 
     if (showOtherSettingsDialog) {
         OtherSettingsDialog(viewModel = viewModel, onDismiss = { showOtherSettingsDialog = false },
-            onRedeemCodeClick = { showOtherSettingsDialog = false; viewModel.openRedeemCodeDialog() },
+            onRedeemCodeClick = { showOtherSettingsDialog = false; viewModel.redeem.openRedeemCodeDialog() },
             onChangelogClick = { showOtherSettingsDialog = false; showChangelogDialog = true })
     }
 
@@ -220,7 +215,7 @@ internal fun SettingsTab(
     }
 }
 
-/** 设置页触发动作集合（SettingsTab 拆分）：六个入口按钮 → 各自对话框打开回调 */
+/** 设置页触发动作集合：六个入口按钮 → 各自对话框打开回调 */
 private data class SettingsTabActions(
     val onSalaryClick: () -> Unit = {},
     val onSaveSlotClick: () -> Unit = {},
@@ -230,7 +225,7 @@ private data class SettingsTabActions(
     val onExitClick: () -> Unit = {}
 )
 
-/** 设置页主体列表（SettingsTab 拆分）：时间流速/性能模式/音频/触发按钮/操作行 */
+/** 设置页主体列表：时间流速/性能模式/音频/触发按钮/操作行 */
 @Composable
 private fun SettingsTabContent(
     timeSpeed: Int,
@@ -267,7 +262,7 @@ private fun SettingsTabContent(
                 item {
                     AudioToggleItem(musicEnabled = gameData.musicEnabled, soundEnabled = gameData.soundEnabled,
                         onMusicToggle = { viewModel.setMusicEnabled(!gameData.musicEnabled) },
-                        onSoundToggle = { viewModel.setSoundEnabled(!gameData.soundEnabled) })
+                        onSoundToggle = { viewModel.settings.setSoundEnabled(!gameData.soundEnabled) })
                 }
 
                 item {
@@ -302,7 +297,7 @@ private fun SettingsTabContent(
     }
 }
 
-/** 重新开始确认框（SettingsTab 拆分） */
+/** 重新开始确认框 */
 @Composable
 private fun RestartConfirmDialog(
     visible: Boolean,
@@ -322,7 +317,7 @@ private fun RestartConfirmDialog(
     }
 }
 
-/** 重置弟子状态确认框（SettingsTab 拆分） */
+/** 重置弟子状态确认框 */
 @Composable
 private fun ResetDisciplesConfirmDialog(
     visible: Boolean,
@@ -342,7 +337,7 @@ private fun ResetDisciplesConfirmDialog(
     }
 }
 
-/** 退出游戏确认框（SettingsTab 拆分） */
+/** 退出游戏确认框 */
 @Composable
 private fun ExitConfirmDialog(
     visible: Boolean,
@@ -362,7 +357,7 @@ private fun ExitConfirmDialog(
     }
 }
 
-/** 其他设置弹窗（SettingsTab 拆分）：兑换码/更新日志入口 + 个性化广告开关 */
+/** 其他设置弹窗：兑换码/更新日志入口 + 个性化广告开关 */
 @Composable
 private fun OtherSettingsDialog(
     viewModel: GameViewModel,
@@ -398,7 +393,7 @@ private fun OtherSettingsDialog(
             Spacer(modifier = Modifier.height(8.dp))
             PersonalizedAdsToggle(
                 personalizedAdsEnabled = personalizedAdsEnabled,
-                onToggle = { viewModel.setPersonalizedAdsEnabled(!personalizedAdsEnabled) }
+                onToggle = { viewModel.ads.setPersonalizedAdsEnabled(!personalizedAdsEnabled) }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -406,7 +401,7 @@ private fun OtherSettingsDialog(
     }
 }
 
-/** 其他设置功能入口行（OtherSettingsDialog 拆分）：兑换码 + 更新日志两个按钮 */
+/** 其他设置功能入口行：兑换码 + 更新日志两个按钮 */
 @Composable
 private fun OtherSettingsActionRow(
     onRedeemCodeClick: () -> Unit,
@@ -459,7 +454,7 @@ private fun OtherSettingsActionRow(
     }
 }
 
-/** 个性化广告开关行（OtherSettingsDialog 拆分）：复选框 + 说明文案 */
+/** 个性化广告开关行：复选框 + 说明文案 */
 @Composable
 private fun PersonalizedAdsToggle(
     personalizedAdsEnabled: Boolean,
@@ -481,7 +476,7 @@ private fun PersonalizedAdsToggle(
     }
 }
 
-/** 年俸设置弹窗（SettingsTab 拆分）：境界 → 年薪配置列表 */
+/** 年俸设置弹窗：境界 → 年薪配置列表 */
 @Composable
 private fun SalaryConfigDialog(
     gameData: GameData,
@@ -510,7 +505,7 @@ private fun SalaryConfigDialog(
                     realmName = name,
                     salary = salary,
                     enabled = enabled,
-                    onEnabledChange = { viewModel.setYearlySalaryEnabled(realm, it) }
+                    onEnabledChange = { viewModel.settings.setYearlySalaryEnabled(realm, it) }
                 )
             }
         }
@@ -835,7 +830,7 @@ private fun TimeSpeedControlItem(
     }
 }
 
-/** 暂停/继续圆形按钮（TimeSpeedControlItem 拆分） */
+/** 暂停/继续圆形按钮 */
 @Composable
 private fun PauseToggleButton(
     isPaused: Boolean,
@@ -869,7 +864,7 @@ private fun PauseToggleButton(
     }
 }
 
-/** 倍速切换按钮（TimeSpeedControlItem 拆分） */
+/** 倍速切换按钮 */
 @Composable
 private fun SpeedToggleButton(
     speed: Int,
@@ -900,6 +895,7 @@ private fun SpeedToggleButton(
 }
 
 @Composable
+@Suppress("UnusedParameter") // viewModel: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 internal fun SaveSlotDialog(
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel,
@@ -969,7 +965,7 @@ internal fun SaveSlotDialog(
     }
 }
 
-/** 打开对话框时，检测 isSaving/isLoading 是否卡住超过阈值并自动恢复（SaveSlotDialog 拆分） */
+/** 打开对话框时，检测 isSaving/isLoading 是否卡住超过阈值并自动恢复 */
 @Composable
 private fun SaveLoadWatchdogEffect(saveLoadViewModel: SaveLoadViewModel) {
     LaunchedEffect(Unit) {
@@ -981,7 +977,7 @@ private fun SaveLoadWatchdogEffect(saveLoadViewModel: SaveLoadViewModel) {
     }
 }
 
-/** 对话框内容区（SaveSlotDialog 拆分）：转圈动画 + 槽位列表 + 操作按钮 */
+/** 对话框内容区：转圈动画 + 槽位列表 + 操作按钮 */
 @Composable
 private fun ColumnScope.SaveSlotDialogContent(
     saveSlots: List<SaveSlot>,
@@ -1005,7 +1001,7 @@ private fun ColumnScope.SaveSlotDialogContent(
     )
 }
 
-/** 保存/读取中转圈指示（SaveSlotDialog 拆分） */
+/** 保存/读取中转圈指示 */
 @Composable
 private fun ColumnScope.SaveSlotBusyIndicator(operationLabel: String) {
     Box(
@@ -1032,7 +1028,7 @@ private fun ColumnScope.SaveSlotBusyIndicator(operationLabel: String) {
     }
 }
 
-/** 存档槽位列表（SaveSlotDialog 拆分） */
+/** 存档槽位列表 */
 @Composable
 private fun ColumnScope.SaveSlotList(
     saveSlots: List<SaveSlot>,
@@ -1055,7 +1051,7 @@ private fun ColumnScope.SaveSlotList(
     }
 }
 
-/** 保存/读取操作按钮行（SaveSlotDialog 拆分） */
+/** 保存/读取操作按钮行 */
 @Composable
 private fun SaveSlotActionRow(
     selectedSlot: Int?,
@@ -1076,7 +1072,8 @@ private fun SaveSlotActionRow(
             enabled = saveEnabled,
             onClick = { selectedSlot?.let(onSave) }
         )
-        val loadEnabled = selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy
+        val loadEnabled = selectedSlot != null && saveSlots.find { it
+            .slot == selectedSlot }?.isEmpty == false && !isBusy
         SaveSlotActionButton(
             label = "读取",
             enabled = loadEnabled,
@@ -1085,7 +1082,7 @@ private fun SaveSlotActionRow(
     }
 }
 
-/** 存档操作按钮（SaveSlotDialog 拆分）：标准尺寸 + 背景图 + 可用态置灰 */
+/** 存档操作按钮：标准尺寸 + 背景图 + 可用态置灰 */
 @Composable
 private fun SaveSlotActionButton(
     label: String,
@@ -1121,7 +1118,7 @@ private fun SaveSlotActionButton(
     }
 }
 
-/** 标题栏取消动作（SaveSlotDialog 拆分）：忙碌中显示"取消"按钮 */
+/** 标题栏取消动作：忙碌中显示"取消"按钮 */
 @Composable
 private fun SaveSlotCancelAction(isBusy: Boolean, onCancel: () -> Unit) {
     if (isBusy) {
@@ -1159,7 +1156,8 @@ internal fun SaveSlotCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = slot.displayName,
                         fontSize = 12.sp,
@@ -1178,7 +1176,7 @@ internal fun SaveSlotCard(
     }
 }
 
-/** 存档详情（SaveSlotCard 拆分）：宗门/时间 + 弟子数/灵石（非空槽位） */
+/** 存档详情：宗门/时间 + 弟子数/灵石（非空槽位） */
 @Composable
 private fun ColumnScope.SaveSlotDetails(slot: SaveSlot) {
     if (!slot.isEmpty) {
@@ -1240,7 +1238,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
     }
 }
 
-/** 单条更新日志卡片（ChangelogDialog 拆分）：版本/日期 + 变更明细 */
+/** 单条更新日志卡片：版本/日期 + 变更明细 */
 @Composable
 private fun ChangelogEntryCard(entry: ChangelogEntry) {
     Column(

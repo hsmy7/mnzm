@@ -12,7 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend 渲染分辨率缩放测试（2026-08-14 平板省电）。
+ * SoftwareCanvasBackend 渲染分辨率缩放测试（平板省电）。
  *
  * 覆盖维度：
  * - renderScale 默认 1.0（直渲基线）

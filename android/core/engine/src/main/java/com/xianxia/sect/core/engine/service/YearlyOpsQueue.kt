@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock
  * 年变结算拆分"立即组/延迟组"：延迟组操作入队，由 [drain] 在后续 tick
  * 按时间预算分摊执行（引擎线程消费；flush-on-save 从存档线程调用 forceDrain）。
  *
- * 并发语义（对抗性审查 F2/发现3 修复）：[drain] 与 [forceDrain] 经 [consumerLock]
+ * 并发语义：[drain] 与 [forceDrain] 经 [consumerLock]
  * 互斥——**同一时刻至多一个消费者**，FIFO 顺序恒成立（不存在 op2 先于 op1 执行的
  * 交错），且 forceDrain 返回时队列必空（它独占消费到空，无 in-flight op）。
  * 入队/清空走 CLQ 无锁路径：enqueue 在年变 T1 事务内（持 transactionLock）调用，

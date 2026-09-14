@@ -76,16 +76,16 @@ object NameService {
     private val allSurnames: List<String> get() = singleSurnames + compoundSurnames
 
     // @Suppress("ReturnCount")：既有冻结违规（detekt-baseline.xml 条目随
-    // 批 13-4a 签名变化重新暴露）——循环 + 双兜底分支的返回结构，重构会
+    // 签名变化重新暴露）——循环 + 双兜底分支的返回结构，重构会
     // 降低可读性，延续冻结
     @Suppress("ReturnCount")
     fun generateName(
         gender: String,
         style: NameStyle = NameStyle.XIANXIA,
         existingNames: Set<String> = emptySet(),
-        // 批 13-4a + 批 Y-3：名字随机源分区化（S-19 同族）——inheritName 已分区
-        // （生育）；generateName 的给定名在批 13-4a 已分区，姓氏 pickSurname
-        // 在批 Y-3（T1-④ 招募刷新下沉）分区化——原用 JVM 全局 Random
+        // 名字随机源分区化——inheritName 已分区
+        // （生育）；generateName 的给定名已分区，姓氏 pickSurname
+        // 分区化——原用 JVM 全局 Random
         //（pickSurname 的 pool.random() 非确定性、不入 rngStates，跨语言不可
         // 对拍）；招募调用点传 SYSTEM 分区 PRNG 适配器（rng.asKotlinRandom()），
         // 默认 Random.Default 保持既有调用方（兑换码/AI/弟子服务）行为不变
@@ -121,7 +121,7 @@ object NameService {
         parentSurname: String,
         gender: String,
         existingNames: Set<String> = emptySet(),
-        // 批 13-4a：名字随机源分区化（S-19 同族确定性修正）——原用 JVM
+        // 名字随机源分区化——原用 JVM
         // 全局 Random（非确定性、不入 rngStates，跨语言不可对拍）；生育
         // 调用点传 SYSTEM 分区 PRNG 适配器（rng.asKotlinRandom()），
         // 默认 Random.Default 保持既有调用方（招募/兑换码/AI/弟子服务）
@@ -164,7 +164,7 @@ object NameService {
             NameStyle.XIANXIA -> xianxiaSurnames
             NameStyle.FULL -> allSurnames
         }
-        // 批 Y-3：分区化（原 pool.random() 用 JVM 全局 Random——非确定性不入
+        // 分区化（原 pool.random() 用 JVM 全局 Random——非确定性不入
         // rngStates，跨语言不可对拍；改 rng.nextInt(size) 与给定名同源）
         return pool[rng.nextInt(pool.size)]
     }

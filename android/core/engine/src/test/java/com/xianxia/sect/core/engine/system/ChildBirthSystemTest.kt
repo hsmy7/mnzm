@@ -16,7 +16,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -44,7 +43,6 @@ class ChildBirthSystemTest {
     }
 
     private fun createSystem(rng: GameRngManager) = ChildBirthSystem(
-        stateStore = mock(),
         discipleFactory = DiscipleFactory(),
         rngManager = rng
     )

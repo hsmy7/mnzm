@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.platform
 
 /**
- * 崩溃上报端口（docs/platform-abilities.md G3 根治）。
+ * 崩溃上报端口。
  *
  * 现状 XianxiaApplication 直引 `com.tencent.bugly.crashreport.CrashReport` 初始化——
  * Bugly 为 Android 独占 SDK，iOS 对等需崩溃上报 SDK 替换。本接口参照 `AdService`/

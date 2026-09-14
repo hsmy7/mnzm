@@ -22,7 +22,7 @@ class ProtobufConvertersTest {
         try {
             LZ4Factory.fastestInstance()
             true
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             false
         }
     }
@@ -178,13 +178,13 @@ class ProtobufConvertersTest {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // A2（2026-08-05）：重型分块数值排序——超过 10 块时字典序错乱
+    // 重型分块数值排序——超过 10 块时字典序会错乱
     // ═══════════════════════════════════════════════════════════
 
     @Test
     fun `decodeDiscipleListFromRows - 11 chunks reversed order - decodes in index order`() = runTest {
-        // 11 块（index 0..10）模拟 recruitList >1000 条：旧实现按字典序排序，
-        // "recruitList/10" < "recruitList/2" 导致块序错乱
+        // 11 块（index 0..10）模拟 recruitList >1000 条：按字典序排序时
+        // "recruitList/10" < "recruitList/2" 会块序错乱
         val disciples = (0 until 110).map { Disciple(name = "d$it", cultivation = it.toDouble()) }
         val rows = mutableListOf<GameHeavyData>()
         ProtobufConverters.encodeDiscipleListIncremental(

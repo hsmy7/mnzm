@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 渲染分辨率缩放策略测试（2026-08-14 平板省电）。
+ * 渲染分辨率缩放策略测试（平板省电）。
  *
  * 覆盖维度：
  * - 面积分级（COMPACT/STANDARD/LARGE/XLARGE 阈值边界）
@@ -210,7 +210,7 @@ class RenderScalePolicyTest {
 
     @Test
     fun `clarityRenderScale clamps COMPACT+Vulkan early-return 1_0`() {
-        // 关键修复：过去 COMPACT+Vulkan 恒 1.0，现在玩家选低清晰度能被压低
+        // COMPACT+Vulkan 不再恒 1.0：玩家选低清晰度时缩放被压低
         assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 0.5f), 0.001f)
         assertEquals(0.6f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 0.6f), 0.001f)
         assertEquals(0.8f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 0.8f), 0.001f)

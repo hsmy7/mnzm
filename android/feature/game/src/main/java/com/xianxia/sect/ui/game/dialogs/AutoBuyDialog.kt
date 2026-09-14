@@ -46,7 +46,7 @@ private enum class AutoBuyFilter(val displayName: String, val typeValue: String?
 
 // ── 主对话框：自动购买列表 ──────────────────────────────────────────
 
-/** 自动购买列表排序（AutoBuyDialog 拆分） */
+/** 自动购买列表排序 */
 private fun sortAutoBuyList(
     entries: List<AutoBuyEntry>,
     watchedKeys: Set<String>
@@ -110,7 +110,7 @@ fun AutoBuyDialog(
                 watchedKeys = watchedKeys,
                 selectedForDeletion = selectedForDeletion,
                 onDeleteConfirm = {
-                    viewModel.removeAutoBuyEntries(selectedForDeletion.values.toList())
+                    viewModel.inventory.removeAutoBuyEntries(selectedForDeletion.values.toList())
                     exitDeleteMode()
                 },
                 onDeleteCancel = { exitDeleteMode() },
@@ -123,7 +123,7 @@ fun AutoBuyDialog(
     if (showItemSelectDialog) {
         AutoBuyItemSelectDialog(
             viewModel = viewModel, existingList = autoBuyList,
-            onConfirm = { entries -> viewModel.addAutoBuyEntries(entries); showItemSelectDialog = false },
+            onConfirm = { entries -> viewModel.inventory.addAutoBuyEntries(entries); showItemSelectDialog = false },
             onDismiss = { showItemSelectDialog = false }
         )
     }
@@ -134,7 +134,7 @@ fun AutoBuyDialog(
     }
 }
 
-/** 标题栏动作（AutoBuyDialog 拆分）：新增物品 + 删除物品切换 */
+/** 标题栏动作：新增物品 + 删除物品切换 */
 @Composable
 private fun AutoBuyHeaderActions(
     deleteMode: Boolean,
@@ -153,7 +153,7 @@ private fun AutoBuyHeaderActions(
     }
 }
 
-/** 自动购买列表内容（AutoBuyDialog 拆分）：空态 / 网格 + 删除确认面板 */
+/** 自动购买列表内容：空态 / 网格 + 删除确认面板 */
 @Composable
 private fun ColumnScope.AutoBuyListContent(
     autoBuyList: List<AutoBuyEntry>,
@@ -197,7 +197,7 @@ private fun ColumnScope.AutoBuyListContent(
     }
 }
 
-/** 自动购买条目网格（AutoBuyDialog 拆分） */
+/** 自动购买条目网格 */
 @Composable
 private fun ColumnScope.AutoBuyEntryGrid(
     autoBuyList: List<AutoBuyEntry>,
@@ -258,6 +258,7 @@ private fun ColumnScope.AutoBuyEntryGrid(
 // ── 删除确认面板 ────────────────────────────────────────────────────
 
 @Composable
+@Suppress("UnusedParameter") // selectedCount: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 private fun DeleteConfirmPanel(
     selectedCount: Int,
     onConfirm: () -> Unit,
@@ -293,7 +294,7 @@ private fun DeleteConfirmPanel(
 
 // ── 物品选择对话框 ──────────────────────────────────────────────────
 
-/** 自动购买可选物品过滤 + 排序（AutoBuyItemSelectDialog 拆分） */
+/** 自动购买可选物品过滤 + 排序 */
 private fun autoBuyAvailableItems(
     catalogItems: List<AutoBuyCatalogItem>,
     selectedFilter: AutoBuyFilter,
@@ -330,7 +331,7 @@ fun AutoBuyItemSelectDialog(
     onConfirm: (List<AutoBuyEntry>) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val catalogItems = remember { viewModel.getAllAutoBuyableItems() }
+    val catalogItems = remember { viewModel.inventory.getAllAutoBuyableItems() }
     var selectedFilter by remember { mutableStateOf(AutoBuyFilter.ALL) }
     var detailItem by remember { mutableStateOf<MerchantItem?>(null) }
     val selectedItems = remember { mutableStateMapOf<String, AutoBuyEntry>() }
@@ -399,8 +400,7 @@ fun AutoBuyItemSelectDialog(
     }
 }
 
-/** 类型筛选行（AutoBuyItemSelectDialog 拆分） */
-// 拆分搬移:参数保留原签名语义
+/** 类型筛选行 */
 @Suppress("UnusedParameter")
 @Composable
 private fun AutoBuyFilterRow(
@@ -423,7 +423,7 @@ private fun AutoBuyFilterRow(
     }
 }
 
-/** 可添加物品网格（AutoBuyItemSelectDialog 拆分） */
+/** 可添加物品网格 */
 @Composable
 private fun ColumnScope.AutoBuyCatalogGrid(
     availableItems: List<AutoBuyCatalogItem>,
@@ -474,7 +474,7 @@ private fun ColumnScope.AutoBuyCatalogGrid(
     }
 }
 
-/** 底部确认栏（AutoBuyItemSelectDialog 拆分）：每年自动购买提示 + 确认/取消 */
+/** 底部确认栏：每年自动购买提示 + 确认/取消 */
 @Composable
 private fun AutoBuyConfirmBar(
     onConfirm: () -> Unit,

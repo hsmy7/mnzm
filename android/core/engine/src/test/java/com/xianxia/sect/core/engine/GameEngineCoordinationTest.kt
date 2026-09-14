@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
@@ -88,8 +89,7 @@ class GameEngineCoordinationTest {
 
     @Test
     fun `ensureHeavyDataLoaded - worldMapSects 非空时标记完成`() = runBlocking {
-        // C12 修复（2026-08-05）：原实现为空操作守卫（从不检查数据），
-        // 现短路前置 worldMapSects 非空校验
+        // 短路前置 worldMapSects 非空校验
         val env = EngineTestEnv()
         env.store.gameDataValue = GameData().copy(
             sectName = "青云宗",
@@ -167,7 +167,7 @@ class GameEngineCoordinationTest {
         assertTrue("两次重启应产生不同地图种子（相同为缺陷）", first != second)
     }
 
-    // ── 2026-08-06 修复：初始灵矿场 4×4 与配置一致（此前 2×2 致新档首次会话外圈点不中）──
+    // ── 初始灵矿场 4×4 与 spirit_mine 配置一致 ──
 
     @Test
     fun `createNewGame - 初始灵矿场为 4x4 与配置一致`() = runBlocking {
@@ -199,7 +199,7 @@ class GameEngineCoordinationTest {
         // 契约守卫：GameViewModel 命令总线重推依赖 enterSect 只改 activeSectId
         //（若 enterSect 顺带修改 placedBuildings，总线键 (activeSectId, placedBuildings)
         // 会同时失效，重推语义被破坏）
-        // B2（2026-08-08）：enterSect 增加会话内收敛——activeSectId 必须是 worldMapSects
+        // enterSect 会话内收敛——activeSectId 必须是 worldMapSects
         // 中玩家持有（isPlayerSect/isPlayerOccupied）的宗门，否则被净化归 ""。
         // 种子先声明 ai-1 为玩家持有宗门；无孤儿建筑时 placedBuildings 仍不被触碰
         //（收敛只动失配数据，幂等）。
@@ -222,10 +222,10 @@ class GameEngineCoordinationTest {
         assertEquals("建筑内容不应变化", mine, data.placedBuildings.single())
     }
 
-    // ── 2026-09 根因修复守卫：读档/新游戏/重启后必须重导 C++ native 引擎基线 ──
-    // 用户实报"云读档后游戏世界变回本地档1"：loadData 只更新 Kotlin GameStateStore，
-    // 若不同步 C++（AUTHORITATIVE 真相源），tick 反向镜像会把 native 残留的旧档
-    // 状态覆盖回 Kotlin。以下守卫验证三个状态替换入口都会触发 importToNative。
+    // ── 根因守卫：读档/新游戏/重启后必须重导 C++ native 引擎基线 ──
+    // loadData 只更新 Kotlin GameStateStore，若不同步 C++（AUTHORITATIVE 真相源），
+    // tick 反向镜像会把 native 残留的旧档状态覆盖回 Kotlin。
+    // 以下守卫验证三个状态替换入口都会触发 importToNative。
     //（测试通过反射置 GameCoreBridge.loaded=true 模拟 native 已加载；finally 恢复，
     //  避免污染其他用例——GameCoreBridge 为进程级单例）
 
@@ -333,6 +333,33 @@ class GameEngineCoordinationTest {
         field.isAccessible = true
         field.setBoolean(com.xianxia.sect.core.nativebridge.GameCoreBridge, loaded)
     }
+
+    @Test
+    fun `recruitAllFromList - native 不可用时回退 Kotlin 原实现（双实现并行契约）`() = runBlocking {
+        val env = EngineTestEnv()
+        // SimpleStore 的 DiscipleTables 默认 writeAllowed=false——招募入库须开启
+        //（生产 GameStateStoreImpl 由事务框架统一授予，SimpleStore 无该层）
+        env.store.discipleTables.writeAllowed = true
+        env.store.gameDataValue = GameData().copy(
+            gameYear = 1, gameMonth = 1,
+            recruitList = listOf(
+                com.xianxia.sect.core.model.Disciple(
+                    id = "r1", name = "候选招募", age = 16, realm = 9,
+                    spiritRootType = "metal"
+                )
+            )
+        )
+        // GameCoreBridge.loaded 默认 false（.so 未加载）：转发短路 → 回退 Kotlin 实现
+        setGameCoreLoaded(false)
+
+        val count = env.engine.recruitAllFromList()
+
+        assertEquals("应招募 1 人", 1, count)
+        assertEquals("招募列表清空", 0, env.store.gameDataValue.recruitList.size)
+        assertEquals("月度计数 +1", 1, env.store.gameDataValue.recruitCountThisMonth)
+        assertEquals("年报新增 +1", 1, env.store.gameDataValue.annualNewDisciples)
+        assertTrue("新弟子入宗", env.store.discipleTables.ids.isNotEmpty())
+    }
 }
 
 // ── 测试用 GameEngine + GameStateStore 的最小化环境 ──
@@ -361,7 +388,7 @@ private class EngineTestEnv {
         org.mockito.kotlin.whenever(it.mailService).thenReturn(mock())
     }
 
-    // 2026-09 根因修复配套：loadData/createNewGame/restartGame 末尾调用
+    // 根因修复配套：loadData/createNewGame/restartGame 末尾调用
     // syncNativeBaselineAfterLoad → loadNativeBaseline(stateSyncService)——
     // stateSyncServiceRef 必须 stub 非 null（否则 Kotlin 非空参数检查抛 NPE）；
     // 默认 GameCoreBridge.isLoaded=false 使 loadNativeBaseline 首行短路，零副作用
@@ -373,7 +400,7 @@ private class EngineTestEnv {
         gameEngineCore = mockGameEngineCore,
         engineContextDispatcher = FakeEngineContextDispatcher(),
         stateStore = store,
-        gameRngManager = mock(),
+        gameRngManager = GameRngManager(),
         explorationFacade = mock(),
         cultivationFacade = mockCultivationFacade,
         economyFacade = mockEconomyFacade,
@@ -475,19 +502,19 @@ private class SimpleStore : GameStateStore {
     override fun getCurrentSeeds(): List<Seed> = emptyList()
     override fun getCurrentHerbs(): List<Herb> = emptyList()
     override fun getCurrentMaterials(): List<Material> = emptyList()
-    override fun enqueueNotification(notification: GameNotification) {}
+    override fun enqueueNotification(notification: GameNotification) = Unit
     override fun consumeNotification(): GameNotification? = null
-    override fun clearPendingNotification() {}
-    override fun setPendingBattleResult(result: BattleResultUIData) {}
-    override fun clearPendingBattleResult() {}
-    override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {}
-    override fun clearPendingBeastAttacks() {}
-    override fun removePendingBeastAttack(beastLevelId: String) {}
-    override fun clearPendingMarriageProposals() {}
-    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {}
-    override fun clearPendingBattleRewardCards() {}
-    override fun enqueueRewardCards(items: List<RewardCardItem>) {}
-    override fun clearRewardCardQueue(count: Int) {}
+    override fun clearPendingNotification() = Unit
+    override fun setPendingBattleResult(result: BattleResultUIData) = Unit
+    override fun clearPendingBattleResult() = Unit
+    override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit
+    override fun clearPendingBeastAttacks() = Unit
+    override fun removePendingBeastAttack(beastLevelId: String) = Unit
+    override fun clearPendingMarriageProposals() = Unit
+    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) = Unit
+    override fun clearPendingBattleRewardCards() = Unit
+    override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
+    override fun clearRewardCardQueue(count: Int) = Unit
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
         val m = MutableGameState(
             gameData = gameDataValue, discipleTables = _tables,
@@ -502,9 +529,9 @@ private class SimpleStore : GameStateStore {
         return r
     }
     override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
-    override fun setPausedDirect(paused: Boolean) {}
-    override fun setLoadingDirect(loading: Boolean) {}
-    override fun setSavingDirect(saving: Boolean) {}
+    override fun setPausedDirect(paused: Boolean) = Unit
+    override fun setLoadingDirect(loading: Boolean) = Unit
+    override fun setSavingDirect(saving: Boolean) = Unit
     override suspend fun loadFromSnapshot(
         gameData: GameData, disciples: List<Disciple>,
         equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,
@@ -515,13 +542,13 @@ private class SimpleStore : GameStateStore {
         isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
     ) { this.gameDataValue = gameData }
     override suspend fun reset() { gameDataValue = GameData() }
-    override fun advanceBootPhase() {}
-    override fun resetBootPhase() {}
-    override fun setPlaying() {}
-    override fun setReloading() {}
-    override fun setLoading() {}
-    override fun setIdle() {}
-    override fun enterBatchEmissionMode() {}
-    override fun exitBatchEmissionMode() {}
+    override fun advanceBootPhase() = Unit
+    override fun resetBootPhase() = Unit
+    override fun setPlaying() = Unit
+    override fun setReloading() = Unit
+    override fun setLoading() = Unit
+    override fun setIdle() = Unit
+    override fun enterBatchEmissionMode() = Unit
+    override fun exitBatchEmissionMode() = Unit
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot()
 }

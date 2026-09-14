@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 旧存档堆叠重建函数测试（2026-08-01 堆叠序列化缺陷修复）。
+ * 旧存档堆叠重建函数测试。
  *
  * 覆盖 [rebuildEquipmentStacks] / [rebuildManualStacks] 的：
  * - 游离实例（未装备/未学习）重建

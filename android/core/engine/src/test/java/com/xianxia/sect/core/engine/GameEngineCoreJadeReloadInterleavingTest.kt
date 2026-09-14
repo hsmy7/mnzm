@@ -26,9 +26,9 @@ import org.mockito.Mockito.`when`
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * 玉符读档时序交错测试（2026-08-10）：
+ * 玉符读档时序交错测试：
  *
- * 玩家反馈"玉符读档/云下载后重置为旧值"——根因：
+ * 玉符读档/云下载后重置为旧值的根因：
  * 游戏内读档时 loadData（快照替换）→ boot 的非等待 stopGameLoop →
  * 旧循环 finally 的 JadeSymbolService.onLoopStop()（checkpointNow 绝对值
  * 覆盖写）在引擎线程异步执行，晚于快照替换 → 读档前的旧运行时值覆盖
@@ -145,7 +145,7 @@ class GameEngineCoreJadeReloadInterleavingTest {
         assertTrue("收尾 stop 必须成功", stoppedAtEnd)
     }
 
-    // ── 冷启动读档窗口竞态（2026-08-12 新增）──
+    // ── 冷启动读档窗口竞态 ──
     // 玩家反馈"读档后看广告玉符 20→3"：前台服务 ACTION_START 在读档 I/O 窗口
     // 抢先启动循环，onLoopStart 从空快照锚定 totalCount=0；boot 的 startGameLoop
     // 因循环已运行直接 return（永不重锚），广告发放 0+3=3 绝对值覆盖已读入的 20。
@@ -170,7 +170,7 @@ class GameEngineCoreJadeReloadInterleavingTest {
         core.startGameLoop()
         assertEquals("boot 的 startGameLoop 必须重锚新档余额", 99, jadeSymbolService.runtimeState.value.total)
 
-        // 修复后：广告发放基于新档余额，绝对值写不覆盖持久化值
+        // 广告发放基于新档余额，绝对值写不覆盖持久化值
         jadeSymbolService.grantFromAd(3)
         assertEquals("广告发放 99 + 3 = 102", 102, store.gameDataSnapshot.jadeSymbols)
         jadeSymbolService.checkpointNow()

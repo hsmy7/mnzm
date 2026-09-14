@@ -89,7 +89,7 @@ internal inline fun <reified T : Enum<T>> safeEnumValueOf(
 ): T {
     return try {
         enumValueOf<T>(value)
-    } catch (e: IllegalArgumentException) {
+    } catch (ignored: IllegalArgumentException) {
         val validValues = enumValues<T>().map { it.name }
         Log.w("SaveDataConverter", "Invalid enum value '$value' for field '$fieldName' in $context. " +
               "Valid values: ${validValues.joinToString()}. Using default: $defaultValue")
@@ -97,6 +97,8 @@ internal inline fun <reified T : Enum<T>> safeEnumValueOf(
     }
 }
 
+// 防御兜底: 旧档枚举解析失败即回退默认值(记日志), 异常类型不可枚举
+@Suppress("TooGenericExceptionCaught")
 internal inline fun <reified T : Enum<T>> safeEnumValueOfIgnoreCase(
     value: String,
     defaultValue: T,

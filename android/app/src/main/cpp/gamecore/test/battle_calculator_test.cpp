@@ -1,5 +1,5 @@
 // ============================================================
-// battle_calculator_test.cpp — 战斗计算管线黄金序列（战斗批次 A）
+// battle_calculator_test.cpp — 战斗计算管线黄金序列
 //
 // 守护目标：固定种子 + 固定 Combatant → gamecore::battle::battle_calculator.h
 // 的计算管线（calculateCombatantDamage 全链 + estimateDamage）逐字段黄金值。

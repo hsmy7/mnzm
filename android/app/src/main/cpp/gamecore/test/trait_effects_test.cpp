@@ -12,7 +12,7 @@ namespace gamecore::stats {
 namespace {
 
 // ============================================================
-// T2.4a 填表单元测试：trait_db.h → 三聚合函数（talentEffectsFor /
+// 填表单元测试：trait_db.h → 三聚合函数（talentEffectsFor /
 // affixEffectsFor / physiqueCultivationBonusFor）+ comprehension
 // 词条合并分叉修复回归。
 //
@@ -44,7 +44,7 @@ constexpr double kLifespanR6 = 0.60;             // r6_lifespan 寿元绵长
 constexpr double kLifespanAffR3 = 0.28;          // r3_aff_lifespan 延年
 constexpr double kLifespanAffNeg = -0.15;        // neg_aff_lifespan 夭折
 constexpr int32_t kDefaultComprehension = 50;    // Disciple 默认悟性
-constexpr int32_t kRealm8Gain = 50;              // lifespanGainForRealm(8)
+constexpr int32_t kRealm8Gain = 40;              // lifespanGainForRealm(8)
 const char* const kUnknownId = "definitely_not_registered";
 
 /// 单 id 聚合结果 == 该条目自身 effects map（全量遍历共用）
@@ -188,7 +188,7 @@ TEST(TraitEffectsTest, BaseComprehensionMergesAffixFlatRegression) {
     gamecore::state::Disciple d;
     d.talentIds = {"r3_base_comp"};
     d.affixIds = {"r2_aff_base_comp"};
-    // 分叉修复前：只算天赋 flat=68；修复后合并词条 flat=75
+    // 天赋与词条 flat 效果必须合并累加（不得只取其一）
     EXPECT_EQ(kDefaultComprehension +
                   static_cast<int32_t>(kCompFlatR3Talent + kCompFlatR2Aff),
               baseComprehension(d));
@@ -213,7 +213,7 @@ TEST(TraitEffectsTest, BaseComprehensionIgnoresUnknownIds) {
 // ── 突破寿命增益（天赋+词条 lifespan 合并） ──────────────────────────
 
 TEST(TraitEffectsTest, BreakthroughLifespanGainMergesTalentsAndAffixes) {
-    // r6_lifespan(+0.60) + r3_aff_lifespan(+0.28) = +0.88 → 50 + trunc(44.0)
+    // r6_lifespan(+0.60) + r3_aff_lifespan(+0.28) = +0.88 → 40 + trunc(35.2)
     const int32_t boosted = calculateBreakthroughLifespanGain(
         8, {"r6_lifespan"}, {"r3_aff_lifespan"});
     EXPECT_EQ(kRealm8Gain +
@@ -223,7 +223,7 @@ TEST(TraitEffectsTest, BreakthroughLifespanGainMergesTalentsAndAffixes) {
 }
 
 TEST(TraitEffectsTest, BreakthroughLifespanGainNegativeAffixReduces) {
-    // 仅负面词条 -0.15 → 50 + trunc(-7.5)（向零截断）= 43
+    // 仅负面词条 -0.15 → 40 + trunc(-6.0)（向零截断）= 34
     const int32_t reduced =
         calculateBreakthroughLifespanGain(8, {}, {"neg_aff_lifespan"});
     EXPECT_EQ(kRealm8Gain + static_cast<int32_t>(kRealm8Gain * kLifespanAffNeg),

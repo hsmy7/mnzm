@@ -1,4 +1,4 @@
-// GameDatabaseMigrationsV21ToV30.kt — 由 GameDatabase.kt 拆分生成（见 GameDatabase.kt addMigrations 列表）
+// GameDatabaseMigrationsV21ToV30.kt — v21→v30 迁移（见 GameDatabase.kt addMigrations 列表）
 package com.xianxia.sect.data.local
 
 import android.util.Log
@@ -15,9 +15,11 @@ private const val TAG = "GameDatabase"
                     db.execSQL("ALTER TABLE game_data ADD COLUMN merchantRefreshChances INTEGER NOT NULL DEFAULT 1")
                 }
                 if (!columnExists(db, "game_data", "merchantLastRefreshChanceGrantYear")) {
-                    db.execSQL("ALTER TABLE game_data ADD COLUMN merchantLastRefreshChanceGrantYear INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE game_data ADD COLUMN merchantLastRefreshChanceGrantYear INTEGER NOT NULL " +
+                        "DEFAULT 0")
                 }
-                Log.i(TAG, "Migration 21->22: added merchantRefreshChances, merchantLastRefreshChanceGrantYear to game_data")
+                Log.i(TAG,
+                    "Migration 21->22: added merchantRefreshChances, merchantLastRefreshChanceGrantYear to game_data")
             }
         }
 
@@ -25,21 +27,11 @@ private const val TAG = "GameDatabase"
         internal val MIGRATION_22_23 = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (columnExists(db, "game_data", "discipleDesertionPopup")) {
-                    // 获取当前列列表（排除 discipleDesertionPopup）
-                    val columns = mutableListOf<String>()
-                    val cursor = db.query("PRAGMA table_info(game_data)")
-                    cursor.use {
-                        while (it.moveToNext()) {
-                            val name = it.getString(it.getColumnIndexOrThrow("name"))
-                            if (name != "discipleDesertionPopup") {
-                                columns.add("\"$name\"")
-                            }
-                        }
-                    }
-                    // ⚠️ 之前使用 CREATE TABLE ... AS SELECT ...（CTAS）丢失了所有列约束
-                    // (NOT NULL, DEFAULT, PRIMARY KEY, 索引)。改用显式 CREATE TABLE + IFNULL 兜底。
-                    rebuildGameData(db, "_old", columns)
-                    Log.i(TAG, "Migration 22->23: dropped discipleDesertionPopup from game_data (fixed CTAS constraint loss)")
+                    // ⚠️ 禁用 CTAS——CREATE TABLE ... AS SELECT ... 会丢失所有列约束
+                    // (NOT NULL, DEFAULT, PRIMARY KEY, 索引)。使用显式 CREATE TABLE + IFNULL 兜底。
+                    rebuildGameData(db, "_old")
+                    Log.i(TAG,
+                        "Migration 22->23: dropped discipleDesertionPopup from game_data (fixed CTAS constraint loss)")
                 }
             }
         }
@@ -78,32 +70,24 @@ private const val TAG = "GameDatabase"
                 db.execSQL("ALTER TABLE `storage_bags_new` RENAME TO `storage_bags`")
                 // Step 5: 索引
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_storage_bags_slot_id ON storage_bags(`slot_id`)")
-                Log.i(TAG, "Migration 23->24: rebuilt storage_bags with composite PK (id, slot_id) — no DEFAULT clauses")
+                Log.i(TAG,
+                    "Migration 23->24: rebuilt storage_bags with composite PK (id, slot_id) — no DEFAULT clauses")
             }
         }
 
         /**
-         * v24->v25: 修复两个 migration bug：
-         * 1. MIGRATION_22_23 CTAS 丢失 game_data 约束（NOT NULL、DEFAULT、PRIMARY KEY、索引）
-         * 2. MIGRATION_23_24 给 storage_bags 加 DEFAULT 值但实体无 @ColumnInfo(defaultValue)
-         *
-         * 修复方式：重建 game_data 和 storage_bags 表，使用正确的 Room 生成 schema
+         * v24->v25: 重建 game_data 与 storage_bags 至正确的 Room schema：
+         * 1. game_data 恢复完整约束（NOT NULL、DEFAULT、PRIMARY KEY、索引）
+         * 2. storage_bags 列定义不得含 DEFAULT（实体无 @ColumnInfo(defaultValue)）
          */
         internal val MIGRATION_24_25 = object : Migration(24, 25) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // === 修复 game_data ===
-                val columns = mutableListOf<String>()
-                val cursor = db.query("PRAGMA table_info(game_data)")
-                cursor.use {
-                    while (it.moveToNext()) {
-                        columns.add("\"${it.getString(it.getColumnIndexOrThrow("name"))}\"")
-                    }
-                }
                 // 重建 game_data 表，用 IFNULL 兜底旧数据中的 NULL
-                rebuildGameData(db, "_old", columns)
+                rebuildGameData(db, "_old")
 
                 // === 修复 storage_bags ===
-                // 旧版 MIGRATION_23_24 使用了 DEFAULT 子句，实体未定义 DEFAULT。
+                // 列定义不得含 DEFAULT（实体未定义 @ColumnInfo defaultValue），
                 // 重建 storage_bags，使用 Room 生成的正确 schema（无 DEFAULT）
                 rebuildStorageBags(db)
 
@@ -177,7 +161,7 @@ private const val TAG = "GameDatabase"
 
         /**
          * v27→v28: 补漏 annual_equipment_by_source / annual_pill_by_source / annual_herb_by_source
-         * 开发过程中追加了此三列但未升版本，导致已迁移至 v27 的存档 schema 不匹配。
+         * 三列——v27 存档 schema 可能缺少这三列（与实体不匹配），此处补齐。
          */
         internal val MIGRATION_27_28 = object : Migration(27, 28) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -295,7 +279,7 @@ private const val DISCIPLES_V31_CREATE_TABLE_SQL = """
                     """
 
 /**
- * v31 disciples 数据复制列清单（MIGRATION_30_31 拆分）。
+ * v31 disciples 数据复制列清单。
  * 顺序必须与重建 CREATE TABLE 完全一致（usage_lastTheftMonth 已排除）。
  */
 private val DISCIPLES_V31_COLUMNS = listOf(
@@ -335,8 +319,8 @@ private val DISCIPLES_V31_COLUMNS = listOf(
 )
 
 /**
- * v30→v31：移除 disciples.usage_lastTheftMonth 列（create-copy-drop-rename 模式，
- * MIGRATION_30_31 拆分）。新表不含 usage_lastTheftMonth 列，与当前 Disciple 实体一致。
+ * v30→v31：移除 disciples.usage_lastTheftMonth 列（create-copy-drop-rename 模式）。
+ * 新表不含 usage_lastTheftMonth 列，与当前 Disciple 实体一致。
  */
 private fun rebuildDisciplesDroppingLastTheftMonth(db: SupportSQLiteDatabase) {
     if (!columnExists(db, "disciples", "usage_lastTheftMonth")) {

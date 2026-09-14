@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import com.xianxia.sect.core.util.TimeProgressUtil
 
-// GameDataFieldModels.kt — 灵田种植（P-2 从 GameData.kt 拆分，同包模型，序列化字段不变）
+// GameDataFieldModels.kt — 灵田种植（同包模型，序列化字段不变）
 
 // 种植槽位数据
 @Keep

@@ -3,6 +3,7 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.ReverseChannelPolicy
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -18,7 +19,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * StateSyncServiceReverseTest — 反向增量回导（计划 v2 阶段 3）信封构建与窗口语义。
+ * StateSyncServiceReverseTest — 反向增量回导信封构建与窗口语义。
  *
  * 覆盖：空窗口零发送 / 弟子仅发变化 id 全实体 / gameData 剔除 rngStates /
  * 集合 upsert+removed / 版本单调递增 / 多事务窗口合并 / reset 清窗 /
@@ -91,6 +92,49 @@ class StateSyncServiceReverseTest {
         val gd = envelope["changed"]!!.jsonObject["gameData"]!!.jsonObject
         assertNull(gd["rngStates"])
         assertTrue(gd["spiritStones"] != null)
+    }
+
+    @Test
+    fun `gameData segment carries only changed fields after anchor`() {
+        // 反向通道差分语义：首窗未锚定 → 全量建立基线；后续窗与锚点按键
+        // 差分 → 仅携带变更字段（不做 gameData 整段重发）
+        val store = FakeGameStateStore()
+        val sent = mutableListOf<String>()
+        val sync = StateSyncService(store) { sent += it.decodeToString(); true }
+
+        store.update { gameData = gameData.copy(spiritStones = 100) }
+        assertTrue(sync.applyDirtyToNative())
+        val full = json.parseToJsonElement(sent[0]).jsonObject["changed"]!!
+            .jsonObject["gameData"]!!.jsonObject
+        assertTrue("首窗应为全量段（实际 ${full.size} 键）", full.size > 1)
+        assertTrue(full["spiritStones"] != null)
+
+        store.update { gameData = gameData.copy(spiritStones = 200) }
+        assertTrue(sync.applyDirtyToNative())
+        val patch = json.parseToJsonElement(sent[1]).jsonObject["changed"]!!
+            .jsonObject["gameData"]!!.jsonObject
+        assertEquals("增量窗仅携带变更字段", setOf("spiritStones"), patch.keys)
+        assertEquals(200L, patch["spiritStones"]!!.jsonPrimitive.longOrNull)
+    }
+
+    @Test
+    fun `failed send keeps anchor so next window resends full gameData`() {
+        // 发送失败 → 锚点不推进（保守过期方向）；生产由全量回导兜底，
+        // 此处断言下一成功窗仍全量重发（绝不因锚点越过 C++ 实际状态而漏发）
+        val store = FakeGameStateStore()
+        var ok = false
+        val sent = mutableListOf<String>()
+        val sync = StateSyncService(store) { sent += it.decodeToString(); ok }
+
+        store.update { gameData = gameData.copy(spiritStones = 100) }
+        assertFalse(sync.applyDirtyToNative())
+        store.update { gameData = gameData.copy(spiritStones = 150) }
+        ok = true
+        assertTrue(sync.applyDirtyToNative())
+        val gd = json.parseToJsonElement(sent.last()).jsonObject["changed"]!!
+            .jsonObject["gameData"]!!.jsonObject
+        assertTrue("锚点未推进应全量重发", gd.size > 1)
+        assertEquals(150L, gd["spiritStones"]!!.jsonPrimitive.longOrNull)
     }
 
     @Test
@@ -187,5 +231,38 @@ class StateSyncServiceReverseTest {
         store.resetReverseAccumulator()
         assertTrue(sync.applyDirtyToNative())
         assertEquals(0, envelopes.size)
+    }
+
+    @Test
+    fun `lockedBeastIds segment is closed and reopen restores replacement semantics`() {
+        // batch-21：该段已关闭（batch-23 把 UI 锁定/解锁操作面下沉 C++，Kotlin 侧仅剩回退臂写者）
+        // ——关闭后不再占用信封面；逐域回滚可恢复"变化时携带全量 id 集"的整体替换语义
+        val store = FakeGameStateStore()
+        val sent = mutableListOf<String>()
+        val sync = StateSyncService(store) { sent += it.decodeToString(); true }
+
+        store.update { gameData = gameData.copy(lockedBeastIds = setOf("beast-1", "beast-2")) }
+        assertTrue(sync.applyDirtyToNative())
+        assertNull(
+            "关闭段不得进入信封",
+            json.parseToJsonElement(sent.last()).jsonObject["changed"]!!.jsonObject["lockedBeastIds"]
+        )
+
+        // 回滚该域（紧急回滚路径）→ 段恢复携带
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.BATTLE)
+        try {
+            val store2 = FakeGameStateStore()
+            val sent2 = mutableListOf<String>()
+            val sync2 = StateSyncService(store2) { sent2 += it.decodeToString(); true }
+            store2.update { gameData = gameData.copy(lockedBeastIds = setOf("beast-1", "beast-2")) }
+            assertTrue(sync2.applyDirtyToNative())
+            val changed = json.parseToJsonElement(sent2.last()).jsonObject["changed"]!!.jsonObject
+            assertEquals(
+                listOf("beast-1", "beast-2"),
+                changed["lockedBeastIds"]!!.jsonArray.map { it.jsonPrimitive.contentOrNull }
+            )
+        } finally {
+            ReverseChannelPolicy.resetSwitches()
+        }
     }
 }

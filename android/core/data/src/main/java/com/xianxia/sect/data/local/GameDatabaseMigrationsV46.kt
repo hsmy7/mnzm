@@ -11,8 +11,8 @@ private const val TAG = "GameDatabase"
 /**
  * v45→v46: 弟子新增基础属性"资质"（disciples 与 disciples_attributes 两表）
  *
- * 背景（2026-08-12 悟性重设计）：悟性唯一作用改为突破率（80 基准每 4 点 +1%，
- * 最多 +10%）；新增固定基础属性"资质"承担修炼速度加成（80 基准每点 +1%，
+ * 背景（悟性/资质职责划分）：悟性唯一作用是突破率（80 基准每 4 点 +1%，
+ * 最多 +10%）；固定基础属性"资质"承担修炼速度加成（80 基准每点 +1%，
  * 最多 +40%）。SkillStats 新增 aptitude 字段：
  * - aptitude: 资质（固定属性，创建时按灵根数生成后不可成长；旧档默认 50 为
  *   自愈哨兵值，读档时 DiscipleTables.healDefaultAptitudes() 按灵根数重算）

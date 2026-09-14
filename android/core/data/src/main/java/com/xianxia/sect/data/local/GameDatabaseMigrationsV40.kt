@@ -9,11 +9,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 private const val TAG = "GameDatabase"
 
 /**
- * v39→v40: game_data 新增战斗队伍持久化三列（A3，2026-08-05）
+ * v39→v40: game_data 新增战斗队伍持久化三列
  *
- * 背景：battleTeams/usedTeamNumbers 此前为 @Ignore+@Transient 不落盘——
- * 读档后玩家出战队伍全清、DiscipleStatusService"在队中"状态判定失效。
- * 现持久化（Room 列 + proto 字段），并新增 battleTeamsInitialized
+ * 背景：持久化 battleTeams/usedTeamNumbers（Room 列 + proto 字段），保证读档后
+ * 出战队伍与"在队中"状态判定不丢失；并新增 battleTeamsInitialized
  * 区分"旧档空列表"（读档走默认队伍初始化）与"玩家明确清空队伍"。
  *
  * 仅 ADD COLUMN（不删列，无需 create-copy-drop-rename）：

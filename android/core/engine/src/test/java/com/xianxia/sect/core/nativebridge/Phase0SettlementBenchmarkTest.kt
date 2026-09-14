@@ -22,9 +22,11 @@ import com.xianxia.sect.core.util.DomainLog
 import kotlinx.serialization.json.Json
 import org.junit.Assume.assumeTrue
 import org.junit.Test
+import com.xianxia.sect.core.engine.service.accumulateCultivationPerPhase
+import com.xianxia.sect.core.engine.service.recoverHpMpSingleColumn
 
 /**
- * 阶段 0 测量：每旬结算热点 + 批量下沉原型（2026-08-25，彻底单引擎决策后新增）。
+ * 每旬结算热点测量 + 批量下沉原型。
  *
  * 目标：
  * 1. 量化每旬核心路径（HP/MP 恢复 + 修炼累积，真实 CultivationCore 列直读）在
@@ -134,7 +136,6 @@ class Phase0SettlementBenchmarkTest {
             merchantAndRecruitService = mockSmart(),
             caveExplorationProcessor = mockSmart(),
             sharedState = CultivationSharedState(),
-            discipleService = mockSmart()
         )
         val tables = store.discipleTables
         store.update {

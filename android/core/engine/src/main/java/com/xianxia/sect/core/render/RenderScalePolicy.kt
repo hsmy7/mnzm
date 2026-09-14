@@ -35,7 +35,7 @@ enum class ScreenPixelAreaTier {
  * - COMPACT（手机）+ Vulkan：恒 1.0（零改动回归基线，热控/GPU 档均不触发缩放）
  * - COMPACT（手机）+ SOFTWARE：按 `GPU档cap × 软件路径factor` 降载——CPU 逐像素
  *   全屏合成成本远高于 GPU 路径，低端真机（联发科/麒麟等被 VulkanPolicy 判为
- *   SOFTWARE_ONLY 的国产机型）此前在手机上无任何分辨率降载手段，拖动视角卡顿；
+ *   SOFTWARE_ONLY 的国产机型）CPU 侧降载避免拖动视角卡顿；
  *   对照行业：Android Game Mode backbuffer 缩放、米哈游移动端降分辨率保帧率
  * - 非 COMPACT：`min(GPU档cap, 面积factor) × 路径factor × qualityFactor`，
  *   向下取到 0.05 离散档 + clamp [0.5, 1.0]
@@ -127,8 +127,7 @@ object RenderScalePolicy {
     ): Float {
         val screenFactor = screenFactor(classifyScreenArea(screenWidth, screenHeight))
         // COMPACT（手机）+ Vulkan 恒 1.0（回归基线）；COMPACT + SOFTWARE 仍降载——
-        // CPU 逐像素全屏合成成本高，手机 SOFTWARE 此前被短路而无任何降载手段
-        //（低端真机拖动视角卡顿根因，2026 修复）
+        // CPU 逐像素全屏合成成本高，无降载会造成低端真机拖动视角卡顿
         val computed = if (screenFactor >= 1.0f && !softwarePath) {
             1.0f
         } else {

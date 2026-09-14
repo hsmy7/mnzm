@@ -35,7 +35,7 @@ object SectLevelRewardConfig {
         else -> emptyList()
     }
 
-    /** 小型宗门每周奖励卡片（getRewardCards 拆分） */
+    /** 小型宗门每周奖励卡片 */
     private fun smallLevelRewardCards(): List<RewardCardItem> = listOf(
         RewardCardItem(
             itemName = "随机凡品兽血",
@@ -51,7 +51,7 @@ object SectLevelRewardConfig {
         )
     )
 
-    /** 中型宗门每周奖励卡片（getRewardCards 拆分） */
+    /** 中型宗门每周奖励卡片 */
     private fun mediumLevelRewardCards(): List<RewardCardItem> = listOf(
         RewardCardItem(
             itemName = "随机凡品兽血",
@@ -73,7 +73,7 @@ object SectLevelRewardConfig {
         )
     )
 
-    /** 大型宗门每周奖励卡片（getRewardCards 拆分） */
+    /** 大型宗门每周奖励卡片 */
     private fun largeLevelRewardCards(): List<RewardCardItem> = listOf(
         RewardCardItem(
             itemName = "随机凡品兽血",
@@ -95,7 +95,7 @@ object SectLevelRewardConfig {
         )
     )
 
-    /** 顶级宗门每周奖励卡片（getRewardCards 拆分） */
+    /** 顶级宗门每周奖励卡片 */
     private fun topLevelRewardCards(): List<RewardCardItem> = listOf(
         RewardCardItem(
             itemName = "随机宝品兽血",

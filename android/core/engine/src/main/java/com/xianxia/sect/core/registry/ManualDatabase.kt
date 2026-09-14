@@ -17,6 +17,8 @@ import java.io.InputStreamReader
 
 
 
+@Suppress("TooManyFunctions") // 功法静态注册表：查询原语（按 id/名称/品质/类型维度）+ 私有数据表构建器，
+// 函数数随查询维度线性增长；构建器与表定义同址内聚（与 core:domain 注册表同口径）
 object ManualDatabase {
     private const val TAG = "ManualDatabase"
     
@@ -118,6 +120,7 @@ object ManualDatabase {
     val allManuals: Map<String, ManualTemplate>
         get() = _allManuals ?: emptyMap()
     
+    @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     fun initializeSync(assetSource: AssetSource): Result<Unit> {
         return try {
             synchronized(initLock) {
@@ -127,10 +130,10 @@ object ManualDatabase {
                 
                 if (enableProtoValidation && _allManuals != null) {
                     val manuals = _allManuals
-                        ?: throw IllegalStateException("ManualDatabase: _allManuals is null after loading")
+                        ?: error("ManualDatabase: _allManuals is null after loading")
                     lastValidationResult = validateWithProto(manuals)
                     val result = lastValidationResult
-                        ?: throw IllegalStateException("ManualDatabase: validation produced null result")
+                        ?: error("ManualDatabase: validation produced null result")
                     if (!result.isValid) {
                         DomainLog.w(TAG, "Manual data validation warnings: ${result.warnings.size} issues found")
                     } else {
@@ -183,6 +186,7 @@ object ManualDatabase {
      * @param manuals 从 JSON 加载的功法模板 Map
      * @return 校验结果（包含警告列表）
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     private fun validateWithProto(manuals: Map<String, ManualTemplate>): ValidationResult {
         val startTime = System.currentTimeMillis()
         val warnings = mutableListOf<ValidationWarning>()
@@ -215,7 +219,7 @@ object ManualDatabase {
         )
     }
     
-    /** 单个功法模板的 Proto 结构化校验（validateWithProto 拆分）：构建 → 序列化 → 反序列化验证 */
+    /** 单个功法模板的 Proto 结构化校验：构建 → 序列化 → 反序列化验证 */
     private fun validateSingleTemplate(template: ManualTemplate) {
         val protoBuilder = buildTemplateProtoBuilder(template = template)
         // 尝试构建并序列化（触发所有字段校验）
@@ -225,7 +229,7 @@ object ManualDatabase {
         ManualTemplateProto.parseFrom(bytes)
     }
     
-    /** 功法模板 → Proto Builder 转换（validateWithProto 拆分）：基础字段 + 属性 map + 技能信息 */
+    /** 功法模板 → Proto Builder 转换：基础字段 + 属性 map + 技能信息 */
     private fun buildTemplateProtoBuilder(template: ManualTemplate): ManualTemplateProto.Builder {
         val protoBuilder = ManualTemplateProto.newBuilder()
             .setId(template.id)
@@ -251,7 +255,7 @@ object ManualDatabase {
         return protoBuilder
     }
     
-    /** 技能字段 → Proto Builder 转换（validateWithProto 拆分）：技能基础字段 + 单 buff + 多 buff 列表 */
+    /** 技能字段 → Proto Builder 转换：技能基础字段 + 单 buff + 多 buff 列表 */
     private fun buildSkillProtoBuilder(template: ManualTemplate): SkillTemplateProto.Builder {
         val skillBuilder = SkillTemplateProto.newBuilder()
             .setName(template.skillName ?: "")
@@ -414,6 +418,7 @@ object ManualDatabase {
         return builder.build()
     }
     
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun loadManualTemplatesSync(assetSource: AssetSource): Map<String, ManualTemplate> {
         return try {
             val bytes = assetSource.open("data/manuals.pb")?.use { it.readBytes() }
@@ -527,36 +532,39 @@ object ManualDatabase {
         val skillDamageSharePercent: Double? = null,
         val skillDamageLinkPercent: Double? = null
     ) {
+        /** 可空字段回落默认值：等价 `?:` 语义的字段映射助手 */
+        private fun <T> T?.orDefault(default: T): T = this ?: default
+
         fun toManualTemplate(): ManualTemplate = ManualTemplate(
             id = id,
             name = name,
             type = ManualType.valueOf(type),
             rarity = rarity,
             description = description,
-            stats = stats ?: emptyMap(),
+            stats = stats.orDefault(emptyMap()),
             skillName = skillName,
             skillDescription = skillDescription,
-            skillType = skillType ?: "attack",
-            skillDamageType = skillDamageType ?: "physical",
-            skillHits = skillHits ?: 1,
-            skillDamageMultiplier = skillDamageMultiplier ?: 1.0,
-            skillCooldown = skillCooldown ?: 3,
-            skillMpCost = skillMpCost ?: 10,
-            skillHealPercent = skillHealPercent ?: 0.0,
-            skillHealFixed = skillHealFixed ?: 0,
-            skillHealType = skillHealType ?: "hp",
+            skillType = skillType.orDefault("attack"),
+            skillDamageType = skillDamageType.orDefault("physical"),
+            skillHits = skillHits.orDefault(1),
+            skillDamageMultiplier = skillDamageMultiplier.orDefault(1.0),
+            skillCooldown = skillCooldown.orDefault(3),
+            skillMpCost = skillMpCost.orDefault(10),
+            skillHealPercent = skillHealPercent.orDefault(0.0),
+            skillHealFixed = skillHealFixed.orDefault(0),
+            skillHealType = skillHealType.orDefault("hp"),
             skillBuffType = skillBuffType,
-            skillBuffValue = skillBuffValue ?: 0.0,
-            skillBuffDuration = skillBuffDuration ?: 0,
-            skillBuffs = skillBuffs ?: emptyList(),
-            price = price ?: 0,
-            minRealm = minRealm ?: 9,
-            skillIsAoe = skillIsAoe ?: false,
-            skillTargetScope = skillTargetScope ?: "self",
-            skillShieldPercent = skillShieldPercent ?: 0.0,
-            skillTurnAdvancePercent = skillTurnAdvancePercent ?: 0.0,
-            skillDamageSharePercent = skillDamageSharePercent ?: 0.0,
-            skillDamageLinkPercent = skillDamageLinkPercent ?: 0.0
+            skillBuffValue = skillBuffValue.orDefault(0.0),
+            skillBuffDuration = skillBuffDuration.orDefault(0),
+            skillBuffs = skillBuffs.orDefault(emptyList()),
+            price = price.orDefault(0),
+            minRealm = minRealm.orDefault(9),
+            skillIsAoe = skillIsAoe.orDefault(false),
+            skillTargetScope = skillTargetScope.orDefault("self"),
+            skillShieldPercent = skillShieldPercent.orDefault(0.0),
+            skillTurnAdvancePercent = skillTurnAdvancePercent.orDefault(0.0),
+            skillDamageSharePercent = skillDamageSharePercent.orDefault(0.0),
+            skillDamageLinkPercent = skillDamageLinkPercent.orDefault(0.0)
         )
     }
     
@@ -643,7 +651,8 @@ object ManualDatabase {
         )
     }
     
-    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6, type: ManualType? = null, random: kotlin.random.Random = kotlin.random.Random): ManualStack {
+    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6, type: ManualType? = null,
+        random: kotlin.random.Random = kotlin.random.Random): ManualStack {
         check(_isInitialized) { "ManualDatabase not initialized. Call initialize() first." }
 
         val rarity = generateRarity(minRarity, maxRarity, random)
@@ -661,7 +670,8 @@ object ManualDatabase {
         return createFromTemplate(template)
     }
 
-    private fun generateRarity(minRarity: Int, maxRarity: Int, random: kotlin.random.Random = kotlin.random.Random): Int {
+    private fun generateRarity(minRarity: Int, maxRarity: Int,
+        random: kotlin.random.Random = kotlin.random.Random): Int {
         val rand = random.nextDouble()
         return when {
             rand < 0.5 -> minRarity.coerceAtMost(maxRarity)

@@ -8,7 +8,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 存储运行时配置（docs/architecture.md 待办 D-29：偏好统一迁入 MMKV）。
+ * 存储运行时配置（偏好统一存于 MMKV）。
  *
  * 键名与旧 SharedPreferences 完全一致，旧值一次性迁移（首次访问懒执行，幂等）。
  */

@@ -21,13 +21,12 @@ import kotlin.math.ceil
 /**
  * 掠夺计算器（确定性计算 + 副作用分离）。
  *
- * 从 [ExplorationService.computeLoot] + [applyMaterialLoot] 提取，
- * 业务逻辑完全一致，但修复了以下缺陷：
+ * 计算与扣除分离，并保证以下不变量：
  *
- * 1. 储物袋扣除改为单次 [mapInPlace] + [filterInPlace]，消除双重扣除 bug
+ * 1. 储物袋单次 [mapInPlace] + [filterInPlace] 扣除（无双重扣除）
  * 2. [repeat] 前加 [coerceAtLeast(0)] 防御负数量
  * 3. [SPIRIT_STONES_PER_ITEM] 为 0 时跳过除零
- * 4. [manualStacks] 增加 [filterInPlace] 过滤（原代码遗漏）
+ * 4. [manualStacks] 同样经 [filterInPlace] 过滤
  * 5. 所有物品扣除后 [filterInPlace] 统一在末尾一次完成
  *
  * [computeLootPlan] 为确定性计算（使用 [GameRngManager] 分区 PRNG），只读取状态不写；
@@ -251,41 +250,49 @@ class LootCalculator @Inject constructor(
         }
 
         // 扣除物品（仅置零 quantity，不删除）
-        for (item in loot.stolenItems) {
-            when (item.type) {
-                "material" -> state.materials.update(item.id) {
-                    val q = it.quantity - item.count
-                    if (q > 0) it.copy(quantity = q) else it.copy(quantity = 0)
-                }
-                "pill" -> state.pills.update(item.id) {
-                    val q = it.quantity - item.count
-                    if (q > 0) it.copy(quantity = q) else it.copy(quantity = 0)
-                }
-                "herb" -> state.herbs.update(item.id) {
-                    val q = it.quantity - item.count
-                    if (q > 0) it.copy(quantity = q) else it.copy(quantity = 0)
-                }
-                "seed" -> state.seeds.update(item.id) {
-                    val q = it.quantity - item.count
-                    if (q > 0) it.copy(quantity = q) else it.copy(quantity = 0)
-                }
-                "equipment" -> state.equipmentStacks.update(item.id) {
-                    val q = it.quantity - item.count
-                    if (q > 0) it.copy(quantity = q) else it.copy(quantity = 0)
-                }
-                "manual" -> state.manualStacks.update(item.id) {
-                    val q = it.quantity - item.count
-                    if (q > 0) it.copy(quantity = q) else it.copy(quantity = 0)
-                }
-            }
-        }
+        deductStolenItems(state, loot)
 
-        // ★ 过滤掉 quantity=0 的物品（统一在末尾一次完成，含 manualStacks 原代码遗漏）
+        // 过滤掉 quantity=0 的物品（统一在末尾一次完成）
         state.materials.filterInPlace { it.quantity > 0 }
         state.pills.filterInPlace { it.quantity > 0 }
         state.herbs.filterInPlace { it.quantity > 0 }
         state.seeds.filterInPlace { it.quantity > 0 }
         state.equipmentStacks.filterInPlace { it.quantity > 0 }
         state.manualStacks.filterInPlace { it.quantity > 0 }
+    }
+
+    /** 扣减后数量：扣减结果截断到 0（与逐项 if/else 置零语义逐位一致） */
+    private fun deductedQuantity(currentQuantity: Int, count: Int): Int {
+        val q = currentQuantity - count
+        return if (q > 0) q else 0
+    }
+
+    /** 被掠夺物品逐类扣除：按类型分派到对应仓库，仅置零 quantity 不删除 */
+    private fun deductStolenItems(
+        state: MutableGameState,
+        loot: BeastLootData
+    ) {
+        for (item in loot.stolenItems) {
+            when (item.type) {
+                "material" -> state.materials.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "pill" -> state.pills.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "herb" -> state.herbs.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "seed" -> state.seeds.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "equipment" -> state.equipmentStacks.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "manual" -> state.manualStacks.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+            }
+        }
     }
 }

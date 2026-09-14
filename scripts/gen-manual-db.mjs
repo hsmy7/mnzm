@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * gen-manual-db.mjs — 功法静态表生成器（Kotlin→C++ 迁移批次 2 剩余）
+ * gen-manual-db.mjs — 功法静态表生成器
  *
  * 从 Android assets 数据文件 manuals.json（ManualDatabase 数据源，含
  * attack/defense/support/mind 四类功法）提取 540 条功法模板，生成两份产物：
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GAMECORE = join(ROOT, 'android/app/src/main/cpp/gamecore');
-// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——中性源 scripts/data/*.json；
+// 静态数据单一源——中性源 scripts/data/*.json；
 // 原始数据源（assets/data/manuals.json）经 gen-manual 抽样快照落位后，
 // 此处以 scripts/data/manual_db_sample.json 为权威（Kotlin Registry 由
 // 单一源守卫测试全量比对兜底防漂移）

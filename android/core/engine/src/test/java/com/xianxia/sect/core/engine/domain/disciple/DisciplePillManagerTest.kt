@@ -56,7 +56,7 @@ class DisciplePillManagerTest {
         assertEquals(PillRule.TEMPORARY_BATTLE, DisciplePillManager.classify(effect))
     }
 
-    // ── 空 pillType + 治疗/恢复效果（之前会崩溃） ──
+    // ── 空 pillType + 治疗/恢复效果 ──
 
     @Test
     fun `classify - empty pillType with healMaxHpPercent returns INSTANT_CULTIVATION`() {

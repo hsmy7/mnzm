@@ -12,7 +12,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ManualRegistryGuardTest — 功法静态数据守卫（批次 2 剩余子步）。
+ * ManualRegistryGuardTest — 功法静态数据守卫。
  *
  * 守护目标：生成器提取的功法表快照（manual_db_sample.json，由
  * scripts/gen-manual-db.mjs 从 assets/data/manuals.json 生成）与 **数据源**

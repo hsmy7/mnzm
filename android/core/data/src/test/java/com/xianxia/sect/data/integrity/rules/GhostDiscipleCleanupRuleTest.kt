@@ -17,7 +17,8 @@ import org.junit.Test
 
 
 class GhostDiscipleCleanupRuleTest {
-    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry.register(GhostDiscipleCleanupRule) }
+    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry
+        .register(GhostDiscipleCleanupRule) }
     @After fun teardown() { SaveValidationRuleRegistry.clear() }
 
     @Test fun `no ghost disciples passes`() {

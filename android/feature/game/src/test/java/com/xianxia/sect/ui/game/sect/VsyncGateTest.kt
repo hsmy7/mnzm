@@ -7,7 +7,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * ★ Robolectric 必需：VsyncGate 内部引用 android.util.Log（失败路径），
+ * Robolectric 必需：VsyncGate 内部引用 android.util.Log（失败路径），
  * 纯 JVM 下未 mock 会抛异常。
  *
  * ## 为什么注入 Fake 而非 ShadowChoreographer

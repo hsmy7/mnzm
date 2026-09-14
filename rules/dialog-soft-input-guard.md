@@ -23,8 +23,10 @@
 
 | 渲染上下文 | 窗口 softInputMode | 避让机制 | 实现 |
 |-----------|-------------------|---------|------|
-| **Activity 窗口**（内联覆盖层，`InlineStandardPromptDialog` 等文本输入） | manifest `adjustResize`（API 30+ = insets 派发） | Compose `imePadding`（官方标准组合：edge-to-edge + adjustResize + imePadding） | `InlineStandardPromptDialog` 外层 Box 挂 `.imePadding()`——全渲染模式统一（**删除**历史"软件渲染切 ADJUST_PAN"分支） |
-| **平台 Dialog 窗口**（`UnifiedGameDialog`/`StandardPromptDialog`/`SmallScreenDialog`） | `DialogSoftInputGuard` = `ADJUST_RESIZE`（Dialog 窗口显式进入 insets 管线） | `ImeAwareContainer` 事件驱动（键盘可见性翻转 → 内容一次性上移，动画驱动，非每帧 insets 响应） | 三容器内容区统一挂 `ImeAwareContainer`——不依赖 Dialog 窗口 imePadding 的历史可靠性（#229378542） |
+| **文本输入（全部场景）** | `TextInputDialog`（独立平台 Dialog 窗口）：API 30+ `ADJUST_RESIZE`（insets 派发兼容模式）/ API < 30 `ADJUST_PAN`（官方 fallback，防经典 resize + 应用层位移双避让） | `ImeAwareContainer` 事件驱动（**按窗口真值**：仅本窗口键盘可见时位移；API<30 恒零位移） | **`TextInputDialog`（core/ui，2026-09 新增统一组件）**——内部复用 StandardPromptDialog 全部守卫（DialogSystemBarFreezeEffect / DialogSoftInputGuard / DialogSystemBarGuard / ImeAwareContainer / DialogFocusGuard）+ `rememberImeAwareAutoFocusRequester` + `InputSessionStateMachine`（**按 (Window 身份, sessionKey) 隔离**；CLOSED→OPENING→OPEN→CLOSING→CLOSED，open/close 幂等，禁 CLOSING→OPENING 跳转，CLOSING 中新开请求 pendingReopen 重放） |
+| **含游戏渲染 Surface 的 Activity（GameActivity 等）** | **`adjustNothing`（manifest）**——游戏主窗口对 IME 完全透明 | 无（窗口内禁止任何文本输入，键盘零参与） | 文本输入一律平台 Dialog 窗口（上方行）；`adjustNothing` 后键盘出现/消失 → 游戏窗口零 resize、零 insets、surface 零重建——根除"界面闪烁/键盘反复弹收"的窗口级振荡回路 |
+| **普通 Activity 无游戏 Surface（主菜单/存档页等）** | manifest `adjustResize` + edge-to-edge | Compose `imePadding`（官方标准组合） | `InlineStandardPromptDialog`（仅限无渲染 Surface 的窗口；游戏窗口禁用） |
+| **平台 Dialog 窗口（无输入）** | `DialogSoftInputGuard` = `ADJUST_RESIZE` | `ImeAwareContainer`（按窗口真值；无键盘时恒零位移） | `UnifiedGameDialog`/`StandardPromptDialog`/`SmallScreenDialog` 三容器内容区统一挂载 |
 | **数字输入**（`NumberInputPanel`：商人/交易/仓库出售/种植/巡逻塔/自动管理） | 不适用（**不弹系统 IME**） | 自绘数字键盘面板（0-9/退格/清空/确定），零 insets 依赖 | `QuantitySelector` 点击数字 → `NumberInputPanel`；阈值/数量输入同款 |
 
 **统一后：**
@@ -51,19 +53,23 @@
   │  → ✅ 使用 NumberInputPanel（自绘数字键盘，不弹系统 IME）
   │     QuantitySelector 已内置（点击数字 → 面板）；裸数字框改"显示框 + 点击弹面板"
   ├─ 文本输入（改名/宗门名/兑换码等）
-  │  ├─ Activity 层（InlineStandardPromptDialog 内联覆盖层）
-  │  │  → ✅ 组件已内置 imePadding（官方标准组合）；freezeSystemBars = true
-  │  │     自动聚焦用 rememberImeAwareAutoFocusRequester()
-  │  └─ 平台 Dialog 窗口（UnifiedGameDialog/StandardPromptDialog/SmallScreenDialog）
-  │     → ✅ 组件已内置 DialogSoftInputGuard(ADJUST_RESIZE) + ImeAwareContainer；
-  │        含输入框时传 freezeSystemBars = true（冻结宿主 Activity + 本 Dialog 窗口）
-  └─ 新创建的自定义 Dialog { } 或 Box overlay
-     → 🔴 必须接入统一机制：
-        ├─ 平台 Dialog 窗口 → DialogSoftInputGuard()（ADJUST_RESIZE）+ 内容区挂
-        │    ImeAwareContainer()；含输入框时 Dialog{} 块内 DialogSystemBarFreezeEffect(true)
-        └─ Activity 层 Box 覆盖层 → 外层 .imePadding()；含输入框时 SystemBarFreezeEffect(true)
-           优先放入 InlineStandardPromptDialog（自动内置）
+  │  → ✅ 统一使用 TextInputDialog（core/ui，独立平台 Dialog 窗口）
+  │     内部已内置：DialogSoftInputGuard（per-API RESIZE/PAN）+ ImeAwareContainer（按窗口真值）
+  │     + freezeSystemBars=true + rememberImeAwareAutoFocusRequester + InputSessionStateMachine
+  │     🔴 禁止在含游戏渲染 Surface 的 Activity 窗口内联文本输入（InlineStandardPromptDialog）
+  │     🔴 禁止在自定义容器内直接 OutlinedTextField + 裸 requestFocus（自动聚焦必须走
+  │        rememberImeAwareAutoFocusRequester；打开/关闭必须走 InputSessionStateMachine）
+  │     🔴 禁止任何 toggleSoftInput / showSoftInput 无限重试 / 固定延时主路径
+  └─ 新创建的自定义 Dialog { } 或 Box overlay（无文本输入）
+     → 复用统一容器（StandardPromptDialog/UnifiedGameDialog/SmallScreenDialog 或
+       InlineStandardPromptDialog——仅限无游戏 Surface 的窗口）
 ```
+
+**游戏窗口特殊规则（2026-09 新增）**：`GameActivity` 等含游戏渲染 Surface 的 Activity
+manifest 恒 `adjustNothing`；其窗口内禁止组合任何文本输入框。文本输入的需求一律
+由 `TextInputDialog`（独立平台 Dialog 窗口）承接——键盘的 resize/insets/焦点抖动
+只影响该 Dialog 窗口，游戏窗口与渲染 Surface 全程零参与（根除"界面闪烁 + 键盘
+反复弹收"的窗口级振荡回路）。
 
 **社交扩展（2026-08-04 起）：** 未来社交/排行界面的搜索框、好友备注输入框同样按此法则判断——优先放入 `InlineStandardPromptDialog`；自定义容器必须接入统一机制。
 

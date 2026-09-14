@@ -12,11 +12,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 防沉迷合规回调进程级宿主测试（docs/architecture.md 待办 D-42）。
+ * 防沉迷合规回调进程级宿主测试。
  *
  * 守卫契约：登录用户进入游戏后（MainActivity 已 finish），时长/时间/年龄限制
- * 回调必须转发到当前前台游戏窗口——根治前这些回调被 MainComplianceCallback 的
- * `isFinishing/isDestroyed` 检查静默丢弃，游戏内限制提示永远无法弹出。
+ * 回调必须转发到当前前台游戏窗口——若回调被 Activity 实例的
+ * `isFinishing/isDestroyed` 检查静默丢弃，游戏内限制提示将永远无法弹出。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])

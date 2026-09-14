@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.theme.GameColors
 
 /**
@@ -92,7 +93,7 @@ private fun LoadingScreenContent(
     }
 }
 
-/** 背景图片（LoadingScreenContent 拆分） */
+/** 背景图片 */
 @Composable
 private fun LoadingBackgroundImage() {
     // 背景图片
@@ -104,7 +105,7 @@ private fun LoadingBackgroundImage() {
     )
 }
 
-/** 底部进度条面板（LoadingScreenContent 拆分）：阶段标签 + 金色进度条 + 玩法提示 */
+/** 底部进度条面板：阶段标签 + 金色进度条 + 玩法提示 */
 @Composable
 private fun BoxScope.LoadingProgressPanel(
     animatedProgress: Float,
@@ -154,15 +155,19 @@ private fun BoxScope.LoadingProgressPanel(
     }
 }
 
-/** 游戏玩法提示（LoadingScreenContent 拆分）：每 2 秒轮换一条 */
+/** 游戏玩法提示：每 2 秒轮换一条 */
 @Composable
 private fun LoadingTipSection() {
+    // 表现随机源（ADR R3）：提示轮播是纯表现，走独立表现流——
+    // 原 `LoadingTips.randomTip()` 内部用 `tips.random()`（`Random.Default`，
+    // 进程启动随机、不入档）属未受治理的第二类入口（R1/R5）
+    val presentationRandom = remember { PresentationRandom() }
     // 游戏玩法提示（每2秒轮换）
-    var currentTip by remember { mutableStateOf(LoadingTips.randomTip()) }
-    LaunchedEffect(Unit) {
+    var currentTip by remember { mutableStateOf(LoadingTips.randomTip(presentationRandom)) }
+    LaunchedEffect(presentationRandom) {
         while (true) {
             delay(2000)
-            currentTip = LoadingTips.randomTip()
+            currentTip = LoadingTips.randomTip(presentationRandom)
         }
     }
     Spacer(modifier = Modifier.height(12.dp))
@@ -185,6 +190,7 @@ private fun LoadingTipSection() {
  * @param progressColor 进度颜色
  */
 @Composable
+@Suppress("UnusedParameter") // progressColor: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 private fun CustomGoldenProgressBar(
     progress: Float,
     modifier: Modifier = Modifier,
@@ -247,7 +253,7 @@ private fun CustomGoldenProgressBar(
     }
 }
 
-/** 进度条边框几何参数（CustomGoldenProgressBar 拆分） */
+/** 进度条边框几何参数 */
 private data class ProgressBorderGeometry(
     val barStartX: Float,
     val barEndX: Float,
@@ -257,7 +263,7 @@ private data class ProgressBorderGeometry(
     val borderWidth: Float
 )
 
-/** 镂空边框（含两侧半菱形）绘制（CustomGoldenProgressBar 拆分） */
+/** 镂空边框（含两侧半菱形）绘制 */
 private fun DrawScope.drawProgressBorder(
     geometry: ProgressBorderGeometry,
     borderColor: Color
@@ -286,7 +292,7 @@ private fun DrawScope.drawProgressBorder(
     )
 }
 
-/** 进度条背景槽（CustomGoldenProgressBar 拆分） */
+/** 进度条背景槽 */
 private fun DrawScope.drawProgressTrack(
     barStartX: Float,
     barTop: Float,
@@ -302,7 +308,7 @@ private fun DrawScope.drawProgressTrack(
     )
 }
 
-/** 金色进度 + 高亮（CustomGoldenProgressBar 拆分） */
+/** 金色进度 + 高亮 */
 private fun DrawScope.drawProgressFill(
     progress: Float,
     barStartX: Float,

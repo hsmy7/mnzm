@@ -21,7 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 数量选择器组件行为测试（2026-09 自绘数字面板重构）：
+ * 数量选择器组件行为测试（自绘数字面板）：
  * - 四向步进显示与禁用态
  * - 点击数字框弹出 NumberInputPanel（自绘面板，不弹系统 IME）
  * - 面板输入钳制（超上限截断）与确定/取消提交语义
@@ -76,7 +76,7 @@ class QuantitySelectorFlowTest {
         composeRule.onNodeWithText("+10").assertIsNotEnabled()
     }
 
-    // ── 自绘数字面板（2026-09 绕开系统 IME）──────────────────────────────
+    // ── 自绘数字面板（绕开系统 IME）──────────────────────────────
 
     @Test
     fun `点击数字框弹出数字面板并隐藏大步进`() {

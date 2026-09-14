@@ -20,19 +20,6 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
 
-data class DiscipleSelectorConfig(
-    val title: String,
-    val emptyMessage: String = "没有符合条件的弟子",
-    val headerColor: Color? = null,
-    val defaultSortAttribute: String? = null,
-    val currentId: String? = null,
-    val extraAttributesProvider: ((DiscipleAggregate) -> List<Pair<String, Int>>)? = null,
-    /** 状态过滤之外的附加条件（如 realmLayer/age/已选 ID 排除） */
-    val additionalCheck: ((DiscipleAggregate) -> Boolean)? = null,
-    /** 当前已分配弟子强制包含在筛选中（无论状态过滤结果） */
-    val alwaysIncludeCurrentId: Boolean = false
-)
-
 @Composable
 fun DiscipleSelectorDialog(
     config: DiscipleSelectorConfig,
@@ -101,7 +88,7 @@ fun DiscipleSelectorDialog(
     }
 }
 
-/** 状态过滤弟子列表（DiscipleSelectorDialog 拆分）：状态过滤 + 当前弟子强制包含 */
+/** 状态过滤弟子列表：状态过滤 + 当前弟子强制包含 */
 private fun DiscipleSelectorConfig.statusFilteredDisciples(
     disciples: List<DiscipleAggregate>,
     showAllEnabled: Boolean,
@@ -120,7 +107,7 @@ private fun DiscipleSelectorConfig.statusFilteredDisciples(
     return base
 }
 
-/** 过滤条（DiscipleSelectorDialog 拆分）：灵根/属性/境界过滤 + 显示全部勾选 */
+/** 过滤条：灵根/属性/境界过滤 + 显示全部勾选 */
 @Composable
 private fun DiscipleSelectorFilterHeader(
     filterState: DiscipleFilterState,
@@ -150,11 +137,11 @@ private fun DiscipleSelectorFilterHeader(
         // viewModel 为空时切换无意义（setShowAllAvailableDisciples 需 GameViewModel），隐藏复选框
         showAllCheckboxVisible = viewModel != null,
         showAllEnabled = showAllEnabled,
-        onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
+        onShowAllToggle = { viewModel?.settings?.setShowAllAvailableDisciples(!showAllEnabled) }
     )
 }
 
-/** 弟子选择内容区（DiscipleSelectorDialog 拆分）：空态提示或两列弟子卡片网格 */
+/** 弟子选择内容区：空态提示或两列弟子卡片网格 */
 @Composable
 private fun DiscipleSelectorContent(
     filtered: List<DiscipleAggregate>,
@@ -191,3 +178,17 @@ private fun DiscipleSelectorContent(
         }
     }
 }
+
+/** 选择器配置（声明置于 [DiscipleSelectorDialog] 之后，使首个顶层声明与文件名一致） */
+data class DiscipleSelectorConfig(
+    val title: String,
+    val emptyMessage: String = "没有符合条件的弟子",
+    val headerColor: Color? = null,
+    val defaultSortAttribute: String? = null,
+    val currentId: String? = null,
+    val extraAttributesProvider: ((DiscipleAggregate) -> List<Pair<String, Int>>)? = null,
+    /** 状态过滤之外的附加条件（如 realmLayer/age/已选 ID 排除） */
+    val additionalCheck: ((DiscipleAggregate) -> Boolean)? = null,
+    /** 当前已分配弟子强制包含在筛选中（无论状态过滤结果） */
+    val alwaysIncludeCurrentId: Boolean = false
+)

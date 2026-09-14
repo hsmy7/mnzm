@@ -11,7 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 槽位职业标签 [ProfessionLabel] 渲染测试（2026-08-09 无弟子时不显示职业）：
+ * 槽位职业标签 [ProfessionLabel] 渲染测试（无弟子时不显示职业）：
  * - level = null（无弟子）不渲染任何职业文本
  * - 任命弟子后按职业等级显示对应职业名（炼丹/炼器两系）
  */

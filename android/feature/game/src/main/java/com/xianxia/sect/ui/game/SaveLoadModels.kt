@@ -31,23 +31,22 @@ object SaveLoadViewModelConstants {
     const val GAME_LOOP_STOP_TIMEOUT_MS = 5_000L
 
     const val PROGRESS_START = 0f
-    const val PROGRESS_ENGINE_INIT = 0.15f
-    const val PROGRESS_DATA_LOAD = 0.25f
     const val PROGRESS_SAVE_COMPLETE = 0.40f
-    const val PROGRESS_RESTART_DATA_LOAD = 0.50f
     const val PROGRESS_DATA_PRELOAD = 0.55f
     const val PROGRESS_SPRITE_PRELOAD = 0.70f
-    const val PROGRESS_GAME_LOOP_START = 0.80f
     /** 地图瓦片数据生成（原 PROGRESS_MAP_PRELOAD 拆分为更细粒度） */
     const val PROGRESS_TILE_GEN = 0.90f
     /** 兼容别名，旧引用（GameActivity 等）使用 */
     const val PROGRESS_MAP_PRELOAD = PROGRESS_TILE_GEN
     const val PROGRESS_COMPLETE = 1f
 
+    // 进度常量仅保留有真实推进点的档位（boot 期间进度由
+    // BootSequenceController 回调线性映射）——防止误用无推进点的
+    // 伪装阶段常量。
+
     /** 预加载阶段标签 */
     const val PHASE_INIT = "正在初始化引擎..."
     const val PHASE_DATA_PRELOAD = "正在加载宗门数据..."
     const val PHASE_SPRITE_PRELOAD = "正在准备界面资源..."
     const val PHASE_CLOUD_SYNC = "正在同步云存档..."
-    const val PHASE_READY = "即将进入宗门..."
 }

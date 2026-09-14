@@ -43,7 +43,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * InlineStandardPromptDialog 内联覆盖层形态测试（2026-08 键盘频闪根治）：
+ * InlineStandardPromptDialog 内联覆盖层形态测试：
  * - 内联渲染不创建平台 Dialog 窗口（消除 Dialog 窗口与 IME 交互）
  * - 按钮/遮罩/BackHandler 行为
  * - isInsideDialogWindow 窗口上下文检测
@@ -93,10 +93,10 @@ class StandardPromptDialogTest {
 
     // ── Compose 渲染形态 ───────────────────────────────────
 
-    // D-34 回归守卫：containerSize 为像素单位，必须经 LocalDensity 换算为 dp。
+    // px/dp 换算守卫：containerSize 为像素单位，必须经 LocalDensity 换算为 dp。
     // xhdpi（density=2）下 360×800dp 窗口 = 720×1600px：
-    // 修复前 (720/2).dp=360dp=全屏宽、(1600×0.55).dp=880dp>屏高 800dp → 断言失败；
-    // 修复后 720px→360dp→/2=180dp（屏宽一半）、1600px→800dp→×0.55=440dp（屏高 55%）。
+    // 正确结果 720px→360dp→/2=180dp（屏宽一半）、1600px→800dp→×0.55=440dp（屏高 55%）；
+    // 直接把像素当 dp 使用则得到全屏宽/超高尺寸（断言失败）。
     @Test
     @Config(qualifiers = "w360dp-h800dp-xhdpi")
     fun `提示框尺寸为屏宽一半屏高55% - containerSize像素转dp守卫`() {
@@ -280,9 +280,9 @@ class StandardPromptDialogTest {
         assertEquals(0, dismissCount)
     }
 
-    // ── 平台 Dialog 窗口内嵌套渲染（57352e02 回归教训：SettingsTab 兑换码 0 高度不可见）──
+    // ── 平台 Dialog 窗口内嵌套渲染 ──
     // 内联覆盖层不创建独立窗口，作为普通布局节点参与宿主布局：
-    // - 渲染在 Box 内与内容重叠 → 可见（修复后结构，用例 A 守卫）
+    // - 渲染在 Box 内与内容重叠 → 可见（现行结构守卫，用例 A）
     // - 渲染在 Column 中 fillMaxSize 兄弟节点之后 → 剩余高度 0 → 不可见（回归机制，用例 B 文档）
 
     @Test
@@ -310,7 +310,7 @@ class StandardPromptDialogTest {
         composeRule.setContent {
             Dialog(onDismissRequest = {}) {
                 Column(Modifier.fillMaxSize()) {
-                    // 模拟修复前 SettingsTab 结构：根 Box(fillMaxSize) 作为首子节点占满全部高度
+                    // 模拟缺陷结构：根 Box(fillMaxSize) 作为首子节点占满全部高度
                     Box(Modifier.fillMaxSize()) {}
                     InlineStandardPromptDialog(
                         onDismissRequest = {},
@@ -325,12 +325,11 @@ class StandardPromptDialogTest {
         }
         composeRule.waitForIdle()
         // 后续兄弟节点测量时 maxHeight = 0 → 覆盖层高度归零不可见
-        // （57352e02 将 InlineStandardPromptDialog 改回内联覆盖层时漏适配
-        //   SettingsTab.RedeemCodeDialog 的根因机制，v4.00.92 兑换码不弹窗）
+        //（机制文档：SettingsTab 内容区内联渲染兑换码弹窗即因此不可见）
         composeRule.onNodeWithText("兑换码").assertIsNotDisplayed()
     }
 
-    // ── 系统栏冻结接线（2026-08 荣耀 X70 键盘频闪根治）──
+    // ── 系统栏冻结接线 ──
     // 含输入框的对话框挂载期间冻结宿主窗口系统栏操作，销毁后解冻。
 
     @Test
@@ -408,10 +407,10 @@ class StandardPromptDialogTest {
         }
     }
 
-    // ── UnifiedGameDialog 窗口级 overlay 槽位（2026-08-08 兑换码遮罩全屏根治）──
-    // 兑换码弹窗从 SettingsTab 内容区内联渲染迁移至窗口级 overlay 槽位：
+    // ── UnifiedGameDialog 窗口级 overlay 槽位 ──
     // overlay 在 frame 之后渲染（外层 BoxScope 内 z 序最高），
-    // 内联覆盖层 fillMaxSize 覆盖整个窗口（含 header 与内容区 padding）
+    // 内联覆盖层 fillMaxSize 覆盖整个窗口（含 header 与内容区 padding）——
+    // SettingsTab 兑换码弹窗经窗口级 overlay 槽位渲染（不受内容区滚动/遮罩影响）。
 
     @Test
     fun `UnifiedGameDialog overlay 槽位内内联覆盖层可见 - 窗口级遮罩全屏守卫`() {
@@ -440,7 +439,7 @@ class StandardPromptDialogTest {
         composeRule.onNodeWithText("请输入兑换码").assertIsDisplayed()
     }
 
-    // ── 宿主单例遮罩守卫（2026-08 多界面遮罩叠加变黑根治）──
+    // ── 宿主单例遮罩守卫 ──
     // GameOverlayHost 已绘制 GameOverlayScrim（0x99000000），宿主下所有对话框
     // 必须不自画遮罩，否则多层半透明黑 α 复合叠加使界面外一片黑。
     // LocalDialogScrimHosted=true 时强制禁用自画遮罩（scrim 节点不存在）。
@@ -477,7 +476,7 @@ class StandardPromptDialogTest {
         composeRule.onNodeWithTag("scrim").assertExists()
     }
 
-    // ── 嵌套冻结传导（2026-08 第四根因键盘频闪根治）──
+    // ── 嵌套冻结传导 ──
     // 内联输入框渲染于平台 Dialog 窗口内时（isInsideDialogWindow && freezeSystemBars），
     // freezeSystemBars 语义自动传导：冻结外层 Dialog 窗口系统栏
     // （DialogSystemBarGuard 据此恢复导航栏显示，切断 HIDE_NAVIGATION×IME 冲突面），
@@ -553,10 +552,9 @@ class StandardPromptDialogTest {
         assertFalse("销毁后应解冻", SystemBarFreezeScope.isFrozen)
     }
 
-    // ── 统一 insets 管线（2026-09 IME 状态机根治）──
+    // ── 统一 insets 管线 ──
     // 全窗口统一 ADJUST_RESIZE + imePadding（Activity 层）/ ImeAwareContainer（Dialog 层），
-    // 删除历史"渲染模式感知双路径"（shouldUsePanAvoidance/PanAvoidanceGuard）。
-    // 下述用例验证统一后无渲染模式分支：InlineStandardPromptDialog 无条件走 imePadding
+    // 无渲染模式分支：InlineStandardPromptDialog 无条件走 imePadding
     // 官方标准组合；平台 Dialog 内容区无条件挂 ImeAwareContainer。
 
     @Test

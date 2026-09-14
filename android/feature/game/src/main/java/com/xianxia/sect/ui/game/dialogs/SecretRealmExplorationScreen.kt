@@ -108,7 +108,7 @@ fun SecretRealmExplorationScreen(
         session?.members?.map { ms -> ms.toMemberHpUi(disciples) } ?: emptyList()
     }
     // 篡改档防御：会话不活跃（members 为空）时即使 currentEvent 非空也不渲染幻影事件，
-    // 引擎 validateChoice 已拒绝选择（对抗性审查 C-L1）；"结束探索"按钮仍可用防软锁
+    // 引擎 validateChoice 已拒绝选择；"结束探索"按钮仍可用防软锁
     val event = session?.takeIf { it.isActive }?.currentEvent
     val stamina = session?.stamina ?: 0
     var eventLinesShown by remember { mutableStateOf(false) }
@@ -138,7 +138,7 @@ fun SecretRealmExplorationScreen(
 
 // ── 拆分提取的子组件 ────────────────────────────────────────────────
 
-/** 探索生命周期副作用（SecretRealmExplorationScreen 拆分）：暂停/恢复 + 暂停租约续约 + 会话结束监听 */
+/** 探索生命周期副作用：暂停/恢复 + 暂停租约续约 + 会话结束监听 */
 @Composable
 private fun SecretRealmScreenEffects(
     viewModel: SecretRealmViewModel,
@@ -161,7 +161,7 @@ private fun SecretRealmScreenEffects(
         }
     }
     // 探索会话结束（主动结束/体力耗尽/全灭）→ 通知宿主关闭
-    // 末战回放保留：会话已清但战斗日志仍在播放时暂不关闭（对抗性审查 B5）
+    // 末战回放保留：会话已清但战斗日志仍在播放时暂不关闭
     // 竞态防护：引擎回调写入 combatLog 晚于会话清空（跨线程），等待写回窗口再决定关闭，
     // 避免末战回放偶发丢失、界面直接关闭
     var hasSessionBefore by remember { mutableStateOf(false) }
@@ -177,8 +177,7 @@ private fun SecretRealmScreenEffects(
     }
 }
 
-/** 探索界面主体（SecretRealmExplorationScreen 拆分）：全屏背景 + 事件面板 + 底部操作行 + 选项覆盖层 + 背包弹窗 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 探索界面主体：全屏背景 + 事件面板 + 底部操作行 + 选项覆盖层 + 背包弹窗 */
 @Suppress("LongParameterList")
 @Composable
 private fun SecretRealmScreenContent(
@@ -260,8 +259,7 @@ private fun SecretRealmScreenContent(
     }
 }
 
-/** 事件面板（SecretRealmExplorationScreen 拆分）：战斗播放推进驱动 + 米色面板容器 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 事件面板：战斗播放推进驱动 + 米色面板容器 */
 @Suppress("LongParameterList")
 @Composable
 private fun ColumnScope.SecretRealmEventPanel(
@@ -330,8 +328,7 @@ private fun ColumnScope.SecretRealmEventPanel(
     }
 }
 
-/** 面板内容盒（SecretRealmExplorationScreen 拆分）：战斗播放/事件内容 + 右上角体力与跳过按钮 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 面板内容盒：战斗播放/事件内容 + 右上角体力与跳过按钮 */
 @Suppress("LongParameterList")
 @Composable
 private fun ColumnScope.SecretRealmPanelBox(
@@ -394,9 +391,7 @@ private fun ColumnScope.SecretRealmPanelBox(
     }
 }
 
-/** 底部操作行（SecretRealmExplorationScreen 拆分）：弟子列 + 结束探索/选择选项 + 背包按钮 */
-// 拆分聚合:平铺参数搬移自原公共函数
-// 拆分搬移:嵌套/条件结构与原函数一致
+/** 底部操作行：弟子列 + 结束探索/选择选项 + 背包按钮 */
 @Suppress("LongParameterList", "ComplexCondition")
 @Composable
 private fun SecretRealmBottomBar(
@@ -460,7 +455,7 @@ private fun SecretRealmBottomBar(
     }
 }
 
-/** 选项卡片覆盖层入口（SecretRealmExplorationScreen 拆分）：选项请求锁 + 选择/战斗启动分发 */
+/** 选项卡片覆盖层入口：选项请求锁 + 选择/战斗启动分发 */
 @Composable
 private fun SecretRealmOptionOverlay(
     event: SecretRealmEventRecord,
@@ -469,7 +464,7 @@ private fun SecretRealmOptionOverlay(
     onCombatStart: (String, BattleLogData) -> Unit,
     onCollapse: () -> Unit
 ) {
-    // 选项请求锁：引擎事务完成前禁止再次选择（对抗性审查 M2 连点防重）
+    // 选项请求锁：引擎事务完成前禁止再次选择（连点防重）
     var choosing by remember { mutableStateOf(false) }
     OptionsOverlay(
         options = event.options,
@@ -556,7 +551,7 @@ private fun EventContent(
             // 第 2 行：内容块（妖兽事件 = 精灵图+境界视为一行；其他 = 描述）
             if (visibleLines >= 2) {
                 // 篡改档防御：仅妖兽事件类型渲染精灵图分支——方向事件等被篡改 params
-                // 时不再伪造妖兽遭遇展示（对抗性审查 C-L2）
+                // 时不得伪造妖兽遭遇展示
                 if (event.eventType == com.xianxia.sect.core.model.SecretRealmEventType.BEAST_ENCOUNTER.name &&
                     event.params.beastTypeName.isNotEmpty()
                 ) {

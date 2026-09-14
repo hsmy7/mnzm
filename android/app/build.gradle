@@ -14,17 +14,16 @@ plugins {
     // id 'com.google.gms.google-services'
 }
 
-// 2026-08-14：Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+// Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
 kover {
     if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
         disable()
     }
 }
 
-// 2026-08-14：配置期文件读取惰性化（3.2，配置缓存前置）——providers.fileContents 声明式
-// 跟踪，改 api.properties/keystore.properties/version.properties 后配置缓存正确失效
-// （普通 File IO 配置缓存无法感知，改了不生效）。立即 .get() 求值，使用处零改动。
-// 文件不存在时 asText 返回空文本 → 空 Properties，与原 if(exists) 语义一致。
+// 配置期文件读取经 providers.fileContents 声明式跟踪，改 api.properties/
+// keystore.properties/version.properties 后配置缓存正确失效（普通 File IO
+// 配置缓存无法感知，改了不生效）。文件不存在时 asText 返回空文本 → 空 Properties。
 def loadProperties(String text) {
     def p = new Properties()
     p.load(new StringReader(text))
@@ -56,6 +55,12 @@ android {
         buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
         buildConfigField "String", "BUGLY_APP_ID", '"' + apiProperties.getProperty('BUGLY_APP_ID', '') + '"'
         buildConfigField "String", "BUGLY_APP_KEY", '"' + apiProperties.getProperty('BUGLY_APP_KEY', '') + '"'
+        buildConfigField "String", "UMENG_APP_KEY", '"' + apiProperties.getProperty('UMENG_APP_KEY', '') + '"'
+        buildConfigField "String", "UMENG_CHANNEL", '"' + apiProperties.getProperty('UMENG_CHANNEL', 'taptap') + '"'
+
+        // 友盟集成测试唤起码（AndroidManifest um.${umengAppKey} scheme）——AppKey 就位后
+        // 由 Umeng 后台/集成测试工具自动唤起，未配置时占位不影响其他 scheme 行为
+        manifestPlaceholders = [umengAppKey: apiProperties.getProperty('UMENG_APP_KEY', '')]
 
         // 仅保留 64 位 ARM 架构（arm64-v8a，决策7：移除 armeabi-v7a，APK native 包体约 -40%）
         ndk {
@@ -109,16 +114,16 @@ android {
                 signingConfig = signingConfigs.release
             }
             buildConfigField "boolean", "DEBUG_MODE", "false"
-            // P1-7：release native 符号打包为 SYMBOL_TABLE（Bugly 原生崩溃符号最小可行，
+            // release native 符号打包为 SYMBOL_TABLE（Bugly 原生崩溃符号最小可行，
             // 比默认仅 .so 全字节可读，且不显著增大包体）
             ndk {
                 debugSymbolLevel "SYMBOL_TABLE"
             }
         }
         debug {
-            // 2026-08-02 恢复同签名：TapTap 后台不支持一个包名配置两个签名，
-            // debug 复用 release 签名，保证 Android Studio 直接运行的包能通过
-            // TapTap 签名校验（签名 = 正式包 8f670470a0bb240c590d2d55e162ffc0）。
+            // debug 复用 release 签名：TapTap 后台不支持一个包名配置两个签名，
+            // 保证 Android Studio 直接运行的包能通过 TapTap 签名校验
+            // （签名 = 正式包 8f670470a0bb240c590d2d55e162ffc0）。
             // 注意：同签名意味着 debug 包可覆盖安装正式包（数据/凭证串包风险），
             // 测试机请勿存放重要正式档。
             debuggable true
@@ -143,8 +148,8 @@ android {
         }
     }
 
-    // 2026-08-01：显式单 fork——共享静态状态（GameLoopDelegate.healthCheckEnabled 等）
-    // 跨测试类并行时相互污染（CI 并行曾出现 98 个失败）
+    // 显式单 fork——共享静态状态（GameLoopDelegate.healthCheckEnabled 等）
+    // 跨测试类并行时相互污染
     tasks.withType(Test).configureEach {
         maxParallelForks = 1
     }
@@ -157,7 +162,7 @@ android {
     composeCompiler {
         enableStrongSkippingMode = true
         stabilityConfigurationFile = rootProject.file("stability_config.conf")
-        // 2026-08-14：指标收集按需开启（-Pcompose.metrics），默认关闭省编译开销
+        // 指标收集按需开启（-Pcompose.metrics），默认关闭省编译开销
         if (project.hasProperty('compose.metrics')) {
             reportsDestination = layout.buildDirectory.dir("compose_metrics")
             metricsDestination = layout.buildDirectory.dir("compose_metrics")
@@ -241,6 +246,12 @@ dependencies {
     implementation libs.bugly.crashreport
     implementation libs.bugly.nativecrashreport
 
+    // 友盟统计 SDK（U-App 组件化）：common/asms 必选；
+    // ABTest 依赖友盟后台开通 U-App ABTest 能力，按需启用
+    implementation libs.umeng.common
+    implementation libs.umeng.asms
+    // implementation libs.umeng.abtest
+
     // Baseline Profile — 启动提速 25-35%（真机生成后替代手写 baseline.prof）
     implementation libs.profileinstaller
 
@@ -315,8 +326,7 @@ detekt {
     parallel = true
 }
 
-// Bugly mapping 存档 + 上传（密钥与 BuildConfig 同源，均读 api.properties——
-// gradle.properties 中的 BUGLY_* 已随密钥迁移移除，findProperty 恒空）
+// Bugly mapping 存档 + 上传（密钥与 BuildConfig 同源，均读 api.properties）
 def buglyAppId = apiProperties.getProperty('BUGLY_APP_ID', '')
 def buglyAppKey = apiProperties.getProperty('BUGLY_APP_KEY', '')
 def mappingVersionName = android.defaultConfig.versionName
@@ -364,7 +374,7 @@ tasks.register('archiveAndUploadMapping') {
 tasks.register('checkDelegateLaunchPattern') {
     group = 'verification'
     description = '检查 delegate 文件未通过 launchOnEngine 的 scope.launch 调用'
-    // 2026-08-14：配置缓存前置——配置期捕获路径与白名单（doLast 内禁止引用脚本对象）
+    // 配置缓存约束——路径与白名单在配置期捕获（doLast 内禁止引用脚本对象）
     def delegateDir = file("$rootDir/feature/game/src/main/java/com/xianxia/sect/ui/game/delegate")
     def excludedFiles = ['GameLoopDelegate.kt']
     doLast {
@@ -400,7 +410,7 @@ tasks.named('detekt').configure { finalizedBy('checkDelegateLaunchPattern') }
 tasks.register('validateChangelogJson') {
     group = 'verification'
     description = '校验 changelog_entries.json 顶层数组与 date/changes/version 字段'
-    // 2026-08-14：配置缓存前置——配置期捕获文件引用（doLast 内禁止脚本对象）
+    // 配置缓存约束——文件引用在配置期捕获（doLast 内禁止脚本对象）
     def jsonFile = file("$projectDir/src/main/assets/changelog_entries.json")
     doLast {
         if (!jsonFile.exists()) {
@@ -433,7 +443,7 @@ tasks.register('validateChangelogJson') {
 tasks.named('check').configure { dependsOn('validateChangelogJson') }
 
 // ============================================================
-// 2026-08-01：建筑占地尺寸 C++ 头文件生成任务
+// 建筑占地尺寸 C++ 头文件生成任务
 // SpriteAtlasDef.kt（Kotlin）为唯一真相源 → footprint_table.h（C++）
 // 消灭 NativeBridge.cpp / SpriteAtlasDef 双份手写魔法表的漂移风险
 // ============================================================
@@ -441,13 +451,12 @@ tasks.register('generateFootprintHeader') {
     group = 'build'
     description = '从生成版 SpriteAtlasDef.kt 生成 NativeBridge.cpp 引用的 footprint_table.h'
     dependsOn ':core:engine:generateSpriteAtlasDef'
-    // 2026-08-14：inputs/outputs 声明（上游生成物未变则跳过 Groovy 解析）
+    // inputs/outputs 声明（上游生成物未变则跳过 Groovy 解析）
     inputs.file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
-    // 2026-08 债务根治（docs/build-perf/stage3-config-cache.md）：输出迁移 build/generated/sprite/
-    // （不再写源码树 src/main/cpp/）——与 TextureAtlas.h 同目录，CMake 经既有
-    // SPRITE_GENERATED_DIR include 路径解析，源码树不再产生生成物
+    // 输出位于 build/generated/sprite/（与 TextureAtlas.h 同目录）——CMake 经既有
+    // SPRITE_GENERATED_DIR include 路径解析，生成物不落入源码树 src/main/cpp/
     outputs.file("$buildDir/generated/sprite/footprint_table.h")
-    // 2026-08-14：配置缓存前置——配置期捕获文件引用（doLast 内禁止脚本对象）
+    // 配置缓存约束——文件引用在配置期捕获（doLast 内禁止脚本对象）
     def srcFile = file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
     def outFile = file("$buildDir/generated/sprite/footprint_table.h")
     doLast {
@@ -506,21 +515,21 @@ static const int FP_COUNT = ${pairs.size};
     }
 }
 // ============================================================
-// 2026-08-13：资源管线 codegen（对标 Godot 导入管线）
+// 资源管线 codegen（对标 Godot 导入管线）
 // 权威源链：drawable-nodpi/*.webp → resource-manifest.mjs（atlas-manifest.json：
 // 名称/模块/相对路径/大小/MD5/UID）→ build-atlas.mjs --codegen（SpriteRegistryData.kt
 // + TextureAtlas.h，内容 hash 增量）。生成物在 build/generated/sprite/，不入库。
-// 手工版 SpriteRegistryData.kt / TextureAtlas.h 已删除；禁止手改生成物。
+// 禁止手改生成物——布局/数据改动只改权威源后重新生成。
 // ============================================================
 tasks.register('generateResourceManifest') {
     group = 'build'
     description = '扫描双模块 drawable-nodpi 生成 atlas-manifest.json（MD5/UID）'
-    // 2026-08-14：声明 inputs/outputs 获得 Gradle up-to-date 判定（权威源未变则跳过 node 启动）
+    // 声明 inputs/outputs 获得 Gradle up-to-date 判定（权威源未变则跳过 node 启动）
     inputs.dir("${rootProject.projectDir}/feature/game/src/main/res/drawable-nodpi")
     inputs.dir("${rootProject.projectDir}/app/src/main/res/drawable-nodpi")
     inputs.file("${rootProject.projectDir}/scripts/resource-manifest.mjs")
     outputs.file("$buildDir/generated/sprite/atlas-manifest.json")
-    // 2026-08-14：配置缓存前置——配置期捕获脚本目录（doLast 内禁止 rootProject）
+    // 配置缓存约束——脚本目录在配置期捕获（doLast 内禁止 rootProject）
     def scriptDir = rootProject.projectDir
     doLast {
         def proc = ['node', 'scripts/resource-manifest.mjs'].execute(null, scriptDir)
@@ -536,15 +545,15 @@ tasks.register('generateSpriteCode') {
     group = 'build'
     description = '从 LAYOUT + resource-registry.json + atlas-manifest.json 生成 SpriteRegistryData.kt / TextureAtlas.h'
     dependsOn 'generateResourceManifest'
-    // 2026-08-14：inputs/outputs 声明（mjs 内部内容 hash 为第二道防线）。
-    // .sprite-code.hash 必须一并声明（与 generateSpriteAtlasDef 同类死锁，2026-08-14 修复）。
+    // inputs/outputs 声明（mjs 内部内容 hash 为第二道防线）。
+    // .sprite-code.hash 必须一并声明——产物被清而 hash 残留时任务误判 UP-TO-DATE（死锁）。
     inputs.file("${rootProject.projectDir}/scripts/build-atlas.mjs")
     inputs.file("${rootProject.projectDir}/scripts/resource-registry.json")
     inputs.file("$buildDir/generated/sprite/atlas-manifest.json")
     outputs.file("$buildDir/generated/sprite/SpriteRegistryData.kt")
     outputs.file("$buildDir/generated/sprite/TextureAtlas.h")
     outputs.file("$buildDir/generated/sprite/.sprite-code.hash")
-    // 2026-08-14：配置缓存前置——配置期捕获脚本目录（doLast 内禁止 rootProject）
+    // 配置缓存约束——脚本目录在配置期捕获（doLast 内禁止 rootProject）
     def scriptDir = rootProject.projectDir
     doLast {
         def proc = ['node', 'scripts/build-atlas.mjs', '--codegen'].execute(null, scriptDir)
@@ -583,21 +592,20 @@ tasks.named('preBuild').configure {
 tasks.withType(Test).configureEach { dependsOn('generateResourceManifest', 'generateSpriteCode') }
 
 // ============================================================
-// 2026-08-10（WP7）：图集 ASTC 压缩产物生成任务
+// 图集 ASTC 压缩产物生成任务
 // 权威源：SpriteAtlasDef.kt + BuildingFeatureBoot.kt + drawable-nodpi/*.webp
 // 产物：assets/atlas/atlas_astc.ktx（KTX1 封装 ASTC 4×4）+ atlas-manifest.json
 // 守卫测试 AtlasManifestSyncTest 锁住 manifest↔SpriteAtlasDef↔KTX 三向一致性，
 // 权威源变更后该测试变红，提示运行此任务重新生成。
-// 2026-09-04（WS-0.d CI 加固②）：astcenc 缺失改为 **fail**（此前静默跳过）——
-// 权威源变更必须重新生成且需真实 astcenc，静默跳过会产出过期 KTX 让守卫测试误通过。
+// astcenc 缺失时构建直接失败，不允许静默跳过——权威源变更必须用真实 astcenc
+// 重新生成，静默跳过会产出过期 KTX 让守卫测试误通过。
 // ============================================================
 tasks.register('generateAstcAtlas') {
     group = 'build'
     description = '从权威源生成 ASTC 压缩图集（KTX1 + manifest）'
     dependsOn 'generateResourceManifest'
-    // 2026-08-14：配置缓存前置——配置期捕获（doLast 内禁止脚本对象）。
-    // 2026-08-22 修复：路径按 android 根目录（rootProject）解析——此前相对 project（app）
-    // 解析导致 astcenc 永远"找不到"、脚本路径错位，任务恒静默跳过（KTX 变更无法重生成）。
+    // 配置缓存约束——路径在配置期捕获（doLast 内禁止脚本对象）；
+    // astcenc 与脚本路径均按 android 根目录（rootProject）解析。
     def androidRoot = rootProject.projectDir
     def astcencDir = file("${androidRoot}/scripts/tools/astcenc/bin")
     def astcencCandidates = ['astcenc-avx2.exe', 'astcenc-sse4.1.exe', 'astcenc-sse2.exe']
@@ -621,7 +629,53 @@ tasks.register('generateAstcAtlas') {
     }
 }
 
-// 2026-08 债务根治：模块特有编译器参数（SDK/Java/Kotlin 公共配置已收编 xianxia.android convention）
+// ============================================================
+// 浮空岛崖壁独立纹理 KTX 生成任务（地图边缘系统）
+// 权威源：feature/game drawable-nodpi/map_edge_*.webp（import-art-assets.mjs 按
+//   bake{preserve,roundUp4} 烘焙，宽高已是 4 的倍数——ASTC 4×4 硬性要求）
+// 产物：assets/atlas/edge/map_edge_*.ktx（7 张，KTX1 + ASTC 4×4 + mip 链）
+// 消费端三级降级：ASTC KTX（Vulkan）→ RGBA mip 链 → RGBA 单级（GLES/Canvas
+//   用 WebP），故产物缺失不致命；但权威源变更后必须重新生成，否则 Vulkan 路径
+//   会落到低清回退——astcenc 缺失时直接构建失败，不允许静默跳过。
+// 守卫：EdgeKtxSyncTest 锁住 KTX ↔ WebP 逐张尺寸一致（防两路径布局漂移）。
+// ============================================================
+tasks.register('generateEdgeKtx') {
+    group = 'build'
+    description = '从 map_edge_*.webp 生成崖壁独立纹理 KTX（ASTC 4×4 + mip 链）'
+    mustRunAfter 'generateResourceManifest'
+    // 声明 inputs 获得 Gradle up-to-date 判定（源未变则跳过 astcenc 压缩开销）；
+    // mjs 内部另有内容 hash 为第二道防线
+    inputs.files(fileTree("${rootProject.projectDir}/feature/game/src/main/res/drawable-nodpi") {
+        include 'map_edge_*.webp'
+    })
+    inputs.file("${rootProject.projectDir}/scripts/build-edge-ktx.mjs")
+    inputs.file("${rootProject.projectDir}/scripts/lib/ktx1.mjs")
+    outputs.dir("${projectDir}/src/main/assets/atlas/edge")
+    // 配置缓存约束——路径在配置期捕获（doLast 内禁止脚本对象）
+    def androidRoot = rootProject.projectDir
+    def astcencDir = file("${androidRoot}/scripts/tools/astcenc/bin")
+    def astcencCandidates = ['astcenc-avx2.exe', 'astcenc-sse4.1.exe', 'astcenc-sse2.exe']
+        .collect { file("${astcencDir}/${it}") }
+    def scriptDir = androidRoot
+    doLast {
+        def hasAstcenc = astcencDir.exists() && astcencCandidates.any { it.exists() }
+        if (!hasAstcenc) {
+            throw new GradleException(
+                "generateEdgeKtx: astcenc 未找到（${astcencDir}）——崖壁独立纹理需 ASTC 压缩，" +
+                "请从 https://github.com/ARM-software/astc-encoder/releases 下载 windows-x64 版本放至 scripts/tools/astcenc/bin/。"
+            )
+        }
+        def proc = ['node', 'scripts/build-edge-ktx.mjs'].execute(null, scriptDir)
+        proc.consumeProcessOutput(System.out, System.err)
+        def exit = proc.waitFor()
+        if (exit != 0) {
+            throw new GradleException("generateEdgeKtx: build-edge-ktx.mjs 退出码 ${exit}")
+        }
+        logger.lifecycle('generateEdgeKtx: 完成')
+    }
+}
+
+// 模块特有编译器参数（SDK/Java/Kotlin 公共配置由 xianxia.android convention 提供）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']

@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.platform
 
 /**
- * APK 签名证书源 — 应用签名校验与平台解耦（计划 v2 阶段 7 平台能力接口化 / R-02）。
+ * APK 签名证书源 — 应用签名校验与平台解耦（平台能力接口化）。
  *
  * 引擎层（兑换码服务防篡改校验）只面向本接口取得当前应用签名证书字节，
  * 不直接依赖 Android `PackageManager`；SHA-256 摘要与哈希比对逻辑留在引擎层

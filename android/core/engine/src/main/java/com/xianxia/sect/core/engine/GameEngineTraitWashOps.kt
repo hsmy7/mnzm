@@ -12,11 +12,11 @@ import kotlin.coroutines.cancellation.CancellationException
 // GameEngineTraitWashOps.kt — 洗炼天赋/体质/词条（玉符消耗玩法）GameEngine 扩展入口
 // （对照 washSpiritRoot 的原子消耗 + sealed 结果 + 品质保底模式）
 //
-// 单槽语义（2026-08-09 需求变更）：洗炼只针对详情界面里指定的那一个特质
-// （targetId），其余同类特质保留不动——一次只洗炼一个，不再整套重掷替换。
+// 单槽语义：洗炼只针对详情界面里指定的那一个特质
+// （targetId），其余同类特质保留不动——一次只洗炼一个，不整套重掷替换。
 // 纯随机抽取函数（候选池/品阶分布/保底计数）在 GameEngineTraitWashRoll.kt。
 //
-// 排除集语义（2026-08-17 需求变更）：洗炼产物不得等于弟子**已有**的任何特质
+// 排除集语义：洗炼产物不得等于弟子**已有**的任何特质
 // （含被洗炼的目标槽位自身——不再允许"刷回原样"白耗玉符）；历史上刷到过但
 // 已不在弟子身上的条目仍在候选池，可再次刷到。与新增（TraitAdd）同口径。
 
@@ -44,7 +44,7 @@ sealed interface TraitWashConfirmResult {
  * → 按 [pityCount] 保底判定抽取目标槽位的新特质（其余同类特质保留不动，由 confirm 落盘）。
  *
  * 洗炼产物与弟子已有任何特质（含目标槽位自身）互斥——候选池排除全部已有槽位 template；
- * 历史上刷到过但已不在身上的条目仍可再次刷到（2026-08-17 需求变更）。
+     * 历史上刷到过但已不在身上的条目仍可再次刷到。
  *
  * 玉符不足时提前返回且**不消耗随机序列**（随机序列确定性保持）。
  * 洗炼只返回产物不写弟子；"确认替换"由 [confirmTraitWash] 负责。
@@ -73,6 +73,18 @@ suspend fun GameEngine.washTraitSlot(
     if (targetId.isBlank()) {
         DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 非法洗炼目标 id=$id")
         return@withEngineContext TraitWashResult.Error("非法洗炼目标")
+    }
+    // native 臂（batch-15）：C++ 校验链 + 排除集（含目标自身）+ 扣玉符 + 抽取
+    // 同事务原子；降级/失败信封 → Kotlin 原事务路径重执行校验链
+    val receipt = tryWashTraitSlotNative(
+        discipleId, type.name, targetId, pityCount, GameConfig.TraitWash.WASH_JADE_COST
+    )
+    if (receipt != null) {
+        // 玉符运行时 totalCount 同步（13.3——防 checkpoint 回涨）
+        syncJadeRuntimeAfterNative(GameConfig.TraitWash.WASH_JADE_COST)
+        // 事务外刷新玉符 UI 状态（清 1Hz 节流，徽章/详情即时更新）
+        jadeSymbolService.publishJadeSymbolStateNow()
+        return@withEngineContext TraitWashResult.Success(receipt.newId, receipt.newPityCount)
     }
     try {
         val result = washSlotInner(id, type, targetId, pityCount)
@@ -116,7 +128,7 @@ private fun GameEngine.washSlotInner(
         return@updateAndReturn TraitWashResult.Error("该特质已不存在")
     }
     // 已有槽位 template 排除集（含目标槽位自身）：洗炼产物不得等于弟子已有任何特质
-    // （2026-08-17 需求变更：禁止"刷回原样"；历史刷到过但已不在身上的条目仍在候选池）。
+    // （禁止"刷回原样"白耗玉符；历史刷到过但已不在身上的条目仍在候选池）。
     // 若仅排除保留槽位，产物可与目标槽位当前特质相同——确认替换校验虽放行（template 仍互异），
     // 但玩家白耗 1 玉符原地踏步，违背需求语义。
     val excludedTemplates = buildSet {
@@ -172,9 +184,21 @@ suspend fun GameEngine.confirmTraitWash(
         DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 非法弟子ID=$discipleId")
         return@withEngineContext TraitWashConfirmResult.Error("非法弟子ID")
     }
+    // native 臂（batch-24）：AUTHORITATIVE 稳态写者归 C++（三态判定 + 替换 +
+    // lifespan 同步 + checkpoint 同事务）；业务拒绝文案由 C++ 信封回传
+    // （与 Kotlin 回退臂逐字一致）；不可用 → 走下方 Kotlin 原事务体。
+    when (val outcome = confirmTraitWashNative(discipleId, type.name, targetId, newId)) {
+        is ConfirmNativeOutcome.Applied -> return@withEngineContext TraitWashConfirmResult.Success
+        is ConfirmNativeOutcome.Refused -> {
+            // C++ 文案（弟子不存在 / 弟子已死亡 / 该特质已不存在）直接作为用户可见错误
+            DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}被拒: id=$id code=${outcome.code}")
+            return@withEngineContext TraitWashConfirmResult.Error(outcome.message)
+        }
+        is ConfirmNativeOutcome.Unavailable -> Unit  // 降级：走 Kotlin 原路径
+    }
     try {
-        // 三态区分失败原因：NOT_FOUND/DEAD 给玩家明确文案（对抗性审查 2026-08-09：
-        // 原实现死亡弟子确认替换只报"弟子不存在"，玩家无法判断是误点还是异常）
+        // 三态区分失败原因：NOT_FOUND/DEAD 给玩家明确文案
+        // （死亡弟子确认替换也须可区分于"弟子不存在"）
         val outcome = stateStore.updateAndReturn<ConfirmOutcome> {
             if (id !in discipleTables.ids) {
                 DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 弟子不存在 id=$id")
@@ -241,7 +265,7 @@ private fun isValidSlotWash(
 private enum class ConfirmOutcome { NOT_FOUND, DEAD, INVALID, REPLACED }
 
 /**
- * 特质变更（洗炼替换/新增）后同步 lifespan 到新特质加成水平（对抗性审查 2026-08-09 数据篡改者发现）。
+ * 特质变更（洗炼替换/新增）后同步 lifespan 到新特质加成水平。
  *
  * 背景：lifespan 出生时按 `baseLifespan * (1 + 天赋lifespan加成 + 词条lifespan加成)` 固化，
  * 突破累加只含天赋加成——天赋/词条被洗炼替换或新增后，lifespan 携带旧加成残留（洗入"延年"不加、

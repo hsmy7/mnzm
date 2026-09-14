@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 旧档资质自愈守卫测试（2026-08-12 悟性重设计新增资质属性）。
+ * 旧档资质自愈守卫测试。
  *
  * 覆盖 [DiscipleTables.healDefaultAptitudes]：
  * - 各灵根阶梯区间（与生成站点一致：1根[80,100] 2根[60,80] 3根[40,60] 4根[20,40] 5根[1,20]）

@@ -176,7 +176,7 @@
 | mapping 后填工作量（~600 条） | 脚本生成骨架（从 drawable 名 + SpriteCategory 生成空映射），分阶段补齐；守卫先对已映射子集开放，最终闭环 |
 | 重导意外改变尺寸 | bake 默认 preserve + `--dry-run` diff 报告；审核后再落盘 |
 | mip 后 KTX 体积/构建时间上升 | ASTC mip ≈1.33x；只对地图图集做，build 增量 + 守卫同步；本地可 `--no-mip` 兜底 |
-| Canvas 软渲染无真 mip | `isFilterBitmap=true` 缓解 + 登记债项；Vulkan 路径不受影响 |
+| Canvas 软渲染无真 mip | `isFilterBitmap=true` 缓解 + 登记债项；Vulkan 路径不受影响——**已清偿**（2026-09：道路缩放闪烁根治——槽位对齐瓦片 + 链式双线性预降采样，见第八节 (b)） |
 | Compose 大图内存 | B.2(a) `inSampleSize` 上限 + LRU 缓存，可配置开关（低端设备默认开） |
 
 ---
@@ -198,7 +198,7 @@
 | 债项 | 产生原因（为何现在不全做） | 偿还触发条件 |
 |------|--------------------------|-------------|
 | (a) 通用精灵未 GPU 压缩（Compose 限制） | Compose ImageBitmap 无 ASTC 路径；走 native 渲染与 UI 架构矛盾 | 出现 UI 内存/带宽瓶颈（Bugly 内存告警、大 UI 卡顿反馈）或 UI 迁移 native 渲染时 |
-| (b) Canvas 软渲染无真 mip | 软渲染位图不走 GPU mip；本期仅双线性缓解 | Vulkan 已带 mip 后，软渲染设备仍反馈缩放闪烁时（提升 atlas 精度或手动 mip） |
+| (b) Canvas 软渲染无真 mip | 软渲染位图不走 GPU mip；本期仅双线性缓解 | **已清偿**（2026-09 道路缩放闪烁根治：触发条件达成——软渲染设备反馈缩放闪烁。落地：① 道路/灵田图集槽位收敛到与瓦片同显示分辨率比例（道路 768/192/576→128/32/96、灵田 512→128），消除 16:1×/24:1×/10.7:1× 深度降采样；② `SectAtlasAssembler` 拼装改双线性 + `downscaleWithBilinearChain`（>2:1× 时逐级 50% 双线性，近似软件 mip 链的面积平均语义）——深度降采样精灵（道路/灵田/云层/建筑）不再点采样摩尔纹。双后端同源修复；`SpriteAtlasDefGeneratedTest` 新增"槽位 ≤ 显示×3"全地图通用守卫） |
 | (c) 大背景转 native 渲染（B.2-c） | 规模化 UI 渲染需求未到；代价大 | 出现大规模 UI / 性能瓶颈时评估 |
 | (d) B.1 图集 mipmap | **已清偿**（2026-09：`build-atlas.mjs` 多 mip KTX + KtxLoader/VulkanBackend 落地；`--no-mip` 兜底） | — |
 | (e) B.1 各向异性 | **已清偿**（2026-09：`samplerAnisotropy` 特性守卫 + `setTextureQuality` 运行时开关落地；正交投影下增益有限已如实评估） | — |

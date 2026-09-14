@@ -2,8 +2,6 @@ package com.xianxia.sect.core.config
 
 /**
  * 附属宗门（Vassal）系统常量配置。
- *
- * 从 GameConfig.Vassal 迁移而来，GameConfig.Vassal 已废弃。
  */
 object VassalConfig {
 

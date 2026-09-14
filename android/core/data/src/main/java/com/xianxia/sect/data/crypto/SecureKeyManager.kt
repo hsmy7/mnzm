@@ -1,19 +1,17 @@
 package com.xianxia.sect.data.crypto
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Build
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import android.util.Log
-import java.io.*
-import java.security.*
+import java.io.File
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
-import javax.crypto.*
-import javax.crypto.spec.*
 
 object SecureKeyManager {
-    private const val TAG = "SecureKeyManager"
+    internal const val TAG = "SecureKeyManager"
 
     /**
      * 密钥恢复回调（可选）
@@ -30,28 +28,16 @@ object SecureKeyManager {
     @Volatile
     var allowAutoRecovery: Boolean = false
 
-    @Volatile
-    var accountBindingProvider: com.xianxia.sect.core.util.AccountBindingProvider? = null
 
-    private const val PREFS_NAME = "secure_key_prefs"
-    private const val KEY_PREF_KEY = "derived_key_hash"
-    private const val ACCOUNT_ANCHOR_KEY = "account_anchor_id"
-    private const val FALLBACK_ID_KEY = "fallback_account_id"
-    private const val KEY_SIZE = 256
-    private const val GCM_IV_LENGTH = 12
-    private const val GCM_TAG_LENGTH = 128
-    private const val SALT_LENGTH = 32
+    internal const val PREFS_NAME = "secure_key_prefs"
+    internal const val KEY_PREF_KEY = "derived_key_hash"
+    internal const val KEY_SIZE = 256
     
-    private const val KEY_FILE_NAME = ".secure_key"
-    private const val BACKUP_FILE_NAME = ".secure_key.bak"
-    private const val TEMP_FILE_NAME = ".secure_key.tmp"
     
-    private const val MIN_DISK_SPACE_BYTES = 64 * 1024L
 
     // 密钥版本化支持
-    private const val KEY_VERSION_CURRENT = 2
-    private const val KEY_VERSION_V1 = 1
-    private const val KEY_VERSION_PREF_KEY = "key_version"
+    internal const val KEY_VERSION_CURRENT = 2
+    internal const val KEY_VERSION_PREF_KEY = "key_version"
     
     private data class KeyCache(
         val key: ByteArray,
@@ -65,8 +51,77 @@ object SecureKeyManager {
     private const val KEY_CACHE_TTL = 5 * 60 * 1000L
     
     private val keyLock = Any()
-    private val recoveryLock = Any()
     
+
+    
+
+    
+
+    
+
+
+
+
+
+
+    
+
+    
+
+    
+
+    
+
+
+
+    
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    
+
+    
+
+    
+
+    
+
+    
+    // ========== 密钥健康状态查询 ==========
+    
+
+    
+
+    
+
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun getOrCreateKey(context: Context): ByteArray {
         synchronized(keyLock) {
             val currentCache = keyCache
@@ -86,41 +141,15 @@ object SecureKeyManager {
             }
         }
     }
-    
-    private fun checkFileSystemHealth(context: Context): Boolean {
-        val filesDir = context.filesDir
-        if (!filesDir.exists()) {
-            Log.e(TAG, "Files directory does not exist")
-            KeyManagerMetrics.fileSystemErrors.incrementAndGet()
-            return false
-        }
-        if (!filesDir.canRead() || !filesDir.canWrite()) {
-            Log.e(TAG, "Files directory is not accessible")
-            KeyManagerMetrics.fileSystemErrors.incrementAndGet()
-            return false
-        }
-        return true
-    }
-    
-    private fun checkDiskSpace(context: Context, requiredBytes: Long): Boolean {
-        val filesDir = context.filesDir
-        val freeSpace = filesDir.freeSpace
-        if (freeSpace < requiredBytes) {
-            Log.e(TAG, "Insufficient disk space: required=$requiredBytes, available=$freeSpace")
-            KeyManagerMetrics.diskFullErrors.incrementAndGet()
-            return false
-        }
-        return true
-    }
-    
+
     private fun getOrCreateDerivedKey(context: Context): ByteArray {
-        if (!checkFileSystemHealth(context)) {
+        if (!SecureKeyFileStore.checkFileSystemHealth(context)) {
             throw KeyFileSystemException("File system is not healthy or accessible")
         }
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val keyFile = File(context.filesDir, KEY_FILE_NAME)
-        val backupFile = File(context.filesDir, BACKUP_FILE_NAME)
+        val keyFile = File(context.filesDir, SecureKeyFileStore.KEY_FILE_NAME)
+        val backupFile = File(context.filesDir, SecureKeyFileStore.BACKUP_FILE_NAME)
 
         // P-2 拆分：读现有密钥 + 校验 + 备份恢复提取
         val existingKey = readExistingKeyOrRecover(context, prefs, keyFile, backupFile)
@@ -132,12 +161,12 @@ object SecureKeyManager {
         if (!keyFile.exists()) {
             if (backupFile.exists()) {
                 Log.i(TAG, "Key file missing but backup exists, attempting recovery")
-                val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
+                val recoveredKey = SecureKeyFileStore.tryRecoverFromBackup(context, backupFile, prefs)
                 if (recoveredKey != null) {
                     return recoveredKey
                 }
             }
-            return generateNewKey(context, prefs, keyFile, backupFile)
+            return SecureKeyFileStore.generateNewKey(context, prefs, keyFile, backupFile)
         }
 
         // 密钥文件存在但不可恢复 → 丢失预警 + 用户决策（原 193-257）
@@ -149,6 +178,9 @@ object SecureKeyManager {
      *
      * @return 有效密钥；密钥文件不存在或不可恢复时返回 null
      */
+    // [合并] 前者: 异常源跨IO/SDK不可枚举; 后者: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标 // 防御兜底: 异常源跨IO/SDK不可枚举,
+    // 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "ThrowsCount")
     private fun readExistingKeyOrRecover(
         context: Context,
         prefs: android.content.SharedPreferences,
@@ -159,7 +191,7 @@ object SecureKeyManager {
             // 密钥文件缺失但备份存在：尝试备份恢复
             if (backupFile.exists()) {
                 Log.i(TAG, "Key file missing but backup exists, attempting recovery")
-                val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
+                val recoveredKey = SecureKeyFileStore.tryRecoverFromBackup(context, backupFile, prefs)
                 if (recoveredKey != null) {
                     return recoveredKey
                 }
@@ -167,7 +199,7 @@ object SecureKeyManager {
             return null
         }
         val keyFromFile = try {
-            readKeyFileVerified(
+            SecureKeyFileStore.readKeyFileVerified(
                 context = context,
                 prefs = prefs,
                 keyFile = keyFile,
@@ -192,98 +224,16 @@ object SecureKeyManager {
             Log.w(TAG, "Failed to read existing key, attempting recovery from backup", e)
             null
         }
-        return keyFromFile ?: tryRecoverFromBackup(context, backupFile, prefs)
-    }
-
-    /**
-     * 读取密钥文件并校验（readExistingKeyOrRecover 拆分）：解密 + 哈希校验；
-     * 分支读取失败时以备份恢复兜底，恢复失败抛对应异常。
-     */
-    private fun readKeyFileVerified(
-        context: Context,
-        prefs: android.content.SharedPreferences,
-        keyFile: File,
-        backupFile: File
-    ): ByteArray {
-        val fromFile = when (val readResult = readKeyFileSafely(context, keyFile)) {
-            is KeyReadResult.Success -> {
-                val deviceSecret = getDeviceSecret(context)
-                val decryptedKey = decryptKey(readResult.data, deviceSecret)
-                if (verifyKeyHash(decryptedKey = decryptedKey, prefs = prefs)) {
-                    decryptedKey
-                } else {
-                    Log.w(TAG, "Key hash mismatch, attempting recovery from backup")
-                    recoverKeyOrThrow(
-                        context = context,
-                        backupFile = backupFile,
-                        prefs = prefs,
-                        onFailure = {
-                            KeyIntegrityException(
-                                "Key integrity verification failed. " +
-                                "This may indicate data corruption or tampering."
-                            )
-                        }
-                    )
-                }
-            }
-            is KeyReadResult.FileNotFound -> {
-                Log.w(TAG, "Key file reported as existing but could not be found")
-                null
-            }
-            is KeyReadResult.PermissionDenied -> {
-                Log.w(TAG, "Permission denied reading key file, attempting backup recovery")
-                recoverKeyOrThrow(
-                    context = context,
-                    backupFile = backupFile,
-                    prefs = prefs,
-                    onFailure = {
-                        KeyPermissionException("Permission denied accessing key file and no backup available")
-                    }
-                )
-            }
-            is KeyReadResult.Error -> {
-                Log.w(TAG, "Error reading key file: ${readResult.exception.message}", readResult.exception)
-                null
-            }
-        }
-        return fromFile ?: recoverKeyOrThrow(
-            context = context,
-            backupFile = backupFile,
-            prefs = prefs,
-            onFailure = {
-                KeyIntegrityException("Failed to read key file and no valid backup found.")
-            }
-        )
-    }
-
-    /**
-     * 备份恢复兜底（readExistingKeyOrRecover 拆分）：恢复失败时抛出自定义异常。
-     */
-    private fun recoverKeyOrThrow(
-        context: Context,
-        backupFile: File,
-        prefs: android.content.SharedPreferences,
-        onFailure: () -> Throwable
-    ): ByteArray {
-        return tryRecoverFromBackup(context, backupFile, prefs) ?: throw onFailure()
-    }
-
-    /**
-     * 密钥哈希校验（readExistingKeyOrRecover 拆分）：无存储哈希视为通过。
-     */
-    private fun verifyKeyHash(decryptedKey: ByteArray, prefs: android.content.SharedPreferences): Boolean {
-        val storedHash = prefs.getString(KEY_PREF_KEY, null) ?: return true
-        val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
-            .joinToString("") { "%02x".format(it) }
-        return currentHash == storedHash
+        return keyFromFile ?: SecureKeyFileStore.tryRecoverFromBackup(context, backupFile, prefs)
     }
 
     /**
      * P-2：密钥丢失预警 + 用户/回调决策 + 生成新密钥。
      *
-     * 原问题：直接 generateNewKey() 会导致所有旧存档永久丢失且无用户确认。
+     * 原问题：直接 SecureKeyFileStore.generateNewKey() 会导致所有旧存档永久丢失且无用户确认。
      * 修复方案：通过 recoveryCallback 让用户/调用方决策是否允许生成新密钥。
      */
+    @Suppress("ThrowsCount") // 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标
     private fun handleKeyLossAndRegenerate(
         context: Context,
         prefs: android.content.SharedPreferences,
@@ -314,12 +264,13 @@ object SecureKeyManager {
                 }
                 KeyRecoveryDecision.GENERATE_NEW_KEY -> {
                     // 用户明确确认生成新密钥（已知旧存档将丢失）
-                    Log.w(TAG, "[USER CONFIRMED] User explicitly confirmed key regeneration. Old saves will be permanently lost.")
+                    Log.w(TAG, "[USER CONFIRMED] User explicitly confirmed key regeneration. Old saves will be " +
+                        "permanently lost.")
                 }
                 KeyRecoveryDecision.RETRY -> {
                     // 用户选择重试，再次尝试从备份恢复
                     Log.i(TAG, "User requested retry, attempting backup recovery again")
-                    val retryKey = tryRecoverFromBackup(context, backupFile, prefs)
+                    val retryKey = SecureKeyFileStore.tryRecoverFromBackup(context, backupFile, prefs)
                     if (retryKey != null) {
                         return retryKey
                     }
@@ -348,502 +299,14 @@ object SecureKeyManager {
         }
 
         // 二次确认日志：在真正执行生成新密钥前再次记录
-        Log.w(TAG, "[FINAL CONFIRMATION] Executing generateNewKey(). This action is irreversible.")
+        Log.w(TAG, "[FINAL CONFIRMATION] Executing SecureKeyFileStore.generateNewKey(). This action is irreversible.")
 
         if (keyFile.exists()) keyFile.delete()
         if (backupFile.exists()) backupFile.delete()
-        return generateNewKey(context, prefs, keyFile, backupFile)
+        return SecureKeyFileStore.generateNewKey(context, prefs, keyFile, backupFile)
     }
-    
-    private fun readKeyFileSafely(context: Context, file: File): KeyReadResult {
-        try {
-            context.openFileInput(file.name).use { input ->
-                return KeyReadResult.Success(input.readBytes())
-            }
-        } catch (e: FileNotFoundException) {
-            Log.w(TAG, "File not found via openFileInput")
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Security exception via openFileInput", e)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to read via openFileInput: ${e.message}")
-        }
-        
-        return try {
-            if (!file.exists()) {
-                Log.w(TAG, "Key file does not exist")
-                return KeyReadResult.FileNotFound
-            }
-            
-            if (!file.canRead()) {
-                Log.w(TAG, "Key file exists but cannot be read, attempting to fix permissions")
-                KeyManagerMetrics.permissionFixAttempts.incrementAndGet()
-                
-                val fixed = file.setReadable(true)
-                Log.i(TAG, "Permission fix result: $fixed")
-                
-                if (!fixed) {
-                    KeyManagerMetrics.permissionFixSuccesses.incrementAndGet()
-                    return KeyReadResult.PermissionDenied
-                }
-            }
-            
-            val data = file.readBytes()
-            KeyReadResult.Success(data)
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Security exception reading key file", e)
-            KeyReadResult.PermissionDenied
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read key file directly", e)
-            KeyReadResult.Error(e)
-        }
-    }
-    
-    private fun tryRecoverFromBackup(
-        context: Context,
-        backupFile: File,
-        prefs: android.content.SharedPreferences
-    ): ByteArray? {
-        synchronized(recoveryLock) {
-            if (!backupFile.exists()) {
-                return null
-            }
-            
-            return try {
-                val readResult = readKeyFileSafely(context, backupFile)
-                val encryptedKey = when (readResult) {
-                    is KeyReadResult.Success -> readResult.data
-                    else -> return null
-                }
-                
-                val deviceSecret = getDeviceSecret(context)
-                val decryptedKey = decryptKey(encryptedKey, deviceSecret)
-                
-                val storedHash = prefs.getString(KEY_PREF_KEY, null)
-                if (storedHash != null) {
-                    val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
-                        .joinToString("") { "%02x".format(it) }
-                    if (currentHash != storedHash) {
-                        Log.w(TAG, "Backup key hash also mismatch")
-                        return null
-                    }
-                }
-                
-                val keyFile = File(context.filesDir, KEY_FILE_NAME)
-                writeKeyFileAtomically(context, keyFile, backupFile, encryptedKey)
-                
-                KeyManagerMetrics.backupRecoveries.incrementAndGet()
-                Log.i(TAG, "Successfully recovered key from backup")
-                decryptedKey
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to recover from backup", e)
-                null
-            }
-        }
-    }
-    
-    private fun generateNewKey(
-        context: Context,
-        prefs: android.content.SharedPreferences,
-        keyFile: File,
-        backupFile: File
-    ): ByteArray {
-        if (!checkDiskSpace(context, MIN_DISK_SPACE_BYTES)) {
-            throw KeyFileSystemException("Insufficient disk space to generate new key")
-        }
-        
-        Log.i(TAG, "Generating new derived key")
-        KeyManagerMetrics.keyRegenerations.incrementAndGet()
-        
-        val key = ByteArray(KEY_SIZE / 8).also { SecureRandom().nextBytes(it) }
-        val deviceSecret = getDeviceSecret(context)
-        val encryptedKey = encryptKey(key, deviceSecret)
-        
-        writeKeyFileAtomically(context, keyFile, backupFile, encryptedKey)
-        
-        val hash = MessageDigest.getInstance("SHA-256").digest(key)
-            .joinToString("") { "%02x".format(it) }
-        prefs.edit().putString(KEY_PREF_KEY, hash).apply()
-        prefs.edit().putInt(KEY_VERSION_PREF_KEY, KEY_VERSION_CURRENT).apply()
-        
-        Log.i(TAG, "Generated and stored new derived key v$KEY_VERSION_CURRENT")
-        return key
-    }
-    
-    private fun writeKeyFileAtomically(
-        context: Context,
-        keyFile: File,
-        backupFile: File,
-        encryptedKey: ByteArray
-    ) {
-        if (!checkDiskSpace(context, encryptedKey.size.toLong() * 3)) {
-            throw KeyFileSystemException("Insufficient disk space to write key file")
-        }
-        
-        try {
-            if (keyFile.exists()) {
-                try {
-                    val readResult = readKeyFileSafely(context, keyFile)
-                    if (readResult is KeyReadResult.Success) {
-                        context.openFileOutput(BACKUP_FILE_NAME, Context.MODE_PRIVATE).use { output ->
-                            output.write(readResult.data)
-                        }
-                        Log.i(TAG, "Created backup of existing key file")
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to create backup, but continuing", e)
-                }
-            }
-            
-            context.openFileOutput(KEY_FILE_NAME, Context.MODE_PRIVATE).use { output ->
-                output.write(encryptedKey)
-            }
-            Log.i(TAG, "Key file written successfully using Android API")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Android API write failed, attempting direct file access", e)
-            
-            val tempFile = File(context.filesDir, TEMP_FILE_NAME)
-            try {
-                FileOutputStream(tempFile).use { fos ->
-                    fos.write(encryptedKey)
-                    fos.fd.sync()
-                }
-                
-                if (keyFile.exists()) {
-                    if (backupFile.exists()) {
-                        backupFile.delete()
-                    }
-                    if (!keyFile.renameTo(backupFile)) {
-                        Log.w(TAG, "Failed to create backup, but continuing")
-                    }
-                }
-                
-                if (!tempFile.renameTo(keyFile)) {
-                    if (backupFile.exists()) {
-                        backupFile.renameTo(keyFile)
-                    }
-                    throw IOException("Failed to rename temp key file to final location")
-                }
-                
-                Log.i(TAG, "Key file written atomically via direct file access")
-                
-            } catch (directError: Exception) {
-                tempFile.delete()
-                Log.e(TAG, "All write methods failed", directError)
-                throw IOException("Failed to write key file: ${directError.message}", directError)
-            }
-        }
-    }
-    
-    private const val KEYSTORE_ALIAS = "xianxia_device_secret"
-    private const val SECRET_PREFS_NAME = "device_secret_prefs"
-    private const val SECRET_KEY = "hw_secret_hash"
-    
-    private fun getDeviceSecret(context: Context): ByteArray {
-        val hwSecret = getHardwareBackedSecret(context)
-        val hybridBinding = getHybridBindingFactor(context)
-        val combined = "${hwSecret}:${hybridBinding}:${context.packageName}"
-        return MessageDigest.getInstance("SHA-256").digest(combined.toByteArray(Charsets.UTF_8))
-    }
-    
-    fun getAccountBindingFactor(context: Context): String {
-        return try {
-            val provider = accountBindingProvider
-            if (provider != null && provider.isLoggedIn()) {
-                val userId = provider.getAccountUserId()
-                if (!userId.isNullOrEmpty()) {
-                    Log.d(TAG, "Using account binding factor")
-                    return userId
-                }
-            }
-            
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val fallbackId = prefs.getString(FALLBACK_ID_KEY, null)
-            if (!fallbackId.isNullOrEmpty()) {
-                Log.d(TAG, "Using fallback account binding factor")
-                return fallbackId
-            }
-            
-            Log.d(TAG, "No account factor available, using no_account")
-            "no_account"
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to get account binding factor, using no_account", e)
-            "no_account"
-        }
-    }
-    
-    fun setAccountAnchor(userId: String, context: Context) {
-        try {
-            require(userId.isNotEmpty()) { "userId must not be empty" }
-            
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit()
-                .putString(ACCOUNT_ANCHOR_KEY, userId)
-                .putString(FALLBACK_ID_KEY, userId)
-                .apply()
-            
-            Log.i(TAG, "Account anchor set successfully: ${userId.take(8)}...")
-            
-            clearCachedKey()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to set account anchor", e)
-            throw IllegalArgumentException("Failed to set account anchor: ${e.message}", e)
-        }
-    }
-    
-    private fun getHybridBindingFactor(context: Context): String {
-        val deviceFingerprint = getDeviceFingerprint(context)
-        val accountFactor = getAccountBindingFactor(context)
-        
-        val combined = "${deviceFingerprint}:${accountFactor}:${context.packageName}"
-        return MessageDigest.getInstance("SHA-256")
-            .digest(combined.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-    }
-    
-    private fun getHardwareBackedSecret(context: Context): String {
-        return try {
-            generateKeyStoreSecret(context)
-        } catch (e: Exception) {
-            Log.w(TAG, "Hardware secret generation failed, fallback to secure random", e)
-            generateSecureRandomSecret(context)
-        }
-    }
-    
-    @Suppress("NewApi")
-    private fun generateKeyStoreSecret(context: Context): String {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
-        if (!keyStore.containsAlias(KEYSTORE_ALIAS)) {
-            val keyGenerator = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES,
-                "AndroidKeyStore"
-            )
-            val builder = KeyGenParameterSpec.Builder(
-                KEYSTORE_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setRandomizedEncryptionRequired(true)
-
-            try {
-                // Migration: Android Keystore deprecated API replacement pending
-                // 当前使用的 setUserAuthenticationValidityDurationSeconds() 已在 Android R (API 30) 废弃
-                //
-                // 替代方案（按优先级）：
-                // 1. [推荐] 使用 BiometricPrompt API 进行用户认证
-                //    - 优势：支持生物识别（指纹/面部），用户体验更好
-                //    - 实现：使用 androidx.biometric:biometric 库
-                //    - 参考文档：https://developer.android.com/training/sign-in/biometric-auth
-                //
-                // 2. 使用 setUserAuthenticationParameters() (Android S+) [已在此实现]
-                //    - 优势：新的官方替代API
-                //    - 限制：仅支持 Android 12 (API 31) 及以上
-                //
-                // 3. 移除用户认证要求（如果业务允许）
-                //    - 优势：简单，无需用户交互
-                //    -劣势：安全性降低，密钥可被无认证访问
-                //
-                // 当前措施：
-                // - API >= 31: 使用新的 setUserAuthenticationParameters() API
-                // - API < 31: 保持废弃 API 以兼容 Android 6-10 设备，通过 @Suppress 抑制警告
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    // Android 12+ (API 31): 使用新的认证参数 API
-                    builder.setUserAuthenticationParameters(300, KeyProperties.AUTH_BIOMETRIC_STRONG)
-                    Log.d(TAG, "Using setUserAuthenticationParameters() for API ${Build.VERSION.SDK_INT}")
-                } else {
-                    // Android 6-11 (API 23-30): 使用废弃 API（保持向后兼容）
-                    @Suppress("DEPRECATION")
-                    builder.setUserAuthenticationRequired(true)
-                        .setUserAuthenticationValidityDurationSeconds(300)
-                    Log.d(TAG, "Using deprecated setUserAuthenticationValidityDurationSeconds() for API ${Build.VERSION.SDK_INT}")
-                }
-            } catch (e: java.security.InvalidAlgorithmParameterException) {
-                Log.w(TAG, "Device does not support user authentication, generating key without auth requirement")
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                try {
-                    builder.setIsStrongBoxBacked(false)
-                } catch (e: java.security.InvalidAlgorithmParameterException) {
-                    Log.w(TAG, "StrongBox not available on this device")
-                }
-            }
-
-            keyGenerator.init(builder.build())
-            keyGenerator.generateKey()
-        }
-        
-        val prefs = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-        var secretHash = prefs.getString(SECRET_KEY, null)
-        
-        if (secretHash == null) {
-            val rawSecret = ByteArray(32).also { SecureRandom().nextBytes(it) }
-            secretHash = MessageDigest.getInstance("SHA-256")
-                .digest(rawSecret)
-                .joinToString("") { "%02x".format(it) }
-            rawSecret.fill(0)
-            prefs.edit().putString(SECRET_KEY, secretHash).apply()
-        }
-        
-        return secretHash ?: throw IllegalStateException("Failed to store hardware secret")
-    }
-    
-    private fun generateSecureRandomSecret(context: Context): String {
-        val prefs = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-        var secretHash = prefs.getString(SECRET_KEY, null)
-        
-        if (secretHash == null) {
-            val entropySources = mutableListOf<ByteArray>()
-            entropySources.add(ByteArray(32).also { SecureRandom().nextBytes(it) })
-            try {
-                entropySources.add(System.currentTimeMillis().toString().toByteArray())
-                entropySources.add(java.util.UUID.randomUUID().toString().toByteArray())
-                val runtime = Runtime.getRuntime()
-                entropySources.add(runtime.freeMemory().toString().toByteArray())
-                entropySources.add(runtime.totalMemory().toString().toByteArray())
-            } catch (e: Exception) {
-                android.util.Log.w(TAG, "Entropy source collection incomplete (non-critical)", e)
-            }
-            
-            val combined = entropySources.fold(ByteArray(0)) { acc, bytes -> acc + bytes }
-            val hash = MessageDigest.getInstance("SHA-512").digest(combined)
-            secretHash = hash.joinToString("") { "%02x".format(it) }
-            entropySources.forEach { it.fill(0) }
-            combined.fill(0)
-            prefs.edit().putString(SECRET_KEY, secretHash).apply()
-        }
-        
-        return secretHash ?: throw IllegalStateException("Failed to generate secure random secret")
-    }
-    
-    @SuppressLint("HardwareIds")
-    private fun getDeviceFingerprint(context: Context): String {
-        val parts = mutableListOf<String>()
-
-        try {
-            val deviceId = android.provider.Settings.Secure.getString(
-                context.contentResolver,
-                android.provider.Settings.Secure.ANDROID_ID
-            ) ?: "unknown"
-            parts.add(deviceId)
-        } catch (e: Exception) {
-            android.util.Log.w(TAG, "Failed to read ANDROID_ID for fingerprint", e)
-        }
-
-        try {
-            parts.add(Build.BRAND)
-            parts.add(Build.MODEL)
-        } catch (e: Exception) {
-            android.util.Log.w(TAG, "Failed to read Build info for fingerprint", e)
-        }
-
-        try {
-            val packageInfo = context.packageManager.getPackageInfo(
-                context.packageName,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
-                else @Suppress("DEPRECATION") android.content.pm.PackageManager.GET_SIGNATURES
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val sigInfo = packageInfo.signingInfo
-                val apkContentsSigners = sigInfo?.apkContentsSigners
-                if (apkContentsSigners != null && apkContentsSigners.isNotEmpty()) {
-                    val certDigest = MessageDigest.getInstance("SHA-256")
-                        .digest(apkContentsSigners[0].toByteArray())
-                    parts.add(certDigest.joinToString("") { "%02x".format(it) })
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val signatures = packageInfo.signatures
-                if (signatures != null && signatures.isNotEmpty()) {
-                    val certDigest = MessageDigest.getInstance("SHA-256")
-                        .digest(signatures[0].toByteArray())
-                    parts.add(certDigest.joinToString("") { "%02x".format(it) })
-                }
-            }
-        } catch (e: Exception) {
-            android.util.Log.w(TAG, "Failed to extract signing certificate for fingerprint", e)
-        }
-
-        return if (parts.isNotEmpty()) {
-            MessageDigest.getInstance("SHA-256")
-                .digest(parts.joinToString("|").toByteArray(Charsets.UTF_8))
-                .joinToString("") { "%02x".format(it) }
-        } else {
-            "default_fingerprint"
-        }
-    }
-    
-    private fun encryptKey(key: ByteArray, secret: ByteArray): ByteArray {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        val secretKeySpec = SecretKeySpec(secret, "AES")
-        val iv = ByteArray(GCM_IV_LENGTH).also { SecureRandom().nextBytes(it) }
-        
-        cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, iv))
-        val encrypted = cipher.doFinal(key)
-        
-        // 版本化加密格式: [版本号(1字节)] [IV(12字节)] [密文+GCM标签]
-        val result = ByteArray(1 + GCM_IV_LENGTH + encrypted.size)
-        result[0] = KEY_VERSION_CURRENT.toByte()
-        System.arraycopy(iv, 0, result, 1, GCM_IV_LENGTH)
-        System.arraycopy(encrypted, 0, result, 1 + GCM_IV_LENGTH, encrypted.size)
-        
-        return result
-    }
-    
-    private fun decryptKey(encryptedKey: ByteArray, secret: ByteArray): ByteArray {
-        // 自动检测版本头：新格式首字节为版本号(1-3)，旧格式无版本头
-        val headerOffset = if (encryptedKey.size > (GCM_IV_LENGTH + 16 + 1) && 
-                               encryptedKey[0].toInt() in 1..3) 1 else 0
-        
-        val minLen = headerOffset + GCM_IV_LENGTH + 16
-        if (encryptedKey.size < minLen) {
-            throw IllegalArgumentException("Invalid encrypted key length: ${encryptedKey.size}, min: $minLen")
-        }
-        
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        val secretKeySpec = SecretKeySpec(secret, "AES")
-        val iv = encryptedKey.copyOfRange(headerOffset, headerOffset + GCM_IV_LENGTH)
-        val encrypted = encryptedKey.copyOfRange(headerOffset + GCM_IV_LENGTH, encryptedKey.size)
-        
-        cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, iv))
-        return cipher.doFinal(encrypted)
-    }
-    
-    fun rotateKey(context: Context): ByteArray {
-        synchronized(keyLock) {
-            Log.i(TAG, "Starting key rotation")
-            
-            keyCache?.key?.fill(0)
-            keyCache = null
-            
-            val keyFile = File(context.filesDir, KEY_FILE_NAME)
-            val backupFile = File(context.filesDir, BACKUP_FILE_NAME)
-            
-            keyFile.delete()
-            backupFile.delete()
-            
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().remove(KEY_PREF_KEY).apply()
-            
-            val newKey = generateNewKey(context, prefs, keyFile, backupFile)
-            keyCache = KeyCache(newKey, System.currentTimeMillis())
-            
-            Log.i(TAG, "Key rotation completed")
-            return newKey
-        }
-    }
-    
-    fun clearCachedKey() {
-        synchronized(keyLock) {
-            keyCache?.key?.fill(0)
-            keyCache = null
-        }
-    }
-    
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun verifyKeyIntegrity(context: Context): Boolean {
         return try {
             val key = getOrCreateKey(context)
@@ -862,104 +325,25 @@ object SecureKeyManager {
             false
         }
     }
-    
-    fun recoverKey(context: Context): KeyRecoveryResult {
-        synchronized(keyLock) {
-            val keyFile = File(context.filesDir, KEY_FILE_NAME)
-            val backupFile = File(context.filesDir, BACKUP_FILE_NAME)
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            
-            if (keyFile.exists()) {
-                try {
-                    val readResult = readKeyFileSafely(context, keyFile)
-                    if (readResult is KeyReadResult.Success) {
-                        val deviceSecret = getDeviceSecret(context)
-                        val decryptedKey = decryptKey(readResult.data, deviceSecret)
-                        
-                        val storedHash = prefs.getString(KEY_PREF_KEY, null)
-                        if (storedHash != null) {
-                            val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
-                                .joinToString("") { "%02x".format(it) }
-                            if (currentHash == storedHash) {
-                                keyCache = KeyCache(decryptedKey, System.currentTimeMillis())
-                                return KeyRecoveryResult.Success(decryptedKey, "Recovered from main file")
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to recover from main file", e)
-                }
-            }
-            
-            if (backupFile.exists()) {
-                try {
-                    val readResult = readKeyFileSafely(context, backupFile)
-                    if (readResult is KeyReadResult.Success) {
-                        val deviceSecret = getDeviceSecret(context)
-                        val decryptedKey = decryptKey(readResult.data, deviceSecret)
-                        
-                        val storedHash = prefs.getString(KEY_PREF_KEY, null)
-                        if (storedHash != null) {
-                            val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
-                                .joinToString("") { "%02x".format(it) }
-                            if (currentHash == storedHash) {
-                                writeKeyFileAtomically(context, keyFile, backupFile, readResult.data)
-                                keyCache = KeyCache(decryptedKey, System.currentTimeMillis())
-                                return KeyRecoveryResult.Success(decryptedKey, "Recovered from backup file")
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to recover from backup file", e)
-                }
-            }
-            
-            return KeyRecoveryResult.Failure("No recoverable key found. All save data may be lost.")
-        }
-    }
-    
-    
-    fun hasValidKey(context: Context): Boolean {
-        val keyFile = File(context.filesDir, KEY_FILE_NAME)
-        val backupFile = File(context.filesDir, BACKUP_FILE_NAME)
-        return keyFile.exists() || backupFile.exists()
-    }
-    
-    fun getMetrics(): Map<String, Long> {
-        return mapOf(
-            "permissionFixAttempts" to KeyManagerMetrics.permissionFixAttempts.get(),
-            "permissionFixSuccesses" to KeyManagerMetrics.permissionFixSuccesses.get(),
-            "backupRecoveries" to KeyManagerMetrics.backupRecoveries.get(),
-            "keyRegenerations" to KeyManagerMetrics.keyRegenerations.get(),
-            "diskFullErrors" to KeyManagerMetrics.diskFullErrors.get(),
-            "fileSystemErrors" to KeyManagerMetrics.fileSystemErrors.get()
-        )
-    }
-    
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun exportKeyRecoveryToken(context: Context): String {
         return synchronized(keyLock) {
             try {
                 val key = getOrCreateKey(context)
                 
-                val accountFactor = getAccountBindingFactor(context)
-                val deviceFingerprint = getDeviceFingerprint(context)
-                val timestamp = System.currentTimeMillis()
-                
-                val tokenData = StringBuilder().apply {
-                    append("v=1|")
-                    append("ts=").append(timestamp).append("|")
-                    append("af=").append(accountFactor).append("|")
-                    append("df=").append(deviceFingerprint).append("|")
-                    append("pkg=").append(context.packageName)
-                }.toString()
+                val accountFactor = DeviceBindingIdentity.getAccountBindingFactor(context)
+                val deviceFingerprint = DeviceBindingIdentity.getDeviceFingerprint(context)
                 
                 val tokenCipher = Cipher.getInstance("AES/GCM/NoPadding")
                 val tokenKey = MessageDigest.getInstance("SHA-256")
                     .digest("${accountFactor}:${deviceFingerprint}:recovery".toByteArray(Charsets.UTF_8))
                 val tokenKeySpec = SecretKeySpec(tokenKey, "AES")
-                val tokenIv = ByteArray(GCM_IV_LENGTH).also { SecureRandom().nextBytes(it) }
+                val tokenIv = ByteArray(DeviceBindingIdentity.GCM_IV_LENGTH).also { SecureRandom().nextBytes(it) }
                 
-                tokenCipher.init(Cipher.ENCRYPT_MODE, tokenKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, tokenIv))
+                tokenCipher.init(
+                    Cipher.ENCRYPT_MODE, tokenKeySpec,
+                    GCMParameterSpec(DeviceBindingIdentity.GCM_TAG_LENGTH, tokenIv))
                 val encryptedKey = tokenCipher.doFinal(key)
 
                 val result = android.util.Base64.encodeToString(
@@ -975,43 +359,42 @@ object SecureKeyManager {
             }
         }
     }
-    
+
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun importKeyRecoveryToken(token: String, context: Context): Boolean {
         return synchronized(keyLock) {
             try {
                 require(token.isNotEmpty()) { "Token must not be empty" }
 
                 val tokenBytes = android.util.Base64.decode(token, android.util.Base64.NO_WRAP)
-                if (tokenBytes.size < GCM_IV_LENGTH + 32) {
-                    throw IllegalArgumentException("Invalid token format")
-                }
+                require(tokenBytes.size >= DeviceBindingIdentity.GCM_IV_LENGTH + 32) { "Invalid token format" }
                 
-                val accountFactor = getAccountBindingFactor(context)
-                val deviceFingerprint = getDeviceFingerprint(context)
+                val accountFactor = DeviceBindingIdentity.getAccountBindingFactor(context)
+                val deviceFingerprint = DeviceBindingIdentity.getDeviceFingerprint(context)
                 
                 val tokenKey = MessageDigest.getInstance("SHA-256")
                     .digest("${accountFactor}:${deviceFingerprint}:recovery".toByteArray(Charsets.UTF_8))
                 val tokenKeySpec = SecretKeySpec(tokenKey, "AES")
                 
-                val tokenIv = tokenBytes.copyOfRange(0, GCM_IV_LENGTH)
-                val encryptedKey = tokenBytes.copyOfRange(GCM_IV_LENGTH, tokenBytes.size)
+                val tokenIv = tokenBytes.copyOfRange(0, DeviceBindingIdentity.GCM_IV_LENGTH)
+                val encryptedKey = tokenBytes.copyOfRange(DeviceBindingIdentity.GCM_IV_LENGTH, tokenBytes.size)
                 
                 val tokenCipher = Cipher.getInstance("AES/GCM/NoPadding")
-                tokenCipher.init(Cipher.DECRYPT_MODE, tokenKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, tokenIv))
+                tokenCipher.init(
+                    Cipher.DECRYPT_MODE, tokenKeySpec,
+                    GCMParameterSpec(DeviceBindingIdentity.GCM_TAG_LENGTH, tokenIv))
                 val recoveredKey = tokenCipher.doFinal(encryptedKey)
                 
-                if (recoveredKey.size != KEY_SIZE / 8) {
-                    throw IllegalArgumentException("Recovered key has invalid size")
-                }
+                require(recoveredKey.size == KEY_SIZE / 8) { "Recovered key has invalid size" }
                 
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val keyFile = File(context.filesDir, KEY_FILE_NAME)
-                val backupFile = File(context.filesDir, BACKUP_FILE_NAME)
+                val keyFile = File(context.filesDir, SecureKeyFileStore.KEY_FILE_NAME)
+                val backupFile = File(context.filesDir, SecureKeyFileStore.BACKUP_FILE_NAME)
                 
-                val deviceSecret = getDeviceSecret(context)
-                val encryptedStoredKey = encryptKey(recoveredKey, deviceSecret)
+                val deviceSecret = DeviceBindingIdentity.getDeviceSecret(context)
+                val encryptedStoredKey = DeviceBindingIdentity.encryptKey(recoveredKey, deviceSecret)
                 
-                writeKeyFileAtomically(context, keyFile, backupFile, encryptedStoredKey)
+                SecureKeyFileStore.writeKeyFileAtomically(context, keyFile, backupFile, encryptedStoredKey)
                 
                 val hash = MessageDigest.getInstance("SHA-256").digest(recoveredKey)
                     .joinToString("") { "%02x".format(it) }
@@ -1029,64 +412,5 @@ object SecureKeyManager {
                 false
             }
         }
-    }
-    
-    // ========== 密钥健康状态查询 ==========
-    
-    /**
-     * 获取当前存储的密钥版本号
-     * @return 密钥版本号，默认返回 V1（兼容旧数据）
-     */
-    fun getKeyVersion(context: Context): Int {
-        return try {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.getInt(KEY_VERSION_PREF_KEY, KEY_VERSION_V1)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to get key version", e)
-            KEY_VERSION_V1
-        }
-    }
-    
-    /**
-     * 检查是否具备强绑定因子（账号绑定）
-     * @return true 表示有有效的账号绑定因子
-     */
-    fun isStrongBindingAvailable(context: Context): Boolean {
-        return try {
-            val accountFactor = getAccountBindingFactor(context)
-            accountFactor != "no_account" && accountFactor.isNotEmpty()
-        } catch (e: Exception) {
-            false
-        }
-    }
-    
-    /**
-     * 获取完整的安全评估报告
-     * @return 包含各项安全指标的 Map
-     */
-    fun getSecurityAssessment(context: Context): Map<String, Any> {
-        return mapOf(
-            "keyVersion" to getKeyVersion(context),
-            "hasStrongBinding" to isStrongBindingAvailable(context),
-            "hasHardwareBacking" to true,
-            "keyFileExists" to File(context.filesDir, KEY_FILE_NAME).exists(),
-            "backupExists" to File(context.filesDir, BACKUP_FILE_NAME).exists(),
-            "integrityValid" to verifyKeyIntegrity(context),
-            "accountBinding" to getAccountBindingFactor(context).take(8) + "..."
-        )
-    }
-
-    /**
-     * Argon2id 密钥派生（委托给 SaveCrypto）
-     *
-     * 提供统一的 Argon2id 接口，内部委托 SaveCrypto 实现。
-     * 参数配置遵循 OWASP/NIST 推荐：memory=64MB, parallelism=2, iterations=3
-     *
-     * @param password 用户密码
-     * @param salt 随机盐值（32 字节）
-     * @return 派生的 256 位密钥
-     */
-    fun deriveKeyArgon2id(password: String, salt: ByteArray): ByteArray {
-        return SaveCrypto.deriveKeyArgon2id(password, salt)
     }
 }

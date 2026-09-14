@@ -22,15 +22,16 @@ import com.xianxia.sect.ui.game.map.sect.SectCameraState
 @Composable
 internal fun HerbGardenAuraOverlay(
     showAura: Boolean,
-    buildingGridX: Int,
-    buildingGridY: Int,
-    buildingW: Int,
-    buildingH: Int,
+    buildingRect: AuraBuildingRect,
     spiritFieldBuildings: List<GridBuildingData>,
     cameraState: SectCameraState,
     tileSize: Int
 ) {
     if (!showAura) return
+    val buildingGridX = buildingRect.gridX
+    val buildingGridY = buildingRect.gridY
+    val buildingW = buildingRect.width
+    val buildingH = buildingRect.height
 
     val scale = cameraState.scale
     val ts = tileSize

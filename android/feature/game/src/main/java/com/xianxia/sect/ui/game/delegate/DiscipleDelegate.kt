@@ -1,48 +1,23 @@
 package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
-import com.xianxia.sect.core.GameConfig.TraitWashType
-import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
-import com.xianxia.sect.core.engine.SpiritRootWashResult
-import com.xianxia.sect.core.engine.TraitAddConfirmResult
-import com.xianxia.sect.core.engine.TraitAddResult
-import com.xianxia.sect.core.engine.TraitWashConfirmResult
-import com.xianxia.sect.core.engine.TraitWashResult
 import com.xianxia.sect.core.engine.apprenticeToMaster
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
 import com.xianxia.sect.core.engine.changeDiscipleTypeAtomic
-import com.xianxia.sect.core.engine.confirmSpiritRootWash
-import com.xianxia.sect.core.engine.confirmTraitAdd
-import com.xianxia.sect.core.engine.confirmTraitWash
 import com.xianxia.sect.core.engine.confiscateStorageBagItem
-import com.xianxia.sect.core.engine.equipItem
 import com.xianxia.sect.core.engine.expelDisciple
-import com.xianxia.sect.core.engine.forgetManual
 import com.xianxia.sect.core.engine.getDiscipleAggregate
-import com.xianxia.sect.core.engine.learnManual
 import com.xianxia.sect.core.engine.recruitAllFromList
 import com.xianxia.sect.core.engine.recruitDiscipleFromList
 import com.xianxia.sect.core.engine.releaseReflectionDisciple
 import com.xianxia.sect.core.engine.removeFromRecruitList
-import com.xianxia.sect.core.engine.rollTraitAdd
-import com.xianxia.sect.core.engine.purchaseBreakthroughBonus
 import com.xianxia.sect.core.engine.renameDisciple
-import com.xianxia.sect.core.engine.replaceManual
 import com.xianxia.sect.core.engine.rewardItemsToDisciple
-import com.xianxia.sect.core.engine.unequipItem
-import com.xianxia.sect.core.engine.unequipItemById
 import com.xianxia.sect.core.engine.updateDisciple
-import com.xianxia.sect.core.engine.updateGameData
-import com.xianxia.sect.core.engine.usePill
-import com.xianxia.sect.core.engine.washSpiritRoot
-import com.xianxia.sect.core.engine.washTraitSlot
-import com.xianxia.sect.core.engine.service.RecruitService
+import com.xianxia.sect.core.engine.setAutoRecruitFilterValidated
+import com.xianxia.sect.core.engine.setAutoRejectFilterValidated
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
 import kotlinx.coroutines.CancellationException
@@ -50,11 +25,17 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-
-
 class DiscipleDelegate(
-    private val gameEngine: GameEngine,
+    /** internal：同包操作族扩展（WashOps/TraitAddOps/GearOps/LifecycleOps）消费——TMF 收敛外移 */
+    internal val gameEngine: GameEngine,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /**
+     * 招募被拦截时的用户可见提示回调——防抖拦截不得静默（否则玩家点击
+     * "同意"无任何反馈，表现为"招募无效果"）。
+     * GameViewModel 注入 showError 事件通道（线程安全 Channel.trySend）；
+     * 默认空实现兼容既有测试。
+     */
+    private val onRecruitBlocked: (String) -> Unit = {},
 ) {
     companion object {
         private const val TAG = "DiscipleDelegate"
@@ -98,236 +79,71 @@ class DiscipleDelegate(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
         gameEngine.launchOnEngine {
             try {
                 gameEngine.confiscateStorageBagItem(discipleId, item)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.w("DiscipleDelegate", "confiscateStorageBagItem failed", e)
             }
         }
     }
 
-    fun equipItem(discipleId: String, equipmentId: String) {
-        gameEngine.launchOnEngine {
-            try {
-                val result = gameEngine.equipItem(discipleId, equipmentId)
-                if (result is DomainResult.Failure) {
-                    android.util.Log.w(
-                        "DiscipleDelegate",
-                        "equipItem failed: disciple=$discipleId" +
-                            " equipment=$equipmentId" +
-                            " error=${result.error.message}"
-                    )
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    fun unequipItem(discipleId: String, slot: EquipmentSlot) {
-        gameEngine.launchOnEngine {
-            try {
-                val result = gameEngine.unequipItem(discipleId, slot)
-                if (result == null) return@launchOnEngine // disciple not found or slot empty
-                if (result is DomainResult.Failure) {
-                    android.util.Log.w(
-                        "DiscipleDelegate",
-                        "unequipItem(slot) failed: disciple=$discipleId" +
-                            " slot=$slot error=${result.error.message}"
-                    )
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    fun unequipItem(discipleId: String, equipmentId: String) {
-        gameEngine.launchOnEngine {
-            try {
-                val result = gameEngine.unequipItemById(discipleId, equipmentId)
-                if (result is DomainResult.Failure) {
-                    android.util.Log.w(
-                        "DiscipleDelegate",
-                        "unequipItem(id) failed: disciple=$discipleId" +
-                            " equipment=$equipmentId" +
-                            " error=${result.error.message}"
-                    )
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    fun forgetManual(discipleId: String, instanceId: String) {
-        gameEngine.launchOnEngine {
-            try {
-                gameEngine.forgetManual(discipleId, instanceId)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
-        gameEngine.launchOnEngine {
-            try {
-                gameEngine.replaceManual(discipleId, oldInstanceId, newStackId)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    fun learnManual(discipleId: String, stackId: String) {
-        gameEngine.launchOnEngine {
-            try {
-                gameEngine.learnManual(discipleId, stackId)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    fun usePill(discipleId: String, pillId: String) {
-        gameEngine.launchOnEngine {
-            try {
-                gameEngine.usePill(discipleId, pillId)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    fun usePill(discipleId: String, pill: Pill) {
-        gameEngine.launchOnEngine {
-            try {
-                gameEngine.usePill(discipleId, pill.id)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
         gameEngine.launchOnEngine {
             try {
                 gameEngine.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun renameDisciple(discipleId: String, newName: String) {
         gameEngine.launchOnEngine {
             try {
                 // 引擎层原子改名 + 同事务净化招募列表同人残留（防改名后重复可招募）
                 gameEngine.renameDisciple(discipleId, newName)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
 
-    /** 洗炼灵根：扣 1 玉符 + 保底判定抽取，返回产物（UI 会话持有结果，未确认不写弟子） */
-    suspend fun washSpiritRoot(discipleId: String, pityCount: Int): SpiritRootWashResult =
-        gameEngine.washSpiritRoot(discipleId, pityCount)
-
-    /** 确认替换：把弟子灵根替换为洗炼产物 */
-    suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
-        gameEngine.confirmSpiritRootWash(discipleId, newRootType)
-
-    /** 消耗 1 玉符提高弟子突破率（上限 0.30 即最多 2 次；突破尝试后自动清除重置） */
-    suspend fun purchaseBreakthroughBonus(discipleId: String): BreakthroughBonusResult =
-        gameEngine.purchaseBreakthroughBonus(discipleId)
-
-    // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根；单槽语义：只洗炼目标特质）──
-
-    /**
-     * 洗炼天赋的单个目标槽位：扣 1 玉符 + 保底判定抽取，返回产物
-     * （UI 会话持有结果，未确认不写弟子；其余天赋保留不动）。
-     */
-    suspend fun washTalent(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
-        gameEngine.washTraitSlot(discipleId, TraitWashType.TALENT, targetId, pityCount)
-
-    /** 洗炼体质的单个目标槽位：扣 1 玉符 + 保底判定抽取，返回产物 */
-    suspend fun washPhysique(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
-        gameEngine.washTraitSlot(discipleId, TraitWashType.PHYSIQUE, targetId, pityCount)
-
-    /** 洗炼词条的单个目标槽位：扣 1 玉符 + 保底判定抽取，返回产物 */
-    suspend fun washAffix(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
-        gameEngine.washTraitSlot(discipleId, TraitWashType.AFFIX, targetId, pityCount)
-
-    /** 确认替换天赋：把目标天赋槽位替换为洗炼产物（其余天赋保留） */
-    suspend fun confirmTalent(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
-        gameEngine.confirmTraitWash(discipleId, TraitWashType.TALENT, targetId, newId)
-
-    /** 确认替换体质：把目标体质槽位替换为洗炼产物（其余体质保留） */
-    suspend fun confirmPhysique(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
-        gameEngine.confirmTraitWash(discipleId, TraitWashType.PHYSIQUE, targetId, newId)
-
-    /** 确认替换词条：把目标词条槽位替换为洗炼产物（其余词条保留） */
-    suspend fun confirmAffix(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
-        gameEngine.confirmTraitWash(discipleId, TraitWashType.AFFIX, targetId, newId)
-
-    // ── 新增天赋/体质/词条（玉符消耗玩法，流程复用洗炼界面；刷新即扣玉符、结果持久化）──
-
-    /** 刷新天赋：扣 1 玉符 + 无负面抽取，返回产物并持久化（未确认不写弟子） */
-    suspend fun addTalent(discipleId: String): TraitAddResult =
-        gameEngine.rollTraitAdd(discipleId, TraitWashType.TALENT)
-
-    /** 刷新体质：扣 1 玉符 + 无负面抽取，返回产物并持久化（未确认不写弟子） */
-    suspend fun addPhysique(discipleId: String): TraitAddResult =
-        gameEngine.rollTraitAdd(discipleId, TraitWashType.PHYSIQUE)
-
-    /** 刷新词条：扣 1 玉符 + 无负面抽取，返回产物并持久化（未确认不写弟子） */
-    suspend fun addAffix(discipleId: String): TraitAddResult =
-        gameEngine.rollTraitAdd(discipleId, TraitWashType.AFFIX)
-
-    /** 确认新增天赋：把刷新产物追加到弟子（不消耗玉符，清除 pending） */
-    suspend fun confirmAddTalent(discipleId: String, newId: String): TraitAddConfirmResult =
-        gameEngine.confirmTraitAdd(discipleId, TraitWashType.TALENT, newId)
-
-    /** 确认新增体质：把刷新产物追加到弟子（不消耗玉符，清除 pending） */
-    suspend fun confirmAddPhysique(discipleId: String, newId: String): TraitAddConfirmResult =
-        gameEngine.confirmTraitAdd(discipleId, TraitWashType.PHYSIQUE, newId)
-
-    /** 确认新增词条：把刷新产物追加到弟子（不消耗玉符，清除 pending） */
-    suspend fun confirmAddAffix(discipleId: String, newId: String): TraitAddConfirmResult =
-        gameEngine.confirmTraitAdd(discipleId, TraitWashType.AFFIX, newId)
-
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun recruitDiscipleFromList(discipleId: String) {
         if (discipleId.isBlank()) {
             Log.w(TAG, "recruitDiscipleFromList: skipped (empty id)")
+            onRecruitBlocked("招募操作无效，请重试")
             return
         }
-        synchronized(recruitingLock) {
-            if (isRecruitingAll) {
-                Log.w(TAG, "recruitDiscipleFromList: skipped (isRecruitingAll=true) for $discipleId")
-                return
-            }
-            if (recruitingDiscipleIds.contains(discipleId)) {
-                Log.w(TAG, "recruitDiscipleFromList: skipped (duplicate) for $discipleId")
-                return
-            }
-            recruitingDiscipleIds.add(discipleId)
-        }
         gameEngine.launchOnEngine {
+            // 防抖占位/拦截必须在协程内部执行——若在点击时占位且 launch
+            // 落在 engineScope 已取消窗口（关闭/紧急重启），block 与 finally
+            // 都不执行，占位永久残留 → 该弟子后续点击全部被静默拦截。
+            // 占位随协程实际执行注册，取消窗口零残留。
+            synchronized(recruitingLock) {
+                if (isRecruitingAll) {
+                    Log.w(TAG, "recruitDiscipleFromList: skipped (isRecruitingAll=true) for $discipleId")
+                    onRecruitBlocked("一键招募进行中，请稍后再试")
+                    return@launchOnEngine
+                }
+                if (recruitingDiscipleIds.contains(discipleId)) {
+                    Log.w(TAG, "recruitDiscipleFromList: skipped (duplicate) for $discipleId")
+                    onRecruitBlocked("该弟子招募进行中，请稍候")
+                    return@launchOnEngine
+                }
+                recruitingDiscipleIds.add(discipleId)
+            }
             try {
                 Log.d(TAG, "recruitDiscipleFromList: launching for $discipleId")
                 val newId = gameEngine.recruitDiscipleFromList(discipleId)
@@ -336,9 +152,11 @@ class DiscipleDelegate(
                 } else {
                     Log.d(TAG, "recruitDiscipleFromList: success id=$newId for $discipleId")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.w(TAG, "recruitDiscipleFromList: exception for $discipleId", e)
+                onRecruitBlocked("招募操作异常，请重试")
             } finally {
                 synchronized(recruitingLock) {
                     recruitingDiscipleIds.remove(discipleId)
@@ -347,19 +165,32 @@ class DiscipleDelegate(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun recruitAllDisciples() {
-        synchronized(recruitingLock) {
-            if (isRecruitingAll) return
-            if (recruitingDiscipleIds.isNotEmpty()) return
-            isRecruitingAll = true
-        }
         gameEngine.launchOnEngine {
+            // 同单招：isRecruitingAll 置位随协程实际执行（取消窗口零残留；
+            // 点击时置位会在取消窗口永久拦截手动招募）
+            synchronized(recruitingLock) {
+                if (isRecruitingAll) {
+                    Log.w(TAG, "recruitAllDisciples: skipped (isRecruitingAll=true)")
+                    onRecruitBlocked("一键招募进行中，请稍后再试")
+                    return@launchOnEngine
+                }
+                if (recruitingDiscipleIds.isNotEmpty()) {
+                    Log.w(TAG, "recruitAllDisciples: skipped (other recruiting in progress)")
+                    onRecruitBlocked("有弟子招募进行中，请稍后再试")
+                    return@launchOnEngine
+                }
+                isRecruitingAll = true
+            }
             try {
                 val count = gameEngine.recruitAllFromList()
                 Log.d(TAG, "recruitAllDisciples: recruited $count disciples")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.w(TAG, "recruitAllDisciples: failed", e)
+                onRecruitBlocked("一键招募异常，请重试")
             } finally {
                 synchronized(recruitingLock) { recruitingDiscipleIds.clear() }
                 isRecruitingAll = false
@@ -396,6 +227,7 @@ class DiscipleDelegate(
     }
 
     /** 应用交谈效果并记录冷却年份 */
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun applyConversationEffects(
         discipleId: String,
         currentYear: Int,
@@ -420,30 +252,19 @@ class DiscipleDelegate(
                         statusData = newStatus
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
 
     fun setAutoRecruitFilter(filter: Set<Int>) {
-        val validated = filter.filter { it in 1..5 }.toSet()
-        gameEngine.launchOnEngine {
-            gameEngine.updateGameData { gd ->
-                gd.copy(autoRecruitSpiritRootFilter = validated)
-            }
-            RecruitService.resetAutoRecruitIdle()
-        }
+        gameEngine.launchOnEngine { gameEngine.setAutoRecruitFilterValidated(filter) }
     }
 
     fun setAutoRejectFilter(filter: Set<Int>) {
-        val validated = filter.filter { it in 1..5 }.toSet()
-        gameEngine.launchOnEngine {
-            gameEngine.updateGameData { gd ->
-                gd.copy(autoRejectSpiritRootFilter = validated)
-            }
-            RecruitService.resetAutoRejectIdle()
-        }
+        gameEngine.launchOnEngine { gameEngine.setAutoRejectFilterValidated(filter) }
     }
 }

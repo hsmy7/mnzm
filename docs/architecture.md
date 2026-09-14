@@ -330,8 +330,8 @@ RunState（运行时状态 — 可循环回退）
 
 | 技术栈 | Android 现状 | iOS 迁移方案 | 风险 |
 |--------|-------------|-------------|------|
-| core:domain / core:engine | 零 Android 依赖（基线 ✅；R-02 阶段 7 接口化收尾后 `import android.*` 仅剩 11 处——ThermalMonitor 4 + FrameMetricsMonitor 7，随 C-06 退役批次移出） | KMP 直接复用 | 低 |
-| **C++ 引擎（game-core）** | 纯 C++20 零 Android 依赖（迁移主线已收口：确定性逻辑核心全部 C++ 化，AUTHORITATIVE 生产真相源；含 ECS 骨架 + System 调度 + JobSystem 并行化 + 战斗残余下沉） | **直接复用**（桌面 GTest 已验证跨平台编译） | 低 |
+| core:domain / core:engine | 零 Android 依赖（基线 ✅；R-02 接口化 + C-06 批 8-1 端口化后，engine 主源 `import android.*` **实测仅 1 处**：`render/RenderFallbackReporter.kt:3 import android.util.Log`——2026-09-15 核查更正，旧记"仅剩 11 处"已过期） | KMP 直接复用 | 低 |
+| **C++ 引擎（game-core）** | 纯 C++20 零 Android 依赖（确定性逻辑核心已全部 C++ 化，AUTHORITATIVE 生产真相源；含 ECS 骨架 + System 调度 + JobSystem 并行化 + 战斗残余下沉 + 建筑/道路/外交/弟子管理 UI 操作面事务；**反向通道逐域关闭与剩余 UI 操作面下沉仍在推进**） | **直接复用**（桌面 GTest 已验证跨平台编译） | 低 |
 | C++ 渲染引擎 | Vulkan（Android 独占）+ JNI | Metal 或软件渲染（`SoftwareCanvasBackend` 纯软渲染可跨平台）；JNI → 平台桥 | 中 |
 | Compose UI | Jetpack Compose（Android 独占） | Compose Multiplatform 或重写 | 高（评估点） |
 | Room | Room 2.6.1 | SQLDelight / 原生 SQLite | 中（迁移风险点，新数据层组件优先跨平台选型） |
@@ -461,6 +461,8 @@ rules/database-migration.md 规则并同步更新此处。
 
 | # | 来源 | 待办内容 | 严重度 | 治理方向 |
 |---|---|---|---|---|
+| ~~R-01~~ | 根治批次交付盘点 | ~~detekt baseline 存量约 3058 条违规未登记~~ → **✅ 已清偿（2026-09-15 实测）**：M3 各批（handover §2.20~§2.30）逐族真修清偿完毕，**六模块 `detekt-baseline.xml` 均 0 条、`./gradlew detekt` 全绿** | ✅ 已销账 | — |
+| ~~R-12 / R-13 / R-14~~ | detekt 全量排查各批 | ~~core:domain 3 项 / feature:game 6 项 / feature:game 10 项~~ → **✅ 已清偿（2026-09-15 实测）**：`:feature:game` 最后 10 处随 §2.59.3 清偿，六模块 detekt 全绿、baseline 全 0（详见 handover §2.20~§2.30 + §2.59.3） | ✅ 已销账 | — |
 | R-01 | 根治批次交付盘点 | **detekt baseline 存量约 3058 条违规未登记**（app 254 / data 464 / domain 511 / engine 1167 / ui 23 / game 639）：TooGenericExceptionCaught / ReturnCount / CyclomaticComplexMethod / ThrowsCount / UnusedParameter 等历史存量，不在架构文档原登记范围，baseline"只缩不增"下仍真实存在 | 🟡 中 | 专项批次逐条真修或评估销账；新违规必须直接修复 |
 | R-02 | 根治批次交付盘点 | **core/engine 存在 33 处 `import android.*`**（android.util.Log / android.os.Build / android.content.Context / PerformanceHintManager / SystemClock 等，分布于 thermal/perf/config/registry/save 等领域），与"零 Android 依赖"声明不符（本批次仅清零 audio 包） | 🟡 中 | 平台能力接口化专项（参照 G1/G3 已建模式：core 层接口 + app 层实现）。**2026-08-25 注记**：彻底单引擎下随计划 v2 阶段 5（引擎循环入 C++）逐批自然消除，保留侧（UI/平台层）无需此清理。**2026-08-27 阶段 5 更新**：循环路径 3 处已消除（`GameTimeClock` 的 `SystemClock`+`Log`——TimeSource 移 app 层 `di/PlatformTimeModule.kt`；`GameEngineCore` 的 `Build`——doBusyWait 改 supportsOnSpinWait 反射探测）；剩余 ~30 处（perf/thermal/registry/config/service/domain）随阶段 7 Kotlin 引擎退役时移 app 层，保留侧无需清理的结论不变。**2026-08-28 阶段 7 更新（接口化收尾，36→11 处）**：`AndroidThermalReader` 移 app `platform/`；`BatteryAwareController` 拆分（接口+策略纯函数留 engine，Android 广播/binder 读取移 app）；`GpuTierDetector` 移 feature/game（GpuTier/GpuRenderConfig 留 engine）；`OemPowerProfileProvider` 厂商识别改平台串注入；`android.util.Log`→`DomainLog`（4 文件）；`android.util.Base64`→`kotlin.io.encoding`（ManualDatabase）；资产链 `AssetSource` 端口（BuildingConfigService/ManualDatabase/ManualRegistry/GameDataManager/ResourcePreloader）+ 签名校验 `ApkSigningCertificateSource` 端口（RedeemCodeService），app 侧新增 `AndroidAssetSource`/`AndroidApkSigningCertificateSource` + CoreModule 绑定；剩余 11 处（ThermalMonitor 4 + FrameMetricsMonitor 7）随 C-06 退役批次专项重构。**2026-08-29 批 8-1 完成**：ThermalStatusReader/PerformanceHintPort/FrameMetricsSession 端口入 engine，Android 实现移 app platform/（AndroidThermalPorts/WindowFrameMetricsSession），engine `import android.*` 清零（androidx 注解不计） |
 | R-03 | 根治批次交付盘点 | **163 处 @Suppress 拆分妥协**：LongMethod 为真拆根除，但拆分搬移引出的 LongParameterList / CyclomaticComplexMethod / ReturnCount / UnusedParameter 等 163 处采用 @Suppress 压制（语义保真已验证） | 🟢 低 | 长期项：参数聚合数据类/策略模式等真拆，逐步消除 Suppress |
@@ -527,6 +529,9 @@ rules/database-migration.md 规则并同步更新此处。
 | T-PRO | proguard 宽规则进一步收窄 | 每次 R8 相关发布验证 | 按序尝试删除 kotlinx.serialization → coroutines → lifecycle/room 整包规则（官方 consumer rules 兜底），每次完整 R8 验证 + 存档读写回归 |
 | T-CPP-1 | C++ 引擎未实现 kotlinx-proto 编解码（存档经 Kotlin 镜像，格式零变更） | iOS 立项且需无 Kotlin 的纯 C++ 存档 | 按 kotlinx-serialization protobuf 标准 wire 兼容方案实现（2174 个 @ProtoNumber schema 生成 + 默认值省略规则 + Map/Set KeyValue/packed + .sav 两层头 + CRC32C）；当前镜像方案已覆盖全部场景（详见 docs/adr/cpp-engine-migration.md） |
 | T-CPP-2 | 静态数据双份（Kotlin Registry + C++ 表） | **计划 v2 阶段 3 已部分触发**（codegen 权威落地：中性源 scripts/data/*.json + 6 生成器只读中性源，重跑零漂移；Kotlin Registry 由各 RegistryGuardTest + StaticDataSingleSourceGuardTest 全量比对兜底；灵草/种子双端守卫补齐）；**余项（Kotlin Registry 文件级生成）偿还触发**：阶段 7（Kotlin 退役）或 iOS 立项需单一数据源时 | 余项：Kotlin Registry 文件改由 gen-*.mjs 直接生成（API 保持）；迁移期以守卫测试防漂移（现有守卫已覆盖 6 类全量比对） |
+| T-1 | 小精灵槽位随缩放上限提升（渲染纹理降采样管线改版登记，2026-09） | `CameraState.MAX_ZOOM` 上调至 >3.0 时 | 128 槽位在上界 3.0 处 1.125× 放大（8% 软度，与瓦片一致已验收）；256+ 槽位需全 LAYOUT 重排。触发后槽位按新上限重算（公式：槽位 = ceil(maxDisplay/32)×32）并重排布局（gutter ≥8 规则不变，`SpriteAtlasDefGeneratedTest` gutter 守卫自动校验） |
+| T-2 | REPEAT 整图地面 quad 的 mip（渲染纹理降采样管线改版登记，2026-09） | `GROUND_QUAD_ENABLED` 重新启用时（Adreno 740 采样异常黑屏定位后） | REPEAT 与图集 mip 语义不同源——为其单独生成 REPEAT mip 链并连接上传（`uploadRepeatTexture` 路径扩展 mipLevels），不得复用图集 per-sprite mip |
+| T-3 | 大结构（天枢殿/门楼）3× 极限放大略柔（渲染纹理降采样管线改版登记，2026-09） | 出现"建筑放大细节"玩家反馈或美术要求时 | 全 3× 覆盖槽位（2592px）超单图集可行性——评估局部高清槽位或图集拆分（天枢殿 1024² 槽位 1.19:1×、门楼 768×512 槽位 2.67:1× 为按显示建模现状） |
 
 ### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 

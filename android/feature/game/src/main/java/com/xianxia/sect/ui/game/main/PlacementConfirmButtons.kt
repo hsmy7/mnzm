@@ -27,24 +27,26 @@ import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 建筑上方确认/取消（✓/x）按钮的统一大小（dp）。
- * 需求：选中建筑时（含建造建筑时）建筑上方的勾按钮和 x 按钮大小改为 32dp。
+ * 选中建筑时（含建造建筑时）建筑上方的勾按钮和 x 按钮大小为 32dp。
  */
 internal val CONFIRM_BUTTON_SIZE = 32.dp
 
 /**
  * 建筑放置确认/取消按钮 — 固定出现在建筑上方居中，不受地图方格尺寸限制。
  */
+/** 建筑放置锚点（PlacementConfirmButtons 参数分组）：吸附格坐标 + 占地尺寸 */
+data class PlacedAnchor(val gridX: Int, val gridY: Int, val size: GridSnapHelper.BuildingSize)
+
 @Composable
 internal fun PlacementConfirmButtons(
-    snappedGridX: Int,
-    snappedGridY: Int,
-    buildingSize: GridSnapHelper.BuildingSize,
+    anchor: PlacedAnchor,
     cameraState: SectCameraState,
     tileSize: Int,
     validity: GridSnapHelper.PlacementValidity,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val (snappedGridX, snappedGridY, buildingSize) = anchor
     val density = LocalDensity.current.density
     val worldX = GridSnapHelper.gridToWorld(snappedGridX, tileSize).toFloat()
     val worldY = GridSnapHelper.gridToWorld(snappedGridY, tileSize).toFloat()
@@ -58,9 +60,9 @@ internal fun PlacementConfirmButtons(
         onConfirm = onConfirm,
         onCancel = onCancel
     )
-    // ★ 2026-09 修复：删除 Compose"放置预览覆盖层"（40% 半透明绿矩形）——
-    //   与渲染层预览框（描边）叠加成"两个绿色半透明背景"；渲染层已承担
-    //   绿/红可放置提示职责，此覆盖层冗余
+    // 不得在此叠加 Compose"放置预览覆盖层"（半透明绿矩形）——会与渲染层
+    // 预览框（描边）叠加成"两个绿色半透明背景"；渲染层已承担
+    // 绿/红可放置提示职责
 }
 
 /**

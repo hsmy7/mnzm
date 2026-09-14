@@ -13,7 +13,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffRoadTest — 道路系统跨语言差分对拍（批次 R 验收核心）。
+ * DiffRoadTest — 道路系统跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::map::road_system（tileTypeForBitmask/roadBorderMask/
  * bitmaskAt）与 Kotlin RoadTiling 语义**逐位一致**——双端渲染深耦合收敛的

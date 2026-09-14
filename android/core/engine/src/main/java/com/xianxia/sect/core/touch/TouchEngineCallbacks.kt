@@ -8,6 +8,7 @@ package com.xianxia.sect.core.touch
  *
  * 所有回调默认空实现，UI 层按需覆写。
  */
+@Suppress("TooManyFunctions") // 触控事件端口契约：手势/拖拽/缩放回调族，框架分发面
 interface TouchEngineCallbacks {
 
     /** 相机平移（SCROLLING / FLINGING）。dx/dy 为屏幕像素偏移。 */

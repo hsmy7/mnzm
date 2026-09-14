@@ -26,7 +26,7 @@ import org.mockito.Mockito.`when`
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * activeLoadJob 归属语义测试（C4，2026-08-05）。
+ * activeLoadJob 归属语义测试。
  *
  * 守卫契约：
  * - 新操作注册时取消旧 job（既有行为）

@@ -89,30 +89,32 @@ data class StorageUsage(
 
 // ==================== 扩展函数 ====================
 
+/** StorageError → SaveError 错误码映射：未知错误码归 UNKNOWN */
+private val STORAGE_ERROR_TO_SAVE_ERROR: Map<com.xianxia.sect.data.result.StorageError, SaveError> = mapOf(
+    com.xianxia.sect.data.result.StorageError.INVALID_SLOT to SaveError.INVALID_SLOT,
+    com.xianxia.sect.data.result.StorageError.SLOT_EMPTY to SaveError.SLOT_EMPTY,
+    com.xianxia.sect.data.result.StorageError.SLOT_CORRUPTED to SaveError.SLOT_CORRUPTED,
+    com.xianxia.sect.data.result.StorageError.SAVE_FAILED to SaveError.SAVE_FAILED,
+    com.xianxia.sect.data.result.StorageError.LOAD_FAILED to SaveError.LOAD_FAILED,
+    com.xianxia.sect.data.result.StorageError.DELETE_FAILED to SaveError.DELETE_FAILED,
+    com.xianxia.sect.data.result.StorageError.IO_ERROR to SaveError.IO_ERROR,
+    com.xianxia.sect.data.result.StorageError.OUT_OF_MEMORY to SaveError.OUT_OF_MEMORY,
+    com.xianxia.sect.data.result.StorageError.ENCRYPTION_ERROR to SaveError.ENCRYPTION_ERROR,
+    com.xianxia.sect.data.result.StorageError.DECRYPTION_ERROR to SaveError.DECRYPTION_ERROR,
+    com.xianxia.sect.data.result.StorageError.KEY_DERIVATION_ERROR to SaveError.KEY_DERIVATION_ERROR,
+    com.xianxia.sect.data.result.StorageError.TIMEOUT to SaveError.TIMEOUT,
+    com.xianxia.sect.data.result.StorageError.WAL_ERROR to SaveError.WAL_ERROR,
+    com.xianxia.sect.data.result.StorageError.DATABASE_ERROR to SaveError.DATABASE_ERROR,
+    com.xianxia.sect.data.result.StorageError.TRANSACTION_FAILED to SaveError.TRANSACTION_FAILED
+)
+
 fun <T> com.xianxia.sect.data.result.StorageResult<T>.toUnifiedResult(): SaveResult<T> = when (this) {
     is com.xianxia.sect.data.result.StorageResult.Success -> SaveResult.success(data)
     is com.xianxia.sect.data.result.StorageResult.Skipped -> SaveResult.failure(
         SaveError.SAVE_FAILED, message
     )
     is com.xianxia.sect.data.result.StorageResult.Failure -> SaveResult.failure(
-        when (error) {
-            com.xianxia.sect.data.result.StorageError.INVALID_SLOT -> SaveError.INVALID_SLOT
-            com.xianxia.sect.data.result.StorageError.SLOT_EMPTY -> SaveError.SLOT_EMPTY
-            com.xianxia.sect.data.result.StorageError.SLOT_CORRUPTED -> SaveError.SLOT_CORRUPTED
-            com.xianxia.sect.data.result.StorageError.SAVE_FAILED -> SaveError.SAVE_FAILED
-            com.xianxia.sect.data.result.StorageError.LOAD_FAILED -> SaveError.LOAD_FAILED
-            com.xianxia.sect.data.result.StorageError.DELETE_FAILED -> SaveError.DELETE_FAILED
-            com.xianxia.sect.data.result.StorageError.IO_ERROR -> SaveError.IO_ERROR
-            com.xianxia.sect.data.result.StorageError.OUT_OF_MEMORY -> SaveError.OUT_OF_MEMORY
-            com.xianxia.sect.data.result.StorageError.ENCRYPTION_ERROR -> SaveError.ENCRYPTION_ERROR
-            com.xianxia.sect.data.result.StorageError.DECRYPTION_ERROR -> SaveError.DECRYPTION_ERROR
-            com.xianxia.sect.data.result.StorageError.KEY_DERIVATION_ERROR -> SaveError.KEY_DERIVATION_ERROR
-            com.xianxia.sect.data.result.StorageError.TIMEOUT -> SaveError.TIMEOUT
-            com.xianxia.sect.data.result.StorageError.WAL_ERROR -> SaveError.WAL_ERROR
-            com.xianxia.sect.data.result.StorageError.DATABASE_ERROR -> SaveError.DATABASE_ERROR
-            com.xianxia.sect.data.result.StorageError.TRANSACTION_FAILED -> SaveError.TRANSACTION_FAILED
-            else -> SaveError.UNKNOWN
-        },
+        STORAGE_ERROR_TO_SAVE_ERROR[error] ?: SaveError.UNKNOWN,
         message,
         cause
     )
@@ -148,6 +150,8 @@ class StorageFacade @Inject constructor(
 
     // ==================== 生命周期方法 ====================
 
+    @Suppress("TooGenericExceptionCaught", "ThrowsCount") // 前者: 防御兜底异常源不可枚举; 后者: 启动清理段取消穿透
+    // rethrow 刻意独立抛出(结构化取消语义), 非疏忽超标
     suspend fun initialize(): SaveResult<Unit> {
         if (isInitialized.get()) {
             Log.d(TAG, "StorageFacade already initialized")
@@ -158,15 +162,15 @@ class StorageFacade @Inject constructor(
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.INITIALIZING, 0.1f, "Initializing storage")
 
             engine.startMaintenance()
-            // 接线 SaveFileManager 双缓冲备份（.sav/.bak）——此前从未初始化，
-            // 所有备份写入/恢复路径为死代码（2026-08-04 存档恢复链路修复）
+            // 初始化 SaveFileManager 双缓冲备份（.sav/.bak）
             saveFileManager.initialize(context.filesDir)
-            // D21（2026-08-05）：启动时清理崩溃遗留 .tmp 文件（此前无生产调用点，
-            // 每次写中途崩溃残留一个 .tmp 累积占盘）+ 清理孤儿 .bak（修正语义后
-            // .sav 永不清——它是 DB 损坏时的恢复点）
+            // 启动时清理崩溃遗留 .tmp 文件与孤儿 .bak（.sav 永不清——
+            // 它是 DB 损坏时的恢复点）
             try {
                 saveFileManager.cleanupOrphanedTmp()
                 saveFileManager.cleanExpiredBackups()
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 初始化取消时中止; 两清理为阻塞 IO 无挂起点, 分支防未来挂起点引入
             } catch (e: Exception) {
                 Log.w(TAG, "启动清理备份目录失败（非阻断）", e)
             }
@@ -174,7 +178,8 @@ class StorageFacade @Inject constructor(
             // Database integrity check: verify the database can be read.
             // If Room schema validation fails (e.g., FK mismatch on orphaned sub-tables),
             // this throws immediately, giving a clear error instead of silent failure.
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f, "Verifying database integrity")
+            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f,
+                "Verifying database integrity")
             try {
                 val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(1) }
                 Log.d(TAG, "Database integrity check passed (slot 1: ${metadata?.sectName ?: "empty"})")
@@ -205,6 +210,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun shutdown() {
         if (!isShuttingDown.compareAndSet(false, true)) {
             Log.w(TAG, "StorageFacade shutdown already in progress")
@@ -224,6 +230,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 异步存取方法 ====================
 
+    @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     suspend fun save(slot: Int, data: SaveData): SaveResult<Unit> {
         ensureInitialized()
         val startTime = System.currentTimeMillis()
@@ -252,6 +259,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     suspend fun load(slot: Int): SaveResult<SaveData> {
         ensureInitialized()
         val startTime = System.currentTimeMillis()
@@ -282,6 +290,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 删除方法 ====================
 
+    @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     suspend fun delete(slot: Int): SaveResult<Unit> {
         return try {
             ensureInitialized()
@@ -312,6 +321,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 槽位管理方法 ====================
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun getSaveSlotsSuspend(): List<SaveSlot> {
         return try {
             engine.getSaveSlots()
@@ -334,6 +344,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 数据检查方法 ====================
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun hasSaveSuspend(slot: Int): Boolean {
         return try {
             engine.hasData(slot)
@@ -345,6 +356,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun isSaveCorruptedSuspend(slot: Int): Boolean {
         return try {
             !engine.hasData(slot) && lockManager.isValidSlot(slot)
@@ -377,6 +389,7 @@ class StorageFacade @Inject constructor(
         )
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     suspend fun getStorageHealth(): StorageHealthReport {
         val corruptedSlots = mutableListOf<Int>()
         val warnings = mutableListOf<String>()
@@ -404,6 +417,7 @@ class StorageFacade @Inject constructor(
         )
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     suspend fun getSlotHealth(slot: Int): SlotHealthReport {
         if (!lockManager.isValidSlot(slot)) {
             return SlotHealthReport(slot, false, false, 0L, false, listOf("Invalid slot"))
@@ -428,24 +442,14 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     suspend fun getStorageUsageSuspend(): StorageUsage {
         return try {
             val slotBytes = mutableMapOf<Int, Long>()
             var totalBytes = 0L
 
             for (slot in 0..lockManager.getMaxSlots()) {
-                val size = try {
-                    if (engine.hasData(slot)) {
-                        val data = engine.load(slot).getOrNull()
-                        if (data != null) {
-                            com.xianxia.sect.data.engine.StorageEngine.estimateSaveSize(data)
-                        } else 0L
-                    } else 0L
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    0L
-                }
+                val size = slotUsageBytes(slot)
                 slotBytes[slot] = size
                 totalBytes += size
             }
@@ -461,6 +465,26 @@ class StorageFacade @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "getStorageUsage failed", e)
             StorageUsage(0L, emptyMap(), 0L, 0L)
+        }
+    }
+
+    /**
+     * 单槽占用字节数：无数据或读取失败计 0；
+     * 协程取消正常传播，不吞取消信号。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级计 0, 非静默吞噬
+    private suspend fun slotUsageBytes(slot: Int): Long {
+        return try {
+            if (engine.hasData(slot)) {
+                val data = engine.load(slot).getOrNull()
+                if (data != null) {
+                    com.xianxia.sect.data.engine.StorageEngine.estimateSaveSize(data)
+                } else 0L
+            } else 0L
+        } catch (e: CancellationException) {
+            throw e
+        } catch (ignored: Exception) {
+            0L
         }
     }
 

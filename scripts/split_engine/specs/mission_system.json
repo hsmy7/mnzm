@@ -1,0 +1,24 @@
+{
+  "files": [
+    {
+      "name": "MissionSystemRewardOps",
+      "header": "// ── 任务奖励配置与生成域（自 MissionSystem 拆出，行为零变更） ────────────────",
+      "fns": [
+        "createRewardConfig",
+        "createTier1RewardConfig",
+        "createTier2RewardConfig",
+        "createTier3RewardConfig",
+        "createTier4RewardConfig",
+        "rollSpiritStones",
+        "generateMaterials",
+        "generateBaseMaterials",
+        "generatePills",
+        "generateEquipment",
+        "generateManuals",
+        "buildWeightedPool",
+        "weightedRandom",
+        "generateMaterialBatch"
+      ]
+    }
+  ]
+}

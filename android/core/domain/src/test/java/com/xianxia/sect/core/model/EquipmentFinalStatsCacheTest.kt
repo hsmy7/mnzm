@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * C2（P1-C）守卫测试：EquipmentInstance.getFinalStats 引用/值语义缓存。
+ * 装备最终属性缓存守卫测试：EquipmentInstance.getFinalStats 引用/值语义缓存。
  *
  * 背景：getFinalStats 是属性计算链的内层热点（每弟子每装备调用，91 处
  * getFinalStats 调用点的公共内层）。EquipmentInstance 是不可变 COW 对象，

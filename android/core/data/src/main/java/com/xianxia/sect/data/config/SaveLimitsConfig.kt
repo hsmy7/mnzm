@@ -9,7 +9,7 @@ import javax.inject.Singleton
  * 存档限制集中配置管理器。
  *
  * 统一管理所有与存档大小、数量、归档策略相关的运行时可调参数。
- * 所有值均通过 MMKV 统一偏好持久化（docs/architecture.md 待办 D-29），支持运行时热更新。
+ * 所有值均通过 MMKV 统一偏好持久化，支持运行时热更新。
  * 配置变更会自动约束在 [minValue, maxValue] 范围内。
  */
 @Singleton

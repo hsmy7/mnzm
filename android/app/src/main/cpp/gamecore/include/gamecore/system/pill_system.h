@@ -11,7 +11,7 @@
 #include "gamecore/system/disciple_stats.h"
 
 // ============================================================
-// 丹药系统（计划 v2 阶段 2 / T2.1：每旬自动服药）
+// 丹药系统（每旬自动服药）
 //
 // 等价移植 Kotlin DisciplePillManager / PillEffectApplier / StorageBagUtils
 // 的**纯逻辑**部分：
@@ -153,7 +153,7 @@ inline bool healGatingBlocked(const Disciple& d, const ItemEffect& e) {
 }
 
 /// 服用资格检查（canUsePill）
-/// C1（2026-08-31）：治疗/回蓝丹按需服用——满血/满蓝时不可自动服用
+/// 治疗/回蓝丹按需服用——满血/满蓝时不可自动服用
 /// （避免满状态白吃）
 inline bool canUsePill(const Disciple& d, const ItemEffect& effect) {
     if (!meetsRealmRequirement(d.realm, effect.minRealm)) return false;

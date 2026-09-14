@@ -9,7 +9,7 @@ import com.xianxia.sect.core.model.StorageBagItem
  * 范围限定：本工具只操作"背包引用列表"（[StorageBagItem] 列表的增删查），
  * **不涉及仓库堆叠合并**——装备/功法实例转回仓库堆叠的统一入口在
  * `:core:engine` 的 InventorySystem（addEquipmentInstanceToBag /
- * addManualInstanceToBag，P-20 迁移），保证真实容量约束 + 溢出转邮件 +
+ * addManualInstanceToBag），保证真实容量约束 + 溢出转邮件 +
  * 来源追踪，防止 domain 侧手写合并绕过守卫测试。
  */
 object StorageBagUtils {
@@ -49,12 +49,12 @@ object StorageBagUtils {
     /**
      * 向储物袋列表追加条目（同 itemId 合并数量）。
      *
-     * D-03 独立存储：袋条目**持有数据**（equipmentInstance / stackedData /
+     * 独立存储下袋条目**持有数据**（equipmentInstance / stackedData /
      * manualInstance 非空即已物化）。合并时若新条目带 payload 而旧条目是
      * 引用式（payload 空），以新 payload 升级旧条目——同一 id 的物化条目
      * 不会重复产生，此分支仅覆盖迁移期边界。
      *
-     * 容量无上限：列表不设截断（旧 P-20 语义保留——守卫测试扫描截断反模式）。
+     * 容量无上限：列表不设截断（语义保留——守卫测试扫描截断反模式）。
      */
     fun increaseItemQuantity(
         items: List<StorageBagItem>,

@@ -7,7 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 炼丹师/锻造师职业字段序列化测试（2026-08-09 职业系统）。
+ * 炼丹师/锻造师职业字段序列化测试。
  *
  * 覆盖：4 个职业字段（alchemyLevel/alchemyPromotionCount/forgeLevel/forgePromotionCount）
  * round-trip 相等；旧档缺省解码为 0（无职业）。
@@ -68,7 +68,7 @@ class DiscipleSerializerProfessionTest {
         assertEquals(5, decoded.skills.forgeLevel)
     }
 
-    // ---- 资质（2026-08-12 新增固定属性，@ProtoNumber(110) + @EncodeDefault ALWAYS）----
+    // ---- 资质（@ProtoNumber(110) + @EncodeDefault ALWAYS）----
 
     @Test
     fun `aptitude round-trip preserves value`() {

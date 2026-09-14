@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.TimeUnit
 
 /**
- * AndroidSurfaceProvider 防御与事件翻译测试（2026-08-13 平台抽象）。
+ * AndroidSurfaceProvider 防御与事件翻译测试。
  *
  * 覆盖 SurfaceProvider 契约状态机：创建+初始尺寸合并 / 尺寸变化 / 销毁 /
  * 重创建序列 / 纪元防 stale（destroy 后旧事件拒绝）/ 10s 初始化超时安全网
@@ -185,7 +185,7 @@ class AndroidSurfaceProviderTest {
 
     @Test
     fun `surfaceCreated - 不触发 lockCanvas（GPU 初始化前零 Canvas 连接）`() {
-        // 根因守卫（2026-09 骁龙 8 Gen 2 实测）：surfaceCreated 时 buffer 未就绪，
+        // 根因守卫（骁龙 8 Gen 2 实测）：surfaceCreated 时 buffer 未就绪，
         // lockCanvas 失败经 AOSP Surface::lock 失败路径泄漏 CPU API 连接（不 disconnect），
         // 后续 vkCreateAndroidSurfaceKHR/eglCreateWindowSurface 被 "already connected
         // to another API" 拒绝 → Vulkan/GLES 初始化失败 → CPU 软件渲染。
@@ -311,5 +311,40 @@ class AndroidSurfaceProviderTest {
         advanceMainLooper(20)
 
         assertEquals("超时回调仅触发一次", listOf("initTimeout"), listener.events)
+    }
+
+    // ── 预算化超时（prewarm 在途时宿主传入延长预算）──
+
+    @Test
+    fun `自定义预算 timeoutMs - 未到不触发 到期触发`() {
+        val holder = mockHolder()
+        val listener = RecordingListener()
+        val provider = AndroidSurfaceProvider(holder)
+        provider.setEventListener(listener)
+
+        // 3s 预算：2s 未到不触发，累计 4s 触发一次
+        provider.startInitTimeout(timeoutMs = 3_000L)
+        advanceMainLooper(2)
+        assertEquals("2s 未到 3s 预算不得触发", emptyList<String>(), listener.events)
+
+        advanceMainLooper(2)
+        assertEquals("累计 4s 超过 3s 预算触发", listOf("initTimeout"), listener.events)
+    }
+
+    @Test
+    fun `延长预算 18s - 基础 10s 不触发`() {
+        val holder = mockHolder()
+        val listener = RecordingListener()
+        val provider = AndroidSurfaceProvider(holder)
+        provider.setEventListener(listener)
+
+        // prewarm 在途时宿主传入 prewarm 起点+8s+10s 的延长预算——
+        // 基础 10s 安全网不再把「健康但慢」误判为卡死
+        provider.startInitTimeout(timeoutMs = 18_000L)
+        advanceMainLooper(11)
+        assertEquals("基础 10s 不得触发 18s 预算", emptyList<String>(), listener.events)
+
+        advanceMainLooper(8)
+        assertEquals("累计 19s 超过 18s 预算触发", listOf("initTimeout"), listener.events)
     }
 }

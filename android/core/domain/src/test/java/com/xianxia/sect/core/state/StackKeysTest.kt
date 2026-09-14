@@ -45,7 +45,8 @@ class StackKeysTest {
     fun `pill key - contains grade - different grade does not merge`() {
         val low = Pill(id = "1", name = "回气丹", rarity = 1, category = PillCategory.CULTIVATION, grade = PillGrade.LOW)
         val low2 = Pill(id = "2", name = "回气丹", rarity = 1, category = PillCategory.CULTIVATION, grade = PillGrade.LOW)
-        val medium = Pill(id = "3", name = "回气丹", rarity = 1, category = PillCategory.CULTIVATION, grade = PillGrade.MEDIUM)
+        val medium = Pill(id = "3", name = "回气丹", rarity = 1, category = PillCategory.CULTIVATION,
+            grade = PillGrade.MEDIUM)
         assertEquals(StackKeys.pill(low), StackKeys.pill(low2))
         // 品阶效果不同，属不同物品，键必须不同
         assertNotEquals(StackKeys.pill(low), StackKeys.pill(medium))

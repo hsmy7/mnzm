@@ -8,15 +8,12 @@ class SaveLoadModelsTest {
 
     @Test
     fun `progress constants - have monotonically increasing values`() {
+        // 进度常量表只保留有真实推进点的档位（无推进点的死常量不得加入）
         val values = listOf(
             SaveLoadViewModelConstants.PROGRESS_START,
-            SaveLoadViewModelConstants.PROGRESS_ENGINE_INIT,
-            SaveLoadViewModelConstants.PROGRESS_DATA_LOAD,
             SaveLoadViewModelConstants.PROGRESS_SAVE_COMPLETE,
-            SaveLoadViewModelConstants.PROGRESS_RESTART_DATA_LOAD,
             SaveLoadViewModelConstants.PROGRESS_DATA_PRELOAD,
             SaveLoadViewModelConstants.PROGRESS_SPRITE_PRELOAD,
-            SaveLoadViewModelConstants.PROGRESS_GAME_LOOP_START,
             SaveLoadViewModelConstants.PROGRESS_MAP_PRELOAD,
             SaveLoadViewModelConstants.PROGRESS_COMPLETE
         )
@@ -44,7 +41,7 @@ class SaveLoadModelsTest {
             SaveLoadViewModelConstants.PHASE_INIT,
             SaveLoadViewModelConstants.PHASE_DATA_PRELOAD,
             SaveLoadViewModelConstants.PHASE_SPRITE_PRELOAD,
-            SaveLoadViewModelConstants.PHASE_READY
+            SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
         )
         assertEquals(4, phases.size)
         phases.forEach { phase ->

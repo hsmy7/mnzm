@@ -94,7 +94,7 @@ internal fun BattleResultDialog(
     }
 }
 
-/** 战利品排序（BattleResultDialog 拆分）：关注优先 + 稀有度降序 */
+/** 战利品排序：关注优先 + 稀有度降序 */
 private fun sortBattleRewards(
     items: List<BattleRewardItem>,
     watchedKeys: Set<String>
@@ -108,8 +108,7 @@ private fun sortBattleRewards(
     nameOf = { it.name }
 )
 
-/** 对话框内容（BattleResultDialog 拆分）：滚动战报区 + 底部按钮 + 战利品详情弹窗 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 对话框内容：滚动战报区 + 底部按钮 + 战利品详情弹窗 */
 @Suppress("LongParameterList")
 @Composable
 private fun BattleResultDialogContent(
@@ -177,8 +176,7 @@ private fun BattleResultDialogContent(
     }
 }
 
-/** 滚动战报区内容（BattleResultDialog 拆分）：出战弟子 / 被掠夺 / 阵亡 / 战利品 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 滚动战报区内容：出战弟子 / 被掠夺 / 阵亡 / 战利品 */
 // 拆分命名:与调用点语义一致
 @Suppress("LongParameterList", "FunctionNaming")
 private fun LazyListScope.BattleResultLazyContent(
@@ -249,7 +247,7 @@ private fun LazyListScope.BattleResultLazyContent(
     }
 }
 
-/** 分区标题项（BattleResultDialog 拆分）：上间距 16dp + 标题 + 下间距 8dp */
+/** 分区标题项：上间距 16dp + 标题 + 下间距 8dp */
 // 拆分命名:与调用点语义一致
 @Suppress("FunctionNaming")
 private fun LazyListScope.BattleResultSectionHeader(title: String, color: Color) {
@@ -265,7 +263,7 @@ private fun LazyListScope.BattleResultSectionHeader(title: String, color: Color)
     }
 }
 
-/** 参战弟子网格（BattleResultDialog 拆分）：每行 4 人，阵亡态强制 0 血/阵亡显示 */
+/** 参战弟子网格：每行 4 人，阵亡态强制 0 血/阵亡显示 */
 @Composable
 private fun BattleMemberGrid(
     members: List<BattleLogMember>,
@@ -305,7 +303,7 @@ private fun BattleMemberGrid(
     }
 }
 
-/** 战利品卡片行（BattleResultDialog 拆分）：横向滚动物品卡，长按查看详情 */
+/** 战利品卡片行：横向滚动物品卡，长按查看详情 */
 @Composable
 private fun BattleRewardCardRow(
     items: List<BattleRewardItem>,
@@ -341,7 +339,7 @@ private fun BattleRewardCardRow(
     }
 }
 
-/** 底部按钮（BattleResultDialog 拆分）：防守=知道了；进攻=战斗详情 + 确定 */
+/** 底部按钮：防守=知道了；进攻=战斗详情 + 确定 */
 @Composable
 private fun BattleResultBottomButtons(
     isBeastDefense: Boolean,

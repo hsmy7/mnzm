@@ -28,6 +28,13 @@ import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.battle.calculateRealmGapFactors
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 class BattleSystemTest {
 
@@ -115,7 +122,7 @@ class BattleSystemTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 2026-08-04 战斗核查修复回归（G3 敌方治疗 / G5 死亡不出手 / G6 分区 RNG）
+    // 战斗核查回归：敌方治疗 / 死亡不出手 / 分区 RNG
     // ═══════════════════════════════════════════════════════════════
 
     private fun combatant(
@@ -170,8 +177,7 @@ class BattleSystemTest {
             }
         }
         assertNotNull("未找到妖兽治疗触发种子（40 个种子内应触发）", healed)
-        // 治疗有效：战报存在蛇妖的治疗行动（修复前治疗被静默丢弃，仍会记录 support action 但 HP 不恢复——
-        // 因此再断言蛇妖战斗中 HP 有过回升：治疗行动发生时目标 HP 增加）
+        // 治疗有效：战报存在蛇妖的治疗行动，且治疗行动发生时目标 HP 实际回升
         val actions = healed!!.log.rounds.flatMap { it.actions }
         val healAction = actions.firstOrNull { it.type == "support" && it.attacker == "snake" }
         assertNotNull("战报应包含蛇妖治疗行动", healAction)
@@ -214,8 +220,8 @@ class BattleSystemTest {
 
     @Test
     fun `executeBattle - 必杀无视护盾_目标直接死亡`() {
-        // 对抗性审查：斩杀（境界压制必杀）与护盾语义必须与 AI 引擎一致——
-        // 战报显示必杀时目标必须死亡（此前护盾吸收后残血存活，战报谎报）
+        // 斩杀（境界压制必杀）与护盾语义必须与 AI 引擎一致——
+        // 战报显示必杀时目标必须死亡（护盾不得吸收必杀）
         val disciple = combatant(
             "d1", CombatantSide.DEFENDER, hp = 5000, maxHp = 5000,
             physAtk = 100000, physDef = 50, speed = 300
@@ -545,7 +551,7 @@ class BattleSystemTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // P3A 拆分回归：executeCombatantTurn 抽取函数（applyControlEffects/
+    // 拆分回归：executeCombatantTurn 抽取函数（applyControlEffects/
     // executeSkillAction/buildTurnMessage/applyDamageEffects/processTurnAdvance）
     // 通过公开 executeBattle 路径触发，验证拆分后行为等价
     // ═══════════════════════════════════════════════════════════════
@@ -620,8 +626,8 @@ class BattleSystemTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 2026-XX scoutSect 收敛回归：玩家 Combatant 统一走 convertDiscipleToCombatant
-    // （原 buildScoutPlayerCombatants 重复实现已删除，本入口为唯一玩家实例语义入口）
+    // scoutSect 收敛回归：玩家 Combatant 统一走 convertDiscipleToCombatant，
+    // 本入口为唯一玩家实例语义入口
     // ═══════════════════════════════════════════════════════════════
 
     @Test

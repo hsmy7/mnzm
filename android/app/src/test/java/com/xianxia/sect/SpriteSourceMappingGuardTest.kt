@@ -12,7 +12,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * source-mapping 管线守卫测试（2026-09-02 资产管线 A 段）。
+ * source-mapping 管线守卫测试。
  *
  * 权威源：`scripts/source-mapping.json`（source↔drawable 映射，由 scaffold-source-mapping.mjs
  * 生成/维护）+ `scripts/resource-registry.json`（精灵注册源）。

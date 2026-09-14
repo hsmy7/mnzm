@@ -19,7 +19,7 @@
 // ============================================================
 namespace gamecore {
 
-/// 错误码（对应 Kotlin AppError.code；具体业务码随子系统迁移逐步扩展）
+/// 错误码（对应 Kotlin AppError.code；新业务码按需扩展）
 enum class ErrorCode : int32_t {
     kNone = 0,
     kGeneric = 1,          // 未分类业务失败

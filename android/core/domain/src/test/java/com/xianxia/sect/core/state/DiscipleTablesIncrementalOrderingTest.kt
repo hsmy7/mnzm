@@ -8,12 +8,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 增量组装升序不变量回归测试（2026-08-01 对抗性审查发现）。
+ * 增量组装升序不变量回归测试。
  *
- * 修复前：双指针归并依赖 prevSnapshot 按 id 升序——但读档路径
+ * 背景：双指针归并依赖 prevSnapshot 按 id 升序——读档路径
  * （DiscipleDataDao.getAllSync = ORDER BY realm, cultivation）产出非升序列表，
- * 直接赋值给 _disciplesFlow 后，增量归并在非升序 prev 上产生重复弟子。
- * 修复：assembleAllIncremental 入口校验升序，失序时退化为全量。
+ * 直接赋值给 _disciplesFlow 后，增量归并在非升序 prev 上会产生重复弟子。
+ * assembleAllIncremental 入口校验升序，失序时退化为全量组装；本测试守卫该行为。
  */
 @RunWith(RobolectricTestRunner::class)
 class DiscipleTablesIncrementalOrderingTest {

@@ -13,7 +13,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffGovernmentTest — 内政系统跨语言差分对拍（批次 7 验收核心）。
+ * DiffGovernmentTest — 内政系统跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::government（乘区法/概率乘区/时间缩减加速/
  * 政策月度忠诚道德/灵矿产出）与 Kotlin ZoneCalculator 公式**逐位一致**。

@@ -12,7 +12,7 @@ class DataCompressorTest {
         try {
             LZ4Factory.fastestInstance()
             true
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             false
         }
     }

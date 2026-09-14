@@ -4,6 +4,9 @@ import android.os.Build
 import android.util.Log
 import java.lang.reflect.Method
 
+@Suppress("TooManyFunctions") // Vivo 平台 JIT/GC 优化器域聚合：初始化/JIT 暂停-恢复/GC 调度/状态查询共享
+// 私有运行态（vmRuntime/jitPaused/handler），拆分需跨对象传递可变平台态——真机专属路径
+// 无法单测验证拆分回归，保持域聚合。
 object VivoGCJITOptimizer {
 
     private const val TAG = "VivoGCJITOptimizer"
@@ -26,7 +29,7 @@ object VivoGCJITOptimizer {
         return Class.forName("dalvik.system.VMRuntime")
             .getMethod("getRuntime")
             .invoke(null)
-            ?: throw IllegalStateException("VMRuntime.getRuntime() returned null")
+            ?: error("VMRuntime.getRuntime() returned null")
     }
 
     data class DeviceInfo(
@@ -64,6 +67,7 @@ object VivoGCJITOptimizer {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun doInitialize() {
         isVivoDevice = DeviceCompatibilityHelper.isVivo
 
@@ -88,6 +92,7 @@ object VivoGCJITOptimizer {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun preconfigureRuntimeForVivo() {
         val runtime = getVMRuntime()
 
@@ -98,7 +103,8 @@ object VivoGCJITOptimizer {
             val maxMem = Runtime.getRuntime().maxMemory()
             val targetLimit = (maxMem * 0.85).toLong()
             setGrowthLimitMethod.invoke(runtime, targetLimit)
-            Log.i(TAG, "Growth limit set to ${MemoryFormatUtil.formatMemory(targetLimit)} (max=${MemoryFormatUtil.formatMemory(maxMem)})")
+            Log.i(TAG, "Growth limit set to ${MemoryFormatUtil.formatMemory(targetLimit)}" +
+                " (max=${MemoryFormatUtil.formatMemory(maxMem)})")
         } catch (e: Exception) {
             Log.w(TAG, "setGrowthLimit not available: ${e.message}")
         }
@@ -137,6 +143,7 @@ object VivoGCJITOptimizer {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun tryPauseJit(tag: String): Boolean {
         try {
             val runtime = getVMRuntime()
@@ -179,6 +186,7 @@ object VivoGCJITOptimizer {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun tryResumeJit(tag: String): Boolean {
         try {
             val runtime = getVMRuntime()
@@ -218,6 +226,8 @@ object VivoGCJITOptimizer {
         val strategy: String
     )
 
+    // 前者: 反射探测降级继续; 后者: 本类即 Vivo JIT 内存优化器，显式 gc 是设计内兜底通道
+    @Suppress("TooGenericExceptionCaught", "ExplicitGarbageCollectionCall")
     fun requestLowLatencyGc(): LowLatencyGcResult {
         if (!isVivoDevice) return LowLatencyGcResult(false, "not_vivo_device")
 
@@ -253,6 +263,8 @@ object VivoGCJITOptimizer {
         }
     }
 
+    // 前者: 反射探测降级继续; 后者: requestConcurrentGc 不可用时的设计内 fallback
+    @Suppress("TooGenericExceptionCaught", "ExplicitGarbageCollectionCall")
     private fun triggerBackgroundGc() {
         try {
             val runtime = getVMRuntime()
@@ -271,6 +283,7 @@ object VivoGCJITOptimizer {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun extendGcDelayForMs(delayMs: Long): Boolean {
         if (!isVivoDevice) return false
         if (delayMs <= 0 || delayMs > 60_000L) {
@@ -288,7 +301,7 @@ object VivoGCJITOptimizer {
             Log.i(TAG, "Extended GC delay by ${delayMs}ms on vivo device")
             return true
         } catch (e: Exception) {
-            Log.d(TAG, "disableGcForDuration not available, skipping (no fallback)")
+            Log.d(TAG, "disableGcForDuration not available, skipping (no fallback)", e)
             return false
         }
     }

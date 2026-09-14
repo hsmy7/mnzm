@@ -24,7 +24,6 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldLevel
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
@@ -38,16 +37,22 @@ import javax.inject.Singleton
  * Phase 1 — 遭遇战（PvP）：两队弟子对战，胜者进入 Phase 2。
  * Phase 2 — 胜者 vs 妖兽（PvE）：胜者的幸存弟子与指定妖兽战斗。
  *
- * 所有修改在调用方提供的 [stateStore.update] 事务内完成，函数本身非挂起。
+ * 所有修改在调用方提供的 GameStateStore.update 事务内完成，函数本身非挂起。
  */
 @Singleton
 class EncounterBattleService @Inject constructor(
-    private val stateStore: GameStateStore,
     private val battleSystem: BattleSystem,
     private val deathHandler: DiscipleDeathHandler
 ) {
 
     companion object {
+        /**
+         * 单用户定向补偿邮件（MailService 扩展，独立文件）。
+         *
+         * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
+         * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
+         * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
+         */
         private const val TAG = "EncounterBattleService"
         private const val ENCOUNTER_FAVOR_DELTA = -3
     }
@@ -591,6 +596,6 @@ data class PreparedSide(
     val equipmentMap: Map<String, EquipmentInstance>,
     val manualMap: Map<String, ManualInstance>,
     val proficiencies: Map<String, Map<String, ManualProficiencyData>>,
-    // AI 侧按弟子独立装备 map（同模板不同孕养不共享，2026-08-06 途中发现修复）
+    // AI 侧按弟子独立装备 map（同模板不同孕养不共享）
     val equipmentMapByDisciple: Map<String, Map<String, EquipmentInstance>> = emptyMap()
 )

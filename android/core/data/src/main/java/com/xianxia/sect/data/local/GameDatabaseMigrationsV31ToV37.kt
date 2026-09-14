@@ -24,7 +24,7 @@ private const val TAG = "GameDatabase"
         }
 
         /**
-         * v32→v33: 新增 game_data.soundEnabled + musicEnabled 列 — 音乐/音效开关从 SessionManager 迁移到 GameData
+         * v32→v33: 新增 game_data.soundEnabled + musicEnabled 列 — 音乐/音效开关随存档持久化
          */
         internal val MIGRATION_32_33 = object : Migration(32, 33) {
             override fun migrate(db: SupportSQLiteDatabase) {

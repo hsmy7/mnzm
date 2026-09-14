@@ -17,13 +17,13 @@ class SaveCryptoTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        SaveCrypto.initialize(scopeProvider)
-        SaveCrypto.clearAllKeyCache()
+        SaveCryptoKeyCache.initialize(scopeProvider)
+        SaveCryptoKeyCache.clearAllKeyCache()
     }
 
     @After
     fun tearDown() {
-        SaveCrypto.clearAllKeyCache()
+        SaveCryptoKeyCache.clearAllKeyCache()
         scopeProvider.close()
     }
 
@@ -81,15 +81,15 @@ class SaveCryptoTest {
     @Test
     fun `sha256 - returns 32 bytes`() {
         val data = "test input".toByteArray(Charsets.UTF_8)
-        val hash = SaveCrypto.sha256(data)
+        val hash = SaveCryptoDigest.sha256(data)
         assertEquals(32, hash.size)
     }
 
     @Test
     fun `sha256 - same input produces same output`() {
         val data = "consistent hashing".toByteArray(Charsets.UTF_8)
-        val hash1 = SaveCrypto.sha256(data)
-        val hash2 = SaveCrypto.sha256(data)
+        val hash1 = SaveCryptoDigest.sha256(data)
+        val hash2 = SaveCryptoDigest.sha256(data)
         assertTrue(Arrays.equals(hash1, hash2))
     }
 
@@ -97,74 +97,74 @@ class SaveCryptoTest {
     fun `sha256 - different input produces different output`() {
         val data1 = "input A".toByteArray(Charsets.UTF_8)
         val data2 = "input B".toByteArray(Charsets.UTF_8)
-        val hash1 = SaveCrypto.sha256(data1)
-        val hash2 = SaveCrypto.sha256(data2)
+        val hash1 = SaveCryptoDigest.sha256(data1)
+        val hash2 = SaveCryptoDigest.sha256(data2)
         assertFalse(Arrays.equals(hash1, hash2))
     }
 
     @Test
     fun `sha256Hex - returns 64 character hex string`() {
         val data = "hex encoding test".toByteArray(Charsets.UTF_8)
-        val hex = SaveCrypto.sha256Hex(data)
+        val hex = SaveCryptoDigest.sha256Hex(data)
         assertEquals(64, hex.length)
     }
 
     @Test
     fun `sha256Hex - all lowercase hex characters`() {
         val data = "charset check".toByteArray(Charsets.UTF_8)
-        val hex = SaveCrypto.sha256Hex(data)
+        val hex = SaveCryptoDigest.sha256Hex(data)
         assertTrue(hex.all { it in '0'..'9' || it in 'a'..'f' })
     }
 
     @Test
     fun `generateChecksum and verifyChecksum - correct checksum passes`() {
         val data = "checksum verification data".toByteArray(Charsets.UTF_8)
-        val checksum = SaveCrypto.generateChecksum(data)
-        assertTrue(SaveCrypto.verifyChecksum(data, checksum))
+        val checksum = SaveCryptoDigest.generateChecksum(data)
+        assertTrue(SaveCryptoDigest.verifyChecksum(data, checksum))
     }
 
     @Test
     fun `generateChecksum and verifyChecksum - wrong checksum fails`() {
         val data = "original data".toByteArray(Charsets.UTF_8)
         val wrongChecksum = ByteArray(32) { 0xFF.toByte() }
-        assertFalse(SaveCrypto.verifyChecksum(data, wrongChecksum))
+        assertFalse(SaveCryptoDigest.verifyChecksum(data, wrongChecksum))
     }
 
     @Test
     fun `embedChecksum and extractChecksumAndData - extracted values are correct`() {
         val originalData = "payload after checksum header".toByteArray(Charsets.UTF_8)
-        val embedded = SaveCrypto.embedChecksum(originalData)
-        val result = SaveCrypto.extractChecksumAndData(embedded)
+        val embedded = SaveCryptoDigest.embedChecksum(originalData)
+        val result = SaveCryptoDigest.extractChecksumAndData(embedded)
         assertNotNull(result)
         val (extractedChecksum, extractedData) = result!!
         assertEquals(32, extractedChecksum.size)
         assertTrue(Arrays.equals(originalData, extractedData))
-        val expectedChecksum = SaveCrypto.sha256(originalData)
+        val expectedChecksum = SaveCryptoDigest.sha256(originalData)
         assertTrue(Arrays.equals(expectedChecksum, extractedChecksum))
     }
 
     @Test
     fun `verifyEmbeddedChecksum - full flow succeeds`() {
         val original = "integrity check payload".toByteArray(Charsets.UTF_8)
-        val embedded = SaveCrypto.embedChecksum(original)
-        assertTrue(SaveCrypto.verifyEmbeddedChecksum(embedded))
+        val embedded = SaveCryptoDigest.embedChecksum(original)
+        assertTrue(SaveCryptoDigest.verifyEmbeddedChecksum(embedded))
     }
 
     @Test
     fun `clearDerivedKeyCache - cache size becomes zero after clear`() {
         val dummy = "cache test".toByteArray(Charsets.UTF_8)
         SaveCrypto.encrypt(dummy, testPassword)
-        SaveCrypto.clearDerivedKeyCache()
-        assertEquals(0, SaveCrypto.getDerivedKeyCacheSize())
+        SaveCryptoKeyCache.clearDerivedKeyCache()
+        assertEquals(0, SaveCryptoKeyCache.getDerivedKeyCacheSize())
     }
 
     @Test
     fun `clearAllKeyCache - clears all caches`() {
         val data = "pre-cache encryption".toByteArray(Charsets.UTF_8)
         SaveCrypto.encrypt(data, testPassword)
-        assertTrue(SaveCrypto.getDerivedKeyCacheSize() >= 0)
-        SaveCrypto.clearAllKeyCache()
-        assertEquals(0, SaveCrypto.getDerivedKeyCacheSize())
+        assertTrue(SaveCryptoKeyCache.getDerivedKeyCacheSize() >= 0)
+        SaveCryptoKeyCache.clearAllKeyCache()
+        assertEquals(0, SaveCryptoKeyCache.getDerivedKeyCacheSize())
     }
 
     @Test

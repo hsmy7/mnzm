@@ -55,6 +55,7 @@ sealed interface DomainResult<out T> {
     val isFailure: Boolean get() = this is Failure
 
     /** 失败时的错误，或 null。 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun errorOrNull(): AppError.Domain? = (this as? Failure)?.error
 
     companion object {
@@ -66,6 +67,7 @@ sealed interface DomainResult<out T> {
          *
          * @param domain 发生未预期异常时包装成的领域错误（默认为通用 Unknown）
          */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         inline fun <T> catching(
             domain: AppError.Domain = AppError.Domain.GameLoop.Unknown(),
             block: () -> T
@@ -73,7 +75,7 @@ sealed interface DomainResult<out T> {
             Success(block())
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             Failure(domain)
         }
     }

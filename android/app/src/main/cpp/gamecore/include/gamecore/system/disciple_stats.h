@@ -13,7 +13,7 @@
 #include "gamecore/system/disciple.h"
 
 // ============================================================
-// 弟子列直读属性计算（计划 v2 阶段 2 / T2.1：每旬结算）
+// 弟子列直读属性计算（每旬结算）
 //
 // 等价移植 Kotlin DiscipleStatCalculator 的每旬结算路径**纯公式**部分：
 //   - computeBaseHpMp / getMaxHpMpColumn（HP/MP 恢复上限）
@@ -28,7 +28,7 @@
 //     上游保证非负输入（所有属性乘区 ≥0），见 safeLayerMult/safeVarianceMultiplier）
 //   - toInt() 截断 = static_cast<int32_t>（向零截断）
 //   - 天赋/词条/体质效果聚合（talentEffectsFor/affixEffectsFor/
-//     physiqueCultivationBonusFor）自 T2.4a 起从 data/trait_db.h（204 条，
+//     physiqueCultivationBonusFor）从 data/trait_db.h（204 条，
 //     双端守卫已证与 Kotlin Registry 一致）逐字段读取，语义权威 =
 //     Kotlin TalentDatabase.calculateTalentEffects /
 //     AffixDatabase.calculateAffixEffects / PhysiqueDatabase.
@@ -94,7 +94,7 @@ inline double safeBrPct(double pct) {
     return (pct > kMaxBloodRefinementPct) ? kMaxBloodRefinementPct : pct;
 }
 
-// ── 天赋/词条/体质效果聚合（T2.4a 填表：data/trait_db.h → 效果集） ────
+// ── 天赋/词条/体质效果聚合（data/trait_db.h → 效果集） ────
 
 /// 累加单条模板 effects 到聚合表（同 key 相加；与 Kotlin
 /// `effects[key] = (effects[key] ?: 0.0) + value` 逐位一致）
@@ -319,7 +319,7 @@ inline void getMaxHpMp(
     }
 }
 
-/// 列直读 maxHp/maxMp（DiscipleStore SoA 版，计划 v2 阶段 3 热路径用——
+/// 列直读 maxHp/maxMp（DiscipleStore SoA 版，热路径用——
 /// 每旬恢复/候选筛选取代逐弟子物化；语义与 Disciple& 版逐位一致）
 inline void getMaxHpMp(
         const state::DiscipleStore& ds, std::size_t row,
@@ -377,7 +377,7 @@ inline int32_t baseComprehension(const Disciple& d) {
            static_cast<int32_t>(effectValue(effects, "comprehensionFlat"));
 }
 
-/// 基础悟性（DiscipleStore 行版，阶段 3 突破概率长老读取用）
+/// 基础悟性（DiscipleStore 行版，突破概率长老读取用）
 inline int32_t baseComprehension(const state::DiscipleStore& ds,
                                  std::size_t row) {
     const auto effects = mergeEffects(
@@ -386,7 +386,7 @@ inline int32_t baseComprehension(const state::DiscipleStore& ds,
            static_cast<int32_t>(effectValue(effects, "comprehensionFlat"));
 }
 
-// ── 基础智力（getBaseStats().intelligence，执法堂捕获率用，批 10-2）──
+// ── 基础智力（getBaseStats().intelligence，执法堂捕获率用）──
 
 /// 基础智力 = skills.intelligence + 合并（天赋+词条）intelligenceFlat 截断。
 /// Kotlin 权威口径与 baseComprehension 同构（getMergedEffects 同 key 相加后
@@ -408,7 +408,7 @@ inline int32_t baseIntelligence(const state::DiscipleStore& ds,
 }
 
 /// 完整基础属性（Kotlin DiscipleStatCalculator.getBaseStats(disciple)——
-/// 血炼百分比参数缺省 null，乘区全零）。批 10-3 偷盗域消费
+/// 血炼百分比参数缺省 null，乘区全零）。偷盗域消费
 /// morality/speed/intelligence/loyalty 四字段。
 inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
     ::gamecore::disciple::BaseStatsInput in;
@@ -437,7 +437,145 @@ inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
     return ::gamecore::disciple::computeBaseStats(in);
 }
 
-// ── 职务加成（getPositionEffectBonus，执法堂捕获率用，批 10-2）──────
+// ── S5：战斗装配属性（Kotlin getFinalStats 域） ─────────────────────
+
+/// 血炼百分比感知基础属性（Kotlin getBaseStats(disciple, bloodRefinementPct)
+/// 等价——血炼乘区与天赋同乘区加算，safeBrPct 防护在 computeBaseStats 内）。
+inline ::gamecore::disciple::DiscipleStats baseStatsWithBr(
+        const Disciple& d, const BloodRefinementPctTotal* bloodRefinementPct) {
+    ::gamecore::disciple::BaseStatsInput in;
+    in.realm = d.realm;
+    in.realmLayer = d.realmLayer;
+    in.hpVariance = d.hpVariance;
+    in.mpVariance = d.mpVariance;
+    in.physicalAttackVariance = d.physicalAttackVariance;
+    in.magicAttackVariance = d.magicAttackVariance;
+    in.physicalDefenseVariance = d.physicalDefenseVariance;
+    in.magicDefenseVariance = d.magicDefenseVariance;
+    in.speedVariance = d.speedVariance;
+    in.intelligence = d.intelligence;
+    in.charm = d.charm;
+    in.loyalty = d.loyalty;
+    in.comprehension = d.comprehension;
+    in.aptitude = d.aptitude;
+    in.teaching = d.teaching;
+    in.morality = d.morality;
+    in.mining = d.mining;
+    in.spiritPlanting = d.spiritPlanting;
+    in.artifactRefining = d.artifactRefining;
+    in.pillRefining = d.pillRefining;
+    in.talentEffects = mergeEffects(
+        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
+    if (bloodRefinementPct != nullptr) {
+        in.bloodHpBonusPct = bloodRefinementPct->hpBonusPct;
+        in.bloodPhysicalAttackBonusPct = bloodRefinementPct->physicalAttackBonusPct;
+        in.bloodMagicAttackBonusPct = bloodRefinementPct->magicAttackBonusPct;
+        in.bloodPhysicalDefenseBonusPct = bloodRefinementPct->physicalDefenseBonusPct;
+        in.bloodMagicDefenseBonusPct = bloodRefinementPct->magicDefenseBonusPct;
+        in.bloodSpeedBonusPct = bloodRefinementPct->speedBonusPct;
+    }
+    return ::gamecore::disciple::computeBaseStats(in);
+}
+
+/// 熟练度等级加成（Kotlin ManualProficiencySystem.MasteryLevel.fromLevel(level).bonus；
+/// 未知等级回退 NOVICE 1.5——与 fromLevel 的 find{it.level==level} ?: NOVICE 一致）
+inline double masteryLevelBonus(int32_t masteryLevel) {
+    switch (masteryLevel) {
+        case 0: return 1.5;   // NOVICE 入门
+        case 1: return 2.0;   // SMALL_SUCCESS 小成
+        case 2: return 3.0;   // GREAT_SUCCESS 大成
+        case 3: return 4.0;   // PERFECTION 圆满
+        default: return 1.5;
+    }
+}
+
+/// 战斗装配最终属性（Kotlin computeFinalStats 等价——基础 + 装备 + 功法
+/// （熟练度乘区）+ 丹药加成；critRate 分累加，各项与 Kotlin 逐位一致）。
+inline ::gamecore::disciple::DiscipleStats finalStats(
+        const Disciple& d,
+        const std::map<std::string, EquipmentInstance>& equipmentMap,
+        const std::map<std::string, ManualInstance>& manualMap,
+        const std::map<std::string, ManualProficiencyData>& discipleProficiencies,
+        const BloodRefinementPctTotal* bloodRefinementPct) {
+    ::gamecore::disciple::DiscipleStats total =
+        baseStatsWithBr(d, bloodRefinementPct);
+    double totalCritRate = total.critRate;
+
+    // 装备（equipId 顺序 = Kotlin listOfNotNull(weapon,armor,boots,accessory)）
+    for (const std::string& eqId :
+         {d.weaponId, d.armorId, d.bootsId, d.accessoryId}) {
+        if (eqId.empty()) continue;
+        const auto it = equipmentMap.find(eqId);
+        if (it == equipmentMap.end()) continue;
+        const EquipmentStats fs = equipmentFinalStats(it->second);
+        total.maxHp += fs.hp;
+        total.hp += fs.hp;
+        total.maxMp += fs.mp;
+        total.mp += fs.mp;
+        total.physicalAttack += fs.physicalAttack;
+        total.magicAttack += fs.magicAttack;
+        total.physicalDefense += fs.physicalDefense;
+        total.magicDefense += fs.magicDefense;
+        total.speed += fs.speed;
+        totalCritRate += it->second.critChance;
+    }
+
+    // 功法（Kotlin manualIds.forEach；stats["hp"] ?: stats["maxHp"] 兜底口径）
+    for (const std::string& manualId : d.manualIds) {
+        const auto it = manualMap.find(manualId);
+        if (it == manualMap.end()) continue;
+        const ManualInstance& manual = it->second;
+        int32_t masteryLevel = 0;
+        const auto profIt = discipleProficiencies.find(manualId);
+        if (profIt != discipleProficiencies.end()) {
+            masteryLevel = profIt->second.masteryLevel;
+        }
+        const double masteryBonus = masteryLevelBonus(masteryLevel);
+        const auto statOf = [&](const char* primary, const char* fallback) -> int32_t {
+            auto s = manual.stats.find(primary);
+            if (s != manual.stats.end()) return s->second;
+            s = manual.stats.find(fallback);
+            if (s != manual.stats.end()) return s->second;
+            return 0;
+        };
+        const int32_t hpValue = statOf("hp", "maxHp");
+        const int32_t mpValue = statOf("mp", "maxMp");
+        total.maxHp += static_cast<int32_t>(hpValue * masteryBonus);
+        total.hp += static_cast<int32_t>(hpValue * masteryBonus);
+        total.maxMp += static_cast<int32_t>(mpValue * masteryBonus);
+        total.mp += static_cast<int32_t>(mpValue * masteryBonus);
+        total.physicalAttack += static_cast<int32_t>(
+            static_cast<double>(statOf("physicalAttack", "")) * masteryBonus);
+        total.magicAttack += static_cast<int32_t>(
+            static_cast<double>(statOf("magicAttack", "")) * masteryBonus);
+        total.physicalDefense += static_cast<int32_t>(
+            static_cast<double>(statOf("physicalDefense", "")) * masteryBonus);
+        total.magicDefense += static_cast<int32_t>(
+            static_cast<double>(statOf("magicDefense", "")) * masteryBonus);
+        total.speed += static_cast<int32_t>(
+            static_cast<double>(statOf("speed", "")) * masteryBonus);
+        totalCritRate += (static_cast<double>(statOf("critRate", "")) * masteryBonus) / 100.0;
+    }
+
+    // 丹药（Kotlin hasPillEffect 分支——pillCritRateBonus 双计：面板加成 + critRate 累加）
+    if (d.pillEffectDuration > 0) {
+        total.maxHp += d.pillHpBonus;
+        total.hp += d.pillHpBonus;
+        total.maxMp += d.pillMpBonus;
+        total.mp += d.pillMpBonus;
+        total.physicalAttack += d.pillPhysicalAttackBonus;
+        total.magicAttack += d.pillMagicAttackBonus;
+        total.physicalDefense += d.pillPhysicalDefenseBonus;
+        total.magicDefense += d.pillMagicDefenseBonus;
+        total.speed += d.pillSpeedBonus;
+        totalCritRate += d.pillCritRateBonus;
+    }
+
+    total.critRate = totalCritRate;
+    return total;
+}
+
+// ── 职务加成（getPositionEffectBonus，执法堂捕获率用）──────
 
 /// 统计弟子（天赋+词条）中指定 slotType 的 PositionBonus 总和。
 /// Kotlin 权威口径：天赋取非负面且 positionBonus.slotType 匹配者求和 +
@@ -555,7 +693,7 @@ inline double calculateCultivationPerPhaseColumn(
         gamecore::disciple::kMinCultivationPerPhase);
 }
 
-/// 每旬修炼速率（DiscipleStore SoA 版，计划 v2 阶段 3 热路径用；
+/// 每旬修炼速率（DiscipleStore SoA 版，热路径用；
 /// 语义与 Disciple& 版逐位一致——字段改列直读）
 inline double calculateCultivationPerPhaseColumn(
         const state::DiscipleStore& ds, std::size_t row,

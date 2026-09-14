@@ -6,7 +6,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.protobuf.ProtoPacked
 
 /**
- * 每日签到存档状态（功能已于 2026-08-07 移除）。
+ * 每日签到存档状态（签到功能已下线，本类仅为旧档兼容保留）。
  *
  * 该字段仅保留用于旧存档兼容——禁止任何新代码读写，
  * 如需移除须走数据库 Migration 流程。

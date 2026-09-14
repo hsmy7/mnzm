@@ -3,10 +3,9 @@ package com.xianxia.sect.login
 /**
  * 登录/防沉迷验证流程状态定义（纯 Kotlin，零 Android 依赖，可 JVM 单测）。
  *
- * 覆盖"登录 → 防沉迷验证 → 进模式选择"全链路，替代 MainActivity 中散落的
- * 手工布尔标志（complianceCheckInFlight / complianceCheckDeferredStarted），
- * 根治"退出认证/切换账号后再登录被永久跳过""回调注册与 SDK 就绪时序竞态"
- * 等反复回归（详见 docs/login-flow-state-machine.md）。
+ * 覆盖"登录 → 防沉迷验证 → 进模式选择"全链路。以显式状态机消除
+ * "退出认证/切换账号后再登录被永久跳过""回调注册与 SDK 就绪时序竞态"
+ * 等时序缺陷（详见 docs/login-flow-state-machine.md）。
  */
 sealed interface LoginFlowState {
     /** 未登录：显示登录界面 */

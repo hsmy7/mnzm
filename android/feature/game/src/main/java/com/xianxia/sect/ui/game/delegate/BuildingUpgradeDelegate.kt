@@ -52,7 +52,7 @@ class BuildingUpgradeDelegate(
         }
     }
 
-    /** 升级结果 → 成功/失败消息（BuildingUpgradeDelegate 拆分）。 */
+    /** 升级结果 → 成功/失败消息。 */
     private fun handleUpgradeResult(result: UpgradeResult, sourceKey: String) {
         val sourceName = BuildingFeatureRegistry.findByKey(sourceKey)?.displayName ?: sourceKey
         when (result) {

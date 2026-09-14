@@ -32,7 +32,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 引擎层放置重叠防御测试（2026-08-06 第一性原理兜底）。
+ * 引擎层放置重叠防御测试。
  *
  * 覆盖：
  * - doPlaceBuilding 同宗门重叠 → 拒绝放置（不新增、不扣灵石）

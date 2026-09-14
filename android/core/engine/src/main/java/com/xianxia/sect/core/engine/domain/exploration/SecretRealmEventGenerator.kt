@@ -169,7 +169,7 @@ object SecretRealmEventGenerator {
      * 方向选择后的下一事件分派：一次 nextDouble() 分段判定——
      * < REST_AREA_CHANCE 空地事件；[REST_AREA_CHANCE, REST_AREA_CHANCE + RUINS_CHANCE) 发现遗迹；
      * [RUINS 段, RUINS 段 + AI_ENCOUNTER_CHANCE) 遭遇 AI 探索队伍（队伍池为空则回退妖兽事件）；
-     * 其余妖兽事件。仍只消费一次 nextDouble()（RNG 消费次数与旧版一致，读档确定性不变）。
+     * 其余妖兽事件。仍只消费一次 nextDouble()（RNG 消费次数固定，读档确定性不变）。
      *
      * @param rng SECRET_REALM 分区 PRNG
      * @param playerAvgRealm 玩家队伍平均境界（数值越小境界越高）
@@ -269,7 +269,7 @@ object SecretRealmEventGenerator {
      */
     fun generateDirectionEvent(resultText: String): SecretRealmEventRecord {
         // 空结果文本防御：正常流程 resultText 恒非空（战斗/搜寻/休整字面量文案），
-        // 篡改档空串时不产生" ，请选择探索方向"前导逗号（对抗性审查 L2）
+        // 篡改档空串时不产生" ，请选择探索方向"前导逗号
         val description = if (resultText.isBlank()) {
             "请选择探索方向"
         } else {

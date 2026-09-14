@@ -13,13 +13,13 @@ package com.xianxia.sect.core.engine.monitor
  * 三层看门狗并发调用安全），全分支单测覆盖（历史防御机制自身失效 3 次的
  * 教训：禁止 else-if 分叉与手写分支）。
  *
- * 对抗性审查修复记录（2026-08-04）：
- * - S4/V1：tickCount 停滞叠加循环活动心跳判据——刚恢复/超长单 tick 不误判
- * - S5：假运行改 totalPhases 主导 + 最近推进时间窗——持续抛异常的世界冻结
- *   （accumulatedGameMs 振荡）不再绕过检测
- * - S1：isSaving 时"设计性停循环"（restartGame/后台）豁免，交给 60s 兜底
- * - F2：租约过期时若循环本身也停滞（引擎被挂起）优先判 LoopStalled 走换线程
- * - V6：首调即判 speed=0 假运行（不延迟一个评估周期）
+ * 设计要点：
+ * - tickCount 停滞须叠加循环活动心跳判据——刚恢复/超长单 tick 不误判
+ * - 假运行以 totalPhases 主导 + 最近推进时间窗判定——持续抛异常的世界冻结
+ *   （accumulatedGameMs 振荡）也能检出
+ * - isSaving 时"设计性停循环"（restartGame/后台）豁免，交给 60s 兜底
+ * - 租约过期时若循环本身也停滞（引擎被挂起）优先判 LoopStalled 走换线程
+ * - 首调即判 speed=0 假运行（不延迟一个评估周期）
  */
 data class GameTimeProgressSnapshot(
     /** 循环 tick 计数（假运行时也递增，不能单独作为推进判据） */

@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.sect
 
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.core.render.DemolishHighlightMark
+import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
@@ -70,16 +71,25 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     override fun renderFrame(frame: RenderFrame, viewportW: Int, viewportH: Int): Boolean {
         NativeBridge.beginFrame()
 
-        // ★ SkyBackground 屏幕空间渐变背景（帧首、最底图层，先于地图/建筑/特效绘制）：
+        // SkyBackground 屏幕空间渐变背景（帧首、最底图层，先于地图/建筑/特效绘制）：
         // 配置变化推送到 C++（天气/时间切换），随后 drawSky 以屏幕正交投影绘制——
         // Camera 平移/缩放不影响背景（Screen Space / Background Layer）。
         drawSkyBackground()
 
-        // ★ 地图淡入 alpha 推送（WP4）：渲染线程每帧计算（EaseOutCubic 纯时钟驱动），
+        // 地图淡入 alpha 推送：渲染线程每帧计算（EaseOutCubic 纯时钟驱动），
         // C++ g_fadeAlpha 乘算 drawAllTiles 全部 quad——预览/高亮 drawRect 不受影响
         NativeBridge.setFadeAlpha(host.fadeAlpha)
 
-        // ★ 从命令总线读取建筑数据快照（一次性读取，消除 TOCTOU 竞态）
+        // 浮空岛崖壁层（世界空间；z 序：天空 → 崖壁 → 地面——先于瓦片/建筑绘制，
+        // 地面层覆盖内缘接缝）。布局数据由 IslandCliffBridge 一次性预计算（地图尺寸/种子
+        // 变化时重建；Camera 平移/缩放不重建——本条目不参与帧率门控数据变更）。
+        // 置于 setFadeAlpha 之后：崖壁层与瓦片层共用同帧淡入 alpha（零相位差）。
+        // 不依赖图集纹理（走独立纹理）——图集未就绪时崖壁仍可绘制。
+        if (frame.islandCliffData != null) {
+            drawIslandCliffs(frame)
+        }
+
+        // 从命令总线读取建筑数据快照（一次性读取，消除 TOCTOU 竞态）
         // 对标 UE ENQUEUE_RENDER_COMMAND：建筑变更即时送达，不依赖 Compose 重组时序
         // busWasDirty：建筑数据本次刚被推送——frame.selectedBuildingIndex 是
         // Compose 帧率门控旧值，与新数据可能错位，本帧跳过高亮（下帧自动恢复）
@@ -90,8 +100,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         val effectiveBuildingCount = if (busSnapshot != null) {
             busSnapshot.count.coerceAtMost((busSnapshot.data?.size ?: 0) / 5)
         } else {
-            // 对抗性审查修复：回退路径同样 clamp（防上游 buildingCount 与数组长度
-            // 不一致时 C++ 越界读——bus 直达通道有 clamp，双端路径行为一致）
+            // 回退路径同样 clamp（防上游 buildingCount 与数组长度不一致时
+            // C++ 越界读——bus 直达通道有 clamp，双端路径行为一致）
             frame.buildingCount.coerceAtMost((frame.buildingData?.size ?: 0) / 5)
         }
 
@@ -108,33 +118,33 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
                 atlasTexId = host.atlasTextureId,
                 uvMap = SpriteAtlasDef.TILE_UV_MAP,
                 buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP,
-                // ★ 灵田作物数据（WP6）：低频变化走帧率门控 RenderFrame，
+                // 灵田作物数据：低频变化走帧率门控 RenderFrame，
                 // C++ 侧按进度计算阶段索引 + 淡化 alpha（与 Kotlin SpiritCropRender 同数学）
                 cropData = frame.spiritCropData,
                 cropUVMap = SpriteAtlasDef.CROP_UV_MAP,
-                // 批次 3 插值消费链：作物进度帧间平滑权重（仅渲染契约）
+                // 逻辑帧插值：作物进度帧间平滑权重（仅渲染契约）
                 frameAlpha = frame.currentAlpha,
-                // ★ 云层实例数据（渲染线程逐帧生成快照——双后端共享同一份 host.cloudData，
+                // 云层实例数据（渲染线程逐帧生成快照——双后端共享同一份 host.cloudData，
                 // 与 C++ 侧同一快照保证像素级一致；cloudUVMap 与 SpriteAtlasDef 同源）
                 cloudData = host.cloudData,
                 cloudUVMap = SpriteAtlasDef.CLOUD_UV_MAP,
-                // ★ 石板道路每格位掩码 + UV（双后端按位掩码合成主体/边缘/转角/十字装饰）
+                // 石板道路每格位掩码 + UV（双后端按位掩码合成主体/边缘/转角/十字装饰）
                 roadData = frame.roadData,
                 roadUVMap = SpriteAtlasDef.ROAD_UV_MAP
             )
         }
 
-        // ★ 普通选中高亮（选中建筑金色描边——动态叠加，独立 draw calls，不烘焙进瓦片层）
+        // 普通选中高亮（选中建筑金色描边——动态叠加，独立 draw calls，不烘焙进瓦片层）
         // 用同一份 effectiveBuildingData 快照计算，杜绝命令总线消费后索引错位
         drawSelectionHighlight(frame, effectiveBuildingData, effectiveBuildingCount, busWasDirty)
 
-        // ★ 一键拆除模式占地高亮（绿/红半透明填充——与精灵同帧同相机，
+        // 一键拆除模式占地高亮（绿/红半透明填充——与精灵同帧同相机，
         // 与选中高亮同一份建筑快照；总线脏帧跳帧防索引错位）
         drawDemolishHighlight(frame, effectiveBuildingData, effectiveBuildingCount, busWasDirty)
 
         if (frame.showPreview && host.atlasTextureId != 0) {
-            // ★ 2026-09 调整：精灵先画、占地框（填充+描边）后画——填充绿纱罩于
-            //   精灵之上（标准放置 UI），且精灵透明区不再透出填充色
+            // 绘制顺序：精灵先画、占地框（填充+描边）后画——填充绿纱罩于
+            //   精灵之上（标准放置 UI），且精灵透明区不透出填充色
             NativeBridge.drawSprite(
                 frame.previewX, frame.previewY,
                 frame.previewW, frame.previewH,
@@ -149,8 +159,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
             }
         }
 
-        // ★ 放置/移动模式网格线（预览精灵之上——与旧 Compose 覆盖层层叠顺序一致；
-        // 范围按缓存最新相机计算，与 g_projMatrix 同源零错位）
+        // 放置/移动模式网格线（预览精灵之上）；
+        // 范围按缓存最新相机计算，与 g_projMatrix 同源零错位
         drawGridOverlay(frame, viewportW, viewportH)
 
         recordMetrics()
@@ -160,7 +170,7 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
 
     /** 帧指标记录（热控降级可观测 + 帧计数——提取以收敛 renderFrame 行数） */
     private fun recordMetrics() {
-        // ★ 热控降级可观测性：装饰层被跳过（decorationsDisabled || qualityFactor < 0.6）
+        // 热控降级可观测性：装饰层被跳过（decorationsDisabled || qualityFactor < 0.6）
         //   的 Vulkan 帧计数——与 C++ drawAllTiles 的 skipDecor 判定同语义（阈值同 0.6）
         if (host.renderDecorationsDisabled || host.renderQualityFactor < DECOR_QUALITY_THRESHOLD) {
             RenderMetrics.vulkanDecorSkippedFrames.incrementAndGet()
@@ -197,6 +207,30 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
             config.secondT, config.thirdT, config.strength
         )
         host.lastPushedSkyConfig = config
+    }
+
+    /**
+     * 浮空岛崖壁层绘制（世界空间；z 序：天空 → 崖壁 → 地面）。
+     * 只消费 [RenderFrame.islandCliffData] 布局引用（一次性预计算，稳定）——
+     * 可见性剔除与按纹理分批在 C++ 侧 NativeBridge.drawIslandCliffs 完成。
+     *
+     * 崖壁走**独立纹理**（超出图集容量），纹理 ID 由宿主经
+     * [NativeBridge.setIslandCliffTextures] 一次性注入；此处只判「是否已有任一张
+     * 可用」——全不可用则整层跳过（C++ 侧亦会逐条目跳过不可用纹理）。
+     * 观测锚点（保留级，进程内一次）：确认渲染端消费到布局数据。
+     */
+    private fun drawIslandCliffs(frame: RenderFrame) {
+        val layout = frame.islandCliffData ?: return
+        if (!host.hasAnyCliffTexture) return
+        if (!islandCliffDrawnLogged) {
+            islandCliffDrawnLogged = true
+            android.util.Log.d(
+                ISLAND_CLIFF_LOG_TAG,
+                "drawIslandCliffs ${layout.size / IslandCliffBridge.PIECE_STRIDE} pieces " +
+                    "(cliffTextures=${host.cliffTextureCount})"
+            )
+        }
+        NativeBridge.drawIslandCliffs(cliffData = layout)
     }
 
     /**
@@ -385,9 +419,9 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         val lastRow = ((cachedCamY + viewportH / scale) / tileSize).toInt()
             .coerceAtMost(host.renderConfig.worldHeightCells)
 
-        // ★ 目标屏幕线宽 1px，换算回世界坐标（除 scale）；下限 0.5 世界单位防退化 quad。
-        //    2026-09 骁龙 8 Gen 2 修复：离屏降采样渲染下 1 物理屏像素 = 0.5 离屏像素，
-        //    细线光栅化被整条丢弃（放置模式方格不完整/单线根因）——线宽按 2 物理屏像素起
+        // 目标屏幕线宽 1px，换算回世界坐标（除 scale）；下限 0.5 世界单位防退化 quad。
+        //    离屏降采样渲染下 1 物理屏像素 = 0.5 离屏像素，细线光栅化会被整条丢弃
+        //    （放置模式方格不完整/单线根因）——线宽按 2 物理屏像素起
         val lineWidth = maxOf(0.5f, 2f / scale)
         for (col in firstCol..lastCol) {
             val x = col * tileSize.toFloat()
@@ -400,6 +434,12 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     }
 
     companion object {
+        /** 浮空岛边缘观测日志标签（渲染端消费锚点） */
+        private const val ISLAND_CLIFF_LOG_TAG = "IslandCliff"
+
+        /** 首次绘制日志标志（进程内一次——避免每帧日志） */
+        private var islandCliffDrawnLogged = false
+
         /** 装饰层跳过阈值（qualityFactor < 0.6 时装饰降级——与 Canvas 帧缓冲 RGB_565 阈值同常量） */
         private const val DECOR_QUALITY_THRESHOLD = 0.6f
 

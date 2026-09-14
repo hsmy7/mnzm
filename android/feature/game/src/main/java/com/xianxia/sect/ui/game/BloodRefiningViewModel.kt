@@ -10,6 +10,7 @@ import com.xianxia.sect.core.engine.startBloodRefinementAtomic
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SlotCategory
 import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.model.spiritStones
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
+import com.xianxia.sect.core.engine.domain.disciple.randomBloodRefineStat
 
 
 
@@ -98,22 +100,21 @@ class BloodRefiningViewModel @Inject constructor(
         val disciple = state.selectedDisciple ?: return
         val data = gameEngine.gameData.value ?: return
 
-        if (data.spiritStones < REQUIRED_SPIRIT_STONES) {
-            showError("灵石不足100万")
-            return
-        }
-
-        if (state.selectedMaterialQuantity < REQUIRED_MATERIAL_COUNT) {
-            showError("材料不足${REQUIRED_MATERIAL_COUNT}个")
+        refineResourceError(data, state)?.let {
+            showError(it)
             return
         }
 
         val bloodType = BeastMaterialDatabase.getBloodTypeFromMaterialId(material.id) ?: return
-        val selectedStat = DiscipleStatCalculator.randomBloodRefineStat(bloodType, rngManager)
         val bonusPercent = BeastMaterialDatabase.getTierPercentage(material.tier)
         val durationMonths = BeastMaterialDatabase.getTierDuration(material.tier)
 
         gameEngine.launchOnEngine {
+            // BREAKTHROUGH 分区抽取必须在引擎线程执行——在 UI 线程
+            // 消费全局分区会形成跨线程竞争点。
+            // 该抽取决定血炼属性走向并随进度持久化，属游戏状态变更的一部分，
+            // 与 C++ PCG 真相源的序列推进一并收敛到引擎线程（抽取顺序不变）。
+            val selectedStat = DiscipleStatCalculator.randomBloodRefineStat(bloodType, rngManager)
             // 构造 BloodRefinementProgress
             val progress = buildBloodRefinementProgress(
                 disciple = disciple,
@@ -143,8 +144,23 @@ class BloodRefiningViewModel @Inject constructor(
         }
     }
 
-    /** 血炼进度构造（startRefine 拆分）：引擎事务外组装进度对象（startYear/startMonth 由引擎侧填充） */
-    private fun buildBloodRefinementProgress(
+    /**
+     * 血炼资源校验：灵石与材料充足性检查。
+     *
+     * @return 校验失败的用户提示文案；通过返回 null
+     */
+    private fun refineResourceError(
+        data: GameData,
+        state: BloodRefiningUiState
+    ): String? {
+        if (data.spiritStones < REQUIRED_SPIRIT_STONES) return "灵石不足100万"
+        if (state.selectedMaterialQuantity < REQUIRED_MATERIAL_COUNT) {
+            return "材料不足${REQUIRED_MATERIAL_COUNT}个"
+        }
+        return null
+    }
+
+    /** 血炼进度构造：引擎事务外组装进度对象（startYear/startMonth 由引擎侧填充） */    private fun buildBloodRefinementProgress(
         disciple: DiscipleAggregate,
         material: BeastMaterialDatabase.BeastMaterial,
         durationMonths: Int,
@@ -162,7 +178,7 @@ class BloodRefiningViewModel @Inject constructor(
         bonusPercent = bonusPercent
     )
 
-    /** 血炼启动结果处理（startRefine 拆分）：失败提示 / 成功登记进度与血炼分配 */
+    /** 血炼启动结果处理：失败提示 / 成功登记进度与血炼分配 */
     private fun handleStartRefineResult(
         result: BloodRefinementStartResult,
         buildingInstanceId: String,

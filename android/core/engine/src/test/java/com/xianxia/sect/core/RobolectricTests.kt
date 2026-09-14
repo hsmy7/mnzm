@@ -1,7 +1,7 @@
 package com.xianxia.sect.core
 
 /**
- * JUnit4 类别标记：Robolectric 沙箱测试（2026-08-14，阶段 2.5）。
+ * JUnit4 类别标记：Robolectric 沙箱测试。
  *
  * 用于 `:core:engine:testRobolectricRelease` / `testJvmRelease` 双任务拆分：
  * - 标注本接口的测试类跑沙箱（慢，62 类占 engine 测试时长 58%）

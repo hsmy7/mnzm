@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
@@ -40,16 +40,15 @@ import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
 import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
 import com.xianxia.sect.ui.game.dialogs.BeastAttackWarningDialog
 import com.xianxia.sect.ui.game.dialogs.MarriageApprovalDialog
-import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.LocalDialogScrimHosted
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.core.domain.dialog.DialogType
-
-
-
-private val CachedColorScheme = XianxiaColorScheme()
+import com.xianxia.sect.core.engine.domain.battle.shownStageKey
+import com.xianxia.sect.ui.game.delegate.approveMarriage
+import com.xianxia.sect.ui.game.delegate.dismissBattleResult
+import com.xianxia.sect.ui.game.delegate.rejectMarriage
 
 /** GameOverlayHost 所需的所有 ViewModel（聚合减少参数数量） */
 data class OverlayViewModels(
@@ -126,7 +125,7 @@ fun GameOverlayHost(
 
 }
 
-/** GameOverlayHost 弹窗本地状态（GameOverlayHost 拆分）：弹窗开关 + 引擎事件流订阅 */
+/** GameOverlayHost 弹窗本地状态：弹窗开关 + 引擎事件流订阅 */
 private class GameOverlayDialogState {
     var tipDialogMessage by mutableStateOf<String?>(null)
     var tipDialogIsError by mutableStateOf(false)
@@ -136,7 +135,7 @@ private class GameOverlayDialogState {
     var showBattleRewardDialog by mutableStateOf(false)
 }
 
-/** GameOverlayHost 派生弹窗数据（GameOverlayHost 拆分）：StateFlow 收集 + 可见性推导 */
+/** GameOverlayHost 派生弹窗数据：StateFlow 收集 + 可见性推导 */
 private data class GameOverlayDialogData(
     val currentDialogType: DialogType,
     val pendingNotification: GameNotification?,
@@ -150,7 +149,7 @@ private data class GameOverlayDialogData(
     val anyDialogVisible: Boolean
 )
 
-/** GameOverlayHost 事件流订阅（GameOverlayHost 拆分）：错误/成功/容量警告 + 战斗结算联动 */
+/** GameOverlayHost 事件流订阅：错误/成功/容量警告 + 战斗结算联动 */
 @Composable
 private fun rememberGameOverlayDialogState(viewModel: GameViewModel): GameOverlayDialogState {
     val state = remember { GameOverlayDialogState() }
@@ -164,9 +163,9 @@ private fun rememberGameOverlayDialogState(viewModel: GameViewModel): GameOverla
     }
 
     LaunchedEffect(state.showBattleResult) {
-        if (state.showBattleResult) viewModel.pushOverlay(TopOverlay.BATTLE_RESULT)
+        if (state.showBattleResult) viewModel.overlays.pushOverlay(TopOverlay.BATTLE_RESULT)
         else {
-            viewModel.popOverlay(TopOverlay.BATTLE_RESULT)
+            viewModel.overlays.popOverlay(TopOverlay.BATTLE_RESULT)
             if (pendingBattleRewardCards.isNotEmpty()) {
                 state.showBattleRewardDialog = true
             }
@@ -174,8 +173,8 @@ private fun rememberGameOverlayDialogState(viewModel: GameViewModel): GameOverla
     }
 
     LaunchedEffect(state.detailBattleLog) {
-        if (state.detailBattleLog != null) viewModel.pushOverlay(TopOverlay.BATTLE_LOG_DETAIL)
-        else viewModel.popOverlay(TopOverlay.BATTLE_LOG_DETAIL)
+        if (state.detailBattleLog != null) viewModel.overlays.pushOverlay(TopOverlay.BATTLE_LOG_DETAIL)
+        else viewModel.overlays.popOverlay(TopOverlay.BATTLE_LOG_DETAIL)
     }
 
     LaunchedEffect(Unit) {
@@ -207,7 +206,7 @@ private fun rememberGameOverlayDialogState(viewModel: GameViewModel): GameOverla
     return state
 }
 
-/** GameOverlayHost 派生弹窗数据计算（GameOverlayHost 拆分）：StateFlow 收集 + 可见性推导 */
+/** GameOverlayHost 派生弹窗数据计算：StateFlow 收集 + 可见性推导 */
 @Composable
 private fun rememberGameOverlayDialogData(
     viewModel: GameViewModel,
@@ -234,13 +233,13 @@ private fun rememberGameOverlayDialogData(
     // 已读标记剪枝：只保留仍在排期中的妖兽（防集合无限增长）
     LaunchedEffect(pendingBeastAttacks) {
         val pendingIds = pendingBeastAttacks.map { it.beastLevel.id }.toSet()
-        viewModel.pruneAcknowledgedBeastAttackIds(pendingIds)
+        viewModel.warnings.pruneAcknowledgedBeastAttackIds(pendingIds)
     }
     // 跳过已击败妖兽的排期弹窗（可能被 AI 宗门等异步处理击败）——只移除该只，不误伤同批其他排期
     val beastStillAlive = isBeastStillAlive(currentAttack, gdSnapshot)
     if (currentAttack != null && !beastStillAlive) {
         LaunchedEffect(currentAttack) {
-            viewModel.removePendingBeastAttack(currentAttack.beastLevel.id)
+            viewModel.beastAttack.removePendingBeastAttack(currentAttack.beastLevel.id)
         }
     }
     // 单例遮罩层：无论开几个界面，永远只画一层遮罩
@@ -248,7 +247,7 @@ private fun rememberGameOverlayDialogData(
     val attackWarnings by viewModel.attackWarnings.collectAsStateWithLifecycle()
     val shownWarningStageIds by viewModel.shownWarningStageIds.collectAsStateWithLifecycle()
     val attackWarningVisible = attackWarnings.any { warning ->
-        "${warning.warningId}:${warning.stage.name}" !in shownWarningStageIds
+        warning.shownStageKey() !in shownWarningStageIds
     }
     val anyDialogVisible = anyGameOverlayVisible(
         currentDialogType = currentDialogType,
@@ -268,7 +267,7 @@ private fun rememberGameOverlayDialogData(
         shownWarningStageIds = shownWarningStageIds, anyDialogVisible = anyDialogVisible
     )
 }
-/** 妖兽是否仍存活（GameOverlayHost 拆分）：可能被 AI 宗门等异步处理击败 */
+/** 妖兽是否仍存活：可能被 AI 宗门等异步处理击败 */
 private fun isBeastStillAlive(
     currentAttack: PendingBeastAttack?,
     gdSnapshot: GameData
@@ -276,8 +275,7 @@ private fun isBeastStillAlive(
     gdSnapshot.worldLevels.find { it.id == attack.beastLevel.id }?.defeated != true
 } ?: false
 
-/** 任意弹窗可见判断（GameOverlayHost 拆分）：单例遮罩层条件 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 任意弹窗可见判断：单例遮罩层条件 */
 @Suppress("LongParameterList")
 private fun anyGameOverlayVisible(
     currentDialogType: DialogType,
@@ -297,7 +295,7 @@ private fun anyGameOverlayVisible(
     attackWarningVisible ||
     overlayOrderNonEmpty
 
-/** 全局对话框遮罩（GameOverlayHost 拆分）：任意弹窗可见时绘制单例遮罩 */
+/** 全局对话框遮罩：任意弹窗可见时绘制单例遮罩 */
 @Composable
 private fun GameOverlayScrim(visible: Boolean) {
     if (visible) {
@@ -309,7 +307,7 @@ private fun GameOverlayScrim(visible: Boolean) {
     }
 }
 
-/** 妖兽进攻预警 + AI 宗门进攻预警弹窗（GameOverlayHost 拆分） */
+/** 妖兽进攻预警 + AI 宗门进攻预警弹窗 */
 @Composable
 private fun GameOverlayAttackSections(
     currentAttack: PendingBeastAttack?,
@@ -324,7 +322,7 @@ private fun GameOverlayAttackSections(
             attack = currentAttack,
             scrimEnabled = false,
             onDismiss = {
-                viewModel.markBeastAttackShown(currentAttack.beastLevel.id)
+                viewModel.warnings.markBeastAttackShown(currentAttack.beastLevel.id)
             }
         )
     }
@@ -336,15 +334,13 @@ private fun GameOverlayAttackSections(
             shownStageIds = shownWarningStageIds,
             scrimEnabled = false,
             onDismissWarning = { warning ->
-                viewModel.markWarningStageShown(
-                    "${warning.warningId}:${warning.stage.name}"
-                )
+                viewModel.warnings.markWarningStageShown(warning.shownStageKey())
             }
         )
     }
 }
 
-/** 婚姻提议弹窗（GameOverlayHost 拆分） */
+/** 婚姻提议弹窗 */
 @Composable
 private fun MarriageProposalSection(
     currentProposal: PendingMarriageProposal?,
@@ -359,15 +355,15 @@ private fun MarriageProposalSection(
             MarriageApprovalDialog(
                 maleDisciple = maleDisciple,
                 femaleDisciple = femaleDisciple,
-                onApprove = { viewModel.approveMarriage(currentProposal.maleId, currentProposal.femaleId) },
-                onReject = { viewModel.rejectMarriage(currentProposal.maleId, currentProposal.femaleId) },
+                onApprove = { viewModel.disciple.approveMarriage(currentProposal.maleId, currentProposal.femaleId) },
+                onReject = { viewModel.disciple.rejectMarriage(currentProposal.maleId, currentProposal.femaleId) },
                 scrimEnabled = false
             )
         }
     }
 }
 
-/** GameOverlayHost 弹窗区（GameOverlayHost 拆分）：对话框路由 + 提示弹窗 + 叠加层栈 */
+/** GameOverlayHost 弹窗区：对话框路由 + 提示弹窗 + 叠加层栈 */
 @Composable
 private fun GameOverlayDialogs(
     vms: OverlayViewModels,
@@ -408,11 +404,11 @@ private fun GameOverlayDialogs(
         showBattleResult = state.showBattleResult,
         pendingBattleResult = pendingBattleResult, detailBattleLog = state.detailBattleLog,
         onCloseBattleResult = {
-            viewModel.dismissBattleResult()
+            viewModel.navigation.dismissBattleResult()
             state.showBattleResult = false
         },
         onViewBattleLogDetail = { selectedLog ->
-            viewModel.dismissBattleResult()
+            viewModel.navigation.dismissBattleResult()
             state.showBattleResult = false
             state.detailBattleLog = selectedLog
         },
@@ -420,7 +416,7 @@ private fun GameOverlayDialogs(
     )
 }
 
-/** 当前对话框路由（GameOverlayHost 拆分）：仅在 Dialog 可见时订阅 gameData */
+/** 当前对话框路由：仅在 Dialog 可见时订阅 gameData */
 @Composable
 private fun GameDialogRouteSection(
     currentDialogType: DialogType,
@@ -444,7 +440,7 @@ private fun GameDialogRouteSection(
     }
 }
 
-/** 战斗奖励卡片弹窗（GameOverlayHost 拆分） */
+/** 战斗奖励卡片弹窗 */
 @Composable
 private fun GameBattleRewardSection(
     dialogRenderable: Boolean,
@@ -458,14 +454,14 @@ private fun GameBattleRewardSection(
             title = "战斗奖励",
             cards = pendingBattleRewardCards,
             onConfirm = {
-                viewModel.enqueueBattleRewardCards()
+                viewModel.battleRewards.enqueueBattleRewardCards()
                 onDismiss()
             }
         )
     }
 }
 
-/** 错误/成功提示弹窗（GameOverlayHost 拆分） */
+/** 错误/成功提示弹窗 */
 @Composable
 private fun GameTipDialogSection(
     dialogRenderable: Boolean,
@@ -484,7 +480,7 @@ private fun GameTipDialogSection(
     }
 }
 
-/** 仓库容量不足提示弹窗（GameOverlayHost 拆分） */
+/** 仓库容量不足提示弹窗 */
 @Composable
 private fun GameCapacityWarningSection(
     dialogRenderable: Boolean,
@@ -503,7 +499,7 @@ private fun GameCapacityWarningSection(
     }
 }
 
-/** 引擎事件通知弹窗（GameOverlayHost 拆分） */
+/** 引擎事件通知弹窗 */
 @Composable
 private fun GameNotificationSection(
     dialogRenderable: Boolean,
@@ -527,8 +523,7 @@ private fun GameNotificationSection(
     }
 }
 
-/** 叠加层栈（GameOverlayHost 拆分）：战斗结果/战斗日志详情/弟子详情 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 叠加层栈：战斗结果/战斗日志详情/弟子详情 */
 @Suppress("LongParameterList")
 @Composable
 private fun GameOverlayStackSection(
@@ -585,10 +580,10 @@ private fun GameOverlayStackSection(
                         allDisciples = sortedDisciples,
                         manualProficiencies = manualProficiencies,
                         viewModel = viewModel,
-                        onDismiss = { viewModel.dismissDiscipleDetail() },
+                        onDismiss = { viewModel.overlays.dismissDiscipleDetail() },
                         scrimEnabled = false,
                         onNavigateToDisciple = req.onNavigateToDisciple
-                            ?: { d -> viewModel.navigateDiscipleDetail(d) }
+                            ?: { d -> viewModel.overlays.navigateDiscipleDetail(d) }
                     )
                 }
             }

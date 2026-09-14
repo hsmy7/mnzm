@@ -1,24 +1,19 @@
 package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.util.ItemNames
 
-import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
-import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.HealType
-import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.ClearRewardItem
 import com.xianxia.sect.core.model.CombatSkill
-import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
 import com.xianxia.sect.core.model.HeavenlyTrialClearReward
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.TrialEnemyDef
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -34,7 +29,7 @@ import javax.inject.Singleton
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
-import java.util.Locale
+import kotlinx.coroutines.CancellationException
 
 enum class ActionType { ATTACK, BUFF_ALLY, BUFF_SELF, NORMAL_ATTACK, NONE }
 
@@ -54,7 +49,7 @@ class HeavenlyTrialService @Inject constructor(
 ) {
 
     fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
-        // 篡改防御（对抗性审查）：realm/realmLayer 钳制合法范围——非法层数会产生
+        // 篡改防御：realm/realmLayer 钳制合法范围——非法层数会产生
         // 0/负属性（Combatant.isDead 开战即亡）或饱和 Int.MAX（打不死）
         val safeRealm = def.realm.coerceIn(0, 9)
         val safeLayer = def.realmLayer.coerceIn(
@@ -66,7 +61,7 @@ class HeavenlyTrialService @Inject constructor(
 
         val layerMult = 1.0 + (safeLayer - 1) * 0.1
 
-        // 2026-08-06 P4 修复：与 LevelGenerator/世界妖兽一致补 ±0.2 方差（加在类型 mod 上）。
+        // 与 LevelGenerator/世界妖兽一致补 ±0.2 方差（加在类型 mod 上）。
         // 确定性派生种子（同 [buildDiscipleEnemy]），预览 = 战斗属性一致。
         val enemyRng = DeterministicRng(enemySeed(levelIndex, def, index))
         val stats = computeBeastStats(
@@ -104,8 +99,8 @@ class HeavenlyTrialService @Inject constructor(
         )
     }
 
-    /** 妖兽基础属性（buildBeastEnemy 拆分）：realmStats × layerMult ×（类型 mod + 方差），钳制 ≥1 */
-    private data class BeastStats(
+    /** 妖兽基础属性：realmStats × layerMult ×（类型 mod + 方差），钳制 ≥1 */
+    internal data class BeastStats(
         val hp: Int,
         val mp: Int,
         val physicalAttack: Int,
@@ -115,61 +110,6 @@ class HeavenlyTrialService @Inject constructor(
         val speed: Int
     )
 
-    /** 妖兽属性计算（buildBeastEnemy 拆分）：±0.2 方差（加在类型 mod 上）+ 下界钳制 */
-    private fun computeBeastStats(
-        realmStats: GameConfig.Beast.RealmStats,
-        beastType: GameConfig.BeastTypeConfig,
-        layerMult: Double,
-        enemyRng: DeterministicRng
-    ): BeastStats {
-        fun variance(): Double = -0.2 + enemyRng.nextDouble() * 0.4
-        val hpVariance = variance()
-        val atkVariance = variance()
-        val defVariance = variance()
-        val speedVariance = variance()
-
-        // 属性下界钳制（对抗性审查）：防御未来配置新增低 mod 妖兽类型时出现 0/负属性
-        fun safeStat(value: Double): Int = value.toInt().coerceAtLeast(1)
-        return BeastStats(
-            hp = safeStat(realmStats.hp * layerMult * (beastType.hpMod + hpVariance)),
-            mp = safeStat(realmStats.mp * layerMult * (beastType.hpMod + hpVariance)),
-            physicalAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance)),
-            magicAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance)),
-            physicalDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance)),
-            magicDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance)),
-            speed = safeStat(realmStats.speed * layerMult * (beastType.speedMod + speedVariance))
-        )
-    }
-
-    /** 妖兽技能构建（buildBeastEnemy 拆分）：类型技能配置 → CombatSkill 列表 */
-    private fun buildBeastSkills(beastType: GameConfig.BeastTypeConfig): List<CombatSkill> {
-        return beastType.skills.map { skillConfig ->
-            CombatSkill(
-                name = skillConfig.name,
-                skillType = skillConfig.skillType,
-                damageType = skillConfig.damageType,
-                damageMultiplier = skillConfig.damageMultiplier,
-                mpCost = skillConfig.mpCost,
-                cooldown = skillConfig.cooldown,
-                hits = skillConfig.hits,
-                healPercent = skillConfig.healPercent,
-                healFixed = skillConfig.healFixed,
-                healType = skillConfig.healType,
-                buffType = skillConfig.buffType,
-                buffValue = skillConfig.buffValue,
-                buffDuration = skillConfig.buffDuration,
-                buffs = skillConfig.buffs,
-                isAoe = skillConfig.isAoe,
-                targetScope = skillConfig.targetScope,
-                shieldPercent = skillConfig.shieldPercent,
-                turnAdvancePercent = skillConfig.turnAdvancePercent,
-                damageSharePercent = skillConfig.damageSharePercent,
-                damageLinkPercent = skillConfig.damageLinkPercent,
-                skillDescription = skillConfig.skillDescription
-            )
-        }
-    }
-
     fun buildDiscipleEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
         val selected = selectTrialManuals(def, levelIndex)
         val equipment = selectTrialEquipment(def)
@@ -178,8 +118,8 @@ class HeavenlyTrialService @Inject constructor(
         // + 装备加成 + 功法属性加成（stats × 熟练度 bonus，与 computeFinalStats 一致）
         // 方差 ±30%，与 DiscipleStatCalculator.computeBaseStats 的 variance 一致
         val layerMult = 1.0 + (def.realmLayer - 1) * 0.1
-        // C1 对抗性审查修复：试炼敌人生成改确定性派生种子（关卡定义 + 敌人名），
-        // 不再消费全局 ENEMY_GEN 分区——UI 线程调用（CombatScreen/BattleDialog）
+        // 试炼敌人生成用确定性派生种子（关卡定义 + 敌人名），
+        // 不消费全局 ENEMY_GEN 分区——UI 线程调用（CombatScreen/BattleDialog）
         // 会推进引擎侧探索敌人生成序列，破坏读档重放；固定种子同时保证
         // 预览（BattleDialog）与战斗（startCombat）敌人属性一致
         val enemyRng = DeterministicRng(enemySeed(levelIndex, def, index))
@@ -213,14 +153,14 @@ class HeavenlyTrialService @Inject constructor(
         )
     }
 
-    private data class TrialEquipmentSelection(
+    internal data class TrialEquipmentSelection(
         val weapon: ForgeRecipeDatabase.ForgeRecipe?,
         val armor: ForgeRecipeDatabase.ForgeRecipe?,
         val boots: ForgeRecipeDatabase.ForgeRecipe?,
         val accessory: ForgeRecipeDatabase.ForgeRecipe?
     )
 
-    private data class TrialBaseStats(
+    internal data class TrialBaseStats(
         val hp: Int,
         val mp: Int,
         val physAtk: Int,
@@ -232,165 +172,12 @@ class HeavenlyTrialService @Inject constructor(
     )
 
     /** 试炼功法选取（buildDiscipleEnemy 提取）：固定 manualIds → 角色精选 → 随机 */
-    private fun selectTrialManuals(def: TrialEnemyDef, levelIndex: Int): List<ManualDatabase.ManualTemplate> {
-        // 功法：优先用固定 manualIds → 按角色精选 → 随机
-        if (def.manualIds.isNotEmpty()) {
-            val resolved = def.manualIds.mapNotNull { ManualDatabase.allManuals[it] }
-            if (resolved.isNotEmpty()) return resolved
-        }
-        val eligible = ManualDatabase.allManuals.values
-            .filter { it.minRealm <= def.realm }
-            .sortedByDescending { it.rarity }
-        return if (def.role.isNotEmpty()) selectManualsForRole(eligible, def.role, def.realm)
-        else selectManuals(eligible, levelIndex, def.realm)
-    }
-
-    /** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则境界最高品阶 */
-    private fun selectTrialEquipment(def: TrialEnemyDef): TrialEquipmentSelection {
-        if (def.equipmentIds.isNotEmpty()) {
-            val eqRecipes = def.equipmentIds.mapNotNull { ForgeRecipeDatabase.getRecipeById(it) }
-            return TrialEquipmentSelection(
-                weapon = eqRecipes.find { it.type == EquipmentSlot.WEAPON },
-                armor = eqRecipes.find { it.type == EquipmentSlot.ARMOR },
-                boots = eqRecipes.find { it.type == EquipmentSlot.BOOTS },
-                accessory = eqRecipes.find { it.type == EquipmentSlot.ACCESSORY }
-            )
-        }
-        val eligibleEquip = ForgeRecipeDatabase.getAllRecipes()
-            .filter { it.tier <= getMaxTierForRealm(def.realm) }
-            .sortedByDescending { it.rarity }
-        return TrialEquipmentSelection(
-            weapon = eligibleEquip.find { it.type == EquipmentSlot.WEAPON },
-            armor = eligibleEquip.find { it.type == EquipmentSlot.ARMOR },
-            boots = eligibleEquip.find { it.type == EquipmentSlot.BOOTS },
-            accessory = eligibleEquip.find { it.type == EquipmentSlot.ACCESSORY }
-        )
-    }
-
-    private data class StatBonus(
+    internal data class StatBonus(
         val hp: Int = 0, val mp: Int = 0,
         val physAtk: Int = 0, val magAtk: Int = 0,
         val physDef: Int = 0, val magDef: Int = 0,
         val speed: Int = 0, val critChance: Double = 0.0
     )
-
-    /** 试炼敌人基础属性（buildDiscipleEnemy 提取）：7 次 rngVar 抽数顺序保持，装备+功法加成随后 */
-    private fun buildTrialBaseStats(
-        def: TrialEnemyDef,
-        layerMult: Double,
-        rng: DeterministicRng,
-        selected: List<ManualDatabase.ManualTemplate>,
-        equipment: TrialEquipmentSelection
-    ): TrialBaseStats {
-        val realmConfig = GameConfig.Realm.get(def.realm)
-        fun rngVar(): Double = 1.0 + (rng.nextInt(61) - 30) / 100.0
-
-        val baseHp = (realmConfig.baseHp * rngVar() * layerMult).toInt()
-        val baseMp = (realmConfig.baseMp * rngVar() * layerMult).toInt()
-        val basePhysAtk = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt()
-        val baseMagAtk = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt()
-        val basePhysDef = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt()
-        val baseMagDef = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt()
-        val baseSpeed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt()
-
-        val equipBonus = sumEquipStatBonuses(equipment, rng)
-        val manualBonus = sumManualStatBonuses(selected)
-
-        return TrialBaseStats(
-            hp = baseHp + equipBonus.hp + manualBonus.hp,
-            mp = baseMp + equipBonus.mp + manualBonus.mp,
-            physAtk = basePhysAtk + equipBonus.physAtk + manualBonus.physAtk,
-            magAtk = baseMagAtk + equipBonus.magAtk + manualBonus.magAtk,
-            physDef = basePhysDef + equipBonus.physDef + manualBonus.physDef,
-            magDef = baseMagDef + equipBonus.magDef + manualBonus.magDef,
-            speed = baseSpeed + equipBonus.speed + manualBonus.speed,
-            critChance = manualBonus.critChance
-        )
-    }
-
-    /** 装备属性加成汇总（buildTrialBaseStats 提取）：weapon → armor → boots → accessory 顺序保持 */
-    private fun sumEquipStatBonuses(
-        equipment: TrialEquipmentSelection,
-        rng: DeterministicRng
-    ): StatBonus {
-        var hp = 0; var physAtk = 0; var magAtk = 0
-        var physDef = 0; var magDef = 0; var speed = 0
-        val equipNames = listOfNotNull(
-            equipment.weapon?.name, equipment.armor?.name,
-            equipment.boots?.name, equipment.accessory?.name
-        )
-        // 应用装备属性加成（修复：之前只选取装备名称用于显示，未将属性计入 Combatant）
-        // 2026-08-06 P4 修复：与 EnemyGenerator 一致，装备属性吃孕养倍率
-        // （模板原值 × getNurtureMultiplier，孕养等级确定性 rng 0..maxNurture）
-        for (name in equipNames) {
-            EquipmentDatabase.getTemplateByName(name)?.let { t ->
-                val maxNurture = EquipmentNurtureSystem.getMaxNurtureLevel(t.rarity)
-                val nurtureMult = EquipmentNurtureSystem.getNurtureMultiplier(rng.nextInt(maxNurture + 1))
-                physAtk += (t.physicalAttack * nurtureMult).toInt()
-                magAtk += (t.magicAttack * nurtureMult).toInt()
-                physDef += (t.physicalDefense * nurtureMult).toInt()
-                magDef += (t.magicDefense * nurtureMult).toInt()
-                speed += (t.speed * nurtureMult).toInt()
-                hp += (t.hp * nurtureMult).toInt()
-            }
-        }
-        return StatBonus(hp = hp, physAtk = physAtk, magAtk = magAtk, physDef = physDef, magDef = magDef, speed = speed)
-    }
-
-    /** 功法属性加成汇总（buildTrialBaseStats 提取）：
-     * 默认熟练度 0 → NOVICE 1.5 倍，与玩家"刚学功法"一致 */
-    private fun sumManualStatBonuses(selected: List<ManualDatabase.ManualTemplate>): StatBonus {
-        var hp = 0; var mp = 0
-        var physAtk = 0; var magAtk = 0
-        var physDef = 0; var magDef = 0
-        var speed = 0; var critChance = 0.0
-        val masteryBonus = com.xianxia.sect.core.engine.ManualProficiencySystem.MasteryLevel.fromLevel(0).bonus
-        // 功法属性加成（2026-08-04 补齐：敌人此前只有功法技能、无功法属性）
-        for (manual in selected) {
-            val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
-            val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
-            hp += (hpValue * masteryBonus).toInt()
-            mp += (mpValue * masteryBonus).toInt()
-            physAtk += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
-            magAtk += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
-            physDef += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
-            magDef += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
-            speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
-            critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
-        }
-        return StatBonus(
-            hp = hp, mp = mp, physAtk = physAtk, magAtk = magAtk,
-            physDef = physDef, magDef = magDef, speed = speed, critChance = critChance
-        )
-    }
-
-    /** 试炼敌人技能（buildDiscipleEnemy 提取）：熟练度 0（NOVICE ×1.5）倍率调整 */
-    private fun buildTrialSkills(selected: List<ManualDatabase.ManualTemplate>): List<CombatSkill> {
-        // 技能倍率按熟练度 0（NOVICE ×1.5）调整——与上方功法属性加成同源，
-        // 与 EnemyGenerator（按 mastery 0-3 调倍率）和玩家公式一致
-        // （对抗性审查：此前属性 ×1.5 而技能倍率裸奔，同一敌人自相矛盾）
-        return selected.map { manual ->
-            manual.copy(
-                skillDamageMultiplier = com.xianxia.sect.core.engine.ManualProficiencySystem
-                    .calculateSkillDamageMultiplier(manual.skillDamageMultiplier, 0)
-            ).toCombatSkill()
-        }
-    }
-
-    private fun getMaxTierForRealm(realm: Int): Int = when (realm) {
-        1, 2, 3, 4 -> 4
-        5 -> 3
-        6 -> 2
-        else -> 1
-    }
-
-    /**
-     * 试炼敌人确定性种子（C1 修复）：由关卡定义 + 敌人名派生——
-     * 同一关卡的同一敌人属性恒定（预览 = 战斗），且不消费全局 ENEMY_GEN。
-     * hashCode 碰撞仅导致属性略同，无正确性问题。
-     */
-    private fun enemySeed(levelIndex: Int, def: TrialEnemyDef, index: Int): Long =
-        def.name.hashCode().toLong() * 31L + levelIndex.toLong() * 7L + index
 
     fun getEnemiesForPhase(levelIndex: Int, phaseIndex: Int): List<Combatant> {
         val config = HeavenlyTrialConfig.getLevel(levelIndex) ?: return emptyList()
@@ -406,14 +193,10 @@ class HeavenlyTrialService @Inject constructor(
     /**
      * 敌方 AI 决策 —— 委托到统一 [BattleAI.decideAction]。
      * 所有敌人（天道试炼、妖兽、AI 弟子等）共用同一套 8 层级联 AI。
-     */
-    /**
-     * 敌方 AI 决策 —— 委托到统一 [BattleAI.decideAction]。
-     * 所有敌人（天道试炼、妖兽、AI 弟子等）共用同一套 8 层级联 AI。
      *
-     * @param rng C2 对抗性审查修复：调用方（UI 战斗模拟）必须传本地 PRNG
-     *   （currentCombatRng）——原实现在 UI 线程消费全局 BATTLE 分区，
-     *   敌方行动数百次消费使引擎侧战斗序列不可重放；引擎侧调用方
+     * @param rng 调用方（UI 战斗模拟）必须传本地 PRNG
+     *   （currentCombatRng）——UI 线程不得消费全局 BATTLE 分区，
+     *   敌方行动数百次消费会使引擎侧战斗序列不可重放；引擎侧调用方
      *   （BattleSystem 等）传引擎线程的 BATTLE 分区实例
      */
     fun executeEnemyAction(
@@ -454,6 +237,7 @@ class HeavenlyTrialService @Inject constructor(
 
     suspend fun recordPhaseClear(levelIndex: Int, phaseIndex: Int) {
         stateStore.update {
+            /** 当前设备的电源管理配置 */
             val current = gameData.heavenlyTrialState
             val newP1 = if (phaseIndex == 0) (current.phase1ClearedLevels + levelIndex).distinct()
                         else current.phase1ClearedLevels
@@ -484,27 +268,12 @@ class HeavenlyTrialService @Inject constructor(
 
     suspend fun claimClearReward(levelIndex: Int): ClaimClearRewardResult {
         val snapshot = stateStore.gameDataSnapshot
-            ?: return ClaimClearRewardResult.LevelNotCleared
-        val current = snapshot.heavenlyTrialState
-        if (!current.isLevelFullyCleared(levelIndex)) {
-            return ClaimClearRewardResult.LevelNotCleared
-        }
-        if (levelIndex in current.claimedRewardLevels) {
-            return ClaimClearRewardResult.AlreadyClaimed
-        }
-        val reward = HEAVENLY_TRIAL_CLEAR_REWARDS.find { it.levelIndex == levelIndex }
-            ?: return ClaimClearRewardResult.LevelNotCleared
-
-        // 预校验容量（storageBag 快速失败）：在 update 事务外做只读检查。
-        // randomEquipment/randomManual/randomPill 随机物品名未知，无法精确预校验，
-        // 由事务内 addXxx 溢出抛异常整体回滚兜底（凭据保留，清理后可重试）。
-        val capacityCheck = checkRewardCapacity(
-            reward = reward,
-            storageBags = stateStore.storageBagsSnapshot,
-            inventoryConfig = inventoryConfig
-        )
-        if (capacityCheck is RewardCapacityCheck.Failed) {
-            return ClaimClearRewardResult.CapacityInsufficient(capacityCheck.message)
+        val reward = when (val check = checkClearRewardClaimable(levelIndex, snapshot)) {
+            is ClearRewardClaimCheck.Eligible -> check.reward
+            is ClearRewardClaimCheck.NotCleared -> return ClaimClearRewardResult.LevelNotCleared
+            is ClearRewardClaimCheck.AlreadyClaimed -> return ClaimClearRewardResult.AlreadyClaimed
+            is ClearRewardClaimCheck.CapacityInsufficient ->
+                return ClaimClearRewardResult.CapacityInsufficient(check.message)
         }
 
         val generatedCards = mutableListOf<RewardCardItem>()
@@ -529,6 +298,8 @@ class HeavenlyTrialService @Inject constructor(
                     )
                 )
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: IllegalStateException) {
             // 容量不足/发放失败 → 事务整体回滚（物品/凭据均未写），凭据保留可重试
             DomainLog.w(TAG, "claimClearReward: level=$levelIndex 仓库容量不足（事务已回滚）: ${e.message}")
@@ -538,13 +309,52 @@ class HeavenlyTrialService @Inject constructor(
         return ClaimClearRewardResult.Success(generatedCards)
     }
 
+    /** 领取资格校验结果：通过时携带奖励定义 */
+    private sealed interface ClearRewardClaimCheck {
+        data class Eligible(val reward: HeavenlyTrialClearReward) : ClearRewardClaimCheck
+        data object NotCleared : ClearRewardClaimCheck
+        data object AlreadyClaimed : ClearRewardClaimCheck
+        /** 仓库容量不足：奖励未发放、领取记录未写入，清理后可重新领取 */
+        data class CapacityInsufficient(val message: String?) : ClearRewardClaimCheck
+    }
+
+    /**
+     * 领取前置校验：关卡全清 / 未重复领取 / 奖励定义存在 /
+     * 仓库容量预校验四道检查（均在 update 事务外，只读）。
+     */
+    private fun checkClearRewardClaimable(levelIndex: Int, snapshot: GameData?): ClearRewardClaimCheck {
+        /** 当前设备的电源管理配置 */
+        val current = snapshot?.heavenlyTrialState
+        if (current == null || !current.isLevelFullyCleared(levelIndex)) {
+            return ClearRewardClaimCheck.NotCleared
+        }
+        if (levelIndex in current.claimedRewardLevels) {
+            return ClearRewardClaimCheck.AlreadyClaimed
+        }
+        val reward = HEAVENLY_TRIAL_CLEAR_REWARDS.find { it.levelIndex == levelIndex }
+            ?: return ClearRewardClaimCheck.NotCleared
+
+        // 预校验容量（storageBag 快速失败）：在 update 事务外做只读检查。
+        // randomEquipment/randomManual/randomPill 随机物品名未知，无法精确预校验，
+        // 由事务内 addXxx 溢出抛异常整体回滚兜底（凭据保留，清理后可重试）。
+        val capacityCheck = checkRewardCapacity(
+            reward = reward,
+            storageBags = stateStore.storageBagsSnapshot,
+            inventoryConfig = inventoryConfig
+        )
+        if (capacityCheck is RewardCapacityCheck.Failed) {
+            return ClearRewardClaimCheck.CapacityInsufficient(capacityCheck.message)
+        }
+        return ClearRewardClaimCheck.Eligible(reward)
+    }
+
     /**
      * 在 [MutableGameState] 上下文中发放通关奖励物品。
      * 从 [claimClearReward] 提取，控制函数在 60 行以内。
      * 可堆叠物品统一委托 InventorySystem.addXxx（StackableItemStore 合并 +
      * withTrackingSource 来源追踪 + 溢出邮件兜底），Partial/Failure 抛异常整体回滚。
      */
-    private fun MutableGameState.distributeRewardItems(
+    internal fun MutableGameState.distributeRewardItems(
         reward: HeavenlyTrialClearReward,
         generatedCards: MutableList<RewardCardItem>
     ) {
@@ -560,7 +370,7 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     /** 灵石奖励发放（distributeRewardItems 提取） */
-    private fun MutableGameState.grantSpiritStoneRewardItem(
+    internal fun MutableGameState.grantSpiritStoneRewardItem(
         item: ClearRewardItem,
         generatedCards: MutableList<RewardCardItem>
     ) {
@@ -572,7 +382,7 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     /** 储物袋奖励发放（distributeRewardItems 提取） */
-    private fun MutableGameState.grantStorageBagRewardItem(
+    internal fun MutableGameState.grantStorageBagRewardItem(
         item: ClearRewardItem,
         generatedCards: MutableList<RewardCardItem>
     ) {
@@ -602,7 +412,7 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     /** 随机丹药奖励发放（distributeRewardItems 提取） */
-    private fun MutableGameState.grantRandomPillRewards(
+    internal fun MutableGameState.grantRandomPillRewards(
         item: ClearRewardItem,
         generatedCards: MutableList<RewardCardItem>
     ) {
@@ -635,7 +445,7 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     /** 随机装备奖励发放（distributeRewardItems 提取） */
-    private fun MutableGameState.grantRandomEquipmentRewards(
+    internal fun MutableGameState.grantRandomEquipmentRewards(
         item: ClearRewardItem,
         generatedCards: MutableList<RewardCardItem>
     ) {
@@ -648,8 +458,8 @@ class HeavenlyTrialService @Inject constructor(
                 maxRarity = targetRarity
             )
             // 统一委托 addEquipmentStack：进仓库堆叠轨道（equipmentStacks，仓库 UI 可见）。
-            // 修复历史 bug：此前手写 EquipmentInstance 直接写 equipmentInstances（实例轨道），
-            // 仓库 UI 只渲染堆叠不渲染实例 → 领取后装备不可见，且无来源追踪/溢出兜底。
+            // 仓库 UI 只渲染堆叠不渲染实例——直接写实例轨道会导致领取后装备不可见，
+            // 且无来源追踪/溢出兜底。
             when (val result = inventorySystem.addEquipmentStack(stack)) {
                 is DomainResult.Success -> {}
                 is DomainResult.Partial ->
@@ -666,7 +476,7 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     /** 随机功法奖励发放（distributeRewardItems 提取） */
-    private fun MutableGameState.grantRandomManualRewards(
+    internal fun MutableGameState.grantRandomManualRewards(
         item: ClearRewardItem,
         generatedCards: MutableList<RewardCardItem>
     ) {
@@ -679,8 +489,7 @@ class HeavenlyTrialService @Inject constructor(
                 maxRarity = targetRarity
             )
             // 统一委托 addManualStack：进仓库功法堆叠轨道（manualStacks，仓库 UI 可见）。
-            // 修复历史 bug：此前手写 toInstance 直接写 manualInstances（实例轨道），
-            // 仓库 UI 只渲染堆叠不渲染实例 → 领取后功法不可见。
+            // 仓库 UI 只渲染堆叠不渲染实例——直接写实例轨道会导致领取后功法不可见。
             when (val result = inventorySystem.addManualStack(stack)) {
                 is DomainResult.Success -> {}
                 is DomainResult.Partial ->
@@ -695,17 +504,6 @@ class HeavenlyTrialService @Inject constructor(
         }
         generatedCards.addAll(mergeCardsByName(generated))
     }
-
-    private fun mergeCardsByName(cards: List<RewardCardItem>): List<RewardCardItem> {
-        return cards.groupBy { Triple(it.itemName, it.itemType, it.rarity) }
-            .map { (_, list) ->
-                list.first().copy(quantity = list.sumOf { it.quantity })
-            }
-    }
-
-    // endregion
-
-    // region Reward capacity pre-check
 
     /**
      * 奖励容量预校验结果。
@@ -732,6 +530,13 @@ class HeavenlyTrialService @Inject constructor(
      * 不校验 spiritStones：Long 类型无上限。
      */
     internal companion object {
+        /**
+         * 单用户定向补偿邮件（MailService 扩展，独立文件）。
+         *
+         * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
+         * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
+         * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
+         */
         private const val TAG = "HeavenlyTrialService"
 
         fun checkRewardCapacity(
@@ -760,118 +565,6 @@ class HeavenlyTrialService @Inject constructor(
 
     // endregion
 
-    private fun selectManuals(
-        eligible: List<ManualDatabase.ManualTemplate>,
-        levelIndex: Int,
-        realm: Int
-    ): List<ManualDatabase.ManualTemplate> {
-        val maxCount = when (realm) {
-            1, 2 -> 10
-            3, 4 -> 7
-            5, 6 -> 4
-            else -> 2
-        }
-        val types = listOf("attack", "defense", "support", "mind")
-        val result = mutableListOf<ManualDatabase.ManualTemplate>()
-        for (t in types) {
-            eligible.filter { it.type.name.lowercase(Locale.ROOT) == t }
-                .maxByOrNull { it.rarity }
-                ?.let { result.add(it) }
-        }
-        val remaining = eligible.filter { it !in result }
-            .sortedByDescending { it.rarity }
-        for (m in remaining) {
-            if (result.size >= maxCount) break
-            result.add(m)
-        }
-        return result
-    }
-
-    private fun selectManualsForRole(
-        eligible: List<ManualDatabase.ManualTemplate>,
-        role: String,
-        realm: Int
-    ): List<ManualDatabase.ManualTemplate> {
-        val maxCount = when (realm) {
-            1, 2 -> 10
-            3, 4 -> 7
-            5, 6 -> 4
-            else -> 2
-        }
-        val result = mutableListOf<ManualDatabase.ManualTemplate>()
-
-        // 按角色优先级选取各类型功法
-        val typePriority = when (role.lowercase(Locale.ROOT)) {
-            "tank" -> listOf("defense" to 2, "attack" to 1, "mind" to 1, "support" to 0)
-            "dps" -> listOf("attack" to 3, "mind" to 1, "defense" to 0, "support" to 0)
-            "support" -> listOf("support" to 2, "mind" to 1, "defense" to 1, "attack" to 0)
-            else -> listOf("attack" to 1, "defense" to 1, "support" to 1, "mind" to 1)
-        }
-
-        for ((type, desired) in typePriority) {
-            val typeManuals = eligible
-                .filter { it.type.name.lowercase(Locale.ROOT) == type.lowercase(Locale.ROOT) }
-                .sortedByDescending { it.rarity }
-                .take(desired)
-            result.addAll(typeManuals)
-        }
-
-        // 补满到 maxCount
-        val usedIds = result.map { it.id }.toSet()
-        val remaining = eligible.filter { it.id !in usedIds }
-            .sortedByDescending { it.rarity }
-        for (m in remaining) {
-            if (result.size >= maxCount) break
-            result.add(m)
-        }
-
-        return result
-    }
-
-    private fun ManualDatabase.ManualTemplate.toCombatSkill(): CombatSkill {
-        val skillTypeEnum = when (skillType.lowercase(Locale.ROOT)) {
-            "attack" -> SkillType.ATTACK
-            "support" -> SkillType.SUPPORT
-            else -> SkillType.ATTACK
-        }
-        val damageTypeEnum = when (skillDamageType.lowercase(Locale.ROOT)) {
-            "physical" -> DamageType.PHYSICAL
-            "magic" -> DamageType.MAGIC
-            else -> DamageType.PHYSICAL
-        }
-        val buffTypeEnum = skillBuffType?.let { buffName ->
-            BuffType.entries.find { it.name.equals(buffName, ignoreCase = true) }
-        }
-        val buffsList = skillBuffs.map { buff ->
-            val bt = BuffType.entries.find { it.name.equals(buff.type, ignoreCase = true) }
-            if (bt != null) Triple(bt, buff.value, buff.duration) else null
-        }.filterNotNull()
-
-        val healTypeEnum = when (skillHealType.lowercase(Locale.ROOT)) {
-            "mp" -> HealType.MP
-            else -> HealType.HP
-        }
-
-        return CombatSkill(
-            name = skillName ?: name,
-            skillType = skillTypeEnum,
-            damageType = damageTypeEnum,
-            damageMultiplier = skillDamageMultiplier,
-            mpCost = skillMpCost,
-            cooldown = skillCooldown,
-            hits = skillHits,
-            healPercent = skillHealPercent,
-            healType = healTypeEnum,
-            buffType = buffTypeEnum,
-            buffValue = skillBuffValue,
-            buffDuration = skillBuffDuration,
-            buffs = buffsList,
-            isAoe = skillIsAoe,
-            targetScope = skillTargetScope,
-            skillDescription = skillDescription ?: "",
-            manualName = name
-        )
-    }
 }
 
 /**
@@ -881,5 +574,6 @@ sealed class ClaimClearRewardResult {
     data class Success(val cards: List<RewardCardItem>) : ClaimClearRewardResult()
     data object AlreadyClaimed : ClaimClearRewardResult()
     data object LevelNotCleared : ClaimClearRewardResult()
+    /** 仓库容量不足：奖励未发放、领取记录未写入，清理后可重新领取 */
     data class CapacityInsufficient(val message: String?) : ClaimClearRewardResult()
 }

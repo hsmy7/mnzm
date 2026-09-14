@@ -33,7 +33,7 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 炼丹/锻造职业品阶门禁测试（2026-08-09 职业系统）。
+ * 炼丹/锻造职业品阶门禁测试。
  *
  * 覆盖 BuildingService.startAlchemy/startForging 的反绕过拦截：
  * 无职业/职业等级不足时返回 RecipeTierLocked（材料未扣、槽位不变），

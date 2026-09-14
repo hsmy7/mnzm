@@ -13,7 +13,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * BeastMaterialRegistryGuardTest — 妖兽材料/材料静态数据守卫（批次 2 剩余子步）。
+ * BeastMaterialRegistryGuardTest — 妖兽材料/材料静态数据守卫。
  *
  * 守护目标：生成器提取的妖兽材料表快照（beast_material_db_sample.json，由
  * scripts/gen-beast-material-db.mjs 生成）与 Kotlin BeastMaterialDatabase

@@ -5,6 +5,7 @@ import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.serializer
+import java.lang.reflect.Field
 import java.security.MessageDigest
 import java.util.Collections
 import java.util.LinkedHashMap
@@ -77,7 +78,7 @@ data class DataChanges(
 
 class ChangeTracker {
     companion object {
-        private const val TAG = "ChangeTracker"
+        internal const val TAG = "ChangeTracker"
         private const val MAX_TRACKED_CHANGES = 10000
         private const val MAX_SNAPSHOTS = 1000
         private const val CHANGE_TTL_MS = 300_000L
@@ -152,23 +153,11 @@ class ChangeTracker {
         removeSnapshot(key)
     }
     
-    fun trackBatchCreate(dataType: DataType, entities: List<Pair<String, Any>>) {
-        entities.forEach { (entityId, newValue) ->
-            trackCreate(dataType, entityId, newValue)
-        }
-    }
+
     
-    fun trackBatchUpdate(dataType: DataType, entities: List<Triple<String, Any?, Any>>) {
-        entities.forEach { (entityId, oldValue, newValue) ->
-            trackUpdate(dataType, entityId, oldValue, newValue)
-        }
-    }
+
     
-    fun trackBatchDelete(dataType: DataType, entities: List<Pair<String, Any?>>) {
-        entities.forEach { (entityId, oldValue) ->
-            trackDelete(dataType, entityId, oldValue)
-        }
-    }
+
     
     private fun trackChange(key: String, change: DataChange) {
         if (changes.size >= MAX_TRACKED_CHANGES) {
@@ -293,79 +282,13 @@ class ChangeTracker {
         }
     }
     
-    @OptIn(InternalSerializationApi::class)
-    private fun computeChecksum(data: Any): String {
-        return try {
-            val bytes = when (data) {
-                is String -> data.toByteArray(Charsets.UTF_8)
-                else -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val serializer = data::class.serializer() as KSerializer<Any>
-                    NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer, data)
-                }
-            }
-            val digest = MessageDigest.getInstance("SHA-256")
-            val hash = digest.digest(bytes)
-            hash.joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            Log.w(TAG, "ProtoBuf serialization failed for ${data::class.simpleName}, using reflective hash", e)
-            computeReflectiveChecksum(data)
-        }
-    }
 
-    private fun computeReflectiveChecksum(data: Any): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        data::class.java.declaredFields.sortedBy { it.name }.forEach { field ->
-            try {
-                field.isAccessible = true
-                val value = field.get(data) ?: return@forEach
-                digest.update(value.toString().toByteArray(Charsets.UTF_8))
-            } catch (e: Exception) { Log.w(TAG, "Reflective checksum failed for field: ${field.name}", e) }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
+
+
     
-    private fun computeFieldChanges(oldValue: Any, newValue: Any): Map<String, FieldChange> {
-        val fieldChanges = mutableMapOf<String, FieldChange>()
-        
-        try {
-            val oldClass = oldValue::class.java
-            val newClass = newValue::class.java
-            
-            if (oldClass != newClass) {
-                Log.w(TAG, "Type mismatch in field comparison: ${oldClass.simpleName} vs ${newClass.simpleName}")
-                return fieldChanges
-            }
-            
-            oldClass.declaredFields.forEach { field ->
-                val fieldName = field.name
-                
-                if (fieldName.startsWith("$") || fieldName == "serialVersionUID") {
-                    return@forEach
-                }
-                
-                try {
-                    field.isAccessible = true
-                    val oldFieldValue = field.get(oldValue)
-                    val newFieldValue = field.get(newValue)
-                    
-                    if (oldFieldValue != newFieldValue) {
-                        fieldChanges[fieldName] = FieldChange(
-                            fieldName = fieldName,
-                            oldValue = oldFieldValue,
-                            newValue = newFieldValue
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.v(TAG, "Could not access field $fieldName: ${e.message}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to compute field changes: ${e.message}")
-        }
-        
-        return fieldChanges
-    }
+
+
+
     
     fun getChangeStats(): ChangeStats {
         val typeCounts = changes.values.groupingBy { it.dataType }.eachCount()
@@ -383,8 +306,7 @@ class ChangeTracker {
         )
     }
     
-    private fun buildKey(dataType: DataType, entityId: String): String =
-        "${dataType.prefix}:$entityId"
+
     
     data class ChangeStats(
         val totalChanges: Int,
@@ -395,3 +317,117 @@ class ChangeTracker {
         val snapshotCount: Int
     )
 }
+
+internal fun ChangeTracker.trackBatchCreate(dataType: DataType, entities: List<Pair<String, Any>>) {
+    entities.forEach { (entityId, newValue) ->
+        trackCreate(dataType, entityId, newValue)
+    }
+}
+
+internal fun ChangeTracker.trackBatchUpdate(dataType: DataType, entities: List<Triple<String, Any?, Any>>) {
+    entities.forEach { (entityId, oldValue, newValue) ->
+        trackUpdate(dataType, entityId, oldValue, newValue)
+    }
+}
+
+internal fun ChangeTracker.trackBatchDelete(dataType: DataType, entities: List<Pair<String, Any?>>) {
+    entities.forEach { (entityId, oldValue) ->
+        trackDelete(dataType, entityId, oldValue)
+    }
+}
+
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+@OptIn(InternalSerializationApi::class)
+private fun computeChecksum(data: Any): String {
+    return try {
+        val bytes = when (data) {
+            is String -> data.toByteArray(Charsets.UTF_8)
+            else -> {
+                @Suppress("UNCHECKED_CAST")
+                val serializer = data::class.serializer() as KSerializer<Any>
+                NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer, data)
+            }
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        val hash = digest.digest(bytes)
+        hash.joinToString("") { "%02x".format(it) }
+    } catch (e: Exception) {
+        Log.w(TAG, "ProtoBuf serialization failed for ${data::class.simpleName}, using reflective hash", e)
+        computeReflectiveChecksum(data)
+    }
+}
+
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+private fun computeReflectiveChecksum(data: Any): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    data::class.java.declaredFields.sortedBy { it.name }.forEach { field ->
+        try {
+            field.isAccessible = true
+            val value = field.get(data) ?: return@forEach
+            digest.update(value.toString().toByteArray(Charsets.UTF_8))
+        } catch (e: Exception) { Log.w(TAG, "Reflective checksum failed for field: ${field.name}", e) }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+private fun computeFieldChanges(oldValue: Any, newValue: Any): Map<String, FieldChange> {
+    val fieldChanges = mutableMapOf<String, FieldChange>()
+
+    try {
+        val oldClass = oldValue::class.java
+        val newClass = newValue::class.java
+
+        if (oldClass != newClass) {
+            Log.w(TAG, "Type mismatch in field comparison: ${oldClass.simpleName} vs ${newClass.simpleName}")
+            return fieldChanges
+        }
+
+        oldClass.declaredFields.forEach { field ->
+            val fieldName = field.name
+
+            if (fieldName.startsWith("$") || fieldName == "serialVersionUID") {
+                return@forEach
+            }
+
+            addFieldChangeIfChanged(field, oldValue, newValue, fieldChanges)
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Failed to compute field changes: ${e.message}")
+    }
+
+    return fieldChanges
+}
+
+/**
+ * 单字段差分：反射读取双侧字段值，变化才记入变更表；
+ * 不可访问字段仅记录后跳过，不中断整表比较。
+ */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 跳过该字段继续, 非静默吞噬
+private fun addFieldChangeIfChanged(
+    field: Field,
+    oldValue: Any,
+    newValue: Any,
+    fieldChanges: MutableMap<String, FieldChange>
+) {
+    try {
+        field.isAccessible = true
+        val oldFieldValue = field.get(oldValue)
+        val newFieldValue = field.get(newValue)
+
+        if (oldFieldValue != newFieldValue) {
+            fieldChanges[field.name] = FieldChange(
+                fieldName = field.name,
+                oldValue = oldFieldValue,
+                newValue = newFieldValue
+            )
+        }
+    } catch (e: Exception) {
+        Log.v(TAG, "Could not access field ${field.name}: ${e.message}")
+    }
+}
+
+private fun buildKey(dataType: DataType, entityId: String): String =
+    "${dataType.prefix}:$entityId"
+
+private val TAG = ChangeTracker.TAG

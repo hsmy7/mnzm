@@ -2,6 +2,7 @@
 
 #include <map>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include <nlohmann/json.hpp>
@@ -50,18 +51,20 @@ std::map<std::string, std::size_t> indexById(const json& arr) {
 }  // namespace
 
 void DirtyTracker::resetBaseline(const GameState& s) {
-    baseline_ = s;
+    baselineJson_ = stateToJson(s);
 }
 
 void DirtyTracker::syncBaselineToCurrent(const GameState& current) {
-    baseline_ = current;
+    baselineJson_ = stateToJson(current);
 }
 
 std::string DirtyTracker::diffToJson(const GameState& current) {
     ++version_;
 
-    const json base = stateToJson(baseline_);
-    const json cur = stateToJson(current);
+    // WS-1.3：仅当前状态一次全量序列化；基线用缓存树（resetBaseline/
+    // syncBaselineToCurrent/上次 diff 消费时已重建），比较后移入缓存。
+    const json& base = baselineJson_;
+    json cur = stateToJson(current);
 
     json changed = json::object();
     json removed = json::object();
@@ -120,7 +123,7 @@ std::string DirtyTracker::diffToJson(const GameState& current) {
     // 面向 kotlinx 解码器的浮点规范化（与 dumpStateJson 同一规则）
     normalizeIntegralFloats(out);
 
-    baseline_ = current;  // 导出即消费：基线推进到当前状态
+    baselineJson_ = std::move(cur);  // 导出即消费：基线推进到当前状态
     return out.dump();
 }
 

@@ -71,10 +71,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.TimeoutCancellationException
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.RenderDebugSwitches
+import com.xianxia.sect.core.render.VulkanPrewarmState
 import com.xianxia.sect.taptap.AdServiceImpl
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.core.engine.di.IoDispatcher
@@ -82,8 +82,11 @@ import android.view.ActionMode
 import android.view.View
 import android.view.Window
 import javax.inject.Inject
+import com.xianxia.sect.core.engine.onUserActivity
 
 @AndroidEntryPoint
+@Suppress("TooManyFunctions") // Activity 框架契约面：生命周期/权限/结果回调族（24 个 override 契约下界超类阈值）
+// 必须驻留类体承载框架分发；余量为平台胶水（UI 装配/前台服务接线）。
 class GameActivity : ComponentActivity() {
 
     companion object {
@@ -92,7 +95,7 @@ class GameActivity : ComponentActivity() {
         /**
          * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
          * 覆盖 Dialog 窗口销毁后键盘收起动画的剩余时长，等待 IME 状态落定
-         * 再恢复隐藏，切断"键盘动画期间 hide() 对抗"（荣耀GT系列键盘频闪根治）。
+         * 再恢复隐藏，切断"键盘动画期间 hide() 对抗"。
          */
         private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
     }
@@ -101,12 +104,12 @@ class GameActivity : ComponentActivity() {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     /**
-     * 输入对话框销毁解冻 / 键盘动画结束后恢复系统栏隐藏（2026-09 IME 状态机根治）。
+     * 输入对话框销毁解冻 / 键盘动画结束后恢复系统栏隐藏。
      *
      * 触发源：① [SystemBarFreezeScope] 解冻监听器；② [ImeAnimationTracker] 键盘动画
      * onEnd 回调。执行语义：
-     * - 立即复查：键盘不可见且无动画且未冻结 → 直接恢复隐藏（替代历史固定 350ms 主路径，
-     *   docs/ime-android-system-research.md §2.3：ROM 键盘动画时长差异大，固定延时在
+     * - 立即复查：键盘不可见且无动画且未冻结 → 直接恢复隐藏
+     *   （docs/ime-android-system-research.md §2.3：ROM 键盘动画时长差异大，固定延时在
      *   动画 >350ms 的 ROM 上过早恢复会与残余动画对抗）
      * - 350ms 延时仅作"回调未触发/状态未落定"兜底，执行前再经
      *   [SystemBarHidePolicy] 双守卫校验（isVisible 真值 + 动画状态）
@@ -170,10 +173,10 @@ class GameActivity : ComponentActivity() {
     @Inject
     lateinit var gamePreferences: com.xianxia.sect.data.prefs.GamePreferences
 
-    /** 防沉迷合规限制对话框状态（D-42：游戏内限制提示，与 MainActivity 共享类型） */
+    /** 防沉迷合规限制对话框状态（游戏内限制提示，与 MainActivity 共享类型） */
     private val complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
 
-    /** D-42：合规回调窗口端口（游戏窗口适配器，宿主按接口转发） */
+    /** 合规回调窗口端口（游戏窗口适配器，宿主按接口转发） */
     private val complianceWindowPort = object : com.xianxia.sect.taptap.ComplianceCallbackHost.WindowPort {
         override fun postToUi(block: () -> Unit) = this@GameActivity.runOnUiThread(block)
         override fun isAlive(): Boolean = !isFinishing && !isDestroyed
@@ -186,7 +189,7 @@ class GameActivity : ComponentActivity() {
     }
 
     // ── GameForegroundService 绑定 ──
-    // 游戏循环控制权已迁移到 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
+    // 游戏循环控制权在 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
     private var gameService: GameForegroundService? = null
     private var gameEngineCore: GameEngineCore? = null
     private var isServiceBound = false
@@ -211,6 +214,16 @@ class GameActivity : ComponentActivity() {
     private var mapPreloadDataRef: MapPreloadData? = null
 
     /**
+     * Vulkan 设备预热 + ASTC 图集预取单次守卫。
+     *
+     * 预热在 onCreate 即发起、与 boot 数据阶段并行，避免 Phase1
+     * （instance/device/ShaderModule/PipelineCache 加载）与 surface 初始化竞速。
+     * PLAYING 分支复用同一守卫兜底（已完成/在飞时直接返回，不二次 prewarm——
+     * prewarmDevice 会 delete 旧 g_renderer，重复进入有破坏性）。
+     */
+    private val vulkanPrewarmLaunched = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
      * ActionMode 跟踪器：拦截 FloatingActionMode 生命周期，确保在 Activity 销毁前清理。
      * 防止文本选择工具栏在窗口 token 无效后弹出导致 BadTokenException。
      */
@@ -222,17 +235,17 @@ class GameActivity : ComponentActivity() {
     private var launchSlot = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // P-2 拆分：渲染安全模式检测（必须在 super.onCreate() 前）
+        // 渲染安全模式检测（必须在 super.onCreate() 前）
         applySafeModeThemeIfNeeded()
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
 
-        // P-2 拆分：窗口背景/崩溃处理器/渲染策略/系统 UI
+        // 窗口背景/崩溃处理器/渲染策略/系统 UI
         setupWindowAndDiagnostics()
 
         SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
 
-        // P-2 拆分：启动参数解析
+        // 启动参数解析
         val launch = resolveLaunchIntent(savedInstanceState)
         val slot = launch.slot
         val isNewGame = launch.isNewGame
@@ -260,14 +273,96 @@ class GameActivity : ComponentActivity() {
         // 若等 Compose 重组，unionId 尚为 null，白名单判定会失败
         AdFreeWhitelist.initialize(sessionManager.unionId)
 
-        // P-2 拆分：游戏初始化分发（新游戏/读档/云读档）
+        // 游戏初始化分发（新游戏/读档/云读档）
         initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad)
+
+        // Vulkan 设备预热（Phase1）+ ASTC 图集预取在进入 Activity 即后台执行——
+        // 与 boot 数据阶段并行，避免 PLAYING 时点才发起的预热与 surface 初始化竞速。
+        // 渲染策略在 setupWindowAndDiagnostics 已确定，此处直接按策略分流。
+        if (!isSoftwareRendering && !isGlesRendering) {
+            startVulkanPrewarmAndAtlasPrefetch()
+        } else {
+            Log.d(
+                TAG,
+                "Non-Vulkan strategy (software=$isSoftwareRendering, gles=$isGlesRendering)" +
+                    " — skip early prewarm/prefetch"
+            )
+        }
 
         Log.d(TAG, "onCreate completed")
     }
 
     /**
-     * 游戏主内容（P-2：setContent 块提取——成员字段可直接访问）。
+     * Vulkan 设备预热（Phase1：instance/device/ShaderModule/PipelineCache 加载）
+     * + ASTC 图集资产预取（IO 移出 surface 就绪后的关键路径）。
+     *
+     * 单次执行（[vulkanPrewarmLaunched] 守卫）；PLAYING 分支的调用是兜底重入点，
+     * 已完成/在飞时直接返回。
+     *
+     * prewarm 运行在**不可取消的专用线程**：仅以 `withTimeout(5s)`
+     * 放弃等待时 JNI 仍持 `g_rendererLifecycleMutex` 运行（与 surface 期
+     * initRenderer 在同锁上真实竞争），且 TimeoutCancellationException 分支会对
+     * 仍在跑的 prewarm 伪造失败记录。结果经台账落地：
+     * - 成功 → setVulkanDeviceInfo（低于量化阈值由其内部记 soft-fail）；
+     * - 失败 → recordVulkanSoftFailure("prewarm")；
+     * - prewarm 慢 → 由 VulkanPrewarmState 预算协同接住（NativeSurfaceView 把
+     *   安全网延长为 prewarm 起点 + 8s + 10s），不再有超时伪造失败；
+     * - prewarm 真挂死 → 预算到期降级 + 写前标记残留（进程死后下轮 kill+1）。
+     * 图集预取保留协程（可取消、无锁竞争）。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun startVulkanPrewarmAndAtlasPrefetch() {
+        if (!vulkanPrewarmLaunched.compareAndSet(false, true)) return
+        lifecycleScope.launch(ioDispatcher.dispatcher) {
+            // ── 图集预取：KTX 21.3MB 资产读取提前（上传仍在 surface 就绪后主线程）──
+            try {
+                val prefetched = com.xianxia.sect.ui.game.sect.SectAtlasPrefetch.prefetch(
+                    applicationContext
+                )
+                Log.d(TAG, "ASTC atlas prefetch: ${if (prefetched) "done" else "unavailable"}")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "ASTC atlas prefetch failed (will re-read at surface time)", e)
+            }
+        }
+        // ── 设备预热：专用线程（JNI 不可取消——withTimeout 只能放弃等待，
+        //    放弃后仍持 g_rendererLifecycleMutex 运行，与 initRenderer 同锁竞争）──
+        kotlin.concurrent.thread(name = "VulkanPrewarm", isDaemon = true) {
+            NativeBridge.ensureLoaded()
+            VulkanPrewarmState.markStarted()
+            CrashRecoveryEngine.markPrewarmStarted()
+            val ok = try {
+                NativeBridge.prewarmDevice(
+                    applicationContext.cacheDir.absolutePath,
+                    GameConfig.SectMap.WORLD_WIDTH_CELLS * GameConfig.SectMap.TILE_SIZE,
+                    GameConfig.SectMap.WORLD_HEIGHT_CELLS * GameConfig.SectMap.TILE_SIZE,
+                    GameConfig.SectMap.TILE_SIZE
+                )
+            } catch (t: Throwable) {
+                // 防御兜底: JNI 异常源不可枚举, 记台账失败+日志留痕, 非静默吞噬
+                Log.e(TAG, "Vulkan prewarm exception", t)
+                false
+            }
+            CrashRecoveryEngine.clearPrewarmStarted()
+            if (ok) {
+                // 低于厂商量化阈值时由 setVulkanDeviceInfo 内部记 soft-fail("threshold")
+                VulkanPolicy.setVulkanDeviceInfo(
+                    NativeBridge.getVulkanVendorId(),
+                    NativeBridge.getVulkanApiVersion(),
+                    NativeBridge.getVulkanDriverVersion(),
+                    NativeBridge.getVulkanDeviceName()
+                )
+            } else {
+                CrashRecoveryEngine.recordVulkanSoftFailure("prewarm")
+            }
+            VulkanPrewarmState.markFinished()
+            Log.i(TAG, "Vulkan prewarm finished (ok=$ok)")
+        }
+    }
+
+    /**
+     * 游戏主内容（成员字段可直接访问）。
      *
      * 声明式 UI 单屏（LoadingScreen/MainGameScreen 过渡 + Vulkan 预热），
      * 结构不可再拆（状态驱动渲染树），复杂度豁免与 MainGameScreen 同类。
@@ -287,7 +382,7 @@ class GameActivity : ComponentActivity() {
                     val isRestarting by saveLoadViewModel.isRestarting.collectAsStateWithLifecycle()
                     
                     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
-                    // 2026-08-16 每宗独立地图：sectMapData 随 activeSectId 惰性生成（主宗=boot 种子，
+                    // 每宗独立地图：sectMapData 随 activeSectId 惰性生成（主宗=boot 种子，
                     // 被占宗门=派生种子）；游戏未加载时保持 null，由 boot 图兜底
                     val sectMapData by viewModel.sectMapData.collectAsStateWithLifecycle()
 
@@ -300,9 +395,9 @@ class GameActivity : ComponentActivity() {
                     // 游戏生命周期驱动 UI 过渡（替代旧的 gameData.isGameStarted 方案）
                     // MAP_READY → 地图瓦片就绪，安全切换 Crossfade 到 MainGameScreen
                     // PLAYING   → 游戏 fully loaded，触发 TapDB 上报和 Vulkan 预热
-                    // S13 修复（对抗性审查）：restartVersion 变化（游戏内重启）时强制
-                    // 刷新地图瓦片——原 mapPreloadData == null 守卫使重启后旧世界瓦片
-                    // 与新世界建筑混显（restartVersion 递增但无人消费）
+                    // restartVersion 变化（游戏内重启）时强制
+                    // 刷新地图瓦片——仅靠 mapPreloadData == null 守卫会让重启后旧世界
+                    // 瓦片与新世界建筑混显
                     val restartVersion by saveLoadViewModel.restartVersion.collectAsStateWithLifecycle()
                     LaunchedEffect(bootPhase, runState, restartVersion) {
                         when {
@@ -338,60 +433,14 @@ class GameActivity : ComponentActivity() {
                                     )
                                 }
 
-                                // Vulkan 预热：后台发射，不阻塞地图显示
-                                // ★ 仅 VULKAN 策略预预热；GLES 无两阶段 prewarm（C++ 侧 g_backendType!=0
-                                //   直接返回），且此处提前创建 VulkanBackend 会与后续 GLES init 冲突
-                                //   （surface 可能被占用，骁龙 8 Gen 2 实测 "already connected to another API"）。
+                                // Vulkan 预热：后台发射，不阻塞地图显示。
+                                // 预热主路径在 onCreate（与 boot 数据阶段并行），此处仅兜底——
+                                // [vulkanPrewarmLaunched] 单次守卫保证真正执行一次；
+                                // 已完成/在飞时本调用直接返回。GLES 无两阶段
+                                // prewarm（C++ 侧 g_backendType!=0 直接返回），且提前
+                                // 创建 VulkanBackend 会与后续 GLES init 冲突。
                                 if (!isSoftwareRendering && !isGlesRendering) {
-                                    val tileSize = GameConfig.SectMap.TILE_SIZE
-                                    val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-                                    val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-                                    val worldPixelWidth = worldWidthCells * tileSize
-                                    val worldPixelHeight = worldHeightCells * tileSize
-
-                                    launch(ioDispatcher.dispatcher) {
-                                        NativeBridge.ensureLoaded()
-                                        var prewarmOk = false
-                                        com.xianxia.sect.core.CrashRecoveryEngine.markPrewarmStarted()
-                                        try {
-                                            withTimeout(5_000L) {
-                                                val d = applicationContext.cacheDir
-                                                prewarmOk = NativeBridge.prewarmDevice(
-                                                    d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
-                                                )
-                                                if (prewarmOk) {
-                                                    com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
-                                                    com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                                    com.xianxia.sect.core.VulkanPolicy.setVulkanDeviceInfo(
-                                                        com.xianxia.sect.core.nativebridge
-                                                            .NativeBridge.getVulkanVendorId(),
-                                                        com.xianxia.sect.core.nativebridge
-                                                            .NativeBridge.getVulkanApiVersion(),
-                                                        com.xianxia.sect.core.nativebridge
-                                                            .NativeBridge.getVulkanDriverVersion(),
-                                                        com.xianxia.sect.core.nativebridge
-                                                            .NativeBridge.getVulkanDeviceName()
-                                                    )
-                                                } else {
-                                                    com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                                    com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
-                                                }
-                                            }
-                                        } catch (e: TimeoutCancellationException) {
-                                            Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time", e)
-                                            com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                        } catch (e: CancellationException) { throw e }
-                                          catch (e: Exception) {
-                                            Log.e(TAG, "Vulkan prewarm exception", e)
-                                            com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                            com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
-                                        }
-
-                                        if (!prewarmOk) {
-                                            com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                            com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
-                                        }
-                                    }
+                                    startVulkanPrewarmAndAtlasPrefetch()
                                 } else {
                                     Log.d(TAG, "Software rendering — skipping Vulkan prewarm")
                                 }
@@ -414,8 +463,8 @@ class GameActivity : ComponentActivity() {
 
                     // 全屏加载页仅在首次进入（地图未就绪，mapPreloadData==null）时显示；
                     // 游戏内读档/云下载的加载反馈由存档弹窗自身的"转圈+读取中"承担
-                    //（2026-08-23 回退：曾改为 isLoading 驱动全屏切换，但弹窗独立窗口 +
-                    // 60% 黑色遮罩完全盖住全屏加载页，实际不可见且导致游戏画面无谓切换）
+                    //（不用 isLoading 驱动全屏切换：游戏内弹窗为独立窗口 + 60% 黑色
+                    // 遮罩，会完全盖住全屏加载页并导致游戏画面无谓切换）
                     Crossfade(
                         targetState = mapPreloadData != null,
                         animationSpec = tween(durationMillis = 400),
@@ -427,7 +476,7 @@ class GameActivity : ComponentActivity() {
                             adServiceImpl.attachActivity(this@GameActivity)
 
                             MainGameScreen(
-                                // 2026-08-16：主宗用 sectMapData.map（= boot 同种子图），
+                                // 主宗用 sectMapData.map（= boot 同种子图），
                                 // 进入被占宗门时 sectMapData 已换为该宗派生种子底图；null 兜底 boot 图
                                 mapPreloadData = sectMapData?.map ?: preloadData,
                                 viewModel = viewModel,
@@ -466,13 +515,26 @@ class GameActivity : ComponentActivity() {
                                     }
 
                                     override fun onSurfaceInitSucceeded() {
+                                        // 清除写前标记（此前本回调从未被调用，
+                                        // 标记全靠 onCleanLaunch 清除——台账增量消费语义下
+                                        // 成功会话必须自清）
                                         com.xianxia.sect.core.CrashRecoveryEngine.clearSurfaceInitStarted()
-                                        com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
                                     }
 
                                     override fun onSurfaceInitFailed() {
                                         com.xianxia.sect.core.CrashRecoveryEngine.clearSurfaceInitStarted()
-                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanSoftFailure("initSurface")
+                                    }
+
+                                    override fun onVulkanChainSucceeded() {
+                                        // ★ 台账成功回写（Task 2.3）：清零失败计数 +
+                                        // GPU 设备信息落台账（量化阈值的真实输入）
+                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanSuccess(
+                                            NativeBridge.getVulkanVendorId(),
+                                            NativeBridge.getVulkanApiVersion(),
+                                            NativeBridge.getVulkanDriverVersion(),
+                                            NativeBridge.getVulkanDeviceName()
+                                        )
                                     }
                                 }
                             )
@@ -490,8 +552,8 @@ class GameActivity : ComponentActivity() {
                     val activityLifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
                     if (activityLifecycleState.isAtLeast(Lifecycle.State.STARTED)) {
                         errorMessage?.let { error ->
-                            // T13（2026-08-05）：boot 失败（isGameLoaded=false）时补"返回主菜单"按钮——
-                            // 此前仅"确定"，LoadingScreen 无按钮，唯一出口是系统返回键
+                            // boot 失败（isGameLoaded=false）时补"返回主菜单"按钮——
+                            // 否则 LoadingScreen 无按钮，唯一出口是系统返回键
                             StandardPromptDialog(
                                 onDismissRequest = { errorMessage = null },
                                 title = "提示",
@@ -518,7 +580,7 @@ class GameActivity : ComponentActivity() {
                         }
                     }
 
-                    // D-42：防沉迷合规限制对话框（游戏内时长/时间/年龄限制提示）——
+                    // 防沉迷合规限制对话框（游戏内时长/时间/年龄限制提示）——
                     // 共享组件自带生命周期门控 + DialogSystemBarGuard（游戏内系统栏
                     // 已隐藏，Dialog Window 需独立守卫）
                     ComplianceLimitDialogs(
@@ -531,9 +593,32 @@ class GameActivity : ComponentActivity() {
             }
         }
 
-    /** P-2：渲染安全模式检测——super.onCreate() 前切换主题使 hardwareAccelerated 生效。 */
+    /** 渲染安全模式检测——super.onCreate() 前切换主题使 hardwareAccelerated 生效。 */
 
-    // ── 合规限制展示（D-42 进程级宿主转发入口） ──
+    /**
+     * 渲染后端调试开关（第 6 步；仅 DEBUG 构建生效，Release 构建内
+     * [RenderDebugSwitches.forceBackend] 恒返回 NONE——无行为分叉）：覆写策略
+     * 决策强制会话走指定后端，为 GLES 线程契约/台账闭环的真机验证提供入口。
+     */
+    private fun applyRenderDebugSwitchIfNeeded() {
+        when (RenderDebugSwitches.forceBackend(this)) {
+            RenderDebugSwitches.FORCE_VULKAN -> {
+                _isSoftwareRendering = false; _isGlesRendering = false
+                Log.w(TAG, "RenderDebugSwitch: force VULKAN")
+            }
+            RenderDebugSwitches.FORCE_GLES -> {
+                _isSoftwareRendering = false; _isGlesRendering = true
+                Log.w(TAG, "RenderDebugSwitch: force GLES")
+            }
+            RenderDebugSwitches.FORCE_SOFTWARE -> {
+                _isSoftwareRendering = true; _isGlesRendering = false
+                Log.w(TAG, "RenderDebugSwitch: force SOFTWARE")
+            }
+            else -> Unit // 跟随策略
+        }
+    }
+
+    // ── 合规限制展示（进程级宿主转发入口） ──
 
     /** 时间/时长限制弹窗（游戏内窗口） */
     internal fun showComplianceRestrict(title: String, message: String) {
@@ -558,7 +643,7 @@ class GameActivity : ComponentActivity() {
     }
 
     /**
-     * T13（2026-08-05）：boot 失败弹窗"返回主菜单"——复用 onLogout 的
+     * boot 失败弹窗"返回主菜单"——复用 onLogout 的
      * MainActivity 重建模式（不清 session，仅清 Activity 栈）。
      */
     private fun navigateBackToMainMenu() {
@@ -580,14 +665,14 @@ class GameActivity : ComponentActivity() {
         }
     }
 
-    /** 渲染策略（P-2：setupWindowAndDiagnostics 与启动解析共享） */
+    /** 渲染策略（setupWindowAndDiagnostics 与启动解析共享） */
     @Volatile
     private var _isSoftwareRendering = false
     /** 是否使用 GPU OpenGL ES 中间层（Vulkan 不可靠但 GPU 可用设备） */
     private var _isGlesRendering = false
 
     /**
-     * P-2：窗口背景/崩溃处理/ActionMode 拦截/渲染策略/系统 UI 初始化。
+     * 窗口背景/崩溃处理/ActionMode 拦截/渲染策略/系统 UI 初始化。
      * 必须在 setContent 之前调用。
      */
     private fun setupWindowAndDiagnostics() {
@@ -609,17 +694,26 @@ class GameActivity : ComponentActivity() {
         // 标记本次为干净启动，重置连续崩溃计数器
         CrashRecoveryEngine.onCleanLaunch()
 
-        // ★ 渲染策略决策：模拟器/云游戏/安全模式走软件渲染；正常设备 Vulkan（带降级回退）；
+        // ★ 渲染回退结构化上报接线：core:engine 的 Reporter 经
+        //   端口注入 app 模块能力（持久化 → CrashRecoveryEngine；遥测 → TapDB），
+        //   避免反向依赖。任何一次降级可事后回答「从哪降到哪、卡在哪个阶段、什么 GPU」。
+        com.xianxia.sect.core.render.RenderFallbackReporter.persistSink =
+            { CrashRecoveryEngine.recordLastFallback(it) }
+        com.xianxia.sect.core.render.RenderFallbackReporter.telemetrySink =
+            { name, props -> com.xianxia.sect.taptap.TapDBManager.trackEvent(name, props) }
+
+        // 渲染策略决策：模拟器/云游戏/安全模式走软件渲染；正常设备 Vulkan（带降级回退）；
         //   Vulkan 不可靠但 GPU 可用（MediaTek/Mali/非高通国产/旧 API 非白名单）→ GPU GLES 中间层
         val renderStrategy = VulkanPolicy.getRenderStrategy(this)
         _isSoftwareRendering = renderStrategy == VulkanPolicy.RenderStrategy.SOFTWARE_ONLY
         _isGlesRendering = renderStrategy == VulkanPolicy.RenderStrategy.GLES_PREFERRED
+        applyRenderDebugSwitchIfNeeded()
         Log.i(TAG, "Render strategy: ${renderStrategy.description}")
 
         enableEdgeToEdge()
-        // 键盘可见性跟踪 + 输入对话框解冻恢复（荣耀X70键盘频闪根治）
+        // 键盘可见性跟踪 + 输入对话框解冻恢复
         ImeVisibilityTracker.attach(window)
-        // 键盘显隐动画跟踪（2026-09 IME 状态机根治：动画期系统栏零切换 +
+        // 键盘显隐动画跟踪（动画期系统栏零切换 +
         // 动画结束回调驱动系统栏恢复）
         ImeAnimationTracker.attach(window)
         SystemBarFreezeScope.addOnUnfreezeListener(systemBarRestoreListener)
@@ -627,7 +721,7 @@ class GameActivity : ComponentActivity() {
         hideSystemBars()
     }
 
-    /** P-2：从 savedInstanceState/intent 解析启动参数。 */
+    /** 从 savedInstanceState/intent 解析启动参数。 */
     private fun resolveLaunchIntent(savedInstanceState: Bundle?): GameLaunchParams {
         val savedSlot = savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1) ?: -1
         val intentSlot = intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)
@@ -644,7 +738,7 @@ class GameActivity : ComponentActivity() {
         )
     }
 
-    /** P-2：启动参数聚合。 */
+    /** 启动参数聚合。 */
     private data class GameLaunchParams(
         val slot: Int,
         val isNewGame: Boolean,
@@ -654,7 +748,7 @@ class GameActivity : ComponentActivity() {
         val isGlesRendering: Boolean = false
     )
 
-    /** P-2：游戏初始化分发（新游戏/读档/云读档，JIT 暂停下执行）。 */
+    /** 游戏初始化分发（新游戏/读档/云读档，JIT 暂停下执行）。 */
     private fun initializeGameIfNeeded(slot: Int, isNewGame: Boolean, sectName: String, isCloudSaveLoad: Boolean) {
         if (saveLoadViewModel.isGameAlreadyLoaded()) {
             Log.d(TAG, "Game already loaded in ViewModel, skipping initialization")
@@ -703,7 +797,7 @@ class GameActivity : ComponentActivity() {
 
     override fun onPause() {
         frameMetricsMonitor.stopMonitoring()
-        // ★ 进入后台 → 先停游戏循环和自定义渲染器，释放 GPU 资源
+        // 进入后台 → 先停游戏循环和自定义渲染器，释放 GPU 资源
         // 再通知系统暂停（super.onPause），降低 HardwareRenderer.setStopped 阻塞时间
         audioEngine.pauseBGM()
         saveLoadViewModel.pauseForBackground()
@@ -727,7 +821,7 @@ class GameActivity : ComponentActivity() {
         // 在 super.onStop() 前结束活跃的文本选择 ActionMode，防止窗口 token 失效后
         // FloatingActionMode 尝试弹出 PopupWindow 导致 BadTokenException
         actionModeTracker?.finishActiveActionMode()
-        // D-42：清除游戏窗口注册（新 Activity onResume 先于旧 Activity onStop，
+        // 清除游戏窗口注册（新 Activity onResume 先于旧 Activity onStop，
         // 窗口切换期间宿主转发无缝衔接）
         complianceCallbackHost.clearGameWindow(complianceWindowPort)
         super.onStop()
@@ -740,7 +834,7 @@ class GameActivity : ComponentActivity() {
         super.onResume()
         // 回到前台立即恢复文本选择能力（onPause 提前置位后的配套复位）
         actionModeTracker?.resetForResume()
-        // D-42：注册游戏窗口（合规回调宿主转发目标；onStop 清除）
+        // 注册游戏窗口（合规回调宿主转发目标；onStop 清除）
         complianceCallbackHost.registerGameWindow(complianceWindowPort)
         hideSystemBars()
         frameMetricsMonitor.startMonitoring(WindowFrameMetricsSession(window))
@@ -748,7 +842,7 @@ class GameActivity : ComponentActivity() {
             audioEngine.resumeBGM()
         }
         backgroundTaskScheduler.resume()
-        // ★ 回到前台 → 恢复游戏循环
+        // 回到前台 → 恢复游戏循环
         saveLoadViewModel.resumeFromBackground()
         wakeLockManager.acquire()
         Log.d(TAG, "onResume: background tasks resumed, game loop restored")
@@ -799,7 +893,7 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun hideSystemBars() {
-        // 双守卫（荣耀X70键盘频闪根治）：输入对话框冻结期间或键盘可见期间
+        // 双守卫：输入对话框冻结期间或键盘可见期间
         // 跳过窗口系统栏操作，切断"焦点抖动→hide()→insets翻转→键盘收起→
         // 焦点抖动"振荡回路的放大器环节（详见 SystemBarHidePolicy KDoc）
         if (SystemBarHidePolicy.shouldSkipHide()) {
@@ -862,7 +956,8 @@ class GameActivity : ComponentActivity() {
      * ⚠️ 守卫必须为 TIRAMISU(33)：`GameManager.getGameMode()` 是 API 33 方法，
      * API 31/32 上调用抛 NoSuchMethodError（Error 子类，不被 catch Exception 捕获）。
      */
-    @Suppress("NewApi")
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "NewApi")
     private fun applySystemGameMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         try {
@@ -888,7 +983,8 @@ class GameActivity : ComponentActivity() {
      *   GAMEPLAY_IDLE 仍在渲染（用户可能盯着挂机数字），报 MODE_NONE 会被系统
      *   激进降压导致恢复抖动与热控误判
      */
-    @Suppress("NewApi")
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "NewApi")
     private fun notifyGameScene(scene: GameEngineCore.GameScene) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         try {
@@ -923,9 +1019,10 @@ class GameActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     override fun onDestroy() {
         SystemBarFreezeScope.removeOnUnfreezeListener(systemBarRestoreListener)
-        // 2026-09：注销动画结束监听 + 解除 IME 窗口跟踪（detach 对称防全局状态残留）
+        // 注销动画结束监听 + 解除 IME 窗口跟踪（detach 对称防全局状态残留）
         ImeAnimationTracker.removeOnAnimationEndedListener(systemBarRestoreListener)
         ImeAnimationTracker.detach(window)
         ImeVisibilityTracker.detach(window)
@@ -976,6 +1073,9 @@ class GameActivity : ComponentActivity() {
             ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
                 // 释放地图 Bitmap 引用以允许 GC 回收内存（ImageBitmap 无 recycle API）
                 mapPreloadDataRef = null
+                // 丢弃未消费的图集预取缓存（21MB 级）——
+                // 已被上传路径消费时为空操作；未消费时丢弃后由 surface 期重新读取
+                com.xianxia.sect.ui.game.sect.SectAtlasPrefetch.clear()
             }
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
@@ -991,6 +1091,7 @@ class GameActivity : ComponentActivity() {
     /**
      * 设置崩溃处理器
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun setupCrashHandler() {
         try {
             CrashHandler.init(crashHandler)
@@ -1012,7 +1113,8 @@ class GameActivity : ComponentActivity() {
      *
      * 参考：https://developer.android.com/about/versions/13/features#game-performance
      */
-    @Suppress("NewApi")
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "NewApi")
     private fun notifyGameLoadingState(isLoading: Boolean) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         try {
@@ -1043,7 +1145,7 @@ class GameActivity : ComponentActivity() {
         val helper = com.xianxia.sect.core.util.BatteryOptimizationHelper
         if (!helper.shouldShowGuide(this)) return
 
-        // D-29：统一偏好迁入 MMKV（键名不变，旧 SharedPreferences 一次性迁移）
+        // 偏好统一迁入 MMKV（键名不变，旧 SharedPreferences 一次性迁移）
         gamePreferences.migrateFromSharedPreferences("battery_guide")
         if (gamePreferences.getBoolean("oem_guide_shown", false)) return
 
@@ -1075,6 +1177,7 @@ class GameActivity : ComponentActivity() {
      *
      * 使用 SharedPreferences 记录是否已询问过，避免每次 onResume 都跳转。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun requestExactAlarmPermissionIfNeeded() {
         // 仅 Android 12+ (API 31, S) 需要请求精确闹钟权限
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
@@ -1082,7 +1185,7 @@ class GameActivity : ComponentActivity() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         if (alarmManager.canScheduleExactAlarms()) return
 
-        // D-29：统一偏好迁入 MMKV（键名不变，旧 SharedPreferences 一次性迁移）
+        // 偏好统一迁入 MMKV（键名不变，旧 SharedPreferences 一次性迁移）
         gamePreferences.migrateFromSharedPreferences("exact_alarm_prefs")
         if (gamePreferences.getBoolean("exact_alarm_prompted", false)) return
 
@@ -1100,7 +1203,7 @@ class GameActivity : ComponentActivity() {
 }
 
 /**
- * T13（2026-08-05）：构造返回主菜单的 Intent。
+ * 构造返回主菜单的 Intent。
  * 独立顶层函数供单元测试（GameActivity 为 Hilt 入口不便实例化）。
  * 复用 onLogout 的 MainActivity 重建模式：清 Activity 栈但不影响 session。
  *

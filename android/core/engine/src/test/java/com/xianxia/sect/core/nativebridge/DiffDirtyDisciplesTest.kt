@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * DiffDirtyDisciplesTest — 变更集弟子集合增量应用测试（计划 v2 阶段 1）。
+ * DiffDirtyDisciplesTest — 变更集弟子集合增量应用测试。
  *
  * 守护目标：[StateSyncService.applyDirty] 对 `disciples` 集合的按 id
  * upsert/remove 语义（DiscipleTables 列式存储合并回写）。

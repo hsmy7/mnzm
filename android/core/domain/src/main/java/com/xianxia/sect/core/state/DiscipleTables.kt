@@ -1,85 +1,10 @@
 package com.xianxia.sect.core.state
 
 import android.util.Log
-import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentNurtureData
-import com.xianxia.sect.core.model.EquipmentSet
-import com.xianxia.sect.core.model.PillEffects
-import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.model.UsageTracking
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.accessoryNurture
-import com.xianxia.sect.core.model.activePillCategory
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.armorNurture
-import com.xianxia.sect.core.model.artifactRefining
-import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.baseMagicDefense
-import com.xianxia.sect.core.model.baseMp
-import com.xianxia.sect.core.model.basePhysicalAttack
-import com.xianxia.sect.core.model.basePhysicalDefense
-import com.xianxia.sect.core.model.baseSpeed
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.bootsNurture
-import com.xianxia.sect.core.model.breakthroughCount
-import com.xianxia.sect.core.model.breakthroughFailCount
-import com.xianxia.sect.core.model.charm
-import com.xianxia.sect.core.model.childBirthMonth
-import com.xianxia.sect.core.model.comprehension
-import com.xianxia.sect.core.model.currentHp
-import com.xianxia.sect.core.model.currentMp
-import com.xianxia.sect.core.model.griefEndYear
-import com.xianxia.sect.core.model.hasClearAllEffect
-import com.xianxia.sect.core.model.hasReviveEffect
-import com.xianxia.sect.core.model.hpVariance
-import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.lastChildYear
-import com.xianxia.sect.core.model.loyalty
-import com.xianxia.sect.core.model.magicAttackVariance
-import com.xianxia.sect.core.model.magicDefenseVariance
-import com.xianxia.sect.core.model.mining
-import com.xianxia.sect.core.model.morality
-import com.xianxia.sect.core.model.mpVariance
-import com.xianxia.sect.core.model.parentId1
-import com.xianxia.sect.core.model.parentId2
-import com.xianxia.sect.core.model.partnerId
-import com.xianxia.sect.core.model.partnerSectId
-import com.xianxia.sect.core.model.physicalAttackVariance
-import com.xianxia.sect.core.model.physicalDefenseVariance
-import com.xianxia.sect.core.model.pillCritEffectBonus
-import com.xianxia.sect.core.model.pillCritRateBonus
-import com.xianxia.sect.core.model.pillCultivationSpeedBonus
-import com.xianxia.sect.core.model.pillEffectDuration
-import com.xianxia.sect.core.model.pillHpBonus
-import com.xianxia.sect.core.model.pillMagicAttackBonus
-import com.xianxia.sect.core.model.pillMagicDefenseBonus
-import com.xianxia.sect.core.model.pillMpBonus
-import com.xianxia.sect.core.model.pillNurtureSpeedBonus
-import com.xianxia.sect.core.model.pillPhysicalAttackBonus
-import com.xianxia.sect.core.model.pillPhysicalDefenseBonus
-import com.xianxia.sect.core.model.pillRefining
-import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
-import com.xianxia.sect.core.model.pillSpeedBonus
-import com.xianxia.sect.core.model.recruitedMonth
-import com.xianxia.sect.core.model.salaryMissedCount
-import com.xianxia.sect.core.model.salaryPaidCount
-import com.xianxia.sect.core.model.speedVariance
-import com.xianxia.sect.core.model.spiritPlanting
-import com.xianxia.sect.core.model.spiritStones
-import com.xianxia.sect.core.model.storageBagItems
-import com.xianxia.sect.core.model.storageBagSpiritStones
-import com.xianxia.sect.core.model.teaching
-import com.xianxia.sect.core.model.totalCultivation
-import com.xianxia.sect.core.model.usedExtendLifePillIds
-import com.xianxia.sect.core.model.weaponId
-import com.xianxia.sect.core.model.weaponNurture
-
-
 
 /**
  * 弟子组件表集合。
@@ -95,15 +20,13 @@ import com.xianxia.sect.core.model.weaponNurture
  *   tables.cultivations.update(id) { it + rate * delta }
  *   for (id in tables.ids) { ... }
  */
+@Suppress("TooManyFunctions") // 弟子镜像列协议：每列读/写访问器对（WS-1 字段级镜像通道协议载体），
+// 函数数=镜像列数×读写双向，拆分即改镜像协议寻址面
 class DiscipleTables {
-
-    /** 已故弟子的简要死亡记录（用于剔除后保留信息） */
-    private val _deathRecords = mutableListOf<DeathRecord>()
-    val deathRecords: List<DeathRecord> get() = _deathRecords
 
     /**
      * 写操作计数器——由列级写入回调（bindAllOnWrite 的 dirtyCb）自动递增。
-     * 2026-08-01 对抗性审查：显式 markMutated 双计已移除（无生产消费者）。
+     * 禁止在其他位置显式递增本计数器（会造成双计）。
      */
     @Volatile var mutationVersion: Long = 0
         private set
@@ -115,9 +38,6 @@ class DiscipleTables {
 
     /** 移除一个弟子 ID（含守卫检查） */
     fun removeId(id: Int) { requireWriteAccess(); _ids.remove(id) }
-
-    /** 添加一个死亡记录（含守卫检查） */
-    fun addDeathRecord(record: DeathRecord) { requireWriteAccess(); _deathRecords.add(record) }
 
     /**
      * 记录指定弟子 ID 的组件数据被修改。
@@ -331,12 +251,6 @@ class DiscipleTables {
         /** 资质默认值：=50 表示"未生成"（旧档 Migration/序列化默认），读档自愈 [healDefaultAptitudes] 按灵根补算 */
         const val DEFAULT_APTITUDE = 50
 
-        /** 资质自愈确定性散列乘数（仿 applyDeterministicWinAttr 的 id 散列模式，Long 防 Int 溢出） */
-        private const val APTITUDE_HASH_MULTIPLIER = 527L
-
-        /** 资质自愈确定性散列偏移 */
-        private const val APTITUDE_HASH_OFFSET = 31L
-
         /** 合法的死亡原因集合 */
         private val VALID_DEATH_CAUSES = setOf("age", "battle", "scout", "exploration", "cave", "unknown")
 
@@ -363,9 +277,9 @@ class DiscipleTables {
         @Volatile var forceFullCopy: Boolean = false
 
         /**
-         * Mutable 列值对象防御开关（2026-08-01 浅共享修复配套）。
+         * Mutable 列值对象防御开关（浅共享配套）。
          *
-         * 13 张 List/Map/Set 列改为 O(1) 浅共享后，值对象在源快照与事务缓冲间共享
+         * 13 张 List/Map/Set 列以 O(1) 浅共享，值对象在源快照与事务缓冲间共享
          * 引用——若未来代码对列返回值做原地修改（绕过 set → 不触发 ensureOwned），
          * 会污染源存储破坏快照隔离。Debug/CI 开启时 [deepCopy] 对 Mutable 列每值
          * 包装 unmodifiable（任何原地修改立即抛 UnsupportedOperationException）；
@@ -424,21 +338,21 @@ class DiscipleTables {
     // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
     // ════════════════════════════════════════════════════════════
     class ChangedIdTracker {
-        // 2026-08-01：mutableSetOf → java.util.BitSet（每旬 D 次列写热路径零装箱，
-        // 单字更新；consume 用 nextSetBit 构造，天然升序供增量归并使用）
+        // 使用 java.util.BitSet：每旬 D 次列写热路径零装箱、单字更新；
+        // consume 用 nextSetBit 构造，天然升序供增量归并使用
         private val changedBits = java.util.BitSet()
 
-        /** 容量拒绝标志（T4 2026-08-05）：record 因 id 超上限被拒时置位 */
+        /** 容量拒绝标志：record 因 id 超上限被拒时置位 */
         private var rejectedRecord = false
 
         private val lock = Any()
 
         /**
          * 记录某弟子 ID 被修改。
-         * 2026-08-01 对抗性审查修复：BitSet 内存与最大 id 成正比——crafted 存档
-         * id=2^30 时 set() 分配 ~128MB 可 OOM。超出安全上限的 id 拒绝记录。
-         * T4（2026-08-05）：容量拒绝置 [rejectedRecord] 标志——消费方读到后强制
-         * 全量组装（旧实现仅 changedIds 完全为空时才全量，被拒大 id 弟子残留陈旧快照）。
+         * BitSet 内存与最大 id 成正比——crafted 存档 id=2^30 时 set() 分配
+         * ~128MB 可 OOM，因此超出安全上限的 id 拒绝记录，并置 [rejectedRecord]
+         * 标志——消费方读到后强制全量组装（仅凭 changedIds 为空判断会漏掉
+         * 被拒大 id 弟子，残留陈旧快照）。
          */
         fun record(id: Int) {
             synchronized(lock) {
@@ -462,7 +376,7 @@ class DiscipleTables {
         }
 
         /**
-         * 消费并清除强制全量组装标志（T4 2026-08-05）。
+         * 消费并清除强制全量组装标志。
          * 由 GameStateStoreImpl.dispatchAssemble 在消费 changedIds 的同位置读取，
          * 二者由同一 [lock] 保证原子性。
          */
@@ -480,7 +394,7 @@ class DiscipleTables {
         /**
          * 非消费快照：读取当前已修改的 ID 集合（不清除）。
          *
-         * 计划 v2 阶段 3（反向增量通道）用：AUTHORITATIVE tick 残留窗口的
+         * 反向增量通道：AUTHORITATIVE tick 残留窗口的
          * 脏弟子捕获点在 [GameStateStoreImpl.commitUpdateState] 锁内读取本快照
          * 累积到 store 级槽位，[dispatchAssemble] 随后按原路径消费（互不干扰）。
          */
@@ -523,250 +437,25 @@ class DiscipleTables {
     val changedIdTracker = ChangedIdTracker()
 
     /**
-     * P-3 子对象组装组——[assembleAllPatched] 的复用粒度。
-     * 每组对应一个 assembleXxx 子对象（lifeEvents 单独一组）。
-     */
-    internal enum class AssembleGroup { COMBAT, PILL, EQUIPMENT, SOCIAL, SKILLS, USAGE, LIFEEVENTS }
-
-    /**
-     * 列索引 → 子对象组（P-3 列级 patch 组装）。
+     * 列索引 → 子对象组。
      *
      * 列名从 [buildCopyableRefs] 注册表按名解析为索引；未知列（新列未注册映射）
      * 值为 -1 → [assembleAllPatched] 整体退化全量（正确性优先，绝不复用旧数据）。
      * 映射表从 assembleCombat/assemblePillEffects/assembleEquipment/assembleSocial/
      * assembleSkills/assembleUsage 的读取点逐行推导，新增列必须同步更新。
      */
-    private val columnGroupByIndex: IntArray = run {
-        val byName: Map<String, AssembleGroup> = mapOf(
-            // assembleCombat 读取列
-            "baseHps" to AssembleGroup.COMBAT,
-            "baseMps" to AssembleGroup.COMBAT,
-            "basePhysicalAttacks" to AssembleGroup.COMBAT,
-            "baseMagicAttacks" to AssembleGroup.COMBAT,
-            "basePhysicalDefenses" to AssembleGroup.COMBAT,
-            "baseMagicDefenses" to AssembleGroup.COMBAT,
-            "baseSpeeds" to AssembleGroup.COMBAT,
-            "hpVariances" to AssembleGroup.COMBAT,
-            "mpVariances" to AssembleGroup.COMBAT,
-            "physicalAttackVariances" to AssembleGroup.COMBAT,
-            "magicAttackVariances" to AssembleGroup.COMBAT,
-            "physicalDefenseVariances" to AssembleGroup.COMBAT,
-            "magicDefenseVariances" to AssembleGroup.COMBAT,
-            "speedVariances" to AssembleGroup.COMBAT,
-            "totalCultivations" to AssembleGroup.COMBAT,
-            "breakthroughCounts" to AssembleGroup.COMBAT,
-            "breakthroughFailCounts" to AssembleGroup.COMBAT,
-            "currentHps" to AssembleGroup.COMBAT,
-            "currentMps" to AssembleGroup.COMBAT,
-            // assemblePillEffects 读取列
-            "pillPhysicalAttackBonuses" to AssembleGroup.PILL,
-            "pillMagicAttackBonuses" to AssembleGroup.PILL,
-            "pillPhysicalDefenseBonuses" to AssembleGroup.PILL,
-            "pillMagicDefenseBonuses" to AssembleGroup.PILL,
-            "pillHpBonuses" to AssembleGroup.PILL,
-            "pillMpBonuses" to AssembleGroup.PILL,
-            "pillSpeedBonuses" to AssembleGroup.PILL,
-            "pillEffectDurations" to AssembleGroup.PILL,
-            "pillCritRateBonuses" to AssembleGroup.PILL,
-            "pillCritEffectBonuses" to AssembleGroup.PILL,
-            "pillCultivationSpeedBonuses" to AssembleGroup.PILL,
-            "pillSkillExpSpeedBonuses" to AssembleGroup.PILL,
-            "pillNurtureSpeedBonuses" to AssembleGroup.PILL,
-            "activePillCategories" to AssembleGroup.PILL,
-            "activePillTypes" to AssembleGroup.PILL,
-            // assembleEquipment 读取列
-            "weaponIds" to AssembleGroup.EQUIPMENT,
-            "armorIds" to AssembleGroup.EQUIPMENT,
-            "bootsIds" to AssembleGroup.EQUIPMENT,
-            "accessoryIds" to AssembleGroup.EQUIPMENT,
-            "weaponNurtures" to AssembleGroup.EQUIPMENT,
-            "armorNurtures" to AssembleGroup.EQUIPMENT,
-            "bootsNurtures" to AssembleGroup.EQUIPMENT,
-            "accessoryNurtures" to AssembleGroup.EQUIPMENT,
-            "storageBagItems" to AssembleGroup.EQUIPMENT,
-            "storageBagSpiritStones" to AssembleGroup.EQUIPMENT,
-            "discipleSpiritStones" to AssembleGroup.EQUIPMENT,
-            // assembleSocial 读取列
-            "partnerIds" to AssembleGroup.SOCIAL,
-            "partnerSectIds" to AssembleGroup.SOCIAL,
-            "parentId1s" to AssembleGroup.SOCIAL,
-            "parentId2s" to AssembleGroup.SOCIAL,
-            "lastChildYears" to AssembleGroup.SOCIAL,
-            "childBirthMonths" to AssembleGroup.SOCIAL,
-            "griefEndYears" to AssembleGroup.SOCIAL,
-            "masterIds" to AssembleGroup.SOCIAL,
-            // assembleSkills 读取列
-            "intelligences" to AssembleGroup.SKILLS,
-            "charms" to AssembleGroup.SKILLS,
-            "loyalties" to AssembleGroup.SKILLS,
-            "comprehensions" to AssembleGroup.SKILLS,
-            "artifactRefinings" to AssembleGroup.SKILLS,
-            "pillRefinings" to AssembleGroup.SKILLS,
-            "spiritPlantings" to AssembleGroup.SKILLS,
-            "minings" to AssembleGroup.SKILLS,
-            "teachings" to AssembleGroup.SKILLS,
-            "moralities" to AssembleGroup.SKILLS,
-            "aptitudes" to AssembleGroup.SKILLS,
-            "salaryPaidCounts" to AssembleGroup.SKILLS,
-            "salaryMissedCounts" to AssembleGroup.SKILLS,
-            "alchemyLevels" to AssembleGroup.SKILLS,
-            "alchemyPromotionCounts" to AssembleGroup.SKILLS,
-            "forgeLevels" to AssembleGroup.SKILLS,
-            "forgePromotionCounts" to AssembleGroup.SKILLS,
-            // assembleUsage 读取列
-            "usedFunctionalPillTypes" to AssembleGroup.USAGE,
-            "usedExtendLifePillIds" to AssembleGroup.USAGE,
-            "usedPermanentPillKeys" to AssembleGroup.USAGE,
-            "usedExtendLifePillTypes" to AssembleGroup.USAGE,
-            "recruitedMonths" to AssembleGroup.USAGE,
-            "hasReviveEffects" to AssembleGroup.USAGE,
-            "hasClearAllEffects" to AssembleGroup.USAGE,
-            // lifeEvents（assemble .also 读取列）
-            "lifeEvents" to AssembleGroup.LIFEEVENTS
-        )
+    // P3-20（审计）：纯静态映射按需单次构建——deepCopy/回滚基线等纯写副本
+    // 零成本（原为构造期 eager 构建，90 项 mapOf 每实例重建）
+    private val columnGroupByIndex: IntArray by lazy { run {
+        val byName = discipleColumnGroupByName()
         IntArray(_allCopyableRefs.size) { index ->
             byName[_allCopyableRefs[index].debugName]?.ordinal ?: -1
         }
-    }
+    } }
 
-    /** P-3 辅助：dirtyGroups 位图是否包含指定组。 */
-    private fun Int.hasGroup(group: AssembleGroup): Boolean = (this and (1 shl group.ordinal)) != 0
-
-    /** P-3 测试辅助：列名 → 注册索引（-1 表示列未注册）。 */
+    /** 测试辅助：列名 → 注册索引（-1 表示列未注册）。 */
     internal fun columnIndexOf(name: String): Int =
         _allCopyableRefs.indexOfFirst { it.debugName == name }
-
-    @Suppress("LongMethod")
-    private fun buildCopyableRefs(): List<CopyableTableRef> = listOf(
-        // ── Int 表（值拷贝） ──
-        IntTableRef(slotIds, DiscipleTables::slotIds, "slotIds"),
-        IntTableRef(realms, DiscipleTables::realms, "realms"),
-        IntTableRef(realmLayers, DiscipleTables::realmLayers, "realmLayers"),
-        IntTableRef(ages, DiscipleTables::ages, "ages"),
-        IntTableRef(lifespans, DiscipleTables::lifespans, "lifespans"),
-        IntTableRef(isAlive, DiscipleTables::isAlive, "isAlive"),
-        IntTableRef(deathYears, DiscipleTables::deathYears, "deathYears"),
-        IntTableRef(soulPowers, DiscipleTables::soulPowers, "soulPowers"),
-        IntTableRef(cultivationSpeedDurations, DiscipleTables::cultivationSpeedDurations, "cultivationSpeedDurations"),
-        IntTableRef(baseHps, DiscipleTables::baseHps, "baseHps"),
-        IntTableRef(baseMps, DiscipleTables::baseMps, "baseMps"),
-        IntTableRef(basePhysicalAttacks, DiscipleTables::basePhysicalAttacks, "basePhysicalAttacks"),
-        IntTableRef(baseMagicAttacks, DiscipleTables::baseMagicAttacks, "baseMagicAttacks"),
-        IntTableRef(basePhysicalDefenses, DiscipleTables::basePhysicalDefenses, "basePhysicalDefenses"),
-        IntTableRef(baseMagicDefenses, DiscipleTables::baseMagicDefenses, "baseMagicDefenses"),
-        IntTableRef(baseSpeeds, DiscipleTables::baseSpeeds, "baseSpeeds"),
-        IntTableRef(hpVariances, DiscipleTables::hpVariances, "hpVariances"),
-        IntTableRef(mpVariances, DiscipleTables::mpVariances, "mpVariances"),
-        IntTableRef(physicalAttackVariances, DiscipleTables::physicalAttackVariances, "physicalAttackVariances"),
-        IntTableRef(magicAttackVariances, DiscipleTables::magicAttackVariances, "magicAttackVariances"),
-        IntTableRef(physicalDefenseVariances, DiscipleTables::physicalDefenseVariances, "physicalDefenseVariances"),
-        IntTableRef(magicDefenseVariances, DiscipleTables::magicDefenseVariances, "magicDefenseVariances"),
-        IntTableRef(speedVariances, DiscipleTables::speedVariances, "speedVariances"),
-        IntTableRef(breakthroughCounts, DiscipleTables::breakthroughCounts, "breakthroughCounts"),
-        IntTableRef(breakthroughFailCounts, DiscipleTables::breakthroughFailCounts, "breakthroughFailCounts"),
-        IntTableRef(currentHps, DiscipleTables::currentHps, "currentHps"),
-        IntTableRef(currentMps, DiscipleTables::currentMps, "currentMps"),
-        IntTableRef(pillPhysicalAttackBonuses, DiscipleTables::pillPhysicalAttackBonuses, "pillPhysicalAttackBonuses"),
-        IntTableRef(pillMagicAttackBonuses, DiscipleTables::pillMagicAttackBonuses, "pillMagicAttackBonuses"),
-        IntTableRef(pillPhysicalDefenseBonuses, DiscipleTables::pillPhysicalDefenseBonuses, "pillPhysicalDefenseBonuses"),
-        IntTableRef(pillMagicDefenseBonuses, DiscipleTables::pillMagicDefenseBonuses, "pillMagicDefenseBonuses"),
-        IntTableRef(pillHpBonuses, DiscipleTables::pillHpBonuses, "pillHpBonuses"),
-        IntTableRef(pillMpBonuses, DiscipleTables::pillMpBonuses, "pillMpBonuses"),
-        IntTableRef(pillSpeedBonuses, DiscipleTables::pillSpeedBonuses, "pillSpeedBonuses"),
-        IntTableRef(pillEffectDurations, DiscipleTables::pillEffectDurations, "pillEffectDurations"),
-        IntTableRef(discipleSpiritStones, DiscipleTables::discipleSpiritStones, "discipleSpiritStones"),
-        IntTableRef(cultivationCompletionMonths, DiscipleTables::cultivationCompletionMonths, "cultivationCompletionMonths"),
-        IntTableRef(cultivationCompletionPhases, DiscipleTables::cultivationCompletionPhases, "cultivationCompletionPhases"),
-        IntTableRef(manualCompletionMonths, DiscipleTables::manualCompletionMonths, "manualCompletionMonths"),
-        IntTableRef(manualCompletionPhases, DiscipleTables::manualCompletionPhases, "manualCompletionPhases"),
-        IntTableRef(equipmentNurturingCompletionMonths, DiscipleTables::equipmentNurturingCompletionMonths, "equipmentNurturingCompletionMonths"),
-        IntTableRef(equipmentNurturingCompletionPhases, DiscipleTables::equipmentNurturingCompletionPhases, "equipmentNurturingCompletionPhases"),
-        IntTableRef(lastChildYears, DiscipleTables::lastChildYears, "lastChildYears"),
-        IntTableRef(intelligences, DiscipleTables::intelligences, "intelligences"),
-        IntTableRef(charms, DiscipleTables::charms, "charms"),
-        IntTableRef(loyalties, DiscipleTables::loyalties, "loyalties"),
-        IntTableRef(comprehensions, DiscipleTables::comprehensions, "comprehensions"),
-        IntTableRef(artifactRefinings, DiscipleTables::artifactRefinings, "artifactRefinings"),
-        IntTableRef(pillRefinings, DiscipleTables::pillRefinings, "pillRefinings"),
-        IntTableRef(spiritPlantings, DiscipleTables::spiritPlantings, "spiritPlantings"),
-        IntTableRef(minings, DiscipleTables::minings, "minings"),
-        IntTableRef(teachings, DiscipleTables::teachings, "teachings"),
-        IntTableRef(moralities, DiscipleTables::moralities, "moralities"),
-        IntTableRef(aptitudes, DiscipleTables::aptitudes, "aptitudes"),
-        IntTableRef(salaryPaidCounts, DiscipleTables::salaryPaidCounts, "salaryPaidCounts"),
-        IntTableRef(salaryMissedCounts, DiscipleTables::salaryMissedCounts, "salaryMissedCounts"),
-        IntTableRef(alchemyLevels, DiscipleTables::alchemyLevels, "alchemyLevels"),
-        IntTableRef(alchemyPromotionCounts, DiscipleTables::alchemyPromotionCounts, "alchemyPromotionCounts"),
-        IntTableRef(forgeLevels, DiscipleTables::forgeLevels, "forgeLevels"),
-        IntTableRef(forgePromotionCounts, DiscipleTables::forgePromotionCounts, "forgePromotionCounts"),
-        IntTableRef(recruitedMonths, DiscipleTables::recruitedMonths, "recruitedMonths"),
-        IntTableRef(lastTheftJudgementYears, DiscipleTables::lastTheftJudgementYears, "lastTheftJudgementYears"),
-        IntTableRef(hasReviveEffects, DiscipleTables::hasReviveEffects, "hasReviveEffects"),
-        IntTableRef(hasClearAllEffects, DiscipleTables::hasClearAllEffects, "hasClearAllEffects"),
-
-        // ── Double 表（值拷贝） ──
-        DoubleTableRef(cultivations, DiscipleTables::cultivations, "cultivations"),
-        DoubleTableRef(cultivationCheckpoints, DiscipleTables::cultivationCheckpoints, "cultivationCheckpoints"),
-        IntTableRef(cultivationCheckpointGameMonths, DiscipleTables::cultivationCheckpointGameMonths, "cultivationCheckpointGameMonths"),
-        DoubleTableRef(cultivationSpeedBonuses, DiscipleTables::cultivationSpeedBonuses, "cultivationSpeedBonuses"),
-        DoubleTableRef(pillCritRateBonuses, DiscipleTables::pillCritRateBonuses, "pillCritRateBonuses"),
-        DoubleTableRef(pillCritEffectBonuses, DiscipleTables::pillCritEffectBonuses, "pillCritEffectBonuses"),
-        DoubleTableRef(pillCultivationSpeedBonuses, DiscipleTables::pillCultivationSpeedBonuses, "pillCultivationSpeedBonuses"),
-        DoubleTableRef(pillSkillExpSpeedBonuses, DiscipleTables::pillSkillExpSpeedBonuses, "pillSkillExpSpeedBonuses"),
-        DoubleTableRef(pillNurtureSpeedBonuses, DiscipleTables::pillNurtureSpeedBonuses, "pillNurtureSpeedBonuses"),
-
-        // ── Long 表（值不可变，浅拷贝安全） ──
-        RefTableRef(totalCultivations, DiscipleTables::totalCultivations, "totalCultivations"),
-        RefTableRef(storageBagSpiritStones, DiscipleTables::storageBagSpiritStones, "storageBagSpiritStones"),
-
-        // ── String 表（引用不可变，浅拷贝安全） ──
-        RefTableRef(names, DiscipleTables::names, "names"),
-        RefTableRef(surnames, DiscipleTables::surnames, "surnames"),
-        RefTableRef(genders, DiscipleTables::genders, "genders"),
-        RefTableRef(portraitRes, DiscipleTables::portraitRes, "portraitRes"),
-        RefTableRef(discipleTypes, DiscipleTables::discipleTypes, "discipleTypes"),
-        RefTableRef(spiritRootTypes, DiscipleTables::spiritRootTypes, "spiritRootTypes"),
-        RefTableRef(activePillCategories, DiscipleTables::activePillCategories, "activePillCategories"),
-        RefTableRef(weaponIds, DiscipleTables::weaponIds, "weaponIds"),
-        RefTableRef(armorIds, DiscipleTables::armorIds, "armorIds"),
-        RefTableRef(bootsIds, DiscipleTables::bootsIds, "bootsIds"),
-        RefTableRef(accessoryIds, DiscipleTables::accessoryIds, "accessoryIds"),
-
-        // ── Set 表（需深拷贝 toSet） ──
-        MutableTableRef(activePillTypes, DiscipleTables::activePillTypes, "activePillTypes") { it.toSet() },
-        MutableTableRef(usedPermanentPillKeys, DiscipleTables::usedPermanentPillKeys, "usedPermanentPillKeys") { it.toSet() },
-        MutableTableRef(usedExtendLifePillTypes, DiscipleTables::usedExtendLifePillTypes, "usedExtendLifePillTypes") { it.toSet() },
-
-        // ── List 表（需深拷贝 toList） ──
-        MutableTableRef(manualIds, DiscipleTables::manualIds, "manualIds") { it.toList() },
-        MutableTableRef(talentIds, DiscipleTables::talentIds, "talentIds") { it.toList() },
-        MutableTableRef(physiqueIds, DiscipleTables::physiqueIds, "physiqueIds") { it.toList() },
-        MutableTableRef(affixIds, DiscipleTables::affixIds, "affixIds") { it.toList() },
-        MutableTableRef(lifeEvents, DiscipleTables::lifeEvents, "lifeEvents") { it.toList() },
-        MutableTableRef(storageBagItems, DiscipleTables::storageBagItems, "storageBagItems") { it.toList() },
-        MutableTableRef(usedFunctionalPillTypes, DiscipleTables::usedFunctionalPillTypes, "usedFunctionalPillTypes") { it.toList() },
-        MutableTableRef(usedExtendLifePillIds, DiscipleTables::usedExtendLifePillIds, "usedExtendLifePillIds") { it.toList() },
-
-        // ── Map 表（需深拷贝 toMap） ──
-        MutableTableRef(manualMasteries, DiscipleTables::manualMasteries, "manualMasteries") { it.toMap() },
-        MutableTableRef(statusData, DiscipleTables::statusData, "statusData") { it.toMap() },
-
-        // ── 枚举/数据类单值表（值不可变，浅拷贝安全） ──
-        RefTableRef(statuses, DiscipleTables::statuses, "statuses"),
-        RefTableRef(weaponNurtures, DiscipleTables::weaponNurtures, "weaponNurtures"),
-        RefTableRef(armorNurtures, DiscipleTables::armorNurtures, "armorNurtures"),
-        RefTableRef(bootsNurtures, DiscipleTables::bootsNurtures, "bootsNurtures"),
-        RefTableRef(accessoryNurtures, DiscipleTables::accessoryNurtures, "accessoryNurtures"),
-
-        // ── Nullable 值表（值不可变，浅拷贝安全） ──
-        RefTableRef(partnerIds, DiscipleTables::partnerIds, "partnerIds"),
-        RefTableRef(partnerSectIds, DiscipleTables::partnerSectIds, "partnerSectIds"),
-        RefTableRef(parentId1s, DiscipleTables::parentId1s, "parentId1s"),
-        RefTableRef(parentId2s, DiscipleTables::parentId2s, "parentId2s"),
-        IntTableRef(griefEndYears, DiscipleTables::griefEndYears, "griefEndYears"),
-        RefTableRef(childBirthMonths, DiscipleTables::childBirthMonths, "childBirthMonths"),
-        RefTableRef(masterIds, DiscipleTables::masterIds, "masterIds")
-    )
 
     init { bindAllOnWrite() }
 
@@ -814,6 +503,7 @@ class DiscipleTables {
      * 添加一个新弟子。所有组件表同时插入一行。
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun insert(disciple: Disciple) {
         val id = disciple.id.toInt()
         synchronized(_ids) {
@@ -856,6 +546,29 @@ class DiscipleTables {
     }
 
     /**
+     * 镜像行级 upsert：存在则全字段覆盖（等价 [update]），
+     * 不存在则插入（等价 [insert]）。
+     *
+     * 与直接调 [update] 的差别：存在性探测走 isAlive 列的 SparseArray 索引
+     * O(log n)——update 内部经 _ids 线性扫描 O(N)，镜像信封按 id 精确应用时
+     * k≈N 的每旬全脏场景会退化为 O(k·N)。幽灵行（isAlive 缺键但 _ids 存在，
+     * 异常态有日志）由 [insert] 的 `id in _ids` 检查兜底转 update，语义一致。
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)。
+     */
+    fun upsertMirrorRow(disciple: Disciple) {
+        val id = disciple.id.toIntOrNull() ?: return
+        synchronized(_ids) {
+            requireWriteAccess()
+            if (isAlive.contains(id)) {
+                writeAllFields(disciple)
+                recordChangedId(id)
+            } else {
+                insert(disciple)  // synchronized(_ids) 可重入；insert 内含一致性断言
+            }
+        }
+    }
+
+    /**
      * 原子全量替换所有弟子数据。
      *
      * 在单个 [synchronized(ids)] 锁内完成四步操作：
@@ -863,11 +576,11 @@ class DiscipleTables {
      *   2) 全表 clear()      — 清空所有组件表（通过 _allCopyableRefs 迭代）
      *   3) 全量写入           — 对每个弟子调用 writeAllFields()
      *   4) ids.addAll(...)   — 重建 ID 索引列表 + recordChangedIds
-     *   （mutationVersion 由列写回调自动递增，2026-08-01 移除显式 markMutated）
+     *   （mutationVersion 由列写回调自动递增）
      *
      * 替代 [clear] + 多次 [insert] 的 N+1 锁裸模式，提供更清晰的批量替换语义。
      * 调用方传入的列表必须已是完整替换集——[replaceAll] 不负责过滤/保留。
-     * [deathRecords] 不受此操作影响。
+     * （审计 P2-4：deathRecords 已删除。）
      *
      * @param disciples 替换后的弟子完整列表，所有元素的 ID 必须已分配且唯一
      */
@@ -906,144 +619,6 @@ class DiscipleTables {
             }
         }
     }
-
-    /** insert/update 共用：将 Disciple 所有字段写入组件表 */
-    private fun writeAllFields(disciple: Disciple) {
-        val id = disciple.id.toInt()
-        writeBasicFields(id = id, disciple = disciple)
-        writeCombatFields(id = id, disciple = disciple)
-        writePillFields(id = id, disciple = disciple)
-        writeEquipmentFields(id = id, disciple = disciple)
-        writeSocialFields(id = id, disciple = disciple)
-        writeSkillFields(id = id, disciple = disciple)
-        writeUsageFields(id = id, disciple = disciple)
-    }
-
-    /** 基础信息 + 境界修为 + 修炼加速 + 列表映射 + 状态（writeAllFields 拆分） */
-    private fun writeBasicFields(id: Int, disciple: Disciple) {
-        // 基础信息
-        names[id] = disciple.name; surnames[id] = disciple.surname
-        genders[id] = disciple.gender; portraitRes[id] = disciple.portraitRes
-        discipleTypes[id] = disciple.discipleType
-        spiritRootTypes[id] = disciple.spiritRootType; slotIds[id] = disciple.slotId
-
-        // 境界与修为
-        realms[id] = disciple.realm; realmLayers[id] = disciple.realmLayer
-        cultivations[id] = disciple.cultivation
-        cultivationCheckpoints[id] = disciple.cultivationCheckpoint
-        cultivationCheckpointGameMonths[id] = disciple.cultivationCheckpointGameMonth
-        ages[id] = disciple.age; lifespans[id] = disciple.lifespan
-        isAlive[id] = if (disciple.isAlive) 1 else 0; soulPowers[id] = disciple.soulPower
-
-        // 修炼加速
-        cultivationSpeedBonuses[id] = disciple.cultivationSpeedBonus
-        cultivationSpeedDurations[id] = disciple.cultivationSpeedDuration
-
-        // 列表/映射
-        manualIds[id] = disciple.manualIds; talentIds[id] = disciple.talentIds
-        physiqueIds[id] = disciple.physiqueIds; affixIds[id] = disciple.affixIds
-        lifeEvents[id] = disciple.lifeEvents; manualMasteries[id] = disciple.manualMasteries
-
-        // 状态
-        statuses[id] = disciple.status; statusData[id] = disciple.statusData
-    }
-
-    /** 战斗属性（writeAllFields 拆分） */
-    private fun writeCombatFields(id: Int, disciple: Disciple) {
-        // 战斗属性
-        val c = disciple.combat
-        baseHps[id] = c.baseHp; baseMps[id] = c.baseMp
-        basePhysicalAttacks[id] = c.basePhysicalAttack
-        baseMagicAttacks[id] = c.baseMagicAttack
-        basePhysicalDefenses[id] = c.basePhysicalDefense
-        baseMagicDefenses[id] = c.baseMagicDefense; baseSpeeds[id] = c.baseSpeed
-        hpVariances[id] = c.hpVariance; mpVariances[id] = c.mpVariance
-        physicalAttackVariances[id] = c.physicalAttackVariance
-        magicAttackVariances[id] = c.magicAttackVariance
-        physicalDefenseVariances[id] = c.physicalDefenseVariance
-        magicDefenseVariances[id] = c.magicDefenseVariance
-        speedVariances[id] = c.speedVariance; totalCultivations[id] = c.totalCultivation
-        breakthroughCounts[id] = c.breakthroughCount
-        breakthroughFailCounts[id] = c.breakthroughFailCount
-        currentHps[id] = c.currentHp; currentMps[id] = c.currentMp
-    }
-
-    /** 丹药效果（writeAllFields 拆分） */
-    private fun writePillFields(id: Int, disciple: Disciple) {
-        // 丹药效果
-        val p = disciple.pillEffects
-        pillPhysicalAttackBonuses[id] = p.pillPhysicalAttackBonus
-        pillMagicAttackBonuses[id] = p.pillMagicAttackBonus
-        pillPhysicalDefenseBonuses[id] = p.pillPhysicalDefenseBonus
-        pillMagicDefenseBonuses[id] = p.pillMagicDefenseBonus
-        pillHpBonuses[id] = p.pillHpBonus; pillMpBonuses[id] = p.pillMpBonus
-        pillSpeedBonuses[id] = p.pillSpeedBonus; pillEffectDurations[id] = p.pillEffectDuration
-        pillCritRateBonuses[id] = p.pillCritRateBonus
-        pillCritEffectBonuses[id] = p.pillCritEffectBonus
-        pillCultivationSpeedBonuses[id] = p.pillCultivationSpeedBonus
-        pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
-        pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
-        activePillCategories[id] = p.activePillCategory; activePillTypes[id] = p.activePillTypes
-    }
-
-    /** 装备 + 完成时间（writeAllFields 拆分） */
-    private fun writeEquipmentFields(id: Int, disciple: Disciple) {
-        // 装备
-        val e = disciple.equipment
-        weaponIds[id] = e.weaponId; armorIds[id] = e.armorId
-        bootsIds[id] = e.bootsId; accessoryIds[id] = e.accessoryId
-        weaponNurtures[id] = e.weaponNurture; armorNurtures[id] = e.armorNurture
-        bootsNurtures[id] = e.bootsNurture; accessoryNurtures[id] = e.accessoryNurture
-        storageBagItems[id] = e.storageBagItems; storageBagSpiritStones[id] = e.storageBagSpiritStones
-        discipleSpiritStones[id] = e.spiritStones
-        cultivationCompletionMonths[id] = disciple.cultivationCompletionMonth
-        cultivationCompletionPhases[id] = disciple.cultivationCompletionPhase
-        manualCompletionMonths[id] = disciple.manualCompletionMonth
-        manualCompletionPhases[id] = disciple.manualCompletionPhase
-        equipmentNurturingCompletionMonths[id] = disciple.equipmentNurturingCompletionMonth
-        equipmentNurturingCompletionPhases[id] = disciple.equipmentNurturingCompletionPhase
-    }
-
-    /** 社交（writeAllFields 拆分） */
-    private fun writeSocialFields(id: Int, disciple: Disciple) {
-        // 社交
-        val s = disciple.social
-        partnerIds[id] = s.partnerId; partnerSectIds[id] = s.partnerSectId
-        parentId1s[id] = s.parentId1; parentId2s[id] = s.parentId2
-        lastChildYears[id] = s.lastChildYear
-        childBirthMonths[id] = s.childBirthMonth
-        griefEndYears[id] = s.griefEndYear ?: GRIEF_YEAR_NULL_SENTINEL
-        masterIds[id] = s.masterId
-    }
-
-    /** 技能属性（writeAllFields 拆分） */
-    private fun writeSkillFields(id: Int, disciple: Disciple) {
-        // 技能
-        val sk = disciple.skills
-        intelligences[id] = sk.intelligence; charms[id] = sk.charm
-        loyalties[id] = sk.loyalty; comprehensions[id] = sk.comprehension
-        artifactRefinings[id] = sk.artifactRefining; pillRefinings[id] = sk.pillRefining
-        spiritPlantings[id] = sk.spiritPlanting; minings[id] = sk.mining
-        teachings[id] = sk.teaching; moralities[id] = sk.morality
-        aptitudes[id] = sk.aptitude
-        salaryPaidCounts[id] = sk.salaryPaidCount; salaryMissedCounts[id] = sk.salaryMissedCount
-        alchemyLevels[id] = sk.alchemyLevel; alchemyPromotionCounts[id] = sk.alchemyPromotionCount
-        forgeLevels[id] = sk.forgeLevel; forgePromotionCounts[id] = sk.forgePromotionCount
-    }
-
-    /** 使用追踪（writeAllFields 拆分） */
-    private fun writeUsageFields(id: Int, disciple: Disciple) {
-        // 使用追踪
-        val u = disciple.usage
-        usedFunctionalPillTypes[id] = u.usedFunctionalPillTypes
-        usedExtendLifePillIds[id] = u.usedExtendLifePillIds
-        usedPermanentPillKeys[id] = u.usedPermanentPillKeys
-        usedExtendLifePillTypes[id] = u.usedExtendLifePillTypes
-        recruitedMonths[id] = u.recruitedMonth
-        hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
-        hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
-    }
-
     /**
      * 从组件表组装一个完整的 Disciple 对象。
      * 仅在需要"完整弟子视图"时调用：
@@ -1053,159 +628,6 @@ class DiscipleTables {
      * 不应在 tick 热路径中调用。
      */
     fun assemble(id: Int): Disciple = assembleCoreFields(id, prev = null, dirtyGroups = 0)
-
-    /**
-     * P-3 子对象级 patch 组装：仅重装脏列所属子对象组，未脏组复用 [prev] 引用。
-     *
-     * 每旬 changedIds ≈ 全量（cultivation 列几乎全部弟子写入）时，原全量
-     * [assembleAll] 每弟子 ~100 列读 + 10 个嵌套对象分配。patch 后本体字段
-     * （~33 列，含 cultivation）始终重读，6 个子对象 + lifeEvents 仅在对应组
-     * 脏时重装——每旬典型（仅 cultivation + HP/MP 变化）可复用全部子对象引用，
-     * 消除 ~67 列读与 6 个对象分配/弟子。
-     *
-     * @param id 弟子 ID
-     * @param prev 上一快照中的同 ID 弟子（未脏组复用的引用来源）
-     * @param dirtyGroups 脏列所属组位图（[AssembleGroup.ordinal] 位），0=全部未脏
-     * @return 组装后的 Disciple
-     */
-    private fun assembleCoreFields(id: Int, prev: Disciple?, dirtyGroups: Int): Disciple {
-        val combat = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.COMBAT))
-            assembleCombat(id) else prev.combat
-        val pillEffects = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.PILL))
-            assemblePillEffects(id) else prev.pillEffects
-        val equipment = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.EQUIPMENT))
-            assembleEquipment(id) else prev.equipment
-        val social = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.SOCIAL))
-            assembleSocial(id) else prev.social
-        val skills = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.SKILLS))
-            assembleSkills(id) else prev.skills
-        val usage = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.USAGE))
-            assembleUsage(id) else prev.usage
-        return Disciple(
-            id = id.toString(),
-            slotId = slotIds.getOrDefault(id, 0),
-            name = names.getOrNull(id) ?: "",
-            surname = surnames.getOrNull(id) ?: "",
-            realm = realms.getOrDefault(id, 9),
-            realmLayer = realmLayers.getOrDefault(id, 1),
-            cultivation = cultivations.getOrDefault(id, 0.0),
-            cultivationCheckpoint = cultivationCheckpoints.getOrDefault(id, 0.0),
-            cultivationCheckpointGameMonth = cultivationCheckpointGameMonths.getOrDefault(id, 0),
-            spiritRootType = spiritRootTypes.getOrNull(id) ?: "metal",
-            age = ages.getOrDefault(id, 16),
-            lifespan = lifespans.getOrDefault(id, 80),
-            isAlive = isAlive.getOrDefault(id, 1) == 1,
-            gender = genders.getOrNull(id) ?: "male",
-            portraitRes = portraitRes.getOrNull(id) ?: "",
-            manualIds = manualIds.getOrNull(id) ?: emptyList(),
-            talentIds = talentIds.getOrNull(id) ?: emptyList(),
-            physiqueIds = physiqueIds.getOrNull(id) ?: emptyList(),
-            affixIds = affixIds.getOrNull(id) ?: emptyList(),
-            manualMasteries = manualMasteries.getOrNull(id) ?: emptyMap(),
-            status = statuses.getOrNull(id) ?: DiscipleStatus.IDLE,
-            statusData = statusData.getOrNull(id) ?: emptyMap(),
-            cultivationSpeedBonus = cultivationSpeedBonuses.getOrDefault(id, 0.0),
-            cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
-            discipleType = discipleTypes.getOrNull(id) ?: "outer",
-            soulPower = soulPowers.getOrDefault(id, 0),
-            cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
-            cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
-            manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
-            manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
-            equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),
-            equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases.getOrDefault(id, 1),
-            combat = combat,
-            pillEffects = pillEffects,
-            equipment = equipment,
-            social = social,
-            skills = skills,
-            usage = usage
-        ).also {
-            it.lifeEvents = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.LIFEEVENTS))
-                lifeEvents.getOrNull(id) ?: emptyList()
-            else prev.lifeEvents
-        }
-    }
-
-    private fun assembleCombat(id: Int) = CombatAttributes(
-        baseHp = baseHps.getOrDefault(id, 0), baseMp = baseMps.getOrDefault(id, 0),
-        basePhysicalAttack = basePhysicalAttacks.getOrDefault(id, 0),
-        baseMagicAttack = baseMagicAttacks.getOrDefault(id, 0),
-        basePhysicalDefense = basePhysicalDefenses.getOrDefault(id, 0),
-        baseMagicDefense = baseMagicDefenses.getOrDefault(id, 0),
-        baseSpeed = baseSpeeds.getOrDefault(id, 0),
-        hpVariance = hpVariances.getOrDefault(id, 0), mpVariance = mpVariances.getOrDefault(id, 0),
-        physicalAttackVariance = physicalAttackVariances.getOrDefault(id, 0),
-        magicAttackVariance = magicAttackVariances.getOrDefault(id, 0),
-        physicalDefenseVariance = physicalDefenseVariances.getOrDefault(id, 0),
-        magicDefenseVariance = magicDefenseVariances.getOrDefault(id, 0),
-        speedVariance = speedVariances.getOrDefault(id, 0),
-        totalCultivation = totalCultivations.getOrNull(id) ?: 0L,
-        breakthroughCount = breakthroughCounts.getOrDefault(id, 0),
-        breakthroughFailCount = breakthroughFailCounts.getOrDefault(id, 0),
-        currentHp = currentHps.getOrDefault(id, 0), currentMp = currentMps.getOrDefault(id, 0)
-    )
-
-    private fun assemblePillEffects(id: Int) = PillEffects(
-        pillPhysicalAttackBonus = pillPhysicalAttackBonuses.getOrDefault(id, 0),
-        pillMagicAttackBonus = pillMagicAttackBonuses.getOrDefault(id, 0),
-        pillPhysicalDefenseBonus = pillPhysicalDefenseBonuses.getOrDefault(id, 0),
-        pillMagicDefenseBonus = pillMagicDefenseBonuses.getOrDefault(id, 0),
-        pillHpBonus = pillHpBonuses.getOrDefault(id, 0), pillMpBonus = pillMpBonuses.getOrDefault(id, 0),
-        pillSpeedBonus = pillSpeedBonuses.getOrDefault(id, 0),
-        pillEffectDuration = pillEffectDurations.getOrDefault(id, 0),
-        pillCritRateBonus = pillCritRateBonuses.getOrDefault(id, 0.0),
-        pillCritEffectBonus = pillCritEffectBonuses.getOrDefault(id, 0.0),
-        pillCultivationSpeedBonus = pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
-        pillSkillExpSpeedBonus = pillSkillExpSpeedBonuses.getOrDefault(id, 0.0),
-        pillNurtureSpeedBonus = pillNurtureSpeedBonuses.getOrDefault(id, 0.0),
-        activePillCategory = activePillCategories.getOrNull(id) ?: "",
-        activePillTypes = activePillTypes.getOrNull(id) ?: emptySet()
-    )
-
-    private fun assembleEquipment(id: Int) = EquipmentSet(
-        weaponId = weaponIds.getOrNull(id) ?: "",
-        armorId = armorIds.getOrNull(id) ?: "",
-        bootsId = bootsIds.getOrNull(id) ?: "",
-        accessoryId = accessoryIds.getOrNull(id) ?: "",
-        weaponNurture = weaponNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-        armorNurture = armorNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-        bootsNurture = bootsNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-        accessoryNurture = accessoryNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-        storageBagItems = storageBagItems.getOrNull(id) ?: emptyList(),
-        storageBagSpiritStones = storageBagSpiritStones.getOrNull(id) ?: 0L,
-        spiritStones = discipleSpiritStones.getOrDefault(id, 0)
-    )
-
-    private fun assembleSocial(id: Int) = SocialData(
-        partnerId = partnerIds.getOrNull(id),
-        partnerSectId = partnerSectIds.getOrNull(id),
-        parentId1 = parentId1s.getOrNull(id),
-        parentId2 = parentId2s.getOrNull(id),
-        lastChildYear = lastChildYears.getOrDefault(id, 0),
-        childBirthMonth = childBirthMonths.getOrNull(id),
-        griefEndYear = griefEndYears.getOrDefault(id, GRIEF_YEAR_NULL_SENTINEL)
-            .takeIf { it != GRIEF_YEAR_NULL_SENTINEL },
-        masterId = masterIds.getOrNull(id)
-    )
-
-    private fun assembleSkills(id: Int) = SkillStats(
-        intelligence = intelligences.getOrDefault(id, 0), charm = charms.getOrDefault(id, 0),
-        loyalty = loyalties.getOrDefault(id, 0), comprehension = comprehensions.getOrDefault(id, 0),
-        artifactRefining = artifactRefinings.getOrDefault(id, 0),
-        pillRefining = pillRefinings.getOrDefault(id, 0),
-        spiritPlanting = spiritPlantings.getOrDefault(id, 0),
-        mining = minings.getOrDefault(id, 0), teaching = teachings.getOrDefault(id, 0),
-        morality = moralities.getOrDefault(id, 0),
-        // 资质默认值必须为 DEFAULT_APTITUDE(50)（自愈哨兵，与列直读/Migration/序列化统一）
-        aptitude = aptitudes.getOrDefault(id, DEFAULT_APTITUDE),
-        salaryPaidCount = salaryPaidCounts.getOrDefault(id, 0),
-        salaryMissedCount = salaryMissedCounts.getOrDefault(id, 0),
-        alchemyLevel = alchemyLevels.getOrDefault(id, 0),
-        alchemyPromotionCount = alchemyPromotionCounts.getOrDefault(id, 0),
-        forgeLevel = forgeLevels.getOrDefault(id, 0),
-        forgePromotionCount = forgePromotionCounts.getOrDefault(id, 0)
-    )
 
     /**
      * 旧档资质自愈：资质 == [DEFAULT_APTITUDE]（未生成哨兵）的弟子按灵根数阶梯
@@ -1231,45 +653,6 @@ class DiscipleTables {
         }
         return count
     }
-
-    /**
-     * 按灵根数阶梯确定性散列资质（id 散列，幂等——同一 id 每次结果稳定），
-     * 命中哨兵 [DEFAULT_APTITUDE] 时强制 +1 收敛。自愈与入宗补算共用同一实现，
-     * 保证读档自愈与 [allocateAndInsert] 补算结果一致。
-     */
-    private fun rollHealedAptitude(id: Int, rootCount: Int): Int {
-        val (min, span) = when (rootCount) {
-            1 -> 80 to 21 // [80,100]
-            2 -> 60 to 21 // [60,80]
-            3 -> 40 to 21 // [40,60]
-            4 -> 20 to 21 // [20,40]
-            else -> 1 to 20 // 5 灵根 [1,20]；异常灵根数兜底
-        }
-        // 确定性散列（Long 运算防 Int 溢出，floorMod 保证非负），span 恰好覆盖 [min, 100]
-        val roll = Math.floorMod(
-            id.toLong() * APTITUDE_HASH_MULTIPLIER + APTITUDE_HASH_OFFSET,
-            span.toLong()
-        ).toInt()
-        val aptitude = min + roll
-        // 收敛：重算命中哨兵值时强制 +1，保证幂等稳定（3 根区间 [40,60] 含 50）
-        return if (aptitude == DEFAULT_APTITUDE) DEFAULT_APTITUDE + 1 else aptitude
-    }
-
-    private fun assembleUsage(id: Int) = UsageTracking(
-        usedFunctionalPillTypes = usedFunctionalPillTypes.getOrNull(id) ?: emptyList(),
-        usedExtendLifePillIds = usedExtendLifePillIds.getOrNull(id) ?: emptyList(),
-        usedPermanentPillKeys = usedPermanentPillKeys.getOrNull(id) ?: emptySet(),
-        usedExtendLifePillTypes = usedExtendLifePillTypes.getOrNull(id) ?: emptySet(),
-        recruitedMonth = recruitedMonths.getOrDefault(id, 0),
-        hasReviveEffect = hasReviveEffects.getOrDefault(id, 0) == 1,
-        hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
-    )
-
-    /** 三表齐全判据：isAlive + names + realms 任一缺失 → 幽灵（ID 未完整写入）。
-     *  assembleAll / assembleAllIncremental / deepCopy 三处共用，保证快照 ids、
-     *  UI 列表、序列化三条路径的幽灵防御粒度一致。 */
-    private fun isCompleteId(id: Int): Boolean =
-        isAlive.contains(id) && names.contains(id) && realms.contains(id)
 
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。
      *  含幽灵弟子防御性跳过：ID 在 ids 中但组件表数据缺失 → 跳过并打 Log。
@@ -1313,9 +696,9 @@ class DiscipleTables {
      * 增量组装：只重新组装 [changedIds] 中的弟子，与 [prevSnapshot] 合并。
      * 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
      *
-     * 2026-08-01：`(unchanged + changed).sortedBy`（O(D log D)）改为双指针归并
-     * （O(D + C)）——prevSnapshot 按 id 升序（既有不变量）、changedIds 按 BitSet
-     * 升序，线性归并且未变弟子复用旧对象引用（UI 侧 data class 相等跳过重组）。
+     * 归并策略：双指针归并（O(D + C)）——prevSnapshot 按 id 升序（既有不变量）、
+     * changedIds 按 BitSet 升序，线性归并且未变弟子复用旧对象引用
+     * （UI 侧 data class 相等跳过重组）。
      *
      * @param prevSnapshot 上一次的完整弟子列表（id 升序）
      * @param changedIds 本次事务中修改过的弟子 ID（升序）
@@ -1324,9 +707,9 @@ class DiscipleTables {
     fun assembleAllIncremental(prevSnapshot: List<Disciple>, changedIds: Set<Int>): List<Disciple> {
         if (changedIds.isEmpty()) return prevSnapshot
 
-        // 2026-08-01 对抗性审查修复：双指针归并依赖 prevSnapshot 按 id 升序——
-        // 读档路径（DiscipleDataDao.getAllSync = ORDER BY realm, cultivation）产出
-        // 非升序列表直接赋给 _disciplesFlow，失序归并会产生重复弟子。
+        // 双指针归并依赖 prevSnapshot 按 id 升序——读档路径
+        //（DiscipleDataDao.getAllSync = ORDER BY realm, cultivation）产出非升序列表，
+        // 失序归并会产生重复弟子。
         // 入口 O(D) 校验升序，失序时退化为全量组装（正确性优先）。
         var prevSorted = true
         var lastId = -1
@@ -1357,37 +740,11 @@ class DiscipleTables {
         // prevSnapshot 中剔除（否则陈尸残留）
         val removedIds = changedIds.filter { it !in changedMap }.toHashSet()
 
-        // 双指针归并：prevSnapshot（id 升序）∪ changedMap（id 升序）
-        val result = ArrayList<Disciple>(prevSnapshot.size + changedMap.size)
-        var i = 0
-        val prevSize = prevSnapshot.size
-        for ((id, disciple) in changedMap.entries.sortedBy { it.key }) {
-            // 复制 prevSnapshot 中 id < 当前变更 id 的未变弟子（剔除已移除 id）
-            while (i < prevSize) {
-                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
-                if (prevId >= id) break
-                if (prevId !in removedIds) result.add(prevSnapshot[i])
-                i++
-            }
-            // 跳过 prevSnapshot 中与变更 id 重合的旧条目（id 唯一，最多一个）
-            while (i < prevSize) {
-                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
-                if (prevId != id) break
-                i++
-            }
-            result.add(disciple)
-        }
-        // 追加尾部未变弟子（剔除已移除 id）
-        while (i < prevSize) {
-            val prevId = prevSnapshot[i].id.toIntOrNull()
-            if (prevId == null || prevId !in removedIds) result.add(prevSnapshot[i])
-            i++
-        }
-        return result
+        return mergeSortedSnapshotsById(prevSnapshot, changedMap, removedIds)
     }
 
     /**
-     * P-3 子对象级 patch 增量组装：changedIds ≈ 全量时替代 [assembleAll]。
+     * 子对象级 patch 增量组装：changedIds ≈ 全量时替代 [assembleAll]。
      *
      * 每旬 cultivation 列写几乎所有弟子 → 原全量路径每弟子 ~100 列读 + 10 个
      * 嵌套对象分配。本方法按脏列所属子对象组只重装对应组（未脏组复用
@@ -1411,7 +768,7 @@ class DiscipleTables {
 
         // 脏列 → 组位图。注意：-1 组 = 本体列（如 cultivations，始终重读），
         // 属正常情况不退化；仅"列索引越界"（新增列未注册）才整体退化全量。
-        val dirtyGroups = computeDirtyGroups(dirtyColumnIndices = dirtyColumnIndices)
+        val dirtyGroups = computeDirtyGroups(dirtyColumnIndices, columnGroupByIndex)
         if (dirtyGroups == null) {
             Log.w(
                 TAG,
@@ -1440,42 +797,7 @@ class DiscipleTables {
         )
     }
 
-    /** 脏列 → 子对象组位图（assembleAllPatched 拆分）；返回 null 表示含未注册列需整体退化 */
-    private fun computeDirtyGroups(dirtyColumnIndices: Set<Int>): Int? {
-        var dirtyGroups = 0
-        for (ci in dirtyColumnIndices) {
-            if (ci < 0 || ci >= columnGroupByIndex.size) return null
-            val group = columnGroupByIndex[ci]
-            if (group >= 0) dirtyGroups = dirtyGroups or (1 shl group)
-        }
-        return dirtyGroups
-    }
-
-    /** 升序校验（assembleAllPatched 拆分）：读档路径可能非升序，失序退化为全量组装 */
-    private fun isPrevSnapshotSorted(prevSnapshot: List<Disciple>, tag: String): Boolean {
-        var prevSorted = true
-        var lastId = -1
-        for (d in prevSnapshot) {
-            val id = d.id.toIntOrNull()
-            if (id == null || id < lastId) { prevSorted = false; break }
-            lastId = id
-        }
-        if (!prevSorted) {
-            Log.w(TAG, "$tag: prevSnapshot 非升序（读档路径），退化为全量组装")
-        }
-        return prevSorted
-    }
-
-    /** prevSnapshot → id 映射（assembleAllPatched 拆分），供 patch 复用 prev 子对象引用 */
-    private fun buildPrevById(prevSnapshot: List<Disciple>): HashMap<Int, Disciple> {
-        val prevById = HashMap<Int, Disciple>(prevSnapshot.size * 2)
-        for (d in prevSnapshot) {
-            d.id.toIntOrNull()?.let { prevById[it] = d }
-        }
-        return prevById
-    }
-
-    /** 组装变更弟子（assembleAllPatched 拆分）：幽灵跳过 + 列缺失防御 */
+    /** 组装变更弟子：幽灵跳过 + 列缺失防御 */
     private fun assemblePatchedChangedMap(
         changedIds: Set<Int>,
         prevById: Map<Int, Disciple>,
@@ -1498,46 +820,6 @@ class DiscipleTables {
         return changedMap
     }
 
-    /** 双指针归并（assembleAllPatched 拆分）：prevSnapshot（id 升序）∪ changedMap（id 升序） */
-    // 拆分搬移:分支结构与原函数一致
-    @Suppress("CyclomaticComplexMethod")
-    private fun mergePatchedSnapshots(
-        prevSnapshot: List<Disciple>,
-        changedIds: Set<Int>,
-        changedMap: Map<Int, Disciple>
-    ): List<Disciple> {
-        // 已移除/幽灵弟子 id：changedIds 中存在但组装失败的——归并时必须从
-        // prevSnapshot 中剔除（否则陈尸残留）
-        val removedIds = changedIds.filter { it !in changedMap }.toHashSet()
-
-        val result = ArrayList<Disciple>(prevSnapshot.size + changedMap.size)
-        var i = 0
-        val prevSize = prevSnapshot.size
-        for ((id, disciple) in changedMap.entries.sortedBy { it.key }) {
-            // 复制 prevSnapshot 中 id < 当前变更 id 的未变弟子（剔除已移除 id）
-            while (i < prevSize) {
-                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
-                if (prevId >= id) break
-                if (prevId !in removedIds) result.add(prevSnapshot[i])
-                i++
-            }
-            // 跳过 prevSnapshot 中与变更 id 重合的旧条目（id 唯一，最多一个）
-            while (i < prevSize) {
-                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
-                if (prevId != id) break
-                i++
-            }
-            result.add(disciple)
-        }
-        // 追加尾部未变弟子（剔除已移除 id）
-        while (i < prevSize) {
-            val prevId = prevSnapshot[i].id.toIntOrNull()
-            if (prevId == null || prevId !in removedIds) result.add(prevSnapshot[i])
-            i++
-        }
-        return result
-    }
-
     /**
      * 删除一个弟子。所有组件表同时删除对应行。
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
@@ -1558,18 +840,17 @@ class DiscipleTables {
         }
     }
 
-    /** 清空所有组件表与死亡记录 */
+    /** 清空所有组件表（审计 P2-4：deathRecords 零消费者纯开销，已删除） */
     fun clear() {
         requireWriteAccess()
         synchronized(_ids) {
             _ids.clear()
-            _deathRecords.clear()
             _allCopyableRefs.forEach { it.clear() }
         }
     }
 
     /**
-     * 集中标记弟子死亡 —— 设置 isAlive/status/deathYears + 创建 DeathRecord。
+     * 集中标记弟子死亡 —— 设置 isAlive/status/deathYears（审计 P2-4：DeathRecord 已删除）。
      * 所有死亡路径必须调用此方法（或通过 handleDiscipleDeath），禁止手动写三个字段。
      * [cause] 取值："age" / "battle" / "scout" / "exploration" / "cave" / "unknown"
      * 使用方式：
@@ -1582,20 +863,12 @@ class DiscipleTables {
         requireWriteAccess()
         synchronized(_ids) {
             if (!_ids.contains(id)) return@synchronized
-            _deathRecords.add(DeathRecord(
-                id = id,
-                name = names.getOrNull(id) ?: "",
-                surname = surnames.getOrNull(id) ?: "",
-                realm = realms.getOrDefault(id, 9),
-                realmLayer = realmLayers.getOrDefault(id, 1),
-                deathAge = ages.getOrDefault(id, 0),
-                deathYear = currentYear,
-                cause = cause
-            ))
+            // 审计 P2-4：DeathRecord 已删除（零消费者纯开销）——死亡信息
+            // 由 isAlive/status/deathYears 列承载
             isAlive[id] = 0
             statuses[id] = DiscipleStatus.DEAD
             deathYears[id] = currentYear
-            // ★ 记录 changedId：markDead 修改了弟子数据，若本事务还包含其他
+            // 记录 changedId：markDead 修改了弟子数据，若本事务还包含其他
             // update/insert（产生 changedIds），增量组装必须重排本弟子，
             // 否则快照会保留其"存活"旧数据（陈尸）。
             recordChangedId(id)
@@ -1615,8 +888,8 @@ class DiscipleTables {
                 mutationVersion++
                 dirtyTracker.markDirty(ref.columnIndex)
             }
-            // 按 id 写入回调（2026-08-01 增量组装基建）：
-            // 列级 setter 记录被修改的弟子 ID → changedIdTracker → 增量 assemble 不再全量兜底
+            // 按 id 写入回调：
+            // 列级 setter 记录被修改的弟子 ID → changedIdTracker → 增量 assemble 只重组脏弟子
             val idCb: (Int) -> Unit = { id -> changedIdTracker.record(id) }
             when (ref) {
                 is IntTableRef -> {
@@ -1651,11 +924,12 @@ class DiscipleTables {
      * 非脏列共享的是引用而非空数组——assembleAll() 在任意快照上都能读到全列数据。
      * 旧快照（UI 持有）引用旧存储，事务永不原地修改源存储，天然隔离。
      *
-     * 兜底路径（[forceFullCopy] = true）：逐元素全量复制，与重构前语义逐字一致。
+     * 兜底路径（[forceFullCopy] = true）：逐元素全量复制。
      *
      * @param dirtyColumns 兼容参数（已弃用——COW 每列 O(1) adopt，无需增量复制）。
      *   由 [dirtyTracker.consumeDirtyColumns] 收集，仅用于 DirtyTracker 维护。
      */
+    @Suppress("UnusedParameter") // dirtyColumns: 阶段 3 数据导向存储的列级写屏障预留钩子（handover 登记项，勿删）
     fun deepCopy(dirtyColumns: Set<Int>? = null): DiscipleTables {
         val copy = DiscipleTables()
         copy.writeAllowed = true
@@ -1674,8 +948,7 @@ class DiscipleTables {
             copy._ids.addAll(idsSnapshot.filter { copy.isCompleteId(it) })
         }
         // 显式复制死亡记录，防止跨 update 边界丢失
-        copy._deathRecords.addAll(this._deathRecords)
-        copy.writeAllowed = false  // ★ 复制完成后重置守卫，由调用方（update{}）的 .apply { writeAllowed = true } 再次开启
+        copy.writeAllowed = false  // 复制完成后重置守卫，由调用方（update{}）的 .apply { writeAllowed = true } 再次开启
         return copy
     }
 
@@ -1726,7 +999,8 @@ class DiscipleTables {
     }
 
     /**
-     * 剔除死亡超过 [thresholdYear] 年的弟子，将基本信息保留到 [deathRecords]。
+     * 剔除死亡超过 [thresholdYear] 年的弟子（审计 P2-4：原「基本信息保留到
+     * deathRecords」随零消费者字段删除一并移除）。
      * 使用 [deathYears] 组件判断死亡时长，无 deathYear 记录的不会剔除。
      * 用于 [DiscipleLifecycleProcessor.processYearlyAging] 年变事件。
      *
@@ -1737,19 +1011,6 @@ class DiscipleTables {
         val toRemove = synchronized(_ids) {
             _ids.filter { id ->
                 deathYears.contains(id) && deathYears[id] <= thresholdYear
-            }.also { filtered ->
-                filtered.forEach { id ->
-                    _deathRecords.add(DeathRecord(
-                        id = id,
-                        name = names.getOrNull(id) ?: "",
-                        surname = surnames.getOrNull(id) ?: "",
-                        realm = realms.getOrDefault(id, 9),
-                        realmLayer = realmLayers.getOrDefault(id, 1),
-                        deathAge = ages.getOrDefault(id, 0),
-                        deathYear = deathYears.getOrDefault(id, 0),
-                        cause = "unknown"
-                    ))
-                }
             }
         }
         toRemove.forEach { remove(it) }
@@ -1777,18 +1038,3 @@ class DiscipleTables {
         }
     }
 }
-
-/**
- * 已故弟子的简要死亡记录。
- * 弟子从 [DiscipleTables] 中剔除时创建，保留基本信息供墓碑/统计使用。
- */
-data class DeathRecord(
-    val id: Int,
-    val name: String,
-    val surname: String,
-    val realm: Int,
-    val realmLayer: Int,
-    val deathAge: Int,
-    val deathYear: Int,
-    val cause: String
-)

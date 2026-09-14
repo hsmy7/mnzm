@@ -40,7 +40,7 @@ private val UpgradeHeaderDividerColor = Color(0xFF9E9E9E)
 /**
  * 一键升级半屏对话框：四列列表（建筑/数量/升级/一键升级）。
  *
- * 布局遵循行业惯例（2026-08-19 调研 Material Design 数据表 + 放置类手游
+ * 布局遵循行业惯例（Material Design 数据表 + 放置类手游批量操作界面）：
  * 批量操作界面）：**列内容对齐而非强制等宽**——建筑列左对齐、数量列居中、
  * 操作按钮固定标准宽度（GameButton 72×38dp）成组排布；表头与数据行共用
  * 同一列模板，每列数据对准对应标题正下方，表头与数据行之间 1dp 灰色横线分隔。
@@ -100,8 +100,8 @@ fun BuildingUpgradeDialog(
                 rows.forEach { row ->
                     BuildingUpgradeRowItem(
                         row = row,
-                        onUpgradeOne = { viewModel.upgradeBuildingOne(row.def.sourceKey) },
-                        onUpgradeAll = { viewModel.upgradeBuildingsOfType(row.def.sourceKey) }
+                        onUpgradeOne = { viewModel.buildingUpgradeDelegate.upgradeBuildingOne(row.def.sourceKey) },
+                        onUpgradeAll = { viewModel.buildingUpgradeDelegate.upgradeBuildingsOfType(row.def.sourceKey) }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -110,7 +110,7 @@ fun BuildingUpgradeDialog(
     }
 }
 
-/** 表头单元格（BuildingUpgradeDialog 拆分）：标题文本。 */
+/** 表头单元格：标题文本。 */
 @Composable
 private fun UpgradeHeaderCell(
     text: String,
@@ -128,7 +128,7 @@ private fun UpgradeHeaderCell(
     }
 }
 
-/** 单行升级数据（BuildingUpgradeDialog 拆分）：名称/数量/两个按钮，列模板与表头一致。 */
+/** 单行升级数据：名称/数量/两个按钮，列模板与表头一致。 */
 @Composable
 private fun BuildingUpgradeRowItem(
     row: BuildingUpgradeRow,

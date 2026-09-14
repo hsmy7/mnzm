@@ -9,7 +9,7 @@ namespace gamecore::data {
 namespace {
 
 // ============================================================
-// 锻造/炼丹配方静态表守卫测试（批次 2 剩余子步）
+// 锻造/炼丹配方静态表守卫测试
 //
 // 守护目标：C++ 表（recipe_db.h）与 Kotlin ForgeRecipeDatabase /
 // PillRecipeDatabase 的生成结果一致（72 锻造 + 732 丹药配方）。

@@ -21,15 +21,15 @@ import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.engine.clearAllCaches
 
 /**
  * RedeemCodeService 本地兑换落地守卫测试。
  *
- * 守护 2026-08 修复：本地兑换路径此前会**双发弟子**——`result.rewards` 中的
- * disciple 条目被 `applyRedeemReward` → `applyDiscipleRedeemReward` 用 null 配置
- * 重复生成（境界错乱成炼气期），随后 `result.disciples`（携带正确境界配置）又
- * 插入一次。修复后在本地路径跳过 disciple 条目，弟子仅经 `result.disciples`
- * 统一插入。
+ * 守护：本地兑换路径弟子只经 `result.disciples` 统一插入（携带正确境界配置）——
+ * `result.rewards` 中的 disciple 条目在本地路径跳过，防止经
+ * `applyRedeemReward` → `applyDiscipleRedeemReward` 用 null 配置重复生成
+ * 双发弟子（境界错乱成炼气期）。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)

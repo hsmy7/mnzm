@@ -35,6 +35,7 @@ private val PanelBg = GameColors.ButtonBackground
 private val DividerGray = GameColors.ButtonDisabled
 
 @Composable
+@Suppress("UnusedParameter") // claimableLevels: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun HeavenlyTrialClearRewardDialog(
     trialState: HeavenlyTrialSaveData,
     claimableLevels: List<Int>,
@@ -135,7 +136,7 @@ private fun ClearRewardRow(
     }
 }
 
-/** 单个奖励格（ClearRewardRow 拆分）：随机/具体物品卡 + 可领取红点 */
+/** 单个奖励格：随机/具体物品卡 + 可领取红点 */
 @Composable
 private fun BoxScope.ClearRewardItemCell(
     item: ClearRewardItem,
@@ -161,7 +162,7 @@ private fun BoxScope.ClearRewardItemCell(
     }
 }
 
-/** 随机奖励格（ClearRewardRow 拆分）：稀有度底色 + "?" 文字 + 底部名称条 */
+/** 随机奖励格：稀有度底色 + "?" 文字 + 底部名称条 */
 @Composable
 private fun BoxScope.RandomRewardItemCell(item: ClearRewardItem) {
     // 随机物品：稀有度底色 + "?" 文字 + 底部名称条
@@ -209,7 +210,7 @@ private fun BoxScope.RandomRewardItemCell(item: ClearRewardItem) {
     }
 }
 
-/** 具体奖励格（ClearRewardRow 拆分）：物品卡 + 关注态 */
+/** 具体奖励格：物品卡 + 关注态 */
 @Composable
 private fun BoxScope.ConcreteRewardItemCell(
     item: ClearRewardItem,
@@ -234,7 +235,7 @@ private fun BoxScope.ConcreteRewardItemCell(
     )
 }
 
-/** 领取按钮（ClearRewardRow 拆分）：已领取置灰 / 未通关或可领取统一"领取"文案 */
+/** 领取按钮：已领取置灰 / 未通关或可领取统一"领取"文案 */
 @Composable
 private fun ClearRewardClaimButton(
     isCleared: Boolean,

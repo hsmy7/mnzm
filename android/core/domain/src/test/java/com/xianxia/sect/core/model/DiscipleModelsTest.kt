@@ -29,7 +29,7 @@ class DiscipleModelsTest {
     @Test
     fun discipleAttributes_aptitude_default50() {
         val attrs = DiscipleAttributes()
-        // 资质默认 50 为旧档自愈哨兵值（2026-08-12 悟性重设计新增固定属性）
+        // 资质默认 50 为旧档自愈哨兵值
         assertEquals(50, attrs.aptitude)
     }
 

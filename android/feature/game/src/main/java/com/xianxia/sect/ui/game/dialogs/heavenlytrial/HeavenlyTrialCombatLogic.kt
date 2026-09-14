@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs.heavenlytrial
 
 import com.xianxia.sect.core.SkillType
@@ -38,7 +38,7 @@ internal fun beginCombat(seed: Long) {
 internal fun currentCombatRng(): DeterministicRng = combatRng
 
 /**
- * 确定性随机选择（A3 对抗性审查修复）：替代 `kotlin.random.Random.randomOrNull`——
+ * 确定性随机选择：替代 `kotlin.random.Random.randomOrNull`——
  * UI 模拟的目标选择必须走本地 PRNG（当前战斗的 [combatRng]），
  * 与即时结算路径同基准、可重放，不引入非确定性随机源。
  */
@@ -218,7 +218,7 @@ internal fun applyBuffToTarget(
  * 推进回合，根据存活情况返回下一状态。
  *
  * `isDefending` 以只读 [Set] 传递（本函数从不原地修改，原样回传；
- * D-39 MutableCollectionMutableState 根治后 UI 侧持有不可变集合）。
+ * UI 侧持有不可变集合）。
  */
 internal fun advanceTurn(
     alivePlayers: List<Combatant>,
@@ -331,7 +331,7 @@ internal fun resolveAIAction(
     return updatedPlayers to updatedEnemies
 }
 
-/** AI 动作分支结算（resolveAIAction 拆分）：按 actionType 分派到对应结算函数 */
+/** AI 动作分支结算：按 actionType 分派到对应结算函数 */
 private fun applyAIAction(
     actor: Combatant,
     ai: BattleAI.AIAction,
@@ -386,7 +386,7 @@ private fun applyAIAction(
     }
 }
 
-/** AOE 技能攻击结算（resolveAIAction 拆分）：对全体敌方目标同时结算 */
+/** AOE 技能攻击结算：对全体敌方目标同时结算 */
 private fun resolveAoeSkillAttack(
     actor: Combatant,
     skill: CombatSkill?,
@@ -409,7 +409,7 @@ private fun resolveAoeSkillAttack(
     return if (actorIsPlayer) players to newFoeTeam else newFoeTeam to enemies
 }
 
-/** 单体技能/普攻结算（resolveAIAction 拆分）：skill 为 null 时视为普攻 */
+/** 单体技能/普攻结算：skill 为 null 时视为普攻 */
 private fun resolveTargetedSkillAttack(
     actor: Combatant,
     skill: CombatSkill?,
@@ -433,7 +433,7 @@ private fun resolveTargetedSkillAttack(
     return if (actorIsPlayer) players to newFoeTeam else newFoeTeam to enemies
 }
 
-/** 自身 Buff/治疗结算（resolveAIAction 拆分） */
+/** 自身 Buff/治疗结算 */
 private fun resolveSelfBuff(
     actor: Combatant,
     skill: CombatSkill?,
@@ -450,7 +450,7 @@ private fun resolveSelfBuff(
     }
 }
 
-/** 单体队友 Buff/治疗结算（resolveAIAction 拆分） */
+/** 单体队友 Buff/治疗结算 */
 private fun resolveAllyBuff(
     actor: Combatant,
     skill: CombatSkill?,
@@ -468,7 +468,7 @@ private fun resolveAllyBuff(
     }
 }
 
-/** 全队 Buff/治疗结算（resolveAIAction 拆分） */
+/** 全队 Buff/治疗结算 */
 private fun resolveTeamBuff(
     actor: Combatant,
     skill: CombatSkill?,
@@ -487,7 +487,7 @@ private fun resolveTeamBuff(
     }
 }
 
-/** 技能消耗结算（resolveAIAction 拆分）：扣除 MP + 设置冷却 */
+/** 技能消耗结算：扣除 MP + 设置冷却 */
 private fun deductSkillCost(
     actor: Combatant,
     skill: CombatSkill,

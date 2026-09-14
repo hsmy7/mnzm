@@ -126,6 +126,7 @@ class CertificatePinnerProvider @Inject constructor() {
      * - **Debug 构建**：根据 [NetworkSecurityConfig.ENABLE_PINNING_IN_DEBUG] 决定；
      *   若关闭则返回空 pinner（等效于不固定），方便 Charles/Fiddler 抓包
      */
+    @Suppress("SpreadOperator") // OkHttp CertificatePinner.add 为 vararg API，动态 pin 列表必须散布传入
     private fun buildCertificatePinner(): CertificatePinner {
         if (!NetworkSecurityConfig.isCertificatePinningEnabled) {
             Log.w(
@@ -234,6 +235,7 @@ class CertificatePinnerProvider @Inject constructor() {
      * @return sha256/<Base64> 格式的 pin 字符串
      * @throws IllegalArgumentException 证书解析失败时抛出
      */
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun extractSpkiHash(certBytes: ByteArray): String {
         return try {
             val certFactory = CertificateFactory.getInstance("X.509")

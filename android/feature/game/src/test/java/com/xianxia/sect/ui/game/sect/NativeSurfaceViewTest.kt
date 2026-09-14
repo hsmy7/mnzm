@@ -16,13 +16,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * NativeSurfaceView 渲染质量转发序列测试（2026-08-10 新增，WP1）。
+ * NativeSurfaceView 渲染质量转发序列测试。
  *
  * 覆盖维度：
  * - renderQualityFactor / renderDecorationsDisabled setter 转发到 [renderQualitySink]
  * - 单边 setter 触发时携带两个当前值（C++ 全局量状态完整，防单边不同步）
  * - surface 重建（SOFTWARE 路径）后热控状态不丢失（createSoftwareBackend 应用当前值）
- * - WP7 buildAtlas ASTC 压缩图集回退链（uploader 注入 Fake 断言分支行为）
+ * - buildAtlas ASTC 压缩图集回退链（uploader 注入 Fake 断言分支行为）
  *
  * 边界：Vulkan 路径的 C++ 全局量重放无法在 JVM 验证（native 库不加载），
  * 由 surfaceChanged 中 pushRenderQuality() 的代码审查 + 真机验证覆盖。
@@ -105,8 +105,7 @@ class NativeSurfaceViewTest {
         view.renderDecorationsDisabled = true
 
         // Robolectric 下 holder.surface 恒为 null → surfaceChanged 安全 no-op
-        // （既有的 `if (!isReady && holder.surface == null) return` 早退路径；
-        // 2026-08-13 平台抽象：事件经 view.surfaceProvider（AndroidSurfaceProvider）派发，
+        // （事件经 view.surfaceProvider（AndroidSurfaceProvider）派发，
         // 状态机需先 surfaceCreated 再 surfaceChanged 才能到达宿主初始化入口）
         val provider = view.surfaceProvider as AndroidSurfaceProvider
         provider.surfaceCreated(view.holder)
@@ -118,7 +117,7 @@ class NativeSurfaceViewTest {
     }
 
     // ============================================================
-    // WP7 ASTC 压缩图集分支决策（tryCompressedAtlas/shouldTryCompressedAtlas）
+    // ASTC 压缩图集分支决策（tryCompressedAtlas/shouldTryCompressedAtlas）
     // 注：完整 buildAtlas 的 RGBA 上传为 native 调用（Robolectric 无法拦截，
     // 抛 UnsatisfiedLinkError），分支逻辑提取为纯函数在此锁定，上传链路真机验证。
     // ============================================================
@@ -173,7 +172,109 @@ class NativeSurfaceViewTest {
     }
 
     // ============================================================
-    // updateRenderState 校验前置防线（对抗性审查：坏帧不得污染 currentFrame——
+    // 图集异步流水线（拼装移出主线程 + RGBA DirectByteBuffer）
+    //
+    // 语义：prepareAtlas（重活，后台线程）/ uploadAtlas（轻活，主线程）
+    // 两段拆分后各自的分支行为在此锁定；完整 RGBA 上传为 native 调用
+    // （Robolectric 无法拦截，抛 UnsatisfiedLinkError），真机验证。
+    // ============================================================
+
+    @Test
+    fun `prepareAtlas - 允许压缩且读取器返回字节时产出 ktx 载荷不碰拼装`() {
+        val view = createView()
+        view.useRenderMode = NativeSurfaceView.RenderMode.VULKAN
+        view.compressedAtlasReader = { byteArrayOf(1, 2, 3) }
+
+        val payload = view.atlasPipeline.prepareAtlas(context, software = false, allowCompressed = true)
+
+        assertEquals("ktx 载荷应携带资产字节", listOf<Byte>(1, 2, 3), payload.ktx!!.toList())
+        assertEquals("压缩路径不产出 RGBA 像素", null, payload.rgbaPixels)
+        assertEquals("压缩路径不产出位图", null, payload.softwareBitmap)
+        assertFalse("压缩读取成功不是失败", payload.failed)
+    }
+
+    @Test
+    fun `prepareAtlas - 读取器返回 null 时落回运行时拼装且不算失败`() {
+        val view = createView()
+        view.useRenderMode = NativeSurfaceView.RenderMode.VULKAN
+        view.compressedAtlasReader = { null }
+
+        val payload = view.atlasPipeline.prepareAtlas(context, software = true, allowCompressed = true)
+
+        assertEquals("资产缺失应落回拼装路径", null, payload.ktx)
+        assertFalse("资产缺失不是失败", payload.failed)
+        assertTrue("software=true 应产出位图载荷", payload.softwareBitmap != null)
+    }
+
+    @Test
+    fun `prepareAtlas - 拼装产物长边不超过 2048 封顶`() {
+        val view = createView()
+        val payload = view.atlasPipeline.prepareAtlas(context, software = true, allowCompressed = false)
+        assertFalse("Robolectric 下拼装应成功", payload.failed)
+        val atlas = requireNotNull(payload.softwareBitmap) { "software 路径必须产出位图" }
+
+        assertTrue(
+            "图集位图边长应 ≤2048（实际 ${atlas.width}x${atlas.height}）",
+            atlas.width <= 2048 && atlas.height <= 2048
+        )
+    }
+
+    @Test
+    fun `uploadAtlas - 软渲染载荷挂到 atlasBitmap 并返回 0`() {
+        val view = createView()
+        val payload = view.atlasPipeline.prepareAtlas(context, software = true, allowCompressed = false)
+        assertFalse("Robolectric 下拼装应成功", payload.failed)
+        requireNotNull(payload.softwareBitmap) { "software 路径必须产出位图" }
+
+        val id = view.atlasPipeline.uploadAtlas(context, payload)
+
+        assertEquals("软渲染路径不上传 GPU", 0, id)
+        assertTrue("位图应挂到 atlasBitmap 供 Canvas 后端读取", view.atlasBitmap != null)
+    }
+
+    @Test
+    fun `uploadAtlas - 失败载荷返回 0 且不触碰 atlasBitmap`() {
+        val view = createView()
+        val payload = AtlasPayload(failed = true)
+
+        val id = view.atlasPipeline.uploadAtlas(context, payload)
+
+        assertEquals(0, id)
+        assertEquals("失败路径不得写入 atlasBitmap", null, view.atlasBitmap)
+    }
+
+    @Test
+    fun `uploadAtlas - ktx 载荷走注入上传器透传纹理 ID`() {
+        val view = createView()
+        view.compressedAtlasUploader = { 42 }
+
+        val id = view.atlasPipeline.uploadAtlas(context, AtlasPayload(ktx = byteArrayOf(7)))
+
+        assertEquals("上传器返回值应透传", 42, id)
+    }
+
+    @Test
+    fun `buildAtlasAsync - 后台拼装并回调纹理 ID（纪元守卫内）`() {
+        val view = createView()
+        view.useRenderMode = NativeSurfaceView.RenderMode.VULKAN
+        view.compressedAtlasReader = { byteArrayOf(9) }
+        view.compressedAtlasUploader = { 42 }
+
+        var callbackId = -1
+        view.buildAtlasAsync(context) { id -> callbackId = id }
+
+        // 后台线程拼装 → post 回主线程；测试线程即主线程，
+        // 轮询 idle() 消费 post 消息（5s 截止防悬挂）
+        val deadline = System.currentTimeMillis() + 5_000
+        while (callbackId == -1 && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertEquals("回调应收到上传器返回的纹理 ID", 42, callbackId)
+    }
+
+    // ============================================================
+    // updateRenderState 校验前置防线（坏帧不得污染 currentFrame——
     // 渲染线程读取后 ChunkTile.rebuild 会 ArrayIndexOutOfBoundsException，
     // 被渲染循环 catch 吞掉后永久黑屏）
     // ============================================================
@@ -210,7 +311,7 @@ class NativeSurfaceViewTest {
     }
 
     // ============================================================
-    // 预览快通道（2026-08-30 触控优化：拖拽预览不经 Compose 重组/帧率门控）
+    // 预览快通道（拖拽预览不经 Compose 重组/帧率门控）
     // ============================================================
 
     @Test
@@ -364,4 +465,53 @@ class NativeSurfaceViewTest {
 
     // SOFTWARE 模式分支无法在 JVM 构造：renderMode 由 surfaceChanged 降级逻辑设置
     // （Robolectric 下 holder.surface 恒 null → 早退），该状态由真机强制软件渲染验证。
+
+    // ── surfaceChanged 同尺寸去抖 ──
+
+    @Test
+    fun `shouldSkipSurfaceResize - 同尺寸应跳过`() {
+        assertTrue("同尺寸事件应跳过 resize（防 swapchain 重建黑帧）", shouldSkipSurfaceResize(640, 360, 640, 360))
+    }
+
+    @Test
+    fun `shouldSkipSurfaceResize - 任一轴变化应执行 resize`() {
+        assertFalse(shouldSkipSurfaceResize(640, 360, 1280, 360))
+        assertFalse(shouldSkipSurfaceResize(640, 360, 640, 720))
+        assertFalse(shouldSkipSurfaceResize(640, 360, 1280, 720))
+    }
+
+    @Test
+    fun `shouldSkipSurfaceResize - 复位基准（-1）后首次事件不跳过`() {
+        assertFalse("新 surface 纪元复位后首次尺寸事件必须执行 resize", shouldSkipSurfaceResize(-1, -1, 640, 360))
+    }
+
+    // ── pending resize 消费守卫──
+
+    @Test
+    fun `shouldConsumeNativeResize - SOFTWARE 模式不触 JNI`() {
+        assertFalse(
+            "软件后端无 C++ swapchain 语义，消费调用是纯开销",
+            shouldConsumeNativeResize(isReady = true, mode = NativeSurfaceView.RenderMode.SOFTWARE)
+        )
+    }
+
+    @Test
+    fun `shouldConsumeNativeResize - 未就绪不触 JNI`() {
+        assertFalse(
+            shouldConsumeNativeResize(isReady = false, mode = NativeSurfaceView.RenderMode.VULKAN)
+        )
+        assertFalse(
+            shouldConsumeNativeResize(isReady = false, mode = NativeSurfaceView.RenderMode.GLES)
+        )
+    }
+
+    @Test
+    fun `shouldConsumeNativeResize - GPU 后端就绪时消费`() {
+        assertTrue(
+            shouldConsumeNativeResize(isReady = true, mode = NativeSurfaceView.RenderMode.VULKAN)
+        )
+        assertTrue(
+            shouldConsumeNativeResize(isReady = true, mode = NativeSurfaceView.RenderMode.GLES)
+        )
+    }
 }

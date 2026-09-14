@@ -50,7 +50,6 @@ class BuildingOverflowMigrationTest {
             storageFacade = mockk(),
             stateStore = mockk(),
             buildingConfigService = buildingConfigService,
-            spiritStoneWallet = mockk()
         )
     }
 

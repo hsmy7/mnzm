@@ -103,6 +103,7 @@ class GameAnnotationsTest {
             .firstOrNull()?.value
         assertNotNull(serviceRetention)
         assertNotNull(systemRetention)
-        assertNotEquals("GameService and AutoTickSystem should have different retention", serviceRetention, systemRetention)
+        assertNotEquals("GameService and AutoTickSystem should have different retention", serviceRetention,
+            systemRetention)
     }
 }

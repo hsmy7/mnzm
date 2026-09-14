@@ -21,13 +21,6 @@ import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.RngPartition
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.encodeToJsonElement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -35,7 +28,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffMonthSettlementTest — 月变结算跨语言差分对拍（T2.2 验收核心）。
+ * DiffMonthSettlementTest — 月变结算跨语言差分对拍（验收核心）。
  *
  * 守护目标：C++ `gamecore::system::runMonthSettlement`（注册于 onMonthChange，
  * 经 nativeCoreAdvancePhases 跨月界触发）与 Kotlin `GameEngineCore` 同构组合管线
@@ -50,14 +43,14 @@ import org.junit.Test
  * ③ 政策忠诚：仁政爱徒 loyalty delta=+1（50→51 coerceIn(0,100)）+
  *    S1 政策月费 100×4 弟子经真实钱包扣除
  *
- * ⑥（批 10-3）偷盗兜底：弟子 16 道德 10（候选）但入伍月 13 保护期未满
+ * ⑥偷盗兜底：弟子 16 道德 10（候选）但入伍月 13 保护期未满
  * （绝对月差 14-13=1 < 12，双端口径均 < 12）→ 候选排除，零抽取零标记——
  * 任何虚假 SYSTEM 抽取都会移位叛逃候选抽取序列而对拍失败；门控通过
  * （平均忠诚 42 < 50）与 hasCandidate 路径（道德 < 30）仍被真实覆盖。
- * ⑦（批 10-4）附庸脱离：玩家宗门 p1 + 附属 ai-3（至交 100，战力比 ≥5x
+ * ⑦附庸脱离：玩家宗门 p1 + 附属 ai-3（至交 100，战力比 ≥5x
  * → 概率 0.0）恰抽 1 次 SYSTEM 必不脱离——契约保留零事件；玩家宗门在场
  * 使 gameOverCheck 走"本宗未被占领 → 不触发"路径。
- * ⑧（批 11-1）自动招募：recruitList 含 1 名匹配（灵根 1 根，无装备/功法——
+ * ⑧自动招募：recruitList 含 1 名匹配（灵根 1 根，无装备/功法——
  * 俘虏落库 no-op 规避 UUID 分叉）+ 1 名不匹配；autoRecruitSpiritRootFilter
  * {1} → 弟子 17 入宗（id=max+1、资质 50→82 散列补算、recruitedMonth=14、
  * annualNewDisciples+1），r2 保留在列表；零 RNG 抽取（SYSTEM 抽取序零扰动）。
@@ -74,7 +67,7 @@ class DiffMonthSettlementTest {
 
     /**
      * 推进 3 旬：(1,1,上旬) → (1,2,上旬)，恰好跨一个月界。
-     * 刻意避开 month % 3 == 0 的任务自动刷新月（missionRefresh 属任务批次未下沉）。
+     * 刻意避开 month % 3 == 0 的任务自动刷新月（missionRefresh 不在 diff 面内）。
      */
     private companion object {
         const val PHASES = 3
@@ -113,18 +106,12 @@ class DiffMonthSettlementTest {
         /** 新弟子资质散列补算期望（id=17，1 灵根 → 80 + floorMod(8990,21)=2） */
         const val NEW_RECRUIT_APTITUDE = 82
 
-        /** 库存集合路径锚点（镜像生成 id 排除用；集合内容本身参与 diff——
-         *  批 11-4 FakeGameStateStore 嵌套事务修复后） */
-        private val INVENTORY_COLLECTION_KEYS = setOf(
-            "equipmentStacks", "equipmentInstances", "manualStacks",
-            "manualInstances", "pills", "materials", "herbs", "seeds", "storageBags"
-        )
 
-        /** 批 13-4c 场景⑯：母亲 id（到期生育；DiscipleTables 列式存储要求
+        /** 场景⑯：母亲 id（到期生育；DiscipleTables 列式存储要求
          *  id 为数字字符串） */
         const val MOTHER_ID = "20"
 
-        /** 批 13-4c 场景⑯：父亲 id（partner 互指） */
+        /** 场景⑯：父亲 id（partner 互指） */
         const val FATHER_ID = "21"
     }
 
@@ -137,14 +124,14 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 批 13-2b：预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
+            // 预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
             //（既有场景专注政策/执法域；世界关卡刷新对拍由场景⑭独立覆盖）
             worldLevelLastRefreshMonth = 1 * 12 + 1
             // 场景③：仁政爱徒（S1 按弟子数计费 100×N + S2 忠诚 +1）
             sectPolicies = sectPolicies.copy(benevolentGovernance = true)
             // 场景②前提：自动配对模式（提案分支不在协议）
             daoCompanionConsentRequired = false
-            // 场景④（批 10-1）：侦察过期清理——ai-1 过期(1,1)、ai-2 未过期(2,2)；
+            // 场景④：侦察过期清理——ai-1 过期(1,1)、ai-2 未过期(2,2)；
             // worldLevels 空（precomputeTargets 纯早退）
             scoutInfo = mapOf(
                 "ai-1" to SectScoutInfo(
@@ -168,14 +155,14 @@ class DiffMonthSettlementTest {
                     )
                 )
             )
-            // 场景⑦（批 10-4）：附庸脱离场景（玩家宗门 + 至交附属 + AI 弟子）
+            // 场景⑦：附庸脱离场景（玩家宗门 + 至交附属 + AI 弟子）
             applyVassalBreakawayScene()
-            // 场景⑧⑨（批 11-1/11-2）：自动招募 + 秘境 AI 队伍派遣
+            // 场景⑧⑨：自动招募 + 秘境 AI 队伍派遣
             applyAutoRecruitAndRealmScene()
         }
         return NativeGameState(
             gameData = gameData,
-            // 批 10-4：AI 弟子池经顶层字段承载（GameData 侧 @Transient 不入
+            // AI 弟子池经顶层字段承载（GameData 侧 @Transient 不入
             // gameData 序列化——快照协议顶层键，C++ GameState.aiSectDisciples）
             aiSectDisciples = gameData.aiSectDisciples,
             disciples = listOf(
@@ -183,14 +170,14 @@ class DiffMonthSettlementTest {
                 pairingDisciple("12", "甲二", "male"),
                 pairingDisciple("13", "乙一", "female"),
                 pairingDisciple("14", "乙二", "female"),
-                // 场景⑤（批 10-2）：叛逃候选——忠诚 0（政策 +1 后 1 < 30）、
+                // 场景⑤：叛逃候选——忠诚 0（政策 +1 后 1 < 30）、
                 // 未成年（16 岁不参与伴侣配对，避免额外 SYSTEM 抽取改变既有
                 // 4 组合序列）、IDLE、recruitedMonth 0（保护期 25-0 ≥ 12）
                 pairingDisciple(DESERTER_ID, "丙一", "male").copy(
                     age = 16,
                     skills = SkillStats(loyalty = 0)
                 ),
-                // 场景⑥（批 10-3）：偷盗候选（道德 10）但入伍月 13 → 保护期
+                // 场景⑥：偷盗候选（道德 10）但入伍月 13 → 保护期
                 // （12 月）未满 → 候选排除零抽取；未成年（16 岁）不参与配对、
                 // 忠诚 50 非叛逃候选（不扰动既有 SYSTEM 抽取序列）
                 pairingDisciple(PROTECTED_THIEF_ID, "丁一", "male").copy(
@@ -203,7 +190,7 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * 场景⑧⑨（批 11-1/11-2）：自动招募——1 根灵根匹配 filter{1}（无装备/功法，
+     * 场景⑧⑨：自动招募——1 根灵根匹配 filter{1}（无装备/功法，
      * 俘虏落库 no-op 规避 UUID 分叉）+ 2 根灵根不匹配保留列表；秘境 AI 队伍
      * 派遣——秘境存在（spawnYear=1 未到期，规避子事件 15 关闭）+ ai-3 有存活
      * 弟子 → 子事件 16 派遣 1 队。
@@ -220,7 +207,7 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * 场景⑦（批 10-4）：附庸脱离——玩家宗门在场（gameOverCheck 判"本宗未被
+     * 场景⑦：附庸脱离——玩家宗门在场（gameOverCheck 判"本宗未被
      * 占领" → 不触发）；附属 ai-3 至交好感 100 + 战力比 ≥5x（powerScore 0）
      * → 脱离概率 0.0，恰抽 1 次 SYSTEM 必不脱离；契约保留 + 零事件。AI 弟子
      * 与玩家弟子同规格（realm 9 无天赋）→ 战力比 = 存活弟子数（5 或 6，由
@@ -261,10 +248,10 @@ class DiffMonthSettlementTest {
         )
 
     /**
-     * 场景⑩（批 11-3）：12 月自动购买——(1,11,上旬) 起 3 旬跨 11→12 月界，
+     * 场景⑩：12 月自动购买——(1,11,上旬) 起 3 旬跨 11→12 月界，
      * 月结时 gameMonth=12 → autoBuy 触发。商人商品均为已知模板（精铁剑/
      * 聚气丹，零 RNG 主路径）；availableMissions 由 Kotlin 侧非托管 RNG
-     * 生成（任务批次边界 S-19）——C++ 协议无该字段，diff 面天然不比较。
+     * 生成（C++ 协议无该字段）——diff 面天然不比较。
      */
     private fun buildDecemberSnapshot(): NativeGameState {
         val gameData = GameData(
@@ -272,7 +259,7 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 批 13-2b：预置刷新月 == 月变时绝对月（12 月 = 24）→ 不刷新
+            // 预置刷新月 == 月变时绝对月（12 月 = 24）→ 不刷新
             worldLevelLastRefreshMonth = 1 * 12 + 12
             autoBuyList = listOf(
                 AutoBuyEntry(itemName = "精铁剑", itemType = "equipment", rarity = 1),
@@ -288,7 +275,7 @@ class DiffMonthSettlementTest {
                     rarity = 1, price = 50, quantity = 2, grade = "中品"
                 )
             )
-            // 非空 AI 弟子池（规避空表 null vs {} 协议不对称——批 10-4 空表
+            // 非空 AI 弟子池（规避空表 null vs {} 协议不对称——空表
             // 不导出键保 null 往返；秘境不存在 → 不派遣，零影响）。@Transient
             // 双通道一致：GameData 侧（Kotlin 臂基准）+ 顶层（快照协议）
             aiSectDisciples = mapOf(
@@ -310,7 +297,7 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * 场景⑪（批 12-1）：弟子智能购买——(1,1,上旬) 起 3 旬跨 1→2 月界，
+     * 场景⑪：弟子智能购买——(1,1,上旬) 起 3 旬跨 1→2 月界，
      * 月结时子事件 12 触发。上架已知模板（精铁剑/聚气丹，模板路径确定性
      * 回退散列选池）、仓库有货、弟子有灵石 → 决策 + 扣仓库 + 入袋 +
      * 灵石（先袋后身）+ 宗门入账。SYSTEM 分区 shuffled（单元素洗牌零
@@ -322,7 +309,7 @@ class DiffMonthSettlementTest {
             spiritStones = 0L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 批 13-2b：预置刷新月（13）→ 不刷新
+            // 预置刷新月（13）→ 不刷新
             worldLevelLastRefreshMonth = 1 * 12 + 1
             // 上架商品（玩家卖出后进 playerListedItems；itemId 指向仓库堆叠）
             playerListedItems = listOf(
@@ -348,7 +335,7 @@ class DiffMonthSettlementTest {
                 )
             )
         }
-        // 仓库库存 + 弟子（批 12-1：购买候选有灵石）
+        // 仓库库存 + 弟子（购买候选有灵石）
         val equipmentStacks = purchaseEquipmentStacks()
         val pills = purchasePills()
         val disciples = purchaseDisciples()
@@ -393,7 +380,7 @@ class DiffMonthSettlementTest {
     )
 
     /**
-     * 场景⑬（批 13-2a）：教化之道偷盗判定钩子——moralEducation 开启 +
+     * 场景⑬：教化之道偷盗判定钩子——moralEducation 开启 +
      * 1 名道德 28 忠诚 40 弟子（从众门控通过），(1,1) 起 3 旬跨 1→2 月界。
      * 月结步骤 2 钩子：道德 28→29（仍 < 30 阈值）→ 单弟子偷盗判定——
      * 偷盗概率 prob=(30-29)×0.01=0.01 种子不中 → 标记（theftJudgements
@@ -407,10 +394,10 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 批 13-2b：预置刷新月（13）→ 不刷新（场景⑬ 专注教化之道钩子）
+            // 预置刷新月（13）→ 不刷新（场景⑬ 专注教化之道钩子）
             worldLevelLastRefreshMonth = 1 * 12 + 1
             sectPolicies = sectPolicies.copy(moralEducation = true)
-            // 非空 AI 弟子池（规避空表 null vs {} 协议不对称——批 10-4 同款；
+            // 非空 AI 弟子池（规避空表 null vs {} 协议不对称——同款；
             // worldLevels 空 → precomputeTargets 纯早退，零影响）
             aiSectDisciples = mapOf(
                 "ai-1" to listOf(
@@ -435,7 +422,7 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * 场景⑭（批 13-2b）：世界关卡刷新生成——玩家宗门 p1 + worldLevels 空 +
+     * 场景⑭：世界关卡刷新生成——玩家宗门 p1 + worldLevels 空 +
      * lastRefreshMonth=0（默认应刷新）+ 1 名 realm 9 弟子（playerAvgRealm=9），
      * (1,1) 起 3 旬跨 1→2 月界。月结步骤 4e：shouldRefresh（0==0）→ p1 存在 →
      * LevelGenerator.generateWorldLevels（maxNewLevels=6 → nextInt(6)+1 个）+
@@ -472,7 +459,7 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * 场景⑮（批 13-3）：月度自动排班——灵矿分配（autoMineRootCounts={1} +
+     * 场景⑮：月度自动排班——灵矿分配（autoMineRootCounts={1} +
      * 2 名 mining 60/40 弟子 + 1 灵矿空槽，月变步骤 6 执行）。选择灵矿路径
      * 对拍：不依赖 BuildingFeature 注册表（feature/game 测试环境未注册——
      * 住所分配空）与 repo 回滚面（生产槽 batchAssign 异步回写 mock 会回滚
@@ -485,9 +472,9 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 批 13-2b：预置刷新月（13）→ 不刷新
+            // 预置刷新月（13）→ 不刷新
             worldLevelLastRefreshMonth = 1 * 12 + 1
-            // 批 13-3：自动灵矿政策（灵根 1 根匹配）
+            // 自动灵矿政策（灵根 1 根匹配）
             sectPolicies = sectPolicies.copy(
                 autoMineRootCounts = listOf(1), autoMineThreshold = 1
             )
@@ -552,7 +539,7 @@ class DiffMonthSettlementTest {
         }
         assertTrue("至少一名弟子应购买入袋", buyer.equipment.storageBagItems.isNotEmpty())
 
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+        diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }
 
@@ -585,7 +572,7 @@ class DiffMonthSettlementTest {
             actual.gameData.annualPillBySource["merchant:MEDIUM"])
         assertEquals("自动购买年度支出错误", 400L, actual.gameData.annualTotalExpenditure)
 
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+        diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }
 
@@ -619,7 +606,7 @@ class DiffMonthSettlementTest {
             expected.gameData.rngStates[RngPartition.SYSTEM.id],
             actual.gameData.rngStates[RngPartition.SYSTEM.id])
 
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+        diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }
 
@@ -650,7 +637,7 @@ class DiffMonthSettlementTest {
             expected.gameData.rngStates[RngPartition.EXPLORATION.id],
             actual.gameData.rngStates[RngPartition.EXPLORATION.id])
 
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+        diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }
 
@@ -679,7 +666,7 @@ class DiffMonthSettlementTest {
         assertEquals("灵矿空槽应被占用", "11", mineSlot?.discipleId)
         assertEquals("灵矿分配弟子名", "甲一", mineSlot?.discipleName)
 
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+        diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }
 
@@ -711,7 +698,7 @@ class DiffMonthSettlementTest {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
 
-        // 场景⑧（批 11-1）：自动招募惰性门复位——Kotlin 侧为 JVM 单例
+        // 场景⑧：自动招募惰性门复位——Kotlin 侧为 JVM 单例
         //（跨用例共享，其他测试可能已置 true）；C++ 侧瞬态字段读档默认 false
         RecruitService.RecruitLazyState.autoRecruitIdle = false
 
@@ -730,12 +717,12 @@ class DiffMonthSettlementTest {
         )
 
         assertExplicitAssertions(actual)
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+        diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }
 
     /**
-     * ⑥（批 10-3）偷盗保护期候选零效果断言：候选被保护期排除后不得产生任何
+     * ⑥偷盗保护期候选零效果断言：候选被保护期排除后不得产生任何
      * 偷盗副作用——无失窃灵石入袋、无入袋物品、无年度偷盗计数。
      */
     private fun assertTheftProtectedCandidateZeroEffect(actual: NativeGameState) {
@@ -749,7 +736,7 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * ⑦（批 10-4）附庸脱离零效果断言：至交好感 + 战力比 ≥5x → 概率 0.0，
+     * ⑦附庸脱离零效果断言：至交好感 + 战力比 ≥5x → 概率 0.0，
      * 恰抽 1 次 SYSTEM 必不脱离——契约保留、零脱离事件。
      */
     private fun assertVassalBreakawayStays(actualGd: GameData) {
@@ -772,9 +759,9 @@ class DiffMonthSettlementTest {
             (1 * 12 + 2).toLong(),
             actualGd.spiritMineLastSettledMonth.toLong()
         )
-        // ③ 政策忠诚 + ⑤（批 10-2/10-3）叛逃/偷盗 + ② 伴侣配对
+        // ③ 政策忠诚 + ⑤叛逃/偷盗 + ② 伴侣配对
         assertLoyaltyAndLawEnforcementEffects(actual, actualGd)
-        // ⑧（批 11-1）自动招募 + ⑨（批 11-2）秘境 AI 队伍派遣
+        // ⑧自动招募 + ⑨秘境 AI 队伍派遣
         assertAutoRecruitEffects(actual, actualGd)
         assertSecretRealmAiTeams(actualGd)
         // ③ S1 政策月费经真实钱包扣除：100 × 全体弟子数（DISCIPLE_COUNT）
@@ -783,10 +770,10 @@ class DiffMonthSettlementTest {
             10000L - BENEVOLENT_MONTHLY_COST_PER_DISCIPLE * DISCIPLE_COUNT,
             actualGd.spiritStones
         )
-        // ⑦（批 10-4）附庸脱离：至交好感 + 战力比 ≥5x → 概率 0.0，恰抽 1 次
+        // ⑦附庸脱离：至交好感 + 战力比 ≥5x → 概率 0.0，恰抽 1 次
         //    SYSTEM 必不脱离——契约保留、零脱离事件
         assertVassalBreakawayStays(actualGd)
-        // ④（批 10-1）侦察过期清理：ai-1 过期移除 + isKnown 翻转 + 明细清空；
+        // ④侦察过期清理：ai-1 过期移除 + isKnown 翻转 + 明细清空；
         // ai-2 未过期保留 + 明细新建刷新
         assertEquals("侦察过期条目未移除", setOf("ai-2"), actualGd.scoutInfo.keys)
         assertEquals(
@@ -812,7 +799,7 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * 场景⑯（批 13-4c）：生育——母亲到期（childBirthMonth = 月变时当前月 2，
+     * 场景⑯：生育——母亲到期（childBirthMonth = 月变时当前月 2，
      * 自 (1,1) 推进 3 旬跨 1→2 月界）+ partner 互指；无自动招募 filter
      * （processAutoRecruit 纯早退，聚焦生育）。配偶系统排除已有伴侣者
      * （母亲/父亲不参与配对；x1 单男 → eligibleFemales 空早退零抽取）。
@@ -823,7 +810,7 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 批 13-2b：预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
+            // 预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
             worldLevelLastRefreshMonth = 1 * 12 + 1
             // 自动配对模式（提案分支不在协议）
             daoCompanionConsentRequired = false
@@ -895,13 +882,13 @@ class DiffMonthSettlementTest {
 
         // recruitList 新生儿 id 为镜像生成字段（Kotlin UUID vs C++ 空串）——
         // diff 排除；名字/性别/灵根/属性/双亲逐字段一致
-        assertCppSurfaceMatches(
+        diffAssertCppSurfaceMatches(
             json.encodeToJsonElement(expected),
             json.encodeToJsonElement(actual)
         )
     }
 
-    /** ③ 政策忠诚 + ⑤（批 10-2/10-3）叛逃/偷盗 + ② 伴侣配对 组合断言 */
+    /** ③ 政策忠诚 + ⑤叛逃/偷盗 + ② 伴侣配对 组合断言 */
     private fun assertLoyaltyAndLawEnforcementEffects(
         actual: NativeGameState,
         actualGd: GameData
@@ -939,7 +926,7 @@ class DiffMonthSettlementTest {
         }
     }
 
-    /** ⑧（批 11-1）自动招募效果断言：匹配候选入宗（id 17/资质 82/recruitedMonth
+    /** ⑧自动招募效果断言：匹配候选入宗（id 17/资质 82/recruitedMonth
      *  14/annualNewDisciples+1），不匹配候选保留列表 */
     private fun assertAutoRecruitEffects(actual: NativeGameState, actualGd: GameData) {
         val newRecruit = actual.disciples.firstOrNull { it.id == NEW_RECRUIT_ID.toString() }
@@ -956,7 +943,7 @@ class DiffMonthSettlementTest {
         assertEquals("自动招募后本月招募计数应为 1", 1, actualGd.recruitCountThisMonth)
     }
 
-    /** ⑨（批 11-2）秘境 AI 队伍派遣断言：ai-3 有存活弟子 → 恰 1 队（幂等去重，
+    /** ⑨秘境 AI 队伍派遣断言：ai-3 有存活弟子 → 恰 1 队（幂等去重，
      *  id 为镜像生成字段已排除；成员按境界升序取 4） */
     private fun assertSecretRealmAiTeams(actualGd: GameData) {
         assertEquals("秘境 AI 队伍应恰派遣 1 队", 1, actualGd.secretRealmAITeams.size)
@@ -968,111 +955,6 @@ class DiffMonthSettlementTest {
         }
     }
 
-    // ── JSON 结构对拍（C++ 导出键集为权威覆盖面；与 T2.1 同构） ──────
+    // ── JSON 结构对拍（C++ 导出键集为权威覆盖面；与每旬对拍同构） ──────
 
-    private fun assertCppSurfaceMatches(expected: JsonElement, actual: JsonElement) {
-        assertNodeMatches(expected, actual, "$")
-    }
-
-    private fun assertNodeMatches(expected: JsonElement, actual: JsonElement, path: String) {
-        when {
-            actual is JsonObject && expected is JsonObject ->
-                compareObjects(expected, actual, path)
-            actual is JsonArray && expected is JsonArray ->
-                compareArrays(expected, actual, path)
-            else -> assertPrimitiveEquals(expected, actual, path)
-        }
-    }
-
-    private fun compareObjects(
-        expected: JsonObject,
-        actual: JsonObject,
-        path: String
-    ) {
-        for ((k, a) in actual) {
-            if (isMirrorGeneratedField(path, k)) continue
-            val e = expected[k]
-            assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失（协议漂移）", e != null)
-            assertNodeMatches(e!!, a, "$path.$k")
-        }
-    }
-
-    /**
-     * diff 面排除的镜像生成/边界字段：
-     * - timestamp：现实墙钟（Clock 注入边界）
-     * - 任务 id（批 12-2）：Mission.id 为镜像生成（C++ 确定性自增 vs Kotlin
-     *   UUID，语义等价仅保证唯一）；任务内容（template/rewards/difficulty）
-     *   双端一致参与对拍——S-19 清偿后 MISSION(8) 分区双端消费对齐
-     * - 库存集合 + 年度 by-source：InventorySystem 嵌套 update 写入
-     *   （FakeGameStateStore 嵌套事务不回写外层 buffer——S-14 committed 读
-     *   口径差家族），Kotlin-Fake 臂丢失，C++ 侧 GTest 黄金守护（603/603
-     *   含入库/年度追踪断言）
-     * - 秘境 AI 队伍 id：镜像生成（C++ 确定性自增 vs Kotlin UUID，语义等价
-     *   仅保证唯一——inventory.h generateNewId 同款契约）
-     */
-    private fun isMirrorGeneratedField(path: String, k: String): Boolean = when {
-        k == "timestamp" -> true
-        k == "id" && path.contains("availableMissions") -> true
-        k == "id" && path.contains("worldLevels") -> true   // 批 13-2b：Kotlin UUID vs C++ 空串
-        k == "id" && path.contains("recruitList") -> true   // 批 13-4c：新生儿 Kotlin UUID vs C++ 空串
-        k == "id" && isMirrorIdPath(path) -> true
-        else -> false
-    }
-
-    /**
-     * 镜像生成 id 字段路径（C++ 确定性自增 vs Kotlin UUID，语义等价仅保证
-     * 唯一——inventory.h generateNewId 同款契约）：
-     * - 秘境 AI 队伍（批 11-2）
-     * - 库存集合（批 11-4：FakeGameStateStore 嵌套事务修复后库存内容已纳入
-     *   diff 对拍面，仅 id 为镜像生成字段排除）
-     */
-    private fun isMirrorIdPath(path: String): Boolean {
-        if (path.contains("secretRealmAITeams")) return true
-        return INVENTORY_COLLECTION_KEYS.any { path.contains(it) }
-    }
-
-    private fun compareArrays(
-        expected: JsonArray,
-        actual: JsonArray,
-        path: String
-    ) {
-        assertEquals("$path size", expected.size, actual.size)
-        actual.forEachIndexed { i, a ->
-            assertNodeMatches(expected[i], a, "$path[$i]")
-        }
-    }
-
-    /** 数字统一 IEEE754 double 位比较（C++ 导出整值 double 规范化为整数形式） */
-    private fun assertPrimitiveEquals(
-        expected: JsonElement,
-        actual: JsonElement,
-        path: String
-    ) {
-        require(actual is JsonPrimitive && expected is JsonPrimitive) {
-            "$path 结构不匹配：期望=$expected 实际=$actual"
-        }
-        assertTrue("$path 期望=$expected 实际=$actual", primitivesEqual(expected, actual))
-    }
-
-    private fun primitivesEqual(expected: JsonPrimitive, actual: JsonPrimitive): Boolean =
-        when {
-            actual === JsonNull || expected === JsonNull -> actual == expected
-            actual.booleanOrNull != null || expected.booleanOrNull != null ->
-                actual.booleanOrNull == expected.booleanOrNull
-            else -> numericOrStringEquals(expected, actual)
-        }
-
-    private fun numericOrStringEquals(
-        expected: JsonPrimitive,
-        actual: JsonPrimitive
-    ): Boolean {
-        val eD = expected.doubleOrNull
-        val aD = actual.doubleOrNull
-        return if (eD != null && aD != null) {
-            java.lang.Double.doubleToLongBits(eD) ==
-                java.lang.Double.doubleToLongBits(aD)
-        } else {
-            actual.content == expected.content
-        }
-    }
 }

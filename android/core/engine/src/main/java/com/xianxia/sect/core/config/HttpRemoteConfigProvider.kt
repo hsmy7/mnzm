@@ -2,6 +2,7 @@ package com.xianxia.sect.core.config
 
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.HttpClientProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,6 +40,7 @@ class HttpRemoteConfigProvider @Inject constructor(
     override val isAvailable: Boolean
         get() = everSucceeded
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     override suspend fun fetchRemoteConfig(url: String): String? {
         return try {
             val raw = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
@@ -55,6 +57,8 @@ class HttpRemoteConfigProvider @Inject constructor(
             everSucceeded = true
             DomainLog.d(TAG, "Remote config fetched successfully (${raw.length} bytes)")
             raw
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: withTimeoutOrNull 只吞自身超时, 外层取消须穿透而非冒充"拉取失败"
         } catch (e: Exception) {
             DomainLog.w(TAG, "Remote config fetch failed: ${e.message}")
             null

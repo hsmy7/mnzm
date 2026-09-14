@@ -10,7 +10,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * C++/Kotlin 足迹尺寸表同步守卫测试（2026-08-01 新增，2026-08-01 生成任务改造）。
+ * C++/Kotlin 足迹尺寸表同步守卫测试。
  *
  * `footprint_table.h`（由 `./gradlew generateFootprintHeader` 从
  * `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX` 自动生成）与 Kotlin 表必须逐项一致——
@@ -62,9 +62,9 @@ class FootprintTableSyncTest {
 
     @Test
     fun `BuildingFeatureRegistry 占地与 FOOTPRINT_BY_NAME_INDEX 逐项一致`() {
-        // 2026-08-06 对抗性审查 F1：索引精灵包围盒（BuildingSpatialIndex）按注册表取占地、
+        // 索引精灵包围盒（BuildingSpatialIndex）按注册表取占地、
         // 渲染器按 FOOTPRINT_BY_NAME_INDEX 取占地，两表不一致会使精灵命中区整体偏移
-        //（部分区域点击无效——本次修复的同类症状）。registerDefaults 在测试环境不执行。
+        //（症状：部分区域点击无效）。registerDefaults 在测试环境不执行。
         BuildingFeatureRegistry.registerDefaults()
 
         val features = BuildingFeatureRegistry.all
@@ -95,7 +95,7 @@ class FootprintTableSyncTest {
     /**
      * 解析 footprint_table.h 的 FP_W[]/FP_H[] 整型字面量。
      * 数组是纯数字字面量单行格式，正则提取可靠。
-     * 2026-08 债务根治：文件已从源码树迁移 build/generated/sprite/（stage3-config-cache.md）。
+     * 被测文件位于 build/generated/sprite/（codegen 产物）。
      */
     private fun parseFootprintArrays(): Pair<List<Int>, List<Int>> {
         val headerFile = File("build/generated/sprite/footprint_table.h")

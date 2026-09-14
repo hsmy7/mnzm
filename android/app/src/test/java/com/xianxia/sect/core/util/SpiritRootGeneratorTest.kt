@@ -63,56 +63,24 @@ class SpiritRootGeneratorTest {
     }
 
     // ============================================================
-    // generateWithGameRandom
+    // 概率分布守卫测试
     // ============================================================
 
     @Test
-    fun generateWithGameRandom_returnsNonBlankString() {
-        GameRandom.setSeed(42)
-        val result = SpiritRootGenerator.generateWithGameRandom()
-        assertTrue("Expected non-blank result", result.isNotBlank())
-    }
-
-    @Test
-    fun generateWithGameRandom_returnsValidElements() {
-        val validElements = setOf("metal", "wood", "water", "fire", "earth")
-        GameRandom.setSeed(42)
-        val result = SpiritRootGenerator.generateWithGameRandom()
-        val elements = result.split(",").map { it.trim() }
-        for (element in elements) {
-            assertTrue("Unexpected element: $element", element in validElements)
-        }
-    }
-
-    @Test
-    fun generateWithGameRandom_sameSeed_isDeterministic() {
-        GameRandom.setSeed(12345)
-        val result1 = SpiritRootGenerator.generateWithGameRandom()
-
-        GameRandom.setSeed(12345)
-        val result2 = SpiritRootGenerator.generateWithGameRandom()
-
-        assertEquals(result1, result2)
-    }
-
-    // ============================================================
-    // 概率分布守卫测试（对抗性审查补充）
-    // ============================================================
-
-    @Test
-    fun `generateRandomSpiritRootCount 分布接近配置权重`() {
-        GameRandom.setSeed(123)
+    fun `rollSpiritRootCount 映射覆盖全部档位且与配置权重一致`() {
+        // 等差铺满 [0,1)：确定性且必然命中每个累积区间（不依赖抽样运气）
+        val sampleCount = 100000
         val counts = mutableMapOf(1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
-        val N = 100000
-        repeat(N) {
-            val count = GameConfig.SpiritRoot.generateRandomSpiritRootCount()
+        for (index in 0 until sampleCount) {
+            val rand = index.toDouble() / sampleCount.toDouble()
+            val count = GameConfig.SpiritRoot.rollSpiritRootCount(rand)
             counts[count] = counts.getOrDefault(count, 0) + 1
         }
 
         val expected = GameConfig.SpiritRoot.COUNT_WEIGHTS
         val tolerance = 0.05
         for ((rootCount, weight) in expected) {
-            val ratio = counts[rootCount]!!.toDouble() / N
+            val ratio = counts[rootCount]!!.toDouble() / sampleCount
             assertTrue(
                 "灵根$rootCount 比例 $ratio 偏离配置权重 $weight 超过 $tolerance",
                 kotlin.math.abs(ratio - weight) <= tolerance + 0.001
@@ -125,8 +93,8 @@ class SpiritRootGeneratorTest {
         val rng = DeterministicRng.fromSeed(42)
         val kotlinRng = rng.asKotlinRandom()
         val counts = mutableMapOf(1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
-        val N = 100000
-        repeat(N) {
+        val sampleCount = 100000
+        repeat(sampleCount) {
             val count = SpiritRootGenerator.generate(kotlinRng).split(",").size
             counts[count] = counts.getOrDefault(count, 0) + 1
         }
@@ -134,7 +102,7 @@ class SpiritRootGeneratorTest {
         val expected = GameConfig.SpiritRoot.COUNT_WEIGHTS
         val tolerance = 0.05
         for ((rootCount, weight) in expected) {
-            val ratio = counts[rootCount]!!.toDouble() / N
+            val ratio = counts[rootCount]!!.toDouble() / sampleCount
             assertTrue(
                 "灵根$rootCount generate() 比例 $ratio 偏离配置权重 $weight 超过 $tolerance",
                 kotlin.math.abs(ratio - weight) <= tolerance + 0.001

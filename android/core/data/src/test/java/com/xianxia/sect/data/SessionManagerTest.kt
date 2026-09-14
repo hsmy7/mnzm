@@ -14,7 +14,7 @@ import org.robolectric.annotation.Config
  * SessionManager 加密存储恢复/降级测试（Bugly #3107）。
  *
  * 主密钥损坏（ErrorCode -33 Invalid key blob）时 `MasterKey.Builder.build()`
- * 抛 KeyStoreException——旧实现无兜底导致 Hilt 注入即闪退。
+ * 抛 KeyStoreException——本测试验证降级兜底路径（无兜底时 Hilt 注入即闪退）。
  * 通过注入"必然失败的 builder"确定性触发失败路径：
  * 1. 降级明文并持久化标记（下次启动直接明文，不再重复失败的 Keystore 流程）
  * 2. 降级标记存在时不再尝试加密构建

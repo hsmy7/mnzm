@@ -29,7 +29,7 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * D-03 赏赐路径测试（DiscipleFacadeImpl.rewardItemsToDisciple）。
+ * 赏赐路径测试（DiscipleFacadeImpl.rewardItemsToDisciple）。
  *
  * 独立存储语义守卫：
  * - 不可装装备赏赐：仓库扣 1 + 袋铸造 stackedData 条目（minRealm/slot 保真）
@@ -70,7 +70,6 @@ class DiscipleFacadeRewardTest {
             stateStore = mockStore,
             cultivationService = cultivationService,
             gameEngineCore = mockSmart(),
-            inventorySystem = mockSmart(),
             pillManager = pillManager,
             assignmentGate = mockSmart(),
             discipleSlotCleanup = mockSmart(),
@@ -193,7 +192,7 @@ class DiscipleFacadeRewardTest {
 
     @Test
     fun `material herb seed reward to nonexistent disciple does not deduct warehouse`() {
-        // 对抗性审查-边界 5（预存）：原实现先扣仓库后校验弟子 id——无效 id 物品消失
+        // 无效弟子 id 不得扣仓库（物品不能因 id 无效而消失）
         setStore {
             // materials 是 Fake 的持久实例（血炼跨事务保留设计），必须 add 写入：
             // 替换式赋值 `materials = EntityStore(...)` 会被下个事务的 newMutable 丢弃

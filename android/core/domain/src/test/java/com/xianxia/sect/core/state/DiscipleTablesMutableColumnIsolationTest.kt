@@ -9,10 +9,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Mutable 列浅共享隔离测试（2026-08-01 修复）。
+ * Mutable 列浅共享隔离测试。
  *
- * 旧实现：13 张 List/Map/Set 列每事务 adoptDeep 急切深拷贝（O(D×均值长度) 分配/GC），
- * 全库审计无原地修改模式——纯浪费。新实现 O(1) 浅共享 + Debug unmodifiable 包装。
+ * 13 张 List/Map/Set 列以 O(1) 浅共享 + Debug 下 unmodifiable 包装。
  * 本测试守卫：
  * 1. 浅共享后副本整体替换写不影响源快照（快照隔离仍成立）
  * 2. Debug guard 开启时原地修改立即抛异常（防御机制有效）

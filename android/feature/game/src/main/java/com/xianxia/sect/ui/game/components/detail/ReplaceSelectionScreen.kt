@@ -36,7 +36,7 @@ internal data class ReplaceSelectionActions(
     val onDismiss: () -> Unit
 )
 
-/** 更换界面配置（ReplaceSelectionScreen 拆分） */
+/** 更换界面配置 */
 internal data class ReplaceSelectionConfig(
     val title: String,
     val emptyText: String,
@@ -105,7 +105,7 @@ internal fun ReplaceSelectionScreen(config: ReplaceSelectionConfig) {
     }
 }
 
-/** 左侧仓库列表（ReplaceSelectionScreen 拆分）：空态提示 + 可滚动网格 */
+/** 左侧仓库列表：空态提示 + 可滚动网格 */
 @Composable
 private fun ReplaceSelectionList(
     items: List<ReplaceSelectionItem>,
@@ -141,7 +141,7 @@ private fun ReplaceSelectionList(
     }
 }
 
-/** 左侧列表项（ReplaceSelectionScreen 拆分）：禁用项整体置灰 + "已学心法"标记 + 不可点击 */
+/** 左侧列表项：禁用项整体置灰 + "已学心法"标记 + 不可点击 */
 @Composable
 private fun ReplaceSelectionCard(
     item: ReplaceSelectionItem,
@@ -181,7 +181,7 @@ private fun ReplaceSelectionCard(
 }
 
 /**
- * 详情面板四区域（ReplaceSelectionScreen 拆分）：
+ * 详情面板四区域：
  * 1 精灵图+名称（品阶色） / 2 属性加成 / 3 技能描述（装备为装备描述） / 4 底部"更换"按钮。
  * 内容区可滚动，按钮固定最底部。
  */
@@ -217,7 +217,7 @@ private fun ReplaceDetailPanelContent(
     }
 }
 
-/** 区域1：精灵图 + 名称（颜色随品阶）（ReplaceSelectionScreen 拆分） */
+/** 区域1：精灵图 + 名称（颜色随品阶） */
 @Composable
 private fun ReplaceDetailSpriteAndName(detail: ReplaceDetailData) {
     Box(
@@ -256,7 +256,7 @@ private fun ReplaceDetailSpriteAndName(detail: ReplaceDetailData) {
     Spacer(modifier = Modifier.height(8.dp))
 }
 
-/** 区域2/3：分区标题 + 内容行 + 尾部 1dp 灰分隔线（ReplaceSelectionScreen 拆分） */
+/** 区域2/3：分区标题 + 内容行 + 尾部 1dp 灰分隔线 */
 @Composable
 private fun ReplaceDetailSection(title: String, lines: List<String>) {
     ReplaceDetailSectionTitle(title)
@@ -275,7 +275,7 @@ private fun ReplaceDetailSection(title: String, lines: List<String>) {
     }
 }
 
-/** 详情分区标题（ReplaceSelectionScreen 拆分） */
+/** 详情分区标题 */
 @Composable
 private fun ReplaceDetailSectionTitle(title: String) {
     Text(

@@ -50,14 +50,14 @@ fun SmallScreenDialog(
     footer: @Composable ColumnScope.() -> Unit = {},
     /** 窗口级覆盖层槽位（如内联售卖确认弹窗）：frame 内容之后渲染（z 序最高），fillMaxSize 覆盖整个窗口框 */
     overlay: @Composable (() -> Unit)? = null,
-    /** 含文本输入框时传 true：挂载期间冻结本 Dialog 窗口系统栏（第四根因键盘频闪根治，见 DialogSystemBarFreezeScope）。
+    /** 含文本输入框时传 true：挂载期间冻结本 Dialog 窗口系统栏（见 DialogSystemBarFreezeScope）。
      *  当前嵌套输入场景（overlay 槽位内嵌 InlineStandardPromptDialog）由内联组件自动传导，无需调用方传参；
      *  本参数为"平台 Dialog 窗口直接持输入框"场景的语义预留。 */
     freezeSystemBars: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp/screenHeightDp
-    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
+    // LocalWindowInfo.containerSize 替代 Configuration.screenWidthDp/screenHeightDp：
+    // 单位是像素，需经 LocalDensity 换算为 dp（勿直接 .dp 使用像素值）
     val windowSize = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current
     val dialogWidth = with(density) { (windowSize.width / 2).toDp() }
@@ -72,7 +72,7 @@ fun SmallScreenDialog(
             dismissOnClickOutside = dismissOnClickOutside
         )
     ) {
-        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（第四根因根治，见 DialogSystemBarFreezeScope）
+        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（见 DialogSystemBarFreezeScope）
         DialogSystemBarFreezeEffect(freezeSystemBars)
         // 切换 softInputMode，切断 OEM 键盘频闪震荡回路
         DialogSoftInputGuard()
@@ -82,7 +82,7 @@ fun SmallScreenDialog(
         // 在窗口 token 失效后弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
         DialogFocusGuard()
 
-        // 键盘避让（2026-09 IME 状态机根治）：平台 Dialog 窗口内容区挂
+        // 键盘避让：平台 Dialog 窗口内容区挂
         // ImeAwareContainer 事件驱动避让（键盘可见翻转 → 对话框一次性上移，
         // 不依赖 Dialog 窗口 imePadding 的历史可靠性 #229378542）
         ImeAwareContainer {
@@ -100,8 +100,7 @@ fun SmallScreenDialog(
     }
 }
 
-/** 小屏对话框内容框（SmallScreenDialog 拆分）：背景图 + 标题行 + 滚动内容区 + 底部 footer + 覆盖层槽位 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 小屏对话框内容框：背景图 + 标题行 + 滚动内容区 + 底部 footer + 覆盖层槽位 */
 @Suppress("LongParameterList")
 @Composable
 private fun SmallScreenDialogFrame(

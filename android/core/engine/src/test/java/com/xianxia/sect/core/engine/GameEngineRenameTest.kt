@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
@@ -165,7 +166,7 @@ private class RenameEnv {
         gameEngineCore = mock(),
         engineContextDispatcher = FakeEngineContextDispatcher(),
         stateStore = store,
-        gameRngManager = mock(),
+        gameRngManager = GameRngManager(),
         explorationFacade = mock(),
         cultivationFacade = mockCultivationFacade,
         economyFacade = mockEconomyFacade,
@@ -275,19 +276,19 @@ private class RenameStore : GameStateStore {
     override fun getCurrentSeeds(): List<Seed> = emptyList()
     override fun getCurrentHerbs(): List<Herb> = emptyList()
     override fun getCurrentMaterials(): List<Material> = emptyList()
-    override fun enqueueNotification(notification: GameNotification) {}
+    override fun enqueueNotification(notification: GameNotification) = Unit
     override fun consumeNotification(): GameNotification? = null
-    override fun clearPendingNotification() {}
-    override fun setPendingBattleResult(result: BattleResultUIData) {}
-    override fun clearPendingBattleResult() {}
-    override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {}
-    override fun clearPendingBeastAttacks() {}
-    override fun removePendingBeastAttack(beastLevelId: String) {}
-    override fun clearPendingMarriageProposals() {}
-    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {}
-    override fun clearPendingBattleRewardCards() {}
-    override fun enqueueRewardCards(items: List<RewardCardItem>) {}
-    override fun clearRewardCardQueue(count: Int) {}
+    override fun clearPendingNotification() = Unit
+    override fun setPendingBattleResult(result: BattleResultUIData) = Unit
+    override fun clearPendingBattleResult() = Unit
+    override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit
+    override fun clearPendingBeastAttacks() = Unit
+    override fun removePendingBeastAttack(beastLevelId: String) = Unit
+    override fun clearPendingMarriageProposals() = Unit
+    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) = Unit
+    override fun clearPendingBattleRewardCards() = Unit
+    override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
+    override fun clearRewardCardQueue(count: Int) = Unit
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
         val m = MutableGameState(
             gameData = gameDataValue, discipleTables = tables,
@@ -302,9 +303,9 @@ private class RenameStore : GameStateStore {
         return r
     }
     override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
-    override fun setPausedDirect(paused: Boolean) {}
-    override fun setLoadingDirect(loading: Boolean) {}
-    override fun setSavingDirect(saving: Boolean) {}
+    override fun setPausedDirect(paused: Boolean) = Unit
+    override fun setLoadingDirect(loading: Boolean) = Unit
+    override fun setSavingDirect(saving: Boolean) = Unit
     override suspend fun loadFromSnapshot(
         gameData: GameData, disciples: List<Disciple>,
         equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,
@@ -315,14 +316,14 @@ private class RenameStore : GameStateStore {
         isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
     ) { this.gameDataValue = gameData }
     override suspend fun reset() { gameDataValue = GameData() }
-    override fun advanceBootPhase() {}
-    override fun resetBootPhase() {}
-    override fun setPlaying() {}
-    override fun setReloading() {}
-    override fun setLoading() {}
-    override fun setIdle() {}
-    override fun enterBatchEmissionMode() {}
-    override fun exitBatchEmissionMode() {}
+    override fun advanceBootPhase() = Unit
+    override fun resetBootPhase() = Unit
+    override fun setPlaying() = Unit
+    override fun setReloading() = Unit
+    override fun setLoading() = Unit
+    override fun setIdle() = Unit
+    override fun enterBatchEmissionMode() = Unit
+    override fun exitBatchEmissionMode() = Unit
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot()
 }
 

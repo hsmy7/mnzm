@@ -11,7 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 天枢殿重建补偿邮件构造测试（2026-08-23）。
+ * 天枢殿重建补偿邮件构造测试。
  *
  * 旧档遗留天枢殿读档删除后，通过 [buildTianshuCompensationMail] 补偿玩家
  * 1000 万灵石并告知最终改动。

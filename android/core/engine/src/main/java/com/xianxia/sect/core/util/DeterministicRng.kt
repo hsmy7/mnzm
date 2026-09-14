@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
  * 状态仅 16 字节（2 个 Long），存档时直接序列化到 GameData.rngStates。
  * 相同初始种子在相同调用次数下保证产出完全相同的结果序列。
  *
- * open 说明（T2.4）：[NativeBackedRng] 子类把原始 [nextInt]/[snapshot]/[restore]
+ * open 说明：[NativeBackedRng] 子类把原始 [nextInt]/[snapshot]/[restore]
  * 委托到 C++ 单一真相源（AUTHORITATIVE 模式跨语言序列统一）；
  * nextLong/nextDouble/nextGaussian 在子类中保持本类公式、经虚分派消费
  * 委托后的原始流——消耗次数与产出逐位不变。
@@ -39,10 +39,10 @@ open class DeterministicRng(
         val oldState = state
         state = oldState * MULTIPLIER + increment
         // 标准 PCG-XSH-RR 64→32：xorshifted 必须截断为 32 位后再做 32 位循环旋转。
-        // 原实现在 64 位域旋转、最后才 toInt() 截断——xorshifted 实际含 37 位熵，
-        // 当旋转位移 <5 时第 32-36 位熵被卷入低 32 位，输出分布系统性偏向高值
-        // （实证 2e6 样本：P(>=0.6)=44.3% 而非 40%，负值 53.1% 而非 50%），
-        // 导致全游戏随机概率（灵根/突破/战斗等）偏离配置值。
+        // 若在 64 位域旋转、最后才 toInt() 截断——xorshifted 实际含 37 位熵，
+        // 当旋转位移 <5 时第 32-36 位熵会卷入低 32 位，输出分布系统性偏向高值
+        // （2e6 样本实证：P(>=0.6)=44.3% 而非 40%，负值 53.1% 而非 50%），
+        // 会导致全游戏随机概率（灵根/突破/战斗等）偏离配置值。
         val xorshifted = (((oldState ushr 18) xor oldState) ushr 27).toInt()
         val rot = (oldState ushr 59).toInt()
         return (xorshifted ushr rot) or (xorshifted shl ((-rot) and 31))
@@ -84,7 +84,7 @@ open class DeterministicRng(
      * 使用 Box-Muller 变换：消耗 2 次 [nextDouble] 调用，产生 1 个标准正态偏差。
      * 不缓存配对中的第二个值，保持无状态以不影响 [snapshot]/[restore] 确定性。
      *
-     * C-12 清偿（2026-08-30）：改用 [StrictMath]（纯 Java fdlibm 移植，
+     * 使用 [StrictMath]（纯 Java fdlibm 移植，
      * 无平台 intrinsic）替代 `kotlin.math.cos/ln/sqrt`（映射 java.lang.Math，
      * 桌面 JVM/Android 各平台 intrinsic 或 libm 实现可能差最后一位）——
      * 与 C++ 内嵌 fdlibm（gamecore/rng/fdlibm.h）跨平台位级一致，确定性

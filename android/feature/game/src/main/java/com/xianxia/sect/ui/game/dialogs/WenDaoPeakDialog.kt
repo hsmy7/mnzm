@@ -25,10 +25,19 @@ import com.xianxia.sect.ui.game.PeakPreachingMasterConfig
 
 import com.xianxia.sect.ui.game.PeakDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
-
-
+import com.xianxia.sect.ui.game.assignDirectDisciple
+import com.xianxia.sect.ui.game.assignElder
+import com.xianxia.sect.ui.game.getAvailableDisciplesForOuterElder
+import com.xianxia.sect.ui.game.getAvailableDisciplesForPreachingElder
+import com.xianxia.sect.ui.game.getAvailableDisciplesForPreachingMaster
+import com.xianxia.sect.ui.game.getOuterElder
+import com.xianxia.sect.ui.game.getPreachingElder
+import com.xianxia.sect.ui.game.getPreachingMasters
+import com.xianxia.sect.ui.game.removeDirectDisciple
+import com.xianxia.sect.ui.game.removeElder
 
 @Composable
+@Suppress("UnusedParameter") // gameData: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun WenDaoPeakDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
@@ -89,7 +98,7 @@ fun WenDaoPeakDialog(
     }
 }
 
-/** 问道塔对话框内容数据（WenDaoPeakDialog 拆分） */
+/** 问道塔对话框内容数据 */
 private data class WenDaoPeakContentData(
     val outerElder: DiscipleAggregate?,
     val preachingElder: DiscipleAggregate?,
@@ -98,7 +107,7 @@ private data class WenDaoPeakContentData(
     val discipleMap: Map<String, DiscipleAggregate>
 )
 
-/** 问道塔主内容（WenDaoPeakDialog 拆分）：外门长老 + 传道长老 + 传道师 */
+/** 问道塔主内容：外门长老 + 传道长老 + 传道师 */
 @Composable
 private fun WenDaoPeakDialogContent(
     onDismiss: () -> Unit,
@@ -130,18 +139,19 @@ private fun WenDaoPeakDialogContent(
             PeakElderSection(
                 slot1 = PeakElderSlotConfig(
                     title = "外门长老", elder = outerElder,
-                    bonusInfo = ElderBonusInfoProvider.getOuterElderInfo(),
+                    bonusInfo = ElderBonusInfoProvider.outerElderInfo,
                     onClick = {
-                        outerElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                        outerElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     },
                     onRemove = { productionViewModel.removeElder(ElderSlotType.OUTER_ELDER) },
                     onSwap = { onShowOuterElderSelection() }
                 ),
                 slot2 = PeakElderSlotConfig(
                     title = "问道塔传道长老", elder = preachingElder,
-                    bonusInfo = ElderBonusInfoProvider.getWenDaoPreachingElderInfo(),
+                    bonusInfo = ElderBonusInfoProvider.wenDaoPreachingElderInfo,
                     onClick = {
-                        preachingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                        preachingElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it,
+                            disciples)) }
                     },
                     onRemove = { productionViewModel.removeElder(ElderSlotType.PREACHING) },
                     onSwap = { onShowPreachingElderSelection() }
@@ -151,14 +161,14 @@ private fun WenDaoPeakDialogContent(
             PeakPreachingMasterSection(
                 sectionTitle = "问道塔传道师",
                 masterConfig = PeakPreachingMasterConfig(
-                    label = "问道塔传道师", bonusInfo = ElderBonusInfoProvider.getPreachingMasterInfo()
+                    label = "问道塔传道师", bonusInfo = ElderBonusInfoProvider.preachingMasterInfo
                 ),
                 preachingMasters = contentData.preachingMasters,
                 disciples = disciples,
                 onMasterClick = { index ->
                     val master = contentData.preachingMasters.find { it.index == index }
                     val d = if (master?.isActive == true) contentData.discipleMap[master.discipleId] else null
-                    d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                    d?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                 },
                 onMasterRemove = { index -> productionViewModel.removeDirectDisciple("preaching", index) },
                 onMasterSwap = { index -> onShowPreachingMasterSelection(index) }
@@ -167,7 +177,7 @@ private fun WenDaoPeakDialogContent(
     }
 }
 
-/** 外门长老选择弹窗（WenDaoPeakDialog 拆分） */
+/** 外门长老选择弹窗 */
 @Composable
 private fun OuterElderSelectionDialog(
     outerElder: DiscipleAggregate?,
@@ -190,7 +200,7 @@ private fun OuterElderSelectionDialog(
     )
 }
 
-/** 问道塔传道长老选择弹窗（WenDaoPeakDialog 拆分） */
+/** 问道塔传道长老选择弹窗 */
 @Composable
 private fun PreachingElderSelectionDialog(
     preachingElder: DiscipleAggregate?,
@@ -213,7 +223,7 @@ private fun PreachingElderSelectionDialog(
     )
 }
 
-/** 问道塔传道师选择弹窗（WenDaoPeakDialog 拆分） */
+/** 问道塔传道师选择弹窗 */
 @Composable
 private fun PreachingMasterSelectionDialog(
     slotIndex: Int,

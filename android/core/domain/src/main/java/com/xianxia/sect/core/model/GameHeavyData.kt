@@ -90,7 +90,8 @@ class GameHeavyData(
          * 正常情况（< MAX_CHUNK_BYTES）：返回 1 行。
          * 极端情况（单个条目超限）：拆分为多行，key 加 _overflow_N 后缀。
          */
-        fun chunk(slotId: Int, key: String, value: ByteArray, updatedAt: Long = System.currentTimeMillis()): List<GameHeavyData> {
+        fun chunk(slotId: Int, key: String, value: ByteArray,
+            updatedAt: Long = System.currentTimeMillis()): List<GameHeavyData> {
             if (value.size <= MAX_CHUNK_BYTES) {
                 return listOf(GameHeavyData(slotId, key, value, updatedAt))
             }

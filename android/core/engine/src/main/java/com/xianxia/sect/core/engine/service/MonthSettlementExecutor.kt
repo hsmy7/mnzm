@@ -7,7 +7,7 @@ import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.state.MutableGameState
 
 /**
- * MonthSettlementExecutor — 月变结算纯编排器（计划 v2 阶段 2 / T2.2）。
+ * MonthSettlementExecutor — 月变结算纯编排器。
  *
  * 从 [com.xianxia.sect.core.GameEngineCore.processMonthYearChange] 的 monthChanged
  * 分支原样提取的编排逻辑：生产 tick 与跨语言对拍测试共用同一入口
@@ -22,7 +22,7 @@ import com.xianxia.sect.core.state.MutableGameState
  *    Alchemy→Forge→Planting→ChildBirth→Exploration→Partner→Mail）
  * 5. 血炼完成检测（到期逐条结算，零 RNG）
  * 6. 月度自动排班 + 住所忠诚度（P0.2 合入同一事务）
- * 7. 丹药持续效果全量月衰减（每月 3 旬口径，2026-08 接回语义）
+ * 7. 丹药持续效果全量月衰减（每月 3 旬口径）
  * 8. processMonthlyEventsOnState 十六子事件（★ 单原子提交 policy + 月变）
  *
  * 行为契约：与提取前的 monthChanged 分支逐行等价，生产行为零变化。
@@ -60,7 +60,7 @@ internal class MonthSettlementExecutor(
         state.processBloodRefinementCompletions()
         // 6) P0.2: 自动排班 + 住所忠诚度合入同一事务，减少月度独立事务数量
         cultivationService.processMonthlyAutoAssignments(state)
-        // 7) 月结丹药持续效果衰减（2026-08 修复：接回后 duration 按每月 3 旬衰减）
+        // 7) 月结丹药持续效果衰减（duration 按每月 3 旬衰减）
         cultivationService.applyMonthlyDurationDecayAll(state)
         // 8) ★ 月度事件合并到同一事务（单原子提交 policy + 月变 + 重算 checkpoints）
         cultivationService.processMonthlyEventsOnState(state)

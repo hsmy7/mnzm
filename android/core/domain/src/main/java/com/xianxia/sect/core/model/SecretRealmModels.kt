@@ -205,7 +205,7 @@ data class SecretRealmAIMember(
  * 秘境探索中存活成员 ID（Int 集合）。
  *
  * 供修炼/恢复/突破/自动行为等系统的逐弟子循环跳过使用——循环内直接 `id in set`，
- * 避免每弟子每帧 `id.toString()` 字符串分配（与 P-4 优化方向一致）。
+ * 避免每弟子每帧 `id.toString()` 字符串分配。
  */
 fun GameData.secretRealmMemberIds(): Set<Int> =
     secretRealmSession.members.asSequence()

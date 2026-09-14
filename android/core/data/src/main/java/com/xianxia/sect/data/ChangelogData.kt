@@ -34,6 +34,7 @@ object ChangelogData {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun loadEntries(context: Context): List<ChangelogEntry> {
         return try {
             val inputStream = context.assets.open("changelog_entries.json")

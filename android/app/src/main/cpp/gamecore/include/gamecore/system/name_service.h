@@ -1,11 +1,11 @@
 #pragma once
 
 // ============================================================
-// name_service.h — 中文名生成（批 13-4a：Kotlin NameService.inheritName/
+// name_service.h — 中文名生成（Kotlin NameService.inheritName/
 // extractSurname 等价移植）
 //
 // 背景：Kotlin NameService 原用 JVM 全局 Random（非确定性、不入 rngStates，
-// 跨语言不可对拍）——批 13-4a 分区化（S-19 同族确定性修正）：inheritName
+// 跨语言不可对拍）——分区化确定性修正：inheritName
 // 接受分区 PRNG（SYSTEM 分区），C++ 本文件等价移植（数据表与 Kotlin 逐项
 // 一致——名字表为静态数据，双端守卫防漂移）。
 //
@@ -32,7 +32,7 @@ inline const std::vector<std::string>& compoundSurnames() {
     return k;
 }
 
-/// 单姓表（Kotlin NameService.singleSurnames——批 Y-3 T1-④ 招募生成下沉）
+/// 单姓表（Kotlin NameService.singleSurnames——招募生成下沉）
 inline const std::vector<std::string>& singleSurnames() {
     static const std::vector<std::string> k = {
         "李", "张", "王", "刘", "陈", "杨", "赵", "黄", "周", "吴",
@@ -198,7 +198,7 @@ inline NameResult inheritName(const std::string& parentSurname,
 /// 名字风格（Kotlin NameService.NameStyle）
 enum class NameStyle { kCommon, kXianxia, kFull };
 
-/// 全新名字生成（Kotlin NameService.generateName——批 Y-3 T1-④ 招募刷新下沉；
+/// 全新名字生成（Kotlin NameService.generateName——招募刷新下沉；
 /// RNG 语义分区确定性：姓氏 1×nextInt + 给定名 1×nextDouble + 1×nextInt，
 /// 冲突规避 50 次循环同序；调用方传 SYSTEM 分区适配器与 Kotlin
 /// rng.asKotlinRandom() 同源）

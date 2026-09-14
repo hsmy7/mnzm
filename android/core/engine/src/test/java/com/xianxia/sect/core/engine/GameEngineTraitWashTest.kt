@@ -28,11 +28,12 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 
 /**
  * 洗炼天赋/体质/词条引擎入口测试（真实 JadeSymbolService + 固定种子 RNG + 真实 stateStore）。
  *
- * 单槽语义（2026-08-09 需求变更）：洗炼只针对详情界面指定的那一个特质（targetId），
+ * 单槽语义：洗炼只针对详情界面指定的那一个特质（targetId），
  * 其余同类特质保留不动。覆盖：扣减与 gameData/runtimeState 同步、玉符不足（余额不变 +
  * 不消耗随机序列）、非法参数/弟子不存在/死亡拒绝/targetId 不存在拒绝、保底目标槽必出上品、
  * 确认替换只改目标槽位、非法产物拦截、以及最高风险回归——扣减后
@@ -357,8 +358,8 @@ class GameEngineTraitWashTest {
         }
     }
 
-    // ── 洗炼：产物与弟子已有特质互斥（2026-08-17 需求变更）──
-    // 需求：可刷到"之前刷到过但已不在身上"的条目（候选池天然包含历史条目），
+    // ── 洗炼：产物与弟子已有特质互斥 ──
+    // 可刷到"之前刷到过但已不在身上"的条目（候选池天然包含历史条目），
     // 但不得刷到弟子**已有**的任何特质（含被洗炼的目标槽位自身——禁止"刷回原样"）。
     // 洗炼是确定性抽取（固定种子），此处为不变量断言：一旦产物与已有冲突必失败。
 
@@ -530,10 +531,10 @@ class GameEngineTraitWashTest {
         assertEquals("死亡弟子天赋不得被替换", before.talentIds, assembleDisciple().talentIds)
     }
 
-    // ── lifespan 同步（对抗性审查 2026-08-09 数据篡改者：洗炼前后寿命必须与新特质一致） ──
+    // ── lifespan 同步：洗炼前后寿命必须与新特质一致 ──
 
-    // ── 端到端：确认洗炼产物后 getBaseStats 立即反映 Flat 加成（2026-08-12 Bug 2 修复） ──
-    // 修复前 spiritPlantingFlat 无落点：洗出"青帝(灵植+18)"后属性页灵植不变
+    // ── 端到端：确认洗炼产物后 getBaseStats 立即反映 Flat 加成 ──
+    // 洗出"青帝(灵植+18)"等生产 Flat 天赋后属性页灵植立即增加
 
     @Test
     fun `confirmTraitWash - 确认青帝后 getBaseStats 含灵植flat加18`() = runBlocking {

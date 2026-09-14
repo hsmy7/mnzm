@@ -119,7 +119,7 @@ class CultivationRateEquivalenceTest {
         return result
     }
 
-    /** 基础组合（fixtures 拆分）：境界 × 弟子类型 × 灵根数量（4×2×3 = 24 个） */
+    /** 基础组合：境界 × 弟子类型 × 灵根数量（4×2×3 = 24 个） */
     private fun basicComboFixtures(base: GameData): List<Fixture> = buildList {
         for (realm in listOf(9, 5, 1, 0)) {
             for (type in listOf("outer", "inner")) {
@@ -136,7 +136,7 @@ class CultivationRateEquivalenceTest {
         }
     }
 
-    /** 政策津贴（fixtures 拆分）：cultivationSubsidy 仅 realm>5 生效 + 苦修/宽松组合 */
+    /** 政策津贴：cultivationSubsidy 仅 realm>5 生效 + 苦修/宽松组合 */
     private fun policySubsidyFixtures(base: GameData): List<Fixture> = buildList {
         add(
             Fixture(
@@ -163,7 +163,7 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 父母灵根加成（fixtures 拆分）：父母存活 / 死亡 */
+    /** 父母灵根加成：父母存活 / 死亡 */
     private fun parentFixtures(base: GameData): List<Fixture> = buildList {
         val parent1 = makeDisciple(id = "100", name = "父亲", realm = 5, spiritRootType = "metal,fire")
         val parent2 = makeDisciple(id = "101", name = "母亲", realm = 6, spiritRootType = "metal,wood")
@@ -185,7 +185,7 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 师徒加成（fixtures 拆分）：师父存活 / 已死 */
+    /** 师徒加成：师父存活 / 已死 */
     private fun masterFixtures(base: GameData): List<Fixture> = buildList {
         val master = makeDisciple(
             id = "200", name = "师父", realm = 3,
@@ -209,7 +209,7 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 哀悼期（fixtures 拆分）：进行中 / 已结束 */
+    /** 哀悼期：进行中 / 已结束 */
     private fun griefFixtures(base: GameData): List<Fixture> = buildList {
         add(
             Fixture(
@@ -227,7 +227,7 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 丹药临时加速（fixtures 拆分）：生效中 / 已过期 */
+    /** 丹药临时加速：生效中 / 已过期 */
     private fun pillFixtures(base: GameData): List<Fixture> = buildList {
         add(
             Fixture(
@@ -249,7 +249,7 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 功法熟练度（fixtures 拆分）：走 ManualDatabase 兜底路径 */
+    /** 功法熟练度：走 ManualDatabase 兜底路径 */
     private fun manualProficiencyFixtures(base: GameData): List<Fixture> = buildList {
         add(
             Fixture(
@@ -266,7 +266,7 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 讲道长老加成（fixtures 拆分）：elderSlots 配置 + 长老 teaching，含 teachingFlat 跨阈值回归 */
+    /** 讲道长老加成：elderSlots 配置 + 长老 teaching，含 teachingFlat 跨阈值回归 */
     private fun preachingElderFixtures(base: GameData): List<Fixture> = buildList {
         val preachingElder = makeDisciple(
             id = "300", name = "讲道长老", realm = 2,
@@ -355,7 +355,7 @@ class CultivationRateEquivalenceTest {
 
     @Test
     fun `aptitude 120 disciple stays equivalent across both paths`() {
-        // 2026-08-12 资质乘区（80 基准每点+1% 最多+40%）：两入口必须一致
+        // 资质乘区（80 基准每点+1% 最多+40%）：两入口必须一致
         val tables = DiscipleTables()
         val d = makeDisciple(id = "1", skills = SkillStats(aptitude = 120))
         tables.insert(d)
@@ -409,7 +409,7 @@ class CultivationRateEquivalenceTest {
 
     @Test
     fun `legacy cultivationSpeedBonus field no longer affects rate`() {
-        // 2026-08 修复回归：丹药修炼速度加成统一收敛于 pillEffects 体系，
+        // 丹药修炼速度加成统一收敛于 pillEffects 体系，
         // 旧 cultivationSpeedBonus 顶层字段（双写时代产物）写入后不应再产生任何加成
         val tables = DiscipleTables()
         tables.insert(makeDisciple(id = "1", cultivationSpeedBonus = 0.3, cultivationSpeedDuration = 4))
@@ -424,7 +424,7 @@ class CultivationRateEquivalenceTest {
 
     @Test
     fun `pill speed bonus applies once not doubled`() {
-        // 2026-08 修复回归：同一颗修炼速度丹只应生效一份加成（单倍），
+        // 同一颗修炼速度丹只应生效一份加成（单倍），
         // 防止双字段（cultivationSpeedBonus + pillCultivationSpeedBonus）累加造成双倍
         val tables = DiscipleTables()
         tables.insert(makeDisciple(

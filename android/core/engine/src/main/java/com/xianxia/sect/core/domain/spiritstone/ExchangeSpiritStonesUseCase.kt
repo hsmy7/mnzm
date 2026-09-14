@@ -59,7 +59,7 @@ class ExchangeSpiritStonesUseCase @Inject constructor(
 
         val beforeTarget = spiritStoneWallet.balance(target)
         stateStore.update {
-            val result = spiritStoneWallet.batch(this, listOf(
+            spiritStoneWallet.batch(this, listOf(
                 SpiritStoneOperation(
                     delta = -(quantity - remaining), grade = source,
                     reason = SpiritStoneReason.Exchange, source = SpiritStoneSource.Internal

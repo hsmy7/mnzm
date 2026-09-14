@@ -11,12 +11,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 半幽灵防御一致性测试（2026-08-01 F3 修复验证）。
+ * 半幽灵防御一致性测试。
  *
- * 修复前：assembleAll/assembleAllIncremental 做三表检查（isAlive + names + realms），
- * 但 deepCopy 只按 isAlive 单表过滤——isAlive 有而 names/realms 缺的半幽灵会进入
- * 快照 ids，任何直接遍历 ids 的代码（count/checkpointAllDisciples/cullDeadDisciples）
- * 都能看到。修复后三处统一 isCompleteId 三表判据。
+ * assembleAll / assembleAllIncremental / deepCopy 三处统一以 isCompleteId
+ * 三表判据（isAlive + names + realms）过滤——若仅按 isAlive 单表过滤，
+ * names/realms 缺失的半幽灵会进入快照 ids，被任何直接遍历 ids 的代码
+ * （count/checkpointAllDisciples/cullDeadDisciples）看到。
  *
  * 本测试守卫：
  * 1. 四类幽灵（isAlive 缺 / names 缺 / realms 缺 / 空名）在三条组装路径的行为

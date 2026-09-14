@@ -15,7 +15,9 @@
 | 特性 | 描述 | Vulkan | Canvas | 测试 | 状态 |
 |------|------|--------|--------|------|------|
 | ground_tiling | 地面平铺绘制 | ✅ | ✅ | ✅ | 已实现 |
-| decor_overlay | 装饰叠加（草/树） | ✅ | ✅ | ✅ | 已实现 |
+| decor_overlay | 装饰叠加（草/石/树：显示尺寸按素材纵横比取小数格，锚点 = 格底边居中；草/石走地面层逐格绘制） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（TILE_SPRITE_W/H codegen + SpriteSizingFidelityTest） |
+| decor_object_layer | 立体层装饰（树）与建筑同一画家序（按地面接触点归并，同键建筑在后，覆盖同接触点装饰；树冠可向上越出 2.29 格而不再被北侧建筑无脑压掉） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（gamecore/map/draw_order.h + draw_order_test + SoftwareCanvasBackendDecorLayerTest） |
+| decor_overhang_range | 装饰越界绘制范围外扩（渲染遍历/可见性按 DECOR_MARGIN_COLS/ROWS 外扩——否则 chunk 缝处树冠被整块裁掉） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（SoftwareCanvasBackendDecorLayerTest chunk 顶行树用例） |
 | building_draw | 建筑精灵绘制 | ✅ | ✅ | ✅ | 已实现 |
 | camera_offset | 相机平移偏移 | ✅ | ✅ | ✅ | v4.0.45 修复 |
 | camera_zoom | 缩放 (scale) | ✅ | ✅ | ✅ | 已实现 |
@@ -47,6 +49,7 @@
 | dynamic_adpf_target | ADPF 目标帧时长动态化（实际帧率 → 系统性能预算；frameDurationNs 纯函数 + renderFrameRate collect 联动） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP4（GameEngineCoreFpsPolicyTest + ThermalMonitorTest 扩展） |
 | cloud_layer | 世界顶部动态云朵（CloudLayerAnimator 渲染线程驱动：只在世界外生成/横向穿越/出界消失，速度 3 格/秒（2026-08 由 5 调低），随机类型/方向/Y/缩放（0.4~0.8，2026-08 整体缩小 50%）/透明度；实例数据快照 host.cloudData 双后端共享；绘制在建筑/作物层之上、高亮/预览/网格线之下；skipDecor 同判定降级；云活跃时 cloudDirty 阻止脏帧跳过） | ✅ | ✅ | ✅ | 2026-08-22（CloudLayerAnimatorTest + SoftwareCanvasBackendCloudTest + FrameSkipPolicyTest） |
 | sky_background | 程序绘制天空渐变背景（Screen Space / Background Layer：纯 GPU/渐变绘制**四段** top→second→third→bottom，非图片纹理、无大 Bitmap、每帧零临时分配；绘制于所有世界内容之下（最底图层），Camera 平移/缩放不影响；Vulkan/GLES 走 C++ SkyBackground + RHI drawBackground（天空管线 sky.vert + sky.frag：片元内分段 smoothstep 解析渐变 + 有序抖动去色带，参数经 push-constant/uniform），Canvas 走 screen-space LinearGradient + isDither；配置化 SkyBackgroundConfig（四色/位置/强度），为天气时间系统预留接口；配置变化才重建、非每帧；skyConfig 变更经 FrameSkipPolicy.skyDirty 强制渲染一帧——静止画面也更新配色） | ✅ | ✅ | ✅ | 2026-09（SoftwareCanvasBackendTest 天空用例组 + FrameSkipPolicyTest skyDirty 守卫 + 淡入/云层 alpha 复算更新） |
+| island_cliff_edge | 浮空岛崖壁地图边缘（左/右/下三侧 + 左下/右下转角；**独立纹理**而非图集——单张最大 1180×3552 超出 4096² 容量。布局合成单一权威 = C++ `gamecore/map/island_cliff.h`，输出 stride=10 `[texIdx,x,y,w,h,u0,v0,u1,v1,flags]`；右崖由**镜像位**复用左侧纹理；末块裁剪时 UV 按比例收缩不拉伸素材；角块最后绘制覆盖边环越界末块。纹理三级降级：ASTC KTX（Vulkan）→ RGBA mip 链（Vulkan）→ RGBA 单级（GLES/Canvas 位图），单张失败以 textureMask 排除该条目。z 序：天空 → 崖壁 → 地面。相机 outset 2500 使拖到地图边缘可见崖壁） | ✅ | ✅ | ✅ | 2026-09（island_cliff_test 12 用例 + EdgeKtxSyncTest 三向守卫 + SoftwareCanvasBackend 崖壁用例） |
 
 ## 新增特性流程
 

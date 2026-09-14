@@ -20,7 +20,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffLevelGeneratorTest — 世界关卡生成器跨语言差分对拍（计划 v2 阶段 4 / 批 4-1）。
+ * DiffLevelGeneratorTest — 世界关卡生成器跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::level_generator（妖兽境界选取/妖兽关卡/洞府关卡/
  * 批量生成）与 Kotlin LevelGenerator 语义逐位一致（同种子 RNG 序列下结果完全相同）。

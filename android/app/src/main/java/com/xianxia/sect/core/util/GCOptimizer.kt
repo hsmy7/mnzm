@@ -2,8 +2,8 @@ package com.xianxia.sect.core.util
 
 import android.util.Log
 import com.xianxia.sect.di.ApplicationScopeProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
@@ -18,7 +18,6 @@ class GCOptimizer @Inject constructor(
     
     companion object {
         private const val TAG = "GCOptimizer"
-        private const val GC_CHECK_INTERVAL_MS = 60_000L
         private const val GC_COOLDOWN_MS = 30_000L
         private const val MEMORY_THRESHOLD_SOFT_GC = 0.75
         private const val MEMORY_THRESHOLD_HARD_GC = 0.85
@@ -26,11 +25,9 @@ class GCOptimizer @Inject constructor(
     }
     
     private val scope get() = applicationScopeProvider.scope
-    private var optimizerJob: Job? = null
     private var lastGCTime = 0L
     private var gcCount = 0L
     private var totalGCTime = 0L
-    private var isManualGCPending = false
     
     private val listeners = CopyOnWriteArrayList<GCEventListener>()
     
@@ -97,7 +94,8 @@ class GCOptimizer @Inject constructor(
         }
         
         if (gcType != GCType.NONE) {
-            Log.i(TAG, "GC triggered by memory threshold: ${String.format(Locale.getDefault(), "%.1f", usedPercent * 100)}% (${gcType.name})")
+            val usedPercentText = String.format(Locale.getDefault(), "%.1f", usedPercent * 100)
+            Log.i(TAG, "GC triggered by memory threshold: $usedPercentText% (${gcType.name})")
             performGC(gcType)
         }
     }
@@ -196,14 +194,19 @@ class GCOptimizer @Inject constructor(
     fun logGCStatus(tag: String = TAG) {
         val stats = getGCStats()
         val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
-        
+        val memoryUsageText = if (memoryInfo != null) {
+            String.format(Locale.getDefault(), "%.1f", memoryInfo.usedPercent * 100) + "%"
+        } else {
+            "N/A"
+        }
+
         Log.i(tag, """
             |=== GC Status ===
             |Total GC Count: ${stats.totalGCCount}
             |Total GC Time: ${stats.totalGCTimeMs}ms
             |Average GC Time: ${String.format(Locale.getDefault(), "%.2f", stats.averageGCTimeMs)}ms
             |Time Since Last GC: ${stats.timeSinceLastGC}ms
-            |Memory Usage: ${if (memoryInfo != null) String.format(Locale.getDefault(), "%.1f", memoryInfo.usedPercent * 100) + "%" else "N/A"}
+            |Memory Usage: $memoryUsageText
             |Recommended GC: ${getRecommendedGCType().name}
             |=================
         """.trimMargin())
@@ -235,11 +238,14 @@ class GCOptimizer @Inject constructor(
         return result
     }
     
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun notifyListeners(action: (GCEventListener) -> Unit) {
         scope.launch(Dispatchers.Default) {
             listeners.forEach { listener ->
                 try {
                     action(listener)
+                } catch (e: CancellationException) {
+                    throw e // 取消穿透: 通知体无挂起点, 分支保 scope 取消时监听器缺陷误抛 CE 不被吞
                 } catch (e: Exception) {
                     Log.e(TAG, "Error notifying listener", e)
                 }

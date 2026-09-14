@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 共享伤害应用层守卫测试（2026-08-04 双引擎收敛）。
+ * 共享伤害应用层守卫测试。
  *
  * 覆盖护盾吸收（含护盾余量写回）、伤害分摊、伤害链接——主战斗引擎与宗门战引擎共用。
  */
@@ -59,7 +59,7 @@ class BattleDamageApplierTest {
 
     @Test
     fun `applyDamageToTarget - 同剩余时长多护盾只写回被消耗的`() {
-        // 对抗性审查：两个护盾同 duration（3 回合）不同 value（0.2 与 0.3）——
+        // 两个护盾同 duration（3 回合）不同 value（0.2 与 0.3）——
         // 0.3 被消耗后只写回 0.3 的余量，0.2 不得被一并覆写
         val shieldSmall = CombatBuff(BuffType.SHIELD, value = 0.2, remainingDuration = 3)
         val shieldBig = CombatBuff(BuffType.SHIELD, value = 0.3, remainingDuration = 3)

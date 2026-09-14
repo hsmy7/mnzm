@@ -72,7 +72,7 @@ fun WorldMapScreen(
         )
 
         // Layer 2: 标记（宗门 + 关卡 + 秘境）
-        // ★ 2026 修复：不再在组合作用域读相机（isVisible/worldToScreen 已下沉到
+        // 相机读取不在组合作用域（isVisible/worldToScreen 下沉到
         // marker 的 graphicsLayer draw 阶段）——拖动视角零重组零布局，仅重绘。
         // 视口外 marker 由 Compose 图层裁剪兜底，几十个节点的绘制开销远小于每帧重组。
         items.forEach { item ->
@@ -105,10 +105,10 @@ fun WorldMapScreen(
 }
 
 /**
- * 世界地图拖拽平移 + 惯性滑行（WorldMapScreen 拆分）：
+ * 世界地图拖拽平移 + 惯性滑行：
  * - detectDragGestures 内置 touchSlop（tap 不吞、标记点击不受影响），
  *   onDrag 期间采样速度，松手后按 FlingPhysics 60fps 节拍惯性滚动——
- *   对齐宗门地图手势引擎手感（原实现无惯性，拖动视角松手即停、手感生硬）
+ *   对齐宗门地图手势引擎手感
  * - 惯性协程随手势生命周期取消（pointerInput 作用域）；取消时 delay 抛
  *   CancellationException 由协程机制传播，无需 try/catch（detekt 禁止同型重抛）
  */

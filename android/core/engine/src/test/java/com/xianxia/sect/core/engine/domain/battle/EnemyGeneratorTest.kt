@@ -21,7 +21,7 @@ class EnemyGeneratorTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 2026-08-04 战斗核查修复回归（G10 敌人功法属性加成）
+    // 战斗核查回归：敌人功法属性加成
     // ═══════════════════════════════════════════════════════════════
 
     private fun manualInstance(
@@ -266,12 +266,11 @@ class EnemyGeneratorTest {
         assertTrue("HP should vary with variance (max=$maxHp, min=$minHp)", maxHp > minHp * 1.2)
     }
 
-    // ---- T-C3（2026-08-05）：realmMin/realmMax 配置反转防御 ----
+    // ---- realmMin/realmMax 配置反转防御 ----
 
     @Test
     fun generateHumanEnemies_reversedRealmConfig_degradesToRealmMinNotCrash() {
-        // T-C3 修复前：realmMin > realmMax 时 nextInt(负值) 抛 IllegalArgumentException
-        // 修复后：退化为 realmMin（配置退化而非崩溃）
+        // realmMin > realmMax 时退化为 realmMin（配置退化而非崩溃）
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 7,
             realmMax = 5,

@@ -24,7 +24,7 @@ internal fun DialogType.renderMainTabRoutes(
     val viewModel = vms.game
     when (this) {
         DialogType.Disciples -> {
-            // C-3：脚手架统一（DialogTabScaffold 封装 setActiveTab/复位）
+            // 脚手架统一（DialogTabScaffold 封装 setActiveTab/复位）
             DialogTabScaffold(tab = "DISCIPLES", viewModel = viewModel) {
                 FullScreenOverlay(title = "弟子", onDismiss = onDismiss, scrimEnabled = false) {
                     DisciplesTabContent(viewModel = viewModel)
@@ -47,7 +47,7 @@ internal fun DialogType.renderMainTabRoutes(
                         if (showRedeem) {
                             RedeemCodeDialog(
                                 viewModel = viewModel,
-                                onDismiss = { viewModel.closeRedeemCodeDialog() }
+                                onDismiss = { viewModel.redeem.closeRedeemCodeDialog() }
                             )
                         }
                     }

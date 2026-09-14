@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.tabs
 
 import androidx.compose.animation.*
@@ -89,7 +89,7 @@ private data class WarehouseFlows(
     val bagRewardCards: List<RewardCardItem>
 )
 
-/** 仓库派生状态（WarehouseTab 拆分） */
+/** 仓库派生状态 */
 private data class WarehouseState(
     val spiritStoneCards: List<Pair<String, SpiritStoneInfo>>,
     val equipment: List<EquipmentStack>,
@@ -142,6 +142,7 @@ private data class WarehouseDetailItem(
 )
 
 @Composable
+@Suppress("UnusedParameter") // onDismiss: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 internal fun WarehouseTab(
     viewModel: GameViewModel,
     showBulkSellDialog: Boolean = false,
@@ -196,7 +197,7 @@ internal fun WarehouseTab(
     )
 }
 
-/** 仓库数据流订阅（WarehouseTab 拆分） */
+/** 仓库数据流订阅 */
 @Composable
 private fun collectWarehouseFlows(viewModel: GameViewModel): WarehouseFlows {
     val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
@@ -223,7 +224,7 @@ private fun collectWarehouseFlows(viewModel: GameViewModel): WarehouseFlows {
     )
 }
 
-/** 仓库派生状态计算（WarehouseTab 拆分） */
+/** 仓库派生状态计算 */
 @Composable
 private fun rememberWarehouseState(flows: WarehouseFlows): WarehouseState {
     val spiritStoneCards = rememberSpiritStoneCards(spiritStoneTotals = flows.spiritStoneTotals)
@@ -276,7 +277,7 @@ private fun rememberWarehouseState(flows: WarehouseFlows): WarehouseState {
     )
 }
 
-/** 灵石卡片分块（WarehouseTab 拆分）：按 100 万上限拆分为多张卡片 */
+/** 灵石卡片分块：按 100 万上限拆分为多张卡片 */
 @Composable
 private fun rememberSpiritStoneCards(
     spiritStoneTotals: GameViewModel.SpiritStoneTotals
@@ -300,7 +301,7 @@ private fun rememberSpiritStoneCards(
     }
 }
 
-/** 全量物品合并排序（WarehouseTab 拆分）：关注优先 → 稀有度降序 */
+/** 全量物品合并排序：关注优先 → 稀有度降序 */
 @Composable
 private fun rememberAllSortedItems(
     items: WarehouseSortedItems,
@@ -334,7 +335,7 @@ private fun rememberAllSortedItems(
     }
 }
 
-/** 仓库主内容区（WarehouseTab 拆分）：筛选行 + 网格或空态 */
+/** 仓库主内容区：筛选行 + 网格或空态 */
 @Composable
 private fun WarehouseContent(
     state: WarehouseState,
@@ -371,7 +372,7 @@ private fun WarehouseContent(
     }
 }
 
-/** 当前筛选物品列表（WarehouseTab 拆分） */
+/** 当前筛选物品列表 */
 @Composable
 private fun rememberCurrentFilterItems(
     state: WarehouseState,
@@ -406,7 +407,7 @@ private fun rememberCurrentFilterItems(
     }
 }
 
-/** 仓库筛选按钮行（WarehouseTab 拆分） */
+/** 仓库筛选按钮行 */
 @Composable
 private fun WarehouseFilterRow(
     selectedFilter: WarehouseFilter,
@@ -427,7 +428,7 @@ private fun WarehouseFilterRow(
     }
 }
 
-/** 仓库分页网格（WarehouseTab 拆分）：BoxWithConstraints 计算列/行 + 分页 */
+/** 仓库分页网格：BoxWithConstraints 计算列/行 + 分页 */
 @Composable
 private fun ColumnScope.WarehouseGrid(
     state: WarehouseState,
@@ -490,7 +491,7 @@ private fun ColumnScope.WarehouseGrid(
     }
 }
 
-/** 仓库网格行区（WarehouseTab 拆分）：按列数分行的物品卡 */
+/** 仓库网格行区：按列数分行的物品卡 */
 @Composable
 private fun ColumnScope.WarehouseGridRows(
     config: WarehouseGridConfig,
@@ -521,7 +522,7 @@ private fun ColumnScope.WarehouseGridRows(
     }
 }
 
-/** 仓库网格物品卡（WarehouseTab 拆分）：构造 ItemCardData 复用 UnifiedItemCard */
+/** 仓库网格物品卡：构造 ItemCardData 复用 UnifiedItemCard */
 @Composable
 private fun WarehouseGridCard(
     warehouseItem: WarehouseItemData,
@@ -560,7 +561,7 @@ private fun WarehouseGridCard(
     )
 }
 
-/** 仓库物品详情弹窗（WarehouseTab 拆分）：内联出售覆盖层 + 操作行 + 赏赐弹窗 */
+/** 仓库物品详情弹窗：内联出售覆盖层 + 操作行 + 赏赐弹窗 */
 @Composable
 private fun WarehouseItemDetailSection(
     state: WarehouseState,
@@ -582,14 +583,14 @@ private fun WarehouseItemDetailSection(
         onDismiss = onDismiss,
         viewModel = viewModel,
         // 出售数量确认（内联覆盖层）必须渲染在 ItemDetailDialog 窗口内容内，
-        // 否则被其 SmallScreenDialog 平台窗口遮挡而不可见（2026-08 键盘频闪根治）
+        // 否则被其 SmallScreenDialog 平台窗口遮挡而不可见（键盘频闪防护约束）
         overlay = {
             if (showSellDialog) {
                 WarehouseSellOverlay(
                     itemName = detail.itemName,
                     maxQuantity = detail.itemQuantity,
                     onConfirm = { quantity ->
-                        viewModel.sellItem(detail.itemId, detail.itemType, quantity)
+                        viewModel.inventory.sellItem(detail.itemId, detail.itemType, quantity)
                         showSellDialog = false
                         if (quantity >= detail.itemQuantity) {
                             onDismiss()
@@ -627,7 +628,7 @@ private fun WarehouseItemDetailSection(
     }
 }
 
-/** 仓库选中物品解析（WarehouseTab 拆分）：灵石卡片/物品索引派生 */
+/** 仓库选中物品解析：灵石卡片/物品索引派生 */
 @Composable
 private fun rememberWarehouseSelectedItem(
     state: WarehouseState,
@@ -649,7 +650,7 @@ private fun rememberWarehouseSelectedItem(
     }.value
 }
 
-/** 仓库物品详情元数据解析（WarehouseTab 拆分） */
+/** 仓库物品详情元数据解析 */
 private fun warehouseDetailItem(
     item: Any,
     state: WarehouseState
@@ -674,7 +675,7 @@ private fun warehouseDetailItem(
     )
 }
 
-/** 仓库物品基础元数据（WarehouseTab 拆分）：id/类型/稀有度/名称单次 when 解析 */
+/** 仓库物品基础元数据：id/类型/稀有度/名称单次 when 解析 */
 private data class WarehouseItemRef(
     val id: String,
     val type: String,
@@ -682,7 +683,7 @@ private data class WarehouseItemRef(
     val name: String
 )
 
-/** 仓库物品基础元数据解析（WarehouseTab 拆分） */
+/** 仓库物品基础元数据解析 */
 private fun warehouseItemRef(item: Any): WarehouseItemRef = when (item) {
     is EquipmentStack -> WarehouseItemRef(item.id, "equipment", item.rarity, item.name)
     is ManualStack -> WarehouseItemRef(item.id, "manual", item.rarity, item.name)
@@ -693,7 +694,7 @@ private fun warehouseItemRef(item: Any): WarehouseItemRef = when (item) {
     else -> WarehouseItemRef("", "", 1, "")
 }
 
-/** 出售数量确认覆盖层（WarehouseTab 拆分） */
+/** 出售数量确认覆盖层 */
 @Composable
 private fun WarehouseSellOverlay(
     itemName: String,
@@ -709,7 +710,7 @@ private fun WarehouseSellOverlay(
     )
 }
 
-/** 物品详情操作行（WarehouseTab 拆分）：全部开启/售卖/锁定/赏赐 */
+/** 物品详情操作行：全部开启/售卖/锁定/赏赐 */
 @Composable
 private fun WarehouseDetailActionRow(
     item: Any,
@@ -727,7 +728,7 @@ private fun WarehouseDetailActionRow(
                     text = "单独开启",
                     onClick = {
                         scope.launch {
-                            viewModel.openStorageBag(item.id)
+                            viewModel.bag.openStorageBag(item.id)
                         }
                     }
                 )
@@ -735,7 +736,7 @@ private fun WarehouseDetailActionRow(
                     text = "全部开启",
                     onClick = {
                         scope.launch {
-                            viewModel.openAllStorageBags(item.id)
+                            viewModel.bag.openAllStorageBags(item.id)
                         }
                     }
                 )
@@ -749,7 +750,7 @@ private fun WarehouseDetailActionRow(
                 }
                 GameButton(
                     text = if (detail.isLocked) "已锁定" else "锁定",
-                    onClick = { viewModel.toggleItemLock(detail.itemId, detail.itemType) }
+                    onClick = { viewModel.inventory.toggleItemLock(detail.itemId, detail.itemType) }
                 )
                 GameButton(
                     text = "赏赐",
@@ -760,7 +761,7 @@ private fun WarehouseDetailActionRow(
     }
 }
 
-/** 仓库尾部弹窗（WarehouseTab 拆分）：储物袋开启奖励 + 批量出售 */
+/** 仓库尾部弹窗：储物袋开启奖励 + 批量出售 */
 @Composable
 private fun WarehouseTrailingDialogs(
     bagRewardCards: List<RewardCardItem>,
@@ -773,7 +774,7 @@ private fun WarehouseTrailingDialogs(
             title = "储物袋开启",
             cards = bagRewardCards,
             confirmLabel = "确认",
-            onConfirm = { viewModel.enqueueBagRewardCards() }
+            onConfirm = { viewModel.bag.enqueueBagRewardCards() }
         )
     }
 
@@ -865,7 +866,7 @@ internal fun WarehousePagination(
     }
 }
 
-/** 分页按钮（WarehousePagination 拆分） */
+/** 分页按钮 */
 @Composable
 private fun WarehousePaginationButton(
     text: String,

@@ -2,6 +2,8 @@ package com.xianxia.sect.core.registry
 
 import com.xianxia.sect.core.GameConfig
 
+@Suppress("TooManyFunctions") // 静态注册表：查询原语（按 id/名称/稀有度/档位维度）+ 私有数据表构建器，
+// 函数数随数据表查询维度线性增长；构建器与表定义同址内聚，拆分损害可读性
 object HerbDatabase {
     
     data class Herb(
@@ -229,7 +231,8 @@ object HerbDatabase {
         }
     }
 
-    fun generateRandomHerb(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Herb {
+    fun generateRandomHerb(minRarity: Int = 1, maxRarity: Int = 6,
+        random: kotlin.random.Random = kotlin.random.Random): Herb {
         val eligibleHerbs = allHerbs.filter { it.rarity in minRarity..maxRarity }
         return if (eligibleHerbs.isNotEmpty()) {
             eligibleHerbs.random(random)
@@ -238,7 +241,8 @@ object HerbDatabase {
         }
     }
 
-    fun generateRandomSeed(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Seed {
+    fun generateRandomSeed(minRarity: Int = 1, maxRarity: Int = 6,
+        random: kotlin.random.Random = kotlin.random.Random): Seed {
         val eligibleSeeds = allSeeds.filter { it.rarity in minRarity..maxRarity }
         return if (eligibleSeeds.isNotEmpty()) {
             eligibleSeeds.random(random)

@@ -96,16 +96,6 @@ data class TextureCompressionConfig(
             reduceAtlasResolution = true
         )
 
-        private val THERMAL_YELLOW = TextureCompressionConfig(
-            tier = TextureTier.MEDIUM,
-            preferredFormat = TextureCompressionFormat.ETC2_RGBA,
-            atlasSize = 2048,
-            use565 = true,
-            downscaleFactor = 0.8f,
-            spriteMaxDimension = 220,
-            reduceAtlasResolution = false
-        )
-
         private val THERMAL_ORANGE = TextureCompressionConfig(
             tier = TextureTier.LOW,
             preferredFormat = TextureCompressionFormat.ETC2_RGB,

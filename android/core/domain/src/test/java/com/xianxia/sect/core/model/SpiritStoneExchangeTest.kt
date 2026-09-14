@@ -90,7 +90,8 @@ class SpiritStoneExchangeTest {
 
     @Test
     fun `exchange - low to mid large amount`() {
-        val (converted, remaining) = SpiritStoneExchange.exchange(99_999_999L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID)
+        val (converted, remaining) = SpiritStoneExchange.exchange(99_999_999L, SpiritStoneGrade.LOW,
+            SpiritStoneGrade.MID)
         assertEquals(12_499L, converted)
         assertEquals(7_999L, remaining)
     }

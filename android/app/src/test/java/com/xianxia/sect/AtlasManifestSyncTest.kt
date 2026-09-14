@@ -13,7 +13,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * WP7 图集 ASTC 产物守卫测试（2026-08-10）。
+ * 图集 ASTC 产物守卫测试。
  *
  * `scripts/build-atlas.mjs` 从 SpriteAtlasDef.kt 解析布局 → sharp 拼装 → astcenc
  * 压缩 → KTX1 封装，产物提交入库（assets/atlas/）。本测试锁住三向一致性：
@@ -81,6 +81,27 @@ class AtlasManifestSyncTest {
         assertEquals(manifest.sprites.size, manifest.spriteCount)
         // B.1：manifest 记录 mip 层级（多 mip 图集），须与 KTX 头一致
         assertTrue("manifest.mipLevels 应为正数（B.1 多 mip）", manifest.mipLevels > 0)
+    }
+
+    @Test
+    fun `manifest mipMode 契约锚点 - per-sprite 独立 mip`() {
+        // 渲染纹理降采样管线契约锚点（防"整图 mip"回退）：
+        // 契约锚点——mip 链必须由 build-atlas.mjs per-sprite 独立下采样 + pad 环产出；
+        // 若有人回退为整图逐级下采样（邻居渗色回归）或误用 --no-mip，本断言变红。
+        // --no-mip 兜底产 mipMode="none"（mipLevels=1），同样不误判为 per-sprite。
+        val manifest = parseManifest()
+        if (manifest.mipLevels == 1) {
+            assertEquals(
+                "manifest.mipLevels=1 时 mipMode 应为 none（--no-mip 兜底）",
+                "none", manifest.mipMode
+            )
+        } else {
+            assertEquals(
+                "manifest.mipMode 应为 per-sprite（独立 mip + pad 环）——" +
+                    "回退整图 mip 会重现 mip ≥1 级邻居渗色，须恢复 build-atlas.mjs per-sprite 配方",
+                "per-sprite", manifest.mipMode
+            )
+        }
     }
 
     // ============================================================
@@ -170,6 +191,9 @@ class AtlasManifestSyncTest {
         for ((name, r) in SpriteAtlasDef.ROAD_RECTS) {
             list += SpriteEntry(name, r.x, r.y, r.w, r.h)
         }
+        // 浮空岛崖壁**不在图集内**（2026-09 地图边缘系统）：单张最大 1180×3552
+        // 超出 4096² 容量，改走独立纹理（scripts/build-edge-ktx.mjs +
+        // feature/game IslandCliffTextureSet），故此处不再追加边缘段。
         return list
     }
 
@@ -195,6 +219,7 @@ class AtlasManifestSyncTest {
         val layoutHash: String,
         val spriteCount: Int,
         val mipLevels: Int,
+        val mipMode: String,
         val sprites: List<SpriteEntry>
     )
 
@@ -211,6 +236,8 @@ class AtlasManifestSyncTest {
             layoutHash = json.getValue("layoutHash").jsonPrimitive.content,
             spriteCount = json.getValue("spriteCount").jsonPrimitive.int,
             mipLevels = json["mipLevels"]?.jsonPrimitive?.int ?: 1,
+            // 管线改版新增字段（旧 manifest 无此字段时按单级回退处理）
+            mipMode = json["mipMode"]?.jsonPrimitive?.content ?: "none",
             sprites = json.getValue("sprites").jsonArray.map { s ->
                 val o = s.jsonObject
                 SpriteEntry(

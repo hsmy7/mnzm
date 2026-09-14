@@ -17,7 +17,6 @@ class DiscipleAssignmentGateTest {
 
     private val elderSlot = SlotRef(SlotCategory.ELDER_POSITION, "viceSectMaster", "elder_viceSectMaster")
     private val prodSlot = SlotRef(SlotCategory.PRODUCTION_SLOT, "alchemy:0", "production_alchemy_0")
-    private val mineSlot = SlotRef(SlotCategory.SPIRIT_MINE, "miner:0", "spiritMine_miner_0")
 
     @Before
     fun setUp() {

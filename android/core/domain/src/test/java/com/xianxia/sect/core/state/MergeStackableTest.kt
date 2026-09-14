@@ -8,8 +8,7 @@ import org.junit.Test
 /**
  * [mergeStackable] 扩展函数单元测试。
  *
- * 覆盖历史 bug：expelDisciple 中使用 coerceAtMost 截断导致装备数量丢失。
- * 修复后溢出部分应新建堆叠，确保物品数量完整转移。
+ * 守卫：溢出部分应新建堆叠（禁止 coerceAtMost 截断），确保物品数量完整转移。
  */
 class MergeStackableTest {
 

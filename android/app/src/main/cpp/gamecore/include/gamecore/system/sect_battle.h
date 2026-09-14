@@ -1,16 +1,16 @@
 // ============================================================
-// sect_battle.h — AI 宗门战引擎（Kotlin→C++ 迁移战斗批次 D-3）
+// sect_battle.h — AI 宗门战引擎
 //
 // 等价复刻 Kotlin `AISectAttackManager.executeUnifiedAIBattle` 及其
 // 行动链（AISectAttackManager.kt 895-1474 行）——**第三战斗引擎**：
 // AI vs AI 宗门战 / 洞天 AI 操作（S8 子事件 6）100% 经此入口
 // （AISectBattleProcessor → executeSectBattle → executeUnifiedAIBattle）。
 //
-// 与 BattleSystem.executeBattle（批次 C battle_execution.h）的差异：
+// 与 BattleSystem.executeBattle（battle_execution.h）的差异：
 //   - 无 Battle 对象：攻击者/防御者列表直接原地修改
 //   - **回合内逐行动后 filter 死亡**（列表压缩——Kotlin
 //     `attackers = attackers.filter { !it.isDead }`），indexMap 每次行动重建
-//   - 决策层复用 BattleAI（decideAction/selectAttackTarget——批次 B 产物），
+//   - 决策层复用 BattleAI（decideAction/selectAttackTarget），
 //     与主引擎同一决策逻辑；RNG 同为 BATTLE 分区
 //   - 普攻/技能后刷新攻击者（updateCombatantBuffsOnly/Cooldowns）语义独立
 //   - 无拉条/无控制记录；支援 ally 随机选友方（rng.nextInt）
@@ -374,7 +374,7 @@ inline void aiExecuteSupport(Combatant& caster, const std::vector<const Combatan
                              std::vector<BattleActionRecord>& roundActions,
                              rng::DeterministicRng& rng) {
     // 施放者旧状态快照（Kotlin 语义：updateSupportCooldown 用 applySupportTeamBuffs
-    // **之前**的 caster 值覆盖——支援后新加的 buff 丢失，C++ 引用语义需显式复刻）
+    // **之前**的 caster 值覆盖——支援后新加的 buff 不参与覆盖，C++ 引用语义需显式复刻）
     const Combatant casterSnapshot = caster;
     // 支援目标解析（Kotlin resolveSupportTargets：ally → rng.nextInt 随机选友方）
     std::vector<Combatant> supportAllies;

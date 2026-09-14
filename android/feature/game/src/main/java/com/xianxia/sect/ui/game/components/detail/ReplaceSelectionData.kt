@@ -15,7 +15,7 @@ import com.xianxia.sect.ui.game.components.addManualStackSkillInfo
 import com.xianxia.sect.ui.game.components.getStatDisplayName
 
 /**
- * 更换界面详情数据（ReplaceSelectionData 拆分）：右侧详情面板四个区域的展示数据。
+ * 更换界面详情数据：右侧详情面板四个区域的展示数据。
  *
  * @param name 功法/装备名称（区域1，颜色由调用方按品阶决定）
  * @param rarity 品阶（1-6，决定名称颜色与精灵图背景）
@@ -36,7 +36,7 @@ internal data class ReplaceDetailData(
 )
 
 /**
- * 更换界面左侧列表项（ReplaceSelectionData 拆分）。
+ * 更换界面左侧列表项。
  *
  * @param isDisabled 置底置灰不可点击（心法规则：弟子已有心法且更换原功法非心法时）
  * @param isFollowed 关注标记（排序首键：已关注在前；卡片同时保留金色关注描边）
@@ -55,7 +55,7 @@ internal data class ReplaceSelectionItem(
 )
 
 /**
- * 构建装备更换列表（ReplaceSelectionData 拆分）：堆叠 + 游离实例合并，
+ * 构建装备更换列表：堆叠 + 游离实例合并，
  * 关注优先 → 品阶降序（同品阶名称升序）。
  *
  * 过滤规则与原 EquipmentSelectionDialog 一致：堆叠按槽位/境界达标；实例按槽位/境界达标/
@@ -108,7 +108,7 @@ internal fun buildEquipmentReplaceItems(
 }
 
 /**
- * 构建功法更换/学习列表（ReplaceSelectionData 拆分）。
+ * 构建功法更换/学习列表。
  *
  * 过滤：已学名称排除 + 境界达标；[mindItemsDisabled] 为 true 时心法项置底置灰（isDisabled）。
  * 排序：可用项在前（关注优先 → 品阶降序 → 名称升序），禁用项（心法）整体置底
@@ -145,14 +145,14 @@ internal fun buildManualReplaceItems(
     return enabled.sortedWith(comparator) + disabled.sortedWith(comparator)
 }
 
-/** 关注优先（isFollowed 在前）→ 品阶降序 → 名称升序比较器（ReplaceSelectionData 拆分） */
+/** 关注优先（isFollowed 在前）→ 品阶降序 → 名称升序比较器 */
 internal fun replaceSelectionComparator(): Comparator<ReplaceSelectionItem> =
     compareByDescending<ReplaceSelectionItem> { it.isFollowed }
         .thenByDescending { it.rarity }
         .thenBy { it.name }
 
 /**
- * 功法堆叠详情构建（ReplaceSelectionData 拆分）。
+ * 功法堆叠详情构建。
  *
  * 区域2 属性加成取堆叠 stats（为空时回退模板）；区域3 技能描述取堆叠技能数据
  * （无技能时回退模板技能；仍无则回退功法描述文本）。
@@ -189,7 +189,7 @@ internal fun manualStackDetail(stack: ManualStack): ReplaceDetailData {
 }
 
 /**
- * 装备堆叠详情构建（ReplaceSelectionData 拆分）：区域2 属性加成、区域3 装备描述。
+ * 装备堆叠详情构建：区域2 属性加成、区域3 装备描述。
  */
 internal fun equipmentStackDetail(stack: EquipmentStack): ReplaceDetailData {
     val attributeLines = buildList {
@@ -213,7 +213,7 @@ internal fun equipmentStackDetail(stack: EquipmentStack): ReplaceDetailData {
     )
 }
 
-/** 装备最终属性行数据（equipmentInstanceDetail 拆分） */
+/** 装备最终属性行数据 */
 private data class EquipmentStatLine(
     val label: String,
     val finalValue: Int,
@@ -221,7 +221,7 @@ private data class EquipmentStatLine(
 )
 
 /**
- * 装备最终属性行生成（equipmentInstanceDetail 拆分）：仅输出正值属性，孕养差值用 (↑x) 标注。
+ * 装备最终属性行生成：仅输出正值属性，孕养差值用 (↑x) 标注。
  */
 private fun buildEquipmentStatLines(
     stats: List<EquipmentStatLine>,
@@ -239,7 +239,7 @@ private fun buildEquipmentStatLines(
 }
 
 /**
- * 装备实例详情构建（ReplaceSelectionData 拆分）：属性按最终属性（含孕养加成），差值用 (↑x) 标注。
+ * 装备实例详情构建：属性按最终属性（含孕养加成），差值用 (↑x) 标注。
  */
 internal fun equipmentInstanceDetail(instance: EquipmentInstance): ReplaceDetailData {
     val finalStats = instance.getFinalStats()

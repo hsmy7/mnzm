@@ -33,7 +33,8 @@ class PatrolTowerViewModel @Inject constructor(
         return towers.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
     }
 
-    fun slotRange(towerIndex: Int): IntRange = (towerIndex * slotsPerTower) until (towerIndex * slotsPerTower + slotsPerTower)
+    fun slotRange(towerIndex: Int): IntRange = (towerIndex * slotsPerTower) until (towerIndex * slotsPerTower +
+        slotsPerTower)
 
     fun getAvailableDisciples(towerIndex: Int): List<DiscipleAggregate> {
         val range = slotRange(towerIndex)
@@ -60,6 +61,7 @@ class PatrolTowerViewModel @Inject constructor(
     }
 
     /** 巡视楼分配 fire-and-forget 版本（用于对话框现有调用，内部处理异常） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun assignDiscipleAsync(towerIndex: Int, slotOffset: Int, discipleId: String) {
         gameEngine.launchOnEngine {
             try {
@@ -82,6 +84,7 @@ class PatrolTowerViewModel @Inject constructor(
     }
 
     /** 巡视楼移除 fire-and-forget 版本 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun removeDiscipleAsync(towerIndex: Int, slotOffset: Int) {
         gameEngine.launchOnEngine {
             try {
@@ -95,6 +98,7 @@ class PatrolTowerViewModel @Inject constructor(
     }
 
     /** 交换巡视弟子（原子操作） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun swapDisciple(towerIndex: Int, slotOffset: Int, newDiscipleId: String) {
         gameEngine.launchOnEngine {
             try {
@@ -117,6 +121,7 @@ class PatrolTowerViewModel @Inject constructor(
     }
 
     /** 一键任命（原子操作，单事务完成所有分配） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun autoAssign(towerIndex: Int) {
         gameEngine.launchOnEngine {
             try {

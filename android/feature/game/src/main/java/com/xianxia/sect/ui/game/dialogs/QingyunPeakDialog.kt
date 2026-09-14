@@ -25,10 +25,19 @@ import com.xianxia.sect.ui.game.PeakPreachingMasterConfig
 
 import com.xianxia.sect.ui.game.PeakDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
-
-
+import com.xianxia.sect.ui.game.assignDirectDisciple
+import com.xianxia.sect.ui.game.assignElder
+import com.xianxia.sect.ui.game.getAvailableDisciplesForInnerElder
+import com.xianxia.sect.ui.game.getAvailableDisciplesForQingyunPreachingElder
+import com.xianxia.sect.ui.game.getAvailableDisciplesForQingyunPreachingMaster
+import com.xianxia.sect.ui.game.getInnerElder
+import com.xianxia.sect.ui.game.getQingyunPreachingElder
+import com.xianxia.sect.ui.game.getQingyunPreachingMasters
+import com.xianxia.sect.ui.game.removeDirectDisciple
+import com.xianxia.sect.ui.game.removeElder
 
 @Composable
+@Suppress("UnusedParameter") // gameData: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun QingyunPeakDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
@@ -91,7 +100,7 @@ fun QingyunPeakDialog(
     }
 }
 
-/** 青云塔派生状态（QingyunPeakDialog 拆分） */
+/** 青云塔派生状态 */
 private data class QingyunPeakState(
     val innerElder: DiscipleAggregate?,
     val preachingElder: DiscipleAggregate?,
@@ -99,7 +108,7 @@ private data class QingyunPeakState(
     val discipleMap: Map<String, DiscipleAggregate>
 )
 
-/** 青云塔派生状态计算（QingyunPeakDialog 拆分） */
+/** 青云塔派生状态计算 */
 private fun buildQingyunPeakState(
     productionViewModel: ProductionViewModel,
     disciples: List<DiscipleAggregate>
@@ -110,7 +119,7 @@ private fun buildQingyunPeakState(
     discipleMap = disciples.associateBy { it.id }
 )
 
-/** 青云塔主内容区（QingyunPeakDialog 拆分）：长老槽位 + 传道师区块 */
+/** 青云塔主内容区：长老槽位 + 传道师区块 */
 @Composable
 private fun QingyunPeakContent(
     state: QingyunPeakState,
@@ -134,9 +143,10 @@ private fun QingyunPeakContent(
             slot1 = PeakElderSlotConfig(
                 title = "内门长老",
                 elder = state.innerElder,
-                bonusInfo = ElderBonusInfoProvider.getInnerElderInfo(),
+                bonusInfo = ElderBonusInfoProvider.innerElderInfo,
                 onClick = {
-                    state.innerElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                    state.innerElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples))
+                        }
                 },
                 onRemove = { productionViewModel.removeElder(ElderSlotType.INNER_ELDER) },
                 onSwap = onInnerElderSwap
@@ -144,9 +154,10 @@ private fun QingyunPeakContent(
             slot2 = PeakElderSlotConfig(
                 title = "青云塔传道长老",
                 elder = state.preachingElder,
-                bonusInfo = ElderBonusInfoProvider.getQingyunPreachingElderInfo(),
+                bonusInfo = ElderBonusInfoProvider.qingyunPreachingElderInfo,
                 onClick = {
-                    state.preachingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                    state.preachingElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it,
+                        disciples)) }
                 },
                 onRemove = { productionViewModel.removeElder(ElderSlotType.CLOUD_PREACHING) },
                 onSwap = onPreachingElderSwap
@@ -159,14 +170,14 @@ private fun QingyunPeakContent(
             sectionTitle = "青云塔传道师",
             masterConfig = PeakPreachingMasterConfig(
                 label = "青云塔传道师",
-                bonusInfo = ElderBonusInfoProvider.getQingyunPreachingMasterInfo()
+                bonusInfo = ElderBonusInfoProvider.qingyunPreachingMasterInfo
             ),
             preachingMasters = state.preachingMasters,
             disciples = disciples,
             onMasterClick = { index ->
                 val master = state.preachingMasters.find { it.index == index }
                 val d = if (master?.isActive == true) state.discipleMap[master.discipleId] else null
-                d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                d?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) },
             onMasterSwap = onPreachingMasterSwap
@@ -174,7 +185,7 @@ private fun QingyunPeakContent(
     }
 }
 
-/** 内门长老选择弹窗（QingyunPeakDialog 拆分） */
+/** 内门长老选择弹窗 */
 @Composable
 private fun QingyunInnerElderSelectionDialog(
     state: QingyunPeakState,
@@ -195,7 +206,7 @@ private fun QingyunInnerElderSelectionDialog(
     )
 }
 
-/** 青云塔传道长老选择弹窗（QingyunPeakDialog 拆分） */
+/** 青云塔传道长老选择弹窗 */
 @Composable
 private fun QingyunPreachingElderSelectionDialog(
     state: QingyunPeakState,
@@ -216,7 +227,7 @@ private fun QingyunPreachingElderSelectionDialog(
     )
 }
 
-/** 青云塔传道师选择弹窗（QingyunPeakDialog 拆分） */
+/** 青云塔传道师选择弹窗 */
 @Composable
 private fun QingyunPreachingMasterSelectionDialog(
     state: QingyunPeakState,

@@ -1,10 +1,10 @@
 package com.xianxia.sect.core
 
+import android.content.Context
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import com.xianxia.sect.core.VulkanPolicy.DeviceTier
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,7 +17,8 @@ import org.robolectric.annotation.Config
  * 覆盖：
  * - evaluateVulkanTier：按 GPU 厂商 + Vulkan API 版本（Unity Device Filtering 规格）判定
  *   ——低于厂商阈值 → PROBLEMATIC（Deny Vulkan），其余 → SAFE（默认 Allow，窄 Deny）。
- * - setVulkanDeviceInfo：低于阈值 → 记录 Vulkan 初始化失败（下次启动走 GPU GLES）。
+ * - setVulkanDeviceInfo：低于阈值 → 记台账 soft-fail（不再直接定策略，
+ *   由下次启动 ledgerStrategy 统一裁决；本会话 detectTier 经量化后置判定仍可见）。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [Build.VERSION_CODES.S]) // API 31（Robolectric 上限 34；targetSdk 35 超上限，需固定）
@@ -30,10 +31,11 @@ class VulkanPolicyQuantizedThresholdTest {
 
     @Before
     fun setup() {
+        // 清空台账 prefs，保证用例隔离（键结构见 CrashRecoveryEngine）
+        context.getSharedPreferences("crash_recovery", Context.MODE_PRIVATE)
+            .edit().clear().commit()
         CrashRecoveryEngine.initialize(context)
         VulkanPolicy.initialize(context)
-        // 清掉可能由其他用例/先前运行留下的 Vulkan init failure 持久标记，保证隔离
-        CrashRecoveryEngine.clearVulkanInitFailure()
     }
 
     // ── evaluateVulkanTier：各厂商阈值边界 ──────────────────────────────
@@ -103,17 +105,16 @@ class VulkanPolicyQuantizedThresholdTest {
         assertEquals(DeviceTier.SAFE, evaluateVulkanTier(null))
     }
 
-    // ── setVulkanDeviceInfo：低于阈值 → 记录初始化失败 ────────────────────
+    // ── setVulkanDeviceInfo：低于阈值 → 记台账 soft-fail（不直接定策略） ────────────
 
     @Test
-    fun `setVulkanDeviceInfo below threshold records init failure`() {
+    fun `setVulkanDeviceInfo below threshold records ledger soft fail`() {
         VulkanPolicy.setVulkanDeviceInfo(
             GpuVendor.ARM_MALI.vendorId, vkMake(1, 0, 60), 0, "Mali-G57"
         )
-        assertTrue(CrashRecoveryEngine.hasVulkanInitFailure())
+        assertEquals(1, CrashRecoveryEngine.getVkSoftFailCount())
         assertEquals("Mali-G57", VulkanPolicy.getDeviceInfo()?.deviceName)
         assertEquals(GpuVendor.ARM_MALI, VulkanPolicy.getDeviceInfo()?.vendor)
-        CrashRecoveryEngine.clearVulkanInitFailure()
     }
 
     @Test
@@ -121,7 +122,7 @@ class VulkanPolicyQuantizedThresholdTest {
         VulkanPolicy.setVulkanDeviceInfo(
             GpuVendor.QUALCOMM.vendorId, vkMake(1, 0, 49), 0, "Adreno 640"
         )
-        assertTrue(!CrashRecoveryEngine.hasVulkanInitFailure())
+        assertEquals(0, CrashRecoveryEngine.getVkSoftFailCount())
         assertEquals(GpuVendor.QUALCOMM, VulkanPolicy.getDeviceInfo()?.vendor)
     }
 
@@ -132,6 +133,5 @@ class VulkanPolicyQuantizedThresholdTest {
             GpuVendor.ARM_MALI.vendorId, vkMake(1, 0, 60), 0, "Mali-G57"
         )
         assertEquals(DeviceTier.PROBLEMATIC, VulkanPolicy.detectTier(context))
-        CrashRecoveryEngine.clearVulkanInitFailure()
     }
 }

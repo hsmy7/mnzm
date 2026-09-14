@@ -11,6 +11,7 @@ import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.model.production.ProductionStartSpec
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
@@ -37,24 +38,22 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.repository.getSlotsByBuildingId
 
 /**
- * 生产槽位结算健壮性测试（2026-08-09 B3/B4/B5 预存问题修复回归
- * + 对抗性审查 T1/T2 测试真实化）。
+ * 生产槽位结算健壮性测试。
  *
- * - B3：死亡弟子槽位卡死——月变结算后死弟子槽位重置同时清空关联（三路径之一）
- * - B4：锁内吞失败——产出入库失败（addPill/addEquipmentStack Failure）视为炼制失败，
+ * - 死弟子槽位卡死：月变结算后死弟子槽位重置同时清空关联（三路径之一）
+ * - 锁内吞失败：产出入库失败（addPill/addEquipmentStack Failure）视为炼制失败，
  *       不结算晋升但计数照常（防装备/丹药静默丢失）
- * - B5：resetSlotToIdle 与 auto-restart 排班异步竞争——repository 写串行化
+ * - resetSlotToIdle 与 auto-restart 排班异步竞争——repository 写串行化
  *       （缓存 RMW + DAO 写原子段）+ reset 守卫（仅 WORKING 且身份一致的槽才重置，
  *       防结算快照重建覆盖窗口内的玩家取消/关自动/排班新炼制）
  *
- * 对抗性审查修正：
- * - T1：原"并发双写"测试用 mock DAO（无真实挂起）实为顺序执行假阳性——改为
- *       GatedDao 挂起桥制造真实交错（首个 DAO 写挂起，排班协程在此期间并发进入），
+ * T1/T2 判别性设计：
+ * - T1：GatedDao 挂起桥制造真实交错（首个 DAO 写挂起，排班协程在此期间并发进入），
  *       删除 writeMutex 本测试必然失败（缓存与 DAO 分叉）。
- * - T2：原守卫测试复制守卫表达式（生产代码改动测试仍绿）——改为直接调用
- *       [shouldResetSlotForCompletion] 真身 + 集成用例。
+ * - T2：直接调用 [shouldResetSlotForCompletion] 真身（生产代码改守卫本测试即红）。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -223,9 +222,8 @@ class ProductionSlotSettlementRobustnessTest {
     // ── B5：reset 与排班竞态 ──
 
     /**
-     * T2（对抗性审查）：守卫真身单测——守卫已提取为顶层 internal
-     * [shouldResetSlotForCompletion]，测试直接调用真身（原测试复制表达式，
-     * 生产代码改守卫测试仍绿）。
+     * 守卫真身单测——守卫为顶层 internal
+     * [shouldResetSlotForCompletion]，测试直接调用真身（生产代码改守卫本测试即红）。
      */
     @Test
     fun `reset 守卫 - 身份一致重置许可 身份不符与已重置跳过（调用真身）`() {
@@ -323,8 +321,7 @@ class ProductionSlotSettlementRobustnessTest {
     }
 
     /**
-     * T1（对抗性审查）：真实交错并发测试——原 mock DAO 无真实挂起（Unconfined
-     * 下顺序执行，删除 writeMutex 也通过）。改用 [GatedDao] 挂起桥：reset 协程
+     * 真实交错并发测试——[GatedDao] 挂起桥：reset 协程
      * 在首个 DAO 写处挂起（持有 writeMutex），排班协程在此期间并发进入——
      * 有 writeMutex：排班阻塞至 reset 释放，读到最新 IDLE 缓存，DAO 写入顺序
      * 与缓存一致；无 writeMutex：排班读到 reset 已完成的缓存（IDLE）并抢先
@@ -359,8 +356,14 @@ class ProductionSlotSettlementRobustnessTest {
             repo.updateSlotByBuildingId(BuildingNames.FORGE, 0) { s ->
                 if (s.status != ProductionSlotStatus.IDLE) s
                 else SlotStateMachine.startProduction(
-                    s, tier1.id, "凡品配方", 1, 1, 1,
-                    "1", "弟子一", 1.0, emptyMap(), null, "装备", 1
+                    s,
+                    ProductionStartSpec(
+                        recipeId = tier1.id, recipeName = "凡品配方", duration = 1,
+                        currentYear = 1, currentMonth = 1,
+                        discipleId = "1", discipleName = "弟子一", successRate = 1.0,
+                        materials = emptyMap(), outputItemId = null,
+                        outputItemName = "装备", outputItemRarity = 1
+                    )
                 ).getOrElse { s }
             }
         }
@@ -379,7 +382,7 @@ class ProductionSlotSettlementRobustnessTest {
 }
 
 /**
- * 挂起桥 DAO（T1 对抗性审查）：首个 [ProductionSlotDataPort.update] 在
+ * 挂起桥 DAO：首个 [ProductionSlotDataPort.update] 在
  * [firstUpdateGate] 上挂起（模拟真实 IO 延迟），后续写入立即完成。
  * 真实挂起点使"reset 与排班交错"可达——mock DAO 无挂起点导致原并发测试假阳性。
  */

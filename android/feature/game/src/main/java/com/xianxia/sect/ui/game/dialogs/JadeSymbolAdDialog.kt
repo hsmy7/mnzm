@@ -21,7 +21,7 @@ internal fun JadeSymbolAdDialog(
     onDismiss: () -> Unit
 ) {
     when {
-        viewModel.isDailyAdLimitReached() -> {
+        viewModel.ads.isDailyAdLimitReached() -> {
             StandardPromptDialog(
                 onDismissRequest = onDismiss,
                 title = "提示",
@@ -32,7 +32,7 @@ internal fun JadeSymbolAdDialog(
                 dismissOnClickOutside = true
             )
         }
-        viewModel.isAdOnCooldown() -> {
+        viewModel.ads.isAdOnCooldown() -> {
             StandardPromptDialog(
                 onDismissRequest = onDismiss,
                 title = "不可播放广告",
@@ -52,7 +52,7 @@ internal fun JadeSymbolAdDialog(
                 confirmLabel = "观看",
                 onConfirm = {
                     onDismiss()
-                    viewModel.watchAdForJadeSymbols()
+                    viewModel.ads.watchAdForJadeSymbols()
                 },
                 scrimEnabled = false,
                 dismissOnClickOutside = true

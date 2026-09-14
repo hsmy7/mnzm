@@ -18,13 +18,13 @@ class JitterSmoother(
 ) {
 
     init {
-        // 构造守卫（对抗性审查 2026-08-13 边界#5）：k>1 输出发散震荡、k<0 反向发散
+        // 构造守卫：k>1 输出发散震荡、k<0 反向发散
         require(smoothingFactor in 0f..1f) {
             "smoothingFactor 越界: $smoothingFactor（EWMA 稳定域为 [0, 1]）"
         }
     }
 
-    // @Volatile（对抗性审查 2026-08-13 状态破坏者#5）：紧急重启换线程时
+    // @Volatile：紧急重启换线程时
     // reset 与旧循环线程最后一轮 filter 并发——EWMA 状态跨线程可见
     @Volatile
     private var smoothed = 0f

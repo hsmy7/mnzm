@@ -12,7 +12,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Android 热状态读取实现（ThermalStatusReader 端口，计划 v2 批 8-1）。
+ * Android 热状态读取实现（ThermalStatusReader 端口）。
  * 语义随 ThermalMonitor 端口化自原 ThermalMonitor 构造期逻辑原样迁入。
  */
 @Singleton
@@ -30,7 +30,7 @@ class AndroidThermalStatusReader @Inject constructor(
 }
 
 /**
- * Android ADPF PerformanceHint 会话实现（PerformanceHintPort 端口，计划 v2 批 8-1）。
+ * Android ADPF PerformanceHint 会话实现（PerformanceHintPort 端口）。
  * 只做裸 API 调用与能力探测；线程绑定守卫/异常降级全部在引擎侧 ThermalMonitor。
  */
 @Singleton

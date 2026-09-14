@@ -21,7 +21,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffInventoryTest — 库存系统跨语言差分对拍（批次 4 验收核心）。
+ * DiffInventoryTest — 库存系统跨语言差分对拍。
  *
  * 守护目标：C++ StackableItemStore/InventorySystem 的合并/分块/溢出/移除语义
  * 与 Kotlin 真实 StackableItemStore 一致。

@@ -98,9 +98,16 @@ object SectResponseTexts {
      * @param favorChange 好感度变化
      * @return 反馈文本
      */
-    fun getAcceptResponse(sectLevel: Int, itemType: String, itemName: String, favorChange: Int): String {
+    @Suppress("UnusedParameter") // itemType: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
+    fun getAcceptResponse(
+        sectLevel: Int,
+        itemType: String,
+        itemName: String,
+        favorChange: Int,
+        random: kotlin.random.Random
+    ): String {
         val responses = ACCEPT_RESPONSES[sectLevel] ?: ACCEPT_RESPONSES[0] ?: listOf("多谢道友厚礼！")
-        val template = responses.random()
+        val template = responses[random.nextInt(responses.size)]
 
         val selfTitle = SECT_SELF_TITLES[sectLevel] ?: "本门"
 
@@ -117,9 +124,14 @@ object SectResponseTexts {
      * @param itemName 物品名称
      * @return 反馈文本
      */
-    fun getRejectResponse(sectLevel: Int, itemType: String, itemName: String): String {
+    fun getRejectResponse(
+        sectLevel: Int,
+        itemType: String,
+        itemName: String,
+        random: kotlin.random.Random
+    ): String {
         val responses = REJECT_RESPONSES[sectLevel] ?: REJECT_RESPONSES[0] ?: listOf("本门不能接受此礼。")
-        val template = responses.random()
+        val template = responses[random.nextInt(responses.size)]
 
         val selfTitle = SECT_SELF_TITLES[sectLevel] ?: "本门"
         val itemTypeName = ITEM_TYPE_NAMES[itemType] ?: "礼物"

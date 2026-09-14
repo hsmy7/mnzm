@@ -2,7 +2,7 @@ plugins {
     id 'groovy-gradle-plugin'
 }
 
-// 2026-08 债务根治（convention plugin）：脚本 import 的 Kotlin/AGP 类需编译期 classpath。
+// convention plugin 脚本 import 的 Kotlin/AGP 类需编译期 classpath：
 // Gradle 8.x 无 getPluginClasspath() API（9.0+ 才有），按 Maven 坐标声明，
 // 版本单源来自 gradle/libs.versions.toml（升级 catalog 自动生效）
 dependencies {

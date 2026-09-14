@@ -30,10 +30,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * L1b 等价性安全网：死亡/哀悼流水线列直写重构前的回归夹具。
+ * 死亡/哀悼流水线等价性安全网（回归夹具）。
  *
- * 断言重构后的产出状态（griefEndYears 列 / lifeEvents 文本 / 死亡标记 / 解绑），
- * 第 2 步（L1b 列直写）后本测试仍绿 = 等价性成立。
+ * 断言当前产出状态（griefEndYears 列 / lifeEvents 文本 / 死亡标记 / 解绑），
+ * 本测试持续为绿 = 列直写等价性成立。
  *
  * 现状行为约定（重构必须保持）：
  * - 哀悼期 = currentYear + 1，取 max（已更长则保留）
@@ -76,10 +76,8 @@ class DeathPipelineEquivalenceTest {
             inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
                 stateStore = mockStore,
                 inventoryConfig = InventoryConfig(),
-                spiritStoneWallet = mockSmart(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
-                gameConfigProvider = mockSmart(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
             ),
-            // 2026-08-10 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
+            // 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
             deathHandler = DiscipleDeathHandler()
         )
     }

@@ -9,11 +9,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * T4（2026-08-05）：changedIdTracker 容量拒绝 → 强制全量组装测试。
+ * changedIdTracker 容量拒绝 → 强制全量组装测试。
  *
  * 守卫契约：record 因 id ≥ MAX_SAFE_CAPACITY 被拒（crafted 存档大 id 弟子）时，
  * 即使同事务有其他弟子修改（changedIds 非空），dispatchAssemble 也必须走全量
- * 组装——否则大 id 弟子保留陈旧快照数据（旧实现仅 changedIds 完全为空时全量）。
+ * 组装——否则大 id 弟子保留陈旧快照数据。
  *
  * 说明：真实大 id 无法插入（组件表写入侧 require(id < MAX_SAFE_CAPACITY) 会抛），
  * 通过 markRejectedForTest 测试 seam 模拟容量拒绝（对齐 forceFullCopy 既有模式）。

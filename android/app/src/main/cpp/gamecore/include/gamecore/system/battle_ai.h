@@ -1,5 +1,5 @@
 // ============================================================
-// battle_ai.h — 统一战斗 AI 决策层（Kotlin→C++ 迁移战斗批次 B）
+// battle_ai.h — 统一战斗 AI 决策层
 //
 // 等价复刻 Kotlin `BattleAI`（core/engine/src/main/java/com/xianxia/
 // sect/core/engine/domain/battle/BattleAI.kt 600 行）的**决策层**：
@@ -20,10 +20,10 @@
 //     从左到右短路
 //   - minByOrNull/maxByOrNull 相等时保留第一个 → std::min_element/
 //     std::max_element 同语义
-//   - sortedByDescending 稳定排序 → std::stable_sort（C-11 契约）
-//   - estimateDamage 委托 battle_calculator.h（批次 A 产物，确定性无 RNG）
+//   - sortedByDescending 稳定排序 → std::stable_sort（对拍契约）
+//   - estimateDamage 委托 battle_calculator.h（确定性无 RNG）
 //   - 集合以指针 vector 承载（与 Kotlin 对象引用语义一致，零拷贝）；
-//     目标以 id 承载（AIAction.targetId），对拍输出 id，批次 C 回合编排
+//     目标以 id 承载（AIAction.targetId），对拍输出 id，回合编排
 //     在 C++ 侧按 id 回查 Combatant
 // ============================================================
 #pragma once

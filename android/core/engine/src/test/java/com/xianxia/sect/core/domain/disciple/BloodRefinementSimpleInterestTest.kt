@@ -4,11 +4,13 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.addPctToTotal
+import com.xianxia.sect.core.engine.domain.disciple.getAccumulatedPct
 
 /**
  * [DiscipleStatCalculator] 血炼百分比乘区计算单元测试。
  *
- * 血炼系统从绝对值存储改为百分比乘区后：
+ * 血炼系统采用百分比乘区模型：
  * - 每次血炼直接累加材料百分比到累计记录
  * - 属性 = 境界基础 × 方差 × 层数 × (1 + 天赋% + 血炼%)
  * - 不再直接修改 DiscipleTables.base* 列

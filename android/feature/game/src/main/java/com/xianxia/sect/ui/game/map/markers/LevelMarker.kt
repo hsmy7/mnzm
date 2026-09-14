@@ -30,9 +30,9 @@ fun LevelMarker(
         contentDescription = item.name,
         modifier = Modifier
             .size(48.dp)
-            // ★ 2026 修复：相机读取仅发生在 graphicsLayer lambda（draw 阶段求值）——
-            // 拖动视角时只重算图层平移，不触发组合/布局。原实现组合内读
-            // worldToScreenX/Y + layout{} 重排，每次 pan 全量重组几十个标记 → 卡顿
+            // 相机读取仅发生在 graphicsLayer lambda（draw 阶段求值）——
+            // 拖动视角时只重算图层平移，不触发组合/布局。组合内读
+            // worldToScreenX/Y + layout{} 重排会使每次 pan 全量重组几十个标记 → 卡顿
             .graphicsLayer {
                 translationX = cameraState.worldToScreenX(item.worldX) - size.width / 2f
                 translationY = cameraState.worldToScreenY(item.worldY) - size.height / 2f

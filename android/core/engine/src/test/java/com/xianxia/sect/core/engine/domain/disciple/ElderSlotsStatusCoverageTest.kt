@@ -17,7 +17,7 @@ import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
 /**
- * ElderSlots 槽位状态推导守卫测试（2026-08-10）。
+ * ElderSlots 槽位状态推导守卫测试。
  *
  * 玩家反馈"纳徒长老被自动排班调动"——根因：ElderSlots.recruitingElder 已登记
  * 在 DiscipleAssignmentGate，但 [DiscipleStatusService.buildSlotFlagsFor] 的

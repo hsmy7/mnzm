@@ -53,7 +53,7 @@ class GameEngineCoreWatchdogTest {
     private lateinit var gameClock: GameTimeClock
     private lateinit var store: FakeAtomicStateStore
     private lateinit var fakeTime: FakeTimeSource
-    /** D-08 接线验证：start/stop 时机（startGameLoop → start，stopGameLoop → stop） */
+    /** 接线验证：start/stop 时机（startGameLoop → start，stopGameLoop → stop） */
     private lateinit var thermalMonitor: ThermalMonitor
 
     @Before
@@ -63,7 +63,7 @@ class GameEngineCoreWatchdogTest {
         fakeTime = FakeTimeSource(now = 1_000_000L)
         gameClock = GameTimeClock(fakeTime)
         core = spy(createCore(store, gameClock))
-        // 2026-08-08：performWatchdogRecovery 对被拒的恢复回滚 60s 限频预算。
+        // performWatchdogRecovery 对被拒的恢复回滚 60s 限频预算。
         // 本测试 core 未 start（phase=STOPPED），真实 emergency 会因 CAS 被拒
         // 返回 false 并回滚预算 → 限频测试失效。stub 为"恢复成功"语义
         //（performWatchdogRecovery 的调用次数验证不受 stub 影响）
@@ -144,7 +144,7 @@ class GameEngineCoreWatchdogTest {
         verify(core, never()).emergencyRestartGameLoop()
     }
 
-    // ── D-08 热监控接线 ──
+    // ── 热监控接线 ──
 
     @Test
     fun `startGameLoop starts thermal monitor and stopGameLoop stops it（D-08 接线）`() {

@@ -25,7 +25,7 @@
       "gridWidth": 4,
       "gridHeight": 4,
       "spriteWidth": 4,
-      "spriteHeight": 4,
+      "spriteHeight": 5,
       "description": "开采灵石和矿石"
     },
     "warehouse": {
@@ -37,7 +37,7 @@
       "gridWidth": 6,
       "gridHeight": 4,
       "spriteWidth": 6,
-      "spriteHeight": 6,
+      "spriteHeight": 7,
       "description": "储存宗门物资，每座+75格容量"
     },
     "herb_garden": {
@@ -51,8 +51,8 @@
       "cost": 3000,
       "gridWidth": 4,
       "gridHeight": 3,
-      "spriteWidth": 5,
-      "spriteHeight": 6,
+      "spriteWidth": 4,
+      "spriteHeight": 5,
       "description": "种植灵草的园地"
     },
     "alchemy": {
@@ -65,9 +65,9 @@
       "autoRestartEnabled": true,
       "cost": 6000,
       "gridWidth": 4,
-      "gridHeight": 3,
+      "gridHeight": 2,
       "spriteWidth": 4,
-      "spriteHeight": 4,
+      "spriteHeight": 5,
       "description": "用于炼制各种丹药的场所"
     },
     "forge": {
@@ -82,7 +82,7 @@
       "gridWidth": 5,
       "gridHeight": 3,
       "spriteWidth": 5,
-      "spriteHeight": 6,
+      "spriteHeight": 7,
       "description": "锻造装备的场所"
     },
     "reflection_cliff": {
@@ -97,7 +97,7 @@
       "gridWidth": 4,
       "gridHeight": 4,
       "spriteWidth": 4,
-      "spriteHeight": 4,
+      "spriteHeight": 5,
       "description": "悔过自新之地，关押违规弟子"
     },
     "law_enforcement_hall": {
@@ -112,7 +112,7 @@
       "gridWidth": 6,
       "gridHeight": 3,
       "spriteWidth": 6,
-      "spriteHeight": 6,
+      "spriteHeight": 5,
       "description": "维护宗门纪律，执行奖惩"
     },
     "mission_hall": {
@@ -127,7 +127,7 @@
       "gridWidth": 4,
       "gridHeight": 3,
       "spriteWidth": 4,
-      "spriteHeight": 6,
+      "spriteHeight": 5,
       "description": "派遣弟子执行宗门任务"
     },
     "wen_dao_peak": {
@@ -140,7 +140,7 @@
       "autoRestartEnabled": false,
       "cost": 8000,
       "gridWidth": 4,
-      "gridHeight": 3,
+      "gridHeight": 2,
       "spriteWidth": 4,
       "spriteHeight": 8,
       "description": "管理外门弟子与传道授业"
@@ -155,7 +155,7 @@
       "autoRestartEnabled": false,
       "cost": 8000,
       "gridWidth": 4,
-      "gridHeight": 3,
+      "gridHeight": 2,
       "spriteWidth": 4,
       "spriteHeight": 8,
       "description": "管理内门弟子与精英培养"
@@ -172,7 +172,7 @@
       "gridWidth": 6,
       "gridHeight": 3,
       "spriteWidth": 6,
-      "spriteHeight": 6,
+      "spriteHeight": 5,
       "description": "弟子修习功法的场所，提升修炼速度"
     },
     "single_residence": {
@@ -187,7 +187,7 @@
       "gridWidth": 4,
       "gridHeight": 4,
       "spriteWidth": 4,
-      "spriteHeight": 4,
+      "spriteHeight": 6,
       "description": "为弟子提供清修之所，修炼速度+20%"
     },
     "tianshu_hall": {
@@ -202,7 +202,7 @@
       "gridWidth": 18,
       "gridHeight": 13,
       "spriteWidth": 18,
-      "spriteHeight": 15,
+      "spriteHeight": 19,
       "description": "处理宗门事务的核心建筑"
     },
     "multi_residence": {
@@ -217,7 +217,7 @@
       "gridWidth": 6,
       "gridHeight": 4,
       "spriteWidth": 6,
-      "spriteHeight": 4,
+      "spriteHeight": 7,
       "description": "供多名弟子共同修炼，修炼速度+10%"
     },
     "single_residence_upgraded": {
@@ -232,7 +232,7 @@
       "gridWidth": 6,
       "gridHeight": 6,
       "spriteWidth": 6,
-      "spriteHeight": 6,
+      "spriteHeight": 8,
       "description": "单人修炼之所，修炼速度+40%"
     },
     "multi_residence_upgraded": {
@@ -244,7 +244,7 @@
       "gridWidth": 6,
       "gridHeight": 5,
       "spriteWidth": 6,
-      "spriteHeight": 5,
+      "spriteHeight": 8,
       "description": "供多名弟子共同修炼，修炼速度+15%"
     },
     "patrol_tower": {
@@ -254,9 +254,9 @@
       "slotCount": 8,
       "cost": 35000,
       "gridWidth": 4,
-      "gridHeight": 3,
+      "gridHeight": 2,
       "spriteWidth": 4,
-      "spriteHeight": 8,
+      "spriteHeight": 10,
       "description": "驻守弟子自动巡视地图攻击妖兽"
     },
     "blood_refining_pool": {
@@ -269,9 +269,9 @@
       "autoRestartEnabled": false,
       "cost": 40000,
       "gridWidth": 4,
-      "gridHeight": 4,
+      "gridHeight": 3,
       "spriteWidth": 4,
-      "spriteHeight": 4,
+      "spriteHeight": 3,
       "description": "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
     }
   },

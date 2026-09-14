@@ -51,7 +51,7 @@ class StackableItemStore<T>(
 
     private val store = EntityStore(initialItems)
 
-    /** stackKey → ID 列表，支持同种多个堆叠（2026-07-23 升级） */
+    /** stackKey → ID 列表，支持同种多个堆叠 */
     private val keyIndex = HashMap<StackKey, MutableList<String>>()
 
     init { rebuildKeyIndex() }
@@ -98,7 +98,7 @@ class StackableItemStore<T>(
      */
     @Suppress("UNCHECKED_CAST")
     fun add(item: T, merge: Boolean = true): DomainResult<T> {
-        // 守卫：拒绝负数/零数量；maxStack<=0 时分块产生空/负数量堆叠（E5 对抗性审查）
+        // 守卫：拒绝负数/零数量；否则 maxStack<=0 时分块会产生空/负数量堆叠
         if (!isAddableQuantity(item)) {
             return DomainResult.Failure(AppError.Domain.Inventory.InvalidQuantity(item.quantity))
         }
@@ -133,20 +133,19 @@ class StackableItemStore<T>(
         var completed: T? = null
         // toList() 快照避免并发修改；ids 极小（典型 1-3），开销可忽略
         for (id in ids.toList()) {
-            val existing = store.get(id) ?: continue
-            val space = maxStack - existing.quantity
-            if (space <= 0) continue
+            val existing = store.get(id)
+            if (existing != null && existing.quantity < maxStack) {
+                val addQty = minOf(remaining, maxStack - existing.quantity)
+                val updated = existing.withQuantity(existing.quantity + addQty) as T
+                store.update(id) { updated }
+                remaining -= addQty
+                mergedAny = true
+                promoteKey(key, id)
 
-            val addQty = minOf(remaining, space)
-            val updated = existing.withQuantity(existing.quantity + addQty) as T
-            store.update(id) { updated }
-            remaining -= addQty
-            mergedAny = true
-            promoteKey(key, id)
-
-            if (remaining <= 0) {
-                completed = updated
-                break
+                if (remaining <= 0) {
+                    completed = updated
+                    break
+                }
             }
         }
         return MergeOutcome(remaining, mergedAny, completed)
@@ -187,10 +186,9 @@ class StackableItemStore<T>(
      * 分块创建新堆叠：单次添加数量可能超过 maxStack，逐块生成不超过上限的堆叠；
      * 槽位中途耗尽返回 Partial（溢出量=剩余）。
      *
-     * ★ 修复（仓库满时获得物品导致仓库内相同物品消失）：多分块若复用同一
-     *   item.id 会破坏 id 唯一性——EntityStore 按 id 索引只保留一条、DB 主键
-     *   (id, slot) REPLACE 去重，导致堆叠在保存/重载后静默丢失。因此仅首个
-     *   分块保留物品原 id（兼容既有语义），后续分块必须生成新 id。
+     * 仅首个分块可保留物品原 id（兼容既有语义），后续分块必须生成新 id：
+     * 多分块复用同一 item.id 会破坏 id 唯一性——EntityStore 按 id 索引只保留
+     * 一条、DB 主键 (id, slot) REPLACE 去重，堆叠会在保存/重载后静默丢失。
      */
     private fun createChunksResult(item: T, key: StackKey, remaining: Int): DomainResult<T> {
         var left = remaining

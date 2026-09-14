@@ -27,7 +27,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
-/** 品阶筛选选项（BulkSellDialog 拆分） */
+/** 品阶筛选选项 */
 private val BULK_SELL_RARITY_OPTIONS = listOf(
     1 to "凡品",
     2 to "灵品",
@@ -37,7 +37,7 @@ private val BULK_SELL_RARITY_OPTIONS = listOf(
     6 to "天品"
 )
 
-/** 物品类型筛选选项（BulkSellDialog 拆分） */
+/** 物品类型筛选选项 */
 private val BULK_SELL_TYPE_OPTIONS = listOf(
     "ALL" to "全部",
     "EQUIPMENT" to "装备",
@@ -48,7 +48,7 @@ private val BULK_SELL_TYPE_OPTIONS = listOf(
     "MATERIAL" to "材料"
 )
 
-/** 可出售物品筛选（BulkSellDialog 拆分）：按品阶 + 类型 + 未锁定过滤 */
+/** 可出售物品筛选：按品阶 + 类型 + 未锁定过滤 */
 @Composable
 private fun <T> rememberSellableItems(
     items: List<T>,
@@ -63,7 +63,7 @@ private fun <T> rememberSellableItems(
     } else emptyList()
 }
 
-/** 六类可出售物品聚合（BulkSellDialog 拆分） */
+/** 六类可出售物品聚合 */
 private data class BulkSellSelection(
     val sellableEquipment: List<EquipmentStack>,
     val sellableManuals: List<ManualStack>,
@@ -73,11 +73,11 @@ private data class BulkSellSelection(
     val sellableSeeds: List<Seed>
 )
 
-/** 单类物品出售总价（BulkSellDialog 拆分） */
+/** 单类物品出售总价 */
 private fun <T> sellValueOf(items: List<T>, basePrice: (T) -> Int, quantity: (T) -> Int): Long =
     items.sumOf { GameConfig.Rarity.calculateSellPrice(basePrice(it), quantity(it)) }
 
-/** 六类可出售物品总价值（BulkSellDialog 拆分） */
+/** 六类可出售物品总价值 */
 private fun sellableValue(selection: BulkSellSelection): Long =
     sellValueOf(items = selection.sellableEquipment, basePrice = { it.basePrice }, quantity = { it.quantity }) +
         sellValueOf(items = selection.sellableManuals, basePrice = { it.basePrice }, quantity = { it.quantity }) +
@@ -86,7 +86,7 @@ private fun sellableValue(selection: BulkSellSelection): Long =
         sellValueOf(items = selection.sellableHerbs, basePrice = { it.basePrice }, quantity = { it.quantity }) +
         sellValueOf(items = selection.sellableSeeds, basePrice = { it.basePrice }, quantity = { it.quantity })
 
-/** 可出售物品数量与总价值（BulkSellDialog 拆分） */
+/** 可出售物品数量与总价值 */
 private fun sellableTotals(selection: BulkSellSelection): Pair<Int, Long> {
     val totalItems = selection.sellableEquipment.size + selection.sellableManuals.size +
             selection.sellablePills.size + selection.sellableMaterials.size +
@@ -94,7 +94,7 @@ private fun sellableTotals(selection: BulkSellSelection): Pair<Int, Long> {
     return totalItems to sellableValue(selection)
 }
 
-/** 一键出售筛选状态（BulkSellDialog 拆分） */
+/** 一键出售筛选状态 */
 private class BulkSellFilterState {
     var selectedRarities by mutableStateOf<Set<Int>>(emptySet())
     var selectedTypes by mutableStateOf<Set<String>>(emptySet())
@@ -160,7 +160,7 @@ internal fun BulkSellDialog(
     }
 }
 
-/** "ALL" 类型展开（BulkSellDialog 拆分） */
+/** "ALL" 类型展开 */
 private fun resolveBulkSellTypes(selectedTypes: Set<String>): Set<String> =
     if (selectedTypes.contains("ALL")) {
         setOf("EQUIPMENT", "PILL", "MANUAL", "HERB", "SEED", "MATERIAL")
@@ -168,8 +168,7 @@ private fun resolveBulkSellTypes(selectedTypes: Set<String>): Set<String> =
         selectedTypes
     }
 
-/** 六类可出售列表构建（BulkSellDialog 拆分）：品阶 + 类型 + 未锁定过滤 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 六类可出售列表构建：品阶 + 类型 + 未锁定过滤 */
 @Suppress("LongParameterList")
 @Composable
 private fun buildBulkSellSelection(
@@ -208,7 +207,7 @@ private fun buildBulkSellSelection(
     )
 )
 
-/** 筛选列表区（BulkSellDialog 拆分）：品阶 + 类型 + 可出售物品明细 */
+/** 筛选列表区：品阶 + 类型 + 可出售物品明细 */
 @Composable
 private fun ColumnScope.BulkSellFilterList(
     filterState: BulkSellFilterState,
@@ -277,7 +276,7 @@ private fun ColumnScope.BulkSellFilterList(
     }
 }
 
-/** 品阶多选按钮（BulkSellDialog 拆分） */
+/** 品阶多选按钮 */
 @Composable
 private fun BulkSellRarityFilter(filterState: BulkSellFilterState) {
     GridRow(items = BULK_SELL_RARITY_OPTIONS, maxColumnWidth = 80.dp) { (rarity, name) ->
@@ -299,7 +298,7 @@ private fun BulkSellRarityFilter(filterState: BulkSellFilterState) {
     }
 }
 
-/** 物品类型多选按钮（BulkSellDialog 拆分） */
+/** 物品类型多选按钮 */
 @Composable
 private fun BulkSellTypeFilter(filterState: BulkSellFilterState) {
     GridRow(items = BULK_SELL_TYPE_OPTIONS, maxColumnWidth = 80.dp) { (type, name) ->
@@ -321,7 +320,7 @@ private fun BulkSellTypeFilter(filterState: BulkSellFilterState) {
     }
 }
 
-/** 可出售物品明细列表（BulkSellDialog 拆分） */
+/** 可出售物品明细列表 */
 @Composable
 private fun BulkSellSellableList(
     selection: BulkSellSelection,
@@ -362,7 +361,7 @@ private fun BulkSellSellableList(
     }
 }
 
-/** 底部按钮（BulkSellDialog 拆分）：取消 / 确认出售 */
+/** 底部按钮：取消 / 确认出售 */
 @Composable
 private fun BulkSellActionButtons(
     totalItems: Int,
@@ -389,7 +388,7 @@ private fun BulkSellActionButtons(
     }
 }
 
-/** 确认出售弹窗（BulkSellDialog 拆分） */
+/** 确认出售弹窗 */
 @Composable
 private fun BulkSellConfirmDialog(
     totalItems: Int,
@@ -408,7 +407,7 @@ private fun BulkSellConfirmDialog(
         onConfirm = {
             if (isSelling) return@StandardPromptDialog
             isSelling = true
-            viewModel.bulkSellItems(selectedRarities, finalTypes)
+            viewModel.merchant.bulkSellItems(selectedRarities, finalTypes)
             onDismissDialog()
             onConfirmDone()
         },

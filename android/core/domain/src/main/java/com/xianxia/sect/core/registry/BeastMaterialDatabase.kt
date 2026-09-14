@@ -3,6 +3,8 @@ package com.xianxia.sect.core.registry
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.MaterialCategory
 
+@Suppress("TooManyFunctions") // 静态注册表：查询原语（按 id/名称/稀有度/档位维度）+ 私有数据表构建器，
+// 函数数随数据表查询维度线性增长；构建器与表定义同址内聚，拆分损害可读性
 object BeastMaterialDatabase {
     
     data class BeastMaterial(

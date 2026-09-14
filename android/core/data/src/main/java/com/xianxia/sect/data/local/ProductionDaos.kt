@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface BuildingSlotDao {
     @Query("SELECT * FROM building_slots WHERE slot_id = :slotId AND buildingId = :buildingId ORDER BY slotIndex")
     fun getByBuilding(slotId: Int, buildingId: String): Flow<List<BuildingSlot>>
@@ -48,6 +51,9 @@ interface BuildingSlotDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface RecipeDao {
     @Query("SELECT * FROM recipes WHERE slot_id = :slotId AND isUnlocked = 1")
     fun getUnlocked(slotId: Int): Flow<List<Recipe>>

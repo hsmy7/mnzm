@@ -60,7 +60,7 @@ fun DaoCompanionManagementDialog(
                         bannedRootCounts + count
                     }
                     bannedRootCounts = newRootCounts
-                    viewModel.setDaoCompanionBannedRootCounts(newRootCounts)
+                    viewModel.autoAssign.setDaoCompanionBannedRootCounts(newRootCounts)
                 }
             )
 
@@ -70,14 +70,14 @@ fun DaoCompanionManagementDialog(
                 onToggle = {
                     val newValue = !consentRequired
                     consentRequired = newValue
-                    viewModel.setDaoCompanionConsentRequired(newValue)
+                    viewModel.autoAssign.setDaoCompanionConsentRequired(newValue)
                 }
             )
         }
     }
 }
 
-/** 禁止结婚行（DaoCompanionManagementDialog 拆分）：标题 + 5 个灵根数过滤勾选 */
+/** 禁止结婚行：标题 + 5 个灵根数过滤勾选 */
 @Composable
 private fun DaoCompanionBannedRow(
     bannedRootCounts: Set<Int>,
@@ -108,7 +108,7 @@ private fun DaoCompanionBannedRow(
     }
 }
 
-/** 结婚需同意行（DaoCompanionManagementDialog 拆分）：标题 + 开关 */
+/** 结婚需同意行：标题 + 开关 */
 @Composable
 private fun DaoCompanionConsentRow(
     consentRequired: Boolean,

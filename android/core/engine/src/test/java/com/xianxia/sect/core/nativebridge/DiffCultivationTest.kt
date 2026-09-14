@@ -10,7 +10,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffCultivationTest — 修炼推进跨语言差分对拍（批次 5b 验收核心）。
+ * DiffCultivationTest — 修炼推进跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::cultivation（maxCultivation/每旬累积/检查点投影/
  * 绝对月份）与 Kotlin CultivationService.computeMaxCultivation +
@@ -79,12 +79,12 @@ class DiffCultivationTest {
     fun `accumulate clamps at cap matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        // 90 + 19 = 109 > 炼气 1 层上限 98 → 98
+        // 480 + 19 = 499 > 炼气 1 层上限 490 → 490
         val op = buildJsonObject {
             put("op", "accumulate"); put("realm", 9); put("realmLayer", 1)
-            put("cultivation", 90.0); put("rate", 19.0); put("alive", true)
+            put("cultivation", 480.0); put("rate", 19.0); put("alive", true)
         }
-        assertEquals(98.0, cppOp(op), 1e-12)
+        assertEquals(490.0, cppOp(op), 1e-12)
     }
 
     @Test

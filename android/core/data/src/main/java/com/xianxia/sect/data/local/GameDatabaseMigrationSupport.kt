@@ -1,4 +1,4 @@
-// GameDatabaseMigrationSupport.kt — Migration 辅助成员（从 GameDatabase.kt 拆分）
+// GameDatabaseMigrationSupport.kt — Migration 辅助成员
 package com.xianxia.sect.data.local
 
 import android.util.Log
@@ -90,7 +90,8 @@ private const val TAG = "GameDatabase"
                 `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}',
                 `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}',
                 `bloodRefinementPctTotals` TEXT NOT NULL DEFAULT '{}',
-                `heavenly_trial_state` TEXT NOT NULL DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
+                `heavenly_trial_state` TEXT NOT NULL
+                    DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
                 `sign_in_state_json` TEXT NOT NULL DEFAULT '{"claimedDays":[],"currentMonth":0,"currentYear":0}',
                 `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL,
                 `lastYearSpiritStoneIncome` INTEGER NOT NULL, `activeAttackWarnings` TEXT NOT NULL,
@@ -118,12 +119,10 @@ private const val TAG = "GameDatabase"
          * NOT NULL constraint failed。
          *
          * @param oldSuffix 旧表重命名后缀（如 "_old"）
-         * @param sourceColumns 旧表的列名列表（带引号），仅复制这些列
          */
         internal fun rebuildGameData(
             db: SupportSQLiteDatabase,
-            oldSuffix: String,
-            sourceColumns: List<String>
+            oldSuffix: String
         ) {
             // 校验后缀：仅允许字母数字下划线，防止 SQL 注入
             require(oldSuffix.matches(Regex("^[a-zA-Z0-9_]+$"))) {
@@ -158,7 +157,7 @@ private const val TAG = "GameDatabase"
             rebuildGameDataIndices(db)
         }
 
-        /** 读取指定表的全部列名集合（rebuildGameData 拆分） */
+        /** 读取指定表的全部列名集合 */
         private fun readColumnNames(db: SupportSQLiteDatabase, table: String): Set<String> {
             val cursor = db.query("PRAGMA table_info($table)")
             val names = mutableSetOf<String>()
@@ -171,13 +170,12 @@ private const val TAG = "GameDatabase"
         }
 
         /**
-         * 构建 INSERT SELECT 的列表达式列表（rebuildGameData 拆分）：
+         * 构建 INSERT SELECT 的列表达式列表：
          * - 旧表已有的列 → IFNULL(旧表列, 默认值)（兜底旧数据中的 NULL）
          * - 仅新表有的列 → 直接使用 SQLite DEFAULT 值或按类型兜底
          * 避免 GAME_DATA_CREATE_SQL 包含后续新增列时，SELECT 引用旧表不存在的列
          * 导致 SQLITE_ERROR。
          */
-        // 拆分搬移:嵌套/条件结构与原函数一致
         @Suppress("NestedBlockDepth")
         private fun buildSelectParts(
             db: SupportSQLiteDatabase,
@@ -221,7 +219,7 @@ private const val TAG = "GameDatabase"
             return selectParts
         }
 
-        /** 无 SQLite 默认值时的按类型安全兜底（rebuildGameData 拆分） */
+        /** 无 SQLite 默认值时的按类型安全兜底 */
         private fun columnTypeFallback(type: String): String = when (type.uppercase(Locale.ROOT)) {
             "INTEGER" -> "0"
             "REAL" -> "0.0"
@@ -233,7 +231,8 @@ private const val TAG = "GameDatabase"
         internal fun rebuildGameDataIndices(db: SupportSQLiteDatabase) {
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_game_data_slot_id` ON `game_data` (`slot_id`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_lastSaveTime` ON `game_data` (`lastSaveTime`)")
-            db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `game_data` (`gameYear`, `gameMonth`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `game_data` (`gameYear`, " +
+                "`gameMonth`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_sectName` ON `game_data` (`sectName`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_spiritStones` ON `game_data` (`spiritStones`)")
         }
@@ -242,8 +241,10 @@ private const val TAG = "GameDatabase"
          * Room v25 生成的 storage_bags 表 CREATE TABLE SQL（单行，来自 25.json createSql）。
          * 必须与 StorageBag 实体完全一致：无 DEFAULT 子句。
          */
-        internal val STORAGE_BAGS_CREATE_SQL =
-            "CREATE TABLE IF NOT EXISTS `storage_bags` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))"
+        internal const val STORAGE_BAGS_CREATE_SQL =
+            "CREATE TABLE IF NOT EXISTS `storage_bags` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT " +
+                "NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `quantity` INTEGER NOT NULL, " +
+                    "`isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))"
 
         /** 重建 storage_bags 表，使用 Room 生成的正确 schema（无 DEFAULT）。
          *  注意：避免与 rebuildGameData 共用 _old 后缀以防事务内冲突。 */

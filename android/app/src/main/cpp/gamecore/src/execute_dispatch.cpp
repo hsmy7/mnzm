@@ -3,31 +3,56 @@
 #include <nlohmann/json.hpp>
 
 #include "gamecore/action_ids.h"
+#include "gamecore/dispatch_w4.h"
 #include "gamecore/state/json_codec.h"
+#include "gamecore/system/appointment_tx.h"
 #include "gamecore/system/battle.h"
+#include "gamecore/system/battle_json.h"
+#include "gamecore/system/boundary_tx.h"
+#include "gamecore/system/building_tx.h"
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/death_handler.h"
+#include "gamecore/system/disciple_tx.h"
+#include "gamecore/system/disciple_lifecycle_tx.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
+#include "gamecore/system/exploration_tx.h"
 #include "gamecore/system/government.h"
 #include "gamecore/system/inventory.h"
+#include "gamecore/system/inventory_tx.h"
+#include "gamecore/system/jade_tx.h"
 #include "gamecore/system/lifecycle.h"
 #include "gamecore/system/level_generator.h"
+#include "gamecore/system/lock_beast_tx.h"
 #include "gamecore/system/rarity_progression.h"
 #include "gamecore/system/redeem_code.h"
 #include "gamecore/system/secret_realm.h"
+#include "gamecore/system/secret_realm_platform_tx.h"
+#include "gamecore/system/secret_realm_session.h"
+#include "gamecore/system/production.h"
+#include "gamecore/system/road_tx.h"
 #include "gamecore/system/sect_decision.h"
 #include "gamecore/system/sect_power.h"
 #include "gamecore/system/sect_trade.h"
 #include "gamecore/system/slot_cleanup.h"
 #include "gamecore/system/spirit_field.h"
+#include "gamecore/system/storage_bag_tx.h"
+#include "gamecore/system/patrol_tx.h"
+#include "gamecore/system/sect_attack_tx.h"
+// recruit_tx.h（batch-16 招募列表 UI 直调事务）传递引入 year_settlement.h →
+// month_settlement.h using 声明——按 README §3.3 置于包含块末尾、diplomacy_tx.h 之前
+#include "gamecore/system/recruit_tx.h"
+// diplomacy_tx.h 置于包含块末尾：其 month_settlement.h 传递引入的
+// using 声明会改变后续头文件（disciple_tx.h）的非限定名解析
+//（include-order 依赖，batch-09 登记项）
+#include "gamecore/system/diplomacy_tx.h"
 
 // ============================================================
-// GameCore::execute — ActionId 分发表（Kotlin→C++ 迁移批次 9）
+// GameCore::execute — ActionId 分发表
 //
-// 批次 4-8 已落地的 C++ 系统经此统一入口被 Kotlin 转发层调用。
+// 各 C++ 系统经此统一入口被 Kotlin 转发层调用。
 // 参数/结果一律 JSON（nlohmann/json ↔ kotlinx.serialization），
 // 与 ActionIds.kt / action_ids.h 同源（scripts/gen-action-ids.mjs）。
 //
@@ -320,7 +345,7 @@ nlohmann::json handleInventory(GameCore* core, int32_t actionId,
     }
     data["overflowMails"] = mail.all().size();
     if (!mail.empty()) {
-        // 溢出邮件草稿回传（批 8-2：Kotlin wrapper 经 OverflowMailSender 落库，
+        // 溢出邮件草稿回传（Kotlin wrapper 经 OverflowMailSender 落库，
         // 与 Kotlin 原路径同一解析/投递通道——否则溢出物品在 native 通道丢失）
         nlohmann::json drafts = nlohmann::json::array();
         for (const auto& d : mail.all()) {
@@ -666,7 +691,7 @@ nlohmann::json handleExploration(GameCore* core, int32_t actionId,
     }
 }
 
-/// 关卡生成操作（计划 v2 阶段 4 批 4-1：ActionIds.LEVEL_*）
+/// 关卡生成操作（ActionIds.LEVEL_*）
 nlohmann::json handleLevelGeneration(GameCore* core, int32_t actionId,
                                      const nlohmann::json& params) {
     switch (actionId) {
@@ -718,7 +743,7 @@ nlohmann::json handleLevelGeneration(GameCore* core, int32_t actionId,
     }
 }
 
-/// 兑换码与邮件附件（计划 v2 阶段 4 批 4-6：ActionIds.REDEEM_* / MAIL_*）
+/// 兑换码与邮件附件（ActionIds.REDEEM_* / MAIL_*）
 nlohmann::json handleRedeemCode(GameCore* core, int32_t actionId,
                                 const nlohmann::json& params) {
     using gamecore::state::MailAttachment;
@@ -793,7 +818,7 @@ nlohmann::json handleRedeemCode(GameCore* core, int32_t actionId,
     }
 }
 
-/// 弟子槽位清理（计划 v2 阶段 4 批 4-5：ActionIds.SLOT_CLEAR_ALL）
+/// 弟子槽位清理（ActionIds.SLOT_CLEAR_ALL）
 nlohmann::json handleSlotCleanup(GameCore* core, const nlohmann::json& params) {
     (void)core;
     using gamecore::system::SlotCleanupInput;
@@ -879,7 +904,7 @@ nlohmann::json handleSlotCleanup(GameCore* core, const nlohmann::json& params) {
     return ok(std::move(data));
 }
 
-/// 外交/宗门决策操作（计划 v2 阶段 4 批 4-4：ActionIds.SECT_*）
+/// 外交/宗门决策操作（ActionIds.SECT_*）
 nlohmann::json handleSectDiplomacy(GameCore* core, int32_t actionId,
                                    const nlohmann::json& params) {
     using gamecore::system::SectDecisionKind;
@@ -1008,7 +1033,7 @@ nlohmann::json handleSectDiplomacy(GameCore* core, int32_t actionId,
     }
 }
 
-/// 远古秘境操作（计划 v2 阶段 4 批 4-3：ActionIds.SECRET_REALM_*）
+/// 远古秘境操作（ActionIds.SECRET_REALM_*）
 nlohmann::json handleSecretRealm(GameCore* core, int32_t actionId,
                                  const nlohmann::json& params) {
     using gamecore::system::SecretRealmTypeCandidates;
@@ -1182,7 +1207,809 @@ nlohmann::json handleSecretRealm(GameCore* core, int32_t actionId,
     }
 }
 
-/// 死亡物化操作（计划 v2 阶段 4 批 4-2：ActionIds.DISCIPLE_MARK_DEAD /
+/// 秘境交互会话域（ActionIds.SECRET_REALM_START/CHOOSE/
+/// END/YEARLY_SPAWN——Kotlin SecretRealmService 交互会话下沉；战斗终态 +
+/// rounds 回传 Kotlin 重建战报，展示通道非协议）
+nlohmann::json handleSecretRealmSession(GameCore* core, int32_t actionId,
+                                        const nlohmann::json& params) {
+    using namespace gamecore::system::sr_session;
+    using gamecore::state::SecretRealmMemberState;
+    const auto membersJson = [](const std::vector<SecretRealmMemberState>& ms) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& m : ms) arr.push_back(m);
+        return arr;
+    };
+    const auto idSetJson = [](const std::set<std::string>& ids) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& id : ids) arr.push_back(id);
+        return arr;
+    };
+    const auto draftsJson = [](const std::vector<gamecore::system::OverflowDraft>& ds) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& d : ds) {
+            arr.push_back({{"itemType", d.itemType},
+                           {"itemName", d.itemName},
+                           {"itemId", d.itemId},
+                           {"rarity", d.rarity},
+                           {"quantity", d.quantity},
+                           {"source", d.source}});
+        }
+        return arr;
+    };
+    switch (actionId) {
+        case action::SECRET_REALM_START: {
+            std::vector<std::string> memberIds;
+            for (const auto& id : params.at("memberIds")) {
+                memberIds.push_back(id.get<std::string>());
+            }
+            const auto r = startSession(core->state(), memberIds, core->rng());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"started", true}});
+        }
+        case action::SECRET_REALM_CHOOSE: {
+            const auto outcome = chooseOption(
+                core->state(), params.at("optionIndex").get<int32_t>(), core->rng());
+            if (!outcome.ok) return fail("INVALID_CHOICE", outcome.errorText);
+            nlohmann::json env = {
+                {"message", outcome.message},
+                {"sessionEnded", outcome.sessionEnded},
+                {"releasedMemberIds", idSetJson(outcome.releasedMemberIds)},
+                {"resultText", outcome.resolution.resultText},
+                {"enteredCombat", outcome.resolution.enteredCombat},
+                {"victory", outcome.resolution.enteredCombat && outcome.resolution.battle &&
+                                outcome.resolution.battle->victory},
+                {"deadIds", idSetJson(outcome.resolution.deadIds)},
+                {"members", membersJson(outcome.resolution.members)},
+                {"nextEvent", outcome.resolution.nextEvent},
+                {"params", outcome.resolution.params},
+                {"overflowDrafts", draftsJson(outcome.overflowDrafts)},
+            };
+            if (outcome.resolution.battle.has_value()) {
+                const auto& b = *outcome.resolution.battle;
+                env["battle"] = {
+                    {"type", b.battleType},
+                    {"defenderName", b.defenderName},
+                    {"details", b.details},
+                    {"beastsDefeated", b.beastsDefeated},
+                    {"hasBattle", b.hasBattle},
+                    {"winner", b.battle.winner == gamecore::battle::BattleWinner::kTeam
+                                   ? "TEAM"
+                                   : b.battle.winner == gamecore::battle::BattleWinner::kBeasts
+                                         ? "BEASTS"
+                                         : "DRAW"},
+                    {"turn", b.battle.turn},
+                    {"teamCasualties", b.teamCasualties},
+                    {"rewards", b.battle.rewards},
+                    {"team", [&] {
+                         nlohmann::json arr = nlohmann::json::array();
+                         for (const auto& c : b.battle.team) {
+                             arr.push_back(gamecore::battle::combatantToJson(c));
+                         }
+                         return arr;
+                     }()},
+                    {"beasts", [&] {
+                         nlohmann::json arr = nlohmann::json::array();
+                         for (const auto& c : b.battle.beasts) {
+                             arr.push_back(gamecore::battle::combatantToJson(c));
+                         }
+                         return arr;
+                     }()},
+                    {"rounds", gamecore::battle::roundsToJson(b.battle.rounds)},
+                };
+            }
+            return ok(std::move(env));
+        }
+        case action::SECRET_REALM_END: {
+            gamecore::system::OverflowMailCollector overflowMail;
+            const std::string reason =
+                params.value("reason", std::string(gamecore::system::sr_session::kEndExplorerEnd));
+            const auto released =
+                endSession(core->state(), reason.c_str(), overflowMail);
+            return ok({{"releasedMemberIds", idSetJson(released)},
+                       {"overflowDrafts", draftsJson(overflowMail.all())}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "secret realm session action " + std::to_string(actionId));
+    }
+}
+
+/// 秘境平台段读档恢复事务（batch-20a——ActionIds.SECRET_REALM_CONTINUE_TX；
+/// 零 RNG。会话域判定段下沉：到期关闭/死局重置/成员净化；gate 释放/
+/// 溢出邮件投递/关闭邮件重建/状态同步保留 Kotlin——信封 secretRealmClose
+/// 段与 nativeSettleMonth 同构，Kotlin 侧复用 applyExpiryCloseDraft 通道）
+nlohmann::json handleSecretRealmPlatformTx(GameCore* core, int32_t actionId,
+                                           const nlohmann::json& params) {
+    (void)actionId;
+    (void)params;
+    using namespace gamecore::system::sr_platform;
+    const auto out = continueSessionTx(core->state());
+    nlohmann::json env = {
+        {"canContinue", out.canContinue},
+        {"action", out.action},
+        {"releasedMemberIds", [&] {
+             nlohmann::json arr = nlohmann::json::array();
+             for (const auto& id : out.releasedMemberIds) arr.push_back(id);
+             return arr;
+         }()},
+    };
+    if (!out.overflowDrafts.empty()) {
+        nlohmann::json drafts = nlohmann::json::array();
+        for (const auto& d : out.overflowDrafts) {
+            drafts.push_back({{"itemType", d.itemType},
+                              {"itemName", d.itemName},
+                              {"itemId", d.itemId},
+                              {"rarity", d.rarity},
+                              {"quantity", d.quantity},
+                              {"source", d.source}});
+        }
+        env["overflowDrafts"] = std::move(drafts);
+    }
+    if (out.closeDraft.has_value()) {
+        nlohmann::json close = {{"closed", out.closeDraft->closed},
+                                {"slotId", out.closeDraft->slotId}};
+        close["memberIds"] = out.closeDraft->memberIds;
+        nlohmann::json bp;
+        gamecore::state::to_json(bp, out.closeDraft->backpack);
+        close["backpack"] = std::move(bp);
+        env["secretRealmClose"] = std::move(close);
+    }
+    return ok(std::move(env));
+}
+
+/// 攻宗确定性写回事务（ActionIds.SECT_ATTACK_* —— batch-20b）。
+/// 零 RNG；失败零写入 → 失败信封供 Kotlin 回退臂重执行。
+/// 登记不下沉：战利品生成族（Random.Default 非分区随机域）/ 奖励入账事务 /
+/// 战绩记录（与 Kotlin 显示域 battleLogs 同事务）——见 handover §2.51b。
+nlohmann::json handleSectAttackTx(GameCore* core, int32_t actionId,
+                                  const nlohmann::json& params) {
+    namespace sat = gamecore::system::sect_attack_tx;
+    auto& state = core->state();
+
+    auto toFailure = [](const sat::TxResult& r) {
+        return fail(r.errorType.empty() ? "INVALID" : r.errorType, r.message);
+    };
+
+    switch (actionId) {
+        case action::SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX: {
+            std::vector<std::string> deadIds;
+            if (params.contains("deadDefenderIds")) {
+                for (const auto& e : params.at("deadDefenderIds")) {
+                    deadIds.push_back(e.get<std::string>());
+                }
+            }
+            const auto r = sat::removeDeadDefendersTx(
+                state, params.at("sectId").get<std::string>(),
+                params.at("defenderPoolSectId").get<std::string>(), deadIds);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"removedFromPool", r.removedFromPool},
+                       {"clearedGarrisonSlots", r.clearedGarrisonSlots}});
+        }
+        case action::SECT_ATTACK_GRANT_SOUL_POWERS_TX: {
+            std::vector<std::string> survivorIds;
+            for (const auto& e : params.at("sectSurvivorIds")) {
+                survivorIds.push_back(e.get<std::string>());
+            }
+            const auto r = sat::grantWarSoulPowersTx(state, survivorIds);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"granted", r.granted}});
+        }
+        default:
+            return fail("NOT_IMPLEMENTED",
+                        "unknown sect attack action: " + std::to_string(actionId));
+    }
+}
+
+/// 巡逻 / 住所 / 矿场 / 年俸 UI 操作面事务（ActionIds.PATROL_* —— batch-12）。
+/// 全链零 RNG；失败零写入 → 失败信封供 Kotlin 回退臂重执行校验链。
+/// 信封回执 releasedIds/confirmedIds 驱动 Kotlin 事务外残差（gate / Room / 状态同步）。
+nlohmann::json handlePatrolTx(GameCore* core, int32_t actionId,
+                              const nlohmann::json& params) {
+    namespace pt = gamecore::system::patrol_tx;
+    auto& state = core->state();
+
+    /// 统一失败信封：ok=false 时按 Kotlin AppError 分型回传
+    auto toFailure = [](const pt::TxResult& r) {
+        return fail(r.errorType.empty() ? "INVALID" : r.errorType, r.message);
+    };
+    /// 批量分配回执（releasedIds/confirmedIds/confirmedIndexes 三列同序）
+    auto autoAssignEnvelope = [&](const pt::AutoAssignOutcome& r) {
+        if (!r.base.ok) return toFailure(r.base);
+        nlohmann::json released = nlohmann::json::array();
+        for (const auto& id : r.releasedIds) released.push_back(id);
+        nlohmann::json confirmed = nlohmann::json::array();
+        for (const auto& id : r.confirmedIds) confirmed.push_back(id);
+        nlohmann::json indexes = nlohmann::json::array();
+        for (const auto idx : r.confirmedIndexes) indexes.push_back(idx);
+        return ok({{"changed", r.changed},
+                   {"releasedIds", std::move(released)},
+                   {"confirmedIds", std::move(confirmed)},
+                   {"confirmedIndexes", std::move(indexes)}});
+    };
+
+    switch (actionId) {
+        case action::PATROL_ASSIGN_RESIDENCE: {
+            const auto r = pt::assignToResidenceTx(
+                state, params.at("buildingInstanceId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>(),
+                params.at("discipleId").get<std::string>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed},
+                       {"releasedOccupantId", r.releasedOccupantId}});
+        }
+        case action::PATROL_REMOVE_RESIDENCE: {
+            const auto r = pt::removeFromResidenceTx(
+                state, params.at("buildingInstanceId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"removedDiscipleId", r.removedDiscipleId}});
+        }
+        case action::PATROL_ASSIGN: {
+            const auto r = pt::assignPatrolTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("globalIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed},
+                       {"releasedOccupantId", r.releasedOccupantId}});
+        }
+        case action::PATROL_REMOVE: {
+            const auto r = pt::removePatrolTx(
+                state, params.at("globalIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"removedDiscipleId", r.removedDiscipleId}});
+        }
+        case action::PATROL_SWAP: {
+            const auto r = pt::swapPatrolTx(
+                state, params.at("fromGlobalIndex").get<int32_t>(),
+                params.at("toGlobalIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed},
+                       {"fromDiscipleId", r.fromDiscipleId},
+                       {"toDiscipleId", r.toDiscipleId}});
+        }
+        case action::PATROL_AUTO_ASSIGN: {
+            std::vector<std::pair<int32_t, std::string>> assignments;
+            for (const auto& e : params.at("assignments")) {
+                assignments.emplace_back(e.at("globalIndex").get<int32_t>(),
+                                         e.at("discipleId").get<std::string>());
+            }
+            return autoAssignEnvelope(pt::autoAssignPatrolTx(state, assignments));
+        }
+        case action::PATROL_UPDATE_CONFIG: {
+            std::vector<gamecore::state::PatrolConfig> configs;
+            for (const auto& e : params.at("configs")) {
+                gamecore::state::PatrolConfig cfg;
+                if (e.contains("targetRealms")) {
+                    for (const auto& v : e.at("targetRealms")) {
+                        cfg.targetRealms.push_back(v.get<int32_t>());
+                    }
+                }
+                cfg.maxBeastCount = e.value("maxBeastCount", 1);
+                cfg.requireFullStatus = e.value("requireFullStatus", true);
+                configs.push_back(std::move(cfg));
+            }
+            const auto r = pt::updatePatrolConfigsTx(state, std::move(configs));
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}});
+        }
+        case action::PATROL_UPDATE_SPIRIT_MINE_SLOTS: {
+            std::vector<gamecore::state::SpiritMineSlot> slots;
+            for (const auto& e : params.at("slots")) {
+                slots.push_back(e.get<gamecore::state::SpiritMineSlot>());
+            }
+            const auto r = pt::updateSpiritMineSlotsTx(state, std::move(slots));
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}});
+        }
+        case action::PATROL_FIX_SPIRIT_MINE: {
+            const auto r = pt::validateAndFixSpiritMineDataTx(state);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}, {"alignedCount", r.alignedCount}});
+        }
+        case action::PATROL_UPDATE_YEARLY_SALARY: {
+            std::map<int32_t, int32_t> salary;
+            for (const auto& e : params.at("yearlySalaryEntries")) {
+                salary[e.at("realm").get<int32_t>()] = e.at("amount").get<int32_t>();
+            }
+            const auto r = pt::updateYearlySalaryTx(state, std::move(salary));
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}});
+        }
+        default:
+            return fail("NOT_IMPLEMENTED",
+                        "unknown patrol action: " + std::to_string(actionId));
+    }
+}
+
+/// 妖兽视图锁定 + 设置项字段补丁事务（ActionIds.BEAST_VIEW_LOCK_TX /
+/// SETTINGS_PATCH_TX —— batch-23）。零 RNG；失败零写入 → 失败信封供
+/// Kotlin 回退臂重执行（双实现并行契约，见 lock_beast_tx.h 头注释）。
+nlohmann::json handleLockBeastTx(GameCore* core, int32_t actionId,
+                                 const nlohmann::json& params) {
+    namespace lbt = gamecore::system::lock_beast_tx;
+    auto& state = core->state();
+
+    auto toFailure = [](const lbt::TxResult& r) {
+        return fail(r.errorType.empty() ? "INVALID" : r.errorType, r.message);
+    };
+
+    switch (actionId) {
+        case action::BEAST_VIEW_LOCK_TX: {
+            const auto r = lbt::lockBeastViewTx(
+                state, params.at("beastId").get<std::string>(),
+                params.at("locked").get<bool>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}, {"lockedCount", r.lockedCount}});
+        }
+        case action::SETTINGS_PATCH_TX: {
+            // 字段补丁：k/v 数组逐项解析（bool → 开关字段；int 数组 → Int 集字段）
+            lbt::SettingPatch patch;
+            for (const auto& e : params.at("patch")) {
+                const std::string field = e.at("field").get<std::string>();
+                const auto& value = e.at("value");
+                if (value.is_boolean()) {
+                    patch[field] = value.get<bool>();
+                } else if (value.is_array()) {
+                    std::vector<int32_t> ints;
+                    ints.reserve(value.size());
+                    for (const auto& v : value) ints.push_back(v.get<int32_t>());
+                    patch[field] = std::move(ints);
+                } else {
+                    return fail("TypeMismatch", "未知设置项值类型 " + field);
+                }
+            }
+            const auto r = lbt::updateSettingsTx(state, patch);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}, {"appliedFields", r.appliedFields}});
+        }
+        default:
+            return fail("NOT_IMPLEMENTED",
+                        "unknown residual action: " + std::to_string(actionId));
+    }
+}
+
+/// 生产排程交互事务（ActionIds.PRODUCTION_START/RESET——
+/// 手动排班 C++ 真相先行；Kotlin 后置持久化 + 消耗日志）
+nlohmann::json handleProductionScheduling(GameCore* core, int32_t actionId,
+                                          const nlohmann::json& params) {
+    using gamecore::system::production::ProductionStartOutcome;
+    switch (actionId) {
+        case action::PRODUCTION_START: {
+            const auto r = gamecore::system::production::startProductionTransaction(
+                core->state(), params.at("buildingId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>(),
+                params.at("recipeId").get<std::string>(),
+                params.value("successRate", -1.0),
+                params.value("policyBonus", 0.0),
+                params.value("isAlchemy", false));
+            if (!r.ok) {
+                // 失败信封 → Kotlin 回退原路径重执行校验链（InsufficientMaterials
+                // 的缺口明细由 Kotlin 侧自行构建——双实现并行契约）
+                return fail(r.errorType, r.message);
+            }
+            return ok({{"started", true}});
+        }
+        case action::PRODUCTION_RESET: {
+            const bool reset = gamecore::system::production::resetProductionSlotTransaction(
+                core->state(), params.at("buildingId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>());
+            if (!reset) return fail("InvalidSlot", "槽位不存在");
+            return ok({{"reset", true}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "production scheduling action " + std::to_string(actionId));
+    }
+}
+
+/// 生产 UI 操作事务（ActionIds.PROD_UI_*——batch-17：生产槽任命/卸任/
+/// 自动续炼翻转/惰性建槽）。与 handleProductionScheduling（S7 手动排班）
+/// 分开：本组只维护 gameData.productionSlots 镜像与全槽位清理，
+/// Room 回放 / gate 注册 / 弟子状态推导为 Kotlin 残差（S7 同族）。
+/// 校验链先行 → 失败零写入 → failure 信封 → Kotlin 回退原路径重执行校验链。
+nlohmann::json handleProductionUiTx(GameCore* core, int32_t actionId,
+                                    const nlohmann::json& params) {
+    namespace prod = gamecore::system::production;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::PROD_UI_ASSIGN_SLOT: {
+            const auto r = prod::assignProductionSlotTx(
+                state, params.at("buildingType").get<std::string>(),
+                params.at("slotIndex").get<int32_t>(),
+                params.at("discipleId").get<std::string>(),
+                params.value("discipleName", std::string()));
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"assigned", true},
+                       {"oldOccupantId", r.oldOccupantId},
+                       {"oldOccupantName", r.oldOccupantName}});
+        }
+        case action::PROD_UI_REMOVE_SLOT: {
+            const auto r = prod::removeProductionSlotDiscipleTx(
+                state, params.at("buildingType").get<std::string>(),
+                params.at("slotIndex").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"removed", true}, {"discipleId", r.discipleId}});
+        }
+        case action::PROD_UI_TOGGLE_AUTO_RESTART: {
+            const auto r = prod::toggleAutoRestartTx(
+                state, params.at("buildingType").get<std::string>(),
+                params.at("slotIndex").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"toggled", true}, {"newValue", r.newValue}});
+        }
+        case action::PROD_UI_ADD_SLOT: {
+            gamecore::state::ProductionSlot slot;
+            slot.id = params.value("id", std::string());
+            slot.slotIndex = params.value("slotIndex", 0);
+            slot.buildingType = params.value("buildingType", std::string());
+            slot.buildingId = params.value("buildingId", std::string());
+            slot.status = params.value("status", std::string("IDLE"));
+            const std::string recipeId = params.value("recipeId", std::string());
+            if (!recipeId.empty()) slot.recipeId = recipeId;
+            slot.recipeName = params.value("recipeName", std::string());
+            slot.startYear = params.value("startYear", 0);
+            slot.startMonth = params.value("startMonth", 0);
+            slot.duration = params.value("duration", 0);
+            slot.baseDuration = params.value("baseDuration", 0);
+            const std::string assignedId = params.value("assignedDiscipleId", std::string());
+            if (!assignedId.empty()) slot.assignedDiscipleId = assignedId;
+            slot.assignedDiscipleName = params.value("assignedDiscipleName", std::string());
+            slot.successRate = params.value("successRate", 0.0);
+            const std::string outputItemId = params.value("outputItemId", std::string());
+            if (!outputItemId.empty()) slot.outputItemId = outputItemId;
+            slot.outputItemName = params.value("outputItemName", std::string());
+            slot.outputItemRarity = params.value("outputItemRarity", 1);
+            slot.outputItemSlot = params.value("outputItemSlot", std::string());
+            slot.expectedYield = params.value("expectedYield", 0);
+            slot.autoRestartEnabled = params.value("autoRestartEnabled", false);
+            slot.completionMonth = params.value("completionMonth", 0);
+            slot.completionPhase = params.value("completionPhase", 1);
+            const auto r = prod::addProductionSlotTx(state, slot);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"added", true}, {"created", r.created}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "production ui tx action " + std::to_string(actionId));
+    }
+}
+
+/// 灵田种植族 UI 操作事务（ActionIds.SPIRIT_FIELD_PLANT_*/REMOVE_*——batch-17：
+/// 单/批播种与移除，零 RNG 纯数据变换 + 同事务扣种）。与
+/// SPIRIT_FIELD_HARVEST（月结收获，SYSTEM 分区抽取）分开。
+/// 校验链先行（种子存在/未锁定/余量>0）→ 失败零写入 → failure 信封 →
+/// Kotlin 回退原路径重执行校验链。
+nlohmann::json handleSpiritFieldPlantTx(GameCore* core, int32_t actionId,
+                                        const nlohmann::json& params) {
+    namespace sfx = gamecore::system::spirit_field_tx;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::SPIRIT_FIELD_PLANT_ONE: {
+            const auto r = sfx::plantOnSpiritFieldTx(
+                state, params.at("buildingInstanceId").get<std::string>(),
+                params.at("seedId").get<std::string>(),
+                params.value("sectId", std::string()));
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"planted", r.planted}});
+        }
+        case action::SPIRIT_FIELD_PLANT_BATCH: {
+            std::vector<std::string> instanceIds;
+            if (params.contains("instanceIds")) {
+                for (const auto& e : params.at("instanceIds")) {
+                    instanceIds.push_back(e.get<std::string>());
+                }
+            }
+            const auto r = sfx::plantOnSpiritFieldsTx(
+                state, instanceIds, params.at("seedId").get<std::string>(),
+                params.value("sectId", std::string()));
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"planted", r.planted}});
+        }
+        case action::SPIRIT_FIELD_REMOVE_ONE: {
+            const auto r = sfx::removePlantFromSpiritFieldTx(
+                state, params.at("buildingInstanceId").get<std::string>());
+            return ok({{"removed", r.removed}});
+        }
+        case action::SPIRIT_FIELD_REMOVE_BATCH: {
+            std::vector<std::string> instanceIds;
+            if (params.contains("instanceIds")) {
+                for (const auto& e : params.at("instanceIds")) {
+                    instanceIds.push_back(e.get<std::string>());
+                }
+            }
+            const auto r = sfx::removePlantsFromSpiritFieldsTx(state, instanceIds);
+            return ok({{"removed", r.removed}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "spirit field plant tx action " + std::to_string(actionId));
+    }
+}
+
+/// 道路放置/拆除事务（ActionIds.ROAD_PLACE/ROAD_REMOVE——
+/// Kotlin RoadFacade AUTHORITATIVE 转发；失败零写入，失败信封 →
+/// Kotlin 回退原路径重执行校验链。占位几何参数与占用集合（本宗建筑占地
+/// ∪ 固定结构——宗门过滤需 sectId，C++ GridBuildingData 不承载）由
+/// Kotlin 组装传入）
+nlohmann::json handleRoadTx(GameCore* core, int32_t actionId,
+                            const nlohmann::json& params) {
+    auto& gd = core->state().gameData;
+    const int32_t gridX = params.at("gridX").get<int32_t>();
+    const int32_t gridY = params.at("gridY").get<int32_t>();
+    std::vector<int64_t> occupiedCells;
+    if (params.contains("occupiedCells")) {
+        for (const auto& c : params.at("occupiedCells")) {
+            occupiedCells.push_back(c.get<int64_t>());
+        }
+    }
+    switch (actionId) {
+        case action::ROAD_PLACE: {
+            const auto r = gamecore::system::placeRoadTx(
+                gd, gridX, gridY,
+                params.at("width").get<int32_t>(),
+                params.at("height").get<int32_t>(),
+                params.at("border").get<int32_t>(),
+                params.at("cost").get<int64_t>(),
+                occupiedCells);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"placed", true}, {"spiritStones", r.spiritStonesAfter}});
+        }
+        case action::ROAD_REMOVE: {
+            const auto r = gamecore::system::removeRoadTx(
+                gd, gridX, gridY,
+                params.at("width").get<int32_t>(),
+                params.at("height").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"removed", true}, {"spiritStones", r.spiritStonesAfter}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "road tx action " + std::to_string(actionId));
+    }
+}
+
+/// 弟子管理 UI 操作事务（ActionIds.DISCIPLE_TX_*——batch-08 第一子批：
+/// 装备穿脱/功法学习卸下/任命卸任；零 RNG 纯事务，失败零写入，
+/// 失败信封 → Kotlin 回退原路径重执行校验链。equip 成功信封附
+/// logLine 日志草稿（Kotlin lifeEvents 瞬态列回写），
+/// 任命/卸任信封附 occupant（Kotlin gate 注册表释放用））
+nlohmann::json handleDiscipleTx(GameCore* core, int32_t actionId,
+                                const nlohmann::json& params) {
+    namespace disciple_tx = gamecore::system::disciple_tx;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::DISCIPLE_TX_EQUIP: {
+            const auto r = disciple_tx::equipTransaction(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("equipmentId").get<std::string>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"equipped", true}, {"logLine", r.logLine}});
+        }
+        case action::DISCIPLE_TX_UNEQUIP: {
+            const auto r = disciple_tx::unequipTransaction(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("equipmentId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"unequipped", true}});
+        }
+        case action::DISCIPLE_TX_LEARN_MANUAL: {
+            const auto r = disciple_tx::learnManualTransaction(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("stackId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"learned", true}});
+        }
+        case action::DISCIPLE_TX_UNLEARN_MANUAL: {
+            const auto r = disciple_tx::unlearnManualTransaction(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("instanceId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"unlearned", true}});
+        }
+        case action::DISCIPLE_TX_ASSIGN_SLOT: {
+            const auto family = params.value("family", "elderDirect") == "library"
+                                    ? disciple_tx::SlotFamily::kLibrary
+                                    : disciple_tx::SlotFamily::kElderDirect;
+            const auto r = disciple_tx::assignSlotTransaction(
+                state, family, params.value("elderSlotType", ""),
+                params.at("slotIndex").get<int32_t>(),
+                params.at("discipleId").get<std::string>(),
+                params.value("discipleName", ""),
+                params.value("discipleRealm", ""),
+                params.value("spiritRootColor", ""));
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"assigned", true}, {"oldOccupantId", r.oldOccupantId}});
+        }
+        case action::DISCIPLE_TX_UNASSIGN_SLOT: {
+            const auto family = params.value("family", "elderDirect") == "library"
+                                    ? disciple_tx::SlotFamily::kLibrary
+                                    : disciple_tx::SlotFamily::kElderDirect;
+            const auto r = disciple_tx::unassignSlotTransaction(
+                state, family, params.value("elderSlotType", ""),
+                params.at("slotIndex").get<int32_t>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"unassigned", true}, {"removedDiscipleId", r.removedDiscipleId}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "disciple tx action " + std::to_string(actionId));
+    }
+}
+
+/// 外交/好感/附庸 UI 操作事务（ActionIds.DIPLOMACY_TX/FAVOR_GIFT/VASSAL_TX
+/// ——Kotlin GiftService/DiplomacyService/VassalService 写者下沉，batch-09；
+/// 校验失败 failure 信封回退 Kotlin 原路径（零抽取零写入），roll 后结果
+/// success 信封直返——双臂 SYSTEM 分区同源、抽取序逐位一致）
+nlohmann::json handleDiplomacyTx(GameCore* core, int32_t actionId,
+                                 const nlohmann::json& params) {
+    using namespace gamecore::system::diplomacy_tx;
+    auto& state = core->state();
+    const std::string op = params.value("op", "");
+    switch (actionId) {
+        case action::DIPLOMACY_TX: {
+            if (op == "request_alliance") {
+                TxRejection rejection;
+                const auto r = requestAllianceTransaction(
+                    state, core->rng(), core->ecsWorld(),
+                    params.at("sectId").get<std::string>(), rejection);
+                if (!rejection.errorType.empty()) {
+                    return fail(rejection.errorType, "alliance request rejected");
+                }
+                return ok({{"success", r.success}});
+            }
+            if (op == "dissolve_alliance") {
+                TxRejection rejection;
+                const auto r = dissolveAllianceTransaction(
+                    state, params.at("sectId").get<std::string>(), rejection);
+                if (!rejection.errorType.empty()) {
+                    return fail(rejection.errorType, "no alliance to dissolve");
+                }
+                return ok({{"success", r.success}});
+            }
+            return fail("UNKNOWN_OP", "diplomacy op " + op);
+        }
+        case action::FAVOR_GIFT: {
+            TxRejection rejection;
+            const auto r = giftSpiritStonesTransaction(
+                state, core->rng(), params.at("sectId").get<std::string>(),
+                params.at("tier").get<int32_t>(),
+                params.value("bypassYearLimit", false), rejection);
+            if (!rejection.errorType.empty()) {
+                // 校验失败（Kotlin 同位置早退零抽取）→ 回退臂同语义复现
+                return fail(rejection.errorType, "gift validation failed");
+            }
+            // roll 已消费：success 信封直返，Kotlin 侧按 responseType 重建
+            // GiftResult（message 模板留 Kotlin——非游戏分区抽取）
+            return ok({{"outcome", r.responseType},
+                       {"favorChange", r.favorChange},
+                       {"newFavor", r.newFavor},
+                       {"sectLevel", r.sectLevel},
+                       {"neededStones", r.neededStones}});
+        }
+        case action::VASSAL_TX: {
+            if (op == "request_contract") {
+                TxRejection rejection;
+                const auto r = requestVassalTransaction(
+                    state, core->rng(), core->ecsWorld(),
+                    params.at("sectId").get<std::string>(), rejection);
+                if (!rejection.errorType.empty()) {
+                    return fail(rejection.errorType, "vassal request rejected");
+                }
+                return ok({{"success", r.success}});
+            }
+            if (op == "dissolve_contract") {
+                const auto r = dissolveVassalTransaction(
+                    state, params.at("sectId").get<std::string>());
+                return ok({{"success", r.success}});
+            }
+            return fail("UNKNOWN_OP", "vassal op " + op);
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "diplomacy tx action " + std::to_string(actionId));
+    }
+}
+
+/// 建筑放置/迁移/升级/拆除事务（ActionIds.BUILDING_*——batch-06 下沉；
+/// 校验链逐字对齐 Kotlin 判定序，失败零写入 → Kotlin 回退原路径。宗门
+/// 过滤与占位几何常量由 Kotlin 组装传入——C++ GridBuildingData 无 sectId
+///（§2.36 同偏差登记）；place/upgrade 低阶直扣、remove 走 wallet 返还）
+nlohmann::json handleBuildingTx(GameCore* core, int32_t actionId,
+                                const nlohmann::json& params) {
+    namespace btx = gamecore::system::building_tx;
+    using gamecore::state::GridBuildingData;
+    auto& gd = core->state().gameData;
+    const auto geom = [&] {
+        btx::PlaceGeom g;
+        g.border = params.value("border", 0);
+        g.worldWidth = params.value("worldWidth", 0);
+        g.worldHeight = params.value("worldHeight", 0);
+        g.gateX = params.value("gateX", 0);
+        g.gateY = params.value("gateY", 0);
+        g.gateWidth = params.value("gateWidth", 0);
+        g.gateHeight = params.value("gateHeight", 0);
+        return g;
+    }();
+    const auto scopeFrom = [&] {
+        std::vector<std::string> ids;
+        if (params.contains("sectScopedIds")) {
+            for (const auto& id : params.at("sectScopedIds")) {
+                ids.push_back(id.get<std::string>());
+            }
+        }
+        return ids;
+    }();
+    switch (actionId) {
+        case action::BUILDING_PLACE: {
+            GridBuildingData b;
+            b.buildingId = params.at("buildingId").get<std::string>();
+            b.displayName = params.at("displayName").get<std::string>();
+            b.gridX = params.at("gridX").get<int32_t>();
+            b.gridY = params.at("gridY").get<int32_t>();
+            b.width = params.at("width").get<int32_t>();
+            b.height = params.at("height").get<int32_t>();
+            b.instanceId = params.at("instanceId").get<std::string>();
+            const auto r = btx::placeBuildingTx(
+                gd, b, params.at("cost").get<int64_t>(),
+                params.value("requiredSectLevel", 0),
+                params.value("unlimitedBuild", false),
+                params.value("globallyUnique", false),
+                params.at("counterKey").get<std::string>(), geom, scopeFrom);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"placed", true},
+                       {"instanceId", b.instanceId},
+                       {"spiritStones", r.spiritStonesAfter}});
+        }
+        case action::BUILDING_MOVE: {
+            const auto r = btx::moveBuildingTx(
+                gd, params.at("instanceId").get<std::string>(),
+                params.at("newGridX").get<int32_t>(),
+                params.at("newGridY").get<int32_t>(), geom);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"moved", true}, {"spiritStones", r.spiritStonesAfter}});
+        }
+        case action::BUILDING_UPGRADE: {
+            const auto r = btx::upgradeBuildingTx(
+                gd, params.at("instanceId").get<std::string>(),
+                params.at("targetKey").get<std::string>(),
+                params.at("targetDisplayName").get<std::string>(),
+                params.at("targetWidth").get<int32_t>(),
+                params.at("targetHeight").get<int32_t>(),
+                params.at("cost").get<int64_t>(), geom, scopeFrom);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"upgraded", true},
+                       {"count", r.upgradedCount},
+                       {"spiritStones", r.spiritStonesAfter}});
+        }
+        case action::BUILDING_UPGRADE_BATCH: {
+            const auto r = btx::upgradeBuildingsTx(
+                gd, params.at("sourceKey").get<std::string>(),
+                params.at("targetKey").get<std::string>(),
+                params.at("targetDisplayName").get<std::string>(),
+                params.at("targetWidth").get<int32_t>(),
+                params.at("targetHeight").get<int32_t>(),
+                params.at("maxCount").get<int32_t>(),
+                params.at("cost").get<int64_t>(), geom, scopeFrom);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"upgradedCount", r.upgradedCount},
+                       {"spaceBlockedCount", r.spaceBlockedCount},
+                       {"spiritStones", r.spiritStonesAfter}});
+        }
+        case action::BUILDING_REMOVE: {
+            std::vector<std::pair<std::string, int64_t>> refunds;
+            for (const auto& e : params.at("refunds")) {
+                refunds.emplace_back(e.at("instanceId").get<std::string>(),
+                                     e.at("refund").get<int64_t>());
+            }
+            const auto r = btx::removeBuildingsTx(gd, refunds);
+            nlohmann::json removed = nlohmann::json::array();
+            for (const auto& id : r.removedInstanceIds) removed.push_back(id);
+            return ok({{"removed", true},
+                       {"removedIds", std::move(removed)},
+                       {"spiritStones", r.spiritStonesAfter}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "building tx action " + std::to_string(actionId));
+    }
+}
+
+/// 死亡物化操作（ActionIds.DISCIPLE_MARK_DEAD /
 /// DISCIPLE_BACKFILL_DEATH_YEARS）
 nlohmann::json handleDeathHandler(GameCore* core, int32_t actionId,
                                   const nlohmann::json& params) {
@@ -1232,6 +2059,590 @@ nlohmann::json handleDeathHandler(GameCore* core, int32_t actionId,
     }
 }
 
+/// 库存出售/上架 UI 操作事务（ActionIds.INV_SELL_ITEM / INV_BULK_SELL /
+/// MERCHANT_SELL_ACQUISITION / MERCHANT_LIST_ITEMS / MERCHANT_REMOVE_LISTED
+/// ——W2-a 出售族写者下沉；零 RNG 纯确定性变换，校验失败零写入，
+/// 失败信封 → Kotlin 回退原路径重执行校验链）
+nlohmann::json handleInventoryTx(GameCore* core, int32_t actionId,
+                                 const nlohmann::json& params) {
+    namespace inventory_tx = gamecore::system::inventory_tx;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::INV_SELL_ITEM: {
+            const auto r = inventory_tx::sellItemTx(
+                state, params.value("itemType", ""),
+                params.at("itemId").get<std::string>(),
+                params.at("quantity").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            const bool sold = r.earned > 0;
+            return ok({{"sold", sold}, {"earned", r.earned}});
+        }
+        case action::INV_BULK_SELL: {
+            std::vector<inventory_tx::BulkSellRequest> operations;
+            if (params.contains("operations")) {
+                for (const auto& op : params.at("operations")) {
+                    inventory_tx::BulkSellRequest request;
+                    request.id = op.value("id", "");
+                    request.name = op.value("name", "");
+                    request.itemType = op.value("itemType", "");
+                    request.quantity = op.value("quantity", 0);
+                    operations.push_back(std::move(request));
+                }
+            }
+            const auto r = inventory_tx::bulkSellTx(state, operations);
+            nlohmann::json soldNames = nlohmann::json::array();
+            for (const auto& name : r.soldItemNames) soldNames.push_back(name);
+            nlohmann::json failedNames = nlohmann::json::array();
+            for (const auto& name : r.failedItemNames) failedNames.push_back(name);
+            return ok({{"soldCount", r.soldCount},
+                       {"totalEarned", r.totalEarned},
+                       {"soldItemNames", std::move(soldNames)},
+                       {"failedItemNames", std::move(failedNames)}});
+        }
+        case action::MERCHANT_SELL_ACQUISITION: {
+            const auto r = inventory_tx::sellToMerchantTx(
+                state, params.at("acquisitionItemId").get<std::string>(),
+                params.at("quantity").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"soldQuantity", r.soldQuantity}, {"totalPrice", r.totalPrice}});
+        }
+        case action::MERCHANT_LIST_ITEMS: {
+            std::vector<inventory_tx::ListItemRequest> items;
+            if (params.contains("items")) {
+                for (const auto& entry : params.at("items")) {
+                    inventory_tx::ListItemRequest request;
+                    request.itemId = entry.at("itemId").get<std::string>();
+                    request.quantity = entry.value("quantity", 0);
+                    items.push_back(std::move(request));
+                }
+            }
+            const auto r = inventory_tx::listItemsToMerchantTx(state, items);
+            return ok({{"listedCount", r.listedCount}});
+        }
+        case action::MERCHANT_REMOVE_LISTED: {
+            inventory_tx::removePlayerListedItemTx(
+                state, params.at("itemId").get<std::string>());
+            return ok({{"removed", true}});
+        }
+        case action::INV_CONSUME_MATERIAL: {
+            const bool consumed = inventory_tx::consumeMaterialByNameTx(
+                state, params.at("name").get<std::string>(),
+                params.at("rarity").get<int32_t>(),
+                params.at("quantity").get<int32_t>());
+            return ok({{"consumed", consumed}});
+        }
+        case action::INV_BUY_MERCHANT_ITEM: {
+            const auto r = inventory_tx::buyMerchantItemTx(
+                state, params.at("itemId").get<std::string>(),
+                params.at("quantity").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            nlohmann::json drafts = nlohmann::json::array();
+            for (const auto& d : r.overflowDrafts) {
+                drafts.push_back({
+                    {"source", d.source}, {"itemType", d.itemType},
+                    {"itemName", d.itemName}, {"itemId", d.itemId},
+                    {"rarity", d.rarity}, {"quantity", d.quantity},
+                    {"category", d.category}, {"grade", d.grade},
+                    {"slot", d.slot}, {"type", d.type},
+                    {"growTime", d.growTime}, {"yield", d.yield}});
+            }
+            // 奖励卡片由 Kotlin 构造（name/type/rarity/quantity 随信封回传）
+            return ok({{"bought", r.bought},
+                       {"itemName", r.itemName},
+                       {"itemType", r.itemType},
+                       {"rarity", r.rarity},
+                       {"quantity", r.quantity},
+                       {"overflowDrafts", std::move(drafts)}});
+        }
+        case action::INV_CONFISCATE_BAG_ITEM: {
+            const auto r = inventory_tx::confiscateStorageBagItemTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("itemId").get<std::string>());
+            // 溢出抑制上下文：恒无草稿；幂等 no-op 臂 confiscated=false
+            return ok({{"confiscated", r.confiscated}});
+        }
+        case action::STORAGE_BAG_OPEN_TX: {
+            // 开袋抽签（ADR rng-determinism-remediation 阶段 1①）：
+            // 只消费 EXPLORATION 分区产出确定性描述符序列，不触碰游戏状态；
+            // 模板物化 + addXxx 入仓留 Kotlin（13.3 红线 + 模板库在 Kotlin）
+            const auto r = gamecore::system::storage_bag_tx::openStorageBagTx(
+                core->rng().getRng(gamecore::rng::RngPartition::kExploration),
+                params.value("bagId", std::string()),
+                params.at("rarity").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            nlohmann::json draws = nlohmann::json::array();
+            for (const auto& d : r.draws) {
+                draws.push_back({{"kind", d.kind}});
+            }
+            return ok({{"count", static_cast<int32_t>(r.draws.size())},
+                       {"draws", std::move(draws)}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "inventory tx action " + std::to_string(actionId));
+    }
+}
+
+/// 弟子管理三事务（ActionIds.ELDER_APPOINT_TX / ELDER_DISMISS_TX /
+/// WAREHOUSE_GARRISON_TX / SPIRIT_ROOT_WASH_TX / TRAIT_ADD_ROLL_TX /
+/// TRAIT_ADD_CONFIRM_TX / TRAIT_WASH_SLOT_TX——batch-15 任命/驻守/洗炼
+/// 消耗族写者下沉；任命/驻守/特质确认零 RNG 纯事务，洗炼三族含玉符消耗
+/// （C++ 承扣，余额检查+扣减与抽取同事务原子）与 SYSTEM 分区抽取。校验
+/// 失败零写入，失败信封 → Kotlin 回退原路径重执行校验链；洗炼成功信封
+/// 附 jadeAfter（Kotlin 运行时 totalCount 同步残差用））
+nlohmann::json handleAppointmentTx(GameCore* core, int32_t actionId,
+                                   const nlohmann::json& params) {
+    namespace appointment_tx = gamecore::system::appointment_tx;
+    auto& state = core->state();
+    auto& systemRng = core->rng().getRng(gamecore::rng::RngPartition::kSystem);
+    switch (actionId) {
+        case action::ELDER_APPOINT_TX: {
+            const auto r = appointment_tx::elderAppointTx(
+                state, params.at("slotType").get<std::string>(),
+                params.at("discipleId").get<std::string>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            nlohmann::json replaced = nlohmann::json::array();
+            for (const auto& id : r.replacedIds) replaced.push_back(id);
+            return ok({{"appointed", true}, {"replacedIds", std::move(replaced)}});
+        }
+        case action::ELDER_DISMISS_TX: {
+            const auto r = appointment_tx::elderDismissTx(
+                state, params.at("slotType").get<std::string>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"dismissed", true}, {"removedId", r.removedId}});
+        }
+        case action::WAREHOUSE_GARRISON_TX: {
+            const auto r = appointment_tx::warehouseGarrisonAssignTx(
+                state, params.at("buildingInstanceId").get<std::string>(),
+                params.at("discipleId").get<std::string>(),
+                params.value("discipleName", ""),
+                params.value("sectId", ""));
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"assigned", true}, {"oldOccupantId", r.oldOccupantId}});
+        }
+        case action::SPIRIT_ROOT_WASH_TX: {
+            const auto r = appointment_tx::spiritRootWashTx(
+                state, systemRng, params.at("discipleId").get<std::string>(),
+                params.at("pityCount").get<int32_t>(),
+                params.at("cost").get<int32_t>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"newRootType", r.newRootType},
+                       {"newPityCount", r.newPityCount},
+                       {"jadeAfter", r.jadeAfter}});
+        }
+        case action::TRAIT_ADD_ROLL_TX: {
+            const auto r = appointment_tx::traitAddRollTx(
+                state, systemRng, params.at("discipleId").get<std::string>(),
+                params.at("type").get<std::string>(),
+                params.at("cost").get<int32_t>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"newId", r.newId}, {"jadeAfter", r.jadeAfter}});
+        }
+        case action::TRAIT_ADD_CONFIRM_TX: {
+            const auto r = appointment_tx::traitAddConfirmTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("type").get<std::string>(),
+                params.at("newId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"confirmed", true}});
+        }
+        case action::TRAIT_WASH_SLOT_TX: {
+            const auto r = appointment_tx::traitWashSlotTx(
+                state, systemRng, params.at("discipleId").get<std::string>(),
+                params.at("type").get<std::string>(),
+                params.at("targetId").get<std::string>(),
+                params.at("pityCount").get<int32_t>(),
+                params.at("cost").get<int32_t>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"newId", r.newId},
+                       {"newPityCount", r.newPityCount},
+                       {"jadeAfter", r.jadeAfter}});
+        }
+        // ── batch-24：confirm 两入口（纯数据写残差，零 RNG / 零玉符）──
+        case action::SPIRIT_ROOT_WASH_CONFIRM_TX: {
+            const auto r = appointment_tx::spiritRootWashConfirmTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("newRootType").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"replaced", true}});
+        }
+        case action::TRAIT_WASH_CONFIRM_TX: {
+            const auto r = appointment_tx::traitWashConfirmTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("type").get<std::string>(),
+                params.at("targetId").get<std::string>(),
+                params.at("newId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"replaced", true}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "appointment tx action " + std::to_string(actionId));
+    }
+}
+
+/// 招募域 UI 操作事务（ActionIds.RECRUIT_REMOVE_TX / RECRUIT_REFRESH_TX /
+/// RECRUIT_AGE_TX——batch-16 招募列表维护族写者下沉：移除/老化净化零 RNG
+/// 纯事务，刷新复用 year_settlement 候选生成链（SYSTEM 分区，与 Kotlin 臂
+/// 逐位同源；差值门内置于 C++ 链）。失败信封 → Kotlin 回退原路径重执行
+/// 校验链。命名独立于既有招募专用 JNI（nativeRecruitAllFromList），中央
+/// switch 范围分支不重叠）
+nlohmann::json handleRecruitTx(GameCore* core, int32_t actionId,
+                               const nlohmann::json& params) {
+    namespace recruit_tx = gamecore::system::recruit_tx;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::RECRUIT_REMOVE_TX: {
+            const auto r = recruit_tx::removeRecruitTx(
+                state, params.at("discipleId").get<std::string>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"removed", r.removed}, {"remaining", r.remaining}});
+        }
+        case action::RECRUIT_REFRESH_TX: {
+            const auto r = recruit_tx::refreshRecruitTx(
+                state, params.value("year", 1), core->rng());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"generated", r.generated},
+                       {"autoRecruited", r.autoRecruited},
+                       {"remaining", r.remaining}});
+        }
+        case action::RECRUIT_AGE_TX: {
+            const auto r = recruit_tx::ageRecruitTx(state, core->ecsWorld());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"removed", r.removed}, {"remaining", r.remaining}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "recruit tx action " + std::to_string(actionId));
+    }
+}
+
+/// 探索域 UI 操作事务（ActionIds.EXPLORE_TX_*——batch-13：世界关卡/侦察
+/// 战斗执行（BATTLE 分区）+ 伤亡写回（袋物化）+ 分舵驻守零 RNG 事务；
+/// 命名独立于既有 handleExploration（月结/关卡域），中央 switch 范围分支
+/// 不重叠。失败信封 → Kotlin 回退原路径重执行校验链）
+nlohmann::json handleExplorationTx(GameCore* core, int32_t actionId,
+                                   const nlohmann::json& params) {
+    namespace exploration_tx = gamecore::system::exploration_tx;
+    auto& state = core->state();
+    const auto idSetJson = [](const std::vector<std::string>& ids) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& id : ids) arr.push_back(id);
+        return arr;
+    };
+    const auto draftsJson = [](const std::vector<gamecore::system::OverflowDraft>& ds) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& d : ds) {
+            arr.push_back({{"itemType", d.itemType},
+                           {"itemName", d.itemName},
+                           {"itemId", d.itemId},
+                           {"rarity", d.rarity},
+                           {"quantity", d.quantity},
+                           {"source", d.source}});
+        }
+        return arr;
+    };
+    const auto battleJson = [](const gamecore::battle::BattleResult& b) {
+        nlohmann::json team = nlohmann::json::array();
+        for (const auto& c : b.team) team.push_back(gamecore::battle::combatantToJson(c));
+        nlohmann::json beasts = nlohmann::json::array();
+        for (const auto& c : b.beasts) beasts.push_back(gamecore::battle::combatantToJson(c));
+        return nlohmann::json{
+            {"winner", b.winner == gamecore::battle::BattleWinner::kTeam
+                           ? "TEAM"
+                           : b.winner == gamecore::battle::BattleWinner::kBeasts
+                                 ? "BEASTS"
+                                 : "DRAW"},
+            {"turn", b.turn},
+            {"team", std::move(team)},
+            {"beasts", std::move(beasts)},
+            {"rounds", gamecore::battle::roundsToJson(b.rounds)},
+        };
+    };
+    switch (actionId) {
+        case action::EXPLORE_TX_ATTACK_WORLD_LEVEL: {
+            std::vector<std::string> discipleIds;
+            for (const auto& id : params.at("discipleIds")) {
+                discipleIds.push_back(id.get<std::string>());
+            }
+            gamecore::system::OverflowMailCollector overflowMail;
+            const auto r = exploration_tx::attackWorldLevelTx(
+                state, core->rng(), params.at("levelId").get<std::string>(),
+                discipleIds, params.value("playerDamageModifier", 1.0),
+                overflowMail);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"victory", r.victory},
+                       {"survivorIds", idSetJson(r.survivorIds)},
+                       {"deadIds", idSetJson(r.deadIds)},
+                       {"rewards", r.rewards},
+                       {"battle", battleJson(r.battle)},
+                       {"overflowDrafts", draftsJson(r.overflowDrafts)}});
+        }
+        case action::EXPLORE_TX_SCOUT_SECT: {
+            std::vector<std::string> memberIds;
+            for (const auto& id : params.at("memberIds")) {
+                memberIds.push_back(id.get<std::string>());
+            }
+            gamecore::system::OverflowMailCollector overflowMail;
+            const auto r = exploration_tx::scoutSectTx(
+                state, core->rng(), params.at("sectId").get<std::string>(),
+                memberIds, params.value("playerDamageModifier", 1.0),
+                overflowMail);
+            if (!r.ok) return fail(r.errorType, r.message);
+            nlohmann::json defenders = nlohmann::json::array();
+            for (const auto& v : r.defenderViews) {
+                defenders.push_back({{"id", v.id},
+                                     {"realmName", v.realmName},
+                                     {"realm", v.realm},
+                                     {"realmLayer", v.realmLayer},
+                                     {"maxHp", v.maxHp},
+                                     {"portraitRes", v.portraitRes}});
+            }
+            return ok({{"victory", r.victory},
+                       {"survivorIds", idSetJson(r.survivorIds)},
+                       {"deadIds", idSetJson(r.deadIds)},
+                       {"rewards", r.rewards},
+                       {"battle", battleJson(r.battle)},
+                       {"defenderViews", std::move(defenders)},
+                       {"overflowDrafts", draftsJson(r.overflowDrafts)}});
+        }
+        case action::EXPLORE_TX_ASSIGN_GARRISON: {
+            const auto r = exploration_tx::assignGarrisonTx(
+                state, params.at("sectId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>(),
+                params.at("discipleId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"written", r.written},
+                       {"oldOccupantId", r.oldOccupantId}});
+        }
+        case action::EXPLORE_TX_REMOVE_GARRISON: {
+            const auto r = exploration_tx::removeGarrisonTx(
+                state, params.at("sectId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>());
+            return ok({{"currentDiscipleId", r.currentDiscipleId}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "exploration tx action " + std::to_string(actionId));
+    }
+}
+
+/// 玉符/宗门升级落账事务（ActionIds.SECT_LEVEL_UPGRADE_TX /
+/// SECT_LEVEL_CLAIM_TX / JADE_PURCHASE_MERCHANT_REFRESH_TX /
+/// JADE_PURCHASE_BREAKTHROUGH_BONUS_TX——batch-19：运营商城与宗门升级族中
+/// 零 RNG 且模板已定的**落账段**下沉；命名独立于既有 handleRedeemCode
+/// （兑换码原语域）与 handleSectDiplomacy（外交域），中央 switch 范围分支
+/// 不重叠。失败信封 → Kotlin 回退原路径重执行校验链）
+nlohmann::json handleJadeTx(GameCore* core, int32_t actionId,
+                            const nlohmann::json& params) {
+    namespace jade_tx = gamecore::system::jade_tx;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::SECT_LEVEL_UPGRADE_TX: {
+            const auto r = jade_tx::upgradeSectLevelTx(
+                state, params.at("targetLevel").get<int32_t>(),
+                params.value("levelName", std::string()));
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"newLevel", r.newLevel}, {"levelName", r.levelName}});
+        }
+        case action::SECT_LEVEL_CLAIM_TX: {
+            std::vector<jade_tx::ClaimMaterial> materials;
+            if (params.contains("materials")) {
+                for (const auto& m : params.at("materials")) {
+                    jade_tx::ClaimMaterial item;
+                    item.name = m.value("name", std::string());
+                    item.rarity = m.value("rarity", 1);
+                    item.category = m.value("category", std::string("BEAST_HIDE"));
+                    item.quantity = m.value("quantity", 1);
+                    materials.push_back(std::move(item));
+                }
+            }
+            std::vector<jade_tx::ClaimStorageBag> storageBags;
+            if (params.contains("storageBags")) {
+                for (const auto& b : params.at("storageBags")) {
+                    jade_tx::ClaimStorageBag item;
+                    item.name = b.value("name", std::string());
+                    item.rarity = b.value("rarity", 1);
+                    item.quantity = b.value("quantity", 1);
+                    storageBags.push_back(std::move(item));
+                }
+            }
+            const auto r = jade_tx::claimSectLevelRewardTx(
+                state, params.at("level").get<int32_t>(),
+                params.value("nowMs", static_cast<int64_t>(0)), materials, storageBags,
+                params.value("spiritStones", static_cast<int64_t>(0)));
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"materialCount", r.materialCount},
+                       {"storageBagCount", r.storageBagCount},
+                       {"spiritStones", r.spiritStones},
+                       {"claimedLevel", r.claimedLevel}});
+        }
+        case action::JADE_PURCHASE_MERCHANT_REFRESH_TX: {
+            const auto r = jade_tx::purchaseMerchantRefreshTx(
+                state, params.at("cost").get<int32_t>(),
+                params.at("perJade").get<int32_t>(),
+                params.at("maxChances").get<int32_t>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"jadeSymbols", r.jadeSymbols},
+                       {"merchantRefreshChances", r.value}});
+        }
+        case action::JADE_PURCHASE_BREAKTHROUGH_BONUS_TX: {
+            const auto r = jade_tx::purchaseBreakthroughBonusTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("cost").get<int32_t>(), params.at("perJade").get<double>(),
+                params.at("maxBonus").get<double>());
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"jadeSymbols", r.jadeSymbols}, {"bonus", r.writtenValue}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "jade tx action " + std::to_string(actionId));
+    }
+}
+
+/// 月年边界编排族·引导计数面（ActionIds.BOUNDARY_*——batch-18a：引导计数递增 /
+/// 自动分配策略+计数合并写 / 建造计数回填，零 RNG 纯确定性事务）。失败信封 →
+/// Kotlin 回退原路径重执行校验链；命名独立于既有 handler，中央 switch 范围
+/// 分支不重叠（1670-1672）。
+nlohmann::json handleBoundaryTx(GameCore* core, int32_t actionId,
+                                const nlohmann::json& params) {
+    namespace boundary_tx = gamecore::system::boundary_tx;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::BOUNDARY_GUIDE_COUNTER_INCREMENT_TX: {
+            const auto r = boundary_tx::incrementGuideCounterTx(
+                state, params.at("key").get<std::string>(),
+                params.value("amount", static_cast<int64_t>(1)));
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"newValue", r.newValue}});
+        }
+        case action::BOUNDARY_AUTO_ASSIGN_GUIDE_TX: {
+            const auto r = boundary_tx::autoAssignGuideBatchTx(
+                state, params.at("policies").get<gamecore::state::SectPolicies>(),
+                params.value("mineActivated", false),
+                params.value("plantActivated", false),
+                params.value("productionActivated", false));
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"autoMineActivated", r.autoMineActivated},
+                       {"autoPlantActivated", r.autoPlantActivated},
+                       {"autoProductionActivated", r.autoProductionActivated},
+                       {"countersChanged", r.countersChanged}});
+        }
+        case action::BOUNDARY_BUILDING_GUIDE_BACKFILL_TX: {
+            const auto r = boundary_tx::backfillBuildingGuideCountersTx(state);
+            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+            return ok({{"changed", r.changed},
+                       {"backfilledKeys", r.backfilledKeys}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "boundary tx action " + std::to_string(actionId));
+    }
+}
+
+/// 政策开关事务（ActionIds.GOV_POLICY_TOGGLE_TX / GOV_OPEN_RECRUITMENT_TOGGLE_TX /
+/// GOV_SPIRIT_MINE_BOOST_TOGGLE_TX——batch-18b：政策置位 + 首月扣费 + 激活计数 +
+/// 修炼全量 checkpoint，零 RNG）。失败信封 → Kotlin 回退臂重执行判定链并产出
+/// 用户可见文案。`productionCheckpointNeeded` 回执由 Kotlin 臂消费以触发
+/// checkpointAllProduction（CLAUDE.md 6.4/13.3 红线——生产槽位真源在 Kotlin）。
+/// 命名与 handleGovernment（1300-1304 月结配方域）独立，范围分支不重叠。
+nlohmann::json handlePolicyTx(GameCore* core, int32_t actionId,
+                              const nlohmann::json& params) {
+    namespace sys = gamecore::system;
+    auto& state = core->state();
+    const auto payload = [](const sys::PolicyToggleOutcome& r) {
+        return nlohmann::json{{"wasEnabled", r.wasEnabled},
+                              {"enabled", r.enabled},
+                              {"costPaid", r.costPaid},
+                              {"cultivationCheckpoint", r.cultivationCheckpoint},
+                              {"productionCheckpointNeeded", r.productionCheckpointNeeded},
+                              {"checkpointMonth", r.checkpointMonth}};
+    };
+    switch (actionId) {
+        case action::GOV_POLICY_TOGGLE_TX: {
+            const auto r = sys::policyToggleTx(
+                state, params.at("field").get<std::string>(),
+                params.value("monthlyCost", static_cast<int64_t>(0)),
+                params.value("affectsCultivationRate", false));
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok(payload(r));
+        }
+        case action::GOV_OPEN_RECRUITMENT_TOGGLE_TX: {
+            const auto r = sys::openRecruitmentToggleTx(state);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok(payload(r));
+        }
+        case action::GOV_SPIRIT_MINE_BOOST_TOGGLE_TX: {
+            const auto r = sys::spiritMineBoostToggleTx(state);
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok(payload(r));
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "policy tx action " + std::to_string(actionId));
+    }
+}
+
+/// 弟子生命周期 UI 操作事务（ActionIds.DISCIPLE_LIFECYCLE_EXPEL /
+/// APPRENTICE / MARRY_APPROVE / RELEASE_REFLECTION / SALARY_TOGGLE
+/// ——batch-14 生命周期族写者下沉；全族零 RNG 纯确定性事务，校验链
+/// 先行失败零写入，失败信封 → Kotlin 回退原路径重执行校验链。
+/// 逐出信封附 bagItems 草稿（Kotlin 物化回仓库+溢出转邮件）；
+/// 拜师信封附双侧 lifeEvents 日志草稿（Kotlin 瞬态列回写）；
+/// 婚姻批准 paired=false = 防御检查命中（Kotlin 仅移除提议不记事件））
+nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
+                                         const nlohmann::json& params) {
+    namespace lifecycle_tx = gamecore::system::disciple_lifecycle_tx;
+    auto& state = core->state();
+    switch (actionId) {
+        case action::DISCIPLE_LIFECYCLE_EXPEL: {
+            const auto r = lifecycle_tx::expelTransaction(
+                state, params.at("discipleId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            nlohmann::json bagItems = nlohmann::json::array();
+            for (const auto& item : r.bagItems) {
+                nlohmann::json j = item;
+                bagItems.push_back(std::move(j));
+            }
+            return ok({{"expelled", true}, {"bagItems", std::move(bagItems)}});
+        }
+        case action::DISCIPLE_LIFECYCLE_APPRENTICE: {
+            const auto r = lifecycle_tx::apprenticeTransaction(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("masterId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"apprenticed", true},
+                       {"apprenticeLogLine", r.apprenticeLogLine},
+                       {"masterLogLine", r.masterLogLine}});
+        }
+        case action::DISCIPLE_LIFECYCLE_MARRY_APPROVE: {
+            const auto r = lifecycle_tx::approveMarriageTransaction(
+                state, params.at("maleId").get<std::string>(),
+                params.at("femaleId").get<std::string>(),
+                params.value("maleName", ""),
+                params.value("femaleName", ""));
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"paired", r.paired}});
+        }
+        case action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION: {
+            const auto r = lifecycle_tx::releaseReflectionTransaction(
+                state, params.at("discipleId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"released", true}, {"written", r.written}});
+        }
+        case action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE: {
+            const auto r = lifecycle_tx::salaryToggleTransaction(
+                state, params.at("realm").get<int32_t>(),
+                params.at("enabled").get<bool>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"toggled", true}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION",
+                        "disciple lifecycle tx action " + std::to_string(actionId));
+    }
+}
+
 }  // namespace
 
 std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
@@ -1277,6 +2688,74 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::SECRET_REALM_PLAYER_AVG_REALM &&
                    actionId <= action::SECRET_REALM_ROLL_SPRITE) {
             result = handleSecretRealm(this, actionId, params);
+        } else if (actionId >= action::SECRET_REALM_START &&
+                   actionId <= action::SECRET_REALM_END) {
+            result = handleSecretRealmSession(this, actionId, params);
+        } else if (actionId == action::SECRET_REALM_CONTINUE_TX) {
+            result = handleSecretRealmPlatformTx(this, actionId, params);
+        } else if (actionId == action::PRODUCTION_START ||
+                   actionId == action::PRODUCTION_RESET) {
+            result = handleProductionScheduling(this, actionId, params);
+        } else if (actionId >= action::PROD_UI_ASSIGN_SLOT &&
+                   actionId <= action::PROD_UI_ADD_SLOT) {
+            result = handleProductionUiTx(this, actionId, params);
+        } else if (actionId >= action::SPIRIT_FIELD_PLANT_ONE &&
+                   actionId <= action::SPIRIT_FIELD_REMOVE_BATCH) {
+            result = handleSpiritFieldPlantTx(this, actionId, params);
+        } else if (actionId == action::ROAD_PLACE ||
+                   actionId == action::ROAD_REMOVE) {
+            result = handleRoadTx(this, actionId, params);
+        } else if (actionId >= action::DISCIPLE_TX_EQUIP &&
+                   actionId <= action::DISCIPLE_TX_UNASSIGN_SLOT) {
+            result = handleDiscipleTx(this, actionId, params);
+        } else if (actionId >= action::DIPLOMACY_TX &&
+                   actionId <= action::VASSAL_TX) {
+            result = handleDiplomacyTx(this, actionId, params);
+        } else if (actionId >= action::INV_SELL_ITEM &&
+                   actionId <= action::INV_CONFISCATE_BAG_ITEM) {
+            result = handleInventoryTx(this, actionId, params);
+        } else if (actionId == action::STORAGE_BAG_OPEN_TX) {
+            // 开袋抽签（ADR 阶段 1①）复用 handleInventoryTx；**与上面两段分开判**
+            // 的原因：1734 与 1520–1531 之间有其他域的动作号（1730–1733 等），
+            // 写成一个连续区间会把它们吞进库存 handler（实测事故：
+            // LockBeastTx 1730 收到 "inventory tx action 1730" UNKNOWN_ACTION）
+            result = handleInventoryTx(this, actionId, params);
+        } else if (actionId >= action::PATROL_ASSIGN_RESIDENCE &&
+                   actionId <= action::PATROL_UPDATE_YEARLY_SALARY) {
+            result = handlePatrolTx(this, actionId, params);
+        } else if (actionId >= action::SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX &&
+                   actionId <= action::SECT_ATTACK_GRANT_SOUL_POWERS_TX) {
+            result = handleSectAttackTx(this, actionId, params);
+        } else if (actionId >= action::BEAST_VIEW_LOCK_TX &&
+                   actionId <= action::SETTINGS_PATCH_TX) {
+            result = handleLockBeastTx(this, actionId, params);
+        } else if (actionId >= action::DISCIPLE_LIFECYCLE_EXPEL &&
+                   actionId <= action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE) {
+            result = handleDiscipleLifecycleTx(this, actionId, params);
+        } else if (actionId >= action::EXPLORE_TX_ATTACK_WORLD_LEVEL &&
+                   actionId <= action::EXPLORE_TX_REMOVE_GARRISON) {
+            result = handleExplorationTx(this, actionId, params);
+        } else if (actionId >= action::ELDER_APPOINT_TX &&
+                   actionId <= action::TRAIT_WASH_SLOT_TX) {
+            result = handleAppointmentTx(this, actionId, params);
+        } else if (actionId >= action::SPIRIT_ROOT_WASH_CONFIRM_TX &&
+                   actionId <= action::TRAIT_WASH_CONFIRM_TX) {
+            result = handleAppointmentTx(this, actionId, params);
+        } else if (actionId >= action::RECRUIT_REMOVE_TX &&
+                   actionId <= action::RECRUIT_AGE_TX) {
+            result = handleRecruitTx(this, actionId, params);
+        } else if (actionId >= action::BOUNDARY_GUIDE_COUNTER_INCREMENT_TX &&
+                   actionId <= action::BOUNDARY_BUILDING_GUIDE_BACKFILL_TX) {
+            result = handleBoundaryTx(this, actionId, params);
+        } else if (actionId >= action::GOV_POLICY_TOGGLE_TX &&
+                   actionId <= action::GOV_SPIRIT_MINE_BOOST_TOGGLE_TX) {
+            result = handlePolicyTx(this, actionId, params);
+        } else if (actionId >= action::SECT_LEVEL_UPGRADE_TX &&
+                   actionId <= action::JADE_PURCHASE_BREAKTHROUGH_BONUS_TX) {
+            result = handleJadeTx(this, actionId, params);
+        } else if (actionId >= action::BUILDING_PLACE &&
+                   actionId <= action::BUILDING_UPGRADE_BATCH) {
+            result = handleBuildingTx(this, actionId, params);
         } else if (actionId >= action::SECT_DECISION_CHANCE &&
                    actionId <= action::SECT_TRADE_SPIRIT_STONE) {
             result = handleSectDiplomacy(this, actionId, params);
@@ -1285,6 +2764,20 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::REDEEM_VALIDATE_INPUT &&
                    actionId <= action::MAIL_ATTACHMENT_ENCODE) {
             result = handleRedeemCode(this, actionId, params);
+        // ── W4 三批次并行分派区（W4-00 并行前置批建立）─────────────────────
+        // 三个并行批次的 handler 各自实现在独立源文件 src/dispatch_w4{a,b,c}.cpp，
+        // 因此**本文件此后冻结**——三批的 diff 中若出现本文件即为越界（判据见
+        // docs/parallel-batches-w4/README.md §5.3）。
+        // 认领语义：端口返回 nullopt ⇒ 不认领，继续往后续端口 / NOT_IMPLEMENTED 兜底。
+        } else if (auto w4a = dispatchW4A(*this, actionId, params);
+                   w4a.has_value()) {
+            result = std::move(*w4a);
+        } else if (auto w4b = dispatchW4B(*this, actionId, params);
+                   w4b.has_value()) {
+            result = std::move(*w4b);
+        } else if (auto w4c = dispatchW4C(*this, actionId, params);
+                   w4c.has_value()) {
+            result = std::move(*w4c);
         } else {
             result = fail("NOT_IMPLEMENTED",
                           "action not implemented yet: " + std::to_string(actionId));

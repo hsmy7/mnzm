@@ -11,6 +11,7 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import java.util.UUID
+import com.xianxia.sect.core.engine.domain.disciple.getMaxManualSlots
 
 /**
  * 俘虏/旧档 AI 弟子入玩家池时的装备/功法落库工具。

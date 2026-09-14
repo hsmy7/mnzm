@@ -165,8 +165,8 @@ private fun renderReflectionCliff(
             disciples = aliveDisciples,
             gameData = gameData,
             onDismiss = onDismiss,
-            onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) },
-            onReleaseDisciple = { discipleId -> viewModel.releaseReflectionDisciple(discipleId) }
+            onExpelDisciple = { discipleId -> viewModel.disciple.expelDisciple(discipleId) },
+            onReleaseDisciple = { discipleId -> viewModel.disciple.releaseReflectionDisciple(discipleId) }
         )
     }
 }

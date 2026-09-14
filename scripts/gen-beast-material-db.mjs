@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * gen-beast-material-db.mjs — 妖兽材料静态表生成器（Kotlin→C++ 迁移批次 2 剩余）
+ * gen-beast-material-db.mjs — 妖兽材料静态表生成器
  *
  * 从 Kotlin BeastMaterialDatabase.kt 的 listOf 字面量提取妖兽材料（288 条），
  * 生成两份产物（提交 git 防漂移）：
@@ -131,7 +131,7 @@ function genCppTable(entries) {
 }
 
 // ── main ──────────────────────────────────────────────────────────────
-// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+// 静态数据单一源——数据权威在 scripts/data/*.json
 //（中性源），生成器只读中性源；Kotlin Registry 由单一源守卫测试全量比对兜底。
 
 const DATA_DIR = join(ROOT, 'scripts/data');

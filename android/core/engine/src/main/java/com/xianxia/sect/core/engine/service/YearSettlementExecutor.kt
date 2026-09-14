@@ -3,16 +3,15 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.engine.annotation.GameService
 
 /**
- * YearSettlementExecutor — 年变结算纯编排器（计划 v2 阶段 2 / T2.3）。
+ * YearSettlementExecutor — 年变结算纯编排器。
  *
  * 从 [com.xianxia.sect.core.GameEngineCore.processMonthYearChange] 的
  * yearChanged 分支原样提取的编排逻辑：生产 tick 与跨语言对拍测试共用同一入口。
  *
  * 编排（与 C++ `gamecore::system::runYearSettlement` 逐位对应）：
  * 1. processYearlyEvents —— L3b 分帧（T1 立即组单事务 + T2 延迟组入队由引擎
- *    tick 预算 drain）；C++ 侧已下沉年报快照段（garrisonAndReport 年报部分，
- *    驻军轮换恒等路径），其余子项场景规避/登记批次
- *    （.superpowers/sdd/t2-3-semantics.md §1）
+ *    tick 预算 drain）；C++ 侧执行年报快照段（garrisonAndReport 年报部分，
+ *    驻军轮换恒等路径），其余子项为 Kotlin 侧编排
  * 2. gameMonth==1 时年俸（calculateSalaryPlan + 发放/忠诚惩罚）
  *
  * 行为契约：与提取前的 yearChanged 分支逐行等价，生产行为零变化。

@@ -31,7 +31,6 @@ class ObjectPool @Inject constructor() {
         private const val TAG = "ObjectPool"
         private const val DEFAULT_MAX_POOL_SIZE = 64
         private const val DEFAULT_INITIAL_SIZE = 16
-        private const val MAX_BORROW_RETRIES = 3
     }
     
     private val pools = ConcurrentHashMap<String, Pool<*>>()
@@ -93,25 +92,34 @@ class ObjectPool @Inject constructor() {
             return newInstance
         }
         
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         fun release(instance: T) {
             while (true) {
                 val current = currentSize.get()
                 if (current >= maxSize) return
                 if (currentSize.compareAndSet(current, current + 1)) {
-                    try {
-                        factory.reset(instance)
-                        if (factory.validate(instance)) {
-                            available.offer(instance)
-                            returned.incrementAndGet()
-                        } else {
-                            currentSize.decrementAndGet()
-                        }
-                    } catch (e: Exception) {
-                        currentSize.decrementAndGet()
-                        Log.w(TAG, "Failed to release object to pool: $key", e)
-                    }
+                    resetAndRecycle(instance)
                     return
                 }
+            }
+        }
+
+        /**
+         * 池未满分支：重置并校验实例后归还池；校验失败或重置异常则回退占用计数
+         */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+        private fun resetAndRecycle(instance: T) {
+            try {
+                factory.reset(instance)
+                if (factory.validate(instance)) {
+                    available.offer(instance)
+                    returned.incrementAndGet()
+                } else {
+                    currentSize.decrementAndGet()
+                }
+            } catch (e: Exception) {
+                currentSize.decrementAndGet()
+                Log.w(TAG, "Failed to release object to pool: $key", e)
             }
         }
         
@@ -196,7 +204,8 @@ class ObjectPool @Inject constructor() {
         val statsStr = stats.joinToString("\n") { stat ->
             "  ${stat.objectType}: size=${stat.poolSize}, borrowed=${stat.borrowedCount}, " +
             "returned=${stat.returnedCount}, created=${stat.createdCount}, " +
-            "hits=${stat.hitCount}, misses=${stat.missCount}, hitRate=${String.format(Locale.ROOT, "%.2f", stat.hitRate)}"
+            "hits=${stat.hitCount}, misses=${stat.missCount}, " +
+            "hitRate=${String.format(Locale.ROOT, "%.2f", stat.hitRate)}"
         }
         Log.i(TAG, "ObjectPool Stats:\n$statsStr")
     }

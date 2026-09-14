@@ -24,7 +24,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffBattleExecutionTest — 战斗回合编排跨语言差分对拍（战斗批次 C）。
+ * DiffBattleExecutionTest — 战斗回合编排跨语言差分对拍。
  *
  * 守护目标：Kotlin `BattleSystem.executeBattle`（回合编排全链：速度序 →
  * 逐参战者行动（决策/技能四分支/伤害应用/冷却/治疗/拉条/控制/DoT）→

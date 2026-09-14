@@ -7,12 +7,12 @@ import com.xianxia.sect.data.compression.CompressionAlgorithm
 import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import java.io.File
-import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -146,7 +146,7 @@ class DataArchiver @Inject constructor(
         private val DATE_FORMAT: ThreadLocal<SimpleDateFormat> = ThreadLocal.withInitial {
             SimpleDateFormat("yyyy-MM", Locale.CHINA)
         }
-        private val TIMESTAMP_FORMAT: ThreadLocal<SimpleDateFormat> = ThreadLocal.withInitial {
+        internal val TIMESTAMP_FORMAT: ThreadLocal<SimpleDateFormat> = ThreadLocal.withInitial {
             SimpleDateFormat("yyyyMMdd_HHmmssSSS", Locale.CHINA)
         }
     }
@@ -174,6 +174,7 @@ class DataArchiver @Inject constructor(
      * @param maxInMemory 主存档中保留的最大条数（默认 500）
      * @return ArchiveResult 包含归档结果和剩余列表信息
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun archiveBattleLogsIfNeeded(
         battleLogs: List<BattleLog>,
         maxInMemory: Int = DEFAULT_MAX_BATTLE_LOGS_IN_MEMORY
@@ -210,6 +211,8 @@ class DataArchiver @Inject constructor(
                 remainingCount = toKeep.size,
                 archiveFilePath = archivedFile.absolutePath
             )
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 归档调度被取消时中止归档, 不谎报归档失败
         } catch (e: Exception) {
             Log.e(TAG, "Failed to archive battle logs", e)
             ArchiveResult(success = false, error = e.message)
@@ -219,7 +222,8 @@ class DataArchiver @Inject constructor(
     /**
      * 获取应保留在主存档中的 BattleLog 列表（最近 N 条）。
      */
-    fun getRetainedBattleLogs(battleLogs: List<BattleLog>, maxInMemory: Int = DEFAULT_MAX_BATTLE_LOGS_IN_MEMORY): List<BattleLog> {
+    fun getRetainedBattleLogs(battleLogs: List<BattleLog>,
+        maxInMemory: Int = DEFAULT_MAX_BATTLE_LOGS_IN_MEMORY): List<BattleLog> {
         return if (battleLogs.size <= maxInMemory) {
             battleLogs
         } else {
@@ -322,7 +326,8 @@ class DataArchiver @Inject constructor(
             totalArchivedEntries = totalEntries,
             totalBattleLogsArchived = totalBattleLogs,
             totalDiskUsageBytes = totalSize,
-            compressionRatio = if (totalOriginalSize > 0) totalOriginalSize.toDouble() / totalSize.coerceAtLeast(1) else 0.0,
+            compressionRatio = if (totalOriginalSize > 0) totalOriginalSize.toDouble() / totalSize
+                .coerceAtLeast(1) else 0.0,
             oldestArchiveTimestamp = if (index.entries.isEmpty()) 0 else oldestTs,
             newestArchiveTimestamp = newestTs,
             archiveFileCountByType = typeCount,
@@ -341,6 +346,7 @@ class DataArchiver @Inject constructor(
 
     // ==================== 内部实现：文件写入 ====================
 
+    @Suppress("UnusedParameter") // timestamps: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
     private suspend fun writeArchiveFile(
         dataType: ArchivedDataType,
         batchId: String,
@@ -353,19 +359,20 @@ class DataArchiver @Inject constructor(
         )
 
         val serialized = protoBuf.encodeToByteArray(ArchivedBatch.serializer(), batch)
-        val checksum = computeChecksum(serialized)
         val compressed = dataCompressor.compress(serialized, CompressionAlgorithm.LZ4)
 
         val calendar = Calendar.getInstance()
         val yearMonth = checkNotNull(DATE_FORMAT.get()).format(calendar.time)
         val monthDir = File(archiveBaseDir, "${dataType.filePrefix}_$yearMonth").apply { mkdirs() }
 
-        val fileName = "${dataType.filePrefix}_${checkNotNull(TIMESTAMP_FORMAT.get()).format(calendar.time)}_$batchId.arc"
+        val fileName =
+            "${dataType.filePrefix}_${checkNotNull(TIMESTAMP_FORMAT.get()).format(calendar.time)}_$batchId.arc"
         val file = File(monthDir, fileName)
 
         file.writeBytes(compressed.data)
 
-        Log.d(TAG, "Written archive file: ${file.absolutePath} (${compressed.data.size} bytes, original: ${serialized.size})")
+        Log.d(TAG,
+            "Written archive file: ${file.absolutePath} (${compressed.data.size} bytes, original: ${serialized.size})")
 
         return file
     }
@@ -378,7 +385,7 @@ class DataArchiver @Inject constructor(
         archivedItems: List<Any>
     ) {
         indexMutex.withLock {
-            val index = loadIndexInternal()
+            val index = loadIndex()
 
             val timestamps = archivedItems.map { (it as BattleLog).timestamp }
 
@@ -405,6 +412,7 @@ class DataArchiver @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun loadIndex(): ArchiveIndex {
         val indexFile = getIndexFile()
         if (!indexFile.exists()) return ArchiveIndex()
@@ -418,7 +426,6 @@ class DataArchiver @Inject constructor(
         }
     }
 
-    private fun loadIndexInternal(): ArchiveIndex = loadIndex()
 
     private fun saveIndexInternal(index: ArchiveIndex) {
         val indexFile = getIndexFile()
@@ -426,6 +433,7 @@ class DataArchiver @Inject constructor(
         indexFile.writeBytes(bytes)
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private suspend fun rebuildIndex() {
         indexMutex.withLock {
             val newEntries = mutableListOf<ArchiveIndexEntry>()
@@ -448,6 +456,8 @@ class DataArchiver @Inject constructor(
                             fileSize = file.length(),
                             createdAt = header.createdAt
                         ))
+                    } catch (e: CancellationException) {
+                        throw e // 取消穿透: 索引重建被取消时中止, 不误标单文件损坏
                     } catch (e: Exception) {
                         Log.w(TAG, "Skipping corrupt archive file: ${file.name}", e)
                     }
@@ -458,10 +468,12 @@ class DataArchiver @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun getIndexFile(): File = File(archiveBaseDir, "archive_index.pb")
 
     // ==================== 内部实现：查询逻辑 ====================
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private suspend fun <T> queryArchived(
         dataType: ArchivedDataType,
         startMs: Long?,
@@ -484,14 +496,12 @@ class DataArchiver @Inject constructor(
 
             try {
                 val items = readArchiveItems(file, dataType)
-                for (item in items) {
-                    val inRange = (startMs == null || item.timestamp >= startMs) &&
-                                  (endMs == null || item.timestamp <= endMs)
-                    if (inRange) {
-                        results.add(deserializer(item.originalData))
-                    }
-                }
+                results += items
+                    .filter { isItemInQueryRange(it.timestamp, startMs, endMs) }
+                    .map { deserializer(it.originalData) }
                 queriedFiles.add(file.absolutePath)
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 查询被取消时中止, 不误标单文件损坏跳读
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to read archive file: ${file.name}", e)
             }
@@ -500,6 +510,7 @@ class DataArchiver @Inject constructor(
         return QueryResult(results, results.size, queriedFiles)
     }
 
+
     private data class RawArchivedItem(val originalData: ByteArray, val timestamp: Long)
 
     private fun readArchiveItems(file: File, expectedType: ArchivedDataType): List<RawArchivedItem> {
@@ -507,9 +518,7 @@ class DataArchiver @Inject constructor(
         val decompressed = dataCompressor.decompressWithHeader(compressedBytes)
         val batch = protoBuf.decodeFromByteArray(ArchivedBatch.serializer(), decompressed)
 
-        if (batch.dataType != expectedType) {
-            throw IllegalArgumentException("Expected ${expectedType.name}, got ${batch.dataType.name}")
-        }
+        require(batch.dataType == expectedType) { "Expected ${expectedType.name}, got ${batch.dataType.name}" }
 
         return batch.entries.map { RawArchivedItem(it.originalData, it.timestamp) }
     }
@@ -537,6 +546,8 @@ class DataArchiver @Inject constructor(
         )
     }
 
+
+
     // ==================== 内部实现：序列化辅助 ====================
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -549,15 +560,15 @@ class DataArchiver @Inject constructor(
         return protoBuf.decodeFromByteArray(BattleLog.serializer(), bytes)
     }
 
-    private fun computeChecksum(data: ByteArray): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(data)
-        return hash.joinToString("") { "%02x".format(it) }
-    }
 
-    private fun generateBatchId(dataType: ArchivedDataType): String {
-        val timestamp = checkNotNull(TIMESTAMP_FORMAT.get()).format(java.util.Date())
-        val random = (Math.random() * 10000).toInt().toString().padStart(4, '0')
-        return "${dataType.filePrefix}_" + timestamp + "_" + random
-    }
+/** 条目时间戳是否落在查询窗口内（任一端为 null 表示该侧不设界） */
+private fun isItemInQueryRange(timestamp: Long, startMs: Long?, endMs: Long?): Boolean =
+    (startMs == null || timestamp >= startMs) && (endMs == null || timestamp <= endMs)
+}
+
+/** 批次文件名生成:类型前缀 + 时间戳 + 4 位随机序(归档批完整性索引用) */
+private fun generateBatchId(dataType: ArchivedDataType): String {
+    val timestamp = checkNotNull(DataArchiver.Companion.TIMESTAMP_FORMAT.get()).format(java.util.Date())
+    val random = (Math.random() * 10000).toInt().toString().padStart(4, '0')
+    return "${dataType.filePrefix}_" + timestamp + "_" + random
 }

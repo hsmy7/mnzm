@@ -1,0 +1,80 @@
+{
+ "files": [
+  {
+   "name": "GameEngineCoreSetOps1",
+   "header": "// ── GameEngineCore 拆分域 1/4（行为零变更） ──",
+   "fns": [
+    "setPerformanceMode",
+    "setClarityMode",
+    "onSceneChanged",
+    "sceneFpsFor",
+    "updateRenderFrameRate",
+    "onUserActivity",
+    "evaluateIdleTransition",
+    "checkIdleTimeout",
+    "launchInScope",
+    "scopeForStateIn",
+    "initialize",
+    "startGameLoop",
+    "startGameLoopInternal"
+   ]
+  },
+  {
+   "name": "GameEngineCorePrepOps2",
+   "header": "// ── GameEngineCore 拆分域 2/4（行为零变更） ──",
+   "fns": [
+    "prepareLoopStart",
+    "gameLoopIteration",
+    "handleTickCrash",
+    "handlePausedIteration",
+    "adaptiveWait",
+    "stopGameLoop",
+    "stopGameLoopUnchecked",
+    "stopGameLoopAndWait",
+    "waitForLoopStopped",
+    "shutdown",
+    "startWatchdog",
+    "progressVerdict",
+    "sampleProgressSnapshot"
+   ]
+  },
+  {
+   "name": "GameEngineCoreHandOps3",
+   "header": "// ── GameEngineCore 拆分域 3/4（行为零变更） ──",
+   "fns": [
+    "handleWatchdogVerdict",
+    "performWatchdogRecovery",
+    "restartWatchdog",
+    "recreateGameDispatcher",
+    "emergencyRestartGameLoop",
+    "performEmergencyRestart",
+    "stopWatchdog",
+    "transitionLoopPhase",
+    "pause",
+    "resume",
+    "pauseForSecretRealm",
+    "resumeFromSecretRealm",
+    "renewSecretRealmPauseLease"
+   ]
+  },
+  {
+   "name": "GameEngineCorePausOps4",
+   "header": "// ── GameEngineCore 拆分域 4/4（行为零变更） ──",
+   "fns": [
+    "pauseForBackground",
+    "resumeFromBackground",
+    "clearBackgroundPauseFlag",
+    "onUserInteraction",
+    "tickInternal",
+    "skipTickIfNeeded",
+    "processMonthYearChange",
+    "checkAndResetStuckStates",
+    "watchdogForceResetStuckStates",
+    "registerActiveLoadJob",
+    "clearActiveLoadJob",
+    "forceResetStuckStates",
+    "setObservedRenderFps"
+   ]
+  }
+ ]
+}

@@ -14,9 +14,8 @@ import kotlinx.coroutines.launch
  * - 参考: https://easings.net/ (Robert Penner's Easing Functions)
  *
  * ## 驱动模型
- * - 2026-08-13 迁移：原"协程内逐帧 delay(16) + 手写插值循环"重构为
- *   [EngineTween]（[timeSource] 驱动 + 缓动回调）驱动——插值数学/时长归一化/完成判定
- *   下沉到统一动画库，本类只保留"相机位置写入"职责；对外 API 行为不变
+ * - 由 [EngineTween]（[timeSource] 驱动 + 缓动回调）驱动——插值数学/时长归一化/完成判定
+ *   由统一动画库承担，本类只保留"相机位置写入"职责
  *   （[animateTo]/[cancel]/[isRunning]，回归测试 CameraAnimatorTest 保证位置序列全等）
  *
  * ## 交互优先
@@ -53,7 +52,7 @@ class CameraAnimator(
      * @param durationMs 动画时长(ms)，默认 400ms
      */
     fun animateTo(target: CameraTarget, durationMs: Long = 400L) {
-        // 对抗性审查修复：非正时长直接瞬时完成——负时长下 progress 恒负 → t 恒 0 →
+        // 非正时长直接瞬时完成——负时长下 progress 恒负 → t 恒 0 →
         // `if (t >= 1f) break` 永不触发 → 死循环占用主线程（ANR）
         if (durationMs <= 0L) {
             cameraState.setPosition(target.x, target.y)

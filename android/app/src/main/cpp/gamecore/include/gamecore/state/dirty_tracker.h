@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+#include <nlohmann/json.hpp>
+
 #include "gamecore/state/models.h"
 
 // ============================================================
@@ -22,9 +24,15 @@
 //     }
 //   }
 //
-// 实现：基线快照 diff（resetBaseline 后每次 diffToJson 与基线做 JSON 树
-// 深比较）而非写屏障标记——任何遗漏路径的修改都不会漏报（健壮性优先，
-// 全量 dump 的成本随阶段 3 数据导向存储再优化，登记于 docs/cpp-engine.md）。
+// 实现（WS-1.3 同步通道降本，2026-09-05）：基线缓存为 JSON 树——
+// resetBaseline/syncBaselineToCurrent 时序列化一次并缓存，diffToJson 只对
+// **当前状态**序列化一次，与缓存树按键深比较后把当前树移入缓存。原实现
+// 每次导出对基线与当前各做一次全量序列化 + GameState 深拷贝（审计 P0-2：
+// dirty_tracker.cpp 两次全量序列化+深拷贝），现降为每导出恰一次序列化、
+// 零深拷贝。协议与消费语义（导出即消费/版本单调/键集形状）逐位不变。
+// 列级写屏障（DirtyColumn 包装版号标记）按 dirty_tracker 自述既定待办随
+// 计划 v2 阶段 3 数据导向存储落地——本实现保持"任何遗漏路径不漏报"的
+// 健壮性优先口径。
 //
 // 确定性约束：实体键收集用 std::map（有序），禁止 unordered_map 参与迭代；
 // 集合内重复 id 以末次出现为准（Kotlin 侧各存储均保证 id 唯一）。
@@ -49,7 +57,9 @@ public:
     uint64_t version() const { return version_; }
 
 private:
-    GameState baseline_{};
+    /// 基线 JSON 树缓存（resetBaseline/syncBaselineToCurrent/diffToJson 消费
+    /// 时重建；与 GameState 快照逐位等价——diff 协议只经 JSON 树观察状态）
+    nlohmann::json baselineJson_ = nlohmann::json::object();
     uint64_t version_ = 0;
 };
 

@@ -179,8 +179,8 @@ object RecruitIntegrity {
      *
      * 刻意排除 portraitRes/physiqueIds/affixIds：旧存档经
      * [DiscipleSerializer] 序列化时这些字段可能缺失（读档后列表侧
-     * 恒空或失真；physiqueIds/affixIds 序列化自 2026-07-31 补全，
-     * 旧存档仍缺失），参与签名会使跨表残留匹配永久失效；而
+     * 恒空或失真；旧存档的 physiqueIds/affixIds 缺失），
+     * 参与签名会使跨表残留匹配永久失效；而
      * 同名+同灵根+同天赋+年龄容差的多重巧合误判概率可忽略
      * （约 1e-11 量级）。
      *

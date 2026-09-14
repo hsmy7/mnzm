@@ -49,6 +49,7 @@ class ShardedSlotLock(private val shardCount: Int = DEFAULT_SHARD_COUNT) {
      * 最大重试 3 次（~20ms 总耗时），超过则直接回退到顺序获取。
      * 游戏线程专用：不阻塞看门狗阈值（3s）。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun <T> acquireLocksWithTryLock(lockIndices: List<Int>, block: () -> T): T {
         if (lockIndices.isEmpty()) return block()
         if (lockIndices.size == 1) return shards[lockIndices[0]].withLock { block() }

@@ -53,7 +53,7 @@ private const val KEY_CLEAR = "C"
 private const val KEY_BACKSPACE = "⌫"
 
 /**
- * 自绘数字输入面板（2026-09 IME 状态机根治：数量输入场景绕开系统 IME，
+ * 自绘数字输入面板（数量输入场景绕开系统 IME，
  * 行业主流"自绘 UI + 事件流"范式，见 docs/ime-keyboard-industry-research.md §11.2.5）。
  *
  * 全屏半透明覆盖层 + 底部自绘数字键盘（0–9 / 清空 / 退格 / 确定）：

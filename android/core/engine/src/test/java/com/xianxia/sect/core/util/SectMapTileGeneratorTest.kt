@@ -36,12 +36,16 @@ class SectMapTileGeneratorTest {
 
     @Test
     fun `generateTileData - all values are valid tile types`() {
-        val result = SectMapTileGenerator.generateTileData(28, 28, 1.0f)
+        val result = SectMapTileGenerator.generateTileData(64, 64, 1.0f)
         val validValues = setOf(
             SectMapTileGenerator.TILE_GROUND,
-            SectMapTileGenerator.TILE_GRASS_SMALL,
-            SectMapTileGenerator.TILE_GRASS_MEDIUM,
-            SectMapTileGenerator.TILE_GRASS_LARGE,
+            SectMapTileGenerator.TILE_GRASS1,
+            SectMapTileGenerator.TILE_GRASS2,
+            SectMapTileGenerator.TILE_GRASS3,
+            SectMapTileGenerator.TILE_GRASS4,
+            SectMapTileGenerator.TILE_STONE1,
+            SectMapTileGenerator.TILE_STONE2,
+            SectMapTileGenerator.TILE_STONE3,
             SectMapTileGenerator.TILE_TREE1,
             SectMapTileGenerator.TILE_TREE2
         )
@@ -50,6 +54,51 @@ class SectMapTileGeneratorTest {
                 assertTrue("Unexpected tile value: $value", value in validValues)
             }
         }
+    }
+
+    @Test
+    fun `generateTileData - 四种草变体与三种石变体都会出现`() {
+        // 大图 + 满密度：每种装饰变体都应至少出现一次（变体抽取为 hash 四/三等分）
+        val result = SectMapTileGenerator.generateTileData(96, 96, 1.0f, worldSeed = 7)
+        val grassVariants = setOf(
+            SectMapTileGenerator.TILE_GRASS1, SectMapTileGenerator.TILE_GRASS2,
+            SectMapTileGenerator.TILE_GRASS3, SectMapTileGenerator.TILE_GRASS4
+        )
+        val stoneVariants = setOf(
+            SectMapTileGenerator.TILE_STONE1, SectMapTileGenerator.TILE_STONE2,
+            SectMapTileGenerator.TILE_STONE3
+        )
+        val seenGrass = mutableSetOf<Int>()
+        val seenStone = mutableSetOf<Int>()
+        for (row in result) {
+            for (value in row) {
+                if (value in grassVariants) seenGrass += value
+                if (value in stoneVariants) seenStone += value
+            }
+        }
+        assertEquals("4 种草变体都应出现", grassVariants, seenGrass)
+        assertEquals("3 种石变体都应出现", stoneVariants, seenStone)
+    }
+
+    @Test
+    fun `generateTileData - 石堆只落在裸地（不覆盖草与树）`() {
+        // 石堆 pass 在草滩之后运行：命中石头的格其邻居语义无关，但石头不得与草共存
+        // （同一格只有一个值）——此处验证石堆数量远低于草（石为点状散布、草为成片草滩）
+        val result = SectMapTileGenerator.generateTileData(96, 96, 0.5f, worldSeed = 3)
+        var grass = 0
+        var stone = 0
+        for (row in result) {
+            for (value in row) {
+                when (value) {
+                    SectMapTileGenerator.TILE_GRASS1, SectMapTileGenerator.TILE_GRASS2,
+                    SectMapTileGenerator.TILE_GRASS3, SectMapTileGenerator.TILE_GRASS4 -> grass++
+                    SectMapTileGenerator.TILE_STONE1, SectMapTileGenerator.TILE_STONE2,
+                    SectMapTileGenerator.TILE_STONE3 -> stone++
+                }
+            }
+        }
+        assertTrue("半密度下应出现石堆", stone > 0)
+        assertTrue("石堆应为点状散布（远少于成片草滩）：grass=$grass stone=$stone", stone < grass)
     }
 
     @Test
@@ -178,7 +227,7 @@ class SectMapTileGeneratorTest {
     @Test
     fun `computeAutotileBitmask - center tile with 4 cardinal neighbors gets 0x0F`() {
         val tileData = Array(5) { IntArray(5) { SectMapTileGenerator.TILE_GROUND } }
-        // Set center and all 4 cardinal neighbors to grass_small
+        // Set center and all 4 cardinal neighbors to grass variant 1
         for (dx in 0..4) {
             for (dy in 0..4) {
                 val tx = 2 + dx
@@ -191,20 +240,20 @@ class SectMapTileGeneratorTest {
         // Clean approach: create 3x3 pattern with grass in center + all 4 cardinal neighbors
         val pattern = Array(5) { row ->
             IntArray(5) { col ->
-                if (row == 2 && col == 2) SectMapTileGenerator.TILE_GRASS_SMALL
-                else if (row == 2 || col == 2) SectMapTileGenerator.TILE_GRASS_SMALL
+                if (row == 2 && col == 2) SectMapTileGenerator.TILE_GRASS1
+                else if (row == 2 || col == 2) SectMapTileGenerator.TILE_GRASS1
                 else SectMapTileGenerator.TILE_GROUND
             }
         }
         val mask = SectMapTileGenerator.computeAutotileBitmask(pattern)
-        // Center tile (2,2) has N,S,W,E = all grass_small → bits 0,2,4,6 set = 0x55
+        // Center tile (2,2) has N,S,W,E = all grass variant 1 → bits 0,2,4,6 set = 0x55
         assertEquals(0x55, mask[2][2].toInt() and 0xFF)
     }
 
     @Test
     fun `computeAutotileBitmask - isolated grass has no neighbors`() {
         val pattern = Array(5) { IntArray(5) { SectMapTileGenerator.TILE_GROUND } }
-        pattern[2][2] = SectMapTileGenerator.TILE_GRASS_SMALL
+        pattern[2][2] = SectMapTileGenerator.TILE_GRASS1
         val mask = SectMapTileGenerator.computeAutotileBitmask(pattern)
         // Only the center tile is different from its neighbors
         // The center itself has ground neighbors, so mask = 0
@@ -233,9 +282,13 @@ class SectMapTileGeneratorTest {
         val minY = cfg.GATE_SPRITE_Y
         val maxY = cfg.GATE_Y + cfg.GATE_HEIGHT
         val decorValues = setOf(
-            SectMapTileGenerator.TILE_GRASS_SMALL,
-            SectMapTileGenerator.TILE_GRASS_MEDIUM,
-            SectMapTileGenerator.TILE_GRASS_LARGE,
+            SectMapTileGenerator.TILE_GRASS1,
+            SectMapTileGenerator.TILE_GRASS2,
+            SectMapTileGenerator.TILE_GRASS3,
+            SectMapTileGenerator.TILE_GRASS4,
+            SectMapTileGenerator.TILE_STONE1,
+            SectMapTileGenerator.TILE_STONE2,
+            SectMapTileGenerator.TILE_STONE3,
             SectMapTileGenerator.TILE_TREE1,
             SectMapTileGenerator.TILE_TREE2
         )

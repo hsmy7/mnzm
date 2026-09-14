@@ -12,13 +12,13 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * HerbRegistryGuardTest — 灵草/种子静态数据守卫（计划 v2 阶段 3 补齐预存缺口）。
+ * HerbRegistryGuardTest — 灵草/种子静态数据守卫（补齐预存缺口）。
  *
  * 守护目标：中性源快照（herb_db_sample.json，由 scripts/gen-templates.mjs 从
  * scripts/data/herb_db_sample.json 生成）与 Kotlin HerbDatabase **实时数据**
  * 一致（逐字段：id/name/tier/rarity/category/description + 种子 growTime/yield）。
  *
- * 背景：architecture.md T-CPP-2 原文称"双端守卫已覆盖 6 类"，实际灵草/种子
+ * 背景：architecture.md 原文称"双端守卫已覆盖 6 类"，实际灵草/种子
  * 双端均无守卫（Kotlin 侧无 HerbRegistryGuardTest、C++ 侧无 herb_db_test.cpp）
  * ——本测试补齐 Kotlin 侧；C++ 侧 herb_db_test.cpp 同步新增。
  *

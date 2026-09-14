@@ -6,7 +6,7 @@ namespace gamecore::data {
 namespace {
 
 // ============================================================
-// 装备静态表守卫测试（批次 2）
+// 装备静态表守卫测试
 //
 // 守护目标：C++ 装备表（equipment_db.h，由 scripts/gen-templates.mjs 生成）
 // 与提取快照（test/data/equipment_db_sample.json）一致——防手改漂移。

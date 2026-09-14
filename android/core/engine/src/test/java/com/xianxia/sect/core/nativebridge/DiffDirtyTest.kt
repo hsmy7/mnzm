@@ -11,7 +11,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffDirtyTest — exportDirty 变更集跨语言对拍（计划 v2 阶段 1 验收核心）。
+ * DiffDirtyTest — exportDirty 变更集跨语言对拍（验收核心）。
  *
  * 守护目标：
  *   1. C++ DirtyTracker 产出的变更集协议（changed/removed/version）能被

@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 /**
  * [FirstEventTracker] 首次事件去重测试。
  *
- * 存储依赖内存 Fake [KeyValueStore]（D-29：MMKV native 库在 Robolectric 沙箱不可用，
+ * 存储依赖内存 Fake [KeyValueStore]（MMKV native 库在 Robolectric 沙箱不可用，
  * 接口抽象后以 Fake 测试；真实 TapDBManager 调用被 SDK Throwable 兜底吞掉，
  * 不影响去重语义验证——标记在 SDK 调用前置位）。
  */

@@ -17,16 +17,20 @@ import kotlin.math.roundToInt
 /**
  * SoftwareCanvasBackend 测试共享 fixtures。
  *
- * WP6 detekt 拆分：从 SoftwareCanvasBackendTest 提取（原文件 1282 行超
- * LargeClass 阈值 800）——全部为 top-level internal，同包测试类直接引用。
+ * 从 SoftwareCanvasBackendTest 提取——全部为 top-level internal，同包测试类直接引用。
  */
-internal fun testRenderConfig(renderFlags: RenderFlags = RenderFlags()): NativeRenderConfig {
+internal fun testRenderConfig(
+    renderFlags: RenderFlags = RenderFlags(),
+    tileSize: Int = 64,
+    worldWidthCells: Int = 10,
+    worldHeightCells: Int = 10
+): NativeRenderConfig {
     return NativeRenderConfig(
-        tileSize = 64,
-        worldWidthCells = 10,
-        worldHeightCells = 10,
-        worldPixelWidth = 640,
-        worldPixelHeight = 640,
+        tileSize = tileSize,
+        worldWidthCells = worldWidthCells,
+        worldHeightCells = worldHeightCells,
+        worldPixelWidth = worldWidthCells * tileSize,
+        worldPixelHeight = worldHeightCells * tileSize,
         renderFlags = renderFlags
     )
 }
@@ -98,11 +102,17 @@ internal fun assertNear(expected: Int, actual: Int, tolerance: Int = 2) {
  * - 阴影右/下条带 (64,16)-(80,80) 位于精灵之外——直接落在 chunk 米色底上，
  *   半透明黑混合后可观测（米色 0xF2EDE4 × 0.8 ≈ (194,190,182)）
  */
-internal fun spiritFieldFrame(td: IntArray, selectedIndex: Int = -1, scale: Float = 1f): RenderFrame {
+internal fun spiritFieldFrame(
+    td: IntArray,
+    selectedIndex: Int = -1,
+    scale: Float = 1f,
+    cols: Int = 10,
+    rows: Int = 10
+): RenderFrame {
     return RenderFrame(
         camX = 0f, camY = 0f, scale = scale,
         tileData = td,
-        cols = 10, rows = 10,
+        cols = cols, rows = rows,
         buildingData = createBuildingDataArray(
             gridX = 0, gridY = 0, width = 1, height = 1, nameIdx = 2
         ),
@@ -120,7 +130,7 @@ internal fun createDecorTileData(cols: Int, rows: Int): IntArray {
 /**
  * 精灵测试图集：1024×1024，含与 SpriteAtlasDef 一致的真实源矩形——
  * GROUND 源 (0,0,64,64)=灰 100（chunk 底），灵田建筑精灵源
- * (512,256,768,512)=白 255（buildingRect(2)，2026-08 建筑槽位 128→256 后新坐标）。
+ * (512,256,768,512)=白 255（buildingRect(2)，建筑槽位 128→256 后新坐标）。
  * 解决迷你图集（128×128）源矩形越界导致建筑精灵不绘制的盲区——阴影污染回归测试必须让精灵真实上屏。
  */
 internal fun createSpriteAtlas(): Bitmap {
@@ -131,7 +141,16 @@ internal fun createSpriteAtlas(): Bitmap {
     val groundRect = scaledFixtureRect(w, SpriteAtlasDef.TileType.GROUND.rect)
     c.drawRect(groundRect, Paint().apply { color = Color.rgb(100, 100, 100) })
     val buildingRect = scaledFixtureRect(w, SpriteAtlasDef.buildingRect(2))
-    c.drawRect(buildingRect, Paint().apply { color = Color.WHITE })
+    // 外扩 2px 绘制：真实图集每精灵带 4px pad 环（边缘
+    //   像素外扩），chunk 双线性采样在精灵边界读到的是 pad（自身颜色）而非透明；
+    //   fixture 忠实于图集结构——外扩绘制使采样边界同为纯色，避免双线性把
+    //   透明 margin 混入精灵边缘（否则边界像素半透明，网格断言基准漂移）。
+    val padLike = 2f
+    c.drawRect(
+        buildingRect.left - padLike, buildingRect.top - padLike,
+        buildingRect.right + padLike, buildingRect.bottom + padLike,
+        Paint().apply { color = Color.WHITE }
+    )
     return bmp
 }
 
@@ -182,7 +201,7 @@ internal fun twoBuildingFrame(td: IntArray, markers: ByteArray? = null): RenderF
 
 /**
  * 作物采样点 (8,8)：作物 (0,0)-(64,64) 内、灵田建筑阴影矩形 (16,16)-(80,80) 外
- * ——排除 WP3 阴影干扰，纯测作物层
+ * ——排除建筑阴影干扰，纯测作物层
  */
 internal const val CROP_SAMPLE = 8
 

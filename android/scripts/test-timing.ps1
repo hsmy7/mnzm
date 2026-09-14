@@ -1,4 +1,4 @@
-# Test timing analyzer (2026-08-14)
+# Test timing analyzer
 # Aggregates testsuite time from all modules' build/test-results/testReleaseUnitTest/*.xml,
 # prints TopN slowest classes + totals. Read-only.
 #

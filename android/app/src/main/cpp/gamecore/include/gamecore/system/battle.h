@@ -10,7 +10,7 @@
 #include "gamecore/system/disciple.h"
 
 // ============================================================
-// 战斗计算（Kotlin→C++ 迁移批次 6a）
+// 战斗计算
 //
 // 等价移植 Kotlin BattleCalculator 的**纯公式**部分：
 //   - 乘区法最终伤害（calculateFinalDamage：攻防减伤 + 暴击 + 体质/词条/

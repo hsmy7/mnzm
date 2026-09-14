@@ -19,7 +19,7 @@ object StorageConstants {
     /** 默认最大存档槽位数 */
     const val DEFAULT_MAX_SLOTS = 6
 
-    /** 云存档槽位（旧自动存档 slot 0 改为云存档入口） */
+    /** 云存档槽位 */
     const val CLOUD_SAVE_SLOT = 0
 
     /** 备份文件目录名 */

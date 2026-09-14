@@ -280,9 +280,8 @@ class ComponentTableTest {
     fun `IntFlatArray forEach correctly iterates after boundary`() {
         val arr = IntFlatArray()
         for (i in 1..70) arr.put(i, i * 10)
-        val sum = arr.keys.sumOf { arr.values[it] }
-        // keys 是 IntFlatArray 的 @PublishedApi 内部字段，测试不直接访问
-        // 改为通过 indexOfKey 间接验证
+        // keys 是 IntFlatArray 的 @PublishedApi 内部字段，测试不直接访问，
+        // 通过 indexOfKey 间接验证
         var count = 0
         for (i in 0 until arr.size()) {
             val key = arr.keyAt(i)

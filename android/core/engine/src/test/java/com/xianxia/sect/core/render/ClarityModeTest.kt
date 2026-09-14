@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 自选清晰度档位守卫测试（2026-09-02 D1）。
+ * 自选清晰度档位守卫测试。
  *
  * 覆盖：
  * - fromStorage 解析（null/非法回退默认 = 中；合法值正确解析）

@@ -15,12 +15,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SaveDataReconciler 堆叠协调测试（2026-08-01 堆叠序列化缺陷修复）。
+ * SaveDataReconciler 堆叠协调测试。
  *
  * 覆盖：
  * - 新格式（stacksSerialized = true）原样返回
  * - 旧格式从实例重建堆叠并置标记
- * - 序列化往返：堆叠字段真实写入 Protobuf（不再 @Transient 丢失）
+ * - 序列化往返：堆叠字段真实写入 Protobuf
  * - 旧格式反序列化（缺字段读默认）语义
  */
 class SaveDataReconcilerTest {
@@ -49,7 +49,8 @@ class SaveDataReconcilerTest {
             equipmentInstances = listOf(
                 EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON),
                 EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON),
-                EquipmentInstance(name = "玄铁甲", rarity = 2, slot = EquipmentSlot.ARMOR, ownerId = "d1", isEquipped = true)
+                EquipmentInstance(name = "玄铁甲", rarity = 2, slot = EquipmentSlot.ARMOR, ownerId = "d1",
+                    isEquipped = true)
             ),
             manualInstances = listOf(
                 ManualInstance(name = "御剑诀", rarity = 3, type = ManualType.ATTACK)
@@ -67,7 +68,8 @@ class SaveDataReconcilerTest {
         val data = baseSaveData().copy(
             stacksSerialized = false,
             equipmentInstances = listOf(
-                EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON, ownerId = "d1", isEquipped = true)
+                EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON, ownerId = "d1",
+                    isEquipped = true)
             )
         )
         val result = SaveDataReconciler.reconcileStacks(data)
@@ -77,15 +79,17 @@ class SaveDataReconcilerTest {
 
     @Test
     fun `序列化往返 - 堆叠字段真实写入 Protobuf 不再丢失`() {
-        // 守卫：equipmentStacks/manualStacks 曾被标记 @Transient（备份/云存档丢失堆叠），
-        // 修复后必须真实序列化——此测试失败即说明字段又被排除出序列化
+        // 守卫：equipmentStacks/manualStacks 必须真实序列化进 Protobuf——
+        // 此测试失败即说明字段又被排除出序列化
         val original = baseSaveData().copy(
             stacksSerialized = true,
             equipmentStacks = listOf(
-                com.xianxia.sect.core.model.EquipmentStack(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON, quantity = 5)
+                com.xianxia.sect.core.model.EquipmentStack(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON,
+                    quantity = 5)
             ),
             manualStacks = listOf(
-                com.xianxia.sect.core.model.ManualStack(name = "御剑诀", rarity = 3, type = ManualType.ATTACK, quantity = 2)
+                com.xianxia.sect.core.model.ManualStack(name = "御剑诀", rarity = 3, type = ManualType.ATTACK,
+                    quantity = 2)
             )
         )
 
@@ -141,8 +145,8 @@ private fun readVarint(bytes: ByteArray, offset: Int): Pair<Long, Int> {
     var shift = 0
     var i = offset
     while (true) {
-        if (i >= bytes.size) throw IllegalArgumentException("truncated varint at offset=$offset")
-        if (shift > 63) throw IllegalArgumentException("varint too long at offset=$offset")
+        require(i < bytes.size) { "truncated varint at offset=$offset" }
+        require(shift <= 63) { "varint too long at offset=$offset" }
         val b = bytes[i].toInt() and 0xFF
         result = result or ((b and 0x7F).toLong() shl shift)
         i++

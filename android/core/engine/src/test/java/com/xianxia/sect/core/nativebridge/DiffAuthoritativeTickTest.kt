@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.config.ConfigLoader
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -34,6 +35,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.RecruitIntegrity
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
@@ -52,22 +54,30 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
  * DiffAuthoritativeTickTest — AUTHORITATIVE 过渡期 tick 全管线跨语言对拍
- * （计划 v2 阶段 2d / T2.4 验收核心）。
+ * （验收核心）。
  *
  * 守护目标：同一初始状态推进 100 旬（含多次月界 + 一次年界），
- * "C++ 核心结算 + Kotlin 残留执行器 + 委托式 RNG + 增量镜像"管线终态 ==
- * 纯 Kotlin 全量引擎（现生产行为）终态，逐字段逐位一致。
+ * "C++ 完整结算（含自动装备/丹药/突破下沉）+ 委托式 RNG +
+ * 增量镜像"管线终态 == 纯 Kotlin 全量引擎（对拍基准）终态，逐字段逐位一致。
  *
  * 管线对应（生产 GameEngineCoreAuthoritativeOps.processAuthoritativeTick）：
- * nativeCoreSettlePhase → applyDirty → executeResidual → 边界月/年编排 +
+ * nativeCoreSettlePhase（每旬完整七步）→ applyDirty → 边界月/年编排 +
  * 回导。本测试经 DiffRngBridge 桌面通道驱动同一协议。
  *
  * 场景：年 1 月 10 起（3 次月变 + 跨年年变）、年俸配置生效、年报计数非零、
@@ -92,6 +102,9 @@ class DiffAuthoritativeTickTest {
 
         /** 初始灵石（充足，政策不降级） */
         const val INITIAL_STONES = 50_000L
+
+        /** 手动招募对拍场景的招募候选 id（buildRecruitSnapshot） */
+        const val RECRUIT_ID = "r1"
     }
 
     /** 生产委托通道的桌面测试实现（经 DiffRngBridge 符号驱动同一 C++ 引擎） */
@@ -112,6 +125,9 @@ class DiffAuthoritativeTickTest {
         if (DiffRngBridge.isAvailable()) {
             DiffRngBridge.nativeCoreInitMode(false)
         }
+        // 摘除本类注入的 AI 随机源（AISectDiscipleManager 为进程级 object，
+        // 残留引用会让后续测试类解析到已废弃的 manager）
+        AISectDiscipleManager.resetManagerForTest()
     }
 
     // ── 场景构建 ────────────────────────────────────────────────────
@@ -146,6 +162,33 @@ class DiffAuthoritativeTickTest {
         cultivation = 10.0, spiritRootType = "metal",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
+
+    /** 可招募候选（标准：16 岁单灵根炼气一层，资质缺省 50 触发入宗散列补算） */
+    private fun recruitDisciple(id: String): Disciple = Disciple(
+        id = id, name = "候选招募", age = 16, realm = 9, realmLayer = 1,
+        cultivation = 1.0, spiritRootType = "metal",
+        combat = CombatAttributes(currentHp = -1, currentMp = -1)
+    )
+
+    /** 手动招募对拍初始状态（3 宗门弟子 + 1 招募候选；时间与主场景同相位） */
+    private fun buildRecruitSnapshot(): NativeGameState {
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 10, gamePhase = 0,
+            spiritStones = INITIAL_STONES
+        ).apply {
+            rngStates = initialRngStates()
+            lastRecruitYear = 1
+            recruitList = listOf(recruitDisciple(RECRUIT_ID))
+        }
+        return NativeGameState(
+            gameData = gameData,
+            disciples = listOf(
+                settlerDisciple("31", "甲"),
+                settlerDisciple("32", "乙"),
+                settlerDisciple("33", "丙")
+            )
+        )
+    }
 
     private fun initialRngStates(): MutableMap<Int, Long> {
         val states = mutableMapOf<Int, Long>()
@@ -233,6 +276,13 @@ class DiffAuthoritativeTickTest {
                 it.restoreStates(rngStates)
             }
         }
+        // AI 弟子域随机源归一（阶段 1②）：把夹具的 manager 交给
+        // AISectDiscipleManager（R5：禁止自建随机源）——AI 弟子生成/装备补全
+        // 必须与本夹具的 gameRng 同源，否则 Kotlin 臂与 C++ 臂的 AI 流分叉。
+        // **顺序关键**：initForSlot 必须在 restoreStates **之后**——否则快照里的
+        // AI_SECT 键会把播种抹掉（实测：分区停在快照值而非 `0 + 6×31337`）
+        AISectDiscipleManager.initialize(gameRng)
+        AISectDiscipleManager.initForSlot(0L)
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(
@@ -258,7 +308,8 @@ class DiffAuthoritativeTickTest {
         val eventProcessor = CultivationEventProcessor(
             stateStore = store, spiritStoneWallet = wallet,
             inventorySystem = mockSmart(), inventoryConfig = mockSmart(),
-            scopeProvider = scopeProvider, discipleService = mockSmart(),
+            scopeProvider = scopeProvider ,
+            discipleService = mockSmart(),
             cultivationCore = core, breakthroughHandler = handler,
             cultivationSettlement = settlement, battleSystem = mockSmart(),
             recruitService = mockSmart(), merchantAndRecruitService = mockSmart(),
@@ -278,7 +329,7 @@ class DiffAuthoritativeTickTest {
             cultivationSettlement = settlement, eventProcessor = eventProcessor,
             productionProcessor = mockSmart(), recruitService = mockSmart(),
             merchantAndRecruitService = mockSmart(), caveExplorationProcessor = mockSmart(),
-            sharedState = CultivationSharedState(), discipleService = mockSmart()
+            sharedState = CultivationSharedState()
         )
         val monthExecutor = MonthSettlementExecutor(
             cultivationService = service,
@@ -305,7 +356,7 @@ class DiffAuthoritativeTickTest {
     // ── 验收测试 ────────────────────────────────────────────────────
 
     @Test
-    @Suppress("LongMethod")  // 逐旬互锁全管线：单函数承载对拍主流程（与 T2.2/T2.3 对拍同构）
+    @Suppress("LongMethod")  // 逐旬互锁全管线：单函数承载对拍主流程（与月变/年变对拍同构）
     fun `authoritative pipeline matches legacy kotlin engine over 100 phases`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInitMode(true)
@@ -348,21 +399,20 @@ class DiffAuthoritativeTickTest {
                     monthChangedB = gameData.gameMonth != prevMonth
                 }
                 runBoundary(exB, storeB, yearChangedB, monthChangedB)
-                // Side A 一旬（AUTHORITATIVE 管线）
+                // Side A 一旬（AUTHORITATIVE 管线：每旬完整七步
+                // 在 nativeCoreSettlePhase 内执行，原 Kotlin executeResidual 删除）
                 val flags = DiffRngBridge.nativeCoreSettlePhase()
                 val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
                 val applyResult = syncA.applyDirty(dirty)
                 assertEquals("镜像失败", false, applyResult == null)
-                // ★ 2026-08-31 根因修复：镜像写入经 updateMirror 不参与反向捕获，
-                //   生产已删除 ②' resetReverseAccumulator（无条件清空会误清玩家
-                //   操作捕获）——玩家操作捕获保留至 ⑤ 与残留/边界变更一并回导
-                storeA.update { exA.phase.executeResidual(this) }
+                // ★ 镜像写入经 updateMirror 不参与反向捕获——
+                //   玩家操作捕获不会被镜像清空，保留至 ⑤ 与边界变更一并回导
                 if (flags != 0) {
                     val yearChangedA = (flags and GameCoreBridge.FLAG_YEAR_CHANGED) != 0
                     val monthChangedA = (flags and GameCoreBridge.FLAG_MONTH_CHANGED) != 0
                     runBoundary(exA, storeA, yearChangedA, monthChangedA)
                 }
-                // ⑤ 反向增量回导（阶段 3：取代每旬全量 importToNative——残留/边界
+                // ⑤ 反向增量回导（取代每旬全量 importToNative——残留/边界
                 // 效果经 applyReverseDirty 增量写回 C++ 真相源；生产侧失败降级全量，
                 // 本测试断言增量通道成功）
                 assertTrue("反向增量回导失败", syncA.applyDirtyToNative())
@@ -416,14 +466,123 @@ class DiffAuthoritativeTickTest {
         }
     }
 
+    /**
+     * 手动招募下沉对拍：C++ nativeCoreManualRecruitFromList（AUTHORITATIVE
+     * 单真相源）执行一次手动招募 → 前向增量镜像 → 再推进一旬（含边界编排 + 反向回导）
+     * 后，C++ 导出真相源与 Kotlin 基准（DiscipleFacadeImpl 同语义）逐字段一致。
+     *
+     * 守卫目标：手动招募与自动招募同侧（C++ 权威），Kotlin 侧不再修改镜像——
+     * 防"C++ 结算重写 recruitList → 前向镜像覆盖手动招募"回归（自动招募正常而
+     * 手动招募失效的根因域）。
+     */
+    @Test
+    @Suppress("LongMethod")  // 双臂对拍流程：单函数承载（与主场景同构）
+    fun `native manual recruit matches legacy kotlin over one phase`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInitMode(true)
+
+        val snapshot = buildRecruitSnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        // ── Side B：纯 Kotlin 基准（DiscipleFacadeImpl.recruitDiscipleFromList 同语义） ──
+        val storeB = FakeGameStateStore().also {
+            it.gameDataValue = snapshot.gameData
+            it.disciplesValue = snapshot.disciples
+        }
+        val (_, rngB, exB) = buildHarness(storeB, snapshot.gameData.rngStates, delegating = false)
+        val timeB = TimeSystem(storeB)
+        runTest {
+            storeB.update {
+                val recruit = gameData.recruitList.toList().find { it.id == RECRUIT_ID }
+                val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
+                val recruited = requireNotNull(recruit).copy(
+                    usage = recruit.usage.copy(recruitedMonth = currentMonth)
+                )
+                val newId = discipleTables.allocateAndInsert(recruited)
+                if (newId.isNotEmpty()) {
+                    val intId = newId.toIntOrNull()
+                    if (intId != null) {
+                        val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
+                        discipleTables.lifeEvents[intId] = events + "${recruit.age}岁：加入宗门"
+                    }
+                }
+                gameData = gameData.copy(
+                    recruitList = gameData.recruitList.filter {
+                        it.id != RECRUIT_ID && !RecruitIntegrity.isSamePerson(it, recruited)
+                    },
+                    recruitCountThisMonth = gameData.recruitCountThisMonth + 1,
+                    annualNewDisciples = gameData.annualNewDisciples + 1
+                )
+            }
+            // Side B 推进一旬（与 Side A 同步）
+            var yearChangedB = false
+            var monthChangedB = false
+            storeB.update {
+                val prevYear = gameData.gameYear
+                val prevMonth = gameData.gameMonth
+                timeB.onPhaseTick(this, phasesToSettle = 1)
+                exB.phase.execute(this)
+                yearChangedB = gameData.gameYear != prevYear
+                monthChangedB = gameData.gameMonth != prevMonth
+            }
+            runBoundary(exB, storeB, yearChangedB, monthChangedB)
+
+            // ── Side A：AUTHORITATIVE 管线（C++ 核心 + 委托 RNG） ──
+            assertTrue("导入失败", DiffRngBridge.nativeCoreImportState(encoded.encodeToByteArray()))
+            val storeA = FakeGameStateStore().also {
+                it.gameDataValue = snapshot.gameData
+                it.disciplesValue = snapshot.disciples
+            }
+            val syncA = StateSyncService(storeA) { DiffRngBridge.nativeCoreApplyReverseDirty(it) }
+            val (_, _, exA) = buildHarness(storeA, snapshot.gameData.rngStates, delegating = true)
+            // native 手动招募（C++ 权威直接入宗）
+            val envelope = json.parseToJsonElement(
+                DiffRngBridge.nativeCoreManualRecruitFromList(RECRUIT_ID).decodeToString()
+            ).jsonObject
+            assertTrue(
+                "native 手动招募失败: $envelope",
+                envelope["ok"]?.jsonPrimitive?.booleanOrNull == true
+            )
+            // 镜像（生产 tick ③ 前向增量）
+            val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
+            assertTrue("镜像失败", syncA.applyDirty(dirty) != null)
+            // Side A 推进一旬（与 Side B 同步）——验证招募后旬结算仍同步
+            val flags = DiffRngBridge.nativeCoreSettlePhase()
+            val dirty2 = DiffRngBridge.nativeCoreExportDirty().decodeToString()
+            assertTrue("镜像失败", syncA.applyDirty(dirty2) != null)
+            if (flags != 0) {
+                val yearChangedA = (flags and GameCoreBridge.FLAG_YEAR_CHANGED) != 0
+                val monthChangedA = (flags and GameCoreBridge.FLAG_MONTH_CHANGED) != 0
+                runBoundary(exA, storeA, yearChangedA, monthChangedA)
+            }
+            assertTrue("反向增量回导失败", syncA.applyDirtyToNative())
+
+            // ── 对拍：C++ 导出（真相源）vs Kotlin 基准 ──
+            val actual = json.parseToJsonElement(
+                DiffRngBridge.nativeCoreExportState().decodeToString()
+            )
+            val expectedEl = json.encodeToJsonElement(NativeGameState.serializer(), NativeGameState(
+                gameData = storeB.gameDataValue.copy(
+                    rngStates = rngB.exportStates().toMutableMap()
+                ),
+                disciples = storeB.disciplesValue
+            ))
+            assertNodeMatches(expectedEl, actual, "$")
+            // 显式不变量：招募入宗 id = max(31/32/33)+1 = 34
+            assertTrue("新弟子 34 未入宗", storeA.disciplesValue.any { it.id == "34" })
+            assertTrue("招募列表未清空", storeA.gameDataValue.recruitList.isEmpty())
+            assertEquals(1, storeA.gameDataValue.recruitCountThisMonth)
+            assertEquals(1, storeA.gameDataValue.annualNewDisciples)
+        }
+    }
+
     /** 年先于月变的边界编排（两侧共用同一顺序契约） */
     private suspend fun runBoundary(
         ex: HarnessExecutors,
         store: FakeGameStateStore,
         yearChanged: Boolean,
         monthChanged: Boolean
-    ) {
-        if (yearChanged) {
+    ) {        if (yearChanged) {
             val gd = store.gameDataValue
             ex.year.execute(gd.gameYear, gd.gameMonth == 1)
         }
@@ -446,12 +605,44 @@ class DiffAuthoritativeTickTest {
         }
     }
 
+    /**
+     * 结构对拍**跳过的字段**（合并到单次判定——避免循环体内出现第二个 `continue`，
+     * detekt `LoopWithTooManyJumpStatements` 阈值为 1）：
+     *
+     * - `timestamp`：运行时戳（时钟注入边界）
+     * - `deathYear`：C++ 侧 P1-7 已纳入弟子协议而 Kotlin `Disciple` 镜像字段未落
+     *   ——结构对拍容忍协议超集（Kotlin 镜像落地后可回收）
+     * - `availableMissions[*].id`：**镜像生成字段**——Kotlin `Mission.id` 为
+     *   `UUID.randomUUID()`（展示/引用用），C++ `createMission` 为确定性自增
+     *   （`gc-mission-N`）。语义等价仅保证唯一，不参与 RNG 终态对拍
+     *   （与 `DiffYearSettlementTest` 的 `sectDetails.tradeItems[].id` 同口径）。
+     *   其余字段（template/name/difficulty/duration/rewards/enemyType/
+     *   createdYear/createdMonth/triggerChance）逐位对拍。
+     */
+    private fun isSkippedDiffField(key: String, path: String): Boolean =
+        key == "timestamp" || key == "deathYear" ||
+            (key == "id" && path.contains("availableMissions"))
+
     private fun compareObjects(expected: JsonObject, actual: JsonObject, path: String) {
         for ((k, a) in actual) {
-            if (k == "timestamp") continue
+            if (isSkippedDiffField(k, path)) continue
             val e = expected[k]
-            assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失", e != null)
-            assertNodeMatches(e!!, a, "$path.$k")
+            // rngStates 段按**双侧共有键**比较：阶段 1② 归一后 AI 流的权威态在
+            // C++ `aiRng_`（随 9 号键落盘），Kotlin 侧 6 号（AI_SECT）不再与 C++
+            // 同源；两侧键集本就不同（Kotlin 无 9、C++ 无 Kotlin 的 6 号语义），
+            // 协议语义差异只在共有键上成立
+            if (k == "rngStates") {
+                assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失", e != null)
+                val expectedRng = e?.jsonObject ?: JsonObject(emptyMap())
+                val actualRng = a.jsonObject
+                for ((pid, av) in actualRng) {
+                    val ev = expectedRng[pid] ?: continue
+                    assertNodeMatches(ev, av, "$path.$k.$pid")
+                }
+            } else {
+                assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失", e != null)
+                assertNodeMatches(e!!, a, "$path.$k")
+            }
         }
     }
 

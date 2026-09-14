@@ -1,41 +1,37 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.BattleLogEnemy
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
+import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SectWarehouse
-import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.CombatantSide
-import com.xianxia.sect.core.SectLevel
-import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
-import com.xianxia.sect.core.engine.domain.battle.BattleSystem
-import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
-import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.perf.ThermalMonitor
-import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.engine.domain.diplomacy.ensureDiscipleGear
 
 
 /**
- * AI 宗门攻防结算处理器（D15 拆分后，2026-08-08）。
+ * AI 宗门攻防结算处理器。
  *
- * 职责：AI 非焦点域热控分批修炼、宗门等级同步、AI-vs-AI 战斗编排；
- * 玩家防守战结算已拆至 [PlayerDefenseProcessor]，占领结算已拆至 [AISectOccupationResolver]。
- * 洞府探索域保留在 [CaveExplorationProcessor]。
+ * 职责：AI 非焦点域热控分批修炼、宗门等级同步（AUTHORITATIVE 月结子事件 6 的
+ * Kotlin 镜像回退面——CultivationEventMonthlyOps 经 CaveExplorationProcessor
+ * 3 参委托调用）。
+ *
+ * 战斗编排面已下沉 C++ AUTHORITATIVE 月结（P2-18 决策项③）：
+ * - AI-vs-AI 征伐环 → 子事件 6b（sect_conquest.h，2026-09-09 Stage 2）
+ * - 玩家防守环（预警/到期战书/冷却/驻军填充）→ 子事件 6c
+ *   （sect_defense_battle.h，Stage 1）
+ * - 占领结算 → sect_conquest.h applyAttackOutcome（原占领结算处理器随
+ *   Kotlin 编排链一并删除）
  */
 @Singleton
 @GameService("AISectBattleProcessor")
 class AISectBattleProcessor @Inject constructor(
-    private val stateStore: GameStateStore,
     private val thermalMonitor: ThermalMonitor,
-    private val battleSystem: BattleSystem,
-    private val playerDefenseProcessor: PlayerDefenseProcessor,
-    private val occupationResolver: AISectOccupationResolver
 ) {
     // AI 非焦点域热控分批状态
     // 哨兵 -1 = 未初始化（0 不能作哨兵：首次对齐基准可为 0，见 computeAIBatch）
@@ -51,7 +47,7 @@ class AISectBattleProcessor @Inject constructor(
         private const val THERMAL_NORMAL_BATCH = 3
 
         /**
-         * 从实际参战弟子构建防守战日志的敌人快照列表（纯函数，D3 迁移自 CaveExplorationProcessor）。
+         * 从实际参战弟子构建防守战日志的敌人快照列表（纯函数）。
          * 供 BattleTickSystem 和测试使用。
          */
         internal fun buildDefenseBattleEnemies(
@@ -90,10 +86,8 @@ class AISectBattleProcessor @Inject constructor(
             // L2 首次相位对齐：基准 = (当前月 - 1) 向下取 3 的倍数。
             // 基准 ≡ 0 (mod 3) ⇒ settle 月 = 基准 + 3k ≡ 0 (mod 3) = 3/6/9/12 ——
             // 1 月（mod 3 = 1）永不 settle，与首次调用月份无关。
-            // 修复两个缺口：(a) 旧逻辑首次调用在 1 月时基准 = 1（mod 3 = 1），
-            // settle 月 1/4/7/10 → 1 月成本 x3；(b) 2/5/8/11 月读档后基准 mod 3 ≠ 0，
-            // 1 月成为 settle 月（对抗性审查 F4）。基准可为 0（abs ≤ 2 时），
-            // 哨兵 -1 区分"未初始化"。
+            // 基准可为 0（abs ≤ 2 时），哨兵 -1 区分"未初始化"，
+            // 保证 settle 月恒为 3/6/9/12（1 月永不 settle，与首次调用/读档月份无关）。
             aiNonFocusedLastSettleMonth =
                 (currentAbsoluteMonth - 1) - ((currentAbsoluteMonth - 1) % 3)
             aiNonFocusedBatchMonths = 0
@@ -101,8 +95,8 @@ class AISectBattleProcessor @Inject constructor(
         }
         val monthsSince = currentAbsoluteMonth - aiNonFocusedLastSettleMonth
         if (monthsSince <= 0) {
-            // 时钟回退（读档到更早月份）/同月重复调用：跳过而非补修炼。
-            // 旧逻辑 batchMonths=1 会在回退场景重复执行一个月修炼（对抗性审查 F1）。
+            // 时钟回退（读档到更早月份）/同月重复调用：跳过而非补修炼
+            // （补修炼会对已结算月份重复执行一个月修炼）。
             aiNonFocusedBatchMonths = 0
             return
         }
@@ -119,12 +113,23 @@ class AISectBattleProcessor @Inject constructor(
         }
     }
 
-    fun processAISectOperations(year: Int, month: Int) {
-        stateStore.update { processAISectOperations(year, month, this) }
-        processAIVsAIBattles()
-        playerDefenseProcessor.processPlayerDefenseBattles()
+    /**
+     * 当前热档批量上界（12/6/3）——AUTHORITATIVE 月结管线把该平台决策
+     * 经 nativeSetAiThermalBatchSize 推送 C++（AI 修炼热控批量上界为平台
+     * 效应，热状态读取保留 Kotlin；批状态机在 C++ 内存运行）。
+     */
+    internal fun currentAiThermalBatchSize(): Int = when {
+        thermalMonitor.shouldEmergencySave() -> THERMAL_EMERGENCY_BATCH
+        thermalMonitor.shouldReduceWorkload() -> THERMAL_REDUCE_BATCH
+        else -> THERMAL_NORMAL_BATCH
     }
 
+    /**
+     * AI 宗门月度运营（3 参版）——AUTHORITATIVE 回退链子事件 6 的 Kotlin 面
+     * （仓库清场 + 热控分批修炼 + 宗门等级同步，纯运营无战斗）。
+     * 战斗编排面已入 C++ 月结子事件 6b/6c（P2-18）；2 参版委托随
+     * 征伐环下沉删除（全仓唯一调用方为已删的休眠链）。
+     */
     @Suppress("CyclomaticComplexMethod", "MaxLineLength") // 宗门等级同步 when 链（搬移自原文件）
     fun processAISectOperations(year: Int, month: Int, state: MutableGameState) {
         val data = state.gameData
@@ -166,8 +171,10 @@ class AISectBattleProcessor @Inject constructor(
             } else {
                 val disciples = updatedAiDisciples[sect.id] ?: return@map sect
                 val newLevel = when (sect.level) {
-                    SectLevel.SMALL -> if (disciples.any { it.isAlive && it.realm <= 5 }) SectLevel.MEDIUM else sect.level
-                    SectLevel.MEDIUM -> if (disciples.any { it.isAlive && it.realm <= 4 }) SectLevel.LARGE else sect.level
+                    SectLevel.SMALL -> if (disciples.any { it.isAlive && it.realm <= 5 }) SectLevel.MEDIUM else sect
+                        .level
+                    SectLevel.MEDIUM -> if (disciples.any { it.isAlive && it.realm <= 4 }) SectLevel.LARGE else sect
+                        .level
                     SectLevel.LARGE -> if (disciples.any { it.isAlive && it.realm <= 2 }) SectLevel.TOP else sect.level
                     else -> sect.level
                 }
@@ -193,71 +200,4 @@ class AISectBattleProcessor @Inject constructor(
             worldMapSects = syncedWorldSects
         )
     }
-
-    /**
-     * AI-vs-AI 战斗月度结算（含玩家占领宗门防御）。
-     * 同步执行，不通过 scope.launch 异步写入。
-     */
-    private fun processAIVsAIBattles() {
-        val data = stateStore.gameData.value
-        val playerSectId = data.worldMapSects
-            .find { it.isPlayerSect }?.id
-
-        // 驻军弟子由 BattleTickSystem 每 tick 实时结算，此处无需重复
-
-        // 构建玩家占领宗门防御信息（P-2 拆分：防御构建提取）
-        val allDisciples = stateStore.discipleTables.assembleAll()
-        val equipmentMap = stateStore.equipmentInstancesSnapshot
-            .associateBy { it.id }
-        val manualMap = stateStore.manualInstancesSnapshot
-            .associateBy { it.id }
-        val profMap = data.manualProficiencies.mapValues { (_, list) ->
-            list.associateBy { it.manualId }
-        }
-        val playerDefenders = buildPlayerDefenseInfo(
-            data, allDisciples, equipmentMap, manualMap, profMap, playerSectId
-        )
-
-        val results = AISectAttackManager.decideAttacks(data, playerDefenders)
-        if (results.isEmpty()) return
-
-        // P-2 拆分：单次攻击结果应用提取（含占领/关系变更）
-        for (result in results) {
-            occupationResolver.applyAIAttackResult(result, data.gameYear)
-        }
-    }
-
-    /** P-2：构建玩家占领宗门的防御信息（驻军弟子 + 战斗参战者）。 */
-    @Suppress("UnusedParameter") // playerSectId 保留签名兼容（搬移自原文件）
-    private fun buildPlayerDefenseInfo(
-        data: com.xianxia.sect.core.model.GameData,
-        allDisciples: List<com.xianxia.sect.core.model.Disciple>,
-        equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
-        manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-        profMap: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
-        playerSectId: String?
-    ): Map<String, AISectAttackManager.PlayerOccupiedDefenseInfo> = if (playerSectId != null) {
-        data.worldMapSects
-            .filter { it.isPlayerOccupied && it.occupierSectId == playerSectId }
-            .associate { sect ->
-                val garrisoned = sect.garrisonSlots
-                    .filter { it.discipleId.isNotEmpty() }
-                    .mapNotNull { slot ->
-                        allDisciples.find { d ->
-                            d.id == slot.discipleId && d.isAlive
-                        }
-                    }
-                val combatants = garrisoned.map { d ->
-                    battleSystem.convertDiscipleToCombatant(
-                        d, equipmentMap, manualMap, profMap,
-                        CombatantSide.DEFENDER,
-                        bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
-                    )
-                }
-                sect.id to AISectAttackManager.PlayerOccupiedDefenseInfo(
-                    disciples = garrisoned,
-                    combatants = combatants
-                )
-            }
-    } else emptyMap()
 }

@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.integrity.rules
 
+import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.data.model.SaveData
 
 /**
@@ -16,6 +17,31 @@ object EquipmentDedupeRule : SaveValidationRule {
 
     override fun execute(data: SaveData, context: RuleContext): RuleOutcome {
         // 统计每个 equipment ID 被引用的次数和位置
+        val duplicates = collectEquipmentUsage(data).filter { it.value.size > 1 }
+        if (duplicates.isEmpty()) return RuleOutcome.Passed
+
+        val repairs = mutableListOf<String>()
+
+        val fixedDisciples = data.disciples.mapIndexed { index, d ->
+            val name = d.name.ifBlank { "ID=${d.id}" }
+            val (equip, localFixes) = clearDuplicateRefs(d.equipment, index, duplicates)
+            if (localFixes.isNotEmpty()) {
+                repairs.add("弟子[$name] 装备重复引用: ${localFixes.joinToString(", ")}，已清除")
+                d.copy(equipment = equip)
+            } else d
+        }
+
+        return if (repairs.isNotEmpty()) {
+            RuleOutcome.Repaired(data.copy(disciples = fixedDisciples), repairs)
+        } else {
+            RuleOutcome.Passed
+        }
+    }
+
+    /** 装备引用统计（execute 拆分）：id → [(弟子行下标, 槽位标签)] */
+    private fun collectEquipmentUsage(
+        data: SaveData
+    ): MutableMap<String, MutableList<Pair<Int, String>>> {
         val usage = mutableMapOf<String, MutableList<Pair<Int, String>>>()
 
         data.disciples.forEachIndexed { index, d ->
@@ -34,51 +60,41 @@ object EquipmentDedupeRule : SaveValidationRule {
                 usage.getOrPut(equip.accessoryId) { mutableListOf() }.add(index to "${name}.accessoryId")
             }
         }
+        return usage
+    }
 
-        val duplicates = usage.filter { it.value.size > 1 }
-        if (duplicates.isEmpty()) return RuleOutcome.Passed
+    /** 清除非首次重复引用（execute 拆分）：返回清理后装备与修复记录 */
+    private fun clearDuplicateRefs(
+        equip: EquipmentSet,
+        index: Int,
+        duplicates: Map<String, List<Pair<Int, String>>>
+    ): Pair<EquipmentSet, List<String>> {
+        var result = equip
+        val localFixes = mutableListOf<String>()
 
-        val repairs = mutableListOf<String>()
-
-        val fixedDisciples = data.disciples.mapIndexed { index, d ->
-            val name = d.name.ifBlank { "ID=${d.id}" }
-            var equip = d.equipment
-            val localFixes = mutableListOf<String>()
-
-            duplicates.forEach { (equipId, refs) ->
-                // 只清除非首次引用
-                val isFirst = refs.any { it.first == index && refs.first().first == index }
-                if (!isFirst && refs.any { it.first == index }) {
-                    // 确定该弟子的哪个槽位引用了此 equipId
-                    if (equip.weaponId == equipId) {
-                        localFixes.add("weaponId=$equipId")
-                        equip = equip.copy(weaponId = "")
-                    }
-                    if (equip.armorId == equipId) {
-                        localFixes.add("armorId=$equipId")
-                        equip = equip.copy(armorId = "")
-                    }
-                    if (equip.bootsId == equipId) {
-                        localFixes.add("bootsId=$equipId")
-                        equip = equip.copy(bootsId = "")
-                    }
-                    if (equip.accessoryId == equipId) {
-                        localFixes.add("accessoryId=$equipId")
-                        equip = equip.copy(accessoryId = "")
-                    }
+        duplicates.forEach { (equipId, refs) ->
+            // 只清除非首次引用
+            val isFirst = refs.any { it.first == index && refs.first().first == index }
+            if (!isFirst && refs.any { it.first == index }) {
+                // 确定该弟子的哪个槽位引用了此 equipId
+                if (result.weaponId == equipId) {
+                    localFixes.add("weaponId=$equipId")
+                    result = result.copy(weaponId = "")
+                }
+                if (result.armorId == equipId) {
+                    localFixes.add("armorId=$equipId")
+                    result = result.copy(armorId = "")
+                }
+                if (result.bootsId == equipId) {
+                    localFixes.add("bootsId=$equipId")
+                    result = result.copy(bootsId = "")
+                }
+                if (result.accessoryId == equipId) {
+                    localFixes.add("accessoryId=$equipId")
+                    result = result.copy(accessoryId = "")
                 }
             }
-
-            if (localFixes.isNotEmpty()) {
-                repairs.add("弟子[$name] 装备重复引用: ${localFixes.joinToString(", ")}，已清除")
-                d.copy(equipment = equip)
-            } else d
         }
-
-        return if (repairs.isNotEmpty()) {
-            RuleOutcome.Repaired(data.copy(disciples = fixedDisciples), repairs)
-        } else {
-            RuleOutcome.Passed
-        }
+        return result to localFixes
     }
 }

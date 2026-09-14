@@ -25,6 +25,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
  * 功法熟练度 + 装备孕养每旬增长测试。
@@ -206,7 +212,7 @@ class CultivationCoreProficiencyNurtureTest {
         }
         assertTrue("熟练度应大于0", proficiencies.isNotEmpty())
         assertTrue("熟练度值应大于0", proficiencies[0].proficiency > 0.0)
-        // 2026-08-12 悟性重设计：悟性不再影响功法熟练度
+        // 悟性不影响功法熟练度
         // 每旬增长 = 6.0 * 1.0 * 2000/1000 = 12.0
         assertEquals("每旬增长应等于12.0", 12.0, proficiencies[0].proficiency, 0.01)
     }
@@ -304,7 +310,7 @@ class CultivationCoreProficiencyNurtureTest {
         val p2 = checkNotNull(state.gameData.manualProficiencies["2"]) {
             "弟子2应有熟练度"
         }
-        // 2026-08-12 悟性重设计：悟性不再影响功法熟练度，不同悟性弟子增长一致
+        // 悟性不影响功法熟练度：不同悟性弟子增长一致
         assertEquals("不同悟性弟子熟练度增长应一致",
             p1[0].proficiency, p2[0].proficiency, 0.01)
     }

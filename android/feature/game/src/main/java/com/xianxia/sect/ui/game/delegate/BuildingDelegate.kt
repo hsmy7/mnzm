@@ -27,6 +27,8 @@ import com.xianxia.sect.ui.game.sect.GoldFingerState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.xianxia.sect.core.config.getAllBuildingSpriteSizes
+import com.xianxia.sect.core.config.getBuildingSpriteSize
 
 
 
@@ -47,11 +49,11 @@ class BuildingDelegate(
         private const val TAG = "BuildingDelegate"
     }
 
-    private var _currentBuildingDelegate: Any? = null
 
     /**
      * 放置建筑。通过 BuildingFeatureRegistry + SlotGroup 自动创建所有槽位。
      */
+    @Suppress("UnusedParameter") // height: 占位几何形参：脚印由 BuildingFeatureRegistry 推导，保留调用契约
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
         gameEngine.launchOnEngine {
             doPlaceBuilding(name, gridX, gridY, width, height)
@@ -59,6 +61,7 @@ class BuildingDelegate(
     }
 
     /** placeBuilding 的引擎线程执行体，供 batchPlaceBuilding 直接复用（避免递归 launchOnEngine）。 */
+    @Suppress("UnusedParameter") // width: 占位几何形参：脚印由 BuildingFeatureRegistry 推导，保留调用契约
     private suspend fun doPlaceBuilding(name: String, gridX: Int, gridY: Int, width: Int, height: Int) {
         val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return
         if (!hasRequiredSectLevel(feature)) return
@@ -76,6 +79,17 @@ class BuildingDelegate(
             width = gridW, height = gridH,
             sectId = activeId, instanceId = newBuildingInstanceId
         )
+
+        // batch-06 native 臂：放置事务（校验链 + 建筑写入 + 灵石直扣 + 引导
+        // 计数）C++ 真相先行。成功后本函数只承担槽位派生残差（createSlots 以
+        // native 前快照定槽位序——ProductionSlotGroup.slotIndex 按
+        // placedBuildings 同类型计数，native 后快照会多计本座）；失败信封/
+        // 降级回退下方原路径完整事务（isPlacementAllowed 重执行——双实现并行契约）。
+        val beforeNative = gameEngine.gameDataSnapshot
+        if (buildingFacade.tryNativePlaceBuilding(newBuilding, feature, cost)) {
+            placeSlotsResidual(beforeNative, feature, newBuildingInstanceId, activeId)
+            return
+        }
 
         gameEngine.updateGameData { data ->
             if (!isPlacementAllowed(
@@ -113,6 +127,36 @@ class BuildingDelegate(
         newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
     }
 
+    /**
+     * native 放置臂残差：槽位派生 + 生产槽 repo 同步（建筑写入/灵石直扣/
+     * 引导计数已由 C++ 事务承担——batch-06）。[beforeNative] 为 native 前快照，
+     * createSlots 以其既有槽位数定序，与回退臂事务内同基数。
+     */
+    private suspend fun placeSlotsResidual(
+        beforeNative: com.xianxia.sect.core.model.GameData,
+        feature: com.xianxia.sect.core.engine.domain.building.BuildingFeature,
+        instanceId: String,
+        activeId: String
+    ) {
+        val results = feature.slotGroups.map { group ->
+            group.createSlots(instanceId, beforeNative, activeId, feature)
+        }
+        val newProductionSlots = results.flatMap { it.productionSlots }
+        gameEngine.updateGameData { data ->
+            data.copy(
+                spiritFieldPlants = data.spiritFieldPlants + results.flatMap { it.spiritFieldPlants },
+                spiritMineSlots = data.spiritMineSlots + results.flatMap { it.spiritMineSlots },
+                patrolSlots = data.patrolSlots + results.flatMap { it.patrolSlots },
+                patrolConfigs = data.patrolConfigs + results.flatMap { it.patrolConfigs },
+                residenceSlots = data.residenceSlots + results.flatMap { it.residenceSlots },
+                productionSlots = data.productionSlots + newProductionSlots,
+                warehouseGarrisons = data.warehouseGarrisons + results.flatMap { it.warehouseGarrisons },
+                librarySlots = data.librarySlots + results.flatMap { it.librarySlots }
+            )
+        }
+        newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
+    }
+
     /** 宗门等级检查（防御层：即使 UI 层已拦截，引擎层也做硬检查）。 */
     private fun hasRequiredSectLevel(feature: com.xianxia.sect.core.engine.domain.building.BuildingFeature): Boolean {
         if (feature.requiredSectLevel <= 0) return true
@@ -141,7 +185,7 @@ class BuildingDelegate(
     /**
      * 放置前校验（事务内）：限建数量 + 占用重叠复查 + 灵石。
      *
-     * 第三层防御占用重叠复查（2026-08-06 第一性原理兜底）：UI 已判 Valid，
+     * 第三层防御占用重叠复查：UI 已判 Valid，
      * 引擎兜底防 UI/数据源漂移——旧档 sectId 不匹配建筑从占用检测消失的窗口期内，
      * 拖放显示绿色也不得真的叠建。
      */
@@ -212,9 +256,9 @@ class BuildingDelegate(
         if (!goldFingerState.isActive || goldFingerState.canBuildCount <= 0) return
         gameEngine.launchOnEngine {
             val name = goldFingerState.buildingName
-            // ★ 2026-08-31 根因修复：石板路不在 BuildingFeatureRegistry（findByDisplayName
-            // 返回 null → doPlaceBuilding 早退 → 金手指批量道路 0 建 0 扣）——批量道路
-            // 必须走 RoadFacade 逐格放置（每格扣 20 灵石、落 roads、即时回导 C++）
+            // 石板路不在 BuildingFeatureRegistry（findByDisplayName 返回 null →
+            // doPlaceBuilding 早退）——批量道路必须走 RoadFacade 逐格放置
+            //（每格扣 20 灵石、落 roads、即时回导 C++）
             if (name == GameConfig.Road.DISPLAY_NAME) {
                 for ((cellKey, valid) in goldFingerState.cellValidity) {
                     if (!valid) continue
@@ -315,7 +359,7 @@ class BuildingDelegate(
 }
 
 /**
- * 判断目标矩形是否与同一宗门作用域内的已有建筑重叠（引擎层放置防御，2026-08-06）。
+ * 判断目标矩形是否与同一宗门作用域内的已有建筑重叠（引擎层放置防御）。
  *
  * 作用域限定 [sectId]：不同宗门的建筑使用独立网格，坐标互不干扰（与
  * MainGameScreen effectivePlacedBuildings / GridSystem 判定同源）。

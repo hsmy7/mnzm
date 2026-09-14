@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.ui.game.delegate.AutoAssignSpec
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.config.BuildingConfigModel
 import com.xianxia.sect.core.config.BuildingConfigService
@@ -16,6 +17,7 @@ import com.xianxia.sect.core.engine.notifyUserInteraction
 import com.xianxia.sect.core.engine.setActiveDialog
 import com.xianxia.sect.core.engine.setFocusedDiscipleId
 import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.updateGameDataSync
 import com.xianxia.sect.core.engine.updateDisciple
 import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
@@ -119,11 +121,10 @@ class GameViewModelTest {
     private lateinit var gameDataFlow: MutableStateFlow<GameData>
 
     /**
-     * launchOnEngine 捕获列表（2026-08-01 根因修复）。
+     * launchOnEngine 捕获列表。
      *
-     * 历史误诊：文档声称 18 个失败源于"mockkStatic 拦截 Kotlin 2.2 顶层扩展函数失效"，
-     * 实际根因是 relaxed mock 上 launchOnEngine 返回 mock Job、lambda 永不执行——
-     * 所有异步路径（delegate 经 launchOnEngine 派发）的副作用从未发生。
+     * relaxed mock 上 launchOnEngine 返回 mock Job、lambda 永不执行——
+     * 所有异步路径（delegate 经 launchOnEngine 派发）的副作用不会发生。
      * 本列表捕获 lambda，测试内通过 runEngineBlocks() 显式执行。
      */
     private val engineBlocks = mutableListOf<suspend CoroutineScope.() -> Unit>()
@@ -202,14 +203,14 @@ class GameViewModelTest {
             GameVmDelegateServices(
                 mailService, buildingConfigService,
                 buildingFacade, discipleFacade,
-                // 2026-08-01：注入 TestDispatcher 替代真实 Dispatchers.IO
-                //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
+                // 注入 TestDispatcher 替代真实 Dispatchers.IO
+                //（真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
                 IoDispatcher(testDispatcher),
                 sessionManager,
-                // 2026-08-14 平板省电：GPU 档位检测（本测试不触达渲染路径，detect 不调用）
+                // GPU 档位检测（本测试不触达渲染路径，detect 不调用）
                 GpuTierDetector()
             ),
-            // 2026-08-13 平台抽象：surface 提供者工厂（本测试不触达渲染路径）
+            // surface 提供者工厂（本测试不触达渲染路径）
             SurfaceProviderFactory { mockk() }
         )
     }
@@ -233,19 +234,19 @@ class GameViewModelTest {
                 id = "alchemy", displayName = "炼丹炉",
                 buildingType = "ALCHEMY", cost = 500L
             )
-        assertEquals(500L, viewModel.getBuildingCost("炼丹炉"))
+        assertEquals(500L, viewModel.buildingDelegate.getBuildingCost("炼丹炉"))
     }
 
     @Test
     fun `getBuildingCost - 配置不存在时返回默认值 1000`() {
         every { buildingConfigService.getBuildingConfigByDisplayName("未知建筑") } returns null
-        assertEquals(1000L, viewModel.getBuildingCost("未知建筑"))
+        assertEquals(1000L, viewModel.buildingDelegate.getBuildingCost("未知建筑"))
     }
 
     @Test
     fun `getBuildingGridSize - 返回配置中的网格尺寸`() {
         every { buildingConfigService.getBuildingGridSize("炼丹炉") } returns Pair(2, 3)
-        val (w, h) = viewModel.getBuildingGridSize("炼丹炉")
+        val (w, h) = viewModel.buildingDelegate.getBuildingGridSize("炼丹炉")
         assertEquals(2, w)
         assertEquals(3, h)
     }
@@ -260,7 +261,7 @@ class GameViewModelTest {
             )
         every { buildingConfigService.getBuildingGridSize("炼丹炉") } returns Pair(2, 3)
 
-        viewModel.placeBuilding("炼丹炉", 3, 3)
+        viewModel.buildingDelegate.placeBuilding("炼丹炉", 3, 3)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -277,7 +278,7 @@ class GameViewModelTest {
             )
         every { buildingConfigService.getBuildingGridSize("炼丹炉") } returns Pair(2, 3)
 
-        viewModel.placeBuilding("炼丹炉", 3, 3)
+        viewModel.buildingDelegate.placeBuilding("炼丹炉", 3, 3)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -293,7 +294,7 @@ class GameViewModelTest {
             )
         every { buildingConfigService.getBuildingGridSize("炼丹炉") } returns Pair(2, 3)
 
-        viewModel.placeBuilding("炼丹炉", 3, 3)
+        viewModel.buildingDelegate.placeBuilding("炼丹炉", 3, 3)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -313,7 +314,7 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("炼丹炉", 4, 5)
+        viewModel.buildingDelegate.placeBuilding("炼丹炉", 4, 5)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -345,7 +346,7 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("炼丹炉", 3, 3)
+        viewModel.buildingDelegate.placeBuilding("炼丹炉", 3, 3)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -368,7 +369,7 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("炼丹炉", 3, 3)
+        viewModel.buildingDelegate.placeBuilding("炼丹炉", 3, 3)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -396,7 +397,7 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("藏经阁", 3, 3)
+        viewModel.buildingDelegate.placeBuilding("藏经阁", 3, 3)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -425,7 +426,7 @@ class GameViewModelTest {
         val disciple = createTestDiscipleAggregate("d1", "测试弟子")
         val request = DiscipleDetailRequest(disciple = disciple, allDisciples = listOf(disciple))
 
-        viewModel.showDiscipleDetail(request)
+        viewModel.overlays.showDiscipleDetail(request)
 
         assertEquals("detailDisciple 应为请求的弟子", request, viewModel.detailDisciple.value)
     }
@@ -435,7 +436,7 @@ class GameViewModelTest {
         val disciple = createTestDiscipleAggregate("d1", "测试弟子")
         val request = DiscipleDetailRequest(disciple = disciple, allDisciples = listOf(disciple))
 
-        viewModel.showDiscipleDetail(request)
+        viewModel.overlays.showDiscipleDetail(request)
 
         verify { gameEngine.setFocusedDiscipleId("d1") }
     }
@@ -445,7 +446,7 @@ class GameViewModelTest {
         val disciple = createTestDiscipleAggregate("d1", "测试弟子")
         val request = DiscipleDetailRequest(disciple = disciple, allDisciples = listOf(disciple))
 
-        viewModel.showDiscipleDetail(request)
+        viewModel.overlays.showDiscipleDetail(request)
 
         assertTrue(
             "overlayOrder 应包含 DISCIPLE_DETAIL",
@@ -458,9 +459,9 @@ class GameViewModelTest {
         // 先设置弟子详情
         val disciple = createTestDiscipleAggregate("d1", "测试弟子")
         val request = DiscipleDetailRequest(disciple = disciple, allDisciples = listOf(disciple))
-        viewModel.showDiscipleDetail(request)
+        viewModel.overlays.showDiscipleDetail(request)
 
-        viewModel.dismissDiscipleDetail()
+        viewModel.overlays.dismissDiscipleDetail()
 
         assertNull("detailDisciple 应被清空", viewModel.detailDisciple.value)
     }
@@ -469,9 +470,9 @@ class GameViewModelTest {
     fun `dismissDiscipleDetail - 调用 setFocusedDiscipleId 清除聚焦`() {
         val disciple = createTestDiscipleAggregate("d1", "测试弟子")
         val request = DiscipleDetailRequest(disciple = disciple, allDisciples = listOf(disciple))
-        viewModel.showDiscipleDetail(request)
+        viewModel.overlays.showDiscipleDetail(request)
 
-        viewModel.dismissDiscipleDetail()
+        viewModel.overlays.dismissDiscipleDetail()
 
         verify { gameEngine.setFocusedDiscipleId(null) }
     }
@@ -480,9 +481,9 @@ class GameViewModelTest {
     fun `dismissDiscipleDetail - 移除 DISCIPLE_DETAIL overlay`() {
         val disciple = createTestDiscipleAggregate("d1", "测试弟子")
         val request = DiscipleDetailRequest(disciple = disciple, allDisciples = listOf(disciple))
-        viewModel.showDiscipleDetail(request)
+        viewModel.overlays.showDiscipleDetail(request)
 
-        viewModel.dismissDiscipleDetail()
+        viewModel.overlays.dismissDiscipleDetail()
 
         assertFalse(
             "overlayOrder 不应再包含 DISCIPLE_DETAIL",
@@ -492,7 +493,7 @@ class GameViewModelTest {
 
     @Test
     fun `toggleFollowDisciple - 委托到 DiscipleDelegate 并调用 updateDisciple`() = runTest(testDispatcher) {
-        viewModel.toggleFollowDisciple("d1")
+        viewModel.disciple.toggleFollowDisciple("d1")
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -511,70 +512,70 @@ class GameViewModelTest {
     @Test
     fun `openSpiritMineDialog - 转发到 NavigationDelegate 并发出 SpiritMine 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openSpiritMineDialog()
+        viewModel.navigation.openSpiritMineDialog()
         assertEquals(GameRoute.SpiritMine, deferred.await())
     }
 
     @Test
     fun `openHerbGardenDialog - 转发到 NavigationDelegate 并发出 HerbGarden 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openHerbGardenDialog()
+        viewModel.navigation.openHerbGardenDialog()
         assertEquals(GameRoute.HerbGarden, deferred.await())
     }
 
     @Test
     fun `openAlchemyDialog - 转发到 NavigationDelegate 并发出 Alchemy 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openAlchemyDialog()
+        viewModel.navigation.openAlchemyDialog()
         assertEquals(GameRoute.Alchemy, deferred.await())
     }
 
     @Test
     fun `openForgeDialog - 转发到 NavigationDelegate 并发出 Forge 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openForgeDialog()
+        viewModel.navigation.openForgeDialog()
         assertEquals(GameRoute.Forge, deferred.await())
     }
 
     @Test
     fun `openLibraryDialog - 转发到 NavigationDelegate 并发出 Library 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openLibraryDialog()
+        viewModel.navigation.openLibraryDialog()
         assertEquals(GameRoute.Library, deferred.await())
     }
 
     @Test
     fun `openWorldMapDialog - 转发到 NavigationDelegate 并发出 WorldMap 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openWorldMapDialog()
+        viewModel.navigation.openWorldMapDialog()
         assertEquals(GameRoute.WorldMap, deferred.await())
     }
 
     @Test
     fun `openRecruitDialog - 转发到 NavigationDelegate 并发出 Recruit 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openRecruitDialog()
+        viewModel.navigation.openRecruitDialog()
         assertEquals(GameRoute.Recruit, deferred.await())
     }
 
     @Test
     fun `openMerchantDialog - 转发到 NavigationDelegate 并发出 Merchant 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openMerchantDialog()
+        viewModel.navigation.openMerchantDialog()
         assertEquals(GameRoute.Merchant, deferred.await())
     }
 
     @Test
     fun `openDiplomacyDialog - 转发到 NavigationDelegate 并发出 Diplomacy 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openDiplomacyDialog()
+        viewModel.navigation.openDiplomacyDialog()
         assertEquals(GameRoute.Diplomacy, deferred.await())
     }
 
     @Test
     fun `openBattleLogDialog - 转发到 NavigationDelegate 并发出 BattleLog 路由`() = runTest(testDispatcher) {
         val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openBattleLogDialog()
+        viewModel.navigation.openBattleLogDialog()
         assertEquals(GameRoute.BattleLog, deferred.await())
     }
 
@@ -596,22 +597,29 @@ class GameViewModelTest {
     // ════════════════════════════════════════════════════════════════
     // 场景 4：天枢殿三大自动设置方法
     // ════════════════════════════════════════════════════════════════
-    // 覆盖 ViewModel → GameEngine.updateGameData 链路，
-    // 验证 setAutoAssignSettings / setBreakthroughAutoPillSettings /
-    // setAutoEquipSettings / setAutoLearnSettings /
+    // 覆盖 ViewModel → GameEngine 设置项入口链路，验证 setBreakthroughAutoPill
+    // Settings / setAutoEquipSettings / setAutoLearnSettings /
     // setDaoCompanionBannedRootCounts / setDaoCompanionConsentRequired
-    // 六个方法是否正确将参数写入 GameData。
+    // 是否正确将参数写入 GameData。
+    //
+    // batch-23 后生产链 = setXxx → updateSettingsOrFallback（native 臂在
+    // 单测环境因 NativeEngineFlag.authoritative=false 优雅降级）→ 回退臂
+    // updateGameDataSync（launchInScope 同步变体）——故捕获点为
+    // updateGameDataSync 闭包（原 updateGameData 捕获点在降级后永不落位，
+    // 为 5 处预存失败根因；updateGameDataSync 已与同文件 updateGameData
+    // 可见性对齐为 public）。
 
     @Test
-    fun `setAutoAssignSettings - 9参数正确映射到 sectPolicies copy`() = runTest(testDispatcher) {
+    fun `setAutoAssignSettings - 规格参数正确映射到 sectPolicies copy`() = runTest(testDispatcher) {
         // 实际调用链是 batchUpdateAutoAssignAndGuide（合并引导计数器，非 updateGameData）
         val newPoliciesSlot = slot<SectPolicies>()
-        coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(), any()) } just runs
+        coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(),
+            any()) } just runs
 
-        viewModel.setAutoAssignSettings(
-            mineFocused = true, mineRootCounts = listOf(1, 2), mineThreshold = 5,
-            alchemyFocused = true, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
-            forgeFocused = false, forgeRootCounts = listOf(1, 3, 5), forgeThreshold = 10
+        viewModel.autoAssign.setAutoAssignSettings(
+            mine = AutoAssignSpec(focused = true, rootCounts = listOf(1, 2), threshold = 5),
+            alchemy = AutoAssignSpec(focused = true, rootCounts = emptyList(), threshold = 1),
+            forge = AutoAssignSpec(focused = false, rootCounts = listOf(1, 3, 5), threshold = 10)
         )
         runEngineBlocks()
         advanceUntilIdle()
@@ -635,12 +643,13 @@ class GameViewModelTest {
     @Test
     fun `setAutoAssignSettings - 全默认值时仍正确传递`() = runTest(testDispatcher) {
         val newPoliciesSlot = slot<SectPolicies>()
-        coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(), any()) } just runs
+        coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(),
+            any()) } just runs
 
-        viewModel.setAutoAssignSettings(
-            mineFocused = false, mineRootCounts = emptyList(), mineThreshold = 1,
-            alchemyFocused = false, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
-            forgeFocused = false, forgeRootCounts = emptyList(), forgeThreshold = 1
+        viewModel.autoAssign.setAutoAssignSettings(
+            mine = AutoAssignSpec(focused = false, rootCounts = emptyList(), threshold = 1),
+            alchemy = AutoAssignSpec(focused = false, rootCounts = emptyList(), threshold = 1),
+            forge = AutoAssignSpec(focused = false, rootCounts = emptyList(), threshold = 1)
         )
         runEngineBlocks()
         advanceUntilIdle()
@@ -659,9 +668,9 @@ class GameViewModelTest {
     @Test
     fun `setBreakthroughAutoPillSettings - focused和rootCounts正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
-        viewModel.setBreakthroughAutoPillSettings(focused = true, rootCounts = setOf(1, 3))
+        viewModel.autoAssign.setBreakthroughAutoPillSettings(focused = true, rootCounts = setOf(1, 3))
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -673,9 +682,9 @@ class GameViewModelTest {
     @Test
     fun `setAutoEquipSettings - focused和rootCounts正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
-        viewModel.setAutoEquipSettings(focused = true, rootCounts = setOf(2))
+        viewModel.autoAssign.setAutoEquipSettings(focused = true, rootCounts = setOf(2))
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -687,9 +696,9 @@ class GameViewModelTest {
     @Test
     fun `setAutoLearnSettings - focused=false和空rootCounts正确写入`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
-        viewModel.setAutoLearnSettings(focused = false, rootCounts = emptySet())
+        viewModel.autoAssign.setAutoLearnSettings(focused = false, rootCounts = emptySet())
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -701,9 +710,9 @@ class GameViewModelTest {
     @Test
     fun `setDaoCompanionBannedRootCounts - 正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
-        viewModel.setDaoCompanionBannedRootCounts(setOf(4, 5))
+        viewModel.autoAssign.setDaoCompanionBannedRootCounts(setOf(4, 5))
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -714,9 +723,9 @@ class GameViewModelTest {
     @Test
     fun `setDaoCompanionConsentRequired - 正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
-        viewModel.setDaoCompanionConsentRequired(required = true)
+        viewModel.autoAssign.setDaoCompanionConsentRequired(required = true)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -740,7 +749,7 @@ class GameViewModelTest {
             worldMapSects = listOf(playerSect, aiSect)
         )
 
-        viewModel.renameSect("太虚宗")
+        viewModel.sectDelegate.renameSect("太虚宗")
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -758,7 +767,7 @@ class GameViewModelTest {
         val playerSect = WorldSect(id = "player", name = "青云宗", isPlayerSect = true)
         val originalData = GameData(sectName = "青云宗", worldMapSects = listOf(playerSect))
 
-        viewModel.renameSect("青云宗")
+        viewModel.sectDelegate.renameSect("青云宗")
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -772,7 +781,7 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.renameSect("太虚宗")
+        viewModel.sectDelegate.renameSect("太虚宗")
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -781,7 +790,7 @@ class GameViewModelTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 场景 4：渲染命令总线过滤（2026-08-06 修复：总线只推送 activeSectId 匹配的建筑）
+    // 场景 4：渲染命令总线过滤（总线只推送 activeSectId 匹配的建筑）
     // ════════════════════════════════════════════════════════════════
 
     @Test
@@ -820,7 +829,7 @@ class GameViewModelTest {
 
     @Test
     fun `init - 当前宗门无建筑时总线推送空数组而非 null`() = runTest(testDispatcher) {
-        // 2026-08-06 对抗性审查 F2：空推送必须为非 null 空数组——渲染端
+        // 空推送必须为非 null 空数组——渲染端
         // `busSnapshot?.data ?: frame.buildingData` 在总线 null 时回退旧 frame，
         // 进入无建筑宗门会闪现/残留前宗门建筑
         val homeMine = GridBuildingData(displayName = "灵矿场", gridX = 0, gridY = 0,
@@ -853,7 +862,7 @@ class GameViewModelTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 玉符广告 + 个性化广告开关（2026-08-11 聚合 SDK 接入）
+    // 玉符广告 + 个性化广告开关
     // ════════════════════════════════════════════════════════════════
 
     @Test
@@ -871,7 +880,7 @@ class GameViewModelTest {
             (args[1] as () -> Unit)()
         }
 
-        viewModel.watchAdForJadeSymbols()
+        viewModel.ads.watchAdForJadeSymbols()
         runEngineBlocks()
 
         assertEquals("发放 3 玉符", 3, grantedAmount)
@@ -882,9 +891,9 @@ class GameViewModelTest {
     fun `watchAdForJadeSymbols - 每日上限时拦截不调广告`() = runTest(testDispatcher) {
         AdsDelegate.resetForTest()
         AdFreeWhitelist.initialize(null)
-        repeat(15) { viewModel.tryMarkAdWatched() }
+        repeat(15) { viewModel.ads.tryMarkAdWatched() }
 
-        viewModel.watchAdForJadeSymbols()
+        viewModel.ads.watchAdForJadeSymbols()
 
         verify(exactly = 0) { adService.watchAd(any(), any()) }
     }
@@ -893,12 +902,12 @@ class GameViewModelTest {
     fun `个性化广告开关 - 切换转发 SDK 并更新 StateFlow`() = runTest(testDispatcher) {
         val initial = viewModel.personalizedAdsEnabled.value
 
-        viewModel.setPersonalizedAdsEnabled(!initial)
+        viewModel.ads.setPersonalizedAdsEnabled(!initial)
 
         assertEquals(!initial, viewModel.personalizedAdsEnabled.value)
         verify { adService.setPersonalizedAdsEnabled(!initial) }
 
-        viewModel.setPersonalizedAdsEnabled(initial)
+        viewModel.ads.setPersonalizedAdsEnabled(initial)
         assertEquals(initial, viewModel.personalizedAdsEnabled.value)
         verify { adService.setPersonalizedAdsEnabled(initial) }
     }
@@ -909,19 +918,19 @@ class GameViewModelTest {
     fun `markBeastAttackShown - 加入已读集合且不触碰引擎`() = runTest(testDispatcher) {
         assertTrue(viewModel.acknowledgedBeastAttackIds.value.isEmpty())
 
-        viewModel.markBeastAttackShown("beast-1")
-        viewModel.markBeastAttackShown("beast-2")
-        viewModel.markBeastAttackShown("beast-1")  // 重复标记幂等
+        viewModel.warnings.markBeastAttackShown("beast-1")
+        viewModel.warnings.markBeastAttackShown("beast-2")
+        viewModel.warnings.markBeastAttackShown("beast-1")  // 重复标记幂等
 
         assertEquals(setOf("beast-1", "beast-2"), viewModel.acknowledgedBeastAttackIds.value)
     }
 
     @Test
     fun `pruneAcknowledgedBeastAttackIds - 仅保留给定集合`() = runTest(testDispatcher) {
-        viewModel.markBeastAttackShown("beast-1")
-        viewModel.markBeastAttackShown("beast-2")
+        viewModel.warnings.markBeastAttackShown("beast-1")
+        viewModel.warnings.markBeastAttackShown("beast-2")
 
-        viewModel.pruneAcknowledgedBeastAttackIds(setOf("beast-2"))
+        viewModel.warnings.pruneAcknowledgedBeastAttackIds(setOf("beast-2"))
 
         assertEquals(setOf("beast-2"), viewModel.acknowledgedBeastAttackIds.value)
     }

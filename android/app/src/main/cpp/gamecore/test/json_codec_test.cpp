@@ -165,7 +165,7 @@ TEST(JsonCodecTest, GameStateRoundTrip) {
 }
 
 TEST(JsonCodecTest, LenientFromJsonIgnoresUnknownFields) {
-    // 宽松解析：未知字段（后续批次未覆盖的嵌套对象）不得破坏导入
+    // 宽松解析：未知字段（未覆盖的嵌套对象）不得破坏导入
     const nlohmann::json j = nlohmann::json::parse(R"({
         "gameYear": 8,
         "spiritStones": 123,
@@ -228,7 +228,7 @@ TEST(JsonCodecTest, NestedTypesRoundTrip) {
     d.mailRecords[0].mailId = "mail-1";
     d.pendingTraitAdds.push_back(PendingTraitAdd{});
     d.pendingTraitAdds[0].traitId = "t-1";
-    // 远古秘境状态机（批次 1 剩余）
+    // 远古秘境状态机
     d.secretRealmState.id = "sr-1";
     d.secretRealmState.name = "远古秘境";
     d.secretRealmState.x = 12.5f;
@@ -354,7 +354,7 @@ TEST(JsonCodecTest, DumpStateNormalizesIntegralDoubles) {
 
 
 TEST(JsonCodecTest, VassalBreakawayProtocolRoundTrip) {
-    // 批 10-4：附庸脱离子事件协议扩容往返（VassalContract 真实形状修正 +
+    // 附庸脱离子事件协议扩容往返（VassalContract 真实形状修正 +
     // SectRelation.acquainted + aiSectDisciples（GameState 顶层）+
     // sectBattleRecords）
     GameData d;
@@ -388,7 +388,7 @@ TEST(JsonCodecTest, VassalBreakawayProtocolRoundTrip) {
     EXPECT_EQ(decoded.gameData.sectBattleRecords[1].type, "BATTLE_LOSS");
 }
 
-// ── 2026-08-31：石板道路状态迁移批次（Kotlin RoadData ↔ C++ RoadData） ──
+// ── 石板道路状态（Kotlin RoadData ↔ C++ RoadData） ──
 
 TEST(JsonCodecTest, RoadDataRoundTrip) {
     RoadData r;

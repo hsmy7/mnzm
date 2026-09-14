@@ -64,7 +64,7 @@ internal fun SecretRealmBackpackDialog(
     }
 }
 
-/** 空背包提示（SecretRealmBackpackDialog 拆分） */
+/** 空背包提示 */
 @Composable
 private fun SecretRealmBackpackEmptyHint() {
     Box(
@@ -75,7 +75,7 @@ private fun SecretRealmBackpackEmptyHint() {
     }
 }
 
-/** 背包物品网格（SecretRealmBackpackDialog 拆分）：灵石 + 六类物品逐件卡片 */
+/** 背包物品网格：灵石 + 六类物品逐件卡片 */
 @Composable
 private fun SecretRealmBackpackItemGrid(backpack: SecretRealmBackpack) {
     FlowRow(
@@ -127,7 +127,7 @@ private fun SecretRealmBackpackItemGrid(backpack: SecretRealmBackpack) {
     }
 }
 
-/** 单张背包物品卡片（SecretRealmBackpackDialog 拆分） */
+/** 单张背包物品卡片 */
 @Composable
 private fun BackpackRewardItemCard(
     itemName: String,

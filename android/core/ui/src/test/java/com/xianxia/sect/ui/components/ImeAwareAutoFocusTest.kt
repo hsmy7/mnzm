@@ -15,12 +15,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * rememberImeAwareAutoFocusRequester 聚焦重试守卫测试
- * （2026-08 第四根因键盘频闪根治）：
+ * rememberImeAwareAutoFocusRequester 聚焦重试守卫测试：
  * hasTextInputFocus 判定逻辑——已有文本输入焦点时不重复 requestFocus，
  * 杜绝 ROM 智能输入法在检测信号不稳定时反复重弹键盘。
  *
- * 第五根因补充（2026-08 真我 neo7 turbo）：Compose 文本字段聚焦时 Android 层
+ * Compose 文本字段聚焦时 Android 层
  * findFocus() 返回 ComposeView（AndroidComposeView，非 EditText/TextView），
  * 补充 `focused === view && view.hasFocus()` 判定覆盖该场景。
  */
@@ -84,7 +83,7 @@ class ImeAwareAutoFocusTest {
         assertTrue("子树内任意文本输入焦点均应判定命中", hasTextInputFocus(root))
     }
 
-    // ── Compose 场景（2026-08 第五根因修复）──────────────────────────
+    // ── Compose 场景 ──────────────────────────
     // Compose 文本字段聚焦时 Android 层 findFocus() 返回 ComposeView 自身
     //（AndroidComposeView，非 EditText/TextView），以 FrameLayout 模拟该形态
 

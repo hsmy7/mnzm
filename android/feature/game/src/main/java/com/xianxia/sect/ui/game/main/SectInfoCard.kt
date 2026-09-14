@@ -38,9 +38,7 @@ internal fun SectInfoCard(
     gameYear: Int,
     gameMonth: Int,
     gamePhase: Int,
-    lowStones: Long,
-    midStones: Long,
-    highStones: Long,
+    stones: SectStoneBalance,
     discipleCount: Int,
     combatPower: Long,
     sectLevel: Int = SectLevel.MEDIUM,
@@ -48,6 +46,7 @@ internal fun SectInfoCard(
     onSectIconClick: () -> Unit = {},
     onSectNameClick: () -> Unit = {}
 ) {
+    val (lowStones, midStones, highStones) = stones
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -83,7 +82,7 @@ internal fun SectInfoCard(
     }
 }
 
-/** 顶部行（SectInfoCard 拆分）：宗门图标 + 宗门名 + 战力显示 */
+/** 顶部行：宗门图标 + 宗门名 + 战力显示 */
 @Composable
 private fun SectInfoHeaderRow(
     sectName: String,
@@ -130,7 +129,7 @@ private fun SectInfoHeaderRow(
     }
 }
 
-/** 战力显示（SectInfoCard 拆分）：战斗力图 + 右侧 78% 居中自适应字号数字 */
+/** 战力显示：战斗力图 + 右侧 78% 居中自适应字号数字 */
 @Composable
 private fun CombatPowerDisplay(combatPower: Long) {
     Box(modifier = Modifier.size(width = 150.dp, height = 38.dp)) {
@@ -189,7 +188,7 @@ private fun CombatPowerDisplay(combatPower: Long) {
     }
 }
 
-/** 信息行（SectInfoCard 拆分）：年月阶段 + 弟子数 + 三档灵石 */
+/** 信息行：年月阶段 + 弟子数 + 三档灵石 */
 @Composable
 private fun SectInfoStatsRow(
     gameYear: Int,

@@ -109,7 +109,7 @@ fun CloseButton(
             .size(visualSize + touchPadding * 2)
             .clip(CircleShape)
             .clickable(
-                // indication=null：全局禁用涟漪（Bugly #9076 SIGABRT 根治，见 Theme.kt）
+                // indication=null：全局禁用涟漪（ripple 可触发原生 abort 的设备防御，见 Theme.kt）
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 enabled = enabled,

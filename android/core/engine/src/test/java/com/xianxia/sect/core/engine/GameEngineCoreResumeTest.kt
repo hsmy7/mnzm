@@ -29,10 +29,10 @@ import kotlin.coroutines.EmptyCoroutineContext
 /**
  * 后台恢复时序测试 — 验证"游戏时间永久冻结"根因修复。
  *
- * 修复前：`resumeFromBackground` 遇 secretRealmPauseLock 直接 return →
- * onDispose 丢失（Activity 重建）时锁残留 → 循环永不重启 + 三层看门狗
- * 因 isPaused 豁免全部失明 → 永久冻结。
- * 修复后：无条件重启循环（保持暂停分支，S4 语义），锁残留由租约自愈兜底。
+ * 契约：`resumeFromBackground` 遇 secretRealmPauseLock 无条件重启循环
+ * （保持暂停分支，S4 语义）；onDispose 丢失（Activity 重建）时的锁残留
+ * 由租约自愈兜底——否则循环永不重启，看门狗因 isPaused 豁免无法发现，
+ * 游戏时间永久冻结。
  */
 class GameEngineCoreResumeTest {
 
@@ -72,7 +72,7 @@ class GameEngineCoreResumeTest {
         // 回前台：锁仍持有（exitExploration 丢失场景）
         core.resumeFromBackground()
 
-        // 修复前：直接 return，循环永不重启。修复后：循环重启 + 暂停保持
+        // 锁持有也必须重启循环 + 保持暂停
         assertTrue("loop must restart despite pause lock", core.isGameLoopRunning)
         assertTrue("pause must be preserved (S4: no month/year change during exploration)", stateStore.isPaused.value)
 

@@ -51,6 +51,7 @@ interface WorldRepository {
     suspend fun getBattleLogById(id: String, slotId: Int = 0): BattleLog?
 }
 
+@Suppress("TooManyFunctions") // 库存仓储契约：六类物品+钱包的查询/变更端口，函数数即仓储协议面
 interface InventoryRepository {
     fun getManualStacks(slotId: Int = 0): Flow<List<ManualStack>>
     suspend fun getManualStackById(id: String, slotId: Int = 0): ManualStack?
@@ -104,11 +105,18 @@ interface GameHeavyDataPort {
 
 /** Decodes heavy data rows from storage into typed game state. */
 interface HeavyDataDecoder {
-    fun decodeDiscipleListMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String, List<com.xianxia.sect.core.model.Disciple>>
-    fun decodeSectDetailMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String, com.xianxia.sect.core.model.SectDetail>
-    fun decodeExploredSectInfoMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String, com.xianxia.sect.core.model.ExploredSectInfo>
-    fun decodeSectScoutInfoMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String, com.xianxia.sect.core.model.SectScoutInfo>
-    fun decodeManualProficiencyMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>>
-    fun decodeDiscipleListFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): List<com.xianxia.sect.core.model.Disciple>
-    fun decodeWorldSectListFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): List<com.xianxia.sect.core.model.WorldSect>
+    fun decodeDiscipleListMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String,
+        List<com.xianxia.sect.core.model.Disciple>>
+    fun decodeSectDetailMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String,
+        com.xianxia.sect.core.model.SectDetail>
+    fun decodeExploredSectInfoMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>,
+        key: String): Map<String, com.xianxia.sect.core.model.ExploredSectInfo>
+    fun decodeSectScoutInfoMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String,
+        com.xianxia.sect.core.model.SectScoutInfo>
+    fun decodeManualProficiencyMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>,
+        key: String): Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>>
+    fun decodeDiscipleListFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>,
+        key: String): List<com.xianxia.sect.core.model.Disciple>
+    fun decodeWorldSectListFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>,
+        key: String): List<com.xianxia.sect.core.model.WorldSect>
 }

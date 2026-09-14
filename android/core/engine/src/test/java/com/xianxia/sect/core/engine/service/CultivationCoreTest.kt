@@ -27,6 +27,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Rule
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
  * CultivationCore 直接单元测试。
@@ -205,43 +211,43 @@ class CultivationCoreTest {
     }
 
     @Test
-    fun `getLifespanGainForRealm - 渡劫 realm1 寿命增益5000`() {
-        assertEquals(5000, core.getLifespanGainForRealm(1))
+    fun `getLifespanGainForRealm - 渡劫 realm1 寿命增益6640`() {
+        assertEquals(6640, core.getLifespanGainForRealm(1))
     }
 
     @Test
-    fun `getLifespanGainForRealm - 大乘 realm2 寿命增益3000`() {
-        assertEquals(3000, core.getLifespanGainForRealm(2))
+    fun `getLifespanGainForRealm - 大乘 realm2 寿命增益3350`() {
+        assertEquals(3350, core.getLifespanGainForRealm(2))
     }
 
     @Test
-    fun `getLifespanGainForRealm - 合体 realm3 寿命增益1500`() {
-        assertEquals(1500, core.getLifespanGainForRealm(3))
+    fun `getLifespanGainForRealm - 合体 realm3 寿命增益1650`() {
+        assertEquals(1650, core.getLifespanGainForRealm(3))
     }
 
     @Test
-    fun `getLifespanGainForRealm - 炼虚 realm4 寿命增益800`() {
-        assertEquals(800, core.getLifespanGainForRealm(4))
+    fun `getLifespanGainForRealm - 炼虚 realm4 寿命增益825`() {
+        assertEquals(825, core.getLifespanGainForRealm(4))
     }
 
     @Test
-    fun `getLifespanGainForRealm - 化神 realm5 寿命增益400`() {
-        assertEquals(400, core.getLifespanGainForRealm(5))
+    fun `getLifespanGainForRealm - 化神 realm5 寿命增益500`() {
+        assertEquals(500, core.getLifespanGainForRealm(5))
     }
 
     @Test
-    fun `getLifespanGainForRealm - 元婴 realm6 寿命增益200`() {
-        assertEquals(200, core.getLifespanGainForRealm(6))
+    fun `getLifespanGainForRealm - 元婴 realm6 寿命增益255`() {
+        assertEquals(255, core.getLifespanGainForRealm(6))
     }
 
     @Test
-    fun `getLifespanGainForRealm - 金丹 realm7 寿命增益100`() {
-        assertEquals(100, core.getLifespanGainForRealm(7))
+    fun `getLifespanGainForRealm - 金丹 realm7 寿命增益95`() {
+        assertEquals(95, core.getLifespanGainForRealm(7))
     }
 
     @Test
-    fun `getLifespanGainForRealm - 筑基 realm8 寿命增益50`() {
-        assertEquals(50, core.getLifespanGainForRealm(8))
+    fun `getLifespanGainForRealm - 筑基 realm8 寿命增益40`() {
+        assertEquals(40, core.getLifespanGainForRealm(8))
     }
 
     @Test
@@ -752,7 +758,7 @@ class CultivationCoreTest {
         assertEquals("仙人的realms应为0", 0, tables.realms[id]?.toInt())
     }
 
-    // ==================== 月结丹药效果衰减（2026-08 修复） ====================
+    // ==================== 月结丹药效果衰减 ====================
 
     @Test
     fun `applyMonthlyDurationDecay - 丹药效果每月衰减3旬`() {

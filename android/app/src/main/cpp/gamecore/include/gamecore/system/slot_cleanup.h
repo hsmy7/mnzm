@@ -8,7 +8,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 弟子槽位清理（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-5）
+// 弟子槽位清理
 //
 // 等价移植 Kotlin DiscipleSlotCleanup.clearAllSlotsDataOnly 的**纯数据变换**
 // （11 类槽位统一清理，无 RNG、无状态）：
@@ -133,10 +133,47 @@ inline state::CaveExplorationTeam clearCaveExplorationTeam(
     return out;
 }
 
+// ── S5：完整 ActiveMission ↔ Lite 清理协议转换助手（gameData.activeMissions
+//    已升级为完整模型，清理 op 协议仍为 Lite；op 仅改 discipleIds/discipleNames，
+//    按 id 1:1 合并回完整模型语义 = Kotlin clearActiveMissions 全字段 copy） ──
+
+inline std::vector<state::ActiveMissionLite> toMissionLiteList(
+    const std::vector<state::ActiveMission>& full) {
+    std::vector<state::ActiveMissionLite> out;
+    out.reserve(full.size());
+    for (const auto& m : full) {
+        state::ActiveMissionLite lite;
+        lite.id = m.id;
+        lite.discipleIds = m.discipleIds;
+        lite.discipleNames = m.discipleNames;
+        out.push_back(std::move(lite));
+    }
+    return out;
+}
+
+/// Lite 清理结果按 id 合并回完整任务模型（保序；清理不增任务，id 1:1）
+inline std::vector<state::ActiveMission> mergeMissionLiteList(
+    const std::vector<state::ActiveMission>& full,
+    const std::vector<state::ActiveMissionLite>& liteList) {
+    std::vector<state::ActiveMission> merged;
+    merged.reserve(full.size());
+    for (const auto& lite : liteList) {
+        for (const auto& m : full) {
+            if (m.id == lite.id) {
+                state::ActiveMission out = m;
+                out.discipleIds = lite.discipleIds;
+                out.discipleNames = lite.discipleNames;
+                merged.push_back(std::move(out));
+                break;
+            }
+        }
+    }
+    return merged;
+}
+
 /// 悬赏任务清理（Kotlin clearActiveMissions 的成员过滤；ActiveMissionLite）
 inline state::ActiveMissionLite clearActiveMission(
-    const state::ActiveMissionLite& mission, const std::string& discipleId) {
-    bool contains = false;
+    const state::ActiveMissionLite& mission, const std::string& discipleId) {    bool contains = false;
     for (const auto& id : mission.discipleIds) {
         if (id == discipleId) {
             contains = true;

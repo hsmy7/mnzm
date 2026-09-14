@@ -350,7 +350,7 @@ class PillRecipeDatabaseTest {
     }
 
     // ============================================================
-    // findBestCraftableRecipe maxTier 过滤（职业系统，2026-08-09）
+    // findBestCraftableRecipe maxTier 过滤（职业系统）
     // ============================================================
 
     /** 构造满足某丹方全部材料的草药列表（tier N 丹方只消耗 tier N 草药，跨阶材料互斥） */

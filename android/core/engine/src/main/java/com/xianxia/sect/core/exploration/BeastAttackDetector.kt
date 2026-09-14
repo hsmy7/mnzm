@@ -3,6 +3,7 @@ package com.xianxia.sect.core.exploration
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.LevelType
+import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.util.GameRngManager
@@ -45,25 +46,12 @@ class BeastAttackDetector @Inject constructor(
         val radius = GameConfig.WorldMap.BEAST_ATTACK_RADIUS
 
         for (level in gd.worldLevels) {
-            if (level.type != LevelType.BEAST || level.defeated || level.checkExpired(year, month)) {
-                continue
-            }
-
-            var nearestSect: WorldSect? = null
-            var nearestDist = Float.MAX_VALUE
-
-            for (sect in targets) {
-                val dx = level.x - sect.x
-                val dy = level.y - sect.y
-                val dist = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                if (dist < nearestDist) {
-                    nearestDist = dist
-                    nearestSect = sect
-                }
-            }
-
-            val sect = nearestSect ?: continue
-            if (nearestDist >= radius) continue
+            // 非妖兽/已击败/已过期/无半径内玩家宗门的等级跳过（跳过者不消耗 EXPLORATION 抽取）
+            val isActiveBeast = level.type == LevelType.BEAST && !level.defeated &&
+                !level.checkExpired(year, month)
+            val nearest = if (isActiveBeast) nearestPlayerSectInRadius(level, targets, radius) else null
+            if (nearest == null) continue
+            val (sect, nearestDist) = nearest
 
             // 距离越近攻击概率越高：prob = baseProb * (1 - dist/radius)
             val prob = GameConfig.WorldMap.BEAST_ATTACK_BASE_PROB * (1.0 - nearestDist / radius)
@@ -81,4 +69,27 @@ class BeastAttackDetector @Inject constructor(
 
         return pending
     }
+}
+
+/**
+ * 最近玩家宗门查找：返回 (宗门, 距离)；
+ * 无玩家宗门或最近距离超出攻击半径时返回 null。
+ */
+private fun nearestPlayerSectInRadius(
+    level: WorldLevel,
+    targets: List<WorldSect>,
+    radius: Double
+): Pair<WorldSect, Float>? {
+    var nearestSect: WorldSect? = null
+    var nearestDist = Float.MAX_VALUE
+    for (sect in targets) {
+        val dx = level.x - sect.x
+        val dy = level.y - sect.y
+        val dist = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+        if (dist < nearestDist) {
+            nearestDist = dist
+            nearestSect = sect
+        }
+    }
+    return if (nearestSect != null && nearestDist < radius) nearestSect to nearestDist else null
 }

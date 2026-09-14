@@ -12,7 +12,7 @@
 #include "gamecore/system/exploration.h"
 
 // ============================================================
-// 世界关卡生成器（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-1）
+// 世界关卡生成器
 //
 // 等价移植 Kotlin LevelGenerator 的**纯生成逻辑**：
 //   - selectBeastRealm：年份锚点权重线性插值 + 加权随机（EXPLORATION 分区）

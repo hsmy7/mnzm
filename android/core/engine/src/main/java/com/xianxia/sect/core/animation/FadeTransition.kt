@@ -6,7 +6,7 @@ package com.xianxia.sect.core.animation
  * ## 设计
  * - 每帧由 [alphaAt] 从单调时钟 elapsed 计算 alpha，不维护动画状态——
  *   热控降帧（10fps 挂机档）下淡入时长按墙钟精确 300ms，不受帧率影响
- * - EaseOutCubic 缓动（[EasingConstants.EASE_OUT_CUBIC]，2026-08-13 收敛统一曲线来源）：
+ * - EaseOutCubic 缓动（[EasingConstants.EASE_OUT_CUBIC]，曲线来源统一于 [EasingConstants]）：
  *   快速启动、柔和结束
  * - 双端消费同一数学来源：Vulkan（C++ g_fadeAlpha × quad alpha）与
  *   Canvas（SoftwareCanvasBackend 合成 paint.alpha）行为一致

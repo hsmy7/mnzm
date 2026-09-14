@@ -156,8 +156,7 @@ class LootCalculatorTest {
 
     @Test
     fun `toRewardItems - 灵石与储物袋同时被掠夺时 itemId 非空且唯一`() {
-        // 回归守卫（Bugly #5079/#3091）：灵石+储物袋行此前 itemId 缺省 "",
-        // 同列表两个空 key 导致 LazyRow "Key "" was already used" 崩溃
+        // 灵石+储物袋行 itemId 必须非空且唯一（空 key 会导致 LazyRow "Key "" was already used" 崩溃）
         val loot = LootCalculator.BeastLootData(
             stolenSpiritStones = 20000,
             stolenBagCount = 2,

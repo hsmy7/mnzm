@@ -42,6 +42,18 @@ abstract class BaseCameraState(
     protected var userScale = false
         protected set
 
+    /**
+     * 俯视纵向压缩系数：screenY = (worldY - cameraY) × scale × [worldYScale]。
+     *
+     * 统一俯视视角：宗门地图以「接近正上方」的俯视投影呈现——正交、
+     * 无近大远小、网格仍为规整矩形，仅整屏 Y 轻微压缩模拟俯角（<1.0）。
+     * 默认 1.0（纯 90° 垂直向下，世界地图等不受影响）；子类覆盖实现俯视压缩
+     * （[SectCameraState] 使用与 C++ 投影同源的 SpriteAtlasDef.TOPDOWN_Y_SCALE）。
+     * 本类全部 Y 轴数学（正逆变换/pan/zoom 锚点/centerOn/clamp 可见高度）经由
+     * 此系数，子类覆盖后自动一致。
+     */
+    open val worldYScale: Float get() = 1f
+
     // ── 子类可覆盖的默认缩放策略 ──
 
     /**
@@ -62,9 +74,9 @@ abstract class BaseCameraState(
     // ── 坐标转换 ──
 
     override fun worldToScreenX(wx: Float): Float = (wx - cameraX) * scale
-    override fun worldToScreenY(wy: Float): Float = (wy - cameraY) * scale
+    override fun worldToScreenY(wy: Float): Float = (wy - cameraY) * scale * worldYScale
     override fun screenToWorldX(sx: Float): Float = sx / scale + cameraX
-    override fun screenToWorldY(sy: Float): Float = sy / scale + cameraY
+    override fun screenToWorldY(sy: Float): Float = sy / (scale * worldYScale) + cameraY
 
     // ── 相机控制 ──
 
@@ -97,7 +109,7 @@ abstract class BaseCameraState(
         if (viewportWidth <= 0 || viewportHeight <= 0) return
         if (scale <= 0f || scale.isNaN()) return
         cameraX -= dx / scale
-        cameraY -= dy / scale
+        cameraY -= dy / (scale * worldYScale)
         clamp()
     }
 
@@ -121,7 +133,7 @@ abstract class BaseCameraState(
         userScale = true
         scale = newScale
         cameraX = worldBeforeX - focusX / scale
-        cameraY = worldBeforeY - focusY / scale
+        cameraY = worldBeforeY - focusY / (scale * worldYScale)
         clamp()
     }
 
@@ -133,7 +145,7 @@ abstract class BaseCameraState(
     override fun centerOn(wx: Float, wy: Float) {
         if (viewportWidth <= 0 || viewportHeight <= 0) return
         cameraX = wx - viewportWidth / (2f * scale)
-        cameraY = wy - viewportHeight / (2f * scale)
+        cameraY = wy - viewportHeight / (2f * scale * worldYScale)
         clamp()
     }
 
@@ -143,7 +155,8 @@ abstract class BaseCameraState(
      * 当 viewport 尚未初始化时仍记录位置，但跳过 clamp（无法计算边界）。
      */
     override fun setPosition(x: Float, y: Float) {
-        if (x.isNaN() || x.isInfinite() || y.isNaN() || y.isInfinite()) return
+        val isInvalidCoordinate = x.isNaN() || x.isInfinite() || y.isNaN() || y.isInfinite()
+        if (isInvalidCoordinate) return
         cameraX = x
         cameraY = y
         if (viewportWidth > 0 && viewportHeight > 0) {
@@ -199,7 +212,8 @@ abstract class BaseCameraState(
         // NaN/Infinity 净化：coerceIn 不处理 NaN，NaN 会传播到渲染线程
         if (cameraX.isNaN() || cameraX.isInfinite()) cameraX = 0f
         if (cameraY.isNaN() || cameraY.isInfinite()) cameraY = 0f
-        clampPosition(viewportWidth / scale, viewportHeight / scale)
+        // 可见世界高度按俯视纵向压缩系数扩大（与投影矩阵可见带严格一致）
+        clampPosition(viewportWidth / scale, viewportHeight / (scale * worldYScale))
     }
 
     /**

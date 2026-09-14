@@ -29,6 +29,7 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 
 /**
  * 新增天赋/体质/词条引擎入口测试（真实 JadeSymbolService + 固定种子 RNG + 真实 stateStore）。
@@ -436,7 +437,7 @@ class GameEngineTraitAddTest {
         assertEquals("新增延年应上调 lifespan（按境界基准折算）", expected, assembleDisciple().lifespan)
     }
 
-    // ── 端到端：确认新增后 getBaseStats 立即反映 Flat 加成（对齐洗炼 2026-08-12 Bug 2 修复） ──
+    // ── 端到端：确认新增后 getBaseStats 立即反映 Flat 加成（与洗炼一致） ──
 
     @Test
     fun `confirmTraitAdd - 新增青帝后 getBaseStats 含灵植flat加18`() = runBlocking {

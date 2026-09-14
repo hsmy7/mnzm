@@ -32,7 +32,7 @@ class GameEngineRecruitTest {
     /** 模拟 recruitAllFromList 的事务内逻辑（纯 [MutableGameState] 操作） */
     private fun executeRecruitAll(state: MutableGameState): Int {
         // 模拟事务开头净化：损坏/重复/残留条目移除（与真实实现一致）
-        val sanitized = RecruitService.sanitizeRecruitList(state)
+        RecruitService.sanitizeRecruitList(state)
         val validRecruits = state.gameData.recruitList
             .filter(RecruitIntegrity::isValidRecruit)
         if (validRecruits.isEmpty()) return 0

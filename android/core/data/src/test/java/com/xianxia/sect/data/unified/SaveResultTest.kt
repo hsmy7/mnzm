@@ -111,7 +111,8 @@ class SaveResultTest {
 
     @Test
     fun `Failure - error and message are accessible`() {
-        val result = SaveResult.failure(SaveError.CHECKSUM_MISMATCH, "hash mismatch", RuntimeException("cause")) as SaveResult.Failure
+        val result = SaveResult.failure(SaveError.CHECKSUM_MISMATCH, "hash mismatch",
+            RuntimeException("cause")) as SaveResult.Failure
         assertEquals(SaveError.CHECKSUM_MISMATCH, result.error)
         assertEquals("hash mismatch", result.message)
         assertNotNull(result.cause)

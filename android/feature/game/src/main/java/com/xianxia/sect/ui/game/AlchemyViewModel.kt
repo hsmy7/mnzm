@@ -17,7 +17,6 @@ import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
-import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +29,6 @@ import javax.inject.Inject
 @HiltViewModel
 class AlchemyViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val elderManagement: ElderManagementUseCase
 ) : BaseViewModel() {
 
     val alchemySlots: StateFlow<List<AlchemySlot>> = gameEngine.productionSlots
@@ -70,6 +68,7 @@ class AlchemyViewModel @Inject constructor(
             ?.autoRestartEnabled ?: false
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun startAlchemy(slotIndex: Int, recipe: PillRecipeDatabase.PillRecipe) {
         if (_isStartingAlchemy.value) return
         _isStartingAlchemy.value = true
@@ -96,7 +95,7 @@ class AlchemyViewModel @Inject constructor(
             it.buildingType == BuildingType.ALCHEMY && it.slotIndex == slotIndex
         }
         // 职业门禁：按槽位弟子炼丹师职业等级限制可炼品阶（无职业只能炼凡品；
-        // 弟子查不到时按无职业兜底，禁止放开到最高阶——对抗性审查）
+        // 弟子查不到时按无职业兜底，禁止放开到最高阶）
         val maxTier = slot?.assignedDiscipleId
             ?.let { id -> gameEngine.discipleAggregatesSnapshot.find { it.id == id }?.alchemyLevel }
             ?.let { ProfessionRules.maxCraftableTier(it) }
@@ -127,6 +126,7 @@ class AlchemyViewModel @Inject constructor(
         showError("弟子职业等级不够无法炼制")
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun toggleAuto(buildingIndex: Int) {
         val currentValue = isAutoEnabled(buildingIndex)
         val newValue = !currentValue

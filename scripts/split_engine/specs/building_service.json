@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "name": "BuildingServiceSlotOps",
+      "header": "// ── 建筑槽位支持域（自 BuildingService 拆出，行为零变更） ───────────────────",
+      "fns": [
+        "buildAlchemySuccessRate",
+        "buildForgingSuccessRate",
+        "updateSlotToWorkingStateAlchemy",
+        "updateSlotToWorkingStateForging",
+        "calculateWorkDurationWithAllDisciples",
+        "getElderPositionBonusLocal",
+        "calculateReducedDurationLocal",
+        "updateDiscipleStatus",
+        "getDiscipleNameIfAvailable"
+      ]
+    }
+  ]
+}

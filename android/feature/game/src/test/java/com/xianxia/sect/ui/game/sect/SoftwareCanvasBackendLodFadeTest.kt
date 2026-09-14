@@ -13,7 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend 地图淡入（WP4）+ 装饰 LOD（WP5）测试。
+ * SoftwareCanvasBackend 地图淡入 + 装饰 LOD 测试。
  *
  * - 淡入：合成 paint.alpha 乘数——纯每帧参数，不触发 chunk 重建
  * - LOD：缩放档位防抖——档内微动不重建 chunk，跨档翻转才重建
@@ -35,7 +35,7 @@ class SoftwareCanvasBackendLodFadeTest {
     }
 
     // ============================================================
-    // 地图淡入（WP4，合成 paint.alpha 乘数——纯每帧参数，不触发 chunk 重建）
+    // 地图淡入（合成 paint.alpha 乘数——纯每帧参数，不触发 chunk 重建）
     // ============================================================
 
     @Test
@@ -90,7 +90,7 @@ class SoftwareCanvasBackendLodFadeTest {
     }
 
     // ============================================================
-    // 装饰 LOD（WP5，缩放档位防抖——档内微动不重建 chunk）
+    // 装饰 LOD（缩放档位防抖——档内微动不重建 chunk）
     // ============================================================
 
     @Test
@@ -130,6 +130,66 @@ class SoftwareCanvasBackendLodFadeTest {
         assertTrue(
             "回档应触发重建: off=$offBandCount after=${backend.chunkRebuildCount}",
             backend.chunkRebuildCount > offBandCount
+        )
+    }
+
+    // ============================================================
+    // 运行期 chunk 重建分帧预算
+    // 语义：首帧构建全量（整帧完整，淡入遮蔽）；运行期跨档/道路变更触发的
+    // 全量失效按单帧预算分帧重烘，未重建 chunk 沿用旧位图合成（渐进刷新，
+    // 消除"缩放跨 LOD 阈值单帧 ~1 秒冻结"），并最终收敛到全部有效。
+    // ============================================================
+
+    @Test
+    fun `runtime rebuild - first frame is full build then frame-budgeted`() {
+        // chunk 网格由 config 派生——本用例需要多 chunk 面
+        // （分帧语义），用 128²/48px 生产形状（4×4=16 块 1536²，与生产逐位同构）
+        val backend = SoftwareCanvasBackend(
+            testRenderConfig(worldWidthCells = 128, worldHeightCells = 128, tileSize = 48)
+        )
+        val td = createDecorTileData(128, 128)
+        fun frame(scale: Float) = spiritFieldFrame(td, scale = scale, cols = 128, rows = 128)
+        // 首帧构建：预算不生效（hasEverComposedFrame=false）→ 全量 16 块一次完成
+        backend.renderFrame(frame(0.8f), atlas, 200, 200)
+        assertEquals("首帧必须全量构建 16 块（预算不适用于首建）", 16, backend.chunkRebuildCount)
+
+        // 运行期跨档（0.8 → 0.5）：单帧重建必须 < 16（分帧生效）且 > 0（有进度）
+        backend.renderFrame(frame(0.5f), atlas, 200, 200)
+        val afterCrossFrame = backend.chunkRebuildCount
+        assertTrue(
+            "跨档单帧应有重建进度: before=16 after=$afterCrossFrame",
+            afterCrossFrame > 16
+        )
+        assertTrue(
+            "运行期重建必须分帧（单帧不得全量重烘）: rebuilt=${afterCrossFrame - 16}",
+            afterCrossFrame - 16 < 16
+        )
+
+        // 续帧收敛：同参数续渲后重建停止（全部 chunk 回到有效状态）
+        repeat(16) { backend.renderFrame(frame(0.5f), atlas, 200, 200) }
+        val converged = backend.chunkRebuildCount
+        assertTrue("分帧重建应收敛至全量: converged=$converged", converged >= 32)
+        backend.renderFrame(frame(0.5f), atlas, 200, 200)
+        assertEquals(
+            "收敛后同参数渲染不得再触发重建",
+            converged, backend.chunkRebuildCount
+        )
+    }
+
+    @Test
+    fun `chunk grid derives from config - not hardcoded 4x4`() {
+        // chunk 网格维度从 config 派生（硬编码 4×4 会封死地图扩容）
+        // 96²/48px → ceil(96/32)=3 → 3×3=9 块，首帧全量构建
+        val backend = SoftwareCanvasBackend(
+            testRenderConfig(worldWidthCells = 96, worldHeightCells = 96, tileSize = 48)
+        )
+        val td = createDecorTileData(96, 96)
+        backend.renderFrame(
+            spiritFieldFrame(td, scale = 0.8f, cols = 96, rows = 96), atlas, 200, 200
+        )
+        assertEquals(
+            "96² 地图首帧必须构建 9 块（3×3，config 派生）",
+            9, backend.chunkRebuildCount
         )
     }
 

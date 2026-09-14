@@ -106,6 +106,7 @@ object GameDataManager {
      * @param assetSource 资产文件源（平台端口，见 [AssetSource]）
      * @return 初始化是否成功
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun initialize(assetSource: AssetSource): Boolean {
         if (_isInitialized) {
             DomainLog.w(TAG, "GameDataManager already initialized, skipping.")
@@ -138,7 +139,7 @@ object GameDataManager {
                 manuals = ManualRegistry()
                 val manualResult = manuals.initializeSync(assetSource)
                 if (manualResult.isFailure) {
-                    throw RuntimeException("Failed to initialize ManualRegistry", manualResult.exceptionOrNull())
+                    throw IllegalStateException("Failed to initialize ManualRegistry", manualResult.exceptionOrNull())
                 }
 
                 _isInitialized = true
@@ -169,7 +170,7 @@ object GameDataManager {
         ).all { registry ->
             try {
                 registry.get().isInitialized()
-            } catch (e: UninitializedPropertyAccessException) {
+            } catch (ignored: UninitializedPropertyAccessException) {
                 false
             }
         }
@@ -223,7 +224,8 @@ object GameDataManager {
             sb.appendLine("  - Pill Recipes: ${pillRecipes.getCount()} items [${pillRecipes.isInitialized()}]")
             sb.appendLine("  - Manuals: ${manuals.getCount()} items [${manuals.isInitialized()}]")
             sb.appendLine("  - Talents: ${talents.getCount()} items [${talents.isInitialized()}]")
-            sb.appendLine("  - Herbs: ${herbs.getHerbCount()} herbs, ${herbs.getSeedCount()} seeds [${herbs.isInitialized()}]")
+            sb.appendLine("  - Herbs: ${herbs.getHerbCount()} herbs, ${herbs.getSeedCount()} seeds " +
+                "[${herbs.isInitialized()}]")
             sb.appendLine("  - Forge Recipes: ${forgeRecipes.getCount()} items [${forgeRecipes.isInitialized()}]")
             sb.appendLine("  - Beast Materials: ${beastMaterials.getCount()} items [${beastMaterials.isInitialized()}]")
             sb.appendLine("  - Materials: ${materials.getCount()} items [${materials.isInitialized()}]")
@@ -246,13 +248,14 @@ object GameDataManager {
      * @param rarity 目标稀有度
      * @return 包含各类型随机模板的数据类，如果某类型无数据则为 null
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun getRandomSetByRarity(rarity: Int): RandomSetByRarity {
         return RandomSetByRarity(
-            equipment = try { equipment.getRandom(rarity, rarity) } catch (e: Exception) { null },
-            pill = try { pills.getRandom(rarity, rarity) } catch (e: Exception) { null },
-            manual = try { manuals.getRandom(rarity, rarity) } catch (e: Exception) { null },
-            herb = try { herbs.getRandomHerb(rarity, rarity) } catch (e: Exception) { null },
-            beastMaterial = try { beastMaterials.getRandom(rarity, rarity) } catch (e: Exception) { null }
+            equipment = try { equipment.getRandom(rarity, rarity) } catch (ignored: Exception) { null },
+            pill = try { pills.getRandom(rarity, rarity) } catch (ignored: Exception) { null },
+            manual = try { manuals.getRandom(rarity, rarity) } catch (ignored: Exception) { null },
+            herb = try { herbs.getRandomHerb(rarity, rarity) } catch (ignored: Exception) { null },
+            beastMaterial = try { beastMaterials.getRandom(rarity, rarity) } catch (ignored: Exception) { null }
         )
     }
 

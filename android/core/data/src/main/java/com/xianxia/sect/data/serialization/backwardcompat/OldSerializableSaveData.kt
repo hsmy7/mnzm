@@ -47,7 +47,7 @@ data class SerializableGameData(
     @ProtoNumber(26) val cultivatorCaves: List<SerializableCultivatorCave> = emptyList(),
     @ProtoNumber(27) val caveExplorationTeams: List<SerializableCaveExplorationTeam> = emptyList(),
     @ProtoNumber(28) val aiCaveTeams: List<SerializableAICaveTeam> = emptyList(),
-    // @ProtoNumber(29) val unlockedDungeons — removed
+    // 字段号 29 预留未用
     @ProtoNumber(30) val unlockedRecipes: List<String> = emptyList(),
     @ProtoNumber(31) val unlockedManuals: List<String> = emptyList(),
     @ProtoNumber(32) val lastSaveTime: Long = 0L,
@@ -60,7 +60,7 @@ data class SerializableGameData(
     @ProtoNumber(39) val sectRelations: List<SerializableSectRelation> = emptyList(),
     @ProtoNumber(40) val playerAllianceSlots: Int = 3,
     @ProtoNumber(42) val sectPolicies: SerializableSectPolicies = SerializableSectPolicies(),
-    // @ProtoNumber(44) val aiBattleTeams — removed in v3.0.19
+    // 字段号 44 预留未用
     @ProtoNumber(45) val usedRedeemCodes: List<String> = emptyList(),
     @ProtoNumber(46) val playerProtectionEnabled: Boolean = true,
     @ProtoNumber(47) val playerProtectionStartYear: Int = 1,
@@ -69,7 +69,7 @@ data class SerializableGameData(
     @ProtoNumber(50) val availableMissions: List<SerializableMission> = emptyList(),
     @ProtoNumber(53) val aiSectDisciples: List<SerializableAiSectDiscipleEntry> = emptyList(),
     @ProtoNumber(54) val sectDetails: Map<String, SerializableSectDetail> = emptyMap(),
-    // @ProtoNumber(55) val smartBattleEnabled — removed
+    // 字段号 55 预留未用
     @ProtoNumber(87) val spiritMineExpansions: Int = 0,
     @ProtoNumber(88) val merchantAcquisitionItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(89) val merchantAcquisitionLastRefreshYear: Int = 0,
@@ -192,10 +192,14 @@ data class SerializableDisciple(
     @ProtoNumber(21) val manualIds: List<String> = emptyList(),
     @ProtoNumber(22) val talentIds: List<String> = emptyList(),
     @ProtoNumber(23) val manualMasteries: Map<String, Int> = emptyMap(),
-    @ProtoNumber(24) val weaponNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
-    @ProtoNumber(25) val armorNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
-    @ProtoNumber(26) val bootsNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
-    @ProtoNumber(27) val accessoryNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
+    @ProtoNumber(24) val weaponNurture: SerializableEquipmentNurtureData =
+        SerializableEquipmentNurtureData(equipmentId="", rarity=0),
+    @ProtoNumber(25) val armorNurture: SerializableEquipmentNurtureData =
+        SerializableEquipmentNurtureData(equipmentId="", rarity=0),
+    @ProtoNumber(26) val bootsNurture: SerializableEquipmentNurtureData =
+        SerializableEquipmentNurtureData(equipmentId="", rarity=0),
+    @ProtoNumber(27) val accessoryNurture: SerializableEquipmentNurtureData =
+        SerializableEquipmentNurtureData(equipmentId="", rarity=0),
     @ProtoNumber(28) val spiritStones: Int,
     @ProtoNumber(29) val soulPower: Int,
     @ProtoNumber(30) val storageBagItems: List<SerializableStorageBagItem> = emptyList(),
@@ -566,7 +570,7 @@ data class SerializableWorldSect(
     @ProtoNumber(11) val relation: Int,
     @ProtoNumber(12) val disciples: Map<Int, Int> = emptyMap(),
     @ProtoNumber(13) val maxRealm: Int,
-    // @ProtoNumber(14) removed — connectedSectIds no longer used (2026-06-09)
+    // 字段号 14 预留未用
     @ProtoNumber(15) val isOccupied: Boolean,
     @ProtoNumber(16) val occupierTeamId: String = "",
     @ProtoNumber(17) val occupierTeamName: String = "",
@@ -575,7 +579,8 @@ data class SerializableWorldSect(
     @ProtoNumber(20) val isOwned: Boolean,
     @ProtoNumber(21) val expiryYear: Int,
     @ProtoNumber(22) val expiryMonth: Int,
-    @ProtoNumber(23) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="", scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0),
+    @ProtoNumber(23) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="",
+        scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0),
     @ProtoNumber(24) val tradeItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(25) val tradeLastRefreshYear: Int,
     @ProtoNumber(26) val lastGiftYear: Int,
@@ -619,7 +624,8 @@ data class SerializableSectDetail(
     @ProtoNumber(4) val isOwned: Boolean = false,
     @ProtoNumber(5) val expiryYear: Int = 0,
     @ProtoNumber(6) val expiryMonth: Int = 0,
-    @ProtoNumber(7) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="", scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0),
+    @ProtoNumber(7) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="",
+        scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0),
     @ProtoNumber(8) val tradeItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(9) val tradeLastRefreshYear: Int = 0,
     @ProtoNumber(10) val lastGiftYear: Int = 0,

@@ -84,7 +84,8 @@ class ForgeRecipeRegistry(
      * @param recipeId 配方 ID
      * @return 包含配方和装备模板的信息对，任一缺失则返回 null
      */
-    fun getFullForgeInfo(recipeId: String): Pair<ForgeRecipeDatabase.ForgeRecipe, EquipmentDatabase.EquipmentTemplate>? {
+    fun getFullForgeInfo(recipeId: String): Pair<ForgeRecipeDatabase.ForgeRecipe,
+        EquipmentDatabase.EquipmentTemplate>? {
         val recipe = getById(recipeId) ?: return null
         val template = equipmentRegistry.getById(recipeId) ?: return null
         return Pair(recipe, template)

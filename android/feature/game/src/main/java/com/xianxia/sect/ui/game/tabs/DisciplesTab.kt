@@ -30,6 +30,7 @@ import com.xianxia.sect.ui.game.getSpiritRootCount
 
 // 其他Tab的占位实现
 @Composable
+@Suppress("UnusedParameter") // gameData: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 internal fun DisciplesTab(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
@@ -85,13 +86,13 @@ internal fun DisciplesTab(
         DiscipleGrid(
             filteredDisciples = filteredDisciples,
             onDiscipleClick = { disciple ->
-                viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, filteredDisciples))
+                viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(disciple, filteredDisciples))
             }
         )
     }
 }
 
-/** 弟子网格（DisciplesTab 拆分）：空态提示或三列弟子卡片网格 */
+/** 弟子网格：空态提示或三列弟子卡片网格 */
 @Composable
 private fun ColumnScope.DiscipleGrid(
     filteredDisciples: List<DiscipleAggregate>,

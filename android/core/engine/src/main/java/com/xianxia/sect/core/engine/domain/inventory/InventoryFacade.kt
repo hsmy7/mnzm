@@ -1,0 +1,82 @@
+package com.xianxia.sect.core.engine.domain.inventory
+
+import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.StorageBagItem
+import kotlinx.coroutines.flow.StateFlow
+
+
+
+@Suppress("TooManyFunctions") // 库存域门面契约：六类物品+钱包端口协议面，函数数即门面协议面
+interface InventoryFacade {
+    val inventorySystem: InventorySystem
+    val inventoryConfig: InventoryConfig
+    val equipmentStacks: StateFlow<List<EquipmentStack>>
+    val equipmentInstances: StateFlow<List<EquipmentInstance>>
+    val manualStacks: StateFlow<List<ManualStack>>
+    val manualInstances: StateFlow<List<ManualInstance>>
+    val pills: StateFlow<List<Pill>>
+    val materials: StateFlow<List<Material>>
+    val herbs: StateFlow<List<Herb>>
+    val seeds: StateFlow<List<Seed>>
+    val storageBags: StateFlow<List<StorageBag>>
+
+    suspend fun addEquipmentStack(stack: EquipmentStack)
+    suspend fun removeEquipment(equipmentId: String): Boolean
+    suspend fun addManualStackToWarehouse(stack: ManualStack)
+    suspend fun addPillToWarehouse(pill: Pill)
+    suspend fun addMaterialToWarehouse(material: Material)
+    suspend fun addHerbToWarehouse(herb: Herb)
+    suspend fun addSeedToWarehouse(seed: Seed)
+    suspend fun sortWarehouse()
+    suspend fun consolidateStacks()
+    suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)
+    fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase
+        .ForgeRecipe): EquipmentStack
+    fun createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack
+    fun createManualStackFromMerchantItem(item: MerchantItem): ManualStack
+    fun createPillFromMerchantItem(item: MerchantItem): Pill
+    fun createMaterialFromMerchantItem(item: MerchantItem): Material
+    fun createHerbFromMerchantItem(item: MerchantItem): Herb
+    fun createSeedFromMerchantItem(item: MerchantItem): Seed
+
+    // Sell operations
+    suspend fun sellEquipment(equipmentId: String, quantity: Int = 1): Boolean
+    suspend fun sellManual(manualId: String, quantity: Int): Boolean
+    suspend fun sellPill(pillId: String, quantity: Int): Boolean
+    suspend fun sellMaterial(materialId: String, quantity: Int): Boolean
+    suspend fun sellHerb(herbId: String, quantity: Int): Boolean
+    suspend fun sellSeed(seedId: String, quantity: Int): Boolean
+    suspend fun consumeMaterialByName(name: String, rarity: Int, quantity: Int): Boolean
+
+    // Bulk sell
+    data class BulkSellOperation(val id: String, val name: String, val quantity: Int, val itemType: String)
+    data class BulkSellResult(val soldCount: Int, val totalEarned: Long, val soldItemNames: List<String>,
+        val failedItemNames: List<String>)
+    suspend fun bulkSellItems(operations: List<BulkSellOperation>): BulkSellResult
+
+    // Lock toggle
+    fun toggleItemLock(itemId: String, itemType: String)
+
+    // Merchant trading
+    suspend fun buyMerchantItem(itemId: String, quantity: Int)
+    suspend fun sellToMerchant(acquisitionItemId: String, quantity: Int)
+    suspend fun listItemsToMerchant(items: List<Pair<String, Int>>)
+    suspend fun removePlayerListedItem(itemId: String)
+
+    // Storage bag
+    suspend fun openStorageBag(bagId: String): Pair<List<BattleRewardItem>, List<RewardCardItem>>
+}

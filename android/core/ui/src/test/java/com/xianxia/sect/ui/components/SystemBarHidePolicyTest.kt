@@ -9,8 +9,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * SystemBarHidePolicy 冻结策略测试（荣耀 X70 键盘频闪根治，
- * 2026-09 IME 状态机根治升级：判定收敛至 ImeStateMachine 单一真相源）：
+ * SystemBarHidePolicy 冻结策略测试（判定收敛至 ImeStateMachine 单一真相源）：
  * 输入对话框冻结期间 / 键盘可见期间 / 键盘动画期间，hideSystemBars 必须跳过。
  */
 @RunWith(RobolectricTestRunner::class)

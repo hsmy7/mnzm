@@ -1,5 +1,5 @@
 // ============================================================
-// disciple_factory_test.cpp — 弟子创建黄金序列（批 13-4b）
+// disciple_factory_test.cpp — 弟子创建黄金序列
 //
 // 确定性守护：固定种子 + 固定消费序 ⇒ 固定输出。黄金值来源：
 // Kotlin `DiscipleFactory.create`（真相源）经 DiffDiscipleFactoryTest

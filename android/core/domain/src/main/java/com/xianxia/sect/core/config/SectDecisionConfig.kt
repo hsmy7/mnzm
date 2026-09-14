@@ -11,8 +11,8 @@ import com.xianxia.sect.core.model.SectRelationLevel
  * 3. 胜负 (skirmish) — 战斗胜率
  * 4. 好感度 (favor) — 双边关系，按 [SectRelationLevel] 五级分档，每档有固定分值
  *
- * 好感度不再使用原始 0-100 连续数值，而是通过 [FAVOR_SCORE_BY_LEVEL] 映射
- * 将等级转换为固定贡献分数，消除微调不可预测性。
+ * 好感度通过 [FAVOR_SCORE_BY_LEVEL] 将等级映射为固定贡献分数，不使用
+ * 原始 0-100 连续数值，消除微调不可预测性。
  *
  * 配置理念：
  * - 攻击判定：战力差和胜负权重更高，攻击是实力导向

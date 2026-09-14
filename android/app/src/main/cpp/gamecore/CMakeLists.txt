@@ -1,9 +1,10 @@
 # ============================================================
-# game-core — 纯 C++ 游戏引擎核心（Kotlin→C++ 迁移批次 0）
+# game-core — 纯 C++ 游戏引擎核心
 #
 # 设计约束（关键）：
 #   1. 零 Android 依赖：不得 include android/*、不得依赖 JNI——
-#      桌面（Linux/Windows/macOS）与 iOS 均可编译，CI 用桌面工具链直接跑 GTest
+#      桌面（Linux/Windows/macOS）均可编译，CI 用桌面工具链直接跑 GTest
+#      （目标平台以 Android 为主，核心保持可移植；iOS 暂缓）
 #   2. C++20，无 RTTI/异常依赖（Android NDK 默认 -fno-exceptions 兼容）
 #   3. 平台能力（现实时间/日志）一律走注入接口（clock.h/logger.h）
 #
@@ -29,6 +30,12 @@ add_library(game-core STATIC
     src/execute_dispatch.cpp
     src/dirty_tracker.cpp
     src/disciple_store.cpp
+    # W4 三批次并行的分派端口（W4-00 并行前置批建立；各批只写自己那个文件，
+    # 从而消除「三批同时往 execute_dispatch.cpp 链尾追加分支」的必然冲突）。
+    # 见 docs/parallel-batches-w4/README.md §3.1 项 3。
+    src/dispatch_w4a.cpp
+    src/dispatch_w4b.cpp
+    src/dispatch_w4c.cpp
 )
 
 target_include_directories(game-core PUBLIC

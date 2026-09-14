@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.*
@@ -14,6 +14,8 @@ import com.xianxia.sect.ui.game.components.messagebar.MessageBarHost
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Collections
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +31,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import com.xianxia.sect.ui.components.LocalAtlasCache
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
+import com.xianxia.sect.ui.components.LocalPortraitCache
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.components.SpriteResRegistry
@@ -46,15 +49,18 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.GridSnapHelper
-import com.xianxia.sect.core.util.RoadTiling
+import com.xianxia.sect.core.util.RoadMaskTracker
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.FixedSectGateway
 
 import com.xianxia.sect.core.render.DemolishHighlightMark
+import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.NativeRenderConfig
+import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
+import com.xianxia.sect.ui.game.sect.IslandCliffTextureSet
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
@@ -64,6 +70,9 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import com.xianxia.sect.ui.game.main.AREA_DEFAULT_DIAMETER
+import com.xianxia.sect.ui.game.main.AuraBuildingRect
+import com.xianxia.sect.ui.game.main.PlacedAnchor
+import com.xianxia.sect.ui.game.main.SectStoneBalance
 import com.xianxia.sect.ui.game.main.AREA_MAX_DIAMETER
 import com.xianxia.sect.ui.game.main.AREA_MIN_DIAMETER
 import com.xianxia.sect.ui.game.main.AreaDiameterSlider
@@ -82,9 +91,7 @@ import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchEngineConfig
 import com.xianxia.sect.core.animation.CameraAnimator
 import androidx.compose.runtime.mutableIntStateOf
-
-
-
+import com.xianxia.sect.core.engine.setObservedRenderFps
 
 /** 手势/渲染共用的诊断日志标签 */
 internal const val BUILDING_TAP_TAG = "MainGameScreen"
@@ -123,19 +130,16 @@ internal const val BUILDING_TAP_TAG = "MainGameScreen"
  * - 内存: 减少 30% (更少的状态快照)
  */
 
-// 瓦片类型常量（与 GameActivity.kt 一致）
-private const val TILE_GROUND = 0
-private const val TILE_GRASS_SMALL = 1
-private const val TILE_GRASS_MEDIUM = 2
-private const val TILE_GRASS_LARGE = 3
-private const val TILE_TREE1 = 4
-private const val TILE_TREE2 = 5
-private const val TILE_BUILDING = 6
+/** 浮空岛边缘观测日志标签（布局生成/降级锚点——真机排查按此过滤） */
+private const val ISLAND_CLIFF_LOG_TAG = "IslandCliff"
+
+/** 建筑脚印占位瓦片标记值（唯一来源 = SpriteAtlasDef 生成物——禁止硬编码序号） */
+private val TILE_BUILDING = SpriteAtlasDef.TileType.TILE_BUILDING.index
 
 // 一键拆除-区域选择模式常量见 AreaSelectControls.kt（internal，含进度条组件与按钮组件）
 
 @Composable
-// R-13 拆分专项债务：MainGameScreen 依赖多 ViewModel 注入超长参数，拆除屏级/悬于拆分后自然消除——暂抑制
+// 拆分专项债务：MainGameScreen 依赖多 ViewModel 注入超长参数，拆除屏级/悬于拆分后自然消除——暂抑制
 @Suppress("LongParameterList")
 fun MainGameScreen(
     mapPreloadData: MapPreloadData,
@@ -155,7 +159,7 @@ fun MainGameScreen(
     onRestartGame: () -> Unit,
     /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 崩溃自愈安全模式） */
     forceSoftwareRendering: Boolean = false,
-    /** 是否使用 GPU OpenGL ES 中间层（2026-09：Vulkan 不可靠但 GPU 可用设备） */
+    /** 是否使用 GPU OpenGL ES 中间层（Vulkan 不可靠但 GPU 可用设备） */
     glesRendering: Boolean = false,
     /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */
     vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null
@@ -176,10 +180,22 @@ fun MainGameScreen(
 
     val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsStateWithLifecycle()
     val atlasResult by saveLoadViewModel.atlasResult.collectAsStateWithLifecycle()
+    // L0 预载头像供给 PortraitImage（弟子列表/聊天头像，显示 ≤80dp）——
+    // 命中后免去 painterResource 全分辨率（800~2048px）解码与常驻缓存
+    val preloadedPortraitSprites by saveLoadViewModel.preloadedPortraitSprites.collectAsStateWithLifecycle()
+    // L2 后台小图标（材料/草药/储物袋/灵石/宗门图标）合入精灵缓存——
+    // SpriteImage/ItemCard/RewardCardHost 直接命中 300px 预载位图
+    //（与 L1 同规格，无视觉差异），材料类首次渲染免去 painterResource
+    // 全分辨率（1024px 级）解码。
+    val l2Sprites by saveLoadViewModel.l2Sprites.collectAsStateWithLifecycle()
+    val itemSpriteCache = remember(preloadedItemSprites, l2Sprites) {
+        if (l2Sprites.isEmpty()) preloadedItemSprites else preloadedItemSprites + l2Sprites
+    }
 
     CompositionLocalProvider(
-        LocalItemSpriteCache provides preloadedItemSprites,
-        LocalAtlasCache provides atlasResult
+        LocalItemSpriteCache provides itemSpriteCache,
+        LocalAtlasCache provides atlasResult,
+        LocalPortraitCache provides preloadedPortraitSprites
     ) {
         MainGameScreenContent(
             state = state,
@@ -203,7 +219,7 @@ fun MainGameScreen(
     } // CompositionLocalProvider
 }
 
-/** MainGameScreen 编辑交互状态（MainGameScreen 拆分）：放置/移动/拆除/金手指模式状态 */
+/** MainGameScreen 编辑交互状态：放置/移动/拆除/金手指模式状态 */
 internal class MainGameScreenState {
     var screenWidthPx by mutableFloatStateOf(0f)
     var screenHeightPx by mutableFloatStateOf(0f)
@@ -246,7 +262,7 @@ internal class MainGameScreenState {
 
     var nativeSurfaceView by mutableStateOf<NativeSurfaceView?>(null)
 
-    // 普通点击选中格（WP3 选中高亮）：点击建筑时记录其格坐标，点击空地清除。
+    // 普通点击选中格（选中高亮）：点击建筑时记录其格坐标，点击空地清除。
     // 渲染端经 findBuildingIndex 转换为建筑索引（双后端共用同一命中几何）
     var selectedBuildingGrid by mutableStateOf<Pair<Int, Int>?>(null)
 
@@ -281,7 +297,7 @@ internal class MainGameScreenState {
     }
 }
 
-/** MainGameScreen 派生状态（MainGameScreen 拆分）：derivedStateOf 稳定实例（remember 单例，触控回调可读当前值） */
+/** MainGameScreen 派生状态：derivedStateOf 稳定实例（remember 单例，触控回调可读当前值） */
 internal class MainGameScreenDerived(
     private val state: MainGameScreenState,
     private val gameDataState: State<GameData>,
@@ -290,11 +306,11 @@ internal class MainGameScreenDerived(
     val gameData: GameData get() = gameDataState.value
     val aliveDisciples by derivedStateOf { disciplesState.value.filter { it.isAlive } }
     // 移动中临时从网格排除正在移动的建筑，避免自身重叠检测
-    // 2026-08-16 修复：建筑作用域必须与渲染总线（GameViewModel：gameEngine.gameData 原始
+    // 建筑作用域必须与渲染总线（GameViewModel：gameEngine.gameData 原始
     // StateFlow）同源——activeSectId 与 placedBuildings 都从同一份 gameData 快照读取。
-    // 此前 activeSectId 读 gameDataUi、placedBuildings 读 placedBuildings（两条
+    // 若 activeSectId 读 gameDataUi、placedBuildings 读 placedBuildings（两条
     // flowOn(Default)+stateIn(WhileSubscribed) 异步管线），enterSect 切换宗门后
-    // 点击索引/瓦片标记/渲染帧与总线存在作用域分叉窗口：进入被占宗门 → 总线已切新作用域
+    // 点击索引/瓦片标记/渲染帧会与总线存在作用域分叉窗口：进入被占宗门 → 总线已切新作用域
     //（或被净化回 ""）而索引仍按旧作用域 → 主宗建筑被渲染出来但点不中、新建建筑叠在旧建筑上。
     val activeSectBuildings by derivedStateOf {
         val gd = gameDataState.value
@@ -311,7 +327,7 @@ internal class MainGameScreenDerived(
     }
 }
 
-/** MainGameScreen 地图静态数据（MainGameScreen 拆分）：尺寸 + 建筑尺寸映射 + 建造列表 */
+/** MainGameScreen 地图静态数据：尺寸 + 建筑尺寸映射 + 建造列表 */
 internal data class MainGameScreenMapData(
     val tileSize: Int,
     val worldPixelWidth: Int,
@@ -323,16 +339,18 @@ internal data class MainGameScreenMapData(
     val buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>
 )
 
-/** MainGameScreen 瓦片/数组数据（MainGameScreen 拆分）：渲染数据源 */
+/** MainGameScreen 瓦片/数组数据：渲染数据源 */
 private data class MainGameScreenMapTiles(
     val flatTileData: IntArray,
     val buildingDataArray: FloatArray?,
     val spiritCropData: FloatArray?,
     val demolishHighlightData: ByteArray?,
-    val roadData: IntArray?
+    val roadData: IntArray?,
+    /** 浮空岛边缘布局（一次性预计算稳定引用；null=无边缘层，双后端跳过） */
+    val islandCliffData: FloatArray?
 )
 
-/** MainGameScreen 渲染数据（MainGameScreen 拆分）：索引/网格/精灵/配置 */
+/** MainGameScreen 渲染数据：索引/网格/精灵/配置 */
 internal data class MainGameScreenRenderData(
     val goldenFingerBmp: ImageBitmap?,
     val flatTileData: IntArray,
@@ -342,10 +360,12 @@ internal data class MainGameScreenRenderData(
     val buildingDataArray: FloatArray?,
     val spiritCropData: FloatArray?,
     val demolishHighlightData: ByteArray?,
-    val roadData: IntArray?
+    val roadData: IntArray?,
+    /** 浮空岛边缘布局（一次性预计算稳定引用；null=无边缘层，双后端跳过） */
+    val islandCliffData: FloatArray?
 )
 
-/** MainGameScreen 视口数据（MainGameScreen 拆分）：相机/预览/渲染参数 */
+/** MainGameScreen 视口数据：相机/预览/渲染参数 */
 internal data class MainGameScreenViewportData(
     val viewportParams: SectMapViewportParams,
     val previewState: MapPreviewState,
@@ -355,7 +375,7 @@ internal data class MainGameScreenViewportData(
     val cancelCameraAnim: () -> Unit
 )
 
-/** MainGameScreen 聚合数据（MainGameScreen 拆分）：派生/静态/渲染/视口 + 触控引擎 */
+/** MainGameScreen 聚合数据：派生/静态/渲染/视口 + 触控引擎 */
 internal class MainGameScreenData(
     val derived: MainGameScreenDerived,
     val mapData: MainGameScreenMapData,
@@ -364,13 +384,13 @@ internal class MainGameScreenData(
     val touchEngine: SectMapTouchEngine
 )
 
-/** MainGameScreen 派生状态计算（MainGameScreen 拆分）：StateFlow 收集 + 稳定派生实例 */
+/** MainGameScreen 派生状态计算：StateFlow 收集 + 稳定派生实例 */
 @Composable
 private fun rememberMainGameScreenDerived(
     state: MainGameScreenState,
     viewModel: GameViewModel
 ): MainGameScreenDerived {
-    // 2026-08-16 修复：建筑作用域必须与渲染总线同源——总线读 gameEngine.gameData（原始
+    // 建筑作用域必须与渲染总线同源——总线读 gameEngine.gameData（原始
     // StateFlow），此处也必须读 gameData（原始），不得走 gameDataUi/placedBuildings 的
     // flowOn(Default)+stateIn(WhileSubscribed) 异步管线，否则 enterSect 切换后渲染与
     // 点击索引作用域分叉（进入被占宗门显示主宗建筑但点不中）。
@@ -381,8 +401,7 @@ private fun rememberMainGameScreenDerived(
     }
 }
 
-/** 建造列表构建（MainGameScreen 拆分）：建筑 key → 对话框导航回调 */
-// 拆分搬移:分支结构与原函数一致
+/** 建造列表构建：建筑 key → 对话框导航回调 */
 @Suppress("CyclomaticComplexMethod")
 private fun buildMainGameScreenBuildingList(
     viewModel: GameViewModel
@@ -401,11 +420,15 @@ private fun buildMainGameScreenBuildingList(
             "law_enforcement_hall" -> { _ -> viewModel.navigateToDialog(DialogType.LawEnforcementHall) }
             "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogType.MissionHall) }
             "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
-            "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.PatrolTower(it)) }; Unit }
-            "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.BloodRefiningPool(it)) }; Unit }
+            "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType
+                .PatrolTower(it)) }; Unit }
+            "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType
+                .BloodRefiningPool(it)) }; Unit }
             "single_residence", "multi_residence",
-            "single_residence_upgraded", "multi_residence_upgraded" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Residence(it)) }; Unit }
-            "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.WarehouseBuilding(it)) }; Unit }
+            "single_residence_upgraded", "multi_residence_upgraded" -> { b -> b?.instanceId?.let { viewModel
+                .navigateToDialog(DialogType.Residence(it)) }; Unit }
+            "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType
+                .WarehouseBuilding(it)) }; Unit }
             else -> { _ -> Unit }
         }
         def.displayName to handler
@@ -414,7 +437,7 @@ private fun buildMainGameScreenBuildingList(
     return buildings + (GameConfig.Road.DISPLAY_NAME to { _ -> Unit })
 }
 
-/** MainGameScreen 地图静态数据计算（MainGameScreen 拆分） */
+/** MainGameScreen 地图静态数据计算 */
 @Composable
 private fun rememberMainGameScreenMapData(
     mapPreloadData: MapPreloadData,
@@ -423,14 +446,14 @@ private fun rememberMainGameScreenMapData(
     // 建筑尺寸映射 — 从配置读取，在宗门地图中所占的格数 (宽 × 高)
     val buildingSizes = remember {
         BuildingFeatureRegistry.all.associate { def ->
-            val (w, h) = viewModel.getBuildingGridSize(def.displayName)
+            val (w, h) = viewModel.buildingDelegate.getBuildingGridSize(def.displayName)
             def.displayName to GridSnapHelper.BuildingSize(w, h)
         } + (GameConfig.Road.DISPLAY_NAME to GridSnapHelper.BuildingSize(1, 1))
     }
     // 建筑精灵比例尺寸映射 — 用于渲染视觉大小（可能大于占地尺寸）
     val buildingSpriteSizes = remember {
         BuildingFeatureRegistry.all.associate { def ->
-            val (sw, sh) = viewModel.getBuildingSpriteSize(def.displayName)
+            val (sw, sh) = viewModel.buildingDelegate.getBuildingSpriteSize(def.displayName)
             def.displayName to GridSnapHelper.BuildingSize(sw, sh)
         } + (GameConfig.Road.DISPLAY_NAME to GridSnapHelper.BuildingSize(1, 1))
     }
@@ -450,7 +473,7 @@ private fun rememberMainGameScreenMapData(
     )
 }
 
-/** MainGameScreen 瓦片/数组数据计算（MainGameScreen 拆分） */
+/** MainGameScreen 瓦片/数组数据计算 */
 @Composable
 private fun rememberMainGameScreenMapTiles(
     mapPreloadData: MapPreloadData,
@@ -461,33 +484,23 @@ private fun rememberMainGameScreenMapTiles(
 ): MainGameScreenMapTiles {
     val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
-    // 瓦片数据（含建筑占位标记）：装饰物类型 + 建筑占用 → 统一 tileData
-    val rawTileData = mapPreloadData.rawTileData
-    val tileData = remember(rawTileData, derived.effectivePlacedBuildings) {
-        val data = Array(rawTileData.size) { rawTileData[it].copyOf() }
-        for (b in derived.effectivePlacedBuildings) {
-            for (cx in b.gridX until b.gridX + b.width) {
-                for (cy in b.gridY until b.gridY + b.height) {
-                    if (cy in data.indices && cx in data[cy].indices) {
-                        data[cy][cx] = TILE_BUILDING
-                    }
-                }
-            }
-        }
-        data
+    // 瓦片数据（含建筑占位标记）：纯地形基座（每种子一次，不可变）+
+    // 占位副本（建筑变动一次 copyOf + O(脚印) 标记）。无建筑时基座直用（零复制）。
+    val baseFlatTileData = mapPreloadData.flatTileData
+    val placedBuildings = derived.effectivePlacedBuildings
+    val flatTileData = remember(baseFlatTileData, placedBuildings) {
+        applyBuildingOccupancy(
+            baseFlatTileData, placedBuildings, mapPreloadData.worldWidthCells
+        )
     }
-    // flatTileData — 由 tileData 派生，建筑占位变化时自动重算
-    val flatTileData = remember(tileData) {
-        tileData.flatMap { it.toList() }.toIntArray()
-    }
-    // ★ 缓存 buildingData：固定结构（门楼/阶梯）追加尾部 ⇒ 建筑层恒最后绘制置顶
+    // 缓存 buildingData：固定结构（门楼/阶梯）追加尾部 ⇒ 建筑层恒最后绘制置顶
     val buildingDataArray = remember(derived.effectivePlacedBuildings, mapData.buildingSpriteSizes) {
         val real = if (derived.effectivePlacedBuildings.isNotEmpty())
             buildBuildingDataArray(derived.effectivePlacedBuildings, mapData.buildingSpriteSizes)
         else FloatArray(0)
         real + FixedSectGateway.renderEntries()
     }
-    // ★ 灵田作物数据（WP6）：灵田建筑 ↔ 种植记录按 buildingInstanceId 映射，
+    // 灵田作物数据：灵田建筑 ↔ 种植记录按 buildingInstanceId 映射，
     // progress01 = 游戏时间进度（TimeProgressUtil，与生产结算同源）；低频变化走帧率门控 RenderFrame
     val spiritCropData = remember {
         derivedStateOf {
@@ -500,7 +513,7 @@ private fun rememberMainGameScreenMapTiles(
             )
         }
     }
-    // ★ 拆除模式高亮标记：与 buildingDataArray 同源同序（effectivePlacedBuildings，
+    // 拆除模式高亮标记：与 buildingDataArray 同源同序（effectivePlacedBuildings，
     // 拆除模式下 movingBuilding=null 两者内容一致）；null = 非拆除模式，双后端跳过整层
     val demolishHighlightData = remember {
         derivedStateOf {
@@ -508,42 +521,103 @@ private fun rememberMainGameScreenMapTiles(
             else buildDemolishHighlightData(derived.effectivePlacedBuildings, state.demolishSelectedIds)
         }
     }
-    // ★ 石板道路数据（每格邻接位掩码，供双后端合成道路主体/边缘/转角/十字装饰）
-    val roadData = remember(gameData.roads) {
-        RoadTiling.buildRoadMaskArray(
-            roads = gameData.roads,
-            cols = mapPreloadData.worldWidthCells,
-            rows = mapPreloadData.worldHeightCells
-        )
+    // 石板道路数据（每格邻接位掩码，供双后端合成道路主体/边缘/转角/十字装饰）
+    // 增量装配：tracker 持有上次掩码，道路变化只重算受影响格（变更格 + 四邻
+    // 的 copyOf 副本）；roads 引用未变时 remember 直通零开销，
+    // 引用变而内容未变（镜像重发）时 tracker 内容等价早退返回稳定引用。
+    val roadTracker = remember(mapPreloadData.seed) {
+        RoadMaskTracker(mapPreloadData.worldWidthCells, mapPreloadData.worldHeightCells)
     }
+    val roadData = remember(gameData.roads) {
+        roadTracker.syncTo(gameData.roads)
+    }
+    // 浮空岛边缘布局（C++ 单一权威合成器；一次性预计算——仅地图尺寸/种子
+    //   （进入不同宗门地图）变化时重建，Camera 平移/缩放不重建。native 通道
+    //   不可用（JVM 测试环境/极端损坏）→ null：双端跳过边缘层（同道路层降级）。
+    //   textureMask = 崖壁纹理可用掩码（Compose 可观察）——加载完成/部分失败时
+    //   掩码变化驱动布局重建（未上传成功的条目由合成器跳过，部分降级不整层消失）；
+    //   视图尚未创建时按"全可用"乐观取值（与持有者初值同口径）
+    val islandCliffTextureMask = state.nativeSurfaceView?.islandCliffTextures?.textureMask?.value
+        ?: ((1 shl IslandCliffBridge.TextureIndex.COUNT) - 1)
+    val islandCliffData = rememberIslandCliffData(mapPreloadData, islandCliffTextureMask)
     return MainGameScreenMapTiles(
         flatTileData = flatTileData,
         buildingDataArray = buildingDataArray,
         spiritCropData = spiritCropData.value,
         demolishHighlightData = demolishHighlightData.value,
-        roadData = roadData
+        roadData = roadData,
+        islandCliffData = islandCliffData
     )
 }
 
-/** MainGameScreen 渲染数据计算（MainGameScreen 拆分）：精灵位图 + 索引 + 渲染配置 */
+/**
+ * 浮空岛崖壁布局预计算（remember 封装：仅地图尺寸/种子变化时经 C++ 合成器
+ * 重建——Camera 平移/缩放不触发；null = native 通道不可用，双端跳过崖壁层）。
+ *
+ * 纹理尺寸表来自 [IslandCliffTextureSet.TEXTURE_SIZES]（编译期常量，由
+ * `IslandCliffTextureDimensionTest` 解析真实 WebP 头守卫）——**不依赖纹理加载
+ * 时序**：布局在纹理上传完成前即可算出，避免"首帧无崖壁 → 尺寸到达后重建整层"。
+ * [textureMask] 表达"哪几张已上传成功"（未成功的条目由合成器跳过——部分降级）。
+ *
+ * 观测锚点（保留级，地图创建时各一次）：compose 结果日志——
+ * 「IslandCliff: layout N pieces」= 布局数据链路正常；「compose 降级」= JNI/native 断点。
+ */
+@Composable
+private fun rememberIslandCliffData(
+    mapPreloadData: MapPreloadData,
+    textureMask: Int
+): FloatArray? =
+    remember(
+        mapPreloadData.seed, mapPreloadData.worldWidthCells,
+        mapPreloadData.worldHeightCells, mapPreloadData.tileSize, textureMask
+    ) {
+        val layout = IslandCliffBridge.compose(
+            cols = mapPreloadData.worldWidthCells,
+            rows = mapPreloadData.worldHeightCells,
+            tileSize = mapPreloadData.tileSize,
+            seed = mapPreloadData.seed,
+            textureSizes = IslandCliffTextureSet.TEXTURE_SIZES,
+            textureMask = textureMask
+        )
+        if (layout == null) {
+            android.util.Log.w(
+                ISLAND_CLIFF_LOG_TAG,
+                "compose 降级（native 通道不可用/异常）→ 跳过崖壁层 " +
+                    "（地图 ${mapPreloadData.worldWidthCells}x${mapPreloadData.worldHeightCells}）"
+            )
+        } else {
+            android.util.Log.i(
+                ISLAND_CLIFF_LOG_TAG,
+                "layout ${layout.size / IslandCliffBridge.PIECE_STRIDE} pieces " +
+                    "(seed=${mapPreloadData.seed}, mask=0x${textureMask.toString(16)})"
+            )
+        }
+        layout
+    }
+
+/** MainGameScreen 渲染数据计算：精灵位图 + 索引 + 渲染配置 */
 @Composable
 private fun rememberMainGameScreenRenderData(
     mapData: MainGameScreenMapData,
     tiles: MainGameScreenMapTiles
 ): MainGameScreenRenderData {
-    // D-39：LocalResources 替代 context.resources（配置变化时正确更新）
+    // 用 LocalResources 获取资源（配置变化时正确更新）
     val resources = LocalResources.current
 
-    // 金手指图标位图
-    val goldenFingerBmp = remember {
-        val resId = SpriteResRegistry.resolve("golden_finger")
-        if (resId != null) {
-            val opts = android.graphics.BitmapFactory.Options().apply {
-                inSampleSize = 1
+    // 金手指图标位图后台异步解码——不阻塞游戏首帧组合；
+    // 消费点已有 null 守卫（金手指模式激活才绘制），异步到位后
+    // 下一次重组自然生效，无行为差异。
+    val goldenFingerBmp by produceState<ImageBitmap?>(initialValue = null, resources) {
+        withContext(Dispatchers.Default) {
+            val resId = SpriteResRegistry.resolve("golden_finger")
+            if (resId != null) {
+                val opts = android.graphics.BitmapFactory.Options().apply {
+                    inSampleSize = 1
+                }
+                value = android.graphics.BitmapFactory.decodeResource(resources, resId, opts)
+                    ?.asImageBitmap()
             }
-            android.graphics.BitmapFactory.decodeResource(resources, resId, opts)
-                ?.asImageBitmap()
-        } else null
+        }
     }
 
     // 网格系统（管理建筑放置与占用格查询）
@@ -554,7 +628,7 @@ private fun rememberMainGameScreenRenderData(
     }
 
     // 空间索引 — O(1) 触控检测，替代 O(n) 线性查找
-    // 2026-08-06 修复：传入精灵视觉尺寸，命中区域扩展为占地 ∪ 精灵包围盒，
+    // 传入精灵视觉尺寸，命中区域扩展为占地 ∪ 精灵包围盒，
     // 高层建筑（塔楼/藏经阁等）悬空上半身可点击
     val buildingIndex = remember { BuildingSpatialIndex() }
 
@@ -581,13 +655,14 @@ private fun rememberMainGameScreenRenderData(
         buildingDataArray = tiles.buildingDataArray,
         spiritCropData = tiles.spiritCropData,
         demolishHighlightData = tiles.demolishHighlightData,
-        roadData = tiles.roadData
+        roadData = tiles.roadData,
+        islandCliffData = tiles.islandCliffData
     )
 }
 
-/** MainGameScreen 视口数据计算（MainGameScreen 拆分）：相机/预览/渲染参数 */
+/** MainGameScreen 视口数据计算：相机/预览/渲染参数 */
 @Composable
-// R-13 拆分专项债务：视口数据参数簇，拆分后收敛——暂抑制
+// 拆分专项债务：视口数据参数簇，拆分后收敛——暂抑制
 @Suppress("LongParameterList")
 private fun rememberMainGameScreenViewportData(
     derived: MainGameScreenDerived,
@@ -610,14 +685,14 @@ private fun rememberMainGameScreenViewportData(
     }
     // 用户交互时取消动画
     val cancelCameraAnim: () -> Unit = { cameraAnimator.cancel() }
-    // P-7：地图视口抽离为 SectMapViewport（参数稳定引用——每旬 gameData 变化不触发
+    // 地图视口抽离为 SectMapViewport（参数稳定引用——每旬 gameData 变化不触发
     // AndroidView update；相机/预览/建筑实际变化才重组）
-    // ★ 2026-08-31 根因修复：key-less remember { derivedStateOf } 的计算 lambda 在
+    // remember { derivedStateOf } 的计算 lambda 若无 key，会在
     // 首次组合捕获首个 renderData 实例且永不重建——roadData/spiritCropData/
     // demolishHighlightData 等"每旬/放置变化数据"被冻结在初始值（道路精灵不显示、
-    // 作物进度/拆除高亮不更新的根因；建筑因 RenderCommandBus 直达通道绕过本管线
-    // 而未暴露）。加 remember(renderData) key：renderData 关键字段引用变化时重建
-    // derivedStateOf；字段未变时新 params 与原实例 equals 相等，P-7 跳过重组语义保持。
+    // 作物进度/拆除高亮不更新；建筑因 RenderCommandBus 直达通道绕过本管线
+    // 而未暴露）。必须加 remember(renderData) key：renderData 关键字段引用变化时重建
+    // derivedStateOf；字段未变时新 params 与原实例 equals 相等，跳过重组语义保持。
     val viewportParams = remember(renderData) {
         derivedStateOf {
             SectMapViewportParams(
@@ -632,6 +707,7 @@ private fun rememberMainGameScreenViewportData(
                 buildingSpriteSizes = mapData.buildingSpriteSizes, selectedGrid = state.selectedBuildingGrid,
                 spiritCropData = renderData.spiritCropData, demolishHighlightData = renderData.demolishHighlightData,
                 roadData = renderData.roadData,
+                islandCliffData = renderData.islandCliffData,
                 gridOverlayVisible = state.isPlacingBuilding || state.movingBuilding != null,
                 alphaProvider = { viewModel.gameEngineCore.currentAlpha }
             )
@@ -661,7 +737,7 @@ private fun rememberMainGameScreenViewportData(
     )
 }
 
-/** MainGameScreen 触控引擎（MainGameScreen 拆分）：跨平台手势引擎 */
+/** MainGameScreen 触控引擎：跨平台手势引擎 */
 @Suppress("LongParameterList")
 @Composable
 private fun rememberMainGameScreenTouchEngine(
@@ -689,7 +765,7 @@ private fun rememberMainGameScreenTouchEngine(
     }
 }
 
-/** MainGameScreen 聚合数据计算（MainGameScreen 拆分） */
+/** MainGameScreen 聚合数据计算 */
 @Composable
 private fun rememberMainGameScreenData(
     mapPreloadData: MapPreloadData,
@@ -725,7 +801,7 @@ private fun rememberMainGameScreenData(
     )
 }
 
-/** MainGameScreen 数据副作用（MainGameScreen 拆分）：导航/对话框重置/排行榜/相机视口 */
+/** MainGameScreen 数据副作用：导航/对话框重置/排行榜/相机视口 */
 @Composable
 private fun MainGameScreenEffects(
     state: MainGameScreenState,
@@ -768,26 +844,26 @@ private fun MainGameScreenEffects(
 
     LaunchedEffect(isGameOver) {
         if (isGameOver) {
-            viewModel.openGameOverDialog()
+            viewModel.navigation.openGameOverDialog()
         }
     }
 }
 
-/** MainGameScreen 渲染副作用（MainGameScreen 拆分）：索引重建 + 表面接线 */
+/** MainGameScreen 渲染副作用：索引重建 + 表面接线 */
 @Composable
 private fun MainGameScreenRenderEffects(
     state: MainGameScreenState,
     data: MainGameScreenData,
     viewModel: GameViewModel
 ) {
-    // D-12（2026-08-06）：movingBuilding 状态单点同步到渲染总线排除通道——
+    // movingBuilding 状态单点同步到渲染总线排除通道——
     // 总线不感知 Compose 局部 movingBuilding，不排除会导致拖拽窗口期该建筑
     // 仍在旧位置渲染（双渲染）+ 点不中 + 其格子可叠建（绿色）
     LaunchedEffect(state.movingBuilding) {
         viewModel.setMovingBuildingInstanceId(state.movingBuilding?.instanceId)
     }
 
-    // ★ 预览快通道清理（2026-08-30 触控优化）：编辑模式退出（放置确认/取消/移动确认/
+    // 预览快通道清理：编辑模式退出（放置确认/取消/移动确认/
     // 切 Tab）时回落 Compose 门控帧——不在拖拽结束（onBuildingDragEnd）时清理，
     // 避免 33ms 帧率门控窗口内预览位置回跳
     LaunchedEffect(state.isPlacingBuilding, state.movingBuilding) {
@@ -856,7 +932,7 @@ private fun MainGameScreenRenderEffects(
     }
 }
 
-/** 编辑模式返回键取消（MainGameScreen 拆分）：移动/金手指/拆除模式下按返回键取消 */
+/** 编辑模式返回键取消：移动/金手指/拆除模式下按返回键取消 */
 @Composable
 private fun MainGameScreenBackHandler(state: MainGameScreenState) {
     // 移动模式/金手指/拆除模式下按返回键取消
@@ -875,7 +951,7 @@ private fun MainGameScreenBackHandler(state: MainGameScreenState) {
     }
 }
 
-/** MainGameScreen 主体内容（MainGameScreen 拆分）：地图视口 + 覆盖层 + UI 覆盖层 */
+/** MainGameScreen 主体内容：地图视口 + 覆盖层 + UI 覆盖层 */
 @Composable
 private fun MainGameScreenContent(
     state: MainGameScreenState,
@@ -945,18 +1021,18 @@ private fun MainGameScreenContent(
             val batchSize = rewardCardQueue.size
             com.xianxia.sect.ui.game.components.RewardCardHost(
                 rewardCards = rewardCardQueue,
-                onAnimationComplete = { viewModel.clearRewardCardQueue(batchSize) }
+                onAnimationComplete = { viewModel.battleRewards.clearRewardCardQueue(batchSize) }
             )
         }
 
-        // 2026-08-16 进入宗门转场 — 全屏覆盖层（最高层）：播放转场视频 + 中央"加载资源中…"，
+        // 进入宗门转场 — 全屏覆盖层（最高层）：播放转场视频 + 中央"加载资源中…"，
         // 由 SectMapController 在目标宗门地图就绪且至少播放 1 秒后关闭（实现见 SectTransitionOverlay.kt）
         val sectTransitionActive by viewModel.sectTransitionActive.collectAsStateWithLifecycle()
         SectTransitionOverlay(active = sectTransitionActive)
     }
 }
 
-/** 地图覆盖层（MainGameScreen 拆分）：金手指/灵植阁光环/放置确认/移动控制/边缘装饰 */
+/** 地图覆盖层：金手指/灵植阁光环/放置确认/移动控制/边缘装饰 */
 @Composable
 private fun MainGameScreenMapOverlays(
     state: MainGameScreenState,
@@ -985,7 +1061,7 @@ private fun MainGameScreenMapOverlays(
         )
     }
 
-    // 一键拆除占地高亮已迁移至 native 渲染层（viewportParams.demolishHighlightData，
+    // 一键拆除占地高亮由 native 渲染层绘制（viewportParams.demolishHighlightData，
     // 与建筑精灵同帧同相机快照绘制——消除拖动视角时的相位差错位）
 
     // 灵植阁光环范围 — 放置/移动灵植阁时显示光环范围圈 + 范围内灵田高亮
@@ -1026,7 +1102,7 @@ private fun MainGameScreenMapOverlays(
     // 若后续需要"浮空岛描边"效果，应改用与天空协调的描边方案，而非此装饰层。
 }
 
-/** 灵植阁光环范围（MainGameScreen 拆分）：放置/移动灵植阁时显示光环 + 灵田高亮 */
+/** 灵植阁光环范围：放置/移动灵植阁时显示光环 + 灵田高亮 */
 @Composable
 private fun MainGameScreenAuraOverlay(
     state: MainGameScreenState,
@@ -1046,17 +1122,14 @@ private fun MainGameScreenAuraOverlay(
     }
     HerbGardenAuraOverlay(
         showAura = showHerbGardenAura,
-        buildingGridX = auraGridX,
-        buildingGridY = auraGridY,
-        buildingW = auraSize.width,
-        buildingH = auraSize.height,
+        buildingRect = AuraBuildingRect(auraGridX, auraGridY, auraSize.width, auraSize.height),
         spiritFieldBuildings = spiritFieldBuildings,
         cameraState = data.viewportData.cameraState,
         tileSize = data.mapData.tileSize
     )
 }
 
-/** 放置模式确认按钮（MainGameScreen 拆分） */
+/** 放置模式确认按钮 */
 @Composable
 private fun MainGameScreenPlacementConfirm(
     state: MainGameScreenState,
@@ -1065,9 +1138,7 @@ private fun MainGameScreenPlacementConfirm(
 ) {
     val isGf = state.goldFingerState.isActive
     PlacementConfirmButtons(
-        snappedGridX = state.placingSnappedGridX,
-        snappedGridY = state.placingSnappedGridY,
-        buildingSize = state.placingBuildingSize,
+        anchor = PlacedAnchor(state.placingSnappedGridX, state.placingSnappedGridY, state.placingBuildingSize),
         cameraState = data.viewportData.cameraState,
         tileSize = data.mapData.tileSize,
         validity = if (isGf && !state.goldFingerState.canAfford) {
@@ -1077,14 +1148,14 @@ private fun MainGameScreenPlacementConfirm(
         },
         onConfirm = {
             if (isGf) {
-                viewModel.batchPlaceBuilding(state.goldFingerState)
+                viewModel.buildingDelegate.batchPlaceBuilding(state.goldFingerState)
                 state.goldFingerState = GoldFingerState()
             } else if (state.placementValidity == GridSnapHelper.PlacementValidity.Valid) {
                 if (state.placingBuildingName == GameConfig.Road.DISPLAY_NAME) {
                     // 石板道路：走道路系统自动拼接（单格，RoadFacade 内扣 20 灵石/格）
-                    viewModel.placeRoad(state.placingSnappedGridX, state.placingSnappedGridY)
+                    viewModel.road.placeRoad(state.placingSnappedGridX, state.placingSnappedGridY)
                 } else {
-                    viewModel.placeBuilding(
+                    viewModel.buildingDelegate.placeBuilding(
                         name = state.placingBuildingName,
                         gridX = state.placingSnappedGridX,
                         gridY = state.placingSnappedGridY,
@@ -1106,8 +1177,7 @@ private fun MainGameScreenPlacementConfirm(
     )
 }
 
-/** 移动模式确认按钮 + 拆除按钮（MainGameScreen 拆分） */
-// 拆分搬移:嵌套/条件结构与原函数一致
+/** 移动模式确认按钮 + 拆除按钮 */
 @Suppress("ComplexCondition")
 @Composable
 private fun MainGameScreenMovingControls(
@@ -1117,9 +1187,7 @@ private fun MainGameScreenMovingControls(
 ) {
     val moveScope = rememberCoroutineScope()
     PlacementConfirmButtons(
-        snappedGridX = state.movingSnappedGridX,
-        snappedGridY = state.movingSnappedGridY,
-        buildingSize = data.derived.movingBuildingSize,
+        anchor = PlacedAnchor(state.movingSnappedGridX, state.movingSnappedGridY, data.derived.movingBuildingSize),
         cameraState = data.viewportData.cameraState,
         tileSize = data.mapData.tileSize,
         validity = state.movingValid,
@@ -1130,7 +1198,8 @@ private fun MainGameScreenMovingControls(
                 (state.movingSnappedGridX != b.gridX || state.movingSnappedGridY != b.gridY)
             ) {
                 moveScope.launch {
-                    viewModel.moveBuilding(b.instanceId, state.movingSnappedGridX, state.movingSnappedGridY)
+                    viewModel.buildingDelegate.moveBuilding(b.instanceId, state.movingSnappedGridX,
+                        state.movingSnappedGridY)
                     // 同步更新空间索引，避免 LaunchedEffect 异步重建前
                     // 第二次长按读到旧坐标导致建筑跳回原位置
                     // 注：add 须传同一 spriteSizes，否则移动中的建筑丢失精灵扩展命中
@@ -1164,7 +1233,7 @@ private fun MainGameScreenMovingControls(
         cameraState = data.viewportData.cameraState,
         tileSize = data.mapData.tileSize,
         onDemolish = {
-            viewModel.demolishBuilding(building.instanceId)
+            viewModel.buildingDelegate.demolishBuilding(building.instanceId)
             state.movingBuilding = null
             if (state.selectedBuilding?.instanceId == building.instanceId) {
                 state.selectedBuilding = null
@@ -1202,7 +1271,7 @@ private fun MainGameScreenSelectedBuildingControls(
     )
 }
 
-/** UI 覆盖层（MainGameScreen 拆分）：顶部栏 + 侧边按钮 */
+/** UI 覆盖层：顶部栏 + 侧边按钮 */
 @Composable
 private fun MainGameScreenUiOverlay(
     state: MainGameScreenState,
@@ -1236,9 +1305,9 @@ private fun MainGameScreenUiOverlay(
     }
 }
 
-/** 顶部 UI（MainGameScreen 拆分）：宗门信息卡 + 隐藏 UI/玉符/暂停列 */
+/** 顶部 UI：宗门信息卡 + 隐藏 UI/玉符/暂停列 */
 @Composable
-/** 顶部栏（MainGameScreen 拆分）：宗门信息卡片 + 右侧操作列（隐藏UI/玉符/暂停） */
+/** 顶部栏：宗门信息卡片 + 右侧操作列（隐藏UI/玉符/暂停） */
 private fun BoxScope.MainGameScreenTopBar(
     state: MainGameScreenState,
     data: MainGameScreenData,
@@ -1284,7 +1353,7 @@ private fun BoxScope.MainGameScreenTopBar(
     }
 }
 
-/** 宗门信息卡片区（MainGameScreenTopBar 拆分）：仅 UI 可见时显示卡片与右侧间隔 */
+/** 宗门信息卡片区：仅 UI 可见时显示卡片与右侧间隔 */
 @Composable
 private fun MainGameScreenSectInfoSection(
     state: MainGameScreenState,
@@ -1295,7 +1364,7 @@ private fun MainGameScreenSectInfoSection(
         val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
         val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
         val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
-        // 2026-08-16 修复：卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
+        // 卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
         // 显示该宗门名与等级，而不是恒显示主宗门名——避免「进入被占宗门地图却显示主宗门」误导）
         val activeSect = data.derived.gameData.worldMapSects
             .find { it.id == data.derived.gameData.activeSectId }
@@ -1304,15 +1373,17 @@ private fun MainGameScreenSectInfoSection(
             gameYear = data.derived.gameData.gameYear,
             gameMonth = data.derived.gameData.gameMonth,
             gamePhase = data.derived.gameData.gamePhase,
-            lowStones = data.derived.gameData.spiritStones,
-            midStones = data.derived.gameData.midGradeSpiritStones,
-            highStones = data.derived.gameData.highGradeSpiritStones,
+            stones = SectStoneBalance(
+                low = data.derived.gameData.spiritStones,
+                mid = data.derived.gameData.midGradeSpiritStones,
+                high = data.derived.gameData.highGradeSpiritStones
+            ),
             discipleCount = data.derived.aliveDisciples.size,
             combatPower = sectCombatPower,
             sectLevel = activeSect?.level ?: currentSectLevel,
             showRewardBadge = showRewardBadge,
             onSectIconClick = {
-                if (data.derived.gameData.activeSectId.isEmpty()) viewModel.navigateToSectLevelDetail()
+                if (data.derived.gameData.activeSectId.isEmpty()) viewModel.sectDelegate.navigateToSectLevelDetail()
             },
             onSectNameClick = {
                 // 仅在主宗门（activeSectId=""）时允许改名，被占宗门不可改名
@@ -1325,7 +1396,7 @@ private fun MainGameScreenSectInfoSection(
     }
 }
 
-/** 暂停/继续按钮（MainGameScreen 拆分） */
+/** 暂停/继续按钮 */
 @Composable
 private fun PauseResumeButton(saveLoadViewModel: SaveLoadViewModel) {
     val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
@@ -1345,7 +1416,7 @@ private fun PauseResumeButton(saveLoadViewModel: SaveLoadViewModel) {
     }
 }
 
-/** 侧边按钮（MainGameScreen 拆分）：左按钮列 + 消息栏 + 右上动作按钮 */
+/** 侧边按钮：左按钮列 + 消息栏 + 右上动作按钮 */
 @Composable
 private fun BoxScope.MainGameScreenSideControls(
     state: MainGameScreenState,
@@ -1377,7 +1448,7 @@ private fun BoxScope.MainGameScreenSideControls(
     )
 }
 
-/** 建造栏（MainGameScreen 拆分）：拆除控制行 + 建筑卡片栏 */
+/** 建造栏：拆除控制行 + 建筑卡片栏 */
 @Composable
 private fun BoxScope.MainGameScreenBuildingBar(
     state: MainGameScreenState,
@@ -1388,7 +1459,8 @@ private fun BoxScope.MainGameScreenBuildingBar(
         val currentSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
         val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
         val buildingCosts = remember {
-            data.mapData.buildingList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
+            data.mapData.buildingList.associate { (name, _) -> name to viewModel.buildingDelegate.getBuildingCost(name)
+                }
         }
         Column(
             modifier = Modifier
@@ -1460,7 +1532,7 @@ private fun BoxScope.MainGameScreenSelectedBuildingEntryOverlay(
     }
 }
 
-/** 建造栏顶部拆除控制行（MainGameScreen 拆分）：区域选择 + 取消/确认拆除 */
+/** 建造栏顶部拆除控制行：区域选择 + 取消/确认拆除 */
 @Composable
 private fun MainGameScreenDemolishControls(
     state: MainGameScreenState,
@@ -1517,7 +1589,7 @@ private fun DemolishModeButtons(
         text = "确认拆除",
         enabled = state.demolishSelectedIds.isNotEmpty(),
         onClick = {
-            viewModel.demolishBuildings(state.demolishSelectedIds.toList())
+            viewModel.buildingDelegate.demolishBuildings(state.demolishSelectedIds.toList())
             state.isDemolishMode = false
             state.isAreaSelectMode = false
             state.demolishSelectedIds = emptySet()
@@ -1544,9 +1616,8 @@ private fun QuickActionButtons(
     }
 }
 
-
 /**
- * 建筑作用域过滤唯一同源谓词（2026-08-16 修复）：
+ * 建筑作用域过滤唯一同源谓词：
  * 渲染总线（GameViewModel）与点击/瓦片/渲染帧（MainGameScreen）必须使用同一谓词，
  * 只保留 `activeSectId` 作用域内的建筑，杜绝进入被占宗门后渲染主宗建筑但点不中的分叉。
  */
@@ -1554,6 +1625,51 @@ internal fun buildingsInSectScope(
     placedBuildings: List<GridBuildingData>,
     activeSectId: String
 ): List<GridBuildingData> = placedBuildings.filter { it.sectId == activeSectId }
+
+/**
+ * 建筑占位瓦片标记（唯一占位装配点）。
+ *
+ * 在纯地形基座（[MapPreloadData.flatTileData]，每种子一次、不可变）的副本上，
+ * 将建筑脚印格标记为 [TILE_BUILDING]——建筑增删每次 O(脚印) 写 + 一次数组拷贝。
+ *
+ * 语义：脚印越界格跳过；无建筑时直接
+ * 返回基座引用（不可变，消费者只读——NativeSurfaceView 接收后 copyOf，双后端只读）。
+ *
+ * @param cols 地图列数（行主序展平索引 row*cols+col）
+ */
+internal fun applyBuildingOccupancy(
+    baseFlat: IntArray,
+    buildings: List<GridBuildingData>,
+    cols: Int
+): IntArray {
+    if (buildings.isEmpty()) return baseFlat
+    val out = baseFlat.copyOf()
+    val rows = if (cols > 0) out.size / cols else 0
+    for (b in buildings) {
+        markFootprint(out, b.gridX, b.gridY, b.width, b.height, cols, rows)
+    }
+    return out
+}
+
+/** 单建筑脚印标记（嵌套深度收敛拆出；越界格跳过——原 `in indices` 判据等价） */
+private fun markFootprint(
+    out: IntArray,
+    gridX: Int,
+    gridY: Int,
+    width: Int,
+    height: Int,
+    cols: Int,
+    rows: Int
+) {
+    for (cy in gridY until gridY + height) {
+        if (cy < 0 || cy >= rows) continue
+        val rowBase = cy * cols
+        for (cx in gridX until gridX + width) {
+            if (cx < 0 || cx >= cols) continue
+            out[rowBase + cx] = TILE_BUILDING
+        }
+    }
+}
 
 /**
  * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。
@@ -1572,7 +1688,6 @@ internal fun buildingsInSectScope(
 /** B1 渲染端未注册建筑名告警去重集合（仅首次警告，防日志刷屏） */
 private val warnedUnregisteredBuildingNames = Collections.synchronizedSet(mutableSetOf<String>())
 
-
 internal fun buildBuildingDataArray(
     buildings: List<GridBuildingData>,
     spriteSizeMap: Map<String, GridSnapHelper.BuildingSize>
@@ -1590,7 +1705,7 @@ internal fun buildBuildingDataArray(
         result[idx + 2] = sw.toFloat()
         result[idx + 3] = sh.toFloat()
         // 精灵名解析：显示名可能带分级前缀（如「初级单人住所」），经注册表回退到图集精灵名
-        //（「单人住所」）；未注册建筑回退用自身 displayName（旧档迁移前仍按原名可渲染）
+        //（「单人住所」）；未注册建筑回退用自身 displayName（兼容旧档原名）
         val spriteName = BuildingFeatureRegistry.findByDisplayName(b.displayName)
             ?.effectiveSpriteName() ?: b.displayName
         val nameIndex = BUILDING_NAME_INDEX[spriteName]
@@ -1677,8 +1792,6 @@ internal fun buildingsInSquare(
         .toSet()
 }
 
-// BUILDING_NAME_INDEX / BUILDING_UV_MAP 已移入 SectMapViewport.kt（P-7，同包 internal）
+// BUILDING_NAME_INDEX / BUILDING_UV_MAP 已移入 SectMapViewport.kt（同包 internal）
 // 灵田作物渲染数据构建已移入 SpiritCropRenderData.kt（文件行数收敛）
-
-
 

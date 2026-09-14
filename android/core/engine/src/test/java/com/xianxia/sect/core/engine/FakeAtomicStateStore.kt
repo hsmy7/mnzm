@@ -245,8 +245,7 @@ internal class FakeAtomicStateStore : GameStateStore {
     /**
      * 当前事务缓冲——重入事务（外层 update 内调 updateAndReturn，如
      * confiscate → returnEquipmentToStack）复用同一缓冲，对齐真实
-     * GameStateStoreImpl 的 COW 重入语义；原实现每次新建缓冲导致
-     * 内层修改被外层旧缓冲 syncFlows 覆盖丢失。
+     * GameStateStoreImpl 的 COW 重入语义（内层修改不被外层 syncFlows 覆盖丢失）。
      */
     private var activeMutable: MutableGameState? = null
 
@@ -290,8 +289,8 @@ internal class FakeAtomicStateStore : GameStateStore {
     }
 
     /**
-     * 将事务缓冲写回全部 StateFlow（P-20 增强：物品实体跨事务持久化——
-     * 原实现只同步 gameData，InventorySystem 等物品仓库路径的修改会丢失）。
+     * 将事务缓冲写回全部 StateFlow（物品实体跨事务持久化——
+     * InventorySystem 等物品仓库路径的修改必须对后续事务可见）。
      */
     private fun syncFlows(m: MutableGameState) {
         _gameData.value = m.gameData

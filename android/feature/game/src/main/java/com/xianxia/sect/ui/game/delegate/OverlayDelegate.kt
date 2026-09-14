@@ -6,7 +6,6 @@ import com.xianxia.sect.core.engine.setFocusedDiscipleId
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.TopOverlay
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.update
 
 class OverlayDelegate(
     private val gameEngine: GameEngine,
-    private val scope: CoroutineScope
 ) {
 
     private val _overlayOrder = mutableStateListOf<TopOverlay>()

@@ -4,7 +4,12 @@ import com.xianxia.sect.core.audio.AudioConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.consumeMaterialByName
 import com.xianxia.sect.core.engine.setActiveTab
-import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.setAutoSellHighGradeForPurchase
+import com.xianxia.sect.core.engine.setAutoSellMidGradeForPurchase
+import com.xianxia.sect.core.engine.setPatrolBattleResultPopup
+import com.xianxia.sect.core.engine.setShowAllAvailableDisciples
+import com.xianxia.sect.core.engine.setMusicEnabled
+import com.xianxia.sect.core.engine.setSoundEnabled
 import com.xianxia.sect.core.engine.updateYearlySalary
 import com.xianxia.sect.core.engine.updateYearlySalaryEnabled
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
@@ -18,19 +23,19 @@ class SettingsDelegate(
 ) {
 
     fun setPatrolBattleResultPopup(enabled: Boolean) {
-        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(patrolBattleResultPopup = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.setPatrolBattleResultPopup(enabled) }
     }
 
     fun setAutoSellMidGradeForPurchase(enabled: Boolean) {
-        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(autoSellMidGradeForPurchase = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.setAutoSellMidGradeForPurchase(enabled) }
     }
 
     fun setAutoSellHighGradeForPurchase(enabled: Boolean) {
-        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(autoSellHighGradeForPurchase = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.setAutoSellHighGradeForPurchase(enabled) }
     }
 
     fun setShowAllAvailableDisciples(enabled: Boolean) {
-        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(showAllAvailableDisciples = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.setShowAllAvailableDisciples(enabled) }
     }
 
     val showAllAvailableDisciplesSnapshot: Boolean
@@ -68,9 +73,8 @@ class SettingsDelegate(
     fun setSoundEnabled(enabled: Boolean) {
         gameEngine.launchOnEngine {
             audioConfig.soundEnabled = enabled
-            val data = gameEngine.gameData.value
-            if (data.soundEnabled != enabled) {
-                gameEngine.updateGameData { it.copy(soundEnabled = enabled) }
+            if (gameEngine.gameData.value.soundEnabled != enabled) {
+                gameEngine.setSoundEnabled(enabled)
             }
         }
     }
@@ -78,9 +82,8 @@ class SettingsDelegate(
     fun setMusicEnabled(enabled: Boolean) {
         gameEngine.launchOnEngine {
             audioConfig.musicEnabled = enabled
-            val data = gameEngine.gameData.value
-            if (data.musicEnabled != enabled) {
-                gameEngine.updateGameData { it.copy(musicEnabled = enabled) }
+            if (gameEngine.gameData.value.musicEnabled != enabled) {
+                gameEngine.setMusicEnabled(enabled)
             }
         }
     }

@@ -53,7 +53,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * GameViewModel 移动中建筑总线排除测试（D-12，2026-08-06）。
+ * GameViewModel 移动中建筑总线排除测试。
  *
  * 从 GameViewModelTest 拆出（该场景式集成测试类已超 detekt TooLargeClass 600 行阈值）：
  * 总线推送键为 (activeSectId, placedBuildings, movingId) 三元组，移动中建筑被排除——
@@ -129,10 +129,10 @@ class GameViewModelMovingBuildingBusTest {
                 buildingFacade, discipleFacade,
                 IoDispatcher(testDispatcher),
                 sessionManager,
-                // 2026-08-14 平板省电：GPU 档位检测（本测试不触达渲染路径，detect 不调用）
+                // GPU 档位检测（本测试不触达渲染路径，detect 不调用）
                 GpuTierDetector()
             ),
-            // 2026-08-13 平台抽象：surface 提供者工厂（本测试不触达渲染路径）
+            // surface 提供者工厂（本测试不触达渲染路径）
             SurfaceProviderFactory { mockk() }
         )
     }
@@ -146,7 +146,7 @@ class GameViewModelMovingBuildingBusTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 移动中建筑总线排除（D-12，2026-08-06）
+    // 移动中建筑总线排除
     // ════════════════════════════════════════════════════════════════
 
     @Test

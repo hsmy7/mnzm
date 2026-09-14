@@ -261,7 +261,7 @@ class GameTimeProgressMonitorTest {
         assertTrue("window parameter applied", verdict is StallVerdict.FakeRunDetected)
     }
 
-    // ── 对抗性审查修复回归用例（2026-08-04）──
+    // ── 冻结/振荡异常模式回归用例 ──
 
     @Test
     fun `evaluate - S5 frozen world with oscillating accumulatedMs still detected`() {

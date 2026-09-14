@@ -34,7 +34,7 @@ class EngineTween(
 ) {
 
     init {
-        // 构造守卫（对抗性审查 2026-08-13 边界#3）：durationMs × NANOS_PER_MS 溢出
+        // 构造守卫：durationMs × NANOS_PER_MS 溢出
         // 为负 → 进度恒 0 → 动画永不完成。上限取纳秒可表示的最大毫秒数。
         require(durationMs in 0..MAX_DURATION_MS) {
             "durationMs 越界: $durationMs（合法范围 0..$MAX_DURATION_MS，超出会溢出导致动画永不完成）"

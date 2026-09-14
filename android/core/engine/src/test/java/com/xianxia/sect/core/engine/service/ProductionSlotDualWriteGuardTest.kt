@@ -50,6 +50,7 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.repository.getSlotsByType
 
 /**
  * 生产槽双存储（镜像 GameData.productionSlots vs Room ProductionSlotRepository）
@@ -62,7 +63,7 @@ import org.robolectric.RobolectricTestRunner
  * 3. [ProductionProcessor.processAutoAlchemySlot]：Repository 有弟子但镜像已无
  *    （玩家已释放）→ 清 Repository 残留且不自动重启（"被自动任命回原槽"防线）
  *
- * 4. **全槽位互斥化（2026-08-10）**：processAutoAssign 候选过滤走
+ * 4. **全槽位互斥化**：processAutoAssign 候选过滤走
  *    [buildOccupiedSlotDiscipleIds]（status==IDLE 第一层 + 全槽位占用集合
  *    第二层防御）——逐槽位验证各工作槽位（纳徒长老/巡逻/藏经阁/仓库驻守/
  *    宗门驻守/战斗队伍/活跃任务/秘境/洞穴/探索队伍/血炼）占用的弟子即使
@@ -353,10 +354,9 @@ class ProductionSlotDualWriteGuardTest {
         )
     }
 
-    // ── 测试 5：超额候选回流（2026-08 修复）─────────────────────────
-    // 背景：高优先级类型（灵植）槽满时，原 takeCandidates 会将该类型全部合格
-    // 候选从池中移除——即使空槽装不下，导致低优先级类型（灵矿/炼丹/炼器）
-    // 空槽被吞掉、无人可安排。修复后每类型只消耗"空槽数"上限，超额候选回流。
+    // ── 测试 5：超额候选回流 ─────────────────────────
+    // 每类型只消耗"空槽数"上限，超额候选回流到低优先级类型（灵矿/炼丹/炼器），
+    // 不因高优先级类型（灵植）槽满吞掉低优先级类型的空槽。
 
     @Test
     fun `processAutoAssign - 灵植槽满时灵植合格弟子回流到灵矿空槽`() = runTest {

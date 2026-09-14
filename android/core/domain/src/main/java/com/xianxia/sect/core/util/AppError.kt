@@ -485,13 +485,16 @@ sealed class AppError {
             return when (e) {
                 is java.net.UnknownHostException -> Domain.Network.NoConnection(cause = e)
                 is java.net.SocketTimeoutException -> Domain.Network.Timeout(cause = e)
-                is java.io.IOException -> Domain.Network.NoConnection(e.message ?: "网络错误", e)
-                is IllegalArgumentException -> Domain.Validation.InvalidInput(e.message ?: "参数错误", e)
-                is IllegalStateException -> Domain.GameLoop.StateInconsistency(e.message ?: "状态错误", e)
-                is NoSuchElementException -> Domain.GameState.NotFound(e.message ?: "未找到数据", e)
-                is SecurityException -> Domain.GameState.PermissionDenied(e.message ?: "权限不足", e)
-                else -> Unknown(e.message ?: "未知错误", e)
+                is java.io.IOException -> Domain.Network.NoConnection(e.safeMessage("网络错误"), e)
+                is IllegalArgumentException -> Domain.Validation.InvalidInput(e.safeMessage("参数错误"), e)
+                is IllegalStateException -> Domain.GameLoop.StateInconsistency(e.safeMessage("状态错误"), e)
+                is NoSuchElementException -> Domain.GameState.NotFound(e.safeMessage("未找到数据"), e)
+                is SecurityException -> Domain.GameState.PermissionDenied(e.safeMessage("权限不足"), e)
+                else -> Unknown(e.safeMessage("未知错误"), e)
             }
         }
+
+        /** 消息缺省：message 为空时使用领域缺省文案 */
+        private fun Throwable.safeMessage(fallback: String): String = message ?: fallback
     }
 }

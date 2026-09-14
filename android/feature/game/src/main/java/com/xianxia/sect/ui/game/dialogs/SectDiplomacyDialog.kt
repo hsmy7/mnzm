@@ -1,49 +1,41 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.model.SectRelationLevel
-import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.sectIconRes
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
-import com.xianxia.sect.ui.theme.ButtonSizes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.xianxia.sect.ui.components.clickableWithSound
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 
-private data class ChatMessage(
+
+
+internal data class ChatMessage(
     val text: String,
     val isPlayer: Boolean
 )
 
 @Composable
+@Suppress("UnusedParameter") // disciples: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 internal fun SectDiplomacyDialog(
     sect: WorldSect,
     relation: Int,
@@ -94,7 +86,7 @@ internal fun SectDiplomacyDialog(
     )
 }
 
-/** 外交对话流程状态（SectDiplomacyDialog 拆分）：聊天消息 + 逐条显示进度 + 送礼选项 */
+/** 外交对话流程状态：聊天消息 + 逐条显示进度 + 送礼选项 */
 private class DiplomacyUiState {
     var messages by mutableStateOf<List<ChatMessage>>(emptyList())
     var visibleCount by mutableIntStateOf(0)
@@ -127,7 +119,7 @@ private class DiplomacyUiState {
     }
 }
 
-/** 外交输入数据（SectDiplomacyDialog 拆分） */
+/** 外交输入数据 */
 private data class DiplomacyInputs(
     val sect: WorldSect,
     val relation: Int,
@@ -135,7 +127,7 @@ private data class DiplomacyInputs(
     val interactionViewModel: WorldMapInteractionViewModel
 )
 
-/** 对话框主体框架（SectDiplomacyDialog 拆分）：左面板 + 右面板 */
+/** 对话框主体框架：左面板 + 右面板 */
 @Composable
 private fun DiplomacyFrame(
     inputs: DiplomacyInputs,
@@ -197,7 +189,7 @@ private fun DiplomacyFrame(
     }
 }
 
-/** 左侧面板区（DiplomacyFrame 拆分）：左面板 + 垂直分割线 */
+/** 左侧面板区：左面板 + 垂直分割线 */
 @Composable
 private fun RowScope.DiplomacyLeftPanel(sect: WorldSect) {
     LeftPanel(
@@ -213,7 +205,7 @@ private fun RowScope.DiplomacyLeftPanel(sect: WorldSect) {
     )
 }
 
-/** 右侧面板展示数据（SectDiplomacyDialog 拆分） */
+/** 右侧面板展示数据 */
 private data class DiplomacyFrameData(
     val initialDialogueText: String,
     val portraitRes: String,
@@ -224,7 +216,7 @@ private data class DiplomacyFrameData(
     val canVassal: Boolean
 )
 
-/** 右侧面板关系数据（SectDiplomacyDialog 拆分） */
+/** 右侧面板关系数据 */
 private data class DiplomacyRelationState(
     val hasGiftedThisYear: Boolean,
     val relationLevel: SectRelationLevel,
@@ -232,7 +224,7 @@ private data class DiplomacyRelationState(
     val showGiftOptions: Boolean
 )
 
-/** 聊天/框架回调（SectDiplomacyDialog 拆分） */
+/** 聊天/框架回调 */
 private data class DiplomacyFrameCallbacks(
     val onDismiss: () -> Unit,
     val onAllianceClick: () -> Unit,
@@ -242,14 +234,14 @@ private data class DiplomacyFrameCallbacks(
     val onSkipClick: () -> Unit
 )
 
-/** 送礼回调（SectDiplomacyDialog 拆分） */
+/** 送礼回调 */
 private data class DiplomacyGiftCallbacks(
     val onGiftClick: () -> Unit,
     val onGiftTierClick: (Int) -> Unit,
     val onCancelGiftClick: () -> Unit
 )
 
-/** 右侧面板装配（SectDiplomacyDialog 拆分）：把分组数据解包传给 RightPanel */
+/** 右侧面板装配：把分组数据解包传给 RightPanel */
 @Composable
 private fun RowScope.DiplomacyRightPanel(
     frameData: DiplomacyFrameData,
@@ -287,137 +279,6 @@ private fun RowScope.DiplomacyRightPanel(
     )
 }
 
-/** 送礼聊天流程（SectDiplomacyDialog 拆分，原 onGiftTierClick 内联逻辑） */
-private suspend fun performGiftFlow(
-    interactionViewModel: WorldMapInteractionViewModel,
-    sectId: String,
-    tier: Int,
-    sectName: String,
-    relationLevel: SectRelationLevel
-): List<ChatMessage> {
-    val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-        interactionViewModel.performGiftSpiritStones(sectId, tier)
-    }
-    val playerGiftText = buildPlayerGiftText(sectName, tier)
-    if (result != null) {
-        val aiResponseText = if (result.success) {
-            getGiftAiAcceptText(relationLevel)
-        } else {
-            getGiftAiRejectText(relationLevel)
-        }
-        val playerReplyText = buildPlayerReplyText(result.success)
-        return listOf(
-            ChatMessage(text = playerGiftText, isPlayer = true),
-            ChatMessage(text = aiResponseText, isPlayer = false),
-            ChatMessage(text = playerReplyText, isPlayer = true)
-        )
-    }
-    return listOf(
-        ChatMessage(text = playerGiftText, isPlayer = true)
-    )
-}
-
-/** 结盟聊天流程（SectDiplomacyDialog 拆分，原 onAllianceClick 内联逻辑） */
-private suspend fun performAllianceFlow(
-    interactionViewModel: WorldMapInteractionViewModel,
-    gameData: GameData?,
-    sect: WorldSect
-): List<ChatMessage> {
-    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
-    val aiSectName = sect.name
-    val playerSectId = playerSect?.id ?: ""
-    val favor = if (playerSectId.isNotEmpty()) {
-        gameData?.sectRelations?.find {
-            (it.sectId1 == playerSectId && it.sectId2 == sect.id) ||
-            (it.sectId1 == sect.id && it.sectId2 == playerSectId)
-        }?.favor ?: 0
-    } else 0
-
-    val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-        interactionViewModel.requestAllianceSimple(sect.id)
-    }
-    val aiText = getAiResponseText(favor, success)
-    val playerReply = if (success) {
-        "太好了！从今往后你我二宗同气连枝，守望相助！"
-    } else {
-        "既然贵宗无意，那我等也不便强求。告辞。"
-    }
-
-    return listOf(
-        ChatMessage(
-            text = "尊敬的道友，我宗愿与贵宗结为同盟，共谋发展，不知尊意如何？",
-            isPlayer = true
-        ),
-        ChatMessage(text = aiText, isPlayer = false),
-        ChatMessage(text = playerReply, isPlayer = true)
-    )
-}
-
-/** 散盟聊天流程（SectDiplomacyDialog 拆分，原 onDissolveClick 内联逻辑） */
-private suspend fun performDissolveFlow(
-    interactionViewModel: WorldMapInteractionViewModel,
-    sectId: String
-): List<ChatMessage> {
-    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-        interactionViewModel.dissolveAllianceSimple(sectId)
-    }
-    return listOf(
-        ChatMessage(
-            text = "道友，我宗深思熟虑后决定解除盟约，日后各走各路，还望见谅。",
-            isPlayer = true
-        ),
-        ChatMessage(
-            text = "既如此，我宗也不强留。从此两清，各自珍重。",
-            isPlayer = false
-        ),
-        ChatMessage(
-            text = "多谢成全，后会有期。",
-            isPlayer = true
-        )
-    )
-}
-
-/** 附属聊天流程（SectDiplomacyDialog 拆分，原 onVassalClick 内联逻辑） */
-private suspend fun performVassalFlow(
-    interactionViewModel: WorldMapInteractionViewModel,
-    gameData: GameData?,
-    sect: WorldSect
-): List<ChatMessage> {
-    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
-    val favor = if (playerSect != null) {
-        gameData?.sectRelations?.find {
-            (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
-            (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
-        }?.favor ?: 0
-    } else 0
-
-    val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-        interactionViewModel.requestVassalContract(sect.id)
-    }
-    val aiText = getVassalAiResponseText(favor, success)
-    val playerReply = buildPlayerVassalReplyText(success)
-    return listOf(
-        ChatMessage(text = buildPlayerVassalRequestText(sect.name), isPlayer = true),
-        ChatMessage(text = aiText, isPlayer = false),
-        ChatMessage(text = playerReply, isPlayer = true)
-    )
-}
-
-/** 解除附属聊天流程（SectDiplomacyDialog 拆分，原 onDissolveVassalClick 内联逻辑） */
-private suspend fun performDissolveVassalFlow(
-    interactionViewModel: WorldMapInteractionViewModel,
-    sectId: String
-): List<ChatMessage> {
-    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-        interactionViewModel.dissolveVassalContract(sectId)
-    }
-    return listOf(
-        ChatMessage(text = buildPlayerVassalDissolveText(), isPlayer = true),
-        ChatMessage(text = getVassalAiDissolveText(), isPlayer = false),
-        ChatMessage(text = "好自为之。", isPlayer = true)
-    )
-}
-
 @Composable
 private fun LeftPanel(
     sect: WorldSect,
@@ -452,8 +313,7 @@ private fun LeftPanel(
     }
 }
 
-// 拆分聚合:平铺参数搬移自原公共函数
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "UnusedParameter") // relationLevel: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 @Composable
 private fun RightPanel(
     initialDialogueText: String,
@@ -526,7 +386,7 @@ private fun RightPanel(
     }
 }
 
-/** 对话区域（RightPanel 拆分）：问候 + 消息流 + 自动滚动 */
+/** 对话区域：问候 + 消息流 + 自动滚动 */
 @Composable
 private fun ColumnScope.DiplomacyChatArea(
     portraitRes: String,
@@ -590,8 +450,8 @@ private fun ColumnScope.DiplomacyChatArea(
     }
 }
 
-/** 操作按钮回调（RightPanel 拆分） */
-private data class DiplomacyActionCallbacks(
+/** 操作按钮回调 */
+internal data class DiplomacyActionCallbacks(
     val onAllianceClick: () -> Unit,
     val onDissolveClick: () -> Unit,
     val onVassalClick: () -> Unit,
@@ -599,300 +459,9 @@ private data class DiplomacyActionCallbacks(
     val onGiftClick: () -> Unit
 )
 
-/** 操作按钮行（RightPanel 拆分）：结盟/散盟/附属/送礼 */
-@Composable
-private fun DiplomacyActionButtons(
-    isAlly: Boolean,
-    isPlayerVassal: Boolean,
-    canVassal: Boolean,
-    hasGiftedThisYear: Boolean,
-    callbacks: DiplomacyActionCallbacks
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-    ) {
-        if (isAlly) {
-            GameButton(
-                text = "散盟",
-                onClick = callbacks.onDissolveClick,
-                modifier = Modifier.width(ButtonSizes.StandardWidth)
-            )
-        } else {
-            GameButton(
-                text = "结盟",
-                onClick = callbacks.onAllianceClick,
-                enabled = true,
-                modifier = Modifier.width(ButtonSizes.StandardWidth)
-            )
-            if (isPlayerVassal) {
-                GameButton(
-                    text = "解除附属",
-                    onClick = callbacks.onDissolveVassalClick,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-            } else if (canVassal) {
-                GameButton(
-                    text = "附属",
-                    onClick = callbacks.onVassalClick,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-            }
-        }
-        GameButton(
-            text = if (hasGiftedThisYear) "已送礼" else "送礼",
-            onClick = callbacks.onGiftClick,
-            enabled = !hasGiftedThisYear,
-            modifier = Modifier.width(ButtonSizes.StandardWidth)
-        )
-    }
-}
-
-/** 聊天动画中的跳过按钮（RightPanel 拆分） */
-@Composable
-private fun ChatSkipButton(onSkipClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center
-    ) {
-        GameButton(
-            text = "跳过",
-            onClick = onSkipClick,
-            modifier = Modifier.width(ButtonSizes.StandardWidth)
-        )
-    }
-}
-
-@Composable
-private fun AIAvatar(
-    portraitRes: String,
-    sectName: String
-) {
-    if (portraitRes.isNotEmpty()) {
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val portraitDrawableId = PortraitPool.getResourceId(portraitRes)
-        if (portraitDrawableId != 0) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(2.dp, Color(0xFFDDDDDD), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = portraitDrawableId),
-                    contentDescription = "${sectName}弟子",
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlayerAvatar(
-    portraitRes: String
-) {
-    if (portraitRes.isNotEmpty()) {
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val portraitDrawableId = PortraitPool.getResourceId(portraitRes)
-        if (portraitDrawableId != 0) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(2.dp, Color(0xFFDDDDDD), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = portraitDrawableId),
-                    contentDescription = "我方弟子",
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DialogueBubble(
-    text: String,
-    isLeft: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val bubbleRes = SpriteResRegistry.resolve(
-        if (isLeft) "dialogue_bubble_left" else "dialogue_bubble_right"
-    ) ?: if (isLeft) R.drawable.dialogue_bubble_left
-    else R.drawable.dialogue_bubble_right
-
-    // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp
-    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
-    val bubbleMaxWidth = with(LocalDensity.current) {
-        (LocalWindowInfo.current.containerSize.width * 0.65f).toDp()
-    }
-
-    Box(
-        modifier = modifier
-            .widthIn(max = bubbleMaxWidth)
-            .wrapContentHeight(),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = bubbleRes),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-            fontSize = 14.sp,
-            color = Color.Black,
-            textAlign = TextAlign.Center,
-            lineHeight = 22.sp
-        )
-    }
-}
-
-internal fun dialogueTextForRelation(
-    relationLevel: SectRelationLevel, isAlly: Boolean
-): String = when {
-    isAlly -> "盟友亲至，有何要事但说无妨。"
-    else -> when (relationLevel) {
-        SectRelationLevel.HOSTILE -> "......阁下竟敢踏足本宗地界？"
-        SectRelationLevel.ANTAGONISTIC -> "哼，有话快说，本宗不欢迎你。"
-        SectRelationLevel.NORMAL -> "贵宗来访，不知有何贵干？"
-        SectRelationLevel.FRIENDLY -> "原来是友宗到访，快请一叙。"
-        SectRelationLevel.INTIMATE -> "哈哈，老友来访，真是蓬荜生辉！"
-    }
-}
-
-internal fun getAiResponseText(favor: Int, success: Boolean): String {
-    return if (success) {
-        when {
-            favor >= 90 -> "哈哈！得贵宗为盟实乃我宗之幸！从此你我二宗同气连枝，共进退！"
-            favor >= 80 -> "善！道友诚意可嘉，我宗愿与贵宗结为盟友，共图大业！"
-            favor >= 60 -> "哈哈，道友盛情相邀，我宗自然乐意之至！"
-            favor >= 40 -> "贵宗既有此意，我宗也愿与贵宗携手共进，就此结盟。"
-            favor >= 20 -> "...罢了，既然你们有此诚意，我宗便答应这次结盟。"
-            else -> "哼...虽然你我两宗素无交情，但既然你们放低身段来求，本宗就勉为其难应了吧。"
-        }
-    } else {
-        when {
-            favor >= 90 -> "唉，道友厚爱本宗铭感五内。只是天意难违，结盟之缘未到，还望见谅。"
-            favor >= 80 -> "道友盛情，本宗心领。然此事还需从长计议，非一时之功。"
-            favor >= 60 -> "道友厚爱，只是此事关系重大，容我宗再作考虑。"
-            favor >= 40 -> "贵宗好意心领，但我宗暂不考虑结盟之事。"
-            favor >= 20 -> "...我宗对贵宗并无兴趣，请回吧。"
-            else -> "哼！就凭你们也配与我宗结盟？速速离去！"
-        }
-    }
-}
-
-// ═══════════ 送礼选项面板 ═══════════
-
-@Composable
-private fun GiftOptionsPanel(
-    spiritStones: Long,
-    onGiftTierClick: (Int) -> Unit,
-    onCancelClick: () -> Unit
-) {
-    val tiers = GiftConfig.SpiritStoneGiftConfig.getAllTiers().sortedByDescending { it.tier }
-
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        tiers.forEachIndexed { index, tier ->
-            if (index > 0) {
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = Color.Gray.copy(alpha = 0.3f)
-                )
-            }
-            val canAfford = spiritStones >= tier.spiritStones
-            val displayText = if (canAfford) {
-                "${tier.name} - ${GameUtils.formatNumber(tier.spiritStones)}"
-            } else {
-                "${tier.name} - 灵石不足"
-            }
-            Text(
-                text = displayText,
-                fontSize = 16.sp,
-                color = if (canAfford) Color.Black else Color.Gray,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickableWithSound(enabled = canAfford) { onGiftTierClick(tier.tier) }
-                    .padding(vertical = 12.dp),
-                textAlign = TextAlign.Center
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        HorizontalDivider(
-            thickness = 1.dp,
-            color = Color.Gray.copy(alpha = 0.3f)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        GameButton(
-            text = "取消",
-            onClick = onCancelClick,
-            modifier = Modifier.width(ButtonSizes.StandardWidth)
-        )
-    }
-}
-
-// ═══════════ 送礼聊天文本 ═══════════
-
-/**
- * 玩家送礼描述文本
- * @param sectName 目标宗门名称
- * @param tier 送礼档位 (1-4)
- */
-internal fun buildPlayerGiftText(sectName: String, tier: Int): String {
-    val texts = GIFTS_TEMPLATES[tier] ?: listOf("${sectName}的道友，这是我宗的一点心意，还请笑纳。")
-    return texts.random().replace("{S}", sectName)
-}
-
-/**
- * AI接受送礼文本
- * @param relationLevel 当前关系等级
- */
-internal fun getGiftAiAcceptText(relationLevel: SectRelationLevel): String {
-    return (GIFT_AI_ACCEPT_TEXTS[relationLevel] ?: listOf("多谢道友厚礼。")).random()
-}
-
-/**
- * AI拒绝送礼文本
- * @param relationLevel 当前关系等级
- */
-internal fun getGiftAiRejectText(relationLevel: SectRelationLevel): String {
-    return (GIFT_AI_REJECT_TEXTS[relationLevel] ?: listOf("本宗不能接受。")).random()
-}
-
-/**
- * 玩家回应送礼文本
- * @param success 送礼是否成功（接受=true，拒绝=false）
- */
-internal fun buildPlayerReplyText(success: Boolean): String {
-    return (if (success) PLAYER_REPLY_ACCEPT_TEXTS else PLAYER_REPLY_REJECT_TEXTS).random()
-}
-
 // ═══════════ 送礼文本常量表（只需创建一次） ═══════════
 
-private val GIFTS_TEMPLATES = mapOf(
+internal val GIFTS_TEMPLATES = mapOf(
     1 to listOf(
         "{S}的道友，我宗备薄礼一份（20,000灵石），聊表心意，还望笑纳。",
         "{S}的道友，些许薄礼不成敬意，还望贵宗收下。",
@@ -915,7 +484,7 @@ private val GIFTS_TEMPLATES = mapOf(
     )
 )
 
-private val GIFT_AI_ACCEPT_TEXTS = mapOf(
+internal val GIFT_AI_ACCEPT_TEXTS = mapOf(
     SectRelationLevel.HOSTILE to listOf(
         "哼……既然你们这么诚恳，那我就代本宗收下了。",
         "……算你们有心，东西留下吧。"
@@ -938,7 +507,7 @@ private val GIFT_AI_ACCEPT_TEXTS = mapOf(
     )
 )
 
-private val GIFT_AI_REJECT_TEXTS = mapOf(
+internal val GIFT_AI_REJECT_TEXTS = mapOf(
     SectRelationLevel.HOSTILE to listOf(
         "滚！本宗不稀罕！",
         "哼，带着你的东西滚出本宗地界！"
@@ -961,98 +530,14 @@ private val GIFT_AI_REJECT_TEXTS = mapOf(
     )
 )
 
-private val PLAYER_REPLY_ACCEPT_TEXTS = listOf(
+internal val PLAYER_REPLY_ACCEPT_TEXTS = listOf(
     "哈哈，道友喜欢便好！愿两宗友谊长存！",
     "太好了！愿两宗情谊日久弥深！",
     "贵宗喜欢便好，日后还望多多往来！"
 )
 
-private val PLAYER_REPLY_REJECT_TEXTS = listOf(
+internal val PLAYER_REPLY_REJECT_TEXTS = listOf(
     "既然贵宗不便收，那在下也不勉强，告辞。",
     "是在下唐突了，这便收回，告辞。",
     "既然贵宗看不上，那便算了，告辞。"
 )
-
-// ═══════════ 附属宗门聊天文本 ═══════════
-
-/**
- * 玩家请求附属文本
- * @param sectName 目标宗门名称
- */
-internal fun buildPlayerVassalRequestText(sectName: String): String {
-    val texts = listOf(
-        "贵宗实力尚弱，不如归附我宗。每年上贡灵石，我宗保你周全，如何？",
-        "{S}的道友，我宗有意收纳贵宗为附属，每年只需按例上贡，不知意下如何？",
-        "道友，我宗如今势大，愿庇护贵宗。归附于我，每年上贡灵石即可，你意如何？"
-    )
-    return texts.random().replace("{S}", sectName)
-}
-
-/**
- * AI回复附属请求文本
- * @param favor 好感度
- * @param success 是否接受
- */
-internal fun getVassalAiResponseText(favor: Int, success: Boolean): String {
-    return if (success) {
-        when {
-            favor >= 90 -> "哈哈哈！以贵宗之能愿意收纳我宗，是我宗的福气！我宗愿附骥尾！"
-            favor >= 80 -> "道友诚意相邀，我宗岂有不从之理？从今日起，愿奉贵宗为主！"
-            favor >= 60 -> "贵宗实力雄厚，我宗心服口服。愿遵贵宗号令，年年上贡。"
-            favor >= 40 -> "......也罢，以贵宗之能确实远胜我宗，我宗愿意成为附属。"
-            favor >= 20 -> "哼......既然你们这么说了，我宗便给这个面子，答应便是。"
-            else -> "......算你们厉害，我宗认了。从今往后唯命是从。"
-        }
-    } else {
-        when {
-            favor >= 90 -> "道友厚爱，本宗心领。只是我宗历来独立惯了，做他人附属实在不妥，还望见谅。"
-            favor >= 80 -> "这......道友盛情，只是此事关系重大，容我宗三思。"
-            favor >= 60 -> "贵宗好意心领，但我宗虽弱，也不愿寄人篱下，此议就此作罢吧。"
-            favor >= 40 -> "哼，我宗立派百年，岂能屈居人下？道友请回吧！"
-            favor >= 20 -> "不必多言！我宗自有傲骨，绝不做他人附属！"
-            else -> "就凭你们也想收我宗为附属？痴心妄想！速速离去，否则休怪本宗不客气！"
-        }
-    }
-}
-
-/**
- * 玩家回应附属请求文本
- * @param success 是否成功
- */
-internal fun buildPlayerVassalReplyText(success: Boolean): String {
-    return if (success) {
-        listOf(
-            "哈哈，好！有我宗一日，必保你宗平安。",
-            "善！从今往后你我二宗便是一体，年年上贡即可。",
-            "放心，我宗自会照拂于你。每年上贡按例即可。"
-        ).random()
-    } else {
-        listOf(
-            "既然贵宗无意，那便罢了，告辞。",
-            "是在下唐突了，这便告辞。",
-            "也罢，既然贵宗不愿，那此事不提便是。"
-        ).random()
-    }
-}
-
-/**
- * 玩家宣告解散附属文本
- */
-internal fun buildPlayerVassalDissolveText(): String {
-    return listOf(
-        "从今日起，你宗不再是我宗附属，去吧。",
-        "经我宗慎重考虑，从今日起解除附属关系，你宗自便。",
-        "道友，我宗决定解除附属关系。从今往后各走各路，好自为之。"
-    ).random()
-}
-
-/**
- * AI告别回复（被解散附属时）
- */
-internal fun getVassalAiDissolveText(): String {
-    return listOf(
-        "......多谢宗主这些年来照拂。告辞。",
-        "既如此，我宗也不强留。后会无期。",
-        "也好，我宗本就该独立发展。承蒙关照了。"
-    ).random()
-}

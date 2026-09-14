@@ -42,21 +42,10 @@ object SlotStateMachine {
     
     fun startProduction(
         slot: ProductionSlot,
-        recipeId: String,
-        recipeName: String,
-        duration: Int,
-        currentYear: Int,
-        currentMonth: Int,
-        discipleId: String?,
-        discipleName: String,
-        successRate: Double,
-        materials: Map<String, Int>,
-        outputItemId: String?,
-        outputItemName: String,
-        outputItemRarity: Int
+        spec: ProductionStartSpec
     ): Result<ProductionSlot> {
         return validateTransition(slot.status, ProductionSlotStatus.WORKING).mapCatching {
-            val absoluteMonth = (currentYear - 1) * 12 + currentMonth
+            val absoluteMonth = (spec.currentYear - 1) * 12 + spec.currentMonth
             val completionPhase = when (slot.buildingType) {
                 BuildingType.FORGE, BuildingType.ALCHEMY -> 2  // 锻造/炼丹中旬
                 BuildingType.HERB_GARDEN, BuildingType.MINING -> 3  // 种植/灵矿下旬
@@ -64,19 +53,19 @@ object SlotStateMachine {
             }
             slot.copy(
                 status = ProductionSlotStatus.WORKING,
-                recipeId = recipeId,
-                recipeName = recipeName,
-                startYear = currentYear,
-                startMonth = currentMonth,
-                duration = duration,
-                assignedDiscipleId = discipleId,
-                assignedDiscipleName = discipleName,
-                successRate = successRate,
-                requiredMaterials = materials,
-                outputItemId = outputItemId,
-                outputItemName = outputItemName,
-                outputItemRarity = outputItemRarity,
-                completionMonth = absoluteMonth + duration.coerceAtLeast(1),
+                recipeId = spec.recipeId,
+                recipeName = spec.recipeName,
+                startYear = spec.currentYear,
+                startMonth = spec.currentMonth,
+                duration = spec.duration,
+                assignedDiscipleId = spec.discipleId,
+                assignedDiscipleName = spec.discipleName,
+                successRate = spec.successRate,
+                requiredMaterials = spec.materials,
+                outputItemId = spec.outputItemId,
+                outputItemName = spec.outputItemName,
+                outputItemRarity = spec.outputItemRarity,
+                completionMonth = absoluteMonth + spec.duration.coerceAtLeast(1),
                 completionPhase = completionPhase
             )
         }

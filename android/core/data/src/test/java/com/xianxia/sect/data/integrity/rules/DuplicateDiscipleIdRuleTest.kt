@@ -17,7 +17,8 @@ import org.junit.Test
 
 
 class DuplicateDiscipleIdRuleTest {
-    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry.register(DuplicateDiscipleIdRule) }
+    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry
+        .register(DuplicateDiscipleIdRule) }
     @After fun teardown() { SaveValidationRuleRegistry.clear() }
 
     @Test fun `unique disciple IDs passes`() {

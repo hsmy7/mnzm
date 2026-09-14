@@ -6,6 +6,8 @@ package com.xianxia.sect.core.model
  * 在 :core:domain 定义，由 :app 中的 DiscipleStatCalculator 代理实现。
  * 解除 domain 对 engine 的编译依赖。
  */
+@Suppress("TooManyFunctions") // 属性统计查询契约：disciple/aggregate 双接收者对称重载是接口协议本体，
+// 拆分即改契约面（引擎实现与镜像侧 Fake 同协议实现）
 interface DiscipleStatsProvider {
     fun getBaseStats(disciple: Disciple): DiscipleStats
     fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats

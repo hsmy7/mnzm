@@ -9,6 +9,10 @@
  * - { preserve: true }           保留源分辨率（大图：立绘/建筑/UI/背景/妖兽等）
  * - { maxDim: N }                等比缩放到最长边 = N（小物件：丹药/材料/装备/种子/储物袋/功法）
  * - { canvas: {w,h} }            等比缩放并透明延展到 w×h 画布（contain，天枢殿专用）
+ * - { roundUp4: true }           宽高各自向上取整到 4 的倍数（contain 同比例画布，不拉伸）
+ *                                —— ASTC 4×4 压缩纹理的硬性尺寸要求（非 4 倍数被 KtxLoader 拒绝），
+ *                                最多 +3px；取整尺寸同为运行时世界布局尺寸，双路径逐像素同布局
+ * - { seamless: true }           叠加无缝平铺处理（REPEAT 平铺地面如草皮；与尺寸规则组合使用）
  *
  * 特性：
  * - 内容 hash 增量：per-drawable 记录「源 MD5 + bake 参数 + 目标模块」，未变则跳过
@@ -39,7 +43,54 @@ const WEBP_OPTIONS = { lossless: true, effort: 6 };
 /** 单素材硬上限（GPU 纹理上限，防个别超高清源撑爆） */
 const MAX_BAKE_DIM = 4096;
 
+/** 无缝平铺处理的工作分辨率倍率（4× 后降采样，低通平滑周期环绕过渡） */
+const SEAMLESS_WORK_SCALE = 4;
+
 function md5OfFile(p) { return crypto.createHash('md5').update(fs.readFileSync(p)).digest('hex'); }
+
+/**
+ * 无缝平铺处理（偏移平均法，数学保证无缝 + 高分辨率降采样平滑环绕）。
+ *
+ * P(x,y) = avg( I(x,y), I(x+W/2,y), I(x,y+H/2), I(x+W/2,y+H/2) )，坐标按周期环绕。
+ * 因平移 W/2 只是置换四项，P 严格周期（平铺完全连续，零接缝、无人工模糊带）。
+ * 在 4× 工作分辨率上执行后降采样到目标尺寸——低通滤波进一步平滑周期环绕过渡，
+ * 消除"暗接缝"（纹理环绕点相邻色差）。
+ *
+ * @param {Buffer} buffer 已缩放到目标尺寸的图片缓冲
+ * @param {number} w 目标宽
+ * @param {number} h 目标高
+ * @returns {Promise<Buffer>} 处理后的 PNG 缓冲（尺寸不变）
+ */
+async function makeSeamless(buffer, w, h) {
+  const workW = w * SEAMLESS_WORK_SCALE;
+  const workH = h * SEAMLESS_WORK_SCALE;
+  const { data, info } = await sharp(buffer)
+    .resize(workW, workH, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const cw = info.width, chh = info.height, ch = info.channels;
+  const halfW = cw >> 1, halfH = chh >> 1;
+  const out = Buffer.alloc(data.length);
+  for (let y = 0; y < chh; y++) {
+    const y0 = y, y1 = (y + halfH) % chh;
+    for (let x = 0; x < cw; x++) {
+      const x0 = x, x1 = (x + halfW) % cw;
+      const b00 = (y0 * cw + x0) * ch;
+      const b10 = (y1 * cw + x0) * ch;
+      const b01 = (y0 * cw + x1) * ch;
+      const b11 = (y1 * cw + x1) * ch;
+      const bo = (y * cw + x) * ch;
+      for (let c = 0; c < ch; c++) {
+        out[bo + c] = (data[b00 + c] + data[b10 + c] + data[b01 + c] + data[b11 + c]) >> 2;
+      }
+    }
+  }
+  const seamless = await sharp(out, { raw: { width: cw, height: chh, channels: ch } }).png().toBuffer();
+  return sharp(seamless)
+    .resize(w, h, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .png()
+    .toBuffer();
+}
 
 /** 读取映射（校验结构） */
 function loadMapping() {
@@ -57,10 +108,15 @@ function loadMapping() {
 
 /**
  * 按 bake 规则生成输出尺寸（含 MAX_BAKE_DIM 硬上限）。
- * @returns {Promise<{width,height}>} 目标尺寸
+ *
+ * 同时给出缩放方式 [fit]：'contain'（同比例画布，不拉伸——canvas/roundUp4 用）
+ * 或 'fill'（等比目标框，1px 内尺寸差直接拉伸）。
+ *
+ * @returns {Promise<{width:number,height:number,fit:'contain'|'fill'}>} 目标尺寸 + 缩放方式
  */
 async function computeTarget(meta, bake) {
   let w = meta.width, h = meta.height;
+  let fit = 'fill';
   if (bake?.canvas) {
     const srcRatio = meta.width / meta.height;
     const canvasRatio = bake.canvas.w / bake.canvas.h;
@@ -70,6 +126,7 @@ async function computeTarget(meta, bake) {
       else cw = Math.round(bake.canvas.h * srcRatio);
     }
     w = cw; h = ch;
+    fit = 'contain';
   } else if (bake?.maxDim) {
     const longest = Math.max(w, h);
     if (longest > bake.maxDim) {
@@ -83,7 +140,14 @@ async function computeTarget(meta, bake) {
     w = Math.round(w * k); h = Math.round(h * k);
   }
   w = Math.max(w, 1); h = Math.max(h, 1);
-  return { width: w, height: h };
+  // 4 倍数取整（ASTC 4×4 压缩纹理硬性尺寸要求）：向上取整并透明延展，
+  // 内容 1:1 落在同比例画布左上——不拉伸、不失真（最多 +3px 透明边）
+  if (bake?.roundUp4) {
+    w = Math.ceil(w / 4) * 4;
+    h = Math.ceil(h / 4) * 4;
+    fit = 'contain';
+  }
+  return { width: w, height: h, fit };
 }
 
 async function main() {
@@ -107,7 +171,9 @@ async function main() {
     }
     const meta = await sharp(srcFile).metadata();
     const target = await computeTarget(meta, entry.bake);
-    const bakeKey = JSON.stringify({ bake: entry.bake, target });
+    // bakeKey 只含「bake 规则 + 目标尺寸」——不含 fit（编码实现细节，非产出内容参数），
+    // 否则新增尺寸规则会扰动全部既有条目的 hash，导致全量无谓重烘焙
+    const bakeKey = JSON.stringify({ bake: entry.bake, target: { width: target.width, height: target.height } });
     const srcMd5 = md5OfFile(srcFile);
     const hash = srcMd5 + '|' + bakeKey;
     // 内容 hash 增量：未变则跳过（dry-run 也如实报"未变更"，仅显示真实增量）
@@ -121,14 +187,20 @@ async function main() {
     let buf = null;
     if (!dryRun) {
       const encode = sharp(srcFile);
-      if (entry.bake?.canvas) {
+      if (target.fit === 'contain') {
+        // 同比例画布：内容 1:1 落位 + 透明边（canvas 专用 / roundUp4 的 4 倍数取整）
         encode.resize(target.width, target.height, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
-      } else if (entry.bake?.maxDim && Math.max(meta.width, meta.height) > target.width) {
-        encode.resize(target.width, target.height, { fit: 'fill', kernel: sharp.kernel.lanczos3 });
       } else if (target.width !== meta.width || target.height !== meta.height) {
         encode.resize(target.width, target.height, { fit: 'fill', kernel: sharp.kernel.lanczos3 });
       }
-      buf = await encode.webp(WEBP_OPTIONS).toBuffer();
+      if (entry.bake?.seamless) {
+        // 先落到目标尺寸，再做无缝平铺处理（偏移平均），最后编码
+        const resized = await encode.png().toBuffer();
+        const seamless = await makeSeamless(resized, target.width, target.height);
+        buf = await sharp(seamless).webp(WEBP_OPTIONS).toBuffer();
+      } else {
+        buf = await encode.webp(WEBP_OPTIONS).toBuffer();
+      }
     }
 
     if (dryRun) {

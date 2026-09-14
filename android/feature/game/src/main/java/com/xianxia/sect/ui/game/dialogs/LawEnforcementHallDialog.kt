@@ -33,8 +33,12 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
-
-
+import com.xianxia.sect.ui.game.assignDirectDisciple
+import com.xianxia.sect.ui.game.assignElder
+import com.xianxia.sect.ui.game.getLawEnforcementDisciples
+import com.xianxia.sect.ui.game.getLawEnforcementElder
+import com.xianxia.sect.ui.game.removeDirectDisciple
+import com.xianxia.sect.ui.game.removeElder
 
 @Composable
 fun LawEnforcementHallDialog(
@@ -58,13 +62,14 @@ fun LawEnforcementHallDialog(
         lawDisciples = lawDisciples,
         disciples = disciples,
         callbacks = LawHallCallbacks(
-            onElderClick = { lawElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
+            onElderClick = { lawElder?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples))
+                } },
             onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) },
             onElderSwap = { showElderSelection = true },
             onDiscipleClick = { index ->
                 val slot = lawDisciples.find { it.index == index }
                 val d = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
-                d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                d?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) },
             onDiscipleSwap = { index -> showDiscipleSelection = index }
@@ -103,7 +108,7 @@ fun LawEnforcementHallDialog(
 
 }
 
-/** 执法堂内容回调（LawEnforcementHallDialog 拆分） */
+/** 执法堂内容回调 */
 private data class LawHallCallbacks(
     val onElderClick: () -> Unit,
     val onElderRemove: () -> Unit,
@@ -113,17 +118,18 @@ private data class LawHallCallbacks(
     val onDiscipleSwap: (Int) -> Unit
 )
 
-/** 参战/探索中弟子 ID 集合（LawEnforcementHallDialog 拆分） */
+/** 参战/探索中弟子 ID 集合 */
 private fun buildBattleAndExplorationIds(gameData: GameData?): Set<String> {
     if (gameData != null) {
-        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+            .toSet()
         val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
         return battleIds + explorationIds
     }
     return emptySet()
 }
 
-/** 执法堂主对话框（LawEnforcementHallDialog 拆分）：UnifiedGameDialog + 长老/弟子区 */
+/** 执法堂主对话框：UnifiedGameDialog + 长老/弟子区 */
 @Composable
 private fun LawHallDialogFrame(
     elder: DiscipleAggregate?,
@@ -149,7 +155,7 @@ private fun LawHallDialogFrame(
     }
 }
 
-/** 执法堂内容区（LawEnforcementHallDialog 拆分）：门规标语 + 长老 + 弟子区 */
+/** 执法堂内容区：门规标语 + 长老 + 弟子区 */
 @Composable
 private fun ColumnScope.LawEnforcementContent(
     elder: DiscipleAggregate?,
@@ -185,12 +191,12 @@ private fun ColumnScope.LawEnforcementContent(
     }
 }
 
-/** 执法堂 ProductionTheme 构建（LawEnforcementHallDialog 拆分） */
+/** 执法堂 ProductionTheme 构建 */
 private fun buildLawTheme(): ProductionTheme = ProductionTheme(
     buildingId = "lawEnforcement",
     displayName = "执法堂",
     elderTitle = "执法长老",
-    elderBonusInfo = ElderBonusInfoProvider.getLawEnforcementElderInfo(),
+    elderBonusInfo = ElderBonusInfoProvider.lawEnforcementElderInfo,
     coreAttributeName = "智力",
     coreAttributeColor = Color(0xFFE74C3C),
     defaultBorderColor = Color(0xFFE74C3C),
@@ -212,7 +218,7 @@ private fun buildLawTheme(): ProductionTheme = ProductionTheme(
         .thenByDescending { it.intelligence }
 )
 
-/** 选择弹窗数据（LawEnforcementHallDialog 拆分） */
+/** 选择弹窗数据 */
 private data class LawSelectionDialogData(
     val theme: ProductionTheme,
     val disciples: List<DiscipleAggregate>,
@@ -220,7 +226,7 @@ private data class LawSelectionDialogData(
     val battleAndExplorationIds: Set<String>
 )
 
-/** 执法长老选择弹窗（LawEnforcementHallDialog 拆分） */
+/** 执法长老选择弹窗 */
 @Composable
 private fun LawElderSelectionDialog(
     data: LawSelectionDialogData,
@@ -239,8 +245,7 @@ private fun LawElderSelectionDialog(
     )
 }
 
-/** 执法弟子选择弹窗（LawEnforcementHallDialog 拆分） */
-// 拆分搬移:参数保留原签名语义
+/** 执法弟子选择弹窗 */
 @Suppress("UnusedParameter")
 @Composable
 private fun LawDiscipleSelectionDialog(
@@ -287,7 +292,7 @@ private fun LawElderSection(
         ElderSlotItem(
             title = "执法长老",
             elder = elder,
-            bonusInfo = ElderBonusInfoProvider.getLawEnforcementElderInfo(),
+            bonusInfo = ElderBonusInfoProvider.lawEnforcementElderInfo,
             onClick = onElderClick,
             onRemove = onElderRemove,
             onSwap = onElderSwap
@@ -322,7 +327,7 @@ private fun LawDisciplesSection(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getLawEnforcementDiscipleInfo())
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.lawEnforcementDiscipleInfo)
         }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -348,7 +353,7 @@ private fun LawDisciplesSection(
     }
 }
 
-/** 执法弟子槽位行（LawDisciplesSection 拆分）：给定索引区间渲染 4 个槽位 */
+/** 执法弟子槽位行：给定索引区间渲染 4 个槽位 */
 @Composable
 private fun LawDiscipleSlotRow(
     lawDisciples: List<DirectDiscipleSlot>,
@@ -377,6 +382,7 @@ private fun LawDiscipleSlotRow(
     }
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun ElderSlotItem(
     title: String,
@@ -406,7 +412,7 @@ private fun ElderSlotItem(
         val borderColor = if (elder != null) {
             try {
                 Color(android.graphics.Color.parseColor(elder.spiritRoot.countColor))
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 GameColors.SurfaceLightGray
             }
         } else {
@@ -425,6 +431,7 @@ private fun ElderSlotItem(
     }
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun LawDiscipleSlotItem(
     disciple: DiscipleAggregate?,
@@ -437,7 +444,7 @@ private fun LawDiscipleSlotItem(
     val borderColor = if (isActive) {
         try {
             Color(android.graphics.Color.parseColor(spiritRootColor))
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             Color(0xFFE74C3C)
         }
     } else {

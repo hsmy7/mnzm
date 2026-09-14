@@ -13,11 +13,11 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * D-03 取回（没收）路径模板重建测试（BagItemReconstructor）。
+ * 取回（没收）路径模板重建测试（BagItemReconstructor）。
  *
  * 袋条目持有 name/quantity + BagStackedData 元数据，重建时按数据库模板补齐
  * 完整堆叠。核心守卫：
- * - minRealm 用条目 stackedData 保真（旧逻辑按 rarity 推导，丢失实际门槛）
+ * - minRealm 用条目 stackedData 保真（保留实际境界门槛）
  * - quantity 用条目数量
  * - 找不到模板返回 null（调用方按丢弃处理，物品不复制）
  */
@@ -70,8 +70,8 @@ class BagItemReconstructorTest {
 
     @Test
     fun `empty stackedData minRealm zero falls back to rarity-derived`() {
-        // 对抗性审查：偷盗等路径写空 BagStackedData()（minRealm 默认 0）——
-        // 0 非 null 不触发旧逻辑的 `?:` 回退，重建后成为"最高境界门槛"装备
+        // 偷盗等路径写空 BagStackedData()（minRealm 默认 0）——
+        // 0 视为缺省，回退按 rarity 推导门槛（不落为"最高境界门槛"装备）
         val item = StorageBagItem(
             itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 1,
             stackedData = BagStackedData()

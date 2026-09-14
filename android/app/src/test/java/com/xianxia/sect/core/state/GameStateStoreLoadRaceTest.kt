@@ -11,12 +11,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * load/reset 与锁外 assemble 协程竞态守卫测试（2026-08-01，D2 修复验证）。
+ * load/reset 与锁外 assemble 协程竞态守卫测试。
  *
- * 修复前：loadFromSnapshot 锁外直接 `_disciplesFlow.value = assembleAll()`
- * 不经 assembleDispatcher，与排队中的增量组装任务并发交错——陈旧增量可能
- * 用过期事务的 changedIds 归并新列表，覆盖加载结果（丢弟子/陈尸）。
- * 修复后：状态版本号作废陈旧任务 + load 组装投递同一单线程调度器。
+ * load 组装必须与增量组装投递同一单线程调度器，且状态版本号作废陈旧任务——
+ * 若锁外直接 `_disciplesFlow.value = assembleAll()`，会与排队中的增量组装
+ * 并发交错：陈旧增量用过期事务的 changedIds 归并新列表，覆盖加载结果（丢弟子/陈尸）。
  *
  * 本测试模拟"update 提交后 → load 启动"窗口，断言最终 _disciplesFlow
  * 恒等于加载列表（无论交错顺序如何，正确性不变）。

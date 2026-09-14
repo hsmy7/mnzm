@@ -10,8 +10,8 @@ import javax.inject.Singleton
 
 /**
  * AndroidApkSigningCertificateSource — [ApkSigningCertificateSource] 的 Android 实现
- * （计划 v2 阶段 7 平台能力接口化：签名证书提取属平台细节，SHA-256 摘要与哈希
- * 比对留在引擎层 RedeemCodeService，跨平台一致）。
+ * 签名证书提取属平台细节：SHA-256 摘要与哈希比对留在引擎层 RedeemCodeService，
+ * 跨平台一致。
  *
  * API 28+ 走 `GET_SIGNING_CERTIFICATES`（signingInfo），低版本走已废弃的
  * `GET_SIGNATURES`（minSdk 24 仍需覆盖）。

@@ -72,10 +72,8 @@ class DiscipleLifecycleProcessorTest {
                 // 必须用真实配置：mock 的 getMaxStackSize 返回 0 → StackableItemStore 拒绝
                 // 任何入仓（maxStack<=0 守卫）→ 物化永远失败，测试失去意义
                 inventoryConfig = InventoryConfig(),
-                spiritStoneWallet = mockSmart(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
-                gameConfigProvider = mockSmart(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
             ),
-            // 2026-08-10 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
+            // 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
             deathHandler = DiscipleDeathHandler()
         )
     }
@@ -188,7 +186,7 @@ class DiscipleLifecycleProcessorTest {
     }
 
     // ══════════════════════════════════════
-    // 2026-08-10：延年词条寿元上限 E2E（AgeLifespanRule 回滚循环根治验证）
+    // 延年词条寿元上限 E2E（AgeLifespanRule 回滚循环防御）
     // 炼气（realm=9）maxAge=80；r3_aff_lifespan +28% → computeMaxAge = 80×1.28 = 102
     // ══════════════════════════════════════
 
@@ -312,7 +310,7 @@ class DiscipleLifecycleProcessorTest {
 
     @Test
     fun `handleDiscipleDeath - 统一入口写 isAlive=0 status=DEAD`() = runTest {
-        // 2026-08-10：markDead 统一死亡标记（isAlive + status + deathYear 三字段）
+        // markDead 统一死亡标记（isAlive + status + deathYear 三字段）
         insertDisciple(1, age = 80)
         val deadDisciple = tables.assemble(1)
 
@@ -325,7 +323,7 @@ class DiscipleLifecycleProcessorTest {
 
     @Test
     fun `handleDiscipleDeath - bag materialized and cleared - repeated death idempotent`() = runTest {
-        // D-03 对抗性审查：死亡物化袋物品（玩家保留）+ 清空袋条目（幂等防复制）
+        // 死亡物化袋物品（玩家保留）+ 清空袋条目（幂等防复制）
         insertDisciple(1, age = 80)
         tables.storageBagItems[1] = listOf(
             StorageBagItem(

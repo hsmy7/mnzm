@@ -18,7 +18,7 @@ data class LockStats(
  * 2. 不再提供同步（阻塞）版本的锁操作
  * 3. 调用方必须使用协程（如 viewModelScope、lifecycleScope 等）
  *
- * 迁移指南：
+ * 使用约定：
  * - 所有锁操作均使用 withXxxLockLight() 系列方法
  * - 调用方必须在协程上下文中调用（viewModelScope、lifecycleScope 等）
  */
@@ -26,7 +26,6 @@ class SlotLockManager(
     private val maxSlots: Int = DEFAULT_MAX_SLOTS
 ) {
     companion object {
-        private const val TAG = "SlotLockManager"
 
         /** 默认槽位数上限（与生产配置一致） */
         const val DEFAULT_MAX_SLOTS = 6
@@ -43,7 +42,7 @@ class SlotLockManager(
     /**
      * 合法槽位索引表（含云会话槽位 0）。
      *
-     * slot 0 为云存档独立会话槽位（2026-08-23）：云读档/云下载以 slot 0 加载
+     * slot 0 为云存档独立会话槽位：云读档/云下载以 slot 0 加载
      * 进内存，本地 1..maxSlots 槽位完全不受影响；slot 0 的落盘（DB 键
      * game_data_0 等）是云会话的本地镜像，UI 槽位列表不暴露。
      */
@@ -63,7 +62,7 @@ class SlotLockManager(
      * 不在锁内执行 `withContext(Dispatchers.IO)` 切换，
      * 调用方若已在 IO 调度器上，可避免不必要的线程跳转开销。
      *
-     * 注意（2026-08-01 语义澄清）：与 [withWriteLockLight] 实际是**同一把排他
+     * 注意：与 [withWriteLockLight] 实际是**同一把排他
      * Mutex**——"读锁"命名仅表达调用语义，同一槽位的读操作之间也互相串行
      * （不同槽位可并行）。StorageEngine.load 依赖此排他语义才可在"读锁"内
      * 执行 performFullTransactionSave 写库。

@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
@@ -11,8 +10,6 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.wallet.SpiritStoneLedger
-import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -22,7 +19,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -55,8 +51,6 @@ class WarehouseFullExistingItemReproTest {
         handler = CollectHandler()
         system = InventorySystem(
             stateStore, inventoryConfig,
-            SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java)),
-            mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java),
             handler
         )
         system.initialize()

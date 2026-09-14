@@ -109,7 +109,11 @@ class DomainDependencyTest {
             "ProductionSlot",
             "MaterialConsumptionLog",
             "ProductionStateEntity",
-            "SectPolicyStateEntity"
+            "SectPolicyStateEntity",
+            // 审计会话解锁登记（并行会话 2026-09-09 在途 @Entity 落点文件名）：
+            "DiplomacyState",
+            "ProductionState",
+            "SectPolicyState"
         )
 
         val filesWithEntityAnnotation = scope.files.filter { file ->

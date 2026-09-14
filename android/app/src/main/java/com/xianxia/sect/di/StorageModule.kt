@@ -101,8 +101,6 @@ object StorageModule {
         dataArchiver: DataArchiver,
         infra: StorageInfraFacade,
         maintenanceFacade: StorageMaintenanceFacade,
-        stateStore: com.xianxia.sect.core.state.GameStateStore,
-        repository: com.xianxia.sect.data.GameStateRepository,
         saveFileManager: com.xianxia.sect.data.backup.SaveFileManager,
         serializationModule: com.xianxia.sect.data.serialization.unified.SerializationModule,
         storageConfig: com.xianxia.sect.data.config.StorageConfig
@@ -113,8 +111,6 @@ object StorageModule {
             dataArchiver = dataArchiver,
             infra = infra,
             maintenanceFacade = maintenanceFacade,
-            stateStore = stateStore,
-            repository = repository,
             saveFileManager = saveFileManager,
             serializationModule = serializationModule,
             storageConfig = storageConfig

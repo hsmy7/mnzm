@@ -41,7 +41,8 @@ object CaveStatusAsStringSerializer : KSerializer<CaveStatus> {
 object AITeamStatusAsStringSerializer : KSerializer<AITeamStatus> {
     override val descriptor = PrimitiveSerialDescriptor("AITeamStatus", PrimitiveKind.STRING)
     override fun serialize(encoder: Encoder, value: AITeamStatus) = encoder.encodeString(value.name)
-    override fun deserialize(decoder: Decoder): AITeamStatus = safeValueOf(decoder.decodeString(), AITeamStatus.EXPLORING)
+    override fun deserialize(decoder: Decoder): AITeamStatus = safeValueOf(decoder.decodeString(),
+        AITeamStatus.EXPLORING)
 }
 
 /**
@@ -59,7 +60,8 @@ object BuildingTypeAsStringSerializer : KSerializer<BuildingType> {
 object ProductionSlotStatusAsStringSerializer : KSerializer<ProductionSlotStatus> {
     override val descriptor = PrimitiveSerialDescriptor("ProductionSlotStatus", PrimitiveKind.STRING)
     override fun serialize(encoder: Encoder, value: ProductionSlotStatus) = encoder.encodeString(value.name)
-    override fun deserialize(decoder: Decoder): ProductionSlotStatus = safeValueOf(decoder.decodeString(), ProductionSlotStatus.IDLE)
+    override fun deserialize(decoder: Decoder): ProductionSlotStatus = safeValueOf(decoder.decodeString(),
+        ProductionSlotStatus.IDLE)
 }
 
 /**
@@ -68,7 +70,8 @@ object ProductionSlotStatusAsStringSerializer : KSerializer<ProductionSlotStatus
 object CaveExplorationStatusAsStringSerializer : KSerializer<CaveExplorationStatus> {
     override val descriptor = PrimitiveSerialDescriptor("CaveExplorationStatus", PrimitiveKind.STRING)
     override fun serialize(encoder: Encoder, value: CaveExplorationStatus) = encoder.encodeString(value.name)
-    override fun deserialize(decoder: Decoder): CaveExplorationStatus = safeValueOf(decoder.decodeString(), CaveExplorationStatus.TRAVELING)
+    override fun deserialize(decoder: Decoder): CaveExplorationStatus = safeValueOf(decoder.decodeString(),
+        CaveExplorationStatus.TRAVELING)
 }
 
 /**

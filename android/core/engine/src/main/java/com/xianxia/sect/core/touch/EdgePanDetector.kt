@@ -7,7 +7,7 @@ package com.xianxia.sect.core.touch
  * 手指越靠近边缘，平移速度越大（线性插值 0 ~ maxPanSpeed）。
  *
  * 参考：Clash of Clans / Rise of Kingdoms 建筑拖拽时的自动边缘滚动机制。
- * 不同于旧版固定 8px 步长，采用距离比例连续速度曲线。
+ * 采用距离比例连续速度曲线。
  */
 class EdgePanDetector(
     /** 触发边缘平移的离边距（像素） */

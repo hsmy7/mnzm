@@ -31,7 +31,7 @@ data class MailClaimRecord(
 /**
  * 新增天赋/体质/词条的"已刷新未确认"产物记录（discipleId + 类型 → traitId）。
  *
- * 玉符消耗玩法（2026-08-15 新增）：刷新即扣 1 玉符并**立即持久化**该产物——
+ * 玉符消耗玩法：刷新即扣 1 玉符并**立即持久化**该产物——
  * 玩家不确认直接关闭界面，下次打开仍显示该产物，可直接确认新增（确认不消耗玉符）。
  * [type] 存 [com.xianxia.sect.core.GameConfig.TraitWashType].name（TALENT/PHYSIQUE/AFFIX）。
  */
@@ -132,7 +132,7 @@ data class GameData(
     var gamePhase: Int = 0,  // 0=上旬, 1=中旬, 2=下旬
 
     // 游戏状态
-    // isGameStarted 已移除：v4.0.43+ 使用 GameLifecycle 枚举纯运行时管理
+    // 游戏启动状态由 GameLifecycle 枚举纯运行时管理，不在存档中持久化
 
     // 资源
     // spiritStones 固定表示下品灵石；中品、上品灵石使用新增字段
@@ -281,7 +281,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var lastAiSectRecruitYear: Int = 0,
 
-    // ── 玉符（氪金货币，2026-08-07）──
+    // ── 玉符（氪金货币）──
     // 墙钟货币：按真实前台游玩时长发放（GameConfig.Jade），不占仓库、无品阶、不走 InventorySystem，
     // 与游戏时间（年/月/旬）完全解耦；单日上限次日凌晨 12 点（墙钟午夜）重置。
     // 发放/跨天重置/循环停止/存档快照时由 JadeSymbolService 写入（低频），运行时累计在服务内存态。
@@ -335,7 +335,7 @@ data class GameData(
     var aiCaveTeams: List<AICaveTeam> = emptyList(),
 
     // 解锁的副本
-    // unlockedDungeons removed — replaced by world level system
+    // 副本解锁由世界等级系统管理，无独立存档字段
 
     // 解锁的配方
     @ProtoNumber(30)
@@ -493,9 +493,8 @@ data class GameData(
     @kotlinx.serialization.Transient
     var battleTeam: BattleTeam? = null,
 
-    // 2026-08-05 A3 修复：battleTeams/usedTeamNumbers 原为 @Ignore+@Transient
-    // 不落盘——读档后出战队伍全清、DiscipleStatusService"在队中"判定失效；
-    // 现持久化（Room 列 + proto 字段），旧档由 battleTeamsInitialized 区分
+    // battleTeams/usedTeamNumbers 持久化（Room 列 + proto 字段）；
+    // 旧档（无对应字段）由 battleTeamsInitialized 区分
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(216)
     @ColumnInfo(name = "battle_teams", defaultValue = "")
@@ -562,8 +561,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var availableMissions: List<Mission> = emptyList(),
 
-    // 秘境智能战斗：开启后遭遇妖兽时根据队伍状态决定是否战斗
-    // smartBattleEnabled removed — replaced by world level system
+    // 秘境智能战斗：遭遇妖兽时由世界等级系统决定是否战斗，无独立存档字段
 
     // 自动招募灵根筛选（始终运行，1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     @ProtoPacked @ProtoNumber(101)
@@ -690,8 +688,7 @@ data class GameData(
     var bloodRefinementBonusTotals: Map<String, BloodRefinementBonusTotal> = emptyMap(),
 
     // 血炼系统：弟子血炼百分比累计（discipleId → BloodRefinementPctTotal）
-    // 替代旧的绝对值存储。血炼改为乘区百分比后，每次血炼累计材料百分比，
-    // 不再写入 DiscipleTables.base* 列。
+    // 血炼为乘区百分比：每次血炼累计材料百分比，不写入 DiscipleTables.base* 列。
     @ProtoNumber(152)
     @SettlementStrategy(Strategy.CUSTOM)
     @ColumnInfo(defaultValue = "{}")
@@ -700,7 +697,8 @@ data class GameData(
     // 天道试炼状态
     @ProtoNumber(153)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
-    @ColumnInfo(name = "heavenly_trial_state", defaultValue = "{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}")
+    @ColumnInfo(name = "heavenly_trial_state",
+        defaultValue = "{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}")
     var heavenlyTrialState: HeavenlyTrialSaveData = HeavenlyTrialSaveData(),
 
     // 每日签到状态

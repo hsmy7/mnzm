@@ -4,18 +4,22 @@
 
 // ============================================================
 // Rhi — Render Hardware Interface（渲染硬件抽象层）
-//（计划 v2 阶段 6：Renderer2D → RHI 形式化；类名保留 Renderer2D，
+//（Renderer2D → RHI 形式化；类名保留 Renderer2D，
 //  Kotlin 侧平台契约 RenderBackend KDoc 同此对接说明）
 //
 // 层级规则：
 //   上层（不得 include 任何图形 API 头）：NativeBridge（场景装配 +
 //   gamecore 合成器消费）、SpriteBatcher——只面向本接口与顶点格式。
-//   下层（RHI 实现）：VulkanBackend（现有）/ MetalBackend（iOS 预留）。
+//   下层（RHI 实现）：VulkanBackend（现有）。
+//
+// ★ 平台护栏（iOS 暂缓）：RHI 不投入跨平台开发；
+//   唯一硬性要求——新增渲染功能不得把 Android API 进一步漏进本头文件，
+//   保住"核心可移植"底线。Metal/iOS 接入指南仅作历史参考，非活跃目标。
 //
 // 单一实现原则：一个顶点格式、一个 Pipeline、一张纹理图集。
-// Metal 接入指南（iOS）：实现本接口全部纯虚函数，nativeWindow 传
-// CAMetalLayer*，投影矩阵改用 Metal NDC（z∈[0,1]，Y 向上翻转由
-// cameraProjMatrix 层适配）；swapchain 语义对应 submitFrame 内的
+// Metal 接入指南（历史参考，iOS 已暂缓）：实现本接口全部纯虚函数，
+// nativeWindow 传 CAMetalLayer*，投影矩阵改用 Metal NDC（z∈[0,1]，Y 向上
+// 翻转由 cameraProjMatrix 层适配）；swapchain 语义对应 submitFrame 内的
 // present，纹理上传对应 uploadTexture（MTLTexture + MTKTextureLoader
 // 语义对齐），其余上层代码（NativeBridge/SpriteBatcher/gamecore）
 // 零改动即可运行——同一渲染循环直接复用。
@@ -38,13 +42,12 @@ struct alignas(4) SpriteVertex {
     float r, g, b, a; // 顶点颜色
 };
 
-// 每帧最大精灵数（对应 48×48 地图的可见区域 + 放置模式网格线/预览——
-// 2026-09 骁龙 8 Gen 2 实测放置模式瓦片+装饰+建筑+网格线超 4096 被丢弃
-// 导致网格线缺失/空白区域，提升至 8192）
-// ★ 2026-09 天空缩放：缩小看到整座浮空岛时整张地图（128×128 = 16384 格）可见，
-//   单批 8192 会让后半地面瓦片被丢弃、岛屿残缺不全。提升到 20480 以容纳整岛地面
-//   （地面 16384 + 建筑/作物/道路余量；装饰层在 scale<0.6 由 LOD 跳过，不占批）。
-//   VBO 相应扩容（在 VulkanBackend 按 MAX_VERTICES 计算）。
+// 每帧最大精灵数（对应 48×48 地图的可见区域 + 放置模式网格线/预览）。
+// 容量约束：放置模式瓦片+装饰+建筑+网格线在部分机型可超 4096（超出被丢弃 →
+// 网格线缺失/空白区域）；缩小看到整座浮空岛时整张地图（128×128 = 16384 格）
+// 可见，单批容量不足会丢后半地面瓦片、岛屿残缺不全。当前 20480 = 整岛地面
+// 16384 + 建筑/作物/道路余量（装饰层在 scale<0.6 由 LOD 跳过，不占批）。
+// VBO 相应扩容（在 VulkanBackend 按 MAX_VERTICES 计算）。
 static constexpr int MAX_SPRITES_PER_FRAME = 20480;
 static constexpr int VERTICES_PER_SPRITE = 6;   // 两个三角形
 static constexpr int MAX_VERTICES = MAX_SPRITES_PER_FRAME * VERTICES_PER_SPRITE;
@@ -54,6 +57,23 @@ struct DrawBatch {
     uint32_t textureId;         // 纹理 ID
     int vertexOffset;           // VBO 偏移（顶点数）
     int vertexCount;            // 顶点数量
+};
+
+// ============================================================
+// 初始化错误码：C++ 每个失败点 set → JNI getLastInitError →
+// Kotlin RenderFallbackReporter 产出结构化回退事件（from/to/stage/gpu/driver）。
+// 此前 initRenderer 只回 boolean，~25 个失败点坍缩成一个 false——任何一次降级
+// 都无法事后回答「卡在哪个阶段」。编号分段：0 通用 / 10+ Vulkan / 30+ GLES。
+// ============================================================
+enum class RenderInitError : int {
+    NONE = 0, NO_WINDOW = 1,
+    VK_INSTANCE = 10, VK_PHYSICAL_DEVICE = 11, VK_LOGICAL_DEVICE = 12, VK_QUEUE = 13,
+    VK_SURFACE = 14, VK_SWAPCHAIN = 15, VK_RENDER_PASS = 16, VK_OFFSCREEN = 17,
+    VK_DESCRIPTOR_POOL = 18, VK_PIPELINE_LAYOUT = 19, VK_PIPELINE = 20,
+    VK_SHADERS = 21, VK_COMMAND_POOL = 22, VK_DEVICE_MEMORY = 23, VK_FENCE = 24,
+    GLES_DISPLAY = 30, GLES_CONFIG = 31, GLES_WINDOW_SURFACE = 32, GLES_CONTEXT = 33,
+    GLES_SHADER_COMPILE = 34, GLES_PROGRAM_LINK = 35,
+    UNKNOWN = 99,
 };
 
 // ============================================================
@@ -81,6 +101,9 @@ public:
     virtual bool init(const RenderConfig& config, void* nativeWindow) = 0;
     virtual void shutdown() = 0;
     virtual bool resize(int width, int height) = 0;
+    /** 最近一次 init/initDevice/initSurface 失败的阶段错误码（NONE = 无失败记录）。
+     *  失败路径对象随即被上层 delete——上层须在 delete 前收割（NativeBridge.g_lastInitError）。 */
+    virtual RenderInitError lastInitError() const = 0;
 
     // === 帧控制 ===
     virtual void beginFrame() = 0;
@@ -142,13 +165,16 @@ inline void orthoProj(float mat[16], float left, float right,
     mat[15] = 1.0f;
 }
 
-// 从相机参数构建投影矩阵
+// 从相机参数构建投影矩阵（yScale = 俯视纵向压缩系数，见 TextureAtlas.h
+// TOPDOWN_Y_SCALE——接近正上方的俯视投影：正交、无近大远小，仅整屏 Y 压缩，
+// 与 Kotlin BaseCameraState.worldYScale 必须同值同语义）
 inline void cameraProjMatrix(float mat[16], float camX, float camY,
-                             float scale, float vpW, float vpH) {
+                             float scale, float vpW, float vpH, float yScale) {
     float left   = camX;
     float right  = camX + vpW / scale;
     float top    = camY;                    // camY 是视口上沿（较小 Y 值）
-    float bottom = camY + vpH / scale;      // camY+vpH/scale 是视口下沿（较大 Y 值）
+    // 纵向压缩：可见世界高度增大为 vpH/(scale×yScale)，等效 screenY=(y-camY)×scale×yScale
+    float bottom = camY + vpH / (scale * yScale);  // camY+... 是视口下沿（较大 Y 值）
     // Vulkan NDC: Y 向下，-1=屏幕顶部，+1=屏幕底部
     // 传入 orthoProj 的 bottom > top，使得 Y_world=top → NDC=-1，Y_world=bottom → NDC=+1
     orthoProj(mat, left, right, bottom, top);

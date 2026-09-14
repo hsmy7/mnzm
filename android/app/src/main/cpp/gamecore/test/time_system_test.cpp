@@ -11,7 +11,7 @@ using gamecore::state::GameData;
 using gamecore::system::SettlementEngine;
 
 // ============================================================
-// 时间系统测试（批次 3）
+// 时间系统测试
 // 黄金场景与 Kotlin TimeSystemPureLogicTest 一致（双端锚定 TimeSystem 语义）
 // ============================================================
 

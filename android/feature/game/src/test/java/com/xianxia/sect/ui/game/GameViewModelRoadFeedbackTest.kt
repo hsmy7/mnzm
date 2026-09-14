@@ -53,7 +53,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * GameViewModelRoadFeedbackTest — 道路放置/删除失败反馈测试（2026-08-31 根因修复配套）。
+ * GameViewModelRoadFeedbackTest — 道路放置/删除失败反馈测试。
  *
  * 守护契约：`GameViewModel.placeRoad/removeRoad` 不再静默丢弃引擎结果——`Blocked`
  * （灵石不足/格子不可用/已是道路）必须经 `BaseViewModel.showError` 事件通道提示玩家。
@@ -147,7 +147,7 @@ class GameViewModelRoadFeedbackTest {
             viewModel.errorEvents.collect { errors += it }
         }
 
-        viewModel.placeRoad(20, 20)
+        viewModel.road.placeRoad(20, 20)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -164,7 +164,7 @@ class GameViewModelRoadFeedbackTest {
             viewModel.errorEvents.collect { errors += it }
         }
 
-        viewModel.placeRoad(10, 10)
+        viewModel.road.placeRoad(10, 10)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -181,7 +181,7 @@ class GameViewModelRoadFeedbackTest {
             viewModel.errorEvents.collect { errors += it }
         }
 
-        viewModel.placeRoad(20, 20)
+        viewModel.road.placeRoad(20, 20)
         runEngineBlocks()
         advanceUntilIdle()
 
@@ -198,7 +198,7 @@ class GameViewModelRoadFeedbackTest {
             viewModel.errorEvents.collect { errors += it }
         }
 
-        viewModel.removeRoad(20, 20)
+        viewModel.road.removeRoad(20, 20)
         runEngineBlocks()
         advanceUntilIdle()
 

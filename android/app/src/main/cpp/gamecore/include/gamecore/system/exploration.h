@@ -11,7 +11,7 @@
 #include "gamecore/system/cultivation.h"
 
 // ============================================================
-// 世界关卡管理（Kotlin→C++ 迁移批次 8a）
+// 世界关卡管理
 //
 // 等价移植 Kotlin WorldLevelManager 的**纯逻辑**部分：
 //   - 关卡过期判定（checkExpired：月度窗口）

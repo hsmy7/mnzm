@@ -35,6 +35,7 @@ class WorldMapGarrisonViewModel @Inject constructor(
         }.map { it.id }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun attackSect(sectId: String, attackSlots: List<Pair<Int, DiscipleAggregate>>) {
         gameEngine.launchOnEngine {
             try {
@@ -46,6 +47,7 @@ class WorldMapGarrisonViewModel @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
         gameEngine.launchOnEngine {
             try {
@@ -57,6 +59,7 @@ class WorldMapGarrisonViewModel @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun removeGarrisonDisciple(sectId: String, slotIndex: Int) {
         gameEngine.launchOnEngine {
             try {

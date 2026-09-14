@@ -11,7 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * SaveFileManager API<34（CRC32 分支）测试（T8 2026-08-05）。
+ * SaveFileManager API<34（CRC32 分支）测试。
  *
  * API<34 设备无 java.util.zip.CRC32C，写入走 CRC32 + 0x0101 格式的算法标识（0=CRC32）；
  * 读取按标识精确校验，保证与 API≥34 设备（CRC32C）跨 API 一致。
@@ -39,8 +39,8 @@ class SaveFileManagerSdk33Test {
 
     @Test
     fun `api 34 written CRC32C file readable on sdk 33`() {
-        // 对抗性审查整改（2026-08-05）：自实现 CRC32C 前，API≥34 设备写 algo=1(CRC32C)
-        // 文件在 API<34 设备无 CRC32C 实现必判损坏（反向换机数据丢失）——现必须可读
+        // API≥34 设备写 algo=1（CRC32C）的文件在 API<34 设备
+        //（无 java.util.zip.CRC32C）也必须可读
         val manager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> data.gameData.sectName.encodeToByteArray() }
         ).also { it.initialize(tempFolder.root) }

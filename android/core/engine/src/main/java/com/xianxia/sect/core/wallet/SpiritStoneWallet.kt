@@ -72,8 +72,11 @@ class SpiritStoneWallet @Inject constructor(
         val newAmount = if (current > Long.MAX_VALUE - amount) Long.MAX_VALUE
         else current + amount
         state.gameData = updateGrade(state.gameData, grade, newAmount)
-        recordAndEmit(state, newAmount - current, grade, current, newAmount,
-            reason = SpiritStoneReason.Internal.key, source = source.key, metadata = metadata)
+        recordAndEmit(state, SpiritStoneTransaction(
+            delta = newAmount - current, grade = grade,
+            balanceBefore = current, balanceAfter = newAmount,
+            reason = SpiritStoneReason.Internal.key, source = source.key, metadata = metadata
+        ))
         return newAmount
     }
 
@@ -116,8 +119,11 @@ class SpiritStoneWallet @Inject constructor(
         val balanceBefore = state.gameData.spiritStoneCount(grade)
         val newAmount = (balanceBefore - amount).coerceAtLeast(0L)
         state.gameData = updateGrade(state.gameData, grade, newAmount)
-        recordAndEmit(state, -(amount), grade, balanceBefore, newAmount,
-            reason = reason.key, source = source.key, metadata = metadata)
+        recordAndEmit(state, SpiritStoneTransaction(
+            delta = -amount, grade = grade,
+            balanceBefore = balanceBefore, balanceAfter = newAmount,
+            reason = reason.key, source = source.key, metadata = metadata
+        ))
         return DeductResult.Success(balanceAfter = newAmount)
     }
 
@@ -144,14 +150,13 @@ class SpiritStoneWallet @Inject constructor(
             val absAmount = -op.delta
             val curr = state.gameData.spiritStoneCount(op.grade)
             if (curr < absAmount) {
-                if (!autoConvert || op.grade != SpiritStoneGrade.LOW) {
-                    if (hasAutoSold) state.gameData = preSnapshot
-                    return BatchResult(0, operations.size, emptyList())
+                val canConvert = autoConvert && op.grade == SpiritStoneGrade.LOW
+                if (!canConvert) {
+                    return batchPrecheckFailure(state, preSnapshot, hasAutoSold, operations.size)
                 }
                 val plan = calculateAutoSell(state, absAmount - curr)
                 if (plan == null || state.gameData.spiritStones + plan.gainedLow < absAmount) {
-                    if (hasAutoSold) state.gameData = preSnapshot
-                    return BatchResult(0, operations.size, emptyList())
+                    return batchPrecheckFailure(state, preSnapshot, hasAutoSold, operations.size)
                 }
                 autoSellHigherGrades(state, plan)
                 hasAutoSold = true
@@ -163,38 +168,56 @@ class SpiritStoneWallet @Inject constructor(
         var failedCount = 0
 
         for (op in operations) {
-            if (op.delta >= 0) {
-                val current = state.gameData.spiritStoneCount(op.grade)
-                val newAmount = if (current > Long.MAX_VALUE - op.delta) Long.MAX_VALUE
-                else current + op.delta
-                state.gameData = updateGrade(state.gameData, op.grade, newAmount)
-                recordAndEmit(state, op.delta, op.grade, current, newAmount,
-                    reason = op.reason.key, source = op.source.key, metadata = op.metadata)
-                successCount++
-                results.add(DeductResult.Success(newAmount))
-            } else {
-                if (op.delta == Long.MIN_VALUE) {
-                    failedCount++
-                    results.add(DeductResult.Invalid)
-                    continue
-                }
-                val absAmount = -op.delta
-                val current = state.gameData.spiritStoneCount(op.grade)
-                if (current < absAmount) {
-                    failedCount++
-                    results.add(DeductResult.Insufficient(current, absAmount))
-                    continue
-                }
-                val newAmount = (current - absAmount).coerceAtLeast(0L)
-                state.gameData = updateGrade(state.gameData, op.grade, newAmount)
-                recordAndEmit(state, op.delta, op.grade, current, newAmount,
-                    reason = op.reason.key, source = op.source.key, metadata = op.metadata)
-                successCount++
-                results.add(DeductResult.Success(newAmount))
+            val result = applyBatchOperation(state, op)
+            when (result) {
+                is DeductResult.Success -> successCount++
+                is DeductResult.Insufficient -> failedCount++
+                is DeductResult.Invalid -> failedCount++
             }
+            results.add(result)
         }
 
         return BatchResult(successCount, failedCount, results)
+    }
+
+    /** 单条变更执行：加法溢出钳制 / 无效操作 / 余额守卫扣除三臂 */
+    private fun applyBatchOperation(
+        state: MutableGameState,
+        op: SpiritStoneOperation
+    ): DeductResult {
+        if (op.delta >= 0) {
+            val current = state.gameData.spiritStoneCount(op.grade)
+            val newAmount = if (current > Long.MAX_VALUE - op.delta) Long.MAX_VALUE
+            else current + op.delta
+            state.gameData = updateGrade(state.gameData, op.grade, newAmount)
+            recordAndEmit(state, SpiritStoneTransaction(
+                delta = op.delta, grade = op.grade, balanceBefore = current, balanceAfter = newAmount,
+                reason = op.reason.key, source = op.source.key, metadata = op.metadata
+            ))
+            return DeductResult.Success(newAmount)
+        }
+        if (op.delta == Long.MIN_VALUE) return DeductResult.Invalid
+        val absAmount = -op.delta
+        val current = state.gameData.spiritStoneCount(op.grade)
+        if (current < absAmount) return DeductResult.Insufficient(current, absAmount)
+        val newAmount = (current - absAmount).coerceAtLeast(0L)
+        state.gameData = updateGrade(state.gameData, op.grade, newAmount)
+        recordAndEmit(state, SpiritStoneTransaction(
+            delta = op.delta, grade = op.grade, balanceBefore = current, balanceAfter = newAmount,
+            reason = op.reason.key, source = op.source.key, metadata = op.metadata
+        ))
+        return DeductResult.Success(newAmount)
+    }
+
+    /** 批量预检查失败：已发生 autoSell 时回滚到预检查快照，返回整体失败 */
+    private fun batchPrecheckFailure(
+        state: MutableGameState,
+        preSnapshot: GameData,
+        hasAutoSold: Boolean,
+        totalOperations: Int
+    ): BatchResult {
+        if (hasAutoSold) state.gameData = preSnapshot
+        return BatchResult(0, totalOperations, emptyList())
     }
 
     // ── 查询 ──────────────────────────────────────────────────────────────
@@ -265,7 +288,8 @@ class SpiritStoneWallet @Inject constructor(
                 .coerceAtMost(gd.midGradeSpiritStones)
             if (sellMidCount > 0) {
                 gainedLow += SpiritStoneExchange.toLowGrade(sellMidCount, SpiritStoneGrade.MID)
-                remaining = (remaining - SpiritStoneExchange.toLowGrade(sellMidCount, SpiritStoneGrade.MID)).coerceAtLeast(0L)
+                remaining = (remaining - SpiritStoneExchange.toLowGrade(sellMidCount,
+                    SpiritStoneGrade.MID)).coerceAtLeast(0L)
             }
         }
         if (gd.autoSellHighGradeForPurchase && remaining > 0 && gd.highGradeSpiritStones > 0) {
@@ -279,19 +303,28 @@ class SpiritStoneWallet @Inject constructor(
         return AutoSellPlan(sellMidCount, sellHighCount, gainedLow)
     }
 
-    private fun autoSellHigherGrades(state: MutableGameState, plan: AutoSellPlan, metadata: Map<String, String> = emptyMap()) {
+    private fun autoSellHigherGrades(state: MutableGameState, plan: AutoSellPlan, metadata: Map<String,
+        String> = emptyMap()) {
         if (plan.sellMidCount > 0) {
             val gainedLow = SpiritStoneExchange.toLowGrade(plan.sellMidCount, SpiritStoneGrade.MID)
             state.gameData = state.gameData.copy(
                 midGradeSpiritStones = state.gameData.midGradeSpiritStones - plan.sellMidCount,
                 spiritStones = state.gameData.spiritStones + gainedLow
             )
-            recordAndEmit(state, -plan.sellMidCount, SpiritStoneGrade.MID,
-                state.gameData.midGradeSpiritStones + plan.sellMidCount, state.gameData.midGradeSpiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
-            recordAndEmit(state, gainedLow, SpiritStoneGrade.LOW,
-                state.gameData.spiritStones - gainedLow, state.gameData.spiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
+            recordAndEmit(state, SpiritStoneTransaction(
+                delta = -plan.sellMidCount, grade = SpiritStoneGrade.MID,
+                balanceBefore = state.gameData.midGradeSpiritStones + plan.sellMidCount,
+                balanceAfter = state.gameData.midGradeSpiritStones,
+                reason = SpiritStoneReason.AutoSell.key,
+                source = SpiritStoneSource.Internal.key, metadata = metadata
+            ))
+            recordAndEmit(state, SpiritStoneTransaction(
+                delta = gainedLow, grade = SpiritStoneGrade.LOW,
+                balanceBefore = state.gameData.spiritStones - gainedLow,
+                balanceAfter = state.gameData.spiritStones,
+                reason = SpiritStoneReason.AutoSell.key,
+                source = SpiritStoneSource.Internal.key, metadata = metadata
+            ))
         }
         if (plan.sellHighCount > 0) {
             val gainedLow = SpiritStoneExchange.toLowGrade(plan.sellHighCount, SpiritStoneGrade.HIGH)
@@ -299,12 +332,20 @@ class SpiritStoneWallet @Inject constructor(
                 highGradeSpiritStones = state.gameData.highGradeSpiritStones - plan.sellHighCount,
                 spiritStones = state.gameData.spiritStones + gainedLow
             )
-            recordAndEmit(state, -plan.sellHighCount, SpiritStoneGrade.HIGH,
-                state.gameData.highGradeSpiritStones + plan.sellHighCount, state.gameData.highGradeSpiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
-            recordAndEmit(state, gainedLow, SpiritStoneGrade.LOW,
-                state.gameData.spiritStones - gainedLow, state.gameData.spiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
+            recordAndEmit(state, SpiritStoneTransaction(
+                delta = -plan.sellHighCount, grade = SpiritStoneGrade.HIGH,
+                balanceBefore = state.gameData.highGradeSpiritStones + plan.sellHighCount,
+                balanceAfter = state.gameData.highGradeSpiritStones,
+                reason = SpiritStoneReason.AutoSell.key,
+                source = SpiritStoneSource.Internal.key, metadata = metadata
+            ))
+            recordAndEmit(state, SpiritStoneTransaction(
+                delta = gainedLow, grade = SpiritStoneGrade.LOW,
+                balanceBefore = state.gameData.spiritStones - gainedLow,
+                balanceAfter = state.gameData.spiritStones,
+                reason = SpiritStoneReason.AutoSell.key,
+                source = SpiritStoneSource.Internal.key, metadata = metadata
+            ))
         }
     }
 
@@ -349,42 +390,29 @@ class SpiritStoneWallet @Inject constructor(
         events.forEach { eventBus.emitTyped(it) }
     }
 
-    private fun recordAndEmit(
-        state: MutableGameState,
-        delta: Long,
-        grade: SpiritStoneGrade,
-        balanceBefore: Long,
-        balanceAfter: Long,
-        reason: String,
-        source: String,
-        metadata: Map<String, String>
-    ) {
-        ledger.record(SpiritStoneTransaction(
-            delta = delta, grade = grade,
-            balanceBefore = balanceBefore, balanceAfter = balanceAfter,
-            reason = reason, source = source, metadata = metadata
-        ))
+    private fun recordAndEmit(state: MutableGameState, tx: SpiritStoneTransaction) {
+        ledger.record(tx)
         // ★ 不直接 emit，暂存到 pendingEvents，由 flushPendingEvents 在事务外统一发出
         pendingEvents.add(SpiritStonesChangedEvent(
-            delta = delta, newTotal = balanceAfter, reason = reason
+            delta = tx.delta, newTotal = tx.balanceAfter, reason = tx.reason
         ))
-        pendingDeltas[grade] = (pendingDeltas[grade] ?: 0L) + delta
+        pendingDeltas[tx.grade] = (pendingDeltas[tx.grade] ?: 0L) + tx.delta
         // 年度报告：按来源/原因累计年内灵石变更
-        if (delta > 0) {
-            val curIncome = state.gameData.annualIncomeBySource[source] ?: 0L
+        if (tx.delta > 0) {
+            val curIncome = state.gameData.annualIncomeBySource[tx.source] ?: 0L
             state.gameData = state.gameData.copy(
-                annualIncomeBySource = state.gameData.annualIncomeBySource + (source to curIncome + delta),
-                annualTotalIncome = state.gameData.annualTotalIncome + delta
+                annualIncomeBySource = state.gameData.annualIncomeBySource + (tx.source to curIncome + tx.delta),
+                annualTotalIncome = state.gameData.annualTotalIncome + tx.delta
             )
-        } else if (delta < 0) {
-            val absD = -delta
-            val curExpend = state.gameData.annualExpenditureByReason[reason] ?: 0L
+        } else if (tx.delta < 0) {
+            val absD = -tx.delta
+            val curExpend = state.gameData.annualExpenditureByReason[tx.reason] ?: 0L
             state.gameData = state.gameData.copy(
-                annualExpenditureByReason = state.gameData.annualExpenditureByReason + (reason to curExpend + absD),
+                annualExpenditureByReason = state.gameData.annualExpenditureByReason + (tx.reason to curExpend + absD),
                 annualTotalExpenditure = state.gameData.annualTotalExpenditure + absD
             )
         }
-        DomainLog.d(TAG, "灵石变更: ${if (delta >= 0) "+" else ""}$delta " +
-                "$grade ($source/$reason) [${balanceBefore}→${balanceAfter}]")
+        DomainLog.d(TAG, "灵石变更: ${if (tx.delta >= 0) "+" else ""}${tx.delta} " +
+            "${tx.grade} (${tx.source}/${tx.reason}) [${tx.balanceBefore}→${tx.balanceAfter}]")
     }
 }

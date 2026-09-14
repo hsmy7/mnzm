@@ -13,7 +13,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * RecipeRegistryGuardTest — 锻造/丹药配方静态数据守卫（批次 2 剩余子步）。
+ * RecipeRegistryGuardTest — 锻造/丹药配方静态数据守卫。
  *
  * 守护目标：生成器提取的配方表快照（recipe_db_sample.json，由
  * scripts/gen-recipe-db.mjs 生成）与 Kotlin ForgeRecipeDatabase/PillRecipeDatabase

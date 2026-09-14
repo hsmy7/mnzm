@@ -46,8 +46,8 @@ object SecretRealmBattleHelper {
         val (lostP, keptPills, cursor3) = collectKept(backpack.pills, lostIndices, cursor2)
         val (lostMa, keptMaterials, cursor4) = collectKept(backpack.materials, lostIndices, cursor3)
         val (lostH, keptHerbs, cursor5) = collectKept(backpack.herbs, lostIndices, cursor4)
-        // 种子与其余五类同规则参与丢失选取（此前缺失导致 seeds 无条件全丢——
-        // 对抗性审查发现，且 totalItemCount 索引空间与遍历空间不一致）
+        // 种子与其余五类同规则参与丢失选取（缺失会使 seeds 无条件全丢，且
+        // totalItemCount 索引空间与遍历空间不一致）
         val (lostS, keptSeeds, _) = collectKept(backpack.seeds, lostIndices, cursor5)
 
         return LootLossResult(

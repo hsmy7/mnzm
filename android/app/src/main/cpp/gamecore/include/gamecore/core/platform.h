@@ -5,17 +5,17 @@
 #include <string>
 
 // ============================================================
-// 平台能力端口（计划 v2 阶段 5——Clock/Logger 注入先例扩展）
+// 平台能力端口（Clock/Logger 注入先例扩展）
 //
-// 阶段 5「游戏循环入 C++」需要引擎循环消费平台能力。参照 core/clock.h
+// 引擎循环需要消费平台能力。参照 core/clock.h
 // 与 core/logger.h 的注入先例：game-core 本体只定义纯虚接口 + 兜底/测试
 // 实现，真实平台实现由桥层注入（Android：GameCoreBridge.cpp；对拍/桌面：
 // Fixed/Null 实现）。
 //
-// 端口清单（docs/cpp-engine.md §7 阶段 5）：
+// 端口清单：
 //   - MonotonicClock   单调时钟（elapsedRealtime 语义；引擎循环时间源）
 //   - TelemetrySink    遥测事件（循环/看门狗事件上报通道）
-//   - ThermalStatusProvider  热控状态（帧率降级输入；判据消费者阶段 6+ 迁入）
+//   - ThermalStatusProvider  热控状态（帧率降级输入）
 //   - BatteryStatusProvider  电量状态（fpsCap/热阈偏移；同上）
 //   - Input            用户活跃通知（EngineLoop::notifyUserActivity 显式调用，
 //                      非 pull 接口——输入事件天然由平台层推送）
@@ -88,8 +88,8 @@ enum class ThermalState : int {
 };
 
 /// 热控状态端口——Android 侧 PowerManager 热状态（桥层 Settable 实现由
-/// Kotlin ThermalMonitor 轮询推送）。阶段 5 注入并记录遥测；帧率降级判据
-/// 消费者（ThermalController 语义）随阶段 6 渲染统一迁入。
+/// Kotlin ThermalMonitor 轮询推送）。引擎注入并记录遥测；帧率降级判据
+/// 消费者（ThermalController 语义）留 Kotlin 平台层。
 class ThermalStatusProvider {
 public:
     virtual ~ThermalStatusProvider() = default;

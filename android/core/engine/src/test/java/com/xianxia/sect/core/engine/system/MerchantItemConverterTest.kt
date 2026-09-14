@@ -257,8 +257,10 @@ class MerchantItemConverterTest {
         assertTrue("seed id should not be blank", MerchantItemConverter.toSeed(unknownSeed).id.isNotBlank())
 
         // Also check known items
-        val knownEquip = MerchantItem(name = EquipmentDatabase.allTemplates.values.first().name, type = "equipment", rarity = 1)
-        assertTrue("known equipment id should not be blank", MerchantItemConverter.toEquipment(knownEquip).id.isNotBlank())
+        val knownEquip = MerchantItem(name = EquipmentDatabase.allTemplates.values.first().name, type = "equipment",
+            rarity = 1)
+        assertTrue("known equipment id should not be blank",
+            MerchantItemConverter.toEquipment(knownEquip).id.isNotBlank())
 
         val knownManual = MerchantItem(name = "测试功法", type = "manual", rarity = 1)
         assertTrue("known manual id should not be blank", MerchantItemConverter.toManual(knownManual).id.isNotBlank())

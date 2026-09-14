@@ -4,7 +4,7 @@
 // 任务域月结下沉（S8 子事件 14：processMissionRefresh）
 //
 // Kotlin CultivationEventMissionOps.processMissionRefreshIfDue →
-// MissionSystem.processMonthlyRefresh 等价移植（批 12-2）。
+// MissionSystem.processMonthlyRefresh 等价移植。
 //
 // 语义要点（逐条对齐 Kotlin 源码）：
 //   - 刷新门：month % REFRESH_INTERVAL_MONTHS(3) == 0 才刷新
@@ -20,13 +20,13 @@
 //   - Mission.id：Kotlin UUID.randomUUID()（镜像生成字段，对拍排除；
 //     C++ 确定性自增——inventory.h generateNewId 同款契约）
 //
-// RNG 契约：仅消费 MISSION 分区（RngPartition::kMission，批 11-4 已建）。
+// RNG 契约：仅消费 MISSION 分区（RngPartition::kMission）。
 // 对拍命门：任务刷新位于子事件 14 位（附庸后、秘境前），其 MISSION 抽取
 // 必须与 Kotlin 月变编排的相对序完全一致。
 //
 // 边界（登记）：
 //   - Mission 完整模型（rewards/触发战斗等）仅刷新生成所需字段入协议；
-//     任务完成结算（S8 子事件 5）属任务批次未下沉——见批 12-3 规划
+//     任务完成结算属子事件 5（mission_completion.h），不在本文件范围
 // ============================================================
 
 #include <cstdint>

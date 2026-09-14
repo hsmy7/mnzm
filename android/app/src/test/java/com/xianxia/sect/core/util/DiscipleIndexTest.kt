@@ -268,7 +268,8 @@ class DiscipleIndexTest {
 
     @Test
     fun remove_existingDisciple_removesFromAllIndexes() {
-        val d1 = createDisciple(id = "d1", realm = 9, status = DiscipleStatus.IDLE, discipleType = "outer", isAlive = true)
+        val d1 = createDisciple(id = "d1", realm = 9, status = DiscipleStatus.IDLE, discipleType = "outer",
+            isAlive = true)
         index.index(d1)
         index.remove("d1")
         assertNull(index.getById("d1"))
@@ -335,8 +336,10 @@ class DiscipleIndexTest {
 
     @Test
     fun getIndexStats_returnsCorrectStats() {
-        val d1 = createDisciple(id = "d1", realm = 9, status = DiscipleStatus.IDLE, discipleType = "outer", isAlive = true)
-        val d2 = createDisciple(id = "d2", realm = 5, status = DiscipleStatus.MINING, discipleType = "inner", isAlive = false)
+        val d1 = createDisciple(id = "d1", realm = 9, status = DiscipleStatus.IDLE, discipleType = "outer",
+            isAlive = true)
+        val d2 = createDisciple(id = "d2", realm = 5, status = DiscipleStatus.MINING, discipleType = "inner",
+            isAlive = false)
         index.indexAll(listOf(d1, d2))
         val stats = index.getIndexStats()
         assertEquals(2, stats.totalCount)

@@ -39,6 +39,12 @@ import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.game.GameViewModel
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.game.delegate.confirmAffix
+import com.xianxia.sect.ui.game.delegate.confirmPhysique
+import com.xianxia.sect.ui.game.delegate.confirmTalent
+import com.xianxia.sect.ui.game.delegate.washAffix
+import com.xianxia.sect.ui.game.delegate.washPhysique
+import com.xianxia.sect.ui.game.delegate.washTalent
 
 /** 玉符不足提示文案（与洗炼灵根一致） */
 private const val INSUFFICIENT_JADE_TEXT = "玉符不足，无法洗炼"
@@ -49,7 +55,7 @@ private const val EMPTY_RESULT_TEXT = "——"
 /** 空特质列表显示 */
 private const val NONE_TEXT = "无"
 
-/** 洗炼产物与弟子已有特质互斥的提示文案（2026-08-17 需求变更：不会刷回已有） */
+/** 洗炼产物与弟子已有特质互斥的提示文案（洗炼不会刷出弟子已有的特质） */
 private const val NO_DUPLICATE_HINT_TEXT = "不会刷出弟子已有的特质"
 
 /** 按洗炼类型分发洗炼请求（提取自 TraitWashContent，控 Cyclomatic 复杂度；单槽语义） */
@@ -59,9 +65,9 @@ private suspend fun GameViewModel.washByType(
     targetId: String,
     pityCount: Int
 ): TraitWashResult = when (type) {
-    TraitWashType.TALENT -> washTalent(id, targetId, pityCount)
-    TraitWashType.PHYSIQUE -> washPhysique(id, targetId, pityCount)
-    TraitWashType.AFFIX -> washAffix(id, targetId, pityCount)
+    TraitWashType.TALENT -> disciple.washTalent(id, targetId, pityCount)
+    TraitWashType.PHYSIQUE -> disciple.washPhysique(id, targetId, pityCount)
+    TraitWashType.AFFIX -> disciple.washAffix(id, targetId, pityCount)
 }
 
 /** 按洗炼类型分发确认替换请求（单槽语义） */
@@ -71,15 +77,15 @@ private suspend fun GameViewModel.confirmByType(
     targetId: String,
     newId: String
 ): TraitWashConfirmResult = when (type) {
-    TraitWashType.TALENT -> confirmTalent(id, targetId, newId)
-    TraitWashType.PHYSIQUE -> confirmPhysique(id, targetId, newId)
-    TraitWashType.AFFIX -> confirmAffix(id, targetId, newId)
+    TraitWashType.TALENT -> disciple.confirmTalent(id, targetId, newId)
+    TraitWashType.PHYSIQUE -> disciple.confirmPhysique(id, targetId, newId)
+    TraitWashType.AFFIX -> disciple.confirmAffix(id, targetId, newId)
 }
 
 /**
  * 洗炼天赋/体质/词条弹窗（内联覆盖层，渲染在弟子详情内容 lambda 末尾）。
  *
- * 单槽语义（2026-08-09 需求变更）：只洗炼 [targetId] 指定的那一个特质，其余同类特质
+ * 单槽语义：只洗炼 [targetId] 指定的那一个特质，其余同类特质
  * 保留不动——从哪个详情界面点入，就洗炼哪一个（详情界面 ↔ 洗炼目标一一对应）。
  *
  * 结构与流程完全镜像洗炼灵根：两段式（洗炼出产物 → 确认替换）、品质保底计数回传
@@ -152,7 +158,7 @@ private fun TraitWashContent(
     val jadeInsufficient = jadeSymbols < GameConfig.TraitWash.WASH_JADE_COST
 
     // 同帧连点防重入：washing 是 Compose 状态，同帧内第二次点击读旧值 false → 双扣玉符；
-    // AtomicBoolean compareAndSet 立即生效不等重组（对抗性审查 2026-08-09 状态破坏者发现）
+    // AtomicBoolean compareAndSet 立即生效不等重组（同 SpiritRootWashDialog）
     val washInFlight = remember { AtomicBoolean(false) }
 
     fun onWashClick() {
@@ -376,9 +382,9 @@ private fun handleConfirmResult(
 /**
  * 错误提示框（平台 Dialog 独立窗口）。
  *
- * 原实现用嵌套 InlineStandardPromptDialog：其 fillMaxSize 填满洗炼弹窗内容区后，
+ * 禁用嵌套 InlineStandardPromptDialog：其 fillMaxSize 填满洗炼弹窗内容区后，
  * 内部 50%W×55%H 弹窗超出内容区，被外层弹窗 clip 裁剪——错误文案（玉符不足/洗炼失败）
- * 完全不可见，玩家点击洗炼后"无任何反馈"误判为洗炼无效（2026-08-11 修复）。
+ * 完全不可见，玩家点击洗炼后"无任何反馈"误判为洗炼无效。
  * 平台 Dialog 创建独立 Window 全屏覆盖，不受父级布局约束，必定可见。
  */
 @Composable

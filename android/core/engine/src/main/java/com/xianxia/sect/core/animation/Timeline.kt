@@ -63,7 +63,7 @@ class Timeline(
         get() {
             if (finished) return 1f
             if (steps.isEmpty()) return 0f
-            // Long 中间量（对抗性审查 2026-08-13 边界#8）：repeatCount × steps.size
+            // Long 中间量：repeatCount × steps.size
             // Int 乘法在极端段数下溢出为负 → 进度错乱
             val totalSteps = repeatCount.toLong() * steps.size
             val completedSteps = completedRounds.toLong() * steps.size + stepIndex

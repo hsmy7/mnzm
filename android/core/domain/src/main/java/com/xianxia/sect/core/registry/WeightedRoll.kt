@@ -30,7 +30,7 @@ internal val DISCIPLE_TRAIT_QUALITY_DISTRIBUTION = listOf(
 
 /**
  * 洗炼/新增（玉符消耗玩法）单特质品阶分布：1=下品(40%) / 2=中品(30%) / 3=上品(30%)，
- * **无负面**。洗炼天赋/体质/词条与新增天赋/体质/词条共用（2026-08-15 需求变更）。
+ * **无负面**。洗炼天赋/体质/词条与新增天赋/体质/词条共用。
  */
 internal val WASH_TRAIT_QUALITY_DISTRIBUTION = listOf(
     1 to 0.40,

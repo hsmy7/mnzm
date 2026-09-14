@@ -1,7 +1,17 @@
 package com.xianxia.sect.core.state
 
+import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -9,13 +19,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.doThrow
+import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * loadFromSnapshot 失败回滚回归测试（Q-3 填充，2026-08-02）。
+ * loadFromSnapshot 失败回滚回归测试。
  *
- * 守卫（C-8 rollbackLoad 提取 + P-5 聚合恢复）：
+ * 守卫（rollbackLoad 回滚 + 聚合恢复）：
  * 1. 加载失败后旧值全部恢复（gameData/disciples/聚合/战力）
  * 2. 回滚后快照缓存与恢复数据一致（aggregatesGen 对齐，getter 不误重算）
  * 3. 正常加载路径不受影响
@@ -29,9 +40,12 @@ class StateRevertRegressionTest {
 
     @Test
     fun `loadFromSnapshot 失败后旧状态全部恢复`() = runBlocking {
-        // 注入失败：markAllDirty 抛异常 → loadFromSnapshot 走回滚路径
+        // 注入失败：setActiveSlot 抛异常 → loadFromSnapshot 走回滚路径
+        // （dirty 记账摘除 batch-05 后，失败注入点由 markAllDirty 迁至
+        // finalizeLoadedState 同段位的仓库调用，语义等价——同款先例见
+        // GameStateStoreRollbackTest 的 setActiveSlot 注入）
         val repo = testGameStateRepository()
-        doThrow(RuntimeException("模拟存储失败")).`when`(repo).markAllDirty()
+        doThrow(RuntimeException("模拟存储失败")).`when`(repo).setActiveSlot(any())
         val store = GameStateStoreImpl(ApplicationScopeProvider(), repo)
         store.unsafeAllowMainThreadUpdateForTest = true
 
@@ -42,7 +56,7 @@ class StateRevertRegressionTest {
         }
         TestPolling.awaitCondition("旧状态聚合就绪") { store.discipleAggregatesSnapshot.size == 3 }
 
-        // 执行会失败的加载（新档 5 弟子）——markAllDirty 失败 → rollbackLoad → rethrow
+        // 执行会失败的加载（新档 5 弟子）——setActiveSlot 失败 → rollbackLoad → rethrow
         val newDisciples = (1..5).map { disciple(it) }
         val thrown = runBlocking {
             try {
@@ -79,7 +93,7 @@ class StateRevertRegressionTest {
 
     @Test
     fun `旧档事件 sequenceId 加载后回填`() = runBlocking {
-        // P-9 守卫：旧档（v4.0.83 前）事件 sequenceId 全 0 → 加载后按列表序回填 1..N
+        // 旧档（v4.0.83 前）事件 sequenceId 全 0 → 加载后按列表序回填 1..N
         val store = GameStateStoreImpl(
             ApplicationScopeProvider(), testGameStateRepository()
         )
@@ -109,8 +123,8 @@ class StateRevertRegressionTest {
         )
         val records = store.gameDataSnapshot.gameEventRecords
         org.junit.Assert.assertEquals("3 条事件保留", 3, records.size)
-        // T1 修复（2026-08-05）：存在任一 0 序号时整体重编号 1..N（列表序）——
-        // 原实现 [0,0,5] → [6,7,5] 破坏单调递增，现 [0,0,5] → [1,2,3]
+        // 存在任一 0 序号时整体重编号 1..N（列表序）——
+        // 仅重编号 0 条目会破坏单调递增（[0,0,5] → [6,7,5]，正确结果为 [1,2,3]）
         org.junit.Assert.assertEquals("事件A 重编号为 1", 1L, records[0].sequenceId)
         org.junit.Assert.assertEquals("事件B 重编号为 2", 2L, records[1].sequenceId)
         org.junit.Assert.assertEquals("事件C 重编号为 3", 3L, records[2].sequenceId)
@@ -174,4 +188,88 @@ class StateRevertRegressionTest {
         assertEquals("新档聚合覆盖 4 弟子", 4, store.discipleAggregatesSnapshot.size)
         assertEquals("新档 gameData 生效", "新宗门", store.gameDataSnapshot.sectName)
     }
+
+    @Test
+    fun `读档失败后状态与读档前逐位一致`() = runBlocking {
+        // batch-05 回归守卫：回滚语义由 LoadBaseline + rollbackLoad 承载（dirty 记账
+        // 摘除前也如此——dirty 位从无读者）。旧状态带非空实体 + 差异化状态三连，
+        // 失败读档载荷全部不同——回滚若漏恢复任一流，逐位比较即失败。
+        val repo = testGameStateRepository()
+        val store = GameStateStoreImpl(ApplicationScopeProvider(), repo)
+        store.unsafeAllowMainThreadUpdateForTest = true
+
+        // 建立旧状态：首次成功读档（实体全非空，isPaused/isSaving 取非默认值）
+        store.loadFromSnapshot(
+            gameData = GameData(sectName = "旧宗门", gameYear = 10),
+            disciples = (1..3).map { disciple(it) },
+            equipmentStacks = listOf(EquipmentStack(name = "旧飞剑")),
+            equipmentInstances = listOf(EquipmentInstance(name = "旧飞剑·器")),
+            manualStacks = listOf(ManualStack(name = "旧功法")),
+            manualInstances = listOf(ManualInstance(name = "旧功法·篇")),
+            pills = listOf(Pill(name = "旧回气丹")),
+            materials = listOf(Material(name = "旧铁精")),
+            herbs = listOf(Herb(name = "旧灵草")),
+            seeds = listOf(Seed(name = "旧灵种")),
+            storageBags = listOf(StorageBag(name = "旧储物袋")),
+            battleLogs = listOf(BattleLog(attackerName = "旧敌", defenderName = "旧我")),
+            isPaused = true, isLoading = false, isSaving = true
+        )
+        val flowNames = listOf(
+            "gameData", "disciples",
+            "equipmentStacks", "equipmentInstances", "manualStacks", "manualInstances",
+            "pills", "materials", "herbs", "seeds", "storageBags", "battleLogs",
+            "isPaused", "isLoading", "isSaving"
+        )
+        val before = snapshotAllFlows(store)
+
+        // 注入失败：setActiveSlot 抛异常 → 回滚（同首个测试的注入点迁移）
+        doThrow(RuntimeException("模拟存储失败")).`when`(repo).setActiveSlot(any())
+        val thrown = try {
+            store.loadFromSnapshot(
+                gameData = GameData(sectName = "新宗门", gameYear = 99),
+                disciples = (4..8).map { disciple(it) },
+                equipmentStacks = listOf(EquipmentStack(name = "新飞剑")),
+                equipmentInstances = listOf(EquipmentInstance(name = "新飞剑·器")),
+                manualStacks = listOf(ManualStack(name = "新功法")),
+                manualInstances = listOf(ManualInstance(name = "新功法·篇")),
+                pills = listOf(Pill(name = "新回气丹")),
+                materials = listOf(Material(name = "新铁精")),
+                herbs = listOf(Herb(name = "新灵草")),
+                seeds = listOf(Seed(name = "新灵种")),
+                storageBags = listOf(StorageBag(name = "新储物袋")),
+                battleLogs = listOf(BattleLog(attackerName = "新敌", defenderName = "新我")),
+                isPaused = false, isLoading = false, isSaving = false
+            )
+            null
+        } catch (e: RuntimeException) {
+            e
+        }
+        org.junit.Assert.assertNotNull("加载应抛异常", thrown)
+
+        // 逐位一致：15 条流全部与读档前相等（值域 + 非空性）
+        val after = snapshotAllFlows(store)
+        before.zip(after).forEachIndexed { index, (was, now) ->
+            assertEquals("回滚后 ${flowNames[index]} 与读档前逐位一致", was, now)
+        }
+        assertEquals("旧实体非空守卫（equipmentStacks）", 1, store.equipmentStacks.value.size)
+        assertEquals("旧实体非空守卫（pills）", 1, store.pills.value.size)
+    }
+
+    private fun snapshotAllFlows(store: GameStateStoreImpl): List<Any?> = listOf(
+        store.gameData.value,
+        store.disciples.value,
+        store.equipmentStacks.value,
+        store.equipmentInstances.value,
+        store.manualStacks.value,
+        store.manualInstances.value,
+        store.pills.value,
+        store.materials.value,
+        store.herbs.value,
+        store.seeds.value,
+        store.storageBags.value,
+        store.battleLogs.value,
+        store.isPaused.value,
+        store.isLoading.value,
+        store.isSaving.value
+    )
 }

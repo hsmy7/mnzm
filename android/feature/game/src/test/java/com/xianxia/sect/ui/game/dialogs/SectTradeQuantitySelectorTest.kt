@@ -79,7 +79,7 @@ class SectTradeQuantitySelectorTest {
         composeRule.onNodeWithText("聚气丹").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
 
-        // 统一数量选择器具备 -10/+10 四向步进按钮（旧版自建步进器无此功能）
+        // 统一数量选择器具备 -10/+10 四向步进按钮
         composeRule.onNodeWithText("−10").assertIsDisplayed()
         composeRule.onNodeWithText("+10").assertIsDisplayed()
 
@@ -97,8 +97,8 @@ class SectTradeQuantitySelectorTest {
         composeRule.onNodeWithText("聚气丹").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
 
-        // 库存仅 5：+10 步进被钳制到 5（与旧实现 coerceAtMost(item.quantity) 语义一致）。
-        // 2026-09 自绘面板重构后无 SetText 输入框，用显示框 testTag 定位数量文本
+        // 库存仅 5：+10 步进被钳制到 5（coerceAtMost(item.quantity) 语义）。
+        // 自绘面板无 SetText 输入框，用显示框 testTag 定位数量文本
         // （合并树：clickable Box merge 子 Text 语义）
         composeRule.onNodeWithText("+10").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()

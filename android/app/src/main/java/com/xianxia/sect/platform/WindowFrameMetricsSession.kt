@@ -9,7 +9,7 @@ import androidx.annotation.RequiresApi
 import com.xianxia.sect.core.perf.FrameMetricsSession
 
 /**
- * Window 帧指标采集实现（FrameMetricsSession 端口，计划 v2 批 8-1）。
+ * Window 帧指标采集实现（FrameMetricsSession 端口）。
  * 采集语义随端口化自原 FrameMetricsMonitor.startMonitoring 原样迁入：
  * DRAW_DURATION/LAYOUT_MEASURE_DURATION 仅 API 31+ 可用（低版本以 -1 表示）。
  */

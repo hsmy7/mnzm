@@ -30,6 +30,7 @@ class RoomMigrationV48To49Test {
         )
 
         private val M48_49 = MIGRATION_48_49
+        private val M49_50 = MIGRATION_49_50
     }
 
     /** 真实 Room 校验：v48 库升级到 v49，触发 onValidateSchema——roads 列定义与实体注解一致才通过。 */
@@ -41,7 +42,7 @@ class RoomMigrationV48To49Test {
         try {
             createDatabaseFromSchema(context, dbName, 48).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M48_49)
+                .addMigrations(M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()

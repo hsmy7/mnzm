@@ -1,10 +1,10 @@
 package com.xianxia.sect.core.perf
 
 /**
- * 热状态读取端口（平台能力接口化，计划 v2 批 8-1 / C-06 退役批次重构）。
+ * 热状态读取端口（平台能力接口化）。
  *
  * Android 实现见 app 层 `AndroidThermalStatusReader`（PowerManager.currentThermalStatus）。
- * 引擎侧保持零 Android 依赖（R-02）。
+ * 引擎侧保持零 Android 依赖。
  */
 interface ThermalStatusReader {
     /** 当前热状态等级（PowerManager 语义：0=NONE 1=LIGHT 2=MODERATE 3=SEVERE 4=EMERGENCY）；不支持时返回 0 */

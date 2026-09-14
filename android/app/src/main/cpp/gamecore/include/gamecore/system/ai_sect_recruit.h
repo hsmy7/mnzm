@@ -1,7 +1,7 @@
 #pragma once
 
 // ============================================================
-// ai_sect_recruit.h — AI 宗门周期性招募（批 Y-4c：T2-② 年变下沉）
+// ai_sect_recruit.h — AI 宗门周期性招募（年变下沉）
 //
 // Kotlin AISectDiscipleManager（generateYearlyRecruits/generateRandomDisciple/
 // applyGearToDisciple/truncateToLimit）+ CaveExplorationProcessor.
@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/system/inventory.h"  // nextItemIdCounter（id 注册表）
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/trait_db.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
@@ -47,7 +48,7 @@
 namespace gamecore::system {
 namespace detail {
 
-// ── 批 Y-4c 常量（Kotlin AISectDiscipleManager companion 逐值对齐）──
+// ── 常量（Kotlin AISectDiscipleManager companion 逐值对齐）──
 // 周期性招募每周期人数范围（SECT_RECRUIT_MIN_COUNT/MAX_COUNT）
 constexpr int32_t kAiSectRecruitMinCount = 1;
 constexpr int32_t kAiSectRecruitMaxCount = 5;
@@ -81,8 +82,8 @@ inline int32_t aiRealmMaxRarity(int32_t realm) {
 
 // ── AI 弟子确定性 id（Kotlin UUID——镜像生成字段，对拍排除）──────
 inline std::string nextAiDiscipleId() {
-    static uint64_t counter = 0;
-    return "gc-ai-d-" + std::to_string(++counter);
+    // 进程级 static 计数器收敛到 inventory.h 注册表
+    return "gc-ai-d-" + std::to_string(nextItemIdCounter("gc-ai-d"));
 }
 
 /// AI 版正态整数值（Kotlin `rng.nextGaussian(mean, sigma).roundToInt().
@@ -117,7 +118,7 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
     state::Disciple d;
     d.id = nextAiDiscipleId();               // 镜像生成字段
     d.gender = (rng.nextInt(2) == 0) ? "male" : "female";
-    // 1. 名字（XIANXIA 风格；批 Y-4c 名字 RNG 收敛 AI 分区——Kotlin 同源）
+    // 1. 名字（XIANXIA 风格；名字 RNG 收敛 AI 分区——Kotlin 同源）
     const auto nameResult = generateName(d.gender, NameStyle::kXianxia, usedNames, rng);
     d.name = nameResult.fullName;
     d.surname = nameResult.surname;
@@ -317,8 +318,9 @@ inline void applyGearToAiDisciple(rng::DeterministicRng& rng, state::Disciple& d
     }
 }
 
-/// 按战力降序截断至宗门池上限（Kotlin truncateToLimit：
-/// basePhysicalAttack + baseMagicAttack + baseHp 降序，稳定排序）
+/// 按战力降序截断至宗门池上限（Kotlin truncateToLimit，稳定排序）。
+/// 排序键：isAlive 优先（尸体不再挤占 1000/宗名额、不再把
+/// 高属性活弟子保留位挤掉冻结宗门战力），再按 base stats 降序。
 inline std::vector<state::Disciple> truncateToAiLimit(
     std::vector<state::Disciple> disciples) {
     if (static_cast<int32_t>(disciples.size()) <= kAiDisciplesPerSectLimit) {
@@ -326,6 +328,7 @@ inline std::vector<state::Disciple> truncateToAiLimit(
     }
     std::stable_sort(disciples.begin(), disciples.end(),
                      [](const state::Disciple& a, const state::Disciple& b) {
+                         if (a.isAlive != b.isAlive) return a.isAlive > b.isAlive;
                          const int64_t pa = static_cast<int64_t>(a.basePhysicalAttack) +
                                             a.baseMagicAttack + a.baseHp;
                          const int64_t pb = static_cast<int64_t>(b.basePhysicalAttack) +
@@ -405,7 +408,7 @@ inline void runSectRecruitmentIfDue(state::GameState& state,
     gd.lastAiSectRecruitYear = year;
     // 被占领 AI 宗门产生新弟子后立即执行自动招募检查 + 重置惰性
     //（Kotlin RecruitService.resetAutoRecruitIdle + autoRejectIdle=false +
-    // processAutoRecruit——S-16 同族：C++ 侧瞬态门直接复位）
+    // processAutoRecruit——C++ 侧瞬态门直接复位）
     state.autoRecruitIdle = false;
     state.autoRejectIdle = false;
     recruit_settle::processAutoRecruit(state);

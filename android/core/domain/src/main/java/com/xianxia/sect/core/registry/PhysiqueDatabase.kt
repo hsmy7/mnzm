@@ -16,7 +16,7 @@ import kotlin.random.Random
  */
 object PhysiqueDatabase {
 
-    val isInitialized: Boolean = true
+    const val isInitialized: Boolean = true
 
     enum class PhysiqueType {
         CULT_SPEED,          // 修炼速度
@@ -201,7 +201,8 @@ object PhysiqueDatabase {
             add(PhysiqueData(
                 id = "r${cfg.rarity}_phys_hybrid_off",
                 name = "战魔之体",
-                description = "伤害加成+${String.format(Locale.ROOT, "%.0f", cfg.amp * 100)}%，暴击伤害+${String.format(Locale.ROOT, "%.0f", cfg.crit * 100)}%",
+                description = "伤害加成+${String.format(Locale.ROOT, "%.0f", cfg.amp * 100)}%，" +
+                    "暴击伤害+${String.format(Locale.ROOT, "%.0f", cfg.crit * 100)}%",
                 rarity = cfg.rarity,
                 cultivationSpeedBonus = 0.0,
                 damageAmplification = cfg.amp,
@@ -219,7 +220,8 @@ object PhysiqueDatabase {
             add(PhysiqueData(
                 id = "r${cfg.rarity}_phys_hybrid_def",
                 name = "磐石体质",
-                description = "减伤+${String.format(Locale.ROOT, "%.0f", cfg.reduce * 100)}%，防御加成+${String.format(Locale.ROOT, "%.0f", cfg.def * 100)}%",
+                description = "减伤+${String.format(Locale.ROOT, "%.0f", cfg.reduce * 100)}%，" +
+                    "防御加成+${String.format(Locale.ROOT, "%.0f", cfg.def * 100)}%",
                 rarity = cfg.rarity,
                 cultivationSpeedBonus = 0.0,
                 damageAmplification = 0.0,
@@ -316,7 +318,7 @@ object PhysiqueDatabase {
 
     /**
      * 单次洗炼/新增抽取一个体质（无负面，品阶分布与洗炼一致：[rollWashTraitQuality] 三档
-     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同，2026-08-15 需求变更）。
+     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同）。
      *
      * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
      * 调用方应先用 [hasPhysiqueCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。

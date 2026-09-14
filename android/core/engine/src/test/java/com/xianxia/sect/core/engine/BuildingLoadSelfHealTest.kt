@@ -15,7 +15,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 /**
- * 建筑读档自愈纯函数测试（D-13 孤儿归属归一化 + D-11 activeSectId 净化）。
+ * 建筑读档自愈纯函数测试（孤儿归属归一化 + activeSectId 净化）。
  *
  * 覆盖：
  * - 孤儿（sectId 无对应宗门）归入本宗 ""；现存宗门/本宗建筑不动
@@ -37,7 +37,7 @@ class BuildingLoadSelfHealTest {
         GridBuildingData(displayName = displayName, sectId = sectId, instanceId = instanceId)
 
     // ================================================================
-    // normalizeResidenceDisplayNames — 2026-08-19 住所显示名分级前缀迁移
+    // normalizeResidenceDisplayNames — 住所显示名分级前缀迁移
     // ================================================================
 
     @Test
@@ -98,7 +98,7 @@ class BuildingLoadSelfHealTest {
     }
 
     // ================================================================
-    // normalizeOrphanBuildingSectIds — D-13
+    // normalizeOrphanBuildingSectIds — 孤儿归属归一化
     // ================================================================
 
     @Test
@@ -194,7 +194,7 @@ class BuildingLoadSelfHealTest {
     fun `normalizeOrphanBuildingSectIds_playerOwnedSectMissingFromRoster_保留归属`() {
         // 问题1 选项2：玩家持有（占领）宗门缺失于 roster 时，建筑归属须保留（不误归主宗）——
         // playerOwnedSectIds 为独立权威（sectDetails.isOwned）。此场景是单个被占宗门缺失
-        //（此前 ≥2 阈值守卫覆盖不到，且正是"只剩一个被占宗门"的常见报障场景）。
+        //（≥2 阈值守卫不适用；这是"只剩一个被占宗门"的常见报障场景）。
         val buildings = listOf(b("仓库", "sect_x", "id_1"))
         val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, setOf("sect_x"))
         assertEquals("玩家持有宗门缺失于 roster 仍保留归属", "sect_x", result.buildings.single().sectId)
@@ -239,7 +239,7 @@ class BuildingLoadSelfHealTest {
     }
 
     // ================================================================
-    // purifyStaleActiveSectId — D-11
+    // purifyStaleActiveSectId — activeSectId 净化
     // ================================================================
 
     @Test
@@ -311,19 +311,32 @@ class BuildingLoadSelfHealTest {
     }
 
     // ================================================================
-    // filterLegacyTianshuHalls — 2026-08-23 旧档天枢殿识别（占地尺寸与当前配置不符）
+    // filterLegacyTianshuHalls — 旧档天枢殿识别（占地尺寸命中历史白名单）
     // ================================================================
 
     @Test
-    fun `filterLegacyTianshuHalls_旧尺寸天枢殿被识别`() {
+    fun `filterLegacyTianshuHalls_历史尺寸天枢殿被识别`() {
         val buildings = listOf(
             GridBuildingData(displayName = "天枢殿", gridX = 5, gridY = 5,
                 width = 6, height = 3, instanceId = "legacy_tianshu"),
             GridBuildingData(displayName = "炼丹炉", gridX = 0, gridY = 0,
-                width = 4, height = 3, instanceId = "alchemy")
+                width = 4, height = 2, instanceId = "alchemy")
         )
-        val legacy = filterLegacyTianshuHalls(buildings) { 18 to 13 }
-        assertEquals("旧尺寸天枢殿（6×3 ≠ 当前 18×13）应被识别", listOf("legacy_tianshu"), legacy.map { it.instanceId })
+        val legacy = filterLegacyTianshuHalls(buildings)
+        assertEquals("历史尺寸天枢殿（6×3，初版）应被识别", listOf("legacy_tianshu"), legacy.map { it.instanceId })
+    }
+
+    @Test
+    fun `filterLegacyTianshuHalls_历史扩容尺寸天枢殿被识别`() {
+        val buildings = listOf(
+            GridBuildingData(displayName = "天枢殿", gridX = 5, gridY = 5,
+                width = 12, height = 6, instanceId = "legacy_tianshu_12x6")
+        )
+        val legacy = filterLegacyTianshuHalls(buildings)
+        assertEquals(
+            "历史尺寸天枢殿（12×6，扩容批）应被识别",
+            listOf("legacy_tianshu_12x6"), legacy.map { it.instanceId }
+        )
     }
 
     @Test
@@ -332,8 +345,26 @@ class BuildingLoadSelfHealTest {
             GridBuildingData(displayName = "天枢殿", gridX = 5, gridY = 5,
                 width = 18, height = 13, instanceId = "new_tianshu")
         )
-        val legacy = filterLegacyTianshuHalls(buildings) { 18 to 13 }
+        val legacy = filterLegacyTianshuHalls(buildings)
         assertTrue("当前尺寸天枢殿（18×13）不应被识别为旧档遗留", legacy.isEmpty())
+    }
+
+    @Test
+    fun `filterLegacyTianshuHalls_未来新尺寸天枢殿不识别_尺寸调整零拆除`() {
+        // 根因回归：旧判据「尺寸 ≠ 当前配置」会让**任何**配置尺寸调整变成全服拆殿事故。
+        // 现口径为历史白名单——任何非历史尺寸（未来调整后的新尺寸、损坏尺寸）都不删除，
+        // 交给 fixupBuildingSizes 正常改写尺寸。
+        val buildings = listOf(
+            GridBuildingData(displayName = "天枢殿", gridX = 5, gridY = 5,
+                width = 20, height = 14, instanceId = "future_tianshu"),
+            GridBuildingData(displayName = "天枢殿", gridX = 1, gridY = 1,
+                width = 0, height = 0, instanceId = "corrupted_tianshu")
+        )
+        val legacy = filterLegacyTianshuHalls(buildings)
+        assertTrue(
+            "非历史尺寸天枢殿（20×14 / 损坏尺寸）不得被判遗留删除，实际=${legacy.map { it.instanceId }}",
+            legacy.isEmpty()
+        )
     }
 
     @Test
@@ -341,7 +372,24 @@ class BuildingLoadSelfHealTest {
         val buildings = listOf(
             GridBuildingData(displayName = "灵田", gridX = 0, gridY = 0, width = 1, height = 1, instanceId = "field")
         )
-        val legacy = filterLegacyTianshuHalls(buildings) { 18 to 13 }
+        val legacy = filterLegacyTianshuHalls(buildings)
         assertTrue("无天枢殿时返回空列表", legacy.isEmpty())
+    }
+
+    @Test
+    fun `filterLegacyTianshuHalls_现行配置尺寸绝不可落入历史白名单`() {
+        // 守卫（防地雷回归）：白名单一旦包含现行配置尺寸，读档即刻删除全服天枢殿。
+        // 现行配置尺寸取自 BuildingConfigService（与 assets config/buildings.json 镜像一致）。
+        val assetSource = mock<com.xianxia.sect.core.platform.AssetSource>()
+        whenever(assetSource.open(org.mockito.kotlin.any())).thenReturn(null)
+        val service = BuildingConfigService(assetSource)
+        val current = service.getBuildingGridSize(TIANSHU_HALL_DISPLAY_NAME)
+        assertTrue(
+            "现行天枢殿占地 $current 出现在历史白名单 $TIANSHU_LEGACY_FOOTPRINTS 中——" +
+                "会导致读档删除全部存量天枢殿（判据必须只含真实历史尺寸）",
+            current !in TIANSHU_LEGACY_FOOTPRINTS
+        )
+        // 白名单内每个尺寸都应是"真实发布过的历史尺寸"（当前口径：6×3 与 12×6）
+        assertEquals("历史白名单内容漂移需同步本测试与迁移文档", setOf(6 to 3, 12 to 6), TIANSHU_LEGACY_FOOTPRINTS)
     }
 }

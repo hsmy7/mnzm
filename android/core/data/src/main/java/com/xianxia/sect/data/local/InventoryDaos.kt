@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.Flow
 
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface PillDao {
     @Query("SELECT * FROM pills WHERE slot_id = :slotId AND quantity > 0")
     fun getAll(slotId: Int): Flow<List<Pill>>
@@ -29,13 +32,15 @@ interface PillDao {
     @Query("SELECT * FROM pills WHERE slot_id = :slotId AND targetRealm = :realm AND quantity > 0 ORDER BY rarity DESC")
     fun getByTargetRealm(slotId: Int, realm: Int): Flow<List<Pill>>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity DESC, name ASC")
+    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
+        "DESC, name ASC")
     fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Pill>>
 
     @Query("SELECT * FROM pills WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")
     suspend fun searchByName(slotId: Int, keyword: String): List<Pill>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND breakthroughChance > 0 AND targetRealm = :realm AND quantity > 0 ORDER BY breakthroughChance DESC")
+    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND breakthroughChance > 0 AND targetRealm = :realm AND " +
+        "quantity > 0 ORDER BY breakthroughChance DESC")
     fun getBreakthroughPillsForRealm(slotId: Int, realm: Int): Flow<List<Pill>>
 
     @Query("SELECT * FROM pills WHERE slot_id = :slotId AND extendLife > 0 AND quantity > 0 ORDER BY extendLife DESC")
@@ -87,6 +92,9 @@ interface PillDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface MaterialDao {
     @Query("SELECT * FROM materials WHERE slot_id = :slotId AND quantity > 0")
     fun getAll(slotId: Int): Flow<List<Material>>
@@ -97,10 +105,12 @@ interface MaterialDao {
     @Query("SELECT * FROM materials WHERE slot_id = :slotId AND id = :id")
     suspend fun getById(slotId: Int, id: String): Material?
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND category = :category AND quantity > 0 ORDER BY rarity DESC")
+    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND category = :category AND quantity > 0 ORDER BY " +
+        "rarity DESC")
     fun getByCategory(slotId: Int, category: MaterialCategory): Flow<List<Material>>
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity DESC, name ASC")
+    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY " +
+        "rarity DESC, name ASC")
     fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Material>>
 
     @Query("SELECT * FROM materials WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")
@@ -152,6 +162,9 @@ interface MaterialDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface SeedDao {
     @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND quantity > 0")
     fun getAll(slotId: Int): Flow<List<Seed>>
@@ -162,10 +175,12 @@ interface SeedDao {
     @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND id = :id")
     suspend fun getById(slotId: Int, id: String): Seed?
 
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity DESC, growTime ASC")
+    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
+        "DESC, growTime ASC")
     fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Seed>>
 
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND growTime <= :maxGrowTime AND quantity > 0 ORDER BY growTime ASC")
+    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND growTime <= :maxGrowTime AND quantity > 0 ORDER BY " +
+        "growTime ASC")
     fun getByMaxGrowTime(slotId: Int, maxGrowTime: Int): Flow<List<Seed>>
 
     @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")
@@ -214,6 +229,9 @@ interface SeedDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface HerbDao {
     @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND quantity > 0")
     fun getAll(slotId: Int): Flow<List<Herb>>
@@ -227,7 +245,8 @@ interface HerbDao {
     @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND category = :category AND quantity > 0 ORDER BY rarity DESC")
     fun getByCategory(slotId: Int, category: String): Flow<List<Herb>>
 
-    @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity DESC, name ASC")
+    @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
+        "DESC, name ASC")
     fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Herb>>
 
     @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")

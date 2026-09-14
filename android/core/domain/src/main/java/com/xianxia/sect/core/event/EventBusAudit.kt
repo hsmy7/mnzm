@@ -9,15 +9,17 @@ package com.xianxia.sect.core.event
  * === EventBus 基础设施 ===
  *
  * 传输层: Channel<DomainEvent>(capacity = 256)
- *   - 非挂起发送 (trySend) 满时静默丢弃，仅计数 + 周期日志
- *   - 挂起发送 (emitTyped) 通过 scope.launch 中转，可背压但不会阻塞调用方
+ *   - 全部发送入口（emit/emitSync/emitTyped）统一 trySend——满时丢弃 +
+ *     计数 + 5s 节流上报（审计 P2-13：emitTyped 原经 scope.launch{send}
+ *     中转，通道饱和时转无上限挂起协程堆积，已根治）
  *
  * 分发路径 (两条并行):
  *   1. Flow 路径: eventChannel.receiveAsFlow() → events: Flow<DomainEvent>
  *      消费者通过 .collect {} 订阅，背压取决于 collect 内处理速度
  *   2. Subscriber 路径: ConcurrentHashMap<String, CopyOnWriteArrayList<DomainEventSubscriber>>
  *      startProcessing() 中 for-loop 消费 Channel，每事件调用 notifySubscribers()
- *      notifySubscribers 为每个 subscriber 独立 launch 协程，异常 try-catch 隔离
+ *      notifySubscribers 在消费协程内串行执行（审计 P3-12：原每 subscriber
+ *      独立 launch 协程属无上限协程创建，已根治；当前 0 订阅者——防御性修复）
  *
  * 事件生产者:
  *   - CombatService: emitSync(DeathEvent) — 非挂起，满时丢弃
@@ -62,7 +64,8 @@ object EventBusAudit {
             eventType = "building_completed (BuildingCompletedEvent)",
             threading = "applicationScope.launch — 非主线程",
             backpressure = "无背压控制: scope.launch 即发即弃",
-            errorHandling = "EventBus 层 try-catch 隔离; onEvent 内无 try-catch, cultivationService.processSpiritMineProduction() 异常会传播",
+            errorHandling =
+                "EventBus 层 try-catch 隔离; onEvent 内无 try-catch, cultivationService.processSpiritMineProduction() 异常会传播",
             riskLevel = "MEDIUM",
             notes = "initialize()/release() 中 subscribe/unsubscribe 配对正确; " +
                     "processSpiritMineProduction 为异步启动但无结果检查，静默失败风险"
@@ -70,9 +73,7 @@ object EventBusAudit {
 
         // ── Flow 路径消费者 (eventBus.events.collect) ──
 
-        // 2026-08-01 移除：GameEngineCore.startListening 空 collect 死代码已删除
-        //（处理体恒为空、仅消费事件不执行操作；BootSequenceController 调用点与
-        //  deathEventJob 生命周期管理同步清理）——DeathEvent 当前无消费方。
+        // 当前无 Flow 路径消费者；DeathEvent 仅由下方生产者发出，无消费方。
 
         // ── 事件生产者 (仅记录，非消费者) ──
         // 以下两条记录事件来源侧的信息，帮助理解事件流向

@@ -97,6 +97,11 @@ class RequestSigner @Inject constructor(
         recordRequestForReplayDetection(requestId, timestamp)
 
         if (NetworkSecurityConfig.isVerboseLoggingEnabled) {
+            val keySource = if (hmacKey != null && System.currentTimeMillis() < keyExpiry) {
+                "server"
+            } else {
+                "local-derived"
+            }
             Log.v(
                 TAG,
                 """[签名明细]
@@ -107,7 +112,7 @@ class RequestSigner @Inject constructor(
                 |RequestId=$requestId
                 |BodyHash=${bodyHash ?: "(none)"}
                 |Signature=$signature
-                |KeySource=${if (hmacKey != null && System.currentTimeMillis() < keyExpiry) "server" else "local-derived"}
+                |KeySource=$keySource
                 """.trimMargin()
             )
         }
@@ -131,6 +136,7 @@ class RequestSigner @Inject constructor(
         return delta <= NetworkSecurityConfig.TIMESTAMP_TOLERANCE_MS
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun getSigningKey(): SecretKeySpec {
         hmacKey?.let { if (System.currentTimeMillis() < keyExpiry) return it }
 
@@ -160,6 +166,7 @@ class RequestSigner @Inject constructor(
         return SecretKeySpec(keyBytes, HMAC_ALGO).also { hmacKey = it }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     private fun deriveLocalSigningKey(): SecretKeySpec {
         return try {
             val masterKey = SecureKeyManager.getOrCreateKey(context)
@@ -170,7 +177,7 @@ class RequestSigner @Inject constructor(
             System.arraycopy(salt, 0, derived, masterKey.size, salt.size)
 
             val md = MessageDigest.getInstance(HASH_ALGO)
-            for (i in 0..999) {
+            repeat(1000) {
                 derived = md.digest(derived)
             }
 
@@ -206,6 +213,7 @@ class RequestSigner @Inject constructor(
         return sb.toString()
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     private fun computeHmacSha256(data: String, key: SecretKeySpec): String {
         return try {
             val mac = Mac.getInstance(HMAC_ALGO)
@@ -218,6 +226,7 @@ class RequestSigner @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     private fun hashBody(body: ByteArray?): String? {
         if (body == null || body.isEmpty()) return null
         return try {
@@ -230,6 +239,7 @@ class RequestSigner @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     @SuppressLint("HardwareIds")
     private fun computeDeviceFingerprint(): String {
         val parts = mutableListOf<String>()

@@ -41,9 +41,9 @@ class WorldCameraState(
         val prevW = viewportWidth
         val prevH = viewportHeight
         super.updateViewport(w, h)
-        if (prevW > 0 && prevH > 0 &&
+        val sizeChangedBeyondThreshold = prevW > 0 && prevH > 0 &&
             (abs(w - prevW) > CENTER_THRESHOLD || abs(h - prevH) > CENTER_THRESHOLD)
-        ) {
+        if (sizeChangedBeyondThreshold) {
             hasInitialized = false
         }
     }

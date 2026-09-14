@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * [SpiritCropRender.smoothedProgress] 插值消费链测试（2026-08-13 批次 3）。
+ * [SpiritCropRender.smoothedProgress] 插值消费链测试。
  */
 class SpiritCropRenderSmoothedTest {
 

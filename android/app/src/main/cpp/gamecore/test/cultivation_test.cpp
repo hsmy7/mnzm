@@ -15,13 +15,13 @@ using gamecore::state::Disciple;
 // ── computeMaxCultivation ───────────────────────────────────────
 
 TEST(MaxCultivationTest, LianqiLayer1) {
-    // 炼气 base=98，筑基 base=390，maxLayers=9 → layer1 = 98
-    EXPECT_DOUBLE_EQ(computeMaxCultivation(9, 1, 0.0), 98.0);
+    // 炼气 base=490，筑基 base=1950，maxLayers=9 → layer1 = 490
+    EXPECT_DOUBLE_EQ(computeMaxCultivation(9, 1, 0.0), 490.0);
 }
 
 TEST(MaxCultivationTest, LianqiLayer9) {
-    // layer9 = 98 + 8 × (390-98)/9 = 98 + 8×292/9
-    const double expected = 98.0 + 8.0 * (390.0 - 98.0) / 9.0;
+    // layer9 = 490 + 8 × (1950-490)/9 = 490 + 8×1460/9
+    const double expected = 490.0 + 8.0 * (1950.0 - 490.0) / 9.0;
     EXPECT_DOUBLE_EQ(computeMaxCultivation(9, 9, 0.0), expected);
 }
 
@@ -31,8 +31,8 @@ TEST(MaxCultivationTest, ImmortalReturnsCurrent) {
 }
 
 TEST(MaxCultivationTest, MiddleLayerLinearInterpolation) {
-    // layer5 = 98 + 4×292/9
-    const double expected = 98.0 + 4.0 * (390.0 - 98.0) / 9.0;
+    // layer5 = 490 + 4×1460/9
+    const double expected = 490.0 + 4.0 * (1950.0 - 490.0) / 9.0;
     EXPECT_DOUBLE_EQ(computeMaxCultivation(9, 5, 0.0), expected);
 }
 
@@ -42,11 +42,11 @@ TEST(AccumulateTest, AddsRateUpToCap) {
     Disciple d;
     d.realm = 9;
     d.realmLayer = 1;
-    d.cultivation = 90.0;
+    d.cultivation = 480.0;
     const double updated = accumulateCultivationPerPhase(d, 19.0);
-    // 90 + 19 = 109 > 炼气 1 层上限 98 → 钳制到 98
-    EXPECT_DOUBLE_EQ(updated, 98.0);
-    EXPECT_DOUBLE_EQ(d.cultivation, 98.0);
+    // 480 + 19 = 499 > 炼气 1 层上限 490 → 钳制到 490
+    EXPECT_DOUBLE_EQ(updated, 490.0);
+    EXPECT_DOUBLE_EQ(d.cultivation, 490.0);
 }
 
 TEST(AccumulateTest, DeadDiscipleNoGain) {
@@ -72,9 +72,9 @@ TEST(AccumulateTest, AtCapNoGrowth) {
     Disciple d;
     d.realm = 9;
     d.realmLayer = 1;
-    d.cultivation = 98.0;  // 已满
+    d.cultivation = 490.0;  // 已满
     const double updated = accumulateCultivationPerPhase(d, 19.0);
-    EXPECT_DOUBLE_EQ(updated, 98.0);
+    EXPECT_DOUBLE_EQ(updated, 490.0);
 }
 
 // ── checkpointDisciple / getEffectiveCultivation ────────────────

@@ -1,17 +1,17 @@
 // ============================================================
-// battle_execution.h — 战斗回合编排（Kotlin→C++ 迁移战斗批次 C）
+// battle_execution.h — 战斗回合编排
 //
 // 等价复刻 Kotlin `BattleSystem` 的**回合编排核心**（BattleSystem.kt
 // 1319 行中 executeBattleWithTimeout/executeTurnWithLog/
 // executeCombatantTurn 及其辅助函数链）+ `BattleDamageApplier`
 // （护盾吸收写回/伤害分摊/伤害链接的应用编排）+ `BattleCalculator`
-// selectSkill/selectTarget（拉条路径的旧版决策入口——评估报告归批次 B
-// AI 决策层，拉条立即行动专用）。
+// selectSkill/selectTarget（拉条立即行动的决策入口——与归入
+// battle_ai.h 的 AI 决策层并存，拉条路径专用）。
 //
-// 批次边界（对齐批次 A/B 与评估报告）：
-//   - 计算管线（calculateCombatantDamage 等）→ battle_calculator.h（批次 A）
+// 模块边界：
+//   - 计算管线（calculateCombatantDamage 等）→ battle_calculator.h
 //   - AI 决策主入口（BattleAI.decideAction/selectAttackTarget）→
-//     battle_ai.h（批次 B）
+//     battle_ai.h
 //   - 战斗组装（createBattle/convertDiscipleToCombatant/createBeast）保持
 //     Kotlin（依赖 Kotlin 域对象/注册表/静态数据）——本文件从 Combatant
 //     列表直接编排
@@ -21,7 +21,7 @@
 //
 // 与 Kotlin 语义对齐要点（逐条对照源码）：
 //   - RNG 走调用方传入的 DeterministicRng（对拍 g_rng；生产 BATTLE 分区）
-//   - 速度排序稳定降序 → std::stable_sort（C-11 契约）
+//   - 速度排序稳定降序 → std::stable_sort（对拍契约）
 //   - 行动序 = 战斗开始时存活快照（值语义），回合内击杀不影响本轮行动序
 //   - 技能斩杀（executeSkill）AttackResult.isInstantKill 恒 false（Kotlin
 //     未传参默认）——走护盾吸收路径；普攻斩杀（executeAttack）透传 true
@@ -135,7 +135,7 @@ struct AttackResult {
 };
 
 // ============================================================
-// BattleCalculator.selectSkill / selectTarget（拉条路径决策，批次 B 补项）
+// BattleCalculator.selectSkill / selectTarget（拉条路径决策）
 // ============================================================
 
 /// 拉条立即行动技能决策（Kotlin BattleCalculator.selectSkill——与

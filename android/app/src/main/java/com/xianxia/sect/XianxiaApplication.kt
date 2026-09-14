@@ -3,7 +3,9 @@ package com.xianxia.sect
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.util.Log
+import com.xianxia.sect.core.util.AlarmWatchdogReceiver
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.model.DiscipleStatsProvider
@@ -24,8 +26,9 @@ import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.core.CrashRecoveryEngine
 import com.xianxia.sect.core.TapTapCrashGuard
 import com.xianxia.sect.core.VulkanPolicy
-import com.xianxia.sect.data.crypto.SaveCrypto
+import com.xianxia.sect.data.crypto.SaveCryptoKeyCache
 import com.xianxia.sect.data.facade.StorageFacade
+import com.xianxia.sect.umeng.UmengManager
 
 import com.tencent.mmkv.MMKV
 import com.getkeepsafe.relinker.ReLinker
@@ -35,6 +38,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import javax.inject.Inject
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 @HiltAndroidApp
 @Suppress("TooManyFunctions") // 生命周期回调 + 跨模块注入/初始化方法均为独立职责
@@ -89,6 +98,22 @@ class XianxiaApplication : Application() {
         super.onCreate()
         instance = this
 
+        // 看门狗闹钟链启动自愈：进程被 OEM 杀死后 onDestroy 未跑、
+        // 闹钟未清——此处若本进程无游戏会话（服务未运行且引擎循环未跑），说明
+        // 本次 onCreate 正是「空转进程被闹钟拉起」的存量状态，直接取消闹钟退链，
+        // 根除「15s 拉起完整 Application → emergencyRestart 被 STOPPED 拒绝 →
+        // 再续链」的永续循环。正常游戏会话由 GameActivity.onResume /
+        // GameForegroundService.onCreate 重新调度（既有），不受影响。
+        //（AlarmManager 无查询 API——无条件 cancel 对不存在的闹钟是安全 no-op）
+        if (!GameForegroundService.isRunning) {
+            AlarmWatchdogReceiver.cancelAlarm(this)
+        }
+
+        // 友盟统计 preInit：用户同意隐私政策前的官方预备调用（不采集个人信息）。
+        // 正式 init 在 MainActivity 同意隐私后执行（proceedAfterPrivacyConsent），
+        // UMENG_APP_KEY 未配置时 UmengManager 内部整体跳过
+        UmengManager.preInit(this)
+
         // OEM 厂商识别数据注入引擎层（OemPowerProfileProvider 看门狗/忙等三档策略；
         // 必须在首次访问 OemPowerProfileProvider.current 之前——lazy 求值锁定结果）
         OemPowerProfileProvider.injectPlatformManufacturer(Build.MANUFACTURER, Build.BRAND)
@@ -97,19 +122,19 @@ class XianxiaApplication : Application() {
         initCrashProtection()
         initBuglyAndMmkv()
 
-        SaveCrypto.initialize(applicationScopeProvider)
+        SaveCryptoKeyCache.initialize(applicationScopeProvider)
 
-        ChangelogData.initialize(this)
+        // changelog_entries.json（129KB JSON 全量解析）在 AppStartup-Init 后台执行器
+        // 解析。唯一消费者是设置页更新日志（SettingsTab，用户触达时后台解析早已完成）；
+        // 未初始化完成时 ChangelogData.entries 返回空列表，无启动期同步读取依赖。
+        appStartupExecutor?.execute { ChangelogData.initialize(this) }
 
-        // 精灵图注册（C-7 拆分：数据在 SpriteRegistryData.kt）
+        // 精灵图注册（数据在 SpriteRegistryData.kt）
         registerAllSprites()
 
         initPortraitsAndFonts()
         initGameMonitoring()
         installTapTapCrashGuard()
-
-        // 2026-08-01 移除：v4_reset 一键清空玩家本地数据机制（4.0.00 删档重置遗留）。
-        // 该机制无确认/备份，一次升级事件即清空全部玩家数据——删档已过，遗留炸弹直接移除。
 
         // 建筑特征注册表初始化（必须在第一次查询 BuildingFeatureRegistry 之前）
         BuildingFeatureRegistry.registerDefaults()
@@ -129,15 +154,20 @@ class XianxiaApplication : Application() {
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()
 
-        // 主线程 Looper 监控：检测消息处理超时（ANR 诊断）
-        android.os.Looper.getMainLooper().setMessageLogging { msg ->
-            if (msg?.startsWith(">>>>> Dispatching") == true) {
-                val currentTime = System.currentTimeMillis()
-                val lastDispatch = _lastMainThreadDispatch
-                if (lastDispatch > 0 && (currentTime - lastDispatch) > 3000) {
-                    Log.w(TAG, "Main thread starved for ${currentTime - lastDispatch}ms (potential ANR indicator)")
+        // 主线程 Looper 监控：检测消息处理超时（ANR 诊断）。
+        // ★ 仅 DEBUG 构建注册——setMessageLogging 对主线程**每条消息**
+        //   执行一次 startsWith（常驻微开销）；Release 的 ANR 诊断由 Bugly 主线程
+        //   卡顿监控覆盖（行为零损失），此处不再每消息付费。
+        if (com.xianxia.sect.BuildConfig.DEBUG) {
+            android.os.Looper.getMainLooper().setMessageLogging { msg ->
+                if (msg?.startsWith(">>>>> Dispatching") == true) {
+                    val currentTime = System.currentTimeMillis()
+                    val lastDispatch = _lastMainThreadDispatch
+                    if (lastDispatch > 0 && (currentTime - lastDispatch) > 3000) {
+                        Log.w(TAG, "Main thread starved for ${currentTime - lastDispatch}ms (potential ANR indicator)")
+                    }
+                    _lastMainThreadDispatch = currentTime
                 }
-                _lastMainThreadDispatch = currentTime
             }
         }
     }
@@ -171,7 +201,7 @@ class XianxiaApplication : Application() {
         })
 
         // 注入 AccountBindingProvider 实现到 data 模块
-        com.xianxia.sect.data.crypto.SecureKeyManager.accountBindingProvider =
+        com.xianxia.sect.data.crypto.DeviceBindingIdentity.accountBindingProvider =
             object : com.xianxia.sect.core.util.AccountBindingProvider {
                 override fun isLoggedIn(): Boolean =
                     com.xianxia.sect.taptap.TapTapAuthManager.isLoggedIn()
@@ -307,12 +337,13 @@ class XianxiaApplication : Application() {
     /**
      * Bugly 崩溃收集 + MMKV 显式初始化（含 ReLinker 兜底）。
      *
-     * 2026-08-01 后台化：原生库加载（ReLinker 从 APK 解压 .so）与 Bugly 网络初始化
+     * 原生库加载（ReLinker 从 APK 解压 .so）与 Bugly 网络初始化
      * 是典型冷启动杀手（数百 ms 主线程阻塞）。两者均支持非主线程初始化；
      * Application.onCreate 后续代码不依赖 MMKV（已确认 SaveCrypto/ChangelogData 无依赖），
      * 首次业务访问发生在 Activity 阶段（后台任务早已完成）。
      * 崩溃保护仍由 initCrashProtection 的自研 handler 先行安装兜底。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun initBuglyAndMmkv() {
         // 幂等守卫：已初始化过（executor 非空）则跳过，防止二次调用覆盖执行器引用
         if (appStartupExecutor != null) return
@@ -341,7 +372,7 @@ class XianxiaApplication : Application() {
                 }
             }
 
-            // 腾讯 Bugly 崩溃收集（G3 根治：经 CrashReporter 端口调用，接口实现永不抛出；
+            // 腾讯 Bugly 崩溃收集（经 CrashReporter 端口调用，接口实现永不抛出；
             // 自研 CrashHandler 保留作为兜底）
             try {
                 crashReporter.initialize()
@@ -353,8 +384,8 @@ class XianxiaApplication : Application() {
             } catch (e: Exception) {
                 Log.w(TAG, "Crash reporter initialization failed, self-built CrashHandler will be fallback", e)
             }
-            // ★ Bugly 内部会覆盖默认崩溃处理器——必须在其后重新安装 TapTap 守卫，
-            //   使守卫位于 Bugly 之外层（Bugly #17002：守卫被覆盖后崩溃直达 Bugly）。
+            // Bugly 内部会覆盖默认崩溃处理器——必须在其后重新安装 TapTap 守卫，
+            //   使守卫位于 Bugly 之外层（守卫被覆盖后 TapTap 崩溃直达 Bugly 上报）。
             installTapTapCrashGuard()
         }
     }
@@ -394,6 +425,7 @@ class XianxiaApplication : Application() {
         notifyLowMemory()
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun notifyMemoryPressure(level: Int) {
         memoryPressureListeners.forEach { listener ->
             try {
@@ -404,6 +436,7 @@ class XianxiaApplication : Application() {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun notifyLowMemory() {
         memoryPressureListeners.forEach { listener ->
             try {
@@ -414,6 +447,7 @@ class XianxiaApplication : Application() {
         }
     }
     
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     override fun onTerminate() {
         super.onTerminate()
         try {

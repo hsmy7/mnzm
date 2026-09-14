@@ -146,8 +146,6 @@ class DiscipleTablesCowTest {
 
         assertEquals(1, tables.isAlive[1])
         assertEquals(0, copy.isAlive[1])
-        assertTrue(copy.deathRecords.isNotEmpty())
-        assertTrue(tables.deathRecords.isEmpty())
     }
 
     @Test
@@ -168,7 +166,7 @@ class DiscipleTablesCowTest {
 
     @Test
     fun `markDead records changed id for incremental assembly`() {
-        // 对抗性审查回归：markDead 必须 recordChangedId——
+        // markDead 必须 recordChangedId——
         // 若同事务还包含其他 update（产生 changedIds），增量组装必须重排
         // 阵亡弟子，否则快照保留其"存活"旧数据（陈尸）。
         val tables = DiscipleTables()

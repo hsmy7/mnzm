@@ -68,7 +68,7 @@ class SaveDataDirectSerializationTest {
 
     @Test
     fun `battle team fields round-trip preserves teams and initialized flag`() {
-        // A3 守卫（2026-08-05）：battleTeams/usedTeamNumbers/battleTeamsInitialized
+        // battleTeams/usedTeamNumbers/battleTeamsInitialized
         // 持久化后必须进入 proto——读档不再清空玩家出战队伍
         val original = SaveData(
             gameData = com.xianxia.sect.core.model.GameData(
@@ -104,7 +104,7 @@ class SaveDataDirectSerializationTest {
 
     @Test
     fun `protoBuf decode skips unknown field numbers instead of throwing`() {
-        // A4 实证（2026-08-05）：kotlinx.serialization ProtoBuf 按 wire format
+        // kotlinx.serialization ProtoBuf 按 wire format
         // 规范跳过未知字段号——旧版 App 读新版云档（新增字段）不抛异常，
         // 缺失字段取默认值尽力解码。此测试固化该行为，防止未来库升级改变。
         val original = SaveData(

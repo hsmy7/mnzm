@@ -42,6 +42,7 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
+@Suppress("TooManyFunctions") // DI @Provides 样板面：函数数=依赖图装配点数（detekt.yml thresholdInObjects 注记认定的样板代码）
 object CoreModule {
 
     @Provides
@@ -75,7 +76,7 @@ object CoreModule {
         mailSystem: MailSystem,
         partnerSystem: PartnerSystem,
         childBirthSystem: ChildBirthSystem,
-        // 建筑生产系统（之前遗漏，导致月变时不触发收获/完成检测）
+        // 建筑生产系统（月变时触发收获/完成检测所需）
         plantingSystem: PlantingSystem,
         alchemySystem: AlchemySystem,
         forgeSystem: ForgeSystem
@@ -95,51 +96,68 @@ object CoreModule {
 
     @Provides
     @Singleton
-    fun provideDiscipleFacade(impl: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacadeImpl): com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade = impl
+    fun provideDiscipleFacade(impl: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacadeImpl): com.xianxia.sect
+        .core.engine.domain.disciple.DiscipleFacade = impl
 
     @Provides
     @Singleton
-    fun provideBattleFacade(impl: com.xianxia.sect.core.engine.domain.battle.BattleFacadeImpl): com.xianxia.sect.core.engine.domain.battle.BattleFacade = impl
+    fun provideBattleFacade(impl: com.xianxia.sect.core.engine.domain.battle.BattleFacadeImpl): com.xianxia.sect.core
+        .engine.domain.battle.BattleFacade = impl
 
     @Provides
     @Singleton
-    fun provideBuildingFacade(impl: com.xianxia.sect.core.engine.domain.building.BuildingFacadeImpl): com.xianxia.sect.core.engine.domain.building.BuildingFacade = impl
+    fun provideBuildingFacade(impl: com.xianxia.sect.core.engine.domain.building.BuildingFacadeImpl): com.xianxia.sect
+        .core.engine.domain.building.BuildingFacade = impl
 
     @Provides
     @Singleton
-    fun provideRoadFacade(impl: com.xianxia.sect.core.engine.domain.road.RoadFacadeImpl): com.xianxia.sect.core.engine.domain.road.RoadFacade = impl
+    fun provideRoadFacade(
+        stateStore: com.xianxia.sect.core.state.GameStateStore,
+        gameEngineCore: com.xianxia.sect.core.engine.GameEngineCore
+    ): com.xianxia.sect.core.engine.domain.road.RoadFacade =
+        // 镜像通道是 GameEngineCore 手工单例（reverseSender 默认 lambda 无 Dagger 绑定，
+        // 构造注入 MissingBinding 且会分叉反向通道实例）——经 core:engine 工厂取同引用
+        com.xianxia.sect.core.engine.domain.road.createRoadFacade(stateStore, gameEngineCore)
 
     @Provides
     @Singleton
-    fun provideInventoryFacade(impl: com.xianxia.sect.core.engine.domain.inventory.InventoryFacadeImpl): com.xianxia.sect.core.engine.domain.inventory.InventoryFacade = impl
+    fun provideInventoryFacade(impl: com.xianxia.sect.core.engine.domain.inventory.InventoryFacadeImpl): com.xianxia
+        .sect.core.engine.domain.inventory.InventoryFacade = impl
 
     @Provides
     @Singleton
-    fun provideDiplomacyFacade(impl: com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacadeImpl): com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade = impl
+    fun provideDiplomacyFacade(impl: com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacadeImpl): com.xianxia
+        .sect.core.engine.domain.diplomacy.DiplomacyFacade = impl
 
     @Provides
     @Singleton
-    fun provideExplorationFacade(impl: com.xianxia.sect.core.engine.domain.exploration.ExplorationFacadeImpl): com.xianxia.sect.core.engine.domain.exploration.ExplorationFacade = impl
+    fun provideExplorationFacade(impl: com.xianxia.sect.core.engine.domain.exploration.ExplorationFacadeImpl): com
+        .xianxia.sect.core.engine.domain.exploration.ExplorationFacade = impl
 
     @Provides
     @Singleton
-    fun provideCultivationFacade(impl: com.xianxia.sect.core.engine.domain.cultivation.CultivationFacadeImpl): com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade = impl
+    fun provideCultivationFacade(impl: com.xianxia.sect.core.engine.domain.cultivation.CultivationFacadeImpl): com
+        .xianxia.sect.core.engine.domain.cultivation.CultivationFacade = impl
 
     @Provides
     @Singleton
-    fun provideEconomyFacade(impl: com.xianxia.sect.core.engine.domain.economy.EconomyFacadeImpl): com.xianxia.sect.core.engine.domain.economy.EconomyFacade = impl
+    fun provideEconomyFacade(impl: com.xianxia.sect.core.engine.domain.economy.EconomyFacadeImpl): com.xianxia.sect.core
+        .engine.domain.economy.EconomyFacade = impl
 
     @Provides
     @Singleton
-    fun provideProductionFacade(impl: com.xianxia.sect.core.engine.domain.production.ProductionFacadeImpl): com.xianxia.sect.core.engine.domain.production.ProductionFacade = impl
+    fun provideProductionFacade(impl: com.xianxia.sect.core.engine.domain.production.ProductionFacadeImpl): com.xianxia
+        .sect.core.engine.domain.production.ProductionFacade = impl
 
     @Provides
     @Singleton
-    fun provideGameStateStore(impl: com.xianxia.sect.core.state.GameStateStoreImpl): com.xianxia.sect.core.state.GameStateStore = impl
+    fun provideGameStateStore(impl: com.xianxia.sect.core.state.GameStateStoreImpl): com.xianxia.sect.core.state
+        .GameStateStore = impl
 
     @Provides
     @Singleton
-    fun provideSaveFacade(impl: com.xianxia.sect.core.engine.domain.save.SaveFacadeImpl): com.xianxia.sect.core.engine.domain.save.SaveFacade = impl
+    fun provideSaveFacade(impl: com.xianxia.sect.core.engine.domain.save.SaveFacadeImpl): com.xianxia.sect.core.engine
+        .domain.save.SaveFacade = impl
 
     @Provides
     @Singleton
@@ -162,6 +180,7 @@ object CoreModule {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     @Provides
     @Singleton
     fun provideConfigLoader(@ApplicationContext context: Context): ConfigLoader {
@@ -171,7 +190,7 @@ object CoreModule {
                 context.assets.open(path).use { stream ->
                     stream.bufferedReader().use { it.readText() }
                 }
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 null
             }
         }
@@ -227,27 +246,33 @@ object CoreModule {
 
     @Provides
     @Singleton
-    fun provideThermalReader(impl: com.xianxia.sect.platform.AndroidThermalReader): com.xianxia.sect.core.thermal.ThermalReader = impl
+    fun provideThermalReader(impl: com.xianxia.sect.platform.AndroidThermalReader): com.xianxia.sect.core.thermal
+        .ThermalReader = impl
 
     @Provides
     @Singleton
-    fun provideBatteryStatusProvider(impl: com.xianxia.sect.platform.BatteryAwareController): com.xianxia.sect.core.thermal.BatteryStatusProvider = impl
+    fun provideBatteryStatusProvider(impl: com.xianxia.sect.platform.BatteryAwareController): com.xianxia.sect.core
+        .thermal.BatteryStatusProvider = impl
 
     @Provides
     @Singleton
-    fun provideAssetSource(impl: com.xianxia.sect.platform.AndroidAssetSource): com.xianxia.sect.core.platform.AssetSource = impl
+    fun provideAssetSource(impl: com.xianxia.sect.platform.AndroidAssetSource): com.xianxia.sect.core.platform
+        .AssetSource = impl
 
     @Provides
     @Singleton
-    fun provideApkSigningCertificateSource(impl: com.xianxia.sect.platform.AndroidApkSigningCertificateSource): com.xianxia.sect.core.platform.ApkSigningCertificateSource = impl
+    fun provideApkSigningCertificateSource(impl: com.xianxia.sect.platform.AndroidApkSigningCertificateSource): com
+        .xianxia.sect.core.platform.ApkSigningCertificateSource = impl
 
     @Provides
     @Singleton
-    fun provideThermalStatusReader(impl: com.xianxia.sect.platform.AndroidThermalStatusReader): com.xianxia.sect.core.perf.ThermalStatusReader = impl
+    fun provideThermalStatusReader(impl: com.xianxia.sect.platform.AndroidThermalStatusReader): com.xianxia.sect.core
+        .perf.ThermalStatusReader = impl
 
     @Provides
     @Singleton
-    fun providePerformanceHintPort(impl: com.xianxia.sect.platform.AndroidPerformanceHintPort): com.xianxia.sect.core.perf.PerformanceHintPort = impl
+    fun providePerformanceHintPort(impl: com.xianxia.sect.platform.AndroidPerformanceHintPort): com.xianxia.sect.core
+        .perf.PerformanceHintPort = impl
 
     @Provides
     @Singleton

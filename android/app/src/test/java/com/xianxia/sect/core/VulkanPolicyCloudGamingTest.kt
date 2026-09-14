@@ -37,7 +37,7 @@ class VulkanPolicyCloudGamingTest {
         mapsFile.writeText(
             """
             55f0a000-55f0b000 r-xp 00000000 fd:01 1000 /system/bin/app_process64
-            7a000000-7a100000 r-xp 00000000 fd:01 2000 /data/data/com.taptap/files/tap_sandbox_core/core_v14064/libs/armeabi-v7a/libsandbox_ext.so
+            7a000000-7a100000 r-xp 00000000 fd:01 2000 /data/data/com.taptap/files/libsandbox_ext.so
             7a100000-7a200000 rw-p 00100000 fd:01 3000 /system/lib64/libc.so
             """.trimIndent()
         )

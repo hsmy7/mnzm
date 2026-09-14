@@ -96,7 +96,7 @@ class ListenerManagerTest {
         manager.add("bad")
         manager.add("c")
         manager.notify { listener ->
-            if (listener == "bad") throw RuntimeException("test error")
+            if (listener == "bad") error("test error")
             results.add(listener)
         }
         assertEquals(listOf("a", "c"), results)
@@ -124,7 +124,7 @@ class ListenerManagerTest {
         manager.add("c")
         manager.add("bad2")
         val errors = manager.notifySafe { listener ->
-            if (listener.startsWith("bad")) throw RuntimeException("test")
+            if (listener.startsWith("bad")) error("test")
         }
         assertEquals(2, errors)
     }
@@ -136,7 +136,7 @@ class ListenerManagerTest {
         manager.add("bad")
         manager.add("c")
         manager.notifySafe { listener ->
-            if (listener == "bad") throw RuntimeException("test")
+            if (listener == "bad") error("test")
             results.add(listener)
         }
         assertEquals(listOf("a", "c"), results)
@@ -168,7 +168,7 @@ class ListenerManagerTest {
         manager.add("bad")
         manager.add("3")
         val result = manager.mapNotNull { listener ->
-            if (listener == "bad") throw RuntimeException("test")
+            if (listener == "bad") error("test")
             listener.toIntOrNull()
         }
         assertEquals(listOf(1, 3), result)

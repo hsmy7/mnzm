@@ -1,5 +1,5 @@
 // ============================================================
-// child_birth.h — 月变步骤 4d 生育（Kotlin→C++ 迁移批 13-4c）
+// child_birth.h — 月变步骤 4d 生育
 //
 // 等价复刻 Kotlin `ChildBirthSystem.processMonthlyBirth`（core/engine/
 // system/ChildBirthSystem.kt）——月变扇出中 @SystemPriority(235) 的生育
@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "gamecore/rng/pcg_xsh_rr.h"
+#include "gamecore/ecs/disciple_component.h"  // syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple_factory.h"
 #include "gamecore/system/name_service.h"
@@ -146,7 +147,11 @@ inline state::Disciple createChild(const state::Disciple& mother,
 /// 孕期状态；正常生育新生儿入 recruitList + autoRecruitIdle 重置 +
 /// processAutoRecruit + 母亲 lastChildYear/childBirthMonth 增量更新。
 /// 母亲列表与 discipleMap 取入口快照（Kotlin assembleAll 一次）。
-inline void processMonthlyBirth(state::GameState& state, rng::DeterministicRng& rng) {
+/// 入口快照/existingNames 扫描经 sync + View
+/// 行序（快照序 == 行序 == Kotlin assembleAll 序，母亲 RNG 消费序不变）。
+inline void processMonthlyBirth(state::GameState& state,
+                                rng::DeterministicRng& rng,
+                                ecs::World& world) {
     const int32_t currentYear = state.gameData.gameYear;
     const int32_t currentMonth = state.gameData.gameMonth;
 
@@ -155,10 +160,15 @@ inline void processMonthlyBirth(state::GameState& state, rng::DeterministicRng& 
     std::vector<state::Disciple> allDisciples;
     allDisciples.reserve(state.disciples.size());
     std::map<std::string, state::Disciple> discipleMap;
-    for (std::size_t row = 0; row < state.disciples.size(); ++row) {
-        state::Disciple d = state.disciples.materialize(row);
-        allDisciples.push_back(d);
-        discipleMap[d.id] = d;
+    {
+        state::DiscipleStore& ds = state.disciples;
+        ecs::syncDiscipleEntities(world, ds.size());
+        ecs::View<ecs::DiscipleRef> view(world.registry());
+        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+            state::Disciple d = ds.materialize(ref.row);   // 行地址取自组件（桥接规范 3）
+            allDisciples.push_back(d);
+            discipleMap[d.id] = d;
+        });
     }
 
     // 到期母亲（快照列表；行序 = 弟子序，RNG 消费序红线）
@@ -187,10 +197,16 @@ inline void processMonthlyBirth(state::GameState& state, rng::DeterministicRng& 
         }
 
         // 当前态 existingNames：全部弟子（当前列）+ recruitList（含前序
-        // 新生儿——Kotlin createChild 内每轮重新组装，父死分支不计算）
+        // 新生儿——Kotlin createChild 内每轮重新组装，父死分支不计算）。
+        // processAutoRecruit 可能已追加行（实体集漂移）——sync 检测即重建。
         std::set<std::string> existingNames;
-        for (std::size_t row = 0; row < state.disciples.size(); ++row) {
-            existingNames.insert(state.disciples.names[row]);
+        {
+            state::DiscipleStore& ds = state.disciples;
+            ecs::syncDiscipleEntities(world, ds.size());
+            ecs::View<ecs::DiscipleRef> view(world.registry());
+            view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+                existingNames.insert(ds.names[ref.row]);   // 行地址取自组件（桥接规范 3）
+            });
         }
         for (const auto& d : state.gameData.recruitList) {
             existingNames.insert(d.name);

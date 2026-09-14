@@ -19,7 +19,9 @@ import com.xianxia.sect.core.model.ManualType
  */
 class ManualRegistry : BaseTemplateRegistry<ManualDatabase.ManualTemplate>() {
 
-    private val TAG = "ManualRegistry"
+    private companion object {
+        private const val TAG = "ManualRegistry"
+    }
 
     // ==================== 内部状态 ====================
 
@@ -53,6 +55,7 @@ class ManualRegistry : BaseTemplateRegistry<ManualDatabase.ManualTemplate>() {
      * @param assetSource 资产文件源（平台端口，见 [AssetSource]）
      * @return 初始化结果（成功或失败）
      */
+    @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     fun initializeSync(assetSource: AssetSource): Result<Unit> {
         return try {
             synchronized(initLock) {

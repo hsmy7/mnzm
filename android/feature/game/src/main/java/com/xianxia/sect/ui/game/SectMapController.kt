@@ -3,7 +3,7 @@ package com.xianxia.sect.ui.game
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MapPreloadData
-import com.xianxia.sect.core.util.SectMapTileGenerator
+import com.xianxia.sect.core.util.SectTerrainBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 每宗独立地图 + 进入宗门转场控制器（2026-08-16 从 GameViewModel 抽取，收敛上帝类）。
+ * 每宗独立地图 + 进入宗门转场控制器。
  *
  * 职责：
  * - [sectMapData]：随 activeSectId 惰性生成每宗底图（主宗=mapSeed，被占宗门=派生种子），
@@ -58,7 +58,7 @@ class SectMapController(
      *
      * 关闭条件 = 引擎已将 activeSectId 切到目标（地图/点击作用域就绪）且至少播放 0.8s。
      * 不等待 sectMapData 生成目标宗地图：瓦片种子生成 <10ms、由最小播放时长兜底覆盖，
-     * 避免把 Default 线程/stateIn 链路延迟计入转场时长（实测曾达 3~4s）。
+     * 避免把 Default 线程/stateIn 链路延迟计入转场时长（该链路延迟可达秒级）。
      */
     fun beginSectTransition(sectId: String) {
         val gen = sectTransitionGen.incrementAndGet()
@@ -76,34 +76,36 @@ class SectMapController(
 }
 
 /**
- * 每宗地图种子派生（2026-08-16）：主宗（""）用 baseSeed 保证与 boot 图一致；
+ * 每宗地图种子派生：主宗（""）用 baseSeed 保证与 boot 图一致；
  * 其他宗门用 baseSeed 与 sectId 混合出确定性种子，同一宗门永远同一张底图。
  */
 internal fun deriveSectSeed(baseSeed: Int, sectId: String): Int =
     if (sectId.isEmpty()) baseSeed else (baseSeed * 31) xor sectId.hashCode()
 
-/** 每宗地图构建（2026-08-16）：按种子确定性生成瓦片数据（纯函数，可测试）。 */
+/** 每宗地图构建（经 SectTerrainBridge——C++ 生成真源）。
+ *  按种子确定性生成瓦片数据（展平行主序，每种子一次，可测试）。 */
 internal fun buildSectMap(seed: Int): MapPreloadData {
     val w = GameConfig.SectMap.WORLD_WIDTH_CELLS
     val h = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-    val raw = SectMapTileGenerator.generateTileData(
-        w, h,
+    val flat = SectTerrainBridge.generateFlatTileData(
+        worldWidthCells = w,
+        worldHeightCells = h,
         worldSeed = seed,
         borderTreeRing = GameConfig.SectMap.BORDER_TREE_RING
     )
     return MapPreloadData(
-        rawTileData = raw,
+        flatTileData = flat,
         worldWidthCells = w,
         worldHeightCells = h,
         tileSize = GameConfig.SectMap.TILE_SIZE,
         worldPixelWidth = GameConfig.SectMap.WORLD_PIXEL_WIDTH,
         worldPixelHeight = GameConfig.SectMap.WORLD_PIXEL_HEIGHT,
-        flatTileData = raw.flatMap { it.toList() }.toIntArray()
+        seed = seed
     )
 }
 
 /**
- * 每宗地图状态（2026-08-16）：携带该地图对应的 [sectId]（空串 = 主宗）。
+ * 每宗地图状态：携带该地图对应的 [sectId]（空串 = 主宗）。
  * 转场等待/测试据此判断当前 sectMapData 是否已切到目标宗门，避免读取到
  * 切换瞬间的旧宗门地图（stale value）。
  */

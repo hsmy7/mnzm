@@ -86,7 +86,7 @@ internal fun GoldFingerSelectionOverlay(
     }
 }
 
-/** 金手指框选绘制几何（GoldFingerSelectionOverlay 拆分）：像素坐标 + 格尺寸 */
+/** 金手指框选绘制几何：像素坐标 + 格尺寸 */
 private data class GoldFingerSelectionGeometry(
     val selLeft: Float,
     val selTop: Float,
@@ -105,7 +105,7 @@ private data class GoldFingerSelectionGeometry(
     val canAfford: Boolean
 )
 
-/** 金手指选区几何计算（GoldFingerSelectionOverlay 拆分） */
+/** 金手指选区几何计算 */
 private fun goldFingerSelectionGeometry(
     g: GoldFingerState,
     cameraState: SectCameraState,
@@ -147,7 +147,7 @@ private fun goldFingerSelectionGeometry(
     )
 }
 
-/** 金手指选区绘制（GoldFingerSelectionOverlay 拆分）：半透明方块 + 边框 + 图标 */
+/** 金手指选区绘制：半透明方块 + 边框 + 图标 */
 private fun DrawScope.drawGoldFingerSelection(
     g: GoldFingerState,
     geo: GoldFingerSelectionGeometry,
@@ -197,6 +197,6 @@ private fun DrawScope.drawGoldFingerSelection(
         dstSize = IntSize(iw, ih))
 }
 
-// 网格线（GridOverlay/GridPlacement）已迁移至 native 渲染层
-// （RenderFrame.gridOverlayVisible + 双后端 drawGridOverlay，2026-08-11）——
+// 网格线由 native 渲染层绘制
+//（RenderFrame.gridOverlayVisible + 双后端 drawGridOverlay）——
 // Compose 覆盖层锚定 cameraState 与渲染线程异步消费存在相位差，拖拽视角时 1 帧错位。

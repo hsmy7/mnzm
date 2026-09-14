@@ -12,6 +12,9 @@ import androidx.core.content.ContextCompat
 import com.xianxia.sect.core.engine.GameEngineCore
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import com.xianxia.sect.core.engine.initialize
+import com.xianxia.sect.core.engine.pause
+import com.xianxia.sect.core.engine.resume
 
 /**
  * ## GameForegroundService - 游戏循环前台服务
@@ -46,6 +49,15 @@ class GameForegroundService : Service() {
 
     companion object {
         private const val TAG = "GameForegroundService"
+
+        /**
+         * 服务存活内存标志（会话门双信号之一）：onCreate 置位 /
+         * onDestroy 复位。进程被 OEM 杀死后标志随进程消失——正是期望语义
+         * （闹钟拉起的空转进程无会话，看门狗链据此退链）。
+         */
+        @Volatile
+        var isRunning: Boolean = false
+            private set
 
         /** 启动游戏循环 action */
         const val ACTION_START = "com.xianxia.sect.action.START"
@@ -84,6 +96,7 @@ class GameForegroundService : Service() {
         // 不执行 → safeStartForeground 不调用 → 系统 ANR 触发）。
         // 注册 AlarmManager 精确闹钟兜底唤醒（链式调度，每 15s 一次）
         AlarmWatchdogReceiver.scheduleAlarm(this)
+        isRunning = true
         Log.d(TAG, "onCreate: channel created, wakeLock acquired, alarm scheduled")
     }
 
@@ -132,7 +145,7 @@ class GameForegroundService : Service() {
     }
 
     override fun onDestroy() {
-        // 仅停止游戏循环，不调用 shutdown()（docs/architecture.md 待办 D-31 根治）：
+        // 仅停止游戏循环，不调用 shutdown()：
         // - shutdown() 会 systemManager.releaseAll() + isInitialized=false，导致每次
         //   退出/重进游戏（含 START_STICKY 系统重建）完整重跑全部 GameSystem 的
         //   initialize/release 循环——引擎初始化状态改由进程级持有（@Singleton 存活
@@ -146,6 +159,7 @@ class GameForegroundService : Service() {
         wakeLockManager.release()
         // 取消 AlarmManager 精确闹钟
         AlarmWatchdogReceiver.cancelAlarm(this)
+        isRunning = false
         Log.d(TAG, "onDestroy: game loop stopped, wakeLock released, alarm cancelled")
         super.onDestroy()
     }
@@ -176,6 +190,7 @@ class GameForegroundService : Service() {
      *
      * @return true 前台通知启动成功，false 失败（已记录日志）
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun safeStartForeground(): Boolean {
         return try {
             startForeground(

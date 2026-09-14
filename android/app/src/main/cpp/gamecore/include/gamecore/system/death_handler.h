@@ -7,7 +7,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 弟子死亡处理器（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-2）
+// 弟子死亡处理器
 //
 // 等价移植 Kotlin DiscipleDeathHandler 的**纯逻辑核心**：
 //   - markDead：三字段写入（isAlive=0 + status=DEAD + deathYears）

@@ -1,12 +1,10 @@
 package com.xianxia.sect.core.audio
 
 /**
- * 音频播放端口（docs/architecture.md 待办 D-42 同批 G1/A1 根治）。
+ * 音频播放端口。
  *
- * `AudioEngine`（SoundPool + MediaPlayer）原直接驻留 :core:engine 并 import
- * `android.media.*`，破坏 core 层"零 Android 依赖"自我声明——iOS 迁移无法复用。
- * 本接口参照 `AdService` 模式：core 层声明契约，app 层 `AndroidAudioPlayer`
- * 实现注入（iOS 对等实现映射到 AVAudioEngine/AVAudioPlayer）。
+ * core 层保持"零 Android 依赖"以支持跨平台复用：本接口声明契约，app 层
+ * `AndroidAudioPlayer` 实现注入（iOS 对等实现映射到 AVAudioEngine/AVAudioPlayer）。
  *
  * ## 线程模型（audio-thread-audit.md 结论）
  *

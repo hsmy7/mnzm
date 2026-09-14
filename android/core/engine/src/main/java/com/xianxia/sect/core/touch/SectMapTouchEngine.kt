@@ -5,7 +5,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CancellationException
 
 /**
  * 宗门地图手势引擎 — 纯 Kotlin 跨平台核心。
@@ -199,7 +199,7 @@ class SectMapTouchEngine(
         }
     }
 
-    /** 中断惯性滑行（handleDown 拆分） */
+    /** 中断惯性滑行 */
     private fun interruptFlingIfActive() {
         if (state is GestureState.Flinging) {
             flingJob?.cancel(); flingJob = null
@@ -237,7 +237,8 @@ class SectMapTouchEngine(
         callbacks.onDragStart()
     }
 
-    /** 编辑模式按下处理（handleDown 拆分）：建筑/预览上按下即拾起，金手指立即拖拽，空地保持 Down */
+    /** 编辑模式按下处理：建筑/预览上按下即拾起，金手指立即拖拽，空地保持 Down */
+    @Suppress("RethrowCaughtException") // 协程取消惯用裸重抛（catch-only-cancellation）：无后续处理是设计而非疏漏，删除 catch 则 try 语法不成立
     private fun handleEditModeDown(data: TouchData) {
         // [编辑模式] 放置/移动中：
         //  - 触摸在建筑/预览上 → 按下即拾起（BuildingDrag）；金手指图标 → GoldFingerDrag
@@ -274,7 +275,8 @@ class SectMapTouchEngine(
         }
     }
 
-    /** 非编辑模式按下处理（handleDown 拆分）：建筑上按下即拾起，空地长按激活金手指 */
+    /** 非编辑模式按下处理：建筑上按下即拾起，空地长按激活金手指 */
+    @Suppress("RethrowCaughtException") // 协程取消惯用裸重抛（catch-only-cancellation）：无后续处理是设计而非疏漏，删除 catch 则 try 语法不成立
     private fun handleNormalModeDown(data: TouchData) {
         // [非编辑模式] 检测是否在建筑上
         hasBuildingTarget = callbacks.findBuildingAt(data.x, data.y) != null
@@ -331,6 +333,7 @@ class SectMapTouchEngine(
      *   保证快速抬起（位移 ≤ slop）仍走 tap（拾起不丢 tap）
      * - 驻留超时（按住不动）也触发拾起（与旧"长按拾起"行为一致，确认/取消按钮展示）
      */
+    @Suppress("RethrowCaughtException") // 协程取消惯用裸重抛（catch-only-cancellation）：无后续处理是设计而非疏漏，删除 catch 则 try 语法不成立
     private fun enterBuildingDragPickup() {
         buildingDragMoved = false
         longPressFired = false
@@ -404,7 +407,7 @@ class SectMapTouchEngine(
     }
 
     /**
-     * 建筑拖拽位移更新（BuildingDrag 拆分）：
+     * 建筑拖拽位移更新：
      * - 按下即拾起后首次超 slop 移动：触发拾起（延迟 onLongPress，以按下点定位建筑）并
      *   补发从按下点到当前点的累计位移（建筑跟上手指）
      * - 已开始拖拽：按事件间隔增量更新
@@ -428,10 +431,10 @@ class SectMapTouchEngine(
     }
 
     /**
-     * 边缘自动平移区域判定（BuildingDrag 拆分）：
+     * 边缘自动平移区域判定：
      * 手指进入边缘区时启动独立节拍循环（[startEdgePanLoop]），循环内完成驻留计时与平移——
      * 手指静止在边缘也能持续滚屏（不依赖 MOVE 事件流），平移量按固定节拍 dt 计算，
-     * 与设备事件率无关（修复旧实现 0.016f/事件在 120Hz 设备上翻倍的问题）。
+     * 与设备事件率无关（平移量按固定节拍 dt 计算，不按事件数累加）。
      */
     private fun handleEdgePanZone(data: TouchData) {
         val ep = edgeDetector.computePanVelocity(data.x, data.y)
@@ -459,6 +462,7 @@ class SectMapTouchEngine(
      * - 手指跟随补偿：相机平移的世界偏移同步叠加到建筑预览，建筑保持在手指下
      *   （Clash of Clans 拖建筑到屏幕边缘自动滚屏的手感）
      */
+    @Suppress("RethrowCaughtException") // 协程取消惯用裸重抛（catch-only-cancellation）：无后续处理是设计而非疏漏，删除 catch 则 try 语法不成立
     private fun startEdgePanLoop() {
         if (edgePanJob?.isActive == true) return
         edgePanJob = scope.launch {
@@ -495,7 +499,7 @@ class SectMapTouchEngine(
     }
 
     /**
-     * 双指缩放移动（handleMove 拆分）。
+     * 双指缩放移动。
      * 按「两指间距比」调用 [TouchEngineCallbacks.onPinchZoom]，焦点为两指中点。
      * 事件流丢失双指信息时防御性回退 Idle。
      */
@@ -582,7 +586,7 @@ class SectMapTouchEngine(
     }
 
     /**
-     * 双指缩放结束（handleUp 拆分）。
+     * 双指缩放结束。
      * 剩一根手指（[activePointers] 仍 >= 1）→ 恢复 Down（后续移动即平移），
      * 并抑制紧随其后的误触 tap；全部抬起 → 回到 Idle。
      */
@@ -633,6 +637,7 @@ class SectMapTouchEngine(
         return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 
+    @Suppress("RethrowCaughtException") // 协程取消惯用裸重抛（catch-only-cancellation）：无后续处理是设计而非疏漏，删除 catch 则 try 语法不成立
     private fun startFling(vx: Float, vy: Float) {
         flingPhysics.start(vx, vy)
         flingJob = scope.launch {

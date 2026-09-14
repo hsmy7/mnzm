@@ -34,7 +34,7 @@ import org.mockito.Mockito.verify
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * 看门狗病理复位测试（T12 2026-08-05）。
+ * 看门狗病理复位测试。
  *
  * 守卫契约：
  * - isSaving/isLoading 卡住超 90s（SAVE_LOAD_STUCK_TIMEOUT_MS）→ 发用户可见事件 + 复位

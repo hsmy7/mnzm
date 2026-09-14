@@ -6,17 +6,25 @@ import com.xianxia.sect.core.render.SpriteAtlasDef
 /**
  * 宗门地图瓦片数据生成器。
  *
- * 使用位置哈希使装饰物呈自然聚集分布，3 种草变体 + 2 种树变体。
+ * 使用位置哈希使装饰物呈自然聚集分布，4 种草变体 + 3 种石头 + 2 种树变体。
  * 纯函数，给定相同输入始终产生相同输出，便于测试。
+ *
+ * 与 C++ `gamecore/map/terrain.h`（单一权威）**位级等价**：装饰 pass 顺序
+ * （草 → 石 → 树 → 边界树环 → 门楼清场）、hash 种子混合式与比较链逐项一致，
+ * 由 `DiffSectTerrainTest` 全数组对拍守护——任一侧改判定序即变红。
  */
 object SectMapTileGenerator {
 
-    // 瓦片类型常量（2026-08-13 起由 SpriteAtlasDef.TileType.index 生成提供——
+    // 瓦片类型常量（由 SpriteAtlasDef.TileType.index 生成提供——
     // 与 C++ TextureAtlas.h TILE_* 定义同源，双端索引单一数据源）
     val TILE_GROUND = SpriteAtlasDef.TileType.GROUND.index
-    val TILE_GRASS_SMALL = SpriteAtlasDef.TileType.GRASS_SMALL.index
-    val TILE_GRASS_MEDIUM = SpriteAtlasDef.TileType.GRASS_MEDIUM.index
-    val TILE_GRASS_LARGE = SpriteAtlasDef.TileType.GRASS_LARGE.index
+    val TILE_GRASS1 = SpriteAtlasDef.TileType.GRASS1.index
+    val TILE_GRASS2 = SpriteAtlasDef.TileType.GRASS2.index
+    val TILE_GRASS3 = SpriteAtlasDef.TileType.GRASS3.index
+    val TILE_GRASS4 = SpriteAtlasDef.TileType.GRASS4.index
+    val TILE_STONE1 = SpriteAtlasDef.TileType.STONE1.index
+    val TILE_STONE2 = SpriteAtlasDef.TileType.STONE2.index
+    val TILE_STONE3 = SpriteAtlasDef.TileType.STONE3.index
     val TILE_TREE1 = SpriteAtlasDef.TileType.TREE1.index
     val TILE_TREE2 = SpriteAtlasDef.TileType.TREE2.index
     val TILE_BUILDING = SpriteAtlasDef.TileType.TILE_BUILDING.index
@@ -28,6 +36,7 @@ object SectMapTileGenerator {
      * @param worldHeightCells 地图高度（格数）
      * @param decorationDensity 总装饰密度 (0.0~1.0)，默认 0.18
      * @param worldSeed 世界随机种子，不同种子产生不同地图分布；默认 0 保持向后兼容
+     * @param borderTreeRing 四周强制树木边界厚度（0 = 无）
      */
     fun generateTileData(
         worldWidthCells: Int,
@@ -40,6 +49,7 @@ object SectMapTileGenerator {
             IntArray(worldWidthCells) { TILE_GROUND }
         }
         placeGrassPatches(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
+        placeStoneScatter(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
         placeTreeClusters(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
         if (borderTreeRing > 0) {
             placeBorderTrees(data, worldWidthCells, worldHeightCells, borderTreeRing)
@@ -58,12 +68,23 @@ object SectMapTileGenerator {
     ) {
         for (y in 0 until h) {
             for (x in 0 until w) {
-                if (x < ring || x >= w - ring || y < ring || y >= h - ring) {
-                    data[y][x] = if ((x + y) % 2 == 0) TILE_TREE1 else TILE_TREE2
+                if (isBorderCell(x, y, w, h, ring)) {
+                    data[y][x] = borderTileFor(x, y)
                 }
             }
         }
     }
+
+    /**
+     * 边界环带判定：四周 [ring] 格内为边界树覆盖区。
+     * 条件顺序与 Kotlin/C++ 位级对拍基准一致，不得调整求值序。
+     */
+    private fun isBorderCell(x: Int, y: Int, w: Int, h: Int, ring: Int): Boolean =
+        x < ring || x >= w - ring || y < ring || y >= h - ring
+
+    /** 边界树变体：棋盘格交替 TREE1/TREE2 */
+    private fun borderTileFor(x: Int, y: Int): Int =
+        if ((x + y) % 2 == 0) TILE_TREE1 else TILE_TREE2
 
     /**
      * 宗门入口固定结构区域清理：把底部中央门楼精灵包围盒及其左右紧邻各 1 列清为地面，
@@ -93,18 +114,27 @@ object SectMapTileGenerator {
     private fun placeGrassPatches(
         data: Array<IntArray>, w: Int, h: Int, density: Float, worldSeed: Int = 0
     ) {
-        val fill = (density * 0.80f).coerceIn(0f, 1f)
+        val fill = (density * GRASS_DENSITY_FACTOR).coerceIn(0f, 1f)
         val threshold = 1.0f - fill
         for (gx in 0 until w) {
             for (gy in 0 until h) {
-                if (data[gy][gx] != TILE_GROUND) continue
-                if (smoothNoise(gx, gy, 8, 42 xor worldSeed) < threshold) continue
-                if (cellHash(gx, gy, 43 xor worldSeed) >= 0.80f) continue
-                data[gy][gx] = when (cellHash(gx, gy, 44 xor worldSeed)) {
-                    in 0.93f..1.0f -> TILE_GRASS_LARGE
-                    in 0.80f..0.93f -> TILE_GRASS_MEDIUM
-                    else -> TILE_GRASS_SMALL
-                }
+                decorateGrassCell(data, gx, gy, threshold, worldSeed)
+            }
+        }
+    }
+
+    /**
+     * 石堆装饰：稀疏岩石散布（平滑噪声 14×14 地块，斑块内仅 [STONE_SCATTER_LIMIT] 概率）。
+     * 只落在裸地（草滩之后运行，不覆盖草/树）——岩石成簇出现在空旷地面。
+     */
+    private fun placeStoneScatter(
+        data: Array<IntArray>, w: Int, h: Int, density: Float, worldSeed: Int = 0
+    ) {
+        val fill = (density * STONE_DENSITY_FACTOR).coerceIn(0f, 1f)
+        val threshold = 1.0f - fill
+        for (gx in 0 until w) {
+            for (gy in 0 until h) {
+                decorateStoneCell(data, gx, gy, threshold, worldSeed)
             }
         }
     }
@@ -116,15 +146,11 @@ object SectMapTileGenerator {
     private fun placeTreeClusters(
         data: Array<IntArray>, w: Int, h: Int, density: Float, worldSeed: Int = 0
     ) {
-        val fill = (density * 0.35f).coerceIn(0f, 1f)
+        val fill = (density * TREE_DENSITY_FACTOR).coerceIn(0f, 1f)
         val threshold = 1.0f - fill
         for (gx in 0 until w) {
             for (gy in 0 until h) {
-                if (data[gy][gx] != TILE_GROUND) continue
-                if (smoothNoise(gx, gy, 12, 101 xor worldSeed) < threshold) continue
-                if (cellHash(gx, gy, 45 xor worldSeed) >= 0.35f) continue
-                data[gy][gx] = if (cellHash(gx, gy, 46 xor worldSeed) < 0.5f)
-                    TILE_TREE1 else TILE_TREE2
+                decorateTreeCell(data, gx, gy, threshold, worldSeed)
             }
         }
     }
@@ -174,6 +200,7 @@ object SectMapTileGenerator {
      * 8-bit blob tile 算法：
      * - 检查 8 个邻居，构建位掩码
      * - 角邻居规则：对角线仅在两卡相邻也匹配时计入
+     * - 实体障碍瓦片（石/树/建筑占位，[SpriteAtlasDef.isSolidTile]）不参与过渡
      *
      * @return Array<ByteArray> 每格的 bitmask 值（0-255）
      */
@@ -187,24 +214,127 @@ object SectMapTileGenerator {
         for (y in 1 until h - 1) {
             for (x in 1 until w - 1) {
                 val here = tileData[y][x]
-                // 树和建筑不参与 autotile 过渡
-                if (here == TILE_BUILDING || here == TILE_TREE1 || here == TILE_TREE2) continue
+                // 实体障碍（石/树/建筑）不参与 autotile 过渡
+                if (SpriteAtlasDef.isSolidTile(here)) continue
 
-                val n  = if (tileData[y-1][x]   == here) 1 else 0
-                val s  = if (tileData[y+1][x]   == here) 1 else 0
-                val w  = if (tileData[y][x-1]   == here) 1 else 0
-                val e  = if (tileData[y][x+1]   == here) 1 else 0
-
-                // 角邻居仅当两卡相邻也匹配时计入（防止对角误连）
-                val nw = if (tileData[y-1][x-1] == here && n == 1 && w == 1) 1 else 0
-                val ne = if (tileData[y-1][x+1] == here && n == 1 && e == 1) 1 else 0
-                val sw = if (tileData[y+1][x-1] == here && s == 1 && w == 1) 1 else 0
-                val se = if (tileData[y+1][x+1] == here && s == 1 && e == 1) 1 else 0
-
-                mask[y][x] = (n or (ne shl 1) or (e shl 2) or (se shl 3) or
-                              (s shl 4) or (sw shl 5) or (w shl 6) or (nw shl 7)).toByte()
+                mask[y][x] = autotileMaskFor(tileData, y, x, here)
             }
         }
         return mask
+    }
+}
+
+/** 单格 autotile 位掩码：8 邻居比较与位组装原样搬移，位级输出不变 */
+private fun autotileMaskFor(tileData: Array<IntArray>, y: Int, x: Int, here: Int): Byte {
+    val n  = if (tileData[y-1][x]   == here) 1 else 0
+    val s  = if (tileData[y+1][x]   == here) 1 else 0
+    val w  = if (tileData[y][x-1]   == here) 1 else 0
+    val e  = if (tileData[y][x+1]   == here) 1 else 0
+
+    // 角邻居仅当两卡相邻也匹配时计入（防止对角误连）
+    val nw = cornerBit(tileData[y-1][x-1] == here, n == 1, w == 1)
+    val ne = cornerBit(tileData[y-1][x+1] == here, n == 1, e == 1)
+    val sw = cornerBit(tileData[y+1][x-1] == here, s == 1, w == 1)
+    val se = cornerBit(tileData[y+1][x+1] == here, s == 1, e == 1)
+
+    return (n or (ne shl 1) or (e shl 2) or (se shl 3) or
+                  (s shl 4) or (sw shl 5) or (w shl 6) or (nw shl 7)).toByte()
+}
+
+/** 角邻居位：对角匹配且两正邻均匹配才计 1（防止对角误连） */
+private fun cornerBit(diagonalMatches: Boolean, adjacent1Matches: Boolean, adjacent2Matches: Boolean): Int =
+    if (diagonalMatches && adjacent1Matches && adjacent2Matches) 1 else 0
+
+// ============================================================
+// 装饰 pass 参数常量（与 C++ gamecore/map/terrain.h 同值——
+// 位级对拍红线：改动此处必须同步 C++ 侧，否则 DiffSectTerrainTest 变红）
+// ============================================================
+
+/** 草滩密度系数（总密度中用于草的比例） */
+private const val GRASS_DENSITY_FACTOR = 0.80f
+
+/** 草滩噪声尺度 / 噪声种子 / 散布种子 / 变体种子 / 散布上限 */
+private const val GRASS_NOISE_SCALE = 8
+private const val GRASS_NOISE_SEED = 42
+private const val GRASS_SCATTER_SEED = 43
+private const val GRASS_VARIANT_SEED = 44
+private const val GRASS_SCATTER_LIMIT = 0.80f
+
+/** 草簇变体抽取阈值（4 等分：[0,0.25)=变体1 … [0.75,1)=变体4） */
+private const val GRASS_VARIANT_STEP = 0.25f
+
+/** 石堆密度系数（总密度中用于石头的比例，低于树） */
+private const val STONE_DENSITY_FACTOR = 0.12f
+
+/** 石堆噪声尺度 / 噪声种子 / 散布种子 / 变体种子 / 散布上限 */
+private const val STONE_NOISE_SCALE = 14
+private const val STONE_NOISE_SEED = 202
+private const val STONE_SCATTER_SEED = 203
+private const val STONE_VARIANT_SEED = 204
+private const val STONE_SCATTER_LIMIT = 0.35f
+
+/** 石堆变体抽取阈值（三等分：[0,0.34)=变体1、[0.34,0.67)=变体2、其余=变体3） */
+private const val STONE_VARIANT_STEP_LOW = 0.34f
+private const val STONE_VARIANT_STEP_HIGH = 0.67f
+
+/** 树丛密度系数 / 噪声尺度 / 各阶段种子 / 散布上限 / 变体分界 */
+private const val TREE_DENSITY_FACTOR = 0.35f
+private const val TREE_NOISE_SCALE = 12
+private const val TREE_NOISE_SEED = 101
+private const val TREE_SCATTER_SEED = 45
+private const val TREE_VARIANT_SEED = 46
+private const val TREE_SCATTER_LIMIT = 0.35f
+private const val TREE_VARIANT_SPLIT = 0.5f
+
+/** 单格草装饰：非裸地/噪声未达阈值/装饰 hash 超限保持裸地，命中则按变体 hash 四选一
+ *（&& 短路序固定——位级对拍红线，调整求值序即 DiffSectTerrainTest 变红）。 */
+private fun decorateGrassCell(data: Array<IntArray>, gx: Int, gy: Int, threshold: Float, worldSeed: Int) {
+    val shouldDecorate = data[gy][gx] == SectMapTileGenerator.TILE_GROUND &&
+        SectMapTileGenerator.smoothNoise(gx, gy, GRASS_NOISE_SCALE,
+            GRASS_NOISE_SEED xor worldSeed) >= threshold &&
+        SectMapTileGenerator.cellHash(gx, gy, GRASS_SCATTER_SEED xor worldSeed) <
+        GRASS_SCATTER_LIMIT
+    if (!shouldDecorate) return
+    val pick = SectMapTileGenerator.cellHash(gx, gy, GRASS_VARIANT_SEED xor worldSeed)
+    data[gy][gx] = when {
+        pick < GRASS_VARIANT_STEP -> SectMapTileGenerator.TILE_GRASS1
+        pick < GRASS_VARIANT_STEP * 2 -> SectMapTileGenerator.TILE_GRASS2
+        pick < GRASS_VARIANT_STEP * 3 -> SectMapTileGenerator.TILE_GRASS3
+        else -> SectMapTileGenerator.TILE_GRASS4
+    }
+}
+
+/** 单格石堆装饰：非裸地/噪声未达阈值/散布 hash 超限保持裸地，命中则按变体 hash 三选一
+ *（在草滩之后运行——只落在裸地，不覆盖草/树）。 */
+private fun decorateStoneCell(data: Array<IntArray>, gx: Int, gy: Int, threshold: Float, worldSeed: Int) {
+    val shouldPlace = data[gy][gx] == SectMapTileGenerator.TILE_GROUND &&
+        SectMapTileGenerator.smoothNoise(gx, gy, STONE_NOISE_SCALE,
+            STONE_NOISE_SEED xor worldSeed) >= threshold &&
+        SectMapTileGenerator.cellHash(gx, gy, STONE_SCATTER_SEED xor worldSeed) <
+        STONE_SCATTER_LIMIT
+    if (!shouldPlace) return
+    val pick = SectMapTileGenerator.cellHash(gx, gy, STONE_VARIANT_SEED xor worldSeed)
+    data[gy][gx] = when {
+        pick < STONE_VARIANT_STEP_LOW -> SectMapTileGenerator.TILE_STONE1
+        pick < STONE_VARIANT_STEP_HIGH -> SectMapTileGenerator.TILE_STONE2
+        else -> SectMapTileGenerator.TILE_STONE3
+    }
+}
+
+/** 单格树装饰：非裸地/噪声未达阈值/树 hash 超限保持裸地
+ *（&& 短路序固定——位级对拍红线，调整求值序即 DiffSectTerrainTest 变红）。 */
+private fun decorateTreeCell(data: Array<IntArray>, gx: Int, gy: Int, threshold: Float, worldSeed: Int) {
+    val shouldPlant = data[gy][gx] == SectMapTileGenerator.TILE_GROUND &&
+        SectMapTileGenerator.smoothNoise(gx, gy, TREE_NOISE_SCALE,
+            TREE_NOISE_SEED xor worldSeed) >= threshold &&
+        SectMapTileGenerator.cellHash(gx, gy, TREE_SCATTER_SEED xor worldSeed) <
+        TREE_SCATTER_LIMIT
+    if (!shouldPlant) return
+    data[gy][gx] = if (SectMapTileGenerator.cellHash(gx, gy,
+            TREE_VARIANT_SEED xor worldSeed) < TREE_VARIANT_SPLIT
+    ) {
+        SectMapTileGenerator.TILE_TREE1
+    } else {
+        SectMapTileGenerator.TILE_TREE2
     }
 }

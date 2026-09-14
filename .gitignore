@@ -140,3 +140,12 @@ android/app/agconnect-services.json
 .superpowers/
 
 /.memsearch/
+
+/.zcode/
+
+# WorkBuddy 工具态（记忆/日志，工具生成）
+.workbuddy/
+# CTest 运行产物（cwd 误置于仓库根时生成）
+/Testing/
+
+Testing/

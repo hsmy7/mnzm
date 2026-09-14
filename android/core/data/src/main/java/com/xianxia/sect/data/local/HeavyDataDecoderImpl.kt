@@ -22,13 +22,15 @@ class HeavyDataDecoderImpl @Inject constructor() : HeavyDataDecoder {
     override fun decodeSectDetailMapFromRows(rows: List<GameHeavyData>, key: String): Map<String, SectDetail> =
         converters.decodeSectDetailMapFromRows(rows, key)
 
-    override fun decodeExploredSectInfoMapFromRows(rows: List<GameHeavyData>, key: String): Map<String, ExploredSectInfo> =
+    override fun decodeExploredSectInfoMapFromRows(rows: List<GameHeavyData>, key: String): Map<String,
+        ExploredSectInfo> =
         converters.decodeExploredSectInfoMapFromRows(rows, key)
 
     override fun decodeSectScoutInfoMapFromRows(rows: List<GameHeavyData>, key: String): Map<String, SectScoutInfo> =
         converters.decodeSectScoutInfoMapFromRows(rows, key)
 
-    override fun decodeManualProficiencyMapFromRows(rows: List<GameHeavyData>, key: String): Map<String, List<ManualProficiencyData>> =
+    override fun decodeManualProficiencyMapFromRows(rows: List<GameHeavyData>, key: String): Map<String,
+        List<ManualProficiencyData>> =
         converters.decodeManualProficiencyMapFromRows(rows, key)
 
     override fun decodeDiscipleListFromRows(rows: List<GameHeavyData>, key: String): List<Disciple> =

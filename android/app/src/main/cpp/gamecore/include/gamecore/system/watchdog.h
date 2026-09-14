@@ -5,7 +5,7 @@
 #include <optional>
 
 // ============================================================
-// 游戏时间推进监控 — 看门狗统一判据（计划 v2 阶段 5：判据迁 C++）
+// 游戏时间推进监控 — 看门狗统一判据（判据迁 C++）
 //
 // Kotlin core/engine/monitor/GameTimeProgressMonitor 逐位移植：
 //   - 判据 = tickCount + totalPhases + accumulatedGameMs 三元组 + flags
@@ -14,9 +14,8 @@
 //     PausedByOwner / StalePauseDetected
 //   - 三阈值：STALE_PAUSE_TTL_MS=45s / FAKE_RUN_WINDOW_MS=90s /
 //     LOOP_ACTIVITY_STALE_MS=20s
-//   - evaluate 维护 prev 基准 + lastPhaseProgressedAtMs（S5 假运行时间窗基准）
-//   - 历史教训与对抗性审查修复（S1/S4/S5/F2/V1/V6）全部随分支移植，
-//     分支结构与 Kotlin 逐行对应（禁止 else-if 分叉与手写分支）
+//   - evaluate 维护 prev 基准 + lastPhaseProgressedAtMs（假运行时间窗基准）
+//   - 分支结构与 Kotlin 逐行对应（禁止 else-if 分叉与手写分支）
 //
 // 线程安全：引擎循环（采样）与看门狗线程（evaluate）并发——内部
 // std::mutex 串行化（对应 Kotlin synchronized(this)）。

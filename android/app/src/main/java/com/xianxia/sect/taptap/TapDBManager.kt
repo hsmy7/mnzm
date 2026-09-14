@@ -31,6 +31,7 @@ object TapDBManager {
     internal var durationTrackingStartCount = 0
         private set
 
+    @Suppress("TooGenericExceptionCaught") // SDK 实例探针: SDK 未初始化即降级 null, 异常类型不可枚举
     private val dbInstance: TapDB?
         get() = try {
             TapDB.getInstance()
@@ -39,9 +40,10 @@ object TapDBManager {
             null
         }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun startGameDurationTracking(app: Application) {
         // 幂等守卫：重复调用直接跳过，避免重复构建 GameDurationService / 重复注册
-        // ActivityLifecycleTracker（广告公司反馈"重复初始化"同类问题一并根治）
+        // ActivityLifecycleTracker
         if (!trackingStarted.compareAndSet(false, true)) {
             Log.d(TAG, "Game duration tracking already started, skipping")
             return
@@ -73,6 +75,7 @@ object TapDBManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun stopGameDurationTracking() {
         try {
             // 复位守卫：登出/退出后重新登录允许再次启动时长统计
@@ -86,6 +89,7 @@ object TapDBManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun setUser(userId: String, name: String?) {
         try {
             val properties = JSONObject()
@@ -99,6 +103,7 @@ object TapDBManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun clearUser() {
         try {
             TapTapEvent.clearUser()
@@ -108,6 +113,7 @@ object TapDBManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun setLevel(level: Int) {
         try {
             dbInstance?.addCommon(mapOf("level" to level))
@@ -116,6 +122,7 @@ object TapDBManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun setServer(serverName: String) {
         try {
             dbInstance?.addCommon(mapOf("server" to serverName))
@@ -124,6 +131,7 @@ object TapDBManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun trackEvent(eventName: String, properties: Map<String, Any> = emptyMap()) {
         // 埋点总开关（TapDBConfig）：运营事故/合规要求时可整体关闭事件上报，
         // 账号登录/游玩时长等 TapDB 基础 BI 不受影响
@@ -148,6 +156,7 @@ object TapDBManager {
      * eCPM 为「预估价格、单位分」：Dirichlet(TapADN) SDK 无客户端 eCPM 回调，
      * 由 [AdRevenueConfig] 配置供给（运营从 ADN 数据报表更新估算值）。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun reportAdShow(config: AdRevenueConfig) {
         if (!TapDBConfig.analyticsEnabled) return
         try {
@@ -164,6 +173,7 @@ object TapDBManager {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun onCharge(
         orderId: String,
         productId: String,

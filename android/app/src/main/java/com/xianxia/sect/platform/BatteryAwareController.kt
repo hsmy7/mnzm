@@ -15,9 +15,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * BatteryAwareController — Android 平台电量/充电状态读取实现（计划 v2 阶段 7
- * 平台能力接口化：策略纯函数与接口留引擎层 `core.thermal.BatteryStatusProvider`，
- * 本类只做 Android 平台读取）。
+ * BatteryAwareController — Android 平台电量/充电状态读取实现：策略纯函数与接口
+ * 留引擎层 `core.thermal.BatteryStatusProvider`，本类只做 Android 平台读取。
  *
  * 读取走 sticky 广播缓存，**10s 内不重复 binder 调用**（fpsCap 在游戏循环
  * 每迭代被查询，必须避免每帧 registerReceiver）。

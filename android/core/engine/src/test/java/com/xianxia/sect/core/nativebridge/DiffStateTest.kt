@@ -24,7 +24,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffStateTest — 状态快照跨语言差分对拍（批次 1 验收核心）。
+ * DiffStateTest — 状态快照跨语言差分对拍。
  *
  * 守护目标：C++ GameCore（game-core 状态模型 + JSON 快照编解码）与 Kotlin
  * 快照协议（kotlinx.serialization JSON）字段名/值**逐位一致**——这是 UI 镜像
@@ -38,7 +38,9 @@ import org.junit.Test
  */
 class DiffStateTest {
 
-    private val json = Json { encodeDefaults = true }
+    // ignoreUnknownKeys：C++ 侧 P1-7 已将 deathYear 纳入弟子协议而 Kotlin
+    // Disciple 镜像字段未落——对拍解码容忍协议超集（落地后可回收）
+    private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
     @Test
     fun `gameData snapshot round trip matches Kotlin`() {
@@ -317,8 +319,8 @@ class DiffStateTest {
         val exported = DiffRngBridge.nativeCoreExportState()
         val decoded = json.decodeFromString(NativeGameState.serializer(), exported.decodeToString())
 
-        // 计划 v2 阶段 1 起，导出前会把 RNG 分区**活动状态**回写 rngStates
-        // （C-13 配套：镜像/存档必须拿到引擎当前确定性状态）——因此导出值
+        // 导出前会把 RNG 分区**活动状态**回写 rngStates
+        // （镜像/存档必须拿到引擎当前确定性状态）——因此导出值
         // 除样本声明的分区外还会含其余分区的活动状态。契约更新为：
         //   1) 样本声明的分区：导入恢复后原样往返（逐键相等）
         //   2) 其余字段：逐字段相等

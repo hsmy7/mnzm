@@ -92,12 +92,12 @@ fun UnifiedGameDialog(
         ?: R.drawable.bg_horizontal,
     @DrawableRes closeButtonRes: Int = SpriteResRegistry.resolve("ui_close_button")
         ?: R.drawable.ui_close_button,
-    /** 含文本输入框时传 true：挂载期间冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治，见 SystemBarFreezeScope KDoc） */
+    /** 含文本输入框时传 true：挂载期间冻结宿主窗口系统栏操作（见 SystemBarFreezeScope KDoc） */
     freezeSystemBars: Boolean = false,
     content: @Composable () -> Unit
 ) {
     // 输入对话框挂载期间冻结宿主窗口系统栏操作，切断键盘弹出收起振荡回路的
-    // 放大器环节（荣耀 X70 根治，见 SystemBarFreezeScope KDoc）
+    // 放大器环节（见 SystemBarFreezeScope KDoc）
     SystemBarFreezeEffect(freezeSystemBars)
 
     // 对话框窗口内任意触摸 → 刷新引擎闲置计时（独立 Window 不触发
@@ -122,7 +122,7 @@ fun UnifiedGameDialog(
             dismissOnClickOutside = false
         )
     ) {
-        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（第四根因根治，见 DialogSystemBarFreezeScope）
+        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（见 DialogSystemBarFreezeScope）
         DialogSystemBarFreezeEffect(freezeSystemBars)
         // 切换 softInputMode，切断 OEM 键盘频闪震荡回路（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
         DialogSoftInputGuard()
@@ -133,7 +133,7 @@ fun UnifiedGameDialog(
         // FloatingActionMode 在窗口 token 失效后弹 PopupWindow 崩溃（Bugly #3026）
         DialogFocusGuard()
 
-        // 键盘避让（2026-09 IME 状态机根治）：平台 Dialog 窗口内容区挂
+        // 键盘避让：平台 Dialog 窗口内容区挂
         // ImeAwareContainer 事件驱动避让（键盘可见翻转 → 对话框一次性上移，
         // 不依赖 Dialog 窗口 imePadding 的历史可靠性 #229378542）；无输入框时
         // 键盘永不弹出、offset 恒 0，零行为变化。
@@ -169,7 +169,7 @@ fun UnifiedGameDialog(
     }
 }
 
-/** 对话框尺寸模式 → (宽, 高) 修饰符（UnifiedGameDialog 拆分） */
+/** 对话框尺寸模式 → (宽, 高) 修饰符 */
 private fun dialogModeModifiers(mode: DialogMode): Pair<Modifier, Modifier> = when (mode) {
     DialogMode.Half -> Pair(
         Modifier.fillMaxWidth(DialogDefaults.HalfScreenWidthFraction),
@@ -189,9 +189,9 @@ private fun dialogModeModifiers(mode: DialogMode): Pair<Modifier, Modifier> = wh
     )
 }
 
-/** 框架内容（UnifiedGameDialog 拆分）：背景图 + 标题栏 + 内容区 + 窗口级覆盖层 */
+/** 框架内容：背景图 + 标题栏 + 内容区 + 窗口级覆盖层 */
 @Composable
-@Suppress("LongParameterList") // 拆分聚合：18 个平铺参数均为原公共函数参数的搬移（detekt 对 @Composable 不豁免）
+@Suppress("LongParameterList") // 18 个平铺参数，detekt 对 @Composable 不豁免
 private fun BoxScope.DialogFrame(
     modifier: Modifier,
     widthModifier: Modifier,
@@ -260,7 +260,7 @@ private fun BoxScope.DialogFrame(
     overlay?.invoke()
 }
 
-/** 遮罩层（UnifiedGameDialog 拆分）：scrim 背景 + 点击外部关闭 + 触摸闲置计时刷新 */
+/** 遮罩层：scrim 背景 + 点击外部关闭 + 触摸闲置计时刷新 */
 @Composable
 private fun DialogScrim(
     onDismissRequest: () -> Unit,
@@ -301,9 +301,9 @@ private fun DialogScrim(
     )
 }
 
-/** 标题栏（UnifiedGameDialog 拆分）：标题 + 关闭按钮/头部动作 + header 扩展内容 */
+/** 标题栏：标题 + 关闭按钮/头部动作 + header 扩展内容 */
 @Composable
-@Suppress("LongParameterList") // 拆分聚合：10 个平铺参数均为原公共函数参数的搬移（detekt 对 @Composable 不豁免）
+@Suppress("LongParameterList") // 10 个平铺参数，detekt 对 @Composable 不豁免
 private fun DialogHeader(
     title: String,
     mode: DialogMode,
@@ -347,7 +347,7 @@ private fun DialogHeader(
     headerContent?.invoke()
 }
 
-/** 内容区（UnifiedGameDialog 拆分）：滚动修饰 + 水平 padding + content 槽位 */
+/** 内容区：滚动修饰 + 水平 padding + content 槽位 */
 @Composable
 private fun ColumnScope.DialogContentArea(
     scrollableContent: Boolean,

@@ -19,6 +19,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
+import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,7 +50,7 @@ open class FakeGameStateStore : GameStateStore {
     // 记录 update 调用（验证单事务）
     var updateCallCount = 0
 
-    // ── 反向增量通道（计划 v2 阶段 3）：镜像生产 GameStateStoreImpl 的事务级捕获 ──
+    // ── 反向增量通道：镜像生产 GameStateStoreImpl 的事务级捕获 ──
 
     private class ReverseAcc {
         val discipleIds = LinkedHashSet<Int>()
@@ -67,13 +68,12 @@ open class FakeGameStateStore : GameStateStore {
 
     private val reverseAcc = ReverseAcc()
 
-    // ── 嵌套事务重入（S-14 家族修复，批 11-4）────────────────────────
+    // ── 嵌套事务重入────────────────────────
     // 对齐生产 GameStateStoreImpl 的 ReentrantLock 重入语义（:913-1015）：
     // 最外层 update 创建事务 buffer（activeTransaction）；嵌套 update 检测到
     // 活跃事务时**复用同一 buffer** 执行 block（不 persist、不 captureReverse、
     // 不递增 updateCallCount）——内层写入进入外层事务，最外层结束时统一
-    // persistFrom + captureReverse。修复前每次 update 独立 fork 已提交快照，
-    // 内层写入被外层提交覆盖（12 月 autoBuy 对拍库存丢失的根因）。
+    // persistFrom + captureReverse，内层写入不被外层提交覆盖。
     private var activeTransaction: MutableGameState? = null
 
     override fun update(block: MutableGameState.() -> Unit) {
@@ -81,7 +81,7 @@ open class FakeGameStateStore : GameStateStore {
     }
 
     /**
-     * 镜像专用事务更新（对齐生产 GameStateStoreImpl.updateMirror，2026-08-31）：
+     * 镜像专用事务更新（对齐生产 GameStateStoreImpl.updateMirror）：
      * C++ → Kotlin 前向镜像写入不参与反向捕获——镜像变更由 C++ 产生、无需回导，
      * 不污染玩家操作捕获窗口（tick ⑤ 只发送玩家操作 + 残留执行器产生的变更）。
      */
@@ -155,20 +155,37 @@ open class FakeGameStateStore : GameStateStore {
             mgs.herbs.items, mgs.seeds.items, mgs.storageBags.items
         )
         for (i in collectionNames().indices) {
-            if (baseline.collections[i] === current[i]) continue
-            val removedIds = baseline.collections[i].mapTo(HashSet()) { (it as HasId).id } -
-                current[i].mapTo(HashSet()) { (it as HasId).id }
-            @Suppress("UNCHECKED_CAST")
-            reverseAcc.collections[collectionNames()[i]] = GameStateStore.CollectionCapture(
-                upserts = current[i] as List<HasId>,
-                removedIds = removedIds
-            )
+            val name = collectionNames()[i]
+            val changedReference = baseline.collections[i] !== current[i]
+            // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（与生产 GameStateStoreImpl 同源）
+            if (changedReference && !ReverseChannelPolicy.isCollectionTransported(name)) {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.COLLECTION, name, "FakeGameStateStore"
+                )
+            } else if (changedReference) {
+                val removedIds = baseline.collections[i].mapTo(HashSet()) { (it as HasId).id } -
+                    current[i].mapTo(HashSet()) { (it as HasId).id }
+                @Suppress("UNCHECKED_CAST")
+                reverseAcc.collections[name] = GameStateStore.CollectionCapture(
+                    upserts = current[i] as List<HasId>,
+                    removedIds = removedIds
+                )
+            }
         }
         val tracker = mgs.discipleTables.changedIdTracker
         val ids = tracker.snapshotChangedIds()
         if (ids.isNotEmpty()) {
-            reverseAcc.discipleIds += ids
-            if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
+            // 逐域关闭（batch-21）：弟子通道关闭后不累积脏 id，但写入仍登记检测
+            if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
+                reverseAcc.discipleIds += ids
+                if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
+            } else {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
+                    ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
+                    "FakeGameStateStore"
+                )
+            }
         }
     }
 
@@ -247,9 +264,9 @@ open class FakeGameStateStore : GameStateStore {
     // ── 只读流（最小桩）──
     override val gameData: StateFlow<GameData> get() = MutableStateFlow(gameDataValue)
     override val disciples: StateFlow<List<Disciple>> get() = MutableStateFlow(disciplesValue)
-    // 批 13-2a：对齐生产 GameStateStoreImpl 共享语义——生产 discipleTables 为
-    // 事务内共享可变实例（钩子标记/状态变更对同事务后序读取可见）；原实现每次
-    // 访问从 disciplesValue 重建副本，事务内读取丢失前序写入（如教化之道钩子
+    // 对齐生产 GameStateStoreImpl 共享语义——生产 discipleTables 为
+    // 事务内共享可变实例（钩子标记/状态变更对同事务后序读取可见；
+    // 每次访问重建副本会丢失事务内前序写入，如教化之道钩子
     // 的 lastTheftJudgementYears 标记 → 子事件 3 兜底误判 hasCandidate 重复
     // 判定，与 C++ 当前态行为漂移）。事务内返回 activeTransaction 共享表，
     // 事务外仍返回 committed 副本（只读桩语义）。

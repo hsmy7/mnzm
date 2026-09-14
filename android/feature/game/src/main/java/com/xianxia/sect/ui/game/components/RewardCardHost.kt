@@ -134,7 +134,7 @@ private fun AnimatedRewardCard(
     }
 }
 
-/** 奖励卡片主体（AnimatedRewardCard 拆分）：渐变背景 + 精灵/名称/数量行 */
+/** 奖励卡片主体：渐变背景 + 精灵/名称/数量行 */
 @Composable
 private fun RewardCardBody(item: RewardCardItem) {
     Box(
@@ -178,7 +178,7 @@ private fun RewardCardBody(item: RewardCardItem) {
     }
 }
 
-/** 奖励卡片精灵区（AnimatedRewardCard 拆分）：品阶色背景 + 精灵/占位文本 */
+/** 奖励卡片精灵区：品阶色背景 + 精灵/占位文本 */
 @Composable
 private fun RewardCardSprite(item: RewardCardItem) {
     // 品阶色背景 + 灰色边框，无精灵时显示占位文本

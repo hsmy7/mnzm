@@ -21,7 +21,7 @@ class StorageResultTest {
 
     @Test
     fun `Skipped - isSkipped true and not success or failure`() {
-        // T9（2026-08-05）：Skipped 表示部分完成（主流程成功、附属步骤被跳过）
+        // Skipped 表示部分完成（主流程成功、附属步骤被跳过）
         val result: StorageResult<String> = StorageResult.skipped("备份超限跳过")
         assertTrue(result.isSkipped)
         assertFalse(result.isSuccess)
@@ -172,8 +172,10 @@ class StorageResultTest {
     @Test
     fun `BatchOperationResult - allSuccess reflects failure count`() {
         val allSuccess = BatchOperationResult(totalCount = 5, successCount = 5, failureCount = 0, errors = emptyMap())
-        val partialSuccess = BatchOperationResult(totalCount = 5, successCount = 3, failureCount = 2, errors = mapOf(1 to StorageError.IO_ERROR, 3 to StorageError.TIMEOUT))
-        val allFailed = BatchOperationResult(totalCount = 3, successCount = 0, failureCount = 3, errors = mapOf(0 to StorageError.SAVE_FAILED, 1 to StorageError.SAVE_FAILED, 2 to StorageError.SAVE_FAILED))
+        val partialSuccess = BatchOperationResult(totalCount = 5, successCount = 3, failureCount = 2,
+            errors = mapOf(1 to StorageError.IO_ERROR, 3 to StorageError.TIMEOUT))
+        val allFailed = BatchOperationResult(totalCount = 3, successCount = 0, failureCount = 3,
+            errors = mapOf(0 to StorageError.SAVE_FAILED, 1 to StorageError.SAVE_FAILED, 2 to StorageError.SAVE_FAILED))
 
         assertTrue(allSuccess.allSuccess)
         assertFalse(partialSuccess.allSuccess)

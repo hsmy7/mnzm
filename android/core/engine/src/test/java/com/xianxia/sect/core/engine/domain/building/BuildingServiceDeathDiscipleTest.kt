@@ -32,11 +32,11 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 读档收获路径死亡弟子与产出失败测试（2026-08-09 B3/B4 预存问题修复回归）。
+ * 读档收获路径死亡弟子与产出失败测试。
  *
- * - B3：死弟子槽位卡死——读档收获后 Repository 槽位补清弟子关联
+ * - 死弟子槽位清理：读档收获后 Repository 槽位补清弟子关联
  *       （SlotStateMachine.resetSlot 保留弟子字段，不清导致死弟子永久占用槽位）
- * - B4：锁内吞失败——产出入库失败（addPill/addEquipmentStack Failure）视为炼制失败，
+ * - 锁内吞失败防御：产出入库失败（addPill/addEquipmentStack Failure）视为炼制失败，
  *       不结算晋升但计数照常（防装备/丹药静默丢失）
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)

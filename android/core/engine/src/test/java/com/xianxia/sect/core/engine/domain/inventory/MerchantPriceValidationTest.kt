@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.inventory
 
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
-import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
@@ -21,7 +20,7 @@ import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
 /**
- * D-21 商人交易价格校验守卫测试（2026-08-09 批次，含举一反三同类缺口）。
+ * 商人交易价格校验守卫测试（含同类缺口覆盖）。
  *
  * 核心守卫：
  * - buyMerchantItem 负价/0 价商品拒绝购买（灵石不变 / 不入库 / 商家库存不变）
@@ -49,10 +48,6 @@ class MerchantPriceValidationTest {
         val inventorySystem = InventorySystem(
             stateStore = store,
             inventoryConfig = InventoryConfig(),
-            spiritStoneWallet = wallet,
-            gameConfigProvider = GameConfigProvider(
-                com.xianxia.sect.core.config.ConfigLoader(assetReader = { null })
-            ),
             overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
         )
         facade = InventoryFacadeImpl(

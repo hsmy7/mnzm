@@ -10,7 +10,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 增量组装等价性测试（2026-08-01 双指针归并重写）。
+ * 增量组装等价性测试。
  *
  * 守卫：assembleAllIncremental 与 assembleAll 在任何操作序列下逐字段等价——
  * 包括 insert / 列级写 / markDead / remove / replaceAll 混合，以及幽灵边界。

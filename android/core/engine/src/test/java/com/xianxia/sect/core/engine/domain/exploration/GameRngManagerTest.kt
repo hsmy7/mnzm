@@ -51,8 +51,11 @@ class GameRngManagerTest {
     }
 
     @Test
-    fun `exportStates returns all partitions`() {
+    fun `exportStates returns all snapshot partitions`() {
         val mgr = GameRngManager(); mgr.initSystemSeed(42)
-        assertEquals(RngPartition.values().size, mgr.exportStates().size)
+        // 参与存档的分区必须全部导出；通道型分区（AI_SECT_MIRROR，状态归
+        // C++ aiRng_ 保管）**不得**出现在此（否则与宿主侧同一 9 号键互相覆盖）
+        assertEquals(RngPartition.entries.count { it.inSnapshot }, mgr.exportStates().size)
+        assertTrue(mgr.exportStates().keys.none { it == RngPartition.AI_SECT_MIRROR.id })
     }
 }

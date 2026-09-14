@@ -22,8 +22,9 @@ import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.ui.game.SecretRealmViewModel
 import com.xianxia.sect.ui.game.map.WorldMapScreen
+import com.xianxia.sect.ui.game.delegate.attackWorldLevel
 
-/** 世界地图子对话框 UI 状态（WorldMapDialog 拆分） */
+/** 世界地图子对话框 UI 状态 */
 private class WorldMapDialogUiState {
     var selectedSect by mutableStateOf<WorldSect?>(null)
     var showSectDetail by mutableStateOf(false)
@@ -34,7 +35,15 @@ private class WorldMapDialogUiState {
     var showSecretRealmExploration by mutableStateOf(false)
 }
 
-/** 世界地图子对话框上下文（WorldMapDialog 拆分） */
+/** 世界地图子对话框上下文 */
+/** 世界地图弹窗显示输入（WorldMapDialog 参数分组）：宗门列表 + 渲染数据 + 档案 + 弟子 */
+data class WorldMapDialogInputs(
+    val worldSects: List<WorldSect>,
+    val mapRenderData: WorldMapRenderData,
+    val gameData: GameData?,
+    val disciples: List<DiscipleAggregate>
+)
+
 private data class WorldMapDialogContext(
     val gameData: GameData?,
     val disciples: List<DiscipleAggregate>,
@@ -47,26 +56,17 @@ private data class WorldMapDialogContext(
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun WorldMapDialog(
-    worldSects: List<WorldSect>,
-    mapRenderData: WorldMapRenderData,
-    gameData: GameData?,
-    disciples: List<DiscipleAggregate>,
+    inputs: WorldMapDialogInputs,
     viewModel: GameViewModel,
     interactionViewModel: WorldMapInteractionViewModel,
     garrisonViewModel: WorldMapGarrisonViewModel,
     onDismiss: () -> Unit
 ) {
+    val worldSects = inputs.worldSects
+    val mapRenderData = inputs.mapRenderData
+    val gameData = inputs.gameData
+    val disciples = inputs.disciples
     val uiState = remember { WorldMapDialogUiState() }
-
-    // WorldMap sub-dialogs — rendered locally to keep world map as background
-    val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
-    val selectedTradeSectId by interactionViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
-    val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
-    val showScoutDialog by interactionViewModel.showScoutDialog.collectAsStateWithLifecycle()
-    val selectedScoutSectId by interactionViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
-    val (playerSectX, playerSectY) = playerSectCenter(mapRenderData)
-    val mapItems = buildWorldMapItems(worldSects = worldSects, mapRenderData = mapRenderData)
-
     // 秘境探索全屏宿主（会话存在时暂停游戏时间，退出恢复）
     val secretRealmViewModel: SecretRealmViewModel =
         androidx.hilt.navigation.compose.hiltViewModel()
@@ -78,6 +78,12 @@ internal fun WorldMapDialog(
         garrisonViewModel = garrisonViewModel,
         secretRealmViewModel = secretRealmViewModel
     )
+    val (playerSectX, playerSectY) = playerSectCenter(mapRenderData)
+    val mapItems = buildWorldMapItems(worldSects = worldSects, mapRenderData = mapRenderData)
+    val (showSectTradeDialog, selectedTradeSectId, sectTradeItems) =
+        collectTradeDialogState(interactionViewModel)
+    val (showScoutDialog, selectedScoutSectId) =
+        collectScoutDialogState(interactionViewModel)
 
     BackHandler(onBack = onDismiss)
     Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
@@ -102,32 +108,53 @@ internal fun WorldMapDialog(
                 uiState.showSecretRealmDetail = true
             }
         )
-        WorldMapSecretRealmExplorationGate(context = context, uiState = uiState)
-        WorldMapSectDetailGate(context = context, uiState = uiState)
-        WorldMapSecretRealmDetailGate(context = context, uiState = uiState)
-        WorldMapLevelDetailGate(context = context, uiState = uiState)
-        WorldMapSectTradeGate(
-            context = context,
+        WorldMapSubDialogGate(
+            context = context, uiState = uiState,
             showSectTradeDialog = showSectTradeDialog,
             selectedTradeSectId = selectedTradeSectId,
-            sectTradeItems = sectTradeItems
-        )
-        WorldMapScoutGate(
-            context = context,
+            sectTradeItems = sectTradeItems,
             showScoutDialog = showScoutDialog,
             selectedScoutSectId = selectedScoutSectId
         )
     }
 }
 
-/** 玩家宗门中心坐标（WorldMapDialog 拆分） */
+/** 世界地图子弹窗集：秘境探索/宗门详情/秘境详情/关卡详情/交易/侦察 */
+@Composable
+private fun WorldMapSubDialogGate(
+    context: WorldMapDialogContext,
+    uiState: WorldMapDialogUiState,
+    showSectTradeDialog: Boolean,
+    selectedTradeSectId: String?,
+    sectTradeItems: List<MerchantItem>,
+    showScoutDialog: Boolean,
+    selectedScoutSectId: String?
+) {
+    WorldMapSecretRealmExplorationGate(context = context, uiState = uiState)
+    WorldMapSectDetailGate(context = context, uiState = uiState)
+    WorldMapSecretRealmDetailGate(context = context, uiState = uiState)
+    WorldMapLevelDetailGate(context = context, uiState = uiState)
+    WorldMapSectTradeGate(
+        context = context,
+        showSectTradeDialog = showSectTradeDialog,
+        selectedTradeSectId = selectedTradeSectId,
+        sectTradeItems = sectTradeItems
+    )
+    WorldMapScoutGate(
+        context = context,
+        showScoutDialog = showScoutDialog,
+        selectedScoutSectId = selectedScoutSectId
+    )
+}
+
+/** 玩家宗门中心坐标 */
 private fun playerSectCenter(mapRenderData: WorldMapRenderData): Pair<Float, Float> {
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
     return (playerSect?.x ?: MapCoordinateSystem.WORLD_WIDTH / 2f) to
         (playerSect?.y ?: MapCoordinateSystem.WORLD_HEIGHT / 2f)
 }
 
-/** 地图渲染项构建（WorldMapDialog 拆分）：宗门 + 关卡 + 秘境 */
+/** 地图渲染项构建：宗门 + 关卡 + 秘境 */
 @Composable
 private fun buildWorldMapItems(
     worldSects: List<WorldSect>,
@@ -147,7 +174,7 @@ private fun buildWorldMapItems(
     }
 }
 
-/** 世界地图屏幕宿主（WorldMapDialog 拆分）：地图 + 点击分派 */
+/** 世界地图屏幕宿主：地图 + 点击分派 */
 @Composable
 private fun WorldMapScreenHost(
     mapItems: List<MapItem>,
@@ -173,7 +200,7 @@ private fun WorldMapScreenHost(
     )
 }
 
-/** 远古秘境探索全屏（WorldMapDialog 拆分）：覆盖地图，返回 = 暂存退出 */
+/** 远古秘境探索全屏：覆盖地图，返回 = 暂存退出 */
 @Composable
 private fun WorldMapSecretRealmExplorationGate(
     context: WorldMapDialogContext,
@@ -196,7 +223,7 @@ private fun WorldMapSecretRealmExplorationGate(
     }
 }
 
-/** 宗门详情弹窗（WorldMapDialog 拆分） */
+/** 宗门详情弹窗 */
 @Composable
 private fun WorldMapSectDetailGate(
     context: WorldMapDialogContext,
@@ -220,7 +247,7 @@ private fun WorldMapSectDetailGate(
     }
 }
 
-/** 远古秘境详情弹窗（WorldMapDialog 拆分） */
+/** 远古秘境详情弹窗 */
 @Composable
 private fun WorldMapSecretRealmDetailGate(
     context: WorldMapDialogContext,
@@ -250,7 +277,7 @@ private fun WorldMapSecretRealmDetailGate(
     }
 }
 
-/** 关卡详情弹窗（WorldMapDialog 拆分）：BEAST 类型打开时锁定妖兽 */
+/** 关卡详情弹窗：BEAST 类型打开时锁定妖兽 */
 @Composable
 private fun WorldMapLevelDetailGate(
     context: WorldMapDialogContext,
@@ -261,7 +288,7 @@ private fun WorldMapLevelDetailGate(
         LaunchedEffect(uiState.showLevelDetail, uiState.selectedLevel) {
             val lvl = uiState.selectedLevel
             if (lvl != null && lvl.levelType == LevelType.BEAST) {
-                context.viewModel.lockBeast(lvl.id)
+                context.viewModel.beastAttack.lockBeast(lvl.id)
             }
         }
 
@@ -271,13 +298,13 @@ private fun WorldMapLevelDetailGate(
                 disciples = context.disciples,
                 viewModel = context.viewModel,
                 onAttack = { slotIds ->
-                    context.viewModel.attackWorldLevel(level.id, slotIds)
-                    context.viewModel.unlockBeast(level.id)
+                    context.viewModel.navigation.attackWorldLevel(level.id, slotIds)
+                    context.viewModel.beastAttack.unlockBeast(level.id)
                     uiState.showLevelDetail = false
                     uiState.selectedLevel = null
                 },
                 onDismiss = {
-                    context.viewModel.unlockBeast(uiState.selectedLevel?.id ?: "")
+                    context.viewModel.beastAttack.unlockBeast(uiState.selectedLevel?.id ?: "")
                     uiState.showLevelDetail = false
                     uiState.selectedLevel = null
                 }
@@ -286,7 +313,7 @@ private fun WorldMapLevelDetailGate(
     }
 }
 
-/** 宗门交易弹窗（WorldMapDialog 拆分） */
+/** 宗门交易弹窗 */
 @Composable
 private fun WorldMapSectTradeGate(
     context: WorldMapDialogContext,
@@ -307,7 +334,7 @@ private fun WorldMapSectTradeGate(
     }
 }
 
-/** 探查弹窗（WorldMapDialog 拆分） */
+/** 探查弹窗 */
 @Composable
 private fun WorldMapScoutGate(
     context: WorldMapDialogContext,
@@ -328,4 +355,25 @@ private fun WorldMapScoutGate(
             onDismiss = { context.interactionViewModel.closeScoutDialog() }
         )
     }
+}
+
+/** 宗门交易弹窗三态收集 */
+@Composable
+private fun collectTradeDialogState(
+    vm: WorldMapInteractionViewModel
+): Triple<Boolean, String?, List<MerchantItem>> {
+    val show by vm.showSectTradeDialog.collectAsStateWithLifecycle()
+    val selectedId by vm.selectedTradeSectId.collectAsStateWithLifecycle()
+    val items by vm.sectTradeItems.collectAsStateWithLifecycle()
+    return Triple(show, selectedId, items)
+}
+
+/** 侦察弹窗两态收集 */
+@Composable
+private fun collectScoutDialogState(
+    vm: WorldMapInteractionViewModel
+): Pair<Boolean, String?> {
+    val show by vm.showScoutDialog.collectAsStateWithLifecycle()
+    val selectedId by vm.selectedScoutSectId.collectAsStateWithLifecycle()
+    return Pair(show, selectedId)
 }

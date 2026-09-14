@@ -7,12 +7,11 @@ import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.sect.FastPreviewSnapshot
 
 /**
- * MainGameScreen 触控辅助函数簇（2026-08-30 触控优化拆分）。
+ * MainGameScreen 触控辅助函数簇。
  * 独立文件承载——预览快通道写入与手势引擎回调解耦，保持 MainGameScreenGestures.kt
  * 函数数低于 detekt 文件阈值。
  *
- * 注：命中宽容判定（hit slop 外扩 / 最近建筑兜底）已移除，建筑命中统一改为
- * 精确格命中（见 MainGameScreenGestures 的 findBuildingAt）。
+ * 注：建筑命中统一为精确格命中（见 MainGameScreenGestures 的 findBuildingAt）。
  */
 
 /**
@@ -74,8 +73,8 @@ private fun computeFastPreview(
         v0 = uvs[1],
         u1 = uvs[2],
         v1 = uvs[3],
-        // ★ 2026-09 修复：精灵不透明显示（原 0.5 半透明与半透明预览框叠成
-        //   "两个绿色半透明背景"；与 SectMapViewport 放置路径 previewAlpha=1.0 一致）
+        // 精灵不透明显示（半透明会与半透明预览框叠成
+        // "两个绿色半透明背景"；与 SectMapViewport 放置路径 previewAlpha=1.0 一致）
         alpha = 1.0f
     )
 }

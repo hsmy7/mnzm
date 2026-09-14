@@ -46,7 +46,7 @@ fun HeavenlyTrialBattleDialog(
     onDismiss: () -> Unit
 ) {
     val config = remember(levelIndex) { HeavenlyTrialConfig.getLevel(levelIndex) }
-    // C1 对抗性审查修复：remember 包裹——预览敌人生成（固定种子，不消费全局 RNG）
+    // remember 包裹——预览敌人生成（固定种子，不消费全局 RNG）
     // 只执行一次，重组不重复生成（属性稳定 + 零性能浪费）
     val phase1Enemies = remember(levelIndex) {
         viewModel.trialService.getEnemiesForPhase(levelIndex, 0)
@@ -102,7 +102,7 @@ fun HeavenlyTrialBattleDialog(
     }
 }
 
-/** 出战弟子选择覆盖层（HeavenlyTrialBattleDialog 拆分）：半屏覆盖在挑战界面上 */
+/** 出战弟子选择覆盖层：半屏覆盖在挑战界面上 */
 @Composable
 private fun TrialDiscipleSelectOverlay(
     show: Boolean,
@@ -119,7 +119,7 @@ private fun TrialDiscipleSelectOverlay(
     }
 }
 
-/** 背景图（HeavenlyTrialBattleDialog 拆分） */
+/** 背景图 */
 @Composable
 private fun BoxScope.TrialBackgroundImage() {
     Image(
@@ -130,7 +130,7 @@ private fun BoxScope.TrialBackgroundImage() {
     )
 }
 
-/** 标题栏（HeavenlyTrialBattleDialog 拆分） */
+/** 标题栏 */
 @Composable
 private fun TrialTitleBar(label: String, onDismiss: () -> Unit) {
     Row(
@@ -149,7 +149,7 @@ private fun TrialTitleBar(label: String, onDismiss: () -> Unit) {
     }
 }
 
-/** 关卡选择列（HeavenlyTrialBattleDialog 拆分）：阶段一/二图标 + 通关状态 */
+/** 关卡选择列：阶段一/二图标 + 通关状态 */
 @Composable
 private fun RowScope.PhaseSelectionColumn(
     selectedPhaseIndex: Int,
@@ -178,7 +178,7 @@ private fun RowScope.PhaseSelectionColumn(
     }
 }
 
-/** 单阶段图标（HeavenlyTrialBattleDialog 拆分）：选中边框 + 通关标记 */
+/** 单阶段图标：选中边框 + 通关标记 */
 @Composable
 private fun TrialPhaseIcon(
     spriteRes: Int,
@@ -216,7 +216,7 @@ private fun TrialPhaseIcon(
     }
 }
 
-/** 竖线分隔（HeavenlyTrialBattleDialog 拆分） */
+/** 竖线分隔 */
 @Composable
 private fun TrialDivider() {
     Box(
@@ -227,7 +227,7 @@ private fun TrialDivider() {
     )
 }
 
-/** 挑战对象列（HeavenlyTrialBattleDialog 拆分）：敌方名单 */
+/** 挑战对象列：敌方名单 */
 @Composable
 private fun RowScope.EnemySelectionList(
     enemies: List<Combatant>,
@@ -260,7 +260,7 @@ private fun RowScope.EnemySelectionList(
     }
 }
 
-/** 信息+挑战区（HeavenlyTrialBattleDialog 拆分）：敌方详情 + 挑战按钮 */
+/** 信息+挑战区：敌方详情 + 挑战按钮 */
 @Composable
 private fun RowScope.EnemyInfoChallengeColumn(
     selectedEnemy: Combatant?,
@@ -337,16 +337,18 @@ private fun EnemyInfoDetail(
     }
 }
 
-/** 基本信息（EnemyInfoDetail 拆分）：名称 + 境界/血量 + 属性 */
+/** 基本信息：名称 + 境界/血量 + 属性 */
 @Composable
 private fun EnemyBasicInfo(enemy: Combatant) {
     Text(enemy.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black)
     Spacer(Modifier.height(2.dp))
-    Text("${enemy.realmName}${enemy.realmLayer}层  HP:${enemy.hp}/${enemy.maxHp}  MP:${enemy.mp}/${enemy.maxMp}", fontSize = 10.sp, color = Color.Black)
-    Text("物攻${enemy.physicalAttack} 法攻${enemy.magicAttack} 物防${enemy.physicalDefense} 法防${enemy.magicDefense} 速度${enemy.speed}", fontSize = 10.sp, color = Color.Black)
+    Text("${enemy.realmName}${enemy.realmLayer}层  HP:${enemy.hp}/${enemy.maxHp}  MP:${enemy.mp}/${enemy.maxMp}",
+        fontSize = 10.sp, color = Color.Black)
+    Text("物攻${enemy.physicalAttack} 法攻${enemy.magicAttack} 物防${enemy.physicalDefense} 法防${enemy.magicDefense} " +
+        "速度${enemy.speed}", fontSize = 10.sp, color = Color.Black)
 }
 
-/** 妖兽技能区（EnemyInfoDetail 拆分） */
+/** 妖兽技能区 */
 @Composable
 private fun EnemyBeastSkills(enemy: Combatant) {
     Spacer(Modifier.height(6.dp))
@@ -362,16 +364,19 @@ private fun EnemyBeastSkills(enemy: Combatant) {
             }
             if (skill.damageMultiplier > 0) {
                 val dmgType = if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"
-                Text("${dmgType}伤害 ×${(skill.damageMultiplier * 100).toInt()}%  ${skill.hits}连击  冷却${skill.cooldown}回合  消耗${skill.mpCost}灵力", fontSize = 9.sp, color = Color.Black)
+                Text("${dmgType}伤害 ×${(skill.damageMultiplier * 100).toInt()}%  ${skill.hits}连击  " +
+                    "冷却${skill.cooldown}回合  消耗${skill.mpCost}灵力", fontSize = 9.sp, color = Color.Black)
             }
             skill.buffs.forEach { buff ->
                 val buffName = buff.first.displayName
-                Text("$buffName +${(buff.second * 100).toInt()}% 持续${buff.third}回合", fontSize = 9.sp, color = Color.Black)
+                Text("$buffName +${(buff.second * 100).toInt()}% 持续${buff.third}回合", fontSize = 9.sp,
+                    color = Color.Black)
             }
             if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
                 val bt = skill.buffType
                 if (bt != null) {
-                    Text("${bt.displayName} +${(skill.buffValue * 100).toInt()}% 持续${skill.buffDuration}回合", fontSize = 9.sp, color = Color.Black)
+                    Text("${bt.displayName} +${(skill.buffValue * 100).toInt()}% 持续${skill.buffDuration}回合",
+                        fontSize = 9.sp, color = Color.Black)
                 }
             }
             if (skill.healPercent > 0) {
@@ -385,7 +390,7 @@ private fun EnemyBeastSkills(enemy: Combatant) {
     }
 }
 
-/** 装备槽位区（EnemyInfoDetail 拆分）：4 列装备卡片 */
+/** 装备槽位区：4 列装备卡片 */
 @Composable
 private fun EnemyEquipmentSection(
     enemy: Combatant,
@@ -424,7 +429,7 @@ private fun EnemyEquipmentSection(
     }
 }
 
-/** 功法槽位区（EnemyInfoDetail 拆分）：4 列网格，不足 4 个用占位符补齐 */
+/** 功法槽位区：4 列网格，不足 4 个用占位符补齐 */
 @Composable
 private fun EnemyManualSection(
     enemy: Combatant,
@@ -442,7 +447,8 @@ private fun EnemyManualSection(
         Triple(manualName, rarity, manual)
     }
     val paddedSkills = if (manualSkills.size % SLOT_GRID_COLUMNS == 0) manualSkills
-        else manualSkills + List(SLOT_GRID_COLUMNS - manualSkills.size % SLOT_GRID_COLUMNS) { Triple("", 1, null as ManualDatabase.ManualTemplate?) }
+        else manualSkills + List(SLOT_GRID_COLUMNS - manualSkills.size % SLOT_GRID_COLUMNS) { Triple("", 1,
+            null as ManualDatabase.ManualTemplate?) }
     val rows = paddedSkills.chunked(SLOT_GRID_COLUMNS)
     Column(verticalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)) {
         rows.forEach { row ->

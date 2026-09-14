@@ -2,14 +2,17 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.util.BattleCalculator
+import com.xianxia.sect.core.util.calculateDamageShare
+import com.xianxia.sect.core.util.calculateLinkedDamage
+import com.xianxia.sect.core.util.calculateShieldAbsorption
 
 /**
- * 共享伤害应用层（2026-08-04 双引擎收敛）。
+ * 共享伤害应用层。
  *
  * BattleSystem（主战斗）与 AISectAttackManager（宗门战）共用：
  * 护盾吸收（含护盾余量写回）、伤害分摊、伤害链接的"计算 + 更新目标"编排。
  * 纯计算在 [BattleCalculator]，本类仅做"应用到 Combatant"的状态转换，
- * 保证两引擎受击语义一致（此前 AI 引擎直接扣血、无护盾/分摊/链接）。
+ * 保证两引擎受击语义一致。
  *
  * 阵营语义与 BattleSystem 一致：team = DEFENDER 阵营，beasts = ATTACKER 阵营。
  */
@@ -27,9 +30,9 @@ object BattleDamageApplier {
         val updated = target.copy(hp = maxOf(0, target.hp - shieldResult.remainingDamage))
         val shieldBuff = shieldResult.shieldBuff ?: return updated
         // 护盾余量按比例写回（剩余护盾值 / 当前 maxHp）。
-        // 对抗性审查修复：按 value 匹配被消耗的护盾而非 remainingDuration——
-        // 同剩余时长的多个护盾（如龟甲术 0.15 + 水盾 0.3 均 3 回合）此前会被一并
-        // 覆写为同一余量值，护盾总量提前耗尽
+        // 按 value 匹配被消耗的护盾而非 remainingDuration——
+        // 同剩余时长的多个护盾（如龟甲术 0.15 + 水盾 0.3 均 3 回合）必须各自
+        // 独立写回余量，按时长匹配会一并覆写使护盾总量提前耗尽
         return updated.copy(
             buffs = updated.buffs.map { b ->
                 if (b.type == BuffType.SHIELD && b.value == shieldBuff.value) {

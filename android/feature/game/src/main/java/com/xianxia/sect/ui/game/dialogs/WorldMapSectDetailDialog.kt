@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.GameColors
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 @Composable
 internal fun WorldMapSectDetailDialog(
@@ -101,7 +102,7 @@ internal fun WorldMapSectDetailDialog(
     WorldMapSectDiplomacyDialog(state = state, interactionViewModel = interactionViewModel)
 }
 
-/** 宗门详情派生状态（WorldMapSectDetailDialog 拆分） */
+/** 宗门详情派生状态 */
 private data class WorldMapSectState(
     val sect: WorldSect,
     val gameData: GameData?,
@@ -112,7 +113,7 @@ private data class WorldMapSectState(
     val isPlayerVassal: Boolean
 )
 
-/** 宗门详情派生状态计算（WorldMapSectDetailDialog 拆分） */
+/** 宗门详情派生状态计算 */
 @Composable
 private fun rememberWorldMapSectState(
     sect: WorldSect,
@@ -139,7 +140,7 @@ private fun rememberWorldMapSectState(
     )
 }
 
-/** 宗门详情头部（WorldMapSectDetailDialog 拆分）：标题行 + 标签行 + 所属势力/关系行 */
+/** 宗门详情头部：标题行 + 标签行 + 所属势力/关系行 */
 @Composable
 private fun WorldMapSectHeader(state: WorldMapSectState) {
     Row(
@@ -173,7 +174,7 @@ private fun WorldMapSectHeader(state: WorldMapSectState) {
     }
 }
 
-/** 宗门标签行（WorldMapSectDetailDialog 拆分）：本宗/盟友 */
+/** 宗门标签行：本宗/盟友 */
 @Composable
 private fun WorldMapSectTagRow(
     isAlly: Boolean,
@@ -211,7 +212,7 @@ private fun WorldMapSectTagRow(
     }
 }
 
-/** 所属势力/关系行（WorldMapSectDetailDialog 拆分） */
+/** 所属势力/关系行 */
 @Composable
 private fun WorldMapSectAffiliationRow(state: WorldMapSectState) {
     val ownerSect = state.gameData?.worldMapSects?.find { it.id == state.sect.occupierSectId }
@@ -257,7 +258,7 @@ private fun WorldMapSectAffiliationRow(state: WorldMapSectState) {
     }
 }
 
-/** 探查/操作区（WorldMapSectDetailDialog 拆分）：弟子分布 + 操作按钮 */
+/** 探查/操作区：弟子分布 + 操作按钮 */
 @Composable
 private fun WorldMapScoutSection(
     state: WorldMapSectState,
@@ -301,7 +302,7 @@ private fun WorldMapScoutSection(
     )
 }
 
-/** 单行境界分布（WorldMapSectDetailDialog 拆分）：5 个境界 + 数量 */
+/** 单行境界分布：5 个境界 + 数量 */
 @Composable
 private fun WorldMapRealmRow(
     realmIndexes: IntRange,
@@ -342,7 +343,7 @@ private fun WorldMapRealmRow(
     }
 }
 
-/** 宗门操作按钮行（WorldMapSectDetailDialog 拆分）：探查/外交/交易/进攻 */
+/** 宗门操作按钮行：探查/外交/交易/进攻 */
 @Composable
 private fun WorldMapSectActionRow(
     state: WorldMapSectState,
@@ -388,7 +389,7 @@ private fun WorldMapSectActionRow(
     }
 }
 
-/** 驻守弟子区（WorldMapSectDetailDialog 拆分）：槽位网格 + 进入按钮 */
+/** 驻守弟子区：槽位网格 + 进入按钮 */
 @Composable
 private fun WorldMapGarrisonSection(
     state: WorldMapSectState,
@@ -431,7 +432,7 @@ private fun WorldMapGarrisonSection(
     )
 }
 
-/** 驻守弟子槽位网格（WorldMapSectDetailDialog 拆分）：2 行 × 5 列 */
+/** 驻守弟子槽位网格：2 行 × 5 列 */
 @Composable
 private fun WorldMapGarrisonGrid(
     garrisonSlots: List<GarrisonSlot>,
@@ -458,7 +459,7 @@ private fun WorldMapGarrisonGrid(
                         portraitRes = gSlot.portraitRes,
                         onClick = {
                             if (gDisciple != null) {
-                                viewModel.showDiscipleDetail(DiscipleDetailRequest(gDisciple, disciples))
+                                viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(gDisciple, disciples))
                             } else {
                                 onGarrisonSlotClick(slotIndex)
                             }
@@ -476,7 +477,7 @@ private fun WorldMapGarrisonGrid(
     }
 }
 
-/** 本宗详情区（WorldMapSectDetailDialog 拆分）：进入按钮 */
+/** 本宗详情区：进入按钮 */
 @Composable
 private fun WorldMapPlayerSectSection(viewModel: GameViewModel) {
     HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
@@ -498,7 +499,7 @@ private fun WorldMapPlayerSectSection(viewModel: GameViewModel) {
     }
 }
 
-/** 驻守弟子选择弹窗（WorldMapSectDetailDialog 拆分） */
+/** 驻守弟子选择弹窗 */
 @Composable
 private fun WorldMapGarrisonSelectionDialog(
     state: WorldMapSectState,
@@ -531,7 +532,7 @@ private fun WorldMapGarrisonSelectionDialog(
         onConfirm = { selected ->
             selected.firstOrNull()?.let { disciple ->
                 if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                    viewModel.releaseDiscipleForReassignment(disciple.id)
+                    viewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                 }
                 garrisonViewModel.assignGarrisonDisciple(state.sect.id, slotIndex, disciple.id)
                 onDismiss()
@@ -540,7 +541,7 @@ private fun WorldMapGarrisonSelectionDialog(
     )
 }
 
-/** 外交对话子弹窗（WorldMapSectDetailDialog 拆分） */
+/** 外交对话子弹窗 */
 @Composable
 private fun WorldMapSectDiplomacyDialog(
     state: WorldMapSectState,
@@ -561,6 +562,7 @@ private fun WorldMapSectDiplomacyDialog(
     }
 }
 
+@Suppress("TooGenericExceptionCaught", "UnusedParameter") // portraitRes: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费；前者: 防御兜底降级继续
 @Composable
 private fun GarrisonSlotBox(
     disciple: DiscipleAggregate?,
@@ -572,7 +574,7 @@ private fun GarrisonSlotBox(
 ) {
     val borderColor = if (disciple != null) {
         try { Color(android.graphics.Color.parseColor(spiritRootColor)) }
-        catch (e: Exception) { GameColors.Border }
+        catch (ignored: Exception) { GameColors.Border }
     } else {
         GameColors.Border
     }

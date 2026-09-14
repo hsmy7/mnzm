@@ -5,7 +5,7 @@ import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 
-// GameDataWorldModels.kt — 世界地图/宗门/仓库/探索（P-2 从 GameData.kt 拆分，同包模型，序列化字段不变）
+// GameDataWorldModels.kt — 世界地图/宗门/仓库/探索（同包模型，序列化字段不变）
 
 data class WorldMapRenderData(
     val worldMapSects: List<WorldSect> = emptyList(),
@@ -175,7 +175,7 @@ data class WarehouseGarrisonSlot(
     @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String = "",
     @ProtoNumber(4) val sectId: String = "",
-    @ProtoNumber(5) val slotIndex: Int = 0               // 新增字段放末尾，兼容旧存档的位置参数调用
+    @ProtoNumber(5) val slotIndex: Int = 0               // 字段置于末尾，兼容旧存档的位置参数调用
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
@@ -184,7 +184,7 @@ data class WarehouseGarrisonSlot(
 @Serializable
 data class LibrarySlot(
     @ProtoNumber(1) val index: Int = 0,
-    @ProtoNumber(4) val buildingInstanceId: String = "",   // 新增字段，默认值 "" 兼容旧存档
+    @ProtoNumber(4) val buildingInstanceId: String = "",   // 默认值 "" 兼容旧存档
     @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String = ""
 ) {

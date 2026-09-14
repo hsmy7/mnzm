@@ -21,13 +21,19 @@ import kotlin.random.Random
  * [snapshot] 输出的同一份实例数据快照，保证像素级一致。
  *
  * ## 确定性
- * 通过构造参数注入 [Random]（测试传固定 seed）与外部传入时间戳，可复现；默认随机
- * 属表现层装饰（不进存档、不参与引擎确定性 RNG——规则 16 的引擎逻辑限制不适用）。
+ * 通过构造参数注入 [Random]（测试传固定 seed，生产传世界种子派生的固定实例）与
+ * 外部传入时间戳，可复现。**不得有默认值**：原 `random: Random = Random.Default`
+ * 是 R5 明令禁止的"默认值陷阱"——任何省略实参的调用方都会静默接到
+ * `Random.Default`（进程启动随机、不入档、不可复现）。云朵为纯表现装饰
+ *（不进存档、不参与引擎确定性分区），故用**局部固定种子实例**而非
+ * `PresentationRandom`（后者为 UI/引擎共享单例，本类构造于渲染线程且在测试中
+ * 需要独立可控实例）。
  */
 class CloudLayerAnimator(
     /** 世界像素宽度（云朵在 [0, worldWidthPx) 区间内穿越） */
     private val worldWidthPx: Float,
-    private val random: Random = Random.Default
+    /** 表现随机源（**必传**——见类 KDoc"确定性"段） */
+    private val random: Random
 ) {
 
     /** 活跃云朵实例（渲染线程单消费者，无锁） */
@@ -179,7 +185,7 @@ class CloudLayerAnimator(
 
         /**
          * 随机缩放区间（云朵大小 = 原生尺寸 × scale）。
-         * 2026-08 调整：整体缩小 50%（0.8~1.6 → 0.4~0.8），所有云朵显示尺寸减半。
+         * 整体缩小 50%（0.8~1.6 → 0.4~0.8），所有云朵显示尺寸减半。
          */
         const val SCALE_MIN = 0.4f
         const val SCALE_MAX = 0.8f

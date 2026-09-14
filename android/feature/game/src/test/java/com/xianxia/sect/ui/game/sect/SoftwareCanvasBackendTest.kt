@@ -28,9 +28,9 @@ import kotlin.math.roundToInt
  * - resize → 视口大小变化时帧缓冲区重建
  *
  * 专项测试已拆分至同包文件（LargeClass 收敛）：
- * - [SoftwareCanvasBackendHighlightTest] — 建筑阴影 + 选中高亮（WP3）
- * - [SoftwareCanvasBackendLodFadeTest] — 地图淡入 + 装饰 LOD（WP4/WP5）
- * - [SoftwareCanvasBackendCropTest] — 灵田作物层（WP6）
+ * - [SoftwareCanvasBackendHighlightTest] — 建筑阴影 + 选中高亮
+ * - [SoftwareCanvasBackendLodFadeTest] — 地图淡入 + 装饰 LOD
+ * - [SoftwareCanvasBackendCropTest] — 灵田作物层
  * - [SoftwareCanvasBackendAtlasTest] — SpriteAtlasDef 一致性与地砖
  * - [SoftwareCanvasBackendTestFixtures] — 共享 fixtures
  *
@@ -239,7 +239,9 @@ class SoftwareCanvasBackendTest {
     @Test
     fun `renderFrame - preview box draws valid green invalid red footprint`() {
         val whiteAtlas = createWhiteTileAtlas()
-        // 占地框 (0,0,64,64)，精灵仅 (0,0,16,16)——(50,50) 位于框内、精灵外，只受占地框影响
+        // 占地框 (0,0,64,64)，精灵仅 (0,0,16,16)——探针 (50,35) 位于框内
+        //（TOPDOWN_Y_SCALE 0.75 → 框底 64×0.75=48，探针 y 须 <48）、精灵外，
+        // 只受占地框影响
         fun baseFrame(boxValid: Boolean, boxVisible: Boolean) = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
             tileData = createFlatTileData(10, 10),
@@ -255,18 +257,18 @@ class SoftwareCanvasBackendTest {
 
         // 无占地框：纯白色瓦片（无红/绿偏色）
         val noBox = backend.renderFrame(baseFrame(boxValid = true, boxVisible = false), whiteAtlas, 200, 200)
-        val noBoxPixel = noBox!!.getPixel(50, 50)
+        val noBoxPixel = noBox!!.getPixel(50, 35)
         assertTrue("无占地框应为白底", Color.red(noBoxPixel) > 230 && Color.green(noBoxPixel) > 230)
 
         // 红框（不可放置）：偏红
         val redBox = backend.renderFrame(baseFrame(boxValid = false, boxVisible = true), whiteAtlas, 200, 200)
-        val redPixel = redBox!!.getPixel(50, 50)
+        val redPixel = redBox!!.getPixel(50, 35)
         assertTrue("不可放置占地框应偏红", Color.red(redPixel) > Color.green(redPixel) + 10)
         assertTrue("不可放置占地框应偏红", Color.red(redPixel) > Color.blue(redPixel) + 10)
 
         // 绿框（可放置）：偏绿
         val greenBox = backend.renderFrame(baseFrame(boxValid = true, boxVisible = true), whiteAtlas, 200, 200)
-        val greenPixel = greenBox!!.getPixel(50, 50)
+        val greenPixel = greenBox!!.getPixel(50, 35)
         assertTrue("可放置占地框应偏绿", Color.green(greenPixel) > Color.red(greenPixel) + 10)
         assertTrue("可放置占地框应偏绿", Color.green(greenPixel) > Color.blue(greenPixel) + 10)
     }
@@ -498,7 +500,7 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `tile gap - camera at fractional offset no crash`() {
-        // 相机位置为小数 + scale 非整数的组合——过去会产生 1px 缝隙
+        // 相机位置为小数 + scale 非整数的组合——不得产生 1px 缝隙
         val td = IntArray(48 * 48) { 0 }
         for (offset in listOf(0f, 0.3f, 0.7f, 1.5f, 2.33f)) {
             for (s in listOf(0.3f, 0.5f, 0.7f, 1.0f, 1.2f, 1.5f, 2.0f, 3.0f)) {
@@ -527,7 +529,7 @@ class SoftwareCanvasBackendTest {
         assertEquals(200, result!!.width)
         assertEquals(200, result.height)
 
-        // step A drawColor 已改为SkyBackground 屏幕空间渐变背景（非透明），
+        // step A drawColor 为 SkyBackground 屏幕空间渐变背景（非透明），
         // 缝隙处无透明像素闪烁；天空为最底图层，不受相机平移缩放影响。
     }
 

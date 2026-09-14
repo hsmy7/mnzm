@@ -11,11 +11,11 @@ import javax.inject.Singleton
  * 从 [GameConfigData]（JSON 可序列化配置，支持远程热更新）读取游戏数值，
  * 作为 [GameConfig] 编译期常量的运行时替代源。
  *
- * ## 迁移路径
+ * ## 使用约定
  *
  * 1. 新代码直接注入 [GameConfigProvider]，通过 provider 读取配置值
- * 2. 存量代码逐步从 `GameConfig.Production.X` 迁移至此
- * 3. 当所有调用方迁移完毕后，[GameConfig] 中的对应常量可标记 [Deprecated]
+ * 2. 存量代码逐步从 `GameConfig.Production.X` 切换至此
+ * 3. 全部调用方切换完毕后，[GameConfig] 中的对应常量可标记 [Deprecated]
  *
  * 当前阶段：[GameConfig] 仍为默认来源，provider 提供[GameConfigData] 的读取入口
  * 供新代码使用。GameConfigData 与 GameConfig 之间的数值一致性由
@@ -26,6 +26,7 @@ class GameConfigProvider @Inject constructor(
     private val configLoader: com.xianxia.sect.core.config.ConfigLoader
 ) {
 
+    @Suppress("TooGenericExceptionCaught") // 配置加载失败降级默认配置, 异常源跨IO/解析不可枚举, 非静默吞噬(记日志)
     private val config: GameConfigData by lazy {
         val cfg = try {
             configLoader.load()
@@ -54,7 +55,7 @@ class GameConfigProvider @Inject constructor(
         val capacityPerBuilding: Int get() = s.capacityPerBuilding
     }
 
-    /** 执法堂配置（S-13 清偿：注入 C++ 消除双端漂移） */
+    /** 执法堂配置（注入 C++ 消除双端漂移） */
     val lawEnforcement: LawEnforcementConfig get() = LawEnforcementConfig(config.lawEnforcement)
 
     class LawEnforcementConfig(private val s: GameConfigData.LawEnforcementSection) {

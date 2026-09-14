@@ -7,6 +7,7 @@ import android.os.Process
 import android.util.Log
 import androidx.core.content.edit
 import com.xianxia.sect.BuildConfig
+import com.xianxia.sect.umeng.UmengManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -53,7 +54,7 @@ class CrashHandler @Inject constructor(
          * 获取单例实例
          */
         fun getInstance(): CrashHandler {
-            return instance ?: throw IllegalStateException("CrashHandler not initialized")
+            return checkNotNull(instance) { "CrashHandler not initialized" }
         }
 
         /**
@@ -91,21 +92,24 @@ class CrashHandler @Inject constructor(
 
     private val handlingCrash = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
-        // ★ TapTap lateinit 已知无害崩溃（SDK 未同意前内部 Toast）：
-        //   在记录/落盘/上报/进程退出之前直接吞掉——即使守卫已被 Bugly 覆盖、
-        //   CrashHandler 成为默认处理器，也不得上报或导致进程退出（Bugly #17002）。
+        // TapTap lateinit 无害崩溃（SDK 未同意前其内部 Toast 抛出）：
+        //   必须在记录/落盘/上报/进程退出之前直接吞掉——即使守卫已被 Bugly 覆盖、
+        //   CrashHandler 成为默认处理器，也不得上报或导致进程退出。
         if (TapTapCrashGuard.isSuppressible(throwable)) {
             Log.w(TAG, "Suppressed TapTap lateinit crash (SDK not yet consented)", throwable)
             return
         }
 
         if (!handlingCrash.compareAndSet(false, true)) {
+            // 友盟官方契约：kill 类杀进程前保存统计数据（全防御封装，异常不影响退出）
+            UmengManager.onKillProcess(context)
             Process.killProcess(Process.myPid())
             return
         }
 
-        // ★ 使用 stackTraceToString() 避免 printStackTrace(Writer) 在
+        // 使用 stackTraceToString() 避免 printStackTrace(Writer) 在
         //    StackOverflowError / 循环 cause 链场景下二次崩溃
         val stackTrace = try {
             throwable.stackTraceToString()
@@ -118,8 +122,9 @@ class CrashHandler @Inject constructor(
         Log.e(TAG, "Uncaught exception in thread ${thread.name}\n${stackTrace.take(MAX_LOG_STACK_LENGTH)}")
 
         try {
-            // 1. 通知崩溃自愈引擎（用于安全模式判定）
-            CrashRecoveryEngine.recordCrash(stackTrace)
+            // 1. 通知崩溃自愈引擎（用于安全模式判定；传线程名——归因收窄：
+            //    只有渲染链线程的崩溃计入安全模式，OOM/SDK 崩溃不再误判）
+            CrashRecoveryEngine.recordCrash(stackTrace, thread.name)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to notify CrashRecoveryEngine", e)
         }
@@ -139,7 +144,11 @@ class CrashHandler @Inject constructor(
 
         // 调用默认的异常处理器
         defaultExceptionHandler?.uncaughtException(thread, throwable)
-            ?: Process.killProcess(Process.myPid())
+            ?: run {
+                // 友盟官方契约：kill 类杀进程前保存统计数据（全防御封装，异常不影响退出）
+                UmengManager.onKillProcess(context)
+                Process.killProcess(Process.myPid())
+            }
     }
 
     /**
@@ -198,6 +207,7 @@ class CrashHandler @Inject constructor(
      *
      * @param stackTrace 预计算的堆栈跟踪字符串（避免在崩溃处理中调用 printStackTrace）
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     private fun writeCrashLogToFile(thread: Thread, throwable: Throwable, stackTrace: String): File? {
         return try {
             val crashLogDir = getCrashLogDir()
@@ -222,16 +232,7 @@ class CrashHandler @Inject constructor(
                     printWriter.println("Android Version: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
                     printWriter.println()
 
-                    printWriter.println("=== App Info ===")
-                    try {
-                        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                        printWriter.println("Version Name: ${packageInfo.versionName}")
-                        @Suppress("NewApi")
-                        printWriter.println("Version Code: ${packageInfo.longVersionCode}")
-                    } catch (e: Exception) {
-                        printWriter.println("Version: Unknown")
-                    }
-                    printWriter.println()
+                    writeAppInfoSection(printWriter)
 
                     printWriter.println("=== Exception ===")
                     printWriter.println("Type: ${throwable.javaClass.name}")
@@ -252,6 +253,23 @@ class CrashHandler @Inject constructor(
     }
 
     /**
+     * 写入应用版本信息段（包信息查询失败时降级为 Unknown，不中断崩溃日志写入）
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨SDK不可枚举, 降级继续, 非静默吞噬
+    private fun writeAppInfoSection(printWriter: PrintWriter) {
+        printWriter.println("=== App Info ===")
+        try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            printWriter.println("Version Name: ${packageInfo.versionName}")
+            @Suppress("NewApi")
+            printWriter.println("Version Code: ${packageInfo.longVersionCode}")
+        } catch (e: Exception) {
+            printWriter.println("Version: Unknown (${e.javaClass.simpleName}: ${e.message})")
+        }
+        printWriter.println()
+    }
+
+    /**
      * 获取崩溃日志目录
      */
     private fun getCrashLogDir(): File {
@@ -265,6 +283,7 @@ class CrashHandler @Inject constructor(
     /**
      * 清理旧的崩溃日志，保留最新的 MAX_CRASH_LOGS 个
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun cleanupOldCrashLogs(crashLogDir: File) {
         try {
             val logFiles = crashLogDir.listFiles { file ->
@@ -272,14 +291,21 @@ class CrashHandler @Inject constructor(
             }?.sortedByDescending { it.lastModified() }
 
             if (logFiles != null && logFiles.size > MAX_CRASH_LOGS) {
-                logFiles.drop(MAX_CRASH_LOGS).forEach { file ->
-                    if (file.delete()) {
-                        Log.d(TAG, "Deleted old crash log: ${file.name}")
-                    }
-                }
+                deleteExcessCrashLogs(logFiles)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to cleanup old crash logs", e)
+        }
+    }
+
+    /**
+     * 删除超出保留上限的旧崩溃日志
+     */
+    private fun deleteExcessCrashLogs(logFiles: List<File>) {
+        logFiles.drop(MAX_CRASH_LOGS).forEach { file ->
+            if (file.delete()) {
+                Log.d(TAG, "Deleted old crash log: ${file.name}")
+            }
         }
     }
 
@@ -326,6 +352,7 @@ class CrashHandler @Inject constructor(
     /**
      * 获取最新的崩溃日志内容
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun getLatestCrashLogContent(): String? {
         return try {
             getCrashLogFiles().firstOrNull()?.readText()
@@ -338,6 +365,7 @@ class CrashHandler @Inject constructor(
     /**
      * 清除崩溃状态（在应用正常启动后调用）
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun clearCrashState() {
         try {
             prefs.edit {
@@ -355,6 +383,7 @@ class CrashHandler @Inject constructor(
     /**
      * 清除所有崩溃日志
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun clearAllCrashLogs() {
         try {
             val crashLogDir = getCrashLogDir()

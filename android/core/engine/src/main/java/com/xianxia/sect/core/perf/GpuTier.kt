@@ -19,11 +19,9 @@ enum class GpuTier {
 /**
  * GPU 分层渲染参数 — 每个等级对应一组渲染配置。
  *
- * 2026-08-14 死字段清理：mapResolution/bakeBuildings/useArgb8888/showTrees/
- * gridLineMode/auraEffectMode/particleEffectMode/textureLodOffset 全项目零消费者
- * （grep 验证），删除；thermalRenderScale 表删除（热控×模式画质因子已由引擎
- * `renderingQualityFactor` StateFlow 聚合，见 [com.xianxia.sect.core.render.RenderScalePolicy]）。
- * 保留 baseRenderScale 作为 [RenderScalePolicy] 的 GPU 档位缩放上限。
+ * 仅保留有消费者的字段：baseRenderScale 为 [RenderScalePolicy] 的
+ * GPU 档位缩放上限；热控×模式画质因子由引擎
+ * `renderingQualityFactor` StateFlow 聚合（见 [com.xianxia.sect.core.render.RenderScalePolicy]）。
  */
 @Immutable
 data class GpuRenderConfig(

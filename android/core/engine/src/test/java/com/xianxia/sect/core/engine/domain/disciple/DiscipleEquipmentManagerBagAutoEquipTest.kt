@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 2026-08-31 B 批：自动装备候选统一（仓库 + 储物袋）与更高品阶替换。
+ * 自动装备候选统一（仓库 + 储物袋）与更高品阶替换。
  *
  * 覆盖：
  * - 袋内 equipment_instance 直接装配（attachedInstances 重建入表、袋条目移除、孕养保真）

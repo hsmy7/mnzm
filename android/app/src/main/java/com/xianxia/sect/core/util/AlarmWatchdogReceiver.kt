@@ -15,6 +15,8 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import com.xianxia.sect.core.engine.handleWatchdogVerdict
+import com.xianxia.sect.core.engine.progressVerdict
 
 /**
  * ## AlarmWatchdogReceiver - AlarmManager 精确闹钟兜底看门狗
@@ -120,6 +122,25 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
             Log.d(TAG, "Cancelled watchdog alarm")
         }
 
+        /**
+         * 会话门：看门狗链续链前提——前台服务存活（内存标志）或
+         * 引擎循环在跑（[GameEngineCore.isGameLoopRunning]）任一成立。
+         * 无会话（进程被 OEM 杀死后闹钟拉起空转进程的存量状态）→ 主动清闹钟
+         * 并退链：emergencyRestart 会被 STOPPED 拒绝，无条件续链只会形成
+         * 「15s 拉起完整 Application → 拒绝 → 再续链」的永续循环。
+         *
+         * @param engineCore 引擎核心（EntryPoint 获取失败时传 null——此时
+         *   仅服务标志可用；服务标志为假即无会话）
+         */
+        fun shouldContinueChain(context: Context, engineCore: GameEngineCore?): Boolean {
+            val inSession = GameForegroundService.isRunning || engineCore?.isGameLoopRunning == true
+            if (!inSession) {
+                cancelAlarm(context)
+                Log.i(TAG, "No active game session — watchdog chain terminated")
+            }
+            return inSession
+        }
+
         private fun buildPendingIntent(context: Context): PendingIntent {
             val intent = Intent(context, AlarmWatchdogReceiver::class.java)
                 .setAction(ACTION_ALARM_WATCHDOG)
@@ -146,7 +167,8 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         fun gameEngineCore(): GameEngineCore
     }
 
-    @Suppress("ReturnCount") // 广播接收器多早退分支（动作过滤/判据失败/链式调度），每分支职责独立
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "ReturnCount") // 广播接收器多早退分支（动作过滤/判据失败/链式调度），每分支职责独立
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != ACTION_ALARM_WATCHDOG) {
             return
@@ -162,7 +184,9 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
             ).gameEngineCore()
         } catch (e: Exception) {
             Log.w(TAG, "Cannot obtain GameEngineCore, scheduling next alarm", e)
-            scheduleAlarm(context)
+            // 会话门：异常早退路径同样不无条件续链（服务标志是
+            // 此处唯一可用信号——引擎核心不可达即循环大概率未跑）
+            if (shouldContinueChain(context, null)) scheduleAlarm(context)
             return
         }
 
@@ -173,7 +197,8 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
             gameEngineCore.progressVerdict()
         } catch (e: Exception) {
             Log.e(TAG, "progressVerdict failed, scheduling next alarm", e)
-            scheduleAlarm(context)
+            // 会话门：判据异常早退路径同上
+            if (shouldContinueChain(context, gameEngineCore)) scheduleAlarm(context)
             return
         }
 
@@ -194,8 +219,10 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
             }
         }
 
-        // 链式调度下一次闹钟
-        scheduleAlarm(context)
+        // 链式调度下一次闹钟——先过会话门：无会话即退链+清闹钟
+        if (shouldContinueChain(context, gameEngineCore)) {
+            scheduleAlarm(context)
+        }
     }
 
     /**

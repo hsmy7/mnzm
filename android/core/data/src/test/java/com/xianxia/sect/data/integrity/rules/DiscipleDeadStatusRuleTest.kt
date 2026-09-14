@@ -19,7 +19,8 @@ import org.junit.Test
 
 
 class DiscipleDeadStatusRuleTest {
-    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry.register(DiscipleDeadStatusRule) }
+    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry
+        .register(DiscipleDeadStatusRule) }
     @After fun teardown() { SaveValidationRuleRegistry.clear() }
 
     @Test fun `alive disciple with equipment passes`() {

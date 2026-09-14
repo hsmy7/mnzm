@@ -50,18 +50,19 @@ data class ChangeLogEntity(
         if (tableName != other.tableName) return false
         if (recordId != other.recordId) return false
         if (operation != other.operation) return false
-        if (oldValue != null) {
-            if (other.oldValue == null) return false
-            if (!oldValue.contentEquals(other.oldValue)) return false
-        } else if (other.oldValue != null) return false
-        if (newValue != null) {
-            if (other.newValue == null) return false
-            if (!newValue.contentEquals(other.newValue)) return false
-        } else if (other.newValue != null) return false
+        if (!bytesEqual(oldValue, other.oldValue)) return false
+        if (!bytesEqual(newValue, other.newValue)) return false
         if (timestamp != other.timestamp) return false
         if (synced != other.synced) return false
         if (syncVersion != other.syncVersion) return false
         return true
+    }
+
+    /** 字节数组等价判定：双侧空相等 / 单侧空不等 / 内容比较 */
+    private fun bytesEqual(a: ByteArray?, b: ByteArray?): Boolean {
+        if (a == null) return b == null
+        if (b == null) return false
+        return a.contentEquals(b)
     }
 
     override fun hashCode(): Int {

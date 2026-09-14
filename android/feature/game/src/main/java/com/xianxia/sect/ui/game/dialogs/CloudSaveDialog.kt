@@ -20,6 +20,11 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.game.CloudSaveOperationState
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.checkCloudSave
+import com.xianxia.sect.ui.game.downloadFromCloudSave
+import com.xianxia.sect.ui.game.isCloudSaveAvailable
+import com.xianxia.sect.ui.game.resetCloudSaveOperationState
+import com.xianxia.sect.ui.game.uploadToCloudSave
 
 /**
  * 云存档对话框。
@@ -90,7 +95,7 @@ fun CloudSaveDialog(
     }
 }
 
-/** 云存档信息区（CloudSaveDialog 拆分）：有存档显示信息，无存档显示空态 */
+/** 云存档信息区：有存档显示信息，无存档显示空态 */
 @Composable
 private fun CloudSaveInfoSection(cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo) {
     if (cloudSaveInfo.hasSaveData) {
@@ -141,7 +146,7 @@ private fun CloudSaveInfoSection(cloudSaveInfo: TapCloudSaveManager.CloudSaveInf
     }
 }
 
-/** 云存档操作区（CloudSaveDialog 拆分）：按操作状态渲染按钮/进度/结果 + 关闭按钮 */
+/** 云存档操作区：按操作状态渲染按钮/进度/结果 + 关闭按钮 */
 @Composable
 private fun CloudSaveOperationSection(
     operationState: CloudSaveOperationState,
@@ -189,7 +194,7 @@ private fun CloudSaveOperationSection(
     }
 }
 
-/** 闲置态按钮区（CloudSaveDialog 拆分）：登录提示 + 上传/下载按钮 */
+/** 闲置态按钮区：登录提示 + 上传/下载按钮 */
 @Composable
 private fun CloudSaveIdleSection(
     cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo,
@@ -203,7 +208,7 @@ private fun CloudSaveIdleSection(
         )
     }
 
-    // 2026-08-23 并发根治：启动流程进行中禁用云存档按钮（防御性增强，
+    // 启动流程进行中禁用云存档按钮（防御性增强，
     // 入口层统一守卫已保证安全，此处减少"点击后被拒绝"的体验）
     val bootInProgress by saveLoadViewModel.bootInProgress.collectAsState()
 
@@ -223,7 +228,7 @@ private fun CloudSaveIdleSection(
     }
 }
 
-/** 上传/下载进度区（CloudSaveDialog 拆分）：转圈 + 文案 */
+/** 上传/下载进度区：转圈 + 文案 */
 @Composable
 private fun CloudSaveProgressSection(message: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {

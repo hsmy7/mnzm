@@ -8,9 +8,13 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SlotCategory
 import com.xianxia.sect.core.model.SlotRef
+import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.coroutines.cancellation.CancellationException
 
 // GameEngineSecretRealmOps.kt — 远古秘境玩法 GameEngine 扩展入口
@@ -22,12 +26,40 @@ private const val SECRET_REALM_SLOT_TYPE = "secret_realm"
 private const val SECRET_REALM_SLOT_ID = "secret_realm_session"
 
 /**
+ * 秘境会话域 native 转发（SECRET_REALM_START/CHOOSE/END 经
+ * nativeExecute + tryExecuteNative 交互域
+ * 转发，Kotlin 回退保留——双实现并行契约）。
+ *
+ * 契约（与 InventoryNativeForward 同族）：
+ * - 仅 AUTHORITATIVE 模式转发；flag 关闭 / native 不可用 / 失败信封 → null，
+ *   调用方回退 Kotlin 原实现（校验失败回退即 Kotlin 侧同语义拒绝）。
+ * - C++ 状态已变更并镜像回写；溢出邮件草稿经 [deliverOverflowDrafts] 投递。
+ */
+/**
  * 出发探索：校验（满 4 人/存活/空闲）→ 写会话（含初始妖兽事件）→ gate 占用队伍成员。
+ * AUTHORITATIVE 模式经 C++ startSession（校验 + 会话写入 + 初始事件），
+ * Kotlin 补平台段（换岗清理/gate/Room 清槽/状态同步）；回退路径语义不变。
  */
 @Suppress("TooGenericExceptionCaught")
 suspend fun GameEngine.startSecretRealmExploration(
     memberIds: List<String>
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    // 入口防御前置（C++ startSession 无到期判定——保持 Kotlin 拒绝语义）
+    rejectIfSecretRealmExpired()?.let { return@withEngineContext it }
+    val native = SecretRealmNativeForward.tryForward(
+        this@startSecretRealmExploration, ActionIds.SECRET_REALM_START
+    ) {
+        put("memberIds", JsonArray(memberIds.map { JsonPrimitive(it) }))
+    }
+    if (native != null) {
+        // C++ 会话已写入并镜像——Kotlin 补平台段（换岗清理语义与原事务内一致：
+        // startSession 校验通过后才清岗）
+        stateStore.update {
+            memberIds.forEach { releaseDiscipleToIdleInside(this, it) }
+        }
+        finalizeSecretRealmTeam(memberIds)
+        return@withEngineContext DomainResult.Success(Unit)
+    }
     val result: DomainResult<Unit> = try {
         stateStore.updateAndReturn {
             // 入口防御：秘境已现世期满（月结被绕过的极端兜底）→ 关闭并拒绝出发
@@ -41,7 +73,7 @@ suspend fun GameEngine.startSecretRealmExploration(
                 )
             }
             // 先校验再清理：startSession 校验失败返回 Failure（不抛异常），若先清理
-            // 则事务照常提交——队员岗位已被清空但 gate 未清（回归：C1 失败路径销毁分配）。
+            // 则事务照常提交——队员岗位已被清空但 gate 未清（失败路径不得销毁分配）。
             // 校验通过后换岗清理（出发即换岗——防止同一弟子同时出现在岗位与秘境队伍）
             val sessionResult = secretRealmService.startSession(memberIds, this)
             if (sessionResult is DomainResult.Success) {
@@ -60,29 +92,11 @@ suspend fun GameEngine.startSecretRealmExploration(
         DomainResult.Failure(AppError.Domain.GameLoop.Unknown("出发远古秘境失败"))
     }
     if (result is DomainResult.Success) {
-        // 前置清理已释放旧注册（releaseDiscipleToIdleInside 不碰 gate），先清再登记，
-        // 防多槽位 gate 残留
-        memberIds.forEach { assignmentGate.release(it) }
-        // 双存储同步：清 Room 生产槽 Repository
-        memberIds.forEach { clearDiscipleFromProductionRepository(it) }
-        // 队伍成员占用（复用 EXPLORATION_TEAM 槽位，非持久化，读档后由会话重建）
-        memberIds.forEach { id ->
-            assignmentGate.confirmAssign(
-                id, SlotRef(SlotCategory.EXPLORATION_TEAM, SECRET_REALM_SLOT_TYPE, SECRET_REALM_SLOT_ID)
-            )
-        }
-        // log-and-continue：状态同步失败不中断主流程（与 GameEngineAtomicAssign 一致）
-        @Suppress("TooGenericExceptionCaught")
-        try {
-            discipleFacade.syncAllDiscipleStatuses()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.w("GameEngine", "startSecretRealm: syncAllDiscipleStatuses 失败", e)
-        }
+        finalizeSecretRealmTeam(memberIds)
     }
     result
 }
+
 
 /**
  * 一键任命：空闲弟子按境界优先（realm 数值小 = 境界高）选出 4 人，返回供 UI 填槽。
@@ -107,10 +121,16 @@ suspend fun GameEngine.autoAssignSecretRealmTeam(): List<String> =
  * 继续探索（读档后）：校验会话有效并净化已死亡/不存在的成员；
  * 成员净化后为空则自动结算结束。
  *
+ * AUTHORITATIVE 模式经 C++ continueSessionTx（到期关闭/死局重置/成员净化，
+ * 零 RNG——batch-20a 下沉），Kotlin 补平台段（gate 释放/占用 + 关闭邮件 +
+ * 溢出草稿投递）；回退路径语义不变。
+ *
  * @return true 表示可继续探索
  */
 suspend fun GameEngine.continueSecretRealmExploration(): Boolean =
     engineContextDispatcher.withEngineContext {
+        // AUTHORITATIVE 转发——C++ 会话域判定段 + 镜像回写
+        continueSecretRealmNative()?.let { return@withEngineContext it }
         val data = stateStore.gameDataSnapshot
         val session = data.secretRealmSession
         // 入口防御：秘境已现世期满（月结被绕过的极端兜底）→ 关闭会话并拒绝继续
@@ -124,7 +144,6 @@ suspend fun GameEngine.continueSecretRealmExploration(): Boolean =
             session.secretRealmId != data.secretRealmState.id
         ) {
             // 残留会话死局防御：秘境不存在/不匹配时结算清空，避免永久无法再探索
-            // （对抗性审查 B7）
             if (session.isActive) {
                 stateStore.update { secretRealmService.endSession(this) }
             }
@@ -146,7 +165,7 @@ suspend fun GameEngine.continueSecretRealmExploration(): Boolean =
             }
         }
         // 读档后 gate 为空：重新占用成员，防被分配他职造成分身
-        // （对抗性审查 S3：scanAndRegister 不扫秘境会话，须在此补 confirmAssign）
+        // （scanAndRegister 不扫秘境会话，须在此补 confirmAssign）
         validMembers.forEach { member ->
             assignmentGate.confirmAssign(
                 member.discipleId,
@@ -162,49 +181,43 @@ suspend fun GameEngine.continueSecretRealmExploration(): Boolean =
 suspend fun GameEngine.chooseSecretRealmOption(
     optionIndex: Int
 ): SecretRealmChoiceResult = engineContextDispatcher.withEngineContext {
+    // AUTHORITATIVE 转发——C++ 结算（体力/战斗/掉落/损失/濒死/死亡）
+    // + 战报经 recordPlayerBattle 在 Kotlin 重建（展示通道非协议）
+    chooseSecretRealmNative(optionIndex)?.let { return@withEngineContext it }
     val result = stateStore.updateAndReturn {
         secretRealmService.chooseOption(optionIndex, this)
     }
     if (result is SecretRealmChoiceResult.Success) {
-        if (result.deadIds.isNotEmpty()) {
-            // log-and-continue：状态同步失败不中断主流程（与 GameEngineAtomicAssign 一致）
-            @Suppress("TooGenericExceptionCaught")
-            try {
-                combatService.processBattleCasualties(
-                    result.deadIds, emptyMap(), emptyMap(), isOutsideSect = true
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                DomainLog.w("GameEngine", "秘境战斗伤亡处理失败 deadIds=${result.deadIds}", e)
-            }
-        }
-        // 自动结束（体力耗尽/全灭）：会话已清空，此处释放 gate 占用防弟子卡死
-        // （对抗性审查 S2：此前仅手动结束释放，自动结束路径泄漏）
-        if (result.sessionEnded && result.releasedMemberIds.isNotEmpty()) {
-            result.releasedMemberIds.forEach { assignmentGate.release(it) }
-            // log-and-continue：状态同步失败不中断主流程（与 GameEngineAtomicAssign 一致）
-            @Suppress("TooGenericExceptionCaught")
-            try {
-                discipleFacade.syncAllDiscipleStatuses()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                DomainLog.w("GameEngine", "chooseSecretRealmOption 自动结束释放失败", e)
-            }
-        }
+        applySecretRealmChoiceSideEffects(result)
     }
     result
 }
+
 
 /**
  * 主动结束探索：结算背包 → 秘境消失 + 冷却 → 释放队伍成员占用。
  */
 suspend fun GameEngine.endSecretRealmExploration() = engineContextDispatcher.withEngineContext {
     // 释放全部成员 gate（含陨落成员——与自动结束路径 releasedMemberIds 一致，
-    // 防战斗死亡弟子 gate 残留；对抗性审查 B-L4）
+    // 防战斗死亡弟子 gate 残留）
     val memberIds = stateStore.gameDataSnapshot.secretRealmSession.members
         .map { it.discipleId }
+    // AUTHORITATIVE 转发——C++ 结算背包入仓 + 秘境清场；gate 释放保留 Kotlin
+    val native = SecretRealmNativeForward.tryForward(this@endSecretRealmExploration, ActionIds.SECRET_REALM_END) {
+        put("reason", "EXPLORER_END")
+    }
+    if (native != null) {
+        memberIds.forEach { assignmentGate.release(it) }
+        @Suppress("TooGenericExceptionCaught")
+        try {
+            discipleFacade.syncAllDiscipleStatuses()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w("GameEngine", "endSecretRealm: syncAllDiscipleStatuses 失败", e)
+        }
+        return@withEngineContext
+    }
     stateStore.update {
         secretRealmService.endSession(this, SecretRealmEndReason.EXPLORER_END)
     }

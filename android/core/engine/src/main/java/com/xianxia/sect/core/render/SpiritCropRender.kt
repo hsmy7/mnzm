@@ -52,7 +52,7 @@ object SpiritCropRender {
     }
 
     /**
-     * 逻辑帧间平滑进度（2026-08-13 批次 3 插值消费链）：
+     * 逻辑帧间平滑进度：
      * `prev + (cur - prev) × alpha`——渲染端在相邻两帧逻辑进度间插值，
      * 消除 10Hz 逻辑步下的生长跳变（对标 Godot 物理插值消费
      * get_physics_interpolation_fraction）。alpha=1 时等于当前值（无平滑）。
@@ -65,7 +65,7 @@ object SpiritCropRender {
     fun smoothedProgress(previous: Float?, current: Float, alpha: Float): Float {
         val safePrev = if (previous != null && !previous.isNaN() && !previous.isInfinite()) previous else null
         if (current.isNaN() || current.isInfinite() || safePrev == null) return current
-        // alpha NaN 防御（对抗性审查 2026-08-13 边界#2）：Float.coerceIn 对 NaN
+        // alpha NaN 防御：Float.coerceIn 对 NaN
         // 返回自身会穿透——显式拦截为 0（无插值 = 直接用当前进度）
         val a = if (alpha.isNaN()) 0f else alpha.coerceIn(0f, 1f)
         return (safePrev + (current - safePrev) * a).coerceIn(0f, 1f)
@@ -80,8 +80,8 @@ object SpiritCropRender {
         (gx.toInt().toLong() shl 32) or (gy.toInt().toLong() and 0xFFFFFFFFL)
 
     /**
-     * 作物坐标合法性（NaN/Inf 非法——与 C++ 侧 `gx != gx` 防御同语义；
-     * 对抗性审查 2026-08-13 数据篡改者#4 共享防御入口）。
+     * 作物坐标合法性（NaN/Inf 非法——与 C++ 侧 `gx != gx` 防御同语义，
+     * 共享防御入口）。
      */
     fun isValidCropCoord(value: Float): Boolean = !value.isNaN() && !value.isInfinite()
 }

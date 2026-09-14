@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
-class DeviceCapabilityProfilerTest { // 2026-08-14: 2.5 双任务拆分标记（注解顺序在前）
+class DeviceCapabilityProfilerTest {
 
     private val profiler = DeviceCapabilityProfiler()
 

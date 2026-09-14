@@ -22,7 +22,7 @@ import com.xianxia.sect.data.local.RecipeDao
 import com.xianxia.sect.data.incremental.ChangeLogDao
 
 /**
- * DAO 领域分组（P4B）：收敛 GameStateRepository 的 22 个平铺 DAO 构造依赖。
+ * DAO 领域分组：收敛 GameStateRepository 的 22 个平铺 DAO 构造依赖。
  *
  * 分组仅为构造参数收敛，DAO 行为与调用方不变。
  */

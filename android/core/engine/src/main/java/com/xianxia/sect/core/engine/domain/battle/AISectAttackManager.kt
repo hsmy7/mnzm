@@ -1,10 +1,7 @@
 package com.xianxia.sect.core.engine.domain.battle
 
-import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.HealType
-import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatSkill
@@ -12,8 +9,6 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.AISectPersonality
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.SectRelationLevel
-import com.xianxia.sect.core.model.BattleLogEnemy
-import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.Disciple
 
@@ -26,270 +21,38 @@ import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.putJsonArray
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngine
 import com.xianxia.sect.core.model.SectBattleType
-import com.xianxia.sect.core.util.BattleCalculator
-import com.xianxia.sect.core.util.BattleCalculator.SupportResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.engine.domain.diplomacy.buildEquipmentMapForDisciple
+import com.xianxia.sect.core.engine.domain.diplomacy.buildManualDataForDisciple
+import com.xianxia.sect.core.engine.domain.disciple.getPhysiqueEffects
+import com.xianxia.sect.core.engine.domain.disciple.getAffixCombatEffects
 // top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
 
 /** AI 宗门攻击系统的 RNG 管理器（由 GameEngine 初始化时注入） */
 var aisRngManager: GameRngManager? = null
-private val aisRng get() = (aisRngManager ?: error("AISectAttackManager RNG not initialized")).getRng(RngPartition.BATTLE)
+internal val aisRng get() = (aisRngManager ?: error("AISectAttackManager RNG not initialized")).getRng(RngPartition
+    .BATTLE)
 
 object AISectAttackManager {
-    private const val TAG = "AISectAttackManager"
+    /**
+     * 单用户定向补偿邮件（MailService 扩展，独立文件）。
+     *
+     * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
+     * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
+     * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
+     */
+    internal const val TAG = "AISectAttackManager"
 
     val MIN_DISCIPLES_FOR_ATTACK get() = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
     val TEAM_SIZE get() = GameConfig.AI.TEAM_SIZE
-
-    // PlayerOccupiedDefenseInfo 和 AIAttackResult 保留在 object 内（外部有引用）
-    data class PlayerOccupiedDefenseInfo(
-        val disciples: List<Disciple>,
-        val combatants: List<Combatant>
-    )
-
-    data class AIAttackResult(
-        val attackerSectId: String,
-        val defenderSectId: String,
-        val attackerSectName: String,
-        val defenderSectName: String,
-        val winner: AIBattleWinner,
-        val deadAttackerIds: List<String>,
-        val deadDefenderIds: List<String>,
-        val canOccupy: Boolean,
-        val survivingAttackers: List<Disciple>,
-        val defenderSurvivorHpMap: Map<String, Int> = emptyMap(),
-        val defenderSurvivorMpMap: Map<String, Int> = emptyMap(),
-        val rounds: List<BattleLogRound> = emptyList(),
-        val teamMembers: List<BattleLogMember> = emptyList(),
-        val enemies: List<BattleLogEnemy> = emptyList()
-    )
-
-    fun decideAttacks(
-        gameData: GameData,
-        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo> = emptyMap()
-    ): List<AIAttackResult> {
-        val results = mutableListOf<AIAttackResult>()
-        val aiDisciplesMap = gameData.aiSectDisciples
-
-        val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
-
-        for (attacker in aiSects) {
-            val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-            val availableAttackers = attackerDisciples.filter { it.isAlive }
-            if (availableAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
-
-            val allTargets = gameData.worldMapSects.filter { sect ->
-                sect.id != attacker.id && sect.occupierSectId != attacker.id
-            }
-
-            // 每个攻击者每月至多一次攻击：跳过已处理目标，首个可攻击目标即停
-            var attack: AIAttackResult? = null
-            val targets = allTargets.iterator()
-            while (attack == null && targets.hasNext()) {
-                val defender = targets.next()
-                if (results.any { it.defenderSectId == defender.id || it.attackerSectId == attacker.id }) continue
-                attack = tryDecideAttack(
-                    attacker, defender, gameData, aiDisciplesMap, availableAttackers, playerOccupiedDefendersMap
-                )
-            }
-            attack?.let { results.add(it) }
-        }
-
-        return results
-    }
-
-    /**
-     * 单次 AI 攻击决策：攻击条件检查、队伍构建、防守者解析、战斗执行与结果构造。
-     * 条件不满足（无可用攻击者/防守者）时返回 null。
-     */
-    private fun tryDecideAttack(
-        attacker: WorldSect,
-        defender: WorldSect,
-        gameData: GameData,
-        aiDisciplesMap: Map<String, List<Disciple>>,
-        availableAttackers: List<Disciple>,
-        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo>
-    ): AIAttackResult? {
-        if (!checkAttackConditions(
-                attacker, defender, gameData, aiDisciplesMap,
-                playerGarrisonMap = playerOccupiedDefendersMap
-                    .mapValues { it.value.disciples }
-            )) return null
-
-        // Build attack team
-        val selectedAttackers = availableAttackers
-            .sortedBy { it.realm }
-            .take(TEAM_SIZE)
-        if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
-
-        return resolveDefendersAndBattle(
-            attacker, defender, gameData, aiDisciplesMap, selectedAttackers, playerOccupiedDefendersMap
-        )
-    }
-
-    /**
-     * 单个攻击方宗门对单个防御方宗门尝试攻击。
-     * 构建攻防队伍、执行战斗、返回结果。
-     * @return 战斗结果，条件不满足时返回 null
-     */
-    fun tryAttackTarget(
-        attacker: WorldSect,
-        defender: WorldSect,
-        gameData: GameData,
-        aiDisciplesMap: Map<String, List<Disciple>>,
-        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo> = emptyMap()
-    ): AIAttackResult? {
-        val attackerDisciples = aiDisciplesMap[attacker.id] ?: return null
-        val availableAttackers = attackerDisciples.filter { it.isAlive }
-        if (availableAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
-
-        val selectedAttackers = availableAttackers
-            .sortedBy { it.realm }
-            .take(TEAM_SIZE)
-        if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
-
-        return resolveDefendersAndBattle(
-            attacker, defender, gameData, aiDisciplesMap, selectedAttackers, playerOccupiedDefendersMap
-        )
-    }
-
-    /**
-     * 共享的防守者解析 + 战斗执行 + 结果构造。
-     * 被 [tryDecideAttack] 与 [tryAttackTarget] 复用（两者 90% 重复收敛）。
-     * 防守者为空时返回 null。
-     */
-    private fun resolveDefendersAndBattle(
-        attacker: WorldSect,
-        defender: WorldSect,
-        gameData: GameData,
-        aiDisciplesMap: Map<String, List<Disciple>>,
-        selectedAttackers: List<Disciple>,
-        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo>
-    ): AIAttackResult? {
-        val setup = resolveDefenderSetup(
-            gameData, defender, attacker, aiDisciplesMap, playerOccupiedDefendersMap
-        ) ?: return null
-
-        val battleResult = if (setup.isPlayerOccupied &&
-            setup.garrisonDisciples.isNotEmpty()
-        ) {
-            val garrisonCombatants = playerOccupiedDefendersMap[
-                defender.id]?.combatants ?: emptyList()
-            executePlayerSectBattle(
-                selectedAttackers, garrisonCombatants)
-        } else {
-            executeSectBattle(selectedAttackers,
-                setup.defenderSect ?: defender,
-                setup.defenderDisciples, setup.allDefenderPool)
-        }
-
-        return buildAIAttackResult(attacker, defender, battleResult, selectedAttackers)
-    }
-
-    /** 防守者解析打包（resolveDefendersAndBattle 提取） */
-    private data class DefenderSetup(
-        val defenderSect: WorldSect?,
-        val garrisonDisciples: List<Disciple>,
-        val defenderDisciples: List<Disciple>,
-        val allDefenderPool: List<Disciple>,
-        val isPlayerOccupied: Boolean
-    )
-
-    /** 防守者解析（resolveDefendersAndBattle 提取）：占领判定 + 守军构建 + 全守军池；防守者为空返回 null */
-    private fun resolveDefenderSetup(
-        gameData: GameData,
-        defender: WorldSect,
-        attacker: WorldSect,
-        aiDisciplesMap: Map<String, List<Disciple>>,
-        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo>
-    ): DefenderSetup? {
-        val defenderSect = gameData.worldMapSects.find {
-            it.id == defender.id
-        }
-        val isAiOccupied = defenderSect?.occupierSectId
-            ?.isNotEmpty() == true &&
-            defenderSect.occupierSectId != attacker.id
-        val isPlayerOccupied = defenderSect?.isPlayerOccupied == true
-        val garrisonDisciples = if (isAiOccupied) {
-            if (isPlayerOccupied) {
-                playerOccupiedDefendersMap[defender.id]
-                    ?.disciples ?: emptyList()
-            } else {
-                val occupierDisciples = aiDisciplesMap[
-                    defenderSect.occupierSectId] ?: emptyList()
-                defenderSect.garrisonSlots
-                    .filter { it.discipleId.isNotEmpty() }
-                    .mapNotNull { slot ->
-                        occupierDisciples.find { d ->
-                            d.id == slot.discipleId && d.isAlive
-                        }
-                    }
-            }
-        } else {
-            emptyList()
-        }
-
-        val defenderPool = aiDisciplesMap[defender.id] ?: emptyList()
-        val defenderDisciples = if (garrisonDisciples.isNotEmpty()) {
-            garrisonDisciples
-        } else {
-            defenderPool.filter { it.isAlive }
-                .sortedBy { it.realm }.take(TEAM_SIZE)
-        }
-
-        if (defenderDisciples.isEmpty()) return null
-
-        val allDefenderPool = if (garrisonDisciples.isNotEmpty()) {
-            if (isPlayerOccupied) {
-                garrisonDisciples
-            } else {
-                aiDisciplesMap[
-                    defenderSect?.occupierSectId ?: ""]
-                    ?: emptyList()
-            }
-        } else {
-            defenderPool
-        }
-
-        return DefenderSetup(
-            defenderSect, garrisonDisciples, defenderDisciples, allDefenderPool, isPlayerOccupied
-        )
-    }
-
-    /** 攻击结果组装（resolveDefendersAndBattle 提取） */
-    private fun buildAIAttackResult(
-        attacker: WorldSect,
-        defender: WorldSect,
-        battleResult: AIBattleResult,
-        selectedAttackers: List<Disciple>
-    ): AIAttackResult {
-        val survivingAttackers = selectedAttackers.filter {
-            it.id !in battleResult.deadAttackerIds
-        }
-
-        return AIAttackResult(
-            attackerSectId = attacker.id,
-            defenderSectId = defender.id,
-            attackerSectName = attacker.name,
-            defenderSectName = defender.name,
-            winner = battleResult.winner,
-            deadAttackerIds = battleResult.deadAttackerIds,
-            deadDefenderIds = battleResult.deadDefenderIds,
-            canOccupy = battleResult.canOccupy,
-            survivingAttackers = survivingAttackers
-        )
-    }
 
     /**
      * Execute a sect battle given raw disciple lists (no AIBattleTeam needed).
@@ -342,6 +105,7 @@ object AISectAttackManager {
     }
 
     /** executeSectBattle / executeSectBattleWithCombatantAttackers 共享核心：战斗执行 + 结果组装 */
+    @Suppress("UnusedParameter") // defenderSect: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
     private fun executeSectBattleCore(
         combatAttackers: List<Combatant>,
         attackerIds: List<String>,
@@ -352,7 +116,7 @@ object AISectAttackManager {
         val defenseTeam = createDefenseTeam(defenderDisciples)
         val combatDefenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
 
-        // 战斗批次 D-3：AUTHORITATIVE 下经 C++ 第三战斗引擎执行（降级回退 Kotlin）
+        // AUTHORITATIVE 下经 C++ 第三战斗引擎执行（降级回退 Kotlin）
         val result = tryExecuteUnifiedNative(combatAttackers, combatDefenders)
             ?: executeUnifiedAIBattle(combatAttackers, combatDefenders)
 
@@ -366,7 +130,7 @@ object AISectAttackManager {
             .filter { it.id !in survivorDefenderIds }
             .map { it.id }
 
-        // G7 战斗残余：占领判定（winner==ATTACKER && 高阶全灭）经 C++
+        // 占领判定（winner==ATTACKER && 高阶全灭）经 C++
         // computeCanOccupy 计算（sect_attack_decision.h，纯确定性零 RNG）；
         // native 未加载/异常时回退 Kotlin 原判定（保障行为一致）。
         val canOccupy = tryNativeComputeCanOccupy(
@@ -419,19 +183,13 @@ object AISectAttackManager {
         aiDisciplesMap: Map<String, List<Disciple>> = emptyMap(),
         playerGarrisonMap: Map<String, List<Disciple>> = emptyMap()
     ): Boolean {
-        // G7-2：AUTHORITATIVE 下经 C++ 判定（sect_attack_decision.h checkAttackConditions——
+        // AUTHORITATIVE 下经 C++ 判定（sect_attack_decision.h checkAttackConditions——
         // 消费 BATTLE 分区；原生失败/未加载回退 Kotlin）
         tryNativeCheckAttackConditions(attacker, defender, playerGarrisonMap)?.let { return it }
 
-        if (attacker.id == defender.id) return false
-
         val attackerDisciples = (aiDisciplesMap[attacker.id] ?: emptyList())
             .filter { it.isAlive }
-        if (attackerDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return false
-
-        // 同联盟不攻击（硬约束）
-        if (attacker.allianceId.isNotEmpty() &&
-            attacker.allianceId == defender.allianceId) return false
+        if (failsAttackHardConstraints(attacker, defender, attackerDisciples)) return false
 
         // 计算战力比（永久基础属性统一公式，无装备/功法估算项）
         val attackerPower = SectCombatPowerCalculator.calculateSectPower(attackerDisciples)
@@ -471,23 +229,54 @@ object AISectAttackManager {
         return aisRng.nextDouble() < chance
     }
 
-    fun createAttackTeam(
-        attackerDisciples: List<Disciple>,
-        existingBusyIds: Set<String> = emptySet()
-    ): List<Disciple> {
-        val minCount = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
-        val teamSize = GameConfig.AI.TEAM_SIZE
-        val availableDisciples = attackerDisciples
-            .filter { it.isAlive && it.id !in existingBusyIds }
-            .sortedBy { it.realm }
-        if (availableDisciples.size < minCount) return emptyList()
-        return availableDisciples.take(teamSize)
+    /**
+     * AUTHORITATIVE 下经 C++ 判定 AI vs AI 逐目标攻击（sect_attack_decision.h
+     * checkAttackConditions）。降级：flag 关/native 未加载/异常 → null（调用方回退 Kotlin）。
+     * 本函数与 checkAttackConditions 一并保留为跨语言对拍 Kotlin 基准
+     * （DiffSectAttackDecisionTest 侧 Kotlin 基准使用）。
+     */
+    @Suppress("ReturnCount", "TooGenericExceptionCaught")
+    private fun tryNativeCheckAttackConditions(
+        attacker: WorldSect,
+        defender: WorldSect,
+        playerGarrisonMap: Map<String, List<Disciple>>
+    ): Boolean? {
+        if (!NativeEngineFlag.authoritative || !GameCoreBridge.isLoaded) return null
+        val garrisonJson = buildJsonObject {
+            for ((sectId, disciples) in playerGarrisonMap) {
+                putJsonArray(sectId) {
+                    disciples.forEach { add(Json.encodeToJsonElement(Disciple.serializer(), it)) }
+                }
+            }
+        }
+        return try {
+            GameCoreBridge.nativeCheckAttackConditions(
+                attacker.id, defender.id, garrisonJson.toString().encodeToByteArray()
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "nativeCheckAttackConditions degraded to Kotlin: $e")
+            null
+        }
     }
 
-    fun createDefenseTeam(defenderDisciples: List<Disciple>): List<Disciple> {
-        val teamSize = GameConfig.AI.TEAM_SIZE
-        return defenderDisciples.filter { it.isAlive }.sortedBy { it.realm }.take(teamSize)
+    /** 攻击硬约束：不能攻击自己 + 最低弟子数 + 同联盟不攻击 */
+    private fun failsAttackHardConstraints(
+        attacker: WorldSect,
+        defender: WorldSect,
+        attackerDisciples: List<Disciple>
+    ): Boolean {
+        if (attacker.id == defender.id) return true
+        if (attackerDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return true
+        // 同联盟不攻击（硬约束）
+        return attacker.allianceId.isNotEmpty() && attacker.allianceId == defender.allianceId
     }
+
+    // ── AI 攻玩家决策链（P2-18 Stage 1 下沉 C++ sect_attack_decision.h
+    //    decidePlayerAttack；生产调用方 PlayerDefenseProcessor 已删——本段
+    //    保留为跨语言对拍 Kotlin 基准，DiffSectAttackDecisionTest 侧 B 使用，
+    //    与 PhaseSettlementExecutor 对拍基线先例同型。改语义须双端同步）──
 
     /**
      * AI决定攻击玩家的结果——不再是立即执行战斗，
@@ -504,170 +293,6 @@ object AISectAttackManager {
             val attackerSectId: String,
             val attackerSectName: String
         ) : PlayerAttackDecision
-    }
-
-    /**
-     * 决定AI宗门是否应攻击玩家。
-     *
-     * 保留的二进制硬约束（按序检查）：
-     * 1. 保护期
-     * 2. 附庸关系（主宗不攻击附庸）
-     * 3. 已有活跃预警
-     * 4. 攻击冷却期
-     * 5. 最低弟子数
-     * 6. 同联盟不攻击
-     *
-     * 综合评估委托 [IntelligentSectDecisionEngine] 的四因素加权模型：
-     * - 战力差 (40%) — 通过个性偏移因子体现好战/保守差异
-     * - 占领丢失 (20%)
-     * - 胜负 (25%)
-     * - 好感度 (15%) — 正值好感不攻击（ATTACK_PROFILE 的 hard limit 0）
-     * - AI 个性 — 作为最终概率的修正因子
-     */
-    fun decidePlayerAttack(gameData: GameData): PlayerAttackDecision {
-        // G7-2：AUTHORITATIVE 下经 C++ 决策（sect_attack_decision.h decidePlayerAttack——
-        // 消费 BATTLE 分区；原生失败/未加载回退 Kotlin）
-        tryNativeDecidePlayerAttack()?.let { return it }
-
-        if (gameData.isPlayerProtected) return PlayerAttackDecision.Skip
-
-        val playerSect = gameData.worldMapSects.find { it.isPlayerSect }
-            ?: return PlayerAttackDecision.Skip
-        val playerSectId = playerSect.id
-        val nowMonth = gameData.gameYear * 12 + gameData.gameMonth
-
-        val aiDisciplesMap = gameData.aiSectDisciples
-
-        for (attacker in gameData.worldMapSects.filter { !it.isPlayerSect }) {
-            val aliveAttackers = passesAttackerGates(gameData, attacker, nowMonth, aiDisciplesMap)
-            val powerRatio = aliveAttackers?.let { computePowerRatio(it, aiDisciplesMap, playerSectId) }
-            if (aliveAttackers == null || powerRatio == null) continue
-            val attackChance = computeAttackChance(gameData, attacker, playerSectId, powerRatio)
-
-            if (aisRng.nextDouble() < attackChance) {
-                return PlayerAttackDecision.GenerateWarning(
-                    attackerSectId = attacker.id,
-                    attackerSectName = attacker.name
-                )
-            }
-        }
-
-        return PlayerAttackDecision.Skip
-    }
-
-    /** 攻击前置六道闸（decidePlayerAttack 提取）：附庸/预警/冷却/弟子数/联盟；未通过返回 null */
-    private fun passesAttackerGates(
-        gameData: GameData,
-        attacker: WorldSect,
-        nowMonth: Int,
-        aiDisciplesMap: Map<String, List<Disciple>>
-    ): List<Disciple>? {
-        // ---- 最低弟子数 ----
-        val aliveAttackers = (aiDisciplesMap[attacker.id] ?: emptyList()).filter { it.isAlive }
-        val playerSect = gameData.worldMapSects.find { it.isPlayerSect }
-        val cooldownUntil = gameData.sectAttackCooldowns[attacker.id]
-
-        // ---- 六道闸：附庸 / 活跃预警 / 冷却期 / 最低弟子数 / 联盟 ----
-        val passes = gameData.suzerainSectId != attacker.id &&
-            gameData.activeAttackWarnings.none { it.attackerSectId == attacker.id } &&
-            (cooldownUntil == null || nowMonth >= cooldownUntil) &&
-            aliveAttackers.size >= MIN_DISCIPLES_FOR_ATTACK &&
-            (attacker.allianceId.isEmpty() || playerSect?.allianceId != attacker.allianceId)
-        return if (passes) aliveAttackers else null
-    }
-
-    /** 战力比计算（decidePlayerAttack 提取）；防守战力 <=0 返回 null 跳过 */
-    private fun computePowerRatio(
-        aliveAttackers: List<Disciple>,
-        aiDisciplesMap: Map<String, List<Disciple>>,
-        playerSectId: String
-    ): Double? {
-        // ---- 战力计算 ----
-        val attackerPower = SectCombatPowerCalculator.calculateSectPower(aliveAttackers)
-        val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
-        val defenderPower = SectCombatPowerCalculator.calculateSectPower(
-            defenderDisciples.filter { it.isAlive }
-        )
-        if (defenderPower <= 0) return null
-        return attackerPower.toDouble() / defenderPower.toDouble()
-    }
-
-    /** 多因素智能综合评估（decidePlayerAttack 提取）：好感/战绩统计 + 个性修正 */
-    private fun computeAttackChance(
-        gameData: GameData,
-        attacker: WorldSect,
-        playerSectId: String,
-        powerRatio: Double
-    ): Double {
-        // ---- 个性参数 ----
-        val personality = gameData.aiSectPersonalities[attacker.id]
-            ?: AISectPersonality.BALANCED
-
-        // ---- 多因素智能综合评估 ----
-        val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, playerSectId)
-        val favorLevel = SectRelationLevel.fromFavor(favor)
-        val recentRecords = gameData.sectBattleRecords.filter {
-            it.year >= gameData.gameYear - 3
-        }
-        val conquestCount = recentRecords.count { it.type == SectBattleType.CONQUEST }
-        val lostSectCount = recentRecords.count { it.type == SectBattleType.LOST_SECT }
-        val battleWinCount = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
-        val battleLossCount = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
-
-        return IntelligentSectDecisionEngine.calculateChance(
-            profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
-            powerRatio = powerRatio,
-            conquestCount = conquestCount,
-            lostSectCount = lostSectCount,
-            battleWinCount = battleWinCount,
-            battleLossCount = battleLossCount,
-            favorLevel = favorLevel,
-            personality = personality
-        )
-    }
-
-    /**
-     * 执行AI宗门对玩家的实际战斗（预警到期后调用）。
-     *
-     * @param playerDefenseTeam 玩家方出战弟子（已转换为 Combatant，使用真实装备/功法）
-     */
-    fun executePlayerAttack(
-        gameData: GameData,
-        attackerSectId: String,
-        playerDefenseTeam: List<Combatant>
-    ): AIAttackResult? {
-        val aiDisciplesMap = gameData.aiSectDisciples
-        val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
-        val playerSectId = playerSect.id
-        val attacker = gameData.worldMapSects.find { it.id == attackerSectId } ?: return null
-
-        val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-        val selectedAttackers = attackerDisciples.filter { it.isAlive }
-            .sortedBy { it.realm }
-            .take(TEAM_SIZE)
-        if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
-
-        val battleResult = executePlayerSectBattle(
-            selectedAttackers, playerDefenseTeam
-        )
-        val survivingAttackers = selectedAttackers.filter {
-            it.id !in battleResult.deadAttackerIds
-        }
-
-        return AIAttackResult(
-            attackerSectId = attacker.id,
-            defenderSectId = playerSectId,
-            attackerSectName = attacker.name,
-            defenderSectName = playerSect.name,
-            winner = battleResult.winner,
-            deadAttackerIds = battleResult.deadAttackerIds,
-            deadDefenderIds = battleResult.deadDefenderIds,
-            canOccupy = battleResult.canOccupy,
-            survivingAttackers = survivingAttackers,
-            defenderSurvivorHpMap = battleResult.survivorHpMap,
-            defenderSurvivorMpMap = battleResult.survivorMpMap,
-            rounds = battleResult.rounds
-        )
     }
 
     /**
@@ -693,31 +318,7 @@ object AISectAttackManager {
             val personality = gameData.aiSectPersonalities[sect.id] ?: AISectPersonality.BALANCED
 
             val hasTarget = gameData.worldMapSects.any { target ->
-                if (target.id == sect.id || target.occupierSectId == sect.id) return@any false
-                if (sect.allianceId.isNotEmpty() && sect.allianceId == target.allianceId) return@any false
-
-                val targetDisciples = if (target.isPlayerOccupied) {
-                    emptyList() // 玩家占领的宗门可能有驻军，不确定时视为有目标
-                } else {
-                    (aiDisciplesMap[target.id] ?: emptyList()).filter { it.isAlive }
-                }
-                if (targetDisciples.isEmpty() && !target.isPlayerSect && !target.isPlayerOccupied) return@any false
-
-                val targetPower = SectCombatPowerCalculator.calculateSectPower(targetDisciples)
-                if (targetPower <= 0) return@any false
-                val powerRatio = sectPower.toDouble() / targetPower.toDouble()
-
-                // 使用引擎计算概率但不执行 RNG，只要 chance > 0 就算有目标
-                val favor = FavorDomain.findFavor(gameData.sectRelations, sect.id, target.id)
-                val favorLevel = SectRelationLevel.fromFavor(favor)
-                val chance = IntelligentSectDecisionEngine.calculateChance(
-                    profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
-                    powerRatio = powerRatio,
-                    conquestCount = 0, lostSectCount = 0, battleWinCount = 0, battleLossCount = 0,
-                    favorLevel = favorLevel,
-                    personality = personality
-                )
-                chance > 0.0
+                hasViableAttackTarget(sect, target, sectPower, personality, gameData, aiDisciplesMap)
             }
 
             if (!hasTarget) {
@@ -794,11 +395,10 @@ object AISectAttackManager {
     }
 
     /**
-     * P-2：构建战斗技能列表（熟练度加成调整伤害倍率）。
+     * 构建战斗技能列表（熟练度加成调整伤害倍率）。
      *
-     * 2026-08-04 修复：原手写 CombatSkill 仅传 7 个字段，丢失 skillType（默认 ATTACK，
-     * 支援功法变普攻）、isAoe、buff/heal/shield/控制/拉条等全部属性——AI 宗门弟子
-     * 功法技能退化为弱普攻。改走 [ManualInstance.toCombatSkill] 全字段保留。
+     * 经 [ManualInstance.toCombatSkill] 全字段保留（skillType/isAoe/buff/heal/
+     * shield/控制/拉条等），AI 宗门弟子功法技能与主引擎语义一致。
      */
     internal fun buildCombatSkills(
         manualMap: Map<String, ManualInstance>,
@@ -815,57 +415,7 @@ object AISectAttackManager {
         skill.copy(damageMultiplier = adjustedMultiplier).toCombatSkill(manualName = manual.name)
     }
 
-    fun executeAISectBattle(
-        attackers: List<Disciple>,
-        defenderSect: WorldSect,
-        defenderDisciples: List<Disciple>,
-        allSectDisciples: List<Disciple> = defenderDisciples
-    ): AIBattleResult {
-        return executeSectBattle(attackers, defenderSect, defenderDisciples, allSectDisciples)
-    }
-
-    fun executePlayerSectBattle(
-        attackers: List<Disciple>,
-        playerDefenseTeam: List<Combatant>
-    ): AIBattleResult {
-        val combatAttackers = attackers.map { convertToCombatant(it, CombatantSide.ATTACKER) }
-        val combatDefenders = playerDefenseTeam
-            .filter { it.side == CombatantSide.DEFENDER }
-            .take(TEAM_SIZE)
-
-        // 战斗批次 D-3 收尾（G7）：AUTHORITATIVE 下经 C++ 第三战斗引擎执行
-        // （executePlayerSectBattle 原直调 executeUnifiedAIBattle 绕过 native——
-        // 补上与 executeSectBattleCore 同款守卫，闭合最后一个纯 Kotlin 战斗引擎路径）
-        val result = tryExecuteUnifiedNative(combatAttackers, combatDefenders)
-            ?: executeUnifiedAIBattle(combatAttackers, combatDefenders)
-
-        val deadAttackerIds = attackers
-            .filter { disciple ->
-                result.attackers.find { it.id == disciple.id } == null
-            }
-            .map { it.id }
-
-        val survivorDefenderIds = result.defenders.map { it.id }.toSet()
-        val deadDefenderIds = combatDefenders
-            .filter { it.id !in survivorDefenderIds }
-            .map { it.id }
-
-        val survivorHpMap = result.defenders.associate { it.id to it.hp }
-        val survivorMpMap = result.defenders.associate { it.id to it.mp }
-
-        return AIBattleResult(
-            winner = result.winner,
-            deadAttackerIds = deadAttackerIds,
-            deadDefenderIds = deadDefenderIds,
-            canOccupy = result.winner == AIBattleWinner.ATTACKER,
-            turns = result.turns,
-            survivorHpMap = survivorHpMap,
-            survivorMpMap = survivorMpMap,
-            rounds = result.rounds
-        )
-    }
-
-    /** AI 宗门战结果（executeUnifiedAIBattle 返回；internal 供批次 D-3 对拍） */
+    /** AI 宗门战结果（[executeUnifiedAIBattle] 返回；internal 供对拍测试） */
     internal data class UnifiedAIBattleResult(
         val attackers: List<Combatant>,
         val defenders: List<Combatant>,
@@ -875,210 +425,8 @@ object AISectAttackManager {
     )
 
     /**
-     * 单个参战者回合行动：控制效果跳过 / 支援 / AOE / 单体技能 / 普攻四分支。
-     * 原地修改 [currentAttackers]/[currentDefenders] 中对应 combatant。
-     */
-    private fun executeAiCombatantTurn(
-        currentAttackers: MutableList<Combatant>,
-        currentDefenders: MutableList<Combatant>,
-        combatant: Combatant,
-        roundActions: MutableList<BattleLogAction>
-    ) {
-        val isAttacker = combatant.side == CombatantSide.ATTACKER
-        val allies = if (isAttacker) currentAttackers else currentDefenders
-        val enemies = if (isAttacker) currentDefenders else currentAttackers
-        val alliesIndexMap = allies.withIndex().associate { it.value.id to it.index }
-        val enemiesIndexMap = enemies.withIndex().associate { it.value.id to it.index }
-
-        val aliveEnemies = enemies.filter { !it.isDead }
-        if (aliveEnemies.isEmpty()) return
-
-        val combatantIdx = alliesIndexMap[combatant.id] ?: return
-        val currentCombatant = allies[combatantIdx]
-
-        if (currentCombatant.hasControlEffect) {
-            allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(currentCombatant)
-            return
-        }
-
-        val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
-        val skillDecision = selectAISkill(
-            currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null
-        )
-        val availableSkill = skillDecision.skill
-
-        val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
-        val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
-
-        if (availableSkill != null && isSupportSkill) {
-            executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap, roundActions)
-        } else if (availableSkill != null && isAoeSkill) {
-            executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
-        } else if (availableSkill != null) {
-            val target = selectAITarget(currentCombatant, aliveEnemies, skillDecision.action)
-            executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
-        } else {
-            val target = selectAITarget(currentCombatant, aliveEnemies, skillDecision.action)
-            executeNormalAttackAction(currentCombatant, target, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
-        }
-    }
-
-    /**
-     * 战斗批次 D-3：AUTHORITATIVE 下经 C++ 第三战斗引擎执行 AI 宗门战
-     * （sect_battle.h executeUnifiedAIBattle 等价）。降级契约：flag 关 /
-     * native 未加载 / 失败信封 → null，调用方回退 Kotlin。
-     */
-    @Suppress("ReturnCount")  // 多 return 为降级契约（flag 关/native 不可用/失败信封逐级返回）
-    private fun tryExecuteUnifiedNative(
-        combatAttackers: List<Combatant>,
-        combatDefenders: List<Combatant>
-    ): UnifiedAIBattleResult? {
-        if (!NativeEngineFlag.authoritative) return null
-        if (!GameCoreBridge.isLoaded) return null
-        val op = buildJsonObject {
-            putJsonArray("attackers") { combatAttackers.forEach { add(BattleJsonCodec.combatantJson(it)) } }
-            putJsonArray("defenders") { combatDefenders.forEach { add(BattleJsonCodec.combatantJson(it)) } }
-        }
-        val out = Json.parseToJsonElement(
-            GameCoreBridge.nativeAiBattleExecute(op.toString().encodeToByteArray()).decodeToString()
-        ).jsonObject
-        if (out.containsKey("error")) return null
-
-        val winner = when (out["winner"]?.jsonPrimitive?.content) {
-            "ATTACKER" -> AIBattleWinner.ATTACKER
-            "DEFENDER" -> AIBattleWinner.DEFENDER
-            else -> AIBattleWinner.DRAW
-        }
-        val turns = out["turns"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-        val attackers = (out["attackers"] as? kotlinx.serialization.json.JsonArray)
-            ?.map { BattleJsonCodec.combatantFromJson(it.jsonObject) } ?: emptyList()
-        val defenders = (out["defenders"] as? kotlinx.serialization.json.JsonArray)
-            ?.map { BattleJsonCodec.combatantFromJson(it.jsonObject) } ?: emptyList()
-        return UnifiedAIBattleResult(
-            attackers = attackers,
-            defenders = defenders,
-            winner = winner,
-            turns = turns,
-            rounds = rebuildAiRounds(out)
-        )
-    }
-
-    /**
-     * G7-2：AUTHORITATIVE 下经 C++ 决策 AI 攻玩家（sect_attack_decision.h
-     * decidePlayerAttack——消费 BATTLE 分区）。降级：flag 关/native 未加载/失败信封 → null。
-     */
-    @Suppress("ReturnCount", "TooGenericExceptionCaught")
-    private fun tryNativeDecidePlayerAttack(): PlayerAttackDecision? {
-        if (!NativeEngineFlag.authoritative) return null
-        if (!GameCoreBridge.isLoaded) return null
-        return try {
-            val out = Json.parseToJsonElement(
-                GameCoreBridge.nativeDecidePlayerAttack().decodeToString()
-            ).jsonObject
-            if (out.containsKey("error")) return null
-            if (out["type"]?.jsonPrimitive?.content == "GENERATE_WARNING") {
-                PlayerAttackDecision.GenerateWarning(
-                    attackerSectId = out["attackerSectId"]?.jsonPrimitive?.content ?: "",
-                    attackerSectName = out["attackerSectName"]?.jsonPrimitive?.content ?: ""
-                )
-            } else {
-                PlayerAttackDecision.Skip
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.w(TAG, "nativeDecidePlayerAttack degraded to Kotlin: $e")
-            null
-        }
-    }
-
-    /**
-     * G7-2：AUTHORITATIVE 下经 C++ 判定 AI vs AI 逐目标攻击（sect_attack_decision.h
-     * checkAttackConditions）。降级：flag 关/native 未加载/异常 → null（调用方回退 Kotlin）。
-     */
-    @Suppress("ReturnCount", "TooGenericExceptionCaught")
-    private fun tryNativeCheckAttackConditions(
-        attacker: WorldSect,
-        defender: WorldSect,
-        playerGarrisonMap: Map<String, List<Disciple>>
-    ): Boolean? {
-        if (!NativeEngineFlag.authoritative || !GameCoreBridge.isLoaded) return null
-        val garrisonJson = buildJsonObject {
-            for ((sectId, disciples) in playerGarrisonMap) {
-                putJsonArray(sectId) {
-                    disciples.forEach { add(Json.encodeToJsonElement(Disciple.serializer(), it)) }
-                }
-            }
-        }
-        return try {
-            GameCoreBridge.nativeCheckAttackConditions(
-                attacker.id, defender.id, garrisonJson.toString().encodeToByteArray()
-            )
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.w(TAG, "nativeCheckAttackConditions degraded to Kotlin: $e")
-            null
-        }
-    }
-
-    /**
-     * G7 战斗残余：AUTHORITATIVE 下经 C++ 判定战胜后占领（sect_attack_decision.h
-     * computeCanOccupy，纯确定性零 RNG）。降级：flag 关/native 未加载/异常 → null
-     * （调用方在 executeSectBattleCore 回退 Kotlin 原判定）。
-     */
-    @Suppress("TooGenericExceptionCaught")
-    private fun tryNativeComputeCanOccupy(
-        winnerIsAttacker: Boolean,
-        allSectDisciples: List<Disciple>,
-        deadDefenderIds: List<String>
-    ): Boolean? {
-        if (!NativeEngineFlag.authoritative || !GameCoreBridge.isLoaded) return null
-        val payload = buildJsonObject {
-            put("winnerIsAttacker", JsonPrimitive(winnerIsAttacker))
-            putJsonArray("defenders") {
-                allSectDisciples.forEach { add(Json.encodeToJsonElement(Disciple.serializer(), it)) }
-            }
-            putJsonArray("deadDefenderIds") { deadDefenderIds.forEach { add(JsonPrimitive(it)) } }
-        }
-        return try {
-            GameCoreBridge.nativeComputeCanOccupy(payload.toString().encodeToByteArray())
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.w(TAG, "nativeComputeCanOccupy degraded to Kotlin: $e")
-            null
-        }
-    }
-
-    /** C++ rounds JSON → Kotlin BattleLogRound 列表（确定性动作重建）。 */
-    private fun rebuildAiRounds(out: kotlinx.serialization.json.JsonObject): List<BattleLogRound> =
-        (out["rounds"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { rj ->
-            val r = rj.jsonObject
-            val actions = (r["actions"] as? kotlinx.serialization.json.JsonArray)
-                ?.mapNotNull { aj ->
-                    val o = aj.jsonObject
-                    BattleLogAction(
-                        type = o["type"]?.jsonPrimitive?.content ?: return@mapNotNull null,
-                        attacker = o["attacker"]?.jsonPrimitive?.content ?: "",
-                        attackerType = o["attackerType"]?.jsonPrimitive?.content ?: "",
-                        target = o["target"]?.jsonPrimitive?.content ?: "",
-                        damage = o["damage"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-                        isCrit = o["isCrit"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false,
-                        isKill = o["isKill"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false,
-                        message = "",
-                        skillName = o["skillName"]?.jsonPrimitive?.content
-                    )
-                } ?: emptyList()
-            BattleLogRound(
-                roundNumber = r["roundNumber"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-                actions = actions
-            )
-        } ?: emptyList()
-
-    /**
-     * AI 宗门战核心（第三战斗引擎；批次 D-3 对拍入口——internal 供
-     * DiffSectBattleTest 同模块访问，生产私有路由经 executeSectBattleCore）。
+     * AI 宗门战核心（第三战斗引擎；internal 供
+     * DiffSectBattleTest 同模块对拍，生产私有路由经 executeSectBattleCore）。
      */
     internal fun executeUnifiedAIBattle(
         attackers: List<Combatant>,
@@ -1114,7 +462,7 @@ object AISectAttackManager {
         )
     }
 
-    private data class AiBattleRoundOutcome(
+    internal data class AiBattleRoundOutcome(
         val timedOut: Boolean,
         val ended: Boolean,
         val attackers: List<Combatant>,
@@ -1122,552 +470,27 @@ object AISectAttackManager {
         val round: BattleLogRound
     )
 
-    /** AI 宗门战单回合（executeUnifiedAIBattle 提取）：保留快照后击杀的 isDead 运行时守卫 */
-    private fun executeAiRound(
-        currentAttackers: MutableList<Combatant>,
-        currentDefenders: MutableList<Combatant>,
-        startTime: Long,
-        roundNumber: Int
-    ): AiBattleRoundOutcome {
-        // 超时保护（对齐 BattleSystem 5000ms）：每旬大量 AI 宗门战在游戏线程执行，
-        // 拉锯战（高防低攻）不得无限占用主线程
-        if (System.currentTimeMillis() - startTime > GameConfig.AI.MAX_AI_BATTLE_DURATION_MS) {
-            return AiBattleRoundOutcome(
-                timedOut = true, ended = false, attackers = currentAttackers,
-                defenders = currentDefenders, round = BattleLogRound(roundNumber, emptyList())
-            )
-        }
-        var attackers = currentAttackers
-        var defenders = currentDefenders
-        val roundActions = mutableListOf<BattleLogAction>()
-        val allCombatants = (attackers + defenders)
-            .filter { !it.isDead }
-            .sortedByDescending { it.effectiveSpeed }
-
-        for (combatant in allCombatants) {
-            if (combatant.isDead) continue
-            executeAiCombatantTurn(
-                attackers, defenders, combatant, roundActions
-            )
-            attackers = attackers.filter { !it.isDead }.toMutableList()
-            defenders = defenders.filter { !it.isDead }.toMutableList()
-        }
-
-        processDotEffects(attackers, defenders)
-
-        return AiBattleRoundOutcome(
-            timedOut = false,
-            ended = attackers.isEmpty() || defenders.isEmpty(),
-            attackers = attackers,
-            defenders = defenders,
-            round = BattleLogRound(roundNumber = roundNumber, actions = roundActions.toList())
-        )
-    }
-
-    /** AI 宗门战胜者判定（executeUnifiedAIBattle 提取） */
-    private fun resolveAiWinner(
-        currentAttackers: List<Combatant>,
-        currentDefenders: List<Combatant>,
-        timedOut: Boolean
-    ): AIBattleWinner = when {
-        currentDefenders.isEmpty() -> AIBattleWinner.ATTACKER
-        currentAttackers.isEmpty() -> AIBattleWinner.DEFENDER
-        // 对抗性审查：超时后按存活数多者胜（与 BattleSystem 超时语义对齐），
-        // 避免僵局战一律 DRAW 使攻击方无损失（玩家高防驻军=免伤屏障）
-        timedOut && currentAttackers.size != currentDefenders.size ->
-            if (currentAttackers.size > currentDefenders.size) AIBattleWinner.ATTACKER
-            else AIBattleWinner.DEFENDER
-        else -> AIBattleWinner.DRAW
-    }
-
-    private fun executeNormalAttackAction(
-        attacker: Combatant,
-        target: Combatant,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>,
-        roundActions: MutableList<BattleLogAction>
-    ) {
-        val result = BattleCalculator.calculateCombatantDamage(
-            attacker, target, null, rng = aisRng, enableInstantKill = true
-        )
-        if (result.isInstantKill) {
-            val targetIdx = enemiesIndexMap[target.id]
-            if (targetIdx != null && targetIdx < enemies.size) {
-                enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
-            }
-            val combatantIdx = alliesIndexMap[attacker.id]
-            if (combatantIdx != null && combatantIdx < allies.size) {
-                allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(attacker)
-            }
-            roundActions.add(BattleLogAction(
-                type = "normal", attacker = attacker.name,
-                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
-                target = target.name, damage = target.maxHp,
-                isKill = true, message = "${attacker.name} 境界压制斩杀 ${target.name}"
-            ))
-            return
-        }
-
-        if (result.isDodged) {
-            val combatantIdx = alliesIndexMap[attacker.id]
-            if (combatantIdx != null && combatantIdx < allies.size) {
-                allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(attacker)
-            }
-            roundActions.add(BattleLogAction(
-                type = "normal", attacker = attacker.name,
-                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
-                target = target.name, damage = 0,
-                message = "${target.name} 闪避了 ${attacker.name} 的攻击"
-            ))
-            return
-        }
-
-        applyNormalAttackDamage(
-            attacker, target, result, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions
-        )
-    }
-
     /**
-     * 普攻伤害应用：扣除目标 HP、刷新攻击者 BUFF、记录行动日志。
-     * 从 executeNormalAttackAction 提取（正常伤害分支）。
+     * AI 战斗单回合写回上下文：双方实时列表 + 双方索引映射 + 行动日志
+     * （executeAiCombatantTurn 构建，普攻/单体/AOE 全臂共享——替代逐参数透传）。
      */
-    private fun applyNormalAttackDamage(
-        attacker: Combatant,
-        target: Combatant,
-        result: BattleCalculator.DamageResult,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>,
-        roundActions: MutableList<BattleLogAction>
-    ) {
-        var newHp = target.hp
-        val targetIdx = enemiesIndexMap[target.id]
-        if (targetIdx != null && targetIdx < enemies.size) {
-            // 护盾吸收 + 扣血（共享应用层，与主战斗引擎一致）
-            val updated = BattleDamageApplier.applyDamageToTarget(enemies[targetIdx], result.damage)
-            enemies[targetIdx] = updated
-            newHp = updated.hp
-            // 伤害分摊/链接（AI 弟子技能可能带 damageShare/damageLink）
-            applyShareAndLink(attacker, updated, result.damage, allies, enemies)
-        }
-
-        val combatantIdx = alliesIndexMap[attacker.id]
-        if (combatantIdx != null && combatantIdx < allies.size) {
-            allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(attacker)
-        }
-        roundActions.add(BattleLogAction(
-            type = "normal", attacker = attacker.name,
-            attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
-            target = target.name, damage = result.damage,
-            isCrit = result.isCrit, isKill = newHp == 0
-        ))
-    }
-
-    private fun executeSingleAttackAction(
-        attacker: Combatant,
-        target: Combatant,
-        skill: CombatSkill,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>,
-        roundActions: MutableList<BattleLogAction>
-    ) {
-        val result = BattleCalculator.calculateCombatantDamage(
-            attacker, target, skill, rng = aisRng, enableInstantKill = true
-        )
-        if (result.isInstantKill) {
-            val targetIdx = enemiesIndexMap[target.id]
-            if (targetIdx != null && targetIdx < enemies.size) {
-                enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
-            }
-            val combatantIdx = alliesIndexMap[attacker.id]
-            if (combatantIdx != null && combatantIdx < allies.size) {
-                allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
-            }
-            roundActions.add(BattleLogAction(
-                type = "skill", attacker = attacker.name,
-                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
-                target = target.name, damage = target.maxHp, skillName = skill.name,
-                isKill = true, message = "${attacker.name} 以 ${skill.name} 境界压制斩杀 ${target.name}"
-            ))
-            return
-        }
-
-        if (result.isDodged) {
-            val combatantIdx = alliesIndexMap[attacker.id]
-            if (combatantIdx != null && combatantIdx < allies.size) {
-                allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
-            }
-            roundActions.add(BattleLogAction(
-                type = "skill", attacker = attacker.name,
-                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
-                target = target.name, damage = 0, skillName = skill.name,
-                message = "${target.name} 闪避了 ${attacker.name} 的 ${skill.name}"
-            ))
-            return
-        }
-
-        applySingleSkillDamage(
-            attacker, target, skill, result, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions
-        )
-    }
-
-    /**
-     * 单体技能伤害应用：扣除目标 HP、附加技能 debuff、刷新攻击者冷却、记录日志。
-     * 从 executeSingleAttackAction 提取（正常伤害分支）。
-     */
-    private fun applySingleSkillDamage(
-        attacker: Combatant,
-        target: Combatant,
-        skill: CombatSkill,
-        result: BattleCalculator.DamageResult,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>,
-        roundActions: MutableList<BattleLogAction>
-    ) {
-        var newHp = target.hp
-        val targetIdx = enemiesIndexMap[target.id]
-        if (targetIdx != null && targetIdx < enemies.size) {
-            // 护盾吸收 + 扣血（共享应用层）
-            var updatedTarget = BattleDamageApplier.applyDamageToTarget(enemies[targetIdx], result.damage)
-            newHp = updatedTarget.hp
-
-            val localBuffType = skill.buffType
-            if (localBuffType != null && skill.buffDuration > 0) {
-                val debuff = CombatBuff(
-                    type = localBuffType,
-                    value = skill.buffValue,
-                    remainingDuration = skill.buffDuration,
-                    sourceRealm = attacker.realm,
-                    sourceRealmLayer = attacker.realmLayer
-                )
-                updatedTarget = updatedTarget.copy(buffs = updatedTarget.buffs + debuff)
-            }
-            // 伤害链接 debuff（对抗性审查：G4 全字段保留后 AI 战需与主引擎一致——
-            // 清旧链接再附加，否则链接效果在宗门战恒为零）
-            updatedTarget = applyLinkDebuff(attacker, updatedTarget, skill)
-
-            enemies[targetIdx] = updatedTarget
-            // 伤害分摊/链接
-            applyShareAndLink(attacker, updatedTarget, result.damage, allies, enemies)
-        }
-
-        val combatantIdx = alliesIndexMap[attacker.id]
-        if (combatantIdx != null && combatantIdx < allies.size) {
-            allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
-        }
-        roundActions.add(BattleLogAction(
-            type = "skill", attacker = attacker.name,
-            attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
-            target = target.name, damage = result.damage, skillName = skill.name,
-            isCrit = result.isCrit, isKill = newHp == 0
-        ))
-    }
-
-    private fun executeAoeAttackAction(
-        attacker: Combatant,
-        targets: List<Combatant>,
-        skill: CombatSkill,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>,
-        roundActions: MutableList<BattleLogAction>
-    ) {
-        val attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender"
-        for (target in targets) {
-            if (target.isDead) continue
-            applyAoeSingleTarget(
-                attacker, target, skill,
-                AoeWriteBackContext(allies, enemies, enemiesIndexMap, roundActions)
-            )
-        }
-        // 攻击者冷却/MP 结算：每次技能执行一次（无论目标走必杀/闪避/正常分支），
-        // 修复 P3C-3 拆分时冷却结算移入单目标分支导致全目标必杀/闪避时结算丢失
-        val combatantIdx = alliesIndexMap[attacker.id]
-        if (combatantIdx != null && combatantIdx < allies.size) {
-            allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
-        }
-    }
-
-    /**
-     * AOE 单目标伤害应用：必杀/闪避/正常三分支（含技能 debuff 附加）。
-     * 从 executeAoeAttackAction 循环体提取。
-     */
-    private data class AoeWriteBackContext(
+    internal data class BattleWriteBackContext(
         val allies: MutableList<Combatant>,
         val enemies: MutableList<Combatant>,
+        val alliesIndexMap: Map<String, Int>,
         val enemiesIndexMap: Map<String, Int>,
         val roundActions: MutableList<BattleLogAction>
     )
 
-    private fun applyAoeSingleTarget(
-        attacker: Combatant,
-        target: Combatant,
-        skill: CombatSkill,
-        ctx: AoeWriteBackContext
-    ) {
-        val result = BattleCalculator.calculateCombatantDamage(
-            attacker, target, skill, rng = aisRng, enableInstantKill = true
-        )
-        val attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender"
-        if (result.isInstantKill) {
-                val targetIdx = ctx.enemiesIndexMap[target.id]
-                if (targetIdx != null && targetIdx < ctx.enemies.size) {
-                    ctx.enemies[targetIdx] = ctx.enemies[targetIdx].copy(hp = 0)
-                }
-                ctx.roundActions.add(BattleLogAction(
-                    type = "skill", attacker = attacker.name, attackerType = attackerType,
-                    target = target.name, damage = target.maxHp, skillName = skill.name,
-                    isKill = true, message = "${attacker.name} 以 ${skill.name} 境界压制斩杀 ${target.name}"
-                ))
-                return
-            }
-
-            if (result.isDodged) {
-                ctx.roundActions.add(BattleLogAction(
-                    type = "skill", attacker = attacker.name, attackerType = attackerType,
-                    target = target.name, damage = 0, skillName = skill.name,
-                    message = "${target.name} 闪避了 ${attacker.name} 的 ${skill.name}"
-                ))
-                return
-            }
-
-            var newHp = target.hp
-            val targetIdx = ctx.enemiesIndexMap[target.id]
-            if (targetIdx != null && targetIdx < ctx.enemies.size) {
-                // 护盾吸收 + 扣血（共享应用层）
-                var updatedTarget = BattleDamageApplier.applyDamageToTarget(ctx.enemies[targetIdx], result.damage)
-                newHp = updatedTarget.hp
-
-                val localBuffType = skill.buffType
-                if (localBuffType != null && skill.buffDuration > 0) {
-                    val debuff = CombatBuff(
-                        type = localBuffType,
-                        value = skill.buffValue,
-                        remainingDuration = skill.buffDuration,
-                        sourceRealm = attacker.realm,
-                        sourceRealmLayer = attacker.realmLayer
-                    )
-                    updatedTarget = updatedTarget.copy(buffs = updatedTarget.buffs + debuff)
-                }
-                // 伤害链接 debuff（与主引擎一致）
-                updatedTarget = applyLinkDebuff(attacker, updatedTarget, skill)
-
-                ctx.enemies[targetIdx] = updatedTarget
-                // 伤害分摊/链接
-                applyShareAndLink(attacker, updatedTarget, result.damage, ctx.allies, ctx.enemies)
-            }
-            ctx.roundActions.add(BattleLogAction(
-                type = "skill", attacker = attacker.name, attackerType = attackerType,
-                target = target.name, damage = result.damage, skillName = skill.name,
-                isCrit = result.isCrit, isKill = newHp == 0
-            ))
-    }
-
-    private fun executeSupportAction(
-        caster: Combatant,
-        allies: List<Combatant>,
-        skill: CombatSkill,
-        alliesList: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        roundActions: MutableList<BattleLogAction>
-    ) {
-        val supportAllies = resolveSupportTargets(caster, allies, skill)
-        val supportResult = BattleCalculator.executeSupportSkill(caster, supportAllies, skill)
-        applySupportHealing(supportResult, alliesList, alliesIndexMap, skill)
-        applySupportTeamBuffs(supportResult, alliesList, alliesIndexMap)
-        updateSupportCooldown(caster, alliesList, alliesIndexMap, skill)
-        roundActions.add(buildSupportActionLog(caster, allies, supportResult, skill))
-    }
-
-    /** 支援目标解析（executeSupportAction 提取）：保留 aisRng 抽数位置 */
-    private fun resolveSupportTargets(caster: Combatant, allies: List<Combatant>, skill: CombatSkill): List<Combatant> {
-        // 对抗性审查修复：ally 作用域由调用方解析（BattleCalculator 对 "ally" 返回空列表）——
-        // 此前传全部存活盟友导致 ally 技能对所有人生效/或对空列表空放
-        if (skill.targetScope != "ally") return allies
-        val valid = allies.filter { !it.isDead && it.id != caster.id }
-        return if (valid.isNotEmpty()) listOf(valid[aisRng.nextInt(valid.size)]) else emptyList()
-    }
-
-    /** 支援治疗写回（executeSupportAction 提取） */
-    private fun applySupportHealing(
-        supportResult: SupportResult,
-        alliesList: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        skill: CombatSkill
-    ) {
-        if (supportResult.healAmount <= 0) return
-        supportResult.healedIds.forEach { healedId ->
-            val idx = alliesIndexMap[healedId]
-            if (idx != null && idx < alliesList.size) {
-                if (skill.healType == HealType.MP) {
-                    alliesList[idx] = alliesList[idx].copy(mp = minOf(alliesList[idx].mp + supportResult.healAmount, alliesList[idx].maxMp))
-                } else {
-                    alliesList[idx] = alliesList[idx].copy(hp = minOf(alliesList[idx].hp + supportResult.healAmount, alliesList[idx].maxHp))
-                }
-            }
-        }
-    }
-
-    /** 支援团队 BUFF 写回（executeSupportAction 提取） */
-    private fun applySupportTeamBuffs(
-        supportResult: SupportResult,
-        alliesList: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>
-    ) {
-        supportResult.teamBuffs.forEach { (memberId, buffs) ->
-            val idx = alliesIndexMap[memberId]
-            if (idx != null && idx < alliesList.size) {
-                alliesList[idx] = alliesList[idx].copy(buffs = alliesList[idx].buffs + buffs)
-            }
-        }
-    }
-
-    /** 支援施放者冷却更新（executeSupportAction 提取） */
-    private fun updateSupportCooldown(
-        caster: Combatant,
-        alliesList: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
-        skill: CombatSkill
-    ) {
-        val combatantIdx = alliesIndexMap[caster.id]
-        if (combatantIdx != null && combatantIdx < alliesList.size) {
-            alliesList[combatantIdx] = BattleCalculator.updateCombatantCooldowns(caster, skill)
-        }
-    }
-
-    /** 支援行动日志（executeSupportAction 提取） */
-    private fun buildSupportActionLog(
-        caster: Combatant,
-        allies: List<Combatant>,
-        supportResult: SupportResult,
-        skill: CombatSkill
-    ): BattleLogAction = BattleLogAction(
-        type = "support", attacker = caster.name,
-        attackerType = if (caster.side == CombatantSide.ATTACKER) "attacker" else "defender",
-        target = allies.joinToString("、") { it.name }, damage = supportResult.healAmount,
-        skillName = skill.name,
-        message = "${caster.name} 施展 ${skill.name}" +
-            if (supportResult.healAmount > 0) "，恢复 ${supportResult.healedIds.size} 名友方 ${supportResult.healAmount}"
-            else if (supportResult.teamBuffs.isNotEmpty()) "，强化 ${supportResult.teamBuffs.size} 名友方"
-            else ""
-    )
-
-    /**
-     * 伤害链接 debuff 附加（与主引擎 applyDamageLinkDebuff 语义一致）：
-     * 清掉旧的链接标记再附加新链接（同时仅一个链接）。
-     */
-    private fun applyLinkDebuff(
-        attacker: Combatant,
-        target: Combatant,
-        skill: CombatSkill
-    ): Combatant {
-        val linkPercent = skill.damageLinkPercent
-        if (linkPercent <= 0 || skill.buffDuration <= 0) return target
-        val cleaned = target.buffs.filter { it.type != BuffType.DAMAGE_LINK }
-        return cleaned.let { buffs ->
-            target.copy(
-                buffs = buffs + CombatBuff(
-                    type = BuffType.DAMAGE_LINK,
-                    value = linkPercent,
-                    remainingDuration = skill.buffDuration,
-                    sourceRealm = attacker.realm,
-                    sourceRealmLayer = attacker.realmLayer
-                )
-            )
-        }
-    }
-
-    /**
-     * 伤害分摊/链接应用（共享应用层 [BattleDamageApplier]）。
-     * attackers/defenders 映射为 BattleDamageApplier 的 team(DEFENDER)/beasts(ATTACKER) 语义。
-     */
-    private fun applyShareAndLink(
-        attacker: Combatant,
-        target: Combatant,
-        damage: Int,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>
-    ) {
-        val team = if (attacker.side == CombatantSide.DEFENDER) allies else enemies
-        val beasts = if (attacker.side == CombatantSide.DEFENDER) enemies else allies
-        BattleDamageApplier.applySharedDamage(target, damage, team, beasts)
-            .forEach { (id, updated) -> writeBackToLists(id, updated, allies, enemies) }
-        BattleDamageApplier.applyLinkedDamage(attacker, target, damage, team, beasts)
-            .forEach { (id, updated) -> writeBackToLists(id, updated, allies, enemies) }
-    }
-
-    private fun writeBackToLists(
-        id: String,
-        updated: Combatant,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>
-    ) {
-        val idxA = allies.indexOfFirst { it.id == id }
-        if (idxA >= 0) {
-            allies[idxA] = updated
-        } else {
-            val idxE = enemies.indexOfFirst { it.id == id }
-            if (idxE >= 0) enemies[idxE] = updated
-        }
-    }
-
-    private fun processDotEffects(attackers: MutableList<Combatant>, defenders: MutableList<Combatant>) {
-        val allCombatants = (attackers + defenders).filter { !it.isDead }
-        val dotResults = BattleCalculator.processDotEffects(allCombatants)
-        for (result in dotResults) {
-            val isAttacker = result.combatant.side == CombatantSide.ATTACKER
-            val list = if (isAttacker) attackers else defenders
-            val idx = list.indexOfFirst { it.id == result.combatant.id }
-            if (idx >= 0) {
-                list[idx] = list[idx].copy(hp = result.newHp)
-            }
-        }
-    }
-
-    /** 技能决策结果（局部传递，替代原类级 pendingAiAction——与 BattleSystem G7 收敛） */
-    private data class AiSkillDecision(
+    /** 技能决策结果（局部传递，与 BattleSystem 同构） */
+    internal data class AiSkillDecision(
         val skill: CombatSkill?,
         val action: BattleAI.AIAction?
     )
 
-    private fun selectAISkill(
-        combatant: Combatant,
-        enemies: List<Combatant>,
-        allies: List<Combatant>,
-        isSilenced: Boolean
-    ): AiSkillDecision {
-        if (isSilenced) return AiSkillDecision(null, null)
-        val action = BattleAI.decideAction(combatant, allies, enemies, aisRng)
-        return AiSkillDecision(action.skill, action)
-    }
-
-    private fun selectAITarget(
-        attacker: Combatant,
-        targets: List<Combatant>,
-        aiAction: BattleAI.AIAction?
-    ): Combatant {
-        val aliveTargets = targets.filter { !it.isDead }
-        if (aliveTargets.isEmpty()) return targets.first()
-        return aiAction?.target
-            ?: BattleAI.selectAttackTarget(attacker, aliveTargets, null, aisRng)
-            ?: aliveTargets.first()
-    }
-
-    fun getGarrisonDisciples(sect: WorldSect, allDisciples: List<Disciple>): List<Disciple> {
-        return sect.garrisonSlots
-            .filter { it.discipleId.isNotEmpty() }
-            .mapNotNull { slot -> allDisciples.find { it.id == slot.discipleId } }
-            .filter { it.isAlive }
-    }
-
+    /**
+     * 补充队伍到满编 — 用后备弟子填充。
+     */
     fun supplementDisciples(
         coreDisciples: List<Disciple>,
         availableDisciples: List<Disciple>
@@ -1685,4 +508,40 @@ object AISectAttackManager {
     // 以下已提取为同包 top-level fun：
     // supplementDisciples, createPlayerDefenseTeam, getGarrisonDisciples,
     // getSectWarRewardConfig, generateWarRewards
+}
+
+/** 单个攻击目标可行性判定：硬约束 + 战力门槛 + chance>0（不执行 RNG） */
+private fun hasViableAttackTarget(
+    sect: WorldSect,
+    target: WorldSect,
+    sectPower: Long,
+    personality: AISectPersonality,
+    gameData: GameData,
+    aiDisciplesMap: Map<String, List<Disciple>>
+): Boolean {
+    if (target.id == sect.id || target.occupierSectId == sect.id) return false
+    if (sect.allianceId.isNotEmpty() && sect.allianceId == target.allianceId) return false
+
+    val targetDisciples = if (target.isPlayerOccupied) {
+        emptyList() // 玩家占领的宗门可能有驻军，不确定时视为有目标
+    } else {
+        (aiDisciplesMap[target.id] ?: emptyList()).filter { it.isAlive }
+    }
+    if (targetDisciples.isEmpty() && !target.isPlayerSect && !target.isPlayerOccupied) return false
+
+    val targetPower = SectCombatPowerCalculator.calculateSectPower(targetDisciples)
+    if (targetPower <= 0) return false
+    val powerRatio = sectPower.toDouble() / targetPower.toDouble()
+
+    // 使用引擎计算概率但不执行 RNG，只要 chance > 0 就算有目标
+    val favor = FavorDomain.findFavor(gameData.sectRelations, sect.id, target.id)
+    val favorLevel = SectRelationLevel.fromFavor(favor)
+    val chance = IntelligentSectDecisionEngine.calculateChance(
+        profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
+        powerRatio = powerRatio,
+        conquestCount = 0, lostSectCount = 0, battleWinCount = 0, battleLossCount = 0,
+        favorLevel = favorLevel,
+        personality = personality
+    )
+    return chance > 0.0
 }

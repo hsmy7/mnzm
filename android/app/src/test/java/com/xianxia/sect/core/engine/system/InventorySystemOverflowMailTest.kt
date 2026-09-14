@@ -9,9 +9,6 @@ import com.xianxia.sect.core.overflow.OverflowMailHandler
 import com.xianxia.sect.core.engine.service.OverflowMailSender
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
-import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import com.xianxia.sect.core.wallet.SpiritStoneLedger
-import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
@@ -29,7 +26,7 @@ import org.robolectric.annotation.Config
 
 
 /**
- * InventorySystem 溢出转邮件三态测试（对抗性审查 HIGH-3 补充）：
+ * InventorySystem 溢出转邮件三态测试：
  * - Partial（部分入仓）→ 溢出量转邮件草稿
  * - Failure(Full)（零合并且无空槽）→ 全部数量转邮件草稿
  * - withOverflowMailSuppressed 内 → 不转邮件（凭据类路径）
@@ -68,8 +65,6 @@ class InventorySystemOverflowMailTest {
     /** 以指定溢出处理器构造 InventorySystem（真实 sender 用例复用同一 stateStore） */
     private fun makeSystem(handler: OverflowMailHandler): InventorySystem = InventorySystem(
         stateStore, inventoryConfig,
-        SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java)),
-        mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java),
         handler
     )
 
@@ -156,7 +151,7 @@ class InventorySystemOverflowMailTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // D-01 集成：真实 OverflowMailSender + 真实 GameStateStoreImpl 世代号钩子
+    // 集成：真实 OverflowMailSender + 真实 GameStateStoreImpl 世代号钩子
     // 核心不变量：DB 中的草稿行 ⇒ 其来源事务已提交
     // ═══════════════════════════════════════════════════════════════
 

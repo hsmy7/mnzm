@@ -305,7 +305,7 @@ class GameEngineCoreFpsPolicyTest {
 
     // ── 工具 ──
 
-    // ── 动态 ADPF 目标（2026-08-14 平板省电） ──
+    // ── 动态 ADPF 目标（平板省电） ──
 
     @Test
     fun `adpf - frameDurationNs converts fps to nanos`() {

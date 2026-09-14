@@ -74,7 +74,7 @@ fun DiplomacyDialog(
     )
 }
 
-/** 宗门好感度派生（DiplomacyDialog 拆分） */
+/** 宗门好感度派生 */
 @Composable
 private fun rememberDiplomacyFavors(
     playerSect: WorldSect?,
@@ -105,7 +105,7 @@ private data class DiplomacyFlowState(
     val sectTradeItems: List<MerchantItem>
 )
 
-/** 外交子弹窗状态订阅（DiplomacyDialog 拆分） */
+/** 外交子弹窗状态订阅 */
 @Composable
 private fun rememberDiplomacyFlow(interactionViewModel: WorldMapInteractionViewModel): DiplomacyFlowState {
     val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
@@ -122,7 +122,7 @@ private fun rememberDiplomacyFlow(interactionViewModel: WorldMapInteractionViewM
     )
 }
 
-/** 外交宗门列表区（DiplomacyDialog 拆分）：空态或 LazyColumn 卡片列表 */
+/** 外交宗门列表区：空态或 LazyColumn 卡片列表 */
 @Composable
 private fun DiplomacySectList(
     sortedSects: List<WorldSect>,
@@ -165,7 +165,7 @@ private fun DiplomacySectList(
     }
 }
 
-/** 外交交易/对话子弹窗（DiplomacyDialog 拆分） */
+/** 外交交易/对话子弹窗 */
 @Composable
 private fun DiplomacySubDialogs(
     flow: DiplomacyFlowState,
@@ -202,6 +202,7 @@ private fun DiplomacySubDialogs(
 }
 
 @Composable
+@Suppress("UnusedParameter") // gameData: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 internal fun DiplomacySectCard(
     sect: WorldSect,
     relation: Int,
@@ -235,7 +236,7 @@ internal fun DiplomacySectCard(
     }
 }
 
-/** 宗门卡片左侧信息（DiplomacySectCard 拆分）：图标 + 名称 + 好感度 + 盟友徽标 */
+/** 宗门卡片左侧信息：图标 + 名称 + 好感度 + 盟友徽标 */
 @Composable
 private fun RowScope.DiplomacySectCardInfo(
     sect: WorldSect,
@@ -284,7 +285,7 @@ private fun RowScope.DiplomacySectCardInfo(
     }
 }
 
-/** 宗门卡片右侧操作按钮（DiplomacySectCard 拆分）：外交/交易 */
+/** 宗门卡片右侧操作按钮：外交/交易 */
 @Composable
 private fun DiplomacySectCardActions(
     isPlayerOccupied: Boolean,

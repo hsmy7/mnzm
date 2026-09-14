@@ -4,9 +4,10 @@
   "width": 4096,
   "height": 4096,
   "mipLevels": 11,
-  "layoutHash": "8133e005ffde426b",
-  "generatedAt": "2026-09-02T22:19:56.902Z",
-  "spriteCount": 38,
+  "mipMode": "per-sprite",
+  "layoutHash": "3eae9b488c7c3bdc",
+  "generatedAt": "2026-09-12T09:48:44.801Z",
+  "spriteCount": 42,
   "sprites": [
     {
       "name": "GROUND",
@@ -14,47 +15,99 @@
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": "map_grass_1"
+      "drawable": "map_grass_1",
+      "srcW": 64,
+      "srcH": 64
     },
     {
-      "name": "GRASS_SMALL",
-      "x": 128,
+      "name": "GRASS1",
+      "x": 136,
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": "decoration_grass_small"
+      "drawable": "decoration_grass1",
+      "srcW": 2176,
+      "srcH": 1888
     },
     {
-      "name": "GRASS_MEDIUM",
-      "x": 256,
+      "name": "GRASS2",
+      "x": 272,
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": "decoration_grass_medium"
+      "drawable": "decoration_grass2",
+      "srcW": 2206,
+      "srcH": 1760
     },
     {
-      "name": "GRASS_LARGE",
-      "x": 384,
+      "name": "GRASS3",
+      "x": 408,
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": "decoration_grass_large"
+      "drawable": "decoration_grass3",
+      "srcW": 2272,
+      "srcH": 1972
+    },
+    {
+      "name": "GRASS4",
+      "x": 544,
+      "y": 0,
+      "w": 128,
+      "h": 128,
+      "drawable": "decoration_grass4",
+      "srcW": 1919,
+      "srcH": 2044
+    },
+    {
+      "name": "STONE1",
+      "x": 2048,
+      "y": 0,
+      "w": 128,
+      "h": 128,
+      "drawable": "decoration_stone1",
+      "srcW": 2314,
+      "srcH": 1664
+    },
+    {
+      "name": "STONE2",
+      "x": 2184,
+      "y": 0,
+      "w": 128,
+      "h": 128,
+      "drawable": "decoration_stone2",
+      "srcW": 2487,
+      "srcH": 1696
+    },
+    {
+      "name": "STONE3",
+      "x": 2320,
+      "y": 0,
+      "w": 128,
+      "h": 128,
+      "drawable": "decoration_stone3",
+      "srcW": 2240,
+      "srcH": 1856
     },
     {
       "name": "TREE1",
-      "x": 512,
+      "x": 800,
       "y": 0,
       "w": 256,
       "h": 256,
-      "drawable": "decoration_tree1"
+      "drawable": "decoration_tree1",
+      "srcW": 1789,
+      "srcH": 2208
     },
     {
       "name": "TREE2",
-      "x": 768,
+      "x": 1064,
       "y": 0,
       "w": 256,
       "h": 256,
-      "drawable": "decoration_tree2"
+      "drawable": "decoration_tree2",
+      "srcW": 2079,
+      "srcH": 2176
     },
     {
       "name": "TILE_BUILDING",
@@ -62,7 +115,9 @@
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": null
+      "drawable": null,
+      "srcW": null,
+      "srcH": null
     },
     {
       "name": "灵矿场",
@@ -70,183 +125,229 @@
       "y": 512,
       "w": 512,
       "h": 512,
-      "drawable": "building_spirit_mine"
+      "drawable": "building_spirit_mine",
+      "srcW": 531,
+      "srcH": 531
     },
     {
       "name": "灵植阁",
-      "x": 512,
+      "x": 520,
       "y": 512,
       "w": 512,
       "h": 512,
-      "drawable": "building_herb_garden"
+      "drawable": "building_herb_garden",
+      "srcW": 465,
+      "srcH": 465
     },
     {
       "name": "灵田",
-      "x": 1024,
-      "y": 512,
-      "w": 512,
-      "h": 512,
-      "drawable": "building_spirit_field"
+      "x": 1044,
+      "y": 516,
+      "w": 128,
+      "h": 128,
+      "drawable": "building_spirit_field",
+      "srcW": 768,
+      "srcH": 768
     },
     {
       "name": "炼丹炉",
-      "x": 1536,
+      "x": 1560,
       "y": 512,
       "w": 512,
       "h": 512,
-      "drawable": "building_alchemy"
+      "drawable": "building_alchemy",
+      "srcW": 583,
+      "srcH": 583
     },
     {
       "name": "锻造坊",
-      "x": 2048,
+      "x": 2080,
       "y": 512,
       "w": 512,
       "h": 512,
-      "drawable": "building_forge"
+      "drawable": "building_forge",
+      "srcW": 426,
+      "srcH": 426
     },
     {
       "name": "仓库",
       "x": 0,
-      "y": 1024,
+      "y": 1032,
       "w": 512,
       "h": 512,
-      "drawable": "building_warehouse"
+      "drawable": "building_warehouse",
+      "srcW": 396,
+      "srcH": 335
     },
     {
       "name": "藏经阁",
-      "x": 512,
-      "y": 1024,
+      "x": 520,
+      "y": 1032,
       "w": 512,
       "h": 512,
-      "drawable": "building_library"
+      "drawable": "building_library",
+      "srcW": 600,
+      "srcH": 400
     },
     {
       "name": "问道塔",
-      "x": 1024,
-      "y": 1024,
+      "x": 1040,
+      "y": 1032,
       "w": 512,
       "h": 512,
-      "drawable": "building_wen_dao_peak"
+      "drawable": "building_wen_dao_peak",
+      "srcW": 439,
+      "srcH": 658
     },
     {
       "name": "青云塔",
-      "x": 1536,
-      "y": 1024,
+      "x": 1560,
+      "y": 1032,
       "w": 512,
       "h": 512,
-      "drawable": "building_qingyun_peak"
+      "drawable": "building_qingyun_peak",
+      "srcW": 415,
+      "srcH": 622
     },
     {
       "name": "天枢殿",
-      "x": 3072,
-      "y": 1024,
+      "x": 3008,
+      "y": 1032,
       "w": 1024,
       "h": 1024,
-      "drawable": "building_tianshu_hall"
+      "drawable": "building_tianshu_hall",
+      "srcW": 1405,
+      "srcH": 1091
     },
     {
       "name": "执法堂",
       "x": 0,
-      "y": 1536,
+      "y": 1552,
       "w": 512,
       "h": 512,
-      "drawable": "building_law_enforcement"
+      "drawable": "building_law_enforcement",
+      "srcW": 600,
+      "srcH": 400
     },
     {
       "name": "任务阁",
-      "x": 512,
-      "y": 1536,
+      "x": 520,
+      "y": 1552,
       "w": 512,
       "h": 512,
-      "drawable": "building_mission_hall"
+      "drawable": "building_mission_hall",
+      "srcW": 423,
+      "srcH": 423
     },
     {
       "name": "巡视楼",
-      "x": 1024,
-      "y": 1536,
+      "x": 1040,
+      "y": 1552,
       "w": 512,
       "h": 512,
-      "drawable": "building_patrol_tower"
+      "drawable": "building_patrol_tower",
+      "srcW": 569,
+      "srcH": 1024
     },
     {
       "name": "监牢",
-      "x": 1536,
-      "y": 1536,
+      "x": 1560,
+      "y": 1552,
       "w": 512,
       "h": 512,
-      "drawable": "building_reflection_cliff"
+      "drawable": "building_reflection_cliff",
+      "srcW": 404,
+      "srcH": 404
     },
     {
       "name": "单人住所",
-      "x": 2048,
-      "y": 1536,
+      "x": 2080,
+      "y": 1552,
       "w": 512,
       "h": 512,
-      "drawable": "building_single_residence"
+      "drawable": "building_single_residence",
+      "srcW": 311,
+      "srcH": 347
     },
     {
       "name": "中级单人住所",
       "x": 0,
-      "y": 2048,
+      "y": 2072,
       "w": 512,
       "h": 512,
-      "drawable": "building_single_residence_upgraded"
+      "drawable": "building_single_residence_upgraded",
+      "srcW": 348,
+      "srcH": 367
     },
     {
       "name": "多人住所",
-      "x": 512,
-      "y": 2048,
+      "x": 520,
+      "y": 2072,
       "w": 512,
       "h": 512,
-      "drawable": "building_multi_residence"
+      "drawable": "building_multi_residence",
+      "srcW": 396,
+      "srcH": 337
     },
     {
       "name": "血炼池",
-      "x": 1024,
-      "y": 2048,
+      "x": 1040,
+      "y": 2072,
       "w": 512,
       "h": 512,
-      "drawable": "blood_refining_pool"
+      "drawable": "blood_refining_pool",
+      "srcW": 1384,
+      "srcH": 768
     },
     {
       "name": "中级多人住所",
-      "x": 1536,
-      "y": 2048,
+      "x": 1560,
+      "y": 2072,
       "w": 512,
       "h": 512,
-      "drawable": "building_multi_residence_upgraded"
+      "drawable": "building_multi_residence_upgraded",
+      "srcW": 672,
+      "srcH": 635
     },
     {
       "name": "SEEDLING",
-      "x": 1664,
+      "x": 1384,
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": "growing_spiritgrass7"
+      "drawable": "growing_spiritgrass7",
+      "srcW": 436,
+      "srcH": 524
     },
     {
       "name": "GROWING",
-      "x": 1792,
+      "x": 1520,
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": "growing_spiritgrass8"
+      "drawable": "growing_spiritgrass8",
+      "srcW": 442,
+      "srcH": 745
     },
     {
       "name": "MATURE",
-      "x": 1920,
+      "x": 1656,
       "y": 0,
       "w": 128,
       "h": 128,
-      "drawable": "growing_spiritgrass9"
+      "drawable": "growing_spiritgrass9",
+      "srcW": 334,
+      "srcH": 410
     },
     {
       "name": "sect_gate",
       "x": 3072,
       "y": 512,
       "w": 768,
-      "h": 512,
-      "drawable": "sect_gate"
+      "h": 256,
+      "drawable": "sect_gate",
+      "srcW": 1361,
+      "srcH": 800
     },
     {
       "name": "cloud_1",
@@ -254,7 +355,9 @@
       "y": 2816,
       "w": 968,
       "h": 240,
-      "drawable": "cloud_1"
+      "drawable": "cloud_1",
+      "srcW": 484,
+      "srcH": 120
     },
     {
       "name": "cloud_2",
@@ -262,15 +365,19 @@
       "y": 2816,
       "w": 904,
       "h": 376,
-      "drawable": "cloud_2"
+      "drawable": "cloud_2",
+      "srcW": 452,
+      "srcH": 188
     },
     {
       "name": "cloud_3",
-      "x": 1872,
+      "x": 3088,
       "y": 2816,
       "w": 976,
       "h": 192,
-      "drawable": "cloud_3"
+      "drawable": "cloud_3",
+      "srcW": 488,
+      "srcH": 96
     },
     {
       "name": "cloud_4",
@@ -278,7 +385,9 @@
       "y": 3240,
       "w": 1048,
       "h": 216,
-      "drawable": "cloud_4"
+      "drawable": "cloud_4",
+      "srcW": 524,
+      "srcH": 108
     },
     {
       "name": "cloud_5",
@@ -286,31 +395,39 @@
       "y": 3240,
       "w": 944,
       "h": 400,
-      "drawable": "cloud_5"
+      "drawable": "cloud_5",
+      "srcW": 472,
+      "srcH": 200
     },
     {
       "name": "road_body",
       "x": 2048,
-      "y": 2048,
-      "w": 768,
-      "h": 768,
-      "drawable": "road_body"
+      "y": 2624,
+      "w": 128,
+      "h": 128,
+      "drawable": "road_body",
+      "srcW": 1254,
+      "srcH": 1254
     },
     {
       "name": "road_edge_v",
-      "x": 3072,
-      "y": 2048,
-      "w": 192,
-      "h": 576,
-      "drawable": "road_edge_v"
+      "x": 2184,
+      "y": 2624,
+      "w": 32,
+      "h": 96,
+      "drawable": "road_edge_v",
+      "srcW": 96,
+      "srcH": 288
     },
     {
       "name": "road_edge_h",
-      "x": 3264,
-      "y": 2048,
-      "w": 576,
-      "h": 192,
-      "drawable": "road_edge_h"
+      "x": 2264,
+      "y": 2624,
+      "w": 96,
+      "h": 32,
+      "drawable": "road_edge_h",
+      "srcW": 288,
+      "srcH": 96
     }
   ]
 }

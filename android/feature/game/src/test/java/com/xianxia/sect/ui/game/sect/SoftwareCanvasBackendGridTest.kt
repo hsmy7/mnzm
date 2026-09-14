@@ -13,10 +13,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend 放置/移动模式网格线测试（2026-08-11）。
+ * SoftwareCanvasBackend 放置/移动模式网格线测试。
  *
- * 网格线从 Compose 覆盖层（GridOverlay）迁移至 native 渲染层——范围数学
- * 照抄旧 drawFullGrid（first/last 列行钳制到世界边界），与地图同帧同相机。
+ * 网格线由 native 渲染层绘制——范围数学
+ * 钳制到世界边界（first/last 列行），与地图同帧同相机。
  *
  * 相机 camX=0/scale=1/视口 200×200：列线 x=0,64,128,192；行线 y=0,64,128,192。
  * 线宽 1f 中心在整数坐标 → 像素列/行 0 起 50% 抗锯齿覆盖。

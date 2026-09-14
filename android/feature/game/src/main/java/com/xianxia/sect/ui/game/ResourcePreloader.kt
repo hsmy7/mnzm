@@ -21,6 +21,7 @@ import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -92,6 +93,7 @@ class ResourcePreloader @Inject constructor(
      * @param onProgress 进度回调 0f..1f
      * @param onPhase 阶段变更回调，传入当前阶段标签
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun preloadGameResources(
         onProgress: (Float) -> Unit,
         onPhase: (String) -> Unit
@@ -115,8 +117,17 @@ class ResourcePreloader @Inject constructor(
                     .onFailure { Log.w(TAG, "ManualDatabase preload failed", it) }
                 result
             }
+            // ── native-game-core .so 预载 ──
+            // 在数据阶段并行 dlopen（早于游戏循环首 tick 的串行关键路径）；
+            // IslandCliff/RoadCompositor 渲染链首次触达也会各自守卫加载，
+            // ensureLoaded 幂等（后续调用零开销）。
+            val nativeLibInit = async(ioDispatcher.dispatcher) {
+                runCatching { com.xianxia.sect.core.nativebridge.GameCoreBridge.ensureLoaded() }
+                    .onFailure { Log.w(TAG, "native-game-core preload failed", it) }
+            }
             dataInit.await()
             manualInit.await()
+            nativeLibInit.await()
 
             // ── 音频引擎初始化（不阻塞数据加载） ──
             audioEngine?.init()
@@ -136,6 +147,8 @@ class ResourcePreloader @Inject constructor(
             // 图集打包：将小物品精灵合并到一张大图上，降低 GPU 纹理切换开销
             val atlasResult = try {
                 AtlasPacker().pack(itemSprites)
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 读档取消时中止预加载
             } catch (e: Exception) {
                 Log.w(TAG, "Atlas packing failed, falling back to individual sprites", e)
                 null
@@ -163,6 +176,7 @@ class ResourcePreloader @Inject constructor(
      *
      * 在 MainGameScreen 已显示后调用，异步加载剩余精灵到 [onComplete] 回调。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun launchBackgroundPreload(
         scope: CoroutineScope,
         onComplete: (Map<Int, ImageBitmap>) -> Unit
@@ -172,6 +186,8 @@ class ResourcePreloader @Inject constructor(
                 val sprites = preloadRemainingSprites()
                 Log.d(TAG, "L2 background preload complete: ${sprites.size} sprites")
                 onComplete(sprites)
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 宿主 scope 取消时中止 L2 预加载, 不再回调 UI
             } catch (e: Exception) {
                 Log.w(TAG, "L2 background preload failed", e)
             }
@@ -180,14 +196,15 @@ class ResourcePreloader @Inject constructor(
 
     // ── L0: 弟子头像精灵图 ──
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun preloadPortraitSprites(): Map<String, ImageBitmap> {
         val portraitNames = PortraitPool.allPortraitNames() + "disciple_portrait"
         return portraitNames.mapNotNull { name ->
             val resId = if (name == "disciple_portrait") {
                 SpriteResRegistry.resolve("disciple_portrait") ?: return@mapNotNull null
             } else {
-                // D-39：DiscouragedApi 根治——动态资源查找改走 PortraitPool 预构建映射
-                //（XianxiaApplication.onCreate 已 initialize），消除裸 getIdentifier
+                // 动态资源查找走 PortraitPool 预构建映射
+                //（XianxiaApplication.onCreate 已 initialize），避免裸 getIdentifier
                 PortraitPool.getResourceId(name)
             }
             if (resId == 0) return@mapNotNull null
@@ -203,6 +220,7 @@ class ResourcePreloader @Inject constructor(
 
     // ── L0: 关键 UI 精灵图 ──
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun preloadCriticalUiSprites(): Map<String, ImageBitmap> {
         val uiResIds = SpriteResRegistry.categoryResIds(SpriteCategory.UI)
         return uiResIds.mapNotNull { resId ->
@@ -220,6 +238,7 @@ class ResourcePreloader @Inject constructor(
 
     // ── L1: 物品精灵图（功法/药丸/装备） ──
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun preloadItemSprites(): Map<Int, ImageBitmap> {
         val spriteResIds = allPillSpriteResIds() +
             allManualSpriteResIds() +
@@ -235,17 +254,27 @@ class ResourcePreloader @Inject constructor(
         }.toMap()
     }
 
-    // ── L2: 剩余精灵图（后台异步） ──
+    // ── L2: 剩余小图标精灵图（后台异步，经 SaveLoadViewModel.l2Sprites 接入 UI）──
 
+    /**
+     * L2 后台预载：与 L1 同规格（300px 上限）的小图标类。
+     *
+     * 只预载小图标类；大图类 BEAST/CAVE/HEAVENLY_TRIAL/BACKGROUND/PORTRAIT
+     * 不预载——大图类即使解码接入也会肉眼可见降质（ItemCard/SpriteImage 实际
+     * 显示尺寸 ≤192px），300px 缓存无视觉收益且纯占内存
+     *（每张 300²≈350KB × 数十张）。
+     * - 本结果经 MainGameScreen 合并进 [LocalItemSpriteCache]，Material/草药/
+     *   储物袋/灵石/宗门图标首次渲染避免 painterResource 全分辨率（1024px 级）
+     *   解码。
+     * - EQUIPMENT/PILL/MANUAL 已在 L1 加载，此处保留入集仅为 resId 去重兜底。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     private fun preloadRemainingSprites(): Map<Int, ImageBitmap> {
         val allRemaining = mutableSetOf<Int>()
 
-        // ── 统一精灵图分类（codegen 注册，自动发现） ──
-        // 装备/妖兽材料/草药种子成长期（ITEM）/储物袋/灵石/宗门图标/妖兽/洞穴/天劫试炼/背景/地图精灵图
+        // 装备/功法/药丸（L1 已载，Set 去重）
         SpriteResRegistry.categoryResIds(SpriteCategory.EQUIPMENT)
-            .forEach { allRemaining.add(it) }
-
-        // 药丸/功法精灵图（已在 L1 加载，但通过 resId 查重去重）
+           .forEach { allRemaining.add(it) }
         allRemaining.addAll(allPillSpriteResIds())
         allRemaining.addAll(allManualSpriteResIds())
 
@@ -253,7 +282,7 @@ class ResourcePreloader @Inject constructor(
         SpriteResRegistry.categoryResIds(SpriteCategory.MATERIAL)
             .forEach { allRemaining.add(it) }
 
-        // 草药/种子/成长期精灵图（已通过 SpriteCategory.ITEM 注册）
+        // 草药/种子/成长期精灵图
         SpriteResRegistry.categoryResIds(SpriteCategory.ITEM).forEach { allRemaining.add(it) }
 
         // 储物袋精灵图
@@ -270,23 +299,11 @@ class ResourcePreloader @Inject constructor(
             .filter { it != 0 }
             .forEach { allRemaining.add(it) }
 
-        // 妖兽/洞穴/天劫试炼/背景/地图精灵图
-        SpriteResRegistry.categoryResIds(SpriteCategory.BEAST)
-            .forEach { allRemaining.add(it) }
-        SpriteResRegistry.categoryResIds(SpriteCategory.CAVE)
-            .forEach { allRemaining.add(it) }
-        SpriteResRegistry.categoryResIds(SpriteCategory.HEAVENLY_TRIAL)
-            .forEach { allRemaining.add(it) }
-        SpriteResRegistry.categoryResIds(SpriteCategory.BACKGROUND)
-            .forEach { allRemaining.add(it) }
-        SpriteResRegistry.categoryResIds(SpriteCategory.PORTRAIT)
-            .forEach { allRemaining.add(it) }
-
         return allRemaining.mapNotNull { resId ->
             try {
                 val bmp = decodeBitmap(resId, MAX_SPRITE_DIMENSION)
                 resId to (bmp?.asImageBitmap() ?: return@mapNotNull null)
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 null // L2 静默跳过失败的精灵
             }
         }.toMap()

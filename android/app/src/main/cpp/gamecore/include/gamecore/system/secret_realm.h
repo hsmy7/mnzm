@@ -14,7 +14,7 @@
 #include "gamecore/system/level_generator.h"
 
 // ============================================================
-// 远古秘境状态机核心（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-3）
+// 远古秘境状态机核心
 //
 // 等价移植 Kotlin 秘境确定性纯逻辑：
 //   - SecretRealmEventGenerator：playerAvgRealm / rollBeastRealm /

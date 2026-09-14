@@ -31,7 +31,7 @@
 
 | 组件 | 用途 |
 |------|------|
-| `GameButton` | 统一按钮（尺寸用 `ButtonSizes`：72dp × 38dp，CLAUDE.md 11.2） |
+| `GameButton` | 统一按钮（尺寸用 `ButtonSizes`：72dp × 38dp，CLAUDE.md 11.1） |
 | `UnifiedGameDialog` | 半屏/全屏对话框容器（自带 60% 遮罩 + DialogSystemBarGuard + DialogSoftInputGuard） |
 | `StandardPromptDialog` / `InlineStandardPromptDialog` | 标准提示框 / 内联提示框（含输入框容器） |
 | `SmallScreenDialog` | 小屏对话框 |

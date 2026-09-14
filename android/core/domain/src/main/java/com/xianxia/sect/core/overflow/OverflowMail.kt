@@ -26,7 +26,7 @@ data class OverflowMailDraft(
 )
 
 /**
- * 持久化溢出草稿（D-01 事务化根治）：与 [OverflowMailDraft] 语义相同，
+ * 持久化溢出草稿：与 [OverflowMailDraft] 语义相同，
  * 但带主键与创建时间——对应 Room 表 `overflow_mail_drafts` 的行。
  *
  * 存在性不变量：**DB 中存在的草稿行 ⇒ 其来源事务已提交**（提交钩子落盘、
@@ -48,7 +48,7 @@ data class PersistedOverflowDraft(
 )
 
 /**
- * 持久化直发草稿（D-01 事务化根治）：直接邮件（非溢出）的持久化行，
+ * 持久化直发草稿：直接邮件（非溢出）的持久化行，
  * 对应 Room 表 `direct_mail_drafts`。payload 为 [com.xianxia.sect.core.model.MailEntity]
  * 的序列化文本（JSON），id 即邮件 id（天然幂等）。
  *

@@ -9,7 +9,7 @@
 #include "gamecore/system/disciple.h"
 
 // ============================================================
-// 修炼推进系统（Kotlin→C++ 迁移批次 5b）
+// 修炼推进系统
 //
 // 等价移植 Kotlin CultivationService.accumulateCultivationPerPhase /
 // computeMaxCultivation + DiscipleTables.checkpointDisciple /

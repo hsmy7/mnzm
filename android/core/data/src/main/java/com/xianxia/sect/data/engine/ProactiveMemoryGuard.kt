@@ -5,6 +5,7 @@ import com.xianxia.sect.data.cache.CacheLayer
 import com.xianxia.sect.data.memory.DynamicMemoryManager
 import com.xianxia.sect.data.memory.MemoryPressureLevel
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -90,6 +92,7 @@ class ProactiveMemoryGuard @Inject constructor(
     )
     val snapshot: StateFlow<MemoryGuardSnapshot> = _snapshot.asStateFlow()
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun startMonitoring() {
         if (monitorJob?.isActive == true) {
             Log.w(TAG, "Memory guard monitoring already active")
@@ -101,6 +104,8 @@ class ProactiveMemoryGuard @Inject constructor(
             while (isActive) {
                 try {
                     performCheck()
+                } catch (e: CancellationException) {
+                    throw e // 取消穿透: 监控停止时静默退出轮询, 不误报检查失败
                 } catch (e: Exception) {
                     Log.e(TAG, "Memory guard check failed", e)
                 }
@@ -142,8 +147,8 @@ class ProactiveMemoryGuard @Inject constructor(
 
         if (newLevel != previousLevel) {
             Log.w(TAG, "Memory guard level changed: $previousLevel -> $newLevel " +
-                "(systemAvail=${String.format("%.1f%%", systemAvailPercent)}, " +
-                "jvmUsed=${String.format("%.1f%%", jvmUsedPercent)})")
+                "(systemAvail=${String.format(Locale.US, "%.1f%%", systemAvailPercent)}, " +
+                "jvmUsed=${String.format(Locale.US, "%.1f%%", jvmUsedPercent)})")
         }
 
         when (newLevel) {

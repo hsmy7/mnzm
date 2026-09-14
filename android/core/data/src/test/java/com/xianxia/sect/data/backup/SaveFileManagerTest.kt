@@ -127,7 +127,7 @@ class SaveFileManagerTest {
         // 破坏 Magic 字节
         val savFile = getSavFile(slot)
         val corrupted = savFile.readBytes()
-        corrupted[0] = 0x00 // 原本是 0x58
+        corrupted[0] = 0x00 // 破坏 Magic（有效值为 0x58）
         savFile.writeBytes(corrupted)
 
         val result = manager.readWithFallback(slot)
@@ -183,7 +183,7 @@ class SaveFileManagerTest {
 
     @Test
     fun `initialize is idempotent - repeated calls do not throw`() {
-        // 2026-08-04 接线修复：StorageFacade.initialize 可能重复调用
+        // StorageFacade.initialize 可能重复调用，初始化必须幂等
         manager.initialize(tempFolder.root)
 
         assertTrue("重复初始化后备份目录仍存在", File(tempFolder.root, "saves").exists())
@@ -207,13 +207,12 @@ class SaveFileManagerTest {
     }
 
     // ============================================================
-    // T8（2026-08-05）：CRC 算法跨 API 一致性
+    // CRC 算法跨 API 一致性
     // ============================================================
 
     @Test
     fun `legacy 0x0100 header with CRC32 read on sdk 34 passes`() {
-        // 根因场景：API<34 设备（旧 App 写 CRC32）换机到 API≥34 设备，
-        // 旧格式无算法标识 → 双算法探测（CRC32 命中）
+        // 旧格式无算法标识（如 API<34 设备写入的文件）→ 双算法探测（CRC32 命中）
         val slot = 2
         val payload = "legacy-crc32-payload".encodeToByteArray()
         val file = getSavFile(slot)
@@ -283,13 +282,12 @@ class SaveFileManagerTest {
     }
 
     // ============================================================
-    // T9（2026-08-05）：超限跳过备份但主保存必写
+    // 超限跳过备份但主保存必写
     // ============================================================
 
     @Test
     fun `oversized payload writes main sav and returns Skipped`() {
-        // 修复前：超限时主保存+备份一并跳过且返回 success（静默丢档）
-        // 修复后：主保存必执行，备份跳过并如实返回 Skipped
+        // payload 超限：主保存必执行，备份跳过并如实返回 Skipped
         val slot = 0
         val bigManager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> ByteArray(MAX_BACKUP_SIZE_BYTES + 1) }
@@ -313,13 +311,12 @@ class SaveFileManagerTest {
     }
 
     // ============================================================
-    // C11（2026-08-05）：rename 原子覆盖优先，消除 delete-rename 崩溃窗口
+    // rename 原子覆盖优先，消除 delete-rename 崩溃窗口
     // ============================================================
 
     @Test
     fun `atomicWrite overwrites existing sav without delete window`() {
-        // C11 修复前：先 delete() 再 renameTo——两者之间崩溃 → .sav 缺失走 .bak
-        // 修复后：先试无 delete 的 rename 原子覆盖，.sav 全程存在
+        // 覆盖已有 .sav 时先试无 delete 的 rename 原子覆盖，.sav 全程存在
         val slot = 2
         manager.atomicWrite(slot, mockSaveData())
         val firstRead = manager.readWithFallback(slot)
@@ -338,7 +335,7 @@ class SaveFileManagerTest {
     }
 
     // ============================================================
-    // C6（2026-08-05）：备份修复失败如实反馈
+    // 备份修复失败如实反馈
     // ============================================================
 
     @Test
@@ -444,7 +441,7 @@ class SaveFileManagerTest {
         return header
     }
 
-    /** 构造旧格式（0x0100）文件头，可选 CRC32/CRC32C（旧 App 按 SDK 分支写入） */
+    /** 构造旧格式（0x0100）文件头，可携带 CRC32 或 CRC32C 校验值 */
     private fun buildLegacyHeader(payload: ByteArray, useCrc32c: Boolean): ByteArray {
         val crc = if (useCrc32c) computeCrc32c(payload) else computeCrc32(payload)
         val header = buildValidHeader(payload)
@@ -471,7 +468,7 @@ class SaveFileManagerTest {
     private fun getBakFile(slot: Int) = File(tempFolder.root, "saves/slot_${slot}.bak")
 
     // ═══════════════════════════════════════════════════════════
-    // A5（2026-08-05）：删除 tombstone——跨 DB/文件原子删除守卫
+    // 删除 tombstone——跨 DB/文件原子删除守卫
     // ═══════════════════════════════════════════════════════════
 
     @Test
@@ -511,8 +508,7 @@ class SaveFileManagerTest {
 
     @Test
     fun `tombstone - clearSlotDeleted is idempotent when already cleared`() {
-        // 对抗性审查修复（2026-08-06）：save 成功后无条件清除 tombstone——
-        // 无残留时清除必须无副作用（幂等）
+        // save 成功后无条件清除 tombstone——无残留时清除必须无副作用（幂等）
         val slot = 1
         manager.clearSlotDeleted(slot)
         assertFalse("无 tombstone 时清除无副作用", manager.isSlotDeleted(slot))

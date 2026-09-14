@@ -105,8 +105,6 @@ class MailServiceTest {
         val inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
             stateStore,
             inventoryConfig,
-            spiritStoneWallet,
-            mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
         )
         serviceScopeProvider = mock(com.xianxia.sect.core.util.CoroutineScopeProvider::class.java)
         service = MailService(
@@ -223,10 +221,9 @@ class MailServiceTest {
 
     @Test
     fun `claimAttachment - unknown attachment type returns DistributeFailed and no mailRecord`() = runBlocking {
-        // 问题3 根因1：附件 type 不在已知 11 类（服务端别名字符串/新增类型）时，
-        // distributeAttachmentsInline 的 when 无 else 曾静默跳过（事务照常提交 →
-        // 领取"成功"但仓库无物品）。修复后 else 抛异常 → 同事务回滚（mailRecords 不写）
-        // → 返回 DistributeFailed，失败响亮且保留凭据可重试。
+        // 附件 type 不在已知 11 类（服务端别名字符串/新增类型）时：
+        // distributeAttachmentsInline 的 when else 分支抛异常 → 同事务回滚
+        // （mailRecords 不写）→ 返回 DistributeFailed，失败响亮且保留凭据可重试。
         val mail = createUnclaimedMail().copy(
             attachments = """[{"type":"mystery","name":"神秘物品","quantity":1,"rarity":1}]"""
         )
@@ -301,6 +298,10 @@ class MailServiceTest {
         const val EXCLUSIVE_UNION_ID = "4FTGX7tp7MO1nr+j/Vwm5A=="
         const val EXCLUSIVE_BONUS_MAIL_ID = "exclusive_bonus_20260904"
         const val EXCLUSIVE_BONUS_AMOUNT = 10_000_000
+        /** 固定测试时钟（审计门槛：定时炸弹测试根治）：须早于专属福利截止
+         *  EXCLUSIVE_BONUS_EXPIRE_MS = 1_788_537_599_000（2026-09-04 23:59:59+08）——
+         *  截止日期真实流逝后用真实时钟跑注入用例必失败。 */
+        const val PINNED_NOW_MS = 1_788_000_000_000L
         const val EXCLUSIVE_BONUS_DISCIPLE_COUNT = 10
         const val EXCLUSIVE_BONUS_EXPIRE_MS = 1_788_537_599_000L
 
@@ -488,8 +489,9 @@ class MailServiceTest {
 
     @Test
     fun `injectExclusiveBonus - target user injects 10M stones and 10 disciples with deadline expiry`() = runBlocking {
-        // Arrange: 目标用户，DB 中无该邮件
+        // Arrange: 目标用户，DB 中无该邮件；注入固定时钟（下同，防日期流逝炸弹）
         AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
+                service.timeSource = { PINNED_NOW_MS }
         `when`(mailRepo.getById(eq(testSlotId), eq(EXCLUSIVE_BONUS_MAIL_ID))).thenReturn(null)
 
         // Act
@@ -584,8 +586,9 @@ class MailServiceTest {
 
     @Test
     fun `injectExclusiveBonus - repeated calls inject only once`() = runBlocking {
-        // Arrange: 用内存 map 模拟 Room DB 的写入可见性
+        // Arrange: 用内存 map 模拟 Room DB 的写入可见性；时钟固定在福利截止前
         AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
+                service.timeSource = { PINNED_NOW_MS }
         val db = installInMemoryMailDb()
 
         // Act
@@ -600,8 +603,9 @@ class MailServiceTest {
 
     @Test
     fun `injectExclusiveBonus - getById throws still injects`() = runBlocking {
-        // Arrange: DB 检查异常时不应阻塞注入（与 getById 容错模式一致）
+        // Arrange: DB 检查异常时不应阻塞注入（与 getById 容错模式一致）；时钟固定在福利截止前
         AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
+                service.timeSource = { PINNED_NOW_MS }
         `when`(mailRepo.getById(eq(testSlotId), eq(EXCLUSIVE_BONUS_MAIL_ID)))
             .thenThrow(RuntimeException("DB error"))
 
@@ -615,8 +619,9 @@ class MailServiceTest {
 
     @Test
     fun `claimAttachment - exclusive bonus distributes 10M stones and 10 single-root disciples`() = runBlocking {
-        // Arrange: 目标用户注入专属邮件，wallet 以真实入账方式响应（验证灵石到账）
+        // Arrange: 目标用户注入专属邮件，wallet 以真实入账方式响应（验证灵石到账）；时钟固定在福利截止前
         AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
+                service.timeSource = { PINNED_NOW_MS }
         installInMemoryMailDb()
         assertTrue("预置专属邮件应注入成功", service.injectExclusiveBonus(testSlotId))
         val initialStones = stateStore.gameData.value.spiritStones
@@ -658,11 +663,13 @@ class MailServiceTest {
 
     @Test
     fun `claimAttachment - exclusive bonus expired after deadline returns Expired`() = runBlocking {
-        // Arrange: 目标用户注入专属邮件后，模拟已过截止时间（2026-09-04 之后）
+        // Arrange: 目标用户注入专属邮件后，模拟已过截止时间（时钟先固定在截止前注入，
+        // 再把过期时间改到固定时钟之前——全用确定性时钟，防日期流逝炸弹）
+        service.timeSource = { PINNED_NOW_MS }
         AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
         val db = installInMemoryMailDb()
         assertTrue("预置专属邮件应注入成功", service.injectExclusiveBonus(testSlotId))
-        db[EXCLUSIVE_BONUS_MAIL_ID] = db[EXCLUSIVE_BONUS_MAIL_ID]!!.copy(expireTime = now - 1000)
+        db[EXCLUSIVE_BONUS_MAIL_ID] = db[EXCLUSIVE_BONUS_MAIL_ID]!!.copy(expireTime = PINNED_NOW_MS - 1000)
         val initialStones = stateStore.gameData.value.spiritStones
 
         // Act: 截止后领取

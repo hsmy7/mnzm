@@ -64,7 +64,7 @@ private data class FieldGroup(
     val plantEntries: List<SpiritFieldPlant>
 )
 
-/** 种植对话框状态（PlantingDialog 拆分） */
+/** 种植对话框状态 */
 private class PlantingDialogState {
     var selectedSeedId by mutableStateOf<String?>(null)
     var seedPage by mutableIntStateOf(1)
@@ -77,7 +77,7 @@ private class PlantingDialogState {
     var dynPageSize by mutableIntStateOf(12)
 }
 
-/** 种植对话框派生数据（PlantingDialog 拆分） */
+/** 种植对话框派生数据 */
 private data class PlantingDerivedData(
     val watchedKeys: Set<String>,
     val activeSeeds: List<Seed>,
@@ -114,8 +114,8 @@ fun PlantingDialog(
     // 切换 softInputMode，防止 Xiaomi HyperOS 键盘频闪
     DialogSoftInputGuard()
 
-    // 含数量常驻输入框：挂载期间冻结宿主窗口系统栏操作
-    // （荣耀X70键盘频闪根治，见 SystemBarFreezeScope KDoc）
+    // 含数量常驻输入框：挂载期间冻结宿主窗口系统栏操作，避免键盘弹出时
+    // 部分机型频闪（见 SystemBarFreezeScope KDoc）
     DisposableEffect(Unit) {
         SystemBarFreezeScope.enterFreeze()
         onDispose { SystemBarFreezeScope.exitFreeze() }
@@ -165,14 +165,14 @@ fun PlantingDialog(
         }
     }
 
-    // P-2：种子详情弹窗提取（行为逐行一致）
+    // 种子详情弹窗
     SeedDetailDialog(
         show = state.showSeedDetail, seed = state.detailSeed,
         onDismiss = { state.showSeedDetail = false; state.detailSeed = null },
         viewModel = viewModel
     )
 
-    // P-2：铲除确认弹窗提取（行为逐行一致）
+    // 铲除确认弹窗
     RemoveConfirmationDialog(
         group = state.removeDialogGroup,
         removeQuantity = state.removeQuantity,
@@ -183,7 +183,7 @@ fun PlantingDialog(
     )
 }
 
-/** 种植对话框派生数据计算（PlantingDialog 拆分） */
+/** 种植对话框派生数据计算 */
 @Composable
 private fun rememberPlantingDerivedData(
     seeds: List<Seed>,
@@ -243,7 +243,7 @@ private fun rememberPlantingDerivedData(
     )
 }
 
-/** 灵田按种植状态分组（PlantingDialog 拆分） */
+/** 灵田按种植状态分组 */
 private fun plantingFieldGroups(
     spiritFields: List<GridBuildingData>,
     spiritFieldPlants: List<SpiritFieldPlant>,
@@ -298,7 +298,7 @@ private fun plantingFieldGroups(
     }
 }
 
-/** 左侧种子网格面板（PlantingDialog 拆分） */
+/** 左侧种子网格面板 */
 @Composable
 private fun RowScope.SeedGridPanel(
     state: PlantingDialogState,
@@ -341,7 +341,7 @@ private fun RowScope.SeedGridPanel(
     }
 }
 
-/** 种子翻页网格（PlantingDialog 拆分）：BoxWithConstraints 动态分页 + 种子卡片 */
+/** 种子翻页网格：BoxWithConstraints 动态分页 + 种子卡片 */
 @Composable
 private fun ColumnScope.PlantingSeedGrid(
     state: PlantingDialogState,
@@ -395,7 +395,7 @@ private fun ColumnScope.PlantingSeedGrid(
     }
 }
 
-/** 右侧灵田面板（PlantingDialog 拆分）：统计 + 已种植列表 + 底部操作栏 */
+/** 右侧灵田面板：统计 + 已种植列表 + 底部操作栏 */
 @Composable
 private fun RowScope.PlantingFieldPanel(
     state: PlantingDialogState,
@@ -421,7 +421,8 @@ private fun RowScope.PlantingFieldPanel(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 listOf("灵田", "总数", "已种植", "未种植").forEach { label ->
-                    Text(label, fontSize = 10.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text(label, fontSize = 10.sp, color = Color.Black, modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center)
                 }
             }
             Row(
@@ -429,7 +430,8 @@ private fun RowScope.PlantingFieldPanel(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 listOf("灵田", "$totalFields", "$plantedFields", "$unplantedFields").forEach { value ->
-                    Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black,
+                        modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 }
             }
             Spacer(modifier = Modifier.height(6.dp))
@@ -456,7 +458,7 @@ private fun RowScope.PlantingFieldPanel(
     }
 }
 
-/** 已种植种子卡片列表（PlantingDialog 拆分） */
+/** 已种植种子卡片列表 */
 @Composable
 private fun ColumnScope.PlantedGroupsList(
     state: PlantingDialogState,
@@ -519,7 +521,7 @@ private fun ColumnScope.PlantedGroupsList(
     }
 }
 
-/** 已种植分组种子卡片（PlantingDialog 拆分）：仓库种子 → 图鉴种子 → 未知兜底 */
+/** 已种植分组种子卡片：仓库种子 → 图鉴种子 → 未知兜底 */
 @Composable
 private fun PlantedGroupSeedCard(
     group: FieldGroup,
@@ -581,7 +583,7 @@ private fun PlantedGroupSeedCard(
     }
 }
 
-/** 未知种子兜底卡片（PlantingDialog 拆分） */
+/** 未知种子兜底卡片 */
 @Composable
 private fun UnknownSeedFallbackBox(
     group: FieldGroup,
@@ -625,7 +627,7 @@ private val plantingQuantitySizes = QuantitySelectorSizes(
     buttonFontSize = 13.sp,
 )
 
-/** 种植数量控制行 + 种植按钮（PlantingDialog 拆分）：-10/-1/输入框/+1/+10 + 种植 */
+/** 种植数量控制行 + 种植按钮：-10/-1/输入框/+1/+10 + 种植 */
 // 拆分残余:函数体略超 60 行(原函数拆分后聚合，最小/最大替换为 -10/+10 后保持原一行结构)
 @Suppress("LongMethod")
 @Composable
@@ -674,8 +676,8 @@ private fun PlantingQuantityControl(
                 state.qtyInput = state.plantQuantity.toString()
             }
         )
-        // 数量显示 — 点击弹出自绘数字面板（NumberInputPanel，2026-09 IME 状态机
-        // 根治：数量输入绕开系统 IME，见 QuantitySelector 同款交互）
+        // 数量显示 — 点击弹出自绘数字面板（NumberInputPanel：数量输入
+        // 绕开系统 IME，见 QuantitySelector 同款交互）
         val displayText = state.qtyInput.ifEmpty { state.plantQuantity.toString() }
         var showQuantityPanel by remember { mutableStateOf(false) }
         Box(
@@ -734,7 +736,7 @@ private fun PlantingQuantityControl(
     }
 }
 
-/** 种植数量步进文本按钮（PlantingDialog 拆分） */
+/** 种植数量步进文本按钮 */
 @Composable
 private fun PlantingStepText(
     text: String,
@@ -761,7 +763,7 @@ private fun PlantingStepText(
     )
 }
 
-/** P-2：种子详情弹窗（从 PlantingDialog 提取）。 */
+/** 种子详情弹窗。 */
 @Composable
 private fun SeedDetailDialog(
     show: Boolean,
@@ -778,7 +780,7 @@ private fun SeedDetailDialog(
     }
 }
 
-/** P-2：铲除确认弹窗（从 PlantingDialog 提取，状态由调用方持有）。 */
+/** 铲除确认弹窗（状态由调用方持有）。 */
 @Composable
 private fun RemoveConfirmationDialog(
     group: FieldGroup?,

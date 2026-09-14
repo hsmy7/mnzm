@@ -14,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend 建筑阴影 + 选中高亮测试（WP3）。
+ * SoftwareCanvasBackend 建筑阴影 + 选中高亮测试。
  *
  * - 阴影：与 C++ drawAllTiles (A2) 段同数学（右下偏移 0.25 格 + alpha 0.2 半透明黑）
  * - 高亮：金色描边动态叠加（不烘焙 chunk，选中变化零重建成本）
@@ -36,7 +36,7 @@ class SoftwareCanvasBackendHighlightTest {
     }
 
     // ============================================================
-    // 建筑阴影（WP3，与 C++ drawAllTiles (A2) 段同数学）
+    // 建筑阴影（与 C++ drawAllTiles 段同数学）
     // ============================================================
 
     @Test
@@ -106,7 +106,7 @@ class SoftwareCanvasBackendHighlightTest {
     }
 
     /**
-     * 阴影污染回归（WP7）：drawShadowRect 曾把 alpha=51 的半透明黑写入共享
+     * 阴影污染回归：drawShadowRect 若把 alpha=51 的半透明黑写入共享
      * rebuildPaint 且不恢复（Paint.setColor 更新 alpha），导致同一 chunk 内
      * 阴影之后的建筑精灵以 20% alpha 烘焙 → 建筑虚影 + 地砖透出。
      *
@@ -133,7 +133,7 @@ class SoftwareCanvasBackendHighlightTest {
         val offPx = offBackend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
             .getPixel(8, 8)
 
-        // 修复前红：on≈128（白×0.2 叠灰底）vs off≈248 → 差 120
+        // 被污染时：on≈128（白×0.2 叠灰底）vs off≈248 → 差 120
         assertTrue(
             "建筑精灵被阴影污染变暗: on=#%06X off=#%06X".format(onPx and 0xFFFFFF, offPx and 0xFFFFFF),
             kotlin.math.abs(Color.red(onPx) - Color.red(offPx)) <= 8
@@ -143,9 +143,9 @@ class SoftwareCanvasBackendHighlightTest {
     }
 
     /**
-     * 跨 rebuild 残留回归（WP7）：同一 chunk 的 rebuildPaint 被阴影污染后，
+     * 跨 rebuild 残留回归：同一 chunk 的 rebuildPaint 被阴影污染后，
      * 下一轮 rebuild 的地面层 drawBitmap 也以 20% alpha 绘制 → 地面半透明、
-     * 米色底透出。修复后每次 rebuild 地面应恢复不透明灰 100（RGB_565 → 96）。
+     * 米色底透出。每次 rebuild 地面应恢复不透明灰 100（RGB_565 → 96）。
      */
     @Test
     fun `renderFrame - ground stays opaque after shadowed rebuild`() {
@@ -171,12 +171,12 @@ class SoftwareCanvasBackendHighlightTest {
         val px = shadowedBackend.renderFrame(frame2, spriteAtlas, 200, 200)!!
             .getPixel(32, 32)
 
-        // 修复前红：地面灰 100 ×0.2 叠米色底 ≈ 205（R 通道）
+        // 被污染时：地面灰 100 ×0.2 叠米色底 ≈ 205（R 通道）
         assertNear(96, Color.red(px), 8)
     }
 
     // ============================================================
-    // 选中高亮（WP3，金色描边——动态叠加不烘焙 chunk）
+    // 选中高亮（金色描边——动态叠加不烘焙 chunk）
     // ============================================================
 
     @Test
@@ -229,9 +229,8 @@ class SoftwareCanvasBackendHighlightTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 2026-08-16 回归：进入无建筑宗门后旧宗门建筑必须清除
-    // 根因：总线推空数组（FloatArray(0) 非 null）→ invalidateChunksForChanges
-    // 旧实现循环 0 次不失效任何 chunk → 上一宗门建筑残留在 chunk 位图
+    // 回归守卫：进入无建筑宗门后旧宗门建筑必须清除
+    // 若总线推空数组时不失效任何 chunk，上一宗门建筑会残留在 chunk 位图
     // ════════════════════════════════════════════════════════════════
 
     @Test
@@ -256,7 +255,7 @@ class SoftwareCanvasBackendHighlightTest {
         val after = backend.renderFrame(emptyFrame, spriteAtlas, 200, 200)!!
         val afterPx = after.getPixel(8, 8)
 
-        // 修复前红：chunk 未失效 → (8,8) 仍为白精灵；修复后应为地面灰 ≈96
+        // 若 chunk 未失效 → (8,8) 仍为白精灵；正确行为应为地面灰 ≈96
         assertTrue(
             "进入空宗门后旧建筑必须清除: before=#%06X after=#%06X"
                 .format(beforePx and 0xFFFFFF, afterPx and 0xFFFFFF),

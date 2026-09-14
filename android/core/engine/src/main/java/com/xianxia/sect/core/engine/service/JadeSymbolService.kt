@@ -17,7 +17,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 墙钟抽象（玉符跨天判定专用，2026-08-07 注入化）。
+ * 墙钟抽象（玉符跨天判定专用，构造注入）。
  *
  * 生产使用 [SystemWallClock]（System.currentTimeMillis）；
  * 测试注入可变 fake 验证跨天/回拨/快进。
@@ -71,7 +71,7 @@ data class JadeSymbolRuntimeState(
  *   OEM 挂起恢复不补记（镜像引擎 MAX_PHASES_PER_TICK 语义）；
  * - 跨天重置判据 `todayMidnight > [jadeDayAnchorMs]`；回拨（`<=`）不重置；
  * - 拿满 [GameConfig.Jade.DAILY_CAP] 冻结累计；次日 0 点重置（今日计数与
- *   周期累计时长均清零，新的一天从 0 重新累计——用户需求 2026-08-12）。
+ *   周期累计时长均清零，新的一天从 0 重新累计）。
  *
  * ## 高频写权衡
  * 不采用每 tick 写 GameData（全量 COW 不可行）：运行时 [@Volatile] 字段
@@ -147,8 +147,7 @@ class JadeSymbolService @Inject constructor(
         val gd = stateStore.gameDataSnapshot
         totalCount = gd.jadeSymbols
         todayCount = gd.jadeSymbolsToday
-        // 防御纵深：即使未来有绕过存档校验的写路径，恢复值也不可 ≥ 发放阈值
-        // （否则每次读档首帧即免费 +1 玉符，见对抗性审查 F1）
+        // 防御纵深：恢复值不可 ≥ 发放阈值——否则每次读档首帧即免费 +1 玉符
         accumMs = gd.jadeAccumMs.coerceAtMost(GameConfig.Jade.INTERVAL_MS - 1)
         dayAnchorMs = gd.jadeDayAnchorMs
         lastSampleMs = timeSource.elapsedRealtime()
@@ -294,6 +293,25 @@ class JadeSymbolService @Inject constructor(
     }
 
     /**
+     * 余额重锚：把运行时 [totalCount] 同步为当前 GameData 快照的 jadeSymbols。
+     *
+     * batch-19（jade_tx.h）：玉符**购买**事务（商人刷新/突破率加成）已下沉 C++，
+     * 由 C++ 侧执行绝对值扣减并写入权威状态；Kotlin 运行时 [totalCount] 必须
+     * 在 native 臂成功后立即重锚到 C++ 权威余额——否则后续 [checkpointNow] /
+     * [settleGrants] 会以旧绝对值覆盖写 `GameData.jadeSymbols`（**玉符回涨**，
+     * CLAUDE.md 13.3 绝对值覆盖写模型红线）。
+     *
+     * 与 [onLoopStart] 的重锚不同：本方法**不动** [accumMs] / [lastSampleMs] /
+     * [dayAnchorMs] / 跨天检查标记，也不打断 UI 节流——只同步绝对值余额，
+     * 当前 10 分钟发放周期的累计进度不受影响（购买不重置奖励进度）。
+     *
+     * 幂等：任意线程调用安全（单次 volatile 读 + 写）。
+     */
+    fun syncBalanceFromSnapshot() {
+        totalCount = stateStore.gameDataSnapshot.jadeSymbols
+    }
+
+    /**
      * 结算发放：按累计时长整除 [GameConfig.Jade.INTERVAL_MS] 发放，
      * 封顶 [GameConfig.Jade.DAILY_CAP]，余量保留；拿满后余量丢弃（冻结）。
      */
@@ -331,7 +349,7 @@ class JadeSymbolService @Inject constructor(
      * `午夜 <= 锚点`（同一天或墙钟回拨）→ 不重置；`午夜 > 锚点` →
      * 跨天（含快进 N 天）只重置一次并锚定目标日午夜。
      * 真实跨天：今日计数归零，**周期累计时长清零**（昨日未领完的进度作废，
-     * 新的一天从 0 重新累计，用户需求 2026-08-12）；
+     * 新的一天从 0 重新累计）；
      * 旧档锚点 0（未初始化）→ 首次直接锚定，无追溯发放、不清累计。
      *
      * @param force 跳过节流（onLoopStart 时调用）
@@ -339,7 +357,7 @@ class JadeSymbolService @Inject constructor(
     private fun maybeDayReset(force: Boolean = false) {
         val nowWall = wallClock.currentTimeMillis()
         // 1s 节流；墙钟回拨（nowWall < lastWallCheckMs）时跳过节流直接采样——
-        // 否则回拨后差值恒为负，跨天判定被无限期抑制（对抗性审查 F3）
+        // 否则回拨后差值恒为负，跨天判定被无限期抑制
         if (!force && nowWall - lastWallCheckMs < WALL_CLOCK_CHECK_INTERVAL_MS &&
             nowWall >= lastWallCheckMs
         ) return

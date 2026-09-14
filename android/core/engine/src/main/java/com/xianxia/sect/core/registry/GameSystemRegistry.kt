@@ -17,7 +17,7 @@ data class GameSystemInfo(
 )
 
 /**
- * 游戏系统注册中心（2026-08-13 批次 4，对标 Godot ClassDB）。
+ * 游戏系统注册中心（对标 Godot ClassDB）。
  *
  * 静态注册（[GameSystemRegistryDefaults.registerAll] 一次性登记全部
  * @GameService 系统）；消费方：开发者监视器面板枚举系统清单、
@@ -36,7 +36,7 @@ object GameSystemRegistry {
      * @param className 实现类简单名
      */
     fun register(name: String, category: String, className: String) {
-        // 空名校验（对抗性审查 2026-08-13 边界#11）：空名可被 find("") 意外命中
+        // 空名校验：空名可被 find("") 意外命中
         check(name.isNotBlank() && className.isNotBlank()) {
             "GameSystem 注册名称/类名不得为空: name='$name' className='$className'"
         }

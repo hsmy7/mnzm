@@ -46,7 +46,8 @@ fun MasterApprenticeSelectDialog(
     val realmCounts = remember(candidates) { filterState.realmCounts(candidates) }
     val spiritRootCounts = remember(candidates) { filterState.spiritRootCounts(candidates) }
 
-    val filtered = remember(candidates, filterState.realmFilter, filterState.spiritRootFilter, filterState.attributeSort) {
+    val filtered = remember(candidates, filterState.realmFilter, filterState.spiritRootFilter,
+        filterState.attributeSort) {
         filterState.filtered(candidates)
     }
 
@@ -79,7 +80,7 @@ fun MasterApprenticeSelectDialog(
     }
 }
 
-/** 师父候选筛选栏（MasterApprenticeSelectDialog 拆分） */
+/** 师父候选筛选栏 */
 @Composable
 private fun MasterApprenticeFilterBar(
     filterState: DiscipleFilterState,
@@ -108,7 +109,7 @@ private fun MasterApprenticeFilterBar(
     )
 }
 
-/** 师父候选网格（MasterApprenticeSelectDialog 拆分）：空态提示 + 弟子卡片网格 */
+/** 师父候选网格：空态提示 + 弟子卡片网格 */
 @Composable
 private fun MasterApprenticeGrid(
     filtered: List<DiscipleAggregate>,

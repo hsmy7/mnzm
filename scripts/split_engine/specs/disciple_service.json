@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "name": "DiscipleServiceQueryOps",
+      "header": "// ── 弟子查询域（自 DiscipleService 拆出，行为零变更） ─────────────────────────",
+      "fns": [
+        "getDisciplesByStatus",
+        "getIdleDisciples",
+        "getDiscipleAggregate",
+        "getAllDiscipleAggregates",
+        "getAliveDisciplesCount",
+        "updateYearlySalaryEnabled"
+      ]
+    }
+  ]
+}

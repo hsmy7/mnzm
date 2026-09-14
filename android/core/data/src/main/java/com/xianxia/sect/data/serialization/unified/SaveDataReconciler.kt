@@ -6,13 +6,11 @@ import com.xianxia.sect.core.model.rebuildManualStacks
 import com.xianxia.sect.data.model.SaveData
 
 /**
- * 旧存档堆叠数据协调器（2026-08-01 堆叠序列化缺陷修复）。
+ * 旧存档堆叠数据协调器。
  *
- * 历史缺陷：SaveData 的 equipmentStacks/manualStacks 曾被标记 @Transient，
- * 备份文件与云存档中不含堆叠，恢复路径会永久清空仓库堆叠。
- * 修复后新存档携带堆叠（stacksSerialized = true）；旧存档（false）经 [reconcileStacks]
- * 从实例重建堆叠兜底——仓库物品物理上从未被序列化过，仅能恢复未装备的游离实例，
- * 日志如实记录缺失范围。
+ * 新存档携带堆叠（stacksSerialized = true）；旧存档（false）的仓库堆叠
+ * 物理上从未被序列化，经 [reconcileStacks] 从实例重建兜底——仅能恢复
+ * 未装备的游离实例，日志如实记录缺失范围。
  */
 object SaveDataReconciler {
     private const val TAG = "SaveDataReconciler"
@@ -25,8 +23,8 @@ object SaveDataReconciler {
         if (data.stacksSerialized) return data
         val rebuiltEquipment = rebuildEquipmentStacks(data.equipmentInstances)
         val rebuiltManual = rebuildManualStacks(data.manualInstances)
-        // 2026-08-01 对抗性审查修复：无论重建是否为空都输出警告——
-        // 旧格式的仓库堆叠从未被序列化（物理上无法恢复），空结果时也须如实提示
+        // 无论重建是否为空都输出警告——旧格式的仓库堆叠从未被序列化
+        //（物理上无法恢复），空结果时也须如实提示
         Log.w(
             TAG,
             "旧存档无堆叠数据（stacksSerialized=false），从实例重建兜底：" +

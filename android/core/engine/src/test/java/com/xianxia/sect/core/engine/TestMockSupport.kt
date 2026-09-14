@@ -16,7 +16,7 @@ import org.mockito.Mockito
  *
  * 裸 `mock()` 对未 stub 方法默认返回 null（引用类型）——服务重构新增依赖调用
  * （如 Repository 增加 `getSlots()`）时返回 null → 深处 NPE，堆栈不指向 mock
- * 调用点，静默失败难以定位（2026-08-10 DiscipleServiceCrudTest 教训）。
+ * 调用点，静默失败难以定位。
  *
  * `RETURNS_SMART_NULLS` 提供双层防护：
  * 1. **集合返回类型**（List/Set/Map 接口）返回空集合——不 NPE，服务正常遍历
@@ -25,7 +25,7 @@ import org.mockito.Mockito
  *
  * 对已显式 `when(...).thenReturn(...)` 的 stub 无任何影响（stub 优先）。
  *
- * ## 已知限制（2026-08-10 实测）
+ * ## 已知限制
  *
  * **final 具体类（如 [ProductionSlotRepository]）在 Robolectric 下 mock 拦截依赖类加载时机，
  * 顺序敏感 flaky**——stub 注册的第一次调用可能真实执行方法体（实测 `getSlots()` 内

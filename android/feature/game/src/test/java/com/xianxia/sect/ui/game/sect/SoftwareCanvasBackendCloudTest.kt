@@ -17,7 +17,7 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.roundToInt
 
 /**
- * SoftwareCanvasBackend 云层渲染测试（2026-08-22 动态云层）。
+ * SoftwareCanvasBackend 云层渲染测试（动态云层）。
  *
  * 覆盖维度：
  * - 云层画在建筑之上（顶部区域像素 = 云色而非建筑色）

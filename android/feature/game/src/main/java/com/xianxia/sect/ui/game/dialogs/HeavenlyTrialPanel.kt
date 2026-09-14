@@ -54,21 +54,21 @@ fun HeavenlyTrialPanel(
     }
 }
 
-/** 天劫试炼面板布局数据（HeavenlyTrialPanel 拆分）：岛屿图资源名 + 相对坐标 */
+/** 天劫试炼面板布局数据：岛屿图资源名 + 相对坐标 */
 private data class HeavenlyTrialIslandLayout(
     val islandNames: List<String>,
     val islandXFractions: List<Float>,
     val islandYFractions: List<Float>
 )
 
-/** 天劫试炼 8 岛布局（HeavenlyTrialPanel 拆分）：8 座岛屿图资源 + 高低差坐标 */
+/** 天劫试炼 8 岛布局：8 座岛屿图资源 + 高低差坐标 */
 private fun heavenlyTrialIslandLayout(): HeavenlyTrialIslandLayout = HeavenlyTrialIslandLayout(
     islandNames = (1..8).map { "heavenly_trial_island_$it" },
     islandXFractions = listOf(0.09f, 0.23f, 0.37f, 0.50f, 0.63f, 0.76f, 0.87f, 0.96f),
     islandYFractions = listOf(0.42f, 0.28f, 0.50f, 0.22f, 0.48f, 0.30f, 0.44f, 0.26f)
 )
 
-/** 天劫试炼面板内容（HeavenlyTrialPanel 拆分）：背景 + 岛屿关卡 + 通关奖励入口 */
+/** 天劫试炼面板内容：背景 + 岛屿关卡 + 通关奖励入口 */
 @Composable
 private fun BoxWithConstraintsScope.HeavenlyTrialIslandMap(
     showBackground: Boolean,
@@ -100,7 +100,7 @@ private fun BoxWithConstraintsScope.HeavenlyTrialIslandMap(
     )
 }
 
-/** 天劫试炼岛屿关卡（HeavenlyTrialPanel 拆分）：8 岛精灵图 + 关卡文本按钮 */
+/** 天劫试炼岛屿关卡：8 岛精灵图 + 关卡文本按钮 */
 @Composable
 private fun BoxWithConstraintsScope.HeavenlyTrialIslands(
     layout: HeavenlyTrialIslandLayout,
@@ -166,7 +166,7 @@ private fun BoxWithConstraintsScope.HeavenlyTrialIslands(
     }
 }
 
-/** 右下角"通关奖励"按钮（HeavenlyTrialPanel 拆分）：未领取红点角标 */
+/** 右下角"通关奖励"按钮：未领取红点角标 */
 @Composable
 private fun BoxScope.HeavenlyTrialClearRewardsButton(
     hasClaimable: Boolean,

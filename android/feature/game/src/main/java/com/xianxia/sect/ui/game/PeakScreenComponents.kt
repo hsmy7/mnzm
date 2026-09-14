@@ -30,8 +30,7 @@ import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-
-
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 data class PeakElderSlotConfig(
     val title: String,
@@ -77,6 +76,7 @@ fun PeakElderSection(
     }
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun PeakElderSlotItem(config: PeakElderSlotConfig) {
     Column(
@@ -99,7 +99,7 @@ private fun PeakElderSlotItem(config: PeakElderSlotConfig) {
         val borderColor = if (config.elder != null) {
             try {
                 Color(android.graphics.Color.parseColor(config.elder.spiritRoot.countColor))
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 GameColors.SurfaceLightGray
             }
         } else {
@@ -148,7 +148,7 @@ fun PeakPreachingMasterSection(
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            (0..3).forEach { index ->
+            for (index in 0..3) {
                 val master = preachingMasters.find { it.index == index }
                 val agg = if (master?.isActive == true) discipleMap[master.discipleId] else null
                 val spiritRootColor = master?.discipleSpiritRootColor ?: ""
@@ -166,6 +166,7 @@ fun PeakPreachingMasterSection(
     }
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun PeakPreachingMasterSlotItem(
     disciple: DiscipleAggregate?,
@@ -179,7 +180,7 @@ private fun PeakPreachingMasterSlotItem(
     val borderColor = if (isActive) {
         try {
             Color(android.graphics.Color.parseColor(spiritRootColor))
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             Color(0xFF9C27B0)
         }
     } else {
@@ -215,7 +216,7 @@ private fun PeakPreachingMasterSlotItem(
     }
 }
 
-/** 巅峰弟子选择筛选状态（PeakDiscipleSelectionDialog 拆分） */
+/** 巅峰弟子选择筛选状态 */
 private class PeakDiscipleSelectionFilterState {
     var selectedRealmFilter by mutableStateOf<Set<Int>>(emptySet())
     var selectedSpiritRootFilter by mutableStateOf<Set<Int>>(emptySet())
@@ -290,7 +291,7 @@ fun PeakDiscipleSelectionDialog(
     }
 }
 
-/** 巅峰弟子筛选栏（PeakDiscipleSelectionDialog 拆分） */
+/** 巅峰弟子筛选栏 */
 @Composable
 private fun PeakDiscipleFilterBar(
     filterState: PeakDiscipleSelectionFilterState,
@@ -324,11 +325,11 @@ private fun PeakDiscipleFilterBar(
         isCompact = true,
         showAllCheckboxVisible = true,
         showAllEnabled = showAllEnabled,
-        onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
+        onShowAllToggle = { viewModel.settings.setShowAllAvailableDisciples(!showAllEnabled) }
     )
 }
 
-/** 巅峰弟子网格（PeakDiscipleSelectionDialog 拆分）：空态提示 + 弟子卡片网格 */
+/** 巅峰弟子网格：空态提示 + 弟子卡片网格 */
 @Composable
 private fun PeakDiscipleGrid(
     filteredDisciples: List<DiscipleAggregate>,
@@ -358,7 +359,7 @@ private fun PeakDiscipleGrid(
                         onClick = {
                             scope.launch {
                                 if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                                    viewModel.releaseDiscipleForReassignment(disciple.id)
+                                    viewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                                 }
                                 onSelect(disciple)
                             }

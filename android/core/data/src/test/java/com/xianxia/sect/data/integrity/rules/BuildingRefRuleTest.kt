@@ -65,7 +65,8 @@ class BuildingRefRuleTest {
         val result = SaveValidator.validate(saveData(gd))
         assertTrue(result is IntegrityResult.Repaired)
         assertEquals(1, (result as IntegrityResult.Repaired).data.gameData.residenceSlots.size)
-        assertEquals("bld-001", (result as IntegrityResult.Repaired).data.gameData.residenceSlots.first().buildingInstanceId)
+        assertEquals("bld-001", (result as IntegrityResult.Repaired).data.gameData.residenceSlots.first()
+            .buildingInstanceId)
     }
 
     private fun gridBuilding(instanceId: String) = GridBuildingData(

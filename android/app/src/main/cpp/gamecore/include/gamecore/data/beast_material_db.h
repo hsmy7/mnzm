@@ -6,7 +6,7 @@
 #include <vector>
 
 // ============================================================
-// 妖兽材料静态表（Kotlin BeastMaterialDatabase 提取，批次 2 剩余）
+// 妖兽材料静态表（与 Kotlin BeastMaterialDatabase 同源）
 // 字段与 BeastMaterial 构造参数一致；price/materialCategory 为派生值
 // ============================================================
 namespace gamecore::data {

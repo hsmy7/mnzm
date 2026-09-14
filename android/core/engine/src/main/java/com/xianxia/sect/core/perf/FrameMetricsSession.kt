@@ -1,11 +1,11 @@
 package com.xianxia.sect.core.perf
 
 /**
- * 帧指标采集会话端口（平台能力接口化，计划 v2 批 8-1 / C-06 退役批次重构）。
+ * 帧指标采集会话端口（平台能力接口化）。
  *
  * Android 实现见 app 层 `WindowFrameMetricsSession`
  * （Window.OnFrameMetricsAvailableListener + FrameMetrics）。
- * 引擎侧保持零 Android 依赖（R-02）：卡顿判定/统计聚合全部留在 [FrameMetricsMonitor]。
+ * 引擎侧保持零 Android 依赖：卡顿判定/统计聚合全部留在 [FrameMetricsMonitor]。
  */
 interface FrameMetricsSession {
     /**

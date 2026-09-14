@@ -362,17 +362,21 @@ struct SpriteBatcher {
 
 ```kotlin
 object SectMapTileGenerator {
-    // 现有瓦片类型（扩展范围）
-    const val TILE_GROUND       = 0
-    const val TILE_GRASS_SMALL  = 1
-    const val TILE_GRASS_MEDIUM = 2
-    const val TILE_GRASS_LARGE  = 3
-    const val TILE_TREE1        = 4
-    const val TILE_TREE2        = 5
-    const val TILE_BUILDING     = 6
+    // 现有瓦片类型（扩展范围；值由 SpriteAtlasDef.TileType.index 生成提供）
+    const val TILE_GROUND   = 0
+    const val TILE_GRASS1   = 1
+    const val TILE_GRASS2   = 2
+    const val TILE_GRASS3   = 3
+    const val TILE_GRASS4   = 4
+    const val TILE_STONE1   = 5
+    const val TILE_STONE2   = 6
+    const val TILE_STONE3   = 7
+    const val TILE_TREE1    = 8
+    const val TILE_TREE2    = 9
+    const val TILE_BUILDING = 10
     
     // Autotile 扩展（使用高字节存储 bitmask）
-    // tile类型: 低4位 = 基础类型 (0-6), 高4位 = biome/变体
+    // tile类型: 低4位 = 基础类型, 高4位 = biome/变体
     // 另外生成一个 parallel bitmask mask 数组
     
     /**
@@ -404,7 +408,8 @@ object SectMapTileGenerator {
         for (y in 1 until h-1) {
             for (x in 1 until w-1) {
                 val here = tileData[y][x]
-                if (here == TILE_BUILDING || here == TILE_TREE1 || here == TILE_TREE2) continue
+                // 实体障碍（石/树/建筑占位）不参与过渡——判据 = SpriteAtlasDef.isSolidTile(here)
+                if (SpriteAtlasDef.isSolidTile(here)) continue
                 
                 val n  = if (tileData[y-1][x]   == here) 1 else 0
                 val s  = if (tileData[y+1][x]   == here) 1 else 0

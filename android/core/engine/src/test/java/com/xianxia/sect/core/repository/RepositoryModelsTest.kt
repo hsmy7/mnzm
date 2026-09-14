@@ -28,8 +28,10 @@ class RepositoryModelsTest {
 
     @Test
     fun slotCacheStatistics_equality() {
-        val a = SlotCacheStatistics(total = 5, working = 2, completed = 1, idle = 2, byTypeCount = mapOf(BuildingType.ALCHEMY to 2))
-        val b = SlotCacheStatistics(total = 5, working = 2, completed = 1, idle = 2, byTypeCount = mapOf(BuildingType.ALCHEMY to 2))
+        val a = SlotCacheStatistics(total = 5, working = 2, completed = 1, idle = 2,
+            byTypeCount = mapOf(BuildingType.ALCHEMY to 2))
+        val b = SlotCacheStatistics(total = 5, working = 2, completed = 1, idle = 2,
+            byTypeCount = mapOf(BuildingType.ALCHEMY to 2))
         assertEquals(a, b)
         assertEquals(a.hashCode(), b.hashCode())
     }
@@ -89,7 +91,8 @@ class RepositoryModelsTest {
     @Test
     fun slotCache_updateAndGetByStatus() {
         val cache = SlotCache()
-        val idleSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
+        val idleSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy")
         val workingSlot = idleSlot.copy(id = "w1", slotIndex = 1, status = ProductionSlotStatus.WORKING)
         val completedSlot = idleSlot.copy(id = "c1", slotIndex = 2, status = ProductionSlotStatus.COMPLETED)
 
@@ -103,8 +106,10 @@ class RepositoryModelsTest {
     @Test
     fun slotCache_getByType() {
         val cache = SlotCache()
-        val alchemySlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
-        val forgeSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.FORGE, buildingId = "forge")
+        val alchemySlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy")
+        val forgeSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.FORGE,
+            buildingId = "forge")
 
         cache.updateCache(listOf(alchemySlot, forgeSlot))
 
@@ -127,8 +132,10 @@ class RepositoryModelsTest {
     @Test
     fun slotCache_getByIndex() {
         val cache = SlotCache()
-        val slot0 = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
-        val slot1 = ProductionSlot.createIdle(slotIndex = 1, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
+        val slot0 = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy")
+        val slot1 = ProductionSlot.createIdle(slotIndex = 1, buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy")
 
         cache.updateCache(listOf(slot0, slot1))
 
@@ -152,7 +159,8 @@ class RepositoryModelsTest {
     @Test
     fun slotCache_getById() {
         val cache = SlotCache()
-        val slot = ProductionSlot.createIdle(id = "test-id", slotIndex = 0, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
+        val slot = ProductionSlot.createIdle(id = "test-id", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy")
 
         cache.updateCache(listOf(slot))
 
@@ -186,7 +194,8 @@ class RepositoryModelsTest {
     @Test
     fun slotCache_getStatistics() {
         val cache = SlotCache()
-        val idleSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
+        val idleSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy")
         val workingSlot = idleSlot.copy(id = "w1", slotIndex = 1, status = ProductionSlotStatus.WORKING)
 
         cache.updateCache(listOf(idleSlot, workingSlot))
@@ -213,7 +222,8 @@ class RepositoryModelsTest {
     @Test
     fun slotCache_updateCacheSameReferenceSkipsRebuild() {
         val cache = SlotCache()
-        val slots = listOf(ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy"))
+        val slots = listOf(ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy"))
         cache.updateCache(slots)
         assertFalse(cache.isDirty())
 
@@ -277,7 +287,8 @@ class RepositoryModelsTest {
     @Test
     fun `slotCache updateCache - 含 null 元素时过滤后建索引`() {
         val cache = SlotCache()
-        val forgeSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.FORGE, buildingId = "forge")
+        val forgeSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.FORGE,
+            buildingId = "forge")
         // 非空类型列表通过 unchecked cast 注入运行时 null（模拟损坏存档反序列化）
         @Suppress("UNCHECKED_CAST")
         val dirtySlots = listOf<ProductionSlot?>(null, forgeSlot) as List<ProductionSlot>

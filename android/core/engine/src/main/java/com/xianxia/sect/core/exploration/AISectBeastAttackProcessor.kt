@@ -7,7 +7,6 @@ import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
-import com.xianxia.sect.core.domain.battle.EncounterBattleService
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -17,7 +16,6 @@ import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.util.GameRngManager
@@ -35,15 +33,13 @@ import kotlin.math.sqrt
  *    巡视楼运行时会读取该字段，当巡逻队和 AI 同时瞄准同一妖兽时触发遭遇战。
  * 2. [processRemainingTargets] — 月度结算后段，处理巡视楼未处理的 AI 目标 → AI 直接进攻妖兽。
  *
- * 此处理器在 [stateStore.update] 事务内调用，直接修改 [MutableGameState]。
+ * 此处理器在调用方提供的 GameStateStore.update 事务内调用，直接修改 MutableGameState。
  * 不涉及玩家宗门——玩家宗门的妖兽攻击处理由 [BeastAttackDetector] + [PendingBeastAttack] 系统负责。
  */
 @Singleton
 class AISectBeastAttackProcessor @Inject constructor(
-    private val stateStore: GameStateStore,
     private val battleSystem: BattleSystem,
     private val rngManager: GameRngManager,
-    private val encounterBattleService: EncounterBattleService
 ) {
     /**
      * Phase 1: 预计算 AI 进攻目标。
@@ -68,6 +64,7 @@ class AISectBeastAttackProcessor @Inject constructor(
         }.sortedBy { it.id }
         if (activeBeasts.isEmpty()) return
 
+        /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
         val rng = rngManager.getRng(RngPartition.EXPLORATION)
         val absoluteMonth = year * 12 + month
 
@@ -107,33 +104,49 @@ class AISectBeastAttackProcessor @Inject constructor(
             if (qualified.size >= 2) break
 
             val cooldown = gd.aiSectBeastSkipCooldowns[sect.id] ?: 0
-            if (cooldown >= absoluteMonth) continue
-
-            val aiDisciples = gd.aiSectDisciples[sect.id] ?: continue
-            val aliveDisciples = aiDisciples.filter { it.isAlive }
-            if (aliveDisciples.size < GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK) continue
-
-            val aiPower = SectCombatPowerCalculator.calculateSectPower(aliveDisciples)
-            val beastPower = SectCombatPowerCalculator.calculateBeastCombatPower(
-                maxHp = beast.beastMaxHp, physicalAttack = beast.beastPhysicalAttack,
-                magicAttack = beast.beastMagicAttack, physicalDefense = beast.beastPhysicalDefense,
-                magicDefense = beast.beastMagicDefense, speed = beast.beastSpeed
-            )
-
-            val canAttack = if (beastPower <= 0) true
-            else if (aiPower <= beastPower) { recordSkipCooldown(state, sect.id, absoluteMonth); false }
-            else {
-                val prob = min(
-                    (aiPower.toDouble() / beastPower.toDouble() - 1.0) * ATTACK_PROB_BASE_MULTIPLIER +
-                        ATTACK_PROB_BASE_MULTIPLIER,
-                    ATTACK_PROB_CAP
-                )
-                if (rng.nextDouble() < prob) true
-                else { recordSkipCooldown(state, sect.id, absoluteMonth); false }
+            val aliveDisciples = gd.aiSectDisciples[sect.id]?.filter { it.isAlive }
+            // 冷却中/无弟子池/存活弟子不足的宗门跳过（跳过者不消耗 BATTLE 抽取）
+            val isEligible = cooldown < absoluteMonth && aliveDisciples != null &&
+                aliveDisciples.size >= GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
+            // 合格且判定出手（含冷却登记与 BATTLE 抽取——抽取集与调用序不变）且未在列
+            if (isEligible && shouldAiSectAttackBeast(state, sect, beast, rng, absoluteMonth, aliveDisciples) &&
+                sect.id !in qualified
+            ) {
+                qualified.add(sect.id)
             }
-            if (canAttack && sect.id !in qualified) qualified.add(sect.id)
         }
         return qualified
+    }
+
+    /** 单候选宗门对妖兽的攻击资格判定：
+     * 战力比概率出手判定；不出手时登记跳过冷却。 */
+    private fun shouldAiSectAttackBeast(
+        state: MutableGameState,
+        sect: WorldSect,
+        beast: WorldLevel,
+        rng: com.xianxia.sect.core.util.DeterministicRng,
+        absoluteMonth: Int,
+        aliveDisciples: List<Disciple>
+    ): Boolean {
+        val aiPower = SectCombatPowerCalculator.calculateSectPower(aliveDisciples)
+        val beastPower = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = beast.beastMaxHp, physicalAttack = beast.beastPhysicalAttack,
+            magicAttack = beast.beastMagicAttack, physicalDefense = beast.beastPhysicalDefense,
+            magicDefense = beast.beastMagicDefense, speed = beast.beastSpeed
+        )
+
+        val canAttack = if (beastPower <= 0) true
+        else if (aiPower <= beastPower) { recordSkipCooldown(state, sect.id, absoluteMonth); false }
+        else {
+            val prob = min(
+                (aiPower.toDouble() / beastPower.toDouble() - 1.0) * ATTACK_PROB_BASE_MULTIPLIER +
+                    ATTACK_PROB_BASE_MULTIPLIER,
+                ATTACK_PROB_CAP
+            )
+            if (rng.nextDouble() < prob) true
+            else { recordSkipCooldown(state, sect.id, absoluteMonth); false }
+        }
+        return canAttack
     }
 
     /**
@@ -165,24 +178,33 @@ class AISectBeastAttackProcessor @Inject constructor(
             val beast = state.gameData.worldLevels.find {
                 it.id == beastId && !it.defeated
             } ?: continue
-
-            when (aiSectIds.size) {
-                0 -> continue
-                1 -> {
-                    val aiSect = state.gameData.worldMapSects.find { it.id == aiSectIds[0] } ?: continue
-                    executeAIVersusBeast(state, aiSect, beast, year)
-                }
-                else -> {
-                    // 2 个 AI → AI vs AI 遭遇战 → 胜者 vs 妖兽
-                    val sectA = state.gameData.worldMapSects.find { it.id == aiSectIds[0] } ?: continue
-                    val sectB = state.gameData.worldMapSects.find { it.id == aiSectIds[1] } ?: continue
-                    executeAIEncounterBattle(state, sectA, sectB, beast, year)
-                }
-            }
+            processDirectTarget(state, aiSectIds, beast, year)
         }
 
         // 清理目标列表
         state.gameData = state.gameData.copy(aiSectBeastDirectTargets = emptyMap())
+    }
+
+    /** 单目标分派：0/1/2+ AI 三臂；目标或宗门缺失时静默跳过 */
+    private fun processDirectTarget(
+        state: MutableGameState,
+        aiSectIds: List<String>,
+        beast: WorldLevel,
+        year: Int
+    ) {
+        when (aiSectIds.size) {
+            0 -> Unit
+            1 -> {
+                val aiSect = state.gameData.worldMapSects.find { it.id == aiSectIds[0] } ?: return
+                executeAIVersusBeast(state, aiSect, beast, year)
+            }
+            else -> {
+                // 2 个 AI → AI vs AI 遭遇战 → 胜者 vs 妖兽
+                val sectA = state.gameData.worldMapSects.find { it.id == aiSectIds[0] } ?: return
+                val sectB = state.gameData.worldMapSects.find { it.id == aiSectIds[1] } ?: return
+                executeAIEncounterBattle(state, sectA, sectB, beast, year)
+            }
+        }
     }
 
     /**
@@ -255,7 +277,7 @@ class AISectBeastAttackProcessor @Inject constructor(
             beasts = teamBCombatants,
             maxTurns = GameConfig.Battle.MAX_TURNS
         )
-        // 战斗批次 D：AUTHORITATIVE 下经 C++ 战斗引擎执行（降级回退 Kotlin）
+        // AUTHORITATIVE 下经 C++ 战斗引擎执行（降级回退 Kotlin）
         val pvpResult = BattleExecutionRouter.tryExecuteNative(pvpBattle)
             ?: battleSystem.executeBattle(pvpBattle)
 
@@ -365,12 +387,14 @@ class AISectBeastAttackProcessor @Inject constructor(
      * 注意：AI 弟子存储在 [GameData.aiSectDisciples] 中，不是 [DiscipleTables]。
      * 不要调用 [DiscipleDeathHandler.markDead] （那是对玩家弟子表的操作）。
      */
+    @Suppress("UnusedParameter") // year: 语义时点形参：标注年变/月变触发编排的可读契约，函数体当前不消费
     private fun handleAIDeaths(
         state: MutableGameState,
         aiSectId: String,
         result: BattleSystemResult,
         year: Int
     ) {
+        /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
         val deadIds = result.battle.team
             .filter { it.isDead }
             .map { it.id }
@@ -391,7 +415,7 @@ class AISectBeastAttackProcessor @Inject constructor(
 
     /**
      * 记录 AI 宗门跳过冷却到当前绝对月份（年×12+月）。
-     * 冷却粒度从年份改为月份，防止一次失败全年免疫。
+     * 冷却粒度为月份——防止一次失败全年免疫。
      */
     private fun recordSkipCooldown(state: MutableGameState, sectId: String, absoluteMonth: Int) {
         state.gameData = state.gameData.copy(
@@ -416,10 +440,8 @@ class AISectBeastAttackProcessor @Inject constructor(
      * 按境界生成模拟装备和功法，确保战斗有合理的数值表现。
      */
     private fun createAIBattle(disciples: List<Disciple>, beast: WorldLevel): Battle {
-        if (!ManualDatabase.isInitialized) {
-            throw IllegalStateException(
-                "ManualDatabase not initialized when creating AI vs beast battle"
-            )
+        check(ManualDatabase.isInitialized) {
+            "ManualDatabase not initialized when creating AI vs beast battle"
         }
 
         val prepared = AISectDiscipleManager.prepareDisciplesForBattle(disciples)

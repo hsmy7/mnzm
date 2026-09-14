@@ -36,16 +36,27 @@ object FontPreloader {
     private var initialized = false
 
     /**
+     * 已构建的 [FontFamily] 缓存。
+     *
+     * [fontFamily] 结果在 init 完成后恒定——构建一次缓存即可，
+     * 避免每次组合重新分配 Font 列表（15 个 Typography 样式）。
+     */
+    @Volatile
+    private var cachedFamily: FontFamily? = null
+
+    /**
      * Compose [FontFamily]，优先使用预加载的 NotoSansSC 字体。
      * 若字体文件未找到则回退到 [FontFamily.SansSerif]。
      *
      * 使用 [Font] 的 path + assetManager 构造方式，与 Typeface.createFromAsset
      * 共享 AssetManager 的文件缓存，不会重复读取磁盘。
+     * init 完成后结果恒定，首次构建后走缓存（零分配）。
      */
     val fontFamily: FontFamily
         get() {
+            cachedFamily?.let { return it }
             val am = assetManager
-            return if (am == null || (!regularLoaded && !boldLoaded)) {
+            val family = if (am == null || (!regularLoaded && !boldLoaded)) {
                 FontFamily.SansSerif
             } else {
                 FontFamily(
@@ -55,6 +66,10 @@ object FontPreloader {
                     )
                 )
             }
+            // 仅缓存 init 完成后的结果——init 前被访问的临时回退（assetManager 未注入）
+            // 不得缓存，否则 init 完成后仍会返回错误的 SansSerif
+            if (initialized) cachedFamily = family
+            return family
         }
 
     /** 是否已成功加载过（至少一个字体文件找到）。 */
@@ -69,6 +84,10 @@ object FontPreloader {
      *
      * 字体文件不存在时只记 warning，不崩溃，UI 自动回退到系统 SansSerif。
      */
+    // @Suppress 理由：启动期字体回退兜底——字体文件缺失/损坏时不同 ROM 抛出的
+    // 异常类型不可枚举（RuntimeException/IOException 等），漏接即应用无法启动；
+    // 吞掉并回退系统 SansSerif 是此处正确语义（KDoc 契约）
+    @Suppress("TooGenericExceptionCaught")
     fun init(context: Context) {
         val am = context.assets
         assetManager = am

@@ -8,7 +8,6 @@ import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.util.GameRandom
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 
@@ -150,7 +149,7 @@ data class Disciple(
         get() = usage.usedFunctionalPillTypes
         set(value) { usage.usedFunctionalPillTypes = value }
 
-    // ==================== 计算属性（保持不变）====================
+    // ==================== 计算属性 ====================
 
     val canCultivate: Boolean get() = age >= 5
     val realmName: String get() {
@@ -194,9 +193,8 @@ data class Disciple(
 
     val aptitude: Int get() = skills.aptitude
 
-    // ==================== copyWith 已删除 ====================
-    // 组件表架构下不再需要 copyWith，所有字段更新通过 DiscipleTables 直接操作。
-    // 如需构造新 Disciple 对象，请使用 Disciple(...) 构造函数或 DiscipleTables.assemble()。
+    // 所有字段更新通过 DiscipleTables 直接操作；如需构造新 Disciple 对象，
+    // 请使用 Disciple(...) 构造函数或 DiscipleTables.assemble()。
 
     companion object {
         fun calculateBaseStatsWithVariance(
@@ -213,51 +211,6 @@ data class Disciple(
                 physicalDefenseVariance, magicDefenseVariance, speedVariance
             )
         }
-
-        fun fixBaseStats(disciple: Disciple): Disciple {
-            val needsFix = disciple.combat.hpVariance == 0 &&
-                           disciple.combat.mpVariance == 0 &&
-                           disciple.combat.physicalAttackVariance == 0 &&
-                           disciple.combat.magicAttackVariance == 0 &&
-                           disciple.combat.physicalDefenseVariance == 0 &&
-                           disciple.combat.magicDefenseVariance == 0 &&
-                           disciple.combat.speedVariance == 0 &&
-                           disciple.combat.baseHp == 120
-
-            if (!needsFix) return disciple
-
-            val hpVariance = GameRandom.nextInt(-30, 31)
-            val mpVariance = GameRandom.nextInt(-30, 31)
-            val physicalAttackVariance = GameRandom.nextInt(-30, 31)
-            val magicAttackVariance = GameRandom.nextInt(-30, 31)
-            val physicalDefenseVariance = GameRandom.nextInt(-30, 31)
-            val magicDefenseVariance = GameRandom.nextInt(-30, 31)
-            val speedVariance = GameRandom.nextInt(-30, 31)
-
-            val baseStats = calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
-            )
-
-            return disciple.copy(
-                combat = disciple.combat.copy(
-                    hpVariance = hpVariance,
-                    mpVariance = mpVariance,
-                    physicalAttackVariance = physicalAttackVariance,
-                    magicAttackVariance = magicAttackVariance,
-                    physicalDefenseVariance = physicalDefenseVariance,
-                    magicDefenseVariance = magicDefenseVariance,
-                    speedVariance = speedVariance,
-                    baseHp = baseStats.baseHp,
-                    baseMp = baseStats.baseMp,
-                    basePhysicalAttack = baseStats.basePhysicalAttack,
-                    baseMagicAttack = baseStats.baseMagicAttack,
-                    basePhysicalDefense = baseStats.basePhysicalDefense,
-                    baseMagicDefense = baseStats.baseMagicDefense,
-                    baseSpeed = baseStats.baseSpeed
-                )
-            )
-        }
     }
 
     // ==================== 属性计算方法（晚绑定 DiscipleStatsProvider）====================
@@ -266,7 +219,8 @@ data class Disciple(
 
     fun getTalentEffects(): Map<String, Double> = DiscipleAggregate.statsProvider.getTalentEffects(this)
 
-    fun getStatsWithEquipment(equipments: Map<String, EquipmentInstance>): DiscipleStats = DiscipleAggregate.statsProvider.getStatsWithEquipment(this, equipments)
+    fun getStatsWithEquipment(equipments: Map<String,
+        EquipmentInstance>): DiscipleStats = DiscipleAggregate.statsProvider.getStatsWithEquipment(this, equipments)
 
     fun getFinalStats(
         equipments: Map<String, EquipmentInstance>,
@@ -277,20 +231,28 @@ data class Disciple(
         this, equipments, manuals, manualProficiencies, bloodRefinementPct
     )
 
-    fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0): Double = DiscipleAggregate.statsProvider.calculateCultivationSpeed(this, manuals, manualProficiencies, buildingBonus, additionalBonus, preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus, griefCultivationSpeedPenalty)
+    fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String,
+        ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0,
+            preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0,
+                cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0,
+                    griefCultivationSpeedPenalty: Double = 0.0): Double = DiscipleAggregate.statsProvider
+                        .calculateCultivationSpeed(this, manuals, manualProficiencies, buildingBonus, additionalBonus,
+                            preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus,
+                                griefCultivationSpeedPenalty)
 
     /** 判断弟子是否可以突破 */
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation
 
-    fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0, pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double =
-        DiscipleAggregate.statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehension, pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
+    fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0, pillBonus: Double =
+        0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double =
+        DiscipleAggregate.statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehension,
+            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
 
-    // ==================== 转换方法（用于迁移到 DiscipleAggregate）====================
+    // ==================== 转换方法（Disciple → DiscipleAggregate）====================
 
     /**
      * 将此单表实体转换为 [DiscipleAggregate] 多表结构
      *
-     * 此方法用于从遗留代码迁移到新的多表架构。
      * 转换后的 [DiscipleAggregate] 可直接用于业务逻辑处理。
      *
      * @return 完整的 DiscipleAggregate 实例，包含所有组件数据
@@ -303,7 +265,8 @@ data class Disciple(
 @Keep
 @Serializable
 enum class DiscipleStatus {
-    IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM, PATROLLING, REFINING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD,
+    IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM,
+        PATROLLING, REFINING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD,
     SECRET_REALM, WAREHOUSE_GARRISON;
 
     val displayName: String get() = when (this) {
@@ -528,14 +491,14 @@ data class StorageBagItem(
     @ProtoNumber(5) val quantity: Int = 1,
     @ProtoNumber(6) val obtainedYear: Int = 1,
     @ProtoNumber(7) val obtainedMonth: Int = 1,
-    // 2026-08-04 修复：此前 5 个字段 @Transient 不持久化，读档后储物袋丹药效果/品级/遗忘冷却全部丢失，
-    // 导致自动服药失效、丹药详情空显示。编号 8-12 与旧格式 SerializableStorageBagItem 完全一致。
+    // 编号 8-12 与旧格式 SerializableStorageBagItem 完全一致（protobuf 字段号
+    // 与旧档兼容，不得变动）。
     @ProtoNumber(8) val effect: ItemEffect? = null,
     @ProtoNumber(9) val grade: String? = null,
     @ProtoNumber(10) val forgetYear: Int? = null,
     @ProtoNumber(11) val forgetMonth: Int? = null,
     @ProtoNumber(12) val forgetPhase: Int? = null,
-    // 2026-08-08 D-03 储物袋独立存储重构：袋条目自带数据，不再引用仓库堆叠。
+    // 储物袋独立存储：袋条目自带数据，不引用仓库堆叠。
     // equipmentInstance = 卸装装备实例（完整保真，含 nurtureLevel/Progress）；
     // manualInstance = 忘功法实例（完整保真）；stackedData = 堆叠类物品的
     // 取回/物化重建补充字段（minRealm/slot/manualType）。

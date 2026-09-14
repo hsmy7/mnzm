@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.domain.favor.FavorService
-import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.GameData
@@ -230,7 +229,6 @@ class DiplomacyServicePureLogicTest {
         return DiplomacyService(
             stateStore = stateStore,
             inventorySystem = mockSmart(InventorySystem::class.java),
-            eventBus = mockSmart(EventBusPort::class.java),
             favorService = mockSmart(FavorService::class.java),
             spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             rngManager = mockSmart(com.xianxia.sect.core.util.GameRngManager::class.java)

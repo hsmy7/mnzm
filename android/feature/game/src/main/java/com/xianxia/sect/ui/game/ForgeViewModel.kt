@@ -19,7 +19,6 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -31,7 +30,6 @@ import javax.inject.Inject
 @HiltViewModel
 class ForgeViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val elderManagement: ElderManagementUseCase
 ) : BaseViewModel() {
 
     val forgeSlots: StateFlow<List<ForgeSlot>> = gameEngine.productionSlots
@@ -77,6 +75,7 @@ class ForgeViewModel @Inject constructor(
             ?.autoRestartEnabled ?: false
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun startForge(slotIndex: Int, recipe: ForgeRecipeDatabase.ForgeRecipe) {
         if (_isStartingForge.value) return
         _isStartingForge.value = true
@@ -109,7 +108,7 @@ class ForgeViewModel @Inject constructor(
         }
 
         // 职业门禁：按槽位弟子炼器师职业等级限制可锻品阶（无职业只能锻凡品；
-        // 弟子查不到时按无职业兜底，禁止放开到最高阶——对抗性审查）
+        // 弟子查不到时按无职业兜底，禁止放开到最高阶）
         val maxTier = slot?.assignedDiscipleId
             ?.let { id -> gameEngine.discipleAggregatesSnapshot.find { it.id == id }?.forgeLevel }
             ?.let { ProfessionRules.maxCraftableTier(it) }
@@ -152,6 +151,7 @@ class ForgeViewModel @Inject constructor(
         showError("弟子职业等级不够无法锻造")
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun toggleAuto(buildingIndex: Int) {
         val currentValue = isAutoEnabled(buildingIndex)
         val newValue = !currentValue

@@ -302,7 +302,7 @@ class DiscipleSlotCleanupTest {
         assertEquals(otherId, otherSlot!!.assignedDiscipleId)
     }
 
-    // ---- 2026-08-10：洞府探索队 / 悬赏任务（clearAllSlotsDataOnly 补齐）----
+    // ---- 洞府探索队 / 悬赏任务（clearAllSlotsDataOnly 覆盖）----
 
     @Test
     fun clearAllSlots_caveTeamSingleMember_setsCompleted() {
@@ -362,7 +362,7 @@ class DiscipleSlotCleanupTest {
         assertEquals("成员名同步过滤", listOf("Survivor"), mission.discipleNames)
     }
 
-    // ---- 2026-08-10：state 级方法（Gate + GameData）----
+    // ---- state 级方法（Gate + GameData）----
 
     @Test
     fun clearAllSlotsState_releasesAssignmentGate() {

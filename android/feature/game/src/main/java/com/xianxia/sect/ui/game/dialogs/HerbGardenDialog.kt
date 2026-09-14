@@ -26,6 +26,8 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
+import com.xianxia.sect.ui.game.assignDirectDisciple
+import com.xianxia.sect.ui.game.removeDirectDisciple
 
 @Composable
 fun HerbGardenDialog(
@@ -44,8 +46,10 @@ fun HerbGardenDialog(
 
     val battleAndExplorationIds = remember(gameData) {
         if (gameData != null) {
-            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+                .toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }
+                .toSet()
             battleIds + explorationIds
         } else emptySet()
     }
@@ -58,7 +62,8 @@ fun HerbGardenDialog(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -68,7 +73,7 @@ fun HerbGardenDialog(
                     onDirectDiscipleClick = { index ->
                         val slot = herbGardenDisciples.getOrNull(index)
                         val d = if (slot?.isActive == true) discipleMap[slot.discipleId] else null
-                        d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                        d?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     },
                     onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) },
                     onDirectDiscipleSwap = { index -> showDirectDiscipleSelection = index }
@@ -95,6 +100,7 @@ fun HerbGardenDialog(
 
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun HerbGardenDirectDiscipleSection(
     directDisciples: List<DirectDiscipleSlot>,
@@ -118,19 +124,19 @@ private fun HerbGardenDirectDiscipleSection(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getHerbGardenDiscipleInfo())
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.herbGardenDiscipleInfo)
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
         ) {
-            (0 until 1).forEach { index ->
+            for (index in 0 until 1) {
                 val slot = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
                 val agg = if (slot.isActive) discipleMap[slot.discipleId] else null
                 val borderColor = if (slot.isActive) {
                     try { Color(android.graphics.Color.parseColor(agg?.spiritRoot?.countColor)) }
-                    catch (e: Exception) { GameColors.Success }
+                    catch (ignored: Exception) { GameColors.Success }
                 } else {
                     GameColors.Border
                 }

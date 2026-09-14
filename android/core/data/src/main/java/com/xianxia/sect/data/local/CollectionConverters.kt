@@ -67,6 +67,8 @@ import kotlinx.serialization.builtins.serializer
  *
  * 处理 List/Map 类型的 Protobuf 二进制序列化。
  */
+@Suppress("TooManyFunctions") // Room @TypeConverter 注册面：每集合/Map 类型一对转换函数（Room 强制函数形态），
+// 函数数=受支持类型数×2，1:1 契约映射拆分无收益
 object CollectionConverters {
 
     // ==================== 复杂列表转换器（纯 Protobuf）====================
@@ -76,7 +78,8 @@ object CollectionConverters {
     fun fromDiscipleList(value: List<Disciple>): String {
         val result = ProtobufConverters.encodeToBase64(ListSerializer(Disciple.serializer()), value)
         if (result.isEmpty() && value.isNotEmpty()) {
-            android.util.Log.e("CollectionConverters", "CRITICAL: fromDiscipleList serialization FAILED for ${value.size} disciples! Data will be lost on save!")
+            android.util.Log.e("CollectionConverters", "CRITICAL: fromDiscipleList serialization FAILED " +
+                "for ${value.size} disciples! Data will be lost on save!")
         }
         return result
     }
@@ -86,7 +89,8 @@ object CollectionConverters {
     fun toDiscipleList(value: String): List<Disciple> {
         val result = ProtobufConverters.decodeFromBase64(ListSerializer(Disciple.serializer()), value) { emptyList() }
         if (result.isEmpty() && value.isNotEmpty()) {
-            android.util.Log.e("CollectionConverters", "CRITICAL: toDiscipleList deserialization returned empty list from non-empty data! Encoded length: ${value.length}")
+            android.util.Log.e("CollectionConverters", "CRITICAL: toDiscipleList deserialization returned empty list " +
+                "from non-empty data! Encoded length: ${value.length}")
         }
         return result
     }
@@ -96,7 +100,9 @@ object CollectionConverters {
     @JvmStatic
     fun fromDiscipleListMap(value: Map<String, List<Disciple>>): String {
         if (value.isNotEmpty()) {
-            android.util.Log.w("CollectionConverters", "aiSectDisciples has ${value.size} sects / ${value.values.sumOf { it.size }} disciples — should use incremental encoding, TypeConverter returns empty to avoid OOM")
+            android.util.Log.w("CollectionConverters",
+                "aiSectDisciples has ${value.size} sects / ${value.values.sumOf { it.size }} disciples — should use " +
+                    "incremental encoding, TypeConverter returns empty to avoid OOM")
         }
         return ""
     }
@@ -105,7 +111,8 @@ object CollectionConverters {
     @JvmStatic
     fun toDiscipleListMap(value: String): Map<String, List<Disciple>> =
         if (value.isEmpty()) emptyMap()
-        else ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(Disciple.serializer())), value) { emptyMap() }
+        else ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(),
+            ListSerializer(Disciple.serializer())), value) { emptyMap() }
 
     @TypeConverter
     @JvmStatic
@@ -350,7 +357,7 @@ object CollectionConverters {
     fun toAIBattleTeamList(value: String): List<AIBattleTeam> =
         ProtobufConverters.decodeFromBase64(ListSerializer(AIBattleTeam.serializer()), value) { emptyList() }
 
-    // 2026-08-05 A3：battleTeams/usedTeamNumbers 持久化所需的列表转换器
+    // battleTeams/usedTeamNumbers 持久化所需的列表转换器
     @TypeConverter
     @JvmStatic
     fun fromBattleTeamList(value: List<BattleTeam>): String =
@@ -401,7 +408,8 @@ object CollectionConverters {
     @TypeConverter
     @JvmStatic
     fun toExploredSectInfoMap(value: String): Map<String, ExploredSectInfo> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ExploredSectInfo.serializer()), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ExploredSectInfo.serializer()),
+            value) { emptyMap() }
 
     @TypeConverter
     @JvmStatic
@@ -411,17 +419,20 @@ object CollectionConverters {
     @TypeConverter
     @JvmStatic
     fun toSectScoutInfoMap(value: String): Map<String, SectScoutInfo> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), SectScoutInfo.serializer()), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), SectScoutInfo.serializer()),
+            value) { emptyMap() }
 
     @TypeConverter
     @JvmStatic
     fun fromManualProficiencyDataMap(value: Map<String, List<ManualProficiencyData>>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), ListSerializer(ManualProficiencyData.serializer())), value)
+        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(),
+            ListSerializer(ManualProficiencyData.serializer())), value)
 
     @TypeConverter
     @JvmStatic
     fun toManualProficiencyDataMap(value: String): Map<String, List<ManualProficiencyData>> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(ManualProficiencyData.serializer())), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(),
+            ListSerializer(ManualProficiencyData.serializer())), value) { emptyMap() }
 
     // ==================== 战斗日志相关（纯 Protobuf）====================
 
@@ -473,7 +484,8 @@ object CollectionConverters {
     @TypeConverter
     @JvmStatic
     fun toSectDetailMap(value: String): Map<String, SectDetail> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), SectDetail.serializer()), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), SectDetail.serializer()),
+            value) { emptyMap() }
 
     // 巡视楼
     @TypeConverter
@@ -501,42 +513,50 @@ object CollectionConverters {
     @TypeConverter
     @JvmStatic
     fun fromBloodRefinementProgressMap(value: Map<String, BloodRefinementProgress>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()), value)
+        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()),
+            value)
 
     @TypeConverter
     @JvmStatic
     fun toBloodRefinementProgressMap(value: String): Map<String, BloodRefinementProgress> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()),
+            value) { emptyMap() }
 
     @TypeConverter
     @JvmStatic
     fun fromBloodRefinementBonusTotalMap(value: Map<String, BloodRefinementBonusTotal>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()), value)
+        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()),
+            value)
 
     @TypeConverter
     @JvmStatic
     fun toBloodRefinementBonusTotalMap(value: String): Map<String, BloodRefinementBonusTotal> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()),
+            value) { emptyMap() }
 
     @TypeConverter
     @JvmStatic
     fun fromBloodRefinementPctTotalMap(value: Map<String, BloodRefinementPctTotal>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()), value)
+        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()),
+            value)
 
     @TypeConverter
     @JvmStatic
     fun toBloodRefinementPctTotalMap(value: String): Map<String, BloodRefinementPctTotal> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()),
+            value) { emptyMap() }
 
     @TypeConverter
     @JvmStatic
     fun fromStringListMap(value: Map<String, List<String>>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value)
+        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())),
+            value)
 
     @TypeConverter
     @JvmStatic
     fun toStringListMap(value: String): Map<String, List<String>> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value) { emptyMap() }
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())),
+            value) { emptyMap() }
 
     // ==================== 每日签到转换器 ====================
 

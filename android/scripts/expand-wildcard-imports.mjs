@@ -1,10 +1,9 @@
-// D-06 一次性迁移工具：将自有包 com.xianxia.sect.* 通配 import 展开为显式 import
+// 一次性迁移工具：将自有包 com.xianxia.sect.* 通配 import 展开为显式 import
 // 用法（在 android/ 目录）：node scripts/expand-wildcard-imports.mjs [--dry-run]
 // 原则：
 //  - 包内顶层符号集按文件内的 package 声明分组提取（包声明与物理路径无关，
 //    core.engine 系包声明与目录不一致——不能按路径匹配目录）
-//  - 文件清单 = git 已跟踪 + 未跟踪（D-01~D-17 新文件未被 git 跟踪，只跑
-//    `git ls-files` 会漏掉）
+//  - 文件清单 = git 已跟踪 + 未跟踪（只跑 `git ls-files` 会漏掉未跟踪文件）
 //  - 引用匹配用状态机扫描正文（排除 import 段/注释/字符串），得到实际用到的符号
 //  - 无引用的通配行直接删除；同名符号跨包冲突的文件跳过（保通配，报告人工处理）；
 //    文件内自身声明的符号优先于 import（不构成冲突）

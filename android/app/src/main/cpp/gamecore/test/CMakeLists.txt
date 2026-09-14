@@ -22,15 +22,32 @@ target_compile_options(gtest PRIVATE
 add_library(gtest_main STATIC ${GTEST_ROOT}/src/gtest_main.cc)
 target_link_libraries(gtest_main PUBLIC gtest)
 
+# ── W4 三批次并行的测试源清单（W4-00 并行前置批切分）────────────────────
+# 每批只改自己的文件，从而消除「三批同时往 add_executable 末尾追加源文件」的
+# 必然冲突。include 必须在 add_executable 之前（变量在此定义）。
+# 见 docs/parallel-batches-w4/README.md §3.1 项 4。
+include(${CMAKE_CURRENT_SOURCE_DIR}/w4a_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/w4b_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/w4c_tests.cmake)
+
 add_executable(game-core-tests
+    appointment_tx_test.cpp
+    exploration_tx_test.cpp
     rng_test.cpp
     result_test.cpp
+    item_id_reseed_test.cpp
+    ai_corpse_budget_test.cpp
+    disciple_derived_maps_test.cpp
+    storage_bag_capacity_test.cpp
     game_core_test.cpp
     json_codec_test.cpp
     dirty_tracker_test.cpp
+    dirty_tracker_bench_test.cpp
     apply_reverse_dirty_test.cpp
+    manual_recruit_test.cpp
     disciple_store_test.cpp
     disciple_store_bench_test.cpp
+    disciple_tx_test.cpp
     equipment_db_test.cpp
     herb_db_test.cpp
     trait_db_test.cpp
@@ -42,8 +59,15 @@ add_executable(game-core-tests
     settle_phase_test.cpp
     road_system_test.cpp
     road_compositor_test.cpp
+    draw_order_test.cpp
+    road_tx_test.cpp
+    building_tx_test.cpp
+    island_cliff_test.cpp
+    terrain_test.cpp
     economy_test.cpp
     inventory_test.cpp
+    disciple_lifecycle_tx_test.cpp
+    inventory_tx_test.cpp
     spirit_field_test.cpp
     disciple_test.cpp
     disciple_factory_test.cpp
@@ -52,6 +76,11 @@ add_executable(game-core-tests
     month_settlement_test.cpp
     year_settlement_test.cpp
     breakthrough_test.cpp
+    relative_gift_test.cpp
+    production_test.cpp
+    production_ui_tx_test.cpp
+    mission_completion_test.cpp
+    ai_sect_ops_test.cpp
     child_birth_test.cpp
     lifecycle_test.cpp
     battle_test.cpp
@@ -63,7 +92,9 @@ add_executable(game-core-tests
     level_generator_test.cpp
     death_handler_test.cpp
     secret_realm_test.cpp
+    secret_realm_session_test.cpp
     sect_diplomacy_test.cpp
+    diplomacy_tx_test.cpp
     slot_cleanup_test.cpp
     redeem_code_test.cpp
     execute_dispatch_test.cpp
@@ -74,7 +105,28 @@ add_executable(game-core-tests
     ecs_system_test.cpp
     ecs_job_test.cpp
     ecs_disciple_test.cpp
+    ecs_npc_test.cpp
     sect_attack_decision_test.cpp
+    sect_defense_battle_test.cpp
+    sect_conquest_test.cpp
+    recruit_tx_test.cpp
+    boundary_tx_test.cpp
+    government_tx_test.cpp
+    jade_tx_test.cpp
+    secret_realm_platform_tx_test.cpp
+    patrol_tx_test.cpp
+    sect_attack_tx_test.cpp
+    lock_beast_tx_test.cpp
+    storage_bag_tx_test.cpp
+    # W4-00 新增：分派覆盖守卫（防「区间写法吞掉动作号」缺陷复发；
+    # 见 test/dispatch_guard_test.cpp 与本文件末尾的 _w4 batch 段说明）
+    dispatch_guard_test.cpp
+    # ── W4 三批次并行的测试源清单（W4-00 并行前置批切分）──────────────────
+    # 三个并行批次各写自己的 w4X_tests.cmake（本文件此后冻结，见
+    # docs/parallel-batches-w4/README.md §3.1 项 4 与 §5.3）。
+    ${W4A_TEST_SOURCES}
+    ${W4B_TEST_SOURCES}
+    ${W4C_TEST_SOURCES}
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

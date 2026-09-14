@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -22,11 +23,11 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 库存 add/remove 家族 native 转发回退守卫（计划 v2 批 8-2）。
+ * 库存 add/remove 家族 native 转发回退守卫。
  *
  * JVM 测试环境无桌面 JNI（GameCoreBridge.isLoaded=false），native 通道恒降级 null——
- * 本类断言：① OFF 模式走 Kotlin 原实现；② AUTHORITATIVE 模式在 native 不可用时
- * 静默回退 Kotlin 原实现且不抛异常（双实现并行契约）。
+ * 本类断言：① OFF 模式走 Kotlin 实现；② AUTHORITATIVE 模式在 native 不可用时
+ * 静默回退 Kotlin 实现且不抛异常（双实现并行契约）。
  * native 通道本体语义由 GTest execute_dispatch_test（含溢出草稿回传 3 用例）+
  * CI DiffInventoryTest 同源系统函数对拍覆盖。
  *
@@ -59,7 +60,7 @@ class GameEngineInventoryForwardTest {
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = FakeAtomicStateStore(),
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mock(),
             cultivationFacade = mockCultivationFacade(),
             economyFacade = mockEconomy,

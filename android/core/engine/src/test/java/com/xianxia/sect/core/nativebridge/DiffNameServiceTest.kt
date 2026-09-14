@@ -10,10 +10,10 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffNameServiceTest — 中文名继承跨语言差分对拍（批 13-4a）。
+ * DiffNameServiceTest — 中文名继承跨语言差分对拍。
  *
- * 守护目标：Kotlin `NameService.inheritName`（批 13-4a 分区 rng 版——
- * 原 JVM 全局 Random 非确定性，S-19 同族修正）与 C++
+ * 守护目标：Kotlin `NameService.inheritName`（分区 rng 版——
+ * 原 JVM 全局 Random 非确定性）与 C++
  * `gamecore::system::inheritName`（name_service.h）在相同种子/调用序列下
  * 产出**逐字符一致**的名字——数据表（姓氏/双字/单字名）逐项一致 + RNG
  * 序列（nextDouble 决定双字/单字、nextInt(bound) 选名）逐位一致。

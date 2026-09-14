@@ -13,10 +13,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 聚合链缓存测试（2026-08-01，3.5 修复验证）。
+ * 聚合链缓存测试。
  *
- * 修复前：discipleAggregatesSnapshot 在调用线程全量 toAggregate()——
- * UI 打开弹窗触发多次主线程 O(D) 扫描（掉帧）。修复后为 O(1) 缓存读取。
+ * [discipleAggregatesSnapshot] 为 O(1) 缓存读取（assemble 写回点同步写入，
+ * 未覆盖窗口按需重算一次），UI 弹窗多次读取不触发主线程 O(D) 全量扫描。
  * 本测试守卫：
  * 1. 快照缓存与聚合链结果一致（覆盖全部弟子，含死亡）
  * 2. 单弟子变更后未变弟子的 Aggregate 对象 === 复用（增量聚合对象复用）

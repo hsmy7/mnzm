@@ -10,13 +10,13 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * DiffWatchdogTest — 看门狗统一判据跨语言差分对拍（计划 v2 阶段 5 验收核心）。
+ * DiffWatchdogTest — 看门狗统一判据跨语言差分对拍（验收核心）。
  *
  * 守护目标：C++ ProgressMonitor（GameTimeProgressMonitor 逐位移植）与
  * Kotlin [GameTimeProgressMonitor] 对**同一快照序列**的判定逐位一致——
  * 场景矩阵覆盖 Kotlin GameTimeProgressMonitorTest 全部 24 条
  * （正常推进/tick 停滞/循环死亡/假运行/速度归零/暂停豁免/秘境租约/
- * 保存加载豁免/窗口边界/对抗性审查回归 S1·S4·S5·V1·V6·F2）。
+ * 保存加载豁免/窗口边界/冻结振荡等异常判据回归）。
  *
  * 双端同序列驱动：每条快照先喂 Kotlin monitor 再喂 C++
  * （nativeCoreMonitorEvaluate 独立判据通道，不经 GameCore 状态组合），
@@ -241,7 +241,7 @@ class DiffWatchdogTest {
                 secretRealmPauseRenewedAtMs = 10_000L, recordedAtMs = 55_000L)))
     }
 
-    // ── 对抗性审查修复回归（2026-08-04） ──
+    // ── 冻结/振荡异常判据回归 ──
 
     @Test
     fun `S5 frozen world with oscillating accumulatedMs still detected`() {

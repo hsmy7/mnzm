@@ -11,7 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * [GamePreferences.migrateInto] 迁移核心纯函数测试（docs/architecture.md 待办 D-29）。
+ * [GamePreferences.migrateInto] 迁移核心纯函数测试。
  *
  * 守卫契约：旧 SharedPreferences 全量键值迁移到目标存储后清空旧文件；
  * 支持类型 Boolean/String/Int/Long/Float；Set 等不支持类型跳过不迁移；

@@ -21,21 +21,18 @@ import org.junit.Test
 /**
  * [BuildingFacadeImpl] 建筑移除槽位清理纯函数单元测试。
  *
- * 覆盖历史 bug：
- * - 旧实现在 `cleanupBuildingSlots` 中使用 `dropLast(3)` / `dropLast(8)` / `maxOfOrNull { it.slotIndex }`
- *   按位置截断移除槽位，当存在多个同类型建筑时会移除错误建筑的槽位
- * - 旧实现在 `collectDiscipleIdsForRemoval` 中使用 `takeLast(3)` / `takeLast(8)` / `maxByOrNull { it.slotIndex }`
- *   按位置收集弟子 ID，同样存在多建筑同类型时收集错误弟子的问题
+ * 槽位清理按 `buildingInstanceId` 精确匹配（SpiritMineSlot / PatrolSlot /
+ * ProductionSlot 均含该字段），存在多个同类型建筑时只移除目标建筑的槽位、
+ * 只收集目标建筑的弟子 ID。
  *
- * 修复方案：为 SpiritMineSlot / PatrolSlot / ProductionSlot 添加 `buildingInstanceId` 字段，
- * 提取纯函数 [BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval] 和
- * [BuildingFacadeImpl.filterBuildingSlots] 按 buildingInstanceId 精确匹配。
+ * 提取的纯函数：[BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval] 与
+ * [BuildingFacadeImpl.filterBuildingSlots]。
  */
 @Suppress("DEPRECATION") // 测试需访问 GameData.productionSlots（已迁移到 Repository，但 GameData 仍保留字段用于旧数据兼容）
 class BuildingRemovalSlotCleanupTest {
 
     companion object {
-        // 测试辅助函数 — 替代已删除的 BuildingFacadeImpl.companion 方法
+        // 测试辅助函数
         private fun collectDiscipleIdsForTest(
             displayName: String, instanceId: String, gameData: GameData
         ): Set<String> {
@@ -77,7 +74,8 @@ class BuildingRemovalSlotCleanupTest {
                         "multi_residence", "初级多人住所", BuildingType.MULTI_RESIDENCE,
                         listOf(SlotGroup.Residence(4))
                     ),
-                    BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL, listOf(SlotGroup.BloodRefining())),
+                    BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
+                        listOf(SlotGroup.BloodRefining())),
                     BuildingFeature("library", "藏经阁", BuildingType.LIBRARY, listOf(SlotGroup.Library())),
                     BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
                         listOf(SlotGroup.ElderPositions.WEN_DAO_PEAK)),

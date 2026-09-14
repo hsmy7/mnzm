@@ -47,9 +47,8 @@ import org.mockito.kotlin.whenever
 /**
  * 天道试炼通关奖励领取链路测试。
  *
- * 历史 bug（2026-08-05）：奖励装备/功法直接写 equipmentInstances/manualInstances
- * （实例轨道），而仓库 UI 只渲染 equipmentStacks/manualStacks（堆叠轨道），
- * 玩家领取后物品不可见。修复后统一委托 InventorySystem.addXxx。
+ * 奖励装备/功法必须写入仓库渲染的堆叠轨道（equipmentStacks/manualStacks），
+ * 统一委托 InventorySystem.addXxx，玩家领取后可见。
  *
  * 使用支持 COW 副本 + 重入缓冲的 [TrialTestStore]（模拟 GameStateStoreImpl 事务语义），
  * 验证物品落堆叠轨道、来源追踪、容量不足时事务整体回滚（凭据保留可重试）。
@@ -98,8 +97,6 @@ class HeavenlyTrialClaimRewardTest {
         val inventorySystem = InventorySystem(
             stateStore = store,
             inventoryConfig = inventoryConfig,
-            spiritStoneWallet = mock(),
-            gameConfigProvider = provider
         )
         return HeavenlyTrialService(
             stateStore = store,

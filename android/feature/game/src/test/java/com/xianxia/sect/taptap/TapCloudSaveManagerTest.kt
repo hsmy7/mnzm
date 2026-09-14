@@ -108,7 +108,7 @@ class TapCloudSaveManagerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // A4（2026-08-05）：版本比较仲裁
+    // 版本比较仲裁
     // ──────────────────────────────────────────────────────────────────
 
     @Test
@@ -137,14 +137,14 @@ class TapCloudSaveManagerTest {
 
     @Test
     fun `compareVersions - trailing whitespace trimmed before comparison`() {
-        // 对抗性审查修复（2026-08-06）："4.0.89 "尾随空格此前使 "89 ".toIntOrNull()
+        // 版本段必须 trim："4.0.89 "尾随空格会使 "89 ".toIntOrNull()
         // 为 null → 归一化为 0 → 高版本仲裁被绕过
         assertTrue(TapCloudSaveManager.compareVersions("4.0.89 ", "4.0.88") > 0)
         assertTrue(TapCloudSaveManager.compareVersions(" 4.0.9 ", "4.0.13") < 0)
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // B-云存档（2026-08-16）：resolveCloudSaveInfo 防陈旧元数据清零
+    // resolveCloudSaveInfo 防陈旧元数据清零
     // ──────────────────────────────────────────────────────────────────
 
     private fun realInfo(lastModifiedTime: Long, year: Int = 3, sect: String = "青云宗") = CloudSaveInfo(

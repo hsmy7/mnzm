@@ -1,27 +1,23 @@
 package com.xianxia.sect.core.nativebridge
 
 /**
- * NativeEngineFlag — C++ 引擎集成 feature flag（批次 9 建立，T2.4 升级三态，
- * 计划 v2 阶段 7 切换生产默认；退役专项批 9-1 删除 SHADOW 对拍态）。
+ * NativeEngineFlag — C++ 引擎集成 feature flag（双态：OFF / AUTHORITATIVE）。
  *
- * 双态语义（docs/cpp-engine.md 计划 v2 阶段 7 / 退役专项批 9-1~9-2）：
+ * 双态语义：
  * - [Mode.OFF]：转发禁用——已接线动作（库存家族等）回退 Kotlin 原实现；
- *   引擎循环帧计划与看门狗判据走 Kotlin 侧。退役专项批 9-2 起 tick 结算
- *   恒走 native（单引擎终态无 Kotlin 路径），OFF 不再影响 tick 也不再有
- *   引擎级回退语义（仅逐动作/循环集成降级）
- * - [Mode.AUTHORITATIVE]（**生产默认**，计划 v2 阶段 7 真相源切换验收）：
+ *   引擎循环帧计划与看门狗判据走 Kotlin 侧。tick 结算
+ *   恒走 native（单引擎终态无 Kotlin 路径），OFF 不影响 tick
+ *  （仅逐动作/循环集成降级）
+ * - [Mode.AUTHORITATIVE]（**生产默认**）：
  *   每旬时间推进 + C++ 核心结算（步骤 1-5 零 RNG 批量）走标量通道
  *   nativeSettlePhase；自动装备/丹药/突破/月变/年变由 Kotlin 残留执行器
  *   处理（行为零丢失）；Kotlin RNG 抽取经分区标量通道委托 C++ 单一真相源
  *   （跨语言序列逐位统一）
  *
- * ~~原 SHADOW 对拍态已随退役专项批 9-1 删除~~：双实现并行期结束，跨语言
- * 语义守护由 Diff 对拍测试（桌面对拍桥）以回归基线形态继续承担。
- *
  * 逐动作降级契约：native 链路不可用（.so 加载失败/初始化失败）时各转发
  * 分支自动回退 Kotlin 原实现（见 GameEngineCoreAuthoritativeOps /
  * InventoryNativeForward 降级契约）；tick 结算层 native 不可用则该旬跳过
- * 结算，由看门狗判据 → 紧急重启路径自愈（批 9-2 起）。
+ * 结算，由看门狗判据 → 紧急重启路径自愈。
  *
  * 测试可经 [withMode] 临时设置（自动恢复）。
  */
@@ -29,11 +25,11 @@ object NativeEngineFlag {
 
     /** 引擎集成模式 */
     enum class Mode {
-        /** 转发禁用（已接线动作回退 Kotlin 原实现；非引擎级回退——批 9-2 起 tick 无 Kotlin 路径） */
+        /** 转发禁用（已接线动作回退 Kotlin 原实现；非引擎级回退——tick 无 Kotlin 路径） */
         OFF,
         /**
          * 真相源切换（C++ 时间推进+核心结算为真相源，Kotlin 残留执行器 +
-         * 委托式 RNG；**生产默认**——计划 v2 阶段 7 切换）
+         * 委托式 RNG；**生产默认**）
          */
         AUTHORITATIVE,
     }
@@ -41,7 +37,7 @@ object NativeEngineFlag {
     @Volatile
     var mode: Mode = Mode.AUTHORITATIVE
 
-    /** 是否开启 C++ 引擎转发/集成（兼容批次 9 布尔语义：非 OFF 即开启） */
+    /** 是否开启 C++ 引擎转发/集成（非 OFF 即开启） */
     val enabled: Boolean get() = mode != Mode.OFF
 
     /** 是否 AUTHORITATIVE 过渡模式（tick 路径分支依据） */

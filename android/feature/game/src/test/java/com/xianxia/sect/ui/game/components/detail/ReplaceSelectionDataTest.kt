@@ -11,7 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 更换界面纯逻辑测试（ReplaceSelectionData 拆分）：
+ * 更换界面纯逻辑测试：
  * 列表构建（排序/过滤/心法置底禁用）与详情构建（四区域数据）全覆盖。
  */
 class ReplaceSelectionDataTest {

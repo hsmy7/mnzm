@@ -3,7 +3,7 @@ package com.xianxia.sect.core.state
 import android.util.SparseArray
 
 /**
- * 组件表 ID 安全上限（C3 修复，2026-08-05：10M → 1M）。
+ * 组件表 ID 安全上限。
  *
  * 平铺表（Int/DoubleFlatArray）按 id 稠密扩容，上限即最坏内存：
  * 60 表 × 3 数组 × 4B × N —— 10M 时 ≈ 7GB 直接 OOM 崩溃（Error 非 Exception，
@@ -23,13 +23,15 @@ internal const val MAX_SAFE_CAPACITY = 1_000_000
  * - 共享后首次写入触发 [ensureOwned] 私有化（clone 存储），此后写私有副本；
  * - 旧快照（UI 持有）引用旧存储，事务永不原地修改源存储，天然隔离。
  */
+@Suppress("TooManyFunctions") // ECS 列式组件容器：按组件类型的存取/迭代/清理原语集，函数数即容器 API 面
+//（syncDiscipleEntities 行序桥接协议的存储载体，拆分碎片化访问路径）
 class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     @PublishedApi internal var store = SparseArray<T>(initialCapacity)
     private var shared = false
     private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
     private var requireWrite: (() -> Unit)? = null
-    /** 按 id 的写入回调（2026-08-01 增量组装基建）：记录被写入的弟子 ID */
+    /** 按 id 的写入回调：记录被写入的弟子 ID */
     private var onIdWrite: ((Int) -> Unit)? = null
 
     /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
@@ -80,31 +82,36 @@ class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     }
     fun getOrNull(id: Int): T? = store[id]
     fun getOrDefault(id: Int, default: T): T = store[id] ?: default
-    operator fun set(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id) }
-    fun update(id: Int, block: (T) -> T) { requireWrite?.invoke(); ensureOwned(); store[id] = block(store[id]); onWrite?.invoke(); onIdWrite?.invoke(id) }
+    operator fun set(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id,
+        value); onWrite?.invoke(); onIdWrite?.invoke(id) }
+    fun update(id: Int, block: (T) -> T) { requireWrite?.invoke(); ensureOwned(); store[id] =
+        block(store[id]); onWrite?.invoke(); onIdWrite?.invoke(id) }
 
     /**
-     * 无回调写入（2026-08-01）：仅 COW 私有化 + 存储写入，不触发 onWrite/onIdWrite。
+     * 无回调写入：仅 COW 私有化 + 存储写入，不触发 onWrite/onIdWrite。
      * 供 Mutable 列 unmodifiable 包装专用——包装值写入新副本时不应产生脏标记/changedId。
      */
     @PublishedApi internal fun putNoCallback(id: Int, value: T) {
         ensureOwned(); store.put(id, value)
     }
 
-    fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
+    fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store
+        .keyAt(i); return r }
     val size: Int get() = store.size()
     fun isEmpty(): Boolean = store.size() == 0
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
-    inline fun forEach(action: (Int, T) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
+    inline fun forEach(action: (Int, T) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i),
+        store.valueAt(i)) }
     inline fun forEachValue(action: (T) -> Unit) { for (i in 0 until store.size()) action(store.valueAt(i)) }
     fun values(): List<T> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id) }
+    fun put(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id,
+        value); onWrite?.invoke(); onIdWrite?.invoke(id) }
     fun remove(id: Int) { requireWrite?.invoke(); ensureOwned(); store.remove(id); onWrite?.invoke() }
     fun clear() { requireWrite?.invoke(); ensureOwned(); store.clear(); onWrite?.invoke() }
 }
 
 /**
- * 值对象 unmodifiable 包装（2026-08-01 Mutable 列浅共享防御）。
+ * 值对象 unmodifiable 包装（Mutable 列浅共享防御）。
  * List/Set/Map 包装为不可变视图；其余类型原样返回。
  */
 @Suppress("UNCHECKED_CAST")
@@ -119,6 +126,7 @@ class IntFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
     @PublishedApi internal var values = IntArray(initialCapacity)
     @PublishedApi internal var idToSlot = IntArray(initialCapacity) { -1 }
     @PublishedApi internal var keys = IntArray(initialCapacity)
+    @Suppress("VariableNaming") // size 访问器已占用公开名，容量字段以尾下划线刻意消歧
     @PublishedApi internal var size_ = 0
     private fun ensureCapacity(key: Int) {
         if (key >= values.size && key >= 0) {
@@ -136,9 +144,16 @@ class IntFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
     }
     private fun growKeys() { keys = keys.copyOf(maxOf(keys.size * 2, 8)) }
     operator fun get(key: Int): Int = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else 0
-    fun get(key: Int, default: Int): Int = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else default
+    fun get(key: Int, default: Int): Int = if (key >= 0 && key < values
+        .size && idToSlot[key] >= 0) values[key] else default
     fun contains(key: Int): Boolean = key >= 0 && key < values.size && idToSlot[key] >= 0
-    fun put(key: Int, value: Int) { if (key < 0) return; ensureCapacity(key); if (size_ >= keys.size) growKeys(); values[key] = value; if (idToSlot[key] < 0) { idToSlot[key] = size_; keys[size_] = key; size_++ } }
+    fun put(key: Int, value: Int) {
+        if (key < 0) return
+        ensureCapacity(key)
+        if (size_ >= keys.size) growKeys()
+        values[key] = value
+        if (idToSlot[key] < 0) { idToSlot[key] = size_; keys[size_] = key; size_++ }
+    }
     fun update(key: Int, block: (Int) -> Int) {
         if (key < 0) return
         if (key >= values.size || idToSlot[key] < 0) {
@@ -158,7 +173,8 @@ class IntFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
         if (s != l) { keys[s] = keys[l]; idToSlot[keys[s]] = s }
         idToSlot[key] = -1; values[key] = 0; size_--
     }
-    fun clear() { for (i in 0 until values.size) values[i] = 0; for (i in 0 until idToSlot.size) idToSlot[i] = -1; for (i in 0 until size_) keys[i] = 0; size_ = 0 }
+    fun clear() { for (i in 0 until values.size) values[i] = 0; for (i in 0 until idToSlot
+        .size) idToSlot[i] = -1; for (i in 0 until size_) keys[i] = 0; size_ = 0 }
     /**
      * 写时复制私有化：复制全部平铺数组（O(capacity) 内存拷贝）。
      * 仅共享存储首次写入前调用一次。
@@ -172,8 +188,10 @@ class IntFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
         return c
     }
     fun size(): Int = size_
-    fun keyAt(index: Int): Int = if (index >= 0 && index < size_) keys[index] else throw IndexOutOfBoundsException("keyAt($index) out of bounds, size=$size_")
-    fun valueAt(index: Int): Int = if (index >= 0 && index < size_) values[keys[index]] else throw IndexOutOfBoundsException("valueAt($index) out of bounds, size=$size_")
+    fun keyAt(index: Int): Int = if (index >= 0 && index <
+        size_) keys[index] else throw IndexOutOfBoundsException("keyAt($index) out of bounds, size=$size_")
+    fun valueAt(index: Int): Int = if (index >= 0 && index <
+        size_) values[keys[index]] else throw IndexOutOfBoundsException("valueAt($index) out of bounds, size=$size_")
     fun indexOfKey(key: Int): Int = if (contains(key)) idToSlot[key] else -1
 }
 
@@ -181,6 +199,7 @@ class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
     @PublishedApi internal var values = DoubleArray(initialCapacity)
     @PublishedApi internal var idToSlot = IntArray(initialCapacity) { -1 }
     @PublishedApi internal var keys = IntArray(initialCapacity)
+    @Suppress("VariableNaming") // size 访问器已占用公开名，容量字段以尾下划线刻意消歧
     @PublishedApi internal var size_ = 0
     private fun ensureCapacity(key: Int) {
         if (key >= values.size && key >= 0) {
@@ -198,9 +217,16 @@ class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
     }
     private fun growKeys() { keys = keys.copyOf(maxOf(keys.size * 2, 8)) }
     operator fun get(key: Int): Double = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else 0.0
-    fun get(key: Int, default: Double): Double = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else default
+    fun get(key: Int, default: Double): Double = if (key >= 0 && key < values
+        .size && idToSlot[key] >= 0) values[key] else default
     fun contains(key: Int): Boolean = key >= 0 && key < values.size && idToSlot[key] >= 0
-    fun put(key: Int, value: Double) { if (key < 0) return; ensureCapacity(key); if (size_ >= keys.size) growKeys(); values[key] = value; if (idToSlot[key] < 0) { idToSlot[key] = size_; keys[size_] = key; size_++ } }
+    fun put(key: Int, value: Double) {
+        if (key < 0) return
+        ensureCapacity(key)
+        if (size_ >= keys.size) growKeys()
+        values[key] = value
+        if (idToSlot[key] < 0) { idToSlot[key] = size_; keys[size_] = key; size_++ }
+    }
     fun update(key: Int, block: (Double) -> Double) {
         if (key < 0) return
         if (key >= values.size || idToSlot[key] < 0) {
@@ -220,7 +246,8 @@ class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
         if (s != l) { keys[s] = keys[l]; idToSlot[keys[s]] = s }
         idToSlot[key] = -1; values[key] = 0.0; size_--
     }
-    fun clear() { for (i in 0 until values.size) values[i] = 0.0; for (i in 0 until idToSlot.size) idToSlot[i] = -1; for (i in 0 until size_) keys[i] = 0; size_ = 0 }
+    fun clear() { for (i in 0 until values.size) values[i] = 0.0; for (i in 0 until idToSlot
+        .size) idToSlot[i] = -1; for (i in 0 until size_) keys[i] = 0; size_ = 0 }
     /**
      * 写时复制私有化：复制全部平铺数组（O(capacity) 内存拷贝）。
      * 仅共享存储首次写入前调用一次。
@@ -234,8 +261,10 @@ class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
         return c
     }
     fun size(): Int = size_
-    fun keyAt(index: Int): Int = if (index >= 0 && index < size_) keys[index] else throw IndexOutOfBoundsException("keyAt($index) out of bounds, size=$size_")
-    fun valueAt(index: Int): Double = if (index >= 0 && index < size_) values[keys[index]] else throw IndexOutOfBoundsException("valueAt($index) out of bounds, size=$size_")
+    fun keyAt(index: Int): Int = if (index >= 0 && index <
+        size_) keys[index] else throw IndexOutOfBoundsException("keyAt($index) out of bounds, size=$size_")
+    fun valueAt(index: Int): Double = if (index >= 0 && index <
+        size_) values[keys[index]] else throw IndexOutOfBoundsException("valueAt($index) out of bounds, size=$size_")
     fun indexOfKey(key: Int): Int = if (contains(key)) idToSlot[key] else -1
 }
 
@@ -245,7 +274,7 @@ class IntComponentTable(initialCapacity: Int = 64) {
     private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
     private var requireWrite: (() -> Unit)? = null
-    /** 按 id 的写入回调（2026-08-01 增量组装基建）：记录被写入的弟子 ID */
+    /** 按 id 的写入回调：记录被写入的弟子 ID */
     private var onIdWrite: ((Int) -> Unit)? = null
 
     /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
@@ -279,15 +308,17 @@ class IntComponentTable(initialCapacity: Int = 64) {
     fun getOrDefault(id: Int, default: Int): Int = store.get(id, default)
     fun getOrNull(id: Int): Int? = if (store.contains(id)) store[id] else null
 
-    /** 同值写短路（2026-08-01）：已存在且值相同则跳过——每旬热点满血重写不再触发脏标记/COW 私有化 */
+    /** 同值写短路：已存在且值相同则跳过——每旬热点满血重写不触发脏标记/COW 私有化 */
     private fun isSameValue(id: Int, value: Int): Boolean = store.contains(id) && store[id] == value
 
     operator fun set(id: Int, value: Int) {
         requireWrite?.invoke(); if (isSameValue(id, value)) return
         ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id)
     }
-    fun update(id: Int, block: (Int) -> Int) { requireWrite?.invoke(); ensureOwned(); store.update(id, block); onWrite?.invoke(); onIdWrite?.invoke(id) }
-    fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
+    fun update(id: Int, block: (Int) -> Int) { requireWrite?.invoke(); ensureOwned(); store.update(id,
+        block); onWrite?.invoke(); onIdWrite?.invoke(id) }
+    fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store
+        .keyAt(i); return r }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
     fun forEach(action: (Int, Int) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
@@ -306,7 +337,7 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
     private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
     private var requireWrite: (() -> Unit)? = null
-    /** 按 id 的写入回调（2026-08-01 增量组装基建）：记录被写入的弟子 ID */
+    /** 按 id 的写入回调：记录被写入的弟子 ID */
     private var onIdWrite: ((Int) -> Unit)? = null
 
     /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
@@ -336,7 +367,7 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
         if (shared) { store = store.copyForWrite(); shared = false }
     }
 
-    /** 同值写短路（2026-08-01）：已存在且值相同则跳过——每旬热点重复写不再触发脏标记/COW 私有化 */
+    /** 同值写短路：已存在且值相同则跳过——每旬热点重复写不触发脏标记/COW 私有化 */
     private fun isSameValue(id: Int, value: Double): Boolean = store.contains(id) && store[id] == value
 
     operator fun get(id: Int): Double = store[id]
@@ -345,11 +376,14 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
         requireWrite?.invoke(); if (isSameValue(id, value)) return
         ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id)
     }
-    fun update(id: Int, block: (Double) -> Double) { requireWrite?.invoke(); ensureOwned(); store.update(id, block); onWrite?.invoke(); onIdWrite?.invoke(id) }
-    fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
+    fun update(id: Int, block: (Double) -> Double) { requireWrite?.invoke(); ensureOwned(); store.update(id,
+        block); onWrite?.invoke(); onIdWrite?.invoke(id) }
+    fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store
+        .keyAt(i); return r }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
-    fun forEach(action: (Int, Double) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
+    fun forEach(action: (Int, Double) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i),
+        store.valueAt(i)) }
     fun values(): List<Double> = (0 until store.size()).map { store.valueAt(it) }
     fun put(id: Int, value: Double) {
         requireWrite?.invoke(); if (isSameValue(id, value)) return
@@ -384,10 +418,12 @@ class IntTableRef(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), table.store.valueAt(i)) }
     override fun shareStoreTo(dest: DiscipleTables) { destProp.get(dest).adopt(table.store) }
     /** 仅复制本表数据到 dest（用于 DirtyTracker 增量 deepCopy） */
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class DoubleTableRef(
@@ -400,9 +436,11 @@ class DoubleTableRef(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), table.store.valueAt(i)) }
     override fun shareStoreTo(dest: DiscipleTables) { destProp.get(dest).adopt(table.store) }
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class RefTableRef<T>(
@@ -415,9 +453,11 @@ class RefTableRef<T>(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), table.store.valueAt(i)) }
     override fun shareStoreTo(dest: DiscipleTables) { destProp.get(dest).adopt(table.store) }
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class MutableTableRef<T>(
@@ -431,14 +471,15 @@ class MutableTableRef<T>(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
 
     /**
-     * 2026-08-01 修复：Mutable 列改为 O(1) 浅共享（与 RefTableRef 一致）。
+     * Mutable 列共享采用 O(1) 浅共享（与 RefTableRef 一致）。
      *
-     * 历史问题：旧实现每事务对全部弟子的 List/Map/Set 列急切深拷贝（adoptDeep）——
-     * 全库审计确认 13 列写点均为整体重新赋值（无原地修改模式），急切深拷贝是纯浪费
-     * （O(D×均值长度) 分配/GC，lifeEvents 逐年增长线性恶化）。
+     * 前提约束：13 张 List/Map/Set 列的写点必须保持整体重新赋值（禁止原地
+     * 修改）——否则浅共享会把修改泄漏进源快照；深拷贝成本 O(D×均值长度)
+     * （lifeEvents 逐年增长线性恶化），同样应当避免。
      * 安全性由 [DiscipleTables.mutableValueGuardEnabled]（Debug 开）的
      * unmodifiable 包装兜底：未来任何原地修改在事务缓冲上立即抛异常。
      * 包装用 putNoCallback（不触发 onWrite/onIdWrite）——包装值写入新副本
@@ -454,5 +495,6 @@ class MutableTableRef<T>(
             dst.adopt(table.store)
         }
     }
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst
+        .putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
 }

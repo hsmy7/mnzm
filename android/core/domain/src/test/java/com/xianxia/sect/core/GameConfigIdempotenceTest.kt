@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * `GameConfig.initialize` 幂等守卫测试（docs/architecture.md 待办 D-30）。
+ * `GameConfig.initialize` 幂等守卫测试。
  *
  * 背景：每次游戏内读档/重开（boot）经 `ResourcePreloader.preloadGameResources` 重复调用
  * `initialize`。配置内容在进程生命周期内不变，重复覆盖赋值属无谓开销。

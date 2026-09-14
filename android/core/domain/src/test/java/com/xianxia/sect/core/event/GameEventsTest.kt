@@ -11,7 +11,8 @@ class GameEventsTest {
     fun notificationSeverity_values() {
         assertEquals(4, NotificationSeverity.values().size)
         assertArrayEquals(
-            arrayOf(NotificationSeverity.INFO, NotificationSeverity.WARNING, NotificationSeverity.ERROR, NotificationSeverity.SUCCESS),
+            arrayOf(NotificationSeverity.INFO, NotificationSeverity.WARNING, NotificationSeverity.ERROR,
+                NotificationSeverity.SUCCESS),
             NotificationSeverity.values()
         )
     }

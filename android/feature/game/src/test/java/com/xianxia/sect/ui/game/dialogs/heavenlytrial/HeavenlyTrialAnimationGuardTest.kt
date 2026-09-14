@@ -14,10 +14,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 天道试炼战斗动画守卫测试（2026-08-13，EngineTween 批次 1b 决策依据）。
+ * 天道试炼战斗动画守卫测试（EngineTween 使用决策的依据）。
  *
  * ## 背景
- * [playAttackSequence] / [playAoeAttackSequence] 经评估**明确不迁移**到 EngineTween/Timeline
+ * [playAttackSequence] / [playAoeAttackSequence] **不使用** EngineTween/Timeline
  * （详见 HeavenlyTrialAnimation.kt KDoc 三条结论：结构性结算耦合 / 机制不匹配 /
  * Compose 生命周期适配）。本文件为该决策建立可执行守卫：未来任何改动（含迁移尝试）
  * 不得破坏以下不变量，破坏即失败并给出改动方向。
@@ -30,7 +30,7 @@ import org.junit.Test
  *    全等（100 种子 × 双对局谱：满血 / 残血触发保命-治疗-斩杀分支）。
  * 4. **确定性**：同种子两次动画运行结算序列全等。
  *
- * 迭代数说明（2026-08-13 测试性能修正）：确定性偏差是**系统性差异**——任一次
+ * 迭代数说明：确定性偏差是**系统性差异**——任一次
  * 迭代即可捕获（1000 → 100 不降低守卫强度）；100 种子已覆盖双对局谱全部
  * 分支（保命/治疗/斩杀）。原 1000 迭代在虚拟时钟下逼近 2h 超时且墙钟
  * 数十分钟，全量串行测试被拖垮。

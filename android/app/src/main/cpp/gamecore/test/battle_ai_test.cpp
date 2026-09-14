@@ -1,5 +1,5 @@
 // ============================================================
-// battle_ai_test.cpp — 统一战斗 AI 决策层黄金序列（战斗批次 B）
+// battle_ai_test.cpp — 统一战斗 AI 决策层黄金序列
 //
 // 守护目标：固定种子 + 固定 Combatant/Skill → gamecore::battle::battle_ai.h
 // 的 decideAction 全链（8 层级联优先级 + 概率衰减）产出确定性 AIAction

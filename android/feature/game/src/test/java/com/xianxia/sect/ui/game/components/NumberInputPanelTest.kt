@@ -16,8 +16,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * NumberInputPanel 自绘数字输入面板测试（2026-09 IME 状态机根治：
- * 数量输入绕开系统 IME，行业"自绘 UI + 事件流"范式）：
+ * NumberInputPanel 自绘数字输入面板测试（数量输入绕开系统 IME，
+ * 行业"自绘 UI + 事件流"范式）：
  * 初始值显示、数字按键、退格、清空、确定回调（钳制）、空输入兜底、取消。
  */
 @RunWith(RobolectricTestRunner::class)

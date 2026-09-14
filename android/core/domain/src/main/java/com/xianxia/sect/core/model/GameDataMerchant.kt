@@ -4,7 +4,7 @@ import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 
-// GameDataMerchant.kt — 商人/设置/功法熟练度/矿场（P-2 从 GameData.kt 拆分，同包模型，序列化字段不变）
+// GameDataMerchant.kt — 商人/设置/功法熟练度/矿场（同包模型，序列化字段不变）
 
 // 商人商品
 @Keep

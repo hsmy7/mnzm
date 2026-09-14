@@ -11,7 +11,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 /**
- * `BuildingConfigService.initialize` 幂等守卫测试（docs/architecture.md 待办 D-30）。
+ * `BuildingConfigService.initialize` 幂等守卫测试。
  *
  * 背景：每次 boot 经 `ResourcePreloader.preloadGameResources` 重复调用 `initialize`，
  * 重复读取资产 `config/buildings.json`（无谓 I/O）。

@@ -10,9 +10,19 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.calculateBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.calculateLifespanBreakthroughPenalty
+import com.xianxia.sect.core.engine.domain.disciple.calculateLifespanCultivationPenalty
+import com.xianxia.sect.core.engine.domain.disciple.calculateLifespanRemainingPercent
+import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
+import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
+import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleRealmGap
+import com.xianxia.sect.core.engine.domain.disciple.getParentSpiritRootBonus
+import com.xianxia.sect.core.engine.domain.disciple.getSoulPowerBreakthroughBonus
 
 /**
- * DiffDiscipleTest — 弟子属性计算跨语言差分对拍（批次 5 验收核心）。
+ * DiffDiscipleTest — 弟子属性计算跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::disciple（基础属性乘区法/修炼乘区/突破乘区/寿命惩罚/
  * 师徒/父母加成）与 Kotlin DiscipleStatCalculator 公式**逐位一致**。

@@ -66,7 +66,8 @@ fun BuildingConstructionBar(
                 val built = placedBuildings.count { it.displayName == name } >= getBuildingMaxCount(name)
                 val cost = buildingCosts[name] ?: 1000L
                 val canAfford = spiritStones >= cost
-                val meetsLevel = currentSectLevel >= (BuildingFeatureRegistry.findByDisplayName(name)?.requiredSectLevel ?: 0)
+                val meetsLevel = currentSectLevel >= (BuildingFeatureRegistry
+                    .findByDisplayName(name)?.requiredSectLevel ?: 0)
                 BuildingConstructionItem(
                     name = name,
                     built = built,
@@ -87,8 +88,7 @@ fun BuildingConstructionBar(
     }
 }
 
-/** 单个建筑构造卡片（BuildingConstructionBar 拆分）：图标 + 名称 + 造价 + 建造数量 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 单个建筑构造卡片：图标 + 名称 + 造价 + 建造数量 */
 @Suppress("LongParameterList")
 @Composable
 private fun BuildingConstructionItem(
@@ -156,7 +156,7 @@ private fun BuildingConstructionItem(
     }
 }
 
-/** 建筑图标（BuildingConstructionItem 拆分）：不可用/买不起/已建成时置灰 */
+/** 建筑图标：不可用/买不起/已建成时置灰 */
 @Composable
 private fun BuildingConstructionIcon(
     name: String,

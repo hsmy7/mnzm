@@ -21,6 +21,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import com.xianxia.sect.core.repository.getSlotsByType
 
 /**
  * L3b 死亡清理批处理守卫：clearDisciplesFromRepository（批量版）聚合为单次

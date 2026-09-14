@@ -8,14 +8,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 防沉迷合规回调进程级宿主（docs/architecture.md 待办 D-42 根治）。
+ * 防沉迷合规回调进程级宿主。
  *
  * ## 背景
  *
- * 合规回调原绑定 MainActivity 实例（`MainComplianceCallback`）——玩家登录后经
- * `launchGame` 进入 GameActivity，MainActivity 立即 `finish()`，`runOnUiThreadIfAlive`
- * 的 `isFinishing/isDestroyed` 检查丢弃后续全部合规回调：游戏内时长限制
- * （CODE_DURATION_LIMIT）/时间限制（CODE_PERIOD_RESTRICT）/年龄限制永远无法弹出提示。
+ * 合规回调若绑定单个 Activity 实例，玩家登录后经 `launchGame` 进入 GameActivity、
+ * MainActivity 立即 `finish()`，回调会被 `isFinishing/isDestroyed` 检查丢弃：
+ * 游戏内时长限制（CODE_DURATION_LIMIT）/时间限制（CODE_PERIOD_RESTRICT）/
+ * 年龄限制提示将永远无法弹出——故回调注册必须为进程级。
  *
  * ## 设计
  *

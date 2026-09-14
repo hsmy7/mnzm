@@ -24,7 +24,7 @@ fun BuildingFeatureRegistry.registerDefaults() {
     ).flatten().forEach { register(it) }
 }
 
-/** 资源型建筑（registerDefaults 拆分）：灵矿场 / 灵田 / 灵植阁 */
+/** 资源型建筑：灵矿场 / 灵田 / 灵植阁 */
 private fun resourceBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("spirit_mine", "灵矿场", BuildingType.MINING,
         listOf(SlotGroup.SpiritMine(), SlotGroup.ElderPositions.SPIRIT_MINE),
@@ -39,71 +39,71 @@ private fun resourceBuildingFeatures(): List<BuildingFeature> = listOf(
         listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.HERB_GARDEN),
         unlimitedBuild = true,
         drawableRes = R.drawable.building_herb_garden, color = 0xFFA5D6A7,
-        cost = 3000, gridWidth = 4, gridHeight = 3, spriteWidth = 5, spriteHeight = 6,
+        cost = 3000, gridWidth = 4, gridHeight = 3,
         baseSuccessRate = 1.0, description = "种植灵草的园地")
 )
 
-/** 生产型建筑（registerDefaults 拆分）：炼丹炉 / 锻造坊 / 仓库 / 藏经阁 */
+/** 生产型建筑：炼丹炉 / 锻造坊 / 仓库 / 藏经阁 */
 private fun productionBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("alchemy", "炼丹炉", BuildingType.ALCHEMY,
         listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.ALCHEMY),
         unlimitedBuild = true,
         drawableRes = R.drawable.building_alchemy, color = 0xFFEF9A9A,
-        cost = 6000, gridWidth = 4, gridHeight = 3, spriteWidth = 4, spriteHeight = 4,
+        cost = 6000, gridWidth = 4, gridHeight = 2,
         baseSuccessRate = 0.7, autoRestartEnabled = true, description = "用于炼制各种丹药的场所"),
     BuildingFeature("forge", "锻造坊", BuildingType.FORGE,
         listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.FORGE),
         unlimitedBuild = true,
         drawableRes = R.drawable.building_forge, color = 0xFFB0BEC5,
-        cost = 6000, gridWidth = 5, gridHeight = 3, spriteWidth = 5, spriteHeight = 6,
+        cost = 6000, gridWidth = 5, gridHeight = 3,
         baseSuccessRate = 0.7, autoRestartEnabled = true, description = "锻造装备的场所"),
     BuildingFeature("warehouse", "仓库", BuildingType.WAREHOUSE,
         listOf(SlotGroup.Warehouse()), unlimitedBuild = true,
         drawableRes = R.drawable.building_warehouse, color = 0xFFFFCC80,
-        cost = 20000, gridWidth = 6, gridHeight = 4, spriteWidth = 6, spriteHeight = 6,
+        cost = 20000, gridWidth = 6, gridHeight = 4,
         description = "储存宗门物资，每座+75格容量"),
     BuildingFeature("library", "藏经阁", BuildingType.LIBRARY,
         listOf(SlotGroup.Library(slotsPerInstance = 3)),
         drawableRes = R.drawable.building_library, color = 0xFF80CBC4,
-        cost = 8000, gridWidth = 6, gridHeight = 3, spriteWidth = 6, spriteHeight = 6,
+        cost = 8000, gridWidth = 6, gridHeight = 3,
         description = "弟子修习功法的场所，提升修炼速度")
 )
 
-/** 峰塔型建筑（registerDefaults 拆分）：问道塔 / 青云塔 */
+/** 峰塔型建筑：问道塔 / 青云塔 */
 private fun peakBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
         listOf(SlotGroup.ElderPositions.WEN_DAO_PEAK),
         drawableRes = R.drawable.building_wen_dao_peak, color = 0xFFFFAB91,
-        cost = 8000, gridWidth = 4, gridHeight = 3, spriteWidth = 4, spriteHeight = 8,
+        cost = 8000, gridWidth = 4, gridHeight = 2,
         description = "管理外门弟子与传道授业"),
     BuildingFeature("qingyun_peak", "青云塔", BuildingType.QINGYUN_PEAK,
         listOf(SlotGroup.ElderPositions.QINGYUN_PEAK),
         drawableRes = R.drawable.building_qingyun_peak, color = 0xFF9FA8DA,
-        cost = 8000, gridWidth = 4, gridHeight = 3, spriteWidth = 4, spriteHeight = 8,
+        cost = 8000, gridWidth = 4, gridHeight = 2,
         description = "管理内门弟子与精英培养")
 )
 
-/** 厅堂/职能型建筑（registerDefaults 拆分）：天枢殿 / 执法堂 / 任务阁 / 巡视楼 / 监牢 */
+/** 厅堂/职能型建筑：天枢殿 / 执法堂 / 任务阁 / 巡视楼 / 监牢 */
 private fun hallBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
         listOf(SlotGroup.ElderPositions.TIANSHU_HALL),
         drawableRes = R.drawable.building_tianshu_hall, color = 0xFFFFF176,
-        cost = 15000, gridWidth = 18, gridHeight = 13, spriteWidth = 18, spriteHeight = 15,
+        cost = 15000, gridWidth = 18, gridHeight = 13,
         description = "处理宗门事务的核心建筑", isGloballyUnique = true),
     BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
         listOf(SlotGroup.ElderPositions.LAW_ENFORCEMENT),
         drawableRes = R.drawable.building_law_enforcement, color = 0xFFCE93D8,
-        cost = 6000, gridWidth = 6, gridHeight = 3, spriteWidth = 6, spriteHeight = 6,
+        cost = 6000, gridWidth = 6, gridHeight = 3,
         description = "维护宗门纪律，执行奖惩"),
     BuildingFeature("mission_hall", "任务阁", BuildingType.MISSION_HALL,
         emptyList(),
         drawableRes = R.drawable.building_mission_hall, color = 0xFF90CAF9,
-        cost = 50000, gridWidth = 4, gridHeight = 3, spriteWidth = 4, spriteHeight = 6,
+        cost = 50000, gridWidth = 4, gridHeight = 3,
         description = "派遣弟子执行宗门任务"),
     BuildingFeature("patrol_tower", "巡视楼", BuildingType.PATROL,
         listOf(SlotGroup.PatrolTower()), unlimitedBuild = true,
         drawableRes = R.drawable.building_patrol_tower, color = 0xFF795548,
-        cost = 35000, gridWidth = 4, gridHeight = 3, spriteWidth = 4, spriteHeight = 8,
+        cost = 35000, gridWidth = 4, gridHeight = 2,
         description = "驻守弟子自动巡视地图攻击妖兽"),
     BuildingFeature("reflection_cliff", "监牢", BuildingType.REFLECTION_CLIFF,
         emptyList(),
@@ -111,7 +111,7 @@ private fun hallBuildingFeatures(): List<BuildingFeature> = listOf(
         cost = 20000, gridWidth = 4, gridHeight = 4, description = "悔过自新之地，关押违规弟子")
 )
 
-/** 住所型建筑（registerDefaults 拆分）：初级/中级单人+多人住所（显示名带分级前缀，精灵名保持图集历史名称） */
+/** 住所型建筑：初级/中级单人+多人住所（显示名带分级前缀，精灵名保持图集历史名称） */
 private fun residenceBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("single_residence", "初级单人住所", BuildingType.SINGLE_RESIDENCE,
         listOf(SlotGroup.Residence(1)), isResidence = true, unlimitedBuild = true,
@@ -129,23 +129,23 @@ private fun residenceBuildingFeatures(): List<BuildingFeature> = listOf(
         listOf(SlotGroup.Residence(4)), isResidence = true, unlimitedBuild = true,
         spriteName = "多人住所",
         drawableRes = R.drawable.building_multi_residence, color = 0xFFEEEEEE,
-        cost = 30000, gridWidth = 6, gridHeight = 4, spriteWidth = 6, spriteHeight = 4,
+        cost = 30000, gridWidth = 6, gridHeight = 4,
         description = "供多名弟子共同修炼，修炼速度+10%",
         residenceSpeedBonus = "修炼速度+10%"),
     BuildingFeature("multi_residence_upgraded", "中级多人住所", BuildingType.MULTI_RESIDENCE,
         listOf(SlotGroup.Residence(4)), isResidence = true, isConstructible = true, unlimitedBuild = true,
         requiredSectLevel = SectLevel.MEDIUM,
         drawableRes = R.drawable.building_multi_residence_upgraded, color = 0xFFEEEEEE,
-        cost = 80000, gridWidth = 6, gridHeight = 5, spriteWidth = 6, spriteHeight = 5,
+        cost = 80000, gridWidth = 6, gridHeight = 5,
         description = "供多名弟子共同修炼，修炼速度+15%",
         residenceSpeedBonus = "修炼速度+15%")
 )
 
-/** 血炼池（registerDefaults 拆分） */
+/** 血炼池 */
 private fun bloodRefiningBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
         listOf(SlotGroup.BloodRefining()), unlimitedBuild = true,
         drawableRes = R.drawable.blood_refining_pool, color = 0xFFB71C1C,
-        cost = 40000, gridWidth = 4, gridHeight = 4, spriteWidth = 4, spriteHeight = 4,
+        cost = 40000, gridWidth = 4, gridHeight = 3,
         description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性")
 )

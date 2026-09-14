@@ -8,6 +8,7 @@ import com.taptap.sdk.leaderboard.data.request.SubmitScoresRequest
 import com.taptap.sdk.leaderboard.data.response.LeaderboardScoresResponse
 import com.taptap.sdk.leaderboard.data.response.SubmitScoresResponse
 import com.taptap.sdk.leaderboard.data.response.UserScoreResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.inject.Inject
 import kotlin.coroutines.resume
@@ -16,7 +17,7 @@ import kotlin.coroutines.resumeWithException
 /**
  * tap-leaderboard-androidx SDK 实现（唯一接触 SDK 的文件）。
  *
- * API 签名（2026-08-05 反编译 tap-leaderboard-androidx:4.10.5 验证）：
+ * API 签名（依 tap-leaderboard-androidx:4.10.5）：
  * - 提交：submitScores(ScoreItem 列表, ITapTapLeaderboardResponseCallback<SubmitScoresResponse>)
  * - 榜单：loadLeaderboardScores(id, LeaderboardCollection.PUBLIC, nextPage, periodToken, 回调)
  * - 我的分数：loadCurrentPlayerLeaderboardScore(id, LeaderboardCollection.PUBLIC, periodToken, 回调)
@@ -62,6 +63,8 @@ class TapTapLeaderboardApi @Inject constructor(
                     }
                 )
             }
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 挂起等待被取消时上抛, 不以"提交失败"冒充
         } catch (e: Exception) {
             Log.e(TAG, "提交分数异常", e)
             false
@@ -91,6 +94,8 @@ class TapTapLeaderboardApi @Inject constructor(
                         }
                     }
                 )
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 取消时原样上抛, 不包装成领域异常破坏取消语义
             } catch (e: Exception) {
                 cont.resumeWithException(LeaderboardApiException(-1, e.message ?: "调用排行榜 API 异常"))
             }
@@ -120,6 +125,8 @@ class TapTapLeaderboardApi @Inject constructor(
                         }
                     }
                 )
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 取消时原样上抛, 不包装成领域异常破坏取消语义
             } catch (e: Exception) {
                 cont.resumeWithException(LeaderboardApiException(-1, e.message ?: "调用排行榜 API 异常"))
             }

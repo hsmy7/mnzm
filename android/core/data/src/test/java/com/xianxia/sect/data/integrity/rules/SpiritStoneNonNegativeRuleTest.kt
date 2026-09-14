@@ -13,7 +13,8 @@ import org.junit.Test
 
 
 class SpiritStoneNonNegativeRuleTest {
-    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry.register(SpiritStoneNonNegativeRule) }
+    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry
+        .register(SpiritStoneNonNegativeRule) }
     @After fun teardown() { SaveValidationRuleRegistry.clear() }
 
     @Test fun `positive stones passes`() {

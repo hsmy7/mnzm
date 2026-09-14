@@ -126,7 +126,7 @@ class DomainResultTest {
     @Test
     fun catching_customDomainUsedOnFailure() {
         val custom = AppError.Domain.Disciple.NotFound("d1")
-        val r = DomainResult.catching(custom) { throw RuntimeException() }
+        val r = DomainResult.catching(custom) { throw IllegalStateException() }
         assertEquals(custom, r.errorOrNull())
     }
 }

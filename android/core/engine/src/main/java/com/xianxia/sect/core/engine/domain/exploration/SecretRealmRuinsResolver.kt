@@ -110,7 +110,7 @@ internal object SecretRealmRuinsResolver {
         }
         // 保留 event.params（itemRewards 秘宝描述符）——chooseOption 写入 eventHistory 时
         // 用 resolution.params 覆盖 markedEvent.params，若不携带则历史中秘宝明细丢失
-        // （与 BEAST_ENCOUNTER 历史保留掉落描述符行为一致，对抗性审查发现）
+        // （与 BEAST_ENCOUNTER 保留掉落描述符行为一致）
         return directionResolution(resultText, session).copy(params = event.params)
     }
 

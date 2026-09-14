@@ -84,7 +84,7 @@ object GameUtils {
     // ═══════════ 好感度查询已移至 FavorDomain ═══════════
     // · findFavor(sectRelations, fromSectId, toSectId)  → FavorDomain.findFavor()
     // · getLevel(favor)                                  → FavorDomain.getLevel()
-    // · calculateTradePriceMultiplier(...)                → FavorDomain.calculateTradePriceMultiplier()
+    // · calculateTradePriceMultiplier(...)                → calculateTradePriceMultiplier()（FavorDomain.kt 文件级）
 
     // ═══════════ 工具方法 ═══════════
 }

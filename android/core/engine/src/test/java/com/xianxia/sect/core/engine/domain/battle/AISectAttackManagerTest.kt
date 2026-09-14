@@ -21,6 +21,12 @@ import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 class AISectAttackManagerTest {
 
@@ -233,7 +239,7 @@ class AISectAttackManagerTest {
 
     // ── 主宗门防御筛选逻辑 ──
 
-    private val SECT_DEFENSE_EXCLUDED = setOf(
+    private val sectDefenseExcluded = setOf(
         DiscipleStatus.ON_MISSION,
         DiscipleStatus.IN_TEAM,
         DiscipleStatus.REFLECTING,
@@ -243,7 +249,7 @@ class AISectAttackManagerTest {
 
     private fun isEligibleForSectDefense(d: Disciple): Boolean {
         return d.isAlive &&
-            d.status !in SECT_DEFENSE_EXCLUDED
+            d.status !in sectDefenseExcluded
     }
 
     @Test
@@ -312,7 +318,7 @@ class AISectAttackManagerTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 2026-08-04 战斗核查修复回归（G4 AI 弟子技能完整化）
+    // 战斗核查回归：AI 弟子技能完整化
     // ═══════════════════════════════════════════════════════════════
 
     private fun healManual(name: String = "回春术") = ManualInstance(
@@ -337,7 +343,7 @@ class AISectAttackManagerTest {
 
     @Test
     fun `buildCombatSkills - 支援功法保留skillType与治疗字段`() {
-        // G4 回归：原实现手写 CombatSkill 仅传 7 字段，支援功法被默认成 ATTACK 普攻
+        // 回归守卫：支援功法必须保留 SUPPORT 类型与治疗/AOE 字段，不得退化为普攻
         val skills = AISectAttackManager.buildCombatSkills(
             mapOf("m1" to healManual(), "m2" to aoeManual()),
             emptyMap()

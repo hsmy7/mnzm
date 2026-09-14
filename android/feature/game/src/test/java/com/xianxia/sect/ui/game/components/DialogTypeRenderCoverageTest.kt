@@ -6,10 +6,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * DialogType 渲染分支覆盖守卫测试（2026-08-01，CLAUDE.md 9.5 守卫三要素）。
+ * DialogType 渲染分支覆盖守卫测试（CLAUDE.md 9.5 守卫三要素）。
  *
- * 背景：DialogType.SalaryConfig 曾是空渲染分支（GameOverlayHost when 分支为 {}），
- * 配合 anyDialogVisible 的全屏无关闭按钮遮罩 = 玩家黑屏软锁（2026-08-01 已移除）。
+ * 背景：DialogType 若存在空渲染分支（GameOverlayHost when 分支为 {}），
+ * 配合 anyDialogVisible 的全屏无关闭按钮遮罩 = 玩家黑屏软锁。
  * 本测试守卫：新增 DialogType 嵌套类型时，若忘记在 GameOverlayHost 渲染 when 分支添加
  * 渲染实现，测试失败并提示补齐。
  *

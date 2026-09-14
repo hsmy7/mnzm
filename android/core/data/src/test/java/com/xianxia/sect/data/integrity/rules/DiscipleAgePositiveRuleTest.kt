@@ -17,7 +17,8 @@ import org.junit.Test
 
 
 class DiscipleAgePositiveRuleTest {
-    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry.register(DiscipleAgePositiveRule) }
+    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry
+        .register(DiscipleAgePositiveRule) }
     @After fun teardown() { SaveValidationRuleRegistry.clear() }
 
     @Test fun `positive age passes`() {

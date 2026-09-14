@@ -13,13 +13,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 主题涟漪守卫测试（Bugly #9076 SIGABRT 根治的防回归守卫）：
+ * 主题涟漪守卫测试（涟漪禁用的防回归守卫）：
  * XianxiaTheme 必须把 LocalRippleConfiguration 置为 null——DelegatingThemeAwareRippleNode
  * 收到 null 配置时 removeRipple() 真正卸载 ripple 节点（RippleHostView 不再创建）。
  * RippleHostView 硬件水波纹动画在特定 ROM + 快速点击下触发 RenderNode.addAnimator
- * 原生 abort，应用侧唯一可靠根治是禁用 ripple。
+ * 原生 abort，应用侧唯一可靠防御是禁用 ripple。
  *
- * 对抗性审查教训：rippleAlpha=0 曾被采用并被实测证明无效（节点与动画照常运行，仅画透明，
+ * rippleAlpha=0 无法达到同样效果（节点与动画照常运行，仅画透明，
  * 见 RippleHostViewProbeTest），守卫因此断言 null 而非 alpha 全零——若有人改回任何
  * 非 null 配置（含 alpha 全零），此测试失败。
  */

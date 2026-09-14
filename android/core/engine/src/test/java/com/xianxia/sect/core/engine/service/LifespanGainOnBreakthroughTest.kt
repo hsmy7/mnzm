@@ -18,8 +18,8 @@ class LifespanGainOnBreakthroughTest {
 
     private fun getLifespanGainForRealm(realm: Int): Int {
         return when (realm) {
-            8 -> 50; 7 -> 100; 6 -> 200; 5 -> 400
-            4 -> 800; 3 -> 1500; 2 -> 3000; 1 -> 5000
+            8 -> 40; 7 -> 95; 6 -> 255; 5 -> 500
+            4 -> 825; 3 -> 1650; 2 -> 3350; 1 -> 6640
             0 -> 10000; else -> 0
         }
     }
@@ -27,29 +27,29 @@ class LifespanGainOnBreakthroughTest {
     @Test fun `炼气 realm9 没有寿命增益`() =
         assertEquals(0, getLifespanGainForRealm(9))
 
-    @Test fun `筑基 realm8 寿命增益50`() =
-        assertEquals(50, getLifespanGainForRealm(8))
+    @Test fun `筑基 realm8 寿命增益40`() =
+        assertEquals(40, getLifespanGainForRealm(8))
 
-    @Test fun `金丹 realm7 寿命增益100`() =
-        assertEquals(100, getLifespanGainForRealm(7))
+    @Test fun `金丹 realm7 寿命增益95`() =
+        assertEquals(95, getLifespanGainForRealm(7))
 
-    @Test fun `元婴 realm6 寿命增益200`() =
-        assertEquals(200, getLifespanGainForRealm(6))
+    @Test fun `元婴 realm6 寿命增益255`() =
+        assertEquals(255, getLifespanGainForRealm(6))
 
-    @Test fun `化神 realm5 寿命增益400`() =
-        assertEquals(400, getLifespanGainForRealm(5))
+    @Test fun `化神 realm5 寿命增益500`() =
+        assertEquals(500, getLifespanGainForRealm(5))
 
-    @Test fun `炼虚 realm4 寿命增益800`() =
-        assertEquals(800, getLifespanGainForRealm(4))
+    @Test fun `炼虚 realm4 寿命增益825`() =
+        assertEquals(825, getLifespanGainForRealm(4))
 
-    @Test fun `合体 realm3 寿命增益1500`() =
-        assertEquals(1500, getLifespanGainForRealm(3))
+    @Test fun `合体 realm3 寿命增益1650`() =
+        assertEquals(1650, getLifespanGainForRealm(3))
 
-    @Test fun `大乘 realm2 寿命增益3000`() =
-        assertEquals(3000, getLifespanGainForRealm(2))
+    @Test fun `大乘 realm2 寿命增益3350`() =
+        assertEquals(3350, getLifespanGainForRealm(2))
 
-    @Test fun `渡劫 realm1 寿命增益5000`() =
-        assertEquals(5000, getLifespanGainForRealm(1))
+    @Test fun `渡劫 realm1 寿命增益6640`() =
+        assertEquals(6640, getLifespanGainForRealm(1))
 
     @Test fun `仙人 realm0 寿命增益10000`() =
         assertEquals(10000, getLifespanGainForRealm(0))
@@ -60,6 +60,7 @@ class LifespanGainOnBreakthroughTest {
      * 模拟一次突破的 realm/layer 变化和寿命累加逻辑。
      * 返回 Triple(newRealm, newRealmLayer, addedLifespan)。
      */
+    @Suppress("UnusedParameter") // currentLifespan: 测试辅助签名与被测函数对齐的对称形参
     private fun simulateBreakthrough(
         realm: Int, layer: Int, currentLifespan: Int
     ): Triple<Int, Int, Int> {
@@ -109,27 +110,27 @@ class LifespanGainOnBreakthroughTest {
     // ---- 跨大境界加寿命 ----
 
     @Test
-    fun `炼气9层突破至筑基1层 寿命加50`() {
+    fun `炼气9层突破至筑基1层 寿命加40`() {
         val (newRealm, newLayer, added) = simulateBreakthrough(9, 9, 80)
         assertEquals(8, newRealm)       // realm 从 9 变 8
         assertEquals(1, newLayer)       // layer 重置为 1
-        assertEquals(50, added)          // 筑基寿命增益
+        assertEquals(40, added)          // 筑基寿命增益
     }
 
     @Test
-    fun `筑基9层突破至金丹1层 寿命加100`() {
-        val (newRealm, newLayer, added) = simulateBreakthrough(8, 9, 130)
+    fun `筑基9层突破至金丹1层 寿命加95`() {
+        val (newRealm, newLayer, added) = simulateBreakthrough(8, 9, 120)
         assertEquals(7, newRealm)
         assertEquals(1, newLayer)
-        assertEquals(100, added)
+        assertEquals(95, added)
     }
 
     @Test
-    fun `金丹9层突破至元婴1层 寿命加200`() {
-        val (newRealm, newLayer, added) = simulateBreakthrough(7, 9, 230)
+    fun `金丹9层突破至元婴1层 寿命加255`() {
+        val (newRealm, newLayer, added) = simulateBreakthrough(7, 9, 215)
         assertEquals(6, newRealm)
         assertEquals(1, newLayer)
-        assertEquals(200, added)
+        assertEquals(255, added)
     }
 
     // ---- 完整成长路径模拟 ----
@@ -148,11 +149,11 @@ class LifespanGainOnBreakthroughTest {
         assertEquals(9, realm); assertEquals(9, layer)
         assertEquals(80, lifespan)  // 炼气 realm9 不加寿命
 
-        // 炼气9→筑基1：跨境界，+50
+        // 炼气9→筑基1：跨境界，+40
         val b1 = simulateBreakthrough(realm, layer, lifespan)
         realm = b1.first; layer = b1.second; lifespan += b1.third
         assertEquals(8, realm); assertEquals(1, layer)
-        assertEquals(130, lifespan)  // 80 + 50
+        assertEquals(120, lifespan)  // 80 + 40
 
         // 筑基 1→9：同境界升层，不加寿命
         repeat(8) {
@@ -160,18 +161,18 @@ class LifespanGainOnBreakthroughTest {
             realm = r.first; layer = r.second; lifespan += r.third
         }
         assertEquals(8, realm); assertEquals(9, layer)
-        assertEquals(130, lifespan)  // 不应再增加
+        assertEquals(120, lifespan)  // 不应再增加
 
-        // 筑基9→金丹1：跨境界，+100
+        // 筑基9→金丹1：跨境界，+95
         val jd = simulateBreakthrough(realm, layer, lifespan)
         realm = jd.first; layer = jd.second; lifespan += jd.third
         assertEquals(7, realm); assertEquals(1, layer)
-        assertEquals(230, lifespan)  // 130 + 100
+        assertEquals(215, lifespan)  // 120 + 95
     }
 
     /**
-     * 模拟修复前 Bug 的完整路径，验证 Bug 的影响量级。
-     * 修复后此测试验证旧行为不再出现。
+     * 走完整突破路径模拟：验证寿元增益按基准+加成正常累计，
+     * 不会出现 430 式异常膨胀。
      */
     @Test
     fun `筑基7层不应达到430寿命 回归验证`() {
@@ -189,6 +190,6 @@ class LifespanGainOnBreakthroughTest {
         }
         assertEquals(8, realm)
         assertEquals(7, layer)
-        assertEquals(130, lifespan)  // 修复后：只有跨境界 +50，不应是430
+        assertEquals(120, lifespan)  // 只有跨境界 +40，不应是 430
     }
 }

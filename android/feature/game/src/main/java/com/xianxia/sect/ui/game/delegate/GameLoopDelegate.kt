@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.xianxia.sect.core.engine.handleWatchdogVerdict
+import com.xianxia.sect.core.engine.progressVerdict
 
 
 
@@ -54,10 +56,14 @@ class GameLoopDelegate(
             systemManager.errors.collect { error ->
                 val msg = error.error.stackTraceToString()
                 Log.e(TAG, "System error in ${error.systemName} (${error.tickType}): $msg")
+                // Bugly 可选依赖反射探针: 类/方法缺失即跳过上报, 异常类型不可枚举
+                @Suppress("TooGenericExceptionCaught")
                 try {
                     val crashReport = Class.forName("com.tencent.bugly.crashreport.CrashReport")
                     crashReport.getMethod("postCatchedException", Throwable::class.java)
                         .invoke(null, error.error)
+                } catch (e: CancellationException) {
+                    throw e // 取消穿透: 反射体无挂起点, 分支保 collect 循环结构化取消语义
                 } catch (e: Exception) { Log.w(TAG, "Bugly not available", e) }
                 onShowError("系统异常：${error.systemName}")
             }
@@ -65,6 +71,7 @@ class GameLoopDelegate(
         launchMainThreadHealthCheck()
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun launchMainThreadHealthCheck() {
         if (!healthCheckEnabled) return  // 测试环境禁用（mock 反射卡死，见 companion）
         scope.launch(Dispatchers.Main) {
@@ -101,6 +108,7 @@ class GameLoopDelegate(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun clearResources() {
         Log.i(TAG, "Clearing GameViewModel resources")
         try { gameEngineCore.stopGameLoop() }
@@ -111,6 +119,7 @@ class GameLoopDelegate(
     private val _cultivationProgress = MutableStateFlow(0f)
     val cultivationProgress: StateFlow<Float> = _cultivationProgress.asStateFlow()
 
+    @Suppress("LaunchOnEngineRequired") // 纯 UI 进度插值动画（16ms 步进+delay）：刻意走 UI scope，块内零引擎调用，引擎单线程不承载展示动画
     fun updateCultivationProgress(target: Float) {
         scope.launch {
             val current = _cultivationProgress.value

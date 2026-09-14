@@ -12,11 +12,11 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /**
- * 战斗执行路由（战斗批次 D：AI 兽战/任务完成生产接线）。
+ * 战斗执行路由（AI 兽战/任务完成生产接线）。
  *
  * AUTHORITATIVE 模式下把 [BattleSystem.executeBattle] 路由到 C++ 战斗引擎
  * （gamecore::battle::executeBattle，经 [GameCoreBridge.nativeBattleExecute]
- * 生产通道）；降级契约（对齐批 8-2 家族模式）：
+ * 生产通道）；降级契约：
  * - flag 非 AUTHORITATIVE / native 未加载 / native 返回 error → null，
  *   调用方回退 Kotlin 原实现
  * - C++ 侧消费 BATTLE 分区（kBattle）——AUTHORITATIVE 下委托式 RNG 单一
@@ -26,7 +26,7 @@ import kotlinx.serialization.json.putJsonArray
  *   全局 Random 生成随机措辞，评估报告"diff 排除 message"同源决策）
  *
  * 适配范围：系统内部战斗（AI 兽战/任务完成）——玩家直接观看回放的战斗
- * （遭遇战/洞府探索）不在本路由范围（log 需完整回放，随后续批次处理）。
+ * （遭遇战/洞府探索）不在本路由范围（log 需完整回放）。
  */
 internal object BattleExecutionRouter {
 
@@ -46,7 +46,7 @@ internal object BattleExecutionRouter {
             putJsonArray("beasts") { battle.beasts.forEach { add(BattleJsonCodec.combatantJson(it)) } }
             put("playerDamageModifier", playerDamageModifier)
             put("maxTurns", battle.maxTurns)
-            put("timeoutMs", -1L)  // 生产不检查超时（调用方保证轻量战斗；对齐批 9-2 语义）
+            put("timeoutMs", -1L)  // 生产不检查超时（调用方保证轻量战斗）
         }
         val out = json.parseToJsonElement(
             GameCoreBridge.nativeBattleExecute(op.toString().encodeToByteArray()).decodeToString()
@@ -54,6 +54,45 @@ internal object BattleExecutionRouter {
         if (out.containsKey("error")) return null
 
         return rebuildResult(out, battle)
+    }
+
+    /**
+     * C++ 秘境会话战斗信封 → 战报数据（展示通道非协议）。
+     * 与 [rebuildResult] 同重建口径（确定性摘要 message / 终态成员 / rounds），
+     * 但无 original Battle（战斗全程在 C++ 执行）。
+     */
+    internal fun rebuildBattleLogData(out: JsonObject): BattleLogData {
+        val finalTeam = (out["team"] as? JsonArray)
+            ?.map { BattleJsonCodec.combatantFromJson(it.jsonObject) } ?: emptyList()
+        val finalBeasts = (out["beasts"] as? JsonArray)
+            ?.map { BattleJsonCodec.combatantFromJson(it.jsonObject) } ?: emptyList()
+        val teamMembers = finalTeam.map { c ->
+            BattleMemberData(
+                id = c.id, name = c.name, realm = c.realm,
+                realmName = c.realmName, hp = c.hp, maxHp = c.maxHp,
+                mp = c.mp, maxMp = c.maxMp, isAlive = !c.isDead,
+                portraitRes = c.portraitRes
+            )
+        }
+        val enemies = finalBeasts.map { c ->
+            BattleEnemyData(
+                id = c.id, name = c.name, realm = c.realm,
+                realmName = c.realmName, realmLayer = c.realmLayer,
+                hp = c.hp, maxHp = c.maxHp, isAlive = !c.isDead,
+                portraitRes = c.portraitRes
+            )
+        }
+        val rounds = (out["rounds"] as? JsonArray)?.mapNotNull { roundJson ->
+            val r = roundJson.jsonObject
+            val actions = (r["actions"] as? JsonArray)?.mapNotNull { actionJson ->
+                rebuildAction(actionJson.jsonObject)
+            } ?: emptyList()
+            BattleRoundData(
+                roundNumber = r["roundNumber"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                actions = actions
+            )
+        } ?: emptyList()
+        return BattleLogData(rounds = rounds, teamMembers = teamMembers, enemies = enemies)
     }
 
     /** C++ 终态 JSON → Kotlin BattleSystemResult（battle/victory/rewards/log/turnCount）。 */

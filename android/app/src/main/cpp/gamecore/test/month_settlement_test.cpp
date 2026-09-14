@@ -1,5 +1,5 @@
 // ============================================================
-// month_settlement_test — 月变结算钩子黄金序列守护（T2.2）
+// month_settlement_test — 月变结算钩子黄金序列守护
 //
 // 守护目标：固定种子 + 固定状态 → SettlementEngine.onMonthChange
 // （runMonthSettlement）跨月推进 → 断言八步事务各域字段值逐位符合手算期望。
@@ -123,7 +123,7 @@ TEST(MonthSettlementTest, PolicyCostsDeductAndAutoDisable) {
     st.gameData.sectPolicies.alchemyIncentive = true;
     st.gameData.sectPolicies.manualResearch = true;
 
-    const auto result = system::runMonthSettlement(st, core->rng());
+    const auto result = system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_FALSE(result.policyCosts.allPaid);
     ASSERT_EQ(1u, result.policyCosts.disabledPolicies.size());
@@ -140,7 +140,7 @@ TEST(MonthSettlementTest, PolicyCostsAllPaidWhenBalanceSufficient) {
     st.gameData.sectPolicies.alchemyIncentive = true;
     st.gameData.sectPolicies.manualResearch = true;
 
-    const auto result = system::runMonthSettlement(st, core->rng());
+    const auto result = system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_TRUE(result.policyCosts.allPaid);
     EXPECT_TRUE(result.policyCosts.disabledPolicies.empty());
@@ -156,14 +156,14 @@ TEST(MonthSettlementTest, OpenRecruitmentCooldownGolden) {
     st.gameData.sectPolicies.openRecruitment = true;
     st.gameData.openRecruitmentLastPaidMonth = 1 * 12 + 1 - 35;   // 差值 35 < 36
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(60000, st.gameData.spiritStones);              // 冷却期内未扣
     EXPECT_EQ(1 * 12 + 1 - 35, st.gameData.openRecruitmentLastPaidMonth);
 
     // 差值恰好 36 → 扣费 + lastPaidMonth 推进到当前绝对月
     st.gameData.sectPolicies.openRecruitment = true;
     st.gameData.openRecruitmentLastPaidMonth = 1 * 12 + 1 - kOpenRecruitmentCooldownMonths;
-    const auto result = system::runMonthSettlement(st, core->rng());
+    const auto result = system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_TRUE(result.policyCosts.allPaid);
     EXPECT_EQ(60000 - kOpenRecruitmentCost, st.gameData.spiritStones);
     EXPECT_EQ(1 * 12 + 1, st.gameData.openRecruitmentLastPaidMonth);
@@ -190,7 +190,7 @@ TEST(MonthSettlementTest, PolicyMonthlyEffectsLoyaltyMoralityGolden) {
     st.disciples.appendDisciple(mid);
     st.disciples.appendDisciple(capped);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(53, st.disciples.materialize(0).loyalty);                  // 50 + 3
     EXPECT_EQ(kMaxLoyalty, st.disciples.materialize(1).loyalty);         // 99 + 3 → clamp 100
@@ -209,7 +209,7 @@ TEST(MonthSettlementTest, NegativeLoyaltyDeltaClampsAtZero) {
     d.loyalty = 1;
     st.disciples.appendDisciple(d);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(0, st.disciples.materialize(0).loyalty);
 }
 
@@ -261,7 +261,7 @@ TEST(MonthSettlementTest, BloodRefinementDueSettlesWithEvent) {
     st.gameData.activeBloodRefinements["pool-1"] = progress;
     st.gameData.gameMonth = 3;   // elapsed = 2 >= 2 到期
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_TRUE(st.gameData.activeBloodRefinements.empty());
     EXPECT_DOUBLE_EQ(5.0, st.gameData.bloodRefinementPctTotals["1"].hpBonusPct);
@@ -301,7 +301,7 @@ TEST(MonthSettlementTest, BloodRefinementNotDueRetainedAndNaNDefended) {
     st.gameData.activeBloodRefinements["pool-b"] = nanCase;
     st.gameData.gameMonth = 2;   // elapsed = 1：pool-b 到期结算、pool-a(需6月)保留
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     // pool-a 未到期保留；pool-b 到期结算且 NaN → 0
     EXPECT_EQ(1u, st.gameData.activeBloodRefinements.count("pool-a"));
@@ -541,7 +541,7 @@ TEST(MonthSettlementTest, WorldLevelsCleanupMoveAndExplorationAudit) {
         800.0f + static_cast<float>(std::sin(dAngle) * dDist)));
     EXPECT_FLOAT_EQ(expDx, st.gameData.worldLevels[1].x);
     EXPECT_FLOAT_EQ(expDy, st.gameData.worldLevels[1].y);
-    // 刷新生成未下沉 → lastRefreshMonth 保持不变
+    // 本场景不触发刷新生成 → lastRefreshMonth 保持不变
     EXPECT_EQ(0, st.gameData.worldLevelLastRefreshMonth);
     // RNG 审计：EXPLORATION 恰消耗 4 次 nextDouble
     EXPECT_EQ(probe.snapshot(),
@@ -608,7 +608,7 @@ TEST(MonthSettlementTest, GameOverTriggersOnlyWhenNoSectControlled) {
     playerSect.occupierSectId = "ai-1";    // 本宗被占领
     st.gameData.worldMapSects.push_back(playerSect);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_TRUE(st.gameData.isGameOver);
 }
 
@@ -620,7 +620,7 @@ TEST(MonthSettlementTest, GameOverNotTriggeredWhenPlayerSectFree) {
     playerSect.isPlayerSect = true;        // 本宗自由 → 仍控制宗门
     st.gameData.worldMapSects.push_back(playerSect);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_FALSE(st.gameData.isGameOver);
 }
 
@@ -631,7 +631,7 @@ TEST(MonthSettlementTest, GameOverNotJudgedWithoutPlayerSect) {
     aiSect.id = "ai-1";                    // 只有 AI 宗门 → 不判定
     st.gameData.worldMapSects.push_back(aiSect);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_FALSE(st.gameData.isGameOver);
 }
 
@@ -690,7 +690,7 @@ TEST(MonthSettlementTest, EmptyMonthChangeIsSafe) {
     EXPECT_EQ(before, core->rng().exportStates());
 }
 
-// ── S8 子事件 8：侦察信息过期清理（批 10-1）────────────────────────
+// ── S8 子事件 8：侦察信息过期清理────────────────────────
 
 TEST(MonthSettlementTest, ScoutExpiryRemovesExpiredAndFlipsKnown) {
     auto core = makeCore(42);
@@ -729,7 +729,7 @@ TEST(MonthSettlementTest, ScoutExpiryRemovesExpiredAndFlipsKnown) {
     st.gameData.worldMapSects.push_back(sect1);
     st.gameData.worldMapSects.push_back(sect2);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     // 过期条目移除、未过期保留
     ASSERT_EQ(1u, st.gameData.scoutInfo.size());
@@ -765,7 +765,7 @@ TEST(MonthSettlementTest, ScoutExpiryNoOpWhenNothingExpired) {
     state::WorldSect sect1; sect1.id = "ai-1"; sect1.isKnown = true;
     st.gameData.worldMapSects.push_back(sect1);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     // 无过期 → 零写入（Lazy 门控等价）
     ASSERT_EQ(1u, st.gameData.scoutInfo.size());
@@ -774,7 +774,7 @@ TEST(MonthSettlementTest, ScoutExpiryNoOpWhenNothingExpired) {
     EXPECT_TRUE(st.gameData.worldMapSects[0].isKnown);
 }
 
-// ── S8 子事件 4：月度叛逃检测（批 10-2）────────────────────────────
+// ── S8 子事件 4：月度叛逃检测────────────────────────────
 
 /// 系统分区黄金序列：seed+3 播种的独立预演（RNG 审计方法同文件头说明）
 gamecore::rng::DeterministicRng sysReplica(int64_t seed) {
@@ -791,7 +791,7 @@ TEST(MonthSettlementTest, DesertionHerdGateBlocksAndZeroDraws) {
         st.disciples.appendDisciple(d);
     }
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(2u, st.disciples.size());
     EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
     EXPECT_EQ(before, core->rng().exportStates());
@@ -824,7 +824,7 @@ TEST(MonthSettlementTest, DesertionEscapeGolden) {
     const bool triggered = d1 < 0.30;
     if (triggered) sys.nextDouble();   // 第二次抽取（捕获判定）
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     if (triggered) {
         EXPECT_EQ(0u, st.disciples.size());
@@ -869,7 +869,7 @@ TEST(MonthSettlementTest, DesertionCaptureGoldenWithElderAndPolicy) {
     const bool triggered = d1 < 0.30;
     if (triggered) sys.nextDouble();
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     if (triggered) {
         EXPECT_EQ(2u, st.disciples.size());
@@ -892,7 +892,7 @@ TEST(MonthSettlementTest, DesertionCaptureGoldenWithElderAndPolicy) {
               states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
 }
 
-// ── S8 子事件 3：月度偷盗兜底（批 10-3）────────────────────────────
+// ── S8 子事件 3：月度偷盗兜底────────────────────────────
 //
 // 偷盗常量（GameConfig.LawEnforcementConfig / PolicyConfig）
 constexpr int32_t kTheftMoralityThreshold = 30;
@@ -922,7 +922,7 @@ TEST(MonthSettlementTest, TheftSucceedsGoldenSequence) {
         sys.nextDouble();   // 偷后叛逃（概率 0 → 不叛逃）
     }
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     // 判定标记先于概率抽取——两分支一致（弟子年标记 + 月度计数 +1）
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
@@ -971,7 +971,7 @@ TEST(MonthSettlementTest, TheftCaptureGoldenWithElder) {
     const bool attempted = sys.nextDouble() < 0.30;   // 首抽 0.286 必触发
     if (attempted) sys.nextDouble();   // 捕获判定：< 1.0 必捕获
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
     if (attempted) {
@@ -1042,7 +1042,7 @@ TEST(MonthSettlementTest, TheftDesertAfterTheftGolden) {
         deserted = sys.nextDouble() < 0.30; // 偷后叛逃
     }
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
     if (attempted && deserted) {
@@ -1106,7 +1106,7 @@ TEST(MonthSettlementTest, TheftWarehouseGarrisonCaught) {
         sys.nextInt(1);            // Step 3 仓库选取（唯一仓库）
     }
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
     if (attempted) {
@@ -1163,7 +1163,7 @@ TEST(MonthSettlementTest, TheftItemSelectionAndStoreDecrementGolden) {
         sys.nextDouble();   // 偷后叛逃（概率 0）
     }
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
     if (attempted) {
@@ -1219,7 +1219,7 @@ TEST(MonthSettlementTest, TheftAnnualCapBlocksButStillResets) {
     st.disciples.appendDisciple(baseDisciple("2"));
 
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);   // 归零无条件执行
     EXPECT_EQ(3, st.gameData.annualTheftCount);
@@ -1239,7 +1239,7 @@ TEST(MonthSettlementTest, TheftHerdGateBlocksButStillResets) {
     st.disciples.appendDisciple(baseDisciple("2"));
 
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);   // 归零在门控之前
     EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
@@ -1262,14 +1262,14 @@ TEST(MonthSettlementTest, TheftNoCandidateOrProtectedZeroDraws) {
     st.disciples.appendDisciple(protected_);
 
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);   // 归零执行，无标记递增
     EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
     EXPECT_EQ(before, core->rng().exportStates());        // 零抽取
 }
 
-// ── S8 子事件 3：月度偷盗兜底（批 10-3）────────────────────────────
+// ── S8 子事件 3：月度偷盗兜底────────────────────────────
 
 /// 偷盗链 SYSTEM 黄金序列种子扫描：从 begin 起首个满足 pred 的种子
 ///（pred 内按执行序连续抽取副本）
@@ -1301,7 +1301,7 @@ TEST(MonthSettlementTest, TheftResetsCounterAndHerdGateBlocksZeroDraws) {
     d.loyalty = 50;
     st.disciples.appendDisciple(d);
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
     EXPECT_EQ(before, core->rng().exportStates());
 }
@@ -1315,7 +1315,7 @@ TEST(MonthSettlementTest, TheftNoCandidateZeroDraws) {
     Disciple d = theftDisciple("1");
     st.disciples.appendDisciple(d);
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
     EXPECT_EQ(before, core->rng().exportStates());
 }
@@ -1323,7 +1323,7 @@ TEST(MonthSettlementTest, TheftNoCandidateZeroDraws) {
 TEST(MonthSettlementTest, TheftProtectionMonthsBlockCandidatesZeroDraws) {
     // hasCandidate 无保护期检查（门过）→ 候选收集含保护期 → 空 → 零抽取零标记
     //（对拍口径：Kotlin 基线读绝对月 13 / C++ 事务内 14——recruitedMonth=13
-    //  使双端差值均 < 12，场景规避 S-14 同族分歧）
+    //  使双端差值均 < 12，场景规避基线读口径分歧）
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.spiritStones = 10000;
@@ -1332,7 +1332,7 @@ TEST(MonthSettlementTest, TheftProtectionMonthsBlockCandidatesZeroDraws) {
     d.recruitedMonth = 13;   // 绝对月 13 → 差 0 < 12 保护期
     st.disciples.appendDisciple(d);
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
     EXPECT_EQ(0, st.disciples.lastTheftJudgementYears[0]);
     EXPECT_EQ(before, core->rng().exportStates());
@@ -1348,7 +1348,7 @@ TEST(MonthSettlementTest, TheftAnnualCapBlocksZeroDraws) {
     d.morality = 20;
     st.disciples.appendDisciple(d);
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
     EXPECT_EQ(before, core->rng().exportStates());
 }
@@ -1369,7 +1369,7 @@ TEST(MonthSettlementTest, TheftFailedAttemptStillMarksJudgement) {
     auto sys = sysReplica(seed);
     sys.nextDouble();   // d1（未遂）
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
     EXPECT_EQ(1, st.disciples.lastTheftJudgementYears[0]);
@@ -1401,7 +1401,7 @@ TEST(MonthSettlementTest, TheftCaptureGoldenWithPolicy) {
     sys.nextDouble();   // d1 尝试
     sys.nextDouble();   // d2 捕获
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1u, st.disciples.size());   // 原位改写：行数与行序均不变
     const std::size_t row = st.disciples.idToRow.at("1");
@@ -1454,7 +1454,7 @@ TEST(MonthSettlementTest, TheftGarrisonGuardCatchGolden) {
     sys.nextDouble();   // d2 捕获（率 0 → 必不捕获）
     sys.nextInt(1);     // d3 仓库选取
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     const std::size_t thiefRow = st.disciples.idToRow.at("1");
     EXPECT_EQ("REFLECTING", st.disciples.statuses[thiefRow]);
@@ -1493,7 +1493,7 @@ TEST(MonthSettlementTest, TheftSuccessGoldenSpiritStonesOnly) {
     sys.nextDouble();                   // d4 叛逃（概率 0 → 未叛逃）
     const int64_t expectedAmount = 1000;
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(10000 - expectedAmount, st.gameData.spiritStones);
     EXPECT_EQ(expectedAmount, st.disciples.storageBagSpiritStones[0]);
@@ -1560,7 +1560,7 @@ TEST(MonthSettlementTest, TheftSuccessStealsWarehouseItemGolden) {
     }
     ASSERT_EQ(2u, order.size());         // m1 与 p1 两名命中（全池抽空）
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(10000 - expectedAmount, st.gameData.spiritStones);
     const auto& bag = st.disciples.storageBagItems[0];
@@ -1620,7 +1620,7 @@ TEST(MonthSettlementTest, TheftDesertionAfterTheftGolden) {
     sys.nextDouble();   // d4
     sys.nextDouble();   // d6
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(0u, st.disciples.size());   // 偷盗得手后叛逃离场（袋随弟子删除）
     EXPECT_TRUE(st.equipmentInstances.empty());
@@ -1638,7 +1638,7 @@ TEST(MonthSettlementTest, TheftDesertionAfterTheftGolden) {
 }
 
 TEST(MonthSettlementTest, TheftAmountUnderflowAbortsSubeventPreservingMark) {
-    // S-14：灵石 500 → maxAmount 50 < THEFT_MIN_AMOUNT 100 → Kotlin coerceIn
+    // 灵石 500 → maxAmount 50 < THEFT_MIN_AMOUNT 100 → Kotlin coerceIn
     // 抛 IllegalArgumentException 被 safelyRunInState 吞掉——标记保留、
     // 偷盗中止、月变继续；金额波动 d4 在抛出前已消费
     const int64_t seed = findTheftSeed(7000, [](auto& r) {
@@ -1658,7 +1658,7 @@ TEST(MonthSettlementTest, TheftAmountUnderflowAbortsSubeventPreservingMark) {
     sys.nextDouble();   // d2 捕获（率 0）
     sys.nextDouble();   // d4 金额波动（抛出前消费）
 
-    system::runMonthSettlement(st, core->rng());   // 异常吞没不外抛
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());   // 异常吞没不外抛
 
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);   // 标记保留
     EXPECT_EQ(1, st.disciples.lastTheftJudgementYears[0]);
@@ -1682,7 +1682,7 @@ TEST(MonthSettlementTest, TheftAmountCoerceUnderflowThrowsDirectly) {
     EXPECT_NO_THROW(gamecore::system::detail::calcTheftAmount(d, 1000, sys2));
 }
 
-// ── S8 子事件 12：附庸脱离检查（批 10-4）────────────────────────────
+// ── S8 子事件 12：附庸脱离检查────────────────────────────
 
 /// 附庸脱离场景：玩家宗门 p1 + 附属 ai-9（玄水宗）契约 + AI 弟子 + N 名
 /// 同规格玩家弟子（realm 9 全同 → 战力比 = N 精确整数倍）。玩家弟子
@@ -1712,7 +1712,7 @@ TEST(MonthSettlementTest, VassalBreakawayEmptyContractsZeroDraws) {
     auto core = makeCore(42);
     auto& st = core->state();
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_TRUE(st.gameData.vassalContracts.empty());
     EXPECT_EQ(before, core->rng().exportStates());
 }
@@ -1725,7 +1725,7 @@ TEST(MonthSettlementTest, VassalBreakawayNoPlayerSectZeroDraws) {
     contract.vassalSectId = "ai-9"; contract.establishedYear = 1;
     st.gameData.vassalContracts.push_back(contract);
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(1u, st.gameData.vassalContracts.size());
     EXPECT_EQ(before, core->rng().exportStates());
 }
@@ -1737,14 +1737,14 @@ TEST(MonthSettlementTest, VassalBreakawaySectMissingRemovesSilentlyNoDraw) {
     state::WorldSect player;
     player.id = "p1"; player.name = "青云宗"; player.isPlayerSect = true;
     st.gameData.worldMapSects.push_back(player);
-    // 批 13-2b：预置刷新月（==当前绝对月 13）→ 关卡刷新不触发（零抽取断言
+    // 预置刷新月（==当前绝对月 13）→ 关卡刷新不触发（零抽取断言
     // 不受步骤 4e 生成干扰）
     st.gameData.worldLevelLastRefreshMonth = 1 * 12 + 1;
     state::VassalContract contract;
     contract.vassalSectId = "gone"; contract.establishedYear = 1;
     st.gameData.vassalContracts.push_back(contract);
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_TRUE(st.gameData.vassalContracts.empty());
     EXPECT_TRUE(st.gameData.gameEventRecords.empty());
     EXPECT_EQ(before, core->rng().exportStates());
@@ -1755,10 +1755,10 @@ TEST(MonthSettlementTest, VassalBreakawayZeroAiPowerNoDraw) {
     auto core = makeCore(42);
     auto& st = core->state();
     setupVassalScene(st, 1);
-    st.gameData.worldLevelLastRefreshMonth = 1 * 12 + 1;   // 批 13-2b：不刷新
+    st.gameData.worldLevelLastRefreshMonth = 1 * 12 + 1;   // 不刷新
     st.aiSectDisciples.clear();
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
     EXPECT_EQ(1u, st.gameData.vassalContracts.size());
     EXPECT_TRUE(st.gameData.gameEventRecords.empty());
     EXPECT_EQ(before, core->rng().exportStates());
@@ -1777,7 +1777,7 @@ TEST(MonthSettlementTest, VassalBreakawayIntimateFavorStaysGolden) {
     auto sys = sysReplica(42);
     sys.nextDouble();   // 唯一抽取（< 0.0 不可能）
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1u, st.gameData.vassalContracts.size());
     EXPECT_TRUE(st.gameData.gameEventRecords.empty());
@@ -1805,7 +1805,7 @@ TEST(MonthSettlementTest, VassalBreakawayWeakPlayerBreaksGolden) {
     auto sys = sysReplica(seed);
     sys.nextDouble();   // 唯一抽取
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_TRUE(st.gameData.vassalContracts.empty());
     // 附属宗门本体保留（仅契约移除）+ 事件
@@ -1839,7 +1839,7 @@ TEST(MonthSettlementTest, VassalBreakawayRollFailStays) {
     auto sys = sysReplica(seed);
     sys.nextDouble();
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_EQ(1u, st.gameData.vassalContracts.size());
     EXPECT_TRUE(st.gameData.gameEventRecords.empty());
@@ -1885,7 +1885,7 @@ TEST(MonthSettlementTest, VassalBreakawayBattleRecordWindowAndCountsGolden) {
         for (const auto& r : st.gameData.sectBattleRecords) {
             st2.gameData.sectBattleRecords.push_back(r);
         }
-        system::runMonthSettlement(st2, core2->rng());
+        system::runMonthSettlement(st2, core2->rng(), core2->aiRng(), core2->aiMonthBatch(), core2->ecsWorld());
         EXPECT_TRUE(st2.gameData.vassalContracts.empty());
         ASSERT_EQ(1u, st2.gameData.gameEventRecords.size());
         EXPECT_EQ("vassal_breakaway", st2.gameData.gameEventRecords[0].eventType);
@@ -1899,7 +1899,7 @@ TEST(MonthSettlementTest, VassalBreakawayBattleRecordWindowAndCountsGolden) {
         for (const auto& r : st.gameData.sectBattleRecords) {
             st2.gameData.sectBattleRecords.push_back(r);
         }
-        system::runMonthSettlement(st2, core2->rng());
+        system::runMonthSettlement(st2, core2->rng(), core2->aiRng(), core2->aiMonthBatch(), core2->ecsWorld());
         EXPECT_EQ(1u, st2.gameData.vassalContracts.size());
         EXPECT_TRUE(st2.gameData.gameEventRecords.empty());
     }
@@ -1946,7 +1946,7 @@ TEST(VassalProbe, JsonImportThenMonthlyDrawCount) {
               states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
 }
 
-// ── 子事件 2：自动招募（批 11-1） ─────────────────────────────────
+// ── 子事件 2：自动招募 ─────────────────────────────────
 
 using gamecore::system::recruit_settle::processAutoRecruit;
 
@@ -2097,7 +2097,7 @@ TEST(RecruitAutoRecruit, DedupeCorruptedRecruitsBeforeFilter) {
     EXPECT_EQ(1, st.gameData.recruitCountThisMonth);
 }
 
-// ── 子事件 15/16：秘境到期关闭 + AI 队伍派遣（批 11-2） ─────────────
+// ── 子事件 15/16：秘境到期关闭 + AI 队伍派遣 ─────────────
 
 using gamecore::system::secret_realm_settle::processMonthlyAiTeams;
 using gamecore::system::secret_realm_settle::processMonthlyExpiryCheck;
@@ -2198,7 +2198,7 @@ TEST(SecretRealmSettlement, ExpiryCheckNotDueKeepsRealm) {
     EXPECT_TRUE(st.gameData.gameEventRecords.empty());
 }
 
-// ── 子事件 10：12 月自动购买（批 11-3） ─────────────────────────────
+// ── 子事件 10：12 月自动购买 ─────────────────────────────
 
 using gamecore::system::merchant_settle::executeAutoBuy;
 
@@ -2287,7 +2287,7 @@ TEST(AutoBuySettlement, DecemberAutoBuySpiritstoneAndNonMatch) {
     EXPECT_TRUE(st.equipmentStacks.empty());
 }
 
-// ── 子事件 12：弟子智能购买（批 12-1） ─────────────────────────────
+// ── 子事件 12：弟子智能购买 ─────────────────────────────
 
 using gamecore::system::disciple_purchase::processDisciplePurchase;
 
@@ -2334,7 +2334,7 @@ TEST(DisciplePurchaseSettlement, SingleDiscipleBuysAllThreeCategories) {
     whPill.quantity = 1; whPill.grade = "MEDIUM";
     st.pills.push_back(whPill);
 
-    processDisciplePurchase(st, core->rng());
+    processDisciplePurchase(st, core->rng(), nullptr, core->ecsWorld());
 
     // 弟子灵石：1000 - 100(功法) - 200(装备) - 50(丹药) = 650
     const auto idx = gamecore::system::settle_util::indexById(st.disciples);
@@ -2379,7 +2379,7 @@ TEST(DisciplePurchaseSettlement, NoListedItemsOrNoFundsZeroEffects) {
     st.disciples.appendDisciple(d);
 
     const auto before = core->rng().exportStates();
-    processDisciplePurchase(st, core->rng());
+    processDisciplePurchase(st, core->rng(), nullptr, core->ecsWorld());
     EXPECT_EQ(before, core->rng().exportStates());
     EXPECT_EQ(0, st.gameData.spiritStones);
     EXPECT_TRUE(st.disciples.storageBagItems[0].empty());
@@ -2403,7 +2403,7 @@ TEST(DisciplePurchaseSettlement, NoWarehouseStockSkipsPurchase) {
     st.gameData.playerListedItems = {manualItem};
     // 仓库无对应库存 → 扣减失败
 
-    processDisciplePurchase(st, core->rng());
+    processDisciplePurchase(st, core->rng(), nullptr, core->ecsWorld());
 
     // 弟子灵石不变（购买未发生）；listing 保留
     const auto idx = gamecore::system::settle_util::indexById(st.disciples);
@@ -2414,7 +2414,7 @@ TEST(DisciplePurchaseSettlement, NoWarehouseStockSkipsPurchase) {
     EXPECT_TRUE(st.disciples.storageBagItems[row].empty());
 }
 
-// ── 子事件 14：任务刷新（批 12-2） ─────────────────────────────────
+// ── 子事件 14：任务刷新 ─────────────────────────────────
 
 using gamecore::system::mission_settle::processMissionRefresh;
 using gamecore::state::Mission;
@@ -2503,7 +2503,7 @@ TEST(MissionSettlement, RewardConfigCoversAllTemplates) {
     }
 }
 
-// ── 步骤 3：AI 兽袭目标预计算（批 13-1：precomputeTargets 等价移植）───
+// ── 步骤 3：AI 兽袭目标预计算（precomputeTargets 等价移植）───
 //
 // 直接测 detail::precomputeTargets（规避步骤 4e moveBeasts 的 EXPLORATION
 // 干扰——快照锁只锁定本函数抽取序）。场景基准：realm 9 默认弟子战力
@@ -2677,7 +2677,7 @@ TEST(MonthSettlementTest, PrecomputeTargetsSameSectTwoBeastsSnapshotSemantics) {
               core->rng().getRng(rng::RngPartition::kExploration).snapshot());
 }
 
-// ── 步骤 2：教化之道偷盗判定钩子（批 13-2a：Kotlin processSingleDisciple
+// ── 步骤 2：教化之道偷盗判定钩子（Kotlin processSingleDisciple
 //    Theft(id, state) 事务内版等价移植）───────────────────────────────
 //
 // 钩子语义：道德提升（+1，上限 70）后仍 < 偷盗阈值（30）→ 单弟子偷盗判定
@@ -2703,7 +2703,7 @@ TEST(MonthSettlementTest, MoralEducationHookTriggersSingleTheftJudgement) {
     auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 3);
     probe.nextDouble();
 
-    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng());
+    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng(), core->ecsWorld());
 
     EXPECT_EQ(29, st.disciples.materialize(0).morality);       // 道德提升
     EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);        // 标记判定
@@ -2724,7 +2724,7 @@ TEST(MonthSettlementTest, MoralEducationHookSkipsWhenMoralityReachesThreshold) {
     st.disciples.appendDisciple(d);
 
     const auto before = core->rng().exportStates();
-    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng());
+    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng(), core->ecsWorld());
 
     EXPECT_EQ(30, st.disciples.materialize(0).morality);       // 提升到阈值
     EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);        // 零标记
@@ -2745,14 +2745,14 @@ TEST(MonthSettlementTest, MoralEducationHookRespectsMonthlyCap) {
     st.disciples.appendDisciple(d);
 
     const auto before = core->rng().exportStates();
-    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng());
+    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng(), core->ecsWorld());
 
     EXPECT_EQ(29, st.disciples.materialize(0).morality);       // 道德仍提升
     EXPECT_EQ(3, st.gameData.theftJudgementsThisMonth);        // 计数不变
     EXPECT_EQ(before, core->rng().exportStates());             // 零抽取
 }
 
-// ── 步骤 4e：世界关卡刷新生成接线（批 13-2b：LevelGenerator 批 4-1 接线）─
+// ── 步骤 4e：世界关卡刷新生成接线（LevelGenerator 接线）─
 //
 // Kotlin WorldLevelManager.processMonthly 语义：清理过期 → shouldRefresh 判定
 // （lastRefreshMonth==0 || 差值>=3）→ 玩家宗门门控（无 → 只清理不生成不推进）
@@ -2771,7 +2771,7 @@ TEST(MonthSettlementTest, WorldLevelRefreshGeneratesLevelsWithPlayerSect) {
     Disciple d = baseDisciple("1");   // realm 9 → playerAvgRealm=9
     st.disciples.appendDisciple(d);
 
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_FALSE(st.gameData.worldLevels.empty());     // 生成了新关卡
     EXPECT_EQ(1 * 12 + 1, st.gameData.worldLevelLastRefreshMonth);  // 推进
@@ -2791,7 +2791,7 @@ TEST(MonthSettlementTest, WorldLevelRefreshSkippedWithoutPlayerSect) {
     st.disciples.appendDisciple(d);
 
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_TRUE(st.gameData.worldLevels.empty());
     EXPECT_EQ(0, st.gameData.worldLevelLastRefreshMonth);  // 未推进
@@ -2810,14 +2810,14 @@ TEST(MonthSettlementTest, WorldLevelRefreshSkippedWhenRecentRefresh) {
     st.disciples.appendDisciple(d);
 
     const auto before = core->rng().exportStates();
-    system::runMonthSettlement(st, core->rng());
+    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
 
     EXPECT_TRUE(st.gameData.worldLevels.empty());
     EXPECT_EQ(1 * 12 + 1, st.gameData.worldLevelLastRefreshMonth);  // 保持
     EXPECT_EQ(before, core->rng().exportStates());         // 零 RNG 消费
 }
 
-// ── 步骤 6a：月度自动排班（批 13-3：Kotlin ProductionProcessor.
+// ── 步骤 6a：月度自动排班（Kotlin ProductionProcessor.
 //    processAutoAssign 等价移植；零 RNG 纯数据变换）───────────────────
 // 直接测 detail::processAutoAssign（政策开启场景；零 RNG 快照锁）。
 
@@ -2845,7 +2845,7 @@ TEST(MonthSettlementTest, AutoAssignResidenceGolden) {
     }
 
     const auto before = core->rng().exportStates();
-    gamecore::system::detail::processAutoAssign(st);
+    gamecore::system::detail::processAutoAssign(st, core->ecsWorld());
 
     ASSERT_EQ(2u, st.gameData.residenceSlots.size());
     EXPECT_EQ("1", st.gameData.residenceSlots[0].discipleId);
@@ -2878,7 +2878,7 @@ TEST(MonthSettlementTest, AutoAssignProductionGoldenWithPoolReflow) {
     mine.index = 0;
     st.gameData.spiritMineSlots.push_back(mine);
 
-    gamecore::system::detail::processAutoAssign(st);
+    gamecore::system::detail::processAutoAssign(st, core->ecsWorld());
 
     ASSERT_EQ(1u, st.gameData.productionSlots.size());
     ASSERT_TRUE(st.gameData.productionSlots[0].assignedDiscipleId.has_value());
@@ -2898,7 +2898,7 @@ TEST(MonthSettlementTest, AutoAssignPoliciesDisabledNoop) {
     st.gameData.residenceSlots.push_back(slot);
 
     const auto before = core->rng().exportStates();
-    gamecore::system::detail::processAutoAssign(st);
+    gamecore::system::detail::processAutoAssign(st, core->ecsWorld());
 
     EXPECT_TRUE(st.gameData.residenceSlots[0].discipleId.empty());
     EXPECT_EQ(before, core->rng().exportStates());

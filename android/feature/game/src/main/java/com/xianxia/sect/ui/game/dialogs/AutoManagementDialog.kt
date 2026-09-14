@@ -37,12 +37,13 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.delegate.AutoAssignSpec
 import com.xianxia.sect.ui.game.components.NumberInputPanel
 
 /** 自动分配属性门槛上限（阈值输入钳制目标） */
 private const val AUTO_ASSIGN_THRESHOLD_MAX = 999
 
-/** 自动分配单项状态（AutoManagementDialog 拆分） */
+/** 自动分配单项状态 */
 private class AutoAssignSectionState(
     initialFocused: Boolean,
     initialRootCounts: List<Int>,
@@ -53,7 +54,7 @@ private class AutoAssignSectionState(
     var threshold by mutableStateOf(initialThreshold)
 }
 
-/** 自动管理对话框状态（AutoManagementDialog 拆分） */
+/** 自动管理对话框状态 */
 private class AutoManagementState(policies: SectPolicies?) {
     val mine = AutoAssignSectionState(
         policies?.autoMineFocused ?: false,
@@ -99,15 +100,15 @@ fun AutoManagementDialog(
     fun parsedThreshold(value: String): Int = value.toIntOrNull()?.coerceIn(1, 999) ?: 1
 
     fun saveAll() {
-        viewModel.setAutoAssignSettings(
-            state.mine.focused, state.mine.rootCounts, parsedThreshold(state.mine.threshold),
-            state.alchemy.focused, state.alchemy.rootCounts, parsedThreshold(state.alchemy.threshold),
-            state.forge.focused, state.forge.rootCounts, parsedThreshold(state.forge.threshold),
-            state.singleResidence.focused, state.singleResidence.rootCounts,
-            parsedThreshold(state.singleResidence.threshold),
-            state.multiResidence.focused, state.multiResidence.rootCounts,
-            parsedThreshold(state.multiResidence.threshold),
-            state.plant.focused, state.plant.rootCounts, parsedThreshold(state.plant.threshold)
+        fun specOf(s: AutoAssignSectionState) =
+            AutoAssignSpec(s.focused, s.rootCounts, parsedThreshold(s.threshold))
+        viewModel.autoAssign.setAutoAssignSettings(
+            mine = specOf(state.mine),
+            alchemy = specOf(state.alchemy),
+            forge = specOf(state.forge),
+            singleResidence = specOf(state.singleResidence),
+            multiResidence = specOf(state.multiResidence),
+            plant = specOf(state.plant)
         )
     }
 
@@ -116,7 +117,7 @@ fun AutoManagementDialog(
         title = "自动管理",
         mode = DialogMode.Half,
         scrollableContent = false,
-        // 含阈值输入框：冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        // 含阈值输入框：冻结宿主窗口系统栏操作，避免键盘弹出时部分机型频闪
         freezeSystemBars = true
     ) {
         val scrollState = rememberScrollState()
@@ -168,7 +169,7 @@ fun AutoManagementDialog(
     }
 }
 
-/** 自动分配区块（AutoManagementDialog 拆分）：标题 + 勾选行 + 阈值输入 */
+/** 自动分配区块：标题 + 勾选行 + 阈值输入（直写区块状态） */
 @Composable
 private fun AutoAssignSectionBlock(
     title: String,
@@ -176,22 +177,10 @@ private fun AutoAssignSectionBlock(
     state: AutoAssignSectionState,
     onChanged: () -> Unit
 ) {
-    AutoAssignSection(
-        title = title,
-        attrLabel = attrLabel,
-        focused = state.focused,
-        rootCounts = state.rootCounts,
-        threshold = state.threshold,
-        onFocusedToggle = { state.focused = !state.focused; onChanged() },
-        onRootToggle = { count ->
-            state.rootCounts = toggleRootCount(state.rootCounts, count)
-            onChanged()
-        },
-        onThresholdChange = { state.threshold = it; onChanged() }
-    )
+    AutoAssignSection(title = title, attrLabel = attrLabel, state = state, onChanged = onChanged)
 }
 
-/** 灵根数量开关切换（AutoManagementDialog 拆分） */
+/** 灵根数量开关切换 */
 private fun toggleRootCount(current: List<Int>, count: Int): List<Int> =
     if (count in current) current - count else current + count
 
@@ -199,12 +188,8 @@ private fun toggleRootCount(current: List<Int>, count: Int): List<Int> =
 private fun AutoAssignSection(
     title: String,
     attrLabel: String,
-    focused: Boolean,
-    rootCounts: List<Int>,
-    threshold: String,
-    onFocusedToggle: () -> Unit,
-    onRootToggle: (Int) -> Unit,
-    onThresholdChange: (String) -> Unit
+    state: AutoAssignSectionState,
+    onChanged: () -> Unit
 ) {
     Column {
         Text(
@@ -215,23 +200,26 @@ private fun AutoAssignSection(
         )
 
         AutoAssignCheckRow(
-            focused = focused,
-            rootCounts = rootCounts,
-            onFocusedToggle = onFocusedToggle,
-            onRootToggle = onRootToggle
+            focused = state.focused,
+            rootCounts = state.rootCounts,
+            onFocusedToggle = { state.focused = !state.focused; onChanged() },
+            onRootToggle = { count ->
+                state.rootCounts = toggleRootCount(state.rootCounts, count)
+                onChanged()
+            }
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
         AutoAssignThresholdField(
             attrLabel = attrLabel,
-            threshold = threshold,
-            onThresholdChange = onThresholdChange
+            threshold = state.threshold,
+            onThresholdChange = { state.threshold = it; onChanged() }
         )
     }
 }
 
-/** 已关注 + 灵根数勾选行（AutoAssignSection 拆分） */
+/** 已关注 + 灵根数勾选行 */
 @Composable
 private fun AutoAssignCheckRow(
     focused: Boolean,
@@ -267,8 +255,8 @@ private fun AutoAssignCheckRow(
 }
 
 /**
- * 属性门槛输入行（AutoAssignSection 拆分）：点击阈值框弹出自绘数字面板
- * （NumberInputPanel，2026-09 IME 状态机根治：数字输入绕开系统 IME）。
+ * 属性门槛输入行：点击阈值框弹出自绘数字面板
+ * （NumberInputPanel：数字输入绕开系统 IME）。
  */
 @Composable
 private fun AutoAssignThresholdField(

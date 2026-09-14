@@ -2,6 +2,7 @@ package com.xianxia.sect.data.incremental
 
 import android.util.Log
 import com.xianxia.sect.data.local.GameDatabase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -14,9 +15,9 @@ class ChangeLogPersistence @Inject constructor(
     companion object {
         private const val TAG = "ChangeLogPersistence"
         private const val MAX_LOG_AGE_MS = 7 * 24 * 60 * 60 * 1000L
-        private const val CLEANUP_BATCH_SIZE = 500
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun logChange(
         tableName: String,
         recordId: String,
@@ -35,15 +36,20 @@ class ChangeLogPersistence @Inject constructor(
                 synced = false
             )
             database.changeLogDao().insert(entity)
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 变更日志写入取消时上抛, 不静默丢日志
         } catch (e: Exception) {
             Log.w(TAG, "Failed to log change for $tableName:$recordId", e)
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun logBatchChanges(changes: List<ChangeLogEntry>) = withContext(Dispatchers.IO) {
         try {
             val entities = changes.map { it.toEntity() }
             database.changeLogDao().insertAll(entities)
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 批量日志写入取消时上抛, 不静默丢整批日志
         } catch (e: Exception) {
             Log.w(TAG, "Failed to log batch changes (${changes.size} entries)", e)
         }
@@ -53,10 +59,7 @@ class ChangeLogPersistence @Inject constructor(
         database.changeLogDao().getUnsynced(limit)
     }
 
-    suspend fun markSynced(ids: List<Long>) = withContext(Dispatchers.IO) {
-        database.changeLogDao().markSynced(ids)
-    }
-
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun cleanupOldLogs() = withContext(Dispatchers.IO) {
         try {
             val threshold = System.currentTimeMillis() - MAX_LOG_AGE_MS
@@ -64,15 +67,20 @@ class ChangeLogPersistence @Inject constructor(
             if (deleted > 0) {
                 Log.i(TAG, "Cleaned up $deleted old synced change logs")
             }
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 日志清理取消时上抛, 下次清理窗口重试
         } catch (e: Exception) {
             Log.w(TAG, "Failed to cleanup old logs", e)
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     suspend fun getPendingCount(): Int = withContext(Dispatchers.IO) {
         try {
             database.changeLogDao().getCount()
-        } catch (e: Exception) {
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 取消时上抛, 不以 0 冒充"无待同步日志"
+        } catch (ignored: Exception) {
             0
         }
     }

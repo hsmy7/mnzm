@@ -16,7 +16,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffDiscipleFactoryTest — 弟子创建跨语言差分对拍（批 13-4b）。
+ * DiffDiscipleFactoryTest — 弟子创建跨语言差分对拍。
  *
  * 守护目标：Kotlin `DiscipleFactory.create`（core/engine/domain/disciple/
  * DiscipleFactory.kt）与 C++ `gamecore::system::createDisciple`

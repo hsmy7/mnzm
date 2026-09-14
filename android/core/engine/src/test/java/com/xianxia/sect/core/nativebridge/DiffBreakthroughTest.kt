@@ -10,7 +10,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffBreakthroughTest — 突破系统跨语言差分对拍（批次 5c 验收核心）。
+ * DiffBreakthroughTest — 突破系统跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::breakthrough（成功/失败应用、突破循环、
  * 完成时间预估）与 Kotlin DiscipleBreakthroughHandler / LazyEvaluationDispatcher

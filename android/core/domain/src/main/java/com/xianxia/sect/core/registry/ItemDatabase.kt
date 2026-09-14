@@ -10,6 +10,8 @@ import com.xianxia.sect.core.model.PillGrade
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
+@Suppress("TooManyFunctions") // 静态注册表：查询原语（按 id/名称/稀有度/档位维度）+ 私有数据表构建器，
+// 函数数随数据表查询维度线性增长；构建器与表定义同址内聚，拆分损害可读性
 object ItemDatabase {
 
     data class PillTemplate(
@@ -130,7 +132,7 @@ object ItemDatabase {
         return pills
     }
 
-    /** 修炼速度类丹药（generateCultivationPills 拆分）：引灵/悟法/养器三系速度丹 */
+    /** 修炼速度类丹药：引灵/悟法/养器三系速度丹 */
     private fun addCultivationSpeedGradePills(
         pills: MutableList<PillTemplate>,
         tier: Int,
@@ -154,7 +156,7 @@ object ItemDatabase {
                 description = "${tierName}${g}修炼速度丹，提升境界修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
                 price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                 cultivationSpeedPercent = applyGrade(speedPct, grade),
-                // duration 以旬为单位，9 旬与描述"持续9旬"一致（2026-08 修复：原 3 旬描述不符）
+                // duration 以旬为单位，9 旬与描述"持续9旬"一致
                 duration = 9,
                 cannotStack = true,
                 minRealm = tierMinRealm(tier)
@@ -167,7 +169,8 @@ object ItemDatabase {
                 grade = grade,
                 rarity = rarity,
                 pillType = "skillExpSpeed",
-                description = "${tierName}${g}功法速度丹，提升功法熟练度修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
+                description =
+                    "${tierName}${g}功法速度丹，提升功法熟练度修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
                 price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                 skillExpSpeedPercent = applyGrade(speedPct, grade),
                 duration = 9,
@@ -182,7 +185,8 @@ object ItemDatabase {
                 grade = grade,
                 rarity = rarity,
                 pillType = "nurtureSpeed",
-                description = "${tierName}${g}孕养速度丹，提升装备孕养等级修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
+                description =
+                    "${tierName}${g}孕养速度丹，提升装备孕养等级修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
                 price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                 nurtureSpeedPercent = applyGrade(speedPct, grade),
                 duration = 9,
@@ -192,7 +196,7 @@ object ItemDatabase {
         }
     }
 
-    /** 修为/熟练度直接增加值丹药（generateCultivationPills 拆分）：增元/悟道/蕴器三系加值丹 */
+    /** 修为/熟练度直接增加值丹药：增元/悟道/蕴器三系加值丹 */
     private fun addCultivationValueGradePills(
         pills: MutableList<PillTemplate>,
         tier: Int,
@@ -253,8 +257,7 @@ object ItemDatabase {
         }
     }
 
-    /** 突破类丹药（generateCultivationPills 拆分）：聚气/筑基/凝金等突破成功率丹 */
-    // 拆分搬移:嵌套/条件结构与原函数一致
+    /** 突破类丹药：聚气/筑基/凝金等突破成功率丹 */
     @Suppress("NestedBlockDepth")
     private fun addCultivationBreakthroughPills(pills: MutableList<PillTemplate>) {
         val breakthroughData = listOf(
@@ -314,15 +317,17 @@ object ItemDatabase {
         return pills
     }
 
-    /** 单属性战斗丹药（generateBattlePills 拆分）：物攻/法攻/物防/法防/生命/灵力/速度 */
+    /** 单属性战斗丹药：物攻/法攻/物防/法防/生命/灵力/速度 */
     private fun addSingleAttrBattlePills(
         pills: MutableList<PillTemplate>,
         refMaps: Map<String, Map<Int, Int>>
     ) {
         val singleAttrConfigs = listOf(
-            Triple("physicalAttack", "物攻", mapOf(1 to "虎力丹", 2 to "熊力丹", 3 to "龙力丹", 4 to "神力丹", 5 to "霸力丹", 6 to "天力丹")),
+            Triple("physicalAttack", "物攻", mapOf(1 to "虎力丹", 2 to "熊力丹", 3 to "龙力丹", 4 to "神力丹", 5 to "霸力丹",
+                6 to "天力丹")),
             Triple("magicAttack", "法攻", mapOf(1 to "灵火丹", 2 to "真火丹", 3 to "三昧丹", 4 to "玄火丹", 5 to "地火丹", 6 to "天火丹")),
-            Triple("physicalDefense", "物防", mapOf(1 to "铁甲丹", 2 to "铜墙丹", 3 to "金刚丹", 4 to "玄盾丹", 5 to "地罡丹", 6 to "天罡丹")),
+            Triple("physicalDefense", "物防", mapOf(1 to "铁甲丹", 2 to "铜墙丹", 3 to "金刚丹", 4 to "玄盾丹", 5 to "地罡丹",
+                6 to "天罡丹")),
             Triple("magicDefense", "法防", mapOf(1 to "灵盾丹", 2 to "法盾丹", 3 to "神盾丹", 4 to "玄罡丹", 5 to "地护丹", 6 to "天护丹")),
             Triple("hp", "生命", mapOf(1 to "气血丹", 2 to "血精丹", 3 to "血魂丹", 4 to "玄血丹", 5 to "地血丹", 6 to "天血丹")),
             Triple("mp", "灵力", mapOf(1 to "回灵丹", 2 to "汇灵丹", 3 to "凝灵丹", 4 to "玄灵丹", 5 to "地灵丹", 6 to "天灵丹")),
@@ -364,7 +369,7 @@ object ItemDatabase {
         }
     }
 
-    /** 双属性战斗丹药配置（generateBattlePills 拆分） */
+    /** 双属性战斗丹药配置 */
     private data class DualAttrConfig(
         val pillType: String,
         val attr1: String,
@@ -373,8 +378,7 @@ object ItemDatabase {
         val names: Map<Int, String>
     )
 
-    /** 双属性战斗丹药（generateBattlePills 拆分）：物法双攻/双防/生命灵力/攻速等 */
-    // 拆分搬移:分支结构与原函数一致
+    /** 双属性战斗丹药：物法双攻/双防/生命灵力/攻速等 */
     @Suppress("CyclomaticComplexMethod")
     private fun addDualAttrBattlePills(
         pills: MutableList<PillTemplate>,
@@ -416,14 +420,19 @@ object ItemDatabase {
                         grade = grade,
                         rarity = rarity,
                         pillType = config.pillType,
-                        description = "${tierName}${g}${config.descName}丹，增加${v1}点${config.attr1}和${v2}点${config.attr2}，持续9旬",
+                        description =
+                            "${tierName}${g}${config.descName}丹，增加${v1}点${config.attr1}和${v2}点${config.attr2}，持续9旬",
                         price = (tierPrice(tier) * 1.2 * grade.priceMultiplier).roundToInt(),
                         duration = 3,
                         cannotStack = true,
-                        physicalAttackAdd = if (config.attr1 == "physicalAttack") v1 else if (config.attr2 == "physicalAttack") v2 else 0,
-                        magicAttackAdd = if (config.attr1 == "magicAttack") v1 else if (config.attr2 == "magicAttack") v2 else 0,
-                        physicalDefenseAdd = if (config.attr1 == "physicalDefense") v1 else if (config.attr2 == "physicalDefense") v2 else 0,
-                        magicDefenseAdd = if (config.attr1 == "magicDefense") v1 else if (config.attr2 == "magicDefense") v2 else 0,
+                        physicalAttackAdd = if (config.attr1 == "physicalAttack") v1 else if (config
+                            .attr2 == "physicalAttack") v2 else 0,
+                        magicAttackAdd = if (config.attr1 == "magicAttack") v1 else if (config
+                            .attr2 == "magicAttack") v2 else 0,
+                        physicalDefenseAdd = if (config.attr1 == "physicalDefense") v1 else if (config
+                            .attr2 == "physicalDefense") v2 else 0,
+                        magicDefenseAdd = if (config.attr1 == "magicDefense") v1 else if (config
+                            .attr2 == "magicDefense") v2 else 0,
                         hpAdd = if (config.attr1 == "hp") v1 else if (config.attr2 == "hp") v2 else 0,
                         mpAdd = if (config.attr1 == "mp") v1 else if (config.attr2 == "mp") v2 else 0,
                         speedAdd = if (config.attr1 == "speed") v1 else if (config.attr2 == "speed") v2 else 0,
@@ -434,7 +443,7 @@ object ItemDatabase {
         }
     }
 
-    /** 暴击率/暴击效果战斗丹药（generateBattlePills 拆分） */
+    /** 暴击率/暴击效果战斗丹药 */
     private fun addCritBattlePills(pills: MutableList<PillTemplate>) {
         val critRateNames = mapOf(1 to "破击丹", 2 to "锐击丹", 3 to "必杀丹", 4 to "玄击丹", 5 to "绝杀丹", 6 to "天击丹")
         val critEffectNames = mapOf(1 to "烈击丹", 2 to "猛击丹", 3 to "暴烈丹", 4 to "玄烈丹", 5 to "毁灭丹", 6 to "天裂丹")
@@ -487,7 +496,7 @@ object ItemDatabase {
         return pills
     }
 
-    /** 延寿类功能丹药（generateFunctionalPills 拆分） */
+    /** 延寿类功能丹药 */
     private fun addExtendLifePills(pills: MutableList<PillTemplate>) {
         val extendLifeNames = mapOf(1 to "延寿丹", 2 to "续命丹", 3 to "长生丹", 4 to "不老丹", 5 to "万寿丹", 6 to "永生丹")
         for (tier in 1..6) {
@@ -514,26 +523,36 @@ object ItemDatabase {
         }
     }
 
-    /** 单基础属性功能丹药配置（generateFunctionalPills 拆分） */
+    /** 单基础属性功能丹药配置 */
     private data class BaseAttrConfig(
         val pillType: String,
         val attrName: String,
         val names: Map<Int, String>
     )
 
-    /** 单基础属性功能丹药（generateFunctionalPills 拆分）：智力/魅力/忠诚/悟性等 */
+    /** 单基础属性功能丹药：智力/魅力/忠诚/悟性等 */
     private fun addSingleBaseAttrPills(pills: MutableList<PillTemplate>) {
         val baseAttrConfigs = listOf(
-            BaseAttrConfig("intelligence", "智力", mapOf(1 to "慧根丹", 2 to "灵慧丹", 3 to "明慧丹", 4 to "玄慧丹", 5 to "地慧丹", 6 to "天慧丹")),
-            BaseAttrConfig("charm", "魅力", mapOf(1 to "仙姿丹", 2 to "灵姿丹", 3 to "玉姿丹", 4 to "玄姿丹", 5 to "地姿丹", 6 to "天姿丹")),
-            BaseAttrConfig("loyalty", "忠诚", mapOf(1 to "忠心丹", 2 to "赤诚丹", 3 to "铁心丹", 4 to "玄心丹", 5 to "地心丹", 6 to "天心丹")),
-            BaseAttrConfig("comprehension", "悟性", mapOf(1 to "悟道丹", 2 to "明悟丹", 3 to "通悟丹", 4 to "玄悟丹", 5 to "地悟丹", 6 to "天悟丹")),
-            BaseAttrConfig("artifactRefining", "炼器", mapOf(1 to "铸魂丹", 2 to "灵铸丹", 3 to "宝铸丹", 4 to "玄铸丹", 5 to "地铸丹", 6 to "天铸丹")),
-            BaseAttrConfig("pillRefining", "炼丹", mapOf(1 to "丹心丹", 2 to "灵丹丹", 3 to "宝丹丹", 4 to "玄丹丹", 5 to "地丹丹", 6 to "天丹丹")),
-            BaseAttrConfig("spiritPlanting", "种植", mapOf(1 to "灵植丹", 2 to "灵耘丹", 3 to "宝耘丹", 4 to "玄耘丹", 5 to "地耘丹", 6 to "天耘丹")),
-            BaseAttrConfig("teaching", "教学", mapOf(1 to "传道丹", 2 to "灵传丹", 3 to "宝传丹", 4 to "玄传丹", 5 to "地传丹", 6 to "天传丹")),
-            BaseAttrConfig("morality", "道德", mapOf(1 to "善行丹", 2 to "灵善丹", 3 to "宝善丹", 4 to "玄善丹", 5 to "地善丹", 6 to "天善丹")),
-            BaseAttrConfig("mining", "采矿", mapOf(1 to "探矿丹", 2 to "灵石丹", 3 to "宝矿丹", 4 to "玄矿丹", 5 to "地矿丹", 6 to "天矿丹"))
+            BaseAttrConfig("intelligence", "智力", mapOf(1 to "慧根丹", 2 to "灵慧丹", 3 to "明慧丹", 4 to "玄慧丹", 5 to "地慧丹",
+                6 to "天慧丹")),
+            BaseAttrConfig("charm", "魅力", mapOf(1 to "仙姿丹", 2 to "灵姿丹", 3 to "玉姿丹", 4 to "玄姿丹", 5 to "地姿丹",
+                6 to "天姿丹")),
+            BaseAttrConfig("loyalty", "忠诚", mapOf(1 to "忠心丹", 2 to "赤诚丹", 3 to "铁心丹", 4 to "玄心丹", 5 to "地心丹",
+                6 to "天心丹")),
+            BaseAttrConfig("comprehension", "悟性", mapOf(1 to "悟道丹", 2 to "明悟丹", 3 to "通悟丹", 4 to "玄悟丹", 5 to "地悟丹",
+                6 to "天悟丹")),
+            BaseAttrConfig("artifactRefining", "炼器", mapOf(1 to "铸魂丹", 2 to "灵铸丹", 3 to "宝铸丹", 4 to "玄铸丹", 5 to "地铸丹",
+                6 to "天铸丹")),
+            BaseAttrConfig("pillRefining", "炼丹", mapOf(1 to "丹心丹", 2 to "灵丹丹", 3 to "宝丹丹", 4 to "玄丹丹", 5 to "地丹丹",
+                6 to "天丹丹")),
+            BaseAttrConfig("spiritPlanting", "种植", mapOf(1 to "灵植丹", 2 to "灵耘丹", 3 to "宝耘丹", 4 to "玄耘丹", 5 to "地耘丹",
+                6 to "天耘丹")),
+            BaseAttrConfig("teaching", "教学", mapOf(1 to "传道丹", 2 to "灵传丹", 3 to "宝传丹", 4 to "玄传丹", 5 to "地传丹",
+                6 to "天传丹")),
+            BaseAttrConfig("morality", "道德", mapOf(1 to "善行丹", 2 to "灵善丹", 3 to "宝善丹", 4 to "玄善丹", 5 to "地善丹",
+                6 to "天善丹")),
+            BaseAttrConfig("mining", "采矿", mapOf(1 to "探矿丹", 2 to "灵石丹", 3 to "宝矿丹", 4 to "玄矿丹", 5 to "地矿丹",
+                6 to "天矿丹"))
         )
 
         for (config in baseAttrConfigs) {
@@ -571,7 +590,7 @@ object ItemDatabase {
         }
     }
 
-    /** 双基础属性功能丹药配置（generateFunctionalPills 拆分） */
+    /** 双基础属性功能丹药配置 */
     private data class DualBaseAttrConfig(
         val pillType: String,
         val attr1: String,
@@ -580,8 +599,7 @@ object ItemDatabase {
         val names: Map<Int, String>
     )
 
-    /** 双基础属性功能丹药（generateFunctionalPills 拆分）：智悟/魅忠/双炼/师农等 */
-    // 拆分搬移:嵌套/条件结构与原函数一致
+    /** 双基础属性功能丹药：智悟/魅忠/双炼/师农等 */
     @Suppress("NestedBlockDepth")
     private fun addDualBaseAttrPills(pills: MutableList<PillTemplate>) {
         val dualBaseConfigs = listOf(
@@ -620,7 +638,8 @@ object ItemDatabase {
                         grade = grade,
                         rarity = rarity,
                         pillType = config.pillType,
-                        description = "${tierName}${g}${config.descName}丹，永久增加${v1}点${config.attr1}和${v2}点${config.attr2}",
+                        description =
+                            "${tierName}${g}${config.descName}丹，永久增加${v1}点${config.attr1}和${v2}点${config.attr2}",
                         price = (tierPrice(tier) * 1.2 * grade.priceMultiplier).roundToInt(),
                         intelligenceAdd = attrVal("intelligence"),
                         charmAdd = attrVal("charm"),
@@ -748,13 +767,15 @@ object ItemDatabase {
         )
     }
 
-    fun generateRandomPill(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Pill {
+    fun generateRandomPill(minRarity: Int = 1, maxRarity: Int = 6,
+        random: kotlin.random.Random = kotlin.random.Random): Pill {
         val pills = allPills.values.filter { it.rarity in minRarity..maxRarity }
         val template = pills.random(random)
         return createPillFromTemplate(template)
     }
 
-    fun generateRandomMaterial(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Material {
+    fun generateRandomMaterial(minRarity: Int = 1, maxRarity: Int = 6,
+        random: kotlin.random.Random = kotlin.random.Random): Material {
         val materials = allMaterials.values.filter { it.rarity in minRarity..maxRarity }
         val template = materials.random(random)
         return createMaterialFromTemplate(template)

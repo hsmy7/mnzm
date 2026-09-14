@@ -5,6 +5,8 @@ import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.profession.ProfessionRules
 
+@Suppress("TooManyFunctions") // 静态注册表：查询原语（按 id/名称/稀有度/档位维度）+ 私有数据表构建器，
+// 函数数随数据表查询维度线性增长；构建器与表定义同址内聚，拆分损害可读性
 object PillRecipeDatabase {
 
     /** 最高配方品阶（天品），默认不过滤 */
@@ -56,14 +58,21 @@ object PillRecipeDatabase {
     private val TIER_SUCCESS_RATE = mapOf(1 to 0.75, 2 to 0.65, 3 to 0.60, 4 to 0.45, 5 to 0.35, 6 to 0.20)
 
     private val TIER_HERB_IDS = mapOf(
-        1 to listOf("spiritGrass1", "spiritGrass2", "spiritGrass3", "spiritFlower1", "spiritFlower2", "spiritFlower3", "spiritFruit1", "spiritFruit2", "spiritFruit3"),
-        2 to listOf("spiritGrass4", "spiritGrass5", "spiritGrass6", "spiritFlower4", "spiritFlower5", "spiritFlower6", "spiritFruit4", "spiritFruit5", "spiritFruit6"),
-        3 to listOf("spiritGrass7", "spiritGrass8", "spiritGrass9", "spiritFlower7", "spiritFlower8", "spiritFlower9", "spiritFruit7", "spiritFruit8", "spiritFruit9"),
-        4 to listOf("spiritGrass10", "spiritGrass11", "spiritGrass12", "spiritFlower10", "spiritFlower11", "spiritFlower12", "spiritFruit10", "spiritFruit11", "spiritFruit12"),
-        5 to listOf("spiritGrass13", "spiritGrass14", "spiritGrass15", "spiritFlower13", "spiritFlower14", "spiritFlower15", "spiritFruit13", "spiritFruit14", "spiritFruit15"),
-        6 to listOf("spiritGrass16", "spiritGrass17", "spiritGrass18", "spiritFlower16", "spiritFlower17", "spiritFlower18", "spiritFruit16", "spiritFruit17", "spiritFruit18")
+        1 to listOf("spiritGrass1", "spiritGrass2", "spiritGrass3", "spiritFlower1", "spiritFlower2", "spiritFlower3",
+            "spiritFruit1", "spiritFruit2", "spiritFruit3"),
+        2 to listOf("spiritGrass4", "spiritGrass5", "spiritGrass6", "spiritFlower4", "spiritFlower5", "spiritFlower6",
+            "spiritFruit4", "spiritFruit5", "spiritFruit6"),
+        3 to listOf("spiritGrass7", "spiritGrass8", "spiritGrass9", "spiritFlower7", "spiritFlower8", "spiritFlower9",
+            "spiritFruit7", "spiritFruit8", "spiritFruit9"),
+        4 to listOf("spiritGrass10", "spiritGrass11", "spiritGrass12", "spiritFlower10", "spiritFlower11",
+            "spiritFlower12", "spiritFruit10", "spiritFruit11", "spiritFruit12"),
+        5 to listOf("spiritGrass13", "spiritGrass14", "spiritGrass15", "spiritFlower13", "spiritFlower14",
+            "spiritFlower15", "spiritFruit13", "spiritFruit14", "spiritFruit15"),
+        6 to listOf("spiritGrass16", "spiritGrass17", "spiritGrass18", "spiritFlower16", "spiritFlower17",
+            "spiritFlower18", "spiritFruit16", "spiritFruit17", "spiritFruit18")
     )
 
+    @Suppress("SpreadOperator") // 内部表驱动 DSL 的 vararg 形参（indices）由模板数组散布填充，改 List 反增样板
     private fun herbMat(tier: Int, vararg indices: Int): Map<String, Int> {
         val herbs = TIER_HERB_IDS.getValue(tier)
         val result = mutableMapOf<String, Int>()
@@ -81,9 +90,11 @@ object PillRecipeDatabase {
         return recipes
     }
 
-    /** 常规修炼配方（generateCultivationRecipes 拆分）：六系修炼/加值丹配方 */
+    /** 常规修炼配方：六系修炼/加值丹配方 */
+    @Suppress("SpreadOperator") // herbMat 调用点: 内部表驱动 DSL，模板数组经 vararg 形参散布填充（定义侧同理由）
     private fun addCultivationStandardRecipes(recipes: MutableList<PillRecipe>) {
-        val pillTypes = listOf("cultivationSpeed", "skillExpSpeed", "nurtureSpeed", "cultivationAdd", "skillExpAdd", "nurtureAdd")
+        val pillTypes = listOf("cultivationSpeed", "skillExpSpeed", "nurtureSpeed", "cultivationAdd", "skillExpAdd",
+            "nurtureAdd")
         val herbPatterns = listOf(
             listOf(0, 3), listOf(1, 6), listOf(2, 4), listOf(0, 7), listOf(5, 8), listOf(3, 7)
         )
@@ -121,7 +132,7 @@ object PillRecipeDatabase {
         }
     }
 
-    /** 突破配方（generateCultivationRecipes 拆分）：聚气/筑基/凝金等突破成功率丹配方 */
+    /** 突破配方：聚气/筑基/凝金等突破成功率丹配方 */
     private fun addCultivationBreakthroughRecipes(recipes: MutableList<PillRecipe>) {
         val breakthroughData = listOf(
             Pair(1, listOf(Pair(9, "聚气丹"))),
@@ -148,7 +159,8 @@ object PillRecipeDatabase {
                     (materials as MutableMap)[herbs[(idx * 2 + 5) % herbs.size]] = 2
                 }
                 for (grade in PillGrade.entries) {
-                    val template = ItemDatabase.getPillById("breakthrough_${targetRealm}_${grade.name.lowercase()}") ?: continue
+                    val template = ItemDatabase
+                        .getPillById("breakthrough_${targetRealm}_${grade.name.lowercase()}") ?: continue
                     recipes.add(PillRecipe(
                         id = template.id,
                         name = template.name,
@@ -179,13 +191,14 @@ object PillRecipeDatabase {
         return recipes
     }
 
-    /** 单属性战斗配方（generateBattleRecipes 拆分） */
+    /** 单属性战斗配方 */
     private fun addBattleSingleRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
         val duration = TIER_DURATION.getValue(tier)
         val successRate = TIER_SUCCESS_RATE.getValue(tier)
         val rarity = tier
         val herbs = TIER_HERB_IDS.getValue(tier)
-        val singleTypes = listOf("physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "hp", "mp", "speed")
+        val singleTypes = listOf("physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "hp", "mp",
+            "speed")
 
         for ((idx, pillType) in singleTypes.withIndex()) {
             val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 4) % herbs.size] to 2)
@@ -215,13 +228,14 @@ object PillRecipeDatabase {
         }
     }
 
-    /** 双属性战斗配方（generateBattleRecipes 拆分） */
+    /** 双属性战斗配方 */
     private fun addBattleDualRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
         val duration = TIER_DURATION.getValue(tier)
         val successRate = TIER_SUCCESS_RATE.getValue(tier)
         val rarity = tier
         val herbs = TIER_HERB_IDS.getValue(tier)
-        val dualTypes = listOf("physicalAttackDefense", "magicAttackDefense", "attackMixed", "defenseMixed", "hpMp", "attackSpeed", "magicSpeed")
+        val dualTypes = listOf("physicalAttackDefense", "magicAttackDefense", "attackMixed", "defenseMixed", "hpMp",
+            "attackSpeed", "magicSpeed")
 
         for ((idx, pillType) in dualTypes.withIndex()) {
             val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 3) % herbs.size] to 2)
@@ -251,7 +265,7 @@ object PillRecipeDatabase {
         }
     }
 
-    /** 暴击类战斗配方（generateBattleRecipes 拆分） */
+    /** 暴击类战斗配方 */
     private fun addBattleCritRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
         val duration = TIER_DURATION.getValue(tier)
         val successRate = TIER_SUCCESS_RATE.getValue(tier)
@@ -291,13 +305,14 @@ object PillRecipeDatabase {
         return recipes
     }
 
-    /** 单基础属性功能配方（generateFunctionalRecipes 拆分） */
+    /** 单基础属性功能配方 */
     private fun addFunctionalSingleRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
         val duration = TIER_DURATION.getValue(tier)
         val successRate = TIER_SUCCESS_RATE.getValue(tier)
         val rarity = tier
         val herbs = TIER_HERB_IDS.getValue(tier)
-        val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining", "pillRefining", "spiritPlanting", "teaching", "morality", "mining")
+        val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining",
+            "pillRefining", "spiritPlanting", "teaching", "morality", "mining")
 
         for ((idx, pillType) in singleTypes.withIndex()) {
             val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 6) % herbs.size] to 2)
@@ -331,13 +346,14 @@ object PillRecipeDatabase {
         }
     }
 
-    /** 双基础属性功能配方（generateFunctionalRecipes 拆分） */
+    /** 双基础属性功能配方 */
     private fun addFunctionalDualRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
         val duration = TIER_DURATION.getValue(tier)
         val successRate = TIER_SUCCESS_RATE.getValue(tier)
         val rarity = tier
         val herbs = TIER_HERB_IDS.getValue(tier)
-        val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining", "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")
+        val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining",
+            "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")
 
         for ((idx, pillType) in dualTypes.withIndex()) {
             val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 2) % herbs.size] to 2)
@@ -398,9 +414,11 @@ object PillRecipeDatabase {
 
     fun getRecipeByName(name: String): PillRecipe? = _allRecipes.find { it.name == name }
 
-    fun getRecipeByNameAndGrade(name: String, grade: PillGrade): PillRecipe? = _allRecipes.find { it.name == name && it.grade == grade }
+    fun getRecipeByNameAndGrade(name: String,
+        grade: PillGrade): PillRecipe? = _allRecipes.find { it.name == name && it.grade == grade }
 
-    fun getRecipesByMaterial(materialId: String): List<PillRecipe> = _allRecipes.filter { it.materials.containsKey(materialId) }
+    fun getRecipesByMaterial(materialId: String): List<PillRecipe> = _allRecipes.filter { it.materials
+        .containsKey(materialId) }
 
     fun getRecipesByHerb(herbId: String): List<PillRecipe> = _allRecipes.filter { it.materials.containsKey(herbId) }
 

@@ -3,10 +3,10 @@ package com.xianxia.sect.core.util
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.model.SectRelationLevel
-import com.xianxia.sect.core.domain.FavorDomain
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.random.Random
+import com.xianxia.sect.core.domain.calculateTradePriceMultiplier
 
 class GameUtilsTest {
 
@@ -336,7 +336,7 @@ class GameUtilsTest {
     // ════════════════════════════════════════════════════════════
     // 以下测试已移至 FavorDomainTest，使用 FavorDomain 替代 GameUtils
     // · getSectRelation     → FavorDomain.findFavor()
-    // · calculateSectTradePriceMultiplier → FavorDomain.calculateTradePriceMultiplier()
+    // · calculateSectTradePriceMultiplier → calculateTradePriceMultiplier()（FavorDomain.kt 文件级）
     // ════════════════════════════════════════════════════════════
 
     @Test
@@ -346,7 +346,7 @@ class GameUtilsTest {
             Alliance(id = "a1", sectIds = listOf("player", "target"),
                 startYear = 1, initiatorId = "player")
         )
-        val multiplier = FavorDomain.calculateTradePriceMultiplier(relations, alliances, "target", "player")
+        val multiplier = calculateTradePriceMultiplier(relations, alliances, "target", "player")
         // isAlly, favor=80: 0.9 * (1.0 - max(0, 80-70)*0.01) = 0.9 * 0.9 = 0.81, clamp at 0.85
         assertTrue("Expected bigger discount for ally, got $multiplier", multiplier < 0.9)
     }

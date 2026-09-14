@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.startAlchemy
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import io.mockk.coEvery
@@ -25,7 +24,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 炼丹职业提示框测试（2026-08-09 职业系统）。
+ * 炼丹职业提示框测试。
  *
  * 覆盖 AlchemyViewModel 的三个提示事件出口：
  * 1. 槽位无弟子点击配方 → "需要有弟子才可炼制"
@@ -52,7 +51,7 @@ class AlchemyViewModelProfessionHintTest {
             engineBlocks += args[0] as suspend CoroutineScope.() -> Unit
             mockk<Job>(relaxed = true)
         }
-        viewModel = AlchemyViewModel(gameEngine, mockk<ElderManagementUseCase>(relaxed = true))
+        viewModel = AlchemyViewModel(gameEngine)
     }
 
     @After

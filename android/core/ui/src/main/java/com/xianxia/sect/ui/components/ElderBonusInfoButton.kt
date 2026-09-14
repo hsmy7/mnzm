@@ -90,7 +90,7 @@ fun ElderBonusInfoDialog(
     }
 }
 
-/** 长老加成信息框（ElderBonusInfoDialog 拆分）：背景图 + 标题/分隔线/属性/效果/公式 */
+/** 长老加成信息框：背景图 + 标题/分隔线/属性/效果/公式 */
 @Composable
 private fun ElderBonusInfoDialogFrame(
     bonusInfo: ElderBonusInfo,
@@ -143,7 +143,7 @@ private fun ElderBonusInfoDialogFrame(
     }
 }
 
-/** 标题行（ElderBonusInfoDialog 拆分）：标题 + 右上角关闭按钮 */
+/** 标题行：标题 + 右上角关闭按钮 */
 @Composable
 private fun ElderBonusInfoHeader(
     title: String,
@@ -169,7 +169,7 @@ private fun ElderBonusInfoHeader(
     }
 }
 
-/** 属性/效果行（ElderBonusInfoDialog 拆分）：标签 + 值 */
+/** 属性/效果行：标签 + 值 */
 @Composable
 private fun ElderBonusInfoFieldRow(
     label: String,
@@ -194,7 +194,7 @@ private fun ElderBonusInfoFieldRow(
     }
 }
 
-/** 加成计算框（ElderBonusInfoDialog 拆分） */
+/** 加成计算框 */
 @Composable
 private fun ElderBonusInfoFormulaBox(formula: String) {
     Box(
@@ -223,120 +223,124 @@ private fun ElderBonusInfoFormulaBox(formula: String) {
     }
 }
 
+/**
+ * 长老/弟子加成文案注册表：纯静态数据（不可变 [ElderBonusInfo]），以只读
+ * 属性而非函数暴露。
+ */
 object ElderBonusInfoProvider {
-    fun getLawEnforcementElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val lawEnforcementElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "执法长老",
         requiredAttribute = "智力",
         effectDescription = "提升执法堂抓捕偷盗弟子的概率",
         bonusFormula = "智力以50为基准，每多1点增加1%抓捕概率。\n智力低于50时无加成效果。\n抓捕概率影响偷盗和叛逃的截获率。"
     )
 
-    fun getLawEnforcementDiscipleInfo(): ElderBonusInfo = ElderBonusInfo(
+    val lawEnforcementDiscipleInfo: ElderBonusInfo = ElderBonusInfo(
         title = "执法弟子",
         requiredAttribute = "智力",
         effectDescription = "提升执法堂抓捕偷盗弟子的概率",
         bonusFormula = "智力以50为基准，每多5点增加1%抓捕概率。\n智力低于50时无加成效果。\n多名执法弟子加成可叠加。"
     )
 
-    fun getAlchemyElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val alchemyElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "炼丹长老",
         requiredAttribute = "炼丹",
         effectDescription = "长老提升炼制成功率，亲传弟子提升炼制速度",
         bonusFormula = "长老：炼丹属性以80为基准，每高1点增加1%成功率。\n亲传弟子：炼丹属性以80为基准，每高1点增加1%炼制速度。\n低于80时无加成效果。"
     )
 
-    fun getForgeElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val forgeElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "天工长老",
         requiredAttribute = "炼器",
         effectDescription = "长老提升锻造成功率，亲传弟子提升炼制速度",
         bonusFormula = "长老：炼器属性以80为基准，每高1点增加1%成功率。\n亲传弟子：炼器属性以80为基准，每高1点增加1%炼制速度。\n低于80时无加成效果。"
     )
 
-    fun getHerbGardenElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val herbGardenElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "灵植长老",
         requiredAttribute = "灵植",
         effectDescription = "长老全局提升所有灵田成熟速度",
         bonusFormula = "灵植属性以80为基准，每高4点增加1%成熟速度。\n最多增加20%成熟速度。\n加成为全局效果，不受灵植阁位置限制。"
     )
 
-    fun getHerbGardenDiscipleInfo(): ElderBonusInfo = ElderBonusInfo(
+    val herbGardenDiscipleInfo: ElderBonusInfo = ElderBonusInfo(
         title = "灵植弟子",
         requiredAttribute = "灵植",
         effectDescription = "灵植弟子在灵植阁范围内提升灵田成熟速度",
         bonusFormula = "灵植属性以50为基准，每高5点增加1%成熟速度。\n最多增加20%成熟速度。\n灵植阁范围半径6格，多座范围不叠加。"
     )
 
-    fun getLibraryElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val libraryElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "藏经阁长老",
         requiredAttribute = "传道",
         effectDescription = "提升弟子修炼功法速度",
         bonusFormula = "传道属性每多1点增加1%修炼功法速度。\n传道属性越高，弟子修炼功法越快。"
     )
 
-    fun getOuterElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val outerElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "外门长老",
         requiredAttribute = "悟性",
         effectDescription = "提升外门弟子突破率（仅外门弟子有效，弟子境界超过长老时不生效）",
         bonusFormula = "悟性以80为基准，每高4点增加1%突破率，最多增加10%。\n悟性低于80时无加成效果。\n仅对境界不超过长老的外门弟子生效。"
     )
 
-    fun getInnerElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val innerElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "内门长老",
         requiredAttribute = "悟性",
         effectDescription = "提升内门弟子突破成功率",
         bonusFormula = "悟性以80为基准，每高4点增加1%突破率，最多增加10%。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
-    fun getWenDaoPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val wenDaoPreachingElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "问道塔传道长老",
         requiredAttribute = "传道",
         effectDescription = "提升外门弟子修炼速度",
         bonusFormula = "传道以80为基准，每4点增加1%修炼速度，最多增加10%。\n仅对外门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
-    fun getQingyunPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val qingyunPreachingElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "青云塔传道长老",
         requiredAttribute = "传道",
         effectDescription = "提升内门弟子修炼速度",
         bonusFormula = "传道以80为基准，每4点增加1%修炼速度，最多增加10%。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
-    fun getPreachingMasterInfo(): ElderBonusInfo = ElderBonusInfo(
+    val preachingMasterInfo: ElderBonusInfo = ElderBonusInfo(
         title = "问道塔传道师",
         requiredAttribute = "传道",
         effectDescription = "提升外门弟子修炼速度（仅外门弟子有效，弟子境界超过传道师时不生效）",
         bonusFormula = "传道以60为基准，每10点增加1%修炼速度，最多增加5%。\n传道低于60时无加成效果。\n仅对境界不超过传道师的外门弟子生效。\n多名传道师加成可叠加。"
     )
 
-    fun getQingyunPreachingMasterInfo(): ElderBonusInfo = ElderBonusInfo(
+    val qingyunPreachingMasterInfo: ElderBonusInfo = ElderBonusInfo(
         title = "青云塔传道师",
         requiredAttribute = "传道",
         effectDescription = "提升内门弟子修炼速度",
         bonusFormula = "传道以60为基准，每10点增加1%修炼速度，最多增加5%。\n传道低于60时无加成效果。\n仅对内门弟子有效，弟子境界超过传道师境界时不享受增益。\n多名传道师加成可叠加。"
     )
 
-    fun getSpiritMineDeaconInfo(): ElderBonusInfo = ElderBonusInfo(
+    val spiritMineDeaconInfo: ElderBonusInfo = ElderBonusInfo(
         title = "灵矿执事",
         requiredAttribute = "道德",
         effectDescription = "提升灵矿产出效率",
         bonusFormula = "道德以80为基准，每高1点增加1%产出效率。\n低于80时无加成效果。\n多名执事加成可叠加。"
     )
 
-    fun getSpiritMineMinerInfo(): ElderBonusInfo = ElderBonusInfo(
+    val spiritMineMinerInfo: ElderBonusInfo = ElderBonusInfo(
         title = "矿工采矿",
         requiredAttribute = "采矿",
         effectDescription = "提升矿工个人灵石产出",
         bonusFormula = "采矿属性以70为基准，每高1点增加2%个人产出。\n低于70时无加成效果。\n每名矿工独立计算后再取平均值加成。\n基础产出：160灵石/人/月。"
     )
 
-    fun getRecruitingElderInfo(): ElderBonusInfo = ElderBonusInfo(
+    val recruitingElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "纳徒长老",
         requiredAttribute = "魅力",
         effectDescription = "提升每年待招募弟子的刷新数量上限",
         bonusFormula = "魅力以80为基准，每高4点增加1名弟子刷新上限。\n魅力低于80时无加成效果。\n增加的是刷新上限，不直接增加弟子数量。"
     )
 
-    fun getWarehouseGarrisonInfo(): ElderBonusInfo = ElderBonusInfo(
+    val warehouseGarrisonInfo: ElderBonusInfo = ElderBonusInfo(
         title = "驻守弟子",
         requiredAttribute = "战斗",
         effectDescription = "驻守仓库防止弟子偷盗",

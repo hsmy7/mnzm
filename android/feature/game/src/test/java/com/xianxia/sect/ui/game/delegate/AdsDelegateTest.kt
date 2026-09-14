@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.GameConfig
+import io.mockk.mockk
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -10,7 +11,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 广告播放委托测试（2026-08-11 新增，clock 注入后确定性）。
+ * 广告播放委托测试（clock 注入后确定性）。
  *
  * 覆盖：60s 冷却 / 每日 15 次上限与回滚 / 跨天重置 / 白名单跳过冷却与上限 /
  * 上限后冷却过期仍不可看。
@@ -26,7 +27,7 @@ class AdsDelegateTest {
         AdFreeWhitelist.initialize(null)
         // 固定某日正午（本地时区，跨天判定依赖 getTodayStartMs 变化）
         nowMs = 1_700_000_000_000L
-        delegate = AdsDelegate { nowMs }
+        delegate = AdsDelegate(mockk(relaxed = true), mockk(relaxed = true)) { nowMs }
     }
 
     @After

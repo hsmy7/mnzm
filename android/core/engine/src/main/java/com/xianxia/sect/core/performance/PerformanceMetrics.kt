@@ -23,7 +23,8 @@ data class MetricStats(
     
     fun toFormattedString(): String {
         if (isEmpty) return "No data"
-        return "count=$count, avg=${String.format(Locale.ROOT, "%.2f", avg)}, min=$min, max=$max, p50=$p50, p95=$p95, p99=$p99"
+        return "count=$count, avg=${String.format(Locale.ROOT, "%.2f", avg)}, min=$min, max=$max, p50=$p50, " +
+            "p95=$p95, p99=$p99"
     }
 }
 

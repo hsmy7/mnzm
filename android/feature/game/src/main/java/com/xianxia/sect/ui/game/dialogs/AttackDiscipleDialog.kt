@@ -38,8 +38,10 @@ import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 @Composable
+@Suppress("UnusedParameter") // sectName: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 internal fun AttackDiscipleDialog(
     sectName: String,
     disciples: List<DiscipleAggregate>,
@@ -75,7 +77,7 @@ internal fun AttackDiscipleDialog(
     )
 }
 
-/** 进攻选择会话状态（AttackDiscipleDialog 拆分）：remember 语义与原 4 个 mutableStateOf 一致 */
+/** 进攻选择会话状态：4 项 mutableStateOf 会话级字段 */
 private class AttackDialogState {
     var selectedSlotIndex by mutableStateOf<Int?>(null)
     var showDiscipleSelection by mutableStateOf(false)
@@ -91,8 +93,7 @@ private data class AttackDialogData(
     val manualMap: Map<String, ManualInstance>
 )
 
-/** 进攻对话框主体（AttackDiscipleDialog 拆分）：槽位网格 + 底部按钮 + 低血量确认 + 弟子选择子弹窗 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 进攻对话框主体：槽位网格 + 底部按钮 + 低血量确认 + 弟子选择子弹窗 */
 @Suppress("LongParameterList")
 @Composable
 private fun AttackDialogContent(
@@ -164,7 +165,7 @@ private fun AttackDialogContent(
     )
 }
 
-/** 10 槽位网格（AttackDiscipleDialog 拆分）：2 行 × 5 列 + 已选计数 */
+/** 10 槽位网格：2 行 × 5 列 + 已选计数 */
 @Composable
 private fun ColumnScope.AttackSlotGrid(
     slots: SnapshotStateList<DiscipleAggregate?>,
@@ -191,7 +192,7 @@ private fun ColumnScope.AttackSlotGrid(
                             onSlotClick = {
                                 val disciple = slots[slotIndex]
                                 if (disciple != null) {
-                                    viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
+                                    viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
                                 } else {
                                     dialog.selectedSlotIndex = slotIndex
                                     dialog.showDiscipleSelection = true
@@ -220,7 +221,7 @@ private fun ColumnScope.AttackSlotGrid(
     }
 }
 
-/** 底部操作按钮（AttackDiscipleDialog 拆分）：取消/进攻 */
+/** 底部操作按钮：取消/进攻 */
 @Composable
 private fun AttackActionButtons(
     filledCount: Int,
@@ -243,7 +244,7 @@ private fun AttackActionButtons(
     }
 }
 
-/** 弟子选择子弹窗入口（AttackDiscipleDialog 拆分）：按当前槽位过滤已选弟子 */
+/** 弟子选择子弹窗入口：按当前槽位过滤已选弟子 */
 @Composable
 private fun AttackDiscipleSelectionSection(
     slots: SnapshotStateList<DiscipleAggregate?>,
@@ -253,7 +254,8 @@ private fun AttackDiscipleSelectionSection(
 ) {
     if (dialog.showDiscipleSelection && dialog.selectedSlotIndex != null) {
         val currentSlotIndex = dialog.selectedSlotIndex ?: return
-        val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }.toSet()
+        val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }
+            .toSet()
         AttackDiscipleSelectionDialog(
             disciples = disciples,
             currentSlotDiscipleId = slots[currentSlotIndex]?.id,
@@ -324,7 +326,8 @@ private fun AttackDiscipleSelectionDialog(
     val gameData by viewModel.gameData.collectAsState()
     val showAllEnabled = gameData.showAllAvailableDisciples
     val battleAndExplorationIds = remember(gameData) {
-        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+            .toSet()
         val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
         battleIds + explorationIds
     }
@@ -338,7 +341,8 @@ private fun AttackDiscipleSelectionDialog(
         availableDisciples.groupingBy { it.realm }.eachCount() to
             availableDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
-    val filteredDisciples = remember(availableDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+    val filteredDisciples = remember(availableDisciples, selectedRealmFilter, selectedSpiritRootFilter,
+        selectedAttributeSort) {
         availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
     UnifiedGameDialog(
@@ -360,7 +364,7 @@ private fun AttackDiscipleSelectionDialog(
                     onAttributeSortSelected = { selectedAttributeSort = it },
                     onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
                     onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
+                    onShowAllToggle = { viewModel.settings.setShowAllAvailableDisciples(!showAllEnabled) }
                 )
             )
         }
@@ -376,7 +380,7 @@ private fun AttackDiscipleSelectionDialog(
     }
 }
 
-/** 进攻弟子筛选栏（AttackDiscipleSelectionDialog 拆分）：展开态本地持有 */
+/** 进攻弟子筛选栏：展开态本地持有 */
 @Composable
 private fun AttackDiscipleFilterBar(
     data: AttackFilterData,
@@ -410,7 +414,7 @@ private fun AttackDiscipleFilterBar(
     )
 }
 
-/** 进攻弟子网格（AttackDiscipleSelectionDialog 拆分）：空态提示 + 弟子网格 */
+/** 进攻弟子网格：空态提示 + 弟子网格 */
 @Composable
 private fun AttackDiscipleGrid(
     filteredDisciples: List<DiscipleAggregate>,
@@ -454,7 +458,7 @@ private fun AttackDiscipleGrid(
                             onClick = {
                                 scope.launch {
                                     if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                                        viewModel.releaseDiscipleForReassignment(disciple.id)
+                                        viewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                                     }
                                     onSelect(disciple)
                                 }
@@ -467,7 +471,7 @@ private fun AttackDiscipleGrid(
     }
 }
 
-// ── 低血量二次确认辅助（2026-08-11 提取，CyclomaticComplexMethod 修复）──
+// ── 低血量二次确认辅助 ──
 
 /** 判定是否需弹低血量确认（未确认过且队伍中存在血量未满弟子） */
 private fun shouldWarnLowHp(

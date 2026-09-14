@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.road.RoadFacadeImpl
 import com.xianxia.sect.core.nativebridge.FakeGameStateStore
@@ -22,7 +23,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * GameEngineRoadOpsTest — 道路放置/删除即时回导测试（2026-08-31 根因修复配套）。
+ * GameEngineRoadOpsTest — 道路放置/删除即时回导测试。
  *
  * 守护契约：placeRoad/removeRoad 成功后必须**立即**把本事务（含灵石扣除）增量回导
  * C++ 真相源——AUTHORITATIVE tick 步骤 ②' 的 `resetReverseAccumulator()` 会无条件
@@ -82,7 +83,7 @@ class GameEngineRoadOpsTest {
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mock(),
             cultivationFacade = mockCultivationFacade,
             economyFacade = mockEconomyFacade,
@@ -219,9 +220,8 @@ class GameEngineRoadOpsTest {
 
     @Test
     fun `镜像写入不吞玩家捕获 - 回导仍发送扣后灵石`() {
-        // 架构守护（2026-08-31）：前向镜像经 updateMirror 不参与反向捕获——
+        // 架构守护：前向镜像经 updateMirror 不参与反向捕获——
         // 玩家操作（放置扣灵石）的捕获在镜像到来后必须保留，tick ⑤ 回导仍发送扣后值。
-        // 旧实现 tick ②' resetReverseAccumulator 无条件清空累加器会误清该捕获。
         val store = newStore(spiritStones = 1000L)
         val sender = RecordingSender()
         val sync = StateSyncService(store, sender)

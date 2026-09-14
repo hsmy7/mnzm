@@ -6,7 +6,7 @@
 #include <vector>
 
 // ============================================================
-// 灵草/种子静态表（Kotlin HerbDatabase 提取，批次 4c）
+// 灵草/种子静态表（与 Kotlin HerbDatabase 同源）
 // 字段与 HerbDatabase.Herb/Seed 构造参数一致
 // ============================================================
 namespace gamecore::data {

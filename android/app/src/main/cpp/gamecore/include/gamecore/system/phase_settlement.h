@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -11,6 +12,7 @@
 
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
+#include "gamecore/ecs/disciple_component.h"  // syncDiscipleEntities（E1 保序桥接）
 #include "gamecore/ecs/job_system.h"
 #include "gamecore/ecs/system.h"
 #include "gamecore/system/auto_gear.h"
@@ -18,11 +20,14 @@
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/disciple_stats.h"
+#include "gamecore/system/month_settlement.h"  // judgeSingleTheftCandidate（S2 偷盗钩子复用；无回环依赖）
 #include "gamecore/system/pill_system.h"
+#include "gamecore/system/nurture_constants.h"  // 熟练度/孕养常量（detail 域）
+#include "gamecore/system/relative_gift.h"     // 亲属智能赠送（S1 突破下沉批）
 #include "gamecore/system/settlement_detail.h"
 
 // ============================================================
-// 每旬弟子结算（计划 v2 阶段 2 / T2.1）
+// 每旬弟子结算
 //
 // 等价移植 Kotlin GameEngineCore.checkBreakthroughsAndPills 的每旬结算循环，
 // 注册进 SettlementEngine::onPhaseSettle 钩子（见 game_core.cpp initialize）。
@@ -42,13 +47,15 @@
 // rng::RngManager 复现（弟子向量顺序 == Kotlin ids 列表顺序，均源自同一
 // JSON 数组）。恢复/修炼/熟练度/孕养/丹药服用零 RNG。
 //
-// 已知范围边界（详见 .superpowers/sdd/t2-1-report.md）：
-//   - 循环首步 processAutoFromWarehouseRealtime（自动装备/学习）已于
-//     2026-08-31（B 批）下沉：仓库 + 储物袋候选 + 更高品阶替换
-//     （auto_gear.h）；此前开关全关为纯早退；
-//   - 丹药写回中的偷盗判定钩子（道德<阈值 → 执法堂 SYSTEM RNG）属执法系统，
-//     突破后的亲属赠送（SYSTEM RNG）属社交系统，均未随本批下沉；
-//     对拍场景以"无亲属关系 + 低道德丹药缺席"保证双端语义一致。
+// 已知范围边界：
+//   - 循环首步 processAutoFromWarehouseRealtime（自动装备/学习）：
+//     仓库 + 储物袋候选 + 更高品阶替换（auto_gear.h）；
+//   - 丹药写回中的偷盗判定钩子（道德<阈值 → 执法堂 SYSTEM RNG）：
+//     复用 month_settlement.h 偷盗链 judgeSingleTheftCandidate（Kotlin
+//     事务内版等价）；
+//   - 突破后的亲属赠送（SYSTEM RNG）：relative_gift.h（Kotlin
+//     RelativeGiftHandler 等价移植；lifeEvents 日志为 Kotlin 运行态字段，
+//     C++ 显式丢弃）。
 // ============================================================
 namespace gamecore::system {
 
@@ -59,14 +66,7 @@ constexpr double kCultivationSkipThreshold = 1e8;
 /// HP/MP 恢复乘区总和（RecoveryZones：base 1.0 + 建筑/丹药/境界乘区均为预留 0）
 constexpr double kRecoveryZoneTotal = 1.0;
 
-/// 每旬熟练度基础增长参数（ManualProficiencySystem：6/s × (1+藏经阁0.5) × 2000ms）
-constexpr double kBaseProficiencyRate = 6.0;
-constexpr double kLibraryProficiencyBonusRate = 0.5;
-constexpr int32_t kMaxProficiency = 30000;
-
-/// 每旬装备孕养经验（EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE =
-/// 5.0 × MS_PER_PHASE_1X / 1000 = 10.0）
-constexpr double kNurtureGainPerPhase = 10.0;
+// 熟练度/孕养常量上移 nurture_constants.h（ai_sect_ops.h 共用）
 
 /// 消息栏事件上限（GameConfig.Logs.MAX_EVENT_LOGS）
 constexpr std::size_t kMaxEventLogs = 200;
@@ -84,9 +84,11 @@ using gamecore::state::StorageBagItem;
 
 // ── 共享索引构建 ────────────────────────────────────────────────────
 // 注：toIntOrNull/containsString/indexById/spiritRootCount/kotlinCharLength/
-//     isBlankString 已抽取至 settlement_detail.h（T2.2 起与月变钩子共享单一定义），
+//     isBlankString 已抽取至 settlement_detail.h（与月变钩子共享单一定义），
 //     经下方别名以原名使用
 namespace settle_util = gamecore::system::settle_util;
+// nurtureMaxLevel/expRequiredForLevelUp 由 nurture_constants.h 直接定义于本
+// detail 域（gamecore::system::detail）——无需 using
 using settle_util::containsString;
 using settle_util::indexById;
 using settle_util::isBlankString;
@@ -138,7 +140,7 @@ inline void finalMaxHpMp(const Disciple& d, const GameData& gd,
                       gd.manualProficiencies, outMaxHp, outMaxMp);
 }
 
-/// 含血炼口径最终 maxHp/maxMp（DiscipleStore SoA 版，阶段 3 热路径用）
+/// 含血炼口径最终 maxHp/maxMp（DiscipleStore SoA 版，热路径用）
 inline void finalMaxHpMp(const DiscipleStore& ds, std::size_t row,
                          const GameData& gd,
                          const std::map<std::string, EquipmentInstance>& eqMap,
@@ -164,7 +166,7 @@ inline bool isFullHpMp(const Disciple& d, const GameState& state) {
     return hp >= maxHp && mp >= maxMp;
 }
 
-/// HP/MP 是否均已满（DiscipleStore SoA 版，阶段 3 候选筛选用）
+/// HP/MP 是否均已满（DiscipleStore SoA 版，候选筛选用）
 inline bool isFullHpMp(const DiscipleStore& ds, std::size_t row,
                        const GameState& state) {
     const GameData& gd = state.gameData;
@@ -208,7 +210,7 @@ inline void recoverHpMp(Disciple& d, const GameData& gd,
     if (curMp >= 0) d.currentMp = std::min(curMp + recoveryAmount(maxMp, multiplier), maxMp);
 }
 
-/// HP/MP 恢复（DiscipleStore SoA 版，阶段 3 热路径用——列直读直写）
+/// HP/MP 恢复（DiscipleStore SoA 版，热路径用——列直读直写）
 inline void recoverHpMp(DiscipleStore& ds, std::size_t row, const GameData& gd,
                         const std::map<std::string, EquipmentInstance>& eqMap,
                         const std::map<std::string, ManualInstance>& mnMap) {
@@ -232,14 +234,14 @@ inline void recoverHpMp(DiscipleStore& ds, std::size_t row, const GameData& gd,
 // ── 步骤 2：修炼累积（accumulateCultivationPerPhase） ───────────────
 
 /// 有效教学值 = 基础教学 + teachingFlat 天赋加成截断（getEffectiveTeaching；
-/// 天赋注册表未迁移 → flat 恒 0，填表后经 stats::talentEffectsFor 生效）
+/// teachingFlat 经 stats::talentEffectsFor 查 talent_db 聚合）
 inline int32_t effectiveTeaching(const Disciple& elder) {
     const auto effects = stats::talentEffectsFor(elder.talentIds);
     return elder.teaching +
            static_cast<int32_t>(stats::effectValue(effects, "teachingFlat"));
 }
 
-/// 有效教学值（DiscipleStore 行版，阶段 3 列访问）
+/// 有效教学值（DiscipleStore 行版，列访问）
 inline int32_t effectiveTeaching(const DiscipleStore& ds, std::size_t row) {
     const auto effects = stats::talentEffectsFor(ds.talentIds[row]);
     return ds.teachings[row] +
@@ -266,7 +268,7 @@ inline double residenceBuildingBonus(const GameData& gd,
 }
 
 /// 讲道长老/师兄加成（calculatePreachingBonusesColumn；inner=false 外门 / true 青云内门）。
-/// DiscipleStore SoA 版（阶段 3）：长老/师兄经 id→行查列直读。
+/// DiscipleStore SoA 版：长老/师兄经 id→行查列直读。
 inline void preachingBonuses(
         const GameState& state, const std::map<int32_t, std::size_t>& idx,
         int32_t discipleRealm, const std::string& discipleType, bool inner,
@@ -297,7 +299,7 @@ inline void preachingBonuses(
         if (discipleRealm >= ds.realms[*elder] && teaching >= 80) {
             const double base = gamecore::disciple::coerceAtMost(
                 (teaching - 80) * 0.0025, 0.10);
-            // 职务加成 PositionBonus（天赋/词条注册表未迁移 → 恒 0，见文件头注释）
+            // 职务加成 PositionBonus：此处置 1.0 未乘入
             elderOut = base * 1.0;
         }
     }
@@ -347,7 +349,7 @@ inline double masterBonusFor(const GameState& state,
 }
 
 /// 步骤 2：单弟子每旬修炼累积（速率计算 + 上限钳制；不更新检查点——
-/// checkpoint 只在速率变化点同步）。DiscipleStore SoA 版（阶段 3 热路径）：
+/// checkpoint 只在速率变化点同步）。DiscipleStore SoA 版（热路径）：
 /// 全链路列直读直写，零对象物化。
 inline void accumulateCultivation(
         GameState& state, std::size_t row,
@@ -420,7 +422,7 @@ inline bool accumulateProficiencyForManual(
 }
 
 /// 步骤 3：单弟子熟练度增长（批量模式：只暂存到 pending，不写 state；
-/// S10 修复语义保留——pending 显式条目优先于旧值，防同周期双倍增长）
+/// pending 显式条目优先于旧值，防同周期双倍增长）
 inline void processManualProficiency(
         const GameData& gd, const Disciple& d,
         const std::map<std::string, ManualInstance>& mnMap,
@@ -467,7 +469,7 @@ inline void processManualProficiency(
     }
 }
 
-/// 步骤 3：单弟子熟练度增长（DiscipleStore 行版，阶段 3 列直读 manualIds/id）
+/// 步骤 3：单弟子熟练度增长（DiscipleStore 行版，列直读 manualIds/id）
 inline void processManualProficiency(
         const GameData& gd, const DiscipleStore& ds, std::size_t row,
         const std::map<std::string, ManualInstance>& mnMap,
@@ -531,30 +533,6 @@ inline void commitManualProficiencies(
 
 // ── 步骤 4：装备孕养（批量暂存 + 单次重建） ──────────────────────────
 
-/// 孕养等级上限表（rarity 1..6 → getMaxNurtureLevel；单一定义供两处共用）
-inline constexpr int32_t kNurtureMaxLevels[] = {5, 9, 13, 17, 21, 25};
-
-inline int32_t nurtureMaxLevel(int32_t rarity) {
-    return (rarity >= 1 && rarity <= 6) ? kNurtureMaxLevels[rarity - 1] : 5;
-}
-
-/// 孕养升级所需经验（getExpRequiredForLevelUp；满级返回 +inf）
-inline double expRequiredForLevelUp(int32_t level, int32_t rarity) {
-    const int32_t maxLevel = nurtureMaxLevel(rarity);
-    if (level >= maxLevel) return HUGE_VAL;
-    const double baseExp = 100.0 * (level + 1);
-    double rarityMultiplier;
-    switch (rarity) {
-        case 2: rarityMultiplier = 1.5; break;
-        case 3: rarityMultiplier = 2.0; break;
-        case 4: rarityMultiplier = 3.0; break;
-        case 5: rarityMultiplier = 4.5; break;
-        case 6: rarityMultiplier = 6.0; break;
-        default: rarityMultiplier = 1.0; break;
-    }
-    return baseExp * rarityMultiplier;
-}
-
 /// 孕养经验应用（updateNurtureExp）；返回是否变化
 inline bool applyNurtureExp(EquipmentInstance& eq, double gain) {
     const int32_t maxLevel = nurtureMaxLevel(eq.rarity);
@@ -571,7 +549,7 @@ inline bool applyNurtureExp(EquipmentInstance& eq, double gain) {
     return true;
 }
 
-/// 孕养度丹应用（A2，2026-08-31）：N 点均分到已装备装备实例
+/// 孕养度丹应用：N 点均分到已装备装备实例
 /// （向下取整，余数给第一件；满级装备跳过——该件增益不累积）。
 /// 无装备实例时零效果（丹药照常扣除，与 Kotlin 镜像一致）。
 inline void applyNurtureEffect(state::GameState& state, Disciple& d,
@@ -615,7 +593,7 @@ inline void processEquipmentNurture(
     }
 }
 
-/// 步骤 4：单弟子四槽孕养增长（DiscipleStore 行版，阶段 3 列直读四槽 id）
+/// 步骤 4：单弟子四槽孕养增长（DiscipleStore 行版，列直读四槽 id）
 inline void processEquipmentNurture(
         const DiscipleStore& ds, std::size_t row,
         const std::map<std::string, EquipmentInstance>& eqMap,
@@ -688,8 +666,8 @@ inline bool hasUsablePills(const Disciple& d) {
 
 /// 自动服用主流程（DisciplePillManager.processAutoUsePills；返回是否实际服用。
 /// 排序：规则优先级降序 + 稀有度降序的稳定排序；突破丹被排除。
-/// C2（2026-08-31）：战斗临时丹（kTemporaryBattle）不自动服用；
-/// C3（2026-08-31）：满修为不浪费修为丹、全功法满级不浪费功法经验丹）
+/// 战斗临时丹（kTemporaryBattle）不自动服用；
+/// 满修为不浪费修为丹、全功法满级不浪费功法经验丹）
 inline bool autoUsePills(Disciple& d, state::GameState& state) {
     std::vector<const StorageBagItem*> pillItems;
     for (const StorageBagItem& item : d.storageBagItems) {
@@ -747,7 +725,7 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.storageBagItems = r.storageBagItems;
     d.cultivation = r.cultivation;
     d.manualMasteries = r.manualMasteries;
-    // 2026-08 修复语义：修炼速度加成统一收敛于 pillEffects 体系，
+    // 修复语义：修炼速度加成统一收敛于 pillEffects 体系，
     // 写回时清零旧 cultivationSpeedBonus 组件列（残留数据自愈）
     d.cultivationSpeedBonus = 0.0;
     d.cultivationSpeedDuration = 0;
@@ -792,15 +770,36 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
 }
 
 /// 步骤 6 主流程：遍历存活非秘境弟子，自动补服储物袋丹药。
-/// DiscipleStore SoA 版（阶段 3）：逐行物化工作副本 → 服用 → upsert 原位写回
-///（保序；upsertDisciple 对既有 id 原位覆盖）。仅实际服用时写回。
+/// DiscipleStore SoA 版：逐弟子物化工作副本 → 服用 → 原位写回
+///（仅实际服用时写回）。丹药写回含偷盗钩子——
+/// 服用后道德 < 阈值 → judgeSingleTheftCandidate（SYSTEM RNG，与 Kotlin
+/// writePillResultToTables 道德变化后即时触发逐位一致）。
+/// 迭代序：id 快照序（== Kotlin tables.ids）——偷盗后叛逃可能按 id 移除
+/// 行（原位 erase 使行号漂移），每弟子经 rowOf 现查行号。
+/// id 快照经 syncDiscipleEntities + View<DiscipleRef>
+/// 行序构建（快照序 == 行序 == Kotlin ids 序，语义逐位不变；快照后行移除
+/// 仍由 rowOf 现查兜底）。
 inline void processAutoPills(GameState& state,
-                             const std::set<int32_t>& secretIds) {
+                             const std::set<int32_t>& secretIds,
+                             rng::RngManager& rng, ecs::World& world) {
     DiscipleStore& ds = state.disciples;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.isAlive[row] == 0) continue;
+    const int32_t currentMonth =
+        state.gameData.gameYear * 12 + state.gameData.gameMonth;
+    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
+    ecs::syncDiscipleEntities(world, ds.size());
+    std::vector<int32_t> idSnapshot;
+    ecs::View<ecs::DiscipleRef> view(world.registry());
+    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+        if (ds.isAlive[row] == 0) return;
         const auto id = toIntOrNull(ds.ids[row]);
-        if (!id.has_value() || secretIds.count(*id)) continue;
+        if (!id.has_value() || secretIds.count(*id)) return;
+        idSnapshot.push_back(*id);
+    });
+    for (const int32_t id : idSnapshot) {
+        const auto rowOpt = ds.rowOf(std::to_string(id));
+        if (!rowOpt.has_value()) continue;   // 前序钩子已移除（叛逃）
+        const std::size_t row = *rowOpt;
 
         Disciple d = ds.materialize(row);
         if (!hasUsablePills(d)) continue;
@@ -808,19 +807,24 @@ inline void processAutoPills(GameState& state,
         if (!autoUsePills(working, state)) continue;   // result.disciple == disciple → 跳过
         writePillResult(d, working, state.gameData);
         ds.upsertDisciple(d);                   // 原位写回（保序）
+        // 偷盗判定钩子（写回后道德判定；Kotlin 事务内版全链等价）
+        if (ds.moralities[row] < lawMoralityThreshold()) {
+            judgeSingleTheftCandidate(state, id, currentMonth, rngSystem, world);
+        }
     }
 }
 
 // ── 步骤 7：突破检测（processBreakthroughs / performBreakthrough） ───
 
 /// 突破概率输入组装（tryBreakthrough 的长老悟性/职务/广告/丧亲/师徒提取）。
-/// @param committed 结算入口时的弟子快照副本——对齐 Kotlin tryBreakthrough:282
-///        经 stateStore.disciples.value（事务前已提交视图）读取长老悟性；
-///        存活/境界条件判断仍用 live 状态（与 Kotlin tables 参数一致）
+/// @param committed 结算入口时的弟子快照副本（id 键控——对齐 Kotlin
+///        tryBreakthrough:282 经 stateStore.disciples.value（事务前已提交
+///        视图，按 id 关联）读取长老悟性；id 键控使偷盗叛逃等行移除后
+///        快照仍正确关联）；存活/境界条件判断仍用 live 状态
 inline stats::BreakthroughChanceInput breakthroughChanceInput(
         const Disciple& d, const GameState& state,
         const std::map<int32_t, std::size_t>& idx,
-        const std::vector<Disciple>& committed,
+        const std::map<int32_t, Disciple>& committed,
         double pillBonus) {
     stats::BreakthroughChanceInput in;
     in.pillBonus = pillBonus;   // 突破丹概率加成（attemptAutoPill 返回值）
@@ -829,8 +833,8 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
 
     // 内/外门长老悟性（仅对应弟子类型生效）：存活与境界门槛按 live 列判定，
     // 悟性数值/职务加成取**结算入口已提交视图**的长老对象（getBaseStats()
-    // .comprehension 口径）；职务加成 PositionBonus 属天赋/词条注册表
-    // （未迁移 → 恒 0，填表后接入）
+    // .comprehension 口径）；职务加成 PositionBonus 此处恒返回 0（未乘入），
+    // 聚合口径见 stats::positionEffectBonus
     const auto elderEntry = [&](const std::string& elderId,
                                 const char* requiredType)
             -> std::pair<int32_t, double> {   // (comprehension, positionBonus)
@@ -845,8 +849,9 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
         }
         // Kotlin: allDisciples[elderId]?.getBaseStats()?.comprehension
         //         ?: tables.comprehensions[elderId] —— 快照优先、live 列兜底
-        if (it->second < committed.size()) {
-            return {stats::baseComprehension(committed[it->second]), 0.0};
+        const auto cit = committed.find(*eid);
+        if (cit != committed.end()) {
+            return {stats::baseComprehension(cit->second), 0.0};
         }
         return {stats::baseComprehension(ds, it->second), 0.0};
     };
@@ -891,7 +896,7 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
 
 /// 消息栏事件记录（recordGameEvent SECT/BREAKTHROUGH；timestamp 为现实墙钟
 /// Clock 注入口，Kotlin 默认 System.currentTimeMillis()——对拍不比较该字段；
-/// P-9 追加序号 max+1 溢出回 1；takeLast(MAX_EVENT_LOGS) 裁剪语义保留；
+/// 追加序号 max+1 溢出回 1；takeLast(MAX_EVENT_LOGS) 裁剪语义保留；
 /// 守卫与 MutableGameState.recordGameEvent 逐条对齐：blank/长度上限）
 inline void recordGameEvent(GameState& state, const Disciple& after,
                             const std::string& newRealmName) {
@@ -968,11 +973,10 @@ inline void applyBreakthroughFailure(Disciple& d) {
 /// @param pillTargetRealm 丹药目标境界（满层大境界突破取 realm-1）
 /// @return (突破率加成, 是否修改了弟子储物袋)；两处 maxByOrNull 均
 ///         取"首个最大值"（Kotlin maxByOrNull 语义，严格大于才替换）。
-/// 消耗语义（2026-08-31 根因修复）：**逐颗扣减**——仓库堆叠 quantity>1
+/// 消耗语义：**逐颗扣减**——仓库堆叠 quantity>1
 /// 减一保留、=1 整条移除（对齐 LootCalculator 的 update+filterInPlace
-/// 消费模式）；储物袋经 decreaseItemQuantity 减一。修复此前整叠删除
-/// （EntityStore.minus / List.minus 按相等元素整条移除、忽略 quantity
-/// ——堆叠 quantity=10 一次突破吃 1 颗删 10 颗）的 P0 数量丢失 bug。
+/// 消费模式）；储物袋经 decreaseItemQuantity 减一（禁止整叠删除，
+/// 否则一次服用会丢失整堆数量）。
 inline std::pair<double, bool> attemptAutoPill(
         Disciple& d, int32_t pillTargetRealm, GameState& state) {
     const GameData& gd = state.gameData;
@@ -1076,7 +1080,7 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
 inline void performBreakthrough(
         Disciple& live, GameState& state,
         const std::map<int32_t, std::size_t>& idx,
-        const std::vector<Disciple>& committed,
+        const std::map<int32_t, Disciple>& committed,
         rng::RngManager& rng) {
     Disciple d = live;   // Kotlin: copy(cultivation = tables.cultivations[...]) 同步
     bool shouldContinue = true;
@@ -1145,28 +1149,37 @@ inline void performBreakthrough(
 
 /// 步骤 7 主流程：候选筛选 → 按 ids 顺序逐弟子执行突破 → 亲属赠送钩子 +
 /// 大境界日志（候选级前后比对，与 Kotlin processRealtimeBreakthroughs 同构）。
-/// DiscipleStore SoA 版（阶段 3）：候选为行索引，逐候选物化工作副本 →
+/// DiscipleStore SoA 版：候选为行索引，逐候选物化工作副本 →
 /// performBreakthrough（原地改 live）→ upsert 原位写回；RNG 抽取序 = 行序。
-/// @param committed 结算入口时的弟子快照（长老悟性等 store 已提交视图读取源）
+/// @param committed 结算入口时的弟子快照（id 键控；长老悟性等 store 已提交
+///        视图读取源）
 inline void processBreakthroughs(
         GameState& state, rng::RngManager& rng,
         const std::map<int32_t, std::size_t>& idx,
-        const std::vector<Disciple>& committed,
-        const std::set<int32_t>& secretIds) {
+        const std::map<int32_t, Disciple>& committed,
+        const std::set<int32_t>& secretIds, ecs::World& world) {
     DiscipleStore& ds = state.disciples;
     // 1. 列级直读筛选候选（存活 + 非秘境 + realm>0 + 修为满 + HP/MP 满；
-    //    满血判定现场重建映射——对齐 battleWritebackMaxHpMp 语义）
+    //    满血判定现场重建映射——对齐 battleWritebackMaxHpMp 语义）。
+    //    迭代域：syncDiscipleEntities 校验/恢复
+    //    不变量后按 View<DiscipleRef> 行序筛选（候选序 == 行序 == Kotlin ids
+    //    序，RNG 抽取序逐位不变）。
     std::vector<std::size_t> candidates;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.isAlive[row] == 0) continue;
-        const auto id = toIntOrNull(ds.ids[row]);
-        if (!id.has_value() || secretIds.count(*id)) continue;
-        if (ds.realms[row] <= 0) continue;
-        const double maxCult = computeMaxCultivation(
-            ds.realms[row], ds.realmLayers[row], ds.cultivations[row]);
-        if (ds.cultivations[row] < maxCult) continue;
-        if (!isFullHpMp(ds, row, state)) continue;
-        candidates.push_back(row);
+    {
+        ecs::syncDiscipleEntities(world, ds.size());
+        ecs::View<ecs::DiscipleRef> view(world.registry());
+        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+            const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+            if (ds.isAlive[row] == 0) return;
+            const auto id = toIntOrNull(ds.ids[row]);
+            if (!id.has_value() || secretIds.count(*id)) return;
+            if (ds.realms[row] <= 0) return;
+            const double maxCult = computeMaxCultivation(
+                ds.realms[row], ds.realmLayers[row], ds.cultivations[row]);
+            if (ds.cultivations[row] < maxCult) return;
+            if (!isFullHpMp(ds, row, state)) return;
+            candidates.push_back(row);
+        });
     }
     if (candidates.empty()) return;
 
@@ -1183,11 +1196,22 @@ inline void processBreakthroughs(
         ds.upsertDisciple(live);               // 原位写回（保序）
     }
 
-    // 3. 亲属智能赠送（社交系统，SYSTEM RNG——未随本批下沉，见文件头注释）
-    // 4. 大境界变化日志：仅大境界（realm）变化记录一条消息栏事件
+    // 3. 亲属智能赠送（社交系统，SYSTEM RNG——relative_gift.h；
+    //    触发条件 = 境界或层数变化，先于日志） +
+    //    4. 大境界变化日志：仅大境界（realm）变化记录一条消息栏事件
+    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
     for (std::size_t row : candidates) {
         const auto& oldVals = before[row];
-        if (oldVals.first == ds.realms[row]) continue;
+        const bool realmChanged = oldVals.first != ds.realms[row];
+        const bool layerChanged = oldVals.second != ds.realmLayers[row];
+        if (realmChanged || layerChanged) {
+            const auto id = toIntOrNull(ds.ids[row]);
+            if (id.has_value()) {
+                relative_gift::processGiftsForBreakthrough(state, *id,
+                                                           rngSystem);
+            }
+        }
+        if (!realmChanged) continue;
         Disciple after = ds.materialize(row);
         recordGameEvent(state, after,
                         gamecore::disciple::realmConfig(after.realm).name);
@@ -1199,15 +1223,18 @@ inline void processBreakthroughs(
 // ── 主入口：每旬结算（注册进 SettlementEngine::onPhaseSettle / onCoreSettle） ──
 
 /// 核心每旬批次（步骤 1-5：恢复/修炼累积/熟练度/孕养 + 批量提交）。
-/// 零 RNG 消耗——T2.4 AUTHORITATIVE 过渡模式下由 onCoreSettle 注册执行；
+/// 零 RNG 消耗——AUTHORITATIVE 模式下由 onCoreSettle 注册执行；
 /// 完整版 [runPhaseSettlement] 复用本函数后追加丹药/突破两步。
-/// DiscipleStore SoA 版（阶段 3）：合并遍历全链路列直读直写，零对象物化。
-inline void runPhaseCoreBatch(state::GameState& state) {
+/// DiscipleStore SoA 版：合并遍历全链路列直读直写，零对象物化。
+/// 迭代域：经 syncDiscipleEntities 校验/恢复
+/// "View 迭代序 == Store 行序"不变量后按 View<DiscipleRef> 行序迭代
+/// （与并行版 runPhaseCoreBatchParallel 同域；语义逐位不变）。
+inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
     const auto eqMap = detail::equipmentMapOf(state.equipmentInstances);
     const auto mnMap = detail::manualMapOf(state.manualInstances);
     const auto idx = detail::indexById(state.disciples);
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
-    // P-1 藏经阁弟子预构建集合
+    // 藏经阁弟子预构建集合
     std::set<std::string> libraryIds;
     for (const auto& slot : state.gameData.librarySlots) {
         if (!slot.discipleId.empty()) libraryIds.insert(slot.discipleId);
@@ -1217,11 +1244,14 @@ inline void runPhaseCoreBatch(state::GameState& state) {
     std::map<std::string, state::EquipmentInstance> pendingEquipmentUpdates;
 
     state::DiscipleStore& ds = state.disciples;
-    // 合并遍历：恢复 + 修炼累积 + 熟练度暂存 + 孕养暂存（P0.1 优化语义保留）
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.isAlive[row] == 0) continue;
+    ecs::syncDiscipleEntities(world, ds.size());
+    // 合并遍历：恢复 + 修炼累积 + 熟练度暂存 + 孕养暂存（语义保留）
+    ecs::View<ecs::DiscipleRef> view(world.registry());
+    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+        if (ds.isAlive[row] == 0) return;
         const auto id = detail::toIntOrNull(ds.ids[row]);
-        if (!id.has_value() || secretIds.count(*id)) continue;
+        if (!id.has_value() || secretIds.count(*id)) return;
         // 1) HP/MP 恢复（列直读直写）
         detail::recoverHpMp(ds, row, state.gameData, eqMap, mnMap);
         // 2) 修炼累积（≥1e8 视为异常满值跳过）
@@ -1234,7 +1264,7 @@ inline void runPhaseCoreBatch(state::GameState& state) {
             libraryIds.count(ds.ids[row]) > 0, pendingProficiencies);
         // 4) 装备孕养增长（批量模式）
         detail::processEquipmentNurture(ds, row, eqMap, pendingEquipmentUpdates);
-    }
+    });
 
     // 5a) 单次提交熟练度；5b) 单次重建装备列表
     detail::commitManualProficiencies(state.gameData, pendingProficiencies);
@@ -1242,12 +1272,17 @@ inline void runPhaseCoreBatch(state::GameState& state) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// 每旬核心批次并行化（P0：ECS JobSystem 接入——消除 5000 弟子每旬 O(D) 单线程热点）
+// 每旬核心批次并行化（ECS JobSystem——消除 5000 弟子每旬 O(D) 单线程热点）
 //
 // 结构：与串行 [runPhaseCoreBatch] 完全同构，唯一区别 = 逐弟子循环改为
 // JobSystem::parallelForIndexed 分块并行，每块累积**局部** pending 提供，
 // 分块完成后按块序号**确定性合并**（块间无共享写；每弟子 id / 每装备 id
 // 在块间唯一，合并序无关——见下"确定性"）。
+//
+// 迭代域：不经裸行号 0..N，而是经
+// syncDiscipleEntities 从 View<DiscipleRef> 校验/恢复"迭代序 == Store 行序"
+// 不变量（弟子增删漂移即重建），逐弟子行地址取自 DiscipleRef 组件。
+// 分块仍按行区间切（position == 行号，校验已保证）。
 //
 // ## 确定性论证（清零 RNG 红线）
 //   1. 本批次全程 **零 RNG**——不消耗任何分区（步骤 1-5 纯计算），
@@ -1258,6 +1293,7 @@ inline void runPhaseCoreBatch(state::GameState& state) {
 //      isAlive/spiritRoot/parentId/masterId/type）+ gameData（elderSlots/
 //      residenceSlots/placedBuildings/manualProficiencies）——这些列在本批次
 //      循环内**从不被写**（仅 currentHp/currentMp/cultivation 被写），并发读安全。
+//      DiscipleRef 存储（行地址解析）在批次内只读，并发 find 安全。
 //   4. 熟练度/装备孕养暂存按各自 id 键控，且同一 id 只被一个弟子（行）
 //      处理 → 各块局部暂存合并到同一标准 map 时键唯一，最终结果与串行
 //      逐位一致、与合并顺序无关。
@@ -1269,20 +1305,26 @@ inline void runPhaseCoreBatch(state::GameState& state) {
 //     PhaseSettlementTest.CoreBatchParallelMatchesSerial 强制校验。
 // ════════════════════════════════════════════════════════════════════
 
-/// 并行每旬核心批次（JobSystem 分块；与串行版逐位一致——守护测试校验）
+/// 并行每旬核心批次（JobSystem 分块；经 World/View 行序映射驱动；
+/// 与串行版逐位一致——守护测试校验）
 inline void runPhaseCoreBatchParallel(state::GameState& state,
-                                      ecs::JobSystem& jobs) {
+                                      ecs::JobSystem& jobs,
+                                      ecs::World& world) {
     const std::size_t rowCount = state.disciples.size();
     if (rowCount == 0) return;
     const auto eqMap = detail::equipmentMapOf(state.equipmentInstances);
     const auto mnMap = detail::manualMapOf(state.manualInstances);
     const auto idx = detail::indexById(state.disciples);
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
-    // P-1 藏经阁弟子预构建集合
+    // 藏经阁弟子预构建集合
     std::set<std::string> libraryIds;
     for (const auto& slot : state.gameData.librarySlots) {
         if (!slot.discipleId.empty()) libraryIds.insert(slot.discipleId);
     }
+    // E1 保序桥接：校验"View 序 == 行序"（漂移即重建）；position == 行号，
+    // 行地址从 DiscipleRef 组件取（桥接规范第 3 条）。
+    const auto entityByRow = ecs::syncDiscipleEntities(world, rowCount);
+    const auto& refStorage = world.registry().storage<ecs::DiscipleRef>();
 
     struct ChunkResult {
         detail::PendingProficiencies pending;
@@ -1295,7 +1337,8 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
                                           std::size_t c) {
         ChunkResult local;
         state::DiscipleStore& ds = state.disciples;
-        for (std::size_t row = begin; row < end; ++row) {
+        for (std::size_t pos = begin; pos < end; ++pos) {
+            const std::size_t row = refStorage.find(entityByRow[pos])->row;
             if (ds.isAlive[row] == 0) continue;
             const auto id = detail::toIntOrNull(ds.ids[row]);
             if (!id.has_value() || secretIds.count(*id)) continue;
@@ -1334,40 +1377,86 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
 /// 执行一旬弟子结算（时间推进由 SettlementEngine 负责，本函数只做结算）。
 /// @param state 完整游戏状态（就地修改）
 /// @param rng   RNG 分区管理器（仅 BREAKTHROUGH 分区被消耗）
+/// @param world ECS 实体域（E2：步骤 0/1-5/6/7 迭代域经 sync 行序映射）
 inline void runPhaseSettlement(state::GameState& state,
-                               rng::RngManager& rng) {
+                               rng::RngManager& rng, ecs::World& world) {
     // 结算入口弟子快照：突破概率的长老悟性等字段对齐 Kotlin
     // stateStore.disciples.value（事务前已提交视图）——同旬长老属性变更
     // 不影响本旬突破判定（与 Kotlin 逐位一致）。
-    // DiscipleStore 版：逐行物化快照列表（语义 == 旧整向量拷贝）
-    std::vector<state::Disciple> committedDisciples;
-    committedDisciples.reserve(state.disciples.size());
+    // DiscipleStore 版：逐行物化快照；**id 键控**（Kotlin allDisciples 按
+    // id 关联）——S2 起偷盗后叛逃可在突破前移除行（行号漂移），行索引
+    // 快照会错位关联，id 键控不受影响。
+    std::map<int32_t, state::Disciple> committedDisciples;
     for (std::size_t i = 0; i < state.disciples.size(); ++i) {
-        committedDisciples.push_back(state.disciples.materialize(i));
+        const auto id = detail::toIntOrNull(state.disciples.ids[i]);
+        if (!id.has_value()) continue;
+        committedDisciples.emplace(*id, state.disciples.materialize(i));
     }
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
 
-    // 0) 自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换；B 2026-08-31）。
+    // 0) 自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换）。
     //    在结算入口快照之后执行——对齐 Kotlin execute 的
     //    processAutoFromWarehouseRealtime 首步：本旬自动装配不影响突破概率
     //    的长老快照判定（committed 视图语义）。
-    detail::processAutoFromWarehouse(state);
+    detail::processAutoFromWarehouse(state, world);
 
-    runPhaseCoreBatch(state);
+    runPhaseCoreBatch(state, world);
 
-    // 6) 自动丹药补服
-    detail::processAutoPills(state, secretIds);
+    // 6) 自动丹药补服（含写回后偷盗判定钩子）
+    detail::processAutoPills(state, secretIds, rng, world);
 
-    // 7) 突破检测（唯一 RNG 消耗点：BREAKTHROUGH 分区）
+    // 7) 突破检测（唯一 RNG 消耗点：BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM）
     const auto idx = detail::indexById(state.disciples);
-    detail::processBreakthroughs(state, rng, idx, committedDisciples, secretIds);
+    detail::processBreakthroughs(state, rng, idx, committedDisciples, secretIds,
+                                 world);
 }
 
-// ── ECS System 适配器：把每旬核心批次表达为可调度系统（P0 ECS 接入） ──
+/// AUTHORITATIVE core 模式每旬结算（生产每旬不再需要 Kotlin
+/// executeResidual 回写）。
+/// 步骤序与完整版 [runPhaseSettlement] **完全一致**（0 自动装备 → 1-5 核心
+/// 批次 → 6 丹药(+偷盗钩子) → 7 突破(+亲属赠送)），唯一差异 = 核心批次由
+/// 调用方注入的并行实现（ECS PhaseCoreBatchSystem + JobSystem）驱动——
+/// 串行/并行逐位一致由 PhaseSettlementTest.CoreBatchParallelMatchesSerial
+/// 守护。保留核心批次外的步骤为串行：丹药/突破携带 RNG 与跨弟子状态依赖
+/// （亲属赠送读全店关系列、偷盗链有月度/年度计数门控），不可分块并行。
+/// @param runCoreBatch 核心批次实现（game_core.cpp 注入 ecsScheduler_.runAll）
+inline void runPhaseSettlementCore(state::GameState& state,
+                                   rng::RngManager& rng,
+                                   const std::function<void()>& runCoreBatch,
+                                   ecs::World& world) {
+    // 入口 id 键控快照（突破长老悟性 committed 视图；同 runPhaseSettlement）
+    std::map<int32_t, state::Disciple> committedDisciples;
+    for (std::size_t i = 0; i < state.disciples.size(); ++i) {
+        const auto id = detail::toIntOrNull(state.disciples.ids[i]);
+        if (!id.has_value()) continue;
+        committedDisciples.emplace(*id, state.disciples.materialize(i));
+    }
+    const auto secretIds = detail::secretRealmMemberIds(state.gameData);
+
+    // 0) 自动装备/学习（先于核心批次——对齐 Kotlin execute 首步序）
+    detail::processAutoFromWarehouse(state, world);
+
+    runCoreBatch();
+
+    // 6) 自动丹药补服（含写回后偷盗判定钩子）
+    detail::processAutoPills(state, secretIds, rng, world);
+
+    // 7) 突破检测（BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM 分区）
+    const auto idx = detail::indexById(state.disciples);
+    detail::processBreakthroughs(state, rng, idx, committedDisciples, secretIds,
+                                 world);
+}
+
+// ── ECS System 适配器：把每旬核心批次表达为可调度系统 ──
 //
 // 把 AUTHORITATIVE core 模式的每旬热路径（runPhaseCoreBatch）包成一个
 // ecs::ISystem，经 SystemScheduler 驱动（接入调度框架），内部用 JobSystem
 // 并行化逐弟子批次。DiscipleStore 仍是权威，ECS System 是调度/并行化外壳。
+//
+// run 真用 World——迭代域经 View<DiscipleRef> 行序
+// 映射（syncDiscipleEntities 校验/恢复不变量），系统签名不再是弃用形参；
+// World 实体集惰性装配（首旬建齐，弟子增删漂移即重建），生产由 game_core
+// 持久 ecsWorld_ 承载，稳态零重建。
 class PhaseCoreBatchSystem : public ecs::ISystem {
 public:
     PhaseCoreBatchSystem(state::GameState& state, ecs::JobSystem& jobs)
@@ -1376,7 +1465,9 @@ public:
     int priority() const override { return 0; }
     // 系统内已用 JobSystem 并行化（页内并行）——系统级不再并行 → false
     bool isParallelizable() const override { return false; }
-    void run(ecs::World&) override { runPhaseCoreBatchParallel(*state_, *jobs_); }
+    void run(ecs::World& world) override {
+        runPhaseCoreBatchParallel(*state_, *jobs_, world);
+    }
 private:
     state::GameState* state_;
     ecs::JobSystem* jobs_;

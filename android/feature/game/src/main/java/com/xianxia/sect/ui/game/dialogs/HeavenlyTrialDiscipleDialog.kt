@@ -17,6 +17,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 @Composable
 fun HeavenlyTrialDiscipleDialog(
@@ -41,7 +42,7 @@ fun HeavenlyTrialDiscipleDialog(
             selectedDisciples = selectedDisciples,
             aliveDisciples = aliveDisciples,
             onShowDetail = { disciple ->
-                gameViewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, aliveDisciples))
+                gameViewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(disciple, aliveDisciples))
             },
             onOpenPicker = { slotIdx ->
                 pickerSlotIndex = slotIdx
@@ -77,8 +78,7 @@ fun HeavenlyTrialDiscipleDialog(
     }
 }
 
-/** 3 个出战弟子槽位（HeavenlyTrialDiscipleDialog 拆分） */
-// 拆分搬移:参数保留原签名语义
+/** 3 个出战弟子槽位 */
 @Suppress("UnusedParameter")
 @Composable
 private fun HeavenlyTrialDiscipleSlots(
@@ -109,7 +109,7 @@ private fun HeavenlyTrialDiscipleSlots(
     }
 }
 
-/** 出战弟子选择子界面（HeavenlyTrialDiscipleDialog 拆分）：境界筛选 + 已选去重 */
+/** 出战弟子选择子界面：境界筛选 + 已选去重 */
 @Composable
 private fun HeavenlyTrialDisciplePicker(
     pickerSlotIndex: Int,
@@ -150,7 +150,7 @@ private fun HeavenlyTrialDisciplePicker(
         onConfirm = { selected ->
             selected.firstOrNull()?.let { disciple ->
                 if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                    gameViewModel.releaseDiscipleForReassignment(disciple.id)
+                    gameViewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                 }
                 selectedDisciples[pickerSlotIndex] = disciple
                 onDismiss()

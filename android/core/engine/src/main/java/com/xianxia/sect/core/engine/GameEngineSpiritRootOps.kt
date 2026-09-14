@@ -76,8 +76,20 @@ suspend fun GameEngine.washSpiritRoot(
     if (id == null) {
         return@withEngineContext SpiritRootWashResult.Error("非法弟子ID")
     }
+    // native 臂（batch-15）：C++ 校验链 + 扣玉符 + 抽取同事务原子（先扣后抽，
+    // 失败臂零写入零抽取）；降级/失败信封 → Kotlin 原事务路径重执行校验链
+    val required = GameConfig.SpiritRoot.WASH_JADE_COST
+    val receipt = tryWashSpiritRootNative(discipleId, pityCount, required)
+    if (receipt != null) {
+        // 玉符运行时 totalCount 同步（13.3 绝对值覆盖写模型——防 checkpoint 回涨）
+        syncJadeRuntimeAfterNative(required)
+        // 事务外刷新玉符 UI 状态（清 1Hz 节流，徽章/详情即时更新）
+        jadeSymbolService.publishJadeSymbolStateNow()
+        return@withEngineContext SpiritRootWashResult.Success(
+            receipt.newRootType, receipt.newPityCount
+        )
+    }
     try {
-        val required = GameConfig.SpiritRoot.WASH_JADE_COST
         val result = stateStore.updateAndReturn {
             if (id !in discipleTables.ids) {
                 return@updateAndReturn SpiritRootWashResult.Error("弟子不存在")
@@ -133,6 +145,15 @@ suspend fun GameEngine.confirmSpiritRootWash(
     val id = discipleId.toIntOrNull()
     if (id == null) {
         return@withEngineContext SpiritRootWashConfirmResult.Error("非法弟子ID")
+    }
+    // native 臂（batch-24）：AUTHORITATIVE 稳态写者归 C++（覆盖写 + checkpoint
+    // 同事务）；业务拒绝文案由 C++ 信封回传（与 Kotlin 回退臂逐字一致）；
+    // 不可用 → 走下方 Kotlin 原事务体（双实现并行契约）。
+    when (val outcome = confirmSpiritRootWashNative(discipleId, newRootType)) {
+        is ConfirmNativeOutcome.Applied -> return@withEngineContext SpiritRootWashConfirmResult.Success
+        is ConfirmNativeOutcome.Refused ->
+            return@withEngineContext SpiritRootWashConfirmResult.Error(outcome.message)
+        is ConfirmNativeOutcome.Unavailable -> Unit  // 降级：走 Kotlin 原路径
     }
     try {
         val replaced = stateStore.updateAndReturn<Boolean> {

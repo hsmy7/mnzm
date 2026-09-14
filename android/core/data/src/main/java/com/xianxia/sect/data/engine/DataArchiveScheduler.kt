@@ -5,6 +5,7 @@ import com.xianxia.sect.data.archive.ArchivedBattleLog
 import com.xianxia.sect.data.archive.ArchivedDisciple
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,12 +37,14 @@ data class ArchiveOperationResult(
 class DataArchiveScheduler @Inject constructor(
     private val database: GameDatabase,
     private val core: StorageCoreFacade,
+    private val dataArchiver: com.xianxia.sect.data.archive.DataArchiver,
     private val scopeProvider: CoroutineScopeProvider
 ) {
     private val config = ArchiveConfig()
     private var archiveJob: Job? = null
     private val scope get() = scopeProvider.ioScope
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun start() {
         if (!config.enableAutoArchive) {
             Log.i(TAG, "Auto archive is disabled by config")
@@ -60,6 +63,8 @@ class DataArchiveScheduler @Inject constructor(
             while (isActive) {
                 try {
                     performArchive()
+                } catch (e: CancellationException) {
+                    throw e // 取消穿透: 调度器 stop() 后立即退出轮询, 不再进入下一轮 delay
                 } catch (e: Exception) {
                     Log.e(TAG, "Archive operation failed", e)
                 }
@@ -80,6 +85,7 @@ class DataArchiveScheduler @Inject constructor(
         Log.i(TAG, "Data archive scheduler shutdown")
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun performArchive(): ArchiveOperationResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         var battleLogsArchived = 0
@@ -89,8 +95,8 @@ class DataArchiveScheduler @Inject constructor(
 
         for (slotId in config.slotIds) {
             try {
-                // D24（2026-08-05）：归档与保存互斥——保存事务全量重写 battleLogs/
-                // disciples 与归档读删交叉时，主表/归档表数据漂移
+                // 归档与保存互斥：保存事务全量重写 battleLogs/disciples，
+                // 与归档读删交叉时会导致主表/归档表数据漂移，须持槽位写锁
                 core.lockManager.withWriteLockLight(slotId) {
                     val logsResult = archiveBattleLogs(slotId)
                     battleLogsArchived += logsResult
@@ -98,6 +104,8 @@ class DataArchiveScheduler @Inject constructor(
                     val disciplesResult = archiveDeadDisciples(slotId)
                     disciplesArchived += disciplesResult
                 }
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 归档取消时中止剩余槽位, 槽位写锁不跨取消持锁
             } catch (e: Exception) {
                 Log.w(TAG, "Archive for slot $slotId failed: ${e.message}")
             }
@@ -107,8 +115,21 @@ class DataArchiveScheduler @Inject constructor(
             val cutoff = System.currentTimeMillis() - config.archiveRetentionMs
             battleLogsCleaned = database.archivedBattleLogDao().deleteArchivedBefore(cutoff)
             disciplesCleaned = database.archivedDiscipleDao().deleteArchivedBefore(cutoff)
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 过期清理取消时上抛, 不谎报清理失败
         } catch (e: Exception) {
             Log.w(TAG, "Archive cleanup failed: ${e.message}")
+        }
+
+        // 审计 P2-15：cleanupExpiredArchives 清理链接线（原实现零调用方）——
+        // 归档 .arc 文件按 12 个月保留窗口清理（与 maxBattleLogs 运行时可调
+        // 5000 的配置面联动：归档产出随修剪/归档上限受控）
+        try {
+            dataArchiver.cleanupExpiredArchives()
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 归档文件清理取消时上抛, 下轮调度重新清理
+        } catch (e: Exception) {
+            Log.w(TAG, "Expired archive file cleanup failed: ${e.message}")
         }
 
         val elapsed = System.currentTimeMillis() - startTime

@@ -43,12 +43,11 @@ import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughBonusDetail
+import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
 
 /**
- * 弟子详情"基本信息"区块。
- *
- * 2026-08-11 从 DetailCultivationSection.kt 拆出（LongMethod 280 行 + 复杂度 39 +
- * TooManyFunctions 15 项修复），本文件内聚 BasicInfoSection 全部子组件与纯计算辅助。
+ * 弟子详情"基本信息"区块：内聚 BasicInfoSection 全部子组件与纯计算辅助。
  */
 @Composable
 fun BasicInfoSection(
@@ -117,7 +116,7 @@ fun BasicInfoSection(
     }
 }
 
-// ── BasicInfoSection 子组件（2026-08-11 拆分，LongMethod 280 行 → 5 个小组件）──
+// ── BasicInfoSection 子组件 ──
 
 @Composable
 private fun BasicInfoIdentityRow(
@@ -319,8 +318,7 @@ private fun BasicInfoRealmRow(
                     sectPolicies = sectPolicies
                 )
                 // calculateCultivationSpeed 直接返回每旬修炼值（乘区基准 REALM_SPEED_PER_PHASE
-                // 即"每旬修为"），无需再按每秒值换算（2026-08 修复：原 ×每旬秒数
-                // MS_PER_PHASE_1X/1000 导致显示值恒为实际结算值的 2 倍）
+                // 即"每旬修为"），无需再按每秒值换算，显示值与实际结算值同刻度
                 disciple.calculateCultivationSpeed(
                     manualsMap, proficiencyMap,
                     buildingBonus = buildingBonus,
@@ -394,7 +392,7 @@ private fun CultivationProgressRow(
     }
 }
 
-// ── BasicInfoSection 纯计算辅助（2026-08-11 LongMethod 拆分时提取）──
+// ── BasicInfoSection 纯计算辅助 ──
 
 private fun discipleGriefPenalty(disciple: DiscipleAggregate, gameYear: Int): Double =
     if ((disciple.griefEndYear ?: 0) > gameYear) {

@@ -21,7 +21,8 @@ class EquipmentNurtureSystemTest {
     fun `getMaxNurtureLevel - 品阶越高等级上限越高`() {
         for (rarity in 1..5) {
             assertTrue(
-                EquipmentNurtureSystem.getMaxNurtureLevel(rarity) < EquipmentNurtureSystem.getMaxNurtureLevel(rarity + 1)
+                EquipmentNurtureSystem.getMaxNurtureLevel(rarity) < EquipmentNurtureSystem
+                    .getMaxNurtureLevel(rarity + 1)
             )
         }
     }

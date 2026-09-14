@@ -7,17 +7,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 帧率↔刷新率联动声明策略测试（2026-08-14 平板省电）。
+ * 帧率↔刷新率联动声明策略测试（平板省电）。
  *
  * 覆盖维度：
- * - 60Hz 面板旧行为逐位一致（≤30 声明 + 回升恢复声明）
+ * - 60Hz 面板（≤30 声明 + 回升恢复声明）
  * - >60Hz 面板 {60, 30} 两档（首帧 60 / 深闲置 30 / 回升 60）
  * - 面板不支持声明（displayFps ≤ 0）返回 null
  * - FIXED_SOURCE 判定（仅高刷面板）
  */
 class FrameRateDeclarationPolicyTest {
 
-    // ── 60Hz 面板：旧行为逐位一致 ──
+    // ── 60Hz 面板 ──
 
     @Test
     fun `60Hz - idle 10fps declares 10`() {
@@ -36,7 +36,7 @@ class FrameRateDeclarationPolicyTest {
 
     @Test
     fun `60Hz - upshift restores declaration to prevent panel stickiness`() {
-        // 30→60 回升：lastDeclared=30 > 0 → 声明 60（防 OEM 面板粘滞旧行为）
+        // 30→60 回升：lastDeclared=30 > 0 → 声明 60（防 OEM 面板粘滞）
         assertEquals(60, FrameRateDeclarationPolicy.targetDeclareFps(60, 60, 30))
     }
 

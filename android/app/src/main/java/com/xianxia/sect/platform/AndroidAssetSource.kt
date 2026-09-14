@@ -9,9 +9,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * AndroidAssetSource — [AssetSource] 的 Android 实现（计划 v2 阶段 7
- * 平台能力接口化：引擎注册表/配置服务经引擎层端口读资产，本类承载
- * `Context.assets` 平台细节）。
+ * AndroidAssetSource — [AssetSource] 的 Android 实现：引擎注册表/配置服务
+ * 经引擎层端口读资产，本类承载 `Context.assets` 平台细节。
  *
  * 资产不存在/不可读按端口契约返回 `null`（不抛异常），由调用方按缺省回退。
  */

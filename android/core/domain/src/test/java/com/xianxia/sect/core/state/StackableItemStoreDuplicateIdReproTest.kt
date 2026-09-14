@@ -67,7 +67,7 @@ class StackableItemStoreDuplicateIdReproTest {
         s.add(pill("newId", "回气丹", 1, 200))
         val all = s.all()
 
-        // 模拟 SQLite 主键 REPLACE：同 id 只保留最后一条（修复后无同 id，去重无损失）
+        // 模拟 SQLite 主键 REPLACE：同 id 只保留最后一条（当前 id 唯一，去重无损失）
         val deduped = all.associateBy { it.id }.values.toList()
         assertEquals("修复后 id 去重不丢堆叠", all.size, deduped.size)
         assertEquals(304, deduped.sumOf { it.quantity })

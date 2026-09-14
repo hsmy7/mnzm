@@ -64,7 +64,7 @@ fun ReflectionCliffDialog(
     }
 }
 
-/** 监牢主体内容区（ReflectionCliffDialog 拆分）：标语 + 空态或思过弟子网格 */
+/** 监牢主体内容区：标语 + 空态或思过弟子网格 */
 @Composable
 private fun ReflectionCliffContent(
     reflectingDisciples: List<DiscipleAggregate>,
@@ -101,7 +101,7 @@ private fun ReflectionCliffContent(
     }
 }
 
-/** 无思过弟子空态（ReflectionCliffDialog 拆分） */
+/** 无思过弟子空态 */
 @Composable
 private fun ReflectionEmptyState() {
     Box(
@@ -128,7 +128,7 @@ private fun ReflectionEmptyState() {
     }
 }
 
-/** 思过弟子网格（ReflectionCliffDialog 拆分）：卡片 + 释放/驱逐操作 */
+/** 思过弟子网格：卡片 + 释放/驱逐操作 */
 @Composable
 private fun ReflectionDiscipleGrid(
     reflectingDisciples: List<DiscipleAggregate>,
@@ -179,7 +179,7 @@ private fun ReflectionDiscipleGrid(
     }
 }
 
-/** 驱逐确认弹窗（ReflectionCliffDialog 拆分） */
+/** 驱逐确认弹窗 */
 @Composable
 private fun ReflectionExpelConfirmDialog(
     disciple: DiscipleAggregate,

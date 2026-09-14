@@ -1,8 +1,8 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions")
 package com.xianxia.sect.data.prefs
 
 /**
- * 类型化键值存储端口（docs/architecture.md 待办 D-29 根治）。
+ * 类型化键值存储端口。
  *
  * 生产实现 [GamePreferences]（MMKV，跨平台，iOS 迁移就绪）；单元测试使用
  * 内存 Fake（MMKV native 库在 Robolectric 沙箱不可用，见 GamePreferences KDoc）。

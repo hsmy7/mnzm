@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
-import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.model.BagStackedData
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -21,7 +20,7 @@ import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
 /**
- * D-03 对抗性审查修复：死亡统一入口测试（InventorySystem.materializeDiscipleBagAndMarkDead）。
+ * 死亡统一入口测试（InventorySystem.materializeDiscipleBagAndMarkDead）。
  *
  * 核心守卫：
  * - 袋物品物化回仓库（玩家保留，死亡不吞物品）+ 清空袋条目 + 标记死亡（同一事务）
@@ -50,10 +49,6 @@ class InventorySystemDeathMaterializeTest {
         inventorySystem = InventorySystem(
             stateStore = store,
             inventoryConfig = InventoryConfig(),
-            spiritStoneWallet = wallet,
-            gameConfigProvider = GameConfigProvider(
-                com.xianxia.sect.core.config.ConfigLoader(assetReader = { null })
-            ),
             overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
         )
     }

@@ -30,9 +30,13 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.RunState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -62,17 +66,27 @@ class BootSequenceControllerTest {
         buildingConfigService = mock()
         mailService = mock()
 
-        // 2026-08-23：天枢殿当前配置占地 18×13（filterLegacyTianshuHalls 判定用）
-        whenever(buildingConfigService.getBuildingGridSize("天枢殿")).thenReturn(18 to 13)
+        // 天枢殿旧档判定用**历史尺寸白名单**（TIANSHU_LEGACY_FOOTPRINTS = 6×3 / 12×6），
+        // 不再依赖当前配置尺寸——此处无需 stub getBuildingGridSize
 
         // EngineContextDispatcher: 使用 Fake 确保 extension 函数内部 withEngineContext 正常执行
         whenever(gameEngine.engineContextDispatcher).thenReturn(FakeEngineContextDispatcher())
 
         // GameEngine 属性: 扩展函数 (updateGameData / ensureHeavyDataLoaded) 内部
-        // 通过 gameEngine.stateStore 访问 FakeGameStateStore，因此需要 stub
+        // 通过 gameEngine.stateStore 访问 FakeGameStateStore，因此需要 stub。
+        // **双路径连通**：boot 的写经 stateStore（Fake），而恢复前置判据
+        // （`gameEngine.gameData.value.sectName`）读 gameData flow——两者若各自
+        // 独立，写不反映到读：恢复恒失败、全部成功臂变红。故安装 store→flow
+        // 同步收集器（Unconfined 立即投递，测试读到的即为最新写值）。
         whenever(gameEngine.stateStore).thenReturn(stateStore)
         whenever(gameEngine.gameData).thenReturn(gameDataFlow)
-        whenever(gameEngine.gameDataSnapshot).thenReturn(gameDataFlow.value)
+        whenever(gameEngine.gameDataSnapshot).thenAnswer { gameDataFlow.value }
+        // gameEngineCore 引用：GameEngine 的委托方法（lockBeastView 的 native 臂
+        // 经 stateSyncService → gameEngineCore）与属性访问器都走该引用——mock
+        // 未 stub 时返回 null → 属性访问器内部 NPE（boot 全链变红）。
+        whenever(gameEngine.gameEngineCore).thenReturn(gameEngineCore)
+        stateStore.gameData.onEach { gameDataFlow.value = it }
+            .launchIn(CoroutineScope(Dispatchers.Unconfined))
         whenever(gameEngine.disciples).thenReturn(disciplesFlow)
         whenever(gameEngine.discipleTables).thenReturn(discipleTables)
         whenever(gameEngine.discipleAggregatesSnapshot).thenReturn(emptyList())
@@ -94,7 +108,7 @@ class BootSequenceControllerTest {
         // CultivationService: ensureGameDataIntegrity → checkAndRepairMerchantAndRecruit 会调用
         whenever(gameEngine.cultivationService).thenReturn(mock())
 
-        // T15（2026-08-05）：recoverWithPartialData 补守卫需访问 productionCoordinator.repository。
+        // recoverWithPartialData 补守卫需访问 productionCoordinator.repository。
         // 注意：不 stub getSlots()——ProductionSlotRepository 的属性 `val slots` 编译为同名 JVM
         // getter（返回 StateFlow），与函数 getSlots()（返回 List）同名，Mockito 按名匹配到
         // StateFlow 版本抛 WrongTypeOfReturnValue；BootSequenceController 调用有 try-catch 兜底，
@@ -126,7 +140,10 @@ class BootSequenceControllerTest {
         stateStore.bootPhase.value = BootPhase.UNINITIALIZED
         var onSuccessCalled = false
 
-        val result = controller.boot(slot = 1, onSuccess = { onSuccessCalled = true })
+        val result = controller.boot(
+            slot = 1,
+            onSuccess = { onSuccessCalled = true }
+        )
 
         assertTrue("boot should succeed", result.isSuccess)
         assertTrue("onSuccess callback should be called", onSuccessCalled)
@@ -152,7 +169,7 @@ class BootSequenceControllerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 2026-08-23：旧档天枢殿删除 + 补偿邮件（用户决策）
+    // 旧档天枢殿删除 + 补偿邮件
     // ──────────────────────────────────────────────────────────────────
 
     @Test
@@ -164,7 +181,9 @@ class BootSequenceControllerTest {
                 placedBuildings = listOf(
                     GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
                         width = 6, height = 3, instanceId = "legacy_tianshu"),
-                    GridBuildingData(displayName = "灵田", gridX = 0, gridY = 0,
+                    // 置于边界树环之外（BORDER_TREE_RING 内侧）——否则
+                    // migrateBorderZoneBuildings 会把它一并拆除，断言失去语义
+                    GridBuildingData(displayName = "灵田", gridX = 40, gridY = 40,
                         width = 1, height = 1, instanceId = "field")
                 )
             )
@@ -203,6 +222,32 @@ class BootSequenceControllerTest {
     }
 
     @Test
+    fun `boot - 非历史尺寸天枢殿保留且不发补偿邮件_尺寸调整零拆除`() = runTest {
+        // 根因回归（端到端）：旧判据「尺寸 ≠ 当前配置」下，任何一次天枢殿配置尺寸调整
+        // 都会让存量天枢殿被判定为"旧档遗留"并拆除 + 补偿。现白名单口径下，
+        // 非历史尺寸（未来调整后的新尺寸）由 fixupBuildingSizes 正常改写尺寸并保留。
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        stateStore.update {
+            gameData = GameData(
+                placedBuildings = listOf(
+                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
+                        width = 20, height = 14, instanceId = "future_tianshu")
+                )
+            )
+        }
+
+        val result = controller.boot(slot = 1, onSuccess = {})
+
+        assertTrue("boot should succeed", result.isSuccess)
+        assertTrue(
+            "非历史尺寸天枢殿不得被删除（尺寸调整不得触发全服拆殿）",
+            stateStore.gameData.value.placedBuildings.any { it.instanceId == "future_tianshu" }
+        )
+        verify(mailService, never()).insertMail(any())
+    }
+
+    @Test
     fun `boot - 补偿邮件插入失败时保留天枢殿防资产丢失`() = runTest {
         stateStore.runState.value = RunState.IDLE
         stateStore.bootPhase.value = BootPhase.UNINITIALIZED
@@ -228,7 +273,7 @@ class BootSequenceControllerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Test 1.5: Step 3 建筑自愈守卫（D-13 孤儿归一化 + D-11 activeSectId 净化）
+    // Test 1.5: Step 3 建筑自愈守卫（孤儿归一化 + activeSectId 净化）
     // ──────────────────────────────────────────────────────────────────
 
     /** 向 FakeGameStateStore 注入初始游戏数据（loadFromSnapshot 是唯一写入入口） */
@@ -315,7 +360,8 @@ class BootSequenceControllerTest {
         assertTrue("reload should succeed", result.isSuccess)
         assertTrue("onSuccess callback should be called", onSuccessCalled)
         assertEquals("runState should be PLAYING after reload", RunState.PLAYING, stateStore.runState.value)
-        assertEquals("bootPhase should be BOOT_COMPLETE after reload", BootPhase.BOOT_COMPLETE, stateStore.bootPhase.value)
+        assertEquals("bootPhase should be BOOT_COMPLETE after reload", BootPhase.BOOT_COMPLETE,
+            stateStore.bootPhase.value)
 
         // 验证 reload 路径: stopGameLoop → setReloading → resetBootPhase
         verify(gameEngineCore).stopGameLoop()
@@ -352,7 +398,7 @@ class BootSequenceControllerTest {
         // onPreloadResources 抛异常 → 触发 catch → recoverWithPartialData → 成功恢复
         val result = controller.boot(
             slot = 1,
-            onPreloadResources = { throw RuntimeException("preload failure") },
+            onPreloadResources = { throw IllegalStateException("preload failure") },
             onSuccess = { onSuccessCalled = true },
             onError = { msg ->
                 onErrorCalled = true
@@ -364,7 +410,7 @@ class BootSequenceControllerTest {
         assertTrue("onSuccess callback should be called", onSuccessCalled)
         assertFalse("onError should not be called", onErrorCalled)
 
-        // 2026-08-04 修复断言：recover 路径必须调用 onMapReady——
+        // recover 路径必须调用 onMapReady——
         // 否则 UI 侧 mapPreloadData 为 null → 永久 LoadingScreen
         assertNotNull("recover 路径应调用 onMapReady", capturedMap)
 
@@ -447,8 +493,8 @@ class BootSequenceControllerTest {
         stateStore.runState.value = RunState.IDLE
         stateStore.bootPhase.value = BootPhase.UNINITIALIZED
 
-        // 2026-08-04 修复断言：地图生成失败必须硬失败（stopGameLoop + onError），
-        // 原实现静默推进到 BOOT_COMPLETE 但 onMapReady 未调用 → 永久 LoadingScreen
+        // 地图生成失败必须硬失败（stopGameLoop + onError），
+        // 不得静默推进到 BOOT_COMPLETE（否则 onMapReady 未调用 → 永久 LoadingScreen）
         val failingFlow = mock<StateFlow<GameData>>()
         whenever(failingFlow.value).thenThrow(RuntimeException("map seed unavailable"))
         whenever(gameEngine.gameData).thenReturn(failingFlow)
@@ -475,7 +521,7 @@ class BootSequenceControllerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // T15（2026-08-05）：recoverWithPartialData 补完整性守卫
+    // recoverWithPartialData 补完整性守卫
     // ──────────────────────────────────────────────────────────────────
 
     @Test
@@ -487,7 +533,7 @@ class BootSequenceControllerTest {
 
         val result = controller.boot(
             slot = 1,
-            onPreloadResources = { throw RuntimeException("preload failure") },
+            onPreloadResources = { throw IllegalStateException("preload failure") },
             onSuccess = {},
             onError = {}
         )
@@ -532,7 +578,7 @@ class BootSequenceControllerTest {
         // 判据失败：不触发守卫（回归守卫——恢复前置条件未满足时不可启动守卫流程）
         val result = controller.boot(
             slot = 1,
-            onPreloadResources = { throw RuntimeException("preload failure") },
+            onPreloadResources = { throw IllegalStateException("preload failure") },
             onSuccess = {},
             onError = {}
         )
@@ -678,12 +724,13 @@ private class FakeGameStateStore : GameStateStore {
     override fun clearPendingBattleResult() { pendingBattleResult.value = null }
     override fun setPendingBeastAttacks(a: List<PendingBeastAttack>) { pendingBeastAttacks.value = a }
     override fun clearPendingBeastAttacks() { pendingBeastAttacks.value = emptyList() }
-    override fun removePendingBeastAttack(beastLevelId: String) { pendingBeastAttacks.value = pendingBeastAttacks.value.filter { it.beastLevel.id != beastLevelId } }
+    override fun removePendingBeastAttack(beastLevelId: String) { pendingBeastAttacks.value = pendingBeastAttacks.value
+        .filter { it.beastLevel.id != beastLevelId } }
     override fun clearPendingMarriageProposals() { pendingMarriageProposals.value = emptyList() }
     override fun setPendingBattleRewardCards(c: List<RewardCardItem>) { pendingBattleRewardCards.value = c }
     override fun clearPendingBattleRewardCards() { pendingBattleRewardCards.value = emptyList() }
-    override fun enqueueRewardCards(items: List<RewardCardItem>) {}
-    override fun clearRewardCardQueue(count: Int) {}
+    override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
+    override fun clearRewardCardQueue(count: Int) = Unit
 
     // ── 直接设置 ──
     override fun setPausedDirect(paused: Boolean) { isPaused.value = paused }
@@ -737,8 +784,8 @@ private class FakeGameStateStore : GameStateStore {
     }
 
     override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
-    override fun enterBatchEmissionMode() {}
-    override fun exitBatchEmissionMode() {}
+    override fun enterBatchEmissionMode() = Unit
+    override fun exitBatchEmissionMode() = Unit
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot()
 
     private fun newMutable() = MutableGameState(

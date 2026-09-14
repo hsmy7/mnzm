@@ -191,8 +191,7 @@ class ThermalController @Inject constructor(
         return evaluateUpgrade(temp = temp, recentFps = recentFps) ?: DegradationLevel.GREEN
     }
 
-    /** 帧率驱动降级（evaluateLevel 拆分）：连续低帧达到稳定次数才降级；返回 null 表示维持当前等级 */
-    // 拆分搬移:多出口与原函数一致
+    /** 帧率驱动降级：连续低帧达到稳定次数才降级；返回 null 表示维持当前等级 */
     @Suppress("ReturnCount")
     private fun evaluateFpsDegradation(recentFps: Float): DegradationLevel? {
         if (recentFps <= 0) return null
@@ -223,9 +222,7 @@ class ThermalController @Inject constructor(
         return null
     }
 
-    /** 降级后升档检查（evaluateLevel 拆分）：已降级时按温度回退逐级升档；返回 null 表示当前为 GREEN */
-    // 拆分搬移:分支结构与原函数一致
-    // 拆分搬移:多出口与原函数一致
+    /** 降级后升档检查：已降级时按温度回退逐级升档；返回 null 表示当前为 GREEN */
     @Suppress("CyclomaticComplexMethod", "ReturnCount")
     private fun evaluateUpgrade(temp: Float, recentFps: Float): DegradationLevel? {
         if (currentLevel == DegradationLevel.GREEN) return null

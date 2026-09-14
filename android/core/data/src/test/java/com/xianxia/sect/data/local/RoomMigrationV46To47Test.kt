@@ -16,7 +16,7 @@ import java.io.File
 /**
  * 迁移 46→47 测试（game_data 新增"新增天赋/体质/词条"待确认产物列 pending_trait_adds）。
  *
- * 背景（2026-08-15 玉符消耗玩法扩展）：新增天赋/体质/词条的刷新产物必须持久化——
+ * 背景（玉符消耗玩法）：新增天赋/体质/词条的刷新产物必须持久化——
  * 刷新（消耗 1 玉符）后不确认直接关闭界面，下次打开仍显示该产物并可直接确认新增。
  * 产物为 List[PendingTraitAdd]，经 ProtobufConverters 序列化为 Base64 存 TEXT 列。
  */
@@ -34,6 +34,7 @@ class RoomMigrationV46To47Test {
         private val M46_47 = MIGRATION_46_47
         private val M47_48 = MIGRATION_47_48
         private val M48_49 = MIGRATION_48_49
+        private val M49_50 = MIGRATION_49_50
     }
 
     /**
@@ -48,7 +49,7 @@ class RoomMigrationV46To47Test {
         try {
             createDatabaseFromSchema(context, dbName, 46).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M46_47, M47_48, M48_49)
+                .addMigrations(M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()

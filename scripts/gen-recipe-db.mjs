@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * gen-recipe-db.mjs — 锻造/炼丹配方快照生成器（Kotlin→C++ 迁移批次 2 剩余子步）
+ * gen-recipe-db.mjs — 锻造/炼丹配方快照生成器
  *
  * 与 gen-templates.mjs / gen-trait-db.mjs 同模式：在 Node 侧**等价复刻 Kotlin
  * 的生成逻辑**，产出 JSON 快照锚点：
@@ -566,7 +566,7 @@ for (let tier = 1; tier <= 6; tier++) {
 }
 
 // ── 校验 ──────────────────────────────────────────────────────────────
-// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+// 静态数据单一源——数据权威在 scripts/data/*.json
 //（中性源），生成器只读中性源校验并刷新测试快照。
 const DATA_DIR = join(ROOT, 'scripts/data');
 const recipeJson = JSON.parse(

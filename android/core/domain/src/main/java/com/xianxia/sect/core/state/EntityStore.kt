@@ -6,13 +6,10 @@ import com.xianxia.sect.core.util.StackableItem
 /**
  * 实体存储容器（增量更新版）。
  *
- * ## 设计变更
+ * ## 设计
  *
- * 原实现每次 [add]/[remove]/[update] 都分配新 [List]（写时复制），
- * 依赖 `!==` 引用比较检测变化。在 1000+ 物品场景下 GC 压力大。
- *
- * 现改为：
- * - 内部使用 [MutableList] 原地修改，写操作零分配
+ * - 内部使用 [MutableList] 原地修改，写操作零分配，避免大仓库场景下
+ *   每次 [add]/[remove]/[update] 重建 [List] 的 GC 压力
  * - [dirty] 标记记录是否有未冻结的修改
  * - [freeze] 在 StateFlow 发射前调用，重建不可变快照
  * - [items] 返回最近一次 freeze 的结果（无写操作时复用同一引用）
@@ -21,14 +18,16 @@ import com.xianxia.sect.core.util.StackableItem
  *
  * @param T 实体类型，须实现 [HasId]
  */
+@Suppress("TooManyFunctions") // ECS 实体容器：id 索引/快照/行序迭代/批量重建原语集，函数数即容器 API 面
 class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> {
 
-    // ★ 内部可变列表 — 写操作原地修改，零分配
+    // 内部可变列表 — 写操作原地修改，零分配
+    @Suppress("VariableNaming") // 与公开只读 API items 同名消歧（尾下划线为刻意命名）
     private val items_ = initialItems.toMutableList()
     private val index: MutableMap<String, T> = HashMap(initialItems.size)
-    // ★ 已冻结的快照（供 items 返回）
+    // 已冻结的快照（供 items 返回）
     private var frozenSnapshot: List<T> = initialItems
-    // ★ dirty 标记：是否有未冻结的修改
+    // dirty 标记：是否有未冻结的修改
     private var dirty = false
 
     init { rebuildIndex() }
@@ -168,14 +167,14 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
         dirty = true
     }
 
-    // ★ 拼接（仍返回新 EntityStore，保持语义不变）
+    // 拼接（仍返回新 EntityStore）
     operator fun plus(item: T): EntityStore<T> {
         val newItems = this.items_.toMutableList()
         newItems.add(item)
         return EntityStore(newItems)
     }
 
-    // ★ 冻结：写入 items 快照供 StateFlow 发射用。仅 dirty 时分配新列表。
+    // 冻结：写入 items 快照供 StateFlow 发射用。仅 dirty 时分配新列表。
     fun freeze(): EntityStore<T> {
         if (dirty) {
             frozenSnapshot = items_.toList()
@@ -200,8 +199,8 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
 /**
  * 将可堆叠物品合并到 [EntityStore]，溢出时新建堆叠。
  *
- * 2026-07-23 增强：遍历所有匹配堆叠（不仅是第一个），逐个填充至 [maxStack]，
- * 之后仍有剩余则新建堆叠。消除原实现只合并第一个堆叠导致的溢出丢失。
+ * 遍历所有匹配堆叠（不仅是第一个），逐个填充至 [maxStack]；
+ * 之后仍有剩余则新建堆叠，保证溢出部分不丢失。
  *
  * @param item 待添加的物品
  * @param matchPredicate 判断两个物品是否属于同一合并组（名称/品质/类型等）
@@ -220,12 +219,12 @@ inline fun <T> EntityStore<T>.mergeStackable(
     val matchingIds = items.filter(matchPredicate).map { it.id }
     for (id in matchingIds) {
         if (remaining <= 0) break
-        val existing = get(id) ?: continue
-        val space = maxStack - existing.quantity
-        if (space <= 0) continue
-        val addQty = minOf(remaining, space)
-        update(id) { (it as StackableItem).withQuantity(existing.quantity + addQty) as T }
-        remaining -= addQty
+        val existing = get(id)
+        if (existing != null && existing.quantity < maxStack) {
+            val addQty = minOf(remaining, maxStack - existing.quantity)
+            update(id) { (it as StackableItem).withQuantity(existing.quantity + addQty) as T }
+            remaining -= addQty
+        }
     }
 
     // 仍有剩余 → 新建堆叠

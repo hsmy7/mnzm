@@ -183,8 +183,10 @@ class StorageConstantsTest {
 
     @Test
     fun `TrimMemoryPressure values are in ascending order`() {
-        assertTrue(StorageConstants.TrimMemoryPressure.RUNNING_LOW < StorageConstants.TrimMemoryPressure.RUNNING_MODERATE)
-        assertTrue(StorageConstants.TrimMemoryPressure.RUNNING_MODERATE < StorageConstants.TrimMemoryPressure.BACKGROUND)
+        assertTrue(StorageConstants.TrimMemoryPressure.RUNNING_LOW < StorageConstants.TrimMemoryPressure
+            .RUNNING_MODERATE)
+        assertTrue(StorageConstants.TrimMemoryPressure.RUNNING_MODERATE < StorageConstants.TrimMemoryPressure
+            .BACKGROUND)
         assertTrue(StorageConstants.TrimMemoryPressure.BACKGROUND < StorageConstants.TrimMemoryPressure.COMPLETE)
     }
 

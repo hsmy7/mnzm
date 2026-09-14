@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.components
 
 import com.xianxia.sect.ui.components.rememberChasingProgress
@@ -44,8 +44,6 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.getRarityColor
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-
-
 @Composable
 fun ItemDetailDialog(
     item: Any,
@@ -71,7 +69,7 @@ fun ItemDetailDialog(
     }
 }
 
-/** 物品详情数据（ItemDetailDialog 拆分） */
+/** 物品详情数据 */
 private data class ItemDetailInfo(
     val name: String,
     val rarity: Int,
@@ -79,8 +77,7 @@ private data class ItemDetailInfo(
     val effects: List<String>
 )
 
-/** 物品详情解析（ItemDetailDialog 拆分）：按物品类型解析名称/稀有度/描述/效果列表 */
-// 拆分搬移:分支结构与原函数一致
+/** 物品详情解析：按物品类型解析名称/稀有度/描述/效果列表 */
 @Suppress("CyclomaticComplexMethod")
 private fun resolveItemDetailInfo(item: Any): ItemDetailInfo = when (item) {
     is EquipmentStack -> ItemDetailInfo(
@@ -137,18 +134,19 @@ private fun resolveItemDetailInfo(item: Any): ItemDetailInfo = when (item) {
     )
 }
 
-/** 商人物品描述解析（ItemDetailDialog 拆分） */
+/** 商人物品描述解析 */
 private fun merchantItemDescription(item: MerchantItem): String = when (item.type) {
     "equipment" -> EquipmentDatabase.getTemplateByName(item.name)?.description ?: item.description
     "manual" -> ManualDatabase.getByName(item.name)?.description ?: item.description
     "pill" -> ItemDatabase.getPillByName(item.name)?.description ?: item.description
     "herb" -> HerbDatabase.getHerbByName(item.name)?.description ?: item.description
     "seed" -> HerbDatabase.getSeedByName(item.name)?.description ?: item.description
-    "material" -> com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: item.description
+    "material" -> com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: item
+        .description
     else -> item.description
 }
 
-/** 储物袋物品描述解析（ItemDetailDialog 拆分） */
+/** 储物袋物品描述解析 */
 private fun storageBagItemDescription(item: StorageBagItem): String = when (item.itemType) {
     "equipment" -> EquipmentDatabase.getTemplateByName(item.name)?.description ?: ""
     "manual" -> ManualDatabase.getByName(item.name)?.description ?: ""
@@ -159,7 +157,7 @@ private fun storageBagItemDescription(item: StorageBagItem): String = when (item
     else -> ""
 }
 
-/** 装备模板效果列表（ItemDetailDialog 拆分） */
+/** 装备模板效果列表 */
 private fun equipmentTemplateEffects(item: EquipmentDatabase.EquipmentTemplate): List<String> = buildList {
     add("槽位: ${item.slot.displayName}")
     if (item.physicalAttack > 0) add("物理攻击: +${item.physicalAttack}")
@@ -172,7 +170,7 @@ private fun equipmentTemplateEffects(item: EquipmentDatabase.EquipmentTemplate):
     if (item.critChance > 0) add("暴击率: +${(item.critChance * 100).toInt()}%")
 }
 
-/** 功法模板效果列表（ItemDetailDialog 拆分） */
+/** 功法模板效果列表 */
 private fun manualTemplateEffects(item: ManualDatabase.ManualTemplate): List<String> = buildList {
     add("类型: ${item.type.displayName}")
     item.stats.forEach { (key, value) ->
@@ -190,7 +188,7 @@ private fun manualTemplateEffects(item: ManualDatabase.ManualTemplate): List<Str
     }
 }
 
-/** 物品详情内容区（ItemDetailDialog 拆分） */
+/** 物品详情内容区 */
 @Composable
 private fun ItemDetailDialogContent(
     item: Any,
@@ -240,7 +238,7 @@ private fun ItemDetailDialogContent(
                 WatchItemButton(
                     watchKey = watchKey,
                     watchedKeys = watchedKeys,
-                    onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
+                    onToggleWatch = { key -> viewModel.inventory.toggleWatchItem(key) }
                 )
             }
             extraActions?.invoke()
@@ -248,7 +246,7 @@ private fun ItemDetailDialogContent(
     }
 }
 
-/** 效果列表（ItemDetailDialog 拆分） */
+/** 效果列表 */
 @Composable
 private fun ItemDetailEffectsList(effects: List<String>) {
     effects.forEach { effect ->
@@ -269,7 +267,7 @@ private fun ItemDetailEffectsList(effects: List<String>) {
     }
 }
 
-/** 装备孕养进度条（ItemDetailDialog 拆分） */
+/** 装备孕养进度条 */
 @Composable
 private fun ItemDetailNurtureProgress(item: EquipmentInstance) {
     val nurtureLevel = item.nurtureLevel
@@ -326,6 +324,52 @@ private fun ItemDetailNurtureProgress(item: EquipmentInstance) {
     }
 }
 
+/** 熟练度当前等级阈值：入门恒为 0，其余查阈值表并按原兜底值回退 */
+private fun currentMasteryThreshold(
+    mastery: ManualProficiencySystem.MasteryLevel,
+    thresholds: Map<ManualProficiencySystem.MasteryLevel, Double>
+): Double = when (mastery) {
+    ManualProficiencySystem.MasteryLevel.NOVICE -> 0.0
+    ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel
+        .SMALL_SUCCESS] ?: 1000.0
+    ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel
+        .GREAT_SUCCESS] ?: 10000.0
+    ManualProficiencySystem.MasteryLevel.PERFECTION -> thresholds[ManualProficiencySystem.MasteryLevel
+        .PERFECTION] ?: 30000.0
+}
+
+/** 熟练度下一等级阈值：圆满封顶为最大熟练度 */
+private fun nextMasteryThreshold(
+    mastery: ManualProficiencySystem.MasteryLevel,
+    thresholds: Map<ManualProficiencySystem.MasteryLevel, Double>,
+    maxProficiency: Double
+): Double = when (mastery) {
+    ManualProficiencySystem.MasteryLevel.NOVICE -> thresholds[ManualProficiencySystem.MasteryLevel
+        .SMALL_SUCCESS] ?: 1000.0
+    ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel
+        .GREAT_SUCCESS] ?: 10000.0
+    ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel
+        .PERFECTION] ?: 30000.0
+    ManualProficiencySystem.MasteryLevel.PERFECTION -> maxProficiency
+}
+
+/** 熟练度当前等级内进度：圆满恒为 1.0，其余按区间线性插值并夹取 */
+private fun masteryProgressInLevel(
+    mastery: ManualProficiencySystem.MasteryLevel,
+    proficiency: Double,
+    currentThreshold: Double,
+    nextThreshold: Double
+): Double = if (mastery == ManualProficiencySystem.MasteryLevel.PERFECTION) {
+    1.0
+} else {
+    val denominator = nextThreshold - currentThreshold
+    if (denominator > 0) {
+        ((proficiency - currentThreshold) / denominator).coerceIn(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
 @Composable
 fun LearnedManualDetailDialog(
     manual: ManualInstance,
@@ -342,29 +386,14 @@ fun LearnedManualDetailDialog(
     val thresholds = ManualProficiencySystem.PROFICIENCY_THRESHOLDS
     val maxProficiency = ManualProficiencySystem.MAX_PROFICIENCY
 
-    val currentThreshold = when (mastery) {
-        ManualProficiencySystem.MasteryLevel.NOVICE -> 0.0
-        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0
-        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0
-        ManualProficiencySystem.MasteryLevel.PERFECTION -> thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 30000.0
-    }
-    val nextThreshold = when (mastery) {
-        ManualProficiencySystem.MasteryLevel.NOVICE -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0
-        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0
-        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 30000.0
-        ManualProficiencySystem.MasteryLevel.PERFECTION -> maxProficiency
-    }
-
-    val progressInCurrentLevel = if (mastery == ManualProficiencySystem.MasteryLevel.PERFECTION) {
-        1.0
-    } else {
-        val denominator = nextThreshold - currentThreshold
-        if (denominator > 0) {
-            ((proficiency - currentThreshold) / denominator).coerceIn(0.0, 1.0)
-        } else {
-            0.0
-        }
-    }
+    val currentThreshold = currentMasteryThreshold(mastery, thresholds)
+    val nextThreshold = nextMasteryThreshold(mastery, thresholds, maxProficiency)
+    val progressInCurrentLevel = masteryProgressInLevel(
+        mastery = mastery,
+        proficiency = proficiency,
+        currentThreshold = currentThreshold,
+        nextThreshold = nextThreshold
+    )
 
     val display = ManualProficiencyDisplay(
         mastery = mastery,
@@ -388,7 +417,7 @@ fun LearnedManualDetailDialog(
     }
 }
 
-/** 功法熟练度展示数据（LearnedManualDetailDialog 拆分） */
+/** 功法熟练度展示数据 */
 private data class ManualProficiencyDisplay(
     val mastery: ManualProficiencySystem.MasteryLevel,
     val proficiency: Double,
@@ -396,7 +425,7 @@ private data class ManualProficiencyDisplay(
     val progressInCurrentLevel: Double
 )
 
-/** 已学功法详情内容（LearnedManualDetailDialog 拆分） */
+/** 已学功法详情内容 */
 @Composable
 private fun ManualDetailContent(
     manual: ManualInstance,
@@ -462,7 +491,7 @@ private fun ManualDetailContent(
     )
 }
 
-/** 熟练度标题与数值行（LearnedManualDetailDialog 拆分） */
+/** 熟练度标题与数值行 */
 @Composable
 private fun ManualProficiencyHeader(
     mastery: ManualProficiencySystem.MasteryLevel,
@@ -496,7 +525,7 @@ private fun ManualProficiencyHeader(
     }
 }
 
-/** 熟练度进度条（LearnedManualDetailDialog 拆分） */
+/** 熟练度进度条 */
 @Composable
 private fun ManualProficiencyProgress(
     progressInCurrentLevel: Double,
@@ -523,7 +552,7 @@ private fun ManualProficiencyProgress(
     }
 }
 
-/** 距下一熟练度等级提示（LearnedManualDetailDialog 拆分） */
+/** 距下一熟练度等级提示 */
 @Composable
 private fun ManualNextLevelHint(
     mastery: ManualProficiencySystem.MasteryLevel,
@@ -551,7 +580,7 @@ private fun ManualNextLevelHint(
     }
 }
 
-/** 已学功法遗忘操作行（LearnedManualDetailDialog 拆分） */
+/** 已学功法遗忘操作行 */
 @Composable
 private fun ManualForgetActionRow(
     onForget: () -> Unit,
@@ -621,7 +650,7 @@ private fun ManualStatsContent(
     }
 }
 
-/** 功法附带技能区（ManualStatsContent 拆分） */
+/** 功法附带技能区 */
 @Composable
 @Suppress("DEPRECATION")
 private fun ManualSkillSection(
@@ -638,7 +667,7 @@ private fun ManualSkillSection(
     ManualSkillBuffInfo(skill = skill)
 }
 
-/** 技能基础信息（ManualStatsContent 拆分）：名称/描述/类型/目标/范围/伤害 */
+/** 技能基础信息：名称/描述/类型/目标/范围/伤害 */
 @Composable
 @Suppress("DEPRECATION")
 private fun ManualSkillBaseInfo(
@@ -699,7 +728,7 @@ private fun ManualSkillBaseInfo(
     }
 }
 
-/** 技能治疗信息（ManualStatsContent 拆分） */
+/** 技能治疗信息 */
 @Composable
 @Suppress("DEPRECATION")
 private fun ManualSkillHealInfo(skill: ManualSkill) {
@@ -727,7 +756,7 @@ private fun ManualSkillHealInfo(skill: ManualSkill) {
     }
 }
 
-/** 技能杂项数值（ManualStatsContent 拆分）：护盾/行动提前/分摊/链接/连击/冷却/消耗 */
+/** 技能杂项数值：护盾/行动提前/分摊/链接/连击/冷却/消耗 */
 @Composable
 @Suppress("DEPRECATION")
 private fun ManualSkillMiscInfo(skill: ManualSkill) {
@@ -780,7 +809,7 @@ private fun ManualSkillMiscInfo(skill: ManualSkill) {
     }
 }
 
-/** 技能增益信息（ManualStatsContent 拆分） */
+/** 技能增益信息 */
 @Composable
 @Suppress("DEPRECATION")
 private fun ManualSkillBuffInfo(skill: ManualSkill) {

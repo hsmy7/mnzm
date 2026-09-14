@@ -35,6 +35,8 @@ import kotlinx.serialization.protobuf.ProtoBuf
  * ```
  */
 @OptIn(ExperimentalSerializationApi::class)
+@Suppress("TooManyFunctions") // ProtoBuf 安全编解码门面：每模型类型 encode/decode 对称原语集 + 缺省防御，
+// 函数数=协议模型数×2 的 1:1 映射面
 object NullSafeProtoBuf {
 
     /**

@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.StateFlow
  * 在 :core:domain 中定义，由 :app 中的 GameStateStore 实现。
  * 提供 engine 和 UI 模块所需的状态读写 API。
  */
+@Suppress("TooManyFunctions") // 全局状态存储契约：镜像读流+事务更新+生命周期端口，函数数即镜像协议面
+//（实现类与测试 Fake 同协议，拆分即改契约）
 interface GameStateStore : GameStateSnapshotProvider {
 
     // === StateFlow 观察 ===
@@ -112,7 +114,7 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun getCurrentMaterials(): List<Material>
 
     // === 通知 API ===
-    /** 通知队列（v3+，替代单值 [pendingNotification]） */
+    /** 通知队列 */
     val notifications: StateFlow<List<GameNotification>>
     fun enqueueNotification(notification: GameNotification)
     fun consumeNotification(): GameNotification?
@@ -167,7 +169,7 @@ interface GameStateStore : GameStateSnapshotProvider {
      * 启动序列阶段。
      *
      * 仅由 [BootSequenceController] 内部推进，外部只读。
-     * ★ 由 [lifecycleState] 派生，读取旧值可能有中间窗口。
+     * 由 [lifecycleState] 派生，读取旧值可能有中间窗口。
      */
     val bootPhase: StateFlow<BootPhase>
 
@@ -202,7 +204,7 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun setLoading() {}
 
 
-    // === 事务观察者（D-01：溢出草稿按事务世代号落盘） ===
+    // === 事务观察者（溢出草稿按事务世代号落盘） ===
 
     /**
      * 事务生命周期观察者。
@@ -239,13 +241,13 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun update(block: MutableGameState.() -> Unit)
 
     /**
-     * 镜像专用事务更新（2026-08-31 根因修复）：与 [update] 语义一致，但**不参与反向
+     * 镜像专用事务更新：与 [update] 语义一致，但**不参与反向
      * 增量捕获**（[consumeReverseDirty] 窗口）。
      *
      * 用途：C++ → Kotlin 前向镜像（[com.xianxia.sect.core.nativebridge.StateSyncService]
-     * 的 applyDirty/applySnapshot）——镜像写入的变更由 C++ 产生、无需回导，若混入反向
-     * 累加器会污染玩家操作捕获窗口（旧实现依赖 tick ②' 无条件清空累加器，同时误清玩家
-     * 放置/消耗等操作捕获 → Kotlin 侧灵石扣除等变更永不同步 C++ 真相源）。
+     * 的 applyDirty/applySnapshot）——镜像写入的变更由 C++ 产生、无需回导；
+     * 若混入反向累加器会污染玩家操作捕获窗口，导致 Kotlin 侧灵石扣除等
+     * 玩家操作变更无法同步回 C++ 真相源。
      *
      * 默认实现委托 [update]（保持既有 GameStateStore 实现零改动兼容；生产实现
      * [GameStateStoreImpl] 与测试替身 FakeGameStateStore 覆写为"不捕获"）。
@@ -333,7 +335,7 @@ interface GameStateStore : GameStateSnapshotProvider {
         reset()
     }
 
-    // === 反向增量通道（计划 v2 阶段 3：Kotlin → C++ 增量回导） ===
+    // === 反向增量通道（Kotlin → C++ 增量回导） ===
 
     /**
      * 单集合反向捕获：upsert 实体全量 + 自捕获基线消失的 id。

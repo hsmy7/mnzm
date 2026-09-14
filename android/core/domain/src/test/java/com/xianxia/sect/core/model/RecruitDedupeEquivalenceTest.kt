@@ -4,17 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * L1a 等价性安全网：`dedupeRecruits` 重构（O(R²)→O(N) 签名分组）前先写本测试。
+ * `dedupeRecruits` 等价性安全网：本测试内联一套 O(R²) 三级去重参照算法
+ * （id → 内容 → 同人签名），与生产实现逐位对比；测试保持绿 = 等价性成立。
  *
- * 参照实现内联旧 O(R²) 三级去重算法（id → 内容 → 同人签名），与生产实现逐位对比。
- * 重构后本测试仍绿 = 等价性成立。
- *
- * 等价性依据：`isSamePerson` 先比签名（签名不同必 false），因此旧算法中
- * "kept 列表 none 判定"只可能命中同签名者 ⇒ 按签名分组、组内保序去重与旧算法逐位一致。
+ * 等价性依据：`isSamePerson` 先比签名（签名不同必 false），因此参照算法中
+ * "kept 列表 none 判定"只可能命中同签名者 ⇒ 生产实现的按签名分组、
+ * 组内保序去重与参照算法逐位一致。
  */
 class RecruitDedupeEquivalenceTest {
 
-    // ── 参照实现：旧 O(R²) 算法（与重构前 RecruitIntegrity.dedupeRecruits 逐行一致）──
+    // ── 参照实现：O(R²) 三级去重基准（与 RecruitIntegrity.dedupeRecruits 逐位对比）──
 
     private fun referenceDedupe(recruits: List<Disciple>): List<Disciple> {
         // 按 id 去重（保留首个）

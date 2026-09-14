@@ -78,7 +78,7 @@ class CustomVelocityTracker(
         return quadraticLeastSquaresVelocity(data = data, n = n, t0 = t0)
     }
 
-    /** 线性最小二乘（leastSquaresVelocity 拆分）：一次拟合，速度 = B1 */
+    /** 线性最小二乘：一次拟合，速度 = B1 */
     private fun linearLeastSquaresVelocity(data: List<Sample>, n: Int, t0: Long): Velocity2D {
         var sumT = 0.0; var sumTT = 0.0
         var sumX = 0.0; var sumTX = 0.0
@@ -100,7 +100,7 @@ class CustomVelocityTracker(
         )
     }
 
-    /** 二次最小二乘（leastSquaresVelocity 拆分）：累加正规方程系数 + 高斯消元，速度 = B1 */
+    /** 二次最小二乘：累加正规方程系数 + 高斯消元，速度 = B1 */
     private fun quadraticLeastSquaresVelocity(data: List<Sample>, n: Int, t0: Long): Velocity2D {
         var sumT = 0.0; var sumT2 = 0.0; var sumT3 = 0.0; var sumT4 = 0.0
         var sumX = 0.0; var sumTX = 0.0; var sumT2X = 0.0
@@ -142,7 +142,7 @@ class CustomVelocityTracker(
         )
     }
 
-    /** 3x3 列主元高斯消元（leastSquaresVelocity 拆分）：返回 (x, y) 系数，奇异返回 null */
+    /** 3x3 列主元高斯消元：返回 (x, y) 系数，奇异返回 null */
     private fun solveLinearSystem(
         m: Array<DoubleArray>,
         bx: DoubleArray,

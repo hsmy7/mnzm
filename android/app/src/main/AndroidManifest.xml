@@ -129,11 +129,20 @@
             android:theme="@style/Theme.XianxiaSect.Splash"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
             android:screenOrientation="landscape"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             tools:ignore="LockedOrientationActivity,DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 友盟集成测试唤起（SDK ≥9.4.0）：scheme 固定 um.{appkey}，
+                 必须独立 intent-filter 与其他 filter 并列；umengAppKey 由
+                 app/build.gradle manifestPlaceholders 从 api.properties 注入 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="um.${umengAppKey}" />
             </intent-filter>
         </activity>
 
@@ -143,7 +152,7 @@
             android:theme="@style/Theme.XianxiaSect"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
             android:screenOrientation="landscape"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             tools:ignore="LockedOrientationActivity,DiscouragedApi" />
 
         <provider

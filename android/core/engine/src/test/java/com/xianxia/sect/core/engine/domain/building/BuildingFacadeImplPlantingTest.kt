@@ -29,8 +29,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 灵田种植（BuildingFacadeImpl.plantOnSpiritField(s)）Bug B 回归测试。
  *
- * 回归：此前种植数只受空地数约束、事务外 removeSeedSync 返回值被忽略
- * （种子不足也种满、种子 0 消耗免费种田）；修复后事务内限种 + 同事务扣种。
+ * 守卫目标：种植数受空地数与种子数量约束，事务内限种 + 同事务扣种。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -144,7 +143,7 @@ class BuildingFacadeImplPlantingTest {
 
     @Test
     fun `plantOnSpiritFields - 非本宗地块不种植不扣种`() = runTest {
-        // 对抗性审查 F3：目标田 sectId 非本宗时不可播种（越权调用/数据损坏防御）
+        // 目标田 sectId 非本宗时不可播种（越权调用/数据损坏防御）
         val seed = seedEntity(id = "seed1", quantity = 2)
         store.update {
             seeds = EntityStore(listOf(seed))

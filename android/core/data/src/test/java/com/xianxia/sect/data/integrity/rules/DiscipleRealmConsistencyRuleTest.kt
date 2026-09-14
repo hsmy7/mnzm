@@ -17,7 +17,8 @@ import org.junit.Test
 
 
 class DiscipleRealmConsistencyRuleTest {
-    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry.register(DiscipleRealmConsistencyRule) }
+    @Before fun setup() { SaveValidationRuleRegistry.clear(); SaveValidationRuleRegistry
+        .register(DiscipleRealmConsistencyRule) }
     @After fun teardown() { SaveValidationRuleRegistry.clear() }
 
     @Test fun `valid realm and layer passes`() {

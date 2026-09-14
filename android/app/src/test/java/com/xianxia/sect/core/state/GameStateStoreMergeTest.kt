@@ -12,9 +12,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * mergeAggregatesIncremental 增量归并测试（Q-3 填充，2026-08-02）。
+ * mergeAggregatesIncremental 增量归并测试。
  *
- * 守卫（P-5 聚合与组装对齐后的核心增量逻辑）：
+ * 守卫（聚合与组装对齐的核心增量逻辑）：
  * 1. 引用相等的未变弟子复用旧 Aggregate 对象（UI 引用稳定）
  * 2. 同 id 新对象必须重建聚合（列级变更不丢失）
  * 3. 新增/删除弟子正确归并

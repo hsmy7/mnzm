@@ -6,7 +6,7 @@ import com.xianxia.sect.core.render.RenderFrame
  * 预览快通道快照（渲染线程合成输入；internal 供单测）。
  * 字段语义与 [RenderFrame] 预览字段一致。
  *
- * ## 原子预览组件（2026-09 合并设计）
+ * ## 原子预览组件
  * 把"预览框（占地框）+ 建筑精灵图 + 网格开关"打包成一个原子快照——
  * 一份状态源、同一次 [mergeFastPreviewInto]、同一次渲染帧，三者永不同步脱节。
  *
@@ -35,7 +35,7 @@ internal data class FastPreviewSnapshot(
 )
 
 /**
- * 预览独立快通道（2026-08-30 触控优化：仿相机独立通道）——
+ * 预览独立快通道（仿相机独立通道）——
  * 触控回调直接写最新预览，渲染线程按版本号合成进帧，不经 Compose 重组/帧率门控
  * （软件渲染路径下预览从 RenderFrame 33ms 门控的 30fps 提升到渲染帧率）。
  *
@@ -75,7 +75,7 @@ internal class FastPreviewChannel {
 internal fun mergeFastPreviewInto(frame: RenderFrame, snapshot: FastPreviewSnapshot): RenderFrame =
     frame.copy(
         showPreview = snapshot.active,
-        // ★ 网格线路由快通道供给：与精灵/占地框同帧同源，杜绝"预览框与精灵图脱节/网格延迟"
+        // 网格线路由快通道供给：与精灵/占地框同帧同源，杜绝"预览框与精灵图脱节/网格延迟"
         gridOverlayVisible = snapshot.active,
         // 占地框（预览框）：绿/红提示可放置/不可放置
         previewBoxVisible = snapshot.active,

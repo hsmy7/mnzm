@@ -14,5 +14,5 @@ plugins {
     alias(libs.plugins.kover) apply false
 }
 
-// 2026-08-14：SDK/Java 编译配置已显式写入各模块 build.gradle（3.1，配置缓存前置）——
-// compileSdk 35 / minSdk 24 / targetSdk 35 / Java 17 / UTF-8 / jvmTarget 17 / Xjsr305=strict 逐模块声明
+// SDK/Java 编译配置逐模块显式声明（compileSdk 35 / minSdk 24 / targetSdk 35 /
+// Java 17 / UTF-8 / jvmTarget 17 / Xjsr305=strict），根项目不做全局注入（配置缓存要求）

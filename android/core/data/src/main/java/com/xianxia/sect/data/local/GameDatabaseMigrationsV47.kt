@@ -11,7 +11,7 @@ private const val TAG = "GameDatabase"
 /**
  * v46→v47: game_data 新增"新增天赋/体质/词条"待确认产物列
  *
- * 背景（2026-08-15 玉符消耗玩法扩展）：新增天赋/体质/词条时，刷新（消耗 1 玉符）
+ * 背景（玉符消耗玩法）：新增天赋/体质/词条时，刷新（消耗 1 玉符）
  * 的产物必须**持久化**——玩家不确认直接关闭界面，下次打开仍显示该产物并可直接确认新增。
  * 产物按（discipleId + 类型 → traitId）存为 List[PendingTraitAdd]，经
  * ProtobufConverters 序列化为 Base64 存入 TEXT 列（空列表编码后为空字符串，

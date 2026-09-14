@@ -21,7 +21,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffRedeemCodeTest — 兑换码与邮件附件跨语言差分对拍（计划 v2 阶段 4 / 批 4-6）。
+ * DiffRedeemCodeTest — 兑换码与邮件附件跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::redeem_code（格式校验 / 灵根生成 /
  * java.util.Random 洗牌）与 Kotlin RedeemCodeManager / SpiritRootGenerator

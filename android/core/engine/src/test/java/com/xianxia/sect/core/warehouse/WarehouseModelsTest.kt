@@ -89,28 +89,34 @@ class WarehouseModelsTest {
 
     @Test
     fun `WarehousePage-isEmpty`() {
-        val empty = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = false)
+        val empty = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1,
+            hasMore = false)
         assertTrue(empty.isEmpty)
 
-        val nonEmpty = WarehousePage(items = listOf(makeItem()), pageIndex = 0, pageSize = 10, totalItems = 1, totalPages = 1, hasMore = false)
+        val nonEmpty = WarehousePage(items = listOf(makeItem()), pageIndex = 0, pageSize = 10, totalItems = 1,
+            totalPages = 1, hasMore = false)
         assertFalse(nonEmpty.isEmpty)
     }
 
     @Test
     fun `WarehousePage-isFirstPage`() {
-        val first = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = false)
+        val first = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1,
+            hasMore = false)
         assertTrue(first.isFirstPage)
 
-        val second = WarehousePage(items = emptyList(), pageIndex = 1, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = false)
+        val second = WarehousePage(items = emptyList(), pageIndex = 1, pageSize = 10, totalItems = 0, totalPages = 1,
+            hasMore = false)
         assertFalse(second.isFirstPage)
     }
 
     @Test
     fun `WarehousePage-isLastPage`() {
-        val last = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = false)
+        val last = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1,
+            hasMore = false)
         assertTrue(last.isLastPage)
 
-        val notLast = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = true)
+        val notLast = WarehousePage(items = emptyList(), pageIndex = 0, pageSize = 10, totalItems = 0, totalPages = 1,
+            hasMore = true)
         assertFalse(notLast.isLastPage)
     }
 

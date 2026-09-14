@@ -24,12 +24,18 @@ import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 
 /**
  * loadFromSnapshot 回滚完整性专项测试。
  *
- * 对抗性审查回归：COW 快照隔离下，回滚不能依赖 oldTables.deepCopy()——
+ * COW 快照隔离约束：回滚不能依赖 oldTables.deepCopy()——
  * 提交后的列是 owned 状态（shared=false），clear() 原地清空共享 store，
  * 会破坏 oldTables。回滚必须用内存中的 oldDisciples 列表重建。
  */
@@ -190,7 +196,7 @@ class GameStateStoreRollbackTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // D-01 事务世代号：提交钩子恰一次、回滚钩子丢弃、嵌套单世代、observer 不破坏提交
+    // 事务世代号：提交钩子恰一次、回滚钩子丢弃、嵌套单世代、observer 不破坏提交
     // ═══════════════════════════════════════════════════════════════
 
     private class RecordingObserver : GameStateStore.TransactionObserver {

@@ -17,7 +17,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * @param summary 显示文本
  * @param relatedEntityId 关联实体 ID（弟子 ID、宗门 ID 等）
  * @param relatedEntityName 关联实体名称
- * @param sequenceId 追加序号（P-9：消息列表稳定 key，头部 takeLast 移除时
+ * @param sequenceId 追加序号（消息列表稳定 key，头部 takeLast 移除时
  *   不引起其余条目 key 位移）。0 表示旧档未分配（加载后一次性回填）
  */
 @Keep

@@ -131,7 +131,8 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
     )
 }
 
-/** 战争奖励：装备生成（generateWarRewards 拆分） */
+/** 战争奖励：装备生成 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 private fun addWarEquipment(
     config: SectWarRewardConfig,
     equipmentStacks: MutableList<com.xianxia.sect.core.model.EquipmentStack>
@@ -145,7 +146,8 @@ private fun addWarEquipment(
     }
 }
 
-/** 战争奖励：功法生成（generateWarRewards 拆分） */
+/** 战争奖励：功法生成 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 private fun addWarManual(
     config: SectWarRewardConfig,
     manualStacks: MutableList<com.xianxia.sect.core.model.ManualStack>
@@ -159,7 +161,8 @@ private fun addWarManual(
     }
 }
 
-/** 战争奖励：丹药生成（generateWarRewards 拆分） */
+/** 战争奖励：丹药生成 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 private fun addWarPill(
     config: SectWarRewardConfig,
     pills: MutableList<com.xianxia.sect.core.model.Pill>
@@ -169,35 +172,41 @@ private fun addWarPill(
     } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
 }
 
-/** 战争奖励：材料生成（generateWarRewards 拆分） */
+/** 战争奖励：材料生成 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 private fun addWarMaterial(
     config: SectWarRewardConfig,
     materials: MutableList<com.xianxia.sect.core.model.Material>
 ) {
     try {
-        materials.add(com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity))
+        materials.add(com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity,
+            config.maxRarity))
     } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
 }
 
-/** 战争奖励：灵草生成（generateWarRewards 拆分） */
+/** 战争奖励：灵草生成 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 private fun addWarHerb(
     config: SectWarRewardConfig,
     herbs: MutableList<com.xianxia.sect.core.model.Herb>
 ) {
     try {
-        val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
+        val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomHerb(config.minRarity,
+            config.maxRarity)
         herbs.add(com.xianxia.sect.core.model.Herb(name = herbTemplate.name, rarity = herbTemplate.rarity,
             description = herbTemplate.description, category = herbTemplate.category, quantity = 1))
     } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
 }
 
-/** 战争奖励：种子生成（generateWarRewards 拆分） */
+/** 战争奖励：种子生成 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 private fun addWarSeed(
     config: SectWarRewardConfig,
     seeds: MutableList<com.xianxia.sect.core.model.Seed>
 ) {
     try {
-        val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
+        val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(config.minRarity,
+            config.maxRarity)
         seeds.add(com.xianxia.sect.core.model.Seed(name = seedTemplate.name, rarity = seedTemplate.rarity,
             description = seedTemplate.description, growTime = seedTemplate.growTime,
             yield = seedTemplate.yield, quantity = 1))

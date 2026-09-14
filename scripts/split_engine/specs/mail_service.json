@@ -1,0 +1,37 @@
+{
+ "files": [
+  {
+   "name": "MailAttachmentDistributeOps",
+   "header": "// ── 邮件附件发放域（自 MailService 拆出，行为零变更） ────────────────────────",
+   "fns": [
+    "findClaimableMail",
+    "parseAndCheckAttachmentCapacity",
+    "healRoomClaimState",
+    "grantAttachments",
+    "checkInternalMailClaimable",
+    "claimAttachmentInternal",
+    "ensureCapacity",
+    "distributeAttachmentsInline",
+    "handleResult",
+    "distributeEquipmentAttachment",
+    "distributeManualAttachment",
+    "distributePillAttachment",
+    "distributeMaterialAttachment",
+    "distributeBeastMaterialAttachment"
+   ]
+  },
+  {
+   "name": "MailAttachmentVariantsOps",
+   "header": "// ── 附件变体发放域（自 MailService 拆出，行为零变更） ────────────────────────",
+   "fns": [
+    "distributeHerbAttachment",
+    "distributeSeedAttachment",
+    "distributeDiscipleAttachment",
+    "distributeStorageBagAttachment",
+    "buildRewardCardsFromAttachments",
+    "deleteMail",
+    "deleteAllReadAndClaimed"
+   ]
+  }
+ ]
+}

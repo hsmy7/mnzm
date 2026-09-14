@@ -56,6 +56,7 @@ class InventoryDelegate(
         gameEngine.launchOnEngine { gameEngine.sellToMerchant(itemId, quantity) }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun sellItem(itemId: String, itemType: String, quantity: Int) {
         gameEngine.launchOnEngine {
             try {
@@ -67,41 +68,48 @@ class InventoryDelegate(
                     "herb" -> gameEngine.sellHerb(itemId, quantity)
                     "seed" -> gameEngine.sellSeed(itemId, quantity)
                 }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
                 /* error handled by BaseViewModel */
             }
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun buyFromMerchant(itemId: String, quantity: Int = 1) {
         gameEngine.launchOnEngine {
             try {
                 gameEngine.buyMerchantItem(itemId, quantity)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
                 /* error handled by BaseViewModel */
             }
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun listItemsToMerchant(items: List<Pair<String, Int>>) {
         gameEngine.launchOnEngine {
             try {
                 gameEngine.listItemsToMerchant(items)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
                 /* error handled by BaseViewModel */
             }
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun removePlayerListedItem(itemId: String) {
         gameEngine.launchOnEngine {
             try {
                 gameEngine.removePlayerListedItem(itemId)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
                 /* error handled by BaseViewModel */
             }
         }
@@ -142,6 +150,7 @@ class InventoryDelegate(
 
     // ── 自动购买 ────────────────────────────────────────────────────
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun addAutoBuyEntries(entries: List<AutoBuyEntry>) {
         gameEngine.launchOnEngine {
             try {
@@ -150,13 +159,15 @@ class InventoryDelegate(
                         "${it.itemName}:${it.itemType}:${it.rarity}"
                     })
                 }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
                 /* error handled by BaseViewModel */
             }
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun removeAutoBuyEntries(entries: List<AutoBuyEntry>) {
         gameEngine.launchOnEngine {
             try {
@@ -168,8 +179,9 @@ class InventoryDelegate(
                         "${entry.itemName}:${entry.itemType}:${entry.rarity}" !in keysToRemove
                     })
                 }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
                 /* error handled by BaseViewModel */
             }
         }

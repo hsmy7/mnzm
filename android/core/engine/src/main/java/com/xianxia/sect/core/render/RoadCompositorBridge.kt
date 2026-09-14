@@ -3,8 +3,7 @@ package com.xianxia.sect.core.render
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 
 /**
- * RoadCompositorBridge — 道路渲染合成器 Kotlin 消费通道（计划 v2 阶段 6：
- * 渲染合成器物理下沉，批次 R 剩余）。
+ * RoadCompositorBridge — 道路渲染合成器 Kotlin 消费通道。
  *
  * 逐格道路合成的**单一权威**在 C++ `gamecore/map/road_compositor.h`
  * （主体→边缘条的操作序列 + 格内局部整型几何；单一主体、横/竖免旋转、
@@ -49,8 +48,8 @@ object RoadCompositorBridge {
         return available
     }
 
-    /** 每格操作扁平步长：[sprite, x, y, w, h] */
-    const val OP_STRIDE = 5
+    /** 每格操作扁平步长：[sprite, x, y, w, h, flip]（flip = flipU 水平镜像，2.4） */
+    const val OP_STRIDE = 6
 
     /** 单格最大操作数（主体 1 + 最多 2 侧 × 2 条 + 内凹角交汇块 = 6，转角格取最大） */
     const val MAX_OPS_PER_TILE = 6

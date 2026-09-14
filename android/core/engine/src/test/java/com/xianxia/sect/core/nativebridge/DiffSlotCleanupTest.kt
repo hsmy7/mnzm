@@ -33,7 +33,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffSlotCleanupTest — 弟子槽位清理跨语言差分对拍（计划 v2 阶段 4 / 批 4-5）。
+ * DiffSlotCleanupTest — 弟子槽位清理跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::slot_cleanup（11 类槽位纯数据变换）与
  * Kotlin DiscipleSlotCleanup.clearAllSlotsDataOnly 语义逐位一致。

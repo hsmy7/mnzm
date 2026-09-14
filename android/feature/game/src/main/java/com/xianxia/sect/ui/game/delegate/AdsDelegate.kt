@@ -1,8 +1,15 @@
 package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.AdFreeWhitelist
+import com.xianxia.sect.core.engine.service.AdPurpose
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.service.AdService
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.Calendar
 import java.util.concurrent.atomic.AtomicInteger
+import com.xianxia.sect.core.engine.grantJadeSymbolsFromAd
 
 /**
  * 广告播放委托。
@@ -17,12 +24,15 @@ import java.util.concurrent.atomic.AtomicInteger
  * @param clock 时钟注入（测试确定性）；默认取系统墙钟
  */
 class AdsDelegate(
+    private val adService: AdService,
+    private val gameEngine: GameEngine,
     private val clock: () -> Long = System::currentTimeMillis
 ) {
 
     companion object {
-        private const val TAG = "AdsDelegate"
         private const val AD_COOLDOWN_MS = 60_000L
+        /** 观看单次广告获得的玉符数量 */
+        private const val JADE_AD_REWARD = 3
         /** 非白名单用户每日最大广告观看次数（设备/账号维度） */
         private const val DAILY_AD_LIMIT = 15
 
@@ -94,6 +104,35 @@ class AdsDelegate(
         if (AdFreeWhitelist.isCurrentUserPrivileged()) return Int.MAX_VALUE
         ensureDayReset()
         return (DAILY_AD_LIMIT - dailyCount.get()).coerceAtLeast(0)
+    }
+
+    // ── 个性化广告开关（合规要求：App 内提供退出个性化广告能力） ──
+
+    private val _personalizedAdsEnabled = MutableStateFlow(adService.isPersonalizedAdsEnabled())
+    val personalizedAdsEnabled: StateFlow<Boolean> = _personalizedAdsEnabled.asStateFlow()
+
+    /** 切换个性化广告开关（持久化 + 同步 SDK）。 */
+    fun setPersonalizedAdsEnabled(enabled: Boolean) {
+        _personalizedAdsEnabled.value = enabled
+        adService.setPersonalizedAdsEnabled(enabled)
+    }
+
+    // ── 玉符奖励广告 ──
+
+    /**
+     * 播放玉符奖励广告（观看完成发放 [JADE_AD_REWARD] 玉符）。
+     * 免广告特权用户在 [AdService] 实现层直接发放奖励。
+     *
+     * 发放经 launchOnEngine 派发到引擎线程：SDK 回调线程不保证主线程，
+     * 而 JadeSymbolService.grantFromAd 内含 stateStore.update（主线程运行时守卫）。
+     */
+    fun watchAdForJadeSymbols() {
+        if (isDailyAdLimitReached()) return
+        adService.watchAd(AdPurpose.JADE_SYMBOL_BONUS) {
+            if (tryMarkAdWatched()) {
+                gameEngine.launchOnEngine { gameEngine.grantJadeSymbolsFromAd(JADE_AD_REWARD) }
+            }
+        }
     }
 
     // ── 内部工具 ──

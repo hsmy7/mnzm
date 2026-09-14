@@ -21,7 +21,7 @@ TEST(BreakthroughSuccessTest, LayerIncrementWithinRealm) {
     Disciple d;
     d.realm = 9;
     d.realmLayer = 1;
-    d.cultivation = 98.0;
+    d.cultivation = 490.0;
     d.lifespan = 80;
     const auto result = applyBreakthroughSuccess(d, 50);
     EXPECT_EQ(result.realm, 9);
@@ -34,7 +34,7 @@ TEST(BreakthroughSuccessTest, RealmUpgradeAtMaxLayer) {
     Disciple d;
     d.realm = 9;
     d.realmLayer = 9;  // 满层
-    d.cultivation = 98.0;
+    d.cultivation = 490.0;
     d.lifespan = 80;
     const auto result = applyBreakthroughSuccess(d, 50);
     EXPECT_EQ(result.realm, 8);
@@ -59,7 +59,7 @@ TEST(PerformBreakthroughTest, NotFullNoAttempt) {
     Disciple d;
     d.realm = 9;
     d.realmLayer = 1;
-    d.cultivation = 50.0;  // 未满（上限 98）
+    d.cultivation = 50.0;  // 未满（上限 490）
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
@@ -74,7 +74,7 @@ TEST(PerformBreakthroughTest, SuccessPath) {
     Disciple d;
     d.realm = 9;
     d.realmLayer = 1;
-    d.cultivation = 98.0;  // 满
+    d.cultivation = 490.0;  // 满
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
@@ -91,8 +91,8 @@ TEST(PerformBreakthroughTest, SuccessPath) {
 TEST(PerformBreakthroughTest, ContinuousBreakthrough) {
     Disciple d;
     d.realm = 9;
-    d.realmLayer = 9;  // 满层（上限 357.6）
-    d.cultivation = 400.0;  // 已满
+    d.realmLayer = 9;  // 满层（上限 490 + 8×1460/9 ≈ 1787.8）
+    d.cultivation = 1800.0;  // 已满
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
@@ -108,7 +108,7 @@ TEST(PerformBreakthroughTest, FailurePathStopsLoop) {
     Disciple d;
     d.realm = 9;
     d.realmLayer = 1;
-    d.cultivation = 98.0;
+    d.cultivation = 490.0;
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
@@ -127,7 +127,7 @@ TEST(PerformBreakthroughTest, IterationGuard) {
     Disciple d;
     d.realm = 1;
     d.realmLayer = 9;
-    d.cultivation = 9999999.0;
+    d.cultivation = 30000000.0;  // > 渡劫满层上限 ≈ 2708.3 万
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
@@ -136,6 +136,67 @@ TEST(PerformBreakthroughTest, IterationGuard) {
     // 突破到 realm 0 后循环停止（realm > 0 条件）
     EXPECT_EQ(out.disciple.realm, 0);
     EXPECT_LE(out.breakthroughCount, 4);
+}
+
+// ── 失败 HP/MP 折损 + 满值前置（Kotlin applyBreakthroughFailure / isDiscipleFullHpMp）──
+
+TEST(BreakthroughFailureTest, HpMpDropToTenthAndCultivationReset) {
+    Disciple d;
+    d.currentHp = 1000;
+    d.currentMp = 505;
+    d.cultivation = 490.0;
+    const auto out = applyBreakthroughFailure(d);
+    EXPECT_DOUBLE_EQ(out.cultivation, 0.0);
+    EXPECT_EQ(out.currentHp, 100);  // 1000 × 0.1 截断
+    EXPECT_EQ(out.currentMp, 50);   // 505 × 0.1 = 50.5 → 截断 50
+}
+
+TEST(BreakthroughFailureTest, HpMpFloorAtOne) {
+    Disciple d;
+    d.currentHp = 5;
+    d.currentMp = 1;
+    const auto out = applyBreakthroughFailure(d);
+    EXPECT_EQ(out.currentHp, 1);  // max(0, 1)
+    EXPECT_EQ(out.currentMp, 1);
+}
+
+TEST(BreakthroughFailureTest, NegativeHpUsesBaseMaxTenth) {
+    Disciple d;  // currentHp/currentMp 默认 -1 = 满
+    d.realm = 9;
+    d.realmLayer = 1;
+    const auto out = applyBreakthroughFailure(d);
+    EXPECT_GT(out.currentHp, 0);
+    EXPECT_GT(out.currentMp, 0);
+    EXPECT_NE(out.currentHp, -1);  // -1 被具体值替换
+}
+
+TEST(FullHpMpTest, NegativeValuesCountAsFull) {
+    Disciple d;  // -1 = 满
+    EXPECT_TRUE(isDiscipleFullHpMp(d));
+}
+
+TEST(FullHpMpTest, PartialHpIsNotFull) {
+    Disciple d;
+    d.currentHp = 1;
+    d.currentMp = 1;
+    EXPECT_FALSE(isDiscipleFullHpMp(d));
+}
+
+TEST(PerformBreakthroughTest, NotFullHpMpNoAttempt) {
+    Disciple d;
+    d.realm = 9;
+    d.realmLayer = 1;
+    d.cultivation = 490.0;  // 修为满
+    d.currentHp = 1;        // HP 未满 → 前置不满足
+    d.currentMp = 1;
+    RngManager rng;
+    rng.initSystemSeed(42);
+    const auto out = performBreakthrough(
+        d, [](const Disciple&) { return 1.0; },
+        [](const Disciple&) { return 50; }, rng, 100);
+    EXPECT_EQ(out.breakthroughCount, 0);
+    EXPECT_EQ(out.failCount, 0);
+    EXPECT_DOUBLE_EQ(out.disciple.cultivation, 490.0);
 }
 
 // ── tryBreakthrough RNG 判定 ───────────────────────────────────

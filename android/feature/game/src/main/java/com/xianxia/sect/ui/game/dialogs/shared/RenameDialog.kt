@@ -1,40 +1,18 @@
 package com.xianxia.sect.ui.game.dialogs.shared
 
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.xianxia.sect.ui.components.InlineStandardPromptDialog
-import com.xianxia.sect.ui.components.rememberImeAwareAutoFocusRequester
 import com.xianxia.sect.core.util.InputValidator
-
-/** 改名弹窗配置（宗门/弟子共用，差异：标题/占位符/长度/校验器） */
-data class RenameDialogConfig(
-    val title: String,
-    val placeholder: String,
-    val maxLength: Int,
-    val validate: (String) -> String?
-)
+import com.xianxia.sect.ui.components.TextInputDialog
 
 /**
  * 共享改名弹窗：RenameSectDialog/RenameDiscipleDialog 同构合并。
- * 含 ColorOS/FuntouchOS 兼容的自动聚焦与键盘 Done 提交。
+ * 统一为 [TextInputDialog]（独立平台 Dialog 窗口）——文本输入不再
+ * 与游戏渲染 Surface 共窗（键盘窗口 resize/焦点抖动不再传导到游戏窗口），
+ * 且获得输入会话状态机（open/close 幂等）与 per-API softInputMode 兜底。
  */
 @Composable
 fun RenameDialog(
@@ -46,8 +24,6 @@ fun RenameDialog(
 ) {
     var input by remember { mutableStateOf(currentName) }
     var error by remember { mutableStateOf<String?>(null) }
-    // 自动聚焦 + 键盘弹出确认重试（荣耀X70根治：键盘首次弹出失败/被系统收起时有限重试）
-    val focusRequester = rememberImeAwareAutoFocusRequester()
     // 确认逻辑供确认按钮与键盘 Done 键共用，杜绝两处逻辑漂移
     val confirm: () -> Unit = {
         val name = input.trim()
@@ -56,52 +32,25 @@ fun RenameDialog(
         }
     }
 
-    InlineStandardPromptDialog(
+    TextInputDialog(
         onDismissRequest = onDismiss,
         title = config.title,
+        value = input,
+        onValueChange = { newValue ->
+            input = newValue
+            // 空输入不校验（留空时用户需自行点击取消）
+            error = newValue.takeIf { it.isNotBlank() }
+                ?.let { config.validate(it) }
+        },
+        placeholder = config.placeholder,
+        maxLength = config.maxLength,
+        isError = error != null,
+        errorText = error,
         confirmLabel = "确定",
         dismissLabel = "取消",
-        scrimEnabled = scrimEnabled,
         onConfirm = confirm,
         onDismiss = onDismiss,
-        // 含输入框：挂载期间冻结宿主窗口系统栏操作（键盘频闪根治，见 SystemBarFreezeScope）
-        freezeSystemBars = true,
-        content = {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { newValue ->
-                    if (newValue.length <= config.maxLength) {
-                        input = newValue
-                        // 空输入不校验（留空时用户需自行点击取消）
-                        error = newValue.takeIf { it.isNotBlank() }
-                            ?.let { config.validate(it) }
-                    }
-                },
-                placeholder = { Text(config.placeholder, color = Color(0xFF999999)) },
-                singleLine = true,
-                isError = error != null,
-                textStyle = TextStyle(color = Color.Black, fontSize = 14.sp),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = { confirm() }
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-            )
-            Text(
-                text = error ?: "${input.length}/${config.maxLength}",
-                fontSize = 11.sp,
-                color = if (error != null) Color(0xFFEF5350) else Color.Black,
-                textAlign = TextAlign.End,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp)
-            )
-        }
+        scrimEnabled = scrimEnabled
     )
 }
 
@@ -146,3 +95,11 @@ fun RenameDiscipleDialog(
         onDismiss = onDismiss
     )
 }
+
+/** 改名弹窗配置（宗门/弟子共用，差异：标题/占位符/长度/校验器；声明置于 [RenameDialog] 之后） */
+data class RenameDialogConfig(
+    val title: String,
+    val placeholder: String,
+    val maxLength: Int,
+    val validate: (String) -> String?
+)

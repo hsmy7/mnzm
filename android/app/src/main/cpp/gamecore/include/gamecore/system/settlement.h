@@ -8,10 +8,10 @@
 #include "gamecore/system/time_system.h"
 
 // ============================================================
-// 惰性结算引擎（Kotlin→C++ 迁移批次 3）
+// 惰性结算引擎
 //
 // 等价移植 Kotlin GameTimeClock.tick + GameEngineCore.processTickPhases 的时间
-// 推进语义（对抗性审查 2026-08-22 对齐）：
+// 推进语义：
 //
 //   - 时间源 = 墙钟毫秒（GameTimeClock 用 elapsedRealtime；C++ 侧由桥层传入
 //     nowMs 差值，对拍可控）
@@ -20,7 +20,7 @@
 //   - phaseCap = MAX_PHASES_PER_TICK(3) * speed：单 tick 追补上限，超限**丢弃余量**
 //     （防 OEM 挂起/看门狗重启的爆炸式跳变；与 Kotlin 语义一致）
 //   - 每旬：advancePhase（时间推进）+ onPhaseSettle 钩子
-//   - 月变/年变：边界检测 + 结算钩子（批次 4+ 填充具体系统）
+//   - 月变/年变：边界检测 + 结算钩子
 //
 // 注：帧循环的 LOGIC_DT_NS=100ms 只控制"tick 调用频率"，不参与时间推进换算——
 // 游戏时间由墙钟差驱动。advancePhases(n) 为直接推进（对拍/测试用），
@@ -31,6 +31,14 @@ namespace gamecore::system {
 constexpr int64_t kMsPerPhase1x = 2000;      // GameTimeClock.MS_PER_PHASE_1X
 constexpr int kMaxPhasesPerTick = 3;         // GameTimeClock.MAX_PHASES_PER_TICK
 
+/// 单 tick 追补上限公式（双端单一来源）：
+/// maxPhasesPerTick(speed) = kMaxPhasesPerTick × max(speed, 1)。
+/// Kotlin 同源锚点：GameTimeClock.maxPhasesPerTick(speed)（同公式同常量，
+/// PhaseCapParityTest 双端各自锁定；改值须双端同步）。
+constexpr int maxPhasesPerTick(int speed) {
+    return kMaxPhasesPerTick * std::max(speed, 1);
+}
+
 /// 单次 advance 的结果
 struct TickResult {
     int phasesAdvanced = 0;   // 本 tick 实际推进的旬数
@@ -38,24 +46,24 @@ struct TickResult {
     bool yearChanged = false;
 };
 
-/// settleOnePhase 返回的边界标志位（T2.4 AUTHORITATIVE tick 标量通道）
+/// settleOnePhase 返回的边界标志位（AUTHORITATIVE tick 标量通道）
 constexpr int kSettleFlagNone = 0;
 constexpr int kSettleFlagMonthChanged = 1;
 constexpr int kSettleFlagYearChanged = 2;
 
 class SettlementEngine {
 public:
-    /// 结算钩子（可注入；默认空实现——批次 4+ 按子系统注册）
+    /// 结算钩子（可注入；由 GameCore 按子系统注册）
     std::function<void(state::GameState&, state::GameData&)> onPhaseSettle;
     std::function<void(state::GameState&, state::GameData&)> onMonthChange;
     std::function<void(state::GameState&, state::GameData&)> onYearChange;
-    /// 核心每旬结算钩子（T2.4 core 模式专用：零 RNG 步骤 1-5 批量；
+    /// 核心每旬结算钩子（core 模式专用：零 RNG 步骤 1-5 批量；
     /// 月/年边界结算由 Kotlin 残留执行器按 settleOnePhase 标志处理）
     std::function<void(state::GameState&, state::GameData&)> onCoreSettle;
 
-    /// core 模式（T2.4 AUTHORITATIVE 过渡语义）：每旬只跑时间推进 +
+    /// core 模式（AUTHORITATIVE 语义）：每旬只跑时间推进 +
     /// onCoreSettle；月/年结算钩子不触发（标志仍记录，供标量通道返回）。
-    /// 常规模式（shadow 对拍/diff 测试）行为与批次 3 起逐位一致。
+    /// 常规模式（shadow 对拍/diff 测试）行为与 Kotlin 逐位一致。
     void setCoreMode(bool on) { coreMode_ = on; }
     bool coreMode() const { return coreMode_; }
 
@@ -66,7 +74,7 @@ public:
             accumulatedGameMs_ += wallDeltaMs * speed_;
         }
         int phases = static_cast<int>(accumulatedGameMs_ / kMsPerPhase1x);
-        const int phaseCap = kMaxPhasesPerTick * std::max(speed_, 1);
+        const int phaseCap = maxPhasesPerTick(speed_);  // 单一来源
         if (phases > phaseCap) {
             // 超限丢弃余量（Kotlin: accumulatedGameMsInternal = 0）
             phases = phaseCap;
@@ -91,7 +99,7 @@ public:
         return result;
     }
 
-    /// 单旬推进（T2.4 AUTHORITATIVE tick 标量通道）：恰好一次
+    /// 单旬推进（AUTHORITATIVE tick 标量通道）：恰好一次
     /// advanceOnePhase，返回本旬边界标志位（kSettleFlag* 位组合）。
     int settleOnePhase(state::GameState& state) {
         monthChanged_ = false;
@@ -107,7 +115,7 @@ public:
     void setSpeed(int speed) { speed_ = speed < 0 ? 0 : (speed > 2 ? 2 : speed); }
     int speed() const { return speed_; }
 
-    /// 复位（新档/读档时清除累积——对抗性审查 A1：读档后残留累积会导致下一
+    /// 复位（新档/读档时清除累积——读档后残留累积会导致下一
     /// tick 多推进；GameCore.importStateJson 成功后必须调用）
     void reset() {
         accumulatedGameMs_ = 0;
@@ -126,14 +134,13 @@ private:
         // 年月同界（12 月下旬 → 新年 1 月）时钩子序对齐 Kotlin
         // processMonthYearChange：年变分支先于月变分支执行
         if (coreMode_) {
-            // T2.4 过渡语义：只跑核心每旬结算；月/年结算钩子不触发
-            //（Kotlin 残留执行器按 settleOnePhase 标志处理，保证未迁移
-            // 系统（偷盗钩子/AI 预计算/七系统扇出/十三月度子事件等）
-            // 行为零丢失）
+            // core 模式语义：只跑核心每旬结算；月/年结算钩子不触发
+            //（Kotlin 残留执行器按 settleOnePhase 标志消费月/年边界，
+            // 结算行为零丢失）
             if (onCoreSettle) onCoreSettle(state, gd);
             return;
         }
-        if (onPhaseSettle) onPhaseSettle(state, gd);  // 旬结算钩子（批次 4+）
+        if (onPhaseSettle) onPhaseSettle(state, gd);  // 旬结算钩子
         if (gd.gameYear != prevYear) {
             if (onYearChange) onYearChange(state, gd);    // 年变钩子（先）
         }

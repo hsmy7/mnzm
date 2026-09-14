@@ -8,6 +8,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@Suppress("TooManyFunctions") // 索引容器：查询/变更原语集（按状态/境界/存活/类型多维索引 + 维护面），
+// 每个原语是容器 API 的一个独立查询维度，拆分只会碎片化同步锁边界。
 class DiscipleIndex @Inject constructor() {
     
     private val byId = ConcurrentHashMap<String, Disciple>()

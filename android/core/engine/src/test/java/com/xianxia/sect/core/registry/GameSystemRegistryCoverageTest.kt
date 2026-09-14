@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * GameSystem 注册完整性守卫（2026-08-13 批次 4，对标 9.5 守卫测试三要素）。
+ * GameSystem 注册完整性守卫（对标 9.5 守卫测试三要素）。
  *
  * 锚点 = 源码 @GameService 标注：扫描 core/engine + core/domain 主源码，
  * 解析标注类名与包路径推导类别，断言全部已注册且类别一致。
@@ -38,7 +38,7 @@ class GameSystemRegistryCoverageTest {
 
     @Test
     fun `全部 @GameService 的 name 与类名一致`() {
-        // 对抗性审查 2026-08-13 数据篡改者#6：注册 key=className——若未来
+        // 注册 key=className——若未来
         // @GameService(name="中文名") 与类名脱钩，find(name) 查不到；本守卫
         // 锁死 name==类名 约定（脱钩时需同步改造注册表以消费 name）
         val mismatched = scanAnnotatedNames().filter { it.first != it.second }

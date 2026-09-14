@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 
 /**
  * AttackHpGuard（进攻前低血量二次确认判定）纯函数测试。

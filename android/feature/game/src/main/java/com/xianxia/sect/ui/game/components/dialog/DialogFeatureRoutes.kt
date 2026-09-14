@@ -13,6 +13,7 @@ import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.dialogs.WorldMapDialogInputs
 import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
 import com.xianxia.sect.ui.game.dialogs.BuildingUpgradeDialog
@@ -72,7 +73,7 @@ private fun renderGuide(viewModel: GameViewModel, gameData: GameData, onDismiss:
         gameData = gameData,
         claimedRewardIds = guideClaimedRewardIds,
         allTasks = GuideTaskRegistry.ALL_TASKS,
-        onClaimReward = { taskId -> viewModel.claimGuideReward(taskId) },
+        onClaimReward = { taskId -> viewModel.guide.claimGuideReward(taskId) },
         onDismiss = onDismiss
     )
 }
@@ -127,10 +128,12 @@ private fun renderWorldMap(
         color = Color.Transparent
     ) {
         WorldMapDialog(
-            worldSects = mapRenderData.worldMapSects,
-            mapRenderData = mapRenderData,
-            gameData = gameData,
-            disciples = disciples,
+            inputs = WorldMapDialogInputs(
+                worldSects = mapRenderData.worldMapSects,
+                mapRenderData = mapRenderData,
+                gameData = gameData,
+                disciples = disciples
+            ),
             viewModel = viewModel,
             interactionViewModel = vms.worldMapInteraction,
             garrisonViewModel = vms.worldMapGarrison,

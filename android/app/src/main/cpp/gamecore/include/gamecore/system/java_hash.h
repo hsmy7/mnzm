@@ -10,7 +10,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// Java 兼容哈希（Kotlin→C++ 迁移确定性红线）
+// Java 兼容哈希（确定性红线）
 //
 // 复现 Java/Kotlin 标准库哈希语义（signed int32 溢出回绕）：
 //   - javaStringHashCode：String.hashCode()（h = 31*h + char）

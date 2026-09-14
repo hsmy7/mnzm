@@ -30,9 +30,13 @@
 
 ```
 美术资源 (WebP in drawable-nodpi)
-  ├─ decoration_grass_*.webp       — 3 种草装饰变体 → 图集
-  ├─ decoration_tree*.webp         — 2 种树装饰变体 → 图集
-  └─ 建筑精灵 → 图集（所有建筑统一为 512×512，2026-09 由 256×256 提升，消除放大颗粒）
+  ├─ decoration_grass1..4.webp     — 4 种草装饰变体 → 图集
+  ├─ decoration_stone1..3.webp     — 3 种石堆装饰变体 → 图集
+  ├─ decoration_tree1/2.webp       — 2 种树装饰变体 → 图集
+  └─ 建筑精灵 → 图集（所有建筑统一为 512×512，2026-09 由 256×256 提升，消除放大颗粒；
+       天枢殿 1024×1024 专属槽位。图集槽位 = 素材容器，**显示尺寸另算**：
+       精灵宽 = 占地宽、精灵高 = `round(宽 × 素材高 ÷ (0.75 × 素材宽))`——立绘按屏上不变形取值，
+       高建筑精灵高于占地（巡视楼 4×10、问道塔/青云塔 4×8），详见 docs/adr/sprite-sizing-billboard.md）
         ↓
 GameActivity.kt (启动时 LaunchedEffect)
   └─ SectMapTileGenerator.generateTileData() → rawTileData + bitmaskData
@@ -71,27 +75,48 @@ C++ VulkanBackend (Vulkan 1.1+)
 ## 瓦片类型编码
 
 ```kotlin
-const val TILE_GROUND       = 0   // 空地（无装饰）
-const val TILE_GRASS_SMALL  = 1   // 小草丛装饰
-const val TILE_GRASS_MEDIUM = 2   // 中草丛装饰
-const val TILE_GRASS_LARGE  = 3   // 大草丛装饰
-const val TILE_TREE1        = 4   // 树变体1
-const val TILE_TREE2        = 5   // 树变体2
-const val TILE_BUILDING     = 6   // 建筑占位（由 placedBuildings 计算）
+const val TILE_GROUND   = 0    // 空地（无装饰）
+const val TILE_GRASS1   = 1    // 草变体 1
+const val TILE_GRASS2   = 2    // 草变体 2
+const val TILE_GRASS3   = 3    // 草变体 3
+const val TILE_GRASS4   = 4    // 草变体 4
+const val TILE_STONE1   = 5    // 石堆变体 1
+const val TILE_STONE2   = 6    // 石堆变体 2
+const val TILE_STONE3   = 7    // 石堆变体 3
+const val TILE_TREE1    = 8    // 树变体 1（立体层：2 × 3.291 格）
+const val TILE_TREE2    = 9    // 树变体 2（立体层：2 × 2.791 格）
+const val TILE_BUILDING = 10   // 建筑占位（由 placedBuildings 计算）
 ```
 
-定义在 `SectMapTileGenerator`（`core/engine/.../util/`），消费端在 `MainGameScreen.kt` 和 `NativeBridge.cpp::drawDecor`。
+装饰瓦片（草/石/树）**必须连续排列**在 GROUND 与 TILE_BUILDING 之间——渲染器按
+`DECOR_TILE_MIN_INDEX..DECOR_TILE_MAX_INDEX` 区间判定装饰叠加层，显示尺寸取
+`TILE_SPRITE_W/H`（格，小数格）、绘制层取 `TILE_OBJECT_LAYER`（0=地面层随地面逐格绘制、
+1=立体层与建筑同序归并绘制）、越界余量取 `DECOR_MARGIN_COLS/ROWS`（渲染遍历/可见性范围外扩）。
+全部常量与瓦片 rect 同源：`build-atlas.mjs` 的 `LAYOUT.tiles` 生成
+（Kotlin `SpriteAtlasDef` / C++ `TextureAtlas.h` 双端），
+消费端在 `MainGameScreen.kt`（建筑占位标记）、`SectAtlasAssembler`（运行时图集装配）、
+`SoftwareCanvasBackend`（Canvas 路径）与 `NativeBridge.cpp`（Vulkan 路径）。
+
+**装饰显示尺寸口径**（2026-09 起）：立体素材按"屏上不变形"取值
+（`显示高 = 显示宽 × 素材高 ÷ (0.75 × 素材宽)`，`0.75 = TOPDOWN_Y_SCALE`），
+锚点 = **格底边居中**（对象站在自己格子上）——草/石略高于（或略矮于）1 格，树 2×3.291 格
+（树冠向上伸出 2.29 格，故走立体层与建筑同一画家序）。构建期由
+`build-atlas.mjs` validateDisplaySizing 校验、测试期由 `SpriteSizingFidelityTest` 复核；
+双端层序契约 = `gamecore/map/draw_order.h`（同键时建筑在后）。
 
 ## 纹理图集布局
 
 所有地面/装饰/建筑精灵合并到单张 **4096×4096** 纹理（Vulkan 走 **ASTC 4×4 压缩 KTX**；Canvas 软渲染按 `SectAtlasAssembler` 组装）：
 
 ```
-行0 (y=0):     瓦片地面(128×128) + 草装饰(128×128×3) + 树(256×256×2) + 作物(128×128×3)
+行0 (y=0):     瓦片地面(128×128) + 草装饰(128×128×4) + 石堆(128×128×3) + 树(256×256×2) + 作物(128×128×3)
 建筑 (y=512起): 19 座（512×512，行分布 [5,5,5,4]，行公式 y=512/1024/1536/2048，x=0~2560）
-专属高清槽位:  天枢殿 1024×1024 @ (3072,1024)；宗门门楼 768×512 @ (3072,512)
+专属高清槽位:  天枢殿 1024×1024 @ (3072,1032)；宗门门楼 768×512 @ (3072,512)
 云层 (y≥2816):  cloud_1~5（动态云朵槽位，保持源素材纵横比）
 ```
+
+> 行 0 的 C++ `MAP_SPRITES` 序 = Kotlin `TileType` 序（瓦片值即精灵索引）；瓦片段由
+> `build-atlas.mjs` 的 `LAYOUT.tiles` 派生（`buildMapSprites`），两处不再各写一份精灵表。
 
 > 2026-09 图集升级：2048→**4096**、槽位 ×2（瓦片 64→128、建筑 256→512、天枢殿 512→1024、门楼 384→768）。宗门地面**不再铺设方形地砖**（`FloorTileType` 移除），建筑直接落于地面 repeat 贴图之上；地砖槽位/绘制全链清除。
 
@@ -109,15 +134,17 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 
 ## 装饰物生成算法
 
-`SectMapTileGenerator.generateTileData()` 使用**平滑噪声地块**方案：
+`SectMapTileGenerator.generateTileData()` 使用**平滑噪声地块**方案（C++ `gamecore/map/terrain.h` 为单一权威，Kotlin 位级等价镜像）：
 | 装饰类型 | 斑块尺度 | 斑块覆盖 | 斑块内密度 | 算法 |
 |---------|---------|---------|-----------|------|
-| 草 (3 变体) | 8×8 | ~14%（0.18 密度时） | ~80% | `smoothNoise(scale=8)` 确定草地斑块区域，斑块内密集分布 |
+| 草（4 变体） | 8×8 | ~14%（0.18 密度时） | ~80% | `smoothNoise(scale=8)` 确定草地斑块区域，斑块内密集分布；变体按 hash 四等分抽取 |
+| 石（3 变体） | 14×14 | ~2%（0.18 密度时） | ~35% | `smoothNoise(scale=14)` 确定岩块区域，**只落在裸地**（草滩之后运行）；变体按 hash 三等分抽取 |
 | 树 (TREE1/TREE2) | 12×12 | ~6%（0.18 密度时） | ~35% | `smoothNoise(scale=12)` 确定树丛区域，区域内稀疏分布 |
 
+- **pass 顺序**：草滩 → 石堆 → 树丛 → 边界树环 → 门楼清场（格间无依赖，每种装饰只落在仍为裸地的格上，故三者互不覆盖）
 - **原理**：`smoothNoise()` 在粗网格上采样 `cellHash`，经双线性插值 + smoothstep 产生连续平滑值，相邻格值变化平缓 → 自然地块而非噪点
-- **地面**：单一草皮 `map_grass_1`（`草皮.png` 经 2×2 平铺无缝化处理）作为**独立 REPEAT 纹理**，以单 quad/单 shader 整图铺（C++ 专用 `uploadRepeatTexture`；Canvas `BitmapShader REPEAT`），无逐格拼贴、无任何接缝
-- **确定性 + 随机种子**：same seed + same input = same output。`worldSeed` 参数（默认 0）通过 XOR 混入 7 个内部种子点，使不同存档的地图分布不同。`worldSeed=0` 保持向后兼容
+- **地面**：单一草皮 `map_grass_1`（`装饰物/草皮.png` 经无缝平铺处理 + 64×64 烘焙）作为**独立 REPEAT 纹理**，以单 quad/单 shader 整图铺（C++ 专用 `uploadRepeatTexture`；Canvas `BitmapShader REPEAT`），无逐格拼贴、无任何接缝
+- **确定性 + 随机种子**：same seed + same input = same output。`worldSeed` 参数（默认 0）通过 XOR 混入各装饰阶段的内部种子点，使不同存档的地图分布不同。`worldSeed=0` 保持向后兼容
 - **种子持久化**：新游戏时 `GameEngine.createNewGame()` 生成 `Random.nextInt()` → 存入 `GameData.mapSeed`。读档时从 DB 读出，保证同一存档地图不变
 - **密度控制**：`decorationDensity` 参数 (0.0~1.0)，默认 0.18
 - **定义位置**：`core/engine/src/main/java/com/xianxia/sect/core/util/SectMapTileGenerator.kt`
@@ -377,18 +404,16 @@ override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 
 | 文件名 | 用途 | 原始素材 |
 |--------|------|---------|
-| `map_grass_1.webp` | 草皮（单一地面纹理，无缝平铺，独立 REPEAT 纹理整图铺） | `草皮.png` |
-| `sect_gate.webp` | 宗门门楼（固定结构，渲染走建筑层） | `宗门门楼.png` |
-| `sect_stairs.webp` | 宗门阶梯（固定结构，渲染走建筑层） | `宗门阶梯.png` |
-| `decoration_grass_small.webp` | 小草丛装饰 | `小草丛.png` |
-| `decoration_grass_medium.webp` | 中草丛装饰 | `中草丛.png` |
-| `decoration_grass_large.webp` | 大草丛装饰 | `大草丛.png` |
-| `decoration_tree1.webp` | 树变体 1 | `树木1.png` |
-| `decoration_tree2.webp` | 树变体 2 | `树木2.png` |
-| `cloud_1.webp` ~ `cloud_5.webp` | 世界顶部动态云朵（5 种形态，图集槽位见 `LAYOUT.clouds`） | `云层1.png` ~ `云层5.png` |
+| `map_grass_1.webp` | 草皮（单一地面纹理，无缝平铺，独立 REPEAT 纹理整图铺） | `装饰物/草皮.png` |
+| `sect_gate.webp` | 宗门门楼（固定结构，渲染走建筑层） | `建筑/宗门门楼.png` |
+| `decoration_grass1.webp` ~ `decoration_grass4.webp` | 草装饰 4 变体（1×1 格） | `装饰物/花草1.png` ~ `花草4.png` |
+| `decoration_stone1.webp` ~ `decoration_stone3.webp` | 石堆装饰 3 变体（1×1 格） | `装饰物/石头1.png` ~ `石头3.png` |
+| `decoration_tree1.webp` | 树变体 1（2×2 格） | `装饰物/树木1.png` |
+| `decoration_tree2.webp` | 树变体 2（2×2 格） | `装饰物/树木2.png` |
+| `cloud_1.webp` ~ `cloud_5.webp` | 世界顶部动态云朵（5 种形态，图集槽位见 `LAYOUT.clouds`） | `装饰物/云层1.png` ~ `云层5.png` |
 
-> 草皮由 `convert-grass-tiles.mjs` 无损转 webp（64×64，已做无缝平铺处理）；门楼转 2× 分辨率
-> （门楼 384×256 = 6×4 格）。其余已删除/替换的草皮与阶梯资源均已清理。
+> 地面草皮、门楼与全部装饰变体由权威素材管线烘焙（`scripts/source-mapping.json` 的 `MAP`
+> 分类 → `scripts/import-art-assets.mjs`；草皮带 `seamless` 无缝平铺处理，输出 64×64）。
 > 宗门入口固定结构（门楼）渲染走建筑层（见 `FixedSectGateway`），随瓦片生成、置于地图正下方，
 > 左右两侧保留 3 行边界硬装饰树；不可移动/拆除、占地禁建、不画地砖/地基。
 

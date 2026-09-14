@@ -1,11 +1,11 @@
 package com.xianxia.sect.core.domain.favor
 
 import com.xianxia.sect.core.domain.FavorDomain
-import com.xianxia.sect.core.engine.service.CultivationSharedState
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.domain.calculateDecayedFavor
 
 /**
  * 好感度相关事件处理器。
@@ -17,13 +17,8 @@ import javax.inject.Singleton
 class FavorEventProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
-    private val sharedState: CultivationSharedState
 ) {
     private val scope get() = scopeProvider.scope
-
-    companion object {
-        private const val TAG = "FavorEventProcessor"
-    }
 
     // ═══════════ 好感度衰减 ═══════════
 
@@ -45,7 +40,7 @@ class FavorEventProcessor @Inject constructor(
 
                 if (!FavorDomain.shouldDecay(relation, currentYear)) return@map relation
 
-                val newFavor = FavorDomain.calculateDecayedFavor(relation)
+                val newFavor = calculateDecayedFavor(relation)
                 relation.copy(
                     favor = newFavor,
                     noGiftYears = relation.noGiftYears + 1

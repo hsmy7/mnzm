@@ -137,7 +137,7 @@ class YearlyOpsQueueTest {
 
     @Test
     fun `concurrent drain and forceDrain preserve FIFO order`() {
-        // 对抗性审查 F2 守卫：drain（引擎 tick）与 forceDrain（存档线程）双消费者
+        // 双消费者守卫：drain（引擎 tick）与 forceDrain（存档线程）
         // 并发时，若 forceDrain 在 drain 执行 op1 期间插队 poll op2，顺序将倒置为
         // [2,1,3]。consumerLock 互斥保证同刻至多一个消费者 → 顺序恒为 [1,2,3]。
         val queue = YearlyOpsQueue()

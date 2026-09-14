@@ -15,7 +15,7 @@ import javax.inject.Singleton
 /**
  * Hilt 音频模块
  *
- * 提供单例音频组件：配置管理器、音频播放实现（G1 根治：core 层接口 +
+ * 提供单例音频组件：配置管理器、音频播放实现（core 层接口 +
  * app 层 AndroidAudioPlayer 实现绑定）、预加载助手。
  * 所有音频依赖由 Hilt 自动注入，无需手动管理生命周期。
  */

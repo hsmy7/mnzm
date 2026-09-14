@@ -9,7 +9,7 @@ import kotlin.math.sqrt
 /**
  * 宗门地图相机状态测试 — 验证 scale 缩放在各场景下的正确性。
  *
- * v4.0.45+ 默认视角改为「缩放区间几何中值」（√(minScale × MAX_ZOOM)）：
+ * v4.0.45+ 默认视角为「缩放区间几何中值」（√(minScale × MAX_ZOOM)）：
  * 保证从初始视角向放大/缩小两端可缩放的倍数一致，且缩小不超出世界边界。
  */
 class SectCameraStateTest {
@@ -18,6 +18,10 @@ class SectCameraStateTest {
     // GameConfig.SectMap.WORLD_PIXEL_WIDTH/HEIGHT = 128 格 × TILE_SIZE 决定）
     private val worldWidth = 4608f
     private val worldHeight = 4608f
+
+    // 俯视纵向压缩系数（与 SectCameraState.worldYScale ← SpriteAtlasDef.TOPDOWN_Y_SCALE
+    // 同值——统一俯视视角；修改 LAYOUT.topdownYScale 必同步）
+    private val topdownYScale = 0.75f
 
     // 常见手机分辨率
     private val phoneVpW = 1080
@@ -29,12 +33,14 @@ class SectCameraStateTest {
     private val largeVpW = 3840
     private val largeVpH = 2160
 
-    // 缩放中值策略：computeDefaultScale = sqrt(max(MIN_ZOOM, vpW/worldW, vpH/worldH) × MAX_ZOOM)
+    // 缩放中值策略：computeDefaultScale =
+    // sqrt(max(MIN_ZOOM, vpW/worldW, vpH/(worldH×yScale)) × MAX_ZOOM)
+    //（高度比按俯视纵向压缩系数扩大：铺满视口需 worldH×scale×yScale ≥ vpH）
     private fun expectedScale(vpW: Int, vpH: Int): Float {
         val minSafeScale = maxOf(
             CameraState.MIN_ZOOM,
             vpW.toFloat() / worldWidth,
-            vpH.toFloat() / worldHeight
+            vpH.toFloat() / (worldHeight * topdownYScale)
         )
         return sqrt(minSafeScale * CameraState.MAX_ZOOM)
     }
@@ -56,7 +62,7 @@ class SectCameraStateTest {
         val minBound = maxOf(
             CameraState.MIN_ZOOM,
             phoneVpW.toFloat() / worldWidth,
-            phoneVpH.toFloat() / worldHeight
+            phoneVpH.toFloat() / (worldHeight * topdownYScale)
         )
         // 从初始视角向两端缩放的倍数应一致：scale/minBound == MAX_ZOOM/scale
         val zoomOutFactor = camera.scale / minBound
@@ -70,13 +76,13 @@ class SectCameraStateTest {
         camera.updateViewport(tallVpW, tallVpH)
         val want = expectedScale(tallVpW, tallVpH)
         assertEquals("20:9 全面屏应使用自适应缩放", want, camera.scale, 0.001f)
-        // 验证：视口世界高度不超过世界高度（无底部空白）
-        val eh = tallVpH / camera.scale
+        // 验证：视口世界高度（按俯视压缩）不超过世界高度（无底部空白）
+        val eh = tallVpH / (camera.scale * topdownYScale)
         assertTrue("视口世界高度不应超过世界高度", eh <= worldHeight + 0.1f)
         // 验证：至少一个维度刚好填满视口
         assertTrue("至少一个维度应填满视口",
             (worldWidth * camera.scale >= tallVpW - 0.5f) ||
-            (worldHeight * camera.scale >= tallVpH - 0.5f))
+            (worldHeight * camera.scale * topdownYScale >= tallVpH - 0.5f))
     }
 
     @Test
@@ -88,7 +94,7 @@ class SectCameraStateTest {
         val want = expectedScale(lw, lh)
         assertEquals("横屏应使用自适应缩放", want, camera.scale, 0.001f)
         val ew = lw / camera.scale
-        val eh = lh / camera.scale
+        val eh = lh / (camera.scale * topdownYScale)
         assertTrue("视口世界宽度不应超过世界宽度", ew <= worldWidth + 0.1f)
         assertTrue("视口世界高度不应超过世界高度", eh <= worldHeight + 0.1f)
     }
@@ -101,7 +107,7 @@ class SectCameraStateTest {
         camera.updateViewport(tw, th)
         val want = expectedScale(tw, th)
         assertEquals("平板竖屏应使用自适应缩放", want, camera.scale, 0.001f)
-        val eh = th / camera.scale
+        val eh = th / (camera.scale * topdownYScale)
         assertTrue("视口世界高度不应超过世界高度", eh <= worldHeight + 0.1f)
     }
 
@@ -112,7 +118,7 @@ class SectCameraStateTest {
         camera.updateViewport(480, 800)
         assertTrue("极小屏缩放不应低于 MIN_ZOOM",
             camera.scale >= CameraState.MIN_ZOOM)
-        val eh = 800 / camera.scale
+        val eh = 800 / (camera.scale * topdownYScale)
         assertTrue("MIN_ZOOM 限制下视口不应超出世界", eh <= worldHeight + 0.1f)
     }
 
@@ -137,7 +143,7 @@ class SectCameraStateTest {
             val camera = SectCameraState(worldWidth, worldHeight)
             camera.updateViewport(w, h)
             val ew = w / camera.scale
-            val eh = h / camera.scale
+            val eh = h / (camera.scale * topdownYScale)
             val msg = "w=${w}h=${h} scale=${camera.scale}: world viewport (${ew}x${eh}) " +
                       "exceeds world (${worldWidth}x${worldHeight})"
             assertTrue(msg, ew <= worldWidth + 0.1f)
@@ -207,9 +213,9 @@ class SectCameraStateTest {
         }
         val sx = camera.worldToScreenX(100f)
         val sy = camera.worldToScreenY(50f)
-        // scale = 缩放中值 ≈ 1.186，cameraX/Y = 0 → sx = 100*scale
+        // scale = 缩放中值，cameraX/Y = 0 → sx = 100*scale；Y 按俯视压缩系数缩放
         assertEquals(100f * camera.scale, sx, 0.001f)
-        assertEquals(50f * camera.scale, sy, 0.001f)
+        assertEquals(50f * camera.scale * topdownYScale, sy, 0.001f)
     }
 
     @Test
@@ -218,7 +224,7 @@ class SectCameraStateTest {
             updateViewport(phoneVpW, phoneVpH)
         }
         assertEquals(100f / camera.scale, camera.screenToWorldX(100f), 0.001f)
-        assertEquals(50f / camera.scale, camera.screenToWorldY(50f), 0.001f)
+        assertEquals(50f / (camera.scale * topdownYScale), camera.screenToWorldY(50f), 0.001f)
     }
 
     @Test
@@ -226,9 +232,8 @@ class SectCameraStateTest {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
             updateViewport(largeVpW, largeVpH) // scale = 0.938
         }
-        val expected = 100f * camera.scale
-        assertEquals(expected, camera.worldToScreenX(100f), 0.1f)
-        assertEquals(expected, camera.worldToScreenY(100f), 0.1f)
+        assertEquals(100f * camera.scale, camera.worldToScreenX(100f), 0.1f)
+        assertEquals(100f * camera.scale * topdownYScale, camera.worldToScreenY(100f), 0.1f)
     }
 
     @Test
@@ -237,7 +242,7 @@ class SectCameraStateTest {
             updateViewport(largeVpW, largeVpH)
         }
         assertEquals(100f / camera.scale, camera.screenToWorldX(100f), 0.1f)
-        assertEquals(100f / camera.scale, camera.screenToWorldY(100f), 0.1f)
+        assertEquals(100f / (camera.scale * topdownYScale), camera.screenToWorldY(100f), 0.1f)
     }
 
     @Test
@@ -256,6 +261,11 @@ class SectCameraStateTest {
 
     // ==================== 平移与 clamp ====================
 
+    /** 崖壁带外扩边距（与 SectCameraState.ISLAND_CLIFF_VISIBLE_OUTSET 同值——修改必同步）。
+     *  取值依据：7 张整块崖壁绘制于世界矩形外侧，左右伸入 = 纹理宽（最大 1180）、
+     *  下伸入 = 纹理高（最大 2400）⇒ outset = 2400 + 余量 100。 */
+    private val edgeOutset = 2500f
+
     @Test
     fun `pan - with default scale moves camera by screen pixels over scale`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
@@ -263,12 +273,19 @@ class SectCameraStateTest {
         }
         camera.pan(-100f, -200f) // 左滑/上滑 → 相机右移/下移
         // cameraX = 0 - (-100/scale), cameraY = 0 - (-200/scale)
-        assertTrue("cameraX 应在 [0, worldWidth - vpW/scale] 范围内",
-            camera.cameraX >= 0f &&
-            camera.cameraX <= (worldWidth - phoneVpW / camera.scale).coerceAtLeast(0f))
-        assertTrue("cameraY 应在 [0, worldHeight - vpH/scale] 范围内",
-            camera.cameraY >= 0f &&
-            camera.cameraY <= (worldHeight - phoneVpH / camera.scale).coerceAtLeast(0f))
+        val outset = edgeOutset
+        val visibleW = phoneVpW / camera.scale
+        val visibleH = phoneVpH / (camera.scale * topdownYScale)
+        assertTrue(
+            "cameraX 应在 [-outset, worldWidth + outset - visibleW] 范围内（边缘带可进入）",
+            camera.cameraX >= -outset &&
+                camera.cameraX <= (worldWidth + outset - visibleW).coerceAtLeast(-outset)
+        )
+        assertTrue(
+            "cameraY 应在 [-outset, worldHeight + outset - visibleH] 范围内（边缘带可进入）",
+            camera.cameraY >= -outset &&
+                camera.cameraY <= (worldHeight + outset - visibleH).coerceAtLeast(-outset)
+        )
     }
 
     @Test
@@ -277,30 +294,32 @@ class SectCameraStateTest {
             updateViewport(4000, 3000) // scale = maxOf(4000/4608, 3000/4608) = 0.868
         }
         camera.pan(0f, -150f)
-        assertTrue("cameraY 应在有效范围内", camera.cameraY >= 0f)
+        assertTrue("cameraY 应在有效范围内（边缘带外扩）", camera.cameraY >= -edgeOutset)
     }
 
     @Test
-    fun `clamp - camera cannot go below zero`() {
+    fun `clamp - camera cannot go below island edge outset`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
             updateViewport(phoneVpW, phoneVpH)
         }
         camera.pan(-500f, -1000f)
-        assertTrue("cameraX 不应小于 0", camera.cameraX >= 0f)
-        assertTrue("cameraY 不应小于 0", camera.cameraY >= 0f)
+        assertTrue("cameraX 不应小于 -outset", camera.cameraX >= -edgeOutset)
+        assertTrue("cameraY 不应小于 -outset", camera.cameraY >= -edgeOutset)
     }
 
     @Test
-    fun `clamp - camera cannot exceed world bounds`() {
+    fun `clamp - camera cannot exceed world plus island edge outset`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
             updateViewport(phoneVpW, phoneVpH)
         }
-        // 尝试大幅右移
+        // 尝试大幅右移 → 相机到视口右沿 = 世界右边界 + 边缘带外扩
         camera.pan(-99999f, -99999f)
-        val maxX = (worldWidth - phoneVpW / camera.scale).coerceAtLeast(0f)
-        val maxY = (worldHeight - phoneVpH / camera.scale).coerceAtLeast(0f)
-        assertTrue("cameraX 不应超过世界边界", camera.cameraX <= maxX + 0.001f)
-        assertTrue("cameraY 不应超过世界边界", camera.cameraY <= maxY + 0.001f)
+        val outset = edgeOutset
+        val maxX = (worldWidth + outset - phoneVpW / camera.scale).coerceAtLeast(-outset)
+        val maxY = (worldHeight + outset - phoneVpH / (camera.scale * topdownYScale))
+            .coerceAtLeast(-outset)
+        assertTrue("cameraX 不应超过世界边界 + 边缘外扩", camera.cameraX <= maxX + 0.001f)
+        assertTrue("cameraY 不应超过世界边界 + 边缘外扩", camera.cameraY <= maxY + 0.001f)
     }
 
     // ==================== centerOn ====================
@@ -363,7 +382,7 @@ class SectCameraStateTest {
         camera.zoom(0.001f, phoneVpW / 2f, phoneVpH / 2f)
         assertTrue("缩小后 scale 应低于世界适配（可看到地图外天空）", camera.scale < default)
         val ew = phoneVpW / camera.scale
-        val eh = phoneVpH / camera.scale
+        val eh = phoneVpH / (camera.scale * topdownYScale)
         assertTrue("缩小后视口世界尺寸应超出世界（露出天空）", ew > worldWidth || eh > worldHeight)
         // 天空可视下界受绝对下限保护（不缩成一点）
         assertTrue("scale 不应低于合理下限", camera.scale > 0.05f)
@@ -372,6 +391,139 @@ class SectCameraStateTest {
         val cy = camera.worldToScreenY(worldHeight / 2f)
         assertTrue("世界中心应在视口内",
             cx in (0f..phoneVpW.toFloat()) && cy in (0f..phoneVpH.toFloat()))
+    }
+
+    // ==================== 浮空岛边缘带可见性（地图边缘系统） ====================
+
+    @Test
+    fun `clampPosition - 视口小于世界时允许进入边缘带（拖到地图边缘可见悬崖）`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH)
+        }
+        // 视口 < 世界（默认游玩视角）：硬边界外扩边缘带厚度
+        val visibleW = phoneVpW / camera.scale
+        val visibleH = phoneVpH / (camera.scale * topdownYScale)
+        assertTrue(visibleW < worldWidth)
+
+        // 向左拖（pan dx>0 → cameraX 减小）到最左：相机 X 被钳制到 -outset（而非 0）——
+        // 悬崖边缘带（y ∈ [-224, 0] 的上环与左右环）进入视口
+        camera.pan(100000f, 0f)
+        assertEquals("拖到最左边缘时相机应外扩边缘带", -edgeOutset, camera.cameraX, 0.001f)
+        // 向右拖到最右：右侧外扩对称成立
+        camera.pan(-200000f, 0f)
+        assertEquals(
+            "拖到最右边缘时相机应外扩边缘带",
+            worldWidth + edgeOutset - visibleW,
+            camera.cameraX,
+            0.001f
+        )
+        // 向上拖到最上：上环悬崖带完整进入视口
+        camera.pan(0f, 100000f)
+        assertEquals("拖到最上边缘时相机应外扩边缘带", -edgeOutset, camera.cameraY, 0.001f)
+        // 向下拖到最下：下环悬垂带对称
+        camera.pan(0f, -200000f)
+        assertEquals(
+            "拖到最下边缘时相机应外扩边缘带",
+            worldHeight + edgeOutset - visibleH,
+            camera.cameraY,
+            0.001f
+        )
+    }
+
+    @Test
+    fun `clampPosition - 视口超出世界时整岛居中悬浮（天空语义保留）`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH)
+        }
+        // 缩到最小：视口世界尺寸 ≥ 世界（整岛完整可见）→ 该轴居中——
+        // 浮空岛悬浮天际契约（两侧对称天空，岛不滞留在崖壁钳制带一侧）。
+        // 注：居中触发阈值 = 视口 ≥ 世界（非世界 + 2×outset）——outset(2500)
+        // 远超最小缩放视口的天空余量，以 outset 为门槛时居中分支在常见机型
+        // 不可达（回归史：崖壁素材换代曾把该阈值抬到世界+2×outset）。
+        camera.zoom(0.001f, phoneVpW / 2f, phoneVpH / 2f)
+        val visibleW = phoneVpW / camera.scale
+        val visibleH = phoneVpH / (camera.scale * topdownYScale)
+        assertTrue("极限缩小时视口应超出世界（整岛完整可见）", visibleW >= worldWidth)
+        assertTrue("极限缩小时视口高度应超出世界", visibleH >= worldHeight)
+        assertEquals("岛中心 X 应屏幕居中", phoneVpW / 2f, camera.worldToScreenX(worldWidth / 2f), 0.5f)
+        assertEquals("岛中心 Y 应屏幕居中", phoneVpH / 2f, camera.worldToScreenY(worldHeight / 2f), 0.5f)
+    }
+
+    // ==================== 浮空岛整岛可见（下界基数 max→min） ====================
+
+    /** 与 SectCameraState.SKY_MARGIN_FACTOR 对齐（天空边距系数：岛占视口短边比例） */
+    private val skyMarginFactor = 0.75f
+
+    @Test
+    fun `minScaleBound - 极限缩小时整座岛完整可见且居中（横屏）`() {
+        val camera = SectCameraState(worldWidth, worldHeight)
+        val vpW = 1920; val vpH = 1080
+        camera.updateViewport(vpW, vpH)
+        camera.zoom(0.001f, vpW / 2f, vpH / 2f)
+        // 下界 = 整岛适配（min 基数：完整进入视口的缩放，高度比按俯视压缩扩大）× 天空边距系数
+        val wantMin = minOf(
+            vpW.toFloat() / worldWidth,
+            vpH.toFloat() / (worldHeight * topdownYScale)
+        ) * skyMarginFactor
+        assertEquals("横屏最小缩放 = 整岛适配 × 0.75", wantMin, camera.scale, 0.001f)
+        // 两个方向视口均超出世界 → 整岛完整可见、四周露天空（短轴被裁剪成"长方形条带"即为回归）
+        assertTrue("横屏极限缩小时视口宽度应超出世界（左右露天空）",
+            vpW / camera.scale > worldWidth)
+        assertTrue("横屏极限缩小时视口高度应超出世界（上下露天空）",
+            vpH / (camera.scale * topdownYScale) > worldHeight)
+        // clampPosition 两轴均超出 → 岛居中悬浮于天空中央（非锚定左上角）
+        assertEquals("岛中心 X 应屏幕居中", vpW / 2f, camera.worldToScreenX(worldWidth / 2f), 0.5f)
+        assertEquals("岛中心 Y 应屏幕居中", vpH / 2f, camera.worldToScreenY(worldHeight / 2f), 0.5f)
+    }
+
+    @Test
+    fun `minScaleBound - 极限缩小时整座岛完整可见且居中（竖屏）`() {
+        val camera = SectCameraState(worldWidth, worldHeight)
+        val vpW = 1080; val vpH = 2400
+        camera.updateViewport(vpW, vpH)
+        camera.zoom(0.001f, vpW / 2f, vpH / 2f)
+        val wantMin = minOf(
+            vpW.toFloat() / worldWidth,
+            vpH.toFloat() / (worldHeight * topdownYScale)
+        ) * skyMarginFactor
+        assertEquals("竖屏最小缩放 = 整岛适配 × 0.75", wantMin, camera.scale, 0.001f)
+        assertTrue("竖屏极限缩小时视口宽度应超出世界（左右露天空）",
+            vpW / camera.scale > worldWidth)
+        assertTrue("竖屏极限缩小时视口高度应超出世界（上下露天空）",
+            vpH / (camera.scale * topdownYScale) > worldHeight)
+        assertEquals("岛中心 X 应屏幕居中", vpW / 2f, camera.worldToScreenX(worldWidth / 2f), 0.5f)
+        assertEquals("岛中心 Y 应屏幕居中", vpH / 2f, camera.worldToScreenY(worldHeight / 2f), 0.5f)
+    }
+
+    @Test
+    fun `minScaleBound - 全机型极限缩小均整岛完整可见`() {
+        // 镜像 fill guarantee：任意常见长宽比下缩到最小都必须能看到整座岛
+        //（短轴被裁剪即为回归——玩家会误以为地图是长方形）
+        val ratios = listOf(
+            1920 to 1080,  // 16:9 横屏
+            1080 to 1920,  // 16:9 竖屏
+            2400 to 1080,  // 20:9 竖屏
+            1080 to 2400,  // 20:9 竖屏反
+            1440 to 3120,  // 21:9 竖屏
+            3120 to 1440,  // 21:9 横屏
+            2560 to 1600,  // 16:10 横屏
+            1600 to 2560,  // 16:10 竖屏
+            2732 to 2048,  // iPad Pro 4:3 横屏
+            2048 to 2732,  // iPad Pro 4:3 竖屏
+            3840 to 2160,  // 4K 横屏
+            2160 to 3840,  // 4K 竖屏
+        )
+        for ((w, h) in ratios) {
+            val camera = SectCameraState(worldWidth, worldHeight)
+            camera.updateViewport(w, h)
+            camera.zoom(0.001f, w / 2f, h / 2f)
+            val ew = w / camera.scale
+            val eh = h / (camera.scale * topdownYScale)
+            val msg = "w=${w}h=${h} scale=${camera.scale}: 视口世界尺寸(${ew}x${eh}) " +
+                      "应超出世界(${worldWidth}x${worldHeight})——整岛必须完整可见"
+            assertTrue(msg, ew > worldWidth)
+            assertTrue(msg, eh > worldHeight)
+        }
     }
 
     @Test
@@ -383,7 +535,7 @@ class SectCameraStateTest {
         val minBound = maxOf(
             CameraState.MIN_ZOOM,
             phoneVpW.toFloat() / worldWidth,
-            phoneVpH.toFloat() / worldHeight
+            phoneVpH.toFloat() / (worldHeight * topdownYScale)
         )
         // 以同样倍数放大后再缩小，应回到初始视角附近
         val factor = 1.5f

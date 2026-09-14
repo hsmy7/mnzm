@@ -39,8 +39,9 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.theme.GameColors
 import androidx.compose.ui.platform.LocalLocale
+import com.xianxia.sect.core.domain.calculateTradePriceMultiplier
 
-/** 宗门交易对话框 UI 状态（SectTradeDialog 拆分） */
+/** 宗门交易对话框 UI 状态 */
 private class SectTradeDialogState {
     var selectedItem by mutableStateOf<MerchantItem?>(null)
     var buyQuantity by mutableIntStateOf(1)
@@ -59,7 +60,7 @@ private val sectTradeQuantitySizes = QuantitySelectorSizes(
     buttonFontSize = 14.sp,
 )
 
-/** 宗门关系信息（SectTradeDialog 拆分） */
+/** 宗门关系信息 */
 private data class SectTradeRelationInfo(
     val relation: Int,
     val isAlly: Boolean,
@@ -109,7 +110,7 @@ fun SectTradeDialog(
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss, title = "宗门交易", mode = DialogMode.Full,
-        scrollableContent = false, freezeSystemBars = true // 含购买数量常驻输入框：冻结宿主窗口系统栏（键盘频闪根治）
+        scrollableContent = false, freezeSystemBars = true // 含购买数量常驻输入框：冻结宿主窗口系统栏（防键盘频闪）
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -147,7 +148,7 @@ fun SectTradeDialog(
     )
 }
 
-/** 宗门关系信息计算（SectTradeDialog 拆分）：好感度/盟友/可交易品阶/价格倍率 */
+/** 宗门关系信息计算：好感度/盟友/可交易品阶/价格倍率 */
 private fun sectTradeRelationInfo(
     sect: WorldSect?,
     gameData: GameData?,
@@ -165,7 +166,7 @@ private fun sectTradeRelationInfo(
     // playerSect 来自 gameData 的空安全链，playerSect 非空即蕴含 gameData 非空
     // （旧写法在此追加 gameData != null 被编译器判定恒真，产生警告）
     val priceMultiplier = if (playerSect != null && sect != null) {
-        FavorDomain.calculateTradePriceMultiplier(
+        calculateTradePriceMultiplier(
             sectRelations = gameData?.sectRelations ?: emptyList(),
             alliances = gameData?.alliances ?: emptyList(),
             sectId = sect.id,
@@ -175,7 +176,8 @@ private fun sectTradeRelationInfo(
 
     val relationColor = Color(relationLevel.colorHex)
 
-    val canTrade = relationLevel in listOf(SectRelationLevel.NORMAL, SectRelationLevel.FRIENDLY, SectRelationLevel.INTIMATE)
+    val canTrade = relationLevel in listOf(SectRelationLevel.NORMAL, SectRelationLevel.FRIENDLY,
+        SectRelationLevel.INTIMATE)
     return SectTradeRelationInfo(
         relation = relation,
         isAlly = isAlly,
@@ -187,14 +189,14 @@ private fun sectTradeRelationInfo(
     )
 }
 
-/** 购买品阶所需好感度文案（SectTradeDialog 拆分） */
+/** 购买品阶所需好感度文案 */
 private fun requiredFavorLevel(rarity: Int): String = when {
     rarity <= 2 -> "40（普通关系）"
     rarity <= 4 -> "60（友善关系）"
     else -> "80（至交关系）"
 }
 
-/** 关系信息标题行（SectTradeDialog 拆分） */
+/** 关系信息标题行 */
 @Composable
 private fun SectTradeRelationHeader(relationInfo: SectTradeRelationInfo) {
     val discountPercent = (1 - relationInfo.priceMultiplier) * 100
@@ -248,18 +250,21 @@ private fun SectTradeRelationHeader(relationInfo: SectTradeRelationInfo) {
     }
 }
 
-/** 灵石余额行（SectTradeDialog 拆分） */
+/** 灵石余额行 */
 @Composable
 private fun SectTradeSpiritStonesLine(gameData: GameData?) {
     Text(
-        text = "下品:${GameUtils.formatNumber(gameData?.spiritStones ?: 0)} 中品:${GameUtils.formatNumber(gameData?.midGradeSpiritStones ?: 0)} 上品:${GameUtils.formatNumber(gameData?.highGradeSpiritStones ?: 0)}",
+        text =
+            "下品:${GameUtils.formatNumber(gameData?.spiritStones ?: 0)} " +
+                "中品:${GameUtils.formatNumber(gameData?.midGradeSpiritStones ?: 0)} " +
+                    "上品:${GameUtils.formatNumber(gameData?.highGradeSpiritStones ?: 0)}",
         fontSize = 11.sp,
         color = GameColors.TextSecondary,
         modifier = Modifier.padding(horizontal = 12.dp)
     )
 }
 
-/** 商品网格（SectTradeDialog 拆分）：空态提示 + 商品卡片列表 */
+/** 商品网格：空态提示 + 商品卡片列表 */
 @Composable
 private fun ColumnScope.SectTradeItemGrid(
     state: SectTradeDialogState,
@@ -323,7 +328,7 @@ private fun ColumnScope.SectTradeItemGrid(
     }
 }
 
-/** 商品卡片（SectTradeDialog 拆分）：锁定/关注/选中态 */
+/** 商品卡片：锁定/关注/选中态 */
 @Composable
 private fun SectTradeItemCard(
     item: MerchantItem,
@@ -357,7 +362,7 @@ private fun SectTradeItemCard(
     )
 }
 
-/** 购买面板（SectTradeDialog 拆分）：已选商品信息 + 数量 + 总价 + 购买 */
+/** 购买面板：已选商品信息 + 数量 + 总价 + 购买 */
 @Composable
 private fun SectTradePurchasePanel(
     state: SectTradeDialogState,
@@ -382,7 +387,7 @@ private fun SectTradePurchasePanel(
                 SectTradeSelectedItemInfo(item = item, adjustedPrice = adjustedPrice)
 
                 // key(item.id)：切换商品时重建组件，清空编辑态残留的输入串与焦点
-                // （与 MerchantDialog 同款对抗性审查防护）
+                // （与 MerchantDialog 同款防护）
                 key(item.id) {
                     QuantitySelector(
                         quantity = state.buyQuantity,
@@ -418,7 +423,7 @@ private fun SectTradePurchasePanel(
     }
 }
 
-/** 已选商品信息（SectTradeDialog 拆分）：名称 + 单价 */
+/** 已选商品信息：名称 + 单价 */
 @Composable
 private fun SectTradeSelectedItemInfo(
     item: MerchantItem,
@@ -445,7 +450,7 @@ private fun SectTradeSelectedItemInfo(
     }
 }
 
-/** 总价 + 取消/确认购买（SectTradeDialog 拆分） */
+/** 总价 + 取消/确认购买 */
 @Composable
 private fun SectTradeTotalRow(
     totalPrice: Long,
@@ -483,7 +488,7 @@ private fun SectTradeTotalRow(
     }
 }
 
-/** 好感度不足警告覆盖层（SectTradeDialog 拆分） */
+/** 好感度不足警告覆盖层 */
 @Composable
 private fun SectTradeRelationWarning(
     state: SectTradeDialogState,
@@ -528,7 +533,7 @@ private fun SectTradeRelationWarning(
     }
 }
 
-/** 好感度不足警告内容（SectTradeDialog 拆分） */
+/** 好感度不足警告内容 */
 @Composable
 private fun SectTradeRelationWarningContent(
     canTrade: Boolean,
@@ -594,7 +599,7 @@ private fun SectTradeRelationWarningContent(
     }
 }
 
-/** 商品详情弹窗（SectTradeDialog 拆分） */
+/** 商品详情弹窗 */
 @Composable
 private fun SectTradeDetailDialogGate(
     state: SectTradeDialogState,

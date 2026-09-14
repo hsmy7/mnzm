@@ -8,7 +8,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 经济系统（Kotlin→C++ 迁移批次 4）
+// 经济系统
 //
 // 等价移植 Kotlin SpiritStoneExchange + SpiritStoneWallet 的**纯逻辑**部分：
 //   - 灵石品阶/兑换（LOW/MID/HIGH，名义汇率 1:10,000，售卖价 ×0.8）

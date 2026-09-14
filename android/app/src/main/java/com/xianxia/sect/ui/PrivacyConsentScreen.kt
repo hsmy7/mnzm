@@ -38,17 +38,19 @@ import com.xianxia.sect.ui.theme.GameColors
 private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/start/agreement/"
 private const val MMKV_URL = "https://github.com/Tencent/MMKV"
 private const val DIRICHLET_AD_SDK_PRIVACY_URL = "https://ssp.dirichlet.cn/docs/agreement/"
-// 穿山甲（Pangle）广告 SDK 隐私政策（聚合 SDK 接入网络之一，2026-08-11 验证可访问）
+// 穿山甲（Pangle）广告 SDK 隐私政策（聚合 SDK 接入网络之一）
 private const val PANGLE_SDK_PRIVACY_URL = "https://www.pangle.cn/privacy/partner"
-// 优量汇（GDT，腾讯广告联盟）SDK 个人信息保护规则（聚合 SDK 接入网络之一，2026-08-11 验证可访问）
+// 优量汇（GDT，腾讯广告联盟）SDK 个人信息保护规则（聚合 SDK 接入网络之一）
 private const val GDT_SDK_PRIVACY_URL = "https://e.qq.com/dev/help_detail.html?cid=2005&pid=5983"
-// 爱奇艺（iQiyi）广告 SDK 隐私政策（聚合 SDK 接入网络之一，2026-08-12 验证可访问）
+// 爱奇艺（iQiyi）广告 SDK 隐私政策（聚合 SDK 接入网络之一）
 private const val IQIYI_SDK_PRIVACY_URL = "https://privacy.iqiyi.com/"
-// 百度百青藤广告 SDK（Baidu）隐私政策（聚合 SDK 接入网络之一，2026-08-12 验证可访问）
+// 百度百青藤广告 SDK（Baidu）隐私政策（聚合 SDK 接入网络之一）
 private const val BAIDU_SDK_PRIVACY_URL = "https://union.baidu.com/bqt/#/legal/policies"
+// 友盟统计 SDK 隐私政策（官方合规条款指定链接）
+private const val UMENG_SDK_PRIVACY_URL = "https://www.umeng.com/page/policy"
 private const val PRIVACY_POLICY_URL = "https://hsmy7.github.io/mnzm/"
 
-// 隐私摘要样式（PrivacySummaryContent 拆分）：原函数局部 SpanStyle 提升为文件级私有常量，供各章节子组件复用
+// 隐私摘要样式：文件级私有 SpanStyle 常量，供各章节子组件复用
 private val sectionTitleStyle = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
 private val bodyStyle = SpanStyle(fontSize = 13.sp, color = Color.Black)
 private val itemTitleStyle = SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)
@@ -60,13 +62,14 @@ private val linkStyle = SpanStyle(
 )
 
 // UseKtx 保留 Uri.parse：隐私政策 URL 来自固定常量，显式构造 Uri 表达明确意图
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @SuppressLint("UseKtx")
 private fun openUrlInBrowser(context: android.content.Context, url: String) {
     try {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
-    } catch (e: Exception) {
+    } catch (ignored: Exception) {
         Toast.makeText(context, "无法打开浏览器", Toast.LENGTH_SHORT).show()
     }
 }
@@ -111,7 +114,8 @@ fun PrivacyConsentScreen(
                 onPangleSdkLinkClick = { openUrlInBrowser(context, PANGLE_SDK_PRIVACY_URL) },
                 onGdtSdkLinkClick = { openUrlInBrowser(context, GDT_SDK_PRIVACY_URL) },
                 onIqiyiSdkLinkClick = { openUrlInBrowser(context, IQIYI_SDK_PRIVACY_URL) },
-                onBaiduSdkLinkClick = { openUrlInBrowser(context, BAIDU_SDK_PRIVACY_URL) }
+                onBaiduSdkLinkClick = { openUrlInBrowser(context, BAIDU_SDK_PRIVACY_URL) },
+                onUmengSdkLinkClick = { openUrlInBrowser(context, UMENG_SDK_PRIVACY_URL) }
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -133,8 +137,7 @@ fun PrivacyConsentScreen(
     }
 }
 
-/** 隐私摘要滚动卡片（PrivacyConsentScreen 拆分）：weight(1f) 填充剩余高度承载 PrivacySummaryContent */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 隐私摘要滚动卡片：weight(1f) 填充剩余高度承载 PrivacySummaryContent */
 @Suppress("LongParameterList")
 @Composable
 private fun ColumnScope.PrivacyConsentSummaryCard(
@@ -145,7 +148,8 @@ private fun ColumnScope.PrivacyConsentSummaryCard(
     onPangleSdkLinkClick: () -> Unit,
     onGdtSdkLinkClick: () -> Unit,
     onIqiyiSdkLinkClick: () -> Unit,
-    onBaiduSdkLinkClick: () -> Unit
+    onBaiduSdkLinkClick: () -> Unit,
+    onUmengSdkLinkClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -169,13 +173,14 @@ private fun ColumnScope.PrivacyConsentSummaryCard(
                 onPangleSdkLinkClick = onPangleSdkLinkClick,
                 onGdtSdkLinkClick = onGdtSdkLinkClick,
                 onIqiyiSdkLinkClick = onIqiyiSdkLinkClick,
-                onBaiduSdkLinkClick = onBaiduSdkLinkClick
+                onBaiduSdkLinkClick = onBaiduSdkLinkClick,
+                onUmengSdkLinkClick = onUmengSdkLinkClick
             )
         }
     }
 }
 
-/** 同意/不同意按钮行（PrivacyConsentScreen 拆分） */
+/** 同意/不同意按钮行 */
 @Composable
 private fun PrivacyConsentActionButtons(
     onAgree: () -> Unit,
@@ -199,7 +204,7 @@ private fun PrivacyConsentActionButtons(
     }
 }
 
-/** 底部链接行 + 同意说明（PrivacyConsentScreen 拆分） */
+/** 底部链接行 + 同意说明 */
 @Composable
 private fun PrivacyConsentLinksAndFooter(
     onFullPolicyClick: () -> Unit,
@@ -233,7 +238,8 @@ private fun PrivacyConsentLinksAndFooter(
     Text(
         text = buildAnnotatedString {
             append("点击“同意”即表示您已阅读并理解")
-            withStyle(style = SpanStyle(color = GameColors.SpiritBlue, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
+            withStyle(style = SpanStyle(color = GameColors.SpiritBlue, fontWeight = FontWeight.Medium,
+                textDecoration = TextDecoration.Underline)) {
                 append("《隐私政策》")
             }
             append("，")
@@ -253,6 +259,7 @@ private fun PrivacyConsentLinksAndFooter(
 }
 
 @Composable
+@Suppress("UnusedParameter") // onPrivacyLinkClick: 隐私链接回调占位（预留交互扩展）
 private fun PrivacySummaryContent(
     onPrivacyLinkClick: () -> Unit = {},
     onTapTapSdkLinkClick: () -> Unit = {},
@@ -261,7 +268,8 @@ private fun PrivacySummaryContent(
     onPangleSdkLinkClick: () -> Unit = {},
     onGdtSdkLinkClick: () -> Unit = {},
     onIqiyiSdkLinkClick: () -> Unit = {},
-    onBaiduSdkLinkClick: () -> Unit = {}
+    onBaiduSdkLinkClick: () -> Unit = {},
+    onUmengSdkLinkClick: () -> Unit = {}
 ) {
     PrivacySummaryImportantNotice()
     PrivacySummaryCollectedInfoFirst()
@@ -273,12 +281,14 @@ private fun PrivacySummaryContent(
         onPangleSdkLinkClick = onPangleSdkLinkClick,
         onGdtSdkLinkClick = onGdtSdkLinkClick,
         onIqiyiSdkLinkClick = onIqiyiSdkLinkClick,
-        onBaiduSdkLinkClick = onBaiduSdkLinkClick
+        onBaiduSdkLinkClick = onBaiduSdkLinkClick,
+        onUmengSdkLinkClick = onUmengSdkLinkClick
     )
     PrivacySummaryUsageAndStorageSections()
 }
 
-/** 二、第三方SDK数据收集（PrivacySummaryContent 拆分）：章节标题 + 四个 SDK 数据块 */
+/** 二、第三方SDK数据收集：章节标题 + 五个 SDK 数据块 */
+@Suppress("LongParameterList") // 各 SDK 链接回调逐一分发，收敛为数据类反而增加间接层
 @Composable
 private fun PrivacySummarySdkSections(
     onTapTapSdkLinkClick: () -> Unit,
@@ -287,7 +297,8 @@ private fun PrivacySummarySdkSections(
     onPangleSdkLinkClick: () -> Unit,
     onGdtSdkLinkClick: () -> Unit,
     onIqiyiSdkLinkClick: () -> Unit,
-    onBaiduSdkLinkClick: () -> Unit
+    onBaiduSdkLinkClick: () -> Unit,
+    onUmengSdkLinkClick: () -> Unit
 ) {
     Text(
         text = buildAnnotatedString {
@@ -306,9 +317,10 @@ private fun PrivacySummarySdkSections(
         onIqiyiSdkLinkClick = onIqiyiSdkLinkClick,
         onBaiduSdkLinkClick = onBaiduSdkLinkClick
     )
+    PrivacySummarySdkUmeng(onUmengSdkLinkClick = onUmengSdkLinkClick)
 }
 
-/** 重要提示（PrivacySummaryContent 拆分）：未同意前不收集任何个人信息 */
+/** 重要提示：未同意前不收集任何个人信息 */
 @Composable
 private fun PrivacySummaryImportantNotice() {
     Text(
@@ -333,7 +345,7 @@ private fun PrivacySummaryImportantNotice() {
     }
 }
 
-/** 一、我们收集的信息（前半，PrivacySummaryContent 拆分）：标题 + 账户/实名/设备标识符 三项 */
+/** 一、我们收集的信息：标题 + 账户/实名/设备标识符 三项 */
 @Composable
 private fun PrivacySummaryCollectedInfoFirst() {
     Text(
@@ -347,7 +359,8 @@ private fun PrivacySummaryCollectedInfoFirst() {
         text = buildAnnotatedString {
             withStyle(itemTitleStyle) { append("1. 账户信息") }
             append("\n")
-            withStyle(bodyStyle) { append("当您选择TapTap登录时，收集：TapTap OpenID、UnionID、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、认证令牌。电话号码和邮箱由TapTap平台在注册时收集，我们不会自行收集、存储或传输。用于账户识别、游戏存档关联、游戏内显示、账户安全和安全通信。") }
+            withStyle(bodyStyle) { append("当您选择TapTap登录时，收集：TapTap OpenID、UnionID、昵称、头像、电话号码（TapTap账户注册信息）、" +
+                "邮箱（TapTap账户注册信息）、认证令牌。电话号码和邮箱由TapTap平台在注册时收集，我们不会自行收集、存储或传输。用于账户识别、游戏存档关联、游戏内显示、账户安全和安全通信。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -357,7 +370,8 @@ private fun PrivacySummaryCollectedInfoFirst() {
         text = buildAnnotatedString {
             withStyle(itemTitleStyle) { append("2. 实名认证信息") }
             append("\n")
-            withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。手动填写时需输入姓名、身份证号码和电话号码，用于完成国家要求的实名身份验证。电话号码属于个人敏感信息，由TapTap平台收集并提交至国家防沉迷系统验证，我们不会存储、查看或传输。建议优先使用快速认证（无需重新输入）。") }
+            withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。手动填写时需输入姓名、身份证号码和电话号码，用于完成国家要求的实名身份验证。" +
+                "电话号码属于个人敏感信息，由TapTap平台收集并提交至国家防沉迷系统验证，我们不会存储、查看或传输。建议优先使用快速认证（无需重新输入）。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -367,14 +381,15 @@ private fun PrivacySummaryCollectedInfoFirst() {
         text = buildAnnotatedString {
             withStyle(itemTitleStyle) { append("3. 设备标识符") }
             append("\n")
-            withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。") }
+            withStyle(bodyStyle) {
+                append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
     )
 }
 
-/** 一、我们收集的信息（后半，PrivacySummaryContent 拆分）：广告标识符特别提示 + 网络/存储/崩溃日志 三项 */
+/** 一、我们收集的信息：广告标识符特别提示 + 网络/存储/崩溃日志 三项 */
 @Composable
 private fun PrivacySummaryCollectedInfoSecond() {
     Card(
@@ -434,7 +449,7 @@ private fun PrivacySummaryCollectedInfoSecond() {
     )
 }
 
-/** TapTap SDK 数据收集（PrivacySummaryContent 拆分） */
+/** TapTap SDK 数据收集 */
 @Composable
 private fun PrivacySummarySdkTapTap(
     onTapTapSdkLinkClick: () -> Unit
@@ -465,14 +480,15 @@ private fun PrivacySummarySdkTapTap(
             .padding(bottom = 4.dp, start = 8.dp)
             .pointerInput(tapTapAnnotatedString) {
                 detectTapGestures { offset ->
-                    tapTapAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
+                    tapTapAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(),
+                        end = offset.x.toInt())
                         .firstOrNull()?.let { onTapTapSdkLinkClick() }
                 }
             }
     )
 }
 
-/** TapTap 排行榜模块数据收集（PrivacySummaryContent 拆分） */
+/** TapTap 排行榜模块数据收集 */
 @Composable
 private fun PrivacySummarySdkLeaderboard(
     onTapTapSdkLinkClick: () -> Unit
@@ -513,14 +529,15 @@ private fun PrivacySummarySdkLeaderboard(
     )
 }
 
-/** MMKV 数据收集（PrivacySummaryContent 拆分） */
+/** MMKV 数据收集 */
 @Composable
 private fun PrivacySummarySdkMmkv(
     onMmkvSdkLinkClick: () -> Unit
 ) {
     val mmkvAnnotatedString = buildAnnotatedString {
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("MMKV（腾讯）") }
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                color = Color.Black)) { append("MMKV（腾讯）") }
             append("\n")
             withStyle(bodyStyle) { append("用于高性能本地键值存储，不收集或传输任何用户数据。") }
             append("\n")
@@ -535,14 +552,15 @@ private fun PrivacySummarySdkMmkv(
             .padding(bottom = 4.dp, start = 8.dp)
             .pointerInput(mmkvAnnotatedString) {
                 detectTapGestures { offset ->
-                    mmkvAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
+                    mmkvAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(),
+                        end = offset.x.toInt())
                         .firstOrNull()?.let { onMmkvSdkLinkClick() }
                 }
             }
     )
 }
 
-/** TapADN 聚合广告 SDK 数据收集（PrivacySummaryContent 拆分）：五广告网络链接分发 */
+/** TapADN 聚合广告 SDK 数据收集：五广告网络链接分发 */
 @Composable
 private fun PrivacySummarySdkDirichlet(
     onDirichletAdSdkLinkClick: () -> Unit,
@@ -574,7 +592,7 @@ private fun PrivacySummarySdkDirichlet(
     )
 }
 
-/** TapADN 聚合广告 SDK 说明文本（PrivacySummaryContent 拆分）：annotated string 构造移出 Composable 保持函数体短小 */
+/** TapADN 聚合广告 SDK 说明文本：annotated string 构造移出 Composable 保持函数体短小 */
 private fun buildDirichletAdAnnotatedString(): AnnotatedString = buildAnnotatedString {
     withStyle(ParagraphStyle(lineHeight = 19.sp)) {
         withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) {
@@ -614,7 +632,46 @@ private fun buildDirichletAdAnnotatedString(): AnnotatedString = buildAnnotatedS
     }
 }
 
-/** 三、信息使用目的 + 四、信息存储与保护（PrivacySummaryContent 拆分） */
+/** 友盟统计 SDK 数据收集：统计分析类披露（SDK 名称/服务类型/收集类型/政策链接） */
+@Composable
+private fun PrivacySummarySdkUmeng(
+    onUmengSdkLinkClick: () -> Unit
+) {
+    val umengAnnotatedString = buildAnnotatedString {
+        withStyle(ParagraphStyle(lineHeight = 19.sp)) {
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) {
+                append("友盟统计 SDK（U-App，v9.4.7）")
+            }
+            append("\n")
+            withStyle(bodyStyle) {
+                append(
+                    "由友盟+（北京友盟共赢网络科技有限公司）提供，服务类型：统计分析。仅在您同意本隐私政策后初始化，" +
+                        "用于应用使用情况分析（新增、活跃、启动、版本与渠道分布），帮助我们改进产品。可能收集：设备信息" +
+                        "（IMEI、MAC 地址、Android ID、OAID、IP 地址、SIM 卡 IMSI 信息等）、网络信息、应用使用统计数据。" +
+                        "若您不同意本隐私政策，本 SDK 不会初始化，也不会进行任何收集。"
+                )
+            }
+            append("\n")
+            pushStringAnnotation(tag = "URL", annotation = UMENG_SDK_PRIVACY_URL)
+            withStyle(linkStyle) { append("友盟SDK隐私政策 >") }
+            pop()
+        }
+    }
+    Text(
+        text = umengAnnotatedString,
+        modifier = Modifier
+            .padding(bottom = 12.dp, start = 8.dp)
+            .pointerInput(umengAnnotatedString) {
+                detectTapGestures { offset ->
+                    umengAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(),
+                        end = offset.x.toInt())
+                        .firstOrNull()?.let { onUmengSdkLinkClick() }
+                }
+            }
+    )
+}
+
+/** 三、信息使用目的 + 四、信息存储与保护 */
 @Composable
 private fun PrivacySummaryUsageAndStorageSections() {
     Text(
@@ -650,7 +707,8 @@ private fun PrivacySummaryUsageAndStorageSections() {
     )
 
     Text(
-        text = "• 账户信息使用AES-256加密存储于设备本地\n• 网络通信强制TLS 1.2/1.3加密传输\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
+        text = "• 账户信息使用AES-256加密存储于设备本地\n• 网络通信强制TLS 1.2/1.3加密传输\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n" +
+            "• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
         fontSize = 13.sp,
         color = Color.Black,
         lineHeight = 19.sp,
@@ -696,7 +754,7 @@ fun FullPrivacyPolicyScreen(
     }
 }
 
-/** 顶部返回/标题/浏览器链接行（FullPrivacyPolicyScreen 拆分） */
+/** 顶部返回/标题/浏览器链接行 */
 @Composable
 private fun FullPolicyHeader(
     onBack: () -> Unit,
@@ -732,7 +790,7 @@ private fun FullPolicyHeader(
     }
 }
 
-/** 标题/日期/欢迎与重要提示卡片（FullPrivacyPolicyScreen 拆分） */
+/** 标题/日期/欢迎与重要提示卡片 */
 @Composable
 private fun FullPolicyIntroSection() {
     Text(
@@ -762,7 +820,10 @@ private fun FullPolicyIntroSection() {
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = "欢迎使用模拟宗门！【静书工作室】（以下简称“我们”）系移动应用程序“模拟宗门”（以下简称“本游戏”）的运营者。我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。",
+            text =
+                "欢迎使用模拟宗门！【静书工作室】（以下简称“我们”）系移动应用程序“模拟宗门”（以下简称“本游戏”）的运营者。" +
+                    "我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。" +
+                        "一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。",
             fontSize = 13.sp,
             color = Color.Black,
             modifier = Modifier.padding(12.dp),
@@ -778,7 +839,8 @@ private fun FullPolicyIntroSection() {
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = "重要提示：在您点击同意本隐私政策之前，本应用不会收集您的任何个人信息，不会申请任何可收集个人信息的权限，也不会初始化任何第三方SDK。只有在您明确同意本隐私政策后，本应用才会按照本隐私政策所述范围收集和使用您的个人信息。",
+            text = "重要提示：在您点击同意本隐私政策之前，本应用不会收集您的任何个人信息，不会申请任何可收集个人信息的权限，也不会初始化任何第三方SDK。" +
+                "只有在您明确同意本隐私政策后，本应用才会按照本隐私政策所述范围收集和使用您的个人信息。",
             fontSize = 12.sp,
             color = Color(0xFF795548),
             modifier = Modifier.padding(10.dp),
@@ -790,18 +852,24 @@ private fun FullPolicyIntroSection() {
     Spacer(modifier = Modifier.height(16.dp))
 }
 
-/** 〇、隐私同意机制（FullPrivacyPolicyScreen 拆分） */
+/** 〇、隐私同意机制 */
 @Composable
 private fun FullPolicyConsentMechanismSection() {
     FullPolicySection(title = "〇、隐私同意机制") {
         Text(
-            text = "本应用采用以下隐私同意机制，确保您的知情权和选择权：\n\n• 首次启动弹窗：首次启动时弹出隐私政策同意窗口，您可以选择\"同意\"或\"不同意\"。\n• 不同意即退出：选择\"不同意\"，本应用将立即退出，不会收集任何个人信息。\n• 同意后初始化：只有在您明确同意后，本应用才会初始化第三方SDK（TapTap SDK）并开始收集个人信息。\n• 应用内查看：您可以随时在应用内查看完整的隐私政策内容。\n• 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意。撤回同意不影响此前基于同意已进行的信息处理活动的效力。",
+            text =
+                "本应用采用以下隐私同意机制，确保您的知情权和选择权：\n\n• 首次启动弹窗：首次启动时弹出隐私政策同意窗口，您可以选择\"同意\"或\"不同意\"。\n" +
+                    "• 不同意即退出：选择\"不同意\"，本应用将立即退出，不会收集任何个人信息。\n" +
+                        "• 同意后初始化：只有在您明确同意后，本应用才会初始化第三方SDK" +
+                            "（TapTap SDK、TapADN 聚合广告 SDK、友盟统计 SDK）并开始收集个人信息。\n" +
+                            "• 应用内查看：您可以随时在应用内查看完整的隐私政策内容。\n" +
+                            "• 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意。撤回同意不影响此前基于同意已进行的信息处理活动的效力。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }
 }
 
-/** 一、我们收集的信息（FullPrivacyPolicyScreen 拆分）：大子章节提取 + 轻量子章节内联 */
+/** 一、我们收集的信息：大子章节提取 + 轻量子章节内联 */
 @Composable
 private fun FullPolicyCollectedInfoSection() {
     FullPolicySection(title = "一、我们收集的信息") {
@@ -828,7 +896,8 @@ private fun FullPolicyCollectedInfoSection() {
         }
         FullPolicySubSection(title = "1.7 网络请求安全信息") {
             Text(
-                text = "为保障通信安全，防止请求伪造和重放攻击，每个网络请求会携带以下安全头：应用版本号、平台标识、Android SDK级别、设备指纹前8位、HMAC-SHA256签名、时间戳、随机数、请求唯一标识和请求体哈希。",
+                text = "为保障通信安全，防止请求伪造和重放攻击，每个网络请求会携带以下安全头：应用版本号、平台标识、Android SDK级别、设备指纹前8位、HMAC-SHA256签名、时间戳、随机数、" +
+                    "请求唯一标识和请求体哈希。",
                 fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
             )
         }
@@ -841,7 +910,7 @@ private fun FullPolicyCollectedInfoSection() {
     }
 }
 
-/** 1.1 账户信息（FullPrivacyPolicyScreen 拆分） */
+/** 1.1 账户信息 */
 @Composable
 private fun FullPolicyAccountInfoSubSection() {
     FullPolicySubSection(title = "1.1 账户信息") {
@@ -851,7 +920,10 @@ private fun FullPolicyAccountInfoSubSection() {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "• 用户标识：TapTap OpenID、UnionID — 账户识别和游戏存档关联\n• 个人资料：昵称、头像 — 游戏内显示\n• 联系方式：电话号码、邮箱（TapTap 账户注册信息）— TapTap 账户身份验证和账户安全\n• 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）— 安全通信和请求签名",
+            text =
+                "• 用户标识：TapTap OpenID、UnionID — 账户识别和游戏存档关联\n• 个人资料：昵称、头像 — 游戏内显示\n" +
+                    "• 联系方式：电话号码、邮箱（TapTap 账户注册信息）— TapTap 账户身份验证和账户安全\n" +
+                        "• 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）— 安全通信和请求签名",
             fontSize = 12.sp, color = Color.Black, lineHeight = 18.sp
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -866,7 +938,10 @@ private fun FullPolicyAccountInfoSubSection() {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "关于电话号码和邮箱：电话号码和邮箱由 TapTap 平台在您注册 TapTap 账户时收集，用于账户身份验证和安全保障。当您使用 TapTap 登录本游戏时，TapTap SDK 会读取上述信息以完成登录验证。我们不会自行收集、存储或传输您的电话号码和邮箱。如需管理您的电话号码和邮箱，请在 TapTap 平台操作。",
+                text =
+                    "关于电话号码和邮箱：电话号码和邮箱由 TapTap 平台在您注册 TapTap 账户时收集，用于账户身份验证和安全保障。" +
+                        "当您使用 TapTap 登录本游戏时，TapTap SDK 会读取上述信息以完成登录验证。我们不会自行收集、存储或传输您的电话号码和邮箱。" +
+                            "如需管理您的电话号码和邮箱，请在 TapTap 平台操作。",
                 fontSize = 12.sp, color = Color(0xFF1565C0), lineHeight = 18.sp,
                 modifier = Modifier.padding(10.dp)
             )
@@ -874,12 +949,13 @@ private fun FullPolicyAccountInfoSubSection() {
     }
 }
 
-/** 1.2 实名认证信息（FullPrivacyPolicyScreen 拆分） */
+/** 1.2 实名认证信息 */
 @Composable
 private fun FullPolicyRealNameSubSection() {
     FullPolicySubSection(title = "1.2 实名认证信息") {
         Text(
-            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n• 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n• 手动填写认证：需输入姓名、身份证号码和电话号码。",
+            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n" +
+                "• 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n• 手动填写认证：需输入姓名、身份证号码和电话号码。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
         Spacer(modifier = Modifier.height(6.dp))
@@ -889,7 +965,12 @@ private fun FullPolicyRealNameSubSection() {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "重要提示 - 关于电话号码收集：\n\n• 收集目的：电话号码仅在您选择\"手动填写认证\"场景下收集，用于完成国家要求的实名身份验证，确保防沉迷政策有效执行。\n• 收集方式：由 TapTap 合规 SDK 在实名认证界面中向您明示并征得同意后收集，我们不会自行设计或使用任何电话号码输入框。\n• 处理方：电话号码由 TapTap 平台收集，并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的电话号码。\n• 您的权利：您有权拒绝提供电话号码。如拒绝，将无法通过手动方式完成实名认证，可能导致无法正常使用游戏。建议优先使用\"快速认证\"方式，无需重新输入任何个人信息。\n• 敏感信息性质：电话号码属于个人敏感信息。本条为针对电话号码的单独告知，请您仔细阅读并充分理解后再进行后续操作。",
+                text =
+                    "重要提示 - 关于电话号码收集：\n\n• 收集目的：电话号码仅在您选择\"手动填写认证\"场景下收集，用于完成国家要求的实名身份验证，确保防沉迷政策有效执行。\n" +
+                        "• 收集方式：由 TapTap 合规 SDK 在实名认证界面中向您明示并征得同意后收集，我们不会自行设计或使用任何电话号码输入框。\n" +
+                            "• 处理方：电话号码由 TapTap 平台收集，并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的电话号码。\n" +
+                                "• 您的权利：您有权拒绝提供电话号码。如拒绝，将无法通过手动方式完成实名认证，可能导致无法正常使用游戏。建议优先使用\"快速认证\"方式，无需重新输入任何个人信息。\n" +
+                                    "• 敏感信息性质：电话号码属于个人敏感信息。本条为针对电话号码的单独告知，请您仔细阅读并充分理解后再进行后续操作。",
                 fontSize = 12.sp, color = Color(0xFFC62828), lineHeight = 18.sp,
                 modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Medium
             )
@@ -909,12 +990,15 @@ private fun FullPolicyRealNameSubSection() {
     }
 }
 
-/** 1.3 设备标识符（FullPrivacyPolicyScreen 拆分） */
+/** 1.3 设备标识符 */
 @Composable
 private fun FullPolicyDeviceIdentifierSubSection() {
     FullPolicySubSection(title = "1.3 设备标识符") {
         Text(
-            text = "我们读取以下设备信息，仅用于本地数据加密密钥派生和防止请求伪造：\n\n• Android ID（Settings.Secure.ANDROID_ID）— 本地加密密钥派生\n• 设备硬件信息（品牌、型号）— 本地加密密钥派生和设备指纹\n• 应用签名证书 SHA-256 哈希 — 设备指纹增强\n\n上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造。",
+            text =
+                "我们读取以下设备信息，仅用于本地数据加密密钥派生和防止请求伪造：\n\n• Android ID（Settings.Secure.ANDROID_ID）— 本地加密密钥派生\n" +
+                    "• 设备硬件信息（品牌、型号）— 本地加密密钥派生和设备指纹\n• 应用签名证书 SHA-256 哈希 — 设备指纹增强\n\n" +
+                        "上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
         Spacer(modifier = Modifier.height(6.dp))
@@ -961,7 +1045,7 @@ private fun FullPolicyDeviceIdentifierSubSection() {
     }
 }
 
-/** 二、第三方 SDK 数据收集（FullPrivacyPolicyScreen 拆分）：大子章节提取 + 轻量子章节内联 */
+/** 二、第三方 SDK 数据收集：大子章节提取 + 轻量子章节内联 */
 @Composable
 private fun FullPolicySdkSection(context: Context) {
     FullPolicySection(title = "二、第三方 SDK 数据收集") {
@@ -991,10 +1075,28 @@ private fun FullPolicySdkSection(context: Context) {
         }
         FullPolicyTapAdnSubSection(context = context)
         FullPolicyAdNetworkSubSections(context = context)
+        FullPolicyUmengSubSection(context = context)
     }
 }
 
-/** 外部链接文本（FullPrivacyPolicyScreen 拆分）：蓝色下划线点击打开浏览器 */
+/** 2.8 友盟统计 SDK：统计分析类披露 */
+@Composable
+private fun FullPolicyUmengSubSection(context: Context) {
+    FullPolicySubSection(title = "2.8 友盟统计 SDK（U-App，v9.4.7）") {
+        Text(
+            text = "由友盟+（北京友盟共赢网络科技有限公司）提供。仅在您同意本隐私政策后初始化，用于应用使用情况统计分析。\n\n" +
+                "• 服务类型：统计分析（新增、活跃、启动、版本与渠道分布等基础数据，用于产品优化）\n" +
+                "• 收集个人信息类型：设备信息（IMEI、MAC 地址、Android ID、OAID、IP 地址、SIM 卡 IMSI 信息等）、" +
+                "网络信息、应用使用统计数据\n" +
+                "• 收集方式：SDK 初始化后自动采集；若您不同意本隐私政策，本 SDK 不会初始化，也不会进行任何收集",
+            fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        FullPolicyExternalLink(context = context, text = "友盟SDK隐私政策", url = UMENG_SDK_PRIVACY_URL)
+    }
+}
+
+/** 外部链接文本：蓝色下划线点击打开浏览器 */
 @Composable
 private fun FullPolicyExternalLink(
     context: Context,
@@ -1011,7 +1113,7 @@ private fun FullPolicyExternalLink(
     )
 }
 
-/** 2.3 TapADN 聚合广告 SDK（FullPrivacyPolicyScreen 拆分） */
+/** 2.3 TapADN 聚合广告 SDK */
 @Composable
 private fun FullPolicyTapAdnSubSection(context: Context) {
     FullPolicySubSection(title = "2.3 TapADN 聚合广告 SDK（v5.1.2.3）") {
@@ -1032,7 +1134,7 @@ private fun FullPolicyTapAdnSubSection(context: Context) {
     }
 }
 
-/** 2.4-2.7 四个广告网络子章节（FullPrivacyPolicyScreen 拆分） */
+/** 2.4-2.7 四个广告网络子章节 */
 @Composable
 private fun FullPolicyAdNetworkSubSections(context: Context) {
     FullPolicySubSection(title = "2.4 穿山甲广告 SDK（Pangle）") {
@@ -1085,25 +1187,29 @@ private fun FullPolicyAdNetworkSubSections(context: Context) {
     }
 }
 
-/** 三、信息使用目的 + 四、信息存储与保护（FullPrivacyPolicyScreen 拆分） */
+/** 三、信息使用目的 + 四、信息存储与保护 */
 @Composable
 private fun FullPolicyPurposeAndStorageSections() {
     FullPolicySection(title = "三、信息使用目的") {
         Text(
-            text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n• 广告变现：通过激励视频广告为玩家提供游戏内奖励\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n• 数据保护：所有存档数据加密存储在设备本地\n• 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。",
+            text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n• 广告变现：通过激励视频广告为玩家提供游戏内奖励\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n" +
+                "• 数据保护：所有存档数据加密存储在设备本地\n• 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }
 
     FullPolicySection(title = "四、信息存储与保护") {
         Text(
-            text = "• 游戏存档和账户信息仅保存在您的设备本地\n• 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n• 存档数据使用 AES-256-GCM 加密保护\n• 网络通信强制使用 TLS 1.2/1.3 加密传输\n• 启用证书固定防止中间人攻击\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
+            text =
+                "• 游戏存档和账户信息仅保存在您的设备本地\n• 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n" +
+                    "• 存档数据使用 AES-256-GCM 加密保护\n• 网络通信强制使用 TLS 1.2/1.3 加密传输\n• 启用证书固定防止中间人攻击\n" +
+                        "• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }
 }
 
-/** 五~十 章节（FullPrivacyPolicyScreen 拆分）：共享/保留期限/权利/未成年/更新/联系 聚合 */
+/** 五~十 章节：共享/保留期限/权利/未成年/更新/联系 聚合 */
 @Composable
 private fun FullPolicySharingAndRightsSections() {
     FullPolicySection(title = "五、信息共享") {
@@ -1120,7 +1226,8 @@ private fun FullPolicySharingAndRightsSections() {
 
     FullPolicySection(title = "六、数据保留期限") {
         Text(
-            text = "• 游戏存档数据：保留至您主动删除存档或卸载应用\n• 账户登录信息：保留至您主动退出登录或卸载应用\n• 崩溃日志：最多保留5份，超过后自动清理\n• 兑换码使用记录：保留至游戏存档删除\n• 加密密钥：保留至卸载应用",
+            text = "• 游戏存档数据：保留至您主动删除存档或卸载应用\n• 账户登录信息：保留至您主动退出登录或卸载应用\n• 崩溃日志：最多保留5份，超过后自动清理\n• 兑换码使用记录：保留至游戏存档删除\n" +
+                "• 加密密钥：保留至卸载应用",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }
@@ -1138,7 +1245,8 @@ private fun FullPolicySharingAndRightsSections() {
 
     FullPolicySection(title = "八、未成年人保护") {
         Text(
-            text = "我们严格遵守《关于防止未成年人沉迷网络游戏的通知》等相关规定，通过 TapTap 合规 SDK 对未成年人实施游戏时段和时长限制。未成年人仅可在周五、周六、周日及法定节假日的 20:00-21:00 进行游戏。我们不会主动收集未成年人的身份信息。",
+            text = "我们严格遵守《关于防止未成年人沉迷网络游戏的通知》等相关规定，通过 TapTap 合规 SDK 对未成年人实施游戏时段和时长限制。" +
+                "未成年人仅可在周五、周六、周日及法定节假日的 20:00-21:00 进行游戏。我们不会主动收集未成年人的身份信息。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }
@@ -1152,7 +1260,8 @@ private fun FullPolicySharingAndRightsSections() {
 
     FullPolicySection(title = "十、联系我们") {
         Text(
-            text = "如您对本隐私政策有任何疑问、意见或建议，可通过以下方式与我们联系：\n\n• 邮箱：jingshugzs@163.com\n• 通过 TapTap 平台的应用页面反馈\n\n我们将在15个工作日内回复您的请求。",
+            text = "如您对本隐私政策有任何疑问、意见或建议，可通过以下方式与我们联系：\n\n• 邮箱：jingshugzs@163.com\n• 通过 TapTap 平台的应用页面反馈\n\n" +
+                "我们将在15个工作日内回复您的请求。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }

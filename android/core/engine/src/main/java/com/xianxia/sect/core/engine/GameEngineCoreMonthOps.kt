@@ -12,19 +12,25 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.xianxia.sect.core.engine.service.alignProductionSlotsForNativeMonth
+import com.xianxia.sect.core.engine.service.restoreProductionSlotsFromMirror
 
 /**
- * 月变真相源切换批 M-1 的信封数据（nativeSettleMonth 回传草稿/决策信息）。
+ * 月变真相源切换的信封数据（nativeSettleMonth 回传草稿/决策信息）。
  * 手工解析（字段少且非协议类型，避免 @Serializable 与 C++ nlohmann 键名
  * 二次维护——SecretRealmBackpack 复用协议编解码）。
  */
 internal data class MonthSettlementEnvelope(
     /** 政策费用不足被自动禁用的政策名列表（事务外 checkpointAllProduction 决策） */
     val disabledPolicies: List<String>,
-    /** S-17：秘境到期关闭草稿（memberIds → gate release；backpack → 关闭邮件附件） */
+    /** 秘境到期关闭草稿（memberIds → gate release；backpack → 关闭邮件附件） */
     val secretRealmClose: MonthSecretRealmClose?,
-    /** S-20：弟子智能购买日志草稿（lifeEvents 瞬态列写入） */
-    val purchaseLogs: List<MonthPurchaseLog>
+    /** 弟子智能购买日志草稿（lifeEvents 瞬态列写入） */
+    val purchaseLogs: List<MonthPurchaseLog>,
+    /** 玩家占领宗门被 AI 夺回 → 建筑没收 sectId 集（P2-18 Stage 2 征伐环；
+     *  建筑特性注册表/Room 生产槽位保留 Kotlin——事务外
+     *  buildingFacade.seizeBuildingsOfSect，反向通道回同步） */
+    val seizedBuildingsOfSect: List<String> = emptyList()
 )
 
 internal data class MonthSecretRealmClose(
@@ -41,10 +47,10 @@ internal data class MonthPurchaseLog(
 private const val MONTH_TAG = "GameEngineCore"
 
 /**
- * 月变真相源切换管线（批 M-1）：生产月变路径从 Kotlin MonthSettlementExecutor
+ * 月变真相源切换管线：生产月变路径从 Kotlin MonthSettlementExecutor
  * 八步编排切换为 C++ `runMonthSettlement` + Kotlin 残留执行器互插——
  * ① nativeSettleMonth——C++ 完整月变结算（八步 + 十六子事件已下沉 13 件），
- *    信封含 policyCosts.disabledPolicies / S-17 秘境关闭草稿 / S-20 购买日志草稿；
+ *    信封含 policyCosts.disabledPolicies / 秘境关闭草稿 / 购买日志草稿；
  * ② applyDirtyFromNative——增量镜像（失败先全量兜底，仍失败异常传播）；
  * ③ Kotlin 残留执行器（单事务：生产结算 + 战斗三件 5/6/9 + 邮件 + 草稿应用）。
  *
@@ -61,6 +67,15 @@ private const val MONTH_TAG = "GameEngineCore"
 internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
     if (!GameCoreBridge.isLoaded || !GameCoreBridge.nativeIsInitialized()) return null
     return try {
+        // ⓪ S4 槽位窗口对齐：repo 为真源整表写镜像（C++ 生产结算只看镜像——
+        //    手动启动/惰性建槽/取消等 Room 先行写入的 B5 分叉自愈）
+        cultivationService.alignProductionSlotsForNativeMonth()
+        // ⓪' S8：AI 热控批量上界推送（平台效应——ThermalMonitor 决策保留
+        //    Kotlin，批状态机在 C++ 内存运行；月结前引擎线程调用）
+        GameCoreBridge.nativeSetAiThermalBatchSize(
+            cultivationService.eventProcessorForMonthSettlement
+                .caveExplorationProcessor.get().currentAiThermalBatchSize()
+        )
         // ① C++ 完整月变结算（信封含草稿与决策信息）
         val envJson = GameCoreBridge.nativeSettleMonth().decodeToString()
         // ② 增量镜像；失败先全量兜底，仍失败走异常回退路径
@@ -69,9 +84,19 @@ internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
             error("月变镜像失败（增量+全量均不可用）")
         }
         val env = parseMonthSettlementEnvelope(envJson)
-        // ③ Kotlin 残留执行器（单事务：生产结算 + 战斗三件 + 邮件 +
-        //    草稿应用 S-17/S-20——C++ 状态已变更，此处失败必须传播）
+        // ③ Kotlin 残留执行器（单事务：战斗三件 + 邮件 + 草稿应用
+        //    ——S4 后炼丹/锻造完成结算与自动排班已入 C++；C++ 状态已变更，
+        //    此处失败必须传播）
         stateStore.update { monthSettlementResidualExecutor.execute(this, env) }
+        // ③' 事务外平台效应：玩家占领宗门被夺回的建筑没收（独立事务——
+        //    建筑拆除含嵌套 update 与 Room 槽位清理，禁止嵌套，
+        //    AISectOccupationResolver 事务外拆除先例；变更经反向通道回同步）
+        if (env.seizedBuildingsOfSect.isNotEmpty()) {
+            seizedBuildingsHandler?.invoke(env.seizedBuildingsOfSect)
+        }
+        // ④ S4 槽位写回：镜像为权威整表重放 repo（C++ 结算的槽位变更同步
+        //    Room；IO 失败仅记录——镜像已权威，Room 落后由下月对齐自愈）
+        cultivationService.restoreProductionSlotsFromMirror(stateStore.gameData.value.currentSlot)
         env
     } catch (e: CancellationException) {
         throw e
@@ -126,5 +151,10 @@ internal fun parseMonthSettlementEnvelope(envJson: String): MonthSettlementEnvel
         )
     } ?: emptyList()
 
-    return MonthSettlementEnvelope(disabledPolicies, secretRealmClose, purchaseLogs)
+    val seizedBuildingsOfSect = root["seizedSectBuildings"]?.jsonArray
+        ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+
+    return MonthSettlementEnvelope(
+        disabledPolicies, secretRealmClose, purchaseLogs, seizedBuildingsOfSect
+    )
 }

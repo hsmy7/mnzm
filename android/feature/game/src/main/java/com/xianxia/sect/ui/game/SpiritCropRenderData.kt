@@ -15,7 +15,7 @@ private const val SPIRIT_FIELD_NAME = "灵田"
 private const val CROP_DATA_STRIDE = 3
 
 /**
- * 构建灵田作物渲染数据（WP6）。
+ * 构建灵田作物渲染数据。
  *
  * 输入为已按 sectId 过滤的放置建筑列表与种植记录。仅灵田建筑
  * （displayName == [SPIRIT_FIELD_NAME]）且该田存在种植记录（seedId 非空、同宗门）时

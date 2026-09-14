@@ -72,7 +72,7 @@ class ActionModeSafeCallbackTest {
 
     @Test
     fun `finishActiveActionMode - 无活跃 ActionMode 时也进入销毁态`() {
-        // 缺口 3 回归：旧实现仅在 activeActionMode != null 时置位，
+        // 仅在 activeActionMode != null 时置位是不够的：
         // 窗口拆卸期间残留焦点触发的新 ActionMode 将不被拦截
         assertTrue(!callback.isTearingDown)
         callback.finishActiveActionMode()
@@ -109,7 +109,7 @@ class ActionModeSafeCallbackTest {
 
     @Test
     fun `resetForResume - 恢复文本选择能力`() {
-        // 回归守卫：旧实现 onStop 置位后永不复位，返回前台文本选择永久失效
+        // 回归守卫：onStop 置位后必须复位，否则返回前台文本选择永久失效
         callback.finishActiveActionMode()
         assertTrue(callback.isTearingDown)
 

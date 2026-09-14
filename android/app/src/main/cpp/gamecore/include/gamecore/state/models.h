@@ -9,24 +9,23 @@
 #include "gamecore/core/types.h"
 
 // ============================================================
-// 游戏状态模型（Kotlin→C++ 迁移批次 1）
+// 游戏状态模型
 //
 // 与 Kotlin core/domain/model 的 @Serializable 模型**字段名一一对应**
 // （JSON 快照协议要求字段名完全一致，nlohmann ↔ kotlinx 互操作）。
 //
-// 覆盖范围（批次 1 第一子步）：
-//   - GameData：全部标量 + 简单集合字段（嵌套对象如 worldMapSects/
-//     productionSlots/elderSlots 等留待后续子步，宽松 from_json 忽略、
-//     to_json 不输出——随子系统迁移逐步补齐）
-//   - Disciple：全部标量 + 简单集合字段（combat/pillEffects/equipment/
-//     social/skills/usage 嵌套留待后续）
+// 覆盖范围：
+//   - GameData：标量 + 集合 + 嵌套对象字段（worldMapSects/
+//     productionSlots/elderSlots 等，协议外字段除外）
+//   - Disciple：标量 + 集合 + 嵌套段字段（combat/pillEffects/equipment/
+//     social/skills/usage 六个 Kotlin @Embedded 段在 C++ 侧平铺）
 //   - 物品类：EquipmentStack/Instance、ManualStack/Instance、Pill、
 //     Material、Herb、Seed、StorageBag 核心字段（字段扁平，与 Kotlin
 //     data class 顶层字段一致，不使用嵌套 base 结构）
 //
 // 枚举约定：Kotlin 枚举经 kotlinx JSON 序列化为 name 字符串（如
-// EquipmentSlot.WEAPON → "WEAPON"），C++ 侧暂以 std::string 承载，
-// 后续批次再建强类型映射。
+// EquipmentSlot.WEAPON → "WEAPON"），C++ 侧以 std::string 承载，
+// 后续再建强类型映射。
 // ============================================================
 namespace gamecore::state {
 
@@ -118,7 +117,7 @@ struct ManualInstance : ManualBase {
     bool isLearned = false;
 };
 
-// ── 储物袋条目体系（计划 v2 阶段 2 / T2.1：每旬结算需要） ────────────────
+// ── 储物袋条目体系（每旬结算需要） ────────────────
 
 /// EquipmentNurtureData（Kotlin EquipmentNurtureData，字段名一致）
 struct EquipmentNurtureData {
@@ -245,7 +244,7 @@ struct Pill {
     std::string category = "CULTIVATION"; // PillCategory.name
     std::string grade = "MEDIUM";         // PillGrade.name
     std::string pillType;
-    PillEffect effects;                   // @Embedded 嵌套效果（T2.1 突破自动服药）
+    PillEffect effects;                   // @Embedded 嵌套效果（突破自动服药）
     int32_t minRealm = 9;
     int32_t quantity = 1;
     bool isLocked = false;
@@ -311,6 +310,10 @@ struct Disciple {
     int32_t age = 16;
     int32_t lifespan = 80;
     bool isAlive = true;
+    /// 死亡年份（AI 尸体新陈代谢的保留窗口基准）。
+    /// 旧档缺省 0 = 导入时补「导入年」——json_codec 宽松缺省兼容，
+    /// 死亡标记点（aiHandleDeaths/aiMarkSideDead/秘境战斗）写当前 gameYear。
+    int32_t deathYear = 0;
     std::string gender = "male";
     std::string portraitRes;
     std::vector<std::string> manualIds;
@@ -423,7 +426,7 @@ struct Disciple {
     // 注：lifeEvents 是 Kotlin 类体属性（非序列化），不纳入快照协议
 };
 
-// ── 嵌套类型（批次 1 第二子步；字段名与 Kotlin @Serializable 一致） ──
+// ── 嵌套类型（字段名与 Kotlin @Serializable 一致） ──
 
 /// GarrisonSlot（宗门驻防槽位；Kotlin GarrisonSlot）
 struct GarrisonSlot {
@@ -497,9 +500,11 @@ struct CaveExplorationTeam {
     float moveProgress = 0.0f;
 };
 
-/// ActiveMission 精简版（批 4-5 槽位清理协议内部用）：
-/// Kotlin ActiveMission 依赖 MissionTemplate/MissionRewardConfig 等重模型，
-/// 清理仅需 id + 成员两列表——C++ 侧只做成员过滤，完整模型由 Kotlin 保留。
+/// ActiveMission 精简版（槽位清理协议 op 参数内部用）：
+/// 槽位清理（slot_cleanup）的成员过滤只需 id + 成员两列表——该 op 的
+/// 输入参数仍走本精简结构（Kotlin 侧从完整模型裁剪构造）。
+/// 注意：GameData.activeMissions 自 S5 起为完整 ActiveMission（定义于
+/// MissionRewardConfig 之后，见本文件 mission 域）。
 struct ActiveMissionLite {
     std::string id;
     std::vector<std::string> discipleIds;
@@ -608,12 +613,12 @@ struct ProductionSlot {
     double successRate = 0.0;
     std::optional<std::string> outputItemId;  // String?
     std::string outputItemName;
-    int32_t outputItemRarity = 0;
+    int32_t outputItemRarity = 1;  // Kotlin ProductionSlot 默认 1（S4 对拍对齐）
     std::string outputItemSlot;
     int32_t expectedYield = 0;
     bool autoRestartEnabled = false;
     int32_t completionMonth = 0;
-    int32_t completionPhase = 0;
+    int32_t completionPhase = 1;  // Kotlin ProductionSlot 默认 1（S4 对拍对齐）
 };
 
 /// GridBuildingData（已放置建筑）
@@ -625,9 +630,14 @@ struct GridBuildingData {
     int32_t width = 0;
     int32_t height = 0;
     std::string instanceId;
+    /// 归属宗门 id（Kotlin GridBuildingData.@ProtoNumber(8) sectId）。
+    /// batch-12 补齐：Kotlin 侧矿场自愈（validateAndFixSpiritMineData）以
+    /// building.sectId 对齐矿场槽位 sectId，C++ 复刻该语义需要本字段；
+    /// 原缺失使反向信封每次携带该键而 C++ 静默忽略（镜像不完整）。
+    std::string sectId;
 };
 
-/// RoadData（石板道路——Kotlin RoadData，2026-08-31 状态模型迁移批次）
+/// RoadData（石板道路——Kotlin RoadData）
 /// 玩家只负责放置，邻接位掩码/形态由 road_system.h 纯函数推导；
 /// 本字段仅做状态承载（C++ 无道路结算逻辑，settle 不修改），
 /// 随导入/反向回导与 Kotlin 双向一致（dirty_tracker 字段级自动 diff）。
@@ -643,7 +653,7 @@ struct MerchantItem {
     std::string id;
     std::string name;
     std::string type;             // equipment/manual/pill/material/herb/seed/spiritstone
-                                  //（批 11-3 补齐——Kotlin @ProtoNumber(3)）
+                                  //（Kotlin @ProtoNumber(3)）
     std::string itemId;
     int32_t rarity = 0;
     int64_t price = 0;
@@ -651,11 +661,11 @@ struct MerchantItem {
     std::string description;
     int32_t obtainedYear = 0;
     int32_t obtainedMonth = 0;
-    std::optional<std::string> grade;   // String?（批 11-3 补齐——Kotlin @ProtoNumber(11)；
+    std::optional<std::string> grade;   // String?（Kotlin @ProtoNumber(11)；
                                         // 丹药品质 displayName，null=中品）
 };
 
-/// AutoBuyEntry（自动购买条目——Kotlin AutoBuyEntry；批 11-3 补齐，
+/// AutoBuyEntry（自动购买条目——Kotlin AutoBuyEntry，
 /// 唯一键 "$itemName:$itemType:$rarity" 去重匹配）
 struct AutoBuyEntry {
     std::string itemName;
@@ -663,7 +673,7 @@ struct AutoBuyEntry {
     int32_t rarity = 0;
 };
 
-// ── 任务域模型（批 12-2：S8 子事件 14 任务刷新下沉） ──────────────
+// ── 任务域模型（S8 子事件 14 任务刷新下沉） ──────────────
 // 枚举按 name-string 约定承载（Kotlin @Serializable 枚举经 kotlinx JSON
 // 序列化为 name），与 EquipmentSlot 等既有枚举约定一致。
 
@@ -761,6 +771,28 @@ struct Mission {
     int32_t createdMonth = 1;
 };
 
+/// ActiveMission（进行中任务；Kotlin ActiveMission @Serializable 全字段，
+/// 完整模型入 C++ 状态/协议）。
+/// 枚举域（template/difficulty/missionType/enemyType）与 Mission 同口径：
+/// name-string 承载（Kotlin 枚举 .name）。
+struct ActiveMission {
+    std::string id;
+    std::string missionId;
+    std::string missionName;
+    std::string template_;       // MissionTemplate.name（template 为 C++ 关键字）
+    std::string difficulty;      // MissionDifficulty.name
+    std::vector<std::string> discipleIds;
+    std::vector<std::string> discipleNames;
+    std::vector<std::string> discipleRealms;
+    int32_t startYear = 1;
+    int32_t startMonth = 1;
+    int32_t duration = 0;
+    MissionRewardConfig rewards;
+    std::string missionType = "NO_COMBAT";   // MissionType.name
+    std::string enemyType = "BEAST";         // EnemyType.name
+    double triggerChance = 0.0;
+};
+
 /// Alliance（结盟关系）
 struct Alliance {
     std::string id;
@@ -769,8 +801,8 @@ struct Alliance {
     std::string initiatorId;
 };
 
-/// VassalContract（附属契约；批 10-4 修正为 Kotlin GameDataAlliance.VassalContract
-/// 真实形状——原占位结构 index/discipleId/… 系批 4-5 补齐模型时误植 GarrisonSlot
+/// VassalContract（附属契约；修正为 Kotlin GameDataAlliance.VassalContract
+/// 真实形状——原占位结构 index/discipleId/… 系补齐模型时误植 GarrisonSlot
 /// 形状，因既有对拍场景从不填充该字段而休眠未暴露）
 struct VassalContract {
     std::string vassalSectId;
@@ -785,16 +817,16 @@ struct SectRelation {
     int32_t favor = 0;
     int32_t lastInteractionYear = 0;
     int32_t noGiftYears = 0;
-    bool acquainted = false;   // 批 10-4 补齐（Kotlin SectRelation.acquainted）
+    bool acquainted = false;   // 补齐（Kotlin SectRelation.acquainted）
 };
 
-/// SectBattleRecord（宗门战报；批 10-4 附庸脱离近 3 年计数消费）
+/// SectBattleRecord（宗门战报；附庸脱离近 3 年计数消费）
 struct SectBattleRecord {
     int32_t year = 0;
     std::string type;          // SectBattleType.name（CONQUEST/LOST_SECT/BATTLE_WIN/BATTLE_LOSS）
 };
 
-/// AttackWarning（AI 宗门进攻预警；批 G7-2 AI 攻击决策下沉需要——stage/WarningStage.name）
+/// AttackWarning（AI 宗门进攻预警；AI 攻击决策下沉需要——stage/WarningStage.name）
 struct AttackWarning {
     std::string warningId;
     std::string attackerSectId;
@@ -804,7 +836,7 @@ struct AttackWarning {
     int32_t createdAtMonth = 0;
 };
 
-// ── 宗门详情域（批 10-1：S8 侦察过期清理子事件协议扩容）──────────
+// ── 宗门详情域（S8 侦察过期清理子事件协议扩容）──────────
 
 /// MineSlot（矿脉槽位）
 struct MineSlot {
@@ -867,7 +899,7 @@ struct SectDetail {
 
 /// WorldSect（世界地图宗门）
 struct WorldSect {
-    std::string id;                         // T2.2 补齐（Kotlin @ProtoNumber(1)；gameOverCheck 占领判定需要）
+    std::string id;                         // 补齐（Kotlin @ProtoNumber(1)；gameOverCheck 占领判定需要）
     std::string name;
     int32_t level = 0;
     std::string levelName;
@@ -890,10 +922,10 @@ struct WorldSect {
     bool isUnderAttack = false;
     std::string attackerSectId;
     std::string occupierSectId;
-    std::vector<GarrisonSlot> garrisonSlots;   // 玩家宗门驻防槽位（批 4-5）
+    std::vector<GarrisonSlot> garrisonSlots;   // 玩家宗门驻防槽位
 };
 
-/// ResidenceSlot（住所槽位——批 13-3 修正为 Kotlin 真实形状：
+/// ResidenceSlot（住所槽位——修正为 Kotlin 真实形状：
 /// buildingInstanceId/slotIndex/discipleId/discipleName；原 sectId 系误植
 /// 冗余字段（Kotlin 无），删除对齐协议）
 struct ResidenceSlot {
@@ -901,6 +933,12 @@ struct ResidenceSlot {
     int32_t slotIndex = 0;
     std::string discipleId;
     std::string discipleName;
+    // 字段序相等性（batch-12：事务"是否发生变更"判定与 GTest 逐位断言用）
+    bool operator==(const ResidenceSlot& o) const {
+        return buildingInstanceId == o.buildingInstanceId && slotIndex == o.slotIndex &&
+               discipleId == o.discipleId && discipleName == o.discipleName;
+    }
+    bool operator!=(const ResidenceSlot& o) const { return !(*this == o); }
 };
 
 /// SpiritFieldPlant（灵田种植状态）
@@ -922,6 +960,12 @@ struct PatrolConfig {
     std::vector<int32_t> targetRealms;   // Set<Int> → JSON 数组
     int32_t maxBeastCount = 1;
     bool requireFullStatus = true;
+    // 字段序相等性（batch-12：整表覆写"是否发生变化"判定用）
+    bool operator==(const PatrolConfig& o) const {
+        return targetRealms == o.targetRealms && maxBeastCount == o.maxBeastCount &&
+               requireFullStatus == o.requireFullStatus;
+    }
+    bool operator!=(const PatrolConfig& o) const { return !(*this == o); }
 };
 
 /// PatrolSlot（巡视槽位——Kotlin PatrolSlot）
@@ -932,9 +976,16 @@ struct PatrolSlot {
     std::string discipleRealm;
     std::string portraitRes;
     std::string buildingInstanceId;
+    // 字段序相等性（batch-12：事务"是否发生变更"判定与 GTest 逐位断言用）
+    bool operator==(const PatrolSlot& o) const {
+        return index == o.index && discipleId == o.discipleId &&
+               discipleName == o.discipleName && discipleRealm == o.discipleRealm &&
+               portraitRes == o.portraitRes && buildingInstanceId == o.buildingInstanceId;
+    }
+    bool operator!=(const PatrolSlot& o) const { return !(*this == o); }
 };
 
-// ── SecretRealm（远古秘境）状态机（批次 1 剩余）────────────────────────
+// ── SecretRealm（远古秘境）状态机 ───────────────────────────────────────
 
 /// SecretRealmState（远古秘境地图实例；id 为空 = 当前不存在）
 struct SecretRealmState {
@@ -1113,7 +1164,7 @@ struct PendingTraitAdd {
     std::string traitId;
 };
 
-// ── 批次 1 剩余：低频嵌套类型（与 Kotlin @Serializable 字段名一致） ──
+// ── 低频嵌套类型（与 Kotlin @Serializable 字段名一致） ──
 
 /// BloodRefinementProgress（血炼进行中）
 struct BloodRefinementProgress {
@@ -1169,6 +1220,14 @@ struct SpiritMineSlot {
     std::string sectId;
     int32_t consecutiveMiningMonths = 0;
     std::string buildingInstanceId;
+    // 字段序相等性（batch-12：矿场自愈"是否发生变化"判定与 GTest 逐位断言用）
+    bool operator==(const SpiritMineSlot& o) const {
+        return index == o.index && discipleId == o.discipleId &&
+               discipleName == o.discipleName && output == o.output &&
+               sectId == o.sectId && consecutiveMiningMonths == o.consecutiveMiningMonths &&
+               buildingInstanceId == o.buildingInstanceId;
+    }
+    bool operator!=(const SpiritMineSlot& o) const { return !(*this == o); }
 };
 
 /// LibrarySlot（藏经阁槽位——Kotlin LibrarySlot）
@@ -1210,8 +1269,8 @@ struct GameData {
     int64_t highGradeSpiritStones = 0;
     int32_t spiritHerbs = 0;
     double sectCultivation = 0.0;
-    // 存档/设置
-    int32_t autoSaveIntervalMonths = 3;
+    // 设置（autoSaveIntervalMonths 不在快照协议——Kotlin GameData @Transient
+    // 不序列化，C++ 侧亦不得导出，否则对拍键集漂移）
     std::map<int32_t, int32_t> yearlySalary;
     std::map<int32_t, bool> yearlySalaryEnabled;
     std::string activeSectId;
@@ -1278,7 +1337,7 @@ struct GameData {
     std::vector<std::string> shownWarningStageIds;
     // 秘境
     int32_t secretRealmCooldownYear = 0;
-    // 批次 1 剩余：远古秘境状态机（玩法状态，结算不参与）
+    // 远古秘境状态机（玩法状态，结算不参与）
     SecretRealmState secretRealmState;
     SecretRealmExplorationSession secretRealmSession;
     std::vector<SecretRealmAITeam> secretRealmAITeams;
@@ -1290,7 +1349,7 @@ struct GameData {
     // 冷却/统计（Map）
     std::map<std::string, int32_t> sectAttackCooldowns;
     std::map<std::string, int64_t> guideCounters;
-    // ── G7-2：AI 攻击决策域（Kotlin GameData 同名字段；宽松 from_json 旧档兼容） ──
+    // ── AI 攻击决策域（Kotlin GameData 同名字段；宽松 from_json 旧档兼容） ──
     std::map<std::string, int32_t> aiSectPersonalities;     // 宗门 → AISectPersonality ordinal(0..3)
     std::vector<AttackWarning> activeAttackWarnings;        // AI 宗门进攻预警（决策消费 attackerSectId）
     // isPlayerProtected 为 Kotlin 计算属性（playerProtectionEnabled/startYear/hasAttackedAI 派生），
@@ -1311,19 +1370,19 @@ struct GameData {
     std::map<std::string, int32_t> annualEquipmentBySource;
     std::map<std::string, int32_t> annualPillBySource;
     std::map<std::string, int32_t> annualHerbBySource;
-    // ── 嵌套对象字段（批次 1 第二子步） ──
+    // ── 嵌套对象字段 ──
     std::vector<WorldSect> worldMapSects;
     std::vector<MerchantItem> travelingMerchantItems;
     std::vector<MerchantItem> playerListedItems;
     std::vector<MerchantItem> merchantAcquisitionItems;
-    int32_t merchantAcquisitionLastRefreshYear = 0;   // 批 Y-4b：商人收购刷新年份（Kotlin @ProtoNumber(89)）
-    std::vector<AutoBuyEntry> autoBuyList;   // 批 11-3：自动购买条目（Kotlin EconomicState）
+    int32_t merchantAcquisitionLastRefreshYear = 0;   // 商人收购刷新年份（Kotlin @ProtoNumber(89)）
+    std::vector<AutoBuyEntry> autoBuyList;   // 自动购买条目（Kotlin EconomicState）
     std::vector<Disciple> recruitList;
     std::vector<WorldLevel> worldLevels;
     ElderSlots elderSlots;
     std::vector<ProductionSlot> productionSlots;
     std::vector<GridBuildingData> placedBuildings;
-    // ── 2026-08-31：石板道路状态迁移批次（Kotlin GameData.roads；C++ 仅承载状态，
+    // ── 石板道路状态（Kotlin GameData.roads；C++ 仅承载状态，
     //    放置/拼接逻辑在 Kotlin RoadFacade + C++ road_system.h 纯函数，settle 不修改）
     std::vector<RoadData> roads;
     std::vector<SpiritFieldPlant> spiritFieldPlants;
@@ -1333,32 +1392,34 @@ struct GameData {
     std::vector<Alliance> alliances;
     std::vector<VassalContract> vassalContracts;
     std::vector<SectRelation> sectRelations;
-    // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）
+    // 宗门战报（附庸脱离近 3 年计数消费）
     std::vector<SectBattleRecord> sectBattleRecords;
-    std::map<std::string, SectDetail> sectDetails;      // Map<String, SectDetail>（批 10-1）
-    std::map<std::string, SectScoutInfo> scoutInfo;     // Map<String, SectScoutInfo>（批 10-1）
+    std::map<std::string, SectDetail> sectDetails;      // Map<String, SectDetail>
+    std::map<std::string, SectScoutInfo> scoutInfo;     // Map<String, SectScoutInfo>
     SectPolicies sectPolicies;
     std::vector<MailClaimRecord> mailRecords;
     std::vector<SectLevelClaimRecord> sectLevelClaimRecords;
     std::map<std::string, std::vector<std::string>> bloodRefinements;
     std::vector<YearlyReport> yearlyReports;
     std::vector<PendingTraitAdd> pendingTraitAdds;
-    // ── 批次 1 剩余：低频嵌套类型字段 ──
+    // ── 低频嵌套类型字段 ──
     std::map<std::string, std::vector<ManualProficiencyData>> manualProficiencies;
     std::vector<SpiritMineSlot> spiritMineSlots;
     std::map<std::string, BloodRefinementBonusTotal> bloodRefinementBonusTotals;
     std::map<std::string, BloodRefinementPctTotal> bloodRefinementPctTotals;
     std::map<std::string, BloodRefinementProgress> activeBloodRefinements;
     std::vector<PatrolSlot> patrolSlots;
-    // ── T2.1 每旬结算依赖字段 ──
+    // ── 每旬结算依赖字段 ──
     std::vector<LibrarySlot> librarySlots;             // 藏经阁槽位（熟练度加成）
     std::vector<GameEventRecord> gameEventRecords;     // 消息栏事件（突破记录）
-    // ── 批 4-5：槽位清理补充模型（宽松 from_json 默认空，旧档兼容） ──
+    // ── 槽位清理补充模型（宽松 from_json 默认空，旧档兼容） ──
     std::vector<BattleTeam> battleTeams;
     std::vector<WarehouseGarrisonSlot> warehouseGarrisons;
     std::vector<CaveExplorationTeam> caveExplorationTeams;
-    std::vector<ActiveMissionLite> activeMissions;
-    // ── 批 12-2：任务域（S8 子事件 14 任务刷新下沉） ──
+    // ── S5：进行中任务升级为完整 ActiveMission（任务完成结算下沉；
+    //     曾为 ActiveMissionLite 精简协议——op 参数仍用 Lite） ──
+    std::vector<ActiveMission> activeMissions;
+    // ── 任务域（S8 子事件 14 任务刷新下沉） ──
     std::vector<Mission> availableMissions;   // Kotlin GameData.availableMissions
 };
 
@@ -1373,25 +1434,25 @@ namespace gamecore::state {
 
 struct GameState {
     GameData gameData;
-    DiscipleStore disciples;                    // SoA 列式存储（计划 v2 阶段 3）
+    DiscipleStore disciples;                    // SoA 列式存储
     // 招募惰性门（Kotlin RecruitService.RecruitLazyState.autoRecruitIdle 等价）：
     // 纯内存运行态，不进 JSON 协议（json_codec 不导出/导入），读档即 false；
     // 重置点（年度招募列表刷新/玩家改筛选/生育/净化）在 Kotlin 侧（月变真相源
     // 切换前），C++ 侧仅月结子事件内部置 true——跨层同步随月变真相源切换批接线
-    //（S-16 登记）。Diff 对拍须双侧显式复位。
+    // Diff 对拍须双侧显式复位。
     bool autoRecruitIdle = false;
     // 自动拒绝惰性门（Kotlin RecruitService.RecruitLazyState.autoRejectIdle 等价；
-    // 批 Y-1 年变 T1-⑤ processAutoReject 下沉新增）：纯内存运行态，不进 JSON
+    // processAutoReject 下沉新增）：纯内存运行态，不进 JSON
     // 协议，读档即 false；重置点（年度刷新/净化/玩家改筛选）在 Kotlin 侧与
     // autoRecruitIdle 同族（RecruitService.resetAutoRejectIdle 同步入口）。
     bool autoRejectIdle = false;
-    // 批 10-4：AI 宗门弟子池（Kotlin GameData.aiSectDisciples 为 @Transient
+    // AI 宗门弟子池（Kotlin GameData.aiSectDisciples 为 @Transient
     // 重型数据——不进存档序列化，故快照协议置于顶层，与 Kotlin
     // NativeGameState.aiSectDisciples 一一对应；DirtyTracker 仅跟踪 gameData
     // 字段与固定集合清单，本字段不进脏导出——镜像通道零污染，Kotlin 侧
-    // 不回写保持权威，反向回导随月变真相源切换批接线（S-15））
+    // 不回写保持权威，反向回导随月变真相源切换批接线）
     std::map<std::string, std::vector<Disciple>> aiSectDisciples;
-    // 批 13-1：AI 宗门妖兽攻击域（Kotlin GameData 同名三字段均为 @Transient——
+    // AI 宗门妖兽攻击域（Kotlin GameData 同名三字段均为 @Transient——
     // 不进存档序列化，纯运行态；快照协议置于顶层与 NativeGameState 一一对应，
     // 语义同 aiSectDisciples（非空才导出、宽松导入、DirtyTracker 零污染））。
     //   aiSectBeastDirectTargets：妖兽 → 已确认进攻的 AI 宗门 id 列表（≤2，距离升序）

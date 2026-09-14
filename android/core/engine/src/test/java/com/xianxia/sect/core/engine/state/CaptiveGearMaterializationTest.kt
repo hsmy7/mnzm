@@ -175,8 +175,8 @@ class CaptiveGearMaterializationTest {
 
     @Test
     fun `materializeCaptiveGear - 无武器俘虏幂等`() {
-        // 对抗审查修复：幂等守卫曾只依赖武器槽——无武器俘虏（小型宗门约 3/4）
-        // 落库后武器列仍空，重复调用会完整重放。现改为 manualProficiencies + 4 槽双通道哨兵。
+        // 幂等守卫基于 manualProficiencies + 4 槽双通道哨兵判定已物化
+        // （仅依赖武器槽会漏判无武器俘虏，导致重复调用完整重放）。
         val state = createState()
         val captive = makeCaptive().copy(
             equipment = EquipmentSet(armorId = "leatherArmor")
@@ -194,7 +194,7 @@ class CaptiveGearMaterializationTest {
 
     @Test
     fun `materializeCaptiveGear - 重复功法模板去重`() {
-        // 对抗审查修复：损坏数据 manualIds 含重复模板时须去重，防同名功法双实例 + HP 双加
+        // 损坏数据 manualIds 含重复模板时须去重，防同名功法双实例 + HP 双加
         val state = createState()
         val captive = makeCaptive().copy(
             manualIds = listOf("testAtk1", "testAtk1", "testDef1"),
@@ -211,7 +211,7 @@ class CaptiveGearMaterializationTest {
 
     @Test
     fun `materializeCaptiveGear - 超量功法截断至槽位上限`() {
-        // 对抗审查修复：损坏存档 100 本功法须按玩家槽位上限截断，防存档膨胀/属性暴涨
+        // 损坏存档 100 本功法须按玩家槽位上限截断，防存档膨胀/属性暴涨
         val state = createState()
         val manuals = (0 until 30).associate { i ->
             "m$i" to ManualDatabase.ManualTemplate(

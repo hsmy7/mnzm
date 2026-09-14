@@ -33,7 +33,8 @@ class BattleCalculatorTest {
         }
     }
 
-    private fun expectedDamage(attack: Int, defense: Int, multiplier: Double = 1.0, critMultiplier: Double = 1.0): Double {
+    private fun expectedDamage(attack: Int, defense: Int, multiplier: Double = 1.0,
+        critMultiplier: Double = 1.0): Double {
         val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
         return attack * multiplier * (1.0 - reduction) * critMultiplier
     }
@@ -44,7 +45,7 @@ class BattleCalculatorTest {
         val defender = createCombatant(physicalDefense = 50)
         var totalDamage = 0
         var count = 0
-        for (i in 1..1000) {
+        repeat(1000) {
             val result = BattleCalculator.withRng(rng).calculateDamage(
                 attacker, defender,
                 isPhysicalAttack = true,
@@ -58,7 +59,8 @@ class BattleCalculatorTest {
         assertTrue(count > 900)
         val avgDamage = totalDamage.toDouble() / count
         val expected = expectedDamage(200, 50)
-        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
+        assertTrue("avgDamage $avgDamage should be near $expected",
+            avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
@@ -67,7 +69,7 @@ class BattleCalculatorTest {
         val defender = createCombatant(physicalDefense = 50, magicDefense = 30)
         var totalDamage = 0
         var count = 0
-        for (i in 1..1000) {
+        repeat(1000) {
             val result = BattleCalculator.withRng(rng).calculateDamage(
                 attacker, defender,
                 isPhysicalAttack = false,
@@ -81,7 +83,8 @@ class BattleCalculatorTest {
         assertTrue(count > 900)
         val avgDamage = totalDamage.toDouble() / count
         val expected = expectedDamage(200, 30)
-        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
+        assertTrue("avgDamage $avgDamage should be near $expected",
+            avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
@@ -116,14 +119,17 @@ class BattleCalculatorTest {
         var boostedTotal = 0
         var normalCount = 0
         var boostedCount = 0
-        for (i in 1..500) {
-            val normal = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 1.0, dodgeChanceModifier = 0.0)
-            val boosted = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 2.0, dodgeChanceModifier = 0.0)
+        repeat(500) {
+            val normal = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 1.0,
+                dodgeChanceModifier = 0.0)
+            val boosted = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 2.0,
+                dodgeChanceModifier = 0.0)
             if (!normal.isDodged) { normalTotal += normal.damage; normalCount++ }
             if (!boosted.isDodged) { boostedTotal += boosted.damage; boostedCount++ }
         }
         if (normalCount > 0 && boostedCount > 0) {
-            assertTrue("2x multiplier damage should be higher", boostedTotal.toDouble() / boostedCount > normalTotal.toDouble() / normalCount * 1.5)
+            assertTrue("2x multiplier damage should be higher",
+                boostedTotal.toDouble() / boostedCount > normalTotal.toDouble() / normalCount * 1.5)
         }
     }
 
@@ -158,14 +164,17 @@ class BattleCalculatorTest {
         val fastAttacker = createCombatant(speed = 10000)
         val slowDefender = createCombatant(speed = 1)
         var dodged = false
-        for (i in 1..100) {
-            val result = BattleCalculator.withRng(rng).calculateDamage(fastAttacker, slowDefender, dodgeChanceModifier = 0.5)
+        var attempts = 0
+        while (attempts < 100) {
+            val result = BattleCalculator.withRng(rng).calculateDamage(fastAttacker, slowDefender,
+                dodgeChanceModifier = 0.5)
             if (result.isDodged) {
                 dodged = true
                 assertEquals(0, result.damage)
                 assertFalse(result.isCrit)
                 break
             }
+            attempts++
         }
         assertTrue("should have at least one dodge", dodged)
     }
@@ -241,21 +250,24 @@ class BattleCalculatorTest {
         val defender = createCombatant(physicalDefense = 50)
         var totalDamage = 0
         var count = 0
-        for (i in 1..1000) {
-            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+        repeat(1000) {
+            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
+                dodgeChanceModifier = 0.0)
             totalDamage += result.damage
             count++
         }
         val avgDamage = totalDamage.toDouble() / count
         val expected = expectedDamage(200, 50)
-        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
+        assertTrue("avgDamage $avgDamage should be near $expected",
+            avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
     fun `calculateDamage isPhysicalAttack true - low attack vs high defense still deals damage`() {
         val attacker = createCombatant(physicalAttack = 1, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 9999)
-        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
+            dodgeChanceModifier = 0.0)
         assertTrue(result.damage >= 0)
     }
 
@@ -265,14 +277,16 @@ class BattleCalculatorTest {
         val defender = createCombatant(magicDefense = 30)
         var totalDamage = 0
         var count = 0
-        for (i in 1..1000) {
-            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = false, dodgeChanceModifier = 0.0)
+        repeat(1000) {
+            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = false,
+                dodgeChanceModifier = 0.0)
             totalDamage += result.damage
             count++
         }
         val avgDamage = totalDamage.toDouble() / count
         val expected = expectedDamage(200, 30)
-        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
+        assertTrue("avgDamage $avgDamage should be near $expected",
+            avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
@@ -461,8 +475,9 @@ class BattleCalculatorTest {
         val attacker = createCombatant(physicalAttack = 1000, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 0)
         val damages = mutableListOf<Int>()
-        for (i in 1..1000) {
-            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+        repeat(1000) {
+            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
+                dodgeChanceModifier = 0.0)
             if (!result.isDodged) damages.add(result.damage)
         }
         assertTrue(damages.isNotEmpty())
@@ -480,9 +495,11 @@ class BattleCalculatorTest {
         val highDefender = createCombatant(physicalDefense = 900)
         var lowTotal = 0
         var highTotal = 0
-        for (i in 1..500) {
-            lowTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, lowDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
-            highTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, highDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
+        repeat(500) {
+            lowTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, lowDefender, isPhysicalAttack = true,
+                dodgeChanceModifier = 0.0).damage
+            highTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, highDefender, isPhysicalAttack = true,
+                dodgeChanceModifier = 0.0).damage
         }
         assertTrue("high defense should take less damage", highTotal < lowTotal)
         val lowReduction = 100.0 / (100.0 + GameConfig.Battle.DEFENSE_CONSTANT)
@@ -803,7 +820,7 @@ class BattleCalculatorTest {
         var totalMajor = 0
         var totalBase = 0
         var count = 0
-        for (i in 1..1000) {
+        repeat(1000) {
             totalMajor += BattleCalculator.withRng(rng).calculateDamage(
                 attackerHigh, defender,
                 isPhysicalAttack = true,

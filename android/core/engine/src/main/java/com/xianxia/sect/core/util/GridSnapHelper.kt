@@ -52,10 +52,10 @@ object GridSnapHelper {
         borderPadding: Int = 0,
         occupiedRects: List<GridRect> = emptyList()
     ): PlacementValidity {
-        if (gridX < borderPadding || gridY < borderPadding ||
+        val outOfBounds = gridX < borderPadding || gridY < borderPadding ||
             gridX + width > maxGridX - borderPadding ||
             gridY + height > maxGridY - borderPadding
-        ) {
+        if (outOfBounds) {
             return PlacementValidity.OutOfBounds
         }
         val overlapped = occupiedRects.filter { rect ->

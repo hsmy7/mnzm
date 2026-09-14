@@ -24,12 +24,12 @@ import org.mockito.kotlin.verify
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * 引擎初始化状态进程级持有守卫测试（docs/architecture.md 待办 D-31）。
+ * 引擎初始化状态进程级持有守卫测试。
  *
- * 背景：`GameForegroundService.onDestroy` 曾调 `shutdown()`——每次退出/重进游戏
- * （含 START_STICKY 系统重建）完整重跑全部 GameSystem 的 initialize/release 循环。
- * 根治后：Service 只负责循环启停（stopGameLoop），`isInitialized` 由 @Singleton
- * 进程级持有，`initializeAll()` 在进程生命周期仅执行一次。
+ * Service 只负责循环启停（stopGameLoop），`isInitialized` 由 @Singleton
+ * 进程级持有，`initializeAll()` 在进程生命周期仅执行一次
+ * （GameForegroundService.onDestroy 不触发 shutdown，退出/重进游戏
+ * 或 START_STICKY 系统重建均不重跑 GameSystem 的 initialize/release 循环）。
  *
  * 守卫契约：
  * - initialize 幂等：重复调用不重跑 initializeAll

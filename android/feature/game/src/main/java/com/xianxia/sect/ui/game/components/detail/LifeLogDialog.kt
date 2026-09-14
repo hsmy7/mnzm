@@ -25,6 +25,7 @@ import com.xianxia.sect.ui.theme.GameColors
  * @param onDismiss 关闭对话框回调
  */
 @Composable
+@Suppress("UnusedParameter") // discipleName: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun LifeLogDialog(
     discipleName: String,
     events: List<String>,

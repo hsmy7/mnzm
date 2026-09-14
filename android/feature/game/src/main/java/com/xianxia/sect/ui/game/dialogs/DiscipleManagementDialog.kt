@@ -54,7 +54,7 @@ fun DiscipleManagementDialog(
     }
 }
 
-/** 自动使用突破丹设置区（DiscipleManagementDialog 拆分）：聚焦开关 + 灵根数过滤 */
+/** 自动使用突破丹设置区：聚焦开关 + 灵根数过滤 */
 @Composable
 private fun AutoPillSection(gameData: GameData?, viewModel: GameViewModel) {
     var pillFocused by remember { mutableStateOf(gameData?.breakthroughAutoPillFocused ?: false) }
@@ -67,17 +67,17 @@ private fun AutoPillSection(gameData: GameData?, viewModel: GameViewModel) {
         onFocusedToggle = {
             val new = !pillFocused
             pillFocused = new
-            viewModel.setBreakthroughAutoPillSettings(new, pillRootCounts)
+            viewModel.autoAssign.setBreakthroughAutoPillSettings(new, pillRootCounts)
         },
         onRootToggle = { count ->
             val new = if (count in pillRootCounts) pillRootCounts - count else pillRootCounts + count
             pillRootCounts = new
-            viewModel.setBreakthroughAutoPillSettings(pillFocused, new)
+            viewModel.autoAssign.setBreakthroughAutoPillSettings(pillFocused, new)
         }
     )
 }
 
-/** 自动装备设置区（DiscipleManagementDialog 拆分）：聚焦开关 + 灵根数过滤 */
+/** 自动装备设置区：聚焦开关 + 灵根数过滤 */
 @Composable
 private fun AutoEquipSection(gameData: GameData?, viewModel: GameViewModel) {
     var equipFocused by remember { mutableStateOf(gameData?.autoEquipFromWarehouseFocused ?: false) }
@@ -90,17 +90,17 @@ private fun AutoEquipSection(gameData: GameData?, viewModel: GameViewModel) {
         onFocusedToggle = {
             val new = !equipFocused
             equipFocused = new
-            viewModel.setAutoEquipSettings(new, equipRootCounts)
+            viewModel.autoAssign.setAutoEquipSettings(new, equipRootCounts)
         },
         onRootToggle = { count ->
             val new = if (count in equipRootCounts) equipRootCounts - count else equipRootCounts + count
             equipRootCounts = new
-            viewModel.setAutoEquipSettings(equipFocused, new)
+            viewModel.autoAssign.setAutoEquipSettings(equipFocused, new)
         }
     )
 }
 
-/** 自动学习功法设置区（DiscipleManagementDialog 拆分）：聚焦开关 + 灵根数过滤 */
+/** 自动学习功法设置区：聚焦开关 + 灵根数过滤 */
 @Composable
 private fun AutoLearnSection(gameData: GameData?, viewModel: GameViewModel) {
     var learnFocused by remember { mutableStateOf(gameData?.autoLearnFromWarehouseFocused ?: false) }
@@ -113,12 +113,12 @@ private fun AutoLearnSection(gameData: GameData?, viewModel: GameViewModel) {
         onFocusedToggle = {
             val new = !learnFocused
             learnFocused = new
-            viewModel.setAutoLearnSettings(new, learnRootCounts)
+            viewModel.autoAssign.setAutoLearnSettings(new, learnRootCounts)
         },
         onRootToggle = { count ->
             val new = if (count in learnRootCounts) learnRootCounts - count else learnRootCounts + count
             learnRootCounts = new
-            viewModel.setAutoLearnSettings(learnFocused, new)
+            viewModel.autoAssign.setAutoLearnSettings(learnFocused, new)
         }
     )
 }

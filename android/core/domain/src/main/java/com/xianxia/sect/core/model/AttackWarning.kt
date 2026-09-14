@@ -22,12 +22,12 @@ data class AttackWarning(
 /**
  * 预警阶段：单级"即将进攻"（生成后下月直接进攻 → 到期执行战斗）。
  *
- * [DENUNCIATION] 为历史阶段（旧档兼容，protobuf 持久化需保留枚举值），
- * 新代码不再生成；旧档残留预警由结算收敛为 [WAR_DECLARATION]。
+ * [DENUNCIATION] 仅为旧档兼容保留的读取项（protobuf 持久化需保留枚举值），
+ * 新代码不再生成该阶段；旧档残留预警由结算收敛为 [WAR_DECLARATION]。
  */
 @Serializable
 enum class WarningStage {
-    /** 谴责阶段（历史遗留）：旧档兼容保留，新代码不再生成 */
+    /** 谴责阶段：仅为旧档兼容保留的读取项，新代码不再生成该阶段 */
     DENUNCIATION,
     /** 战书阶段：即将进攻，到期执行战斗 */
     WAR_DECLARATION

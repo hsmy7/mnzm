@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * RenderBackend 接口契约测试（2026-08-10 新增，WP2）。
+ * RenderBackend 接口契约测试。
  *
  * FakeBackend 记录调用序列，锁定渲染循环（RenderThread）的标准用法模式：
  * - 相机变化时 setCamera 先于 renderFrame（脏标记驱动，非每帧）
@@ -122,7 +122,7 @@ class RenderBackendContractTest {
 
     @Test
     fun `渲染缩放契约 - 接口保持物理像素参数语义`() {
-        // 2026-08-14 平板省电：render scale 是后端内部像素密度参数（Vulkan 离屏
+        // render scale 是后端内部像素密度参数（Vulkan 离屏
         // 目标 / Canvas 降采样帧缓冲），RenderBackend 接口继续以物理视口像素
         // 为契约——相机/命中测试/世界可视范围全部不受缩放影响。
         // 本测试锁定：viewportW/H 语义恒为物理像素（实现类内部自行缩放）。

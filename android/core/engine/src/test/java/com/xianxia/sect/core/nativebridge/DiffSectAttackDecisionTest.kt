@@ -14,9 +14,10 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.battle.decidePlayerAttack
 
 /**
- * DiffSectAttackDecisionTest — AI 宗门攻击决策跨语言差分对拍（G7-2）。
+ * DiffSectAttackDecisionTest — AI 宗门攻击决策跨语言差分对拍）。
  *
  * 守护目标：C++ `gamecore::system::detail::checkAttackConditions`（经
  * [DiffRngBridge.nativeCoreCheckAttackConditions] 直调）与 Kotlin
@@ -118,6 +119,7 @@ class DiffSectAttackDecisionTest {
 
     /** AI 攻玩家场景：游戏第 101 年（保护期 100 年届满 → 不保护）+ 玩家宗门 + AI 攻方 */
     private fun buildPlayerAttackSnapshot(): NativeGameState {
+        val playerDisciples = (1..10).map { aiDisciple("pl$it") }
         val gameData = GameData(
             gameYear = 101, gameMonth = 3, gamePhase = 0,
             spiritStones = 10000L
@@ -128,17 +130,21 @@ class DiffSectAttackDecisionTest {
                 WorldSect(id = "ai-1", name = "青岚宗"),
                 WorldSect(id = "ai-2", name = "赤水宗")
             )
-            // 玩家 p1 弟子在 aiSectDisciples 池（守军）；ai-1 攻方 10 名弟子（门通过）；
-            // ai-2 仅 5 名（少于 10 → 闸前跳过不消费）
+            // 玩家 p1 守军池：aiSectDisciples["p1"] = Kotlin decidePlayerAttack
+            // 基准侧数据源（aiDisciplesMap[playerSectId]）；C++ 侧（P2-18 Stage 1
+            // playerDefenders 修正）改读 GameState.disciples 玩家弟子权威存储——
+            // 两侧同池同属性，战力/机会/RNG 抽取逐位一致。
+            // ai-1 攻方 10 名弟子（门通过）；ai-2 仅 5 名（少于 10 → 闸前跳过不消费）
             aiSectDisciples = mapOf(
-                "p1" to (1..10).map { aiDisciple("pl$it") },
+                "p1" to playerDisciples,
                 "ai-1" to (1..10).map { aiDisciple("att$it") },
                 "ai-2" to (1..5).map { aiDisciple("att2$it") }
             )
         }
         return NativeGameState(
             gameData = gameData,
-            aiSectDisciples = gameData.aiSectDisciples
+            aiSectDisciples = gameData.aiSectDisciples,
+            disciples = playerDisciples
         )
     }
 

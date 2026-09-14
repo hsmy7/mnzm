@@ -8,6 +8,9 @@ import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface ChangeLogDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -23,11 +26,10 @@ interface ChangeLogDao {
     @Query("SELECT * FROM change_log WHERE synced = 0 ORDER BY timestamp ASC LIMIT :limit")
     suspend fun getUnsynced(limit: Int): List<ChangeLogEntity>
 
-    @Query("SELECT * FROM change_log WHERE table_name = :tableName AND record_id = :recordId ORDER BY timestamp DESC LIMIT 1")
+    @Query("SELECT * FROM change_log WHERE table_name = :tableName AND record_id = :recordId ORDER BY timestamp DESC " +
+        "LIMIT 1")
     suspend fun getByRecordId(tableName: String, recordId: String): ChangeLogEntity?
 
-    @Query("UPDATE change_log SET synced = 1, sync_version = :syncVersion WHERE id IN (:ids)")
-    suspend fun markSynced(ids: List<Long>, syncVersion: Long = System.currentTimeMillis())
 
     @Query("DELETE FROM change_log WHERE synced = 1 AND timestamp < :threshold")
     suspend fun deleteSyncedOlderThan(threshold: Long): Int

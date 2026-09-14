@@ -14,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend 灵田作物层测试（WP6）。
+ * SoftwareCanvasBackend 灵田作物层测试。
  *
  * 与 C++ 作物段同数学：stage 边界 1/3、2/3 + crossfade × 全局 fade 乘算。
  * 作物层不烘焙 chunk（生长进度频繁变化——chunk 合成后逐帧绘制）。
@@ -36,7 +36,7 @@ class SoftwareCanvasBackendCropTest {
     }
 
     // ============================================================
-    // 灵田作物（WP6，与 C++ 作物段同数学：stage 边界 1/3、2/3 + crossfade × fade）
+    // 灵田作物（与 C++ 作物段同数学：stage 边界 1/3、2/3 + crossfade × fade）
     // ============================================================
 
     @Test

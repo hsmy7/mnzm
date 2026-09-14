@@ -20,11 +20,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * L1c 等价性安全网：年俸计划列直读重构（assembleAll → 列级过滤）前先写本测试。
+ * 等价性安全网：年俸计划列直读重构（assembleAll → 列级过滤）前先写本测试。
  *
  * 参照实现内联旧算法（assembleAll 过滤），与生产 [CultivationSettlement.calculateSalaryPlan]
  * 逐位对比（eligibleSalaries 键值对 + totalRequired + null 语义）。
- * 重构后本测试仍绿 = 等价性成立。
+ * 本测试持续为绿 = 等价性成立。
  *
  * 等价性依据：`assembleAll()` 的 Disciple 字段即列数据（isAlive = isAlive.getOrDefault(id,1)==1、
  * realm = realms.getOrDefault(id,9)），过滤谓词（isAlive + enabledConfig[realm] + salary>0）
@@ -55,7 +55,7 @@ class SalaryPlanColumnEquivalenceTest {
         )
     }
 
-    // ==================== 参照实现：旧 assembleAll 算法（与重构前逐行一致） ====================
+    // ==================== 参照实现：assembleAll 过滤算法（对拍基准） ====================
 
     private fun referenceCalculateSalaryPlan(): CultivationSettlement.SalaryPlan? {
         val data = mockStore.gameData.value

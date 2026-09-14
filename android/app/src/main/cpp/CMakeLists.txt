@@ -21,7 +21,7 @@ if(NOT DEFINED SPRITE_GENERATED_DIR)
 endif()
 
 # ════════════════════════════════════════════════════════════════
-# game-core — 纯 C++ 游戏引擎核心（Kotlin→C++ 迁移批次 0）
+# game-core — 纯 C++ 游戏引擎核心
 # 静态库引入；桌面/CI 测试见 gamecore/CMakeLists.txt（GAMECORE_BUILD_TESTS）
 # ════════════════════════════════════════════════════════════════
 add_subdirectory(gamecore)
@@ -55,9 +55,9 @@ target_link_libraries(native-renderer
 )
 
 # ════════════════════════════════════════════════════════════════
-# native-game-core — 游戏引擎 JNI 库（Kotlin→C++ 迁移批次 0）
+# native-game-core — 游戏引擎 JNI 库
 # 独立于渲染库；GameCoreBridge.cpp 是唯一依赖 JNI/Android 的桥层，
-# game-core 静态库本体零 Android 依赖（桌面/iOS 可复用）
+# game-core 静态库本体零 Android 依赖（桌面可复用，核心保持可移植）
 # ════════════════════════════════════════════════════════════════
 add_library(native-game-core SHARED
     GameCoreBridge.cpp
@@ -76,3 +76,15 @@ target_link_libraries(native-game-core
 set_target_properties(native-renderer PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
+
+# ════════════════════════════════════════════════════════════════
+# 显式优化策略（审计 P3-8）：Release 锁 -O2 + section GC + ThinLTO；
+# Debug 保持默认。渲染行为不因构建类型分叉（无 #ifdef 行为分叉，
+# 审计 §9 PASS 项维持），仅优化级别差异——行为锁定而非依赖 AGP 默认。
+# 注：若 NDK r27 ThinLTO 链接异常，退为仅 -O2 + gc-sections（LTO 可选，非目标）。
+# ════════════════════════════════════════════════════════════════
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(native-renderer PRIVATE -O2 -ffunction-sections -fdata-sections)
+    target_link_options(native-renderer PRIVATE -Wl,--gc-sections)
+    set_target_properties(native-renderer PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()

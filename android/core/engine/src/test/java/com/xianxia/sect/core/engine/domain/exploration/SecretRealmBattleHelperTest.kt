@@ -109,7 +109,7 @@ class SecretRealmBattleHelperTest {
         )
         repeat(10) {
             val result = SecretRealmBattleHelper.applyLootLoss(backpack, rng)
-            // 保留件数 = 总数 - 丢失数（六类一致；修复前 seeds 不参与遍历但被重建清空导致不等）
+            // 保留件数 = 总数 - 丢失数（六类一致，种子不静默丢弃）
             assertEquals(
                 backpack.totalItemCount - result.lostItemCount,
                 result.backpack.totalItemCount

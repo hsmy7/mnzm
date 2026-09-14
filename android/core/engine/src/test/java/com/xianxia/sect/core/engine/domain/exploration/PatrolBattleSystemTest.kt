@@ -50,8 +50,10 @@ class PatrolBattleSystemTest {
         `when`(battleSystem.executeBattle(any(), any())).thenReturn(BattleSystemResult(
             battle = Battle(team = emptyList(), beasts = emptyList()),
             victory = true, rewards = mapOf("spiritStones" to 100), turnCount = 1))
-        val encounterBattleService = mock(com.xianxia.sect.core.domain.battle.EncounterBattleService::class.java)
-        system = PatrolBattleSystem(battleSystem, rngManager, inventorySystem, buildingConfigService, DiscipleDeathHandler(), encounterBattleService)
+        system = PatrolBattleSystem(
+            battleSystem, rngManager, inventorySystem,
+            buildingConfigService, DiscipleDeathHandler()
+        )
     }
 
     private fun emptyState() = MutableGameState(
@@ -68,32 +70,38 @@ class PatrolBattleSystemTest {
     @Test fun `empty state no crash`() = runBlocking { system.executePatrolRound(emptyState()) }
 
     @Test fun `empty slots no crash`() = runBlocking {
-        val s = emptyState().apply { gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "1"))) }
+        val s = emptyState().apply { gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0,
+            discipleId = "1"))) }
         system.executePatrolRound(s)
     }
 
     @Test fun `no towers no crash`() = runBlocking {
-        val s = emptyState().apply { gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "1", buildingInstanceId = "b1"))) }
+        val s = emptyState().apply { gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0,
+            discipleId = "1", buildingInstanceId = "b1"))) }
         system.executePatrolRound(s)
     }
 
     @Test fun `no beasts means no battle`() = runBlocking {
         val s = emptyState().apply {
-            gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "1", buildingInstanceId = "b1")),
+            gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "1",
+                buildingInstanceId = "b1")),
                 placedBuildings = listOf(GridBuildingData(instanceId = "b1", displayName = "巡视楼")))
         }
         system.executePatrolRound(s)
         assertTrue(s.battleLogs.isEmpty())
     }
 
-    @Test fun `consumePendingPatrolResults empty initially`() { assertTrue(system.consumePendingPatrolResults().isEmpty()) }
+    @Test fun `consumePendingPatrolResults empty initially`() { assertTrue(system.consumePendingPatrolResults()
+        .isEmpty()) }
 
-    @Test fun `consumePendingPatrolResults idempotent`() { repeat(3) { assertTrue(system.consumePendingPatrolResults().isEmpty()) } }
+    @Test fun `consumePendingPatrolResults idempotent`() { repeat(3) { assertTrue(system.consumePendingPatrolResults()
+        .isEmpty()) } }
 
     @Test fun `full pipeline no crash`() = runBlocking {
         val s = emptyState().apply {
             discipleTables.insert(Disciple(id = "1", name = "甲"))
-            gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "1", buildingInstanceId = "b1")),
+            gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "1",
+                buildingInstanceId = "b1")),
                 placedBuildings = listOf(GridBuildingData(instanceId = "b1", displayName = "巡视楼")),
                 worldLevels = listOf(WorldLevel(id = "b1", type = LevelType.BEAST,
                     defeated = false, realm = 9, count = 1, beastName = "虎妖",

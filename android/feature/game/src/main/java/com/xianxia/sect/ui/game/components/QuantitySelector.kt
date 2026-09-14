@@ -50,7 +50,7 @@ internal data class QuantitySelectorSizes(
 
 /**
  * 统一数量选择器：[-10][−][数字][+][+10] 四向步进 + 点击数字弹出**自绘数字面板**
- * （[NumberInputPanel]，2026-09 IME 状态机根治：数量输入绕开系统 IME）。
+ * （[NumberInputPanel]：数量输入绕开系统 IME）。
  *
  * 键盘防频闪约束（rules/dialog-soft-input-guard.md）：
  * - 本组件不创建平台 Dialog 窗口、**不依赖系统 IME**——点击数字框显示
@@ -60,8 +60,7 @@ internal data class QuantitySelectorSizes(
  * - 不叠加 imePadding——避让由外层容器统一负责
  * - 输入净化复用 [sanitizeQuantityInput]（实时钳制 [QUANTITY_MIN, maxQuantity]，
  *   非法字符过滤），超上限自动截断
- * - 编辑态（面板打开）仅保留 [−][输入框][+]：键盘空间有限，且避免"步进作用于
- *   未提交文本"的语义混乱；-10/+10 步进仅在非编辑态生效
+ * - 编辑态（面板打开）仅保留 [−][输入框][+]：键盘空间有限，且避免"步进作用于 *   未提交文本"的语义混乱；-10/+10 步进仅在非编辑态生效
  *
  * @param quantity 当前数量（调用方持有状态）
  * @param maxQuantity 上限（应 ≥ [QUANTITY_MIN]；小于 1 时按 1 兜底，产出恒为 1）
@@ -202,7 +201,7 @@ private fun QuantityStepButton(
 }
 
 /**
- * 数量显示框（2026-09 自绘面板替代系统键盘）：显示当前值，点击弹出
+ * 数量显示框（自绘面板替代系统键盘）：显示当前值，点击弹出
  * [NumberInputPanel]（自绘数字键盘）——不聚焦、不弹系统 IME。
  * 边框高亮编辑态（面板打开时 Primary 色，与非编辑态视觉区分）。
  */

@@ -5,9 +5,7 @@ import com.xianxia.sect.core.perf.FrameMetricsMonitor
 import com.xianxia.sect.core.util.GCOptimizerProvider
 import com.xianxia.sect.core.util.MemoryMonitorProvider
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,38 +15,28 @@ class UnifiedPerformanceMonitor @Inject constructor(
     private val memoryMonitor: MemoryMonitorProvider,
     private val gcOptimizer: GCOptimizerProvider,
     private val frameMetricsMonitor: FrameMetricsMonitor
-) {
+) : PerformanceMetricsRegistry() {
     companion object {
-        private const val TAG = "UnifiedPerformanceMonitor"
-        private const val MAX_COLLECTORS = 100
-        private const val MAX_SAMPLES = 100
+        internal const val MAX_SAMPLES = 100
         private const val FPS_WARNING_THRESHOLD = 30f
-        private const val MEMORY_WARNING_THRESHOLD = 80f
-        private const val TICK_TIME_WARNING_THRESHOLD = 50f
-        private const val SAVE_QUEUE_WARNING_THRESHOLD = 5
-        private const val ENTITY_COUNT_WARNING_THRESHOLD = 1000
-        private const val MONITOR_INTERVAL_MS = 1000L
     }
 
-    private val metricsCollectors = ConcurrentHashMap<String, MetricCollector>()
-    private val metricDefinitions = ConcurrentHashMap<String, MetricDefinition>()
-    private val listeners = CopyOnWriteArrayList<MetricsListener>()
-
-    private val tickTimes = ConcurrentLinkedQueue<Float>()
-    private val frameTimesGpm = ConcurrentLinkedQueue<Float>()
-    private val tickCounter = AtomicLong(0)
+    internal val tickTimes = ConcurrentLinkedQueue<Float>()
+    internal val frameTimesGpm = ConcurrentLinkedQueue<Float>()
+    internal val tickCounter = AtomicLong(0)
     private var lastFpsCalculation = System.currentTimeMillis()
     @Volatile
-    private var frameCountGpm = 0
+    internal var frameCountGpm = 0
     @Volatile
-    private var currentSaveQueueSize = 0
+    internal var currentSaveQueueSize = 0
     @Volatile
-    private var currentEntityCount = 0
+    internal var currentEntityCount = 0
 
     // ── 帧质量追踪 ──
     enum class FrameQuality { SMOOTH, ACCEPTABLE, JANKY, FREEZE }
     private var consecutiveJankyFrames = 0
-    @Volatile private var _loadReductionRequested = false
+    @Suppress("VariableNaming")
+    @Volatile internal var _loadReductionRequested = false
     @Volatile private var _frameQuality: FrameQuality = FrameQuality.SMOOTH
     val frameQuality: FrameQuality get() = _frameQuality
     val loadReductionRequested: Boolean get() = _loadReductionRequested
@@ -73,94 +61,30 @@ class UnifiedPerformanceMonitor @Inject constructor(
         }
     }
 
-    fun clearLoadReductionRequest() { _loadReductionRequested = false }
-
-    // ── Metric 注册与采集 ──
-
-    fun registerMetric(definition: MetricDefinition) {
-        if (metricsCollectors.size >= MAX_COLLECTORS) {
-            DomainLog.w(TAG, "Maximum metric collectors reached, cannot register: ${definition.name}")
-            return
-        }
-        metricDefinitions[definition.name] = definition
-        metricsCollectors.getOrPut(definition.name) { MetricCollector(definition.name) }
-        DomainLog.d(TAG, "Registered metric: ${definition.name} (${definition.category})")
-    }
-
-    fun recordMetric(name: String, value: Long) {
-        val collector = metricsCollectors.getOrPut(name) { MetricCollector(name) }
-        collector.record(value)
-        val stats = collector.getStats()
-        notifyMetricRecorded(name, value, stats)
-        checkThresholds(name, value)
-    }
-
-    fun recordMetric(name: String, value: Double) { recordMetric(name, value.toLong()) }
-    fun recordMetric(name: String, value: Int) { recordMetric(name, value.toLong()) }
-
-    fun getMetrics(): Map<String, MetricStats> = metricsCollectors.mapValues { it.value.getStats() }
-    fun getMetric(name: String): MetricStats? = metricsCollectors[name]?.getStats()
-    fun getMetricCollector(name: String): MetricCollector? = metricsCollectors[name]
-    fun getMetricDefinition(name: String): MetricDefinition? = metricDefinitions[name]
-    fun getAllMetricDefinitions(): Map<String, MetricDefinition> = metricDefinitions.toMap()
-    fun resetMetric(name: String) { metricsCollectors[name]?.reset() }
-
-    fun addListener(listener: MetricsListener) { listeners.add(listener) }
-    fun removeListener(listener: MetricsListener) { listeners.remove(listener) }
-
-    // ── 生命周期代理（已迁移至 BackgroundTaskScheduler）──
+    // ── 生命周期代理（调度由 BackgroundTaskScheduler 承担）──
 
     fun stopReporting() {
         DomainLog.d(TAG, "Performance reporting stop (delegated to scheduler)")
     }
 
+    /** 启动/重置时钟。游戏循环开始时调用。 */
     fun start() {
         DomainLog.d(TAG, "Performance monitor start (delegated to scheduler)")
     }
 
+    /**
+     * 停止热状态监控。由 GameEngineCore.shutdown() 调用。
+     */
     fun stop() {
         DomainLog.d(TAG, "Performance monitor stop (delegated to scheduler)")
     }
 
     // ── 核心记录方法 ──
 
-    fun recordTick(durationMs: Float) {
-        tickTimes.offer(durationMs)
-        if (tickTimes.size > MAX_SAMPLES) {
-            tickTimes.poll()
-        }
-        tickCounter.incrementAndGet()
-    }
-
-    fun recordFrame(durationMs: Float) {
-        frameTimesGpm.offer(durationMs)
-        if (frameTimesGpm.size > MAX_SAMPLES) {
-            frameTimesGpm.poll()
-        }
-        frameCountGpm++
-    }
-
-    fun recordSaveQueueSize(size: Int) {
-        currentSaveQueueSize = size
-    }
-
-    fun recordEntityCount(count: Int) {
-        currentEntityCount = count
-    }
-
-    // ── FPS 计算 ──
-
     @Volatile
     private var currentFps: Float = 0f
 
     fun updateGamePerformanceMetrics() {
-        val runtime = Runtime.getRuntime()
-        val maxMemory = runtime.maxMemory() / (1024 * 1024)
-        val totalMemory = runtime.totalMemory() / (1024 * 1024)
-        val freeMemory = runtime.freeMemory() / (1024 * 1024)
-        val usedMemory = totalMemory - freeMemory
-        val memoryPercent = if (maxMemory > 0) (usedMemory.toFloat() / maxMemory) * 100 else 0f
-
         val now = System.currentTimeMillis()
         val elapsed = (now - lastFpsCalculation) / 1000f
         val fps = if (elapsed > 0) frameCountGpm / elapsed else 0f
@@ -168,25 +92,7 @@ class UnifiedPerformanceMonitor @Inject constructor(
         frameCountGpm = 0
         currentFps = fps
 
-        val avgTickTime = if (tickTimes.isNotEmpty()) tickTimes.average().toFloat() else 0f
-        val maxTickTime = if (tickTimes.isNotEmpty()) tickTimes.maxOrNull() ?: 0f else 0f
-        val avgFrameTime = if (frameTimesGpm.isNotEmpty()) frameTimesGpm.average().toFloat() else 0f
-
-        val newMetrics = PerformanceMetrics(
-            fps = fps,
-            frameTimeMs = avgFrameTime,
-            memoryUsedMB = usedMemory.toLong(),
-            memoryMaxMB = maxMemory.toLong(),
-            memoryFreeMB = freeMemory.toLong(),
-            memoryUsagePercent = memoryPercent,
-            tickCount = tickCounter.get(),
-            averageTickTimeMs = avgTickTime,
-            maxTickTimeMs = maxTickTime,
-            saveQueueSize = currentSaveQueueSize,
-            entityCount = currentEntityCount
-        )
-
-        // 通知监听器（MetricsListener 而非已删除的 PerformanceListener）
+        // 通知监听器（MetricsListener）
         listeners.forEach { it.onMetricRecorded("performance_metrics", 0, MetricStats()) }
     }
 
@@ -214,6 +120,11 @@ class UnifiedPerformanceMonitor @Inject constructor(
         """.trimIndent()
     }
 
+    /**
+     * 初始化建筑配置（每次 boot 经 `ResourcePreloader.preloadGameResources` 调用）。
+     * 重复调用直接跳过，避免 `config/buildings.json` 重复 I/O（首次加载失败已回退默认配置，
+     * 无需重试语义）。
+     */
     fun initialize() {
         DomainLog.i(TAG, "UnifiedPerformanceMonitor initialized")
     }
@@ -226,7 +137,7 @@ class UnifiedPerformanceMonitor @Inject constructor(
         DomainLog.d(TAG, "Performance monitoring stop (delegated to scheduler)")
     }
 
-    // ── 快照与报告（简化版，不再依赖已删除的 FrameStats/OperationMetric）──
+    // ── 快照与报告 ──
 
     fun capturePerformanceSnapshot(): PerformanceSnapshot {
         val fps = currentFps
@@ -294,14 +205,18 @@ class UnifiedPerformanceMonitor @Inject constructor(
 
         memoryInfo?.let { mem ->
             when {
-                mem.isCritical -> recommendations.add("CRITICAL: Memory usage is at ${(mem.usedPercent * 100).toInt()}%. Immediate action required.")
-                mem.isWarning -> recommendations.add("WARNING: Memory usage is high at ${(mem.usedPercent * 100).toInt()}%. Consider freeing resources.")
+                mem.isCritical -> recommendations
+                    .add("CRITICAL: Memory usage is at ${(mem.usedPercent * 100).toInt()}%. Immediate action required.")
+                mem.isWarning -> recommendations.add("WARNING: Memory usage is high " +
+                    "at ${(mem.usedPercent * 100).toInt()}%. Consider freeing resources.")
                 else -> { }
             }
         }
 
         if (gcStats.averageGCTimeMs > 100) {
-            recommendations.add("High average GC time (${String.format(Locale.ROOT, "%.1f", gcStats.averageGCTimeMs)}ms). Review object allocation patterns.")
+            recommendations
+                .add("High average GC time (${String.format(Locale.ROOT, "%.1f", gcStats.averageGCTimeMs)}ms). " +
+                    "Review object allocation patterns.")
         }
 
         metrics.forEach { (name, stats) ->
@@ -312,7 +227,8 @@ class UnifiedPerformanceMonitor @Inject constructor(
                 }
             }
             definition?.warningThreshold?.let { threshold ->
-                if (stats.lastValue > threshold && (definition.criticalThreshold == null || stats.lastValue <= definition.criticalThreshold)) {
+                if (stats.lastValue > threshold && (definition.criticalThreshold == null || stats
+                    .lastValue <= definition.criticalThreshold)) {
                     recommendations.add("WARNING: $name exceeded warning threshold: ${stats.lastValue} > $threshold")
                 }
             }
@@ -321,44 +237,13 @@ class UnifiedPerformanceMonitor @Inject constructor(
         return recommendations
     }
 
-    private fun checkThresholds(name: String, value: Long) {
-        val definition = metricDefinitions[name] ?: return
-
-        definition.criticalThreshold?.let { threshold ->
-            if (value > threshold) {
-                notifyThresholdExceeded(name, value, threshold, isCritical = true)
-            }
-        }
-
-        definition.warningThreshold?.let { threshold ->
-            if (value > threshold) {
-                notifyThresholdExceeded(name, value, threshold, isCritical = false)
-            }
-        }
-    }
-
-    private fun notifyMetricRecorded(name: String, value: Long, stats: MetricStats) {
-        listeners.forEach { listener ->
-            try {
-                listener.onMetricRecorded(name, value, stats)
-            } catch (e: Exception) {
-                DomainLog.e(TAG, "Error notifying listener", e)
-            }
-        }
-    }
-
-    private fun notifyThresholdExceeded(name: String, value: Long, threshold: Long, isCritical: Boolean) {
-        listeners.forEach { listener ->
-            try {
-                listener.onThresholdExceeded(name, value, threshold, isCritical)
-            } catch (e: Exception) {
-                DomainLog.e(TAG, "Error notifying listener", e)
-            }
-        }
-    }
-
     fun logPerformanceSummary() {
         val report = generateReport()
+        val issuesText = if (report.recommendations.isNotEmpty()) {
+            "Issues:\n  - " + report.recommendations.joinToString("\n  - ")
+        } else {
+            "No issues detected"
+        }
 
         DomainLog.i(TAG, """
             |=== Performance Summary ===
@@ -367,7 +252,7 @@ class UnifiedPerformanceMonitor @Inject constructor(
             |Memory: ${report.memoryInfo?.let { "${(it.usedPercent * 100).toInt()}% used" } ?: "N/A"}
             |GC Count: ${report.gcStats.totalGCCount}
             |Recommendations: ${report.recommendations.size}
-            |${if (report.recommendations.isNotEmpty()) "Issues:\n  - " + report.recommendations.joinToString("\n  - ") else "No issues detected"}
+            |$issuesText
             |===========================
         """.trimMargin())
     }
@@ -423,6 +308,7 @@ data class GCStatsReport(
 )
 
 data class FrameMetricsStatsReport(
+    /** 总帧数（Vulkan + Canvas） */
     val totalFrames: Long,
     val jankFrames: Long,
     val severeJankFrames: Long,
@@ -437,6 +323,7 @@ data class PerformanceMetrics(
     val memoryMaxMB: Long = 0,
     val memoryFreeMB: Long = 0,
     val memoryUsagePercent: Float = 0f,
+    /** 循环 tick 计数（假运行时也递增，不能单独作为推进判据） */
     val tickCount: Long = 0,
     val averageTickTimeMs: Float = 0f,
     val maxTickTimeMs: Float = 0f,
@@ -446,6 +333,7 @@ data class PerformanceMetrics(
 ) {
     val isHealthy: Boolean get() = fps >= 30f && memoryUsagePercent < 80f
 
+    /** 设备摘要（用于日志） */
     val summary: String get() = """
         FPS: ${"%.1f".format(fps)} | Memory: ${memoryUsedMB}MB/${memoryMaxMB}MB (${memoryUsagePercent.toInt()}%)
         Tick: ${"%.2f".format(averageTickTimeMs)}ms avg, ${"%.2f".format(maxTickTimeMs)}ms max

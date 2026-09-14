@@ -221,7 +221,8 @@ class BuildingConfigServiceTest {
     fun configValidator_boundarySlotCount_valid() {
         val config = BuildingsConfig(
             buildings = mapOf(
-                "test1" to BuildingConfigModel(id = "test1", displayName = "T1", buildingType = "ALCHEMY", slotCount = 1),
+                "test1" to BuildingConfigModel(id = "test1", displayName = "T1", buildingType = "ALCHEMY",
+                    slotCount = 1),
                 "test2" to BuildingConfigModel(id = "test2", displayName = "T2", buildingType = "FORGE", slotCount = 8)
             )
         )
@@ -233,8 +234,10 @@ class BuildingConfigServiceTest {
     fun configValidator_boundarySuccessRate_valid() {
         val config = BuildingsConfig(
             buildings = mapOf(
-                "test1" to BuildingConfigModel(id = "test1", displayName = "T1", buildingType = "ALCHEMY", baseSuccessRate = 0.0),
-                "test2" to BuildingConfigModel(id = "test2", displayName = "T2", buildingType = "FORGE", baseSuccessRate = 1.0)
+                "test1" to BuildingConfigModel(id = "test1", displayName = "T1", buildingType = "ALCHEMY",
+                    baseSuccessRate = 0.0),
+                "test2" to BuildingConfigModel(id = "test2", displayName = "T2", buildingType = "FORGE",
+                    baseSuccessRate = 1.0)
             )
         )
         val errors = ConfigValidator.validate(config)
@@ -300,9 +303,12 @@ class BuildingConfigServiceTest {
         val defaultConfig = BuildingsConfig(
             version = "1.0.0",
             buildings = mapOf(
-                "alchemy" to BuildingConfigModel(id = "alchemy", displayName = "炼丹炉", buildingType = "ALCHEMY", slotCount = 1, baseSuccessRate = 0.7),
-                "forge" to BuildingConfigModel(id = "forge", displayName = "锻造坊", buildingType = "FORGE", slotCount = 1, baseSuccessRate = 0.7),
-                "mining" to BuildingConfigModel(id = "mining", displayName = "灵矿场", buildingType = "MINING", slotCount = 3, baseSuccessRate = 1.0)
+                "alchemy" to BuildingConfigModel(id = "alchemy", displayName = "炼丹炉", buildingType = "ALCHEMY",
+                    slotCount = 1, baseSuccessRate = 0.7),
+                "forge" to BuildingConfigModel(id = "forge", displayName = "锻造坊", buildingType = "FORGE", slotCount = 1,
+                    baseSuccessRate = 0.7),
+                "mining" to BuildingConfigModel(id = "mining", displayName = "灵矿场", buildingType = "MINING",
+                    slotCount = 3, baseSuccessRate = 1.0)
             )
         )
         val errors = ConfigValidator.validate(defaultConfig)

@@ -8,7 +8,7 @@ import org.junit.Test
 
 /**
  * SystemBarFreezeScope 冻结作用域状态机测试：
- * 计数语义、嵌套冻结、解冻回调、异常防御（荣耀 X70 键盘频闪根治组件）。
+ * 计数语义、嵌套冻结、解冻回调、异常防御。
  */
 class SystemBarFreezeScopeTest {
 
@@ -96,7 +96,7 @@ class SystemBarFreezeScopeTest {
         assertEquals("正常监听器仍应触发", 1, normalCount)
     }
 
-    // ── 泄漏自愈（2026-09 IME 状态机根治）──
+    // ── 泄漏自愈 ──
     // onDispose 未执行（异常/快速销毁/key 强制重组）导致 freezeCount 泄漏时，
     // 冻结超时自动强制归零并触发解冻监听器，杜绝"系统栏永久不隐藏"。
 

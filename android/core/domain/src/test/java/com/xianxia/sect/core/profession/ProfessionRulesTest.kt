@@ -249,8 +249,8 @@ class ProfessionRulesTest {
 
     @Test
     fun `promotion - count at Int MAX_VALUE does not overflow`() {
-        // 对抗性审查：存档篡改/异常累计使计数达 Int.MAX_VALUE 时，
-        // +1 不得溢出为负数（旧实现直接 +1 溢出成负，晋升判定被永久绕过）
+        // 存档篡改/异常累计可能使计数达 Int.MAX_VALUE，
+        // +1 不得溢出为负数（溢出成负会让晋升判定被永久绕过）
         val d = disciple(
             realm = 9, // 境界不满足晋升 → 只累加不晋升，走溢出路径
             skills = SkillStats(pillRefining = 55, alchemyLevel = 1, alchemyPromotionCount = Int.MAX_VALUE)

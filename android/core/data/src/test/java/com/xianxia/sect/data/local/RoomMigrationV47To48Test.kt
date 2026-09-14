@@ -16,9 +16,9 @@ import java.io.File
 /**
  * 迁移 47→48 测试（overflow_mail_drafts 新增 item_id 列）。
  *
- * 背景（溢出邮件领取发放错误物品）：溢出邮件附件此前只携带 name/rarity，
- * 领取时按稀有度随机生成物品。新增 item_id 列持久化物品模板 id，
- * drain 构建附件时透传，领取方据此精确还原原物品。
+ * 背景（溢出邮件领取精确还原）：溢出邮件附件持久化物品模板 id（item_id），
+ * drain 构建附件时透传，领取方据此精确还原原物品；不带 item_id 的草稿
+ * 走按稀有度随机生成的回退逻辑。
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -33,6 +33,7 @@ class RoomMigrationV47To48Test {
 
         private val M47_48 = MIGRATION_47_48
         private val M48_49 = MIGRATION_48_49
+        private val M49_50 = MIGRATION_49_50
     }
 
     /**
@@ -47,7 +48,7 @@ class RoomMigrationV47To48Test {
         try {
             createDatabaseFromSchema(context, dbName, 47).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M47_48, M48_49)
+                .addMigrations(M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()

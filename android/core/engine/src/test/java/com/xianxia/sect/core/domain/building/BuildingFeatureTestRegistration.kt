@@ -17,7 +17,7 @@ fun BuildingFeatureRegistry.registerTestFeatures() {
     features.forEach { register(it) }
 }
 
-/** 生产类建筑（registerTestFeatures 拆分） */
+/** 生产类建筑 */
 private fun productionFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("spirit_mine", "灵矿场", BuildingType.MINING,
         listOf(SlotGroup.SpiritMine(), SlotGroup.ElderPositions.SPIRIT_MINE),
@@ -48,7 +48,7 @@ private fun productionFeatures(): List<BuildingFeature> = listOf(
         cost = 8000, gridWidth = 6, gridHeight = 3),
 )
 
-/** 住所类建筑（registerTestFeatures 拆分） */
+/** 住所类建筑 */
 private fun residenceFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("single_residence", "初级单人住所", BuildingType.SINGLE_RESIDENCE,
         listOf(SlotGroup.Residence(1)), isResidence = true, unlimitedBuild = true,
@@ -72,7 +72,7 @@ private fun residenceFeatures(): List<BuildingFeature> = listOf(
         residenceSpeedBonus = "修炼速度+15%"),
 )
 
-/** 其他功能建筑（registerTestFeatures 拆分） */
+/** 其他功能建筑 */
 private fun miscFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
         listOf(SlotGroup.ElderPositions.WEN_DAO_PEAK),
@@ -82,7 +82,7 @@ private fun miscFeatures(): List<BuildingFeature> = listOf(
         cost = 8000, gridWidth = 4, gridHeight = 3),
     BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
         listOf(SlotGroup.ElderPositions.TIANSHU_HALL),
-        cost = 15000, gridWidth = 18, gridHeight = 13, spriteWidth = 18, spriteHeight = 15,
+        cost = 15000, gridWidth = 18, gridHeight = 13,
         isGloballyUnique = true),
     BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
         listOf(SlotGroup.ElderPositions.LAW_ENFORCEMENT),

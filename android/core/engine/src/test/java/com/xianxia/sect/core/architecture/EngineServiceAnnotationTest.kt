@@ -29,28 +29,35 @@ class EngineServiceAnnotationTest {
         "AdPurpose"
     )
 
+    /** 非服务类后缀排除表（new service classes must have GameService annotation 拆分） */
+    private val excludedNameSuffixes = listOf(
+        "Data", "State", "Result", "Event", "Response", "Reward",
+        "Pool", "Pools", "Entry", "Accumulator", "Summary", "Snapshot",
+        "Context", "Params", "Zones",
+        // Record/Queue 后缀：data class 数据载体（BereavementRecord）、
+        // 内部队列基建（YearlyOpsQueue）——非服务类，同上方后缀排除
+        "Record", "Queue",
+        // Maps/Levels 后缀：service 内部私有数据载体（RecoveryMaps 恢复映射打包、
+        // HpMpLevels HP/MP 四元组）——非服务类，同上方后缀排除
+        "Maps", "Levels"
+    )
+
+    /** 非服务类特例名排除表（new service classes must have GameService annotation 拆分） */
+    private val excludedExactNames = setOf(
+        "Success", "CapacityInsufficient", "DistributeFailed",
+        "SuccessWithMilestones", "HighFrequencyData"
+    )
+
+    /** 服务类候选排除判定（new service classes must have GameService annotation 拆分）：后缀/特例名命中即非服务类 */
+    private fun isNonServiceClass(name: String): Boolean =
+        excludedNameSuffixes.none { name.endsWith(it) } &&
+            name !in excludedExactNames
+
     @Test
     fun `new service classes must have GameService annotation`() {
         val serviceClasses = scope.classes()
             .filter { it.packagee?.name?.contains(".service") == true }
-            .filter { clazz ->
-                val name = clazz.name
-                !name.endsWith("Data") && !name.endsWith("State") &&
-                !name.endsWith("Result") && !name.endsWith("Event") &&
-                !name.endsWith("Response") && !name.endsWith("Reward") &&
-                !name.endsWith("Pool") && !name.endsWith("Pools") &&
-                !name.endsWith("Entry") && !name.endsWith("Accumulator") &&
-                !name.endsWith("Summary") && !name.endsWith("Snapshot") &&
-                !name.endsWith("Context") && !name.endsWith("Params") &&
-                !name.endsWith("Zones") &&
-                // Record/Queue 后缀：data class 数据载体（BereavementRecord）、
-                // 内部队列基建（YearlyOpsQueue）——非服务类，同上方后缀排除
-                !name.endsWith("Record") && !name.endsWith("Queue") &&
-                name != "Success" && name != "CapacityInsufficient" &&
-                name != "DistributeFailed" &&
-                name != "SuccessWithMilestones" &&
-                name != "HighFrequencyData"
-            }
+            .filter { clazz -> isNonServiceClass(clazz.name) }
 
         val newUnannotated = serviceClasses.filter { clazz ->
             val simpleName = clazz.name.substringAfterLast(".")

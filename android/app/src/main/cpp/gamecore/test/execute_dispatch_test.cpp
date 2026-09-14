@@ -181,7 +181,7 @@ TEST_F(GameCoreFixture, WorldLevelCheckExpired) {
     EXPECT_TRUE(r.at("data").at("value").get<bool>());  // 含等号 → 过期
 }
 
-// ── 库存溢出邮件草稿回传（批 8-2：add 家族生产接线前置）────────
+// ── 库存溢出邮件草稿回传（add 家族生产接线前置）────────
 
 TEST_F(GameCoreFixture, InvOverflowPartialEmitsDrafts) {
     // Partial 语义 = 发生合并 + 槽位全满（StackableItemStore 契约：同键堆叠
@@ -245,7 +245,7 @@ TEST_F(GameCoreFixture, InvRemoveSuccessHasNoDrafts) {
     EXPECT_FALSE(r.at("data").contains("overflowDrafts"));
 }
 
-// ── 仓库整理动作（批 8-3：consolidate/sort/toggleLock）────────
+// ── 仓库整理动作（consolidate/sort/toggleLock）────────
 
 TEST_F(GameCoreFixture, InvConsolidateRespectsFullAndLock) {
     // merge=false 构造三同键堆叠 [999(full), 100(locked), 50]：

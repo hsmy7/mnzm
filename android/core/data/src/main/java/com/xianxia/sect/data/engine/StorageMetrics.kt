@@ -6,10 +6,6 @@ import javax.inject.Singleton
 
 @Singleton
 class StorageMetrics @Inject constructor() {
-    companion object {
-        private const val TAG = "StorageMetrics"
-    }
-
     private val saveCount = AtomicLong(0)
     private val loadCount = AtomicLong(0)
     private val cacheHitCount = AtomicLong(0)
@@ -18,7 +14,7 @@ class StorageMetrics @Inject constructor() {
     private val backupFailureCount = AtomicLong(0)
     private val backupRestoreCount = AtomicLong(0)
 
-    /** 备份因超限被跳过次数（T9 2026-08-05） */
+    /** 备份因超限被跳过次数 */
     private val backupSkippedOversizeCount = AtomicLong(0)
 
     fun recordSave() {

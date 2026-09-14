@@ -12,7 +12,7 @@ namespace {
 // 黄金序列测试 — 跨语言确定性守护
 //
 // 黄金值来源：Java 复刻 Kotlin DeterministicRng（PCG-XSH-RR 64→32，
-// 先截断 32 位再旋转的修复后语义），seed=42。
+// 64 位域 xorshift 后先截断 32 位再做 32 位循环旋转），seed=42。
 // 若 Kotlin 侧算法被修改，C++ 单测仍守住 PCG 语义；
 // 与真实 Kotlin 引擎的权威对拍由差分对拍框架（JUnit + JNI）负责。
 // ============================================================
@@ -176,7 +176,7 @@ TEST(RngManagerTest, ExportRestoreRoundTrip) {
     for (int i = 0; i < 5; ++i) mgr.getRng(RngPartition::kSystem).nextInt(100);
 
     const auto states = mgr.exportStates();
-    EXPECT_EQ(states.size(), 9u);  // 9 个分区（批 11-4 新增 MISSION=8）
+    EXPECT_EQ(states.size(), 9u);  // 9 个分区（含 MISSION=8）
 
     const auto valBefore = mgr.getRng(RngPartition::kSystem).nextInt(100);
     mgr.restoreStates(states);

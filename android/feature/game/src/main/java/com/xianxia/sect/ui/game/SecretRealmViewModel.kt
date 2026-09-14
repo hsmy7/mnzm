@@ -105,6 +105,7 @@ class SecretRealmViewModel @Inject constructor(
     }
 
     /** 选择事件选项（返回战斗播放数据等） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun chooseOption(
         optionIndex: Int,
         onDone: (SecretRealmChoiceResult) -> Unit
@@ -114,7 +115,7 @@ class SecretRealmViewModel @Inject constructor(
                 gameEngine.chooseSecretRealmOption(optionIndex)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 // 异常转 Error 结果回调：UI 的 choosing 请求锁得以释放，避免选项被永久静默禁用
                 SecretRealmChoiceResult.Error(message = "选择失败，请重试")
             }

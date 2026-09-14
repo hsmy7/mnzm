@@ -14,7 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * BattleExecutionRouterTest — 战斗执行路由守卫（战斗批次 D）。
+ * BattleExecutionRouterTest — 战斗执行路由守卫。
  *
  * 守护契约：
  * - 降级契约：flag 非 AUTHORITATIVE → null（调用方回退 Kotlin）；生产桥未

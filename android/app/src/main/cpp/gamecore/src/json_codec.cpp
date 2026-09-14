@@ -240,7 +240,7 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     j["cultivationCheckpoint"] = static_cast<int64_t>(v.cultivationCheckpoint);
     GC_TO(v, j, cultivationCheckpointGameMonth);
     GC_TO(v, j, spiritRootType); GC_TO(v, j, age); GC_TO(v, j, lifespan);
-    GC_TO(v, j, isAlive); GC_TO(v, j, gender); GC_TO(v, j, portraitRes);
+    GC_TO(v, j, isAlive); GC_TO(v, j, deathYear); GC_TO(v, j, gender); GC_TO(v, j, portraitRes);
     GC_TO(v, j, manualIds); GC_TO(v, j, talentIds); GC_TO(v, j, physiqueIds);
     GC_TO(v, j, affixIds); GC_TO(v, j, manualMasteries);
     GC_TO(v, j, status); GC_TO(v, j, statusData);
@@ -303,7 +303,7 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, realm); GC_FROM(j, v, realmLayer); GC_FROM(j, v, cultivation);
     GC_FROM(j, v, cultivationCheckpoint); GC_FROM(j, v, cultivationCheckpointGameMonth);
     GC_FROM(j, v, spiritRootType); GC_FROM(j, v, age); GC_FROM(j, v, lifespan);
-    GC_FROM(j, v, isAlive); GC_FROM(j, v, gender); GC_FROM(j, v, portraitRes);
+    GC_FROM(j, v, isAlive); GC_FROM(j, v, deathYear); GC_FROM(j, v, gender); GC_FROM(j, v, portraitRes);
     GC_FROM(j, v, manualIds); GC_FROM(j, v, talentIds); GC_FROM(j, v, physiqueIds);
     GC_FROM(j, v, affixIds); GC_FROM(j, v, manualMasteries);
     GC_FROM(j, v, status); GC_FROM(j, v, statusData);
@@ -362,7 +362,7 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, hasReviveEffect); GC_FROM(j, v, hasClearAllEffect);
 }
 
-// ── 嵌套类型（批次 1 第二子步） ─────────────────────────────────────
+// ── 嵌套类型 ───────────────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const DirectDiscipleSlot& v) {
     j = nlohmann::json::object();
@@ -464,15 +464,15 @@ void to_json(nlohmann::json& j, const GridBuildingData& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, buildingId); GC_TO(v, j, displayName);
     GC_TO(v, j, gridX); GC_TO(v, j, gridY); GC_TO(v, j, width); GC_TO(v, j, height);
-    GC_TO(v, j, instanceId);
+    GC_TO(v, j, instanceId); GC_TO(v, j, sectId);
 }
 void from_json(const nlohmann::json& j, GridBuildingData& v) {
     GC_FROM(j, v, buildingId); GC_FROM(j, v, displayName);
     GC_FROM(j, v, gridX); GC_FROM(j, v, gridY); GC_FROM(j, v, width); GC_FROM(j, v, height);
-    GC_FROM(j, v, instanceId);
+    GC_FROM(j, v, instanceId); GC_FROM(j, v, sectId);
 }
 
-// ── 2026-08-31：石板道路状态迁移批次（Kotlin RoadData ↔ C++ RoadData） ──
+// ── 石板道路状态（Kotlin RoadData ↔ C++ RoadData） ─────────────────
 
 void to_json(nlohmann::json& j, const RoadData& v) {
     j = nlohmann::json::object();
@@ -494,7 +494,7 @@ void from_json(const nlohmann::json& j, MerchantItem& v) {
     GC_FROM(j, v, obtainedYear); GC_FROM(j, v, obtainedMonth); GC_FROM_OPT(j, v, grade);
 }
 
-// ── 批 11-3：自动购买条目 ──
+// ── 自动购买条目 ──
 
 void to_json(nlohmann::json& j, const AutoBuyEntry& v) {
     j = nlohmann::json::object();
@@ -504,7 +504,7 @@ void from_json(const nlohmann::json& j, AutoBuyEntry& v) {
     GC_FROM(j, v, itemName); GC_FROM(j, v, itemType); GC_FROM(j, v, rarity);
 }
 
-// ── 批 12-2：任务域（S8 子事件 14 任务刷新下沉） ──
+// ── 任务域（S8 子事件 14 任务刷新下沉） ──
 
 void to_json(nlohmann::json& j, const MissionRewardConfig& v) {
     j = nlohmann::json::object();
@@ -560,7 +560,7 @@ void from_json(const nlohmann::json& j, Alliance& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectIds); GC_FROM(j, v, startYear); GC_FROM(j, v, initiatorId);
 }
 
-// ── 批 10-1：宗门详情域（S8 侦察过期清理子事件协议扩容） ──
+// ── 宗门详情域（S8 侦察过期清理子事件协议扩容） ──
 
 void to_json(nlohmann::json& j, const MineSlot& v) {
     j = nlohmann::json::object();
@@ -644,7 +644,7 @@ void from_json(const nlohmann::json& j, SectRelation& v) {
     GC_FROM(j, v, acquainted);
 }
 
-// ── 批 10-4：SectBattleRecord（宗门战报；SectBattleType 存 name） ──
+// ── SectBattleRecord（宗门战报；SectBattleType 存 name） ──
 void to_json(nlohmann::json& j, const SectBattleRecord& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, year); GC_TO(v, j, type);
@@ -653,7 +653,7 @@ void from_json(const nlohmann::json& j, SectBattleRecord& v) {
     GC_FROM(j, v, year); GC_FROM(j, v, type);
 }
 
-// ── G7-2：AttackWarning（AI 宗门进攻预警；stage 存 WarningStage.name） ──
+// ── AttackWarning（AI 宗门进攻预警；stage 存 WarningStage.name） ──
 void to_json(nlohmann::json& j, const AttackWarning& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, warningId); GC_TO(v, j, attackerSectId); GC_TO(v, j, attackerSectName);
@@ -664,7 +664,7 @@ void from_json(const nlohmann::json& j, AttackWarning& v) {
     GC_FROM(j, v, stage); GC_FROM(j, v, attackMonth); GC_FROM(j, v, createdAtMonth);
 }
 
-// ── 批 4-5：槽位清理补充模型（定义于 WorldSect 前，WorldSect 引用） ──
+// ── 槽位清理补充模型（定义于 WorldSect 前，WorldSect 引用） ──
 
 void to_json(nlohmann::json& j, const GarrisonSlot& v) {
     j = nlohmann::json::object();
@@ -736,6 +736,26 @@ void to_json(nlohmann::json& j, const ActiveMissionLite& v) {
 }
 void from_json(const nlohmann::json& j, ActiveMissionLite& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, discipleIds); GC_FROM(j, v, discipleNames);
+}
+
+// ── S5：ActiveMission 完整模型（任务完成结算下沉；字段名与 Kotlin
+//    kotlinx GameData JSON 逐键一致——template 为 kotlinx 键名） ──
+void to_json(nlohmann::json& j, const ActiveMission& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, id); GC_TO(v, j, missionId); j["template"] = v.template_;
+    GC_TO(v, j, missionName); GC_TO(v, j, difficulty);
+    GC_TO(v, j, discipleIds); GC_TO(v, j, discipleNames); GC_TO(v, j, discipleRealms);
+    GC_TO(v, j, startYear); GC_TO(v, j, startMonth); GC_TO(v, j, duration);
+    GC_TO(v, j, rewards); GC_TO(v, j, missionType); GC_TO(v, j, enemyType);
+    GC_TO(v, j, triggerChance);
+}
+void from_json(const nlohmann::json& j, ActiveMission& v) {
+    GC_FROM(j, v, id); GC_FROM(j, v, missionId); v.template_ = j.value("template", std::string());
+    GC_FROM(j, v, missionName); GC_FROM(j, v, difficulty);
+    GC_FROM(j, v, discipleIds); GC_FROM(j, v, discipleNames); GC_FROM(j, v, discipleRealms);
+    GC_FROM(j, v, startYear); GC_FROM(j, v, startMonth); GC_FROM(j, v, duration);
+    GC_FROM(j, v, rewards); GC_FROM(j, v, missionType); GC_FROM(j, v, enemyType);
+    GC_FROM(j, v, triggerChance);
 }
 
 void to_json(nlohmann::json& j, const MailAttachment& v) {
@@ -880,7 +900,7 @@ void from_json(const nlohmann::json& j, PendingTraitAdd& v) {
     GC_FROM(j, v, discipleId); GC_FROM(j, v, type); GC_FROM(j, v, traitId);
 }
 
-// ── 批次 1 剩余：低频嵌套类型 ─────────────────────────────────────
+// ── 低频嵌套类型 ──────────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const BloodRefinementProgress& v) {
     j = nlohmann::json::object();
@@ -960,7 +980,7 @@ void from_json(const nlohmann::json& j, PatrolSlot& v) {
     GC_FROM(j, v, discipleRealm); GC_FROM(j, v, portraitRes); GC_FROM(j, v, buildingInstanceId);
 }
 
-// ── SecretRealm 状态机（批次 1 剩余）─────────────────────────────────
+// ── SecretRealm 状态机 ────────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const SecretRealmState& v) {
     j = nlohmann::json::object();
@@ -1070,7 +1090,7 @@ void from_json(const nlohmann::json& j, SecretRealmAITeam& v) {
     GC_FROM(j, v, members); GC_FROM(j, v, sectLevel);
 }
 
-// ── T2.1：储物袋条目体系 ──────────────────────────────────────────────
+// ── 储物袋条目体系 ──────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const EquipmentNurtureData& v) {
     j = nlohmann::json::object();
@@ -1216,7 +1236,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, gameYear); GC_TO(v, j, gameMonth); GC_TO(v, j, gamePhase);
     GC_TO(v, j, spiritStones); GC_TO(v, j, midGradeSpiritStones);
     GC_TO(v, j, highGradeSpiritStones); GC_TO(v, j, spiritHerbs);
-    GC_TO(v, j, sectCultivation); GC_TO(v, j, autoSaveIntervalMonths);
+    GC_TO(v, j, sectCultivation);
     writeIntKeyMap(j, "yearlySalary", v.yearlySalary);
     writeIntKeyMap(j, "yearlySalaryEnabled", v.yearlySalaryEnabled);
     GC_TO(v, j, activeSectId);
@@ -1250,7 +1270,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, isGameOver); GC_TO(v, j, soundEnabled); GC_TO(v, j, musicEnabled);
     GC_TO(v, j, usedRedeemCodes); GC_TO(v, j, watchedItemIds);
     GC_TO(v, j, shownWarningStageIds); GC_TO(v, j, secretRealmCooldownYear);
-    // 批次 1 剩余：远古秘境状态机
+    // 远古秘境状态机
     GC_TO(v, j, secretRealmState); GC_TO(v, j, secretRealmSession);
     GC_TO(v, j, secretRealmAITeams);
     GC_TO(v, j, suzerainSectId); GC_TO(v, j, lastYearSpiritStoneIncome);
@@ -1265,7 +1285,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, annualTheftCount); GC_TO(v, j, theftJudgementsThisMonth);
     GC_TO(v, j, annualEquipmentBySource); GC_TO(v, j, annualPillBySource);
     GC_TO(v, j, annualHerbBySource);
-    // 嵌套对象字段（批次 1 第二子步）
+    // 嵌套对象字段
     GC_TO(v, j, worldMapSects);
     GC_TO(v, j, travelingMerchantItems); GC_TO(v, j, playerListedItems);
     GC_TO(v, j, merchantAcquisitionItems); GC_TO(v, j, merchantAcquisitionLastRefreshYear); GC_TO(v, j, autoBuyList);
@@ -1274,29 +1294,32 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, placedBuildings); GC_TO(v, j, roads); GC_TO(v, j, spiritFieldPlants);
     GC_TO(v, j, residenceSlots); GC_TO(v, j, patrolConfig); GC_TO(v, j, patrolConfigs);
     GC_TO(v, j, alliances); GC_TO(v, j, vassalContracts); GC_TO(v, j, sectRelations);
-    // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）
+    // 宗门战报（附庸脱离近 3 年计数消费）
     GC_TO(v, j, sectBattleRecords);
     GC_TO(v, j, sectPolicies);
-    // 批 10-1：宗门详情域（S8 侦察过期清理子事件）
+    // 宗门详情域（S8 侦察过期清理子事件）
     GC_TO(v, j, sectDetails); GC_TO(v, j, scoutInfo);
     GC_TO(v, j, mailRecords); GC_TO(v, j, sectLevelClaimRecords);
     GC_TO(v, j, bloodRefinements);
     GC_TO(v, j, yearlyReports); GC_TO(v, j, pendingTraitAdds);
-    // 批次 1 剩余：低频嵌套类型字段
+    // 低频嵌套类型字段
     GC_TO(v, j, manualProficiencies); GC_TO(v, j, spiritMineSlots);
     GC_TO(v, j, bloodRefinementBonusTotals); GC_TO(v, j, bloodRefinementPctTotals);
     GC_TO(v, j, activeBloodRefinements); GC_TO(v, j, patrolSlots);
-    // T2.1：每旬结算依赖字段
+    // 每旬结算依赖字段
     GC_TO(v, j, librarySlots); GC_TO(v, j, gameEventRecords);
-    // 批 12-2：任务域（S8 子事件 14 任务刷新下沉）
+    // 任务域（S8 子事件 14 任务刷新下沉）
     GC_TO(v, j, availableMissions);
+    // 进行中任务完整模型导出（C++ 为 activeMissions 真相源，导出值
+    // 参与镜像覆盖；op 参数仍用 ActiveMissionLite 精简协议）
+    GC_TO(v, j, activeMissions);
 }
 void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
     GC_FROM(j, v, gameYear); GC_FROM(j, v, gameMonth); GC_FROM(j, v, gamePhase);
     GC_FROM(j, v, spiritStones); GC_FROM(j, v, midGradeSpiritStones);
     GC_FROM(j, v, highGradeSpiritStones); GC_FROM(j, v, spiritHerbs);
-    GC_FROM(j, v, sectCultivation); GC_FROM(j, v, autoSaveIntervalMonths);
+    GC_FROM(j, v, sectCultivation);
     readIntKeyMap(j, "yearlySalary", v.yearlySalary);
     readIntKeyMap(j, "yearlySalaryEnabled", v.yearlySalaryEnabled);
     GC_FROM(j, v, activeSectId);
@@ -1330,7 +1353,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, isGameOver); GC_FROM(j, v, soundEnabled); GC_FROM(j, v, musicEnabled);
     GC_FROM(j, v, usedRedeemCodes); GC_FROM(j, v, watchedItemIds);
     GC_FROM(j, v, shownWarningStageIds); GC_FROM(j, v, secretRealmCooldownYear);
-    // 批次 1 剩余：远古秘境状态机
+    // 远古秘境状态机
     GC_FROM(j, v, secretRealmState); GC_FROM(j, v, secretRealmSession);
     GC_FROM(j, v, secretRealmAITeams);
     GC_FROM(j, v, suzerainSectId); GC_FROM(j, v, lastYearSpiritStoneIncome);
@@ -1345,7 +1368,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, annualTheftCount); GC_FROM(j, v, theftJudgementsThisMonth);
     GC_FROM(j, v, annualEquipmentBySource); GC_FROM(j, v, annualPillBySource);
     GC_FROM(j, v, annualHerbBySource);
-    // 嵌套对象字段（批次 1 第二子步）
+    // 嵌套对象字段
     GC_FROM(j, v, worldMapSects);
     GC_FROM(j, v, travelingMerchantItems); GC_FROM(j, v, playerListedItems);
     GC_FROM(j, v, merchantAcquisitionItems); GC_FROM(j, v, merchantAcquisitionLastRefreshYear); GC_FROM(j, v, autoBuyList);
@@ -1354,24 +1377,24 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, placedBuildings); GC_FROM(j, v, roads); GC_FROM(j, v, spiritFieldPlants);
     GC_FROM(j, v, residenceSlots); GC_FROM(j, v, patrolConfig); GC_FROM(j, v, patrolConfigs);
     GC_FROM(j, v, alliances); GC_FROM(j, v, vassalContracts); GC_FROM(j, v, sectRelations);
-    // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）
+    // 宗门战报（附庸脱离近 3 年计数消费）
     GC_FROM(j, v, sectBattleRecords);
     GC_FROM(j, v, sectPolicies);
-    // 批 10-1：宗门详情域（S8 侦察过期清理子事件）
+    // 宗门详情域（S8 侦察过期清理子事件）
     GC_FROM(j, v, sectDetails); GC_FROM(j, v, scoutInfo);
     GC_FROM(j, v, mailRecords); GC_FROM(j, v, sectLevelClaimRecords);
     GC_FROM(j, v, bloodRefinements);
     GC_FROM(j, v, yearlyReports); GC_FROM(j, v, pendingTraitAdds);
-    // 批次 1 剩余：低频嵌套类型字段
+    // 低频嵌套类型字段
     GC_FROM(j, v, manualProficiencies); GC_FROM(j, v, spiritMineSlots);
     GC_FROM(j, v, bloodRefinementBonusTotals); GC_FROM(j, v, bloodRefinementPctTotals);
     GC_FROM(j, v, activeBloodRefinements); GC_FROM(j, v, patrolSlots);
-    // T2.1：每旬结算依赖字段
+    // 每旬结算依赖字段
     GC_FROM(j, v, librarySlots); GC_FROM(j, v, gameEventRecords);
-    // 批 4-5：槽位清理补充字段
+    // 槽位清理补充字段
     GC_FROM(j, v, battleTeams); GC_FROM(j, v, warehouseGarrisons);
     GC_FROM(j, v, caveExplorationTeams); GC_FROM(j, v, activeMissions);
-    // 批 12-2：任务域（S8 子事件 14 任务刷新下沉）
+    // 任务域（S8 子事件 14 任务刷新下沉）
     GC_FROM(j, v, availableMissions);
 }
 
@@ -1380,14 +1403,14 @@ void from_json(const nlohmann::json& j, GameData& v) {
 void to_json(nlohmann::json& j, const GameState& v) {
     j = nlohmann::json::object();
     j["gameData"] = v.gameData;
-    // 批 10-4：AI 宗门弟子池（顶层字段——Kotlin GameData.aiSectDisciples
+    // AI 宗门弟子池（顶层字段——Kotlin GameData.aiSectDisciples
     // @Transient 不入 gameData 序列化，见 models.h GameState 注释）。
     // 空表不导出该键：与 Kotlin NativeGameState.aiSectDisciples 可空语义
     // 对称（null/未携带 ↔ 空表），null 往返保持 null，镜像空表不覆盖
     if (!v.aiSectDisciples.empty()) {
         j["aiSectDisciples"] = v.aiSectDisciples;
     }
-    // 批 13-1：AI 宗门妖兽攻击域（Kotlin GameData 同名字段 @Transient 不入
+    // AI 宗门妖兽攻击域（Kotlin GameData 同名字段 @Transient 不入
     // gameData 序列化，快照协议顶层承载——空表不导出键，与 Kotlin
     // NativeGameState 可空字段对称，镜像永不主动清空）
     if (!v.aiSectBeastDirectTargets.empty()) {
@@ -1417,12 +1440,12 @@ void to_json(nlohmann::json& j, const GameState& v) {
 }
 void from_json(const nlohmann::json& j, GameState& v) {
     if (j.contains("gameData")) j.at("gameData").get_to(v.gameData);
-    // 批 10-4：顶层可空字段——Kotlin encodeDefaults=true 下 null 会显式编码，
+    // 顶层可空字段——Kotlin encodeDefaults=true 下 null 会显式编码，
     // null/缺失一律宽松跳过（保持默认空表；旧 .so 导出/旧快照兼容）
     if (j.contains("aiSectDisciples") && !j.at("aiSectDisciples").is_null()) {
         j.at("aiSectDisciples").get_to(v.aiSectDisciples);
     }
-    // 批 13-1：AI 宗门妖兽攻击域顶层字段——缺失/null 一律宽松跳过（保持默认空，
+    // AI 宗门妖兽攻击域顶层字段——缺失/null 一律宽松跳过（保持默认空，
     // 旧 .so 导出/旧快照兼容；Kotlin 侧可空语义对称）
     if (j.contains("aiSectBeastDirectTargets") && !j.at("aiSectBeastDirectTargets").is_null()) {
         j.at("aiSectBeastDirectTargets").get_to(v.aiSectBeastDirectTargets);

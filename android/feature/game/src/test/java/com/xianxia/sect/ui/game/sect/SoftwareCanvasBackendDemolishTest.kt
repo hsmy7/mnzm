@@ -12,11 +12,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend 拆除模式占地高亮测试（2026-08-11）。
+ * SoftwareCanvasBackend 拆除模式占地高亮测试。
  *
- * 一键拆除模式高亮从 Compose 覆盖层迁移至 native 渲染层——与建筑精灵
+ * 一键拆除模式高亮由 native 渲染层绘制——与建筑精灵
  * 同帧同相机快照绘制，消除拖拽视角时的双时钟相位差。本测试验证：
- * - 绿色/红色填充与红色描边的像素特征（与旧 Compose 覆盖层同色值）
+ * - 绿色/红色填充与红色描边的像素特征（半透明色值）
  * - null/NONE 的零侵入语义（非拆除模式与未注册建筑不得绘制）
  * - 防御链：markers 短于 buildingCount / 越界 / 视口外建筑不崩溃
  *

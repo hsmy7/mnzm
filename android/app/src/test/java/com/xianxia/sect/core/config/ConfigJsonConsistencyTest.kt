@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * 真实 assets 配置 JSON 与代码常量一致性守卫（对抗性审查补强）。
+ * 真实 assets 配置 JSON 与代码常量一致性守卫。
  *
  * [GameConfigConsistencyTest] 只守卫"代码常量 vs data class 默认值"两源，
  * 从不读取 assets 实际 JSON——若运营修改 game_config.json 数值（或字段名拼错

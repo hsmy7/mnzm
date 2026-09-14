@@ -4,7 +4,7 @@ import com.xianxia.sect.core.util.NativeRngChannel
 
 /**
  * GameCoreRngChannel — [NativeRngChannel] 的生产实现
- * （绑定 [GameCoreBridge] RNG 分区标量通道，T2.4 AUTHORITATIVE 模式）。
+ * （绑定 [GameCoreBridge] RNG 分区标量通道，AUTHORITATIVE 模式）。
  *
  * 降级契约：引擎未初始化/库未加载时 native 侧返回 0/忽略写——与
  * 双实现并行期的静默降级语义一致（调用方由 NativeEngineFlag.authoritative

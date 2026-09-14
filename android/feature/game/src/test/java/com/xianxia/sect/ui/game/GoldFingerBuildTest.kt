@@ -18,8 +18,7 @@ class GoldFingerBuildTest {
     @Test
     fun `computeGoldFingerCellValidities - empty grid returns valid for all cells`() {
         val result = computeGoldFingerCellValidities(
-            startGridX = 0, startGridY = 0,
-            endGridX = 5, endGridY = 5,
+            selection = GoldFingerSelection(0, 0, 5, 5),
             buildingW = 2, buildingH = 2,
             existingBuildings = emptyList(),
             worldWidthCells = 28, worldHeightCells = 28
@@ -39,8 +38,7 @@ class GoldFingerBuildTest {
             )
         )
         val result = computeGoldFingerCellValidities(
-            startGridX = 0, startGridY = 0,
-            endGridX = 5, endGridY = 5,
+            selection = GoldFingerSelection(0, 0, 5, 5),
             buildingW = 2, buildingH = 2,
             existingBuildings = existing,
             worldWidthCells = 28, worldHeightCells = 28
@@ -55,8 +53,7 @@ class GoldFingerBuildTest {
     @Test
     fun `computeGoldFingerCellValidities - partial cells at edge are skipped`() {
         val result = computeGoldFingerCellValidities(
-            startGridX = 0, startGridY = 0,
-            endGridX = 5, endGridY = 5,
+            selection = GoldFingerSelection(0, 0, 5, 5),
             buildingW = 3, buildingH = 2,
             existingBuildings = emptyList(),
             worldWidthCells = 7, worldHeightCells = 7
@@ -72,8 +69,7 @@ class GoldFingerBuildTest {
     fun `computeGoldFingerCellValidities - revertible selection uses minOf and maxOf`() {
         // Dragging in reverse direction: end < start
         val result = computeGoldFingerCellValidities(
-            startGridX = 6, startGridY = 6,
-            endGridX = 2, endGridY = 2,
+            selection = GoldFingerSelection(6, 6, 2, 2),
             buildingW = 2, buildingH = 2,
             existingBuildings = emptyList(),
             worldWidthCells = 28, worldHeightCells = 28
@@ -88,8 +84,7 @@ class GoldFingerBuildTest {
     @Test
     fun `computeGoldFingerCellValidities - single cell cant fit 2x2 building`() {
         val result = computeGoldFingerCellValidities(
-            startGridX = 3, startGridY = 3,
-            endGridX = 3, endGridY = 3,
+            selection = GoldFingerSelection(3, 3, 3, 3),
             buildingW = 2, buildingH = 2,
             existingBuildings = emptyList(),
             worldWidthCells = 28, worldHeightCells = 28
@@ -100,8 +95,7 @@ class GoldFingerBuildTest {
     @Test
     fun `computeGoldFingerCellValidities - out of bounds is clamped`() {
         val result = computeGoldFingerCellValidities(
-            startGridX = 0, startGridY = 0,
-            endGridX = 30, endGridY = 30,
+            selection = GoldFingerSelection(0, 0, 30, 30),
             buildingW = 2, buildingH = 2,
             existingBuildings = emptyList(),
             worldWidthCells = 10, worldHeightCells = 10
@@ -114,8 +108,7 @@ class GoldFingerBuildTest {
     fun `computeGoldFingerCellValidities - buildableBorder clamps selection inward`() {
         // 10x10 网格，buildableBorder=3，有效区为 (3..6)
         val result = computeGoldFingerCellValidities(
-            startGridX = 0, startGridY = 0,
-            endGridX = 9, endGridY = 9,
+            selection = GoldFingerSelection(0, 0, 9, 9),
             buildingW = 2, buildingH = 2,
             existingBuildings = emptyList(),
             worldWidthCells = 10, worldHeightCells = 10,
@@ -135,8 +128,7 @@ class GoldFingerBuildTest {
     @Test
     fun `computeGoldFingerCellValidities - buildableBorder 0 same as original`() {
         val result = computeGoldFingerCellValidities(
-            startGridX = 0, startGridY = 0,
-            endGridX = 5, endGridY = 5,
+            selection = GoldFingerSelection(0, 0, 5, 5),
             buildingW = 2, buildingH = 2,
             existingBuildings = emptyList(),
             worldWidthCells = 28, worldHeightCells = 28,
@@ -153,8 +145,7 @@ class GoldFingerBuildTest {
             GridBuildingData(buildingId = "b", displayName = "B", gridX = 4, gridY = 4, width = 2, height = 2)
         )
         val result = computeGoldFingerCellValidities(
-            startGridX = 0, startGridY = 0,
-            endGridX = 7, endGridY = 7,
+            selection = GoldFingerSelection(0, 0, 7, 7),
             buildingW = 2, buildingH = 2,
             existingBuildings = existing,
             worldWidthCells = 10, worldHeightCells = 10

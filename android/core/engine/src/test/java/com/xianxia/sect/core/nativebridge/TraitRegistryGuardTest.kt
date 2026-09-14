@@ -15,7 +15,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * TraitRegistryGuardTest — 天赋/体质/词条静态数据守卫（批次 2 剩余子步）。
+ * TraitRegistryGuardTest — 天赋/体质/词条静态数据守卫。
  *
  * 守护目标：生成器提取的特质表快照（gamecore/.../trait_db_sample.json，
  * 由 scripts/gen-trait-db.mjs 生成）与 Kotlin TalentDatabase/PhysiqueDatabase/

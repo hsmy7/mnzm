@@ -22,9 +22,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.PortraitImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
@@ -44,8 +46,10 @@ data class ConversationEffect(
     val isZero: Boolean
         get() = moralityDelta == 0 && loyaltyDelta == 0 && cultivationDelta == 0.0 && intelligenceDelta == 0
 
-    val isPositive: Boolean get() = loyaltyDelta > 0 || moralityDelta > 0 || intelligenceDelta > 0 || cultivationDelta > 0.0
-    val isNegative: Boolean get() = loyaltyDelta < 0 || moralityDelta < 0 || intelligenceDelta < 0 || cultivationDelta < 0.0
+    val isPositive: Boolean get() = loyaltyDelta > 0 || moralityDelta > 0 || intelligenceDelta > 0 || cultivationDelta >
+        0.0
+    val isNegative: Boolean get() = loyaltyDelta < 0 || moralityDelta < 0 || intelligenceDelta < 0 || cultivationDelta <
+        0.0
 
     fun toDisplayText(): String = buildString {
         if (loyaltyDelta != 0) append("忠诚 ${if (loyaltyDelta > 0) "+" else ""}$loyaltyDelta  ")
@@ -202,8 +206,66 @@ internal fun randomizeEffect(effect: ConversationEffect): ConversationEffect {
         moralityDelta = effect.moralityDelta.signRandom(),
         loyaltyDelta = effect.loyaltyDelta.signRandom(),
         intelligenceDelta = effect.intelligenceDelta.signRandom(),
-        cultivationDelta = if (effect.cultivationDelta > 0.0) Random.nextDouble(0.01, 0.06) else if (effect.cultivationDelta < 0.0) -Random.nextDouble(0.01, 0.06) else 0.0
+        cultivationDelta = if (effect.cultivationDelta > 0.0) Random.nextDouble(0.01,
+            0.06) else if (effect.cultivationDelta < 0.0) -Random.nextDouble(0.01, 0.06) else 0.0
     )
+}
+
+/** 单项会话增量封顶：增幅达 100 上限/降幅触 1 谷底时归零并记录提示 */
+private fun capDelta(
+    blocked: MutableList<String>,
+    delta: Int,
+    value: Int?,
+    capMessage: String,
+    floorMessage: String
+): Int = if (value != null && delta > 0 && value >= 100) {
+    blocked.add(capMessage); 0
+} else if (value != null && delta < 0 && value <= 1) {
+    blocked.add(floorMessage); 0
+} else {
+    delta
+}
+
+/** 会话效果技能封顶：按弟子属性上下限截断增量并收集封顶提示文案 */
+private fun capEffectBySkills(
+    effect: ConversationEffect,
+    skills: SkillStats?
+): Pair<ConversationEffect, List<String>> {
+    val blocked = mutableListOf<String>()
+    val capped = effect.copy(
+        loyaltyDelta = capDelta(
+            blocked, effect.loyaltyDelta, skills?.loyalty,
+            "弟子忠诚超群无法再提升", "弟子忠诚已至谷底无法再降低"
+        ),
+        moralityDelta = capDelta(
+            blocked, effect.moralityDelta, skills?.morality,
+            "弟子道德超群无法再提升", "弟子道德已至谷底无法再降低"
+        ),
+        intelligenceDelta = capDelta(
+            blocked, effect.intelligenceDelta, skills?.intelligence,
+            "弟子智力超群无法再提升", "弟子智力已至谷底无法再降低"
+        )
+    )
+    return capped to blocked
+}
+
+/** 构建会话结算效果注释文本：冷却期显示"无效果"，否则按正负着色并追加封顶提示 */
+private fun buildConversationEffectText(
+    hasCooldown: Boolean,
+    effect: ConversationEffect,
+    blocked: List<String>
+): AnnotatedString = if (hasCooldown) {
+    buildAnnotatedString { withStyle(SpanStyle(color = Color.White)) { append("无效果") } }
+} else buildAnnotatedString {
+    val effectText = effect.toDisplayText()
+    if (effectText.isNotEmpty()) {
+        val valueColor = if (effect.isPositive) GOLD else if (effect.isNegative) RED else Color.White
+        withStyle(SpanStyle(color = valueColor)) { append(effectText) }
+    }
+    if (blocked.isNotEmpty()) {
+        if (effectText.isNotEmpty()) append("\n")
+        withStyle(SpanStyle(color = Color.White)) { append(blocked.joinToString("\n")) }
+    }
 }
 
 // ═══ 主对话框 ═══
@@ -232,54 +294,27 @@ fun DiscipleChatDialog(
 
     fun onOptionClick(option: ConversationOption) {
         if (isChatDone) return
-        chatMessages = chatMessages + ChatMsg(text = option.text, isPlayer = true)
-        visibleCount = chatMessages.size
+        chatMessages += ChatMsg(text = option.text, isPlayer = true); visibleCount = chatMessages.size
         val outcome = option.outcomes.randomOne()
-        chatMessages = chatMessages + ChatMsg(text = outcome.replyVariants.randomOne(), isPlayer = false)
+        chatMessages += ChatMsg(text = outcome.replyVariants.randomOne(), isPlayer = false)
         visibleCount = chatMessages.size
 
         if (outcome.nextNodeId == END_NODE) {
             val rawEffect = outcome.effects ?: ConversationEffect()
             val randomized = if (hasCooldown) ConversationEffect() else randomizeEffect(rawEffect)
 
-            val skills = viewModel?.getDiscipleById(disciple.id)?.sourceRef?.skills
-            val blocked = mutableListOf<String>()
-            val canBlock = skills != null
-            val e = randomized.copy(
-                loyaltyDelta = if (canBlock && randomized.loyaltyDelta > 0 && skills.loyalty >= 100) { blocked.add("弟子忠诚超群无法再提升"); 0 }
-                    else if (canBlock && randomized.loyaltyDelta < 0 && skills.loyalty <= 1) { blocked.add("弟子忠诚已至谷底无法再降低"); 0 }
-                    else randomized.loyaltyDelta,
-                moralityDelta = if (canBlock && randomized.moralityDelta > 0 && skills.morality >= 100) { blocked.add("弟子道德超群无法再提升"); 0 }
-                    else if (canBlock && randomized.moralityDelta < 0 && skills.morality <= 1) { blocked.add("弟子道德已至谷底无法再降低"); 0 }
-                    else randomized.moralityDelta,
-                intelligenceDelta = if (canBlock && randomized.intelligenceDelta > 0 && skills.intelligence >= 100) { blocked.add("弟子智力超群无法再提升"); 0 }
-                    else if (canBlock && randomized.intelligenceDelta < 0 && skills.intelligence <= 1) { blocked.add("弟子智力已至谷底无法再降低"); 0 }
-                    else randomized.intelligenceDelta
-            )
+            val skills = viewModel?.disciple?.getDiscipleById(disciple.id)?.sourceRef?.skills
+            val (e, blocked) = capEffectBySkills(randomized, skills)
 
-            currentEffectAnnotated = if (hasCooldown) {
-                buildAnnotatedString { withStyle(SpanStyle(color = Color.White)) { append("无效果") } }
-            } else buildAnnotatedString {
-                val effectText = e.toDisplayText()
-                if (effectText.isNotEmpty()) {
-                    withStyle(SpanStyle(color = if (e.isPositive) GOLD else if (e.isNegative) RED else Color.White)) {
-                        append(effectText)
-                    }
-                }
-                if (blocked.isNotEmpty()) {
-                    if (effectText.isNotEmpty()) append("\n")
-                    withStyle(SpanStyle(color = Color.White)) { append(blocked.joinToString("\n")) }
-                }
-            }
+            currentEffectAnnotated = buildConversationEffectText(hasCooldown, e, blocked)
 
-            if (!e.isZero) viewModel?.applyConversationEffects(
+            if (!e.isZero) viewModel?.disciple?.applyConversationEffects(
                 discipleId = disciple.id, currentYear = gameYear,
                 moralityDelta = e.moralityDelta, loyaltyDelta = e.loyaltyDelta,
                 cultivationDelta = e.cultivationDelta, intelligenceDelta = e.intelligenceDelta
             )
-            val ending = if (outcome.endingTextVariants.isNotEmpty()) outcome.endingTextVariants.randomOne() else "多谢宗主。"
-            chatMessages = chatMessages + ChatMsg(text = ending, isPlayer = false)
-            visibleCount = chatMessages.size
+            val ending = outcome.endingTextVariants.ifEmpty { listOf("多谢宗主。") }.randomOne()
+            chatMessages += ChatMsg(text = ending, isPlayer = false); visibleCount = chatMessages.size
             isChatDone = true; currentNode = null
         } else {
             val next = conversationTree?.nodes?.get(outcome.nextNodeId)
@@ -317,10 +352,15 @@ private fun ChatLeftPanel(disciple: DiscipleAggregate, modifier: Modifier = Modi
         verticalArrangement = Arrangement.Center) {
         val resId = PortraitPool.getResourceId(disciple.portraitRes).takeIf { it != 0 }
             ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
-        if (resId != 0) Image(painter = painterResource(id = resId), contentDescription = null,
-            modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit)
+        // 80dp = 240px@3x ≤ 256px 预载位图质量边界，命中缓存
+        PortraitImage(
+            name = disciple.portraitRes,
+            resId = resId,
+            modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp))
+        )
         Spacer(Modifier.height(12.dp))
-        Text(disciple.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black, textAlign = TextAlign.Center)
+        Text(disciple.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black,
+            textAlign = TextAlign.Center)
         Spacer(Modifier.height(4.dp))
         Text(disciple.realmName, fontSize = 13.sp, color = Color(0xFF666666), textAlign = TextAlign.Center)
     }
@@ -383,8 +423,7 @@ private fun ChatMsgBubble(message: ChatMsg) {
     ) ?: if (message.isPlayer) R.drawable.dialogue_bubble_right
     else R.drawable.dialogue_bubble_left
 
-    // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp
-    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
+    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（勿直接 .dp 使用像素值）
     val bubbleMaxWidth = with(LocalDensity.current) {
         (LocalWindowInfo.current.containerSize.width * 0.65f).toDp()
     }

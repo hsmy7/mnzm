@@ -4,7 +4,7 @@ import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 
-// GameDataAlliance.kt — 联盟/战役/附庸/驻军/战斗队伍（P-2 从 GameData.kt 拆分，同包模型，序列化字段不变）
+// GameDataAlliance.kt — 联盟/战役/附庸/驻军/战斗队伍（同包模型，序列化字段不变）
 
 @Keep
 @Serializable

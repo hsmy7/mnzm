@@ -59,7 +59,6 @@ private fun simpleBuildingDialogType(key: String): DialogType? = when (key) {
 
 /**
  * 打开指定建筑的详情（选中态"进入"按钮共用分发）：优先专用 DialogType，否则回退通用回调。
- * 与旧版 `handleMainGameScreenTap` 的详情分发逻辑等价（R1/B1 诊断保留）。
  */
 internal fun openBuildingDetailFor(
     clicked: GridBuildingData,

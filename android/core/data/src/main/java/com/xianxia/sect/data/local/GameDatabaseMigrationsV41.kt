@@ -11,7 +11,7 @@ private const val TAG = "GameDatabase"
 /**
  * v40→v41: game_data 新增 last_ai_sect_recruit_year 列（AI 宗门弟子三年一度招募差值判据）
  *
- * 背景：AI 宗门弟子招募改为每 3 年一次（差值判据，与 refreshRecruitList 同款语义），
+ * 背景：AI 宗门弟子招募为每 3 年一次（差值判据，与 refreshRecruitList 同款语义），
  * 需持久化上次触发年份以便老存档相位漂移自愈与失败次年重试。
  *
  * 仅 ADD COLUMN（不删列，无需 create-copy-drop-rename）：

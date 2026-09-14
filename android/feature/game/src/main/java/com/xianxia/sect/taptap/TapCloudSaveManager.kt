@@ -6,6 +6,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
@@ -60,22 +61,21 @@ class TapCloudSaveManager @Inject constructor(
         /** 是否已执行过一次性的孤立存档清理 */
         private const val KEY_CLEANUP_DONE = "cleanup_done"
 
-        /** B6（2026-08-05）：TapTap SDK 回调超时上限（ms）——回调永不触发时
+        /** TapTap SDK 回调超时上限（ms）——SDK 回调永不触发时
          *  协程永久挂起 + cloudOpLock 永久占用，云功能直到重启才恢复 */
         private const val CLOUD_OP_TIMEOUT_MS = 15_000L
 
         /**
          * 版本号字符串比较（点分段数值比较，"4.0.9" < "4.0.13"）。
          *
-         * A4（2026-08-05）：云跨版本仲裁——下载前用 extra JSON 的 version
-         * 字段先仲裁，云端版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch]
-         * 明确提示（此前 VersionMismatch 无任何构造点，是死代码）。
+         * 云跨版本仲裁：下载前用 extra JSON 的 version 字段先仲裁，
+         * 云端版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch] 明确提示。
          *
          * @return 负数 cloud < current；0 相等；正数 cloud > current
          */
         fun compareVersions(cloud: String, current: String): Int {
-            // 对抗性审查修复（2026-08-06）：trim——"4.0.89 "尾随空格会使
-            // "89 ".toIntOrNull() 为 null → 归一化为 0，高版本仲裁被绕过
+            // 必须 trim：版本段含尾随空格时 toIntOrNull() 返回 null，
+            // 会被归一化为 0，导致高版本仲裁被绕过
             val cloudParts = cloud.trim().split(".").map { it.toIntOrNull() ?: 0 }
             val currentParts = current.trim().split(".").map { it.toIntOrNull() ?: 0 }
             val maxLen = maxOf(cloudParts.size, currentParts.size)
@@ -90,7 +90,7 @@ class TapCloudSaveManager @Inject constructor(
         /**
          * 合并本地缓存与 API 摘要，返回应对外暴露的云存档摘要。
          *
-         * B-云存档（2026-08-16）：TapTap metadata 最终一致性延迟——上传后立刻查询
+         * TapTap metadata 存在最终一致性延迟——上传后立刻查询
          * 可能返回"有存档但摘要全空"的旧 extra，直接采用会把真实游戏字段清零
          *（游戏内存档卡片显示全 0）；也可能返回旧但非空的摘要，把更新的本地数据降级。
          *
@@ -115,13 +115,13 @@ class TapCloudSaveManager @Inject constructor(
     }
 
 /**
- * B6（2026-08-05）：云存档操作超时异常（普通 Exception 而非
+ * 云存档操作超时异常（普通 Exception 而非
  * TimeoutCancellationException）——由 withTimeout 超时抛出，被上层
  * catch (e: Exception) 转为 NetworkError；真正的协程取消不受影响。
  */
 class CloudSaveOperationTimeoutException(message: String) : Exception(message)
 
-    /** 旧 SharedPreferences 一次性迁移守卫（D-29：偏好统一迁入 MMKV，幂等） */
+    /** 旧 SharedPreferences 一次性迁移守卫（偏好统一迁入 MMKV，幂等） */
     @Volatile
     private var migrated = false
 
@@ -205,6 +205,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
      * 4. 调用 TapTap API 上传
      * 5. 清理临时文件
      */
+    @Suppress("TooGenericExceptionCaught", "ThrowsCount") // 前者: 防御兜底异常源不可枚举; 后者: 上传各段取消穿透
+    // rethrow 刻意独立抛出(结构化取消语义), 非疏忽超标
     suspend fun uploadSave(saveData: SaveData): CloudSaveResult {
         if (!cloudOpLock.compareAndSet(false, true)) {
             DomainLog.w(TAG, "Cloud save operation already in progress, rejecting concurrent upload")
@@ -216,6 +218,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
             // 1. 序列化 SaveData → ByteArray
             val serializedBytes = try {
                 serializationModule.serializeAndCompressSaveData(saveData)
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 上传取消时中止, 不以序列化错误冒充
             } catch (e: Exception) {
                 DomainLog.e(TAG, "Serialization failed during cloud upload", e)
                 return CloudSaveResult.SerializationError(e.message ?: "序列化失败")
@@ -225,7 +229,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
             if (serializedBytes.size > MAX_CLOUD_SAVE_SIZE_BYTES) {
                 val actualMb = serializedBytes.size / (1024 * 1024)
                 val maxMb = MAX_CLOUD_SAVE_SIZE_BYTES / (1024 * 1024)
-                DomainLog.w(TAG, "Cloud save file too large: ${serializedBytes.size} bytes (${actualMb}MB > ${maxMb}MB)")
+                DomainLog
+                    .w(TAG, "Cloud save file too large: ${serializedBytes.size} bytes (${actualMb}MB > ${maxMb}MB)")
                 return CloudSaveResult.FileTooLarge(MAX_CLOUD_SAVE_SIZE_BYTES, serializedBytes.size.toLong())
             }
 
@@ -234,6 +239,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
             try {
                 tempFile.parentFile?.mkdirs()
                 tempFile.writeBytes(serializedBytes)
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 本段为阻塞 IO 无挂起点, 分支防未来挂起点引入
             } catch (e: Exception) {
                 DomainLog.e(TAG, "Failed to write temp file for cloud upload", e)
                 return CloudSaveResult.UnknownError("临时文件写入失败: ${e.message}")
@@ -244,6 +251,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 performTapTapUpload(tempFile, saveData)
                 DomainLog.i(TAG, "Cloud save upload successful")
                 CloudSaveResult.Success()
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 上传取消时中止, 不以网络错误冒充(cloudOpLock 由 finally 释放)
             } catch (e: Exception) {
                 DomainLog.e(TAG, "TapTap cloud save upload failed", e)
                 CloudSaveResult.NetworkError(e.message ?: "上传失败")
@@ -268,7 +277,10 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
      * 4. 反序列化为 SaveData
      * 5. 清理临时文件
      */
-    @Suppress("NestedBlockDepth", "ReturnCount") // 下载多阶段守卫（锁/仲裁/临时文件/反序列化），多 return 为守卫风格
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress(
+        "TooGenericExceptionCaught", "NestedBlockDepth", "ReturnCount", "CyclomaticComplexMethod"
+    ) // 下载多阶段守卫（锁/仲裁/临时文件/反序列化/取消穿透），多 return 为守卫风格
     suspend fun downloadSave(): CloudSaveResult {
         if (!cloudOpLock.compareAndSet(false, true)) {
             DomainLog.w(TAG, "Cloud save operation already in progress, rejecting concurrent download")
@@ -277,7 +289,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
         try {
             DomainLog.d(TAG, "Starting cloud save download...")
 
-            // A4（2026-08-05）：下载前版本仲裁——云档 extra JSON 含上传时版本号，
+            // 下载前版本仲裁——云档 extra JSON 含上传时版本号，
             // 云端版本高于当前 App 时直接拒绝，提示"版本不兼容"而非"存档数据异常"
             val preArbitration = arbitrateCloudVersion()
             if (preArbitration != null) return preArbitration
@@ -313,7 +325,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                     throw e
                 } catch (e: Exception) {
                     DomainLog.e(TAG, "Deserialization failed during cloud download", e)
-                    // A4：解码失败兜底仲裁——查一次云信息，若云端版本更高则改写为
+                    // 解码失败兜底仲裁——查一次云信息，若云端版本更高则改写为
                     // 版本不兼容而非笼统的"存档数据异常"
                     arbitrateCloudVersion()?.let { return it }
                     return CloudSaveResult.SerializationError(e.message ?: "反序列化失败")
@@ -321,6 +333,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
 
                 DomainLog.i(TAG, "Cloud save download successful")
                 return CloudSaveResult.Success(saveData)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e // 取消穿透: 下载取消时中止, 不以网络错误冒充(cloudOpLock 由 finally 释放)
             } catch (e: Exception) {
                 DomainLog.e(TAG, "TapTap cloud save download failed", e)
                 return CloudSaveResult.NetworkError(e.message ?: "下载失败")
@@ -336,7 +350,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
     }
 
     /**
-     * A4（2026-08-05）：云跨版本仲裁——查询云端 extra JSON 的 version 字段，
+     * 云跨版本仲裁：查询云端 extra JSON 的 version 字段，
      * 云端版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch]。
      *
      * @return 版本不兼容结果；云端版本可接受/查询失败时返回 null（继续下载）
@@ -357,33 +371,43 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
         return null
     }
 
+    /** 解析云端 extra JSON；解析失败返回 null，协程取消照常重抛 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun parseCloudExtraJson(extra: String): JSONObject? {
+        return try {
+            JSONObject(extra)
+        } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { null }
+    }
+
+    /** 将 API 查询结果与 extra JSON 摘要映射为 CloudSaveInfo（checkCloudSave 拆分，无存档时字段为零值） */
+    private fun toCloudSaveInfo(info: CloudSaveRawInfo?, extraData: JSONObject?): CloudSaveInfo = CloudSaveInfo(
+        hasSaveData = info != null,
+        lastModifiedTime = info?.lastModifiedTime ?: 0L,
+        saveSize = info?.fileSize ?: 0L,
+        description = info?.description ?: "",
+        gameYear = extraData?.optInt("year", 0) ?: 0,
+        gameMonth = extraData?.optInt("month", 0) ?: 0,
+        sectName = extraData?.optString("sect", "") ?: "",
+        discipleCount = extraData?.optInt("disciples", 0) ?: 0,
+        spiritStones = extraData?.optLong("stones", 0L) ?: 0L,
+        appVersion = extraData?.optString("version", "") ?: ""
+    )
+
     /**
      * 查询云存档是否存在及摘要信息。
      *
      * 优先从本地缓存读取（避免 TapTap API 最终一致性延迟），
      * 然后异步查询 API 更新缓存。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun checkCloudSave(): CloudSaveInfo {
         // 先尝试 API 查询
         return try {
             val cached = loadCloudSaveInfoFromLocal()
             val info = performTapTapQuery()
-            val extraData = info?.extra?.let { e ->
-                try { JSONObject(e) } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { null }
-            }
-            val apiResult = CloudSaveInfo(
-                hasSaveData = info != null,
-                lastModifiedTime = info?.lastModifiedTime ?: 0L,
-                saveSize = info?.fileSize ?: 0L,
-                description = info?.description ?: "",
-                gameYear = extraData?.optInt("year", 0) ?: 0,
-                gameMonth = extraData?.optInt("month", 0) ?: 0,
-                sectName = extraData?.optString("sect", "") ?: "",
-                discipleCount = extraData?.optInt("disciples", 0) ?: 0,
-                spiritStones = extraData?.optLong("stones", 0L) ?: 0L,
-                appVersion = extraData?.optString("version", "") ?: ""
-            )
-            // B-云存档（2026-08-16）：防止 TapTap metadata 最终一致性延迟——上传后
+            val extraData = info?.extra?.let { e -> parseCloudExtraJson(e) }
+            val apiResult = toCloudSaveInfo(info, extraData)
+            // 防止 TapTap metadata 最终一致性延迟——上传后
             // 立刻查询可能返回"有存档但摘要全空"的旧 extra，直接采用会把真实游戏字段
             // 清零（游戏内存档卡片显示全 0）；也可能返回旧但非空的摘要，把更新的本地
             // 数据降级。合并策略见 [resolveCloudSaveInfo]。
@@ -393,6 +417,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 saveCloudSaveInfoToLocal(result)
             }
             result
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // 取消穿透: 查询取消时中止, 不降级本地缓存读
         } catch (e: Exception) {
             DomainLog.w(TAG, "Failed to check cloud save from API, falling back to cache", e)
             // API 失败时降级到本地缓存
@@ -401,6 +427,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
     }
 
     /** 将 CloudSaveInfo 持久化到本地 SharedPreferences */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun saveCloudSaveInfoToLocal(info: CloudSaveInfo) {
         try {
             val json = JSONObject().apply {
@@ -423,6 +450,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
     }
 
     /** 从本地 SharedPreferences 读取缓存的 CloudSaveInfo */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun loadCloudSaveInfoFromLocal(): CloudSaveInfo? {
         return try {
             ensureMigrated()
@@ -459,11 +487,12 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
      *
      * 如果运行时没有可用的 TapTap Cloud Save SDK，则只缓存文件到本地，记录警告。
      */
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     private suspend fun performTapTapUpload(tempFile: File, saveData: SaveData? = null) {
         val cloudSaveApi = CloudSaveApiReflector.resolve()
         if (cloudSaveApi == null) {
             DomainLog.w(TAG, "TapTap Cloud Save SDK not available")
-            throw RuntimeException("TapTap 云存档 SDK 不可用，请确认已安装 TapTap 并登录")
+            error("TapTap 云存档 SDK 不可用，请确认已安装 TapTap 并登录")
         }
 
         DomainLog.i(TAG, "Uploading cloud save via ${cloudSaveApi.className}, " +
@@ -498,6 +527,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 saveCachedArchiveUuid(newUuid)
             }
             DomainLog.i(TAG, "Cloud save upload successful, uuid=${newUuid ?: cachedUuid}")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // 取消穿透: 取消时原样上抛, 不误记 error 日志/不清 UUID 缓存
         } catch (e: Exception) {
             if (e.message?.contains("400002") == true) {
                 // 存档不存在（云端被删），清除缓存下次重新创建
@@ -514,6 +545,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
      *
      * @return true=下载成功, false=云存档不存在
      */
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     private suspend fun performTapTapDownload(tempFile: File): Boolean {
         val cloudSaveApi = CloudSaveApiReflector.resolve()
         if (cloudSaveApi == null) {
@@ -533,6 +565,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 DomainLog.w(TAG, "Cloud save not found or empty")
                 false
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // 取消穿透: 取消时原样上抛, 不误记 error 日志
         } catch (e: Exception) {
             DomainLog.e(TAG, "Cloud save download failed", e)
             throw e
@@ -544,12 +578,15 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
      *
      * @return 存档信息，null 表示无存档
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private suspend fun performTapTapQuery(): CloudSaveRawInfo? {
         val cloudSaveApi = CloudSaveApiReflector.resolve()
         if (cloudSaveApi == null) return null
 
         return try {
             cloudSaveApi.queryArchiveInfo(CLOUD_SAVE_ARCHIVE_NAME)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // 取消穿透: 查询取消时上抛, 不以 null 冒充"无存档"
         } catch (e: Exception) {
             DomainLog.w(TAG, "Cloud save query failed", e)
             null
@@ -561,12 +598,11 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
     /**
      * 一次性云端存档检查（历史遗留"孤立存档清理"）。
      *
-     * B9（2026-08-05）修复：原实现删除所有非 "mnzm_cloud_save" 命名的存档——
-     * 多设备场景下未知名字的存档可能是其他设备/其他命名版本的有效存档，
-     * 删除不可逆（且删除失败被吞但 KEY_CLEANUP_DONE 照常置位，孤儿永久残留）。
-     * 现改为：不删除任何未知命名的存档（保留数据），仅记录审计日志；
-     * 清除缓存的 UUID 后完成一次性任务。
+     * 多设备场景下非 "mnzm_cloud_save" 命名的存档可能是其他设备/其他命名版本
+     * 的有效存档，删除不可逆——因此不删除任何未知命名的存档（保留数据），
+     * 仅记录审计日志；清除缓存的 UUID 后完成一次性任务。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun oneTimeCleanup() {
         ensureMigrated()
         if (keyValueStore.getBoolean(KEY_CLEANUP_DONE, false)) return
@@ -585,6 +621,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
             clearCachedArchiveUuid()
             keyValueStore.putBoolean(KEY_CLEANUP_DONE, true)
             DomainLog.i(TAG, "oneTimeCleanup: done")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // 取消穿透: 取消时上抛, 保持未完成标记下次重试
         } catch (e: Exception) {
             DomainLog.w(TAG, "oneTimeCleanup: failed, will retry next time", e)
         }
@@ -640,7 +678,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
     private interface CloudSaveApi {
         val className: String
         /** 上传存档，返回云端分配的 UUID。提供 uuid 时直接更新，否则创建新存档。 */
-        suspend fun createOrUpdateArchive(archiveName: String, summary: String, filePath: String, uuid: String? = null, extra: String = "{}"): String?
+        suspend fun createOrUpdateArchive(archiveName: String, summary: String, filePath: String, uuid: String? = null,
+            extra: String = "{}"): String?
         suspend fun downloadArchive(archiveName: String): ByteArray?
         suspend fun queryArchiveInfo(archiveName: String): CloudSaveRawInfo?
         /** 列出所有云端存档 */
@@ -667,13 +706,17 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
      * 回调桥接使用 [kotlinx.coroutines.suspendCancellableCoroutine]。
      * 由于目标回调接口的方法签名是运行时检测的，使用反射进行动态派发。
      */
+    // TooManyFunctions：CloudSaveApi 端口契约（上传/下载/列表/删除全生命周期）+ 反射适配层，
+// 21 个 override = 云存档协议下界，驻留类体承载协议分发
+    @Suppress("TooManyFunctions")
     private class ReflectiveCloudSaveApi(
         private val apiClass: Class<*>,
         override val className: String
     ) : CloudSaveApi {
 
         @Suppress("UNCHECKED_CAST")
-        override suspend fun createOrUpdateArchive(archiveName: String, summary: String, filePath: String, uuid: String?, extra: String): String? {
+        override suspend fun createOrUpdateArchive(archiveName: String, summary: String, filePath: String,
+            uuid: String?, extra: String): String? {
             val metadataClass = Class.forName("com.taptap.sdk.cloudsave.ArchiveMetadata")
             val builderClass = Class.forName("com.taptap.sdk.cloudsave.ArchiveMetadata\$Builder")
             val builder = builderClass.getDeclaredConstructor().newInstance()
@@ -778,7 +821,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
             callbackClass: Class<*>,
             invoke: (callback: Any) -> Unit
         ): T? = try {
-            // B6（2026-08-05）：SDK 回调无超时——回调永不触发时协程永久挂起 +
+            // SDK 回调无超时——回调永不触发时协程永久挂起 +
             // cloudOpLock 永久占用，云功能直到重启 App 都失效；15s 超时转普通
             // 异常由上层 catch 转 NetworkError（e.cause == null 才是超时——
             // 协程取消导致的 TimeoutCancellationException 须重抛保持结构化并发）
@@ -881,11 +924,13 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
         private fun getUuid(archive: Any): String? = invokeGetterString(archive, "getUuid")
         private fun getFileId(archive: Any): String? = invokeGetterString(archive, "getFileId")
 
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         private fun invokeGetterString(archive: Any, methodName: String): String? {
             return try {
                 archive.javaClass.getMethod(methodName).invoke(archive)?.toString()
             } catch (e: Exception) {
-                DomainLog.w(TAG, "invokeGetterString failed: method=$methodName class=${archive.javaClass.simpleName}", e)
+                DomainLog.w(TAG, "invokeGetterString failed: method=$methodName class=${archive.javaClass.simpleName}",
+                    e)
                 null
             }
         }
@@ -895,20 +940,6 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 archive.javaClass.getMethod(methodName).invoke(archive) as? Long ?: 0L
             } catch (_: Exception) { 0L }
         }
-    }
-
-    /**
-     * TapGameSave API（v3 SDK 兼容，预留）。
-     */
-    private class TapGameSaveApi(private val apiClass: Class<*>) : CloudSaveApi {
-        override val className: String = "TapGameSave"
-        override suspend fun createOrUpdateArchive(archiveName: String, summary: String, filePath: String, uuid: String?, extra: String): String? =
-            throw UnsupportedOperationException("TapGameSave API not yet adapted")
-        override suspend fun downloadArchive(archiveName: String): ByteArray? =
-            throw UnsupportedOperationException("TapGameSave API not yet adapted")
-        override suspend fun queryArchiveInfo(archiveName: String): CloudSaveRawInfo? = null
-        override suspend fun listAllArchives(): List<ArchiveEntry> = throw UnsupportedOperationException("TapGameSave API not yet adapted")
-        override suspend fun deleteArchive(uuid: String) = throw UnsupportedOperationException("TapGameSave API not yet adapted")
     }
 
     /** 云存档原始信息（TapTap API 返回） */

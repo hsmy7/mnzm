@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Robolectric 兼容桩（2026-08-14）。
+ * Robolectric 兼容桩。
  *
  * 背景：TapTap SDK（TapADN）的 [Collector] 字节码无 StackMapTable（dx 老产物，
  * ART 不要求 stackmap），Robolectric 应用安装时实例化 manifest 注册的 receiver

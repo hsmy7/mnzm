@@ -30,6 +30,9 @@ g++ -shared -fPIC -std=c++20 -O2 \
     "$SRC/src/game_core.cpp" \
     "$SRC/src/json_codec.cpp" \
     "$SRC/src/execute_dispatch.cpp" \
+    "$SRC/src/dispatch_w4a.cpp" \
+    "$SRC/src/dispatch_w4b.cpp" \
+    "$SRC/src/dispatch_w4c.cpp" \
     "$SRC/src/dirty_tracker.cpp" \
     "$SRC/src/disciple_store.cpp" \
     -o "$OUT"

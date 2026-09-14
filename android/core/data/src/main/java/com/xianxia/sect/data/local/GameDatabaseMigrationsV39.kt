@@ -12,8 +12,7 @@ private const val TAG = "GameDatabase"
  * v38→v39: 删除弟子级 autoLearnFromWarehouse/autoEquipFromWarehouse 死开关列
  *
  * 背景：弟子级开关（Disciple.autoLearnFromWarehouse、EquipmentSet.autoEquipFromWarehouse）
- * 是死代码——UI 无入口、引擎从不读取（自动学习/装备只认 gameData 级全局策略），
- * 本次重构整体删除字段。
+ * 是死代码——UI 无入口、引擎从不读取（自动学习/装备只认 gameData 级全局策略）。
  *
  * 实现：SQLite < 3.35 不支持 DROP COLUMN（项目规范 7.2 禁止），采用
  * create-copy-drop-rename 重建三张表（参照 MIGRATION_30_31 先例）：
@@ -21,11 +20,9 @@ private const val TAG = "GameDatabase"
  * - disciples_extended：删除 autoLearnFromWarehouse（23 列，无索引）
  * - disciples_equipment：删除 autoEquipFromWarehouse（14 列，无索引）
  *
- * 2026-08-04 修复：原实现为 no-op 保留旧列——Room 2.7.0 迁移后强制 onValidateSchema
- * （TableInfo.equalsCommon 对列做全等比较，不允许多余列），老存档升级 v39 时在
- * "Migration didn't properly handle: disciples" 处崩溃（迁移事务回滚、每次启动复现）。
- * 重建后表结构与 v39 实体完全一致，校验通过。列定义取自 39.json createSql，
- * 由 RoomMigrationTest 的真实 Room 校验测试保证逐列一致。
+ * 重建后表结构必须与 v39 实体完全一致——Room 2.7.0 迁移后强制 onValidateSchema
+ * （TableInfo.equalsCommon 对列做全等比较，不允许多余列），列定义取自
+ * 39.json createSql，由 RoomMigrationTest 的真实 Room 校验测试保证逐列一致。
  */
 internal val MIGRATION_38_39 = object : Migration(38, 39) {
     override fun migrate(db: SupportSQLiteDatabase) {

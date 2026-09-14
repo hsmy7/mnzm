@@ -21,7 +21,7 @@ private fun dialogRenderableInComposition(): Boolean {
 }
 
 /**
- * 防沉迷合规限制对话框（共享组件，D-42 进程级宿主统一使用）。
+ * 防沉迷合规限制对话框（共享组件，合规回调进程级宿主统一使用）。
  *
  * MainActivity 与 GameActivity 共用：主界面与游戏内的时长限制/时间限制/年龄限制
  * 弹窗同一实现，包含三件套：

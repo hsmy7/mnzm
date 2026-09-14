@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.GameSettingsData
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.SectScoutInfo
-import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import kotlinx.serialization.builtins.nullable
 
 
@@ -20,9 +19,9 @@ import kotlinx.serialization.builtins.nullable
  *
  * 处理非集合类型的领域对象转换（Protobuf 二进制序列化）。
  */
+@Suppress("TooManyFunctions") // Room @TypeConverter 注册面：每枚举一对转换函数（Room 强制函数形态），1:1 契约映射
 object EnumConverters {
 
-    private val protoBuf = NullSafeProtoBuf.roomProtoBuf
 
     // ==================== 复杂对象转换器（纯 Protobuf）====================
 

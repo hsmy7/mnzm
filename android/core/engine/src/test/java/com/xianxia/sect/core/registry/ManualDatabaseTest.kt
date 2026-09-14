@@ -249,7 +249,7 @@ class ManualDatabaseTest {
             buildSupportTestManuals() + buildMindTestManuals()
     }
 
-    /** 攻击功法测试数据（buildTestManuals 拆分） */
+    /** 攻击功法测试数据 */
     private fun buildAttackTestManuals(): Map<String, ManualTemplate> = mapOf(
         "attack_1" to ManualTemplate(
             id = "attack_1",
@@ -302,7 +302,7 @@ class ManualDatabaseTest {
         )
     )
 
-    /** 防御功法测试数据（buildTestManuals 拆分） */
+    /** 防御功法测试数据 */
     private fun buildDefenseTestManuals(): Map<String, ManualTemplate> = mapOf(
         "defense_1" to ManualTemplate(
             id = "defense_1",
@@ -350,7 +350,7 @@ class ManualDatabaseTest {
         )
     )
 
-    /** 辅助功法测试数据（buildTestManuals 拆分） */
+    /** 辅助功法测试数据 */
     private fun buildSupportTestManuals(): Map<String, ManualTemplate> = mapOf(
         "support_1" to ManualTemplate(
             id = "support_1",
@@ -399,7 +399,7 @@ class ManualDatabaseTest {
         )
     )
 
-    /** 心法测试数据（buildTestManuals 拆分） */
+    /** 心法测试数据 */
     private fun buildMindTestManuals(): Map<String, ManualTemplate> = mapOf(
         "mind_1" to ManualTemplate(
             id = "mind_1",

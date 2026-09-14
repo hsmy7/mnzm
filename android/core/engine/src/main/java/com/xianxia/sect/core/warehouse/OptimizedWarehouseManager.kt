@@ -9,8 +9,7 @@ import javax.inject.Singleton
 /**
  * 仓库操作管理器（精简版）。
  *
- * 移除了未接入生产的 WarehouseCache/Pager/DiffManager/Compressor 依赖，
- * 保留 addItem / addItems / addSpiritStones / removeItem / clear 五个核心操作。
+ * 职责：addItem / addItems / addSpiritStones / removeItem / clear 五个核心操作。
  */
 @Singleton
 class OptimizedWarehouseManager @Inject constructor(

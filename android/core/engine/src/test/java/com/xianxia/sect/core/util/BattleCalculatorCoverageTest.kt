@@ -14,9 +14,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 战斗共享计算层守卫测试（批次1：斩杀方向/连击段数/物魔 Buff 分乘区）。
+ * 战斗共享计算层守卫测试（斩杀方向/连击段数/物魔 Buff 分乘区）。
  *
- * 覆盖 2026-08-04 战斗系统核查修复的三处共享计算层变更，
+ * 锁定斩杀/连击/乘区三处共享计算层语义，
  * 防止方向反转与乘区合并类回归。
  */
 class BattleCalculatorCoverageTest {
@@ -73,7 +73,7 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `checkInstantKill - 篡改 layer 为 Int MAX 不误斩（钳制到合法域）`() {
-        // 对抗性审查修复：layer 未钳制时 Int.MAX_VALUE 使 gap 溢出触发误斩秒杀任意目标；
+        // layer 未钳制时 Int.MAX_VALUE 使 gap 溢出，触发误斩秒杀任意目标——
         // 钳制到 [1,9] 后同境界最大层差 8，永不触发
         assertFalse(
             BattleCalculator.checkInstantKill(
@@ -89,7 +89,7 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `checkInstantKill - 篡改 realm 巨大值不溢出回绕漏斩`() {
-        // 对抗性审查修复：原 Int 运算 (d-a)×9 在巨大 realm 差时回绕为负 → 高境界攻击方漏判斩杀；
+        // (d-a)×9 用 Long 运算（Int 运算在巨大 realm 差时回绕为负 → 漏判斩杀）；
         // Long 运算后高 2 大境界仍触发、同境界不触发
         assertTrue(
             BattleCalculator.checkInstantKill(
@@ -147,7 +147,7 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `calculateCombatantDamage - zero or negative hits clamped to single hit`() {
-        // 对抗性审查：hits 篡改为 0/负值时不得产生 0 伤害/负伤害（回血）
+        // hits 篡改为 0/负值时不得产生 0 伤害/负伤害（回血）
         val attacker = combatant(id = "attacker", physAtk = 300)
         val defender = combatant(id = "defender", hp = 5000, maxHp = 5000, physDef = 100)
 
@@ -167,7 +167,7 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `calculateShieldAbsorption - negative shield value does not amplify damage`() {
-        // 对抗性审查：护盾 value 篡改为负值时不得放大伤害
+        // 护盾 value 篡改为负值时不得放大伤害
         val defender = combatant(
             id = "defender", hp = 800, maxHp = 1000
         ).copy(buffs = listOf(CombatBuff(type = BuffType.SHIELD, value = -0.5, remainingDuration = 3)))
@@ -260,7 +260,7 @@ class BattleCalculatorCoverageTest {
         targetScope = "enemy"
     )
 
-    // ---- T-C1（2026-08-05）：estimateDamage 注入 damageModifier ----
+    // ---- estimateDamage 注入 damageModifier ----
 
     @Test
     fun `estimateDamage - damageModifier injected into amplification zone`() {
@@ -275,7 +275,7 @@ class BattleCalculatorCoverageTest {
         assertTrue("damageModifier=1.05 估算应高于基线", modified > base)
     }
 
-    // ---- T-C2（2026-08-05）：斩杀分支 maxHp 篡改守卫 ----
+    // ---- 斩杀分支 maxHp 篡改守卫 ----
 
     @Test
     fun `calculateCombatantDamage - instant kill with tampered negative maxHp returns zero damage`() {
@@ -295,7 +295,7 @@ class BattleCalculatorCoverageTest {
         assertEquals("maxHp 为负斩杀伤害钳制为 0（不得负伤害回血）", 0, negResult.damage)
     }
 
-    // ---- T-C4（2026-08-05）：buildDamageZones 单次遍历与过滤式参考实现等价 ----
+    // ---- buildDamageZones 单次遍历与过滤式参考实现等价 ----
 
     @Test
     fun `buildDamageZones - single pass bucketing equals filtered reference implementation`() {
@@ -469,7 +469,7 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `processDotEffects - 多段 DoT Int 累加不溢出回绕失真`() {
-        // 对抗性审查修复：两段各 ≈7.9e9 的 DoT 原 Int 累加回绕成负 → 兜底 1；
+        // 两段各 ≈7.9e9 的 DoT 用 Long 累加（Int 累加会回绕成负 → 兜底 1）；
         // Long 累加后封顶 Int.MAX
         val poisoned = combatant(
             id = "victim", realm = 9, realmLayer = 1, hp = Int.MAX_VALUE, maxHp = Int.MAX_VALUE

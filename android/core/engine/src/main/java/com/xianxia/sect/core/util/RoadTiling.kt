@@ -107,8 +107,15 @@ object RoadTiling {
      */
     fun roadBorderMask(mask: Int): Int = MASK_ALL xor (mask and MASK_ALL)
 
-    private fun packCell(x: Int, y: Int): Long =
+    /** 格坐标 → Long 编码（x 高 32 位 | y 低 32 位）；RoadMaskTracker 增量 diff 共用。 */
+    internal fun packCell(x: Int, y: Int): Long =
         (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFF)
+
+    /** [packCell] 编码还原列号。 */
+    internal fun unpackX(cell: Long): Int = (cell ushr 32).toInt()
+
+    /** [packCell] 编码还原行号。 */
+    internal fun unpackY(cell: Long): Int = cell.toInt()
 
     /**
      * 计算某个坐标在道路集合中的位掩码（实时检查上下左右是否也是道路）。
@@ -136,7 +143,7 @@ object RoadTiling {
     /**
      * 从道路集合构建渲染用每格位掩码数组（展平，index = row*cols+col）。
      *
-     * **★ 2026-08-31 根因修复：数组值为「位掩码 + 1」（1-based）**——原实现直接存
+     * **数组值为「位掩码 + 1」（1-based）**——若直接存
      * 位掩码（0 = 非道路），但**单格道路（无邻居）的邻接掩码也是 0**，渲染端
      * `mask == 0` 跳过判据把单格道路当非道路格跳过 → 玩家放置的第一格（无邻居）
      * 道路永不显示。改 1-based 后：0 = 非道路格；1 = 单格道路（原掩码 0）；
@@ -157,5 +164,73 @@ object RoadTiling {
             }
         }
         return mask
+    }
+}
+
+/**
+ * 道路掩码增量装配器（O(全图) 收敛——替代每格修路整图重建）。
+ *
+ * 持有上次道路编码集与掩码数组；[syncTo] 在道路集变化时只重算**受影响格**
+ * （变更格 + 四邻——邻接掩码仅依赖自身与四邻）并写入上次数组的副本，产出
+ * 新引用（渲染端以引用变化驱动 chunk 失效/拷贝，原地写入会破坏该契约）。
+ * 内容未变（引用变而集合相等，如镜像重发）→ 返回稳定引用。
+ *
+ * 语义守护：全量构建路径直接复用 [RoadTiling.buildRoadMaskArray]（逐位一致），
+ * 增量路径由 RoadMaskTrackerTest 与全量构建做随机变更序列差分对拍。
+ *
+ * 线程契约：非线程安全（生产仅在 Compose 组装点单线程调用）。
+ *
+ * @param cols 地图列数 @param rows 地图行数（掩码 index = row*cols+col）
+ */
+class RoadMaskTracker(private val cols: Int, private val rows: Int) {
+
+    private var lastCells: Set<Long> = emptySet()
+    private var lastMask: IntArray? = null
+
+    /**
+     * 同步到当前道路集。
+     *
+     * @return 渲染用掩码数组（1-based，见 [RoadTiling.buildRoadMaskArray]）；
+     *         无道路返回 null（渲染端跳过整层）。内容未变时返回上次引用（稳定）。
+     */
+    fun syncTo(roads: Collection<RoadData>): IntArray? {
+        val cells = HashSet<Long>(roads.size * 2)
+        for (r in roads) cells.add(RoadTiling.packCell(r.gridX, r.gridY))
+        if (cells == lastCells) return lastMask
+        val next = when {
+            cells.isEmpty() -> null
+            // 全量路径（首次/从空恢复）复用权威构建器——语义逐位同源
+            lastCells.isEmpty() -> RoadTiling.buildRoadMaskArray(roads, cols, rows)
+            else -> incremental(cells)
+        }
+        lastCells = cells
+        lastMask = next
+        return next
+    }
+
+    /** 增量路径：上次数组副本 + 受影响格（变更格 + 四邻）重算。调用方保证非空态。 */
+    private fun incremental(cells: Set<Long>): IntArray {
+        val previous = requireNotNull(lastMask) { "增量路径要求上次掩码非空（lastCells 非空）" }
+        val mask = previous.copyOf()
+        val changed = HashSet<Long>(cells.size)
+        for (c in cells) if (c !in lastCells) changed.add(c)
+        for (c in lastCells) if (c !in cells) changed.add(c)
+        for (c in changed) {
+            val x = RoadTiling.unpackX(c)
+            val y = RoadTiling.unpackY(c)
+            recompute(mask, cells, x, y)
+            recompute(mask, cells, x, y - 1)
+            recompute(mask, cells, x + 1, y)
+            recompute(mask, cells, x, y + 1)
+            recompute(mask, cells, x - 1, y)
+        }
+        return mask
+    }
+
+    /** 单格掩码重写（含 1-based 编码；非道路格写 0；越界格跳过——与全量构建一致） */
+    private fun recompute(mask: IntArray, cells: Set<Long>, x: Int, y: Int) {
+        if (x !in 0 until cols || y !in 0 until rows) return
+        val cellMask = RoadTiling.bitmaskAt(cells, x, y, cols, rows)
+        mask[y * cols + x] = if (RoadTiling.packCell(x, y) in cells) cellMask + 1 else 0
     }
 }

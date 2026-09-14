@@ -235,7 +235,7 @@ class SecretRealmRuinsTest {
         assertTrue(session.currentEvent?.description?.contains("空无一物") == true)
         assertTrue(session.currentEvent?.description?.contains("请选择探索方向") == true)
         assertEquals(listOf("向左走", "走中间", "向右走"), session.currentEvent?.options?.map { it.label })
-        // 搜寻不改变背包：预置的灵石/材料/种子全部保留（对抗性审查：空 resolution 覆盖）
+        // 搜寻不改变背包：预置的灵石/材料/种子全部保留（空 resolution 不得覆盖背包）
         assertEquals(100L, session.backpack.spiritStones)
         assertEquals(2, session.backpack.totalItemCount)
         // 空无一物分支不消费 nextInt（仅 1 次 nextDouble 判定）
@@ -305,8 +305,8 @@ class SecretRealmRuinsTest {
         assertTrue(session.resultMessage.contains("携秘宝"))
         // 子事件选项同样扣 1 体力
         assertEquals(19, session.stamina)
-        // 继续前进不改变背包（对抗性审查：此前空 resolution.backpack 覆盖清空背包，
-        // 体力耗尽场景会导致秘宝永久丢失）
+        // 继续前进不改变背包（空 resolution.backpack 不得覆盖清空背包，
+        // 否则体力耗尽场景会导致秘宝永久丢失）
         assertEquals(100L, session.backpack.spiritStones)
         assertEquals(2, session.backpack.totalItemCount)
         assertEquals(1, session.backpack.seeds.size)
@@ -346,7 +346,7 @@ class SecretRealmRuinsTest {
         stubTreasureRng(mockRng)
         `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
         val result = service.chooseOption(2, state)
-        // 体力 1 < 仔细搜寻消耗 2 → 拒绝（防高费选项按低费扣费全额结算，对抗性审查 M2）
+        // 体力 1 < 仔细搜寻消耗 2 → 拒绝（防高费选项按低费扣费全额结算）
         assertTrue(result is SecretRealmChoiceResult.Error)
         assertEquals(1, state.gameData.secretRealmSession.stamina)
         assertTrue(state.gameData.secretRealmSession.isActive)
@@ -435,7 +435,7 @@ class SecretRealmRuinsTest {
         val state = createState()
         setupSession(state, ruinsEvent(), stamina = 0)
         val result = service.chooseOption(1, state)
-        // 篡改档 0 体力：拒绝结算，防 0 体力白嫖事件收益（对抗性审查 M1）
+        // 篡改档 0 体力：拒绝结算，防 0 体力白嫖事件收益
         assertTrue(result is SecretRealmChoiceResult.Error)
         assertEquals(0, state.gameData.secretRealmSession.stamina)
         assertTrue(state.gameData.secretRealmSession.isActive)

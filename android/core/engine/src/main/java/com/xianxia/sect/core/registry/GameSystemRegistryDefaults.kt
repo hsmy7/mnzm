@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.registry
 
 /**
- * 全部 @GameService 系统的静态注册清单（2026-08-13 批次 4）。
+ * 全部 @GameService 系统的静态注册清单。
  *
  * 与源码 @GameService 标注一一对应——新增 @GameService 类后必须在本文件
  * 追加一行，否则 [GameSystemRegistryCoverageTest] 守卫失败并提示。
@@ -15,56 +15,52 @@ object GameSystemRegistryDefaults {
         val registry = GameSystemRegistry
         if (registry.size() > 0) return
 
-        // ── core/service（月变/年变/领域服务主体） ──
-        register("service", "AutoBuyService")
-        register("service", "AutoPillService")
-        register("service", "CaveExplorationProcessor")
-        register("service", "CultivationCore")
-        register("service", "CultivationEventProcessor")
-        register("service", "CultivationRateCalculator")
-        register("service", "CultivationService")
-        register("service", "CultivationSettlement")
-        register("service", "DiplomacyEventProcessor")
-        register("service", "DiscipleBreakthroughHandler")
-        register("service", "DiscipleLifecycleProcessor")
-        register("service", "DisciplePurchaseService")
-        register("service", "EquipmentNurtureService")
-        register("service", "FormulaService")
-        register("service", "HpMpRecoveryService")
-        register("service", "LawEnforcementProcessor")
-        register("service", "MailService")
-        register("service", "ManualProficiencyService")
-        register("service", "MerchantAndRecruitService")
-        register("service", "OverflowMailSender")
-        register("service", "ProductionProcessor")
-        register("service", "RecruitService")
-        register("service", "RedeemCodeService")
-        register("service", "RelativeGiftHandler")
-
-        // ── core/engine/service（AI 宗门/玉符/秘境等引擎侧服务） ──
+        // ── core/engine/service（月变/年变/领域服务主体 + AI 宗门/玉符/秘境）──
+        register("engine.service", "AutoBuyService")
+        register("engine.service", "AutoPillService")
+        register("engine.service", "CaveExplorationProcessor")
+        register("engine.service", "CultivationCore")
+        register("engine.service", "CultivationEventProcessor")
+        register("engine.service", "CultivationRateCalculator")
+        register("engine.service", "CultivationService")
+        register("engine.service", "CultivationSettlement")
+        register("engine.service", "DiplomacyEventProcessor")
+        register("engine.service", "DiscipleBreakthroughHandler")
+        register("engine.service", "DiscipleLifecycleProcessor")
+        register("engine.service", "DisciplePurchaseService")
+        register("engine.service", "EquipmentNurtureService")
+        register("engine.service", "FormulaService")
+        register("engine.service", "HpMpRecoveryService")
+        register("engine.service", "LawEnforcementProcessor")
+        register("engine.service", "MailService")
+        register("engine.service", "ManualProficiencyService")
+        register("engine.service", "MerchantAndRecruitService")
+        register("engine.service", "OverflowMailSender")
+        register("engine.service", "ProductionProcessor")
+        register("engine.service", "RecruitService")
+        register("engine.service", "RedeemCodeService")
+        register("engine.service", "RelativeGiftHandler")
+        // AI 宗门/玉符/秘境等引擎侧服务（原 core/engine/service 组） ──
         register("engine.service", "AISectBattleProcessor")
-        register("engine.service", "AISectOccupationResolver")
         register("engine.service", "JadeSymbolService")
         register("engine.service", "MonthSettlementExecutor")
         register("engine.service", "MonthSettlementResidualExecutor")
         register("engine.service", "PhaseSettlementExecutor")
         register("engine.service", "YearSettlementExecutor")
         register("engine.service", "YearSettlementResidualExecutor")
-        register("engine.service", "PlayerDefenseProcessor")
         register("engine.service", "SecretRealmService")
 
         // ── core/engine/domain（战斗/探索 AI 处理） ──
-        register("engine.domain", "AttackWarningService")
         register("engine.domain", "HeavenlyTrialService")
         register("engine.domain", "SecretRealmAIProcessor")
 
-        // ── core/domain（弟子/建筑/外交领域服务） ──
-        register("domain", "BuildingService")
-        register("domain", "DiscipleFactory")
-        register("domain", "DisciplePillManager")
-        register("domain", "DiscipleService")
-        register("domain", "PillEffectApplier")
-        register("domain", "VassalService")
+        // ── core/engine/domain（弟子/建筑/外交领域服务）──
+        register("engine.domain", "BuildingService")
+        register("engine.domain", "DiscipleFactory")
+        register("engine.domain", "DisciplePillManager")
+        register("engine.domain", "DiscipleService")
+        register("engine.domain", "PillEffectApplier")
+        register("engine.domain", "VassalService")
 
         // ── core/engine 根（崩溃上报等基础设施） ──
         register("engine", "EngineCrashReporter")

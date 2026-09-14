@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
@@ -34,15 +34,16 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 
-/** 灵矿场对话框 UI 状态（SpiritMineDialog 拆分） */
+/** 灵矿场对话框 UI 状态 */
 private class SpiritMineDialogState {
     var showDiscipleSelection by mutableStateOf(false)
     var showDeaconSelection by mutableStateOf<Int?>(null)
     var swappingSlotIndex by mutableStateOf<Int?>(null)
 }
 
-/** 灵矿场上下文（SpiritMineDialog 拆分）：建筑定位 + 槽位 */
+/** 灵矿场上下文：建筑定位 + 槽位 */
 private data class SpiritMineContext(
     val globalMines: List<GridBuildingData>,
     val mineIndex: Int,
@@ -51,13 +52,14 @@ private data class SpiritMineContext(
     val slots: List<SpiritMineSlot>
 )
 
-/** 总产出与平均采矿加成（SpiritMineDialog 拆分） */
+/** 总产出与平均采矿加成 */
 private data class SpiritMineOutput(
     val totalOutput: Long,
     val avgMiningBonus: Double
 )
 
 @Composable
+@Suppress("UnusedParameter") // productionViewModel: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun SpiritMineDialog(
     buildingInstanceId: String = "",
     viewModel: GameViewModel,
@@ -128,7 +130,7 @@ fun SpiritMineDialog(
     )
 }
 
-/** 矿场槽位与建筑定位（SpiritMineDialog 拆分） */
+/** 矿场槽位与建筑定位 */
 private fun spiritMineContext(
     buildingInstanceId: String,
     gameData: GameData?
@@ -153,7 +155,7 @@ private fun spiritMineContext(
     )
 }
 
-/** 失配槽位计数（SpiritMineDialog 拆分）：真实槽位因 sectId 失配被虚构空槽替代的数量 */
+/** 失配槽位计数：真实槽位因 sectId 失配被虚构空槽替代的数量 */
 private fun countSectIdMismatchedSlots(
     mineStartIndex: Int,
     mineSectId: String,
@@ -163,7 +165,7 @@ private fun countSectIdMismatchedSlots(
     real != null && real.sectId != mineSectId
 }
 
-/** B3 兜底诊断（SpiritMineDialog 拆分）：只读观测对齐是否生效 */
+/** 兜底诊断：只读观测对齐是否生效 */
 @Composable
 private fun SpiritMineSectMismatchDiagnostics(
     buildingInstanceId: String,
@@ -190,7 +192,7 @@ private fun SpiritMineSectMismatchDiagnostics(
     }
 }
 
-/** 战斗/探索占用弟子 ID（SpiritMineDialog 拆分） */
+/** 战斗/探索占用弟子 ID */
 private fun battleAndExplorationIdsFrom(gameData: GameData?): Set<String> {
     val gd = gameData
     if (gd != null) {
@@ -202,7 +204,7 @@ private fun battleAndExplorationIdsFrom(gameData: GameData?): Set<String> {
     }
 }
 
-/** 执事槽位列表（SpiritMineDialog 拆分）：2 槽位，缺失补空 */
+/** 执事槽位列表：2 槽位，缺失补空 */
 private fun spiritMineDeaconSlots(gameData: GameData?): List<DirectDiscipleSlot> {
     val deaconSlots = gameData?.elderSlots?.spiritMineDeaconDisciples ?: emptyList()
     return (0 until 2).map { index ->
@@ -210,7 +212,7 @@ private fun spiritMineDeaconSlots(gameData: GameData?): List<DirectDiscipleSlot>
     }
 }
 
-/** 执事道德加成（SpiritMineDialog 拆分）：超基线道德 × 0.01 累加 */
+/** 执事道德加成：超基线道德 × 0.01 累加 */
 private fun spiritMineDeaconBonus(
     deaconDisciples: List<DirectDiscipleSlot>,
     discipleMap: Map<String, DiscipleAggregate>
@@ -222,7 +224,7 @@ private fun spiritMineDeaconBonus(
     diff * 0.01
 }
 
-/** 总产出计算（SpiritMineDialog 拆分）：采矿加成 + 执事加成 + 政策加成 */
+/** 总产出计算：采矿加成 + 执事加成 + 政策加成 */
 private fun spiritMineOutput(
     slots: List<SpiritMineSlot>,
     discipleMap: Map<String, DiscipleAggregate>,
@@ -234,31 +236,33 @@ private fun spiritMineOutput(
 ): SpiritMineOutput {
     // 计算总产出（含采矿属性加成）
     var miningBonus = 0.0
-    val baseOutput = slots.map { slot ->
-        if (slot.discipleId.isEmpty()) {
-            0L
-        } else {
-            val disciple = discipleMap[slot.discipleId]
-            if (disciple != null) {
-                val mining = DiscipleStatCalculator.getBaseStats(disciple).mining
-                if (mining > spiritMineMiningThreshold) {
-                    miningBonus += (mining - spiritMineMiningThreshold) * spiritMineMiningBonusRate
-                }
-            }
-            spiritMineBaseOutput.toLong()
-        }
-    }.sum()
+    slots.forEach { slot ->
+        miningBonus += miningBonusForSlot(slot, discipleMap, spiritMineMiningThreshold, spiritMineMiningBonusRate)
+    }
 
     val minerCount = slots.count { it.isActive }
     val avgMiningBonus = if (minerCount > 0) miningBonus / minerCount else 0.0
-
     val baseTotal = minerCount * spiritMineBaseOutput.toLong()
     val boostEffect = if (gameData?.sectPolicies?.spiritMineBoost == true) 1.2 else 1.0
     val totalOutput = (baseTotal * (1 + avgMiningBonus) * (1 + deaconBonus) * boostEffect).toLong()
     return SpiritMineOutput(totalOutput = totalOutput, avgMiningBonus = avgMiningBonus)
 }
 
-/** 灵矿场主内容（SpiritMineDialog 拆分）：执事区 + 矿工区 + 槽位行 */
+/** 单矿工采矿加成：空槽 / 未知弟子 / 低于阈值矿工零贡献 */
+private fun miningBonusForSlot(
+    slot: SpiritMineSlot,
+    discipleMap: Map<String, DiscipleAggregate>,
+    spiritMineMiningThreshold: Int,
+    spiritMineMiningBonusRate: Double
+): Double {
+    if (slot.discipleId.isEmpty()) return 0.0
+    val disciple = discipleMap[slot.discipleId] ?: return 0.0
+    val mining = DiscipleStatCalculator.getBaseStats(disciple).mining
+    if (mining <= spiritMineMiningThreshold) return 0.0
+    return (mining - spiritMineMiningThreshold) * spiritMineMiningBonusRate
+}
+
+/** 灵矿场主内容：执事区 + 矿工区 + 槽位行 */
 @Composable
 private fun SpiritMineDialogContent(
     state: SpiritMineDialogState,
@@ -308,7 +312,7 @@ private fun SpiritMineDialogContent(
     }
 }
 
-/** 灵矿执事区（SpiritMineDialog 拆分） */
+/** 灵矿执事区 */
 @Composable
 private fun SpiritMineDeaconArea(
     deaconDisciples: List<DirectDiscipleSlot>,
@@ -332,7 +336,7 @@ private fun SpiritMineDeaconArea(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getSpiritMineDeaconInfo())
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.spiritMineDeaconInfo)
         }
 
         Row(
@@ -346,7 +350,7 @@ private fun SpiritMineDeaconArea(
                     deaconSlot = deaconSlot,
                     disciple = disciple,
                     onSlotClick = {
-                        disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                        disciple?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     },
                     onRemove = { spiritMineViewModel.removeSpiritMineDeacon(deaconSlot.index) },
                     onSwap = { onDeaconSwap(deaconSlot.index) }
@@ -356,7 +360,7 @@ private fun SpiritMineDeaconArea(
     }
 }
 
-/** 矿工标题行（SpiritMineDialog 拆分）：空闲计数 + 一键任命 */
+/** 矿工标题行：空闲计数 + 一键任命 */
 @Composable
 private fun SpiritMineMinerHeader(
     emptySlotCount: Int,
@@ -378,7 +382,7 @@ private fun SpiritMineMinerHeader(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getSpiritMineMinerInfo())
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.spiritMineMinerInfo)
         }
         GameButton(
             text = "一键任命",
@@ -388,7 +392,7 @@ private fun SpiritMineMinerHeader(
     }
 }
 
-/** 矿工槽位行（SpiritMineDialog 拆分）：未建造提示或 3 槽位 */
+/** 矿工槽位行：未建造提示或 3 槽位 */
 @Composable
 private fun SpiritMineSlotRow(
     mineContext: SpiritMineContext,
@@ -419,7 +423,7 @@ private fun SpiritMineSlotRow(
                     onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) },
                     onSwap = { onMinerSwap(slot.index) },
                     onSlotClick = {
-                        disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+                        disciple?.let { viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     }
                 )
             }
@@ -427,7 +431,7 @@ private fun SpiritMineSlotRow(
     }
 }
 
-/** 弟子/执事选择弹窗（SpiritMineDialog 拆分） */
+/** 弟子/执事选择弹窗 */
 @Composable
 private fun SpiritMineSelectionDialogs(
     state: SpiritMineDialogState,
@@ -456,7 +460,7 @@ private fun SpiritMineSelectionDialogs(
     )
 }
 
-/** 采矿弟子选择弹窗（SpiritMineDialog 拆分）：任命 / 替换 */
+/** 采矿弟子选择弹窗：任命 / 替换 */
 @Composable
 private fun SpiritMineDiscipleSelection(
     state: SpiritMineDialogState,
@@ -508,7 +512,7 @@ private fun SpiritMineDiscipleSelection(
     }
 }
 
-/** 执事选择弹窗（SpiritMineDialog 拆分） */
+/** 执事选择弹窗 */
 @Composable
 private fun SpiritMineDeaconSelection(
     state: SpiritMineDialogState,
@@ -542,6 +546,7 @@ private fun SpiritMineDeaconSelection(
     }
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun SpiritMineDeaconSlotItem(
     index: Int,
@@ -554,7 +559,7 @@ private fun SpiritMineDeaconSlotItem(
     val borderColor = if (deaconSlot.isActive) {
         try {
             Color(android.graphics.Color.parseColor(deaconSlot.discipleSpiritRootColor))
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             GameColors.Success
         }
     } else {
@@ -583,6 +588,7 @@ private fun SpiritMineDeaconSlotItem(
     }
 }
 
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun SpiritMineSlotItem(
     slot: SpiritMineSlot,
@@ -598,7 +604,7 @@ private fun SpiritMineSlotItem(
         val borderColor = if (disciple != null) {
             try {
                 Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 GameColors.Border
             }
         } else {

@@ -10,7 +10,7 @@ import org.junit.Test
 /**
  * 自动守卫：新增 [SlotCategory] 枚举值时，若忘记同步更新相关函数，测试将失败。
  *
- * ## 新增槽位系统的必改清单（2026-08-05 多槽位互斥根治后扩充为 8 处）
+ * ## 新增槽位系统的必改清单（共 8 处）
  *
  * 当你在 [SlotCategory] 添加了新的枚举值，测试会在此文件中报错。
  * 请同步更新：
@@ -147,14 +147,16 @@ class SlotCategoryCoverageTest {
     @Test
     fun `all known assignment entries reference slot cleanup`() {
         val entriesRequiringCleanup = listOf(
-            "com/xianxia/sect/core/GameEngineAtomicAssign.kt",          // 巡逻 3 入口
-            "com/xianxia/sect/core/GameEngineCoordination.kt",           // 任务/血炼
+            // 巡逻 3 入口 + 住所 2 入口（batch-12 native 臂后回退臂仍持清理）
+            "com/xianxia/sect/core/engine/GameEngineAtomicAssign.kt",
+            "com/xianxia/sect/core/engine/GameEngineMissionOps.kt",             // 任务（M3 第九批自 Coordination 拆出）
+            "com/xianxia/sect/core/engine/GameEngineBloodRefinementOps.kt",     // 血炼（M3 第九批自 Coordination 拆出）
             "com/xianxia/sect/core/engine/GameEngineSecretRealmOps.kt",  // 秘境出发
-            "com/xianxia/sect/core/GameEngineBattleOps.kt",              // 世界驻守
+            "com/xianxia/sect/core/engine/GameEngineGarrisonOps.kt",              // 世界驻守（M3 第九批自 BattleOps 拆出）
             "com/xianxia/sect/core/engine/GameEngineWarehouseOps.kt",    // 仓库驻守
-            "com/xianxia/sect/core/domain/disciple/DiscipleFacadeImpl.kt", // 亲传/藏经阁
-            "com/xianxia/sect/core/domain/building/BuildingFacadeImpl.kt", // 生产槽新 API
-            "com/xianxia/sect/core/domain/building/BuildingService.kt"     // 生产槽旧 API
+            "com/xianxia/sect/core/engine/domain/disciple/DiscipleFacadeImpl.kt", // 亲传/藏经阁
+            "com/xianxia/sect/core/engine/domain/building/BuildingFacadeImpl.kt", // 生产槽新 API
+            "com/xianxia/sect/core/engine/domain/building/BuildingService.kt"     // 生产槽旧 API
         )
         val cleanupMarkers = listOf(
             "clearAllSlotsDataOnly", "clearAllSlots(", "releaseDiscipleFromAllSlotsAtomic",

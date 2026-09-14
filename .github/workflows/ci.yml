@@ -28,6 +28,16 @@ jobs:
       - name: Run GTest
         run: ctest --test-dir build --output-on-failure
 
+      # ── ActionId 分派覆盖红线（W4-00 并行前置批）────────────────────────
+      # **为什么单独点名**：分发表是连续区间 `else if` 链，"区间写法吞掉动作号"
+      # 的症状极隐蔽（动作号存在、常量存在、Kotlin 能发出去，只是永远走不到
+      # 自己的 handler），单点用例发现不了。历史上真实发生过（1730 被 1520–1531
+      # 区间吞进库存 handler）。`DispatchGuard*` 对**每一个**已注册动作号断言
+      # 分派可达，首跑即抓出 2 处死导出（1011 / 1013）。
+      # 上面 ctest 已覆盖本用例，此处点名是为了失败信息更聚焦。
+      - name: ActionId dispatch coverage red-line
+        run: ctest --test-dir build -R 'DispatchGuard' --output-on-failure
+
   # ── 跨语言差分对拍（桌面对拍框架长期化，批 12-5）────────────────────
   # 构建桌面 JNI 桥（Linux g++，零 Android 依赖——build-desktop-jni-linux.sh）
   # 并注入 -Dgamecore.jni.path 实跑全部 Diff*Test（C++ ↔ Kotlin 逐位对拍）。
@@ -58,6 +68,23 @@ jobs:
 
       - name: Build desktop JNI bridge
         run: bash ../scripts/build-desktop-jni-linux.sh
+
+      # ── RNG 随机源红线（ADR rng-determinism-remediation 阶段 0）──────────
+      # **为什么不写 grep**：项目原红线是 `grep "import kotlin.random.Random"`，三条失效
+      # 原因（ADR §1 实测）：① `templates.random()` 是 stdlib 扩展函数、`GameRandom`
+      # 是自建 object——**两者都不带该 import**，永远匹配不到；② 该断言后来事实上从
+      # CI 消失（红线失守无告警）；③ 正则无法区分"注释引用"与"真实调用"，
+      # 改注释即改守卫。
+      # 现红线 = `RngSourceGuardTest`（注释感知 + 逐模块逐类登记上限只缩不增 +
+      # R4 清单式 + R2 分区往返 + 五类入口覆盖），由本 step 显式点名跑，
+      # 与 `cpp-diff-jni-test` 的全量 engine 测试互为冗余（本 step 失败信息更聚焦）。
+      # 消费点清单与登记上限的事实来源见 docs/rng-source-inventory.md。
+      - name: RNG source red-line (four entry classes)
+        run: |
+          ./gradlew :core:engine:testReleaseUnitTest --max-workers=1 --build-cache \
+            --tests 'com.xianxia.sect.core.architecture.RngSourceGuardTest' \
+            --tests 'com.xianxia.sect.core.architecture.RngEngineIsolationGuardTest' \
+            "-Dgamecore.jni.path=$GITHUB_WORKSPACE/android/core/engine/build/desktop-jni/libgamecorejni.so"
 
       # 全量 engine 单测（含 Diff*Test 桌面对拍 0 skip）——串行必须（共享静态状态）
       - name: Run engine unit tests with desktop JNI

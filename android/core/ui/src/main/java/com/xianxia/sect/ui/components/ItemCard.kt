@@ -28,6 +28,16 @@ import com.xianxia.sect.ui.theme.GameColors
 
 val LocalItemSpriteCache = staticCompositionLocalOf<Map<Int, ImageBitmap>> { emptyMap() }
 
+/**
+ * 预载弟子头像缓存：肖像名 → 预解码位图（≤256px）。
+ *
+ * 由 MainGameScreen 提供（ResourcePreloader L0 预载的缩略位图产物）。
+ * 消费方 [com.xianxia.sect.ui.components.PortraitImage]：
+ * 显示尺寸 ≤80dp 的头像命中缓存即免去 painterResource 全分辨率（源图
+ * 800~2048px，单张 3~16MB）解码与常驻缓存。
+ */
+val LocalPortraitCache = staticCompositionLocalOf<Map<String, ImageBitmap>> { emptyMap() }
+
 data class ItemCardData(
     val id: String = "",
     val name: String,
@@ -59,7 +69,6 @@ fun UnifiedItemCard(
     selectedBorderColor: Color = Color.White,
     isFollowed: Boolean = false,
     showQuantity: Boolean = true,
-    showPrice: Boolean = false,
     craftable: Boolean = true,
     onClick: () -> Unit = {},
     onLongPress: (() -> Unit)? = null,
@@ -102,7 +111,7 @@ fun UnifiedItemCard(
     }
 }
 
-/** 卡片精灵图解析（UnifiedItemCard 拆分）：按物品类型 → 对应精灵资源 */
+/** 卡片精灵图解析：按物品类型 → 对应精灵资源 */
 private fun itemCardSpriteRes(data: ItemCardData): Int? = when {
     data.spiritStoneGrade != null -> spiritStoneSpriteRes(data.spiritStoneGrade)
     data.isBag -> storageBagSpriteRes(data.rarity)
@@ -117,9 +126,9 @@ private fun itemCardSpriteRes(data: ItemCardData): Int? = when {
     else -> equipmentSpriteRes(data.name)
 }
 
-/** 卡片主体（UnifiedItemCard 拆分）：边框列 + 精灵区 + 名称区 */
+/** 卡片主体：边框列 + 精灵区 + 名称区 */
 @Composable
-@Suppress("LongParameterList") // 拆分聚合：12 个平铺参数均为原公共函数参数的搬移（detekt 对 @Composable 不豁免）
+@Suppress("LongParameterList") // 12 个平铺参数，detekt 对 @Composable 不豁免
 private fun ItemCardBody(
     data: ItemCardData,
     rarityColor: Color,
@@ -164,7 +173,7 @@ private fun ItemCardBody(
     }
 }
 
-/** 精灵区（UnifiedItemCard 拆分）：背景色 + 精灵/占位 + 锁定/品质/数量角标 */
+/** 精灵区：背景色 + 精灵/占位 + 锁定/品质/数量角标 */
 // 拆分残余:函数体略超 60 行(原函数拆分后聚合)
 @Suppress("LongMethod")
 @Composable
@@ -246,7 +255,7 @@ private fun ColumnScope.ItemCardSpriteArea(
     }
 }
 
-/** 名称区（UnifiedItemCard 拆分）：白底黑字单行名称 */
+/** 名称区：白底黑字单行名称 */
 @Composable
 private fun ItemCardNameArea(name: String, nameFontSize: androidx.compose.ui.unit.TextUnit) {
     Box(
@@ -268,7 +277,7 @@ private fun ItemCardNameArea(name: String, nameFontSize: androidx.compose.ui.uni
     }
 }
 
-/** 覆盖操作按钮（UnifiedItemCard 拆分）：选中态右上角金色按钮 */
+/** 覆盖操作按钮：选中态右上角金色按钮 */
 @Composable
 private fun BoxScope.ItemCardOverlayButton(text: String, onClick: (() -> Unit)?) {
     Box(
@@ -294,7 +303,7 @@ private fun BoxScope.ItemCardOverlayButton(text: String, onClick: (() -> Unit)?)
     }
 }
 
-/** 不可制作遮罩（UnifiedItemCard 拆分） */
+/** 不可制作遮罩 */
 @Composable
 private fun ItemCardNotCraftableMask() {
     Box(

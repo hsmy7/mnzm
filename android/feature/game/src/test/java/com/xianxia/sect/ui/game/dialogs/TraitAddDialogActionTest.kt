@@ -13,12 +13,15 @@ import com.xianxia.sect.core.model.DiscipleExtended
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.ui.game.GameViewModel
 import io.mockk.coEvery
+import io.mockk.mockkStatic
 import io.mockk.mockk
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.xianxia.sect.ui.game.delegate.addTalent
+import com.xianxia.sect.ui.game.delegate.confirmAddTalent
 
 /**
  * 新增弹窗 UI↔引擎集成段测试（镜像 TraitWashDialogWashActionTest）：
@@ -31,6 +34,12 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class TraitAddDialogActionTest {
 
+    companion object {
+        init {
+            mockkStatic("com.xianxia.sect.ui.game.delegate.DiscipleDelegateTraitAddOpsKt")
+        }
+    }
+
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -38,7 +47,7 @@ class TraitAddDialogActionTest {
     fun `天赋 - mock Success 点击消耗玉符后结果区显示新天赋且出现确认新增继续消耗`() {
         val result = TalentDatabase.getByRarity(1).first()
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.addTalent(any()) } returns TraitAddResult.Success(result.id)
+        coEvery { vm.disciple.addTalent(any()) } returns TraitAddResult.Success(result.id)
 
         composeRule.setContent {
             TraitAddDialog(
@@ -67,7 +76,7 @@ class TraitAddDialogActionTest {
     @Test
     fun `天赋 - mock Error 点击消耗玉符后显示错误提示`() {
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.addTalent(any()) } returns TraitAddResult.Error("弟子已死亡")
+        coEvery { vm.disciple.addTalent(any()) } returns TraitAddResult.Error("弟子已死亡")
 
         composeRule.setContent {
             TraitAddDialog(
@@ -88,7 +97,7 @@ class TraitAddDialogActionTest {
     @Test
     fun `天赋 - mock 玉符不足点击消耗玉符后显示固定文案`() {
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.addTalent(any()) } returns TraitAddResult.InsufficientJadeSymbols(0, 1)
+        coEvery { vm.disciple.addTalent(any()) } returns TraitAddResult.InsufficientJadeSymbols(0, 1)
 
         composeRule.setContent {
             TraitAddDialog(
@@ -111,7 +120,8 @@ class TraitAddDialogActionTest {
         // 需求：刷新结果持久化——关闭界面再打开仍显示刷新出的天赋，并可直接确认新增
         val pending = TalentDatabase.getByRarity(2).first()
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.confirmAddTalent(any(), any()) } returns com.xianxia.sect.core.engine.TraitAddConfirmResult.Success
+        coEvery { vm.disciple.confirmAddTalent(any(), any()) } returns
+        com.xianxia.sect.core.engine.TraitAddConfirmResult.Success
 
         composeRule.setContent {
             TraitAddDialog(

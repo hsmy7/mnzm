@@ -7,7 +7,6 @@ import com.xianxia.sect.data.model.SaveData
 /**
  * 存档数据版本（saveVersion）顺序迁移器。
  *
- * 从 StorageEngine.migrateSaveDataIfNeeded 提取（2026-08-04 云读档管线统一）：
  * 本地读档（StorageEngine.loadFromDatabaseInternal）与云存档加载
  * （SaveLoadViewModel.performCloudLoad / performCloudDownload）共用同一迁移管线，
  * 避免旧云档跳过迁移导致数据语义不一致（修炼值未缩放/外交关系未升级）。
@@ -23,14 +22,12 @@ object SaveDataVersionMigrator {
     const val CURRENT_SAVE_VERSION = com.xianxia.sect.core.model.SaveVersion.CURRENT
 
     /**
-     * v4.0.13（2026-06-20）发布时刻——v0→1 ÷10 缩放迁移的引入版本。
+     * v4.0.13 发布时刻——v0→1 ÷10 缩放迁移的引入版本。
      *
-     * 用于识别"误标新档"：v4.0.13 之后创建的新档本应使用新基准数值
-     * （无需缩放），但 [com.xianxia.sect.core.state.GameEngineCoordination]
-     * 的 createNewGame/restartGameInternal 长期未盖章 saveVersion，
-     * 新档恒以 0 落库，首次读档被 v0→1 误 ÷10（2026-08-05 修复前缺陷）。
+     * 用于识别"误标新档"：历史版本的新档未盖章 saveVersion（恒以 0 落库），
+     * 但其数值已是 v4.0.13 后的新基准（无需缩放），首次读档会被 v0→1 误 ÷10。
      * 以 lastSaveTime 与该时刻比较可区分"v4.0.13 前真旧档"（需缩放）与
-     * "v4.0.13 后误标新档"（不缩放）。
+     * "误标新档"（不缩放）。
      */
     const val V4_0_13_RELEASE_EPOCH_MS = 1781913600000L
 
@@ -38,10 +35,10 @@ object SaveDataVersionMigrator {
      * 顺序迁移旧版存档数据至当前版本；已是当前版本（saveVersion >= [CURRENT_SAVE_VERSION]）
      * 时原样返回。
      *
-     * 版本号边界校验（T10，2026-08-04）：
-     * - 负版本号：原行为按 v0 迁移——已缩放数据被二次缩放，现显式拒绝
-     * - 高于当前版本：原行为原样返回——Int.MAX 伪造版本绕过 v0→1 缩放，现显式拒绝
-     *   （3+ 版本存档出现在 2 版本 App 上 = 降级安装或篡改，拒绝是数据保护正确语义）
+     * 版本号边界校验：
+     * - 负版本号：显式拒绝（按 v0 迁移会对已缩放数据二次缩放）
+     * - 高于当前版本：显式拒绝（伪造高版本可绕过 v0→1 缩放；
+     *   更高版本存档出现在低版本 App 上 = 降级安装或篡改，拒绝是数据保护正确语义）
      *
      * @param saveData 待迁移存档
      * @return 迁移结果：[MigrationResult.Migrated] 数据可信；[MigrationResult.Rejected] 版本号非法，调用方必须中止加载
@@ -66,10 +63,10 @@ object SaveDataVersionMigrator {
         // ── Migration v0→1: cultivation scaling ──
         if (currentGd.saveVersion < 1) {
             val scaleFactor = 10.0
-            // 2026-08-05 修复：v4.0.13 后创建的新档长期未盖章 saveVersion，
-            // 被 v0→1 误 ÷10（系统性损失 90% 修炼进度）。按 lastSaveTime
-            // 时间边界区分真旧档（需缩放）与误标新档（不缩放），单向安全：
-            // 宁可保留偏大数值，不可再损 90%。
+            // 误标新档守卫：历史版本未盖章的新档（saveVersion=0）数值已是
+            // 新基准，不能被 v0→1 误 ÷10。按 lastSaveTime 时间边界区分
+            // 真旧档（需缩放）与误标新档（不缩放），单向安全：
+            // 宁可保留偏大数值，不可损失 90% 修炼进度。
             if (isLikelyMislabeledNewSave(currentGd)) {
                 Log.w(
                     TAG,
@@ -151,7 +148,7 @@ object SaveDataVersionMigrator {
 }
 
 /**
- * 存档版本迁移结果（T10，2026-08-04）。
+ * 存档版本迁移结果。
  *
  * [Migrated] 数据可信可继续加载；[Rejected] 版本号非法，调用方必须中止加载
  * （本地读档走备份恢复、云读档弹错误提示），不得使用数据。

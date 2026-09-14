@@ -6,11 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [sortedByRealmForDefense] 防守选人排序守卫。
+ * [sortedByRealmForDefense] 防守选人排序守卫（宗门防守战/妖兽防守战选人均走本排序）。
  *
- * 2026-08-15 宗门防守战/妖兽防守战缺陷回归：原实现按 realmLayer（小层）降序，
- * 高境界弟子突破大境界后 layer 重置为 1，会被同池中低境界高 layer 弟子挤出防守队，
- * 导致"玩家高境界弟子不上场、被 AI 低境界弟子击败"。
+ * 若按 realmLayer（小层）降序，高境界弟子突破大境界后 layer 重置为 1，
+ * 会被同池中低境界高 layer 弟子挤出防守队，导致"玩家高境界弟子不上场、
+ * 被 AI 低境界弟子击败"。
  */
 class DiscipleUtilsTest {
 
@@ -40,8 +40,8 @@ class DiscipleUtilsTest {
 
         val selected = pool.sortedByRealmForDefense().take(10)
 
-        // 修复前（realmLayer 降序）：10 个炼气 layer 7~9 全部优先，高境界弟子一个都不上场
-        // 修复后：全部 5 名高境界弟子必须入选
+        // 若按 realmLayer 降序：10 个炼气 layer 7~9 会全部优先，高境界弟子一个都不上场
+        // 本排序下：全部 5 名高境界弟子必须入选
         val selectedIds = selected.map { it.id }.toSet()
         assertEquals(
             "高境界弟子必须全部入选防守队（修复前被炼气高小层弟子挤出）",

@@ -33,7 +33,7 @@ import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/** 赏赐物品上下文（DiscipleSelectForRewardDialog 拆分） */
+/** 赏赐物品上下文 */
 private data class RewardItemContext(
     val itemId: String,
     val itemType: String,
@@ -41,7 +41,7 @@ private data class RewardItemContext(
     val itemRarity: Int
 )
 
-/** 赏赐弟子筛选状态（DiscipleSelectForRewardDialog 拆分） */
+/** 赏赐弟子筛选状态 */
 private class RewardDiscipleFilterState {
     var selectedRealmFilter by mutableStateOf<Set<Int>>(emptySet())
     var selectedSpiritRootFilter by mutableStateOf<Set<Int>>(emptySet())
@@ -116,8 +116,7 @@ internal fun DiscipleSelectForRewardDialog(
     }
 }
 
-/** 当前物品剩余数量查询（DiscipleSelectForRewardDialog 拆分） */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 当前物品剩余数量查询 */
 @Suppress("LongParameterList")
 private fun currentRewardQuantity(
     itemType: String,
@@ -138,7 +137,7 @@ private fun currentRewardQuantity(
     else -> 0
 }
 
-/** 头部剩余数量提示（DiscipleSelectForRewardDialog 拆分） */
+/** 头部剩余数量提示 */
 @Composable
 private fun RewardHeaderContent(
     itemName: String,
@@ -152,7 +151,7 @@ private fun RewardHeaderContent(
     )
 }
 
-/** 弟子筛选栏（DiscipleSelectForRewardDialog 拆分）：境界/灵根/属性筛选 + 显示全部 */
+/** 弟子筛选栏：境界/灵根/属性筛选 + 显示全部 */
 @Composable
 private fun DiscipleRewardFilterBar(
     disciples: List<DiscipleAggregate>,
@@ -198,18 +197,18 @@ private fun DiscipleRewardFilterBar(
         isCompact = true,
         showAllCheckboxVisible = true,
         showAllEnabled = showAllEnabled,
-        onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
+        onShowAllToggle = { viewModel.settings.setShowAllAvailableDisciples(!showAllEnabled) }
     )
 }
 
-/** 战斗/探索占用弟子 ID（DiscipleSelectForRewardDialog 拆分） */
+/** 战斗/探索占用弟子 ID */
 private fun battleAndExplorationIdsFrom(gameData: GameData): Set<String> {
     val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
     val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
     return battleIds + explorationIds
 }
 
-/** 赏赐弟子网格（DiscipleSelectForRewardDialog 拆分）：空态提示 + 弟子卡片列表 */
+/** 赏赐弟子网格：空态提示 + 弟子卡片列表 */
 @Composable
 private fun ColumnScope.DiscipleRewardGrid(
     disciples: List<DiscipleAggregate>,
@@ -269,7 +268,7 @@ private fun ColumnScope.DiscipleRewardGrid(
     }
 }
 
-/** 空态提示（DiscipleSelectForRewardDialog 拆分） */
+/** 空态提示 */
 @Composable
 private fun ColumnScope.DiscipleRewardEmptyState(text: String) {
     Box(
@@ -286,7 +285,7 @@ private fun ColumnScope.DiscipleRewardEmptyState(text: String) {
     }
 }
 
-/** 赏赐点击处理（DiscipleSelectForRewardDialog 拆分）：防重复发放 + 发放物品 */
+/** 赏赐点击处理：防重复发放 + 发放物品 */
 private fun rewardDiscipleClickHandler(
     itemContext: RewardItemContext,
     isRewarding: Boolean,
@@ -299,7 +298,7 @@ private fun rewardDiscipleClickHandler(
         scope.launch {
             onIsRewardingChanged(true)
             try {
-                viewModel.rewardItemsToDisciple(
+                viewModel.disciple.rewardItemsToDisciple(
                     disciple.id,
                     listOf(RewardSelectedItem(
                         id = itemContext.itemId,

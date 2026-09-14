@@ -50,6 +50,9 @@ class MailRepositoryImpl @Inject constructor(
     override suspend fun deleteById(slotId: Int, mailId: String) =
         mailDao.deleteById(slotId, mailId)
 
+    override suspend fun deleteExpiredMails(slotId: Int, now: Long): Int =
+        mailDao.deleteExpired(slotId, now)
+
     override suspend fun deleteIfClaimed(slotId: Int, mailId: String) =
         mailDao.deleteIfClaimed(slotId, mailId)
 
@@ -59,7 +62,7 @@ class MailRepositoryImpl @Inject constructor(
     override suspend fun deleteAllReadAndClaimed(slotId: Int) =
         mailDao.deleteAllReadAndClaimed(slotId)
 
-    // === 草稿持久化（D-01 事务化根治） ===
+    // === 草稿持久化 ===
     // 非挂起（阻塞）方法：供 GameStateStore 事务提交钩子（锁外、事务线程，禁 suspend）
     // 同步调用。Room 非挂起 DAO 方法在调用线程同步执行，引擎线程非主线程合法。
 
@@ -127,7 +130,7 @@ class MailRepositoryImpl @Inject constructor(
     }
 
     /**
-     * 跨 DAO 原子事务：mails 写入 + 草稿删除 原子化（D-01 drain 消费）。
+     * 跨 DAO 原子事务：mails 写入 + 草稿删除 原子化。
      *
      * 崩溃只发生在事务前/后——事务内 mails 写入与草稿删除要么都成功要么都不发生，
      * 重放不会重复发邮件（草稿行仍在 = 事务未提交）。Room 不支持跨 DAO 的

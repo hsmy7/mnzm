@@ -25,7 +25,7 @@ package com.xianxia.sect.core.touch
  * @property pinchMinDistPx 双指缩放最小间距（像素），低于此距离不计算缩放，防抖
  * @property pickUpBuildingOnDown 可拾起目标（见 [TouchEngineCallbacks.findBuildingAt]，即选中建筑）按下即拾起
  *   — true：Down 在目标上立即进入拖拽状态，位移 ≤ touchSlop 快速抬起仍视为 tap；
- *     false：维持 200ms 长按后拾起的旧行为
+ *     false：200ms 长按后拾起（默认拾起交互）
  */
 data class TouchEngineConfig(
     val touchSlopPx: Float = 16f,

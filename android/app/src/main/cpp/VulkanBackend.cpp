@@ -61,6 +61,16 @@ static void vk_signal_handler(int sig) {
 // 参考 Unity Device Filtering 内置规则和 Flutter Impeller 的 Vulkan 选择逻辑
 static constexpr uint32_t MIN_VULKAN_API_VERSION = VK_API_VERSION_1_1;
 
+// ── vkAcquireNextImageKHR 有界化──
+// UINT64_MAX 无界等待使「渲染线程卡 >2s」具备物理可能——这正是 Kotlin 侧
+// skip-release 分支（2s join 截止后放弃回收）的触发条件。有界化后渲染线程
+// 在 Surface 销毁后必然在有限时间（2s fence + 250ms×spin 上限）内退出。
+static constexpr uint64_t ACQUIRE_TIMEOUT_NS = 250'000'000ULL;  // 单轮 250ms
+static constexpr int ACQUIRE_SPIN_LIMIT = 8;                    // 8 轮 ≈ 2s 上限
+
+// 有限等待 fence（定义见 submitOneTimeCommands 附近）
+static bool waitForFenceBounded(VkDevice device, VkFence fence, uint64_t totalNs);
+
 // 必需的 Vulkan 设备扩展列表
 static const std::vector<const char*> REQUIRED_DEVICE_EXTENSIONS = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -173,7 +183,13 @@ bool VulkanBackend::createWhiteTexture() {
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     vkCreateFence(m_device, &fenceInfo, nullptr, &fence);
     vkQueueSubmit(m_graphicsQueue, 1, &submit, fence);
-    vkWaitForFences(m_device, 1, &fence, VK_TRUE, UINT64_MAX);
+    // 白纹创建与上传同用有限等待（此处失败走非致命日志路径）
+    if (!waitForFenceBounded(m_device, fence, 2'000'000'000ULL /*2s*/)) {
+        LOGE("white texture fence not signaled within 2s — suspect device lost");
+        vkDestroyFence(m_device, fence, nullptr);
+        vkFreeCommandBuffers(m_device, m_commandPool, 1, &cmd);
+        return false;
+    }
     vkDestroyFence(m_device, fence, nullptr);
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &cmd);
 
@@ -254,6 +270,16 @@ bool VulkanBackend::initSurface(void* nativeWindow, int viewportW, int viewportH
         if (!initDevice(nullptr, 0, 0, 0)) return false;
     }
 
+    // 幂等防御：上一代表面资源未释放（skip-release 纪元 / 迟到的
+    // init 成功）时先析构旧代再走正常创建链——覆盖式重建从此不可能泄漏。
+    // Kotlin 侧 resolveDeferredRelease 保证渲染线程此时已停（或已降级 GLES），
+    // 此处 vkDeviceWaitIdle 只等待 GPU 在途帧。
+    if (m_surface != VK_NULL_HANDLE || m_swapchain != VK_NULL_HANDLE ||
+        m_commandPool != VK_NULL_HANDLE) {
+        LOGW("initSurface: stale surface generation detected — destroying first");
+        destroySurfaceGeneration();
+    }
+
     m_config.viewportW = viewportW;
     m_config.viewportH = viewportH;
 
@@ -323,22 +349,18 @@ bool VulkanBackend::init(const RenderConfig& config, void* nativeWindow) {
     return initSurface(nativeWindow, config.viewportW, config.viewportH);
 }
 
-void VulkanBackend::shutdown() {
+void VulkanBackend::destroySurfaceGeneration() {
     if (m_device == VK_NULL_HANDLE) return;
+
+    // 先落闸挡住渲染线程新帧，再等待 GPU 在途帧完成
+    // （调用契约：渲染线程已由 Kotlin 侧 join 停止——stopRenderThread /
+    //  resolveDeferredRelease；waitIdle 只覆盖 GPU 侧在途工作。幂等：可重复调用）
+    m_ready = false;
     vkDeviceWaitIdle(m_device);
 
-    // 关机前保存 Pipeline Cache（可能在 LoadingScreen 阶段创建，也可能刚刚创建）
-    savePipelineCache();
-
-    // 销毁 Pipeline Cache
-    if (m_pipelineCache) {
-        vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
-        m_pipelineCache = VK_NULL_HANDLE;
-    }
-
-    destroyPipelineObjects();
-    destroyOffscreenTargets();  // 离屏目标必须在 vkDestroyDevice 前释放
-    destroySwapchain();
+    destroyOffscreenTargets();  // 离屏 framebuffer 引用离屏 renderPass——必须早于其销毁（VUID 00873）
+    destroyGraphicsObjects();   // pipeline/layout/renderPass/descriptorPool（保留 ShaderModule——device 级）
+    destroySwapchain();         // framebuffers/views/swapchain（不含 VkSurfaceKHR——surface 由本函数唯一销毁）
 
     // 清理白色纹理（每个 vkDestroy* 后立即置空，防止二次调用时双重释放）
     if (m_whiteTexture.view) { vkDestroyImageView(m_device, m_whiteTexture.view, nullptr); m_whiteTexture.view = VK_NULL_HANDLE; }
@@ -354,9 +376,8 @@ void VulkanBackend::shutdown() {
         if (tex.sampler) { vkDestroySampler(m_device, tex.sampler, nullptr); tex.sampler = VK_NULL_HANDLE; }
     }
     m_textures.clear();
-
-    if (m_descriptorPool) { vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr); m_descriptorPool = VK_NULL_HANDLE; }
-    if (m_descriptorSetLayout) { vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr); m_descriptorSetLayout = VK_NULL_HANDLE; }
+    // 退役队列一并清空（纹理资源已由上方循环/白纹清理释放；waitIdle 后无在途采样）
+    m_retiredTextures.clear();
 
     // 清理三缓冲 VBO
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -368,10 +389,6 @@ void VulkanBackend::shutdown() {
         if (m_vertexMemories[i]) { vkFreeMemory(m_device, m_vertexMemories[i], nullptr); m_vertexMemories[i] = VK_NULL_HANDLE; }
     }
 
-    // 清理 staging buffer
-    if (m_stagingBuffer) { vkDestroyBuffer(m_device, m_stagingBuffer, nullptr); m_stagingBuffer = VK_NULL_HANDLE; }
-    if (m_stagingMemory) { vkFreeMemory(m_device, m_stagingMemory, nullptr); m_stagingMemory = VK_NULL_HANDLE; }
-
     for (auto& sem : m_imageAvailable) { if (sem) { vkDestroySemaphore(m_device, sem, nullptr); sem = VK_NULL_HANDLE; } }
     m_imageAvailable.clear();
     for (auto& sem : m_renderFinished) { if (sem) { vkDestroySemaphore(m_device, sem, nullptr); sem = VK_NULL_HANDLE; } }
@@ -379,22 +396,55 @@ void VulkanBackend::shutdown() {
     for (auto& fence : m_inFlightFences) { if (fence) { vkDestroyFence(m_device, fence, nullptr); fence = VK_NULL_HANDLE; } }
     m_inFlightFences.clear();
 
-    if (m_commandPool) { vkDestroyCommandPool(m_device, m_commandPool, nullptr); m_commandPool = VK_NULL_HANDLE; }
+    if (m_commandPool) {
+        // 池销毁连带释放其 command buffer
+        vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+        m_commandPool = VK_NULL_HANDLE;
+    }
+    m_commandBuffers.clear();
 
-    // 主句柄置空 —— 确保二次 shutdown() 调用幂等安全
+    // Surface 纪元唯一销毁点：ensureSurface 复用既有 surface，
+    // 只有纪元析构（本函数）与 device 级 shutdown 销毁它
     if (m_surface) { vkDestroySurfaceKHR(m_instance, m_surface, nullptr); m_surface = VK_NULL_HANDLE; }
-    if (m_device) { vkDestroyDevice(m_device, nullptr); m_device = VK_NULL_HANDLE; }
-    if (m_instance) { vkDestroyInstance(m_instance, nullptr); m_instance = VK_NULL_HANDLE; }
 
-    // 释放 ANativeWindow 引用
+    // 释放 ANativeWindow 引用（与 initSurface 的 acquire 对称）
     if (m_nativeWindow) {
         ANativeWindow_release(m_nativeWindow);
         m_nativeWindow = nullptr;
     }
 
-    m_ready = false;
-    m_deviceReady = false;
+    m_currentFrame = 0;
     m_pendingDraws.clear();
+    LOGI("VulkanBackend surface generation destroyed");
+}
+
+void VulkanBackend::shutdown() {
+    if (m_device == VK_NULL_HANDLE) return;
+
+    // Surface 纪元资源（幂等析构——与 initSurface 复用路径共用同一清理）
+    destroySurfaceGeneration();
+
+    // 关机前保存 Pipeline Cache（可能在 LoadingScreen 阶段创建，也可能刚刚创建）
+    savePipelineCache();
+
+    // 销毁 Pipeline Cache
+    if (m_pipelineCache) {
+        vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
+        m_pipelineCache = VK_NULL_HANDLE;
+    }
+
+    // device 级资源：ShaderModule + staging buffer + device/instance
+    destroyShaderModules();
+
+    // 清理 staging buffer（device 级，跨 Surface 纪元保留——此处最终释放）
+    if (m_stagingBuffer) { vkDestroyBuffer(m_device, m_stagingBuffer, nullptr); m_stagingBuffer = VK_NULL_HANDLE; }
+    if (m_stagingMemory) { vkFreeMemory(m_device, m_stagingMemory, nullptr); m_stagingMemory = VK_NULL_HANDLE; }
+
+    // 主句柄置空 —— 确保二次 shutdown() 调用幂等安全
+    if (m_device) { vkDestroyDevice(m_device, nullptr); m_device = VK_NULL_HANDLE; }
+    if (m_instance) { vkDestroyInstance(m_instance, nullptr); m_instance = VK_NULL_HANDLE; }
+
+    m_deviceReady = false;
     LOGI("VulkanBackend shutdown");
 }
 
@@ -425,6 +475,7 @@ bool VulkanBackend::createInstance() {
     // 不启用验证层（发布版本）
     VkResult res = vkCreateInstance(&instInfo, nullptr, &m_instance);
     if (res != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_INSTANCE;
         LOGE("vkCreateInstance failed: %d", res);
         return false;
     }
@@ -434,15 +485,28 @@ bool VulkanBackend::createInstance() {
 bool VulkanBackend::selectPhysicalDevice() {
     uint32_t count = 0;
     vkEnumeratePhysicalDevices(m_instance, &count, nullptr);
-    if (count == 0) { LOGE("No Vulkan devices"); return false; }
+    if (count == 0) {
+        m_lastInitError = RenderInitError::VK_PHYSICAL_DEVICE;
+        LOGE("No Vulkan devices"); return false;
+    }
 
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(m_instance, &count, devices.data());
 
-    // 优先选独立 GPU，回退到第一个可用
+    // 选首个通过能力检测的设备（移动端均为单集显——原「优先独立 GPU」注释与
+    // 实现不符，修正；桌面多卡场景不在本项目目标范围）
     for (auto& dev : devices) {
         VkPhysicalDeviceProperties props;
         vkGetPhysicalDeviceProperties(dev, &props);
+
+        // 跳过 CPU 软件设备（debuggable 构建下系统可能暴露 SwiftShader
+        // ICD——生产低概率，纯防御；移动端正常设备不命中。设备类型 + 设备名双信号）
+        const char* dn = props.deviceName;
+        if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU ||
+            strstr(dn, "swiftshader") || strstr(dn, "llvmpipe")) {
+            LOGW("Skipping CPU ICD physical device: %s", dn);
+            continue;
+        }
 
         // ── Vulkan API 版本安全检查 ──
         // 验证驱动程序版本 >= 1.1，排除 1.0 的不完整实现
@@ -511,6 +575,7 @@ bool VulkanBackend::selectPhysicalDevice() {
     }
 
     LOGE("No suitable GPU found");
+    m_lastInitError = RenderInitError::VK_PHYSICAL_DEVICE;
     return false;
 }
 
@@ -538,7 +603,7 @@ bool VulkanBackend::createLogicalDevice() {
     features.textureCompressionETC2 = supportedFeatures.textureCompressionETC2
         ? VK_TRUE : VK_FALSE;
 
-    // 记录 ASTC LDR 支持状态（WP7：压缩图集上传前置条件，不支持时 Kotlin 回退 RGBA）
+    // 记录 ASTC LDR 支持状态（压缩图集上传前置条件，不支持时 Kotlin 回退 RGBA）
     m_astcSupported = supportedFeatures.textureCompressionASTC_LDR == VK_TRUE;
     // 记录各向异性支持状态（B.1：setTextureQuality / 采样器创建前置条件）
     m_anisoSupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
@@ -552,6 +617,7 @@ bool VulkanBackend::createLogicalDevice() {
     devInfo.pEnabledFeatures = &features;
 
     if (vkCreateDevice(m_physDevice, &devInfo, nullptr, &m_device) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_LOGICAL_DEVICE;
         LOGE("Failed to create logical device");
         return false;
     }
@@ -572,6 +638,7 @@ bool VulkanBackend::createLogicalDevice() {
     }
 
     if (m_graphicsQueue == VK_NULL_HANDLE) {
+        m_lastInitError = RenderInitError::VK_QUEUE;
         LOGE("Failed to get device queue after 3 attempts — likely Adreno driver race condition");
         vkDestroyDevice(m_device, nullptr);
         m_device = VK_NULL_HANDLE;
@@ -590,20 +657,31 @@ bool VulkanBackend::createLogicalDevice() {
 // Swapchain
 // ============================================================
 
-bool VulkanBackend::createSwapchain(int width, int height) {
+bool VulkanBackend::ensureSurface() {
+    // 幂等：surface 已存在直接复用——resize/清晰度切换不再新建
+    // VkSurfaceKHR（每纪元恰好一个 surface，销毁权在 destroySurfaceGeneration）
+    if (m_surface != VK_NULL_HANDLE) return true;
+
     VkAndroidSurfaceCreateInfoKHR surfInfo{};
     surfInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
     surfInfo.window = m_nativeWindow;
 
     if (vkCreateAndroidSurfaceKHR(m_instance, &surfInfo, nullptr, &m_surface) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_SURFACE;
         LOGE("Failed to create Android surface");
         return false;
     }
+    return true;
+}
+
+bool VulkanBackend::createSwapchain(int width, int height) {
+    if (!ensureSurface()) return false;
 
     // 查询 surface 格式
     uint32_t fmtCount = 0;
     VkResult fmtRes = vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &fmtCount, nullptr);
     if (fmtRes != VK_SUCCESS || fmtCount == 0) {
+        m_lastInitError = RenderInitError::VK_SWAPCHAIN;
         LOGE("No surface formats available (res=%d, count=%u)", fmtRes, fmtCount);
         return false;
     }
@@ -665,6 +743,7 @@ bool VulkanBackend::createSwapchain(int width, int height) {
 
     VkResult scRes = vkCreateSwapchainKHR(m_device, &swapInfo, nullptr, &m_swapchain);
     if (scRes != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_SWAPCHAIN;
         LOGE("vkCreateSwapchainKHR failed: %d (format=%d, %dx%d)",
              scRes, m_swapchainFormat, safeW, safeH);
         return false;
@@ -689,6 +768,7 @@ bool VulkanBackend::createSwapchain(int width, int height) {
         viewInfo.subresourceRange.layerCount = 1;
 
         if (vkCreateImageView(m_device, &viewInfo, nullptr, &m_swapchainViews[i]) != VK_SUCCESS) {
+            m_lastInitError = RenderInitError::VK_SWAPCHAIN;
             LOGE("Failed to create swapchain image view");
             return false;
         }
@@ -728,9 +808,15 @@ void VulkanBackend::destroySwapchain() {
 bool VulkanBackend::createFramebuffers() {
     uint32_t imgCount = (uint32_t)m_swapchainViews.size();
     if (imgCount == 0 || m_renderPass == VK_NULL_HANDLE) {
+        m_lastInitError = RenderInitError::VK_RENDER_PASS;
         LOGE("createFramebuffers: no swapchain views or render pass not ready");
         return false;
     }
+    // 幂等入口：清晰度切换（setRenderScale）不经 destroySwapchain
+    // 直达本函数——旧 framebuffer 残留即每帧泄漏；先销毁旧代再建（幂等不变量）
+    for (auto& fb : m_framebuffers)
+        if (fb) vkDestroyFramebuffer(m_device, fb, nullptr);
+    m_framebuffers.clear();
     m_framebuffers.resize(imgCount);
     for (uint32_t i = 0; i < imgCount; i++) {
         VkFramebufferCreateInfo fbInfo{};
@@ -743,6 +829,7 @@ bool VulkanBackend::createFramebuffers() {
         fbInfo.layers = 1;
 
         if (vkCreateFramebuffer(m_device, &fbInfo, nullptr, &m_framebuffers[i]) != VK_SUCCESS) {
+            m_lastInitError = RenderInitError::VK_RENDER_PASS;
             LOGE("Failed to create framebuffer %u", i);
             return false;
         }
@@ -753,7 +840,7 @@ bool VulkanBackend::createFramebuffers() {
 }
 
 // ============================================================
-// Render scale 离屏降采样目标（平板/大屏省电，2026-08-14）
+// Render scale 离屏降采样目标（平板/大屏省电）
 // ============================================================
 
 void VulkanBackend::destroyOffscreenTargets() {
@@ -901,17 +988,21 @@ float VulkanBackend::setRenderScale(float scale) {
     m_ready = false;
     vkDeviceWaitIdle(m_device);
 
+    // ★ 持锁重建（m_gpuMutex）：本函数销毁/重建描述符池并遍历 m_textures 重建
+    //   descSet——与主线程上传 push_back 并发即 vector 悬垂（见头文件注）。
+    //   m_ready=false 已先行挡住渲染线程新帧，锁只与上传线程互斥。
+    std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
+
     // 旧离屏目标先销毁（其 framebuffers 引用 m_offscreenRenderPass——
     // 必须早于 renderPass 销毁，VUID-vkDestroyRenderPass-renderPass-00873）
     destroyOffscreenTargets();
     m_renderScale = scale;
     const bool willUseOffscreen = scale < 1.0f;
 
-    // ★ 顺序修正（2026-09 骁龙 8 Gen 2 黑屏噪点根因）：
-    //   旧顺序 createOffscreenTargets 先于 renderPass 重建——offscreen framebuffer
-    //   以旧 renderPass 创建，随后 destroyGraphicsObjects 销毁该 renderPass
-    //   （违反 VUID-vkDestroyRenderPass-renderPass-00873）。新顺序：
-    //   先重建 graphics 对象（管线 viewport 已改为按 m_renderScale 现场推导，
+    // 重建顺序约束：offscreen framebuffer 不得以旧 renderPass 创建——
+    //   destroyGraphicsObjects 会销毁该 renderPass
+    //   （违反 VUID-vkDestroyRenderPass-renderPass-00873）。顺序必须为：
+    //   先重建 graphics 对象（管线 viewport 按 m_renderScale 现场推导，
     //   不依赖离屏目标创建时机），最后创建离屏目标（framebuffer 绑定新
     //   m_offscreenRenderPass）。
     //   任何 scale 变化都改变 viewport extent（直渲值仅 1.0 且被 fabs 提前返回拦截），
@@ -950,12 +1041,17 @@ float VulkanBackend::setRenderScale(float scale) {
 bool VulkanBackend::resize(int width, int height) {
     if (m_device == VK_NULL_HANDLE) return false;
 
-    // 对抗性审查 S2：置 false 挡住渲染线程 submitFrame——vkDeviceWaitIdle 只等
+    // 置 false 挡住渲染线程 submitFrame——vkDeviceWaitIdle 只等
     // GPU 空闲、不等渲染线程；不置位时渲染线程可在 swapchain 销毁后
     // vkAcquireNextImageKHR 命中已销毁句柄（DEVICE_LOST/SIGSEGV）。
     // 重建成功恢复 true；失败保持 false（渲染停止提交，安全黑屏而非崩溃）
     m_ready = false;
     vkDeviceWaitIdle(m_device);
+
+    // ★ 持锁重建（m_gpuMutex）：destroyGraphicsObjects 遍历 m_textures 置空
+    //   descSet、重建后再次遍历分配——与主线程上传 push_back 并发即 vector
+    //   悬垂（见头文件注）。m_ready=false 已先行挡住渲染线程新帧。
+    std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
 
     destroySwapchain();
     destroyOffscreenTargets();  // 离屏目标尺寸基于旧 swapchain extent，一并重建
@@ -1043,6 +1139,7 @@ bool VulkanBackend::createRenderPass() {
     rpInfo.pDependencies = &dep;
 
     if (vkCreateRenderPass(m_device, &rpInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_RENDER_PASS;
         LOGE("Failed to create render pass");
         return false;
     }
@@ -1052,10 +1149,10 @@ bool VulkanBackend::createRenderPass() {
 bool VulkanBackend::createOffscreenRenderPass() {
     if (m_offscreenRenderPass) vkDestroyRenderPass(m_device, m_offscreenRenderPass, nullptr);
 
-    // ★ 根因修复（2026-09 骁龙 8 Gen 2 黑屏噪点）：离屏图像不是交换链图像，
+    // 离屏图像不是交换链图像，
     //   finalLayout = PRESENT_SRC_KHR 对非 swapchain 图像非法（Vulkan 规范），
-    //   Adreno 740 上 renderPass 结束布局转换未定义 → blit 读到未初始化数据 →
-    //   每帧随机噪点（真机实测两帧差异 88%）。离屏 pass 的 finalLayout 使用
+    //   renderPass 结束布局转换未定义 → blit 读到未初始化数据 →
+    //   每帧随机噪点。离屏 pass 的 finalLayout 使用
     //   TRANSFER_SRC_OPTIMAL（blit 源布局），与主 pass 附件描述一致（管线兼容）。
     VkAttachmentDescription colorAtt{};
     colorAtt.format = m_swapchainFormat;
@@ -1094,6 +1191,7 @@ bool VulkanBackend::createOffscreenRenderPass() {
     rpInfo.pDependencies = &dep;
 
     if (vkCreateRenderPass(m_device, &rpInfo, nullptr, &m_offscreenRenderPass) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_OFFSCREEN;
         LOGE("Failed to create offscreen render pass");
         return false;
     }
@@ -1109,6 +1207,7 @@ bool VulkanBackend::loadShaders() {
     m_skyFragShader = compileShader(sky_frag_spv, sky_frag_spv_size);
 
     if (!m_vertShader || !m_fragShader || !m_skyVertShader || !m_skyFragShader) {
+        m_lastInitError = RenderInitError::VK_SHADERS;
         LOGE("Failed to compile shaders");
         return false;
     }
@@ -1202,6 +1301,7 @@ bool VulkanBackend::createPipeline() {
     dslInfo.pBindings = &bind;
 
     if (vkCreateDescriptorSetLayout(m_device, &dslInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_DESCRIPTOR_POOL;
         LOGE("Failed to create descriptor set layout");
         return false;
     }
@@ -1220,6 +1320,7 @@ bool VulkanBackend::createPipeline() {
     plInfo.pPushConstantRanges = &pushRange;
 
     if (vkCreatePipelineLayout(m_device, &plInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_PIPELINE_LAYOUT;
         LOGE("Failed to create pipeline layout");
         return false;
     }
@@ -1243,21 +1344,25 @@ bool VulkanBackend::createPipeline() {
         m_skyPipelineLayout = VK_NULL_HANDLE;
     }
 
-    // 描述符池
-    // 描述符池 — ★ 2026-09 根因修复：每纹理独立描述符集（白纹 + 图集 + 地面 +
-    // RGBA 回退图集等），maxSets 预留 16（此前单共享集 maxSets=1，纹理切换靠
-    // command buffer 记录期间 vkUpdateDescriptorSets——规范非法，放置模式白屏根因）
+    // 描述符池 — 每纹理独立描述符集（白纹 + 图集 + 地面 +
+    // RGBA 回退图集等），不得回退单共享集——
+    // command buffer 记录期间 vkUpdateDescriptorSets 改写共享集违反规范。
+    // maxSets 动态化：原硬编码 16，纹理注册表超限后
+    // vkAllocateDescriptorSets 失败 → 白纹回退；上限随注册表容量伸缩
+    // （超限后的运行时重建见 updateTextureDescriptor → rebuildDescriptorPool）
+    const uint32_t descriptorMaxSets = std::max(16u, (uint32_t)m_textures.capacity() + 2);
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSize.descriptorCount = 16;
+    poolSize.descriptorCount = descriptorMaxSets;
 
     VkDescriptorPoolCreateInfo dpInfo{};
     dpInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    dpInfo.maxSets = 16;
+    dpInfo.maxSets = descriptorMaxSets;
     dpInfo.poolSizeCount = 1;
     dpInfo.pPoolSizes = &poolSize;
 
     if (vkCreateDescriptorPool(m_device, &dpInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_DESCRIPTOR_POOL;
         LOGE("Failed to create descriptor pool");
         return false;
     }
@@ -1298,7 +1403,7 @@ bool VulkanBackend::createPipeline() {
 
     // 视口 — render scale 离屏模式用降采样 extent；投影矩阵仍为物理尺寸，
     // NDC→viewport 映射自动把同一世界范围压进更少像素（缩放仅此一处公式适配）。
-    // ★ 2026-09 修正：按 m_renderScale 现场推导 extent（不再依赖 m_usingOffscreen/
+    // extent 按 m_renderScale 现场推导（不依赖 m_usingOffscreen/
     //   m_offscreenExtent 的设置时机——setRenderScale 中管线重建先于离屏目标创建）
     VkExtent2D rtExtent = m_swapchainExtent;
     if (m_renderScale < 1.0f) {
@@ -1390,6 +1495,7 @@ bool VulkanBackend::createPipeline() {
     if (vkCreateGraphicsPipelines(m_device, cache,
                                   1, &pipeInfo, nullptr, &m_pipeline)
         != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_PIPELINE;
         LOGE("Failed to create graphics pipeline");
         return false;
     }
@@ -1436,8 +1542,19 @@ void VulkanBackend::updateTextureDescriptor(Texture& tex) {
         alloc.descriptorSetCount = 1;
         alloc.pSetLayouts = &m_descriptorSetLayout;
         if (vkAllocateDescriptorSets(m_device, &alloc, &tex.descSet) != VK_SUCCESS) {
-            LOGE("updateTextureDescriptor: failed to allocate set for tex %u", tex.id);
-            return;
+            tex.descSet = VK_NULL_HANDLE;
+            // 池容量超限：按需扩容重建池后重试一次——
+            // 重建失败（vkCreateDescriptorPool 失败置空池）则回退白纹（既有语义）
+            rebuildDescriptorPool((uint32_t)m_textures.size() + 2);
+            if (m_descriptorPool == VK_NULL_HANDLE) {
+                LOGE("updateTextureDescriptor: descriptor pool rebuild failed — tex %u falls back to white", tex.id);
+                return;
+            }
+            if (vkAllocateDescriptorSets(m_device, &alloc, &tex.descSet) != VK_SUCCESS) {
+                tex.descSet = VK_NULL_HANDLE;
+                LOGE("updateTextureDescriptor: failed to allocate set for tex %u even after pool rebuild", tex.id);
+                return;
+            }
         }
     }
 
@@ -1457,6 +1574,41 @@ void VulkanBackend::updateTextureDescriptor(Texture& tex) {
     vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
 }
 
+void VulkanBackend::rebuildDescriptorPool(uint32_t minSets) {
+    if (m_device == VK_NULL_HANDLE || m_descriptorSetLayout == VK_NULL_HANDLE) return;
+    // 调用契约：upload 路径（已持 m_gpuMutex）。落闸挡住渲染线程新帧提交，
+    // waitIdle 排空在途帧——旧池销毁连带释放的 descSet 必须无在途引用。
+    const bool wasReady = m_ready.exchange(false);
+    vkDeviceWaitIdle(m_device);
+
+    if (m_descriptorPool) {
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+        m_descriptorPool = VK_NULL_HANDLE;
+    }
+    // 旧池 descSet 已随池释放——白纹 + 全部注册纹理重分配
+    m_whiteTexture.descSet = VK_NULL_HANDLE;
+    for (auto& t : m_textures) t.descSet = VK_NULL_HANDLE;
+
+    const uint32_t sets = std::max(minSets, std::max(16u, (uint32_t)m_textures.capacity() + 2));
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = sets;
+    VkDescriptorPoolCreateInfo dpInfo{};
+    dpInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    dpInfo.maxSets = sets;
+    dpInfo.poolSizeCount = 1;
+    dpInfo.pPoolSizes = &poolSize;
+    if (vkCreateDescriptorPool(m_device, &dpInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+        m_descriptorPool = VK_NULL_HANDLE;
+        LOGE("rebuildDescriptorPool: vkCreateDescriptorPool failed (%u sets)", sets);
+        return;  // m_ready 保持 false——安全黑屏，surface 重建恢复（同 resize 失败语义）
+    }
+    updateTextureDescriptor(m_whiteTexture);
+    for (auto& t : m_textures) updateTextureDescriptor(t);
+    if (wasReady) m_ready = true;
+    LOGI("Descriptor pool rebuilt: maxSets=%u", sets);
+}
+
 void VulkanBackend::destroyGraphicsObjects() {
     // 仅销毁依赖 Surface 的图形对象，保留 ShaderModule 和 PipelineCache
     if (m_pipeline) vkDestroyPipeline(m_device, m_pipeline, nullptr);
@@ -1471,8 +1623,8 @@ void VulkanBackend::destroyGraphicsObjects() {
     m_renderPass = VK_NULL_HANDLE;
     if (m_offscreenRenderPass) vkDestroyRenderPass(m_device, m_offscreenRenderPass, nullptr);
     m_offscreenRenderPass = VK_NULL_HANDLE;
-    // 预存泄漏修复（2026-08-14）：descriptorPool 销毁时自动释放其 descriptorSet。
-    // 此前 resize 每次重建管线泄漏 pool+set 一对（resize 高频场景下累积显存）。
+    // descriptorPool 销毁时自动释放其 descriptorSet——resize 高频重建管线时
+    // 防止 pool+set 泄漏累积显存。
     if (m_descriptorPool) vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
     m_descriptorPool = VK_NULL_HANDLE;
     // ★ 池销毁后所有纹理的 descSet 悬空——置空待重建（createPipeline 后
@@ -1492,11 +1644,6 @@ void VulkanBackend::destroyShaderModules() {
     m_skyVertShader = VK_NULL_HANDLE;
     if (m_skyFragShader) vkDestroyShaderModule(m_device, m_skyFragShader, nullptr);
     m_skyFragShader = VK_NULL_HANDLE;
-}
-
-void VulkanBackend::destroyPipelineObjects() {
-    destroyGraphicsObjects();
-    destroyShaderModules();
 }
 
 // ============================================================
@@ -1584,7 +1731,7 @@ bool VulkanBackend::savePipelineCache() {
 
 bool VulkanBackend::createVertexBuffer() {
     // 创建三缓冲 VBO（按 m_currentFrame 轮转写入，与 MAX_FRAMES_IN_FLIGHT
-    // 对齐避免 GPU 读 CPU 写冲突——2026-09 双缓冲+3 in-flight 撕裂根因修复）
+    // 对齐避免 GPU 读 CPU 写冲突/顶点撕裂）
     VkBufferCreateInfo bufInfo{};
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufInfo.size = m_vertexBufferSize / 2;  // 每个 buffer 为总大小的一半
@@ -1596,6 +1743,7 @@ bool VulkanBackend::createVertexBuffer() {
 
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (vkCreateBuffer(m_device, &bufInfo, nullptr, &m_vertexBuffers[i]) != VK_SUCCESS) {
+            m_lastInitError = RenderInitError::VK_DEVICE_MEMORY;
             LOGE("Failed to create vertex buffer %d", i);
             return false;
         }
@@ -1616,7 +1764,10 @@ bool VulkanBackend::createVertexBuffer() {
             }
         }
 
-        if (memType == UINT32_MAX) { LOGE("No suitable memory type for VBO %d", i); return false; }
+        if (memType == UINT32_MAX) {
+            m_lastInitError = RenderInitError::VK_DEVICE_MEMORY;
+            LOGE("No suitable memory type for VBO %d", i); return false;
+        }
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1624,6 +1775,7 @@ bool VulkanBackend::createVertexBuffer() {
         allocInfo.memoryTypeIndex = memType;
 
         if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexMemories[i]) != VK_SUCCESS) {
+            m_lastInitError = RenderInitError::VK_DEVICE_MEMORY;
             LOGE("Failed to allocate vertex memory %d", i);
             return false;
         }
@@ -1647,6 +1799,7 @@ bool VulkanBackend::createCommandObjects() {
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
     if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_COMMAND_POOL;
         LOGE("Failed to create command pool");
         return false;
     }
@@ -1661,6 +1814,7 @@ bool VulkanBackend::createCommandObjects() {
     allocInfo.commandBufferCount = imgCount;
 
     if (vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data()) != VK_SUCCESS) {
+        m_lastInitError = RenderInitError::VK_COMMAND_POOL;
         LOGE("Failed to allocate command buffers");
         return false;
     }
@@ -1683,6 +1837,7 @@ bool VulkanBackend::createSynchronization() {
         if (vkCreateSemaphore(m_device, &semInfo, nullptr, &m_imageAvailable[i]) != VK_SUCCESS ||
             vkCreateSemaphore(m_device, &semInfo, nullptr, &m_renderFinished[i]) != VK_SUCCESS ||
             vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) {
+            m_lastInitError = RenderInitError::VK_FENCE;
             LOGE("Failed to create sync objects");
             return false;
         }
@@ -1758,7 +1913,20 @@ bool VulkanBackend::ensureStagingBuffer(size_t requiredSize) {
     return true;
 }
 
-/** 提交一次性 command buffer（用于 staging upload + layout transition）并等待完成 */
+/** 有限等待 fence：device lost 时 UINT64_MAX 等待会让持 m_gpuMutex
+ *  的上传线程永久阻塞 → 渲染线程 submitFrame 抢同一锁 → 整条渲染管线静默冻结。
+ *  100ms 步进轮询至 totalNs 上限。 */
+static bool waitForFenceBounded(VkDevice device, VkFence fence, uint64_t totalNs) {
+    constexpr uint64_t kStepNs = 100'000'000ULL;   // 100ms 步进
+    for (uint64_t waited = 0; waited < totalNs; waited += kStepNs) {
+        if (vkWaitForFences(device, 1, &fence, VK_TRUE, kStepNs) == VK_SUCCESS) return true;
+    }
+    return false;
+}
+
+/** 提交一次性 command buffer（用于 staging upload + layout transition）并等待完成。
+ *  fence 等待有 2s 上限——超时按「疑似 device lost」放弃上传（调用方走 fail 清理
+ *  路径，锁正常释放；熔断计数由调用方维护）。 */
 static bool submitOneTimeCommands(
     VkDevice device, VkCommandPool pool, VkQueue queue,
     VkCommandBuffer cmd) {
@@ -1782,15 +1950,29 @@ static bool submitOneTimeCommands(
         return false;
     }
 
-    vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+    if (!waitForFenceBounded(device, fence, 2'000'000'000ULL /*2s*/)) {
+        LOGE("upload fence not signaled within 2s — suspect device lost, abandoning upload");
+        vkDestroyFence(device, fence, nullptr);
+        vkFreeCommandBuffers(device, pool, 1, &cmd);
+        return false;
+    }
     vkDestroyFence(device, fence, nullptr);
     vkFreeCommandBuffers(device, pool, 1, &cmd);
     return true;
 }
 
 uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int height,
-                                          VkSamplerAddressMode addressMode) {
+                                          VkSamplerAddressMode addressMode, int mipLevels) {
     if (!m_device || !pixels) return 0;
+    if (mipLevels < 1) mipLevels = 1;  // 消毒（单级兼容）
+    if (mipLevels > 32) { LOGE("uploadTextureImpl: mipLevels 越界 %d", mipLevels); return 0; }
+
+    // ★ 全程持锁（m_gpuMutex）：本函数触碰 staging buffer / commandPool /
+    //   m_graphicsQueue（vkQueueSubmit 后 fence 等待）并 push_back m_textures——
+    //   与渲染线程 submitFrame 的查表/提交并发时即"Tile 短暂纯色"根因（见头文件注）。
+    //   持锁跨越 fence 等待：上传期间渲染线程最多跳一帧（入口期仅画天空底色，可接受）。
+    //   注：锁声明先于任何 goto，fail: 仍在锁作用域内——跳转合法，析构正常执行。
+    std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
 
     Texture tex;
     tex.width = width;
@@ -1798,6 +1980,15 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
     // 记录地址模式——setTextureQuality 重建采样器须按原模式（地面 REPEAT 不可变
     // CLAMP，否则整图铺 UV>1 被钳制为边缘单色 → 地面全黑）
     tex.addressMode = addressMode;
+
+    // 逐级几何（2.3 RGBA mip 链）：level k 尺寸 = max(1, base>>k)；
+    // level-major 紧凑布局总字节 = Σ levelSize（mipLevels=1 时即 w*h*4，即单级情形）
+    uint64_t totalBytes = 0;
+    for (int k = 0; k < mipLevels; k++) {
+        const uint32_t lw = (uint32_t)std::max(1, width >> k);
+        const uint32_t lh = (uint32_t)std::max(1, height >> k);
+        totalBytes += (uint64_t)lw * lh * 4;
+    }
 
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
@@ -1808,7 +1999,7 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
     imgInfo.imageType = VK_IMAGE_TYPE_2D;
     imgInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
     imgInfo.extent = { (uint32_t)width, (uint32_t)height, 1 };
-    imgInfo.mipLevels = 1;
+    imgInfo.mipLevels = (uint32_t)mipLevels;
     imgInfo.arrayLayers = 1;
     imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;   // OPTIMAL tiling 确保 REPEAT 兼容
@@ -1858,19 +2049,18 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         vkBindImageMemory(m_device, tex.image, tex.memory, 0);
     }
 
-    // ---- Step 2: 通过 staging buffer 上传像素数据 ----
+    // ---- Step 2: 通过 staging buffer 上传像素数据（level-major 紧凑，一次 memcpy） ----
     {
-        size_t pixelDataSize = (size_t)width * height * 4;
-        if (!ensureStagingBuffer(pixelDataSize)) goto fail;
+        if (!ensureStagingBuffer((size_t)totalBytes)) goto fail;
 
         void* mapped = nullptr;
-        if (vkMapMemory(m_device, m_stagingMemory, 0, pixelDataSize, 0, &mapped) != VK_SUCCESS ||
+        if (vkMapMemory(m_device, m_stagingMemory, 0, totalBytes, 0, &mapped) != VK_SUCCESS ||
             !mapped) {
-            // 对抗性审查 L4：映射失败 → memcpy 到空指针 SIGSEGV（device lost 等罕见路径）
+            // 映射失败 → memcpy 到空指针 SIGSEGV（device lost 等罕见路径）
             LOGE("uploadTexture: staging map failed");
             goto fail;
         }
-        memcpy(mapped, pixels, pixelDataSize);
+        memcpy(mapped, pixels, (size_t)totalBytes);
         vkUnmapMemory(m_device, m_stagingMemory);
     }
 
@@ -1892,7 +2082,7 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         vkBeginCommandBuffer(cmd, &beginInfo);
 
-        // UNDEFINED → TRANSFER_DST_OPTIMAL
+        // UNDEFINED → TRANSFER_DST_OPTIMAL（全 mip 层；单级时 levelCount=1 与旧行为一致）
         VkImageMemoryBarrier preBarrier{};
         preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         preBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1901,7 +2091,7 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         preBarrier.image = tex.image;
         preBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        preBarrier.subresourceRange.levelCount = 1;
+        preBarrier.subresourceRange.levelCount = (uint32_t)mipLevels;
         preBarrier.subresourceRange.layerCount = 1;
         preBarrier.srcAccessMask = 0;
         preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1909,16 +2099,29 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0, 0, nullptr, 0, nullptr, 1, &preBarrier);
 
-        // Copy: staging buffer → image
-        VkBufferImageCopy copyRegion{};
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent = { (uint32_t)width, (uint32_t)height, 1 };
+        // Copy: staging buffer → image（mipLevels>1 时逐级 VkBufferImageCopy——
+        // level-major 紧凑布局，bufferOffset 逐级累积；RGBA8 每级尺寸 4 字节倍数，
+        // 累积偏移恒 4 字节对齐，满足 VUID-VkBufferImageCopy-bufferOffset 对齐约束）
+        std::vector<VkBufferImageCopy> regions;
+        regions.reserve(mipLevels);
+        uint64_t offset = 0;
+        for (int k = 0; k < mipLevels; k++) {
+            VkBufferImageCopy r{};
+            r.bufferOffset = offset;
+            r.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            r.imageSubresource.mipLevel = (uint32_t)k;
+            r.imageSubresource.baseArrayLayer = 0;
+            r.imageSubresource.layerCount = 1;
+            r.imageExtent = { (uint32_t)std::max(1, width >> k),
+                              (uint32_t)std::max(1, height >> k), 1 };
+            regions.push_back(r);
+            offset += (uint64_t)r.imageExtent.width * r.imageExtent.height * 4;
+        }
         vkCmdCopyBufferToImage(cmd, m_stagingBuffer, tex.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                               1, &copyRegion);
+                               (uint32_t)regions.size(), regions.data());
 
-        // TRANSFER_DST → SHADER_READ_ONLY_OPTIMAL
+        // TRANSFER_DST → SHADER_READ_ONLY_OPTIMAL（全 mip 层）
         VkImageMemoryBarrier postBarrier{};
         postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -1927,7 +2130,7 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         postBarrier.image = tex.image;
         postBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        postBarrier.subresourceRange.levelCount = 1;
+        postBarrier.subresourceRange.levelCount = (uint32_t)mipLevels;
         postBarrier.subresourceRange.layerCount = 1;
         postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -1936,11 +2139,14 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
                              0, 0, nullptr, 0, nullptr, 1, &postBarrier);
 
         if (!submitOneTimeCommands(m_device, m_commandPool, m_graphicsQueue, cmd)) {
-            LOGE("Failed to submit texture upload commands"); goto fail;
+            LOGE("Failed to submit texture upload commands");
+            noteUploadResult(false);   // 熔断计数
+            goto fail;
         }
+        noteUploadResult(true);
     }
 
-    // ---- Step 4: ImageView ----
+    // ---- Step 4: ImageView（全 mip 层） ----
     {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1948,7 +2154,7 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.levelCount = (uint32_t)mipLevels;
         viewInfo.subresourceRange.layerCount = 1;
 
         if (vkCreateImageView(m_device, &viewInfo, nullptr, &tex.view) != VK_SUCCESS) {
@@ -1956,8 +2162,8 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         }
     }
 
-    // ---- Step 5: Sampler（图集与地面均 LINEAR 双线性平滑——2026-08 图集建筑槽位
-    // 128→256 后放大倍数仍可达 1.5x，NEAREST 会产生像素颗粒感，改 LINEAR 平滑；
+    // ---- Step 5: Sampler（图集与地面均 LINEAR 双线性平滑——图集建筑槽位
+    // 放大倍数可达 1.5x，NEAREST 会产生像素颗粒感，改 LINEAR 平滑；
     // 地面整图铺 LINEAR 亦消除 REPEAT 环绕点纹理边界跳变的暗接缝。
     // B.1：经 createSampler 按当前 mipmap/各向异性质量创建，双端一致） ----
     if (!createSampler(tex.sampler, addressMode)) { LOGE("Failed to create sampler"); goto fail; }
@@ -1968,7 +2174,7 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         m_textures.push_back(tex);
         // ★ 分配独立描述符集并写入（非 command buffer 记录期——上传在主线程）
         updateTextureDescriptor(m_textures.back());
-        LOGI("Texture %dx%d uploaded (id=%u, OPTIMAL)", width, height, id);
+        LOGI("Texture %dx%d uploaded (id=%u, OPTIMAL, mips=%d)", width, height, id, mipLevels);
         return id;
     }
 
@@ -1988,6 +2194,22 @@ uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height)
 
 uint32_t VulkanBackend::uploadRepeatTexture(const void* pixels, int width, int height) {
     return uploadTextureImpl(pixels, width, height, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+}
+
+uint32_t VulkanBackend::uploadMipChainTexture(const void* pixels, int width, int height,
+                                              int mipCount) {
+    // 几何防御：首级尺寸合法 + 级数与尺寸匹配（2^k 链至少到 2×2——
+    // level-major 紧凑布局由 Kotlin encodeBitmapToRgbaMipChain 产出，逐级尺寸
+    // max(1, base>>k)，与 uploadTextureImpl 的逐级拷贝几何一致）
+    if (width <= 0 || height <= 0) {
+        LOGE("uploadMipChainTexture: 尺寸非法 %dx%d", width, height);
+        return 0;
+    }
+    if (mipCount < 1) {
+        LOGE("uploadMipChainTexture: mipCount 非法 %d", mipCount);
+        return 0;
+    }
+    return uploadTextureImpl(pixels, width, height, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, mipCount);
 }
 
 /**
@@ -2029,12 +2251,15 @@ bool VulkanBackend::createSampler(VkSampler& out, VkSamplerAddressMode addressMo
 }
 
 void VulkanBackend::setTextureQuality(float anisotropyMax, bool mipmap) {
-    // 消毒（对抗性审查：NaN/负数/越界 → 安全值）
+    // 消毒（NaN/负数/越界 → 安全值）
     if (!(anisotropyMax >= 0.0f) || !(anisotropyMax <= 16.0f)) anisotropyMax = 2.0f;
     if (mipmap == m_mipmapEnabled && anisotropyMax == m_anisotropyMax) {
         LOGI("setTextureQuality: 无变化 (aniso=%.1f mip=%d), 跳过", m_anisotropyMax, m_mipmapEnabled);
         return;
     }
+    // ★ 持锁（m_gpuMutex）：遍历 m_textures 销毁/重建采样器并改写 descSet——
+    //   与主线程上传 push_back 并发即 vector 悬垂（见头文件注）。
+    std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
     m_anisotropyMax = anisotropyMax;
     m_mipmapEnabled = mipmap;
     // 重建所有已上传纹理的采样器（图集/地面/图集 RGBA 回退同通道），白纹理保持 NEAREST 单 mip 不变。
@@ -2044,11 +2269,11 @@ void VulkanBackend::setTextureQuality(float anisotropyMax, bool mipmap) {
         if (!tex.sampler) continue;
         vkDestroySampler(m_device, tex.sampler, nullptr);
         tex.sampler = VK_NULL_HANDLE;
-        // ★ 按纹理原始地址模式重建（地面 REPEAT / 图集 CLAMP）——此前硬编码 CLAMP
-        //   把地面整图铺采样器改成 CLAMP，UV>1 被钳制为边缘单色 → 地面全黑
+        // ★ 按纹理原始地址模式重建（地面 REPEAT / 图集 CLAMP）——硬编码 CLAMP
+        //   会把地面整图铺采样 UV>1 钳制为边缘单色 → 地面全黑
         if (!createSampler(tex.sampler, tex.addressMode)) {
             LOGE("setTextureQuality: 重建采样器失败 tex=%u, 回退单 mip 线性", tex.id);
-            // 兜底：单 mip 线性（旧行为），不中断
+            // 兜底：单 mip 线性采样，不中断
             VkSamplerCreateInfo fallback{};
             fallback.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
             fallback.magFilter = VK_FILTER_LINEAR;
@@ -2065,7 +2290,7 @@ void VulkanBackend::setTextureQuality(float anisotropyMax, bool mipmap) {
 }
 
 // ============================================================
-// WP7：ASTC 压缩纹理上传（KTX 数据段，已由 KtxLoader 校验头）
+// ASTC 压缩纹理上传（KTX 数据段，已由 KtxLoader 校验头）
 // 与 uploadTexture 同 staging 上传模式，仅图像格式/数据布局不同：
 //   - 格式 VK_FORMAT_ASTC_4x4_UNORM_BLOCK（压缩块，非 RGBA 线性）
 //   - staging 数据 = 块数 × 16 字节（非 w*h*4）
@@ -2087,9 +2312,13 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
     }
     if (mipCount < 1) mipCount = 1;  // 消毒（B.1 单 mip 兼容）
 
+    // ★ 全程持锁（m_gpuMutex）：与 uploadTextureImpl 同理由——staging/commandPool/
+    //   queue/m_textures 跨线程互斥（21MB ASTC 上传期间渲染线程最多跳一帧）。
+    std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
+
     // 逐级数据几何校验（与 KtxLoader/build-atlas.mjs 同式）——防越界/截断。
     // 每级尺寸 = max(ASTC_BLOCK, base >> level)；到 4×4 块下限为止。
-    // 64 位算术防 32 位 size_t 回绕（对抗性审查 M2）
+    // 64 位算术防 32 位 size_t 回绕
     uint64_t expectedTotal = 0;
     for (int i = 0; i < mipCount; i++) {
         uint32_t lw = (uint32_t)width >> i;
@@ -2177,15 +2406,14 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         void* mapped = nullptr;
         if (vkMapMemory(m_device, m_stagingMemory, 0, dataSize, 0, &mapped) != VK_SUCCESS ||
             !mapped) {
-            // 对抗性审查 L4：映射失败 → memcpy 到空指针 SIGSEGV
+            // 映射失败 → memcpy 到空指针 SIGSEGV
             LOGE("uploadCompressedTexture: staging map failed");
             goto fail;
         }
-        // ★ 根因修复（2026-09 骁龙 8 Gen 2 建筑点阵噪点）：逐级跳过 KTX [size4]
-        //   前缀紧凑拷贝纯块数据——此前整区 memcpy 后按 cursor+4 偏移拷贝，
-        //   bufferOffset 非 16 字节（ASTC 块大小）倍数，违反
-        //   VUID-VkBufferImageCopy-bufferOffset-00193 → Adreno 上块级错位，
-        //   图集内容错乱（真机实测建筑呈"密密麻麻像素点"）
+        // 数据布局约束：逐级跳过 KTX [size4]
+        //   前缀紧凑拷贝纯块数据——bufferOffset 必须保持 16 字节（ASTC 块大小）
+        //   倍数，违反 VUID-VkBufferImageCopy-bufferOffset-00193 会导致
+        //   块级错位、图集内容错乱
         size_t dstOffset = 0;
         size_t srcCursor = 0;
         for (int i = 0; i < mipCount; i++) {
@@ -2282,8 +2510,11 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
                              0, 0, nullptr, 0, nullptr, 1, &postBarrier);
 
         if (!submitOneTimeCommands(m_device, m_commandPool, m_graphicsQueue, cmd)) {
-            LOGE("Failed to submit ASTC upload commands"); goto fail;
+            LOGE("Failed to submit ASTC upload commands");
+            noteUploadResult(false);   // 熔断计数
+            goto fail;
         }
+        noteUploadResult(true);
     }
 
     // ---- Step 4: ImageView（压缩格式，多 mip，B.1） ----
@@ -2328,8 +2559,40 @@ fail:
     return 0;
 }
 
+/** 上传结果熔断记录：连续超时 ≥3 判定疑似 device lost——m_ready=false
+ *  停止提交，渲染停止、安全黑屏而非无限冻结；surface 重建/应用重启恢复。 */
+void VulkanBackend::noteUploadResult(bool ok) {
+    if (ok) {
+        m_uploadTimeoutCount = 0;
+        return;
+    }
+    if (++m_uploadTimeoutCount >= 3) {
+        LOGE("device lost suspected (%d consecutive upload failures) — disabling submits",
+             m_uploadTimeoutCount);
+        m_ready = false;
+    }
+}
+
+/** 释放退役纹理资源（调用方须持 m_gpuMutex 且在途采样已由 fence 确认结束） */
+void VulkanBackend::freeTextureResources(uint32_t id) {
+    for (auto it = m_textures.begin(); it != m_textures.end(); ++it) {
+        if (it->id != id) continue;
+        if (it->view) vkDestroyImageView(m_device, it->view, nullptr);
+        if (it->image) vkDestroyImage(m_device, it->image, nullptr);
+        if (it->memory) vkFreeMemory(m_device, it->memory, nullptr);
+        if (it->sampler) vkDestroySampler(m_device, it->sampler, nullptr);
+        m_textures.erase(it);
+        return;
+    }
+}
+
 void VulkanBackend::destroyTexture(uint32_t id) {
-    // 纹理在 shutdown 时统一清理
+    if (id == 0) return;  // 白纹理永不退役
+    // 延迟释放：纹理可能正被在途帧采样——立即 vkDestroy* 会破坏
+    // 在途帧。入队退役，submitFrame 在 fence 确认且超过 MAX_FRAMES_IN_FLIGHT 帧
+    // 后真实释放（id==0 白纹理除外）。任意线程可调（与 upload 同线程契约）。
+    std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
+    m_retiredTextures.push_back({ id, m_frameCounter });
 }
 
 // ============================================================
@@ -2344,7 +2607,7 @@ void VulkanBackend::draw(const SpriteVertex* vertices, int count,
                           uint32_t textureId) {
     if (!m_ready || count == 0) return;
 
-    // 直接写入当前帧 VBO（★ 2026-09 三缓冲：按 m_currentFrame 索引——与
+    // 直接写入当前帧 VBO（三缓冲：按 m_currentFrame 索引——与
     //   MAX_FRAMES_IN_FLIGHT 对齐，GPU 消费完同索引前帧（fence 保证）才覆写，
     //   根除双缓冲+3 in-flight 的顶点撕裂）
     size_t copySize = count * sizeof(SpriteVertex);
@@ -2399,19 +2662,46 @@ void VulkanBackend::endFrame() {
 void VulkanBackend::submitFrame() {
     if (!m_ready) return;
 
-    // 等待前帧完成
-    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame],
-                    VK_TRUE, UINT64_MAX);
+    // 有限等待前帧完成（渲染线程 vk 调用全面有界——UINT64_MAX 等待
+    // 在 device lost 时使「渲染线程卡 >2s」具备物理可能，即 Kotlin skip-release
+    // 的触发条件）。超时视为疑似 device lost：落闸停提交（安全黑屏，surface
+    // 重建/应用重启恢复），语义与上传熔断（noteUploadResult）一致。
+    if (!waitForFenceBounded(m_device, m_inFlightFences[m_currentFrame],
+                             2'000'000'000ULL /*2s*/)) {
+        LOGE("submitFrame: fence not signaled within 2s — suspect device lost, stopping submit");
+        m_ready = false;
+        return;
+    }
     // ★ 守卫：等待 fence 期间 shutdown() 可能已将 m_ready 置 false 并开始销毁资源
     if (!m_ready) return;
 
-    // 获取下一张 swapchain 图像
-    uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(
-        m_device, m_swapchain, UINT64_MAX,
-        m_imageAvailable[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
-    // ★ 守卫：获取图像期间 surfaceDestroyed 可能已经触发，swapchain 可能已失效
-    if (!m_ready) return;
+    // ── 退役纹理释放：本帧 fence 已确认，更早帧的采样必已结束——
+    //    超过 MAX_FRAMES_IN_FLIGHT 帧的退役纹理此时销毁安全。destroyTexture
+    //    （任意线程）可能并发入队 → 持 m_gpuMutex 短临界区。
+    {
+        std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
+        for (auto it = m_retiredTextures.begin(); it != m_retiredTextures.end(); ) {
+            if (m_frameCounter - it->retiredAtFrame > (uint64_t)MAX_FRAMES_IN_FLIGHT) {
+                freeTextureResources(it->id);
+                it = m_retiredTextures.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    // 获取下一张 swapchain 图像（有界化——单轮 250ms，spin 上限 8 轮，
+    // 每轮检查 m_ready；Surface 销毁后渲染线程必然在有限时间内退出本函数）
+    uint32_t imageIndex = 0;
+    VkResult result = VK_TIMEOUT;
+    for (int spin = 0; spin < ACQUIRE_SPIN_LIMIT && m_ready; ++spin) {
+        result = vkAcquireNextImageKHR(
+            m_device, m_swapchain, ACQUIRE_TIMEOUT_NS,
+            m_imageAvailable[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        if (result != VK_TIMEOUT) break;
+    }
+    // 有界放弃（VK_TIMEOUT = swapchain 无可用图像超限）或纪元已销毁——线程必然退出
+    if (result == VK_TIMEOUT || !m_ready) return;
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         LOGI("Swapchain out of date, need resize");
@@ -2420,7 +2710,7 @@ void VulkanBackend::submitFrame() {
         // 不重置 fence — fence 保持 signaled 状态，下一帧可正常等待。
         return;
     }
-    // 对抗性审查 L7：其他错误（SURFACE_LOST/DEVICE_LOST 等）时 imageIndex 未定义，
+    // 其他错误（SURFACE_LOST/DEVICE_LOST 等）时 imageIndex 未定义，
     // 继续 vkResetFences + 用垃圾 imageIndex 索引 framebuffers 会二次损坏——
     // 直接放弃本帧（fence 保持 signaled，渲染由外层生命周期重建）
     if (result != VK_SUCCESS) {
@@ -2440,9 +2730,9 @@ void VulkanBackend::submitFrame() {
 
     vkBeginCommandBuffer(cmd, &beginInfo);
 
-    // ★ 纯黑清屏（2026-09）：曾为米白 #F2EDE4——淡入期间（fadeAlpha<1）瓦片半透明
-    //   会透出清屏色呈"全屏半透明白色覆盖"（与 Canvas 路径 124e2555 同一根因，Vulkan
-    //   路径此前从未真机初始化成功故漏改；骁龙 8 Gen 2 修复 GPU 初始化后首现）。
+    // ★ 纯黑清屏：淡入期间（fadeAlpha<1）瓦片半透明
+    //   会透出清屏色，清屏色必须为纯黑（米白清屏色会呈"全屏半透明白色覆盖"，
+    //   与 Canvas 路径同一问题）。
     VkClearValue clearColor = { { { 0.0f, 0.0f, 0.0f, 1.0f } } };
 
     // render scale 离屏模式：渲染进降采样目标（offscreen），提交前 blit 上采样到交换链
@@ -2515,10 +2805,10 @@ void VulkanBackend::submitFrame() {
         vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
         // 提交所有 pending draw calls，按纹理 ID 切换独立描述符集。
-        // ★ 2026-09 根因修复：仅 vkCmdBindDescriptorSets 切换（set 在 upload/
-        //   setTextureQuality 时已分配+更新）——此前此处 vkUpdateDescriptorSets
-        //   在 command buffer 记录期间改写共享集（规范非法），Adreno 上描述符
-        //   错乱 → 放置模式全屏白（普通模式单纹理不触发切换故正常）
+        // 仅 vkCmdBindDescriptorSets 切换（set 在 upload/
+        //   setTextureQuality 时已分配+更新）——command buffer 记录期间
+        //   vkUpdateDescriptorSets 改写共享集违反规范，会导致
+        //   放置模式全屏白（普通模式单纹理不触发切换故无感）
         uint32_t currentBoundTexId = UINT32_MAX;
         VkDescriptorSet currentSet = VK_NULL_HANDLE;
         for (auto& draw : m_pendingDraws) {
@@ -2531,10 +2821,17 @@ void VulkanBackend::submitFrame() {
                 if (draw.textureId == 0) {
                     target = m_whiteTexture.descSet;
                 } else {
-                    for (const auto& tex : m_textures) {
-                        if (tex.id == draw.textureId) {
-                            target = tex.descSet;
-                            break;
+                    // ★ 短临界区（m_gpuMutex）：m_textures 查表——上传线程可能正在
+                    //   push_back（vector 扩容重分配），无锁遍历读到悬垂内存即
+                    //   "查表失败回退白纹 → Tile 纯色单帧"根因。查到 target 后
+                    //   立即释放（描述符集句柄本身不受 push_back 影响）。
+                    {
+                        std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
+                        for (const auto& tex : m_textures) {
+                            if (tex.id == draw.textureId) {
+                                target = tex.descSet;
+                                break;
+                            }
                         }
                     }
                     if (target == VK_NULL_HANDLE) {
@@ -2650,18 +2947,27 @@ void VulkanBackend::submitFrame() {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_renderFinished[m_currentFrame];
 
-    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]);
+    // ★ 持锁提交（m_gpuMutex）：vkQueueSubmit/vkQueuePresentKHR 与主线程纹理上传
+    //   （submitOneTimeCommands）并发使用同一 m_graphicsQueue——VkQueue 为
+    //   externally-synchronized 对象，双线程并发提交违反规范可产生单帧损坏。
+    //   与查表段是两个独立临界区（不嵌套），无死锁风险；vkQueueSubmit 为异步
+    //   入队（非 fence 等待），持锁时长微秒级。
+    {
+        std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
+        vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]);
 
-    // Present
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &m_renderFinished[m_currentFrame];
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &m_swapchain;
-    presentInfo.pImageIndices = &imageIndex;
+        // Present
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = &m_renderFinished[m_currentFrame];
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = &m_swapchain;
+        presentInfo.pImageIndices = &imageIndex;
 
-    vkQueuePresentKHR(m_presentQueue, &presentInfo);
+        vkQueuePresentKHR(m_presentQueue, &presentInfo);
+    }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    m_frameCounter++;   // 退役纹理老化基准
 }

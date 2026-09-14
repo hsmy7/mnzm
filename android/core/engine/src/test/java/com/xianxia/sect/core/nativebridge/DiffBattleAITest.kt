@@ -21,7 +21,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffBattleAITest — 统一战斗 AI 决策层跨语言差分对拍（战斗批次 B）。
+ * DiffBattleAITest — 统一战斗 AI 决策层跨语言差分对拍。
  *
  * 守护目标：Kotlin `BattleAI.decideAction`（8 层级联优先级 + 概率衰减：
  * 被控检查 → Tier2 保命 → Tier3 斩杀 → Tier4 支援 → Tier5 团队 Buff →

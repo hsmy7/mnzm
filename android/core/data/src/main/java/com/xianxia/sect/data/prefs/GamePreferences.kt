@@ -9,15 +9,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 统一偏好存储封装（MMKV 实现，docs/architecture.md 待办 D-29 根治）。
+ * 统一偏好存储封装（MMKV 实现）。
  *
  * ## 背景
  *
- * 项目曾同时声明 DataStore（Android 独占）与 MMKV（跨平台）两套 K-V 依赖，
- * 实际偏好散落在约 10 处裸 SharedPreferences 调用点——三套并存、零统一入口。
- * 根治：DataStore 依赖声明已移除（2026-08），普通业务偏好统一迁入 MMKV
- * （iOS 迁移前置项：MMKV 官方支持 KMP，SharedPreferences/DataStore 均为
- * Android 独占）。
+ * 普通业务偏好统一存于 MMKV——MMKV 官方支持 KMP，是 iOS 迁移的就绪方案；
+ * SharedPreferences/DataStore 均为 Android 独占，不作为业务偏好存储引入。
  *
  * ## 语义
  *
@@ -43,7 +40,7 @@ import javax.inject.Singleton
 class GamePreferences @Inject constructor(
     @ApplicationContext private val context: Context
 ) : KeyValueStore {
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     private val kv: MMKV?
         get() = try {
@@ -115,8 +112,7 @@ class GamePreferences @Inject constructor(
      *
      * @param spName 旧 SharedPreferences 文件名（如 "ad_settings"）
      */
-    // SDK 边界全量兜底(与原实现一致)
-    // 拆分搬移:多出口与原函数一致
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught", "ReturnCount")
     override fun migrateFromSharedPreferences(spName: String) {
         val sp: SharedPreferences = try {

@@ -46,10 +46,11 @@ class UiKeyRecoveryCallback(
     }
 
     /**
-     * 在主线程展示密钥恢复对话框并写入决策（onKeyRecoveryRequired 拆分）。
+     * 在主线程展示密钥恢复对话框并写入决策。
      * 调用方通过 [latch] 阻塞等待决策结果；Activity 已销毁或对话框
      * 展示异常时统一回退为 CANCEL 并释放 latch。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun showKeyRecoveryDialog(
         activity: Activity,
         reason: String,

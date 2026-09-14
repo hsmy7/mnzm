@@ -15,7 +15,7 @@ import org.junit.Test
 
 /**
  * DiffTraitEffectsTest — 天赋/词条/体质三注册表效果聚合跨语言对拍
- * （T2.4a / 计划 v2 阶段 2d AUTHORITATIVE 硬前置验收）。
+ * （AUTHORITATIVE 硬前置验收）。
  *
  * 守护目标：C++ disciple_stats.h 三聚合函数（trait_db.h 204 条）对任意
  * id 组合与 Kotlin 权威实现（TalentDatabase.calculateTalentEffects 等）

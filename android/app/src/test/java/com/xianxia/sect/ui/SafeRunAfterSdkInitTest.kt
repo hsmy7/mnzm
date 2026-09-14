@@ -11,10 +11,10 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 守护"SDK 服务初始化与关键路径解耦"契约（2026-08-15 回归教训固化）。
+ * 守护"SDK 服务初始化与关键路径解耦"契约。
  *
- * 背景：登录成功回调曾把 SDK 服务初始化（合规回调注册/广告/统计）与防沉迷验证
- * 串行绑定，初始化异常可阻断验证导致"登录成功但卡在登录界面"。本测试锁死
+ * 背景：SDK 服务初始化（合规回调注册/广告/统计）不得与防沉迷验证
+ * 串行绑定——初始化异常若阻断验证会导致"登录成功但卡在登录界面"。本测试锁死
  * [safeRunAfterSdkInit] 的语义：**初始化异常绝不阻断后续关键步骤**（block 永远
  * 执行）；CancellationException 必须重抛；Error 不拦截（致命缺陷崩溃暴露）。
  *

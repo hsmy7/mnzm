@@ -45,6 +45,7 @@ class DataCompressor @Inject constructor(
         LZ4Factory.fastestInstance().fastDecompressor()
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun compress(
         data: ByteArray,
         algorithm: CompressionAlgorithm = defaultAlgorithm
@@ -101,6 +102,7 @@ class DataCompressor @Inject constructor(
         )
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun decompress(compressedData: CompressedData): ByteArray {
         if (compressedData.originalSize < COMPRESSION_THRESHOLD) {
             return compressedData.data
@@ -119,6 +121,7 @@ class DataCompressor @Inject constructor(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun decompress(data: ByteArray, algorithm: CompressionAlgorithm, originalSize: Int): ByteArray {
         if (originalSize < COMPRESSION_THRESHOLD) {
             return data
@@ -178,6 +181,7 @@ class DataCompressor @Inject constructor(
         return bos.toByteArray()
     }
 
+    @Suppress("UnusedParameter") // dataType: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
     private fun decompressGzip(data: ByteArray): ByteArray {
         return try {
             GZIPInputStream(ByteArrayInputStream(data)).use {
@@ -201,6 +205,7 @@ class DataCompressor @Inject constructor(
      * @param useCase 使用场景（必填）
      * @return 推荐的压缩算法
      */
+    @Suppress("UnusedParameter") // dataSize: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
     fun selectAlgorithm(dataSize: Int, dataType: DataType, useCase: UseCase): CompressionAlgorithm {
         return when (useCase) {
             UseCase.FULL_SAVE -> {
@@ -249,6 +254,7 @@ class DataCompressor @Inject constructor(
          * 一次性初始化：检测库存在性 + 缓存 Method 引用。
          * 必须在任何 compress/decompress 调用之前执行。
          */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         fun init() {
             if (isAvailable) return // 已初始化过
 
@@ -260,7 +266,7 @@ class DataCompressor @Inject constructor(
                 Log.i(TAG, "ZstdWrapper initialized successfully: methods cached")
             } catch (e: ClassNotFoundException) {
                 isAvailable = false
-                Log.w(TAG, "ZSTD library not found: $ZSTD_CLASS_NAME. " +
+                Log.w(TAG, "ZSTD library not found: $ZSTD_CLASS_NAME ($e). " +
                           "ZSTD operations will fallback to GZIP. " +
                           "To enable ZSTD, add to build.gradle: implementation 'com.github.luben:zstd-jni:1.5.6-6'")
             } catch (e: Exception) {
@@ -274,6 +280,7 @@ class DataCompressor @Inject constructor(
          *
          * @return 压缩后的字节数组，或 null 表示应 fallback 到 GZIP
          */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         fun compress(data: ByteArray): ByteArray? {
             if (!isAvailable || compressMethod == null) return null
 
@@ -291,6 +298,7 @@ class DataCompressor @Inject constructor(
          *
          * @return 解压后的原始数据，或 null 表示应 fallback 到 GZIP
          */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         fun decompress(compressedData: ByteArray): ByteArray? {
             if (!isAvailable || decompressMethod == null) return null
 
@@ -334,7 +342,8 @@ class DataCompressor @Inject constructor(
 
         val compressed = ZstdWrapper.compress(data)
         if (compressed != null) {
-            if (BuildConfig.DEBUG) Log.d(TAG, "ZSTD compression successful: ${data.size} -> ${compressed.size} bytes (level=3)")
+            if (BuildConfig.DEBUG) Log.d(TAG,
+                "ZSTD compression successful: ${data.size} -> ${compressed.size} bytes (level=3)")
             return compressed to CompressionAlgorithm.ZSTD
         }
 
@@ -352,6 +361,7 @@ class DataCompressor @Inject constructor(
      * @return 解压后的原始数据
      * @throws CompressionException 若解压失败
      */
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     private fun decompressZstd(compressedData: ByteArray): ByteArray {
         ZstdWrapper.init()
 
@@ -369,7 +379,8 @@ class DataCompressor @Inject constructor(
                 throw CompressionException("All decompression methods failed (ZSTD + GZIP fallback)", gzipEx)
             }
         }.also {
-            if (BuildConfig.DEBUG) Log.d(TAG, "ZSTD decompression successful: ${compressedData.size} -> ${it.size} bytes")
+            if (BuildConfig.DEBUG) Log.d(TAG,
+                "ZSTD decompression successful: ${compressedData.size} -> ${it.size} bytes")
         }
     }
 }

@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs
 
 import com.xianxia.sect.core.util.GameUtils
@@ -44,6 +44,7 @@ import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.map.MapItem
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.theme.ButtonSizes
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 private val beastNames =
     listOf("tiger", "wolf", "snake", "bear", "eagle", "fox", "dragon", "turtle")
@@ -56,7 +57,7 @@ fun LevelDetailDialog(
     onAttack: (List<String?>) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val slots = remember { mutableStateListOf(*arrayOfNulls<String?>(8)) }
+    val slots = remember { mutableStateListOf<String?>().apply { repeat(8) { add(null) } } }
     var targetSlotIndex by remember { mutableIntStateOf(-1) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
     // 低血量二次确认（会话级状态：点"我知道了"后仅当前界面不再弹，关闭重开重新检查）
@@ -69,15 +70,17 @@ fun LevelDetailDialog(
     val discipleMap = disciples.associateBy { it.id }
     val equipmentMap = remember(equipmentInstances) { equipmentInstances.associateBy { it.id } }
     val manualMap = remember(manualInstances) { manualInstances.associateBy { it.id } }
-    val dialogTitle = if (level.levelType == LevelType.CAVE && level.caveName.isNotEmpty()) level.caveName else level.name
+    val dialogTitle = if (level.levelType == LevelType.CAVE && level.caveName.isNotEmpty()) level.caveName else level
+        .name
 
-    UnifiedGameDialog(onDismissRequest = onDismiss, title = dialogTitle, mode = DialogMode.Half, scrollableContent = false) {
+    UnifiedGameDialog(onDismissRequest = onDismiss, title = dialogTitle, mode = DialogMode.Half,
+        scrollableContent = false) {
         LevelDialogContent(
             level = level,
             slots = slots,
             discipleMap = discipleMap,
             slotCallbacks = LevelSlotCallbacks(
-                onDiscipleClick = { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) },
+                onDiscipleClick = { d -> viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) },
                 onEmptySlotClick = { slotIndex -> targetSlotIndex = slotIndex; showDiscipleSelection = true },
                 onSlotDismiss = { slotIndex -> slots[slotIndex] = null },
                 onSlotSwap = { slotIndex -> targetSlotIndex = slotIndex; showDiscipleSelection = true },
@@ -112,7 +115,7 @@ fun LevelDetailDialog(
     }
 }
 
-/** 槽位交互回调（LevelDetailDialog 拆分） */
+/** 槽位交互回调 */
 private data class LevelSlotCallbacks(
     val onDiscipleClick: (DiscipleAggregate) -> Unit,
     val onEmptySlotClick: (Int) -> Unit,
@@ -121,7 +124,7 @@ private data class LevelSlotCallbacks(
     val onOneClickAppoint: () -> Unit
 )
 
-/** 对话框内容列（LevelDetailDialog 拆分）：顶部信息 + 槽位网格 + 按钮 */
+/** 对话框内容列：顶部信息 + 槽位网格 + 按钮 */
 @Composable
 private fun LevelDialogContent(
     level: MapItem.Level,
@@ -171,7 +174,7 @@ private fun LevelDialogContent(
     }
 }
 
-/** 顶部图片+信息区（LevelDetailDialog 拆分） */
+/** 顶部图片+信息区 */
 @Composable
 private fun LevelInfoHeader(level: MapItem.Level) {
     val spriteName = remember(level) {
@@ -202,7 +205,7 @@ private fun LevelInfoHeader(level: MapItem.Level) {
     }
 }
 
-/** 信息文字列（LevelInfoHeader 拆分）：名称/战力 + 境界 + 数量 */
+/** 信息文字列：名称/战力 + 境界 + 数量 */
 @Composable
 private fun LevelInfoText(level: MapItem.Level, realmDisplayName: String) {
     Column {
@@ -222,7 +225,7 @@ private fun LevelInfoText(level: MapItem.Level, realmDisplayName: String) {
     }
 }
 
-/** 名称/战力行（LevelInfoText 拆分）：洞府名/守护兽名 + 妖兽总战力 */
+/** 名称/战力行：洞府名/守护兽名 + 妖兽总战力 */
 @Composable
 private fun LevelTitleRow(level: MapItem.Level) {
     if (level.levelType == LevelType.CAVE && level.caveName.isNotEmpty()) {
@@ -273,7 +276,7 @@ private fun LevelTitleRow(level: MapItem.Level) {
     }
 }
 
-/** 中部 2x4 弟子槽位网格（LevelDetailDialog 拆分） */
+/** 中部 2x4 弟子槽位网格 */
 @Composable
 private fun LevelSlotsGrid(
     slots: SnapshotStateList<String?>,
@@ -311,7 +314,7 @@ private fun LevelSlotsGrid(
     }
 }
 
-/** 底部操作按钮（LevelDetailDialog 拆分） */
+/** 底部操作按钮 */
 @Composable
 private fun LevelActionButtons(
     occupiedCount: Int,
@@ -340,7 +343,7 @@ private fun LevelActionButtons(
     }
 }
 
-/** 低血量二次确认弹窗（LevelDetailDialog 拆分） */
+/** 低血量二次确认弹窗 */
 @Composable
 private fun LevelLowHpWarningDialog(
     onConfirm: () -> Unit,
@@ -357,7 +360,7 @@ private fun LevelLowHpWarningDialog(
 }
 
 /**
- * 进攻前低血量检查（LevelDetailDialog 拆分）：队伍中存在血量未满弟子且未确认过时返回 true。
+ * 进攻前低血量检查：队伍中存在血量未满弟子且未确认过时返回 true。
  * 原 onAttack 内联判定逻辑原样搬移。
  */
 private fun shouldWarnLowHp(
@@ -378,7 +381,7 @@ private fun shouldWarnLowHp(
 }
 
 /**
- * 一键任命（LevelDetailDialog 拆分）：空槽位填入最高境界空闲弟子。
+ * 一键任命：空槽位填入最高境界空闲弟子。
  * 原 oneClickAppoint 内联逻辑原样搬移。
  */
 private fun oneClickAppoint(
@@ -425,7 +428,7 @@ private fun LevelSlotBox(
 
 // ==================== Disciple Selection Dialog ====================
 
-/** 筛选状态（LevelSlotSelectionDialog 拆分） */
+/** 筛选状态 */
 private data class LevelFilterState(
     val selectedSpiritRootFilter: Set<Int>,
     val selectedAttributeSort: String?,
@@ -435,7 +438,7 @@ private data class LevelFilterState(
     val realmExpanded: Boolean
 )
 
-/** 筛选计数数据（LevelSlotSelectionDialog 拆分） */
+/** 筛选计数数据 */
 private data class LevelFilterCounts(
     val realmCounts: Map<Int, Int>,
     val realmFilterOptions: List<Pair<Int, String>>,
@@ -443,7 +446,7 @@ private data class LevelFilterCounts(
     val showAllEnabled: Boolean
 )
 
-/** 筛选回调（LevelSlotSelectionDialog 拆分） */
+/** 筛选回调 */
 private data class LevelFilterCallbacks(
     val onSpiritRootFilterSelected: (Int) -> Unit,
     val onSpiritRootFilterRemoved: (Int) -> Unit,
@@ -452,7 +455,7 @@ private data class LevelFilterCallbacks(
     val onRealmFilterRemoved: (Int) -> Unit
 )
 
-/** 展开开关回调（LevelSlotSelectionDialog 拆分） */
+/** 展开开关回调 */
 private data class LevelFilterToggleCallbacks(
     val onSpiritRootExpandToggle: () -> Unit,
     val onAttributeExpandToggle: () -> Unit,
@@ -460,7 +463,7 @@ private data class LevelFilterToggleCallbacks(
     val onShowAllToggle: () -> Unit
 )
 
-/** 选择数据源（LevelSlotSelectionDialog 拆分） */
+/** 选择数据源 */
 private data class LevelSelectionSource(
     val disciples: List<DiscipleAggregate>,
     val alreadySelectedIds: Set<String>,
@@ -512,12 +515,12 @@ private fun LevelSlotSelectionDialog(
             onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
             onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
             onRealmExpandToggle = { realmExpanded = !realmExpanded },
-            onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
+            onShowAllToggle = { viewModel.settings.setShowAllAvailableDisciples(!showAllEnabled) }
         ),
         onDiscipleClick = { disciple ->
             scope.launch {
                 if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                    viewModel.releaseDiscipleForReassignment(disciple.id)
+                    viewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                 }
                 onSelect(disciple.id)
             }
@@ -525,7 +528,7 @@ private fun LevelSlotSelectionDialog(
     )
 }
 
-/** 选择对话框主体（LevelSlotSelectionDialog 拆分）：筛选栏 + 弟子网格 */
+/** 选择对话框主体：筛选栏 + 弟子网格 */
 @Composable
 private fun LevelSelectionDialogUi(
     state: LevelFilterState,
@@ -538,8 +541,10 @@ private fun LevelSelectionDialogUi(
     val stateGameData by source.viewModel.gameData.collectAsState()
     val showAllEnabled = stateGameData.showAllAvailableDisciples
     val battleAndExplorationIds = remember(stateGameData) {
-        val battleIds = stateGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-        val explorationIds = stateGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        val battleIds = stateGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+            .toSet()
+        val explorationIds = stateGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }
+            .toSet()
         battleIds + explorationIds
     }
     val idleDisciples = remember(source.disciples, source.alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
@@ -567,10 +572,8 @@ private fun LevelSelectionDialogUi(
     }
 
     UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择弟子",
-        mode = DialogMode.Half,
-        scrollableContent = false,
+        onDismissRequest = onDismiss, title = "选择弟子",
+        mode = DialogMode.Half, scrollableContent = false,
         headerContent = {
             LevelFilterBar(
                 state = state,
@@ -595,7 +598,7 @@ private fun LevelSelectionDialogUi(
     }
 }
 
-/** 弟子筛选栏（LevelSlotSelectionDialog 拆分） */
+/** 弟子筛选栏 */
 @Composable
 private fun LevelFilterBar(
     state: LevelFilterState,
@@ -628,7 +631,7 @@ private fun LevelFilterBar(
     )
 }
 
-/** 弟子选择网格（LevelSlotSelectionDialog 拆分） */
+/** 弟子选择网格 */
 @Composable
 private fun ColumnScope.LevelSelectionGrid(
     filteredDisciples: List<DiscipleAggregate>,

@@ -9,13 +9,18 @@ import com.xianxia.sect.ui.game.sect.GoldFingerState
  * 以 buildingW×buildingH 为步长遍历，每个地块不重叠。
  */
 internal fun computeGoldFingerCellValidities(
-    startGridX: Int, startGridY: Int,
-    endGridX: Int, endGridY: Int,
-    buildingW: Int, buildingH: Int,
+    selection: GoldFingerSelection,
+    buildingW: Int,
+    buildingH: Int,
     existingBuildings: List<GridBuildingData>,
-    worldWidthCells: Int, worldHeightCells: Int,
+    worldWidthCells: Int,
+    worldHeightCells: Int,
     buildableBorder: Int = 0
 ): Map<Long, Boolean> {
+    val startGridX = selection.startGridX
+    val startGridY = selection.startGridY
+    val endGridX = selection.endGridX
+    val endGridY = selection.endGridY
     // 防御性检查：若 buildableBorder 过大导致有效范围为负，返回空 map（防 IllegalArgumentException）
     if (buildableBorder > worldWidthCells - 1 - buildableBorder ||
         buildableBorder > worldHeightCells - 1 - buildableBorder
@@ -128,10 +133,7 @@ internal fun recomputeGoldFingerState(
     spiritStones: Long
 ): GoldFingerState {
     val validity = computeGoldFingerCellValidities(
-        startGridX = sel.startGridX,
-        startGridY = sel.startGridY,
-        endGridX = sel.endGridX,
-        endGridY = sel.endGridY,
+        selection = sel,
         buildingW = f.buildingSize.width,
         buildingH = f.buildingSize.height,
         existingBuildings = existingBuildings,

@@ -1,21 +1,21 @@
 plugins {
     id 'xianxia.android'
     alias(libs.plugins.kotlin.serialization)
-    // 2026-08-01：kover 覆盖率盲区修复——全模块纳入统计
+    // kover：全模块纳入覆盖率统计
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
 }
 
-// 2026-08-14：Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+// Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
 kover {
     if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
         disable()
     }
 }
 
-// 2026-08-14：配置期文件读取惰性化（3.2，配置缓存前置）——providers.fileContents 声明式
-// 跟踪，改 version.properties 后配置缓存正确失效（普通 File IO 无法感知）。
-// 文件不存在时 asText 返回空文本 → 空 Properties，与原 if(exists) 语义一致。
+// 配置期文件读取经 providers.fileContents 声明式跟踪，改 version.properties
+// 后配置缓存正确失效（普通 File IO 无法感知）。
+// 文件不存在时 asText 返回空文本 → 空 Properties。
 def loadProperties(String text) {
     def p = new Properties()
     p.load(new StringReader(text))
@@ -49,7 +49,7 @@ android {
     }
 }
 
-// 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
+// 显式单 fork——共享静态状态跨测试类并行污染
 tasks.withType(Test).configureEach {
     maxParallelForks = 1
 }
@@ -90,7 +90,7 @@ dependencies {
     testImplementation libs.robolectric
 }
 
-// 2026-08 债务根治：模块特有编译器参数（SDK/Java/Kotlin 公共配置已收编 xianxia.android convention）
+// 模块特有编译器参数（SDK/Java/Kotlin 公共配置由 xianxia.android convention 提供）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']

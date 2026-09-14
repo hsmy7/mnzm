@@ -14,7 +14,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 2026-08-31 B 批：自动学习功法候选统一（仓库 + 储物袋）与更高品阶替换。
+ * 自动学习功法候选统一（仓库 + 储物袋）与更高品阶替换。
  *
  * 覆盖：
  * - 袋内 manual_instance 直接学习（attachedInstance 重建入表、袋条目移除）

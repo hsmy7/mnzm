@@ -37,8 +37,8 @@ class HerbGardenAuraServiceTest {
         assertTrue("Bonus should be non-negative", result >= 0.0)
     }
 
-    // ---- 灵植 Flat 天赋跨门槛（2026-08-12 修复：光环读 getBaseStats） ----
-    // 修复前读原始 skills.spiritPlanting，"青帝(灵植+10)"对成熟度光环无效
+    // ---- 灵植 Flat 天赋跨门槛（光环读 getBaseStats） ----
+    // "青帝(灵植+10)"等 Flat 天赋经 getBaseStats 计入灵植，可跨过成熟度光环门槛
 
     @Test
     fun calculateElderMaturityBonus_flatTalentCrossesThreshold_yieldsBonus() {

@@ -32,17 +32,11 @@ class UnifiedSerializationEngine @Inject constructor(
     internal val protoBuf = NullSafeProtoBuf.protoBuf
 
     /**
-     * A4（2026-08-05）：解码用宽松 ProtoBuf 实例——ignoreUnknownKeys=true。
-     *
-     * 旧版 App 读新版云档/整档时，新增字段号在严格模式下抛
-     * SerializationException（用户只看到"存档数据异常"）；宽松模式缺失
-     * 字段取类默认值尽力解码，跨版本失败由下载前版本仲裁（VersionMismatch）
-     * 提示，而非笼统的"数据异常"。编码与 Room TypeConverter 路径保持严格。
+     * 解码实例：kotlinx.serialization 的 ProtoBuf 解码按 protobuf wire format
+     * 规范跳过未知字段号（不抛异常）——旧版 App 读新版云档/整档时新字段自动
+     * 跳过、缺失字段取默认值尽力解码；跨版本的明确提示由 downloadSave 下载前
+     * 版本仲裁（VersionMismatch）承担。编码与 Room TypeConverter 路径保持严格。
      */
-    // A4（2026-08-05）实证：kotlinx.serialization 的 ProtoBuf 解码按 protobuf
-    // wire format 规范跳过未知字段号（不抛异常），无需宽松配置实例——
-    // 旧版 App 读新版云档时新字段自动跳过、缺失字段取默认值尽力解码；
-    // 跨版本明确提示由 downloadSave 下载前版本仲裁（VersionMismatch）承担
     private val protoBufLenient = NullSafeProtoBuf.protoBuf
 
     private val statsCache = ConcurrentHashMap<String, Pair<SerializationStats, Long>>()
@@ -118,6 +112,7 @@ class UnifiedSerializationEngine @Inject constructor(
         )
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     @OptIn(ExperimentalSerializationApi::class)
     fun <T> deserialize(
         data: ByteArray,
@@ -158,7 +153,7 @@ class UnifiedSerializationEngine @Inject constructor(
             )
 
             val deserializationStart = System.currentTimeMillis()
-            // A4：解码用宽松实例（ignoreUnknownKeys=true），旧版 App 读新版档尽力解码
+            // ProtoBuf 按 wire format 规范跳过未知字段号，旧版 App 读新版档尽力解码
             val result: T? = protoBufLenient.decodeFromByteArray(serializer, rawData)
             val deserializationTime = System.currentTimeMillis() - deserializationStart
 
@@ -184,14 +179,14 @@ class UnifiedSerializationEngine @Inject constructor(
         }
     }
 
-    /** 从输入数据中切出 payload（跳过头部 + 可选校验和区）（deserialize 拆分） */
+    /** 从输入数据中切出 payload（跳过头部 + 可选校验和区） */
     private fun extractPayloadBytes(data: ByteArray, hasChecksum: Boolean): ByteArray {
         val payloadStart = SerializationConstants.HEADER_SIZE +
             (if (hasChecksum) SerializationConstants.CHECKSUM_SIZE else 0)
         return data.copyOfRange(payloadStart, data.size)
     }
 
-    /** 校验数据校验和（deserialize 拆分）：头部无校验和或未启用校验时恒为 true */
+    /** 校验数据校验和：头部无校验和或未启用校验时恒为 true */
     private fun verifyChecksum(
         data: ByteArray,
         rawData: ByteArray,
@@ -325,6 +320,7 @@ class UnifiedSerializationEngine @Inject constructor(
         Log.d(TAG, "Cleared all $count stats cache entries")
     }
 
+    @Suppress("UnusedParameter") // dataSize: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
     private fun recordStats(
         serializationTime: Long,
         compressionTime: Long,
@@ -361,6 +357,7 @@ class UnifiedSerializationEngine @Inject constructor(
         }
     }
 
+    @Suppress("UnusedParameter") // dataSize: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
     fun getRecommendedContext(dataSize: Int, dataType: DataType): SerializationContext {
         return when (dataType) {
             DataType.HOT_DATA -> SerializationContext(

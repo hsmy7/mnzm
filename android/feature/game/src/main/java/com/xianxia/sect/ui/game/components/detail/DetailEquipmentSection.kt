@@ -125,7 +125,7 @@ data class EquipmentSelectionParams(
 )
 
 /**
- * 装备更换/选择界面（EquipmentSelectionDialog 拆分）：全屏 7:3 双栏，
+ * 装备更换/选择界面：全屏 7:3 双栏，
  * 左侧仓库装备列表（关注优先→品阶降序、单选高亮），右侧选中装备详情（四区域 + 底部"更换"按钮）。
  * 进入默认选中列表第一个装备；[onConfirm] 接收最终选中装备 id。
  */
@@ -173,7 +173,7 @@ fun EquipmentSelectionDialog(
     )
 }
 
-/** 装备槽位中文名（EquipmentSelectionDialog 拆分） */
+/** 装备槽位中文名 */
 private fun equipmentSelectionSlotText(slotType: String): String = when (slotType) {
     "weapon" -> "武器"
     "armor" -> "护甲"

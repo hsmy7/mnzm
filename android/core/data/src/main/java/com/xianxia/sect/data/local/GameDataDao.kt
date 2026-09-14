@@ -22,10 +22,12 @@ interface GameDataDao {
     @Query("SELECT * FROM game_data WHERE slot_id = :slotId ORDER BY lastSaveTime DESC LIMIT 1")
     suspend fun getGameDataSync(slotId: Int): GameData?
 
-    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, lastSaveTime FROM game_data WHERE slot_id = :slotId LIMIT 1")
+    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, " +
+        "lastSaveTime FROM game_data WHERE slot_id = :slotId LIMIT 1")
     suspend fun getMetadataBySlot(slotId: Int): GameDataMetadataProjection?
 
-    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, lastSaveTime FROM game_data ORDER BY slot_id ASC")
+    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, " +
+        "lastSaveTime FROM game_data ORDER BY slot_id ASC")
     suspend fun getAllMetadata(): List<GameDataMetadataProjection>
 
     @Query("SELECT slot_id FROM game_data WHERE slot_id = :slotId LIMIT 1")

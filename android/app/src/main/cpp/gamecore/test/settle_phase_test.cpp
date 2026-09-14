@@ -12,7 +12,7 @@ using rng::RngManager;
 using rng::RngPartition;
 
 // ============================================================
-// T2.4 标量通道单元测试：settleOnePhase 边界标志位 + core 模式钩子抑制 +
+// 标量通道单元测试：settleOnePhase 边界标志位 + core 模式钩子抑制 +
 // RNG 分区标量通道。语义权威 = SettlementEngine（settlement.h）。
 // ============================================================
 

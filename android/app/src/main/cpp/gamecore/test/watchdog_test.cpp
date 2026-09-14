@@ -10,7 +10,7 @@ using system::ProgressSnapshot;
 using system::StallVerdict;
 
 // ============================================================
-// 看门狗统一判据测试（计划 v2 阶段 5：判据迁 C++）
+// 看门狗统一判据测试（判据迁 C++）
 // 用例与 Kotlin GameTimeProgressMonitorTest 全分支矩阵逐条对齐
 //（双端锚定判定语义；历史防御机制自身失效 3 次的教训——全分支覆盖）。
 //
@@ -199,7 +199,7 @@ TEST(WatchdogTest, CustomMonitorParametersRespected) {
               monitor.evaluate(base(12, 100, 100, 35'000)));
 }
 
-// ── 对抗性审查修复回归（2026-08-04） ──
+// ── 判定路径回归 ──
 
 TEST(WatchdogTest, S5FrozenWorldWithOscillatingAccumulatedStillDetected) {
     ProgressMonitor monitor;

@@ -1,0 +1,131 @@
+{
+ "files": [
+  {
+   "name": "DiscipleStatCalculator修炼Ops1",
+   "header": "// ── DiscipleStatCalculator 拆分域 1/7（行为零变更） ──",
+   "fns": [
+    "aptitudeCultivationBonus",
+    "safeLayerMult",
+    "safeVarianceMultiplier",
+    "battleWritebackMaxHpMp",
+    "calculateBreakthroughLifespanGain",
+    "computeTalentEffects",
+    "getTalentEffects:L145",
+    "getTalentEffects:L148",
+    "getPhysiqueEffects:L153",
+    "getPhysiqueEffects:L156",
+    "getAffixEffects:L161",
+    "getAffixEffects:L164",
+    "getAffixCombatEffects:L171"
+   ]
+  },
+  {
+   "name": "DiscipleStatCalculator战斗Ops2",
+   "header": "// ── DiscipleStatCalculator 拆分域 2/7（行为零变更） ──",
+   "fns": [
+    "getAffixCombatEffects:L174",
+    "getAffixCombatEffects:L177",
+    "getMergedEffects:L188",
+    "getMergedEffects:L191",
+    "mergeEffects",
+    "getPositionEffectBonus:L210",
+    "getPositionEffectBonus:L213",
+    "getPositionEffectBonus:L217",
+    "computeBaseHpMp",
+    "safeBrPct",
+    "talentBonus",
+    "talentFlat",
+    "brPct"
+   ]
+  },
+  {
+   "name": "DiscipleStatCalculator属性Ops3",
+   "header": "// ── DiscipleStatCalculator 拆分域 3/7（行为零变更） ──",
+   "fns": [
+    "computeBaseStats",
+    "getBaseStats:L377",
+    "varianceInputsOf",
+    "skillInputsOf",
+    "getBaseStats:L439",
+    "getPermanentBaseStats",
+    "computeStatsWithEquipment",
+    "getStatsWithEquipment:L495",
+    "getStatsWithEquipment:L508",
+    "computeFinalStats",
+    "applyEquipmentStats",
+    "applyManualStats",
+    "applyPillStats"
+   ]
+  },
+  {
+   "name": "DiscipleStatCalculator属性Ops4",
+   "header": "// ── DiscipleStatCalculator 拆分域 4/7（行为零变更） ──",
+   "fns": [
+    "getFinalStats:L616",
+    "getMaxHpMpColumn",
+    "getFinalStats:L726",
+    "calculateCultivationPerPhase:L786",
+    "computeCultivationZones",
+    "buildCultivationZones:L875",
+    "buildCultivationZones:L918",
+    "calculateCultivationPerPhaseColumn",
+    "calculateCultivationPerPhase:L1035",
+    "calculateCultivationPerPhase:L1059",
+    "computeBreakthroughZones",
+    "buildBreakthroughZones:L1143",
+    "buildBreakthroughZones:L1176"
+   ]
+  },
+  {
+   "name": "DiscipleStatCalculator突破Ops5",
+   "header": "// ── DiscipleStatCalculator 拆分域 5/7（行为零变更） ──",
+   "fns": [
+    "calculateBreakthroughChance",
+    "comprehensionBreakthroughBonus",
+    "getBreakthroughChance:L1239",
+    "getBreakthroughChance:L1262",
+    "getSoulPowerBreakthroughBonus",
+    "getBreakthroughBonusDetail",
+    "computeMaxManualSlots",
+    "getMaxManualSlots:L1345",
+    "getMaxManualSlots:L1348",
+    "computePreachingBonus",
+    "calculatePreachingBonus:L1391",
+    "calculatePreachingBonus:L1404",
+    "calculateQingyunPeakCultivationSpeedBonus:L1417"
+   ]
+  },
+  {
+   "name": "DiscipleStatCalculator修炼Ops6",
+   "header": "// ── DiscipleStatCalculator 拆分域 6/7（行为零变更） ──",
+   "fns": [
+    "calculateQingyunPeakCultivationSpeedBonus:L1433",
+    "randomBloodRefineStat",
+    "getBaseStatValue",
+    "getAccumulatedPct",
+    "addPctToTotal",
+    "getStatDisplayName",
+    "getParentSpiritRootBonus",
+    "calculateParentCultivationBonus",
+    "calculateParentCultivationBonusForAggregate",
+    "getMasterDiscipleRealmGap",
+    "getMasterDiscipleCultivationBonus",
+    "getMasterDiscipleBreakthroughBonus",
+    "calculateLifespanRemainingPercent"
+   ]
+  },
+  {
+   "name": "DiscipleStatCalculator修炼Ops7",
+   "header": "// ── DiscipleStatCalculator 拆分域 7/7（行为零变更） ──",
+   "fns": [
+    "calculateLifespanCultivationPenalty",
+    "calculateLifespanBreakthroughPenalty",
+    "isGrieving",
+    "areRelatives",
+    "applyGriefToRelatives",
+    "computeGriefEndYearMap",
+    "recordGriefEndIfLonger"
+   ]
+  }
+ ]
+}

@@ -15,15 +15,18 @@ import com.xianxia.sect.core.model.DiscipleExtended
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.ui.game.GameViewModel
 import io.mockk.coEvery
+import io.mockk.mockkStatic
 import io.mockk.mockk
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.xianxia.sect.ui.game.delegate.washSpiritRoot
+import com.xianxia.sect.ui.game.delegate.washTalent
 
 /**
- * 洗炼弹窗 UI↔引擎集成段测试（2026-08-11 补盲区）：
+ * 洗炼弹窗 UI↔引擎集成段测试：
  * 现有 TalentDetailDialogWashTest 全部 viewModel=null，从未覆盖"点击洗炼 → 引擎返回 → 结果列显示"。
  * 本测试 mock viewModel 返回各结果分支，断言 UI 正确回显/报错：
  * - Success → 洗炼结果列显示新特质 + 出现"确认替换"
@@ -35,6 +38,16 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class TraitWashDialogWashActionTest {
 
+    init {
+        io.mockk.MockKAnnotations.init(this)
+    }
+
+    companion object {
+        init {
+            mockkStatic("com.xianxia.sect.ui.game.delegate.DiscipleDelegateWashOpsKt")
+        }
+    }
+
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -43,7 +56,7 @@ class TraitWashDialogWashActionTest {
         val target = TalentDatabase.getByRarity(1).first()
         val result = TalentDatabase.getByRarity(1).last()
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.washTalent(any(), any(), any()) } returns TraitWashResult.Success(result.id, 0)
+        coEvery { vm.disciple.washTalent(any(), any(), any()) } returns TraitWashResult.Success(result.id, 0)
 
         composeRule.setContent {
             TraitWashDialog(
@@ -74,7 +87,7 @@ class TraitWashDialogWashActionTest {
     fun `天赋 - mock Error 点击洗炼后显示错误提示`() {
         val target = TalentDatabase.getByRarity(1).first()
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.washTalent(any(), any(), any()) } returns TraitWashResult.Error("该特质已不存在")
+        coEvery { vm.disciple.washTalent(any(), any(), any()) } returns TraitWashResult.Error("该特质已不存在")
 
         composeRule.setContent {
             TraitWashDialog(
@@ -97,10 +110,10 @@ class TraitWashDialogWashActionTest {
     @Test
     fun `天赋 - mock 玉符不足点击洗炼后显示固定文案`() {
         // 真实玩家场景：玉符不足 → 引擎返回 InsufficientJadeSymbols → 必须弹"玉符不足，无法洗炼"
-        // （修复前嵌套内联弹窗被外层 clip 裁剪，此文案不可见 = 用户报告的"洗炼无效"）
+        // （嵌套内联弹窗会被外层 clip 裁剪，文案不可见 = 玩家侧"洗炼无效"）
         val target = TalentDatabase.getByRarity(1).first()
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.washTalent(any(), any(), any()) } returns TraitWashResult.InsufficientJadeSymbols(0, 1)
+        coEvery { vm.disciple.washTalent(any(), any(), any()) } returns TraitWashResult.InsufficientJadeSymbols(0, 1)
 
         composeRule.setContent {
             TraitWashDialog(
@@ -123,7 +136,7 @@ class TraitWashDialogWashActionTest {
     fun `灵根 - mock Error 点击洗炼后显示错误提示`() {
         // 灵根洗炼的 ErrorDialog 与特质洗炼同源缺陷，一并回归
         val vm = mockk<GameViewModel>(relaxed = true)
-        coEvery { vm.washSpiritRoot(any(), any()) } returns SpiritRootWashResult.Error("弟子已死亡")
+        coEvery { vm.disciple.washSpiritRoot(any(), any()) } returns SpiritRootWashResult.Error("弟子已死亡")
 
         composeRule.setContent {
             SpiritRootWashDialog(

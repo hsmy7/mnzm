@@ -367,7 +367,7 @@ class SectMapTouchEngineTest {
 
     @Test
     fun `MOVE past slop with gold finger active enters Scrolling not GoldFingerDrag`() = runTest {
-        // 金手指激活臂已删除：slop 拖动一律平移视角（编辑模式空地拖动不再重进框选）
+        // slop 拖动一律平移视角（编辑模式空地拖动不重进框选）
         callbacks.goldFingerActive = true
         val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
         engine.updateViewport(800f, 600f)
@@ -484,7 +484,7 @@ class SectMapTouchEngineTest {
         val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
         engine.updateViewport(800f, 600f)
         engine.onTouch(touchDown(100f, 200f))
-        // 未等长按超时即进入 BuildingDrag（旧行为需 200ms）
+        // 未等长按超时即进入 BuildingDrag
         assertEquals(GestureState.BuildingDrag::class, engine.state::class)
         assertTrue("按下即拾起必须立即 onDragStart", callbacks.dragStartCalled)
         assertFalse("按下时不得立即触发 onLongPress（延迟到移动/驻留）", callbacks.longPressCallCount > 0)

@@ -179,8 +179,10 @@ class SpiritStoneWalletTest {
     fun `batch - all or nothing when any deduct fails precheck`() = runBlocking {
         stateStore.update { wallet.add(this, 500, SpiritStoneGrade.LOW) }
         val ops = listOf(
-            SpiritStoneOperation(delta = 500, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal, source = SpiritStoneSource.Internal),
-            SpiritStoneOperation(delta = -2000, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal, source = SpiritStoneSource.Internal)
+            SpiritStoneOperation(delta = 500, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal,
+                source = SpiritStoneSource.Internal),
+            SpiritStoneOperation(delta = -2000, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal,
+                source = SpiritStoneSource.Internal)
         )
         val result = stateStore.updateAndReturn { wallet.batch(this, ops) }
         // 预检查拒绝整个 batch（-2000 超过余额），无操作执行
@@ -193,8 +195,10 @@ class SpiritStoneWalletTest {
     fun `batch - all operations succeed when initial balance covers deducts`() = runBlocking {
         stateStore.update { wallet.add(this, 2000, SpiritStoneGrade.LOW) }
         val ops = listOf(
-            SpiritStoneOperation(delta = 500, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal, source = SpiritStoneSource.Internal),
-            SpiritStoneOperation(delta = -800, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal, source = SpiritStoneSource.Internal)
+            SpiritStoneOperation(delta = 500, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal,
+                source = SpiritStoneSource.Internal),
+            SpiritStoneOperation(delta = -800, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal,
+                source = SpiritStoneSource.Internal)
         )
         val result = stateStore.updateAndReturn { wallet.batch(this, ops) }
         assertEquals(2, result.successCount)

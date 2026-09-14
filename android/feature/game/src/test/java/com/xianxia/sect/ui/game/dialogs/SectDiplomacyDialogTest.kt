@@ -1,11 +1,15 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import com.xianxia.sect.core.model.SectRelationLevel
+import com.xianxia.sect.core.util.PresentationRandom
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SectDiplomacyDialogTest {
+
+    /** 固定实例的表现随机源（断言只关心文案集合，与抽取序无关） */
+    private val presentationRandom = PresentationRandom()
 
     // ==================== dialogueTextForRelation ====================
 
@@ -213,31 +217,31 @@ class SectDiplomacyDialogTest {
 
     @Test
     fun `buildPlayerGiftText - tier 4 returns 大礼 text`() {
-        val text = buildPlayerGiftText("青云宗", 4)
+        val text = buildPlayerGiftText("青云宗", 4, presentationRandom)
         assertTrue("大礼文本应包含'大礼'", text.contains("大礼"))
     }
 
     @Test
     fun `buildPlayerGiftText - tier 3 returns 重礼 text`() {
-        val text = buildPlayerGiftText("青云宗", 3)
+        val text = buildPlayerGiftText("青云宗", 3, presentationRandom)
         assertTrue("重礼文本应包含'重礼'", text.contains("重礼"))
     }
 
     @Test
     fun `buildPlayerGiftText - tier 2 returns 厚礼 text`() {
-        val text = buildPlayerGiftText("青云宗", 2)
+        val text = buildPlayerGiftText("青云宗", 2, presentationRandom)
         assertTrue("厚礼文本应包含'厚礼'", text.contains("厚礼"))
     }
 
     @Test
     fun `buildPlayerGiftText - tier 1 returns 薄礼 text`() {
-        val text = buildPlayerGiftText("青云宗", 1)
+        val text = buildPlayerGiftText("青云宗", 1, presentationRandom)
         assertTrue("薄礼文本应包含'薄礼'", text.contains("薄礼"))
     }
 
     @Test
     fun `buildPlayerGiftText - invalid tier returns fallback text`() {
-        val text = buildPlayerGiftText("青云宗", 0)
+        val text = buildPlayerGiftText("青云宗", 0, presentationRandom)
         assertTrue("无效档位应返回含宗门名的文本", text.contains("青云宗"))
         assertTrue("无效档位应返回含'心意'的文本", text.contains("心意"))
     }
@@ -245,7 +249,7 @@ class SectDiplomacyDialogTest {
     @Test
     fun `buildPlayerGiftText - non-empty for all tiers`() {
         for (tier in 0..5) {
-            assertTrue("tier=$tier 应返回非空文本", buildPlayerGiftText("宗门", tier).isNotEmpty())
+            assertTrue("tier=$tier 应返回非空文本", buildPlayerGiftText("宗门", tier, presentationRandom).isNotEmpty())
         }
     }
 
@@ -253,31 +257,31 @@ class SectDiplomacyDialogTest {
 
     @Test
     fun `getGiftAiAcceptText - HOSTILE returns hostile accept text`() {
-        val text = getGiftAiAcceptText(SectRelationLevel.HOSTILE)
+        val text = getGiftAiAcceptText(SectRelationLevel.HOSTILE, presentationRandom)
         assertTrue("HOSTILE接受文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiAcceptText - ANTAGONISTIC returns antagonistic accept text`() {
-        val text = getGiftAiAcceptText(SectRelationLevel.ANTAGONISTIC)
+        val text = getGiftAiAcceptText(SectRelationLevel.ANTAGONISTIC, presentationRandom)
         assertTrue("ANTAGONISTIC接受文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiAcceptText - NORMAL returns normal accept text`() {
-        val text = getGiftAiAcceptText(SectRelationLevel.NORMAL)
+        val text = getGiftAiAcceptText(SectRelationLevel.NORMAL, presentationRandom)
         assertTrue("NORMAL接受文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiAcceptText - FRIENDLY returns friendly accept text`() {
-        val text = getGiftAiAcceptText(SectRelationLevel.FRIENDLY)
+        val text = getGiftAiAcceptText(SectRelationLevel.FRIENDLY, presentationRandom)
         assertTrue("FRIENDLY接受文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiAcceptText - INTIMATE returns intimate accept text`() {
-        val text = getGiftAiAcceptText(SectRelationLevel.INTIMATE)
+        val text = getGiftAiAcceptText(SectRelationLevel.INTIMATE, presentationRandom)
         assertTrue("INTIMATE接受文本应非空", text.isNotEmpty())
     }
 
@@ -285,31 +289,31 @@ class SectDiplomacyDialogTest {
 
     @Test
     fun `getGiftAiRejectText - HOSTILE returns hostile reject text`() {
-        val text = getGiftAiRejectText(SectRelationLevel.HOSTILE)
+        val text = getGiftAiRejectText(SectRelationLevel.HOSTILE, presentationRandom)
         assertTrue("HOSTILE拒绝文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiRejectText - ANTAGONISTIC returns antagonistic reject text`() {
-        val text = getGiftAiRejectText(SectRelationLevel.ANTAGONISTIC)
+        val text = getGiftAiRejectText(SectRelationLevel.ANTAGONISTIC, presentationRandom)
         assertTrue("ANTAGONISTIC拒绝文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiRejectText - NORMAL returns normal reject text`() {
-        val text = getGiftAiRejectText(SectRelationLevel.NORMAL)
+        val text = getGiftAiRejectText(SectRelationLevel.NORMAL, presentationRandom)
         assertTrue("NORMAL拒绝文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiRejectText - FRIENDLY returns friendly reject text`() {
-        val text = getGiftAiRejectText(SectRelationLevel.FRIENDLY)
+        val text = getGiftAiRejectText(SectRelationLevel.FRIENDLY, presentationRandom)
         assertTrue("FRIENDLY拒绝文本应非空", text.isNotEmpty())
     }
 
     @Test
     fun `getGiftAiRejectText - INTIMATE returns intimate reject text`() {
-        val text = getGiftAiRejectText(SectRelationLevel.INTIMATE)
+        val text = getGiftAiRejectText(SectRelationLevel.INTIMATE, presentationRandom)
         assertTrue("INTIMATE拒绝文本应非空", text.isNotEmpty())
     }
 
@@ -317,20 +321,20 @@ class SectDiplomacyDialogTest {
 
     @Test
     fun `buildPlayerReplyText - success returns accept reply`() {
-        val text = buildPlayerReplyText(true)
+        val text = buildPlayerReplyText(true, presentationRandom)
         assertTrue("接受回应应非空", text.isNotEmpty())
     }
 
     @Test
     fun `buildPlayerReplyText - failure returns reject reply`() {
-        val text = buildPlayerReplyText(false)
+        val text = buildPlayerReplyText(false, presentationRandom)
         assertTrue("拒绝回应应非空", text.isNotEmpty())
     }
 
     @Test
     fun `buildPlayerReplyText - accept and reject texts are different`() {
-        val acceptTexts = (1..5).map { buildPlayerReplyText(true) }.toSet()
-        val rejectTexts = (1..5).map { buildPlayerReplyText(false) }.toSet()
+        val acceptTexts = (1..5).map { buildPlayerReplyText(true, presentationRandom) }.toSet()
+        val rejectTexts = (1..5).map { buildPlayerReplyText(false, presentationRandom) }.toSet()
         // 两个集合不应有交集
         assertTrue("接受和拒绝文本应完全不同", acceptTexts.intersect(rejectTexts).isEmpty())
     }

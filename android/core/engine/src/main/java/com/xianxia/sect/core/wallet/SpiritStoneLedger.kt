@@ -34,7 +34,8 @@ class SpiritStoneLedger @Inject constructor() {
 
     fun queryBySource(source: String): List<SpiritStoneTransaction> = recentTransactions.filter { it.source == source }
     fun queryByReason(reason: String): List<SpiritStoneTransaction> = recentTransactions.filter { it.reason == reason }
-    fun queryByTimeRange(from: Long, to: Long): List<SpiritStoneTransaction> = recentTransactions.filter { it.timestamp in from..to }
+    fun queryByTimeRange(from: Long,
+        to: Long): List<SpiritStoneTransaction> = recentTransactions.filter { it.timestamp in from..to }
     fun queryByGrade(grade: String): List<SpiritStoneTransaction> = recentTransactions.filter { it.grade.name == grade }
     fun clear() { head = 0; count = 0 }
     val size: Int get() = count

@@ -4,7 +4,7 @@
 // 弟子智能购买月结下沉（S8 子事件 12：DisciplePurchaseService）
 //
 // Kotlin DisciplePurchaseService.executePurchase(year, month, state)
-// 等价移植（批 12-1）。全链零战斗依赖（纯数据变换 + SYSTEM 分区
+// 等价移植。全链零战斗依赖（纯数据变换 + SYSTEM 分区
 // shuffled 洗牌）。
 //
 // 语义要点（逐条对齐 Kotlin 源码）：
@@ -20,7 +20,7 @@
 //     stackedData / pill 内嵌 effect/grade）
 //   - 灵石：先扣储物袋再扣随身；宗门灵石 += price
 //   - 购买日志（lifeEvents）为 Kotlin Disciple 类体属性（@Ignore
-//     非序列化、不进快照协议）——C++ 侧无该列，登记 S 系列（S-20）
+//     非序列化、不进快照协议）——C++ 侧无该列
 //
 // RNG 契约：仅消费 SYSTEM 分区（shuffled Fisher-Yates——Kotlin
 // shuffled(Random) 从后往前 nextInt(i+1)）；空列表/单元素不消费。
@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "gamecore/rng/rng_manager.h"
+#include "gamecore/ecs/disciple_component.h"  // syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/merchant_settlement.h"
@@ -165,14 +166,19 @@ inline bool needsEquipmentSlot(const std::string& currentEquipId,
 
 // ── 收集弟子（collectDisciples：存活 + 有资金） ────────────────────
 
+/// 候选收集经 sync + View<DiscipleRef> 行序
+///（收集序 == 行序 == Kotlin assembleAll filter 序，A/B 组洗牌输入序不变）。
 inline std::vector<DisciplePurchaseContext> collectDisciples(
-    const gamecore::state::DiscipleStore& ds) {
+    const gamecore::state::DiscipleStore& ds, ecs::World& world) {
     std::vector<DisciplePurchaseContext> out;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.isAlive[row] == 0) continue;
+    ecs::syncDiscipleEntities(world, ds.size());
+    ecs::View<ecs::DiscipleRef> view(world.registry());
+    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+        if (ds.isAlive[row] == 0) return;
         const int64_t totalFunds = ds.storageBagSpiritStones[row] +
                                    static_cast<int64_t>(ds.spiritStones[row]);
-        if (totalFunds <= 0) continue;
+        if (totalFunds <= 0) return;
         DisciplePurchaseContext ctx;
         ctx.row = row;
         ctx.realm = ds.realms[row];
@@ -183,7 +189,7 @@ inline std::vector<DisciplePurchaseContext> collectDisciples(
         ctx.manualIds = ds.manualIds[row];
         ctx.totalFunds = totalFunds;
         out.push_back(std::move(ctx));
-    }
+    });
     return out;
 }
 
@@ -199,7 +205,7 @@ inline int32_t countPurchases(const std::vector<PurchaseEntry>& decisions,
     return count;
 }
 
-// ── shuffled（Kotlin Iterable.shuffled(rng: DeterministicRng)：C-11 登记） ─
+// ── shuffled（Kotlin Iterable.shuffled(rng: DeterministicRng)） ─
 
 /// 洗牌 = Kotlin `map { it to rng.nextInt() }.sortedBy { it.second }`——
 /// **每元素恰 1 次无参 nextInt() 随机键 + 稳定排序**（非 Fisher-Yates！）。
@@ -571,6 +577,11 @@ inline ItemEffect pillToItemEffect(const Pill& pill) {
 inline bool appendPillBagItem(GameState& state, const MerchantItem& item,
                               std::size_t discipleRow, int32_t year,
                               int32_t month) {
+    // 审计 P2-8：容量门前置——满袋且无可合并条目直接失败（不扣仓库堆叠）
+    if (!bagCanAccept(state.disciples.storageBagItems[discipleRow],
+                      kItemTypePill, item.name, item.rarity)) {
+        return false;
+    }
     const auto pill = deductWarehouseStack(state.pills, item.itemId, item.name,
                                            item.rarity);
     if (!pill.has_value()) return false;
@@ -586,8 +597,8 @@ inline bool appendPillBagItem(GameState& state, const MerchantItem& item,
     bagItem.obtainedYear = year;
     bagItem.obtainedMonth = month;
     bagItem.stackedData = BagStackedData();
-    state.disciples.storageBagItems[discipleRow].push_back(std::move(bagItem));
-    return true;
+    return addToDiscipleBagList(state.disciples.storageBagItems[discipleRow],
+                                std::move(bagItem));
 }
 
 // ── 灵石扣减（deductSpiritStones：优先储物袋再随身） ──────────────
@@ -620,6 +631,11 @@ inline bool addToWarehouseAndBag(GameState& state, const MerchantItem& item,
     // Kotlin addToWarehouseAndBag：item.type.lowercase(Locale.ROOT) 分发
     const std::string type = toLowerAscii(item.type);
     if (type == kItemTypeEquipment) {
+        // 审计 P2-8：容量门前置（满袋且不可合并 → 不扣仓库，物品保留）
+        if (!bagCanAccept(state.disciples.storageBagItems[discipleRow],
+                          kItemTypeEquipmentStack, item.name, item.rarity)) {
+            return false;
+        }
         // 装备：minRealm/slot 取仓库堆叠元数据
         const auto stack = deductWarehouseStack(
             state.equipmentStacks, item.itemId, item.name, item.rarity);
@@ -636,11 +652,17 @@ inline bool addToWarehouseAndBag(GameState& state, const MerchantItem& item,
         bagItem.obtainedYear = year;
         bagItem.obtainedMonth = month;
         bagItem.stackedData = sd;
-        state.disciples.storageBagItems[discipleRow].push_back(
-            std::move(bagItem));
-        return true;
+        // 审计 P2-8：统一入袋入口（kind 合并 + 容量门）——满袋返回 false，
+        // 调用方 continue 跳过该物品（不扣仓库，不销毁已有条目）
+        return addToDiscipleBagList(state.disciples.storageBagItems[discipleRow],
+                                    std::move(bagItem));
     }
     if (type == kItemTypeManual) {
+        // 审计 P2-8：容量门前置（同上）
+        if (!bagCanAccept(state.disciples.storageBagItems[discipleRow],
+                          kItemTypeManualStack, item.name, item.rarity)) {
+            return false;
+        }
         const auto stack = deductWarehouseStack(
             state.manualStacks, item.itemId, item.name, item.rarity);
         if (!stack.has_value()) return false;
@@ -656,9 +678,9 @@ inline bool addToWarehouseAndBag(GameState& state, const MerchantItem& item,
         bagItem.obtainedYear = year;
         bagItem.obtainedMonth = month;
         bagItem.stackedData = sd;
-        state.disciples.storageBagItems[discipleRow].push_back(
-            std::move(bagItem));
-        return true;
+        // 审计 P2-8：同上（满袋跳过）
+        return addToDiscipleBagList(state.disciples.storageBagItems[discipleRow],
+                                    std::move(bagItem));
     }
     if (type == kItemTypePill) {
         return appendPillBagItem(state, item, discipleRow, year, month);
@@ -668,7 +690,7 @@ inline bool addToWarehouseAndBag(GameState& state, const MerchantItem& item,
 
 // ── 购买决策应用（applyPurchaseDecisions） ─────────────────────────
 
-/// S-20：弟子智能购买日志草稿（Kotlin DiscipleTables.lifeEvents 为类体属性
+/// 弟子智能购买日志草稿（Kotlin DiscipleTables.lifeEvents 为类体属性
 /// @Ignore 非协议字段——C++ 无该列，购买发生时记录草稿，Kotlin 侧写瞬态列；
 /// 日志格式 "${age}岁：购买了${itemName}"，与 Kotlin applyPurchaseDecisions
 /// 购买点逐条对齐）。定义于本属主文件（applyPurchaseDecisions 内部填充），
@@ -694,7 +716,7 @@ inline void applyPurchaseDecisions(GameState& state,
         deductSpiritStones(state, dRow, item.price);
         // 弟子支付的灵石计入宗门仓库
         state.gameData.spiritStones += item.price;
-        // S-20：购买日志草稿（Kotlin lifeEvents 瞬态列——C++ 无该列，
+        // 购买日志草稿（Kotlin lifeEvents 瞬态列——C++ 无该列，
         // 记录草稿由 Kotlin 残留执行器写回；格式 "${age}岁：购买了${name}"）
         if (purchaseLogs != nullptr) {
             PurchaseLogDraft log;
@@ -709,16 +731,17 @@ inline void applyPurchaseDecisions(GameState& state,
 // ── 主入口（executePurchase 等价） ────────────────────────────────
 
 /// 执行弟子智能购买（S8 子事件 12；零 RNG 主路径之外的 SYSTEM 洗牌）。
-/// @param purchaseLogs S-20 草稿（可为 null）：实际购买发生时逐条追加
+/// @param purchaseLogs 购买日志草稿（可为 null）：实际购买发生时逐条追加
 ///   （discipleId/itemName/age），随 nativeSettleMonth 信封回传 Kotlin。
 inline void processDisciplePurchase(GameState& state,
                                     gamecore::rng::RngManager& rng,
-                                    std::vector<PurchaseLogDraft>* purchaseLogs = nullptr) {
+                                    std::vector<PurchaseLogDraft>* purchaseLogs,
+                                    ecs::World& world) {
     const std::vector<MerchantItem>& listedItems = state.gameData.playerListedItems;
     if (listedItems.empty()) return;
 
     const std::vector<DisciplePurchaseContext> allDisciples =
-        collectDisciples(state.disciples);
+        collectDisciples(state.disciples, world);
     if (allDisciples.empty()) return;
 
     auto& rngSystem = rng.getRng(gamecore::rng::RngPartition::kSystem);

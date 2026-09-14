@@ -21,7 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * ImeAwareContainer 事件驱动避让容器测试（2026-09 IME 状态机根治）：
+ * ImeAwareContainer 事件驱动避让容器测试：
  * 键盘可见性翻转 → 内容一次性上移（动画驱动）；键盘收起 → 恢复；
  * 键盘不可见时零位移（无输入框对话框零行为变化）。
  */

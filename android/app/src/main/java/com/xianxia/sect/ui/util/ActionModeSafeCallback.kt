@@ -23,7 +23,7 @@ import androidx.appcompat.view.menu.MenuBuilder
  * 2. [finishActiveActionMode] — 无条件进入销毁态（无论当前是否有活跃
  *    ActionMode），并结束已跟踪的 ActionMode。
  * 3. [resetForResume] — Activity 回到前台时复位销毁态，恢复文本选择能力
- *    （修复旧实现 onStop 置位后永不复位的隐患）。
+ *    （onStop 置位后若不复位，返回前台后文本选择将永久失效）。
  *
  * 注意：仅覆盖 Activity 窗口；Compose Dialog 独立窗口内的文本选择由
  * [com.xianxia.sect.ui.components.DialogFocusGuard] 在对话框销毁时清除焦点。

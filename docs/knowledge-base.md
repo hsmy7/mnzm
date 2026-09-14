@@ -60,14 +60,16 @@
 ## Building Y-Sort Rule
 
 - **Y轴排序规则（2026-07-27）** — 宗门地图建筑渲染使用 Painter's Algorithm，排序键为**占地底部 Y 坐标**（`gridY + footprintHeight`），而非占地顶部（`gridY`）。当建筑占地高度不一致时按 `gridY` 排序会导致 z-order 错误。在 `MainGameScreen.buildBuildingDataArray()` 中实现，与 Unity Transparency Sort Axis(Y)、Godot Y Sort、Supercell(CoC) back-to-front 等行业标准一致
-- **C++ 占地数组同步** — `NativeBridge.cpp` 的 `FP_W[]`/`FP_H[]` 与 `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX` 必须完全同步（索引数量、顺序一致），新增建筑类型时两端同时添加
+- **立体层装饰同序（2026-09）** — 树（`LAYOUT.tiles[].layer = 'object'`）与建筑并入**同一画家序**（按地面接触点归并，同键时建筑在后；契约 = `gamecore/map/draw_order.h`）。若把树留在地面层，北侧建筑会把树冠无脑压掉（树在前却消失）；草/石留在跟随地面的地面层
+- **C++ 占地数组同步** — `NativeBridge.cpp` 的 `FP_W[]`/`FP_H[]`（由 `generateFootprintHeader` 从 `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX` 生成）与 Kotlin 表必须完全同步（索引数量、顺序一致），新增建筑类型时两端同时添加
+- **建筑/装饰显示尺寸口径（2026-09 起）** — 立体立绘按"屏上不变形"取值：精灵宽 = 占地宽、精灵高 = `round(宽 × 素材高 ÷ (0.75 × 素材宽))`（`0.75` = `TOPDOWN_Y_SCALE`），**精灵高 > 占地深是常态**（巡视楼 4×10、天枢殿 18×19）；占地 = 建筑底座（宽 = 精灵宽；深：塔/亭 2 格、池 3 格、院落/山丘/殿保持现状），**只减不增**以保旧档无拆除退款。贴地网格类（灵田/作物/瓦片/道路/岛边缘/门楼）按世界纵横比与地格对齐。装饰显示尺寸在 `build-atlas.mjs LAYOUT.tiles[].sprite`（小数格）：草/石 约 1 格宽、树 2×3.291 格。详见 [docs/adr/sprite-sizing-billboard.md](adr/sprite-sizing-billboard.md)；改尺寸由构建期 `validateDisplaySizing` + 守卫测试 `SpriteSizingFidelityTest` 双重把关
 
 ---
 
 ## Tech Stack
 
 - **Language**: Kotlin 2.2.20, JVM target 17（UI / 平台能力层）+ **C++20**（引擎核心 `game-core`，经 JNI 对接；零 Android 依赖、桌面可编译、iOS 可复用）
-- **Engine (C++)**: `game-core` 纯 C++20 引擎——确定性计算**唯一真相源**（时间/结算/战斗/生产/探索/内政/经济/外交/秘境等迁移主线已收口，AUTHORITATIVE 生产默认）；Kotlin `GameStateStore` 降级为镜像，`GameEngine` 签名保留、低频操作转发
+- **Engine (C++)**: `game-core` 纯 C++20 引擎——确定性计算**唯一真相源**（时间/结算/战斗/生产/探索/内政/经济/外交/秘境与建筑/道路/弟子管理等 UI 操作面事务已 C++ 化，AUTHORITATIVE 生产默认；**反向同步通道逐域关闭与剩余 UI 操作面下沉仍在推进**，剩余域清单见 `docs/ui-read-surface.md` §4.1）；Kotlin `GameStateStore` 降级为镜像，`GameEngine` 签名保留、低频操作转发
 - **ECS / 并行**: game-core 内置 ECS 骨架（Entity/Component/SoA 列存储/View 查询/System 调度）+ `JobSystem` 线程池并行化无共享写 system（每旬核心批次 `runPhaseCoreBatchParallel` 分块并行，零 RNG、与串行逐字节一致）
 - **跨语言桥**: `GameCoreBridge`（Android JNI 薄层，逻辑收敛于 C++）+ C++ 侧 `nlohmann::json`；Kotlin 侧 kotlinx.serialization（全量快照镜像 + 增量变更集 `DirtyTracker`/`applyDirty`）
 - **UI**: Jetpack Compose with Material3 (BOM 2026.05.01), no XML layouts
@@ -155,10 +157,10 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | 组件 | 文件 | 说明 |
 |------|------|------|
 | `DeterministicRng` | `util/DeterministicRng.kt` | PCG-XSH-RR 算法，16 字节状态，可序列化 |
-| `GameRngManager` | `util/GameRngManager.kt` | 7 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL / AI_SECT） |
-| `RngPartition` | `util/RngPartition.kt` | 分区枚举 |
+| `GameRngManager` | `util/GameRngManager.kt` | **10 分区枚举**（`RngPartition`）：BATTLE(0) / BREAKTHROUGH(1) / EXPLORATION(2) / SYSTEM(3) / ENEMY_GEN(4) / MAIL(5) / AI_SECT(6) / **SECRET_REALM(7)** / **MISSION(8)** / **AI_SECT_MIRROR(9, `inSnapshot=false` 通道型)**——`exportStates()`/`restoreStates()` 只处理 `inSnapshot=true` 的 **9 项**（键 6 `kAiSect` 由 C++ 接管，Kotlin 侧经 9 号镜像键对齐，见 `game_core.cpp` 的 `rngStates.erase(kAiSect)`） |
+| `RngPartition` | `util/RngPartition.kt` | 分区枚举（含 `inSnapshot` 通道型标记） |
 
-**规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
+**规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`（**红线由守卫测试闸门**：`RngSourceGuardTest` 五类入口逐模块登记上限只缩不增 + `RngEngineIsolationGuardTest` 禁止自建随机源；见 `docs/adr/rng-determinism-remediation.md`）。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
 
 **MAIL 分区（2026-07-26 新增）：** `RngPartition.MAIL(5)` 专门用于邮件/兑换码奖励随机生成（弟子属性/装备/丹药/草药等）。`EquipmentDatabase`/`HerbDatabase`/`ItemDatabase`/`ManualDatabase` 的 `generateRandom*` 方法增加可选 `random: kotlin.random.Random` 参数，调用方（`MailService`/`RedeemCodeService`）从 `GameRngManager.getRng(MAIL)` 获取 RNG 传入。
 
@@ -166,7 +168,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 **出生随机流（2026-07-31 迁移）：** `ChildBirthSystem` 的受孕判定/出生月份/性别/灵根继承/新生儿属性全部迁移至 `RngPartition.SYSTEM` 分区（6 处 `GameRandom` → `rngManager.getRng(SYSTEM)`，灵根随机经 `rng.asKotlinRandom()` 适配 `SpiritRootGenerator.generate`）。旧存档已出生弟子不受影响；未来出生结果随存档确定性，读档后基于 `restoreStates` 继续推进。
 
-**宗门地图种子（2026-07-31 确定性化）：** `createNewGame`/`restartGameInternal` 的 `mapSeed` 改用 `GameRandom.nextInt(Int.MAX_VALUE)` 生成（一次性熵源，非分区——同时作为分区 PRNG 的 `initSystemSeed` 输入，从分区生成会自引用）；连带修复 `restartGameInternal` 不生成 mapSeed 导致重启后全分区种子为 0、地图完全相同的缺陷。
+**宗门地图种子（2026-07-31 确定性化；2026-09-14 熵源收敛）：** `createNewGame`/`restartGameInternal`（`GameEngineLoadDataOps.kt:265/336`）的 `mapSeed` 由 **`EngineEntropy.nextWorldSeed()`**（`SecureRandom.nextLong() xor System.nanoTime()`）生成——**显式会话熵源、非分区、不伪装可复现**（其 KDoc 明确"只允许用于创建全新世界的根种子"）；同时作为分区 PRNG 的 `initSystemSeed` 输入。历史实现 `GameRandom`（自建 object，挂钟种子 + `@ThreadLocal`）**已物理删除**（ADR 阶段 1③），残留调用变编译期报错。连带修复 `restartGameInternal` 不生成 mapSeed 导致重启后全分区种子为 0、地图完全相同的缺陷。
 
 ---
 
@@ -176,12 +178,12 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 ### 入口 1：`DiscipleFactory.create()`
 - 路径：`domain/disciple/DiscipleFactory.kt`
-- 使用 `DiscipleSeed.nextInt` Lambda（兼容 `GameRngManager` / `GameRandom` / `kotlin.random.Random`）
+- 使用 `DiscipleSeed.nextInt` Lambda（由 `GameRngManager.getRng(分区)` 提供；旧的 `GameRandom` 兼容路径已随对象删除而消失）
 - 用于玩家招募、招募列表刷新、子嗣出生（3 站点统一）
 
 ### 入口 2：`AISectDiscipleManager.generateRandomDisciple()`
 - 路径：`domain/diplomacy/AISectDiscipleManager.kt`
-- 使用 `DeterministicRng` 实例（PCG-XSH-RR，`System.nanoTime()` 种子）
+- `rng` 为**解析式**：优先取注入的 `GameRngManager.getRng(AI_SECT)`（AUTHORITATIVE 下委托 C++ `kAiSect` 分区）；无管理器时回落 `initForSlot(aiSeed)` 播种的 `DeterministicRng.fromSeed()` **混种态**（`snapshot()` 是状态而非种子——2026-09-14 修复"写裸种子"根因，`DiffAiRngSeedingTest` 跨语言逐位锁守）
 - 用于 AI 宗门弟子生成
 
 ### 属性分布规则（2026-07-24 优化）

@@ -22,7 +22,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffBattleCalculatorTest — 战斗计算管线跨语言差分对拍（战斗批次 A）。
+ * DiffBattleCalculatorTest — 战斗计算管线跨语言差分对拍。
  *
  * 守护目标：Kotlin `BattleCalculator` 的**计算管线**（calculateCombatantDamage
  * 全链：斩杀前置 → 闪避 → 暴击 → 波动 → 分桶注入 → 段数钳制；estimateDamage

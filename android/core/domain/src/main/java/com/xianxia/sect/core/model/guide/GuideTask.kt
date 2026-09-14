@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.model.guide
 
 import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
 
@@ -39,7 +40,7 @@ sealed interface GuideCondition {
     /**
      * 建造数量。
      *
-     * 累计语义（2026-08-19）：当前值 = max(累计建造计数, 当前存量)——
+     * 累计语义：当前值 = max(累计建造计数, 当前存量)——
      * 建筑升级（初级→中级）或拆除不再回退引导进度；旧档无累计计数时回退到当前存量。
      */
     data class BuildingCount(val buildingDisplayName: String, override val targetValue: Long) : GuideCondition {
@@ -68,17 +69,20 @@ sealed interface GuideCondition {
         override fun progressText(gameData: GameData): String =
             if (isMet(gameData)) "(已完成)" else "(未完成)"
         override fun currentValue(gameData: GameData): Long {
-            val slots = gameData.elderSlots
-            return when (elderField) {
-                "viceSectMaster" -> if (slots.viceSectMaster.isNotEmpty()) 1 else 0
-                "outerElder" -> if (slots.outerElder.isNotEmpty()) 1 else 0
-                "innerElder" -> if (slots.innerElder.isNotEmpty()) 1 else 0
-                "preachingElder" -> if (slots.preachingElder.isNotEmpty()) 1 else 0
-                "lawEnforcementElder" -> if (slots.lawEnforcementElder.isNotEmpty()) 1 else 0
-                "recruitingElder" -> if (slots.recruitingElder.isNotEmpty()) 1 else 0
-                "qingyunPreachingElder" -> if (slots.qingyunPreachingElder.isNotEmpty()) 1 else 0
-                else -> 0
-            }
+            val occupants = elderSlotOccupant(gameData.elderSlots)
+            return if (occupants.isNotEmpty()) 1 else 0
+        }
+
+        /** 长老槽位占用人：按字段名取对应槽位占用者，未知字段为空串 */
+        private fun elderSlotOccupant(slots: ElderSlots): String = when (elderField) {
+            "viceSectMaster" -> slots.viceSectMaster
+            "outerElder" -> slots.outerElder
+            "innerElder" -> slots.innerElder
+            "preachingElder" -> slots.preachingElder
+            "lawEnforcementElder" -> slots.lawEnforcementElder
+            "recruitingElder" -> slots.recruitingElder
+            "qingyunPreachingElder" -> slots.qingyunPreachingElder
+            else -> ""
         }
     }
 

@@ -12,13 +12,13 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 库存系统（Kotlin→C++ 迁移批次 4）
+// 库存系统
 //
 // 等价移植 Kotlin StackableItemStore + InventorySystem 的**纯逻辑**部分：
 //   - StackKey 合并键（name/rarity/slot/category/grade/growTime）
 //   - StackableItemStore.add 多堆叠合并 + 分块创建 + Partial/Failure 语义
 //   - InventorySystem addXxx/removeXxx/canAddXxx（槽位预算 = 仓库容量 - 其他类型）
-//   - 溢出转邮件（C++ 侧产出 OverflowDraft 记录，Kotlin 侧落库——批次 9 对接）
+//   - 溢出转邮件（C++ 侧产出 OverflowDraft 记录，Kotlin 侧落库——桥层导出待接）
 //
 // 与 Kotlin 语义对齐要点（StackableItemStore 文档）：
 //   - 合并时**遍历所有匹配堆叠**（最近使用优先，promoteKey 移至首部）
@@ -28,6 +28,47 @@
 //   - maxSlots 惰性求值（每类型上限 = computeMaxSlots() - 其他类型数量）
 // ============================================================
 namespace gamecore::system {
+
+// ── 进程级 id 分配器注册表─────────────────
+// 结构缺陷：函数级 static 计数器生命周期=进程，而生成的 gc-* id 生命周期=
+// 存档——importStateJson 不复位计数器 → 重启读档后必然撞号（removePill 按
+// id 删错堆叠 / upsertEntities 按 id 互相覆盖）。根治：全部 id 生成器收敛到
+// 本注册表（prefix → 已用计数），importStateInternal 成功尾部调用
+// reseedItemIdAllocatorsFromJson（game_core.cpp）把各 prefix 计数器推到
+// 存档已见最大后缀——重启撞号在构造上不可能（R3：源头错位修复）。
+//
+// ⚠ 新增物品类别经 nextItemId(prefix)（或注册表直取）即自动登记；
+//   reseed 按「gc-<prefix>-<纯数字>」形态泛化解析——生成侧走注册表即被
+//   导入侧覆盖，无需改扫描面（守卫测试 ItemIdReseedGuardTest 锁定）。
+
+/// 注册表（prefix → 已用计数）。头文件 inline 函数级 static 单例。
+inline std::map<std::string, uint64_t>& itemIdCounterRegistry() {
+    static std::map<std::string, uint64_t> registry;
+    return registry;
+}
+
+/// 注册表取号：prefix 命名空间内单调递增，返回本次使用值
+inline uint64_t nextItemIdCounter(const std::string& prefix) {
+    return ++itemIdCounterRegistry()[prefix];
+}
+
+/// reseed 观察点：id 呈 "gc-<prefix>-<纯数字>" 形态时把对应注册表计数器推到
+/// max(current, N)（只推高不回退——重复导入幂等）。其他形态（Kotlin UUID、
+/// 非纯数字后缀）跳过——UUID 空间与计数器空间不相交（审计运行时验证点 3）。
+inline void observeItemIdForReseed(const std::string& id) {
+    if (id.rfind("gc-", 0) != 0) return;
+    const auto pos = id.rfind('-');
+    if (pos == std::string::npos || pos + 1 >= id.size()) return;
+    const std::string suffix = id.substr(pos + 1);
+    if (suffix.empty() || suffix.size() > 19) return;
+    for (char c : suffix) {
+        if (c < '0' || c > '9') return;  // 非纯数字后缀不适用计数器空间
+    }
+    uint64_t& c = itemIdCounterRegistry()[id.substr(0, pos)];
+    const uint64_t n = std::stoull(suffix);
+    if (n > c) c = n;
+}
+
 
 // ── 库存错误（对应 AppError.Domain.Inventory）────────────────────
 
@@ -208,6 +249,13 @@ inline state::StorageBag withNewId(const state::StorageBag& it, const std::strin
 template <typename T>
 class StackableItemStore {
 public:
+    /// 新堆叠 id 生成（确定性自增——Kotlin 用 UUID，语义等价：仅保证唯一，
+    /// id 不参与合并键/业务逻辑，存档恢复时以 Kotlin 镜像为准）。
+    /// 走 itemIdCounterRegistry 注册表（计数器生命周期与存档对齐）
+    static std::string generateNewId() {
+        return "gc-stack-" + std::to_string(nextItemIdCounter("gc-stack"));
+    }
+
     using KeyFn = std::function<StackKey(const T&)>;
 
     StackableItemStore(std::vector<T> initialItems, KeyFn keyFn, int32_t maxStack,
@@ -459,13 +507,6 @@ private:
         }
     }
 
-    /// 新堆叠 id 生成（确定性自增——Kotlin 用 UUID，语义等价：仅保证唯一，
-    /// id 不参与合并键/业务逻辑，存档恢复时以 Kotlin 镜像为准）
-    static std::string generateNewId() {
-        static uint64_t counter = 0;
-        return "gc-stack-" + std::to_string(++counter);
-    }
-
     std::vector<T> items_;
     KeyFn keyFn_;
     int32_t maxStack_ = 0;
@@ -481,7 +522,7 @@ inline int32_t wrapAdd(int32_t a, int32_t b) {
 }
 
 /// 计算最大槽位数（placedBuildings 中 displayName == "仓库" 计数；
-/// S-10 清偿：容量来自注入配置 gameConfig()，默认值与 game_config.json 一致）
+/// 容量来自注入配置 gameConfig()，默认值与 game_config.json 一致）
 inline int32_t computeMaxSlots(const state::GameState& state) {
     const auto& cfg = gamecore::gameConfig();
     int32_t warehouseCount = 0;
@@ -519,7 +560,7 @@ struct OverflowDraft {
     int32_t yield = 0;       // seed
 };
 
-/// 溢出邮件草稿收集器（单线程契约；批次 9 由桥层导出给 Kotlin 落库）
+/// 溢出邮件草稿收集器（单线程契约；草稿待由桥层导出给 Kotlin 落库）
 class OverflowMailCollector {
 public:
     void add(OverflowDraft draft) { drafts_.push_back(std::move(draft)); }
@@ -537,6 +578,82 @@ private:
     std::vector<OverflowDraft> drafts_;
 };
 
+
+/// 确定性物品 id（spirit_field.h "gc-herb-..." 惯例；对拍面忽略新增条目 id）。
+/// 进程内单调计数保证唯一（StackableItemStore 按 id 索引）。
+/// S5 自 production.h 上移共享：任务奖励与生产产线共用同一入口，防跨域
+/// 前缀生成 id 撞号。计数器走上方注册表（同前缀同计数器）。
+inline std::string nextItemId(const char* prefix) {
+    return std::string(prefix) + "-" + std::to_string(nextItemIdCounter(prefix));
+}
+
+// ── 弟子储物袋统一入袋入口（审计 P2-8 / 方案 D3 改动 6）─────────────
+// 「只进不出」治理：入袋三路径（auto_gear 卸装/忘功法、disciple_purchase
+// 购买、month_settlement 偷盗）统一经 addToDiscipleBag——同 kind 合并堆叠
+// + 条目容量门。满袋返回 false，调用方转化为「跳过拾取/中止换装」，
+// 绝不销毁已有物品。Kotlin 侧 StorageBagUtils 为 itemId 合并 + 有意无上限
+// （有守卫锁「不截断」）——本门仅作用于 C++ AUTHORITATIVE 三入袋路径
+// （审计对象），Kotlin 残留路径语义不动。
+
+/// 储物袋条目容量上限（审计 P2-8，堆叠合并后计；方案推荐值）
+inline constexpr std::size_t STORAGE_BAG_CAPACITY = 50;
+
+/// 入袋统一入口：kind（itemType+name+rarity）相同的无实例条目合并堆叠
+/// （数量饱和累加）；携带实例 payload（equipmentInstance/manualInstance）
+/// 的条目按 itemId 匹配（实例不可互相合并），否则新条目。
+/// @return false = 袋满且无法合并（调用方跳过，不销毁已有条目）
+inline bool addToDiscipleBagList(std::vector<state::StorageBagItem>& bag,
+                                 state::StorageBagItem entry);
+
+/// 袋容量门判定（审计 P2-8）：容量未满，或存在可合并的 kind 条目时接受。
+/// 供「先扣仓库再入袋」路径前置检查——防满袋扣仓后物品无袋可放。
+inline bool bagCanAccept(const std::vector<state::StorageBagItem>& bag,
+                         const std::string& itemType, const std::string& name,
+                         int32_t rarity) {
+    if (bag.size() < STORAGE_BAG_CAPACITY) return true;
+    for (const auto& e : bag) {
+        if (e.equipmentInstance.has_value() || e.manualInstance.has_value()) continue;
+        if (e.itemType == itemType && e.name == name && e.rarity == rarity) return true;
+    }
+    return false;
+}
+
+inline bool addToDiscipleBag(state::Disciple& d, state::StorageBagItem entry) {
+    return addToDiscipleBagList(d.storageBagItems, std::move(entry));
+}
+
+inline bool addToDiscipleBagList(std::vector<state::StorageBagItem>& bag,
+                                 state::StorageBagItem entry) {
+    const bool hasInstancePayload =
+        entry.equipmentInstance.has_value() || entry.manualInstance.has_value();
+    for (auto& existing : bag) {
+        const bool existingHasInstance =
+            existing.equipmentInstance.has_value() ||
+            existing.manualInstance.has_value();
+        bool matches = false;
+        if (hasInstancePayload || existingHasInstance) {
+            // 实例条目：仅同 itemId 可合并（对齐 Kotlin StorageBagUtils）
+            matches = existing.itemId == entry.itemId;
+        } else {
+            matches = existing.itemType == entry.itemType &&
+                      existing.name == entry.name &&
+                      existing.rarity == entry.rarity;
+        }
+        if (!matches) continue;
+        const int64_t sum = static_cast<int64_t>(existing.quantity) +
+                            static_cast<int64_t>(entry.quantity);
+        existing.quantity = sum > INT32_MAX ? INT32_MAX : static_cast<int32_t>(sum);
+        // payload 升级（对齐 Kotlin increaseItemQuantity：新 payload 非空则覆盖）
+        if (entry.equipmentInstance.has_value()) existing.equipmentInstance = entry.equipmentInstance;
+        if (entry.stackedData.has_value()) existing.stackedData = entry.stackedData;
+        if (entry.manualInstance.has_value()) existing.manualInstance = entry.manualInstance;
+        return true;
+    }
+    if (bag.size() >= STORAGE_BAG_CAPACITY) return false;
+    bag.push_back(std::move(entry));
+    return true;
+}
+
 // ── InventorySystem 等价（addXxx/removeXxx/canAdd 纯逻辑）─────────
 
 /// 各类型最大堆叠（Kotlin InventoryConfig.typeSpecificStackLimits）
@@ -550,7 +667,7 @@ inline int32_t getMaxStackSize(const std::string& type) {
     return 9999;  // 默认 maxStackSize（storageBag 等）
 }
 
-// ── 仓库整理（Kotlin InventorySystem.consolidateAllStacks/sortWarehouse 等价，批 8-3）──
+// ── 仓库整理（Kotlin InventorySystem.consolidateAllStacks/sortWarehouse 等价）──
 
 /// 按 id 翻转锁定（返回是否找到）
 template <typename T>
@@ -576,7 +693,7 @@ inline bool toggleItemLock(state::GameState& state, const std::string& itemId,
     return false;
 }
 
-/// 单遍合并分散堆叠（Kotlin InventorySystem.consolidate 等价，2026-08-01 对抗性审查语义）：
+/// 单遍合并分散堆叠（Kotlin InventorySystem.consolidate 等价语义）：
 /// 每组以第一个未满堆叠为合并目标（锁定可作目标），顺序吸收后续未满且未锁定堆叠；
 /// 满堆叠跳过（禁"从满堆叠抽回"，否则 ≥3 同键堆叠总数>maxStack 时满/半满振荡）。
 /// 组间相互独立，处理顺序不影响终态。
@@ -652,9 +769,7 @@ inline void sortWarehouse(state::GameState& state) {
 template <typename T>
 inline InventoryResult<T> validateStackableItem(const T& item) {
     InventoryResult<T> r;
-    // S-11 清偿（批 12 顺带）：Kotlin 用 name.isBlank()（空串或全空白）——
-    // 原实现 name.empty() 仅拒空串，纯空白名会漏过（语义差异登记见
-    // docs/cpp-engine.md §8 S-11）
+    // Kotlin 用 name.isBlank()（空串或全空白）判定非法名——纯空白名同样拒绝
     const bool blank = std::all_of(item.name.begin(), item.name.end(),
         [](unsigned char c) {
             return c == ' ' || c == '\t' || c == '\n' ||

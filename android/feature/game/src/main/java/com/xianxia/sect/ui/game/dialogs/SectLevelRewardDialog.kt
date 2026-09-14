@@ -84,7 +84,7 @@ fun SectLevelRewardDialog(
                 SectLevelRewardClaimButton(
                     alreadyClaimed = alreadyClaimed,
                     onClaim = {
-                        viewModel.claimSectLevelReward(level)
+                        viewModel.sectDelegate.claimSectLevelReward(level)
                         hasClaimed = true
                     }
                 )
@@ -93,7 +93,7 @@ fun SectLevelRewardDialog(
     }
 }
 
-/** 奖励物品卡片区（SectLevelRewardDialog 拆分）：随机物品显示 ? 图标 */
+/** 奖励物品卡片区：随机物品显示 ? 图标 */
 @Composable
 private fun SectLevelRewardCards(
     rewardCards: List<RewardCardItem>,
@@ -131,7 +131,7 @@ private fun SectLevelRewardCards(
     }
 }
 
-/** 领取按钮 / 已领取文本（SectLevelRewardDialog 拆分） */
+/** 领取按钮 / 已领取文本 */
 @Composable
 private fun SectLevelRewardClaimButton(
     alreadyClaimed: Boolean,

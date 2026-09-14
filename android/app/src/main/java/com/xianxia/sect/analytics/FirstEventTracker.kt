@@ -10,7 +10,7 @@ import javax.inject.Singleton
  * 按用户（userId，即 TapDB setUser 的 openid）持久化标记：
  * 同一用户同一事件仅上报一次；登出/重登不丢；换账号不串。
  *
- * 存储：MMKV 统一偏好（docs/architecture.md 待办 D-29），旧 SharedPreferences
+ * 存储：MMKV 统一偏好；旧 SharedPreferences
  * 一次性迁移（首次访问时懒执行，幂等）。
  */
 @Singleton

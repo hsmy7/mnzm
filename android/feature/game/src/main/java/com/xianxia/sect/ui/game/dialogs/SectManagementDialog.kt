@@ -87,7 +87,7 @@ fun SectManagementDialog(
     }
 }
 
-/** 选项区域（SectManagementDialog 拆分）：三个开关行 */
+/** 选项区域：三个开关行 */
 @Composable
 private fun SectManagementOptionsSection(
     gameData: GameData?,
@@ -104,25 +104,27 @@ private fun SectManagementOptionsSection(
     SectManagementCheckboxRow(
         label = "巡视楼弹出战斗结算界面",
         checked = gameData?.patrolBattleResultPopup ?: false,
-        onToggle = { viewModel.setPatrolBattleResultPopup(!(gameData?.patrolBattleResultPopup ?: false)) }
+        onToggle = { viewModel.settings.setPatrolBattleResultPopup(!(gameData?.patrolBattleResultPopup ?: false)) }
     )
 
     SectManagementCheckboxRow(
         label = "自动售卖中品灵石补差价",
         checked = gameData?.autoSellMidGradeForPurchase ?: false,
-        onToggle = { viewModel.setAutoSellMidGradeForPurchase(!(gameData?.autoSellMidGradeForPurchase ?: false)) }
+        onToggle = { viewModel.settings.setAutoSellMidGradeForPurchase(!(gameData?.autoSellMidGradeForPurchase ?:
+            false)) }
     )
 
     SectManagementCheckboxRow(
         label = "自动售卖上品灵石补差价",
         checked = gameData?.autoSellHighGradeForPurchase ?: false,
-        onToggle = { viewModel.setAutoSellHighGradeForPurchase(!(gameData?.autoSellHighGradeForPurchase ?: false)) }
+        onToggle = { viewModel.settings.setAutoSellHighGradeForPurchase(!(gameData?.autoSellHighGradeForPurchase ?:
+            false)) }
     )
 
     Spacer(modifier = Modifier.padding(top = 8.dp))
 }
 
-/** 单行选项开关（SectManagementDialog 拆分） */
+/** 单行选项开关 */
 @Composable
 private fun SectManagementCheckboxRow(
     label: String,
@@ -147,7 +149,7 @@ private fun SectManagementCheckboxRow(
     }
 }
 
-/** 管理按钮区（SectManagementDialog 拆分）：道侣/弟子/自动管理（FlowRow 响应式换行） */
+/** 管理按钮区：道侣/弟子/自动管理（FlowRow 响应式换行） */
 @Composable
 private fun SectManagementButtonArea(
     onDaoCompanion: () -> Unit,

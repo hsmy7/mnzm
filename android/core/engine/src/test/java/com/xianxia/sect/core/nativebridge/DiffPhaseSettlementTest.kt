@@ -58,9 +58,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
- * DiffPhaseSettlementTest — 每旬弟子结算跨语言差分对拍（T2.1 验收核心）。
+ * DiffPhaseSettlementTest — 每旬弟子结算跨语言差分对拍（验收核心）。
  *
  * 守护目标：C++ `gamecore::system::runPhaseSettlement`（注册于 onPhaseSettle，
  * 经 nativeCoreAdvancePhases 触发）与 Kotlin [PhaseSettlementExecutor] +
@@ -70,7 +76,7 @@ import org.junit.Test
  * nativeCoreAdvancePhases(N) → 双侧导出 → JSON 结构对拍。
  *
  * 对拍方向：以 **C++ 导出的键集为权威覆盖面**（C++ 快照协议只含已迁移字段；
- * Kotlin 侧未迁移字段双端均无人写入，不在本批守卫范围）——C++ 持有的任何
+ * Kotlin 侧未迁移字段双端均无人写入，不在守卫范围）——C++ 持有的任何
  * 字段被改坏都会在此失败；数字统一 IEEE754 double 位比较；现实墙钟字段
  * timestamp 排除（Clock 注入边界）。
  *
@@ -87,8 +93,8 @@ class DiffPhaseSettlementTest {
 
     /**
      * 对拍推进旬数：3 旬恰好跨一个月界（(1,1,0)→(1,2,0)）。
-     * 刻意避开 month%3==0 的任务自动刷新月（S8#14 missionRefresh 属任务批次
-     * 未下沉）——月界选择约束见 t2-2-report.md 场景规避清单。
+     * 刻意避开 month%3==0 的任务自动刷新月（missionRefresh 不在 diff 面内）——
+     * 月界选择约束见 t2-2-report.md 场景规避清单。
      */
     private companion object {
         const val PHASES = 3
@@ -152,7 +158,7 @@ class DiffPhaseSettlementTest {
                 ),
                 Disciple(
                     id = "3", name = "青三", realm = 9, realmLayer = 1,
-                    cultivation = 98.0, spiritRootType = "metal",
+                    cultivation = 490.0, spiritRootType = "metal",
                     combat = CombatAttributes(currentHp = -1, currentMp = -1),
                     equipment = EquipmentSet(
                         storageBagItems = listOf(cultivationPill())
@@ -186,10 +192,32 @@ class DiffPhaseSettlementTest {
 
     // ── Kotlin 基准侧 ──────────────────────────────────────────────
 
+    /**
+     * 执法处理器构造（偷盗钩子场景用真实实现，其余场景 mock）。
+     * 必须与基准侧共用同一 [gameRng]（SYSTEM 抽取落同一分区真相）。
+     */
+    private fun buildLawProcessor(
+        store: FakeGameStateStore,
+        gameRng: GameRngManager,
+        real: Boolean
+    ): LawEnforcementProcessor =
+        if (real) {
+            com.xianxia.sect.core.engine.service.LawEnforcementProcessor(
+                stateStore = store,
+                rngManager = gameRng,
+                discipleLifecycleProcessor =
+                    mockSmart<com.xianxia.sect.core.engine.service.DiscipleLifecycleProcessor>(),
+                lootCalculator = com.xianxia.sect.core.exploration.LootCalculator(gameRng)
+            )
+        } else {
+            mockSmart()
+        }
+
     /** 构造真实服务的 CultivationService（mock 仅为本路径不触达的依赖）；返回服务与其 RNG 管理器 */
     private fun buildService(
         store: FakeGameStateStore,
-        rngStates: Map<Int, Long>
+        rngStates: Map<Int, Long>,
+        realLawEnforcement: Boolean = false
     ): Pair<CultivationService, GameRngManager> {
         // 晚绑定属性计算器（生产由 App 启动装配；纯 JUnit 需手动绑定——
         // 突破失败折算/长老悟性等路径经 disciple.maxHp/getBaseStats 消费它）
@@ -249,19 +277,20 @@ class DiffPhaseSettlementTest {
                 ab: Double, gcp: Double, mdb: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
         }
+        // RNG 与 C++ 同源：restore 到导入快照的分区状态（C++ importStateJson
+        // 的等价步骤）；突破/亲属赠送/伴侣配对共用同一管理器（生产装配同构）
+        val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
+        val lawProcessor = buildLawProcessor(store, gameRng, realLawEnforcement)
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(
                 DisciplePillManager(PillEffectApplier()),
-                mockSmart()
+                lawProcessor
             ),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(store)
         )
-        // RNG 与 C++ 同源：restore 到导入快照的分区状态（C++ importStateJson
-        // 的 C-13 步骤等价）；突破/亲属赠送/伴侣配对共用同一管理器（生产装配同构）
-        val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
         val handler = DiscipleBreakthroughHandler(
             stateStore = store,
             cultivationCore = core,
@@ -270,7 +299,7 @@ class DiffPhaseSettlementTest {
             rngManager = gameRng,
             analyticsTracker = mockSmart()
         )
-        // ── 月变路径真实依赖（T2.2：跨月界时 Kotlin 基准侧需跑同构月变）──
+        // ── 月变路径真实依赖（跨月界时 Kotlin 基准侧需跑同构月变）──
         // 钱包/账本/事件总线为纯 ledger（无 Android 依赖，普通 JUnit 可真构造）
         val scopeProvider = UnconfinedCoroutineScopeProvider()
         val wallet = SpiritStoneWallet(
@@ -301,7 +330,6 @@ class DiffPhaseSettlementTest {
             merchantAndRecruitService = mockSmart(),
             caveExplorationProcessor = mockSmart(),
             sharedState = CultivationSharedState(),
-            discipleService = mockSmart()
         ) to gameRng
     }
 
@@ -340,8 +368,8 @@ class DiffPhaseSettlementTest {
             discipleLifecycleProcessor = mockSmart(),
             diplomacyEventProcessor = mockSmart(),
             diplomacyService = mockSmart(),
-            equipmentManager = mockSmart(),
-            manualManager = mockSmart(),
+            equipmentManager = com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager(),
+            manualManager = com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager(),
             autoBuyService = mockSmart(),
             vassalService = mockSmart(),
             disciplePurchaseService = mockSmart(),
@@ -559,10 +587,230 @@ class DiffPhaseSettlementTest {
     /** 元婴一层三灵根满修为满血弟子（自动突破丹资格命中 rootCounts=[3]） */
     private fun autoPillDisciple() = Disciple(
         id = "7", name = "元七", realm = 6, realmLayer = 1,
-        cultivation = 5850.0,   // maxCult(6,1)
+        cultivation = 29250.0,  // maxCult(6,1)
         spiritRootType = "fire,water,wind",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
+
+    // ── 自动装备/亲属赠送/偷盗钩子场景 ─────────────────────────
+    // 覆盖上文场景边界规避的三条路径：自动装备开启 / 突破后亲属赠送
+    // （SYSTEM RNG）/ 丹药写回偷盗判定钩子（SYSTEM RNG）。
+
+    /** 探测指定分区在 3 次预热抽取后的首个 nextDouble 值 */
+    private fun probeFirstDouble(seed: Long, partition: RngPartition): Double {
+        val probe = DeterministicRng.fromSeed(seed + partition.id)
+        repeat(3) { probe.nextInt() }
+        return probe.nextDouble()
+    }
+
+    private fun findSeed(
+        partition: RngPartition,
+        predicate: (Double) -> Boolean
+    ): Long {
+        for (s in 1L..100_000L) {
+            if (predicate(probeFirstDouble(s, partition))) return s
+        }
+        error("未找到满足条件的种子（分区 ${partition.id}）")
+    }
+
+    private fun herb(itemId: String, rarity: Int, quantity: Int) = StorageBagItem(
+        itemId = itemId, itemType = "herb", name = "灵草$itemId",
+        rarity = rarity, quantity = quantity, obtainedYear = 1, obtainedMonth = 1
+    )
+
+    /** 双端同构推进：Kotlin 基准（TimeSystem + execute + 月变）vs C++ advancePhases */
+    private fun runDiffPhases(
+        snapshot: NativeGameState,
+        realLawEnforcement: Boolean = false,
+        phases: Int = PHASES
+    ): Pair<NativeGameState, NativeGameState> {
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+        val store = FakeGameStateStore().also {
+            it.gameDataValue = snapshot.gameData
+            it.disciplesValue = snapshot.disciples
+            it.equipmentInstancesValue = snapshot.equipmentInstances
+            it.manualInstancesValue = snapshot.manualInstances
+            it.equipmentStacksValue = snapshot.equipmentStacks
+            it.manualStacksValue = snapshot.manualStacks
+            it.pillsValue = snapshot.pills
+        }
+        val serviceAndRng = buildService(store, snapshot.gameData.rngStates, realLawEnforcement)
+        val executor = PhaseSettlementExecutor(serviceAndRng.first)
+        val monthExecutor = buildMonthExecutor(serviceAndRng.first, serviceAndRng.second)
+        val timeSystem = TimeSystem(store)
+        store.update {
+            repeat(phases) {
+                val prevMonth = gameData.gameMonth
+                timeSystem.onPhaseTick(this, phasesToSettle = 1)
+                executor.execute(this)
+                if (gameData.gameMonth != prevMonth) {
+                    monthExecutor.execute(this)
+                }
+            }
+        }
+        store.gameDataValue = store.gameDataValue.copy(
+            rngStates = serviceAndRng.second.exportStates().toMutableMap()
+        )
+        val expected = NativeGameState(
+            gameData = store.gameDataValue,
+            disciples = store.disciplesValue,
+            equipmentStacks = store.equipmentStacksValue,
+            equipmentInstances = store.equipmentInstancesValue,
+            manualStacks = store.manualStacksValue,
+            manualInstances = store.manualInstancesValue,
+            pills = store.pillsValue,
+            materials = store.materialsValue,
+            herbs = store.herbsValue,
+            seeds = store.seedsValue,
+            storageBags = store.storageBagsValue
+        )
+        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
+            encoded.encodeToByteArray()))
+        DiffRngBridge.nativeCoreAdvancePhases(phases)
+        val actual = json.decodeFromString(
+            NativeGameState.serializer(),
+            DiffRngBridge.nativeCoreExportState().decodeToString()
+        )
+        return expected to actual
+    }
+
+    /**
+     * 自动装备（S3）：袋内 equipment_instance 直接装配（完整实例保真，
+     * 不走模板重建——桌面环境无模板 DB 依赖）。
+     */
+    @Test
+    fun `auto equip from bag instance matches bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+
+        val instance = EquipmentInstance(
+            id = "i1", name = "青云剑", rarity = 4,
+            slot = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+            physicalAttack = 100, minRealm = 9,
+            nurtureLevel = 2, nurtureProgress = 30.0,
+            ownerId = "1", isEquipped = false
+        )
+        val bagItem = StorageBagItem(
+            itemId = "i1", itemType = "equipment_instance", name = "青云剑",
+            rarity = 4, quantity = 1, obtainedYear = 1, obtainedMonth = 1,
+            equipmentInstance = instance
+        )
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 10000
+        ).apply {
+            rngStates = initialRngStates(SEED)
+            autoEquipFromWarehouseRootCounts = setOf(1)   // 单灵根命中
+        }
+        val snapshot = NativeGameState(
+            gameData = gameData,
+            disciples = listOf(
+                Disciple(
+                    id = "1", name = "青一", realm = 9, realmLayer = 1,
+                    cultivation = 50.0, spiritRootType = "metal",
+                    combat = CombatAttributes(currentHp = -1, currentMp = -1),
+                    equipment = EquipmentSet(storageBagItems = listOf(bagItem))
+                )
+            )
+        )
+        val (expected, actual) = runDiffPhases(snapshot)
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
+    }
+
+    /**
+     * 亲属赠送（S1）：突破成功（层变即可）触发道侣赠送（SYSTEM RNG，
+     * 概率 0.45）。种子双探测：BREAKTHROUGH 首抽 < 0.90（突破成功）+
+     * SYSTEM 首抽 < 0.45（赠送触发）。
+     */
+    @Test
+    fun `relative gifts after breakthrough matches bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+
+        // 种子双探测：BREAKTHROUGH 首抽 < 0.90（炼气一层突破成功）+
+        // SYSTEM 首抽 < 0.45（道侣赠送概率 0.45）
+        val jointSeed = generateSequence(1L) { it + 1 }
+            .first { s ->
+                probeFirstDouble(s, RngPartition.BREAKTHROUGH) < 0.90 &&
+                    probeFirstDouble(s, RngPartition.SYSTEM) < 0.45
+            }
+
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 10000
+        ).apply { rngStates = initialRngStates(jointSeed) }
+        val snapshot = NativeGameState(
+            gameData = gameData,
+            disciples = listOf(
+                Disciple(   // 突破候选：炼气一层修为满、满血
+                    id = "1", name = "青一", realm = 9, realmLayer = 1,
+                    cultivation = 490.0, spiritRootType = "metal",
+                    combat = CombatAttributes(currentHp = -1, currentMp = -1),
+                    social = com.xianxia.sect.core.model.SocialData(partnerId = "2")
+                ),
+                Disciple(   // 道侣：袋内 ≥2 条目（Kotlin MIN_BAG_ITEMS_TO_KEEP=1 按条目数守卫）
+                    id = "2", name = "青二", realm = 9, realmLayer = 1,
+                    cultivation = 0.0, spiritRootType = "metal",
+                    combat = CombatAttributes(currentHp = -1, currentMp = -1),
+                    equipment = EquipmentSet(storageBagItems = listOf(
+                        herb("h-1", 4, 2), herb("h-2", 1, 1)
+                    ))
+                )
+            )
+        )
+        val (expected, actual) = runDiffPhases(snapshot)
+        // 场景有效性前置：突破确实发生（层数 1→2）
+        assertEquals(2, expected.disciples.first().realmLayer)
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
+    }
+
+    /**
+     * 偷盗判定钩子（S2）：道德减益丹服用后道德 < 30 → 即时偷盗判定
+     * （SYSTEM RNG 全链：尝试→捕获→金额→偷后叛逃）。种子探测 SYSTEM 首抽
+     * < 0.30（道德归零后偷盗概率 30×0.01）；忠诚 35 → 平均忠诚 < 50 门控
+     * 通过、偷后叛逃概率 clamp 0（不触发清理路径）。
+     */
+    @Test
+    fun `pill morality debuff triggers theft chain bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+
+        val seed = findSeed(RngPartition.SYSTEM) { it < 0.30 }
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 10000
+        ).apply { rngStates = initialRngStates(seed) }
+        val debuffPill = StorageBagItem(
+            itemId = "pill-1", itemType = "pill", name = "迷心丹",
+            rarity = 2, quantity = 1, obtainedYear = 1, obtainedMonth = 1,
+            effect = ItemEffect(
+                pillType = "intel", intelligenceAdd = 5,
+                moralityAdd = -100, minRealm = 9
+            )
+        )
+        val snapshot = NativeGameState(
+            gameData = gameData,
+            disciples = listOf(
+                Disciple(
+                    id = "1", name = "青一", realm = 9, realmLayer = 1,
+                    cultivation = 10.0, spiritRootType = "metal",
+                    combat = CombatAttributes(currentHp = -1, currentMp = -1),
+                    skills = com.xianxia.sect.core.model.SkillStats(loyalty = 35),
+                    equipment = EquipmentSet(storageBagItems = listOf(debuffPill))
+                )
+            )
+        )
+        val (expected, actual) = runDiffPhases(snapshot, realLawEnforcement = true, phases = 2)
+        // 场景有效性前置：偷盗判定确已发生（标记先于抽取，未遂同计数）。
+        // 注：不跨月界（2 旬）——月度重置（theftJudgementsThisMonth 归零）
+        // 在 Kotlin 基准侧位于被 mock 的 processTheftIfNeeded（口径差
+        // 登记族），月度重置语义由 C++ month_settlement_test 黄金用例守护。
+        assertEquals(1, expected.gameData.theftJudgementsThisMonth)
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
+    }
 
     // ── JSON 结构对拍（C++ 导出键集为权威覆盖面） ────────────────────
 

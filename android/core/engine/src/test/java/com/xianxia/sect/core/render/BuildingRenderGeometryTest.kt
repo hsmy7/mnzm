@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * BuildingRenderGeometry 共享几何纯函数测试（2026-08-10 新增，WP3）。
+ * BuildingRenderGeometry 共享几何纯函数测试。
  *
  * 双后端（Vulkan C++ / Canvas Kotlin）的阴影/精灵偏移/命中判定共用同一数学来源，
  * 此处锁定 Kotlin 侧行为；C++ 侧一致性由代码审查 + SoftwareCanvasBackendTest

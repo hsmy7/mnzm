@@ -29,7 +29,7 @@ import org.mockito.Mockito.mock
 
 /**
  * consolidateStacks 合并与 addXxx 边界回归测试。
- * 覆盖对抗性审查发现的：死循环（≥3 同键堆叠总数>maxStack）、
+ * 覆盖：死循环（≥3 同键堆叠总数>maxStack）、
  * 超上限分块、零合并 Failure 语义、锁定堆叠策略、储物袋合并。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -49,8 +49,7 @@ class InventorySystemConsolidateTest {
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         inventoryConfig = InventoryConfig()
         spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
-        system = InventorySystem(stateStore, inventoryConfig, spiritStoneWallet, mock(
-            com.xianxia.sect.core.engine.config.GameConfigProvider::class.java))
+        system = InventorySystem(stateStore, inventoryConfig)
         system.initialize()
         runBlocking { stateStore.reset() }
     }
@@ -130,8 +129,8 @@ class InventorySystemConsolidateTest {
 
     @Test
     fun `consolidateStacks - 3 stacks exceeding maxStack terminates without oscillation`() = runBlocking {
-        // 对抗性审查 CRITICAL 回归：≥3 同键堆叠且总数 > maxStack 时，
-        // 旧 while 算法在 [999,543,999] ↔ [999,999,543] 之间无限振荡（启动卡死）
+        // ≥3 同键堆叠且总数 > maxStack 时必须终止
+        //（不得在 [999,543,999] ↔ [999,999,543] 间无限振荡）
         val maxStack = inventoryConfig.getMaxStackSize("pill")
         stateStore.update {
             pills = EntityStore(listOf(
@@ -175,7 +174,7 @@ class InventorySystemConsolidateTest {
 
     @Test
     fun `addPill - quantity over maxStack creates multiple stacks`() = runBlocking {
-        // 对抗性审查 HIGH 回归：单次添加数量 > maxStack 必须分块，不得生成超限堆叠
+        // 单次添加数量 > maxStack 必须分块，不得生成超限堆叠
         val maxStack = inventoryConfig.getMaxStackSize("pill")
         stateStore.update {
             system.addPill(Pill(id = "p1", name = "回气丹", rarity = 1,
@@ -190,7 +189,7 @@ class InventorySystemConsolidateTest {
 
     @Test
     fun `addPill - zero-merge when warehouse full returns FAILURE not Partial`() = runBlocking {
-        // 对抗性审查 HIGH 回归：仓库满且同键堆叠全满、本次零合并时
+        // 仓库满且同键堆叠全满、本次零合并时
         // 必须返回 Failure（调用方拒绝领取），不得返回 Partial（物品静默丢失）
         val maxStack = inventoryConfig.getMaxStackSize("pill")
         val capacity = GameConfig.Warehouse.BASE_CAPACITY

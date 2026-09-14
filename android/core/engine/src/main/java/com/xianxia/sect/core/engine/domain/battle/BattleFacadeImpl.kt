@@ -19,7 +19,8 @@ class BattleFacadeImpl @Inject constructor(
     override val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     override val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
 
-    override suspend fun processBattleCasualties(deadMemberIds: Set<String>, survivorHpMap: Map<String, Int>, survivorMpMap: Map<String, Int>) =
+    override suspend fun processBattleCasualties(deadMemberIds: Set<String>, survivorHpMap: Map<String, Int>,
+        survivorMpMap: Map<String, Int>) =
         combatService.processBattleCasualties(deadMemberIds, survivorHpMap, survivorMpMap)
 
     override fun getTotalBattlesCount(): Int = combatService.getTotalBattlesCount()

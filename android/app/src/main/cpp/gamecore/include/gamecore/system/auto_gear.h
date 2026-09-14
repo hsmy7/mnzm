@@ -9,15 +9,17 @@
 
 #include "gamecore/data/equipment_db.h"
 #include "gamecore/data/manual_db.h"
+#include "gamecore/ecs/disciple_component.h"  // E2：syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
+#include "gamecore/system/inventory.h"  // addToDiscipleBag（审计 P2-8）
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/pill_system.h"   // decreaseItemQuantity（袋内堆叠扣减）
 #include "gamecore/system/recruit_settlement.h"  // nextInstanceId / minRealmForRarity
 #include "gamecore/system/settlement_detail.h"
 
 // ============================================================
-// 自动装备/学习（B，2026-08-31）
+// 自动装备/学习
 //
 // 等价移植 Kotlin CultivationEventProcessor.processAutoFromWarehouse +
 // DiscipleEquipmentManager.processAutoEquipFromWarehouse +
@@ -40,7 +42,7 @@
 //
 // 已知范围边界（对拍约定）：
 //   - lifeEvents（"X岁：自动装备了Y"）为 Kotlin 类体属性（非协议字段），
-//     C++ 侧不记录——与 S-20 同源
+//     C++ 侧不记录
 //   - 实例 id 为镜像生成字段（Kotlin UUID，C++ 确定性自增占位）
 //   - 装备/功法名称与模板查询走 codegen 单一数据源（equipment_db/manual_db）
 // ============================================================
@@ -319,7 +321,7 @@ inline void deductWarehouseStack(std::vector<EquipmentStack>& stacks,
 }
 
 /// 旧装备卸装入袋（Kotlin depositOldEquipmentToBag：实例入袋 + 从实例表移除 + 清槽）
-inline void depositEquippedToBag(Disciple& d, GameState& state,
+inline bool depositEquippedToBag(Disciple& d, GameState& state,
                                  const EquipmentInstance& old) {
     StorageBagItem entry;
     entry.itemId = old.id;
@@ -330,12 +332,15 @@ inline void depositEquippedToBag(Disciple& d, GameState& state,
     entry.obtainedYear = state.gameData.gameYear;
     entry.obtainedMonth = state.gameData.gameMonth;
     entry.equipmentInstance = old;
-    d.storageBagItems.push_back(entry);
+    // 审计 P2-8：统一入袋入口（kind 合并 + 容量门）——满袋返回 false，
+    // 调用方中止换装（零 mutation，旧装备保持原状，不销毁）
+    if (!addToDiscipleBag(d, std::move(entry))) return false;
     state.equipmentInstances.erase(
         std::remove_if(state.equipmentInstances.begin(),
                        state.equipmentInstances.end(),
                        [&](const EquipmentInstance& x) { return x.id == old.id; }),
         state.equipmentInstances.end());
+    return true;
 }
 
 /// 单个槽位自动装配/替换（返回是否发生变更；
@@ -390,7 +395,7 @@ inline bool autoEquipSlot(Disciple& d, GameState& state,
     }
 
     // 装配所需数据先拷贝：depositEquippedToBag 会 push 储物袋条目导致
-    // candidates 持有的 bag 指针悬垂（2026-08-31 调试发现的同族 UB）
+    // candidates 持有的 bag 指针悬垂（悬垂 UB）
     const bool fromStack = best->stack != nullptr;
     const bool fromInstance = best->isInstance;
     const std::string actionStackId = best->stackId;
@@ -404,7 +409,8 @@ inline bool autoEquipSlot(Disciple& d, GameState& state,
     }
 
     if (equipped != nullptr) {
-        depositEquippedToBag(d, state, *equipped);   // 旧装备回袋
+        // 审计 P2-8：满袋中止换装（此时零 mutation——旧装备保持原状）
+        if (!depositEquippedToBag(d, state, *equipped)) return false;  // 旧装备回袋
     }
 
     // 装配
@@ -589,10 +595,10 @@ inline ManualCandidate manualCandidateFromInstance(const ManualInstance& mn) {
 
 /// 遗忘功法入袋（Kotlin forgetManual：实例入袋 + 从实例表移除 + manualIds 移除 +
 /// 熟练度清理）
-inline void forgetManualToBag(Disciple& d, GameState& state,
+inline bool forgetManualToBag(Disciple& d, GameState& state,
                               const ManualInstance& old) {
-    // 先拷贝 id：后续 state.manualInstances erase 会使引用 old 悬垂（修复
-    // 2026-08-31 调试发现的 UB——erase 后读 old.id 为垃圾值致移除错误条目）
+    // 先拷贝 id：后续 state.manualInstances erase 会使引用 old 悬垂
+    //（erase 后读 old.id 为垃圾值，致移除错误条目）
     const std::string oldId = old.id;
     StorageBagItem entry;
     entry.itemId = oldId;
@@ -603,7 +609,8 @@ inline void forgetManualToBag(Disciple& d, GameState& state,
     entry.obtainedYear = state.gameData.gameYear;
     entry.obtainedMonth = state.gameData.gameMonth;
     entry.manualInstance = old;
-    d.storageBagItems.push_back(entry);
+    // 审计 P2-8：统一入袋入口——满袋返回 false（调用方中止替换）
+    if (!addToDiscipleBag(d, std::move(entry))) return false;
     state.manualInstances.erase(
         std::remove_if(state.manualInstances.begin(), state.manualInstances.end(),
                        [&](const ManualInstance& x) { return x.id == oldId; }),
@@ -622,6 +629,7 @@ inline void forgetManualToBag(Disciple& d, GameState& state,
         if (kept.empty()) profMap.erase(pit);
         else pit->second = std::move(kept);
     }
+    return true;
 }
 
 /// 功法槽位上限（Kotlin DiscipleStatCalculator.getMaxManualSlots）
@@ -717,7 +725,7 @@ inline bool autoLearnForDisciple(Disciple& d, GameState& state,
         if (!manualBetter(d, *best, worstCand)) return false;
 
         // 装配所需数据先拷贝：forgetManualToBag 会 push 储物袋条目导致
-        // candidates 持有的 bag 指针悬垂（2026-08-31 调试发现的同族 UB）
+        // candidates 持有的 bag 指针悬垂（悬垂 UB）
         const bool fromStack = best->stack != nullptr;
         const bool fromInstance = best->isInstance;
         const std::string actionStackId = best->stackId;
@@ -730,7 +738,8 @@ inline bool autoLearnForDisciple(Disciple& d, GameState& state,
             actionBagInstance = *best->bag->manualInstance;
         }
 
-        forgetManualToBag(d, state, *worst);
+        // 审计 P2-8：满袋中止替换（forgetManualToBag 返回 false，零 mutation）
+        if (!forgetManualToBag(d, state, *worst)) return false;
         // 槽位已空出，走"学习"（不再判定满槽）
         if (fromStack) {
             ManualInstance inst = manualInstanceFromStack(*best->stack, d.id);
@@ -841,7 +850,9 @@ inline bool autoLearnForDisciple(Disciple& d, GameState& state,
 /// 对齐编排：资格预筛（存活 + 非秘境 + equip/learn 或语义）→ 排序
 /// （followed 降序 / realm 升序 / realmLayer 降序）→ 每弟子先装备后学习 →
 /// 字段写回（含仓库堆叠快照统一写回）。
-inline void processAutoFromWarehouse(GameState& state) {
+/// 候选行集经 syncDiscipleEntities + View<DiscipleRef>
+/// 行序收集（候选序 == 行序——stable_sort 平局保持行序，语义逐位不变）。
+inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
     const GameData& gd = state.gameData;
     const bool equipFocused = gd.autoEquipFromWarehouseFocused;
     const std::vector<int32_t> equipRootCounts(
@@ -858,19 +869,24 @@ inline void processAutoFromWarehouse(GameState& state) {
     DiscipleStore& ds = state.disciples;
     const auto secretIds = secretRealmIdsOf(gd);
 
-    // 资格预筛
+    // 资格预筛（E2：sync 行序桥接——View 迭代序 == Store 行序）
     std::vector<std::size_t> rows;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.isAlive[row] == 0) continue;
-        const auto id = toIntOrNull(ds.ids[row]);
-        if (!id.has_value() || secretIds.count(*id)) continue;
-        const Disciple d = ds.materialize(row);
-        if (!d.isAlive) continue;
-        const bool equipOk =
-            hasAutoEquip && qualifiesForSectAuto(d, equipFocused, equipRootCounts);
-        const bool learnOk =
-            hasAutoLearn && qualifiesForSectAuto(d, learnFocused, learnRootCounts);
-        if (equipOk || learnOk) rows.push_back(row);
+    {
+        ecs::syncDiscipleEntities(world, ds.size());
+        ecs::View<ecs::DiscipleRef> view(world.registry());
+        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+            const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+            if (ds.isAlive[row] == 0) return;
+            const auto id = toIntOrNull(ds.ids[row]);
+            if (!id.has_value() || secretIds.count(*id)) return;
+            const Disciple d = ds.materialize(row);
+            if (!d.isAlive) return;
+            const bool equipOk =
+                hasAutoEquip && qualifiesForSectAuto(d, equipFocused, equipRootCounts);
+            const bool learnOk =
+                hasAutoLearn && qualifiesForSectAuto(d, learnFocused, learnRootCounts);
+            if (equipOk || learnOk) rows.push_back(row);
+        });
     }
     if (rows.empty()) return;
 

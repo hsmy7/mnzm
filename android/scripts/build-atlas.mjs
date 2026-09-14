@@ -1,5 +1,5 @@
 /**
- * 图集 KTX 生成管线（WP7 Vulkan ASTC 压缩）+ 资源 codegen（Godot 导入管线对标）。
+ * 图集 KTX 生成管线（Vulkan ASTC 压缩）+ 资源 codegen（对标 Godot 导入管线）。
  *
  * 输入（唯一权威源，脚本只读不写）：
  * - 本文件 LAYOUT 常量 — 图集布局（rect/名称/枚举/占地，从原 SpriteAtlasDef.kt 提取）
@@ -16,9 +16,16 @@
  *
  * hash 增量：生成物首次生成后记录内容 hash（非 mtime），源数据/manifest 未变时跳过重生成。
  *
+ * ## 预乘 alpha 约定（图集管线不变量）
+ * 素材透明区常带非零 RGB（导出工具残留的白色）。直通 alpha 做重采样时这些"看不见的颜色"
+ * 会按普通 RGB 混入邻近可见像素，在硬 alpha 边（岛边缘羽化边等）产生灰白毛边。
+ * 因此：**槽位内容 → pad 环 → 各级 mip 全部在预乘空间处理**（重采样数学正确），
+ * 仅在写盘前 `unpremultiply()` 一次解回直通 alpha（与运行期 SRC_ALPHA 混合一致）。
+ * 修改本文件的任何重采样步骤时必须保持该不变量（验收脚本 verify-mip-bleeding.mjs 会暴露回归）。
+ *
  * 依赖：Node + sharp（scripts/node_modules）、astcenc（scripts/tools/astcenc/bin/）。
  * 运行：node scripts/build-atlas.mjs [--atlas-def-only | --codegen]
- * astcenc 缺失时给出明确错误并退出非零（由 gradle task 决定是否跳过）。
+ * astcenc 缺失时给出明确错误并退出非零（gradle task 据此直接构建失败，不允许静默跳过）。
  */
 import sharp from 'sharp';
 import fs from 'fs';
@@ -59,15 +66,48 @@ const LAYOUT = {
   atlasH: 4096,
   tileSize: 128,
   buildingSize: 512,
-  // 瓦片（TileType：名称/index/rect）
+  // 图集布局带 gutter：任一相邻槽位间距 ≥ mipGutter（mip0 尺度），配合每精灵
+  // pad 环（mipPad）消灭 mip ≥1 级的邻居渗色（Unity SpriteAtlas paddingPower 同款语义）。
+  // 建筑行/列距 = 槽位 512 + 双侧 pad 各 4 = 520；瓦片/作物/道路按 8px 间距重排。
+  // 设计文档：docs/design/texture-minification-pipeline-overhaul.md
+  mipGutter: 8,
+  mipPad: 4,
+  // 建筑行分布参数（gutter 版）：512 槽位 + 8px 间距 = 520 节距，起点 (0,512)。
+  // 原公式 col*512 / 512+row*512 槽位零间距（整图 mip 时代够用），per-sprite mip
+  // 需 pad 环入位——节距必须 ≥ slot + mipGutter。
+  buildingPitch: 520,
+  buildingGridOrigin: [0, 512],
+  // 瓦片（TileType：名称/index/rect/kind/sprite/layer/solid/cppName）——x 间距 8px（128 槽位 + 8 gutter）
+  //   kind  ：ground=地面 / grass=草 / stone=石 / tree=树 / building=建筑占位标记
+  //   sprite：**显示尺寸（格，小数格精度）**——锚点 = 格底边居中（对象"站在"自己格子上）
+  //   layer ：'ground'=地面层（跟随地面逐格绘制）/'object'=立体层（与建筑同序 Y 归并绘制，
+  //           越界部分按画家序正确遮挡，不被后绘建筑无脑压住）
+  //   solid ：实体瓦片（autotile 过渡跳过的障碍：石/树/建筑占位；草参与过渡）
+  //   cppName：C++ MAP_SPRITES 精灵名（缺省 = 不入图集，如 TILE_BUILDING 占位）
+  // ★ 显示尺寸取值公式（构建期自动校验，见 validateDisplaySizing）：
+  //   立体素材（草/石/树/立绘建筑）——屏上不变形：H = W × 素材高 ÷ (0.75 × 素材宽)
+  //   （0.75 = TOPDOWN_Y_SCALE；地面做透视压缩、竖向物体不压缩，素材在屏上恢复原比例）
+  //   贴地网格素材（草皮/灵田/作物/道路/门楼）——世界纵横比 = 素材纵横比（与地格平铺对齐）
+  // ★ index == MAP_SPRITES 精灵索引（前 N 条由图集精灵瓦片按本表顺序生成——
+  //   渲染器以瓦片值直接索引 UV 表，故装饰瓦片必须连续排列在 GROUND 与
+  //   TILE_BUILDING 之间，且 MAP_SPRITES 序由本表派生，杜绝双写漂移）。
+  // 新增装饰种类 = 本表加一行 + TILE_DRAWABLE 加映射 + 资源双模块放置，无其他改动点。
   tiles: [
-    { name: 'GROUND', index: 0, rect: [0, 0, 128, 128] },
-    { name: 'GRASS_SMALL', index: 1, rect: [128, 0, 128, 128] },
-    { name: 'GRASS_MEDIUM', index: 2, rect: [256, 0, 128, 128] },
-    { name: 'GRASS_LARGE', index: 3, rect: [384, 0, 128, 128] },
-    { name: 'TREE1', index: 4, rect: [512, 0, 256, 256] },
-    { name: 'TREE2', index: 5, rect: [768, 0, 256, 256] },
-    { name: 'TILE_BUILDING', index: 6, rect: [0, 0, 128, 128] }, // 占位（与 GROUND 重叠）
+    { name: 'GROUND', index: 0, kind: 'ground', sprite: [1, 1], layer: 'ground', solid: false, cppName: 'ground_tile', rect: [0, 0, 128, 128] },
+    { name: 'GRASS1', index: 1, kind: 'grass', sprite: [1, 1.157], layer: 'ground', solid: false, cppName: 'grass1', rect: [136, 0, 128, 128] },
+    { name: 'GRASS2', index: 2, kind: 'grass', sprite: [1, 1.064], layer: 'ground', solid: false, cppName: 'grass2', rect: [272, 0, 128, 128] },
+    { name: 'GRASS3', index: 3, kind: 'grass', sprite: [1, 1.157], layer: 'ground', solid: false, cppName: 'grass3', rect: [408, 0, 128, 128] },
+    { name: 'GRASS4', index: 4, kind: 'grass', sprite: [1, 1.420], layer: 'ground', solid: false, cppName: 'grass4', rect: [544, 0, 128, 128] },
+    // 岩石装饰槽位放 y=0 行 x≥2048 空带（建筑行 y≥512、云层 y≥2816、道路/岛边缘 y≥2624——
+    // 与全部其他槽位保持 ≥8px gutter）
+    { name: 'STONE1', index: 5, kind: 'stone', sprite: [1, 0.959], layer: 'ground', solid: true, cppName: 'stone1', rect: [2048, 0, 128, 128] },
+    { name: 'STONE2', index: 6, kind: 'stone', sprite: [1, 0.909], layer: 'ground', solid: true, cppName: 'stone2', rect: [2184, 0, 128, 128] },
+    { name: 'STONE3', index: 7, kind: 'stone', sprite: [1, 1.105], layer: 'ground', solid: true, cppName: 'stone3', rect: [2320, 0, 128, 128] },
+    { name: 'TREE1', index: 8, kind: 'tree', sprite: [2, 3.291], layer: 'object', solid: true, cppName: 'tree1', rect: [800, 0, 256, 256] },
+    { name: 'TREE2', index: 9, kind: 'tree', sprite: [2, 2.791], layer: 'object', solid: true, cppName: 'tree2', rect: [1064, 0, 256, 256] },
+    // 占位（与 GROUND 重叠，drawable=null 不入图集）：建筑脚印标记值——渲染器按
+    // 其 index 取 TILE_UV_MAP 时命中 GROUND 槽位，故建筑格恒显示地面底图
+    { name: 'TILE_BUILDING', index: 10, kind: 'building', sprite: [1, 1], layer: 'ground', solid: true, rect: [0, 0, 128, 128] },
   ],
   // 建筑（BUILDING_NAMES，按图集排列顺序）
   buildingNames: [
@@ -79,102 +119,111 @@ const LAYOUT = {
   ],
   buildingColsPerRow: [5, 5, 5, 4],
   // 建筑专属槽位覆盖（图集名 → 自定义 rect）：天枢殿 18×15 格 ≈ 576×480 世界像素，
-  // 2026-08-23 清晰度根治后 512 槽位仍不足（3x 放大 ~3.8x 上采样），2026-09 升 1024×1024
-  // 高清槽位（图集 4096 右侧 (3072,1024) 空闲区），放大比降至 ~1.9x。须避开建筑行区
-  // （y=512~2560, x=0~2560）、地砖列（x=2560~3072, y=512~2304）、门楼（3072,512,768,512）
-  // 与云层区（y≥2816）——置于右侧 (3072,1024) 起 1024×1024。
+  // 3x 放大下 512 槽位上采样比过高，用 1024×1024 高清槽位
+  // （gutter 版布局 (3008,1032)：与门楼 y 间距 8px，右缘 4032 留 64px 边距）。
   buildingRectOverrides: {
-    '天枢殿': [3072, 1024, 1024, 1024],
+    '天枢殿': [3008, 1032, 1024, 1024],
+    // 灵田占地 1×1 格（48px 显示），槽位 128 与瓦片/道路同 2.67:1× 采样比——
+    //   深度降采样过深的槽位在缩放时 mip 跨多级，出现"模糊 ↔ 细节"观感跳变。
+    //   槽位取行 1 col2 槽位左上（1044,516），与左邻（灵植阁 x1032 末）间距 12px ≥ gutter。
+    '灵田': [1044, 516, 128, 128],
   },
-  // 占地尺寸（FOOTPRINT_BY_NAME_INDEX，按建筑索引）
+  // 占地尺寸（FOOTPRINT_BY_NAME_INDEX，按建筑索引）——占地 = 建筑底座：
+  //   宽 = 精灵宽（左右不互相压盖），深 = 底座进深（塔/亭/池取 2~3 格，院落/山丘/殿保持现状）。
+  //   占地只减不增：缩小不会让旧存档建筑越界/重叠，读档 fixup 自动改尺寸且不触发拆除退款。
   footprints: [
-    [4, 4], [4, 3], [1, 1], [4, 3], [5, 3], [6, 4], [6, 3], [4, 3], [4, 3], [18, 13],
-    [6, 3], [4, 3], [4, 3], [4, 4], [4, 4], [6, 6], [6, 4], [4, 4], [6, 5],
+    [4, 4], [4, 3], [1, 1], [4, 2], [5, 3], [6, 4], [6, 3], [4, 2], [4, 2], [18, 13],
+    [6, 3], [4, 3], [4, 2], [4, 4], [4, 4], [6, 6], [6, 4], [4, 3], [6, 5],
   ],
-  // 灵田作物三阶段（CropStage）
+  // 俯视贴地类建筑（世界纵横比 = 素材纵横比，与地格平铺对齐；其余建筑按"屏上不变形"公式）。
+  // 灵田是方形田垄地块，必须与地格对齐铺展，不按立绘口径换算。
+  gridAlignedBuildings: ['灵田'],
+  // 图集名 → 配置 displayName（住所显示名带分级前缀，图集名保持历史命名）
+  displayNameAliases: {
+    '单人住所': '初级单人住所',
+    '多人住所': '初级多人住所',
+  },
+  // 灵田作物三阶段（CropStage）——x 间距 8px（树行之后接排）
   crops: [
-    { name: 'SEEDLING', rect: [1664, 0, 128, 128] },
-    { name: 'GROWING', rect: [1792, 0, 128, 128] },
-    { name: 'MATURE', rect: [1920, 0, 128, 128] },
+    { name: 'SEEDLING', cppName: 'crop_seedling', rect: [1384, 0, 128, 128] },
+    { name: 'GROWING', cppName: 'crop_growing', rect: [1520, 0, 128, 128] },
+    { name: 'MATURE', cppName: 'crop_mature', rect: [1656, 0, 128, 128] },
   ],
   // 固定结构（宗门入口门楼——渲染走建筑层，nameIdx = BUILDING_NAMES.size + index）
+  // 统一俯视视角：精灵 6×2 与占地 1:1 贴地，
+  //   槽位 768×256（与显示 288×96 同为 2.67:1×，恰为瓦片标准比例，
+  //   满足槽位≤显示×4 的深度降采样守卫），俯视素材按 3:1 全幅绘制无需 letterbox。
   structures: [
-    { name: '宗门门楼', key: 'sect_gate', rect: [3072, 512, 768, 512], footprint: [6, 2], spriteSize: [6, 4] },
+    { name: '宗门门楼', key: 'sect_gate', rect: [3072, 512, 768, 256], footprint: [6, 2], spriteSize: [6, 2] },
   ],
   // 石板道路系统（RoadSprite：单一主体 + 横/竖边缘条）
-  // 位置：主体在 (2048,2048) 空闲区（云层 y≥2816 之上）；边缘在右侧 (3072,2048) 空闲区
-  //（天枢殿下、云层上，3072,2048,576,192）。
+  // 位置：建筑行 4（y 2072..2584）下方空带 y 2624..2752（云层下移界 y≥2816 之上）。
+  // 槽位尺寸按显示分辨率对齐瓦片标准：
+  //   瓦片/作物均为 128 槽位 ↔ 48px 显示（2.67:1×）；道路主体原为 768×768（16:1× 深度
+  //   降采样），缩放（0.3~3.0）时 mip 跨越 3+ 级，观感"只有几条模糊线框 ↔ 满格石板细节"
+  //   剧烈跳变（视觉上似闪烁）。128 槽位与瓦片同比例后，道路与地面/作物行为一致；
+  //   缩放上界 3.0 时显示 144px = 仅 1.125× 放大（与瓦片相同）。边缘条显示 8×24 →
+  //   32×96（4:1×，保持源图 1:3 纵横比）。三槽 x 间距 ≥8px（gutter 版布局）。
   roads: [
-    { name: 'road_body',   rect: [2048, 2048, 768, 768] },
-    { name: 'road_edge_v', rect: [3072, 2048, 192, 576] },
-    { name: 'road_edge_h', rect: [3264, 2048, 576, 192] },
+    { name: 'road_body',   rect: [2048, 2624, 128, 128] },
+    { name: 'road_edge_v', rect: [2184, 2624, 32, 96] },
+    { name: 'road_edge_h', rect: [2264, 2624, 96, 32] },
   ],
+  // 布局池（9 池固定顺序：TOP/BOTTOM/LEFT/RIGHT/CORNER_TL/CORNER_TR/
+  // CORNER_BL/CORNER_BR/ROCKS）——序 = 精灵绝对索引序（C++/Kotlin 同源）
   // 云层精灵（世界顶部动态云朵的图集槽位——仅提供精灵，位置/运动由
-  // CloudLayerAnimator 逐帧驱动。放在图集 y≥2816 空闲区，保持源素材纵横比）
+  // CloudLayerAnimator 逐帧驱动。放在图集空闲区，保持源素材纵横比）
+  // 布局约束：云层槽位**不得与任何其他精灵的实体矩形重叠**（浮空岛左右环精灵
+  //   位于 x 2560..3358 / y 2624..3022——cloud_3 因此落 x≥3088 空带）；
+  //   实体不重叠由守卫测试全量校验（含云层，无豁免）。
+  // 相邻槽位零间距（云1|云2、云4|云5 两两紧贴）——per-sprite pad 环在此处会覆盖
+  //   前一张云右缘 4px。当前云素材右缘全透明（alpha=0），覆盖区落在透明带内
+  //   无视觉影响；**替换为硬边缘云素材时必须给云层行加 gutter（≥8px）**
+  //   （gutter 守卫测试对云层显式豁免，见 SpriteAtlasDefGeneratedTest）。
   clouds: [
     { name: 'cloud_1', rect: [0, 2816, 968, 240] },
     { name: 'cloud_2', rect: [968, 2816, 904, 376] },
-    { name: 'cloud_3', rect: [1872, 2816, 976, 192] },
+    { name: 'cloud_3', rect: [3088, 2816, 976, 192] },
     { name: 'cloud_4', rect: [0, 3240, 1048, 216] },
     { name: 'cloud_5', rect: [1048, 3240, 944, 400] },
   ],
-  // 双端共享渲染常量（原 NativeBridge.cpp / RenderLodPolicy.kt / BuildingRenderGeometry.kt
-  // 三处同值手工同步——2026-08-13 收敛为单一数据源，Kotlin/C++ 双产物自动一致）
+  // 双端共享渲染常量（单一数据源，Kotlin/C++ 双产物自动一致）
   lodThreshold: 0.6,
   shadowOffsetTiles: 0.25,
   shadowAlpha: 0.2,
-  // C++ MAP_SPRITES（由原 TextureAtlas.h 提取——C++ 命名与 Kotlin 枚举名不同，单独维护）
-  mapSprites: [
-    { name: 'ground_tile', rect: [0, 0, 128, 128] },
-    { name: 'grass_small', rect: [128, 0, 128, 128] },
-    { name: 'grass_medium', rect: [256, 0, 128, 128] },
-    { name: 'grass_large', rect: [384, 0, 128, 128] },
-    { name: 'tree1', rect: [512, 0, 256, 256] },
-    { name: 'tree2', rect: [768, 0, 256, 256] },
-    { name: 'crop_seedling', rect: [1664, 0, 128, 128] },
-    { name: 'crop_growing', rect: [1792, 0, 128, 128] },
-    { name: 'crop_mature', rect: [1920, 0, 128, 128] },
-    { name: '灵矿场', rect: [0, 512, 512, 512] },
-    { name: '灵植阁', rect: [512, 512, 512, 512] },
-    { name: '灵田', rect: [1024, 512, 512, 512] },
-    { name: '炼丹炉', rect: [1536, 512, 512, 512] },
-    { name: '锻造坊', rect: [2048, 512, 512, 512] },
-    { name: '仓库', rect: [0, 1024, 512, 512] },
-    { name: '藏经阁', rect: [512, 1024, 512, 512] },
-    { name: '问道塔', rect: [1024, 1024, 512, 512] },
-    { name: '青云塔', rect: [1536, 1024, 512, 512] },
-    { name: '天枢殿', rect: [3072, 1024, 1024, 1024] },  // 专属 1024×1024 高清槽位（buildingRectOverrides）
-    { name: '执法堂', rect: [0, 1536, 512, 512] },
-    { name: '任务阁', rect: [512, 1536, 512, 512] },
-    { name: '巡视楼', rect: [1024, 1536, 512, 512] },
-    { name: '监牢', rect: [1536, 1536, 512, 512] },
-    { name: '单人住所', rect: [2048, 1536, 512, 512] },
-    { name: '中级单人住所', rect: [0, 2048, 512, 512] },
-    { name: '多人住所', rect: [512, 2048, 512, 512] },
-    { name: '血炼池', rect: [1024, 2048, 512, 512] },
-    { name: '中级多人住所', rect: [1536, 2048, 512, 512] },
-    { name: 'sect_gate', rect: [3072, 512, 768, 512] },
-    { name: 'cloud_1', rect: [0, 2816, 968, 240] },
-    { name: 'cloud_2', rect: [968, 2816, 904, 376] },
-    { name: 'cloud_3', rect: [1872, 2816, 976, 192] },
-    { name: 'cloud_4', rect: [0, 3240, 1048, 216] },
-    { name: 'cloud_5', rect: [1048, 3240, 944, 400] },
-    // 石板道路系统（与 LAYOUT.roads 同源；C++ 经 getRegion("road_*") 取 UV）
-    { name: 'road_body', rect: [2048, 2048, 768, 768] },
-    { name: 'road_edge_v', rect: [3072, 2048, 192, 576] },
-    { name: 'road_edge_h', rect: [3264, 2048, 576, 192] },
-  ],
+  // 统一俯视视角：纵向压缩系数（接近正上方的俯视投影）。
+  //   screenY = (worldY - camY) × scale × 本系数——正交、无近大远小、网格仍为
+  //   规整矩形，仅整屏 Y 压缩模拟俯角（1.0 = 纯 90° 垂直向下；0.75 ≈ 48.6° 仰角，
+  //   与 Clash of Clans 4:3 地面瓦片（64×48）同观感，地面格纵横比亦为 4:3；
+  //   调大→更接近垂直，调小→俯角更明显）。
+  //   双端消费：Kotlin（BaseCameraState/SectCameraState/SoftwareCanvasBackend
+  //   /SectCameraStateTest 镜像常量）与 C++（cameraProjMatrix/NativeBridge 视野
+  //   边界）必须同值。
+  topdownYScale: 0.75,
+  // C++ MAP_SPRITES 由 LAYOUT 各段派生（见下方 buildMapSprites——瓦片段取自
+  // LAYOUT.tiles.cppName，建筑段取自 buildingNames + 行公式，杜绝双写漂移）
 };
 
-/** 瓦片资源名映射（与 NativeSurfaceView.buildAtlasBitmap 的 when 分支一致） */
+/**
+ * C++ MAP_SPRITES 条目序列（LAYOUT 各段派生——**禁止手写第二份精灵表**）：
+ * 瓦片段（带 cppName 的瓦片，顺序 = TileType 序 → 瓦片 index == 精灵索引）、
+ * 作物段、建筑段、固定结构段、云层段、道路段、浮空岛边缘段。
+ */
+LAYOUT.mapSprites = buildMapSprites();
+
+/** 瓦片资源名映射（瓦片名 → drawable-nodpi 资源名；缺省 = 该瓦片不入图集） */
 const TILE_DRAWABLE = {
   GROUND: 'map_grass_1',
-  GRASS_SMALL: 'decoration_grass_small',
-  GRASS_MEDIUM: 'decoration_grass_medium',
-  GRASS_LARGE: 'decoration_grass_large',
+  GRASS1: 'decoration_grass1',
+  GRASS2: 'decoration_grass2',
+  GRASS3: 'decoration_grass3',
+  GRASS4: 'decoration_grass4',
+  STONE1: 'decoration_stone1',
+  STONE2: 'decoration_stone2',
+  STONE3: 'decoration_stone3',
   TREE1: 'decoration_tree1',
   TREE2: 'decoration_tree2',
-  TILE_BUILDING: null, // 占位（与 GROUND 重叠，buildAtlasBitmap 同样跳过）
+  TILE_BUILDING: null, // 占位（与 GROUND 重叠，图集拼装同样跳过）
 };
 
 /** 石板道路资源名映射（LAYOUT.roads → drawable-nodpi 资源名） */
@@ -227,6 +276,39 @@ function semanticIndices(layout) {
     .filter((t) => t.name.startsWith('GROUND'))
     .map((t) => t.index)
     .sort((a, b) => a - b);
+  // 装饰瓦片（草/石/树）：渲染叠加层判据；须为连续区间（渲染器按区间判定，
+  // 连续性由 LAYOUT.tiles 排列保证——非连续即报错，防错位静默丢装饰）
+  const decorTiles = layout.tiles.filter((t) => t.kind === 'grass' || t.kind === 'stone' || t.kind === 'tree');
+  const decorMin = decorTiles.length > 0 ? Math.min(...decorTiles.map((t) => t.index)) : 0;
+  const decorMax = decorTiles.length > 0 ? Math.max(...decorTiles.map((t) => t.index)) : 0;
+  if (decorTiles.length !== decorMax - decorMin + 1) {
+    throw new Error(`装饰瓦片 index 必须连续（${decorMin}..${decorMax}，实到 ${decorTiles.length} 个）——LAYOUT.tiles 排列错误`);
+  }
+  // 显示尺寸表 / 绘制层表（按 index 索引；缺 index 的瓦片按 1 格/地面层处理，防稀疏表越界读）
+  const maxTileIndex = Math.max(...layout.tiles.map((t) => t.index));
+  const tileSpriteW = [];
+  const tileSpriteH = [];
+  const objectLayer = [];
+  const solidIndices = [];
+  for (let i = 0; i <= maxTileIndex; i++) {
+    const t = layout.tiles.find((x) => x.index === i);
+    if (!t) throw new Error(`LAYOUT.tiles 缺少 index=${i} 的瓦片（index 必须连续无空洞）`);
+    if (!Array.isArray(t.sprite) || t.sprite.length !== 2 ||
+        !(t.sprite[0] > 0) || !(t.sprite[1] > 0)) {
+      throw new Error(`瓦片 ${t.name} sprite 非法: ${JSON.stringify(t.sprite)}（须为 [宽格, 高格] 正数）`);
+    }
+    if (t.layer !== 'ground' && t.layer !== 'object') {
+      throw new Error(`瓦片 ${t.name} layer 非法: ${t.layer}（仅支持 ground/object）`);
+    }
+    tileSpriteW.push(t.sprite[0]);
+    tileSpriteH.push(t.sprite[1]);
+    objectLayer.push(t.layer === 'object' ? 1 : 0);
+    if (t.solid) solidIndices.push(t.index);
+  }
+  // 装饰越界余量（供渲染器扩大遍历/可见性范围——装饰精灵底边居中锚定在格上，
+  // 可向上伸出 (H−1) 格、向左右各伸出 (W−1)/2 格，超出范围的格子会被整块漏绘/裁切）
+  const decorMaxW = Math.max(...decorTiles.map((t) => t.sprite[0]));
+  const decorMaxH = Math.max(...decorTiles.map((t) => t.sprite[1]));
   return {
     spiritMine: idx(layout.buildingNames, '灵矿场'),
     spiritField: idx(layout.buildingNames, '灵田'),
@@ -234,12 +316,25 @@ function semanticIndices(layout) {
     tileBuilding: idx(tileNames, 'TILE_BUILDING'),
     structureNameBase: layout.buildingNames.length,
     groundVariants,
+    decorMin,
+    decorMax,
+    tileSpriteW,
+    tileSpriteH,
+    objectLayer,
+    decorMaxW,
+    decorMaxH,
+    decorMarginCols: Math.ceil((decorMaxW - 1) / 2),
+    decorMarginRows: Math.ceil(decorMaxH - 1),
+    solidIndices,
+    tileTypeCount: maxTileIndex + 1,
   };
 }
 
 /**
  * 复刻 SpriteAtlasDef.buildingRect（图集行分布公式，支持建筑专属槽位覆盖）。
  * 覆盖表：图集名 → [x, y, w, h]（大显示建筑用高清槽位，见 LAYOUT.buildingRectOverrides）。
+ * ★ gutter 版公式：节距 = buildingPitch（520 = 512 槽位 + 8 gutter），行起点 y=512——
+ *   与 SpriteAtlasDef.kt 生成物 BUILDING_UV_MAP/buildingRect 同式（改此须同步生成器模板）。
  */
 function buildingRectOf(colsPerRow, nameIndex) {
   const name = LAYOUT.buildingNames[nameIndex];
@@ -247,16 +342,55 @@ function buildingRectOf(colsPerRow, nameIndex) {
   if (override) {
     return { x: override[0], y: override[1], w: override[2], h: override[3] };
   }
+  const pitch = LAYOUT.buildingPitch;
+  const originY = LAYOUT.buildingGridOrigin[1];
   let idx = 0;
   for (let rowIndex = 0; rowIndex < colsPerRow.length; rowIndex++) {
     for (let col = 0; col < colsPerRow[rowIndex]; col++) {
       if (idx === nameIndex) {
-        return { x: col * LAYOUT.buildingSize, y: LAYOUT.buildingSize + rowIndex * LAYOUT.buildingSize, w: LAYOUT.buildingSize, h: LAYOUT.buildingSize };
+        return { x: col * pitch, y: originY + rowIndex * pitch, w: LAYOUT.buildingSize, h: LAYOUT.buildingSize };
       }
       idx++;
     }
   }
   throw new Error(`buildingRect 越界: ${nameIndex}`);
+}
+
+/**
+ * 构建 C++ MAP_SPRITES 条目序列（单一数据源 = LAYOUT，禁止另写一份精灵表）。
+ *
+ * 顺序即精灵索引序（C++ getRegion 按名查、瓦片按 index 索引 UV 表）：
+ * 瓦片（LAYOUT.tiles 中带 cppName 者，序 = TileType 序）→ 作物 → 建筑 →
+ * 固定结构 → 云层 → 道路 → 浮空岛边缘。
+ *
+ * @returns {Array<{name: string, rect: number[]}>} MAP_SPRITES 条目
+ */
+function buildMapSprites() {
+  const sprites = [];
+  for (const t of LAYOUT.tiles) {
+    if (t.cppName) sprites.push({ name: t.cppName, rect: t.rect });
+  }
+  for (const c of LAYOUT.crops) sprites.push({ name: c.cppName, rect: c.rect });
+  LAYOUT.buildingNames.forEach((name, i) => {
+    const r = buildingRectOf(LAYOUT.buildingColsPerRow, i);
+    sprites.push({ name, rect: [r.x, r.y, r.w, r.h] });
+  });
+  for (const s of LAYOUT.structures) sprites.push({ name: s.key, rect: s.rect });
+  for (const c of LAYOUT.clouds) sprites.push({ name: c.name, rect: c.rect });
+  for (const r of LAYOUT.roads) sprites.push({ name: r.name, rect: r.rect });
+  // 浮空岛崖壁**不入图集**（2026-09 地图边缘系统）：单张最大 1180×3552 超出
+  // 4096² 容量，走独立纹理——见 scripts/build-edge-ktx.mjs 与
+  // feature/game IslandCliffTextureSet（本文件不再登记任何崖壁精灵）。
+  // 瓦片 index 必须等于其精灵索引（渲染器以瓦片值直取 UV 表）——缺 cppName 的占位瓦片
+  //（TILE_BUILDING）不在图集内，其 index 由 TILE_UV_MAP 自身覆盖，不参与本断言
+  for (const t of LAYOUT.tiles) {
+    if (!t.cppName) continue;
+    const spriteIdx = sprites.findIndex((s) => s.name === t.cppName);
+    if (spriteIdx !== t.index) {
+      throw new Error(`瓦片 ${t.name} index=${t.index} 与精灵索引 ${spriteIdx} 不一致（LAYOUT.tiles 顺序被打乱）`);
+    }
+  }
+  return sprites;
 }
 
 // ── 内容 hash 增量 ──
@@ -286,8 +420,7 @@ function shouldRegenerate(hashFile, hash) {
 
 /**
  * 剔除 manifest 的构建时间戳（generatedAt）后再入 hash——
- * 否则时间戳每次构建必变 → hash 恒失配 → 增量跳过永久失效
- * （对抗性审查 2026-08-13 边界#1/逆向#2 发现）。
+ * 否则时间戳每次构建必变 → hash 恒失配 → 增量跳过永久失效。
  */
 function manifestForHash(manifest) {
   if (!manifest || !Array.isArray(manifest.entries)) return manifest;
@@ -298,6 +431,133 @@ function manifestForHash(manifest) {
   };
 }
 
+// ── 显示尺寸保真校验（构建期快速失败） ──
+
+/** 建筑配置源（与渲染运行期同源：BuildingConfigService 读同一文件） */
+const BUILDINGS_CONFIG_FILE = path.resolve(ANDROID_DIR, 'app/src/main/assets/config/buildings.json');
+
+/**
+ * 素材纵横比容差：显示矩形取整数格后的残差上界。
+ * 依据：整数格下最坏残差 = 0.5 ÷ 显示高格（现役最大 6.7%，为 4×5 / 6×5 档），
+ * 超过 7% 即为肉眼可辨的压扁/拉宽。
+ */
+const DISPLAY_ASPECT_TOLERANCE = 0.07;
+
+/** 双模块 drawable 文件解析（feature/game 优先，与双模块放置规则一致） */
+function findDrawableFile(drawable) {
+  for (const dir of [GAME_DRAWABLE_DIR, APP_DRAWABLE_DIR]) {
+    for (const ext of ['.webp', '.png', '.jpg', '.jpeg']) {
+      const file = path.join(dir, drawable + ext);
+      if (fs.existsSync(file)) return file;
+    }
+  }
+  return null;
+}
+
+/** 立体素材期望显示高（格）：H = W × 素材高 ÷ (0.75 × 素材宽) */
+function billboardHeightCells(w, srcW, srcH) {
+  return (w * srcH) / (LAYOUT.topdownYScale * srcW);
+}
+
+/** 屏上纵横比与素材纵横比的相对误差（0 = 完全不变形） */
+function displayAspectError(displayW, displayH, srcW, srcH) {
+  const display = displayW / displayH;
+  const art = srcW / srcH;
+  return Math.abs(display - art) / art;
+}
+
+/**
+ * C++ 浮点字面量：整数值补 `.0f`（C++ 的 `1f` 非法、`{1.157}` 会因
+ * double→float 收窄初始化报错），小数直接补 `f`。
+ */
+function cppFloatLiteral(v) {
+  return Number.isInteger(v) ? `${v}.0f` : `${v}f`;
+}
+
+/** 建筑配置内容（纳入 codegen hash：配置改动同样触发保真校验与重生成） */
+function buildingsConfigForHash() {
+  return JSON.parse(fs.readFileSync(BUILDINGS_CONFIG_FILE, 'utf8'));
+}
+
+/**
+ * 显示尺寸保真校验：逐栋建筑 + 逐个装饰断言「显示矩形在屏幕上的纵横比 == 素材纵横比」。
+ *
+ * - 立体类（立绘建筑 / 草石树）：显示宽 ÷ (0.75 × 显示高) == 素材宽 ÷ 素材高
+ *   （0.75 = TOPDOWN_Y_SCALE：地面做透视压缩、竖向物体不压缩）
+ * - 贴地网格类（灵田等 gridAlignedBuildings / 草皮）：显示宽 ÷ 显示高 == 素材宽 ÷ 素材高
+ *
+ * 同时锁定结构不变量：精灵宽 == 占地宽（左右不互相压盖）、精灵高 ≥ 占地深（精灵盖住底座）。
+ * 失败即抛错并给出应填尺寸——换素材/改尺寸时立刻暴露"被压扁"回归，
+ * 与 app 侧 SpriteSizingFidelityTest 构成构建期 + 测试期双层防线。
+ */
+async function validateDisplaySizing(layout) {
+  const config = JSON.parse(fs.readFileSync(BUILDINGS_CONFIG_FILE, 'utf8'));
+  const byDisplayName = new Map(Object.values(config.buildings).map((b) => [b.displayName, b]));
+  const gridAligned = new Set(layout.gridAlignedBuildings ?? []);
+  const aliases = layout.displayNameAliases ?? {};
+  const yScale = layout.topdownYScale;
+  const tolerancePct = `${(DISPLAY_ASPECT_TOLERANCE * 100).toFixed(0)}%`;
+  const problems = [];
+
+  for (const [i, name] of layout.buildingNames.entries()) {
+    const drawable = BUILDING_DRAWABLE[name];
+    if (!drawable) throw new Error(`LAYOUT.buildingNames 缺少素材映射: ${name}（BUILDING_DRAWABLE）`);
+    const displayName = aliases[name] ?? name;
+    const cfg = byDisplayName.get(displayName);
+    if (!cfg) {
+      throw new Error(`配置缺少建筑: ${displayName}（图集名 ${name}）——config/buildings.json 与 LAYOUT 必须一一对应`);
+    }
+    const file = findDrawableFile(drawable);
+    if (!file) throw new Error(`素材缺失: ${drawable}（${name}）——双模块 drawable-nodpi 必须同时放置`);
+    const meta = await sharp(file).metadata();
+    const [fpW, fpH] = layout.footprints[i];
+    if (cfg.spriteWidth !== fpW) {
+      problems.push(`${name}: 精灵宽 ${cfg.spriteWidth} ≠ 占地宽 ${fpW}（相邻建筑精灵会左右压盖）`);
+    }
+    if (cfg.spriteHeight < fpH) {
+      problems.push(`${name}: 精灵高 ${cfg.spriteHeight} < 占地深 ${fpH}（精灵盖不住底座，露出空地）`);
+    }
+    const isGridAligned = gridAligned.has(name);
+    const err = isGridAligned
+      ? displayAspectError(cfg.spriteWidth, cfg.spriteHeight, meta.width, meta.height)
+      : displayAspectError(cfg.spriteWidth, cfg.spriteHeight * yScale, meta.width, meta.height);
+    if (err > DISPLAY_ASPECT_TOLERANCE) {
+      const suggestH = isGridAligned
+        ? Math.round((cfg.spriteWidth * meta.height) / meta.width)
+        : Math.round(billboardHeightCells(cfg.spriteWidth, meta.width, meta.height));
+      problems.push(
+        `${name}: 屏上纵横比与素材不符（偏差 ${(err * 100).toFixed(1)}% > ${tolerancePct}）——` +
+        `素材 ${meta.width}×${meta.height}，当前精灵 ${cfg.spriteWidth}×${cfg.spriteHeight}，应为 ${cfg.spriteWidth}×${suggestH}`
+      );
+    }
+  }
+
+  const decorTiles = layout.tiles.filter((t) => TILE_DRAWABLE[t.name] && t.kind !== 'ground');
+  for (const t of decorTiles) {
+    const file = findDrawableFile(TILE_DRAWABLE[t.name]);
+    if (!file) throw new Error(`素材缺失: ${TILE_DRAWABLE[t.name]}（装饰 ${t.name}）——双模块 drawable-nodpi 必须同时放置`);
+    const meta = await sharp(file).metadata();
+    const err = displayAspectError(t.sprite[0], t.sprite[1] * yScale, meta.width, meta.height);
+    if (err > DISPLAY_ASPECT_TOLERANCE) {
+      const suggestH = billboardHeightCells(t.sprite[0], meta.width, meta.height);
+      problems.push(
+        `装饰 ${t.name}: 屏上纵横比与素材不符（偏差 ${(err * 100).toFixed(1)}%）——` +
+        `素材 ${meta.width}×${meta.height}，当前 ${t.sprite[0]}×${t.sprite[1]}，应为 ${t.sprite[0]}×${suggestH.toFixed(3)}`
+      );
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      '显示尺寸保真校验失败（建筑/装饰会被压扁或左右压盖——改 LAYOUT.tiles / config/buildings.json）：\n  ' +
+      problems.join('\n  ')
+    );
+  }
+  console.log(
+    `显示尺寸保真校验通过：${layout.buildingNames.length} 栋建筑 + ${decorTiles.length} 个装饰`
+  );
+}
+
 // ── 生成器：SpriteAtlasDef.kt（core/engine 编译单元） ──
 
 /** 生成 Kotlin 图集布局常量文件（public 成员签名与原手工版一致，不含死代码命令类） */
@@ -306,8 +566,8 @@ function generateSpriteAtlasDef(layout) {
   const tileLines = layout.tiles
     .map((t) => `        ${t.name}(${t.index}, SpriteRect(${t.rect.join(', ')}))`)
     .join(',\n');
-  // JSON.stringify 生成 Kotlin 字符串字面量（对抗性审查 2026-08-13 边界#10：
-  // 引号/$ 转义防注入——名称来自仓库内源数据，防手改破坏生成代码）
+  // Kotlin 名称字符串字面量经 JSON.stringify 生成——引号/$ 转义防注入，
+  // 名称来自仓库内源数据，防手改破坏生成代码
   const buildingNameLines = layout.buildingNames.map((n) => `        ${JSON.stringify(n)}`).join(',\n');
   const footprintLines = layout.footprints
     .map((fp, i) => `        ${fp[0]} to ${fp[1]},   // ${i}: ${layout.buildingNames[i]}`)
@@ -361,6 +621,8 @@ function generateSpriteAtlasDef(layout) {
     `    const val ATLAS_H = ${layout.atlasH}`,
     `    const val TILE_SIZE = ${layout.tileSize}`,
     `    const val BUILDING_SIZE = ${layout.buildingSize}`,
+    `    const val BUILDING_PITCH = ${layout.buildingPitch}`,
+    `    const val BUILDING_GRID_ORIGIN_Y = ${layout.buildingGridOrigin[1]}`,
     '',
     '    // ============================================================',
     '    // 双端共享渲染常量（与 C++ TextureAtlas.h 同源生成）',
@@ -368,6 +630,7 @@ function generateSpriteAtlasDef(layout) {
     `    const val DECOR_QUALITY_THRESHOLD = ${layout.lodThreshold}f`,
     `    const val SHADOW_OFFSET_TILES = ${layout.shadowOffsetTiles}f`,
     `    const val SHADOW_ALPHA = ${layout.shadowAlpha}f`,
+    `    const val TOPDOWN_Y_SCALE = ${layout.topdownYScale}f`,
     `    const val SPIRIT_MINE_NAME_INDEX = ${si.spiritMine}`,
     `    const val SPIRIT_FIELD_NAME_INDEX = ${si.spiritField}`,
     `    const val TILE_GROUND_INDEX = ${si.tileGround}`,
@@ -445,6 +708,54 @@ function generateSpriteAtlasDef(layout) {
     `    val GROUND_VARIANT_INDICES = intArrayOf(${groundVariantLines})`,
     '',
     '    // ============================================================',
+    '    // 瓦片分类（装饰叠加层 / 显示尺寸 / 绘制层 / 实体障碍——渲染器与 autotile 的',
+    '    // 唯一判据，由 LAYOUT.tiles 的 kind/sprite/layer/solid 生成，禁止在消费侧硬编码瓦片序号）',
+    '    // ============================================================',
+    '',
+    '    /** 装饰瓦片 index 区间（草/石/树；区间外的瓦片不绘制装饰叠加层） */',
+    `    const val DECOR_TILE_MIN_INDEX = ${si.decorMin}`,
+    `    const val DECOR_TILE_MAX_INDEX = ${si.decorMax}`,
+    '',
+    '    /**',
+    '     * 瓦片显示尺寸（格，小数格精度，按 index）。',
+    '     *',
+    '     * 锚点 = **格底边居中**：绘制矩形 x = 格左 + (1−W)/2 格、y = 格上 + (1−H) 格。',
+    '     * 立体素材（草/石/树）按"屏上不变形"取 H = W × 素材高 ÷ (0.75 × 素材宽)，',
+    '     * 故对象站在自己格子上、树冠向上伸出（构建期由 validateDisplaySizing 校验）。',
+    '     */',
+    `    val TILE_SPRITE_W = floatArrayOf(${si.tileSpriteW.map((v) => `${v}f`).join(', ')})`,
+    `    val TILE_SPRITE_H = floatArrayOf(${si.tileSpriteH.map((v) => `${v}f`).join(', ')})`,
+    '',
+    '    /** 瓦片绘制层（0=地面层，跟随地面逐格绘制；1=立体层，与建筑同序 Y 归并绘制） */',
+    `    val TILE_OBJECT_LAYER = intArrayOf(${si.objectLayer.join(', ')})`,
+    '',
+    '    /** 装饰最大显示尺寸（格）——越界余量推导源 */',
+    `    const val DECOR_MAX_SPRITE_W = ${si.decorMaxW}f`,
+    `    const val DECOR_MAX_SPRITE_H = ${si.decorMaxH}f`,
+    '',
+    '    /** 装饰越界余量（格）：左右各 (maxW−1)/2 上取整、向上 maxH−1 上取整 */',
+    `    const val DECOR_MARGIN_COLS = ${si.decorMarginCols}`,
+    `    const val DECOR_MARGIN_ROWS = ${si.decorMarginRows}`,
+    '',
+    '    /** 实体瓦片索引（石/树/建筑占位——autotile 过渡跳过，草参与过渡） */',
+    `    val SOLID_TILE_INDICES = intArrayOf(${si.solidIndices.join(', ')})`,
+    '',
+    '    /** 是否为装饰叠加层瓦片（草/石/树） */',
+    '    fun isDecorTile(index: Int): Boolean = index in DECOR_TILE_MIN_INDEX..DECOR_TILE_MAX_INDEX',
+    '',
+    '    /** 瓦片显示宽度（格；越界回退 1，防数组越界读） */',
+    '    fun tileSpriteWidth(index: Int): Float = TILE_SPRITE_W.getOrElse(index) { 1f }',
+    '',
+    '    /** 瓦片显示高度（格；越界回退 1，防数组越界读） */',
+    '    fun tileSpriteHeight(index: Int): Float = TILE_SPRITE_H.getOrElse(index) { 1f }',
+    '',
+    '    /** 是否为立体层瓦片（树——与建筑同序绘制，两后端消费同一判定） */',
+    '    fun isObjectDecorTile(index: Int): Boolean = TILE_OBJECT_LAYER.getOrElse(index) { 0 } == 1',
+    '',
+    '    /** 是否为实体障碍瓦片（不参与 autotile 过渡） */',
+    '    fun isSolidTile(index: Int): Boolean = SOLID_TILE_INDICES.contains(index)',
+    '',
+    '    // ============================================================',
     '    // 建筑定义',
     '    // ============================================================',
     '',
@@ -484,9 +795,9 @@ function generateSpriteAtlasDef(layout) {
     '        var idx = 0',
     '        for (rowIndex in BUILDING_COLS_PER_ROW.indices) {',
     '            for (col in 0 until BUILDING_COLS_PER_ROW[rowIndex]) {',
-    '                // 专属槽位覆盖优先，否则行公式 256×256 槽位',
+    '                // 专属槽位覆盖优先，否则行公式槽位（节距 BUILDING_PITCH 含 gutter）',
     '                val r = BUILDING_RECT_OVERRIDES[idx]',
-    '                    ?: SpriteRect(col * BUILDING_SIZE, BUILDING_SIZE + rowIndex * BUILDING_SIZE, BUILDING_SIZE, BUILDING_SIZE)',
+    '                    ?: SpriteRect(col * BUILDING_PITCH, BUILDING_GRID_ORIGIN_Y + rowIndex * BUILDING_PITCH, BUILDING_SIZE, BUILDING_SIZE)',
     '                val i = idx * 4',
     '                uvs[i] = r.x.toFloat() / ATLAS_W',
     '                uvs[i + 1] = r.y.toFloat() / ATLAS_H',
@@ -518,8 +829,8 @@ function generateSpriteAtlasDef(layout) {
     '            for (col in 0 until BUILDING_COLS_PER_ROW[rowIndex]) {',
     '                if (idx == nameIndex) {',
     '                    return SpriteRect(',
-    '                        col * BUILDING_SIZE,',
-    '                        BUILDING_SIZE + rowIndex * BUILDING_SIZE,',
+    '                        col * BUILDING_PITCH,',
+    '                        BUILDING_GRID_ORIGIN_Y + rowIndex * BUILDING_PITCH,',
     '                        BUILDING_SIZE,',
     '                        BUILDING_SIZE',
     '                    )',
@@ -528,7 +839,7 @@ function generateSpriteAtlasDef(layout) {
     '            }',
     '        }',
     '        // 越界回退',
-    '        return SpriteRect(0, BUILDING_SIZE, BUILDING_SIZE, BUILDING_SIZE)',
+    '        return SpriteRect(0, BUILDING_GRID_ORIGIN_Y, BUILDING_SIZE, BUILDING_SIZE)',
     '    }',
     '',
     '    // ============================================================',
@@ -619,12 +930,10 @@ function generateSpriteAtlasDef(layout) {
     '        uv',
     '    }',
     '',
-    '}',
+    '}',   // 闭合 object SpriteAtlasDef
     '',
   ].join('\n');
 }
-
-// ── 生成器：SpriteRegistryData.kt（app 编译单元） ──
 
 /**
  * 生成精灵注册数据文件（与原有手工 SpriteRegistryData.kt 功能等价：
@@ -663,7 +972,7 @@ function generateSpriteRegistryData(registry, manifest) {
       const usesGameR = !manifest.entries.some((e) => e.name === entry.res && e.module === 'app');
       if (usesGameR) needGameR = true;
       const ref = usesGameR ? `FeatureGameR.drawable.${entry.res}` : `R.drawable.${entry.res}`;
-      // JSON.stringify 转义（对抗性审查 2026-08-13 边界#10）
+      // JSON.stringify 转义
       entryLines.push(`        ${JSON.stringify(entry.name)} to ${ref},`);
     }
     lines.push(`/** ${categoryName} — 精灵图资源映射（由 resource-registry.json 生成） */`);
@@ -773,6 +1082,7 @@ function generateTextureAtlasH(layout) {
     `#define DECOR_QUALITY_THRESHOLD ${layout.lodThreshold}f`,
     `#define SHADOW_OFFSET_TILES ${layout.shadowOffsetTiles}f`,
     `#define SHADOW_ALPHA ${layout.shadowAlpha}f`,
+    `#define TOPDOWN_Y_SCALE ${layout.topdownYScale}f`,
     '',
     '// 语义索引（由 LAYOUT 名称推导生成，防建筑/地砖列表调整后索引漂移）',
     `#define SPIRIT_MINE_NAME_INDEX ${si.spiritMine}`,
@@ -781,6 +1091,23 @@ function generateTextureAtlasH(layout) {
     '// 瓦片类型索引（与 SpriteAtlasDef.TileType.index 同源）',
     `#define TILE_GROUND ${si.tileGround}`,
     `#define TILE_BUILDING ${si.tileBuilding}`,
+    `#define TILE_TYPE_COUNT ${si.tileTypeCount}`,
+    '',
+    '// 瓦片分类（与 SpriteAtlasDef 的 DECOR_TILE_*_INDEX / TILE_SPRITE_W/H / TILE_OBJECT_LAYER 同源生成）——',
+    '// 装饰叠加层判定 + 显示尺寸（格，小数格；锚点 = 格底边居中）+ 绘制层',
+    '//（0=地面层随地面逐格绘制，1=立体层与建筑同序 Y 归并绘制），',
+    '// 禁止在渲染代码里硬编码瓦片序号（新增装饰种类只改 LAYOUT.tiles）',
+    `#define DECOR_TILE_MIN ${si.decorMin}`,
+    `#define DECOR_TILE_MAX ${si.decorMax}`,
+    `#define DECOR_MAX_SPRITE_W ${cppFloatLiteral(si.decorMaxW)}`,
+    `#define DECOR_MAX_SPRITE_H ${cppFloatLiteral(si.decorMaxH)}`,
+    '// 装饰越界余量（格）：左右各 (maxW−1)/2 上取整、向上 maxH−1 上取整——',
+    '// 可见性遍历范围必须按此扩大，否则越界精灵（树冠）会被整块漏绘',
+    `#define DECOR_MARGIN_COLS ${si.decorMarginCols}`,
+    `#define DECOR_MARGIN_ROWS ${si.decorMarginRows}`,
+    `static const float TILE_SPRITE_W[] = {${si.tileSpriteW.map(cppFloatLiteral).join(', ')}};`,
+    `static const float TILE_SPRITE_H[] = {${si.tileSpriteH.map(cppFloatLiteral).join(', ')}};`,
+    `static const int TILE_OBJECT_LAYER[] = {${si.objectLayer.join(', ')}};`,
     '',
     '// 固定结构（渲染走建筑层；nameIdx = STRUCTURE_NAME_BASE + index；占地表供底部对齐）',
     `#define STRUCTURE_NAME_BASE ${si.structureNameBase}`,
@@ -825,8 +1152,8 @@ function buildSpriteList() {
     });
   }
 
-  // 建筑（BUILDING_NAMES 顺序，rect 由行分布公式计算；drawable = 资源文件名——
-  // 2026-08 修复：此前为 null 导致 KTX/ASTC 图集建筑槽位全空、Vulkan+ASTC 设备建筑不显示）
+  // 建筑（BUILDING_NAMES 顺序，rect 由行分布公式计算；drawable 必须为资源文件名——
+  // 为 null 时 KTX/ASTC 图集建筑槽位全空，Vulkan+ASTC 设备建筑不显示）
   for (let i = 0; i < LAYOUT.buildingNames.length; i++) {
     const rect = buildingRectOf(LAYOUT.buildingColsPerRow, i);
     sprites.push({
@@ -867,10 +1194,11 @@ function buildSpriteList() {
     });
   });
 
+
   return sprites;
 }
 
-// ── 图集拼装 ──
+// ── 图集拼装（per-sprite 独立 mip + pad 环）──
 
 /** 按名称在 manifest 中查找资源文件绝对路径（feature/game 优先，与双模块放置规则一致） */
 function resolveDrawablePath(manifest, name) {
@@ -881,32 +1209,248 @@ function resolveDrawablePath(manifest, name) {
   return path.join(ANDROID_DIR, entry.relPath);
 }
 
-/** 拼装 2048×2048 RGBA 图集（sharp composite，拉伸到目标 rect 与 Android drawBitmap 同语义） */
-async function buildAtlasPng(sprites, manifest) {
-  const overlays = [];
+/**
+ * 预乘 alpha（直通 → 预乘，raw RGBA 就地生成新缓冲）：RGB ← RGB × α/255。
+ *
+ * 素材透明区常带非零 RGB（导出工具残留的白色）——预乘后这些像素 RGB 归零，
+ * 重采样时不再把"看不见的颜色"混入邻近可见像素（灰白毛边根因）。
+ * 本地 sharp 构建未暴露 premultiply()/unpremultiply()，故按 raw 像素手工处理。
+ *
+ * @param {Buffer} data raw RGBA 像素缓冲
+ * @returns {{buffer: Buffer, transparent: boolean}} 预乘缓冲 + 是否含半透明像素
+ *（false = 全不透明，后续解预乘可整段跳过——值恒等）
+ */
+function premultiplyRawRgba(data) {
+  const out = Buffer.allocUnsafe(data.length);
+  let transparent = false;
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a === 255) {
+      out[i] = data[i];
+      out[i + 1] = data[i + 1];
+      out[i + 2] = data[i + 2];
+    } else {
+      transparent = true;
+      out[i] = Math.round((data[i] * a) / 255);
+      out[i + 1] = Math.round((data[i + 1] * a) / 255);
+      out[i + 2] = Math.round((data[i + 2] * a) / 255);
+    }
+    out[i + 3] = a;
+  }
+  return { buffer: out, transparent };
+}
+
+/**
+ * 解预乘 alpha（预乘 → 直通）：RGB ← RGB × 255/α（α=0 保持 0）。
+ *
+ * 交付 ASTC 的位图必须是直通 alpha（运行期按 SRC_ALPHA / ONE_MINUS_SRC_ALPHA 混合）。
+ * 逐精灵缓冲调用（图集级整图解预乘要遍历 4096² 像素，无谓开销）。
+ *
+ * @param {Buffer} pngBuffer 预乘 PNG 缓冲
+ * @returns {Promise<Buffer>} 直通 alpha PNG 缓冲
+ */
+async function unpremultiplyAlpha(pngBuffer) {
+  const { data, info } = await sharp(pngBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const out = Buffer.allocUnsafe(data.length);
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a === 0 || a === 255) {
+      out[i] = data[i];
+      out[i + 1] = data[i + 1];
+      out[i + 2] = data[i + 2];
+    } else {
+      out[i] = Math.min(255, Math.round((data[i] * 255) / a));
+      out[i + 1] = Math.min(255, Math.round((data[i + 1] * 255) / a));
+      out[i + 2] = Math.min(255, Math.round((data[i + 2] * 255) / a));
+    }
+    out[i + 3] = a;
+  }
+  return sharp(out, {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  }).png().toBuffer();
+}
+
+/**
+ * 逐精灵加载并 lanczos3 下采样到槽位尺寸（mip0 内容缓冲）。
+ * 独立 mip 管线第 1 步：每张精灵按目标槽位尺寸单独重采样（mip0），
+ * 后续各级 mip 均从该内容重新采样——消灭"整图逐级下采样"的邻居渗色。
+ *
+ * ★ **预乘 alpha 重采样**（管线不变量，见文件头"预乘 alpha 约定"）：含 alpha 的源图
+ *   在**原始分辨率**先预乘、再重采样——直通 alpha 重采样会把透明区的残留 RGB 按普通
+ *   RGB 混入邻近可见像素，在硬 alpha 边（岛边缘羽化边等）产生灰白毛边（实测 mip2
+ *   边界 texel 由真实覆盖率 ~25% 被抬到 α≈216 / RGB≈204,212,199）。无 alpha 通道的
+ *   源图（无缝草皮/道路等）不存在该问题，直接重采样并标记为不透明。
+ *
+ * @returns {Promise<{contents: Map<string, Buffer>, transparent: Set<string>, srcDims: Map<string, {w: number, h: number}>}>}
+ *   图集名 → 槽位尺寸**预乘** PNG 缓冲；transparent = 含半透明像素的精灵名
+ *（drawable=null 的占位条目两者皆不含）；srcDims = 图集名 → 素材原始像素尺寸
+ *（写入 atlas-manifest.json 的 srcW/srcH，供 SpriteSizingFidelityTest 校验显示比例）
+ */
+async function loadSpriteContents(sprites, manifest) {
+  const contents = new Map();
+  const transparent = new Set();
+  const srcDims = new Map();
   let loaded = 0;
   for (const s of sprites) {
     if (!s.drawable) continue;
     const file = resolveDrawablePath(manifest, s.drawable);
     if (!file || !fs.existsSync(file)) {
-      // fail-fast（对抗性审查 2026-08-13 边界#4）：预期精灵缺失 = 构建失败，
+      // fail-fast：预期精灵缺失 = 构建失败，
       // 禁止静默产出缺精灵图集（线上地图透明/建筑隐形且无运行时错误）。
       // 允许缺省的条目（TILE_BUILDING 占位）已由上层 `if (!s.drawable) continue` 跳过
       throw new Error(
         `资源缺失: ${s.drawable} (${s.name})——精灵图必须双模块放置（rules/static-resources.md），缺失即构建失败`
       );
     }
-    const buf = await sharp(file)
-      .resize(s.w, s.h, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
-      .png()
-      .toBuffer();
-    overlays.push({ input: buf, left: s.x, top: s.y });
+    const meta = await sharp(file).metadata();
+    srcDims.set(s.name, { w: meta.width, h: meta.height });
+    let slotPng;
+    if (!meta.hasAlpha) {
+      slotPng = await sharp(file)
+        .ensureAlpha()
+        .resize(s.w, s.h, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+        .png()
+        .toBuffer();
+    } else {
+      const { data, info } = await sharp(file)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const { buffer: pmRaw, transparent: hasAlpha } = premultiplyRawRgba(data);
+      if (hasAlpha) transparent.add(s.name);
+      slotPng = await sharp(pmRaw, {
+        raw: { width: info.width, height: info.height, channels: 4 },
+      })
+        .resize(s.w, s.h, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+        .png()
+        .toBuffer();
+    }
+    contents.set(s.name, slotPng);
     loaded++;
   }
-  console.log(`  精灵加载: ${loaded}/${sprites.length}`);
+  console.log(`  精灵加载: ${loaded}/${sprites.length}（含半透明 ${transparent.size}）`);
+  return { contents, transparent, srcDims };
+}
+
+/**
+ * 构建单精灵 pad 环缓冲（独立 mip 管线第 2 步）：内容四周外扩 mipPad（mip0 尺度 4px），
+ * 环内容 = 该精灵**边缘像素外扩**（1px 边条复制 + 角部 1×1 像素复制，replicate 语义）——
+ * 非透明/纯色填充，保证 mip 采样边界渐变连续（Unity SpriteAtlas paddingPower 同款意图）。
+ *
+ * ★ 输入与输出均为**预乘**缓冲（预乘空间做复制/重采样，语义一致）。
+ * ★ 拉伸核必须 nearest（精确复制）：默认 lanczos3 在 1→4 上采样时仍做低通
+ * （kernel 支撑窗覆盖邻行），会把邻行颜色/alpha 混入边条，破坏"环 ≡ 边缘"的
+ * 逐像素等价（验收脚本 pad-vs-edge 会假阳性）。
+ *
+ * @param {Buffer} content 槽位尺寸**预乘**内容缓冲
+ * @param {number} w 内容宽（= 槽位宽）
+ * @param {number} h 内容高
+ * @param {number} pad 环厚（mip0 尺度，= LAYOUT.mipPad）
+ * @returns {Promise<Buffer>} (w+2pad)×(h+2pad) **预乘** PNG 缓冲
+ */
+async function buildPaddedTile(content, w, h, pad) {
+  const strip = (rect, tw, th) =>
+    sharp(content).extract(rect).resize(tw, th, { fit: 'fill', kernel: 'nearest' }).png().toBuffer();
+  const [leftCol, rightCol, topRow, bottomRow, tl, tr, bl, br] = await Promise.all([
+    strip({ left: 0, top: 0, width: 1, height: h }, pad, h),
+    strip({ left: w - 1, top: 0, width: 1, height: h }, pad, h),
+    strip({ left: 0, top: 0, width: w, height: 1 }, w, pad),
+    strip({ left: 0, top: h - 1, width: w, height: 1 }, w, pad),
+    strip({ left: 0, top: 0, width: 1, height: 1 }, pad, pad),
+    strip({ left: w - 1, top: 0, width: 1, height: 1 }, pad, pad),
+    strip({ left: 0, top: h - 1, width: 1, height: 1 }, pad, pad),
+    strip({ left: w - 1, top: h - 1, width: 1, height: 1 }, pad, pad),
+  ]);
+  return sharp({
+    create: { width: w + pad * 2, height: h + pad * 2, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  }).composite([
+    { input: topRow, left: pad, top: 0 },
+    { input: bottomRow, left: pad, top: h + pad },
+    { input: leftCol, left: 0, top: pad },
+    { input: rightCol, left: w + pad, top: pad },
+    { input: tl, left: 0, top: 0 },
+    { input: tr, left: w + pad, top: 0 },
+    { input: bl, left: 0, top: h + pad },
+    { input: br, left: w + pad, top: h + pad },
+    { input: content, left: pad, top: pad },
+  ]).png().toBuffer();
+}
+
+/**
+ * 合成单级 mip 位图（独立 mip 管线第 3 步）：逐精灵把 pad 环缓冲重采样到该级尺寸
+ * （从 mip0 pad 环缓冲**重新采样**，避免级联失真——与现状"每级从 mip0 重采样"同一理由），
+ * 再按缩小后槽位拼入该级位图。
+ *
+ * pad 语义：环在 mip0 尺度为 mipPad(4px)，随精灵等比缩放（第 k 级 pad =
+ * max(1, round(4/2^k))）——环与内容一起重采样保证边缘梯度连续；槽位间距
+ * mipGutter(8) ≥ 相邻精灵环厚之和（4+4=8），环只占 gutter 不压内容。
+ *
+ * 构建器自检（fail-fast）：该级精灵数必须与精灵清单一致、槽位几何 (w>>k,h>>k) 合法。
+ *
+ * ★ **预乘 alpha 约定**：入参 pad 环缓冲在预乘空间（重采样数学正确——透明像素的残留
+ *   RGB 不参与混色）；逐精灵缓冲在拼入位图前 `unpremultiplyAlpha()` 解回直通 alpha，
+ *   整级位图与最终 ASTC 均为直通 alpha（与运行期 SRC_ALPHA 混合一致）。
+ *
+ * @param {Map<string, Buffer>} padded 图集名 → mip0 pad 环缓冲（buildPaddedTile 产物，预乘）
+ * @param {Set<string>} transparent 含半透明像素的精灵名（其余全不透明，免解预乘）
+ * @param {Array} sprites 精灵清单（buildSpriteList 产物）
+ * @param {number} level mip 级（0 = mip0）
+ * @param {number} atlasSize 该级位图边长（= atlasW >> level）
+ * @param {string} outPng 输出 PNG 路径（直通 alpha）
+ */
+async function composeMipLevel(padded, transparent, sprites, level, atlasSize, outPng) {
+  const padK = Math.max(1, Math.round(LAYOUT.mipPad / 2 ** level));
+  const overlays = [];
+  for (const s of sprites) {
+    const tile = padded.get(s.name);
+    if (!tile) continue; // drawable=null 占位条目
+    // 槽位几何：内容 = slot>>k（<1 钳到 1——ASTC 4×4 块下限沿用 max() 逻辑，
+    // 深级 mip 亚像素精灵仍贡献均值色，与"该级精灵数 == 上一级"守恒一致）
+    const w = Math.max(1, s.w >> level);
+    const h = Math.max(1, s.h >> level);
+    if (w < 1 || h < 1) throw new Error(`精灵 ${s.name} mip${level} 下采样尺寸非法: ${w}×${h}`);
+    const tw = w + padK * 2;
+    const th = h + padK * 2;
+    const tileBuf = level === 0 ? tile
+      : await sharp(tile).resize(tw, th, { fit: 'fill', kernel: sharp.kernel.lanczos3 }).png().toBuffer();
+    // 位置：内容槽位 (x>>k, y>>k)，环外扩 padK；图集边缘精灵的越界环部分裁剪
+    //（CLAMP_TO_EDGE 采样器下边界外无采样需求）
+    let left = (s.x >> level) - padK;
+    let top = (s.y >> level) - padK;
+    const cutL = Math.max(0, -left);
+    const cutT = Math.max(0, -top);
+    const cutR = Math.max(0, left + tw - atlasSize);
+    const cutB = Math.max(0, top + th - atlasSize);
+    let buf = tileBuf;
+    if (cutL || cutT || cutR || cutB) {
+      if (tw - cutL - cutR < 1 || th - cutT - cutB < 1) {
+        throw new Error(`精灵 ${s.name} mip${level} pad 环裁剪后为空（槽位越界）`);
+      }
+      buf = await sharp(tileBuf)
+        .extract({ left: cutL, top: cutT, width: tw - cutL - cutR, height: th - cutT - cutB })
+        .png().toBuffer();
+      left += cutL;
+      top += cutT;
+    }
+    // 拼入位图前解预乘：位图与最终 ASTC 都是直通 alpha（全不透明精灵免此步）
+    if (transparent.has(s.name)) buf = await unpremultiplyAlpha(buf);
+    overlays.push({ input: buf, left, top });
+  }
+  // fail-fast：该级精灵数 == 精灵清单可绘制数（上一级同源枚举，恒等即守恒）
+  const expected = sprites.filter((s) => s.drawable).length;
+  if (overlays.length !== expected) {
+    throw new Error(`mip${level} 精灵数守恒失败: ${overlays.length} != ${expected}`);
+  }
+  // 位图为直通 alpha（各精灵已在上方解预乘；画布透明，'over' 合成即值透传）
   await sharp({
-    create: { width: LAYOUT.atlasW, height: LAYOUT.atlasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-  }).composite(overlays).png().toFile(TMP_PNG);
+    create: { width: atlasSize, height: atlasSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite(overlays)
+    .png()
+    .toFile(outPng);
 }
 
 // ── astcenc 压缩 ──
@@ -931,41 +1475,45 @@ function compressAstc(astcenc, inPng, outAstc) {
 }
 
 /**
- * 生成图集 mip 链（B.1：图集补 mip 消除缩放/远景采样混叠）。
+ * 生成图集 mip 链（**per-sprite 独立 mip + pad 环**）。
  *
  * 注意：astcenc 5.7.0 **无 mipmap 生成开关**（设计稿"astcenc -m"假设不成立），
- * 故 mip 链由 sharp 对拼装后的 4096 图集逐级等比下采样（每级从 mip0 重新采样，
- * 避免级联累积失真），再逐级 astcenc 压缩到最小 4×4（ASTC 4×4 块下限）。
+ * 故 mip 链在构建期逐级合成：
+ *   1. 每张精灵单独 lanczos3 下采样到槽位尺寸（mip0 内容）；
+ *   2. 每张精灵内容四周外扩 mipPad 环（边缘像素复制，replicate）；
+ *   3. 每级 mip k：逐精灵 pad 环缓冲独立重采样至 (slot>>k + 2·pad_k)，按缩小后
+ *      槽位拼入 (4096>>k) 级位图——**每级从 mip0 重新采样，避免级联失真**；
+ *   4. 逐级 astcenc 压缩到 4×4（ASTC 4×4 块下限），KTX1 容器结构不变。
  *
+ * 该方式消灭整图 mip 的邻居渗色：mip ≥1 级的精灵边界像素全部来自自身内容外扩
+ * （pad 环），与 Unity SpriteAtlas paddingPower / Godot use_texture_padding 同语义。
+ *
+ * @param {Function} astcenc astcenc 可执行路径
+ * @param {Array} sprites 精灵清单
+ * @param {Map<string, Buffer>} padded 图集名 → mip0 pad 环缓冲（buildPaddedTile 产物）
  * @returns {Promise<Array<{w:number,h:number,data:Buffer}>>} 每级 mip 的 ASTC 数据
  */
-async function generateMips(astcenc) {
+async function generateMips(astcenc, transparent, sprites, padded) {
   const mips = [];
-  let w = LAYOUT.atlasW;
-  let h = LAYOUT.atlasH;
+  let size = LAYOUT.atlasW;
   let level = 0;
   // 4096 → 4（ASTC 4×4 块下限）：每级最长边 / 2，到 4×4 为止
-  while (w >= ASTC_BLOCK && h >= ASTC_BLOCK) {
+  while (size >= ASTC_BLOCK) {
     const mipPng = TMP_PNG.replace('atlas_tmp.png', `atlas_mip_${level}.png`);
     const mipAstc = TMP_ASTC.replace('atlas_tmp.astc', `atlas_mip_${level}.astc`);
-    if (level === 0) {
-      // mip0 即拼装好的整图（已是 4096）
-    } else {
-      console.log(`  mip ${level}: ${w}×${h} ...`);
-      await sharp(TMP_PNG).resize(w, h, { fit: 'fill', kernel: sharp.kernel.lanczos3 }).png().toFile(mipPng);
-    }
-    compressAstc(astcenc, level === 0 ? TMP_PNG : mipPng, mipAstc);
-    mips.push({ w, h, data: fs.readFileSync(mipAstc) });
+    console.log(`  mip ${level}: ${size}×${size}（per-sprite 独立合成）...`);
+    await composeMipLevel(padded, transparent, sprites, level, size, mipPng);
+    compressAstc(astcenc, mipPng, mipAstc);
+    mips.push({ w: size, h: size, data: fs.readFileSync(mipAstc) });
     fs.unlinkSync(mipAstc);
-    if (level !== 0) fs.unlinkSync(mipPng);
+    // ATLAS_KEEP_TMP=1 保留各级 PNG（调试验收脚本用，默认清理）
+    if (process.env.ATLAS_KEEP_TMP !== '1') fs.unlinkSync(mipPng);
     level++;
-    const nextW = w >> 1;
-    const nextH = h >> 1;
-    if (nextW < ASTC_BLOCK || nextH < ASTC_BLOCK) break;  // 到 4×4 块下限即止
-    w = nextW;
-    h = nextH;
+    const next = size >> 1;
+    if (next < ASTC_BLOCK) break;  // 到 4×4 块下限即止
+    size = next;
   }
-  console.log(`  mip 链: ${mips.length} 级（mip0 ${LAYOUT.atlasW}→ 最小 ${mips[mips.length - 1].w}）`);
+  console.log(`  mip 链: ${mips.length} 级（per-sprite + pad 环，mip0 ${LAYOUT.atlasW}→ 最小 ${mips[mips.length - 1].w}）`);
   return mips;
 }
 
@@ -1033,8 +1581,9 @@ function layoutHashOf(sprites) {
 // ── 模式：codegen ──
 
 /** --atlas-def-only：生成 SpriteAtlasDef.kt 到 core/engine 编译单元（hash 增量跳过） */
-function runAtlasDefCodegen() {
-  const hash = contentHash({ layout: LAYOUT, codegen: codegenSource() });
+async function runAtlasDefCodegen() {
+  await validateDisplaySizing(LAYOUT);
+  const hash = contentHash({ layout: LAYOUT, buildings: buildingsConfigForHash(), codegen: codegenSource() });
   const hashFile = path.join(ATLAS_DEF_OUT_DIR, '.atlas-def.hash');
   if (!shouldRegenerate(hashFile, hash)) {
     console.log('SpriteAtlasDef.kt 内容未变化，跳过生成');
@@ -1048,10 +1597,14 @@ function runAtlasDefCodegen() {
 }
 
 /** --codegen：生成 SpriteRegistryData.kt + TextureAtlas.h 到 app 编译单元（hash 增量跳过） */
-function runSpriteCodegen() {
+async function runSpriteCodegen() {
+  await validateDisplaySizing(LAYOUT);
   const registry = loadRegistry();
   const manifest = ensureManifest(APP_DRAWABLE_DIR, GAME_DRAWABLE_DIR, MANIFEST_OUT);
-  const hash = contentHash({ layout: LAYOUT, registry, manifest: manifestForHash(manifest), codegen: codegenSource() });
+  const hash = contentHash({
+    layout: LAYOUT, buildings: buildingsConfigForHash(), registry,
+    manifest: manifestForHash(manifest), codegen: codegenSource(),
+  });
   const hashFile = path.join(SPRITE_CODE_OUT_DIR, '.sprite-code.hash');
   if (!shouldRegenerate(hashFile, hash)) {
     console.log('SpriteRegistryData.kt / TextureAtlas.h 内容未变化，跳过生成');
@@ -1078,16 +1631,17 @@ async function main() {
 
   // codegen 模式（不依赖 astcenc/sharp 拼装）
   if (args.includes('--atlas-def-only')) {
-    runAtlasDefCodegen();
+    await runAtlasDefCodegen();
     return;
   }
   if (args.includes('--codegen')) {
-    runSpriteCodegen();
+    await runSpriteCodegen();
     return;
   }
 
   // 图集模式：拼装 KTX + 布局 manifest（保留原行为）
   console.log('build-atlas: 构建精灵清单（LAYOUT 源数据）...');
+  await validateDisplaySizing(LAYOUT);
   const sprites = buildSpriteList();
   const manifest = ensureManifest(APP_DRAWABLE_DIR, GAME_DRAWABLE_DIR, MANIFEST_OUT);
 
@@ -1096,20 +1650,27 @@ async function main() {
     throw new Error('astcenc 未找到（scripts/tools/astcenc/bin/）——请从 https://github.com/ARM-software/astc-encoder/releases 下载 windows-x64 版本');
   }
 
-  console.log(`拼装 ${LAYOUT.atlasW}×${LAYOUT.atlasH} 图集（${sprites.length} 精灵）...`);
-  await buildAtlasPng(sprites, manifest);
+  console.log(`拼装 ${LAYOUT.atlasW}×${LAYOUT.atlasH} 图集（${sprites.length} 精灵，per-sprite 独立 mip + pad 环）...`);
+  // 独立 mip 管线：逐精灵 mip0 内容 → pad 环缓冲（一次构建，各级复用）
+  const { contents, transparent, srcDims } = await loadSpriteContents(sprites, manifest);
+  const padded = new Map();
+  for (const s of sprites) {
+    if (!s.drawable) continue;
+    padded.set(s.name, await buildPaddedTile(contents.get(s.name), s.w, s.h, LAYOUT.mipPad));
+  }
 
-  // B.1 多 mip；--no-mip 兜底（单 mip，保持旧结构，供回退/调试）
+  // per-sprite 多 mip；--no-mip 兜底（单 mip，保持旧结构，供回退/调试——mip0 仍带 pad 环）
   const noMip = args.includes('--no-mip');
   let mips;
   if (noMip) {
     console.log('  --no-mip：单 mip（回退）...');
+    await composeMipLevel(padded, transparent, sprites, 0, LAYOUT.atlasW, TMP_PNG);
     compressAstc(astcenc, TMP_PNG, TMP_ASTC);
     mips = [{ w: LAYOUT.atlasW, h: LAYOUT.atlasH, data: fs.readFileSync(TMP_ASTC) }];
     fs.unlinkSync(TMP_ASTC);
   } else {
-    console.log('压缩 ASTC + 生成 mip 链 ...');
-    mips = await generateMips(astcenc);
+    console.log('压缩 ASTC + 生成 per-sprite mip 链 ...');
+    mips = await generateMips(astcenc, transparent, sprites, padded);
   }
 
   console.log('封装 KTX1（多 mip）...');
@@ -1123,12 +1684,19 @@ async function main() {
     width: LAYOUT.atlasW,
     height: LAYOUT.atlasH,
     mipLevels: mips.length,
+    // 契约锚点：mip 内容生成方式（per-sprite = 逐精灵独立下采样 +
+    //   pad 环；none = --no-mip 单级回退）。AtlasManifestSyncTest 断言防"整图 mip"回退。
+    mipMode: noMip ? 'none' : 'per-sprite',
     layoutHash: layoutHashOf(sprites),
     generatedAt: new Date().toISOString(),
     spriteCount: sprites.length,
     sprites: sprites.map((s) => ({
       name: s.name, x: s.x, y: s.y, w: s.w, h: s.h,
       drawable: s.drawable ?? null,
+      // 素材原始像素尺寸（槽位 fill 缩放的源）——SpriteSizingFidelityTest 据此校验
+      // 显示矩形在屏上的纵横比与素材一致（换图未同步尺寸即变红）
+      srcW: srcDims.get(s.name)?.w ?? null,
+      srcH: srcDims.get(s.name)?.h ?? null,
     })),
   };
   fs.writeFileSync(path.join(OUT_DIR, 'atlas-manifest.json'),

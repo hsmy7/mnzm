@@ -5,12 +5,12 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// JSON 快照编解码（Kotlin→C++ 迁移批次 1）
+// JSON 快照编解码
 //
 // 协议：nlohmann/json ↔ kotlinx.serialization JSON（字段名一致）。
 //   - to_json：输出**全部已覆盖字段**（与 kotlinx encodeDefaults=true 对齐）
 //   - from_json：**宽松**（未知/缺失字段忽略，用默认值）——未覆盖字段的
-//     嵌套对象（后续批次补齐）不会破坏导入
+//     嵌套对象不会破坏导入
 //
 // 顶层快照结构（GameState）：
 //   { "gameData": {...}, "disciples": [...], "equipmentStacks": [...], ... }
@@ -57,7 +57,7 @@ void to_json(nlohmann::json& j, const ProductionSlot& v);
 void from_json(const nlohmann::json& j, ProductionSlot& v);
 void to_json(nlohmann::json& j, const GridBuildingData& v);
 void from_json(const nlohmann::json& j, GridBuildingData& v);
-// 2026-08-31：石板道路状态迁移批次（Kotlin RoadData ↔ C++ RoadData，字段名一致）
+// 石板道路状态（Kotlin RoadData ↔ C++ RoadData，字段名一致）
 void to_json(nlohmann::json& j, const RoadData& v);
 void from_json(const nlohmann::json& j, RoadData& v);
 void to_json(nlohmann::json& j, const MerchantItem& v);
@@ -82,6 +82,8 @@ void to_json(nlohmann::json& j, const CaveExplorationTeam& v);
 void from_json(const nlohmann::json& j, CaveExplorationTeam& v);
 void to_json(nlohmann::json& j, const ActiveMissionLite& v);
 void from_json(const nlohmann::json& j, ActiveMissionLite& v);
+void to_json(nlohmann::json& j, const ActiveMission& v);
+void from_json(const nlohmann::json& j, ActiveMission& v);
 void to_json(nlohmann::json& j, const MailAttachment& v);
 void from_json(const nlohmann::json& j, MailAttachment& v);
 void to_json(nlohmann::json& j, const ResidenceSlot& v);
@@ -114,7 +116,7 @@ void from_json(const nlohmann::json& j, SpiritMineSlot& v);
 void to_json(nlohmann::json& j, const PatrolSlot& v);
 void from_json(const nlohmann::json& j, PatrolSlot& v);
 
-// T2.1：储物袋条目体系 + 藏经阁槽位 + 游戏事件记录
+// 储物袋条目体系 + 藏经阁槽位 + 游戏事件记录
 void to_json(nlohmann::json& j, const EquipmentNurtureData& v);
 void from_json(const nlohmann::json& j, EquipmentNurtureData& v);
 void to_json(nlohmann::json& j, const BagStackedData& v);
@@ -130,7 +132,7 @@ void from_json(const nlohmann::json& j, LibrarySlot& v);
 void to_json(nlohmann::json& j, const GameEventRecord& v);
 void from_json(const nlohmann::json& j, GameEventRecord& v);
 
-// 批次 1 剩余：远古秘境状态机
+// 远古秘境状态机
 void to_json(nlohmann::json& j, const SecretRealmState& v);
 void from_json(const nlohmann::json& j, SecretRealmState& v);
 void to_json(nlohmann::json& j, const SecretRealmMemberState& v);

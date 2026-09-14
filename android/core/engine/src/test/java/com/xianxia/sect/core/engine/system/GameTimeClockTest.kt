@@ -7,14 +7,12 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * GameTimeClock 单元测试（2026-08-01 重写）。
+ * GameTimeClock 单元测试。
  *
- * 历史假绿：旧测试用 `setLastWallMsForTest(SystemClock.elapsedRealtime() - elapsedMs)`
- * 回拨时钟——在 `returnDefaultValues = true` 的纯 JVM 下 SystemClock.elapsedRealtime()
- * 恒返回 0，测试靠"双读同为 0 相减"的算术恒等式通过，实现被改写也会照样绿。
- * 现改为注入 FakeTimeSource 手工推进，测试验证真实时间语义。
+ * 时钟注入：使用 FakeTimeSource 手工推进（纯 JVM 下 SystemClock.elapsedRealtime()
+ * 恒返回 0，墙钟差值恒等式会造成假绿），测试验证真实时间语义。
  *
- * 2026-08-01 语义变更：单 tick 追补上限 MAX_PHASES_PER_TICK = 3
+ * 单 tick 追补上限 MAX_PHASES_PER_TICK = 3
  * （防止 OEM 挂起恢复后 60 旬连跑卡死），超限丢弃余量。
  */
 class GameTimeClockTest {
@@ -144,7 +142,7 @@ class GameTimeClockTest {
         assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
-    // 12. 超大 delta 直接由 MAX_PHASES_PER_TICK 缩放上限约束（曾由 MAX_CATCHUP_MS 先截断，已删）
+    // 12. 超大 delta 直接由 MAX_PHASES_PER_TICK 缩放上限约束
     @Test
     fun largeDelta_cappedByMaxCatchupThenMaxPhases() {
         clock.setSpeed(2)

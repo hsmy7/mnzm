@@ -19,8 +19,8 @@ import org.junit.Test
 class SpiritMineMonthlySettlementTest {
 
     /** 从 GameConfig 常量引用，确保测试与常量定义同步 */
-    private val BASE_PER_MINER = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toDouble()
-    private val BASE_PER_MINER_LONG = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toLong()
+    private val basePerMiner = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toDouble()
+    private val basePerMinerLong = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toLong()
 
     // ═══════════════════════════════════════════════════════════════
     // SpiritMineZones.calculateMonthly
@@ -34,7 +34,7 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
+        val result = zones.calculateMonthly(basePerMiner)
         assertEquals(0L, result)
     }
 
@@ -46,9 +46,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
-        // 1 × ${BASE_PER_MINER_LONG}，无乘区加成
-        assertEquals(BASE_PER_MINER_LONG, result)
+        val result = zones.calculateMonthly(basePerMiner)
+        // 1 × ${basePerMinerLong}，无乘区加成
+        assertEquals(basePerMinerLong, result)
     }
 
     @Test
@@ -59,9 +59,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
-        // 100 × ${BASE_PER_MINER_LONG}，返回 Long，无截断
-        assertEquals(100L * BASE_PER_MINER_LONG, result)
+        val result = zones.calculateMonthly(basePerMiner)
+        // 100 × ${basePerMinerLong}，返回 Long，无截断
+        assertEquals(100L * basePerMinerLong, result)
     }
 
     @Test
@@ -72,9 +72,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = ZoneCalculator.multiplierToZone(1.2)  // +20%
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
-        // 10 × ${BASE_PER_MINER_LONG} × 1.2
-        assertEquals((10L * BASE_PER_MINER_LONG * 1.2).roundToLong(), result)
+        val result = zones.calculateMonthly(basePerMiner)
+        // 10 × ${basePerMinerLong} × 1.2
+        assertEquals((10L * basePerMinerLong * 1.2).roundToLong(), result)
     }
 
     @Test
@@ -85,9 +85,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.15,  // 执事加成 +15%
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
-        // 10 × ${BASE_PER_MINER_LONG} × 1.15
-        assertEquals((10L * BASE_PER_MINER_LONG * 1.15).roundToLong(), result)
+        val result = zones.calculateMonthly(basePerMiner)
+        // 10 × ${basePerMinerLong} × 1.15
+        assertEquals((10L * basePerMinerLong * 1.15).roundToLong(), result)
     }
 
     @Test
@@ -98,9 +98,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
-        // 10 × ${BASE_PER_MINER_LONG} × 1.2
-        assertEquals((10L * BASE_PER_MINER_LONG * 1.2).roundToLong(), result)
+        val result = zones.calculateMonthly(basePerMiner)
+        // 10 × ${basePerMinerLong} × 1.2
+        assertEquals((10L * basePerMinerLong * 1.2).roundToLong(), result)
     }
 
     @Test
@@ -111,9 +111,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.05,   // +5%
             policyBoost = 0.2             // +20% (灵矿增产)
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
-        // 50 × ${BASE_PER_MINER_LONG} × 1.1 × 1.05 × 1.2
-        assertEquals((50L * BASE_PER_MINER_LONG * 1.1 * 1.05 * 1.2).roundToLong(), result)
+        val result = zones.calculateMonthly(basePerMiner)
+        // 50 × ${basePerMinerLong} × 1.1 × 1.05 × 1.2
+        assertEquals((50L * basePerMinerLong * 1.1 * 1.05 * 1.2).roundToLong(), result)
     }
 
     @Test
@@ -125,9 +125,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(BASE_PER_MINER)
-        // 3 × ${BASE_PER_MINER_LONG}
-        assertEquals(3L * BASE_PER_MINER_LONG, result)
+        val result = zones.calculateMonthly(basePerMiner)
+        // 3 × ${basePerMinerLong}
+        assertEquals(3L * basePerMinerLong, result)
     }
 
     @Test
@@ -152,7 +152,7 @@ class SpiritMineMonthlySettlementTest {
         // 验证回档保护：lastSettledMonth >= currentMonth 时跳过
         val currentMonth = 100  // gameYear*12 + gameMonth
         val lastSettled = 100   // same as current
-        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
+        val monthlyRate = basePerMinerLong * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         assertTrue("delta <= 0 时应跳过", delta <= 0)
@@ -162,7 +162,7 @@ class SpiritMineMonthlySettlementTest {
     fun `time delta - normal one month catchup`() {
         val currentMonth = 101
         val lastSettled = 100
-        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
+        val monthlyRate = basePerMinerLong * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         val production = monthlyRate * delta
@@ -173,7 +173,7 @@ class SpiritMineMonthlySettlementTest {
     fun `time delta - multiple month catchup`() {
         val currentMonth = 104  // 跳过4个月 (100→101,102,103,104)
         val lastSettled = 100
-        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
+        val monthlyRate = basePerMinerLong * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         val production = monthlyRate * delta
@@ -185,7 +185,7 @@ class SpiritMineMonthlySettlementTest {
         // 读档回档时：lastSettled > currentMonth
         val currentMonth = 95
         val lastSettled = 100
-        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
+        val monthlyRate = basePerMinerLong * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         assertTrue("回档时 delta <= 0", delta <= 0)

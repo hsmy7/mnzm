@@ -60,7 +60,8 @@ class MaterialTemplateRegistry(
      * @param quantity 数量（默认1）
      * @return 新生成的材料实例
      */
-    fun createFromTemplate(template: ItemDatabase.MaterialTemplate, quantity: Int = 1): com.xianxia.sect.core.model.Material {
+    fun createFromTemplate(template: ItemDatabase.MaterialTemplate,
+        quantity: Int = 1): com.xianxia.sect.core.model.Material {
         return ItemDatabase.createMaterialFromTemplate(template, quantity)
     }
 

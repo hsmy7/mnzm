@@ -12,7 +12,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffRoadComposeTest — 道路渲染合成器跨语言差分对拍（计划 v2 阶段 6）。
+ * DiffRoadComposeTest — 道路渲染合成器跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::map::road_compositor（单一权威）经桌面对拍桥
  * `compose` op 产出的操作序列与**手算规格**一致——主体恒为 road_body、
@@ -52,9 +52,12 @@ class DiffRoadComposeTest {
         y: Int,
         w: Int,
         h: Int,
-        label: String
+        label: String,
+        flip: Int = 0
     ) {
-        assertEquals("$label #${index} sprite", listOf(sprite, x, y, w, h), this[index])
+        // 2.4：操作记录扩为 6 元素（尾部 flip = flipU 水平镜像标志）——
+        // 左/上缘条 flip=1（深色描边边朝外），右/下缘与交汇块/主体 flip=0
+        assertEquals("$label #${index} sprite", listOf(sprite, x, y, w, h, flip), this[index])
     }
 
     @Test
@@ -64,8 +67,8 @@ class DiffRoadComposeTest {
         val ops = cppCompose(0)
         assertEquals(5, ops.size)
         ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
-        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 6, 18, "左缘上")
-        ops.assertOp(2, sprite("road_edge_v"), 0, 18, 6, 18, "左缘下")
+        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 6, 18, "左缘上", flip = 1)
+        ops.assertOp(2, sprite("road_edge_v"), 0, 18, 6, 18, "左缘下", flip = 1)
         ops.assertOp(3, sprite("road_edge_v"), 30, 0, 6, 18, "右缘上")
         ops.assertOp(4, sprite("road_edge_v"), 30, 18, 6, 18, "右缘下")
     }
@@ -77,8 +80,8 @@ class DiffRoadComposeTest {
         val ops = cppCompose(0b0101)  // 上+下
         assertEquals(5, ops.size)
         ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
-        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 6, 18, "左缘上")
-        ops.assertOp(2, sprite("road_edge_v"), 0, 18, 6, 18, "左缘下")
+        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 6, 18, "左缘上", flip = 1)
+        ops.assertOp(2, sprite("road_edge_v"), 0, 18, 6, 18, "左缘下", flip = 1)
         ops.assertOp(3, sprite("road_edge_v"), 30, 0, 6, 18, "右缘上")
         ops.assertOp(4, sprite("road_edge_v"), 30, 18, 6, 18, "右缘下")
     }
@@ -124,7 +127,21 @@ class DiffRoadComposeTest {
     }
 
     @Test
-    fun `全16掩码 - 结构不变量（首操作为主体+步长5+几何有界）`() {
+    fun `水平直路 - 上缘翻转下缘不翻转`() {
+        // 2.4 flipU 规则差分对拍：上缘（无邻居侧）flip=1（深色边镜像朝外）、下缘 flip=0
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        val ops = cppCompose(0b1010)  // 左+右
+        assertEquals(5, ops.size)
+        ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_h"), 0, 0, 18, 6, "上缘左条", flip = 1)
+        ops.assertOp(2, sprite("road_edge_h"), 18, 0, 18, 6, "上缘右条", flip = 1)
+        ops.assertOp(3, sprite("road_edge_h"), 0, 30, 18, 6, "下缘左条")
+        ops.assertOp(4, sprite("road_edge_h"), 18, 30, 18, 6, "下缘右条")
+    }
+
+    @Test
+    fun `全16掩码 - 结构不变量（首操作为主体+步长6+几何有界+flip布尔域）`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
         for (mask in 0..15) {
@@ -132,15 +149,16 @@ class DiffRoadComposeTest {
             assertTrue("mask=$mask 至少主体 1 op", ops.size >= 1)
             assertTrue("mask=$mask 上限 6 op", ops.size <= 6)
             // 首操作恒为主体（铺满整格）
-            assertEquals("mask=$mask 主体铺满", listOf(ops[0][0], 0, 0, 36, 36), ops[0])
+            assertEquals("mask=$mask 主体铺满", listOf(ops[0][0], 0, 0, 36, 36, 0), ops[0])
             assertTrue("mask=$mask 主体是 BODY", ops[0][0] == 0)
             for (op in ops) {
-                assertEquals("mask=$mask 每条记录 5 元素", 5, op.size)
+                assertEquals("mask=$mask 每条记录 6 元素", 6, op.size)
                 assertEquals("mask=$mask sprite 枚举界内", true, op[0] in spriteKeys.indices)
                 assertTrue("mask=$mask w>0", op[3] > 0)
                 assertTrue("mask=$mask h>0", op[4] > 0)
                 assertTrue("mask=$mask x 有界", op[1] in -18..54)
                 assertTrue("mask=$mask y 有界", op[2] in -18..54)
+                assertTrue("mask=$mask flip 布尔域", op[5] == 0 || op[5] == 1)
             }
         }
     }

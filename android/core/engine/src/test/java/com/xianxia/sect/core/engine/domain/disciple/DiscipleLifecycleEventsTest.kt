@@ -51,8 +51,6 @@ class DiscipleLifecycleEventsTest {
         )
         lifecycleManager = DiscipleLifecycleManager(
             stateStore = mockStore,
-            discipleFactory = mockSmart(),
-            rngManager = mockSmart(),
             slotManager = slotManager,
             productionSlotRepository = mockSmart(),
         )

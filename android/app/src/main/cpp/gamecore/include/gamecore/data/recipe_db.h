@@ -1,5 +1,5 @@
 // ============================================================
-// recipe_db.h — 锻造/炼丹配方静态表（Kotlin→C++ 迁移批次 2 剩余子步）
+// recipe_db.h — 锻造/炼丹配方静态表（与 Kotlin 数据库同源）
 //
 // 数据来源：
 //   1. 锻造配方（forgeRecipes，72 条）——**静态字面量**，逐字复刻
@@ -41,6 +41,9 @@
 #include <string>
 #include <vector>
 
+// S5：pillFromSpec 构造 state::Pill（models.h 无反向依赖，无环）
+#include "gamecore/state/models.h"
+
 namespace gamecore::data {
 
 // ============================================================
@@ -68,7 +71,7 @@ struct PillRecipeTemplate {
     std::string name;
     int32_t tier = 0;
     int32_t rarity = 0;
-    /// 模板价（批 Y-4 补全：Kotlin `ItemDatabase.PillTemplate.price`——
+    /// 模板价（Kotlin `ItemDatabase.PillTemplate.price`——
     /// tierPrice(rarity) × gradeMultiplier ×（双属性功能/战斗丹 1.2），
     /// 商人收购/交易池 priceMap 与 basePrice 用；非远程配置编译期常量）
     int32_t price = 0;
@@ -124,10 +127,16 @@ inline int roundToInt(double v) {
 }
 
 // ============================================================
-// ItemDatabase.PillTemplate 等价复刻（仅配方所需字段）
+// ItemDatabase.PillTemplate 等价复刻（配方引用字段 + 产出字段）
 // ============================================================
 
-/// 丹药模板（对应 Kotlin `ItemDatabase.PillTemplate`，仅保留配方引用字段）
+/// 丹药模板（对应 Kotlin `ItemDatabase.PillTemplate`）
+/// 注：S4 生产结算（production.h producePill）按本表构造完整 Pill——
+/// 尾部"产出字段"块为 Kotlin createPillFromTemplate 消费面（category/
+/// pillType/rarity/duration/cannotStack/minRealm/isAscension），各生成函数
+/// 末尾补设置（默认值 = Kotlin PillTemplate 字段默认：duration=3/
+/// cannotStack=true/minRealm=9）。healMaxHpPercent/mpRecoverMaxMpPercent/
+/// revive/clearAll 在 Kotlin 全部生成函数中均未设置（默认零值），不承载。
 struct PillTemplateSpec {
     std::string id;
     std::string name;
@@ -160,6 +169,18 @@ struct PillTemplateSpec {
     int32_t teachingAdd = 0;
     int32_t moralityAdd = 0;
     int32_t miningAdd = 0;
+    // ── S4 产出字段块（尾部追加——既有聚合初始化位置不变，默认值兜底）──
+    std::string category;             // PillCategory.name
+    std::string pillType;             // Kotlin PillTemplate.pillType
+    int32_t rarity = 0;               // TIER_RARITY[tier] == tier
+    int32_t duration = 3;             // Kotlin 默认 3（速度丹 9 / 战斗丹 3 / 其余 0）
+    bool cannotStack = true;          // Kotlin 默认 true（功能/突破/加值丹 false）
+    int32_t minRealm = 9;             // Kotlin 默认 9（按 tier 设 tierMinRealm）
+    bool isAscension = false;         // 仅登仙丹 true
+    // ── S5：PillGrade（0=LOW/1=MEDIUM/2=HIGH，对应 kGradeDisplay/kGradeMultiplier
+    //    下标）——任务奖励 generateRandomPill 消费（createPillFromTemplate 的
+    //    grade 字段）；finalize 由 id 尾段（low/medium/high）解析
+    int32_t grade = 1;
 };
 
 // ── 常量表（与 Kotlin ItemDatabase 字面量逐值一致）────────────────
@@ -639,6 +660,94 @@ inline void buildDualBaseAttrPills(std::vector<PillTemplateSpec>& out) {
     }
 }
 
+/// 品阶最低境界（Kotlin GameConfig.Realm.getMinRealmForRarity——本表内自持，
+/// 避免数据层反向依赖 system 层 recruit_settlement）
+inline int32_t tierRarityMinRealm(int32_t tier) {
+    switch (tier) {
+        case 2: return 7;
+        case 3: return 6;
+        case 4: return 5;
+        case 5: return 4;
+        case 6: return 2;
+        default: return 9;  // tier 1 及越界
+    }
+}
+
+/// S4 产出字段后处理（category/pillType/rarity/duration/cannotStack/minRealm/
+/// isAscension）——Kotlin createPillFromTemplate 消费面，production.h 构造
+/// Pill 用。id 形态 "${pillType}_${tier|targetRealm}_${gradeLower}"（pillType
+/// 全集无下划线）；breakthrough 的第二段为 targetRealm，rarity 按
+/// kBreakthroughTiers tier 反查。口径 = Kotlin 各生成函数显式值 + 默认值
+/// （战斗丹 minRealm 未设 → 9；isAscension 仅登仙丹）。
+inline void finalizePillSpecOut(std::vector<PillTemplateSpec>& specs) {
+    // breakthrough id 第二段（targetRealm）→ 生成 tier（kBreakthroughTiers 逐行）
+    auto breakthroughTier = [](int32_t targetRealm) -> int32_t {
+        for (const auto& bt : kBreakthroughTiers) {
+            for (int i = 0; i < bt.targetCount; ++i) {
+                if (bt.targets[i] == targetRealm) return bt.tier;
+            }
+        }
+        return 1;
+    };
+    for (auto& s : specs) {
+        const std::size_t lastUs = s.id.rfind('_');
+        if (lastUs == std::string::npos || lastUs == 0) continue;
+        const std::size_t secondUs = s.id.rfind('_', lastUs - 1);
+        if (secondUs == std::string::npos) continue;
+        s.pillType = s.id.substr(0, secondUs);
+        {
+            const std::string g = s.id.substr(lastUs + 1);
+            s.grade = g == "high" ? 2 : g == "medium" ? 1 : 0;
+        }
+        const int32_t seg = std::atoi(s.id.substr(secondUs + 1, lastUs - secondUs - 1).c_str());
+        if (s.pillType == "breakthrough") {
+            s.category = "CULTIVATION";
+            s.rarity = breakthroughTier(seg);
+            s.duration = 0;
+            s.cannotStack = false;
+            s.minRealm = tierRarityMinRealm(s.rarity);
+            s.isAscension = s.targetRealm == 0;
+        } else if (s.pillType == "cultivationSpeed" || s.pillType == "skillExpSpeed" ||
+                   s.pillType == "nurtureSpeed") {
+            s.category = "CULTIVATION";
+            s.rarity = seg;
+            s.duration = 9;
+            s.cannotStack = true;
+            s.minRealm = tierRarityMinRealm(seg);
+        } else if (s.pillType == "cultivationAdd" || s.pillType == "skillExpAdd" ||
+                   s.pillType == "nurtureAdd") {
+            s.category = "CULTIVATION";
+            s.rarity = seg;
+            s.duration = 0;
+            s.cannotStack = false;
+            s.minRealm = tierRarityMinRealm(seg);
+        } else if (s.pillType == "physicalAttack" || s.pillType == "magicAttack" ||
+                   s.pillType == "physicalDefense" || s.pillType == "magicDefense" ||
+                   s.pillType == "hp" || s.pillType == "mp" || s.pillType == "speed" ||
+                   s.pillType == "physicalAttackDefense" || s.pillType == "magicAttackDefense" ||
+                   s.pillType == "attackMixed" || s.pillType == "defenseMixed" ||
+                   s.pillType == "hpMp" || s.pillType == "attackSpeed" ||
+                   s.pillType == "magicSpeed" || s.pillType == "critRate" ||
+                   s.pillType == "critEffect") {
+            s.category = "BATTLE";
+            s.rarity = seg;
+            s.duration = 3;
+            s.cannotStack = true;
+            // Kotlin 战斗丹 minRealm = tierRarityMinRealm(tier)
+            //（与 ItemDatabase 各战斗丹生成器逐行一致，任务奖励 battle 丹同此规则）
+            s.minRealm = tierRarityMinRealm(seg);
+        } else {
+            // 功能丹全集（extendLife + 单/双基础属性）——Kotlin 统一
+            // FUNCTIONAL / duration 0 / cannotStack false / tierMinRealm
+            s.category = "FUNCTIONAL";
+            s.rarity = seg;
+            s.duration = 0;
+            s.cannotStack = false;
+            s.minRealm = tierRarityMinRealm(seg);
+        }
+    }
+}
+
 /// 全部丹药模板（732 = 修炼 138 + 战斗 288 + 功能 306，与 Kotlin allPills 同构）
 inline std::vector<PillTemplateSpec> buildPillTemplates() {
     std::vector<PillTemplateSpec> out;
@@ -651,6 +760,7 @@ inline std::vector<PillTemplateSpec> buildPillTemplates() {
     buildExtendLifePills(out);
     buildSingleBaseAttrPills(out);
     buildDualBaseAttrPills(out);
+    finalizePillSpecOut(out);
     return out;
 }
 
@@ -669,6 +779,72 @@ inline std::optional<PillTemplateSpec> pillTemplateById(const std::string& id) {
     const auto it = kIndex.find(id);
     if (it == kIndex.end()) return std::nullopt;
     return *it->second;
+}
+
+/// PillGrade.name（kGradeDisplay 下标语义：0=LOW/1=MEDIUM/2=HIGH）
+inline const char* pillGradeName(int32_t grade) {
+    return grade == 2 ? "HIGH" : grade == 1 ? "MEDIUM" : "LOW";
+}
+
+/// 模板 → 物品丹（Kotlin ItemDatabase.createPillFromTemplate 等价——
+/// id 由调用方注入：生产域 nextItemId("gc-pill")，对拍面忽略新增条目 id）。
+/// S5 从 production.h producePill 的内联映射提取共享（单一来源防漂移）。
+inline ::gamecore::state::Pill pillFromSpec(const PillTemplateSpec& tpl,
+                                            const std::string& id) {
+    ::gamecore::state::Pill pill;
+    pill.id = id;
+    pill.name = tpl.name;
+    pill.rarity = tpl.rarity;
+    pill.description = tpl.description;
+    pill.category = tpl.category;
+    pill.grade = pillGradeName(tpl.grade);
+    pill.pillType = tpl.pillType;
+    auto& e = pill.effects;
+    e.breakthroughChance = tpl.breakthroughChance;
+    e.targetRealm = tpl.targetRealm;
+    e.isAscension = tpl.isAscension;
+    e.cultivationSpeedPercent = tpl.cultivationSpeedPercent;
+    e.skillExpSpeedPercent = tpl.skillExpSpeedPercent;
+    e.nurtureSpeedPercent = tpl.nurtureSpeedPercent;
+    e.cultivationAdd = tpl.cultivationAdd;
+    e.skillExpAdd = tpl.skillExpAdd;
+    e.nurtureAdd = tpl.nurtureAdd;
+    e.duration = tpl.duration;
+    e.cannotStack = tpl.cannotStack;
+    e.physicalAttackAdd = tpl.physicalAttackAdd;
+    e.magicAttackAdd = tpl.magicAttackAdd;
+    e.physicalDefenseAdd = tpl.physicalDefenseAdd;
+    e.magicDefenseAdd = tpl.magicDefenseAdd;
+    e.hpAdd = tpl.hpAdd;
+    e.mpAdd = tpl.mpAdd;
+    e.speedAdd = tpl.speedAdd;
+    e.critRateAdd = tpl.critRateAdd;
+    e.critEffectAdd = tpl.critEffectAdd;
+    e.extendLife = tpl.extendLife;
+    e.intelligenceAdd = tpl.intelligenceAdd;
+    e.charmAdd = tpl.charmAdd;
+    e.loyaltyAdd = tpl.loyaltyAdd;
+    e.comprehensionAdd = tpl.comprehensionAdd;
+    e.artifactRefiningAdd = tpl.artifactRefiningAdd;
+    e.pillRefiningAdd = tpl.pillRefiningAdd;
+    e.spiritPlantingAdd = tpl.spiritPlantingAdd;
+    e.teachingAdd = tpl.teachingAdd;
+    e.moralityAdd = tpl.moralityAdd;
+    e.miningAdd = tpl.miningAdd;
+    pill.minRealm = tpl.minRealm;
+    pill.quantity = 1;
+    return pill;
+}
+
+/// 品阶区间过滤模板表（Kotlin `allPills.values.filter { it.rarity in min..max }`
+/// 等价——pillTemplates() 生成序 = Kotlin allPills 插入序，随机索引逐位一致）。
+inline std::vector<const PillTemplateSpec*> pillTemplatesByRarityRange(int32_t minRarity,
+                                                                       int32_t maxRarity) {
+    std::vector<const PillTemplateSpec*> out;
+    for (const auto& t : pillTemplates()) {
+        if (t.rarity >= minRarity && t.rarity <= maxRarity) out.push_back(&t);
+    }
+    return out;
 }
 
 // ============================================================

@@ -18,6 +18,26 @@ import org.junit.Test
 
 class CaveExplorationProcessorTest {
 
+    /**
+     * AI 随机源注入（**必须**）。
+     *
+     * [com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager] 是进程级
+     * `object`，随机源解析为注入的 `GameRngManager`（R5：禁止自建随机源）。年度招募
+     * 路径会生成 AI 弟子 ⇒ 不注入会解析到其他测试类残留的实例并抛 NPE（跨类顺序
+     * 相关 flaky）。固定种子实例同时保证生成结果确定可复现。
+     */
+    @org.junit.Before
+    fun setUpAiRng() {
+        com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager.initialize(
+            com.xianxia.sect.core.util.GameRngManager().also { it.initSystemSeed(AI_RNG_SEED) }
+        )
+    }
+
+    @org.junit.After
+    fun tearDownAiRng() {
+        com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager.resetManagerForTest()
+    }
+
     // ── buildDefenseBattleEnemies 测试 ──
 
     @Test
@@ -141,9 +161,8 @@ class CaveExplorationProcessorTest {
     }
 
     // ── 年变单事务内快照覆写回归测试 ──
-    // 背景：年变事件单事务化后，processSectDisciplesYearlyRecruitment 曾读已提交
-    // 快照（stateStore.gameData.value）覆盖事务 buffer，导致 refreshRecruitList
-    // 追加的新弟子丢失（招募列表每3年不刷新）。修复后必须基于 buffer 读写。
+    // 年变事件单事务内必须基于事务 buffer 读写（禁止读已提交快照覆盖 buffer），
+    // 否则 refreshRecruitList 追加的新弟子丢失（招募列表每3年不刷新）。
 
     private val processor: CaveExplorationProcessor by lazy { createProcessor() }
 
@@ -273,5 +292,10 @@ class CaveExplorationProcessorTest {
             realm = realm,
             isAlive = isAlive
         )
+    }
+
+    private companion object {
+        /** 本类 AI 流固定种子（消除跨类顺序依赖；年度招募生成确定可复现） */
+        const val AI_RNG_SEED = 20260914L
     }
 }

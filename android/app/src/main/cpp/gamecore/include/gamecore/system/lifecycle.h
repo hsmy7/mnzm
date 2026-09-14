@@ -11,7 +11,7 @@
 #include "gamecore/system/disciple.h"
 
 // ============================================================
-// 弟子生命周期（Kotlin→C++ 迁移批次 5d）
+// 弟子生命周期
 //
 // 等价移植 Kotlin DiscipleAgePolicy.computeMaxAge +
 // DiscipleLifecycleProcessor.computeAgedDeathData / applyAliveUpdates 的
@@ -25,7 +25,7 @@
 // 与 Kotlin 语义对齐要点：
 //   - (realmMaxAge × (1+bonus)).toInt() 截断；coerceAtLeast(1)
 //   - lifespanBonus = 天赋 effects["lifespan"] + 词条 effects["lifespan"]
-//     （由调用方传入已合并的效果 map——Talent/Affix Registry 批次 2 补齐后接线）
+//     （由调用方传入已合并的效果 map——天赋/词条 lifespan 效果聚合）
 // ============================================================
 namespace gamecore::system {
 

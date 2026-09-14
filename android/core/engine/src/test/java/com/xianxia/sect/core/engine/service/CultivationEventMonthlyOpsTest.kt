@@ -26,7 +26,7 @@ import javax.inject.Provider
 /**
  * runSectRecruitmentIfDue（AI 宗门弟子三年一度招募差值判据）单元测试。
  *
- * 背景：AI 宗门弟子招募由"每年 0~6 名"改为"每 3 年 1~5 名"（2026-08-06）。
+ * AI 宗门弟子招募节奏：每 3 年 1~5 名。
  * 采用差值判据（非模运算）：老存档/跨版本相位漂移自愈；招募失败时
  * lastAiSectRecruitYear 不更新，次年自动重试（与 refreshRecruitList 同款语义）。
  */
@@ -228,7 +228,7 @@ class CultivationEventMonthlyOpsTest {
         )
         // 原相对序（autoReject 为 object 静态方法，跳过 verify）：
         // #1 → #2 → #3 → #5 → #6(autoReject) → #7 → #8 → #9 → #11 → #20 → #18
-        //（2026-08-11 归属修复：autoBuy #18 移至年报快照 #20 之后，新年 1 月购买计入新年）
+        //（autoBuy 在年报快照之后执行：新年 1 月购买计入新年）
         inOrder.verify(h.vassalService).processYearlyTribute()
         inOrder.verify(h.vassalService).processYearlyVassalTribute(2026)
         inOrder.verify(h.discipleLifecycleProcessor).processDiscipleAging(2026)

@@ -20,12 +20,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * HP/MP 列直读 vs 对象式等价性守卫（2026-08-01 每旬热点列直读）。
+ * HP/MP 列直读 vs 对象式等价性守卫（每旬热点路径）。
  *
- * 修复前：每旬 HP/MP 恢复路径对每个弟子全量 assemble + getFinalStats（~90 列读取
- * + 10 个嵌套对象），与文档声称的"列直读消除每旬 assemble"不符。
- * 本测试守卫列版 [HpMpRecoveryService.recoverHpMpSingleColumn] 与对象版
- * [recoverHpMpSingle] 恢复后的 currentHps/currentMps 完全相等（Int 精确相等）。
+ * 列版 [HpMpRecoveryService.recoverHpMpSingleColumn] 消除每旬热点路径的
+ * 全量 assemble + getFinalStats（~90 列读取 + 10 个嵌套对象）。
+ * 本测试守卫列版与对象版 [recoverHpMpSingle] 恢复后的 currentHps/currentMps
+ * 完全相等（Int 精确相等）。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -187,7 +187,8 @@ class HpMpRecoveryEquivalenceTest {
         val manual = ManualInstance(id = "m1", name = "御剑诀", rarity = 3, type = ManualType.ATTACK,
             stats = mapOf("hp" to 200, "mp" to 100))
         for (mastery in listOf(0, 50, 100)) {
-            val prof = ManualProficiencyData(manualId = "m1", proficiency = mastery.toDouble(), masteryLevel = mastery / 20)
+            val prof = ManualProficiencyData(manualId = "m1", proficiency = mastery.toDouble(),
+                masteryLevel = mastery / 20)
             assertEquivalence(
                 manuals = listOf(manual),
                 proficiencies = mapOf("1" to listOf(prof)),
@@ -209,7 +210,7 @@ class HpMpRecoveryEquivalenceTest {
 
     @Test
     fun `等价性 - 血炼加成`() {
-        // 2026-08-06 P2：血炼百分比进入恢复上限后，列直读与对象版仍须精确相等
+        // 血炼百分比进入恢复上限后，列直读与对象版仍须精确相等
         val bloodRefinement = mapOf(
             "1" to BloodRefinementPctTotal(
                 discipleId = "1",

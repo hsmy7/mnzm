@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.getPermanentBaseStats
 
 class SectCombatPowerCalculatorTest {
 
@@ -118,7 +119,7 @@ class SectCombatPowerCalculatorTest {
         assertEquals("相同境界/层数的弟子指纹应相同（装备不影响）", fp1, fp2)
     }
 
-    // ========== 宗门总战力（原 AI calculatePowerScore 迁移） ==========
+    // ========== 宗门总战力 ==========
 
     @Test
     fun `calculateSectPower - 空列表返回0`() {

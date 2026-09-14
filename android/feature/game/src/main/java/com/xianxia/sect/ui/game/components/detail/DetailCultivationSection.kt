@@ -111,8 +111,7 @@ private const val MASTER_TEACHING_MIN = 60
 private const val MASTER_TEACHING_RATE = 0.001
 private const val MASTER_TEACHING_CAP = 0.05
 
-/** 单个长老/师父的讲经加成（calculatePreachingBonusesForDisplay 拆分）：境界达标且教学达标才计 */
-// 拆分搬移:多出口与原函数一致
+/** 单个长老/师父的讲经加成：境界达标且教学达标才计 */
 @Suppress("ReturnCount")
 private fun teachingBonus(
     elderId: String,
@@ -177,7 +176,7 @@ fun HpMpBars(
     }
 }
 
-/** 单条气血/灵力条（HpMpBars 拆分）：标签 + 进度条 + 数值 */
+/** 单条气血/灵力条：标签 + 进度条 + 数值 */
 @Composable
 private fun RowScope.HpMpBarColumn(
     label: String,
@@ -286,7 +285,7 @@ fun BreakthroughDetailDialog(
     }
 }
 
-/** 突破率明细条目（BreakthroughDetailDialog 拆分） */
+/** 突破率明细条目 */
 private fun breakthroughDetailItems(
     detail: DiscipleStatCalculator.BreakthroughBonusDetail
 ): List<Pair<String, Double>> = buildList {
@@ -303,7 +302,7 @@ private fun breakthroughDetailItems(
     if (detail.lifespanPenalty > 0) add("寿元将尽" to -detail.lifespanPenalty)
 }
 
-/** 突破率详情标题行（BreakthroughDetailDialog 拆分） */
+/** 突破率详情标题行 */
 @Composable
 private fun BreakthroughDetailHeader(onDismiss: () -> Unit) {
     Row(
@@ -321,7 +320,7 @@ private fun BreakthroughDetailHeader(onDismiss: () -> Unit) {
     }
 }
 
-/** 突破率加成网格（BreakthroughDetailDialog 拆分）：按可用宽度分列 */
+/** 突破率加成网格：按可用宽度分列 */
 @Composable
 private fun BreakthroughBonusGrid(
     items: List<Pair<String, Double>>,
@@ -359,7 +358,7 @@ private fun BreakthroughBonusGrid(
     }
 }
 
-/** 突破率汇总 + 公式行（BreakthroughDetailDialog 拆分） */
+/** 突破率汇总 + 公式行 */
 @Composable
 private fun BreakthroughSummary(detail: DiscipleStatCalculator.BreakthroughBonusDetail) {
     Text(

@@ -136,7 +136,7 @@ class ManualProficiencySystemTest {
 
     @Test
     fun `calculateProficiencyGainPerPhase - 无加成基准`() {
-        // 2026-08-12 悟性重设计：悟性唯一作用改为突破率，熟练度不再受悟性影响
+        // 悟性唯一作用于突破率，熟练度不受悟性影响
         val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase()
         assertEquals(12.0, gain, 0.01)  // 6.0/s × 2.0s/旬
     }

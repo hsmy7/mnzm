@@ -11,9 +11,9 @@ import org.robolectric.RobolectricTestRunner
 /**
  * COW deepCopy 性能冒烟基准（非严格基准，宽松上限防 CI 抖动）。
  *
- * 重构前：每次 deepCopy 约 100 列 × 100 行逐元素 putTo ≈ 10,000 次 SparseArray 写入。
- * 重构后：O(1)/列 共享 + 仅写 3 列私有化。
- * 通过 println 输出纳秒/次供人工对比（保存重构前的基准数据）。
+ * 当前性能特征：deepCopy 为 O(1)/列 共享，仅事务中实际写入的列
+ * （本测试场景为 3 列）触发私有化复制；逐元素复制仅作为兜底路径存在。
+ * 通过 println 输出纳秒/次供人工对比。
  */
 @RunWith(RobolectricTestRunner::class)
 class DiscipleTablesPerfSmokeTest {

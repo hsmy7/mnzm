@@ -119,7 +119,7 @@ class CustomVelocityTrackerTest {
         // 速度 v(t) = 50 + 10*t
         // 在 t=2 时: v_x = 70 px/s
         var t = 0L
-        for (i in 0 until 5) {
+        repeat(5) {
             val tx = 10.0 + 50.0 * (t / 1e9) + 5.0 * (t / 1e9) * (t / 1e9)
             tracker.addPosition(tx.toFloat(), 0f, t)
             t += 500_000_000L  // 每 0.5 秒
@@ -135,7 +135,7 @@ class CustomVelocityTrackerTest {
         // 匀减速: x(t) = 200 - 10*t², v(t) = -20*t
         // 在 t=2 时: v_x = -40 px/s
         var t = 0L
-        for (i in 0 until 5) {
+        repeat(5) {
             val tx = 200.0 - 10.0 * (t / 1e9) * (t / 1e9)
             tracker.addPosition(tx.toFloat(), 0f, t)
             t += 500_000_000L

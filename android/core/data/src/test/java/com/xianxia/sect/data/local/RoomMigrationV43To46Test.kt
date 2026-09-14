@@ -16,8 +16,8 @@ import java.io.File
 /**
  * 迁移 43→46 测试（v44 职业 4 列 / v45 探索队表删除 / v46 资质列）。
  *
- * 2026-08-12 拆分自 [RoomMigrationTest]（单文件 2000 行上限），
- * 与母文件共享 createDatabaseFromSchema/columnExists 模式，独立文件保持内聚。
+ * 与 [RoomMigrationTest] 共享 createDatabaseFromSchema/columnExists 模式，
+ * 独立文件保持内聚。
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -36,6 +36,7 @@ class RoomMigrationV43To46Test {
         private val M46_47 = MIGRATION_46_47
         private val M47_48 = MIGRATION_47_48
         private val M48_49 = MIGRATION_48_49
+        private val M49_50 = MIGRATION_49_50
 
         /** v44 新增的弟子职业 4 列（disciples 与 disciples_attributes 两表共用） */
         private val PROFESSION_COLUMNS = listOf(
@@ -44,61 +45,266 @@ class RoomMigrationV43To46Test {
 
         // v43 种子行（disciples 表 101 列，列清单与 affinity 来自 43.json；isAlive=1 便于断言存活）
         private val SEED_DISCIPLES_V43 = """
-            INSERT INTO disciples (
-                    id,                     slot_id,                     name,                     surname,
-                    realm,                     realmLayer,                     cultivation,                     cultivationCheckpoint,
-                    cultivationCheckpointGameMonth,                     spiritRootType,                     age,                     lifespan,
-                    isAlive,                     gender,                     portraitRes,                     manualIds,
-                    talentIds,                     physiqueIds,                     affixIds,                     manualMasteries,
-                    status,                     statusData,                     cultivationSpeedBonus,                     cultivationSpeedDuration,
-                    discipleType,                     soulPower,                     cultivationCompletionMonth,                     cultivationCompletionPhase,
-                    manualCompletionMonth,                     manualCompletionPhase,                     equipmentNurturingCompletionMonth,                     equipmentNurturingCompletionPhase,
-                    baseHp,                     baseMp,                     basePhysicalAttack,                     baseMagicAttack,
-                    basePhysicalDefense,                     baseMagicDefense,                     baseSpeed,                     hpVariance,
-                    mpVariance,                     physicalAttackVariance,                     magicAttackVariance,                     physicalDefenseVariance,
-                    magicDefenseVariance,                     speedVariance,                     totalCultivation,                     breakthroughCount,
-                    breakthroughFailCount,                     currentHp,                     currentMp,                     pillPhysicalAttackBonus,
-                    pillMagicAttackBonus,                     pillPhysicalDefenseBonus,                     pillMagicDefenseBonus,                     pillHpBonus,
-                    pillMpBonus,                     pillSpeedBonus,                     pillCritRateBonus,                     pillCritEffectBonus,
-                    pillCultivationSpeedBonus,                     pillSkillExpSpeedBonus,                     pillNurtureSpeedBonus,                     pillEffectDuration,
-                    activePillCategory,                     weaponId,                     armorId,                     bootsId,
-                    accessoryId,                     weaponNurture,                     armorNurture,                     bootsNurture,
-                    accessoryNurture,                     storageBagItems,                     storageBagSpiritStones,                     spiritStones,
-                    social_partnerId,                     social_partnerSectId,                     social_parentId1,                     social_parentId2,
-                    social_lastChildYear,                     social_childBirthMonth,                     social_griefEndYear,                     social_masterId,
-                    intelligence,                     charm,                     loyalty,                     comprehension,
-                    artifactRefining,                     pillRefining,                     spiritPlanting,                     mining,
-                    teaching,                     morality,                     salaryPaidCount,                     salaryMissedCount,
-                    usage_usedFunctionalPillTypes,                     usage_usedExtendLifePillIds,                     usage_recruitedMonth,                     usage_hasReviveEffect,
+
+                    INSERT INTO disciples (
+
+                    id,
+                    slot_id,
+                    name,
+                    surname,
+
+                    realm,
+                    realmLayer,
+                    cultivation,
+                    cultivationCheckpoint,
+
+                    cultivationCheckpointGameMonth,
+                    spiritRootType,
+                    age,
+                    lifespan,
+
+                    isAlive,
+                    gender,
+                    portraitRes,
+                    manualIds,
+
+                    talentIds,
+                    physiqueIds,
+                    affixIds,
+                    manualMasteries,
+
+                    status,
+                    statusData,
+                    cultivationSpeedBonus,
+                    cultivationSpeedDuration,
+
+                    discipleType,
+                    soulPower,
+                    cultivationCompletionMonth,
+                    cultivationCompletionPhase,
+
+                    manualCompletionMonth,
+                    manualCompletionPhase,
+                    equipmentNurturingCompletionMonth,
+                    equipmentNurturingCompletionPhase,
+
+                    baseHp,
+                    baseMp,
+                    basePhysicalAttack,
+                    baseMagicAttack,
+
+                    basePhysicalDefense,
+                    baseMagicDefense,
+                    baseSpeed,
+                    hpVariance,
+
+                    mpVariance,
+                    physicalAttackVariance,
+                    magicAttackVariance,
+                    physicalDefenseVariance,
+
+                    magicDefenseVariance,
+                    speedVariance,
+                    totalCultivation,
+                    breakthroughCount,
+
+                    breakthroughFailCount,
+                    currentHp,
+                    currentMp,
+                    pillPhysicalAttackBonus,
+
+                    pillMagicAttackBonus,
+                    pillPhysicalDefenseBonus,
+                    pillMagicDefenseBonus,
+                    pillHpBonus,
+
+                    pillMpBonus,
+                    pillSpeedBonus,
+                    pillCritRateBonus,
+                    pillCritEffectBonus,
+
+                    pillCultivationSpeedBonus,
+                    pillSkillExpSpeedBonus,
+                    pillNurtureSpeedBonus,
+                    pillEffectDuration,
+
+                    activePillCategory,
+                    weaponId,
+                    armorId,
+                    bootsId,
+
+                    accessoryId,
+                    weaponNurture,
+                    armorNurture,
+                    bootsNurture,
+
+                    accessoryNurture,
+                    storageBagItems,
+                    storageBagSpiritStones,
+                    spiritStones,
+
+                    social_partnerId,
+                    social_partnerSectId,
+                    social_parentId1,
+                    social_parentId2,
+
+                    social_lastChildYear,
+                    social_childBirthMonth,
+                    social_griefEndYear,
+                    social_masterId,
+
+                    intelligence,
+                    charm,
+                    loyalty,
+                    comprehension,
+
+                    artifactRefining,
+                    pillRefining,
+                    spiritPlanting,
+                    mining,
+
+                    teaching,
+                    morality,
+                    salaryPaidCount,
+                    salaryMissedCount,
+
+                    usage_usedFunctionalPillTypes,
+                    usage_usedExtendLifePillIds,
+                    usage_recruitedMonth,
+                    usage_hasReviveEffect,
+
                     usage_hasClearAllEffect
-                ) VALUES (
-                    'd1',                     1,                     '测试弟子',                     '',
-                    0,                     0,                     0.0,                     0.0,
-                    0,                     '',                     0,                     0,
-                    1,                     '',                     '',                     '',
-                    '',                     '',                     '',                     '',
-                    '',                     '',                     0.0,                     0,
-                    '',                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0.0,                     0.0,
-                    0.0,                     0.0,                     0.0,                     0,
-                    '',                     '',                     '',                     '',
-                    '',                     '',                     '',                     '',
-                    '',                     '',                     0,                     0,
-                    '',                     '',                     '',                     '',
-                    0,                     0,                     0,                     '',
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    0,                     0,                     0,                     0,
-                    '',                     '',                     0,                     0,
+
+                    ) VALUES (
+
+                    'd1',
+                    1,
+                    '测试弟子',
+                    '',
+
+                    0,
+                    0,
+                    0.0,
+                    0.0,
+
+                    0,
+                    '',
+                    0,
+                    0,
+
+                    1,
+                    '',
+                    '',
+                    '',
+
+                    '',
+                    '',
+                    '',
+                    '',
+
+                    '',
+                    '',
+                    0.0,
+                    0,
+
+                    '',
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0.0,
+                    0.0,
+
+                    0.0,
+                    0.0,
+                    0.0,
+                    0,
+
+                    '',
+                    '',
+                    '',
+                    '',
+
+                    '',
+                    '',
+                    '',
+                    '',
+
+                    '',
+                    '',
+                    0,
+                    0,
+
+                    '',
+                    '',
+                    '',
+                    '',
+
+                    0,
+                    0,
+                    0,
+                    '',
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    0,
+                    0,
+                    0,
+                    0,
+
+                    '',
+                    '',
+                    0,
+                    0,
+
                     0
-                )
+
+                    )
         """.trimIndent()
 
         /** v44 种子行：v43 基础上补职业 4 列（alchemyLevel 等 NOT NULL 无默认值） */
@@ -107,23 +313,37 @@ class RoomMigrationV43To46Test {
                 "usage_hasClearAllEffect\n",
                 "alchemyLevel, alchemyPromotionCount, forgeLevel, forgePromotionCount, usage_hasClearAllEffect\n"
             )
+            // 值区末尾补 4 个职业值：锚点为 trimIndent 后的顶格收尾形状（最后值 0 与 ")"）。
+            // 勿改回带缩进的匹配模式——种子 raw string 经 trimIndent 后各行顶格，缩进锚必失配
+            // （失配症状：V44 种子用例红，INSERT 报 "101 values for 105 columns"）。
             .replace(
-                "\n        0\n    )",
-                "\n        0,                     0,                     0,                     0,\n        0\n    )"
+                "\n\n0\n\n)",
+                "\n\n0, 0, 0, 0, 0\n\n)"
             )
 
         private val SEED_DISCIPLES_ATTRIBUTES_V43 = """
-            INSERT INTO disciples_attributes (
+
+                    INSERT INTO disciples_attributes (
+
                     discipleId, slot_id, intelligence, charm,
+
                     loyalty, comprehension, artifactRefining, pillRefining,
+
                     spiritPlanting, mining, teaching, morality,
+
                     salaryPaidCount, salaryMissedCount
-                ) VALUES (
+
+                    ) VALUES (
+
                     'd1', 1, 10, 20,
+
                     30, 40, 50, 60,
+
                     70, 80, 90, 100,
+
                     2, 3
-                )
+
+                    )
         """.trimIndent()
 
         /** v45 种子行：v43 基础上补职业 4 列（v44 起 attributes 表职业列 NOT NULL 无默认值） */
@@ -153,7 +373,7 @@ class RoomMigrationV43To46Test {
         try {
             createDatabaseFromSchema(context, dbName, 43).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M43_44, M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -210,7 +430,7 @@ class RoomMigrationV43To46Test {
         try {
             createDatabaseFromSchema(context, dbName, 44).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M44_45, M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -231,19 +451,32 @@ class RoomMigrationV43To46Test {
             // v44 库含 exploration_teams 表（世界地图探索队，已下线）——seed 一行验证删除
             db.execSQL(
                 """
-                INSERT INTO exploration_teams (
+
+                    INSERT INTO exploration_teams (
+
                     id, slot_id, name, caveName, dungeon, dungeonName, memberIds, memberNames,
+
                     startYear, startMonth, startDay, duration, status, progress, scoutTargetSectName,
+
                     currentX, currentY, targetX, targetY, moveProgress, arrivalYear, arrivalMonth,
+
                     arrivalDay, route, currentRouteIndex, currentSegmentProgress,
+
                     pityCounterEquipment, pityCounterPill, pityCounterManual
-                ) VALUES (
+
+                    ) VALUES (
+
                     't1', 1, '探索队', '', '', '', '["d1"]', '["弟子1"]',
+
                     2026, 1, 1, 30, 'EXPLORING', 50, '',
+
                     0.0, 0.0, 0.0, 0.0, 0.5, 2026, 2,
+
                     1, '[]', 0, 0.0,
+
                     0, 0, 0
-                )
+
+                    )
                 """
             )
             // 手动执行迁移 SQL（真实 Room 校验由上一测试覆盖）
@@ -280,7 +513,7 @@ class RoomMigrationV43To46Test {
         try {
             createDatabaseFromSchema(context, dbName, 45).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()

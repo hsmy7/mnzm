@@ -1,7 +1,7 @@
 package com.xianxia.sect.ui.game.sect
 
 /**
- * GPU OpenGL ES 渲染后端适配器（2026-09 GPU GLES 中间层）。
+ * GPU OpenGL ES 渲染后端适配器（GPU GLES 中间层）。
  *
  * ## 与 [VulkanRenderBackend] 的关系
  * 两者都经 NativeBridge 的 **Rhi 虚函数** 渲染同一份 [com.xianxia.sect.core.render.RenderFrame]

@@ -28,7 +28,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffSectDiplomacyTest — 外交/宗门决策跨语言差分对拍（计划 v2 阶段 4 / 批 4-4）。
+ * DiffSectDiplomacyTest — 外交/宗门决策跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::sect_decision / sect_power / rarity_progression /
  * sect_trade 与 Kotlin IntelligentSectDecisionEngine / SectCombatPowerCalculator /

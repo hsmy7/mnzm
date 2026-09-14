@@ -15,8 +15,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.RewardCardItem
-import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.game.dialogs.heavenlytrial.beginCombat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +30,8 @@ class HeavenlyTrialViewModel @Inject constructor(
     private val gameEngine: GameEngine,
     private val battleSystem: BattleSystem,
     val trialService: HeavenlyTrialService,
-    private val rngManager: GameRngManager
+    /** 表现类随机源（天劫对手立绘选择等——不写状态，见 [PresentationRandom] KDoc） */
+    val presentationRandom: PresentationRandom
 ) : BaseViewModel() {
 
     private val _currentScreen = MutableStateFlow<Screen>(Screen.Panel)
@@ -84,9 +84,13 @@ class HeavenlyTrialViewModel @Inject constructor(
     }
 
     fun startCombat(disciples: List<DiscipleAggregate>) {
-        // UI 模拟专用本地 PRNG：仅此一次消费全局 BATTLE 分区种子，
-        // 战斗全程模拟（动画逐回合 + 即时结算）使用本地实例，不污染全局确定性序列
-        beginCombat(rngManager.getRng(RngPartition.BATTLE).nextLong())
+        // UI 模拟专用本地 PRNG：战斗全程模拟（动画逐回合 + 即时结算）使用本地
+        // 实例，不污染全局确定性序列。种子派生（关卡/阶段参数混入时间熵），
+        // **不消费全局 BATTLE 分区**——UI 模拟不得触碰全局确定性分区，
+        // 否则形成跨线程竞争点。
+        // 该种子仅影响本地模拟表现；通关结果经 onCombatFinished 走引擎侧记录，
+        // 与对拍确定性无关。
+        beginCombat(deriveTrialSeed())
         val enemies = trialService.getEnemiesForPhase(selectedLevelIndex, selectedPhaseIndex)
         val equipMap = gameEngine.equipmentInstances.value.associateBy { it.id }
         val manualMap = gameEngine.manualInstances.value.associateBy { it.id }
@@ -107,6 +111,10 @@ class HeavenlyTrialViewModel @Inject constructor(
         enemyCombatants = enemies
         _currentScreen.value = Screen.Combat(selectedLevelIndex, selectedPhaseIndex)
     }
+
+    /** 试炼战斗模拟种子：关卡/阶段参数混入时间熵，避免同关重复序列（UI 表现层，无需对拍确定性） */
+    private fun deriveTrialSeed(): Long =
+        (selectedLevelIndex.toLong() * 31 + selectedPhaseIndex) * 1_000_003L + System.nanoTime()
 
     fun onCombatFinished(won: Boolean) {
         if (won) {
@@ -136,7 +144,7 @@ class HeavenlyTrialViewModel @Inject constructor(
 
     fun dismiss() {
         _currentScreen.value = Screen.Panel
-        // 对抗性审查：Activity 重建后 ViewModel 级弹窗状态残留，
+        // Activity 重建后 ViewModel 级弹窗状态残留，
         // 重开界面时旧胜利弹窗立即弹出可被用于零战斗刷通关记录；
         // 退出挑战统一复位弹窗状态（result 弹窗/通关奖励弹窗）
         showResult = false

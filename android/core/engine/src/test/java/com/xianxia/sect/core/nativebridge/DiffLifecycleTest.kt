@@ -10,7 +10,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffLifecycleTest — 弟子生命周期跨语言差分对拍（批次 5d 验收核心）。
+ * DiffLifecycleTest — 弟子生命周期跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::lifecycle（最大寿元/老化判定/5岁回正）与
  * Kotlin DiscipleAgePolicy.computeMaxAge + DiscipleLifecycleProcessor 老化逻辑

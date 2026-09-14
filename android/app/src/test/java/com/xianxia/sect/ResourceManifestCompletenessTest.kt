@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * 清单完整性守卫（2026-08-13 资源管线 codegen）。
+ * 清单完整性守卫（资源管线 codegen）。
  *
  * 遍历 feature/game 与 app 两个 drawable-nodpi 目录，断言 atlas-manifest.json
  * 完整登记了每个资源（双模块同名副本 = 同一资源，按名称去重）。

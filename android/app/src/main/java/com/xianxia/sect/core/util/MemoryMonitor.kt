@@ -5,9 +5,6 @@ import android.content.Context
 import android.os.Debug
 import android.util.Log
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -25,18 +22,13 @@ class MemoryMonitor @Inject constructor(
         private const val DEFAULT_MONITOR_INTERVAL_MS = 30_000L
         private const val MEMORY_WARNING_THRESHOLD = 0.85
         private const val MEMORY_CRITICAL_THRESHOLD = 0.95
-        private const val MEMORY_LOG_THRESHOLD = 0.70
     }
     
-    private var monitorJob: Job? = null
     @Volatile private var context: Context? = null
     @Volatile private var activityManager: ActivityManager? = null
     
     private val memoryHistory = mutableListOf<MemorySnapshot>()
-    private val maxHistorySize = 100
     
-    private var lastMemoryWarningTime = 0L
-    private val warningCooldownMs = 60_000L
     
     private val listeners = CopyOnWriteArrayList<MemoryEventListener>()
     private val scope get() = applicationScopeProvider.scope
@@ -69,12 +61,15 @@ class MemoryMonitor @Inject constructor(
         fun onMemorySnapshot(snapshot: MemorySnapshot)
     }
     
+    @Suppress("UnusedParameter") // intervalMs: 监控 API 兼容形参（调度器接管后保留调用契约）
     fun initialize(context: Context) {
         this.context = context.applicationContext
         this.activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        Log.i(TAG, "MemoryMonitor initialized. Memory class: ${activityManager?.memoryClass}MB, Large memory class: ${activityManager?.largeMemoryClass}MB")
+        Log.i(TAG, "MemoryMonitor initialized. Memory class: ${activityManager?.memoryClass}MB, " +
+            "Large memory class: ${activityManager?.largeMemoryClass}MB")
     }
     
+    @Suppress("UnusedParameter") // intervalMs: 监控 API 兼容形参（调度器接管后保留调用契约）
     fun startMonitoring(intervalMs: Long = DEFAULT_MONITOR_INTERVAL_MS) {
         Log.d(TAG, "Memory monitoring start (delegated to scheduler)")
     }
@@ -144,44 +139,6 @@ class MemoryMonitor @Inject constructor(
         )
     }
     
-    private fun processMemorySnapshot(snapshot: MemorySnapshot) {
-        synchronized(memoryHistory) {
-            memoryHistory.add(snapshot)
-            if (memoryHistory.size > maxHistorySize) {
-                memoryHistory.removeAt(0)
-            }
-        }
-        
-        val info = MemoryInfo(
-            totalMemory = snapshot.totalMemory,
-            availableMemory = snapshot.availableMemory,
-            usedMemory = snapshot.usedMemory,
-            usedPercent = snapshot.usedPercent,
-            isLowMemory = snapshot.isLowMemory,
-            isWarning = snapshot.usedPercent >= MEMORY_WARNING_THRESHOLD,
-            isCritical = snapshot.usedPercent >= MEMORY_CRITICAL_THRESHOLD
-        )
-        
-        val currentTime = System.currentTimeMillis()
-        
-        if (info.isCritical) {
-            Log.e(TAG, "CRITICAL MEMORY: Used ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
-            if (currentTime - lastMemoryWarningTime > warningCooldownMs) {
-                lastMemoryWarningTime = currentTime
-                notifyListeners { it.onMemoryCritical(info) }
-            }
-        } else if (info.isWarning) {
-            Log.w(TAG, "MEMORY WARNING: Used ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
-            if (currentTime - lastMemoryWarningTime > warningCooldownMs) {
-                lastMemoryWarningTime = currentTime
-                notifyListeners { it.onMemoryWarning(info) }
-            }
-        } else if (snapshot.usedPercent >= MEMORY_LOG_THRESHOLD) {
-            Log.d(TAG, "Memory usage: ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
-        }
-        
-        notifyListeners { it.onMemorySnapshot(snapshot) }
-    }
     
     fun getMemoryHistory(): List<MemorySnapshot> {
         return synchronized(memoryHistory) {
@@ -191,13 +148,16 @@ class MemoryMonitor @Inject constructor(
     
     fun logMemoryStatus(tag: String = TAG) {
         val info = getCurrentMemoryInfo() ?: return
-        
+
         val runtime = Runtime.getRuntime()
         val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        
+        val dalvikUsed = MemoryFormatUtil.formatMemory(info.usedMemory)
+        val dalvikMax = MemoryFormatUtil.formatMemory(runtime.maxMemory())
+        val usedPercentText = String.format(Locale.US, "%.1f", info.usedPercent * 100)
+
         Log.i(tag, """
             |=== Memory Status at ${dateFormat.format(Date())} ===
-            |Dalvik Heap: ${MemoryFormatUtil.formatMemory(info.usedMemory)} / ${MemoryFormatUtil.formatMemory(runtime.maxMemory())} (${String.format("%.1f", info.usedPercent * 100)}%)
+            |Dalvik Heap: $dalvikUsed / $dalvikMax ($usedPercentText%)
             |Native Heap: ${MemoryFormatUtil.formatMemory(Debug.getNativeHeapAllocatedSize())}
             |System Available: ${MemoryFormatUtil.formatMemory(info.availableMemory)}
             |Low Memory: ${info.isLowMemory}
@@ -245,17 +205,6 @@ class MemoryMonitor @Inject constructor(
         return info.usedPercent >= MEMORY_WARNING_THRESHOLD
     }
     
-    private fun notifyListeners(action: (MemoryEventListener) -> Unit) {
-        scope.launch(Dispatchers.Main) {
-            listeners.forEach { listener ->
-                try {
-                    action(listener)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error notifying listener", e)
-                }
-            }
-        }
-    }
     
     fun cleanup() {
         stopMonitoring()

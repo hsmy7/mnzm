@@ -29,6 +29,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 import { ensureManifest } from './resource-manifest.mjs';
 
@@ -81,7 +82,44 @@ function listDirFiles(dir) {
   return s;
 }
 
-function fileExists(rel) { return fs.existsSync(path.join(SOURCE_DIR, rel)); }
+/**
+ * 不可用源图集合（相对 SOURCE_DIR 的路径）：文件缺失之外的**内容级**故障——
+ * 损坏/全零/非图片容器。登记为待补（source=null）而非映射，避免 import 阶段
+ * fail-fast 卡住整条管线；美术重新导出后本集合自然为空，映射自动恢复。
+ */
+const unusableSources = new Set();
+
+/** sharp 探测源图是否可解码（损坏/空文件返回 false） */
+async function isDecodable(absPath) {
+  try {
+    const meta = await sharp(absPath).metadata();
+    return Boolean(meta.width) && Boolean(meta.height);
+  } catch {
+    return false;
+  }
+}
+
+/** 全源目录预扫描（图片文件逐个 metadata 探测） */
+async function scanUnusableSources() {
+  const exts = /\.(png|jpg|jpeg|webp)$/i;
+  const walk = async (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        await walk(abs);
+      } else if (exts.test(e.name)) {
+        if (!(await isDecodable(abs))) {
+          unusableSources.add(path.relative(SOURCE_DIR, abs).replace(/\\/g, '/'));
+        }
+      }
+    }
+  };
+  if (fs.existsSync(SOURCE_DIR)) await walk(SOURCE_DIR);
+}
+
+function fileExists(rel) {
+  return fs.existsSync(path.join(SOURCE_DIR, rel)) && !unusableSources.has(rel);
+}
 
 /** growing_spirit* → 对应 herb_spirit* 的中文名（由资源注册表构建，见下方填充） */
 let herbNameByRes = new Map();
@@ -209,20 +247,20 @@ function deriveSource(category, res, name) {
         ui_diplomacy_button: 'ui/外交按钮（圆形）.png',
         ui_guide_button: 'ui/引导按钮.png',
         ui_merchant_button: 'ui/商人按钮（圆形）.png',
-        ui_build_button: 'ui/建造按钮.png',
+        ui_build_button: 'ui/建造.png',
         ui_warehouse_button: 'ui/仓库按钮.png',
-        ui_team_button: 'ui/弟子按钮（圆形）.png',
-        ui_map_button: 'ui/地图按钮(圆形）.png',
+        ui_team_button: 'ui/人物.png',
+        ui_map_button: 'ui/地图.png',
         ui_planting_button: 'ui/种植按钮.png',
-        ui_recruit_button: 'ui/招募按钮（圆形）.png',
-        ui_mail_button: 'ui/邮件按钮.png',
-        ui_log_button: 'ui/日志按钮（圆形）.png',
+        ui_recruit_button: 'ui/招募.png',
+        ui_mail_button: 'ui/邮件.png',
+        ui_log_button: 'ui/日志.png',
         dialog_box: 'ui/提示框背景图.png',
         ui_hide_button: 'ui/隐藏ui按钮.png',
         ui_show_button: 'ui/ui显示按钮.png',
         ui_play_button: 'ui/播放按钮（圆形）.png',
         ui_pause_button: 'ui/暂停按钮（圆形）.png',
-        ui_settings_button: 'ui/设置按钮（圆形）.png',
+        ui_settings_button: 'ui/设置.png',
         ui_start_button: 'ui/进入游戏.png',
         loading_background: 'ui/加载界面（横屏）.png',
         combat_power_bg: 'ui/战力背景图片.png',
@@ -237,6 +275,12 @@ function deriveSource(category, res, name) {
         ui_flip_left: 'ui/翻页按钮（左）.png',
         ui_flip_right: 'ui/翻页按钮(右）.png',
         area_select_button: 'ui/区域选择按钮.png',
+        ui_check_button: 'ui/勾图标.png',
+        ui_x_button: 'ui/x图标.png',
+        ui_enter: 'ui/进入ui.png',
+        ui_planting: 'ui/种植ui.png',
+        ui_alchemy: 'ui/炼丹ui.png',
+        ui_forge: 'ui/锻造ui.png',
       };
       const s = map[res];
       if (s && fileExists(s)) return s;
@@ -272,6 +316,12 @@ function deriveSource(category, res, name) {
 
 const registry = JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
 const pending = [];
+
+// 源目录预扫描（损坏/空文件登记为不可用 → 该条目落 pending，import 保持可跑）
+await scanUnusableSources();
+if (unusableSources.size > 0) {
+  console.log(`⚠ 源图不可用（损坏/非图片，已置为待补）: ${[...unusableSources].join(', ')}`);
+}
 
 // 构建 growing_spirit* → 中文名 查找表（取 ITEM 分类下 herb_* 的中文名）
 herbNameByRes = new Map();
@@ -318,9 +368,48 @@ for (let i = 1; i <= 5; i++) {
   KNOWN.push({ category: 'BACKGROUND', drawable: `cloud_${i}`, source: `装饰物/云层${i}.png`, modules: ['feature/game', 'app'], bake: { preserve: true } });
 }
 
+// 地图精灵（MAP）：宗门地图图集直取的装饰/地面精灵——不经 resource-registry.json
+// （图集槽位与瓦片索引在 build-atlas.mjs LAYOUT.tiles 登记），但**必须**经本映射
+// 才能从源图重烘焙（草皮无缝平铺 / 装饰变体 / 门楼均在此表登记烘焙规则）。
+// bake 约定：装饰 preserve（槽位由图集按显示尺寸收敛）；草皮 64² 无缝平铺（seamless）。
+//
+// 浮空岛崖壁（map_edge_*，2026-09 地图边缘系统）：**独立纹理**不经图集
+// （单张 1178×3552 超出 4096² 图集容量），烘焙用 preserve + roundUp4——
+// 源分辨率 1:1 且宽高取整到 4 的倍数（ASTC 4×4 压缩纹理的硬性尺寸要求，
+// 见 import-art-assets.mjs 的 roundUp4 规则与 build-edge-ktx.mjs）。
+// 素材语义：边缘1..3 = 左侧崖壁三变体（岩左草右，右缘贴地图左边界，沿 y 拼接）；
+//          边缘4/5 = 下侧崖壁两变体（草上岩下，顶边贴地图下边界，沿 x 拼接）；
+//          边缘6/7 = 左下/右下转角。
+const MAP_KNOWN = [
+  { drawable: 'map_grass_1', source: '装饰物/草皮.png', bake: { maxDim: 64, seamless: true } },
+  { drawable: 'sect_gate', source: '建筑/宗门门楼.png', bake: { preserve: true } },
+  { drawable: 'decoration_grass1', source: '装饰物/花草1.png', bake: { preserve: true } },
+  { drawable: 'decoration_grass2', source: '装饰物/花草2.png', bake: { preserve: true } },
+  { drawable: 'decoration_grass3', source: '装饰物/花草3.png', bake: { preserve: true } },
+  { drawable: 'decoration_grass4', source: '装饰物/花草4.png', bake: { preserve: true } },
+  { drawable: 'decoration_stone1', source: '装饰物/石头1.png', bake: { preserve: true } },
+  { drawable: 'decoration_stone2', source: '装饰物/石头2.png', bake: { preserve: true } },
+  { drawable: 'decoration_stone3', source: '装饰物/石头3.png', bake: { preserve: true } },
+  { drawable: 'decoration_tree1', source: '装饰物/树木1.png', bake: { preserve: true } },
+  { drawable: 'decoration_tree2', source: '装饰物/树木2.png', bake: { preserve: true } },
+  // ── 浮空岛崖壁（独立纹理，不进图集）──
+  { drawable: 'map_edge_left_1', source: '宗门地图边缘/边缘1.png', bake: { preserve: true, roundUp4: true } },
+  { drawable: 'map_edge_left_2', source: '宗门地图边缘/边缘2.png', bake: { preserve: true, roundUp4: true } },
+  { drawable: 'map_edge_left_3', source: '宗门地图边缘/边缘3.png', bake: { preserve: true, roundUp4: true } },
+  { drawable: 'map_edge_bottom_1', source: '宗门地图边缘/边缘4.png', bake: { preserve: true, roundUp4: true } },
+  { drawable: 'map_edge_bottom_2', source: '宗门地图边缘/边缘5.png', bake: { preserve: true, roundUp4: true } },
+  { drawable: 'map_edge_corner_bl', source: '宗门地图边缘/边缘6.png', bake: { preserve: true, roundUp4: true } },
+  { drawable: 'map_edge_corner_br', source: '宗门地图边缘/边缘7.png', bake: { preserve: true, roundUp4: true } },
+];
+for (const m of MAP_KNOWN) {
+  const source = fileExists(m.source) ? m.source : null;
+  if (!source) pending.push({ category: 'MAP', drawable: m.drawable, name: m.drawable });
+  KNOWN.push({ category: 'MAP', drawable: m.drawable, source, modules: ['feature/game', 'app'], bake: m.bake });
+}
+
 const mapping = {
   version: 1,
-  description: '美术素材 source↔drawable 权威映射（由 scaffold-source-mapping.mjs 生成）。source 相对 D:\\模拟宗门美术素材；bake.preserve=true 保留源分辨率，bake.maxDim 等比缩放最长边。',
+  description: '美术素材 source↔drawable 权威映射（由 scaffold-source-mapping.mjs 生成）。source 相对 D:\\模拟宗门美术素材；bake.preserve=true 保留源分辨率，bake.maxDim 等比缩放最长边，bake.roundUp4=true 宽高向上取整到 4 的倍数（ASTC 压缩纹理尺寸要求），bake.seamless=true 做无缝平铺处理（草皮）。',
   sourceDir: SOURCE_DIR,
   bakeDefaults: {
     PILL: { maxDim: 1024 }, MATERIAL: { maxDim: 1024 }, EQUIPMENT: { maxDim: 1024 },

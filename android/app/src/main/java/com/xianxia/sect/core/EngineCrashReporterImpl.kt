@@ -12,8 +12,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 引擎异常上报实现（G3 根治：委托 [CrashReporter] 端口——Bugly 直引已收敛至
- * app 层 `BuglyCrashReporter`，本类不再反射调用 SDK）。
+ * 引擎异常上报实现：委托 [CrashReporter] 端口上报，Bugly SDK 直引收敛于
+ * app 层 `BuglyCrashReporter`。
  *
  * 上报策略：
  * 1. 经 [CrashReporter.reportCaughtException] 上报（Bugly 实现内部回退

@@ -45,8 +45,7 @@ import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.components.clickableWithSound
-
-
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 @Composable
 fun BloodRefiningPoolDialog(
@@ -108,7 +107,7 @@ fun BloodRefiningPoolDialog(
     }
 }
 
-/** 血炼材料库存收集（BloodRefiningPoolDialog 拆分）：仓库全部妖血材料（含不足门槛，全量显示） */
+/** 血炼材料库存收集：仓库全部妖血材料（含不足门槛，全量显示） */
 @Composable
 private fun rememberBloodMaterials(materials: List<Material>): List<Pair<BeastMaterialDatabase.BeastMaterial, Int>> {
     return remember(materials) {
@@ -122,7 +121,7 @@ private fun rememberBloodMaterials(materials: List<Material>): List<Pair<BeastMa
     }
 }
 
-/** 血炼池主内容区（BloodRefiningPoolDialog 拆分）：放入材料 + 放入弟子 + 洗炼操作 */
+/** 血炼池主内容区：放入材料 + 放入弟子 + 洗炼操作 */
 @Composable
 private fun BloodRefiningContent(
     uiState: BloodRefiningUiState,
@@ -167,7 +166,7 @@ private fun BloodRefiningContent(
     }
 }
 
-/** 放入材料区（BloodRefiningPoolDialog 拆分） */
+/** 放入材料区 */
 @Composable
 private fun BloodRefiningMaterialSection(
     selectedMaterial: BeastMaterialDatabase.BeastMaterial?,
@@ -190,7 +189,7 @@ private fun BloodRefiningMaterialSection(
     }
 }
 
-/** 放入弟子区（BloodRefiningPoolDialog 拆分）：进度条 + 弟子槽位 */
+/** 放入弟子区：进度条 + 弟子槽位 */
 @Composable
 private fun BloodRefiningDiscipleSection(
     uiState: BloodRefiningUiState,
@@ -230,7 +229,7 @@ private fun BloodRefiningDiscipleSection(
     }
 }
 
-/** 血炼进度条（BloodRefiningPoolDialog 拆分）：剩余月份 + 进度条 */
+/** 血炼进度条：剩余月份 + 进度条 */
 @Composable
 private fun BloodRefiningProgressSection(
     currentProgress: com.xianxia.sect.core.model.BloodRefinementProgress?,
@@ -265,7 +264,7 @@ private fun BloodRefiningProgressSection(
     }
 }
 
-/** 洗炼操作区（BloodRefiningPoolDialog 拆分）：消耗提示 + 按钮 + 错误提示 */
+/** 洗炼操作区：消耗提示 + 按钮 + 错误提示 */
 @Composable
 private fun BloodRefiningActionSection(
     isRefining: Boolean,
@@ -307,8 +306,7 @@ private fun BloodRefiningActionSection(
     }
 }
 
-/** 血炼弟子选择弹窗（BloodRefiningPoolDialog 拆分） */
-// 拆分搬移:参数保留原签名语义
+/** 血炼弟子选择弹窗 */
 @Suppress("UnusedParameter")
 @Composable
 private fun BloodRefiningDiscipleSelectionDialog(
@@ -322,7 +320,8 @@ private fun BloodRefiningDiscipleSelectionDialog(
     val scope = rememberCoroutineScope()
     val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
     val battleAndExplorationIds = remember(gameData) {
-        val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) } } ?: emptyList()
+        val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -> s.discipleId
+            .takeIf(String::isNotEmpty) } } ?: emptyList()
         val allCaveExplorationIds = gameData?.caveExplorationTeams?.flatMap { it.memberIds } ?: emptyList()
         (allBattleIds + allCaveExplorationIds).toSet()
     }
@@ -337,7 +336,7 @@ private fun BloodRefiningDiscipleSelectionDialog(
             selected.firstOrNull()?.let {
                 scope.launch {
                     if (showAllEnabled && it.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE) {
-                        viewModel.releaseDiscipleForReassignment(it.id)
+                        viewModel.disciple.releaseDiscipleForReassignment(it.id)
                     }
                     onSelected(it)
                 }
@@ -351,6 +350,7 @@ private fun BloodRefiningDiscipleSelectionDialog(
 // ==================== 材料槽位（复用 UnifiedDiscipleSlot 同款容器） ====================
 
 @Composable
+@Suppress("UnusedParameter") // selectedQuantity: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 private fun MaterialSlotBox(
     selectedMaterial: BeastMaterialDatabase.BeastMaterial?,
     selectedQuantity: Int,
@@ -509,7 +509,7 @@ private fun MaterialSelectorDialogs(
     }
 }
 
-/** 材料列表区（MaterialSelectorDialog 拆分）：空态提示 + 列表内部滚动（按钮固定在底部）。 */
+/** 材料列表区：空态提示 + 列表内部滚动（按钮固定在底部）。 */
 @Composable
 private fun ColumnScope.MaterialSelectorList(
     bloodMaterials: List<Pair<BeastMaterialDatabase.BeastMaterial, Int>>,
@@ -540,7 +540,7 @@ private fun ColumnScope.MaterialSelectorList(
     }
 }
 
-/** 底部"使用"按钮（MaterialSelectorDialog 拆分）。 */
+/** 底部"使用"按钮。 */
 @Composable
 private fun MaterialUseButton(
     selectedEntry: Pair<BeastMaterialDatabase.BeastMaterial, Int>?,
@@ -561,7 +561,7 @@ private fun MaterialUseButton(
     }
 }
 
-/** 血炼材料分组列表（MaterialSelectorDialog 拆分）：按妖兽类型分组排序渲染物品卡 */
+/** 血炼材料分组列表：按妖兽类型分组排序渲染物品卡 */
 @Composable
 private fun BloodMaterialList(
     bloodMaterials: List<Pair<BeastMaterialDatabase.BeastMaterial, Int>>,

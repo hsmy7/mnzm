@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.integrity.rules
 
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.data.model.SaveData
 
 /**
@@ -17,39 +18,40 @@ object DiscipleDeadStatusRule : SaveValidationRule {
     override fun execute(data: SaveData, context: RuleContext): RuleOutcome {
         val repairs = mutableListOf<String>()
         val disciples = data.disciples.map { d ->
-            if (!d.isAlive) {
-                val equip = d.equipment
-                val hasWeapon = equip.weaponId.isNotEmpty()
-                val hasArmor = equip.armorId.isNotEmpty()
-                val hasBoots = equip.bootsId.isNotEmpty()
-                val hasAccessory = equip.accessoryId.isNotEmpty()
-
-                if (hasWeapon || hasArmor || hasBoots || hasAccessory) {
-                    val cleaned = listOfNotNull(
-                        hasWeapon to "weaponId=${equip.weaponId}",
-                        hasArmor to "armorId=${equip.armorId}",
-                        hasBoots to "bootsId=${equip.bootsId}",
-                        hasAccessory to "accessoryId=${equip.accessoryId}"
-                    ).joinToString(", ") { it.second }
-
-                    repairs.add(
-                        "死亡弟子[${d.name.ifBlank { "ID=${d.id}" }}] $cleaned，已清除装备引用"
-                    )
-                    d.copy(
-                        equipment = equip.copy(
-                            weaponId = "",
-                            armorId = "",
-                            bootsId = "",
-                            accessoryId = ""
-                        )
-                    )
-                } else d
-            } else d
+            if (!d.isAlive) cleanDeadDiscipleEquipment(d, repairs) else d
         }
         return if (repairs.isNotEmpty()) {
             RuleOutcome.Repaired(data.copy(disciples = disciples), repairs)
         } else {
             RuleOutcome.Passed
         }
+    }
+
+    /**
+     * 清除单个死亡弟子的装备引用（execute 拆分）：四个槽位引用全部清空，
+     * 仅已装备的槽位进入修复消息；无任何装备引用则原样返回。
+     */
+    private fun cleanDeadDiscipleEquipment(d: Disciple, repairs: MutableList<String>): Disciple {
+        val equip = d.equipment
+        val equippedSlotIds = listOfNotNull(
+            if (equip.weaponId.isNotEmpty()) "weaponId=${equip.weaponId}" else null,
+            if (equip.armorId.isNotEmpty()) "armorId=${equip.armorId}" else null,
+            if (equip.bootsId.isNotEmpty()) "bootsId=${equip.bootsId}" else null,
+            if (equip.accessoryId.isNotEmpty()) "accessoryId=${equip.accessoryId}" else null
+        )
+        if (equippedSlotIds.isEmpty()) return d
+
+        repairs.add(
+            "死亡弟子[${d.name.ifBlank { "ID=${d.id}" }}] " +
+                "${equippedSlotIds.joinToString(", ")}，已清除装备引用"
+        )
+        return d.copy(
+            equipment = equip.copy(
+                weaponId = "",
+                armorId = "",
+                bootsId = "",
+                accessoryId = ""
+            )
+        )
     }
 }

@@ -355,7 +355,7 @@ class AppErrorTest {
         try {
             AppError.fromException(kotlinx.coroutines.CancellationException("cancel"))
             fail("Should have thrown CancellationException")
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (expected: kotlinx.coroutines.CancellationException) {
             // expected
         }
     }

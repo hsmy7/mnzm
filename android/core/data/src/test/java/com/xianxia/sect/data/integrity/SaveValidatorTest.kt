@@ -210,25 +210,24 @@ class SaveValidatorTest {
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
         val cappedDisciple = repaired.data.disciples.first()
-        assertEquals(98.0, cappedDisciple.cultivation, 0.001)
+        assertEquals(490.0, cappedDisciple.cultivation, 0.001)
     }
 
     @Test
     fun `validate - cultivation exceeds high realm max - caps`() {
-        // 筑基 3 层: base=390, next=1560, layers=9 → max = 390 + 2*(1560-390)/9 = 390 + 2*1170/9 = 650.0
+        // 筑基 3 层: base=1950, next=7800, layers=9 → max = 1950 + 2*(7800-1950)/9 = 1950 + 2*5850/9 = 3250.0
         val disciple = makeDisciple(realm = 8, realmLayer = 3, cultivation = 5000.0)
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val capped = (result as IntegrityResult.Repaired).data.disciples.first().cultivation
-        val expected = 390.0 + 2.0 * (1560.0 - 390.0) / 9.0
+        val expected = 1950.0 + 2.0 * (7800.0 - 1950.0) / 9.0
         assertEquals(expected, capped, 0.001)
     }
 
     @Test
     fun `validate - immortal realm cultivation capped at absolute cap`() {
-        // T7（2026-08-04）：仙人 (realm=0) 修为改用绝对上限 1e9 钳制
-        // （原 Double.MAX_VALUE 不限制，恶意云档可携带巨大修为穿透）
+        // 仙人 (realm=0) 修为使用绝对上限 1e9 钳制（防恶意云档携带巨大修为穿透）
         val disciple = makeDisciple(realm = 0, realmLayer = 1, cultivation = 1e12)
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
@@ -408,28 +407,28 @@ class SaveValidatorTest {
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
         val disciples = repaired.data.disciples
-        // d1: cultivation capped to 98, weapon cleared, age clamped to 80
-        assertEquals(98.0, disciples[0].cultivation, 0.001)
+        // d1: cultivation capped to 490, weapon cleared, age clamped to 80
+        assertEquals(490.0, disciples[0].cultivation, 0.001)
         assertEquals("", disciples[0].equipment.weaponId)
         assertEquals(80, disciples[0].age)
         // d2: cultivation capped, armor cleared, age clamped to computeMaxAge
-        // （2026-08-10 口径对齐：截断目标由 lifespan 改为 computeMaxAge——realm 8 寿元上限 120 > lifespan 100）
-        val expectedMaxD2 = 390.0 + 4.0 * (1560.0 - 390.0) / 9.0
+        // （realm 8 寿元上限 120 > lifespan 100，年龄截断目标为 computeMaxAge）
+        val expectedMaxD2 = 1950.0 + 4.0 * (7800.0 - 1950.0) / 9.0
         assertEquals(expectedMaxD2, disciples[1].cultivation, 0.001)
         assertEquals("", disciples[1].equipment.armorId)
         assertEquals(120, disciples[1].age)
     }
 
     @Test
-    fun `computeMaxCultivation - realm 9 layer 1 - returns 98`() {
-        assertEquals(98.0, SaveValidator.computeMaxCultivation(9, 1), 0.001)
+    fun `computeMaxCultivation - realm 9 layer 1 - returns 490`() {
+        assertEquals(490.0, SaveValidator.computeMaxCultivation(9, 1), 0.001)
     }
 
     @Test
     fun `computeMaxCultivation - realm 9 layer 9`() {
-        // 炼气 9 层: base=98, next=390, layers=9 → max = 98 + 8*(390-98)/9 = 98 + 2336/9 = 357.56
+        // 炼气 9 层: base=490, next=1950, layers=9 → max = 490 + 8*(1950-490)/9 = 490 + 11680/9 = 1787.56
         val result = SaveValidator.computeMaxCultivation(9, 9)
-        val expected = 98.0 + 8.0 * (390.0 - 98.0) / 9.0
+        val expected = 490.0 + 8.0 * (1950.0 - 490.0) / 9.0
         assertEquals(expected, result, 0.001)
     }
 
@@ -573,8 +572,8 @@ class SaveValidatorTest {
 
     @Test
     fun `validate - registry cleared then validate - re-registers defaults`() {
-        // C8 修复：原 registered 标志首次置位后恒 true，clear 后 validate 以空规则
-        // 运行全部 Passed（空规则掩盖损坏）——修复后按注册表规模判定，clear 自动重注册
+        // 守卫：clear 后再次 validate 必须按注册表规模重新注册默认规则
+        //（空规则集会使损坏数据全部误判 Passed）
         val validData = minimalValidSaveData()
         assertTrue(SaveValidator.validate(validData) is IntegrityResult.Passed)
 

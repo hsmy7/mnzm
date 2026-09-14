@@ -17,12 +17,12 @@ import org.junit.Test
 /**
  * 洗炼天赋/体质/词条纯随机函数测试（不落盘，纯 JVM 可跑）。
  *
- * 单槽语义（2026-08-09 需求变更）：一次只洗炼一个目标特质。覆盖：保底路径目标槽必出上品、
+ * 单槽语义：一次只洗炼一个目标特质。覆盖：保底路径目标槽必出上品、
  * 固定种子确定性、保底计数语义、排除模板过滤（新条目不与保留槽位 template 冲突）、
  * 池全排除 → 无候选（预检/抽取双兜底）、以及守卫——三类型 3 阶正向池非空（保底不变量前提）、
  * 单条抽取品阶分布有效（两种品阶情形均出现）。
  *
- * 品阶分布（2026-08-15 需求变更）：洗炼/新增共用无负面三档（下品40%/中品30%/上品30%，
+ * 品阶分布：洗炼/新增共用无负面三档（下品40%/中品30%/上品30%，
  * 见 WeightedRollTest.rollWashTraitQuality），普通路径恒产出正向条目。
  */
 class TraitWashRollTest {
@@ -143,7 +143,7 @@ class TraitWashRollTest {
 
     @Test
     fun `rollSingleTraitWash - 保底路径排除模板覆盖全保底池时返回null（放弃本次保底）`() {
-        // 对抗性审查 2026-08-09 边界狂魔：usedTemplates 过滤后无候选时不得回退全池
+        // usedTemplates 过滤后无候选时不得回退全池
         // （会选出与保留槽位 template 重复的条目 → confirm 校验拒绝 → 白洗玉符死胡同），
         // 也不得对空列表 .random() 抛异常（deduct 后事务内异常 = 玉符永久损失）——返回 null
         for (type in washTypes) {
@@ -257,10 +257,10 @@ class TraitWashRollTest {
 
     @Test
     fun `pickTopRarity - usedTemplates 覆盖全池时返回 null（放弃替换而非回退全池）`() {
-        // 对抗性审查 2026-08-09 边界狂魔：原实现 usedTemplates 过滤后无候选时回退全池，
-        // 会选出与产物其余槽位 template 重复的条目 → confirm 校验拒绝 → 玩家白洗 1 玉符死胡同；
-        // 且池空时对空列表 .random() 抛异常（deduct 后事务内异常 = 玉符永久损失）。
-        // 现语义：无候选返回 null，调用方放弃替换（保底尽力而为）。
+        // usedTemplates 过滤后无候选时返回 null（放弃替换，保底尽力而为）——
+        // 回退全池会选出与产物其余槽位 template 重复的条目 → confirm 校验拒绝
+        // → 玩家白洗 1 玉符死胡同；池空时对空列表 .random() 抛异常
+        // （deduct 后事务内异常 = 玉符永久损失）。
         for (type in washTypes) {
             val nullResult = type.pickTopRarity(
                 DeterministicRng.fromSeed(1L).asKotlinRandom(),
@@ -275,9 +275,9 @@ class TraitWashRollTest {
 
     @Test
     fun `guard - 天赋保底池不含退役天赋类型`() {
-        // 对抗性审查 2026-08-09 数据篡改者：原保底池 getByRarity(3) 未过滤 DEPRECATED，
-        // r6_manual_slot/r6_win_growth（rarity=3 退役超模天赋）可经保底路径重新流入——
-        // 普通生成池已过滤（generateTalentsForDisciple），保底池必须与之一致。
+        // 保底池必须过滤 DEPRECATED：r6_manual_slot/r6_win_growth（rarity=3 退役
+        // 超模天赋）不得经保底路径重新流入——普通生成池已过滤
+        //（generateTalentsForDisciple），保底池与之一致。
         // 锚点：TalentType 枚举 + 与 TalentDatabase.DEPRECATED_TALENT_TYPES 同口径的集合，
         // 若退役集合变更本守卫失败，提示同步（守卫三要素：枚举驱动 + 显式集合 + 操作指引）。
         val deprecatedTypes = setOf(

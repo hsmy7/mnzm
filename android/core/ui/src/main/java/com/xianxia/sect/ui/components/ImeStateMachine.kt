@@ -1,8 +1,8 @@
 package com.xianxia.sect.ui.components
 
 /**
- * IME 交互统一判定状态机（2026-09 IME 状态机根治，
- * 依据 docs/ime-android-system-research.md M3/M6/M9/M10）。
+ * IME 交互统一判定状态机
+ * （依据 docs/ime-android-system-research.md M3/M6/M9/M10）。
  *
  * 聚合键盘可见性（[ImeVisibilityTracker]，isVisible 真值）、键盘动画状态
  * （[ImeAnimationTracker]）、输入对话框冻结（[SystemBarFreezeScope]）为
@@ -32,5 +32,8 @@ object ImeStateMachine {
         if (SystemBarFreezeScope.isFrozen) add("frozen=true")
         if (ImeVisibilityTracker.isImeVisible) add("imeVisible=true")
         if (ImeAnimationTracker.isAnimating) add("imeAnimating=true")
+        if (InputSessionStateMachine.hasActiveSessions()) {
+            add("inputSession=${InputSessionStateMachine.activeSessionsSummary()}")
+        }
     }.joinToString(", ").ifEmpty { "无" }
 }

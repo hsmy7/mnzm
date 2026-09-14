@@ -4,12 +4,13 @@
 void SpriteBatcher::begin(const float projection[16]) {
     clear();
     // 首次使用栈缓冲；之后若曾扩容（heapAllocated），复用该堆缓冲跨帧零分配
-    // （对抗性审查 M4：默认缩放 ~2100 精灵/帧若每帧重建缓冲 = 5 次 new/memcpy/delete 流失）
+    // （默认缩放 ~2100 精灵/帧，每帧重建缓冲 = 5 次 new/memcpy/delete 流失）
     if (!heapAllocated) {
         vertices = stackBuffer;
         capacity = STACK_CAPACITY;
     }
     memcpy(projMat, projection, sizeof(projMat));
+    droppedSprites = 0;
 }
 
 void SpriteBatcher::add(uint32_t textureId,
@@ -20,11 +21,12 @@ void SpriteBatcher::add(uint32_t textureId,
     if (vertexCount + 6 > capacity) {
         grow();
     }
-    // 已达上限（MAX_SPRITES_PER_FRAME=4096）：丢弃该精灵，防止堆越界写
-    // （对抗性审查 S1：极小缩放 + 大世界时视口内格数 > 4096，grow 封顶后
+    // 已达上限（MAX_SPRITES_PER_FRAME）：丢弃该精灵，防止堆越界写
+    // （极小缩放 + 大世界时视口内格数可超上限，grow 封顶后
     // 无条件写入会越过堆分配边界）。
     // 丢弃顺序 = 后添加者（阴影/作物/建筑），地面层永远完整——视觉降级而非内存破坏
     if (vertexCount + 6 > capacity) {
+        droppedSprites++;   // 溢出可观测（host 侧限频日志上报）
         return;
     }
 

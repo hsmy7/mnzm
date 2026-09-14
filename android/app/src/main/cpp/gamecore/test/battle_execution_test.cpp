@@ -1,5 +1,5 @@
 // ============================================================
-// battle_execution_test.cpp — 战斗回合编排黄金序列（战斗批次 C）
+// battle_execution_test.cpp — 战斗回合编排黄金序列
 //
 // 守护目标：固定种子 + 固定 Combatant 列表 → gamecore::battle::
 // battle_execution.h 的 executeBattle 全链（速度序 → 逐参战者行动 →

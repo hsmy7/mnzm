@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 建筑精灵图守卫测试（2026-08 初级多人住所精灵图不显示根因修复）。
+ * 建筑精灵图守卫测试（住所类建筑精灵图映射正确性）。
  *
  * 锁住不变量：运行时图集组装器 [SectAtlasAssembler] 的"图集名 → drawable"映射
  * 必须经 [com.xianxia.sect.core.engine.domain.building.BuildingFeature.effectiveSpriteName]

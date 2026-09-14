@@ -67,16 +67,21 @@ bool loadKtx1(const uint8_t* fileData, size_t fileSize, KtxInfo& info) {
         LOGE("loadKtx1: 尺寸非法 %ux%u（需 4 的倍数）", width, height);
         return false;
     }
-    // 尺寸上限（对抗性审查 M2：防 32 位 size_t 几何推导回绕绕过校验 + 越限 extent）
+    // 尺寸上限（防 32 位 size_t 几何推导回绕绕过校验 + 越限 extent）
     if (width > MAX_TEXTURE_DIMENSION || height > MAX_TEXTURE_DIMENSION) {
         LOGE("loadKtx1: 尺寸超上限 %ux%u（上限 %u）", width, height, MAX_TEXTURE_DIMENSION);
         return false;
     }
 
-    // 逐级 dataSize 几何推导（每级 mip 的块数 × 16 字节），与 build-atlas.mjs 同式。
+    // 逐级 dataSize 几何推导（每级 mip 的块数 × 16 字节），与 build-atlas.mjs / lib/ktx1.mjs 同式。
     // 64 位算术：32 位 size_t 下 (1G/4)*(4/4)*16 回绕为 0 会绕过 dataSize 校验（M2）。
     // 每级尺寸 = max(ASTC_BLOCK, base >> level)；到 4×4 块下限为止（与 build-atlas.mjs
     // generateMips 停止条件一致）。
+    //
+    // ★ 块数用**向上取整**：非 2 的幂尺寸（如 1176×3552 的 mip2 = 294×888、
+    //   mip3 = 147×444）末行/末列不足一块时编码器补齐整块，块数 = ceil(dim/4)。
+    //   用整除会在 147 这类非 4 倍数级上少算一块 → 拒绝合法纹理
+    //   （与 lib/ktx1.mjs wrapKtx1 的期望值必须同式；图集为 2 的幂，两者等价）。
 
     // mip0 数据区：header 后为逐级 [dataSize 4 字节][数据]。
     // 先累计所有 mip 数据区总长（含各层 size4 前缀），再精确校验 = 文件末尾。
@@ -87,8 +92,11 @@ bool loadKtx1(const uint8_t* fileData, size_t fileSize, KtxInfo& info) {
         uint32_t lh = height >> i;
         if (lw < ASTC_BLOCK) lw = ASTC_BLOCK;
         if (lh < ASTC_BLOCK) lh = ASTC_BLOCK;
+        // 块数向上取整（末行/末列不足一块由编码器补齐整块）
+        const uint32_t blocksX = (lw + ASTC_BLOCK - 1) / ASTC_BLOCK;
+        const uint32_t blocksY = (lh + ASTC_BLOCK - 1) / ASTC_BLOCK;
         const uint64_t levelData =
-            (uint64_t)(lw / ASTC_BLOCK) * (uint64_t)(lh / ASTC_BLOCK) * ASTC_BLOCK_BYTES;
+            (uint64_t)blocksX * (uint64_t)blocksY * ASTC_BLOCK_BYTES;
 
         // 每个 mip 的 [dataSize 4 字节] 字段必须完整在文件内
         if (fileSize < cursor + DATA_SIZE_FIELD) {

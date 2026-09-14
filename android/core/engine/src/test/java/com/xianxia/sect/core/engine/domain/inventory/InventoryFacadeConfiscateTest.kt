@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.inventory
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
-import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.BagStackedData
 import com.xianxia.sect.core.model.Disciple
@@ -29,7 +28,7 @@ import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
 /**
- * D-03 取回（没收）路径端到端测试（InventoryFacadeImpl.confiscateStorageBagItem）。
+ * 取回（没收）路径端到端测试（InventoryFacadeImpl.confiscateStorageBagItem）。
  *
  * 核心守卫：
  * - 实例条目（卸装/忘功法入袋，payload 持完整实例）取回时**保真物化回仓库堆叠**，
@@ -64,10 +63,6 @@ class InventoryFacadeConfiscateTest {
         val inventorySystem = InventorySystem(
             stateStore = store,
             inventoryConfig = InventoryConfig(),
-            spiritStoneWallet = wallet,
-            gameConfigProvider = GameConfigProvider(
-                com.xianxia.sect.core.config.ConfigLoader(assetReader = { null })
-            ),
             overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
         )
         facade = InventoryFacadeImpl(

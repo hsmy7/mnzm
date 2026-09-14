@@ -59,6 +59,16 @@ suspend fun GameEngine.rollTraitAdd(
         DomainLog.w(LOG_TAG, "新增${type.displayName}拒绝: 非法弟子ID=$discipleId")
         return@withEngineContext TraitAddResult.Error("非法弟子ID")
     }
+    // native 臂（batch-15）：C++ 校验链 + 扣玉符 + 抽取 + pending 落盘同事务原子；
+    // 降级/失败信封 → Kotlin 原事务路径重执行校验链
+    val receipt = tryRollTraitAddNative(discipleId, type.name, TraitAdd.JADE_COST)
+    if (receipt != null) {
+        // 玉符运行时 totalCount 同步（13.3——防 checkpoint 回涨）
+        syncJadeRuntimeAfterNative(TraitAdd.JADE_COST)
+        // 事务外刷新玉符 UI 状态（清 1Hz 节流，徽章/详情即时更新）
+        jadeSymbolService.publishJadeSymbolStateNow()
+        return@withEngineContext TraitAddResult.Success(receipt.newId)
+    }
     try {
         val result = rollTraitAddInner(id, type)
         if (result is TraitAddResult.Success) {
@@ -168,41 +178,13 @@ suspend fun GameEngine.confirmTraitAdd(
         return@withEngineContext TraitAddConfirmResult.Error("非法弟子ID")
     }
     try {
-        // 四态区分失败原因：NOT_FOUND/DEAD/FULL 给玩家明确文案（对齐洗炼确认的三态先例）
-        val outcome = stateStore.updateAndReturn<ConfirmAddOutcome> {
-            if (id !in discipleTables.ids) {
-                DomainLog.w(LOG_TAG, "确认新增${type.displayName}拒绝: 弟子不存在 id=$id")
-                return@updateAndReturn ConfirmAddOutcome.NOT_FOUND
-            }
-            if (discipleTables.isAlive[id] != 1) {
-                DomainLog.w(LOG_TAG, "确认新增${type.displayName}拒绝: 弟子已死亡 id=$id")
-                return@updateAndReturn ConfirmAddOutcome.DEAD
-            }
-            val current: Disciple = discipleTables.assemble(id)
-            val currentIds = type.idsOf(current)
-            if (currentIds.size >= TraitAdd.MAX_TRAITS_PER_CATEGORY) {
-                DomainLog.w(LOG_TAG, "确认新增${type.displayName}拒绝: 已达上限 id=$id 数量=${currentIds.size}")
-                return@updateAndReturn ConfirmAddOutcome.FULL
-            }
-            if (!isValidTraitAdd(type, currentIds, newId)) {
-                DomainLog.w(
-                    LOG_TAG,
-                    "确认新增${type.displayName}拒绝: 新增校验失败 id=$id new=$newId 当前=$currentIds"
-                )
-                return@updateAndReturn ConfirmAddOutcome.INVALID
-            }
-            val updated = type.appendId(current, newId)
-            discipleTables.remove(id)
-            discipleTables.insert(syncLifespanForTraitChange(current, updated))
-            // 体质/词条影响修炼速率——新增瞬间重新记账（速率投影基于 checkpoint + 新速率推导）
-            discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
-            // 清除 pending（产物已落盘到弟子）
-            gameData = gameData.copy(
-                pendingTraitAdds = gameData.pendingTraitAdds
-                    .filterNot { it.discipleId == id.toString() && it.type == type.name }
-            )
-            ConfirmAddOutcome.ADDED
+        // native 臂（batch-15）：零 RNG 纯数据事务（校验 + 追加 + lifespan 同步 +
+        // checkpoint + 清 pending）；降级/失败信封 → Kotlin 原事务路径重执行
+        // 校验链产出玩家可读文案
+        if (tryConfirmTraitAddNative(discipleId, type.name, newId)) {
+            return@withEngineContext TraitAddConfirmResult.Success
         }
+        val outcome = confirmTraitAddInner(id, type, newId)
         when (outcome) {
             ConfirmAddOutcome.ADDED -> TraitAddConfirmResult.Success
             ConfirmAddOutcome.NOT_FOUND -> TraitAddConfirmResult.Error("弟子不存在")
@@ -216,6 +198,51 @@ suspend fun GameEngine.confirmTraitAdd(
         DomainLog.e(LOG_TAG, "确认新增${type.displayName}失败: id=$discipleId", e)
         TraitAddConfirmResult.Error("未知错误")
     }
+}
+
+/**
+ * 确认新增事务内逻辑（单 update 原子完成）：存在/存活/上限/合法性校验 → 追加 +
+ * lifespan 同步 + checkpoint + 清 pending，四态区分失败原因
+ * （NOT_FOUND/DEAD/FULL/INVALID——对齐洗炼确认的三态先例，死亡弟子确认替换
+ * 也须可区分于"弟子不存在"）。
+ */
+private fun GameEngine.confirmTraitAddInner(
+    id: Int,
+    type: TraitWashType,
+    newId: String
+): ConfirmAddOutcome = stateStore.updateAndReturn<ConfirmAddOutcome> {
+    if (id !in discipleTables.ids) {
+        DomainLog.w(LOG_TAG, "确认新增${type.displayName}拒绝: 弟子不存在 id=$id")
+        return@updateAndReturn ConfirmAddOutcome.NOT_FOUND
+    }
+    if (discipleTables.isAlive[id] != 1) {
+        DomainLog.w(LOG_TAG, "确认新增${type.displayName}拒绝: 弟子已死亡 id=$id")
+        return@updateAndReturn ConfirmAddOutcome.DEAD
+    }
+    val current: Disciple = discipleTables.assemble(id)
+    val currentIds = type.idsOf(current)
+    if (currentIds.size >= TraitAdd.MAX_TRAITS_PER_CATEGORY) {
+        DomainLog.w(LOG_TAG, "确认新增${type.displayName}拒绝: 已达上限 id=$id 数量=${currentIds.size}")
+        return@updateAndReturn ConfirmAddOutcome.FULL
+    }
+    if (!isValidTraitAdd(type, currentIds, newId)) {
+        DomainLog.w(
+            LOG_TAG,
+            "确认新增${type.displayName}拒绝: 新增校验失败 id=$id new=$newId 当前=$currentIds"
+        )
+        return@updateAndReturn ConfirmAddOutcome.INVALID
+    }
+    val updated = type.appendId(current, newId)
+    discipleTables.remove(id)
+    discipleTables.insert(syncLifespanForTraitChange(current, updated))
+    // 体质/词条影响修炼速率——新增瞬间重新记账（速率投影基于 checkpoint + 新速率推导）
+    discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
+    // 清除 pending（产物已落盘到弟子）
+    gameData = gameData.copy(
+        pendingTraitAdds = gameData.pendingTraitAdds
+            .filterNot { it.discipleId == id.toString() && it.type == type.name }
+    )
+    ConfirmAddOutcome.ADDED
 }
 
 /**

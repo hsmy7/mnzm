@@ -31,7 +31,8 @@ object ManufacturerAdapter {
             listOf(m, b).any { it.contains("huawei") } -> Manufacturer.HUAWEI
             listOf(m, b).any { it.contains("honor") } -> Manufacturer.HONOR
             listOf(m, b).any { it.contains("xiaomi") || it.contains("redmi") } -> Manufacturer.XIAOMI
-            listOf(m, b).any { it.contains("oppo") || it.contains("realme") || it.contains("oneplus") } -> Manufacturer.OPPO
+            listOf(m, b).any { it.contains("oppo") || it.contains("realme") || it.contains("oneplus") } -> Manufacturer
+                .OPPO
             listOf(m, b).any { it.contains("vivo") || it.contains("iqoo") } -> Manufacturer.VIVO
             listOf(m, b).any { it.contains("samsung") } -> Manufacturer.SAMSUNG
             else -> Manufacturer.OTHER

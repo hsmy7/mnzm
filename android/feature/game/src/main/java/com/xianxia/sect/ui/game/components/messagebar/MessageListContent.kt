@@ -82,7 +82,7 @@ fun MessageListContent(
     }
 }
 
-/** 空列表占位提示（MessageListContent 拆分） */
+/** 空列表占位提示 */
 @Composable
 private fun MessageListEmptyHint() {
     Box(
@@ -97,7 +97,7 @@ private fun MessageListEmptyHint() {
     }
 }
 
-/** 消息列表（MessageListContent 拆分）：稳定 key 的 LazyColumn */
+/** 消息列表：稳定 key 的 LazyColumn */
 @Composable
 private fun MessageListColumn(
     listState: LazyListState,
@@ -111,10 +111,10 @@ private fun MessageListColumn(
         itemsIndexed(
             items = events,
             key = { index, event ->
-                // P-9：sequenceId 稳定 key——头部 takeLast 移除不再使其余条目 key
+                // sequenceId 稳定 key——头部 takeLast 移除不再使其余条目 key
                 // 位移（整列表重建）。旧档未回填（sequenceId=0）时退回 index+时间戳
-                // +类型组合（S4 修复：index 前缀防同毫秒同类型碰撞——原旧实现含
-                // index，去掉会重引入此前 Bugly 已修过的 LazyColumn 重复 key 崩溃）
+                // +类型组合：index 前缀防同毫秒同类型碰撞，否则触发
+                // LazyColumn 重复 key 崩溃
                 if (event.sequenceId != 0L) "seq_${event.sequenceId}"
                 else "${index}_${event.timestamp}_${event.eventType}"
             }
@@ -124,7 +124,7 @@ private fun MessageListColumn(
     }
 }
 
-/** "↓"跳转到底部按钮（MessageListContent 拆分） */
+/** "↓"跳转到底部按钮 */
 @Composable
 private fun BoxScope.MessageListScrollFab(
     visible: Boolean,

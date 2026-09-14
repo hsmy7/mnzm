@@ -404,21 +404,6 @@ class DiscipleTablesTest {
         assertTrue("mutationVersion 应递增", tables.mutationVersion > v0)
     }
 
-    @Test
-    fun `replaceAll preserves deathRecords`() {
-        val tables = DiscipleTables()
-        tables.addDeathRecord(DeathRecord(
-            id = 1, name = "", surname = "", realm = 9, realmLayer = 1,
-            deathAge = 0, deathYear = 100, cause = "test"
-        ))
-        tables.insert(createTestDisciple(id = "2"))
-
-        tables.replaceAll(listOf(createTestDisciple(id = "3")))
-
-        assertEquals("deathRecords 不应被清空", 1, tables.deathRecords.size)
-        assertEquals(100, tables.deathRecords[0].deathYear)
-    }
-
     // ═══════════════════════════════════════════════════════════════
     // physiqueIds / affixIds 往返测试（修复漏写 bug 的回归测试）
     // ═══════════════════════════════════════════════════════════════

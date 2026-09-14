@@ -52,6 +52,7 @@ object SaveValidator {
      * @param saveData 待校验的存档数据
      * @return [Passed] / [Repaired]（含修复后数据）/ [Corrupted]（含问题清单）
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun validate(saveData: SaveData): IntegrityResult {
         ensureRegistered()
         val context = RuleContext(saveData)

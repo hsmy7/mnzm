@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 提取的私有辅助函数集中于本文件，文件级函数数为拆分的固有代价
 package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
@@ -93,16 +93,14 @@ object BattleAI {
         rng: DeterministicRng,
         playerDamageModifier: Double = 1.0
     ): AIAction {
-        // 快速退出：已死亡
-        if (unit.isDead) return AIAction.none()
+        // 快速退出：已死亡或被控（两检查点间无 RNG 消费/副作用，合并守卫等价）
+        if (unit.isDead || unit.hasControlEffect) return AIAction.none()
 
         val aliveAllies = allies.filter { !it.isDead }
         val aliveEnemies = enemies.filter { !it.isDead }
         if (aliveEnemies.isEmpty()) return AIAction.none()
 
         // ---- Tier 1: 被控检查 ----
-        if (unit.hasControlEffect) return AIAction.none()
-
         val isSilenced = unit.buffs.any {
             it.type == BuffType.SILENCE
         }
@@ -148,10 +146,9 @@ object BattleAI {
     }
 
     /**
-     * Tier 2-3 紧急行动（decideAction 拆分）：保命 (HP < 25%) + 斩杀 (敌 HP < 30%)。
+     * Tier 2-3 紧急行动：保命 (HP < 25%) + 斩杀 (敌 HP < 30%)。
      * RNG 消费顺序与次数与拆分前完全一致（逐层短路返回）。
      */
-    // 拆分搬移:多出口与原函数一致
     @Suppress("ReturnCount")
     private fun tryEmergencyActions(
         unit: Combatant,
@@ -180,10 +177,9 @@ object BattleAI {
     }
 
     /**
-     * Tier 4-7 机会行动（decideAction 拆分）：支援盟友/团队Buff/控制/AOE。
+     * Tier 4-7 机会行动：支援盟友/团队Buff/控制/AOE。
      * RNG 消费顺序与次数与拆分前完全一致（逐层短路返回）。
      */
-    // 拆分搬移:多出口与原函数一致
     @Suppress("ReturnCount")
     private fun tryOpportunityActions(
         unit: Combatant,
@@ -244,6 +240,7 @@ object BattleAI {
     /**
      * 选择攻击目标（威胁排序）。
      */
+    @Suppress("UnusedParameter") // attacker: 决策签名完整性：当前目标选择不依赖攻击者属性，保留形参表达调用语义
     fun selectAttackTarget(
         attacker: Combatant,
         enemies: List<Combatant>,
@@ -251,8 +248,8 @@ object BattleAI {
         rng: DeterministicRng
     ): Combatant? {
         val alive = enemies.filter { !it.isDead }
-        if (alive.isEmpty()) return null
-        if (alive.size == 1) return alive.first()
+        // 空/单目标快速退出（无 RNG 消费，合并守卫等价）
+        if (alive.size <= 1) return alive.firstOrNull()
 
         // 低血量优先
         if (rng.nextDouble() < PROB_TARGET_LOW_HP) {
@@ -340,30 +337,13 @@ object BattleAI {
         if (supportSkills.isEmpty()) return null
 
         // 优先级：护盾 > 治愈 > 减伤 > 加速
-        supportSkills.firstOrNull {
-            it.shieldPercent > 0 &&
-                (it.targetScope == "self" || it.isAoe)
-        }?.let {
+        supportSkills.firstOrNull(::isSelfShieldSkill)?.let {
             return AIAction(it, unit, AIActionType.SKILL_BUFF_SELF)
         }
-        supportSkills.firstOrNull {
-            (it.healPercent > 0 || it.healFixed > 0) &&
-                (it.targetScope == "self" || it.isAoe)
-        }?.let {
+        supportSkills.firstOrNull(::isSelfHealSkill)?.let {
             return AIAction(it, unit, AIActionType.SKILL_HEAL_SELF)
         }
-        supportSkills.firstOrNull { skill ->
-            (skill.targetScope == "self" || skill.isAoe) && (
-                skill.buffType == BuffType.DAMAGE_REDUCTION ||
-                    skill.buffs.any {
-                        it.first == BuffType.DAMAGE_REDUCTION
-                    } ||
-                    skill.buffType == BuffType.SPEED_BOOST ||
-                    skill.buffs.any {
-                        it.first == BuffType.SPEED_BOOST
-                    }
-            )
-        }?.let {
+        supportSkills.firstOrNull(::isSelfMitigationOrSpeedSkill)?.let {
             return AIAction(it, unit, AIActionType.SKILL_BUFF_SELF)
         }
         return null
@@ -385,12 +365,11 @@ object BattleAI {
             it.effectivePhysicalAttack +
                 it.effectiveMagicAttack
         }
+        // 非 AoE 单体技能中倍率最高者（循环不变量，提升出循环；无可用技能即无可斩杀）
+        val bestSkill = attackSkills
+            .filter { !it.isAoe }
+            .maxByOrNull { it.damageMultiplier } ?: return null
         for (target in sorted) {
-            val nonAoe = attackSkills.filter { !it.isAoe }
-            if (nonAoe.isEmpty()) continue
-            val bestSkill = nonAoe.maxByOrNull {
-                it.damageMultiplier
-            } ?: continue
             if (estimateDamage(attacker, target, bestSkill, playerDamageModifier)
                 >= target.hp
             ) {
@@ -419,23 +398,7 @@ object BattleAI {
             it.healPercent > 0 || it.healFixed > 0
         }
         if (healSkills.isNotEmpty()) {
-            val target = woundedAllies.minByOrNull {
-                it.hpPercent
-            } ?: return null
-            val bestHeal = healSkills.maxByOrNull {
-                it.healPercent + it.healFixed.toDouble() / 100
-            } ?: return null
-            return if (bestHeal.targetScope == "team" ||
-                bestHeal.isAoe
-            )
-                AIAction(
-                    bestHeal, null,
-                    AIActionType.SKILL_HEAL_TEAM
-                )
-            else AIAction(
-                bestHeal, target,
-                AIActionType.SKILL_HEAL_ALLY
-            )
+            return buildHealAction(woundedAllies, healSkills)
         }
 
         // 其次：给最低血量盟友上防御 Buff
@@ -449,24 +412,56 @@ object BattleAI {
                 }
         }
         if (defBuffSkills.isNotEmpty()) {
-            val target = woundedAllies.minByOrNull {
-                it.hpPercent
-            } ?: return null
-            val bestBuff = defBuffSkills.first()
-            return if (bestBuff.targetScope == "team" ||
-                bestBuff.isAoe
-            )
-                AIAction(
-                    bestBuff, null,
-                    AIActionType.SKILL_BUFF_TEAM
-                )
-            else AIAction(
-                bestBuff, target,
-                AIActionType.SKILL_BUFF_ALLY
-            )
+            return buildDefBuffAction(woundedAllies, defBuffSkills)
         }
 
         return null
+    }
+
+    /** 治愈臂：最低血量盟友 + 最优治疗技能；无可用目标返回 null */
+    private fun buildHealAction(
+        woundedAllies: List<Combatant>,
+        healSkills: List<CombatSkill>
+    ): AIAction? {
+        val target = woundedAllies.minByOrNull {
+            it.hpPercent
+        } ?: return null
+        val bestHeal = healSkills.maxByOrNull {
+            it.healPercent + it.healFixed.toDouble() / 100
+        } ?: return null
+        return if (bestHeal.targetScope == "team" ||
+            bestHeal.isAoe
+        )
+            AIAction(
+                bestHeal, null,
+                AIActionType.SKILL_HEAL_TEAM
+            )
+        else AIAction(
+            bestHeal, target,
+            AIActionType.SKILL_HEAL_ALLY
+        )
+    }
+
+    /** 防御 Buff 臂：最低血量盟友 + 首个防御 Buff 技能 */
+    private fun buildDefBuffAction(
+        woundedAllies: List<Combatant>,
+        defBuffSkills: List<CombatSkill>
+    ): AIAction? {
+        val target = woundedAllies.minByOrNull {
+            it.hpPercent
+        } ?: return null
+        val bestBuff = defBuffSkills.first()
+        return if (bestBuff.targetScope == "team" ||
+            bestBuff.isAoe
+        )
+            AIAction(
+                bestBuff, null,
+                AIActionType.SKILL_BUFF_TEAM
+            )
+        else AIAction(
+            bestBuff, target,
+            AIActionType.SKILL_BUFF_ALLY
+        )
     }
 
     private fun findBuffOpportunity(
@@ -515,6 +510,7 @@ object BattleAI {
         return null
     }
 
+    @Suppress("UnusedParameter") // unit: 决策签名完整性：控制技选取当前不依赖自身单位状态
     private fun findControlAction(
         unit: Combatant,
         enemies: List<Combatant>,
@@ -564,37 +560,58 @@ object BattleAI {
                 it.mpCost
             }
             if (cheap != null && unit.mp >= cheap.mpCost) {
-                val target = selectAttackTarget(
-                    unit, enemies, cheap, rng
-                ) ?: return AIAction.none()
-                return AIAction(
-                    cheap, target,
-                    AIActionType.SKILL_ATTACK_SINGLE
-                )
+                return selectAttackTarget(unit, enemies, cheap, rng)
+                    ?.let { target ->
+                        AIAction(
+                            cheap, target,
+                            AIActionType.SKILL_ATTACK_SINGLE
+                        )
+                    } ?: AIAction.none()
             }
         }
 
         // 最优单体攻击
-        if (attackSkills.isNotEmpty()) {
-            val best = attackSkills.maxByOrNull {
-                it.damageMultiplier /
-                    it.mpCost.coerceAtLeast(1).toDouble()
-            } ?: return AIAction.none()
+        return attackSkills.maxByOrNull {
+            it.damageMultiplier /
+                it.mpCost.coerceAtLeast(1).toDouble()
+        }?.let { best ->
+            selectAttackTarget(unit, enemies, best, rng)?.let { target ->
+                AIAction(
+                    best, target,
+                    AIActionType.SKILL_ATTACK_SINGLE
+                )
+            }
+        } ?: run {
+            // 兜底普通攻击（最优技能/目标缺失时）
             val target = selectAttackTarget(
-                unit, enemies, best, rng
-            ) ?: return AIAction.none()
-            return AIAction(
-                best, target,
-                AIActionType.SKILL_ATTACK_SINGLE
+                unit, enemies, null, rng
             )
+            if (target != null)
+                AIAction(null, target, AIActionType.NORMAL_ATTACK)
+            else AIAction.none()
         }
-
-        // 兜底普通攻击
-        val target = selectAttackTarget(
-            unit, enemies, null, rng
-        )
-        return if (target != null)
-            AIAction(null, target, AIActionType.NORMAL_ATTACK)
-        else AIAction.none()
     }
 }
+
+/** 护盾保命技判定：自身/AOE 范围的护盾技 */
+private fun isSelfShieldSkill(skill: CombatSkill): Boolean =
+    skill.shieldPercent > 0 &&
+        (skill.targetScope == "self" || skill.isAoe)
+
+/** 治愈保命技判定：自身/AOE 范围的治疗技 */
+private fun isSelfHealSkill(skill: CombatSkill): Boolean =
+    (skill.healPercent > 0 || skill.healFixed > 0) &&
+        (skill.targetScope == "self" || skill.isAoe)
+
+/** 减伤/加速保命技判定：自身/AOE 范围的减伤或加速技 */
+private fun isSelfMitigationOrSpeedSkill(skill: CombatSkill): Boolean =
+    (skill.targetScope == "self" || skill.isAoe) && (
+        skill.buffType == BuffType.DAMAGE_REDUCTION ||
+            skill.buffs.any {
+                it.first == BuffType.DAMAGE_REDUCTION
+            } ||
+            skill.buffType == BuffType.SPEED_BOOST ||
+            skill.buffs.any {
+                it.first == BuffType.SPEED_BOOST
+            }
+        )

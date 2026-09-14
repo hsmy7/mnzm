@@ -100,8 +100,10 @@ data class MemorySnapshot(
     val formattedInfo: String
         get() = buildString {
             appendLine("[${tier.displayName}] 压力:${pressureLevel.name}")
-            appendLine("  RAM: ${formatBytes(availableRamBytes)} / ${formatBytes(totalRamBytes)} (${String.format(Locale.getDefault(), "%.1f%%", availablePercent)})")
-            appendLine("  JVM: ${formatBytes(jvmUsedMemory)} / ${formatBytes(jvmMaxMemory)} (${String.format(Locale.getDefault(), "%.1f%%", jvmUsagePercent)})")
+            appendLine("  RAM: ${formatBytes(availableRamBytes)} / ${formatBytes(totalRamBytes)} " +
+                "(${String.format(Locale.getDefault(), "%.1f%%", availablePercent)})")
+            appendLine("  JVM: ${formatBytes(jvmUsedMemory)} / ${formatBytes(jvmMaxMemory)} " +
+                "(${String.format(Locale.getDefault(), "%.1f%%", jvmUsagePercent)})")
             appendLine("  存档需求: ${formatBytes(requiredForSaveData)}, 安全余量: ${formatBytes(safetyMarginBytes)}")
             appendLine("  预算分配: ${formatBytes(budgetAllocatedBytes)}")
         }
@@ -147,18 +149,15 @@ class DynamicMemoryManager @Inject constructor(
         private const val TAG = "DynamicMemoryManager"
 
         /** RAM 分级阈值（字节） */
-        private val TIER_LOW_MAX = 4L * 1024 * 1024 * 1024   // 4 GB
-        private val TIER_MEDIUM_MAX = 6L * 1024 * 1024 * 1024 // 6 GB
-        private val TIER_HIGH_MAX = 8L * 1024 * 1024 * 1024   // 8 GB
 
         /** 安全余量系数 - 存档大小的倍数作为安全缓冲 */
-        private const val SAFETY_MARGIN_MULTIPLIER = 2.5
+        internal const val SAFETY_MARGIN_MULTIPLIER = 2.5
 
         /** 各等级的默认缓存比例上限 */
-        private const val CACHE_RATIO_LOW = 0.08       // 低配设备最多用 8% 内存做缓存
-        private const val CACHE_RATIO_MEDIUM = 0.15     // 标准 15%
-        private const val CACHE_RATIO_HIGH = 0.25       // 高配 25%
-        private const val CACHE_RATIO_ULTRA = 0.35      // 超高配 35%
+        internal const val CACHE_RATIO_LOW = 0.08       // 低配设备最多用 8% 内存做缓存
+        internal const val CACHE_RATIO_MEDIUM = 0.15     // 标准 15%
+        internal const val CACHE_RATIO_HIGH = 0.25       // 高配 25%
+        internal const val CACHE_RATIO_ULTRA = 0.35      // 超高配 35%
 
         /** GC 等待轮次与间隔 */
         private const val GC_WAIT_ROUNDS = 3
@@ -170,7 +169,7 @@ class DynamicMemoryManager @Inject constructor(
 
     private val activityManager =
         context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-    private val runtime = Runtime.getRuntime()
+    internal val runtime = Runtime.getRuntime()
 
     /** 缓存的设备信息（初始化后不变） */
     val deviceTier: DeviceMemoryTier by lazy { detectDeviceTier() }
@@ -192,30 +191,19 @@ class DynamicMemoryManager @Inject constructor(
     // ==================== 初始化 ====================
 
     init {
-        Log.i(TAG, "Initialized - Device tier: ${deviceTier.displayName}, Total RAM: ${totalRamBytes / (1024 * 1024)} MB")
+        Log.i(TAG,
+            "Initialized - Device tier: ${deviceTier.displayName}, Total RAM: ${totalRamBytes / (1024 * 1024)} MB")
     }
 
     // ==================== 设备能力检测 ====================
 
-    /**
-     * 获取 JVM 最大堆内存（字节）
-     */
-    fun getJvmMaxMemory(): Long = runtime.maxMemory()
 
-    /**
-     * 获取应用内存级别限制（MB）
-     */
-    fun getMemoryClassMB(): Int = memoryClassMb
 
-    /**
-     * 获取大内存应用级别限制（MB）
-     */
-    fun getLargeMemoryClassMB(): Int = largeMemoryClassMb
 
-    /**
-     * 是否为低内存设备
-     */
-    fun isLowMemoryDevice(): Boolean = deviceTier == DeviceMemoryTier.LOW
+
+
+
+
 
     // ==================== 存档大小相关 ====================
 
@@ -280,8 +268,7 @@ class DynamicMemoryManager @Inject constructor(
      * 检查是否有足够内存执行存档操作
      *
      * 与 [checkAvailableMemory] 不同的是：
-     * - 不再使用固定的 15% 阈值
-     * - 根据实际存档大小 + 安全余量判断
+     * - 阈值基于实际存档大小 + 安全余量判断，而非固定百分比
      * - 返回更精确的结果
      *
      * @param saveDataSizeBytes 可选：本次操作需要的存档大小
@@ -293,13 +280,18 @@ class DynamicMemoryManager @Inject constructor(
         // 条件1：绝对最小可用内存检查
         val minAvailable = MIN_ABSOLUTE_AVAILABLE_MB * 1024 * 1024
         if (snapshot.availableRamBytes < minAvailable) {
-            Log.w(TAG, "Insufficient absolute memory: ${snapshot.availableRamBytes / (1024 * 1024)} MB < $MIN_ABSOLUTE_AVAILABLE_MB MB")
+            Log.w(TAG, "Insufficient absolute memory: ${snapshot.availableRamBytes / (1024 * 1024)} MB " +
+                "< $MIN_ABSOLUTE_AVAILABLE_MB MB")
             return false
         }
 
         // 条件2：基于存档大小的需求检查
         if (!snapshot.hasSufficientMemory) {
-            Log.w(TAG, "Insufficient memory for save data: need ${snapshot.requiredForSaveData + snapshot.safetyMarginBytes}, available ${snapshot.availableRamBytes}")
+            Log
+                .w(TAG,
+                    "Insufficient memory for save data: " +
+                        "need ${snapshot.requiredForSaveData + snapshot.safetyMarginBytes}, " +
+                            "available ${snapshot.availableRamBytes}")
             return false
         }
 
@@ -332,6 +324,8 @@ class DynamicMemoryManager @Inject constructor(
      * @param maxWaitMs 最大等待时间（毫秒），默认 500ms
      * @return 回收后的可用内存增量（字节），负数表示可能未成功回收
      */
+    // 前者: 中断/IO异常降级继续; 后者: "强制GC并等待"即本函数的设计目的（多轮 gc+finalization）
+    @Suppress("TooGenericExceptionCaught", "ExplicitGarbageCollectionCall")
     fun forceGcAndWait(maxWaitMs: Long = 500L): Long {
         gcInvocationCount.incrementAndGet()
 
@@ -399,15 +393,7 @@ class DynamicMemoryManager @Inject constructor(
         return calculateBudgetAllocation(saveSize)
     }
 
-    /**
-     * 获取当前设备等级对应的推荐最大缓存比例
-     */
-    fun getMaxCacheRatio(): Float = when (deviceTier) {
-        DeviceMemoryTier.LOW -> CACHE_RATIO_LOW.toFloat()
-        DeviceMemoryTier.MEDIUM -> CACHE_RATIO_MEDIUM.toFloat()
-        DeviceMemoryTier.HIGH -> CACHE_RATIO_HIGH.toFloat()
-        DeviceMemoryTier.ULTRA -> CACHE_RATIO_ULTRA.toFloat()
-    }
+
 
     // ==================== 压力监控与降级 ====================
 
@@ -431,7 +417,8 @@ class DynamicMemoryManager @Inject constructor(
         val strategy = determineDegradationStrategy(snapshot)
         if (strategy != DegradationStrategy.NONE) {
             degradationEventCount.incrementAndGet()
-            notifyDegradationApplied(strategy, "Pressure: ${snapshot.pressureLevel.name}, Available: ${snapshot.availablePercent}%")
+            notifyDegradationApplied(strategy,
+                "Pressure: ${snapshot.pressureLevel.name}, Available: ${snapshot.availablePercent}%")
         }
         return strategy.takeIf { it != DegradationStrategy.NONE }
     }
@@ -454,21 +441,7 @@ class DynamicMemoryManager @Inject constructor(
         listeners.removeAll { it.get() == listener }
     }
 
-    private fun notifyPressureChanged(snapshot: MemorySnapshot) {
-        val iterator = listeners.iterator()
-        while (iterator.hasNext()) {
-            val ref = iterator.next()
-            ref.get()?.onPressureChanged(snapshot) ?: iterator.remove()
-        }
-    }
 
-    private fun notifyWarning(event: MemoryWarningEvent) {
-        val iterator = listeners.iterator()
-        while (iterator.hasNext()) {
-            val ref = iterator.next()
-            ref.get()?.onWarning(event) ?: iterator.remove()
-        }
-    }
 
     private fun notifyDegradationApplied(strategy: DegradationStrategy, reason: String) {
         val iterator = listeners.iterator()
@@ -527,6 +500,7 @@ class DynamicMemoryManager @Inject constructor(
     /**
      * 查询设备总 RAM
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun queryTotalRam(): Long {
         return try {
             val info = ActivityManager.MemoryInfo()
@@ -539,38 +513,9 @@ class DynamicMemoryManager @Inject constructor(
         }
     }
 
-    /**
-     * 计算存档操作所需内存
-     *
-     * 公式：存档数据大小 * 操作系数（序列化/反序列化需要额外空间）
-     */
-    private fun calculateRequiredMemory(saveDataSize: Long): Long {
-        // 序列化/反序列化通常需要原始数据 2-3 倍的工作空间
-        val operationMultiplier = when (deviceTier) {
-            DeviceMemoryTier.LOW -> 3.0f      // 低端设备预留更多空间
-            DeviceMemoryTier.MEDIUM -> 2.5f
-            DeviceMemoryTier.HIGH -> 2.0f
-            DeviceMemoryTier.ULTRA -> 1.8f
-        }
-        return (saveDataSize * operationMultiplier).toLong().coerceAtLeast(1024 * 1024) // 最少 1 MB
-    }
 
-    /**
-     * 计算安全余量
-     */
-    private fun calculateSafetyMargin(saveDataSize: Long): Long {
-        val baseMargin = (saveDataSize * SAFETY_MARGIN_MULTIPLIER).toLong()
 
-        // 额外的固定底限
-        val floorMargin = when (deviceTier) {
-            DeviceMemoryTier.LOW -> 16 * 1024 * 1024L   // 16 MB
-            DeviceMemoryTier.MEDIUM -> 32 * 1024 * 1024L // 32 MB
-            DeviceMemoryTier.HIGH -> 48 * 1024 * 1024L   // 48 MB
-            DeviceMemoryTier.ULTRA -> 64 * 1024 * 1024L  // 64 MB
-        }
 
-        return baseMargin.coerceAtLeast(floorMargin)
-    }
 
     /**
      * 计算可分配给缓存的内存预算
@@ -603,4 +548,67 @@ class DynamicMemoryManager @Inject constructor(
             else -> DegradationStrategy.NONE
         }
     }
+}
+
+/**
+ * 获取 JVM 最大堆内存（字节）
+ */
+internal fun DynamicMemoryManager.getJvmMaxMemory(): Long = runtime.maxMemory()
+
+/**
+ * 获取应用内存级别限制（MB）
+ */
+internal fun DynamicMemoryManager.getMemoryClassMB(): Int = memoryClassMb
+
+/**
+ * 获取大内存应用级别限制（MB）
+ */
+internal fun DynamicMemoryManager.getLargeMemoryClassMB(): Int = largeMemoryClassMb
+
+/**
+ * 是否为低内存设备
+ */
+internal fun DynamicMemoryManager.isLowMemoryDevice(): Boolean = deviceTier == DeviceMemoryTier.LOW
+
+/**
+ * 获取当前设备等级对应的推荐最大缓存比例
+ */
+internal fun DynamicMemoryManager.getMaxCacheRatio(): Float = when (deviceTier) {
+    DeviceMemoryTier.LOW -> DynamicMemoryManager.CACHE_RATIO_LOW.toFloat()
+    DeviceMemoryTier.MEDIUM -> DynamicMemoryManager.CACHE_RATIO_MEDIUM.toFloat()
+    DeviceMemoryTier.HIGH -> DynamicMemoryManager.CACHE_RATIO_HIGH.toFloat()
+    DeviceMemoryTier.ULTRA -> DynamicMemoryManager.CACHE_RATIO_ULTRA.toFloat()
+}
+
+/**
+ * 计算存档操作所需内存
+ *
+ * 公式：存档数据大小 * 操作系数（序列化/反序列化需要额外空间）
+ */
+internal fun DynamicMemoryManager.calculateRequiredMemory(saveDataSize: Long): Long {
+    // 序列化/反序列化通常需要原始数据 2-3 倍的工作空间
+    val operationMultiplier = when (deviceTier) {
+        DeviceMemoryTier.LOW -> 3.0f      // 低端设备预留更多空间
+        DeviceMemoryTier.MEDIUM -> 2.5f
+        DeviceMemoryTier.HIGH -> 2.0f
+        DeviceMemoryTier.ULTRA -> 1.8f
+    }
+    return (saveDataSize * operationMultiplier).toLong().coerceAtLeast(1024 * 1024) // 最少 1 MB
+}
+
+/**
+ * 计算安全余量
+ */
+internal fun DynamicMemoryManager.calculateSafetyMargin(saveDataSize: Long): Long {
+    val baseMargin = (saveDataSize * DynamicMemoryManager.SAFETY_MARGIN_MULTIPLIER).toLong()
+
+    // 额外的固定底限
+    val floorMargin = when (deviceTier) {
+        DeviceMemoryTier.LOW -> 16 * 1024 * 1024L   // 16 MB
+        DeviceMemoryTier.MEDIUM -> 32 * 1024 * 1024L // 32 MB
+        DeviceMemoryTier.HIGH -> 48 * 1024 * 1024L   // 48 MB
+        DeviceMemoryTier.ULTRA -> 64 * 1024 * 1024L  // 64 MB
+    }
+
+    return baseMargin.coerceAtLeast(floorMargin)
 }

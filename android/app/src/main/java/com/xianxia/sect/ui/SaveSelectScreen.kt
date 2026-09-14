@@ -12,24 +12,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.components.GameBackground
-import com.xianxia.sect.ui.components.InlineStandardPromptDialog
-import com.xianxia.sect.ui.components.rememberImeAwareAutoFocusRequester
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.TextInputDialog
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.*
@@ -71,7 +65,7 @@ fun SaveSelectScreen(
     var showCloudSaveInfo by remember { mutableStateOf(false) }
     val locale = LocalLocale.current.platformLocale
     val dateFormat = remember(locale) { SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
-    // 宗门名输入弹窗共用入口：槽位点击与覆盖确认两处触发（SaveSelectScreen 拆分）
+    // 宗门名输入弹窗共用入口：槽位点击与覆盖确认两处触发
     val startSectNameDialog: (Int) -> Unit = { slotId ->
         showSectNameDialog = slotId
         sectNameInput = ""
@@ -122,8 +116,7 @@ fun SaveSelectScreen(
     )
 }
 
-/** 存档槽位点击分发（SaveSelectScreen 拆分）：云存档入口/新游戏/覆盖确认/空槽创建/读取 五分支 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 存档槽位点击分发：云存档入口/新游戏/覆盖确认/空槽创建/读取 五分支 */
 @Suppress("LongParameterList")
 private fun dispatchSlotClick(
     slot: SaveSlot,
@@ -338,7 +331,7 @@ private fun SaveSelectDialogs(
     }
 }
 
-/** 创建宗门名输入对话框（自动聚焦+IME确认重试 + 系统栏冻结防键盘频闪） */
+/** 创建宗门名输入对话框（统一 TextInputDialog：独立平台 Dialog 窗口 + 输入会话状态机） */
 @Composable
 private fun SectNameInputDialog(
     sectNameInput: String,
@@ -347,8 +340,6 @@ private fun SectNameInputDialog(
     onValueChange: (String) -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    // 自动聚焦 + 键盘弹出确认重试（荣耀X70根治：键盘首次弹出失败/被系统收起时有限重试）
-    val focusRequester = rememberImeAwareAutoFocusRequester()
     // 确认逻辑（含空名→青云宗兜底 + 校验）供确认按钮与键盘 Done 键共用，杜绝两处逻辑漂移
     val confirm: () -> Unit = {
         if (sectNameError == null) {
@@ -356,46 +347,19 @@ private fun SectNameInputDialog(
             onConfirm(name)
         }
     }
-    InlineStandardPromptDialog(
+    TextInputDialog(
         onDismissRequest = onDismiss,
         title = "创建宗门",
+        value = sectNameInput,
+        onValueChange = onValueChange,
+        placeholder = "青云宗",
+        maxLength = InputValidator.MAX_SECT_NAME_LENGTH,
+        isError = sectNameError != null,
+        errorText = sectNameError,
         confirmLabel = "创建",
         dismissLabel = "取消",
-        dismissOnClickOutside = false,
-        onDismiss = onDismiss,
         onConfirm = confirm,
-        // 含输入框：挂载期间冻结宿主窗口系统栏操作（键盘频闪根治，见 SystemBarFreezeScope）
-        freezeSystemBars = true,
-        content = {
-            Spacer(Modifier.weight(1f))
-            OutlinedTextField(
-                value = sectNameInput,
-                onValueChange = onValueChange,
-                placeholder = { Text("青云宗", color = Color(0xFF999999)) },
-                singleLine = true,
-                isError = sectNameError != null,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = { confirm() }
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-            )
-            Text(
-                text = sectNameError ?: "${sectNameInput.length}/6",
-                fontSize = 11.sp,
-                color = if (sectNameError != null)
-                    Color(0xFFEF5350) else Color.Black,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                textAlign = TextAlign.End
-            )
-        }
+        onDismiss = onDismiss
     )
 }
 

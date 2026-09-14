@@ -126,10 +126,16 @@ object VulkanPolicy {
     /**
      * 初始化策略并缓存决策。
      * 必须在 Application.onCreate 中调用，在任何 Activity 启动之前。
+     *
+     * _deviceInfo 读台账持久化的真实 GPU 设备信息（上次成功探测的
+     * vendor/api/driver/deviceName）——量化阈值据此在**策略期**即可生效。首装首启
+     * 无历史 → null → 默认 Allow，本次启动 prewarm 后落台账，下次生效。
      */
     fun initialize(context: Context) {
+        _deviceInfo = CrashRecoveryEngine.readPersistedGpuInfo()
         _disableAcceleration = shouldDisableHardwareAcceleration(context)
-        Log.i(TAG, "VulkanPolicy initialized: disable=$_disableAcceleration")
+        Log.i(TAG, "VulkanPolicy initialized: disable=$_disableAcceleration, " +
+            "persistedGpu=${_deviceInfo?.deviceName ?: "none"}")
     }
 
     /**
@@ -201,13 +207,6 @@ object VulkanPolicy {
             }
         }
 
-        // ★ 信号 5 已移除（2026-09）：原用 RADIO/BOOTLOADER/SERIAL 全为 "unknown" 判模拟器，
-        //   但 Android 10+ 已废弃 Build.SERIAL，真机普遍返回 "unknown"；部分 OEM ROM 的
-        //   Build.RADIO/Build.BOOTLOADER 也常为 "unknown" —— v2338a（vivo，hardware=qcom，
-        //   QUALCOMM/Adreno 8 Gen 2）因此被误判为模拟器 → SOFTWARE_ONLY → CPU 渲染。
-        //   真实模拟器（Android Emulator/Genymotion）仍由信号 1~4（ranchu/goldfish/vbox/
-        //   sdk_/generic/fingerprint emulator）等可靠 Build 属性捕获，信号 5 属冗余且误伤真机。
-
         return false
     }
 
@@ -247,18 +246,14 @@ object VulkanPolicy {
      */
     // ReturnCount/NestedBlockDepth：多信号 OR 检测的自然结构，与 isEmulator 一致
     // PrivateApi：SystemProperties 反射检测在 192 行附近，仅读不写
-    @Suppress("ReturnCount", "NestedBlockDepth", "PrivateApi")
+    // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "ReturnCount", "NestedBlockDepth", "PrivateApi")
     private fun computeCloudGaming(): Boolean {
         // 信号 1: Build.HOST 包含 taptap/sandbox 标记
         // 注意：不使用 "cloud" 关键词，CI/CD 构建环境（如 cloudbuild）
         // 和云服务主机名可能包含 "cloud" 导致假阳性。
         val host = Build.HOST?.lowercase() ?: ""
         if (host.contains("taptap") || host.contains("tapsandbox")) return true
-
-        // ★ 信号 2 已移除（2026-09）：原用 getInstallerPackageName()?.contains("taptap")
-        //   判断云游戏——但 TapTap **商店**分发安装的正常游戏，其 installer 也是 taptap 包名，
-        //   被误判为云游戏并强制 SOFTWARE_ONLY（CPU 渲染），高通/Adreno 旗舰机因此被错杀。
-        //   真实云游戏沙箱仍由信号 1/3/4（宿主名/系统属性/进程 maps 沙箱库）捕获。
 
         // 信号 3: SystemProperties 反射检测
         if (Build.VERSION.SDK_INT >= 29) {
@@ -270,7 +265,7 @@ object VulkanPolicy {
                     val value = getMethod.invoke(null, key) as? String ?: continue
                     if (value.isNotBlank()) return true
                 }
-            } catch (e: Exception) { /* 忽略 */ }
+            } catch (ignored: Exception) { /* 忽略 */ }
         }
 
         // 信号 4: /proc/self/maps 包含 taptap 沙箱库（IO 最重，放最后）
@@ -279,7 +274,8 @@ object VulkanPolicy {
 
     /** /proc/self/maps 扫描沙箱库标记（读完整文件，命中即提前返回）。 */
     // NestedBlockDepth：try→use→forEach→if 的只读扫描结构，拆分会损失提前返回
-    @Suppress("NestedBlockDepth")
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "NestedBlockDepth")
     internal fun scanMapsForSandbox(path: String = "/proc/self/maps"): Boolean {
         return try {
             BufferedReader(FileReader(path)).use { reader ->
@@ -292,7 +288,7 @@ object VulkanPolicy {
             }
             false
         } catch (e: Exception) {
-            Log.d(TAG, "Could not read /proc/self/maps")
+            Log.d(TAG, "Could not read /proc/self/maps", e)
             false
         }
     }
@@ -314,14 +310,16 @@ object VulkanPolicy {
     /** Vulkan 驱动版本号，0 表示未知 */
     fun getDriverVersion(): Int = _driverVersion
 
-    /** 由 C++ 层在初始化后设置驱动版本（通过 JNI） */
+    /** 由 C++ 层在初始化后设置驱动版本（通过 JNI）。
+     *  已知坏版本仅记台账 soft-fail（不再直接定策略——由下次启动的
+     *  ledgerStrategy 统一裁决） */
     fun setDriverVersion(version: Int) {
         _driverVersion = version
         Log.i(TAG, "Vulkan driver version updated: $version")
         // 检查已知问题版本
         if (version > 0 && isKnownBadDriverVersion(version)) {
-            Log.e(TAG, "Known bad Vulkan driver version: $version — scheduling fallback")
-            CrashRecoveryEngine.recordVulkanInitFailure()
+            Log.e(TAG, "Known bad Vulkan driver version: $version — recording ledger soft-fail")
+            CrashRecoveryEngine.recordVulkanSoftFailure("threshold")
         }
     }
 
@@ -351,7 +349,8 @@ object VulkanPolicy {
 
     /**
      * 由 C++ 层上报物理设备信息（厂商/API/驱动/设备名）。
-     * 低于厂商 Vulkan 最低阈值 → 记录初始化失败（下次启动跳过 Vulkan 走 GPU GLES）。
+     * 低于厂商 Vulkan 最低阈值 → 仅记台账 soft-fail（不再直接定策略，
+     * 由下次启动的 ledgerStrategy 统一裁决；本会话仍走运行时降级链）。
      * @param vendorId VkPhysicalDeviceProperties.vendorID
      * @param apiVersion VkPhysicalDeviceProperties.apiVersion（VK_MAKE_VERSION 编码）
      * @param driverVersion VkPhysicalDeviceProperties.driverVersion
@@ -364,16 +363,18 @@ object VulkanPolicy {
         val apiStr = "${info.apiMajor}.${info.apiMinor}.${info.apiPatch}"
         if (evaluateVulkanTier(info) == DeviceTier.PROBLEMATIC) {
             Log.e(TAG, "Vulkan device below vendor threshold: ${info.vendor} API $apiStr " +
-                "(device=$deviceName) — recording init failure")
-            CrashRecoveryEngine.recordVulkanInitFailure()
+                "(device=$deviceName) — recording ledger soft-fail (strategy next launch)")
+            CrashRecoveryEngine.recordVulkanSoftFailure("threshold")
         } else {
             Log.i(TAG, "Vulkan device OK: $deviceName (${info.vendor}) API $apiStr")
         }
     }
 
-    // ── 已知问题机型列表（持续扩充） ──
-    // 基于 Bugly 崩溃数据和行业报告维护
-    // 特别注意：Adreno GPU vkGetDeviceQueue 崩溃（#3088）— 已在 VulkanBackend.cpp 中增加重试逻辑
+    // ── 已知问题机型列表（名单从「决策者」降级为「遥测队列标记」）──
+    // 命中只打 WARNING 日志 + 记 cohort 标志进遥测事件（不再 PROBLEMATIC → 不再
+    // 未试先降）。运行时回退链（Vulkan→GLES→Software）+ 失败台账（kill/soft-fail
+    // ≥3 → GLES_PREFERRED）共同承担真实防线；版本后由 render_backend_session/
+    // render_fallback 事件按 cohort 分组校准，数据异常再考虑恢复窄 Deny。
     private val KNOWN_PROBLEM_MODELS = setOf(
         // 联想
         "tb320fc",        // 联想平板 (ZUXOS)
@@ -436,6 +437,21 @@ object VulkanPolicy {
         "samsung",      // 三星 OneUI（部分型号）
     )
 
+    // ── API < 31 已知 Vulkan 兼容性良好厂商白名单（对标 Unity Vulkan Device Filtering） ──
+    // 仅近原生 Android 设备在旧 API 上通过严格 CTS Vulkan 测试（Google 原生/Nexus/Pixel、
+    // Essential Phone、Fairphone、Sony Xperia 部分型号、HMD Global/Nokia Android One 成员）
+    private val KNOWN_GOOD_OLD_DEVICE_MANUFACTURERS = setOf(
+        "google",       // Google 原生 — 驱动经过 CTS 认证
+        "essential",    // Essential Phone — Vulkan 合规性好
+        "fairphone",    // Fairphone — 接近原生 Android
+        "sony",         // Sony Xperia — 部分型号合规性记录良好
+        "hmd global",   // Nokia (HMD Global) — Android One 项目成员
+        "nokia",
+    )
+
+    // Android One 认证以 brand 维度标注（跨厂商），独立于上表 manufacturer 维度
+    private const val ANDROID_ONE_BRAND = "android one"
+
     // ── 已知兼容的 SoC 前缀 ──
     // 高通 Adreno Vulkan 驱动相对成熟
     private val COMPATIBLE_SOC_PREFIXES = listOf(
@@ -447,34 +463,13 @@ object VulkanPolicy {
         "mt", "mediatek"
     )
 
-    // ── 已知问题 GPU 型号正则列表（基于行业报告持续扩充） ──
-    // 来源：Unreal Engine 论坛崩溃报告、Unity Issue Tracker、Flutter Issue、ANGLE 修复、
-    //       ARM 驱动勘误表 (SDEN-3735689)、ARM Mali GPU compute hang 报告、Flash Slide 等行业数据
-    // 参考：
-    // https://forums.unrealengine.com/t/artifacts-and-crashes-on-some-android-gpus-and-versions-when-vulkan-is-enabled/2536208
-    private val KNOWN_PROBLEM_GPU_PATTERNS = listOf(
-        // Mali-G5x 系列（G52 MSAA 100% 崩溃 / G57 Ring Buffer 耗尽）
-        Regex("mali-g(52|57|510|610)", RegexOption.IGNORE_CASE),
-        // Mali-G6x/7x 系列（G68/G76 MSAA+延迟贴花 / G77 纹理数组 / G78 shared present mode）
-        Regex("mali-g(68|69|72|76|77|78)", RegexOption.IGNORE_CASE),
-        // Mali-G7xx 新系列（G715 compute hang / G925 PSO 编译崩溃）
-        Regex("mali-g(510|610|615|710|715|720|925)", RegexOption.IGNORE_CASE),
-        // Mali T8xx 系列（较旧但仍在使用）
-        Regex("mali.*t(8[56]0|9[05]0)", RegexOption.IGNORE_CASE),
-        // Adreno 600 系列（610/615/618/620/630/640/650/660/680 驱动异常）
-        Regex("adreno.*6([1-9][05]|20|30|40|80)0", RegexOption.IGNORE_CASE),
-        // Adreno 700 系列（730/740 计算着色器 bug / 750/758 写越界 / 830 内存泄漏）
-        Regex("adreno.*73[0-9]", RegexOption.IGNORE_CASE),
-        Regex("adreno.*75[0-9]", RegexOption.IGNORE_CASE),
-        Regex("adreno.*83[0-9]", RegexOption.IGNORE_CASE),
-        // PowerVR（GE8320/GM9446 计算着色器崩溃 / DXT Pixel 10 Tensor G5）
-        Regex("powervr.*ge8320", RegexOption.IGNORE_CASE),
-        Regex("powervr.*gm9446", RegexOption.IGNORE_CASE),
-        Regex("powervr.*dxt", RegexOption.IGNORE_CASE),
-        // Exynos Xclipse（940 swapchain bug / 2200 纹理闪烁）
-        Regex("xclipse.*94[0-9]", RegexOption.IGNORE_CASE),
-        Regex("exynos.*2200", RegexOption.IGNORE_CASE),
-    )
+    // ── 分级枚举 ──
+
+    /** 名单命中 cohort 标志（遥测事件 render_backend_session 的 cohort 字段用；
+     *  detectTier 检测时置位，会话期恒定） */
+    @Volatile
+    var inProblemModelCohort: Boolean = false
+        private set
 
     // ── 分级枚举 ──
 
@@ -492,52 +487,25 @@ object VulkanPolicy {
     enum class RenderStrategy(val description: String) {
         /** 先尝试 Vulkan，失败后自动降级到 GPU OpenGL ES（再软件） */
         VULKAN_PREFERRED("首选 Vulkan，失败降级 GPU GLES→软件"),
-        /** Vulkan 不可靠但 GPU 可用（MediaTek/Mali/非高通国产/旧 API 非白名单）：直接走 GPU GLES（2026-09 中间层） */
+        /** Vulkan 不可靠但 GPU 可用（MediaTek/Mali/非高通国产/旧 API 非白名单）：直接走 GPU GLES */
         GLES_PREFERRED("首选 GPU OpenGL ES，失败降级软件"),
         /** 直接使用 Canvas 软件渲染（模拟器/崩溃自愈安全模式/云游戏） */
         SOFTWARE_ONLY("直接使用软件渲染"),
     }
 
     /**
-     * 获取推荐渲染策略。
+     * 获取推荐渲染策略：失败学习由台账统一裁决）。
      *
      * 算法：
      * 1. 崩溃自愈安全模式 → SOFTWARE_ONLY
-     * 2. 模拟器检测 → SOFTWARE_ONLY（模拟器 Vulkan 在 libhoudini 翻译层下不可靠）
-     * 3. Vulkan 崩溃专用标记 → SOFTWARE_ONLY（上次 SIGSEGV 直接标记）
-     * 4. 持久化 Vulkan 初始化失败标记 → SOFTWARE_ONLY（前次运行 initDevice 返回 false）
-     * 5. Phase 1 写前标记残留 → SOFTWARE_ONLY（前次 prewarm 被 SIGSEGV 杀死）
-     * 6. Phase 2 写前标记残留 → SOFTWARE_ONLY（前次 initSurface 被 SIGSEGV 杀死）
-     * 7. PROBLEMATIC 设备 → SOFTWARE_ONLY
-     * 8. 其他 → VULKAN_PREFERRED
-     */
-    /**
-     * 在 API < 31 设备上判断是否为已知 Vulkan 兼容性良好的设备。
+     * 1b. TapTap 云游戏环境 → SOFTWARE_ONLY
+     * 2. 模拟器检测（内部消费台账：有失败记录 → SOFTWARE_ONLY）
+     * 3. 失败台账：kill≥3 或 soft≥3（3 天窗口内）→ GLES_PREFERRED（仍是 GPU）
+     * 4. API < 31 非白名单 → GLES_PREFERRED
+     * 5. 设备分级（名单命中已降为 WARNING/cohort 遥测，不参与决策）
      *
-     * 对标 Flutter Impeller 的 API 版本门槛策略（API < 29 无条件回退 GLES）
-     * 和 Unity Vulkan Device Filtering 的白名单做法。
-     * 仅 Google Pixel/Nexus 和 Android One 设备在旧 API 上通过了严格的
-     * CTS Vulkan 测试，驱动缺陷较少。
+     * 未达台账阈值 → VULKAN_PREFERRED 重试（保留「干净启动重试」的合理意图）。
      */
-    private fun isKnownGoodOldDevice(): Boolean {
-        // Build.MANUFACTURER/Build.BRAND 是 Java 平台类型，定制 ROM 可能返回 null
-        val manufacturer = Build.MANUFACTURER?.lowercase() ?: return false
-        val brand = Build.BRAND?.lowercase() ?: return false
-        // Google 设备 — 原生 Android，驱动经过 CTS 认证
-        if (manufacturer == "google") return true
-        // Android One 设备 — Google 认证的低端设备
-        if (brand == "android one") return true
-        // Essential Phone — 已知 Vulkan 合规性好
-        if (manufacturer == "essential") return true
-        // Fairphone — 接近原生 Android
-        if (manufacturer == "fairphone") return true
-        // Sony Xperia — 部分型号的 Vulkan 合规性记录良好
-        if (manufacturer == "sony") return true
-        // Nokia (HMD Global) — Android One 项目成员
-        if (manufacturer == "hmd global" || manufacturer == "nokia") return true
-        return false
-    }
-
     @Suppress("ReturnCount")
     fun getRenderStrategy(context: Context): RenderStrategy {
         // 1. 崩溃自愈安全模式
@@ -546,29 +514,20 @@ object VulkanPolicy {
         // 1b. TapTap 云游戏环境检测
         cloudGamingStrategy()?.let { return it }
 
-        // 2. Vulkan 崩溃专用标记（一次 SIGSEGV 即降级，无需累计到阈值）
-        vulkanCrashStrategy()?.let { return it }
-
-        // 3. 模拟器检测
+        // 2. 模拟器检测（内部消费台账）
         emulatorStrategy()?.let { return it }
 
-        // 4. 持久化 Vulkan 初始化失败标记（前次运行软失败）
-        persistentVulkanFailureStrategy()?.let { return it }
+        // 3. 失败台账：kill≥3 或 soft≥3（窗口内）→ GLES_PREFERRED
+        ledgerStrategy()?.let { return it }
 
-        // 5. Phase 1 写前标记残留 → 前次 prewarm 被 SIGSEGV 杀死
-        prewarmKilledStrategy()?.let { return it }
-
-        // 6. Phase 2 写前标记残留 → 前次 initSurface/createSwapchain 被 SIGSEGV 杀死
-        surfaceInitKilledStrategy()?.let { return it }
-
-        // 7. API < 31 保守策略（对标 Flutter API < 29 回退 + Unity Device Filtering）
+        // 4. API < 31 保守策略（对标 Flutter API < 29 回退 + Unity Device Filtering）
         oldApiStrategy()?.let { return it }
 
-        // 8. 设备分级检测
+        // 5. 设备分级检测
         return tierStrategy(context)
     }
 
-    /** 崩溃自愈安全模式检查（getRenderStrategy 拆分）：安全模式 → 软件渲染 */
+    /** 崩溃自愈安全模式检查：安全模式 → 软件渲染 */
     private fun safeModeStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.isSafeMode()) {
             Log.w(TAG, "Safe mode → SOFTWARE_ONLY render strategy")
@@ -577,7 +536,7 @@ object VulkanPolicy {
         return null
     }
 
-    /** TapTap 云游戏环境检查（getRenderStrategy 拆分） */
+    /** TapTap 云游戏环境检查 */
     private fun cloudGamingStrategy(): RenderStrategy? {
         // TapTap TapSandbox 在 Vulkan 调用链上增加 Hook 层，
         // vkCreateShaderModule 已知有 SIGSEGV 缺陷。
@@ -590,16 +549,41 @@ object VulkanPolicy {
         return null
     }
 
-    /** Vulkan 崩溃专用标记检查（getRenderStrategy 拆分） */
-    private fun vulkanCrashStrategy(): RenderStrategy? {
-        if (CrashRecoveryEngine.isVulkanCrashDetected()) {
-            Log.w(TAG, "Vulkan crash detected → GLES_PREFERRED render strategy")
+    /**
+     * 在 API < 31 设备上判断是否为已知 Vulkan 兼容性良好的设备。
+     *
+     * 对标 Flutter Impeller 的 API 版本门槛策略（API < 29 无条件回退 GLES）
+     * 和 Unity Vulkan Device Filtering 的白名单做法。
+     * 仅 Google Pixel/Nexus 和 Android One 设备在旧 API 上通过了严格的
+     * CTS Vulkan 测试，驱动缺陷较少。
+     */
+    private fun isKnownGoodOldDevice(): Boolean {
+        // Build.MANUFACTURER/Build.BRAND 是 Java 平台类型，定制 ROM 可能返回 null
+        val manufacturer = Build.MANUFACTURER?.lowercase() ?: return false
+        val brand = Build.BRAND?.lowercase() ?: return false
+        return manufacturer in KNOWN_GOOD_OLD_DEVICE_MANUFACTURERS || brand == ANDROID_ONE_BRAND
+    }
+
+    /**
+     * 模拟器降级判定：失败台账有记录（kill 达崩溃循环阈值或窗口内应降 GLES）
+     * 即视为不可信，走纯软件渲染（台账取代四个布尔标记）。
+     */
+    private fun hasPriorVulkanFailure(): Boolean =
+        CrashRecoveryEngine.isVulkanCrashLoop() ||
+            CrashRecoveryEngine.shouldPreferGles()
+
+    /** 失败台账检查：
+     *  kill≥3（崩溃循环）或 soft≥3（窗口内）→ GLES_PREFERRED（仍是 GPU，不是软件） */
+    private fun ledgerStrategy(): RenderStrategy? {
+        if (CrashRecoveryEngine.shouldPreferGles()) {
+            val reason = if (CrashRecoveryEngine.isVulkanCrashLoop()) "crash_loop" else "soft_fail_loop"
+            Log.w(TAG, "Vulkan failure ledger → GLES_PREFERRED ($reason)")
             return RenderStrategy.GLES_PREFERRED
         }
         return null
     }
 
-    /** 模拟器策略（getRenderStrategy 拆分）：崩溃记录/API<31 非白名单降级，GPU 透传保留硬件加速 */
+    /** 模拟器策略：崩溃记录/API<31 非白名单降级，GPU 透传保留硬件加速 */
     @Suppress("ReturnCount")
     private fun emulatorStrategy(): RenderStrategy? {
         // 行业调研确认：模拟器 Vulkan 翻译层（Gfxstream/Virtio-gpu）走宿主机物理 GPU，
@@ -607,15 +591,12 @@ object VulkanPolicy {
         // 不应直接跳过硬件加速——仅在先前崩溃/初始化失败后才降级。
         // 参考：MuMu 12 WHPX+Vulkan 零拷贝渲染、LDPlayer 9 Vulkan 支持、Flutter Impeller 模拟器策略
         if (isEmulator()) {
-            if (CrashRecoveryEngine.isVulkanCrashDetected() ||
-                CrashRecoveryEngine.hasVulkanInitFailure() ||
-                CrashRecoveryEngine.wasPrewarmKilled() ||
-                CrashRecoveryEngine.wasSurfaceInitKilled()) {
+            if (hasPriorVulkanFailure()) {
                 Log.w(TAG, "Emulator + prior Vulkan failure → SOFTWARE_ONLY")
                 return RenderStrategy.SOFTWARE_ONLY
             }
             // API < 31 非白名单模拟器：Vulkan passthrough 不可靠，但设备有 GPU →
-            // 走 GPU GLES 中间层（非 CPU 软件；2026-09 GLES 落地后对齐）。
+            // 走 GPU GLES 中间层（非 CPU 软件）。
             // 参考：非模拟器 API<31 非白名单路径同样 GLES_PREFERRED。
             if (Build.VERSION.SDK_INT < 31 && !isKnownGoodOldDevice()) {
                 Log.w(TAG, "Emulator on API<31 non-whitelist → GLES_PREFERRED")
@@ -627,36 +608,7 @@ object VulkanPolicy {
         return null
     }
 
-    /** 持久化 Vulkan 初始化失败标记检查（getRenderStrategy 拆分）：前次运行软失败 */
-    private fun persistentVulkanFailureStrategy(): RenderStrategy? {
-        if (CrashRecoveryEngine.hasVulkanInitFailure()) {
-            Log.w(TAG, "Persistent Vulkan failure → GLES_PREFERRED render strategy")
-            return RenderStrategy.GLES_PREFERRED
-        }
-        return null
-    }
-
-    /** Phase 1 写前标记残留检查（getRenderStrategy 拆分）：前次 prewarm 被 SIGSEGV 杀死 */
-    private fun prewarmKilledStrategy(): RenderStrategy? {
-        if (CrashRecoveryEngine.wasPrewarmKilled()) {
-            Log.w(TAG, "Previous prewarm was killed (SIGSEGV) → GLES_PREFERRED")
-            CrashRecoveryEngine.recordVulkanInitFailure()
-            return RenderStrategy.GLES_PREFERRED
-        }
-        return null
-    }
-
-    /** Phase 2 写前标记残留检查（getRenderStrategy 拆分）：前次 initSurface/createSwapchain 被 SIGSEGV 杀死 */
-    private fun surfaceInitKilledStrategy(): RenderStrategy? {
-        if (CrashRecoveryEngine.wasSurfaceInitKilled()) {
-            Log.w(TAG, "Previous surface init was killed (SIGSEGV) → GLES_PREFERRED")
-            CrashRecoveryEngine.recordVulkanInitFailure()
-            return RenderStrategy.GLES_PREFERRED
-        }
-        return null
-    }
-
-    /** API < 31 保守策略（getRenderStrategy 拆分）：对标 Flutter API < 29 回退 + Unity Device Filtering */
+    /** API < 31 保守策略：对标 Flutter API < 29 回退 + Unity Device Filtering */
     private fun oldApiStrategy(): RenderStrategy? {
         // 行业数据：Android 8-11 上 Mali/Adreno 6xx/PowerVR 等 GPU 的 Vulkan 驱动
         // 在非 Google 设备上存在广泛兼容性问题。Unity 6+ 对 Mali-G52/Mali T8xx 等
@@ -678,7 +630,7 @@ object VulkanPolicy {
         return null
     }
 
-    /** 设备分级 → 渲染策略（getRenderStrategy 拆分） */
+    /** 设备分级 → 渲染策略 */
     private fun tierStrategy(context: Context): RenderStrategy = when (detectTier(context)) {
         DeviceTier.PROBLEMATIC -> {
             // 问题设备 = Vulkan 驱动不可靠，但设备有 GPU → GPU GLES 中间层（非 CPU 软件）
@@ -702,7 +654,7 @@ object VulkanPolicy {
      */
     @Suppress("ReturnCount", "CyclomaticComplexMethod", "NestedBlockDepth", "LongMethod")
     fun detectTier(context: Context): DeviceTier {
-        // ★ 对抗性审查防御：Build.MODEL/Manufacturer/BOARD/HARDWARE 在定制 ROM、
+        // 防御性判空：Build.MODEL/Manufacturer/BOARD/HARDWARE 在定制 ROM、
         // Robolectric 测试中可能返回 null，.lowercase() 会抛出 NPE
         val model = (Build.MODEL ?: "").lowercase()
         val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
@@ -714,30 +666,30 @@ object VulkanPolicy {
             ""
         }
 
-        // 0. Vulkan 崩溃专用标记 → PROBLEMATIC
-        if (CrashRecoveryEngine.isVulkanCrashDetected()) {
-            Log.w(TAG, "Vulkan crash detected — PROBLEMATIC")
+        // 0. 失败台账（取代原「崩溃专用标记/持久化失败标记」两个死分支）。
+        //    与 ledgerStrategy 同窗口语义——shouldPreferGles 已含「达阈值且在 3 天窗口内」
+        //    判定；窗口外/衰减后的 kill 计数不再钉死设备（VULKAN_PREFERRED 重试）。
+        if (CrashRecoveryEngine.shouldPreferGles()) {
+            val reason = if (CrashRecoveryEngine.isVulkanCrashLoop()) "crash_loop" else "soft_fail_loop"
+            Log.w(TAG, "Vulkan failure ledger ($reason) — PROBLEMATIC")
             return DeviceTier.PROBLEMATIC
         }
 
-        // 1. 持久化 Vulkan 初始化失败标记 → PROBLEMATIC
-        if (CrashRecoveryEngine.hasVulkanInitFailure()) {
-            Log.w(TAG, "Persistent Vulkan init failure — PROBLEMATIC")
-            return DeviceTier.PROBLEMATIC
-        }
-
-        // 1. 精确匹配已知问题机型 → PROBLEMATIC
+        // 1. 精确匹配已知问题机型 → WARNING（名单从决策者降为遥测队列
+        //    标记——不再 PROBLEMATIC 未试先降；运行时回退链 + 失败台账承担真实防线，
+        //    cohort 标志进遥测事件由版本后数据决定是否恢复窄 Deny）
         if (KNOWN_PROBLEM_MODELS.any { model.contains(it) }) {
-            Log.w(TAG, "Device matches known problem model: $model")
-            return DeviceTier.PROBLEMATIC
+            inProblemModelCohort = true
+            Log.w(TAG, "Device in legacy problem-model cohort: $model — " +
+                "VULKAN_PREFERRED with runtime fallback (cohort tracked for telemetry)")
+            return DeviceTier.WARNING
         }
 
         // 2. 基于 SoC/厂商信号的"数据导向"风险感知（默认 Allow Vulkan，仅日志 + 量化后置判定）。
-        //    ★ 2026-09 策略修正：移除过去"整厂商/整机型一刀切拉黑"（MediaTek / 国产非高通 → PROBLEMATIC
-        //    直接走 GPU GLES），改为**默认 Vulkan + 窄 Deny**（行业标准，见 docs/adr/render-strategy-decision.md）。
+        //    策略：**默认 Vulkan + 窄 Deny**（行业标准，见 docs/adr/render-strategy-decision.md）。
         //    依据：GPU GLES 中间层已落地（降级链 Vulkan→GPU GLES→CPU Canvas），即便 Vulkan 驱动有缺陷，
         //    崩溃自愈 + GLES 兜底仍保 GPU 可用；量化阈值（低于厂商 VK API 版本 → 记录失败下次走 GLES）经
-        //    C++ 上报设备信息（setVulkanDeviceInfo）+ Bugly 校准后置生效，不再靠整厂商名单。
+        //    C++ 上报设备信息（setVulkanDeviceInfo）+ Bugly 校准后置生效，不依赖整厂商名单。
         val isMediatek = MEDIATEK_PREFIXES.any { prefix ->
             board.startsWith(prefix) ||
             hardware.startsWith(prefix) ||
@@ -756,33 +708,14 @@ object VulkanPolicy {
             Log.w(TAG, "Vulkan risky-vendor signal (Mediatek=$isMediatek Chinese=$isChineseManufacturer " +
                 "Qualcomm=$isQualcomm) — default VULKAN_PREFERRED, rely on quantified probe + crash-recovery")
         }
-        // 4. 检查 SoC/GPU 型号匹配已知问题列表
-        // 使用 Build.SOC_MODEL（API 31+）尝试匹配已知问题 GPU 型号，
-        // 作为额外防线：即使厂商未被标记为问题设备也能捕获。
-        if (Build.VERSION.SDK_INT >= 31) {
-            val socModel = Build.SOC_MODEL?.lowercase() ?: ""
-            if (socModel.isNotEmpty()) {
-                for (pattern in KNOWN_PROBLEM_GPU_PATTERNS) {
-                    if (pattern.containsMatchIn(socModel)) {
-                        Log.w(TAG, "SOC model matches known problem GPU: " +
-                            "$socModel (pattern=${pattern.pattern})")
-                        return DeviceTier.PROBLEMATIC
-                    }
-                }
-            }
-        }
-        // 辅助：board/hardware 中也可能包含 GPU 信息（如 "mt6893" 含 Mali 信息）
-        val hwCombined = "$board $hardware $socManufacturer".lowercase()
-        for (pattern in KNOWN_PROBLEM_GPU_PATTERNS) {
-            if (pattern.containsMatchIn(hwCombined)) {
-                Log.w(TAG, "Hardware matches known problem GPU pattern: " +
-                    "$hwCombined (pattern=${pattern.pattern})")
-                return DeviceTier.PROBLEMATIC
-            }
-        }
+        // 4.（已删除）原「SOC_MODEL/board/hardware 匹配已知问题 GPU 正则」
+        //    两个匹配块整体移除——输入值（如 sm8550/taro/qcom）不含 mali-g/adreno 字样，
+        //    防线永不命中；且行业抄来的 pattern（adreno.*73[0-9] 等）若真接到真实设备名
+        //    会把本项目渲染特性（2D 精灵、无 MSAA、无 compute）无关的旗舰误杀。
+        //    量化防线改吃台账持久化的真实设备信息（initialize → readPersistedGpuInfo）。
 
-        // 5. 量化阈值后置判定（若已由 C++ 上报物理设备信息——通常为 prewarm 后；
-        //    低于厂商 VK API 阈值 → PROBLEMATIC）。启动时 _deviceInfo 为 null 则跳过（窄 Deny 由上述静态信号承担）。
+        // 5. 量化阈值后置判定（若已有设备信息——台账持久化或本次 prewarm 上报；
+        //    低于厂商 VK API 阈值 → PROBLEMATIC）。null 则跳过（窄 Deny 由上述静态信号承担）。
         val probed = _deviceInfo
         if (probed != null && evaluateVulkanTier(probed) == DeviceTier.PROBLEMATIC) {
             Log.w(TAG, "Vulkan device below vendor threshold (${probed.vendor} API " +
@@ -850,9 +783,9 @@ object VulkanPolicy {
             return true
         }
 
-        // 2. Vulkan 崩溃专用标记 → 强制降级
-        if (CrashRecoveryEngine.isVulkanCrashDetected()) {
-            Log.w(TAG, "Vulkan crash detected — disabling HW acceleration")
+        // 2. 失败台账（窗口内达阈值才降级；与 getRenderStrategy 同语义）
+        if (CrashRecoveryEngine.shouldPreferGles()) {
+            Log.w(TAG, "Vulkan failure ledger prefers GLES — disabling HW acceleration")
             return true
         }
 
@@ -932,8 +865,12 @@ object VulkanPolicy {
         sb.appendLine("Android: $release (SDK $sdk)")
         sb.appendLine("Tier: ${detectTier(context)}")
         sb.appendLine("Safe Mode: ${CrashRecoveryEngine.isSafeMode()}")
-        val crashCount = CrashRecoveryEngine.getConsecutiveCrashCount()
-        sb.appendLine("Consecutive Crashes: $crashCount")
+        sb.appendLine("Render Crashes (24h window): ${CrashRecoveryEngine.getRenderCrashCountInWindow()}")
+        sb.appendLine("Failure Ledger: kill=${CrashRecoveryEngine.getVkKillCount()} " +
+            "softFail=${CrashRecoveryEngine.getVkSoftFailCount()} " +
+            "preferGles=${CrashRecoveryEngine.shouldPreferGles()}")
+        sb.appendLine("Problem-Model Cohort: $inProblemModelCohort")
+        sb.appendLine("Last Fallback: ${CrashRecoveryEngine.getLastFallback() ?: "none"}")
         sb.appendLine("==========================================")
         Log.i(TAG, sb.toString())
     }

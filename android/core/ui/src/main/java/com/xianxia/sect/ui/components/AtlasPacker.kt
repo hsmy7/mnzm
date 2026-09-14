@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.core.graphics.createBitmap
 import android.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
 /**
@@ -72,15 +73,19 @@ class AtlasPacker {
         bitmaps: Map<Int, ImageBitmap>,
         atlasSize: Int = 1024
     ): AtlasResult? {
-        if (bitmaps.isEmpty()) return null
-
-        // 过滤超尺寸精灵（不可能放入图集的）
+        // 过滤超尺寸精灵（不可能放入图集的），按面积降序排列
         val entries = bitmaps.entries
             .filter { it.value.width <= atlasSize && it.value.height <= atlasSize }
             .sortedByDescending { it.value.width * it.value.height }
-
         if (entries.isEmpty()) return null
+        return packEntries(entries, atlasSize)
+    }
 
+    /** shelf packing 装箱主体：图集已满时返回 null */
+    private fun packEntries(
+        entries: List<Map.Entry<Int, ImageBitmap>>,
+        atlasSize: Int
+    ): AtlasResult? {
         val atlasBmp = createBitmap(
             atlasSize, atlasSize, Bitmap.Config.ARGB_8888
         )
@@ -145,13 +150,17 @@ class AtlasPacker {
     /**
      * 将 Compose [ImageBitmap] 转为 Android [Bitmap]。
      *
-     * 使用 [readPixels] 读取像素数据后创建新的 Android Bitmap，
-     * 兼容所有 API 级别（不依赖 [asAndroidBitmap] 的 API 29+ 限制）。
+     * API 29+ 走 [asAndroidBitmap] 零拷贝直通（输入均为
+     * decodeResource 产出的软件位图，直通免去除每精灵一次 readPixels + createBitmap
+     * 的双份 CPU 拷贝，缩短 Loading 图集打包耗时）；低版本回退像素拷贝路径。
      */
     private fun ImageBitmap.toAndroidBitmapCompat(): Bitmap {
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            return this.asAndroidBitmap()
+        }
         val pixels = IntArray(this.width * this.height)
         this.readPixels(pixels, 0, 0, this.width, this.height)
-        // D-36 豁免：KTX createBitmap 无 IntArray 重载（仅 width/height/config 形态），
+        // KTX createBitmap 无 IntArray 重载（仅 width/height/config 形态），
         // 像素数组→Bitmap 必须走静态工厂
         @Suppress("UseKtx")
         return Bitmap.createBitmap(

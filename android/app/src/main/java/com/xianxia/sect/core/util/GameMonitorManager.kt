@@ -9,7 +9,6 @@ import com.xianxia.sect.core.performance.MetricsListener
 import com.xianxia.sect.core.performance.MetricStats
 import com.xianxia.sect.core.performance.OptimizationLevel
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
-import com.xianxia.sect.di.ApplicationScopeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,7 +22,6 @@ class GameMonitorManager @Inject constructor(
     private val memoryMonitor: MemoryMonitor,
     private val gcOptimizer: GCOptimizer,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
-    private val applicationScopeProvider: ApplicationScopeProvider,
     private val taskScheduler: BackgroundTaskScheduler
 ) {
 
@@ -110,7 +108,7 @@ class GameMonitorManager @Inject constructor(
         )
     )
 
-    /** 批量注册指标并打印默认指标总数（GameMonitorManager 拆分） */
+    /** 批量注册指标并打印默认指标总数 */
     private fun registerMetrics(definitions: List<MetricDefinition>) {
         definitions.forEach { unifiedPerformanceMonitor.registerMetric(it) }
         Log.d(TAG, "Registered ${unifiedPerformanceMonitor.getAllMetricDefinitions().size} default metrics")

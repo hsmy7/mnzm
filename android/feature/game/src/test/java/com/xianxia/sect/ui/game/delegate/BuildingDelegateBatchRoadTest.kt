@@ -28,12 +28,12 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * BuildingDelegateBatchRoadTest — 金手指一键批量建造石板路测试（2026-08-31 根因修复配套）。
+ * BuildingDelegateBatchRoadTest — 金手指一键批量建造石板路测试。
  *
  * 守护契约：石板路不在 BuildingFeatureRegistry（doPlaceBuilding 对"石板路"早退），
  * 金手指批量道路必须逐格走 `GameEngine.placeRoad`（每格扣 20 灵石、落 roads、即时回导）——
- * 旧实现走 doPlaceBuilding → findByDisplayName null 早退 → 批量道路 0 建 0 扣，
- * 玩家实测"批量建造只扣 20 灵石但不建路"（那 20 来自批量前的单击）。
+ * 若走 doPlaceBuilding 会 findByDisplayName null 早退 → 批量道路 0 建 0 扣，
+ * 玩家侧表现为"批量建造只扣灵石但不建路"。
  */
 class BuildingDelegateBatchRoadTest {
 

@@ -91,19 +91,22 @@ class ScheduledBeastAttackTest {
                 victory = true, rewards = emptyMap(), turnCount = 1)
         )
 
+        val deathHandler = mockSmart(DiscipleDeathHandler::class.java)
         service = ExplorationService(
             stateStore = stateStore,
             battleSystem = battleSystem,
             rngManager = rngManager,
             inventorySystem = inventorySystem,
-            worldLevelManager = worldLevelManager,
-            patrolBattleSystem = patrolBattleSystem,
-            beastAttackDetector = beastAttackDetector,
-            lootCalculator = lootCalculator,
-            encounterBattleService = encounterBattleService,
             cultivationService = cultivationService,
             spiritStoneWallet = spiritStoneWallet,
-            deathHandler = mockSmart(DiscipleDeathHandler::class.java)
+            subSystems = ExplorationSubSystems(
+                worldLevelManager = worldLevelManager,
+                beastAttackDetector = beastAttackDetector,
+                patrolBattleSystem = patrolBattleSystem,
+                lootCalculator = lootCalculator,
+                encounterBattleService = encounterBattleService,
+                deathHandler = deathHandler
+            )
         )
     }
 

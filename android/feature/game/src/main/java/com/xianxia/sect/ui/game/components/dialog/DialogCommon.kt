@@ -46,7 +46,7 @@ import com.xianxia.sect.ui.theme.XianxiaColorScheme
 internal val CachedColorScheme = XianxiaColorScheme()
 
 /**
- * C-3：全屏 Tab 对话框脚手架（进入时设置 activeTab，退出时复位 OVERVIEW）。
+ * 全屏 Tab 对话框脚手架（进入时设置 activeTab，退出时复位 OVERVIEW）。
  * 原 4 处逐字相同的 DisposableEffect 块统一封装。
  */
 @Composable
@@ -56,8 +56,8 @@ internal fun DialogTabScaffold(
     content: @Composable () -> Unit
 ) {
     DisposableEffect(Unit) {
-        viewModel.setActiveTab(tab)
-        onDispose { viewModel.setActiveTab("OVERVIEW") }
+        viewModel.settings.setActiveTab(tab)
+        onDispose { viewModel.settings.setActiveTab("OVERVIEW") }
     }
     content()
 }

@@ -34,7 +34,7 @@ interface SurfaceProvider {
      * 注册表面事件监听器（渲染宿主实现）。
      *
      * 重复调用覆盖旧监听器；传 null 解除注册（实现切换时先解除旧监听器，
-     * 旧实现不再派发事件——平台回调注册由实现自身管理）。
+     * 平台回调注册由实现自身管理）。
      *
      * @param listener 事件监听器；null = 解除注册
      */
@@ -75,13 +75,22 @@ interface SurfaceProvider {
     fun clearSurface(colorArgb: Int)
 
     /**
-     * 启动初始化超时安全网：10 秒内未调用 [notifyInitCompleted] 且 surface
+     * 启动初始化超时安全网：[timeoutMs] 内未调用 [notifyInitCompleted] 且 surface
      * 未销毁/未重创建 → 回调 [SurfaceEventListener.onSurfaceInitTimeout]。
      *
      * 幂等：重复调用重置计时；surface 销毁/重创建自动取消（stale 超时不触发）。
      * 宿主在发起可能卡死的初始化（如 Vulkan 设备初始化）前调用。
+     *
+     * @param timeoutMs 预算（毫秒）。默认 [INIT_TIMEOUT_BASE_MS]；
+     *   prewarm 在途时宿主传入延长预算（prewarm 起点 + PREWARM_BUDGET_MS + 基础
+     *   10s）——initRenderer 阻塞等 prewarm 属健康慢而非卡死，不降级。
      */
-    fun startInitTimeout()
+    fun startInitTimeout(timeoutMs: Long = INIT_TIMEOUT_BASE_MS)
+
+    companion object {
+        /** 初始化超时基础预算（毫秒）：无 prewarm 挤占时的安全网时长 */
+        const val INIT_TIMEOUT_BASE_MS = 10_000L
+    }
 
     /**
      * 声明初始化完成（取消超时安全网）。
@@ -91,8 +100,8 @@ interface SurfaceProvider {
     fun notifyInitCompleted()
 
     /**
-     * 解除平台回调注册（换绑 provider 时调用——对抗性审查 2026-08-13
-     * 状态破坏者#6：旧实例残留 addCallback 注册，同事件被双 provider 接收）。
+     * 解除平台回调注册（换绑 provider 时调用——不清除旧注册会
+     * 使旧实例残留 addCallback，同事件被双 provider 接收）。
      *
      * 幂等：重复调用安全；调用后本实例不再派发事件、超时不再触发。
      */

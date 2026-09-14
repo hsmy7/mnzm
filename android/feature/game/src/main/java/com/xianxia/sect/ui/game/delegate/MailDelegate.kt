@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.xianxia.sect.core.engine.service.deleteAllReadAndClaimed
 
 
 
@@ -83,5 +84,6 @@ class MailDelegate(
         }
     }
 
-    fun deleteAllReadAndClaimedMails() { gameEngine.launchOnEngine { mailService.deleteAllReadAndClaimed(currentSlotId) } }
+    fun deleteAllReadAndClaimedMails() { gameEngine.launchOnEngine { mailService
+        .deleteAllReadAndClaimed(currentSlotId) } }
 }

@@ -21,7 +21,6 @@ class WorldCameraStateTest {
     private val vpH = 1920
 
     /** scale=1.0 时 Y 方向可见高度 = 1920 > 926 → 永远 clamp 到 0 */
-    private val maxCameraY = 0f
 
     // ==================== 构造与默认缩放 ====================
 
@@ -110,7 +109,6 @@ class WorldCameraStateTest {
         val focusSx = vpW / 2f
         val focusSy = vpH / 2f
         val worldBeforeX = camera.screenToWorldX(focusSx)
-        val worldBeforeY = camera.screenToWorldY(focusSy)
 
         camera.zoom(2.0f, focusSx, focusSy)
 

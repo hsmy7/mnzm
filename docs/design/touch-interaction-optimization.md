@@ -42,9 +42,9 @@
 
 | 问题 | 根因 | 证据 |
 |------|------|------|
-| 点击小建筑不准确 | 命中区 = 单格 32 世界像素 ≈ 15dp（默认缩放 1.326、420dpi），远低于 44pt/48dp；tap 单格 floor 命中、无外扩/最近兜底、仅按下点判定 | `GameConfig.kt:992`、`SectCameraState.kt:99-105`、`BuildingSpatialIndex.kt`、`SectMapTouchEngine.kt:373` |
+| 点击小建筑不准确 | 命中区 = 单格 32 世界像素 ≈ 15dp（默认缩放 1.326、420dpi），远低于 44pt/48dp；tap 单格 floor 命中、无外扩/最近兜底、仅按下点判定 | `GameConfig.kt:995`、`SectCameraState.kt:111-117`、`BuildingSpatialIndex.kt`、`SectMapTouchEngine.kt:373`（旧） |
 | 拖建筑时地图乱动 | BuildingDrag 每 MOVE 无条件边缘平移；`0.016f` 硬编码在 120Hz 设备约 2 倍速；建筑不随手指补偿 | `SectMapTouchEngine.kt:318-322`（旧）、`EdgePanDetector.kt` |
-| 拖建筑不流畅 | 软件路径预览走 RenderFrame 33ms 门控（30fps），相对 60fps 相机步进；非编辑模式需 200ms 长按拾起 | `SectMapViewport.kt:131`、`TouchEngineConfig.kt:27`（旧） |
+| 拖建筑不流畅 | 软件路径预览走 RenderFrame 33ms 门控（30fps），相对 60fps 相机步进；非编辑模式需 200ms 长按拾起 | `SectMapViewport.kt:138-140`、`TouchEngineConfig.kt:27`（旧） |
 | 拖视角不流畅 | fling 固定 33ms（30fps）；相机经 Compose 重组管线延迟 1-2 帧；MOVE 历史采样被丢弃；`drawCrops` 每帧 HashSet | `FlingPhysics.kt:88-89`（旧）、`NativeSurfaceView.kt:1413-1434`（旧）、`SoftwareCanvasBackend.kt:1124`（旧） |
 
 ---

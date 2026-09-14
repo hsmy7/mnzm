@@ -24,9 +24,9 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 /**
- * B2（2026-08-08）：enterSect 会话内 sectId 收敛测试。
+ * enterSect 会话内 sectId 收敛测试。
  *
- * R2 场景：boot 自愈只在读档时跑一次；世界重生后（worldSects 曾为空、归一化整体跳过）
+ * 场景：boot 自愈只在读档时跑一次；世界重生后（worldSects 曾为空、归一化整体跳过）
  * 进入宗门时旧 sectId 建筑永不匹配 → 不可见不可点。enterSect 复用读档自愈纯函数
  * （幂等）在每次进入宗门时收敛。
  */

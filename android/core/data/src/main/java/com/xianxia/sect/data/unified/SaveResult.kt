@@ -2,7 +2,8 @@ package com.xianxia.sect.data.unified
 
 sealed class SaveResult<out T> {
     data class Success<T>(val data: T) : SaveResult<T>()
-    data class Failure(val error: SaveError, val message: String = "", val cause: Throwable? = null) : SaveResult<Nothing>()
+    data class Failure(val error: SaveError, val message: String = "",
+        val cause: Throwable? = null) : SaveResult<Nothing>()
     
     val isSuccess: Boolean get() = this is Success
     val isFailure: Boolean get() = this is Failure

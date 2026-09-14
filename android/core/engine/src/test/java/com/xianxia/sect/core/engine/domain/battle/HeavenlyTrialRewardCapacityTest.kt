@@ -10,16 +10,12 @@ import org.junit.Test
 /**
  * [HeavenlyTrialService.checkRewardCapacity] 单元测试。
  *
- * 覆盖历史 bug：
- * - 旧实现在 stateStore.update 块内设置 capacityError，但 claimedRewardLevels flag
- *   无条件写入，导致用户"奖励未实际发放但无法重领"
- * - 旧实现 randomPill 分支达堆叠上限时静默丢弃，未设置 capacityError
+ * 覆盖：容量校验为纯函数、在事务外预校验，通过后才进入事务写入
+ * claimedRewardLevels flag——校验不过不写 flag，奖励未发放时用户可重领；
+ * randomPill 达堆叠上限时必须设置 capacityError，不得静默丢弃。
  *
- * 修复方案：提取纯函数 [HeavenlyTrialService.checkRewardCapacity] 在事务外预校验，
- * 通过后才进入事务写入 flag。
- *
- * randomEquipment/randomManual 已改为使用 EquipmentDatabase/ManualDatabase
- * 直接生成，不再依赖玩家库存，无需预校验。
+ * randomEquipment/randomManual 使用 EquipmentDatabase/ManualDatabase
+ * 直接生成，不依赖玩家库存，无需预校验。
  */
 class HeavenlyTrialRewardCapacityTest {
 

@@ -9,9 +9,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * SectMapViewport 参数稳定性测试（P-7 验证，2026-08-02）。
+ * SectMapViewport 参数稳定性测试。
  *
- * P-7 的重组优化依赖 Compose 的"参数相等跳过重组"语义：
+ * 重组优化依赖 Compose 的"参数相等跳过重组"语义：
  * MainGameScreen 每旬 gameData 变化重组时，viewportParams/previewState 的
  * 引用未变（derivedStateOf 依赖未变 → 引用稳定）→ SectMapViewport 跳过重组
  * → AndroidView update 不执行。
@@ -46,9 +46,9 @@ class SectMapViewportParamsTest {
         worldHeightCells = 24,
         forceSoftwareRendering = false,
         vulkanInitListener = null,
-        // 2026-08-13 平台抽象：工厂不在此测试触达（参数相等性/引用稳定性断言）
+        // 工厂不在此测试触达（参数相等性/引用稳定性断言）
         surfaceProviderFactory = SurfaceProviderFactory { error("not used in this test") },
-        // 2026-08-14 平板省电：GPU 档位（参数相等性断言用，固定 MEDIUM）
+        // GPU 档位（参数相等性断言用，固定 MEDIUM）
         gpuTier = com.xianxia.sect.core.perf.GpuTier.MEDIUM,
         buildingSpriteSizes = emptyMap()
     )

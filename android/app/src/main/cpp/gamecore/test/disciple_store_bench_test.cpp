@@ -11,13 +11,13 @@ namespace gamecore {
 namespace {
 
 // ============================================================
-// DiscipleStore 每旬核心批次性能基准（计划 v2 阶段 3：数据导向存储收益对照）
+// DiscipleStore 每旬核心批次性能基准（数据导向存储收益对照）
 //
-// 对照基线（阶段 0，2026-08-25 Phase0SettlementBenchmarkTest）：
+// 对照基线（Kotlin Phase0SettlementBenchmarkTest）：
 //   Kotlin 每旬核心路径（HP/MP 恢复 + 修炼累积，真实 CultivationCore 列直读）：
 //   100 弟子 167µs · 1000 弟子 327µs · 5000 弟子 1189µs（O(D)，每弟子 ~0.3µs）
 //
-// 本基准测量 C++ DiscipleStore SoA 版的 runPhaseCoreBatch（阶段 3 热路径，
+// 本基准测量 C++ DiscipleStore SoA 版的 runPhaseCoreBatch（热路径，
 // 全链路列直读直写）。输出仅供人工观测对比（CI 抖动不设断言阈值）。
 // ============================================================
 
@@ -60,13 +60,14 @@ TEST(DiscipleStoreBench, CoreBatchPerPhase) {
         for (int32_t i = 0; i < n; ++i) {
             state.disciples.appendDisciple(makeDisciple(i + 1, 9));
         }
+        ecs::World benchWorld;   // E2：迭代域实体集（bestOf 内复用——稳态零重建）
         const double us = bestOf(3, 5, [&]() {
-            system::runPhaseCoreBatch(state);
+            system::runPhaseCoreBatch(state, benchWorld);
         });
         std::printf("[DiscipleStoreBench] runPhaseCoreBatch D=%d: %.1f us (%.3f us/disciple)\n",
                     n, us, us / n);
     }
-    // 对照阶段 0 Kotlin 基线 327µs@1000（输出供人工对比，无断言）
+    // 对照 Kotlin 基线 327µs@1000（输出供人工对比，无断言）
     std::printf("[DiscipleStoreBench] baseline: Kotlin CultivationCore 327us@1000 (phase0)\n");
 }
 

@@ -14,7 +14,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffEconomyTest — 经济系统跨语言差分对拍（批次 4 验收核心）。
+ * DiffEconomyTest — 经济系统跨语言差分对拍。
  *
  * 守护目标：C++ SpiritStoneWallet（add/deduct/batch + autoSell）与 Kotlin
  * SpiritStoneWallet 语义**逐位一致**——余额、品阶、年度报告累积、溢出行为。

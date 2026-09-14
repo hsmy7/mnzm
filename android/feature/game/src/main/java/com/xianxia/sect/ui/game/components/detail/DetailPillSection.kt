@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.components.detail
 
 import androidx.compose.foundation.background
@@ -45,8 +45,6 @@ import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.components.clickableWithSound
-
-
 
 @Composable
 fun StorageBagDialog(
@@ -114,7 +112,7 @@ fun StorageBagDialog(
     }
 }
 
-/** 储物袋顶部操作行（StorageBagDialog 拆分）：赏赐入口 + 灵石余额 */
+/** 储物袋顶部操作行：赏赐入口 + 灵石余额 */
 @Composable
 private fun StorageBagHeaderRow(
     spiritStones: Long,
@@ -148,7 +146,7 @@ private fun StorageBagHeaderRow(
     }
 }
 
-/** 储物袋物品区（StorageBagDialog 拆分）：空态/计数 + 物品网格 */
+/** 储物袋物品区：空态/计数 + 物品网格 */
 @Composable
 private fun StorageBagItemList(
     sortedItems: List<StorageBagItem>,
@@ -208,7 +206,7 @@ private fun StorageBagItemList(
     }
 }
 
-/** 储物袋物品详情弹窗（StorageBagDialog 拆分）：详情 + 没收操作 */
+/** 储物袋物品详情弹窗：详情 + 没收操作 */
 @Composable
 private fun StorageBagDetailDialog(
     item: StorageBagItem?,
@@ -225,7 +223,7 @@ private fun StorageBagDetailDialog(
                 GameButton(
                     text = "没收",
                     onClick = {
-                        viewModel?.confiscateStorageBagItem(disciple.id, item)
+                        viewModel?.disciple?.confiscateStorageBagItem(disciple.id, item)
                         onDismiss()
                     },
                     modifier = Modifier.height(32.dp)
@@ -270,7 +268,7 @@ private fun RewardItemsDialog(
             isRewarding = true
             rewardScope.launch {
                 try {
-                    viewModel.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))
+                    viewModel.disciple.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))
                 } finally {
                     selectedItem = null
                     rewardQuantity = 1
@@ -307,7 +305,7 @@ private fun RewardItemsDialog(
     }
 }
 
-/** 赏赐详情弹窗宿主（RewardItemsDialog 拆分）：持有详情状态并渲染 ItemDetailDialog */
+/** 赏赐详情弹窗宿主：持有详情状态并渲染 ItemDetailDialog */
 @Composable
 private fun RewardDetailHost(
     viewModel: GameViewModel,
@@ -330,7 +328,7 @@ private fun RewardDetailHost(
     }
 }
 
-/** 赏赐面板六类物品列表收集（RewardItemsDialog 拆分）：统一订阅 ViewModel StateFlow */
+/** 赏赐面板六类物品列表收集：统一订阅 ViewModel StateFlow */
 @Composable
 private fun rememberRewardInventory(viewModel: GameViewModel): RewardItemLists {
     val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
@@ -370,7 +368,7 @@ private data class RewardDialogData(
     val isRewarding: Boolean
 )
 
-/** 赏赐面板主体（RewardItemsDialog 拆分）：筛选行 + 物品区 + 底部操作栏 */
+/** 赏赐面板主体：筛选行 + 物品区 + 底部操作栏 */
 @Composable
 private fun RewardItemsContent(
     data: RewardDialogData,
@@ -405,7 +403,7 @@ private fun RewardItemsContent(
     }
 }
 
-/** 赏赐筛选按钮两行（RewardItemsDialog 拆分）：第一行 全部/装备/丹药/功法，第二行 草药/种子/材料 */
+/** 赏赐筛选按钮两行：第一行 全部/装备/丹药/功法，第二行 草药/种子/材料 */
 @Composable
 private fun RewardFilterRows(
     selectedFilter: RewardFilter,
@@ -467,7 +465,7 @@ private fun RewardFilterRows(
     }
 }
 
-/** 赏赐物品区（RewardItemsDialog 拆分）：按筛选渲染全量/单类网格 */
+/** 赏赐物品区：按筛选渲染全量/单类网格 */
 @Composable
 private fun ColumnScope.RewardGridArea(
     selectedFilter: RewardFilter,
@@ -485,12 +483,7 @@ private fun ColumnScope.RewardGridArea(
     ) {
         if (selectedFilter == RewardFilter.ALL) {
             RewardAllItemsGrid(
-                equipment = lists.equipment,
-                manuals = lists.manuals,
-                pills = lists.pills,
-                materials = lists.materials,
-                herbs = lists.herbs,
-                seeds = lists.seeds,
+                lists = lists,
                 watchedKeys = watchedKeys,
                 selectedItem = selectedItem,
                 onItemSelect = onItemSelect,
@@ -557,19 +550,14 @@ private fun <T> RewardItemGrid(
 
 @Composable
 private fun RewardAllItemsGrid(
-    equipment: List<EquipmentStack>,
-    manuals: List<ManualStack>,
-    pills: List<Pill>,
-    materials: List<Material>,
-    herbs: List<Herb>,
-    seeds: List<Seed>,
+    lists: RewardItemLists,
     selectedItem: RewardSelectedItem?,
     watchedKeys: Set<String> = emptySet(),
     onItemSelect: (RewardSelectedItem) -> Unit,
     onViewDetail: (Any) -> Unit = {}
 ) {
     val allItems: List<GameItem> =
-        (equipment + manuals + pills + materials + herbs + seeds)
+        (lists.equipment + lists.manuals + lists.pills + lists.materials + lists.herbs + lists.seeds)
             .sortedByWatchedThenRarity(watchedKeys)
 
     if (allItems.isEmpty()) {
@@ -600,7 +588,7 @@ private fun RewardAllItemsGrid(
     }
 }
 
-/** 物品网格稳定 key（RewardItemGrid/RewardAllItemsGrid 拆分） */
+/** 物品网格稳定 key */
 private fun rewardItemKey(item: Any): String = when (item) {
     is EquipmentStack -> "equipment_${item.id}"
     is ManualStack -> "manual_${item.id}"
@@ -611,7 +599,7 @@ private fun rewardItemKey(item: Any): String = when (item) {
     else -> "unknown_${System.identityHashCode(item)}"
 }
 
-/** 奖励网格单项卡片（RewardItemGrid/RewardAllItemsGrid 拆分） */
+/** 奖励网格单项卡片 */
 @Composable
 private fun RewardGridItemCard(
     item: Any,
@@ -624,7 +612,8 @@ private fun RewardGridItemCard(
         when (item) {
             is EquipmentStack -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
             is ManualStack -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
-            is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
+            is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity,
+                item.grade.displayName)
             is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
             is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)
             is Seed -> RewardSelectedItem(item.id, "seed", item.name, item.rarity, item.quantity)
@@ -699,7 +688,7 @@ private val rewardQuantitySizes = QuantitySelectorSizes(
     buttonFontSize = 14.sp,
 )
 
-/** 赏赐数量调节器（RewardBottomPanel 拆分）：统一数量选择器 + 上限展示 */
+/** 赏赐数量调节器：统一数量选择器 + 上限展示 */
 @Composable
 private fun RewardQuantityStepper(
     selectedItem: RewardSelectedItem?,

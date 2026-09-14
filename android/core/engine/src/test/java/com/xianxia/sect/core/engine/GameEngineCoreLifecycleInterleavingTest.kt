@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * D-07 生命周期互斥测试：stopGameLoop/shutdown/emergencyRestartGameLoop 并发交错的
+ * 生命周期互斥测试：stopGameLoop/shutdown/emergencyRestartGameLoop 并发交错的
  * LoopState 状态机守卫（RUNNING/RESTARTING/STOPPING/STOPPED + phase/epoch 原子 CAS
  * 单赢家 + loopOpLock 工作体串行化）。
  *
@@ -43,8 +43,8 @@ import kotlin.coroutines.EmptyCoroutineContext
  * - shutdown 抢占 emergency：emergency abort，shutdown 后引擎可恢复
  * - shutdown 幂等；未启动 stop 幂等且不触碰暂停状态
  * - 并发风暴（2×emergency + stop + shutdown）收敛：不崩、不锁死、可恢复
- * - 对抗性审查加固（2026-08-08）：孤儿循环/双循环/signal 跨代/phase 中毒
- *   四个窗口由 LoopState(phase+epoch) + 锁 + launch 双校验根治
+ * - 孤儿循环/双循环/signal 跨代/phase 中毒四个窗口由
+ *   LoopState(phase+epoch) + 锁 + launch 双校验防御
  */
 class GameEngineCoreLifecycleInterleavingTest {
 
@@ -104,7 +104,7 @@ class GameEngineCoreLifecycleInterleavingTest {
         // systemManager 是 Mockito mockSmart，阻塞 stub 必须在 startGameLoop
         // 之前注册（Mockito stubbing 注册窗口与循环线程并发会劫持 →
         // UnfinishedStubbingException，残留 in-progress 还会污染下一测试的
-        // setUp——全量回归实测复现，2026-08-10 保持预注册纪律）
+        // setUp——保持预注册纪律）
         val entered = CountDownLatch(1)
         val gate = CountDownLatch(1)
         doAnswer {
@@ -150,7 +150,7 @@ class GameEngineCoreLifecycleInterleavingTest {
             assertTrue("emergency 必须进入 snapshot 阻塞点",
                 stateStore.snapshotEnteredLatch.await(5, TimeUnit.SECONDS))
             // stop 的 CAS（RESTARTING→STOPPING，锁外意图门）立即抢占成功；
-            // 拆除体等 emergency 释放锁（对抗性审查加固：工作体锁内串行化）。
+            // 拆除体等 emergency 释放锁（工作体锁内串行化）。
             // 主线程不得在此调 stop——拆除体锁内等待会阻塞主线程
             Thread.sleep(200)
         } finally {
@@ -258,7 +258,7 @@ class GameEngineCoreLifecycleInterleavingTest {
 
     @Test
     fun `stopGameLoopAndWait returns only after loop finally onLoopStop executed`() {
-        // 玉符防回退契约（2026-08-10）：读档/云下载在 loadData 前依赖
+        // 玉符防回退契约：读档/云下载在 loadData 前依赖
         // stopGameLoopAndWait 返回 ⟺ 循环 finally 的 onLoopStop（checkpointNow）
         // 已执行完毕——此后引擎线程无任何玉符写，快照替换才安全。
         // 验证：onLoopStop 阻塞期间 wait 不得返回；释放后 wait 返回 true。
@@ -274,7 +274,7 @@ class GameEngineCoreLifecycleInterleavingTest {
         assertTrue("循环必须运行", core.isGameLoopRunning)
         // 等循环进入稳定运行态（协程启动与 cancel 的竞态：startGameLoop 返回后
         // 循环协程可能尚未真正启动，立即 stop 会丢弃协程体 → finally 永不执行
-        // → onLoopStop 不被调用，测试 flaky——JadeReload 测试实测复现，2026-08-10）
+        // → onLoopStop 不被调用，测试 flaky）
         Thread.sleep(200)
 
         val waitResult = AtomicReference<Boolean?>()
@@ -366,7 +366,7 @@ class GameEngineCoreLifecycleInterleavingTest {
         val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
         systemManager = mockSmart(SystemManager::class.java)
-        // mock 玉符服务（2026-08-08）：真实实例的 onLoopTick 每帧读
+        // mock 玉符服务：真实实例的 onLoopTick 每帧读
         // gameDataSnapshot（跨天检查），与测试注册的阻塞门控并发无冲突；
         // 生命周期互斥测试不涉及玉符逻辑，mockSmart 根除循环线程对 store
         // 的访问；字段持有供契约测试（stopGameLoopAndWait 含 finally）断言

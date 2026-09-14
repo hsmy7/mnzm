@@ -1,0 +1,37 @@
+{
+ "files": [
+  {
+   "name": "RedeemCodeRewardOps",
+   "header": "// ── 兑换码奖励生成域（自 RedeemCodeManager 拆出，行为零变更） ─────────────────",
+   "fns": [
+    "addSpiritStonesReward",
+    "addItemRewards",
+    "addDiscipleRewards",
+    "addStarterPackRewards",
+    "addManualPackRewards",
+    "generateRandomEquipment",
+    "generateSingleItemReward",
+    "buildRedeemDisciple",
+    "buildRedeemSkills",
+    "rollBySpiritRootCount",
+    "resolveSpiritRoot",
+    "resolveAgeAndLifespan",
+    "resolveTalentIds",
+    "generateVariance",
+    "avoidSentinel50"
+   ]
+  },
+  {
+   "name": "RedeemCodeLifecycleOps",
+   "header": "// ── 兑换码限流与核销域（自 RedeemCodeManager 拆出，行为零变更） ───────────────",
+   "fns": [
+    "checkBasicCooldown",
+    "checkMinuteRateLimit",
+    "checkHourRateLimit",
+    "checkDayRateLimit",
+    "cleanupExpiredAttempts",
+    "markCodeAsUsed"
+   ]
+  }
+ ]
+}

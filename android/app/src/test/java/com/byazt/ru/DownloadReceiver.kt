@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Robolectric 兼容桩（2026-08-14）。
+ * Robolectric 兼容桩。
  *
  * 与 [com.byazt.td.Collector] 相同背景：TapTap SDK 下载模块的 manifest receiver
  * 字节码无 StackMapTable，Robolectric 应用安装时实例化导致 VerifyError。

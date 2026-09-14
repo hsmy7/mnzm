@@ -24,7 +24,7 @@ using gamecore::map::roadEdgeWidth;
 using gamecore::map::tileTypeForBitmask;
 
 // ============================================================
-// 道路渲染合成器测试（2026-08-32 重构：单一主体 + 直路免旋转 + 按方向边缘）
+// 道路渲染合成器测试（单一主体 + 直路免旋转 + 按方向边缘）
 // 覆盖：全掩码产出量守恒、主体恒定、直路双边缘、T 中心缺侧边缘+内凹角、
 //      转角外缘重叠+内凹角、孤格左右轴、十字内凹角、顺序契约、枚举序。
 // ============================================================
@@ -238,6 +238,64 @@ TEST(RoadCompositorTest, SpriteEnumOrderIsContractAnchor) {
     EXPECT_EQ(2, static_cast<int>(RoadSprite::EDGE_H));
     EXPECT_EQ(kRoadSpriteCount, 3);
     EXPECT_EQ(kMaxRoadDrawOpsPerTile, 6);
+}
+
+// ── flipU 规则（2.4 边缘条方向修正）：左/上缘 flip=true（深色边朝外），
+//    右/下缘与交汇块 flip=false；主体恒 false ─────────────────────────
+TEST(RoadCompositorTest, FlipURuleForLeftTopEdges) {
+    // 竖直直路（上+下）：左缘 2 条 flip=true，右缘 2 条 flip=false
+    auto ops = opsFor(kDirUp | kDirDown);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_FALSE(ops[0].flipU);                       // 主体
+    EXPECT_TRUE(ops[1].flipU);                        // 左缘上
+    EXPECT_TRUE(ops[2].flipU);                        // 左缘下
+    EXPECT_FALSE(ops[3].flipU);                       // 右缘上
+    EXPECT_FALSE(ops[4].flipU);                       // 右缘下
+    // 水平直路（左+右）：上缘 flip=true，下缘 flip=false
+    ops = opsFor(kDirLeft | kDirRight);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_TRUE(ops[1].flipU);                        // 上缘左条
+    EXPECT_TRUE(ops[2].flipU);                        // 上缘右条
+    EXPECT_FALSE(ops[3].flipU);                       // 下缘左条
+    EXPECT_FALSE(ops[4].flipU);                       // 下缘右条
+}
+
+// ── flipU：孤格左右轴 / T 中心 / 转角 / 十字全掩码规则 ────────────
+TEST(RoadCompositorTest, FlipUForCornerAndJunctionCases) {
+    // 孤格（mask=0）：左缘 flip=true、右缘 flip=false
+    auto ops = opsFor(0);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_TRUE(ops[1].flipU);
+    EXPECT_TRUE(ops[2].flipU);
+    EXPECT_FALSE(ops[3].flipU);
+    EXPECT_FALSE(ops[4].flipU);
+    // T_RIGHT（上+下+右，缺左）：左缘面 flip=true，交汇块 false
+    ops = opsFor(kDirUp | kDirDown | kDirRight);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_TRUE(ops[1].flipU);
+    EXPECT_TRUE(ops[2].flipU);
+    EXPECT_FALSE(ops[3].flipU);                       // 内凹角交汇块
+    EXPECT_FALSE(ops[4].flipU);
+    // T_DOWN（左+右+下，缺上）：上缘面 flip=true
+    ops = opsFor(kDirLeft | kDirRight | kDirDown);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_TRUE(ops[1].flipU);
+    EXPECT_TRUE(ops[2].flipU);
+    EXPECT_FALSE(ops[3].flipU);
+    EXPECT_FALSE(ops[4].flipU);
+    // 转角 CORNER_TOP_RIGHT（邻上+右，外缘=下+左）：下缘 false + 左缘 true + join false
+    ops = opsFor(kDirUp | kDirRight);
+    ASSERT_EQ(6, static_cast<int>(ops.size()));
+    EXPECT_FALSE(ops[1].flipU);                       // 下缘（EDGE_H）
+    EXPECT_FALSE(ops[2].flipU);
+    EXPECT_TRUE(ops[3].flipU);                        // 左缘（EDGE_V）
+    EXPECT_TRUE(ops[4].flipU);
+    EXPECT_FALSE(ops[5].flipU);                       // 内凹角交汇块
+    // 十字中心：全部交汇块 flip=false
+    ops = opsFor(kMaskAll);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_FALSE(ops[0].flipU);
+    for (int i = 1; i <= 4; ++i) EXPECT_FALSE(ops[i].flipU) << "i=" << i;
 }
 
 }  // namespace

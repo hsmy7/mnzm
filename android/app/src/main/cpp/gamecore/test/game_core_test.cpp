@@ -58,7 +58,7 @@ TEST_F(GameCoreTest, ExecuteNotImplementedReturnsFailure) {
     GameCoreConfig config;
     config.seedInitialized = true;
     ASSERT_TRUE(core.initialize(config));
-    // 批次 9：未注册动作 → NOT_IMPLEMENTED
+    // 未注册动作 → NOT_IMPLEMENTED
     const auto result = core.execute(999999, "{}", clock_.nowMs());
     EXPECT_NE(std::string::npos, result.find("NOT_IMPLEMENTED"));
 }

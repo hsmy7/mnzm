@@ -74,7 +74,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 /**
- * SDK 服务初始化与关键路径的解耦编排（2026-08-15 回归教训固化）。
+ * SDK 服务初始化与关键路径的解耦编排。
  *
  * 广告/统计/合规回调注册与登录无因果关系，其初始化失败不得阻断后续关键步骤
  * （防沉迷验证启动、界面跳转）。本函数保证：初始化抛任何 [Exception] 时记录
@@ -115,11 +115,13 @@ private class ProgressRunnable : Runnable {
         }
     }
     companion object { private lateinit var weakActivity: java.lang.ref.WeakReference<MainActivity>
-        fun attach(activity: ProgressRunnable, ctx: MainActivity) { weakActivity = java.lang.ref.WeakReference(ctx) }
+        fun attach(ctx: MainActivity) { weakActivity = java.lang.ref.WeakReference(ctx) }
     }
 }
 
 @AndroidEntryPoint
+@Suppress("TooManyFunctions") // Activity 框架契约面：生命周期/权限/结果回调族（29 个 override 契约下界超类阈值）
+// 必须驻留类体承载框架分发；余量为平台胶水。
 class MainActivity : ComponentActivity() {
     
     @Inject
@@ -170,7 +172,7 @@ class MainActivity : ComponentActivity() {
         /**
          * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
          * 覆盖 Dialog 窗口销毁后键盘收起动画的剩余时长，等待 IME 状态落定
-         * 再恢复隐藏，切断"键盘动画期间 hide() 对抗"（荣耀GT系列键盘频闪根治）。
+         * 再恢复隐藏，切断"键盘动画期间 hide() 对抗"。
          */
         private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
         const val EXTRA_SLOT = "slot"
@@ -180,12 +182,12 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 输入对话框销毁解冻 / 键盘动画结束后恢复系统栏隐藏（2026-09 IME 状态机根治）。
+     * 输入对话框销毁解冻 / 键盘动画结束后恢复系统栏隐藏。
      *
      * 触发源：① [SystemBarFreezeScope] 解冻监听器；② [ImeAnimationTracker] 键盘动画
      * onEnd 回调（键盘收起动画结束，含系统取消场景）。执行语义：
-     * - 立即复查：键盘不可见且无动画且未冻结 → 直接恢复隐藏（替代历史固定 350ms 主路径，
-     *   docs/ime-android-system-research.md §2.3：ROM 键盘动画时长差异大，固定延时在
+     * - 立即复查：键盘不可见且无动画且未冻结 → 直接恢复隐藏
+     *   （docs/ime-android-system-research.md §2.3：ROM 键盘动画时长差异大，固定延时在
      *   动画 >350ms 的 ROM 上过早恢复会与残余动画对抗）
      * - 350ms 延时仅作"回调未触发/状态未落定"的兜底，执行前再经
      *   [SystemBarHidePolicy] 双守卫校验（isVisible 真值 + 动画状态）
@@ -279,7 +281,7 @@ class MainActivity : ComponentActivity() {
      */
     internal val loginFlowStateMachine = LoginFlowStateMachine(loginFlowHost)
 
-    /** D-42：合规回调窗口端口（登录窗口适配器，宿主按接口转发） */
+    /** 合规回调窗口端口（登录窗口适配器，宿主按接口转发） */
     private val complianceWindowPort = object : com.xianxia.sect.taptap.ComplianceCallbackHost.WindowPort {
         override fun postToUi(block: () -> Unit) = this@MainActivity.runOnUiThread(block)
         override fun isAlive(): Boolean = !isFinishing && !isDestroyed
@@ -306,9 +308,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
-        // 键盘可见性跟踪（荣耀X70键盘频闪根治：键盘弹出期间冻结系统栏隐藏）
+        // 键盘可见性跟踪（键盘弹出期间冻结系统栏隐藏）
         ImeVisibilityTracker.attach(window)
-        // 键盘显隐动画跟踪（2026-09 IME 状态机根治：动画期系统栏零切换 +
+        // 键盘显隐动画跟踪（动画期系统栏零切换 +
         // 动画结束回调驱动系统栏恢复）
         ImeAnimationTracker.attach(window)
         // 输入对话框销毁解冻 / 键盘动画结束后恢复系统栏隐藏
@@ -373,11 +375,16 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun proceedAfterPrivacyConsent() {
         showLoadingScreen()
         startProgressAnimation()
-        
+
         lifecycleScope.launch(ioDispatcher.dispatcher) {
+            // 友盟统计正式初始化：此处是"已同意冷启"与"首次同意"两条路径的统一汇合点，
+            // 满足"仅在用户同意隐私政策后采集数据"的合规契约（preInit 已在 Application 完成）。
+            // IO 线程执行——init 内部 SP 读取/注册回调不在主线程冷启动关键路径上
+            com.xianxia.sect.umeng.UmengManager.init(application)
             var initialized = false
             var retryCount = 0
             val maxRetries = 3
@@ -405,7 +412,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (!initialized) {
-                // D-32：原 121 字符超长日志拆行（≤120）
                 Log.e(
                     TAG,
                     "StorageFacade initialization failed after $maxRetries attempts, " +
@@ -420,7 +426,7 @@ class MainActivity : ComponentActivity() {
     
     private fun startProgressAnimation() {
         val updateRunnable = ProgressRunnable()
-        ProgressRunnable.attach(updateRunnable, this)
+        ProgressRunnable.attach(this)
         loadHandler.post(updateRunnable)
     }
     
@@ -451,8 +457,8 @@ class MainActivity : ComponentActivity() {
                     onInitFailed = { e -> Log.e(TAG, "SDK 服务初始化异常（不影响主流程）", e) },
                     block = {}
                 )
-                // 等待登录 SDK 就绪（"SDK 调用前必须就绪"契约，根治冷启动路径合规
-                // 回调注册早于 SDK 就绪导致永久失去回调的竞态），再经状态机 ColdStart
+                // 等待登录 SDK 就绪（"SDK 调用前必须就绪"契约——冷启动路径合规回调
+                // 注册早于 SDK 就绪会注册失败并永久失去回调），再经状态机 ColdStart
                 // 事件路由：已验证 → 直接进模式选择；未验证 → 显示实名认证界面手动重试
                 awaitTapTapSdkReady()
                 withContext(Dispatchers.Main) {
@@ -633,6 +639,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** 加载全部存档槽位（失败返回空列表） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private suspend fun loadSaveSlotsForSelect(): List<SaveSlot> {
         return withContext(ioDispatcher.dispatcher) {
             try {
@@ -651,6 +658,8 @@ class MainActivity : ComponentActivity() {
         return withContext(ioDispatcher.dispatcher) {
             try {
                 tapCloudSaveManager.checkCloudSave()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e // 取消穿透: 画面退出取消时上抛, 不以 null 冒充"无云存档"
             } catch (_: Exception) {
                 null
             }
@@ -664,12 +673,12 @@ class MainActivity : ComponentActivity() {
      * [ensureSdkServicesInitialized]（登录成功回调 + 已登录冷启动兜底），
      * 避免进程销毁复用后 MainActivity 重建时重复调用 SDK 内部方法。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun initTapTapLoginSdk() {
         lifecycleScope.launch(ioDispatcher.dispatcher) {
             try {
                 // 幂等守卫：SDK 全局初始化仅进程内首次执行，MainActivity 重建
-                // （登出/合规切换/系统回收重建）不重复初始化（广告公司反馈
-                // "重复初始化"同类问题一并根治）
+                // （登出/合规切换/系统回收重建）不重复初始化
                 if (com.xianxia.sect.taptap.SdkInitGuard.tryInitTapTapSdk()) {
                     TapTapAuthManager.init(
                         this@MainActivity,
@@ -726,11 +735,11 @@ class MainActivity : ComponentActivity() {
             // TapTapKit.context（TapTapAuthManager.init 反射兜底），必须先等其就绪；
             // 登录成功路径 SDK 必已就绪（login 前置检查），零等待
             awaitTapTapSdkReady()
-            // D-42：合规回调注册改走进程级宿主（ComplianceCallbackHost.callback）——
-            // 回调不再绑定 MainActivity 实例，登录后 MainActivity finish 不影响
+            // 合规回调注册经进程级宿主（ComplianceCallbackHost.callback）——
+            // 回调不绑定 MainActivity 实例，登录后 MainActivity finish 不影响
             // 游戏内时长/时间/年龄限制提示（转发到当前前台窗口）。
-            // 注册移到 SDK 就绪之后（根治：冷启动路径注册早于 SDK 就绪导致注册失败、
-            // 之后永久失去回调——根因 A）；即使此处失败，startup 前置的
+            // 注册必须在 SDK 就绪之后（awaitTapTapSdkReady 完成）：注册早于 SDK 就绪
+            // 会失败并永久失去回调；即使此处失败，startup 前置的
             // ensureCallbackRegistered（onStartComplianceVerification）会自愈重试
             withContext(Dispatchers.Main) {
                 runCatching {
@@ -803,7 +812,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    // ── 合规回调处理（D-42 进程级宿主转发入口） ──
+    // ── 合规回调处理（进程级宿主转发入口） ──
     // 回调注册已由 ComplianceCallbackHost 进程级持有，本组方法仅承担 UI 响应；
     // 登录流程回调转发为状态机事件（状态转移与副作用由 LoginFlowStateMachine 统一管理）。
 
@@ -930,7 +939,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // 回到前台立即恢复文本选择能力（onPause 提前置位后的配套复位）
         actionModeTracker?.resetForResume()
-        // D-42：注册登录窗口（合规回调宿主转发目标；onStop 清除）
+        // 注册登录窗口（合规回调宿主转发目标；onStop 清除）
         complianceCallbackHost.registerLoginWindow(complianceWindowPort)
         hideSystemBars()
         requestNotificationPermissionIfNeeded()
@@ -942,8 +951,7 @@ class MainActivity : ComponentActivity() {
     /**
      * Android 13+：直接弹出系统通知权限请求（无中间提示框）。
      *
-     * 在进入应用时（隐私同意后）直接调用 [requestPermissions]，
-     * 不再使用自定义提示框作为中转。
+     * 在进入应用时（隐私同意后）直接调用 [requestPermissions]，无中间提示框。
      */
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
@@ -966,7 +974,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun hideSystemBars() {
-        // 双守卫（荣耀X70键盘频闪根治）：输入对话框冻结期间或键盘可见期间
+        // 双守卫：输入对话框冻结期间或键盘可见期间
         // 跳过窗口系统栏操作，切断"焦点抖动→hide()→insets翻转→键盘收起→
         // 焦点抖动"振荡回路的放大器环节（详见 SystemBarHidePolicy KDoc）
         if (SystemBarHidePolicy.shouldSkipHide()) {
@@ -1003,7 +1011,7 @@ class MainActivity : ComponentActivity() {
         // 与 GameActivity 对齐：进入后台前结束文本选择 ActionMode，
         // 缩小窗口 token 失效期间的崩溃窗口（Bugly #3026）
         actionModeTracker?.finishActiveActionMode()
-        // D-42：清除登录窗口注册（新 Activity onResume 先于旧 Activity onStop，
+        // 清除登录窗口注册（新 Activity onResume 先于旧 Activity onStop，
         // 窗口切换期间宿主转发无缝衔接）
         complianceCallbackHost.clearLoginWindow(complianceWindowPort)
         super.onStop()
@@ -1011,7 +1019,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         SystemBarFreezeScope.removeOnUnfreezeListener(systemBarRestoreListener)
-        // 2026-09：注销动画结束监听 + 解除 IME 窗口跟踪（detach 对称防全局状态残留）
+        // 注销动画结束监听 + 解除 IME 窗口跟踪（detach 对称防全局状态残留）
         ImeAnimationTracker.removeOnAnimationEndedListener(systemBarRestoreListener)
         ImeAnimationTracker.detach(window)
         ImeVisibilityTracker.detach(window)
@@ -1039,7 +1047,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-@Suppress("LongParameterList") // 屏幕级入口函数：登录/合规/音频等跨模块参数分组会破坏调用语义
+// 屏幕级入口函数：登录/合规/音频等跨模块参数分组会破坏调用语义
+@Suppress("UnusedParameter", "LongParameterList")
 fun MainScreen(
     sessionManager: SessionManager,
     complianceDialogState: MutableState<ComplianceDialogState?>,
@@ -1201,7 +1210,7 @@ private fun performComplianceLogout(context: Context) {
     (context as? MainActivity)?.requestLogout()
 }
 
-/** 隐私政策展示 + 合规限制对话框（D-42：对话框本体已收敛到共享组件 ComplianceLimitDialogs） */
+/** 隐私政策展示 + 合规限制对话框（对话框本体为共享组件 ComplianceLimitDialogs） */
 @Composable
 private fun MainComplianceDialogs(
     showInAppPrivacy: Boolean,

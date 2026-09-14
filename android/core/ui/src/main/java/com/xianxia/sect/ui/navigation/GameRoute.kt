@@ -1,5 +1,7 @@
 package com.xianxia.sect.ui.navigation
 
+import com.xianxia.sect.core.domain.dialog.DialogType
+
 sealed class GameRoute(val route: String) {
     // Half-screen construction dialogs
     object Alchemy : GameRoute("alchemy/{buildingInstanceId}") {
@@ -52,33 +54,43 @@ sealed class GameRoute(val route: String) {
     object GameOver : GameRoute("game_over")
 }
 
-fun GameRoute.toDialogType(buildingInstanceId: String = ""): com.xianxia.sect.core.domain.dialog.DialogType = when (this) {
-    GameRoute.Disciples -> com.xianxia.sect.core.domain.dialog.DialogType.Disciples
-    GameRoute.Warehouse -> com.xianxia.sect.core.domain.dialog.DialogType.Warehouse
-    GameRoute.Settings -> com.xianxia.sect.core.domain.dialog.DialogType.Settings
-    GameRoute.Buildings -> com.xianxia.sect.core.domain.dialog.DialogType.Buildings
-    GameRoute.Recruit -> com.xianxia.sect.core.domain.dialog.DialogType.Recruit
-    GameRoute.Diplomacy -> com.xianxia.sect.core.domain.dialog.DialogType.Diplomacy
-    GameRoute.Planting -> com.xianxia.sect.core.domain.dialog.DialogType.Planting
-    GameRoute.Merchant -> com.xianxia.sect.core.domain.dialog.DialogType.Merchant
-    GameRoute.WorldMap -> com.xianxia.sect.core.domain.dialog.DialogType.WorldMap
-    GameRoute.BattleLog -> com.xianxia.sect.core.domain.dialog.DialogType.BattleLog
-    GameRoute.Mail -> com.xianxia.sect.core.domain.dialog.DialogType.Mail
-    GameRoute.SpiritMine -> com.xianxia.sect.core.domain.dialog.DialogType.SpiritMine(buildingInstanceId)
-    GameRoute.HerbGarden -> com.xianxia.sect.core.domain.dialog.DialogType.HerbGarden
-    GameRoute.Alchemy -> com.xianxia.sect.core.domain.dialog.DialogType.Alchemy(buildingInstanceId)
-    GameRoute.Forge -> com.xianxia.sect.core.domain.dialog.DialogType.Forge(buildingInstanceId)
-    GameRoute.Library -> com.xianxia.sect.core.domain.dialog.DialogType.Library
-    GameRoute.WenDaoPeak -> com.xianxia.sect.core.domain.dialog.DialogType.WenDaoPeak
-    GameRoute.QingyunPeak -> com.xianxia.sect.core.domain.dialog.DialogType.QingyunPeak
-    GameRoute.TianshuHall -> com.xianxia.sect.core.domain.dialog.DialogType.TianshuHall
-    GameRoute.LawEnforcementHall -> com.xianxia.sect.core.domain.dialog.DialogType.LawEnforcementHall
-    GameRoute.MissionHall -> com.xianxia.sect.core.domain.dialog.DialogType.MissionHall
-    GameRoute.ReflectionCliff -> com.xianxia.sect.core.domain.dialog.DialogType.ReflectionCliff
-    GameRoute.PatrolTower -> com.xianxia.sect.core.domain.dialog.DialogType.PatrolTower(buildingInstanceId)
-    GameRoute.BloodRefiningPool -> com.xianxia.sect.core.domain.dialog.DialogType.BloodRefiningPool(buildingInstanceId)
-    GameRoute.Residence -> com.xianxia.sect.core.domain.dialog.DialogType.Residence(buildingInstanceId)
-    GameRoute.WarehouseBuilding -> com.xianxia.sect.core.domain.dialog.DialogType.WarehouseBuilding(buildingInstanceId)
-    GameRoute.GameOver -> com.xianxia.sect.core.domain.dialog.DialogType.GameOver
-    GameRoute.BattleResult -> com.xianxia.sect.core.domain.dialog.DialogType.None
+/** 1:1 路由映射：无参路由 → 同名 DialogType（数据驱动，复杂度不随路由数增长） */
+private val simpleDialogTypes: Map<GameRoute, DialogType> = mapOf(
+    GameRoute.Disciples to DialogType.Disciples,
+    GameRoute.Warehouse to DialogType.Warehouse,
+    GameRoute.Settings to DialogType.Settings,
+    GameRoute.Buildings to DialogType.Buildings,
+    GameRoute.Recruit to DialogType.Recruit,
+    GameRoute.Diplomacy to DialogType.Diplomacy,
+    GameRoute.Planting to DialogType.Planting,
+    GameRoute.Merchant to DialogType.Merchant,
+    GameRoute.WorldMap to DialogType.WorldMap,
+    GameRoute.BattleLog to DialogType.BattleLog,
+    GameRoute.Mail to DialogType.Mail,
+    GameRoute.HerbGarden to DialogType.HerbGarden,
+    GameRoute.Library to DialogType.Library,
+    GameRoute.WenDaoPeak to DialogType.WenDaoPeak,
+    GameRoute.QingyunPeak to DialogType.QingyunPeak,
+    GameRoute.TianshuHall to DialogType.TianshuHall,
+    GameRoute.LawEnforcementHall to DialogType.LawEnforcementHall,
+    GameRoute.MissionHall to DialogType.MissionHall,
+    GameRoute.ReflectionCliff to DialogType.ReflectionCliff,
+    GameRoute.GameOver to DialogType.GameOver,
+)
+
+/**
+ * 路由 → 对话框类型。带实例 ID 的建筑路由就地构造；其余经
+ * [simpleDialogTypes] 查表（穷举性由 GameRouteDialogTypeMappingTest 以
+ * sealedSubclasses 全量断言守护——新增路由漏登记即测试红）。
+ */
+fun GameRoute.toDialogType(buildingInstanceId: String = ""): DialogType = when (this) {
+    GameRoute.SpiritMine -> DialogType.SpiritMine(buildingInstanceId)
+    GameRoute.Alchemy -> DialogType.Alchemy(buildingInstanceId)
+    GameRoute.Forge -> DialogType.Forge(buildingInstanceId)
+    GameRoute.PatrolTower -> DialogType.PatrolTower(buildingInstanceId)
+    GameRoute.BloodRefiningPool -> DialogType.BloodRefiningPool(buildingInstanceId)
+    GameRoute.Residence -> DialogType.Residence(buildingInstanceId)
+    GameRoute.WarehouseBuilding -> DialogType.WarehouseBuilding(buildingInstanceId)
+    GameRoute.BattleResult -> DialogType.None
+    else -> simpleDialogTypes.getValue(this)
 }

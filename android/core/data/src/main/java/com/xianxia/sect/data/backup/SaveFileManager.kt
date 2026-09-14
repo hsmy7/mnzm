@@ -7,7 +7,6 @@ import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
 import java.io.File
 import java.io.FileOutputStream
-import java.util.zip.CRC32
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,10 +35,10 @@ import javax.inject.Singleton
  *  12      4    Uncompressed payload length (uint32, big-endian)
  *  16      N    Payload (SerializationModule.serializeAndCompressSaveData 输出)
  *
- * 格式版本 0x0101（T8，2026-08-05）：字节 11 记录 CRC 算法，读取按标识精确校验；
- * 旧格式（0x0100）无算法标识，通过双算法探测兼容读取——修复旧版跨 API 换机全判损坏。
- * 0x0101 恒写 CRC32C（自实现查表，全 API 一致，2026-08-05 对抗性审查整改）——
- * 原按 SDK 分支写 CRC32/CRC32C 时，API≥34 写入的文件在 API<34 设备必判损坏（反向换机丢数据）。
+ * 格式版本 0x0101：字节 11 记录 CRC 算法标识，读取按标识精确校验；
+ * 旧格式（0x0100）无算法标识，通过双算法探测兼容读取。
+ * 0x0101 恒写 CRC32C（自实现查表，全 API 可算）——java.util.zip.CRC32C 仅 API 34+ 存在，
+ * 自实现保证 API<34 设备也能校验 API≥34 设备写入的文件。
  */
 @Singleton
 class SaveFileManager @Inject constructor(
@@ -47,30 +46,6 @@ class SaveFileManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "SaveFileManager"
-
-        /** Magic bytes: "XSBK" (Xianxia Sect BaKup) */
-        private val MAGIC = byteArrayOf(0x58, 0x53, 0x42, 0x4B)
-
-        /** 文件头总长度：16 字节 */
-        private const val HEADER_SIZE = 16
-
-        /** 标记位：LZ4 压缩 */
-        private const val FLAG_COMPRESSED = 0x01
-
-        /** CRC 算法标识：0=CRC32 */
-        private const val CRC_ALGO_CRC32 = 0
-
-        /** CRC 算法标识：1=CRC32C */
-        private const val CRC_ALGO_CRC32C = 1
-
-        /** 格式版本 (major << 8 | minor)——0x0101 起字节 11 携带 CRC 算法标识 */
-        private const val FORMAT_VERSION = 0x0101
-
-        /** 旧格式版本（0x0100，无 CRC 算法标识） */
-        private const val FORMAT_VERSION_LEGACY = 0x0100
-
-        /** 首个携带算法标识的格式版本（旧版 0x0100 无标识，按 SDK 旧行为+双算法探测） */
-        private const val FORMAT_VERSION_WITH_CRC_ALGO = 0x0101
 
         /** 最大备份保留天数 */
         private const val MAX_BACKUP_AGE_DAYS = 7
@@ -84,8 +59,7 @@ class SaveFileManager @Inject constructor(
 
     /**
      * 初始化备份目录。必须在首次调用任何文件操作前调用。
-     * 由 [StorageFacade.initialize] 在启动时调用（2026-08-04 接线修复——
-     * 此前无调用点，备份写入/恢复整体为死代码）。幂等：重复调用直接返回。
+     * 由 [StorageFacade.initialize] 在启动时调用。幂等：重复调用直接返回。
      */
     fun initialize(baseDir: File) {
         if (::backupDir.isInitialized) {
@@ -106,7 +80,7 @@ class SaveFileManager @Inject constructor(
     /**
      * 原子写入存档数据。
      *
-     * 流程（T9 2026-08-05 修复：主保存无条件执行，超限只跳过备份）：
+     * 流程（主保存无条件执行，超限只跳过备份）：
      * 1. 序列化 payload → 写入 .tmp 文件 (FileOutputStream)
      * 2. fsync 强制刷盘
      * 3. 重命名 .tmp → .sav（同一文件系统上的原子操作）——**主保存必执行**
@@ -114,8 +88,9 @@ class SaveFileManager @Inject constructor(
      * 5. 复制 .sav → .bak（保留历史快照）
      * 6. 删除 .tmp（清理）
      *
-     * 修复前缺陷：超限检查位于写 .sav 之前，超限时主保存+备份一并跳过且返回 success。
+     * payload 超限时仍必须先完成 .sav 主保存，仅跳过 .bak 备份写入。
      */
+    @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     fun atomicWrite(slot: Int, saveData: SaveData): StorageResult<Unit> {
         ensureInitialized()
         if (!isValidSlot(slot)) {
@@ -134,8 +109,8 @@ class SaveFileManager @Inject constructor(
             writeFileAtomic(tmpFile, payload)
 
             // 3. 重命名 .tmp → .sav（原子交换）——主保存无条件执行
-            // C11 修复（2026-08-05）：先试无 delete 的 rename 原子覆盖（Linux/Android
-            // rename() 原子替换目标），消除 delete 与 renameTo 之间进程崩溃 → .sav 缺失窗口；
+            // 先试无 delete 的 rename 原子覆盖（Linux/Android rename() 原子替换目标），
+            // 避免 delete 与 renameTo 之间进程崩溃导致 .sav 缺失；
             // 失败回退 delete+rename，兼容 renameTo 遇已存在目标失败的存储（如 FAT32/exFAT）
             if (!tmpFile.renameTo(savFile)) {
                 if (savFile.exists()) {
@@ -192,6 +167,7 @@ class SaveFileManager @Inject constructor(
      * 4. .bak 有效 → 返回 RECOVERED
      * 5. 都损坏 → 返回 CORRUPTED
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun readWithFallback(slot: Int): BackupReadResult {
         ensureInitialized()
         if (!isValidSlot(slot)) {
@@ -215,8 +191,8 @@ class SaveFileManager @Inject constructor(
             if (bakPayload != null) {
                 Log.w(TAG, ".bak 恢复成功 slot=$slot")
                 // 恢复后修复 .sav（用 .bak 覆盖 .sav）
-                // C6 修复：修复失败必须如实反映（原实现仅 Log.w 仍返回 RECOVERED，
-                // .sav 保持损坏反复回退，调用方无法感知）
+                // 修复 .sav 失败必须如实反映：.sav 保持损坏时读取将持续回退 .bak，
+                // 调用方需通过 repairFailed 感知
                 var repairFailed = false
                 try {
                     bakFile.copyTo(savFile, overwrite = true)
@@ -275,12 +251,10 @@ class SaveFileManager @Inject constructor(
     }
 
     /**
-     * 清理孤儿备份文件（D21，2026-08-05 语义修正）。
+     * 清理孤儿备份文件。
      *
-     * 原实现删除"超过保留期"的所有 .sav/.bak——长期未开游戏的玩家 .sav
-     * 恢复点被删（DB 损坏时失去唯一恢复能力，7 天不玩即丢档）。修正为只清理：
-     * - 超过保留期的孤儿 .bak（对应 .sav 已不存在——主档已丢的废弃备份）
-     * .sav 本身永不清理（它是 DB 损坏时的恢复点）
+     * 只清理超过保留期的孤儿 .bak（对应 .sav 已不存在——主档已丢的废弃备份）。
+     * .sav 本身永不清理（它是 DB 损坏时的恢复点）。
      */
     fun cleanExpiredBackups() {
         ensureInitialized()
@@ -310,16 +284,17 @@ class SaveFileManager @Inject constructor(
     }
 
     // ═══════════════════════════════════════════════════════════
-    // A5（2026-08-05）：槽位删除 tombstone——跨 DB/文件原子删除
+    // 槽位删除 tombstone——跨 DB/文件原子删除
     // ═══════════════════════════════════════════════════════════
 
     /**
      * 标记槽位已删除（写 tombstone 文件）。
      *
-     * A5：delete() 跨 DB 与 .sav/.bak 非原子——DB 删除提交后、文件删除前崩溃
+     * delete() 跨 DB 与 .sav/.bak 非原子——DB 删除提交后、文件删除前崩溃
      * 会留下"DB 空、文件在"的窗口，下次 load 从备份复活已删存档。tombstone
      * 使两个崩溃窗口都收敛为"已删"语义：load 见到 tombstone 即返回空档。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun markSlotDeleted(slot: Int) {
         ensureInitialized()
         try {
@@ -348,6 +323,7 @@ class SaveFileManager @Inject constructor(
     // ============================================================
 
     /** 获取备份信息（用于 UI 展示） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun getBackupInfo(slot: Int): BackupInfo? {
         ensureInitialized()
         if (!isValidSlot(slot)) return null
@@ -378,12 +354,9 @@ class SaveFileManager @Inject constructor(
     // ============================================================
 
     private fun ensureInitialized() {
-        if (!::backupDir.isInitialized) {
-            throw IllegalStateException("SaveFileManager 未初始化 — 请先调用 initialize()")
-        }
+        check(::backupDir.isInitialized) { "SaveFileManager 未初始化 — 请先调用 initialize()" }
     }
 
-    private fun isValidSlot(slot: Int): Boolean = slot in 0..StorageConstants.DEFAULT_MAX_SLOTS
 
     private fun getSavFile(slot: Int): File = File(backupDir, "slot_${slot}.sav")
     private fun getBakFile(slot: Int): File = File(backupDir, "slot_${slot}.bak")
@@ -408,42 +381,12 @@ class SaveFileManager @Inject constructor(
         }
     }
 
-    /** 构建文件头（0x0101：字节 11 记录 CRC 算法标识，T8 2026-08-05） */
-    private fun buildHeader(payload: ByteArray): ByteArray {
-        // 对抗性审查整改（2026-08-05）：恒写 CRC32C（自实现全 API 可用）——
-        // 原按 SDK 分支写 CRC32/CRC32C，API≥34 写 CRC32C 的文件在 API<34 设备
-        // 无 CRC32C 实现必判损坏（反向换机数据丢失）。恒 CRC32C + algo 标识双向一致。
-        val crc = computeCrc32c(payload)
-        val header = ByteArray(HEADER_SIZE)
-
-        // Magic
-        System.arraycopy(MAGIC, 0, header, 0, 4)
-        // Format version (big-endian)
-        header[4] = ((FORMAT_VERSION shr 8) and 0xFF).toByte()
-        header[5] = (FORMAT_VERSION and 0xFF).toByte()
-        // CRC (big-endian)
-        header[6] = ((crc shr 24) and 0xFF).toByte()
-        header[7] = ((crc shr 16) and 0xFF).toByte()
-        header[8] = ((crc shr 8) and 0xFF).toByte()
-        header[9] = (crc and 0xFF).toByte()
-        // Flags: LZ4 compressed
-        header[10] = FLAG_COMPRESSED.toByte()
-        // T8: CRC 算法标识（原保留位；0x0101 起有效，0=CRC32, 1=CRC32C）——恒 CRC32C
-        header[11] = CRC_ALGO_CRC32C.toByte()
-        // Uncompressed length (big-endian) — 当前 payload 已压缩，存原始长度
-        val len = payload.size
-        header[12] = ((len shr 24) and 0xFF).toByte()
-        header[13] = ((len shr 16) and 0xFF).toByte()
-        header[14] = ((len shr 8) and 0xFF).toByte()
-        header[15] = (len and 0xFF).toByte()
-
-        return header
-    }
 
     /**
      * 读取文件并校验 CRC。
      * @return payload（不含文件头），校验失败返回 null
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun readAndVerify(file: File): ByteArray? {
         return try {
             val bytes = file.readBytes()
@@ -462,7 +405,7 @@ class SaveFileManager @Inject constructor(
 
             // 格式版本（大端序）
             val formatVersion = ((bytes[4].toInt() and 0xFF) shl 8) or (bytes[5].toInt() and 0xFF)
-            // C7 修复：仅接受已知格式版本——任意未来版本若 CRC 碰巧正确会按当前格式静默误解析
+            // 仅接受已知格式版本——任意未来版本若 CRC 碰巧正确会按当前格式静默误解析
             if (formatVersion != FORMAT_VERSION_LEGACY && formatVersion != FORMAT_VERSION) {
                 Log.w(TAG, "未知格式版本判损坏: ${file.name} (0x${formatVersion.toString(16)})")
                 return null
@@ -479,7 +422,7 @@ class SaveFileManager @Inject constructor(
             // 提取 payload
             val payload = bytes.copyOfRange(HEADER_SIZE, bytes.size)
 
-            // 校验 CRC（T8：0x0101 按标识精确校验；0x0100 旧格式双算法探测）
+            // 校验 CRC（0x0101 按标识精确校验；0x0100 旧格式双算法探测）
             if (!verifyCrc(storedCrc, payload, formatVersion, algoByte)) {
                 Log.w(TAG, "CRC 不匹配: ${file.name} (stored=$storedCrc, version=${formatVersion.toString(16)})")
                 return null
@@ -492,61 +435,7 @@ class SaveFileManager @Inject constructor(
         }
     }
 
-    /**
-     * CRC 校验（T8 2026-08-05 + 对抗性审查整改 2026-08-05）。
-     * - 0x0101+：按文件头记录的算法标识精确校验；未知标识判损坏
-     * - 0x0100（旧格式）：无算法标识 → 双算法探测（CRC32C 自实现全 API 可算，无 SDK 分支）
-     *   ——修复 API<34 写入的备份换机到 API≥34 全判损坏的问题
-     */
-    private fun verifyCrc(stored: Int, payload: ByteArray, formatVersion: Int, algoByte: Int): Boolean {
-        if (formatVersion >= FORMAT_VERSION_WITH_CRC_ALGO) {
-            return when (algoByte) {
-                CRC_ALGO_CRC32 -> stored == computeCrc32(payload)
-                CRC_ALGO_CRC32C -> stored == computeCrc32c(payload)
-                else -> false
-            }
-        }
-        return stored == computeCrc32c(payload) || stored == computeCrc32(payload)
-    }
 
-    /** 计算 CRC32 校验和（跨 API 一致） */
-    private fun computeCrc32(data: ByteArray): Int {
-        val crc = CRC32()
-        crc.update(data)
-        return crc.value.toInt()
-    }
-
-    /** 计算 CRC32C 校验和（自实现，全 API 一致——对抗性审查整改 2026-08-05） */
-    private fun computeCrc32c(data: ByteArray): Int = Crc32c.update(data)
-
-    /**
-     * 自实现 CRC32C（Castagnoli 多项式，reflected 0x82F63B78）。
-     *
-     * 2026-08-05 对抗性审查整改：java.util.zip.CRC32C 仅 API 34+ 存在，API<34 回退 CRC32
-     * 导致"API≥34 写入的文件在 API<34 设备必判损坏"（反向换机数据丢失）。
-     * 纯 Java 查表实现与 java.util.zip.CRC32C 输出一致（Castagnoli 标准），全 API 可用。
-     */
-    private object Crc32c {
-        private val TABLE = IntArray(256).also { table ->
-            val reflectedPoly = 0x82F63B78.toInt() // > Int.MAX 的字面量需显式转换
-            for (i in 0..255) {
-                var crc = i
-                repeat(8) {
-                    crc = if (crc and 1 != 0) (crc ushr 1) xor reflectedPoly else crc ushr 1
-                }
-                table[i] = crc
-            }
-        }
-
-        /** 计算字节数组的 CRC32C 校验值（与 java.util.zip.CRC32C 输出一致） */
-        fun update(data: ByteArray): Int {
-            var crc = -1
-            for (b in data) {
-                crc = (crc ushr 8) xor TABLE[(crc xor b.toInt()) and 0xFF]
-            }
-            return crc.inv()
-        }
-    }
 }
 
 // ============================================================
@@ -555,7 +444,7 @@ class SaveFileManager @Inject constructor(
 
 /**
  * 带恢复来源的读取结果。
- * @param repairFailed C6（2026-08-05）：RECOVERED 时 .bak→.sav 修复是否失败
+ * @param repairFailed RECOVERED 时 .bak→.sav 修复是否失败
  *   （true 表示 .sav 保持损坏、后续读取将持续回退 .bak，直至下次成功保存重写）
  */
 data class BackupReadResult(
@@ -595,3 +484,5 @@ data class BackupInfo(
     val primarySizeBytes: Long?,
     val backupSizeBytes: Long?
 )
+
+private fun isValidSlot(slot: Int): Boolean = slot in 0..StorageConstants.DEFAULT_MAX_SLOTS

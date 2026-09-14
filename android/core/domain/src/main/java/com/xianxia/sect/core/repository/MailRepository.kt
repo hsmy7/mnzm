@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
  * Mail persistence interface — defined in domain, implemented in data module.
  * Engine's MailService depends on this interface, not on MailDao directly.
  */
+@Suppress("TooManyFunctions") // 邮件仓储契约：查询/领取/删除/补偿全生命周期端口，函数数即仓储协议面
 interface MailRepository {
 
     fun getActiveMails(slotId: Int): Flow<List<MailEntity>>
@@ -27,12 +28,15 @@ interface MailRepository {
     /** 原子化删除：仅当邮件无附件或附件已领取时执行删除 */
     suspend fun deleteIfClaimed(slotId: Int, mailId: String)
 
+    /** 删除槽位内过期邮件（决策项②：过期即删；expireTime=0 永久有效）。@return 删除行数 */
+    suspend fun deleteExpiredMails(slotId: Int, now: Long): Int
+
     suspend fun deleteAllForSlot(slotId: Int)
 
     /** 玩家手动"删除已读"：仅删已读且已领取的邮件（邮件唯一删除入口） */
     suspend fun deleteAllReadAndClaimed(slotId: Int)
 
-    // === 草稿持久化（D-01 事务化根治） ===
+    // === 草稿持久化 ===
     // 非挂起（阻塞）方法：供 GameStateStore 事务提交钩子（锁外、事务线程）同步调用。
     // Room 非挂起 DAO 方法在调用线程同步执行，引擎线程非主线程合法。
 
@@ -64,7 +68,7 @@ interface MailRepository {
     fun deleteAllDraftsForSlotBlocking(slotId: Int)
 
     /**
-     * 跨 DAO 原子事务：mails 写入 + 草稿删除 原子化（D-01 drain 消费）。
+     * 跨 DAO 原子事务：mails 写入 + 草稿删除 原子化（drain 消费）。
      *
      * 崩溃只发生在事务前/后——mails 写入与草稿删除要么都成功要么都不发生，
      * 重放不会重复发邮件（草稿行仍在 = 事务未提交）。

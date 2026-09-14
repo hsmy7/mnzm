@@ -26,8 +26,7 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.theme.GameColors
-
-
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 @Composable
 fun WarehouseDialog(
@@ -59,7 +58,7 @@ fun WarehouseDialog(
             onGarrisonSelect = { showGarrisonSelect = true },
             onGarrisonDetail = {
                 garrisonDisciple?.let {
-                    viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples))
+                    viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(it, disciples))
                 }
             },
             onGarrisonRemove = {
@@ -86,7 +85,8 @@ fun WarehouseDialog(
     }
 }
 
-/** 仓库主内容区（WarehouseDialog 拆分）：驻守弟子槽位 */
+/** 仓库主内容区：驻守弟子槽位 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
 @Composable
 private fun WarehouseDialogContent(
     garrisonDisciple: DiscipleAggregate?,
@@ -112,13 +112,13 @@ private fun WarehouseDialogContent(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getWarehouseGarrisonInfo())
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.warehouseGarrisonInfo)
         }
 
         val borderColor = if (garrisonDisciple != null) {
             try {
                 Color(android.graphics.Color.parseColor(garrisonDisciple.spiritRoot.countColor))
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 GameColors.Success
             }
         } else {
@@ -137,7 +137,7 @@ private fun WarehouseDialogContent(
     }
 }
 
-/** 仓库驻守弟子选择弹窗（WarehouseDialog 拆分） */
+/** 仓库驻守弟子选择弹窗 */
 @Composable
 private fun WarehouseGarrisonSelectDialog(
     buildingInstanceId: String,
@@ -180,7 +180,7 @@ private fun WarehouseGarrisonSelectDialog(
                         if (showAllEnabled
                             && disciple.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE
                         ) {
-                            viewModel.releaseDiscipleForReassignment(disciple.id)
+                            viewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                         }
                         productionViewModel.assignWarehouseGarrison(
                             buildingInstanceId, disciple.id,

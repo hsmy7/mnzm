@@ -1,17 +1,16 @@
 package com.xianxia.sect.ui.game.sect
 
 /**
- * 帧率↔刷新率联动声明策略 — `Surface.setFrameRate` 决策纯函数（2026-08-14 平板省电）。
+ * 帧率↔刷新率联动声明策略 — `Surface.setFrameRate` 决策纯函数（平板省电）。
  *
- * ## 背景
- * 旧逻辑仅 effectiveFps ≤ 30 时声明降频，60fps 场景下 120Hz 平板面板保持 120Hz
- * 刷新而内容只有 60fps → 面板功耗约 2 倍（屏幕功耗占整机 40-50%，60Hz vs 120Hz
+ * ## 动机
+ * 高刷面板上内容帧率低于刷新率时面板仍维持高刷 → 面板功耗约 2 倍（屏幕功耗占整机 40-50%，60Hz vs 120Hz
  * 差约 50% 屏耗）。行业依据：Android 官方 FPS 节流文档明确 120Hz 屏支持
  * 120/60/40/30 档位（games/optimize/adpf/gamemode/fps-throttling）。
  *
  * ## 决策规则
- * - displayFps ≤ 60：旧行为逐位一致（≤30 声明有效帧率 + 回升恢复声明防 OEM
- *   面板粘滞——华为/小米 ROM 上"让系统自然恢复"不成立）
+ * - displayFps ≤ 60：≤30 声明有效帧率 + 回升恢复声明防 OEM
+ *   面板粘滞（华为/小米 ROM 上"让系统自然恢复"不成立）
  * - displayFps > 60（120/144Hz 高刷面板）：声明 {60, 30} 两档——会话首帧声明
  *   60（120→60 切换恰逢地图淡入遮罩掩盖黑屏，省屏耗 50% 的核心动作）；
  *   effectiveFps ≤ 30 声明 30（面板再降一档）；10fps 不声明 10（部分面板不支持
@@ -42,14 +41,14 @@ object FrameRateDeclarationPolicy {
     fun targetDeclareFps(displayFps: Int, effectiveFps: Int, lastDeclaredFps: Int): Int? {
         return when {
             displayFps <= 0 -> null
-            // 60Hz 面板：旧行为逐位一致——降频 ≤30 声明；回升恢复声明防面板粘滞
+            // 60Hz 面板：降频 ≤30 声明；回升恢复声明防面板粘滞
             displayFps <= DISPLAY_FPS_NORMAL_MAX -> normalPanelTarget(effectiveFps, lastDeclaredFps)
             // 高刷面板：{60, 30} 两档离散声明
             else -> highRefreshPanelTarget(effectiveFps, lastDeclaredFps)
         }
     }
 
-    /** 60Hz 面板声明目标（旧行为逐位一致） */
+    /** 60Hz 面板声明目标（降频 ≤30 声明 + 回升恢复声明） */
     private fun normalPanelTarget(effectiveFps: Int, lastDeclaredFps: Int): Int? {
         val shouldDeclare = effectiveFps != lastDeclaredFps &&
             (effectiveFps <= FPS_DECLARE_LOW || lastDeclaredFps > 0)
@@ -65,7 +64,7 @@ object FrameRateDeclarationPolicy {
     /**
      * 是否使用 FIXED_SOURCE 兼容模式。
      * DEFAULT 在 120Hz 面板上会帧倍频保持 120Hz（不省屏耗），
-     * 高刷面板必须 FIXED_SOURCE；60Hz 面板维持 DEFAULT（旧行为）。
+     * 高刷面板必须 FIXED_SOURCE；60Hz 面板维持 DEFAULT。
      */
     fun useFixedSource(displayFps: Int): Boolean = displayFps > DISPLAY_FPS_NORMAL_MAX
 }

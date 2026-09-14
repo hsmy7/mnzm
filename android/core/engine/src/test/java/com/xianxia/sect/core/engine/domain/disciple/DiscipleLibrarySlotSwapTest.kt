@@ -34,8 +34,8 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * 藏经阁换人路径测试：`assignDiscipleToLibrarySlot` 顶替旧 occupant 后，
- * 旧弟子必须 release gate + 同步状态（回归：此前从不 release/sync，
- * 旧弟子 gate 注册残留 + 状态残留 STUDYING 从选择弹窗消失）。
+ * 旧弟子必须 release gate + 同步状态（否则 gate 注册残留 + 状态残留
+ * STUDYING，弟子从选择弹窗消失）。
  *
  * 使用 delegate mock store（同 DiscipleReflectionReleaseTest）+ 真实
  * DiscipleStatusService/DiscipleAssignmentGate + stubLaunchInScope，
@@ -131,8 +131,6 @@ class DiscipleLibrarySlotSwapTest {
         )
         val lifecycleManager = DiscipleLifecycleManager(
             stateStore = mockStore,
-            discipleFactory = mockSmart(),
-            rngManager = mockSmart(),
             slotManager = slotManager,
             productionSlotRepository = mockSmart(),
         )
@@ -151,7 +149,7 @@ class DiscipleLibrarySlotSwapTest {
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
             discipleStatusService = statusService,
-            inventorySystem = mockSmart(InventorySystem::class.java)
+            inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java),
         )
     }
 
@@ -165,7 +163,6 @@ class DiscipleLibrarySlotSwapTest {
             stateStore = mockStore,
             cultivationService = cultivationService,
             gameEngineCore = gameEngineCore,
-            inventorySystem = mockSmart(),
             pillManager = mockSmart(),
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),

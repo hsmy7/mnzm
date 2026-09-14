@@ -44,8 +44,7 @@ cd android && ./gradlew.bat assembleDebug
 cd android && ./gradlew.bat testReleaseUnitTest --max-workers=1
 
 # Run a single test class — 同样串行，必须模块限定写法（裸 `test --tests` 在 Gradle 8.14.5 + AGP 聚合任务下报
-# Unknown command-line option '--tests'，且未模块限定时 --tests 过滤波及 core:data 等模块触发 No tests found——
-# 见 docs/architecture.md 待办 D-43）
+# Unknown command-line option '--tests'，且未模块限定时 --tests 过滤波及 core:data 等模块触发 No tests found）
 cd android && ./gradlew.bat :app:testReleaseUnitTest --tests "com.xianxia.sect.core.engine.BattleSystemTest" --max-workers=1
 
 # Lint
@@ -65,8 +64,11 @@ cd android && ./gradlew.bat koverHtmlReport --max-workers=1 -Pkover.enabled=true
 # Static analysis
 cd android && ./gradlew.bat detekt
 
-# Full CI check (compile + test + detekt + coverage + RNG audit) — 测试必须串行
-cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-workers=1 -Pkover.enabled=true detekt koverHtmlReport -Pkover.enabled=true && cd .. && grep -rn "import kotlin.random.Random" android/core/engine/src/main/java/ && (echo "ERROR: kotlin.random.Random found in engine module! Use GameRngManager.getRng() instead."; exit 1) || echo "✅ RNG check passed: no kotlin.random.Random in engine module"
+# Full CI check (compile + test + detekt + coverage + RNG 守卫) — 测试必须串行
+# RNG 红线以**守卫测试**为闸门（不用 grep）：`.random()` 是 stdlib 扩展、自建 RNG 是 object，
+# 二者都不带 `import kotlin.random.Random`，grep 永远匹配不到（见 .github/workflows/ci.yml 的
+# "RNG source red-line (four entry classes)" step 与 docs/adr/rng-determinism-remediation.md §1）
+cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-workers=1 -Pkover.enabled=true detekt koverHtmlReport -Pkover.enabled=true && ./gradlew.bat :core:engine:testReleaseUnitTest --tests "com.xianxia.sect.core.architecture.RngSourceGuardTest" --tests "com.xianxia.sect.core.architecture.RngEngineIsolationGuardTest" --max-workers=1
 ```
 
 ## 架构文档
@@ -80,7 +82,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 - **乘区法公式架构** — 8 个系统统一乘区法（修炼/战斗/突破/生产等）
 - **BootPhase/RunState 双层生命周期** — 启动单向推进、运行时可循环回退
 - **扩展性架构预留** — RemoteConfig 未绑定状态与激活前置、商业化接入点、离线收益引擎接入点、社交隔离层、iOS 迁移预留（KMP/Compose Multiplatform/Room→SQLDelight/Vulkan→Metal 评估）
-- **C++ 引擎迁移（完成）** — 游戏逻辑核心 Kotlin→C++：game-core 纯 C++20 引擎（零 Android 依赖、桌面可编译、iOS 可复用）+ JNI 桥 + JSON 快照镜像；**迁移主线（确定性逻辑核心）已收口**——时间/结算/战斗/生产/探索/内政/经济/外交/秘境全部 C++ 化，AUTHORITATIVE 生产真相源，含 ECS 骨架 + System 调度 + JobSystem 并行化；Kotlin GameStateStore 降级为镜像；总方案见 docs/adr/cpp-engine-migration.md，进度见 docs/cpp-engine.md
+- **C++ 引擎迁移（确定性逻辑核心已 C++ 化；逐域收口进行中）** — 游戏逻辑核心 Kotlin→C++：game-core 纯 C++20 引擎（零 Android 依赖、桌面可编译、核心保持可移植）+ JNI 桥 + JSON 快照镜像；时间/结算/战斗/生产/探索/内政/经济/外交/秘境与建筑/道路/弟子管理等 UI 操作面事务已 C++ 化，C++ 为 AUTHORITATIVE 生产真相源，含 ECS 骨架 + System 调度 + JobSystem 并行化；**未完成（长期主轴）**：UI 操作面收尾 → **删除反向同步通道**（2026-09-15 已拍板根治；288 站点穷尽审计实测 14 个域无一可整体关闭 ⇒ 按 [docs/parallel-batches-w3/README.md](docs/parallel-batches-w3/README.md) 13 批逐域收尾，方案见 [docs/adr/reverse-channel-elimination.md](docs/adr/reverse-channel-elimination.md)，残余写者清单见 docs/ui-read-surface.md §4.4）、真机（物理设备）验证批、WS-4 NPC 移动系统与 WS-1 阶段 3 数据导向存储（待拍板/立项）；Kotlin GameStateStore 为镜像；总方案见 docs/adr/cpp-engine-migration.md，进度见 docs/cpp-engine.md
 - **关键源码目录** — Core/Data/UI/UseCase 模块路径
 - **待完成项登记与偿还触发档案** — 待办 D 系列已清空（2026-08 债务根治批次）；条件式未来工作（TapDB 服务端/RemoteConfig/OAID/音频 release/16KB 对齐等）见"偿还触发条件档案"章节，触发条件满足时按要点实施
 
@@ -88,7 +90,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 
 项目知识库详见 [docs/knowledge-base.md](docs/knowledge-base.md)，涵盖以下内容：
 
-- **技术栈** — Kotlin 2.2.20（UI/平台层）+ **C++20** 引擎核心 `game-core`（迁移主线已收口：确定性逻辑核心全部 C++ 化、AUTHORITATIVE 真相源，含 ECS 骨架 + System 调度 + JobSystem 并行化）；Compose, Hilt, Room, MMKV, JNI + nlohmann::json 等；引擎方向规则见 rules/cpp-priority.md
+- **技术栈** — Kotlin 2.2.20（UI/平台层）+ **C++20** 引擎核心 `game-core`（确定性逻辑核心已全部 C++ 化、AUTHORITATIVE 真相源，含 ECS 骨架 + System 调度 + JobSystem 并行化；反向通道逐域关闭与剩余 UI 操作面下沉为长期主轴）；Compose, Hilt, Room, MMKV, JNI + nlohmann::json 等；引擎方向规则见 rules/cpp-priority.md
 - **关键类说明** — GameEngineCore, GameStateStore, BootSequenceController, GameViewModel 等
 - **弟子分配门卫系统** — DiscipleAssignmentGate + 11 槽位统一注册表
 - **存档槽位隔离** — `slot_id` 复合主键、`resetForSlot`、强制 slotId 赋值
@@ -429,9 +431,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 
 ### 11. UI 样式规范
 
-**11.1 🔴 Text 颜色仅黑色** — 所有 `Text()` composable 的 `color` 必须是 `Color.Black`。`GameColors.TextPrimary/TextSecondary/TextTertiary/TextOnPrimary` 均解析为 `Color(0xFF000000)`。
-
-**11.2 🔴 按钮尺寸标准化** — 所有按钮使用 `ButtonSizes.StandardWidth` (72dp) × `ButtonSizes.StandardHeight` (38dp)。
+**11.1 🔴 按钮尺寸标准化** — 所有按钮使用 `ButtonSizes.StandardWidth` (72dp) × `ButtonSizes.StandardHeight` (38dp)。
 
 ---
 
@@ -516,6 +516,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 |--------|--------|------|
 | 🔴 | 新增代码已遵循 `rules/code-quality.md`（命名规范/坏味道清单/设计原则/可测试性/扩展友好性/量化指标） | code-quality.md |
 | 🔴 | 新增代码已检查 iOS 跨平台可移植性（core 层无 Android 独占 API、平台能力走接口抽象、新平台依赖有 iOS 对等方案——游戏未来做 iOS 端） | code-quality.md 跨平台章节 |
+| 🔴 | 修改代码后已做注释一致性检查：注释只描述最终状态，无"之前/原来/新增/删除/迁移"等历史性表述、无已解决 TODO、无旧架构描述、无 AI 工作汇报式注释（详见 `rules/code-comment.md` 七项检查清单） | code-comment.md |
 | 🔴 | 新增玩法系统已遵循 `rules/expansion-playbook.md` 全流程（引擎注册/惰性结算层级/EventBus/RNG 分区/DialogType/Migration/存档兼容/进度锚定游戏时间/引导接入/配置开关/守卫测试） | expansion-playbook.md |
 | 🔴 | 新增玩法 UI 已优先复用现有组件（`GameButton`/`UnifiedGameDialog`/`ItemCard`/`SpriteImage`/`CircularCheckbox` 等，组件清单见 `rules/expansion-playbook.md` UI 组件复用优先），禁止自建重复组件；确需新建的通用组件放 core/ui 并登记回清单 | expansion-playbook.md UI 组件复用优先 |
 | 🔴 | 新增货币/经济资源已遵循 `rules/economy-design.md`（必要性论证/持有上限/源汇闭环/通胀防控/奖励价值审计） | economy-design.md |
@@ -527,7 +528,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 
 > 归并说明：以上扩展方向条目为**设计级**（全流程遵循）；现有广告 watchAd 统一入口（代码级）、渲染双路径/Vulkan 降级/Build.SOC_API 守卫（代码级）等条目保留不动，两者层级不同不重复。
 
-**13.4 🔴 detekt 配置** (`android/config/detekt/detekt.yml`)：
+**13.4 🔴 detekt 配置** (`android/config/detekt/detekt.yml`，**以该文件实值为准**——下列为 2026-09-15 实测值)：
 ```yaml
 style:
   MaxLineLength:
@@ -539,9 +540,14 @@ style:
 complexity:
   TooManyFunctions:
     thresholdInFiles: 15    # 从 30 收紧
+    thresholdInClasses: 20  # 函数拆分批次后的类内基线（拆分后原超限函数转类成员）
+    thresholdInObjects: 12  # Dagger @Module 的 @Provides 属 DI 样板
+  LargeClass:
+    threshold: 800          # 默认 600 与"既有违规冻结 baseline"哲学冲突
   LongParameterList:
-    functionThreshold: 6
-    constructorThreshold: 7
+    functionThreshold: 8
+    constructorThreshold: 10
+    ignoreDefaultParameters: true   # 带默认值的参数不计数（Compose 组件契约面）
 empty-blocks:
   EmptyCatchBlock:
     active: true            # 已启用 (detekt 1.23+ 规则集为 empty-blocks)
@@ -551,13 +557,11 @@ empty-blocks:
 
 ## 设计方案规则
 
-出方案或做设计决策时，**必须**先使用 `/deep-research` skill 并结合网络搜索，调研同游戏行业的先进设计，给出对标分析后再出最优方案。禁止凭经验直接写代码。
-
 ### 设计方案基本原则
 
 设计方案必须遵循以下基本原则（第1~5条），作为方案评审的核心标准：
 
-**1. 🔴 方案符合编写规范** — 设计方案必须使用统一结构编写，包含：**背景与目标**（需求要点+成功标准）、**技术方案**（架构变化+关键类/接口+数据流）、**影响范围清单**（所有受影响的文件/模块及其变更方式）、**兼容性分析**（Migration/序列化/存档）、**测试方案**（单元测试+对抗性审查要点）、**风险评估与兜底**、**未来场景推演**（≥6 个月档：规模增长/生命周期/平台扩张/运营演进/兼容回退，防"只看眼前"）、**技术债与偿还计划**（每个"现在不全做"的决定必须有明确偿还触发条件；无债也需显式声明）。禁止使用非结构化的段落描述替代规范方案文档。方案文档必须独立可读，不依赖口头补充。**提交用户确认前必须逐项过一遍 `rules/design-plan-review.md` 方案自检清单**（YAGNI 反向检查/测试墙钟核算/规则交叉核对/决策分级——每一条来自真实教训）。
+**1. 🔴 方案符合编写规范** — 设计方案必须使用统一结构编写，包含：**背景与目标**（需求要点+成功标准）、**技术方案**（架构变化+关键类/接口+数据流）、**影响范围清单**（所有受影响的文件/模块及其变更方式）、**兼容性分析**（Migration/序列化/存档）、**测试方案**（单元测试+对抗性审查要点）、**风险评估与兜底**、**未来场景推演**（≥6 个月档：规模增长/生命周期/平台扩张/运营演进/兼容回退，防"只看眼前"）、**技术债与偿还计划**（每个"现在不全做"的决定必须有明确偿还触发条件；无债也需显式声明）、**盲区自查与完善建议**（方案的最后一个章节：作者切换到审查者立场，系统性自查方案未覆盖的盲点、未验证假设与遗漏项，逐条给出影响分析与完善建议；实质影响方案主体的结论必须回写正文对应章节，自查维度与条目格式见 `rules/design-plan-review.md` 盲区自查章节）。禁止使用非结构化的段落描述替代规范方案文档。方案文档必须独立可读，不依赖口头补充。**提交用户确认前必须逐项过一遍 `rules/design-plan-review.md` 方案自检清单**（YAGNI 反向检查/测试墙钟核算/规则交叉核对/决策分级——每一条来自真实教训）。
 
 **2. 🔴 功能模块化设计** — 新增功能必须设计为可独立发布、可单独测试、可通过配置开关控制启停的模块。模块之间通过接口通信，内部实现变更不影响外部调用方。禁止将新功能硬编码嵌入既有类或函数中形成面条式代码。新增前必须检查是否可通过扩展已有模块（`:core:engine/domain/` 或 `:core:engine/system/`）实现，避免重复造轮。
 
@@ -590,7 +594,7 @@ empty-blocks:
 
 变更说明需记录在方案文档的"影响范围清单"中，标注 `隐私合规` 标签。
 
-**6. 🔴 扩展方向对标（2026-08-04 起）** — 设计玩法/商业化/社交/数据类新功能时，deep-research 调研必须覆盖对应方向主题（专项调研每方向 ≥5 条 S/A 级来源），不得只做通用玩法调研：
+**6. 🟡 扩展方向对标（2026-08-04 起；2026-09-15 由"必做"降为"建议"）** — 设计玩法/商业化/社交/数据类新功能时，**建议**做行业对标（每方向 ≥5 条 S/A 级来源）而非只看通用玩法；对标主题按下表取用。**不做对标也可以推进**，但方案中须说明关键设计取舍的依据（经验/对标/既有约定）：
 
 | 功能方向 | 必调研主题 | 参考规则文件 |
 |---------|-----------|-------------|
@@ -606,7 +610,7 @@ empty-blocks:
 
 **方案必须考虑 iOS 跨平台兼容性：** 所有设计方案（UI 组件、渲染管线、手势系统、存储格式、网络协议等）必须确保 Android 与 iOS 两套平台均可落地，优先选择跨平台一致的方案。若技术方案依赖 Android 独占 API 或平台特定特性，须在方案中给出 iOS 侧的对等实现方案。
 
-**硬性指标：**
+**硬性指标（做行业对标时适用，非强制前置）：**
 - 行业参考来源 **不得少于 20 条**，且必须来自权威渠道
 - 所有参考数据必须是 **本年加前两年（当前年份和前两年）** 的最新数据（以当前日期为准），禁止引用过时资料
 - 每条参考必须标注来源 URL 和发布日期，无法确认发布日期的来源不得使用
@@ -626,9 +630,9 @@ empty-blocks:
 
 **来源优先级：官方文档 > 行业报告 > 顶会演讲 > 头部产品技术博客 > 知名团队复盘 > 社区文章。20 条配额中至少 12 条来自 S 级或 A 级来源。**
 
-流程：
+**对标流程（仅在选择做行业对标时执行，工具不限——`WebSearch`、官方文档检索、已有资料均可）：**
 1. 明确需求 → 列出待调研的设计问题
-2. 使用 `Skill` 工具调用 `deep-research` + `WebSearch` 搜索行业做法
+2. 搜索行业做法（不限定工具，不要求特定 skill）
 3. 对标头部产品（原神、星铁、网易、腾讯系、米哈游系、莉莉丝、鹰角、叠纸等）的设计模式
 4. 确保收集 ≥20 条有效参考后，输出对比分析报告，标注推荐方案和理由
 5. 报告末尾附完整的参考来源清单（标题 + URL + 发布日期）

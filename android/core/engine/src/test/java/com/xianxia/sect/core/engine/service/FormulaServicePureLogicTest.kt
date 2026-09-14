@@ -63,7 +63,7 @@ class FormulaServicePureLogicTest {
         assertEquals(0.0, data.yieldBonus, 0.001)
     }
 
-    // ==================== SuccessRateZones.calculate() 乘区法合成（职业系统重构后真实实现） ====================
+    // ==================== SuccessRateZones.calculate() 乘区法合成（真实实现） ====================
 
     @Test fun successRateZones_noBonus_initialZero() {
         // 无属性/职业/乘区加成 → 初始成功率 0
@@ -130,7 +130,7 @@ class FormulaServicePureLogicTest {
         assertEquals(0.321, zones.calculate(), 0.001)
     }
 
-    // ==================== buildSuccessRateZones() 真实实现极值测试（对抗性审查回归） ====================
+    // ==================== buildSuccessRateZones() 真实实现极值测试 ====================
 
     private fun newFormulaService(): FormulaService =
         FormulaService(FakeAtomicStateStore(), com.xianxia.sect.core.engine.testProductionSlotRepository())
@@ -153,8 +153,7 @@ class FormulaServicePureLogicTest {
     )
 
     @Test fun buildSuccessRateZones_intMinSkill_yieldsZeroZone() {
-        // 对抗性审查：Int 减法溢出——skill=Int.MIN_VALUE 时 (skill-30) Int 运算溢出为正，
-        // 修复前会错误获得满属性加成；Long 运算修复后应为 0
+        // skill=Int.MIN_VALUE 时 (skill-30) 须经 Long 运算，zone 应为 0（Int 运算会溢出为正）
         val zones = newFormulaService().buildSuccessRateZones(
             disciple(pillRefining = Int.MIN_VALUE), BuildingNames.ALCHEMY, recipeTier = 1
         )
@@ -205,9 +204,9 @@ class FormulaServicePureLogicTest {
         assertEquals(0.50, zones.calculate(), 0.001)
     }
 
-    // ==================== 长老加成读含 Flat 天赋属性（2026-08-12 Bug 2 修复） ====================
-    // 修复前 getElderPositionBonus/calculateElderAndDisciplesBonus 读原始 skills，
-    // "天丹(炼丹+18)"只对成功率生效，长老加成恒为 0。
+    // ==================== 长老加成读含 Flat 天赋属性 ====================
+    // getElderPositionBonus/calculateElderAndDisciplesBonus 经 getBaseStats 读属性，
+    // "天丹(炼丹+18)"等 Flat 天赋计入长老加成。
 
     /** 带炼丹长老（78 + 天丹 r3 18 = 96）的 store */
     private fun storeWithAlchemyElder(

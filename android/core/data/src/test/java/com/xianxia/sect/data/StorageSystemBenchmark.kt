@@ -40,7 +40,7 @@ class StorageSystemBenchmark {
 
     @Before
     fun benchmarkGate() {
-        // 2026-08-14：真实吞吐 benchmark 默认跳过（节省全量测试时间）；
+        // 真实吞吐 benchmark 默认跳过（节省全量测试时间）；
         // 按需启用：./gradlew.bat testReleaseUnitTest -Pbenchmark.enabled=true --tests "*StorageSystemBenchmark*"
         Assume.assumeTrue(
             "benchmark 默认跳过（-Pbenchmark.enabled=true 启用）",
@@ -72,8 +72,10 @@ class StorageSystemBenchmark {
         override fun toString(): String {
             return buildString {
                 appendLine("  === $testName (dataSize=${dataSize / 1024}KB, n=$iterations) ===")
-                appendLine("    Total: ${totalMs}ms | Avg: ${"%.2f".format(avgMs)}ms | Ops/s: ${"%.0f".format(opsPerSecond)}")
-                appendLine("    Min: ${minMs}ms | P50: ${p50Ms}ms | P95: ${p95Ms}ms | P99: ${p99Ms}ms | Max: ${maxMs}ms")
+                appendLine("    Total: ${totalMs}ms | Avg: ${"%.2f".format(avgMs)}ms | " +
+                    "Ops/s: ${"%.0f".format(opsPerSecond)}")
+                appendLine("    Min: ${minMs}ms | P50: ${p50Ms}ms | P95: ${p95Ms}ms | P99: ${p99Ms}ms | " +
+                    "Max: ${maxMs}ms")
                 appendLine("    Throughput: ${"%.2f".format(throughputMBps)} MB/s")
                 if (extraMetrics.isNotEmpty()) {
                     extraMetrics.forEach { (k, v) -> appendLine("    $k: $v") }
@@ -211,7 +213,8 @@ class StorageSystemBenchmark {
         @ProtoNumber(4) val timestamp: Long
     )
 
-    enum class DataScale(val label: String, val discipleCount: Int, val equipmentCount: Int, val pillCount: Int, val materialCount: Int, val herbCount: Int, val seedCount: Int, val battleLogCount: Int, val eventCount: Int) {
+    enum class DataScale(val label: String, val discipleCount: Int, val equipmentCount: Int, val pillCount: Int,
+        val materialCount: Int, val herbCount: Int, val seedCount: Int, val battleLogCount: Int, val eventCount: Int) {
         TINY("微型(~5KB)", 3, 5, 3, 5, 5, 3, 2, 5),
         SMALL("小型(~30KB)", 20, 40, 15, 30, 25, 12, 10, 30),
         MEDIUM("中型(~200KB)", 100, 200, 80, 150, 120, 60, 50, 150),
@@ -234,7 +237,8 @@ class StorageSystemBenchmark {
             equipment = (1..scale.equipmentCount).map { i ->
                 BenchmarkEquipment(
                     id = "eq_$i", name = "装备${i}号", rarity = rng.nextInt(1, 6), level = rng.nextInt(1, 101),
-                    stats = mapOf("atk" to rng.nextInt(10, 5000), "def" to rng.nextInt(5, 3000), "spd" to rng.nextInt(1, 500))
+                    stats = mapOf("atk" to rng.nextInt(10, 5000), "def" to rng.nextInt(5, 3000), "spd" to rng.nextInt(1,
+                        500))
                 )
             },
             pills = (1..scale.pillCount).map { i ->
@@ -244,13 +248,16 @@ class StorageSystemBenchmark {
                 )
             },
             materials = (1..scale.materialCount).map { i ->
-                BenchmarkMaterial(id = "mat_$i", name = "材料${i}号", rarity = rng.nextInt(1, 5), quantity = rng.nextInt(1, 500))
+                BenchmarkMaterial(id = "mat_$i", name = "材料${i}号", rarity = rng.nextInt(1, 5), quantity = rng.nextInt(1,
+                    500))
             },
             herbs = (1..scale.herbCount).map { i ->
-                BenchmarkHerb(id = "herb_$i", name = "灵草${i}号", rarity = rng.nextInt(1, 5), quantity = rng.nextInt(1, 200))
+                BenchmarkHerb(id = "herb_$i", name = "灵草${i}号", rarity = rng.nextInt(1, 5), quantity = rng.nextInt(1,
+                    200))
             },
             seeds = (1..scale.seedCount).map { i ->
-                BenchmarkSeed(id = "seed_$i", name = "种子${i}号", rarity = rng.nextInt(1, 4), quantity = rng.nextInt(1, 50))
+                BenchmarkSeed(id = "seed_$i", name = "种子${i}号", rarity = rng.nextInt(1, 4), quantity = rng.nextInt(1,
+                    50))
             },
             battleLogs = (1..scale.battleLogCount).map { i ->
                 BenchmarkBattleLog(
@@ -266,9 +273,9 @@ class StorageSystemBenchmark {
             )
     }
 
-    private val ITERATIONS_SMALL = 50
-    private val ITERATIONS_MEDIUM = 20
-    private val ITERATIONS_LARGE = 10
+    private val iterationsSmall = 50
+    private val iterationsMedium = 20
+    private val iterationsLarge = 10
 
     // ==================== 1. 序列化性能基准 ====================
 
@@ -284,9 +291,9 @@ class StorageSystemBenchmark {
             }.getOrNull() ?: continue
             val actualSize = rawResult.originalSize
             val iterations = when {
-                actualSize > 500_000 -> ITERATIONS_LARGE
-                actualSize > 50_000 -> ITERATIONS_MEDIUM
-                else -> ITERATIONS_SMALL
+                actualSize > 500_000 -> iterationsLarge
+                actualSize > 50_000 -> iterationsMedium
+                else -> iterationsSmall
             }
 
             val result = benchmark(
@@ -302,7 +309,8 @@ class StorageSystemBenchmark {
         results.forEach { println(it) }
         println("\n--- 序列化性能总结 ---")
         results.forEach { r ->
-            println("  ${r.testName}: avg=${"%.2f".format(r.avgMs)}ms, throughput=${"%.2f".format(r.throughputMBps)}MB/s, P95=${r.p95Ms}ms")
+            println("  ${r.testName}: avg=${"%.2f".format(r.avgMs)}ms, " +
+                "throughput=${"%.2f".format(r.throughputMBps)}MB/s, P95=${r.p95Ms}ms")
         }
     }
 
@@ -319,9 +327,9 @@ class StorageSystemBenchmark {
             val serialized = serResult.data
             val actualSize = serResult.originalSize
             val iterations = when {
-                actualSize > 500_000 -> ITERATIONS_LARGE
-                actualSize > 50_000 -> ITERATIONS_MEDIUM
-                else -> ITERATIONS_SMALL
+                actualSize > 500_000 -> iterationsLarge
+                actualSize > 50_000 -> iterationsMedium
+                else -> iterationsSmall
             }
 
             val result = benchmark(
@@ -337,7 +345,8 @@ class StorageSystemBenchmark {
         results.forEach { println(it) }
         println("\n--- 反序列化性能总结 ---")
         results.forEach { r ->
-            println("  ${r.testName}: avg=${"%.2f".format(r.avgMs)}ms, throughput=${"%.2f".format(r.throughputMBps)}MB/s, P95=${r.p95Ms}ms")
+            println("  ${r.testName}: avg=${"%.2f".format(r.avgMs)}ms, " +
+                "throughput=${"%.2f".format(r.throughputMBps)}MB/s, P95=${r.p95Ms}ms")
         }
     }
 
@@ -357,7 +366,7 @@ class StorageSystemBenchmark {
 
         for ((label, size) in sizes) {
             val data = ByteArray(size) { ((it * 37 + 13) % 256).toByte() }
-            val iter = if (size > 256 * 1024) ITERATIONS_LARGE else ITERATIONS_MEDIUM
+            val iter = if (size > 256 * 1024) iterationsLarge else iterationsMedium
 
             val compressedSizes = mutableListOf<Int>()
             val result = benchmark("LZ4压缩($label)", size, iter) {
@@ -391,7 +400,7 @@ class StorageSystemBenchmark {
         for ((label, size) in sizes) {
             val original = ByteArray(size) { ((it * 37 + 13) % 256).toByte() }
             val compressed = compressor.compress(original, CompressionAlgorithm.LZ4)
-            val iter = if (size > 256 * 1024) ITERATIONS_LARGE else ITERATIONS_MEDIUM
+            val iter = if (size > 256 * 1024) iterationsLarge else iterationsMedium
 
             val result = benchmark("LZ4解压($label)", size, iter) {
                 compressor.decompress(compressed.data, CompressionAlgorithm.LZ4, compressed.originalSize)
@@ -406,7 +415,7 @@ class StorageSystemBenchmark {
     fun `benchmark - GZIP compression vs LZ4 comparison`() {
         println("\n========== 5. GZIP vs LZ4 COMPRESSION COMPARISON (128KB data) ==========")
         val data = ByteArray(128 * 1024) { ((it * 53 + 7) % 256).toByte() }
-        val iter = ITERATIONS_MEDIUM
+        val iter = iterationsMedium
 
         val lz4Result = benchmark("GZIP-vs-LZ4-LZ4压缩", data.size, iter) {
             compressor.compress(data, CompressionAlgorithm.LZ4)
@@ -421,8 +430,12 @@ class StorageSystemBenchmark {
         println(lz4Result)
         println(gzipResult)
         println("\n  --- 对比结果 ---")
-        println("    LZ4: 输出=${lz4Compressed.data.size}B, 压缩比=${"%.2f".format(data.size.toDouble() / lz4Compressed.data.size)}, 耗时(avg)=${"%.2f".format(lz4Result.avgMs)}ms")
-        println("    GZIP: 输出=${gzipCompressed.data.size}B, 压缩比=${"%.2f".format(data.size.toDouble() / gzipCompressed.data.size)}, 耗时(avg)=${"%.2f".format(gzipResult.avgMs)}ms")
+        println("    LZ4: 输出=${lz4Compressed.data.size}B, " +
+            "压缩比=${"%.2f".format(data.size.toDouble() / lz4Compressed.data.size)}, 耗时(avg)" +
+                "=${"%.2f".format(lz4Result.avgMs)}ms")
+        println("    GZIP: 输出=${gzipCompressed.data.size}B, " +
+            "压缩比=${"%.2f".format(data.size.toDouble() / gzipCompressed.data.size)}, 耗时(avg)" +
+                "=${"%.2f".format(gzipResult.avgMs)}ms")
         println("    速度比(LZ4/GZIP): ${"%.2fx".format(gzipResult.avgMs / lz4Result.avgMs)}")
         println("    压缩率比(GZIP/LZ4): ${"%.2fx".format(lz4Compressed.data.size.toDouble() / gzipCompressed.data.size)}")
     }
@@ -445,7 +458,7 @@ class StorageSystemBenchmark {
             val iter = when (scale) {
                 DataScale.HUGE -> 5
                 DataScale.LARGE -> 10
-                else -> ITERATIONS_MEDIUM
+                else -> iterationsMedium
             }
 
             val serResults = mutableListOf<SerializationResult>()
@@ -464,7 +477,8 @@ class StorageSystemBenchmark {
                 extraMetrics = mapOf(
                     "originalBytes" to avgOriginal,
                     "compressedBytes" to avgCompressed,
-                    "compressionRatio" to "%.2f".format(if (avgCompressed > 0) avgOriginal.toDouble() / avgCompressed else 0.0),
+                    "compressionRatio" to "%.2f".format(if (avgCompressed > 0) avgOriginal
+                        .toDouble() / avgCompressed else 0.0),
                     "serializationTime_avg_ms" to "%.2f".format(avgSerTime),
                     "compressionTime_avg_ms" to "%.2f".format(avgCompTime)
                 )
@@ -492,7 +506,7 @@ class StorageSystemBenchmark {
             val iter = when (scale) {
                 DataScale.HUGE -> 5
                 DataScale.LARGE -> 10
-                else -> ITERATIONS_MEDIUM
+                else -> iterationsMedium
             }
 
             val deserResults = mutableListOf<DeserializationResult<BenchmarkSaveData>>()
@@ -537,7 +551,7 @@ class StorageSystemBenchmark {
 
         for ((label, size) in sizes) {
             val data = ByteArray(size) { (it * 31 + rng.nextInt(256)).toByte() }
-            val iter = if (size > 512_000) ITERATIONS_LARGE else ITERATIONS_MEDIUM
+            val iter = if (size > 512_000) iterationsLarge else iterationsMedium
 
             val result = benchmark("SHA-256计算($label)", size, iter) {
                 digest.digest(data)
@@ -550,7 +564,8 @@ class StorageSystemBenchmark {
 
         println("\n  --- SHA-256 吞吐量总结 ---")
         results.forEach { r ->
-            println("    ${r.testName}: ${"%.0f".format(r.opsPerSecond)} ops/s, ${"%.2f".format(r.throughputMBps)} MB/s")
+            println("    ${r.testName}: ${"%.0f".format(r.opsPerSecond)} ops/s, ${"%.2f".format(r.throughputMBps)} " +
+                "MB/s")
         }
     }
 
@@ -561,7 +576,8 @@ class StorageSystemBenchmark {
         val context = defaultContext
         val serialized = serializationEngine.serialize(data, context, BenchmarkSaveData.serializer())
 
-        val corruptedPositions = listOf(0, 10, serialized.data.size / 4, serialized.data.size / 2, serialized.data.size - 2)
+        val corruptedPositions = listOf(0, 10, serialized.data.size / 4, serialized.data.size / 2,
+            serialized.data.size - 2)
         var detectedCorruptions = 0
         var totalTests = 0
 
@@ -581,7 +597,8 @@ class StorageSystemBenchmark {
         }
 
         println("\n  --- 篡改检测结果 ---")
-        println("    测试点数: $totalTests | 检测成功: $detectedCorruptions | 检测率: ${detectedCorruptions * 100 / totalTests.coerceAtLeast(1)}%")
+        println("    测试点数: $totalTests | 检测成功: $detectedCorruptions | " +
+            "检测率: ${detectedCorruptions * 100 / totalTests.coerceAtLeast(1)}%")
         assertTrue("单比特篡改检测率应达到100%", detectedCorruptions == totalTests)
     }
 
@@ -638,12 +655,14 @@ class StorageSystemBenchmark {
 
                 if (fieldsMatch) {
                     totalPassed++
-                    println("  ${scale.label}: 全部字段匹配 ✓ (disciples=${restored.disciples.size}, eq=${restored.equipment.size}, logs=${restored.battleLogs.size})")
+                    println("  ${scale.label}: 全部字段匹配 ✓ (disciples=${restored.disciples.size}, " +
+                        "eq=${restored.equipment.size}, logs=${restored.battleLogs.size})")
                 } else {
                     println("  ${scale.label}: 字段不匹配 ✗")
                 }
             } else {
-                println("  ${scale.label}: 反序列化失败或校验和不匹配 ✗ (valid=${deserialized.checksumValid}, success=${deserialized.isSuccess})")
+                println("  ${scale.label}: 反序列化失败或校验和不匹配 ✗ (valid=${deserialized.checksumValid}, " +
+                    "success=${deserialized.isSuccess})")
             }
         }
 
@@ -657,8 +676,8 @@ class StorageSystemBenchmark {
     @Test
     fun `benchmark - WAL entry format encoding and decoding`() {
         println("\n========== 12. WAL ENTRY FORMAT ENCODE/DECODE ==========")
-        val MAGIC = byteArrayOf(0x57, 0x34)
-        val CHECKSUM_SIZE = 32
+        val magic = byteArrayOf(0x57, 0x34)
+        val checksumSize = 32
         val sha256 = MessageDigest.getInstance("SHA-256")
 
         val dataSizes = listOf("Small(256B)" to 256, "Medium(4KB)" to 4096, "Large(64KB)" to 65536)
@@ -667,12 +686,12 @@ class StorageSystemBenchmark {
 
         for ((label, dataSize) in dataSizes) {
             val payload = ByteArray(dataSize) { (it * 17 + rng.nextInt(256)).toByte() }
-            val iter = if (dataSize > 4096) ITERATIONS_MEDIUM else ITERATIONS_SMALL
+            val iter = if (dataSize > 4096) iterationsMedium else iterationsSmall
 
             val encodeResult = benchmark("WAL条目编码($label)", dataSize, iter) {
                 val baos = java.io.ByteArrayOutputStream()
                 val dos = java.io.DataOutputStream(baos)
-                dos.write(MAGIC[0].toInt()); dos.write(MAGIC[1].toInt())
+                dos.write(magic[0].toInt()); dos.write(magic[1].toInt())
                 dos.write(0); dos.writeLong(System.nanoTime()); dos.writeInt(1)
                 dos.writeLong(System.currentTimeMillis()); dos.writeInt(payload.size)
                 dos.write(payload); dos.flush()
@@ -687,7 +706,7 @@ class StorageSystemBenchmark {
             val sampleEntry = run {
                 val baos = java.io.ByteArrayOutputStream()
                 val dos = java.io.DataOutputStream(baos)
-                dos.write(MAGIC[0].toInt()); dos.write(MAGIC[1].toInt())
+                dos.write(magic[0].toInt()); dos.write(magic[1].toInt())
                 dos.write(0); dos.writeLong(1L); dos.writeInt(1)
                 dos.writeLong(System.currentTimeMillis()); dos.writeInt(payload.size)
                 dos.write(payload); dos.flush()
@@ -699,8 +718,8 @@ class StorageSystemBenchmark {
 
             val decodeResult = benchmark("WAL条目解码($label)", sampleEntry.size, iter) {
                 val d = sampleEntry
-                val storedChecksum = d.copyOfRange(d.size - CHECKSUM_SIZE, d.size)
-                val computedChecksum = sha256.digest(d.copyOfRange(0, d.size - CHECKSUM_SIZE))
+                val storedChecksum = d.copyOfRange(d.size - checksumSize, d.size)
+                val computedChecksum = sha256.digest(d.copyOfRange(0, d.size - checksumSize))
                 sha256.reset()
                 storedChecksum.contentEquals(computedChecksum)
             }
@@ -716,8 +735,8 @@ class StorageSystemBenchmark {
     fun `integrity test - WAL checksum validation under corruption`() {
         println("\n========== 13. INTEGRITY: WAL 校验和抗篡改验证 ==========")
         val sha256 = MessageDigest.getInstance("SHA-256")
-        val CHECKSUM_SIZE = 32
-        val WAL_HEADER_SIZE = 27
+        val checksumSize = 32
+        val walHeaderSize = 27
         val payload = ByteArray(2048) { (it * 23).toByte() }
 
         val baos = java.io.ByteArrayOutputStream()
@@ -734,7 +753,8 @@ class StorageSystemBenchmark {
         val tests = mapOf(
             "原始数据" to fullEntry.copyOf(),
             "篡改payload中间" to fullEntry.copyOf().also { it[it.size / 2] = (it[it.size / 2].toInt() xor 0xFF).toByte() },
-            "篡改payload头部" to fullEntry.copyOf().also { it[WAL_HEADER_SIZE + 5] = (it[WAL_HEADER_SIZE + 5].toInt() xor 0xAA).toByte() },
+            "篡改payload头部" to fullEntry.copyOf().also { it[walHeaderSize + 5] = (it[walHeaderSize + 5]
+                .toInt() xor 0xAA).toByte() },
             "篡改txnId" to fullEntry.copyOf().also { it[3] = (it[3].toInt() xor 0x01).toByte() },
             "篡改checksum自身" to fullEntry.copyOf().also { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() },
             "截断末尾" to fullEntry.copyOfRange(0, fullEntry.size - 10)
@@ -742,13 +762,13 @@ class StorageSystemBenchmark {
 
         var expectedFailures = 0
         for ((name, data) in tests) {
-            if (data.size < WAL_HEADER_SIZE + CHECKSUM_SIZE) {
+            if (data.size < walHeaderSize + checksumSize) {
                 println("  $name: 数据过短，无法解析 ✓")
                 expectedFailures++
                 continue
             }
-            val storedChecksum = data.copyOfRange(data.size - CHECKSUM_SIZE, data.size)
-            val computedChecksum = sha256.digest(data.copyOfRange(0, data.size - CHECKSUM_SIZE))
+            val storedChecksum = data.copyOfRange(data.size - checksumSize, data.size)
+            val computedChecksum = sha256.digest(data.copyOfRange(0, data.size - checksumSize))
             sha256.reset()
             val match = storedChecksum.contentEquals(computedChecksum)
             val isOriginal = (name == "原始数据")
@@ -780,7 +800,7 @@ class StorageSystemBenchmark {
             val iter = when (scale) {
                 DataScale.HUGE -> 5
                 DataScale.LARGE -> 10
-                else -> ITERATIONS_MEDIUM
+                else -> iterationsMedium
             }
 
             val saveTimes = mutableListOf<Long>()
@@ -792,7 +812,8 @@ class StorageSystemBenchmark {
                 val t0 = System.nanoTime()
                 val serialized = serializationEngine.serialize(originalData, context, BenchmarkSaveData.serializer())
                 val t1 = System.nanoTime()
-                val deserialized = serializationEngine.deserialize(serialized.data, context, BenchmarkSaveData.serializer())
+                val deserialized = serializationEngine.deserialize(serialized.data, context,
+                    BenchmarkSaveData.serializer())
                 val t2 = System.nanoTime()
 
                 saveTimes.add(TimeUnit.NANOSECONDS.toMillis(t1 - t0))
@@ -824,7 +845,9 @@ class StorageSystemBenchmark {
 
         println("\n  --- 端到端性能总结 ---")
         results.forEach { r ->
-            println("    ${r.testName}: 存=${r.extraMetrics["save_avg_ms"]}ms, 读=${r.extraMetrics["load_avg_ms"]}ms, 总计=${r.extraMetrics["total_avg_ms"]}ms, 输出=${r.extraMetrics["outputBytes"]}B, OK=${r.extraMetrics["roundtripOk"]}")
+            println("    ${r.testName}: 存=${r.extraMetrics["save_avg_ms"]}ms, 读=${r.extraMetrics["load_avg_ms"]}ms, " +
+                "总计=${r.extraMetrics["total_avg_ms"]}ms, 输出=${r.extraMetrics["outputBytes"]}B, " +
+                    "OK=${r.extraMetrics["roundtripOk"]}")
         }
     }
 
@@ -843,7 +866,7 @@ class StorageSystemBenchmark {
         println("\n╚══════════════════════════════════════════════════════════════════════╝")
     }
 
-    /** 报告头部横幅（报告拆分） */
+    /** 报告头部横幅 */
     private fun printReportHeader() {
         println("╔══════════════════════════════════════════════════════════════════════╗")
         println("║       存储系统全面性能与可靠性评估报告                              ║")
@@ -851,7 +874,7 @@ class StorageSystemBenchmark {
         println("╠══════════════════════════════════════════════════════════════════════╣")
     }
 
-    /** 系统架构概览（报告拆分） */
+    /** 系统架构概览 */
     private fun printArchitectureOverview() {
         println("\n【一、系统架构概览】")
         println("  主存储引擎: Room (SQLite v13) + WAL模式")
@@ -863,7 +886,7 @@ class StorageSystemBenchmark {
         println("  备份机制: 自动备份(5份) + 手动备份(10份) + 关键备份(20份)")
     }
 
-    /** 设计规格阈值（报告拆分）——阈值载体类 SaveLoadCoordinator 已随 S-23 清理（孤儿），数值保留为历史设计参考 */
+    /** 设计规格阈值——阈值载体类 SaveLoadCoordinator 已清理（孤儿），数值保留为历史设计参考 */
     private fun printDesignThresholds() {
         println("\n【二、设计规格阈值】")
         println("  存档操作慢阈值: >500ms")
@@ -878,7 +901,7 @@ class StorageSystemBenchmark {
         println("  DB批量批次: 200条 (StorageEngine.MAX_BATCH_SIZE)")
     }
 
-    /** 关键指标检测结果（报告拆分）：TINY/SMALL/MEDIUM 三档实测序列化/读档/压缩/校验和指标 */
+    /** 关键指标检测结果：TINY/SMALL/MEDIUM 三档实测序列化/读档/压缩/校验和指标 */
     private fun printKeyMetricResults() {
         println("\n【三、关键指标检测结果】")
 
@@ -900,19 +923,22 @@ class StorageSystemBenchmark {
 
             println("\n  ── ${scale.label} (原型数据约${avgOrigSize / 1024}KB) ──")
             println("    [存档性能]")
-            println("      平均耗时: ${"%.2f".format(avgSer)}ms (P95: ${serP95}ms) | 阈值: 500ms | ${if (avgSer < 500) "✓ 通过" else "✗ 超标"}")
+            println("      平均耗时: ${"%.2f".format(avgSer)}ms (P95: ${serP95}ms) | 阈值: 500ms " +
+                "| ${if (avgSer < 500) "✓ 通过" else "✗ 超标"}")
             println("      吞吐量: ${"%.2f".format(avgOrigSize / 1024.0 / (avgSer / 1000.0))} KB/s")
             println("    [读档性能]")
-            println("      平均耗时: ${"%.2f".format(avgDe)}ms (P95: ${deP95}ms) | 阈值: 2000ms | ${if (avgDe < 2000) "✓ 通过" else "✗ 超标"}")
+            println("      平均耗时: ${"%.2f".format(avgDe)}ms (P95: ${deP95}ms) | 阈值: 2000ms " +
+                "| ${if (avgDe < 2000) "✓ 通过" else "✗ 超标"}")
             println("      吞吐量: ${"%.2f".format(avgOrigSize / 1024.0 / (avgDe / 1000.0))} KB/s")
             println("    [压缩效率]")
-            println("      原始: ${avgOrigSize / 1024}KB → 压缩后: ${avgCompSize / 1024}KB | 比率: ${"%.2f".format(avgRatio)}x")
+            println("      原始: ${avgOrigSize / 1024}KB → 压缩后: ${avgCompSize / 1024}KB | " +
+                "比率: ${"%.2f".format(avgRatio)}x")
             println("    [完整性]")
             println("      SHA-256校验平均耗时: ${"%.3f".format(avgCheck)}ms")
         }
     }
 
-    /** 单规模指标实测（报告【三】拆分）：序列化/读档/压缩比/校验和耗时 */
+    /** 单规模指标实测：序列化/读档/压缩比/校验和耗时 */
     private fun measureScaleMetrics(
         data: BenchmarkSaveData,
         context: SerializationContext,
@@ -931,12 +957,13 @@ class StorageSystemBenchmark {
             val t0 = System.nanoTime()
             val result = serializationEngine.serialize(data, context, BenchmarkSaveData.serializer())
             val t1 = System.nanoTime()
-            val deResult = serializationEngine.deserialize(result.data, context, BenchmarkSaveData.serializer())
+            serializationEngine.deserialize(result.data, context, BenchmarkSaveData.serializer())
             val t2 = System.nanoTime()
 
             serTimes[i] = TimeUnit.NANOSECONDS.toMillis(t1 - t0)
             deTimes[i] = TimeUnit.NANOSECONDS.toMillis(t2 - t1)
-            compRatios[i] = if (result.compressedSize > 0) result.originalSize.toDouble() / result.compressedSize else 0.0
+            compRatios[i] = if (result.compressedSize > 0) result.originalSize.toDouble() / result
+                .compressedSize else 0.0
             totalSerializedSize += result.originalSize
             totalCompressedSize += result.compressedSize
 
@@ -956,7 +983,7 @@ class StorageSystemBenchmark {
         )
     }
 
-    /** 【三】单规模测量结果聚合（报告拆分） */
+    /** 【三】单规模测量结果聚合 */
     private data class ScaleMetricsResult(
         val serTimes: LongArray,
         val deTimes: LongArray,
@@ -966,7 +993,7 @@ class StorageSystemBenchmark {
         val totalCompressedSize: Int
     )
 
-    /** 数据持久化机制评估（报告拆分） */
+    /** 数据持久化机制评估 */
     private fun printPersistenceAssessment() {
         println("\n【四、数据持久化机制评估】")
         println("  1. SQLite WAL模式: PRAGMA synchronous=NORMAL")
@@ -986,7 +1013,7 @@ class StorageSystemBenchmark {
         println("     → 评级: ★★★★★ (多层冗余保障)")
     }
 
-    /** 数据完整性验证评估（报告拆分） */
+    /** 数据完整性验证评估 */
     private fun printIntegrityAssessment() {
         println("\n【五、数据完整性验证评估】")
         println("  1. 序列化层: SHA-256嵌入头部(32字节)，反序列化时逐字节比较")
@@ -1004,7 +1031,7 @@ class StorageSystemBenchmark {
         println("  总体评级: ★★★★★ (七层完整性防护)")
     }
 
-    /** 改进建议（报告拆分） */
+    /** 改进建议 */
     private fun printImprovementSuggestions() {
         println("\n【六、改进建议】")
         println("  1. [性能] 考虑对MEDIUM及以上规模数据启用ZSTD压缩以减小磁盘占用")

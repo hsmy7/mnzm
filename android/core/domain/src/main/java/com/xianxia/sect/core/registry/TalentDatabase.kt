@@ -7,9 +7,11 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.random.Random
 
+@Suppress("TooManyFunctions") // 静态注册表：查询原语（按 id/名称/稀有度/档位维度）+ 私有数据表构建器，
+// 函数数随数据表查询维度线性增长；构建器与表定义同址内聚，拆分损害可读性
 object TalentDatabase {
 
-    val isInitialized: Boolean = true
+    const val isInitialized: Boolean = true
 
     /** 将旧版 rarity 序号(1-6)映射为品级(1-3) */
     private fun talentGrade(indexRarity: Int): Int = when (indexRarity) {
@@ -56,10 +58,10 @@ object TalentDatabase {
     }
 
     /**
-     * 已从新生成池中移除的旧天赋类型（定义保留供旧存档解析）。
-     * - CULT_SPEED 迁移至 PhysiqueDatabase
-     * - LIFESPAN/MANUAL_SLOT/WIN_GROWTH 迁移至 AffixDatabase
-     * - BREAK_CHANCE 直接移除（突破概率不再受天赋影响）
+     * 旧天赋类型（不在生成池中，定义保留供旧存档解析）。
+     * - CULT_SPEED：效果由 PhysiqueDatabase 提供
+     * - LIFESPAN/MANUAL_SLOT/WIN_GROWTH：效果由 AffixDatabase 提供
+     * - BREAK_CHANCE：无对应实现（突破概率不受天赋影响）
      */
     private val DEPRECATED_TALENT_TYPES = setOf(
         TalentType.CULT_SPEED,
@@ -595,7 +597,7 @@ object TalentDatabase {
 
     /**
      * 单次洗炼/新增抽取一个天赋（无负面，品阶分布与洗炼一致：[rollWashTraitQuality] 三档
-     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同，2026-08-15 需求变更）。
+     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同）。
      *
      * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
      * 调用方应先用 [hasTalentCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。
@@ -638,9 +640,7 @@ object TalentDatabase {
         candidates: List<TalentData>,
         random: kotlin.random.Random
     ): TalentData {
-        if (candidates.isEmpty()) {
-            throw IllegalArgumentException("candidates cannot be empty")
-        }
+        require(candidates.isNotEmpty()) { "candidates cannot be empty" }
 
         // 单次 nextDouble 消费四档：负面30% / 下品50% / 中品18% / 上品2%
         val quality = rollTraitQuality(random)

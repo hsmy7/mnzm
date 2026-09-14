@@ -113,7 +113,8 @@ class BeastMaterialRegistry : BaseTemplateRegistry<BeastMaterialDatabase.BeastMa
      * @param luck 运气倍数（默认1.0）
      * @return 随机选中的材料，无候选时返回 null
      */
-    fun getRandomMaterialByBeastType(beastType: String, tier: Int, luck: Double = 1.0): BeastMaterialDatabase.BeastMaterial? {
+    fun getRandomMaterialByBeastType(beastType: String, tier: Int,
+        luck: Double = 1.0): BeastMaterialDatabase.BeastMaterial? {
         val materials = getByBeastType(beastType).filter { it.tier == tier }
         if (materials.isEmpty()) return null
 

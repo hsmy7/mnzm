@@ -13,8 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * DialogSystemBarFreezeScope 按窗口冻结作用域状态机测试
- * （2026-08 第四根因键盘频闪根治组件）：
+ * DialogSystemBarFreezeScope 按窗口冻结作用域状态机测试：
  * 窗口计数隔离、嵌套计数、0↔1 翻转回调、未冻结 no-op、监听器增删、异常隔离。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -125,5 +124,46 @@ class DialogSystemBarFreezeScopeTest {
         DialogSystemBarFreezeScope.exitFreeze(window)
         assertEquals("异常监听器不应阻断通知（0→1 与 1→0 各一次）", 2, normalCount)
         assertFalse("冻结语义应正常落定", DialogSystemBarFreezeScope.isFrozen(window))
+    }
+
+    // ── 泄漏自愈（对齐 SystemBarFreezeScope）──
+
+    @Test
+    fun `泄漏自愈 - 冻结超时强制解冻并通知翻转`() {
+        val window: Window = activity.window
+        var flipCount = 0
+        DialogSystemBarFreezeScope.addOnFrozenChangedListener(window) { flipCount += 1 }
+        var now = 1_000L
+        DialogSystemBarFreezeScope.freezeClock = { now }
+        DialogSystemBarFreezeScope.enterFreeze(window)
+        assertTrue(DialogSystemBarFreezeScope.isFrozen(window))
+        // 推进时钟超过 10 分钟阈值
+        now += 10 * 60 * 1000L + 1
+        assertFalse("冻结超时应自愈解冻", DialogSystemBarFreezeScope.isFrozen(window))
+        assertEquals("自愈应触发 0→1 进入与 1→0 解冻各一次", 2, flipCount)
+    }
+
+    @Test
+    fun `泄漏自愈 - 阈值内不触发`() {
+        val window: Window = activity.window
+        var now = 1_000L
+        DialogSystemBarFreezeScope.freezeClock = { now }
+        DialogSystemBarFreezeScope.enterFreeze(window)
+        now += 60_000L
+        assertTrue("阈值内应保持冻结", DialogSystemBarFreezeScope.isFrozen(window))
+    }
+
+    @Test
+    fun `泄漏自愈 - 嵌套冻结超时整体自愈解冻`() {
+        val window: Window = activity.window
+        var now = 1_000L
+        DialogSystemBarFreezeScope.freezeClock = { now }
+        DialogSystemBarFreezeScope.enterFreeze(window)
+        DialogSystemBarFreezeScope.enterFreeze(window)
+        now += 10 * 60 * 1000L + 1
+        assertFalse("嵌套冻结超时应整体自愈解冻", DialogSystemBarFreezeScope.isFrozen(window))
+        // 自愈后旧条目已清理，exitFreeze 安全 no-op
+        DialogSystemBarFreezeScope.exitFreeze(window)
+        assertFalse(DialogSystemBarFreezeScope.isFrozen(window))
     }
 }

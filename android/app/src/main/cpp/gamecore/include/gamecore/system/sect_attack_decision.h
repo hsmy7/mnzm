@@ -1,4 +1,6 @@
 #pragma once
+#ifndef GAMECORE_SYSTEM_SECT_ATTACK_DECISION_H_
+#define GAMECORE_SYSTEM_SECT_ATTACK_DECISION_H_
 
 #include <algorithm>
 #include <cstdint>
@@ -12,7 +14,7 @@
 #include "gamecore/system/sect_decision.h"      // gamecore::system::sectDecisionChance / attackDecisionProfile
 
 // ============================================================
-// G7-2：AI 宗门攻击决策下沉（Kotlin AISectAttackManager 的
+// AI 宗门攻击决策下沉（Kotlin AISectAttackManager 的
 //   checkAttackConditions / decidePlayerAttack 等价移植）
 //
 // 确定性红线（BATTLE 分区 RNG 行序）：
@@ -172,10 +174,20 @@ inline std::vector<state::Disciple> passesAttackerGates(
     return aliveAttackers;
 }
 
-/// AI 攻玩家战力比（Kotlin computePowerRatio；防守战力 <=0 返回空）
+/// AI 攻玩家战力比守军池（Kotlin computePowerRatio 的 defenderDisciples
+/// 数据源修正）：Kotlin 休眠链读 aiDisciplesMap[playerSectId]——世界生成
+/// 不含玩家宗门条目 → 恒空 → 守军战力 0 → 决策永不触发（双实现假象的
+/// 构成部分，P2-18 前置核实结论）。AUTHORITATIVE 复活后改读 DiscipleStore
+/// 玩家弟子权威存储（与防守战守方同源；仅 isAlive 过滤，无状态排除——
+/// 与 Kotlin computePowerRatio 的 filter isAlive 口径一致）。
 inline std::vector<state::Disciple> playerDefenders(
-    GameState& state, const std::string& playerSectId) {
-    return aliveDisciplesOf(state.aiSectDisciples, playerSectId);
+    const state::DiscipleStore& ds) {
+    std::vector<state::Disciple> out;
+    out.reserve(ds.size());
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] == 1) out.push_back(ds.materialize(row));
+    }
+    return out;
 }
 
 /// AI 攻玩家决策主入口（Kotlin AISectAttackManager.decidePlayerAttack；返回预警决策）
@@ -203,7 +215,8 @@ inline PlayerAttackDecision decidePlayerAttack(GameState& state, rng::RngManager
         if (aliveAttackers.empty()) continue;
 
         const int64_t attackerPower = sectPowerFromList(aliveAttackers);
-        const std::vector<state::Disciple> defense = playerDefenders(state, playerSectId);
+        const std::vector<state::Disciple> defense =
+            playerDefenders(state.disciples);
         const int64_t defenderPower = sectPowerFromList(defense);
         if (defenderPower <= 0) continue;
         const double powerRatio = static_cast<double>(attackerPower) / static_cast<double>(defenderPower);
@@ -262,3 +275,8 @@ inline bool computeCanOccupy(
 }
 
 }  // namespace gamecore::system::detail
+
+// 解析完成标记（month_settlement.h 文件尾据以判定决策符号是否就绪，
+// 决定是否包含 sect_defense_battle.h——详见其文件尾注释）
+#define GAMECORE_SYSTEM_SECT_ATTACK_DECISION_COMPLETED_
+#endif  // GAMECORE_SYSTEM_SECT_ATTACK_DECISION_H_

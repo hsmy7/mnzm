@@ -24,6 +24,9 @@ struct SpriteBatcher {
     bool heapAllocated = false;
     uint32_t currentTexture = 0;
     float projMat[16];
+    /** 容量封顶后被丢弃的精灵数（add() 丢弃路径 ++；begin() 清零——
+     *  溢出经 host 侧限频日志上报可观测） */
+    int droppedSprites = 0;
 
     void begin(const float projection[16]);
     void add(uint32_t textureId,

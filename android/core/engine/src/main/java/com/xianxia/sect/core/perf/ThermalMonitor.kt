@@ -24,7 +24,7 @@ enum class ThermalState {
  * ADPF Thermal API 集成 — 监控设备热状态，在过热时降低负载
  * 行业依据: https://developer.android.com/games/optimize/adpf
  *
- * 平台能力接口化（计划 v2 批 8-1）：Android API（PowerManager/PerformanceHintManager）
+ * 平台能力接口化：Android API（PowerManager/PerformanceHintManager）
  * 经 [ThermalStatusReader]/[PerformanceHintPort] 端口注入，实现移 app 层；
  * 全部轮询、映射与会话线程绑定守卫逻辑保留在本类（引擎侧，零 Android 依赖）。
  */
@@ -34,7 +34,7 @@ class ThermalMonitor @Inject constructor(
     private val hintPort: PerformanceHintPort
 ) : ThermalStatusProvider {
 
-    // D-09 internal 测试接缝（2026-08-08）：端口注入 fake 即可控异常/null 场景
+    // internal 测试接缝：端口注入 fake 即可控异常/null 场景
     //（hintManager 接缝随端口化消失——测试注入 PerformanceHintPort fake）。
     // Session 为不透明句柄（Any），API 类型仅 app 实现层知晓。
     @Volatile
@@ -63,7 +63,7 @@ class ThermalMonitor @Inject constructor(
      * 启动热状态监控。绑定到引擎作用域，引擎关闭时自动取消。
      * 由 GameEngineCore.startGameLoop() 调用。
      *
-     * D-08 重建语义（2026-08-08）：emergencyRestartGameLoop 重建 engineScope 后
+     * 重建语义：emergencyRestartGameLoop 重建 engineScope 后
      * 再次调用 start——旧 job 若仍 active（旧 scope 子树未被 cancel，仅失去引用）
      * 而直接 return，热监控将永久绑定旧 scope（轮询残留 + 新 scope 无监控）。
      * 无条件重建：先取消旧 job 再绑定新 scope，幂等安全。
@@ -123,6 +123,7 @@ class ThermalMonitor @Inject constructor(
      * 在游戏引擎启动时调用。记录属主线程，供 [closeHintSession]/[reportActualWorkDuration] 线程守卫使用。
      * synchronized([sessionLock])：与 close 互斥，杜绝"close 守卫通过后被本方法覆盖字段"的交错。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun createHintSession(targetDurationNanos: Long) {
         if (!hintPort.isSupported) return
         synchronized(sessionLock) {
@@ -145,6 +146,7 @@ class ThermalMonitor @Inject constructor(
      * 在每个 tick 完成后调用。仅属主线程上报，防御跨线程访问。
      * synchronized([sessionLock])：与 create/close 互斥，防止守卫与读取之间被覆盖。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun reportActualWorkDuration(durationNanos: Long) {
         if (!hintPort.isSupported) return
         synchronized(sessionLock) {
@@ -158,7 +160,7 @@ class ThermalMonitor @Inject constructor(
     }
 
     /**
-     * 动态更新 ADPF 目标帧时长（2026-08-14 平板省电：实际帧率 30/10fps 时向系统
+     * 动态更新 ADPF 目标帧时长（平板省电：实际帧率 30/10fps 时向系统
      * 声明真实预算，替代硬编码 60fps 目标——系统按需调度大核，不再为 60fps 保留性能）。
      *
      * 由 GameEngineCore 收集 renderFrameRate StateFlow 联动（场景/模式/热控/电量
@@ -166,6 +168,7 @@ class ThermalMonitor @Inject constructor(
      * synchronized([sessionLock])：与 create/close 互斥；updateTargetWorkDuration
      * 为 Session 线程安全 API（官方文档标注），与 owner 线程无关。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun setTargetWorkDuration(targetDurationNanos: Long) {
         if (!hintPort.isSupported) return
         synchronized(sessionLock) {
@@ -185,12 +188,13 @@ class ThermalMonitor @Inject constructor(
      * （Bugly #3114：看门狗 emergencyRestartGameLoop 换线程重启游戏循环后，旧线程的
      * finally 曾关闭新循环刚创建的 Session → 原生 abort，try/catch 拦不住）。
      * synchronized([sessionLock])：守卫的"读 owner → 读 hintSession → close → 条件复位"
-     * 全程原子，T2 的 create 只能在 close 之前或之后完成，不可能插入守卫与读取之间。
+     * 全程原子，create 只能在 close 之前或之后完成，不可能插入守卫与读取之间。
      * 泄漏语义：换线程重启后旧循环的 session 因线程守卫跳过 close 而泄漏（无论旧线程
      * 是否被 OEM 挂起——守卫拒绝跨线程 close 时旧 session 即永久失去释放路径）。
      * 每次换线程重启泄漏 1 个，看门狗 60s 限频下有界；进程级 binder 资源，进程死亡时
      * 由系统回收，无 double-free 风险。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun closeHintSession() {
         if (!hintPort.isSupported) return
         synchronized(sessionLock) {

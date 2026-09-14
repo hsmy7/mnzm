@@ -20,8 +20,7 @@ import org.robolectric.annotation.Config
 import org.mockito.Mockito.mock
 
 /**
- * SpiritStoneWallet 灵石操作测试（替代旧的 InventorySystem 直调测试，
- * 灵石操作已全部迁移至 SpiritStoneWallet）。
+ * SpiritStoneWallet 灵石操作测试。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -97,7 +96,8 @@ class InventorySystemSpiritStoneTest {
         val result = stateStore.updateAndReturn {
             wallet.deduct(this, 500L, SpiritStoneGrade.LOW)
         }
-        assertTrue("Should be Insufficient, got $result", result is com.xianxia.sect.core.wallet.DeductResult.Insufficient)
+        assertTrue("Should be Insufficient, got $result",
+            result is com.xianxia.sect.core.wallet.DeductResult.Insufficient)
         assertEquals(100L, wallet.balance(SpiritStoneGrade.LOW))
     }
 

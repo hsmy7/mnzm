@@ -28,10 +28,10 @@ class GridSystem(
         width: Int,
         height: Int
     ): GridSnapHelper.PlacementValidity {
-        if (gridX < buildableBorder || gridY < buildableBorder ||
+        val outOfBounds = gridX < buildableBorder || gridY < buildableBorder ||
             gridX + width > gridWidthCells - buildableBorder ||
             gridY + height > gridHeightCells - buildableBorder
-        ) {
+        if (outOfBounds) {
             return GridSnapHelper.PlacementValidity.OutOfBounds
         }
         for (cx in gridX until gridX + width) {

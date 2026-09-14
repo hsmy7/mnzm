@@ -3,16 +3,14 @@ package com.xianxia.sect.ui.game.delegate
 import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
-import com.xianxia.sect.core.engine.attackWorldLevel
-import com.xianxia.sect.core.engine.clearPendingBattleResult
 import com.xianxia.sect.ui.navigation.GameRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-
+import com.xianxia.sect.core.engine.pause
 
 class NavigationDelegate(
-    private val gameEngine: GameEngine,
+    /** internal：同包战斗域扩展（NavigationDelegateBattleOps）消费——TMF 收敛外移 */
+    internal val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
     private val onNavigate: (GameRoute) -> Unit
 ) {
@@ -20,18 +18,22 @@ class NavigationDelegate(
         private const val TAG = "NavigationDelegate"
     }
 
+    @Suppress("UnusedParameter") // mineIndex: 导航门面语义形参：路由当前不区分实例，保留调用点语义
     fun openSpiritMineDialog(mineIndex: Int = 0) {
         onNavigate(GameRoute.SpiritMine)
     }
 
+    @Suppress("UnusedParameter") // buildingIndex: 导航门面语义形参：路由当前不区分实例，保留调用点语义
     fun openHerbGardenDialog() {
         onNavigate(GameRoute.HerbGarden)
     }
 
+    @Suppress("UnusedParameter") // buildingIndex: 导航门面语义形参：路由当前不区分实例，保留调用点语义
     fun openAlchemyDialog(buildingIndex: Int = 0) {
         onNavigate(GameRoute.Alchemy)
     }
 
+    @Suppress("UnusedParameter") // buildingIndex: 导航门面语义形参：路由当前不区分实例，保留调用点语义
     fun openForgeDialog(buildingIndex: Int = 0) {
         onNavigate(GameRoute.Forge)
     }
@@ -60,15 +62,18 @@ class NavigationDelegate(
         onNavigate(GameRoute.MissionHall)
     }
 
+    @Suppress("UnusedParameter") // buildingInstanceId: 导航门面语义形参：路由当前不区分实例，保留调用点语义
     fun openReflectionCliffDialog() {
         onNavigate(GameRoute.ReflectionCliff)
     }
 
-    fun openPatrolTowerDialog(buildingInstanceId: String) {
+    @Suppress("UnusedParameter") // buildingInstanceId: 导航门面语义形参：路由当前不区分实例，保留调用点语义
+    fun openPatrolTowerDialog(buildingInstanceId: String = "") {
         onNavigate(GameRoute.PatrolTower)
     }
 
-    fun openBloodRefiningPoolDialog(buildingInstanceId: String) {
+    @Suppress("UnusedParameter") // buildingInstanceId: 导航门面语义形参：路由当前不区分实例，保留调用点语义
+    fun openBloodRefiningPoolDialog(buildingInstanceId: String = "") {
         onNavigate(GameRoute.BloodRefiningPool)
     }
 
@@ -88,24 +93,11 @@ class NavigationDelegate(
         onNavigate(GameRoute.Diplomacy)
     }
 
-    fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
-        gameEngine.launchOnEngine {
-            try {
-                gameEngine.attackWorldLevel(levelId, discipleIds)
-            } catch (e: Exception) {
-                Log.e(TAG, "attackWorldLevel failed: levelId=$levelId", e)
-            }
-        }
-    }
-
     fun openBattleLogDialog() {
         onNavigate(GameRoute.BattleLog)
     }
 
-    fun dismissBattleResult() {
-        gameEngine.launchOnEngine { gameEngine.clearPendingBattleResult() }
-    }
-
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun openGameOverDialog() {
         gameEngine.launchOnEngine {
             try {

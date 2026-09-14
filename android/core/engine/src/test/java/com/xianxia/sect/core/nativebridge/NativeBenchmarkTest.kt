@@ -6,6 +6,8 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneOperation
 import com.xianxia.sect.core.wallet.SpiritStoneReason
@@ -25,14 +27,14 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * NativeBenchmarkTest — 批次 9 剩余性能基准（native execute vs Kotlin 实现）。
+ * NativeBenchmarkTest — 性能基准（native execute vs Kotlin 实现）。
  *
  * 本文件包含两类基准：
  *
  * 1. **旧基准（legacy）** `wallet add native vs kotlin throughput`：native 侧为完整
  *    JNI+JSON 往返，Kotlin 侧为空操作循环（`stones += 1` 结果未消费）——**非公平对比**，
- *    只演示协议开销量级，禁止作为性能结论引用（2026-08-25 复核：曾误引为"408×"，
- *    实测同一测试不同运行得 421×/768×，不可复现）。保留仅用于守护 native 通道可运行。
+ *    只演示协议开销量级，禁止作为性能结论引用（不同运行波动大、不可复现）；
+ *    保留仅用于守护 native 通道可运行。
  *
  * 2. **正确基准（corrected）** `wallet add corrected benchmark`：修复旧基准 5 个缺陷——
  *    预热（JIT 生效）/ Blackhole 消费结果（防死代码消除）/ 真实实现对比
@@ -82,7 +84,7 @@ class NativeBenchmarkTest {
         val nativeNs = nativeWalletAdd()
         val kotlinNs = kotlinWalletAdd()
         // 旧基准：非公平对比（Kotlin 侧为空操作且结果未消费），仅演示协议开销量级。
-        // 2026-08-25 复核：该 ratio 不同运行波动大（421×~768×），不可复现，
+        // 该 ratio 不同运行波动大（421×~768×），不可复现，
         // 勿作性能结论；定量依据见 `wallet add corrected benchmark`。
         System.err.println(
             "BENCH-LEGACY walletAdd(非公平对比勿引用) native=${nativeNs / 1000}us/1k " +
@@ -110,7 +112,7 @@ class NativeBenchmarkTest {
     }
 
     // ============================================================
-    // 正确方法论基准（2026-08-25 408× 数据复核后新增）
+    // 正确方法论基准
     //
     // 对比对象（真实实现，非空操作）：
     //   Kotlin: SpiritStoneWallet.add（独立事务，同生产玩家操作语义）
@@ -132,6 +134,18 @@ class NativeBenchmarkTest {
         const val ITERATIONS = 1000
         const val WARMUP_ROUNDS = 5
         const val SAMPLE_ROUNDS = 5
+
+        /**
+         * RNG 分区基准抽取次数。
+         *
+         * 10k 由 ADR §8 首行（"阶段 1 前做一次 10k 次抽取的 A/B 基准"）指定；
+         * 墙钟核算：10k×(预热 5 + 采样 5) × 2 通道 ≈ 20 万次调用，
+         * JNI 标量往返实测量级 ~10²ns ⇒ 单测 **<1s**，远低于 30s 上限。
+         */
+        const val RNG_DRAW_ITERATIONS = 10_000
+
+        /** RNG 分区基准的固定系统种子（同种子双侧，保证可比） */
+        const val RNG_BENCH_SEED = 20260914L
     }
 
     @Volatile
@@ -265,5 +279,60 @@ class NativeBenchmarkTest {
         } finally {
             DomainLog.setLogger(originalLogger)
         }
+    }
+
+    // ============================================================
+    // RNG 分区抽取基准（ADR §8 首行风险项的**开工前置**）
+    //
+    // 背景：随机源治理「阶段 3」要把 100+ 处决策类随机消费点按域下沉到
+    // 分区 RNG；AUTHORITATIVE 下分区抽取经 JNI 委托到 C++ 单一真相源——
+    // **跨语言标量往返成本决定阶段 3 的粒度**（ADR 明列：若 JNI 开销显著，
+    // 须改"批量取种子 + Kotlin 本地展开"或仅下沉中低频点）。
+    //
+    // 对比对象：
+    //   Kotlin：GameRngManager.getRng(partition).nextInt()（本地 PCG，无 JNI）
+    //   native：DiffRngBridge.nativeCoreRngNextInt(partition)（完整 JNI 标量往返）
+    //
+    // 方法：预热 5 轮 + 采样 5 轮取最小值（同本文件既有"正确方法论"）；
+    // 结果经 benchSink 消费防 DCE。**不设阈值断言**（CI 抖动），输出供人工观测。
+    // 边界：桌面 JVM ≠ Android ART，真机 JNI 开销通常更高（结论须留出余量）。
+    // ============================================================
+
+    @Test
+    fun `rng partition draw 10k - kotlin local vs native roundtrip`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInitMode(true)
+        DiffRngBridge.nativeCoreInit()
+        DiffRngBridge.nativeCoreRngInitSeed(RNG_BENCH_SEED)
+
+        val manager = GameRngManager().also { it.initSystemSeed(RNG_BENCH_SEED) }
+        val partition = RngPartition.BATTLE
+
+        val kotlinNs = bestOf(WARMUP_ROUNDS, SAMPLE_ROUNDS) {
+            var acc = 0L
+            val rng = manager.getRng(partition)
+            repeat(RNG_DRAW_ITERATIONS) {
+                acc += rng.nextInt()
+            }
+            benchSink += acc
+        }
+        val nativeNs = bestOf(WARMUP_ROUNDS, SAMPLE_ROUNDS) {
+            var acc = 0L
+            repeat(RNG_DRAW_ITERATIONS) {
+                acc += DiffRngBridge.nativeCoreRngNextInt(partition.id)
+            }
+            benchSink += acc
+        }
+
+        val kotlinNsPerOp = kotlinNs.toDouble() / RNG_DRAW_ITERATIONS
+        val nativeNsPerOp = nativeNs.toDouble() / RNG_DRAW_ITERATIONS
+        println(
+            "BENCH-RNG-PARTITION 10k draws partition=${partition.name}: " +
+                "kotlin(local PCG)=${"%.0f".format(kotlinNsPerOp)}ns/op " +
+                "native(JNI scalar roundtrip)=${"%.0f".format(nativeNsPerOp)}ns/op " +
+                "ratio=${"%.1f".format(nativeNsPerOp / kotlinNsPerOp)}"
+        )
+        assertTrue("native 标量通道应可运行", nativeNs > 0)
+        assertTrue("kotlin 本地分区应可运行", kotlinNs > 0)
     }
 }

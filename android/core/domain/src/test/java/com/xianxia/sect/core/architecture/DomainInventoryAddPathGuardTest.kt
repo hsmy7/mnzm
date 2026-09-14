@@ -5,13 +5,13 @@ import org.junit.Test
 import java.io.File
 
 /**
- * domain 模块仓库合并守卫测试（P-20 补漏）。
+ * domain 模块仓库合并守卫测试。
  *
  * 背景：InventoryAddPathGuardTest 只扫描 :core:engine——StorageBagUtils（:core:domain）
  * 的手写合并路径（`coerceAtMost(maxStack)` 截断、`maxSlots = candidates.size + 1`
  * 绕过总容量、手写 `StackableItemStore(` 构造）曾在守卫扫描范围外，溢出静默丢失。
  *
- * P-20 已把实例→堆叠转换统一迁移到 :core:engine 的 InventorySystem
+ * 实例→堆叠转换统一位于 :core:engine 的 InventorySystem
  *（addEquipmentInstanceToBag / addManualInstanceToBag），domain 保留纯列表工具。
  * 本守卫防止 domain 侧重新引入仓库合并逻辑：
  * 1. `StackableItemStore(` 手写构造（白名单：类定义自身）

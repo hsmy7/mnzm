@@ -7,7 +7,7 @@
 #include <vector>
 
 // ============================================================
-// 功法静态表（Kotlin ManualDatabase 数据源 manuals.json 提取，批次 2 剩余）
+// 功法静态表（与 Kotlin ManualDatabase 同源，数据源 manuals.json）
 // 字段与 ManualTemplate 一致；type 为 ManualType.name
 // ============================================================
 namespace gamecore::data {

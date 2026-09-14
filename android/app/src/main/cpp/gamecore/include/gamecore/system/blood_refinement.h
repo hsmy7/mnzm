@@ -10,7 +10,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 血炼月度结算（计划 v2 阶段 2 / T2.2）
+// 血炼月度结算
 //
 // 等价移植 Kotlin GameEngineCoordination.kt 的血炼完成检测段：
 //   - MutableGameState.processBloodRefinementCompletions（到期遍历）
@@ -72,5 +72,23 @@ inline state::BloodRefinementPctTotal addPctToTotal(
     else if (statKey == "magicDefense") total.magicDefenseBonusPct += pct;
     return total;
 }
+
+// ── 弟子强化派生 map 统一收口（审计 P2-7 + P3-4 / 方案 D3 改动 4）──────
+// 「死亡不删除」容器族的幽灵键治理：死亡（year_settlement）/叛逃（
+// month_settlement desertDiscipleCleanup）/逐出（Kotlin DiscipleService
+// .expelDisciple，镜像同步）三条生命周期链统一经本函数清键——
+// 新增按弟子 id 键控的派生 map 必须在此登记清理（CLAUDE.md 13.3 守卫条目，
+// R2：唯一收口点，后续新链不再各自漏项）。
+inline void eraseDiscipleDerivedMaps(state::GameData& gd,
+                                     const std::string& discipleId) {
+    gd.bloodRefinementBonusTotals.erase(discipleId);
+    gd.bloodRefinementPctTotals.erase(discipleId);
+    gd.bloodRefinements.erase(discipleId);
+    gd.manualProficiencies.erase(discipleId);
+}
+
+/// 单弟子血炼材料记录上限（审计 P2-7：追加处 takeLast——纯审计轨迹零
+/// 消费者，防长会话单调增长；与 Kotlin GameEngineCoordination 同值锚定）
+inline constexpr std::size_t BLOOD_REFINEMENT_RECORDS_CAP = 100;
 
 }  // namespace gamecore::system

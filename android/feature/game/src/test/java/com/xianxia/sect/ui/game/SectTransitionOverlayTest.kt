@@ -17,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 进入宗门转场覆盖层全屏守卫测试（2026-08-16 起回归）：
+ * 进入宗门转场覆盖层全屏守卫测试：
  *
  * 1. 系统栏： [SectTransitionOverlay] 用平台 Dialog 窗口承载，Dialog Window 不继承
  *    GameActivity 的 hideSystemBars()，必须经 DialogSystemBarGuard 独立隐藏本窗口
@@ -39,7 +39,7 @@ class SectTransitionOverlayTest {
      *
      * 转场覆盖层的内容在独立 Dialog 窗口内，测试侧（Activity 组合）的 LocalView 祖先链
      * 上不存在 DialogWindowProvider（DialogSystemBarGuard 在 Dialog 内部读取才能命中），
-     * 因此改为反射遍历 [WindowManagerGlobal]（@hide 类，SDK stub 不可见）的全部窗口，
+     * 因此用反射遍历 [WindowManagerGlobal]（@hide 类，SDK stub 不可见）的全部窗口，
      * 深度查找实现 [DialogWindowProvider] 的 Compose 窗口载体，命中者必为 Dialog 窗口。
      */
     private fun dialogWindows(): List<Window> {

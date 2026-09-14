@@ -257,7 +257,7 @@ private fun LizhanFloatingDialogs(
             viewModel = viewModel,
             onClaim = { levelIndex ->
                 trialViewModel.claimClearReward(levelIndex) { cards ->
-                    viewModel.enqueueRewardCards(cards)
+                    viewModel.battleRewards.enqueueRewardCards(cards)
                 }
             },
             onDismiss = { trialViewModel.dismissClearRewards() }

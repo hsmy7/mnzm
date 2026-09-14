@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.saveload
 import android.content.Context
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.BootSequenceController
-import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.facade.StorageFacade
@@ -17,6 +16,9 @@ import javax.inject.Singleton
  *
  * 封装 SaveLoadViewModel 所需的全部持久化/基础设施依赖，
  * 将构造参数从 15 个降至 ViewModel 可接受的 7 个以内。
+ *
+ * 注：持久化层不直接触碰 RNG——重启播种在引擎线程
+ *（restartGameInternal）内完成。
  */
 @Singleton
 class PersistenceFacade @Inject constructor(
@@ -24,7 +26,6 @@ class PersistenceFacade @Inject constructor(
     val bootSequenceController: BootSequenceController,
     val spiritStoneWallet: SpiritStoneWallet,
     val buildingConfigService: BuildingConfigService,
-    val gameRngManager: GameRngManager,
     val tapCloudSaveManager: TapCloudSaveManager,
     val sessionManager: SessionManager,
     @ApplicationContext val context: Context

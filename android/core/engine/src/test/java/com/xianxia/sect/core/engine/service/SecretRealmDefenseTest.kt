@@ -38,10 +38,10 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 远古秘境"对抗性审查防御"测试——独立类（避免 SecretRealmServiceTest 超 detekt LargeClass 阈值）。
+ * 远古秘境防御性守卫测试——独立类（避免 SecretRealmServiceTest 超 detekt LargeClass 阈值）。
  *
  * 覆盖：方向选择体力耗尽自动结束、方向事件防重复选择、旧档 BRIDGE 兼容、
- * 篡改档妖兽数量极值防 DoS、结束结算非法物品防护（方向事件功能对抗性审查修复）。
+ * 篡改档妖兽数量极值防 DoS、结束结算非法物品防护。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -174,7 +174,7 @@ class SecretRealmDefenseTest {
         whenever(battleSystem.executeBattleWithTimeout(any(), any(), any())).thenReturn(result)
     }
 
-    // ── 方向事件对抗性审查防御 ────────────────────────────────────────
+    // ── 方向事件防御守卫 ────────────────────────────────────────
 
     @Test
     fun `chooseOption - 方向选择体力耗尽自动结束探索`() {
@@ -228,7 +228,7 @@ class SecretRealmDefenseTest {
     fun `chooseOption - 旧档 BRIDGE 事件按方向事件语义结算`() {
         val state = createState()
         setupActiveSession(state)
-        // 40f24e79 前旧档的 BRIDGE 事件："BRIDGE" 字符串不在枚举内，
+        // 旧档的 BRIDGE 事件："BRIDGE" 字符串不在枚举内，
         // valueOf 兜底进方向事件分支；旧三选项索引 0/1/2 全部有效
         state.gameData = state.gameData.copy(
             secretRealmSession = state.gameData.secretRealmSession.copy(
@@ -264,7 +264,7 @@ class SecretRealmDefenseTest {
         val state = createState()
         val ids = setupActiveSession(state)
         // 篡改档：beastCount = Int.MAX——rollBeastLoot 的 repeat(beastCount*2) 未经 clamp
-        // 会溢出负数崩溃 / 上亿次循环卡死引擎线程（对抗性审查 M3）
+        // 会溢出负数崩溃 / 上亿次循环卡死引擎线程，必须 clamp
         val currentEvent = requireNotNull(state.gameData.secretRealmSession.currentEvent) {
             "setupActiveSession 应构造当前事件"
         }
@@ -304,7 +304,7 @@ class SecretRealmDefenseTest {
             )
         )
         service.endSession(state)
-        // 非法物品在调用 addXxx 前被过滤（防 addXxx 异常回滚软锁，对抗性审查 B-L2）
+        // 非法物品在调用 addXxx 前被过滤（防 addXxx 异常回滚软锁）
         verify(inventorySystem, never()).addMaterial(invalid)
         assertFalse(state.gameData.secretRealmState.exists)
         assertFalse(state.gameData.secretRealmSession.isActive)

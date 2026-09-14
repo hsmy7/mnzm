@@ -45,7 +45,7 @@ fun Disciple.applyPromotionProgress(
     ) {
         return PromotionProgress(this, false, level)
     }
-    // 溢出防护（对抗性审查）：计数接近 Int.MAX_VALUE 时 +1 溢出为负，
+    // 溢出防护：计数接近 Int.MAX_VALUE 时 +1 溢出为负，
     // 会重新触发"未达标"判断；封顶后不再增长（满足要求即晋升的语义不受影响）
     val newCount = (if (isAlchemy) skills.alchemyPromotionCount else skills.forgePromotionCount)
         .coerceAtMost(Int.MAX_VALUE - 1) + 1

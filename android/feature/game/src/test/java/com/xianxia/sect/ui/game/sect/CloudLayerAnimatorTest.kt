@@ -10,7 +10,7 @@ import kotlin.math.abs
 import kotlin.random.Random
 
 /**
- * 云层动画引擎测试（2026-08-22 动态云层）。
+ * 云层动画引擎测试。
  *
  * 覆盖维度：
  * - 只在世界外生成（左外生成右移 / 右外生成左移，两种方向都会出现）
@@ -83,7 +83,7 @@ class CloudLayerAnimatorTest {
 
     @Test
     fun `缩放区间为原生尺寸一半_云朵整体缩小`() {
-        // 2026-08 调整：0.8~1.6 → 0.4~0.8，所有云朵显示尺寸减半（锁住 50% 缩小不变量）
+        // 0.8~1.6 → 0.4~0.8：所有云朵显示尺寸减半（锁住 50% 缩小不变量）
         assertEquals(0.4f, CloudLayerAnimator.SCALE_MIN)
         assertEquals(0.8f, CloudLayerAnimator.SCALE_MAX)
         assertEquals("最大/最小缩放比值应保持不变（整体减半）", 2.0f, CloudLayerAnimator.SCALE_MAX / CloudLayerAnimator.SCALE_MIN, 0.0001f)

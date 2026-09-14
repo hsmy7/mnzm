@@ -12,7 +12,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffExplorationTest — 世界关卡跨语言差分对拍（批次 8a 验收核心）。
+ * DiffExplorationTest — 世界关卡跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::exploration（过期判定/清理/刷新判定/妖兽移动）
  * 与 Kotlin WorldLevelManager 语义**逐位一致**。

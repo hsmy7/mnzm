@@ -422,7 +422,7 @@ class BuildingBatchRemovalTest {
         assertTrue(state.gameData.elderSlots.preachingMasters.none { it.isActive })
     }
 
-    // ── 没收宗门（2026-08-06：占领宗门被夺回时无返还拆除）────────────────
+    // ── 没收宗门（占领宗门被夺回时无返还拆除）────────────────
 
     private fun buildingWithSect(key: String, name: String, instanceId: String, sectId: String) =
         building(key, name, instanceId).copy(sectId = sectId)

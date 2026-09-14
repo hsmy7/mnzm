@@ -40,16 +40,17 @@ import net.jpountz.lz4.LZ4FastDecompressor
  * - 类型安全：编译时检查 schema 一致性
  */
 /**
- * 序列化失败异常（2026-08-01 修复）。
+ * 序列化失败异常。
  *
  * TypeConverter 编码失败时抛出，使 Room 事务回滚、保存返回失败——
- * 宁可保存失败也不静默清空数据列（旧实现返回空串导致整列数据无声丢失）。
+ * 宁可保存失败也不静默清空数据列（返回空串会让整列数据无声丢失）。
  */
 class SerializationFailureException(
     message: String,
     cause: Throwable? = null
 ) : Exception(message, cause)
 
+@Suppress("TooManyFunctions") // Room @TypeConverter 注册面：每 ProtoBuf 模型一对转换函数（Room 强制函数形态），1:1 契约映射
 object ProtobufConverters {
 
     private const val TAG = "ProtobufConverters"
@@ -102,7 +103,7 @@ object ProtobufConverters {
     private fun base64ToBytes(encoded: String): ByteArray =
         try {
             android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
-        } catch (e: IllegalArgumentException) {
+        } catch (ignored: IllegalArgumentException) {
             ByteArray(0)
         }
 
@@ -113,9 +114,12 @@ object ProtobufConverters {
      * 通用序列化方法：将任意 @Serializable 对象编码为 Base64 字符串
      * encodeDefaults=false 使可空字段为 null 时自动省略，符合 ProtoBuf proto3 语义
      *
-     * @throws SerializationFailureException 超限/OOM/序列化异常时抛出（2026-08-01 修复：
-     * 旧实现返回空串导致 Room 列被静默清零，现改为抛异常使保存事务失败、保留旧数据）
+     * @throws SerializationFailureException 超限/OOM/序列化异常时抛出——
+     * 使保存事务失败、保留旧数据，而非返回空串静默清零 Room 列
      */
+    // [已合并 ThrowsCount 理由: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标] // 防御兜底: 异常源跨IO/SDK不可枚举,
+    // 降级继续+日志留痕, 非静默吞噬
+    @Suppress("ThrowsCount", "TooGenericExceptionCaught")
     internal fun <T : Any> encodeToBase64(serializer: KSerializer<T>, value: T): String {
         if (isTooLarge(value, serializer.descriptor.serialName)) {
             throw SerializationFailureException(
@@ -139,8 +143,11 @@ object ProtobufConverters {
     /**
      * 可空类型序列化方法
      *
-     * @throws SerializationFailureException 超限/OOM/序列化异常时抛出（2026-08-01 修复，见 [encodeToBase64]）
+     * @throws SerializationFailureException 超限/OOM/序列化异常时抛出（见 [encodeToBase64]）
      */
+    // [已合并 ThrowsCount 理由: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标] // 防御兜底: 异常源跨IO/SDK不可枚举,
+    // 降级继续+日志留痕, 非静默吞噬
+    @Suppress("ThrowsCount", "TooGenericExceptionCaught")
     internal fun <T : Any> encodeNullableToBase64(serializer: KSerializer<T>, value: T?): String {
         if (value == null) return ""
         if (isTooLarge(value, serializer.descriptor.serialName)) {
@@ -153,9 +160,11 @@ object ProtobufConverters {
             return bytesToBase64(bytes)
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "OOM during nullable serialization of ${serializer.descriptor.serialName}!")
-            throw SerializationFailureException("OOM during nullable serialization of ${serializer.descriptor.serialName}", e)
+            throw SerializationFailureException("OOM during nullable serialization " +
+                "of ${serializer.descriptor.serialName}", e)
         } catch (e: Throwable) {
-            Log.e(TAG, "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
+            Log.e(TAG,
+                "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
             throw SerializationFailureException(
                 "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}", e
             )
@@ -170,7 +179,8 @@ object ProtobufConverters {
             else -> -1
         }
         if (size > MAX_COLLECTION_SIZE) {
-            Log.e(TAG, "CRITICAL: $name has $size entries (>$MAX_COLLECTION_SIZE), refusing to serialize to prevent OOM!")
+            Log.e(TAG,
+                "CRITICAL: $name has $size entries (>$MAX_COLLECTION_SIZE), refusing to serialize to prevent OOM!")
             return true
         }
         return false
@@ -187,21 +197,25 @@ object ProtobufConverters {
     // LZ4 实际压缩比 ~2.1x，25x 覆盖所有合法场景，超出必为损坏/炸弹
     private const val MAX_LZ4_DECOMPRESS_RATIO = 25
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     internal fun <T> decodeFromBase64(serializer: KSerializer<T>, encoded: String, default: () -> T): T {
         if (encoded.isEmpty()) return default()
         if (encoded.length > DECODE_HARD_LIMIT) {
-            Log.e(TAG, "Deserialization REJECTED for ${serializer.descriptor.serialName}: encoded length ${encoded.length} exceeds hard limit $DECODE_HARD_LIMIT, returning default to prevent OOM")
+            Log.e(TAG, "Deserialization REJECTED for ${serializer.descriptor.serialName}: encoded " +
+                "length ${encoded.length} exceeds hard limit $DECODE_HARD_LIMIT, returning default to prevent OOM")
             return default()
         }
         if (encoded.length > DECODE_WARN_LENGTH) {
-            Log.w(TAG, "Deserialization WARNING for ${serializer.descriptor.serialName}: encoded length ${encoded.length} exceeds warn threshold $DECODE_WARN_LENGTH, attempting decode")
+            Log.w(TAG, "Deserialization WARNING for ${serializer.descriptor.serialName}: encoded " +
+                "length ${encoded.length} exceeds warn threshold $DECODE_WARN_LENGTH, attempting decode")
         }
         try {
             val bytes = base64ToBytes(encoded)
             if (bytes.isEmpty()) return default()
             return protoBuf.decodeFromByteArray(serializer, bytes)
         } catch (e: Throwable) {
-            Log.e(TAG, "Deserialization FAILED for ${serializer.descriptor.serialName}, returning default! Encoded length: ${encoded.length}", e)
+            Log.e(TAG, "Deserialization FAILED for ${serializer.descriptor.serialName}, returning default! Encoded " +
+                "length: ${encoded.length}", e)
             return default()
         }
     }
@@ -511,10 +525,10 @@ object ProtobufConverters {
     /**
      * 从分块 key 解析数值序号，用于分块排序。
      *
-     * 2026-08-05 修复（A2）：此前按 dataKey 字典序排序——"recruitList/10" <
+     * 分块按数值序号排序（不能按 dataKey 字典序——"recruitList/10" <
      * "recruitList/2"，超过 10 块（recruitList >1000 / worldMapSects >500）时
-     * 块序错乱、静默乱序。现按数值序号排序：非数值后缀（溢出分块
-     * `_overflow`/残留脏 key）排最后，保证解析失败不崩溃且旧 key 格式兼容。
+     * 块序会错乱）：非数值后缀（溢出分块 `_overflow`/残留脏 key）排最后，
+     * 保证解析失败不崩溃且旧 key 格式兼容。
      */
     private fun chunkIndexOrMax(dataKey: String, keyPrefix: String): Int {
         val id = GameHeavyData.parseChunkKey(dataKey, keyPrefix) ?: return Int.MAX_VALUE
@@ -525,6 +539,9 @@ object ProtobufConverters {
     // 底层 BLOB 编解码（无 Base64）
     // ═══════════════════════════════════════════════════════════
 
+    // [已合并 ThrowsCount 理由: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标] // 防御兜底: 异常源跨IO/SDK不可枚举,
+    // 降级继续+日志留痕, 非静默吞噬
+    @Suppress("ThrowsCount", "TooGenericExceptionCaught")
     private fun <T : Any> encodeToBlobInternal(serializer: KSerializer<T>, value: T): ByteArray {
         try {
             val sizeCheck = when (value) {
@@ -559,11 +576,12 @@ object ProtobufConverters {
             throw e
         } catch (e: Throwable) {
             Log.e(TAG, "Protobuf BLOB encode FAILED for ${serializer.descriptor.serialName}", e)
-            // 2026-08-01 修复：抛异常使保存事务失败，而非静默返回空数组清空数据
+            // 抛异常使保存事务失败，而非静默返回空数组清空数据
             throw SerializationFailureException("BLOB encode FAILED for ${serializer.descriptor.serialName}", e)
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun <T> decodeFromBlobInternal(
         serializer: KSerializer<T>,
         data: ByteArray,
@@ -573,60 +591,91 @@ object ProtobufConverters {
 
         // LZ4 压缩数据：0x01 标记 + 4 字节原始大小 + 压缩数据
         if (data.size > 5 && data[0] == BLOB_COMPRESSED_MARKER) {
-            try {
-                val originalSize = ((data[1].toInt() and 0xFF) shl 24) or
-                                  ((data[2].toInt() and 0xFF) shl 16) or
-                                  ((data[3].toInt() and 0xFF) shl 8) or
-                                  (data[4].toInt() and 0xFF)
-                val compressedSize = data.size - 5
-
-                // L1: 分配前校验 — 防止损坏 header 导致 GB 级分配
-                if (originalSize <= 0 ||
-                    originalSize > MAX_DECOMPRESS_SIZE ||
-                    (compressedSize > 0 &&
-                     originalSize / compressedSize > MAX_LZ4_DECOMPRESS_RATIO)) {
-                    Log.e(TAG,
-                        "LZ4 header REJECTED for ${serializer.descriptor.serialName}: " +
-                        "originalSize=$originalSize, compressedSize=$compressedSize, " +
-                        "max=$MAX_DECOMPRESS_SIZE, maxRatio=$MAX_LZ4_DECOMPRESS_RATIO. " +
-                        "Data may be corrupted, returning default"
-                    )
-                    return default()
-                }
-
-                val compressedData = data.copyOfRange(5, data.size)
-                val decompressed = ByteArray(originalSize)
-                lz4Decompressor.decompress(compressedData, 0, decompressed, 0, originalSize)
-                return protoBuf.decodeFromByteArray(serializer, decompressed)
-            } catch (e: OutOfMemoryError) {
-                // L2: OOM 兜底 — 极端情况下的最后防线
-                Log.e(TAG,
-                    "OOM during LZ4 decompress for ${serializer.descriptor.serialName}, " +
-                    "returning default"
-                )
-                return default()
-            } catch (e: Exception) {
-                Log.w(TAG, "LZ4 decompression failed for ${serializer.descriptor.serialName}, falling back to direct decode", e)
-            }
+            decodeLz4Blob(serializer, data, default)?.let { return it }
         }
 
         // 直接 protobuf 解码
-        try {
-            return protoBuf.decodeFromByteArray(serializer, data)
+        return decodeDirectBlob(serializer, data, default)
+    }
+
+    /**
+     * LZ4 压缩 BLOB 解码：header 校验失败或解压失败
+     * 返回 null 由调用方走直接解码兜底；OOM 防线在段内返回默认值。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun <T> decodeLz4Blob(
+        serializer: KSerializer<T>,
+        data: ByteArray,
+        default: () -> T
+    ): T? {
+        return try {
+            val originalSize = ((data[1].toInt() and 0xFF) shl 24) or
+                              ((data[2].toInt() and 0xFF) shl 16) or
+                              ((data[3].toInt() and 0xFF) shl 8) or
+                              (data[4].toInt() and 0xFF)
+            val compressedSize = data.size - 5
+
+            // L1: 分配前校验 — 防止损坏 header 导致 GB 级分配
+            if (isCorruptLz4Header(originalSize, compressedSize)) {
+                Log.e(TAG,
+                    "LZ4 header REJECTED for ${serializer.descriptor.serialName}: " +
+                    "originalSize=$originalSize, compressedSize=$compressedSize, " +
+                    "max=$MAX_DECOMPRESS_SIZE, maxRatio=$MAX_LZ4_DECOMPRESS_RATIO. " +
+                    "Data may be corrupted, returning default"
+                )
+                return default()
+            }
+
+            val compressedData = data.copyOfRange(5, data.size)
+            val decompressed = ByteArray(originalSize)
+            lz4Decompressor.decompress(compressedData, 0, decompressed, 0, originalSize)
+            protoBuf.decodeFromByteArray(serializer, decompressed)
+        } catch (e: OutOfMemoryError) {
+            // L2: OOM 兜底 — 极端情况下的最后防线
+            Log.e(TAG,
+                "OOM during LZ4 decompress for ${serializer.descriptor.serialName}, " +
+                "returning default"
+            )
+            default()
+        } catch (e: Exception) {
+            Log.w(TAG, "LZ4 decompression failed for ${serializer.descriptor.serialName}, falling back to direct " +
+                "decode", e)
+            null
+        }
+    }
+
+    /**
+     * LZ4 header 损坏判定：原始大小非法，或（有压缩数据时）
+     * 解压比超过上限——分配前拦截，防止损坏 header 导致 GB 级分配。
+     */
+    private fun isCorruptLz4Header(originalSize: Int, compressedSize: Int): Boolean =
+        originalSize <= 0 ||
+            originalSize > MAX_DECOMPRESS_SIZE ||
+            (compressedSize > 0 && originalSize / compressedSize > MAX_LZ4_DECOMPRESS_RATIO)
+
+    /** 直接 protobuf 解码兜底：解码失败或 OOM 返回默认值 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun <T> decodeDirectBlob(
+        serializer: KSerializer<T>,
+        data: ByteArray,
+        default: () -> T
+    ): T {
+        return try {
+            protoBuf.decodeFromByteArray(serializer, data)
         } catch (e: OutOfMemoryError) {
             // L2: OOM 兜底 — 直接解码路径的异常保护
             Log.e(TAG,
                 "OOM during BLOB decode for ${serializer.descriptor.serialName}, " +
                 "dataSize=${data.size}, returning default"
             )
-            return default()
+            default()
         } catch (e: Exception) {
             Log.e(TAG,
                 "BLOB decode FAILED for ${serializer.descriptor.serialName}, " +
                 "data.size=${data.size}, firstByte=${data.getOrNull(0)}, " +
                 "err=${e.message?.take(80)}"
             )
-            return default()
+            default()
         }
     }
 

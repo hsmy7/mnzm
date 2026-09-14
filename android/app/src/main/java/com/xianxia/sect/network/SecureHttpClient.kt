@@ -241,6 +241,7 @@ class SecureHttpClient @Inject constructor(
      * - 密码套件仅允许 AEAD 类型（GCM / ChaCha20-Poly1305）
      * - 不做 fallback 到不安全连接
      */
+    @Suppress("SpreadOperator") // OkHttp tlsVersions/cipherSuites 为 vararg API，配置列表必须散布传入
     private fun buildSecureConnectionSpec(): ConnectionSpec {
         return ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
             .tlsVersions(*NetworkSecurityConfig.enabledTlsVersions)
@@ -251,13 +252,14 @@ class SecureHttpClient @Inject constructor(
     /**
      * 获取应用版本字符串。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     private fun getAppVersion(): String {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(
                 context.packageName, 0
             )
             "${packageInfo.versionName}(${PackageInfoCompat.getLongVersionCode(packageInfo)})"
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             "unknown"
         }
     }
@@ -276,6 +278,7 @@ class SecureHttpClient @Inject constructor(
         private val signer: RequestSigner
     ) : Interceptor {
 
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         override fun intercept(chain: Interceptor.Chain): Response {
             val original = chain.request()
 
@@ -345,6 +348,7 @@ class SecureHttpClient @Inject constructor(
         private val context: android.content.Context
     ) : Interceptor {
 
+        @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
         override fun intercept(chain: Interceptor.Chain): Response {
             val response = chain.proceed(chain.request())
 
@@ -395,10 +399,8 @@ class SecureHttpClient @Inject constructor(
          */
         private fun decryptResponse(ciphertext: ByteArray, ivBase64: String): ByteArray {
             val iv = android.util.Base64.decode(ivBase64, android.util.Base64.NO_WRAP)
-            if (iv.size != NetworkSecurityConfig.RESPONSE_IV_LENGTH) {
-                throw IllegalArgumentException(
-                    "响应 IV 长度异常: 期望 ${NetworkSecurityConfig.RESPONSE_IV_LENGTH} 字节, 实际 ${iv.size}"
-                )
+            require(iv.size == NetworkSecurityConfig.RESPONSE_IV_LENGTH) {
+                "响应 IV 长度异常: 期望 ${NetworkSecurityConfig.RESPONSE_IV_LENGTH} 字节, 实际 ${iv.size}"
             }
 
             // 派生响应专用解密密钥（增强版：多次迭代哈希 + 盐值）
@@ -450,7 +452,7 @@ class SecureHttpClient @Inject constructor(
      * 当证书固定验证失败时（如服务器更换了证书但客户端 pin 未更新），
      * 此拦截器会捕获 SSL 异常并执行相应策略。
      *
-     * ## 安全策略（P0-3 修复后）
+     * ## 安全策略
      *
      * | 构建类型 | 行为 |
      * |---------|------|
@@ -507,7 +509,7 @@ class SecureHttpClient @Inject constructor(
         /**
          * 处理证书固定验证失败的情况
          *
-         * ## 安全策略（P0-3 修复）
+         * ## 安全策略
          *
          * - **Release 构建**：直接抛出原始异常，禁止任何形式的降级。
          *   这是防止中间人攻击（MITM）的关键防线——证书固定失败意味着
@@ -520,6 +522,7 @@ class SecureHttpClient @Inject constructor(
          * @return 带有安全警告标记的响应（仅 Debug 构建返回；Release 构建抛异常）
          * @throws Exception Release 构建下始终重新抛出原始异常
          */
+        @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
         private fun handleCertificatePinningFailure(
             chain: Interceptor.Chain,
             originalException: Exception

@@ -15,6 +15,8 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.util.GameRngManager
 
 class AISectDiscipleManagerTest {
 
@@ -22,6 +24,26 @@ class AISectDiscipleManagerTest {
     fun tearDown() {
         // 恢复全局单例，避免注入的测试功法库污染其他测试类
         ManualDatabase.resetForTest()
+        // 摘除本类注入的 RNG 管理器：AISectDiscipleManager 是进程级 object，
+        // GameEngine 构造/其他夹具会覆写其 rngManager 引用——本类用例要求
+        // initForSlot(seed) 的确定性接缝不被跨类残留引用干扰（反之亦然）
+        AISectDiscipleManager.resetManagerForTest()
+    }
+
+    /** 每个用例前建立自洽的确定性随机源（本类用例全部依赖 initForSlot 固定种子） */
+    @org.junit.Before
+    fun setUpRng() {
+        AISectDiscipleManager.resetManagerForTest()
+        // 固定系统种子：GameRngManager 构造期的兜底种子是挂钟时间，不固定会让
+        // 未显式 initForSlot 的抽取随运行时刻变化（"同 seed 确定性"类用例 flaky）
+        AISectDiscipleManager.initialize(
+            GameRngManager().also { it.initSystemSeed(RNG_SYSTEM_SEED) }
+        )
+    }
+
+    private companion object {
+        /** 本类固定系统种子（配合各用例的 initForSlot 形成完全确定的流） */
+        const val RNG_SYSTEM_SEED = 20260914L
     }
 
     // ── truncateToLimit ──
@@ -103,7 +125,7 @@ class AISectDiscipleManagerTest {
         assertTrue("应保留高战力弟子", maxId >= limit * 3 - 1)
     }
 
-    // ── 初始弟子按宗门等级分布境界；招募弟子固定炼气一层（2026-08-06 需求确认）──
+    // ── 初始弟子按宗门等级分布境界；招募弟子固定炼气一层 ──
 
     @Test
     fun `fillDisciplesToTarget - 新增弟子按宗门等级分布境界且年龄匹配`() {
@@ -222,7 +244,7 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `applyGearToDisciple - 功法必含一本心法`() {
-        // 2026-08-06 需求：AI 弟子必有一本心法（原 50% 概率）
+        // AI 弟子必有一本心法
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
         for (level in intArrayOf(SectLevel.SMALL, SectLevel.MEDIUM, SectLevel.LARGE, SectLevel.TOP)) {
@@ -277,8 +299,7 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `processMonthlyCultivation - 月度修为增量等于每旬速率乘3`() {
-        // 2026-08-06 修复：此前 AI 每月修为 += 速率×6.0（真实秒数），玩家每月（3 旬）
-        // 修为 += 速率×3 —— AI 单位时间修炼速率是玩家 2 倍。修复后按 3 旬对齐。
+        // AI 月度修为增量 = 每旬速率 × 3，与玩家（3 旬/月）同刻度对齐
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
         val disciple = makeGearDisciple(realm = 7, cultivation = 0.0)
@@ -393,7 +414,7 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `ensureDiscipleGear - 空分类补全写入roll标记防止重复消耗RNG`() {
-        // 对抗审查修复：体质/词条/天赋为 0-5 随机，roll 出 0 时若每次读档重 roll
+        // 体质/词条/天赋为 0-5 随机，roll 出 0 时若每次读档重 roll
         // 会消耗 AI 分区 RNG 导致同档两次读档演化序列漂移——补全后须持久化标记收敛
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
@@ -446,8 +467,8 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `fillDisciplesToTarget - 老档弟子补全装备`() {
-        // 种子 43：资质生成（2026-08-12 新增）消耗分区 RNG 后序列偏移，
-        // 原 42 下老档弟子体质/词条 roll 恰为 0（0-3 随机合法空）→ 改 43 保持断言强度
+        // 种子 43：资质生成消耗分区 RNG 后序列偏移，
+        // 42 下老档弟子体质/词条 roll 恰为 0（0-3 随机合法空）会削弱断言强度
         AISectDiscipleManager.initForSlot(43L)
         ManualDatabase.initializeWithManuals(testManuals())
         // 老档弟子：无体质/词条/装备/功法（generateRandomDisciple 旧版产物）
@@ -470,7 +491,7 @@ class AISectDiscipleManagerTest {
         assertTrue("新补弟子应带功法", newbie.manualIds.isNotEmpty())
     }
 
-    // ── 功法熟练度 + 装备孕养度正常增长（2026-08-06 需求）──
+    // ── 功法熟练度 + 装备孕养度正常增长 ──
 
     @Test
     fun `applyGearToDisciple - 装备初始孕养从0起步`() {
@@ -591,7 +612,7 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `generateYearlyRecruits - 每周期招募1到5名`() {
-        // 2026-08-06 需求：AI 宗门弟子生成从每年 0~6 改为每 3 年 1~5
+        // AI 宗门弟子周期招募：每 3 年 1~5 名
         AISectDiscipleManager.initForSlot(20260806L)
         ManualDatabase.initializeWithManuals(testManuals())
         val existing = listOf(makeGearDisciple())

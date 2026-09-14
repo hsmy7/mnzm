@@ -39,6 +39,7 @@ class RedeemCodeDelegate(
         _redeemResult.value = null
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun redeemCode(code: String) {
         gameEngine.launchOnEngine {
             try {

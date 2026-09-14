@@ -60,7 +60,7 @@ private const val TAG = "ImeGuard"
 /**
  * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
  * 覆盖键盘收起动画的剩余时长，等待 IME 状态落定再恢复隐藏，
- * 切断"键盘动画期间 hide() 对抗"（荣耀GT系列 + 第四根因键盘频闪根治）。
+ * 切断"键盘动画期间 hide() 对抗"。
  * 与 MainActivity/GameActivity 的 SYSTEM_BAR_RESTORE_DELAY_MS 保持一致（三处同值）。
  */
 private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
@@ -69,19 +69,19 @@ private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
  * 卸载时自动恢复。适用于 [Dialog] 内的平台 Dialog 窗口和 Activity 内的 Box overlay。
  *
- * 模式（2026-09 IME 状态机根治升级）：默认 [SOFT_INPUT_ADJUST_RESIZE]——
+ * 模式：默认 [SOFT_INPUT_ADJUST_RESIZE]——
  * API 30 起官方语义为向窗口派发 IME insets（兼容模式，官方 javadoc deprecated 真正
  * resize），配合 `decorFitsSystemWindows=false`（Compose Dialog 容器已设）+ Compose
  * `imePadding` 构成官方标准组合（docs/ime-android-system-research.md M1/M4）。
- * 历史 [SOFT_INPUT_ADJUST_PAN] 为过渡方案：官方仅作 fallback 且易错乱（pan 平移量在
- * edge-to-edge 下随系统栏抖动 = "界面反复下拉"放大器），已降级为 API<30/ROM 特例兜底。
+ * 历史 [SOFT_INPUT_ADJUST_PAN] 仅作 API<30/ROM 特例兜底：pan 平移量在
+ * edge-to-edge 下随系统栏抖动 = "界面反复下拉"放大器。
  *
  * 使用本组件的窗口**禁止再叠加窗口级平移类避让**——pan + padding 双重位移正是
- * 历史键盘振荡频闪的根因配方（2026-08 根治，见 [isInsideDialogWindow] 与
+ * 键盘振荡频闪的根因配方（见 [isInsideDialogWindow] 与
  * rules/dialog-soft-input-guard.md）；imePadding 为应用层单一避让，与窗口 insets
  * 派发协同，不构成双重位移。
  *
- * 行业调研结论（2026-07 / 2026-09 两次调研）：
+ * 行业调研结论：
  * - Google IssueTracker #229378542: imePadding 在 Dialog 内不可靠（Compose 1.x 缺陷，
  *   显式 setDecorFitsSystemWindows(false) + ADJUST_RESIZE 后 Dialog 可进入 insets 管线）
  * - StackOverflow 社区共识: adjustPan 是 Compose Dialog 输入框的过渡实践
@@ -129,7 +129,7 @@ fun DialogSoftInputGuard(
 }
 
 /**
- * 输入对话框挂载期间的宿主窗口系统栏冻结 Effect（2026-08 荣耀 X70 键盘频闪根治）。
+ * 输入对话框挂载期间的宿主窗口系统栏冻结 Effect。
  *
  * [enabled] 为 true（含文本输入的对话框）时，挂载期间通过 [SystemBarFreezeScope]
  * 冻结宿主 Activity 的系统栏隐藏操作，销毁时解冻并触发宿主恢复隐藏。
@@ -149,10 +149,10 @@ internal fun SystemBarFreezeEffect(enabled: Boolean) {
 /**
  * 判定给定 [View] 是否处于平台 Dialog 窗口（Compose [Dialog] 创建的独立 Window）内。
  *
- * 通过遍历 View 父链查找 [DialogWindowProvider] 实现。2026-09 IME 状态机根治后
- * **不再用于键盘避让判定**（全窗口统一 insets 管线 + imePadding，无 pan/padding 二选一）；
+ * 通过遍历 View 父链查找 [DialogWindowProvider] 实现。
+ * 不用于键盘避让判定（全窗口统一 insets 管线 + imePadding，无 pan/padding 二选一）；
  * 仅用于**嵌套冻结传导**（[InlineStandardPromptDialog] 渲染于平台 Dialog 窗口内且
- * `freezeSystemBars = true` 时冻结外层窗口系统栏，第四根因机制保留）。
+ * `freezeSystemBars = true` 时冻结外层窗口系统栏）。
  */
 internal fun isInsideDialogWindow(view: View): Boolean =
     generateSequence(view) { it.parent as? View }
@@ -165,7 +165,7 @@ internal fun isInsideDialogWindow(view: View): Boolean =
  * Compose Dialog 创建独立平台 Window，不继承 Activity 的 systemUiVisibility 标志。
  * 此 composable 在 Dialog 挂载时对该 Window 应用隐藏标志，卸载时不需恢复（Window 销毁）。
  *
- * 冻结感知（2026-08 第四根因键盘频闪根治）：输入对话框（`freezeSystemBars = true`）
+ * 冻结感知：输入对话框（`freezeSystemBars = true`）
  * 挂载期间本窗口经 [DialogSystemBarFreezeScope] 处于冻结态——**只隐藏状态栏，不隐藏
  * 导航栏**：切断 HIDE_NAVIGATION 与键盘（IME）的冲突面（API<35 传统标志被 SystemUI
  * 完整执行，导航栏隐藏使 IME 布局区域失效触发键盘收起再弹；API 35 edge-to-edge 下
@@ -173,9 +173,9 @@ internal fun isInsideDialogWindow(view: View): Boolean =
  * （[InlineStandardPromptDialog] 渲染于本窗口内）挂载时经冻结翻转回调恢复导航栏显示，
  * 解冻后延迟 [SYSTEM_BAR_RESTORE_DELAY_MS] 恢复隐藏。
  *
- * 零操作原则（第四根因核心）：键盘可见期间对系统栏**不做任何 hide/show 切换**——
- * 历史"IME 感知切换"（荣耀 GT 系列根治手段）在 HyperOS 2 / MagicOS 8/9 的键盘转场
- * 动画上自身成为振荡放大器，直接移除切换动作即根治；本守卫仍经 [ImeVisibilityTracker]
+ * 零操作原则：键盘可见期间对系统栏**不做任何 hide/show 切换**——hide/show
+ * 与键盘转场动画并发会自身成为振荡放大器（HyperOS 2 / MagicOS 8/9 尤甚）；
+ * 本守卫仍经 [ImeVisibilityTracker]
  * 跟踪本窗口键盘可见性（保证全局 `isImeVisible` 准确，供解冻恢复链路二次校验），
  * 但不再响应翻转切换系统栏。
  *
@@ -200,12 +200,18 @@ fun DialogSystemBarGuard() {
         // 保留本窗口的 IME 跟踪（全局 isImeVisible 准确性，供解冻恢复链路二次校验）；
         // 零操作原则下不再响应翻转切换系统栏
         ImeVisibilityTracker.attach(dialogWindow)
-        onDispose { state.dispose() }
+        // 对话框窗口输入的键盘动画也纳入全局动画门控
+        //（恢复链路/自动聚焦获得动画期零切换保护）；attach 幂等。
+        ImeAnimationTracker.attach(dialogWindow)
+        onDispose {
+            ImeAnimationTracker.detach(dialogWindow)
+            state.dispose()
+        }
     }
 }
 
 /**
- * DialogSystemBarGuard 的窗口系统栏状态机（2026-08 第四根因键盘频闪根治）。
+ * DialogSystemBarGuard 的窗口系统栏状态机。
  *
  * 顶层拆分：detekt 圈复杂度按函数体（含 lambda/局部函数）统计，守卫全部副作用
  * 收敛于此类的独立方法，避免 DialogSystemBarGuard 组合函数超阈值。
@@ -321,7 +327,7 @@ private class DialogSystemBarState(
 }
 
 /**
- * 输入对话框挂载期间的 Dialog 窗口系统栏冻结 Effect（2026-08 第四根因键盘频闪根治）。
+ * 输入对话框挂载期间的 Dialog 窗口系统栏冻结 Effect。
  *
  * [enabled] 为 true（含文本输入的对话框）时，挂载期间对**本 Dialog 窗口**执行
  * [DialogSystemBarFreezeScope.enterFreeze]——[DialogSystemBarGuard] 据此只隐藏状态栏、
@@ -369,19 +375,31 @@ fun StandardPromptDialog(
     @DrawableRes dialogBackgroundRes: Int = R.drawable.dialog_box,
     @DrawableRes buttonBackgroundRes: Int = R.drawable.ui_button,
     @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button,
-    /** 含文本输入框时传 true：挂载期间冻结本 Dialog 窗口系统栏（第四根因键盘频闪根治，见 DialogSystemBarFreezeScope） */
+    /** 含文本输入框时传 true：挂载期间冻结宿主窗口（SystemBarFreezeScope，经 SystemBarHidePolicy 阻断 Activity hide()）
+     * 与本 Dialog 窗口（DialogSystemBarFreezeScope，只隐藏状态栏）系统栏操作（见 DialogSystemBarFreezeScope） */
     freezeSystemBars: Boolean = false,
+    /**
+     * 本窗口键盘避让的 softInputMode（默认官方标准 ADJUST_RESIZE = insets 派发兼容模式）。
+     * 文本输入场景（[TextInputDialog]）传 per-API 值：API 30+ ADJUST_RESIZE；
+     * API < 30 ADJUST_PAN（官方 fallback，避免经典 resize + 应用层位移双重避让）。
+     */
+    softInputMode: Int = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE,
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
-    // D-34：LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
+    // LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
     //（Android 15 edge-to-edge 下两者 insets 行为差异且取整精度不同）
-    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
+    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（勿直接 .dp 使用像素值）
     val windowSize = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current
     val dialogWidth = with(density) { (windowSize.width / 2).toDp() }
     val dialogHeight = with(density) { (windowSize.height * 0.55f).toDp() }
     // 宿主（GameOverlayHost）已画单例遮罩时强制禁用自画遮罩，防多窗口遮罩 α 叠加变黑
     val scrimActuallyEnabled = scrimEnabled && !LocalDialogScrimHosted.current
+
+    // 输入对话框挂载期间冻结宿主 Activity 系统栏操作（Activity 侧 hide()
+    // 与 IME 同 InsetsController 对抗的切断；与 Dialog 窗口级冻结（下方
+    // DialogSystemBarFreezeEffect）职责互补——对齐 UnifiedGameDialog 同一语义）
+    SystemBarFreezeEffect(freezeSystemBars)
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -392,17 +410,17 @@ fun StandardPromptDialog(
             dismissOnClickOutside = false
         )
     ) {
-        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（第四根因根治，见 DialogSystemBarFreezeScope）
+        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（见 DialogSystemBarFreezeScope）
         DialogSystemBarFreezeEffect(freezeSystemBars)
         // 在 Dialog 窗口内切换 softInputMode，切断 HyperOS 震荡回路
-        DialogSoftInputGuard()
+        DialogSoftInputGuard(softInputMode)
         // 隐藏 Dialog Window 的系统状态栏/导航栏（该 Window 不继承 Activity 的设置）
         DialogSystemBarGuard()
         // Dialog 窗口销毁前清除焦点并隐藏软键盘，防止文本选择 FloatingActionMode
         // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
         DialogFocusGuard()
 
-        // 键盘避让（2026-09 IME 状态机根治）：平台 Dialog 窗口内容区挂
+        // 键盘避让：平台 Dialog 窗口内容区挂
         // ImeAwareContainer 事件驱动避让（键盘可见翻转 → 对话框一次性上移，
         // 不依赖 Dialog 窗口 imePadding 的历史可靠性 #229378542）；无输入框时
         // 键盘永不弹出、offset 恒 0，零行为变化。
@@ -442,21 +460,19 @@ fun StandardPromptDialog(
  *
  * 接口签名与 [StandardPromptDialog] 完全一致，但通过内联 Box overlay 避免
  * 平台 Dialog 窗口与 IME 键盘交互导致的频闪问题（[decorFitsSystemWindows] 与
- * [adjustResize] 组合引起的窗口尺寸震荡）。2026-08 恢复覆盖层形态（历史上
- * 2133597c 曾统一改回平台 Dialog 窗口造成键盘振荡回归，见
- * docs/adr/dialog-system-refactoring.md）。
+ * [adjustResize] 组合引起的窗口尺寸震荡）。形态决策记录见
+ * docs/adr/dialog-system-refactoring.md。
  *
  * 屏幕尺寸在 composition 入口处 [remember] 缓存，键盘弹出后不再变化，
  * 从而彻底杜绝重组震荡。
  *
- * 键盘避让（2026-09 IME 状态机根治，统一 insets 管线）：
+ * 键盘避让（统一 insets 管线）：
  * 本组件恒挂官方标准组合 `imePadding`（外层 Box）——manifest/DialogSoftInputGuard
  * 均 ADJUST_RESIZE + edge-to-edge（`decorFitsSystemWindows=false`）前置条件满足，
- * 键盘弹出时覆盖层可用区域收缩到键盘上方，对话框整体上移。**删除**历史
- * "isInsideDialogWindow 二选一 / 软件渲染切 ADJUST_PAN"分支（渲染模式分支消亡），
- * 全渲染模式统一；[isInsideDialogWindow] 仅保留用于嵌套冻结传导。
+ * 键盘弹出时覆盖层可用区域收缩到键盘上方，对话框整体上移，全渲染模式统一；
+ * [isInsideDialogWindow] 仅保留用于嵌套冻结传导。
  *
- * 系统栏冻结机制（2026-08 荣耀 X70 键盘频闪根治）：
+ * 系统栏冻结机制：
  * [freezeSystemBars] 为 true（含文本输入的对话框）时，挂载期间通过
  * [SystemBarFreezeScope] 冻结宿主 Activity 的系统栏隐藏操作。Android 15
  * 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，应用 hide() 与其对抗 +
@@ -489,12 +505,12 @@ fun InlineStandardPromptDialog(
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
     // 输入对话框挂载期间冻结宿主窗口系统栏操作，切断键盘弹出收起振荡回路的
-    // 放大器环节（荣耀 X70 根治，见 SystemBarFreezeScope KDoc）
+    // 放大器环节（见 SystemBarFreezeScope KDoc）
     SystemBarFreezeEffect(freezeSystemBars)
 
     // 在 composition 入口处读取窗口尺寸并用 remember 缓存，之后不再变化
-    // D-34：LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
-    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
+    // LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
+    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（勿直接 .dp 使用像素值）
     val windowSize = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current
     val dialogWidth = remember { with(density) { (windowSize.width / 2).toDp() } }
@@ -510,15 +526,14 @@ fun InlineStandardPromptDialog(
     // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
     DialogFocusGuard()
 
-    // 2026-09 IME 状态机根治：全窗口统一 insets 管线（manifest/DialogSoftInputGuard
+    // 全窗口统一 insets 管线（manifest/DialogSoftInputGuard
     // 均 ADJUST_RESIZE + decorFitsSystemWindows=false），键盘避让统一走 Compose
-    // imePadding（官方标准组合，单一应用层避让）——删除历史"渲染模式感知双路径"
-    // （shouldUsePanAvoidance/PanAvoidanceGuard/hardwareAccelerated）与"isInsideDialogWindow
-    // 二选一"分支；`insideDialogWindow` 仅保留用于下方嵌套冻结传导。
+    // imePadding（官方标准组合，单一应用层避让）；
+    // `insideDialogWindow` 仅保留用于下方嵌套冻结传导。
     val dialogView = LocalView.current
     val insideDialogWindow = remember { isInsideDialogWindow(dialogView) }
 
-    // 嵌套传导（2026-08 第四根因根治）：内联输入框渲染于平台 Dialog 窗口内时，
+    // 嵌套传导：内联输入框渲染于平台 Dialog 窗口内时，
     // 冻结外层 Dialog 窗口的系统栏操作——DialogSystemBarGuard 据此恢复导航栏显示、
     // 不再隐藏导航栏（切断 HIDE_NAVIGATION×IME 冲突面）。freezeSystemBars 语义
     // 从宿主 Activity 自动传导到外层 Dialog 窗口，调用方无需传参
@@ -538,7 +553,7 @@ fun InlineStandardPromptDialog(
         }
     }
 
-    // 键盘避让（2026-09 IME 状态机根治）：内联覆盖层统一走官方标准组合
+    // 键盘避让：内联覆盖层统一走官方标准组合
     // imePadding（manifest/DialogSoftInputGuard 均 ADJUST_RESIZE + edge-to-edge 已满足
     // 前置条件；单一应用层避让，无 pan 无双重位移）。外层 Box 挂 imePadding 后，
     // 键盘弹出时覆盖层可用区域收缩到键盘上方，对话框整体上移。
@@ -657,7 +672,7 @@ private fun PromptDialogFrame(
         modifier = Modifier
             .width(dialogWidth)
             .height(dialogHeight)
-            .testTag("prompt_frame") // 尺寸回归守卫测试锚点（D-34 px/dp 换算）
+            .testTag("prompt_frame") // 尺寸回归守卫测试锚点（px/dp 换算）
             .clip(RoundedCornerShape(12.dp))
             .clickableWithSound(
                 interactionSource = remember { MutableInteractionSource() },

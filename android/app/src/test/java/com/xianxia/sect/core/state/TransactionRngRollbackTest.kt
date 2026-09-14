@@ -25,9 +25,15 @@ import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
- * P0-1 K 项守卫测试：事务失败回滚时 RNG 同步回滚，读档重放逐位一致。
+ * 守卫测试：事务失败回滚时 RNG 同步回滚，读档重放逐位一致。
  *
  * 背景：结算事务（突破/叛逃/生育/生产判定）在 stateStore.update 内消费分区 RNG。
  * 事务中途异常时 COW 缓冲丢弃（状态回滚）但 RNG 已前进——游戏循环捕获异常后

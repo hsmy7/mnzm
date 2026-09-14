@@ -59,8 +59,8 @@ enum class OemManufacturer {
  * OEM 电源管理配置单例（三档映射）。
  *
  * 厂商识别数据经 [injectPlatformManufacturer] 由平台层注入（app 层启动时传
- * `Build.MANUFACTURER`/`Build.BRAND`）——引擎层零 Android 依赖（计划 v2 阶段 7
- * 平台能力接口化 / R-02）。未注入（纯 JVM/测试）按 [OemManufacturer.OTHER] 安全回退。
+ * `Build.MANUFACTURER`/`Build.BRAND`）——引擎层零 Android 依赖（平台能力接口化）。
+ * 未注入（纯 JVM/测试）按 [OemManufacturer.OTHER] 安全回退。
  * **iOS 对等**：iOS 无 OEM 省电档位概念，不注入即 OTHER（LIGHT 档）。
  */
 object OemPowerProfileProvider {
@@ -115,7 +115,8 @@ object OemPowerProfileProvider {
             listOf(m, b).any { it.contains("huawei") } -> OemManufacturer.HUAWEI
             listOf(m, b).any { it.contains("honor") } -> OemManufacturer.HONOR
             listOf(m, b).any { it.contains("xiaomi") || it.contains("redmi") } -> OemManufacturer.XIAOMI
-            listOf(m, b).any { it.contains("oppo") || it.contains("realme") || it.contains("oneplus") } -> OemManufacturer.OPPO
+            listOf(m, b).any { it.contains("oppo") || it.contains("realme") || it
+                .contains("oneplus") } -> OemManufacturer.OPPO
             listOf(m, b).any { it.contains("vivo") || it.contains("iqoo") } -> OemManufacturer.VIVO
             listOf(m, b).any { it.contains("samsung") } -> OemManufacturer.SAMSUNG
             else -> OemManufacturer.OTHER

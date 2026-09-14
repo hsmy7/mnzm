@@ -7,8 +7,8 @@ import org.junit.Test
 /**
  * 验证 RedeemCodeManager.generateRandomTalents() 的模板级去重逻辑。
  *
- * 根因：原实现仅检查精确 ID 重复，不同稀有度同模板的天赋会被同时选中。
- * 修复后使用 TalentData.template + selectedTemplates 做模板级过滤。
+ * 去重规则：使用 TalentData.template + selectedTemplates 做模板级过滤——
+ * 不同稀有度同模板的天赋不得同时选中。
  */
 class RedeemCodeManagerTalentTest {
 

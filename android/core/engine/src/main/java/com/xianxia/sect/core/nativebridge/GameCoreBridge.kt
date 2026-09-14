@@ -8,8 +8,29 @@ package com.xianxia.sect.core.nativebridge
  * ActionId 协议分发；参数/结果用 JSON 字节传输（Kotlin kotlinx 序列化
  * ↔ C++ nlohmann/json）。
  *
- * 线程契约：所有调用必须在**引擎线程**（GameEngineCore 单线程调度器）
- * 串行执行；C++ 侧无锁单线程模型与此对齐。
+ * ## 线程契约
+ *
+ * C++ 侧 `g_gameCore` 是**无锁单线程模型**（游戏状态/RNG 分区/引擎循环
+ * 热字段均非原子）。入口分两类，与 C++ 侧 `jniRequireEngineThread` 守卫
+ * 逐条对应：
+ *
+ * - **kEngineOnly**（必须引擎线程）：settle 系、execute、import/export、
+ *   dirty、battle 系、loopFrame/refundPhases/consumeDeadTime、
+ *   resetAutoRecruitIdle、destroy、**rng 系四入口**（P1-4 正式收口：
+ *   跨线程调用面已全部收敛，2026-09-10 真机/开发期 ≥1h debug 混合操作
+ *   零警告后由过渡 WARN 守卫升级为断言，batch-10）。debug 构建下 C++ 侧
+ *   记录 owner 线程并在非法线程进入时 abort（release 零开销）。**紧急重启
+ *   换线程后新驱动线程经 loopFrame 首帧 owner 重锚（见 kAnyThread 项），
+ *   不误杀。**
+ * - **kAnyThread**（设计上的跨线程端口）：isInitialized（只读探针）、
+ *   watchdogVerdict（看门狗/主线程监控）、loopStart / loopOnRestart
+ *   （**生命周期输入端口**——startGameLoop 按设计可从主线程调用：前台
+ *   服务 onStartCommand / Activity onResume 后台恢复；紧急重启可从
+ *   看门狗/主线程/闹钟兜底调用，且 Kotlin loopOpLock + phase 状态机与
+ *   iterate 串行化，进入时循环必非运行态）、
+ *   loopSetSpeed / loopNotifyUserActivity（UI 输入端口）、
+ *   loopSetThermalStatus / loopSetBatteryStatus（平台推送）、
+ *   roadCompose（纯函数）、setGameConfig（Dagger 构造期注入，线程不保证）。
  */
 @Suppress("TooManyFunctions")  // JNI 入口对象：入口数与通道数成正比，属桥面职责边界
 object GameCoreBridge {
@@ -34,7 +55,7 @@ object GameCoreBridge {
 
     /** 初始化引擎（幂等拒绝重复初始化；config 由 Kotlin 侧 GameCoreModule 提供）
      *
-     * @param authoritativeTickMode T2.4 AUTHORITATIVE 过渡模式——true 时每旬
+     * @param authoritativeTickMode AUTHORITATIVE 过渡模式——true 时每旬
      *        只跑 C++ 核心结算（步骤 1-5），月/年边界以标志位返回由 Kotlin
      *        残留执行器处理
      */
@@ -62,11 +83,9 @@ object GameCoreBridge {
      * @param nowMs 现实时间戳（System.currentTimeMillis；显式传入保证对拍可控）
      * @return 是否成功推进
      */
-    // 注：nativeAdvance 为生产死导出（仅基准测试依赖，而其改走 DiffRngBridge.nativeCoreAdvancePhases）；
-    // 已按 WS-0.b 移除。
 
     // ============================================================
-    // AUTHORITATIVE tick 标量通道（计划 v2 阶段 2d）
+    // AUTHORITATIVE tick 标量通道
     // ============================================================
 
     /** settleOnePhase 边界标志位：本旬跨月 */
@@ -83,24 +102,27 @@ object GameCoreBridge {
     external fun nativeSettlePhase(): Int
 
     /**
-     * 单月推进（月变真相源切换批 M-1）：C++ 完整月变结算（八步事务编排 +
+     * 单月推进（月变真相源切换）：C++ 完整月变结算（八步事务编排 +
      * 十六子事件已下沉面），返回 JSON 信封字节——`policyCosts.disabledPolicies`
-     * （事务外 checkpointAllProduction 决策）+ `secretRealmClose`（S-17 秘境
+     * （事务外 checkpointAllProduction 决策）+ `secretRealmClose`（秘境
      * 到期关闭草稿：memberIds/backpack/slotId，Kotlin 发关闭邮件 + 释放 gate）
-     * + `purchaseLogs`（S-20 弟子购买日志草稿：discipleId/itemName/age，
+     * + `purchaseLogs`（弟子购买日志草稿：discipleId/itemName/age，
      * Kotlin 写 lifeEvents 瞬态列）。引擎未初始化返回 "{}"。
      */
+    /** S8：AI 热控批量上界推送（Kotlin ThermalMonitor 平台决策——12/6/3） */
+    external fun nativeSetAiThermalBatchSize(batchSize: Int)
+
     external fun nativeSettleMonth(): ByteArray
 
     /**
-     * 重置自动招募惰性门（S-16 清偿）：Kotlin 侧重置点（年度招募刷新/玩家改
+     * 重置自动招募惰性门：Kotlin 侧重置点（年度招募刷新/玩家改
      * 筛选/生育/净化）调用，通知 C++ 复位 autoRecruitIdle——月变真相源切换后
      * autoRecruit 在 C++ 侧执行，重置点仍分布在 Kotlin，必须经此通道同步。
      */
     external fun nativeResetAutoRecruitIdle()
 
     /**
-     * 单年推进（年变真相源切换批 Y-switch）：C++ 完整年变结算（T1 已下沉面 +
+     * 单年推进（年变真相源切换）：C++ 完整年变结算（T1 已下沉面 +
      * T2 已下沉面 + 年报快照 + 年俸），返回 JSON 信封（当前为空对象——年变
      * 残留执行器为 Kotlin 侧纯状态 + 平台效应，无 C++ 草稿回传）。引擎未
      * 初始化返回 "{}"。
@@ -110,7 +132,7 @@ object GameCoreBridge {
     /**
      * RNG 分区标量抽取：指定分区下一个 32 位整数（PCG-XSH-RR 原始输出，
      * 与 Kotlin [com.xianxia.sect.core.util.DeterministicRng.nextInt] 逐位一致）。
-     * T2.4 起 AUTHORITATIVE 模式下 Kotlin 抽取经此通道委托单一真相源，
+     * AUTHORITATIVE 模式下 Kotlin 抽取经此通道委托单一真相源，
      * 保证跨语言随机序列逐位统一。
      */
     external fun nativeRngNextInt(partitionId: Int): Int
@@ -139,7 +161,7 @@ object GameCoreBridge {
     external fun nativeExecute(actionId: Int, paramsJson: ByteArray, nowMs: Long): ByteArray
 
     /**
-     * 战斗执行通道（战斗批次 D：AI 兽战/任务完成生产接线）。
+     * 战斗执行通道（AI 兽战/任务完成生产接线）。
      *
      * 输入 op JSON 字节：`{"team":[Combatant...], "beasts":[Combatant...],
      * "playerDamageModifier":1.0, "maxTurns":25, "timeoutMs":-1}`；
@@ -153,7 +175,7 @@ object GameCoreBridge {
     external fun nativeBattleExecute(opJson: ByteArray): ByteArray
 
     /**
-     * AI 宗门战执行通道（战斗批次 D-3：洞天 AI 操作生产接线）。
+     * AI 宗门战执行通道（洞天 AI 操作生产接线）。
      *
      * 输入 op JSON 字节：`{"attackers":[Combatant...], "defenders":[Combatant...]}`；
      * 输出：`{"turns":N, "winner":"ATTACKER|DEFENDER|DRAW",
@@ -166,7 +188,7 @@ object GameCoreBridge {
     external fun nativeAiBattleExecute(opJson: ByteArray): ByteArray
 
     /**
-     * AI 攻玩家预警决策通道（G7-2 AI 攻击决策下沉）。
+     * AI 攻玩家预警决策通道（AI 攻击决策下沉）。
      *
      * 自包含（消费 GameCore 当前状态 + BATTLE 分区）；输出 JSON：
      * `{"type":"GENERATE_WARNING","attackerSectId":"..","attackerSectName":".."}`
@@ -175,7 +197,7 @@ object GameCoreBridge {
     external fun nativeDecidePlayerAttack(): ByteArray
 
     /**
-     * AI vs AI 逐目标攻击判定通道（G7-2）。
+     * AI vs AI 逐目标攻击判定通道。
      *
      * @param attackerId / defenderId 宗门 id（在 GameCore 状态 worldMapSects 中查找）
      * @param playerGarrisonJson 玩家占领守军 JSON（Map<String, List<Disciple>>，
@@ -189,7 +211,7 @@ object GameCoreBridge {
     ): Boolean
 
     /**
-     * 战胜后占领判定通道（G7 战斗残余下沉）：AI vs AI 宗门战结束后的
+     * 战胜后占领判定通道：AI vs AI 宗门战结束后的
      * `winner==ATTACKER && 高阶全灭` 判定（sect_attack_decision.h computeCanOccupy，
      * 纯确定性、零 RNG）。Kotlin `executeSectBattleCore` 在战斗胜利后调用，
      * 传入 `allSectDisciples`（防守方全宗门弟子池）+ `deadDefenderIds`。
@@ -211,14 +233,14 @@ object GameCoreBridge {
     external fun nativeImportState(stateJson: ByteArray): Boolean
 
     /**
-     * 导入全量状态快照但不恢复 RNG 分区（T2.4 AUTHORITATIVE 每旬回导专用：
+     * 导入全量状态快照但不恢复 RNG 分区（AUTHORITATIVE 每旬回导专用：
      * 委托模式下 native RNG 即真相源，恢复镜像里的滞后 rngStates 会造成
      * 分区回卷与跨语言漂移）
      */
     external fun nativeImportStateNoRng(stateJson: ByteArray): Boolean
 
     /**
-     * 应用 Kotlin 侧反向增量变更集（计划 v2 阶段 3：取代 AUTHORITATIVE 每旬
+     * 应用 Kotlin 侧反向增量变更集（取代 AUTHORITATIVE 每旬
      * 全量回导）。协议与 forward 一致 {version, changed, removed}：
      * - changed["gameData"]  → 全量 gameData（不含 rngStates——native RNG 真相源）
      * - changed["disciples"] → 按 id 全实体 upsert
@@ -231,11 +253,41 @@ object GameCoreBridge {
      */
     external fun nativeApplyReverseDirty(dirtyJson: ByteArray): Boolean
 
+    /**
+     * 手动招募单招（Kotlin [com.xianxia.sect.core.domain.disciple.DiscipleFacadeImpl]
+     * 手动招募等价下沉——AUTHORITATIVE 单真相源：C++ 直接招募入宗，状态变化经
+     * 下一 tick 前向 diff 推送镜像，消除"Kotlin 镜像修改 vs C++ 权威结算"窗口。
+     *
+     * 返回 JSON 信封字节：
+     * `{"ok":bool, "newId":string, "age":int, "name":string,
+     *   "reason":"SUCCESS|MONTHLY_LIMIT|NOT_FOUND|CORRUPTED|UNKNOWN"}`
+     * - ok=false + reason=MONTHLY_LIMIT：本月招募已达上限（弹上限通知）
+     * - ok=false + reason=NOT_FOUND：该弟子已不在招募列表
+     * - ok=false + reason=CORRUPTED：数据损坏（C++ 已同事务移除，name 有效）
+     * - ok=false + reason=UNKNOWN：异常兜底（调用方回退 Kotlin 实现）
+     * - age 供 Kotlin 镜像补写 lifeEvents（Kotlin 类体属性，不进协议）
+     * 引擎未初始化返回 ok=false + reason=UNKNOWN。
+     *
+     * @param discipleId 待招募弟子在 recruitList 中的 id（UI 层 DiscipleAggregate.id）
+     */
+    external fun nativeManualRecruitFromList(discipleId: String): ByteArray
+
+    /**
+     * 一键招募全部（Kotlin [com.xianxia.sect.core.GameEngine].recruitAllFromList
+     * 等价下沉）。返回 JSON 信封字节：
+     * `{"ok":bool, "count":int, "reason":"SUCCESS|MONTHLY_LIMIT|UNKNOWN"}`。
+     * - ok=true + count=0：净化后无候选（不弹提示，与 Kotlin 现状一致）
+     * - ok=false + reason=MONTHLY_LIMIT：本月招募已达上限（弹上限通知）
+     * - ok=false + reason=UNKNOWN：异常兜底（调用方回退 Kotlin 实现）
+     * 引擎未初始化返回 ok=false + reason=UNKNOWN。
+     */
+    external fun nativeRecruitAllFromList(): ByteArray
+
     /** 导出自上次导出以来的变更集（JSON；UI 镜像增量同步） */
     external fun nativeExportDirty(): ByteArray
 
     // ============================================================
-    // 引擎循环 + 看门狗（计划 v2 阶段 5：游戏循环入 C++）
+    // 引擎循环 + 看门狗（游戏循环入 C++）
     // ============================================================
 
     /** 看门狗判定码（C++ ProgressMonitor 数值码；-1 = 引擎未初始化） */
@@ -245,7 +297,11 @@ object GameCoreBridge {
     const val VERDICT_PAUSED_BY_OWNER = 3
     const val VERDICT_STALE_PAUSE_DETECTED = 4
 
-    /** 循环启动/重启：帧累积清零 + 时钟基准重置（prepareLoopStart 调用） */
+    /**
+     * 循环启动/重启：帧累积清零 + 时钟基准重置（prepareLoopStart 调用）。
+     * kAnyThread 生命周期端口：startGameLoop 可从主线程调用（前台服务/
+     * Activity 后台恢复），Kotlin 状态机保证进入时循环非运行态。
+     */
     external fun nativeLoopStart()
 
     /**
@@ -274,7 +330,11 @@ object GameCoreBridge {
     /** 用户活跃通知（输入端口：onUserActivity → C++ idleNs 维护） */
     external fun nativeLoopNotifyUserActivity()
 
-    /** 循环紧急重启（换线程）：帧状态清零（performEmergencyRestart 调用） */
+    /**
+     * 循环紧急重启（换线程）：帧状态清零（performEmergencyRestart 调用）。
+     * kAnyThread 生命周期端口：看门狗/主线程/闹钟兜底均可调用；同时置位
+     * C++ 侧 owner 重锚标志，由新驱动线程的首个 nativeLoopFrame 消费。
+     */
     external fun nativeLoopOnRestart()
 
     /**
@@ -308,7 +368,7 @@ object GameCoreBridge {
     )
 
     /**
-     * 运行时游戏配置注入（S-10/S-13 清偿：Kotlin GameConfigProvider →
+     * 运行时游戏配置注入（Kotlin GameConfigProvider →
      * C++ 全局 GameConfig，消除库存容量/执法堂配置双端漂移）。
      * 引擎初始化后调用（引擎线程串行）；参数与 Kotlin
      * GameConfigData.WarehouseSection / LawEnforcementSection 字段一一对应。
@@ -334,7 +394,7 @@ object GameCoreBridge {
     )
 
     // ============================================================
-    // 渲染合成器通道（计划 v2 阶段 6：道路逐格合成单一权威）
+    // 渲染合成器通道（道路逐格合成单一权威）
     // ============================================================
 
     /**
@@ -350,6 +410,68 @@ object GameCoreBridge {
      *   下标）；x/y/w/h 为格内局部整型像素（十字中心装饰可为负/外溢）
      */
     external fun nativeRoadCompose(mask: Int, tileSize: Int): IntArray
+
+    /**
+     * 浮空岛崖壁布局合成（纯函数，kAnyThread——与 [nativeRoadCompose] 同语义，
+     * 不依赖引擎实例；仅需库已加载）。
+     *
+     * 布局合成单一权威 = `gamecore/map/island_cliff.h`。崖壁走**独立纹理**，故输出
+     * 携带纹理下标 + 逐条目 UV + 镜像位，不依赖图集精灵索引与全局 UV 表。
+     *
+     * @param textureSizes 纹理尺寸表 [w, h] × N（序 = IslandCliffTextureSet 下标序）
+     * @param poolBase 每池在 [poolFlat] 中的起始偏移（[IslandCliffBridge.POOL_COUNT] 个）
+     * @param poolCount 每池数量（[IslandCliffBridge.POOL_COUNT] 个）
+     * @param poolFlat 池平铺表（元素 = 纹理下标）
+     * @param topInset 岛面顶线内缩（像素；0 = 素材顶边贴地图边）
+     * @param bottomStartRatio 下环起点（占左下角纹理宽的比例，自其内缘向内）
+     * @param bottomEndRatio 下环终点（占右下角纹理宽的比例）
+     * @param textureMask 纹理上传位掩码（bit i = 纹理 i 可用；不可用则不产出该条目）
+     * @return 扁平浮点数组 [texIdx, x, y, w, h, u0, v0, u1, v1, flags] × N
+     */
+    // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组破坏 JNI 映射）——
+    // LongParameterList 抑制为声明性豁免（同 drawAllTiles 惯例）
+    @Suppress("LongParameterList")
+    external fun nativeIslandCliffCompose(
+        cols: Int,
+        rows: Int,
+        tileSize: Int,
+        seed: Int,
+        textureSizes: FloatArray,
+        poolBase: IntArray,
+        poolCount: IntArray,
+        poolFlat: IntArray,
+        topInset: Float,
+        bottomStartRatio: Float,
+        bottomEndRatio: Float,
+        textureMask: Int
+    ): FloatArray
+
+    /**
+     * 宗门地图地形生成（地形生成单一权威 = gamecore/map/terrain.h，
+     * Kotlin SectMapTileGenerator 的位级等价移植）。
+     *
+     * 无状态纯函数——不依赖引擎实例，kAnyThread（同 [nativeRoadCompose]；
+     * 生产调用方 SectTerrainBridge 在 Dispatchers.Default）。门楼常量按
+     * GameConfig.SectMap 传值（单一数据源不落 C++）。
+     *
+     * @param density 总装饰密度（SectMapTileGenerator 生产默认 0.18f）
+     * @return 行主序展平瓦片数组（row*width+col = 格值），size = width*height；
+     *         width/height 非法返回 null
+     */
+    // LongParameterList：门楼盒 5 常量平铺传参（JNI 声明惯例，同上）
+    @Suppress("LongParameterList")
+    external fun nativeGenerateSectTerrain(
+        seed: Int,
+        width: Int,
+        height: Int,
+        density: Float,
+        borderTreeRing: Int,
+        gateX: Int,
+        gateY: Int,
+        gateWidth: Int,
+        gateHeight: Int,
+        gateSpriteY: Int
+    ): IntArray
 }
 
 /**

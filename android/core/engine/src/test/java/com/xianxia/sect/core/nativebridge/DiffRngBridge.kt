@@ -33,14 +33,14 @@ object DiffRngBridge {
     external fun nativeNextIntBound(bound: Int): Int
     external fun nativeNextLongBound(bound: Long): Long
     external fun nativeNextDouble(): Double
-    /** 正态分布（C-12：Box-Muller 跨语言精度对拍——StrictMath vs 内嵌 fdlibm） */
+    /** 正态分布（Box-Muller 跨语言精度对拍——StrictMath vs 内嵌 fdlibm） */
     external fun nativeNextGaussian(mean: Double, stddev: Double): Double
-    /** 批 13-4a：中文名继承对拍（Kotlin NameService.inheritName 分区 rng 版
+    /** 中文名继承对拍（Kotlin NameService.inheritName 分区 rng 版
      *  vs C++ name_service.h——返回 fullName，g_rng 为随机源） */
     external fun nativeNameInherit(
         surname: String, gender: String, existingJson: String
     ): String
-    /** 批 13-4b：弟子创建对拍（Kotlin DiscipleFactory.create vs C++
+    /** 弟子创建对拍（Kotlin DiscipleFactory.create vs C++
      *  createDisciple——输入 seed JSON，返回弟子生成结果 JSON，g_rng 为随机源） */
     external fun nativeCreateDisciple(seedJson: String): String
     external fun nativeSnapshot(): Long
@@ -50,7 +50,7 @@ object DiffRngBridge {
     external fun nativeManagerNextInt(partitionId: Int, bound: Int): Int
     external fun nativeManagerSnapshot(partitionId: Int): Long
 
-    // ── GameCore 状态快照通道（批次 1） ──────────────────────
+    // ── GameCore 状态快照通道 ──────────────────────────────
     external fun nativeCoreInit()
     external fun nativeCoreImportState(stateJson: ByteArray): Boolean
     external fun nativeCoreExportState(): ByteArray
@@ -58,19 +58,24 @@ object DiffRngBridge {
     /** 导入但不恢复 RNG 分区（AUTHORITATIVE 每旬回导对拍用） */
     external fun nativeCoreImportStateNoRng(stateJson: ByteArray): Boolean
 
-    // ── 反向增量通道（计划 v2 阶段 3：applyReverseDirty 对拍用） ──
+    // ── 反向增量通道（applyReverseDirty 对拍用） ──
     external fun nativeCoreApplyReverseDirty(dirtyJson: ByteArray): Boolean
+
+    /** 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价
+     *  下沉对拍用：C++ 直接招募入宗，返回信封 JSON 字节——协议与生产
+     *  GameCoreBridge.nativeManualRecruitFromList 一致） */
+    external fun nativeCoreManualRecruitFromList(discipleId: String): ByteArray
 
     /** 按模式（重）创建引擎（AUTHORITATIVE 对拍用；模式一致时复用单例） */
     external fun nativeCoreInitMode(authoritativeTickMode: Boolean)
 
-    // ── GameCore 变更集通道（计划 v2 阶段 1：exportDirty 对拍用） ──
+    // ── GameCore 变更集通道（exportDirty 对拍用） ──
     external fun nativeCoreExportDirty(): ByteArray
 
-    // ── GameCore 时间推进通道（批次 3，对拍用） ──────────────
+    // ── GameCore 时间推进通道（对拍用） ──────────────────
     external fun nativeCoreAdvancePhases(phaseCount: Int): Int
 
-    // ── AUTHORITATIVE tick 标量通道（计划 v2 阶段 2d，对拍用） ──
+    // ── AUTHORITATIVE tick 标量通道（对拍用） ──
     /** 单旬推进（时间 + 核心结算），返回边界标志位（bit0=月变 bit1=年变） */
     external fun nativeCoreSettlePhase(): Int
     /** RNG 分区标量抽取（PCG-XSH-RR 原始输出，与 DeterministicRng.nextInt 逐位一致） */
@@ -82,25 +87,25 @@ object DiffRngBridge {
     /** 重置系统种子（各分区 seed+partitionId 重播） */
     external fun nativeCoreRngInitSeed(seed: Long)
 
-    // ── 经济/库存操作通道（批次 4，对拍用） ──────────────────
+    // ── 经济/库存操作通道（对拍用） ──────────────────
     external fun nativeCoreExecOps(opsJson: ByteArray): ByteArray
 
-    // ── 弟子属性计算通道（批次 5，对拍用） ──────────────────
+    // ── 弟子属性计算通道（对拍用） ──────────────────
     external fun nativeCoreDiscipleOp(opJson: ByteArray): ByteArray
 
-    // ── 修炼推进计算通道（批次 5b，对拍用） ────────────────
+    // ── 修炼推进计算通道（对拍用） ────────────────
     external fun nativeCoreCultivationOp(opJson: ByteArray): ByteArray
 
-    // ── 战斗计算通道（批次 6a，对拍用） ────────────────────
+    // ── 战斗计算通道（对拍用） ────────────────────
     external fun nativeCoreBattleOp(opJson: ByteArray): ByteArray
 
-    // ── 内政计算通道（批次 7，对拍用） ────────────────────
+    // ── 内政计算通道（对拍用） ────────────────────
     external fun nativeCoreGovernmentOp(opJson: ByteArray): ByteArray
 
-    // ── 探索计算通道（批次 8a，对拍用） ────────────────────
+    // ── 探索计算通道（对拍用） ────────────────────
     external fun nativeCoreExplorationOp(opJson: ByteArray): ByteArray
 
-    // ── AI 兽袭目标预计算直调（批 13-1，对拍用） ─────────────
+    // ── AI 兽袭目标预计算直调（对拍用） ─────────────
     // 直接作用于 g_core 当前状态（导入/导出经 nativeCoreImportState/
     // nativeCoreExportState），与 Kotlin AISectBeastAttackProcessor.
     // precomputeTargets 逐位对拍——不经过完整月变管线（规避步骤 4e
@@ -117,13 +122,18 @@ object DiffRngBridge {
      *  vs C++ sect_attack_decision.h——返回 JSON 决策，消费 BATTLE 分区） */
     external fun nativeCoreDecidePlayerAttack(): String
 
-    // ── execute 分发表通道（批次 9，对拍用） ────────────────
+    // ── execute 分发表通道（对拍用） ────────────────
     external fun nativeCoreExecute(actionId: Int, paramsJson: ByteArray): ByteArray
 
-    // ── 道路系统通道（批次 R，对拍用） ─────────────────────
+    // ── 道路系统通道（对拍用） ─────────────────────
     external fun nativeRoadOp(opJson: ByteArray): ByteArray
 
-    // ── 引擎循环 + 看门狗通道（计划 v2 阶段 5，对拍用） ──────
+    // 浮空岛崖壁布局（地图边缘系统）无桌面对拍通道：合成器为纯头文件
+    // gamecore/map/island_cliff.h，由桌面 GTest island_cliff_test 直接覆盖
+    // （比 JNI 往返更直接）；JNI 装配层（GameCoreBridge.nativeIslandCliffCompose）
+    // 仅做参数搬运，无算法分支。
+
+    // ── 引擎循环 + 看门狗通道（对拍用） ──────
     /** 循环启动/重启：帧累积清零 + 时钟基准重置 */
     external fun nativeCoreLoopStart()
     /** 循环状态完全重置（测试隔离：tick 计数/速度/累积/帧状态清零；
@@ -183,6 +193,22 @@ object DiffRngBridge {
         loopActiveAtMs: Long,
         recordedAtMs: Long
     ): Int
+
+    // ── 宗门地图地形生成通道（桌面 JNI 同签名——与生产
+    //    GameCoreBridge.nativeGenerateSectTerrain 等价，DiffSectTerrainTest
+    //    双端全数组逐位对拍用）──
+    /** 返回行主序展平瓦片数组（size = width*height）；width/height 非法返回 null */
+    @Suppress("LongParameterList")  // JNI 声明 1:1 平铺（同生产入口）
+    external fun nativeGenerateSectTerrain(
+        seed: Int, width: Int, height: Int, density: Float, borderTreeRing: Int,
+        gateX: Int, gateY: Int, gateWidth: Int, gateHeight: Int, gateSpriteY: Int
+    ): IntArray?
+
+    /** 位级对拍探针：C++ terrain cellHash（Kotlin SectMapTileGenerator.cellHash 对照） */
+    external fun nativeSectCellHash(x: Int, y: Int, seed: Int): Float
+
+    /** 位级对拍探针：C++ terrain smoothNoise（Kotlin smoothNoise 对照） */
+    external fun nativeSectSmoothNoise(x: Int, y: Int, scale: Int, seed: Int): Float
 
     external fun nativeDestroy()
 }

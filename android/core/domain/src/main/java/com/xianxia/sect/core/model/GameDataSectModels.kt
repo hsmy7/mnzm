@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.protobuf.ProtoPacked
 
-// GameDataSectModels.kt — 宗门政策/长老/直系弟子（P-2 从 GameData.kt 拆分，同包模型，序列化字段不变）
+// GameDataSectModels.kt — 宗门政策/长老/直系弟子（同包模型，序列化字段不变）
 
 // 宗门政策数据
 @Keep

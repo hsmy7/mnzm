@@ -4,7 +4,6 @@ import com.xianxia.sect.core.engine.GameEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CoroutineScope
 
 /**
  * 凶兽袭击事件处理委托。
@@ -13,7 +12,6 @@ import kotlinx.coroutines.CoroutineScope
  */
 class BeastAttackDelegate(
     private val gameEngine: GameEngine,
-    private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val onMessage: ((message: String, isError: Boolean) -> Unit)? = null
 ) {
@@ -32,6 +30,17 @@ class BeastAttackDelegate(
         } finally {
             isFighting = false
         }
+    }
+
+    /** 锁定妖兽：打开详情弹窗时调用，月度结算跳过 AI 攻击 */
+    fun lockBeast(beastId: String) {
+        gameEngine.launchOnEngine { gameEngine.lockBeastView(beastId) }
+    }
+
+    /** 解锁妖兽：关闭详情弹窗时调用，AI 可正常进攻 */
+    fun unlockBeast(beastId: String) {
+        if (beastId.isEmpty()) return
+        gameEngine.launchOnEngine { gameEngine.unlockBeastView(beastId) }
     }
 
     /** 移除单个已处理的妖兽攻击（按 ID），其余保留。用于多妖兽逐个处理场景。 */

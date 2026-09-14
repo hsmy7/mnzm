@@ -8,7 +8,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffRngTest — RNG 跨语言差分对拍（批次 0 验收核心）。
+ * DiffRngTest — RNG 跨语言差分对拍。
  *
  * 守护目标：C++ `DeterministicRng`（PCG-XSH-RR 64→32）与 Kotlin 原版
  * 在相同种子/调用序列下输出**逐位一致**——这是存档确定性迁移的前提。
@@ -63,7 +63,7 @@ class DiffRngTest {
 
     @Test
     fun `nextGaussian sequence matches Kotlin bitwise`() {
-        // C-12 审查登记项验证：JVM Math.cos/log/sqrt（fdlibm 系）与 C++
+        // 审查登记项验证：JVM Math.cos/log/sqrt（fdlibm 系）与 C++
         // std::cos/log/sqrt（桌面 glibc 亦 fdlibm 系）位级一致——Box-Muller
         // 公式逐位对齐（含 DiscipleFactory/AISectDiscipleManager 使用的
         // mean/stddev 组合）；发现最后一位差异则内嵌 fdlibm（rng.cpp 注释）。

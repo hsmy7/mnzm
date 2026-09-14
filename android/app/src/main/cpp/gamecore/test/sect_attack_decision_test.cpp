@@ -5,6 +5,11 @@
 #include <vector>
 
 #include "gamecore/rng/rng_manager.h"
+// month_settlement.h 须先于 sect_attack_decision.h——后者依赖本文件符号
+// （detail::kAiMinDisciplesForAttack 等），且 month_settlement.h 文件尾
+// 依序包含 sect_attack_decision.h/sect_defense_battle.h（子事件 6b），
+// 直接以 sect_attack_decision.h 为首包含会落在符号未定义窗口
+#include "gamecore/system/month_settlement.h"
 #include "gamecore/system/sect_attack_decision.h"
 #include "gamecore/system/sect_decision.h"
 

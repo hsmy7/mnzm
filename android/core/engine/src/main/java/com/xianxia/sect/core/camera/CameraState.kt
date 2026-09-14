@@ -23,6 +23,7 @@ package com.xianxia.sect.core.camera
  * - 纯 Kotlin 接口，零平台依赖
  * - iOS 移植无需修改接口定义
  */
+@Suppress("TooManyFunctions") // 相机端口契约：视图矩阵/缩放/边界查询协议面，双后端实现同协议
 interface CameraState {
     companion object {
         /** 最小缩放（最远鸟瞰） */

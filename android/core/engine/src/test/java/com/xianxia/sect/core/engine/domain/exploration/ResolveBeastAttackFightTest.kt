@@ -68,19 +68,22 @@ class ResolveBeastAttackFightTest {
         // doReturn 先注册 stub，调用直接返回，不触发默认 answer
         Mockito.doReturn(DomainResult.Success(Material())).`when`(inventorySystem).addMaterial(any())
 
+        val deathHandler = mockSmart(DiscipleDeathHandler::class.java)
         service = ExplorationService(
             stateStore = stateStore,
             battleSystem = battleSystem,
             rngManager = rngManager,
             inventorySystem = inventorySystem,
-            worldLevelManager = worldLevelManager,
-            patrolBattleSystem = patrolBattleSystem,
-            beastAttackDetector = beastAttackDetector,
-            lootCalculator = lootCalculator,
-            encounterBattleService = encounterBattleService,
             cultivationService = cultivationService,
             spiritStoneWallet = spiritStoneWallet,
-            deathHandler = mockSmart(DiscipleDeathHandler::class.java)
+            subSystems = ExplorationSubSystems(
+                worldLevelManager = worldLevelManager,
+                beastAttackDetector = beastAttackDetector,
+                patrolBattleSystem = patrolBattleSystem,
+                lootCalculator = lootCalculator,
+                encounterBattleService = encounterBattleService,
+                deathHandler = deathHandler
+            )
         )
     }
 
@@ -118,7 +121,8 @@ class ResolveBeastAttackFightTest {
         // Same logic as resolveBeastFightInternal
         val allAlive = allDiscipleList.filter { it.isAlive }
         val patrolDefenders = allAlive.filter { it.id in patrolDiscipleIds }
-        val excludeStatuses = setOf(DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING, DiscipleStatus.REFINING)
+        val excludeStatuses = setOf(DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING,
+            DiscipleStatus.GARRISONING, DiscipleStatus.REFINING)
         val remainingAlive = allAlive.filter {
             it.id !in patrolDiscipleIds && it.status !in excludeStatuses
         }.sortedByRealmForDefense()

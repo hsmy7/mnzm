@@ -16,19 +16,22 @@ import java.util.concurrent.CopyOnWriteArrayList
 private const val TAG = "ImeGuard"
 
 /**
- * 键盘（IME）可见性跟踪器（2026-08 荣耀 X70 键盘频闪根治；
- * 2026-08 GT 系列根治升级为多窗口跟踪）。
+ * 键盘（IME）可见性跟踪器（多窗口跟踪 + 按窗口隔离高度）。
  *
  * 在 [Window] 的 decorView 上安装 insets 监听，跟踪 [WindowInsetsCompat.Type.ime]
  * 的可见性，供 [SystemBarHidePolicy] 在键盘可见期间冻结系统栏隐藏操作。
  *
- * 多窗口语义（2026-08 荣耀 GT 系列键盘频闪根治）：
- * 旧实现只接管 Activity 窗口——键盘在平台 Dialog 窗口内弹出时，IME insets 只
- * 派发给**获得输入焦点**的窗口（Dialog 窗口），Activity decorView 收不到，
- * `isImeVisible` 恒 false，`SystemBarHidePolicy` 第二守卫在 Dialog 输入场景
- * 完全失效（放大器 A）。现改为窗口集合跟踪：Activity 与各 Dialog 窗口各自
+ * 多窗口语义：
+ * IME insets 只派发给**获得输入焦点**的窗口（如 Dialog 窗口），仅接管 Activity
+ * 窗口时 `isImeVisible` 恒 false，`SystemBarHidePolicy` 第二守卫在 Dialog 输入
+ * 场景完全失效——因此采用窗口集合跟踪：Activity 与各 Dialog 窗口各自
  * 独立跟踪，任一窗口键盘可见 → 全局 [isImeVisible] = true；
- * [isImeVisibleFor] 供 [DialogSystemBarGuard] 按窗口查询（放大器 B 防御）。
+ * [isImeVisibleFor] 供 [DialogSystemBarGuard] 按窗口查询。
+ *
+ * 按窗口隔离高度：
+ * 每窗口独立记录最近一次平台报告（[imeBottomFor]），防止任一窗口的 insets
+ * 回调更新污染其他窗口的避让位移（跨窗口污染："界面反复跳动/下拉"）；
+ * 全局值仅作"未跟踪窗口"的聚合回退。
  *
  * 关键约束：监听器**原样透传** insets（[ViewCompat.onApplyWindowInsets]），
  * 绝不消费——否则会截断 Compose 的 WindowInsets 分发，破坏 imePadding 布局。
@@ -45,9 +48,8 @@ object ImeVisibilityTracker {
         private set
 
     /**
-     * 最近一次平台报告的 IME 底部高度（px）——[ImeAwareContainer] 事件驱动避让的
-     * 位移量兜底（当前窗口 Compose insets 不可用时，如 Compose Dialog 窗口 insets
-     * 历史缺陷 #229378542 场景）。每次 insets 回调更新为最新平台报告，零陈旧值重放。
+     * 全局聚合的最近一次平台报告 IME 底部高度（px）——仅作"未跟踪窗口"的
+     * 聚合回退；各窗口避让计算必须经 [imeBottomFor] 按窗口取真值（防跨窗口污染）。
      */
     var lastImeBottomPx: Int by mutableStateOf(0)
         private set
@@ -55,8 +57,13 @@ object ImeVisibilityTracker {
     /** 单个窗口的 IME 跟踪状态（弱引用防 Activity/Dialog 窗口泄漏） */
     private class WindowState(window: Window) {
         val windowRef = WeakReference(window)
-        @Volatile
-        var imeVisible: Boolean = false
+        /**
+         * 本窗口键盘可见性（Compose snapshot state——[ImeAwareContainer] 等组合读取者
+         * 在翻转时重组，驱动事件驱动避让；非组合读取者（SystemBarHidePolicy）直接读值零副作用）
+         */
+        var imeVisible: Boolean by mutableStateOf(false)
+        /** 本窗口最近一次平台报告的 IME 底部高度（px；按窗口隔离，零跨窗口污染） */
+        var lastImeBottomPx: Int by mutableStateOf(0)
         /** 本窗口可见性翻转回调（如 [DialogSystemBarGuard] 的 IME 感知切换） */
         val onFlipListeners = CopyOnWriteArrayList<() -> Unit>()
     }
@@ -106,6 +113,15 @@ object ImeVisibilityTracker {
     }
 
     /**
+     * 移除 [window] 的特定翻转回调（与 [attach] 的 onFlip 对称，幂等）。
+     * 回调由 [DialogSystemBarGuard] 的零操作策略与输入会话状态机注册/注销。
+     */
+    fun removeOnFlip(window: Window, onFlip: () -> Unit) {
+        val state = windows.firstOrNull { it.windowRef.get() === window } ?: return
+        state.onFlipListeners -= onFlip
+    }
+
+    /**
      * 解除对 [window] 的跟踪（窗口销毁前调用）。
      *
      * 移除条目前将本窗口状态复位为不可见——窗口销毁后其 IME 必然收起，
@@ -129,16 +145,35 @@ object ImeVisibilityTracker {
         return windows.firstOrNull { it.windowRef.get() === window }?.imeVisible ?: false
     }
 
+    /**
+     * 指定窗口最近一次平台报告的 IME 底部高度（px）。
+     *
+     * 按窗口隔离的真值来源（[ImeAwareContainer] 避让位移用）；
+     * 窗口为 null 或未跟踪时回退全局聚合值（旧读取者兼容）。
+     */
+    fun imeBottomFor(window: Window?): Int {
+        if (window == null) return lastImeBottomPx
+        return windows.firstOrNull { it.windowRef.get() === window }?.lastImeBottomPx
+            ?: lastImeBottomPx
+    }
+
     /** insets 回调处理（提取为独立函数便于 Robolectric 单测直接驱动） */
     internal fun onInsetsApplied(
         view: View,
         insets: WindowInsetsCompat,
         window: Window
     ): WindowInsetsCompat {
+        val bottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
         val state = windows.firstOrNull { it.windowRef.get() === window }
-            ?: return ViewCompat.onApplyWindowInsets(view, insets)
-        // 记录最近一次平台真实报告（M10：以最新平台报告为准，禁止重放陈旧值）
-        lastImeBottomPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        if (state == null) {
+            // 未接管窗口也更新全局聚合值（保持旧语义：全局 = 最近一次平台报告）
+            lastImeBottomPx = bottom
+            return ViewCompat.onApplyWindowInsets(view, insets)
+        }
+        // 记录最近一次平台真实报告（M10：以最新平台报告为准，禁止重放陈旧值）；
+        // 按窗口记录 + 全局聚合同步更新（聚合回退语义）
+        state.lastImeBottomPx = bottom
+        lastImeBottomPx = bottom
         val visible = imeVisibilityExtractor(insets)
         if (visible != state.imeVisible) {
             state.imeVisible = visible

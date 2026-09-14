@@ -94,6 +94,7 @@ class SecretRealmService @Inject constructor(
         val cooldown = data.secretRealmCooldownYear.coerceAtLeast(0)
         // 统一判据：首次（cooldown=0）第 50 年现世；之后每次消失后再过 50 年
         if (year - cooldown < GameConfig.SecretRealm.COOLDOWN_YEARS) return
+        /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
 
         val (x, y) = findFreePosition(rng, data)
@@ -179,9 +180,9 @@ class SecretRealmService @Inject constructor(
         if (selected.size != GameConfig.SecretRealm.TEAM_SIZE) {
             return DomainResult.Failure(AppError.Domain.GameState.NotFound("弟子不存在"))
         }
-        // 存活校验（死亡弟子不可出发）。状态 IDLE 校验已移除：换岗语义下引擎入口
-        // （startSecretRealmExploration）先于此处校验通过后执行 releaseDiscipleToIdleInside
-        // 清空岗位再出发，校验在清理前会错误拒绝在岗弟子（原校验已因清理前置成为死代码）
+        // 存活校验（死亡弟子不可出发）。无状态 IDLE 校验：换岗语义下引擎入口
+        // （startSecretRealmExploration）先执行 releaseDiscipleToIdleInside
+        // 清空岗位再出发，在岗弟子校验放行是预期行为
         val dead = selected.firstOrNull { !it.isAlive }
         if (dead != null) {
             return DomainResult.Failure(
@@ -189,6 +190,7 @@ class SecretRealmService @Inject constructor(
             )
         }
 
+        /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
         val playerAvgRealm = selected.map { it.realm }.average().toInt()
         val event = SecretRealmEventGenerator.generateBeastEvent(rng, playerAvgRealm)
@@ -231,6 +233,7 @@ class SecretRealmService @Inject constructor(
         val activeEvent = event
             ?: return SecretRealmChoiceResult.Error(message = "当前无进行中的事件")
 
+        /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
         val newStamina = calculateNewStamina(session, activeEvent, optionIndex)
         val markedEvent = activeEvent.copy(chosenOptionIndex = optionIndex)
@@ -251,6 +254,7 @@ class SecretRealmService @Inject constructor(
         }
 
         val allDead = resolution.members.isNotEmpty() && resolution.members.all { it.isDead }
+        /** 体力耗尽/全灭自动结束（会话已清空） */
         val sessionEnded = allDead || newStamina <= 0
 
         val updatedSession = session.copy(
@@ -311,7 +315,7 @@ class SecretRealmService @Inject constructor(
     /**
      * 计算选择选项后的体力：按选项自身体力消耗扣除（默认 1）。
      * 篡改档防御：非法消耗（0/负数/超大值）clamp 到 1..STAMINA_MAX——选项永不免费、
-     * 单次最多耗尽整管体力；Long 运算防 MIN_VALUE 回绕（对抗性审查 B11/D3）。
+     * 单次最多耗尽整管体力；Long 运算防 MIN_VALUE 回绕。
      */
     private fun calculateNewStamina(
         session: SecretRealmExplorationSession,
@@ -348,12 +352,12 @@ class SecretRealmService @Inject constructor(
         if (optionIndex !in event.options.indices) {
             return SecretRealmChoiceResult.Error(message = "无效的选项")
         }
-        // 篡改档防御：体力已耗尽时拒绝结算，防 0 体力白嫖事件收益（对抗性审查 M1）
+        // 篡改档防御：体力已耗尽时拒绝结算，防 0 体力白嫖事件收益
         if (session.stamina <= 0) {
             return SecretRealmChoiceResult.Error(message = "体力已耗尽，探索结束")
         }
         // 篡改档防御：体力不足所选选项消耗时拒绝——防"仔细搜寻"等高费选项在体力不足时
-        // 按低费扣费全额结算，违背"所见即所扣"承诺（对抗性审查 M2）
+        // 按低费扣费全额结算，违背"所见即所扣"承诺
         val optionCost = event.options.getOrNull(optionIndex)?.staminaCost
             ?: GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE
         if (session.stamina < optionCost) {
@@ -386,6 +390,7 @@ class SecretRealmService @Inject constructor(
             1 -> toResolution(runBeastBattle(state, session, event.params, rng))
             // ③ 尝试偷袭：50% 成功（妖兽血量 -10%）；失败被察觉
             else -> {
+                /** 偷袭选项是否成功（UI 用于区分"偷袭成功/偷袭失败"标题） */
                 val ambushSucceeded =
                     rng.nextDouble() >= GameConfig.SecretRealm.AMBUSH_DETECT_CHANCE
                 toResolution(
@@ -409,7 +414,7 @@ class SecretRealmService @Inject constructor(
             return SecretRealmBeastChoiceResolution(
                 resultText = resultText,
                 members = newMembers,
-                // 携带会话背包（休整不改变背包，防 chooseOption 空覆盖——对抗性审查发现）
+                // 携带会话背包（休整不改变背包，防 chooseOption 空覆盖）
                 backpack = session.backpack,
                 // 休整结算后进入探索方向事件
                 nextEvent = SecretRealmEventGenerator.generateDirectionEvent(resultText)
@@ -441,7 +446,7 @@ class SecretRealmService @Inject constructor(
         return SecretRealmBeastChoiceResolution(
             resultText = resultText,
             members = session.members,
-            // 携带会话背包（方向选择不改变背包，防 chooseOption 空覆盖——对抗性审查发现）
+            // 携带会话背包（方向选择不改变背包，防 chooseOption 空覆盖）
             backpack = session.backpack,
             nextEvent = SecretRealmEventGenerator.rollNextEvent(
                 rng,
@@ -719,7 +724,7 @@ class SecretRealmService @Inject constructor(
      * 死亡 / 表中找不到 / 表级已死亡 / 满血 / 异常数据的成员跳过。
      *
      * 口径说明：上限取成员战斗口径 maxHp（战斗写回维护，含装备/功法加成），旧档 0 回退基础装配值；
-     * 上限不低于当前血量，防止装备加成导致"恢复反而降血"（对抗性审查）。
+     * 上限不低于当前血量，防止装备加成导致"恢复反而降血"。
      *
      * @return 恢复后的成员列表 + 结果描述（成为方向事件描述前缀）
      */
@@ -745,7 +750,7 @@ class SecretRealmService @Inject constructor(
             // 正常流程不会降血；旧档缺战斗 maxHp 时以基础口径收敛，不产生垃圾值）
             val safeCur = curHp.coerceAtMost(maxHp)
             val heal = (maxHp * GameConfig.SecretRealm.REST_RECOVERY_RATIO).toInt()
-            // Long 运算防 Int 溢出回绕（对抗性审查：currentHp 为篡改档极大值时写坏真值表）
+            // Long 运算防 Int 溢出回绕（currentHp 为篡改档极大值时会写坏真值表）
             val newHp = (safeCur.toLong() + heal).coerceAtMost(maxHp.toLong()).toInt()
             // 只增不减：防篡改档成员声称值低于表值时把表级血量写低
             tables.currentHps[idInt] = maxOf(newHp, tables.currentHps[idInt])
@@ -772,7 +777,7 @@ class SecretRealmService @Inject constructor(
         nextEvent = SecretRealmEventGenerator.generateDirectionEvent(outcome.resultText)
     )
 
-    /** 无战斗分支结算载体（成员不变，携带会话背包防清空——对抗性审查发现；结算后进入探索方向事件） */
+    /** 无战斗分支结算载体（成员不变，携带会话背包防清空；结算后进入探索方向事件） */
     private fun directionResolution(
         resultText: String,
         session: SecretRealmExplorationSession
@@ -793,7 +798,7 @@ class SecretRealmService @Inject constructor(
     ): SecretRealmBattleOutcome {
         // 篡改档防御：妖兽数量 clamp 到配置范围——buildAndExecuteBattle 已 clamp 战斗构建，
         // 但 rollBeastLoot 的 repeat(beastCount*2) 与战斗日志文本仍用原始值，
-        // Int.MAX 会溢出负数崩溃 / 上亿次循环卡死引擎线程（对抗性审查 M3）
+        // Int.MAX 会溢出负数崩溃 / 上亿次循环卡死引擎线程
         val safeParams = eventParams.copy(
             beastCount = eventParams.beastCount.coerceIn(
                 GameConfig.SecretRealm.BEAST_COUNT_MIN,
@@ -855,7 +860,7 @@ class SecretRealmService @Inject constructor(
             rng, eventParams.beastRealm, eventParams.beastTypeName, eventParams.ambushSucceeded,
             beastLayer = eventParams.beastLayer
         )
-        // 篡改档防御：妖兽数量 clamp 到正常范围（对抗性审查 B6）
+        // 篡改档防御：妖兽数量 clamp 到正常范围
         val beastCount = eventParams.beastCount.coerceIn(
             GameConfig.SecretRealm.BEAST_COUNT_MIN,
             GameConfig.SecretRealm.BEAST_COUNT_MAX
@@ -875,8 +880,8 @@ class SecretRealmService @Inject constructor(
     }
 
     /**
-     * 战斗写回：幸存者 HP 写表（clamp 上限用战斗最终 maxHp，含装备/功法/丹药加成——
-     * 对抗性审查 B1）；首次阵亡 → 重伤濒死（保命）；濒死再阵亡 → 永久死亡（统一入口）。
+     * 战斗写回：幸存者 HP 写表（clamp 上限用战斗最终 maxHp，含装备/功法/丹药加成）；
+     * 首次阵亡 → 重伤濒死（保命）；濒死再阵亡 → 永久死亡（统一入口）。
      */
     private fun writeBackBattleMembers(
         state: MutableGameState,
@@ -887,6 +892,7 @@ class SecretRealmService @Inject constructor(
         val tables = state.discipleTables
         val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
         val hpMap = result.battle.team.associate { it.id to (it.hp to it.maxHp) }
+        /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
         val deadIds = mutableSetOf<String>()
         val newMembers = session.members.map { ms ->
             if (ms.isDead) return@map ms
@@ -899,7 +905,7 @@ class SecretRealmService @Inject constructor(
                 ms.copy(currentHp = if (clamped >= maxHp) -1 else clamped, maxHp = maxHp)
             } else {
                 if (ms.isDying) {
-                    // D-03：死亡统一入口——袋物品物化回仓库（玩家保留）+ 清袋 + markDead
+                    // 死亡统一入口——袋物品物化回仓库（玩家保留）+ 清袋 + markDead
                     idInt?.let { inventorySystem.materializeDiscipleBagAndMarkDead(state, it, year, "battle") }
                     deadIds.add(ms.discipleId)
                     ms.copy(isDead = true)
@@ -1064,7 +1070,7 @@ class SecretRealmService @Inject constructor(
     }
 
     /**
-     * S-17 草稿应用（月变真相源切换批 M-1）：C++ 侧关闭秘境后经
+     * 秘境关闭草稿应用：C++ 侧关闭秘境后经
      * nativeSettleMonth 信封回传草稿（背包清空前快照 + 会话成员 id）——
      * 本方法重建关闭邮件（复用 [buildExpiryCloseMail]）并释放成员 gate，
      * 与 [closeSecretRealmByExpiry] 的邮件/gate 段语义一致（状态段——
@@ -1176,7 +1182,7 @@ class SecretRealmService @Inject constructor(
             settleBackpack(state, session.backpack)
         }
         // 基于结算后的最新 gameData 清空秘境（settleBackpack 内部会更新灵石/年度统计等，
-        // 用旧快照 copy 会覆盖这些写入导致奖励丢失——对抗性审查 S1）
+        // 用旧快照 copy 会覆盖这些写入导致奖励丢失）
         val year = state.gameData.gameYear
         state.gameData = state.gameData.copy(
             secretRealmState = SecretRealmState(),
@@ -1211,7 +1217,7 @@ class SecretRealmService @Inject constructor(
         if (backpack.totalItemCount == 0) return
         inventorySystem.withTrackingSource("secret_realm") {
             // 篡改档防御：非正数量物品在调用 addXxx 前过滤——addXxx 对非法数量行为未定义，
-            // 抛异常会导致 endSession 回滚 → 方向选择重试吞 RNG 的软锁（对抗性审查 B-L2）
+            // 抛异常会导致 endSession 回滚 → 方向选择重试吞 RNG 的软锁
             backpack.equipment.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "equipment", item.quantity,
                     inventorySystem.addEquipmentStack(item))
@@ -1241,9 +1247,9 @@ class SecretRealmService @Inject constructor(
 
     /**
      * 单件物品结算结果处理：Partial 溢出已自动转邮件；
-     * Failure 中仓库满（Inventory.Full）已由 addXxx 内部按整件转邮件，此处不再重复补偿
-     * （对抗性审查：双重发放）；其余 Failure（如 SlotNotFound 基础设施错误）按实际数量
-     * 转邮件补偿，防止物品静默丢失（对抗性审查 D2）。
+     * Failure 中仓库满（Inventory.Full）已由 addXxx 内部按整件转邮件，此处不重复补偿
+     * （防双重发放）；其余 Failure（如 SlotNotFound 基础设施错误）按实际数量
+     * 转邮件补偿，防止物品静默丢失。
      */
     private fun settleItem(
         itemName: String,
@@ -1268,6 +1274,13 @@ class SecretRealmService @Inject constructor(
     }
 
     companion object {
+        /**
+         * 单用户定向补偿邮件（MailService 扩展，独立文件）。
+         *
+         * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
+         * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
+         * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
+         */
         private const val TAG = "SecretRealmService"
 
         /** 关闭邮件有效期（天）——与溢出邮件同口径，10 年保障领取窗口 */

@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // ============================================================
-// KtxLoader — KTX1 压缩纹理容器解析（WP7 ASTC 图集，B.1 支持多 mip）
+// KtxLoader — KTX1 压缩纹理容器解析（ASTC 图集，支持多 mip）
 //
 // 输入：assets/atlas/atlas_astc.ktx（由 scripts/build-atlas.mjs 生成，
 //       astcenc -cl 4x4 -medium 压缩 + 64 字节 KTX1 头封装；B.1 起
@@ -12,7 +12,7 @@
 // 输出：数据区指针 + 尺寸 + mip 层级数 + 内部格式，全字段校验通过才成功。
 //
 // 失败语义：返回 false（Kotlin 侧回退 RGBA 图集路径，视觉零差异）。
-// 校验清单（对抗性审查：损坏 KTX 必须被检测，不允许半解析成功）：
+// 校验清单（损坏 KTX 必须被检测，不允许半解析成功）：
 //   - magic "«KTX 11»" / endianness 0x04030201
 //   - glType == 0 && glFormat == 0（压缩纹理容器）
 //   - glInternalFormat == 0x93B0（ASTC 4x4 LDR——只接受本管线产物）
@@ -56,7 +56,7 @@ constexpr size_t ASTC_BLOCK_BYTES = 16;
 // 每个 mip 层的数据前缀：[dataSize 4 字节][数据]
 constexpr size_t DATA_SIZE_FIELD = 4;
 
-// 纹理尺寸上限（对抗性审查 M2：32 位 size_t 下几何推导可回绕绕过校验；
+// 纹理尺寸上限（32 位 size_t 下几何推导可回绕绕过校验；
 // 上限同时防异常驱动收到越限 extent——Vulkan maxImageDimension2D 常见 8192/16384）
 constexpr uint32_t MAX_TEXTURE_DIMENSION = 16384;
 }  // namespace ktx1

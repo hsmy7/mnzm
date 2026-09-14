@@ -14,7 +14,8 @@ interface ArchivedBattleLogDao {
     @Query("SELECT * FROM archived_battle_logs WHERE slot_id = :slotId ORDER BY timestamp DESC")
     suspend fun getBySlot(slotId: Int): List<ArchivedBattleLog>
 
-    @Query("SELECT * FROM archived_battle_logs WHERE slot_id = :slotId AND timestamp BETWEEN :startMs AND :endMs ORDER BY timestamp DESC")
+    @Query("SELECT * FROM archived_battle_logs WHERE slot_id = :slotId AND timestamp BETWEEN :startMs AND :endMs " +
+        "ORDER BY timestamp DESC")
     suspend fun getByTimeRange(slotId: Int, startMs: Long, endMs: Long): List<ArchivedBattleLog>
 
     @Query("SELECT COUNT(*) FROM archived_battle_logs WHERE slot_id = :slotId")

@@ -5,8 +5,8 @@ import com.xianxia.sect.core.util.RoadPlacementResult
 /**
  * 道路操作扩展（GameEngine 单向数据流：UI → ViewModel → GameEngine → RoadFacade → GameStateStore）。
  *
- * 灵石/道路数据同步契约（2026-08-31 根因修复）：
- * 道路放置/删除是纯 Kotlin 侧变更（`roads` 字段未迁移 C++，`spiritStones` 已迁移）。
+ * 灵石/道路数据同步契约：
+ * 道路放置/删除是纯 Kotlin 侧变更（`roads` 字段不在 C++ 真相源内，`spiritStones` 已在 C++）。
  * AUTHORITATIVE tick 步骤 ②' 的 `resetReverseAccumulator()` 会无条件清空反向捕获累加器，
  * 若放置变更只靠 tick 步骤 ⑤ 顺带回导，捕获在 tick 间隙被清空 → C++ 真相源永远不知晓
  * 灵石扣除 → 后续 C++ 侧灵石变化经前向镜像覆盖 Kotlin → 玩家看到"灵石未扣除"。

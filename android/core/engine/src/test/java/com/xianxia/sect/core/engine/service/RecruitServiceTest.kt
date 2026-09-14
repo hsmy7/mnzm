@@ -138,7 +138,7 @@ class RecruitServiceTest {
         assertEquals("弟子应已加入 discipleTables", 1, state.discipleTables.ids.size)
         val recruitedId = state.discipleTables.ids.first()
         assertEquals("弟子境界应匹配", disciple.realm, state.discipleTables.realms[recruitedId])
-        // 年报新增弟子计数（2026-08-11 修复：自动招募主路径漏计）
+        // 年报新增弟子计数（自动招募主路径）
         assertEquals("年报新增弟子计数=成功招募数", 1, state.gameData.annualNewDisciples)
     }
 

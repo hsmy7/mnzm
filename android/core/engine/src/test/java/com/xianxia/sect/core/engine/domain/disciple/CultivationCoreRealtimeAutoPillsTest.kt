@@ -62,7 +62,7 @@ class CultivationCoreRealtimeAutoPillsTest {
     @Before
     fun setUp() {
         pillManager = DisciplePillManager(PillEffectApplier())
-        // C1（2026-08-31）：治疗丹满血判定经 disciple.maxHp（getBaseStats）——
+        // 治疗丹满血判定经 disciple.maxHp（getBaseStats）——
         // 纯 JUnit 需手动绑定晚绑定属性计算器（对齐 Diff 对拍测试模式）
         com.xianxia.sect.core.model.DiscipleAggregate.statsProvider =
             object : com.xianxia.sect.core.model.DiscipleStatsProvider {
@@ -353,7 +353,7 @@ class CultivationCoreRealtimeAutoPillsTest {
 
     @Test
     fun `heal pill consumed when injured`() {
-        // C1（2026-08-31）：受伤（currentHp < maxHp）时自动服用治疗丹
+        // 受伤（currentHp < maxHp）时自动服用治疗丹
         val state = stateWithDisciple(
             id = 1,
             storageBagItems = listOf(healPill(healPercent = 30.0)),
@@ -372,7 +372,7 @@ class CultivationCoreRealtimeAutoPillsTest {
 
     @Test
     fun `heal pill skipped at full hp`() {
-        // C1（2026-08-31）：满血（-1 哨兵）不自动吃治疗丹，保留袋内
+        // 满血（-1 哨兵）不自动吃治疗丹，保留袋内
         val state = stateWithDisciple(
             id = 1,
             storageBagItems = listOf(healPill(healPercent = 30.0)),
@@ -387,7 +387,7 @@ class CultivationCoreRealtimeAutoPillsTest {
         assertEquals("满血时治疗丹应保留", 1, items.size)
     }
 
-    // ── 修炼速度丹：单倍写回 pillEffects（2026-08 修复） ─────────────
+    // ── 修炼速度丹：单倍写回 pillEffects ─────────────
 
     @Test
     fun `speed pill writes only pillEffects not legacy cultivationSpeedBonus`() {
@@ -430,25 +430,23 @@ private object PillsRealtime {
     ) {
         val tables = state.discipleTables
         for (id in tables.ids) {
-            if (tables.isAlive[id] != 1) continue
-
-            // 指纹检测：排除突破丹 + 已服用过的一次性丹药
-            if (!hasAutoUsablePills(tables = tables, id = id)) continue
+            // 死亡弟子/无可用丹药（指纹检测排除突破丹 + 已服用过的一次性丹药）跳过
+            if (tables.isAlive[id] != 1 || !hasAutoUsablePills(tables = tables, id = id)) continue
 
             val disciple = tables.assemble(id)
             val result = pillManager.processAutoUsePills(disciple)
-            if (result.disciple == disciple) continue
-
-            // 丹药效果写回弟子表
-            writeBackPillEffects(
-                tables = tables,
-                id = id,
-                result = result
-            )
+            if (result.disciple != disciple) {
+                // 丹药效果写回弟子表
+                writeBackPillEffects(
+                    tables = tables,
+                    id = id,
+                    result = result
+                )
+            }
         }
     }
 
-    /** 指纹检测（process 拆分）：排除突破丹 + 已服用过的一次性丹药 */
+    /** 指纹检测：排除突破丹 + 已服用过的一次性丹药 */
     private fun hasAutoUsablePills(tables: DiscipleTables, id: Int): Boolean {
         val items = tables.storageBagItems.getOrNull(id) ?: return false
         val usedPermanentKeys =
@@ -473,7 +471,7 @@ private object PillsRealtime {
         }
     }
 
-    /** 丹药效果写回（process 拆分）：弟子表全字段回写 */
+    /** 丹药效果写回：弟子表全字段回写 */
     private fun writeBackPillEffects(
         tables: DiscipleTables,
         id: Int,
@@ -483,7 +481,7 @@ private object PillsRealtime {
         tables.storageBagItems[id] = d.equipment.storageBagItems
         tables.cultivations[id] = d.cultivation
         tables.manualMasteries[id] = d.manualMasteries
-        // 2026-08 修复：镜像 AutoPillService.writePillResultToTables——
+        // 镜像 AutoPillService.writePillResultToTables——
         // 旧 cultivationSpeedBonus 组件列清零（丹药加成收敛于 pillEffects 体系）
         tables.cultivationSpeedBonuses[id] = 0.0
         tables.cultivationSpeedDurations[id] = 0

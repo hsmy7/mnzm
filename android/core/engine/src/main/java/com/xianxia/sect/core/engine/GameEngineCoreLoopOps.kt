@@ -6,17 +6,19 @@ import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.NativeLoopPlan
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.util.DomainLog
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 private const val TAG = "GameEngineCore"
 
 /**
- * GameEngineCoreLoopOps — 计划 v2 阶段 5 AUTHORITATIVE 引擎循环接线
+ * GameEngineCoreLoopOps — AUTHORITATIVE 引擎循环接线
  * （独立文件承载以守住 GameEngineCore.kt 行数约束，模式同
  * GameEngineCoreAuthoritativeOps.kt）。
  *
- * 职责切分（阶段 5「游戏循环入 C++」）：
+ * 职责切分（游戏循环入 C++）：
  * - **C++ 真相源**：帧累积/逻辑步进/墙钟消费（速度/暂停/refund 状态机）/
  *   tick 计数/循环心跳/看门狗判据——每帧一次 [GameCoreBridge.nativeLoopFrame]
  *   返回执行指令（[NativeLoopPlan]）
@@ -24,9 +26,9 @@ private const val TAG = "GameEngineCore"
  *   （adaptiveWait）/场景与闲置帧率策略/ADPF 上报/热控电量判据
  *   （ThermalController）与状态推送（平台能力接口化端口）
  * - **Kotlin 残留执行器**：每旬 ①-⑤ 互插管线（processAuthoritativeTick，
- *   阶段 2d 语义不变）
+ *   语义不变）
  * - **共享辅助**：tickInternal 与 AUTHORITATIVE 帧迭代共用的心跳/镜像回推/
- *   热控/残留职责/平台推送（自 GameEngineCore.kt 拆分，行数约束）
+ *   热控/残留职责/平台推送
  *
  * 回退契约：native 帧计划不可用（未初始化/异常）→ 下一帧由
  * gameLoopIteration 走纯 Kotlin 累积器路径（代码全保留）。
@@ -49,7 +51,7 @@ internal fun GameEngineCore.publishNativeAlpha(rawAlpha: Float) {
     currentAlpha = jitterSmoother.filter(rawAlpha)
 }
 
-/** 电量感知热控（低电量提前降载 + 帧率驱动降级判据；消费者阶段 6 迁 C++） */
+/** 电量感知热控（低电量提前降载 + 帧率驱动降级判据；消费者迁 C++） */
 internal fun GameEngineCore.tickThermalControl() {
     thermalController.setThresholdOffsetC(batteryStatusProvider.thermalThresholdOffsetC)
     thermalController.checkAndAdjust(_fps.value)
@@ -70,7 +72,7 @@ internal fun GameEngineCore.reportAdpfWorkDuration(deltaNs: Long) {
 }
 
 /**
- * 平台能力推送（阶段 5 接口化）：Kotlin 平台层热控/电量状态 → C++
+ * 平台能力推送（接口化）：Kotlin 平台层热控/电量状态 → C++
  * Settable 端口（遥测记录/后续阶段判据消费）。失败静默（推送为尽力而为）。
  */
 internal fun GameEngineCore.pushPlatformStatusToNative() {
@@ -89,7 +91,7 @@ internal fun GameEngineCore.pushPlatformStatusToNative() {
 }
 
 /**
- * AUTHORITATIVE 单帧迭代（gameLoopIteration 判据迁移）。
+ * AUTHORITATIVE 单帧迭代（判据与 Kotlin gameLoopIteration 对应）。
  * 对应 Kotlin 原帧迭代：心跳/玉符 tick/暂停分支/固定步长（C++）/插值因子/
  * 闲置检测/自适应等待（Kotlin 平台机制）。
  */
@@ -170,7 +172,7 @@ internal suspend fun GameEngineCore.authoritativeLoopIteration(): LoopIterationS
 internal suspend fun GameEngineCore.tickAuthoritativeStep(phasesToAdvance: Int) {
     // 进度快照采样（Kotlin 判据回退路径输入；AUTHORITATIVE 判据走 native）
     sampleProgressSnapshot()
-    // 电量感知热控（判据消费者阶段 6 渲染统一迁入；本阶段维持 Kotlin）
+    // 电量感知热控（判据消费者渲染统一迁入；判据维持 Kotlin）
     tickThermalControl()
     // ①-⑤ 互插（C++ 核心结算 + 增量镜像 + 残留执行器 + 边界编排 + 反向回导）
     processAuthoritativeTick(phasesToAdvance)
@@ -198,4 +200,97 @@ internal fun thermalSeverityCode(state: ThermalState): Int = when (state) {
     ThermalState.MODERATE -> 2
     ThermalState.SEVERE -> 3
     ThermalState.EMERGENCY -> 5
+}
+
+// ── 防冻结忙等原语(从 GameEngineCore 迁入:与循环节拍同域,调用语法不变) ──
+
+/**
+ * 防挂起延迟（自适应忙等）：将等待时间拆分为微延迟 + 忙等循环。
+ *
+ * 华为 EMUI/HarmonyOS 的 PowerGenie（省电精灵）、荣耀 MagicOS、
+ * vivo/iQOO OriginOS、小米 MIUI 神隐模式、OPPO ColorOS 等 OEM
+ * 省电机制会检测线程"空闲"状态并将游戏线程挂起。
+ *
+ * 将 delay 拆分为 2ms 微间隔（远低于所有 OEM 的空闲检测窗口），
+ * 并按 [OemPowerProfile] 配置周期性执行忙等循环，以 [SystemClock.elapsedRealtime]
+ * 轮询保持线程 RUNNABLE，打破 OEM 空闲检测。
+ * 正常运行时不执行忙等（纯 delay），仅在检测到 tick 间隔异常（可能被 OEM 挂起）时
+ * 自动启用分片忙等。恢复正常后自动禁用。
+ *
+ * API 33+：忙等循环内额外调用 [Thread.onSpinWait] 作为 CPU 优化提示。
+ *
+ * ## 参数来源
+ * busyInterval / busyDuration 由 [OemPowerProfileProvider.current] 提供，
+ * 数据驱动各厂商差异化配置：
+ * - vivo/iQOO OriginOS 5：busyInterval=12, busyDuration=4ms（占空比 16.7%）
+ * - Honor MagicOS / OPPO ColorOS：busyInterval=16, busyDuration=4ms（占空比 12.5%）
+ * - 中等 OEM（Xiaomi MIUI）：busyInterval=32, busyDuration=3ms
+ * - 保守 OEM（Samsung / 原生）：busyInterval=64, busyDuration=2ms
+ *
+ * 成本：保守 OEM 约 6-7% CPU；vivo 约 14% 单核 CPU（游戏线程），
+ * 远优于游戏线程被 OEM 挂起导致时间完全冻结。
+ *
+ * 参考：
+ * - dontkillmyapp.com — 各厂商电源管理机制分析
+ * - Kotlin Slack #coroutines: delay() 精度 >30ms 抖动
+ *   (https://slack-chats.kotlinlang.org/t/26866719)
+ *
+ * @param totalMs 需要等待的总时长（ms）
+ * @param actualElapsedMs 从上次 tick 到现在的实际墙钟间隔（ms），用于检测 OEM 挂起
+ */
+internal suspend fun GameEngineCore.antiFreezeDelay(totalMs: Long, actualElapsedMs: Long = 0L) {
+    // 自适应忙等检测
+    if (actualElapsedMs > GameEngineCore.TICK_INTERVAL_MS * 2 && totalMs > 0) {
+        antiFreezeTriggerCount++
+        consecutiveNormalTicks = 0
+        if (antiFreezeTriggerCount >= GameEngineCore.ANTI_FREEZE_TRIGGER_THRESHOLD && !antiFreezeEnabled) {
+            antiFreezeEnabled = true
+            DomainLog.w(TAG, "Anti-freeze enabled: ${antiFreezeTriggerCount} trigger events")
+        }
+    } else {
+        consecutiveNormalTicks++
+        antiFreezeTriggerCount = maxOf(0, antiFreezeTriggerCount - 1)
+        if (antiFreezeEnabled && consecutiveNormalTicks >= GameEngineCore.ANTI_FREEZE_NORMAL_THRESHOLD) {
+            antiFreezeEnabled = false
+            DomainLog.i(TAG, "Anti-freeze disabled: ${consecutiveNormalTicks} normal ticks")
+        }
+    }
+
+    if (antiFreezeEnabled) {
+        doBusyWait(totalMs)
+    } else {
+        delay(totalMs.coerceAtLeast(1L))
+    }
+}
+
+/** 分片忙等 — 仅在 antiFreezeEnabled 时执行 */
+internal suspend fun GameEngineCore.doBusyWait(totalMs: Long) {
+    val profile = OemPowerProfileProvider.current
+    val microInterval = 2L
+    val busyInterval = profile.antiFreezeBusyInterval
+    val busyDuration = profile.antiFreezeBusyDuration
+    var remaining = totalMs
+    var cycleCount = 0L
+    while (remaining > 0 && currentCoroutineContext().isActive) {
+        val step = minOf(microInterval, remaining)
+        delay(step)
+        remaining -= step
+        cycleCount++
+        if (remaining > 0 && cycleCount % busyInterval == 0L) {
+            spinForBusyDuration(busyDuration)
+        }
+    }
+}
+
+/** 周期性自旋：持续 busyDuration，维持 CPU 唤醒防深睡 */
+internal fun GameEngineCore.spinForBusyDuration(busyDuration: Long) {
+    val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
+    while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
+        // supportsOnSpinWait 经反射探测（去 Build import），
+        // lint 无法推断运行时守卫——API < 33 时探测为 false 不会触达本调用
+        @Suppress("NewApi")
+        if (supportsOnSpinWait) {
+            Thread.onSpinWait()
+        }
+    }
 }

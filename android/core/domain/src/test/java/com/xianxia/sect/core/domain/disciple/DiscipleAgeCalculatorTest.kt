@@ -79,7 +79,7 @@ class DiscipleAgeCalculatorTest {
         assertEquals(ABSOLUTE_MAX_AGE_CEILING, d.computeMaxAge())
     }
 
-    // ── 2026-08-10 新增：词条（延年/夭折）参与寿元派生 ─────────────────────
+    // ── 词条（延年/夭折）参与寿元派生 ─────────────────────
 
     @Test
     fun `词条延年28pc使炼气弟子 maxAge 从80提升至102`() {

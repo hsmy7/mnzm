@@ -31,6 +31,7 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.Spacing
 
 @Composable
+@Suppress("UnusedParameter") // productionViewModel: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 internal fun BuildingsTab(
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
@@ -46,9 +47,6 @@ internal fun BuildingsTab(
     val materials by viewModel.materials.collectAsStateWithLifecycle()
     val herbs by viewModel.herbs.collectAsStateWithLifecycle()
     val seeds by viewModel.seeds.collectAsStateWithLifecycle()
-    val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
-    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
-    val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val productionSlots by viewModel.productionSlots.collectAsStateWithLifecycle()
 
@@ -83,26 +81,26 @@ internal fun BuildingsTab(
     BuildingTabGrid(buildings = buildings)
 }
 
-/** 建筑点击动作（BuildingsTab 拆分）：按键分发到对应对话框打开入口 */
+/** 建筑点击动作：按键分发到对应对话框打开入口 */
 private fun buildingOpenAction(viewModel: GameViewModel, key: String): () -> Unit = {
     when (key) {
-        "spirit_mine" -> viewModel.openSpiritMineDialog()
-        "herb_garden" -> viewModel.openHerbGardenDialog()
-        "alchemy" -> viewModel.openAlchemyDialog()
-        "forge" -> viewModel.openForgeDialog()
-        "library" -> viewModel.openLibraryDialog()
-        "wen_dao_peak" -> viewModel.openWenDaoPeakDialog()
-        "qingyun_peak" -> viewModel.openQingyunPeakDialog()
-        "tianshu_hall" -> viewModel.openTianshuHallDialog()
-        "law_enforcement_hall" -> viewModel.openLawEnforcementHallDialog()
-        "mission_hall" -> viewModel.openMissionHallDialog()
-        "reflection_cliff" -> viewModel.openReflectionCliffDialog()
-        "patrol_tower" -> viewModel.openPatrolTowerDialog()
-        "blood_refining_pool" -> viewModel.openBloodRefiningPoolDialog()
+        "spirit_mine" -> viewModel.navigation.openSpiritMineDialog()
+        "herb_garden" -> viewModel.navigation.openHerbGardenDialog()
+        "alchemy" -> viewModel.navigation.openAlchemyDialog()
+        "forge" -> viewModel.navigation.openForgeDialog()
+        "library" -> viewModel.navigation.openLibraryDialog()
+        "wen_dao_peak" -> viewModel.navigation.openWenDaoPeakDialog()
+        "qingyun_peak" -> viewModel.navigation.openQingyunPeakDialog()
+        "tianshu_hall" -> viewModel.navigation.openTianshuHallDialog()
+        "law_enforcement_hall" -> viewModel.navigation.openLawEnforcementHallDialog()
+        "mission_hall" -> viewModel.navigation.openMissionHallDialog()
+        "reflection_cliff" -> viewModel.navigation.openReflectionCliffDialog()
+        "patrol_tower" -> viewModel.navigation.openPatrolTowerDialog()
+        "blood_refining_pool" -> viewModel.navigation.openBloodRefiningPoolDialog()
     }
 }
 
-/** 建筑卡片网格（BuildingsTab 拆分）：每行两张建筑卡 */
+/** 建筑卡片网格：每行两张建筑卡 */
 @Composable
 private fun BuildingTabGrid(buildings: List<Triple<String, String, () -> Unit>>) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -130,7 +128,7 @@ private fun BuildingTabGrid(buildings: List<Triple<String, String, () -> Unit>>)
     }
 }
 
-/** 建筑卡（BuildingsTab 拆分）：名称 + 描述，点击打开对应对话框 */
+/** 建筑卡：名称 + 描述，点击打开对应对话框 */
 @Composable
 private fun RowScope.BuildingTabCard(
     name: String,

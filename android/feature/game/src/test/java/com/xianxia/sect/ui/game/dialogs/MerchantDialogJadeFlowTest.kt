@@ -27,7 +27,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 商人界面玉符购买弹窗 UI 测试（2026-08-11 真机实测「+」按钮不弹后补盲区）：
+ * 商人界面玉符购买弹窗 UI 测试：
  * 点击 headerActions 的「+」按钮（contentDescription="获取刷新次数"）→
  * 必须弹出 JadePurchaseFlow 小屏（标题"获取刷新次数" + 描述 + 「消耗玉符」按钮）。
  */
@@ -90,7 +90,7 @@ class MerchantDialogJadeFlowTest {
         every { vm.herbs } returns MutableStateFlow(emptyList())
         every { vm.seeds } returns MutableStateFlow(emptyList())
         // 真实引擎链路：玉符 0 时 deduct 失败返回 InsufficientJadeSymbols
-        coEvery { vm.purchaseMerchantRefresh() } returns MerchantRefreshResult.InsufficientJadeSymbols(0, 1)
+        coEvery { vm.merchant.purchaseMerchantRefresh() } returns MerchantRefreshResult.InsufficientJadeSymbols(0, 1)
         composeRule.setContent {
             MerchantDialog(
                 gameData = GameData(merchantRefreshChances = 0, jadeSymbols = 0),

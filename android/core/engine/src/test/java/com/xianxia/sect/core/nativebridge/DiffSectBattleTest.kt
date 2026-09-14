@@ -24,7 +24,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffSectBattleTest — AI 宗门战第三引擎跨语言差分对拍（战斗批次 D-3）。
+ * DiffSectBattleTest — AI 宗门战第三引擎跨语言差分对拍。
  *
  * 守护目标：Kotlin `AISectAttackManager.executeUnifiedAIBattle`（AI vs AI
  * 宗门战/洞天 AI 操作共用；回合内逐行动 filter 死亡列表压缩语义）与 C++

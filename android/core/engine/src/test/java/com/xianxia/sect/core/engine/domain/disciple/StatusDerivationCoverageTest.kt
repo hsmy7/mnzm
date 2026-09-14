@@ -30,7 +30,7 @@ class StatusDerivationCoverageTest {
      * - ON_MISSION：受保护状态，直接写入
      * - REFINING：受保护状态，直接写入
      */
-    private val NON_DERIVED_STATUSES = setOf(
+    private val nonDerivedStatuses = setOf(
         DiscipleStatus.DEAD,
         DiscipleStatus.REFLECTING,
         DiscipleStatus.ON_MISSION,
@@ -66,7 +66,7 @@ class StatusDerivationCoverageTest {
             .toSet()
 
         val derivedStatuses = DiscipleStatus.values()
-            .filter { it !in NON_DERIVED_STATUSES }
+            .filter { it !in nonDerivedStatuses }
             .filter { it != DiscipleStatus.IDLE }  // IDLE = else 分支
 
         val missing = derivedStatuses.filter { status ->
@@ -140,16 +140,16 @@ class StatusDerivationCoverageTest {
 
     @Test
     fun `all DiscipleStatus values are documented in statusToSlotFlag`() {
-        val documented = statusToSlotFlag.keys + NON_DERIVED_STATUSES
+        val documented = statusToSlotFlag.keys + nonDerivedStatuses
         val all = DiscipleStatus.values().toSet()
         val undocumented = all - documented
 
         assertTrue(
-            """|以下 DiscipleStatus 既不在 NON_DERIVED_STATUSES 中，也不在 statusToSlotFlag 中：
+            """|以下 DiscipleStatus 既不在 nonDerivedStatuses 中，也不在 statusToSlotFlag 中：
                |$undocumented
                |
                |请将新状态加入 statusToSlotFlag（如果是可推导状态）或
-               |NON_DERIVED_STATUSES（如果是受保护/特殊状态）。""".trimMargin(),
+               |nonDerivedStatuses（如果是受保护/特殊状态）。""".trimMargin(),
             undocumented.isEmpty()
         )
     }

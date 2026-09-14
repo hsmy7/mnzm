@@ -4,16 +4,16 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <android/native_window.h>
+#include <mutex>
 #include <vector>
 #include <atomic>
 
 // ============================================================
 // GlesBackend — Android GPU OpenGL ES 中间渲染层（Rhi.h 接口的第二实现）
 //
-// 背景（2026-09 渲染路径结构性修正）：行业降级链均为 Vulkan→GPU GLES→
-// 软件渲染(仅兜底)，而本项目此前为 Vulkan→CPU Canvas 且关闭系统硬件加速，
-// 缺失行业标配的 GPU GLES 中间层。本后端补齐该层，使 Android 降级链变为
-//   Vulkan → GPU GLES → CPU Canvas。
+// 背景：Android 降级链为
+//   Vulkan → GPU GLES → CPU Canvas（软件渲染仅兜底）。
+// 本后端承载 GPU GLES 中间层。
 //
 // 架构（与 VulkanBackend 同构，仅图形 API 不同，最大化复用上层组合逻辑）：
 //   - 单 Pipeline（固定功能）+ 单图集纹理 + 白色纹理（id=0，纯色矩形）
@@ -44,6 +44,7 @@ public:
     bool init(const RenderConfig& config, void* nativeWindow) override;
     void shutdown() override;
     bool resize(int width, int height) override;
+    RenderInitError lastInitError() const override { return m_lastInitError; }
     void beginFrame() override;
     void endFrame() override;
     bool isReady() const override { return m_ready.load(); }
@@ -71,6 +72,9 @@ private:
 
     std::atomic<bool> m_ready{false};
 
+    /** 最近一次初始化失败阶段（经 lastInitError() 在对象 delete 前收割上报） */
+    RenderInitError m_lastInitError = RenderInitError::NONE;
+
     // EGL
     EGLDisplay m_display = EGL_NO_DISPLAY;
     EGLSurface m_surface = EGL_NO_SURFACE;
@@ -92,11 +96,19 @@ private:
     /** 本帧天空渐变参数（drawBackground 传入；submitFrame 经 uniform 推给 kSkyFragSrc） */
     SkyGradientParams m_skyParams{};
 
-    // 纹理管理
-    std::vector<Tex> m_textures;
-    uint32_t m_nextTexId = 1;
+    // ── 跨线程状态契约（与 VulkanBackend::m_gpuMutex 同构，见 VulkanBackend.h
+    //    m_gpuMutex 事故史注：历史「Tile 短暂纯色」即同类缺锁）──
+    // 主线程（图集上传 JNI）与渲染线程（submitFrame/drainUploads）共享的可变状态
+    // 必须经 m_stateMutex 访问；m_textures 为渲染线程独占（drainUploads 写 / glFor 读，
+    // destroyTexture 仅入队不直接操作）。新增任何成员必须归类到三者之一：
+    // m_stateMutex 保护 / 渲染线程独占 / 初始化期独占（init/shutdown 前渲染线程未运行）。
+    std::mutex m_stateMutex;
 
-    // ★ 2026-09 线程模型修复：待上传队列（uploadTexture 在任意线程入队，
+    // 纹理管理
+    std::vector<Tex> m_textures;      // 渲染线程独占（drainUploads 写 / glFor 读）
+    uint32_t m_nextTexId = 1;         // GUARDED_BY(m_stateMutex)
+
+    // 跨线程待上传队列（uploadTexture 在任意线程入队，
     //   submitFrame 在渲染线程持上下文后真实执行 GL 上传）
     struct PendingUpload {
         uint32_t id;
@@ -104,7 +116,10 @@ private:
         int height;
         std::vector<uint8_t> pixels;
     };
-    std::vector<PendingUpload> m_pendingUploads;
+    std::vector<PendingUpload> m_pendingUploads;   // GUARDED_BY(m_stateMutex)
+    /** 待删纹理队列（destroyTexture 任意线程入队；渲染线程 drainUploads 持上下文删除——
+     *  无 EGL 上下文的线程上直接调 GL 会静默无效） */
+    std::vector<uint32_t> m_pendingDestroys;       // GUARDED_BY(m_stateMutex)
 
     // 帧绘制状态（CPU 侧暂存，submitFrame 整批上传）
     struct DrawCommand { int vertexOffset; int count; uint32_t textureId; };

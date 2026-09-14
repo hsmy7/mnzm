@@ -12,7 +12,7 @@
 // 必须经 `#include "gamecore/state/models.h"` 引入。
 
 // ============================================================
-// DiscipleStore — 弟子 SoA 列式存储（计划 v2 阶段 3：实体存储数据导向化）
+// DiscipleStore — 弟子 SoA 列式存储（实体存储数据导向化）
 //
 // 替换 `GameState::disciples: std::vector<Disciple>`（AoS）。每列一个并行
 // 数组（行序 == 弟子顺序），列访问零对象分配、缓存友好；id → 行索引

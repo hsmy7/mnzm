@@ -9,8 +9,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * ImeStateMachine 统一判定状态机测试（2026-09 IME 状态机根治，
- * docs/ime-android-system-research.md M3/M6/M9/M10）：
+ * ImeStateMachine 统一判定状态机测试
+ * （docs/ime-android-system-research.md M3/M6/M9/M10）：
  * 聚合键盘可见性（isVisible 真值）、键盘动画状态、输入对话框冻结为单一真相源。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -22,6 +22,7 @@ class ImeStateMachineTest {
         SystemBarFreezeScope.resetForTest()
         ImeVisibilityTracker.resetForTest()
         ImeAnimationTracker.resetForTest()
+        InputSessionStateMachine.resetForTest()
     }
 
     // ── isSystemBarFrozen（任一条件成立即冻结）──

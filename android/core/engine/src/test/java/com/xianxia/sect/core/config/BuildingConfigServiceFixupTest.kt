@@ -9,7 +9,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 /**
- * fixupBuildingSizes 越界钳制测试（D-14，2026-08-06）。
+ * fixupBuildingSizes 越界钳制测试。
  *
  * 尺寸变化时把坐标钳回地图界内（默认世界 128×128）：
  * - 旧档 2×2 矿场位于边缘，撑大到 4×4 时钳回界内（gridX=126 → 124）
@@ -31,7 +31,7 @@ class BuildingConfigServiceFixupTest {
 
     @Test
     fun `fixupBuildingSizes_sizeExpandAtEdge_clampCoordinatesIntoBounds`() {
-        // 旧档 2×2 矿场位于 gridX=126（×2 时代前数据），当前配置 4×4 → 撑大后越界，钳回 124
+        // 旧档 2×2 矿场位于 gridX=126，当前配置 4×4 → 撑大后越界，钳回 124
         val service = newService()
         val buildings = listOf(
             GridBuildingData(displayName = "灵矿场", gridX = 126, gridY = 100, width = 2, height = 2)

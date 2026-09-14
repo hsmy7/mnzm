@@ -8,7 +8,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * C++/Kotlin 图集布局同步守卫测试（2026-08-10 新增）。
+ * C++/Kotlin 图集布局同步守卫测试。
  *
  * Kotlin 侧 `SpriteAtlasDef.kt` 是图集布局的唯一权威（SpriteAtlasDef.TileType/BUILDING_NAMES/
  * SpriteAtlasDef.CropStage 定义像素位置），C++ 侧 `TextureAtlas.h` 的 MAP_SPRITES 必须逐项一致——
@@ -27,9 +27,13 @@ class AtlasLayoutSyncTest {
     // 瓦片名称映射（C++ 名称 → Kotlin TileType）
     private val tileNameMap: Map<String, SpriteAtlasDef.TileType> = mapOf(
         "ground_tile" to SpriteAtlasDef.TileType.GROUND,
-        "grass_small" to SpriteAtlasDef.TileType.GRASS_SMALL,
-        "grass_medium" to SpriteAtlasDef.TileType.GRASS_MEDIUM,
-        "grass_large" to SpriteAtlasDef.TileType.GRASS_LARGE,
+        "grass1" to SpriteAtlasDef.TileType.GRASS1,
+        "grass2" to SpriteAtlasDef.TileType.GRASS2,
+        "grass3" to SpriteAtlasDef.TileType.GRASS3,
+        "grass4" to SpriteAtlasDef.TileType.GRASS4,
+        "stone1" to SpriteAtlasDef.TileType.STONE1,
+        "stone2" to SpriteAtlasDef.TileType.STONE2,
+        "stone3" to SpriteAtlasDef.TileType.STONE3,
         "tree1" to SpriteAtlasDef.TileType.TREE1,
         "tree2" to SpriteAtlasDef.TileType.TREE2,
     )
@@ -39,7 +43,7 @@ class AtlasLayoutSyncTest {
         "sect_gate" to SpriteAtlasDef.STRUCTURES[0],
     )
 
-    // 作物阶段名称映射（C++ 名称 → Kotlin CropStage，WP6）
+    // 作物阶段名称映射（C++ 名称 → Kotlin CropStage）
     private val cropNameMap: Map<String, SpriteAtlasDef.CropStage> = mapOf(
         "crop_seedling" to SpriteAtlasDef.CropStage.SEEDLING,
         "crop_growing" to SpriteAtlasDef.CropStage.GROWING,
@@ -77,10 +81,11 @@ class AtlasLayoutSyncTest {
             )
         }
 
-        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构/非云层/非道路）必须是 BUILDING_NAMES 中的成员（无孤儿）
+        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构/非云层/非道路/非边缘）必须是 BUILDING_NAMES 中的成员（无孤儿）
         val kotlinBuildingNames = SpriteAtlasDef.BUILDING_NAMES.toSet()
         val knownNames = tileNameMap.keys + cropNameMap.keys +
-            structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys
+            structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys +
+            SpriteAtlasDef.BUILDING_NAMES
         val orphanBuildings = cpp
             .filter { it.name !in knownNames }
             .filter { it.name !in kotlinBuildingNames }
@@ -249,7 +254,7 @@ class AtlasLayoutSyncTest {
      * 格式：`{ "name", x, y, w, h },`，单行格式正则提取可靠。
      */
     private fun parseMapSprites(): List<CppEntry> {
-        // 2026-08-13 起 TextureAtlas.h 为 build-atlas.mjs codegen 产物（不再手工维护于 src/main/cpp）
+        // TextureAtlas.h 为 build-atlas.mjs codegen 产物（勿手工编辑）
         val headerFile = File("build/generated/sprite/TextureAtlas.h")
         assertTrue(
             "TextureAtlas.h 不存在：${headerFile.absolutePath}——请先运行 codegen（generateSpriteCode 任务）",

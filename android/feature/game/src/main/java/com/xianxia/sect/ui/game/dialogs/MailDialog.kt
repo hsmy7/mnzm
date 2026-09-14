@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.dialogs
 
 import com.xianxia.sect.core.util.GameUtils
@@ -88,7 +88,7 @@ fun MailDialog(
                     onMailClick = { mail ->
                         selectedMailId = mail.id
                         if (!mail.isRead) {
-                            viewModel.markMailAsRead(mail.id)
+                            viewModel.mail.markMailAsRead(mail.id)
                         }
                     },
                     onCapacityWarning = { capacityWarning = it },
@@ -107,12 +107,12 @@ fun MailDialog(
 
     LaunchedEffect(mailRewardCards) {
         if (mailRewardCards.isNotEmpty()) {
-            viewModel.enqueueMailRewardCards()
+            viewModel.mail.enqueueMailRewardCards()
         }
     }
 }
 
-/** 邮件标题栏 + 主内容行（MailDialog 拆分） */
+/** 邮件标题栏 + 主内容行 */
 @Composable
 private fun ColumnScope.MailDialogBody(
     mails: List<MailEntity>,
@@ -167,7 +167,7 @@ private fun ColumnScope.MailDialogBody(
     }
 }
 
-/** 左侧邮件列表面板（MailDialog 拆分） */
+/** 左侧邮件列表面板 */
 @Composable
 private fun RowScope.MailListPane(
     mails: List<MailEntity>,
@@ -196,18 +196,18 @@ private fun RowScope.MailListPane(
         ) {
             GameButton(
                 text = "删除已读",
-                onClick = { viewModel.deleteAllReadAndClaimedMails() }
+                onClick = { viewModel.mail.deleteAllReadAndClaimedMails() }
             )
             Spacer(modifier = Modifier.width(8.dp))
             GameButton(
                 text = "一键已读",
-                onClick = { viewModel.markAllMailsAsRead() }
+                onClick = { viewModel.mail.markAllMailsAsRead() }
             )
         }
     }
 }
 
-/** 邮件列表或空态提示（MailDialog 拆分） */
+/** 邮件列表或空态提示 */
 @Composable
 private fun ColumnScope.MailListContent(
     mails: List<MailEntity>,
@@ -233,7 +233,8 @@ private fun ColumnScope.MailListContent(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            items(mails, key = { mail -> mail.id.ifEmpty { "mail_${mail.hashCode()}" } }, contentType = { "mail" }) { mail ->
+            items(mails, key = { mail -> mail.id.ifEmpty { "mail_${mail.hashCode()}" } },
+                contentType = { "mail" }) { mail ->
                 MailCard(
                     mail = mail,
                     isSelected = mail.id == selectedMailId,
@@ -244,7 +245,7 @@ private fun ColumnScope.MailListContent(
     }
 }
 
-/** 右侧邮件详情面板（MailDialog 拆分）：详情或空态 + 领取回调（含容量警告上报） */
+/** 右侧邮件详情面板：详情或空态 + 领取回调（含容量警告上报） */
 @Composable
 private fun RowScope.MailDetailPane(
     selectedMail: MailEntity?,
@@ -262,7 +263,7 @@ private fun RowScope.MailDetailPane(
                 mail = selectedMail,
                 viewModel = viewModel,
                 onClaim = {
-                    viewModel.claimMailAttachment(selectedMail.id) { result ->
+                    viewModel.mail.claimMailAttachment(selectedMail.id) { result ->
                         when (result) {
                             is ClaimResult.Success -> {
                                 // 奖励卡片通过 mailRewardCards / LaunchedEffect 流程处理
@@ -303,7 +304,7 @@ private fun RowScope.MailDetailPane(
     }
 }
 
-/** 容量不足/领取失败提示弹窗（MailDialog 拆分） */
+/** 容量不足/领取失败提示弹窗 */
 @Composable
 private fun MailCapacityWarningDialog(message: String, onDismiss: () -> Unit) {
     StandardPromptDialog(
@@ -440,7 +441,7 @@ private fun MailDetailPanel(
     }
 }
 
-/** 邮件详情标题区（MailDetailPanel 拆分）：标题 + 发件人 */
+/** 邮件详情标题区：标题 + 发件人 */
 @Composable
 private fun MailDetailHeader(mail: MailEntity) {
     Column(modifier = Modifier.padding(8.dp)) {
@@ -449,7 +450,7 @@ private fun MailDetailHeader(mail: MailEntity) {
     }
 }
 
-/** 邮件内容 + 附件区（MailDetailPanel 拆分）：滚动区，附件按领取态分流渲染 */
+/** 邮件内容 + 附件区：滚动区，附件按领取态分流渲染 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.MailAttachmentArea(
@@ -500,7 +501,7 @@ private fun ColumnScope.MailAttachmentArea(
     }
 }
 
-/** 未领取附件物品卡片（MailDetailPanel 拆分）：构造 ItemCardData 并复用 UnifiedItemCard */
+/** 未领取附件物品卡片：构造 ItemCardData 并复用 UnifiedItemCard */
 @Composable
 private fun MailAttachmentItemCard(
     attachment: MailAttachment,
@@ -520,8 +521,8 @@ private fun MailAttachmentItemCard(
  *
  * 类型标志必须与 [ItemCardData] 的精灵解析分支一一对应（参照
  * RewardCardItem.toItemCardData / WarehouseGridCard）：
- * - 功法（manual）→ isManual=true，解析 manual_$rarity 精灵图（修复：此前遗漏
- *   该标志导致功法落 equipment 分支查不到 → 显示"敬请期待"）
+ * - 功法（manual）→ isManual=true，解析 manual_$rarity 精灵图（缺该标志会
+ *   落 equipment 分支查不到 → 显示"敬请期待"）
  * - 弟子（disciple）→ isDisciple=true，解析通用弟子头像 disciple_portrait
  * - 灵石（spiritStones）→ 按名称解析品阶（"上品灵石"→HIGH 等，名称不含品阶
  *   词时默认 LOW），与发放侧 MailService 的品阶解析保持一致，杜绝显示与
@@ -547,7 +548,7 @@ internal fun mailAttachmentToItemCardData(attachment: MailAttachment): ItemCardD
     isDisciple = attachment.type == "disciple"
 )
 
-/** 领取按钮区（MailDetailPanel 拆分） */
+/** 领取按钮区 */
 @Composable
 private fun MailClaimButton(onClaim: () -> Unit) {
     HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
@@ -561,7 +562,7 @@ private fun MailClaimButton(onClaim: () -> Unit) {
     }
 }
 
-/** 附件详情弹窗（MailDetailPanel 拆分） */
+/** 附件详情弹窗 */
 @Composable
 private fun MailAttachmentDetailDialog(
     attachment: MailAttachment,

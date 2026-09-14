@@ -33,26 +33,20 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * 进入宗门转场覆盖层（2026-08-16 独立文件抽取；2026-08-17 两次修复左右留空）。
+ * 进入宗门转场覆盖层。
  *
  * 用**平台 Dialog 窗口**承载（与全项目所有游戏弹窗一致），置于世界地图之上，
  * 进入宗门时世界地图关闭不再露出底层地图（消除"先闪地图再出转场"）：
  * - `usePlatformDefaultWidth=false` + `decorFitsSystemWindows=false` 保证边到边全屏；
  * - [DialogSystemBarGuard] 隐藏 Dialog 窗口自身的系统栏（Dialog Window 不继承
  *   GameActivity 的 hideSystemBars()，不挂守卫则转场时状态栏/导航栏重新出现，
- *   覆盖层不是真全屏——2026-08-16 修复）。
+ *   覆盖层不是真全屏）。
  *
- * 视频铺满策略（2026-08-17 最终修复"左右两侧大量留空"）：此前用 [android.widget.VideoView]
- * （内部 SurfaceView）+ `MediaPlayer.setVideoScalingMode(WITH_CROPPING)` center-crop。
- * 该组合在部分 OEM ROM 上存在两个不稳定点——MediaPlayer 缩放模式被忽略、以及
- * SurfaceView 的 surface 尺寸与视图尺寸不同步，导致视频以原始宽高比 fit 显示，
- * 横屏下左右出现大片空隙（与视频源 4:3/16:9 无关，两种素材均复现）。
- *
- * 现改为不依赖上述机制的确定性方案：**TextureView + MediaPlayer + 手动 cover 等比变换**。
+ * 视频铺满策略：**TextureView + MediaPlayer + 手动 cover 等比变换**。
  * - TextureView 铺满 Dialog 窗口（[fillMaxSize]），视频经 MediaPlayer 渲染进其纹理；
  * - surface 尺寸/视频尺寸已知后，按 [computeCoverScale] 对 TextureView 施加等比放大
  *   并以中心为轴，使视频内容至少撑满容器（父层 [clipToBounds] 裁掉溢出）——
- *   纯视图层数学变换，与 SurfaceView 尺寸同步、MediaPlayer 缩放模式实现均无关，
+ *   纯视图层数学变换，不依赖 SurfaceView 尺寸同步与 MediaPlayer 缩放模式，
  *   任何设备都必然铺满。
  *
  * 中央为转圈 + 「加载资源中…」（转圈在文本上方、字号 12sp）。关闭时机由

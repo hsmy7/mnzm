@@ -16,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * GameStateStoreReverseDirtyTest — 反向增量通道事务级捕获（计划 v2 阶段 3）。
+ * GameStateStoreReverseDirtyTest — 反向增量通道事务级捕获。
  *
  * 覆盖：弟子列写捕获 / gameData 引用捕获 / 集合引用捕获（upsert+removed）/
  * 多事务窗口累积 / consume 清空 / reset 清窗 / remove 记录。
@@ -119,5 +119,51 @@ class GameStateStoreReverseDirtyTest {
         stateStore.update { gameData = gameData.copy(spiritStones = 1) }
         stateStore.resetReverseAccumulator()
         assertNull(stateStore.consumeReverseDirty())
+    }
+
+    @Test
+    fun `closed collection is not captured and its write is detected`() {
+        // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（省 O(n) 差集与实体序列化）；
+        // 关闭后仍有 Kotlin 写者 = 回导缺口，必须可从诊断面观测
+        ReverseChannelPolicy.overrideClosedUnitsForTest(
+            listOf(
+                ReverseChannelPolicy.ClosedUnit(
+                    domain = ReverseChannelPolicy.Domain.INVENTORY,
+                    kind = ReverseChannelPolicy.Kind.COLLECTION,
+                    name = "pills",
+                )
+            )
+        )
+        try {
+            stateStore.update { pills.add(Pill(id = "p1", name = "丹", quantity = 1)) }
+            assertNull("关闭集合的写入不得进入捕获快照", stateStore.consumeReverseDirty())
+            assertTrue(
+                "关闭集合被写入必须被检测",
+                ReverseChannelPolicy.closedWriteRecordsSnapshot().any { it.contains("pills") }
+            )
+        } finally {
+            ReverseChannelPolicy.resetSwitches()
+        }
+    }
+
+    @Test
+    fun `reopened domain restores capture`() {
+        ReverseChannelPolicy.overrideClosedUnitsForTest(
+            listOf(
+                ReverseChannelPolicy.ClosedUnit(
+                    domain = ReverseChannelPolicy.Domain.INVENTORY,
+                    kind = ReverseChannelPolicy.Kind.COLLECTION,
+                    name = "pills",
+                )
+            )
+        )
+        try {
+            ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.INVENTORY)
+            stateStore.update { pills.add(Pill(id = "p1", name = "丹", quantity = 1)) }
+            val snap = stateStore.consumeReverseDirty()
+            assertTrue("回滚该域后集合捕获必须恢复", snap?.collections?.containsKey("pills") == true)
+        } finally {
+            ReverseChannelPolicy.resetSwitches()
+        }
     }
 }

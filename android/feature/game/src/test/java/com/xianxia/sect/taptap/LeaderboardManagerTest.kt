@@ -21,7 +21,7 @@ import org.robolectric.RobolectricTestRunner
  * LeaderboardManager 测试：节流上报与榜单拉取编排。
  *
  * Robolectric 提供真实 android.util.Log 实现（普通 JVM 测试中 Log 抛
- * "not mocked"）；存储依赖内存 Fake [KeyValueStore]（D-29 接口抽象，
+ * "not mocked"）；存储依赖内存 Fake [KeyValueStore]（KV 接口抽象，
  * MMKV native 库在 Robolectric 沙箱不可用），SDK 依赖经
  * LeaderboardCloudApi 接口 fake，无需真实 TapTap 环境。
  */

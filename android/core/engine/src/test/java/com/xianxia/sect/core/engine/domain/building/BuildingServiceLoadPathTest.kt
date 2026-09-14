@@ -37,13 +37,15 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.engine.service.processAutoForge
+import com.xianxia.sect.core.engine.service.processBuildingProduction
 
 /**
- * BuildingService 读档/惰性收获路径测试（2026-08-09 对抗性审查修复回归）。
+ * BuildingService 读档/惰性收获路径测试。
  *
  * 覆盖读档路径与月变路径的行为一致性：
  * - 炼丹读档收获补职业晋升与引导/年度统计（原缺失——正常玩家读档即丢一次晋升计数）
- * - 锻造读档从 100% 产出改为真实成功率判定（成功才产出 + 晋升，失败计数照常）
+ * - 锻造读档按真实成功率判定产出（成功才产出 + 晋升，失败计数照常）
  * - 配方无效（数据损坏）时不结算晋升（recipeTier 兜底 0）
  * - ForgeSystem 不再重复触发生产结算（双结算修复）
  */

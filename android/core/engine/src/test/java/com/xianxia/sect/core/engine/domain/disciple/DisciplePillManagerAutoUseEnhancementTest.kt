@@ -18,12 +18,12 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 2026-08-31 增强：自动服用丹药的服用门槛与效果（C1/C2/C3/A2）。
+ * 自动服用丹药的服用门槛与效果。
  *
- * - C1：满血/满蓝不自动服用治疗/回蓝丹（canUsePill 门槛）
- * - C2：战斗临时丹不自动服用（保留手动/战前结算）
- * - C3：满修为不浪费修为丹、全功法满级不浪费功法经验丹
- * - A2：孕养度丹（nurtureAdd）经回调均分到已装备装备实例
+ * - 满血/满蓝不自动服用治疗/回蓝丹（canUsePill 门槛）
+ * - 战斗临时丹不自动服用（保留手动/战前结算）
+ * - 满修为不浪费修为丹、全功法满级不浪费功法经验丹
+ * - 孕养度丹（nurtureAdd）经回调均分到已装备装备实例
  */
 class DisciplePillManagerAutoUseEnhancementTest {
 
@@ -168,7 +168,7 @@ class DisciplePillManagerAutoUseEnhancementTest {
 
     @Test
     fun `C3 - 满修为修为丹跳过 不满则服用`() {
-        val full = disciple(bag = listOf(cultivationPill()), cultivation = 98.0)
+        val full = disciple(bag = listOf(cultivationPill()), cultivation = 490.0)
         val fullResult = pillManager.processAutoUsePills(full)
         assertEquals("满修为修为丹应跳过", 1, fullResult.disciple.equipment.storageBagItems.size)
 

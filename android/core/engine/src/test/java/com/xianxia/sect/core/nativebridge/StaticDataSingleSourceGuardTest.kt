@@ -7,7 +7,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * StaticDataSingleSourceGuardTest — 静态数据单一源守卫（计划 v2 阶段 3 / T-CPP-2）。
+ * StaticDataSingleSourceGuardTest — 静态数据单一源守卫。
  *
  * 守护目标：`scripts/data/`（中性源，唯一权威）下各 `*_db_sample.json` 与
  * 生成器产出的测试快照（android/core/engine/src/test/resources/templates 下同名文件）

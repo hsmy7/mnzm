@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.detekt)
 }
 
-// 2026-08-14：Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+// Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
 kover {
     if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
         disable()
@@ -36,10 +36,10 @@ android {
         }
     }
 
-    // 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
+    // 显式单 fork——共享静态状态跨测试类并行污染
     tasks.withType(Test).configureEach {
         maxParallelForks = 1
-        // 2026-08-14：StorageSystemBenchmark 门控——默认跳过，-Pbenchmark.enabled=true 启用
+        // StorageSystemBenchmark 门控——默认跳过，-Pbenchmark.enabled=true 启用
         systemProperty 'benchmark.enabled', project.findProperty('benchmark.enabled') ?: 'false'
     }
 
@@ -103,7 +103,7 @@ dependencies {
     testImplementation libs.kotlin.reflect
 }
 
-// 2026-08 债务根治：模块特有编译器参数（SDK/Java/Kotlin 公共配置已收编 xianxia.android convention）
+// 模块特有编译器参数（SDK/Java/Kotlin 公共配置由 xianxia.android convention 提供）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']

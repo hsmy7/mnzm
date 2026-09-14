@@ -12,7 +12,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * TemplateRegistryGuardTest — 静态数据守卫（批次 2）。
+ * TemplateRegistryGuardTest — 静态数据守卫。
  *
  * 守护目标：生成器提取的装备表快照（gamecore/test/data/equipment_db_sample.json，
  * 由 scripts/gen-templates.mjs 生成）与 Kotlin EquipmentDatabase **实时数据**一致。

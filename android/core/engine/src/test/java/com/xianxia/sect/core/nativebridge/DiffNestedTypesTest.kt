@@ -13,7 +13,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffNestedTypesTest — 低频嵌套类型快照往返对拍（批次 1 剩余验收核心）。
+ * DiffNestedTypesTest — 低频嵌套类型快照往返对拍。
  *
  * 守护目标：C++ models.h 新增嵌套类型（血炼三件套/功法精通/矿脉槽位）与
  * Kotlin @Serializable 模型 JSON 快照**逐字段一致**（导出/导入往返）。

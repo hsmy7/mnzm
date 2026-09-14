@@ -13,10 +13,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Android 音频实现（docs/architecture.md G1/A1 根治：core 层接口 + app 层实现）。
+ * Android 音频实现（core 层 [AudioPlayerFacade] 接口的 app 层实现）。
  *
- * 由原 core/engine `AudioEngine`（SoundPool + MediaPlayer）逻辑平移而来——
- * core:engine 恢复零 Android 依赖（`import android.media.*` 清零），
+ * core:engine 模块保持零 Android 依赖；
  * iOS 对等实现映射 AVAudioEngine/AVAudioPlayer。
  *
  * ### 音效 (SFX)
@@ -54,6 +53,15 @@ class AndroidAudioPlayer @Inject constructor(
     /** name → SoundPool soundId */
     private val soundCache = ConcurrentHashMap<String, Int>()
 
+    /**
+     * 已完成异步解码的 soundId 集合。
+     * SoundPool.load 是异步解码——解码完成前 play() 部分_ROM 会打
+     * "sample X not READY" 错误日志且无声。此集合让 playSound 只对真正
+     * 就绪的音效发声（与既有静默丢音行为一致，但消除了误报日志）。
+     */
+    private val loadedSoundIds: MutableSet<Int> =
+        java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap())
+
     // ==================== 生命周期 ====================
 
     /**
@@ -62,7 +70,7 @@ class AndroidAudioPlayer @Inject constructor(
      * 在游戏资源预加载阶段调用，在 UI 线程或后台线程均可。
      * 可重复调用（幂等），但通常不推荐重复释放再创建。
      */
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun init() {
         if (initialized) return
@@ -75,6 +83,9 @@ class AndroidAudioPlayer @Inject constructor(
                 .setMaxStreams(MAX_STREAMS)
                 .setAudioAttributes(attrs)
                 .build()
+            soundPool?.setOnLoadCompleteListener { _, sampleId, status ->
+                if (status == 0) loadedSoundIds.add(sampleId)
+            }
             initialized = true
             Log.d(TAG, "AndroidAudioPlayer initialized (maxStreams=$MAX_STREAMS)")
         } catch (e: Exception) {
@@ -94,6 +105,7 @@ class AndroidAudioPlayer @Inject constructor(
         soundPool?.release()
         soundPool = null
         soundCache.clear()
+        loadedSoundIds.clear()
         bgmResId = 0
         initialized = false
         Log.d(TAG, "AndroidAudioPlayer released")
@@ -109,8 +121,7 @@ class AndroidAudioPlayer @Inject constructor(
      * @param name 音效名称，后续通过 [playSound] 以此名称播放
      * @param resId Android drawable/raw 资源 ID
      */
-    // SDK 边界全量兜底(与原实现一致)
-    // 拆分搬移:多出口与原函数一致
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught", "ReturnCount")
     override fun preloadSound(name: String, resId: Int) {
         if (!initialized) return
@@ -142,29 +153,40 @@ class AndroidAudioPlayer @Inject constructor(
      * 播放预加载过的音效。
      * @param name 预加载时指定的音效名称
      */
-    // 拆分搬移:多出口与原函数一致
     @Suppress("ReturnCount")
     override fun playSound(name: String) {
         if (!initialized || !audioConfig.soundEnabled) return
         val pool = soundPool ?: return
         val soundId = soundCache[name] ?: return
+        // 异步解码未完成的音效静默丢弃（此时 play 本就无声；
+        // 显式拦截可避免部分 ROM 的 "sample not READY" 错误日志）
+        if (soundId !in loadedSoundIds) return
         pool.play(soundId, 1f, 1f, 1, 0, 1f)
     }
 
     // ==================== 背景音乐控制 ====================
+
+    /** BGM 异步准备中标志（prepareAsync 完成前拦截重复创建/启动） */
+    @Volatile
+    private var bgmPreparing = false
 
     /**
      * 开始/恢复播放背景音乐。
      *
      * 仅在 [AudioConfig.musicEnabled] 为 true 时实际播放。
      * 如果已有 BGM 在播放，不会重复创建（幂等）。
+     *
+     * BGM 经 `prepareAsync` 异步准备 + OnPreparedListener 自动 start，
+     * 避免在调用线程（主线程）同步解码——bgm_main.mp3（1.5MB）同步 prepare
+     * 需数百 ms，是主线程卡顿点；
+     * prepared 前的重复 playBGM/resumeBGM 由 [bgmPreparing] 拦截。
      */
-    // SDK 边界全量兜底(与原实现一致)
-    // 拆分搬移:多出口与原函数一致
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught", "ReturnCount")
     override fun playBGM() {
         if (!audioConfig.musicEnabled) return
         if (bgmPlayer?.isPlaying == true) return
+        if (bgmPreparing) return  // 异步准备中——prepared 回调自动 start
         if (bgmPlayer != null) {
             try {
                 bgmPlayer?.start()
@@ -176,22 +198,73 @@ class AndroidAudioPlayer @Inject constructor(
             }
         }
         if (bgmResId == 0) return
+        val player = createBgmPlayer() ?: return
+        bgmPreparing = true
+        bgmPlayer = player
         try {
-            bgmPlayer = MediaPlayer.create(context, bgmResId).apply {
-                setVolume(1f, 1f)
-                isLooping = true
-                start()
-            }
-            Log.d(TAG, "BGM started (resId=$bgmResId)")
+            val afd = context.resources.openRawResourceFd(bgmResId)
+            player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            afd.close()
+            player.prepareAsync()
+            Log.d(TAG, "BGM async prepare started (resId=$bgmResId)")
         } catch (e: Exception) {
+            bgmPreparing = false
+            if (bgmPlayer === player) bgmPlayer = null
+            player.release()
             Log.w(TAG, "Failed to create/start MediaPlayer", e)
         }
     }
 
+    /**
+     * 构建异步准备的 BGM 播放器（prepared 后自动 start；被 stop/release 取代时
+     * 就地释放）。纯构建不触发解码——解码由 [MediaPlayer.setDataSource] +
+     * prepareAsync 在系统媒体线程完成。
+     */
+    // SDK 边界全量兜底
+    @Suppress("TooGenericExceptionCaught")
+    private fun createBgmPlayer(): MediaPlayer? = try {
+        MediaPlayer().apply {
+            setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_GAME)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            setVolume(1f, 1f)
+            isLooping = true
+            setOnPreparedListener { mp ->
+                bgmPreparing = false
+                if (mp !== bgmPlayer) {
+                    mp.release()
+                    return@setOnPreparedListener
+                }
+                if (audioConfig.musicEnabled) {
+                    try {
+                        mp.start()
+                        Log.d(TAG, "BGM prepared & started (resId=$bgmResId)")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "BGM start after prepare failed", e)
+                    }
+                }
+            }
+            setOnErrorListener { mp, what, extra ->
+                Log.w(TAG, "BGM MediaPlayer error what=$what extra=$extra")
+                bgmPreparing = false
+                if (mp === bgmPlayer) bgmPlayer = null
+                mp.release()
+                true
+            }
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Failed to create MediaPlayer", e)
+        null
+    }
+
     /** 停止并释放背景音乐。 */
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun stopBGM() {
+        bgmPreparing = false
         try {
             bgmPlayer?.let {
                 if (it.isPlaying) it.stop()
@@ -206,7 +279,7 @@ class AndroidAudioPlayer @Inject constructor(
     }
 
     /** 暂停背景音乐（不释放资源）。 */
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun pauseBGM() {
         try {
@@ -220,10 +293,11 @@ class AndroidAudioPlayer @Inject constructor(
     }
 
     /** 恢复暂停的背景音乐。 */
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun resumeBGM() {
         if (!audioConfig.musicEnabled) return
+        if (bgmPreparing) return  // 准备中——prepared 回调自动 start
         try {
             bgmPlayer?.let {
                 if (!it.isPlaying) it.start()

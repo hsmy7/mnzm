@@ -55,7 +55,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 每宗独立地图 + 进入宗门转场测试（2026-08-16）。
+ * 每宗独立地图 + 进入宗门转场测试。
  *
  * - [deriveSectSeed]：主宗复用 baseSeed；被占宗门派生确定性且各宗不同的种子
  * - [buildSectMap]：同种子产出同一地图、不同种子产出不同地图、尺寸正确
@@ -163,7 +163,7 @@ class GameViewModelSectMapTest {
         val m1 = buildSectMap(seed)
         val m2 = buildSectMap(seed)
         assertEquals("尺寸应为 128×128", 128, m1.worldWidthCells)
-        assertTrue("同种子地图必须完全一致", m1.rawTileData.contentDeepEquals(m2.rawTileData))
+        assertTrue("同种子地图必须完全一致", m1.flatTileData.contentEquals(m2.flatTileData))
         assertTrue("flatTileData 长度应为 128×128", m1.flatTileData.size == 128 * 128)
     }
 
@@ -173,7 +173,7 @@ class GameViewModelSectMapTest {
         val captured = buildSectMap(deriveSectSeed(42, "sect_a"))
         assertFalse(
             "被占宗门底图应与主宗不同（否则每宗一图无意义）",
-            main.rawTileData.contentDeepEquals(captured.rawTileData)
+            main.flatTileData.contentEquals(captured.flatTileData)
         )
     }
 
@@ -209,7 +209,7 @@ class GameViewModelSectMapTest {
         assertEquals("被占宗门状态 sectId 应正确", "sect_a", capturedState!!.sectId)
         assertFalse(
             "切到被占宗门后底图应更换",
-            mainState.map.rawTileData.contentDeepEquals(capturedState.map.rawTileData)
+            mainState.map.flatTileData.contentEquals(capturedState.map.flatTileData)
         )
     }
 

@@ -9,13 +9,13 @@ namespace gamecore::data {
 namespace {
 
 // ============================================================
-// 灵草/种子静态表守卫测试（计划 v2 阶段 3 补齐预存缺口）
+// 灵草/种子静态表守卫测试（补齐预存缺口）
 //
 // 守护目标：C++ 灵草/种子表（herb_db.h，由 scripts/gen-templates.mjs 从
 // scripts/data/herb_db_sample.json 生成）抽样断言代表性条目；数量断言
 // 全覆盖。Kotlin 侧守卫见 HerbRegistryGuardTest（快照 ↔ Kotlin Registry）。
 //
-// 背景：architecture.md T-CPP-2 原文称"双端守卫已覆盖 6 类"，实际灵草/种子
+// 背景：architecture.md 原文称"双端守卫已覆盖 6 类"，实际灵草/种子
 // 双端均无守卫——本测试补齐 C++ 侧（Kotlin 侧同步新增 HerbRegistryGuardTest）。
 // ============================================================
 

@@ -90,7 +90,7 @@ fun GuideDialog(
     }
 }
 
-/** 三栏展示数据（GuideDialog 拆分） */
+/** 三栏展示数据 */
 private data class GuideDisplayData(
     val allTasks: List<GuideTask>,
     val claimedRewardIds: Set<Int>,
@@ -100,7 +100,7 @@ private data class GuideDisplayData(
     val discipleTables: DiscipleTables?
 )
 
-/** 顶部栏（GuideDialog 拆分）：标题 + 关闭按钮 */
+/** 顶部栏：标题 + 关闭按钮 */
 @Composable
 private fun GuideHeader(onDismiss: () -> Unit) {
     Row(
@@ -121,7 +121,7 @@ private fun GuideHeader(onDismiss: () -> Unit) {
     }
 }
 
-/** 三栏内容区（GuideDialog 拆分）：任务列表 + 任务详情 + 奖励 */
+/** 三栏内容区：任务列表 + 任务详情 + 奖励 */
 @Composable
 private fun ColumnScope.GuideContentRow(
     display: GuideDisplayData,
@@ -271,7 +271,7 @@ private fun TaskDetailColumn(
     }
 }
 
-/** 任务描述区（TaskDetailColumn 拆分）：上 50% 描述文本 */
+/** 任务描述区：上 50% 描述文本 */
 @Composable
 private fun ColumnScope.TaskDescriptionArea(text: String) {
     Box(
@@ -290,7 +290,7 @@ private fun ColumnScope.TaskDescriptionArea(text: String) {
     }
 }
 
-/** 条件进度列表（TaskDetailColumn 拆分）：下 50% 条件清单 */
+/** 条件进度列表：下 50% 条件清单 */
 @Composable
 private fun ColumnScope.TaskConditionsColumn(
     conditions: List<GuideCondition>,

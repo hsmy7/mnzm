@@ -39,6 +39,12 @@ import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.game.GameViewModel
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.game.delegate.addAffix
+import com.xianxia.sect.ui.game.delegate.addPhysique
+import com.xianxia.sect.ui.game.delegate.addTalent
+import com.xianxia.sect.ui.game.delegate.confirmAddAffix
+import com.xianxia.sect.ui.game.delegate.confirmAddPhysique
+import com.xianxia.sect.ui.game.delegate.confirmAddTalent
 
 /** 玉符不足提示文案（对齐洗炼"玉符不足，无法洗炼"的固定文案语义） */
 private const val INSUFFICIENT_JADE_TEXT = "玉符不足，无法新增"
@@ -59,9 +65,9 @@ private suspend fun GameViewModel.addByType(
     id: String,
     type: TraitWashType
 ): TraitAddResult = when (type) {
-    TraitWashType.TALENT -> addTalent(id)
-    TraitWashType.PHYSIQUE -> addPhysique(id)
-    TraitWashType.AFFIX -> addAffix(id)
+    TraitWashType.TALENT -> disciple.addTalent(id)
+    TraitWashType.PHYSIQUE -> disciple.addPhysique(id)
+    TraitWashType.AFFIX -> disciple.addAffix(id)
 }
 
 /** 按类型分发确认新增请求 */
@@ -70,9 +76,9 @@ private suspend fun GameViewModel.confirmAddByType(
     type: TraitWashType,
     newId: String
 ): TraitAddConfirmResult = when (type) {
-    TraitWashType.TALENT -> confirmAddTalent(id, newId)
-    TraitWashType.PHYSIQUE -> confirmAddPhysique(id, newId)
-    TraitWashType.AFFIX -> confirmAddAffix(id, newId)
+    TraitWashType.TALENT -> disciple.confirmAddTalent(id, newId)
+    TraitWashType.PHYSIQUE -> disciple.confirmAddPhysique(id, newId)
+    TraitWashType.AFFIX -> disciple.confirmAddAffix(id, newId)
 }
 
 /**
@@ -143,7 +149,7 @@ private fun TraitAddContent(
     val jadeInsufficient = jadeSymbols < TraitAdd.JADE_COST
 
     // 同帧连点防重入：adding 是 Compose 状态，同帧内第二次点击读旧值 false → 双扣玉符；
-    // AtomicBoolean compareAndSet 立即生效不等重组（对抗性审查教训，同洗炼弹窗）
+    // AtomicBoolean compareAndSet 立即生效不等重组（同洗炼弹窗）
     val addInFlight = remember { AtomicBoolean(false) }
 
     fun onConsumeClick() {

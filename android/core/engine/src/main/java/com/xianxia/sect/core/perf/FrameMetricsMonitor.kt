@@ -20,7 +20,7 @@ data class FrameMetricsEvent(
 /**
  * 帧指标监控 — 卡顿判定与统计聚合（引擎侧，零 Android 依赖）。
  *
- * 平台能力接口化（计划 v2 批 8-1）：Window/FrameMetrics 采集经
+ * 平台能力接口化：Window/FrameMetrics 采集经
  * [FrameMetricsSession] 端口注入（app 层 WindowFrameMetricsSession 实现），
  * 本类只消费纳秒采样做卡顿分类与统计。
  */
@@ -43,6 +43,7 @@ class FrameMetricsMonitor @Inject constructor() {
     private val severeJankFrames = AtomicLong(0)
     private val totalDurationNs = AtomicLong(0)
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun startMonitoring(session: FrameMetricsSession) {
         if (isMonitoring) return
         try {
@@ -55,6 +56,7 @@ class FrameMetricsMonitor @Inject constructor() {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun stopMonitoring() {
         val session = activeSession
         if (!isMonitoring || session == null) return
@@ -95,13 +97,18 @@ class FrameMetricsMonitor @Inject constructor() {
     }
 
     private val getStatsSummary: String
-        get() = "frames=${totalFrames.get()}, jank=${jankFrames.get()}(${if (totalFrames.get() > 0) jankFrames.get() * 100 / totalFrames.get() else 0}%), severe=${severeJankFrames.get()}"
+        get() =
+            "frames=${totalFrames.get()}, " +
+                "jank=${jankFrames.get()}" +
+                    "(${if (totalFrames.get() > 0) jankFrames.get() * 100 / totalFrames.get() else 0}%), " +
+                        "severe=${severeJankFrames.get()}"
 
     fun getStats(): FrameMetricsStats = FrameMetricsStats(
         totalFrames = totalFrames.get(),
         jankFrames = jankFrames.get(),
         severeJankFrames = severeJankFrames.get(),
-        averageFrameTimeMs = if (totalFrames.get() > 0) totalDurationNs.get() / totalFrames.get() / 1_000_000.0 else 0.0,
+        averageFrameTimeMs = if (totalFrames.get() > 0) totalDurationNs.get() / totalFrames
+            .get() / 1_000_000.0 else 0.0,
         jankRate = if (totalFrames.get() > 0) jankFrames.get().toDouble() / totalFrames.get() else 0.0
     )
 

@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.core.engine.buyFromSectTradeSync
 import com.xianxia.sect.core.engine.dissolveAllianceSimple
 import com.xianxia.sect.core.engine.dissolveVassalContract
@@ -27,20 +28,29 @@ import javax.inject.Inject
 
 @HiltViewModel
 class WorldMapInteractionViewModel @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    /** 表现类随机源（外交文案选择等——不写状态，见 [PresentationRandom] KDoc） */
+    val presentationRandom: PresentationRandom
 ) : BaseViewModel() {
 
     private val _dialogs = MutableStateFlow(WorldMapDialogState())
     val dialogs: StateFlow<WorldMapDialogState> = _dialogs.asStateFlow()
 
-    // Convenience accessors for backward compatibility
-    val showScoutDialog: StateFlow<Boolean> = dialogs.map { it.showScout }.stateIn(viewModelScope, sharingStarted, false)
-    val selectedScoutSectId: StateFlow<String?> = dialogs.map { it.selectedScoutSectId }.stateIn(viewModelScope, sharingStarted, null)
-    val showSectTradeDialog: StateFlow<Boolean> = dialogs.map { it.showTrade }.stateIn(viewModelScope, sharingStarted, false)
-    val selectedTradeSectId: StateFlow<String?> = dialogs.map { it.selectedTradeSectId }.stateIn(viewModelScope, sharingStarted, null)
-    val sectTradeItems: StateFlow<List<MerchantItem>> = dialogs.map { it.tradeItems }.stateIn(viewModelScope, sharingStarted, emptyList())
-    val showSectDiplomacyDialog: StateFlow<Boolean> = dialogs.map { it.showSectDiplomacy }.stateIn(viewModelScope, sharingStarted, false)
-    val selectedSectDiplomacySectId: StateFlow<String?> = dialogs.map { it.selectedSectDiplomacySectId }.stateIn(viewModelScope, sharingStarted, null)
+    // 便捷访问器：从 [dialogs] 状态派生
+    val showScoutDialog: StateFlow<Boolean> = dialogs.map { it.showScout }.stateIn(viewModelScope, sharingStarted,
+        false)
+    val selectedScoutSectId: StateFlow<String?> = dialogs.map { it.selectedScoutSectId }.stateIn(viewModelScope,
+        sharingStarted, null)
+    val showSectTradeDialog: StateFlow<Boolean> = dialogs.map { it.showTrade }.stateIn(viewModelScope, sharingStarted,
+        false)
+    val selectedTradeSectId: StateFlow<String?> = dialogs.map { it.selectedTradeSectId }.stateIn(viewModelScope,
+        sharingStarted, null)
+    val sectTradeItems: StateFlow<List<MerchantItem>> = dialogs.map { it.tradeItems }.stateIn(viewModelScope,
+        sharingStarted, emptyList())
+    val showSectDiplomacyDialog: StateFlow<Boolean> = dialogs.map { it.showSectDiplomacy }.stateIn(viewModelScope,
+        sharingStarted, false)
+    val selectedSectDiplomacySectId: StateFlow<String?> = dialogs.map { it.selectedSectDiplomacySectId }
+        .stateIn(viewModelScope, sharingStarted, null)
 
     fun openScoutDialog(sectId: String) {
         _dialogs.value = _dialogs.value.copy(showScout = true, selectedScoutSectId = sectId)
@@ -50,6 +60,7 @@ class WorldMapInteractionViewModel @Inject constructor(
         _dialogs.value = _dialogs.value.copy(showScout = false, selectedScoutSectId = null)
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun startScoutMission(memberIds: List<String>, sectId: String) {
         gameEngine.launchOnEngine {
             try {
@@ -63,6 +74,7 @@ class WorldMapInteractionViewModel @Inject constructor(
     }
 
     /** 送礼并返回结果（聊天式送礼使用） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     suspend fun performGiftSpiritStones(sectId: String, tier: Int): GiftResult? {
         return try {
             gameEngine.giftSpiritStones(sectId, tier)
@@ -107,6 +119,7 @@ class WorldMapInteractionViewModel @Inject constructor(
         _dialogs.value = _dialogs.value.copy(showTrade = false, selectedTradeSectId = null)
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun buyFromSectTrade(itemId: String, quantity: Int = 1) {
         gameEngine.launchOnEngine {
             try {

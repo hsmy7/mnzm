@@ -38,13 +38,13 @@ sealed interface ReconstructedBagStack {
 /**
  * 袋条目 → 仓库堆叠重建（纯函数）。
  *
- * D-03 独立存储后，堆叠类袋条目（equipment_stack/manual_stack/pill/material/
+ * 堆叠类袋条目（equipment_stack/manual_stack/pill/material/
  * herb/seed）持有 name/rarity/quantity + [com.xianxia.sect.core.model.BagStackedData]
  * 元数据，但缺完整堆叠数据（stats/category 等）——重建时按 name 查数据库模板补齐。
  *
- * 与旧 confiscate 实现对齐（模板优先），改进两点：
- * 1. minRealm 用条目 stackedData 保真（旧逻辑按 rarity 推导，丢失赏赐时的实际门槛）
- * 2. quantity 用条目数量（旧逻辑硬编码 1）
+ * 重建规则（模板优先）：
+ * 1. minRealm 用条目 stackedData 保真（保留赏赐时的实际门槛）
+ * 2. quantity 用条目数量
  *
  * 找不到模板返回 null（调用方按丢弃处理）。
  */
@@ -72,7 +72,7 @@ object BagItemReconstructor {
             speed = template.speed, hp = template.hp, mp = template.mp,
             description = template.description,
             // minRealm 用条目 stackedData 保真；0（空 BagStackedData() 默认值）视为
-            // "未记录"回退 rarity 推导——对抗性审查：偷盗等路径写空 stackedData 时
+            // "未记录"回退 rarity 推导——偷盗等路径写空 stackedData 时
             // 0 非 null 不触发回退，重建后成为"最高境界门槛"装备
             minRealm = item.stackedData?.minRealm?.takeIf { it > 0 }
                 ?: GameConfig.Realm.getMinRealmForRarity(template.rarity),

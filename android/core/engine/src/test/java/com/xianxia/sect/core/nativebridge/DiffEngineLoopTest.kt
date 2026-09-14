@@ -10,7 +10,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * DiffEngineLoopTest — 引擎循环跨语言差分对拍（计划 v2 阶段 5 验收核心）。
+ * DiffEngineLoopTest — 引擎循环跨语言差分对拍（验收核心）。
  *
  * 守护目标：
  * - **场景 A（时钟状态机）**：C++ PhaseClock（墙钟消费/速度/追补上限/refund）
@@ -41,7 +41,7 @@ class DiffEngineLoopTest {
     /**
      * C++ 引擎就绪（幂等 init + 循环状态完全重置 + 时钟归零 + 循环基准重置 +
      * 首帧点火——对齐 Kotlin gameClock.start() 在 t=0 的基准语义）。
-     * nativeCoreInit 幂等复用单例（阶段 1 既有设计），tick 计数/速度/累积
+     * nativeCoreInit 幂等复用单例（既有设计），tick 计数/速度/累积
      * 跨用例残留——须经 nativeCoreLoopReset 重建基准，否则与 Kotlin 侧
      * 每用例 new GameTimeClock 的干净状态不对称。
      */

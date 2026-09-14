@@ -52,7 +52,8 @@ class InventoryConfig @Inject constructor() {
         val maxStack = getMaxStackSize(itemType)
         return when {
             quantity < 0 -> Result.failure(IllegalArgumentException("Quantity cannot be negative"))
-            quantity > maxStack -> Result.failure(IllegalArgumentException("Quantity $quantity exceeds max stack size: $maxStack"))
+            quantity > maxStack -> Result
+                .failure(IllegalArgumentException("Quantity $quantity exceeds max stack size: $maxStack"))
             else -> Result.success(quantity)
         }
     }

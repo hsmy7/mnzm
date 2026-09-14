@@ -1,11 +1,11 @@
 #pragma once
 
 // ============================================================
-// 招募域月结下沉（S8 子事件 2：autoRecruit）
+// 招募域月结（子事件 2：autoRecruit）
 //
 // Kotlin RecruitService.processAutoRecruit + RecruitIntegrity +
 // DiscipleTables.allocateAndInsert（资质补算段）+ CaptiveGearUtils.
-// materializeCaptiveGear 等价移植（月结残留执行器增量 C++ 化批次 11-1）。
+// materializeCaptiveGear 等价移植。
 //
 // RNG 契约：全链零 RNG 抽取（processAutoRecruit 无任何分区调用；
 // allocateAndInsert 的资质补算为 id 确定性散列；俘虏装备/功法落库
@@ -14,7 +14,7 @@
 // 确定性自增（Kotlin 用 UUID，语义等价——id 不参与业务逻辑，镜像侧
 // 以 Kotlin 为准，见 inventory.h generateNewId 同款注释）。
 //
-// 已知边界（登记 S-16）：
+// 已知边界：
 // - 惰性门 autoRecruitIdle 为纯内存运行态（GameState 瞬态字段，不进
 //   JSON 协议）；重置点（年度列表刷新/改筛选/生育/净化）仍在 Kotlin，
 //   月变真相源切换时接线跨层同步
@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/system/inventory.h"  // nextItemIdCounter（id 注册表）
 #include "gamecore/data/manual_db.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
@@ -61,8 +62,8 @@ constexpr char kSignatureSeparator = '\x01';
 /// 实例 id 生成（确定性自增——Kotlin 用 UUID，语义等价：仅保证唯一，
 /// id 不参与业务逻辑；存档恢复时以 Kotlin 镜像为准，同 inventory.h）
 inline std::string nextInstanceId() {
-    static uint64_t counter = 0;
-    return "gc-inst-" + std::to_string(++counter);
+    // 进程级 static 计数器收敛到 inventory.h 注册表
+    return "gc-inst-" + std::to_string(nextItemIdCounter("gc-inst"));
 }
 
 /// Kotlin Math.floorMod 等价（Long 语义，m 恒正）
@@ -383,7 +384,7 @@ inline std::string nextDiscipleId(const DiscipleStore& ds) {
 
 /// allocateAndInsert 等价：分配 id（max+1）+ 资质补算 + recruitedMonth +
 /// 末尾追加（行序 = 追加序，RNG 红线）。返回新 id。
-/// lifeEvents（Kotlin 类体属性，不进协议）C++ 侧不维护（登记 S-16）。
+/// lifeEvents（Kotlin 类体属性，不进协议）C++ 侧不维护。
 inline std::string allocateAndInsert(DiscipleStore& ds, Disciple d,
                                      int32_t currentMonthIndex) {
     const std::string idStr = nextDiscipleId(ds);
@@ -720,6 +721,195 @@ inline int32_t processAutoRecruit(GameState& state) {
     if (recruited == 0) {
         state.autoRecruitIdle = true;
     }
+    return recruited;
+}
+
+// ── 手动招募（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉；
+//    AUTHORITATIVE 单真相源——与自动招募同侧，消除"Kotlin 镜像修改 vs C++
+//    权威结算"整类窗口。lifeEvents 为 Kotlin 类体属性，C++ 不维护（镜像侧补写））──
+
+/// 手动招募非正常原因（Kotlin 侧组装用户提示文案；UNKNOWN=意外异常兜底）
+enum class ManualRecruitReason {
+    kSuccess,
+    kMonthlyLimit,   // 本月招募已达上限
+    kNotFound,       // 该弟子已不在招募列表
+    kCorrupted,      // 数据损坏（已同事务移除）
+};
+
+inline const char* manualRecruitReasonName(ManualRecruitReason r) {
+    switch (r) {
+        case ManualRecruitReason::kSuccess: return "SUCCESS";
+        case ManualRecruitReason::kMonthlyLimit: return "MONTHLY_LIMIT";
+        case ManualRecruitReason::kNotFound: return "NOT_FOUND";
+        case ManualRecruitReason::kCorrupted: return "CORRUPTED";
+    }
+    return "UNKNOWN";
+}
+
+/// 手动招募单招结果（reason=CORRUPTED 时 name 有效——供 Kotlin 组装
+/// "「name」数据异常" 提示；成功时 age 有效——供镜像补写 lifeEvents）
+struct ManualRecruitResult {
+    std::string newId;
+    std::string name;
+    int32_t age = 0;
+    ManualRecruitReason reason = ManualRecruitReason::kNotFound;
+};
+
+/// 各境界最小合理年龄（Kotlin GameConfig.Realm.REALM_MIN_REASONABLE_AGE；
+/// 未知境界回退炼气标准 10——软校验仅日志，不阻断招募）
+inline int32_t minReasonableAge(int32_t realm) {
+    switch (realm) {
+        case 9: return 10;
+        case 8: return 30;
+        case 7: return 60;
+        case 6: return 100;
+        case 5: return 200;
+        case 4: return 300;
+        case 3: return 500;
+        case 2: return 800;
+        case 1: return 1200;
+        case 0: return 2000;
+        default: return 10;
+    }
+}
+
+/// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 逐位等价：
+/// 上限检查 → 按 id 查找 → 完整性校验（损坏同事务移除）→ allocateAndInsert
+/// → 俘虏装备/功法落库 → 按 id + 同人签名移除列表条目 → 计数/年报 +1）。
+/// lifeEvents（Kotlin 类体属性）C++ 侧不维护——镜像侧按结果补写。
+inline ManualRecruitResult manualRecruitFromList(GameState& state, const std::string& id) {
+    auto& gd = state.gameData;
+    ManualRecruitResult result;
+    result.reason = ManualRecruitReason::kSuccess;
+
+    // 事务内检查招募上限（与 Kotlin coerceAtLeast(0) 同语义）
+    const int32_t currentCount = std::max(gd.recruitCountThisMonth, 0);
+    if (currentCount >= kRecruitMonthlyLimit) {
+        result.reason = ManualRecruitReason::kMonthlyLimit;
+        return result;
+    }
+    const auto it = std::find_if(gd.recruitList.begin(), gd.recruitList.end(),
+                                 [&](const Disciple& d) { return d.id == id; });
+    if (it == gd.recruitList.end()) {
+        result.reason = ManualRecruitReason::kNotFound;
+        return result;
+    }
+    const Disciple disciple = *it;
+    result.name = disciple.name;
+    result.age = disciple.age;
+    // 完整性校验：损坏条目同事务移除（幽灵立即消失，不再永久残留）
+    if (!isValidRecruit(disciple)) {
+        gd.recruitList.erase(it);
+        result.reason = ManualRecruitReason::kCorrupted;
+        return result;
+    }
+    // 年龄-境界合理性软校验（不阻断：俘虏玩法允许年轻高境界；日志级——C++
+    // 侧无日志通道接入点，与 Kotlin 行为差异仅为少一条 debug 日志）
+    if (disciple.age < minReasonableAge(disciple.realm)) {
+        // 软警告，保持游戏行为一致；不写日志（无 logger 引用）
+    }
+    const int32_t currentMonthIndex = gd.gameYear * 12 + gd.gameMonth;
+    // 原子分配 ID + 写入组件表（allocateAndInsert 内置 recruitedMonth 设置，
+    // 与 Kotlin 调用前 copy(usage.recruitedMonth) 同语义）
+    const std::string newId = allocateAndInsert(state.disciples, disciple, currentMonthIndex);
+    if (!newId.empty()) {
+        // 俘虏自带装备/功法落库为玩家实例（幂等；普通招募弟子直接跳过）
+        materializeCaptiveGear(state, disciple, newId);
+    }
+    // 招募成功后同步移除同内容/同人双胞胎（防"完全相同弟子"重复招募）：
+    // 按 id 移除本体 + isSamePerson 同人净化（与 Kotlin filter 逐位对齐——
+    // 签名不含 recruitedMonth/年龄不变，原条目即可作比较基准）
+    std::vector<Disciple> kept;
+    kept.reserve(gd.recruitList.size());
+    for (const auto& d : gd.recruitList) {
+        if (d.id != id && !isSamePerson(d, disciple)) kept.push_back(d);
+    }
+    gd.recruitList = std::move(kept);
+    gd.recruitCountThisMonth = gd.recruitCountThisMonth + 1;
+    gd.annualNewDisciples = gd.annualNewDisciples + 1;
+    result.newId = newId;
+    return result;
+}
+
+/// 一键招募全部（Kotlin GameEngine.recruitAllFromList 逐位等价：净化
+/// （损坏/重复/跨表残留，同事务回写）→ 上限 → 逐个招募（复用单招核心）。
+/// 返回实际招募数；reason=MONTHLY_LIMIT 时返回 0（Kotlin 侧弹上限通知）。
+inline int32_t manualRecruitAll(GameState& state, ManualRecruitReason& reason) {
+    auto& gd = state.gameData;
+    reason = ManualRecruitReason::kSuccess;
+
+    // ── 事务开头净化：损坏/重复/残留条目同事务移除（与点击招募一致）──
+    // RecruitIntegrity.sanitizeRecruitList 等价：① 损坏移除 ② 三级去重
+    // ③ 已入宗门残留（跨表 isSamePerson，死亡弟子非对称容差）
+    std::vector<Disciple> sectAll;
+    sectAll.reserve(state.disciples.size());
+    for (std::size_t row = 0; row < state.disciples.size(); ++row) {
+        sectAll.push_back(state.disciples.materialize(row));
+    }
+    std::vector<Disciple> valid;
+    valid.reserve(gd.recruitList.size());
+    for (const auto& d : gd.recruitList) {
+        if (isValidRecruit(d)) valid.push_back(d);
+    }
+    const std::vector<Disciple> deduped = dedupeRecruits(valid);
+    std::map<std::string, std::vector<Disciple>> sectBySignature;
+    for (const auto& d : sectAll) {
+        sectBySignature[samePersonSignature(d)].push_back(d);
+    }
+    std::vector<Disciple> sanitized;
+    sanitized.reserve(deduped.size());
+    for (const auto& d : deduped) {
+        bool alreadyInSect = false;
+        const auto mIt = sectBySignature.find(samePersonSignature(d));
+        if (mIt != sectBySignature.end()) {
+            for (const auto& s : mIt->second) {
+                if (isSamePerson(d, s)) { alreadyInSect = true; break; }
+            }
+        }
+        if (!alreadyInSect) sanitized.push_back(d);
+    }
+    const int32_t sanitizedCount = static_cast<int32_t>(
+        gd.recruitList.size() - sanitized.size());
+    if (sanitizedCount > 0) {
+        gd.recruitList = sanitized;
+        // Kotlin sanitizeRecruitList 同语义：净化有移除 → 复位惰性门，
+        // 让后续 processAutoRecruit 重新评估列表（防净化后永久惰性）
+        state.autoRecruitIdle = false;
+    }
+
+    // ── 上限检查 ──
+    const int32_t count = std::max(gd.recruitCountThisMonth, 0);
+    const int32_t remaining = kRecruitMonthlyLimit - count;
+    if (remaining <= 0) {
+        reason = ManualRecruitReason::kMonthlyLimit;
+        return 0;
+    }
+    if (sanitized.empty()) return 0;
+
+    const std::size_t takeCount = std::min<std::size_t>(
+        sanitized.size(), static_cast<std::size_t>(remaining));
+    const int32_t currentMonthIndex = gd.gameYear * 12 + gd.gameMonth;
+    int32_t recruited = 0;
+    std::set<std::string> recruitedIds;
+    for (std::size_t i = 0; i < takeCount; ++i) {
+        const Disciple& disciple = sanitized[i];
+        const std::string newId =
+            allocateAndInsert(state.disciples, disciple, currentMonthIndex);
+        if (!newId.empty()) {
+            materializeCaptiveGear(state, disciple, newId);
+            recruitedIds.insert(disciple.id);
+            ++recruited;
+        }
+    }
+    // 按 id 移除已招募条目（而非全字段 equals，防同 id 不同内容残余存活）
+    std::vector<Disciple> keepInList;
+    keepInList.reserve(gd.recruitList.size());
+    for (const auto& d : gd.recruitList) {
+        if (recruitedIds.count(d.id) == 0) keepInList.push_back(d);
+    }
+    gd.recruitList = std::move(keepInList);
+    gd.recruitCountThisMonth = gd.recruitCountThisMonth + recruited;
+    gd.annualNewDisciples = gd.annualNewDisciples + recruited;
     return recruited;
 }
 

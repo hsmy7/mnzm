@@ -35,11 +35,11 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 生产槽卸任/自动重启双写一致性测试（S1/S5，2026-08-08）。
+ * 生产槽卸任/自动重启双写一致性测试。
  *
- * S1：removeDiscipleFromProductionSlot——repo 先写、成功才清镜像（失败两端皆未变）；
- *     镜像残留会让状态推导仍 WORKING、自动重启按镜像判定继续生产（"卸不掉"链路）。
- * S5：toggleAutoRestart——repo 更新成功后事务内同步镜像 autoRestartEnabled。
+ * removeDiscipleFromProductionSlot——repo 先写、成功才清镜像（失败两端皆未变）；
+ * 镜像残留会让状态推导仍 WORKING、自动重启按镜像判定继续生产（"卸不掉"链路）。
+ * toggleAutoRestart——repo 更新成功后事务内同步镜像 autoRestartEnabled。
  *
  * 4.00.91 背景：UI 读 repo 真源、状态推导读镜像，分叉入口只清一端 → "任命/卸任不生效"。
  */

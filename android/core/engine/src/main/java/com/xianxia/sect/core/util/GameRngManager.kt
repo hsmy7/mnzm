@@ -11,6 +11,15 @@ import javax.inject.Singleton
  * 读档时调用 [restoreStates] 从存档恢复各分区 PRNG 状态。
  *
  * 分区策略参考 DCSS (Dungeon Crawl Stone Soup) 的 RNG 分区设计。
+ *
+ * ## 线程契约
+ *
+ * 委托模式下全部状态读写直达 C++ PCG 分区（非原子裸成员）——**本类所有
+ * 方法必须在引擎线程调用**。已知跨线程调用面已全部清偿：UI 抽取派生化/
+ * 引擎化（HeavenlyTrial/BloodRefining）、重启播种并入 restartGameInternal、
+ * 存档快照经 GameEngineSaveOps.getStateSnapshot 的 withEngineContext 采样、
+ * 读档恢复在 loadData 引擎上下文内。debug 构建下 C++ 侧
+ * jniRequireEngineThread 断言守卫（P1-4 已正式收口，见 GameCoreBridge.cpp）。
  */
 @Singleton
 class GameRngManager @Inject constructor() {
@@ -19,11 +28,11 @@ class GameRngManager @Inject constructor() {
     @Volatile
     private var systemSeed: Long = System.currentTimeMillis()
 
-    /** native 委托通道（T2.4 AUTHORITATIVE；null = 本地 PCG 实现） */
+    /** native 委托通道（AUTHORITATIVE；null = 本地 PCG 实现） */
     @Volatile
     private var rngChannel: NativeRngChannel? = null
 
-    // F6 对抗性审查加固：ConcurrentHashMap——initSystemSeed 的结构修改
+    // ConcurrentHashMap：initSystemSeed 的结构修改
     //（替换分区实例）与引擎线程 getRng/exportStates 的并发读无锁安全
     private val rngMap = ConcurrentHashMap<RngPartition, DeterministicRng>().apply {
         RngPartition.values().forEach { partition ->
@@ -47,7 +56,7 @@ class GameRngManager @Inject constructor() {
     }
 
     /**
-     * 启用/停用 native 委托（T2.4 AUTHORITATIVE 模式切换时由引擎线程调用）。
+     * 启用/停用 native 委托（AUTHORITATIVE 模式切换时由引擎线程调用）。
      *
      * @param channel 委托通道；传 null 回退本地 PCG 实现（分区按当前
      *        [systemSeed] 重播——回退点两侧状态已由 import/export 对齐）
@@ -91,15 +100,24 @@ class GameRngManager @Inject constructor() {
         return rngMap[partition] ?: error("RNG partition $partition not initialized")
     }
 
-    /** 导出所有分区 PRNG 状态到存档 */
+    /**
+     * 导出所有分区 PRNG 状态到存档。
+     *
+     * **只导出 `inSnapshot = true` 的分区**：通道型分区（[RngPartition.AI_SECT_MIRROR]）
+     * 只是"取用另一真相源（C++ `aiRng_`）的句柄"，其状态由该真相源随同 9 号键
+     * 自行落盘——若在此一并导出，Kotlin 会把本地 [RngPartition.AI_SECT] 的流态写到
+     * 同一个键，与 C++ 写回的 `aiRng_` 流态互相覆盖（跨语言对拍恒红）。
+     */
     fun exportStates(): Map<Int, Long> {
-        return RngPartition.values().associate { it.id to (rngMap[it] ?: error("RNG ${it.name} not found")).snapshot() }
+        return RngPartition.entries.filter { it.inSnapshot }.associate {
+            it.id to (rngMap[it] ?: error("RNG ${it.name} not found")).snapshot()
+        }
     }
 
-    /** 从存档恢复所有分区 PRNG 状态 */
+    /** 从存档恢复所有分区 PRNG 状态（通道型分区跳过——见 [exportStates]） */
     fun restoreStates(states: Map<Int, Long>) {
         for ((partitionId, savedState) in states) {
-            val partition = RngPartition.values().find { it.id == partitionId } ?: continue
+            val partition = RngPartition.entries.find { it.id == partitionId && it.inSnapshot } ?: continue
             (rngMap[partition] ?: error("RNG $partition not found")).restore(savedState)
         }
     }

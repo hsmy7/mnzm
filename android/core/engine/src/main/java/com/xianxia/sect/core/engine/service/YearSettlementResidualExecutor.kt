@@ -3,31 +3,31 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.engine.AgedDeathDraft
 import com.xianxia.sect.core.engine.YearSettlementEnvelope
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.state.DeathRecord
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.materializeBagItemsToWarehouse
 
 /**
  * YearSettlementResidualExecutor — 年变真相源切换后的 Kotlin 残留执行器
- * （批 Y-switch + Y-3：nativeSettleYear 之后的 Kotlin 侧未下沉扇出 + 平台效应）。
+ * （nativeSettleYear 之后的 Kotlin 侧未下沉扇出 + 平台效应）。
  *
  * 与月变残留执行器同模式：C++ `runYearSettlement` 执行年变已下沉面
- * （T1-①/②/③/④/⑤/⑥/⑦/⑧/⑨/⑩/⑪ + 年报快照 + 年俸 + T2-①/⑥/⑦/⑨/⑩/⑪），
+ * （T1 全面子面 + 年报快照 + 年俸 + T2 部分子面），
  * 本执行器承接：
- * - **T1-③ 死亡链平台效应**（C++ 状态面已完成——11 槽镜像/哀悼/解绑/血炼/
+ * - **死亡链平台效应**（C++ 状态面已完成——11 槽镜像/哀悼/解绑/血炼/
  *   装备清/死亡记录/事件/计数；本处补 Kotlin 侧：袋物品物化回仓库（含溢出
  *   邮件）/lifeEvents 丧亲事件/死亡记录档案——事务内 + DAO 清理/DeathEvent——
  *   事务外）
- * - **T1-④ 招募列表刷新**（✅ 批 Y-3 下沉 C++——本执行器不再调用）
- * - ~~T2-② AI 宗门周期性招募~~（✅ 批 Y-4c 下沉 C++——AI 独立分区 RNG +
+ * - **招募列表刷新**（✅ 已下沉 C++——本执行器不再调用）
+ * - ~~AI 宗门周期性招募~~（✅ 已下沉 C++——AI 独立分区 RNG +
  *   占领路由，本执行器不再调用）
- * - ~~T2-③ 商人收购刷新~~（✅ 批 Y-4b 下沉 C++——SYSTEM 稀有度曲线，
+ * - ~~商人收购刷新~~（✅ 已下沉 C++——SYSTEM 稀有度曲线，
  *   本执行器不再调用）
- * - ~~T2-④ 宗门交易列表刷新~~（✅ 批 Y-4a 下沉 C++——局部种子 RNG
+ * - ~~宗门交易列表刷新~~（✅ 已下沉 C++——局部种子 RNG
  *   sectId.hashCode()+year，本执行器不再调用）
  *
- * RNG 契约（批 Y-4 收口后更新）：年变已下沉面全部入 C++——残留执行器
- * 不再消费任何分区 RNG（T1-④ 招募生成 SYSTEM / T2-③ 收购 SYSTEM 均已
- * 下沉 C++ 侧执行）；本执行器仅剩 T1-③ 死亡链平台效应（纯 Kotlin 平台
+ * RNG 契约：年变已下沉面全部入 C++——残留执行器
+ * 不再消费任何分区 RNG（招募生成 SYSTEM / 收购 SYSTEM 均已
+ * 下沉 C++ 侧执行）；本执行器仅剩死亡链平台效应（纯 Kotlin 平台
  * 侧：物化/丧亲/死亡档案——零 RNG）。
  *
  * 事务契约：[execute] 必须在 [com.xianxia.sect.core.state.GameStateStore.update]
@@ -43,15 +43,15 @@ internal class YearSettlementResidualExecutor(
      * 执行年变残留扇出 + 事务内平台效应（C++ runYearSettlement 之后、反向回导之前）。
      *
      * @param state 可变游戏状态（C++ 结算结果已镜像同步的事务内状态）
-     * @param env nativeSettleYear 信封（T1-③ 死亡链平台效应草稿）
+     * @param env nativeSettleYear 信封（死亡链平台效应草稿）
      */
     fun execute(state: MutableGameState, env: YearSettlementEnvelope) {
-        // ── T1-③ 死亡链平台效应（事务内：物化/丧亲/死亡档案） ──
-        env.agedDeaths.forEach { death -> applyAgedDeathInTransaction(state, death) }
+        // ── 死亡链平台效应（事务内：物化/丧亲/死亡档案） ──
+        env.agedDeaths.forEach { death -> applyAgedDeathInTransaction(death) }
         env.bereavements.forEach { bereavement -> appendBereavementEvent(state, bereavement) }
 
-        // 年变编排扇出已全部下沉 C++（T1-④ 招募刷新批 Y-3 / T2-④ 交易刷新
-        // 批 Y-4a / T2-③ 商人收购批 Y-4b / T2-② AI 宗门招募批 Y-4c）——
+        // 年变编排扇出已全部下沉 C++（招募刷新 / 交易刷新
+        // / 商人收购 / AI 宗门招募）——
         // 本执行器不再调用 Kotlin 对应服务，防双份生成
     }
 
@@ -67,9 +67,9 @@ internal class YearSettlementResidualExecutor(
             .applyAgedDeathPlatformEffects(env.agedDeaths)
     }
 
-    /** T1-③ 事务内平台效应：袋物品物化回仓库（withTrackingSource）+ 死亡记录档案。 */
-    private fun applyAgedDeathInTransaction(state: MutableGameState, death: AgedDeathDraft) {
-        // D-03：袋物品物化回仓库（玩家保留，溢出自动转邮件——与 Kotlin
+    /** 死亡链事务内平台效应：袋物品物化回仓库（withTrackingSource）+ 死亡记录档案。 */
+    private fun applyAgedDeathInTransaction(death: AgedDeathDraft) {
+        // 袋物品物化回仓库（玩家保留，溢出自动转邮件——与 Kotlin
         // applyAgedDeath 的 withTrackingSource("disciple_death") 一致）
         if (death.storageBagItems.isNotEmpty()) {
             eventProcessor.inventorySystem.withTrackingSource("disciple_death") {
@@ -78,24 +78,11 @@ internal class YearSettlementResidualExecutor(
                 )
             }
         }
-        // 死亡记录档案（Kotlin _deathRecords 内存列表——弟子已从表移除，
-        // 档案保留 id→deathYear 供 UI/存档）
-        val id = death.discipleId.toIntOrNull() ?: return
-        state.discipleTables.addDeathRecord(
-            DeathRecord(
-                id = id,
-                name = death.name,
-                surname = death.surname,
-                realm = death.realm,
-                realmLayer = death.realmLayer,
-                deathAge = death.age,
-                deathYear = death.deathYear,
-                cause = death.cause
-            )
-        )
+        // 审计 P2-4：DeathRecord 档案已删除（零消费者纯开销，死亡信息由
+        // C++ AUTHORITATIVE 列承载）——死亡事件经上方向镜像即可
     }
 
-    /** T1-③ 丧亲事件（lifeEvents 瞬态列——与 Kotlin buildBereavementEvent 一致）。 */
+    /** 丧亲事件（lifeEvents 瞬态列——与 Kotlin buildBereavementEvent 一致）。 */
     private fun appendBereavementEvent(
         state: MutableGameState,
         bereavement: com.xianxia.sect.core.engine.BereavementDraft
@@ -103,6 +90,7 @@ internal class YearSettlementResidualExecutor(
         if (!state.discipleTables.ids.contains(bereavement.grievingId)) return
         val event = "${bereavement.grievingAge}岁：因${bereavement.relationship}" +
             "${bereavement.deceasedName}离世陷入悲痛，修炼速度降低50%"
+        /** 当前设备的电源管理配置 */
         val current = state.discipleTables.lifeEvents.getOrDefault(
             bereavement.grievingId, emptyList()
         )

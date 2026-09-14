@@ -5,7 +5,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 游戏时间系统（Kotlin→C++ 迁移批次 3）
+// 游戏时间系统
 //
 // 等价移植 Kotlin TimeSystem（core/engine/system/TimeSystem.kt）：
 //   - onPhaseTick：推进 gamePhase，满 3 旬进位月，满 12 月进位年（纯函数）

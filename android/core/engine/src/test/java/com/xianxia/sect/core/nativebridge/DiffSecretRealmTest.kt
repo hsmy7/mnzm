@@ -32,7 +32,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffSecretRealmTest — 远古秘境状态机核心跨语言差分对拍（计划 v2 阶段 4 / 批 4-3）。
+ * DiffSecretRealmTest — 远古秘境状态机核心跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::secret_realm（平均境界/妖兽事件/下一事件分派/
  * 妖兽属性预生成/妖兽掉落/遗迹秘宝/丢失物品/AI 队伍派遣）与 Kotlin

@@ -49,6 +49,8 @@ data class UnifiedGameState(
     fun getDiscipleById(id: String): Disciple? = disciples.find { it.id == id }
     fun getEquipmentById(id: String): EquipmentInstance? = equipmentInstances.find { it.id == id }
     fun getManualById(id: String): ManualInstance? = manualInstances.find { it.id == id }
-    fun getEquipmentByOwner(discipleId: String): List<EquipmentInstance> = equipmentInstances.filter { it.ownerId == discipleId }
-    fun getManualsByOwner(discipleId: String): List<ManualInstance> = manualInstances.filter { it.ownerId == discipleId }
+    fun getEquipmentByOwner(discipleId: String): List<EquipmentInstance> = equipmentInstances.filter { it
+        .ownerId == discipleId }
+    fun getManualsByOwner(discipleId: String): List<ManualInstance> = manualInstances.filter { it
+        .ownerId == discipleId }
 }

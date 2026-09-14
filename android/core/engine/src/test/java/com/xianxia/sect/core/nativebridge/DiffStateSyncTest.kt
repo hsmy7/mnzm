@@ -14,7 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * DiffStateSyncTest — StateSyncService 镜像同步测试（批次 9 核心基础设施）。
+ * DiffStateSyncTest — StateSyncService 镜像同步测试。
  *
  * 守护目标：
  *   1. buildNativeState：从 GameStateStore 构建快照（全字段收集）
@@ -197,7 +197,7 @@ class DiffStateSyncTest {
         assertEquals(42, store.gameDataValue.jadeSymbols)
     }
 
-    // ── 批 10-5（S-15 修复族）：@Transient aiSectDisciples 镜像/反向通道 ──
+    // ── @Transient aiSectDisciples 镜像/反向通道 ──
 
     @Test
     fun `mergeGameData keeps transient aiSectDisciples`() {
@@ -244,7 +244,7 @@ class DiffStateSyncTest {
 
     @Test
     fun `applySnapshot overrides aiSectDisciples when carried by native`() {
-        // C++ 顶层导出携带新值（非 null）→ 覆盖 Kotlin 既有值（批 10-4 协议）
+        // C++ 顶层导出携带新值（非 null）→ 覆盖 Kotlin 既有值
         val store = FakeGameStateStore()
         store.gameDataValue = GameData().apply {
             aiSectDisciples = mapOf("ai-1" to listOf(Disciple().apply {
@@ -270,7 +270,7 @@ class DiffStateSyncTest {
 
     @Test
     fun `reverse envelope carries aiSectDisciples only when changed`() {
-        // S-15 反向回导：@Transient aiSectDisciples 单独全量段；变化检测
+        // 反向回导：@Transient aiSectDisciples 单独全量段；变化检测
         //（缓存对齐）避免每 tick 重发重型数据——未变化不携带，变化才携带
         val store = FakeGameStateStore()
         val sent = mutableListOf<String>()

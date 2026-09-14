@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.Flow
 
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface DiscipleCoreDao {
     @Query("SELECT * FROM disciples_core WHERE slot_id = :slotId AND isAlive = 1 ORDER BY realm ASC, cultivation DESC")
     fun getAllAlive(slotId: Int): Flow<List<DiscipleCore>>
@@ -25,7 +28,8 @@ interface DiscipleCoreDao {
     @Query("SELECT * FROM disciples_core WHERE slot_id = :slotId AND isAlive = 1")
     suspend fun getAllAliveSync(slotId: Int): List<DiscipleCore>
 
-    @Query("SELECT * FROM disciples_core WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm ORDER BY cultivation DESC")
+    @Query("SELECT * FROM disciples_core WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm ORDER BY " +
+        "cultivation DESC")
     fun getAliveByRealm(slotId: Int, realm: Int): Flow<List<DiscipleCore>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -63,6 +67,9 @@ interface DiscipleCoreDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface DiscipleCombatStatsDao {
     @Query("SELECT * FROM disciples_combat WHERE slot_id = :slotId AND discipleId = :discipleId")
     suspend fun getByDiscipleId(slotId: Int, discipleId: String): DiscipleCombatStats?
@@ -105,6 +112,9 @@ interface DiscipleCombatStatsDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface DiscipleEquipmentDao {
     @Query("SELECT * FROM disciples_equipment WHERE slot_id = :slotId AND discipleId = :discipleId")
     suspend fun getByDiscipleId(slotId: Int, discipleId: String): DiscipleEquipment?
@@ -147,6 +157,9 @@ interface DiscipleEquipmentDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface DiscipleExtendedDao {
     @Query("SELECT * FROM disciples_extended WHERE slot_id = :slotId AND discipleId = :discipleId")
     suspend fun getByDiscipleId(slotId: Int, discipleId: String): DiscipleExtended?
@@ -189,6 +202,9 @@ interface DiscipleExtendedDao {
 }
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface DiscipleAttributesDao {
     @Query("SELECT * FROM disciples_attributes WHERE slot_id = :slotId AND discipleId = :discipleId")
     suspend fun getByDiscipleId(slotId: Int, discipleId: String): DiscipleAttributes?

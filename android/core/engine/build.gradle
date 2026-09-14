@@ -1,25 +1,25 @@
 plugins {
-    // 2026-08 债务根治：SDK 配置收编 convention plugin（stage3-config-cache.md 技术债）
+    // SDK 等公共配置由 convention plugin（xianxia.android）提供
     id 'xianxia.android'
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.protobuf)
-    // 2026-08-01：kover 覆盖率盲区修复——全模块纳入统计
+    // kover：全模块纳入覆盖率统计
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
 }
 
-// 2026-08-14：Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+// Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
 kover {
     if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
         disable()
     }
 }
 
-// 2026-08-14：配置期文件读取惰性化（3.2，配置缓存前置）——providers.fileContents 声明式
-// 跟踪，改 api.properties/version.properties 后配置缓存正确失效（普通 File IO 无法感知）。
-// 文件不存在时 asText 返回空文本 → 空 Properties，与原 if(exists) 语义一致。
+// 配置期文件读取经 providers.fileContents 声明式跟踪，改 api.properties/
+// version.properties 后配置缓存正确失效（普通 File IO 无法感知）。
+// 文件不存在时 asText 返回空文本 → 空 Properties。
 def loadProperties(String text) {
     def p = new Properties()
     p.load(new StringReader(text))
@@ -52,11 +52,11 @@ android {
         }
     }
 
-    // 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
+    // 显式单 fork——共享静态状态跨测试类并行污染
     tasks.withType(Test).configureEach {
         maxParallelForks = 1
 
-        // 桌面 JNI 对拍库路径转发（Kotlin→C++ 迁移批次 0）：
+        // 桌面 JNI 对拍库路径转发：
         // 命令行 `./gradlew -Dgamecore.jni.path=...` 传入 Gradle daemon JVM，
         // 此处转发到测试 JVM；未传时 DiffRngTest 自动跳过（Assume）。
         // 构建方式见 scripts/build-desktop-jni.ps1（本地）/ ci.yml cpp-engine-test（CI）
@@ -76,22 +76,22 @@ android {
 }
 
 // ============================================================
-// 2026-08-13：精灵图集布局 Kotlin 生成任务（Godot 导入管线 codegen 接线）
+// 精灵图集布局 Kotlin 生成任务（Godot 导入管线 codegen 接线）
 // 权威源：scripts/build-atlas.mjs 的 LAYOUT 常量（内容 hash 增量，未变则跳过）
 // 产物：build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt（不入库）
-// 原手工版 SpriteAtlasDef.kt 已删除；禁止手改生成物——改布局只改 LAYOUT 常量。
+// 禁止手改生成物——改布局只改 LAYOUT 常量。
 // ============================================================
 tasks.register('generateSpriteAtlasDef') {
     group = 'build'
     description = '从 build-atlas.mjs LAYOUT 源数据生成 SpriteAtlasDef.kt（core/engine 编译单元）'
-    // 2026-08-14：inputs/outputs 声明（mjs 内部内容 hash 为第二道防线）。
+    // inputs/outputs 声明（mjs 内部内容 hash 为第二道防线）。
     // 注意：.atlas-def.hash 必须一并声明——脚本"内容未变则跳过写文件"，
     // 若 Gradle 执行前清理 output 而 hash 文件不在声明内 → 脚本跳过 → 任务
-    // "成功"但产物缺失 → 空快照被判定 UP-TO-DATE 死锁（2026-08-14 修复）。
+    // "成功"但产物缺失 → 空快照被判定 UP-TO-DATE 死锁。
     inputs.file("${rootProject.projectDir}/scripts/build-atlas.mjs")
     outputs.file("$buildDir/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
     outputs.file("$buildDir/generated/sprite/.atlas-def.hash")
-    // 2026-08-14：配置缓存前置——配置期捕获脚本目录（doLast 内禁止 rootProject）
+    // 配置缓存约束——脚本目录在配置期捕获（doLast 内禁止 rootProject）
     def scriptDir = rootProject.projectDir
     doLast {
         def proc = ['node', 'scripts/build-atlas.mjs', '--atlas-def-only'].execute(null, scriptDir)
@@ -103,14 +103,14 @@ tasks.register('generateSpriteAtlasDef') {
     }
 }
 tasks.named('preBuild').configure { dependsOn('generateSpriteAtlasDef') }
-// 2026-08-14：所有 Kotlin 编译（含测试编译）依赖生成任务——compileReleaseKotlin
+// 所有 Kotlin 编译（含测试编译）依赖生成任务——compileReleaseKotlin
 // 不经 preBuild 链，clean 后单独编译会缺文件（增量 UP-TO-DATE 时零开销）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { dependsOn('generateSpriteAtlasDef') }
 // 生成物一致性守卫测试读取生成文件——测试前必须已生成
 tasks.withType(Test).configureEach { dependsOn('generateSpriteAtlasDef') }
 
 // ============================================================
-// 2026-08-14：Robolectric 双任务拆分（阶段 2.5）
+// Robolectric 双任务拆分
 // 背景：engine 62 类 Robolectric 测试占测试时长 58%（34.8s/60s），
 // 沙箱类加载/ASM 处理是大头。拆出 testJvmRelease（纯 JUnit，快）与
 // testRobolectricRelease（沙箱），收益是 **up-to-date 隔离而非并行**：
@@ -209,7 +209,7 @@ dependencies {
     testImplementation libs.robolectric
 }
 
-// 2026-08 债务根治：SDK/Java/Kotlin 编译配置已收编 convention plugin（xianxia.android）；
+// SDK/Java/Kotlin 编译配置由 convention plugin（xianxia.android）提供；
 // 模块特有编译器参数保留在此（convention 的 -Xjsr305=strict 自动叠加）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {

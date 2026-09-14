@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * GameEngineCoreMonthOpsTest — 月变真相源切换批 M-1 信封协议守护。
+ * GameEngineCoreMonthOpsTest — 月变真相源切换信封协议守护。
  *
  * 守护目标：`parseMonthSettlementEnvelope`（nativeSettleMonth 信封解析）——
  * C++ `GameCore::settleMonth` 输出的 JSON 信封（policyCosts.disabledPolicies /

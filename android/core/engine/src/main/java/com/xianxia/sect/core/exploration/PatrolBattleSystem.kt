@@ -19,11 +19,13 @@ import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.LevelType
+import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.Material
@@ -44,6 +46,8 @@ import com.xianxia.sect.core.util.RngPartition
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.engine.domain.disciple.battleWritebackMaxHpMp
+import com.xianxia.sect.core.engine.domain.disciple.applyGriefToRelatives
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 数据类
@@ -61,11 +65,13 @@ data class TowerBattleResult(
     val victory: Boolean,
     val result: BattleSystemResult,
     val survivors: Set<String>,
+    /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
     val deadIds: Set<String>
 )
 
 data class BattleDisciplesUpdate(
     val disciples: List<Disciple>,
+    /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
     val deadIds: Set<String>
 )
 
@@ -80,9 +86,15 @@ class PatrolBattleSystem @Inject constructor(
     private val inventorySystem: InventorySystem,
     private val buildingConfigService: BuildingConfigService,
     private val deathHandler: DiscipleDeathHandler,
-    private val encounterBattleService: com.xianxia.sect.core.domain.battle.EncounterBattleService
 ) {
     companion object {
+        /**
+         * 单用户定向补偿邮件（MailService 扩展，独立文件）。
+         *
+         * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
+         * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
+         * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
+         */
         private const val TAG = "PatrolBattleSystem"
         private const val WIN_BATTLE_ATTR_COUNT = 17
         private const val MAX_RANDOM_MATERIAL_DROPS = 3
@@ -90,6 +102,7 @@ class PatrolBattleSystem @Inject constructor(
 
     private val _pendingPatrolResults = mutableListOf<BattleResultUIData>()
 
+    /** 消费未展示的战斗结果弹窗（巡视塔 + 妖兽防守），由 GameEngineCore 每 tick 调用 */
     fun consumePendingPatrolResults(): List<BattleResultUIData> {
         val results = _pendingPatrolResults.toList()
         _pendingPatrolResults.clear()
@@ -209,11 +222,10 @@ class PatrolBattleSystem @Inject constructor(
         val year = gd.gameYear; val month = gd.gameMonth
         val result = mutableMapOf<Int, WorldLevel>()
 
-        for (team in teams) {
+        // 空队伍跳过（无平均境界可算，不参与目标分配）
+        for (team in teams.filter { it.disciples.isNotEmpty() }) {
             val config = gd.patrolConfigs.getOrElse(team.towerIndex) { PatrolConfig() }
-            val teamAvgRealm = if (team.disciples.isNotEmpty()) {
-                team.disciples.map { it.realm }.average()
-            } else continue
+            val teamAvgRealm = team.disciples.map { it.realm }.average()
 
             // 当 targetRealms 仍为默认 {9}（炼气）时，动态扩展为 [队伍平均境界, 9]（不限制上限）
             val effectiveTargetRealms = if (config.targetRealms == setOf(9)) {
@@ -279,7 +291,8 @@ class PatrolBattleSystem @Inject constructor(
      * 单队冲突战：Phase 1 巡逻队 vs AI（PvP）+ Phase 2 胜者 vs 妖兽（PvE）。
      * 返回 [TowerBattleResult]；双方全灭时返回带死亡信息的空结果。
      */
-    @Suppress("LongParameterList") // 冲突战入参聚合（10 参数，血炼映射 2026-08-06 加入）
+    // 冲突战入参聚合（10 参数，含血炼映射）；未消费形参保留以表达 API 决策域
+    @Suppress("UnusedParameter", "LongParameterList")
     private fun executeTeamConflict(
         team: TowerTeam,
         target: WorldLevel,
@@ -336,7 +349,8 @@ class PatrolBattleSystem @Inject constructor(
             val target = targets[team.towerIndex] ?: return@mapNotNull null
             require(target.type == LevelType.BEAST) { "PatrolBattleSystem 只支持 BEAST 类型, got ${target.type}" }
 
-            val beastTypeName = GameConfig.Beast.getType((target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1)).name
+            val beastTypeName = GameConfig.Beast.getType((target.beastType ?: 0).coerceIn(0,
+                GameConfig.Beast.TYPES.size - 1)).name
             val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
                 maxHp = target.beastMaxHp,
                 maxMp = target.beastMaxMp,
@@ -362,6 +376,7 @@ class PatrolBattleSystem @Inject constructor(
 
             val survivorIds = result.battle.team
                 .filter { !it.isDead }.map { it.id }.toSet()
+            /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
             val deadIds = team.disciples
                 .filter { it.id !in survivorIds }.map { it.id }.toSet()
 
@@ -431,7 +446,7 @@ class PatrolBattleSystem @Inject constructor(
             if (d.id !in result.survivors) {
                 d.copy(isAlive = false, status = DiscipleStatus.DEAD)
             } else {
-                // clamp 上限用含血炼口径（P2 对抗性审查修复），防削血
+                // clamp 上限用含血炼口径，防削血
                 val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(state, d)
                 d.copy(combat = d.combat.copy(
                     currentHp = hp.coerceIn(0, finalMaxHp),
@@ -520,6 +535,7 @@ class PatrolBattleSystem @Inject constructor(
         allRewards: MutableList<BattleRewardItem>,
         battleResult: BattleSystemResult
     ): List<Disciple> {
+        /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
         val rng = rngManager.getRng(RngPartition.EXPLORATION)
 
         val soulUpdated = applySurvivorSoulAndAttribute(
@@ -532,6 +548,7 @@ class PatrolBattleSystem @Inject constructor(
     }
 
     /** 幸存弟子：神魂 +1，有天赋者随机属性 +1 */
+    @Suppress("UnusedParameter") // target: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
     private fun applySurvivorSoulAndAttribute(
         target: WorldLevel,
         survivors: Set<String>,
@@ -546,35 +563,21 @@ class PatrolBattleSystem @Inject constructor(
                         ?.containsKey("winBattleRandomAttrPlus") == true
                 }) {
                     val attr = rng.nextInt(WIN_BATTLE_ATTR_COUNT)
-                    val s = m.skills; val c = m.combat
-                    // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
-                    when (attr) {
-                        0 -> s.intelligence =
-                            minOf(s.intelligence + 1, GameConfig.Disciple.SKILL_MAX)
-                        1 -> s.comprehension =
-                            minOf(s.comprehension + 1, GameConfig.Disciple.SKILL_MAX)
-                        2 -> s.charm = minOf(s.charm + 1, GameConfig.Disciple.SKILL_MAX)
-                        3 -> s.loyalty =
-                            minOf(s.loyalty + 1, GameConfig.Disciple.MAX_LOYALTY)
-                        4 -> s.artifactRefining =
-                            minOf(s.artifactRefining + 1, GameConfig.Disciple.SKILL_MAX)
-                        5 -> s.pillRefining =
-                            minOf(s.pillRefining + 1, GameConfig.Disciple.SKILL_MAX)
-                        6 -> s.spiritPlanting =
-                            minOf(s.spiritPlanting + 1, GameConfig.Disciple.SKILL_MAX)
-                        7 -> s.mining = minOf(s.mining + 1, GameConfig.Disciple.SKILL_MAX)
-                        8 -> s.teaching =
-                            minOf(s.teaching + 1, GameConfig.Disciple.SKILL_MAX)
-                        9 -> s.morality =
-                            minOf(s.morality + 1, GameConfig.Disciple.SKILL_MAX)
-                        10 -> c.baseHp++; 11 -> c.baseMp++
-                        12 -> c.basePhysicalAttack++; 13 -> c.baseMagicAttack++
-                        14 -> c.basePhysicalDefense++; 15 -> c.baseMagicDefense++
-                        16 -> c.baseSpeed++
-                    }
+                    applyRandomAttrIncrement(m, attr)
                 }
                 m
             } else d
+        }
+    }
+
+    /** 随机属性 +1：技能属性 clamp，战斗属性直接递增 */
+    private fun applyRandomAttrIncrement(disciple: Disciple, attr: Int) {
+        val s = disciple.skills; val c = disciple.combat
+        // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
+        if (attr <= 9) {
+            applySkillAttrIncrement(s, attr)
+        } else {
+            applyCombatAttrIncrement(c, attr)
         }
     }
 
@@ -586,7 +589,7 @@ class PatrolBattleSystem @Inject constructor(
     ) {
         val beastConfig = GameConfig.Beast.getType((target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1))
         val tier = GameConfig.Realm.getMaxRarity(target.realm)
-        for (i in 0 until target.count) {
+        repeat(target.count) {
             val materialCount = rng.nextInt(MAX_RANDOM_MATERIAL_DROPS) + 1
             repeat(materialCount) {
                 val beastMat = BeastMaterialDatabase.getRandomMaterialByBeastType(
@@ -601,7 +604,8 @@ class PatrolBattleSystem @Inject constructor(
                         category = beastMat.materialCategory,
                         quantity = 1
                     )
-                    val addResult = inventorySystem.withTrackingSource("patrol") { inventorySystem.addMaterial(material) }
+                    val addResult = inventorySystem.withTrackingSource("patrol") { inventorySystem
+                        .addMaterial(material) }
                     when (addResult) {
                         is DomainResult.Success -> {
                             allRewards += BattleRewardItem(
@@ -765,7 +769,7 @@ private fun markAiDeaths(state: MutableGameState, aiSectId: String, aiDead: Set<
 }
 
 /** Phase 2 (PvE) 战斗构建（executeTeamConflict 提取）：巡逻队胜用原装备，AI 胜生成模拟装备 */
-@Suppress("LongParameterList") // 战斗构建入参聚合（8 参数，血炼映射 2026-08-06 加入）
+@Suppress("LongParameterList") // 战斗构建入参聚合（8 参数，含血炼映射）
 private fun buildTeamPhase2Battle(
     isPatrolWon: Boolean,
     winnerDisciples: List<Disciple>,
@@ -858,4 +862,30 @@ private fun resolveTowerBattleResult(
         survivors = pveSurvivorIds,
         deadIds = allDeadIds
     )
+}
+
+/** 技能属性 +1（clamp 到 SKILL_MAX，忠诚例外 MAX_LOYALTY） */
+private fun applySkillAttrIncrement(s: SkillStats, attr: Int) {
+    when (attr) {
+        0 -> s.intelligence = minOf(s.intelligence + 1, GameConfig.Disciple.SKILL_MAX)
+        1 -> s.comprehension = minOf(s.comprehension + 1, GameConfig.Disciple.SKILL_MAX)
+        2 -> s.charm = minOf(s.charm + 1, GameConfig.Disciple.SKILL_MAX)
+        3 -> s.loyalty = minOf(s.loyalty + 1, GameConfig.Disciple.MAX_LOYALTY)
+        4 -> s.artifactRefining = minOf(s.artifactRefining + 1, GameConfig.Disciple.SKILL_MAX)
+        5 -> s.pillRefining = minOf(s.pillRefining + 1, GameConfig.Disciple.SKILL_MAX)
+        6 -> s.spiritPlanting = minOf(s.spiritPlanting + 1, GameConfig.Disciple.SKILL_MAX)
+        7 -> s.mining = minOf(s.mining + 1, GameConfig.Disciple.SKILL_MAX)
+        8 -> s.teaching = minOf(s.teaching + 1, GameConfig.Disciple.SKILL_MAX)
+        9 -> s.morality = minOf(s.morality + 1, GameConfig.Disciple.SKILL_MAX)
+    }
+}
+
+/** 战斗属性 +1（不 clamp） */
+private fun applyCombatAttrIncrement(c: CombatAttributes, attr: Int) {
+    when (attr) {
+        10 -> c.baseHp++; 11 -> c.baseMp++
+        12 -> c.basePhysicalAttack++; 13 -> c.baseMagicAttack++
+        14 -> c.basePhysicalDefense++; 15 -> c.baseMagicDefense++
+        16 -> c.baseSpeed++
+    }
 }

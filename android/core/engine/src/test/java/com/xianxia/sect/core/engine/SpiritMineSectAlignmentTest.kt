@@ -26,7 +26,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 /**
- * B3（2026-08-08）：validateAndFixSpiritMineData 矿场槽位 sectId 对齐测试。
+ * validateAndFixSpiritMineData 矿场槽位 sectId 对齐测试。
  *
  * 失配场景：槽位 sectId ≠ 矿场建筑 sectId → SpiritMineDialog 按建筑 sectId 过滤显示
  * 虚构空槽，玩家任命后 UI 不刷新（矿场版"任命不生效"）。对话框打开必触发本函数

@@ -3,19 +3,19 @@
 // ============================================================
 // 商人域月结下沉（S8 子事件 10：autoBuy 12 月自动购买）
 //
-// Kotlin AutoBuyService.executeAutoBuy 等价移植（批 11-3）。
+// Kotlin AutoBuyService.executeAutoBuy 等价移植。
 //
 // RNG 契约：全链零 RNG 抽取（匹配/容量/钱包/入库全部确定性）。MerchantItem
-// Converter 的**未知物品回退分支**（批 11-4 S-18 清偿）：Kotlin 用 JVM 全局
+// Converter 的**未知物品回退分支**：Kotlin 用 JVM 全局
 // Random（非确定性、非分区）→ C++ 改物品名稳定散列选池（FNV-1a）——不消费
 // 任何分区 RNG（损坏数据触达回退也不污染确定性流），跨语言内容本就无法
 // 对齐（Kotlin 每次进程不同），C++ 侧确定性自洽。
 //
-// 已知边界（登记 S-18 剩余面）：
+// 已知边界：
 // - 溢出转邮件：C++ addXxx 产出 OverflowDraft 至本地 collector——
 //   月结上下文无邮件通道，草稿丢弃（Kotlin 真相源发送）；对拍场景
 //   仓库容量充足规避
-// - MerchantItem 协议批 11-3 补齐 type/grade 字段（旧 .so 宽松兼容）
+// - MerchantItem 协议补齐 type/grade 字段（旧 .so 宽松兼容）
 // ============================================================
 
 #include <algorithm>
@@ -52,8 +52,8 @@ namespace settle_util = gamecore::system::settle_util;
 
 /// 实例/堆叠 id 生成（确定性自增——Kotlin UUID，语义等价，同 inventory.h）
 inline std::string nextItemId() {
-    static uint64_t counter = 0;
-    return "gc-merch-" + std::to_string(++counter);
+    // 进程级 static 计数器收敛到 inventory.h 注册表
+    return "gc-merch-" + std::to_string(nextItemIdCounter("gc-merch"));
 }
 
 /// 品阶最低境界（GameConfig.Realm.getMinRealmForRarity）
@@ -108,10 +108,9 @@ inline std::size_t stableNameHash(const std::string& s) {
     return h;
 }
 
-/// 回退分支确定性选择（S-18 清偿，批 11-4）：Kotlin 用 JVM 全局 Random
-///（非确定性、非分区）→ C++ 改为**物品名稳定散列选池**——不消费任何分区
-/// RNG（损坏数据触达回退也不污染确定性流），跨语言内容本就无法对齐
-///（Kotlin 每次进程不同），C++ 侧确定性自洽
+/// 回退分支确定性选择：以**物品名稳定散列选池**——不消费任何分区
+/// RNG（损坏数据触达回退也不污染确定性流）。Kotlin 对应回退用 JVM
+/// 全局 Random（非确定性），双端内容无法对齐，C++ 侧确定性自洽
 template <typename T>
 inline const T& fallbackPick(const std::vector<T>& templates,
                              const std::string& name, int32_t rarity) {
@@ -146,7 +145,7 @@ inline EquipmentStack toEquipment(const MerchantItem& item) {
         s.minRealm = minRealmForRarity(item.rarity);
         return s;
     }
-    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    // 回退分支（物品名稳定散列选池，零分区 RNG 消耗）
     const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     EquipmentStack s;
     s.id = nextItemId();
@@ -209,8 +208,7 @@ inline ManualStack toManual(const MerchantItem& item) {
         m.quantity = 1;
         return m;
     }
-    // 回退分支（S-18）
-    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    // 回退分支（物品名稳定散列选池，零分区 RNG 消耗）
     const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     ManualStack m;
     m.id = nextItemId();
@@ -313,7 +311,7 @@ inline Pill toPill(const MerchantItem& item) {
         p.minRealm = minRealmForRarity(item.rarity);
         return p;
     }
-    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    // 回退分支（物品名稳定散列选池，零分区 RNG 消耗）
     const auto& chosen = fallbackPick(recipes, item.name, item.rarity);
     Pill p;
     p.id = nextItemId();
@@ -369,7 +367,7 @@ inline Material toMaterial(const MerchantItem& item) {
         m.category = it->category;
         return m;
     }
-    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    // 回退分支（物品名稳定散列选池，零分区 RNG 消耗）
     const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     Material m;
     m.id = nextItemId();
@@ -396,8 +394,7 @@ inline Herb toHerb(const MerchantItem& item) {
         h.quantity = 1;
         return h;
     }
-    // 回退分支（S-18）
-    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    // 回退分支（物品名稳定散列选池，零分区 RNG 消耗）
     const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     Herb h;
     h.id = nextItemId();
@@ -425,7 +422,7 @@ inline Seed toSeed(const MerchantItem& item) {
         s.quantity = 1;
         return s;
     }
-    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    // 回退分支（物品名稳定散列选池，零分区 RNG 消耗）
     const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     Seed s;
     s.id = nextItemId();
@@ -546,7 +543,7 @@ inline bool canAddToWarehouse(const GameState& state, const MerchantItem& item,
 // ── 主流程：executeAutoBuy（Kotlin AutoBuyService.executeAutoBuy 等价） ──
 
 /// 12 月自动购买（仅当月调用；全链零 RNG——含未知名回退的确定性散列选池，
-/// S-18 已清偿；overflow 草稿本地收集丢弃——Kotlin 真相源发送溢出邮件）
+/// overflow 草稿本地收集丢弃——Kotlin 真相源发送溢出邮件）
 inline void executeAutoBuy(GameState& state) {
     auto& gd = state.gameData;
     if (gd.autoBuyList.empty()) return;
@@ -554,8 +551,12 @@ inline void executeAutoBuy(GameState& state) {
 
     // 逐条处理（复制商人列表——修改在本地完成，末尾整体写回）
     std::vector<MerchantItem> newMerchantItems = gd.travelingMerchantItems;
+    // 快照迭代 autoBuyList：循环内 SpiritStoneWallet 扣减会整体替换 gameData
+    //（economy.h `gd = withSpiritStoneCount(...)`），直接绑定 gd.autoBuyList
+    // 会在替换时迭代器失效（Kotlin 不可变 List 语义 = 快照）
+    const std::vector<AutoBuyEntry> autoBuyEntries = gd.autoBuyList;
 
-    for (const auto& entry : gd.autoBuyList) {
+    for (const auto& entry : autoBuyEntries) {
         // 首个匹配（indexOfFirst 语义）
         std::size_t matchIdx = newMerchantItems.size();
         for (std::size_t i = 0; i < newMerchantItems.size(); ++i) {
@@ -566,7 +567,7 @@ inline void executeAutoBuy(GameState& state) {
         const MerchantItem merchantItem = newMerchantItems[matchIdx];
         if (merchantItem.quantity <= 0) continue;
 
-        // 转换物品（模板路径；未知名走确定性散列回退——S-18 零分区 RNG 消耗）
+        // 转换物品（模板路径；未知名走确定性散列回退——零分区 RNG 消耗）
         EquipmentStack eq;
         ManualStack mn;
         Pill pill;
@@ -609,7 +610,7 @@ inline void executeAutoBuy(GameState& state) {
         }
 
         // 入库（overflow 草稿本地收集——自动类路径溢出不抑制，Kotlin 真相源
-        // 发邮件；C++ 月结上下文无邮件通道，草稿丢弃——S-18 边界）
+        // 发邮件；C++ 月结上下文无邮件通道，草稿丢弃）
         gamecore::system::OverflowMailCollector overflowMail;
         if (type == "equipment") {
             eq.quantity = buyQty;

@@ -24,8 +24,6 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.theme.GameColors
 
-
-
 @Composable
 fun ResidenceDialog(
     buildingInstanceId: String,
@@ -61,11 +59,11 @@ fun ResidenceDialog(
             onEmptySlotClick = { selectedSlotIndex = it; isSwapping = false; showDiscipleSelector = true },
             onMoveOut = { index ->
                 scope.launch {
-                    viewModel.removeFromResidence(buildingInstanceId, index)
+                    viewModel.buildingDelegate.removeFromResidence(buildingInstanceId, index)
                 }
             },
             onSwap = { selectedSlotIndex = it; isSwapping = true; showDiscipleSelector = true },
-            onUpgrade = { scope.launch { viewModel.upgradeResidence(buildingInstanceId) } }
+            onUpgrade = { scope.launch { viewModel.buildingUpgradeDelegate.upgradeResidence(buildingInstanceId) } }
         )
     }
     if (showDiscipleSelector) {
@@ -142,7 +140,7 @@ private data class ResidenceContentParams(
     val hasSectLevel: Boolean
 )
 
-/** 弟子住所主内容区（ResidenceDialog 拆分）：加成文案 + 槽位行 + 升级区 */
+/** 弟子住所主内容区：加成文案 + 槽位行 + 升级区 */
 @Composable
 private fun ResidenceDialogContent(
     params: ResidenceContentParams,
@@ -214,7 +212,7 @@ private fun ResidenceDialogContent(
     }
 }
 
-/** 住所升级区（ResidenceDialog 拆分）：条件文本 + 升级按钮（白=满足 / 红=不满足）。 */
+/** 住所升级区：条件文本 + 升级按钮（白=满足 / 红=不满足）。 */
 @Composable
 private fun ResidenceUpgradeSection(
     upgradeCost: Long,
@@ -243,8 +241,7 @@ private fun ResidenceUpgradeSection(
     }
 }
 
-/** 单个住所槽位（ResidenceDialog 拆分）：弟子槽 + 搬离/更换操作 */
-// 拆分搬移:参数保留原签名语义
+/** 单个住所槽位：弟子槽 + 搬离/更换操作 */
 @Suppress("UnusedParameter")
 @Composable
 private fun ResidenceSlotColumn(
@@ -281,7 +278,7 @@ private fun ResidenceSlotColumn(
     }
 }
 
-/** 入住/更换弟子选择弹窗（ResidenceDialog 拆分） */
+/** 入住/更换弟子选择弹窗 */
 @Composable
 private fun ResidenceDiscipleSelector(
     buildingInstanceId: String,
@@ -295,7 +292,8 @@ private fun ResidenceDiscipleSelector(
     val scope = rememberCoroutineScope()
     val showAllEnabled = gameData.showAllAvailableDisciples
     val battleAndExplorationIds = remember {
-        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }
+            .toSet()
         val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
         battleIds + explorationIds
     }
@@ -311,7 +309,8 @@ private fun ResidenceDiscipleSelector(
         onConfirm = { selected ->
             if (selected.isNotEmpty()) {
                 scope.launch {
-                    viewModel.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first().id)
+                    viewModel.buildingDelegate.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first(
+                        ).id)
                 }
             }
             onDismiss()

@@ -9,7 +9,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// AI 宗门决策引擎（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-4）
+// AI 宗门决策引擎
 //
 // 等价移植 Kotlin IntelligentSectDecisionEngine（纯函数，无状态无注入）：
 //   - calculateChance：四因素加权概率（战力差/占领丢失/胜负/好感度）

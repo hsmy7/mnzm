@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.Image
@@ -60,11 +60,11 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.PhysiqueDetailDialog
 import com.xianxia.sect.ui.components.AffixDetailDialog
-import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.game.components.detail.AffixesSection
+import com.xianxia.sect.ui.game.components.detail.DiscipleTypeEditInteraction
 import com.xianxia.sect.ui.game.components.detail.AttributesSection
 import com.xianxia.sect.ui.game.components.detail.BasicInfoSection
 import com.xianxia.sect.ui.game.components.detail.CombatStatsSection
@@ -93,12 +93,18 @@ import com.xianxia.sect.ui.game.dialogs.TraitWashDialog
 import com.xianxia.sect.ui.game.dialogs.WashSessionControl
 import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
 import com.xianxia.sect.ui.theme.GameColors
-
-
+import com.xianxia.sect.ui.game.delegate.equipItem
+import com.xianxia.sect.ui.game.delegate.forgetManual
+import com.xianxia.sect.ui.game.delegate.learnManual
+import com.xianxia.sect.ui.game.delegate.purchaseBreakthroughBonus
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
+import com.xianxia.sect.ui.game.delegate.replaceManual
+import com.xianxia.sect.ui.game.delegate.unequipItem
+import com.xianxia.sect.core.engine.domain.disciple.getMaxManualSlots
 
 val LocalDismissDropdown = compositionLocalOf { {} }
 
-/** 弟子详情对话框 UI 状态（DiscipleDetailDialog 拆分）：跨区共享的弹窗开关/选中项 + 洗炼互斥入口 */
+/** 弟子详情对话框 UI 状态：跨区共享的弹窗开关/选中项 + 洗炼互斥入口 */
 private class DiscipleDetailDialogState {
     var showEquipmentSelection by mutableStateOf<String?>(null)
     var showManualSelection by mutableStateOf(false)
@@ -126,8 +132,8 @@ private class DiscipleDetailDialogState {
     var showTraitAddType by mutableStateOf<TraitWashType?>(null)
     var showDiscipleTypeDropdown by mutableStateOf(false)
 
-    // 洗炼弹窗互斥入口（对抗性审查 2026-08-09 状态破坏者：四个洗炼入口若只置位自己的
-    // bool，快速连点可在同帧叠加两个内联覆盖层，下层弹窗的洗炼按钮仍可被点到造成双扣玉符）
+    // 洗炼弹窗互斥入口：四个洗炼入口若只置位自己的 bool，快速连点可在同帧
+    // 叠加两个内联覆盖层，下层弹窗的洗炼按钮仍可被点到造成双扣玉符
     fun openSpiritRootWash() {
         showWashDialog = true; showTalentWashDialog = false
         showPhysiqueWashDialog = false; showAffixWashDialog = false
@@ -145,7 +151,7 @@ private class DiscipleDetailDialogState {
         showTalentWashDialog = false; showPhysiqueWashDialog = false
     }
 
-    /** 右侧面板动作回调集合（DiscipleDetailDialog 拆分）：与 [DetailActionCallbacks] 一一对应 */
+    /** 右侧面板动作回调集合：与 [DetailActionCallbacks] 一一对应 */
     fun actionCallbacks(
         disciple: DiscipleAggregate,
         viewModel: GameViewModel?,
@@ -160,7 +166,7 @@ private class DiscipleDetailDialogState {
         onShowChat = { showChatDialog = true },
         onShowResignConfirm = {
             when (val result = evaluateResignGate(disciple.status, disciple.isAlive)) {
-                is ResignGateResult.CanResign -> viewModel?.releaseDiscipleForReassignment(disciple.id)
+                is ResignGateResult.CanResign -> viewModel?.disciple?.releaseDiscipleForReassignment(disciple.id)
                 is ResignGateResult.ConfirmRequired -> {
                     resignConfirmMessage = result.message
                     showResignConfirmDialog = true
@@ -226,8 +232,7 @@ fun DiscipleDetailDialog(
     )
 }
 
-/** 弟子详情对话框主体（DiscipleDetailDialog 拆分）：全屏对话框 + Tab 布局 + 内联覆盖层 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 弟子详情对话框主体：全屏对话框 + Tab 布局 + 内联覆盖层 */
 @Suppress("LongParameterList")
 @Composable
 private fun DiscipleDetailBody(
@@ -243,9 +248,12 @@ private fun DiscipleDetailBody(
     onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?
 ) {
     val elderSlots by viewModel?.elderSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
-    val sectPolicies by viewModel?.sectPolicies?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(SectPolicies()) }
-    val vmResidenceSlots by viewModel?.residenceSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<ResidenceSlot>()) }
-    val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<GridBuildingData>()) }
+    val sectPolicies by viewModel?.sectPolicies?.collectAsStateWithLifecycle() ?:
+        remember { mutableStateOf(SectPolicies()) }
+    val vmResidenceSlots by viewModel?.residenceSlots?.collectAsStateWithLifecycle() ?:
+        remember { mutableStateOf(emptyList<ResidenceSlot>()) }
+    val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?:
+        remember { mutableStateOf(emptyList<GridBuildingData>()) }
     val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
     val gameYear = gameData?.gameYear ?: 1
     var localDiscipleType by remember(disciple.id) { mutableStateOf(disciple.discipleType) }
@@ -263,7 +271,7 @@ private fun DiscipleDetailBody(
         key(disciple.id) {
             BackHandler(onBack = onDismiss)
             // 首次查看时初始化日志（仅当尚无日志时生成合成事件）
-            LaunchedEffect(disciple.id) { viewModel?.initializeLifeEvents(disciple.id) }
+            LaunchedEffect(disciple.id) { viewModel?.lifeEvents?.initializeLifeEvents(disciple.id) }
 
             CompositionLocalProvider(LocalDismissDropdown provides { state.showDiscipleTypeDropdown = false }) {
                 Surface(
@@ -300,8 +308,7 @@ private fun DiscipleDetailBody(
     }
 }
 
-/** Tab 主行（DiscipleDetailDialog 拆分）：左侧 Tab 按钮 + 内容区 + 分隔线 + 右侧面板 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** Tab 主行：左侧 Tab 按钮 + 内容区 + 分隔线 + 右侧面板 */
 @Suppress("LongParameterList")
 @Composable
 private fun DiscipleDetailTabLayout(
@@ -367,10 +374,12 @@ private fun DiscipleDetailTabLayout(
         // Right 40%: Portrait + basic info + action buttons
         DetailRightPanel(
             disciple = disciple, allDisciples = allDisciples,
-            localDiscipleType = localDiscipleType,
-            showDiscipleTypeDropdown = state.showDiscipleTypeDropdown,
-            onDiscipleTypeDropdownChange = { state.showDiscipleTypeDropdown = it },
-            onLocalDiscipleTypeChange = onLocalDiscipleTypeChange,
+            typeEdit = DiscipleTypeEditInteraction(
+                localDiscipleType = localDiscipleType,
+                showDropdown = state.showDiscipleTypeDropdown,
+                onDropdownChange = { state.showDiscipleTypeDropdown = it },
+                onTypeChange = onLocalDiscipleTypeChange
+            ),
             actions = state.actionCallbacks(disciple = disciple,
                 viewModel = viewModel, onNavigateToDisciple = onNavigateToDisciple),
             viewModel = viewModel
@@ -378,9 +387,7 @@ private fun DiscipleDetailTabLayout(
     }
 }
 
-/** Tab 内容区（DiscipleDetailDialog 拆分）：信息/属性/装备/功法 四分支（信息分支见 DiscipleDetailInfoTab） */
-// 拆分聚合:平铺参数搬移自原公共函数
-// 拆分搬移:参数保留原签名语义
+/** Tab 内容区：信息/属性/装备/功法 四分支（信息分支见 DiscipleDetailInfoTab） */
 @Suppress("LongParameterList", "UnusedParameter")
 @Composable
 private fun DiscipleDetailTabContent(
@@ -448,8 +455,7 @@ private fun DiscipleDetailTabContent(
     }
 }
 
-/** 信息 Tab（DiscipleDetailDialog 拆分）：基本信息 + 天赋/体质/词条分区 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 信息 Tab：基本信息 + 天赋/体质/词条分区 */
 @Suppress("LongParameterList")
 @Composable
 private fun DiscipleDetailInfoTab(
@@ -506,7 +512,7 @@ private fun DiscipleDetailInfoTab(
     )
 }
 
-/** 内联覆盖层（DiscipleDetailDialog 拆分）：改名/洗炼/突破率玉符/新增特质（渲染在根 Box 最末，z 序最高） */
+/** 内联覆盖层：改名/洗炼/突破率玉符/新增特质（渲染在根 Box 最末，z 序最高） */
 @Composable
 private fun DiscipleDetailInlineOverlays(
     disciple: DiscipleAggregate,
@@ -521,7 +527,7 @@ private fun DiscipleDetailInlineOverlays(
         RenameDiscipleDialog(
             currentName = disciple.name,
             onConfirm = { newName ->
-                viewModel?.renameDisciple(disciple.id, newName)
+                viewModel?.disciple?.renameDisciple(disciple.id, newName)
                 state.showRenameDialog = false
             },
             onDismiss = { state.showRenameDialog = false }
@@ -546,7 +552,7 @@ private fun DiscipleDetailInlineOverlays(
             jadeSymbols = gameData?.jadeSymbols ?: 0,
             insufficientText = "玉符不足，无法提高突破率",
             purchase = {
-                when (val result = viewModel?.purchaseBreakthroughBonus(disciple.id)) {
+                when (val result = viewModel?.disciple?.purchaseBreakthroughBonus(disciple.id)) {
                     is BreakthroughBonusResult.Success -> JadePurchaseOutcome.Success
                     is BreakthroughBonusResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
                     is BreakthroughBonusResult.LimitReached -> JadePurchaseOutcome.Success
@@ -573,8 +579,7 @@ private fun DiscipleDetailInlineOverlays(
     }
 }
 
-/** 次级对话框集合（DiscipleDetailDialog 拆分）：关系/日志/储物袋/聊天 + 确认/选择/洗炼/详情类对话框 */
-// 拆分聚合:平铺参数搬移自原公共函数
+/** 次级对话框集合：关系/日志/储物袋/聊天 + 确认/选择/洗炼/详情类对话框 */
 @Suppress("LongParameterList")
 @Composable
 private fun DiscipleDetailSecondaryDialogs(
@@ -598,7 +603,7 @@ private fun DiscipleDetailSecondaryDialogs(
     }
     if (state.showLifeLogDialog) {
         LifeLogDialog(discipleName = disciple.name,
-            events = viewModel?.getLifeEvents(disciple.id) ?: emptyList(),
+            events = viewModel?.lifeEvents?.getLifeEvents(disciple.id) ?: emptyList(),
             onDismiss = { state.showLifeLogDialog = false })
     }
     if (state.showStorageBagDialog) {
@@ -606,7 +611,7 @@ private fun DiscipleDetailSecondaryDialogs(
             disciple = disciple, viewModel = viewModel, onDismiss = { state.showStorageBagDialog = false })
     }
     if (state.showChatDialog) {
-        val lastChatYear = viewModel?.getLastChatYear(disciple.id)
+        val lastChatYear = viewModel?.disciple?.getLastChatYear(disciple.id)
         val hasCooldown = lastChatYear != null && lastChatYear == gameYear
         DiscipleChatDialog(disciple = disciple, gameYear = gameYear, hasCooldown = hasCooldown,
             viewModel = viewModel, onDismiss = { state.showChatDialog = false })
@@ -631,7 +636,7 @@ private fun DiscipleDetailSecondaryDialogs(
     )
 }
 
-/** 确认/拜师类对话框（DiscipleDetailDialog 拆分）：驱逐确认 + 卸任确认/阻塞提示 + 拜师选择/确认 */
+/** 确认/拜师类对话框：驱逐确认 + 卸任确认/阻塞提示 + 拜师选择/确认 */
 @Composable
 private fun DiscipleDetailStandardDialogs(
     disciple: DiscipleAggregate,
@@ -645,7 +650,8 @@ private fun DiscipleDetailStandardDialogs(
             title = "确认驱逐",
             text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
             confirmLabel = "确认",
-            onConfirm = { viewModel?.expelDisciple(disciple.id); state.showExpelConfirmDialog = false; onDismiss() },
+            onConfirm = { viewModel?.disciple?.expelDisciple(disciple.id); state.showExpelConfirmDialog = false;
+                onDismiss() },
             dismissLabel = "取消", onDismiss = { state.showExpelConfirmDialog = false })
     }
 
@@ -655,7 +661,7 @@ private fun DiscipleDetailStandardDialogs(
             text = state.resignConfirmMessage,
             confirmLabel = "确认卸任",
             onConfirm = {
-                viewModel?.releaseDiscipleForReassignment(disciple.id)
+                viewModel?.disciple?.releaseDiscipleForReassignment(disciple.id)
                 state.showResignConfirmDialog = false
             },
             dismissLabel = "取消", onDismiss = { state.showResignConfirmDialog = false })
@@ -688,7 +694,7 @@ private fun DiscipleDetailStandardDialogs(
                 text = "确认让 ${disciple.name}（${disciple.realmName}）拜 ${master.name}（${master.realmName}）为师？",
                 confirmLabel = "确认",
                 onConfirm = {
-                    viewModel?.apprenticeToMaster(disciple.id, master.id)
+                    viewModel?.disciple?.apprenticeToMaster(disciple.id, master.id)
                     showApprenticeConfirmDialog = false
                     selectedMaster = null
                 },
@@ -697,7 +703,7 @@ private fun DiscipleDetailStandardDialogs(
     }
 }
 
-/** 装备/功法选择对话框（DiscipleDetailDialog 拆分） */
+/** 装备/功法选择对话框 */
 @Composable
 private fun DiscipleDetailSelectionDialogs(
     disciple: DiscipleAggregate,
@@ -732,7 +738,7 @@ private fun DiscipleDetailSelectionDialogs(
             ),
             onSelect = { id -> selectedEquipmentId = id },
             onConfirm = { id ->
-                viewModel?.equipItem(disciple.id, id)
+                viewModel?.disciple?.equipItem(disciple.id, id)
                 state.showEquipmentSelection = null
                 selectedEquipmentId = null
             },
@@ -756,7 +762,7 @@ private fun DiscipleDetailSelectionDialogs(
             ),
             onSelect = { id -> selectedManualId = id },
             onConfirm = { id ->
-                viewModel?.learnManual(disciple.id, id)
+                viewModel?.disciple?.learnManual(disciple.id, id)
                 state.showManualSelection = false
                 selectedManualId = null
             },
@@ -768,7 +774,7 @@ private fun DiscipleDetailSelectionDialogs(
     }
 }
 
-/** 天赋/体质洗炼详情（DiscipleDetailDialog 拆分）：详情弹窗 + 洗炼覆盖层（保底计数常驻） */
+/** 天赋/体质洗炼详情：详情弹窗 + 洗炼覆盖层（保底计数常驻） */
 @Composable
 private fun DiscipleDetailTraitWashDialogs(
     disciple: DiscipleAggregate,
@@ -831,7 +837,7 @@ private fun DiscipleDetailTraitWashDialogs(
     }
 }
 
-/** 词条洗炼/装备详情（DiscipleDetailDialog 拆分）：Affix 详情弹窗 + 装备详情弹窗 */
+/** 词条洗炼/装备详情：Affix 详情弹窗 + 装备详情弹窗 */
 @Composable
 private fun DiscipleDetailTailDialogs(
     disciple: DiscipleAggregate,
@@ -878,7 +884,7 @@ private fun DiscipleDetailTailDialogs(
                 GameButton(
                     text = "卸下",
                     onClick = {
-                        viewModel?.unequipItem(disciple.id, equipment.id)
+                        viewModel?.disciple?.unequipItem(disciple.id, equipment.id)
                         state.showEquipmentDetailDialog = null
                     }
                 )
@@ -894,7 +900,7 @@ private fun DiscipleDetailTailDialogs(
     }
 }
 
-/** 功法详情与更换（DiscipleDetailDialog 拆分）：已学功法详情 + 更换选择弹窗 */
+/** 功法详情与更换：已学功法详情 + 更换选择弹窗 */
 @Composable
 private fun DiscipleDetailManualSection(
     disciple: DiscipleAggregate,
@@ -911,7 +917,8 @@ private fun DiscipleDetailManualSection(
         LearnedManualDetailDialog(
             manual = manual,
             proficiencyData = proficiencyData,
-            onForget = { viewModel?.forgetManual(disciple.id, manual.id); state.showManualDetailDialog = null },
+            onForget = { viewModel?.disciple?.forgetManual(disciple.id, manual.id); state.showManualDetailDialog = null
+                },
             onDismiss = { state.showManualDetailDialog = null },
             extraActions = { GameButton(text = "更换", onClick = { showManualReplaceSelection = true }) }
         )
@@ -944,7 +951,7 @@ private fun DiscipleDetailManualSection(
                 selectedReplaceManualId = selectedReplaceManualId,
                 onSelectReplaceManual = { id -> selectedReplaceManualId = id },
                 onConfirmReplace = { newId ->
-                    viewModel?.replaceManual(disciple.id, manual.id, newId)
+                    viewModel?.disciple?.replaceManual(disciple.id, manual.id, newId)
                     showManualReplaceSelection = false
                     state.showManualDetailDialog = null
                 },
@@ -955,7 +962,7 @@ private fun DiscipleDetailManualSection(
 }
 
 /**
- * 功法更换选择对话框（DiscipleDetailDialog 拆分）：全屏 7:3 双栏 + 心法规则。
+ * 功法更换选择对话框：全屏 7:3 双栏 + 心法规则。
  *
  * 进入默认选中列表第一个功法（[onConfirmReplace] 接收最终选中功法 id）。
  * 心法规则（mindItemsDisabled 由调用方计算）：弟子已有心法且更换的原功法非心法时，

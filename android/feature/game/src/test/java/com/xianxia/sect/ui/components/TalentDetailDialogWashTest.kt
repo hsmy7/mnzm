@@ -27,7 +27,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 天赋/体质/词条详情界面的洗炼入口测试（2026-08-09 洗炼按钮迁入详情界面）：
+ * 天赋/体质/词条详情界面的洗炼入口测试：
  * - onWashClick 非空时详情底部显示对应洗炼按钮，点击触发回调
  * - onWashClick 默认 null 时按钮不显示
  * - washOverlay 槽位内覆盖层可见（结构守卫，防窗口遮挡回归）

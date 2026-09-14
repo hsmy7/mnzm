@@ -9,7 +9,7 @@
 #include "gamecore/system/java_hash.h"
 
 // ============================================================
-// 宗门战力计算器（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-4）
+// 宗门战力计算器
 //
 // 等价移植 Kotlin SectCombatPowerCalculator（纯公式，玩家与 AI 同一口径）：
 //   - calculateDiscipleCombatPower：战力 = (物攻+法攻)×5 + 气血×4 + (物防+法防)×3 + 速度×2

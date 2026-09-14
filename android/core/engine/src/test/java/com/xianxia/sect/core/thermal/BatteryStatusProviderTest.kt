@@ -7,15 +7,15 @@ import org.junit.Test
 
 /**
  * 电量/省电模式降载策略测试（低电量 ≤20% 未充电 → 降帧/提前降载；
- * 系统省电模式 → 30fps 上限；两级独立生效取 min，2026-08-14 扩展）。
+ * 系统省电模式 → 30fps 上限；两级独立生效取 min）。
  *
  * 覆盖维度：
  * - [evaluatePowerPolicy] 判定矩阵（阈值/边界/充电豁免/省电组合）
  * - NoopBatteryStatus 永不降载
  *
  * Android 平台读取行为（sticky 广播回退等）由 app 层
- * `com.xianxia.sect.platform.BatteryAwareControllerTest` 覆盖（2026-08-28
- * 平台能力接口化：策略纯函数留引擎，平台实现移 app）。
+ * `com.xianxia.sect.platform.BatteryAwareControllerTest` 覆盖
+ * （平台能力接口化：策略纯函数留引擎，平台实现移 app）。
  */
 class BatteryStatusProviderTest {
 
@@ -70,7 +70,7 @@ class BatteryStatusProviderTest {
         assertEquals(BatteryPolicy.MAX_FPS_CAP, policy.fpsCap)
     }
 
-    // ── 省电模式（2026-08-14 新增：30fps 上限，两级降载取 min） ──
+    // ── 省电模式（30fps 上限，两级降载取 min） ──
 
     @Test
     fun `power save - caps fps at 30 regardless of battery`() {

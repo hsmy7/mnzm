@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
-import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.model.BagStackedData
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -18,7 +17,7 @@ import org.junit.Test
 
 
 /**
- * D-03 袋条目物化回仓库测试（materializeBagItemsToWarehouse）：
+ * 袋条目物化回仓库测试（materializeBagItemsToWarehouse）：
  * 弟子死亡/逐出时袋物品物化回仓库（发放类——溢出自动转邮件，物品不丢）。
  *
  * 独立存储后袋条目持有数据（payload/stackedData），物化仅做"袋 → 仓库"搬运，
@@ -46,14 +45,6 @@ class InventoryBagTransferTest {
         inventorySystem = InventorySystem(
             stateStore = store,
             inventoryConfig = InventoryConfig(),
-            spiritStoneWallet = com.xianxia.sect.core.wallet.SpiritStoneWallet(
-                stateStore = store,
-                ledger = org.mockito.Mockito.mock(com.xianxia.sect.core.wallet.SpiritStoneLedger::class.java),
-                eventBus = org.mockito.Mockito.mock(com.xianxia.sect.core.event.EventBus::class.java)
-            ),
-            gameConfigProvider = GameConfigProvider(
-                com.xianxia.sect.core.config.ConfigLoader(assetReader = { null })
-            ),
             overflowMailHandler = overflowHandler
         )
     }

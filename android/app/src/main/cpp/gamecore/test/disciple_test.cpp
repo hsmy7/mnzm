@@ -246,7 +246,7 @@ TEST(GriefTest, IsGrieving) {
 }
 
 TEST(LifespanGainTest, RealmGain) {
-    EXPECT_EQ(lifespanGainForRealm(8), 50);
+    EXPECT_EQ(lifespanGainForRealm(8), 40);
     EXPECT_EQ(lifespanGainForRealm(0), 10000);
     EXPECT_EQ(lifespanGainForRealm(99), 0);
 }

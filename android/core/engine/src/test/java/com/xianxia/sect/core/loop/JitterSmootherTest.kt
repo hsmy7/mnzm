@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [JitterSmoother] 一阶滤波测试（2026-08-13 批次 3）。
+ * [JitterSmoother] 一阶滤波测试。
  *
  * 核心断言：滤波只作用于渲染插值因子——收敛性、钳制、重置语义。
  */

@@ -16,7 +16,7 @@ import com.xianxia.sect.core.platform.SurfaceProvider
  *    - surfaceCreated + 首次 surfaceChanged → [SurfaceEventListener.onSurfaceAvailable]（含初始尺寸）
  *    - 后续 surfaceChanged → [SurfaceEventListener.onSurfaceSizeChanged]
  *    - surfaceDestroyed → [SurfaceEventListener.onSurfaceDestroyed]
- * 2. **生命周期防御**（全部迁自 NativeSurfaceView，2026-08-13 平台抽象重构，语义逐条保留）：
+ * 2. **生命周期防御**：
  *    - **纪元防 stale**：创建/销毁递增 [generation]，宿主异步回调据此丢弃
  *      跨 surface 纪元的残留回调；销毁后到达的旧 surfaceChanged 事件直接拒绝
  *    - **GPU 初始化前零 lockCanvas**：surfaceCreated 不执行清屏（buffer 未就绪时
@@ -103,7 +103,7 @@ class AndroidSurfaceProvider(
         }
     }
 
-    override fun startInitTimeout() {
+    override fun startInitTimeout(timeoutMs: Long) {
         cancelInitTimeout()
         val currentGen = genCounter
         val runnable = Runnable {
@@ -111,11 +111,11 @@ class AndroidSurfaceProvider(
             // 防御：surfaceDestroyed 后残留的 stale 超时回调不触发
             //（防跨 surface 误置状态——原 NativeSurfaceView timeoutRunnable 同守卫）
             if (currentGen != genCounter) return@Runnable
-            Log.w(TAG, "Vulkan init timed out (10s) — falling back to software renderer")
+            Log.w(TAG, "Vulkan init timed out (${timeoutMs}ms) — falling back")
             listener?.onSurfaceInitTimeout()
         }
         initTimeoutRunnable = runnable
-        handler.postDelayed(runnable, INIT_TIMEOUT_MS)
+        handler.postDelayed(runnable, timeoutMs)
     }
 
     override fun notifyInitCompleted() {
@@ -123,7 +123,7 @@ class AndroidSurfaceProvider(
     }
 
     override fun unregister() {
-        // 解除平台回调（对抗性审查 2026-08-13 状态破坏者#6）
+        // 解除平台回调注册（防止双 provider 接收同一事件）
         holder.removeCallback(this)
         cancelInitTimeout()
         listener = null
@@ -139,8 +139,8 @@ class AndroidSurfaceProvider(
     override fun surfaceCreated(holder: SurfaceHolder) {
         // 新 surface 纪元开始（尺寸未知，待首次 surfaceChanged 合并派发）
         state = SurfaceState.CREATED
-        // ★ 根因修复（2026-09）：此处不得 lockCanvas 清屏。surfaceCreated 时
-        //   SurfaceView buffer 尚未就绪（骁龙 8 Gen 2 真机必现），lockCanvas 内部
+        // 此处不得 lockCanvas 清屏。surfaceCreated 时
+        //   SurfaceView buffer 尚未就绪，lockCanvas 内部
         //   AOSP Surface::lock 先 connect(NATIVE_WINDOW_API_CPU) 后 dequeueBuffer，
         //   dequeueBuffer 失败路径不 disconnect → CPU API 连接永久残留。随后 GPU
         //   初始化（vkCreateAndroidSurfaceKHR / eglCreateWindowSurface）对同一窗口
@@ -168,7 +168,7 @@ class AndroidSurfaceProvider(
                 listener?.onSurfaceSizeChanged(w, h)
             }
             SurfaceState.DESTROYED -> {
-                // ★ 防御：销毁后到达的旧 surface 事件被拒绝（无新 surfaceCreated
+                // 防御：销毁后到达的旧 surface 事件被拒绝（无新 surfaceCreated
                 //   的 stale surfaceChanged——主线程消息队列交错时可能发生）；
                 //   尺寸必须在分支内更新——拒绝的 stale 事件不得污染宽高
                 Log.w(TAG, "surfaceChanged ignored: stale event after destroy (${w}x$h)")
@@ -196,7 +196,7 @@ class AndroidSurfaceProvider(
     companion object {
         private const val TAG = "AndroidSurfaceProvider"
 
-        /** 初始化超时（毫秒）：10s 未完成触发 onSurfaceInitTimeout 降级 */
-        private const val INIT_TIMEOUT_MS = 10_000L
+        // 初始化超时基础预算（10s）已收敛至 SurfaceProvider.INIT_TIMEOUT_BASE_MS
+        // startInitTimeout 带预算参数，prewarm 在途时宿主传延长值）
     }
 }

@@ -84,6 +84,7 @@ private fun SectionHeader(
 }
 
 @Composable
+@Suppress("UnusedParameter") // statusData: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun TalentsSection(
     talents: List<Talent>,
     statusData: Map<String, String> = emptyMap(),
@@ -350,8 +351,7 @@ private data class RelationsData(
     val apprentices: List<DiscipleAggregate>
 )
 
-/** 关系列表内容（RelationsDialog 拆分）：各亲属类别 + 无关系空态 */
-// 拆分搬移:分支结构与原函数一致
+/** 关系列表内容：各亲属类别 + 无关系空态 */
 @Suppress("CyclomaticComplexMethod")
 @Composable
 private fun RelationsContent(data: RelationsData) {

@@ -39,8 +39,9 @@ object PortraitPool {
     }
 
     /**
-     * 从性别对应肖像池随机选一个（确定性 RNG：随机源由调用方注入，
-     * 禁止裸 kotlin.random.Random——需接入分区 PRNG 或 GameRandom）。
+     * 从性别对应肖像池随机选一个（随机源由调用方注入——
+     * 表现类调用方传 `PresentationRandom.boundPicker()`；禁止裸
+     * `kotlin.random.Random.Default`）。
      *
      * @param gender 性别（"male"/"female"，未知性别回退女性池）
      * @param nextInt 随机上界函数 `(bound) -> value`，返回 [0, bound)

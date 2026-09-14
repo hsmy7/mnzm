@@ -17,8 +17,8 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 
 @Composable
 fun AttributesSection(disciple: DiscipleAggregate) {
-    // 2026-08-12 修复：属性区只显示最终值（含天赋 Flat 加成，如洗炼"青帝 灵植+18"），
-    // 不再显示基础值——洗出加灵植的天赋后面板应立即体现（用户确认口径：不显示括号加成）
+    // 属性区只显示最终值（含天赋 Flat 加成，如洗炼"青帝 灵植+18"），
+    // 不显示基础值与括号加成——洗出加灵植的天赋后面板应立即体现
     val baseStats = remember(disciple) { disciple.getBaseStats() }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

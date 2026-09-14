@@ -11,7 +11,6 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
-import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -27,9 +26,10 @@ class SaveLoadLoadDelegate(
     private val storageFacade: StorageFacade,
     private val stateStore: GameStateStore,
     private val buildingConfigService: BuildingConfigService,
-    private val spiritStoneWallet: SpiritStoneWallet
 ) {
-    private val TAG = "SaveLoadLoadDelegate"
+    private companion object {
+        private const val TAG = "SaveLoadLoadDelegate"
+    }
 
     var uiCallbacks: UiCallbacks? = null
 
@@ -41,6 +41,7 @@ class SaveLoadLoadDelegate(
         suspend fun setLoadingState(isLoading: Boolean, slot: Int, action: String?)
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun loadGame(saveSlot: SaveSlot): Boolean {
         if (stateStore.isLoading.value) {
             Log.w(TAG, "Already loading, ignoring loadGame request")
@@ -64,8 +65,8 @@ class SaveLoadLoadDelegate(
 
             applyLoadedSave(saveData = saveData, effectiveSlot = saveSlot.slot)
 
-            // 溢出迁移已归位 BootSequenceController Step 3.5（2026-08-06，
-            // 须在 fixup/归一化之后；本 loadGame 为死代码，仅测试引用）
+            // 溢出迁移由 BootSequenceController Step 3.5 执行（须在
+            // fixup/归一化之后；本 loadGame 为死代码，仅测试引用）
 
             uiCallbacks?.onPreloadResources()
             uiCallbacks?.showSuccess("读档成功")
@@ -82,13 +83,12 @@ class SaveLoadLoadDelegate(
         }
     }
 
-    /** 已加载场景下先停止旧游戏循环（loadGame 拆分）：玉符防回退 + 超时守卫 */
-    // 拆分搬移:多出口与原函数一致
+    /** 已加载场景下先停止旧游戏循环：玉符防回退 + 超时守卫 */
     @Suppress("ReturnCount")
     private suspend fun stopLoopIfRunning(slot: Int): Boolean {
         if (stateStore.runState.value != RunState.PLAYING) return true
         Log.i(TAG, "Game already loaded, will reload from slot $slot")
-        // 玉符防回退（2026-08-10）：等待旧循环 finally 彻底完成（与
+        // 玉符防回退：等待旧循环 finally 彻底完成（与
         // SaveLoadViewModel.performLoadToSlot 同因），非等待 stop 会让
         // checkpointNow 晚于快照替换、用旧运行时值覆盖新档玉符
         val stopped = gameEngineCore.stopGameLoopAndWait(
@@ -101,7 +101,8 @@ class SaveLoadLoadDelegate(
         return true
     }
 
-    /** 读档数据加载（loadGame 拆分）：超时保护 + 空档守卫 */
+    /** 读档数据加载：超时保护 + 空档守卫 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private suspend fun loadSaveData(slot: Int): SaveData? {
         return withTimeoutOrNull(60_000L) {
             try {
@@ -114,7 +115,7 @@ class SaveLoadLoadDelegate(
         }
     }
 
-    /** 读档数据应用（loadGame 拆分）：setCurrentSlot + loadData + 重数据加载 + 建筑尺寸修正 */
+    /** 读档数据应用：setCurrentSlot + loadData + 重数据加载 + 建筑尺寸修正 */
     private suspend fun applyLoadedSave(saveData: SaveData, effectiveSlot: Int) {
         storageFacade.setCurrentSlot(effectiveSlot)
         gameEngine.loadData(
@@ -148,8 +149,8 @@ class SaveLoadLoadDelegate(
     }
 
     // ================================================================
-    // 建筑占地×2 迁移（2026-08-06 归位：纯计算迁入 core/engine BuildingLoadSelfHeal，
-    // 执行编排移入 BootSequenceController Step 3.5——归一化/fixup 之后、边界迁移之前）
+    // 建筑占地×2 迁移：纯计算在 core/engine BuildingLoadSelfHeal，
+    // 执行编排在 BootSequenceController Step 3.5（归一化/fixup 之后、边界迁移之前）
     // ================================================================
 
     /**

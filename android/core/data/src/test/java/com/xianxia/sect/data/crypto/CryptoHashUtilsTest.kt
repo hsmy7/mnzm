@@ -7,7 +7,6 @@ import java.util.concurrent.CountDownLatch
 
 class CryptoHashUtilsTest {
 
-    private val testPassword = "MySecurePassword123!"
 
     // ==================== sha256 ====================
 

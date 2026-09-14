@@ -24,7 +24,7 @@ import org.robolectric.annotation.Config
 class GameNotificationHelperTest {
 
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-    private val helper = GameNotificationHelper(context)
+    private val helper = GameNotificationHelper()
 
     // ── 渠道创建 ──
 

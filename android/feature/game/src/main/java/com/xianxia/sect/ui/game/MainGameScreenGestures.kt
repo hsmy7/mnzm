@@ -1,8 +1,7 @@
 package com.xianxia.sect.ui.game
 
 /**
- * MainGameScreen 手势处理簇（计划 v2 阶段 7 批 7-4 / R-13 拆分方向：自 MainGameScreen.kt
- * 拆出，解决 FileLength 破限）。单一职责：跨平台手势引擎回调装配 + 点击/长按/拖拽/
+ * MainGameScreen 手势处理簇。单一职责：跨平台手势引擎回调装配 + 点击/长按/拖拽/
  * 金手指/拆除/建造入口处理。
  */
 
@@ -22,9 +21,9 @@ import com.xianxia.sect.ui.game.main.clampGoldFingerSelection
 import com.xianxia.sect.ui.game.main.recomputeGoldFingerState
 import com.xianxia.sect.ui.game.main.translateGoldFingerSelection
 import com.xianxia.sect.ui.game.sect.GoldFingerState
+import com.xianxia.sect.ui.game.sect.setCamera
 
-
-/** MainGameScreen 触控回调（MainGameScreen 拆分）：跨平台手势引擎回调 */
+/** MainGameScreen 触控回调：跨平台手势引擎回调 */
 @Suppress("LongParameterList")
 internal fun buildMainGameScreenTouchCallbacks(
     state: MainGameScreenState,
@@ -37,7 +36,7 @@ internal fun buildMainGameScreenTouchCallbacks(
     override fun onPanCamera(dx: Float, dy: Float) {
         viewportData.cameraState.pan(dx, dy)
         viewportData.cancelCameraAnim()
-        // ★ 相机直接写通道：不经 Compose 重组，立即同步到渲染线程（减 1-2 帧拖拽延迟）
+        // 相机直接写通道：不经 Compose 重组，立即同步到渲染线程（减 1-2 帧拖拽延迟）
         pushCameraDirect()
         viewModel.onUserInteraction()
     }
@@ -106,10 +105,9 @@ internal fun buildMainGameScreenTouchCallbacks(
 }
 
 /**
- * 点击处理（MainGameScreen 拆分）：选中建筑（点击选中，不再直接弹详情）。
+ * 点击处理：选中建筑（点击选中，不再直接弹详情）。
  * 详情入口统一收敛到选中态正下方"进入"按钮（CoC 式选中设计）。
  */
-// 拆分聚合:平铺参数搬移自原公共函数
 @Suppress("LongParameterList")
 private fun handleMainGameScreenTap(
     state: MainGameScreenState,
@@ -135,7 +133,7 @@ private fun handleMainGameScreenTap(
     }
     // 石板道路：1×1，点击地图格即放置（替代拖拽+确认按钮）——直接调 placeRoad 由它自判可否放置
     if (state.isPlacingBuilding && state.placingBuildingName == GameConfig.Road.DISPLAY_NAME) {
-        viewModel.placeRoad(gx, gy)
+        viewModel.road.placeRoad(gx, gy)
         state.isPlacingBuilding = false
         state.placingBuildingName = ""
         return
@@ -155,9 +153,7 @@ private fun handleMainGameScreenTap(
     }
 }
 
-/** 长按处理（MainGameScreen 拆分）：金手指入口检测 / 选中建筑移动模式 */
-// 拆分聚合:平铺参数搬移自原公共函数
-// 拆分搬移:多出口与原函数一致
+/** 长按处理：金手指入口检测 / 选中建筑移动模式 */
 @Suppress("LongParameterList", "ReturnCount")
 private fun handleMainGameScreenLongPress(
     state: MainGameScreenState,
@@ -202,7 +198,7 @@ private fun handleMainGameScreenLongPress(
                 state.movingSnappedGridY = touched.gridY
                 state.movingValid = GridSnapHelper.PlacementValidity.Valid
             }
-            // ★ 先同步总线排除（StateFlow 写同步可见），再设置 UI 状态——
+            // 先同步总线排除（StateFlow 写同步可见），再设置 UI 状态——
             // 压缩拖拽起始窗口（总线仍渲染旧位置 + 预览渲染新位置）的双渲染窗口
             viewModel.setMovingBuildingInstanceId(touched.instanceId)
             state.movingBuilding = touched
@@ -212,8 +208,7 @@ private fun handleMainGameScreenLongPress(
     return LongPressResult.NotHandled
 }
 
-/** 金手指图标长按（MainGameScreen 拆分）：首次激活锚定预览位置并重算状态 */
-// 拆分搬移:嵌套/条件结构与原函数一致
+/** 金手指图标长按：首次激活锚定预览位置并重算状态 */
 @Suppress("ComplexCondition")
 private fun handleGoldFingerLongPress(
     state: MainGameScreenState,
@@ -245,7 +240,7 @@ private fun handleGoldFingerLongPress(
                     isActive = true,
                     buildingName = state.placingBuildingName,
                     buildingSize = state.placingBuildingSize,
-                    buildingCost = viewModel.getBuildingCost(state.placingBuildingName)
+                    buildingCost = viewModel.buildingDelegate.getBuildingCost(state.placingBuildingName)
                 ),
                 sel = sel,
                 existingBuildings = derived.effectivePlacedBuildings,
@@ -261,7 +256,7 @@ private fun handleGoldFingerLongPress(
     return LongPressResult.NotHandled
 }
 
-/** 拖拽更新（MainGameScreen 拆分）：放置预览 / 移动建筑位置实时更新 */
+/** 拖拽更新：放置预览 / 移动建筑位置实时更新 */
 private fun handleMainGameScreenDragUpdate(
     state: MainGameScreenState,
     derived: MainGameScreenDerived,
@@ -312,12 +307,12 @@ private fun handleMainGameScreenDragUpdate(
             derived.movingBuildingSize.width, derived.movingBuildingSize.height
         )
     }
-    // ★ 预览快通道：不经 Compose 重组/帧率门控，直接写渲染视图——
+    // 预览快通道：不经 Compose 重组/帧率门控，直接写渲染视图——
     // 软件渲染路径下预览从 30fps（RenderFrame 33ms 门控）提升到渲染帧率
     pushFastPreview(state = state, mapData = mapData)
 }
 
-/** 金手指拖拽更新（MainGameScreen 拆分）：终点格吸附 + 钳制可建区 + 重算状态 */
+/** 金手指拖拽更新：终点格吸附 + 钳制可建区 + 重算状态 */
 private fun handleMainGameScreenGoldFingerUpdate(
     state: MainGameScreenState,
     derived: MainGameScreenDerived,
@@ -349,9 +344,7 @@ private fun handleMainGameScreenGoldFingerUpdate(
     )
 }
 
-/** 触控命中建筑检测（MainGameScreen 拆分）：仅返回可拾起目标——放置预览 / 移动中建筑 / 选中建筑 */
-// 拆分搬移:多出口与原函数一致
-// 拆分搬移:嵌套/条件结构与原函数一致
+/** 触控命中建筑检测：仅返回可拾起目标——放置预览 / 移动中建筑 / 选中建筑 */
 @Suppress("ReturnCount", "ComplexCondition")
 private fun findMainGameScreenBuildingAt(
     state: MainGameScreenState,
@@ -403,7 +396,7 @@ private fun findMainGameScreenBuildingAt(
         ?.takeIf { canPickUpBuilding(state, it.instanceId) }
 }
 
-/** 拆除模式点击处理（MainGameScreen 拆分）：区域模式范围选中 / 单点切换选中 / 删路 */
+/** 拆除模式点击处理：区域模式范围选中 / 单点切换选中 / 删路 */
 @Suppress("LongParameterList")
 private fun handleDemolishTap(
     state: MainGameScreenState,
@@ -432,7 +425,7 @@ private fun handleDemolishTap(
 }
 
 /**
- * 单点拆除模式（MainGameScreen 拆分提取）：点击建筑切换选中状态；
+ * 单点拆除模式：点击建筑切换选中状态；
  * 无建筑但为道路格则直接删路（精确格优先，保道路删除语义）。
  */
 @Suppress("LongParameterList")
@@ -453,12 +446,12 @@ private fun handleDemolishSingleTap(
     // 石板道路：拆除模式下点道路格立即删除（自动重算邻居拼接）
     val hasRoad = derived.gameData.roads.any { it.gridX == gx && it.gridY == gy }
     if (hasRoad) {
-        viewModel.removeRoad(gx, gy)
+        viewModel.road.removeRoad(gx, gy)
         return
     }
 }
 
-/** 拆除选中切换（handleDemolishSingleTap 拆分）：未注册显示名不进入拆除选中（守卫语义保留） */
+/** 拆除选中切换：未注册显示名不进入拆除选中（守卫语义保留） */
 private fun toggleDemolishSelection(state: MainGameScreenState, building: GridBuildingData) {
     if (BuildingFeatureRegistry.findByDisplayName(building.displayName) == null) return
     state.demolishSelectedIds = if (building.instanceId in state.demolishSelectedIds)
@@ -466,7 +459,7 @@ private fun toggleDemolishSelection(state: MainGameScreenState, building: GridBu
     else state.demolishSelectedIds + building.instanceId
 }
 
-/** 建造卡片点击（MainGameScreen 拆分）：进入放置模式（拆除模式下忽略） */
+/** 建造卡片点击：进入放置模式（拆除模式下忽略） */
 internal fun onSelectBuildingFromBar(
     state: MainGameScreenState,
     mapData: MainGameScreenMapData,

@@ -62,7 +62,7 @@ fun ListingManagementDialog(
         ListingManagementContent(
             listItems = listItems,
             watchedKeys = watchedKeys,
-            onDelist = { viewModel.removePlayerListedItem(it.id) }
+            onDelist = { viewModel.inventory.removePlayerListedItem(it.id) }
         )
     }
 
@@ -71,7 +71,7 @@ fun ListingManagementDialog(
     }
 }
 
-/** 上架列表排序（ListingManagementDialog 拆分）：转 PlayerListItem + 已关注优先排序 */
+/** 上架列表排序：转 PlayerListItem + 已关注优先排序 */
 private fun sortPlayerListedItems(
     playerListedItems: List<com.xianxia.sect.core.model.MerchantItem>,
     watchedKeys: Set<String>
@@ -91,7 +91,7 @@ private fun sortPlayerListedItems(
     )
 }
 
-/** 上架管理内容区（ListingManagementDialog 拆分）：空态提示 + 列表头 + 上架道具列表 */
+/** 上架管理内容区：空态提示 + 列表头 + 上架道具列表 */
 @Composable
 private fun ListingManagementContent(
     listItems: List<PlayerListItem>,
@@ -100,16 +100,24 @@ private fun ListingManagementContent(
 ) {
     Column(Modifier.fillMaxSize()) {
         if (listItems.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(8.dp),
-                contentAlignment = Alignment.Center) { Text("暂无上架道具", fontSize = 12.sp, color = GameColors.TextSecondary) }
+            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground,
+                RoundedCornerShape(4.dp)).padding(8.dp),
+                contentAlignment = Alignment.Center) { Text("暂无上架道具", fontSize = 12.sp,
+                    color = GameColors.TextSecondary) }
         } else {
-            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(8.dp)) {
+            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground,
+                RoundedCornerShape(4.dp)).padding(8.dp)) {
                 Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("道具名称", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.weight(1f))
-                        Text("数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-                        Text("价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-                        Text("操作", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("道具名称", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary,
+                            modifier = Modifier.weight(1f))
+                        Text("数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary,
+                            modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                        Text("价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary,
+                            modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                        Text("操作", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary,
+                            modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
                     }
                     HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
                     LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
@@ -156,8 +164,10 @@ private fun ListedItemCard(
                 Text(item.grade, fontSize = 9.sp, color = getQualityColor(item.grade))
             }
         }
-        Text("×${item.quantity}", fontSize = 11.sp, color = Color.Black, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-        Text("${item.price}灵石", fontSize = 11.sp, color = GameColors.GoldDark, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+        Text("×${item.quantity}", fontSize = 11.sp, color = Color.Black, modifier = Modifier.width(60.dp),
+            textAlign = TextAlign.Center)
+        Text("${item.price}灵石", fontSize = 11.sp, color = GameColors.GoldDark, modifier = Modifier.width(60.dp),
+            textAlign = TextAlign.Center)
         GameButton(text = "下架", onClick = onDelist, modifier = Modifier.width(60.dp))
     }
 }

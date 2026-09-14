@@ -9,7 +9,7 @@ import java.io.File
  *
  * 历史问题：多条发放路径（邮件/兑换码/外交/灵田等）手写
  * "find 第一个堆叠 + 列表追加 + coerceAtMost 截断"，导致同种物品
- * 分裂为多个堆叠。2026-08-01 已全部统一委托 InventorySystem.addXxx。
+ * 分裂为多个堆叠。所有发放路径统一委托 InventorySystem.addXxx。
  *
  * 本测试扫描 engine 源文件，断言以下手写合并反模式数量为 0，
  * 防止未来新增发放路径时重新引入分裂 bug：
@@ -28,7 +28,7 @@ class InventoryAddPathGuardTest {
     /**
      * 反模式 1：溢出用 coerceAtMost 截断丢弃（应改走 StackableItemStore 的 Partial 语义）。
      * 覆盖 `inventoryConfig.getMaxStackSize` / `config.getMaxStackSize` / 本地 maxStack 变量别名
-     *（P-20 补漏：StorageBagUtils 手写路径曾用 `coerceAtMost(maxStack)`，`stackSize` 后缀匹配不到）。
+     *（如 StorageBagUtils 手写路径的 `coerceAtMost(maxStack)` 本地变量写法）。
      */
     private val truncationPattern = Regex(
         "coerceAtMost\\s*\\(\\s*(?:\\w+\\.)*\\w*(?:[sS]tackSize|[sS]tack)\\s*\\)"
@@ -36,8 +36,7 @@ class InventoryAddPathGuardTest {
 
     /**
      * 反模式 2：向仓库堆叠列表直接追加新条目（应改走 addXxx 合并）。
-     * 对抗性审查增强：覆盖 `+=`、`state.`/`this.` 前缀、括号、`=` 右侧全限定
-     * 以及 `.plus(` 变体（历史 bug 的原始写法就是 `state.equipmentStacks = state.equipmentStacks + x`）。
+     * 覆盖 `+=`、`state.`/`this.` 前缀、括号、`=` 右侧全限定以及 `.plus(` 变体。
      */
     private val directAppendPattern = Regex(
         "(equipmentStacks|manualStacks|pills|materials|herbs|seeds|storageBags)" +
@@ -46,7 +45,7 @@ class InventoryAddPathGuardTest {
 
     /**
      * 反模式 3：手写"数量相加合并"（find 第一个匹配堆叠 + 数量相加）。
-     * 对抗性审查增强：覆盖 newCount 等变量名变体与 `.plus(` 变体。
+     * 覆盖 newCount 等变量名变体与 `.plus(` 变体。
      */
     private val inlineMergeAddPattern = Regex(
         "new\\w*\\s*=\\s*\\(?\\w+\\.quantity\\s*(?:\\+|\\s*\\.\\s*plus\\s*\\()"
@@ -55,9 +54,8 @@ class InventoryAddPathGuardTest {
     /**
      * 反模式 5：向实例表（equipmentInstances/manualInstances）直接追加。
      *
-     * 历史 bug（2026-08-05）：天道试炼通关奖励把装备/功法发放写成
-     * `equipmentInstances = equipmentInstances + instance`，而仓库 UI 只渲染
-     * 堆叠轨道（equipmentStacks/manualStacks），玩家领取后物品不可见。
+     * 仓库 UI 只渲染堆叠轨道（equipmentStacks/manualStacks），
+     * 误写实例轨道的装备/功法对玩家不可见。
      *
      * 实例轨道仅允许以下语义（白名单见 [instanceAllowedFileNames]）：
      * - 弟子装备/功法分配（ownerId 绑定，从仓库堆叠扣减后转实例）
@@ -79,7 +77,7 @@ class InventoryAddPathGuardTest {
     /**
      * 白名单：离线遗留仓库路径（SectWarehouse/WarehouseItem，主流程未使用），
      * 仍保留自己的堆叠实现，不属于统一入口范围。
-     * 对抗性审查修复：按相对路径匹配（避免任意包下同名文件被静默豁免），
+     * 按相对路径匹配（避免任意包下同名文件被静默豁免），
      * 并有存在性断言（文件被删除/改名时守卫测试失败，防止白名单悬空）。
      */
     private val allowedFiles = setOf(
@@ -165,11 +163,19 @@ class InventoryAddPathGuardTest {
      *   onMonthlyEvent 传入事务缓冲，区别于 stateStore.update 模式），
      *   溢出通过 InventorySystem.sendOverflowMail 转邮件
      */
-    private val storeAllowedFiles = setOf("InventorySystem.kt", "ProductionProcessor.kt")
+    private val storeAllowedFiles = setOf(
+        "InventorySystem.kt", "ProductionProcessor.kt",
+        "CultivationEventAutoWarehouseOps.kt",  // 自动入库域（batch-01 自 CultivationEventProcessor 拆出）
+        // batch-01 拆分产物（InventorySystem 域文件，文件名白名单按名称匹配）
+        "InventorySystemWithOps1.kt", "InventorySystem丹药Ops2.kt", "InventorySystem校验Ops3.kt",
+        "InventorySystem装备Ops4.kt", "InventorySystem丹药Ops5.kt", "InventorySystemHasOps6.kt",
+        "InventorySystemHasOps7.kt",
+        "ProductionProcessor构筑Ops2.kt"  // 灵田收获域（batch-01 自 ProductionProcessor 拆出）
+    )
 
     /**
      * 允许直接写实例表的文件（分配/转换/落库/AI 语义，非玩家仓库发放）。
-     * 2026-08-05 全量扫描确认共 11 处写入点，全部为合法分配路径；
+     * 白名单内写入点均为合法分配路径；
      * 新增玩家物品发放路径必须走 addEquipmentStack/addManualStack，不得加入此白名单。
      */
     private val instanceAllowedFileNames = setOf(
@@ -177,9 +183,13 @@ class InventoryAddPathGuardTest {
         "CaptiveGearUtils.kt",          // 俘虏模板 id → 玩家 UUID 实例转换（守卫文档已豁免）
         "DiscipleFacadeImpl.kt",        // 弟子装备/功法分配（ownerId 绑定）
         "DiscipleEquipmentService.kt",  // 装备实例状态/分配
-        "GameEngineCoordination.kt",    // 弟子学功法/替换功法（ownerId 绑定）
+        "GameEngineManualOps.kt",       // 弟子学功法/替换功法（ownerId 绑定；M3 第九批自 Coordination 拆出）
         "CultivationEventProcessor.kt", // 自动装备/学习袋内堆叠落库
-        "EnemyGenerator.kt"             // AI 敌人装备生成（非玩家发放）
+        "EnemyGenerator.kt",            // AI 敌人装备生成（非玩家发放）
+        // batch-01 拆分产物（同语义归属，见上两行的原文件）
+        "CultivationEventAutoWarehouseOps.kt",  // 自动装备/学习袋内堆叠落库
+        "DiscipleFacadeImpl功法Ops1.kt",         // 弟子丹药/功法分配（ownerId 绑定）
+        "DiscipleFacadeImpl战斗Ops2.kt"          // 弟子装备/功法分配（ownerId 绑定）
     )
 
     @Test

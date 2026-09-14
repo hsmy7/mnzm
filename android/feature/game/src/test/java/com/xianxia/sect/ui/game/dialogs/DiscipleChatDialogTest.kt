@@ -106,18 +106,26 @@ class DiscipleChatDialogTest {
     fun `all paths reach END`() {
         for ((ti, tree) in allTrees.withIndex()) {
             for ((id) in tree.nodes) {
-                var depth = 0
-                var cur = id
-                while (depth < 20) {
-                    val node = tree.nodes[cur] ?: break
-                    if (node.options.isEmpty()) break
-                    val next = node.options.first().outcomes.first().nextNodeId
-                    if (next == END_NODE) break
-                    cur = next; depth++
-                }
+                val depth = walkFirstOptionDepth(tree, id)
                 assertTrue("Tree $ti node=$id depth=$depth", depth < 20)
             }
         }
+    }
+
+    /** 沿首选项链游走直至 END / 叶节点 / 深度上限 */
+    private fun walkFirstOptionDepth(tree: ConversationTree, startId: String): Int {
+        var depth = 0
+        var cur = startId
+        while (depth < 20) {
+            val node = tree.nodes[cur]
+            val next = node?.takeIf { it.options.isNotEmpty() }
+                ?.let { it.options.first().outcomes.first().nextNodeId }
+            // 缺失节点/叶节点/终点：游走停止
+            if (next == null || next == END_NODE) break
+            cur = next
+            depth++
+        }
+        return depth
     }
 
     @Test

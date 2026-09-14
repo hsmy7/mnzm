@@ -1,14 +1,14 @@
 #pragma once
 
 // ============================================================
-// fdlibm.h — 内嵌 fdlibm 余弦实现（C-12 清偿）
+// fdlibm.h — 内嵌 fdlibm 余弦实现
 //
 // 来源：OpenJDK jdk-21 java.lang.FdLibm（GPLv2 + Classpath Exception，
 // "Freely Distributable Math Library" 5.3 的 Java 移植）——cos 依赖链
 // （Cos.compute / __kernel_cos / Sin.__kernel_sin / RemPio2 /
 // KernelRemPio2 + __HI/__LO 位操作辅助）逐句移植为 C++20。
 //
-// 背景（C-12 审查登记项）：JVM Math.cos 与 C++ std::cos 在 Box-Muller
+// 背景：JVM Math.cos 与 C++ std::cos 在 Box-Muller
 // nextGaussian 中出现最后一位（1 ULP）差异——桌面 glibc 的 cos 与
 // JVM fdlibm 系实现版本/编译器优化不同；内嵌 JDK fdlibm 保证与
 // Kotlin 权威（JVM Math.cos）位级一致。
@@ -469,8 +469,8 @@ inline double cos(double x) {
     }
 }
 
-// ── log 内核（经典 fdlibm e_log.c——StrictMath.log 同源，C-12 清偿） ──
-// C-12 实测：JVM StrictMath.log 与 C++ std::log 在部分输入差最后一位
+// ── log 内核（经典 fdlibm e_log.c——StrictMath.log 同源） ──
+// 实测：JVM StrictMath.log 与 C++ std::log 在部分输入差最后一位
 // （glibc 与 fdlibm 版本差异）；内嵌 fdlibm 保证位级一致。
 
 namespace detail {

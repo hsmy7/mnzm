@@ -3,12 +3,12 @@
 #include <cstdint>
 
 // ============================================================
-// 运行时游戏配置（S-10/S-13 清偿：配置单源缺口）
+// 运行时游戏配置（配置单源缺口）
 //
 // Kotlin GameConfigProvider（读 assets/config/game_config.json，支持远程
 // 热更新）→ JNI 注入 → C++ 全局实例。消除 C++ 硬编码默认值与 Kotlin
-// 配置读取的双端漂移（inventory.h 仓库容量常量 S-10、month_settlement.h
-// 执法堂配置常量 S-13）。
+// 配置读取的双端漂移（inventory.h 仓库容量常量、month_settlement.h
+// 执法堂配置常量）。
 //
 // 设计（参照 core/platform.h PlatformProviders 注入先例）：
 //   - 引擎初始化后由桥层注入（GameCoreBridge.cpp::nativeSetGameConfig）；

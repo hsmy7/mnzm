@@ -5,6 +5,8 @@ import com.xianxia.sect.core.model.SectRelationLevel
 import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.domain.calculateRejectProbability
+import com.xianxia.sect.core.domain.calculateTradePriceMultiplier
 
 /**
  * 好感度系统业务接口实现。
@@ -30,7 +32,7 @@ class FavorServiceImpl @Inject constructor(
     override fun getTradePriceMultiplier(sectId: String): Double {
         val data = stateStore.gameData.value
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return 1.0
-        return FavorDomain.calculateTradePriceMultiplier(
+        return calculateTradePriceMultiplier(
             data.sectRelations,
             data.alliances,
             sectId,
@@ -39,7 +41,7 @@ class FavorServiceImpl @Inject constructor(
     }
 
     override fun getRejectProbability(sectLevel: Int, rarity: Int): Int {
-        return FavorDomain.calculateRejectProbability(sectLevel, rarity)
+        return calculateRejectProbability(sectLevel, rarity)
     }
 
     override suspend fun updateFavor(sectId: String, newFavor: Int, year: Int) {

@@ -10,7 +10,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Bugly 崩溃上报实现（docs/platform-abilities.md G3 根治：core 层接口 + app 层实现）。
+ * Bugly 崩溃上报实现（core 层 [CrashReporter] 接口 + app 层实现）。
  *
  * 契约（见 [CrashReporter]）：全部方法永不抛出——SDK 初始化/调用失败静默降级
  * （[reportCaughtException] 回退 [CrashHandler.recordCaughtException] 本地落盘）。
@@ -26,7 +26,7 @@ class BuglyCrashReporter @Inject constructor(
         private const val TAG = "BuglyCrashReporter"
     }
 
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun initialize() {
         try {
@@ -40,7 +40,7 @@ class BuglyCrashReporter @Inject constructor(
         }
     }
 
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun setAppVersion(version: String) {
         try {
@@ -50,7 +50,7 @@ class BuglyCrashReporter @Inject constructor(
         }
     }
 
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun setUserId(userId: String) {
         try {
@@ -60,7 +60,7 @@ class BuglyCrashReporter @Inject constructor(
         }
     }
 
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun putUserData(key: String, value: String) {
         try {
@@ -70,7 +70,7 @@ class BuglyCrashReporter @Inject constructor(
         }
     }
 
-    // SDK 边界全量兜底(与原实现一致)
+    // SDK 边界全量兜底
     @Suppress("TooGenericExceptionCaught")
     override fun reportCaughtException(throwable: Throwable, context: Map<String, String>) {
         val buglyReported = try {

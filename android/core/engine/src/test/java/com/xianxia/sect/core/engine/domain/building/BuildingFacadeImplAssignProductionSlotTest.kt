@@ -40,8 +40,8 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 生产槽分配（BuildingFacadeImpl.assignDiscipleToProductionSlot）互斥守卫测试。
  *
- * 回归：此前只清 Repository 其他生产槽，巡逻/长老/藏经阁等 GameData 槽位残留，
- * 且 GameData.productionSlots 镜像不同步——勾选"显示所有弟子"分配后双槽位。
+ * 守卫目标：分配时同步清理 Repository 其他生产槽与巡逻/长老/藏经阁等
+ * GameData 槽位，GameData.productionSlots 镜像保持同步，不出现双槽位占用。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -221,7 +221,7 @@ class BuildingFacadeImplAssignProductionSlotTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // S4（2026-08-08）：repo 写失败防静默——镜像回滚 + 跳过 gate 登记
+    // repo 写失败防静默——镜像回滚 + 跳过 gate 登记
     // 4.00.91 玩家"任命不生效"主症状路径：镜像已写、repo 未写 → UI（repo）显示空闲
     // ═══════════════════════════════════════════════════════════════
 

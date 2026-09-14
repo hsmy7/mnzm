@@ -16,6 +16,7 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.RngRandomAdapter
 
 /** EnemyGenerator 的 RNG 管理器（由 GameEngine 初始化时注入） */
 var enemyGenRngManager: GameRngManager? = null
@@ -45,7 +46,7 @@ object EnemyGenerator {
         realmMin: Int,
         realmMax: Int
     ): HumanEnemyData {
-        // T-C3（2026-08-05）：配置反转（realmMin > realmMax）时退化为 realmMin 而非抛异常；
+        // 配置反转（realmMin > realmMax）时退化为 realmMin 而非抛异常；
         // 当前 MissionDifficulty 恒 min<max，正常路径逐位相同
         val realm = realmMin + enemyRng.nextInt((realmMax + 1 - realmMin).coerceAtLeast(1))
         val realmLayer = 1 + enemyRng.nextInt(9)
@@ -96,7 +97,10 @@ object EnemyGenerator {
         for (i in 0 until equipmentCount) {
             val slot = equipmentSlots[i]
             val rarity = minRarity + enemyRng.nextInt(maxRarity + 1 - minRarity)
-            val stack = EquipmentDatabase.generateRandomBySlot(slot, rarity)
+            // 模板选择经 ENEMY_GEN 分区适配器（读档可重放的确定性来源）
+            val stack = EquipmentDatabase.generateRandomBySlot(
+                slot, rarity, RngRandomAdapter(enemyRng)
+            )
             val maxNurture = EquipmentNurtureSystem.getMaxNurtureLevel(rarity)
             val nurtureLevel = enemyRng.nextInt(maxNurture + 1)
             val instance = stackToInstance(stack, nurtureLevel)
@@ -133,7 +137,8 @@ object EnemyGenerator {
 
             val rarity = minRarity + enemyRng.nextInt(maxRarity + 1 - minRarity)
             val stack = try {
-                ManualDatabase.generateRandom(minRarity, maxRarity, type)
+                // S5：模板选择经 ENEMY_GEN 分区适配器（同上）
+                ManualDatabase.generateRandom(minRarity, maxRarity, type, RngRandomAdapter(enemyRng))
             } catch (_: Exception) {
                 continue
             }
@@ -268,7 +273,7 @@ object EnemyGenerator {
     }
 
     /**
-     * 功法属性累加器（2026-08-04 补齐敌人功法加成）。
+     * 功法属性累加器。
      *
      * 与 DiscipleStatCalculator.computeFinalStats 的功法逻辑逐字一致：
      * hp 取 stats["hp"] ?: stats["maxHp"]，各属性 × 熟练度 bonus（NOVICE=1.5 起），

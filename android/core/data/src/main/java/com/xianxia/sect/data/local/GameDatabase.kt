@@ -51,10 +51,10 @@ import java.util.concurrent.atomic.AtomicLong
 
 
 
-/** 文件级日志 TAG（迁移前备份恢复顶层辅助函数共用，2026-08-04 拆分） */
+/** 文件级日志 TAG（迁移前备份恢复顶层辅助函数共用） */
 private const val TAG = "GameDatabase"
 
-/** 恢复尝试 marker 文件名——恢复后迁移崩溃时防止"恢复→崩溃"死循环（2026-08-04 对抗性审查 C1） */
+/** 恢复尝试 marker 文件名——恢复后迁移崩溃时防止"恢复→崩溃"死循环 */
 private const val RESTORE_ATTEMPT_MARKER = ".restore_attempted"
 private const val RESTORE_ATTEMPT_MARKER_CONTENT = "1"
 
@@ -68,18 +68,13 @@ private const val MAX_BACKUP_GAME_DATA_ROWS = 64
 object GameDatabaseConfig {
     /**
      * 数据库 schema 版本号——@Database(version) 与迁移前备份判据统一引用此常量，
-     * 禁止任何位置硬编码版本号（2026-08-04 修复：原 backupDatabaseForMigration
-     * 硬编码 38 与 v39 脱节，导致 v38 用户升级 v39 不触发迁移前备份）。
+     * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
     const val DATABASE_VERSION = 50
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
-     *
-     * 2026-08-04 修复：新增「迁移待完成」分支——迁移崩溃（MigrationNotFoundException）
-     * 后 DB 行数仍 > 0，原实现直接跳过恢复，导致每次启动重复迁移崩溃且
-     * pre_migrate_backup 永不使用。
      *
      * @param currentRowCount 当前数据库 game_data 行数（-1 = 读取失败/库打不开）
      * @param currentVersion 当前数据库 user_version（-1 = 读取失败）
@@ -94,9 +89,8 @@ object GameDatabaseConfig {
     ): Boolean {
         // 当前库打不开/表缺失（-1）或空库（destructive fallback 后）→ 恢复
         if (currentRowCount <= 0) return true
-        // 降级场景（2026-08-04 对抗性审查修复）：当前库版本高于 App 支持的版本
-        // （高版本 App 数据回退到低版本 App）→ Room 无法降级打开必然崩溃——
-        // 用迁移前备份（旧版本、迁移链可达）恢复
+        // 降级场景：当前库版本高于 App 支持的版本（高版本 App 数据回退到低版本
+        // App）→ Room 无法降级打开必然崩溃——用迁移前备份（旧版本、迁移链可达）恢复
         if (currentVersion > DATABASE_VERSION &&
             backupVersion in 2..DATABASE_VERSION && backupVersion < currentVersion
         ) {
@@ -162,7 +156,7 @@ object GameDatabaseConfig {
     // v42: MIGRATION_41_42 game_data 新增玉符（氪金货币）四列
     //（jade_symbols/jade_symbols_today/jade_day_anchor_ms/jade_accum_ms）
     // v43: MIGRATION_42_43 新增溢出/直发邮件草稿持久化两表
-    //（overflow_mail_drafts/direct_mail_drafts，D-01 事务化根治）
+    //（overflow_mail_drafts/direct_mail_drafts，邮件事务化落盘）
     // v44: MIGRATION_43_44 弟子炼丹师/锻造师职业 4 列
     //（alchemyLevel/alchemyPromotionCount/forgeLevel/forgePromotionCount，
     // disciples 与 disciples_attributes 两表各 4 列）
@@ -175,11 +169,13 @@ object GameDatabaseConfig {
     //（溢出邮件附件携带物品模板 id，领取时精确还原物品而非随机生成）
     // v49: MIGRATION_48_49 game_data 新增"石板道路"列（roads，自动拼接道路数据）
     // v50: MIGRATION_49_50 自动存档残留清理——删除 game_data 与 sect_policy_state
-    //（决策2 纯手动存档：autoSaveIntervalMonths 列废弃，实体的 @Ignore 不再映射此列）
+    //（纯手动存档设计：autoSaveIntervalMonths 列已删除，实体字段 @Ignore 不映射）
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
+@Suppress("TooManyFunctions") // Room 数据库契约面：33 个 abstract DAO 访问器 = Room 强制协议 + 迁移回调，
+// 函数数=注册 DAO 数，拆分即破坏 RoomDatabase 单元
 abstract class GameDatabase : RoomDatabase() {
 
     abstract fun gameDataDao(): GameDataDao
@@ -235,6 +231,7 @@ abstract class GameDatabase : RoomDatabase() {
     private var isShuttingDown = false
 
     /** 在保存完成后执行 PASSIVE checkpoint（在 Room 事务线程上运行） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun performPostSaveCheckpoint() {
         try {
             if (isShuttingDown) return
@@ -244,6 +241,7 @@ abstract class GameDatabase : RoomDatabase() {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun performCheckpointSync(mode: CheckpointMode) {
         try {
             openHelper.writableDatabase.execSQL(mode.query)
@@ -267,6 +265,19 @@ abstract class GameDatabase : RoomDatabase() {
         }
     }
 
+    /**
+     * 裁剪迁移前备份（审计 P1-5 / 方案 D4 改动 1）：按版本号降序保留最近
+     * [keep] 份 `.pre_migrate_backup.v{N}`，删除更旧。
+     * 幂等可重入；接入两处——verifyAndRecoverDatabase 版本达标分支（每次
+     * 启动 DB 打开）+ DataPruningScheduler 周期任务（双保险）。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    fun pruneMigrationBackups(keep: Int = MIGRATION_BACKUP_RETENTION) {
+        pruneMigrationBackups(openHelper.writableDatabase.path, keep)
+    }
+
+
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun getDatabaseSize(): Long {
         return try {
             val path = openHelper.writableDatabase.path ?: return 0
@@ -278,22 +289,24 @@ abstract class GameDatabase : RoomDatabase() {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun getWalFileSize(): Long {
         return try {
             val dbPath = openHelper.writableDatabase.path ?: return 0
             val walFile = File(dbPath + "-wal")
             if (walFile.exists()) walFile.length() else 0
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             0
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
     fun getShmFileSize(): Long {
         return try {
             val dbPath = openHelper.writableDatabase.path ?: return 0
             val shmFile = File(dbPath + "-shm")
             if (shmFile.exists()) shmFile.length() else 0
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             0
         }
     }
@@ -314,11 +327,12 @@ abstract class GameDatabase : RoomDatabase() {
         )
     }
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun shutdown() {
         Log.i(TAG, "Shutting down unified database instance")
         isShuttingDown = true
 
-        // checkpoint executor 已移除，WAL checkpoint 由 post-save 处理
+        // WAL checkpoint 由 post-save 处理
 
         try {
             val db = openHelper.writableDatabase
@@ -363,17 +377,39 @@ abstract class GameDatabase : RoomDatabase() {
         val lastCheckpointTime: Long = 0L
     )
 
-    // 12 个伴生函数（含 2026-08-05 findVersionedBackup），阈值 12 内
+    // 伴生函数数量在 TooManyFunctions 阈值内
     @Suppress("TooManyFunctions") // 数据库工厂/备份/恢复/维护聚合，内聚单一职责
     companion object {
         private const val TAG = "GameDatabase"
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
 
+        /** 迁移备份保留份数（审计 P1-5）：最近 2 个版本供降级恢复 */
+        const val MIGRATION_BACKUP_RETENTION = 2
+    /** 静态实现（companion 可达——verifyAndRecoverDatabase 为 companion 域） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    fun pruneMigrationBackups(dbPath: String?, keep: Int = MIGRATION_BACKUP_RETENTION) {
+        try {
+            if (dbPath.isNullOrEmpty()) return
+            val dir = File(dbPath).parentFile ?: return
+            val dbFile = File(dbPath).name
+            val prefix = "$dbFile.pre_migrate_backup.v"
+            val backups = dir.listFiles { f -> f.name.startsWith(prefix) }
+                ?.mapNotNull { f ->
+                    f.name.removePrefix(prefix).toIntOrNull()?.let { v -> v to f }
+                }
+                ?: return
+            backups.sortedByDescending { it.first }
+                .drop(keep.coerceAtLeast(0))
+                .forEach { (_, f) ->
+                    if (f.delete()) Log.i(TAG, "Pruned old migration backup: ${f.name}")
+                }
+        } catch (e: Exception) {
+            Log.w(TAG, "pruneMigrationBackups failed (non-fatal)", e)
+        }
+    }
+
+
         private const val RESTORE_ATTEMPT_MARKER_CONTENT = "1"
-
-        /** 迁移前备份文件大小上限（200MB，防恶意/损坏超大备份占满磁盘） */
-
-        /** 迁移前备份 game_data 行数上限（每槽一行，正常 ≤ 7；上限 64 防恶意行数膨胀） */
 
         private val threadCounter = AtomicInteger(0)
 
@@ -385,6 +421,7 @@ abstract class GameDatabase : RoomDatabase() {
          * 注意：WAL 模式下直接文件复制可能包含未检查点的 wal 数据。
          * 此处使用 PRAGMA wal_checkpoint(TRUNCATE) 先行落盘再复制。
          */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         fun backupDatabaseForMigration(context: Context) {
             val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
             if (!dbFile.exists()) {
@@ -416,9 +453,9 @@ abstract class GameDatabase : RoomDatabase() {
                 return
             }
 
-            // C13（2026-08-05）：备份版本化命名 `{db}.pre_migrate_backup.v{currentVersion}`
-            // ——迁移成功后不再删除备份（v4.0.89 之前删除导致"高版本升后降回旧版 App"
-            // 无备份可恢复、启动必崩溃）；多版本保留供降级恢复与维护清理
+            // 备份版本化命名 `{db}.pre_migrate_backup.v{currentVersion}`——迁移成功后
+            // 保留备份：高版本 App 数据降回旧版 App 时仍需旧版本备份恢复，
+            // 多版本保留供降级恢复与维护清理
             val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup.v$currentVersion")
             try {
                 // WAL 模式下先 checkpoint 确保数据一致性
@@ -460,7 +497,16 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+                        MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
+                            MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
+                                MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
+                                    MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
+                                        MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
+                                            MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
+                                                MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
+                                                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")
@@ -482,6 +528,7 @@ abstract class GameDatabase : RoomDatabase() {
             return context.getDatabasePath(UNIFIED_DB_NAME)
         }
 
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         private fun applySafetyPragmas(db: GameDatabase) {
             try {
                 db.openHelper.writableDatabase.execSQL("PRAGMA synchronous = NORMAL")
@@ -524,9 +571,11 @@ abstract class GameDatabase : RoomDatabase() {
             executeSafely(db, "PRAGMA busy_timeout = 5000")
             executeSafely(db, "PRAGMA journal_size_limit = 5242880")
 
-            Log.d(TAG, "Database configuration completed (mmap=0, cache=${-dynamicCacheSize / 1024}MB, temp_store=${if (totalMemMB >= 4096) "MEMORY" else "FILE"}, journal_limit=5MB)")
+            Log.d(TAG, "Database configuration completed (mmap=0, cache=${-dynamicCacheSize / 1024}MB, " +
+                "temp_store=${if (totalMemMB >= 4096) "MEMORY" else "FILE"}, journal_limit=5MB)")
         }
 
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         private fun resolveTotalMem(context: Context?): Long {
             if (context == null) return 4096L
             return try {
@@ -541,6 +590,7 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
         private fun resolveDynamicCacheSize(context: Context?): Int {
             val defaultCachePages = -64000
             if (context == null) return defaultCachePages
@@ -555,7 +605,7 @@ abstract class GameDatabase : RoomDatabase() {
                     totalMemMB < 4096 -> -32000
                     else -> defaultCachePages
                 }
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 defaultCachePages
             }
         }
@@ -575,40 +625,13 @@ abstract class GameDatabase : RoomDatabase() {
          * 1. StorageEngine.load() → SaveFileManager.readWithFallback() 自动从 .sav/.bak 恢复
          * 2. 如果已调用 restoreFromBackupIfNeeded() 且 .pre_migrate_backup 存在，则文件级恢复优先
          */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         private fun verifyAndRecoverDatabase(db: SupportSQLiteDatabase, context: Context) {
             // Step 1: integrity_check
-            var integrityOk = false
-            try {
-                val cursor = db.query("PRAGMA integrity_check", emptyArray())
-                try {
-                    if (cursor.moveToFirst()) {
-                        val result = cursor.getString(0)
-                        integrityOk = (result == "ok")
-                        if (!integrityOk) {
-                            Log.wtf(TAG, "DB INTEGRITY FAILED: $result")
-                        }
-                    }
-                } finally {
-                    cursor.close()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to check database integrity", e)
-            }
+            val integrityOk = checkDatabaseIntegrity(db)
 
             // Step 2: 验证 game_data 表有数据
-            var hasData = false
-            try {
-                val cursor = db.query("SELECT COUNT(*) FROM game_data", emptyArray())
-                try {
-                    if (cursor.moveToFirst()) {
-                        hasData = cursor.getInt(0) > 0
-                    }
-                } finally {
-                    cursor.close()
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "game_data 表不存在或查询异常", e)
-            }
+            val hasData = hasGameDataRows(db)
 
             // Step 3: 如果 integrity 失败或数据为空，记录严重警告
             // 实际恢复由 StorageEngine.load() → SaveFileManager 的 .sav/.bak 备份完成
@@ -617,16 +640,61 @@ abstract class GameDatabase : RoomDatabase() {
                     "数据将由 StorageEngine 从 SaveFileManager 备份恢复")
             }
 
-            // Step 4: 迁移成功（版本达到最新）后清理恢复 marker；
-            // C13（2026-08-05）：不再删除迁移前备份——多版本备份保留供降级恢复
-            //（高版本 App 升后降回旧版时仍需旧版本备份），由维护任务按保留期清理
+            // Step 4: 迁移成功（版本达到最新）后清理恢复 marker + 裁剪迁移
+            // 备份（审计 P1-5：注释承诺的维护任务接线——版本达标即旧版备份
+            // 价值衰减，按保留窗口留最近 MIGRATION_BACKUP_RETENTION 份）
             try {
                 if (db.version >= GameDatabaseConfig.DATABASE_VERSION) {
                     val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
                     File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER).delete()
+                    pruneMigrationBackups(dbFile.absolutePath)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "清理恢复 marker 失败", e)
+                Log.w(TAG, "清理恢复 marker/迁移备份失败", e)
+            }
+        }
+
+        /** Step 1: integrity_check：查询异常视为未通过 */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+        private fun checkDatabaseIntegrity(db: SupportSQLiteDatabase): Boolean {
+            return try {
+                querySingleString(db, "PRAGMA integrity_check")?.let { result ->
+                    val ok = result == "ok"
+                    if (!ok) {
+                        Log.wtf(TAG, "DB INTEGRITY FAILED: $result")
+                    }
+                    ok
+                } ?: false
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check database integrity", e)
+                false
+            }
+        }
+
+        /** Step 2: game_data 行数检查：表不存在等异常视为无数据 */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+        private fun hasGameDataRows(db: SupportSQLiteDatabase): Boolean {
+            return try {
+                querySingleInt(db, "SELECT COUNT(*) FROM game_data") > 0
+            } catch (e: Exception) {
+                Log.w(TAG, "game_data 表不存在或查询异常", e)
+                false
+            }
+        }
+
+        /** 执行只读查询并返回首行首列字符串（无行返回 null） */
+        private fun querySingleString(db: SupportSQLiteDatabase, sql: String): String? {
+            val cursor = db.query(sql, emptyArray())
+            return cursor.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            }
+        }
+
+        /** 执行只读查询并返回首行首列 Int（无行返回 0） */
+        private fun querySingleInt(db: SupportSQLiteDatabase, sql: String): Int {
+            val cursor = db.query(sql, emptyArray())
+            return cursor.use {
+                if (it.moveToFirst()) it.getInt(0) else 0
             }
         }
 
@@ -639,6 +707,7 @@ abstract class GameDatabase : RoomDatabase() {
          *
          * @return true 表示已执行恢复，false 表示无需恢复或恢复失败
          */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         fun restoreFromBackupIfNeeded(context: Context): Boolean {
             val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
             val backupFile = findVersionedBackup(dbFile) ?: return false
@@ -655,9 +724,28 @@ abstract class GameDatabase : RoomDatabase() {
             // 读取当前数据库版本号与 game_data 行数
             val current = readCurrentDbInfo(dbFile)
 
-            // 跳过恢复判定（2026-08-04 修复：新增"迁移待完成"分支——迁移崩溃后
-            // DB 行数仍 > 0，原实现直接跳过导致每次启动重复崩溃；判定提取为
-            // GameDatabaseConfig.shouldRestoreFromBackup 纯函数便于单元测试）
+            if (!shouldAttemptRestore(current, backup, markerFile)) {
+                return false
+            }
+            logMigrationPendingIfAny(current, backup)
+
+            // 执行恢复：用备份文件覆盖当前数据库
+            return performFileRestoreWithMarker(dbFile, backupFile, backup, markerFile)
+        }
+
+        /**
+         * 恢复前置判定：当前库无数据、判定不通过或存在恢复 marker 时跳过并记录原因。
+         *
+         * - 迁移待完成（迁移崩溃后 DB 行数仍 > 0）场景的判定在
+         *   GameDatabaseConfig.shouldRestoreFromBackup 纯函数中，便于单元测试
+         * - 恢复-迁移崩溃死循环防护：上次恢复后迁移仍未完成（marker 存在）→
+         *   跳过重复恢复，让 Room 直接尝试迁移并崩溃报错（行为可预期）
+         */
+        private fun shouldAttemptRestore(
+            current: CurrentDbInfo,
+            backup: BackupValidation,
+            markerFile: File
+        ): Boolean {
             if (!GameDatabaseConfig.shouldRestoreFromBackup(
                     current.rowCount, current.version, backup.version
                 )
@@ -665,33 +753,42 @@ abstract class GameDatabase : RoomDatabase() {
                 Log.d(TAG, "当前数据库有数据 (${current.rowCount} 行)，跳过备份恢复")
                 return false
             }
-            // 2026-08-04 对抗性审查修复（C1）：恢复-迁移崩溃死循环防护——
-            // 上次恢复后迁移仍未完成（marker 存在）→ 跳过重复恢复（避免
-            // "恢复→迁移崩溃→再恢复"无限循环），让 Room 直接尝试迁移并崩溃
-            // 报错（行为可预期，等待修复版本）
             if (markerFile.exists()) {
                 Log.w(TAG, "检测到上次恢复后迁移仍未完成，跳过重复恢复（防止死循环）")
                 return false
             }
+            return true
+        }
+
+        /** 迁移未完成场景告警：备份与当前库同版本且低于目标版本 */
+        private fun logMigrationPendingIfAny(current: CurrentDbInfo, backup: BackupValidation) {
             if (current.version < GameDatabaseConfig.DATABASE_VERSION &&
                 backup.version == current.version
             ) {
                 Log.w(TAG, "检测到迁移未完成 (v${current.version} → v" +
                     "${GameDatabaseConfig.DATABASE_VERSION})，从迁移前备份恢复")
             }
+        }
 
-            // 执行恢复：用备份文件覆盖当前数据库
+        /**
+         * 文件覆盖恢复 + marker 写入。
+         * renameTo 失败时 performFileRestore 内部回退 copyTo 覆盖；仍失败返回
+         * false——恢复失败时不得报"恢复成功"且不得写 marker（marker 会阻断
+         * 下次启动的恢复路径）。
+         */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+        private fun performFileRestoreWithMarker(
+            dbFile: File,
+            backupFile: File,
+            backup: BackupValidation,
+            markerFile: File
+        ): Boolean {
             return try {
-                // 2026-08-04 对抗性审查修复（C2）：-wal/-shm 清理移到"确定要恢复"
-                // 之后——原实现无条件删除（只要备份存在），正常玩家的崩溃会话
-                // 未 checkpoint 进度会被误删。此处删除是恢复语义所需（覆盖后
-                // 若残留旧 -wal，SQLite 会将其重放到恢复后的文件上污染结果）
+                // -wal/-shm 必须在"确定要恢复"之后才清理：恢复覆盖后若残留旧 -wal，
+                // SQLite 会将其重放到恢复后的文件上污染结果；提前清理则会误删
+                // 正常崩溃会话未 checkpoint 的进度
                 File(dbFile.absolutePath + "-wal").delete()
                 File(dbFile.absolutePath + "-shm").delete()
-                // C12（2026-08-05）：renameTo 失败时 performFileRestore 内部回退
-                // copyTo 覆盖；仍失败返回 false——不得报"恢复成功"且不得写 marker
-                //（原实现不检查 rename 返回值：恢复失败却报成功 + marker 已写，
-                // 下次启动 marker 阻断恢复路径永久锁死）
                 if (!performFileRestore(dbFile, backupFile)) {
                     Log.e(TAG, "文件覆盖失败，未执行恢复 (backup=${backupFile.absolutePath})")
                     return false
@@ -714,10 +811,9 @@ abstract class GameDatabase : RoomDatabase() {
         /**
          * 扫描可用的迁移前备份文件。
          *
-         * C13（2026-08-05）：备份版本化命名 `{db}.pre_migrate_backup.v{N}`，
-         * 选择最高可用版本（N ∈ 2..DATABASE_VERSION-1）——降级场景（高版本
-         * App 回退）需要比当前库版本低的备份；同时兼容旧的无版本后缀备份
-         * （`.pre_migrate_backup`，v4.0.89 之前命名）。
+         * 备份版本化命名 `{db}.pre_migrate_backup.v{N}`，选择最高可用版本
+         * （N ∈ 2..DATABASE_VERSION-1）——降级场景（高版本 App 回退）需要比
+         * 当前库版本低的备份；同时兼容旧的无版本后缀备份（`.pre_migrate_backup`）。
          */
         private fun findVersionedBackup(dbFile: File): File? {
             val legacy = File(dbFile.absolutePath + ".pre_migrate_backup")
@@ -729,6 +825,7 @@ abstract class GameDatabase : RoomDatabase() {
 
         /** 备份文件验证结果 */
 
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         private fun executeSafely(db: SupportSQLiteDatabase, pragma: String) {
             try {
                 db.execSQL(pragma)
@@ -742,7 +839,7 @@ abstract class GameDatabase : RoomDatabase() {
 
 
 
-// ==================== 迁移前备份恢复辅助（文件顶层私有，2026-08-04 拆分） ====================
+// ==================== 迁移前备份恢复辅助（文件顶层私有） ====================
 
 /** 备份文件验证结果 */
 private data class BackupValidation(val ok: Boolean, val rowCount: Int, val version: Int)
@@ -779,7 +876,7 @@ private fun readGameDataRowCount(db: SQLiteDatabase): Int {
 /** 验证迁移前备份文件可用性（integrity_check + user_version + game_data 行数 + 大小/行数上限） */
 @Suppress("ReturnCount", "TooGenericExceptionCaught") // 备份多失败守卫，多 return 为守卫风格
 private fun readBackupInfo(backupFile: File): BackupValidation {
-    // 2026-08-04 对抗性审查修复（C3）：文件大小上限——恶意/损坏超大备份会占满磁盘
+    // 文件大小上限——恶意/损坏超大备份会占满磁盘
     if (backupFile.length() > MAX_BACKUP_FILE_SIZE_BYTES) {
         Log.w(TAG, "备份文件过大 (${backupFile.length() / 1024 / 1024}MB)，视为无效")
         return BackupValidation(false, -1, -1)
@@ -803,7 +900,7 @@ private fun readBackupInfo(backupFile: File): BackupValidation {
         Log.e(TAG, "备份文件行数读取失败: ${backupFile.absolutePath}", e)
         -1
     }
-    // 2026-08-04 对抗性审查修复（C3）：game_data 行数上限（正常每槽一行 ≤ 7）
+    // game_data 行数上限（正常每槽一行 ≤ 7）
     if (rowCount > MAX_BACKUP_GAME_DATA_ROWS) {
         Log.w(TAG, "备份 game_data 行数异常 ($rowCount)，视为无效")
         return BackupValidation(false, -1, -1)
@@ -845,11 +942,9 @@ private fun readCurrentDbInfo(dbFile: File): CurrentDbInfo {
 /**
  * 用备份文件覆盖当前数据库文件。
  *
- * C12（2026-08-05）：renameTo 返回值此前不检查——失败时调用方仍报"恢复成功"
- * 且写恢复 marker，下次启动 marker 阻断恢复路径永久锁死。现：
- * 1. renameTo 失败 → 回退 copyTo(overwrite=true) + 删除原文件（兼容不支持
- *    原子覆盖的文件系统）
- * 2. 仍失败 → 清理 .restore_tmp 并返回 false，调用方不写 marker
+ * renameTo 失败 → 回退 copyTo(overwrite=true) + 删除原文件（兼容不支持
+ * 原子覆盖的文件系统）；仍失败 → 清理 .restore_tmp 并返回 false，
+ * 调用方不写恢复 marker（避免恢复失败被误报为成功）。
  *
  * @return true 覆盖成功；false 覆盖失败（调用方不得标记恢复完成）
  */

@@ -6,12 +6,11 @@ import kotlinx.coroutines.delay
 /**
  * 单体攻击动画序列（飞向目标、命中抖动、伤害数字、返回原位）
  *
- * ## EngineTween 迁移评估结论（2026-08-13，批次 1b）：明确不迁移
+ * ## 设计决策：不使用 EngineTween/Timeline（理由与守卫见下）
  *
  * 评估结论（详见 HeavenlyTrialAnimationGuardTest 守卫测试证据）：
  * 1. **结构性结算耦合**：`applyResult`（HP 结算应用）内嵌于本动画序列**尾部**——
- *    结算应用时机由动画序列结构决定（守卫测试断言"applyResult 必须为序列最后一个
- *    结算回调"）。动画非纯表现层，而是"结算应用的载体"。
+ *    结算应用时机由动画序列结构决定（守卫测试断言"applyResult 必须为序列最后一个 *    结算回调"）。动画非纯表现层，而是"结算应用的载体"。
  * 2. **机制不匹配**：本序列是离散相位编排（MOVE→IMPACT→RETURN→APPLY），非连续值
  *    插值——EngineTween/Timeline 的核心能力（缓动曲线/时间归一化）在此无用武之地；
  *    位移/抖动/伤害数字的实际插值已由 Compose Animatable + tween(LinearEasing) 完成

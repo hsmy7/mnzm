@@ -1,5 +1,5 @@
 // ============================================================
-// trait_db.h — 天赋/体质/词条静态表（Kotlin→C++ 迁移批次 2 剩余子步）
+// trait_db.h — 天赋/体质/词条静态表（C++ 侧等价复刻 Kotlin 生成逻辑）
 //
 // 与 equipment_db.h / herb_db.h 不同，Talent/Physique/Affix 三个 Registry
 // 的数据是**程序化生成**的（config 梯度列表 + 循环拼接字符串），无法用正则
@@ -11,8 +11,8 @@
 //   - C++ 表（本头文件）  ←→  JSON 快照 trait_db_sample.json
 //   - JSON 快照          ←→  Kotlin Registry 实时数据
 //
-// 必须与 Kotlin **逐字一致**。C++ 关键字冲突：Kotlin 字段 `template`
-// 改为 `tmpl`（JSON 快照仍用 `template` 键）。
+// 必须与 Kotlin **逐字一致**。命名例外：Kotlin 字段 `template` 为 C++
+// 关键字，本表字段名为 `tmpl`（JSON 快照仍用 `template` 键）。
 //
 // 注意：禁止手改数值/字符串。若 Kotlin 侧调整梯度，须同步更新本表与快照。
 // ============================================================
@@ -107,7 +107,7 @@ inline std::string formatPercent(double fraction, int decimals) {
     return std::string(buf);
 }
 
-/// 旧版 rarity 序号(1-6) → 品级(1-3)（对应 Kotlin `talentGrade`）
+/// rarity 序号(1-6) → 品级(1-3)（对应 Kotlin `talentGrade`）
 inline int talentGrade(int indexRarity) {
     switch (indexRarity) {
         case 1:

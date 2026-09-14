@@ -11,7 +11,7 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 结算编排共享工具（T2.1/T2.2 共用）
+// 结算编排共享工具（每旬/月变结算共用）
 //
 // phase_settlement.h（每旬）与 month_settlement.h（月变）的 detail 命名空间
 // 共用的小工具单一定义源——避免同签名 inline 函数跨头文件重复定义。
@@ -46,7 +46,7 @@ inline std::map<int32_t, std::size_t> indexById(const std::vector<state::Discipl
     return m;
 }
 
-/// 弟子 Int id → 行下标（DiscipleStore SoA 版，计划 v2 阶段 3；行序 == 数组序）
+/// 弟子 Int id → 行下标（DiscipleStore SoA 版；行序 == 数组序）
 inline std::map<int32_t, std::size_t> indexById(const state::DiscipleStore& ds) {
     std::map<int32_t, std::size_t> m;
     for (std::size_t i = 0; i < ds.size(); ++i) {
@@ -90,7 +90,7 @@ inline bool isBlankString(const std::string& s) {
 
 /// 消息栏事件记录（MutableGameState.recordGameEvent 完整守卫对齐：
 /// summary/eventType blank 拒绝 + 四字段 Kotlin String.length 口径长度上限 +
-/// P-9 序号 max+1 溢出回 1 + takeLast(MAX_EVENT_LOGS) 裁剪）
+/// 序号 max+1 溢出回 1 + takeLast(MAX_EVENT_LOGS) 裁剪）
 inline void recordGameEvent(state::GameState& state, const std::string& category,
                             const std::string& eventType,
                             const std::string& summary,

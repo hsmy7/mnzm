@@ -10,7 +10,7 @@
 #include "gamecore/system/rarity_progression.h"
 
 // ============================================================
-// 宗门交易确定性核心（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-4）
+// 宗门交易确定性核心
 //
 // 等价移植 Kotlin DiplomacyService 宗门交易的**确定性纯逻辑**：
 //   - 确定性种子：DeterministicRng.fromSeed(sectId.hashCode() + year)

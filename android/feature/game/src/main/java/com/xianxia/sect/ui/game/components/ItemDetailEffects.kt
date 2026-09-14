@@ -4,157 +4,44 @@ import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
-import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.util.GameUtils
 import java.util.Locale
 
 
 
-// ===== 共享工具函数 =====
 
-internal fun getBuffTypeName(buffType: com.xianxia.sect.core.BuffType): String = buffType.displayName
 
-internal fun getBuffTypeName(buffType: String): String = when (buffType) {
-    "physical_attack" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_BOOST.displayName
-    "magic_attack" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_BOOST.displayName
-    "physical_defense" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_BOOST.displayName
-    "magic_defense" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_BOOST.displayName
-    "hp" -> com.xianxia.sect.core.BuffType.HP_BOOST.displayName
-    "mp" -> com.xianxia.sect.core.BuffType.MP_BOOST.displayName
-    "speed" -> com.xianxia.sect.core.BuffType.SPEED_BOOST.displayName
-    "crit_rate" -> com.xianxia.sect.core.BuffType.CRIT_RATE_BOOST.displayName
-    "physical_attack_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_REDUCE.displayName
-    "magic_attack_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_REDUCE.displayName
-    "physical_defense_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_REDUCE.displayName
-    "magic_defense_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_REDUCE.displayName
-    "speed_reduce" -> com.xianxia.sect.core.BuffType.SPEED_REDUCE.displayName
-    "crit_rate_reduce" -> com.xianxia.sect.core.BuffType.CRIT_RATE_REDUCE.displayName
-    "poison" -> com.xianxia.sect.core.BuffType.POISON.displayName
-    "burn" -> com.xianxia.sect.core.BuffType.BURN.displayName
-    "stun" -> com.xianxia.sect.core.BuffType.STUN.displayName
-    "freeze" -> com.xianxia.sect.core.BuffType.FREEZE.displayName
-    "silence" -> com.xianxia.sect.core.BuffType.SILENCE.displayName
-    "taunt" -> com.xianxia.sect.core.BuffType.TAUNT.displayName
-    "damage_link" -> com.xianxia.sect.core.BuffType.DAMAGE_LINK.displayName
-    "damage_share" -> com.xianxia.sect.core.BuffType.DAMAGE_SHARE.displayName
-    "shield" -> com.xianxia.sect.core.BuffType.SHIELD.displayName
-    "damage_reduction" -> com.xianxia.sect.core.BuffType.DAMAGE_REDUCTION.displayName
-    "damage_boost" -> com.xianxia.sect.core.BuffType.DAMAGE_BOOST.displayName
-    "turn_advance" -> com.xianxia.sect.core.BuffType.TURN_ADVANCE.displayName
-    else -> buffType
-}
+/** Buff 键 → BuffType 映射表（getBuffTypeName/parseManualStackBuffs 查表） */
 
-internal fun parseManualStackBuffs(json: String): List<Triple<com.xianxia.sect.core.BuffType, Double, Int>> {
-    if (json.isBlank()) return emptyList()
-    return json.split("|").mapNotNull { buffStr ->
-        val parts = buffStr.split(",")
-        if (parts.size == 3) {
-            val type = when (parts[0]) {
-                "physical_attack" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_BOOST
-                "magic_attack" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_BOOST
-                "physical_defense" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_BOOST
-                "magic_defense" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_BOOST
-                "hp" -> com.xianxia.sect.core.BuffType.HP_BOOST
-                "mp" -> com.xianxia.sect.core.BuffType.MP_BOOST
-                "speed" -> com.xianxia.sect.core.BuffType.SPEED_BOOST
-                "crit_rate" -> com.xianxia.sect.core.BuffType.CRIT_RATE_BOOST
-                "physical_attack_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_REDUCE
-                "magic_attack_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_REDUCE
-                "physical_defense_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_REDUCE
-                "magic_defense_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_REDUCE
-                "speed_reduce" -> com.xianxia.sect.core.BuffType.SPEED_REDUCE
-                "crit_rate_reduce" -> com.xianxia.sect.core.BuffType.CRIT_RATE_REDUCE
-                "poison" -> com.xianxia.sect.core.BuffType.POISON
-                "burn" -> com.xianxia.sect.core.BuffType.BURN
-                "stun" -> com.xianxia.sect.core.BuffType.STUN
-                "freeze" -> com.xianxia.sect.core.BuffType.FREEZE
-                "silence" -> com.xianxia.sect.core.BuffType.SILENCE
-                "taunt" -> com.xianxia.sect.core.BuffType.TAUNT
-                "damage_link" -> com.xianxia.sect.core.BuffType.DAMAGE_LINK
-                "damage_share" -> com.xianxia.sect.core.BuffType.DAMAGE_SHARE
-                "shield" -> com.xianxia.sect.core.BuffType.SHIELD
-                "damage_reduction" -> com.xianxia.sect.core.BuffType.DAMAGE_REDUCTION
-                "damage_boost" -> com.xianxia.sect.core.BuffType.DAMAGE_BOOST
-                "turn_advance" -> com.xianxia.sect.core.BuffType.TURN_ADVANCE
-                else -> return@mapNotNull null
-            }
-            val value = parts[1].toDoubleOrNull() ?: return@mapNotNull null
-            val duration = parts[2].toIntOrNull() ?: return@mapNotNull null
-            Triple(type, value, duration)
-        } else null
-    }
-}
+/** 属性键 → 中文显示名映射表（getStatDisplayName 查表） */
+private val STAT_DISPLAY_NAMES: Map<String, String> = mapOf(
+    "cultivationSpeedPercent" to "修炼速度",
+    "skillExpSpeedPercent" to "功法熟练度速度",
+    "nurtureSpeedPercent" to "孕养速度",
+    "physicalAttack" to "物理攻击",
+    "magicAttack" to "法术攻击",
+    "physicalDefense" to "物理防御",
+    "magicDefense" to "法术防御",
+    "hp" to "生命",
+    "mp" to "灵力",
+    "speed" to "速度",
+    "critRate" to "暴击率",
+    "critEffect" to "暴击效果",
+    "intelligence" to "悟性",
+    "charm" to "魅力",
+    "loyalty" to "忠诚",
+    "comprehension" to "领悟",
+    "artifactRefining" to "炼器",
+    "pillRefining" to "炼丹",
+    "spiritPlanting" to "灵植",
+    "teaching" to "教导",
+    "morality" to "道德"
+)
 
-internal fun getTargetScopeName(scope: String): String = when (scope) {
-    "self" -> "自身"
-    "ally" -> "友方"
-    "enemy" -> "敌方"
-    "team" -> "全队"
-    else -> scope
-}
-
-internal fun formatBuffLine(buffType: String, value: Double, duration: Int): String {
-    val buffName = getBuffTypeName(buffType)
-    val durationText = if (duration > 0) " (${duration}回合)" else ""
-    val specialTypes = setOf("poison", "burn", "stun", "freeze", "silence", "taunt")
-    if (buffType in specialTypes) {
-        return "$buffName$durationText"
-    }
-    val isDebuff = try {
-        com.xianxia.sect.core.BuffType.valueOf(buffType.uppercase()).isDebuff
-    } catch (_: IllegalArgumentException) {
-        false
-    }
-    val sign = if (isDebuff) "-" else "+"
-    return "$buffName ${sign}${(value * 100).toInt()}%$durationText"
-}
-
-internal fun formatBuffLine(buffType: com.xianxia.sect.core.BuffType, value: Double, duration: Int): String {
-    val buffName = buffType.displayName
-    val durationText = if (duration > 0) " (${duration}回合)" else ""
-    val specialTypes = setOf(
-        com.xianxia.sect.core.BuffType.POISON, com.xianxia.sect.core.BuffType.BURN,
-        com.xianxia.sect.core.BuffType.STUN, com.xianxia.sect.core.BuffType.FREEZE,
-        com.xianxia.sect.core.BuffType.SILENCE, com.xianxia.sect.core.BuffType.TAUNT
-    )
-    if (buffType in specialTypes) {
-        return "$buffName$durationText"
-    }
-    val sign = if (buffType.isDebuff) "-" else "+"
-    return "$buffName ${sign}${(value * 100).toInt()}%$durationText"
-}
-
-internal fun getStatDisplayName(key: String): String = when (key) {
-    "cultivationSpeedPercent" -> "修炼速度"
-    "skillExpSpeedPercent" -> "功法熟练度速度"
-    "nurtureSpeedPercent" -> "孕养速度"
-    "physicalAttack" -> "物理攻击"
-    "magicAttack" -> "法术攻击"
-    "physicalDefense" -> "物理防御"
-    "magicDefense" -> "法术防御"
-    "hp" -> "生命"
-    "mp" -> "灵力"
-    "speed" -> "速度"
-    "critRate" -> "暴击率"
-    "critEffect" -> "暴击效果"
-    "intelligence" -> "悟性"
-    "charm" -> "魅力"
-    "loyalty" -> "忠诚"
-    "comprehension" -> "领悟"
-    "artifactRefining" -> "炼器"
-    "pillRefining" -> "炼丹"
-    "spiritPlanting" -> "灵植"
-    "teaching" -> "教导"
-    "morality" -> "道德"
-    else -> key
-}
+internal fun getStatDisplayName(key: String): String = STAT_DISPLAY_NAMES[key] ?: key
 
 internal fun getHerbCategoryName(category: String): String = when (category) {
     "grass" -> "灵草"
@@ -167,65 +54,12 @@ internal fun MutableList<String>.addForgeMaterialsInfo(equipmentName: String) {
     val forgeRecipe = ForgeRecipeDatabase.getAllRecipes().find { it.name == equipmentName }
     if (forgeRecipe != null && forgeRecipe.materials.isNotEmpty()) {
         val materialsText = forgeRecipe.materials.map { (materialId, count) ->
-            val materialName = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)?.name ?: materialId
+            val materialName = com.xianxia.sect.core.registry.BeastMaterialDatabase
+                .getMaterialById(materialId)?.name ?: materialId
             "$materialName×$count"
         }.joinToString("、")
         add("")
         add("锻造材料：$materialsText")
-    }
-}
-
-internal fun MutableList<String>.addManualSkillInfo(template: ManualDatabase.ManualTemplate) {
-    val sDesc = template.skillDescription
-    if (!sDesc.isNullOrEmpty()) {
-        add("  $sDesc")
-    }
-    if (template.skillType == "support") {
-        add("  类型: 辅助")
-    }
-    if (template.skillTargetScope.isNotEmpty()) {
-        add("  作用目标: ${getTargetScopeName(template.skillTargetScope)}")
-    }
-    if (template.skillIsAoe) {
-        add("  范围: 全体")
-    }
-    if (template.skillDamageMultiplier > 0 && template.skillType != "support") {
-        add("  伤害类型: ${if (template.skillDamageType == "magic") "法术" else "物理"}")
-        add("  伤害倍率: ${(template.skillDamageMultiplier * 100).toInt()}%")
-    }
-    if (template.skillHealPercent > 0) {
-        val healTypeName = if (template.skillHealType == "mp") "灵力" else "生命"
-        add("  治疗: ${(template.skillHealPercent * 100).toInt()}% $healTypeName")
-    }
-    if (template.skillHealFixed > 0) {
-        val healTypeName = if (template.skillHealType == "mp") "灵力" else "生命"
-        add("  固定治疗: +${template.skillHealFixed} $healTypeName")
-    }
-    if (template.skillShieldPercent > 0) {
-        add("  护盾: ${(template.skillShieldPercent * 100).toInt()}% 最大生命")
-    }
-    if (template.skillTurnAdvancePercent > 0) {
-        add("  行动提前: ${(template.skillTurnAdvancePercent * 100).toInt()}%")
-    }
-    if (template.skillDamageSharePercent > 0) {
-        add("  伤害分摊: ${(template.skillDamageSharePercent * 100).toInt()}%")
-    }
-    if (template.skillDamageLinkPercent > 0) {
-        add("  伤害链接: ${(template.skillDamageLinkPercent * 100).toInt()}%")
-    }
-    add("  连击次数: ${template.skillHits}")
-    if (template.skillCooldown > 0) {
-        add("  冷却回合: ${template.skillCooldown}")
-    }
-    if (template.skillMpCost > 0) {
-        add("  灵力消耗: ${template.skillMpCost}")
-    }
-    template.skillBuffs.forEach { buff ->
-        add("  ${formatBuffLine(buff.type, buff.value, buff.duration)}")
-    }
-    if (template.skillBuffs.isEmpty() && template.skillBuffType != null && template.skillBuffValue > 0) {
-        val buffType = checkNotNull(template.skillBuffType) { "skillBuffType is null" }
-        add("  ${formatBuffLine(buffType, template.skillBuffValue, template.skillBuffDuration)}")
     }
 }
 
@@ -266,6 +100,15 @@ internal fun getEquipmentStackEffects(item: EquipmentStack): List<String> = buil
     addForgeMaterialsInfo(item.name)
 }
 
+/** 装备最终属性行：终值 >0 时输出，加成 >0 追加 (↑x) 提示 */
+private fun MutableList<String>.addFinalStatLine(label: String, finalValue: Int, baseValue: Int) {
+    if (finalValue > 0) {
+        val bonus = finalValue - baseValue
+        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+        add("  $label +$finalValue$bonusText")
+    }
+}
+
 @Suppress("DEPRECATION")
 internal fun getEquipmentEffects(item: EquipmentInstance): List<String> = buildList {
     add("部位: ${item.slot.displayName}")
@@ -284,381 +127,14 @@ internal fun getEquipmentEffects(item: EquipmentInstance): List<String> = buildL
     add("属性:")
     val finalStats = item.getFinalStats()
     val baseStats = item.stats
-    if (finalStats.physicalAttack > 0) {
-        val bonus = finalStats.physicalAttack - baseStats.physicalAttack
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  物理攻击 +${finalStats.physicalAttack}$bonusText")
-    }
-    if (finalStats.magicAttack > 0) {
-        val bonus = finalStats.magicAttack - baseStats.magicAttack
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  法术攻击 +${finalStats.magicAttack}$bonusText")
-    }
-    if (finalStats.physicalDefense > 0) {
-        val bonus = finalStats.physicalDefense - baseStats.physicalDefense
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  物理防御 +${finalStats.physicalDefense}$bonusText")
-    }
-    if (finalStats.magicDefense > 0) {
-        val bonus = finalStats.magicDefense - baseStats.magicDefense
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  法术防御 +${finalStats.magicDefense}$bonusText")
-    }
-    if (finalStats.speed > 0) {
-        val bonus = finalStats.speed - baseStats.speed
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  速度 +${finalStats.speed}$bonusText")
-    }
-    if (finalStats.hp > 0) {
-        val bonus = finalStats.hp - baseStats.hp
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  生命 +${finalStats.hp}$bonusText")
-    }
-    if (finalStats.mp > 0) {
-        val bonus = finalStats.mp - baseStats.mp
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  灵力 +${finalStats.mp}$bonusText")
-    }
+    addFinalStatLine("物理攻击", finalStats.physicalAttack, baseStats.physicalAttack)
+    addFinalStatLine("法术攻击", finalStats.magicAttack, baseStats.magicAttack)
+    addFinalStatLine("物理防御", finalStats.physicalDefense, baseStats.physicalDefense)
+    addFinalStatLine("法术防御", finalStats.magicDefense, baseStats.magicDefense)
+    addFinalStatLine("速度", finalStats.speed, baseStats.speed)
+    addFinalStatLine("生命", finalStats.hp, baseStats.hp)
+    addFinalStatLine("灵力", finalStats.mp, baseStats.mp)
     if (item.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(item.critChance)}")
 
     addForgeMaterialsInfo(item.name)
-}
-
-// ===== 功法效果 =====
-
-@Suppress("DEPRECATION")
-internal fun getManualStackEffects(item: ManualStack): List<String> = buildList {
-    addManualStackBaseInfo(item = item)
-    val effectiveSkillName = item.skillName
-    if (effectiveSkillName != null) {
-        addManualStackSkillInfo(
-            item = item,
-            skillName = effectiveSkillName
-        )
-    } else if (ManualDatabase.isInitialized) {
-        addManualStackTemplateInfo(item = item)
-    }
-}
-
-/** 功法堆叠基础信息（getManualStackEffects 拆分） */
-@Suppress("DEPRECATION")
-private fun MutableList<String>.addManualStackBaseInfo(item: ManualStack) {
-    add("类型: ${item.type.displayName}")
-    add("数量: ${item.quantity}")
-    if (item.minRealm < 9) {
-        add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
-    }
-    add("")
-    val stats = item.stats
-    if (stats.isNotEmpty()) {
-        add("属性加成:")
-        stats.forEach { (key, value) ->
-            val statName = getStatDisplayName(key)
-            if (key.contains("Percent")) {
-                add("  $statName +$value%")
-            } else {
-                add("  $statName +$value")
-            }
-        }
-    }
-}
-
-/** 功法堆叠技能信息（getManualStackEffects 拆分）；internal 供 ReplaceSelectionData 复用 */
-// 拆分搬移:分支结构与原函数一致
-@Suppress("CyclomaticComplexMethod", "DEPRECATION")
-internal fun MutableList<String>.addManualStackSkillInfo(item: ManualStack, skillName: String) {
-    add("")
-    add("技能: $skillName")
-    item.skillDescription?.let { sDesc ->
-        if (sDesc.isNotEmpty()) {
-            add("  $sDesc")
-        }
-    }
-    if (item.skillType == "support") {
-        add("  类型: 辅助")
-    }
-    if (item.skillTargetScope.isNotEmpty()) {
-        add("  作用目标: ${getTargetScopeName(item.skillTargetScope)}")
-    }
-    if (item.skillIsAoe) {
-        add("  范围: 全体")
-    }
-    if (item.skillDamageMultiplier > 0 && item.skillType != "support") {
-        add("  伤害类型: ${if (item.skillDamageType == "magic") "法术" else "物理"}")
-        add("  伤害倍率: ${(item.skillDamageMultiplier * 100).toInt()}%")
-    }
-    if (item.skillHealPercent > 0) {
-        val healTypeName = if (item.skillHealType == "mp") "灵力" else "生命"
-        add("  治疗: ${(item.skillHealPercent * 100).toInt()}% $healTypeName")
-    }
-    if (item.skillHealFixed > 0) {
-        val healTypeName = if (item.skillHealType == "mp") "灵力" else "生命"
-        add("  固定治疗: +${item.skillHealFixed} $healTypeName")
-    }
-    if (item.skillShieldPercent > 0) {
-        add("  护盾: ${(item.skillShieldPercent * 100).toInt()}% 最大生命")
-    }
-    if (item.skillTurnAdvancePercent > 0) {
-        add("  行动提前: ${(item.skillTurnAdvancePercent * 100).toInt()}%")
-    }
-    if (item.skillDamageSharePercent > 0) {
-        add("  伤害分摊: ${(item.skillDamageSharePercent * 100).toInt()}%")
-    }
-    if (item.skillDamageLinkPercent > 0) {
-        add("  伤害链接: ${(item.skillDamageLinkPercent * 100).toInt()}%")
-    }
-    add("  连击次数: ${item.skillHits}")
-    if (item.skillCooldown > 0) {
-        add("  冷却回合: ${item.skillCooldown}")
-    }
-    if (item.skillMpCost > 0) {
-        add("  灵力消耗: ${item.skillMpCost}")
-    }
-    val buffs = parseManualStackBuffs(item.skillBuffsJson)
-    buffs.forEach { (buffType, value, duration) ->
-        add("  ${formatBuffLine(buffType, value, duration)}")
-    }
-    if (buffs.isEmpty() && item.skillBuffType != null && item.skillBuffValue > 0) {
-        val itemBuffType = item.skillBuffType
-        if (itemBuffType != null) {
-            add("  ${formatBuffLine(itemBuffType, item.skillBuffValue, item.skillBuffDuration)}")
-        }
-    }
-}
-
-/** 功法堆叠模板兜底信息（getManualStackEffects 拆分） */
-@Suppress("DEPRECATION")
-private fun MutableList<String>.addManualStackTemplateInfo(item: ManualStack) {
-    val template = ManualDatabase.getByName(item.name)
-    if (template != null) {
-        template.skillName?.let { sName ->
-            add("")
-            add("技能: $sName")
-            addManualSkillInfo(template)
-        }
-    }
-}
-
-@Suppress("DEPRECATION")
-internal fun getManualEffects(item: ManualInstance): List<String> = buildList {
-    addManualBaseInfo(item = item)
-    item.skill?.let { skill ->
-        addLearnedManualSkillIntro(skill = skill)
-        addLearnedManualSkillStats(skill = skill)
-        skill.buffs.forEach { (buffType, value, duration) ->
-            add("  ${formatBuffLine(buffType, value, duration)}")
-        }
-        if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
-            val skillBuffType = skill.buffType
-            if (skillBuffType != null) {
-                add("  ${formatBuffLine(skillBuffType, skill.buffValue, skill.buffDuration)}")
-            }
-        }
-    }
-}
-
-/** 已学功法基础信息（getManualEffects 拆分） */
-@Suppress("DEPRECATION")
-private fun MutableList<String>.addManualBaseInfo(item: ManualInstance) {
-    add("类型: ${item.type.displayName}")
-    if (item.minRealm < 9) {
-        add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
-    }
-    add("")
-    val stats = item.stats
-    if (stats.isNotEmpty()) {
-        add("属性加成:")
-        stats.forEach { (key, value) ->
-            val statName = getStatDisplayName(key)
-            if (key.contains("Percent")) {
-                add("  $statName +$value%")
-            } else {
-                add("  $statName +$value")
-            }
-        }
-    }
-}
-
-/** 已学功法技能基础信息（getManualEffects 拆分）：名称/描述/类型/目标/范围 */
-@Suppress("DEPRECATION")
-private fun MutableList<String>.addLearnedManualSkillIntro(skill: com.xianxia.sect.core.model.ManualSkill) {
-    add("")
-    add("技能: ${skill.name}")
-    if (skill.description.isNotEmpty()) {
-        add("  ${skill.description}")
-    }
-    if (skill.skillType == com.xianxia.sect.core.SkillType.SUPPORT) {
-        add("  类型: 辅助")
-    }
-    if (skill.targetScope.isNotEmpty()) {
-        add("  作用目标: ${getTargetScopeName(skill.targetScope)}")
-    }
-    if (skill.isAoe) {
-        add("  范围: 全体")
-    }
-}
-
-/** 已学功法技能数值信息（getManualEffects 拆分）：伤害/治疗/护盾/连击/冷却/消耗 */
-// 拆分搬移:分支结构与原函数一致
-@Suppress("CyclomaticComplexMethod", "DEPRECATION")
-private fun MutableList<String>.addLearnedManualSkillStats(skill: com.xianxia.sect.core.model.ManualSkill) {
-    if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
-        add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}")
-        add("  伤害倍率: ${(skill.damageMultiplier * 100).toInt()}%")
-    }
-    if (skill.healPercent > 0) {
-        val healTypeName = when (skill.healType) {
-            com.xianxia.sect.core.HealType.HP -> "生命"
-            com.xianxia.sect.core.HealType.MP -> "灵力"
-        }
-        add("  治疗: ${(skill.healPercent * 100).toInt()}% $healTypeName")
-    }
-    if (skill.healFixed > 0) {
-        val healTypeName = when (skill.healType) {
-            com.xianxia.sect.core.HealType.HP -> "生命"
-            com.xianxia.sect.core.HealType.MP -> "灵力"
-        }
-        add("  固定治疗: +${skill.healFixed} $healTypeName")
-    }
-    if (skill.shieldPercent > 0) {
-        add("  护盾: ${(skill.shieldPercent * 100).toInt()}% 最大生命")
-    }
-    if (skill.turnAdvancePercent > 0) {
-        add("  行动提前: ${(skill.turnAdvancePercent * 100).toInt()}%")
-    }
-    if (skill.damageSharePercent > 0) {
-        add("  伤害分摊: ${(skill.damageSharePercent * 100).toInt()}%")
-    }
-    if (skill.damageLinkPercent > 0) {
-        add("  伤害链接: ${(skill.damageLinkPercent * 100).toInt()}%")
-    }
-    add("  连击次数: ${skill.hits}")
-    if (skill.cooldown > 0) {
-        add("  冷却回合: ${skill.cooldown}")
-    }
-    if (skill.mpCost > 0) {
-        add("  灵力消耗: ${skill.mpCost}")
-    }
-}
-
-// ===== 丹药效果 =====
-internal fun getPillEffects(item: Pill): List<String> = buildList {
-    addPillHeaderInfo(item = item)
-    add("效果:")
-    val isInstant = isPillInstant(item = item)
-    when (item.category) {
-        PillCategory.FUNCTIONAL -> addFunctionalPillEffects(item = item)
-        PillCategory.CULTIVATION -> addCultivationPillEffects(item = item)
-        PillCategory.BATTLE -> addBattlePillEffects(item = item)
-    }
-    if (!isInstant && item.duration > 0) {
-        add("  持续 ${item.duration * 3} 旬")
-    }
-    if (isInstant) {
-        add("  (一次性效果)")
-    }
-    addPillRecipeInfo(item.id, item.name)
-}
-
-/** 丹药基础信息（getPillEffects 拆分） */
-private fun MutableList<String>.addPillHeaderInfo(item: Pill) {
-    add("类型: ${item.category.displayName}")
-    add("品级: ${item.grade.displayName}")
-    add("数量: ${item.quantity}")
-    if (item.minRealm < 9) {
-        add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
-    }
-    add("")
-}
-
-/** 丹药是否一次性效果（getPillEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
-@Suppress("CyclomaticComplexMethod")
-private fun isPillInstant(item: Pill): Boolean = item.category == PillCategory.FUNCTIONAL ||
-    (item.category == PillCategory.CULTIVATION && item.pillType == "breakthrough") ||
-    item.cultivationAdd > 0 ||
-    item.skillExpAdd > 0 ||
-    item.nurtureAdd > 0 ||
-    item.extendLife > 0 ||
-    item.healMaxHpPercent > 0 ||
-    item.mpRecoverMaxMpPercent > 0 ||
-    item.revive ||
-    item.clearAll ||
-    item.intelligenceAdd > 0 ||
-    item.charmAdd > 0 ||
-    item.loyaltyAdd > 0 ||
-    item.comprehensionAdd > 0 ||
-    item.artifactRefiningAdd > 0 ||
-    item.pillRefiningAdd > 0 ||
-    item.spiritPlantingAdd > 0 ||
-    item.teachingAdd > 0 ||
-    item.moralityAdd > 0 ||
-    item.miningAdd > 0
-
-/** 丹药功能类效果（getPillEffects 拆分） */
-// 拆分搬移:分支结构与原函数一致
-@Suppress("CyclomaticComplexMethod")
-private fun MutableList<String>.addFunctionalPillEffects(item: Pill) {
-    if (item.breakthroughChance > 0) {
-        add("  突破概率 +${GameUtils.formatPercent(item.breakthroughChance)}")
-    }
-    if (item.targetRealm > 0) {
-        add("  目标境界: ${GameConfig.Realm.getName(item.targetRealm)}")
-    }
-    if (item.isAscension) {
-        add("  可用于渡劫")
-    }
-    if (item.extendLife > 0) add("  延寿 +${item.extendLife}年")
-    if (item.intelligenceAdd > 0) add("  悟性 +${item.intelligenceAdd}")
-    if (item.charmAdd > 0) add("  魅力 +${item.charmAdd}")
-    if (item.loyaltyAdd > 0) add("  忠诚 +${item.loyaltyAdd}")
-    if (item.comprehensionAdd > 0) add("  领悟 +${item.comprehensionAdd}")
-    if (item.artifactRefiningAdd > 0) add("  炼器 +${item.artifactRefiningAdd}")
-    if (item.pillRefiningAdd > 0) add("  炼丹 +${item.pillRefiningAdd}")
-    if (item.spiritPlantingAdd > 0) add("  灵植 +${item.spiritPlantingAdd}")
-    if (item.teachingAdd > 0) add("  教导 +${item.teachingAdd}")
-    if (item.moralityAdd > 0) add("  道德 +${item.moralityAdd}")
-    if (item.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(item.healMaxHpPercent)} 最大生命")
-    if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(item.mpRecoverMaxMpPercent)} 最大灵力")
-    if (item.revive) add("  可复活弟子")
-    if (item.clearAll) add("  清除所有负面状态")
-    if (item.hpAdd > 0) add("  生命 +${item.hpAdd}")
-    if (item.mpAdd > 0) add("  灵力 +${item.mpAdd}")
-    if (item.physicalAttackAdd > 0) add("  物理攻击 +${item.physicalAttackAdd}")
-    if (item.magicAttackAdd > 0) add("  法术攻击 +${item.magicAttackAdd}")
-    if (item.physicalDefenseAdd > 0) add("  物理防御 +${item.physicalDefenseAdd}")
-    if (item.magicDefenseAdd > 0) add("  法术防御 +${item.magicDefenseAdd}")
-    if (item.speedAdd > 0) add("  速度 +${item.speedAdd}")
-}
-
-/** 丹药修炼类效果（getPillEffects 拆分） */
-private fun MutableList<String>.addCultivationPillEffects(item: Pill) {
-    if (item.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(item.cultivationSpeedPercent)}")
-    if (item.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(item.skillExpSpeedPercent)}")
-    if (item.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(item.nurtureSpeedPercent)}")
-    if (item.cultivationAdd > 0) add("  修为 +${item.cultivationAdd}")
-    if (item.skillExpAdd > 0) add("  功法熟练度 +${item.skillExpAdd}")
-    if (item.nurtureAdd > 0) add("  孕养值 +${item.nurtureAdd}")
-    if (item.breakthroughChance > 0) {
-        add("  突破概率 +${GameUtils.formatPercent(item.breakthroughChance)}")
-    }
-    if (item.targetRealm > 0) {
-        add("  目标境界: ${GameConfig.Realm.getName(item.targetRealm)}")
-    }
-    if (item.isAscension) {
-        add("  可用于渡劫")
-    }
-}
-
-/** 丹药战斗类效果（getPillEffects 拆分） */
-private fun MutableList<String>.addBattlePillEffects(item: Pill) {
-    if (item.physicalAttackAdd > 0) add("  物理攻击 +${item.physicalAttackAdd}")
-    if (item.magicAttackAdd > 0) add("  法术攻击 +${item.magicAttackAdd}")
-    if (item.physicalDefenseAdd > 0) add("  物理防御 +${item.physicalDefenseAdd}")
-    if (item.magicDefenseAdd > 0) add("  法术防御 +${item.magicDefenseAdd}")
-    if (item.hpAdd > 0) add("  生命 +${item.hpAdd}")
-    if (item.mpAdd > 0) add("  灵力 +${item.mpAdd}")
-    if (item.speedAdd > 0) add("  速度 +${item.speedAdd}")
-    if (item.critRateAdd > 0) add("  暴击率 +${GameUtils.formatPercent(item.critRateAdd)}")
-    if (item.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(item.critEffectAdd)}")
 }

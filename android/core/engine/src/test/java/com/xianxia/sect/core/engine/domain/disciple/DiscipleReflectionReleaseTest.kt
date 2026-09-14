@@ -69,8 +69,6 @@ class DiscipleReflectionReleaseTest {
         )
         val lifecycleManager = DiscipleLifecycleManager(
             stateStore = mockStore,
-            discipleFactory = mockSmart(),
-            rngManager = mockSmart(),
             slotManager = slotManager,
             productionSlotRepository = mockSmart(),
         )
@@ -90,7 +88,7 @@ class DiscipleReflectionReleaseTest {
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
             discipleStatusService = statusService,
-            inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
+            inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java),
         )
     }
 
@@ -104,7 +102,6 @@ class DiscipleReflectionReleaseTest {
             stateStore = mockStore,
             cultivationService = cultivationService,
             gameEngineCore = mockSmart(),
-            inventorySystem = mockSmart(),
             pillManager = mockSmart(),
             assignmentGate = mockSmart(),
             discipleSlotCleanup = mockSmart(),

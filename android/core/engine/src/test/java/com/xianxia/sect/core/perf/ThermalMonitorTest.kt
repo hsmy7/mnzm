@@ -15,7 +15,7 @@ import org.junit.Test
  * 守卫逻辑：create/close/report 全程 synchronized 互斥（检查与使用原子，无 TOCTOU 窗口）；
  * close/report 仅在属主线程执行；字段复位条件化。
  *
- * 平台能力接口化（计划 v2 批 8-1）后 Android API 经 PerformanceHintPort 端口注入，
+ * 平台能力接口化后 Android API 经 PerformanceHintPort 端口注入，
  * 测试以 fake port 替代原 Robolectric mock 接缝（原 hintManager internal 接缝随
  * 端口化消失）；守卫语义断言与端口化前逐条对应。
  */
@@ -99,7 +99,7 @@ class ThermalMonitorTest {
         assertTrue(session.reported.isEmpty())
     }
 
-    // ── D-09 接缝注入：port 异常/null 分支（fake port 可控）──
+    // ── 接缝注入：port 异常/null 分支（fake port 可控）──
 
     @Test
     fun `createHintSession - port 抛异常时复位字段并继续（catch 分支）`() {
@@ -141,7 +141,7 @@ class ThermalMonitorTest {
         monitor.closeHintSession()  // 能力分支直接返回，无异常
     }
 
-    // ── 动态 ADPF 目标（2026-08-14 平板省电） ──
+    // ── 动态 ADPF 目标（平板省电） ──
 
     @Test
     fun `setTargetWorkDuration - 转发至 session`() {

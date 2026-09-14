@@ -121,7 +121,6 @@ abstract class BaseTemplateRegistry<T> : TemplateRegistry<T> {
      */
     fun autoInitialize() {
         // 触发 lazy 初始化
-        val __templates = _templates
         markInitialized()
     }
 
@@ -138,9 +137,7 @@ abstract class BaseTemplateRegistry<T> : TemplateRegistry<T> {
         candidates: List<E>,
         weightExtractor: (E) -> Double
     ): E {
-        if (candidates.isEmpty()) {
-            throw IllegalArgumentException("candidates cannot be empty")
-        }
+        require(candidates.isNotEmpty()) { "candidates cannot be empty" }
 
         val totalWeight = candidates.sumOf { weightExtractor(it) }
         var random = Random.nextDouble() * totalWeight

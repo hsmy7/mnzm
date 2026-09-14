@@ -17,8 +17,8 @@ import com.xianxia.sect.core.util.asKotlinRandom
 
 // GameEngineTraitWashRoll.kt — 洗炼天赋/体质/词条的纯随机函数（不落盘、无副作用）
 //
-// 单槽语义（2026-08-09 需求变更）：洗炼只针对详情界面里指定的那一个特质
-// （targetId），其余同类特质保留不动——一次只洗炼一个，不再整套重掷替换。
+// 单槽语义：洗炼只针对详情界面里指定的那一个特质
+// （targetId），其余同类特质保留不动——一次只洗炼一个，不整套重掷替换。
 // 本文件只含"抽取"：候选池口径、品阶分布、保底计数与排除模板过滤，
 // 事务扣费与落盘在 GameEngineTraitWashOps.kt（washTraitSlot/confirmTraitWash）。
 
@@ -101,7 +101,7 @@ private fun pickTopByType(
     TraitWashType.TALENT -> pickFromPool(
         pool = TalentDatabase.getPositiveByRarity(GameConfig.TraitWash.TOP_RARITY),
         // 过滤退役天赋类型（DEPRECATED_TALENT_TYPES），对齐生成池——保底产物空间与普通洗炼一致，
-        // 退役超模条目（如 r5/r6 寿命加成）不会经保底路径重新流入（对抗性审查 2026-08-09 发现）
+        // 退役超模条目（如 r5/r6 寿命加成）不会经保底路径重新流入
         usedTemplates = usedTemplates,
         templateOf = { TalentDatabase.getTalentDataById(it.id)?.template ?: it.id },
         random = random

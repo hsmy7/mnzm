@@ -1,9 +1,9 @@
 // ============================================================
-// battle_calculator.h — 战斗计算管线（Kotlin→C++ 迁移战斗批次 A）
+// battle_calculator.h — 战斗计算管线
 //
 // 等价复刻 Kotlin `BattleCalculator`（core/engine/src/main/java/com/
 // xianxia/sect/core/util/BattleCalculator.kt 982 行）的**计算管线**（非
-// AI 决策层——selectSkill/selectTarget 归批次 B）：
+// AI 决策层——selectSkill/selectTarget 归 battle_ai.h）：
 //   - 战斗域模型：BuffType/CombatBuff/CombatSkill/Combatant（effective*
 //     计算属性）/PhysiqueCombatFactors/AffixCombatEffects
 //   - buildDamageZones（物理/魔法/增伤分桶 + 减伤 + 体质/词条/境界因子）

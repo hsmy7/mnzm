@@ -81,8 +81,8 @@
 }
 
 # kotlinx.serialization - CRITICAL for ManualDatabase JSON fallback and all save/load serialization
-# 注：2026-08-15 项 F 收窄——com.xianxia.sect.core.model/data.model 全成员保留已删除，
-# 序列化访问由下方 com.xianxia.sect.** 针对性规则（$$serializer/Companion/serializer()/@Serializable 字段）完整覆盖。
+# 注：com.xianxia.sect.** 不做全成员整包保留，序列化访问由下方针对性规则
+# （$$serializer/Companion/serializer()/@Serializable 字段）完整覆盖。
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** {
@@ -277,3 +277,15 @@
 # android.support 兼容保留：部分广告 SDK（如 Baidu mobads）运行时引用旧 support 库类，
 # 删除后 SDK 初始化可能崩溃，保守保留（待最终 assembleRelease 验证）
 -keep class android.support.**{*;}
+
+# 友盟统计 SDK（U-App common/asms）
+# 官方要求整包保留：SDK 经反射构造上报实体（JSONObject 入参构造器）与枚举采集
+-dontwarn com.umeng.**
+-keep class com.umeng.** {*;}
+-keepclassmembers class * {
+   public <init> (org.json.JSONObject);
+}
+-keepclassmembers enum com.umeng.** {
+    public static final [] $VALUES;
+    public static valueOf(java.lang.String);
+}

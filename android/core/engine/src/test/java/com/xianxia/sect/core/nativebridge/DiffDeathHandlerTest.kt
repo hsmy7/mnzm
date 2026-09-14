@@ -23,7 +23,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffDeathHandlerTest — 死亡物化跨语言差分对拍（计划 v2 阶段 4 / 批 4-2）。
+ * DiffDeathHandlerTest — 死亡物化跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::death_handler（markDead 三字段写入 +
  * 年死亡计数 + 装备断言 / backfillDeathYears）与 Kotlin DiscipleDeathHandler

@@ -5,25 +5,54 @@ import com.xianxia.sect.core.model.MailEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+@Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
+// Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
+// 继续拆分只会碎片化数据访问协议并倍增注入面
 interface MailDao {
     /**
-     * 邮件永久保留：不过滤过期时间，过期邮件仍可见——邮件只能被玩家手动
-     * "删除已读"清理，任何自动删除（读档/容量/过期）都不得触发。
+     * 未删除邮件列表（过期邮件由 [deleteExpired] 自动删除后自然不再出现；
+     * expireTime=0 视为永久有效，永不过期）。
      */
     @Query("SELECT * FROM mails WHERE slotId = :slotId ORDER BY isRead ASC, sendTime DESC")
     fun getActiveMails(slotId: Int): Flow<List<MailEntity>>
 
+    /**
+     * 删除槽位内全部过期邮件（决策项② 2026-09-09：过期即删）。
+     * 过期邮件领取路径本就返回 Expired 不可领——删除无功能损失。
+     * expireTime=0（永久有效）不受影响。@return 删除行数
+     */
+    @Query("DELETE FROM mails WHERE slotId = :slotId AND expireTime > 0 AND expireTime < :now")
+    suspend fun deleteExpired(slotId: Int, now: Long): Int
+
     @Query("SELECT COUNT(*) FROM mails WHERE slotId = :slotId AND isRead = 0")
     fun getUnreadCount(slotId: Int): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM mails WHERE slotId = :slotId")
+    suspend fun countMails(slotId: Int): Int
 
     @Query("SELECT EXISTS(SELECT 1 FROM mails WHERE slotId = :slotId AND remoteMailId = :remoteId LIMIT 1)")
     suspend fun existsByRemoteId(slotId: Int, remoteId: String): Boolean
 
     @Transaction
     suspend fun insertWithEnforceLimit(mail: MailEntity, maxLimit: Int = 1000) {
-        // 只增不删：不按容量自动淘汰（避免未领取附件被静默清掉）。
+        // 决策项② 2026-09-09：过期邮件自动删除——每次写入顺带清理本槽过期
+        // 邮件（过期不可领取，删除无功能损失）；expireTime=0 永久有效不受影响。
         // REPLACE 保证确定性 mailId 重放幂等。
         insertAll(listOf(mail))
+        deleteExpired(mail.slotId, System.currentTimeMillis())
+        // 容量溢出可见化（审计 P1-4）：过期删除后若仍超限（大量永久有效
+        // 邮件的极端档），计数留痕供观察——不做容量淘汰
+        val count = countMails(mail.slotId)
+        if (count > maxLimit) {
+            mailOverflowCount.incrementAndGet()
+            android.util.Log.w("MailDao", "Mail slot ${mail.slotId} over limit: " +
+                "count=$count maxLimit=$maxLimit overflowTotal=${mailOverflowCount.get()}")
+        }
+    }
+
+    /** 容量溢出累计计数（决策项②未确认期间的可见性埋点；AtomicLong 自带线程安全） */
+    companion object {
+        val mailOverflowCount = java.util.concurrent.atomic.AtomicLong(0)
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

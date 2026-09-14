@@ -13,12 +13,12 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.FixedSectGateway
 
 /**
- * 建筑读档自愈（D-11~D-14 批次，2026-08-06）— 全部纯函数，无状态无 IO。
+ * 建筑读档自愈 — 全部纯函数，无状态无 IO。
  *
  * 统一在 [BootSequenceController] Step 3/3.5 编排（所有读档路径收敛点）：
- * - [normalizeOrphanBuildingSectIds]：D-13，孤儿宗门归属归一化（sectId 无对应宗门 → 归入本宗 ""）
- * - [purifyStaleActiveSectId]：D-11，activeSectId 残留净化（指向非玩家持有宗门 → 归回本宗 ""）
- * - [computeBuildingOverflowMigration]：溢出迁移纯计算（自 SaveLoadLoadDelegate 迁入，
+ * - [normalizeOrphanBuildingSectIds]：孤儿宗门归属归一化（sectId 无对应宗门 → 归入本宗 ""）
+ * - [purifyStaleActiveSectId]：activeSectId 残留净化（指向非玩家持有宗门 → 归回本宗 ""）
+ * - [computeBuildingOverflowMigration]：溢出迁移纯计算（
  *   须在 fixup/归一化之后执行——迁移按 sectId 分组 + 用最终尺寸判定）
  */
 internal data class SectNormalizationResult(
@@ -37,7 +37,7 @@ data class MigrationResult(
 private const val TAG = "BuildingSelfHeal"
 
 /**
- * 问题1 选项1 守卫阈值：建筑/矿场槽位引用的宗门 id 在 worldMapSects 中缺失数
+ * 守卫阈值：建筑/矿场槽位引用的宗门 id 在 worldMapSects 中缺失数
  * 达到该值时，判定 roster 与建筑"严重失配"（世界重生/重型数据分叉异常态），
  * 跳过归一化并保留原 sectId（而非静默归 "" 主宗）。单个真孤儿（缺失 1 个）仍归一化，
  * 保证正常"宗门被摧毁→建筑归主宗恢复"语义不回归。
@@ -45,14 +45,14 @@ private const val TAG = "BuildingSelfHeal"
 private const val ORPHAN_BULK_DIVERGE_THRESHOLD = 2
 
 /**
- * 旧版住所显示名（2026-08-19 改名前的存档值）。
- * 改名：单人住所 → 初级单人住所、多人住所 → 初级多人住所（显示名补全分级前缀）。
+ * 旧档住所显示名（存量存档中的历史命名）。
+ * 读档时改写为分级前缀新名：单人住所 → 初级单人住所、多人住所 → 初级多人住所。
  */
 internal const val LEGACY_SINGLE_RESIDENCE_NAME = "单人住所"
 internal const val LEGACY_MULTI_RESIDENCE_NAME = "多人住所"
 
 /**
- * 住所显示名分级前缀迁移（2026-08-19）：旧档「单人住所/多人住所」→「初级单人住所/初级多人住所」。
+ * 住所显示名分级前缀迁移：旧档「单人住所/多人住所」→「初级单人住所/初级多人住所」。
  *
  * 显示名补全分级前缀后，旧存档中的 displayName 不再匹配注册表（建筑不可点/不可拆/不可升级），
  * 读档时须将旧名原地改写为新名；同步迁移引导累计建造计数 key（`buildingBuilt:{旧名}` → `{新名}`，
@@ -90,7 +90,7 @@ internal fun normalizeResidenceDisplayNames(
 }
 
 /**
- * 推导"玩家持有（占领）宗门"权威 id 集合（问题1 选项2 根因）。
+ * 推导"玩家持有（占领）宗门"权威 id 集合。
  *
  * 由 [SectDetail.isOwned]（持久化、不随世界重生被清）∪ [WorldSect.isPlayerOccupied]
  * （当前占领状态）合成——作为归一化 / activeSectId 净化 / 世界重生保留判定的事实来源，
@@ -130,7 +130,7 @@ internal fun backfillPlayerOwnedSectDetails(
 }
 
 /**
- * D-13：将"无对应宗门"的孤儿建筑归入本宗（""）。
+ * 将"无对应宗门"的孤儿建筑归入本宗（""）。
  *
  * 仅处理 `sectId` 非空且不在 [worldSects] 中的建筑——`sectId=""`（本宗）与对应现存
  * 宗门的建筑不动。worldMapSects 为空时跳过（世界重生前的临时状态，防误伤占领宗门建筑）。
@@ -153,7 +153,7 @@ internal fun normalizeOrphanBuildingSectIds(
     if (worldSects.isEmpty()) return SectNormalizationResult(buildings, spiritMineSlots)
     val existingIds = worldSects.mapTo(mutableSetOf()) { it.id }
 
-    // 问题1 完整根因（选项2）：playerOwnedSectIds 是独立于 roster 的"玩家持有宗门"权威——
+    // playerOwnedSectIds 是独立于 roster 的"玩家持有宗门"权威——
     // 凡建筑 sectId 属于其中即保留，绝不静默归 ""（主宗），因为主宗 activeSectId="" 只显示
     // sectId=="" 的建筑，赋 "" 正是"占领宗门内建建筑跑到主宗地图显示"的直接成因。
     // 仅"真正孤儿"（既不在 worldMapSects、也不属玩家持有）才归并主宗（恢复语义）。
@@ -200,7 +200,7 @@ internal fun normalizeOrphanBuildingSectIds(
 }
 
 /**
- * D-11：净化残留的 [activeSectId]。
+ * 净化残留的 [activeSectId]。
  *
  * activeSectId 非空但不对应"现存且玩家持有（isPlayerSect || isPlayerOccupied）"的宗门时
  * 归回本宗 ""。worldMapSects 为空（世界损坏待重生）时任何残留 id 必无效，同样归 ""。
@@ -217,7 +217,7 @@ internal fun purifyStaleActiveSectId(
     playerOwnedSectIds: Set<String>
 ): String {
     if (activeSectId.isEmpty()) return activeSectId
-    // 预存问题3：玩家持有（占领）宗门即使 roster 缺失（世界重生/重型数据分叉）也保留
+    // 玩家持有（占领）宗门即使 roster 缺失（世界重生/重型数据分叉）也保留
     // activeSectId——否则玩家被"锁"回主宗视角，其宗门地图建筑全部不可见/不可点。
     val playerOwnedKeep = activeSectId in playerOwnedSectIds
     val sect = if (worldSects.isEmpty()) null else worldSects.find { it.id == activeSectId }
@@ -288,33 +288,46 @@ fun computeBuildingOverflowMigration(
 /** 灵田显示名（占地尺寸不变，迁移中优先保留） */
 private const val SPIRIT_FIELD_NAME = "灵田"
 
-/** 天枢殿显示名（2026-08-23：旧档遗留天枢殿删除+补偿） */
+/** 天枢殿显示名（旧档遗留天枢殿删除+补偿判定） */
 internal const val TIANSHU_HALL_DISPLAY_NAME = "天枢殿"
 
 /**
- * 识别旧档遗留天枢殿（2026-08-23）。
+ * 旧档遗留天枢殿的**历史占地尺寸白名单**。
  *
- * 天枢殿历经多次占地/精灵尺寸调整（6×3 → … → 18×13），旧档遗留的天枢殿尺寸与
- * 当前配置不符。按用户决策：读档时直接删除旧档天枢殿并通过邮件补偿 1000 万灵石
+ * 天枢殿历史上经过多次占地调整：`6×3`（初版）→ `12×6`（扩容批）→ `18×13`（现行）。
+ * 只有出自旧版存档的这两个历史尺寸，才走"删除 + 补偿 1000 万灵石"路径。
+ *
+ * **判据口径更正（根因修复）**：旧判据是「占地尺寸 ≠ 当前配置尺寸」——任何一次配置尺寸调整
+ * 都会把全服存量的天枢殿判成"旧档遗留"并**拆除 + 补偿**（改尺寸 = 全服拆殿事故，也正是
+ * 此前"天枢殿占地不可动"的由来）。现改为显式历史白名单：尺寸不命中白名单者（含现行配置尺寸
+ * 与未来任何新尺寸）一律交给 [com.xianxia.sect.core.config.BuildingConfigService.fixupBuildingSizes]
+ * 正常改写尺寸并在越界时钳位坐标，**绝不删除建筑**。
+ *
+ * 白名单维护约定：仅当某尺寸**曾经真实发布过**且需要走删除补偿路径时才加入；
+ * **现行配置尺寸永远不得加入**（守卫测试 `BuildingLoadSelfHealTest` 锁定该不变量）。
+ */
+internal val TIANSHU_LEGACY_FOOTPRINTS: Set<Pair<Int, Int>> = setOf(6 to 3, 12 to 6)
+
+/**
+ * 识别旧档遗留天枢殿（占地尺寸命中 [TIANSHU_LEGACY_FOOTPRINTS] 历史白名单）。
+ *
+ * 读档时直接删除旧档天枢殿并通过邮件补偿 1000 万灵石
  * （由 [BootSequenceController] 编排：先发邮件成功再删建筑）。
  *
  * **必须在 fixupBuildingSizes 之前判定**——fixup 会把尺寸统一修正为当前配置，
  * 先判定才能识别旧档遗留（尺寸不符的天枢殿）。
  *
- * @param buildings 全部建筑列表（fixup 前原始数据）
- * @param gridSizeOf 建筑显示名 → 当前配置占地尺寸（宽, 高）
- * @return 旧档遗留天枢殿列表（尺寸与当前配置不符的天枢殿；天枢殿全局唯一，最多 1 座）
+ * @param buildings 全部建筑列表（fixup 修正前的原始数据）
+ * @return 旧档遗留天枢殿列表（天枢殿全局唯一，最多 1 座）
  */
 internal fun filterLegacyTianshuHalls(
-    buildings: List<GridBuildingData>,
-    gridSizeOf: (String) -> Pair<Int, Int>
+    buildings: List<GridBuildingData>
 ): List<GridBuildingData> = buildings.filter { b ->
-    if (b.displayName != TIANSHU_HALL_DISPLAY_NAME) return@filter false
-    val (w, h) = gridSizeOf(b.displayName)
-    b.width != w || b.height != h
+    b.displayName == TIANSHU_HALL_DISPLAY_NAME &&
+        (b.width to b.height) in TIANSHU_LEGACY_FOOTPRINTS
 }
 
-/** 检查建筑是否在地图内、不与其他建筑/固定结构重叠（迁移自 SaveLoadLoadDelegate，条件拆分过 detekt） */
+/** 检查建筑是否在地图内、不与其他建筑/固定结构重叠 */
 private fun canPlaceAt(
     b: GridBuildingData,
     gridW: Int,

@@ -222,8 +222,7 @@ private fun rewriteBattleTeamWinner(data: GameData, winner: SlotWinner, name: St
             if (team.id == winner.slotType) {
                 team.copy(slots = team.slots.map { slot ->
                     if (slot.index == winner.slotIndex) {
-                        // D23（2026-08-05）：不再强制 isAlive=true——赢家若是
-                        // 已死弟子，此前会被"复活"进战斗队伍槽位
+                        // 不强制 isAlive=true——赢家若已死，不得被"复活"进战斗队伍槽位
                         slot.copy(discipleId = winner.discipleId, discipleName = name)
                     } else slot
                 })

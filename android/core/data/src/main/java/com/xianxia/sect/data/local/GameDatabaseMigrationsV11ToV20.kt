@@ -1,4 +1,4 @@
-// GameDatabaseMigrationsV11ToV20.kt — 由 GameDatabase.kt 拆分生成（见 GameDatabase.kt addMigrations 列表）
+// GameDatabaseMigrationsV11ToV20.kt — v11→v20 迁移（见 GameDatabase.kt addMigrations 列表）
 package com.xianxia.sect.data.local
 
 import android.util.Log
@@ -16,7 +16,7 @@ private const val TAG = "GameDatabase"
                         "ALTER TABLE game_data ADD COLUMN map_seed INTEGER NOT NULL DEFAULT 0"
                     )
                 }
-                // 防御纵深（2026-08-01）：若旧版本升级链在 MIGRATION_10_11 之前已存在
+                // 防御纵深：若旧版本升级链在 MIGRATION_10_11 之前已存在
                 //（如 v2→v11 的中间版本），此处兜底补齐 merchantAcquisition* 列
                 if (!columnExists(db, "game_data", "merchantAcquisitionItems")) {
                     db.execSQL(
@@ -30,9 +30,9 @@ private const val TAG = "GameDatabase"
                         "INTEGER NOT NULL DEFAULT 0"
                     )
                 }
-                // 2026-08-01 修复（全链迁移测试暴露）：v12 schema 已含 mailRecords /
-                // heavenly_trial_state / sign_in_state_json，但 v2-v11 段无任何迁移添加
-                // 这三列——MIGRATION_12_13 的 INSERT SELECT 引用它们导致升级崩溃
+                // 防御补齐：v12 schema 已含 mailRecords / heavenly_trial_state /
+                // sign_in_state_json，但 v2-v11 段无任何迁移添加这三列，
+                // MIGRATION_12_13 的 INSERT SELECT 引用它们，缺失即升级崩溃
                 if (!columnExists(db, "game_data", "mailRecords")) {
                     db.execSQL(
                         "ALTER TABLE game_data ADD COLUMN mailRecords TEXT " +
@@ -51,7 +51,8 @@ private const val TAG = "GameDatabase"
                         "NOT NULL DEFAULT '{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}'"
                     )
                 }
-                Log.i(TAG, "Migration 11→12: added map_seed, merchantAcquisition*, mailRecords, heavenly_trial_state, sign_in_state_json (defense)")
+                Log.i(TAG, "Migration 11→12: added map_seed, merchantAcquisition*, mailRecords, " +
+                    "heavenly_trial_state, sign_in_state_json (defense)")
             }
         }
 
@@ -118,8 +119,10 @@ private const val GAME_DATA_V13_CREATE_TABLE_SQL = """
                             `bloodRefinements` TEXT NOT NULL DEFAULT '{}',
                             `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}',
                             `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}',
-                            `heavenly_trial_state` TEXT NOT NULL DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
-                            `sign_in_state_json` TEXT NOT NULL DEFAULT '{"claimedDays":[],"currentMonth":0,"currentYear":0}',
+                            `heavenly_trial_state` TEXT NOT NULL
+                                DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
+                            `sign_in_state_json` TEXT NOT NULL
+                                DEFAULT '{"claimedDays":[],"currentMonth":0,"currentYear":0}',
                             `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL,
                             `lastYearSpiritStoneIncome` INTEGER NOT NULL,
                             `activeAttackWarnings` TEXT NOT NULL, `shownWarningStageIds` TEXT NOT NULL,
@@ -130,7 +133,7 @@ private const val GAME_DATA_V13_CREATE_TABLE_SQL = """
                     """
 
 /**
- * v12→v13：移除 game_data.isGameStarted 列（create-copy-drop-rename 模式，MIGRATION_12_13 拆分）。
+ * v12→v13：移除 game_data.isGameStarted 列（create-copy-drop-rename 模式）。
  * 数据复制列清单与 [GAME_DATA_COLUMNS_V13] 一致（isGameStarted 已排除在该清单外）。
  */
 private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
@@ -157,7 +160,8 @@ private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
     Log.i(TAG, "Migration 12→13: removed isGameStarted column from game_data")
 }
 
-        /** v13→v14: 新增 cultivationCheckpoint/cultivationCheckpointGameMonth 到 disciples + spiritMineLastSettledMonth 到 game_data + baseDuration 到 production_slots */
+        /** v13→v14: 新增 cultivationCheckpoint/cultivationCheckpointGameMonth 到 disciples +
+         *  spiritMineLastSettledMonth 到 game_data + baseDuration 到 production_slots 列 */
         internal val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "disciples", "cultivationCheckpoint")) {
@@ -170,8 +174,9 @@ private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
                         "ALTER TABLE disciples ADD COLUMN cultivationCheckpointGameMonth INTEGER NOT NULL DEFAULT 0"
                     )
                 }
-                Log.i(TAG, "Migration 13→14: added cultivationCheckpoint, cultivationCheckpointGameMonth columns to disciples")
-                // production_slots.baseDuration（原有commit遗漏的migration）
+                Log.i(TAG,
+                    "Migration 13→14: added cultivationCheckpoint, cultivationCheckpointGameMonth columns to disciples")
+                // production_slots.baseDuration（v14 schema 要求此列，兜底补齐）
                 if (!columnExists(db, "production_slots", "baseDuration")) {
                     db.execSQL(
                         "ALTER TABLE production_slots ADD COLUMN baseDuration INTEGER NOT NULL DEFAULT 0"
@@ -200,7 +205,8 @@ private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
             }
         }
 
-        /** v15→v16: 新增 showAllAvailableDisciples + worldLevelLastRefreshMonth + rngStates + pendingPatrolBattleResults 列 */
+        /** v15→v16: 新增 showAllAvailableDisciples + worldLevelLastRefreshMonth +
+         *  rngStates + pendingPatrolBattleResults 列 */
         internal val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "game_data", "showAllAvailableDisciples")) {
@@ -223,11 +229,12 @@ private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
                         "ALTER TABLE game_data ADD COLUMN pendingPatrolBattleResults TEXT NOT NULL DEFAULT '[]'"
                     )
                 }
-                Log.i(TAG, "Migration 15→16: added showAllAvailableDisciples, worldLevelLastRefreshMonth, rngStates, pendingPatrolBattleResults to game_data")
+                Log.i(TAG, "Migration 15→16: added showAllAvailableDisciples, worldLevelLastRefreshMonth, rngStates, " +
+                    "pendingPatrolBattleResults to game_data")
             }
         }
 
-        /** v16→v17: 补漏 rngStates/pendingPatrolBattleResults/worldLevelLastRefreshMonth — 旧 MIGRATION_15_16 遗漏此 3 列 */
+        /** v16→v17: 补齐 rngStates/pendingPatrolBattleResults/worldLevelLastRefreshMonth 3 列 */
         internal val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "game_data", "worldLevelLastRefreshMonth")) {
@@ -245,7 +252,8 @@ private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
                         "ALTER TABLE game_data ADD COLUMN pendingPatrolBattleResults TEXT NOT NULL DEFAULT '[]'"
                     )
                 }
-                Log.i(TAG, "Migration 16→17: added missing worldLevelLastRefreshMonth, rngStates, pendingPatrolBattleResults to game_data")
+                Log.i(TAG, "Migration 16→17: added missing worldLevelLastRefreshMonth, rngStates, " +
+                    "pendingPatrolBattleResults to game_data")
             }
         }
 
@@ -261,10 +269,12 @@ private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
         internal val MIGRATION_18_19 = object : Migration(18, 19) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "disciples_extended", "pillCultivationSpeedBonus")) {
-                    db.execSQL("ALTER TABLE disciples_extended ADD COLUMN pillCultivationSpeedBonus REAL NOT NULL DEFAULT 0.0")
+                    db.execSQL("ALTER TABLE disciples_extended ADD COLUMN pillCultivationSpeedBonus REAL NOT NULL " +
+                        "DEFAULT 0.0")
                 }
                 if (!columnExists(db, "disciples_extended", "pillEffectDuration")) {
-                    db.execSQL("ALTER TABLE disciples_extended ADD COLUMN pillEffectDuration INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE disciples_extended ADD COLUMN pillEffectDuration INTEGER NOT NULL " +
+                        "DEFAULT 0")
                 }
                 Log.i(TAG, "Migration 18→19: disciples_extended added pillCultivationSpeedBonus/pillEffectDuration")
             }
@@ -301,7 +311,7 @@ private fun rebuildGameDataWithoutIsGameStarted(db: SupportSQLiteDatabase) {
         }
 
 /**
- * v13 game_data 数据复制列清单（MIGRATION_12_13 / MIGRATION_13_14 拆分共用）。
+ * v13 game_data 数据复制列清单（MIGRATION_12_13 / MIGRATION_13_14 共用）。
  * 顺序必须与重建 CREATE TABLE 完全一致；MIGRATION_13_14 的 spiritMineLastSettledMonth
  * 由占位表达式注入，MIGRATION_12_13 无注入列（isGameStarted 不在清单内）。
  */
@@ -347,9 +357,9 @@ private val GAME_DATA_COLUMNS_V13 = listOf(
 /**
  * v13→v14：为 game_data 新增 spiritMineLastSettledMonth 列（create-copy-drop-rename 模式）。
  * Room v14 schema 中该列无 DEFAULT，ALTER TABLE ADD COLUMN 无法满足 NOT NULL 校验，
- * 故整体重建表（MIGRATION_13_14 拆分）。
+ * 故整体重建表。
  */
-// 拆分残余:函数体略超 60 行(原函数拆分后聚合)
+// 函数体略超 60 行
 @Suppress("LongMethod")
 private fun rebuildGameDataWithSpiritMineLastSettledMonth(db: SupportSQLiteDatabase) {
     db.execSQL("""
@@ -405,7 +415,8 @@ private fun rebuildGameDataWithSpiritMineLastSettledMonth(db: SupportSQLiteDatab
             `bloodRefinements` TEXT NOT NULL DEFAULT '{}',
             `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}',
             `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}',
-            `heavenly_trial_state` TEXT NOT NULL DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
+            `heavenly_trial_state` TEXT NOT NULL
+                DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
             `sign_in_state_json` TEXT NOT NULL DEFAULT '{"claimedDays":[],"currentMonth":0,"currentYear":0}',
             `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL,
             `lastYearSpiritStoneIncome` INTEGER NOT NULL,
@@ -445,7 +456,7 @@ private fun rebuildGameDataWithSpiritMineLastSettledMonth(db: SupportSQLiteDatab
 }
 
 /**
- * v19→v20 重建 game_data 的列清单（MIGRATION_19_20 拆分）。
+ * v19→v20 重建 game_data 的列清单。
  * 顺序必须与重建 CREATE TABLE 完全一致，bloodRefinementPctTotals 由占位表达式注入。
  */
 private val GAME_DATA_COLUMNS_V19 = listOf(
@@ -491,9 +502,9 @@ private val GAME_DATA_COLUMNS_V19 = listOf(
 
 /**
  * v19→v20：重建 game_data 表以同时删除 gameSpeed 列并新增 bloodRefinementPctTotals 列
- * （create-copy-drop-rename 模式，SQLite < 3.35.0 不支持 DROP COLUMN）（MIGRATION_19_20 拆分）。
+ * （create-copy-drop-rename 模式，SQLite < 3.35.0 不支持 DROP COLUMN）。
  */
-// 拆分残余:函数体略超 60 行(原函数拆分后聚合)
+// 函数体略超 60 行
 @Suppress("LongMethod")
 private fun rebuildGameDataDroppingGameSpeed(db: SupportSQLiteDatabase) {
     db.execSQL("""
@@ -562,7 +573,8 @@ private fun rebuildGameDataDroppingGameSpeed(db: SupportSQLiteDatabase) {
             `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}',
             `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}',
             `bloodRefinementPctTotals` TEXT NOT NULL DEFAULT '{}',
-            `heavenly_trial_state` TEXT NOT NULL DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
+            `heavenly_trial_state` TEXT NOT NULL
+                DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
             `sign_in_state_json` TEXT NOT NULL DEFAULT '{"claimedDays":[],"currentMonth":0,"currentYear":0}',
             `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL,
             `lastYearSpiritStoneIncome` INTEGER NOT NULL,
@@ -604,7 +616,7 @@ private fun rebuildGameDataDroppingGameSpeed(db: SupportSQLiteDatabase) {
 }
 
 /**
- * 在指定列之前插入一个字面量列表达式（MIGRATION_13_14 / MIGRATION_19_20 拆分）。
+ * 在指定列之前插入一个字面量列表达式（供 MIGRATION_13_14 / MIGRATION_19_20 使用）。
  * 用于重建 game_data 时，在 SELECT 列列表中为新表独有的列注入占位值，
  * 且不改变其余列的相对顺序（SQLite INSERT SELECT 按位置映射，非按列名）。
  */

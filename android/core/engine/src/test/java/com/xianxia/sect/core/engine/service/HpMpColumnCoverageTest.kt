@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * HP/MP 列直读覆盖守卫测试（2026-08-01，CLAUDE.md 9.5 守卫三要素）。
+ * HP/MP 列直读覆盖守卫测试（CLAUDE.md 9.5 守卫三要素）。
  *
  * 背景：每旬 HP/MP 恢复热点的列直读版 [HpMpRecoveryService.recoverHpMpSingleColumn]
  * 只读取 17 列（相对 assemble 的 ~90 列）——若未来新增影响 maxHp/maxMp 的
@@ -42,7 +42,7 @@ class HpMpColumnCoverageTest {
         "pillEffectDuration",  // 丹药生效判定
         "pillHpBonus",    // 丹药 HP/MP 加成
         "pillMpBonus",
-        "bloodRefinementPct"  // 血炼百分比（2026-08-06 P2：血炼进战斗后恢复上限须同源）
+        "bloodRefinementPct"  // 血炼百分比（血炼进战斗后恢复上限须同源）
     )
 
     @Test

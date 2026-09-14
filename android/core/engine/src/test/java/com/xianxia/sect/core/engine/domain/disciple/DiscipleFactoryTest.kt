@@ -58,7 +58,7 @@ class DiscipleFactoryTest {
         val d = factory.create(newSeed())
         // 同 gaussianInt 逻辑：u1=0.0001, u2=0.0, z≈4.291
         // skill = round(4.291*16.5 + 50.5) = round(121.3) = 121
-        // 2026-08-12 上限 100→200：121 不再截断（原断言 100）；loyalty 上限 100 不变仍截断
+        // 属性上限 200 → 121 保留；loyalty 上限 100 → 截断为 100
         assertEquals(121, d.skills.intelligence)
         assertEquals(121, d.skills.charm)
         assertEquals(100, d.skills.loyalty)
@@ -102,7 +102,7 @@ class DiscipleFactoryTest {
         assertEquals(1, d.skills.comprehension)
     }
 
-    // ---- 资质（2026-08-12 新增固定属性，与悟性同阶梯）----
+    // ---- 资质（固定属性，与悟性同阶梯）----
 
     @Test
     fun `create - aptitude ladder mirrors comprehension per root count`() {

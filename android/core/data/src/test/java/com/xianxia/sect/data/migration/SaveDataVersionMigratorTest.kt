@@ -12,14 +12,8 @@ import org.junit.Test
 import kotlin.math.ceil
 
 /**
- * SaveDataVersionMigrator 单元测试。
- *
- * 2026-08-04 云读档管线统一：迁移逻辑从 StorageEngine 提取为公共 Migrator，
- * 本地读档与云存档加载共用。本测试对齐旧实现（StorageEngine.migrateSaveDataIfNeeded）
- * 行为逐项，防止提取过程改变迁移语义。
- *
- * 2026-08-05 T10：migrate 返回类型改为 [MigrationResult]，新增版本号边界用例
- * （负数/伪造高版本拒绝）。
+ * SaveDataVersionMigrator 单元测试：本地读档与云存档加载共用同一迁移器，
+ * 覆盖 v0→v2 缩放/盖章语义、误标新档判定与版本号边界（负数/伪造高版本拒绝）。
  */
 class SaveDataVersionMigratorTest {
 
@@ -72,8 +66,8 @@ class SaveDataVersionMigratorTest {
 
     @Test
     fun `migrate - saveVersion 0 after v4_0_13 - mislabeled new save not scaled`() {
-        // A1 修复（2026-08-05）：v4.0.13 后创建的新档未盖章（saveVersion=0），
-        // 按 lastSaveTime 时间边界判定为误标新档——不 ÷10，仅盖章 + v1→2
+        // 未盖章的新档（saveVersion=0）：按 lastSaveTime 时间边界判定为
+        // 误标新档——不 ÷10，仅盖章 + v1→2
         val gd = GameData(
             sectName = "测试宗",
             saveVersion = 0,
@@ -102,7 +96,7 @@ class SaveDataVersionMigratorTest {
 
     @Test
     fun `migrate - saveVersion 0 lastSaveTime 0 - conservative no scaling`() {
-        // A1 修复：lastSaveTime=0（远古/从未保存/损坏档）保守判定为误标——
+        // lastSaveTime=0（远古/从未保存/损坏档）保守判定为误标——
         // 单向安全：宁可保留偏大数值，不可误缩放损失 90%
         val gd = GameData(sectName = "测试宗", saveVersion = 0, sectCultivation = 50.0)
         val result = SaveDataVersionMigrator.migrate(baseSaveData(gd))
@@ -152,7 +146,7 @@ class SaveDataVersionMigratorTest {
 
     @Test
     fun `migrate - negative saveVersion rejected`() {
-        // T10：负数按 v0 迁移会二次缩放已缩放数据，显式拒绝
+        // 负数按 v0 迁移会二次缩放已缩放数据，显式拒绝
         val gd = GameData(sectName = "测试宗", saveVersion = -5, sectCultivation = 50.0)
         val result = SaveDataVersionMigrator.migrate(baseSaveData(gd))
         assertTrue(result is MigrationResult.Rejected)
@@ -161,7 +155,7 @@ class SaveDataVersionMigratorTest {
 
     @Test
     fun `migrate - Int MAX saveVersion rejected`() {
-        // T10：伪造高版本原样返回会绕过 v0→1 缩放
+        // 伪造高版本原样返回会绕过 v0→1 缩放
         val gd = GameData(sectName = "测试宗", saveVersion = Int.MAX_VALUE, sectCultivation = 50.0)
         val result = SaveDataVersionMigrator.migrate(baseSaveData(gd))
         assertTrue(result is MigrationResult.Rejected)

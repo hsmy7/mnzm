@@ -61,6 +61,54 @@
 
 ---
 
+## C++ 引擎（game-core）与 ActionId 协议面
+
+迁移主线为「确定性逻辑核心 Kotlin→C++」（总方案 `docs/adr/cpp-engine-migration.md`，
+进度 `docs/cpp-engine.md`）：时间/结算/战斗/生产/探索/内政/经济/外交/秘境与 UI 操作面事务
+已 C++ 化，C++ 为 AUTHORITATIVE 真相源，Kotlin `GameStateStore` 为镜像；反向同步通道
+**逐域关闭仍在推进**（前置 = UI 操作面逐域下沉，剩余域清单见 `docs/ui-read-surface.md` §4.1）。
+
+**源码位置**：`android/app/src/main/cpp/gamecore/`（`include/gamecore/**` 纯头实现、
+`src/` 引擎主体与 `execute_dispatch.cpp` 分发表、`jni/` 桌面桥、`test/` GTest）
++ JNI 桥 `android/app/src/main/cpp/GameCoreBridge.cpp` / Kotlin 侧
+`core/engine/.../nativebridge/GameCoreBridge.kt`。
+
+**ActionId 协议（当前 166 动作 / maxId=1712 / 31 handler，`scripts/gen-action-ids.mjs` 为单一事实源，
+改动后必须重新生成 `action_ids.h` + `ActionIds.kt`）**：
+
+> ⚠️ 计数随每批下沉递增；**权威值以 `node scripts/gen-action-ids.mjs` 实跑输出为准**（原写"114 动作 / 20 handler"
+> 为 W2-a 时点值，已随 W2-a + batch-11~20b 交付过期）。
+
+| 段 | 用途 |
+|---|---|
+| 1000–1399 | 基础设施 / 钱包 / 库存 / 弟子查询 / 战斗 / 政务 / 探索 / 关卡生成 / 兑换码 |
+| 1402–1419 | 死亡物化 / 秘境状态机原语（批 4-x） |
+| 1440–1444 | 秘境交互会话（S6）+ 生产排程（S7） |
+| 1450–1454 | 建筑放置/迁移/升级/拆除（batch-06，`system/building_tx.h`） |
+| 1470–1471 | 道路放置/拆除（batch-07，`system/road_tx.h`） |
+| 1480–1485 | 弟子装备穿脱/功法学忘/任命卸任（batch-08，`system/disciple_tx.h`） |
+| 1500–1502 | 外交/好感/附庸（batch-09，`system/diplomacy_tx.h`） |
+| 1520–1525 | 库存出售/上架/材料消耗（W2-a，`system/inventory_tx.h`；单类出售六入口/批量出售/商人收购/上架/撤下/按名称品阶消耗材料） |
+| 1530–1531 | 库存收官：商人购买 / 充公（batch-11，`system/inventory_tx.h` 追加；**开袋不下沉**——双重 RNG 路线 B） |
+| 1550–1559 | 巡逻/住所/矿场/年俸（**batch-12**，`system/patrol_tx.h`；九入口 + `updatePatrolSlots` 死 API 不下沉） |
+| 1570–1573 | 探索：世界关卡/侦察/分舵驻守（batch-13，`system/exploration_tx.h`） |
+| 1590–1594 | 弟子生命周期：逐出/拜师/婚姻批准/释放思过/年俸开关（batch-14，`system/disciple_lifecycle_tx.h`） |
+| 1610–1616 | 弟子任命/仓库驻守/洗炼消耗（batch-15，`system/appointment_tx.h`） |
+| 1630–1632 | 招募列表残余三直调点（batch-16，`system/recruit_tx.h`） |
+| 1650–1657 | 生产 UI 面 + 灵田种植族（batch-17，`system/production.h` ui_tx / `system/spirit_field.h`） |
+| 1670–1672 / 1680–1682 | 月年边界 guide 计数面（batch-18，`system/boundary_tx.h`）/ 政策开关（`system/government.h` 追加） |
+| 1690–1693 | 玉符 / 宗门升级 / 玉符购买落账（batch-19，`system/jade_tx.h`） |
+| 1710 / 1711–1712 | 秘境平台段读档恢复（batch-20a，`system/secret_realm_platform_tx.h`）/ 攻宗确定性写回（**batch-20b**，`system/sect_attack_tx.h`） |
+
+**UI 操作面事务的通用形态**（06/07/08/09 四批 + W2-a + batch-11~20b 同构）：Kotlin 门面/协作类在
+AUTHORITATIVE 门控下经 `GameEngineNativeOps.tryExecuteNative` 转发 → C++ 纯头事务
+（校验链先行，失败零写入）→ 成功经 `applyDirtyFromNative` 脏段回读镜像；失败信封/降级
+一律回退 Kotlin 原路径重执行校验链（双实现并行契约，用户可见文案由 Kotlin 臂产出）。
+共享文件纪律：新增域只追加 `gen-action-ids.mjs` 目录条目 + `execute_dispatch.cpp`
+独立 `handleXxx` 与中央一行 case，**不新增 JNI 导出**。
+
+---
+
 ## Gradle 模块化架构
 
 ### 模块结构

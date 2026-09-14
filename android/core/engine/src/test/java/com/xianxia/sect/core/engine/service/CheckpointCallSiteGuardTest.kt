@@ -5,12 +5,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * checkpoint 调用点守卫测试（2026-08-01，CLAUDE.md 9.5 守卫三要素）。
+ * checkpoint 调用点守卫测试（CLAUDE.md 9.5 守卫三要素）。
  *
  * 背景：修炼速率变化点必须调用 checkpointDisciple/checkpointAllDisciples 重新记账，
  * 否则 getEffectiveCultivation 投影（checkpoint + rate×Δmonth）会用旧速率推导错误值
  *（投影为 checkpoint 契约读侧，供跨语言对拍基准与派生使用）。
- * 历史遗漏：DiscipleFacadeImpl 服药路径曾缺失 checkpoint（2026-08-01 已补）。
  *
  * 锚点：速率变化入口常量表。新增影响修炼速率的代码路径时，若忘记 checkpoint，
  * 本测试失败并提示补齐点。
@@ -25,15 +24,16 @@ class CheckpointCallSiteGuardTest {
 
     private val entries = listOf(
         Entry(
-            "service/AutoPillService.kt",
+            "engine/service/AutoPillService.kt",
             "tables.checkpointDisciple(id, currentMonth)"
         ),
         Entry(
-            "service/DiscipleBreakthroughHandler.kt",
+            "engine/service/DiscipleBreakthroughHandler.kt",
             "tables.checkpointDisciple(it, currentMonth)"
         ),
         Entry(
-            "domain/disciple/DiscipleFacadeImpl.kt",
+            // batch-01 拆分：丹药效果应用域自 DiscipleFacadeImpl 拆出（同语义归属）
+            "engine/domain/disciple/DiscipleFacadeImpl战斗Ops2.kt",
             "discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)"
         ),
         // 洗炼灵根确认替换：灵根影响修炼速率，替换瞬间必须重新记账

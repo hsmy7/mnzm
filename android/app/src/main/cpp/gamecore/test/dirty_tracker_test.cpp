@@ -132,7 +132,24 @@ TEST_F(DirtyTrackerTest, DiscipleFieldChangeUpsertsWholeEntity) {
     EXPECT_EQ(7.5, j.at("changed").at("disciples")[0].at("cultivation").get<double>());
 }
 
-// ── GameCore 集成（exportDirty / C-13 RNG 读档恢复） ─────────────
+TEST_F(DirtyTrackerTest, SyncBaselineToCurrentDoesNotBumpVersion) {
+    // 反向增量（Kotlin → C++）应用后 syncBaselineToCurrent：基线推进但不递增
+    // 版本——防反向应用值回流 forward 变更集（基线缓存实现回归守护：
+    // sync 路径必须重建缓存树，与 resetBaseline 同语义）
+    DirtyTracker t;
+    GameState s = sampleState();
+    t.resetBaseline(s);
+    (void)t.diffToJson(s);  // v1（空）
+    EXPECT_EQ(1u, t.version());
+
+    s.gameData.spiritStones = 42;
+    t.syncBaselineToCurrent(s);  // 反向应用后的基线同步（版本不动）
+    const auto j = nlohmann::json::parse(t.diffToJson(s));
+    EXPECT_TRUE(j.at("changed").empty());
+    EXPECT_EQ(2u, j.at("version").get<uint64_t>());  // 仅本次 diff +1
+}
+
+// ── GameCore 集成（exportDirty / RNG 读档恢复） ─────────────
 
 TEST_F(DirtyTrackerTest, GameCoreDirtyEmptyAfterInitAndAfterFullExport) {
     GameCore core(&clock_, &logger_);
@@ -175,8 +192,8 @@ TEST_F(DirtyTrackerTest, GameCoreDirtyReportsAdvanceThenClearsOnFullExport) {
 }
 
 TEST_F(DirtyTrackerTest, ImportRestoresRngPartitionStates) {
-    // C-13 回归守护："存档→读档→继续"与不中断的随机序列逐位一致。
-    // 修复前 importStateJson 不恢复 rngStates，读档后从种子态重新开始。
+    // 回归守护："存档→读档→继续"与不中断的随机序列逐位一致
+    //（importStateJson 必须恢复 rngStates，否则读档后从种子态重新开始）。
     GameCoreConfig config;
     config.systemSeed = 42;
     config.seedInitialized = true;

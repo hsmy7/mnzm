@@ -9,53 +9,108 @@ fun AppError.toUiError(): UiError = UiError(
     appError = this
 )
 
-fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage = when (this) {
-    StorageError.INVALID_SLOT -> AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "无效的存档槽位" }, cause)
-    StorageError.SLOT_EMPTY -> AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "存档槽位为空" }, cause)
-    StorageError.NOT_FOUND -> AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "未找到数据" }, cause)
-    StorageError.SLOT_CORRUPTED -> AppError.Domain.Storage.SlotCorrupted(message.ifEmpty { "存档数据已损坏" }, cause)
-    StorageError.SAVE_FAILED -> AppError.Domain.Storage.SaveFailed(message.ifEmpty { "保存失败" }, cause)
-    StorageError.LOAD_FAILED -> AppError.Domain.Storage.LoadFailed(message.ifEmpty { "加载失败" }, cause)
-    StorageError.DELETE_FAILED -> AppError.Domain.Storage.DeleteFailed(message.ifEmpty { "删除失败" }, cause)
-    StorageError.BACKUP_FAILED -> AppError.Domain.Storage.BackupFailed(message.ifEmpty { "备份失败" }, cause)
-    StorageError.RESTORE_FAILED -> AppError.Domain.Storage.RestoreFailed(message.ifEmpty { "恢复失败" }, cause)
-    StorageError.ENCRYPTION_ERROR -> AppError.Domain.Storage.EncryptionError(message.ifEmpty { "加密错误" }, cause)
-    StorageError.DECRYPTION_ERROR -> AppError.Domain.Storage.DecryptionError(message.ifEmpty { "解密错误" }, cause)
-    StorageError.IO_ERROR -> AppError.Domain.Storage.IoError(message.ifEmpty { "IO错误" }, cause)
-    StorageError.DATABASE_ERROR -> AppError.Domain.Storage.DatabaseError(message.ifEmpty { "数据库错误" }, cause)
-    StorageError.TRANSACTION_FAILED -> AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "事务失败" }, cause)
-    StorageError.TIMEOUT -> AppError.Domain.Storage.Timeout(message.ifEmpty { "操作超时" }, cause)
-    StorageError.OUT_OF_MEMORY -> AppError.Domain.Storage.IoError(message.ifEmpty { "内存不足" }, cause)
-    StorageError.WAL_ERROR -> AppError.Domain.Storage.IoError(message.ifEmpty { "WAL错误" }, cause)
-    StorageError.CHECKSUM_MISMATCH -> AppError.Domain.Storage.ChecksumMismatch(message.ifEmpty { "校验和不匹配" }, cause)
-    StorageError.KEY_DERIVATION_ERROR -> AppError.Domain.Storage.KeyDerivationError(message.ifEmpty { "密钥派生错误" }, cause)
-    StorageError.VALIDATION_ERROR -> AppError.Domain.Storage.SlotCorrupted(message.ifEmpty { "数据校验失败" }, cause)
-    StorageError.BATCH_OPERATION_FAILED -> AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "批量操作失败" }, cause)
-    StorageError.CONCURRENT_MODIFICATION -> AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "并发修改冲突" }, cause)
-    StorageError.UNKNOWN -> AppError.Domain.Storage.Unknown(message.ifEmpty { "未知存储错误" }, cause)
+/** 存储错误映射：缺省文案 + 领域错误工厂；新枚举值必须显式登记 */
+private val STORAGE_ERROR_MAPPINGS: Map<StorageError, Pair<String, (String, Throwable?) -> AppError.Domain.Storage>> =
+    mapOf(
+        StorageError.INVALID_SLOT to ("无效的存档槽位" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotNotFound(m, c) }),
+        StorageError.SLOT_EMPTY to ("存档槽位为空" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotNotFound(m, c) }),
+        StorageError.NOT_FOUND to ("未找到数据" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotNotFound(m, c) }),
+        StorageError.SLOT_CORRUPTED to ("存档数据已损坏" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotCorrupted(m, c) }),
+        StorageError.SAVE_FAILED to ("保存失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SaveFailed(m, c) }),
+        StorageError.LOAD_FAILED to ("加载失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.LoadFailed(m, c) }),
+        StorageError.DELETE_FAILED to ("删除失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.DeleteFailed(m, c) }),
+        StorageError.BACKUP_FAILED to ("备份失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.BackupFailed(m, c) }),
+        StorageError.RESTORE_FAILED to ("恢复失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.RestoreFailed(m, c) }),
+        StorageError.ENCRYPTION_ERROR to ("加密错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.EncryptionError(m, c) }),
+        StorageError.DECRYPTION_ERROR to ("解密错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.DecryptionError(m, c) }),
+        StorageError.IO_ERROR to ("IO错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.IoError(m, c) }),
+        StorageError.DATABASE_ERROR to ("数据库错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.DatabaseError(m, c) }),
+        StorageError.TRANSACTION_FAILED to ("事务失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.TransactionFailed(m, c) }),
+        StorageError.TIMEOUT to ("操作超时" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.Timeout(m, c) }),
+        StorageError.OUT_OF_MEMORY to ("内存不足" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.IoError(m, c) }),
+        StorageError.WAL_ERROR to ("WAL错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.IoError(m, c) }),
+        StorageError.CHECKSUM_MISMATCH to ("校验和不匹配" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.ChecksumMismatch(m, c) }),
+        StorageError.KEY_DERIVATION_ERROR to ("密钥派生错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.KeyDerivationError(m, c) }),
+        StorageError.VALIDATION_ERROR to ("数据校验失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotCorrupted(m, c) }),
+        StorageError.BATCH_OPERATION_FAILED to ("批量操作失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.TransactionFailed(m, c) }),
+        StorageError.CONCURRENT_MODIFICATION to ("并发修改冲突" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.TransactionFailed(m, c) }),
+        StorageError.UNKNOWN to ("未知存储错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.Unknown(m, c) })
+    )
+
+fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage {
+    val (default, factory) = STORAGE_ERROR_MAPPINGS.getValue(this)
+    return factory(message.ifEmpty { default }, cause)
 }
 
-fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage = when (this) {
-    SaveError.INVALID_SLOT -> AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "无效的存档槽位" }, cause)
-    SaveError.SLOT_EMPTY -> AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "存档槽位为空" }, cause)
-    SaveError.NOT_FOUND -> AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "未找到数据" }, cause)
-    SaveError.SLOT_CORRUPTED -> AppError.Domain.Storage.SlotCorrupted(message.ifEmpty { "存档数据已损坏" }, cause)
-    SaveError.SAVE_FAILED -> AppError.Domain.Storage.SaveFailed(message.ifEmpty { "保存失败" }, cause)
-    SaveError.LOAD_FAILED -> AppError.Domain.Storage.LoadFailed(message.ifEmpty { "加载失败" }, cause)
-    SaveError.DELETE_FAILED -> AppError.Domain.Storage.DeleteFailed(message.ifEmpty { "删除失败" }, cause)
-    SaveError.BACKUP_FAILED -> AppError.Domain.Storage.BackupFailed(message.ifEmpty { "备份失败" }, cause)
-    SaveError.RESTORE_FAILED -> AppError.Domain.Storage.RestoreFailed(message.ifEmpty { "恢复失败" }, cause)
-    SaveError.ENCRYPTION_ERROR -> AppError.Domain.Storage.EncryptionError(message.ifEmpty { "加密错误" }, cause)
-    SaveError.DECRYPTION_ERROR -> AppError.Domain.Storage.DecryptionError(message.ifEmpty { "解密错误" }, cause)
-    SaveError.IO_ERROR -> AppError.Domain.Storage.IoError(message.ifEmpty { "IO错误" }, cause)
-    SaveError.DATABASE_ERROR -> AppError.Domain.Storage.DatabaseError(message.ifEmpty { "数据库错误" }, cause)
-    SaveError.TRANSACTION_FAILED -> AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "事务失败" }, cause)
-    SaveError.TIMEOUT -> AppError.Domain.Storage.Timeout(message.ifEmpty { "操作超时" }, cause)
-    SaveError.OUT_OF_MEMORY -> AppError.Domain.Storage.IoError(message.ifEmpty { "内存不足" }, cause)
-    SaveError.WAL_ERROR -> AppError.Domain.Storage.IoError(message.ifEmpty { "WAL错误" }, cause)
-    SaveError.CHECKSUM_MISMATCH -> AppError.Domain.Storage.ChecksumMismatch(message.ifEmpty { "校验和不匹配" }, cause)
-    SaveError.KEY_DERIVATION_ERROR -> AppError.Domain.Storage.KeyDerivationError(message.ifEmpty { "密钥派生错误" }, cause)
-    SaveError.UNKNOWN -> AppError.Domain.Storage.Unknown(message.ifEmpty { "未知存储错误" }, cause)
+/** 统一保存错误映射：缺省文案 + 领域错误工厂；新枚举值必须显式登记 */
+private val SAVE_ERROR_MAPPINGS: Map<SaveError, Pair<String, (String, Throwable?) -> AppError.Domain.Storage>> =
+    mapOf(
+        SaveError.INVALID_SLOT to ("无效的存档槽位" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotNotFound(m, c) }),
+        SaveError.SLOT_EMPTY to ("存档槽位为空" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotNotFound(m, c) }),
+        SaveError.NOT_FOUND to ("未找到数据" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotNotFound(m, c) }),
+        SaveError.SLOT_CORRUPTED to ("存档数据已损坏" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SlotCorrupted(m, c) }),
+        SaveError.SAVE_FAILED to ("保存失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.SaveFailed(m, c) }),
+        SaveError.LOAD_FAILED to ("加载失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.LoadFailed(m, c) }),
+        SaveError.DELETE_FAILED to ("删除失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.DeleteFailed(m, c) }),
+        SaveError.BACKUP_FAILED to ("备份失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.BackupFailed(m, c) }),
+        SaveError.RESTORE_FAILED to ("恢复失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.RestoreFailed(m, c) }),
+        SaveError.ENCRYPTION_ERROR to ("加密错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.EncryptionError(m, c) }),
+        SaveError.DECRYPTION_ERROR to ("解密错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.DecryptionError(m, c) }),
+        SaveError.IO_ERROR to ("IO错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.IoError(m, c) }),
+        SaveError.DATABASE_ERROR to ("数据库错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.DatabaseError(m, c) }),
+        SaveError.TRANSACTION_FAILED to ("事务失败" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.TransactionFailed(m, c) }),
+        SaveError.TIMEOUT to ("操作超时" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.Timeout(m, c) }),
+        SaveError.OUT_OF_MEMORY to ("内存不足" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.IoError(m, c) }),
+        SaveError.WAL_ERROR to ("WAL错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.IoError(m, c) }),
+        SaveError.CHECKSUM_MISMATCH to ("校验和不匹配" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.ChecksumMismatch(m, c) }),
+        SaveError.KEY_DERIVATION_ERROR to ("密钥派生错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.KeyDerivationError(m, c) })
+    )
+
+fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage {
+    val (default, factory) = SAVE_ERROR_MAPPINGS.getValue(this)
+    return factory(message.ifEmpty { default }, cause)
 }
 
 fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {

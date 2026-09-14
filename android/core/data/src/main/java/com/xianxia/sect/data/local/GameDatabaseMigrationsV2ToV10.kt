@@ -194,9 +194,9 @@ private const val TAG = "GameDatabase"
                         "NOT NULL DEFAULT '[]'"
                     )
                 }
-                // 2026-08-01 修复：merchantAcquisition* 列缺失导致 v2-v11 老存档在
-                // MIGRATION_12_13 的 INSERT SELECT 处崩溃（no such column）。
-                // 实体在 v11 引入但迁移缺失——在此补齐，使 v10→v11 输出与 schema 11.json 一致。
+                // merchantAcquisition* 列为 v11 schema 的一部分，在此补齐使 v10→v11
+                // 输出与 schema 11.json 一致（后续 MIGRATION_12_13 的 INSERT SELECT
+                // 会引用这些列，缺失即崩溃）。
                 if (!columnExists(db, "game_data", "merchantAcquisitionItems")) {
                     db.execSQL(
                         "ALTER TABLE game_data ADD COLUMN merchantAcquisitionItems TEXT " +

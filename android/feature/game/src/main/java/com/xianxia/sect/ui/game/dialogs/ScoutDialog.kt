@@ -21,6 +21,7 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 @Composable
 internal fun ScoutDialog(
@@ -51,7 +52,7 @@ internal fun ScoutDialog(
                 onSlotClick = { slotIndex ->
                     val disciple = slots[slotIndex]
                     if (disciple != null) {
-                        viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
+                        viewModel.overlays.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
                     } else {
                         selectedSlotIndex = slotIndex
                         showDiscipleSelection = true
@@ -89,8 +90,7 @@ internal fun ScoutDialog(
     }
 }
 
-/** 探查槽位网格（ScoutDialog 拆分）：2 行 × 5 列槽位 + 已选计数 */
-// 拆分搬移:参数保留原签名语义
+/** 探查槽位网格：2 行 × 5 列槽位 + 已选计数 */
 @Suppress("UnusedParameter")
 @Composable
 private fun ColumnScope.ScoutSlotGrid(
@@ -135,7 +135,7 @@ private fun ColumnScope.ScoutSlotGrid(
     }
 }
 
-/** 探查底部按钮（ScoutDialog 拆分）：取消 / 探查 */
+/** 探查底部按钮：取消 / 探查 */
 @Composable
 private fun ScoutActionButtons(
     slots: SnapshotStateList<DiscipleAggregate?>,
@@ -164,7 +164,7 @@ private fun ScoutActionButtons(
     }
 }
 
-/** 探查弟子选择弹窗（ScoutDialog 拆分）：空闲/未占用弟子过滤 + 状态释放 */
+/** 探查弟子选择弹窗：空闲/未占用弟子过滤 + 状态释放 */
 @Composable
 private fun ScoutDiscipleSelectionDialog(
     slots: SnapshotStateList<DiscipleAggregate?>,
@@ -203,7 +203,7 @@ private fun ScoutDiscipleSelectionDialog(
         onConfirm = { selected ->
             selected.firstOrNull()?.let { disciple ->
                 if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                    viewModel.releaseDiscipleForReassignment(disciple.id)
+                    viewModel.disciple.releaseDiscipleForReassignment(disciple.id)
                 }
                 slots[currentSlotIndex] = disciple
                 onDismiss()

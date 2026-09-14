@@ -8,8 +8,10 @@
 #include "Rhi.h"
 #include <vulkan/vulkan.h>
 #include <android/native_window.h>
+#include <atomic>
 #include <vector>
 #include <array>
+#include <mutex>
 
 // ============================================================
 // VulkanBackend — Vulkan 1.1+ 2D 渲染后端（Rhi.h 接口的现有实现；
@@ -43,13 +45,14 @@ public:
     bool init(const RenderConfig& config, void* nativeWindow) override;
     void shutdown() override;
     bool resize(int width, int height) override;
+    RenderInitError lastInitError() const override { return m_lastInitError; }
     void beginFrame() override;
     void endFrame() override;
     bool isReady() const override { return m_ready; }
     uint32_t uploadTexture(const void* pixels, int width, int height) override;
     void destroyTexture(uint32_t id) override;
 
-    // === WP7 ASTC 压缩纹理（非虚——仅 Vulkan 路径使用，NativeBridge 经 dynamic_cast 调用） ===
+    // === ASTC 压缩纹理（非虚——仅 Vulkan 路径使用，NativeBridge 经 dynamic_cast 调用） ===
 
     /**
      * 上传 ASTC 4x4 LDR 压缩纹理（KTX 数据区，已由 KtxLoader 校验；B.1 支持多 mip）。
@@ -64,11 +67,33 @@ public:
      */
     uint32_t uploadCompressedTexture(const uint8_t* data, size_t dataSize,
                                      int width, int height, int mipCount);
+
+    /**
+     * 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 时探测并记录）。
+     *
+     * 消费端（Kotlin IslandCliffTextureLoader）据此决定**崖壁独立纹理**是否
+     * 走 KTX/ASTC 上传路径（不支持则回退 RGBA mip 链 → 单级）。
+     *
+     * @return true = 支持 textureCompressionASTC_LDR
+     */
+    bool isAstcSupported() const { return m_astcSupported; }
+
     /**
      * 上传 REPEAT 采样地面纹理（宗门地图单一无缝地面整图铺）。
      * 与 uploadTexture 同 staging 上传，仅采样器地址模式为 REPEAT（UV 可超 [0,1] 循环平铺）。
      */
     uint32_t uploadRepeatTexture(const void* pixels, int width, int height);
+
+    /**
+     * 上传 RGBA **mip 链**纹理（2.3：RGBA 回退路径真 mip；非 Vulkan 后端不经此路径）。
+     *
+     * @param pixels level-major 紧凑像素（首级 = 完整 width×height，后续各级 50% 等比，
+     *               尺寸 max(1, base>>level)；RGBA8 每级 4 字节/像素，bufferOffset
+     *               逐级累积恒 4 字节对齐，满足 VUID-VkBufferImageCopy 对齐约束）
+     * @param mipCount mip 层级数（含首级；2048² 图集 = 11 级，2048→2）
+     * @return 纹理 ID；0 = 校验失败/上传失败（调用方单级回退 uploadTexture）
+     */
+    uint32_t uploadMipChainTexture(const void* pixels, int width, int height, int mipCount);
 
     /**
      * 运行时纹理采样质量开关（B.1 + 自选清晰度联动；渲染线程调用）。
@@ -97,7 +122,7 @@ public:
     /** 设备是否已初始化（供 NativeBridge 判断是否需要回退到完整 init） */
     bool isDeviceReady() const { return m_deviceReady; }
 
-    // === render scale 离屏降采样渲染（平板/大屏省电，2026-08-14） ===
+    // === render scale 离屏降采样渲染（平板/大屏省电） ===
 
     /**
      * 设置渲染缩放（0.5–1.0；NaN/越界消毒为安全值）。渲染线程调用——内部
@@ -113,6 +138,9 @@ private:
     bool createInstance();
     bool selectPhysicalDevice();
     bool createLogicalDevice();
+    /** 创建 VkSurfaceKHR（m_surface 已存在则直接复用——resize/清晰度切换不重建
+     *  surface，destroySurfaceGeneration 持有 surface 的唯一销毁权） */
+    bool ensureSurface();
     bool createSwapchain(int width, int height);
     bool createRenderPass();
     /** 离屏渲染 pass：attachment finalLayout = TRANSFER_SRC_OPTIMAL（供 blit 读取；PRESENT_SRC 仅对交换链图像合法） */
@@ -135,10 +163,19 @@ private:
     bool savePipelineCache();
 
     // === 资源管理 ===
+    /**
+     * Surface 纪元资源析构（幂等，可重复调用）：m_ready 置 false + vkDeviceWaitIdle
+     * 后销毁 pipeline/offscreen/swapchain/framebuffer/renderPass/VBO/commandPool/
+     * 同步对象/白纹/m_textures/m_retiredTextures/descriptorPool/VkSurfaceKHR/
+     * ANativeWindow 引用。保留 device 级资源（instance/device/shaderModules/
+     * pipelineCache/staging）。initSurface 入口与 shutdown 共用——任何
+     * 「上一代未释放」路径（skip-release 纪元/迟到的 init 成功）走到这里都不泄漏
+     * （幂等不变量）。
+     */
+    void destroySurfaceGeneration();
     void destroySwapchain();
     void destroyGraphicsObjects();   // 仅销毁 Pipeline/RenderPass/Layout（保留 ShaderModule）
     void destroyShaderModules();     // 仅销毁 Shader Module
-    void destroyPipelineObjects();   // 销毁所有图形对象（含 Shader）— 仅供 shutdown
 
     // === Vulkan 对象 ===
     VkInstance m_instance = VK_NULL_HANDLE;
@@ -170,8 +207,8 @@ private:
     // 同步对象（三重缓冲）
     static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
 
-    // ★ VBO 三缓冲（2026-09 骁龙 8 Gen 2 放置模式白屏根因修复）：与
-    //   MAX_FRAMES_IN_FLIGHT 对齐、按 m_currentFrame 索引——此前仅双缓冲，
+    // ★ VBO 三缓冲：与
+    //   MAX_FRAMES_IN_FLIGHT 对齐、按 m_currentFrame 索引——双缓冲下，
     //   帧 N+2 写入 buffer A 时 GPU 帧 N 仍在读 buffer A（fence 只保护 3 帧前）
     //   → 顶点数据撕裂 → 放置模式高频渲染时画面随机白屏
     VkBuffer m_vertexBuffers[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
@@ -197,12 +234,44 @@ private:
         uint32_t id = 1;  // 纹理 ID（1+ 为上传纹理，0 为白色纹理）
         /** 采样器地址模式（上传时确定——地面 REPEAT/图集 CLAMP；setTextureQuality 重建采样器须保留原模式） */
         VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        /** 独立描述符集（★ 2026-09 根因修复：上传时分配+更新，submitFrame 仅 bind——
-         *  此前在 command buffer 记录期间多次 vkUpdateDescriptorSets 共享集（规范非法，
-         *  骁龙 8 Gen 2 放置模式白屏根因）） */
+        /** 独立描述符集（上传时分配+更新，submitFrame 仅 bind——
+         *  command buffer 记录期间多次 vkUpdateDescriptorSets 共享集违反规范，
+         *  会导致放置模式白屏） */
         VkDescriptorSet descSet = VK_NULL_HANDLE;
     };
     std::vector<Texture> m_textures;
+    /**
+     * GPU 全局互斥（防 Tile 短暂纯色/白纹回退）。
+     * m_textures 是无锁 vector：上传（Kotlin 主线程经 JNI push_back，扩容重分配）
+     * 与渲染线程 submitFrame 遍历并发时渲染线程读到悬垂内存 → 查表失败回退白纹
+     * → 部分/全部 Tile 单帧纯色（下一帧竞态消失即"恢复正常"）。同时 VkQueue/
+     * VkCommandPool 为 externally-synchronized 对象——主线程上传提交
+     * （submitOneTimeCommands）与渲染线程帧提交（submitFrame）并发使用同一
+     * m_graphicsQueue 违反规范，可产生单帧损坏。本锁序列化：
+     * uploadTextureImpl / uploadCompressedTexture 全程、submitFrame 纹理查表段
+     * 与队列提交段（两个独立临界区，不嵌套）、setTextureQuality、resize、
+     * setRenderScale、destroyTexture（入队）。beginFrame/endFrame/draw 仅写映射
+     * VBO 与 m_pendingDraws，不触碰共享表，不参与本锁（避免每帧无谓串行化）。
+     */
+    mutable std::mutex m_gpuMutex;
+
+    // ── 纹理延迟释放（destroyTexture 空实现 → 契约补齐）──
+    /** 退役纹理（可能正被在途帧采样——不能立即销毁，等 fence 确认后释放） */
+    struct RetiredTexture { uint32_t id; uint64_t retiredAtFrame; };
+    std::vector<RetiredTexture> m_retiredTextures;   // GUARDED_BY(m_gpuMutex)
+    /** 帧计数（submitFrame 末尾递增；退役纹理在超过 MAX_FRAMES_IN_FLIGHT 帧后释放） */
+    uint64_t m_frameCounter = 0;
+
+    /** 上传连续超时计数（疑似 device lost 熔断；成功清零，≥3 → m_ready=false 停止
+     *  提交——安全黑屏而非无限冻结，surface 重建/应用重启恢复）。GUARDED_BY(m_gpuMutex) */
+    int m_uploadTimeoutCount = 0;
+
+    /** 上传结果熔断记录（uploadTextureImpl/uploadCompressedTexture 持锁内调用） */
+    void noteUploadResult(bool ok);
+    /** 释放退役纹理的 Vulkan 资源（view/image/memory/sampler + m_textures erase）。
+     *  调用方须已确认在途采样结束（submitFrame fence 之后）并持 m_gpuMutex。 */
+    void freeTextureResources(uint32_t id);
+
     uint32_t m_atlasTextureId = 0;  // 主图集纹理
     Texture m_whiteTexture{};       // 1×1 白色纹理（用于纯色矩形绘制）
 
@@ -214,9 +283,16 @@ private:
     // 非 command buffer 记录期间调用——submitFrame 仅 bind，见 Texture.descSet）
     void updateTextureDescriptor(Texture& tex);
 
-    // 纹理上传共享实现（CLAMP/REPEAT 由 addressMode 参数化；uploadTexture/uploadRepeatTexture 复用）
+    /** 描述符池容量超限重建：按需扩容新建池并重分配白纹+全部
+     *  注册纹理的 descSet。调用契约：upload 路径（已持 m_gpuMutex）——内部
+     *  先 m_ready 落闸 + vkDeviceWaitIdle 排空在途帧再释放旧池（descSet
+     *  随池销毁释放，必须无在途引用）。 */
+    void rebuildDescriptorPool(uint32_t minSets);
+
+    // 纹理上传共享实现（CLAMP/REPEAT 由 addressMode 参数化；uploadTexture/uploadRepeatTexture 复用）。
+    // mipLevels > 1 时走"逐级从 staging 拷贝"分支（2.3 RGBA mip 链；pixels 为 level-major 紧凑布局）
     uint32_t uploadTextureImpl(const void* pixels, int width, int height,
-                               VkSamplerAddressMode addressMode);
+                               VkSamplerAddressMode addressMode, int mipLevels = 1);
 
     // 创建 1×1 白色纹理（供纯色矩形绘制），在 init 中调用
     bool createWhiteTexture();
@@ -235,7 +311,9 @@ private:
     // Pipeline Cache（加速管线创建，跨会话持久化）
     VkPipelineCache m_pipelineCache = VK_NULL_HANDLE;
     char m_cacheDir[256] = {};          // 应用缓存目录（用于保存 Pipeline Cache）
-    bool m_deviceReady = false;         // initDevice 是否已完成
+    /** initDevice 是否已完成。std::atomic：JNI init 线程写、prewarm/渲染线程读，
+     *  非原子读写是数据竞争（m_ready/m_deviceReady 全面原子化） */
+    std::atomic<bool> m_deviceReady{false};
 
     // 渲染配置
     RenderConfig m_config{};
@@ -250,7 +328,7 @@ private:
     // 本帧天空渐变参数（drawBackground 传入；submitFrame 经 push-constant 推给 sky.frag）
     SkyGradientParams m_skyParams{};
 
-    /** 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 记录，WP7） */
+    /** 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 记录） */
     bool m_astcSupported = false;
 
     // === B.1 纹理采样质量（mipmap + 各向异性；setTextureQuality 运行时更新） ===
@@ -281,7 +359,15 @@ private:
     size_t m_stagingBufferSize = 0;
 
     ANativeWindow* m_nativeWindow = nullptr;
-    bool m_ready = false;
+    /** 渲染提交闸门。std::atomic：渲染线程 submitFrame 与 Kotlin 主线程生命周期
+     *  调用（initSurface/resize/setRenderScale → shutdownRenderer）跨线程读写，
+     *  非 bool 字段的读写竞争由 m_ready/m_deviceReady 全面原子化防护。submitFrame 的
+     *  「wait fence / acquire / 提交前复查 m_ready」守卫依赖本值的可见性 */
+    std::atomic<bool> m_ready{false};
+
+    /** 最近一次初始化失败阶段（initRenderer 只回 boolean，失败点坍缩——
+     *  本错误码经 lastInitError() 在对象 delete 前被 NativeBridge 收割上报） */
+    RenderInitError m_lastInitError = RenderInitError::NONE;
 
     // === render scale 离屏降采样渲染状态 ===
     float m_renderScale = 1.0f;                              // 当前渲染缩放（1.0 = 直渲）

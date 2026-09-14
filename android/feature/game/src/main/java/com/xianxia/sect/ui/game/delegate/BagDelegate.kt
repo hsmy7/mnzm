@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.openStorageBag
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.RewardCardItem
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class BagDelegate(
     private val gameEngine: GameEngine,
-    private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
@@ -37,8 +35,9 @@ class BagDelegate(
         val allCards = mutableListOf<RewardCardItem>()
         while (true) {
             val bags = gameEngine.storageBags.value
-            val bag = bags.find { it.id == bagId } ?: break
-            if (bag.quantity <= 0) break
+            val bag = bags.find { it.id == bagId }
+            // 袋不存在或数量耗尽：结束连开
+            if (bag == null || bag.quantity <= 0) break
             val (rewards, cards) = gameEngine.openStorageBag(bagId)
             allRewards.addAll(rewards)
             allCards.addAll(cards)

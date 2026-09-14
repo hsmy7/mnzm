@@ -13,7 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 玉符购买弹窗（突破率/商人刷新共用）UI 测试（2026-08-11 弹窗渲染位置修复后补盲区）：
+ * 玉符购买弹窗（突破率/商人刷新共用）UI 测试：
  * - 组合即渲染：标题/描述/底部"消耗1玉符"小字/「消耗玉符」按钮全部可见
  * - 点击消耗 → Success → 触发 onDismiss
  * - 点击消耗 → Insufficient → 平台 StandardPromptDialog 显示不足文案
@@ -81,8 +81,8 @@ class JadePurchaseFlowTest {
         composeRule.onNodeWithText("消耗玉符").performClick()
         composeRule.waitForIdle()
         // 真实父级语义守卫：onDismiss 由父级移除本组件（showJadeDialog=false），
-        // 不足时若先 onDismiss 则提示状态随组件销毁永不渲染（2026-08-11 真机实测根因）；
-        // 修复后不足仅弹提示框，不触发 onDismiss，小屏弹窗保留
+        // 不足时若先 onDismiss 则提示状态随组件销毁永不渲染；
+        // 不足仅弹提示框，不触发 onDismiss，小屏弹窗保留
         assertTrue("玉符不足时不应触发 onDismiss 关闭弹窗", !dismissed)
         composeRule.onNodeWithText("玉符不足，无法获取刷新次数").assertIsDisplayed()
         composeRule.onNodeWithText("消耗玉符").assertIsDisplayed()

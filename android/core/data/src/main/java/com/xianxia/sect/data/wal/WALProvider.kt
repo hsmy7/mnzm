@@ -41,6 +41,7 @@ data class TransactionRecord(
         statusRef.compareAndSet(expected, newStatus)
 }
 
+@Suppress("TooManyFunctions") // WAL 端口契约：写入/恢复/检查点/压缩全生命周期协议面，实现与测试 Fake 同协议
 interface WALProvider {
 
     suspend fun beginTransaction(

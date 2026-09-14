@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * currentAlpha 确定性守卫（2026-08-13 批次 3，对标 9.5 守卫测试三要素）。
+ * currentAlpha 确定性守卫（对标 9.5 守卫测试三要素）。
  *
  * 不变量：插值因子 [com.xianxia.sect.core.GameEngineCore.currentAlpha] 是
  * **纯渲染契约**——core/engine 主源码中，除 GameEngineCore（唯一写入点）、
@@ -22,6 +22,9 @@ class CurrentAlphaDeterminismGuardTest {
         "GameEngineCore.kt" to "唯一写入点（循环内计算 + JitterSmoother 滤波）",
         "GameEngineCoreLoopOps.kt" to
             "阶段 5 共享辅助 publishNativeAlpha 写入（自 GameEngineCore.kt 拆分，" +
+            "写入者仍为引擎循环本体，语义不变：经 JitterSmoother 滤波的渲染契约 alpha）",
+        "GameEngineCorePrepOps2.kt" to
+            "单帧迭代 gameLoopIteration 写入（自 GameEngineCore.kt 拆分，" +
             "写入者仍为引擎循环本体，语义不变：经 JitterSmoother 滤波的渲染契约 alpha）",
         "RenderFrame.kt" to "渲染契约字段定义（仅声明不读取）",
         "JitterSmoother.kt" to "滤波输入参数（raw alpha）",

@@ -24,7 +24,7 @@ dependencies {
     implementation libs.benchmark.macro.junit4
 }
 
-// 2026-08 债务根治：模块特有编译器参数（SDK/Java/Kotlin 公共配置已收编 xianxia.android convention）
+// 模块特有编译器参数（SDK/Java/Kotlin 公共配置由 xianxia.android convention 提供）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']

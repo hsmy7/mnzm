@@ -1,5 +1,5 @@
 // ============================================================
-// child_birth_test.cpp — 月变步骤 4d 生育黄金序列（批 13-4c）
+// child_birth_test.cpp — 月变步骤 4d 生育黄金序列
 //
 // 守护目标：固定种子 + 固定状态 → child_birth::processMonthlyBirth →
 // 断言新生儿（recruitList）与母亲状态（lastChildYear/childBirthMonth）
@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "gamecore/ecs/disciple_component.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/child_birth.h"
@@ -61,13 +62,14 @@ GameState makeBirthState() {
 }
 
 TEST(ChildBirth, GoldenSequenceSingleBirth) {
+    gamecore::ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
     // SYSTEM 分区种子对齐对拍场景⑯（fromSeed(seed + partitionId) +
     // 3 次 nextInt 预热——Kotlin initialRngStates 同式）——黄金值即 Kotlin
     // ChildBirthSystem 同消费序输出（DiffMonthSettlementTest 场景⑯ 对拍确认）
     auto rng = DeterministicRng::fromSeed(20260901 + 3);
     for (int i = 0; i < 3; ++i) rng.nextInt();
     auto state = makeBirthState();
-    gamecore::system::child_birth::processMonthlyBirth(state, rng);
+    gamecore::system::child_birth::processMonthlyBirth(state, rng, world);
 
     ASSERT_EQ(1u, state.gameData.recruitList.size());
     const auto& child = state.gameData.recruitList.front();
@@ -114,6 +116,7 @@ TEST(ChildBirth, GoldenSequenceSingleBirth) {
 }
 
 TEST(ChildBirth, FatherDeadClearsPregnancy) {
+    gamecore::ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
     auto rng = DeterministicRng::fromSeed(42);
     auto state = makeBirthState();
     // 父亲死亡：清 childBirthMonth + partnerId（增量 update 保序）
@@ -123,7 +126,7 @@ TEST(ChildBirth, FatherDeadClearsPregnancy) {
         d.isAlive = false;
         return d;
     }());
-    gamecore::system::child_birth::processMonthlyBirth(state, rng);
+    gamecore::system::child_birth::processMonthlyBirth(state, rng, world);
 
     EXPECT_TRUE(state.gameData.recruitList.empty());
     const auto mother = state.disciples.materialize(0);
@@ -134,6 +137,7 @@ TEST(ChildBirth, FatherDeadClearsPregnancy) {
 }
 
 TEST(ChildBirth, NoDueMotherEarlyReturn) {
+    gamecore::ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
     auto rng = DeterministicRng::fromSeed(7);
     auto state = makeBirthState();
     // 母亲 childBirthMonth=3 ≠ 当前月 2 → 早退零效果
@@ -143,12 +147,13 @@ TEST(ChildBirth, NoDueMotherEarlyReturn) {
         d.childBirthMonth = 3;
         return d;
     }());
-    gamecore::system::child_birth::processMonthlyBirth(state, rng);
+    gamecore::system::child_birth::processMonthlyBirth(state, rng, world);
     EXPECT_TRUE(state.gameData.recruitList.empty());
     EXPECT_EQ(3, state.disciples.materialize(0).childBirthMonth);
 }
 
 TEST(ChildBirth, MultipleMothersBirthInOrder) {
+    gamecore::ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
     auto rng = DeterministicRng::fromSeed(20260901 + 3);
     for (int i = 0; i < 3; ++i) rng.nextInt();
     auto state = makeBirthState();
@@ -160,7 +165,7 @@ TEST(ChildBirth, MultipleMothersBirthInOrder) {
     father2.partnerId = "23";
     state.disciples.appendDisciple(mother2);
     state.disciples.appendDisciple(father2);
-    gamecore::system::child_birth::processMonthlyBirth(state, rng);
+    gamecore::system::child_birth::processMonthlyBirth(state, rng, world);
 
     ASSERT_EQ(2u, state.gameData.recruitList.size());
     // 新生儿 1 的名字规避集合含新生儿 2 的名字（Kotlin 每轮重建 existingNames）

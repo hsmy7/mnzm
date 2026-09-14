@@ -1,5 +1,7 @@
 package com.xianxia.sect.ui.game.delegate
 
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.claimGuideReward
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.guide.GuideTask
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
@@ -11,7 +13,16 @@ import com.xianxia.sect.core.state.DiscipleTables
  * 职责：提供任务定义、检查任务完成状态。
  * 奖励领取操作通过 [GameEngineGuideOps] 扩展函数执行。
  */
-class GuideDelegate {
+class GuideDelegate(
+    private val gameEngine: GameEngine
+) {
+
+    /** 领取引导任务奖励（引擎线程执行） */
+    fun claimGuideReward(taskId: Int) {
+        gameEngine.launchOnEngine {
+            gameEngine.claimGuideReward(taskId)
+        }
+    }
 
     /** 获取所有引导任务列表 */
     fun getAllTasks(): List<GuideTask> = GuideTaskRegistry.ALL_TASKS

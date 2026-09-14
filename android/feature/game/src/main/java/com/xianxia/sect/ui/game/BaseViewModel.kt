@@ -11,13 +11,24 @@ import kotlinx.coroutines.launch
 
 abstract class BaseViewModel : ViewModel() {
 
+    companion object {
+        /** 事件通道容量（审计 P3-19）：有界防无界缓冲，余量防连续调用丢失 */
+        private const val CHANNEL_CAPACITY = 64
+    }
+
     protected val sharingStarted = SharingStarted.WhileSubscribed(5_000)
 
-    // Channel.UNLIMITED 用于错误/成功事件队列，避免连续调用时丢失事件
-    private val _errorEvents = Channel<String>(Channel.UNLIMITED)
+    // showError/showSuccess/showCapacityWarning/launchElderAction 为 internal（原 protected）：
+    // batch-02 拆分把 ViewModel 操作流外移到同包扩展函数（§2.29 StorageEngine 先例），
+    // 扩展不在子类继承链上无法访问 protected 成员；事件通道本体（Channel.trySend）
+    // 线程安全且行为不变，仅模块内可见性放宽。
+
+    // 审计 P3-19：UNLIMITED → 有界 64（trySend 满即丢——UI 提示事件可容忍
+    // 丢弃，不可容忍无界缓冲）；容量留余量避免连续调用丢首事件
+    private val _errorEvents = Channel<String>(CHANNEL_CAPACITY)
     val errorEvents = _errorEvents.receiveAsFlow()
 
-    private val _successEvents = Channel<String>(Channel.UNLIMITED)
+    private val _successEvents = Channel<String>(CHANNEL_CAPACITY)
     val successEvents = _successEvents.receiveAsFlow()
 
     /**
@@ -25,23 +36,24 @@ abstract class BaseViewModel : ViewModel() {
      * 商人购买等）容量不足时统一通过 [showCapacityWarning] 弹出提示框。
      * 未来新增领取按钮只需调用本方法即可获得统一提示框。
      */
-    private val _capacityWarningEvents = Channel<String>(Channel.UNLIMITED)
+    private val _capacityWarningEvents = Channel<String>(CHANNEL_CAPACITY)
     val capacityWarningEvents = _capacityWarningEvents.receiveAsFlow()
 
-    protected fun showError(message: String) {
+    internal fun showError(message: String) {
         _errorEvents.trySend(message)
     }
 
-    protected fun showSuccess(message: String) {
+    internal fun showSuccess(message: String) {
         _successEvents.trySend(message)
     }
 
     /** 弹出统一"仓库容量不足"提示框（标题/知道了按钮/点屏幕外关闭由 GameOverlayHost 渲染） */
-    protected open fun showCapacityWarning(message: String) {
+    internal open fun showCapacityWarning(message: String) {
         _capacityWarningEvents.trySend(message)
     }
 
-    protected fun launchElderAction(
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+    internal fun launchElderAction(
         action: suspend () -> ElderManagementUseCase.ElderResult,
         errorMessage: String = "操作失败"
     ) {

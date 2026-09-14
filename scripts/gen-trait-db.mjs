@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * gen-trait-db.mjs — 天赋/体质/词条快照生成器（计划 v2 阶段 3 / T-CPP-2）
+ * gen-trait-db.mjs — 天赋/体质/词条快照生成器
  *
  * 数据权威为中性源 scripts/data/trait_db_sample.json（由本脚本早期的 Node 侧
  * 等价复刻逻辑一次性展开落位；此后改动数据必须改中性源）。本脚本只读中性源
@@ -65,7 +65,7 @@ const positionBonusConfigs = [
   { rarity: 1, value: 0.07 }, { rarity: 2, value: 0.14 }, { rarity: 3, value: 0.22 },
 ];
 
-// 旧版 rarity(1-6) → 品级(1-3)
+// rarity(1-6) → 品级(1-3)
 const talentGrade = (r) => r <= 2 ? 1 : r <= 4 ? 2 : r <= 6 ? 3 : 1;
 
 // ── 天赋表生成 ───────────────────────────────────────────────────
@@ -284,7 +284,7 @@ function buildAffixes() {
 }
 
 // ── main ─────────────────────────────────────────────────────────
-// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+// 静态数据单一源——数据权威在 scripts/data/*.json
 //（中性源），生成器只读中性源；Kotlin Registry 由单一源守卫测试全量比对兜底。
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'data');
 

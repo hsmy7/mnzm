@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "gamecore/ecs/entity.h"
+#include "gamecore/ecs/view.h"
 #include "gamecore/ecs/world.h"
 
 // ============================================================
@@ -17,10 +18,18 @@
 // 不进 JSON 协议）。构建函数把"行序"映射为"实体序"（row i ↔ entity i），
 // 使 ECS 实体迭代序天然等于 DiscipleStore 行序（RNG 红线不破）。
 //
-// ## 边界（诚实声明）
-//   DiscipleStore 仍是弟子数据的**唯一权威**；本层是**派生**实体集。
-//   死亡/移除弟子时由调用方调 destroyDiscipleEntity(row)；重建走
-//   buildDiscipleEntities（草稿场景一次性装配）。
+// ## 桥接规范（所有 System 须遵守）
+//   1. DiscipleStore 是弟子数据的**唯一权威**；本层是**派生**迭代域。
+//   2. 任何 System 在 View<DiscipleRef> 迭代前必须先调 syncDiscipleEntities
+//      ——校验"View 迭代序 == DiscipleStore 行序"不变量（数量一致 + 行号
+//      严格升序 0..N-1），被破坏（弟子增删后实体集漂移）即全量重建恢复
+//      row i ↔ entity i。不变量校验兜底，不靠调用方自觉。
+//   3. 弟子行地址一律取自 DiscipleRef.row（组件字段）；其余顺序假设一律
+//      禁止（含"dense 序必然 == 行序"的裸推断——校验外的信任即漂移入口）。
+//   4. 消耗 RNG 的系统（丹药/突破/亲属赠送等）必须在行序迭代中处理弟子
+//      （抽取序 == Kotlin ids 序）；同步完成后 View 序已保证 == 行序。
+//   5. 迭代回调内禁止增删实体（View 约定）；结构变更（招募/死亡/叛逃）
+//      留给下一旬 sync 重建——本旬内行结构不变是结算系统的既有契约。
 // ============================================================
 namespace gamecore::ecs {
 
@@ -64,6 +73,37 @@ inline void destroyDiscipleEntity(World& world, std::size_t row) {
             return;
         }
     }
+}
+
+/// 保序校验 + 惰性同步（桥接规范第 2 条的实现；View 迭代前置步骤）。
+///
+/// 校验不变量："View<DiscipleRef> 迭代序 == DiscipleStore 行序"，即
+///   (a) 实体数 == rowCount，且
+///   (b) 迭代序上 DiscipleRef.row 严格升序 0..N-1（position i 处 ref.row==i）。
+/// 成立 → 原样返回按行序的实体表（entityByRow[i] 的 ref.row == i，零重建）；
+/// 被破坏（招募/死亡/叛逃后实体集漂移）→ buildDiscipleEntities 全量重建。
+///
+/// 返回值即行序迭代域：position == 行号，组件字段为权威行地址。O(N) 一次
+/// 线性校验，相对每旬核心批次成本可忽略；稳态（无弟子增删）零分配直通。
+inline std::vector<EntityId> syncDiscipleEntities(World& world,
+                                                  std::size_t rowCount) {
+    auto& storage = world.registry().storage<DiscipleRef>();
+    if (storage.size() == rowCount) {
+        std::vector<EntityId> entityByRow;
+        entityByRow.reserve(rowCount);
+        bool ordered = true;
+        std::size_t expect = 0;
+        // View<DiscipleRef> 单组件查询：迭代序 == 该存储 dense 序（保序压缩，
+        // 删除不重排）——与 View 对外承诺一致，这里即被校验的迭代域本体。
+        View<DiscipleRef> view(world.registry());
+        view.forEach([&](EntityId e, DiscipleRef& ref) {
+            if (ref.row != expect) ordered = false;
+            entityByRow.push_back(e);
+            ++expect;
+        });
+        if (ordered) return entityByRow;
+    }
+    return buildDiscipleEntities(world, rowCount);
 }
 
 }  // namespace gamecore::ecs

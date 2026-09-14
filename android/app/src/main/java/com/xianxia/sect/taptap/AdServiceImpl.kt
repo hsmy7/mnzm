@@ -21,7 +21,7 @@ import javax.inject.Singleton
  *
  * ## 线程安全
  * [activityRef] 为 @Volatile，确保跨线程可见性。
- * [isLoadingAd] 串行化广告请求，防止全局回调覆盖（对抗性审查 #1/#3）。
+ * [isLoadingAd] 串行化广告请求，防止全局回调覆盖。
  * 幂等守卫通过 [AtomicBoolean] 实现（防止 onRewardVerify 多次回调）。
  */
 @Singleton
@@ -165,7 +165,7 @@ class AdServiceImpl @Inject constructor(
         }
     }
 
-    /** 旧 SharedPreferences 一次性迁移守卫（D-29：偏好统一迁入 MMKV，幂等） */
+    /** 旧 SharedPreferences 一次性迁移守卫（偏好统一迁入 MMKV，幂等） */
     @Volatile private var migrated = false
 
     private fun ensureMigrated() {

@@ -10,7 +10,7 @@ import org.junit.Test
 /**
  * [mailAttachmentToItemCardData] 类型标志映射测试。
  *
- * 修复守卫：功法（manual）附件此前未设置 isManual，导致邮件附件列表对功法
+ * 守卫：功法（manual）附件必须设置 isManual，否则邮件附件列表对功法
  * 显示"敬请期待"而非 manual_$rarity 精灵图——本测试锁定每个类型的标志映射，
  * 防止回归。
  */

@@ -1,5 +1,5 @@
 // ============================================================
-// disciple_factory.h — 弟子创建工厂（Kotlin→C++ 迁移批 13-4b）
+// disciple_factory.h — 弟子创建工厂
 //
 // 等价复刻 Kotlin `DiscipleFactory.create`（core/engine/domain/disciple/
 // DiscipleFactory.kt）——三处构造站点（recruitDisciple / refreshRecruitList /
@@ -16,7 +16,7 @@
 //        nextDouble + 选池 1 次 nextInt(size)）
 //     ④ 肖像 1 次 nextInt(size)
 //     ⑤ 技能 9 × gaussianInt（18 次 nextInt）
-//   - gaussianInt 用 C-12 同族 fdlibm（log/cos）+ std::sqrt + floor(v+0.5)
+//   - gaussianInt 用同族 fdlibm（log/cos）+ std::sqrt + floor(v+0.5)
 //     复刻 Kotlin StrictMath.roundToInt（Math.round 语义，非远离零舍入）
 //   - 三分类生成同构（Talent/Physique/Affix 共用模板）；唯一差异：天赋池
 //     排除 DEPRECATED_TALENT_TYPES（CULT_SPEED/BREAK_CHANCE/LIFESPAN/
@@ -103,7 +103,7 @@ inline int32_t nextIntBetween(rng::DeterministicRng& rng, int32_t from, int32_t 
 /// 正态分布整数值（Box-Muller；Kotlin gaussianInt）——每次恰好消耗 2 次
 /// nextInt：u1 ∈ (0,1]（1 + nextInt(10000)）/10000，u2 ∈ [0,1]
 /// nextInt(10001)/10000。sqrt/ln/cos 与 Kotlin StrictMath 同口径
-/// （fdlibm 内嵌，C-12 已位级验证）；舍入用 floor(v + 0.5) 复刻
+/// （fdlibm 内嵌，已位级验证）；舍入用 floor(v + 0.5) 复刻
 /// Math.round（半值向正无穷，非远离零）。
 inline int32_t gaussianInt(rng::DeterministicRng& rng, double mean, double sigma,
                            int32_t min, int32_t max) {

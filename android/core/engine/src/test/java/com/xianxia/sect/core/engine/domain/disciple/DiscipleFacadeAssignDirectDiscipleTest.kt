@@ -4,7 +4,6 @@ import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
-import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
@@ -92,7 +91,6 @@ class DiscipleFacadeAssignDirectDiscipleTest {
             stateStore = store,
             cultivationService = mock(),
             gameEngineCore = mockCore,
-            inventorySystem = mock<InventorySystem>(),
             pillManager = mock(),
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),

@@ -9,7 +9,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -21,6 +20,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
+@Suppress("UnusedParameter") // buildingBarExpanded: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
 fun GameActionButtons(
     viewModel: GameViewModel,
     buildingBarExpanded: Boolean,
@@ -123,13 +123,12 @@ internal fun FloatingActionButton(
     badge: Int = 0,
     onClick: () -> Unit
 ) {
-    val size = 35.dp
+    val size = 32.dp
     Box(modifier = modifier) {
-        // 按钮本体
+        // 按钮本体：精灵图原样显示（不做形状裁剪——素材自带透明背景与造型）
         Box(
             modifier = Modifier
                 .size(size)
-                .clip(CircleShape)
                 .clickableWithSound(onClick = onClick),
             contentAlignment = Alignment.BottomCenter
         ) {
@@ -137,7 +136,7 @@ internal fun FloatingActionButton(
                 name = spriteName,
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
+                contentScale = ContentScale.Fit
             )
             Text(
                 text = text,

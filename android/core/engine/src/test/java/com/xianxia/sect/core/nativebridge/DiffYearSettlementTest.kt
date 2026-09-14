@@ -73,9 +73,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
- * DiffYearSettlementTest — 年变结算跨语言差分对拍（T2.3 验收核心）。
+ * DiffYearSettlementTest — 年变结算跨语言差分对拍（验收核心）。
  *
  * 守护目标：C++ `gamecore::system::runYearSettlement`（注册于 onYearChange，
  * 经 nativeCoreAdvancePhases 跨年界触发）与 Kotlin `GameEngineCore` 同构组合
@@ -87,16 +93,16 @@ import org.junit.Test
  *    annual* 十二项清零（含 annualTheftCount）
  * ② 年俸发放：yearlySalary[9]=500 enabled × 2 弟子 → spiritStones -1000、
  *    每人袋 +500、paidCount+1、loyalty 50→51（非开源节流）
- * ③ RNG 审计（批 Y-4b 行为基线更新）：T2-③ 商人收购每年消费 SYSTEM 分区
+ * ③ RNG 审计：商人收购每年消费 SYSTEM 分区
  *    （数量/品阶/选池/库存/grade/价格）——SYSTEM 终态由全量对拍逐位守护；
  *    BREAKTHROUGH/EXPLORATION 保持播种预抽后初值
  *
  * 规避清单落实（t2-3-semantics.md §4）：worldMapSects 空（驻军轮换恒等 +
  * gameOverCheck 不判定）/ lastRecruitYear=1 差值判据不满足 / recruitList 空 /
  * vassalContracts·scoutInfo·autoBuyEntries 空 / frugality=false /
- * morality≥阈值（执法堂沿用 T2.2 规避）/ timestamp 对拍排除。
+ * morality≥阈值（执法堂沿用月变对拍规避）/ timestamp 对拍排除。
  *
- * 批 Y-4b（T2-③）：Kotlin 臂换装真实 MerchantAndRecruitService（收购流
+ * 商人收购：Kotlin 臂换装真实 MerchantAndRecruitService（收购流
  * 对拍主体——C++ runYearSettlement 每年执行收购）+ ManualDatabase 从静态
  * 数据中性源快照（/templates/manual_db_sample.json，与 C++ manual_db.h
  * 同源同序）注入真实功法表；年变后 flushYearlyOpsQueue forceDrain 触发
@@ -126,7 +132,7 @@ class DiffYearSettlementTest {
     // ── 场景构建 ────────────────────────────────────────────────────
 
     /**
-     * 批 Y-4b（T2-③ 商人收购换装前置）：从静态数据中性源快照
+     * 商人收购换装前置：从静态数据中性源快照
      *（/templates/manual_db_sample.json——与 C++ manual_db.h 同源同序，
      * 由 scripts/gen-manual-db.mjs 生成）注入真实功法表——收购/交易池的
      * 功法条目（name/rarity/price/type）与 C++ 侧逐条对齐（池大小/池序/
@@ -158,7 +164,7 @@ class DiffYearSettlementTest {
         }
         ManualDatabase.resetForTest()
         ManualDatabase.initializeWithManuals(templates)
-        // 批 Y-4c（T2-② AI 招募换装）：AI 独立分区 RNG 播种——对拍场景
+        // AI 招募换装：AI 独立分区 RNG 播种——对拍场景
         // mapSeed=0（GameData 默认）→ C++ importStateJson 从 mapSeed 播种
         // fromSeed(0 + AI_SECT.id(6)×31337)，Kotlin 臂同源 initForSlot(0)
         AISectDiscipleManager.initForSlot(0L)
@@ -168,6 +174,9 @@ class DiffYearSettlementTest {
     @org.junit.After
     fun resetManualDatabase() {
         ManualDatabase.resetForTest()
+        // 摘除本类注入的 AI 随机源（AISectDiscipleManager 为进程级 object，
+        // 残留引用会让后续测试类解析到已废弃的 manager）
+        AISectDiscipleManager.resetManagerForTest()
     }
 
     private fun buildSnapshot(): NativeGameState {
@@ -181,7 +190,7 @@ class DiffYearSettlementTest {
             yearlySalaryEnabled = mapOf(9 to true)
             // 规避清单：招募刷新差值判据不满足（year-last ≥ 3 才刷新）
             lastRecruitYear = 1
-            // 批 Y-1 规避：商人刷新机会首次授予（T1-⑥——Kotlin 臂 mock 的
+            // 场景规避：商人刷新机会首次授予（Kotlin 臂 mock 的
             // merchantAndRecruitService 零行为，C++ 侧 lastGrant==0 会授予 →
             // 置 lastGrant=当前年使 C++ 侧差值不满足 → 双端零效果）
             merchantLastRefreshChanceGrantYear = 1
@@ -288,6 +297,14 @@ class DiffYearSettlementTest {
             cultivationRateCalculator = CultivationRateCalculator(store)
         )
         val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
+        // AI 弟子域随机源归一（阶段 1②）：把夹具的 manager 交给
+        // AISectDiscipleManager（R5：禁止自建随机源）——AI 招募/换装必须与本夹具的
+        // gameRng 同源，否则 Kotlin 臂与 C++ 臂的 AI 流分叉（对拍恒红）。
+        // **顺序关键**：initForSlot 必须在 restoreStates **之后**——restoreStates 会用
+        // 快照里的 AI_SECT 键覆盖分区，先播种会被抹掉（实测：分区停在 188022
+        // 而非 `0 + 6×31337`，导致两侧招募条数不同）
+        AISectDiscipleManager.initialize(gameRng)
+        AISectDiscipleManager.initForSlot(0L)
         val handler = DiscipleBreakthroughHandler(
             stateStore = store,
             cultivationCore = core,
@@ -308,7 +325,7 @@ class DiffYearSettlementTest {
             lawEnforcementProcessor = mockSmart(),
             gameConfigProvider = configProvider
         )
-        // 批 Y-4c（T2-②）：真实 AI 宗门处理器——构造环断环：
+        // AI 招募：真实 AI 宗门处理器——构造环断环：
         // CaveExplorationProcessor 直接依赖 eventProcessor，而 eventProcessor
         // 经 Provider<CaveExplorationProcessor> 延迟解析——先构造 eventProcessor
         //（Provider 指向晚绑定的 caveProc），再构造 caveProc 回填
@@ -325,18 +342,17 @@ class DiffYearSettlementTest {
             eventProcessor = eventProcessor,
             productionProcessor = mockSmart(),
             recruitService = mockSmart(),
-            // 批 Y-4b（T2-③）：真实商人服务——C++ runYearSettlement 每年执行
+            // 商人收购：真实商人服务——C++ runYearSettlement 每年执行
             // 收购（SYSTEM 分区），Kotlin 臂必须真实执行（mock 零行为失配）
             merchantAndRecruitService = MerchantAndRecruitService(store, gameRng),
-            // 批 Y-4c（T2-②）：真实 AI 宗门处理器（招募路由对拍主体）
+            // 真实 AI 宗门处理器（招募路由对拍主体）
             caveExplorationProcessor = javax.inject.Provider { caveProc },
             sharedState = CultivationSharedState(),
-            discipleService = mockSmart()
         ) to gameRng
     }
 
     /**
-     * 真实 AI 宗门处理器装配（批 Y-4c T2-② 招募路由对拍主体）——
+     * 真实 AI 宗门处理器装配（招募路由对拍主体）——
      * processSectDisciplesYearlyRecruitment 走 state 参数 + 静态依赖
      *（AISectDiscipleManager/RecruitService），其余构造依赖惰性 mock。
      */
@@ -368,7 +384,7 @@ class DiffYearSettlementTest {
         val wallet = SpiritStoneWallet(
             store, SpiritStoneLedger(), EventBus(scopeProvider)
         )
-        // 批 Y-3（T1-③ 下沉）：换装真实 DiscipleLifecycleProcessor——C++
+        // 死亡链下沉：换装真实 DiscipleLifecycleProcessor——C++
         // runYearSettlement 已执行死亡链（老化 age+1/死亡处理），Kotlin 臂必须
         // 真实老化（mock 零行为 → age 失配）；场景弟子 age 低不死亡 → 槽位/
         // 哀悼/DAO 平台效应零触发（discipleSlotCleanup/productionCoordinator/
@@ -397,28 +413,27 @@ class DiffYearSettlementTest {
             cultivationSettlement = settlement,
             battleSystem = mockSmart(),
             recruitService = mockSmart(),
-            // 批 Y-4b（T2-③）：真实商人服务（收购流对拍主体——T2 #12 由
+            // 商人收购：真实商人服务（收购流对拍主体——由
             // flushYearlyOpsQueue 触发；功法表经 @Before 快照注入与 C++ 对齐）
             merchantAndRecruitService = MerchantAndRecruitService(store, gameRng),
-            // 批 Y-4c（T2-②）：真实 AI 宗门处理器（Provider 延迟解析——
+            // AI 招募：真实 AI 宗门处理器（Provider 延迟解析——
             // caveProc 在 buildService 中构造后回填，processSectDisciplesYearlyRecruitment
             // 走 state 参数，其余依赖惰性）
             caveExplorationProcessor = javax.inject.Provider { caveExplorationProvider() },
             discipleLifecycleProcessor = lifecycle,
             // 批收尾（外交簇换装真实）：年变 T2 #13 交易刷新（refreshAllSectTrades
             // ——局部种子 sectId.hashCode()+year，零分区 RNG）+ #15/#16/#19 联盟到期/
-            // 低好感解散/好感衰减 + T1-①/② 附庸纳贡与月变附庸脱离真实执行——
+            // 低好感解散/好感衰减 + 附庸纳贡与月变附庸脱离真实执行——
             // C++ runYearSettlement 已下沉同路径（Y-4a），Kotlin 臂必须真实执行
             // 才能对拍；场景 sectDetails/alliances/sectRelations/vassalContracts
             // 全空 → 真实服务全部纯早退零写入零 RNG（场景不变 = 零回归）
             diplomacyEventProcessor = DiplomacyEventProcessor(
                 store,
-                FavorEventProcessor(store, scopeProvider, CultivationSharedState())
+                FavorEventProcessor(store, scopeProvider)
             ),
             diplomacyService = DiplomacyService(
                 stateStore = store,
                 inventorySystem = mockSmart(),
-                eventBus = mockSmart(),
                 favorService = mockSmart(),
                 spiritStoneWallet = wallet,
                 rngManager = gameRng
@@ -458,11 +473,11 @@ class DiffYearSettlementTest {
     // ── 验收测试 ───────────────────────────────────────────────────
 
     /**
-     * 批 Y-4c（T2-②）AI 招募对拍场景快照：AI 宗门 ai-1（中型 level 1——
+     * AI 招募对拍场景快照：AI 宗门 ai-1（中型 level 1——
      * 装备 2/功法 3）+ 1 名现有弟子 + lastAiSectRecruitYear=0；
      * gameYear=3 跨年到 4 → 差值 4-0>=3 触发招募（1..5 名炼气新弟子）。
      * 规避清单：lastRecruitYear/merchantLastRefreshChanceGrantYear 置 3
-     *（T1-④/⑥ 差值不满足）；recruitList 空；sectDetails/联盟/附庸/秘境
+     *（招募/商人刷新差值不满足）；recruitList 空；sectDetails/联盟/附庸/秘境
      * 空（其余年变步骤零效果）；mapSeed=0（AI RNG = fromSeed(0+6*31337)，
      * 与 @Before initForSlot(0) 同源）。
      */
@@ -471,9 +486,21 @@ class DiffYearSettlementTest {
             gameYear = 3, gameMonth = 12, gamePhase = 2,
             spiritStones = 10000L
         ).apply {
-            rngStates = initialRngStates(SEED)
-            lastRecruitYear = 3          // T1-④ 差值 4-3<3 不刷新
-            merchantLastRefreshChanceGrantYear = 3   // T1-⑥ 差值 <30 不授予
+            // 键 6（AI_SECT）已在协议面**退役**（阶段 1②：AI 流权威态由宿主侧
+            // `aiRng_` 承载，随 9 号通道键落盘）——快照里带 6 号会让 C++ 导入时
+            // 按该值覆写 aiRng_，与 Kotlin 侧 `mapSeed + 6×31337` 播种态分叉。
+            // 键 9（AI_SECT_MIRROR）**必须一并摘除**：C++ importStateInternal
+            // 的"存档续接"语义是"快照带非 0 键 9 → 以其覆盖 mapSeed 重播态"
+            //（game_core.cpp importStateInternal）——initialRngStates 盲扫写入的
+            // 9 号值是 fromSeed(SEED+9) 预抽 3 次的无关状态，续接后 AI 流首抽
+            // 即分叉（实测首名新招募弟子名字即不同）。本场景刻意走 mapSeed
+            // 播种路径（Kotlin 臂 initForSlot(0) 同源 fromSeed(0+6×31337)），
+            // 故两侧 AI 流种子只经 mapSeed 公式对齐，快照不带任何 AI 通道键。
+            rngStates = (initialRngStates(SEED) -
+                RngPartition.AI_SECT.id -
+                RngPartition.AI_SECT_MIRROR.id).toMutableMap()
+            lastRecruitYear = 3          // 招募刷新差值 4-3<3 不刷新
+            merchantLastRefreshChanceGrantYear = 3   // 商人刷新机会差值 <30 不授予
         }
         val aiDisciple = Disciple(
             id = "ai-a1", name = "青云长老", surname = "青",
@@ -543,7 +570,7 @@ class DiffYearSettlementTest {
                     x = 200f, y = 200f, isPlayerSect = false, allianceId = "a2"
                 )
             )
-            // ai-1 空交易详情 → T2-④ 差值/空列表判据满足触发刷新
+            // ai-1 空交易详情 → 交易刷新差值/空列表判据满足触发刷新
             sectDetails = mapOf("ai-1" to SectDetail(sectId = "ai-1"))
             alliances = listOf(
                 Alliance(id = "a1", sectIds = listOf("player", "ai-1"), startYear = 1),
@@ -568,7 +595,7 @@ class DiffYearSettlementTest {
      * 批收尾（外交簇换装对拍）：年变 T2 #13 交易刷新 / #15 联盟到期 /
      * #16 联盟好感过低解散 / #19 好感衰减——真实 DiplomacyService/
      * DiplomacyEventProcessor/FavorEventProcessor vs C++ runYearSettlement
-     * 同路径逐位对拍（T2-④ 首次跨语言整链：局部种子商品生成全字段）。
+     * 同路径逐位对拍（交易刷新首次跨语言整链：局部种子商品生成全字段）。
      */
     @Test
     fun `diplomacy yearly ops match Kotlin bit-for-bit`() {
@@ -592,19 +619,19 @@ class DiffYearSettlementTest {
         // 显式断言：外交三路径产生写效果
         val actualGd = actual.gameData
         assertEquals(7, actualGd.gameYear)
-        // T2-④：ai-1 空交易 → 刷新生成
+        // 交易刷新：ai-1 空交易 → 刷新生成
         val trade = actualGd.sectDetails["ai-1"]
         assertTrue(
             "sectDetails[ai-1] 应被刷新（原空列表 → 生成交易商品），实际 ${trade?.tradeItems?.size}",
             trade != null && trade.tradeItems.isNotEmpty()
         )
         assertEquals("ai-1 交易刷新年应写回 7", 7, trade!!.tradeLastRefreshYear)
-        // T2-⑥（a1 到期）+ T2-⑦（a2 低好感）→ 联盟全清
+        // 联盟到期（a1）+ 低好感解散（a2）→ 联盟全清
         assertTrue("过期联盟 a1 与低好感联盟 a2 均应被解散", actualGd.alliances.isEmpty())
         for (sect in actualGd.worldMapSects) {
             assertEquals("宗门 ${sect.id} 联盟字段应清零", "", sect.allianceId)
         }
-        // T2-⑨：rel(ai-1) favor 85→84 + noGiftYears+1；rel(ai-2) favor 75 不衰减
+        // 好感衰减：rel(ai-1) favor 85→84 + noGiftYears+1；rel(ai-2) favor 75 不衰减
         val relAi1 = actualGd.sectRelations.find {
             (it.sectId1 == "ai-1" && it.sectId2 == "player") ||
                 (it.sectId1 == "player" && it.sectId2 == "ai-1")
@@ -699,7 +726,7 @@ class DiffYearSettlementTest {
     private fun advanceKotlinSide(snapshot: NativeGameState): NativeGameState {
         val store = FakeGameStateStore().also {
             it.gameDataValue = snapshot.gameData.apply {
-                // 批 Y-4c（T2-②）：GameData.aiSectDisciples @Transient 内存字段
+                // AI 招募：GameData.aiSectDisciples @Transient 内存字段
                 //（不入 gameData JSON）——从 NativeGameState 顶层快照回填，
                 // Kotlin 臂招募路由才能读到 AI 宗门弟子池
                 aiSectDisciples = snapshot.aiSectDisciples ?: emptyMap()
@@ -733,7 +760,7 @@ class DiffYearSettlementTest {
                         gameYear = gd.gameYear,
                         isJanuary = gd.gameMonth == 1
                     )
-                    // 批 Y-4b（T2-③）：年变 T2 延迟组（收购/交易/AI 招募）经
+                    // 商人收购：年变 T2 延迟组（收购/交易/AI 招募）经
                     // flushYearlyOpsQueue forceDrain 全量执行——对齐生产引擎
                     // tick drain 语义；收购（真实 MerchantAndRecruitService）
                     // 在独立事务消费 SYSTEM 分区，C++ 侧同序执行
@@ -749,9 +776,9 @@ class DiffYearSettlementTest {
         )
         return NativeGameState(
             gameData = store.gameDataValue,
-            // 批 Y-4c（T2-②）：AI 弟子池为 GameData @Transient 内存字段
+            // AI 招募：AI 弟子池为 GameData @Transient 内存字段
             //（不入 gameData JSON）——经 NativeGameState 顶层承载回填；
-            // 空表返回 null（与 C++ 空表不导出键的协议对称——批 10-4 可空语义）
+            // 空表返回 null（与 C++ 空表不导出键的协议对称——可空语义）
             aiSectDisciples = store.gameDataValue.aiSectDisciples.takeIf { it.isNotEmpty() },
             disciples = store.disciplesValue
         )
@@ -800,7 +827,7 @@ class DiffYearSettlementTest {
             )
         }
 
-        // ③ RNG 审计（批 Y-4b 行为基线更新）：T2-③ 商人收购每年消费 SYSTEM
+        // ③ RNG 审计：商人收购每年消费 SYSTEM
         // 分区（数量/品阶/选池/库存/grade/价格）——SYSTEM 终态由全量对拍
         //（rngStates 结构）与 Kotlin 臂逐位一致守护；BREAKTHROUGH/EXPLORATION
         // 保持播种预抽后初值（年变不消费）
@@ -815,7 +842,7 @@ class DiffYearSettlementTest {
         }
     }
 
-    // ── JSON 结构对拍（C++ 导出键集为权威覆盖面；与 T2.1/T2.2 同构） ──
+    // ── JSON 结构对拍（C++ 导出键集为权威覆盖面；与每旬/月变对拍同构） ──
 
     private fun assertCppSurfaceMatches(expected: JsonElement, actual: JsonElement) {
         assertNodeMatches(expected, actual, "$")
@@ -840,21 +867,35 @@ class DiffYearSettlementTest {
             if (isMirrorGeneratedField(path, k)) continue
             val e = expected[k]
             assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失（协议漂移）", e != null)
-            assertNodeMatches(e!!, a, "$path.$k")
+            // rngStates 段按**双侧共有键**比较：阶段 1② 归一后 AI 流的权威态在
+            // C++ `aiRng_`（随 9 号键落盘），Kotlin 侧 6 号（AI_SECT）不再与 C++
+            // 同源；两侧键集本就不同，协议语义差异只在共有键上成立
+            // （写成 if/else 而非 `continue`——循环体内已有 1 处 continue，
+            // detekt LoopWithTooManyJumpStatements 阈值为 1）
+            if (k == "rngStates") {
+                val expectedRng = e?.jsonObject ?: JsonObject(emptyMap())
+                val actualRng = a.jsonObject
+                for ((pid, av) in actualRng) {
+                    val ev = expectedRng[pid] ?: continue
+                    assertNodeMatches(ev, av, "$path.$k.$pid")
+                }
+            } else {
+                assertNodeMatches(e!!, a, "$path.$k")
+            }
         }
     }
 
     /**
      * diff 面排除的镜像生成/边界字段：
      * - timestamp：现实墙钟（Clock 注入边界）
-     * - merchantAcquisitionItems 的 id/itemId（批 Y-4b）：Kotlin UUID vs
+     * - merchantAcquisitionItems 的 id/itemId：Kotlin UUID vs
      *   C++ 确定性自增（gc-trade-N），语义等价仅保证唯一——收购内容其余
      *   字段（name/type/rarity/price/quantity/grade/年份，price 经 S-22
-     *   清偿已收敛 SYSTEM 分区）与 RNG 终态逐位对拍
-     * - aiSectDisciples[*].id（批 Y-4c）：AI 弟子 id Kotlin UUID vs C++
+     *   已收敛 SYSTEM 分区）与 RNG 终态逐位对拍
+     * - aiSectDisciples[*].id：AI 弟子 id Kotlin UUID vs C++
      *   确定性自增（gc-ai-d-N），语义等价仅保证唯一——弟子全字段（名字/
      *   性别/灵根/属性/技能/装备/功法）双端逐位对拍
-     * - sectDetails[*].tradeItems[].id/itemId（批收尾）：宗门交易商品 id
+     * - sectDetails[*].tradeItems[].id/itemId：宗门交易商品 id
      *   Kotlin UUID vs C++ 确定性自增，语义等价仅保证唯一——商品其余字段
      *   （name/type/rarity/price/quantity/grade/obtainedYear/obtainedMonth）
      *   与 RNG 终态逐位对拍
@@ -862,7 +903,7 @@ class DiffYearSettlementTest {
     private fun isMirrorGeneratedField(path: String, k: String): Boolean = when {
         k == "timestamp" -> true
         (k == "id" || k == "itemId") && path.contains("merchantAcquisitionItems") -> true
-        k == "id" && path.contains("aiSectDisciples") -> true   // 批 Y-4c
+        k == "id" && path.contains("aiSectDisciples") -> true   // AI 招募
         (k == "id" || k == "itemId") && path.contains("sectDetails") &&
             path.contains("tradeItems") -> true                  // 批收尾
         else -> false

@@ -26,9 +26,11 @@ import kotlin.random.Random
  * 战斗伤害特殊加成（damageAmplification/damageReduction/critDamageBonus/defenseBonus）
  * 通过 effects map 传递，由 DiscipleStatCalculator 聚合后注入 BattleCalculator 作为独立乘算因子。
  */
+@Suppress("TooManyFunctions") // 静态注册表：查询原语（按 id/名称/稀有度/档位维度）+ 私有数据表构建器，
+// 函数数随数据表查询维度线性增长；构建器与表定义同址内聚，拆分损害可读性
 object AffixDatabase {
 
-    val isInitialized: Boolean = true
+    const val isInitialized: Boolean = true
 
     enum class AffixType {
         BASE_FLAT,           // 基础属性扁平加成
@@ -429,7 +431,7 @@ object AffixDatabase {
 
     /**
      * 单次洗炼/新增抽取一个词条（无负面，品阶分布与洗炼一致：[rollWashTraitQuality] 三档
-     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同，2026-08-15 需求变更）。
+     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同）。
      *
      * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
      * 调用方应先用 [hasAffixCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。
@@ -470,9 +472,7 @@ object AffixDatabase {
         candidates: List<AffixData>,
         random: kotlin.random.Random
     ): AffixData {
-        if (candidates.isEmpty()) {
-            throw IllegalArgumentException("candidates cannot be empty")
-        }
+        require(candidates.isNotEmpty()) { "candidates cannot be empty" }
 
         // 单次 nextDouble 消费四档：负面30% / 下品50% / 中品18% / 上品2%
         val quality = rollTraitQuality(random)

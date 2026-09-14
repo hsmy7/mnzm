@@ -8,12 +8,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 提供一条从 ViewModel/GameEngine 直达渲染线程的建筑数据通道，
  * 绕过 Compose 反应式管线和帧率门控。
  *
- * ## 2026-08-13 对抗性审查决策（逆向工程师 #1）：仅保留覆盖槽单通道
- * 曾实现命令 FIFO 双通道 + RenderCommand/RenderResourceRegistry——对抗性审查
- * 确认全生产代码零消费者（surface 事件经 SurfaceProvider 监听器同步派发，
- * 图集无运行时重建场景），违反项目"禁止为未来臆造"惯例（FrameDrawCommand
- * 死代码教训）。已删除命令通道与配套类型，待出现真实消费场景（如纹理流送/
- * 动态图集重建）时再按需实现。
+ * ## 通道形态：仅保留覆盖槽单通道
+ * 只提供建筑数据单通道（surface 事件经 SurfaceProvider 监听器同步派发，
+ * 图集无运行时重建场景，无需命令 FIFO 队列与命令/资源注册表）；
+ * 待出现真实消费场景（如纹理流送/动态图集重建）时再按需扩展。
  *
  * ## KMP 化备注（iOS 迁移）
  * 本类暂留 :feature:game（使用 java.util.concurrent.atomic.AtomicBoolean）。

@@ -3,7 +3,6 @@ package com.xianxia.sect.core
 import com.xianxia.sect.core.config.GameConfigData
 import com.xianxia.sect.core.domain.BuildConfig
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.util.GameRandom
 
 enum class SkillType {
     ATTACK, SUPPORT;
@@ -92,7 +91,7 @@ object GameConfig {
      * 对应字段将返回 GameConfigData 中的值而非编译期常量。
      * 不调用此方法时，仍使用原有的 [const val] 默认值，保证向后兼容。
      *
-     * **幂等守卫（docs/architecture.md 待办 D-30）**：进程级仅首次真正执行。
+     * **幂等守卫**：进程级仅首次真正执行。
      * 每次游戏内读档/重开（boot）经 `ResourcePreloader.preloadGameResources` 重复调用时
      * 直接跳过（配置内容在进程生命周期内不变），避免重复覆盖赋值与日志噪音。
      */
@@ -187,7 +186,7 @@ object GameConfig {
         fun getRealmPerPhase(realm: Int): Double =
             REALM_SPEED_PER_PHASE[realm] ?: REALM_SPEED_PER_PHASE.getValue(9)
 
-        /** 每旬 HP/MP 恢复率（2026-08-11 起以旬为单位，原为每日 5% × 10 天 = 每旬 50%） */
+        /** 每旬 HP/MP 恢复率（以旬为单位） */
         const val PHASE_HP_MP_RECOVERY_RATE = 0.2
 
         /** 住所建筑修炼速度加成系数（按建筑 displayName 查表） */
@@ -260,39 +259,45 @@ object GameConfig {
         const val MAX_REALM_INDEX = 9
 
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 98, 10,
+            9 to RealmConfig(9, "炼气", 490, 10,
                 maxAge = 80, maxLayers = 9,
                 baseHp = 203, baseMp = 78, basePhysicalAttack = 16, baseMagicAttack = 16,
                 basePhysicalDefense = 13, baseMagicDefense = 10, baseSpeed = 15),
-            8 to RealmConfig(8, "筑基", 390, 30,
+            8 to RealmConfig(8, "筑基", 1950, 30,
                 maxAge = 120, maxLayers = 9,
                 baseHp = 507, baseMp = 195, basePhysicalAttack = 39, baseMagicAttack = 39,
                 basePhysicalDefense = 33, baseMagicDefense = 26, baseSpeed = 38),
-            7 to RealmConfig(7, "金丹", 1560, 50,
+            7 to RealmConfig(7, "金丹", 7800, 50,
                 maxAge = 200, maxLayers = 9,
                 baseHp = 1318, baseMp = 507, basePhysicalAttack = 101, baseMagicAttack = 101,
                 basePhysicalDefense = 85, baseMagicDefense = 68, baseSpeed = 98),
-            6 to RealmConfig(6, "元婴", 5850, 80,
+            6 to RealmConfig(6, "元婴", 29250, 80,
                 maxAge = 300, maxLayers = 9,
                 baseHp = 3448, baseMp = 1326, basePhysicalAttack = 265, baseMagicAttack = 265,
                 basePhysicalDefense = 221, baseMagicDefense = 177, baseSpeed = 255),
-            5 to RealmConfig(5, "化神", 19500, 110,
-                maxAge = 500, maxLayers = 9,                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702, baseMagicAttack = 702,
+            5 to RealmConfig(5, "化神", 97500, 110,
+                maxAge = 500, maxLayers = 9,                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702,
+                    baseMagicAttack = 702,
                 basePhysicalDefense = 585, baseMagicDefense = 468, baseSpeed = 675),
-            4 to RealmConfig(4, "炼虚", 58500, 180,
-                maxAge = 800, maxLayers = 9,                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716, baseMagicAttack = 1716,
+            4 to RealmConfig(4, "炼虚", 292500, 180,
+                maxAge = 800, maxLayers = 9,                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716,
+                    baseMagicAttack = 1716,
                 basePhysicalDefense = 1430, baseMagicDefense = 1144, baseSpeed = 1650),
-            3 to RealmConfig(3, "合体", 195000, 220,
-                maxAge = 1500, maxLayers = 9,                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056, baseMagicAttack = 4056,
+            3 to RealmConfig(3, "合体", 975000, 220,
+                maxAge = 1500, maxLayers = 9,                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056,
+                    baseMagicAttack = 4056,
                 basePhysicalDefense = 3380, baseMagicDefense = 2704, baseSpeed = 3900),
-            2 to RealmConfig(2, "大乘", 585000, 280,
-                maxAge = 2500, maxLayers = 9,                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048, baseMagicAttack = 9048,
+            2 to RealmConfig(2, "大乘", 2925000, 280,
+                maxAge = 2500, maxLayers = 9,                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048,
+                    baseMagicAttack = 9048,
                 basePhysicalDefense = 7540, baseMagicDefense = 6032, baseSpeed = 8700),
-            1 to RealmConfig(1, "渡劫", 1950000, 360,
-                maxAge = 4000, maxLayers = 9,                baseHp = 243360, baseMp = 93600, basePhysicalAttack = 18720, baseMagicAttack = 18720,
+            1 to RealmConfig(1, "渡劫", 9750000, 360,
+                maxAge = 4000, maxLayers = 9,                baseHp = 243360, baseMp = 93600,
+                    basePhysicalAttack = 18720, baseMagicAttack = 18720,
                 basePhysicalDefense = 15600, baseMagicDefense = 12480, baseSpeed = 18000),
-            0 to RealmConfig(0, "仙人", 5850000, 500,
-                maxAge = 9999, maxLayers = 9,                baseHp = 507000, baseMp = 195000, basePhysicalAttack = 39000, baseMagicAttack = 39000,
+            0 to RealmConfig(0, "仙人", 29250000, 500,
+                maxAge = 9999, maxLayers = 9,                baseHp = 507000, baseMp = 195000,
+                    basePhysicalAttack = 39000, baseMagicAttack = 39000,
                 basePhysicalDefense = 32500, baseMagicDefense = 26000, baseSpeed = 37500)
         )
 
@@ -385,7 +390,7 @@ object GameConfig {
             5 to 0.40   // 40% 五灵根
         )
 
-        // ── 洗炼灵根（2026-08-08 新增，玉符消耗玩法）──
+        // ── 洗炼灵根（玉符消耗玩法）──
 
         /** 单次洗炼消耗玉符数。 */
         const val WASH_JADE_COST = 1
@@ -411,8 +416,15 @@ object GameConfig {
         
         fun getElementName(type: String): String = get(type).name
         
-        fun generateRandomSpiritRootCount(): Int {
-            val rand = GameRandom.nextDouble()
+        /**
+         * 按 [COUNT_WEIGHTS] 权重把**已抽取的随机值** [rand]（[0.0, 1.0)）映射为灵根数量。
+         *
+         * 纯函数：随机源由调用方提供（分区 PRNG 经 `DeterministicRng.asKotlinRandom()`
+         * 或表现随机）——本函数不自行抽取，杜绝默认参数静默回落全局随机源。
+         *
+         * 与 [SpiritRootGenerator] 的同名逻辑同式（单一权重表来源 [COUNT_WEIGHTS]）。
+         */
+        fun rollSpiritRootCount(rand: Double): Int {
             var cumulative = 0.0
             for ((count, weight) in COUNT_WEIGHTS.toSortedMap()) {
                 cumulative += weight
@@ -429,7 +441,7 @@ object GameConfig {
         TALENT("天赋"), PHYSIQUE("体质"), AFFIX("词条")
     }
 
-    /** 洗炼天赋/体质/词条（2026-08-09 新增，玉符消耗玩法，流程对齐洗炼灵根）。 */
+    /** 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根）。 */
     object TraitWash {
 
         /** 单次洗炼消耗玉符数。 */
@@ -452,7 +464,7 @@ object GameConfig {
     }
 
     /**
-     * 新增天赋/体质/词条（2026-08-15 新增，玉符消耗玩法，界面复用洗炼）。
+     * 新增天赋/体质/词条（玉符消耗玩法，界面复用洗炼）。
      *
      * 流程：消耗 1 玉符刷新出随机特质（下品40%/中品30%/上品30%，无负面，与洗炼共用
      * [WeightedRoll.WASH_TRAIT_QUALITY_DISTRIBUTION]）→ 确认新增把特质追加到弟子
@@ -469,7 +481,7 @@ object GameConfig {
     }
 
     /**
-     * 玉符购买玩法（2026-08-11 新增，替代原广告加成路径；与洗炼灵根共用 1 玉符消耗）。
+     * 玉符购买玩法（与洗炼灵根共用 1 玉符消耗）。
      */
     object JadePurchase {
 
@@ -485,7 +497,7 @@ object GameConfig {
         /** 每消耗 1 玉符获得的商人刷新次数。 */
         const val MERCHANT_REFRESH_PER_JADE = 3
 
-        /** 商人刷新次数上限（唯一入口：MerchantAndRecruitService 每 30 年自动刷新与玉符购买共用，2026-08-11 收敛）。 */
+        /** 商人刷新次数上限（唯一入口：MerchantAndRecruitService 每 30 年自动刷新与玉符购买共用）。 */
         const val MERCHANT_REFRESH_MAX = 999
     }
 
@@ -670,7 +682,7 @@ object GameConfig {
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
     }
 
-    // Enemy.REALM_STATS 已删除 — 敌对弟子统一使用 GameConfig.Realm 基础属性 + DiscipleStatCalculator 公式
+    // 敌对弟子统一使用 GameConfig.Realm 基础属性 + DiscipleStatCalculator 公式
     object Starting {
         val RESOURCES = StartingResources(
             spiritStones = 2000,
@@ -685,8 +697,13 @@ object GameConfig {
 
     /** AI宗门智能进攻配置 */
     object AIAttack {
-        /** 预警→正式进攻间隔（月）：生成预警后下月直接进攻 */
+        /** 预警→正式进攻间隔（月）：生成预警后下个月直接进攻
+         *  （C++ sect_defense_battle.h kWarningLeadMonths 同值） */
         const val WARNING_BEFORE_ATTACK_MONTHS = 1
+        /** 攻击冷却（月）：预警生成与战斗结算双写点（P2-18 核实结论：
+         *  原链全仓仅有读点无写点，复活时新增）——C++
+         *  sect_defense_battle.h kAiAttackCooldownMonths 同值，改值须双端同步 */
+        const val ATTACK_COOLDOWN_MONTHS = 12
         /** 附庸年贡比例（上年灵石收入的百分比） */
         const val VASSAL_TRIBUTE_RATIO = 0.5
         /** 附庸年贡最低灵石 */
@@ -995,18 +1012,19 @@ object GameConfig {
         const val TILE_SIZE = 48
         const val WORLD_WIDTH_CELLS = 128
         const val WORLD_HEIGHT_CELLS = 128
-        val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE
-        val WORLD_PIXEL_HEIGHT = WORLD_HEIGHT_CELLS * TILE_SIZE
+        const val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE
+        const val WORLD_PIXEL_HEIGHT = WORLD_HEIGHT_CELLS * TILE_SIZE
         /** 地图边界不可建造区域厚度（格数）。必须 < 地图半宽。 */
         const val BORDER_TREE_RING = 3
 
         // ── 宗门入口固定结构（门楼，位于地图底部中央）──
-        // 门楼：占地 6×2，精灵 6×4（底部对齐、向上延伸 2 格），置于地图正下方；
+        // 门楼：占地 6×2，精灵 6×2（统一俯视视角：精灵与占地 1:1 贴地对齐，
+        // 不再有立牌向上悬出），置于地图正下方；
         // 左右两侧保留 3 行边界硬装饰树（BORDER_TREE_RING）。禁建范围 = 占地。
         const val GATE_WIDTH = 6
         const val GATE_HEIGHT = 2
         const val GATE_SPRITE_WIDTH = 6
-        const val GATE_SPRITE_HEIGHT = 4
+        const val GATE_SPRITE_HEIGHT = 2
         const val GATE_X: Int = (WORLD_WIDTH_CELLS - GATE_WIDTH) / 2
         const val GATE_Y: Int = WORLD_HEIGHT_CELLS - GATE_HEIGHT
         const val GATE_SPRITE_Y: Int = GATE_Y - (GATE_SPRITE_HEIGHT - GATE_HEIGHT)

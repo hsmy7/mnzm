@@ -34,5 +34,6 @@ object BuildingNames {
     )
 
     fun getDisplayName(buildingId: String): String =
-        DISPLAY_NAMES[buildingId] ?: DISPLAY_NAMES[buildingId.lowercase(java.util.Locale.getDefault()).replace("_", "")] ?: "建筑"
+        DISPLAY_NAMES[buildingId] ?: DISPLAY_NAMES[buildingId.lowercase(java.util.Locale.getDefault()).replace("_",
+            "")] ?: "建筑"
 }

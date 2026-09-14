@@ -252,8 +252,7 @@ class EventBus @Inject constructor(
     private val lastDropLogTime = java.util.concurrent.atomic.AtomicLong(0L)
 
     /**
-     * 事件丢弃上报器（2026-08-13 批次 5：溢出不再仅日志——app 层注入
-     * Bugly 自定义事件实现，core/domain 零 Android 依赖）。
+     * 事件丢弃上报器：app 层注入 Bugly 自定义事件实现，core/domain 零 Android 依赖。
      * 调用方已按 5s 节流（与 DomainLog 同频）。
      */
     @Volatile
@@ -285,9 +284,12 @@ class EventBus @Inject constructor(
     }
 
     /**
-     * 丢弃上报（CAS 节流赢家制——对抗性审查 2026-08-13 状态破坏者#4：
-     * 多线程并发 emit 同时穿 5s 节流窗口 → 仅一个赢家上报，计数原子）。
+     * 丢弃上报（CAS 节流赢家制：多线程并发 emit 同时进入 5s 节流窗口时，
+     * 仅一个赢家上报，计数原子）。
      */
+    // 刻意吞取消(形态③): try体无挂起点, CE只能来自上报器缺陷误抛;
+    // 隔离设计保证上报失败不影响事件通道——重抛反而放大为通道故障
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun reportDrop(event: DomainEvent) {
         val total = droppedEventCount.incrementAndGet()
         val now = System.currentTimeMillis()
@@ -295,7 +297,7 @@ class EventBus @Inject constructor(
         if (now - previous < DROP_REPORT_THROTTLE_MS) return
         if (!lastDropLogTime.compareAndSet(previous, now)) return
         DomainLog.w("EventBus", "Event dropped (total: $total), type=${event.type}. Consider reducing event frequency.")
-        // 批次 5：溢出上报化（节流内调用；上报失败不得影响事件通道）
+        // 溢出上报（节流内调用；上报失败不得影响事件通道）
         try {
             dropReporter?.onEventDropped(total, event.type)
         } catch (e: Exception) {
@@ -332,8 +334,13 @@ class EventBus @Inject constructor(
     }
     
     override fun <T : DomainEvent> emitTyped(event: T) {
-        scope.launch {
-            eventChannel.send(event)
+        // 背压统一：与 emit/emitSync 同一契约——满通道丢弃 +
+        // 计数 + 节流上报。原 launch{send} 在通道饱和时把每次调用转成无上限
+        // 挂起协程堆积（月度灵石流水高频事件下内存单调上涨）；
+        // 丢弃可容忍（消费方既有降级语义），无界协程不可容忍。
+        val result = eventChannel.trySend(event)
+        if (!result.isSuccess) {
+            reportDrop(event)
         }
     }
     
@@ -351,14 +358,18 @@ class EventBus @Inject constructor(
         }
     }
     
+    // 背压统一：订阅者通知在通道消费协程内串行执行——
+    // 原每事件×每订阅者各 launch 一个协程属无上限协程创建（防御性修复，
+    // 当前 0 订阅者）；消费协程为本事件总线的唯一串行面，内联调用有界。
+    // 刻意吞取消(形态③): try体无挂起点, CE只能来自订阅者缺陷误抛;
+    // 重抛会放大为消费协程死亡——订阅者异常隔离是总线契约
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun notifySubscribers(event: DomainEvent) {
         subscribers[event.type]?.forEach { subscriber ->
-            scope.launch {
-                try {
-                    subscriber.onEvent(event)
-                } catch (e: Exception) {
-                    DomainLog.e("EventBus", "Error notifying subscriber for event ${event.type}", e)
-                }
+            try {
+                subscriber.onEvent(event)
+            } catch (e: Exception) {
+                DomainLog.e("EventBus", "Error notifying subscriber for event ${event.type}", e)
             }
         }
     }

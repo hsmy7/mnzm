@@ -10,7 +10,7 @@ namespace gamecore::data {
 namespace {
 
 // ============================================================
-// 天赋/体质/词条静态表守卫测试（批次 2 剩余子步）
+// 天赋/体质/词条静态表守卫测试
 //
 // 守护目标：C++ 表（trait_db.h，C++ 等价生成逻辑复刻 Kotlin 程序化生成）
 // 与 Kotlin TalentDatabase/PhysiqueDatabase/AffixDatabase 的生成结果一致。

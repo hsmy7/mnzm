@@ -200,7 +200,7 @@ class JadeSymbolServiceTest {
 
     @Test
     fun `restored accumMs at interval threshold is clamped below`() {
-        // 防御纵深：绕过存档校验的写路径（对抗性审查 F1）——
+        // 防御纵深：绕过存档校验的写路径——
         // 恢复值钳到 INTERVAL-1：0ms 真实时间不兑现（免费 +1 消除），
         // +1ms 真实累计后正常发放（钳制不拦合法时长）
         store.update { gameData = gameData.copy(jadeAccumMs = GameConfig.Jade.INTERVAL_MS) }
@@ -327,7 +327,7 @@ class JadeSymbolServiceTest {
             service.runtimeState.value.remainingMs)
     }
 
-    // ── 广告发放（玉符栏"+"按钮路径，2026-08-11 新增）──
+    // ── 广告发放（玉符栏"+"按钮路径）──
 
     @Test
     fun `grantFromAd - 正常发放 3 枚并同步 GameData 与运行时`() {
@@ -384,7 +384,7 @@ class JadeSymbolServiceTest {
         assertEquals(3, service.runtimeState.value.total)
     }
 
-    // ── 懒重锚守卫（冷启动读档窗口竞态纵深防御，2026-08-12 新增）──
+    // ── 懒重锚守卫（冷启动读档窗口竞态纵深防御）──
 
     @Test
     fun `grantFromAd - 未 onLoopStart 时懒重锚并基于快照发放`() {
@@ -395,7 +395,7 @@ class JadeSymbolServiceTest {
         val ok = service.grantFromAd(3)
 
         assertTrue(ok)
-        // 懒重锚后基于快照 20 发放：20 + 3 = 23（修复前为 0 + 3 = 3，覆盖持久化余额）
+        // 懒重锚后基于快照 20 发放：20 + 3 = 23（不覆盖持久化余额）
         assertEquals(23, store.gameDataSnapshot.jadeSymbols)
         assertEquals(23, service.runtimeState.value.total)
     }

@@ -9,6 +9,8 @@ data class CacheKey(
     val id: String,
     val ttl: Long = DEFAULT_TTL
 ) {
+    @Suppress("TooManyFunctions") // 缓存键工厂：每缓存实体类型一个具名键构造器 + 类型常量登记，
+// 函数数=键命名空间数，拆分即碎片化键协议
     companion object {
         const val DEFAULT_TTL = 86400_000L
         const val TYPE_DISCIPLE = "disciple"

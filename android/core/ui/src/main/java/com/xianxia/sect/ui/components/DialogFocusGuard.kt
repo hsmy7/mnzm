@@ -34,6 +34,10 @@ fun DialogFocusGuard() {
  * 提取为顶层函数便于 Robolectric 单测。窗口 token 失效时
  * [InputMethodManager.hideSoftInputFromWindow] 可能抛异常，安全忽略。
  */
+// @Suppress 理由：非关键路径清理（Bugly #3026 防御）——不同厂商 IME 实现抛出的
+// 异常类型不可枚举（BadTokenException/IllegalArgument/RemoteException 等），
+// 漏接即组合销毁期崩溃；吞掉并记日志是此处正确语义
+@Suppress("TooGenericExceptionCaught")
 internal fun View.clearFocusAndHideKeyboard() {
     clearFocus()
     try {
