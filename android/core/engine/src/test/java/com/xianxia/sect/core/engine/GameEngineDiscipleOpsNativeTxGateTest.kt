@@ -69,6 +69,7 @@ class GameEngineDiscipleOpsNativeTxGateTest {
     private lateinit var jadeService: JadeSymbolService
     private lateinit var engine: GameEngine
     private lateinit var systemRng: DeterministicRng
+    private lateinit var chatRng: DeterministicRng
 
     private val discipleA = "1"
 
@@ -92,8 +93,10 @@ class GameEngineDiscipleOpsNativeTxGateTest {
         }
         whenever(mockCore.scopeForStateIn()).thenReturn(CoroutineScope(Dispatchers.Unconfined))
         systemRng = DeterministicRng.fromSeed(20260912L)
+        chatRng = DeterministicRng.fromSeed(77L)
         val mockRng = mock<GameRngManager>()
         whenever(mockRng.getRng(RngPartition.SYSTEM)).thenReturn(systemRng)
+        whenever(mockRng.getRng(RngPartition.CHAT)).thenReturn(chatRng)
 
         val mockBattleFacade = mock<BattleFacade>()
         org.mockito.kotlin.whenever(mockBattleFacade.assignmentGate).thenReturn(gate)
@@ -314,6 +317,22 @@ class GameEngineDiscipleOpsNativeTxGateTest {
         store.update { status = discipleTables.statuses[1] }
         // 藏经阁/长老等槽位为空 ⇒ 推导 IDLE（受保护态 REFLECTING/REFINING 除外）
         assertEquals(DiscipleStatus.IDLE, status)
+    }
+
+    // ── A5：交谈决策抽取原语（CHAT 分区，引擎上下文签发）──────────────
+
+    @Test
+    fun chatDrawConsumesChatPartitionWithinBounds() = runTest {
+        val a = engine.chatDraw(10)
+        val b = engine.chatDraw(5, 15)
+        val c = engine.chatDrawDouble(0.01, 0.06)
+        assertTrue(a in 0..9)
+        assertTrue(b in 5..14)
+        assertTrue(c in 0.01..0.06)
+        // CHAT 分区流确被消费（后续抽取与首抽构成序列——非恒定值）
+        val d = engine.chatDraw(10)
+        val e = engine.chatDraw(10)
+        assertTrue(!(a == d && d == e && c == engine.chatDrawDouble(0.01, 0.06)))
     }
 
     // ── 夹具（GameEngineAppointmentNativeTxGateTest 同款）──────────────

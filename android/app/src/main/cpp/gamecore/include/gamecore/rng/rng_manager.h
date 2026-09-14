@@ -41,6 +41,7 @@ enum class RngPartition : int32_t {
     kSecretRealm = 7,
     kMission = 8,   // 任务系统（任务刷新/奖励 RNG 收敛分区）
     kAiSectMirror = 9,  // AI 流镜像态（GameCore::aiRng_ 的归档通道；保留 id 永不改义）
+    kChat = 10,     // 弟子交谈（W4-A·A5：DiscipleChatDialog 决策类抽取——用户时序独立流，不与结算分区共用）
 };
 
 class RngManager {
@@ -66,6 +67,7 @@ public:
         partitions_[RngPartition::kAiSect] = DeterministicRng::fromSeed(seed + 6);
         partitions_[RngPartition::kSecretRealm] = DeterministicRng::fromSeed(seed + 7);
         partitions_[RngPartition::kMission] = DeterministicRng::fromSeed(seed + 8);
+        partitions_[RngPartition::kChat] = DeterministicRng::fromSeed(seed + 10);
         // 镜像分区按同一公式播种（= aiRng_ 的播种式 seed + 6×31337 的等价初值；
         // GameCore::initialize 播种 aiRng_ 后经 mirrorAiRng 覆盖为权威态）
         partitions_[RngPartition::kAiSectMirror] = DeterministicRng::fromSeed(seed + 9);

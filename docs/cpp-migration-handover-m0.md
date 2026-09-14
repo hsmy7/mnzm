@@ -491,6 +491,32 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **基线打点**: `git tag w4-base` → `d4cad20`；`git bundle` 落盘 `C:\Mnzm\backups\XianxiaSectNative-w4base-<时间戳>.bundle`（346MB，`verify` = "records a complete history / is okay"）。三个并行批次即从该点派生工作树。
 
+## 2.62 W4-A 第一子批 A1+A6（2026-09-15，tag `w4a/01`）：w3-01 弟子操作面九事务下沉 C++ + 血炼死包装删除
+
+批次: W4-A（worktree `XianxiaSectNative-w4a`，分支 `w4/a-disciple-building`） | ActionId: **+9**（1740–1748 `DISCIPLE_OP_*`；169 → 178 动作 / maxId=1748） | 产物: 改 `disciple_tx.h`（+970 行 W4-A 段）、`dispatch_w4a.cpp`（填充）、`w4a.mjs`、两生成物、`W4AChannelClosures.kt`（证据更新）、新 `test/disciple_ops_tx_test.cpp`（20 用例）；Kotlin 改 `GameEngineCoordination` / `DiscipleFacadeImpl战斗Ops2` / `GameEngineManualOps` / `GameEngineBloodRefinementOps` / `DiscipleFacadeImpl`（lawEnforcementProcessor private→internal）/ `DiscipleStatusService` / `DiscipleDelegate`；新 `GameEngineDiscipleOpsNativeTx.kt` / `DiscipleOpsNativeTxForward.kt` / `GameEngineDiscipleOpsNativeTxGateTest`
+
+**下沉面（九事务，全部"校验链先行 + 失败零写入 + 回退臂保留"）**: ① 改名（names 行写 + 招募列表 `isSamePerson` 同人净化——按**改名前**身份）；② 类型直改；③ 关注切换（`statusData["followed"]` 翻转，`toggleFollowDisciple` 事务化收口原 `updateDisciple` lambda 直改面）；④ 赏赐四路合一（pill/material/herb/seed——先校验弟子存在再扣仓库；pill 走 facade 丹药链可服生效/不可服入袋同一事务）；⑤ 服药（`canUsePill` 资格链 + 日志草稿）；⑥ 功法替换（2026-09-15 核查新增写者 `replaceManual`——七链校验 + 熟练度清理 + 旧实例入袋防双持有）；⑦ 血炼启动（灵石/材料/双排他校验链 + 11 类槽位清理 + REFINING + 进度写入；Gate 释放 + Room 清理留 Kotlin 运行态残差）；⑧⑨ 状态派生单/全量（14 flag 优先级序 + positionName 定向写删 + `fixInvalidMiningSlots` 自愈——**派生列唯一计算方 = C++**，ADR 盲区 2）。
+
+**口径差异（facade 丹药链 ≠ auto-use pill_system 链，逐字采用 facade）**: 修为直加**无上限 clamp**；治疗 maxHp 取 **baseHps 基列**（非 getBaseStats）；无 MP 恢复分支；速率生效清零旧 `cultivationSpeedBonus` 组件列 + checkpoint 同步。**偷盗判定钩子不下沉**（执法域，phase_settlement.h 同边界）：信封回传 `theftCandidate`+`moralityAfter`，Kotlin 分支以镜像刷新后的状态原序执行 `processSingleDiscipleTheft` 事务内版本（RNG 抽取序不变）。
+
+**A6**: 删除 `GameEngine` 层 `processBloodRefinementCompletions` 死 suspend 包装（零生产调用方，仅 `GameEngineDualSlotGuardTest:370` 引用——测试改走 `MonthSettlementExecutor` 同款 `MutableGameState` 事务扩展）；`:167` 扩展保留（回退臂活路）。
+
+**连带修复**: `month_settlement_test.cpp` `gc-inst-1` 字面断言 → "进程级计数器执行前值 +1"（TU 注册序跨工具链不可靠，新增 minting 测试先行会合法消耗计数器；孤立运行两者等价）。
+
+**验收（实跑）**: 桌面 C++ **1346/1346**（基线 1326 + 本批 20；单进程直跑）；`:core:engine` 全量 `--rerun-tasks` + 本工作树 JNI 对拍全绿（含 47 `Diff*`）；`:core:domain`/`:core:data`/`:feature:game`/`:app` 回归绿；六模块 detekt 绿（baseline 0 增长）；`gen-action-ids.mjs` 幂等（产物哈希两次一致）；NDK `externalNativeBuildRelease` + `lintRelease` 绿；冻结清单机检：`git diff w4-base` 无冻结文件。
+
+## 2.62.1 W4-A 第二子批 A5（2026-09-15，tag `w4a/02`）：RNG 阶段 3·弟子侧——CHAT 分区 + 守卫扩面
+
+批次: W4-A | ActionId: **0**（**1850–1854 条件段退段空置**——ADR §8 并未要求 ActionId + C++ 事务，落地形态 = 按调用点粒度下沉/形参化，零协议改动） | 产物: 改 `RngPartition.kt`（+`CHAT(10)`）、C++ `rng_manager.h`（+`kChat` 枚举 + 播种）、`rng_test.cpp`（快照分区计数 9→10）、`RngSourceGuardTest.kt`（② 正则补 `Random.nextXxx` 裸抽取 + 分区登记 10 + core/domain ② 上限 5→13 扩面登记）、新 `GameEngineConversationDraw.kt`；改 `DiscipleChatDialog.kt`、`docs/rng-source-inventory.md` §6、`W4AChannelClosures.kt`
+
+**治理内容**: `DiscipleChatDialog` 的 5 个裸 `Random.nextInt/nextDouble` 决策抽取点（交谈树/结果分支/效果增量——结果写弟子 `cultivation`/`skills`，R3 违规点）改为 **`RngPartition.CHAT` 引擎侧签发**（`chatDraw/chatDrawDouble` 挂起原语在引擎上下文内 `getRng(CHAT)`——GameRngManager 线程契约禁止 UI 线程直取分区句柄，故签发必须引擎侧）；文本变体（问候/回复/结束语）走 `PresentationRandom`（不落盘，LoadingScreen 同款 UI 位实例化）。CHAT 为**用户时序独立流**（id=10，参与 rngStates 快照；旧档缺失按 systemSeed+10 播种）——不与任何结算分区共用，既有分区抽取序零扰动（红线 1）。
+
+**守卫扩面（先扩面再治理）**: ② 类正则补 `(?<![A-Za-z0-9_])Random\.(nextInt|nextDouble|nextLong|nextFloat|nextBoolean)`（负向断言排除 `presentationRandom.nextInt`/`asKotlinRandom`/`GameRandom.nextInt` 适配器误报）。扩面后 core/domain **显形 8 处存量裸抽取**（`AISectPersonality:65/:72`、`Items:875`、`BaseTemplateRegistry:143/:165/:189`、`BeastMaterialDatabase:336/:351`——逐个核实均死代码/仅测试调用方），上限 5→13 **一次性扩面登记**（显形非新增；偿还触发 = W4-D/D5 死代码清零，登记 `rng-source-inventory.md` §6.2）。扩面有效性经**负向对照**验证（上限临时 12 ⇒ 守卫红；13 ⇒ 绿）。
+
+**弟子通道关闭口径（红线 13）**: 交谈效果**写入**仍为 Kotlin（`updateDisciple`）——决策写不上沉，写入面留 W4-D 弟子通道关闭决策；随机源已达规。通道关闭动作不在本批。
+
+**验收（实跑）**: 桌面 C++ **1346/1346**（含 rng_test 分区计数更新）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（**rngStates 10 键跨语言对拍一致**）；守卫 6 用例绿；六模块 detekt 绿；`:core:domain`/`:core:data`/`:feature:game`/`:app` 回归绿。
+
 ## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
 
 批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）

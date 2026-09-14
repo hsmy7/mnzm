@@ -29,8 +29,13 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.core.engine.chatDraw
+import com.xianxia.sect.core.engine.chatDrawDouble
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.game.GameViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -197,17 +202,27 @@ private val TREE_C = ConversationTree(
 
 private val ALL_TREES = listOf(TREE_A, TREE_B, TREE_C)
 internal fun getAllConversationTrees(): List<ConversationTree> = ALL_TREES
-private fun <T> List<T>.randomOne(): T = this[Random.nextInt(size)]
 
-internal fun randomizeEffect(effect: ConversationEffect): ConversationEffect {
+// ── 抽取源（W4-A·A5——RNG 阶段 3·弟子侧）───────────────────────────
+// 决策类抽取（交谈树/结果分支/效果增量——结果写入弟子 cultivation/skills）
+// 改为引擎侧 CHAT 分区签发（[GameEngine.chatDraw]/[chatDrawDouble]，R1+R3 达规，
+// 用户时序独立流不扰动既有分区抽取序）；表现类文本变体（问候/回复/结束语）
+// 走 [PresentationRandom]（不落盘）。全局 `Random.Default` 面归零。
+
+/** 表现类文本变体抽取（随机源必传——⑤ 默认值陷阱同款规避）。 */
+private fun <T> List<T>.randomOne(random: Random): T = this[random.nextInt(size)]
+
+/** 决策类效果随机化（增量抽取引擎侧 CHAT 分区；算术骨架与原实现逐字一致）。 */
+private suspend fun randomizeEffect(engine: GameEngine, effect: ConversationEffect): ConversationEffect {
     if (effect.isZero) return effect
-    fun Int.signRandom(): Int = if (this > 0) Random.nextInt(1, 6) else if (this < 0) -Random.nextInt(1, 6) else 0
+    suspend fun Int.signRandom(): Int = if (this > 0) engine.chatDraw(1, 6)
+    else if (this < 0) -engine.chatDraw(1, 6) else 0
     return ConversationEffect(
         moralityDelta = effect.moralityDelta.signRandom(),
         loyaltyDelta = effect.loyaltyDelta.signRandom(),
         intelligenceDelta = effect.intelligenceDelta.signRandom(),
-        cultivationDelta = if (effect.cultivationDelta > 0.0) Random.nextDouble(0.01,
-            0.06) else if (effect.cultivationDelta < 0.0) -Random.nextDouble(0.01, 0.06) else 0.0
+        cultivationDelta = if (effect.cultivationDelta > 0.0) engine.chatDrawDouble(0.01,
+            0.06) else if (effect.cultivationDelta < 0.0) -engine.chatDrawDouble(0.01, 0.06) else 0.0
     )
 }
 
@@ -284,44 +299,54 @@ fun DiscipleChatDialog(
     var isChatDone by remember { mutableStateOf(false) }
     var currentNode by remember { mutableStateOf<ConversationNode?>(null) }
     var currentEffectAnnotated by remember { mutableStateOf(AnnotatedString("")) }
+    // 表现类流（文本变体，不落盘——LoadingScreen 同款 UI 位实例化）
+    val presentationRandom = remember { PresentationRandom().asKotlinRandom() }
+    val scope = rememberCoroutineScope()
+    val engine = viewModel?.disciple?.gameEngine
 
     LaunchedEffect(disciple.id) {
-        val tree = ALL_TREES.randomOne()
+        // 交谈树选择 = 决策类（决定可用结果分支）⇒ 引擎侧 CHAT 分区
+        val tree = if (engine != null) ALL_TREES[engine.chatDraw(ALL_TREES.size)]
+                   else ALL_TREES[presentationRandom.nextInt(ALL_TREES.size)]
         conversationTree = tree
-        greetingText = tree.greetingVariants.randomOne()
+        greetingText = tree.greetingVariants.randomOne(presentationRandom)
         currentNode = tree.nodes[tree.rootNodeId]
     }
 
     fun onOptionClick(option: ConversationOption) {
         if (isChatDone) return
+        if (engine == null) return
         chatMessages += ChatMsg(text = option.text, isPlayer = true); visibleCount = chatMessages.size
-        val outcome = option.outcomes.randomOne()
-        chatMessages += ChatMsg(text = outcome.replyVariants.randomOne(), isPlayer = false)
-        visibleCount = chatMessages.size
+        scope.launch {
+            // 结果分支选择 = 决策类（效果模板）⇒ CHAT 分区
+            val outcome = option.outcomes[engine.chatDraw(option.outcomes.size)]
+            chatMessages += ChatMsg(text = outcome.replyVariants.randomOne(presentationRandom), isPlayer = false)
+            visibleCount = chatMessages.size
 
-        if (outcome.nextNodeId == END_NODE) {
-            val rawEffect = outcome.effects ?: ConversationEffect()
-            val randomized = if (hasCooldown) ConversationEffect() else randomizeEffect(rawEffect)
+            if (outcome.nextNodeId == END_NODE) {
+                val rawEffect = outcome.effects ?: ConversationEffect()
+                val randomized = if (hasCooldown) ConversationEffect() else randomizeEffect(engine, rawEffect)
 
-            val skills = viewModel?.disciple?.getDiscipleById(disciple.id)?.sourceRef?.skills
-            val (e, blocked) = capEffectBySkills(randomized, skills)
+                val skills = viewModel?.disciple?.getDiscipleById(disciple.id)?.sourceRef?.skills
+                val (e, blocked) = capEffectBySkills(randomized, skills)
 
-            currentEffectAnnotated = buildConversationEffectText(hasCooldown, e, blocked)
+                currentEffectAnnotated = buildConversationEffectText(hasCooldown, e, blocked)
 
-            if (!e.isZero) viewModel?.disciple?.applyConversationEffects(
-                discipleId = disciple.id, currentYear = gameYear,
-                moralityDelta = e.moralityDelta, loyaltyDelta = e.loyaltyDelta,
-                cultivationDelta = e.cultivationDelta, intelligenceDelta = e.intelligenceDelta
-            )
-            val ending = outcome.endingTextVariants.ifEmpty { listOf("多谢宗主。") }.randomOne()
-            chatMessages += ChatMsg(text = ending, isPlayer = false); visibleCount = chatMessages.size
-            isChatDone = true; currentNode = null
-        } else {
-            val next = conversationTree?.nodes?.get(outcome.nextNodeId)
-            if (next != null) {
-                currentNode = next
-            } else {
+                if (!e.isZero) viewModel?.disciple?.applyConversationEffects(
+                    discipleId = disciple.id, currentYear = gameYear,
+                    moralityDelta = e.moralityDelta, loyaltyDelta = e.loyaltyDelta,
+                    cultivationDelta = e.cultivationDelta, intelligenceDelta = e.intelligenceDelta
+                )
+                val ending = outcome.endingTextVariants.ifEmpty { listOf("多谢宗主。") }.randomOne(presentationRandom)
+                chatMessages += ChatMsg(text = ending, isPlayer = false); visibleCount = chatMessages.size
                 isChatDone = true; currentNode = null
+            } else {
+                val next = conversationTree?.nodes?.get(outcome.nextNodeId)
+                if (next != null) {
+                    currentNode = next
+                } else {
+                    isChatDone = true; currentNode = null
+                }
             }
         }
     }

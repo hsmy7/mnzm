@@ -65,8 +65,10 @@ internal val w4ADomainEvidence: Map<Domain, List<String>> = mapOf(
         "DiscipleStatusService.kt:225/:279/:373 派生同步 — native 臂就位（1747/1748，派生列唯一计算方 = C++）",
         "GameEngineBloodRefinementOps.kt:60 血炼启动 — native 臂就位（1746）；残差=Gate 释放+Room 清理",
         "GameEngineManualOps.kt:139 replaceManual — native 臂就位（1745）；残差=替换日志草稿",
-        // A1 未收口（A5 处置，形参化/分区化路线）：
-        "GameEngineCoordination.kt:99 updateDisciple — 交谈效果写者（DiscipleChatDialog 决策类，A5 分区化）+ 无其他调用方",
+        // A5 处置记录（形参化/分区化路线——ADR 阶段 3 口径）：
+        "GameEngineCoordination.kt:99 updateDisciple — 交谈效果写者仍为 Kotlin（决策写不上沉，1850–1854 退段空置）；" +
+            "决策类抽取已改 RngPartition.CHAT 引擎侧签发（GameEngineConversationDraw），文本变体走 PresentationRandom——" +
+            "随机源达规（R1/R3），写入面留待弟子通道关闭决策（W4-D，红线 13）",
     ),
     Domain.PRODUCTION to listOf(
         "ProductionProcessorCleaOps3.kt:291 alignMirrorFromRepository — 月结前 repo→镜像整表对齐",
