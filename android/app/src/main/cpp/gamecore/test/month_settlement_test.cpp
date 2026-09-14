@@ -2046,12 +2046,17 @@ TEST(RecruitAutoRecruit, CaptiveGearMaterializedToInstances) {
     st.disciples.appendDisciple(adultDisciple("11", "male"));
     st.disciples.appendDisciple(adultDisciple("12", "female"));
 
+    // 实例 id 确定性自增 = 进程级计数器（W4-A 起测试 TU 注册序跨工具链不可靠，
+    // 先行者会合法消耗计数器）⇒ 断言「执行前计数 +1」而非字面 gc-inst-1
+    //（孤立运行时两者等价；语义不变）
+    const auto gcInstBefore = gamecore::system::itemIdCounterRegistry()["gc-inst"];
     processAutoRecruit(st);
 
     // 装备实例落库 + 槽位列回写（实例 id 确定性自增）
     ASSERT_EQ(1u, st.equipmentInstances.size());
     EXPECT_EQ("精铁剑", st.equipmentInstances[0].name);   // ironSword 模板显示名
-    EXPECT_EQ("gc-inst-1", st.equipmentInstances[0].id);
+    EXPECT_EQ("gc-inst-" + std::to_string(gcInstBefore + 1),
+              st.equipmentInstances[0].id);
     EXPECT_EQ(true, st.equipmentInstances[0].isEquipped);
     ASSERT_EQ(3u, st.disciples.size());
     const auto& d = st.disciples.materialize(2);

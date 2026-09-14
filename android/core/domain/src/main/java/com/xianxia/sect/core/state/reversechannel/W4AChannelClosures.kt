@@ -54,13 +54,19 @@ internal val w4ADomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.ROAD to listOf(
         "RoadFacadeImpl.kt:67/:85 placeRoad/removeRoad — native 臂后的槽位/回执残差（road_tx 已下沉）",
     ),
+    // W4-A·A1（w3-01）后：弟子操作面写者已全部获得 C++ 真相先行臂
+    //（Kotlin 原路径降级为回退臂；信封残差 = lifeEvents 瞬态列回写 +
+    // 偷盗判定钩子（执法域不下沉）+ Gate/Room 运行态）。通道本身（弟子行）
+    // 的关闭动作按红线 13 统一在 W4-D 执行。
     Domain.DISCIPLE to listOf(
-        "GameEngineCoordination.kt:99/:120/:138 — 弟子属性/改名/类型直改（无 native 臂）",
-        "DiscipleFacadeImpl战斗Ops2.kt:93/:119/:138/:157/:271 — 赏赐/服药 UI 直调（无 native 臂）",
-        "DiscipleStatusService.kt:225/:279/:373 — 槽位状态派生同步族（稳态）",
-        "DiscipleSlotManager.kt:59、DiscipleLifecycleNativeTx.kt:132 — native 事务后残差",
-        "GameEngineBloodRefinementOps.kt:60 startBloodRefinementAtomic — 血炼启动清槽（UI 直改）",
-        "GameEngineManualOps.kt:139 replaceManual — 功法替换（活 UI，无 native 臂；2026-09-15 核查新增）",
+        // A1 已收口（native 臂就位，以下为回执驱动残差记录）：
+        "GameEngineCoordination.kt:120/:138 rename/type — native 臂就位（1740/1741）；回退臂保留",
+        "DiscipleFacadeImpl战斗Ops2.kt:93/:119/:138/:157/:271 赏赐/服药 — native 臂就位（1743/1744）；残差=日志草稿+偷盗钩子",
+        "DiscipleStatusService.kt:225/:279/:373 派生同步 — native 臂就位（1747/1748，派生列唯一计算方 = C++）",
+        "GameEngineBloodRefinementOps.kt:60 血炼启动 — native 臂就位（1746）；残差=Gate 释放+Room 清理",
+        "GameEngineManualOps.kt:139 replaceManual — native 臂就位（1745）；残差=替换日志草稿",
+        // A1 未收口（A5 处置，形参化/分区化路线）：
+        "GameEngineCoordination.kt:99 updateDisciple — 交谈效果写者（DiscipleChatDialog 决策类，A5 分区化）+ 无其他调用方",
     ),
     Domain.PRODUCTION to listOf(
         "ProductionProcessorCleaOps3.kt:291 alignMirrorFromRepository — 月结前 repo→镜像整表对齐",

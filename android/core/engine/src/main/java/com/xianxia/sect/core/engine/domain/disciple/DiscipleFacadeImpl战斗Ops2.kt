@@ -13,6 +13,10 @@ import com.xianxia.sect.core.model.storageBagSpiritStones
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.model.BagStackedData
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.long
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.str
+import kotlinx.serialization.json.put
 
 /** 持续/临时战斗属性丹效果：面板加成 + 持续时间 */
 // ── DiscipleFacadeImpl 拆分域 2/2（行为零变更） ──
@@ -90,6 +94,22 @@ internal fun MutableGameState.applyClearAllEffect(id: Int) {
 }
 
 internal fun DiscipleFacadeImpl.rewardPill(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    // C++ 真相先行（W4-A·w3-01：扣仓库 + 生效/入袋同一事务；pill 走 facade
+    // 丹药链；失败信封/降级 null → Kotlin 原路径回退臂重执行同义静默链）
+    val native = tryDiscipleOpsTxNative(ActionIds.DISCIPLE_OP_REWARD_ITEM) {
+        put("discipleId", discipleId)
+        put("itemType", "pill")
+        put("itemId", item.id)
+        put("quantity", quantity)
+    }
+    if (native != null) {
+        applyTheftHookResidual(
+            discipleId = discipleId,
+            theftCandidate = native.str("theftCandidate") == "true",
+            moralityAfter = native.long("moralityAfter")?.toInt() ?: 0,
+        )
+        return
+    }
     stateStore.update {
         val pill = pills.get(item.id)
         if (pill == null || pill.quantity < quantity) return@update
@@ -116,6 +136,7 @@ internal fun DiscipleFacadeImpl.rewardPill(discipleId: String, item: RewardSelec
 }
 
 internal fun DiscipleFacadeImpl.rewardMaterial(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    if (tryNativeReward(discipleId, "material", item, quantity)) return
     stateStore.update {
         // 先校验弟子存在再扣仓库：无效 id 时仓库不被扣减（物品不消失）
         val id = discipleId.toIntOrNull() ?: return@update
@@ -135,6 +156,7 @@ internal fun DiscipleFacadeImpl.rewardMaterial(discipleId: String, item: RewardS
 }
 
 internal fun DiscipleFacadeImpl.rewardHerb(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    if (tryNativeReward(discipleId, "herb", item, quantity)) return
     stateStore.update {
         // 先校验弟子存在再扣仓库：无效 id 时仓库不被扣减（物品不消失）
         val id = discipleId.toIntOrNull() ?: return@update
@@ -154,6 +176,7 @@ internal fun DiscipleFacadeImpl.rewardHerb(discipleId: String, item: RewardSelec
 }
 
 internal fun DiscipleFacadeImpl.rewardSeed(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    if (tryNativeReward(discipleId, "seed", item, quantity)) return
     stateStore.update {
         // 先校验弟子存在再扣仓库：无效 id 时仓库不被扣减（物品不消失）
         val id = discipleId.toIntOrNull() ?: return@update
@@ -171,6 +194,7 @@ internal fun DiscipleFacadeImpl.rewardSeed(discipleId: String, item: RewardSelec
         )
     }
 }
+
 
 /** 目标亲传槽旧 occupant 读取：槽位扩容前的原始列表 */
 internal fun DiscipleFacadeImpl.getElderSlotOccupant(
@@ -267,6 +291,26 @@ internal fun DiscipleFacadeImpl.getDirectDiscipleId(elderSlotType: String, slotI
 }
 
 internal fun DiscipleFacadeImpl.usePill(discipleId: String, pillId: String) {
+    // C++ 真相先行（canUsePill 资格链 + 扣仓库 + facade 丹药链在 C++；
+    // 失败信封/降级 null → Kotlin 原路径回退臂重执行同义静默链）
+    val native = tryDiscipleOpsTxNative(ActionIds.DISCIPLE_OP_USE_PILL) {
+        put("discipleId", discipleId)
+        put("pillId", pillId)
+    }
+    if (native != null) {
+        // 残差：服药日志草稿回写 + 偷盗判定钩子（moralityAdd 落表后即时判定，
+        // C++ 不下沉执法域；以镜像刷新后的状态原序执行）
+        val logLine = native.str("logLine")
+        stateStore.update {
+            appendOpsLifeEventDraft(discipleId, logLine)
+        }
+        applyTheftHookResidual(
+            discipleId = discipleId,
+            theftCandidate = native.str("theftCandidate") == "true",
+            moralityAfter = native.long("moralityAfter")?.toInt() ?: 0,
+        )
+        return
+    }
     gameEngineCore.launchInScope {
         stateStore.update {
             val pill = pills.get(pillId) ?: return@update

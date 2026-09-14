@@ -512,4 +512,31 @@ object ActionIds {
     /** 开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin） */
     const val STORAGE_BAG_OPEN_TX: Int = 1734
 
+    /** 弟子改名事务（names行写+招募列表isSamePerson同人净化——按改名前身份） */
+    const val DISCIPLE_OP_RENAME: Int = 1740
+
+    /** 弟子类型直改事务（discipleTypes行写；状态推导由Kotlin调用方原序执行） */
+    const val DISCIPLE_OP_CHANGE_TYPE: Int = 1741
+
+    /** 弟子关注切换事务（statusData["followed"]翻转；返回followedAfter） */
+    const val DISCIPLE_OP_TOGGLE_FOLLOW: Int = 1742
+
+    /** 赏赐物品事务（pill/material/herb/seed四路合一：扣仓库+生效或入袋同一事务；pill走facade丹药链） */
+    const val DISCIPLE_OP_REWARD_ITEM: Int = 1743
+
+    /** 服药事务（canUsePill资格链+扣仓库+facade丹药链+服药日志草稿；moralityAfter回传供偷盗钩子判定） */
+    const val DISCIPLE_OP_USE_PILL: Int = 1744
+
+    /** 功法替换事务（七链校验+堆叠扣减+实例铸造+熟练度清理+旧实例入袋+替换日志草稿） */
+    const val DISCIPLE_OP_REPLACE_MANUAL: Int = 1745
+
+    /** 血炼启动原子事务（灵石/材料/排他校验链+11类槽位清理+进度写入+REFINING状态） */
+    const val DISCIPLE_OP_START_BLOOD_REFINEMENT: Int = 1746
+
+    /** 单弟子状态派生同步事务（14 flag推导+positionName定向写删——派生列唯一计算方） */
+    const val DISCIPLE_OP_SYNC_STATUS: Int = 1747
+
+    /** 全量弟子状态派生同步事务（含fixInvalidMiningSlots前置自愈） */
+    const val DISCIPLE_OP_SYNC_ALL_STATUSES: Int = 1748
+
 }
