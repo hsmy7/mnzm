@@ -75,8 +75,17 @@ internal val w4ADomainEvidence: Map<Domain, List<String>> = mapOf(
         "ProductionProcessor构筑Ops2.kt:405 validateAutoSlot / :250/:341 — 自动续炼槽位写者",
     ),
     Domain.LIFE_CYCLE to listOf(
-        "DiscipleLifecycleProcessor.kt:489 — 弟子槽位清理（偷盗叛逃事务内 + 永久属性丹两路稳态）",
-        "DiscipleLifecycleManager.kt:100/:121 — 月变自动装备 lifeEvent / UI 查看补写",
-        "GameEngine.kt:277/:306 婚姻提议审批/拒绝（C++ 事务未接线，玩家审批只走 Kotlin）",
+        // A2（w3-02）已收口——批准/拒绝 native 臂就位，槽位清理双路核对，lifeEvent 分类登记：
+        "GameEngine.kt:276 approveMarriageProposal — native 臂就位（batch-14 就绪地基 1592 接线）；" +
+            "提议移除留 Kotlin（运行态字段）；NotFound 幽灵列边界回退原路径（batch-14 口径）",
+        "GameEngine.kt:306 rejectMarriageProposal — native 臂就位（1750 MARRIAGE 拒绝事件直写）；" +
+            "零弟子表写入/零 RNG/无失败臂；提议移除留 Kotlin",
+        "DiscipleLifecycleProcessor.kt:489 clearDiscipleFromAllSlots — 双路核对结论：结算偷盗叛逃链" +
+            "（含 11 类槽位清理）已由 C++ 结算直辖（month_settlement.h:1257），Kotlin 链为回退臂；" +
+            "UI 丹药偷盗钩子（执法域）按 batch-14/A1 口径不下沉、Kotlin 原序执行；" +
+            "本函数仅 Gate/Room 运行态残差（幂等，镜像零写入）——无协议列稳态写者",
+        "DiscipleLifecycleManager.kt:100/:121 addLifeEvent/initializeLifeEvents — 分类②纯表现：" +
+            "lifeEvents 为 @Ignore 非序列化列（DiscipleSerializer.kt:28，非协议字段），零协议列写者" +
+            "（batch-14 审计同结论）——不进 C++、不需回导、不设关闭单元",
     ),
 )

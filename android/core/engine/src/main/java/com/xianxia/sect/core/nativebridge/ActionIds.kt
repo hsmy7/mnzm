@@ -539,4 +539,7 @@ object ActionIds {
     /** 全量弟子状态派生同步事务（含fixInvalidMiningSlots前置自愈） */
     const val DISCIPLE_OP_SYNC_ALL_STATUSES: Int = 1748
 
+    /** 婚姻拒绝事务（MARRIAGE拒绝事件直写；零弟子表写入/零RNG/无失败臂；提议移除留Kotlin运行态） */
+    const val DISCIPLE_LIFECYCLE_MARRY_REJECT: Int = 1750
+
 }

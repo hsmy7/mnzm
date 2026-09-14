@@ -517,6 +517,20 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **验收（实跑）**: 桌面 C++ **1346/1346**（含 rng_test 分区计数更新）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（**rngStates 10 键跨语言对拍一致**）；守卫 6 用例绿；六模块 detekt 绿；`:core:domain`/`:core:data`/`:feature:game`/`:app` 回归绿。
 
+## 2.62.2 W4-A 第三子批 A2（2026-09-15，tag `w4a/03`）：w3-02 弟子生命周期第二波——婚姻批准接线 + 拒绝事务下沉 + 槽位清理双路核对 + lifeEvent 分类登记
+
+批次: W4-A | ActionId: **1750**（`DISCIPLE_LIFECYCLE_MARRY_REJECT`；婚姻批准走 batch-14 就绪地基 **1592** 接线不占新号；179 动作 / maxId=1750） | 产物: 改 `disciple_lifecycle_tx.h`（+`rejectMarriageTransaction`）、`dispatch_w4a.cpp`（+1750 handler）、`GameEngine.kt`（批准/拒绝 native 臂——**租约文件**，§5.4 第一顺位已登记）、`disciple_lifecycle_tx_test.cpp`（+2 拒绝用例）、`w4a.mjs` + 两生成物；新 `GameEngineMarriageNativeTxGateTest.kt`；改 `W4AChannelClosures.kt`（LIFE_CYCLE 证据改写）
+
+**婚姻批准（低成本起手项落地）**: C++ 事务 `DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592`（batch-14 起 handler + 3 GTest 一直在位，Kotlin 侧零引用）本批接线 native 臂——提议存在性前置 + 名字捕获（StateFlow 读，生产 `GameStateStoreImpl` reusableMutableState 事务间持久化 + `proposalsChanged` 发射）→ C++ 配对 + MARRIAGE 事件直写 → Kotlin 仅移除提议（运行态字段）。**NotFound 幽灵列边界**（提议残留 + 弟子已亡/被逐：Kotlin 原路径写幽灵列条目、SoA 行式无法表达）→ 失败信封回退 Kotlin 原路径保行为（batch-14 口径，零语义变更）。
+
+**婚姻拒绝（新事务 1750）**: `rejectMarriageTransaction` = MARRIAGE 拒绝事件直写（`settle_util::recordGameEvent` 完整守卫对齐），**零弟子表写入 / 零 RNG / 无失败臂**——弟子行不存在边界不产生幽灵列（与批准事务对照：批准需写行故 NotFound 回退，拒绝无行写可直达）；提议移除留 Kotlin。GTest 2 例：事件字段逐项断言 + 零弟子表写入（partnerIds/行集合/rngStates 快照差分）。
+
+**槽位清理双路核对（计划 A2 第 3 行，核对型交付）**: `DiscipleLifecycleProcessor.clearDiscipleFromAllSlots` 的偷盗叛逃路——**结算链已由 C++ 直辖**（`month_settlement.h:1257` 叛逃段含 11 类槽位清理 + 实例销毁 + 行删除 + 年报计数，先前批次交付），Kotlin 月结链为回退臂；UI 丹药偷盗钩子按 A1 口径不下沉（执法域，信封 theftCandidate 回传 Kotlin 原序执行）；永久属性丹路经 `applyBaseAttrEffects → processSingleDiscipleTheft` 同域同口径。双重清槽防御 = 行删除后 assemble 幽灵行跳过 + 残差幂等（`tryNativeExpelDisciple` 残差在已刷新镜像上零命中）——无新增代码，核对结论登记 `W4AChannelClosures.kt`。
+
+**lifeEvent 补写分类（计划 A2 第 4 行，登记型交付）**: `addLifeEvent`（月变自动装备）与 `initializeLifeEvents`（UI 查看补写）写目标 `lifeEvents` 为 **`@Ignore` 非序列化列**（`DiscipleSerializer.kt:28`，非协议字段）——分类 **② 纯表现**，与 batch-14 审计结论一致（"Kotlin 单源域，零协议列写者"）：不进 C++、不需回导、不设关闭单元。月变自动装备链本体在 AUTHORITATIVE 下已由 C++ 旬结直辖（`phase_settlement.h:1397`），Kotlin 链为回退臂。
+
+**验收（实跑）**: 桌面 C++ **1348/1348**（基线 1346 + 拒绝 2 例；单进程直跑复核）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（含 47 个 `Diff*` 类）；六模块 detekt 绿（baseline 0 增长）；`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；`node scripts/gen-action-ids.mjs` 幂等（连跑两次产物零漂移）；冻结清单机检：`git diff w4-base` 无任何冻结/宿主/协议面文件（`GameEngine.kt` 为租约文件、租约表已登记）。
+
 ## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
 
 批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）

@@ -59,7 +59,7 @@
 | 批次 | 资源 | 字段 / 函数 | 起止提交 | 理由 | 状态 |
 |---|---|---|---|---|---|
 | W4-C | `models.h` + `json_codec.cpp` + `game_core.{h,cpp}` + `GameData.kt` + `GameDatabase.kt` | `mapGenVersion`、地形段（RLE 存储编码）、`ensureTerrainGenerated`、`@Database` 50→51 + `MIGRATION_50_51` | 待 W4-C 开工 | WS-5b 地图冻结（已拍板完整业界方案） | **预留（第一顺位）** |
-| W4-A | `GameEngine.kt` | `:276/:277/:305/:306` 婚姻提议审批/拒绝接线 native 臂 | 待 W4-A 开工 | w3-02 低成本起手项（C++ 事务 `DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592` 已就绪未接线） | **预留（第一顺位）** |
+| W4-A | `GameEngine.kt` | `:276/:277/:305/:306` 婚姻提议审批/拒绝接线 native 臂 | w4a/03（A2 子批，起止同一提交） | w3-02 低成本起手项（C++ 事务 `DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592` 已就绪未接线） | **已释放（w4a/03）** |
 | （空） | | | | | |
 
 > 登记后请把「状态」改为 `进行中（<批次> <起始提交>）`；完成后改为 `已释放`。
