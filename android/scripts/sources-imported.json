@@ -1691,11 +1691,11 @@
     },
     {
       "drawable": "ui_diplomacy_button",
-      "source": "ui/外交按钮（圆形）.png",
-      "hash": "bb4ddf258bce9b3c39b4a8fe6138357a",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":942}}",
-      "width": 1024,
-      "height": 942
+      "source": "ui/外交.png",
+      "hash": "254b50d02b114c95c6e7e9e5bf3d00b1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1125,\"height\":1024}}",
+      "width": 1125,
+      "height": 1024
     },
     {
       "drawable": "ui_guide_button",
@@ -1723,11 +1723,11 @@
     },
     {
       "drawable": "ui_warehouse_button",
-      "source": "ui/仓库按钮.png",
-      "hash": "8d7e53605aa2075aed9b49d32efb4a3b",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1448,\"height\":1394}}",
-      "width": 1448,
-      "height": 1394
+      "source": "ui/仓库.png",
+      "hash": "efceaeba13172c89d23911375368d71d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1064,\"height\":922}}",
+      "width": 1064,
+      "height": 922
     },
     {
       "drawable": "ui_team_button",
@@ -1747,11 +1747,11 @@
     },
     {
       "drawable": "ui_planting_button",
-      "source": "ui/种植按钮.png",
-      "hash": "919d7d3f980a621a4d915c1ae3b4d519",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1221}}",
-      "width": 1254,
-      "height": 1221
+      "source": "ui/种植ui.png",
+      "hash": "97c7d68c683627b68fb9c0f441540f54",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1848}}",
+      "width": 2048,
+      "height": 1848
     },
     {
       "drawable": "ui_recruit_button",
@@ -1764,10 +1764,10 @@
     {
       "drawable": "ui_mail_button",
       "source": "ui/邮件.png",
-      "hash": "a4228dfc8c358d58a759946cc3b01604",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1254}}",
+      "hash": "e121c52b665e284fa97b54a82d4023f1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":918}}",
       "width": 1254,
-      "height": 1254
+      "height": 918
     },
     {
       "drawable": "ui_log_button",
@@ -1984,6 +1984,54 @@
       "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":909,\"height\":886}}",
       "width": 909,
       "height": 886
+    },
+    {
+      "drawable": "ui_menubar",
+      "source": "ui/菜单栏ui.png",
+      "hash": "f071b2acd7ab56a82c463bf20abb9534",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1984,\"height\":320}}",
+      "width": 1984,
+      "height": 320
+    },
+    {
+      "drawable": "ui_recruit_once",
+      "source": "ui/普通招募一次ui.png",
+      "hash": "2aba7ef15fb2ba0d415f9b0bc8542a37",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2172,\"height\":724}}",
+      "width": 2172,
+      "height": 724
+    },
+    {
+      "drawable": "ui_recruit_ten",
+      "source": "ui/普通招募十次ui.png",
+      "hash": "266c989c85bcc4b07df7d91145ad001f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2172,\"height\":724}}",
+      "width": 2172,
+      "height": 724
+    },
+    {
+      "drawable": "ui_recruit_tab",
+      "source": "ui/普通招募标签ui.png",
+      "hash": "4ca44890e78bd3c0a9f55fff9fe240b6",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2172,\"height\":724}}",
+      "width": 2172,
+      "height": 724
+    },
+    {
+      "drawable": "ui_recruit_odds",
+      "source": "ui/招募概率公示ui.png",
+      "hash": "a6d9b2ba7cc8bfe9ea3f9d7e65fcd1de",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1536,\"height\":470}}",
+      "width": 1536,
+      "height": 470
+    },
+    {
+      "drawable": "ui_recruit_history",
+      "source": "ui/招募历史记录ui.png",
+      "hash": "b636ac1f75425bead259de52b4d972fc",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1536,\"height\":474}}",
+      "width": 1536,
+      "height": 474
     },
     {
       "drawable": "tiger_beast",
@@ -2264,6 +2312,14 @@
       "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1536,\"height\":1024}}",
       "width": 1536,
       "height": 1024
+    },
+    {
+      "drawable": "bg_recruit_normal",
+      "source": "背景图/普通招募背景图.png",
+      "hash": "54d7f0238a58c05571c52235eb91be12",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1672,\"height\":941}}",
+      "width": 1672,
+      "height": 941
     },
     {
       "drawable": "cloud_1",

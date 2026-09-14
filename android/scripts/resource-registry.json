@@ -298,7 +298,13 @@
         { "name": "ui_enter", "res": "ui_enter" },
         { "name": "ui_planting", "res": "ui_planting" },
         { "name": "ui_alchemy", "res": "ui_alchemy" },
-        { "name": "ui_forge", "res": "ui_forge" }
+        { "name": "ui_forge", "res": "ui_forge" },
+        { "name": "ui_menubar", "res": "ui_menubar" },
+        { "name": "ui_recruit_once", "res": "ui_recruit_once" },
+        { "name": "ui_recruit_ten", "res": "ui_recruit_ten" },
+        { "name": "ui_recruit_tab", "res": "ui_recruit_tab" },
+        { "name": "ui_recruit_odds", "res": "ui_recruit_odds" },
+        { "name": "ui_recruit_history", "res": "ui_recruit_history" }
       ]
     },
     {
@@ -354,7 +360,8 @@
         { "name": "dialogue_bg", "res": "dialogue_bg" },
         { "name": "dialogue_bubble_left", "res": "dialogue_bubble_left" },
         { "name": "dialogue_bubble_right", "res": "dialogue_bubble_right" },
-        { "name": "secret_realm_bg", "res": "secret_realm_bg" }
+        { "name": "secret_realm_bg", "res": "secret_realm_bg" },
+        { "name": "bg_recruit_normal", "res": "bg_recruit_normal" }
       ]
     },
     {

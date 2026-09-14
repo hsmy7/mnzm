@@ -2413,7 +2413,7 @@
         },
         {
           "drawable": "ui_diplomacy_button",
-          "source": "ui/外交按钮（圆形）.png",
+          "source": "ui/外交.png",
           "modules": [
             "feature/game",
             "app"
@@ -2457,7 +2457,7 @@
         },
         {
           "drawable": "ui_warehouse_button",
-          "source": "ui/仓库按钮.png",
+          "source": "ui/仓库.png",
           "modules": [
             "feature/game",
             "app"
@@ -2490,7 +2490,7 @@
         },
         {
           "drawable": "ui_planting_button",
-          "source": "ui/种植按钮.png",
+          "source": "ui/种植ui.png",
           "modules": [
             "feature/game",
             "app"
@@ -2810,6 +2810,72 @@
         {
           "drawable": "ui_forge",
           "source": "ui/锻造ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_menubar",
+          "source": "ui/菜单栏ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_recruit_once",
+          "source": "ui/普通招募一次ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_recruit_ten",
+          "source": "ui/普通招募十次ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_recruit_tab",
+          "source": "ui/普通招募标签ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_recruit_odds",
+          "source": "ui/招募概率公示ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_recruit_history",
+          "source": "ui/招募历史记录ui.png",
           "modules": [
             "feature/game",
             "app"
@@ -3215,6 +3281,17 @@
         {
           "drawable": "secret_realm_bg",
           "source": "背景图/远古秘境背景图.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "bg_recruit_normal",
+          "source": "背景图/普通招募背景图.png",
           "modules": [
             "feature/game",
             "app"
