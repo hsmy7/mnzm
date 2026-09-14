@@ -300,7 +300,8 @@ class MissionSystemTest {
         val result = MissionSystem.processMissionCompletion(
             activeMission = activeMission,
             disciples = emptyList(),
-            rng = gameRng.getRng(RngPartition.MISSION)
+            rng = gameRng.getRng(RngPartition.MISSION),
+            rngManager = gameRng
         )
         assertEquals(600, result.spiritStones)
         assertTrue(result.materials.isEmpty())
@@ -333,7 +334,8 @@ class MissionSystemTest {
         val result = MissionSystem.processMissionCompletion(
             activeMission = activeMission,
             disciples = emptyList(),
-            rng = gameRng.getRng(RngPartition.MISSION)
+            rng = gameRng.getRng(RngPartition.MISSION),
+            rngManager = gameRng
         )
         assertEquals(300, result.spiritStones)
         assertTrue(result.victory)

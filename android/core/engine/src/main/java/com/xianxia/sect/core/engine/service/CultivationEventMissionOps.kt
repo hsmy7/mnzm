@@ -81,7 +81,8 @@ internal fun CultivationEventProcessor.collectCompletedMissionRewards(
                 val result = MissionSystem.processMissionCompletion(
                     activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem,
                     stateStore.gameData.value.bloodRefinementPctTotals,
-                    rngManager.getRng(RngPartition.MISSION)
+                    rngManager.getRng(RngPartition.MISSION),
+                    rngManager = rngManager
                 )
                 // 仅收集奖励，不再调用 inventorySystem.addXxx（统一到 Phase 2 单事务处理）
                 val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {

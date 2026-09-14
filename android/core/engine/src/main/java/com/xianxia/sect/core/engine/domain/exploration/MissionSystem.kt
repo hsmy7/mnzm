@@ -175,17 +175,20 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
         battleSystem: BattleSystem? = null,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        rng: DeterministicRng,
+        // W4-C 随机源收敛：人形敌人生成（EnemyGenerator）的 ENEMY_GEN 分区
+        // 改由调用方经 rngManager 透传（顶层可变 enemyGenRngManager 已摘除）
+        rngManager: GameRngManager
     ): MissionResult {
         return when (activeMission.missionType) {
             MissionType.NO_COMBAT -> processNoCombatMission(activeMission, rng)
             MissionType.COMBAT_REQUIRED -> processCombatRequiredMission(
                 activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-                battleSystem, bloodRefinementMap, rng
+                battleSystem, bloodRefinementMap, rng, rngManager
             )
             MissionType.COMBAT_RANDOM -> processCombatRandomMission(
                 activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-                battleSystem, bloodRefinementMap, rng
+                battleSystem, bloodRefinementMap, rng, rngManager
             )
         }
     }
@@ -212,11 +215,12 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        rng: DeterministicRng,
+        rngManager: GameRngManager
     ): MissionResult {
         val battleResult = executeMissionBattle(
             activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-            battleSystem, bloodRefinementMap, rng
+            battleSystem, bloodRefinementMap, rng, rngManager
         ) ?: return MissionResult(victory = false)
 
         if (!battleResult.victory) {
@@ -254,7 +258,8 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        rng: DeterministicRng,
+        rngManager: GameRngManager
     ): MissionResult {
         val triggered = rng.nextDouble() < activeMission.triggerChance
 
@@ -273,7 +278,7 @@ object MissionSystem {
 
         val battleResult = executeMissionBattle(
             activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-            battleSystem, bloodRefinementMap, rng
+            battleSystem, bloodRefinementMap, rng, rngManager
         ) ?: return MissionResult(combatTriggered = true, victory = false)
 
         if (!battleResult.victory) {
@@ -311,7 +316,8 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        rng: DeterministicRng,
+        rngManager: GameRngManager
     ): BattleSystemResult? {
         if (battleSystem == null) return null
 
@@ -341,7 +347,7 @@ object MissionSystem {
                 val humanCount = activeMission.template.humanCountRange.first + rng.nextInt(
                     activeMission.template.humanCountRange.last - activeMission.template.humanCountRange.first + 1
                 )
-                val enemies = EnemyGenerator.generateHumanEnemies(realmMin, realmMax, humanCount)
+                val enemies = EnemyGenerator.generateHumanEnemies(realmMin, realmMax, humanCount, rngManager)
                 val team = disciples.map { disciple ->
                     battleSystem.convertDiscipleToCombatant(
                         disciple, equipmentMap, manualMap, manualProficiencies,

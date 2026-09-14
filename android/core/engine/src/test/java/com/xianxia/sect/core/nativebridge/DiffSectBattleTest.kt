@@ -8,9 +8,9 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.engine.domain.battle.Combatant
-import com.xianxia.sect.core.engine.domain.battle.aisRngManager
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -151,11 +151,11 @@ class DiffSectBattleTest {
         attackers: List<Combatant>,
         defenders: List<Combatant>
     ) {
-        // ── Kotlin 臂：aisRngManager 注入固定种子（BATTLE 分区 = fromSeed(seed)） ──
+        // ── Kotlin 臂：BATTLE 分区固定种子（fromSeed(seed)，经形参传入——W4-C 随机源收敛） ──
         val rngManager = GameRngManager().apply { initSystemSeed(seed) }
-        aisRngManager = rngManager
+        val battleRng = rngManager.getRng(RngPartition.BATTLE)
         try {
-            val kResult = AISectAttackManager.executeUnifiedAIBattle(attackers, defenders)
+            val kResult = AISectAttackManager.executeUnifiedAIBattle(attackers, defenders, battleRng)
 
             // ── C++ 臂：g_rng 同种子 ──
             DiffRngBridge.nativeFromSeed(seed)
@@ -209,7 +209,7 @@ class DiffSectBattleTest {
                 }
             }
         } finally {
-            aisRngManager = null
+            // W4-C 随机源收敛：顶层 aisRngManager 已摘除，无需清理全局注入
         }
     }
 

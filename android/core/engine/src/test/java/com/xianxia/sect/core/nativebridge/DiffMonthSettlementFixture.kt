@@ -68,16 +68,16 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 internal const val DIFF_MONTH_PHASES = 3
 
 /**
- * 任务域全局 RNG 注入——EnemyGenerator 的 ENEMY_GEN 顶层管理器在 harness 装配时
- * 指向本臂 gameRng（任务完成对拍场景消费该分区；幂等，重复装配以最后一次为准）。
+ * 任务域 RNG（历史口径，W4-C 已收敛）：
+ * 原 `initMissionDomainRng` 将 EnemyGenerator 的 ENEMY_GEN 顶层管理器指向本臂
+ * gameRng；W4-C 随机源收敛后 ENEMY_GEN 分区改为**形参必传**（生产链
+ * MissionSystem ← GameEngineMissionOps 透传引擎自身 `GameRngManager`），
+ * 可变全局已摘除，本函数随之删除。
  *
- * **`MissionSystem` 不在此列**：其 MISSION 分区消费已改为**形参必传**
+ * **`MissionSystem` 同理**：其 MISSION 分区消费早已改为**形参必传**
  * （调用方各自透传自己持有的 `GameRngManager`），无可变全局状态可注入——
  * 双引擎同进程时后构造者覆写前者会让一侧的月变消费另一侧的分区。
  */
-internal fun initMissionDomainRng(gameRng: GameRngManager) {
-    com.xianxia.sect.core.engine.domain.battle.enemyGenRngManager = gameRng
-}
 
 /** 真实 AISectBeastAttackProcessor（precomputeTargets 对拍主体） */
 internal fun buildBeastAttackProcessor(
@@ -301,8 +301,10 @@ internal fun buildMonthDiffHarness(
         cultivationRateCalculator = CultivationRateCalculator(store)
     )
     val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
-    // 任务域全局 RNG 注入（见 initMissionDomainRng KDoc）
-    initMissionDomainRng(gameRng)
+    // W4-C 随机源收敛：EnemyGenerator 的 ENEMY_GEN 分区已改形参必传
+    //（原 initMissionDomainRng 全局注入随顶层可变 enemyGenRngManager 一并摘除；
+    // 生产链 MissionSystem ← GameEngineMissionOps 透传引擎自身的 gameRngManager，
+    // harness 侧无需再注入）
     // 真实 AISectBeastAttackProcessor（precomputeTargets 对拍主体；
     // battleSystem/encounterBattleService 用 mock——对拍场景 targets 空
     // 或未触发子事件 9 战斗，processRemainingTargets 纯早退不调用）

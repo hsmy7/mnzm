@@ -17,6 +17,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.putJsonArray
 import com.xianxia.sect.core.util.BattleCalculator
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager.AiBattleRoundOutcome
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager.UnifiedAIBattleResult
@@ -44,7 +45,8 @@ internal fun AISectAttackManager.executeAiCombatantTurn(
     currentAttackers: MutableList<Combatant>,
     currentDefenders: MutableList<Combatant>,
     combatant: Combatant,
-    roundActions: MutableList<BattleLogAction>
+    roundActions: MutableList<BattleLogAction>,
+    rng: DeterministicRng
 ) {
     val isAttacker = combatant.side == CombatantSide.ATTACKER
     val allies = if (isAttacker) currentAttackers else currentDefenders
@@ -65,7 +67,7 @@ internal fun AISectAttackManager.executeAiCombatantTurn(
 
     val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
     val skillDecision = selectAISkill(
-        currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null
+        currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null, rng
     )
     val availableSkill = skillDecision.skill
 
@@ -76,15 +78,15 @@ internal fun AISectAttackManager.executeAiCombatantTurn(
 
     if (availableSkill != null && isSupportSkill) {
         executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap,
-            roundActions)
+            roundActions, rng)
     } else if (availableSkill != null && isAoeSkill) {
-        executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, writeBack)
+        executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, writeBack, rng)
     } else if (availableSkill != null) {
-        val target = selectAITarget(currentCombatant, aliveEnemies, skillDecision.action)
-        executeSingleAttackAction(currentCombatant, target, availableSkill, writeBack)
+        val target = selectAITarget(currentCombatant, aliveEnemies, skillDecision.action, rng)
+        executeSingleAttackAction(currentCombatant, target, availableSkill, writeBack, rng)
     } else {
-        val target = selectAITarget(currentCombatant, aliveEnemies, skillDecision.action)
-        executeNormalAttackAction(currentCombatant, target, writeBack)
+        val target = selectAITarget(currentCombatant, aliveEnemies, skillDecision.action, rng)
+        executeNormalAttackAction(currentCombatant, target, writeBack, rng)
     }
 }
 
@@ -191,7 +193,8 @@ internal fun AISectAttackManager.executeAiRound(
     currentAttackers: MutableList<Combatant>,
     currentDefenders: MutableList<Combatant>,
     startTime: Long,
-    roundNumber: Int
+    roundNumber: Int,
+    rng: DeterministicRng
 ): AiBattleRoundOutcome {
     // 超时保护（对齐 BattleSystem 5000ms）：每旬大量 AI 宗门战在游戏线程执行，
     // 拉锯战（高防低攻）不得无限占用主线程
@@ -211,7 +214,7 @@ internal fun AISectAttackManager.executeAiRound(
     for (combatant in allCombatants) {
         if (combatant.isDead) continue
         executeAiCombatantTurn(
-            attackers, defenders, combatant, roundActions
+            attackers, defenders, combatant, roundActions, rng
         )
         attackers = attackers.filter { !it.isDead }.toMutableList()
         defenders = defenders.filter { !it.isDead }.toMutableList()
@@ -248,10 +251,11 @@ internal fun AISectAttackManager.resolveAiWinner(
 internal fun AISectAttackManager.executeNormalAttackAction(
     attacker: Combatant,
     target: Combatant,
-    ctx: BattleWriteBackContext
+    ctx: BattleWriteBackContext,
+    rng: DeterministicRng
 ) {
     val result = BattleCalculator.calculateCombatantDamage(
-        attacker, target, null, rng = aisRng, enableInstantKill = true
+        attacker, target, null, rng = rng, enableInstantKill = true
     )
     if (result.isInstantKill) {
         val targetIdx = ctx.enemiesIndexMap[target.id]
@@ -328,10 +332,11 @@ internal fun AISectAttackManager.executeSingleAttackAction(
     attacker: Combatant,
     target: Combatant,
     skill: CombatSkill,
-    ctx: BattleWriteBackContext
+    ctx: BattleWriteBackContext,
+    rng: DeterministicRng
 ) {
     val result = BattleCalculator.calculateCombatantDamage(
-        attacker, target, skill, rng = aisRng, enableInstantKill = true
+        attacker, target, skill, rng = rng, enableInstantKill = true
     )
     if (result.isInstantKill) {
         val targetIdx = ctx.enemiesIndexMap[target.id]
@@ -425,14 +430,15 @@ internal fun AISectAttackManager.executeAoeAttackAction(
     attacker: Combatant,
     targets: List<Combatant>,
     skill: CombatSkill,
-    ctx: BattleWriteBackContext
+    ctx: BattleWriteBackContext,
+    rng: DeterministicRng
 ) {
     val attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender"
     for (target in targets) {
         if (target.isDead) continue
         applyAoeSingleTarget(
             attacker, target, skill,
-            ctx
+            ctx, rng
         )
     }
     // 攻击者冷却/MP 结算：每次技能执行一次（无论目标走必杀/闪避/正常分支）
@@ -451,10 +457,11 @@ internal fun AISectAttackManager.applyAoeSingleTarget(
     attacker: Combatant,
     target: Combatant,
     skill: CombatSkill,
-    ctx: BattleWriteBackContext
+    ctx: BattleWriteBackContext,
+    rng: DeterministicRng
 ) {
     val result = BattleCalculator.calculateCombatantDamage(
-        attacker, target, skill, rng = aisRng, enableInstantKill = true
+        attacker, target, skill, rng = rng, enableInstantKill = true
     )
     val attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender"
     if (result.isInstantKill) {
@@ -517,9 +524,10 @@ internal fun AISectAttackManager.executeSupportAction(
     skill: CombatSkill,
     alliesList: MutableList<Combatant>,
     alliesIndexMap: Map<String, Int>,
-    roundActions: MutableList<BattleLogAction>
+    roundActions: MutableList<BattleLogAction>,
+    rng: DeterministicRng
 ) {
-    val supportAllies = resolveSupportTargets(caster, allies, skill)
+    val supportAllies = resolveSupportTargets(caster, allies, skill, rng)
     val supportResult = BattleCalculator.executeSupportSkill(caster, supportAllies, skill)
     applySupportHealing(supportResult, alliesList, alliesIndexMap, skill)
     applySupportTeamBuffs(supportResult, alliesList, alliesIndexMap)
@@ -527,18 +535,19 @@ internal fun AISectAttackManager.executeSupportAction(
     roundActions.add(buildSupportActionLog(caster, allies, supportResult, skill))
 }
 
-/** 支援目标解析（executeSupportAction 提取）：保留 aisRng 抽数位置 */
+/** 支援目标解析（executeSupportAction 提取）：BATTLE 分区抽取经形参传入（W4-C 随机源收敛） */
 
 internal fun AISectAttackManager.resolveSupportTargets(
     caster: Combatant,
     allies: List<Combatant>,
-    skill: CombatSkill
+    skill: CombatSkill,
+    rng: DeterministicRng
 ): List<Combatant> {
     // ally 作用域由本函数解析（BattleCalculator 对 "ally" 返回空列表）：
     // 仅存活且非施法者的盟友为合法目标
     if (skill.targetScope != "ally") return allies
     val valid = allies.filter { !it.isDead && it.id != caster.id }
-    return if (valid.isNotEmpty()) listOf(valid[aisRng.nextInt(valid.size)]) else emptyList()
+    return if (valid.isNotEmpty()) listOf(valid[rng.nextInt(valid.size)]) else emptyList()
 }
 
 /** 支援治疗写回（executeSupportAction 提取） */

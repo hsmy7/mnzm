@@ -29,6 +29,7 @@ import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngi
 import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.domain.diplomacy.buildEquipmentMapForDisciple
 import com.xianxia.sect.core.engine.domain.diplomacy.buildManualDataForDisciple
@@ -36,10 +37,8 @@ import com.xianxia.sect.core.engine.domain.disciple.getPhysiqueEffects
 import com.xianxia.sect.core.engine.domain.disciple.getAffixCombatEffects
 // top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
 
-/** AI 宗门攻击系统的 RNG 管理器（由 GameEngine 初始化时注入） */
-var aisRngManager: GameRngManager? = null
-internal val aisRng get() = (aisRngManager ?: error("AISectAttackManager RNG not initialized")).getRng(RngPartition
-    .BATTLE)
+// W4-C 随机源收敛：顶层可变 `aisRngManager` + `internal val aisRng` 已摘除，
+// BATTLE 分区抽取改由调用方经形参显式传入（生产单引擎下抽取序逐位不变）。
 
 object AISectAttackManager {
     /**
@@ -67,7 +66,8 @@ object AISectAttackManager {
         defenderSect: WorldSect,
         defenderDisciples: List<Disciple>,
         allSectDisciples: List<Disciple> = defenderDisciples,
-        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap(),
+        rngManager: GameRngManager
     ): AIBattleResult {
         val combatAttackers = attackers.map {
             convertToCombatant(it, CombatantSide.ATTACKER, bloodRefinementMap[it.id])
@@ -77,7 +77,8 @@ object AISectAttackManager {
             attackerIds = attackers.map { it.id },
             defenderSect = defenderSect,
             defenderDisciples = defenderDisciples,
-            allSectDisciples = allSectDisciples
+            allSectDisciples = allSectDisciples,
+            rngManager = rngManager
         )
     }
 
@@ -93,14 +94,16 @@ object AISectAttackManager {
         combatAttackers: List<Combatant>,
         defenderSect: WorldSect,
         defenderDisciples: List<Disciple>,
-        allSectDisciples: List<Disciple> = defenderDisciples
+        allSectDisciples: List<Disciple> = defenderDisciples,
+        rngManager: GameRngManager
     ): AIBattleResult {
         return executeSectBattleCore(
             combatAttackers = combatAttackers,
             attackerIds = combatAttackers.map { it.id },
             defenderSect = defenderSect,
             defenderDisciples = defenderDisciples,
-            allSectDisciples = allSectDisciples
+            allSectDisciples = allSectDisciples,
+            rngManager = rngManager
         )
     }
 
@@ -111,14 +114,16 @@ object AISectAttackManager {
         attackerIds: List<String>,
         defenderSect: WorldSect,
         defenderDisciples: List<Disciple>,
-        allSectDisciples: List<Disciple>
+        allSectDisciples: List<Disciple>,
+        rngManager: GameRngManager
     ): AIBattleResult {
         val defenseTeam = createDefenseTeam(defenderDisciples)
         val combatDefenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
 
-        // AUTHORITATIVE 下经 C++ 第三战斗引擎执行（降级回退 Kotlin）
+        // AUTHORITATIVE 下经 C++ 第三战斗引擎执行（降级回退 Kotlin；
+        // Kotlin 臂的 BATTLE 分区抽取经形参传入——W4-C 随机源收敛）
         val result = tryExecuteUnifiedNative(combatAttackers, combatDefenders)
-            ?: executeUnifiedAIBattle(combatAttackers, combatDefenders)
+            ?: executeUnifiedAIBattle(combatAttackers, combatDefenders, rngManager.getRng(RngPartition.BATTLE))
 
         val survivorAttackerIds = result.attackers.map { it.id }.toSet()
         val survivorDefenderIds = result.defenders.map { it.id }.toSet()
@@ -181,7 +186,8 @@ object AISectAttackManager {
         defender: WorldSect,
         gameData: GameData,
         aiDisciplesMap: Map<String, List<Disciple>> = emptyMap(),
-        playerGarrisonMap: Map<String, List<Disciple>> = emptyMap()
+        playerGarrisonMap: Map<String, List<Disciple>> = emptyMap(),
+        rngManager: GameRngManager
     ): Boolean {
         // AUTHORITATIVE 下经 C++ 判定（sect_attack_decision.h checkAttackConditions——
         // 消费 BATTLE 分区；原生失败/未加载回退 Kotlin）
@@ -226,7 +232,7 @@ object AISectAttackManager {
             personality = personality
         )
 
-        return aisRng.nextDouble() < chance
+        return rngManager.getRng(RngPartition.BATTLE).nextDouble() < chance
     }
 
     /**
@@ -430,7 +436,8 @@ object AISectAttackManager {
      */
     internal fun executeUnifiedAIBattle(
         attackers: List<Combatant>,
-        defenders: List<Combatant>
+        defenders: List<Combatant>,
+        rng: DeterministicRng
     ): UnifiedAIBattleResult {
         var currentAttackers = attackers.toMutableList()
         var currentDefenders = defenders.toMutableList()
@@ -441,7 +448,7 @@ object AISectAttackManager {
         val startTime = System.currentTimeMillis()
 
         while (turn < GameConfig.AI.MAX_BATTLE_TURNS && !timedOut && !ended) {
-            val outcome = executeAiRound(currentAttackers, currentDefenders, startTime, turn + 1)
+            val outcome = executeAiRound(currentAttackers, currentDefenders, startTime, turn + 1, rng)
             if (outcome.timedOut) {
                 timedOut = true
             } else {

@@ -76,7 +76,8 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         // 玩家将裸装、无功法技能参战——高境界打低境界也必败（2026-XX 回归根因）。
         val combatAttackers = buildSectAttackCombatants(data, attackers)
         val battleResult = AISectAttackManager.executeSectBattleWithCombatantAttackers(
-            combatAttackers, targetSect, setup.defenderDisciples, setup.fullDefenderPool
+            combatAttackers, targetSect, setup.defenderDisciples, setup.fullDefenderPool,
+            rngManager = gameRngManager
         )
         val deadPlayerIds = battleResult.deadAttackerIds.toSet()
         combatService.processBattleCasualties(deadMemberIds = deadPlayerIds, survivorHpMap = battleResult.survivorHpMap,
@@ -235,7 +236,9 @@ private fun GameEngine.buildSectBattleLog(
         val rewardCount = sectBattleRewardCount(
             battleResult.canOccupy, gameRngManager.getRng(RngPartition.BATTLE)
         )
-        warRewards = generateWarRewards(targetSect.level, rewardCount)
+        warRewards = generateWarRewards(
+            targetSect.level, rewardCount, gameRngManager.getRng(RngPartition.BATTLE)
+        )
     }
 
     val details = when (battleResult.winner) {

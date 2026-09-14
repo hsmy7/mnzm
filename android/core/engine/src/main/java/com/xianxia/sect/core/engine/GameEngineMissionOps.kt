@@ -89,7 +89,8 @@ private suspend fun GameEngine.applyCompletedMissionResult(
     val result = MissionSystem.processMissionCompletion(
         activeMission, aliveDisciples, equipMap, manualMap,
         proficiencies, battleSystem, data.bloodRefinementPctTotals,
-        gameRngManager.getRng(RngPartition.MISSION)
+        gameRngManager.getRng(RngPartition.MISSION),
+        rngManager = gameRngManager
     )
     applyMissionResult(result, activeMission, data.gameYear, data.gameMonth, aliveDisciples)
 }

@@ -224,7 +224,8 @@ internal fun BattleSystem.executeTurnWithLog(
         beasts = battle.beasts.toMutableList(),
         teamIndexMap = battle.team.withIndex().associate { it.value.id to it.index },
         beastsIndexMap = battle.beasts.withIndex().associate { it.value.id to it.index },
-        actions = mutableListOf()
+        actions = mutableListOf(),
+        turn = battle.turn + 1
     )
 
     for (combatant in allCombatants) {
@@ -307,7 +308,8 @@ internal fun BattleSystem.executeCombatantTurn(
         availableSkill = availableSkill,
         isAoeSkill = isAoeSkill,
         results = results,
-        currentCombatant = currentCombatant
+        currentCombatant = currentCombatant,
+        turn = ctx.turn
     )
 
     recordTurnAction(ctx, ActionRecordData(

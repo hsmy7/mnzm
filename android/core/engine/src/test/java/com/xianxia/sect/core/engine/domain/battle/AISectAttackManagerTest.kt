@@ -30,9 +30,12 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 class AISectAttackManagerTest {
 
+    // W4-C 随机源收敛：BATTLE 分区经形参显式传入（原顶层 aisRngManager 已摘除）
+    private val rngManager = GameRngManager()
+
     @Before
     fun setUp() {
-        // executeSectBattle 集成测试依赖 disciple.getFinalStats（statsProvider）与 aisRngManager
+        // executeSectBattle 集成测试依赖 disciple.getFinalStats（statsProvider）与 BATTLE 分区注入
         DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
             override fun getBaseStats(disciple: Disciple) = DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getBaseStats(aggregate)
@@ -102,7 +105,7 @@ class AISectAttackManagerTest {
                 pillBonus, adBonus, griefBreakthroughPenalty
             )
         }
-        aisRngManager = GameRngManager()
+        // rngManager 由类属性持有（W4-C 随机源收敛后经形参传入）
     }
 
     // ── 排序方向验证 ──
@@ -385,7 +388,8 @@ class AISectAttackManagerTest {
             val result = AISectAttackManager.executeSectBattle(
                 attackers = listOf(attacker),
                 defenderSect = defenderSect,
-                defenderDisciples = listOf(healer)
+                defenderDisciples = listOf(healer),
+                rngManager = rngManager
             )
             val actions = result.rounds.flatMap { it.actions }
             assertTrue(
@@ -475,7 +479,8 @@ class AISectAttackManagerTest {
         val result = AISectAttackManager.executeSectBattleWithCombatantAttackers(
             combatAttackers = listOf(playerCombatant),
             defenderSect = WorldSect(id = "s_ai"),
-            defenderDisciples = listOf(aiDefender)
+            defenderDisciples = listOf(aiDefender),
+            rngManager = rngManager
         )
         assertEquals("高境界满装玩家应战胜低境界AI守军", AIBattleWinner.ATTACKER, result.winner)
         assertTrue("玩家不应有阵亡", result.deadAttackerIds.isEmpty())
