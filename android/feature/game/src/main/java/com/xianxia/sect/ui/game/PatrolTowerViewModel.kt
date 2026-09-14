@@ -7,7 +7,6 @@ import com.xianxia.sect.core.engine.assignPatrolAtomic
 import com.xianxia.sect.core.engine.autoAssignPatrolAtomic
 import com.xianxia.sect.core.engine.removeDisciple
 import com.xianxia.sect.core.engine.removePatrolAtomic
-import com.xianxia.sect.core.engine.updatePatrolConfig
 import com.xianxia.sect.core.engine.updatePatrolConfigs
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.PatrolConfig

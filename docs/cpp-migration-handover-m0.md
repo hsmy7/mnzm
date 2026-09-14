@@ -586,6 +586,22 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **验证**: `:core:engine:testReleaseUnitTest`（`JadeNativeTxGateTest` **9/9** + `FakeAtomicStateStoreContractTest` **4/4**）；`:core:engine:detekt` 绿。
 
+### 2.63.B1 w3-03 巡逻/住所/矿场自愈——UI 直改改走统一 native 面 + 死 API 清除（2026-09-15，ActionId **零新增**）
+
+**批次**: W4-B/B1（w3-03） | **产物**: 改 `SpiritMineViewModel.kt`（4 处 UI 直改消除）、改 `GameEnginePatrolOps.kt`（删 2 死 API）、改 `PatrolTowerViewModel.kt`（删 1 行残留 import）、改 `W4BChannelClosures.kt`（PATROL 证据回写）、`w4b.mjs`（段内留空说明）
+
+**实施口径（与批文档的偏差声明）**：批文档 B1 预估"经 patrol_tx.h 新增事务"；实测 **batch-12 已把十事务全部就位**（`patrol_tx.h` 事务 7 `updatePatrolConfigsTx` / 事务 8 `updateSpiritMineSlotsTx` / 事务 9 `validateAndFixSpiritMineDataTx`，native 臂 `PATROL_UPDATE_SPIRIT_MINE_SLOTS` / `PATROL_FIX_SPIRIT_MINE` / `PATROL_UPDATE_CONFIG` 全部在位）⇒ **本子批零新增 ActionId、零 C++ 改动**，工作 = 把残余 UI 直改调用方接到既有统一面上（README §12.1 YAGNI 口径：无消费者的新抽象不造）。预分配段 1760–1765 **整段留空**（禁止跨批复用纪律不变）。
+
+**UI 直改消除（4 处）**：
+1. `removeSpiritMineDeacon`（原 `:89`）：`updateGameData { copy(elderSlots = ...) }` + 手工 release/IDLE → `removeDirectDisciple(SLOT_TYPE_SPIRIT_MINE_DEACON, slotIndex)`（native 臂 `DISCIPLE_TX_UNASSIGN_SLOT` family=elderDirect + 回退臂；gate 释放与状态同步由统一路径完成。语义细化：状态由"无条件置 IDLE"变为"按在册槽位派生"——弟子兼任他槽时旧写法会把活岗打成 IDLE，统一路径修复了该边角）；
+2. `removeDiscipleFromSpiritMineSlot`（原 `:147`）/ `swapSpiritMineDisciple`（原 `:183`）/ `assignDisciplesToEmptyMineSlotsInternal`（原 `:252`）：`updateGameData { copy(spiritMineSlots = ...) }` → `updateSpiritMineSlots(slots)`（同步写语义保持——原 suspend 写与现同步写在单线程引擎调度下等价）。
+
+**死 API 清除（双证后删）**：`GameEnginePatrolOps.updatePatrolConfig`（单参版，零生产调用方；`PatrolTowerViewModel.kt:161` 是同名不同函数——其实为 VM 自身两参方法，且该文件 `:10` 的 engine 扩展 import 为**残留死 import**，一并删除）与 `GameEnginePatrolOps.updatePatrolSlots`（零调用方）。⇒ 在册关闭项 `PATROL/patrolConfig` 自此**无任何生产写者**（关闭一致性恢复）；编译全绿证明无隐式调用方。
+
+**关闭判定（诚实口径）**：`spiritMineSlots` **保持 in-flight（不关闭）**——跨批残余写者实测在位：`CombatService.kt:106`（W4-A/W4-C 域）、`BuildingFacadeImpl同步Ops.kt:65`（W4-A 域）、`GameEngineSelfHealOps.kt:161` / `GameEngineServiceOps.kt:198`（本批 B4 面）、LOAD_BOOT 族。PATROL 域级结论留 B4 后重评，证据已回写 `W4BChannelClosures.kt`。
+
+**验证**: `:core:engine` + `:feature:game` + `:app` 主源/测试源编译绿；`--tests "*Patrol*" --tests "*SpiritMine*"` 全绿；三模块 detekt 绿；`node scripts/gen-action-ids.mjs` 输出 `169 actions (maxId=1734)` 零漂移。
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 

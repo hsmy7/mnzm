@@ -99,8 +99,15 @@ internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4BDomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.PATROL to listOf(
-        "SpiritMineViewModel.kt:89/:147/:183/:252 — 灵矿槽位 UI 直改（无 native 门控）",
-        "GameEnginePatrolOps.kt:49 validateAndFixSpiritMineData — 矿场自愈稳态写者",
+        "W4-B/B1（2026-09-15）：SpiritMineViewModel.kt 灵矿槽位 UI 直改四处（原 :89/:147/:183/:252）已消除" +
+            "——槽位整表覆写改走 updateSpiritMineSlots（native PATROL_UPDATE_SPIRIT_MINE_SLOTS + 回退臂），" +
+            "亲传槽位卸任改走 removeDirectDisciple（native DISCIPLE_TX_UNASSIGN_SLOT + 回退臂）",
+        "GameEnginePatrolOps.kt:88 updateSpiritMineSlots 回退臂 / :49 validateAndFixSpiritMineData 回退臂" +
+            "（AUTHORITATIVE 稳态写者 = C++ patrol_tx.h 事务 7/8/9）；死 API updatePatrolConfig（单参）/" +
+            "updatePatrolSlots 已删除（patrolConfig 字段在册关闭项自此无生产写者）",
+        "跨批残余（本批不可关闭）：CombatService.kt:106 战斗伤亡清理（W4-C）/ BuildingFacadeImpl同步Ops.kt:65 " +
+            "拆除重建（W4-A）/ GameEngineSelfHealOps.kt:161 与 GameEngineServiceOps.kt:198 自愈/迁移（W4-B/B4）/" +
+            "BootSequenceController、LoadDataOps 族（LOAD_BOOT）",
     ),
     Domain.BOUNDARY to listOf(
         "GameEngineCoreMonthOps.kt:90 / GameEngineCoreYearOps.kt:126 — native 月/年结算后的 Kotlin 扇出" +

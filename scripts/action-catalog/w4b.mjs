@@ -21,7 +21,12 @@
  */
 export const CATALOG = [
   // ── 1760–1765 · w3-03 巡逻/住所/矿场自愈 ──
-  // （待 W4-B 填充）
+  // B1 实施口径（2026-09-15）：**零新增 ActionId**——灵矿槽位 UI 直改与矿场自愈
+  // 全部复用 batch-12 已就绪的事务面（PATROL_UPDATE_SPIRIT_MINE_SLOTS /
+  // PATROL_FIX_SPIRIT_MINE / PATROL_UPDATE_CONFIG，patrol_tx.h 事务 7/8/9），
+  // 亲传槽位卸任复用 DISCIPLE_TX_UNASSIGN_SLOT（family=elderDirect）。
+  // ViewModel 四处 updateGameData 直改已改走统一 native 面；死 API
+  // updatePatrolConfig（单参）/ updatePatrolSlots 已删除。段内余量留空。
 
   // ── 1766–1769 · w3-04 玉符运行时 ──
   // （待 W4-B 填充）

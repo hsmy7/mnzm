@@ -10,9 +10,10 @@ import com.xianxia.sect.core.engine.isDiscipleAssigned
 import com.xianxia.sect.core.engine.releaseDiscipleAssignment
 import com.xianxia.sect.core.engine.releaseDiscipleFromAllSlotsAtomic
 import com.xianxia.sect.core.engine.releaseReflectionDisciple
+import com.xianxia.sect.core.engine.removeDirectDisciple
 import com.xianxia.sect.core.engine.syncSingleDiscipleStatus
 import com.xianxia.sect.core.engine.updateDiscipleStatus
-import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.updateSpiritMineSlots
 import com.xianxia.sect.core.engine.validateAndFixSpiritMineData
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
@@ -79,19 +80,13 @@ class SpiritMineViewModel @Inject constructor(
     fun removeSpiritMineDeacon(slotIndex: Int) {
         gameEngine.launchOnEngine {
             try {
-                val currentGameData = gameEngine.gameDataSnapshot
-                val elderSlots = currentGameData.elderSlots
-
-                val removedDeaconId = elderSlots.spiritMineDeaconDisciples.find { it.index == slotIndex }?.discipleId
-
-                val currentDeacons = elderSlots.spiritMineDeaconDisciples.filter { it.index != slotIndex }
-                val updatedElderSlots = elderSlots.copy(spiritMineDeaconDisciples = currentDeacons)
-                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
-
-                removedDeaconId?.let {
-                    gameEngine.releaseDiscipleAssignment(it)
-                    gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE)
-                }
+                // W4-B/B1：亲传槽位卸任改走统一 removeDirectDisciple 面
+                // （native 臂 DISCIPLE_TX_UNASSIGN_SLOT + 回退臂；gate 释放 + 状态同步
+                // 由统一路径完成）——消灭 elderSlots 的 UI 直改稳态写者（架构违规修复）
+                gameEngine.removeDirectDisciple(
+                    com.xianxia.sect.core.engine.domain.disciple.SLOT_TYPE_SPIRIT_MINE_DEACON,
+                    slotIndex
+                )
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 DomainLog.e("SpiritMineVM", "卸任失败", e)
@@ -144,7 +139,8 @@ class SpiritMineViewModel @Inject constructor(
                         discipleName = "",
                         sectId = currentSlots[slotIndex].sectId
                     )
-                    gameEngine.updateGameData { it.copy(spiritMineSlots = currentSlots) }
+                    // W4-B/B1：矿场槽位整表覆写改走统一 native 面（PATROL_UPDATE_SPIRIT_MINE_SLOTS）
+                    gameEngine.updateSpiritMineSlots(currentSlots)
                     discipleId?.let {
                         gameEngine.releaseDiscipleAssignment(it)
                         gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE)
@@ -180,7 +176,8 @@ class SpiritMineViewModel @Inject constructor(
                     val newName = gameEngine.getDiscipleAggregate(newDiscipleId)?.name ?: ""
                     allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName,
                         sectId = allSlots[slotIndex].sectId)
-                    gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }
+                    // W4-B/B1：矿场槽位整表覆写改走统一 native 面（PATROL_UPDATE_SPIRIT_MINE_SLOTS）
+                    gameEngine.updateSpiritMineSlots(allSlots)
 
                     if (oldDiscipleId.isNotEmpty()) {
                         gameEngine.updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
@@ -248,8 +245,10 @@ class SpiritMineViewModel @Inject constructor(
             }
         }
 
-        // 先保存槽位（suspend，确保写入完成），再逐个更新弟子状态
-        gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }
+        // 先保存槽位（同步写，updateSpiritMineSlots 的 native 臂/回退臂均同步完成），
+        // 再逐个更新弟子状态
+        // W4-B/B1：矿场槽位整表覆写改走统一 native 面（PATROL_UPDATE_SPIRIT_MINE_SLOTS）
+        gameEngine.updateSpiritMineSlots(allSlots)
         for (offset in 0 until assigned) {
             val disciple = disciplesToAssign[offset]
             val slotRef = SlotRef(
