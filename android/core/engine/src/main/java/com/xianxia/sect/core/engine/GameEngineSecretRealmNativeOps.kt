@@ -89,13 +89,61 @@ internal fun deliverSecretRealmOverflowDraft(system: InventorySystem, obj: JsonO
 }
 
 
-/** 到期兜底（月结被绕过的极端路径）：关闭秘境并拒绝出发；未到期返回 null。 */
+/** 出发换岗 native 臂（1800）：C++ 执行 releaseDiscipleToIdleInside 的
+ *  GameData 段（11 类槽位清理 + 思过/血炼状态重置，零 RNG——
+ *  secret_realm_residual_tx.h ①）；gate 释放/Room 生产槽清槽仍由
+ *  [finalizeSecretRealmTeam] 收尾。降级返回 false 回退 Kotlin 原路径。 */
+internal fun GameEngine.secretRealmStartReleaseNative(memberIds: List<String>): Boolean {
+    if (!NativeEngineFlag.authoritative) return false
+    // 防御性空安全：测试 mock（未 stub stateSyncServiceRef）返回 null
+    val sync: StateSyncService? = stateSyncService
+    if (sync == null) return false
+    val reply = GameEngineNativeOps.tryExecuteNative(
+        stateSyncService = sync,
+        actionId = ActionIds.SECRET_REALM_START_RELEASE_TX,
+        paramsJson = params {
+            put("memberIds", JsonArray(memberIds.map { JsonPrimitive(it) }))
+        }
+    ) as? JsonObject ?: return false
+    return reply["releasedIds"] != null
+}
+
+/** 到期兜底（月结被绕过的极端路径）：关闭秘境并拒绝出发；未到期返回 null。
+ *
+ * Native 臂（1801）：C++ 到期判定 + 关闭状态段（secret_realm_settle 复用——
+ * 灵石入钱包/背包清空/会话清场/冷却年/SECT 事件）；关闭邮件重建 + gate 释放经
+ * [SecretRealmService.applyExpiryCloseDraft] 通道（continueSecretRealmNative 的
+ * EXPIRED 行动扇出同构，backpack 解析失败按空背包兜底）。flag 关/镜像不可用/
+ * 失败信封 → null 落穿 Kotlin 原路径（双实现并行契约）。
+ */
 internal suspend fun GameEngine.rejectIfSecretRealmExpired(): DomainResult<Unit>? {
     val snapshot = stateStore.gameDataSnapshot
     if (!snapshot.secretRealmState.exists || snapshot.gameYear <
         snapshot.secretRealmState.spawnYear + GameConfig.SecretRealm.OPEN_YEARS
     ) {
         return null
+    }
+    val native = SecretRealmNativeForward.tryForward(
+        this, ActionIds.SECRET_REALM_EXPIRY_GUARD_TX
+    ) {} as? JsonObject
+    if (native != null) {
+        if (native["expired"]?.jsonPrimitive?.booleanOrNull != true) {
+            // 权威态判定未到期（快照与权威态竞态）→ 以权威态为准放行
+            return null
+        }
+        val backpack = native["backpack"]?.let { bp ->
+            runCatching { Json.decodeFromJsonElement<SecretRealmBackpack>(bp) }
+                .getOrElse {
+                    DomainLog.w("GameEngine", "秘境到期关闭背包解析失败，按空背包处理: ${it.message}")
+                    SecretRealmBackpack()
+                }
+        } ?: SecretRealmBackpack()
+        secretRealmService.applyExpiryCloseDraft(
+            slotId = stateStore.gameDataSnapshot.currentSlot,
+            backpack = backpack,
+            memberIds = native.stringSet("memberIds")
+        )
+        return DomainResult.Failure(AppError.Domain.GameState.NotFound("远古秘境已关闭"))
     }
     stateStore.update { secretRealmService.closeSecretRealmByExpiry(this) }
     return DomainResult.Failure(AppError.Domain.GameState.NotFound("远古秘境已关闭"))

@@ -62,7 +62,9 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         if (data.vassalContracts.any { it.vassalSectId == sectId }) return@withEngineContext
 
         val combatIds = attackSlots.map { it.second.id }
-        if (combatIds.isNotEmpty()) {
+        // 战前结算（1782 native 臂——与 w3-06 ExplorationNativeOps:134 同一事务
+        // 界面；降级回退 Kotlin 原路径）
+        if (combatIds.isNotEmpty() && !forceSettleDisciplesBeforeBattleNative(combatIds)) {
             stateStore.update { cultivationService.forceSettleDisciplesBeforeBattle(this, combatIds) }
         }
         val allDisciples = stateStore.discipleTables.assembleAll()
@@ -93,14 +95,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         val updatedLogs = (stateStore.battleLogsSnapshot + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
         // 记录宗门战战绩（近3年内，用于附属决策算法）
-        recordSectBattleRecord(
-            when (battleResult.winner) {
-                AIBattleWinner.ATTACKER -> if (battleResult.canOccupy) SectBattleType.CONQUEST else SectBattleType
-                    .BATTLE_WIN
-                else -> SectBattleType.BATTLE_LOSS
-            },
-            updatedLogs
-        )
+        recordSectBattleRecord(battleRecordTypeFor(battleResult), updatedLogs)
 
         if (battleResult.winner == AIBattleWinner.ATTACKER) {
             val rewards = requireNotNull(warRewards) { "warRewards must be set when ATTACKER wins" }
@@ -117,6 +112,14 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         }
     }
 }
+
+/** 战报类型推导（attackSect 提取——detekt 复杂度拆分单元） */
+private fun battleRecordTypeFor(battleResult: AIBattleResult): SectBattleType =
+    when (battleResult.winner) {
+        AIBattleWinner.ATTACKER ->
+            if (battleResult.canOccupy) SectBattleType.CONQUEST else SectBattleType.BATTLE_WIN
+        else -> SectBattleType.BATTLE_LOSS
+    }
 
 /** 攻防双方构建打包（attackSect 提取） */
 private data class SectAttackSetup(

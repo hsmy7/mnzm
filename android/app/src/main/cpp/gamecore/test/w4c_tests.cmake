@@ -14,4 +14,8 @@
 set(W4C_TEST_SOURCES
     # WS-5b 地图冻结：生成即数据 / 存的地形恒优先 / 老档回填幂等 / 段存在性协议
     terrain_freeze_test.cpp
+    # w3-06 战斗/探索残差：伤亡残差 / 关卡胜利事务 / 战前突破结算
+    battle_residual_tx_test.cpp
+    # w3-08 秘境残差：出发换岗 / 到期兜底
+    secret_realm_residual_tx_test.cpp
 )
