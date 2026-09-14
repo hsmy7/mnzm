@@ -5,7 +5,7 @@
 > - **✅ detekt 勘误已闭合**：下方 2026-09-14 记载的"余 `:feature:game` 10 处活违规"**已全部清偿**（§2.59.3）——现裸 `detekt` 任务六模块全绿、六模块 baseline 均 0 条
 > - **✅ 随机源治理**：`R1` 覆盖完整性（`RngSourceGuardTest` 五类入口逐模块登记上限**只缩不增**）+ `R5` 禁止自建随机源（`RngEngineIsolationGuardTest`）+ **跨语言等价性**（`DiffAiRngSeedingTest`）；**10k JNI 成本基准 ratio 0.8**（`kotlin(local PCG)=14ns/op` vs `native(JNI roundtrip)=11ns/op`）⇒ ADR §8 首行 JNI 开销风险**不成立**
 > - **🔴 反向通道现状与后续（2026-09-15 实测，取代 2026-09-14 "阶段 1 = 关闭前置已达成"口径）**：288 写入点穷尽审计证明**14 个域无一可整体关闭**（弟子表 46 稳态写者 / 9 类实体集合 82 站点 / 64 个 gameData 字段仍有稳态写者）；batch-21（§2.53）已交付**逐域关闭机制 + 68 个可证关闭单元**，**"直接关闭反向通道"路线作废**，改由 **[ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md)**（13 批 UI 操作面收尾 → 通道删除）承接；残余写者清单见 [ui-read-surface §4.4](ui-read-surface.md)
-> - **当前 ActionId 口径**：**171 动作 / maxId=1734**（`scripts/gen-action-ids.mjs` 实跑；旧记"170 / 1733"为漂移，漏计 `STORAGE_BAG_OPEN_TX=1734`）
+> - **当前 ActionId 口径**：**169 动作 / maxId=1734**（`scripts/gen-action-ids.mjs` 实跑；旧记"170 / 1733"为漂移，漏计 `STORAGE_BAG_OPEN_TX=1734`；**2026-09-15 §2.61 W4-00 净减 2**——删除两处死导出，见下 §库存残差）
 
 > 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划（迁移主线批次的；**引擎整体现状 + 后续工作计划见 §0**）。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
@@ -317,7 +317,7 @@ android/app/src/main/cpp/
 - **S-10**：C++ 库存容量常量硬编码（`kWarehouseBaseCapacity=50`/`kWarehouseCapacityPerBuilding=75`，inventory.h），Kotlin 读 `gameConfigProvider.warehouse.*`——config 改动时双端漂移（偿还：配置对象注入 C++ 或 codegen 常量单源）
 - **S-11**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名——空白名行为差异（低风险）
 - ~~未接线（无 C++ 对应动作）：sortWarehouse/consolidateStacks/toggleItemLock~~（✅ 批 8-3 已 C++ 化接线）；consumeMaterialByName（多堆叠跨栈消耗）/sell*/merchant 交易族——保持 Kotlin（批 8-4 判定归入类别 ⑥：组合操作内部路径）
-- INV_ADD_EQUIPMENT_INSTANCE(1011)/INV_ADD_MANUAL_INSTANCE(1013) 声明无 handler（顶层 UNKNOWN_ACTION → 天然回退 Kotlin，正确性无损）——批 8-4 判定确认无生产调用点，无需补 handler
+- ~~INV_ADD_EQUIPMENT_INSTANCE(1011)/INV_ADD_MANUAL_INSTANCE(1013) 声明无 handler~~（**✅ 已于 2026-09-15 §2.61 W4-00 删除**：新增的**分派覆盖守卫** `test/dispatch_guard_test.cpp` 首跑即抓出——两者一直无 handler（落 `handleInventory` 的 `default:` → `UNKNOWN_ACTION`）且全仓**零调用方**（实例轨新增实际走 Kotlin `InventorySystem.addEquipmentInstance` / `addManualInstance` 直调，不经 ActionId）。批 8-4 只判"无需补 handler"而未删除，留下两处死协议面；按**死导出纪律**（WS-0.b 先例）删除。该守卫现已进 CI：`ci.yml` 的 `ActionId dispatch coverage red-line` step 对**每一个**已注册动作号断言分派可达）
 
 **保持不动（与迁移方向无关）**：R-01/03~14（detekt/lint/测试质量债务；R-14 = feature:game detekt 存量 10 项 + 验证门缺口，随阶段 7 Kotlin 面收窄与 MainGameScreen/Canvas 拆分专项处置）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
 
@@ -553,8 +553,11 @@ android/app/src/main/cpp/
 > **2026-09-14 更新（handover §2.58）**：随机源治理收口批**零新增 ActionId**；
 > **2026-09-15 更正（batch-21 实测）**：动作总数 **171 / maxId=1734**（`STORAGE_BAG_OPEN_TX=1734`
 > 随 ADR 阶段 1① 开袋下沉入库，`85498c4`）——旧记"170 / maxId=1733"为**漂移**。
+> **2026-09-15 再更正（§2.61 W4-00 实测）**：动作总数 **169 / maxId=1734**——删除
+> `INV_ADD_EQUIPMENT_INSTANCE=1011` / `INV_ADD_MANUAL_INSTANCE=1013` 两处**死导出**
+> （由新增的分派覆盖守卫首跑抓出，详见 §库存残差条）。
 > 下方「ActionId 总数 114 / maxId=1525」「handler 20」为 **2026-09-11 时点口径**，**已过期**——
-> 权威现值以 `handover §3 门禁基线`（**171 动作 / maxId=1734 / handler 33**）与
+> 权威现值以 `handover §3 门禁基线`（**169 动作 / maxId=1734 / handler 33**）与
 > `docs/parallel-batches-w2/README.md §基线实测值` 为准。
 
 | 项 | 实测值（2026-09-11 时点；**总数/handler 见上方更新**） | 取证 |

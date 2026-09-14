@@ -1,6 +1,23 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-00 并行前置批：共享面结构性切分 + 分派覆盖守卫（首跑抓出 2 处死导出）
+
+> 需求：为「C++ 迁移剩余工作的三个**并行**批次」（W4-A 弟子与建设 / W4-B 内政与经济运营 / W4-C 战斗与世界协议）扫清并行障碍。**本批零行为变更、零玩家可见变更**——纯结构性重构 + 一处死导出删除。方案见 `docs/parallel-batches-w4/README.md`，交接记录见 handover §2.61。
+
+- **为什么需要这一批**：三批并行施工的前提在当前仓库形态下**不成立**——逐行实测出 **6 处必然冲突面**：`execute_dispatch.cpp`（分发表是**唯一一段连续区间 `else if` 链**，三批都只能插在最终 `else` 之前）、`test/CMakeLists.txt`（`add_executable` 显式逐文件列举）、`scripts/gen-action-ids.mjs`（单一 `ACTION_CATALOG` 数组）+ 两份生成物（整文件重写）、`ReverseChannelPolicy.kt`（三处**单一列表字面量**，且 BOUNDARY 的结论块被三个子批争用、BATTLE 被两个子批争用）、双更新日志。**"靠纪律避冲突"在本仓历史上已被证伪**（静默回退 / theirs 覆盖 / 整仓 `git add` 三次真实事故）。
+- **ActionId 目录四分**：`scripts/gen-action-ids.mjs` 改为 `import` 四份分段清单并拼接（`action-catalog/core.mjs` 保留既有条目，`w4a/w4b/w4c.mjs` 各为本批独占的空骨架）。生成器新增**四条清单自检**：id 全局唯一 / 各批预分配段两两不相交 / 条目必须落在自己段内 / `core.mjs` 不得落进批次段——任一条不成立即生成失败，不写出半成品产物。生成器实测**幂等**（连跑两次产物哈希相同）。
+- **C++ 分发表三分**：新增 `include/gamecore/dispatch_w4.h`（端口契约）与 `src/dispatch_w4{a,b,c}.cpp`（空骨架）。三端口签名 `std::optional<nlohmann::json> dispatchW4X(GameCore&, int32_t, const nlohmann::json&)`：返回 `nullopt` = 不认领，继续后续端口 / 最终 `NOT_IMPLEMENTED` 兜底。`execute_dispatch.cpp` 只被本批改**一次**，此后冻结。
+- **测试源清单三分**：`test/w4{a,b,c}_tests.cmake`（`include` 必须在 `add_executable` 之前），`test/CMakeLists.txt` 一次改完后冻结。
+- **反向通道关闭数据四分**：`ReverseChannelPolicy.kt` 的三处审计数据（68 个关闭单元 / 68 个在册保留字段 / 14 个域级结论证据）按批次拆到 `state/reversechannel/` 下的 `W4A/W4B/W4C/W4DChannelClosures.kt` + 共用条目助手。本体只留类型、协议常量、聚合与开关/回滚/检测 API。聚合用 `groupBy` 而非 `Map.plus`——后者会在同一域的证据被写进两个分片时**静默丢弃**一份。
+- **🔴 新增「分派覆盖守卫」，首跑即抓出 2 处真实死导出**——`action_ids.h` 新增由生成器产出的升序枚举数组 `action::kAllActionIds`；`test/dispatch_guard_test.cpp` 对**每一个**已注册动作号断言「分派可达且落到本域 handler」。抓出：`INV_ADD_EQUIPMENT_INSTANCE(1011)` 与 `INV_ADD_MANUAL_INSTANCE(1013)` 一直**无 handler**（落 `handleInventory` 的 `default:` → `UNKNOWN_ACTION`）且全仓**零调用方**（实例轨新增实际走 Kotlin `InventorySystem.addEquipmentInstance` / `addManualInstance` 直调）。`docs/cpp-engine.md` 早在批 8-4 已记录「判定确认无生产调用点，无需补 handler」，但**未删除** ⇒ 留下两处死协议面。按既有**死导出纪律**删除 ⇒ 动作总数 **171 → 169**（maxId=1734 不变）。
+  - **为什么这个守卫值得存在**：症状极隐蔽——动作号**存在**、常量**存在**、Kotlin **能**发出去，只是永远走不到自己的 handler；单点用例发现不了。历史上真实发生过同类事故（1730 被 1520–1531 区间吞进库存 handler）。现已在 CI 落 `ActionId dispatch coverage red-line` step。
+- **并行工具链**：新增构建串行令牌（`scripts/w4/build-token.ps1`，`C:\Mnzm\.w4-build.lock` 独占句柄 + 持有者/批次/PID/时间戳）——对治实测三类互踩（Gradle daemon 的 `classes.jar` 文件锁 / KSP 缓存多进程损坏 / ctest 因 exe 被并行构建复写而单帧假失败）；新增 worktree 建立与**安全清理**脚本（清理脚本先探测 reparse point，junction 一律 `cmd /c rmdir`——直接 `Remove-Item -Recurse` 会穿透 `node_modules` 联接删掉主仓真实内容，这是已发生过的真实事故）。
+- **顺带清偿**：`scripts/build-desktop-jni.ps1` 与 `build-desktop-jni-linux.sh` 各自**重复维护**一份 C++ 源清单（与 `gamecore/CMakeLists.txt` 合共三处独立登记点），新增 `.cpp` 漏登记即链接期 `undefined symbol`（本批实测撞上，已补齐并成文）。同时明确：三批的新事务实现在 `system/<domain>_tx.h`（头文件）+ 既有 `dispatch_w4X.cpp` 内，**不需要新增 `.cpp`** ⇒ 不再触发这三处登记点。
+- **文档**：新增 `docs/parallel-batches-w4/`（README 总览与协作协议 + 三个批次方案 + 协议面租约表）；handover 新增 §2.61；`docs/cpp-engine.md` 的 ActionId 计数与「库存残差」条同步更正。
+- **验收（实跑）**：桌面 C++ **1326/1326 全绿**（基线 1322 + 4 个新守卫用例）；`:core:engine` **3281 用例 / 0 失败 / 0 跳过**（含 47 个 `Diff*` 对拍）；`:core:domain` **1758 / 0**；`:core:data` **707 / 0 / 15 跳过（既有）**；六模块 `detekt` 全绿且 baseline **全 0**（未新增条目）；`ReverseChannelPolicyGuardTest` **6 用例零改动全绿**（穷尽分类守卫证明切分前后语义逐位一致）。
+
+
 ### 文档：handover 对接文档精简（247KB → 185KB，-25%）+ 事实性缺陷修复
 
 > 需求：精简 `docs/cpp-migration-handover-m0.md`。**本批零代码改动**（1 个文档 + 本日志）。**§2.x 章节号全部保留**——外部 10+ 份文档与源码注释以 `handover §2.x` 为引用锚点（已脚本化核验：文档内部与外部全部 `§2.x` 引用均有对应小节）。

@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include "gamecore/action_ids.h"
+#include "gamecore/dispatch_w4.h"
 #include "gamecore/state/json_codec.h"
 #include "gamecore/system/appointment_tx.h"
 #include "gamecore/system/battle.h"
@@ -2763,6 +2764,20 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::REDEEM_VALIDATE_INPUT &&
                    actionId <= action::MAIL_ATTACHMENT_ENCODE) {
             result = handleRedeemCode(this, actionId, params);
+        // ── W4 三批次并行分派区（W4-00 并行前置批建立）─────────────────────
+        // 三个并行批次的 handler 各自实现在独立源文件 src/dispatch_w4{a,b,c}.cpp，
+        // 因此**本文件此后冻结**——三批的 diff 中若出现本文件即为越界（判据见
+        // docs/parallel-batches-w4/README.md §5.3）。
+        // 认领语义：端口返回 nullopt ⇒ 不认领，继续往后续端口 / NOT_IMPLEMENTED 兜底。
+        } else if (auto w4a = dispatchW4A(*this, actionId, params);
+                   w4a.has_value()) {
+            result = std::move(*w4a);
+        } else if (auto w4b = dispatchW4B(*this, actionId, params);
+                   w4b.has_value()) {
+            result = std::move(*w4b);
+        } else if (auto w4c = dispatchW4C(*this, actionId, params);
+                   w4c.has_value()) {
+            result = std::move(*w4c);
         } else {
             result = fail("NOT_IMPLEMENTED",
                           "action not implemented yet: " + std::to_string(actionId));

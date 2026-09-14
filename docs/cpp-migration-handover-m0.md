@@ -445,7 +445,6 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 
 ## 2.60 拍板记录（2026-09-14）：待拍板两项裁决——② 不采纳 + ③ 完整冻结（业界完整版）
-
 依据：业界实践对照（Paradox 模拟序契约 / 暴雪 replay 跨补丁作废先例 / Factorio·Minecraft·Terraria 生成即持久化模式），决策记录同步 `non-parallel-work.md` P2/P3。
 
 ### 2.60.1 ✅ 拍板②：P1-5 月结配对结构级优化——**不采纳（终局）**
@@ -468,22 +467,40 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **🔴 前置红线**：**任何改地形输出的批次（含 WS-4 可行走语义若改瓦片输出）必须等 WS-5b 落地之后**——否则产生老档地图漂移窗口。业界成本对照（供后验）：Minecraft 老区块原样保留 + 新区块新算法 = 区块边境现象；Factorio 地图区块入档、生成器演进只影响未生成区；Terraria 全图瓦片压缩入档（数十 MB，无玩家投诉）。
 
+## 2.61 W4-00（2026-09-15）：并行前置批——共享面结构性切分 + 分派覆盖守卫（首跑抓出 2 处死导出）
 
+批次: W4-00 | ActionId: **-2**（删除 `INV_ADD_EQUIPMENT_INSTANCE=1011` / `INV_ADD_MANUAL_INSTANCE=1013` 两处死导出；**171 → 169 动作 / maxId=1734 不变**）| 产物: 新 `scripts/action-catalog/{core,w4a,w4b,w4c}.mjs` + `README.md`、新 `include/gamecore/dispatch_w4.h` + `src/dispatch_w4{a,b,c}.cpp`、新 `test/w4{a,b,c}_tests.cmake` + `test/dispatch_guard_test.cpp`、新 `core/domain/.../state/reversechannel/{ChannelClosureEntries,W4AChannelClosures,W4BChannelClosures,W4CChannelClosures,W4DChannelClosures}.kt`、新 `scripts/w4/{build-token,setup-worktrees,remove-worktrees}.ps1`、新 `docs/parallel-batches-w4/{README,batch-W4A,batch-W4B,batch-W4C,protocol-lease}.md`、新 `.github/workflows/ci.yml` step；改 `scripts/gen-action-ids.mjs`、`scripts/build-desktop-jni.ps1`、`scripts/build-desktop-jni-linux.sh`、`execute_dispatch.cpp`、`gamecore/CMakeLists.txt`、`test/CMakeLists.txt`、`ReverseChannelPolicy.kt`
+
+**背景（为什么需要这一批）**: [w3 十三批](parallel-batches-w3/README.md)是长期主轴（UI 操作面收尾 → 通道删除），但**三个批次并行的前提在当前仓库形态下不成立**——逐行实测出 6 处**必然冲突面**：`execute_dispatch.cpp`（2778 行，分发表是**唯一一段连续区间 `else if` 链**，三批都只能插在最终 `else` 之前）、`test/CMakeLists.txt`（`add_executable` 的显式逐文件列举）、`scripts/gen-action-ids.mjs`（单一 `ACTION_CATALOG` 数组）+ 两份生成物（整文件重写）、`ReverseChannelPolicy.kt`（三处**单一列表字面量**，且 `verdicts` 的 BOUNDARY 块被 w3-04/05/11 三方争用、BATTLE 块被 w3-06/07 两方争用）、双更新日志（同版本条目追加到同一数组末尾）。本批把这些面上的"追加到同一位置"改造成**各批独立文件**。
+
+**硬规格（11 项，逐项可验证）**: ① ActionId 目录切四份 + 生成器加**四条清单自检**（id 唯一 / 段区间不相交 / 条目须落自分片段内 / `core.mjs` 不得落批次段）；② 生成物合并规则成文（**冲突一律重生成**，禁手工解）；③ 分发表切三个端口 `dispatchW4{A,B,C}(GameCore&, int32_t, const nlohmann::json&) -> std::optional<nlohmann::json>`（`nullopt` = 不认领，继续后续端口 / `NOT_IMPLEMENTED` 兜底），`execute_dispatch.cpp` 只被本批改一次；④ 测试源清单切三份 `.cmake`（`include` 必须在 `add_executable` 之前）；⑤ `ReverseChannelPolicy` 三处审计数据按批切四个 closures 文件 + 共用条目助手（本体只留类型/常量/聚合/开关 API；聚合用 `groupBy` 而非 `Map.plus`——后者会在同域证据被写进两个分片时**静默丢弃**一份）；⑥ 构建串行令牌（`C:\Mnzm\.w4-build.lock` 独占句柄 + 持有者/批次/PID/时间戳，超时退出码 2）；⑦ worktree 建立/清理脚本；⑧ 协议面租约表；⑨ handover 小节预分配 §2.61–§2.65 + 共享文档收口人独占；⑩ `w4-base` tag + `git bundle`；⑪ **分派覆盖守卫**。
+
+**🔴 项 ⑪ 首跑战绩（本批最有价值的产出）**: `action_ids.h` 新增由生成器产出的升序枚举数组 `action::kAllActionIds` / `kAllActionIdsCount`；`dispatch_guard_test.cpp` 对**每一个**已注册动作号断言"分派可达且落到本域 handler"（失败码既不可是 `NOT_IMPLEMENTED` 也不可是 `UNKNOWN_ACTION`）。**首跑即抓出 2 处真实死导出**：`INV_ADD_EQUIPMENT_INSTANCE(1011)` / `INV_ADD_MANUAL_INSTANCE(1013)` —— 两者一直**无 handler**（落 `handleInventory` 的 `default:` → `UNKNOWN_ACTION`）且全仓**零调用方**（实例轨新增实际走 Kotlin `InventorySystem.addEquipmentInstance` / `addManualInstance` 直调）。`docs/cpp-engine.md:320` 早在批 8-4 已记录"判定确认无生产调用点，无需补 handler"，但**未删除** ⇒ 留下两处死协议面。按既有**死导出纪律**（WS-0.b 先例）删除 ⇒ 本批登记为**净减 2 个 ActionId**。
+
+**红线**: **零行为变更**——三端口骨架恒返回 `nullopt` ⇒ 所有 W4 段内动作号仍走最终 `NOT_IMPLEMENTED` 兜底（新增用例 `W4UnaffiliatedActionIdStillReportsNotImplemented` 以 1735 锁定该契约）；`ReverseChannelPolicy` 切分前后**同一存档/同一输入的状态与信封面逐位一致**（由 `ReverseChannelPolicyGuardTest` 的穷尽分类守卫证明：`closed ∪ transported == GameData 序列化面全字段`，**6 用例零改动全绿**）；`ActionIds.kt` 除删两常量外**逐字节不变**；生成器**幂等**（连跑两次产物哈希相同，实测 True）。
+
+**顺带清偿**: `scripts/build-desktop-jni.ps1` 与 `build-desktop-jni-linux.sh` 各自**重复维护**一份 C++ 源清单（与 `gamecore/CMakeLists.txt` 合共三处独立登记点）——新增 `.cpp` 漏登记即链接期 `undefined symbol`（本批实测撞上）。已补齐两处并成文；**同时明确：三批的新事务实现在 `system/<domain>_tx.h`（头文件）+ 既有 `dispatch_w4X.cpp` 内，不需要新增 `.cpp` ⇒ 不再触发这三处登记点**。
+
+**验收（实跑）**: 桌面 C++ **1326/1326 全绿**（基线 1322 + 4 新守卫用例；单进程直跑）；`:core:engine` **3281 用例 / 296 类 / 0 失败 / 0 跳过**（含 47 个 `Diff*` 对拍全绿，与 §3 基线逐项一致）；`:core:domain` **1758 / 0**；`:core:data` **707 / 0 / 15 跳过（既有）**；六模块 `detekt` 全绿且 baseline **全 0**（未新增任何条目）；`node scripts/gen-action-ids.mjs` 幂等 + 产物零漂移。CI 新增 `ActionId dispatch coverage red-line` step（`ctest -R DispatchGuard`，与全量 ctest 互为冗余）。
+
+**登记**: 后续三批与汇流波的实施边界见 [parallel-batches-w4/README.md](parallel-batches-w4/README.md)——**W4-A 弟子与建设 / W4-B 内政与经济运营 / W4-C 战斗与世界协议** 三个并行批 + **W4-D 汇流波**（w3-11 是 B×C 的 join 点、w3-13 必须最后、batch-22a 与 w3-13 争用 `StateSyncService`）。冻结清单（出现在三批 diff 中即打回）：`gen-action-ids.mjs` / `action-catalog/core.mjs` / `action_ids.h` / `ActionIds.kt` / `execute_dispatch.cpp` / `gamecore/CMakeLists.txt` / `test/CMakeLists.txt` / `build-desktop-jni*.{ps1,sh}` / `ReverseChannelPolicy.kt` / `reversechannel/ChannelClosureEntries.kt` / `GameStateStoreImpl.kt` / `StateSyncService.kt` / `GameViewModel.kt` + **宿主文件族**（`CultivationEventMonthlyOps.kt` / `MonthSettlementResidualExecutor.kt` / `YearSettlementResidualExecutor.kt` / `GameEngineCoreMonthOps.kt` / `GameEngineCoreYearOps.kt` / `GameEngineCore.kt`）。
+
+**已就地更正**: ① `GameSettingsData.autoSave` 的"保留"判定 → **用户拍板 2026-09-15「按清理执行」**（连同悬空 TypeConverter `EnumConverters.kt:30/35` 与零调用方法 `AudioConfig.updateFromSettings:21`），实施落点 W4-D/D5；② `docs/cpp-engine.md:320` 关于 1011/1013 的记载同步更新为"已删除"。
 
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 
-**当前门禁基线（2026-09-15，§2.53 batch-21 后）**：
+**当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 
 | 验证 | 结果 |
 |---|---|
-| 桌面 C++ 全量单测 | **1322/1322 全绿**（§2.53 复跑；本批零 C++ 改动）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3281 用例 / 296 类 / 0 失败 / 0 跳过**（含本批新增 `ReverseChannelCloseoutTest` 7 + `ReverseChannelVolumeProfileTest` 4 + 既有 `Diff*` 对拍 **47** 类全绿——**关闭清单以对拍全绿为门禁**，4 字段因此保留传输） |
+| 桌面 C++ 全量单测 | **1326/1326 全绿**（§2.61 W4-00 实测；基线 1322 + 4 个 `DispatchGuard*` 新用例）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 引擎全量单测 `:core:engine` | **3281 用例 / 296 类 / 0 失败 / 0 跳过**（§2.61 W4-00 复跑，与 §2.53 逐项一致；含 47 个 `Diff*` 对拍全绿） |
 | `:core:domain` 单测 | **1758 用例 / 0 失败**（含新 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
 | `:core:data` / `:core:ui` 单测 | **707 用例 0 失败（15 跳过=既有）** / **146 用例 0 失败** |
 | `:feature:game` 单测 | **871 用例 / 2 失败** —— `EdgeKtxSyncTest` 两例（纹理尺寸表 ↔ WebP/KTX 一致性），**归属并行渲染批在途（该测试文件为并行批未提交新增，本批零触碰）**，不计入本批 |
 | `:app` 单测 | **1020 用例 / 1 失败** —— `SpriteCodegenSyncTest`（`MAP_SPRITES` 期望 78 实得 41），**归属并行渲染批在途图集重建（本批零触碰精灵/图集代码）**，不计入本批 |
 | detekt | ✅ **六模块 `./gradlew.bat detekt` 全绿**（本批新增文件零违规；`buildReverseEnvelope` 拆分为 gameData/弟子/集合三段私有助手、`jsonValuesEquivalent` 降 return、两处循环跳转合并——均为真实重构非抑制） |
-| 动作计数 | **171 动作，maxId=1734**（`gen-action-ids.mjs` 实跑口径；§2.53 零新增动作、零 C++ 改动；`execute_dispatch.cpp` handler **33** 个 / `case action::` **166** 处）。**1734 = `STORAGE_BAG_OPEN_TX`**（ADR 阶段 1① 开袋下沉，随 `85498c4` 入库；§2.58/§2.59/batch-21 均零新增） |
+| 动作计数 | **169 动作，maxId=1734**（`gen-action-ids.mjs` 实跑口径；§2.61 W4-00 **净减 2**——删除 `INV_ADD_EQUIPMENT_INSTANCE=1011` / `INV_ADD_MANUAL_INSTANCE=1013` 两处死导出，经新增分派覆盖守卫首跑抓出）；`execute_dispatch.cpp` handler **33** 个 / `case action::` **166** 处）。**1734 = `STORAGE_BAG_OPEN_TX`**（ADR 阶段 1① 开袋下沉，随 `85498c4` 入库） |
 | **NDK arm64** | ✅ **已跑通（2026-09-15 §2.53 实测）**——`:app:externalNativeBuildRelease` **BUILD SUCCESSFUL（35s）**；本批零 C++ 改动，NDK 结果与改动无关（作为门禁记录） |
 | **lintRelease** | ✅ **已跑通（2026-09-15 §2.53 实测）**——`./gradlew lintRelease --max-workers=1` **BUILD SUCCESSFUL（12m09s）** |
 | 编译 | 主源 + 测试源（`:core:domain`/`:core:engine`/`:feature:game`/`:app`）BUILD SUCCESSFUL；桌面 JNI 重建成功 |

@@ -22,6 +22,14 @@ target_compile_options(gtest PRIVATE
 add_library(gtest_main STATIC ${GTEST_ROOT}/src/gtest_main.cc)
 target_link_libraries(gtest_main PUBLIC gtest)
 
+# ── W4 三批次并行的测试源清单（W4-00 并行前置批切分）────────────────────
+# 每批只改自己的文件，从而消除「三批同时往 add_executable 末尾追加源文件」的
+# 必然冲突。include 必须在 add_executable 之前（变量在此定义）。
+# 见 docs/parallel-batches-w4/README.md §3.1 项 4。
+include(${CMAKE_CURRENT_SOURCE_DIR}/w4a_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/w4b_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/w4c_tests.cmake)
+
 add_executable(game-core-tests
     appointment_tx_test.cpp
     exploration_tx_test.cpp
@@ -110,6 +118,15 @@ add_executable(game-core-tests
     sect_attack_tx_test.cpp
     lock_beast_tx_test.cpp
     storage_bag_tx_test.cpp
+    # W4-00 新增：分派覆盖守卫（防「区间写法吞掉动作号」缺陷复发；
+    # 见 test/dispatch_guard_test.cpp 与本文件末尾的 _w4 batch 段说明）
+    dispatch_guard_test.cpp
+    # ── W4 三批次并行的测试源清单（W4-00 并行前置批切分）──────────────────
+    # 三个并行批次各写自己的 w4X_tests.cmake（本文件此后冻结，见
+    # docs/parallel-batches-w4/README.md §3.1 项 4 与 §5.3）。
+    ${W4A_TEST_SOURCES}
+    ${W4B_TEST_SOURCES}
+    ${W4C_TEST_SOURCES}
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

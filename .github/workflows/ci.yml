@@ -28,6 +28,16 @@ jobs:
       - name: Run GTest
         run: ctest --test-dir build --output-on-failure
 
+      # ── ActionId 分派覆盖红线（W4-00 并行前置批）────────────────────────
+      # **为什么单独点名**：分发表是连续区间 `else if` 链，"区间写法吞掉动作号"
+      # 的症状极隐蔽（动作号存在、常量存在、Kotlin 能发出去，只是永远走不到
+      # 自己的 handler），单点用例发现不了。历史上真实发生过（1730 被 1520–1531
+      # 区间吞进库存 handler）。`DispatchGuard*` 对**每一个**已注册动作号断言
+      # 分派可达，首跑即抓出 2 处死导出（1011 / 1013）。
+      # 上面 ctest 已覆盖本用例，此处点名是为了失败信息更聚焦。
+      - name: ActionId dispatch coverage red-line
+        run: ctest --test-dir build -R 'DispatchGuard' --output-on-failure
+
   # ── 跨语言差分对拍（桌面对拍框架长期化，批 12-5）────────────────────
   # 构建桌面 JNI 桥（Linux g++，零 Android 依赖——build-desktop-jni-linux.sh）
   # 并注入 -Dgamecore.jni.path 实跑全部 Diff*Test（C++ ↔ Kotlin 逐位对拍）。

@@ -30,6 +30,12 @@ add_library(game-core STATIC
     src/execute_dispatch.cpp
     src/dirty_tracker.cpp
     src/disciple_store.cpp
+    # W4 三批次并行的分派端口（W4-00 并行前置批建立；各批只写自己那个文件，
+    # 从而消除「三批同时往 execute_dispatch.cpp 链尾追加分支」的必然冲突）。
+    # 见 docs/parallel-batches-w4/README.md §3.1 项 3。
+    src/dispatch_w4a.cpp
+    src/dispatch_w4b.cpp
+    src/dispatch_w4c.cpp
 )
 
 target_include_directories(game-core PUBLIC

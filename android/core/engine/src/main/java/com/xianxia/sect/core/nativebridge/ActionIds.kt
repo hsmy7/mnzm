@@ -23,14 +23,8 @@ object ActionIds {
     /** 添加装备堆叠（合并+溢出转邮件） */
     const val INV_ADD_EQUIPMENT_STACK: Int = 1010
 
-    /** 添加装备实例 */
-    const val INV_ADD_EQUIPMENT_INSTANCE: Int = 1011
-
     /** 添加功法堆叠 */
     const val INV_ADD_MANUAL_STACK: Int = 1012
-
-    /** 添加功法实例 */
-    const val INV_ADD_MANUAL_INSTANCE: Int = 1013
 
     /** 添加丹药（按品阶合并） */
     const val INV_ADD_PILL: Int = 1014
