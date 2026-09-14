@@ -88,7 +88,11 @@ internal fun deriveSectSeed(baseSeed: Int, sectId: String): Int =
  *  地图冻结（WS-5b）：主宗图（派生种子 == baseSeed，即 mapSeed）优先读
  *  GameData 权威地形段（"存的地形恒优先"，跨版本冻结不重算）；无段（boot
  *  回填尚未完成）或被占宗门图（派生种子，不入档）才走生成路径。 */
-internal fun buildSectMap(seed: Int, gameData: com.xianxia.sect.core.model.GameData? = null, baseSeed: Int = seed): MapPreloadData {
+internal fun buildSectMap(
+    seed: Int,
+    gameData: com.xianxia.sect.core.model.GameData? = null,
+    baseSeed: Int = seed
+): MapPreloadData {
     val w = GameConfig.SectMap.WORLD_WIDTH_CELLS
     val h = GameConfig.SectMap.WORLD_HEIGHT_CELLS
     val authoritative = gameData

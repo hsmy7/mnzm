@@ -263,7 +263,7 @@ internal fun BattleSystem.executeTurnWithLog(
  * @return Continue 继续回合；EndBattle 敌方全灭提前结束
  */
 
-@Suppress("ReturnCount") // 卫语句密集的回合控制函数（判死/全灭/控制效果 4 处提前退出）
+@Suppress("ReturnCount", "LongMethod") // 卫语句密集的回合控制函数（判死/全灭/控制效果 4 处提前退出）；W4-C 措辞确定性化传入回合盐后行数触顶 60
 internal fun BattleSystem.executeCombatantTurn(
     ctx: TurnContext,
     combatant: Combatant,

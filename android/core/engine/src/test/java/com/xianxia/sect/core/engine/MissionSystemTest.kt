@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.MissionType
 import com.xianxia.sect.core.model.EnemyType
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.util.RngPartition
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -300,7 +299,6 @@ class MissionSystemTest {
         val result = MissionSystem.processMissionCompletion(
             activeMission = activeMission,
             disciples = emptyList(),
-            rng = gameRng.getRng(RngPartition.MISSION),
             rngManager = gameRng
         )
         assertEquals(600, result.spiritStones)
@@ -334,7 +332,6 @@ class MissionSystemTest {
         val result = MissionSystem.processMissionCompletion(
             activeMission = activeMission,
             disciples = emptyList(),
-            rng = gameRng.getRng(RngPartition.MISSION),
             rngManager = gameRng
         )
         assertEquals(300, result.spiritStones)

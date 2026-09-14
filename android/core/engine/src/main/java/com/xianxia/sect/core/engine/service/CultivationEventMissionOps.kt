@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.util.RngPartition
 
 
 
@@ -81,7 +80,6 @@ internal fun CultivationEventProcessor.collectCompletedMissionRewards(
                 val result = MissionSystem.processMissionCompletion(
                     activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem,
                     stateStore.gameData.value.bloodRefinementPctTotals,
-                    rngManager.getRng(RngPartition.MISSION),
                     rngManager = rngManager
                 )
                 // 仅收集奖励，不再调用 inventorySystem.addXxx（统一到 Phase 2 单事务处理）
