@@ -60,7 +60,7 @@
 |---|---|---|---|---|---|
 | W4-C | `models.h` + `json_codec.cpp` + `game_core.{h,cpp}` + `GameData.kt` + `GameDatabase.kt` | `mapGenVersion`、地形段（RLE 存储编码）、`ensureTerrainGenerated`、`@Database` 50→51 + `MIGRATION_50_51` | 待 W4-C 开工 | WS-5b 地图冻结（已拍板完整业界方案） | **预留（第一顺位）** |
 | W4-A | `GameEngine.kt` | `:276/:277/:305/:306` 婚姻提议审批/拒绝接线 native 臂 | 待 W4-A 开工 | w3-02 低成本起手项（C++ 事务 `DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592` 已就绪未接线） | **预留（第一顺位）** |
-| W4-C | `GameEngine.kt` | `:170-172` 三处顶层 `xxxRngManager` 赋值点随形参化移除 | w4c/01 | C8 随机源收敛：W4-A 尚未开工（`w4/a-disciple-building` 无提交、面未触碰），按租约顺序顺延取得；改动仅 init 块 3 行删减 + 2 行 import 清理，与 W4-A 的 `:276-306` 接线 hunks 零重叠，合并不冲突 | **进行中（W4-C w4c/01）** |
+| W4-C | `GameEngine.kt` | `:170-172` 三处顶层 `xxxRngManager` 赋值点随形参化移除 | w4c/01 | C8 随机源收敛：W4-A 尚未开工（`w4/a-disciple-building` 无提交、面未触碰），按租约顺序顺延取得；改动仅 init 块 3 行删减 + 2 行 import 清理，与 W4-A 的 `:276-306` 接线 hunks 零重叠，合并不冲突 | **已释放（W4-C w4c/01 → f7db90256；GameEngine.kt init 块 3 行赋值随形参化移除，w3-02 接线面 :276-306 无碰撞）** |
 | （空） | | | | | |
 
 > 登记后请把「状态」改为 `进行中（<批次> <起始提交>）`；完成后改为 `已释放`。
