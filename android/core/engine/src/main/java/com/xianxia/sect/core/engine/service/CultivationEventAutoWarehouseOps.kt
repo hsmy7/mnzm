@@ -16,7 +16,8 @@ import com.xianxia.sect.core.state.MutableGameState
 
 /**
  * 实时轨专用：自动从仓库装备/学习。
- * 仅由 [CultivationTickSystem.onPhaseTick] 在 phasesToSettle==1 时调用。
+ * 仅由 [PhaseSettlementExecutor.execute]（Kotlin 对拍/回归基准路径；生产 AUTHORITATIVE
+ * 每旬走 C++ `runPhaseSettlementCore`）调用。
  */
 // ── 自动入库域（自 CultivationEventProcessor 拆出，行为零变更） ───────────────
 fun CultivationEventProcessor.processAutoFromWarehouseRealtime(state: MutableGameState) {
