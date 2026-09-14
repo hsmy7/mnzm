@@ -58,12 +58,27 @@ object GameCoreBridge {
      * @param authoritativeTickMode AUTHORITATIVE 过渡模式——true 时每旬
      *        只跑 C++ 核心结算（步骤 1-5），月/年边界以标志位返回由 Kotlin
      *        残留执行器处理
+     * @param terrainWidthCells 地图冻结（WS-5b）地形生成参数——单一数据源
+     *        = [com.xianxia.sect.core.GameConfig.SectMap]；width<=0 表示未配置
+     *        （C++ ensureTerrainGenerated 跳过，桌面最小测试面零影响）
+     * @param terrainMapGenVersion 当前生成器版本戳（生成回填时写入
+     *        GameData.mapGenVersion；生成器演进时递增）
      */
+    @Suppress("LongParameterList")
     external fun nativeInit(
         snapshotSchemaVersion: String,
         systemSeed: Long,
         seedInitialized: Boolean,
-        authoritativeTickMode: Boolean
+        authoritativeTickMode: Boolean,
+        terrainWidthCells: Int,
+        terrainHeightCells: Int,
+        terrainDensity: Float,
+        terrainBorderRing: Int,
+        terrainGateX: Int,
+        terrainGateY: Int,
+        terrainGateWidth: Int,
+        terrainGateHeight: Int,
+        terrainMapGenVersion: Int
     ): Boolean
 
     /** 关闭引擎（幂等） */

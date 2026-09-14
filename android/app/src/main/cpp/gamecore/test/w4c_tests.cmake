@@ -12,5 +12,6 @@
 # 见 docs/parallel-batches-w4/README.md §3.1 项 4。
 
 set(W4C_TEST_SOURCES
-    # 骨架阶段为空（W4-00 建立；W4-C 在此追加本批测试文件）
+    # WS-5b 地图冻结：生成即数据 / 存的地形恒优先 / 老档回填幂等 / 段存在性协议
+    terrain_freeze_test.cpp
 )

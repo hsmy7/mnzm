@@ -36,6 +36,17 @@ internal val w4CRetainedGameDataFields: Set<String> = linkedSetOf(
     // 秘境残差与运行态
     "secretRealmState", "secretRealmSession", "secretRealmAITeams",
     "secretRealmCooldownYear", "caveExplorationTeams", "aiCaveTeams",
+    // 地图冻结（WS-5b）：地形段与生成器版本戳——**在册保留（照常传输）而非
+    // CLOSED**。批次方案 R7 原拟登记 CLOSED（"地形无 Kotlin 稳态写者"），实施
+    // 定界发现 CLOSED + boot 回填写者会触发 `detectClosedFieldWrites` 误报
+    // （ERROR + 数据丢失计数，gate#7 红）：回填（ensureSectTerrainBackfilled）
+    // 是合法的一次性 Kotlin 写者。保留传输的代价 = 回填那一次的反向信封携带
+    // 一次地形段（≈64KB，一次性，非每旬）；C++ 侧由 importStateInternal
+    // ensureTerrainGenerated 同源生成，回导为幂等覆盖——不承载地形存续
+    //（w3-13 删除反向通道后地形不依赖它），符合 R7 "不得依赖反向回导"的实质。
+    // 域归属：SAVE_LOAD 族（mapSeed 同族，域级证据归 W4-B 的 closures 文件，
+    // 本文件不重复登记——聚合表 toMap 后写会静默覆盖 W4-B 结论）。
+    "terrainTiles", "mapGenVersion",
 )
 
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */

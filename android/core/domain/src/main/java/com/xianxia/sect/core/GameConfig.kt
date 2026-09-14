@@ -1016,6 +1016,18 @@ object GameConfig {
         const val WORLD_PIXEL_HEIGHT = WORLD_HEIGHT_CELLS * TILE_SIZE
         /** 地图边界不可建造区域厚度（格数）。必须 < 地图半宽。 */
         const val BORDER_TREE_RING = 3
+        /** 装饰总密度（草/石/树生成强度，0.0~1.0）——W4-C WS-5b 提为常量：
+         *  原为 SectTerrainBridge/SectMapTileGenerator 的重复默认参，地形入档后
+         *  生成参数须单一数据源（C++ ensureTerrainGenerated 经 nativeInit 传值）。 */
+        const val DECORATION_DENSITY = 0.18f
+
+        // ── 地图冻结（WS-5b）──
+        /** 地形生成器版本戳：产生 GameData.terrainTiles 的生成器版本。
+         *  判定口径 = "存的地形恒优先"（terrainTiles 非空即采用，不重算）；
+         *  仅无段才按 mapSeed + 本版本生成（boot 回填 / C++ import 归一化族）。
+         *  生成器演进（新增地形类型/改变输出）时递增 ⇒ 老档老地图冻结、
+         *  新档新地图，无需发版协调。 */
+        const val MAP_GEN_VERSION = 1
 
         // ── 宗门入口固定结构（门楼，位于地图底部中央）──
         // 门楼：占地 6×2，精灵 6×2（统一俯视视角：精灵与占地 1:1 贴地对齐，

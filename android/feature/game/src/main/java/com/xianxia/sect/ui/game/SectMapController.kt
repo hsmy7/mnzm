@@ -50,7 +50,7 @@ class SectMapController(
 
     private fun generateSectMap(sectId: String, baseSeed: Int): MapPreloadData {
         val seed = deriveSectSeed(baseSeed, sectId)
-        return sectMapCache.getOrPut(seed) { buildSectMap(seed) }
+        return sectMapCache.getOrPut(seed) { buildSectMap(seed, gameData.value, baseSeed) }
     }
 
     /**
@@ -83,11 +83,20 @@ internal fun deriveSectSeed(baseSeed: Int, sectId: String): Int =
     if (sectId.isEmpty()) baseSeed else (baseSeed * 31) xor sectId.hashCode()
 
 /** 每宗地图构建（经 SectTerrainBridge——C++ 生成真源）。
- *  按种子确定性生成瓦片数据（展平行主序，每种子一次，可测试）。 */
-internal fun buildSectMap(seed: Int): MapPreloadData {
+ *  按种子确定性生成瓦片数据（展平行主序，每种子一次，可测试）。
+ *
+ *  地图冻结（WS-5b）：主宗图（派生种子 == baseSeed，即 mapSeed）优先读
+ *  GameData 权威地形段（"存的地形恒优先"，跨版本冻结不重算）；无段（boot
+ *  回填尚未完成）或被占宗门图（派生种子，不入档）才走生成路径。 */
+internal fun buildSectMap(seed: Int, gameData: com.xianxia.sect.core.model.GameData? = null, baseSeed: Int = seed): MapPreloadData {
     val w = GameConfig.SectMap.WORLD_WIDTH_CELLS
     val h = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-    val flat = SectTerrainBridge.generateFlatTileData(
+    val authoritative = gameData
+        ?.takeIf { seed == baseSeed && it.mapSeed == seed }
+        ?.terrainTiles
+        ?.takeIf { it.isNotEmpty() }
+        ?.toIntArray()
+    val flat = authoritative ?: SectTerrainBridge.generateFlatTileData(
         worldWidthCells = w,
         worldHeightCells = h,
         worldSeed = seed,

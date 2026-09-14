@@ -41,7 +41,7 @@ object SectMapTileGenerator {
     fun generateTileData(
         worldWidthCells: Int,
         worldHeightCells: Int,
-        decorationDensity: Float = 0.18f,
+        decorationDensity: Float = GameConfig.SectMap.DECORATION_DENSITY,
         worldSeed: Int = 0,
         borderTreeRing: Int = 0
     ): Array<IntArray> {

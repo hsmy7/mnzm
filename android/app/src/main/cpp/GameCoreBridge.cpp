@@ -269,7 +269,12 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInit(
     JNIEnv* env, jobject /*thiz*/,
     jstring snapshotSchemaVersion,
     jlong systemSeed, jboolean seedInitialized,
-    jboolean authoritativeTickMode) {
+    jboolean authoritativeTickMode,
+    jint terrainWidthCells, jint terrainHeightCells,
+    jfloat terrainDecorationDensity, jint terrainBorderTreeRing,
+    jint terrainGateX, jint terrainGateY,
+    jint terrainGateWidth, jint terrainGateHeight,
+    jint terrainMapGenVersion) {
 
     if (g_gameCore) {
         LOGW("nativeInit: already initialized, ignored");
@@ -291,6 +296,16 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInit(
     config.systemSeed = static_cast<int64_t>(systemSeed);
     config.seedInitialized = (seedInitialized == JNI_TRUE);
     config.authoritativeTickMode = (authoritativeTickMode == JNI_TRUE);
+    // 地图冻结（WS-5b）：地形生成参数（单一数据源 = Kotlin GameConfig.SectMap）
+    config.terrainWidthCells = static_cast<int32_t>(terrainWidthCells);
+    config.terrainHeightCells = static_cast<int32_t>(terrainHeightCells);
+    config.terrainDecorationDensity = static_cast<float>(terrainDecorationDensity);
+    config.terrainBorderTreeRing = static_cast<int32_t>(terrainBorderTreeRing);
+    config.terrainGateX = static_cast<int32_t>(terrainGateX);
+    config.terrainGateY = static_cast<int32_t>(terrainGateY);
+    config.terrainGateWidth = static_cast<int32_t>(terrainGateWidth);
+    config.terrainGateHeight = static_cast<int32_t>(terrainGateHeight);
+    config.terrainMapGenVersion = static_cast<int32_t>(terrainMapGenVersion);
 
     g_gameCore = new gamecore::GameCore(&g_systemClock, &g_androidLogger);
     // 平台能力注入（引擎循环时间源/遥测/热控/电量端口）

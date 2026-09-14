@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 #include "gamecore/state/json_codec.h"
+#include "gamecore/map/terrain.h"
 #include "gamecore/system/month_settlement.h"
 #include "gamecore/system/phase_settlement.h"
 #include "gamecore/system/year_settlement.h"
@@ -215,6 +216,9 @@ bool GameCore::initialize(const GameCoreConfig& config) {
         logger_->log(LogLevel::kWarn, "GameCore", "initialize: already initialized, ignored");
         return false;
     }
+    // 留存初始化配置（WS-5b：ensureTerrainGenerated 消费地形生成参数——
+    // 单一数据源 = Kotlin GameConfig.SectMap，经 nativeInit 传入）
+    config_ = config;
     if (config.seedInitialized) {
         rng_.initSystemSeed(config.systemSeed);
         // AI 宗门独立 RNG 播种（Kotlin AISectDiscipleManager.
@@ -534,6 +538,11 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
         // 导入侧账本族归一：mailRecords/战史/事件栏
         // 按保留窗口回缩——先于 resetBaseline，导入后首次导出以净化态为基线
         normalizeLedgers(state_.gameData);
+        // 地图冻结（WS-5b）"生成即数据"：老档无段 ⇒ 按 mapSeed 生成 + 落为
+        // 权威数据；新档与老档**同一条路径**（归一化族口径）。有段恒优先
+        // （跨版本冻结，不重算）。先于 resetBaseline ⇒ 生成段计入导入基线，
+        // 前向/反向镜像零载荷（稳态每旬零增量）。
+        ensureTerrainGenerated();
         dirtyTracker_.resetBaseline(state_);
         // 全量导入 = 重同步基线：反向增量版本归零（配对 Kotlin
         // StateSyncService.importToNative 成功后重置 reverseVersion——
@@ -545,6 +554,36 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
                      std::string("importStateJson failed: ") + e.what());
         return false;
     }
+}
+
+// ── 地图冻结（WS-5b）：生成即数据 ────────────────────────────────────
+// 无地形段 ⇒ 按 mapSeed + 初始化配置（Kotlin GameConfig.SectMap 传值）
+// 生成行主序 flat 瓦片段并落为权威数据 + 戳生成器版本；有段恒优先
+//（跨版本冻结，老档老地图、新档新地图——Minecraft"区块边境"模式）。
+// 生成零 RNG（seed+坐标纯函数，与 Kotlin SectMapTileGenerator 位级等价）。
+// 防御：地形未配置（width<=0，桌面最小测试面）/ mapSeed==0（引擎裸 init
+// 未建档的默认态）⇒ 跳过，保持既有行为零变化。
+void GameCore::ensureTerrainGenerated() {
+    auto& gd = state_.gameData;
+    if (!gd.terrainTiles.empty()) {
+        return;  // 有段 ⇒ 直接采用（存的地形恒优先，不重算）
+    }
+    if (config_.terrainWidthCells <= 0 || config_.terrainHeightCells <= 0) {
+        return;  // 未配置地形生成参数（桌面最小测试面）⇒ 跳过
+    }
+    if (gd.mapSeed == 0) {
+        return;  // 无种子（未建档默认态）⇒ 无从生成
+    }
+    gamecore::map::terrain::GateBox gate;
+    gate.x = config_.terrainGateX;
+    gate.y = config_.terrainGateY;
+    gate.width = config_.terrainGateWidth;
+    gate.height = config_.terrainGateHeight;
+    gd.terrainTiles = gamecore::map::terrain::generateTileData(
+        config_.terrainWidthCells, config_.terrainHeightCells,
+        config_.terrainDecorationDensity, gd.mapSeed,
+        config_.terrainBorderTreeRing, gate);
+    gd.mapGenVersion = config_.terrainMapGenVersion;
 }
 
 std::string GameCore::exportDirtyJson() {

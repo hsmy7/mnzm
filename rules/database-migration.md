@@ -126,3 +126,32 @@ CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_co
 2. **新货币上线前必须过 `rules/economy-design.md` 审计**：持有上限 + 源汇闭环 + 通胀防控（本规则只约束存储层，经济设计审计见 economy-design.md）
 3. **发放/消耗入口必须注册进"来源字典"**：新增灵石/货币发放或消耗代码必须包裹 `withTrackingSource("来源名")`（来源名加入 `OverflowMailSender.SOURCE_DISPLAY_NAMES` 映射），确保年度报告（`YearlyReport`）与经济基线表（`docs/knowledge-base.md` 扩展性现状盘点）可审计
 4. **溢出语义类别判定**：凭据类（可重试领取）包 `withOverflowMailSuppressed`，发放类（自动入库）自动转邮件——选错类别会导致货币重复发放或丢失（CLAUDE.md 13.3 已有条目，此处为设计期流程）
+
+## 协议版本戳字段迁移判定（2026-09-15 起，WS-5b 地图冻结批新增）
+
+> 背景：WS-5b 地图冻结引入首个"协议版本戳 + 大段数据"字段
+> （`GameData.mapGenVersion` + `GameData.terrainTiles`）。此类字段横跨
+> C++ 快照协议与 Kotlin Room/ProtoBuf 存档，迁移判定与纯 Room 列不同。
+
+### 判定口径："存的地形恒优先"
+
+1. 版本戳字段（`mapGenVersion`）记录**产生该数据的生成器版本**，不是
+   "存档格式版本"（那是 Room `DATABASE_VERSION` 与 `saveVersion` 的职责）。
+2. 数据段（`terrainTiles`）**非空即直接采用**——读档路径绝不因"生成器版本
+   更新"重算已有段（跨版本冻结：老档老地图、新档新地图）。
+3. 仅"无段"（版本戳 = 0 / 段为空）才按种子 + 当前生成器版本生成并回填
+   （一次性；幂等）。生成器演进时递增 `GameConfig.SectMap.MAP_GEN_VERSION`
+   ⇒ 无需发版协调，无需数据迁移。
+
+### C++/Kotlin 字段同步清单（新增此类字段时逐项核对）
+
+| 面 | 要求 |
+|---|---|
+| C++ `state/models.h` | GameData 增版本戳（int32，默认 0）+ 数据段（flat 内存表示）；协议键 = Kotlin 字段名 |
+| C++ `src/json_codec.cpp` | 双向编解码；**导出键按"非空/非零才导出"**（与 kotlinx encodeDefaults=false 缺省语义对称，先例 aiSectDisciples）；导入宽松（缺键保持默认） |
+| C++ `game_core.{h,cpp}` | 生成/回填入口落 `importStateInternal` **归一化族**（先于 `resetBaseline` ⇒ 生成段计入导入基线，镜像零载荷）；生成参数由 Kotlin 经 `GameCoreConfig` 传值（单一数据源不落 C++） |
+| Kotlin `GameData.kt` | `@ProtoNumber`（取 1000+ 预留段）+ `@ColumnInfo` + `@SettlementStrategy(PRESERVE_OLD)`；**禁止 @Transient**（云存档链无 heavy_data 补偿，会丢数据） |
+| Room | `ALTER TABLE ADD COLUMN ... DEFAULT`（禁 DROP COLUMN）+ `MIGRATION_XX_XX` + 注册 + schema JSON（KSP 自动导出）+ 集成测试（v-1 库 → 迁移 → 旧行默认值正确、既有数据零丢失） |
+| 反向通道 | 新字段必须显式归类（`ReverseChannelPolicyGuardTest` 穷尽分类守卫）；一次性回填写者 ⇒ 登记**在册保留**（CLOSED 会触发 `detectClosedFieldWrites` 误报） |
+| 对拍面 | `DiffSurfaceAssertion` 按需登记镜像生成字段豁免（两端各自同源生成 ⇒ 内容逐位相同）；`Diff*Test` 全绿为门禁 |
+| 内存/协议结构 | 保持单一 flat 表示；压缩（RLE 等）仅可存在于存档编码层，不入模型/协议 |

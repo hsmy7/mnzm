@@ -1275,6 +1275,14 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, secretRealmAITeams);
     GC_TO(v, j, suzerainSectId); GC_TO(v, j, lastYearSpiritStoneIncome);
     GC_TO(v, j, mapSeed);
+    // 地图冻结（WS-5b）：非空/非零才导出键——与 Kotlin encodeDefaults=false
+    // 的缺省语义对称（0 版本/空段 = 旧档无段，镜像空表不覆盖，aiSectDisciples 先例）
+    if (v.mapGenVersion != 0) {
+        j["mapGenVersion"] = v.mapGenVersion;
+    }
+    if (!v.terrainTiles.empty()) {
+        j["terrainTiles"] = v.terrainTiles;
+    }
     GC_TO(v, j, sectAttackCooldowns); GC_TO(v, j, guideCounters);
     GC_TO(v, j, aiSectPersonalities); GC_TO(v, j, activeAttackWarnings);
     GC_TO(v, j, annualIncomeBySource); GC_TO(v, j, annualExpenditureByReason);
@@ -1358,6 +1366,9 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, secretRealmAITeams);
     GC_FROM(j, v, suzerainSectId); GC_FROM(j, v, lastYearSpiritStoneIncome);
     GC_FROM(j, v, mapSeed);
+    // 地图冻结（WS-5b）：宽松导入（旧快照无键 → 保持默认空段/0 版本）
+    GC_FROM(j, v, mapGenVersion);
+    GC_FROM(j, v, terrainTiles);
     GC_FROM(j, v, sectAttackCooldowns); GC_FROM(j, v, guideCounters);
     GC_FROM(j, v, aiSectPersonalities); GC_FROM(j, v, activeAttackWarnings);
     GC_FROM(j, v, annualIncomeBySource); GC_FROM(j, v, annualExpenditureByReason);

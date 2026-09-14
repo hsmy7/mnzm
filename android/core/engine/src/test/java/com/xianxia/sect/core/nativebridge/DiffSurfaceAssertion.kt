@@ -69,6 +69,12 @@ internal fun diffIsMirrorGeneratedField(path: String, k: String): Boolean = when
     k == "id" && path.contains("worldLevels") -> true   // Kotlin UUID vs C++ 空串
     k == "id" && path.contains("recruitList") -> true   // 新生儿 Kotlin UUID vs C++ 空串
     k == "id" && diffIsMirrorIdPath(path) -> true
+    // 地图冻结（WS-5b）：地形段与生成器版本戳为**种子派生镜像字段**——
+    // 两端各自 ensure（C++ importStateInternal 归一化族 ensureTerrainGenerated /
+    // Kotlin boot 回填），mapSeed 同源 ⇒ 内容逐位相同；harness 的 Kotlin 期望
+    // 快照不携带该段，C++ 生成回填后导出的键不构成协议漂移
+    k == "terrainTiles" -> true
+    k == "mapGenVersion" -> true
     else -> false
 }
 

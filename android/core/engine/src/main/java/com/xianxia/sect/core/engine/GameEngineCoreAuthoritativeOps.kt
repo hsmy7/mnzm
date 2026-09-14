@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.config.GameConfigNativeBridge
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
@@ -114,7 +115,19 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
                 snapshotSchemaVersion = NATIVE_SNAPSHOT_SCHEMA_VERSION,
                 systemSeed = stateStore.gameData.value.mapSeed.toLong(),
                 seedInitialized = true,
-                authoritativeTickMode = true
+                authoritativeTickMode = true,
+                // 地图冻结（WS-5b）：地形生成参数由 GameConfig.SectMap 传值
+                //（单一数据源不落 C++，§2.19 口径）——C++ importStateInternal
+                // 归一化族 ensureTerrainGenerated 消费（无段老档按 mapSeed 生成）
+                terrainWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS,
+                terrainHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS,
+                terrainDensity = GameConfig.SectMap.DECORATION_DENSITY,
+                terrainBorderRing = GameConfig.SectMap.BORDER_TREE_RING,
+                terrainGateX = GameConfig.SectMap.GATE_X,
+                terrainGateY = GameConfig.SectMap.GATE_Y,
+                terrainGateWidth = GameConfig.SectMap.GATE_WIDTH,
+                terrainGateHeight = GameConfig.SectMap.GATE_HEIGHT,
+                terrainMapGenVersion = GameConfig.SectMap.MAP_GEN_VERSION
             )
             if (!initialized) return false
             gameRngManager.attachNativeChannel(GameCoreRngChannel)

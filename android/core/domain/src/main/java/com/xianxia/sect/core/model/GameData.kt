@@ -866,6 +866,30 @@ data class GameData(
     @ColumnInfo(name = "pending_trait_adds", defaultValue = "")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var pendingTraitAdds: List<PendingTraitAdd> = emptyList(),
+
+    // ── 地图冻结（WS-5b）：生成即数据 ──
+    // 地形生成器版本戳（产生 [terrainTiles] 的生成器版本，取值 =
+    // GameConfig.SectMap.MAP_GEN_VERSION；0 = 无段）。判定口径 =
+    // "存的地形恒优先"：terrainTiles 非空即直接采用（跨版本冻结，不重算），
+    // 仅无段才按 mapSeed + 当前版本生成（boot 回填 / C++ import 归一化族，
+    // 两端同源确定性）。生成器演进时递增 MAP_GEN_VERSION ⇒ 老档老地图、
+    // 新档新地图。
+    @ProtoNumber(1000)
+    @ColumnInfo(name = "map_gen_version", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var mapGenVersion: Int = 0,
+
+    // 地形瓦片段：行主序 flat（index = row*worldWidthCells+col）——内存/协议
+    // 结构面单一 flat 表示（§2.19 红线不破）。存储面：Room 走既有
+    // CollectionConverters.intList（base64 proto，16384 段 ≈34KB TEXT，仅读档
+    // 一次性读取）；云存档 proto 编码后另有 LZ4/ZSTD 压缩。RLE 存储压缩
+    // 顺延登记（需独立转换器类型，值类/IntArray 各有 data-class equals 与
+    // proto codegen 破坏性风险）——触发条件 = 存档体积实测超预算。
+    // 禁止改 @Transient：云存档链无 heavy_data 侧车补偿，会丢地形（WS-5b R1）。
+    @ProtoNumber(1001)
+    @ColumnInfo(name = "terrain_tiles", defaultValue = "")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var terrainTiles: List<Int> = emptyList(),
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 

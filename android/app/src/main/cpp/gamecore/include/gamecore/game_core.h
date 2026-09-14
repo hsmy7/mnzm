@@ -46,6 +46,21 @@ struct GameCoreConfig {
     /// 结算钩子——由 Kotlin 残留执行器（丹药/突破/月变/年变完整编排）处理，
     /// 保证结算行为零丢失。默认 false（shadow 对拍/diff 测试语义不变）。
     bool authoritativeTickMode = false;
+
+    // ── 地图冻结（WS-5b）地形生成参数 ──
+    // 单一数据源 = Kotlin GameConfig.SectMap（经 nativeInit 传入，不落 C++
+    // 硬编码，§2.19 口径）；width/height<=0 表示未配置 ⇒ ensureTerrainGenerated
+    // 跳过（桌面最小测试面零影响）。
+    int32_t terrainWidthCells = 0;
+    int32_t terrainHeightCells = 0;
+    float terrainDecorationDensity = 0.0f;
+    int32_t terrainBorderTreeRing = 0;
+    int32_t terrainGateX = 0;
+    int32_t terrainGateY = 0;
+    int32_t terrainGateWidth = 0;
+    int32_t terrainGateHeight = 0;
+    /// 当前生成器版本戳（生成回填时写入 GameData.mapGenVersion；Kotlin 传入）
+    int32_t terrainMapGenVersion = 0;
 };
 
 /// 平台能力提供者集合（Clock/Telemetry/热控/电量注入）。
@@ -254,6 +269,13 @@ private:
     void syncRngStates();
     /// 导入内部实现（restoreRng=false 时跳过 RNG 恢复——AUTHORITATIVE 回导用）
     bool importStateInternal(const std::string& json, bool restoreRng);
+    /// 地图冻结（WS-5b）"生成即数据"：无地形段 ⇒ 按 mapSeed + 初始化时传入的
+    /// 地形配置生成并落为权威数据（有段恒优先不重算；未配置地形/无种子则跳过）。
+    /// 生成零 RNG（seed+坐标纯函数），调用点位于 resetBaseline 之前 ⇒
+    /// 生成段计入导入基线，前向/反向镜像零载荷。
+    void ensureTerrainGenerated();
+    /// initialize(config) 的配置留存（ensureTerrainGenerated 消费地形参数）
+    GameCoreConfig config_;
 };
 
 }  // namespace gamecore

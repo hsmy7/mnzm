@@ -1346,6 +1346,18 @@ struct GameData {
     int64_t lastYearSpiritStoneIncome = 0;
     // 地图
     int32_t mapSeed = 0;
+    // ── 地图冻结（WS-5b）：生成即数据 ──
+    // 生成器版本戳：记录产生 terrainTiles 的生成器版本；0 = 无段（旧档未
+    // 回填/新档未生成）。判定口径 = **存的地形恒优先**：terrainTiles 非空
+    // 即直接采用（跨版本冻结，不重算）；仅无段才按 mapSeed 重算——重算点
+    // 在 importStateInternal 归一化族 ensureTerrainGenerated（Kotlin 侧为
+    // boot 回填，两端同源确定性，见 terrain.h）。
+    int32_t mapGenVersion = 0;
+    // 地形瓦片段：行主序 flat（index = row*w+col）——内存与协议结构面的
+    // **单一 flat 表示**（§2.19 红线不破）；RLE 仅是 Kotlin 存档存储编码层
+    // （Protobuf/Room 存取时编码），不入本模型。空 = 无段，协议按
+    // "非空才导出键"先例（同 aiSectDisciples）缺省。
+    std::vector<int32_t> terrainTiles;
     // 冷却/统计（Map）
     std::map<std::string, int32_t> sectAttackCooldowns;
     std::map<std::string, int64_t> guideCounters;
