@@ -136,6 +136,15 @@ internal class BuildingNativeTx(
     /**
      * 拆除事务（存在性/幽灵防御 + 灵石返还）+ 残差派生清理。
      * 返还走 C++ wallet.add（记年度账，与回退臂 Kotlin wallet.add 同原语）。
+     *
+     * W4-A·w3-09 残差清扫下沉：BUILDING_REMOVE 成功后关联弟子收集
+     * （清扫前行删除会丢 id；生产 repo 侧来源同现状——平台存储 C++ 不可见），
+     * 随槽组知识组装传入 1810（C++ 扫实例键控七集合 + 血炼 + 监牢/任务阁
+     * 特例 + REFINING 破除）；**生产/长老组留 Kotlin**（偏差登记：
+     * C++ ProductionSlot 行无 buildingInstanceId、ElderPositions clearSpec
+     * 为注册表 lambda 单一事实源）——清扫成功后 Kotlin 在同一 update 内
+     * 补扫两类 + Gate 释放（运行态域）。降级/失败信封回退 Kotlin 原路径
+     * 全量残差（cleanupBuildingSlotsResidual，行为零变更）。
      */
     fun removeBuildings(refunds: Map<String, Long>): Boolean {
         // 拆除前快照：残差清理需要被拆建筑的 feature 映射（native 成功后
@@ -159,13 +168,27 @@ internal class BuildingNativeTx(
             BuildingFeatureRegistry.findByDisplayName(building.displayName)
                 ?.let { feature -> building to feature }
         }
-        val productionIds = mutableSetOf<String>()
-        stateStore.update {
-            for ((building, feature) in targets) {
-                if (feature.slotGroups.any { it is SlotGroup.ProductionSlotGroup }) {
-                    productionIds.add(building.instanceId)
+        val productionIds = targets
+            .filter { (_, feature) ->
+                feature.slotGroups.any { it is SlotGroup.ProductionSlotGroup }
+            }.map { (building, _) -> building.instanceId }
+        // 关联弟子收集（清扫前——收集读槽位行 + 生产 repo 运行态）
+        val allDiscipleIds = collectRemovedDiscipleIds(targets, productionIds)
+        val clearedNative = tryNativeResidualClear(targets, allDiscipleIds)
+        if (clearedNative) {
+            stateStore.update {
+                // 生产 + 长老组补扫（偏差登记——C++ 清扫范围外；过滤幂等）
+                for ((building, feature) in targets) {
+                    gameData = cleanupProductionAndElderSlotsOnly(gameData, feature, building)
                 }
-                gameData = cleanupBuildingSlotsResidual(feature, building)
+            }
+            // Gate 释放（Kotlin 运行态域）；REFINING 破除已由 C++ 承担
+            allDiscipleIds.forEach { assignmentGate.release(it) }
+        } else {
+            stateStore.update {
+                for ((building, feature) in targets) {
+                    gameData = cleanupBuildingSlotsResidual(feature, building)
+                }
             }
         }
         if (productionIds.isNotEmpty()) {
@@ -179,7 +202,117 @@ internal class BuildingNativeTx(
         return true
     }
 
+    /**
+     * 放置槽位派生事务（W4-A·w3-09，1811）：batch-06 tryPlace 成功后的
+     * createSlots 残差下沉——七组实例键控集合建槽 + 每塔一份 PatrolConfig；
+     * 生产/长老组留 Kotlin（偏差登记同 removeBuildings）。
+     * 成功后调用方仅承担生产槽 gameData 写 + Room 回流。
+     */
+    fun tryPlaceSlots(
+        feature: BuildingFeature,
+        instanceId: String,
+        activeId: String
+    ): Boolean {
+        val data = tx(ActionIds.BUILDING_PLACE_SLOTS) {
+            put("instanceId", instanceId)
+            put("sectId", activeId)
+            put("groups", JsonArray(feature.slotGroups.mapNotNull { group ->
+                val kind = group.kindName() ?: return@mapNotNull null
+                buildJsonObject {
+                    put("kind", kind)
+                    put("count", group.slotsPerInstance)
+                }
+            }))
+        } ?: return false
+        return (data as? JsonObject)?.get("created") != null
+    }
+
     // ── 内部 ────────────────────────────────────────────────────
+
+    /**
+     * 关联弟子收集（清扫前调用——槽位行删除后 id 丢失；集合侧读
+     * pre-clear 快照，生产侧读 Room 运行态 repo——平台存储 C++ 不可见）。
+     */
+    private fun collectRemovedDiscipleIds(
+        targets: List<Pair<GridBuildingData, BuildingFeature>>,
+        productionIds: List<String>
+    ): Set<String> {
+        val snapshotData = stateStore.gameDataSnapshot
+        val gameDataDiscipleIds = buildSet {
+            for ((building, feature) in targets) {
+                addAll(
+                    feature.slotGroups.flatMap {
+                        it.collectDiscipleIds(snapshotData, building.instanceId, feature)
+                    }
+                )
+            }
+        }
+        if (productionIds.isEmpty()) return gameDataDiscipleIds
+        val roomDiscipleIds = productionCoordinator.repository.getSlots()
+            .filter { it.buildingInstanceId in productionIds }
+            .mapNotNull { it.assignedDiscipleId }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        return gameDataDiscipleIds + roomDiscipleIds
+    }
+
+    /**
+     * 1810 残差清扫转发：仅发 C++ 清扫范围内的组（生产/长老组不发线）。
+     * @return true=已清扫；false=降级/失败信封（调用方回退 Kotlin 原路径）
+     */
+    private fun tryNativeResidualClear(
+        targets: List<Pair<GridBuildingData, BuildingFeature>>,
+        discipleIds: Set<String>
+    ): Boolean {
+        val data = tx(ActionIds.BUILDING_RESIDUAL_CLEAR) {
+            put("targets", JsonArray(targets.map { (building, feature) ->
+                buildJsonObject {
+                    put("instanceId", building.instanceId)
+                    put("groups", JsonArray(feature.slotGroups.mapNotNull { it.kindName() }
+                        .map { JsonPrimitive(it) }))
+                    put("isMissionHall", feature.buildingType == BuildingType.MISSION_HALL)
+                    put("isReflectionCliff", feature.buildingType == BuildingType.REFLECTION_CLIFF)
+                    put("discipleIds", JsonArray(discipleIds.map { JsonPrimitive(it) }))
+                }
+            }))
+        } ?: return false
+        return (data as? JsonObject)?.get("cleared") != null
+    }
+
+    /** 生产 + 长老组补扫（1810 清扫范围外的两类——注册表语义留 Kotlin）。 */
+    private fun MutableGameState.cleanupProductionAndElderSlotsOnly(
+        current: GameData,
+        feature: BuildingFeature,
+        building: GridBuildingData
+    ): GameData {
+        var gd = current
+        for (group in feature.slotGroups) {
+            gd = when (group) {
+                is SlotGroup.ProductionSlotGroup ->
+                    group.filterFromGameData(gd, building.instanceId, feature)
+                is SlotGroup.ElderPositions ->
+                    group.filterFromGameData(gd, building.instanceId, feature)
+                else -> gd
+            }
+        }
+        return gd
+    }
+
+    /**
+     * 槽组 → 协议组名（C++ parseSlotGroupKind 同名映射）。
+     * @return null = C++ 清扫范围外的组（生产/长老——不发线）
+     */
+    private fun SlotGroup.kindName(): String? = when (this) {
+        is SlotGroup.SpiritMine -> "SPIRIT_MINE"
+        is SlotGroup.PatrolTower -> "PATROL_TOWER"
+        is SlotGroup.Residence -> "RESIDENCE"
+        is SlotGroup.SpiritField -> "SPIRIT_FIELD"
+        is SlotGroup.Warehouse -> "WAREHOUSE"
+        is SlotGroup.BloodRefining -> "BLOOD_REFINING"
+        is SlotGroup.Library -> "LIBRARY"
+        is SlotGroup.ProductionSlotGroup -> null
+        is SlotGroup.ElderPositions -> null
+    }
 
     /**
      * native 事务转发：AUTHORITATIVE 门控 + tryExecuteNative（成功内含

@@ -35,8 +35,8 @@
 //  - DiscipleAssignmentGate.release、Room 生产槽 Repository 同步为
 //    Kotlin 分支职责（clearAllSlotsState 残差，幂等可重放）。
 //  - 婚姻提议列表 pendingMarriageProposals 为 GameStateStore 层字段
-//    （非快照协议），提议移除留 Kotlin；MARRIAGE 消息栏事件经
-//    settle_util::recordGameEvent C++ 直写（ai_beast_hunt 先例）。
+//    （非快照协议），提议移除留 Kotlin；批准/拒绝的 MARRIAGE 消息栏
+//    事件经 settle_util::recordGameEvent C++ 直写（ai_beast_hunt 先例）。
 //  - 婚姻批准对已不存在弟子（提议残留 + 弟子已亡/被逐边界）Kotlin 原路径
 //    写幽灵列条目，SoA 行式存储无法表达 → 本事务 NotFound 信封回退
 //    Kotlin 原路径（行为零变更）。
@@ -392,6 +392,26 @@ inline MarriageApproveResult approveMarriageTransaction(GameState& state,
 
     out.ok = true;
     out.paired = true;
+    return out;
+}
+
+// ── 事务 3'：婚姻拒绝（GameEngine.rejectMarriageProposal 等价）────────────
+//
+// 拒绝 = 仅消息栏 MARRIAGE 事件直写（"拒绝与…结为道侣"），零弟子表写入、
+// 零 RNG；提议移除留 Kotlin（pendingMarriageProposals 运行态字段）。
+// 提议存在性为 Kotlin 侧前置（同事务 3）；事件直写无失败臂——信封恒成功，
+// Kotlin native 分支照原序移除提议。
+inline LifecycleTxResult rejectMarriageTransaction(GameState& state,
+                                                   const std::string& maleId,
+                                                   const std::string& femaleId,
+                                                   const std::string& maleName,
+                                                   const std::string& femaleName) {
+    LifecycleTxResult out;
+    settle_util::recordGameEvent(
+        state, "SECT", "MARRIAGE",
+        "弟子" + maleName + "拒绝与弟子" + femaleName + "结为道侣",
+        maleId, maleName);
+    out.ok = true;
     return out;
 }
 

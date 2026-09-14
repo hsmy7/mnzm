@@ -42,9 +42,11 @@
 #include <vector>
 
 #include "gamecore/state/models.h"
+#include "gamecore/state/disciple_store.h"      // DiscipleStore 列式存储
 #include "gamecore/system/disciple.h"            // kBaseManualSlots
 #include "gamecore/system/disciple_stats.h"      // talent/affix effects（名额公式）
 #include "gamecore/system/inventory.h"           // 库存原语同源（bag 语义参照）
+#include "gamecore/system/pill_system.h"         // classify/canUsePill/buildUsedKeys
 #include "gamecore/system/recruit_settlement.h"  // nextInstanceId（确定性实例 id）
 #include "gamecore/system/settlement_detail.h"   // settle_util::toIntOrNull
 #include "gamecore/system/slot_cleanup.h"        // clearAllSlotsDataOnly
@@ -62,6 +64,14 @@ using gamecore::state::ManualInstance;
 using gamecore::state::ManualStack;
 using gamecore::state::StorageBagItem;
 namespace settle_util = gamecore::system::settle_util;
+
+// ── W4-A w3-01 事务族新增类型（仓库四表 + 血炼进度 + 效果面）──
+using gamecore::state::BloodRefinementProgress;
+using gamecore::state::Herb;
+using gamecore::state::ItemEffect;
+using gamecore::state::Material;
+using gamecore::state::Pill;
+using gamecore::state::Seed;
 
 // ── 线性查找（仓库/实例表规模小，与 Kotlin StackableItemStore.get 同义）──
 
@@ -356,6 +366,13 @@ using gamecore::state::ManualStack;
 using gamecore::state::StorageBagItem;
 namespace settle_util = gamecore::system::settle_util;
 
+// ── W4-A w3-01 事务函数作用域补全（同上款口径：仓库四表 + 血炼进度）──
+using gamecore::state::BloodRefinementProgress;
+using gamecore::state::Herb;
+using gamecore::state::Material;
+using gamecore::state::Pill;
+using gamecore::state::Seed;
+
 // ── 结果信封（Kotlin DomainResult.Failure 分型 + 运行态草稿）────────────
 
 /// 事务结果基型：errorType 与 Kotlin AppError.Domain.Disciple 分型同名
@@ -366,6 +383,9 @@ struct DiscipleTxResult {
     bool ok = false;
     std::string errorType;
     std::string message;
+    // 偷盗判定钩子回执（仅 facade 丹药链生效路径填装；执法域不下沉）
+    bool theftCandidate = false;
+    int32_t moralityAfter = 0;
 };
 
 /// 穿装结果：附 equip 日志草稿（Kotlin lifeEvents 瞬态列回写；
@@ -772,6 +792,992 @@ inline UnassignSlotResult unassignSlotTransaction(GameState& state, SlotFamily f
         gamecore::state::LibrarySlot empty;
         empty.index = slotIndex;
         gd.librarySlots[slotIndex] = empty;
+    }
+    out.base.ok = true;
+    return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// W4-A·w3-01 弟子操作面事务（ActionId 1740–1748）
+//
+// 语义权威 = 各 Kotlin 源文件（等价移植，逐字对齐）：
+//  - GameEngineCoordination.renameDisciple / changeDiscipleTypeAtomic
+//  - DiscipleDelegate.toggleFollowDisciple（statusData["followed"] 段）
+//  - DiscipleFacadeImpl战斗Ops2.rewardPill/rewardMaterial/rewardHerb/
+//    rewardSeed/usePill + DiscipleFacadeImpl.applyPillEffectsToDisciple
+//    （**facade 丹药链**——与 auto-use 链 pill_system.h 的既知口径差异，
+//      本节逐字采用 facade 口径：
+//      ① 修为直加**无上限 clamp**（facade applyCultivationAddEffect）；
+//      ② 治疗 maxHp 取 **baseHps 基列**（facade applyHealEffect），
+//         mpRecover 不适用（facade 链无此分支）；
+//      ③ 战斗/速率生效时清零旧 cultivationSpeedBonus 组件列 + checkpoint；
+//      ④ 道德触发偷盗判定钩子**不下沉**（执法系统域，phase_settlement.h
+//         同边界）——信封回传 moralityAfter，由 Kotlin native 分支原序判定）
+//  - GameEngineManualOps.replaceManual（2026-09-15 核查新增稳态写者）
+//  - GameEngineBloodRefinementOps.startBloodRefinementAtomic（血炼启动）
+//  - DiscipleStatusService.syncAll/syncSingle（派生列唯一计算方 = C++）
+//
+// 零 RNG：全部事务无随机抽取（canUsePill/derive 为纯判定）。
+// 失败臂零写入：校验链先行（Kotlin 事务 throw 回滚 ⇒ C++ 校验先行等价）。
+// ═══════════════════════════════════════════════════════════════════
+
+namespace detail {
+
+/// Pill → ItemEffect（DisciplePillManager.pillToItemEffect 逐字段等价；
+/// disciple_purchase.h 有同名映射，但为避免把 merchant/rng/ecs 传递引入
+/// 本头（batch-09 include-order 纪律），此处做只读复制。tier = pill.rarity
+/// ——Kotlin "rarity 直接映射为品阶"）
+inline gamecore::state::ItemEffect facadeItemEffect(const Pill& pill) {
+    gamecore::state::ItemEffect e;
+    e.tier = pill.rarity;
+    const gamecore::state::PillEffect& f = pill.effects;
+    e.cultivationSpeedPercent = f.cultivationSpeedPercent;
+    e.skillExpSpeedPercent = f.skillExpSpeedPercent;
+    e.nurtureSpeedPercent = f.nurtureSpeedPercent;
+    e.breakthroughChance = f.breakthroughChance;
+    e.targetRealm = f.targetRealm;
+    e.cultivationAdd = f.cultivationAdd;
+    e.skillExpAdd = f.skillExpAdd;
+    e.nurtureAdd = f.nurtureAdd;
+    e.healMaxHpPercent = f.healMaxHpPercent;
+    e.mpRecoverMaxMpPercent = f.mpRecoverMaxMpPercent;
+    e.hpAdd = f.hpAdd;
+    e.mpAdd = f.mpAdd;
+    e.extendLife = f.extendLife;
+    e.physicalAttackAdd = f.physicalAttackAdd;
+    e.magicAttackAdd = f.magicAttackAdd;
+    e.physicalDefenseAdd = f.physicalDefenseAdd;
+    e.magicDefenseAdd = f.magicDefenseAdd;
+    e.speedAdd = f.speedAdd;
+    e.critRateAdd = f.critRateAdd;
+    e.critEffectAdd = f.critEffectAdd;
+    e.intelligenceAdd = f.intelligenceAdd;
+    e.charmAdd = f.charmAdd;
+    e.loyaltyAdd = f.loyaltyAdd;
+    e.comprehensionAdd = f.comprehensionAdd;
+    e.artifactRefiningAdd = f.artifactRefiningAdd;
+    e.pillRefiningAdd = f.pillRefiningAdd;
+    e.spiritPlantingAdd = f.spiritPlantingAdd;
+    e.teachingAdd = f.teachingAdd;
+    e.moralityAdd = f.moralityAdd;
+    e.miningAdd = f.miningAdd;
+    e.revive = f.revive;
+    e.clearAll = f.clearAll;
+    e.isAscension = f.isAscension;
+    e.duration = f.duration;
+    e.cannotStack = f.cannotStack;
+    e.minRealm = pill.minRealm;
+    e.pillCategory = pill.category;
+    e.pillType = pill.pillType;
+    return e;
+}
+
+/// PillGrade.name → displayName（Kotlin PillGrade.displayName：LOW 下品 /
+/// MEDIUM 中品 / HIGH 上品；未知按中品防御）
+inline const char* gradeDisplayName(const std::string& grade) {
+    if (grade == "LOW") return "下品";
+    if (grade == "HIGH") return "上品";
+    return "中品";
+}
+
+inline bool containsValue(const std::vector<std::string>& list, const std::string& v) {
+    return std::find(list.begin(), list.end(), v) != list.end();
+}
+
+/// 仓库堆叠扣减（按 id；quantity==n → 移除，否则 -n。pills/materials/herbs/
+/// seeds 四表同构——Kotlin XxxStore.remove/update 同义）
+template <typename T>
+inline void deductStackById(std::vector<T>& store, const std::string& id,
+                            int32_t quantity) {
+    for (auto it = store.begin(); it != store.end(); ++it) {
+        if (it->id != id) continue;
+        if (it->quantity == quantity) {
+            store.erase(it);
+        } else {
+            it->quantity -= quantity;
+        }
+        return;
+    }
+}
+
+template <typename T>
+inline T* findStackById(std::vector<T>& store, const std::string& id) {
+    for (auto& s : store) {
+        if (s.id == id) return &s;
+    }
+    return nullptr;
+}
+
+/// 偷盗判定钩子回执（执法域不下沉——阈值 MORALITY_THRESHOLD 是 config 值，
+/// C++ 不持有）：Kotlin native 分支在 theftCandidate 且 moralityAfter 低于
+/// 阈值时原序执行 processSingleDiscipleTheft（facade 事务内判定等价回执驱动）
+struct FacadePillOutcome {
+    int32_t moralityAfter = 0;
+    bool baseAttrApplied = false;  // 偷盗判定钩子的前置分支（applyBaseAttrEffects）
+};
+
+/// facade 丹药链（applyPillEffectsToDisciple 逐分支等价；列级直写，
+/// 不经 materialize——与 Kotlin discipleTables 直写同构）。
+inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t row,
+                                                const Pill& pill) {
+    DiscipleStore& ds = state.disciples;
+    const gamecore::state::PillEffect& effect = pill.effects;
+    const gamecore::state::ItemEffect ie = facadeItemEffect(pill);
+
+    // ① 修炼值（facade：直加无 clamp）
+    if (effect.cultivationAdd > 0) ds.cultivations[row] += effect.cultivationAdd;
+
+    // ② 功法经验（全部熟练度 +add，上限 10000）
+    if (effect.skillExpAdd > 0) {
+        for (auto& kv : ds.manualMasteries[row]) {
+            kv.second = std::min(kv.second + effect.skillExpAdd,
+                                 static_cast<int32_t>(10000));
+        }
+    }
+
+    // ③ 延寿（lifespan += + pillType 去重登记）
+    if (effect.extendLife > 0) {
+        ds.lifespans[row] += effect.extendLife;
+        if (!pill.pillType.empty() &&
+            !containsValue(ds.usedExtendLifePillTypes[row], pill.pillType)) {
+            ds.usedExtendLifePillTypes[row].push_back(pill.pillType);
+        }
+    }
+
+    // ④ 永久基础属性（boundedAdd 0..200 / loyalty 0..100；mining 0..200）
+    const auto boundedAdd = [](int32_t v, int32_t add, int32_t max) {
+        return std::clamp(v + add, 0, max);
+    };
+    FacadePillOutcome outcome;
+    if (gamecore::pill::hasAnyBaseAttrAdd(ie)) {
+        outcome.baseAttrApplied = true;
+        constexpr int32_t kSkillCap = 200;      // GameConfig.Disciple.SKILL_MAX
+        constexpr int32_t kLoyaltyCap = 100;    // GameConfig.Disciple.MAX_LOYALTY
+        ds.intelligences[row] = boundedAdd(ds.intelligences[row], effect.intelligenceAdd, kSkillCap);
+        ds.charms[row] = boundedAdd(ds.charms[row], effect.charmAdd, kSkillCap);
+        ds.loyalties[row] = boundedAdd(ds.loyalties[row], effect.loyaltyAdd, kLoyaltyCap);
+        ds.comprehensions[row] = boundedAdd(ds.comprehensions[row], effect.comprehensionAdd, kSkillCap);
+        ds.artifactRefinings[row] = boundedAdd(ds.artifactRefinings[row], effect.artifactRefiningAdd, kSkillCap);
+        ds.pillRefinings[row] = boundedAdd(ds.pillRefinings[row], effect.pillRefiningAdd, kSkillCap);
+        ds.spiritPlantings[row] = boundedAdd(ds.spiritPlantings[row], effect.spiritPlantingAdd, kSkillCap);
+        ds.teachings[row] = boundedAdd(ds.teachings[row], effect.teachingAdd, kSkillCap);
+        ds.moralities[row] = boundedAdd(ds.moralities[row], effect.moralityAdd, kSkillCap);
+        // 偷盗判定钩子不下沉（见节首注释④）：moralityAfter 经信封回传
+        ds.minings[row] = boundedAdd(ds.minings[row], effect.miningAdd, kSkillCap);
+        // 使用登记（canUsePill 已保证无既有 key ⇒ 去重追加与 Kotlin usedKeys+keys 等价）
+        for (const auto& k : gamecore::pill::buildUsedKeys(ie, ie.tier)) {
+            if (!containsValue(ds.usedPermanentPillKeys[row], k)) {
+                ds.usedPermanentPillKeys[row].push_back(k);
+            }
+        }
+    }
+
+    // ⑤ 战斗/速率持续加成（整体覆写 + 时长取最大 + SUSTAINED/TEMP 登记）
+    const bool hasBattleOrSpeed = gamecore::pill::hasAnyBattleAttrAdd(ie) ||
+        effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
+        effect.nurtureSpeedPercent > 0;
+    if (hasBattleOrSpeed) {
+        ds.pillPhysicalAttackBonuses[row] = effect.physicalAttackAdd;
+        ds.pillMagicAttackBonuses[row] = effect.magicAttackAdd;
+        ds.pillPhysicalDefenseBonuses[row] = effect.physicalDefenseAdd;
+        ds.pillMagicDefenseBonuses[row] = effect.magicDefenseAdd;
+        ds.pillHpBonuses[row] = effect.hpAdd;
+        ds.pillMpBonuses[row] = effect.mpAdd;
+        ds.pillSpeedBonuses[row] = effect.speedAdd;
+        ds.pillCritRateBonuses[row] = effect.critRateAdd;
+        ds.pillCritEffectBonuses[row] = effect.critEffectAdd;
+        ds.pillCultivationSpeedBonuses[row] = effect.cultivationSpeedPercent;
+        ds.pillSkillExpSpeedBonuses[row] = effect.skillExpSpeedPercent;
+        ds.pillNurtureSpeedBonuses[row] = effect.nurtureSpeedPercent;
+        // 以旬为单位（facade：不再 *30）
+        ds.pillEffectDurations[row] = effect.duration > 0
+            ? std::max(ds.pillEffectDurations[row], effect.duration)
+            : ds.pillEffectDurations[row];
+        const gamecore::pill::PillRule rule = gamecore::pill::classify(ie);
+        const bool stackingRule = rule == gamecore::pill::PillRule::kSustainedSpeed ||
+            rule == gamecore::pill::PillRule::kTemporaryBattle;
+        if (stackingRule && !pill.pillType.empty() &&
+            !containsValue(ds.activePillTypes[row], pill.pillType)) {
+            ds.activePillTypes[row].push_back(pill.pillType);
+        }
+        // 旧 cultivationSpeed 组件列清零（残留数据自愈——facade 同款）
+        ds.cultivationSpeedBonuses[row] = 0.0;
+        ds.cultivationSpeedDurations[row] = 0;
+        // 速率变化点同步 checkpoint（facade：速率列被改时必须同步，否则
+        // getEffectiveCultivation 用旧速率推导）
+        if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
+            effect.nurtureSpeedPercent > 0) {
+            ds.cultivationCheckpoints[row] = ds.cultivations[row];
+            ds.cultivationCheckpointGameMonths[row] =
+                state.gameData.gameYear * 12 + state.gameData.gameMonth;
+        }
+    }
+
+    // ⑥ 治疗（facade：maxHp = baseHps 基列；无 MP 恢复分支）
+    if (effect.healMaxHpPercent > 0) {
+        const int32_t maxHp = ds.baseHps[row];
+        const int32_t currentHp = ds.currentHps[row] < 0 ? maxHp : ds.currentHps[row];
+        const int32_t healAmount = std::max(
+            static_cast<int32_t>(static_cast<double>(maxHp) * effect.healMaxHpPercent), 1);
+        ds.currentHps[row] = std::min(currentHp + healAmount, maxHp);
+    }
+
+    // ⑦ 清除所有临时效果
+    if (effect.clearAll) {
+        ds.pillPhysicalAttackBonuses[row] = 0;
+        ds.pillMagicAttackBonuses[row] = 0;
+        ds.pillPhysicalDefenseBonuses[row] = 0;
+        ds.pillMagicDefenseBonuses[row] = 0;
+        ds.pillHpBonuses[row] = 0;
+        ds.pillMpBonuses[row] = 0;
+        ds.pillSpeedBonuses[row] = 0;
+        ds.pillEffectDurations[row] = 0;
+        ds.pillCritRateBonuses[row] = 0.0;
+        ds.pillCritEffectBonuses[row] = 0.0;
+        ds.pillCultivationSpeedBonuses[row] = 0.0;
+        ds.pillSkillExpSpeedBonuses[row] = 0.0;
+        ds.pillNurtureSpeedBonuses[row] = 0.0;
+        ds.activePillCategories[row] = "";
+        ds.activePillTypes[row].clear();
+    }
+    outcome.moralityAfter = ds.moralities[row];
+    return outcome;
+}
+
+/// 丹药入袋条目（rewardPill 的 StorageBagItem 构造段等价）
+inline StorageBagItem pillBagItem(const Pill& pill, int32_t quantity) {
+    StorageBagItem entry;
+    entry.itemId = pill.id;
+    entry.itemType = "pill";
+    entry.name = pill.name;
+    entry.rarity = pill.rarity;
+    entry.quantity = quantity;
+    entry.obtainedYear = 0;  // 由调用方回填（gameYear/gameMonth）
+    entry.obtainedMonth = 0;
+    entry.effect = facadeItemEffect(pill);
+    entry.grade = gradeDisplayName(pill.grade);
+    entry.stackedData = gamecore::state::BagStackedData();
+    return entry;
+}
+
+// ── 状态派生（DiscipleStatusService 纯函数族等价；派生列唯一计算方）────
+
+/// 槽位归属标志（SlotFlags 等价）
+struct SlotFlags {
+    bool inGarrison = false;
+    bool inWarehouseGarrison = false;
+    bool inTeam = false;
+    bool inSecretRealm = false;
+    bool lawEnforcing = false;
+    bool preaching = false;
+    bool deaconing = false;
+    bool managing = false;
+    bool studying = false;
+    bool mining = false;
+    bool patrolling = false;
+    bool alchemy = false;
+    bool forge = false;
+    bool spiritPlanting = false;
+};
+
+/// 状态名（DiscipleStatus.name——statuses 列即 name 字符串）
+constexpr const char* kStatusIdle = "IDLE";
+constexpr const char* kStatusDead = "DEAD";
+constexpr const char* kStatusOnMission = "ON_MISSION";
+constexpr const char* kStatusReflecting = "REFLECTING";
+constexpr const char* kStatusRefining = "REFINING";
+
+/// deriveDiscipleStatus（优先级序与 Kotlin 表逐项一致——状态推导契约，
+/// 顺序不可变）：死亡 → 活跃任务 → 受保护（REFLECTING/REFINING）→
+/// 秘境 → 仓库驻守 → 据点驻守 → 队伍 → 执法 → 传道 → 执事 → 管理 →
+/// 学习 → 采矿 → 巡视 → 炼丹 → 锻造 → 灵植 → 空闲
+inline const char* deriveDiscipleStatus(bool isAlive, const std::string& currentStatus,
+                                        const SlotFlags& f, bool hasActiveMission) {
+    if (!isAlive) return kStatusDead;
+    if (hasActiveMission) return kStatusOnMission;
+    if (currentStatus == kStatusReflecting) return kStatusReflecting;
+    if (currentStatus == kStatusRefining) return kStatusRefining;
+    if (f.inSecretRealm) return "SECRET_REALM";
+    if (f.inWarehouseGarrison) return "WAREHOUSE_GARRISON";
+    if (f.inGarrison) return "GARRISONING";
+    if (f.inTeam) return "IN_TEAM";
+    if (f.lawEnforcing) return "LAW_ENFORCING";
+    if (f.preaching) return "PREACHING";
+    if (f.deaconing) return "DEACONING";
+    if (f.managing) return "MANAGING";
+    if (f.studying) return "STUDYING";
+    if (f.mining) return "MINING";
+    if (f.patrolling) return "PATROLLING";
+    if (f.alchemy) return "ALCHEMY";
+    if (f.forge) return "FORGE";
+    if (f.spiritPlanting) return "SPIRIT_PLANTING";
+    return kStatusIdle;
+}
+
+/// buildSlotFlagsFor（单弟子 14 flag 全量扫描版——Kotlin 纯函数同构）
+inline SlotFlags buildSlotFlags(const gamecore::state::GameData& gd,
+                                const std::string& discipleId) {
+    SlotFlags f;
+    // 队伍/秘境/驻守（buildTeamFlags）
+    for (const auto& team : gd.caveExplorationTeams) {
+        const bool active = team.status == "TRAVELING" || team.status == "EXPLORING";
+        if (active && containsValue(team.memberIds, discipleId)) f.inTeam = true;
+    }
+    if (gd.secretRealmState.id.empty() == false) {
+        for (const auto& m : gd.secretRealmSession.members) {
+            if (m.discipleId == discipleId && !m.isDead) f.inSecretRealm = true;
+        }
+    }
+    for (const auto& sect : gd.worldMapSects) {
+        if (!sect.isPlayerSect) continue;
+        for (const auto& slot : sect.garrisonSlots) {
+            if (slot.discipleId == discipleId) f.inGarrison = true;
+        }
+    }
+    for (const auto& g : gd.warehouseGarrisons) {
+        if (g.discipleId == discipleId) f.inWarehouseGarrison = true;
+    }
+    for (const auto& t : gd.battleTeams) {
+        for (const auto& s : t.slots) {
+            if (s.discipleId == discipleId) f.inTeam = true;
+        }
+    }
+    // 执法/传道/执事/管理（buildOfficerFlags + buildManagingFlag）
+    const auto& es = gd.elderSlots;
+    if (es.lawEnforcementElder == discipleId) f.lawEnforcing = true;
+    for (const auto& s : es.lawEnforcementDisciples) {
+        if (s.discipleId == discipleId) f.lawEnforcing = true;
+    }
+    if (es.preachingElder == discipleId || es.qingyunPreachingElder == discipleId) {
+        f.preaching = true;
+    }
+    for (const auto& s : es.preachingMasters) {
+        if (s.discipleId == discipleId) f.preaching = true;
+    }
+    for (const auto& s : es.qingyunPreachingMasters) {
+        if (s.discipleId == discipleId) f.preaching = true;
+    }
+    for (const auto& s : es.spiritMineDeaconDisciples) {
+        if (s.discipleId == discipleId) f.deaconing = true;
+    }
+    if (es.viceSectMaster == discipleId || es.outerElder == discipleId ||
+        es.innerElder == discipleId || es.forgeElder == discipleId ||
+        es.alchemyElder == discipleId || es.herbGardenElder == discipleId ||
+        es.recruitingElder == discipleId) {
+        f.managing = true;
+    }
+    for (const auto& s : es.herbGardenDisciples) {
+        if (s.discipleId == discipleId) f.managing = true;
+    }
+    for (const auto& s : es.alchemyDisciples) {
+        if (s.discipleId == discipleId) f.managing = true;
+    }
+    for (const auto& s : es.forgeDisciples) {
+        if (s.discipleId == discipleId) f.managing = true;
+    }
+    // 学习/采矿/巡视/炼丹/锻造/灵植（buildProductionFlags）
+    for (const auto& s : gd.librarySlots) {
+        if (s.discipleId == discipleId) f.studying = true;
+    }
+    for (const auto& s : gd.spiritMineSlots) {
+        if (s.discipleId == discipleId) f.mining = true;
+    }
+    for (const auto& s : gd.patrolSlots) {
+        if (s.discipleId == discipleId) f.patrolling = true;
+    }
+    for (const auto& s : gd.productionSlots) {
+        if (s.assignedDiscipleId.value_or("") == discipleId) {
+            if (s.buildingId == "alchemy") f.alchemy = true;
+            else if (s.buildingId == "forge") f.forge = true;
+            else if (s.buildingId == "herbGarden") f.spiritPlanting = true;
+        }
+    }
+    return f;
+}
+
+/// resolvePositionName（MANAGING 职位名解析——ElderSlots.resolvePositionName
+/// 等价：长老职位在前、灵植/炼丹/锻造弟子在后；无职位返回空串，调用方以
+/// MANAGING_FALLBACK 兜底）
+inline std::string resolvePositionName(const gamecore::state::ElderSlots& es,
+                                       const std::string& discipleId) {
+    if (discipleId.empty()) return "";
+    // formatSlotTypeName（10 长老槽 when 序——优先级即此序）
+    if (es.viceSectMaster == discipleId) return "副宗主";
+    if (es.herbGardenElder == discipleId) return "灵田长老";
+    if (es.alchemyElder == discipleId) return "炼丹长老";
+    if (es.forgeElder == discipleId) return "炼器长老";
+    if (es.outerElder == discipleId) return "外门长老";
+    if (es.innerElder == discipleId) return "内门长老";
+    if (es.recruitingElder == discipleId) return "纳徒长老";
+    if (es.preachingElder == discipleId) return "传道长老";
+    if (es.qingyunPreachingElder == discipleId) return "青云传道长老";
+    if (es.lawEnforcementElder == discipleId) return "执法长老";
+    for (const auto& s : es.herbGardenDisciples) {
+        if (s.discipleId == discipleId) return "灵植弟子";
+    }
+    for (const auto& s : es.alchemyDisciples) {
+        if (s.discipleId == discipleId) return "炼丹弟子";
+    }
+    for (const auto& s : es.forgeDisciples) {
+        if (s.discipleId == discipleId) return "锻造弟子";
+    }
+    return "";
+}
+
+constexpr const char* kManagingFallback = "管理中";
+constexpr const char* kPositionNameKey = "positionName";
+
+/// 单弟子状态派生 + 写入（syncStatusFromIndex 循环体等价）：状态变更才写
+/// statuses 列；positionName 仅 MANAGING 写入（无职位以"管理中"兜底）/
+/// 非 MANAGING 定向删除 key（保留血炼 buildingId 等他域 key——禁止整体覆写）
+inline void deriveAndWriteDiscipleStatus(GameState& state, std::size_t row) {
+    DiscipleStore& ds = state.disciples;
+    if (ds.isAlive[row] != 1) return;
+    const std::string discipleId = ds.ids[row];
+    const std::string currentStatus = ds.statuses[row];
+    // 活跃任务（activeMissions 成员含该弟子）
+    bool hasActiveMission = false;
+    for (const auto& mission : state.gameData.activeMissions) {
+        if (containsValue(mission.discipleIds, discipleId)) {
+            hasActiveMission = true;
+            break;
+        }
+    }
+    const SlotFlags flags = buildSlotFlags(state.gameData, discipleId);
+    const char* newStatus =
+        deriveDiscipleStatus(true, currentStatus, flags, hasActiveMission);
+    if (currentStatus != newStatus) ds.statuses[row] = newStatus;
+    // positionName 派生（writePositionName）
+    auto& sd = ds.statusData[row];
+    if (std::string(newStatus) == "MANAGING") {
+        const std::string resolved = resolvePositionName(state.gameData.elderSlots, discipleId);
+        const std::string value = resolved.empty() ? std::string(kManagingFallback) : resolved;
+        const auto it = sd.find(kPositionNameKey);
+        if (it == sd.end() || it->second != value) sd[kPositionNameKey] = value;
+    } else {
+        sd.erase(kPositionNameKey);
+    }
+}
+
+/// fixInvalidMiningSlots（syncAll 前置自愈：灵矿槽引用不存在弟子 → 清空）
+inline void fixInvalidMiningSlots(GameState& state) {
+    DiscipleStore& ds = state.disciples;
+    bool hasInvalid = false;
+    for (const auto& slot : state.gameData.spiritMineSlots) {
+        if (!slot.discipleId.empty() && !ds.contains(slot.discipleId)) {
+            hasInvalid = true;
+            break;
+        }
+    }
+    if (!hasInvalid) return;
+    for (auto& slot : state.gameData.spiritMineSlots) {
+        if (!slot.discipleId.empty() && !ds.contains(slot.discipleId)) {
+            slot.discipleId = "";
+            slot.discipleName = "";
+        }
+    }
+}
+
+}  // namespace detail
+
+// ── 事务 7：改名（GameEngineCoordination.renameDisciple 等价，1740）────────
+//
+// 写段：names 行写 + 招募列表同人净化（按**改名前**身份 isSamePerson 过滤——
+// 改名破坏 5 字段签名匹配，不净化则残留双胞胎可被重复招募）。
+inline DiscipleTxResult renameDiscipleTx(GameState& state,
+                                         const std::string& discipleId,
+                                         const std::string& newName) {
+    DiscipleTxResult out;
+    DiscipleStore& ds = state.disciples;
+    const auto intId = settle_util::toIntOrNull(discipleId);
+    if (!intId.has_value() || !ds.contains(discipleId)) {
+        out.errorType = "NotFound";
+        out.message = "弟子不存在 " + discipleId;
+        return out;
+    }
+    const std::size_t row = *ds.rowOf(discipleId);
+    const Disciple before = ds.materialize(row);
+    ds.names[row] = newName;
+    auto& recruitList = state.gameData.recruitList;
+    std::vector<Disciple> kept;
+    kept.reserve(recruitList.size());
+    for (const auto& candidate : recruitList) {
+        // recruit_settle::isSamePerson = Kotlin RecruitIntegrity.isSamePerson
+        if (!gamecore::system::recruit_settle::isSamePerson(candidate, before)) {
+            kept.push_back(candidate);
+        }
+    }
+    if (kept.size() != recruitList.size()) recruitList = std::move(kept);
+    out.ok = true;
+    return out;
+}
+
+// ── 事务 8：类型直改（changeDiscipleTypeAtomic 数据段，1741）──────────────
+//
+// 写段：discipleTypes 行写。状态推导（syncSingleDiscipleStatus）由 Kotlin
+// 调用方照原序执行（与 Kotlin 事务序一致——该调用在事务外）。
+inline DiscipleTxResult changeDiscipleTypeTx(GameState& state,
+                                             const std::string& discipleId,
+                                             const std::string& newType) {
+    DiscipleTxResult out;
+    DiscipleStore& ds = state.disciples;
+    const auto intId = settle_util::toIntOrNull(discipleId);
+    if (!intId.has_value() || !ds.contains(discipleId)) {
+        out.errorType = "NotFound";
+        out.message = "弟子不存在 " + discipleId;
+        return out;
+    }
+    ds.discipleTypes[*ds.rowOf(discipleId)] = newType;
+    out.ok = true;
+    return out;
+}
+
+// ── 事务 9：关注切换（DiscipleDelegate.toggleFollowDisciple 数据段，1742）──
+//
+// 写段：statusData["followed"] 翻转（"true" ⇄ 移除）。
+struct ToggleFollowResult {
+    DiscipleTxResult base;
+    bool followedAfter = false;
+};
+inline ToggleFollowResult toggleFollowTx(GameState& state,
+                                         const std::string& discipleId) {
+    ToggleFollowResult out;
+    DiscipleStore& ds = state.disciples;
+    const auto intId = settle_util::toIntOrNull(discipleId);
+    if (!intId.has_value() || !ds.contains(discipleId)) {
+        out.base.errorType = "NotFound";
+        out.base.message = "弟子不存在 " + discipleId;
+        return out;
+    }
+    auto& sd = ds.statusData[*ds.rowOf(discipleId)];
+    if (sd["followed"] == "true") {
+        sd.erase("followed");
+        out.followedAfter = false;
+    } else {
+        sd["followed"] = "true";
+        out.followedAfter = true;
+    }
+    out.base.ok = true;
+    return out;
+}
+
+// ── 事务 10：赏赐物品（rewardPill/rewardMaterial/rewardHerb/rewardSeed
+//    四路合一，1743）────────────────────────────────────────────────────
+//
+// 静默守卫（Kotlin silent return）→ 失败信封（Kotlin 回退臂重执行同义静默）：
+//  - pill：丹药不存在 / 数量不足 / 弟子非法 → 静默；可服用 ⇒ 扣仓库 + 生效，
+//    不可服用 ⇒ 扣仓库 + 入袋（facade 丹药链语义权威见节首）。
+//  - material/herb/seed：先校验弟子存在（无效 id 时仓库不被扣减——物品不消失）
+//    → 物品存在/未锁定/数量合法 → 扣仓库 + 入袋。
+// @param itemType "pill"|"material"|"herb"|"seed"
+// @param displayName/displayRarity 赏赐条目名/稀有度（material/herb/seed 袋
+//        条目取自 RewardSelectedItem——Kotlin item.name/item.rarity；pill 袋
+//        条目取自丹药实体本身，此参忽略）
+inline DiscipleTxResult rewardItemTx(GameState& state, const std::string& discipleId,
+                                     const std::string& itemType,
+                                     const std::string& itemId, int32_t quantity,
+                                     const std::string& displayName,
+                                     int32_t displayRarity) {
+    DiscipleTxResult out;
+    DiscipleStore& ds = state.disciples;
+    const auto intId = settle_util::toIntOrNull(discipleId);
+    const bool validDisciple = intId.has_value() && ds.contains(discipleId);
+
+    if (itemType == "pill") {
+        Pill* pill = detail::findStackById(state.pills, itemId);
+        if (pill == nullptr || pill->quantity < quantity) {
+            out.errorType = "NotFound";
+            out.message = "丹药不存在或数量不足 " + itemId;
+            return out;
+        }
+        if (!validDisciple) {
+            out.errorType = "NotFound";
+            out.message = "弟子不存在 " + discipleId;
+            return out;
+        }
+        const std::size_t row = *ds.rowOf(discipleId);
+        const auto ie = detail::facadeItemEffect(*pill);
+        const bool canUse =
+            gamecore::pill::canUsePill(ds.materialize(row), ie);
+        // 先扣仓库（Kotlin 同序——canUse 判定不回滚扣减）
+        detail::deductStackById(state.pills, itemId, quantity);
+        if (canUse) {
+            const auto outcome = detail::applyFacadePillEffects(state, row, *pill);
+            out.moralityAfter = outcome.moralityAfter;
+            out.theftCandidate = outcome.baseAttrApplied;
+        } else {
+            StorageBagItem entry = detail::pillBagItem(*pill, quantity);
+            entry.obtainedYear = state.gameData.gameYear;
+            entry.obtainedMonth = state.gameData.gameMonth;
+            detail::bagIncreaseItemQuantity(ds.storageBagItems[row], std::move(entry));
+        }
+    } else if (itemType == "material" || itemType == "herb" || itemType == "seed") {
+        if (!validDisciple) {
+            out.errorType = "NotFound";
+            out.message = "弟子不存在 " + discipleId;
+            return out;
+        }
+        const std::size_t row = *ds.rowOf(discipleId);
+        auto deductAndBag = [&](auto& store, const char* bagItemType) -> bool {
+            auto* stack = detail::findStackById(store, itemId);
+            if (stack == nullptr || stack->isLocked || quantity < 1 ||
+                quantity > stack->quantity) {
+                return false;
+            }
+            detail::deductStackById(store, itemId, quantity);
+            StorageBagItem entry;
+            entry.itemId = itemId;
+            entry.itemType = bagItemType;
+            entry.name = displayName;
+            entry.rarity = displayRarity;
+            entry.quantity = quantity;
+            entry.obtainedYear = state.gameData.gameYear;
+            entry.obtainedMonth = state.gameData.gameMonth;
+            entry.stackedData = gamecore::state::BagStackedData();
+            detail::bagIncreaseItemQuantity(ds.storageBagItems[row], std::move(entry));
+            return true;
+        };
+        bool done = false;
+        if (itemType == "material") done = deductAndBag(state.materials, "material");
+        else if (itemType == "herb") done = deductAndBag(state.herbs, "herb");
+        else done = deductAndBag(state.seeds, "seed");
+        if (!done) {
+            out.errorType = "NotFound";
+            out.message = "物品不存在/已锁定/数量不足 " + itemId;
+            return out;
+        }
+    } else {
+        out.errorType = "ItemTypeInvalid";
+        out.message = "未知赏赐类型 " + itemType;
+        return out;
+    }
+    out.ok = true;
+    return out;
+}
+
+// ── 事务 11：服药（DiscipleFacadeImpl.usePill 等价，1744）────────────────
+//
+// 静默守卫：丹药不存在/数量≤0/弟子非法/资格不符（canUsePill）→ 全部静默
+// 不写（Kotlin silent return）。写段：扣仓库 + facade 丹药链 + 服药日志草稿。
+struct UsePillResult {
+    DiscipleTxResult base;
+    std::string logLine;     // "X岁：服用了Y"（Kotlin lifeEvents 瞬态列回写）
+    int32_t moralityAfter = 0;  // 偷盗判定钩子判定输入（Kotlin 按阈值原序判定）
+};
+inline UsePillResult usePillTx(GameState& state, const std::string& discipleId,
+                               const std::string& pillId) {
+    UsePillResult out;
+    DiscipleStore& ds = state.disciples;
+    Pill* pill = detail::findStackById(state.pills, pillId);
+    if (pill == nullptr || pill->quantity <= 0) {
+        out.base.errorType = "NotFound";
+        out.base.message = "丹药不存在 " + pillId;
+        return out;
+    }
+    const auto intId = settle_util::toIntOrNull(discipleId);
+    if (!intId.has_value() || !ds.contains(discipleId)) {
+        out.base.errorType = "NotFound";
+        out.base.message = "弟子不存在 " + discipleId;
+        return out;
+    }
+    const std::size_t row = *ds.rowOf(discipleId);
+    const auto ie = detail::facadeItemEffect(*pill);
+    if (!gamecore::pill::canUsePill(ds.materialize(row), ie)) {
+        out.base.errorType = "CannotUse";
+        out.base.message = "当前不可服用 " + pill->name;
+        return out;
+    }
+    detail::deductStackById(state.pills, pillId, 1);
+    const auto outcome = detail::applyFacadePillEffects(state, row, *pill);
+    out.moralityAfter = outcome.moralityAfter;
+    out.base.theftCandidate = outcome.baseAttrApplied;
+    out.logLine = std::to_string(ds.ages[row]) + "岁：服用了" + pill->name;
+    out.base.ok = true;
+    return out;
+}
+
+// ── 事务 12：功法替换（GameEngineManualOps.replaceManual 等价，1745）──────
+//
+// 校验链（Kotlin 判定序）：旧实例存在 → 新堆叠存在 → 弟子存在 → 数量≥1 →
+// 境界 → 心法互斥（新为心法且旧非心法时其余功法不得有心法）→ 同名唯一。
+// 写段：新堆叠 -1/移除 + 实例铸造（确定性占位 id）+ 熟练度清理 + manualIds
+// 换血 + 旧实例入袋（D-03）+ 旧实例表移除 + 替换日志草稿。
+struct ReplaceManualResult {
+    DiscipleTxResult base;
+    std::string logLine;  // "X岁：将功法A替换为B"（lifeEvents 瞬态列回写）
+};
+inline ReplaceManualResult replaceManualTx(GameState& state,
+                                           const std::string& discipleId,
+                                           const std::string& oldInstanceId,
+                                           const std::string& newStackId) {
+    ReplaceManualResult out;
+    DiscipleStore& ds = state.disciples;
+    ManualInstance* oldInstance = detail::findManualInstance(state, oldInstanceId);
+    if (oldInstance == nullptr) {
+        out.base.errorType = "NotFound";
+        out.base.message = "旧功法实例不存在 " + oldInstanceId;
+        return out;
+    }
+    ManualStack* newStack = detail::findManualStack(state, newStackId);
+    if (newStack == nullptr) {
+        out.base.errorType = "NotFound";
+        out.base.message = "功法堆叠不存在 " + newStackId;
+        return out;
+    }
+    const auto intId = settle_util::toIntOrNull(discipleId);
+    if (!intId.has_value() || !ds.contains(discipleId)) {
+        out.base.errorType = "NotFound";
+        out.base.message = "弟子不存在 " + discipleId;
+        return out;
+    }
+    const std::size_t row = *ds.rowOf(discipleId);
+    if (newStack->quantity < 1) {
+        out.base.errorType = "NotFound";
+        out.base.message = "功法堆叠数量不足";
+        return out;
+    }
+    if (ds.realms[row] > newStack->minRealm) {
+        out.base.errorType = "RealmTooLow";
+        out.base.message = "境界不足";
+        return out;
+    }
+    // 心法互斥：新为心法 && 旧非心法 ⇒ 其余已学不得有心法
+    //（同族守卫——旧实例本身排除在判定外，Kotlin filter 同序）
+    if (newStack->type == "MIND" && oldInstance->type != "MIND") {
+        for (const std::string& mid : ds.manualIds[row]) {
+            if (mid == oldInstanceId) continue;
+            const ManualInstance* mn = detail::findManualInstance(state, mid);
+            if (mn != nullptr && mn->type == "MIND") {
+                out.base.errorType = "MindDuplicate";
+                out.base.message = "已修习心法";
+                return out;
+            }
+        }
+    }
+    // 同名唯一（旧实例排除）
+    for (const std::string& mid : ds.manualIds[row]) {
+        if (mid == oldInstanceId) continue;
+        const ManualInstance* mn = detail::findManualInstance(state, mid);
+        if (mn != nullptr && mn->name == newStack->name) {
+            out.base.errorType = "NameDuplicate";
+            out.base.message = "已修习同名功法";
+            return out;
+        }
+    }
+
+    // 写段（悬垂纪律：先拷贝后 erase——整摞消耗/实例表移除会使指针悬垂）
+    const ManualStack stackCopy = *newStack;
+    const ManualInstance oldCopy = *oldInstance;
+    const std::string oldIdCopy = oldInstanceId;
+    // 新堆叠扣减（quantity==1 → 整摞移除，否则 -1；deductManualStack 语义）
+    detail::deductManualStack(state.manualStacks, stackCopy.id);
+    // 实例铸造（确定性占位 id——batch-08 契约，对拍面忽略新增条目 id）
+    ManualInstance newInstance =
+        detail::manualInstanceFromStack(stackCopy, discipleId);
+    newInstance.isLearned = true;
+    const std::string newInstanceId = newInstance.id;
+    state.manualInstances.push_back(std::move(newInstance));
+    // 熟练度清理（旧实例 key 过滤，空则删键）
+    auto& profMap = state.gameData.manualProficiencies;
+    const auto pit = profMap.find(discipleId);
+    if (pit != profMap.end()) {
+        std::vector<gamecore::state::ManualProficiencyData> kept;
+        for (const auto& p : pit->second) {
+            if (p.manualId != oldIdCopy) kept.push_back(p);
+        }
+        if (kept.empty()) profMap.erase(pit);
+        else pit->second = std::move(kept);
+    }
+    // manualIds 换血 + 旧实例入袋（D-03）
+    auto& mids = ds.manualIds[row];
+    mids.erase(std::remove(mids.begin(), mids.end(), oldIdCopy), mids.end());
+    mids.push_back(newInstanceId);
+    StorageBagItem entry;
+    entry.itemId = oldIdCopy;
+    entry.itemType = "manual_instance";
+    entry.name = oldCopy.name;
+    entry.rarity = oldCopy.rarity;
+    entry.quantity = 1;
+    entry.obtainedYear = state.gameData.gameYear;
+    entry.obtainedMonth = state.gameData.gameMonth;
+    entry.manualInstance = oldCopy;
+    detail::bagIncreaseItemQuantity(ds.storageBagItems[row], std::move(entry));
+    // 旧实例表移除（防双持有）
+    auto& minst = state.manualInstances;
+    minst.erase(std::remove_if(minst.begin(), minst.end(),
+                               [&](const ManualInstance& x) {
+                                   return x.id == oldIdCopy;
+                               }),
+                minst.end());
+    out.logLine = std::to_string(ds.ages[row]) + "岁：将功法" + oldCopy.name +
+                  "替换为" + stackCopy.name;
+    out.base.ok = true;
+    return out;
+}
+
+// ── 事务 13：血炼启动（GameEngineBloodRefinementOps.startBloodRefinementAtomic
+//    等价，1746）────────────────────────────────────────────────────────
+//
+// 校验链（Kotlin 同序；事务内 throw ⇒ C++ 校验先行，失败零写入等价）：
+// 灵石>0 → 材料>0 → 配置>0 → 弟子 id 合法 → 灵石足 → 材料足（跨堆叠、未锁定）
+// → 血炼池排他 → 弟子排他。写段：材料消耗 + 11 类槽位清理（includeResidence=
+// false 默认参）+ 灵石扣除 + 进度写入 + REFINING 状态 + statusData 覆写。
+// Gate 释放 + Room 生产槽清理为 Kotlin 运行态残差（native 成功后原序）。
+struct BloodRefinementStartParams {
+    std::string materialName;
+    int32_t materialRarity = 0;
+    int32_t materialCount = 0;
+    std::string buildingInstanceId;
+    int64_t requiredSpiritStones = 0;
+    std::string discipleId;
+    std::string discipleName;
+    std::string materialId;
+    std::string selectedStat;
+    double bonusPercent = 0.0;
+    int32_t durationMonths = 0;
+};
+inline DiscipleTxResult startBloodRefinementTx(GameState& state,
+                                               const BloodRefinementStartParams& in) {
+    DiscipleTxResult out;
+    // 1. 参数域校验（Kotlin withEngineContext 前置四连）
+    if (in.requiredSpiritStones <= 0) {
+        out.errorType = "InvalidStones";
+        out.message = "灵石消耗必须为正数";
+        return out;
+    }
+    if (in.materialCount <= 0) {
+        out.errorType = "InvalidMaterial";
+        out.message = "材料消耗必须为正数";
+        return out;
+    }
+    if (in.durationMonths <= 0 || in.bonusPercent <= 0.0) {
+        out.errorType = "InvalidConfig";
+        out.message = "血炼配置异常（duration/bonus）";
+        return out;
+    }
+    if (!settle_util::toIntOrNull(in.discipleId).has_value()) {
+        out.errorType = "InvalidDiscipleId";
+        out.message = "非法弟子ID";
+        return out;
+    }
+    DiscipleStore& ds = state.disciples;
+    // 2. 灵石足额
+    if (state.gameData.spiritStones < in.requiredSpiritStones) {
+        out.errorType = "StonesInsufficient";
+        out.message = "灵石不足: 需要 " + std::to_string(in.requiredSpiritStones) +
+                      ", 当前 " + std::to_string(state.gameData.spiritStones);
+        return out;
+    }
+    // 3. 材料足额（name+rarity 匹配、未锁定、跨堆叠；不足 → 失败）
+    {
+        int32_t remaining = in.materialCount;
+        for (const auto& mat : state.materials) {
+            if (remaining <= 0) break;
+            if (mat.name != in.materialName || mat.rarity != in.materialRarity ||
+                mat.isLocked) {
+                continue;
+            }
+            remaining -= std::min(remaining, mat.quantity);
+        }
+        if (remaining > 0) {
+            out.errorType = "MaterialInsufficient";
+            out.message = "兽血材料不足: 缺少 " + std::to_string(remaining) + " 份 " +
+                          in.materialName;
+            return out;
+        }
+    }
+    // 4. 排他性（血炼池内 + 弟子在其它池）
+    if (state.gameData.activeBloodRefinements.count(in.buildingInstanceId) != 0) {
+        out.errorType = "BuildingOccupied";
+        out.message = "该血炼池已有进行中的血炼";
+        return out;
+    }
+    for (const auto& kv : state.gameData.activeBloodRefinements) {
+        if (kv.second.discipleId == in.discipleId) {
+            out.errorType = "DiscipleOccupied";
+            out.message = "该弟子已在其他血炼池中";
+            return out;
+        }
+    }
+    // ── 写段（校验链全部通过后才落写）──
+    // 材料消耗（跨堆叠）
+    {
+        int32_t remaining = in.materialCount;
+        for (auto& mat : state.materials) {
+            if (remaining <= 0) break;
+            if (mat.name != in.materialName || mat.rarity != in.materialRarity ||
+                mat.isLocked) {
+                continue;
+            }
+            const int32_t take = std::min(remaining, mat.quantity);
+            mat.quantity -= take;
+            remaining -= take;
+        }
+        state.materials.erase(
+            std::remove_if(state.materials.begin(), state.materials.end(),
+                           [](const Material& m) { return m.quantity <= 0; }),
+            state.materials.end());
+    }
+    // 槽位清理（clearAllSlotsDataOnly 默认参 includeResidence=false）
+    detail::clearAllDiscipleSlots(state, in.discipleId);
+    // 灵石扣除 + 进度写入
+    gamecore::state::BloodRefinementProgress progress;
+    progress.discipleId = in.discipleId;
+    progress.discipleName = in.discipleName;
+    progress.materialId = in.materialId;
+    progress.selectedStat = in.selectedStat;
+    progress.bonusPercent = in.bonusPercent;
+    progress.durationMonths = in.durationMonths;
+    progress.startYear = state.gameData.gameYear;
+    progress.startMonth = state.gameData.gameMonth;
+    state.gameData.spiritStones -= in.requiredSpiritStones;
+    state.gameData.activeBloodRefinements[in.buildingInstanceId] = progress;
+    // REFINING 状态 + statusData 整体覆写（Kotlin 同款：mapOf("buildingId" to …)）
+    const auto intId = settle_util::toIntOrNull(in.discipleId);
+    if (intId.has_value() && ds.contains(in.discipleId)) {
+        const std::size_t row = *ds.rowOf(in.discipleId);
+        ds.statuses[row] = detail::kStatusRefining;
+        ds.statusData[row] = std::map<std::string, std::string>{
+            {"buildingId", in.buildingInstanceId}};
+    }
+    out.ok = true;
+    return out;
+}
+
+// ── 事务 14：弟子状态派生同步（DiscipleStatusService，1747/1748）──────────
+//
+// 1747 单弟子 / 1748 全量（含 fixInvalidMiningSlots 前置自愈）。派生列唯一
+// 计算方 = C++（ADR 盲区 2：槽位/派生列双算会漂移）；Kotlin 侧降级回退臂
+// 保留同语义（flag OFF / native 不可用时）。
+struct SyncStatusResult {
+    DiscipleTxResult base;
+    std::string statusAfter;  // 单弟子：派生后状态名
+    int32_t syncedCount = 0;  // 全量：同步弟子数
+};
+inline SyncStatusResult syncDiscipleStatusTx(GameState& state,
+                                             const std::string& discipleId) {
+    SyncStatusResult out;
+    DiscipleStore& ds = state.disciples;
+    const auto intId = settle_util::toIntOrNull(discipleId);
+    if (!intId.has_value() || !ds.contains(discipleId)) {
+        out.base.errorType = "NotFound";
+        out.base.message = "弟子不存在 " + discipleId;
+        return out;
+    }
+    const std::size_t row = *ds.rowOf(discipleId);
+    detail::deriveAndWriteDiscipleStatus(state, row);
+    out.statusAfter = ds.statuses[row];
+    out.syncedCount = 1;
+    out.base.ok = true;
+    return out;
+}
+inline SyncStatusResult syncAllDiscipleStatusesTx(GameState& state) {
+    SyncStatusResult out;
+    DiscipleStore& ds = state.disciples;
+    detail::fixInvalidMiningSlots(state);
+    for (std::size_t row = 0; row < ds.ids.size(); ++row) {
+        detail::deriveAndWriteDiscipleStatus(state, row);
+        ++out.syncedCount;
     }
     out.base.ok = true;
     return out;

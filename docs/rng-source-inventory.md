@@ -222,3 +222,31 @@
 
 > 白名单与 `intentionallyExcluded` **只允许缩**（与 `detekt-baseline-count.guard` 同纪律，CLAUDE.md 13.2）：
 > 新增一条必须在本文档写明理由与偿还触发条件。
+
+## 6. W4-A·A5 扩面与 CHAT 分区登记（2026-09-15）
+
+### 6.1 新增分区 `CHAT`（id=10，参与 rngStates 快照）
+
+| 项 | 内容 |
+|---|---|
+| 消费点 | `DiscipleChatDialog` 决策类抽取：交谈树选择 / 结果分支选择 / 效果增量随机化（`signRandom`×3 + `cultivationDelta` Double）——结果经 `updateDisciple` 写弟子 `cultivation`/`skills` ⇒ 决策类（ADR §8 口径） |
+| 签发点 | `GameEngineConversationDraw.chatDraw/chatDrawDouble`（引擎上下文内 `getRng(RngPartition.CHAT)`——GameRngManager 线程契约要求，UI 线程不得直取分区句柄） |
+| 为什么独立分区 | 交谈抽取插入时机由玩家行为决定，混入任何结算分区都会扰动该分区既有抽取序（红线 1） |
+| 持久化 | `rngStates` 10 号键；旧档缺失按 `systemSeed + 10` 播种（MISSION 同款恢复语义）；C++ `rng_manager.h` 同步枚举 + `initSystemSeed` 播种 |
+| 表现类文本变体（问候/回复/结束语） | 走 `PresentationRandom`（不落盘），UI 位实例化（LoadingScreen 同款） |
+
+### 6.2 ② 类正则扩面显形的存量裸抽取（core/domain，8 处——**显形非新增**）
+
+② 类正则原不匹配 `Random.nextInt/nextDouble` ⇒ 下列站点机器不可见（`DiscipleChatDialog`
+的 5 个活决策点同因不可见，即 handover §12 债表"守卫盲区"项）。扩面后逐个核实，
+8 处均为**死代码或仅测试调用方**（生产零调用）：
+
+| 站点 | 事实 |
+|---|---|
+| `AISectPersonality.kt:65/:72` | `random()` 扩展仅测试调用 |
+| `Items.kt:875`（`PillGrade.random`） | 唯一调用方 `ProductionProcessorAlchemyTest` |
+| `BaseTemplateRegistry.kt:143/:165/:189` | `pickWeightedRandom/generateTieredRarity` 仅测试 |
+| `BeastMaterialDatabase.kt:336/:351` | `getRandomMaterialByRealm` 仅测试 |
+
+守卫登记上限 core/domain ② 5 → 13（一次性扩面登记）；**偿还触发条件 = W4-D/D5
+死代码清零批**（先补"生产调用 0 / 测试引用 n"清单再删），清偿后同步下调。

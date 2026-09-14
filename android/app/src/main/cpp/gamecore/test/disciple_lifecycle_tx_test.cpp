@@ -6,6 +6,7 @@
 //     派生 map 收口 / 行删除 / 年报计数 / bagItems 信封回传）
 //   - 拜师（三相校验判定序 / masterIds 落表 / 双侧日志草稿）
 //   - 婚姻批准（已有道侣防御零写入 / partnerIds 双向绑定 / MARRIAGE 事件）
+//   - 婚姻拒绝（W4-A·w3-02 1750：拒绝事件直写 / 零弟子表写入 / 无失败臂）
 //   - 释放思过（静默 no-op 同义 / statusData 定向移除保留其余 key /
 //     状态回 IDLE）
 //   - 年俸开关（盲写覆写）
@@ -473,6 +474,51 @@ TEST_F(DiscipleLifecycleTxFixture, MarryApproveTx_NotFound_提议残留边界回
                          {"maleName", "张三"}, {"femaleName", "李四"}});
     EXPECT_EQ(r["status"], "failure");
     EXPECT_EQ(r["code"], "NotFound");
+}
+
+// ── 婚姻拒绝（W4-A·w3-02，1750）────────────────────────────────
+
+TEST_F(DiscipleLifecycleTxFixture, MarryRejectTx_Happy_事件直写零弟子表写入) {
+    addDisciple("1");
+    addDisciple("2");
+    auto& ds = core_->state().disciples;
+    const auto before = rngSnapshot();
+
+    const auto r = exec(action::DISCIPLE_LIFECYCLE_MARRY_REJECT,
+                        {{"maleId", "1"}, {"femaleId", "2"},
+                         {"maleName", "张三"}, {"femaleName", "李四"}});
+    ASSERT_EQ(r["status"], "success");
+    ASSERT_TRUE(r["data"]["rejected"].get<bool>());
+
+    // MARRIAGE 拒绝事件 C++ 直写（recordGameEvent 完整守卫对齐）
+    auto& records = core_->state().gameData.gameEventRecords;
+    ASSERT_EQ(records.size(), 1u);
+    EXPECT_EQ(records[0].category, "SECT");
+    EXPECT_EQ(records[0].eventType, "MARRIAGE");
+    EXPECT_EQ(records[0].summary, "弟子张三拒绝与弟子李四结为道侣");
+    EXPECT_EQ(records[0].relatedEntityId, "1");
+    EXPECT_EQ(records[0].sequenceId, 1);
+
+    // 零弟子表写入：partnerIds 与行集合原样
+    EXPECT_TRUE(ds.partnerIds[*ds.rowOf("1")].empty());
+    EXPECT_TRUE(ds.partnerIds[*ds.rowOf("2")].empty());
+    EXPECT_EQ(core_->state().disciples.ids.size(), 2u);
+    EXPECT_EQ(rngSnapshot(), before);
+}
+
+TEST_F(DiscipleLifecycleTxFixture, MarryRejectTx_无失败臂_零幽灵列) {
+    // 拒绝 = 提议存在性为 Kotlin 前置（pendingMarriageProposals 运行态）；
+    // C++ 侧无失败臂——弟子行不存在（提议残留边界）事件仍直写，但
+    // **零弟子表写入** ⇒ 不产生 partnerIds 幽灵列条目（与批准事务的
+    // NotFound 回退臂形成对照：批准需写行所以回退，拒绝无行写可直达）
+    const auto r = exec(action::DISCIPLE_LIFECYCLE_MARRY_REJECT,
+                        {{"maleId", "1"}, {"femaleId", "999"},
+                         {"maleName", "张三"}, {"femaleName", "李四"}});
+    ASSERT_EQ(r["status"], "success");
+    auto& records = core_->state().gameData.gameEventRecords;
+    ASSERT_EQ(records.size(), 1u);
+    EXPECT_EQ(records[0].summary, "弟子张三拒绝与弟子李四结为道侣");
+    EXPECT_TRUE(core_->state().disciples.ids.empty());
 }
 
 // ── 释放思过 ─────────────────────────────────────────────────

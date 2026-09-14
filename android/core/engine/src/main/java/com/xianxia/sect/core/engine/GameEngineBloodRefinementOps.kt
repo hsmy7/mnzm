@@ -13,8 +13,11 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.str
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.domain.disciple.addPctToTotal
+import kotlinx.serialization.json.put
 
 
 /** 血炼属性 key → 显示名映射 */
@@ -56,6 +59,30 @@ suspend fun GameEngine.startBloodRefinementAtomic(
             return@withEngineContext BloodRefinementStartResult.Error("血炼配置异常（duration/bonus）")
         }
         progress.discipleId.toIntOrNull() ?: return@withEngineContext BloodRefinementStartResult.Error("非法弟子ID")
+        // C++ 真相先行（W4-A·w3-01：灵石/材料/排他校验链 + 11 类槽位清理 +
+        // 进度写入 + REFINING 状态在 C++ 同一事务；失败信封/降级 null →
+        // Kotlin 原路径回退臂——校验链重执行，异常语义经 catch 翻译不变）
+        val native = InventoryNativeForward.tryForward(
+            this@startBloodRefinementAtomic, ActionIds.DISCIPLE_OP_START_BLOOD_REFINEMENT) {
+            put("buildingInstanceId", buildingInstanceId)
+            put("requiredSpiritStones", requiredSpiritStones)
+            put("materialName", materialName)
+            put("materialRarity", materialRarity)
+            put("materialCount", materialCount)
+            put("discipleId", progress.discipleId)
+            put("discipleName", progress.discipleName)
+            put("materialId", progress.materialId)
+            put("selectedStat", progress.selectedStat)
+            put("bonusPercent", progress.bonusPercent)
+            put("durationMonths", progress.durationMonths)
+        }
+        if (native?.str("started") == "true") {
+            // 残差（Kotlin 运行态域，原序）：gate 旧注册释放 + Room 生产槽清理
+            // （数据段在已刷新镜像上零命中——幂等）
+            assignmentGate.release(progress.discipleId)
+            clearDiscipleFromProductionRepository(progress.discipleId)
+            return@withEngineContext BloodRefinementStartResult.Success
+        }
         try {
             stateStore.update {
                 checkStones(requiredSpiritStones)
@@ -90,13 +117,6 @@ suspend fun GameEngine.cancelBloodRefinement(
         stateStore.update {
             cancelBloodRefinement(buildingInstanceId, discipleId)
         }
-    }
-}
-
-/** 月度结算 — 处理所有到期血炼 */
-suspend fun GameEngine.processBloodRefinementCompletions() {
-    return engineContextDispatcher.withEngineContext {
-        stateStore.update { processBloodRefinementCompletions() }
     }
 }
 

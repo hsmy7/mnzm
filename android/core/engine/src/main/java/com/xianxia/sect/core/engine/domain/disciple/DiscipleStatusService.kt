@@ -14,6 +14,12 @@ import com.xianxia.sect.core.model.spiritPlanting
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.StateSyncService
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,8 +36,16 @@ import javax.inject.Singleton
 class DiscipleStatusService @Inject constructor(
     private val stateStore: GameStateStore,
     private val discipleLifecycleManager: DiscipleLifecycleManager,
-    private val secretRealmService: SecretRealmService
+    private val secretRealmService: SecretRealmService,
 ) {
+    /**
+     * W4-A·w3-01：派生列唯一计算方 = C++（ADR 盲区 2：槽位/派生列双算会漂移）。
+     * StateSyncService 不在 Hilt 图内（GameEngineCore 同款手工厂：基于注入的
+     * stateStore 构建）；flag 关 / native 不可用 / 失败信封时降级 Kotlin 推导
+     * 回退臂（双实现并行契约）。
+     */
+    private val nativeSync: StateSyncService = StateSyncService(stateStore)
+
     companion object {
         /** 活跃洞穴探索队伍状态集合（internal 供 ProductionProcessor.buildOccupiedSlotDiscipleIds 复用，单一来源防集合漂移） */
         internal val caveExplorationStatuses = setOf(
@@ -276,6 +290,14 @@ class DiscipleStatusService @Inject constructor(
      * - 重入调用时（在外部事务内）：从 [reusableMutableState] 读取，包含同一事务内前序服务的修改
      */
     fun syncAllDiscipleStatuses() {
+        // C++ 真相先行（W4-A·w3-01：派生列唯一计算方 = C++——14 flag 推导 +
+        // positionName 定向写删 + fixInvalidMiningSlots 自愈在 C++；降级 null /
+        // 失败信封 → Kotlin O(n) 推导回退臂，语义不变）
+        if (tryNativeStatusSync(ActionIds.DISCIPLE_OP_SYNC_ALL_STATUSES) {
+                // 全量同步无参数
+            } != null) {
+            return
+        }
         stateStore.update {
             val data = gameData
             val tables = discipleTables
@@ -287,6 +309,19 @@ class DiscipleStatusService @Inject constructor(
                 syncStatusFromIndex(id, tables, data, index)
             }
         }
+    }
+
+    /** 尝试经 C++ 执行状态派生同步；成功返回 data（{synced:…}），降级返回 null。 */
+    private fun tryNativeStatusSync(
+        actionId: Int,
+        paramsBuilder: JsonObjectBuilder.() -> Unit
+    ): kotlinx.serialization.json.JsonElement? {
+        if (!NativeEngineFlag.authoritative) return null
+        return GameEngineNativeOps.tryExecuteNative(
+            stateSyncService = nativeSync,
+            actionId = actionId,
+            paramsJson = GameEngineNativeOps.params(paramsBuilder)
+        )
     }
 
     /** 全量同步 O(n) 索引构建（syncAllDiscipleStatuses 第一步，防单函数超限） */
@@ -369,6 +404,13 @@ class DiscipleStatusService @Inject constructor(
      * 避免不必要的 O(n) 全量扫描。
      */
     fun syncSingleDiscipleStatus(discipleId: String) {
+        // C++ 真相先行（同 [syncAllDiscipleStatuses]；信封附派生后状态名，
+        // Kotlin 分支不消费——镜像已回写）
+        if (tryNativeStatusSync(ActionIds.DISCIPLE_OP_SYNC_STATUS) {
+                put("discipleId", discipleId)
+            } != null) {
+            return
+        }
         val id = discipleId.toIntOrNull() ?: return
         stateStore.update {
             if (id !in discipleTables.ids) return@update

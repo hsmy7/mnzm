@@ -61,10 +61,23 @@ class RngSourceGuardTest {
      * | feature/game | ② BARE_DRAW | 2 | **1** | `LoadingTips.randomTip()` 改走 `PresentationRandom.pick` |
      * | feature/game | ④ SELF_HELD_RNG | 1 | **0** | `CloudLayerAnimator` 的默认值摘除 |
      * |  |  |  |  | （`NativeSurfaceView` 传派生固定种子） |
+     *
+     * ### W4-A·A5 扩面登记（2026-09-15，**显形非新增**）
+     * ② 类正则补 `Random.nextXxx` 裸抽取（原正则不匹配 ⇒ `DiscipleChatDialog`
+     * 的 5 个活决策点机器不可见，"只缩不增"对它无效——handover §12 债表项）。
+     * 扩面后 core/domain 显形 8 处**存量**裸抽取（逐个核实均为死代码/仅测试
+     * 调用方，本批不扩权删除——归 W4-D/D5 死代码清单）：
+     * `AISectPersonality:65/:72`（仅测试）、`Items:875 PillGrade.random`（仅测试）、
+     * `BaseTemplateRegistry:143/:165/:189`（仅测试）、`BeastMaterialDatabase:336/:351`
+     * （仅测试）。feature/game 治理后 ② 命中归零（`DiscipleChatDialog` 5 处
+     * 决策抽取改 `RngPartition.CHAT` 引擎侧签发 + 文本变体走 `PresentationRandom`），
+     * 上限 1 不变。⇒ core/domain 上限 5 → **13**（一次性扩面登记；偿还后**必须
+     * 同步下调**，登记 `docs/rng-source-inventory.md` §W4-A）。
      */
     private val registeredLimits: Map<String, Map<RandomSourceCategory, Int>> = mapOf(
         "core/domain" to mapOf(
-            RandomSourceCategory.BARE_DRAW to 5,
+            // W4-A·A5 扩面：5 → 13（存量显形 8 处，见上方登记块；D5 清偿后下调）
+            RandomSourceCategory.BARE_DRAW to 13,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 0,
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 19
@@ -107,17 +120,23 @@ class RngSourceGuardTest {
      * 分区 id 是**存档 `rngStates` 的持久化键，不得改动**（见 [RngPartition] KDoc）；
      * 新增分区 = 必须同时在 `docs/rng-source-inventory.md` 登记消费点。
      */
-    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
     /** 参与 `rngStates` 序列化的分区 id（= id 全集 − 通道型分区） */
-    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8)
+    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10)
 
     /** 随机源类别（与 `docs/rng-source-inventory.md` §1 的五类入口一一对应） */
     private enum class RandomSourceCategory(val label: String, val pattern: Regex) {
-        /** ② `kotlin.random.Random.Default` 等价面 */
+        /** ② `kotlin.random.Random.Default` 等价面（W4-A·A5 扩面：补 `Random.nextXxx` 裸抽取） */
         BARE_DRAW(
-            "② .random()/Random.Default/Math.random",
-            Regex("""\.random\(\)|Random\.Default|Math\.random""")
+            "② .random()/Random.Default/Math.random/Random.nextXxx",
+            // 负向断言 `(?<![A-Za-z0-9_])`：排除 `presentationRandom.nextInt` /
+            // `asKotlinRandom.nextInt` / `GameRandom.nextInt` 等适配器/具名实例
+            //（其标识符尾部含 `Random`，无断言会误报——扩面时实测修正）
+            Regex(
+                """\.random\(\)|Random\.Default|Math\.random|""" +
+                    """(?<![A-Za-z0-9_])Random\.(nextInt|nextDouble|nextLong|nextFloat|nextBoolean)"""
+            )
         ),
 
         /** ③ 自建 `object GameRandom` */
@@ -229,7 +248,7 @@ class RngSourceGuardTest {
         )
         val expectedNames = listOf(
             "BATTLE", "BREAKTHROUGH", "EXPLORATION", "SYSTEM", "ENEMY_GEN",
-            "MAIL", "AI_SECT", "SECRET_REALM", "MISSION", "AI_SECT_MIRROR"
+            "MAIL", "AI_SECT", "SECRET_REALM", "MISSION", "AI_SECT_MIRROR", "CHAT"
         )
         assertTrue(
             "RngPartition 名字/顺序偏移：实测 ${names.take(10)}——" +

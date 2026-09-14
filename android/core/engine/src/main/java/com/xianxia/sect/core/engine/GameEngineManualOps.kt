@@ -135,6 +135,27 @@ suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {
 }
 
 suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
+    // C++ 真相先行（W4-A·w3-01 事实核查新增写者——2026-09-15：七链校验 +
+    // 堆叠扣减 + 实例铸造 + 熟练度清理 + 旧实例入袋在 C++；失败信封/降级
+    // null → Kotlin 原路径回退臂；替换日志草稿回写 lifeEvents 瞬态列）
+    val data = tryDiscipleTxNative(ActionIds.DISCIPLE_OP_REPLACE_MANUAL) {
+        put("discipleId", discipleId)
+        put("oldInstanceId", oldInstanceId)
+        put("newStackId", newStackId)
+    }
+    if (data?.str("replaced") == "true") {
+        applyEquipLogDraft(discipleId, data.str("logLine"))
+        return
+    }
+    return replaceManualFallback(discipleId, oldInstanceId, newStackId)
+}
+
+/** 功法替换 Kotlin 回退臂（原路径逐字保留——双实现并行契约）。 */
+private suspend fun GameEngine.replaceManualFallback(
+    discipleId: String,
+    oldInstanceId: String,
+    newStackId: String
+) {
     return engineContextDispatcher.withEngineContext {
         stateStore.update {
             val oldInstance = manualInstances.get(oldInstanceId) ?: return@update

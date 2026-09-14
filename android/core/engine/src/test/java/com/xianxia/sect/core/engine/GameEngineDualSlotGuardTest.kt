@@ -367,7 +367,9 @@ class GameEngineDualSlotGuardTest {
         // duration=3 从 1/1 开始，推进到 1/4（elapsed=3）到期
         store.update { gameData = gameData.copy(gameMonth = 4) }
 
-        engine.processBloodRefinementCompletions()
+        // W4-A·A6：GameEngine 层死包装已删除（零生产调用方）；本测试改走
+        // 与 MonthSettlementExecutor 相同的 MutableGameState 事务扩展
+        engine.stateStore.update { processBloodRefinementCompletions() }
 
         assertTrue("完成后血炼池应为空", store.latestGameData.activeBloodRefinements.isEmpty())
         assertEquals("完成后弟子状态应回 IDLE", DiscipleStatus.IDLE, store.discipleTables.statuses[1])

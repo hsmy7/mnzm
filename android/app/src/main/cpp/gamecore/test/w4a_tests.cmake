@@ -12,5 +12,8 @@
 # 见 docs/parallel-batches-w4/README.md §3.1 项 4。
 
 set(W4A_TEST_SOURCES
-    # 骨架阶段为空（W4-00 建立；W4-A 在此追加本批测试文件）
+    # w3-01 弟子操作面事务族（W4-A 第一子批）
+    disciple_ops_tx_test.cpp
+    # w3-09 建筑槽位残差事务族（W4-A 第三子批）
+    building_residual_tx_test.cpp
 )

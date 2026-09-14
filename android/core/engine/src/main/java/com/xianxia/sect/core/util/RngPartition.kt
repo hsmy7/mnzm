@@ -52,5 +52,13 @@ enum class RngPartition(val id: Int, val inSnapshot: Boolean = true) {
      * 本分区不在 [GameRngManager.exportStates]/`restoreStates` 遍历面内；
      * `GameCore::rngNextInt(9)` 等三入口与 C++ `syncRngStates` 单独处理该键。
      */
-    AI_SECT_MIRROR(9, inSnapshot = false);
+    AI_SECT_MIRROR(9, inSnapshot = false),
+    /**
+     * 弟子交谈（W4-A·A5 新增）：`DiscipleChatDialog` 决策类随机（交谈树/结果
+     * 分支/效果增量抽取）。用户时序驱动的独立流——**不与既有分区共用**：
+     * 交谈抽取的插入时机由玩家行为决定，混入任何结算分区都会扰动该分区的
+     * 既有抽取序（红线 1）。`rngStates` 10 号键；旧档缺失时按
+     * `systemSeed + 10` 播种（MISSION 同款恢复语义）。
+     */
+    CHAT(10);
 }

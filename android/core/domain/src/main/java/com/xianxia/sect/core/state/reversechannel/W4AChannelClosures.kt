@@ -47,28 +47,63 @@ internal val w4ARetainedGameDataFields: Set<String> = linkedSetOf(
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4ADomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.BUILDING to listOf(
-        "BuildingNativeTx.kt:163 removeBuildings — native 拆除后的槽位/弟子释放残差（C++ 模型无槽位字段）",
-        "BuildingFacadeImpl同步Ops.kt:281 — 月变没收建筑（GameEngineCoreMonthOps.kt:95 无 native 臂）",
-        "BuildingDelegate.kt:145 placeSlotsResidual — native 放置成功后的槽位派生残差",
+        // A3（w3-09）已收口——拆除/放置残差 C++ 清扫臂就位（1810/1811），
+        // 生产/长老组留 Kotlin（偏差登记：C++ ProductionSlot 行无
+        // buildingInstanceId、ElderPositions clearSpec 为注册表 lambda）：
+        "BuildingNativeTx.kt:163 removeBuildings — 残差清扫 native 臂就位（1810）" +
+            "+ 生产/长老 Kotlin 补扫 + Gate/Room 运行态",
+        "BuildingFacadeImpl同步Ops.kt:281 removeBuildingsInternal — 月变没收经 " +
+            "seizeBuildingsOfSect native 臂（与玩家拆除同入口）；本函数降级为回退臂" +
+            "（扇出调用点留 W4-D）",
+        "BuildingDelegate.kt:145 placeSlotsResidual — 槽位派生 native 臂就位（1811）" +
+            "；生产槽 gameData 写与 Room 回流留 Kotlin",
     ),
     Domain.ROAD to listOf(
-        "RoadFacadeImpl.kt:67/:85 placeRoad/removeRoad — native 臂后的槽位/回执残差（road_tx 已下沉）",
+        "RoadFacadeImpl.kt:67/:85 placeRoad/removeRoad — A3 核对：batch-07 native 臂就位 " +
+            "+ A1 已关闭 roads 单元；余下为回退臂（红线 3 保留）与 UI 缓存（② 类），无稳态写者",
     ),
+    // W4-A·A1（w3-01）后：弟子操作面写者已全部获得 C++ 真相先行臂
+    //（Kotlin 原路径降级为回退臂；信封残差 = lifeEvents 瞬态列回写 +
+    // 偷盗判定钩子（执法域不下沉）+ Gate/Room 运行态）。通道本身（弟子行）
+    // 的关闭动作按红线 13 统一在 W4-D 执行。
     Domain.DISCIPLE to listOf(
-        "GameEngineCoordination.kt:99/:120/:138 — 弟子属性/改名/类型直改（无 native 臂）",
-        "DiscipleFacadeImpl战斗Ops2.kt:93/:119/:138/:157/:271 — 赏赐/服药 UI 直调（无 native 臂）",
-        "DiscipleStatusService.kt:225/:279/:373 — 槽位状态派生同步族（稳态）",
-        "DiscipleSlotManager.kt:59、DiscipleLifecycleNativeTx.kt:132 — native 事务后残差",
-        "GameEngineBloodRefinementOps.kt:60 startBloodRefinementAtomic — 血炼启动清槽（UI 直改）",
-        "GameEngineManualOps.kt:139 replaceManual — 功法替换（活 UI，无 native 臂；2026-09-15 核查新增）",
+        // A1 已收口（native 臂就位，以下为回执驱动残差记录）：
+        "GameEngineCoordination.kt:120/:138 rename/type — native 臂就位（1740/1741）；回退臂保留",
+        "DiscipleFacadeImpl战斗Ops2.kt:93/:119/:138/:157/:271 赏赐/服药 — native 臂就位（1743/1744）；残差=日志草稿+偷盗钩子",
+        "DiscipleStatusService.kt:225/:279/:373 派生同步 — native 臂就位（1747/1748，派生列唯一计算方 = C++）",
+        "GameEngineBloodRefinementOps.kt:60 血炼启动 — native 臂就位（1746）；残差=Gate 释放+Room 清理",
+        "GameEngineManualOps.kt:139 replaceManual — native 臂就位（1745）；残差=替换日志草稿",
+        // A5 处置记录（形参化/分区化路线——ADR 阶段 3 口径）：
+        "GameEngineCoordination.kt:99 updateDisciple — 交谈效果写者仍为 Kotlin（决策写不上沉，1850–1854 退段空置）；" +
+            "决策类抽取已改 RngPartition.CHAT 引擎侧签发（GameEngineConversationDraw），文本变体走 PresentationRandom——" +
+            "随机源达规（R1/R3），写入面留待弟子通道关闭决策（W4-D，红线 13）",
     ),
     Domain.PRODUCTION to listOf(
-        "ProductionProcessorCleaOps3.kt:291 alignMirrorFromRepository — 月结前 repo→镜像整表对齐",
-        "ProductionProcessor构筑Ops2.kt:405 validateAutoSlot / :250/:341 — 自动续炼槽位写者",
+        // A4（w3-10）核对收口——自动续炼链 C++ 直辖（production.h:542 排班 /
+        // :718 续炼启动，batch-17/18 地基），Kotlin 链为回退臂；对齐窗口为
+        // 幂等兜底设施，删除属 W4-D/S4（调用点在宿主文件族，A4 禁改）：
+        "ProductionProcessorCleaOps3.kt:288/:306 alignMirrorFromRepository/" +
+            "restoreRepositoryFromMirror — 核对结论：幂等整表对齐兜底（读档后镜像" +
+            "本已对齐）；唯一调用点在 GameEngineCoreMonthOps.kt:72/:99（宿主文件族，" +
+            "W4-D 独占）⇒ 设施删除挂 W4-D/S4（S4 登记项），本批不改调用点",
+        "ProductionProcessor构筑Ops2.kt:250/:341/:405 自动续炼槽位写者 — 核对结论：" +
+            "AUTHORITATIVE 下由 C++ 月结直辖（production.h startProduction/" +
+            "resetProductionSlot 事务族），Kotlin processAutoAlchemy 链为回退臂" +
+            "（红线 3 保留）；MaterialConsumptionLog/autoHarvestCompletedAlchemySlots " +
+            "为 ③ 类平台效应/UI 流——保留 Kotlin（batch-17/18 既有结论）",
     ),
     Domain.LIFE_CYCLE to listOf(
-        "DiscipleLifecycleProcessor.kt:489 — 弟子槽位清理（偷盗叛逃事务内 + 永久属性丹两路稳态）",
-        "DiscipleLifecycleManager.kt:100/:121 — 月变自动装备 lifeEvent / UI 查看补写",
-        "GameEngine.kt:277/:306 婚姻提议审批/拒绝（C++ 事务未接线，玩家审批只走 Kotlin）",
+        // A2（w3-02）已收口——批准/拒绝 native 臂就位，槽位清理双路核对，lifeEvent 分类登记：
+        "GameEngine.kt:276 approveMarriageProposal — native 臂就位（batch-14 就绪地基 1592 接线）；" +
+            "提议移除留 Kotlin（运行态字段）；NotFound 幽灵列边界回退原路径（batch-14 口径）",
+        "GameEngine.kt:306 rejectMarriageProposal — native 臂就位（1750 MARRIAGE 拒绝事件直写）；" +
+            "零弟子表写入/零 RNG/无失败臂；提议移除留 Kotlin",
+        "DiscipleLifecycleProcessor.kt:489 clearDiscipleFromAllSlots — 双路核对结论：结算偷盗叛逃链" +
+            "（含 11 类槽位清理）已由 C++ 结算直辖（month_settlement.h:1257），Kotlin 链为回退臂；" +
+            "UI 丹药偷盗钩子（执法域）按 batch-14/A1 口径不下沉、Kotlin 原序执行；" +
+            "本函数仅 Gate/Room 运行态残差（幂等，镜像零写入）——无协议列稳态写者",
+        "DiscipleLifecycleManager.kt:100/:121 addLifeEvent/initializeLifeEvents — 分类②纯表现：" +
+            "lifeEvents 为 @Ignore 非序列化列（DiscipleSerializer.kt:28，非协议字段），零协议列写者" +
+            "（batch-14 审计同结论）——不进 C++、不需回导、不设关闭单元",
     ),
 )

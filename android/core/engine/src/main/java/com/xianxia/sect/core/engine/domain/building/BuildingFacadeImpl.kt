@@ -78,6 +78,16 @@ class BuildingFacadeImpl @Inject constructor(
         cost: Long
     ): Boolean = nativeTx.tryPlace(building, feature, cost)
 
+    /**
+     * 放置槽位派生事务尝试（W4-A·w3-09，1811）——createSlots 残差下沉，
+     * 生产/长老组留 Kotlin（偏差登记见 [BuildingNativeTx.tryPlaceSlots]）。
+     */
+    override fun tryNativePlaceSlotsResidual(
+        feature: BuildingFeature,
+        instanceId: String,
+        activeId: String
+    ): Boolean = nativeTx.tryPlaceSlots(feature, instanceId, activeId)
+
     override suspend fun placeBuilding(building: GridBuildingData) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
         val counterKey = GuideCounterKeys.buildingBuiltKey(building.displayName)
@@ -656,6 +666,11 @@ class BuildingFacadeImpl @Inject constructor(
             .filter { it.sectId == sectId }
             .associate { it.instanceId to 0L }
         if (refunds.isEmpty()) return
+        // W4-A·w3-09 native 臂：拆除 + 残差清扫 C++ 真相先行（与玩家拆除
+        // 同一 [BuildingNativeTx.removeBuildings] 入口）；降级/失败信封回退
+        // removeBuildingsInternal 原路径。月变没收调用点（宿主文件族经
+        // GameEngine.seizedBuildingsHandler 转入）零改动。
+        if (nativeTx.removeBuildings(refunds)) return
         removeBuildingsInternal(refunds)
     }
 

@@ -15,6 +15,7 @@ import com.xianxia.sect.core.engine.removeFromRecruitList
 import com.xianxia.sect.core.engine.renameDisciple
 import com.xianxia.sect.core.engine.rewardItemsToDisciple
 import com.xianxia.sect.core.engine.updateDisciple
+import com.xianxia.sect.core.engine.toggleFollowDisciple
 import com.xianxia.sect.core.engine.setAutoRecruitFilterValidated
 import com.xianxia.sect.core.engine.setAutoRejectFilterValidated
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -56,14 +57,10 @@ class DiscipleDelegate(
     }
 
     fun toggleFollowDisciple(discipleId: String) {
+        // W4-A·w3-01：关注切换事务化（C++ 真相先行 + Kotlin 回退臂，
+        // 原 updateDisciple lambda 直改面收口至引擎入口）
         gameEngine.launchOnEngine {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                val currentFollowed = disciple.statusData["followed"] == "true"
-                val newStatusData = disciple.statusData.toMutableMap().apply {
-                    if (currentFollowed) remove("followed") else this["followed"] = "true"
-                }
-                disciple.copy(statusData = newStatusData)
-            }
+            gameEngine.toggleFollowDisciple(discipleId)
         }
     }
 

@@ -491,6 +491,74 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **基线打点**: `git tag w4-base` → `d4cad20`；`git bundle` 落盘 `C:\Mnzm\backups\XianxiaSectNative-w4base-<时间戳>.bundle`（346MB，`verify` = "records a complete history / is okay"）。三个并行批次即从该点派生工作树。
 
+## 2.62 W4-A 第一子批 A1+A6（2026-09-15，tag `w4a/01`）：w3-01 弟子操作面九事务下沉 C++ + 血炼死包装删除
+
+批次: W4-A（worktree `XianxiaSectNative-w4a`，分支 `w4/a-disciple-building`） | ActionId: **+9**（1740–1748 `DISCIPLE_OP_*`；169 → 178 动作 / maxId=1748） | 产物: 改 `disciple_tx.h`（+970 行 W4-A 段）、`dispatch_w4a.cpp`（填充）、`w4a.mjs`、两生成物、`W4AChannelClosures.kt`（证据更新）、新 `test/disciple_ops_tx_test.cpp`（20 用例）；Kotlin 改 `GameEngineCoordination` / `DiscipleFacadeImpl战斗Ops2` / `GameEngineManualOps` / `GameEngineBloodRefinementOps` / `DiscipleFacadeImpl`（lawEnforcementProcessor private→internal）/ `DiscipleStatusService` / `DiscipleDelegate`；新 `GameEngineDiscipleOpsNativeTx.kt` / `DiscipleOpsNativeTxForward.kt` / `GameEngineDiscipleOpsNativeTxGateTest`
+
+**下沉面（九事务，全部"校验链先行 + 失败零写入 + 回退臂保留"）**: ① 改名（names 行写 + 招募列表 `isSamePerson` 同人净化——按**改名前**身份）；② 类型直改；③ 关注切换（`statusData["followed"]` 翻转，`toggleFollowDisciple` 事务化收口原 `updateDisciple` lambda 直改面）；④ 赏赐四路合一（pill/material/herb/seed——先校验弟子存在再扣仓库；pill 走 facade 丹药链可服生效/不可服入袋同一事务）；⑤ 服药（`canUsePill` 资格链 + 日志草稿）；⑥ 功法替换（2026-09-15 核查新增写者 `replaceManual`——七链校验 + 熟练度清理 + 旧实例入袋防双持有）；⑦ 血炼启动（灵石/材料/双排他校验链 + 11 类槽位清理 + REFINING + 进度写入；Gate 释放 + Room 清理留 Kotlin 运行态残差）；⑧⑨ 状态派生单/全量（14 flag 优先级序 + positionName 定向写删 + `fixInvalidMiningSlots` 自愈——**派生列唯一计算方 = C++**，ADR 盲区 2）。
+
+**口径差异（facade 丹药链 ≠ auto-use pill_system 链，逐字采用 facade）**: 修为直加**无上限 clamp**；治疗 maxHp 取 **baseHps 基列**（非 getBaseStats）；无 MP 恢复分支；速率生效清零旧 `cultivationSpeedBonus` 组件列 + checkpoint 同步。**偷盗判定钩子不下沉**（执法域，phase_settlement.h 同边界）：信封回传 `theftCandidate`+`moralityAfter`，Kotlin 分支以镜像刷新后的状态原序执行 `processSingleDiscipleTheft` 事务内版本（RNG 抽取序不变）。
+
+**A6**: 删除 `GameEngine` 层 `processBloodRefinementCompletions` 死 suspend 包装（零生产调用方，仅 `GameEngineDualSlotGuardTest:370` 引用——测试改走 `MonthSettlementExecutor` 同款 `MutableGameState` 事务扩展）；`:167` 扩展保留（回退臂活路）。
+
+**连带修复**: `month_settlement_test.cpp` `gc-inst-1` 字面断言 → "进程级计数器执行前值 +1"（TU 注册序跨工具链不可靠，新增 minting 测试先行会合法消耗计数器；孤立运行两者等价）。
+
+**验收（实跑）**: 桌面 C++ **1346/1346**（基线 1326 + 本批 20；单进程直跑）；`:core:engine` 全量 `--rerun-tasks` + 本工作树 JNI 对拍全绿（含 47 `Diff*`）；`:core:domain`/`:core:data`/`:feature:game`/`:app` 回归绿；六模块 detekt 绿（baseline 0 增长）；`gen-action-ids.mjs` 幂等（产物哈希两次一致）；NDK `externalNativeBuildRelease` + `lintRelease` 绿；冻结清单机检：`git diff w4-base` 无冻结文件。
+
+## 2.62.1 W4-A 第二子批 A5（2026-09-15，tag `w4a/02`）：RNG 阶段 3·弟子侧——CHAT 分区 + 守卫扩面
+
+批次: W4-A | ActionId: **0**（**1850–1854 条件段退段空置**——ADR §8 并未要求 ActionId + C++ 事务，落地形态 = 按调用点粒度下沉/形参化，零协议改动） | 产物: 改 `RngPartition.kt`（+`CHAT(10)`）、C++ `rng_manager.h`（+`kChat` 枚举 + 播种）、`rng_test.cpp`（快照分区计数 9→10）、`RngSourceGuardTest.kt`（② 正则补 `Random.nextXxx` 裸抽取 + 分区登记 10 + core/domain ② 上限 5→13 扩面登记）、新 `GameEngineConversationDraw.kt`；改 `DiscipleChatDialog.kt`、`docs/rng-source-inventory.md` §6、`W4AChannelClosures.kt`
+
+**治理内容**: `DiscipleChatDialog` 的 5 个裸 `Random.nextInt/nextDouble` 决策抽取点（交谈树/结果分支/效果增量——结果写弟子 `cultivation`/`skills`，R3 违规点）改为 **`RngPartition.CHAT` 引擎侧签发**（`chatDraw/chatDrawDouble` 挂起原语在引擎上下文内 `getRng(CHAT)`——GameRngManager 线程契约禁止 UI 线程直取分区句柄，故签发必须引擎侧）；文本变体（问候/回复/结束语）走 `PresentationRandom`（不落盘，LoadingScreen 同款 UI 位实例化）。CHAT 为**用户时序独立流**（id=10，参与 rngStates 快照；旧档缺失按 systemSeed+10 播种）——不与任何结算分区共用，既有分区抽取序零扰动（红线 1）。
+
+**守卫扩面（先扩面再治理）**: ② 类正则补 `(?<![A-Za-z0-9_])Random\.(nextInt|nextDouble|nextLong|nextFloat|nextBoolean)`（负向断言排除 `presentationRandom.nextInt`/`asKotlinRandom`/`GameRandom.nextInt` 适配器误报）。扩面后 core/domain **显形 8 处存量裸抽取**（`AISectPersonality:65/:72`、`Items:875`、`BaseTemplateRegistry:143/:165/:189`、`BeastMaterialDatabase:336/:351`——逐个核实均死代码/仅测试调用方），上限 5→13 **一次性扩面登记**（显形非新增；偿还触发 = W4-D/D5 死代码清零，登记 `rng-source-inventory.md` §6.2）。扩面有效性经**负向对照**验证（上限临时 12 ⇒ 守卫红；13 ⇒ 绿）。
+
+**弟子通道关闭口径（红线 13）**: 交谈效果**写入**仍为 Kotlin（`updateDisciple`）——决策写不上沉，写入面留 W4-D 弟子通道关闭决策；随机源已达规。通道关闭动作不在本批。
+
+**验收（实跑）**: 桌面 C++ **1346/1346**（含 rng_test 分区计数更新）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（**rngStates 10 键跨语言对拍一致**）；守卫 6 用例绿；六模块 detekt 绿；`:core:domain`/`:core:data`/`:feature:game`/`:app` 回归绿。
+
+## 2.62.2 W4-A 第三子批 A2（2026-09-15，tag `w4a/03`）：w3-02 弟子生命周期第二波——婚姻批准接线 + 拒绝事务下沉 + 槽位清理双路核对 + lifeEvent 分类登记
+
+批次: W4-A | ActionId: **1750**（`DISCIPLE_LIFECYCLE_MARRY_REJECT`；婚姻批准走 batch-14 就绪地基 **1592** 接线不占新号；179 动作 / maxId=1750） | 产物: 改 `disciple_lifecycle_tx.h`（+`rejectMarriageTransaction`）、`dispatch_w4a.cpp`（+1750 handler）、`GameEngine.kt`（批准/拒绝 native 臂——**租约文件**，§5.4 第一顺位已登记）、`disciple_lifecycle_tx_test.cpp`（+2 拒绝用例）、`w4a.mjs` + 两生成物；新 `GameEngineMarriageNativeTxGateTest.kt`；改 `W4AChannelClosures.kt`（LIFE_CYCLE 证据改写）
+
+**婚姻批准（低成本起手项落地）**: C++ 事务 `DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592`（batch-14 起 handler + 3 GTest 一直在位，Kotlin 侧零引用）本批接线 native 臂——提议存在性前置 + 名字捕获（StateFlow 读，生产 `GameStateStoreImpl` reusableMutableState 事务间持久化 + `proposalsChanged` 发射）→ C++ 配对 + MARRIAGE 事件直写 → Kotlin 仅移除提议（运行态字段）。**NotFound 幽灵列边界**（提议残留 + 弟子已亡/被逐：Kotlin 原路径写幽灵列条目、SoA 行式无法表达）→ 失败信封回退 Kotlin 原路径保行为（batch-14 口径，零语义变更）。
+
+**婚姻拒绝（新事务 1750）**: `rejectMarriageTransaction` = MARRIAGE 拒绝事件直写（`settle_util::recordGameEvent` 完整守卫对齐），**零弟子表写入 / 零 RNG / 无失败臂**——弟子行不存在边界不产生幽灵列（与批准事务对照：批准需写行故 NotFound 回退，拒绝无行写可直达）；提议移除留 Kotlin。GTest 2 例：事件字段逐项断言 + 零弟子表写入（partnerIds/行集合/rngStates 快照差分）。
+
+**槽位清理双路核对（计划 A2 第 3 行，核对型交付）**: `DiscipleLifecycleProcessor.clearDiscipleFromAllSlots` 的偷盗叛逃路——**结算链已由 C++ 直辖**（`month_settlement.h:1257` 叛逃段含 11 类槽位清理 + 实例销毁 + 行删除 + 年报计数，先前批次交付），Kotlin 月结链为回退臂；UI 丹药偷盗钩子按 A1 口径不下沉（执法域，信封 theftCandidate 回传 Kotlin 原序执行）；永久属性丹路经 `applyBaseAttrEffects → processSingleDiscipleTheft` 同域同口径。双重清槽防御 = 行删除后 assemble 幽灵行跳过 + 残差幂等（`tryNativeExpelDisciple` 残差在已刷新镜像上零命中）——无新增代码，核对结论登记 `W4AChannelClosures.kt`。
+
+**lifeEvent 补写分类（计划 A2 第 4 行，登记型交付）**: `addLifeEvent`（月变自动装备）与 `initializeLifeEvents`（UI 查看补写）写目标 `lifeEvents` 为 **`@Ignore` 非序列化列**（`DiscipleSerializer.kt:28`，非协议字段）——分类 **② 纯表现**，与 batch-14 审计结论一致（"Kotlin 单源域，零协议列写者"）：不进 C++、不需回导、不设关闭单元。月变自动装备链本体在 AUTHORITATIVE 下已由 C++ 旬结直辖（`phase_settlement.h:1397`），Kotlin 链为回退臂。
+
+**验收（实跑）**: 桌面 C++ **1348/1348**（基线 1346 + 拒绝 2 例；单进程直跑复核）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（含 47 个 `Diff*` 类）；六模块 detekt 绿（baseline 0 增长）；`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；`node scripts/gen-action-ids.mjs` 幂等（连跑两次产物零漂移）；冻结清单机检：`git diff w4-base` 无任何冻结/宿主/协议面文件（`GameEngine.kt` 为租约文件、租约表已登记）。
+
+## 2.62.3 W4-A 第四子批 A3（2026-09-15，tag `w4a/04`）：w3-09 建筑/道路残差——槽位清扫/派生双事务下沉 + 没收臂复用 + 道路核对收口
+
+批次: W4-A | ActionId: **1810**（`BUILDING_RESIDUAL_CLEAR`）/ **1811**（`BUILDING_PLACE_SLOTS`）（181 动作 / maxId=1811） | 产物: 新 `building_residual_tx.h` + `building_residual_tx_test.cpp`（5 例）；改 `dispatch_w4a.cpp`、`BuildingNativeTx.kt`（残差清扫臂 + 放置派生臂）、`BuildingFacade.kt`/`BuildingFacadeImpl.kt`（接口 + 实现 + 没收臂）、`BuildingDelegate.kt`（放置残差臂）、`w4a.mjs` + 两生成物；`W4AChannelClosures.kt`（BUILDING/ROAD 证据改写）
+
+**根因修正（ADR 备选路线落地）**: w3-09 计划的"C++ 侧槽位表承载"落地为 `building_residual_tx.h` 双事务——ADR 原判 "GridBuildingData 无槽位字段" 经实测精确化：槽位本就是 gameData 协议集合（C++ 全量持有），真正的缺字段是 **C++ `ProductionSlot` 行无 `buildingInstanceId`**（Kotlin `@ProtoNumber(21)` 为 Kotlin 侧单边协议字段，`json_codec` 生产行无该键）⇒ 实例级清扫在生产行上不可表达。
+
+**1810 清扫（拆除/没收共臂）**: 输入 = Kotlin 组装的目标投影（instanceId + C++ 可清扫组名单 + 监牢/任务阁特例标志 + 关联弟子 id——含生产 repo 侧来源）；C++ 扫 **矿场/巡逻/住所/灵田/仓库/藏经阁** 六实例键控集合 + `activeBloodRefinements` 键删除 + 监牢全量释放 REFLECTING（思过双键移除）+ 任务阁清 activeMissions/存活 ON_MISSION 回 IDLE + REFINING 破除（statusData 定向移除 buildingId）。**偏差登记（清扫范围边界）**：① productionSlots 留 Kotlin（缺字段实证如上——A4 生产域处置）；② ElderPositions 八变体留 Kotlin（clearSpec 为注册表内 lambda 单一事实源，C++ 复制即双算漂移）。patrolConfigs 不清 = 两臂 towerIdx=-1 的 bug-for-bug 兼容（Kotlin 原路径同序）。
+
+**1811 派生（放置）**: `createSlots` 写段等价——六组建槽（基数 = 执行时现状，与 beforeNative 基数一致）+ 每塔一份 PatrolConfig；生产/长老组留 Kotlin（同偏差）。Kotlin 臂序：`tryNativePlaceSlotsResidual` 成功 → 仅承担生产槽 gameData 写 + Room 回流；降级回退原路径全量。
+
+**没收臂复用（月变没收，调用点零改动）**: `seizeBuildingsOfSect` 首行接入 `nativeTx.removeBuildings`（与玩家拆除同一入口：1453 + 1810 + Gate/Room/sync）；`removeBuildingsInternal` 降级为回退臂。宿主文件族调用点（`GameEngineCoreMonthOps.kt:95`）零触碰。
+
+**道路核对收口（计划第 4 行，核对型交付）**: `RoadFacadeImpl.kt:67/:85` 为 batch-07 native 臂就位后的**回退臂**（红线 3 保留）；`RoadMaskTracker`/`RoadTiling` 为 ② 类 UI 缓存；`roads` 单元已由 A1 关闭——无稳态写者，证据改写登记。
+
+**验收（实跑）**: 桌面 C++ **1353/1353**（基线 1348 + 残差 5 例；单进程直跑复核）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（含 47 个 `Diff*` 类）；六模块 detekt 绿；`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；生成器幂等零漂移；冻结清单机检零命中。
+
+## 2.62.4 W4-A 第五子批 A4（2026-09-15，tag `w4a/05`）：w3-10 生产残差——核对收口（零代码改动）
+
+批次: W4-A | ActionId: **0**（1820–1829 空置） | 产物: `W4AChannelClosures.kt`（PRODUCTION 证据改写）+ `w4a.mjs`（段注释）+ 本小节——**零源码/零行为改动**
+
+**核对结论一：自动续炼链已由 C++ 直辖。** 计划 A4 行"自动续炼槽位写者（:250/:341/:405）→ 复用 production.h 事务族"经实测**为已完成态**：`production.h:542`（自动排班）与 `:718`（自动炼丹续炼启动，头注释自证"Kotlin processAutoAlchemy 事务段等价"）即 batch-17/18 交付的 S7 地基；Kotlin `processAutoAlchemy` 链（`AlchemySystem.kt:28` 调入）仅在 OFF/SHADOW/对拍路径执行 = **回退臂**（红线 3 保留）。`validateAutoSlot` 判定链已随 S7 移入 C++。⇒ 无新增事务必要，1820–1829 空置。
+
+**核对结论二：对齐窗口为幂等兜底，设施删除挂 W4-D/S4。** `alignMirrorFromRepository`（repo→镜像整表）与 `restoreRepositoryFromMirror`（镜像→repo 整表重放）均为幂等全表操作（读档后镜像本已对齐，对齐为兜底——实现头注释自证）；其**唯一调用点** `GameEngineCoreMonthOps.kt:72/:99` 属**宿主文件族（W4-D 独占，README §2.3）**⇒ 按本方案冻结纪律（A4 警告框："调用点的清理/删除统一在 W4-D 执行"），"C++ 权威 + Kotlin 只读"替换与设施删除在 W4-D/S4 落地（逐批强删会产生半迁移态——产线的惰性建槽等 Room 先行写者仍需窗口兜底）。登记为 W4-D 债务项（非本批遗留缺陷）。
+
+**③ 类保留项（既有结论复核一致）**: `MaterialConsumptionLog`（UI 流/平台效应）与 `autoHarvestCompletedAlchemySlots`（读档路径 + AUTHORITATIVE 基线窗口，迁移会产生"首月读档免费收获"）保留 Kotlin——batch-17/18 结论复核一致，零改动。
+
+**验收**: 零源码/零行为改动 ⇒ 测试面零影响（`:core:domain` 编译 + detekt 复跑绿作等价证据）；证据改写登记 `W4AChannelClosures.kt`（PRODUCTION 域）；生成器幂等（清单零变化）。
+
 ## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
 
 批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）

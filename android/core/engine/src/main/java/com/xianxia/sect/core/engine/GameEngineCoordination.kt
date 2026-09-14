@@ -5,6 +5,8 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RecruitIntegrity
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.nativebridge.ActionIds
+import kotlinx.serialization.json.put
 
 
 
@@ -116,6 +118,14 @@ suspend fun GameEngine.updateDisciple(discipleId: String, update: (Disciple) -> 
  * @param newName 新姓名
  */
 suspend fun GameEngine.renameDisciple(discipleId: String, newName: String) {
+    // C++ 真相先行（W4-A·w3-01：names 行写 + 招募列表 isSamePerson 同人净化
+    // 在 C++；失败信封/降级 null → Kotlin 原路径回退臂——双实现并行契约）
+    if (tryDiscipleOpNative(ActionIds.DISCIPLE_OP_RENAME) {
+            put("discipleId", discipleId)
+            put("newName", newName)
+        } != null) {
+        return
+    }
     return engineContextDispatcher.withEngineContext {
         stateStore.update {
             val id = discipleId.toInt()
@@ -134,6 +144,15 @@ suspend fun GameEngine.renameDisciple(discipleId: String, newName: String) {
 }
 
 suspend fun GameEngine.changeDiscipleTypeAtomic(discipleId: String, newType: String) {
+    // C++ 真相先行（discipleTypes 行写；状态推导 syncSingleDiscipleStatus
+    // 由下方调用方照原序执行——与 Kotlin 事务序一致）
+    if (tryDiscipleOpNative(ActionIds.DISCIPLE_OP_CHANGE_TYPE) {
+            put("discipleId", discipleId)
+            put("newType", newType)
+        } != null) {
+        discipleFacade.syncSingleDiscipleStatus(discipleId)
+        return
+    }
     return engineContextDispatcher.withEngineContext {
         stateStore.update {
             val id = discipleId.toInt()
@@ -142,6 +161,30 @@ suspend fun GameEngine.changeDiscipleTypeAtomic(discipleId: String, newType: Str
         discipleFacade.syncSingleDiscipleStatus(discipleId)
     }
 }
+
+/**
+ * 弟子关注切换（W4-A·w3-01 新增入口：DiscipleDelegate.toggleFollowDisciple
+ * 原 [updateDisciple] lambda 直改面的事务化形态）。
+ *
+ * C++ 真相先行（statusData["followed"] 翻转）；flag 关/降级/失败信封回退
+ * Kotlin 原路径（同一 [updateDisciple] 事务语义）。
+ */
+suspend fun GameEngine.toggleFollowDisciple(discipleId: String) {
+    if (tryDiscipleOpNative(ActionIds.DISCIPLE_OP_TOGGLE_FOLLOW) {
+            put("discipleId", discipleId)
+        } != null) {
+        return
+    }
+    updateDisciple(discipleId) { disciple ->
+        val currentFollowed = disciple.statusData["followed"] == "true"
+        val newStatusData = disciple.statusData.toMutableMap().apply {
+            if (currentFollowed) remove("followed") else this["followed"] = "true"
+        }
+        disciple.copy(statusData = newStatusData)
+    }
+}
+
+
 
 suspend fun GameEngine.updateGameDataAndSync(update: (GameData) -> GameData) {
     return engineContextDispatcher.withEngineContext {

@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.json.put
+import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
@@ -272,8 +274,35 @@ class GameEngine @Inject constructor(
      * 批准婚姻提议：在 stateStore.update 事务内原子执行配对 + 从待处理列表移除。
      *
      * 防御性检查：若任一方已有道侣则跳过配对，仅清理提议避免静默覆盖。
+     *
+     * native 臂（W4-A·w3-02）：C++ 事务 `DISCIPLE_LIFECYCLE_MARRY_APPROVE`
+     * （batch-14 就绪地基——handler 与 3 个 GTest 早已在位，Kotlin 侧此前零引用）
+     * 完成 partnerIds 双向绑定 + MARRIAGE 事件直写；提议移除留 Kotlin
+     * （pendingMarriageProposals 为运行态字段，非快照协议）。
+     * NotFound 失败信封（提议残留 + 弟子已亡/被逐边界：Kotlin 原路径写幽灵列
+     * 条目，SoA 行式存储无法表达）→ 回退 Kotlin 原路径保行为（batch-14
+     * 既有口径，不得为下沉改变该边界语义）。
      */
     fun approveMarriageProposal(maleId: String, femaleId: String) {
+        // 提议存在性前置 + 名字捕获（事件文案材料；提议列表为 Kotlin 运行态，
+        // 移除动作仍在后续事务内按 id 重查——防捕获后列表已变的悬挂移除）
+        val proposal = stateStore.pendingMarriageProposals.value.find {
+            it.maleId == maleId && it.femaleId == femaleId
+        } ?: return
+        if (tryDiscipleOpNative(ActionIds.DISCIPLE_LIFECYCLE_MARRY_APPROVE) {
+                put("maleId", maleId)
+                put("femaleId", femaleId)
+                put("maleName", proposal.maleName)
+                put("femaleName", proposal.femaleName)
+            } != null) {
+            stateStore.update {
+                val current = pendingMarriageProposals.find {
+                    it.maleId == maleId && it.femaleId == femaleId
+                } ?: return@update
+                pendingMarriageProposals = pendingMarriageProposals - current
+            }
+            return
+        }
         stateStore.update {
             val maleIdInt = maleId.toIntOrNull() ?: return@update
             val femaleIdInt = femaleId.toIntOrNull() ?: return@update
@@ -301,8 +330,30 @@ class GameEngine @Inject constructor(
 
     /**
      * 拒绝婚姻提议：仅从待处理列表移除，不进行配对。
+     *
+     * native 臂（W4-A·w3-02）：C++ 事务 `DISCIPLE_LIFECYCLE_MARRY_REJECT`
+     * （1750，disciple_lifecycle_tx.h）直写 MARRIAGE 拒绝事件——零弟子表写入、
+     * 零 RNG、无失败臂（弟子行不存在边界不产生幽灵列，可直达）；提议移除留
+     * Kotlin（运行态字段）。
      */
     fun rejectMarriageProposal(maleId: String, femaleId: String) {
+        val proposal = stateStore.pendingMarriageProposals.value.find {
+            it.maleId == maleId && it.femaleId == femaleId
+        } ?: return
+        if (tryDiscipleOpNative(ActionIds.DISCIPLE_LIFECYCLE_MARRY_REJECT) {
+                put("maleId", maleId)
+                put("femaleId", femaleId)
+                put("maleName", proposal.maleName)
+                put("femaleName", proposal.femaleName)
+            } != null) {
+            stateStore.update {
+                val current = pendingMarriageProposals.find {
+                    it.maleId == maleId && it.femaleId == femaleId
+                } ?: return@update
+                pendingMarriageProposals = pendingMarriageProposals - current
+            }
+            return
+        }
         stateStore.update {
             val proposal = pendingMarriageProposals.find {
                 it.maleId == maleId && it.femaleId == femaleId

@@ -45,7 +45,9 @@ class DiscipleFacadeImpl @Inject constructor(
     internal val pillManager: DisciplePillManager,
     private val assignmentGate: DiscipleAssignmentGate,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
-    private val lawEnforcementProcessor: LawEnforcementProcessor,
+    // internal（原 private）：W4-A·w3-01 偷盗判定钩子残差需在 native 分支
+    // （DiscipleFacadeImpl战斗Ops2 扩展）以镜像刷新后的状态原序执行
+    internal val lawEnforcementProcessor: LawEnforcementProcessor,
     private val productionCoordinator: ProductionCoordinator,
 ) : DiscipleFacade {
 
