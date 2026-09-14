@@ -547,6 +547,18 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **验收（实跑）**: 桌面 C++ **1353/1353**（基线 1348 + 残差 5 例；单进程直跑复核）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（含 47 个 `Diff*` 类）；六模块 detekt 绿；`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；生成器幂等零漂移；冻结清单机检零命中。
 
+## 2.62.4 W4-A 第五子批 A4（2026-09-15，tag `w4a/05`）：w3-10 生产残差——核对收口（零代码改动）
+
+批次: W4-A | ActionId: **0**（1820–1829 空置） | 产物: `W4AChannelClosures.kt`（PRODUCTION 证据改写）+ `w4a.mjs`（段注释）+ 本小节——**零源码/零行为改动**
+
+**核对结论一：自动续炼链已由 C++ 直辖。** 计划 A4 行"自动续炼槽位写者（:250/:341/:405）→ 复用 production.h 事务族"经实测**为已完成态**：`production.h:542`（自动排班）与 `:718`（自动炼丹续炼启动，头注释自证"Kotlin processAutoAlchemy 事务段等价"）即 batch-17/18 交付的 S7 地基；Kotlin `processAutoAlchemy` 链（`AlchemySystem.kt:28` 调入）仅在 OFF/SHADOW/对拍路径执行 = **回退臂**（红线 3 保留）。`validateAutoSlot` 判定链已随 S7 移入 C++。⇒ 无新增事务必要，1820–1829 空置。
+
+**核对结论二：对齐窗口为幂等兜底，设施删除挂 W4-D/S4。** `alignMirrorFromRepository`（repo→镜像整表）与 `restoreRepositoryFromMirror`（镜像→repo 整表重放）均为幂等全表操作（读档后镜像本已对齐，对齐为兜底——实现头注释自证）；其**唯一调用点** `GameEngineCoreMonthOps.kt:72/:99` 属**宿主文件族（W4-D 独占，README §2.3）**⇒ 按本方案冻结纪律（A4 警告框："调用点的清理/删除统一在 W4-D 执行"），"C++ 权威 + Kotlin 只读"替换与设施删除在 W4-D/S4 落地（逐批强删会产生半迁移态——产线的惰性建槽等 Room 先行写者仍需窗口兜底）。登记为 W4-D 债务项（非本批遗留缺陷）。
+
+**③ 类保留项（既有结论复核一致）**: `MaterialConsumptionLog`（UI 流/平台效应）与 `autoHarvestCompletedAlchemySlots`（读档路径 + AUTHORITATIVE 基线窗口，迁移会产生"首月读档免费收获"）保留 Kotlin——batch-17/18 结论复核一致，零改动。
+
+**验收**: 零源码/零行为改动 ⇒ 测试面零影响（`:core:domain` 编译 + detekt 复跑绿作等价证据）；证据改写登记 `W4AChannelClosures.kt`（PRODUCTION 域）；生成器幂等（清单零变化）。
+
 ## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
 
 批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）

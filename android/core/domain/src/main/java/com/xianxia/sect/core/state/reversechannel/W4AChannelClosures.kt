@@ -79,8 +79,18 @@ internal val w4ADomainEvidence: Map<Domain, List<String>> = mapOf(
             "随机源达规（R1/R3），写入面留待弟子通道关闭决策（W4-D，红线 13）",
     ),
     Domain.PRODUCTION to listOf(
-        "ProductionProcessorCleaOps3.kt:291 alignMirrorFromRepository — 月结前 repo→镜像整表对齐",
-        "ProductionProcessor构筑Ops2.kt:405 validateAutoSlot / :250/:341 — 自动续炼槽位写者",
+        // A4（w3-10）核对收口——自动续炼链 C++ 直辖（production.h:542 排班 /
+        // :718 续炼启动，batch-17/18 地基），Kotlin 链为回退臂；对齐窗口为
+        // 幂等兜底设施，删除属 W4-D/S4（调用点在宿主文件族，A4 禁改）：
+        "ProductionProcessorCleaOps3.kt:288/:306 alignMirrorFromRepository/" +
+            "restoreRepositoryFromMirror — 核对结论：幂等整表对齐兜底（读档后镜像" +
+            "本已对齐）；唯一调用点在 GameEngineCoreMonthOps.kt:72/:99（宿主文件族，" +
+            "W4-D 独占）⇒ 设施删除挂 W4-D/S4（S4 登记项），本批不改调用点",
+        "ProductionProcessor构筑Ops2.kt:250/:341/:405 自动续炼槽位写者 — 核对结论：" +
+            "AUTHORITATIVE 下由 C++ 月结直辖（production.h startProduction/" +
+            "resetProductionSlot 事务族），Kotlin processAutoAlchemy 链为回退臂" +
+            "（红线 3 保留）；MaterialConsumptionLog/autoHarvestCompletedAlchemySlots " +
+            "为 ③ 类平台效应/UI 流——保留 Kotlin（batch-17/18 既有结论）",
     ),
     Domain.LIFE_CYCLE to listOf(
         // A2（w3-02）已收口——批准/拒绝 native 臂就位，槽位清理双路核对，lifeEvent 分类登记：
