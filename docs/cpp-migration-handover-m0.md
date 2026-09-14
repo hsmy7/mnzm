@@ -629,6 +629,32 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 **验证**: 桌面 C++ 全量 **1344/1344**（基线 1326 + 本批 18，含单进程直跑复核）；`:core:engine` Jade 族 64 用例全绿（含新 GateTest 4/4 + 既有 `JadeSymbolServiceTest` 29/29 证明回退臂零漂移）；`:core:engine:detekt` 绿；生成器 `173 actions (maxId=1769)` + 生成物同组提交零漂移。
 
 
+### 2.63.B3 w3-05 行商刷新族下沉 + 邮件附件登记不下沉（2026-09-15，ActionId **1770–1773**）
+
+**批次**: W4-B/B3（w3-05） | **产物**: 新 `merchant_tx.h`（四事务）、填 `dispatch_w4b.cpp` 行商分派区、改 `MerchantAndRecruitService.kt`（native 臂 + `Provider<GameEngineCore>` 惰性边 + **通道预检**）、新 `merchant_tx_test.cpp`（**13 用例**）、新 `MerchantNativeTxGateTest.kt`（**5 用例**）、`w4b.mjs` + 两生成物（**173 → 177 动作，maxId=1773**）、`W4BChannelClosures.kt`（INVENTORY 四字段转入关闭）
+
+**事务面**：
+
+| ActionId | 事务 | 承接的 Kotlin 写者 |
+|---|---|---|
+| 1770 `MERCHANT_CHANCE_GRANT_TX` | 年度凭据发放（达上限/未到 30 年间隔零写入） | `giveMerchantRefreshChanceIfDue`（:344 写段） |
+| 1771 `MERCHANT_ACQUISITION_REFRESH_TX` | 收购池整表覆写 + 年份 | `refreshMerchantAcquisition`（:377 写段；该写面为**在册已关闭字段**——本事务消除 AUTHORITATIVE 下关闭域 Kotlin 写者残留） |
+| 1772 `MERCHANT_TRAVELING_REFRESH_TX` | 旅行商人池 + 年份 + 刷新计数（保底相位 Kotlin 以镜像 count 预计算） | `refreshTravelingMerchant`（:95 写段） |
+| 1773 `MERCHANT_MANUAL_REFRESH_TX` | chances 校验先行 + 扣凭据 + 池覆写**单事务原子** | `refreshTravelingMerchantManual`（:319 写段；Kotlin 两段式 → C++ 单事务，可观测结局一致） |
+
+**池生成留 Kotlin（落账/生成切分口径）**：buildMerchantItemPools 40 件池选取/保底/价格波动（SYSTEM 分区）留 Kotlin——C++ data 层无物品生成器（§2.50 同证）；整表经 MerchantItem json_codec 键（id/name/type/itemId/rarity/price/quantity/description/obtainedYear/obtainedMonth/grade）序列化传入。四事务零 RNG（签名级不收 RngManager）。
+
+**🔴 通道预检（途中修正，RNG 红线纵深）**：native 臂首版"先生成池再调 native"，JVM 降级场景会先消耗一轮 SYSTEM 分区抽取再由回退臂重生成 ⇒ 抽取序相对 flag OFF 臂漂移（被 `MerchantNativeTxGateTest` 池规模断言首跑抓出：34≠33）⇒ 增加 `nativeMerchantAvailable()` 预检（flag/Provider/镜像/**GameCoreBridge.isLoaded** 四级）**先于池生成**——降级路径不消耗抽取序，两臂抽取序逐位一致。
+
+**🔴 邮件附件领取登记不下沉（w3-05 余项，与 RedeemCodeService 同先例）**：`MailAttachmentDistributeOps` 的领取链 = 12 类附件分发表，其中 equipment/manual/pill/material/herb/seed 7 类含 MAIL 分区**随机生成**（itemId 未命中模板时 `generateRandom`——C++ data 层无生成器，抽取序不可逐位复刻 = RNG 红线）；且「发放体 + mailRecords 凭据」**同生共死**（任一 Partial/Failure 整体回滚）——拆"账本入 C++ + 发放留 Kotlin"即破坏凭据类原子性（失败零写入红线）。"预生成全部附件实体再入 C++"需在 Kotlin 复刻整张分发表为解析层（双维护面 ~150 行）。⇒ `mailRecords` 保持 in-flight，触发条件 = C++ 侧具备物品随机生成器（模板 codegen 下沉）后重议（与 §12 兑换码债项同轨）。
+
+**关闭动作（w3 §2 第 5 步）**：`travelingMerchantItems` / `merchantLastRefreshYear` / `merchantRefreshCount` / `merchantRefreshChances` 四字段由 retained 转入 closedUnits（写者已归 C++，Kotlin 残余回退臂-only——与 merchantAcquisitionItems 既有先例同口径）；`ReverseChannelPolicyGuardTest` 6 用例绿。
+
+**连带修正**：B1 提交的 PATROL 证据条目缺 `file:line` 形（`SpiritMineViewModel.kt` 后无 `:89`），`ReverseChannelPolicyGuardTest.verdict evidence matches status` 捕获 ⇒ 本批补齐（B1 时未跑 :core:domain 测试套的流程缺口，已在批内闭环）。
+
+**验证**: 桌面 C++ 全量 **1357/1357**（基线 1344 + 本批 13，含单进程直跑复核）；`:core:engine` Merchant 族全绿（新 GateTest 5/5 + 既有 `MerchantAndRecruitServiceTest` 回归）；`:core:domain` **1758/1758**（守卫套件含）；`:core:engine:detekt` + `:core:domain:detekt` 绿；生成器 `177 actions (maxId=1773)` 零漂移。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 

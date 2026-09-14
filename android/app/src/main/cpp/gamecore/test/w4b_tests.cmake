@@ -14,4 +14,6 @@
 set(W4B_TEST_SOURCES
     # B2（w3-04 玉符运行时，1766–1769）
     jade_runtime_tx_test.cpp
+    # B3（w3-05 行商刷新族，1770–1773）
+    merchant_tx_test.cpp
 )

@@ -35,7 +35,15 @@ export const CATALOG = [
   { id: 1769, name: 'JADE_RUNTIME_GRANT_AD_TX', desc: '玉符广告发放（grantFromAd 落账段；广告 SDK 平台效应留 Kotlin）' },
 
   // ── 1770–1779 · w3-05 邮件附件 + 行商刷新 ──
-  // （待 W4-B 填充）
+  // B3 实施口径（2026-09-15）：行商族四事务下沉（池生成留 Kotlin——C++ data 层
+  // 无物品生成器，jade_tx.h §2.50 同证）；**邮件附件领取登记不下沉**（12 类附件
+  // 分发表含 7 类 MAIL 分区随机生成 + 凭据类「发放体 + mailRecords 同生共死」
+  // 原子性禁止拆双写域——与 RedeemCodeService 同先例，触发条件 = C++ 具备物品
+  // 随机生成器后重议）。
+  { id: 1770, name: 'MERCHANT_CHANCE_GRANT_TX', desc: '行商手动刷新次数年度发放（每30年+1，达上限零写入）' },
+  { id: 1771, name: 'MERCHANT_ACQUISITION_REFRESH_TX', desc: '收购池整表覆写（items 由 Kotlin 以 SYSTEM 分区预生成）' },
+  { id: 1772, name: 'MERCHANT_TRAVELING_REFRESH_TX', desc: '旅行商人池整表覆写 + 年份/刷新计数（保底相位 Kotlin 预计算）' },
+  { id: 1773, name: 'MERCHANT_MANUAL_REFRESH_TX', desc: '手动刷新（chances 校验先行 + 扣凭据 + 池覆写单事务原子）' },
 
   // ── 1840–1849 · w3-12 外交/自愈/运行态 ──
   // （待 W4-B 填充）

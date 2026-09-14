@@ -524,4 +524,16 @@ object ActionIds {
     /** 玉符广告发放（grantFromAd 落账段；广告 SDK 平台效应留 Kotlin） */
     const val JADE_RUNTIME_GRANT_AD_TX: Int = 1769
 
+    /** 行商手动刷新次数年度发放（每30年+1，达上限零写入） */
+    const val MERCHANT_CHANCE_GRANT_TX: Int = 1770
+
+    /** 收购池整表覆写（items 由 Kotlin 以 SYSTEM 分区预生成） */
+    const val MERCHANT_ACQUISITION_REFRESH_TX: Int = 1771
+
+    /** 旅行商人池整表覆写 + 年份/刷新计数（保底相位 Kotlin 预计算） */
+    const val MERCHANT_TRAVELING_REFRESH_TX: Int = 1772
+
+    /** 手动刷新（chances 校验先行 + 扣凭据 + 池覆写单事务原子） */
+    const val MERCHANT_MANUAL_REFRESH_TX: Int = 1773
+
 }

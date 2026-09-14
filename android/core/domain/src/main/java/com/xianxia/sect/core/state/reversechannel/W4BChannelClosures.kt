@@ -60,11 +60,16 @@ internal val w4BClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
     gameDataField(Domain.DIPLOMACY, "playerProtectionEnabled"),
     gameDataField(Domain.DIPLOMACY, "playerProtectionStartYear"),
     gameDataField(Domain.DIPLOMACY, "lastYearSpiritStoneIncome"),
-    // INVENTORY（商人收购池 / 上架池 / 刷新凭据）
+    // INVENTORY（商人收购池 / 上架池 / 刷新凭据；W4-B/B3 起含旅行商人池与刷新凭据——
+    // 写者归 C++ merchant_tx 1770–1773，Kotlin 残余均为回退臂-only）
     gameDataField(Domain.INVENTORY, "merchantAcquisitionItems"),
     gameDataField(Domain.INVENTORY, "merchantAcquisitionLastRefreshYear"),
     gameDataField(Domain.INVENTORY, "merchantLastRefreshChanceGrantYear"),
     gameDataField(Domain.INVENTORY, "playerListedItems"),
+    gameDataField(Domain.INVENTORY, "travelingMerchantItems"),
+    gameDataField(Domain.INVENTORY, "merchantLastRefreshYear"),
+    gameDataField(Domain.INVENTORY, "merchantRefreshCount"),
+    gameDataField(Domain.INVENTORY, "merchantRefreshChances"),
     // PATROL（含死 API patrolConfig）
     gameDataField(Domain.PATROL, "patrolConfig"),
     gameDataField(Domain.PATROL, "spiritMineExpansions"),
@@ -85,10 +90,9 @@ internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
     "spiritMineLastSettledMonth",
     // 巡逻战斗待结算（PATROL 域）
     "pendingPatrolBattleResults",
-    // 行商池与刷新凭据（INVENTORY/BOUNDARY 域稳态写者）
-    "travelingMerchantItems", "merchantLastRefreshYear", "merchantRefreshCount",
-    "merchantRefreshChances",
-    // 自动购买列表与邮件账本（INVENTORY 域）
+    // 自动购买列表与邮件账本（INVENTORY 域，登记不下沉：邮件附件领取含 7 类
+    // MAIL 分区随机生成 + 凭据类原子性禁止拆双写域——与 RedeemCodeService 同先例；
+    // 自动购买列表为 InventoryDelegate UI 直改）
     "autoBuyList", "mailRecords",
     // 引导领奖（BOUNDARY 域）
     "guideClaimedRewardIds",
@@ -101,7 +105,7 @@ internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4BDomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.PATROL to listOf(
-        "W4-B/B1（2026-09-15）：SpiritMineViewModel.kt 灵矿槽位 UI 直改四处（原 :89/:147/:183/:252）已消除" +
+        "W4-B/B1（2026-09-15）：SpiritMineViewModel.kt:89/:147/:183/:252 灵矿槽位 UI 直改四处已消除" +
             "——槽位整表覆写改走 updateSpiritMineSlots（native PATROL_UPDATE_SPIRIT_MINE_SLOTS + 回退臂），" +
             "亲传槽位卸任改走 removeDirectDisciple（native DISCIPLE_TX_UNASSIGN_SLOT + 回退臂）",
         "GameEnginePatrolOps.kt:88 updateSpiritMineSlots 回退臂 / :49 validateAndFixSpiritMineData 回退臂" +
@@ -123,6 +127,10 @@ internal val w4BDomainEvidence: Map<Domain, List<String>> = mapOf(
         "GameEngineDiplomacyOps.kt:18 — 预警去重（无 native 臂）",
     ),
     Domain.INVENTORY to listOf(
+        "W4-B/B3（2026-09-15）：行商族写者归 C++ merchant_tx 1770–1773——" +
+            "MerchantAndRecruitService.kt:65/:319/:344/:377 降级回退臂-only" +
+            "（travelingMerchantItems/merchantLastRefreshYear/merchantRefreshCount/" +
+            "merchantRefreshChances 四字段本批转入关闭）",
         "InventoryFacadeImpl.kt:678 openStorageBag — 开袋抽签已下沉，逐件入库留 Kotlin（两臂共用）",
         "InventorySystem.kt:138 / 装备Ops4.kt:107 / 丹药Ops5.kt:147（统一入库入口，稳态残余共用）",
         "InventoryDelegate.kt:157/:177 自动购买列表 UI 直改（无 native 臂）",
