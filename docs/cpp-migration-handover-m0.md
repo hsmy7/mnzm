@@ -515,16 +515,59 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 - `InventorySystem.materializeDiscipleBagAndMarkDead` 成员/扩展同签名遮蔽：删除 `InventorySystem校验Ops3.kt:183` 死扩展（成员恒胜出 ⇒ 扩展自始死代码），收敛为成员单一实现，零行为变更。
 - detekt 六模块 baseline 全 0 保持：MissionSystem rng 双形参合并为单一 `rngManager`（内部 `rngOf` 自取，抽取序不变）；`executeCombatantTurn` 合并豁免注解；4 处死 import 清理。
 
-### 2.64.4 ⚠️ 剩余工作（诚实口径，本批未落地）
+### 2.64.4 ✅ C-① 战斗族残差下沉（C1+C2+C3，w4c/07——本批代码面收尾）
 
-| 项 | 状态 | 剩余内容 |
-|---|---|---|
-| **C1 · w3-06 战斗/探索残差（1780–1789）** | ⛔ 未开工 | `battle_residual_tx.h`：① `CombatService.kt:78` 伤亡残差下沉（grief/markDead+袋物化/物品/11 类 elder 槽+3 槽族/幸存者 HP/MP，零 RNG）；② `GameEngineWorldBattleOps.kt:188` 胜利事务下沉（魂力+确定性 winAttr 表；**C++ 不写 `defeated`**，batch-13 TOCTOU 教训；`processSingleDiscipleTheft` 侧钩子随域判定）；③ `:288` 失败事务判定为 battleLogs 显示域+UI 通道，**无状态可下沉（登记）**；④ `GameEngineExplorationNativeOps.kt:134` 战前结算 `forceSettleDisciplesBeforeBattle` 门控+下沉（无既有 C++ tx，需与 C2 `:66` 同一定界面）。地基：`exploration_tx.h` 复用 + `battle.h/sect_battle.h` 为纯逻辑非 tx（需新头） |
-| **C2 · w3-07 宗门战战后段（1790–1799）** | ⛔ 未开工 | `:274`（战史+战报，撕裂事务）、`:339`（占领奖励原子事务）、`:366`（碾压奖励）三项**登记不下沉**（依据已存 `sect_attack_tx.h:18-32` + closures 证据）；`:66` 战前结算同 C1④ |
-| **C3 · w3-08 秘境残差（1800–1809）主体** | ⛔ 未开工（遮蔽根治已落地 w4c/03） | 出发换岗（`GameEngineSecretRealmOps.kt:57`）/到期兜底（`GameEngineSecretRealmNativeOps.kt:100`）C++ 事务化（新 `secret_realm_residual_tx.h`；`secret_realm_platform_tx.h`/`SECRET_REALM_CONTINUE_TX` 可复用地基）；`:263` 战报显示域**登记不下沉** |
-| **关闭动作** | ⛔ 随上述子批执行 | 每子批关闭自己的单元 + "关闭域写入检测零命中"门禁 |
+**交付面**：新 `battle_residual_tx.h`（①伤亡残差 ②关卡胜利 ③战前结算）+ 新
+`secret_realm_residual_tx.h`（①出发换岗 ②到期兜底）五事务 + `dispatch_w4c.cpp`
+实裁 + `w4c.mjs` 五条目（1780/1781/1782/1800/1801）+ Kotlin 五处 native 臂接线
++ 双 GTest（13 用例）+ `BattleResidualNativeTxGateTest`（findings 13 回归网 +
+三臂降级等价）+ `W4CChannelClosures` 证据改写。**1790–1799 段零占用**（w3-07
+三处登记不下沉，`w4c.mjs` 段注 + closures 证据双登记）。
 
-**验收（已实跑部分）**: 桌面 C++ **1332/1332**（基线 1326 + 6 新增 terrain_freeze）；`:core:domain` **1758/0**（穷尽分类守卫含新字段）；`:core:data` 聚焦 9 用例全绿（含既有 15 跳过面未触）；`:core:engine` 全量 3281 用例 **3280/3281**（1 失败 = `GameEngineCoreLifecycleInterleavingTest` 时序断言，隔离重跑绿，与改动面无关的负载相关 flake——终局门禁复跑判定）；六模块 detekt 全绿 baseline 全 0；生成器零漂移。`:app:externalNativeBuildRelease`/`lintRelease` 与全量复跑在批次收口时执行。
+**实施口径差异（与批次方案 §2.2 的差异，逐条核实战真值）**：
+
+- ① 伤亡残差（1780）：死亡计数按 Kotlin `InventorySystem.materialize
+  DiscipleBagAndMarkDead` 的 **wasAlive 守卫**计数——`sr_session` 包装为无条件
+  计数（洞府预标记语义），1570→1780 重入路径会双计；故事务内 wasAlive=true 走
+  包装函数（袋物化+列写+计数一次）、false 走三列幂等重写。宗门外死亡**不回收
+  穿戴**（Kotlin isOutsideSect 分支同口径）；DeathEvent 广播/丧亲日志/
+  Room 生产槽清槽为 Kotlin 平台残差。
+- ② 胜利事务（1781）：r = |(id×527+31)%17| 因 527≡0 (mod 17) **恒收敛分支 14**
+  （basePhysicalDefenses+1）——与 Kotlin 同式同常量，GTest 以实证常量锁定；
+  TOCTOU 重查在 C++（defeated → 成功零写入 applied=false）；🔴 **C++ 不写
+  defeated**（batch-13 口径）——defeated + battleLogs 残差经
+  `applyWorldLevelVictoryTransaction(skipNativeDomainWrites = true)` 留 Kotlin 臂；
+  偷盗钩子**随域下沉**（原表"随域判定"→判为下沉，复用
+  `month_settlement::judgeSingleTheftCandidate`，SYSTEM 分区同区同序）。
+- ③ 战前结算（1782）：复用 `phase_settlement::performBreakthrough` 已对拍锁定
+  管线（自动嗑丹/引导计数/检查点/完成预估/精准写回），**候选 = 传入队伍 id 集**
+  （月结为全量排除秘境成员）——非队伍满修为弟子**零抽取**（抽取集不变红线，
+  GTest rngStates 快照差分锁定）；行序 == `_ids` 追加序；w3-07 `:66` 与 w3-06
+  `:134` 同一事务界面（单一 ActionId）。
+- 秘境 1801：native 权威态判未到期（快照竞态）→ 放行（以权威态为准）；
+  backpack 解析失败按空背包兜底（`continueSecretRealmNative` EXPIRED 同构）。
+- lifeEvents 契约：C++ 无该列（`disciple_lifecycle_tx.h` 口径）⇒ 丧亲/突破日志
+  以信封 `lifeEventDrafts` 回写 Kotlin 瞬态列；战斗丧亲日志**每新入悲痛者至多
+  一条**（Kotlin `firstOrNull` 语义、死者按行序取首）——与年结"逐死者逐亲属出
+  草稿"口径不同。
+
+**验证数值（w4c/07 实跑，2026-09-15）**：桌面 C++ **1345/1345**（基线 1332 +
+新 13；`dispatch_guard` 对 5 个新动作号的可达校验含于全量）；`:core:engine`
+全量 **3282/0**（`--rerun-tasks` + 本工作树 desktop-jni 对拍路径）；六模块
+detekt 全绿 baseline 全 0（Complexity 19/15、Loop 跳转、MaxLine 三处实修零
+豁免）；`:core:data` / `:feature:game` / `:app` 回归绿；
+`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；生成器重跑 **174
+动作 / maxId=1801** 与提交清单逐文件一致；冻结纪律机器判据通过（`git diff
+w4-base..` 不含 execute_dispatch.cpp / test:CMakeLists / ReverseChannelPolicy /
+GameViewModel / GameEngineCore / 宿主族）。
+
+**CombatService 注入形态**：构造新增 `Provider<GameEngineCore>?`（W4-B
+`MerchantAndRecruitService` 同款——Dagger 破环 + 测试直构默认 null 走回退臂）。
+
+**本批遗留（非代码面，归收口人）**：干净检出复验（README §4.3 第 5 条）、
+A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（门禁第 9 条，
+随 PR 描述附）、共享文档（CHANGELOG 双文件 / handover §3 验证表 / §4.1 / §5 /
+§6）收口人独占更新。
 
 ## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
 
