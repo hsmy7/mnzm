@@ -212,19 +212,38 @@ internal fun getAllConversationTrees(): List<ConversationTree> = ALL_TREES
 /** 表现类文本变体抽取（随机源必传——⑤ 默认值陷阱同款规避）。 */
 private fun <T> List<T>.randomOne(random: Random): T = this[random.nextInt(size)]
 
-/** 决策类效果随机化（增量抽取引擎侧 CHAT 分区；算术骨架与原实现逐字一致）。 */
-private suspend fun randomizeEffect(engine: GameEngine, effect: ConversationEffect): ConversationEffect {
+/**
+ * 决策类效果随机化的算术骨架（抽取源形参化——整数/浮点抽取各一路）。
+ *
+ * 符号保持：原增量为正则抽正、为负则抽负、为 0 保持 0；抽取区间恒为
+ * `[1, 6)`（整）与 `[0.01, 0.06)`（浮）。抽取源由调用方注入——生产传
+ * [GameEngine.chatDraw]/[GameEngine.chatDrawDouble]（引擎上下文 + CHAT 分区），
+ * 测试传确定性桩（本函数因此无需引擎实例即可覆盖）。
+ */
+internal suspend fun randomizeEffectWith(
+    drawInt: suspend (Int, Int) -> Int,
+    drawDouble: suspend (Double, Double) -> Double,
+    effect: ConversationEffect
+): ConversationEffect {
     if (effect.isZero) return effect
-    suspend fun Int.signRandom(): Int = if (this > 0) engine.chatDraw(1, 6)
-    else if (this < 0) -engine.chatDraw(1, 6) else 0
+    suspend fun Int.signRandom(): Int = if (this > 0) drawInt(1, 6)
+    else if (this < 0) -drawInt(1, 6) else 0
     return ConversationEffect(
         moralityDelta = effect.moralityDelta.signRandom(),
         loyaltyDelta = effect.loyaltyDelta.signRandom(),
         intelligenceDelta = effect.intelligenceDelta.signRandom(),
-        cultivationDelta = if (effect.cultivationDelta > 0.0) engine.chatDrawDouble(0.01,
-            0.06) else if (effect.cultivationDelta < 0.0) -engine.chatDrawDouble(0.01, 0.06) else 0.0
+        cultivationDelta = if (effect.cultivationDelta > 0.0) drawDouble(0.01,
+            0.06) else if (effect.cultivationDelta < 0.0) -drawDouble(0.01, 0.06) else 0.0
     )
 }
+
+/** 决策类效果随机化：抽取走引擎上下文 + CHAT 分区（抽取序不扰动既有分区）。 */
+private suspend fun randomizeEffect(engine: GameEngine, effect: ConversationEffect): ConversationEffect =
+    randomizeEffectWith(
+        drawInt = { from, until -> engine.chatDraw(from, until) },
+        drawDouble = { from, until -> engine.chatDrawDouble(from, until) },
+        effect = effect
+    )
 
 /** 单项会话增量封顶：增幅达 100 上限/降幅触 1 谷底时归零并记录提示 */
 private fun capDelta(

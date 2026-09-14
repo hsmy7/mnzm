@@ -31,7 +31,6 @@ class RoomMigrationV50To51Test {
             "com.xianxia.sect.data.local.GameDatabase"
         )
 
-        private val M49_50 = MIGRATION_49_50
         private val M50_51 = MIGRATION_50_51
     }
 
@@ -44,7 +43,7 @@ class RoomMigrationV50To51Test {
         try {
             createDatabaseFromSchema(context, dbName, 50).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M49_50, M50_51)
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
             db.openHelper.writableDatabase
             db.close()

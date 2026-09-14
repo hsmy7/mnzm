@@ -255,6 +255,23 @@ C++）。
 | 弟子生命周期 | `DiscipleLifecycleProcessor.kt:489`（槽位清理）、`DiscipleLifecycleManager.kt:100/:121`、`GameEngine.kt:277/:306`（婚姻提议审批） | 0 |
 | 存档/读档/自愈 | `SaveFacadeImpl.kt:56`、`GameEngineServiceOps.kt:40/:77` | 9 字段（时间三件/槽位/版本/种子/`rngStates`） |
 
+**滚动更新（2026-09-15，W4-A/B/C 三批集成后复核）**——上表所列稳态写者中**已就地消除**的站点（逐条带 `file:line` 证据；**其余站点本轮未复核**，域级"可整体关闭"结论**仍无一成立**，关闭判定统一留 w3-13/W4-D 的"先禁用 + 完整业务周期观察"门禁）：
+
+| 域 | 原稳态写者站点 | 集成后形态（证据） | 来源 |
+|---|---|---|---|
+| 弟子管理 | `GameEngineCoordination.kt:99/:120/:138` | 现为 native 臂：`:123` RENAME / `:149` CHANGE_TYPE / `:173` TOGGLE_FOLLOW（`ActionIds.DISCIPLE_OP_*`） | §2.62 |
+| 弟子管理 | `DiscipleFacadeImpl战斗Ops2.kt:93/:119`（赏赐/服药） | 现为 native 臂：`:99` REWARD_ITEM / `:296` USE_PILL | §2.62 |
+| 弟子管理 | `GameEngineManualOps.kt:137` 功法替换（无 native 臂、从未登记） | 现为 native 臂：`:141` `tryDiscipleTxNative(DISCIPLE_OP_REPLACE_MANUAL)` | §2.62 |
+| 弟子管理 | `DiscipleStatusService.kt:225/:279/:373`（状态派生） | 现为 native 臂：`:296` SYNC_ALL_STATUSES / `:409` SYNC_STATUS | §2.62 |
+| 弟子管理 | （血炼完成链） | `GameEngineBloodRefinementOps.kt:66` `DISCIPLE_OP_START_BLOOD_REFINEMENT` native 臂 | §2.62 |
+| 弟子生命周期 | `GameEngine.kt:276` 婚姻审批（**声明有 native 臂但实测未接线**） | 已接线：`:288` `tryDiscipleOpNative(DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592)` | §2.62.2 |
+| 弟子生命周期 | `GameEngine.kt:277/:306` 婚姻提议审批/拒绝 | 拒绝侧下沉：`:339` `tryDiscipleOpNative(DISCIPLE_LIFECYCLE_MARRY_REJECT=1750)` | §2.62.2 |
+| 巡逻/住所/矿场 | `SpiritMineViewModel.kt:89/:147/:183/:252`（灵矿槽位 UI 直改） | 槽位整表覆写改走统一 native 面 `PATROL_UPDATE_SPIRIT_MINE_SLOTS`（`:142/:179/:250` 三处调用点）；同批删 2 个死 API | §2.63.B1 |
+| 秘境 | `cultivatorCaves`（洞府整族死链） | 死链入口已删（`CaveExplorationRewardOps.kt` 整文件删除 + `CultivationService` 死委托移除）；`processSectDisciplesAging` / `processAISectOperations` 等**活路保留** | §2.63.B4 |
+| 战斗 | `CombatService.kt:78`（伤亡残差） | 现为 native 臂：`GameEngineNativeOps.tryExecuteNative(BATTLE_CASUALTY_SETTLE_TX=1780)`；标记/装备/槽位/HP 残差留 Kotlin | §2.64.4 |
+| 战斗/探索 | `WorldBattleOps` / `GameEngineBattleOps` / `ExplorationNativeOps` | 战前结算 1782 + 胜利发奖 1781 下沉；秘境换岗 1800 / 到期兜底 1801 下沉 | §2.64.4 |
+| 月年编排 | （W4-A A4 生产残差核对） | **零代码改动**：续炼链已 C++ 直辖；"对齐窗口"删除登记 W4-D | §2.62.4 |
+
 **新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
 
 - **双端同源闸门**——捕获侧（`GameStateStoreImpl.captureReverseDirty`：弟子通道 + 集合段停载荷构造）与信封侧

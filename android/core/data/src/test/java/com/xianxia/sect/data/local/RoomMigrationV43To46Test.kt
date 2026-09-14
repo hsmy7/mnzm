@@ -33,10 +33,6 @@ class RoomMigrationV43To46Test {
         private val M43_44 = MIGRATION_43_44
         private val M44_45 = MIGRATION_44_45
         private val M45_46 = MIGRATION_45_46
-        private val M46_47 = MIGRATION_46_47
-        private val M47_48 = MIGRATION_47_48
-        private val M48_49 = MIGRATION_48_49
-        private val M49_50 = MIGRATION_49_50
 
         /** v44 新增的弟子职业 4 列（disciples 与 disciples_attributes 两表共用） */
         private val PROFESSION_COLUMNS = listOf(
@@ -373,7 +369,7 @@ class RoomMigrationV43To46Test {
         try {
             createDatabaseFromSchema(context, dbName, 43).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M43_44, M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -430,7 +426,7 @@ class RoomMigrationV43To46Test {
         try {
             createDatabaseFromSchema(context, dbName, 44).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -513,7 +509,7 @@ class RoomMigrationV43To46Test {
         try {
             createDatabaseFromSchema(context, dbName, 45).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M45_46, M46_47, M47_48, M48_49, M49_50)
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
             db.openHelper.writableDatabase
             db.close()

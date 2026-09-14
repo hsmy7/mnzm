@@ -825,24 +825,78 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **顺手更正（文档漂移）**: `CLAUDE.md`「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
 
+## 2.68 W4 三批次集成验收（2026-09-15，收口批）：独立复验抓出 3 处真实缺陷并根因修复
+
+批次: W4 集成收口（A/B/C 三批汇流） | 产物: 合并提交 `7c89deb19`（+ 本批 3 处根因修复提交）、新 `MigrationChainGuardTest.kt`（4 用例）、`GameDatabase.kt` 新增 `ALL_MIGRATIONS` 单点登记表、本文档 §2.68/§3/§4.1 更新、`ui-read-surface.md` §4.4 滚动更新、双更新日志
+
+**合入事实（`--no-ff`，逐批独立复验后合入）**:
+
+| 批 | 分支 / tag | 提交 | 文件 | 合并冲突 |
+|---|---|---|---|---|
+| W4-A | `w4/a-disciple-building`（`w4a/01`–`w4a/05`） | 5 | 39 | 无 |
+| W4-B | `w4/b-court-economy`（`w4b/01`–`w4b/05`） | 5 | 30 | 仅两份**生成物**（按方案 §4.3 重生成解决，未手工解冲突） |
+| W4-C | `w4/c-battle-world`（`w4c/01`–`w4c/08`） | 8 | 64 | 生成物 + `handover`（§2.62/63/64 各自小节，顺序无损）+ `protocol-lease.md`（终态行）；`GameEngine.kt` 自动合并 |
+
+- **三批同源于当前 `main`**（`git merge-base --is-ancestor` 逐批核验）；合入前逐批 `git merge-tree --write-tree main <branch>` 均为 exit 0（相对 main 无冲突）；生成物在合并后的树上重生成 ⇒ **195 动作 / maxId=1843**（批内增量：A 12 / B 9 / C 5），生成器幂等、`git diff --exit-code` 空。
+- **冻结纪律机器判据零违规**：硬冻结 6 项（`execute_dispatch.cpp` / `gamecore/CMakeLists.txt` / `test/CMakeLists.txt` / `gen-action-ids.mjs` / `action-catalog/core.mjs` / `ReverseChannelPolicy.kt`）+ 跨批共引宿主 6 项（§2.3 冻结给 W4-D 的文件族）**三批 diff 中一处未现**。
+
+**🔴 独立复验的三处发现（"批次自报完成"两次为假——正是方案 §7.1 要求独立复跑的理由）**:
+
+1. **W4-A：测试源编译不过（自报"门禁④ 主源+测试源编译绿"为假）**。
+   - **症状**: `:feature:game:compileReleaseUnitTestKotlin` 失败 10 条错误。
+   - **根因链**: A5（tag `w4a/02`，RNG 阶段 3·弟子侧）把 UI 层 `DiscipleChatDialog.randomizeEffect` 由「非 suspend、单参、测试可见」改为「`private suspend`、双参（增 `engine`）」，**但从未更新同包测试** `DiscipleChatDialogTest.kt`（该文件 blob 在 `main` / 批 A / 集成树三处**完全相同**，即批 A 零触碰）⇒ 5 个调用点全部失效（suspend 上下文 + 文件私有各一条）。
+   - **根因修复（非打补丁）**: 把随机化的**算术骨架**抽为纯函数 `randomizeEffectWith(drawInt, drawDouble, effect)`（抽取源形参化，`internal`），生产侧保留一个 `private suspend` 的引擎绑定包装（`chatDraw`/`chatDrawDouble` → CHAT 分区）。测试改为**确定性桩驱动骨架**：新增「抽取区间契约」用例（断言整型恒 `[1,6)`、浮点恒 `[0.01,0.06)`）+ 上下界取负/零进零出逐字断言——**比原"50 次随机 + 区间断言"更强且不再依赖引擎实例**。5 用例 → 6 用例。
+   - **为什么不是"改回 public/internal 让测试能调"**: 那会把可见性放宽以迁就测试；骨架已可用纯函数覆盖，生产面保持最小（A5 的引擎侧签发设计不变）。
+2. **W4-C：`:core:data` 回归 12 处失败（自报未跑该模块回归）**。
+   - **症状**: `:core:data:testReleaseUnitTest` **712 用例 / 12 失败**（基线 707/0/15 跳过）。
+   - **根因链**: C-②（WS-5b 地图冻结）把 `@Database(version)` 50→51 并新增 `MIGRATION_50_51`，**只**登记进 `GameDatabase.build()`；5 个既有迁移测试文件各自维护**链尾**（`RoomMigrationTest` 6 处 + `RoomMigrationV43To46Test` 3 处 + `V46To47`/`V47To48`/`V48To49` 各 1 处 = **12 处**，全部止于 `M49_50`）⇒ Room 报 `A migration from 38 to 51 was required but not found`（失败数与站点数**一一对应**）。
+   - **根因修复（收敛单点，而非逐处补）**: 新增 `ALL_MIGRATIONS` 单点登记表（`GameDatabase.kt`，`build()` 与全部迁移测试共用），12 处测试链改为 `.addMigrations(*ALL_MIGRATIONS)` 并删除因此失效的 18 个私有别名 ⇒ **"递增版本 = 只改一处"**。同时按 CLAUDE.md 9.5 补**守卫测试** `MigrationChainGuardTest`（4 用例：链自 v3 连续覆盖到 `DATABASE_VERSION` / 每条恰好前进一版 / 链尾 == `DATABASE_VERSION` / 严格升序）——覆盖"升版本漏登记"这一缺陷类。detekt `SpreadOperator` 按本仓既有 4 处同款先例（vararg API）以带理由的定向 `@Suppress` 处置。
+   - **验证**: `:core:data` **716 用例 / 0 失败 / 0 错误 / 15 跳过**（= 基线 707 + C 新增 5 + 守卫 4）；12 处原失败用例全绿。
+3. **W4-B：`dispatch_w4b.cpp` 用裸 ActionId 数字而非生成常量（违反 CLAUDE.md 0.4，且与 A/C 两批风格背离）**。
+   - **根因**: 该文件**未 include** `gamecore/action_ids.h`（A/C 两批的 `dispatch_w4X.cpp` 都 include 了）⇒ 拿不到 `action::` 常量，只能写死 8 个 `case 1766:` 式标签 + 1 处 `!= 1843` 比较。
+   - **处置**: 机械**可证等价**归一（值必须与生成常量逐条相等，否则脚本抛错）——补 include + 8 个 case 标签与 1 处比较改为 `action::*`；段范围守卫（`>= 1766 && <= 1769` 等）按 A/C 同款保留字面量（表示"预分配段"而非动作）。差异仅 11 行增 / 9 行删，`dispatch_guard_test` 复跑通过。
+
+**门禁实跑（集成树上，逐项命令见本文件 §7；"全绿"均以用例计数为准，不以 `BUILD SUCCESSFUL` 为唯一证据）**:
+
+| # | 门禁 | 实测 |
+|---|---|---|
+| ① | 桌面 C++ 全量（含单进程直跑复核） | **1407/1407**（ctest 与 `game-core-tests.exe` 直跑双绿；基线 1326 → 三批净增 81；`llvm-mingw-*-ucrt-x86_64\bin` 在 PATH） |
+| ② | `:core:engine` 全量（`--rerun-tasks` + 本工作树 JNI） | **3306 用例 / 303 类 / 0 失败 / 0 错误 / 0 跳过**；`Diff*` 对拍 **47** 类全绿 |
+| ③ | 桌面 JNI 重建（对拍用） | 成功（9.5 MB，产物时间戳新） |
+| ④ | 生成物零漂移 | 生成器**幂等**（连跑两次哈希相同）+ `git diff --exit-code` 空；**195 动作 / maxId=1843** |
+| ⑤ | 六模块 detekt | 全绿；**baseline 全 0**（未新增条目） |
+| ⑥ | 主源 + 测试源编译（六模块） | 全绿（含 `:feature:game` / `:app` 测试源——**修复 #1 前为红**） |
+| ⑦ | `:app:externalNativeBuildRelease`（NDK arm64）+ `:app:lintRelease` | 均成功（lint **42 warnings** 非阻断，3 条走 `lint-baseline.xml` 过滤） |
+| ⑧ | 模块回归 | `:core:domain` **1758/0**（`ReverseChannelPolicyGuardTest` **6/6**）；`:core:data` **716/0/0（15 跳过）**；`:feature:game` **872/0/0**；`:app` **1020/0/0（2 跳过）** |
+| ⑨ | 冻结/独占纪律 | 三批**零冻结违规**；各批本批独占文件均在位（`dispatch_w4X.cpp` / `w4X.mjs` / `W4XChannelClosures.kt` / `w4X_tests.cmake`） |
+| ⑩ | 子批 tag | 三批 19 个子批 tag 齐备（`w4a/01`–`w4a/05`、`w4b/01`–`w4b/05`、`w4c/01`–`w4c/08`）+ `w4-base` |
+
+**独立内容抽验（不采信批次自报，逐条带证据）**: ① 弟子操作面**九事务**逐条接线实证（RENAME/CHANGE_TYPE/TOGGLE_FOLLOW → `GameEngineCoordination.kt:123/:149/:173`；REWARD_ITEM/USE_PILL → `DiscipleFacadeImpl战斗Ops2.kt:99/:296`；REPLACE_MANUAL → `GameEngineManualOps.kt:141`；START_BLOOD_REFINEMENT → `GameEngineBloodRefinementOps.kt:66`；SYNC_STATUS/SYNC_ALL_STATUSES → `DiscipleStatusService.kt:409/:296`）；② 婚姻审批接线实证（`GameEngine.kt:288` 1592 / `:339` 1750）；③ WS-5b **协议全链**实证（域字段 `GameData.kt:880/:892` → Room 列 + `GameDatabaseConfig.DATABASE_VERSION=51` + `MIGRATION_50_51` 注册于 `GameDatabase.kt` → 迁移测试 `RoomMigrationV50To51Test` → 存档往返 `SaveDataTerrainFreezeTest` → C++ `GameCoreBridge` 参数 → 引擎回填 `GameEngineSaveOps.kt:23-27`）；④ 随机源收敛实证（顶层可变 `xxxRngManager` 全仓 **0 处**）；⑤ 洞府死链实证（`CaveExplorationRewardOps.kt` 整文件已删、主源 `CaveExplorationTeam(` 构造 0 处，`processSectDisciplesAging` 等活路保留）。
+
+**🔴 复验中记录的口径风险（未改，登记备查）**: `DiffSurfaceAssertion.kt:76-77` 把 WS-5b 的 `terrainTiles` / `mapGenVersion` 列入**对拍排除面**（理由：种子派生镜像字段 + harness 期望快照不携带该段）。⇒ **该两字段的跨实现等价性不由对拍保障**，而由 C++ `terrain_freeze_test.cpp`（`EnsureMatchesGenerateTileDataBitwise` 等 6 用例）+ Kotlin `DiffSectTerrainTest` 承担。若后续调整地形生成器，**必须两处同时更新**，否则对拍不会报红。
+
+**遗留（不在本批范围）**: W4-D 汇流波（D1 `batch-22a` 埋点 → D2 `w3-11` 月年编排残差 + §2.3 宿主文件族调用点清理 → D3 `DiffAuthoritativeTickTest` harness 对齐 → D4 `w3-13` 反向通道删除 → D5 死代码清零 → D6 文档收口，见 `docs/parallel-batches-w4/README.md` §8）；非并行轨（真机验证批 / WS-4 需设计文档 / WS-1 阶段 3 需立项 / `TimeSystem.onPhaseTick` 删除待拍板 / `PresentationRandom` 跨会话同构待拍板）。
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
+**当前门禁基线（2026-09-15，§2.68 W4 三批集成后）**：
 
 | 验证 | 结果 |
 |---|---|
-| 桌面 C++ 全量单测 | **1326/1326 全绿**（§2.61 W4-00 实测；基线 1322 + 4 个 `DispatchGuard*` 新用例）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3281 用例 / 296 类 / 0 失败 / 0 跳过**（§2.61 W4-00 复跑，与 §2.53 逐项一致；含 47 个 `Diff*` 对拍全绿） |
-| `:core:domain` 单测 | **1758 用例 / 0 失败**（含新 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
-| `:core:data` / `:core:ui` 单测 | **707 用例 0 失败（15 跳过=既有）** / **146 用例 0 失败** |
-| `:feature:game` 单测 | **871 用例 / 2 失败** —— `EdgeKtxSyncTest` 两例（纹理尺寸表 ↔ WebP/KTX 一致性），**归属并行渲染批在途（该测试文件为并行批未提交新增，本批零触碰）**，不计入本批 |
-| `:app` 单测 | **1020 用例 / 1 失败** —— `SpriteCodegenSyncTest`（`MAP_SPRITES` 期望 78 实得 41），**归属并行渲染批在途图集重建（本批零触碰精灵/图集代码）**，不计入本批 |
-| detekt | ✅ **六模块 `./gradlew.bat detekt` 全绿**（本批新增文件零违规；`buildReverseEnvelope` 拆分为 gameData/弟子/集合三段私有助手、`jsonValuesEquivalent` 降 return、两处循环跳转合并——均为真实重构非抑制） |
-| 动作计数 | **169 动作，maxId=1734**（`gen-action-ids.mjs` 实跑口径；§2.61 W4-00 **净减 2**——删除 `INV_ADD_EQUIPMENT_INSTANCE=1011` / `INV_ADD_MANUAL_INSTANCE=1013` 两处死导出，经新增分派覆盖守卫首跑抓出）；`execute_dispatch.cpp` handler **33** 个 / `case action::` **166** 处）。**1734 = `STORAGE_BAG_OPEN_TX`**（ADR 阶段 1① 开袋下沉，随 `85498c4` 入库） |
-| **NDK arm64** | ✅ **已跑通（2026-09-15 §2.53 实测）**——`:app:externalNativeBuildRelease` **BUILD SUCCESSFUL（35s）**；本批零 C++ 改动，NDK 结果与改动无关（作为门禁记录） |
-| **lintRelease** | ✅ **已跑通（2026-09-15 §2.53 实测）**——`./gradlew lintRelease --max-workers=1` **BUILD SUCCESSFUL（12m09s）** |
-| 编译 | 主源 + 测试源（`:core:domain`/`:core:engine`/`:feature:game`/`:app`）BUILD SUCCESSFUL；桌面 JNI 重建成功 |
+| 桌面 C++ 全量单测 | **1407/1407 全绿**（§2.68 实跑：ctest + 单进程直跑双绿；W4-00 后 1326 → A/B/C 三批净增 81）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 引擎全量单测 `:core:engine` | **3306 用例 / 303 类 / 0 失败 / 0 错误 / 0 跳过**（§2.68 复跑，`--rerun-tasks` + 本工作树 desktop-jni；含 47 个 `Diff*` 对拍全绿） |
+| `:core:domain` 单测 | **1758 用例 / 0 失败**（含 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
+| `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
+| `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
+| `:feature:game` 单测 | **872 用例 / 0 失败 / 0 错误**（§2.68 复跑；W4-00 表所列 2 例 `EdgeKtxSyncTest` 失败已随并行渲染批落地消除） |
+| `:app` 单测 | **1020 用例 / 0 失败 / 0 错误 / 2 跳过**（§2.68 复跑；W4-00 表所列 `SpriteCodegenSyncTest` 失败已消除） |
+| detekt | ✅ **六模块 `detekt` 全绿，baseline 全 0**（§2.68 复跑；新增唯一违规 `SpreadOperator` 按本仓既有 4 处同款先例以带理由 `@Suppress` 处置，未进 baseline） |
+| 动作计数 | **195 动作，maxId=1843**（`gen-action-ids.mjs` 实跑口径；W4-00 后 169 → 三批 +26 = A 12 + B 9 + C 5）。**1843 = `DIPLOMACY_WARNING_STAGE_TX`** |
+| 生成物 | 生成器**幂等**（连跑两次哈希相同）+ `git diff --exit-code` 空 |
+| **NDK arm64** | ✅ **`:app:externalNativeBuildRelease` BUILD SUCCESSFUL（§2.68 实跑，3m03s）** |
+| **lintRelease** | ✅ **`:app:lintRelease` BUILD SUCCESSFUL（§2.68 实跑，6m15s；42 warnings 非阻断 + 3 条走 `lint-baseline.xml` 过滤）** |
+| 编译 | 主源 + 测试源（`:core:domain`/`:core:engine`/`:core:data`/`:core:ui`/`:feature:game`/`:app`）全绿；桌面 JNI 重建成功 |
 | **反向信封体积构成（本批新增验收面）** | 单元 harness 稳态窗口（40 弟子 / 20 丹药 / 3 gameData 字段 / 1 弟子 / 1 集合变更）**合计 20121B = gameData 38B + 弟子 2462B + pills 17549B**；`lockedBeastIds` 段关闭省 39B/窗口 |
-| 未收敛登记（**非本批归属**） | ① `:feature:game` `EdgeKtxSyncTest` 2 例（并行渲染批在途：`island_edge_*.webp` 删除 + KTX 重烘焙中）；② `:app` `SpriteCodegenSyncTest` 1 例（并行渲染批图集重建致 `MAP_SPRITES` 78→41） |
+| 未收敛登记 | **当前为空**——W4-00 表所列两项（`:feature:game` `EdgeKtxSyncTest` 2 例 / `:app` `SpriteCodegenSyncTest` 1 例）已随并行渲染批落地消除，§2.68 复跑均为 0 失败 |
 
 > **历史时点基线（2026-09-13，§2.59 后）已被上表取代，仅备追溯**：引擎 3260/0/0（293 类）、桌面 1309/1309、`:feature:game` 868/0、动作 171/maxId=1734、detekt 六绿、阶段 4 JNI 基准 ratio 0.8、NDK 2m46s ✅ / lint 14m20s ✅。原表所记「纹理重构族在途破损 ⇒ NDK/lint 不可走」经实测**证伪**。
 
@@ -851,6 +905,9 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.68 W4 三批集成收口（09-15）** | **1407/1407** | **3306 / 0 / 0**（303 类，47 `Diff*`） |
+| **§2.62～§2.64 W4-A/B/C 三批（09-15，并行）** | 1361→1407（批内逐步） | 3295→3306（批内逐步） |
+| §2.61 W4-00 并行前置批（09-14） | 1326/1326 | 3281 / 0 / 0（296 类） |
 | §2.53 Batch-21 反向通道逐域关闭（09-15） | 1322/1322 | 3281 / 0 失败 / 0 跳过 |
 | §2.58 随机源治理收口（09-14） | 1322/1322 | 3260 / **1 失败**（§2.59.1 已清） |
 | batch-23 + batch-24 + 存量清偿（09-14） | 1309/1309 | 3249 / 0 / 0 |
@@ -892,19 +949,19 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 ### 4.1 需要专项的高危大项
 | 项 | 状态 |
 |---|---|
-| **三处顶层可变 `xxxRngManager` 同族遗留**（`EnemyGenerator` / `AISectAttackManager` / `AISectTeamComposer`） | **⚠️ 登记待偿还（§2.58.3）**——与已修复的 `MissionSystem` 同形态（顶层可变全局 + 外部覆写），生产单引擎下无实际分叉。**偿还触发条件** = 该域出现"双引擎同进程"的第三个消费场景，或该域 UI 操作面下沉时顺手收敛为形参必传 |
-| **反向同步通道逐域收尾 → 通道删除（长期主轴）** | **⚠️ 方向已定（§2.53）**——"按域全关"经 288 站点穷尽审计实测**前置不成立**（14 域无一可整体关闭）；已交付可证关闭面 68 单元（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制（策略单点 / 双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）。**后续按 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 十三批推进**（每完成一域即可一行关闭） |
-| **WS-5b 地图冻结批（待派工）** | **已拍板采纳完整业界方案（§2.60.2）**——生成即数据 + 协议全链携带（`mapGenVersion`）+ RLE 仅存储编码 + 老档按种子再生回填；**🔴 前置红线**：任何改地形输出的批次须等其落地 |
+| **三处顶层可变 `xxxRngManager` 同族遗留**（`EnemyGenerator` / `AISectAttackManager` / `AISectTeamComposer`） | **✅ 已清偿（2026-09-15，§2.64.1 W4-C C-③）**——三处均改为形参必传，`GameEngine.kt` init 块三行赋值随之移除；实测全仓顶层可变 `*RngManager` **0 处**。`RngEngineIsolationGuardTest` 白名单未新增条目 |
+| **反向同步通道逐域收尾 → 通道删除（长期主轴）** | **⚠️ 方向已定（§2.53）**——"按域全关"经 288 站点穷尽审计实测**前置不成立**（14 域无一可整体关闭）；已交付可证关闭面 68 单元（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制（策略单点 / 双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）。**2026-09-15 W4-A/B/C 三批再消除一批稳态写者**（弟子管理九事务 / 婚姻审批拒绝 / 巡逻·矿场 UI 直改 / 战斗伤亡与战前结算 / 秘境换岗兜底 / 洞府死链，逐条 `file:line` 见 [ui-read-surface §4.4](ui-read-surface.md) 滚动更新表），但**域级"可整体关闭"仍无一成立**。**后续按 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 十三批推进**，终局删除 = `docs/parallel-batches-w4/README.md` §8 的 W4-D/D4 |
+| **WS-5b 地图冻结批** | **✅ 已落地（2026-09-15，§2.64.2 W4-C C-②）**——"生成即数据 + `mapGenVersion` 协议全链 + 老档按种子再生回填"全链交付（C++ 状态模型 + `json_codec` 双向 + Kotlin `@ProtoNumber`/`@ColumnInfo` + Room `@Database` 50→51 + `MIGRATION_50_51` + 迁移测试 + 存档往返测试）。**遗留口径风险**: 对拍面把 `terrainTiles`/`mapGenVersion` 列为镜像生成字段排除比对（§2.68），跨实现等价由 `terrain_freeze_test.cpp` + `DiffSectTerrainTest` 承担 |
 | **WS-4 NPC 移动系统（待玩法设计文档）** | 实现前需用户补充玩法设计文档（数量上限 / 生成规则 / 与弟子系统关系）；E3 组件族（§2.14）与寻路地基（静态地形 + 建筑占位 + 道路，§2.19）已就绪，可行走语义（树/边界是否阻塞）待拍板 |
 | **WS-1 残留口径 / 阶段 3 立项** | 列级 delta / 二进制通道 + `dirty_tracker` 列级写屏障随**计划 v2 阶段 3 数据导向存储**落地（约 145+ 列写点回归风险）；协议形状变更会影响 47 个 `Diff*` 对拍场景与存档格式 |
 | **真机（物理设备）验证残留** | 模拟器会话未覆盖 10 项：A2 ASTC 缺失机 RGBA 回退 / A4 旋屏 / C1 偷盗钩子自然触发 + TapDB 上报 / C3 S5 战斗任务 / C4 S6 秘境全链 / C6 ThermalMonitor 真实热档 / D2 放置确认步 / D3 道路装配 / E2 云存档 / E3 WS-1 绝对值（需先补 debug 埋点小批） |
-| **`Jade` 凭据持久化环境缺陷** | `FakeAtomicStateStore` 事务缓冲与 `sectLevelClaimRecords` 交互（§2.50 坑）；生产侧静默失败已根因修复，环境缺陷待专项 |
+| **`Jade` 凭据持久化环境缺陷** | **✅ 已清偿（2026-09-15，§2.63.B0 W4-B）**——契约考古推翻 §2.50 的 batch-19 归因，环境缺陷随凭据持久化契约修正一并消除 |
 | **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` 已拍板按"清理执行"（2026-09-15）** → 实施落点 W4-D/D5；`onPhaseTick` 保留决策**待用户拍板**（§4.2）——它是 6 个 Diff 测试的 Kotlin 对拍基准 |
 | **线上隐私政策落后于实际集成**（§2.67） | **✅ 已修复（2026-09-15）**——Pages 发布源由 `master/docs` **切到 `main/docs`**（根因修复：政策更新写在 main，源指向 main 即自动同步），线上实测已是「2026年8月13日」版并声明全部聚合广告 SDK 与 TapDB |
 | **远端 `hsmy7/mnzm` 与本地的关系**（§2.67） | **已查清**：它是**本项目自己的远端仓库**（非网页仓——网页仓是另一个 `hsmy7/index.html`，其末次提交写着"将隐私政策重定向到新地址 mnzm 仓库"）。内含两条分支：`master`（默认 + Pages 源，旧 1.4.x 线，内容停 2026-06-28）与 `main`（**本项目线**，tip `ad6ff6c9` = 2026-09-04「程序化天空」批，`version.properties=4.01.12`）。**本地与远端内容连续但提交血缘断裂**：本地 26 个提交全为 2026-09-12～09-14、作者 `mnzm-dev`，远端提交在本地对象库中**零命中**，本地 `.git` 无任何 remote-tracking ref（从未 fetch）⇒ **2026-09-04 之后（M0–M3 + W4-00）的内容只存在于本地，远端一个都没有**；历史重建见 §2.40 |
 
 **已清偿项索引**（只列批号与结论，明细见 §2 对应小节）：
-`§2.5/§2.6` M0 追加·收尾批（P0-3 / P1-4 / WS-6 / RNG 方案②）｜`§2.7` P1-4 守卫分类勘误｜`§2.8`–`§2.10` M1 三批（S1-S3 / WS-1 降本 / E1+WS-7，M1 全清）｜`§2.11`–`§2.18` M2 八批（S4 / S5 / S8 / E2+E3 / P1-5 / E2 残留 / S6 / S7）｜`§2.19` WS-5 地图真源入 C++｜`§2.20`–`§2.29` M3 收敛（死代码族 / 反向通道审计 / 机械族 / RoomMigration+异常族 / 判定族 / 边界族 / 参数跳转族 / 复杂度族 / TMF 第一轮 / 拆分队列首轮）｜`§2.30`–`§2.32` 拆分队列收尾（core:engine 34→0 / game 8→0 / domain 2→0，**六模块 baseline 全 0**）｜`§2.33` 协程取消传播专项（61 处）｜`§2.34` dirty 记账摘除｜`§2.35`–`§2.51b` UI 操作面逐域下沉（建筑 / 道路 / 外交 / 弟子三子批 / 库存 / 巡逻住所 / 探索 / 生产灵田 / 月年边界 / 玉符宗门 / 秘境平台段 / 攻宗）｜`§2.40`/`§2.52` 两次集成收口｜`§2.55`/`§2.56` 残余域 + 弟子管理残差｜`§2.58`/`§2.59` 随机源治理收口 + 收敛清偿（引擎全量 0 失败）｜`§2.23.1` RoomMigration 8 例预存失败｜`§2.60.1` P1-5 配对优化**不采纳（终局）**｜`§2.39` 真机替代验证口径（模拟器）已交付主体项
+`§2.5/§2.6` M0 追加·收尾批（P0-3 / P1-4 / WS-6 / RNG 方案②）｜`§2.7` P1-4 守卫分类勘误｜`§2.8`–`§2.10` M1 三批（S1-S3 / WS-1 降本 / E1+WS-7，M1 全清）｜`§2.11`–`§2.18` M2 八批（S4 / S5 / S8 / E2+E3 / P1-5 / E2 残留 / S6 / S7）｜`§2.19` WS-5 地图真源入 C++｜`§2.20`–`§2.29` M3 收敛（死代码族 / 反向通道审计 / 机械族 / RoomMigration+异常族 / 判定族 / 边界族 / 参数跳转族 / 复杂度族 / TMF 第一轮 / 拆分队列首轮）｜`§2.30`–`§2.32` 拆分队列收尾（core:engine 34→0 / game 8→0 / domain 2→0，**六模块 baseline 全 0**）｜`§2.33` 协程取消传播专项（61 处）｜`§2.34` dirty 记账摘除｜`§2.35`–`§2.51b` UI 操作面逐域下沉（建筑 / 道路 / 外交 / 弟子三子批 / 库存 / 巡逻住所 / 探索 / 生产灵田 / 月年边界 / 玉符宗门 / 秘境平台段 / 攻宗）｜`§2.40`/`§2.52` 两次集成收口｜`§2.55`/`§2.56` 残余域 + 弟子管理残差｜`§2.58`/`§2.59` 随机源治理收口 + 收敛清偿（引擎全量 0 失败）｜`§2.23.1` RoomMigration 8 例预存失败｜`§2.60.1` P1-5 配对优化**不采纳（终局）**｜`§2.39` 真机替代验证口径（模拟器）已交付主体项｜`§2.61` W4-00 并行前置批｜`§2.62`/`§2.63`/`§2.64` **W4-A / W4-B / W4-C 三批次并行交付**｜`§2.66` 仓库对象库整理｜`§2.67` 远端关系核查 + 隐私政策根因修复｜`§2.68` **W4 三批次集成收口**｜`§2.65` **预留 W4-D 汇流波（未使用）**
 
 
 ### 4.2 已拍板并实施 / 保留项

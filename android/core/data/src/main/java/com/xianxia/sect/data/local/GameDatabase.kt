@@ -7,6 +7,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 import com.xianxia.sect.core.model.BattleLog
@@ -59,6 +60,30 @@ private const val RESTORE_ATTEMPT_MARKER = ".restore_attempted"
 private const val RESTORE_ATTEMPT_MARKER_CONTENT = "1"
 
 /** 迁移前备份文件大小上限（200MB，防恶意/损坏超大备份占满磁盘） */
+/**
+ * 全部历史迁移的**单点登记**（升序；`endVersion` 自 3 连续至
+ * [GameDatabaseConfig.DATABASE_VERSION]）。
+ *
+ * 两处消费：`GameDatabase.build()` 的 `addMigrations` 与各迁移测试的建库链。
+ * 测试此前各自维护链尾——`@Database(version)` 递增时必然滞后（2026-09-15
+ * v50→v51 实测：5 个测试文件 12 处链尾全部失效，Room 报
+ * `A migration from 38 to 51 was required but not found`）。收敛到本表后
+ * "递增版本 = 只改一处"，连续性由 `MigrationChainGuardTest` 断言。
+ */
+internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+    MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
+    MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
+    MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
+    MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
+    MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
+    MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
+    MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
+    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
+    MIGRATION_49_50, MIGRATION_50_51
+)
+
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
 
 /** 迁移前备份 game_data 行数上限（每槽一行，正常 ≤ 7；上限 64 防恶意行数膨胀） */
@@ -478,6 +503,7 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        @Suppress("SpreadOperator") // Room addMigrations 为 vararg API，迁移链取自单点登记表（ALL_MIGRATIONS）必须散布传入
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
@@ -500,17 +526,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
-                        MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
-                            MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
-                                MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
-                                    MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
-                                        MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
-                                            MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
-                                                MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-                                                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
-                                                    MIGRATION_49_50, MIGRATION_50_51)
+                .addMigrations(*ALL_MIGRATIONS)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

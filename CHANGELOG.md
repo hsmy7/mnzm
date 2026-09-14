@@ -1,6 +1,23 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4 三批次并行交付 + 集成收口：独立复验抓出 3 处真实缺陷并根因修复（§2.62～§2.64 / §2.68）
+
+> 需求：把「C++ 迁移剩余工作」按 [W4 三批次并行方案](docs/parallel-batches-w4/README.md) 分三批并行实施后**集成收口**。三批（W4-A 弟子与建设 / W4-B 内政与经济运营 / W4-C 战斗与世界协议）已在各自工作树完成并逐批独立复验，本批负责合流、门禁复跑、缺陷根因修复与文档收口。交接记录见 handover §2.68。
+
+- **合入（`--no-ff`，逐批先独立复验）**：W4-A `w4/a-disciple-building`（5 提交 / 39 文件，无冲突）｜W4-B `w4/b-court-economy`（5 提交 / 30 文件，仅两份生成物冲突）｜W4-C `w4/c-battle-world`（8 提交 / 64 文件，生成物 + handover 小节 + 租约表冲突，`GameEngine.kt` 自动合并）。生成物按方案 §4.3 **重生成**解决（禁手工解冲突）⇒ **195 动作 / maxId=1843**（A 12 / B 9 / C 5）。冻结纪律：**硬冻结 6 项 + 跨批宿主 6 项三批一处未碰**。
+- **内容面**：W4-A = w3-01 弟子操作面九事务 + w3-02 生命周期第二波（婚姻批准接线 1592 / 拒绝 1750）+ w3-09 建筑残差 + w3-10 生产核对 + A5 RNG 阶段 3 弟子侧（`RngPartition.CHAT` 引擎侧签发）；W4-B = w3-03 巡逻/矿场统一 native 面 + w3-04 玉符运行时（1766–1769，墙钟读数参数化）+ w3-05 行商刷新（1770–1773）+ w3-12 外交自愈（1843）+ 洞府探索死链删除；W4-C = C-③ 随机源收敛（三处顶层可变 `xxxRngManager` 形参必传）+ **C-② WS-5b 地图冻结全链**（生成即数据 + `mapGenVersion` + RLE 仅存储编码 + 老档再生回填 + Room 50→51 迁移）+ C3 遮蔽根治 + detekt 清零 + C-① 战斗族五事务（1780–1782 / 1800–1801）。
+- **🔴 独立复验抓出 3 处真实缺陷（"批次自报完成"两次为假——方案 §7.1 要求独立复跑的直接价值）**：
+  1. **W4-A 测试源编译不过**（自报"主源+测试源编译绿"为假）：A5 把 `DiscipleChatDialog.randomizeEffect` 改为 `private suspend` + 增参 `engine`，**却从未更新同包测试**（该测试文件 blob 在 `main`/批 A/集成树三处完全相同）⇒ `:feature:game:compileReleaseUnitTestKotlin` 10 条错误。**根因修复**：把随机化**算术骨架**抽为纯函数 `randomizeEffectWith(drawInt, drawDouble, effect)`（抽取源形参化），生产侧保留 `private suspend` 引擎绑定包装；测试改为**确定性桩驱动骨架**并新增「抽取区间契约」用例（整型恒 `[1,6)`、浮点恒 `[0.01,0.06)`）——比原"50 次随机 + 区间断言"更强，且不再需要构造引擎实例。
+  2. **W4-C `:core:data` 12 处回归**（自报未跑该模块）：`@Database` 50→51 只登记进 `GameDatabase.build()`，而 5 个既有迁移测试各自维护链尾（**12 处**全部止于 `M49_50`）⇒ Room 报 `A migration from 38 to 51 was required but not found`，失败数与站点数一一对应。**根因修复（收敛单点而非逐处补）**：新增 `ALL_MIGRATIONS` 单点登记表（`build()` 与全部迁移测试共用），12 处测试链改为 `.addMigrations(*ALL_MIGRATIONS)`、删除 18 个失效私有别名 ⇒ **递增版本 = 只改一处**；并按 CLAUDE.md 9.5 补守卫测试 `MigrationChainGuardTest`（4 用例：链连续覆盖到 `DATABASE_VERSION` / 每条恰好前进一版 / 链尾相等 / 严格升序），覆盖"升版本漏登记"缺陷类。
+  3. **W4-B `dispatch_w4b.cpp` 写死 ActionId 数字**（违反 CLAUDE.md 0.4，且与 A/C 背离）：根因是该文件**未 include** `action_ids.h` ⇒ 拿不到 `action::` 常量。处置：补 include + 机械**可证等价**归一（9 处字面量 → `action::*`，脚本断言值必须与生成常量逐条相等），差异 11 行增 / 9 行删。
+- **门禁实跑（集成树上，均以用例计数为准）**：桌面 C++ **1407/1407**（ctest + 单进程直跑双绿；W4-00 后 1326 → 三批净增 81）｜`:core:engine` **3306 / 303 类 / 0 失败 / 0 跳过**（含 47 个 `Diff*` 对拍）｜`:core:domain` **1758/0**（`ReverseChannelPolicyGuardTest` 6/6）｜`:core:data` **716/0/0（15 跳过）**｜`:feature:game` **872/0/0**｜`:app` **1020/0/0（2 跳过）**｜六模块 detekt 全绿 + baseline **全 0**｜`:app:externalNativeBuildRelease`（NDK arm64）✅｜`:app:lintRelease` ✅（42 warnings 非阻断）｜生成器幂等 + 产物零漂移。
+- **独立内容抽验（不采信自报）**：九事务接线逐条 `file:line` 实证；婚姻审批 1592 / 拒绝 1750 实证；WS-5b 协议全链（域字段 → Room 列 → 迁移注册 → 迁移测试 → 存档往返 → C++ 桥参数 → 引擎回填）实证；顶层可变 `*RngManager` 全仓 0 处；洞府死链入口已删且活路保留。
+- **🔴 复验中发现的口径风险（登记备查）**：`DiffSurfaceAssertion` 把 WS-5b 的 `terrainTiles` / `mapGenVersion` 列入**对拍排除面** ⇒ 该两字段的跨实现等价**不由对拍保障**，由 C++ `terrain_freeze_test.cpp`（6 用例）+ Kotlin `DiffSectTerrainTest` 承担；后续改地形生成器必须两处同步更新，否则对拍不报红。
+- **文档**：handover 新增 §2.68 + §3 基线表更新到集成态 + §4.1 三项勾销（三处 `xxxRngManager` / WS-5b / Jade 环境缺陷）+ 已清偿索引；[ui-read-surface §4.4](docs/ui-read-surface.md) 增滚动更新表（12 行 `file:line` 证据，域级"可整体关闭"仍无一成立）；W4 方案 README 顶部加执行状态；双更新日志同步。
+- **遗留**：W4-D 汇流波（D1 埋点 → D2 `w3-11` 月年编排残差 + 宿主文件族调用点清理 → D3 `DiffAuthoritativeTickTest` harness 对齐 → D4 `w3-13` 反向通道删除 → D5 死代码清零 → D6 文档收口）与非并行轨（真机验证 / WS-4 设计文档 / WS-1 阶段 3 立项 / `onPhaseTick` 与 `PresentationRandom` 待拍板）未开工。
+
+
 ### 仓库基建批：3 个死 tag 清除 + `.git` 半打包损坏态根治（§2.66）
 
 > 触发：W4-00 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态**。**零源码改动、零玩家可见变更**（游戏内 `changelog_entries.json` **未追加**）。交接记录见 handover §2.66。

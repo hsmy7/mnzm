@@ -24,6 +24,8 @@
 
 #include "gamecore/dispatch_w4.h"
 
+#include "gamecore/action_ids.h"
+
 #include <gamecore/game_core.h>
 #include <gamecore/state/json_codec.h>
 #include <gamecore/system/diplomacy_selfheal_tx.h>
@@ -71,7 +73,7 @@ nlohmann::json handleJadeRuntimeTx(GameCore& core, int32_t actionId,
     using namespace gamecore::system::jade_tx;
     auto& st = core.state();
     switch (actionId) {
-        case 1766: {  // JADE_RUNTIME_SETTLE_TX
+        case action::JADE_RUNTIME_SETTLE_TX: {
             int32_t total = 0, today = 0;
             int64_t accumMs = 0;
             if (!getInt(p, "total", &total) || !getInt(p, "today", &today) ||
@@ -85,7 +87,7 @@ nlohmann::json handleJadeRuntimeTx(GameCore& core, int32_t actionId,
                        {"accumMs", r.accumMs},
                        {"frozen", r.frozen}});
         }
-        case 1767: {  // JADE_RUNTIME_DAY_RESET_TX
+        case action::JADE_RUNTIME_DAY_RESET_TX: {
             int32_t today = 0;
             int64_t todayMidnightMs = 0, accumMs = 0;
             if (!getInt64(p, "todayMidnightMs", &todayMidnightMs) ||
@@ -100,7 +102,7 @@ nlohmann::json handleJadeRuntimeTx(GameCore& core, int32_t actionId,
                        {"accumMs", r.accumMs},
                        {"dayAnchorMs", r.dayAnchorMs}});
         }
-        case 1768: {  // JADE_RUNTIME_CHECKPOINT_TX
+        case action::JADE_RUNTIME_CHECKPOINT_TX: {
             int32_t total = 0, today = 0;
             int64_t accumMs = 0, dayAnchorMs = 0;
             if (!getInt(p, "total", &total) || !getInt(p, "today", &today) ||
@@ -115,7 +117,7 @@ nlohmann::json handleJadeRuntimeTx(GameCore& core, int32_t actionId,
                        {"accumMs", r.accumMs},
                        {"dayAnchorMs", r.dayAnchorMs}});
         }
-        case 1769: {  // JADE_RUNTIME_GRANT_AD_TX
+        case action::JADE_RUNTIME_GRANT_AD_TX: {
             int32_t amount = 0, totalBefore = 0;
             if (!getInt(p, "amount", &amount) || !getInt(p, "totalBefore", &totalBefore)) {
                 return invalidParams("grantAd requires amount/totalBefore");
@@ -137,7 +139,7 @@ nlohmann::json handleMerchantTx(GameCore& core, int32_t actionId,
     using namespace gamecore::system::merchant_tx;
     auto& st = core.state();
     switch (actionId) {
-        case 1770: {  // MERCHANT_CHANCE_GRANT_TX
+        case action::MERCHANT_CHANCE_GRANT_TX: {
             int32_t year = 0, maxChances = 0, intervalYears = 0;
             if (!getInt(p, "year", &year) || !getInt(p, "maxChances", &maxChances) ||
                 !getInt(p, "intervalYears", &intervalYears)) {
@@ -149,7 +151,7 @@ nlohmann::json handleMerchantTx(GameCore& core, int32_t actionId,
                        {"chances", r.chances},
                        {"grantYear", r.grantYear}});
         }
-        case 1771: {  // MERCHANT_ACQUISITION_REFRESH_TX
+        case action::MERCHANT_ACQUISITION_REFRESH_TX: {
             int32_t year = 0;
             if (!getInt(p, "year", &year) || !p.contains("items")) {
                 return invalidParams("acquisition refresh requires year/items");
@@ -159,7 +161,7 @@ nlohmann::json handleMerchantTx(GameCore& core, int32_t actionId,
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"itemCount", r.itemCount}});
         }
-        case 1772: {  // MERCHANT_TRAVELING_REFRESH_TX
+        case action::MERCHANT_TRAVELING_REFRESH_TX: {
             int32_t year = 0, newRefreshCount = 0;
             if (!getInt(p, "year", &year) || !getInt(p, "newRefreshCount", &newRefreshCount) ||
                 !p.contains("items")) {
@@ -171,7 +173,7 @@ nlohmann::json handleMerchantTx(GameCore& core, int32_t actionId,
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"itemCount", r.itemCount}});
         }
-        case 1773: {  // MERCHANT_MANUAL_REFRESH_TX
+        case action::MERCHANT_MANUAL_REFRESH_TX: {
             int32_t year = 0, newRefreshCount = 0;
             if (!getInt(p, "year", &year) || !getInt(p, "newRefreshCount", &newRefreshCount) ||
                 !p.contains("items")) {
@@ -195,7 +197,7 @@ nlohmann::json handleMerchantTx(GameCore& core, int32_t actionId,
 std::optional<nlohmann::json> handleSelfHealTx(GameCore& core, int32_t actionId,
                                                const nlohmann::json& p) {
     using namespace gamecore::system::diplomacy_selfheal_tx;
-    if (actionId != 1843) {  // DIPLOMACY_WARNING_STAGE_TX
+    if (actionId != action::DIPLOMACY_WARNING_STAGE_TX) {
         return std::nullopt;
     }
     const auto it = p.find("stageKey");

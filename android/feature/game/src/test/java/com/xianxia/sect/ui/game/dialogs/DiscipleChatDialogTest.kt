@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.abs
@@ -207,43 +208,59 @@ class DiscipleChatDialogTest {
     // 随机化
     // ═══════════════════════════════════════════
 
+    // 抽取桩：返回区间下界（下界即真实抽取可能取到的最小值），
+    // 使原「50 次随机 + 区间断言」改为确定性逐字断言。
+    private val intLower: (Int, Int) -> Int = { from, _ -> from }
+    private val intUpper: (Int, Int) -> Int = { _, until -> until - 1 }
+    private val doubleLower: (Double, Double) -> Double = { from, _ -> from }
+
     @Test
-    fun `randomize sign positive`() {
-        repeat(50) {
-            val r = randomizeEffect(ConversationEffect(loyaltyDelta = 1))
-            assertTrue(r.loyaltyDelta > 0 && r.loyaltyDelta in 1..5)
-        }
+    fun `randomize sign positive`() = runTest {
+        assertEquals(1, randomizeEffectWith(intLower, doubleLower, ConversationEffect(loyaltyDelta = 1)).loyaltyDelta)
+        assertEquals(5, randomizeEffectWith(intUpper, doubleLower, ConversationEffect(loyaltyDelta = 1)).loyaltyDelta)
     }
 
     @Test
-    fun `randomize sign negative`() {
-        repeat(50) {
-            val r = randomizeEffect(ConversationEffect(loyaltyDelta = -1))
-            assertTrue(r.loyaltyDelta < 0 && abs(r.loyaltyDelta) in 1..5)
-        }
+    fun `randomize sign negative`() = runTest {
+        val lo = randomizeEffectWith(intLower, doubleLower, ConversationEffect(loyaltyDelta = -1)).loyaltyDelta
+        val hi = randomizeEffectWith(intUpper, doubleLower, ConversationEffect(loyaltyDelta = -1)).loyaltyDelta
+        assertTrue("下界取负", lo < 0 && abs(lo) == 1)
+        assertTrue("上界取负", hi < 0 && abs(hi) == 5)
     }
 
     @Test
-    fun `randomize zero fields preserved`() {
-        repeat(50) {
-            val r = randomizeEffect(ConversationEffect(moralityDelta = 1))
-            assertEquals(0, r.loyaltyDelta)
-            assertEquals(0, r.intelligenceDelta)
-            assertEquals(0.0, r.cultivationDelta, 0.001)
-        }
+    fun `randomize zero fields preserved`() = runTest {
+        val r = randomizeEffectWith(intLower, doubleLower, ConversationEffect(moralityDelta = 1))
+        assertEquals(0, r.loyaltyDelta)
+        assertEquals(0, r.intelligenceDelta)
+        assertEquals(0.0, r.cultivationDelta, 0.001)
+        assertEquals(1, r.moralityDelta)
     }
 
     @Test
-    fun `randomize zero in zero out`() {
-        assertTrue(randomizeEffect(ConversationEffect()).isZero)
+    fun `randomize zero in zero out`() = runTest {
+        assertTrue(randomizeEffectWith(intLower, doubleLower, ConversationEffect()).isZero)
     }
 
     @Test
-    fun `randomize cultivation percent`() {
-        repeat(50) {
-            val r = randomizeEffect(ConversationEffect(cultivationDelta = 0.01))
-            assertTrue("pos", r.cultivationDelta > 0)
-            assertTrue("range", r.cultivationDelta in 0.01..<0.06)
-        }
+    fun `randomize cultivation percent`() = runTest {
+        val pos = randomizeEffectWith(intLower, doubleLower, ConversationEffect(cultivationDelta = 0.01))
+        assertTrue("pos", pos.cultivationDelta > 0)
+        assertTrue("下限", pos.cultivationDelta >= 0.01 && pos.cultivationDelta < 0.06)
+        val neg = randomizeEffectWith(intLower, doubleLower, ConversationEffect(cultivationDelta = -0.01))
+        assertTrue("负向", neg.cultivationDelta < 0 && neg.cultivationDelta >= -0.06)
+    }
+
+    @Test
+    fun `randomize draw ranges pinned`() = runTest {
+        val intRanges = mutableListOf<Pair<Int, Int>>()
+        val doubleRanges = mutableListOf<Pair<Double, Double>>()
+        randomizeEffectWith(
+            { f, u -> intRanges += f to u; f },
+            { f, u -> doubleRanges += f to u; f },
+            ConversationEffect(loyaltyDelta = 1, moralityDelta = 1, intelligenceDelta = 1, cultivationDelta = 0.01)
+        )
+        assertEquals("整型抽取区间恒为 [1,6)", listOf(1 to 6, 1 to 6, 1 to 6), intRanges)
+        assertEquals("浮点抽取区间恒为 [0.01,0.06)", listOf(0.01 to 0.06), doubleRanges)
     }
 }
