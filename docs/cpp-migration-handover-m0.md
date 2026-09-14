@@ -487,6 +487,10 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **已就地更正**: ① `GameSettingsData.autoSave` 的"保留"判定 → **用户拍板 2026-09-15「按清理执行」**（连同悬空 TypeConverter `EnumConverters.kt:30/35` 与零调用方法 `AudioConfig.updateFromSettings:21`），实施落点 W4-D/D5；② `docs/cpp-engine.md:320` 关于 1011/1013 的记载同步更新为"已删除"。
 
+**⚠️ 途中发现（需拍板，本批未处置）**: 仓库存在 **3 个悬空 `archive/*` tag**——`archive/batch-05-dirty-ledger` / `archive/batch-06-sink-building` / `archive/batch-09-sink-diplomacy`，其 object 已不在对象库中（`git fsck` 报 `invalid sha1 pointer 62655722… / a9c905f3… / 1c3b58d8…`）。**影响**：`git bundle create --all` 直接 `fatal: bad object` ⇒ §3.1 计划的"备份纪律"若按 `--all` 字面执行会失效；本批已改为**只传可解析 ref**（实测可解析 ref 仅 `refs/heads/main` + `refs/tags/w4-base`，bundle 346MB、`git bundle verify` 通过）。这 3 个 tag 是 §2.40 记录的"`.git` 对象库两次被破坏"的残留，**已无法恢复** ⇒ 建议删除该死 tag（`git tag -d`），但**属历史元数据，本批不擅自删除**，待用户拍板。
+
+**基线打点**: `git tag w4-base` → `d4cad20`；`git bundle` 落盘 `C:\Mnzm\backups\XianxiaSectNative-w4base-<时间戳>.bundle`（346MB，`verify` = "records a complete history / is okay"）。三个并行批次即从该点派生工作树。**
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：

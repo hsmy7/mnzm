@@ -5,7 +5,7 @@
 | 文档性质 | **派工方案**（协调文档）：把 [handover](../cpp-migration-handover-m0.md) §4/§5/§6/§7 登记的**全部剩余工作**拆成 **3 个可并行实施、文件零交集、工作区互不干扰** 的批次，并补齐用户指令未覆盖的**并行前置批、汇流波、非并行轨** |
 | 依据 | [handover §4 遗留待办](../cpp-migration-handover-m0.md) + §5 下轮建议 + §6 随机源治理 + §7 事实核查｜[w3 十三批计划](../parallel-batches-w3/README.md)｜[ADR reverse-channel-elimination](../adr/reverse-channel-elimination.md)｜[ADR rng-determinism-remediation](../adr/rng-determinism-remediation.md)｜[w2 协作协议](../parallel-batches-w2/README.md)｜[non-parallel-work](../parallel-batches-w2/non-parallel-work.md)｜`findings.md`（并行会话真实事故） |
 | 决策分级 | **架构级重构**（跨模块、跨语言、触及长期主轴；按 CLAUDE.md「设计方案规则」全流程编写） |
-| 基线（开工前实测，2026-09-15） | ActionId **171 动作 / maxId 1734**；桌面 C++ **1322/1322**；`:core:engine` **3281 用例 / 0 失败 / 0 跳过**（`Diff*` 对拍 **47** 类）；`:core:domain` 1758/0；`:core:data` 707/0；`:core:ui` 146/0；六模块 detekt 全绿 + baseline **全 0**；`execute_dispatch.cpp` handler **33** 个 |
+| 基线（**W4-00 落地后实测，2026-09-15**） | ActionId **169 动作 / maxId 1734**（W4-00 净减 2 处死导出）；桌面 C++ **1326/1326**（基线 1322 + 4 新守卫用例）；`:core:engine` **3281 用例 / 296 类 / 0 失败 / 0 跳过**（`Diff*` 对拍 **47** 类）；`:core:domain` 1758/0；`:core:data` 707/0（15 既有跳过）；六模块 detekt 全绿 + baseline **全 0**；NDK arm64 `externalNativeBuildRelease` 成功；生成器幂等 + 产物零漂移 |
 | 工作区 | `main`（唯一分支，工作区干净，无游离 worktree）→ 前置批 W4-00 合入后派生 3 个工作树 |
 | 交付形态 | 本 README（总览/前置批/协作协议/所有权/验收/汇流/非并行轨）+ [batch-W4A](batch-W4A-disciple-building.md) + [batch-W4B](batch-W4B-court-economy.md) + [batch-W4C](batch-W4C-battle-world.md) |
 
@@ -197,7 +197,7 @@
 | 7 | **worktree 建立/清理脚本** | 新增 `scripts/w4/setup-worktrees.ps1`（幂等：三分支 + 三工作树 + `core.quotepath false` + 复制 `android/local.properties`）与 `scripts/w4/remove-worktrees.ps1` | 🔴 清理脚本**先探测 reparse point**，junction/符号链接一律 `cmd /c rmdir`——**禁止 `Remove-Item -Recurse`** | ✅ **已完成** |
 | 8 | **协议面租约表** | 新增 `docs/parallel-batches-w4/protocol-lease.md` | 登记 `models.h` / `json_codec.cpp` / `game_core.{h,cpp}` / `GameData.kt` / `GameDatabase.kt` / `GameEngine.kt` 的默认所有者与租约顺序（§5.4） | ✅ **已完成** |
 | 9 | **文档小节预分配** | 本 README §4.6 + handover §2.61/§2.62/§2.63/§2.64/§2.65 | 三批只在**自己的**预分配小节内追加；§3 表 / §4.1 / §5 / §6 / `ui-read-surface` / 双 CHANGELOG = **收口人独占** | ✅ **已完成**（§2.61 已落） |
-| 10 | **基线打点与备份** | `git tag w4-base` + `git bundle create`（含全部 refs）落盘到仓库外 | 🔴 本仓 `.git` 对象库**曾两次被破坏且历史不可恢复** ⇒ 每批每个里程碑必须 tag + bundle | ✅ **已完成** |
+| 10 | **基线打点与备份** | `git tag w4-base` + `git bundle create`（落盘到仓库外 `C:\Mnzm\backups\`） | 🔴 本仓 `.git` 对象库**曾两次被破坏且历史不可恢复** ⇒ 每批每个里程碑必须 tag + bundle | ✅ **已完成**（`w4-base` → `d4cad20`；bundle 346MB，`git bundle verify` = "records a complete history / is okay"）。⚠️ **`--all` 不可用**：仓库有 **3 个悬空 `archive/*` tag**（object 已丢失），`git bundle create --all` 会 `fatal: bad object` ⇒ 备份脚本须**只传可解析 ref**（见 §14 盲点 #19） |
 | 11 | **分派覆盖守卫测试** | 生成器在 `action_ids.h` 追加升序枚举数组 `action::kAllActionIds` + `kAllActionIdsCount`；新增 `test/dispatch_guard_test.cpp`（4 用例）：清单非空 / 升序且唯一 / **每个已注册动作号分派可达且落到本域 handler** / 未注册号仍返回 `NOT_IMPLEMENTED` | 首跑即抓出 **2 处真实死导出**（见下）——正是"区间写法吞动作号"缺陷类 | ✅ **已完成（首跑抓出 2 处死导出并根因修复）** |
 
 > **项 11 首跑战绩（本前置批的直接产出）**：`INV_ADD_EQUIPMENT_INSTANCE(1011)` 与
@@ -403,7 +403,7 @@ cd app/src/main/cpp/gamecore/build/desktop-test && cmake --build . && ./game-cor
 
 ## 6. ActionId 段分配（沿用 w3 已公布编号，零文档漂移）
 
-> 实测基线：**171 动作 / maxId = 1734**（`node scripts/gen-action-ids.mjs` 输出）。w3 §1 已公布 1740–1849 的逐批段号且**一条都未使用**，本方案**原样沿用**，只补"归属映射"，不做重编号（避免制造新的文档漂移）。
+> 实测基线：**169 动作 / maxId = 1734**（`node scripts/gen-action-ids.mjs` 输出；**W4-00 已落地**，含净减 2 处死导出——见 §3.1 项 11）。w3 §1 已公布 1740–1849 的逐批段号且**一条都未使用**，本方案**原样沿用**，只补"归属映射"，不做重编号（避免制造新的文档漂移）。
 
 | 段 | 用途 | 归属批 | w3 子批 |
 |---|---|---|---|
@@ -620,6 +620,7 @@ pwsh -File ../scripts/build-desktop-jni.ps1
 | 16 | **`RngEngineIsolationGuardTest` 的白名单是 `Map<String,String>`，没有计数断言** | "白名单只缩不增"**只是注释纪律**——手工加一条豁免不会被机器拦下 | ✅ 已回写 §12 债务表（偿还条件 = 白名单条目数落成显式计数断言，与 `detekt-baseline-count.guard` 同款题型） |
 | 17 | **`ReverseChannelPolicy` 本体将被 w3-13 删除，而 WS-5b 必须往里加分类条目** | 新增字段的分类是**临时性**的；若 WS-5b 依赖"反向回导承载地形"会在 D4 后失效 | ✅ 已回写 W4-C §2.3.3 R7：地形段与 `mapGenVersion` 登记为 **CLOSED**（`LOAD_BOOT` 类写者，随 `importToNative` 全量导入吸收），**不依赖反向通道** |
 | 18 | **`SaveFacadeImpl.kt`（真正的存档快照实现，122L）归 W4-B，而 WS-5b 需要"存档携带地形段"** | 跨批冲突隐患 | ✅ 已回写 W4-C §2.3.3 R6：走"`GameData` 新字段"路线则 `SaveFacadeImpl` **无需改动**（字段经 `stateStore.gameDataSnapshot` 自动携带）；确需改 ⇒ **停下找收口人**，不得自行修改另一批的文件 |
+| 19 | **仓库有 3 个悬空 `archive/*` tag**（`batch-05-dirty-ledger` / `batch-06-sink-building` / `batch-09-sink-diplomacy`，object 已丢失）——`git fsck` 报 `invalid sha1 pointer` | ① `git bundle create --all` **直接失败**（`fatal: bad object`）⇒ 计划里的"备份纪律"按字面执行会失效；② 其余正常操作不受影响 | ✅ **已回写 §3.1 项 10**：备份脚本**只传可解析 ref**（本次实测可解析 ref 仅 `main` + `w4-base`）。这 3 个 tag 是 handover §2.40 记录的"`.git` 对象库两次被破坏"的残留。**处置建议（需用户拍板）**：已无法恢复 → 删除这 3 个死 tag（`git tag -d`），或保留但知悉其不可用；**本方案不擅自删除历史元数据** |
 
 ### 14.1 对用户原始指令的补充与完善（明确超出原指令的部分）
 
