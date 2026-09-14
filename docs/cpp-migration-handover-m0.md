@@ -491,6 +491,41 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **基线打点**: `git tag w4-base` → `d4cad20`；`git bundle` 落盘 `C:\Mnzm\backups\XianxiaSectNative-w4base-<时间戳>.bundle`（346MB，`verify` = "records a complete history / is okay"）。三个并行批次即从该点派生工作树。
 
+## 2.64 W4-C（2026-09-15，进行中→主体落地）：战斗与世界协议轴——C-③ 随机源收敛 + WS-5b 地图冻结全链落地
+
+批次: W4-C（worktree `C:\Mnzm\XianxiaSectNative-w4c`，分支 `w4/c-battle-world`，基线 `w4-base`）| ActionId: **1780–1809 本批未启用 / 1855–1859 维持空置**（C-③ 战斗侧治理走确定性化路线，无 C++ 事务需求，退段登记见下）| 提交: `w4c/01`（C-③ 随机源收敛，bb5fb2549）→ `w4c/02`（WS-5b 地图冻结，fadb66f32）→ `w4c/03`（遮蔽根治，ed63b4203）→ `w4c/04`（detekt 清零，f7db90256）；每子批 `git bundle` 落盘 `C:\Mnzm\backups\w4c-0{1,2,3,4}.bundle`
+
+### 2.64.1 ✅ C-③（C7+C8）随机源收敛（w4c/01）
+
+- **C8 · 三处顶层可变 `xxxRngManager` 形参必传**（与已修复 MissionSystem 同形态同修法）：摘除 `EnemyGenerator.enemyGenRngManager:22` / `AISectAttackManager.aisRngManager:40(+aisRng:41)` / `AISectTeamComposer.teamComposerRngManager:9(+teamComposerRng:10)`；BATTLE/ENEMY_GEN 分区经 `GameRngManager` 形参显式传入。生产链透传：`GameEngineBattleOps:78/:238`（战利品与 `sectBattleRewardCount` 同一 BATTLE 分区实例，抽取序逐位不变）、`MissionSystem.processMissionCompletion` 链（ENEMY_GEN 透传至 `generateHumanEnemies`）。`GameEngine.kt:170-172` 三处赋值点随之移除——**租约已按 protocol-lease.md 登记取得**（W4-A 未开工顺延；改动仅 init 块 3 行，与 W4-A 的 `:276-306` hunks 零重叠）。
+- **C7 · `BattleDescriptionGenerator` 14 处 `.random()` 归零（口径修正登记）**：批次方案预留两路线均不可行——① 插 BATTLE 分区会平移后续战斗结果抽取序（跨语言对拍逐位锁定）；② 新增分区需扩 `RngSourceGuardTest.registeredPartitionIds`（0..9），该文件 W4-A 独占。故对齐 `applyDeterministicWinAttr` 既有口径（ID 散列代替随机）：以（攻击者 id × 目标 id × 回合号）散列确定性选词——零抽取、零分区影响、存档重放可复现；回合号经 `TurnContext.turn` 线程化。`battleLogs` 为 Kotlin 显示域（batch-20b 登记），措辞文案不在对拍面内。**1855–1859 条件段退段：维持空置，无 ActionId/事务需求。**
+- **守卫面**：`RngSourceGuardTest`/`RngEngineIsolationGuardTest` 零改动全绿（白名单残留 3 条无害——白名单=跳过集；收缩 + 计数断言统一 W4-D/D5，与 README §5.1 口径一致）。**实证**：`DiffSectBattleTest`/`DiffSectAttackDecisionTest` 实跑桌面 JNI 全绿 ⇒ BATTLE 分区抽取序跨语言逐位一致，参数化零行为漂移。
+
+### 2.64.2 ✅ C-② WS-5b 地图冻结（w4c/02，本批最大工作块全链落地）
+
+- **口径**：生成即数据、**存的地形恒优先**——`terrainTiles` 非空即采用（跨版本冻结不重算）；仅无段按 `mapSeed` + `MAP_GEN_VERSION=1` 生成回填，新档与老档**同一条路径**。生成器演进 ⇒ 递增版本戳，老档老地图永久冻结，无需发版。
+- **C++ 协议面（租约第一顺位，protocol-lease.md 登记）**：`models.h` GameData 增 `mapGenVersion`+`terrainTiles`（flat 单一表示，§2.19 红线不破）；`json_codec` 双向编解码（"非空/非零才导出键"先例）；`game_core.{h,cpp}` `ensureTerrainGenerated` 落 `importStateInternal` **归一化族**（先于 `resetBaseline` ⇒ 生成段计入导入基线，前向/反向镜像零载荷，稳态每旬零增量）；生成参数由 Kotlin `GameConfig.SectMap` 经 `nativeInit` 传值（单一数据源不落 C++）；未配置地形（桌面测试面）/`mapSeed==0` 防御跳过。
+- **Kotlin 侧**：`GameData` 增 `mapGenVersion(@ProtoNumber 1000)`+`terrainTiles(@ProtoNumber 1001)`；Room `DATABASE_VERSION 50→51` + `MIGRATION_50_51`（ADD COLUMN ×2 带 DEFAULT）+ `51.json`；`SectMap` 提 `MAP_GEN_VERSION`/`DECORATION_DENSITY` 常量。
+- **实施定界修正（3 处，与批次方案的差异已登记）**：① R5"改 `SectTerrainBridge` 读权威态"→ 桥保持纯生成通道（native 优先 + Kotlin 位级降级臂不破），读权威态落在调用面（BootSequence 权威段优先/无段回填、SectMapController 主宗图读权威段、`GameEngineSaveOps.ensureSectTerrainBackfilled` 幂等回填）；② R7"登记 CLOSED"→ **登记在册保留（照常传输）**：boot 回填是合法一次性 Kotlin 写者，CLOSED 会触发 `detectClosedFieldWrites` 误报（gate#7 红）；代价 = 回填一次 ≈64KB 一次性信封，C++ 同源生成幂等覆盖，不承载地形存续（符合 R7 实质）；③ 域归属 SAVE_LOAD 族（mapSeed 同族），域级证据留 W4-B 文件（聚合 `toMap` 后写会静默覆盖 W4-B 结论）。
+- **RLE 顺延（债务登记）**：Room `List<Int>` 转换器注册位已被 `intList` 占用，独立转换器需值类/`IntArray` 类型（data-class equals 与 proto codegen 破坏性风险）。现存储 = base64 proto（≈34KB TEXT 一次性读）+ 云路径 LZ4/ZSTD 已压缩。触发条件 = 存档体积实测超预算。
+- **测试**：新增 `terrain_freeze_test.cpp` 6 用例（生成即数据+确定性+零 RNG 差分/存的地形恒优先/回填幂等/段存在性协议/无种子跳过/ensure 与 generateTileData 位级一致）；`RoomMigrationV50To51Test` 2 用例（真实 schema 校验 + 旧行默认值与数据零丢失）；`SaveDataTerrainFreezeTest` 3 用例（云档 proto 往返不丢地形，含 128² 规模逐位）——R9 已同步扩充 `rules/database-migration.md`。
+
+### 2.64.3 ✅ C3（部分）遮蔽根治（w4c/03）+ w4c/04 detekt 清零
+
+- `InventorySystem.materializeDiscipleBagAndMarkDead` 成员/扩展同签名遮蔽：删除 `InventorySystem校验Ops3.kt:183` 死扩展（成员恒胜出 ⇒ 扩展自始死代码），收敛为成员单一实现，零行为变更。
+- detekt 六模块 baseline 全 0 保持：MissionSystem rng 双形参合并为单一 `rngManager`（内部 `rngOf` 自取，抽取序不变）；`executeCombatantTurn` 合并豁免注解；4 处死 import 清理。
+
+### 2.64.4 ⚠️ 剩余工作（诚实口径，本批未落地）
+
+| 项 | 状态 | 剩余内容 |
+|---|---|---|
+| **C1 · w3-06 战斗/探索残差（1780–1789）** | ⛔ 未开工 | `battle_residual_tx.h`：① `CombatService.kt:78` 伤亡残差下沉（grief/markDead+袋物化/物品/11 类 elder 槽+3 槽族/幸存者 HP/MP，零 RNG）；② `GameEngineWorldBattleOps.kt:188` 胜利事务下沉（魂力+确定性 winAttr 表；**C++ 不写 `defeated`**，batch-13 TOCTOU 教训；`processSingleDiscipleTheft` 侧钩子随域判定）；③ `:288` 失败事务判定为 battleLogs 显示域+UI 通道，**无状态可下沉（登记）**；④ `GameEngineExplorationNativeOps.kt:134` 战前结算 `forceSettleDisciplesBeforeBattle` 门控+下沉（无既有 C++ tx，需与 C2 `:66` 同一定界面）。地基：`exploration_tx.h` 复用 + `battle.h/sect_battle.h` 为纯逻辑非 tx（需新头） |
+| **C2 · w3-07 宗门战战后段（1790–1799）** | ⛔ 未开工 | `:274`（战史+战报，撕裂事务）、`:339`（占领奖励原子事务）、`:366`（碾压奖励）三项**登记不下沉**（依据已存 `sect_attack_tx.h:18-32` + closures 证据）；`:66` 战前结算同 C1④ |
+| **C3 · w3-08 秘境残差（1800–1809）主体** | ⛔ 未开工（遮蔽根治已落地 w4c/03） | 出发换岗（`GameEngineSecretRealmOps.kt:57`）/到期兜底（`GameEngineSecretRealmNativeOps.kt:100`）C++ 事务化（新 `secret_realm_residual_tx.h`；`secret_realm_platform_tx.h`/`SECRET_REALM_CONTINUE_TX` 可复用地基）；`:263` 战报显示域**登记不下沉** |
+| **关闭动作** | ⛔ 随上述子批执行 | 每子批关闭自己的单元 + "关闭域写入检测零命中"门禁 |
+
+**验收（已实跑部分）**: 桌面 C++ **1332/1332**（基线 1326 + 6 新增 terrain_freeze）；`:core:domain` **1758/0**（穷尽分类守卫含新字段）；`:core:data` 聚焦 9 用例全绿（含既有 15 跳过面未触）；`:core:engine` 全量 3281 用例 **3280/3281**（1 失败 = `GameEngineCoreLifecycleInterleavingTest` 时序断言，隔离重跑绿，与改动面无关的负载相关 flake——终局门禁复跑判定）；六模块 detekt 全绿 baseline 全 0；生成器零漂移。`:app:externalNativeBuildRelease`/`lintRelease` 与全量复跑在批次收口时执行。
+
 ## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
 
 批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）
