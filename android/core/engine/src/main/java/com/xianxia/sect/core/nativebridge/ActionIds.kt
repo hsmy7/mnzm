@@ -536,4 +536,7 @@ object ActionIds {
     /** 手动刷新（chances 校验先行 + 扣凭据 + 池覆写单事务原子） */
     const val MERCHANT_MANUAL_REFRESH_TX: Int = 1773
 
+    /** 预警阶段标记（shownWarningStageIds 追加，不去重） */
+    const val DIPLOMACY_WARNING_STAGE_TX: Int = 1843
+
 }

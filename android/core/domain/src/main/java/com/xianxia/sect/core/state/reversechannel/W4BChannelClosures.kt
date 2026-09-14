@@ -122,9 +122,13 @@ internal val w4BDomainEvidence: Map<Domain, List<String>> = mapOf(
         "RedeemCodeService.kt:153/:402 — 兑换码（无 native 臂）",
     ),
     Domain.DIPLOMACY to listOf(
-        "DiplomacyService.kt:145 requestAllianceSimple / :261 dissolveAllianceSimple — 外交稳态段",
-        "VassalService.kt:99/:324 — 年度贡赋/月度脱离（月年编排内 Kotlin 活路）",
-        "GameEngineDiplomacyOps.kt:18 — 预警去重（无 native 臂）",
+        "W4-B/B4（2026-09-15）：DiplomacyService.kt:145/:261 结盟/散盟——batch-09 native 臂已在位" +
+            "（DIPLOMACY_TX=1500 + diplomacy_tx.h 双事务），本批核实零改动；" +
+            "GameEngineDiplomacyOps.kt:18 预警标记已下沉（DIPLOMACY_WARNING_STAGE_TX=1843，" +
+            "shownWarningStageIds 按 ① 保守处置）",
+        "VassalService.kt:99/:324 — 年度贡赋/月度脱离登记不下沉：C++ 逻辑已在位" +
+            "（year_settlement.h，AUTHORITATIVE 年结管线）；调用点在冻结宿主（w3-11 面）" +
+            "⇒ 本批开臂即双重扣贡，门控统一归 W4-D/D2（批文档 §8 技术债首行同结论）",
     ),
     Domain.INVENTORY to listOf(
         "W4-B/B3（2026-09-15）：行商族写者归 C++ merchant_tx 1770–1773——" +
@@ -136,8 +140,13 @@ internal val w4BDomainEvidence: Map<Domain, List<String>> = mapOf(
         "InventoryDelegate.kt:157/:177 自动购买列表 UI 直改（无 native 臂）",
     ),
     Domain.SAVE_LOAD to listOf(
-        "SaveFacadeImpl.kt:56 — 存档前自愈（会话中途稳态写者）",
-        "GameEngineServiceOps.kt:40 — 修炼检查点重锚（ElderManagementUseCase 调用）",
-        "GameEngineServiceOps.kt:77 — 内存压力裁剪（GameLoopDelegate onMemoryPressure）",
+        "W4-B/B4（2026-09-15）登记不下沉——SaveFacadeImpl.kt:56 / GameEngineServiceOps.kt:40/:77" +
+            "（逐点判定见 diplomacy_selfheal_tx.h 头注）：",
+        "SaveFacadeImpl.kt:56 — 存档前自愈（WorldMapGenerator 世界生成面，与 W4-C WS-5b" +
+            "「生成即数据」同域 ⇒ W4-D 评估）",
+        "GameEngineServiceOps.kt:40 — 修炼检查点重锚（写 DiscipleTables 检查点列，弟子域" +
+            "语义归 W4-A；C++ 模型无检查点列 ⇒ 需 models.h 扩列租约 ⇒ W4-D）",
+        "GameEngineServiceOps.kt:77 — 内存压力裁剪（③类平台决策面，裁剪清单语义与" +
+            "DiscipleSlotCleanup/死亡处理交叉 ⇒ W4-D）",
     ),
 )

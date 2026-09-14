@@ -16,4 +16,6 @@ set(W4B_TEST_SOURCES
     jade_runtime_tx_test.cpp
     # B3（w3-05 行商刷新族，1770–1773）
     merchant_tx_test.cpp
+    # B4（w3-12 实裁面：1843；登记项见 diplomacy_selfheal_tx.h 头注）
+    diplomacy_selfheal_tx_test.cpp
 )

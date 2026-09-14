@@ -1,6 +1,12 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.StateSyncService
+import kotlinx.serialization.json.put
 
 
 
@@ -13,8 +19,27 @@ suspend fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLim
         diplomacyFacade.giftSpiritStones(sectId, tier, bypassYearLimit)
     }
 
-/** 标记预警阶段已展示（避免重复弹窗） */
+/**
+ * 标记预警阶段已展示（避免重复弹窗）。
+ *
+ * native 臂（W4-B/B4，DIPLOMACY_WARNING_STAGE_TX）：shownWarningStageIds 参与存档
+ * ⇒ 按 ① 处置（保守判定，批文档盲区 #2）——C++ 追加（不去重，与回退臂逐位一致）；
+ * 失败/降级 → Kotlin 原路径。镜像服务可空判空（handover findings 13）。
+ */
 suspend fun GameEngine.markWarningStageShown(stageKey: String) {
+    if (NativeEngineFlag.authoritative) {
+        val sync: StateSyncService? = stateSyncService
+        if (sync != null) {
+            val data = GameEngineNativeOps.tryExecuteNative(
+                stateSyncService = sync,
+                actionId = ActionIds.DIPLOMACY_WARNING_STAGE_TX,
+                paramsJson = params {
+                    put("stageKey", stageKey)
+                }
+            )
+            if (data != null) return
+        }
+    }
     updateGameData { data ->
         data.copy(shownWarningStageIds = data.shownWarningStageIds + stageKey)
     }

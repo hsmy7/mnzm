@@ -175,10 +175,6 @@ class CultivationService @Inject constructor(
         merchantAndRecruitService.refreshMerchantAcquisition(year, month)
     }
 
-    suspend fun processCaveLifecycle(year: Int, month: Int) {
-        caveExplorationProcessor.get().processCaveLifecycle(year, month)
-    }
-
     /**
      * L3a：丢弃队列中所有未执行延迟组（读档/切档入口调用，
      * 防旧档残留 op 作用于新档）。

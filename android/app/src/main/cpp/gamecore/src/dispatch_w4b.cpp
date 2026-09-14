@@ -26,6 +26,7 @@
 
 #include <gamecore/game_core.h>
 #include <gamecore/state/json_codec.h>
+#include <gamecore/system/diplomacy_selfheal_tx.h>
 #include <gamecore/system/jade_tx.h>
 #include <gamecore/system/merchant_tx.h>
 
@@ -188,13 +189,22 @@ nlohmann::json handleMerchantTx(GameCore& core, int32_t actionId,
     }
 }
 
-/// 事务 20+（B4/w3-12 外交/自愈/运行态）：1840–1849（待后续子批填充）。
-nlohmann::json handleSelfHealTx(GameCore& core, int32_t actionId,
-                                const nlohmann::json& p) {
-    (void)core;
-    (void)p;
-    (void)actionId;
-    return fail("NOT_IMPLEMENTED", "w4b B4 pending");
+/// 事务（B4/w3-12 外交/自愈/运行态）：1840–1849。
+/// 实裁范围见 diplomacy_selfheal_tx.h 头注（本批仅 1843；其余登记 W4-D）。
+/// 返回 nullopt = 本批不认领该号（段内未实裁号交由 execute NOT_IMPLEMENTED 兜底）。
+std::optional<nlohmann::json> handleSelfHealTx(GameCore& core, int32_t actionId,
+                                               const nlohmann::json& p) {
+    using namespace gamecore::system::diplomacy_selfheal_tx;
+    if (actionId != 1843) {  // DIPLOMACY_WARNING_STAGE_TX
+        return std::nullopt;
+    }
+    const auto it = p.find("stageKey");
+    if (it == p.end() || !it->is_string()) {
+        return invalidParams("warning stage requires stageKey");
+    }
+    const auto r = markWarningStageShownTx(core.state(), it->get<std::string>());
+    if (!r.base.ok) return fail(r.base.errorType, r.base.message);
+    return ok({{"stageCount", r.stageCount}});
 }
 
 }  // namespace
@@ -211,8 +221,7 @@ std::optional<nlohmann::json> dispatchW4B(GameCore& core, int32_t actionId,
     }
     if (actionId >= 1840 && actionId <= 1849) {
         return handleSelfHealTx(core, actionId, params);
-    }
-    // 1760–1765（w3-03）整段留空：复用 batch-12 既有事务面，零新增 ActionId。
+    }    // 1760–1765（w3-03）整段留空：复用 batch-12 既有事务面，零新增 ActionId。
     return std::nullopt;
 }
 

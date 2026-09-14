@@ -655,6 +655,28 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 **验证**: 桌面 C++ 全量 **1357/1357**（基线 1344 + 本批 13，含单进程直跑复核）；`:core:engine` Merchant 族全绿（新 GateTest 5/5 + 既有 `MerchantAndRecruitServiceTest` 回归）；`:core:domain` **1758/1758**（守卫套件含）；`:core:engine:detekt` + `:core:domain:detekt` 绿；生成器 `177 actions (maxId=1773)` 零漂移。
 
 
+### 2.63.B4 w3-12 外交/自愈/运行态——实裁 1843 + 洞府死链删除 + 六项逐点判定（2026-09-15，ActionId **1843**）
+
+**批次**: W4-B/B4（w3-12） | **产物**: 新 `diplomacy_selfheal_tx.h`、填 `dispatch_w4b.cpp`（段内未实裁号不认领语义）、改 `GameEngineDiplomacyOps.kt`（native 臂）、新 `diplomacy_selfheal_tx_test.cpp`（**4 用例**）、新 `GameEngineDiplomacyNativeGateTest.kt`（1 用例）、`w4b.mjs` + 两生成物（**177 → 178 动作，maxId=1843**）、**洞府探索死链删除**（`CaveExplorationProcessor.kt` 570→118 行 + 删除 `CaveExplorationRewardOps.kt` 全文件 + `CultivationService` 死委托）
+
+**实裁事务（1843 `DIPLOMACY_WARNING_STAGE_TX`）**：`markWarningStageShownTx`——shownWarningStageIds 参与存档 ⇒ 按 **① 保守处置**（批文档盲区 #2 判定项闭环）；List 追加**不去重**与回退臂逐位一致；空 key 校验失败零写入；零 RNG（签名级）。
+
+**洞府死链删除（双证后删）**：入口 `CultivationService.processCaveLifecycle` 生产 0 调用 + 主源 `CaveExplorationTeam(` 构造 0 处 ⇒ 删除**独占调用面 17 成员**（processCaveLifecycle / executeCaveExploration / executeBattleForTeam / findNearbySects / resetCaveExplorationTeamMembersStatus / resetExpiredCaveTeams / processSingleTeamCompletion / handleExplorationErrors / assembleTeamMembers / handleEmptyTeam / processBattleCasualties / awardVictorySoulPower / buildAndStoreBattleLog / trackBattleAnalytics / cleanupAfterCaveExploration / CaveCompletionState / BATTLE_LOG_DISPLAY_LIMIT，可达性分析逐成员核实"仅死链可达"）+ 独占扩展文件 `CaveExplorationRewardOps.kt`（grantBattleRewards 唯一调用方在死链内）+ 构造面收敛（battleSystem/eventProcessor/analyticsTracker/deathHandler 仅被死链消费，随链移除，两处测试构造同步收窄）。**同族活路保留**（processAISectOperations / processSectDisciplesAging / processSectDisciplesYearlyRecruitment / currentAiThermalBatchSize——禁删清单逐条核对）。回归网 = 全量编译 + 引擎全量测试绿。
+
+**登记不下沉（逐点判定成文，详见 `diplomacy_selfheal_tx.h` 头注）**：
+
+| # | 写者 | 判定 | 归属 |
+|---|---|---|---|
+| 1 | VassalService 年贡/附属年贡（:99/:310） | 🔴 实测 C++ **逻辑已在位**（year_settlement.h processYearlyTribute/processYearlyVassalTribute，随 AUTHORITATIVE 年结管线执行）⇒ 再开 ActionId 臂即**双重扣贡**；调用点在冻结宿主（w3-11 面） | **W4-D/D2**（批文档 §8 技术债首行同结论） |
+| 2 | VassalService 月度脱离（:324） | 脱离概率链（战力/好感/近 3 年战绩 + SYSTEM 抽取）跨臂抽取序对拍风险 | **W4-D/D2**（同上） |
+| 3 | GameEngineServiceOps :77 内存裁剪 | ③类平台决策面；裁剪清单语义与 DiscipleSlotCleanup/死亡处理交叉 | **W4-D** |
+| 4 | SaveFacadeImpl :56 存档前自愈 | WorldMapGenerator 世界生成面，与 W4-C WS-5b「生成即数据」同域 | **W4-D 评估** |
+| 5 | GameEngineServiceOps :40 修炼检查点重锚 | 写 DiscipleTables 检查点列（弟子域核心表，语义归 W4-A w3-01）；C++ disciple 模型无检查点列 ⇒ 需 models.h 扩列（W4-C 租约） | **W4-D** |
+| 6 | DiplomacyService 结盟/散盟（:145/:261） | **batch-09 native 臂已在位**（DIPLOMACY_TX=1500 + diplomacy_tx.h 双事务）⇒ 本批零改动（核实结论，非新增工作） | 已闭环 |
+
+**验证**: 桌面 C++ 全量 **1361/1361**（基线 1326 + B2 18 + B3 13 + B4 4，含单进程直跑复核）；`:core:domain` **1758/1758**（守卫套件含）；三模块 detekt 绿；生成器 `178 actions (maxId=1843)` 零漂移；引擎全量 **3295/3295**（基线 3281 + 本波 W4-B 新增 14；含 47 个 Diff* 对拍类，`-Dgamecore.jni.path` 指向本工作树 desktop-jni，`--rerun-tasks` 防假绿）。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 

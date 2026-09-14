@@ -46,5 +46,10 @@ export const CATALOG = [
   { id: 1773, name: 'MERCHANT_MANUAL_REFRESH_TX', desc: '手动刷新（chances 校验先行 + 扣凭据 + 池覆写单事务原子）' },
 
   // ── 1840–1849 · w3-12 外交/自愈/运行态 ──
-  // （待 W4-B 填充）
+  // B4 实施口径（2026-09-15）：**仅实裁 1843**（shownWarningStageIds 按 ① 保守
+  // 处置）。登记不下沉（逐点判定见 diplomacy_selfheal_tx.h 头注）：附庸年贡族
+  // （C++ 逻辑已在位 year_settlement.h，调用点门控属 w3-11/W4-D）、月度脱离、
+  // 内存裁剪（W4-D）、存档前自愈（W4-C WS-5b 同域）、修炼检查点重锚（W4-A 域 +
+  // models.h 扩列需租约）。段内未实裁号不认领。
+  { id: 1843, name: 'DIPLOMACY_WARNING_STAGE_TX', desc: '预警阶段标记（shownWarningStageIds 追加，不去重）' },
 ];
