@@ -16,6 +16,8 @@ import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.addJsonObject
@@ -201,13 +203,18 @@ private fun GameEngine.buildSectLevelRewardCards(
     val flyCards = mutableListOf<RewardCardItem>()
 
     // 预生成兽血材料（汇总到 Map<name, Pair<rarity, count>>）
+    // W4-B/B0 输入侧随机分区化：模板抽取改走 MAIL 分区（RngPartition.MAIL——
+    // 奖励随机生成分区，与 MailAttachmentDistributeOps/RedeemCodeService 同分区）。
+    // 旧写法 `bloodMaterials.random()` 走 Kotlin 全局 Random.Default ⇒ C++
+    // SECT_LEVEL_CLAIM_TX 实际发放内容不可复现（"native 臂零 RNG"表述的盲区）。
     val generatedBeastBlood = mutableMapOf<String, Pair<Int, Int>>()
     aggregate.beastBloodRarities.forEach { (rarity, count) ->
         val bloodMaterials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
             .filter { it.category == "blood" }
         if (bloodMaterials.isNotEmpty()) {
+            val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
             repeat(count) {
-                val template = bloodMaterials.random()
+                val template = bloodMaterials.random(mailRng)
                 val existing = generatedBeastBlood[template.name]
                 if (existing != null) {
                     generatedBeastBlood[template.name] = Pair(rarity, existing.second + 1)

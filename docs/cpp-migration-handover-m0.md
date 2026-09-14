@@ -561,6 +561,31 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **顺手更正（文档漂移）**: `CLAUDE.md`「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
 
+## 2.63 W4-B（2026-09-15 起批）：内政与经济运营轴——平台效应回执化
+
+> 本小节为 W4-B **预分配小节**（README §4.6）；批文档见 [batch-W4B-court-economy](parallel-batches-w4/batch-W4B-court-economy.md)。
+> 落点说明：为避免与并行批（§2.62 / §2.64）在同一文本锚点插入，本小节固定追加在 §2.67 之后、§3 之前（**数字序不代表文中位置与时序**）。
+> 覆盖：B0 Jade 环境缺陷专项（无 ActionId）→ B1 w3-03（1760–1765）→ B2 w3-04（1766–1769）→ B3 w3-05（1770–1779）→ B4 w3-12（1840–1849）。
+
+### 2.63.B0 Jade 凭据持久化"环境缺陷"清偿——契约考古推翻 §2.50 归因（2026-09-15）
+
+**批次**: W4-B/B0（无 ActionId） | **产物**: 改 `JadeNativeTxGateTest.kt`（根因修复 + 复现守卫）、新 `FakeAtomicStateStoreContractTest.kt`（契约守卫 4 用例）、改 `GameEngineSectLevelOps.kt`（输入侧随机分区化）
+
+**根因考古（🔴 推翻 §2.50 的"FakeAtomicStateStore 事务缓冲缺陷"归因——fake 无缺陷，生产代码亦无缺陷）**：
+
+- **真根因是测试替身链**。`withOverflowMailSuppressed` / `withTrackingSource` 是 `InventorySystem` 的**成员函数**（`system/InventorySystem.kt:222/:234`，非扩展函数）。`JadeNativeTxGateTest` 以 plain mock 替换 `InventorySystem` 时，Mockito 把成员方法整个 stub ⇒ **传入的 block 从不执行** ⇒ `writeSectLevelRewards` 的发放体（含 `sectLevelClaimRecords` 凭据写入）被静默跳过，而 `allSucceeded` 初值 `true` 未被触碰 ⇒ 返回 `true` ⇒ 上层报 `Success`。"首领后凭据未持久化、冷却判定失效"由此而来。
+- **缺陷级联的第二臂**：作用域包装器改为直通后发放体真正执行，下一站 `economyFacade.spiritStoneWallet` 未 stub ⇒ null ⇒ NPE 被 `claimSectLevelReward` 的 catch-all 吞成 `Error(...)`（当年"两臂同现 Error/空凭据的空洞等价"的另一半）。修复 = 接入**真实** `SpiritStoneWallet`（真实 `SpiritStoneLedger` + mock 事件总线——`add` 路径不触达事件发射）。
+- **为什么 §2.50 误判为 fake 缺陷**：当年证据（凭据为空 + 两臂结果一致）与"事务缓冲不落盘"假说兼容；且 mockSmart 的 SmartNull 在 `when(r)` 三分支全不命中时同样跳过发放体——多条路径症状同形。本次以"把 result 塞进断言消息"的逐站取证取得直接证据（NPE 消息精确指向 wallet 调用位）。
+- **连带修正**：该用例的灵石断言从"绝对余额相等"改为**增量口径**（`after - beforeOff` vs 首臂增量）——旧断言只在"两臂都是零写入"时才成立（空洞等价的又一处）；`offResult::class` 弱比较同步升为密封类全等。
+
+**守卫固化（≥2 用例交付标准达成）**：
+1. **复现用例转绿**：`claimSectLevelReward falls back identically and records claim once` 新增"首领后凭据必须持久化"硬断言（`[SMALL]` 非空——两条臂比较不得是"双双为空"的空洞等价）；
+2. **契约守卫**：`FakeAtomicStateStoreContractTest` 4 用例把 fake 的事务缓冲契约落成可执行断言（顶层提交跨事务可见 / 嵌套事务同缓冲合并提交 / 事务内异常 ⇒ gameData 回滚 / **事务内快照读到事务前已提交值**——"事务内读写必须同源"契约）。任何一条变红 ⇒ fake 语义偏离真实 store ⇒ 须根因修复 fake（禁止特判绕过）。
+
+**输入侧随机分区化（README §12 债务行清偿）**：`GameEngineSectLevelOps.buildSectLevelRewardCards` 的 `bloodMaterials.random()`（Kotlin 全局 `Random.Default`，抽取不可复现）改 `gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()`——与 `MailAttachmentDistributeOps:260` / `RedeemCodeService:151` 同分区（奖励随机生成分区）。⇒ 传入 `SECT_LEVEL_CLAIM_TX` 的兽血模板选取**可复现**，"native 臂零 RNG"表述的输入侧盲区闭合；`JadeNativeTxGateTest` 相应补 `getRng(MAIL)` stub。
+
+**验证**: `:core:engine:testReleaseUnitTest`（`JadeNativeTxGateTest` **9/9** + `FakeAtomicStateStoreContractTest` **4/4**）；`:core:engine:detekt` 绿。
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 
