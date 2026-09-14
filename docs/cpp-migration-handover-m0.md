@@ -545,14 +545,21 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 - **这些 SDK 确实已集成**（`git grep` 实证）：`android/app/build.gradle` 命中 `pangle` / `Pangle` / `穿山甲` / `GDT` / `优量汇` / `iQiyi` / `爱奇艺` / `baidu` / `百青藤` / `TapDB`；`proguard-rules.pro` 同步；libs 下存在 `DirichletAD_GDT_Adapter_5.1.2.3.aar`。
 - ⇒ **线上页面未声明实际在用的 SDK**，违反 CLAUDE.md 设计方案规则第 5 条"隐私政策必须双入口同步更新"。
 
-**处置（已交付工具，待执行）**: 新增 `scripts/publish-privacy-policy.ps1`。
-- **三项前置校验**：① 本地 `docs/index.html` 的 git blob == 期望值（`566e84fa…`，防误发旧版）；② 远端 `main` 同文件 blob 须与本地一致（证明内容同源）；③ 目标仓库/分支可写 + 凭据可用。任一不过即中止。
-- **两种模式**：`-Mode SourceBranch`（默认）= 把 8 月版更新到 Pages **源分支** `master`（文件级最小改动）；`-Mode PagesTarget` = 把 Pages 源切到 `main`（`main` 上该文件与本地逐字节相同 ⇒ **零内容变更**即生效，一次性消除"两份政策页"）。
-- **安全设计**：`-DryRun` **默认开**（只打印将发送的请求）；凭据只从 `GITHUB_TOKEN` / `GH_TOKEN` / 已登录的 `gh` 读取，不收明文口令；只读校验失败时**优雅降级并原样打印 GitHub 报错**（限流/网络/权限），不笼统报"失败"。
-- **兜底手工路径**（无需 token，只要 git 推送权限）：`git fetch origin master` → 基于 `origin/master` 建分支 → `git checkout main -- docs/index.html` → 提交 → `git push origin HEAD:master` → 在 Settings→Pages 确认源仍为 `master`/`docs` → 1~2 分钟后核对线上日期为「2026年8月13日」。
-- **🟡 未执行的原因（诚实口径）**：本会话**无 GitHub 写凭据**（`gh auth status` = 未登录；无 `GITHUB_TOKEN`/`GH_TOKEN`；`credential.helper=manager` 需交互式认证），且 `github.com` 的 git 端点本次多次 `Connection was reset`（与本文档既有记载"远端 GitHub 在会话中不可达"一致）；只读 API 亦已触及未认证限流。⇒ **推送必须由用户执行**，脚本已实测 DryRun 两种模式均完整走通。
+**处置（✅ 已于 2026-09-15 执行完毕）**:
+- **① 两步走：先把两条历史线统一，再谈发布。** 远端 `main` 的 **1834 个提交（2026-04-03 ～ 09-05，作者 hsmy7）才是项目真实历史**；本地 26 个提交是重建线。执行（**全程未使用 force-push**）：
+  1. `git fetch origin main` —— 把远端真实历史拉到本地（此前本地零命中，等于给不可再生的历史做了备份）；
+  2. `git commit-tree <本地当前树> -p origin/main -p main` —— 构造**双亲合并提交 `ba69918`**：第一父 = 远端真实历史，第二父 = 本地重建线，**树取本地当前树（逐字节相同）**；
+  3. 校验：合并树 ≡ 本地树；`git log -1 --format=%P` 双亲正确；文档中引用过的本地 sha（`24c429d` / `d4cad20` / `6fed0e8` / `87ea746` / `8052418`）**全部仍是合并提交的祖先**（可解析）；可达提交数 **1862 = 1834 + 27 + 1**；
+  4. `git push origin ba69918:refs/heads/main` —— **fast-forward**（第一父即原远端 main），只上传 929 个对象；远端**不丢任何对象**；
+  5. 本地 `git reset --hard ba69918`（树相同 ⇒ 工作区零变化）+ 设置 upstream，本地与远端对齐。
+  - **为什么不做 rebase**：两条线**无共同祖先**，把 26 个"全树快照"式提交 rebase 到 1834 提交之上会产生数千处无意义冲突且不增加信息量；双亲合并是唯一「零损失 + 零强推」的统一方式。
+- **② 隐私政策（根因修复）**：`PUT /repos/hsmy7/mnzm/pages` 把 Pages 发布源由 `master/docs` **切到 `main/docs`** —— `main` 上该文件与本地逐字节相同（blob `566e84fa…`）⇒ **零内容变更即生效**，且**从根上消除"政策更新写在 main、发布源在 master"的脱节**（`CLAUDE.md` 设计方案规则第 5 条要求政策双入口同步，源指向 main 后即自动同步）。**线上实测**：https://hsmy7.github.io/mnzm/ 现为「更新日期：2026年8月13日」、26256 字节，穿山甲/优量汇/爱奇艺/百青藤/TapADN/TapDB **均已声明** ✓
+- **③ 仓库门面与设置**：补 `README.md`（项目介绍 / 技术栈 / 架构要点 / 目录结构 / 构建测试命令 / 文档索引 / 分支说明）；`PATCH /repos/hsmy7/mnzm` 设 `default_branch = main`（原为 `master`）、补 `description` 与 `homepage`；`PUT /topics` 设 12 个主题标签。
+- **④ 工具**：`scripts/publish-privacy-policy.ps1` 保留（三项前置校验 + `-DryRun` 默认开 + 两种模式 + 手工兜底），作为**将来政策再更新时的发布器**；由于 Pages 源已切到 `main`，日常只需把政策改动推到 `main` 即自动发布，`-Mode SourceBranch` 仅在需要回写历史分支时使用。
 
 **途中发现（小项）**: `C:\Mnzm\XianxiaSectNative-b11` 与 `-w2-14` 目录下的 `.git` **是文件**（worktree 指针），指向 `C:/Mnzm/XianxiaSectNative/.git/worktrees/<name>`，但 `.git/worktrees` 目录**已不存在**（§2.40 记录的"worktrees 被删除"残留）⇒ 这两个目录的 `.git` 是**失效残留**，`git worktree list` 也不列它们。清理它们用 `cmd /c rmdir`（若含 node_modules junction）或直接删除该 `.git` 文件；**本次未动**（非本次任务范围，登记备查）。
+
+**顺手更正（文档漂移）**: `CLAUDE.md`「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
 
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
@@ -629,7 +636,7 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 | **真机（物理设备）验证残留** | 模拟器会话未覆盖 10 项：A2 ASTC 缺失机 RGBA 回退 / A4 旋屏 / C1 偷盗钩子自然触发 + TapDB 上报 / C3 S5 战斗任务 / C4 S6 秘境全链 / C6 ThermalMonitor 真实热档 / D2 放置确认步 / D3 道路装配 / E2 云存档 / E3 WS-1 绝对值（需先补 debug 埋点小批） |
 | **`Jade` 凭据持久化环境缺陷** | `FakeAtomicStateStore` 事务缓冲与 `sectLevelClaimRecords` 交互（§2.50 坑）；生产侧静默失败已根因修复，环境缺陷待专项 |
 | **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` 已拍板按"清理执行"（2026-09-15）** → 实施落点 W4-D/D5；`onPhaseTick` 保留决策**待用户拍板**（§4.2）——它是 6 个 Diff 测试的 Kotlin 对拍基准 |
-| **线上隐私政策落后于实际集成**（§2.67，2026-09-15 核查发现） | **⚠️ 待发布**——GitHub Pages 从 `master` 发布，其 `docs/index.html` 停在 **2026-06-04 版**（仅声明 TapTap/MMKV/Dirichlet），而**应用内 `PrivacyConsentScreen.kt` 与仓库 `main` 均为 2026-08-13 版**（多声明 **TapADN 聚合广告 SDK**：穿山甲/优量汇/爱奇艺/百青藤 + **TapDB** + GAID + 个性化广告开关），且 `android/app/build.gradle` 中这些 SDK **均已集成** ⇒ 线上未声明实际在用的 SDK，属隐私合规缺口。**已交付一键同步脚本 `scripts/publish-privacy-policy.ps1`（含三项前置校验 + 演练默认开 + 两种模式 + 手工兜底），但因本会话无 GitHub 写凭据且 git 端点不稳定，推送需用户执行**——详见 §2.67 |
+| **线上隐私政策落后于实际集成**（§2.67） | **✅ 已修复（2026-09-15）**——Pages 发布源由 `master/docs` **切到 `main/docs`**（根因修复：政策更新写在 main，源指向 main 即自动同步），线上实测已是「2026年8月13日」版并声明全部聚合广告 SDK 与 TapDB |
 | **远端 `hsmy7/mnzm` 与本地的关系**（§2.67） | **已查清**：它是**本项目自己的远端仓库**（非网页仓——网页仓是另一个 `hsmy7/index.html`，其末次提交写着"将隐私政策重定向到新地址 mnzm 仓库"）。内含两条分支：`master`（默认 + Pages 源，旧 1.4.x 线，内容停 2026-06-28）与 `main`（**本项目线**，tip `ad6ff6c9` = 2026-09-04「程序化天空」批，`version.properties=4.01.12`）。**本地与远端内容连续但提交血缘断裂**：本地 26 个提交全为 2026-09-12～09-14、作者 `mnzm-dev`，远端提交在本地对象库中**零命中**，本地 `.git` 无任何 remote-tracking ref（从未 fetch）⇒ **2026-09-04 之后（M0–M3 + W4-00）的内容只存在于本地，远端一个都没有**；历史重建见 §2.40 |
 
 **已清偿项索引**（只列批号与结论，明细见 §2 对应小节）：

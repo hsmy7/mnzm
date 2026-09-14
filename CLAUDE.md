@@ -95,7 +95,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 - **弟子分配门卫系统** — DiscipleAssignmentGate + 11 槽位统一注册表
 - **存档槽位隔离** — `slot_id` 复合主键、`resetForSlot`、强制 slotId 赋值
 - **探索系统** — 6 个子系统拆分（关卡管理/攻击检测/战斗/掠夺/死亡/队伍）
-- **确定性 RNG 系统** — 4 分区 PRNG（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）
+- **确定性 RNG 系统** — 10 分区 PRNG（`RngPartition`：BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL / AI_SECT / SECRET_REALM / MISSION 入快照，另有通道型镜像键 `AI_SECT_MIRROR` 不入快照）
 - **Component Table 架构** — IntPackedArray 列式存储、修炼 Checkpoint、EntityStore 模式
 - **生产系统 Checkpoint** — 动态 duration 重算、政策/长老变更触发
 - **邮件与奖励系统** — Saga 补偿模式、Stable IDs

@@ -3,28 +3,26 @@
     把仓库里的隐私政策页（docs/index.html）发布到 GitHub Pages，使线上与实际集成一致。
 
 .DESCRIPTION
-    ## 为什么需要这个脚本（2026-09-15 核查发现的真实不一致）
+    ## 现状（2026-09-15 已修复，本脚本转为「将来再发布」的工具）
 
-    GitHub Pages（https://hsmy7.github.io/mnzm/）发布的是 **master** 分支，而 master 上的
-    docs/index.html 停留在 **2026-06-04 版**：
+    GitHub Pages 的发布源**已从 `master/docs` 切到 `main/docs`**（根因修复）：
+    `CLAUDE.md` 规定隐私政策更新写在 `docs/index.html`（main 线），源指向 main 后
+    **推送即自动发布**，不会再出现"仓库更新了、线上没更新"的脱节。
 
-      | 面 | 版本 | 声明的广告/统计 SDK |
-      |---|---|---|
-      | 线上（Pages ← master） | 2026-06-04 | 仅 TapTap + MMKV + Dirichlet Ad SDK |
-      | 仓库（main 与本地工作区） | **2026-08-13** | TapTap(含 **TapDB**) + MMKV + **TapADN 聚合**（穿山甲/优量汇/爱奇艺/百青藤）+ GAID + 个性化广告开关 |
-      | 应用内（`PrivacyConsentScreen.kt`） | **2026-08-13** | 同上（与仓库网页版一致） |
+    线上实测（修复后）：https://hsmy7.github.io/mnzm/ = 「更新日期：2026年8月13日」，
+    已声明 TapTap(含 TapDB) + MMKV + TapADN 聚合（穿山甲/优量汇/爱奇艺/百青藤）
+    + GAID + 个性化广告开关。
 
-    而 `android/app/build.gradle` 中上述 SDK **均已集成** ⇒ **线上政策未声明实际在用的 SDK**，
-    属隐私合规缺口（CLAUDE.md 设计方案规则第 5 条：隐私政策必须双入口同步）。
+    ## 本脚本现在的用途
 
-    ## 本脚本做什么
+    - **日常发布**：改完 `docs/index.html` 推到 `main` 即可，**无需本脚本**。
+    - **需要显式发布/回写历史分支时**（例如要同步到已归档的 `master`、或想用 API
+      绕过本地 git 提交直接改远端文件），用本脚本。
 
-    `-Mode SourceBranch`（默认）：在 Pages **源分支**（默认 `master`）上把
-      `docs/index.html` 更新为仓库当前版本 —— 文件级最小改动，不动 Pages 配置。
-
-    `-Mode PagesTarget`：把 Pages 的**发布源分支**切到 `main`（`main` 上的
-      `docs/index.html` 与仓库当前版本逐字节相同，故**零内容变更**即生效）。
-      好处是一次性消除"两份政策页"；代价是此后 `main` 的每次推送都会触发一次 Pages 构建。
+    `-Mode SourceBranch`：在 **`-SourceBranch` 指定分支**上把 `docs/index.html`
+      更新为仓库当前版本（默认 `master`，即同步到历史归档分支）。
+    `-Mode PagesTarget`：把 Pages 发布源切到 `-SourceBranch`（默认 `main`）
+      —— 该动作已于 2026-09-15 执行过，重复执行是幂等的。
 
     两种模式都先做**三项前置校验**，任一不过即中止（防误发旧版/防打错仓库）：
       ① 本地 `docs/index.html` 的 git blob == `-ExpectBlob`；
