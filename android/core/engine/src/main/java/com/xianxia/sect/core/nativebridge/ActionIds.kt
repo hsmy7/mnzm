@@ -548,4 +548,31 @@ object ActionIds {
     /** 建筑放置槽位派生事务（SlotGroup.createSlots写段等价：八集合建槽+每塔一份PatrolConfig；生产槽id由Kotlin UUID生成传入） */
     const val BUILDING_PLACE_SLOTS: Int = 1811
 
+    /** 玉符结算发放（settleGrants 下沉：整除发放/封顶冻结，回执回写运行时） */
+    const val JADE_RUNTIME_SETTLE_TX: Int = 1766
+
+    /** 玉符跨天重置/首锚（maybeDayReset 下沉：午夜锚点由 Kotlin 计算传入） */
+    const val JADE_RUNTIME_DAY_RESET_TX: Int = 1767
+
+    /** 玉符 checkpoint（四字段绝对值覆盖写；拿满冻结复用） */
+    const val JADE_RUNTIME_CHECKPOINT_TX: Int = 1768
+
+    /** 玉符广告发放（grantFromAd 落账段；广告 SDK 平台效应留 Kotlin） */
+    const val JADE_RUNTIME_GRANT_AD_TX: Int = 1769
+
+    /** 行商手动刷新次数年度发放（每30年+1，达上限零写入） */
+    const val MERCHANT_CHANCE_GRANT_TX: Int = 1770
+
+    /** 收购池整表覆写（items 由 Kotlin 以 SYSTEM 分区预生成） */
+    const val MERCHANT_ACQUISITION_REFRESH_TX: Int = 1771
+
+    /** 旅行商人池整表覆写 + 年份/刷新计数（保底相位 Kotlin 预计算） */
+    const val MERCHANT_TRAVELING_REFRESH_TX: Int = 1772
+
+    /** 手动刷新（chances 校验先行 + 扣凭据 + 池覆写单事务原子） */
+    const val MERCHANT_MANUAL_REFRESH_TX: Int = 1773
+
+    /** 预警阶段标记（shownWarningStageIds 追加，不去重） */
+    const val DIPLOMACY_WARNING_STAGE_TX: Int = 1843
+
 }

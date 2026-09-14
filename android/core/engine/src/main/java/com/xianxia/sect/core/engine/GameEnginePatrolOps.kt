@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.PatrolConfig
-import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
@@ -87,7 +86,9 @@ fun GameEngine.updateSpiritMineSlots(slots: List<SpiritMineSlot>) {
     if (updateSpiritMineSlotsNative(slots) != null) return
     updateGameDataSync { it.copy(spiritMineSlots = slots) }
 }
-fun GameEngine.updatePatrolSlots(slots: List<PatrolSlot>) { updateGameDataSync { it.copy(patrolSlots = slots) } }
+// W4-B/B1 死 API 清除：updatePatrolSlots（零调用方，batch-12 登记不为死 API 扩协议）
+// 与 updatePatrolConfig 单参版（零调用方；PatrolTowerViewModel.kt:161 是同名不同函数）
+// 已删除——留着只会被误接线成新的丢数据点（WS-0.b 死导出纪律先例）。
 
 /**
  * 巡视塔配置整表覆写。
@@ -101,8 +102,6 @@ fun GameEngine.updatePatrolConfigs(configs: List<PatrolConfig>) {
     if (updatePatrolConfigsNative(configs) != null) return
     updateGameDataSync { it.copy(patrolConfigs = configs) }
 }
-
-fun GameEngine.updatePatrolConfig(config: PatrolConfig) { updateGameDataSync { it.copy(patrolConfig = config) } }
 
 fun GameEngine.addSpiritStones(amount: Long) {
     gameEngineCore.launchInScope {

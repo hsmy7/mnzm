@@ -17,8 +17,22 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RarityTimeProgression
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
+import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameCoreBridge
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.StateSyncService
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.put
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 
@@ -38,9 +52,59 @@ data class MerchantItemPools(
 @GameService("MerchantAndRecruitService")
 class MerchantAndRecruitService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    // W4-B/B3（w3-05）：行商刷新族落账段下沉 C++（1770–1773），native 臂经
+    // [Provider] 惰性取镜像服务（GameEngineCore 构造链持有本服务——Dagger 破环
+    // 与 JadeSymbolService/DiplomacyService 同构）；null（既有测试直构）⇒ 恒走回退臂。
+    private val gameEngineCoreProvider: Provider<GameEngineCore>? = null
 ) {
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
+
+    // ── W4-B/B3 native 臂（池生成留 Kotlin、落账归 C++）────────────────
+
+    private val itemJson = Json { encodeDefaults = true }
+
+    /**
+     * 行商族事务统一转发（1770–1773）。
+     *
+     * 降级契约（findings 13 同款）：flag 非 AUTHORITATIVE / 无 Provider /
+     * 镜像服务缺失 / native 失败信封 → null → 调用点回退 Kotlin 原路径
+     * （回退臂重执行校验链——手动刷新失败信封在 Kotlin 侧重验后如实返回 false）。
+     */
+    private fun tryNativeMerchant(
+        actionId: Int,
+        paramsBuilder: JsonObjectBuilder.() -> Unit
+    ): JsonObject? {
+        if (!NativeEngineFlag.authoritative) return null
+        val core = gameEngineCoreProvider?.get() ?: return null
+        val sync: StateSyncService? = core.stateSyncServiceRef
+        if (sync == null) return null
+        return GameEngineNativeOps.tryExecuteNative(
+            stateSyncService = sync,
+            actionId = actionId,
+            paramsJson = params(paramsBuilder)
+        ) as? JsonObject
+    }
+
+    /** items 整表编码（键名与 C++ json_codec MerchantItem GC_TO/GC_FROM 一致）。 */
+    private fun JsonObjectBuilder.putItems(items: List<MerchantItem>) {
+        val encoded = itemJson.encodeToString(ListSerializer(MerchantItem.serializer()), items)
+        put("items", Json.parseToJsonElement(encoded).jsonArray)
+    }
+
+    /**
+     * native 通道**预检**（生成池**之前**调用）：flag / Provider / 镜像 / bridge
+     * 四级可用性。🔴 必须 先于 `generateMerchantItemsForNative`——否则降级路径
+     * 会先消耗一轮 SYSTEM 分区抽取（池生成）再由回退臂重生成（第二轮抽取），
+     * 使抽取序相对 flag OFF 臂漂移（RNG 红线：抽取序零变更）。
+     */
+    private fun nativeMerchantAvailable(): Boolean {
+        if (!NativeEngineFlag.authoritative) return false
+        val core = gameEngineCoreProvider?.get() ?: return false
+        val sync: StateSyncService? = core.stateSyncServiceRef
+        if (sync == null) return false
+        return GameCoreBridge.isLoaded
+    }
 
     companion object {
         private const val TAG = "MerchantAndRecruit"
@@ -59,6 +123,22 @@ class MerchantAndRecruitService @Inject constructor(
         val pools = buildMerchantItemPools()
 
         if (pools.poolByRarity.values.all { it.isEmpty() }) return
+
+        // native 臂（W4-B/B3，MERCHANT_TRAVELING_REFRESH_TX）：以镜像 count 预计算
+        // 新计数/保底相位 → 池整表生成（SYSTEM 分区，存档可重放）→ 落账归 C++。
+        // 🔴 预检先于池生成（nativeMerchantAvailable）——降级路径不得消耗抽取序；
+        // 失败信封/降级 → 走下方 Kotlin 原路径（回退臂逐字保留）。
+        if (nativeMerchantAvailable()) {
+            val snapshotCount = stateStore.gameDataSnapshot.merchantRefreshCount
+            val newRefreshCount = foldRefreshCount(snapshotCount)
+            val items = generateMerchantItemsForNative(pools, year, month, newRefreshCount)
+            val reply = tryNativeMerchant(ActionIds.MERCHANT_TRAVELING_REFRESH_TX) {
+                put("year", year)
+                put("newRefreshCount", newRefreshCount)
+                putItems(items)
+            }
+            if (reply != null) return
+        }
 
         val newItems = mutableListOf<MerchantItem>()
 
@@ -98,6 +178,34 @@ class MerchantAndRecruitService @Inject constructor(
                 merchantRefreshCount = newRefreshCount
             )
         }
+    }
+
+    /** 刷新计数折叠（防 Int 溢出，保留保底相位）——native 臂镜像 count 预计算用。 */
+    private fun foldRefreshCount(current: Int): Int =
+        if (current >= 2_000_000_000) (current % MERCHANT_PITY_THRESHOLD) + 1 else current + 1
+
+    /** 池整表生成（native 臂专用，SYSTEM 分区；保底相位由 newRefreshCount 决定）。 */
+    private fun generateMerchantItemsForNative(
+        pools: MerchantItemPools,
+        year: Int,
+        month: Int,
+        newRefreshCount: Int
+    ): List<MerchantItem> {
+        val newItems = mutableListOf<MerchantItem>()
+        if (newRefreshCount % MERCHANT_PITY_THRESHOLD == 0) {
+            addGuaranteedTopRarityItem(newItems, pools, year, month, newRefreshCount)
+        }
+        val remainingCount = TRAVELING_MERCHANT_ITEM_COUNT - newItems.size
+        repeat(remainingCount) {
+            val selectedRarity = selectRarity(year)
+            val selectedItem = selectItemByRarity(pools.poolByRarity, selectedRarity)
+                ?: selectFirstAvailableItem(pools.poolByRarity)
+            if (selectedItem != null) {
+                newItems.add(createMerchantItem(
+                    selectedItem, pools, year, month, random = rng.asKotlinRandom()))
+            }
+        }
+        return mergeMerchantItems(newItems)
     }
 
     fun buildMerchantItemPools(): MerchantItemPools {
@@ -315,7 +423,29 @@ class MerchantAndRecruitService @Inject constructor(
      * @return true=刷新成功, false=无可用刷新次数
      */
     fun refreshTravelingMerchantManual(): Boolean {
+        // native 臂（W4-B/B3，MERCHANT_MANUAL_REFRESH_TX）：校验链 + 扣凭据 +
+        // 池覆写**单事务原子**（C++ 侧以权威 chances 重验——失败信封 → 走回退臂
+        // 重执行校验链并如实返回 false）。
+        val preCheck = stateStore.gameDataSnapshot
+        if (nativeMerchantAvailable() && preCheck.merchantRefreshChances > 0) {
+            val pools = buildMerchantItemPools()
+            if (!pools.poolByRarity.values.all { it.isEmpty() }) {
+                val newRefreshCount = foldRefreshCount(preCheck.merchantRefreshCount)
+                val items = generateMerchantItemsForNative(
+                    pools, preCheck.gameYear, preCheck.gameMonth, newRefreshCount)
+                val reply = tryNativeMerchant(ActionIds.MERCHANT_MANUAL_REFRESH_TX) {
+                    put("year", preCheck.gameYear)
+                    put("newRefreshCount", newRefreshCount)
+                    putItems(items)
+                }
+                if (reply != null) {
+                    DomainLog.i(TAG, "手动刷新商人成功，剩余次数=${stateStore.gameDataSnapshot.merchantRefreshChances}")
+                    return true
+                }
+            }
+        }
         // 原子化检查并扣减：在锁内读取最新 chances，消除 TOCTOU 窗口
+        // （Kotlin 原路径，回退臂逐字保留）
         val decremented = stateStore.updateAndReturn {
             if (gameData.merchantRefreshChances <= 0) return@updateAndReturn false
             gameData = gameData.copy(
@@ -333,9 +463,18 @@ class MerchantAndRecruitService @Inject constructor(
     /**
      * 年度检查：每30年给1次手动刷新次数。
      * 由 [CultivationEventProcessor] 在 yearly events 中调用。
+     *
+     * native 臂（W4-B/B3，MERCHANT_CHANCE_GRANT_TX）：判定链（达上限/未到间隔
+     * 零写入）+ 发放归 C++；失败/降级 → Kotlin 原路径。
      */
     fun giveMerchantRefreshChanceIfDue(year: Int) {
         if (year <= 0) return  // 防御：无效年份跳过
+        val reply = tryNativeMerchant(ActionIds.MERCHANT_CHANCE_GRANT_TX) {
+            put("year", year)
+            put("maxChances", GameConfig.JadePurchase.MERCHANT_REFRESH_MAX)
+            put("intervalYears", MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS)
+        }
+        if (reply != null) return
         stateStore.update {
             val lastGrant = gameData.merchantLastRefreshChanceGrantYear
             if (gameData.merchantRefreshChances >= GameConfig.JadePurchase.MERCHANT_REFRESH_MAX) return@update
@@ -373,6 +512,15 @@ class MerchantAndRecruitService @Inject constructor(
         }
 
         val mergedItems = mergeMerchantItems(newItems)
+
+        // native 臂（W4-B/B3，MERCHANT_ACQUISITION_REFRESH_TX）：落账归 C++。
+        // 该写面（merchantAcquisitionItems / merchantAcquisitionLastRefreshYear）
+        // 为在册**已关闭**字段——本臂消除 AUTHORITATIVE 下的关闭域 Kotlin 写者残留。
+        val reply = tryNativeMerchant(ActionIds.MERCHANT_ACQUISITION_REFRESH_TX) {
+            put("year", year)
+            putItems(mergedItems)
+        }
+        if (reply != null) return
 
         stateStore.update { gameData = gameData.copy(
             merchantAcquisitionItems = mergedItems,

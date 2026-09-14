@@ -1,17 +1,14 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
-import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import org.junit.Assert.*
 import org.junit.Test
@@ -170,11 +167,9 @@ class CaveExplorationProcessorTest {
         return CaveExplorationProcessor(
             stateStore = FakeAtomicStateStore(),
             inventorySystem = mockSmart(InventorySystem::class.java),
-            battleSystem = mockSmart(BattleSystem::class.java),
-            eventProcessor = mockSmart(CultivationEventProcessor::class.java),
-            analyticsTracker = mockSmart(AnalyticsTracker::class.java),
+            // W4-B/B4 死链清理：battleSystem/eventProcessor/analyticsTracker/deathHandler
+            // 参数已随洞府探索链删除
             spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
-            deathHandler = mockSmart(DiscipleDeathHandler::class.java),
             aiSectBattleProcessor = mockSmart(AISectBattleProcessor::class.java)
         )
     }

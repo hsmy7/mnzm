@@ -10,6 +10,8 @@ import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.service.WallClock
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.TimeSource
+import com.xianxia.sect.core.wallet.SpiritStoneLedger
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.Material
@@ -83,6 +85,10 @@ class JadeNativeTxGateTest {
         val mockRng = mock<GameRngManager>()
         whenever(mockRng.getRng(RngPartition.SYSTEM))
             .thenReturn(DeterministicRng.fromSeed(20260808L))
+        // W4-B/B0：兽血模板抽取改走 MAIL 分区（奖励随机生成分区）——
+        // `buildSectLevelRewardCards` 经 `getRng(MAIL)` 抽取，未 stub 会 NPE
+        whenever(mockRng.getRng(RngPartition.MAIL))
+            .thenReturn(DeterministicRng.fromSeed(20260808L))
         engine = GameEngine(
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
@@ -122,9 +128,34 @@ class JadeNativeTxGateTest {
             .thenReturn(DomainResult.Success(Material()))
         whenever(inventorySystem.addStorageBag(any<StorageBag>()))
             .thenReturn(DomainResult.Success(StorageBag()))
+        // 🔴 W4-B/B0 根因修复（handover §2.50 环境缺陷的真根因）：
+        // `withOverflowMailSuppressed` / `withTrackingSource` 是 InventorySystem 的
+        // **成员函数**（非扩展函数）——plain mock 会把整个方法 stub 掉，**传入的
+        // block 从不执行** ⇒ writeSectLevelRewards 的发放体（含领取凭据写入）
+        // 被静默跳过，而 allSucceeded 仍为 true ⇒ "领取成功但凭据未持久化"。
+        // batch-19 当年误判为 FakeAtomicStateStore 事务缓冲缺陷。此处显式把两个
+        // 作用域包装器 stub 为"直通"（执行 block 并返回其结果），使测试环境与
+        // 真实 InventorySystem 的作用域语义一致。
+        whenever(inventorySystem.withOverflowMailSuppressed(any<() -> Unit>())).thenAnswer { inv ->
+            inv.getArgument<() -> Unit>(0).invoke()
+        }
+        whenever(inventorySystem.withTrackingSource(any<String>(), any<() -> Unit>())).thenAnswer { inv ->
+            inv.getArgument<() -> Unit>(1).invoke()
+        }
         whenever(mockInventoryFacade.inventorySystem).thenReturn(inventorySystem)
         whenever(it.inventoryFacade).thenReturn(mockInventoryFacade)
         whenever(it.mailService).thenReturn(mock())
+        // 🔴 W4-B/B0 同族修复：发放体真正执行后，`spiritStoneWallet.add` 是下一站——
+        // economyFacade 未 stub `spiritStoneWallet` 时返回 null ⇒ NPE 被 claimSectLevelReward
+        // 的 catch-all 吞成 Error（当年"凭据未持久化"的另一臂）。此处接入**真实**钱包
+        // （真实账本 + mock 事件总线——add 路径不触达事件发射），使灵石发放语义真实。
+        whenever(it.spiritStoneWallet).thenReturn(
+            SpiritStoneWallet(
+                stateStore = store,
+                ledger = SpiritStoneLedger(),
+                eventBus = mock()
+            )
+        )
     }
 
     /** 播种玩家宗门（level=1 小型 → 升级目标 2 中型）。 */
@@ -232,21 +263,38 @@ class JadeNativeTxGateTest {
     @Test
     fun `claimSectLevelReward falls back identically and records claim once`() = runBlocking {
         seedPlayerSect()
+        val initialStones = store.gameDataSnapshot.spiritStones
 
         val authoritativeResult = NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
             runBlocking { engine.claimSectLevelReward(SectLevel.SMALL) }
         }
         val authoritativeRecords = store.gameDataSnapshot.sectLevelClaimRecords
-        val authoritativeStones = store.gameDataSnapshot.spiritStones
+        val authoritativeStoneDelta = store.gameDataSnapshot.spiritStones - initialStones
 
-        // 复原（清领取记录）后走 flag OFF 臂
+        // 🔴 handover §2.50 环境缺陷复现守卫（W4-B/B0）：首领后凭据必须真实持久化。
+        // 批次历史缺陷：首领后 sectLevelClaimRecords 为空 ⇒ 冷却判定失效（可无限重领），
+        // 当年以"直接播种凭据"绕开。此断言把"凭据未持久化"钉死为红——两条臂比较
+        // 不能是"双双为空"的空洞等价。
+        assertEquals(
+            "首领后领取凭据必须持久化（冷却判定依据）",
+            listOf(SectLevel.SMALL),
+            authoritativeRecords.map { it.level }
+        )
+
+        // 复原（清领取记录）后走 flag OFF 臂；灵石比较按**增量**口径
+        // （第二臂在同一 store 上重领，绝对余额会累计两臂发放）
         store.update { gameData = gameData.copy(sectLevelClaimRecords = emptyList()) }
+        val beforeOff = store.gameDataSnapshot.spiritStones
         val offResult = NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             runBlocking { engine.claimSectLevelReward(SectLevel.SMALL) }
         }
 
-        assertEquals(offResult::class, authoritativeResult::class)
-        assertEquals(store.gameDataSnapshot.spiritStones, authoritativeStones)
+        assertEquals(offResult, authoritativeResult)
+        assertEquals(
+            "两臂灵石发放增量必须一致",
+            authoritativeStoneDelta,
+            store.gameDataSnapshot.spiritStones - beforeOff
+        )
         assertEquals(
             authoritativeRecords.map { it.level },
             store.gameDataSnapshot.sectLevelClaimRecords.map { it.level }

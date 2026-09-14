@@ -333,7 +333,7 @@ class DiffYearSettlementTest {
         val eventProcessor = buildEventProcessor(
             store, core, handler, settlement, gameRng, scopeProvider
         ) { caveProc }
-        caveProc = buildCaveExplorationProcessor(store, wallet, eventProcessor)
+        caveProc = buildCaveExplorationProcessor(store, wallet)
         return CultivationService(
             stateStore = store,
             cultivationCore = core,
@@ -358,16 +358,13 @@ class DiffYearSettlementTest {
      */
     private fun buildCaveExplorationProcessor(
         store: FakeGameStateStore,
-        wallet: SpiritStoneWallet,
-        eventProcessor: CultivationEventProcessor
+        wallet: SpiritStoneWallet
     ): CaveExplorationProcessor = CaveExplorationProcessor(
         stateStore = store,
         inventorySystem = mockSmart(),
-        battleSystem = mockSmart(),
-        eventProcessor = eventProcessor,
-        analyticsTracker = mockSmart(),
+        // W4-B/B4 死链清理：battleSystem/eventProcessor/analyticsTracker/deathHandler
+        // 参数已随洞府探索链删除（eventProcessor 形参保留——本夹具其他构建仍消费）
         spiritStoneWallet = wallet,
-        deathHandler = mockSmart(),
         aiSectBattleProcessor = mockSmart()
     )
 

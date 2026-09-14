@@ -629,6 +629,122 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **顺手更正（文档漂移）**: `CLAUDE.md`「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
 
+## 2.63 W4-B（2026-09-15 起批）：内政与经济运营轴——平台效应回执化
+
+> 本小节为 W4-B **预分配小节**（README §4.6）；批文档见 [batch-W4B-court-economy](parallel-batches-w4/batch-W4B-court-economy.md)。
+> 落点说明：为避免与并行批（§2.62 / §2.64）在同一文本锚点插入，本小节固定追加在 §2.67 之后、§3 之前（**数字序不代表文中位置与时序**）。
+> 覆盖：B0 Jade 环境缺陷专项（无 ActionId）→ B1 w3-03（1760–1765）→ B2 w3-04（1766–1769）→ B3 w3-05（1770–1779）→ B4 w3-12（1840–1849）。
+
+### 2.63.B0 Jade 凭据持久化"环境缺陷"清偿——契约考古推翻 §2.50 归因（2026-09-15）
+
+**批次**: W4-B/B0（无 ActionId） | **产物**: 改 `JadeNativeTxGateTest.kt`（根因修复 + 复现守卫）、新 `FakeAtomicStateStoreContractTest.kt`（契约守卫 4 用例）、改 `GameEngineSectLevelOps.kt`（输入侧随机分区化）
+
+**根因考古（🔴 推翻 §2.50 的"FakeAtomicStateStore 事务缓冲缺陷"归因——fake 无缺陷，生产代码亦无缺陷）**：
+
+- **真根因是测试替身链**。`withOverflowMailSuppressed` / `withTrackingSource` 是 `InventorySystem` 的**成员函数**（`system/InventorySystem.kt:222/:234`，非扩展函数）。`JadeNativeTxGateTest` 以 plain mock 替换 `InventorySystem` 时，Mockito 把成员方法整个 stub ⇒ **传入的 block 从不执行** ⇒ `writeSectLevelRewards` 的发放体（含 `sectLevelClaimRecords` 凭据写入）被静默跳过，而 `allSucceeded` 初值 `true` 未被触碰 ⇒ 返回 `true` ⇒ 上层报 `Success`。"首领后凭据未持久化、冷却判定失效"由此而来。
+- **缺陷级联的第二臂**：作用域包装器改为直通后发放体真正执行，下一站 `economyFacade.spiritStoneWallet` 未 stub ⇒ null ⇒ NPE 被 `claimSectLevelReward` 的 catch-all 吞成 `Error(...)`（当年"两臂同现 Error/空凭据的空洞等价"的另一半）。修复 = 接入**真实** `SpiritStoneWallet`（真实 `SpiritStoneLedger` + mock 事件总线——`add` 路径不触达事件发射）。
+- **为什么 §2.50 误判为 fake 缺陷**：当年证据（凭据为空 + 两臂结果一致）与"事务缓冲不落盘"假说兼容；且 mockSmart 的 SmartNull 在 `when(r)` 三分支全不命中时同样跳过发放体——多条路径症状同形。本次以"把 result 塞进断言消息"的逐站取证取得直接证据（NPE 消息精确指向 wallet 调用位）。
+- **连带修正**：该用例的灵石断言从"绝对余额相等"改为**增量口径**（`after - beforeOff` vs 首臂增量）——旧断言只在"两臂都是零写入"时才成立（空洞等价的又一处）；`offResult::class` 弱比较同步升为密封类全等。
+
+**守卫固化（≥2 用例交付标准达成）**：
+1. **复现用例转绿**：`claimSectLevelReward falls back identically and records claim once` 新增"首领后凭据必须持久化"硬断言（`[SMALL]` 非空——两条臂比较不得是"双双为空"的空洞等价）；
+2. **契约守卫**：`FakeAtomicStateStoreContractTest` 4 用例把 fake 的事务缓冲契约落成可执行断言（顶层提交跨事务可见 / 嵌套事务同缓冲合并提交 / 事务内异常 ⇒ gameData 回滚 / **事务内快照读到事务前已提交值**——"事务内读写必须同源"契约）。任何一条变红 ⇒ fake 语义偏离真实 store ⇒ 须根因修复 fake（禁止特判绕过）。
+
+**输入侧随机分区化（README §12 债务行清偿）**：`GameEngineSectLevelOps.buildSectLevelRewardCards` 的 `bloodMaterials.random()`（Kotlin 全局 `Random.Default`，抽取不可复现）改 `gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()`——与 `MailAttachmentDistributeOps:260` / `RedeemCodeService:151` 同分区（奖励随机生成分区）。⇒ 传入 `SECT_LEVEL_CLAIM_TX` 的兽血模板选取**可复现**，"native 臂零 RNG"表述的输入侧盲区闭合；`JadeNativeTxGateTest` 相应补 `getRng(MAIL)` stub。
+
+**验证**: `:core:engine:testReleaseUnitTest`（`JadeNativeTxGateTest` **9/9** + `FakeAtomicStateStoreContractTest` **4/4**）；`:core:engine:detekt` 绿。
+
+### 2.63.B1 w3-03 巡逻/住所/矿场自愈——UI 直改改走统一 native 面 + 死 API 清除（2026-09-15，ActionId **零新增**）
+
+**批次**: W4-B/B1（w3-03） | **产物**: 改 `SpiritMineViewModel.kt`（4 处 UI 直改消除）、改 `GameEnginePatrolOps.kt`（删 2 死 API）、改 `PatrolTowerViewModel.kt`（删 1 行残留 import）、改 `W4BChannelClosures.kt`（PATROL 证据回写）、`w4b.mjs`（段内留空说明）
+
+**实施口径（与批文档的偏差声明）**：批文档 B1 预估"经 patrol_tx.h 新增事务"；实测 **batch-12 已把十事务全部就位**（`patrol_tx.h` 事务 7 `updatePatrolConfigsTx` / 事务 8 `updateSpiritMineSlotsTx` / 事务 9 `validateAndFixSpiritMineDataTx`，native 臂 `PATROL_UPDATE_SPIRIT_MINE_SLOTS` / `PATROL_FIX_SPIRIT_MINE` / `PATROL_UPDATE_CONFIG` 全部在位）⇒ **本子批零新增 ActionId、零 C++ 改动**，工作 = 把残余 UI 直改调用方接到既有统一面上（README §12.1 YAGNI 口径：无消费者的新抽象不造）。预分配段 1760–1765 **整段留空**（禁止跨批复用纪律不变）。
+
+**UI 直改消除（4 处）**：
+1. `removeSpiritMineDeacon`（原 `:89`）：`updateGameData { copy(elderSlots = ...) }` + 手工 release/IDLE → `removeDirectDisciple(SLOT_TYPE_SPIRIT_MINE_DEACON, slotIndex)`（native 臂 `DISCIPLE_TX_UNASSIGN_SLOT` family=elderDirect + 回退臂；gate 释放与状态同步由统一路径完成。语义细化：状态由"无条件置 IDLE"变为"按在册槽位派生"——弟子兼任他槽时旧写法会把活岗打成 IDLE，统一路径修复了该边角）；
+2. `removeDiscipleFromSpiritMineSlot`（原 `:147`）/ `swapSpiritMineDisciple`（原 `:183`）/ `assignDisciplesToEmptyMineSlotsInternal`（原 `:252`）：`updateGameData { copy(spiritMineSlots = ...) }` → `updateSpiritMineSlots(slots)`（同步写语义保持——原 suspend 写与现同步写在单线程引擎调度下等价）。
+
+**死 API 清除（双证后删）**：`GameEnginePatrolOps.updatePatrolConfig`（单参版，零生产调用方；`PatrolTowerViewModel.kt:161` 是同名不同函数——其实为 VM 自身两参方法，且该文件 `:10` 的 engine 扩展 import 为**残留死 import**，一并删除）与 `GameEnginePatrolOps.updatePatrolSlots`（零调用方）。⇒ 在册关闭项 `PATROL/patrolConfig` 自此**无任何生产写者**（关闭一致性恢复）；编译全绿证明无隐式调用方。
+
+**关闭判定（诚实口径）**：`spiritMineSlots` **保持 in-flight（不关闭）**——跨批残余写者实测在位：`CombatService.kt:106`（W4-A/W4-C 域）、`BuildingFacadeImpl同步Ops.kt:65`（W4-A 域）、`GameEngineSelfHealOps.kt:161` / `GameEngineServiceOps.kt:198`（本批 B4 面）、LOAD_BOOT 族。PATROL 域级结论留 B4 后重评，证据已回写 `W4BChannelClosures.kt`。
+
+**验证**: `:core:engine` + `:feature:game` + `:app` 主源/测试源编译绿；`--tests "*Patrol*" --tests "*SpiritMine*"` 全绿；三模块 detekt 绿；`node scripts/gen-action-ids.mjs` 输出 `169 actions (maxId=1734)` 零漂移。
+
+### 2.63.B2 w3-04 玉符运行时——墙钟读数参数化 + GameData 四字段稳态写下沉（2026-09-15，ActionId **1766–1769**）
+
+**批次**: W4-B/B2（w3-04） | **产物**: 改 `jade_tx.h`（新增事务 5–8 + W4-B 勘误标注）、填 `dispatch_w4b.cpp` 端口、改 `JadeSymbolService.kt`（native 臂 + `Provider<GameEngineCore>` 惰性边）、新 `jade_runtime_tx_test.cpp`（**18 用例**）、新 `JadeRuntimeNativeTxGateTest.kt`（**4 用例**）、`w4b.mjs` + 两生成物（**169 → 173 动作，maxId=1769**）
+
+**事务面（与 Kotlin 逐字对齐；零 RNG——签名级不收 RngManager）**：
+
+| ActionId | 事务 | 承接的 Kotlin 写者 |
+|---|---|---|
+| 1766 `JADE_RUNTIME_SETTLE_TX` | `settleJadeGrantsTx`：整除发放/余量保留/headroom 钳制/拿满冻结；grants≤0 零写入回声 | `JadeSymbolService.settleGrants`（:338 写段） |
+| 1767 `JADE_RUNTIME_DAY_RESET_TX` | `jadeDayResetTx`：首锚只锚定/真跨天归零 today+accum/同日与回拨零写入/**同 todayMidnight 重复调用幂等** | `maybeDayReset`（:374/:383 写段） |
+| 1768 `JADE_RUNTIME_CHECKPOINT_TX` | `jadeCheckpointTx`：四字段绝对值覆盖写（拿满冻结复用 accum=0 等价形） | `checkpointNow`（:220）+ `onLoopTick` 冻结臂（:192） |
+| 1769 `JADE_RUNTIME_GRANT_AD_TX` | `grantJadeFromAdTx`：jadeSymbols = totalBefore + amount（C++ 承做加法，回执权威）；不动 todayCount | `grantFromAd`（:279） |
+
+**平台效应回执化（批文档 §2.2 四步模板落地）**：
+- **读数留宿主**：单调差分/10s 裁剪/1s 墙钟节流/**Calendar 本地午夜计算**仍在 Kotlin 运行时（volatile 域）；C++ 不取时、不复刻时区规则（`rules/cpp-priority.md` §3.3）。午夜锚点 `todayMidnightMs` 作为参数推入事务 1767；
+- **回执回写运行时**：native 臂成功后 Kotlin volatile（totalCount/todayCount/accumMs/dayAnchorMs）以回执重锚——与 batch-19 购买事务 `syncBalanceFromSnapshot` 重锚同方向，绝对值覆盖写模型（CLAUDE.md 13.3）不变式两端同守；
+- **幂等红线测试**：事务 1767 以同一 `todayMidnightMs` 重复调用 ⇒ 第二次 `changed=false` 零写入；墙钟回退（midnight 更小）零写入（GTest `DayResetSameCallWithinTickIsIdempotent` / `DayResetSameDayAndRollbackAreZeroWrite`）。
+
+**Dagger 破环（批文档 §5.4 第 8 条）**：`JadeSymbolService` 新增 `gameEngineCoreProvider: Provider<GameEngineCore>? = null`——GameEngineCore 构造链持有本服务，Provider 为惰性边（与 `DiplomacyService.gameEngineCoreProvider` 同构）；null（既有测试直构）⇒ 恒走回退臂，**零破坏既有用例**（`JadeSymbolServiceTest` 29/29 原样绿）。
+
+**途中修正（事务语义取证）**：1769 首版以"发放后 total"为参 ⇒ C++ 再加一次 amount 的双加缺陷被 GTest `GrantAdWritesAbsoluteTotalNotToday` 首跑抓出（16 = 13+3）⇒ 改为 `totalBefore`（发放前运行时绝对值），C++ 承做加法、回执权威、运行时跟随重锚——与"校验+扣减+抽取原子在 C++"口径一致。
+
+**玉符消耗唯一入口（不动项登记）**：`JadeSymbolService.deduct`（事务内 jadeSymbols 写）保留——洗炼/灵根改/突破加成等消耗面的操作事务属 W4-A 域；待其随宿主操作下沉后 `deduct` 降级为回退臂-only，四字段届时方可关闭（`W4BChannelClosures.kt` 注释已更新为该判定）。`JadeSymbolConsumptionGuardTest` 3/3 绿（扫描面零新增写者）。
+
+**验证**: 桌面 C++ 全量 **1344/1344**（基线 1326 + 本批 18，含单进程直跑复核）；`:core:engine` Jade 族 64 用例全绿（含新 GateTest 4/4 + 既有 `JadeSymbolServiceTest` 29/29 证明回退臂零漂移）；`:core:engine:detekt` 绿；生成器 `173 actions (maxId=1769)` + 生成物同组提交零漂移。
+
+
+### 2.63.B3 w3-05 行商刷新族下沉 + 邮件附件登记不下沉（2026-09-15，ActionId **1770–1773**）
+
+**批次**: W4-B/B3（w3-05） | **产物**: 新 `merchant_tx.h`（四事务）、填 `dispatch_w4b.cpp` 行商分派区、改 `MerchantAndRecruitService.kt`（native 臂 + `Provider<GameEngineCore>` 惰性边 + **通道预检**）、新 `merchant_tx_test.cpp`（**13 用例**）、新 `MerchantNativeTxGateTest.kt`（**5 用例**）、`w4b.mjs` + 两生成物（**173 → 177 动作，maxId=1773**）、`W4BChannelClosures.kt`（INVENTORY 四字段转入关闭）
+
+**事务面**：
+
+| ActionId | 事务 | 承接的 Kotlin 写者 |
+|---|---|---|
+| 1770 `MERCHANT_CHANCE_GRANT_TX` | 年度凭据发放（达上限/未到 30 年间隔零写入） | `giveMerchantRefreshChanceIfDue`（:344 写段） |
+| 1771 `MERCHANT_ACQUISITION_REFRESH_TX` | 收购池整表覆写 + 年份 | `refreshMerchantAcquisition`（:377 写段；该写面为**在册已关闭字段**——本事务消除 AUTHORITATIVE 下关闭域 Kotlin 写者残留） |
+| 1772 `MERCHANT_TRAVELING_REFRESH_TX` | 旅行商人池 + 年份 + 刷新计数（保底相位 Kotlin 以镜像 count 预计算） | `refreshTravelingMerchant`（:95 写段） |
+| 1773 `MERCHANT_MANUAL_REFRESH_TX` | chances 校验先行 + 扣凭据 + 池覆写**单事务原子** | `refreshTravelingMerchantManual`（:319 写段；Kotlin 两段式 → C++ 单事务，可观测结局一致） |
+
+**池生成留 Kotlin（落账/生成切分口径）**：buildMerchantItemPools 40 件池选取/保底/价格波动（SYSTEM 分区）留 Kotlin——C++ data 层无物品生成器（§2.50 同证）；整表经 MerchantItem json_codec 键（id/name/type/itemId/rarity/price/quantity/description/obtainedYear/obtainedMonth/grade）序列化传入。四事务零 RNG（签名级不收 RngManager）。
+
+**🔴 通道预检（途中修正，RNG 红线纵深）**：native 臂首版"先生成池再调 native"，JVM 降级场景会先消耗一轮 SYSTEM 分区抽取再由回退臂重生成 ⇒ 抽取序相对 flag OFF 臂漂移（被 `MerchantNativeTxGateTest` 池规模断言首跑抓出：34≠33）⇒ 增加 `nativeMerchantAvailable()` 预检（flag/Provider/镜像/**GameCoreBridge.isLoaded** 四级）**先于池生成**——降级路径不消耗抽取序，两臂抽取序逐位一致。
+
+**🔴 邮件附件领取登记不下沉（w3-05 余项，与 RedeemCodeService 同先例）**：`MailAttachmentDistributeOps` 的领取链 = 12 类附件分发表，其中 equipment/manual/pill/material/herb/seed 7 类含 MAIL 分区**随机生成**（itemId 未命中模板时 `generateRandom`——C++ data 层无生成器，抽取序不可逐位复刻 = RNG 红线）；且「发放体 + mailRecords 凭据」**同生共死**（任一 Partial/Failure 整体回滚）——拆"账本入 C++ + 发放留 Kotlin"即破坏凭据类原子性（失败零写入红线）。"预生成全部附件实体再入 C++"需在 Kotlin 复刻整张分发表为解析层（双维护面 ~150 行）。⇒ `mailRecords` 保持 in-flight，触发条件 = C++ 侧具备物品随机生成器（模板 codegen 下沉）后重议（与 §12 兑换码债项同轨）。
+
+**关闭动作（w3 §2 第 5 步）**：`travelingMerchantItems` / `merchantLastRefreshYear` / `merchantRefreshCount` / `merchantRefreshChances` 四字段由 retained 转入 closedUnits（写者已归 C++，Kotlin 残余回退臂-only——与 merchantAcquisitionItems 既有先例同口径）；`ReverseChannelPolicyGuardTest` 6 用例绿。
+
+**连带修正**：B1 提交的 PATROL 证据条目缺 `file:line` 形（`SpiritMineViewModel.kt` 后无 `:89`），`ReverseChannelPolicyGuardTest.verdict evidence matches status` 捕获 ⇒ 本批补齐（B1 时未跑 :core:domain 测试套的流程缺口，已在批内闭环）。
+
+**验证**: 桌面 C++ 全量 **1357/1357**（基线 1344 + 本批 13，含单进程直跑复核）；`:core:engine` Merchant 族全绿（新 GateTest 5/5 + 既有 `MerchantAndRecruitServiceTest` 回归）；`:core:domain` **1758/1758**（守卫套件含）；`:core:engine:detekt` + `:core:domain:detekt` 绿；生成器 `177 actions (maxId=1773)` 零漂移。
+
+
+### 2.63.B4 w3-12 外交/自愈/运行态——实裁 1843 + 洞府死链删除 + 六项逐点判定（2026-09-15，ActionId **1843**）
+
+**批次**: W4-B/B4（w3-12） | **产物**: 新 `diplomacy_selfheal_tx.h`、填 `dispatch_w4b.cpp`（段内未实裁号不认领语义）、改 `GameEngineDiplomacyOps.kt`（native 臂）、新 `diplomacy_selfheal_tx_test.cpp`（**4 用例**）、新 `GameEngineDiplomacyNativeGateTest.kt`（1 用例）、`w4b.mjs` + 两生成物（**177 → 178 动作，maxId=1843**）、**洞府探索死链删除**（`CaveExplorationProcessor.kt` 570→118 行 + 删除 `CaveExplorationRewardOps.kt` 全文件 + `CultivationService` 死委托）
+
+**实裁事务（1843 `DIPLOMACY_WARNING_STAGE_TX`）**：`markWarningStageShownTx`——shownWarningStageIds 参与存档 ⇒ 按 **① 保守处置**（批文档盲区 #2 判定项闭环）；List 追加**不去重**与回退臂逐位一致；空 key 校验失败零写入；零 RNG（签名级）。
+
+**洞府死链删除（双证后删）**：入口 `CultivationService.processCaveLifecycle` 生产 0 调用 + 主源 `CaveExplorationTeam(` 构造 0 处 ⇒ 删除**独占调用面 17 成员**（processCaveLifecycle / executeCaveExploration / executeBattleForTeam / findNearbySects / resetCaveExplorationTeamMembersStatus / resetExpiredCaveTeams / processSingleTeamCompletion / handleExplorationErrors / assembleTeamMembers / handleEmptyTeam / processBattleCasualties / awardVictorySoulPower / buildAndStoreBattleLog / trackBattleAnalytics / cleanupAfterCaveExploration / CaveCompletionState / BATTLE_LOG_DISPLAY_LIMIT，可达性分析逐成员核实"仅死链可达"）+ 独占扩展文件 `CaveExplorationRewardOps.kt`（grantBattleRewards 唯一调用方在死链内）+ 构造面收敛（battleSystem/eventProcessor/analyticsTracker/deathHandler 仅被死链消费，随链移除，两处测试构造同步收窄）。**同族活路保留**（processAISectOperations / processSectDisciplesAging / processSectDisciplesYearlyRecruitment / currentAiThermalBatchSize——禁删清单逐条核对）。回归网 = 全量编译 + 引擎全量测试绿。
+
+**登记不下沉（逐点判定成文，详见 `diplomacy_selfheal_tx.h` 头注）**：
+
+| # | 写者 | 判定 | 归属 |
+|---|---|---|---|
+| 1 | VassalService 年贡/附属年贡（:99/:310） | 🔴 实测 C++ **逻辑已在位**（year_settlement.h processYearlyTribute/processYearlyVassalTribute，随 AUTHORITATIVE 年结管线执行）⇒ 再开 ActionId 臂即**双重扣贡**；调用点在冻结宿主（w3-11 面） | **W4-D/D2**（批文档 §8 技术债首行同结论） |
+| 2 | VassalService 月度脱离（:324） | 脱离概率链（战力/好感/近 3 年战绩 + SYSTEM 抽取）跨臂抽取序对拍风险 | **W4-D/D2**（同上） |
+| 3 | GameEngineServiceOps :77 内存裁剪 | ③类平台决策面；裁剪清单语义与 DiscipleSlotCleanup/死亡处理交叉 | **W4-D** |
+| 4 | SaveFacadeImpl :56 存档前自愈 | WorldMapGenerator 世界生成面，与 W4-C WS-5b「生成即数据」同域 | **W4-D 评估** |
+| 5 | GameEngineServiceOps :40 修炼检查点重锚 | 写 DiscipleTables 检查点列（弟子域核心表，语义归 W4-A w3-01）；C++ disciple 模型无检查点列 ⇒ 需 models.h 扩列（W4-C 租约） | **W4-D** |
+| 6 | DiplomacyService 结盟/散盟（:145/:261） | **batch-09 native 臂已在位**（DIPLOMACY_TX=1500 + diplomacy_tx.h 双事务）⇒ 本批零改动（核实结论，非新增工作） | 已闭环 |
+
+**验证**: 桌面 C++ 全量 **1361/1361**（基线 1326 + B2 18 + B3 13 + B4 4，含单进程直跑复核）；`:core:domain` **1758/1758**（守卫套件含）；三模块 detekt 绿；生成器 `178 actions (maxId=1843)` 零漂移；引擎全量 **3295/3295**（基线 3281 + 本波 W4-B 新增 14；含 47 个 Diff* 对拍类，`-Dgamecore.jni.path` 指向本工作树 desktop-jni，`--rerun-tasks` 防假绿）。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 

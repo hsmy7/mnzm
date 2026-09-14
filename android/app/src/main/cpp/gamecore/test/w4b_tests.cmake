@@ -12,5 +12,10 @@
 # 见 docs/parallel-batches-w4/README.md §3.1 项 4。
 
 set(W4B_TEST_SOURCES
-    # 骨架阶段为空（W4-00 建立；W4-B 在此追加本批测试文件）
+    # B2（w3-04 玉符运行时，1766–1769）
+    jade_runtime_tx_test.cpp
+    # B3（w3-05 行商刷新族，1770–1773）
+    merchant_tx_test.cpp
+    # B4（w3-12 实裁面：1843；登记项见 diplomacy_selfheal_tx.h 头注）
+    diplomacy_selfheal_tx_test.cpp
 )
