@@ -489,7 +489,32 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **⚠️ 途中发现（需拍板，本批未处置）**: 仓库存在 **3 个悬空 `archive/*` tag**——`archive/batch-05-dirty-ledger` / `archive/batch-06-sink-building` / `archive/batch-09-sink-diplomacy`，其 object 已不在对象库中（`git fsck` 报 `invalid sha1 pointer 62655722… / a9c905f3… / 1c3b58d8…`）。**影响**：`git bundle create --all` 直接 `fatal: bad object` ⇒ §3.1 计划的"备份纪律"若按 `--all` 字面执行会失效；本批已改为**只传可解析 ref**（实测可解析 ref 仅 `refs/heads/main` + `refs/tags/w4-base`，bundle 346MB、`git bundle verify` 通过）。这 3 个 tag 是 §2.40 记录的"`.git` 对象库两次被破坏"的残留，**已无法恢复** ⇒ 建议删除该死 tag（`git tag -d`），但**属历史元数据，本批不擅自删除**，待用户拍板。
 
-**基线打点**: `git tag w4-base` → `d4cad20`；`git bundle` 落盘 `C:\Mnzm\backups\XianxiaSectNative-w4base-<时间戳>.bundle`（346MB，`verify` = "records a complete history / is okay"）。三个并行批次即从该点派生工作树。**
+**基线打点**: `git tag w4-base` → `d4cad20`；`git bundle` 落盘 `C:\Mnzm\backups\XianxiaSectNative-w4base-<时间戳>.bundle`（346MB，`verify` = "records a complete history / is okay"）。三个并行批次即从该点派生工作树。
+
+## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
+
+批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）
+
+**症状（整理前实测）**: `git fsck` 报 **6 条 error + 2 条 warning**——3 个悬空 tag（`archive/batch-05-dirty-ledger` / `batch-06-sink-building` / `batch-09-sink-diplomacy`，object 已丢失）、`HEAD` 的 2 条垃圾 reflog 条目（指向不存在的 `c882c3ab…`）、1 个过期 commit-graph 引用丢失提交；另有 2 条 warning：**孤儿 pack 索引**（`pack-ca6fbef3….idx` 无对应 `.pack`）与**截断的临时 pack**（`tmp_pack_1XjjdM`，10MB，`git index-pack` 报 `fatal: early EOF`）。`git count-objects -vH` 显示 **4590 个松散对象 / 377MB，`in-pack: 0`、`packs: 0`** ——**全部历史只有松散对象、一个 pack 都没有**，外加 10.07MB 垃圾。⇒ 一次被中断的 `git repack` 残留 + 两次对象库破坏（§2.40）的叠加态。
+
+**这 3 个死 tag 是什么（根因追到底）**: 来自 w2 协作协议（`parallel-batches-w2/README.md:232`、`findings.md:428`）——"收口后立即清理分支；**非祖先提交（内容已并入但提交链不在主支）必须先打 `archive/*` tag 再删**"，本次即 `batch/05·06·09`（batch-05 = §2.34 dirty 记账摘除；batch-06 = §2.35 建筑事务下沉；batch-09 = §2.38 外交族下沉）。**tag 是那三条提交链在全宇宙唯一的落脚点**，对象在 §2.40 的破坏中丢失后，tag 就成了悬空引用。
+
+**🔴 可恢复性结论 = 不可恢复（逐条排查，非推测）**: ① 不在松散对象里、不在任何 pack 里（`cat-file` + `verify-pack` 双证）；② 从截断临时 pack 中用 `git unpack-objects` 解出 892 个对象，**不含**这 3 个；③ 同级目录其它 clone/备份（`XianxiaSectNative-b11`、`-w2-14`、`git-repo-backup/…20260905`）都不是可用对象库；④ 远端 `origin`（github.com/hsmy7/mnzm）可连通但**零 tag**，`git fetch <sha>` 取不回。**丢失的只是那三条分支的逐提交历史（commit 对象 / message / 逐笔 diff 粒度）——代码内容全部在 `main` 里（已独立核实：batch-06 `building_tx.h` + `building_tx_test.cpp` + ActionId 1450–1454 + `BuildingNativeTx.kt` 在位；batch-09 `diplomacy_tx.h` + `diplomacy_tx_test.cpp` + ActionId 1500–1502 在位；batch-05 的 `markDirty/markAllDirty/clearDirty` 确已摘除）。**
+
+**执行（七步，写操作前先证明可恢复）**:
+1. **可恢复性实证**（先于任何写操作）：`git bundle create` 出新还原点 → **`git clone -b main <bundle>` 到临时目录** → 校验 `HEAD` 相同（`6fed0e8`）、`HEAD tree` 相同（`3b8207c8`）、追踪文件数相同（3484 = 3484）、**克隆内 `fsck` 零错误**。
+2. 备份待清理项到 `C:\Mnzm\backups\git-junk-<时间戳>\`（`logs-HEAD.bak` + `orphan.idx` + `truncated-tmp.pack` + `commit-graph.bak`）。
+3. `git tag -d` 删除 3 个死 tag（确认其 object 不可恢复后）。
+4. **外科式**清 reflog：只删 `.git/logs/HEAD` 中 old/new 不可解析的 2 行（30 → 28 行；删后首行的 `old` 恰为全 0，reflog 语义合法）——**不用 `reflog expire --all`**，避免连带丢弃有效历史。
+5. 删除孤儿 `.idx`、截断 `tmp_pack`、过期 `commit-graph`（均为派生缓存/垃圾，可重建）。
+6. `git repack -a -d`（**刻意不用 `-A`、不跑 `gc`**）：把所有**可达**对象收进单一 pack，同时**不卷入也不删除 6 个悬空对象**——`-A`/`git prune` 会永久删掉它们，而本仓已被毁两次，宁可多留。
+7. 逐项复验（见下）。
+
+**整理后实测**: `git fsck` **0 error / 0 warning**（原 6 + 2）；`count-objects -vH`：**松散 4590 → 70**（336KB，即保留的悬空对象）、**in-pack 4520**、**packs 1**、`size-pack 346.55 MiB`、**`garbage: 0`**（原 10.07MB）；对象总数 **4520 + 70 = 4590 不变**（无丢失）；`HEAD` / `HEAD tree` / 提交数 25 / 追踪文件数 3484 **逐项与整理前一致**；工作区 `git status` 干净；**`git bundle create --all` 从 `fatal: bad object` 变为可用（exit 0）**——原始动机已修复。
+
+**红线**: **写操作前必须证明还原点可恢复**（第 1 步不是形式主义——本仓对象库已被毁两次）；**不 prune 悬空对象**；**不用 `reflog expire --all`**（会连带丢弃有效 reflog）；rm 类操作一律显式路径、先备份；本批**零源码改动**，故未重跑全量门禁，改以"`HEAD tree` 位级不变 + 生成物零漂移 + `DispatchGuard*` 4/4 绿"作等价证据。
+
+**登记**: ① 保留的 6 个悬空对象可追溯：`dangling commit 2f0a1e0b / 4414c471 / 27d9f184`（2f0a1e0 曾作 `lastTickMs` 相关调试提交）+ 3 个 dangling tree——**均不 prune**，留待将来需要时用 `git show` 翻查；② **远端 `origin` 长期未同步**（远端 `main` = `ad6ff6c9`，与本地 `6fed0e8` 属不同血缘；远端另有 `master` = `ddb9395f`，零 tag）——本仓与远端的关系需用户确认识别（是否仍以该仓为发布源）；③ 建议把"`git bundle` 只传可解析 ref"的写法固化进 `scripts/w4/`（本批已实测 `--all` 现在可用，但脚本保留兼容写法更稳）。
 
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 

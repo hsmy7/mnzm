@@ -197,7 +197,7 @@
 | 7 | **worktree 建立/清理脚本** | 新增 `scripts/w4/setup-worktrees.ps1`（幂等：三分支 + 三工作树 + `core.quotepath false` + 复制 `android/local.properties`）与 `scripts/w4/remove-worktrees.ps1` | 🔴 清理脚本**先探测 reparse point**，junction/符号链接一律 `cmd /c rmdir`——**禁止 `Remove-Item -Recurse`** | ✅ **已完成** |
 | 8 | **协议面租约表** | 新增 `docs/parallel-batches-w4/protocol-lease.md` | 登记 `models.h` / `json_codec.cpp` / `game_core.{h,cpp}` / `GameData.kt` / `GameDatabase.kt` / `GameEngine.kt` 的默认所有者与租约顺序（§5.4） | ✅ **已完成** |
 | 9 | **文档小节预分配** | 本 README §4.6 + handover §2.61/§2.62/§2.63/§2.64/§2.65 | 三批只在**自己的**预分配小节内追加；§3 表 / §4.1 / §5 / §6 / `ui-read-surface` / 双 CHANGELOG = **收口人独占** | ✅ **已完成**（§2.61 已落） |
-| 10 | **基线打点与备份** | `git tag w4-base` + `git bundle create`（落盘到仓库外 `C:\Mnzm\backups\`） | 🔴 本仓 `.git` 对象库**曾两次被破坏且历史不可恢复** ⇒ 每批每个里程碑必须 tag + bundle | ✅ **已完成**（`w4-base` → `d4cad20`；bundle 346MB，`git bundle verify` = "records a complete history / is okay"）。⚠️ **`--all` 不可用**：仓库有 **3 个悬空 `archive/*` tag**（object 已丢失），`git bundle create --all` 会 `fatal: bad object` ⇒ 备份脚本须**只传可解析 ref**（见 §14 盲点 #19） |
+| 10 | **基线打点与备份** | `git tag w4-base` + `git bundle create`（落盘到仓库外 `C:\Mnzm\backups\`） | 🔴 本仓 `.git` 对象库**曾两次被破坏且历史不可恢复** ⇒ 每批每个里程碑必须 tag + bundle | ✅ **已完成**（`w4-base` → `d4cad20`；bundle 346MB，`verify` = "records a complete history / is okay"）。⚠️ **连带发现并已根治**：仓库原处**半打包损坏态**（3 个悬空 `archive/*` tag / 孤儿 pack 索引 / 截断临时 pack / 坏 reflog / 4590 个松散对象且 `packs: 0`）⇒ 已由 **[§2.66 仓库对象库整理批](../../cpp-migration-handover-m0.md)** 清偿：`git fsck` **6 error + 2 warning → 0 + 0**，松散对象 **4590 → 70**（保留悬空对象）、`in-pack 4520`、`packs 1`、`garbage 0`，且 **`git bundle create --all` 恢复可用** |
 | 11 | **分派覆盖守卫测试** | 生成器在 `action_ids.h` 追加升序枚举数组 `action::kAllActionIds` + `kAllActionIdsCount`；新增 `test/dispatch_guard_test.cpp`（4 用例）：清单非空 / 升序且唯一 / **每个已注册动作号分派可达且落到本域 handler** / 未注册号仍返回 `NOT_IMPLEMENTED` | 首跑即抓出 **2 处真实死导出**（见下）——正是"区间写法吞动作号"缺陷类 | ✅ **已完成（首跑抓出 2 处死导出并根因修复）** |
 
 > **项 11 首跑战绩（本前置批的直接产出）**：`INV_ADD_EQUIPMENT_INSTANCE(1011)` 与
@@ -298,6 +298,7 @@ cd app/src/main/cpp/gamecore/build/desktop-test && cmake --build . && ./game-cor
 | W4-B | §2.63 |
 | W4-C | §2.64 |
 | W4-D | §2.65 |
+| §2.66（仓库对象库整理批） | 已落（基础设施批，非代码批） |
 
 > 各批**只在自己小节内追加**；`§3 验证表` / `§4.1 遗留待办` / `§5 下轮建议` / `§6 主轴剩余` 由收口人统一更新（避免三批同改一节）。
 
@@ -620,7 +621,7 @@ pwsh -File ../scripts/build-desktop-jni.ps1
 | 16 | **`RngEngineIsolationGuardTest` 的白名单是 `Map<String,String>`，没有计数断言** | "白名单只缩不增"**只是注释纪律**——手工加一条豁免不会被机器拦下 | ✅ 已回写 §12 债务表（偿还条件 = 白名单条目数落成显式计数断言，与 `detekt-baseline-count.guard` 同款题型） |
 | 17 | **`ReverseChannelPolicy` 本体将被 w3-13 删除，而 WS-5b 必须往里加分类条目** | 新增字段的分类是**临时性**的；若 WS-5b 依赖"反向回导承载地形"会在 D4 后失效 | ✅ 已回写 W4-C §2.3.3 R7：地形段与 `mapGenVersion` 登记为 **CLOSED**（`LOAD_BOOT` 类写者，随 `importToNative` 全量导入吸收），**不依赖反向通道** |
 | 18 | **`SaveFacadeImpl.kt`（真正的存档快照实现，122L）归 W4-B，而 WS-5b 需要"存档携带地形段"** | 跨批冲突隐患 | ✅ 已回写 W4-C §2.3.3 R6：走"`GameData` 新字段"路线则 `SaveFacadeImpl` **无需改动**（字段经 `stateStore.gameDataSnapshot` 自动携带）；确需改 ⇒ **停下找收口人**，不得自行修改另一批的文件 |
-| 19 | **仓库有 3 个悬空 `archive/*` tag**（`batch-05-dirty-ledger` / `batch-06-sink-building` / `batch-09-sink-diplomacy`，object 已丢失）——`git fsck` 报 `invalid sha1 pointer` | ① `git bundle create --all` **直接失败**（`fatal: bad object`）⇒ 计划里的"备份纪律"按字面执行会失效；② 其余正常操作不受影响 | ✅ **已回写 §3.1 项 10**：备份脚本**只传可解析 ref**（本次实测可解析 ref 仅 `main` + `w4-base`）。这 3 个 tag 是 handover §2.40 记录的"`.git` 对象库两次被破坏"的残留。**处置建议（需用户拍板）**：已无法恢复 → 删除这 3 个死 tag（`git tag -d`），或保留但知悉其不可用；**本方案不擅自删除历史元数据** |
+| 19 | **仓库处于半打包损坏态**（3 个悬空 `archive/*` tag + 孤儿 pack 索引 + 截断临时 pack + 坏 reflog；4590 个松散对象、`packs: 0`、10MB 垃圾） | ① `git bundle create --all` **直接失败**；② 仓库大且慢；③ 是第三次数据事故的信号 | ✅ **已根治（§2.66 仓库对象库整理批）**：先做**可恢复性实证**（bundle → `git clone` 到临时目录 → HEAD/tree/追踪文件数三项一致 + 克隆内 fsck 零错误），再删死 tag / 外科式清 2 行坏 reflog（**不用 `reflog expire --all`**）/ 删孤儿 idx 与截断 pack / 过期 commit-graph，最后 `git repack -a -d`（**刻意不用 `-A`、不跑 `gc`** ⇒ 6 个悬空对象**不 prune**）。结果：`fsck` **6 error + 2 warning → 0 + 0**、松散 **4590 → 70**、`in-pack 4520`、`packs 1`、`garbage 0`、对象总数 **4590 不变**、HEAD/tree/文件数**逐项一致**、`--all` **恢复可用**。详见 handover §2.66 |
 
 ### 14.1 对用户原始指令的补充与完善（明确超出原指令的部分）
 

@@ -1,6 +1,19 @@
 ## [4.01.14] - 2026-09-08
 
 
+### 仓库基建批：3 个死 tag 清除 + `.git` 半打包损坏态根治（§2.66）
+
+> 触发：W4-00 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态**。**零源码改动、零玩家可见变更**（游戏内 `changelog_entries.json` **未追加**）。交接记录见 handover §2.66。
+
+- **症状（整理前实测）**：`git fsck` **6 条 error + 2 条 warning**——3 个悬空 `archive/*` tag（object 已丢失）、`HEAD` 的 2 条垃圾 reflog 条目、1 个过期 commit-graph 引用；另 2 条 warning 为**孤儿 pack 索引**（有 `.idx` 无 `.pack`）与**截断的临时 pack**（10MB，`index-pack` 报 `fatal: early EOF`）。`count-objects -vH` 显示 **4590 个松散对象 / 377MB，`in-pack: 0`、`packs: 0`** ——**全部历史只有松散对象、一个 pack 都没有**，另计 10.07MB 垃圾。成因 = 一次被中断的 `git repack` 残留 + 此前的两次对象库破坏（§2.40）叠加。
+- **这 3 个死 tag 的来历（追到根因）**：出自 w2 协作协议"收口后删分支前，**非祖先提交（内容已并入但提交链不在主支）必须先打 `archive/*` tag**"——本次即 `batch/05`（§2.34 dirty 记账摘除）、`batch/06`（§2.35 建筑事务下沉）、`batch/09`（§2.38 外交族下沉）。**tag 曾是那三条提交链唯一的落脚点**；对象在 §2.40 破坏中丢失后，tag 沦为悬空引用。
+- **🔴 可恢复性 = 不可恢复（逐条排查）**：不在松散对象里、不在任何 pack 里（`cat-file` + `verify-pack` 双证）｜从截断临时 pack 解出 892 个对象，**不含**这 3 个｜同级其它 clone/备份目录均非可用对象库｜远端 `origin` 可连通但**零 tag**，`fetch <sha>` 取不回。**丢失的只是那三条分支的逐提交历史（commit / message / 逐笔 diff 粒度）——代码内容全部在 `main` 里**（已独立核实：`building_tx.h` + 建筑 GTest + ActionId 1450–1454 + `BuildingNativeTx.kt` 在位；`diplomacy_tx.h` + 外交 GTest + ActionId 1500–1502 在位；`markDirty/markAllDirty/clearDirty` 确已摘除）。
+- **执行（先证明可恢复，再动手）**：① 新建 bundle → **`git clone -b main <bundle>` 到临时目录** → 校验 `HEAD` 相同（`6fed0e8`）、`HEAD tree` 相同（`3b8207c8`）、追踪文件数相同（3484 = 3484）、克隆内 `fsck` 零错误；② 备份待清理项到 `C:\Mnzm\backups\git-junk-<时间戳>\`；③ `git tag -d` 删 3 个死 tag；④ **外科式**清 reflog——只删 `.git/logs/HEAD` 中 old/new 不可解析的 2 行（30 → 28 行），**不用 `reflog expire --all`**（会连带丢弃有效历史）；⑤ 删孤儿 `.idx` / 截断 `tmp_pack` / 过期 `commit-graph`（均派生缓存）；⑥ `git repack -a -d`——**刻意不用 `-A`、不跑 `gc`**，使 6 个悬空对象**不卷入也不被 prune**（本仓已被毁两次，宁可多留）。
+- **整理后实测**：`git fsck` **0 error / 0 warning**（原 6 + 2）｜松散对象 **4590 → 70**（336KB，即保留的悬空对象）｜**in-pack 4520**｜**packs 1**｜`size-pack 346.55 MiB`｜**`garbage: 0`**（原 10.07MB）｜对象总数 **4590 不变**（无丢失）｜`HEAD` / `HEAD tree` / 提交数 25 / 追踪文件数 3484 **逐项与整理前一致**｜工作区 `git status` 干净｜**`git bundle create --all` 从 `fatal: bad object` 变为可用（exit 0）**。
+- **等价功能验证**（本批零源码改动，故以位级 + 产物链证据替代全量门禁）：`action_ids.h` / `ActionIds.kt` 生成物**零漂移**；`DispatchGuard*` **4/4 绿**。
+- **保留与登记**：6 个悬空对象（`dangling commit 2f0a1e0b / 4414c471 / 27d9f184` + 3 个 dangling tree）**不 prune**，留待将来翻查。**⚠️ 另一项需确认**：远端 `origin`（github.com/hsmy7/mnzm）的 `main` = `ad6ff6c9`，与本地 `6fed0e8` 属**不同血缘**（远端另有 `master` = `ddb9395f`，零 tag）——本仓与该远端的关系（是否仍作为发布源）需确认。
+
+
 ### W4-00 并行前置批：共享面结构性切分 + 分派覆盖守卫（首跑抓出 2 处死导出）
 
 > 需求：为「C++ 迁移剩余工作的三个**并行**批次」（W4-A 弟子与建设 / W4-B 内政与经济运营 / W4-C 战斗与世界协议）扫清并行障碍。**本批零行为变更、零玩家可见变更**——纯结构性重构 + 一处死导出删除。方案见 `docs/parallel-batches-w4/README.md`，交接记录见 handover §2.61。
