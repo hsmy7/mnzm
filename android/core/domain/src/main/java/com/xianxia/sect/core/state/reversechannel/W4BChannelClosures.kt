@@ -74,7 +74,9 @@ internal val w4BClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
 
 /** 本批域的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
-    // 玉符运行时（发放真相源在 Kotlin：循环钩子/跨天重置/存档 checkpoint）
+    // 玉符运行时（W4-B/B2 已下沉 1766–1769：settle/dayReset/checkpoint/广告落账
+    // 归 C++，Kotlin 残余 = JadeSymbolService.deduct 唯一消耗入口——洗炼/灵根改等
+    // W4-A 消耗面随其操作事务下沉后才可关；届时 deduct 降级为回退臂-only）
     "jadeSymbols", "jadeSymbolsToday", "jadeAccumMs", "jadeDayAnchorMs",
     // 灵矿/住所/巡逻槽位与配置（PATROL 域稳态写者）
     "spiritMineSlots", "residenceSlots", "patrolSlots", "patrolConfigs",

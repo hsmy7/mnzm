@@ -512,4 +512,16 @@ object ActionIds {
     /** 开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin） */
     const val STORAGE_BAG_OPEN_TX: Int = 1734
 
+    /** 玉符结算发放（settleGrants 下沉：整除发放/封顶冻结，回执回写运行时） */
+    const val JADE_RUNTIME_SETTLE_TX: Int = 1766
+
+    /** 玉符跨天重置/首锚（maybeDayReset 下沉：午夜锚点由 Kotlin 计算传入） */
+    const val JADE_RUNTIME_DAY_RESET_TX: Int = 1767
+
+    /** 玉符 checkpoint（四字段绝对值覆盖写；拿满冻结复用） */
+    const val JADE_RUNTIME_CHECKPOINT_TX: Int = 1768
+
+    /** 玉符广告发放（grantFromAd 落账段；广告 SDK 平台效应留 Kotlin） */
+    const val JADE_RUNTIME_GRANT_AD_TX: Int = 1769
+
 }

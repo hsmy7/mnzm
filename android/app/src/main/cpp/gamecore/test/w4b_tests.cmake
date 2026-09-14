@@ -12,5 +12,6 @@
 # 见 docs/parallel-batches-w4/README.md §3.1 项 4。
 
 set(W4B_TEST_SOURCES
-    # 骨架阶段为空（W4-00 建立；W4-B 在此追加本批测试文件）
+    # B2（w3-04 玉符运行时，1766–1769）
+    jade_runtime_tx_test.cpp
 )

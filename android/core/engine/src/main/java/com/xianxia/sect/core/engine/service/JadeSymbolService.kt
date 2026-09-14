@@ -1,8 +1,14 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.TimeSource
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import dagger.Module
@@ -12,8 +18,16 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 import java.util.Calendar
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -89,8 +103,46 @@ data class JadeSymbolRuntimeState(
 class JadeSymbolService @Inject constructor(
     private val timeSource: TimeSource,
     private val stateStore: GameStateStore,
-    private val wallClock: WallClock
+    private val wallClock: WallClock,
+    // W4-B/B2（w3-04）：GameData 四字段稳态写下沉 C++（1766–1769），native 臂
+    // 经 [Provider] 惰性取镜像服务——GameEngineCore 构造链持有本服务，Provider
+    // 为惰性边（Dagger 官方破环手段，与 DiplomacyService.gameEngineCoreProvider
+    // 同构）；null（测试直构）⇒ 恒走 Kotlin 回退臂。
+    private val gameEngineCoreProvider: Provider<GameEngineCore>? = null
 ) {
+
+    // ── W4-B/B2 native 臂（平台效应回执化）────────────────────────────
+
+    /**
+     * 玉符运行时事务统一转发（1766–1769）。
+     *
+     * 降级契约（与 PatrolNativeForward 等既有转发器同构）：flag 非
+     * AUTHORITATIVE / 无 Provider（测试直构）/ 镜像服务缺失（findings 13
+     * 可空判空）/ native 失败信封 → null → 调用点回退 Kotlin 原路径。
+     */
+    private fun tryNativeJade(
+        actionId: Int,
+        paramsBuilder: JsonObjectBuilder.() -> Unit
+    ): JsonObject? {
+        if (!NativeEngineFlag.authoritative) return null
+        val core = gameEngineCoreProvider?.get() ?: return null
+        val sync: StateSyncService? = core.stateSyncServiceRef
+        if (sync == null) return null
+        return GameEngineNativeOps.tryExecuteNative(
+            stateSyncService = sync,
+            actionId = actionId,
+            paramsJson = params(paramsBuilder)
+        ) as? JsonObject
+    }
+
+    private fun JsonObject?.intOrZero(name: String): Int =
+        this?.get(name)?.jsonPrimitive?.intOrNull ?: 0
+
+    private fun JsonObject?.longOrZero(name: String): Long =
+        this?.get(name)?.jsonPrimitive?.longOrNull ?: 0L
+
+    private fun JsonObject?.boolOrFalse(name: String): Boolean =
+        this?.get(name)?.jsonPrimitive?.booleanOrNull ?: false
 
     /** 单调时钟上次采样（tick 差分基准）。 */
     @Volatile
@@ -189,8 +241,17 @@ class JadeSymbolService @Inject constructor(
         if (todayCount >= GameConfig.Jade.DAILY_CAP) {
             if (accumMs > 0) {
                 accumMs = 0
-                stateStore.update {
-                    gameData = gameData.copy(jadeAccumMs = 0L)
+                // native 臂（W4-B/B2）：冻结写 = checkpoint（accum=0）等价形
+                val reply = tryNativeJade(ActionIds.JADE_RUNTIME_CHECKPOINT_TX) {
+                    put("total", totalCount)
+                    put("today", todayCount)
+                    put("accumMs", 0L)
+                    put("dayAnchorMs", dayAnchorMs)
+                }
+                if (reply == null) {
+                    stateStore.update {
+                        gameData = gameData.copy(jadeAccumMs = 0L)
+                    }
                 }
             }
             publishUi()
@@ -212,18 +273,29 @@ class JadeSymbolService @Inject constructor(
     /**
      * 幂等 checkpoint：把运行时字段全量写入 GameData。
      * 存档/云存档/后台快照前调用，保证快照含最新玉符值。
+     *
+     * native 臂（W4-B/B2，JADE_RUNTIME_CHECKPOINT_TX）：四字段绝对值覆盖写归
+     * C++；运行时值即参数（回执幂等）；失败/降级 → Kotlin 原路径（回退臂）。
      */
     fun checkpointNow() {
         // 未 onLoopStart 过（lastSampleMs 未初始化）不写：
         // 防止启动前的存档/后台快照用运行时零值覆盖已持久化的玉符
         if (lastSampleMs == 0L) return
-        stateStore.update {
-            gameData = gameData.copy(
-                jadeSymbols = totalCount,
-                jadeSymbolsToday = todayCount,
-                jadeAccumMs = accumMs,
-                jadeDayAnchorMs = dayAnchorMs
-            )
+        val reply = tryNativeJade(ActionIds.JADE_RUNTIME_CHECKPOINT_TX) {
+            put("total", totalCount)
+            put("today", todayCount)
+            put("accumMs", accumMs)
+            put("dayAnchorMs", dayAnchorMs)
+        }
+        if (reply == null) {
+            stateStore.update {
+                gameData = gameData.copy(
+                    jadeSymbols = totalCount,
+                    jadeSymbolsToday = todayCount,
+                    jadeAccumMs = accumMs,
+                    jadeDayAnchorMs = dayAnchorMs
+                )
+            }
         }
         publishUi()
     }
@@ -275,9 +347,22 @@ class JadeSymbolService @Inject constructor(
         // 先按快照懒重锚再发放，防止"读档 I/O 窗口 0 基累计 + 广告发放"
         // 绝对值覆盖已持久化余额（冷启动竞态纵深防御，主修复见 startGameLoop 重锚）
         if (lastSampleMs == 0L) onLoopStart()
+        val totalBefore = totalCount
         totalCount += amount
-        stateStore.update {
-            gameData = gameData.copy(jadeSymbols = totalCount)
+        // native 臂（W4-B/B2，JADE_RUNTIME_GRANT_AD_TX）：落账段归 C++（绝对值
+        // 覆盖写 jadeSymbols = totalBefore + amount；不写 todayCount——广告渠道
+        // 独立于时间日上限）。广告 SDK/播放本身 = 平台效应，已由调用方执行。
+        val reply = tryNativeJade(ActionIds.JADE_RUNTIME_GRANT_AD_TX) {
+            put("amount", amount)
+            put("totalBefore", totalBefore)
+        }
+        if (reply == null) {
+            stateStore.update {
+                gameData = gameData.copy(jadeSymbols = totalCount)
+            }
+        } else {
+            // 回执为权威（C++ 承做加法的绝对值语义），运行时跟随
+            reply.intOrZero("total").takeIf { it > 0 }?.let { totalCount = it }
         }
         publishJadeSymbolStateNow()
         return true
@@ -314,10 +399,26 @@ class JadeSymbolService @Inject constructor(
     /**
      * 结算发放：按累计时长整除 [GameConfig.Jade.INTERVAL_MS] 发放，
      * 封顶 [GameConfig.Jade.DAILY_CAP]，余量保留；拿满后余量丢弃（冻结）。
+     *
+     * native 臂（W4-B/B2，JADE_RUNTIME_SETTLE_TX）：整除/封顶/冻结判定与三字段
+     * 写归 C++；回执回写运行时 volatile（C++ 权威 → Kotlin 跟随，与 batch-19
+     * 购买事务 `syncBalanceFromSnapshot` 重锚同方向）。失败/降级 → Kotlin 原路径。
      */
     private fun settleGrants() {
         val grants = accumMs / GameConfig.Jade.INTERVAL_MS
         if (grants <= 0) return
+        val reply = tryNativeJade(ActionIds.JADE_RUNTIME_SETTLE_TX) {
+            put("total", totalCount)
+            put("today", todayCount)
+            put("accumMs", accumMs)
+        }
+        if (reply != null) {
+            totalCount = reply.intOrZero("total")
+            todayCount = reply.intOrZero("today")
+            accumMs = reply.longOrZero("accumMs")
+            return
+        }
+        // Kotlin 原路径（回退臂，逐字保留）
         val remainder = accumMs % GameConfig.Jade.INTERVAL_MS
         val headroom = GameConfig.Jade.DAILY_CAP - todayCount
         if (headroom <= 0) {
@@ -365,6 +466,25 @@ class JadeSymbolService @Inject constructor(
         val todayMidnight = getTodayStartMs(nowWall)
         // 同一天或墙钟回拨（防御）→ 不重置
         if (dayAnchorMs != 0L && todayMidnight <= dayAnchorMs) return
+        // native 臂（W4-B/B2，JADE_RUNTIME_DAY_RESET_TX）：重置/锚定写归 C++。
+        // 🔴 平台读数参数化（ADR 盲区 3）：`todayMidnight` 由 Kotlin Calendar
+        // 本地时区计算后传入——C++ 不取时、不复刻时区规则；同一 `todayMidnight`
+        // 重复调用幂等（事务内 `<= anchor` 零写入），墙钟回退同样零写入。
+        val reply = tryNativeJade(ActionIds.JADE_RUNTIME_DAY_RESET_TX) {
+            put("todayMidnightMs", todayMidnight)
+            put("today", todayCount)
+            put("accumMs", accumMs)
+        }
+        if (reply != null) {
+            if (reply.boolOrFalse("crossedDay")) {
+                // 真实跨天：今日计数归零，周期累计时长清零（运行时跟随回执）
+                todayCount = 0
+                accumMs = 0
+            }
+            dayAnchorMs = reply.longOrZero("dayAnchorMs").takeIf { it > 0 } ?: todayMidnight
+            return
+        }
+        // Kotlin 原路径（回退臂，逐字保留）
         val crossedDay = dayAnchorMs != 0L
         dayAnchorMs = todayMidnight
         if (crossedDay) {

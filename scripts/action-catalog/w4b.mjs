@@ -29,7 +29,10 @@ export const CATALOG = [
   // updatePatrolConfig（单参）/ updatePatrolSlots 已删除。段内余量留空。
 
   // ── 1766–1769 · w3-04 玉符运行时 ──
-  // （待 W4-B 填充）
+  { id: 1766, name: 'JADE_RUNTIME_SETTLE_TX', desc: '玉符结算发放（settleGrants 下沉：整除发放/封顶冻结，回执回写运行时）' },
+  { id: 1767, name: 'JADE_RUNTIME_DAY_RESET_TX', desc: '玉符跨天重置/首锚（maybeDayReset 下沉：午夜锚点由 Kotlin 计算传入）' },
+  { id: 1768, name: 'JADE_RUNTIME_CHECKPOINT_TX', desc: '玉符 checkpoint（四字段绝对值覆盖写；拿满冻结复用）' },
+  { id: 1769, name: 'JADE_RUNTIME_GRANT_AD_TX', desc: '玉符广告发放（grantFromAd 落账段；广告 SDK 平台效应留 Kotlin）' },
 
   // ── 1770–1779 · w3-05 邮件附件 + 行商刷新 ──
   // （待 W4-B 填充）

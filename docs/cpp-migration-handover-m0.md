@@ -602,6 +602,33 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **验证**: `:core:engine` + `:feature:game` + `:app` 主源/测试源编译绿；`--tests "*Patrol*" --tests "*SpiritMine*"` 全绿；三模块 detekt 绿；`node scripts/gen-action-ids.mjs` 输出 `169 actions (maxId=1734)` 零漂移。
 
+### 2.63.B2 w3-04 玉符运行时——墙钟读数参数化 + GameData 四字段稳态写下沉（2026-09-15，ActionId **1766–1769**）
+
+**批次**: W4-B/B2（w3-04） | **产物**: 改 `jade_tx.h`（新增事务 5–8 + W4-B 勘误标注）、填 `dispatch_w4b.cpp` 端口、改 `JadeSymbolService.kt`（native 臂 + `Provider<GameEngineCore>` 惰性边）、新 `jade_runtime_tx_test.cpp`（**18 用例**）、新 `JadeRuntimeNativeTxGateTest.kt`（**4 用例**）、`w4b.mjs` + 两生成物（**169 → 173 动作，maxId=1769**）
+
+**事务面（与 Kotlin 逐字对齐；零 RNG——签名级不收 RngManager）**：
+
+| ActionId | 事务 | 承接的 Kotlin 写者 |
+|---|---|---|
+| 1766 `JADE_RUNTIME_SETTLE_TX` | `settleJadeGrantsTx`：整除发放/余量保留/headroom 钳制/拿满冻结；grants≤0 零写入回声 | `JadeSymbolService.settleGrants`（:338 写段） |
+| 1767 `JADE_RUNTIME_DAY_RESET_TX` | `jadeDayResetTx`：首锚只锚定/真跨天归零 today+accum/同日与回拨零写入/**同 todayMidnight 重复调用幂等** | `maybeDayReset`（:374/:383 写段） |
+| 1768 `JADE_RUNTIME_CHECKPOINT_TX` | `jadeCheckpointTx`：四字段绝对值覆盖写（拿满冻结复用 accum=0 等价形） | `checkpointNow`（:220）+ `onLoopTick` 冻结臂（:192） |
+| 1769 `JADE_RUNTIME_GRANT_AD_TX` | `grantJadeFromAdTx`：jadeSymbols = totalBefore + amount（C++ 承做加法，回执权威）；不动 todayCount | `grantFromAd`（:279） |
+
+**平台效应回执化（批文档 §2.2 四步模板落地）**：
+- **读数留宿主**：单调差分/10s 裁剪/1s 墙钟节流/**Calendar 本地午夜计算**仍在 Kotlin 运行时（volatile 域）；C++ 不取时、不复刻时区规则（`rules/cpp-priority.md` §3.3）。午夜锚点 `todayMidnightMs` 作为参数推入事务 1767；
+- **回执回写运行时**：native 臂成功后 Kotlin volatile（totalCount/todayCount/accumMs/dayAnchorMs）以回执重锚——与 batch-19 购买事务 `syncBalanceFromSnapshot` 重锚同方向，绝对值覆盖写模型（CLAUDE.md 13.3）不变式两端同守；
+- **幂等红线测试**：事务 1767 以同一 `todayMidnightMs` 重复调用 ⇒ 第二次 `changed=false` 零写入；墙钟回退（midnight 更小）零写入（GTest `DayResetSameCallWithinTickIsIdempotent` / `DayResetSameDayAndRollbackAreZeroWrite`）。
+
+**Dagger 破环（批文档 §5.4 第 8 条）**：`JadeSymbolService` 新增 `gameEngineCoreProvider: Provider<GameEngineCore>? = null`——GameEngineCore 构造链持有本服务，Provider 为惰性边（与 `DiplomacyService.gameEngineCoreProvider` 同构）；null（既有测试直构）⇒ 恒走回退臂，**零破坏既有用例**（`JadeSymbolServiceTest` 29/29 原样绿）。
+
+**途中修正（事务语义取证）**：1769 首版以"发放后 total"为参 ⇒ C++ 再加一次 amount 的双加缺陷被 GTest `GrantAdWritesAbsoluteTotalNotToday` 首跑抓出（16 = 13+3）⇒ 改为 `totalBefore`（发放前运行时绝对值），C++ 承做加法、回执权威、运行时跟随重锚——与"校验+扣减+抽取原子在 C++"口径一致。
+
+**玉符消耗唯一入口（不动项登记）**：`JadeSymbolService.deduct`（事务内 jadeSymbols 写）保留——洗炼/灵根改/突破加成等消耗面的操作事务属 W4-A 域；待其随宿主操作下沉后 `deduct` 降级为回退臂-only，四字段届时方可关闭（`W4BChannelClosures.kt` 注释已更新为该判定）。`JadeSymbolConsumptionGuardTest` 3/3 绿（扫描面零新增写者）。
+
+**验证**: 桌面 C++ 全量 **1344/1344**（基线 1326 + 本批 18，含单进程直跑复核）；`:core:engine` Jade 族 64 用例全绿（含新 GateTest 4/4 + 既有 `JadeSymbolServiceTest` 29/29 证明回退臂零漂移）；`:core:engine:detekt` 绿；生成器 `173 actions (maxId=1769)` + 生成物同组提交零漂移。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 
