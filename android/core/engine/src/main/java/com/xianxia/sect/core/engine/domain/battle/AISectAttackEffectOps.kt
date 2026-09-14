@@ -6,6 +6,7 @@ import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.util.BattleCalculator
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.BattleCalculator.SupportResult
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager.AiSkillDecision
 import com.xianxia.sect.core.util.updateCombatantCooldowns
@@ -163,21 +164,23 @@ internal fun AISectAttackManager.selectAISkill(
     combatant: Combatant,
     enemies: List<Combatant>,
     allies: List<Combatant>,
-    isSilenced: Boolean
+    isSilenced: Boolean,
+    rng: DeterministicRng
 ): AiSkillDecision {
     if (isSilenced) return AiSkillDecision(null, null)
-    val action = BattleAI.decideAction(combatant, allies, enemies, aisRng)
+    val action = BattleAI.decideAction(combatant, allies, enemies, rng)
     return AiSkillDecision(action.skill, action)
 }
 
 internal fun AISectAttackManager.selectAITarget(
     attacker: Combatant,
     targets: List<Combatant>,
-    aiAction: BattleAI.AIAction?
+    aiAction: BattleAI.AIAction?,
+    rng: DeterministicRng
 ): Combatant {
     val aliveTargets = targets.filter { !it.isDead }
     if (aliveTargets.isEmpty()) return targets.first()
     return aiAction?.target
-        ?: BattleAI.selectAttackTarget(attacker, aliveTargets, null, aisRng)
+        ?: BattleAI.selectAttackTarget(attacker, aliveTargets, null, rng)
         ?: aliveTargets.first()
 }

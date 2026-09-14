@@ -1,24 +1,13 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.util.GameRngManager
-import org.junit.After
-import org.junit.Before
 import org.junit.Assert.*
 import org.junit.Test
 
 class EnemyGeneratorTest {
 
-    @Before
-    fun setUp() {
-        val rngManager = GameRngManager()
-        rngManager.initSystemSeed(12345L)
-        enemyGenRngManager = rngManager
-    }
-
-    @After
-    fun tearDown() {
-        enemyGenRngManager = null
-    }
+    // W4-C 随机源收敛：ENEMY_GEN 分区经形参显式传入（原顶层 enemyGenRngManager 已摘除）
+    private val rngManager = GameRngManager().apply { initSystemSeed(12345L) }
 
     // ═══════════════════════════════════════════════════════════════
     // 战斗核查回归：敌人功法属性加成
@@ -96,7 +85,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 3
+            count = 3,
+            rngManager = rngManager
         )
         assertEquals(3, results.size)
     }
@@ -106,7 +96,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 0
+            count = 0,
+            rngManager = rngManager
         )
         assertEquals(0, results.size)
     }
@@ -116,7 +107,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 5
+            count = 5,
+            rngManager = rngManager
         )
         for (data in results) {
             assertNotNull(data.combatant)
@@ -130,7 +122,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 3
+            count = 3,
+            rngManager = rngManager
         )
         for ((index, data) in results.withIndex()) {
             assertEquals("human_enemy_${index + 1}", data.combatant.id)
@@ -142,7 +135,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 3
+            count = 3,
+            rngManager = rngManager
         )
         for (data in results) {
             assertEquals(com.xianxia.sect.core.CombatantSide.ATTACKER, data.combatant.side)
@@ -154,7 +148,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 20
+            count = 20,
+            rngManager = rngManager
         )
         for (data in results) {
             assertTrue(
@@ -169,7 +164,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 20
+            count = 20,
+            rngManager = rngManager
         )
         for (data in results) {
             assertTrue(
@@ -185,7 +181,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 20
+            count = 20,
+            rngManager = rngManager
         )
         for (data in results) {
             assertTrue(
@@ -200,7 +197,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 10
+            count = 10,
+            rngManager = rngManager
         )
         for (data in results) {
             assertTrue("Combatant should have at least one skill", data.combatant.skills.isNotEmpty())
@@ -212,7 +210,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
-            count = 10
+            count = 10,
+            rngManager = rngManager
         )
         for (data in results) {
             assertTrue("Crit rate should be non-negative", data.combatant.critRate >= 0.0)
@@ -224,7 +223,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 3,
             realmMax = 3,
-            count = 1
+            count = 1,
+            rngManager = rngManager
         )
         assertEquals(1, results.size)
         assertEquals(3, results[0].combatant.realm)
@@ -241,7 +241,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 5,
-            count = 50
+            count = 50,
+            rngManager = rngManager
         )
         for (data in results) {
             val c = data.combatant
@@ -257,7 +258,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 6,
             realmMax = 6,
-            count = 30
+            count = 30,
+            rngManager = rngManager
         )
         val hps = results.map { it.combatant.hp }
         val maxHp = hps.max()
@@ -274,7 +276,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 7,
             realmMax = 5,
-            count = 5
+            count = 5,
+            rngManager = rngManager
         )
         assertEquals(5, results.size)
         for (data in results) {
@@ -291,7 +294,8 @@ class EnemyGeneratorTest {
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 4,
             realmMax = 4,
-            count = 3
+            count = 3,
+            rngManager = rngManager
         )
         for (data in results) {
             assertEquals(4, data.combatant.realm)

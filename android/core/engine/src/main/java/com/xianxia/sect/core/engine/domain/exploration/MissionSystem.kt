@@ -175,17 +175,21 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
         battleSystem: BattleSystem? = null,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        // W4-C 随机源收敛：MISSION 分区由本函数经 rngOf 自取、ENEMY_GEN 分区
+        // （人形敌人生成）经 rngManager 透传至 EnemyGenerator——顶层可变
+        // enemyGenRngManager 已摘除，调用方只透传自己持有的 GameRngManager
+        rngManager: GameRngManager
     ): MissionResult {
+        val rng = rngOf(rngManager)
         return when (activeMission.missionType) {
             MissionType.NO_COMBAT -> processNoCombatMission(activeMission, rng)
             MissionType.COMBAT_REQUIRED -> processCombatRequiredMission(
                 activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-                battleSystem, bloodRefinementMap, rng
+                battleSystem, bloodRefinementMap, rngManager
             )
             MissionType.COMBAT_RANDOM -> processCombatRandomMission(
                 activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-                battleSystem, bloodRefinementMap, rng
+                battleSystem, bloodRefinementMap, rngManager
             )
         }
     }
@@ -212,11 +216,12 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        rngManager: GameRngManager
     ): MissionResult {
+        val rng = rngOf(rngManager)
         val battleResult = executeMissionBattle(
             activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-            battleSystem, bloodRefinementMap, rng
+            battleSystem, bloodRefinementMap, rngManager
         ) ?: return MissionResult(victory = false)
 
         if (!battleResult.victory) {
@@ -254,8 +259,9 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        rngManager: GameRngManager
     ): MissionResult {
+        val rng = rngOf(rngManager)
         val triggered = rng.nextDouble() < activeMission.triggerChance
 
         if (!triggered) {
@@ -273,7 +279,7 @@ object MissionSystem {
 
         val battleResult = executeMissionBattle(
             activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-            battleSystem, bloodRefinementMap, rng
+            battleSystem, bloodRefinementMap, rngManager
         ) ?: return MissionResult(combatTriggered = true, victory = false)
 
         if (!battleResult.victory) {
@@ -311,9 +317,10 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
         bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
-        rng: DeterministicRng
+        rngManager: GameRngManager
     ): BattleSystemResult? {
         if (battleSystem == null) return null
+        val rng = rngOf(rngManager)
 
         val difficulty = activeMission.difficulty
         val realmMin = difficulty.enemyRealmMin
@@ -341,7 +348,7 @@ object MissionSystem {
                 val humanCount = activeMission.template.humanCountRange.first + rng.nextInt(
                     activeMission.template.humanCountRange.last - activeMission.template.humanCountRange.first + 1
                 )
-                val enemies = EnemyGenerator.generateHumanEnemies(realmMin, realmMax, humanCount)
+                val enemies = EnemyGenerator.generateHumanEnemies(realmMin, realmMax, humanCount, rngManager)
                 val team = disciples.map { disciple ->
                     battleSystem.convertDiscipleToCombatant(
                         disciple, equipmentMap, manualMap, manualProficiencies,

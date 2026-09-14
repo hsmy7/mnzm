@@ -8,8 +8,31 @@ import com.xianxia.sect.core.model.CombatSkill
  *
  * 为战斗日志生成中文战斗描述文本，根据武器类型、伤害类型、技能等
  * 选择不同的描述模板和随机措辞。
+ *
+ * ## 措辞选源（W4-C 随机源治理·战斗侧收敛）
+ *
+ * 战斗措辞经 `BattleSystem回合Ops2 → BattleLog.rounds` 落 Room `battle_logs`
+ * 实体（决策类），但 BATTLE 分区的抽取序被跨语言对拍**逐位锁定**
+ * （DiffSectBattleTest 等）——措辞抽取既**不得**插入 BATTLE 分区（会平移
+ * 后续战斗结果的抽取序），也不得新增分区（`RngSourceGuardTest` 的分区登记面
+ * 归 W4-A 独占）。故对齐 `GameEngineWorldBattleOps.applyDeterministicWinAttr`
+ * 的既有口径：**以战斗上下文散列代替随机抽取**（攻击者 id / 目标 id / 回合号
+ * 混合散列选词）——零抽取、零分区影响，存档→读档→重放措辞逐位可复现。
  */
 object BattleDescriptionGenerator {
+
+    /**
+     * 上下文散列（与 [com.xianxia.sect.core.model.Disciple] id 等稳定输入混合；
+     * String.hashCode 为 JVM 规范固定算法，跨进程逐位一致）。
+     */
+    private fun saltOf(vararg parts: Any?): Int {
+        var h = 17
+        for (part in parts) h = h * 31 + (part?.hashCode() ?: 0)
+        return h xor (h ushr 15)
+    }
+
+    /** 按上下文散列确定性选词（代替原 `.random()`；见类 KDoc） */
+    private fun <T> List<T>.pick(salt: Int): T = this[Math.floorMod(salt, size)]
 
     private val unarmedAttackVerbs = listOf(
         "挥拳攻向", "猛力一拳打向", "拳风呼啸，攻向", "一记重拳轰向",
@@ -87,12 +110,13 @@ object BattleDescriptionGenerator {
         attacker: Combatant,
         target: Combatant,
         result: AttackResult,
-        isKill: Boolean
+        isKill: Boolean,
+        turn: Int
     ): String {
         val sb = StringBuilder()
 
         if (result.isDodged) {
-            val dodgeDesc = dodgeDescriptions.random()
+            val dodgeDesc = dodgeDescriptions.pick(saltOf("dodge", attacker.id, target.id, turn))
             return "${target.name}${dodgeDesc}${attacker.name}的攻击！"
         }
 
@@ -100,9 +124,17 @@ object BattleDescriptionGenerator {
         val isBeast = attacker.isBeast
 
         val attackVerb = if (isBeast) {
-            if (isPhysical) beastPhysicalAttackVerbs.random() else beastMagicAttackVerbs.random()
+            if (isPhysical) {
+                beastPhysicalAttackVerbs.pick(saltOf("bPhys", attacker.id, target.id, turn))
+            } else {
+                beastMagicAttackVerbs.pick(saltOf("bMag", attacker.id, target.id, turn))
+            }
         } else {
-            if (isPhysical) getWeaponVerbs(attacker.weaponName).random() else magicAttackVerbs.random()
+            if (isPhysical) {
+                getWeaponVerbs(attacker.weaponName).pick(saltOf("w", attacker.id, target.id, turn))
+            } else {
+                magicAttackVerbs.pick(saltOf("mag", attacker.id, target.id, turn))
+            }
         }
 
         val damageType = if (isPhysical) "物理" else "法术"
@@ -110,7 +142,7 @@ object BattleDescriptionGenerator {
         sb.append("${attacker.name}${attackVerb}${target.name}")
 
         if (result.isCrit) {
-            sb.append("，${critDescriptions.random()}")
+            sb.append("，${critDescriptions.pick(saltOf("crit", attacker.id, target.id, turn, result.damage))}")
         }
 
         sb.append("，造成${result.damage}点${damageType}伤害")
@@ -120,7 +152,7 @@ object BattleDescriptionGenerator {
         }
 
         if (isKill) {
-            val killDesc = killDescriptions.random()
+            val killDesc = killDescriptions.pick(saltOf("kill", attacker.id, target.id, turn))
             sb.append("，${killDesc}了${target.name}！")
         }
 
@@ -132,16 +164,17 @@ object BattleDescriptionGenerator {
         target: Combatant,
         skill: CombatSkill,
         result: AttackResult,
-        isKill: Boolean
+        isKill: Boolean,
+        turn: Int
     ): String {
         val sb = StringBuilder()
 
         if (result.isDodged) {
-            val dodgeDesc = dodgeDescriptions.random()
+            val dodgeDesc = dodgeDescriptions.pick(saltOf("dodge", attacker.id, target.id, turn))
             return "${target.name}${dodgeDesc}${attacker.name}的[${skill.name}]！"
         }
 
-        val castPhrase = skillCastPhrases.random()
+        val castPhrase = skillCastPhrases.pick(saltOf("cast", attacker.id, skill.name, turn))
         if (skill.manualName.isNotEmpty()) {
             sb.append("${attacker.name}${castPhrase}【${skill.manualName}】，使出[${skill.name}]")
         } else {
@@ -155,7 +188,7 @@ object BattleDescriptionGenerator {
         sb.append("攻向${target.name}")
 
         if (result.isCrit) {
-            sb.append("，${critDescriptions.random()}")
+            sb.append("，${critDescriptions.pick(saltOf("crit", attacker.id, target.id, turn, result.damage))}")
         }
 
         val damageType = if (result.isPhysical) "物理" else "法术"
@@ -170,7 +203,7 @@ object BattleDescriptionGenerator {
         }
 
         if (isKill) {
-            val killDesc = killDescriptions.random()
+            val killDesc = killDescriptions.pick(saltOf("kill", attacker.id, target.id, turn))
             sb.append("，${killDesc}了${target.name}！")
         }
 
@@ -182,11 +215,12 @@ object BattleDescriptionGenerator {
         skill: CombatSkill,
         healAmount: Int,
         healType: HealType,
-        buffs: List<Triple<BuffType, Double, Int>>
+        buffs: List<Triple<BuffType, Double, Int>>,
+        turn: Int
     ): String {
         val sb = StringBuilder()
 
-        val castPhrase = skillCastPhrases.random()
+        val castPhrase = skillCastPhrases.pick(saltOf("cast", caster.id, skill.name, turn))
         if (skill.manualName.isNotEmpty()) {
             sb.append("${caster.name}${castPhrase}【${skill.manualName}】，使出[${skill.name}]")
         } else {
@@ -220,11 +254,12 @@ object BattleDescriptionGenerator {
         attacker: Combatant,
         skill: CombatSkill,
         results: List<AttackResult>,
-        isKill: Boolean
+        isKill: Boolean,
+        turn: Int
     ): String {
         val sb = StringBuilder()
 
-        val castPhrase = skillCastPhrases.random()
+        val castPhrase = skillCastPhrases.pick(saltOf("cast", attacker.id, skill.name, turn))
         if (skill.manualName.isNotEmpty()) {
             sb.append("${attacker.name}${castPhrase}【${skill.manualName}】，使出[${skill.name}]")
         } else {
@@ -258,7 +293,7 @@ object BattleDescriptionGenerator {
         }
 
         if (isKill) {
-            val killDesc = killDescriptions.random()
+            val killDesc = killDescriptions.pick(saltOf("kill", attacker.id, turn))
             sb.append("，${killDesc}了敌人！")
         }
 

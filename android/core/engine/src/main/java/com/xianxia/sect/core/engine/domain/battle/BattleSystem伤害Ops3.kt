@@ -184,7 +184,8 @@ internal fun BattleSystem.buildTurnMessage(
     availableSkill: CombatSkill?,
     isAoeSkill: Boolean,
     results: List<AttackResult>,
-    currentCombatant: Combatant
+    currentCombatant: Combatant,
+    turn: Int
 ): TurnMessage {
     return when {
         isInstantKill -> TurnMessage(
@@ -196,7 +197,8 @@ internal fun BattleSystem.buildTurnMessage(
                 skill = availableSkill,
                 healAmount = result.healAmount,
                 healType = result.healType,
-                buffs = availableSkill.buffs
+                buffs = availableSkill.buffs,
+                turn = turn
             ),
             isKill = false,
             totalDamage = 0
@@ -211,7 +213,8 @@ internal fun BattleSystem.buildTurnMessage(
                     attacker = currentCombatant,
                     skill = availableSkill,
                     results = results,
-                    isKill = isKill
+                    isKill = isKill,
+                    turn = turn
                 )
             } else {
                 val singleTarget = result.target
@@ -220,7 +223,8 @@ internal fun BattleSystem.buildTurnMessage(
                     target = singleTarget,
                     skill = availableSkill,
                     result = result,
-                    isKill = singleTarget.hp - result.damage <= 0
+                    isKill = singleTarget.hp - result.damage <= 0,
+                    turn = turn
                 )
             }
             TurnMessage(text, isKill = isKill, totalDamage = totalDamage)
@@ -230,7 +234,8 @@ internal fun BattleSystem.buildTurnMessage(
                 attacker = currentCombatant,
                 target = result.target,
                 result = result,
-                isKill = result.target.hp - result.damage <= 0
+                isKill = result.target.hp - result.damage <= 0,
+                turn = turn
             ),
             isKill = result.target.hp - result.damage <= 0,
             totalDamage = 0

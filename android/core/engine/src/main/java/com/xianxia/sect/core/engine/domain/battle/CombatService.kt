@@ -1,6 +1,13 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.DirectDiscipleSlot
@@ -14,18 +21,26 @@ import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.griefEndYear
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.weaponId
+import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.InventoryNativeForward
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.battleWritebackMaxHpMp
+import com.xianxia.sect.core.engine.domain.disciple.areRelatives
+import com.xianxia.sect.core.engine.domain.disciple.applyGriefToRelatives
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
-import com.xianxia.sect.core.engine.domain.disciple.battleWritebackMaxHpMp
-import com.xianxia.sect.core.engine.domain.disciple.areRelatives
-import com.xianxia.sect.core.engine.domain.disciple.applyGriefToRelatives
 
 
 
@@ -35,7 +50,11 @@ class CombatService @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventBus: EventBusPort,
     // 死亡统一入口（袋物品物化回仓库 + markDead）
-    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
+    // Native 臂（1780 伤亡残差事务）经 Provider<GameEngineCore>? 注入——
+    // Dagger 破环（GameEngineCore 构造链持有本服务）；null = 既有测试直构
+    // ⇒ 恒走回退臂（MerchantAndRecruitService 同款注入形态）
+    private val gameEngineCoreProvider: Provider<GameEngineCore>? = null
 ) {
 
     // ==================== StateFlow 暴露 ====================
@@ -59,6 +78,18 @@ class CombatService @Inject constructor(
         survivorMpMap: Map<String, Int> = emptyMap(),
         isOutsideSect: Boolean = true
     ) {
+        // ── Native 臂（1780 BATTLE_CASUALTY_SETTLE_TX）：阶段 2 状态段
+        // （悲痛/标死袋物化/物品/槽位/幸存者 HP-MP，零 RNG）归 C++；阶段 1 的
+        // DeathEvent 广播、阶段 3 的 Room 生产槽清理与丧亲日志（lifeEvents 为
+        // Kotlin 类体属性列）经信封回写。flag 关/镜像不可用/失败信封 → false
+        // 回退 Kotlin 原路径（双实现并行契约）。
+        if (deadMemberIds.isNotEmpty() &&
+            tryNativeCasualtySettle(deadMemberIds, survivorHpMap, survivorMpMap, isOutsideSect)
+        ) {
+            // ── 阶段 3：跨 Repository 写入（无法纳入镜像事务，Kotlin 残差）──
+            clearDeadFromProductionRepository(deadMemberIds)
+            return
+        }
         // ── 阶段 1：只读收集（事务外） ──
         // 收集死亡弟子信息、装备/功法ID、槽位更新、幸存者HP/MP
         val collected = collectCasualtyData(deadMemberIds, isOutsideSect)
@@ -119,6 +150,79 @@ class CombatService @Inject constructor(
 
         // ── 阶段 3：跨 Repository 写入（无法纳入 stateStore 事务） ──
         clearDeadFromProductionRepository(deadMemberIds)
+    }
+
+    /**
+     * Native 臂（1780）：C++ 执行伤亡残差状态段（battle_residual_tx.h ①），
+     * Kotlin 补平台面：丧亲日志草稿回写（lifeEvents 类体属性列）+ 死亡事件
+     * 广播 + 溢出邮件投递。接管成功返回 true；降级/失败信封返回 false。
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun tryNativeCasualtySettle(
+        deadMemberIds: Set<String>,
+        survivorHpMap: Map<String, Int>,
+        survivorMpMap: Map<String, Int>,
+        isOutsideSect: Boolean
+    ): Boolean {
+        if (!NativeEngineFlag.authoritative) return false
+        val core = gameEngineCoreProvider?.get() ?: return false
+        // 防御性空安全：测试 mock（未 stub stateSyncServiceRef）返回 null——
+        // 先赋可空局部再判空（handover findings 13，W4-B 转发器同守卫）
+        val sync: StateSyncService? = core.stateSyncServiceRef
+        if (sync == null) return false
+        val reply = GameEngineNativeOps.tryExecuteNative(
+            stateSyncService = sync,
+            actionId = ActionIds.BATTLE_CASUALTY_SETTLE_TX,
+            paramsJson = params {
+                put("deadIds", JsonArray(deadMemberIds.map { JsonPrimitive(it) }))
+                put("survivorHp", JsonObject(survivorHpMap.mapValues { (k, v) -> JsonPrimitive(v) }))
+                put("survivorMp", JsonObject(survivorMpMap.mapValues { (k, v) -> JsonPrimitive(v) }))
+                put("isOutsideSect", isOutsideSect)
+            }
+        ) as? JsonObject ?: return false
+
+        // ① 丧亲日志草稿回写（lifeEvents 为 Kotlin 类体属性，C++ 无该列——
+        //    disciple_lifecycle_tx logLine 机制同族）
+        applyNativeLifeEventDrafts(reply)
+        // ② 死亡事件广播（阶段 1 平台面——原 collectCasualtyData 事务外发射）
+        if (isOutsideSect) emitNativeDeathEvents(deadMemberIds)
+        // ③ 袋物化溢出邮件投递（W2-a/S6 同通道）
+        deliverNativeOverflowDrafts(reply)
+        return true
+    }
+
+    /** 信封 lifeEventDrafts → lifeEvents 瞬态列回写（battle_residual_tx 草稿契约）。 */
+    private fun applyNativeLifeEventDrafts(reply: JsonObject) {
+        val drafts = reply["lifeEventDrafts"] as? JsonArray ?: return
+        if (drafts.isEmpty()) return
+        stateStore.update {
+            for (element in drafts) {
+                val obj = element as? JsonObject
+                val id = obj?.get("id")?.jsonPrimitive?.intOrNull
+                val line = obj?.get("line")?.jsonPrimitive?.contentOrNull
+                if (id == null || line == null) continue
+                discipleTables.lifeEvents[id] =
+                    discipleTables.lifeEvents.getOrDefault(id, emptyList()) + line
+            }
+        }
+    }
+
+    /** 死亡事件广播（DeathEvent 参数面 = 原 collectCasualtyData 同构）。 */
+    private fun emitNativeDeathEvents(deadMemberIds: Set<String>) {
+        for (memberId in deadMemberIds) {
+            val id = memberId.toIntOrNull()
+            val name = if (id != null) stateStore.discipleTables.names.getOrDefault(id, "") else ""
+            eventBus.emitSync(DeathEvent(memberId, name, "战斗阵亡"))
+        }
+    }
+
+    /** 信封 overflowDrafts → 溢出邮件投递（InventoryNativeForward 同通道）。 */
+    private fun deliverNativeOverflowDrafts(reply: JsonObject) {
+        val overflow = reply["overflowDrafts"] as? JsonArray ?: return
+        for (element in overflow) {
+            val obj = element as? JsonObject ?: continue
+            InventoryNativeForward.deliverDraft(inventorySystem, obj)
+        }
     }
 
     /** 幸存者 HP/MP 更新计算（processBattleCasualties 拆分，锁内读取最新状态） */

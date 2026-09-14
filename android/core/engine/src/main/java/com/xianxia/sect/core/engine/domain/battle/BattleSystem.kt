@@ -65,7 +65,10 @@ class BattleSystem @Inject constructor(
         val beasts: MutableList<Combatant>,
         val teamIndexMap: Map<String, Int>,
         val beastsIndexMap: Map<String, Int>,
-        val actions: MutableList<BattleActionData>
+        val actions: MutableList<BattleActionData>,
+        // 本回合号（battle.turn + 1）：战斗措辞确定性选词的回合盐
+        //（W4-C 随机源治理·战斗侧：措辞抽取不入任何分区，见 BattleDescriptionGenerator KDoc）
+        val turn: Int
     )
 
     /** 单参战者回合执行结果（早退/跳过信号） */

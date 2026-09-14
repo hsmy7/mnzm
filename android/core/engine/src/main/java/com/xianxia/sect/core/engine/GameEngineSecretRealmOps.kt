@@ -52,10 +52,13 @@ suspend fun GameEngine.startSecretRealmExploration(
         put("memberIds", JsonArray(memberIds.map { JsonPrimitive(it) }))
     }
     if (native != null) {
-        // C++ 会话已写入并镜像——Kotlin 补平台段（换岗清理语义与原事务内一致：
-        // startSession 校验通过后才清岗）
-        stateStore.update {
-            memberIds.forEach { releaseDiscipleToIdleInside(this, it) }
+        // C++ 会话已写入并镜像——补换岗清理段（1800 native 臂接管
+        // releaseDiscipleToIdleInside 的 GameData 槽位/状态段；降级回退 Kotlin
+        // 原路径；gate/Room 清槽仍由 finalizeSecretRealmTeam 收尾）
+        if (!secretRealmStartReleaseNative(memberIds)) {
+            stateStore.update {
+                memberIds.forEach { releaseDiscipleToIdleInside(this, it) }
+            }
         }
         finalizeSecretRealmTeam(memberIds)
         return@withEngineContext DomainResult.Success(Unit)

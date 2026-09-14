@@ -71,7 +71,7 @@ object GameDatabaseConfig {
      * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 50
+    const val DATABASE_VERSION = 51
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -170,6 +170,9 @@ object GameDatabaseConfig {
     // v49: MIGRATION_48_49 game_data 新增"石板道路"列（roads，自动拼接道路数据）
     // v50: MIGRATION_49_50 自动存档残留清理——删除 game_data 与 sect_policy_state
     //（纯手动存档设计：autoSaveIntervalMonths 列已删除，实体字段 @Ignore 不映射）
+    // v51: MIGRATION_50_51 地图冻结（WS-5b）——game_data 新增地形段两列
+    //（map_gen_version 版本戳 + terrain_tiles 行主序 flat 瓦片段；
+    // "存的地形恒优先"，仅无段才按 mapSeed 生成回填）
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 
@@ -506,7 +509,8 @@ abstract class GameDatabase : RoomDatabase() {
                                         MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
                                             MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
                                                 MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-                                                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50)
+                                                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
+                                                    MIGRATION_49_50, MIGRATION_50_51)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

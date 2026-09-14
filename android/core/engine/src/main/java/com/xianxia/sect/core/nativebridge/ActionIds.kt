@@ -575,4 +575,19 @@ object ActionIds {
     /** 预警阶段标记（shownWarningStageIds 追加，不去重） */
     const val DIPLOMACY_WARNING_STAGE_TX: Int = 1843
 
+    /** 战斗伤亡残差事务（悲痛/标死袋物化/物品清理/槽位清理/幸存者回写，零 RNG） */
+    const val BATTLE_CASUALTY_SETTLE_TX: Int = 1780
+
+    /** 世界关卡胜利事务（TOCTOU 重查 + 魂力 + 确定性 winAttr + 道德偷盗钩子；不写 defeated） */
+    const val WORLD_VICTORY_REWARDS_TX: Int = 1781
+
+    /** 战前突破结算（实时突破管线限定队伍 id 集；BREAKTHROUGH/SYSTEM 分区同序） */
+    const val BATTLE_PRESETTLE_TX: Int = 1782
+
+    /** 秘境出发换岗（11 类槽位清理 + 思过/血炼状态重置 IDLE，零 RNG） */
+    const val SECRET_REALM_START_RELEASE_TX: Int = 1800
+
+    /** 秘境到期兜底（到期判定 + 关闭状态段 + 关闭草稿信封，零 RNG） */
+    const val SECRET_REALM_EXPIRY_GUARD_TX: Int = 1801
+
 }

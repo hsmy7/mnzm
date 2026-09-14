@@ -28,6 +28,7 @@ import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -101,6 +102,67 @@ internal fun buildNativeBattleRounds(combatLog: BattleLogData): List<BattleLogRo
                 damageType = a.damageType, isCrit = a.isCrit, isKill = a.isKill,
                     message = a.message) }) }
 
+// ── 战前结算 native 臂（1782 · w3-06 :134 与 w3-07 :66 同一事务界面）──
+
+/**
+ * 战前突破结算 native 臂（battle_residual_tx.h ③ battlePresettleTx）：
+ * C++ 执行实时突破管线（限定队伍 id 集，行序 == discipleTables.ids 序，
+ * BREAKTHROUGH/SYSTEM 分区抽取序逐位不变）；大境界日志草稿（lifeEvents
+ * 类体属性列）经信封回写。接管成功返回 true；flag 关/镜像不可用/失败信封
+ * 返回 false 回退 Kotlin 原路径。id 集为空与 Kotlin 原函数同义（无事可做）。
+ */
+internal fun GameEngine.forceSettleDisciplesBeforeBattleNative(
+    discipleIds: List<String>
+): Boolean {
+    if (discipleIds.isEmpty()) return true
+    if (!NativeEngineFlag.authoritative) return false
+    // 防御性空安全：测试 mock（未 stub stateSyncServiceRef）返回 null——
+    // 先赋可空局部再判空（handover findings 13）
+    val sync: StateSyncService? = stateSyncService
+    if (sync == null) return false
+    val reply = GameEngineNativeOps.tryExecuteNative(
+        stateSyncService = sync,
+        actionId = ActionIds.BATTLE_PRESETTLE_TX,
+        paramsJson = params {
+            putJsonArray("discipleIds") { discipleIds.forEach { add(it) } }
+        }
+    ) as? JsonObject ?: return false
+    val drafts = reply["lifeEventDrafts"] as? JsonArray
+    if (!drafts.isNullOrEmpty()) {
+        stateStore.update {
+            for (element in drafts) {
+                val obj = element as? JsonObject
+                val id = obj?.get("id")?.jsonPrimitive?.intOrNull
+                val line = obj?.get("line")?.jsonPrimitive?.contentOrNull
+                if (obj == null || id == null || line == null) continue
+                discipleTables.lifeEvents[id] =
+                    discipleTables.lifeEvents.getOrDefault(id, emptyList()) + line
+            }
+        }
+    }
+    return true
+}
+
+/** 胜利事务 native 臂（1781）：C++ 授予魂力/winAttr（🔴 不写 defeated——
+ *  残差由 applyWorldLevelVictoryTransaction(skipNativeDomainWrites = true) 落）。 */
+internal fun GameEngine.tryNativeWorldVictoryRewards(
+    levelId: String,
+    survivorIds: Set<String>
+): Boolean {
+    if (!NativeEngineFlag.authoritative) return false
+    val sync: StateSyncService? = stateSyncService
+    if (sync == null) return false
+    val reply = GameEngineNativeOps.tryExecuteNative(
+        stateSyncService = sync,
+        actionId = ActionIds.WORLD_VICTORY_REWARDS_TX,
+        paramsJson = params {
+            put("levelId", levelId)
+            putJsonArray("survivorIds") { survivorIds.forEach { add(it) } }
+        }
+    ) as? JsonObject ?: return false
+    return reply["applied"]?.jsonPrimitive?.booleanOrNull != false
+}
+
 // ── attackWorldLevel native 臂（主入口见 GameEngineWorldBattleOps.kt）──
 
 /**
@@ -130,9 +192,12 @@ internal suspend fun GameEngine.attackWorldLevelNative(
     level: WorldLevel,
     validIds: List<String>
 ): Boolean {
-    // 战前结算（与 Kotlin 回退臂 buildWorldLevelBattle 同步序——镜像同步前置）
-    stateStore.update {
-        cultivationService.forceSettleDisciplesBeforeBattle(this, validIds)
+    // 战前结算（与 Kotlin 回退臂 buildWorldLevelBattle 同步序——镜像同步前置；
+    // 1782 native 臂接管突破管线，降级回退 Kotlin 原路径）
+    if (!forceSettleDisciplesBeforeBattleNative(validIds)) {
+        stateStore.update {
+            cultivationService.forceSettleDisciplesBeforeBattle(this, validIds)
+        }
     }
     val playerDamageModifier = if (stateStore.gameDataSnapshot.sectPolicies.strictTraining) {
         1.0 + GameConfig.PolicyConfig.STRICT_TRAINING_DAMAGE
@@ -166,8 +231,11 @@ internal suspend fun GameEngine.attackWorldLevelNative(
     val (log, teamMembers) = buildWorldLevelBattleLogFromNative(snapshot, level, battleObj, survivorIds)
     val updatedLogs = (stateStore.battleLogsSnapshot + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
     if (victory) {
-        // 胜利事务原函数（TOCTOU 重查 defeated + soulPowers/winAttr/defeated 原子块——C++ 不写 defeated）
-        applyWorldLevelVictoryTransaction(level.id, survivorIds, updatedLogs)
+        // 胜利事务：1781 native 臂授予魂力/winAttr（含 TOCTOU 重查）→ Kotlin
+        // 残差段（重查 + defeated + 战报）；native 降级 → 原全量 Kotlin 事务
+        val nativeGranted = tryNativeWorldVictoryRewards(level.id, survivorIds)
+        applyWorldLevelVictoryTransaction(level.id, survivorIds, updatedLogs,
+            skipNativeDomainWrites = nativeGranted)
         applyVictoryRewards(level, spiritStones, log, teamMembers)
     } else {
         applyWorldLevelDefeat(log, teamMembers, updatedLogs)

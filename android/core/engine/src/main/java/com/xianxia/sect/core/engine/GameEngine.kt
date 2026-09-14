@@ -46,9 +46,6 @@ import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.engine.domain.battle.aisRngManager
-import com.xianxia.sect.core.engine.domain.battle.enemyGenRngManager
-import com.xianxia.sect.core.engine.domain.battle.teamComposerRngManager
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.CombatService
@@ -168,10 +165,9 @@ class GameEngine @Inject constructor(
             sectIds.forEach { buildingFacade.seizeBuildingsOfSect(it) }
         }
 
-        // 初始化顶层 RNG 变量（给 object 单例使用）
-        aisRngManager = gameRngManager
-        enemyGenRngManager = gameRngManager
-        teamComposerRngManager = gameRngManager
+        // W4-C 随机源收敛：三处顶层可变 xxxRngManager（aisRngManager/
+        // enemyGenRngManager/teamComposerRngManager）已改为形参必传，
+        // 本处注入点随之移除（协议租约见 docs/parallel-batches-w4/protocol-lease.md）。
         // AI 弟子域随机源归一：摘除自持影子流，接入真源分区
         //（委托模式 → AI_SECT_MIRROR = C++ aiRng_ 本体；回退 → AI_SECT 本地等价）
         AISectDiscipleManager.initialize(gameRngManager)

@@ -410,15 +410,27 @@ class BootSequenceController @Inject constructor(
         val worldHeightCells = com.xianxia.sect.core.GameConfig.SectMap.WORLD_HEIGHT_CELLS
         val mapSeed = gameEngine.gameData.value?.mapSeed ?: 0
 
-        // 生成真源在 C++（SectTerrainBridge native 优先 + Kotlin 降级），
-        // 数据展平为唯一的一维瓦片表示。
-        val flatTileData = withContext(Dispatchers.Default) {
+        // 地图冻结（WS-5b）：**存的地形恒优先**——已回填的权威地形段直接采用
+        //（跨版本冻结，不重算）；无段（新档/老档未回填）才走生成路径，并经
+        // ensureSectTerrainBackfilled 回填 GameData（此后地图冻结）。
+        val authoritative = gameEngine.gameData.value
+            ?.takeIf { it.mapSeed != 0 }
+            ?.terrainTiles
+            ?.takeIf { it.isNotEmpty() }
+            ?.toIntArray()
+        val flatTileData = authoritative ?: withContext(Dispatchers.Default) {
+            // 生成真源在 C++（SectTerrainBridge native 优先 + Kotlin 降级），
+            // 数据展平为唯一的一维瓦片表示。
             com.xianxia.sect.core.util.SectTerrainBridge.generateFlatTileData(
                 worldWidthCells = worldWidthCells,
                 worldHeightCells = worldHeightCells,
                 worldSeed = mapSeed,
                 borderTreeRing = com.xianxia.sect.core.GameConfig.SectMap.BORDER_TREE_RING
             )
+        }
+        // 无段 ⇒ 生成即数据：回填 GameData（幂等；已有段时零写入）
+        if (authoritative == null && mapSeed != 0) {
+            gameEngine.ensureSectTerrainBackfilled(flatTileData)
         }
 
         return MapPreloadData(

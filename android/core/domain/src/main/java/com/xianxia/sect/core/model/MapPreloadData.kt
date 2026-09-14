@@ -19,7 +19,9 @@ data class MapPreloadData(
     val tileSize: Int,
     val worldPixelWidth: Int,
     val worldPixelHeight: Int,
-    /** 地图种子（岛屿边缘变体确定性来源；与瓦片生成同源，仅内存传递不序列化） */
+    /** 地图种子（岛屿边缘变体确定性来源；与瓦片生成同源。地图冻结 WS-5b
+     *  后主宗地形以 [com.xianxia.sect.core.model.GameData.terrainTiles] 入档
+     *  持久化，本类仍是每会话的内存传递载体，自身不参与存档序列化） */
     val seed: Int = 0
 ) {
     override fun equals(other: Any?): Boolean {

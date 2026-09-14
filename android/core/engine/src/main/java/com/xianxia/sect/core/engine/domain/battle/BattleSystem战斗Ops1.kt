@@ -224,7 +224,8 @@ internal fun BattleSystem.executeTurnWithLog(
         beasts = battle.beasts.toMutableList(),
         teamIndexMap = battle.team.withIndex().associate { it.value.id to it.index },
         beastsIndexMap = battle.beasts.withIndex().associate { it.value.id to it.index },
-        actions = mutableListOf()
+        actions = mutableListOf(),
+        turn = battle.turn + 1
     )
 
     for (combatant in allCombatants) {
@@ -262,7 +263,7 @@ internal fun BattleSystem.executeTurnWithLog(
  * @return Continue 继续回合；EndBattle 敌方全灭提前结束
  */
 
-@Suppress("ReturnCount") // 卫语句密集的回合控制函数（判死/全灭/控制效果 4 处提前退出）
+@Suppress("ReturnCount", "LongMethod") // 卫语句密集的回合控制函数（判死/全灭/控制效果 4 处提前退出）；W4-C 措辞确定性化传入回合盐后行数触顶 60
 internal fun BattleSystem.executeCombatantTurn(
     ctx: TurnContext,
     combatant: Combatant,
@@ -307,7 +308,8 @@ internal fun BattleSystem.executeCombatantTurn(
         availableSkill = availableSkill,
         isAoeSkill = isAoeSkill,
         results = results,
-        currentCombatant = currentCombatant
+        currentCombatant = currentCombatant,
+        turn = ctx.turn
     )
 
     recordTurnAction(ctx, ActionRecordData(

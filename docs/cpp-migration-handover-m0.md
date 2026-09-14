@@ -559,76 +559,6 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **验收**: 零源码/零行为改动 ⇒ 测试面零影响（`:core:domain` 编译 + detekt 复跑绿作等价证据）；证据改写登记 `W4AChannelClosures.kt`（PRODUCTION 域）；生成器幂等（清单零变化）。
 
-## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
-
-批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）
-
-**症状（整理前实测）**: `git fsck` 报 **6 条 error + 2 条 warning**——3 个悬空 tag（`archive/batch-05-dirty-ledger` / `batch-06-sink-building` / `batch-09-sink-diplomacy`，object 已丢失）、`HEAD` 的 2 条垃圾 reflog 条目（指向不存在的 `c882c3ab…`）、1 个过期 commit-graph 引用丢失提交；另有 2 条 warning：**孤儿 pack 索引**（`pack-ca6fbef3….idx` 无对应 `.pack`）与**截断的临时 pack**（`tmp_pack_1XjjdM`，10MB，`git index-pack` 报 `fatal: early EOF`）。`git count-objects -vH` 显示 **4590 个松散对象 / 377MB，`in-pack: 0`、`packs: 0`** ——**全部历史只有松散对象、一个 pack 都没有**，外加 10.07MB 垃圾。⇒ 一次被中断的 `git repack` 残留 + 两次对象库破坏（§2.40）的叠加态。
-
-**这 3 个死 tag 是什么（根因追到底）**: 来自 w2 协作协议（`parallel-batches-w2/README.md:232`、`findings.md:428`）——"收口后立即清理分支；**非祖先提交（内容已并入但提交链不在主支）必须先打 `archive/*` tag 再删**"，本次即 `batch/05·06·09`（batch-05 = §2.34 dirty 记账摘除；batch-06 = §2.35 建筑事务下沉；batch-09 = §2.38 外交族下沉）。**tag 是那三条提交链在全宇宙唯一的落脚点**，对象在 §2.40 的破坏中丢失后，tag 就成了悬空引用。
-
-**🔴 可恢复性结论 = 不可恢复（逐条排查，非推测）**: ① 不在松散对象里、不在任何 pack 里（`cat-file` + `verify-pack` 双证）；② 从截断临时 pack 中用 `git unpack-objects` 解出 892 个对象，**不含**这 3 个；③ 同级目录其它 clone/备份（`XianxiaSectNative-b11`、`-w2-14`、`git-repo-backup/…20260905`）都不是可用对象库；④ 远端 `origin`（github.com/hsmy7/mnzm）可连通但**零 tag**，`git fetch <sha>` 取不回。**丢失的只是那三条分支的逐提交历史（commit 对象 / message / 逐笔 diff 粒度）——代码内容全部在 `main` 里（已独立核实：batch-06 `building_tx.h` + `building_tx_test.cpp` + ActionId 1450–1454 + `BuildingNativeTx.kt` 在位；batch-09 `diplomacy_tx.h` + `diplomacy_tx_test.cpp` + ActionId 1500–1502 在位；batch-05 的 `markDirty/markAllDirty/clearDirty` 确已摘除）。**
-
-**执行（七步，写操作前先证明可恢复）**:
-1. **可恢复性实证**（先于任何写操作）：`git bundle create` 出新还原点 → **`git clone -b main <bundle>` 到临时目录** → 校验 `HEAD` 相同（`6fed0e8`）、`HEAD tree` 相同（`3b8207c8`）、追踪文件数相同（3484 = 3484）、**克隆内 `fsck` 零错误**。
-2. 备份待清理项到 `C:\Mnzm\backups\git-junk-<时间戳>\`（`logs-HEAD.bak` + `orphan.idx` + `truncated-tmp.pack` + `commit-graph.bak`）。
-3. `git tag -d` 删除 3 个死 tag（确认其 object 不可恢复后）。
-4. **外科式**清 reflog：只删 `.git/logs/HEAD` 中 old/new 不可解析的 2 行（30 → 28 行；删后首行的 `old` 恰为全 0，reflog 语义合法）——**不用 `reflog expire --all`**，避免连带丢弃有效历史。
-5. 删除孤儿 `.idx`、截断 `tmp_pack`、过期 `commit-graph`（均为派生缓存/垃圾，可重建）。
-6. `git repack -a -d`（**刻意不用 `-A`、不跑 `gc`**）：把所有**可达**对象收进单一 pack，同时**不卷入也不删除 6 个悬空对象**——`-A`/`git prune` 会永久删掉它们，而本仓已被毁两次，宁可多留。
-7. 逐项复验（见下）。
-
-**整理后实测**: `git fsck` **0 error / 0 warning**（原 6 + 2）；`count-objects -vH`：**松散 4590 → 70**（336KB，即保留的悬空对象）、**in-pack 4520**、**packs 1**、`size-pack 346.55 MiB`、**`garbage: 0`**（原 10.07MB）；对象总数 **4520 + 70 = 4590 不变**（无丢失）；`HEAD` / `HEAD tree` / 提交数 25 / 追踪文件数 3484 **逐项与整理前一致**；工作区 `git status` 干净；**`git bundle create --all` 从 `fatal: bad object` 变为可用（exit 0）**——原始动机已修复。
-
-**红线**: **写操作前必须证明还原点可恢复**（第 1 步不是形式主义——本仓对象库已被毁两次）；**不 prune 悬空对象**；**不用 `reflog expire --all`**（会连带丢弃有效 reflog）；rm 类操作一律显式路径、先备份；本批**零源码改动**，故未重跑全量门禁，改以"`HEAD tree` 位级不变 + 生成物零漂移 + `DispatchGuard*` 4/4 绿"作等价证据。
-
-**登记**: ① 保留的 6 个悬空对象可追溯：`dangling commit 2f0a1e0b / 4414c471 / 27d9f184`（2f0a1e0 曾作 `lastTickMs` 相关调试提交）+ 3 个 dangling tree——**均不 prune**，留待将来需要时用 `git show` 翻查；② **远端 `origin` 长期未同步**（远端 `main` = `ad6ff6c9`，与本地 `6fed0e8` 属不同血缘；远端另有 `master` = `ddb9395f`，零 tag）——本仓与远端的关系需用户确认识别（是否仍以该仓为发布源）；③ 建议把"`git bundle` 只传可解析 ref"的写法固化进 `scripts/w4/`（本批已实测 `--all` 现在可用，但脚本保留兼容写法更稳）。
-
-## 2.67 远端仓库关系核查 + 线上隐私政策缺口（2026-09-15，核查批，零代码改动）
-
-批次: 文档/核查批 | 产物: 新 `scripts/publish-privacy-policy.ps1`（隐私政策发布器）+ 本小节 + 本文件 §4.1 登记
-
-**背景**: §2.61 W4-00 收尾时发现 `origin`（github.com/hsmy7/mnzm）的 `main` 与本地 `main` **属不同血缘**，用户要求查清关系。
-
-**核查结论一：`hsmy7/mnzm` 是本项目自己的远端仓库，且确实推送过。**
-- **不是网页仓**：网页仓是另一个 `hsmy7/index.html`（本地 `C:\Mnzm\index.html-repo` 即其克隆），其末次提交（2026-04-17）写着"**将隐私政策重定向到新地址 mnzm 仓库**"——所以政策页搬进了 `mnzm`。
-- 远端元数据：`language=Kotlin`、`size=901MB`、`has_pages=true`、`default_branch=master`。
-- **两条互不相关的分支**：① `master`（默认 + Pages 源）= 旧 **1.4.x 线**，作者 `Backup <backup@xianxia.com>` / `hsmy7`，内容停 **2026-06-28**（末次提交是"恢复被误删的隐私政策页面 docs/index.html"）；② `main` = **本项目线**，tip `ad6ff6c9`（2026-09-04 18:45Z「feat(render): 程序化天空渐变背景系统」，提交信息为本项目批级中文风格、含"compileReleaseKotlin + lintRelease 通过"），`version.properties` = **4.01.12**，`android/` 结构（`app`/`core`/`feature`/`build-logic`/`detekt-rules`/`detekt-baseline-count.guard`/`stability_config.conf`）与本地**同构**。
-- **推送证据**：远端 `pushed_at = 2026-09-04T18:49:45Z`，比该 tip 提交的 author 时间（18:45:17Z）晚 4 分钟 ⇒ 就是这次 push。
-
-**核查结论二：内容连续，但提交血缘断裂——且必然如此。**
-- **内容连续（内容级对撞，非时间戳推断）**：远端 `main` 的 `docs/index.html` blob = `566e84fa…`，与本地 `HEAD:docs/index.html` **完全相同**；远端 `main` tip 那批"程序化天空"的 7 个文件（`SkyBackground.cpp/.h`、`sky.vert/frag(+.spv)`、`SkyBackgroundConfig.kt`）本地**全部在位**；抽检 10 个文件做 blob 对撞（git blob 是内容寻址）——**5 个完全一致**（`API_DOCUMENTATION.md` / `clean_release.bat` / `gradlew.bat` / `keystore.properties.example` / `stability_config.conf`），另 5 个为本地后续演进过的（`build.gradle` / `gradle.properties` / `settings.gradle` / `detekt-baseline-count.guard` / `api.properties.example`）。
-- **血缘断裂**：本地 26 个提交**全部**为 2026-09-12～09-14、作者统一 `mnzm-dev <dev@local.mnzm>`（最早 `c13d651` "第二轮集成收口"）；远端 main/master 的提交 sha 在本地对象库中**一个都不存在**；本地 `.git` **无 `refs/remotes`、无 `logs/refs/remotes`**，`FETCH_HEAD` 为 **0 字节**（曾于 09-07 创建过、09-12 被截断）。
-- **`origin` 不是从当前这份副本推的**：本地提交身份（`mnzm-dev`）与远端提交身份（`hsmy7` / `Backup`）不同 ⇒ **09-04 那次 push 来自另一份（已被销毁的）工作副本或另一台机器**。与 §2.40 记录的".git 两次被毁 → 以工作区文件为唯一事实源重建单一可编译树"完全吻合。
-- **⇒ 两侧无共同祖先**，`merge` / `fast-forward` 都不可能；**2026-09-04 之后（M0–M3 + W4-00 共 26 个提交）的内容只存在于本地，远端一个都没有**。
-
-**核查结论三（🟡 隐私合规缺口，本批的主要发现）：线上隐私政策落后于实际集成。**
-
-| 面 | 版本 | 声明的广告/统计 SDK |
-|---|---|---|
-| **线上** https://hsmy7.github.io/mnzm/ （Pages ← `master`） | **2026-06-04** | 仅 TapTap + MMKV + Dirichlet Ad SDK |
-| 仓库 `main` 与本地 `docs/index.html` | **2026-08-13** | TapTap（含 **tap-db / TapDB 数据分析**）+ MMKV + **TapADN 聚合广告 SDK**（Dirichlet 自有 + **穿山甲 / 优量汇 / 爱奇艺 / 百青藤**）+ **GAID** + **个性化广告开关** |
-| 应用内 `PrivacyConsentScreen.kt` | **2026-08-13** | 同上（与仓库网页版一致，已核实 `:808` 日期行与 SDK 链接常量） |
-
-- **这些 SDK 确实已集成**（`git grep` 实证）：`android/app/build.gradle` 命中 `pangle` / `Pangle` / `穿山甲` / `GDT` / `优量汇` / `iQiyi` / `爱奇艺` / `baidu` / `百青藤` / `TapDB`；`proguard-rules.pro` 同步；libs 下存在 `DirichletAD_GDT_Adapter_5.1.2.3.aar`。
-- ⇒ **线上页面未声明实际在用的 SDK**，违反 CLAUDE.md 设计方案规则第 5 条"隐私政策必须双入口同步更新"。
-
-**处置（✅ 已于 2026-09-15 执行完毕）**:
-- **① 两步走：先把两条历史线统一，再谈发布。** 远端 `main` 的 **1834 个提交（2026-04-03 ～ 09-05，作者 hsmy7）才是项目真实历史**；本地 26 个提交是重建线。执行（**全程未使用 force-push**）：
-  1. `git fetch origin main` —— 把远端真实历史拉到本地（此前本地零命中，等于给不可再生的历史做了备份）；
-  2. `git commit-tree <本地当前树> -p origin/main -p main` —— 构造**双亲合并提交 `ba69918`**：第一父 = 远端真实历史，第二父 = 本地重建线，**树取本地当前树（逐字节相同）**；
-  3. 校验：合并树 ≡ 本地树；`git log -1 --format=%P` 双亲正确；文档中引用过的本地 sha（`24c429d` / `d4cad20` / `6fed0e8` / `87ea746` / `8052418`）**全部仍是合并提交的祖先**（可解析）；可达提交数 **1862 = 1834 + 27 + 1**；
-  4. `git push origin ba69918:refs/heads/main` —— **fast-forward**（第一父即原远端 main），只上传 929 个对象；远端**不丢任何对象**；
-  5. 本地 `git reset --hard ba69918`（树相同 ⇒ 工作区零变化）+ 设置 upstream，本地与远端对齐。
-  - **为什么不做 rebase**：两条线**无共同祖先**，把 26 个"全树快照"式提交 rebase 到 1834 提交之上会产生数千处无意义冲突且不增加信息量；双亲合并是唯一「零损失 + 零强推」的统一方式。
-- **② 隐私政策（根因修复）**：`PUT /repos/hsmy7/mnzm/pages` 把 Pages 发布源由 `master/docs` **切到 `main/docs`** —— `main` 上该文件与本地逐字节相同（blob `566e84fa…`）⇒ **零内容变更即生效**，且**从根上消除"政策更新写在 main、发布源在 master"的脱节**（`CLAUDE.md` 设计方案规则第 5 条要求政策双入口同步，源指向 main 后即自动同步）。**线上实测**：https://hsmy7.github.io/mnzm/ 现为「更新日期：2026年8月13日」、26256 字节，穿山甲/优量汇/爱奇艺/百青藤/TapADN/TapDB **均已声明** ✓
-- **③ 仓库门面与设置**：补 `README.md`（项目介绍 / 技术栈 / 架构要点 / 目录结构 / 构建测试命令 / 文档索引 / 分支说明）；`PATCH /repos/hsmy7/mnzm` 设 `default_branch = main`（原为 `master`）、补 `description` 与 `homepage`；`PUT /topics` 设 12 个主题标签。
-- **④ 工具**：`scripts/publish-privacy-policy.ps1` 保留（三项前置校验 + `-DryRun` 默认开 + 两种模式 + 手工兜底），作为**将来政策再更新时的发布器**；由于 Pages 源已切到 `main`，日常只需把政策改动推到 `main` 即自动发布，`-Mode SourceBranch` 仅在需要回写历史分支时使用。
-
-**途中发现（小项）**: `C:\Mnzm\XianxiaSectNative-b11` 与 `-w2-14` 目录下的 `.git` **是文件**（worktree 指针），指向 `C:/Mnzm/XianxiaSectNative/.git/worktrees/<name>`，但 `.git/worktrees` 目录**已不存在**（§2.40 记录的"worktrees 被删除"残留）⇒ 这两个目录的 `.git` 是**失效残留**，`git worktree list` 也不列它们。清理它们用 `cmd /c rmdir`（若含 node_modules junction）或直接删除该 `.git` 文件；**本次未动**（非本次任务范围，登记备查）。
-
-**顺手更正（文档漂移）**: `CLAUDE.md`「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
-
 ## 2.63 W4-B（2026-09-15 起批）：内政与经济运营轴——平台效应回执化
 
 > 本小节为 W4-B **预分配小节**（README §4.6）；批文档见 [batch-W4B-court-economy](parallel-batches-w4/batch-W4B-court-economy.md)。
@@ -744,6 +674,156 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **验证**: 桌面 C++ 全量 **1361/1361**（基线 1326 + B2 18 + B3 13 + B4 4，含单进程直跑复核）；`:core:domain` **1758/1758**（守卫套件含）；三模块 detekt 绿；生成器 `178 actions (maxId=1843)` 零漂移；引擎全量 **3295/3295**（基线 3281 + 本波 W4-B 新增 14；含 47 个 Diff* 对拍类，`-Dgamecore.jni.path` 指向本工作树 desktop-jni，`--rerun-tasks` 防假绿）。
 
+
+
+## 2.64 W4-C（2026-09-15，进行中→主体落地）：战斗与世界协议轴——C-③ 随机源收敛 + WS-5b 地图冻结全链落地
+
+批次: W4-C（worktree `C:\Mnzm\XianxiaSectNative-w4c`，分支 `w4/c-battle-world`，基线 `w4-base`）| ActionId: **1780–1809 本批未启用 / 1855–1859 维持空置**（C-③ 战斗侧治理走确定性化路线，无 C++ 事务需求，退段登记见下）| 提交: `w4c/01`（C-③ 随机源收敛，bb5fb2549）→ `w4c/02`（WS-5b 地图冻结，fadb66f32）→ `w4c/03`（遮蔽根治，ed63b4203）→ `w4c/04`（detekt 清零，f7db90256）；每子批 `git bundle` 落盘 `C:\Mnzm\backups\w4c-0{1,2,3,4}.bundle`
+
+### 2.64.1 ✅ C-③（C7+C8）随机源收敛（w4c/01）
+
+- **C8 · 三处顶层可变 `xxxRngManager` 形参必传**（与已修复 MissionSystem 同形态同修法）：摘除 `EnemyGenerator.enemyGenRngManager:22` / `AISectAttackManager.aisRngManager:40(+aisRng:41)` / `AISectTeamComposer.teamComposerRngManager:9(+teamComposerRng:10)`；BATTLE/ENEMY_GEN 分区经 `GameRngManager` 形参显式传入。生产链透传：`GameEngineBattleOps:78/:238`（战利品与 `sectBattleRewardCount` 同一 BATTLE 分区实例，抽取序逐位不变）、`MissionSystem.processMissionCompletion` 链（ENEMY_GEN 透传至 `generateHumanEnemies`）。`GameEngine.kt:170-172` 三处赋值点随之移除——**租约已按 protocol-lease.md 登记取得**（W4-A 未开工顺延；改动仅 init 块 3 行，与 W4-A 的 `:276-306` hunks 零重叠）。
+- **C7 · `BattleDescriptionGenerator` 14 处 `.random()` 归零（口径修正登记）**：批次方案预留两路线均不可行——① 插 BATTLE 分区会平移后续战斗结果抽取序（跨语言对拍逐位锁定）；② 新增分区需扩 `RngSourceGuardTest.registeredPartitionIds`（0..9），该文件 W4-A 独占。故对齐 `applyDeterministicWinAttr` 既有口径（ID 散列代替随机）：以（攻击者 id × 目标 id × 回合号）散列确定性选词——零抽取、零分区影响、存档重放可复现；回合号经 `TurnContext.turn` 线程化。`battleLogs` 为 Kotlin 显示域（batch-20b 登记），措辞文案不在对拍面内。**1855–1859 条件段退段：维持空置，无 ActionId/事务需求。**
+- **守卫面**：`RngSourceGuardTest`/`RngEngineIsolationGuardTest` 零改动全绿（白名单残留 3 条无害——白名单=跳过集；收缩 + 计数断言统一 W4-D/D5，与 README §5.1 口径一致）。**实证**：`DiffSectBattleTest`/`DiffSectAttackDecisionTest` 实跑桌面 JNI 全绿 ⇒ BATTLE 分区抽取序跨语言逐位一致，参数化零行为漂移。
+
+### 2.64.2 ✅ C-② WS-5b 地图冻结（w4c/02，本批最大工作块全链落地）
+
+- **口径**：生成即数据、**存的地形恒优先**——`terrainTiles` 非空即采用（跨版本冻结不重算）；仅无段按 `mapSeed` + `MAP_GEN_VERSION=1` 生成回填，新档与老档**同一条路径**。生成器演进 ⇒ 递增版本戳，老档老地图永久冻结，无需发版。
+- **C++ 协议面（租约第一顺位，protocol-lease.md 登记）**：`models.h` GameData 增 `mapGenVersion`+`terrainTiles`（flat 单一表示，§2.19 红线不破）；`json_codec` 双向编解码（"非空/非零才导出键"先例）；`game_core.{h,cpp}` `ensureTerrainGenerated` 落 `importStateInternal` **归一化族**（先于 `resetBaseline` ⇒ 生成段计入导入基线，前向/反向镜像零载荷，稳态每旬零增量）；生成参数由 Kotlin `GameConfig.SectMap` 经 `nativeInit` 传值（单一数据源不落 C++）；未配置地形（桌面测试面）/`mapSeed==0` 防御跳过。
+- **Kotlin 侧**：`GameData` 增 `mapGenVersion(@ProtoNumber 1000)`+`terrainTiles(@ProtoNumber 1001)`；Room `DATABASE_VERSION 50→51` + `MIGRATION_50_51`（ADD COLUMN ×2 带 DEFAULT）+ `51.json`；`SectMap` 提 `MAP_GEN_VERSION`/`DECORATION_DENSITY` 常量。
+- **实施定界修正（3 处，与批次方案的差异已登记）**：① R5"改 `SectTerrainBridge` 读权威态"→ 桥保持纯生成通道（native 优先 + Kotlin 位级降级臂不破），读权威态落在调用面（BootSequence 权威段优先/无段回填、SectMapController 主宗图读权威段、`GameEngineSaveOps.ensureSectTerrainBackfilled` 幂等回填）；② R7"登记 CLOSED"→ **登记在册保留（照常传输）**：boot 回填是合法一次性 Kotlin 写者，CLOSED 会触发 `detectClosedFieldWrites` 误报（gate#7 红）；代价 = 回填一次 ≈64KB 一次性信封，C++ 同源生成幂等覆盖，不承载地形存续（符合 R7 实质）；③ 域归属 SAVE_LOAD 族（mapSeed 同族），域级证据留 W4-B 文件（聚合 `toMap` 后写会静默覆盖 W4-B 结论）。
+- **RLE 顺延（债务登记）**：Room `List<Int>` 转换器注册位已被 `intList` 占用，独立转换器需值类/`IntArray` 类型（data-class equals 与 proto codegen 破坏性风险）。现存储 = base64 proto（≈34KB TEXT 一次性读）+ 云路径 LZ4/ZSTD 已压缩。触发条件 = 存档体积实测超预算。
+- **测试**：新增 `terrain_freeze_test.cpp` 6 用例（生成即数据+确定性+零 RNG 差分/存的地形恒优先/回填幂等/段存在性协议/无种子跳过/ensure 与 generateTileData 位级一致）；`RoomMigrationV50To51Test` 2 用例（真实 schema 校验 + 旧行默认值与数据零丢失）；`SaveDataTerrainFreezeTest` 3 用例（云档 proto 往返不丢地形，含 128² 规模逐位）——R9 已同步扩充 `rules/database-migration.md`。
+
+### 2.64.3 ✅ C3（部分）遮蔽根治（w4c/03）+ w4c/04 detekt 清零
+
+- `InventorySystem.materializeDiscipleBagAndMarkDead` 成员/扩展同签名遮蔽：删除 `InventorySystem校验Ops3.kt:183` 死扩展（成员恒胜出 ⇒ 扩展自始死代码），收敛为成员单一实现，零行为变更。
+- detekt 六模块 baseline 全 0 保持：MissionSystem rng 双形参合并为单一 `rngManager`（内部 `rngOf` 自取，抽取序不变）；`executeCombatantTurn` 合并豁免注解；4 处死 import 清理。
+
+### 2.64.4 ✅ C-① 战斗族残差下沉（C1+C2+C3，w4c/07——本批代码面收尾）
+
+**交付面**：新 `battle_residual_tx.h`（①伤亡残差 ②关卡胜利 ③战前结算）+ 新
+`secret_realm_residual_tx.h`（①出发换岗 ②到期兜底）五事务 + `dispatch_w4c.cpp`
+实裁 + `w4c.mjs` 五条目（1780/1781/1782/1800/1801）+ Kotlin 五处 native 臂接线
++ 双 GTest（13 用例）+ `BattleResidualNativeTxGateTest`（findings 13 回归网 +
+三臂降级等价）+ `W4CChannelClosures` 证据改写。**1790–1799 段零占用**（w3-07
+三处登记不下沉，`w4c.mjs` 段注 + closures 证据双登记）。
+
+**实施口径差异（与批次方案 §2.2 的差异，逐条核实战真值）**：
+
+- ① 伤亡残差（1780）：死亡计数按 Kotlin `InventorySystem.materialize
+  DiscipleBagAndMarkDead` 的 **wasAlive 守卫**计数——`sr_session` 包装为无条件
+  计数（洞府预标记语义），1570→1780 重入路径会双计；故事务内 wasAlive=true 走
+  包装函数（袋物化+列写+计数一次）、false 走三列幂等重写。宗门外死亡**不回收
+  穿戴**（Kotlin isOutsideSect 分支同口径）；DeathEvent 广播/丧亲日志/
+  Room 生产槽清槽为 Kotlin 平台残差。
+- ② 胜利事务（1781）：r = |(id×527+31)%17| 因 527≡0 (mod 17) **恒收敛分支 14**
+  （basePhysicalDefenses+1）——与 Kotlin 同式同常量，GTest 以实证常量锁定；
+  TOCTOU 重查在 C++（defeated → 成功零写入 applied=false）；🔴 **C++ 不写
+  defeated**（batch-13 口径）——defeated + battleLogs 残差经
+  `applyWorldLevelVictoryTransaction(skipNativeDomainWrites = true)` 留 Kotlin 臂；
+  偷盗钩子**随域下沉**（原表"随域判定"→判为下沉，复用
+  `month_settlement::judgeSingleTheftCandidate`，SYSTEM 分区同区同序）。
+- ③ 战前结算（1782）：复用 `phase_settlement::performBreakthrough` 已对拍锁定
+  管线（自动嗑丹/引导计数/检查点/完成预估/精准写回），**候选 = 传入队伍 id 集**
+  （月结为全量排除秘境成员）——非队伍满修为弟子**零抽取**（抽取集不变红线，
+  GTest rngStates 快照差分锁定）；行序 == `_ids` 追加序；w3-07 `:66` 与 w3-06
+  `:134` 同一事务界面（单一 ActionId）。
+- 秘境 1801：native 权威态判未到期（快照竞态）→ 放行（以权威态为准）；
+  backpack 解析失败按空背包兜底（`continueSecretRealmNative` EXPIRED 同构）。
+- lifeEvents 契约：C++ 无该列（`disciple_lifecycle_tx.h` 口径）⇒ 丧亲/突破日志
+  以信封 `lifeEventDrafts` 回写 Kotlin 瞬态列；战斗丧亲日志**每新入悲痛者至多
+  一条**（Kotlin `firstOrNull` 语义、死者按行序取首）——与年结"逐死者逐亲属出
+  草稿"口径不同。
+
+**验证数值（w4c/07 实跑，2026-09-15）**：桌面 C++ **1345/1345**（基线 1332 +
+新 13；`dispatch_guard` 对 5 个新动作号的可达校验含于全量）；`:core:engine`
+全量 **3282/0**（`--rerun-tasks` + 本工作树 desktop-jni 对拍路径）；六模块
+detekt 全绿 baseline 全 0（Complexity 19/15、Loop 跳转、MaxLine 三处实修零
+豁免）；`:core:data` / `:feature:game` / `:app` 回归绿；
+`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；生成器重跑 **174
+动作 / maxId=1801** 与提交清单逐文件一致；冻结纪律机器判据通过（`git diff
+w4-base..` 不含 execute_dispatch.cpp / test:CMakeLists / ReverseChannelPolicy /
+GameViewModel / GameEngineCore / 宿主族）。
+
+**CombatService 注入形态**：构造新增 `Provider<GameEngineCore>?`（W4-B
+`MerchantAndRecruitService` 同款——Dagger 破环 + 测试直构默认 null 走回退臂）。
+
+**本批遗留（非代码面，归收口人）**：干净检出复验（README §4.3 第 5 条）、
+A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（门禁第 9 条，
+随 PR 描述附）、共享文档（CHANGELOG 双文件 / handover §3 验证表 / §4.1 / §5 /
+§6）收口人独占更新。
+
+
+## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
+
+批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）
+
+**症状（整理前实测）**: `git fsck` 报 **6 条 error + 2 条 warning**——3 个悬空 tag（`archive/batch-05-dirty-ledger` / `batch-06-sink-building` / `batch-09-sink-diplomacy`，object 已丢失）、`HEAD` 的 2 条垃圾 reflog 条目（指向不存在的 `c882c3ab…`）、1 个过期 commit-graph 引用丢失提交；另有 2 条 warning：**孤儿 pack 索引**（`pack-ca6fbef3….idx` 无对应 `.pack`）与**截断的临时 pack**（`tmp_pack_1XjjdM`，10MB，`git index-pack` 报 `fatal: early EOF`）。`git count-objects -vH` 显示 **4590 个松散对象 / 377MB，`in-pack: 0`、`packs: 0`** ——**全部历史只有松散对象、一个 pack 都没有**，外加 10.07MB 垃圾。⇒ 一次被中断的 `git repack` 残留 + 两次对象库破坏（§2.40）的叠加态。
+
+**这 3 个死 tag 是什么（根因追到底）**: 来自 w2 协作协议（`parallel-batches-w2/README.md:232`、`findings.md:428`）——"收口后立即清理分支；**非祖先提交（内容已并入但提交链不在主支）必须先打 `archive/*` tag 再删**"，本次即 `batch/05·06·09`（batch-05 = §2.34 dirty 记账摘除；batch-06 = §2.35 建筑事务下沉；batch-09 = §2.38 外交族下沉）。**tag 是那三条提交链在全宇宙唯一的落脚点**，对象在 §2.40 的破坏中丢失后，tag 就成了悬空引用。
+
+**🔴 可恢复性结论 = 不可恢复（逐条排查，非推测）**: ① 不在松散对象里、不在任何 pack 里（`cat-file` + `verify-pack` 双证）；② 从截断临时 pack 中用 `git unpack-objects` 解出 892 个对象，**不含**这 3 个；③ 同级目录其它 clone/备份（`XianxiaSectNative-b11`、`-w2-14`、`git-repo-backup/…20260905`）都不是可用对象库；④ 远端 `origin`（github.com/hsmy7/mnzm）可连通但**零 tag**，`git fetch <sha>` 取不回。**丢失的只是那三条分支的逐提交历史（commit 对象 / message / 逐笔 diff 粒度）——代码内容全部在 `main` 里（已独立核实：batch-06 `building_tx.h` + `building_tx_test.cpp` + ActionId 1450–1454 + `BuildingNativeTx.kt` 在位；batch-09 `diplomacy_tx.h` + `diplomacy_tx_test.cpp` + ActionId 1500–1502 在位；batch-05 的 `markDirty/markAllDirty/clearDirty` 确已摘除）。**
+
+**执行（七步，写操作前先证明可恢复）**:
+1. **可恢复性实证**（先于任何写操作）：`git bundle create` 出新还原点 → **`git clone -b main <bundle>` 到临时目录** → 校验 `HEAD` 相同（`6fed0e8`）、`HEAD tree` 相同（`3b8207c8`）、追踪文件数相同（3484 = 3484）、**克隆内 `fsck` 零错误**。
+2. 备份待清理项到 `C:\Mnzm\backups\git-junk-<时间戳>\`（`logs-HEAD.bak` + `orphan.idx` + `truncated-tmp.pack` + `commit-graph.bak`）。
+3. `git tag -d` 删除 3 个死 tag（确认其 object 不可恢复后）。
+4. **外科式**清 reflog：只删 `.git/logs/HEAD` 中 old/new 不可解析的 2 行（30 → 28 行；删后首行的 `old` 恰为全 0，reflog 语义合法）——**不用 `reflog expire --all`**，避免连带丢弃有效历史。
+5. 删除孤儿 `.idx`、截断 `tmp_pack`、过期 `commit-graph`（均为派生缓存/垃圾，可重建）。
+6. `git repack -a -d`（**刻意不用 `-A`、不跑 `gc`**）：把所有**可达**对象收进单一 pack，同时**不卷入也不删除 6 个悬空对象**——`-A`/`git prune` 会永久删掉它们，而本仓已被毁两次，宁可多留。
+7. 逐项复验（见下）。
+
+**整理后实测**: `git fsck` **0 error / 0 warning**（原 6 + 2）；`count-objects -vH`：**松散 4590 → 70**（336KB，即保留的悬空对象）、**in-pack 4520**、**packs 1**、`size-pack 346.55 MiB`、**`garbage: 0`**（原 10.07MB）；对象总数 **4520 + 70 = 4590 不变**（无丢失）；`HEAD` / `HEAD tree` / 提交数 25 / 追踪文件数 3484 **逐项与整理前一致**；工作区 `git status` 干净；**`git bundle create --all` 从 `fatal: bad object` 变为可用（exit 0）**——原始动机已修复。
+
+**红线**: **写操作前必须证明还原点可恢复**（第 1 步不是形式主义——本仓对象库已被毁两次）；**不 prune 悬空对象**；**不用 `reflog expire --all`**（会连带丢弃有效 reflog）；rm 类操作一律显式路径、先备份；本批**零源码改动**，故未重跑全量门禁，改以"`HEAD tree` 位级不变 + 生成物零漂移 + `DispatchGuard*` 4/4 绿"作等价证据。
+
+**登记**: ① 保留的 6 个悬空对象可追溯：`dangling commit 2f0a1e0b / 4414c471 / 27d9f184`（2f0a1e0 曾作 `lastTickMs` 相关调试提交）+ 3 个 dangling tree——**均不 prune**，留待将来需要时用 `git show` 翻查；② **远端 `origin` 长期未同步**（远端 `main` = `ad6ff6c9`，与本地 `6fed0e8` 属不同血缘；远端另有 `master` = `ddb9395f`，零 tag）——本仓与远端的关系需用户确认识别（是否仍以该仓为发布源）；③ 建议把"`git bundle` 只传可解析 ref"的写法固化进 `scripts/w4/`（本批已实测 `--all` 现在可用，但脚本保留兼容写法更稳）。
+
+## 2.67 远端仓库关系核查 + 线上隐私政策缺口（2026-09-15，核查批，零代码改动）
+
+批次: 文档/核查批 | 产物: 新 `scripts/publish-privacy-policy.ps1`（隐私政策发布器）+ 本小节 + 本文件 §4.1 登记
+
+**背景**: §2.61 W4-00 收尾时发现 `origin`（github.com/hsmy7/mnzm）的 `main` 与本地 `main` **属不同血缘**，用户要求查清关系。
+
+**核查结论一：`hsmy7/mnzm` 是本项目自己的远端仓库，且确实推送过。**
+- **不是网页仓**：网页仓是另一个 `hsmy7/index.html`（本地 `C:\Mnzm\index.html-repo` 即其克隆），其末次提交（2026-04-17）写着"**将隐私政策重定向到新地址 mnzm 仓库**"——所以政策页搬进了 `mnzm`。
+- 远端元数据：`language=Kotlin`、`size=901MB`、`has_pages=true`、`default_branch=master`。
+- **两条互不相关的分支**：① `master`（默认 + Pages 源）= 旧 **1.4.x 线**，作者 `Backup <backup@xianxia.com>` / `hsmy7`，内容停 **2026-06-28**（末次提交是"恢复被误删的隐私政策页面 docs/index.html"）；② `main` = **本项目线**，tip `ad6ff6c9`（2026-09-04 18:45Z「feat(render): 程序化天空渐变背景系统」，提交信息为本项目批级中文风格、含"compileReleaseKotlin + lintRelease 通过"），`version.properties` = **4.01.12**，`android/` 结构（`app`/`core`/`feature`/`build-logic`/`detekt-rules`/`detekt-baseline-count.guard`/`stability_config.conf`）与本地**同构**。
+- **推送证据**：远端 `pushed_at = 2026-09-04T18:49:45Z`，比该 tip 提交的 author 时间（18:45:17Z）晚 4 分钟 ⇒ 就是这次 push。
+
+**核查结论二：内容连续，但提交血缘断裂——且必然如此。**
+- **内容连续（内容级对撞，非时间戳推断）**：远端 `main` 的 `docs/index.html` blob = `566e84fa…`，与本地 `HEAD:docs/index.html` **完全相同**；远端 `main` tip 那批"程序化天空"的 7 个文件（`SkyBackground.cpp/.h`、`sky.vert/frag(+.spv)`、`SkyBackgroundConfig.kt`）本地**全部在位**；抽检 10 个文件做 blob 对撞（git blob 是内容寻址）——**5 个完全一致**（`API_DOCUMENTATION.md` / `clean_release.bat` / `gradlew.bat` / `keystore.properties.example` / `stability_config.conf`），另 5 个为本地后续演进过的（`build.gradle` / `gradle.properties` / `settings.gradle` / `detekt-baseline-count.guard` / `api.properties.example`）。
+- **血缘断裂**：本地 26 个提交**全部**为 2026-09-12～09-14、作者统一 `mnzm-dev <dev@local.mnzm>`（最早 `c13d651` "第二轮集成收口"）；远端 main/master 的提交 sha 在本地对象库中**一个都不存在**；本地 `.git` **无 `refs/remotes`、无 `logs/refs/remotes`**，`FETCH_HEAD` 为 **0 字节**（曾于 09-07 创建过、09-12 被截断）。
+- **`origin` 不是从当前这份副本推的**：本地提交身份（`mnzm-dev`）与远端提交身份（`hsmy7` / `Backup`）不同 ⇒ **09-04 那次 push 来自另一份（已被销毁的）工作副本或另一台机器**。与 §2.40 记录的".git 两次被毁 → 以工作区文件为唯一事实源重建单一可编译树"完全吻合。
+- **⇒ 两侧无共同祖先**，`merge` / `fast-forward` 都不可能；**2026-09-04 之后（M0–M3 + W4-00 共 26 个提交）的内容只存在于本地，远端一个都没有**。
+
+**核查结论三（🟡 隐私合规缺口，本批的主要发现）：线上隐私政策落后于实际集成。**
+
+| 面 | 版本 | 声明的广告/统计 SDK |
+|---|---|---|
+| **线上** https://hsmy7.github.io/mnzm/ （Pages ← `master`） | **2026-06-04** | 仅 TapTap + MMKV + Dirichlet Ad SDK |
+| 仓库 `main` 与本地 `docs/index.html` | **2026-08-13** | TapTap（含 **tap-db / TapDB 数据分析**）+ MMKV + **TapADN 聚合广告 SDK**（Dirichlet 自有 + **穿山甲 / 优量汇 / 爱奇艺 / 百青藤**）+ **GAID** + **个性化广告开关** |
+| 应用内 `PrivacyConsentScreen.kt` | **2026-08-13** | 同上（与仓库网页版一致，已核实 `:808` 日期行与 SDK 链接常量） |
+
+- **这些 SDK 确实已集成**（`git grep` 实证）：`android/app/build.gradle` 命中 `pangle` / `Pangle` / `穿山甲` / `GDT` / `优量汇` / `iQiyi` / `爱奇艺` / `baidu` / `百青藤` / `TapDB`；`proguard-rules.pro` 同步；libs 下存在 `DirichletAD_GDT_Adapter_5.1.2.3.aar`。
+- ⇒ **线上页面未声明实际在用的 SDK**，违反 CLAUDE.md 设计方案规则第 5 条"隐私政策必须双入口同步更新"。
+
+**处置（✅ 已于 2026-09-15 执行完毕）**:
+- **① 两步走：先把两条历史线统一，再谈发布。** 远端 `main` 的 **1834 个提交（2026-04-03 ～ 09-05，作者 hsmy7）才是项目真实历史**；本地 26 个提交是重建线。执行（**全程未使用 force-push**）：
+  1. `git fetch origin main` —— 把远端真实历史拉到本地（此前本地零命中，等于给不可再生的历史做了备份）；
+  2. `git commit-tree <本地当前树> -p origin/main -p main` —— 构造**双亲合并提交 `ba69918`**：第一父 = 远端真实历史，第二父 = 本地重建线，**树取本地当前树（逐字节相同）**；
+  3. 校验：合并树 ≡ 本地树；`git log -1 --format=%P` 双亲正确；文档中引用过的本地 sha（`24c429d` / `d4cad20` / `6fed0e8` / `87ea746` / `8052418`）**全部仍是合并提交的祖先**（可解析）；可达提交数 **1862 = 1834 + 27 + 1**；
+  4. `git push origin ba69918:refs/heads/main` —— **fast-forward**（第一父即原远端 main），只上传 929 个对象；远端**不丢任何对象**；
+  5. 本地 `git reset --hard ba69918`（树相同 ⇒ 工作区零变化）+ 设置 upstream，本地与远端对齐。
+  - **为什么不做 rebase**：两条线**无共同祖先**，把 26 个"全树快照"式提交 rebase 到 1834 提交之上会产生数千处无意义冲突且不增加信息量；双亲合并是唯一「零损失 + 零强推」的统一方式。
+- **② 隐私政策（根因修复）**：`PUT /repos/hsmy7/mnzm/pages` 把 Pages 发布源由 `master/docs` **切到 `main/docs`** —— `main` 上该文件与本地逐字节相同（blob `566e84fa…`）⇒ **零内容变更即生效**，且**从根上消除"政策更新写在 main、发布源在 master"的脱节**（`CLAUDE.md` 设计方案规则第 5 条要求政策双入口同步，源指向 main 后即自动同步）。**线上实测**：https://hsmy7.github.io/mnzm/ 现为「更新日期：2026年8月13日」、26256 字节，穿山甲/优量汇/爱奇艺/百青藤/TapADN/TapDB **均已声明** ✓
+- **③ 仓库门面与设置**：补 `README.md`（项目介绍 / 技术栈 / 架构要点 / 目录结构 / 构建测试命令 / 文档索引 / 分支说明）；`PATCH /repos/hsmy7/mnzm` 设 `default_branch = main`（原为 `master`）、补 `description` 与 `homepage`；`PUT /topics` 设 12 个主题标签。
+- **④ 工具**：`scripts/publish-privacy-policy.ps1` 保留（三项前置校验 + `-DryRun` 默认开 + 两种模式 + 手工兜底），作为**将来政策再更新时的发布器**；由于 Pages 源已切到 `main`，日常只需把政策改动推到 `main` 即自动发布，`-Mode SourceBranch` 仅在需要回写历史分支时使用。
+
+**途中发现（小项）**: `C:\Mnzm\XianxiaSectNative-b11` 与 `-w2-14` 目录下的 `.git` **是文件**（worktree 指针），指向 `C:/Mnzm/XianxiaSectNative/.git/worktrees/<name>`，但 `.git/worktrees` 目录**已不存在**（§2.40 记录的"worktrees 被删除"残留）⇒ 这两个目录的 `.git` 是**失效残留**，`git worktree list` 也不列它们。清理它们用 `cmd /c rmdir`（若含 node_modules junction）或直接删除该 `.git` 文件；**本次未动**（非本次任务范围，登记备查）。
+
+**顺手更正（文档漂移）**: `CLAUDE.md`「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
 
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：

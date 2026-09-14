@@ -179,23 +179,33 @@ private fun GameEngine.buildWorldLevelBattleLog(
     return log to teamMembers
 }
 
-/** 胜利原子事务（attackWorldLevel 提取）：入口重复 defeated 检查 + 魂魄/属性增长 + defeated 标记 */
+/** 胜利原子事务（attackWorldLevel 提取）：入口重复 defeated 检查 + 魂魄/属性增长 + defeated 标记。
+ *
+ * [skipNativeDomainWrites]：native 臂（1781 WORLD_VICTORY_REWARDS_TX）已由 C++
+ * 授予魂力/winAttr（battle_residual_tx.h ②，含 TOCTOU 重查与偷盗钩子）时传
+ * true——本函数只执行残差段（重查 + defeated 标记 + 战报落库）。Kotlin 回退臂
+ * 传 false 保持原全量行为。🔴 defeated 两臂均由 Kotlin 写（batch-13 TOCTOU
+ * 口径：C++ 不写 defeated）。
+ */
 internal fun GameEngine.applyWorldLevelVictoryTransaction(
     levelId: String,
     survivorIds: Set<String>,
-    updatedLogs: List<BattleLog>
+    updatedLogs: List<BattleLog>,
+    skipNativeDomainWrites: Boolean = false
 ) {
     stateStore.update {
         val currentLevel = gameData.worldLevels.find { it.id == levelId }
         if (currentLevel == null || currentLevel.defeated) return@update
 
-        for (id in discipleTables.ids) {
-            val idStr = id.toString()
-            if (idStr in survivorIds && discipleTables.isAlive[id] == 1) {
-                discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1
-                if (discipleTables.talentIds[id].any { tid -> TalentDatabase
-                    .getById(tid)?.effects?.containsKey("winBattleRandomAttrPlus") == true }) {
-                    applyDeterministicWinAttr(id, this)
+        if (!skipNativeDomainWrites) {
+            for (id in discipleTables.ids) {
+                val idStr = id.toString()
+                if (idStr in survivorIds && discipleTables.isAlive[id] == 1) {
+                    discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1
+                    if (discipleTables.talentIds[id].any { tid -> TalentDatabase
+                        .getById(tid)?.effects?.containsKey("winBattleRandomAttrPlus") == true }) {
+                        applyDeterministicWinAttr(id, this)
+                    }
                 }
             }
         }

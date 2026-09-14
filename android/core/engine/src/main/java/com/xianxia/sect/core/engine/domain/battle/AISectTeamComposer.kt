@@ -2,13 +2,6 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.util.DeterministicRng
-import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.util.RngPartition
-
-/** AI 组队系统的 RNG 管理器（由 GameEngine 初始化时注入） */
-var teamComposerRngManager: GameRngManager? = null
-private val teamComposerRng: DeterministicRng
-    get() = (teamComposerRngManager ?: error("TeamComposer RNG not initialized")).getRng(RngPartition.BATTLE)
 
 /**
  * 创建进攻队伍 — 按境界排序，选取战斗力最低的 N 个弟子。
@@ -95,8 +88,11 @@ internal fun getSectWarRewardConfig(sectLevel: Int): SectWarRewardConfig {
 
 /**
  * 宗门被攻破时生成的随机战争奖励。
+ *
+ * W4-C 随机源收敛：BATTLE 分区抽取由调用方显式传入（形参必传），
+ * 摘除顶层可变 `teamComposerRngManager`（消除双引擎同进程"后构造者覆写"污染面）。
  */
-internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
+internal fun generateWarRewards(sectLevel: Int, itemCount: Int, rng: DeterministicRng): WarRewards {
     val config = getSectWarRewardConfig(sectLevel)
     var spiritStones = 0L
 
@@ -108,7 +104,7 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
     val seeds = mutableListOf<com.xianxia.sect.core.model.Seed>()
 
     repeat(itemCount) {
-        val itemType = teamComposerRng.nextInt(7)
+        val itemType = rng.nextInt(7)
         when (itemType) {
             0 -> spiritStones += config.spiritStoneValue
             1 -> addWarEquipment(config, equipmentStacks)

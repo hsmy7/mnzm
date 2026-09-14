@@ -13,6 +13,8 @@ import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager.PlayerAttackDecision
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -36,7 +38,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * 差异登记于 sect_attack_decision.h playerDefenders，对拍快照经
  * 双侧同池注入保持逐位一致）。
  */
-fun AISectAttackManager.decidePlayerAttack(gameData: GameData): PlayerAttackDecision {
+fun AISectAttackManager.decidePlayerAttack(gameData: GameData, rngManager: GameRngManager): PlayerAttackDecision {
     // AUTHORITATIVE 下经 C++ 决策（sect_attack_decision.h decidePlayerAttack——
     // 消费 BATTLE 分区；原生失败/未加载回退 Kotlin）
     tryNativeDecidePlayerAttack()?.let { return it }
@@ -56,7 +58,8 @@ fun AISectAttackManager.decidePlayerAttack(gameData: GameData): PlayerAttackDeci
         if (aliveAttackers == null || powerRatio == null) continue
         val attackChance = computeAttackChance(gameData, attacker, playerSectId, powerRatio)
 
-        if (aisRng.nextDouble() < attackChance) {
+        // W4-C 随机源收敛：BATTLE 分区抽取经形参传入（原顶层 aisRng 已摘除）
+        if (rngManager.getRng(RngPartition.BATTLE).nextDouble() < attackChance) {
             return PlayerAttackDecision.GenerateWarning(
                 attackerSectId = attacker.id,
                 attackerSectName = attacker.name

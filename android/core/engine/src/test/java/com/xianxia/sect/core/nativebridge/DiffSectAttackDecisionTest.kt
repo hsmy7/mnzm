@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
-import com.xianxia.sect.core.engine.domain.battle.aisRngManager
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
@@ -92,11 +91,11 @@ class DiffSectAttackDecisionTest {
         NativeEngineFlag.mode = NativeEngineFlag.Mode.OFF
         try {
         val gameRng = GameRngManager().also { it.restoreStates(snapshot.gameData.rngStates) }
-        aisRngManager = gameRng
         val attacker = snapshot.gameData.worldMapSects.first { it.id == "ai-1" }
         val defender = snapshot.gameData.worldMapSects.first { it.id == "ai-2" }
         val expectedCanAttack = AISectAttackManager.checkAttackConditions(
-            attacker, defender, snapshot.gameData, snapshot.gameData.aiSectDisciples, emptyMap()
+            attacker, defender, snapshot.gameData, snapshot.gameData.aiSectDisciples, emptyMap(),
+            rngManager = gameRng
         )
         val expectedBattleState = gameRng.getRng(RngPartition.BATTLE).snapshot()
         val initialBattleState = snapshot.gameData.rngStates.getValue(RngPartition.BATTLE.id)
@@ -159,8 +158,7 @@ class DiffSectAttackDecisionTest {
         NativeEngineFlag.mode = NativeEngineFlag.Mode.OFF
         try {
             val gameRng = GameRngManager().also { it.restoreStates(snapshot.gameData.rngStates) }
-            aisRngManager = gameRng
-            val expectedDecision = AISectAttackManager.decidePlayerAttack(snapshot.gameData)
+            val expectedDecision = AISectAttackManager.decidePlayerAttack(snapshot.gameData, gameRng)
             val expectedBattleState = gameRng.getRng(RngPartition.BATTLE).snapshot()
 
             assertEquals("C++ 导入失败", true,
