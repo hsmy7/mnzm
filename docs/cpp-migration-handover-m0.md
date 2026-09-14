@@ -516,8 +516,45 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **登记**: ① 保留的 6 个悬空对象可追溯：`dangling commit 2f0a1e0b / 4414c471 / 27d9f184`（2f0a1e0 曾作 `lastTickMs` 相关调试提交）+ 3 个 dangling tree——**均不 prune**，留待将来需要时用 `git show` 翻查；② **远端 `origin` 长期未同步**（远端 `main` = `ad6ff6c9`，与本地 `6fed0e8` 属不同血缘；远端另有 `master` = `ddb9395f`，零 tag）——本仓与远端的关系需用户确认识别（是否仍以该仓为发布源）；③ 建议把"`git bundle` 只传可解析 ref"的写法固化进 `scripts/w4/`（本批已实测 `--all` 现在可用，但脚本保留兼容写法更稳）。
 
-## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
+## 2.67 远端仓库关系核查 + 线上隐私政策缺口（2026-09-15，核查批，零代码改动）
 
+批次: 文档/核查批 | 产物: 新 `scripts/publish-privacy-policy.ps1`（隐私政策发布器）+ 本小节 + 本文件 §4.1 登记
+
+**背景**: §2.61 W4-00 收尾时发现 `origin`（github.com/hsmy7/mnzm）的 `main` 与本地 `main` **属不同血缘**，用户要求查清关系。
+
+**核查结论一：`hsmy7/mnzm` 是本项目自己的远端仓库，且确实推送过。**
+- **不是网页仓**：网页仓是另一个 `hsmy7/index.html`（本地 `C:\Mnzm\index.html-repo` 即其克隆），其末次提交（2026-04-17）写着"**将隐私政策重定向到新地址 mnzm 仓库**"——所以政策页搬进了 `mnzm`。
+- 远端元数据：`language=Kotlin`、`size=901MB`、`has_pages=true`、`default_branch=master`。
+- **两条互不相关的分支**：① `master`（默认 + Pages 源）= 旧 **1.4.x 线**，作者 `Backup <backup@xianxia.com>` / `hsmy7`，内容停 **2026-06-28**（末次提交是"恢复被误删的隐私政策页面 docs/index.html"）；② `main` = **本项目线**，tip `ad6ff6c9`（2026-09-04 18:45Z「feat(render): 程序化天空渐变背景系统」，提交信息为本项目批级中文风格、含"compileReleaseKotlin + lintRelease 通过"），`version.properties` = **4.01.12**，`android/` 结构（`app`/`core`/`feature`/`build-logic`/`detekt-rules`/`detekt-baseline-count.guard`/`stability_config.conf`）与本地**同构**。
+- **推送证据**：远端 `pushed_at = 2026-09-04T18:49:45Z`，比该 tip 提交的 author 时间（18:45:17Z）晚 4 分钟 ⇒ 就是这次 push。
+
+**核查结论二：内容连续，但提交血缘断裂——且必然如此。**
+- **内容连续（内容级对撞，非时间戳推断）**：远端 `main` 的 `docs/index.html` blob = `566e84fa…`，与本地 `HEAD:docs/index.html` **完全相同**；远端 `main` tip 那批"程序化天空"的 7 个文件（`SkyBackground.cpp/.h`、`sky.vert/frag(+.spv)`、`SkyBackgroundConfig.kt`）本地**全部在位**；抽检 10 个文件做 blob 对撞（git blob 是内容寻址）——**5 个完全一致**（`API_DOCUMENTATION.md` / `clean_release.bat` / `gradlew.bat` / `keystore.properties.example` / `stability_config.conf`），另 5 个为本地后续演进过的（`build.gradle` / `gradle.properties` / `settings.gradle` / `detekt-baseline-count.guard` / `api.properties.example`）。
+- **血缘断裂**：本地 26 个提交**全部**为 2026-09-12～09-14、作者统一 `mnzm-dev <dev@local.mnzm>`（最早 `c13d651` "第二轮集成收口"）；远端 main/master 的提交 sha 在本地对象库中**一个都不存在**；本地 `.git` **无 `refs/remotes`、无 `logs/refs/remotes`**，`FETCH_HEAD` 为 **0 字节**（曾于 09-07 创建过、09-12 被截断）。
+- **`origin` 不是从当前这份副本推的**：本地提交身份（`mnzm-dev`）与远端提交身份（`hsmy7` / `Backup`）不同 ⇒ **09-04 那次 push 来自另一份（已被销毁的）工作副本或另一台机器**。与 §2.40 记录的".git 两次被毁 → 以工作区文件为唯一事实源重建单一可编译树"完全吻合。
+- **⇒ 两侧无共同祖先**，`merge` / `fast-forward` 都不可能；**2026-09-04 之后（M0–M3 + W4-00 共 26 个提交）的内容只存在于本地，远端一个都没有**。
+
+**核查结论三（🟡 隐私合规缺口，本批的主要发现）：线上隐私政策落后于实际集成。**
+
+| 面 | 版本 | 声明的广告/统计 SDK |
+|---|---|---|
+| **线上** https://hsmy7.github.io/mnzm/ （Pages ← `master`） | **2026-06-04** | 仅 TapTap + MMKV + Dirichlet Ad SDK |
+| 仓库 `main` 与本地 `docs/index.html` | **2026-08-13** | TapTap（含 **tap-db / TapDB 数据分析**）+ MMKV + **TapADN 聚合广告 SDK**（Dirichlet 自有 + **穿山甲 / 优量汇 / 爱奇艺 / 百青藤**）+ **GAID** + **个性化广告开关** |
+| 应用内 `PrivacyConsentScreen.kt` | **2026-08-13** | 同上（与仓库网页版一致，已核实 `:808` 日期行与 SDK 链接常量） |
+
+- **这些 SDK 确实已集成**（`git grep` 实证）：`android/app/build.gradle` 命中 `pangle` / `Pangle` / `穿山甲` / `GDT` / `优量汇` / `iQiyi` / `爱奇艺` / `baidu` / `百青藤` / `TapDB`；`proguard-rules.pro` 同步；libs 下存在 `DirichletAD_GDT_Adapter_5.1.2.3.aar`。
+- ⇒ **线上页面未声明实际在用的 SDK**，违反 CLAUDE.md 设计方案规则第 5 条"隐私政策必须双入口同步更新"。
+
+**处置（已交付工具，待执行）**: 新增 `scripts/publish-privacy-policy.ps1`。
+- **三项前置校验**：① 本地 `docs/index.html` 的 git blob == 期望值（`566e84fa…`，防误发旧版）；② 远端 `main` 同文件 blob 须与本地一致（证明内容同源）；③ 目标仓库/分支可写 + 凭据可用。任一不过即中止。
+- **两种模式**：`-Mode SourceBranch`（默认）= 把 8 月版更新到 Pages **源分支** `master`（文件级最小改动）；`-Mode PagesTarget` = 把 Pages 源切到 `main`（`main` 上该文件与本地逐字节相同 ⇒ **零内容变更**即生效，一次性消除"两份政策页"）。
+- **安全设计**：`-DryRun` **默认开**（只打印将发送的请求）；凭据只从 `GITHUB_TOKEN` / `GH_TOKEN` / 已登录的 `gh` 读取，不收明文口令；只读校验失败时**优雅降级并原样打印 GitHub 报错**（限流/网络/权限），不笼统报"失败"。
+- **兜底手工路径**（无需 token，只要 git 推送权限）：`git fetch origin master` → 基于 `origin/master` 建分支 → `git checkout main -- docs/index.html` → 提交 → `git push origin HEAD:master` → 在 Settings→Pages 确认源仍为 `master`/`docs` → 1~2 分钟后核对线上日期为「2026年8月13日」。
+- **🟡 未执行的原因（诚实口径）**：本会话**无 GitHub 写凭据**（`gh auth status` = 未登录；无 `GITHUB_TOKEN`/`GH_TOKEN`；`credential.helper=manager` 需交互式认证），且 `github.com` 的 git 端点本次多次 `Connection was reset`（与本文档既有记载"远端 GitHub 在会话中不可达"一致）；只读 API 亦已触及未认证限流。⇒ **推送必须由用户执行**，脚本已实测 DryRun 两种模式均完整走通。
+
+**途中发现（小项）**: `C:\Mnzm\XianxiaSectNative-b11` 与 `-w2-14` 目录下的 `.git` **是文件**（worktree 指针），指向 `C:/Mnzm/XianxiaSectNative/.git/worktrees/<name>`，但 `.git/worktrees` 目录**已不存在**（§2.40 记录的"worktrees 被删除"残留）⇒ 这两个目录的 `.git` 是**失效残留**，`git worktree list` 也不列它们。清理它们用 `cmd /c rmdir`（若含 node_modules junction）或直接删除该 `.git` 文件；**本次未动**（非本次任务范围，登记备查）。
+
+## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.61 W4-00 后）**：
 
 | 验证 | 结果 |
@@ -591,7 +628,9 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 | **WS-1 残留口径 / 阶段 3 立项** | 列级 delta / 二进制通道 + `dirty_tracker` 列级写屏障随**计划 v2 阶段 3 数据导向存储**落地（约 145+ 列写点回归风险）；协议形状变更会影响 47 个 `Diff*` 对拍场景与存档格式 |
 | **真机（物理设备）验证残留** | 模拟器会话未覆盖 10 项：A2 ASTC 缺失机 RGBA 回退 / A4 旋屏 / C1 偷盗钩子自然触发 + TapDB 上报 / C3 S5 战斗任务 / C4 S6 秘境全链 / C6 ThermalMonitor 真实热档 / D2 放置确认步 / D3 道路装配 / E2 云存档 / E3 WS-1 绝对值（需先补 debug 埋点小批） |
 | **`Jade` 凭据持久化环境缺陷** | `FakeAtomicStateStore` 事务缓冲与 `sectLevelClaimRecords` 交互（§2.50 坑）；生产侧静默失败已根因修复，环境缺陷待专项 |
-| **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **保留决策待用户拍板**（§4.2）——前者是 6 个 Diff 测试的 Kotlin 对拍基准；后者经 2026-09-15 核查为**零消费者孤儿模型**，建议清理 |
+| **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` 已拍板按"清理执行"（2026-09-15）** → 实施落点 W4-D/D5；`onPhaseTick` 保留决策**待用户拍板**（§4.2）——它是 6 个 Diff 测试的 Kotlin 对拍基准 |
+| **线上隐私政策落后于实际集成**（§2.67，2026-09-15 核查发现） | **⚠️ 待发布**——GitHub Pages 从 `master` 发布，其 `docs/index.html` 停在 **2026-06-04 版**（仅声明 TapTap/MMKV/Dirichlet），而**应用内 `PrivacyConsentScreen.kt` 与仓库 `main` 均为 2026-08-13 版**（多声明 **TapADN 聚合广告 SDK**：穿山甲/优量汇/爱奇艺/百青藤 + **TapDB** + GAID + 个性化广告开关），且 `android/app/build.gradle` 中这些 SDK **均已集成** ⇒ 线上未声明实际在用的 SDK，属隐私合规缺口。**已交付一键同步脚本 `scripts/publish-privacy-policy.ps1`（含三项前置校验 + 演练默认开 + 两种模式 + 手工兜底），但因本会话无 GitHub 写凭据且 git 端点不稳定，推送需用户执行**——详见 §2.67 |
+| **远端 `hsmy7/mnzm` 与本地的关系**（§2.67） | **已查清**：它是**本项目自己的远端仓库**（非网页仓——网页仓是另一个 `hsmy7/index.html`，其末次提交写着"将隐私政策重定向到新地址 mnzm 仓库"）。内含两条分支：`master`（默认 + Pages 源，旧 1.4.x 线，内容停 2026-06-28）与 `main`（**本项目线**，tip `ad6ff6c9` = 2026-09-04「程序化天空」批，`version.properties=4.01.12`）。**本地与远端内容连续但提交血缘断裂**：本地 26 个提交全为 2026-09-12～09-14、作者 `mnzm-dev`，远端提交在本地对象库中**零命中**，本地 `.git` 无任何 remote-tracking ref（从未 fetch）⇒ **2026-09-04 之后（M0–M3 + W4-00）的内容只存在于本地，远端一个都没有**；历史重建见 §2.40 |
 
 **已清偿项索引**（只列批号与结论，明细见 §2 对应小节）：
 `§2.5/§2.6` M0 追加·收尾批（P0-3 / P1-4 / WS-6 / RNG 方案②）｜`§2.7` P1-4 守卫分类勘误｜`§2.8`–`§2.10` M1 三批（S1-S3 / WS-1 降本 / E1+WS-7，M1 全清）｜`§2.11`–`§2.18` M2 八批（S4 / S5 / S8 / E2+E3 / P1-5 / E2 残留 / S6 / S7）｜`§2.19` WS-5 地图真源入 C++｜`§2.20`–`§2.29` M3 收敛（死代码族 / 反向通道审计 / 机械族 / RoomMigration+异常族 / 判定族 / 边界族 / 参数跳转族 / 复杂度族 / TMF 第一轮 / 拆分队列首轮）｜`§2.30`–`§2.32` 拆分队列收尾（core:engine 34→0 / game 8→0 / domain 2→0，**六模块 baseline 全 0**）｜`§2.33` 协程取消传播专项（61 处）｜`§2.34` dirty 记账摘除｜`§2.35`–`§2.51b` UI 操作面逐域下沉（建筑 / 道路 / 外交 / 弟子三子批 / 库存 / 巡逻住所 / 探索 / 生产灵田 / 月年边界 / 玉符宗门 / 秘境平台段 / 攻宗）｜`§2.40`/`§2.52` 两次集成收口｜`§2.55`/`§2.56` 残余域 + 弟子管理残差｜`§2.58`/`§2.59` 随机源治理收口 + 收敛清偿（引擎全量 0 失败）｜`§2.23.1` RoomMigration 8 例预存失败｜`§2.60.1` P1-5 配对优化**不采纳（终局）**｜`§2.39` 真机替代验证口径（模拟器）已交付主体项
