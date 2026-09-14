@@ -1,6 +1,17 @@
 ## [4.01.14] - 2026-09-08
 
 
+### 文档：W4 剩余工作实施文档（派工用）+ 三项待决策项的实测依据（§2.68 续）
+
+> 需求：把 W4 三批集成后的**全部剩余工作**整理成一份可交给他人照单执行的实施文档。**本批零代码改动（1 个新文档 + 数处文档交叉引用与口径更正）**，零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` **未追加**。
+
+- **新增 [docs/parallel-batches-w4/remaining-work-implementation.md](docs/parallel-batches-w4/remaining-work-implementation.md)**：一页速览（11 项任务：类型/前置/主要面/验收）+ **执行顺序与依赖图** + **冲突矩阵**（哪些文件族归哪一项独占，防两个执行者撞车）+ 逐项实施单（W4-D 的 D1–D6 操作性细节、D3 地形 2 字段退出对拍排除面的完整步骤、`PresentationRandom` 按场景派生、`TimeSystem.onPhaseTick` 迁测试源集、顺带清偿清单、非并行轨）+ 统一验证命令模板（含本轮实测到的三个坑）+ 10 条门禁 + 风险兜底总表 + 盲区自查。
+- **§2.B `PresentationRandom` 按场景派生**（完整设计，交他人实施）：实测 `seedFromWorld(mapSeed)` **全仓零调用**（自引入提交起即无调用者）⇒ 表现流种子恒为编译期常量，KDoc 所述"按 `mapSeed` 派生 / 同会话可复现"与实现不符。方案 = 增 `worldSeed` + `scene(key)` 派生独立流（哈希强制 **FNV-1a 64** 而非 `String.hashCode()`——后者非跨平台契约，iOS 侧会不一致），接线点实测为 `BootSequenceController.generateMapPreloadData()`（**新档与读档的唯一汇合点**，一处接线覆盖两端）；含 6 个场景键表、调用点清单（90 处引用中剔除决策类适配器后的真实消费点）、6 个用例的测试方案与 5 条盲区自查。
+- **§2.C `TimeSystem.onPhaseTick` 迁测试源集**（完整设计，交他人实施）：实测零生产调用、无接口声明（无多态可达路径）、测试仅为调它而构造 `TimeSystem`；方案 = 逐字搬运为测试源集的**冻结黄金基准** + 6 个测试改 import；**反向验证**（故意改基准须让 `DiffTimeTest` 变红）证明基准仍被真实使用。同类项 `PhaseSettlementExecutor` 因触及 W4-D 冻结宿主族，登记 D5 复议。
+- **口径纪律（本轮新增）**：性能规划一律以**实际规模**为输入，禁用配置上限外推——`GameConfigData.kt:50 maxDisciples = 1000` 实为**引擎零引用的死配置**（真实名额由长老槽"招贤"/特质加成与每月招募上限等玩法机制决定，玩家实际规模 ≈100 弟子），按它评估差点把本波误判为"满编每秒 101ms 卡顿"。
+- **顺带更正与交叉引用**：w4 README 顶部增"派工入口"指向新文档；§9 两行补实施文档链接；**更正两处过时行号**（`DiffYearSettlementTest:750→747`、`DiffMonthSettlementFixture:551→553`，按 2026-09-15 实测）；handover §4.2 同步链接。新文档内**关键 17 处 `文件:行号` 锚点逐条脚本核验为真**（含 `GiftService` 四行、`BootSequenceController` 两处、6 个测试文件行号）。
+
+
 ### W4 三批次并行交付 + 集成收口：独立复验抓出 3 处真实缺陷并根因修复（§2.62～§2.64 / §2.68）
 
 > 需求：把「C++ 迁移剩余工作」按 [W4 三批次并行方案](docs/parallel-batches-w4/README.md) 分三批并行实施后**集成收口**。三批（W4-A 弟子与建设 / W4-B 内政与经济运营 / W4-C 战斗与世界协议）已在各自工作树完成并逐批独立复验，本批负责合流、门禁复跑、缺陷根因修复与文档收口。交接记录见 handover §2.68。

@@ -989,7 +989,9 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **② 真机（物理设备）验证批**——§4.1 登记 10 项残留；真机不可得时的替代口径见 §2.39（模拟器 + 产物字符串核验）。
 
-**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；`TimeSystem.onPhaseTick` 与 `GameSettingsData.autoSave` 删除（§4.2）；`PresentationRandom` 一致性口径（§4.2，**含新发现的"文档与实现不符"**）。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：D1 埋点 → D2 `w3-11` → D3 harness 对齐（**含地形 2 字段退出对拍排除面**）→ D4 反向通道删除 → D5 死代码清零 → D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
+**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；`TimeSystem.onPhaseTick`（§2.C）与 `PresentationRandom` 一致性口径（§2.B）两项**已给出完整实施方案，待拍板即可派工**；`GameSettingsData.autoSave` 删除（§4.2，已拍板待实施）。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：D1 埋点 → D2 `w3-11` → D3 harness 对齐（**含地形 2 字段退出对拍排除面**）→ D4 反向通道删除 → D5 死代码清零 → D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
+
+> **🔴 派工入口**：上述全部剩余工作已整理为可逐项照单执行的 **[W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md)**——含执行顺序与冲突矩阵、逐项影响范围清单（`文件:行号`）、测试方案、验收判据、风险兜底与盲区自查。派工时连同该文档一起交给实施人员。
 
 **④ 死代码滚动清零**（§2.53 审计登记，w3 各批顺手删除或单列清理批）——`GameEngine.updatePatrolConfig` 死 API、洞府探索整族死链、`InventorySystem.materializeDiscipleBagAndMarkDead` 成员/扩展同签名遮蔽、18+11+5 处零调用者站点、`GameData` 四个零调用方辅助函数。
 

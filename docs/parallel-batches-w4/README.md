@@ -1,6 +1,8 @@
 # C++ 迁移剩余工作·第四波（W4）三批次并行实施方案（总览与协作协议）
 
 > **执行状态（2026-09-15 收口）**：W4-00 前置批 ✅ → 三批并行 ✅（W4-A `w4a/01`–`05` / W4-B `w4b/01`–`05` / W4-C `w4c/01`–`08`）→ **集成收口 ✅**（合并提交 `7c89deb19`，全部门禁绿；独立复验抓出并根因修复 3 处缺陷——A 测试源编译、C 迁移链 12 处、B 硬编码 ActionId，详见 [handover §2.68](../cpp-migration-handover-m0.md)）。**下一波 = 本文 §8 汇流波 W4-D（串行，未开工）**；§9 非并行轨需用户决策或硬件。
+>
+> **🔴 派工入口 → [剩余工作实施文档](remaining-work-implementation.md)**：把集成后的**全部剩余工作**（D1–D6 + `PresentationRandom` 按场景派生 + `TimeSystem.onPhaseTick` 迁测试源集 + 顺带清偿 + 非并行轨）整理成可逐项照单执行的实施单，含**执行顺序与冲突矩阵**、影响范围清单（`文件:行号`）、测试方案、验收判据、风险兜底与盲区自查。
 
 | 项 | 内容 |
 |---|---|
@@ -505,8 +507,8 @@ pwsh -File ../scripts/build-desktop-jni.ps1
 | **真机（物理设备）验证批** | 非代码批：需物理设备 + 人工操作 + logcat 观察。代码面仅 batch-22a（已入 W4-D/D1） | 物理设备。**串行约束**：E3/N5（反向信封体积/耗时真机绝对值）必须在 w3-13 关闭**之前**采基线 ⇒ 建议在 W4-A/B/C 进行期间就绪设备并跑 D1 后的埋点采基线 |
 | **WS-4 NPC 移动系统** | 缺**玩法设计文档**（数量上限 / 生成规则 / 与弟子系统关系 / 可行走语义），未拍板前派工 = 白做 | 用户补充玩法设计文档 |
 | **WS-1 阶段 3 数据导向存储** | 需**单独立项**：涉及约 145+ 列写点的回归面，协议形状变更会影响全部 47 个 `Diff*` 对拍与存档格式 | ✅ **已决策（2026-09-15，用户拍板"按桌面 Release 数据决策"）：不立项协议 v2**。桌面 Release 实跑：7.9ms@100 弟子（~0.10 ms/弟子/旬）× **玩家实际规模 ≈100** ⇒ 2x 下占旬间隔 **0.8%**，且每旬镜像在**引擎后台协程**（`GameEngineCoreAuthoritativeOps.kt:63`）不占渲染线程 ⇒ 无瓶颈。**再评估阈值（可机测）**：实际规模 **>400 弟子** 或 D1 埋点真机每旬镜像 **>100ms**（观测手段 = W4-D/D1 既有埋点，零额外成本）。详见 handover §4.1 |
-| **`TimeSystem.onPhaseTick` 删除** | 待拍板。**实测确认**：它是 6 个测试文件的对拍基准（`DiffYearSettlementTest:750` / `DiffTimeTest:57` / `DiffPhaseSettlementTest:433/506/644` / `DiffMonthSettlementFixture:551` / `DiffAuthoritativeTickTest:396/523` / `SettlementTransactionMergeTest:34`）⇒ 删除须先把 6 个测试改写为纯 C++ 断言，**会失去独立 Kotlin 基准**（防"复刻漂移"的最后一道防线） | 用户拍板。**建议 = 保留**（零生产成本）；若只为消除"生产面死方法"，更省的替代是把基准实现**移入测试源集**（6 个测试仅改 import，基准不损失）。**配套事实**：`PhaseSettlementExecutor.execute()` 是同类基准路径，应同进同退（§4.2） |
-| **`PresentationRandom` 跨会话同构** | ADR §11 盲区 3：是否需要跨会话同构待产品口径 | 用户拍板。**⚠️ 拍板前须先处置一处文档与实现不符**：`seedFromWorld(mapSeed)` **全仓零调用** ⇒ 种子恒为编译期常量，KDoc 的"按 `mapSeed` 派生 / 同会话可复现"不成立（实测见 handover §4.2）。**建议**：改为"按场景键派生"（跨会话一致 + 零协议面 + 不入档） |
+| **`TimeSystem.onPhaseTick` 删除** | 待拍板。**实测确认**：它是 6 个测试文件的对拍基准（`DiffYearSettlementTest:747` / `DiffTimeTest:57` / `DiffPhaseSettlementTest:433/506/644` / `DiffMonthSettlementFixture:553` / `DiffAuthoritativeTickTest:396/523` / `SettlementTransactionMergeTest:34`）⇒ 删除须先把 6 个测试改写为纯 C++ 断言，**会失去独立 Kotlin 基准**（防"复刻漂移"的最后一道防线） | 用户拍板。**建议 = 保留**（零生产成本）；若只为消除"生产面死方法"，更省的替代是把基准实现**移入测试源集**（6 个测试仅改 import，基准不损失）。**配套事实**：`PhaseSettlementExecutor.execute()` 是同类基准路径，应同进同退（§4.2）。**完整实施方案见 [§2.C](remaining-work-implementation.md)** |
+| **`PresentationRandom` 跨会话同构** | ADR §11 盲区 3：是否需要跨会话同构待产品口径 | 用户拍板。**⚠️ 拍板前须先处置一处文档与实现不符**：`seedFromWorld(mapSeed)` **全仓零调用** ⇒ 种子恒为编译期常量，KDoc 的"按 `mapSeed` 派生 / 同会话可复现"不成立（实测见 handover §4.2）。**建议**：改为"按场景键派生"（跨会话一致 + 零协议面 + 不入档）。**完整实施方案（含接线点、场景键表、测试与盲区自查）见 [§2.B](remaining-work-implementation.md)** |
 | **`GameSettingsData.autoSave` / `GameData` 死函数清理** | 死代码本身可清，但 `GameData.kt` 与 **WS-5b 的地形字段新增（W4-C）** 同文件 ⇒ 排序到 W4-D/D5 | ✅ **已拍板（2026-09-15）：按"清理"执行**——删除 `GameSettingsData` 孤儿模型（`GameDataMerchant.kt:29`）+ 悬空 TypeConverter（`EnumConverters.kt:30/35`）+ 零调用方法 `AudioConfig.updateFromSettings`（`:21`），连同 `GameData` 死辅助函数（`totalSpiritStonesSellValue:887`/`withOrganization:992`/`withExploration:1003` + 生产零调用的 `withWorldMap:967`/`withBuildings:974`/`withEconomy:980`）在 **W4-D/D5** 一次性清除（须排 WS-5b 落定之后，因同文件） |
 
 ---
