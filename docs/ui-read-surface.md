@@ -313,3 +313,13 @@ gameData 字段级 dirty 集已非瓶颈；这与"弟子通道 + 集合段必须
 > 残留口径：每旬弟子全脏场景下，镜像成本受"全量实体 JSON 序列化"支配（协议形状决定，
 > 非本批可消）；列级 delta / 二进制通道随计划 v2 阶段 3 数据导向存储（dirty_tracker.h
 > 自述既定待办）落地。bench：`dirty_tracker_bench_test.cpp`（桌面 ctest）。
+
+---
+
+## 6. 表现流取用方式口径（2026-09-15，W4 §2.B 落地）
+
+`PresentationRandom` 的消费口径由"共享单例流"收口为"**按存档 `mapSeed` × 场景键派生**"：
+`BootSequenceController.generateMapPreloadData` 播种（全仓唯一接线点，守卫锁死），
+调用方经 `scene(key)` 取**独立场景流** ⇒ 同一存档同一场景结果恒定（跨会话一致）、
+零协议面、不污染决策流。场景键登记表见 [rng-source-inventory.md §7](rng-source-inventory.md)。
+云层/装饰保持"持续变化"语义不改。决策类零扰动（`Diff*` 对拍全绿为证）。

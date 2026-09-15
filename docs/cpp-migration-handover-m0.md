@@ -879,13 +879,36 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **性能口径决策（2026-09-15 续，用户拍板"按桌面 Release 数据决策"）**: WS-1 阶段 3（协议 v2）**经实测决定不做**——`dirty_tracker_bench_test.cpp` 实跑得每旬全脏 `diffToJson` **7.9ms@100 弟子**（~0.10 ms/弟子/旬），而**玩家实际规模 ≈100 弟子**（非配置上限 `maxDisciples=1000`——该配置**引擎零引用**，属死配置，见 §4.2）；2x 速（1s/旬）下占旬间隔 **0.8%**，且每旬镜像跑在引擎后台协程（`GameEngineCoreAuthoritativeOps.kt:63`）**不占渲染线程** ⇒ 不构成瓶颈。**再评估阈值（数值化、可机测）**：① 实际弟子规模 **>400**（0.10 ms/弟子/旬 × 中端机 2.5× 系数 ≈ 旬间隔 10%）；② 或 W4-D/D1 埋点真机实测每旬镜像 **>100ms**——观测手段 = D1 既有埋点，零额外成本。**🔴 口径纪律**：性能规划一律以"**实际规模**"为输入，禁止用配置上限外推（该项差点导致本波误判为"满编每秒 101ms 卡顿"）。
 
+## 2.69 W4 ②③ 双项（2026-09-15）：`PresentationRandom` 按场景派生 + `TimeSystem.onPhaseTick` 迁测试源集
+
+批次: W4 剩余工作实施文档 ②③（"交他人实施"两项，按其 §2.B/§2.C 照单执行） | 产物: `PresentationRandom.scene()/fnv1a64()` + `BootSequenceController` 播种接线、`TimeAdvanceBaseline.kt`（测试源集）、`PresentationRandomSceneTest`（7 用例）、场景键登记表（[rng-source-inventory §7](rng-source-inventory.md)）；**零 C++ 改动、零协议面、零 ActionId 变更**
+
+**② `TimeSystem.onPhaseTick` 迁测试源集（§2.C 全项）**:
+- 新增 `core/engine/src/test/.../system/TimeAdvanceBaseline.kt`——`onPhaseTick` **逐字搬运**为 `internal fun MutableGameState.advancePhaseBaseline(phasesToSettle: Int = 1)`（常量仍引 `TimeSystem.PHASES_PER_MONTH/MONTHS_PER_YEAR` 单源）；KDoc 写明"冻结基准，禁止优化/改语义"；生产类删除该方法 + 闲置 import。
+- 6 个测试文件 9 个调用点改调基准并清理 `TimeSystem(store)` 局部构造（`DiffTimeTest` / `DiffPhaseSettlementTest`×3 / `DiffMonthSettlementFixture` / `DiffYearSettlementTest` / `DiffAuthoritativeTickTest`×2 / `SettlementTransactionMergeTest`——后者 `settlePhase(timeSystem)` 签名去参）；`TimeSystemPureLogicTest` 内联复刻改为驱动基准（消除第二份复刻），常量断言改引 `TimeSystem` 单源。
+- **反向验证（必做项，已过）**：故意把基准 `>=` 改 `>` ⇒ `DiffTimeTest` **4 用例即红**（月进位/旬进位/长推进/年进位）——证明基准仍被真实消费；随后还原。
+- **语义零变更得证**：引擎全量用例数与搬运前**完全一致**（3306/303 类/0 失败/0 跳过），47 个 `Diff*` 全绿。
+- `PhaseSettlementExecutor` 按方案**本项不处理**（有生产注册，触及 W4-D 冻结宿主族 ⇒ 登记 D5 复议）。
+
+**③ `PresentationRandom` 按场景派生（§2.B 全项）**:
+- 根因修复"文档与实现不符"：`seedFromWorld(mapSeed)` 全仓零调用 ⇒ 种子恒为 `DEFAULT_SEED`。现 **`BootSequenceController.generateMapPreloadData()` 接线播种**（构造 5→6 参；boot 为新档/读档唯一汇合点 ⇒ 一处接线覆盖两端；`mapSeed` Int→`toLong()`）。
+- `PresentationRandom` 增补（API 向后兼容，既有 6 公开方法签名不变）：`@Volatile worldSeed` + 私有构造 + **`scene(key)`**（独立实例，序列 = `(worldSeed, FNV-1a64(key))` 唯一决定）+ 文件级 `internal fun fnv1a64`（**FNV-1a 64**，禁 `String.hashCode()` 的跨平台理由写入 KDoc）。
+- 场景键表逐点接线（详表见 [rng-source-inventory §7.2](rng-source-inventory.md)）：天劫立绘 `trial.portrait.<id>`（`CombatantPortrait` 无立绘分支——同参战者恒同立绘）；弟子交谈 `chat.<id>.<gameYear>`（`remember(disciple.id, gameYear)`；决策类抽取仍走 CHAT 分区**不变**）；外交 8 抽取点 `diplomacy.<sectId>.<种类>`（`DiplomacyFlows.diplomacyScene` 助手，**builder 签名未动**）；送礼反馈 `favor.<sectId>.gift.<accept|rejected>`（`GiftService` 4 处，**native 臂与 Kotlin 臂同键 ⇒ flag 两侧文案一致**）；加载提示 `loading.tip`（常量键=刻意的固定轮播）。云层/装饰保持"持续变化"语义不改。
+- **B.8 盲区逐条核销**：#3 重跑 `git grep`——新增消费面 `HeavenlyTrialCombatScreen`（仅传参不消费）/ `HeavenlyTrialViewModel`/`WorldMapInteractionViewModel`（DI 根暴露）/ `PortraitPool`/`RandomWithExt`（KDoc 引用）/ `W4AChannelClosures`（注释），无需改键；#5 **`SectDiplomacyDialogTest` 多样性断言零改动**——键化发生在 `DiplomacyFlows` 调用处而非 builder 内部，测试自持实例语义不变（实测 872/0 持平）；#2 文档估"9 个构建函数"实为 **8 个**（GiftTexts 4 + VassalTexts 4），已全键化无遗漏。
+- **新测试 `PresentationRandomSceneTest`（7 用例）**：同键逐位相同 / 异键不同 / 世界种子参与派生 / 与根流互不影响 / 零状态写入 / **FNV-1a 字面量跨平台锚点**（iOS 侧须复现同常量）/ **`seedFromWorld` 生产调用点源码扫描守卫**（防"定义了但从不调用"复发）。
+
+**门禁实跑（零 C++ 改动 ⇒ 桌面 C++ 套件与 NDK/lint 按 §4 门禁 1/6 豁免；生成物未触碰）**: `:core:engine` **3313 用例 / 304 类 / 0 失败 / 0 跳过**（= 基线 3306 + 新增 7；47 个 `Diff*` 全绿）；`:feature:game` **872/0/0**（基线持平）；六模块 detekt **全绿 baseline 全 0**（途中 5 处 `MaxLineLength` 新违规全部**实修**拆行，未入 baseline）；六模块主源 + 测试源编译全绿。
+
+**遗留**: 手工验证项（同一天劫重进 3 次立绘一致 / 同年交谈开场白一致——需真机或模拟器人工确认，自动化已覆盖序列恒定语义）；表现面变更（文案/立绘选择序列改变）属预期口径修正，已登记双更新日志；`version.properties` 递增由用户决定。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.68 W4 三批集成后）**：
+**当前门禁基线（2026-09-15，§2.69 ②③ 双项后）**：
 
 | 验证 | 结果 |
 |---|---|
-| 桌面 C++ 全量单测 | **1407/1407 全绿**（§2.68 实跑：ctest + 单进程直跑双绿；W4-00 后 1326 → A/B/C 三批净增 81）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3306 用例 / 303 类 / 0 失败 / 0 错误 / 0 跳过**（§2.68 复跑，`--rerun-tasks` + 本工作树 desktop-jni；含 47 个 `Diff*` 对拍全绿） |
+| 桌面 C++ 全量单测 | **1407/1407 全绿**（§2.68 实跑；§2.69 零 C++ 改动未复跑）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 引擎全量单测 `:core:engine` | **3313 用例 / 304 类 / 0 失败 / 0 错误 / 0 跳过**（§2.69 复跑，`--rerun-tasks` + 本工作树 desktop-jni；含 47 个 `Diff*` 对拍全绿；= 3306 + `PresentationRandomSceneTest` 7） |
 | `:core:domain` 单测 | **1758 用例 / 0 失败**（含 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
 | `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
@@ -907,6 +930,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.69 W4 ②③ 双项（09-15）** | —（零 C++ 改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`） |
 | **§2.68 W4 三批集成收口（09-15）** | **1407/1407** | **3306 / 0 / 0**（303 类，47 `Diff*`） |
 | **§2.62～§2.64 W4-A/B/C 三批（09-15，并行）** | 1361→1407（批内逐步） | 3295→3306（批内逐步） |
 | §2.61 W4-00 并行前置批（09-14） | 1326/1326 | 3281 / 0 / 0（296 类） |
@@ -958,7 +982,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | **WS-1 残留口径 / 阶段 3 立项** | **✅ 已决策（2026-09-15，用户拍板"按桌面 Release 数据决策"）：不立项协议 v2**。**决策依据（桌面 Release 实跑 `dirty_tracker_bench_test.cpp`）**：每旬全脏 `diffToJson` = **7.9ms@100 弟子**（实测口径 ~0.10 ms/弟子/旬：100→7.9ms、1000→100.9ms）；**玩家实际规模 ≈100 弟子**（用户口径）⇒ 2x 速（1s/旬）下导出仅占**旬间隔 0.8%**；且每旬镜像跑在**引擎后台协程**（`GameEngineCoreAuthoritativeOps.kt:63` → `engineScope`/`gameDispatcher`），**不占渲染线程** ⇒ 不直接掉帧。按中端机 2.5× 系数估算 ≈20ms/旬 = 间隔 2%，**约 5 倍余量**。⇒ **协议 v2（145+ 列写点 + 47 对拍 + 存档格式）的风险远大于收益，不做**；同时**不做**非协议微优化（空闲窗口 3.8ms@100，且任何"跳过序列化"的优化都必须引入写屏障——正是 §2.34 已摘除的风险面）。**再评估阈值（数值化，可机测）**：① 实际弟子规模 **>400**（= 0.10 ms/弟子/旬 × 2.5 设备系数 ≈ 旬间隔 10%）；② 或 D1 埋点真机实测每旬镜像 **>100ms**。**观测手段 = W4-D/D1 既有埋点（零额外成本）** |
 | **真机（物理设备）验证残留** | 模拟器会话未覆盖 10 项：A2 ASTC 缺失机 RGBA 回退 / A4 旋屏 / C1 偷盗钩子自然触发 + TapDB 上报 / C3 S5 战斗任务 / C4 S6 秘境全链 / C6 ThermalMonitor 真实热档 / D2 放置确认步 / D3 道路装配 / E2 云存档 / E3 WS-1 绝对值（需先补 debug 埋点小批） |
 | **`Jade` 凭据持久化环境缺陷** | **✅ 已清偿（2026-09-15，§2.63.B0 W4-B）**——契约考古推翻 §2.50 的 batch-19 归因，环境缺陷随凭据持久化契约修正一并消除 |
-| **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` 已拍板按"清理执行"（2026-09-15）** → 实施落点 W4-D/D5；`onPhaseTick` 保留决策**待用户拍板**（§4.2）——它是 6 个 Diff 测试的 Kotlin 对拍基准 |
+| **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` 已拍板按"清理执行"（2026-09-15）** → 实施落点 W4-D/D5；**`onPhaseTick` 已按 §2.C 实施迁入测试源集（2026-09-15，§2.69）**——`TimeAdvanceBaseline.advancePhaseBaseline` 冻结基准 + 6 测试改调用 + 反向验证过；`PhaseSettlementExecutor` 同类项登记 D5 复议 |
 | **线上隐私政策落后于实际集成**（§2.67） | **✅ 已修复（2026-09-15）**——Pages 发布源由 `master/docs` **切到 `main/docs`**（根因修复：政策更新写在 main，源指向 main 即自动同步），线上实测已是「2026年8月13日」版并声明全部聚合广告 SDK 与 TapDB |
 | **远端 `hsmy7/mnzm` 与本地的关系**（§2.67） | **已查清**：它是**本项目自己的远端仓库**（非网页仓——网页仓是另一个 `hsmy7/index.html`，其末次提交写着"将隐私政策重定向到新地址 mnzm 仓库"）。内含两条分支：`master`（默认 + Pages 源，旧 1.4.x 线，内容停 2026-06-28）与 `main`（**本项目线**，tip `ad6ff6c9` = 2026-09-04「程序化天空」批，`version.properties=4.01.12`）。**本地与远端内容连续但提交血缘断裂**：本地 26 个提交全为 2026-09-12～09-14、作者 `mnzm-dev`，远端提交在本地对象库中**零命中**，本地 `.git` 无任何 remote-tracking ref（从未 fetch）⇒ **2026-09-04 之后（M0–M3 + W4-00）的内容只存在于本地，远端一个都没有**；历史重建见 §2.40 |
 
@@ -970,9 +994,9 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | 项 | 结论 |
 |---|---|
 | ~~RNG 通道跨线程竞争~~ | **✅ 已收口（§2.6 方案② + §2.39 断言升级）**——① UI 抽取派生化/引擎化；② `initSystemSeed` 并入引擎重启；③ 存档快照走引擎线程（读档恢复此前已收敛，`ProductionTransactionManager` 抽取点生产零调用）。开发期 debug 观察窗 ≥60 分钟（90,738 行 logcat）零警告 ⇒ 四 rng 入口升级 `jniRequireEngineThread`（过渡守卫删除），断言版复跑零误杀 ⇒ **P1-4 正式收口** |
-| `TimeSystem.onPhaseTick` | 审计标"生产死代码"，但它是 **6 个 Diff 测试文件的 Kotlin 跨语言对拍基准**（C-15 特意切真实 TimeSystem 防"复刻漂移"）⇒ **保留**。若要按审计字面删除，须先把 6 个测试重写为纯 C++ 断言——会失去独立 Kotlin 基准，**需用户拍板**。**2026-09-15 补充实测（§2.68 复验）**：① `onPhaseTick` 全仓**零生产调用**（唯一非测试引用是 `SystemManager.kt:22` 的注释）；② 它**不是孤例**——`PhaseSettlementExecutor.execute()`（`PhaseSettlementExecutor.kt:61`，KDoc 自述"纯对拍基准，生产 AUTHORITATIVE 每旬走 C++ `runPhaseSettlementCore`"）是同一类"Kotlin 基准路径"构造 ⇒ 二者应同进同退；③ 若目的只是"去掉看起来像生产 API 的死方法"，**更省的替代** = 把基准实现移入测试源集（6 个测试仅改 import）——同样消除生产面死方法，且**不损失**对拍基准 |
+| `TimeSystem.onPhaseTick` | 审计标"生产死代码"，但它是 **6 个 Diff 测试文件的 Kotlin 跨语言对拍基准**（C-15 特意切真实 TimeSystem 防"复刻漂移"）⇒ **保留**。若要按审计字面删除，须先把 6 个测试重写为纯 C++ 断言——会失去独立 Kotlin 基准，**需用户拍板**。**2026-09-15 补充实测（§2.68 复验）**：① `onPhaseTick` 全仓**零生产调用**（唯一非测试引用是 `SystemManager.kt:22` 的注释）；② 它**不是孤例**——`PhaseSettlementExecutor.execute()`（`PhaseSettlementExecutor.kt:61`，KDoc 自述"纯对拍基准，生产 AUTHORITATIVE 每旬走 C++ `runPhaseSettlementCore`"）是同一类"Kotlin 基准路径"构造 ⇒ 二者应同进同退；③ 若目的只是"去掉看起来像生产 API 的死方法"，**更省的替代** = 把基准实现移入测试源集（6 个测试仅改 import）——同样消除生产面死方法，且**不损失**对拍基准。**✅ 已按③实施（2026-09-15，§2.69）**：`TimeAdvanceBaseline`（逐字搬运 + 冻结基准 KDoc）+ 6 测试改调用 + 反向验证（改坏即红）+ 引擎全量 3306 零漂移；`PhaseSettlementExecutor` 登记 D5 复议 |
 | `StorageConfig.maxDisciples` / `GameConfigData.DiscipleSection.maxDisciples` | **2026-09-15 实测：死配置 + 性能评估陷阱**——① `GameConfigData.kt:50 val maxDisciples = 1000` **引擎零引用**（无任何招募/容量判定使用它；实际名额由长老槽"招贤"/特质加成与 `GameConfig.kt:730` 每月招募上限等玩法机制决定，玩家实际规模 ≈100 弟子）；② `StorageConfig.kt:72 val maxDisciples: Int` 接口属性**无实现读取**，全仓唯一读取点是 `ConfigLoaderTest.kt:47` 断言默认值 1000。⇒ **按它做性能/容量评估会得出错误结论**（本波 §2.68 性能决策过程中即差点如此）。**处置**：登记 W4-D/D5 死配置清理；**性能规划口径纪律** = 一律以"实际规模"而非"配置上限"为输入（已回写 §2.68 与 §4.1 WS-1 行） |
-| `PresentationRandom` 跨会话一致性 | **2026-09-15 实测（§2.68 复验）发现文档与实现不符**：`seedFromWorld(mapSeed)`（`PresentationRandom.kt:49`）**全仓零调用**（生产与测试均无；`git grep` 该提交引入时即无调用者）⇒ 表现流种子**恒为编译期常量 `DEFAULT_SEED = -7046029254386353131`**（`:112`），KDoc 所述"种子由 `mapSeed` 派生（同会话内可复现）"**不成立**——实际是"进程启动起的一条固定序列，谁先抽谁拿到"，连"同会话可复现"都取决于玩家点过哪些界面（90 处消费点共享同一流）。**候选处置（需拍板）**：(a) **按场景派生**（推荐）——调用方改为 `seed = mapSeed xor SALT xor hash(场景键)` 每次重新派生 ⇒ **同一存档同一界面文案恒定、跨会话一致**，且**零协议面、不入档、不污染决策流**；(b) 回到文档承诺——在新档/读档处调用 `seedFromWorld(mapSeed)`（按存档播种，但同一存档两次进入仍可能不同，因为流位置取决于会话内抽取历史）；(c) 彻底入档（写进 `rngStates` 或新字段）——**不推荐**：新增协议面 + 存档迁移 + 47 对拍面 + iOS 侧同步，收益仅"第 N 次进入看到第 N 套文案" |
+| `PresentationRandom` 跨会话一致性 | **2026-09-15 实测（§2.68 复验）发现文档与实现不符**：`seedFromWorld(mapSeed)`（`PresentationRandom.kt:49`）**全仓零调用**（生产与测试均无；`git grep` 该提交引入时即无调用者）⇒ 表现流种子**恒为编译期常量 `DEFAULT_SEED = -7046029254386353131`**（`:112`），KDoc 所述"种子由 `mapSeed` 派生（同会话内可复现）"**不成立**——实际是"进程启动起的一条固定序列，谁先抽谁拿到"，连"同会话可复现"都取决于玩家点过哪些界面（90 处消费点共享同一流）。**候选处置（需拍板）**：(a) **按场景派生**（推荐）——调用方改为 `seed = mapSeed xor SALT xor hash(场景键)` 每次重新派生 ⇒ **同一存档同一界面文案恒定、跨会话一致**，且**零协议面、不入档、不污染决策流**；(b) 回到文档承诺——在新档/读档处调用 `seedFromWorld(mapSeed)`（按存档播种，但同一存档两次进入仍可能不同，因为流位置取决于会话内抽取历史）；(c) 彻底入档（写进 `rngStates` 或新字段）——**不推荐**：新增协议面 + 存档迁移 + 47 对拍面 + iOS 侧同步，收益仅"第 N 次进入看到第 N 套文案"。**✅ 已按(a)实施（2026-09-15，§2.69）**：boot 接线播种（`seedFromWorld` 守卫锁死）+ `scene(key)` 场景派生（FNV-1a 64 跨平台锚点）+ 场景键表全接线 + `PresentationRandomSceneTest` 7 用例；跨会话一致性达成 |
 | `GameSettingsData.autoSave` | 原判"风险>收益"**缺证据支撑**（2026-09-15 核查）：`GameSettingsData` 为**零消费者孤儿模型**（全仓无属性/列/DAO 以该类型声明，`autoSave` 无人读写）⇒ 保留的真实效果只是"多一份死模型 + 一份序列化面"，删除成本远低于原判；建议后续清理批单独处置（已登记 [w3 §1.1](parallel-batches-w3/README.md)） |
 
 
@@ -989,7 +1013,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **② 真机（物理设备）验证批**——§4.1 登记 10 项残留；真机不可得时的替代口径见 §2.39（模拟器 + 产物字符串核验）。
 
-**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；`TimeSystem.onPhaseTick`（§2.C）与 `PresentationRandom` 一致性口径（§2.B）两项**已给出完整实施方案，待拍板即可派工**；`GameSettingsData.autoSave` 删除（§4.2，已拍板待实施）。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：D1 埋点 → D2 `w3-11` → D3 harness 对齐（**含地形 2 字段退出对拍排除面**）→ D4 反向通道删除 → D5 死代码清零 → D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
+**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；~~`TimeSystem.onPhaseTick`（§2.C）与 `PresentationRandom` 一致性口径（§2.B）~~ **两项已实施（2026-09-15，§2.69）**；`GameSettingsData.autoSave` 删除（§4.2，已拍板待实施）。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：D1 埋点 → D2 `w3-11` → D3 harness 对齐（**含地形 2 字段退出对拍排除面**）→ D4 反向通道删除 → D5 死代码清零 → D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
 
 > **🔴 派工入口**：上述全部剩余工作已整理为可逐项照单执行的 **[W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md)**——含执行顺序与冲突矩阵、逐项影响范围清单（`文件:行号`）、测试方案、验收判据、风险兜底与盲区自查。派工时连同该文档一起交给实施人员。
 

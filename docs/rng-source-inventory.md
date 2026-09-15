@@ -250,3 +250,36 @@
 
 守卫登记上限 core/domain ② 5 → 13（一次性扩面登记）；**偿还触发条件 = W4-D/D5
 死代码清零批**（先补"生产调用 0 / 测试引用 n"清单再删），清偿后同步下调。
+
+---
+
+## 7. 表现流取用方式收口：`scene(key)` 场景派生（2026-09-15，W4 实施文档 §2.B 落地）
+
+> **背景**：`PresentationRandom.seedFromWorld(mapSeed)` 自引入（`85498c4c3`）起**全仓零调用**
+> ⇒ 表现流种子恒为编译期常量 `DEFAULT_SEED`，KDoc"按 mapSeed 派生"与实现不符（§2.68 复验登记）。
+
+### 7.1 新口径（已实施）
+
+| 项 | 内容 |
+|---|---|
+| 播种接线（全仓唯一） | `BootSequenceController.generateMapPreloadData()`：`if (mapSeed != 0) presentationRandom.seedFromWorld(mapSeed.toLong())`——boot 是新档/读档唯一汇合点，一处接线覆盖两端；守卫 = `PresentationRandomSceneTest.seedFromWorld has a production call site`（源码扫描） |
+| 场景派生 | `scene(key)` = 独立实例，序列由 `(worldSeed, FNV-1a 64(key))` 唯一决定 ⇒ **同一存档 + 同一场景实例恒定（跨会话一致）**，异键无关，与根流零耦合；哈希跨平台锚点以字面量锁死（iOS 侧须复现） |
+| 仍不入档 | 表现流零协议面（拍板口径：入档收益仅"第 N 次进入第 N 套文案"，不划算） |
+| 键纪律 | 键必须含场景实例身份；常量键仅限"本就该固定轮播"场景（loading.tip） |
+
+### 7.2 场景键登记表（实施时逐点接线，新增消费点照此登记）
+
+| 场景 | 键 | 落点 |
+|---|---|---|
+| 天劫立绘（无立绘分支按性别取像） | `"trial.portrait." + combatant.id` | `HeavenlyTrialComponents.CombatantPortrait` |
+| 弟子交谈文本变体 | `"chat." + disciple.id + "." + gameYear` | `DiscipleChatDialog`（`remember(disciple.id, gameYear)`；决策类抽取仍走 CHAT 分区不变） |
+| 外交赠礼/附庸文案（8 抽取点） | `"diplomacy." + sectId + ".{gift.player,gift.aiAccept,gift.aiReject,gift.reply,vassal.request,vassal.reply,vassal.dissolvePlayer,vassal.dissolveAi}"` | `DiplomacyFlows.diplomacyScene`（builder 签名未动） |
+| 送礼反馈文案（好感度） | `"favor." + sectId + ".gift.{accept,rejected}"` | `GiftService`（**native 臂与 Kotlin 臂同键** ⇒ flag 两侧文案一致） |
+| 加载提示轮播 | `"loading.tip"`（常量键=刻意：固定轮播） | `LoadingScreen` |
+| 装饰/动画（云层等） | **不改**（"持续变化"语义，config 维度固定种子） | `CloudLayerAnimator` / `NativeSurfaceView` |
+
+### 7.3 测试面
+
+`PresentationRandomSceneTest`（新增 7 用例）：同键逐位相同 / 异键不同 / 世界种子参与派生 /
+与根流互不影响 / 零状态写入（FakeAtomicStateStore 快照前后相等）/ FNV-1a 字面量锚点 /
+`seedFromWorld` 生产调用点守卫。

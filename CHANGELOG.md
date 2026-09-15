@@ -1,6 +1,17 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4 ②③ 双项：`PresentationRandom` 按场景派生（跨会话一致）+ `TimeSystem.onPhaseTick` 迁测试源集（§2.69）
+
+> 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 交他人实施的 ②③ 两项。**零 C++ 改动、零协议面、零 ActionId 变更**。交接记录见 handover §2.69。
+
+- **③ `PresentationRandom` 按场景派生**：根因修复"文档与实现不符"——`seedFromWorld(mapSeed)` 自引入起**全仓零调用** ⇒ 表现流种子恒为编译期常量，"同会话可复现"取决于玩家点过哪些界面（90+ 消费点共享一条流，谁先抽谁拿到）。现 `BootSequenceController.generateMapPreloadData()` **接线播种**（boot = 新档/读档唯一汇合点，一处覆盖两端），调用方改经 **`scene(key)` 场景流**（独立实例，序列 = `(worldSeed, FNV-1a 64(key))` 唯一决定）⇒ **同一存档同一场景恒定（跨会话一致）**。场景键表逐点接线：天劫立绘 `trial.portrait.<id>`（同参战者恒同立绘）、弟子交谈 `chat.<id>.<gameYear>`（同年重进同台词，决策类抽取仍走 CHAT 分区不变）、外交 8 抽取点 `diplomacy.<sectId>.<种类>`（builder 签名未动）、送礼反馈 `favor.<sectId>.gift.<结果>`（native 臂与 Kotlin 臂**同键 ⇒ flag 两侧文案一致**）、加载提示 `loading.tip`（常量键 = 刻意的固定轮播）；云层/装饰保持"持续变化"语义不改。哈希强制 **FNV-1a 64**（`String.hashCode()` 非 iOS/KMP 契约），字面量锚点测试锁死。**玩家可见变更**（表现面选择序列改变，属预期口径修正）已同步 `changelog_entries.json`。
+- **② `TimeSystem.onPhaseTick` 迁测试源集**：新增 `TimeAdvanceBaseline.advancePhaseBaseline`（**逐字搬运** + "冻结基准，禁止优化" KDoc），生产类删除该方法；6 个测试文件 9 个调用点改写并清理 `TimeSystem(store)` 局部构造；`TimeSystemPureLogicTest` 第二份内联复刻改调基准。**反向验证已过**（故意把基准 `>=` 改 `>` ⇒ `DiffTimeTest` 4 用例即红后还原）；引擎全量用例数与搬运前**完全一致**（3306/303/0/0）＝语义零变更得证；`PhaseSettlementExecutor` 同类项因触及 W4-D 冻结宿主族，登记 D5 复议。
+- **新测试**：`PresentationRandomSceneTest` 7 用例（同键逐位相同 / 异键不同 / 世界种子参与派生 / 与根流互不影响 / 零状态写入 / FNV-1a 字面量锚点 / **`seedFromWorld` 生产调用点源码扫描守卫**——防"定义了但从不调用"复发）。
+- **门禁**：`:core:engine` **3313/304/0/0**（= 3306 + 新增 7；47 个 `Diff*` 全绿）｜`:feature:game` **872/0/0**（`SectDiplomacyDialogTest` 零改动——键化在调用处，多样性断言语义不变）｜六模块 detekt 全绿 + baseline 全 0（途中 5 处 `MaxLineLength` 新违规全部实修拆行）｜六模块主源 + 测试源编译全绿。
+- **文档**：handover 新增 §2.69 + §3 基线表更新（引擎 3313）+ §4.1/§4.2 两项勾销 + §5 ③ 更新；[rng-source-inventory §7](docs/rng-source-inventory.md) 新增"表现流取用方式"与场景键登记表；[ui-read-surface §6](docs/ui-read-surface.md) 口径登记；实施文档 §2.B/§2.C/§2.E 状态更新。
+- **遗留**：手工验证项（同一天劫重进 3 次立绘一致 / 同年交谈开场白一致）需真机或模拟器人工确认——自动化已覆盖序列恒定语义。
+
 ### 文档：W4 剩余工作实施文档（派工用）+ 三项待决策项的实测依据（§2.68 续）
 
 > 需求：把 W4 三批集成后的**全部剩余工作**整理成一份可交给他人照单执行的实施文档。**本批零代码改动（1 个新文档 + 数处文档交叉引用与口径更正）**，零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` **未追加**。
