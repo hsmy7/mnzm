@@ -1,6 +1,16 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 续·弟子通道收口（第一段）：交谈效果写面下沉（§2.76）
+
+> 需求：实施 handover §2.75④ 完成路径第 1 项（弟子通道收口·交谈写面下沉）。**玩家可见语义零变更（同一交谈效果、同一冷却标记； AUTHORITATIVE 下改由 C++ 权威事务执行）、双臂抽取增量恒 0 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
+
+- **新事务 `DISCIPLE_CHAT_EFFECT_TX=1860`**（段 1860–1869 首个实裁；`chat_effect_tx.h` 纯 C++20）：语义与 Kotlin `updateDisciple` lambda 逐位一致——弟子不存在 = 成功无操作（`return@update` 同语义）、修为 `max(0.0, +delta)`、道德/忠诚/悟性 `(原值+delta)` clamp [1,100]、`statusData["lastChatYear"]` 冷却标记恒写、已故行照常应用。🔴 **事务零 RNG**：交谈决策抽取已由 W4-A·A5 收敛引擎侧 `RngPartition.CHAT`，增量作为参数传入——双臂抽取增量恒 0（GTest rngStates 快照差分锚定）。
+- **Kotlin native 臂**：`GameEngineCoordination.applyConversationEffectAtomic`（C++ 真相先行；失败信封/降级 → `updateDisciple` 回退臂不变；非数字 id 不尝试 C++ 臂）；`DiscipleDelegate.applyConversationEffects` 改调新入口。
+- **审计修正（诚实口径）**：`DISCIPLE_CHANNEL` 的**整体关闭**阻断面比 §2.75④ 登记更宽——`startMission` 的 `releaseDiscipleToIdleInside` 写弟子槽位/状态协议列（还依赖任务域收口）；月/年残留执行器 `lifeEvents` 协议外列投影会触发行级关闭检测误报（`bindAllOnWrite` 对全部列绑定 changedIdTracker）。通道关闭（守卫红线翻转）顺延至任务域收口批，本批先消除交谈写面的协议列数据丢失风险。
+- **测试**：新 GTest `chat_effect_tx_test.cpp` **7 用例**（逐位语义/clamp 边界/无操作零写入/零增量冷却/已故行/零抽取锚点/端口形状）+ 新 `DiscipleChatEffectNativeTxGateTest` **3 用例**（回退臂逐位/修为下限+静默无操作/两臂降级等价）。
+- **门禁**：桌面 C++ **1424/1424**（1417+7）｜`:core:engine` **3310/305 类/0/0**（3307+3）｜`:feature:game` **872/0**｜六模块 detekt 绿｜NDK + lint 绿（C++ 触碰必跑）｜生成物零漂移（**197 动作 / maxId=1860**）。
+
 ### W4-D/D4 w3-13 反向通道删除（终局）：阶段 A+B 观察窗交付 + 删除步阻断判定（§2.75）
 
 > 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链第四项 D4，按 [ADR reverse-channel-elimination](docs/adr/reverse-channel-elimination.md) §4 安全下线五步推进。**零生产行为变更（传输默认照常、开关默认开启）、零协议面、零 ActionId 变更、零 C++ 改动、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。

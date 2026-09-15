@@ -1038,13 +1038,39 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 **遗留**: 删除步重启 = 上述完成路径 1–5（属各域收尾批，逐批独立可验收）；观察窗仪器随删除批移除；`w4-rem/05` tag + bundle 已落盘。
 
 
+### §2.76 W4-D/D4 续·弟子通道收口（第一段）：交谈效果写面下沉（2026-09-15）
+
+批次: handover §2.75④ 完成路径**第 1 项**（弟子通道收口·交谈写面下沉）| ActionId: **1860 `DISCIPLE_CHAT_EFFECT_TX`**（段 1860–1869 首个实裁；**197 动作 / maxId=1860**）| 性质: **玩家可见语义零变更、双臂抽取增量恒 0 的写者下沉批**。
+
+**审计先行（完成路径修正登记——诚实口径）**: 通道整体关闭的阻断面经逐点核实比 §2.75④ 原登记更宽：
+1. `startMission`（`GameEngineMissionOps.kt:26`）内 `releaseDiscipleToIdleInside` 写弟子**槽位/状态协议列** ⇒ `DISCIPLE_CHANNEL` 关闭还依赖任务域收口（原第 2 项，非可选项）；
+2. 月/年残留执行器的 `lifeEvents` **协议外列投影**（购买日志/丧亲，`MonthSettlementResidualExecutor.appendPurchaseLog` / `YearSettlementResidualExecutor.appendBereavementEvent`）是 AUTHORITATIVE 稳态 Kotlin 行写者，且 `DiscipleTables.bindAllOnWrite` 对**全部列**（含协议外列）绑定 `changedIdTracker` ⇒ 通道关闭后行级"关闭域写入检测"将对协议外投影误报——关闭批须一并裁决（检测 AUTHORITATIVE 门控 / 投影改非捕获路径，二选一，届时拍板）。
+
+据此本批收窄为"交谈写面下沉"本体，通道关闭（守卫红线翻转）顺延至任务域收口批。
+
+**① 新事务 `DISCIPLE_CHAT_EFFECT_TX=1860`**:
+- 新 `chat_effect_tx.h`（纯 C++20 零 Android 依赖）——语义与 Kotlin `updateDisciple` lambda **逐位一致**：① 弟子不存在 = 成功无操作（`return@update` 同语义，found=false 非失败信封）；② 修为 `max(0.0, cultivation+delta)`；③ 道德/忠诚/悟性 `(原值+delta)` clamp [1,100]；④ `statusData["lastChatYear"]` 冷却标记恒写（与增量是否为零无关）；⑤ 已故行照常应用（Kotlin 无存活检查同语义）。行序机制差异（Kotlin remove+insert 移末 vs C++ 原位列写）沿 W4-A `DISCIPLE_OP_*` 家族既定先例（C++ 行序 = AUTHORITATIVE 真相源，保序）。
+- 🔴 **RNG 红线（红线 1）**：事务**零抽取**——交谈决策抽取（树/分支/效果随机化）已由 W4-A·A5 收敛引擎侧 `RngPartition.CHAT`（`GameEngineConversationDraw`），增量数值作为事务参数传入；双臂抽取增量恒 0（GTest rngStates 快照差分恒零锚定）。
+- 分发：`dispatch_w4d.cpp` 新 handler（参数校验 → `INVALID_PARAMS` 失败信封 → Kotlin 回退臂）；`w4d.mjs` 目录 +1；`dispatch_guard_test` 对新号"分派可达"自动覆盖。
+
+**② Kotlin native 臂**:
+- `GameEngineCoordination.applyConversationEffectAtomic`——C++ 真相先行（`tryDiscipleOpNative(1860)`）；失败信封/降级 null → `updateDisciple` 回退臂（红线 3 不变）；**非数字 id 不尝试 C++ 臂**（协议为整数 id），Kotlin `toInt()` 原抛出 + delegate 捕获语义保持。
+- `DiscipleDelegate.applyConversationEffects` 改调新入口（launchOnEngine 协程边界/异常翻译不变）。
+
+**③ 测试**: 新 GTest `chat_effect_tx_test.cpp` **7 用例**（成功路径逐位 / clamp 边界 100·1·0.0 / 缺弟子无操作零写入 / 零增量冷却标记 / 已故行 / 零抽取锚点 / 端口形状含缺参 INVALID_PARAMS）；新 `DiscipleChatEffectNativeTxGateTest` **3 用例**（回退臂逐位 / 修为下限+静默无操作 / flag OFF vs 降级 AUTHORITATIVE 两臂等价——GuideRewardNativeTxGateTest 同口径，JVM 守护降级臂）。
+
+**门禁实跑**: 桌面 C++ **1424/1424**（1417 + 7；ctest + 单进程直跑复核）｜`:core:engine` **3310 / 305 类 / 0 失败 / 0 跳过**（3307 + 3；47 `Diff*` 全绿）｜`:feature:game` **872/0**（delegate 触碰面复跑）｜六模块 detekt 全绿｜主源 + 测试源编译绿｜`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿（C++ 触碰必跑）｜生成器幂等 + 生成物零漂移（**197 动作 / maxId=1860**）。
+
+**遗留**: ① 任务域收口批（`startMission`/完成结算 native 臂 → `activeMissions` 关闭）+ `DISCIPLE_CHANNEL` 关闭（红线翻转）+ 检测门控/投影裁决；② 其后按 §2.75④ 第 3/4 项推进；`w4-rem/06` tag + bundle 已落盘。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.75 W4-D/D4 阶段 A+B 观察窗后）**：
+**当前门禁基线（2026-09-15，§2.76 W4-D/D4 续·交谈写面下沉后）**：
 
 | 验证 | 结果 |
 |---|---|
 | 桌面 C++ 全量单测 | **1417/1417 全绿**（§2.73 基线；§2.75 零 C++ 改动豁免复跑；含单进程直跑复核）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3307 用例 / 304 类 / 0 失败 / 0 错误 / 0 跳过**（§2.75 = §2.74 基线 3305 + 停发观察窗 2 用例；含 47 个 `Diff*` 对拍全绿 + 停发 100 旬用例） |
+| 引擎全量单测 `:core:engine` | **3310 用例 / 305 类 / 0 失败 / 0 错误 / 0 跳过**（§2.76 = §2.75 基线 3307 + 交谈效果 GateTest 3 用例；含 47 个 `Diff*` 对拍全绿 + 停发 100 旬用例） |
 | `:core:domain` 单测 | **1758 用例 / 0 失败**（含 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
 | `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
@@ -1066,6 +1092,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.76 W4-D/D4 续·交谈写面下沉（09-15）** | **1424/1424**（+7） | **3310 / 305 类 / 0 / 0**（+3；47 `Diff*`） |
 | **§2.75 W4-D/D4 阶段 A+B 观察窗（09-15）** | —（零 C++ 改动，豁免） | **3307 / 304 类 / 0 / 0**（+2；47 `Diff*` + 停发 100 旬用例） |
 | **§2.74 W4-D/D3 harness 对齐生产（09-15）** | **1417/1417**（持平；仅桌面 JNI 层） | **3305 / 304 类 / 0 / 0**（持平；47 `Diff*`） |
 | **§2.73 W4-D/D2 引导领奖下沉（09-15）** | **1417/1417**（+10） | **3305 / 304 类 / 0 / 0**（+2） |
@@ -1117,7 +1144,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | 项 | 状态 |
 |---|---|
 | **三处顶层可变 `xxxRngManager` 同族遗留**（`EnemyGenerator` / `AISectAttackManager` / `AISectTeamComposer`） | **✅ 已清偿（2026-09-15，§2.64.1 W4-C C-③）**——三处均改为形参必传，`GameEngine.kt` init 块三行赋值随之移除；实测全仓顶层可变 `*RngManager` **0 处**。`RngEngineIsolationGuardTest` 白名单未新增条目 |
-| **反向同步通道逐域收尾 → 通道删除（长期主轴）** | **⚠️ 方向已定（§2.53）**——"按域全关"经 288 站点穷尽审计实测**前置不成立**（14 域无一可整体关闭）；已交付可证关闭面 68 单元（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制（策略单点 / 双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）。**2026-09-15 W4-A/B/C 三批再消除一批稳态写者**（弟子管理九事务 / 婚姻审批拒绝 / 巡逻·矿场 UI 直改 / 战斗伤亡与战前结算 / 秘境换岗兜底 / 洞府死链，逐条 `file:line` 见 [ui-read-surface §4.4](ui-read-surface.md) 滚动更新表），但**域级"可整体关闭"仍无一成立**。**后续按 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 十三批推进**，终局删除 = `docs/parallel-batches-w4/README.md` §8 的 W4-D/D4。**2026-09-15 D4 阶段 A+B 已实施（§2.75，`w4-rem/05`）**：观察窗停发仪器进 CI（100 旬停发对拍绿：零发送 + 关闭域写入检测零命中 + 指纹零差异）；**删除步判定 = 阻断**——硬前置"关闭清单 = 全部传输单元"不成立，稳态 Kotlin 写者实测在位（交谈效果/任务派遣/存档前自愈等，逐条 `file:line` 与完成路径见 §2.75④），按五步规程重置流程、写者收口后重启删除步 |
+| **反向同步通道逐域收尾 → 通道删除（长期主轴）** | **⚠️ 方向已定（§2.53）**——"按域全关"经 288 站点穷尽审计实测**前置不成立**（14 域无一可整体关闭）；已交付可证关闭面 68 单元（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制（策略单点 / 双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）。**2026-09-15 W4-A/B/C 三批再消除一批稳态写者**（弟子管理九事务 / 婚姻审批拒绝 / 巡逻·矿场 UI 直改 / 战斗伤亡与战前结算 / 秘境换岗兜底 / 洞府死链，逐条 `file:line` 见 [ui-read-surface §4.4](ui-read-surface.md) 滚动更新表），但**域级"可整体关闭"仍无一成立**。**后续按 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 十三批推进**，终局删除 = `docs/parallel-batches-w4/README.md` §8 的 W4-D/D4。**2026-09-15 D4 阶段 A+B 已实施（§2.75，`w4-rem/05`）**：观察窗停发仪器进 CI（100 旬停发对拍绿：零发送 + 关闭域写入检测零命中 + 指纹零差异）；**删除步判定 = 阻断**——硬前置"关闭清单 = 全部传输单元"不成立，稳态 Kotlin 写者实测在位（交谈效果/任务派遣/存档前自愈等，逐条 `file:line` 与完成路径见 §2.75④），按五步规程重置流程、写者收口后重启删除步。**完成路径第 1 项已实施（§2.76，`w4-rem/06`）**：交谈效果写面下沉（`DISCIPLE_CHAT_EFFECT_TX=1860`，事务零 RNG 双臂抽取恒 0）；审计修正——通道整体关闭还依赖任务域收口（`startMission` 写槽位协议列）+ lifeEvents 协议外投影的检测裁决（§2.76 审计先行节），完成路径相应顺延 |
 | **WS-5b 地图冻结批** | **✅ 已落地（2026-09-15，§2.64.2 W4-C C-②）**——"生成即数据 + `mapGenVersion` 协议全链 + 老档按种子再生回填"全链交付（C++ 状态模型 + `json_codec` 双向 + Kotlin `@ProtoNumber`/`@ColumnInfo` + Room `@Database` 50→51 + `MIGRATION_50_51` + 迁移测试 + 存档往返测试）。~~遗留口径风险: 对拍面把 `terrainTiles`/`mapGenVersion` 列为镜像生成字段排除比对~~ → **✅ 已清偿（2026-09-15，§2.74 W4-D/D3）**——harness 补生产同款 boot 回填后两字段退出排除面、按普通字段参与全状态对拍（47 `Diff*` 全绿） |
 | **WS-4 NPC 移动系统（待玩法设计文档）** | 实现前需用户补充玩法设计文档（数量上限 / 生成规则 / 与弟子系统关系）；E3 组件族（§2.14）与寻路地基（静态地形 + 建筑占位 + 道路，§2.19）已就绪，可行走语义（树/边界是否阻塞）待拍板 |
 | **WS-1 残留口径 / 阶段 3 立项** | **✅ 已决策（2026-09-15，用户拍板"按桌面 Release 数据决策"）：不立项协议 v2**。**决策依据（桌面 Release 实跑 `dirty_tracker_bench_test.cpp`）**：每旬全脏 `diffToJson` = **7.9ms@100 弟子**（实测口径 ~0.10 ms/弟子/旬：100→7.9ms、1000→100.9ms）；**玩家实际规模 ≈100 弟子**（用户口径）⇒ 2x 速（1s/旬）下导出仅占**旬间隔 0.8%**；且每旬镜像跑在**引擎后台协程**（`GameEngineCoreAuthoritativeOps.kt:63` → `engineScope`/`gameDispatcher`），**不占渲染线程** ⇒ 不直接掉帧。按中端机 2.5× 系数估算 ≈20ms/旬 = 间隔 2%，**约 5 倍余量**。⇒ **协议 v2（145+ 列写点 + 47 对拍 + 存档格式）的风险远大于收益，不做**；同时**不做**非协议微优化（空闲窗口 3.8ms@100，且任何"跳过序列化"的优化都必须引入写屏障——正是 §2.34 已摘除的风险面）。**再评估阈值（数值化，可机测）**：① 实际弟子规模 **>400**（= 0.10 ms/弟子/旬 × 2.5 设备系数 ≈ 旬间隔 10%）；② 或 D1 埋点真机实测每旬镜像 **>100ms**。**观测手段 = W4-D/D1 既有埋点（零额外成本）** |
