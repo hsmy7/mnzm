@@ -292,6 +292,15 @@ C++）。
 
 通道关闭阻断面修正（诚实口径）：`DISCIPLE_CHANNEL` 整体关闭仍被阻断——`startMission` 的 `releaseDiscipleToIdleInside` 写槽位/状态**协议列**（依赖任务域收口批）；月/年残留执行器 `lifeEvents` 协议外列投影（购买日志/丧亲）会触发行级关闭检测误报（`bindAllOnWrite` 全列绑定 changedIdTracker），关闭批须一并裁决（检测 AUTHORITATIVE 门控 / 投影改非捕获路径）。
 
+**滚动更新（2026-09-15，W4-D/D4 续·任务域收口 + 弟子通道关闭）**：
+
+| 域 | 原稳态写者站点 | 实施后形态 | 来源 |
+|---|---|---|---|
+| 招募/派遣 | `GameEngineMissionOps.kt:26` startMission（activeMissions + 槽位/状态协议列，无 native 臂） | C++ 真相先行：`MISSION_START_TX=1861`（`mission_start_tx.h`——模板快照 + 全槽位清理保留住所 + 状态重置 IDLE，事务零 RNG）；`checkAndProcessCompletedMissions` = AUTHORITATIVE 防御性 no-op（C++ 子事件 5 完成经前向镜像） | §2.77 |
+| 弟子通道 | `DISCIPLE_CHANNEL`（写者经 w3-01…w3-12 + W4-D 续批收口：交谈 1860/派遣 1861/操作面 1740–1759） | **已关闭**（守卫红线翻转）：`discipleChannel(DISCIPLE)` 登记 closedUnits；lifeEvents 协议外投影（购买日志/丧亲）随残留执行器事务转 `updateMirror` 非捕获路径；捕获侧关闭域写入检测 AUTHORITATIVE 门控（flag-OFF 写入即真相不计数） | §2.77 |
+
+**剩余开放面（删除步前置）**：`aiSectDisciples` 段（存档前自愈/攻宗守军清理）、9 类实体集合（统一入库入口/openStorageBag）、retained 字段族（钱包/年度收支账/recruitList 等）——§2.75④ 第 3/4 项。
+
 **新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
 
 - **双端同源闸门**——捕获侧（`GameStateStoreImpl.captureReverseDirty`：弟子通道 + 集合段停载荷构造）与信封侧

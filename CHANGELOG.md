@@ -1,6 +1,17 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 续·任务域收口 + 弟子通道关闭（§2.77）
+
+> 需求：实施 handover §2.76 完成路径剩余项——任务域收口 + `DISCIPLE_CHANNEL` 关闭（守卫红线翻转）。**玩家可见语义零变更；两个新事务均零游戏分区抽取，双臂抽取增量恒 0 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
+
+- **新事务 `MISSION_START_TX=1861`**（`mission_start_tx.h` 纯 C++20）：承接 `GameEngineMissionOps.startMission` 写面——availableMissions 模板快照 → ActiveMission 全字段（队员 id/name/realm 快照）+ 全槽位清理（`clearAllSlotsDataOnly` 保留住所，与 appointment_tx 同款拷入/拷出）+ 状态重置 IDLE（REFLECTING/REFINING 键剥离）。`ActiveMission.id` 由 Kotlin `UUID.randomUUID()` 生成后参数传入（Java 随机非游戏分区，原基线零抽取）⇒ **事务零 RNG**。模板不存在 = `MISSION_NOT_FOUND` 失败信封零写入，Kotlin 回退臂按原语义继续。事务外部平台面（gate 释放/Repository 清理/状态同步）两臂同形照原序。
+- **`DISCIPLE_CHANNEL` 关闭（守卫红线翻转）**：AUTHORITATIVE 稳态协议列写者全部收口（交谈 1860/派遣 1861/操作面 1740–1759）——关闭单元登记 `W4DChannelClosures`（`discipleChannel(DISCIPLE)`）+ `activeMissions` 转关闭（完成结算 = C++ 子事件 5；`checkAndProcessCompletedMissions` 在 AUTHORITATIVE 为防御性 no-op）；`ReverseChannelPolicyGuardTest` 红线断言翻转（弟子通道必须关闭；`aiSectDisciples` 段仍保留传输——存档前自愈写者在位，§2.75④ 第 3 项未完成）。
+- **配套裁决（§2.76 审计先行登记的两项）**：① 月/年残留执行器事务转 `updateMirror` 非捕获路径（生产 MonthOps/YearOps + harness 同款）——lifeEvents 协议外列投影是 C++ 事实的 Kotlin 显示投影，无需回导；② 捕获侧关闭域写入检测 **AUTHORITATIVE 门控**（生产 GameStateStoreImpl + 测试 FakeGameStateStore 同源）——flag-OFF 下写入即真相，不存在回导缺口，不计数。
+- **机械面测试恢复传输语义**：捕获/信封/体积三测试类经 `reopenDomain(DISCIPLE)` 覆盖钩子继续守护通道机械（捕获→changed id→快照→信封各段）；关闭语义新覆盖（红线翻转 + 检测门控用例）。
+- **测试**：新 GTest `mission_start_tx_test.cpp` **6 用例** + 新 `MissionStartNativeTxGateTest` **2 用例**。
+- **门禁**：桌面 C++ **1430/1430**（1424 + 6；ctest + 单进程直跑复核）｜`:core:engine` **3312/306 类/0/0**（3310 + 2）｜`:core:domain` **1758/0**｜`:app` **1003/0**｜六模块 detekt 绿｜NDK + lint 绿｜生成物零漂移（**198 动作 / maxId=1861**）。
+
 ### W4-D/D4 续·弟子通道收口（第一段）：交谈效果写面下沉（§2.76）
 
 > 需求：实施 handover §2.75④ 完成路径第 1 项（弟子通道收口·交谈写面下沉）。**玩家可见语义零变更（同一交谈效果、同一冷却标记； AUTHORITATIVE 下改由 C++ 权威事务执行）、双臂抽取增量恒 0 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
