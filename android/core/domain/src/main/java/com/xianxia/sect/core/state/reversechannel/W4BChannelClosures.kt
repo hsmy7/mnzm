@@ -85,9 +85,8 @@ internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
     "jadeSymbols", "jadeSymbolsToday", "jadeAccumMs", "jadeDayAnchorMs",
     // 灵矿/住所/巡逻槽位与配置（PATROL 域稳态写者）
     "spiritMineSlots", "residenceSlots", "patrolSlots", "patrolConfigs",
-    // 灵矿月结水位：DiffAuthoritativeTickTest 的 AUTHORITATIVE 管线对拍把 Kotlin
-    // 月变编排纳入稳态（测试面为生产超集）——关闭该字段会使对拍红，故保持传输
-    "spiritMineLastSettledMonth",
+    // （原"灵矿月结水位 spiritMineLastSettledMonth"已由 W4-D/D3 转出——
+    //   harness 对齐生产后稳态写者重评，关闭单元与证据见 W4DChannelClosures.kt）
     // 巡逻战斗待结算（PATROL 域）
     "pendingPatrolBattleResults",
     // 自动购买列表与邮件账本（INVENTORY 域，登记不下沉：邮件附件领取含 7 类

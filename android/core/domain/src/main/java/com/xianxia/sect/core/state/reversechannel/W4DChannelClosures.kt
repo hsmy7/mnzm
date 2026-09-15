@@ -11,8 +11,8 @@ import com.xianxia.sect.core.state.ReverseChannelPolicy.Domain
  * - `RECRUIT`（招募/派遣/俘虏）：batch-16 交付后无新的域级批次，残余写者属收口范畴；
  * - `AI_SECT`（AI 宗门）：自愈族与存档前世界重生，属收口范畴；
  * - **未分配的经济/世界/运营字段**：钱包、世界地图、宗门标识、年度收支账、兑换码、
- *   关注列表，以及 `DiffAuthoritativeTickTest` harness 覆写的 3 个字段
- *   （harness 对齐生产后需**重评**关闭结论，见 `docs/parallel-batches-w4/README.md` §8 D3）。
+ *   关注列表，以及 PATROL 域的灵矿月结水位（原 W4-B retained，随 W4-D/D3
+ *   harness 对齐生产后转入关闭）。
  *
  * 把"无人认领"的项集中在收口文件里，可保证 A/B/C 三批**永不因非本批内容产生冲突**。
  *
@@ -30,6 +30,19 @@ internal val w4DClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
     // BOUNDARY（W4-D/D2 · w3-11 引导领奖下沉——claimGuideReward 写面归 C++，
     // Kotlin 残余 = 回退臂-only；原 W4-B retained 条目同批转出）
     gameDataField(Domain.BOUNDARY, "guideClaimedRewardIds"),
+    // BOUNDARY（W4-D/D3 · harness 对齐生产——原"harness 覆写"retained 三项。
+    // 稳态写者重评：年报快照/年度计数重置 = C++ runYearSettlement（T1 在位，
+    // §2.73）；任务刷新/清理 = C++ 月结子事件 13；Kotlin 残余 = YearSettlement
+    // Executor/CultivationEventMissionOps 回退臂（native 未就绪时反向通道本就
+    // 不活跃）+ 读档归一化（基线建立前，detectClosedFieldWrites 不误报）
+    gameDataField(Domain.BOUNDARY, "annualAlchemyCount"),
+    gameDataField(Domain.BOUNDARY, "yearlyReports"),
+    gameDataField(Domain.RECRUIT, "availableMissions"),
+    // PATROL（W4-D/D3 · 同上——灵矿月结水位由 C++ 月结灵矿步无条件推进；
+    // Kotlin 残余 = CultivationSettlement 回退臂 + 读档归一化（LOAD_BOOT 族）+
+    // SectPolicyToggleUseCase.toggleSpiritMineBoost 回退臂（native 臂 1682 在位，
+    // §2.63 batch-18b）——原 W4-B retained 条目同批转出）
+    gameDataField(Domain.PATROL, "spiritMineLastSettledMonth"),
 )
 
 /** 本批的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
@@ -49,12 +62,8 @@ internal val w4DRetainedGameDataFields: Set<String> = linkedSetOf(
     "annualPillBySource", "annualHerbBySource",
     // 兑换码 / 关注列表 / 预警去重
     "usedRedeemCodes", "watchedItemIds", "shownWarningStageIds",
-    // 对拍 harness 覆写（DiffAuthoritativeTickTest 把 Kotlin 月/年编排纳入
-    // AUTHORITATIVE 管线 ⇒ 这些字段在测试面为稳态写者，关闭即对拍红；
-    // harness 对齐生产后重评——见 docs/parallel-batches-w4/README.md §8 D3）
-    "annualAlchemyCount",
-    "availableMissions",
-    "yearlyReports",
+    // （原"harness 覆写"三项 annualAlchemyCount/availableMissions/yearlyReports
+    //   已随 W4-D/D3 harness 对齐生产转入关闭——见 closedUnits 注释）
 )
 
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
@@ -62,6 +71,20 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.RECRUIT to listOf(
         "DiscipleFacadeImpl功法Ops1.kt:71 mirrorAppendJoinSectLifeEvent — 入宗 lifeEvent 补写（C++ 无该列）",
         "DiscipleService.kt:142 recruitDisciple / RecruitService.kt:398 refreshRecruitList — 招募族写者",
+        "W4-D/D3（2026-09-15）：availableMissions 转入关闭——harness 对齐生产后稳态写者重评：" +
+            "任务刷新/清理 = C++ 月结子事件 13（month_settlement.h）；Kotlin 残余 = " +
+            "CultivationEventMissionOps.kt:132 回退臂（native 未就绪时反向通道不活跃）+ " +
+            "GameEngineLoadDataOps.kt:425 读档归一化（LOAD_BOOT 族，基线建立前写入，" +
+            "detectClosedFieldWrites 不误报）；任务接取 startMission（GameEngineMissionOps.kt:37）" +
+            "只写 activeMissions 不写本字段",
+    ),
+    Domain.PATROL to listOf(
+        "W4-D/D3（2026-09-15）：spiritMineLastSettledMonth 转入关闭（原 W4-B retained" +
+            "——\"harness 对拍把 Kotlin 月变编排纳入稳态\"的理由随 harness 对齐失效）：" +
+            "月结水位由 C++ runMonthSettlement 灵矿步无条件推进；Kotlin 残余 = " +
+            "CultivationSettlement.kt:485 回退臂 + GameEngineLoadDataOps.kt:245/:295/:363 " +
+            "读档/新档归一化（LOAD_BOOT 族）+ SectPolicyToggleUseCase.kt:230 回退臂" +
+            "（native 臂 GOV_SPIRIT_MINE_BOOST_TOGGLE_TX=1682 在位，batch-18b）",
     ),
     Domain.AI_SECT to listOf(
         "SaveFacadeImpl.kt:56 regenerateSectsBeforeSave — 存档前世界/AI 池自愈（会话中途稳态）",
@@ -70,6 +93,13 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
     ),
     // W4-D/D2（2026-09-15）w3-11 月年编排残差——扇出项逐条判定与宿主族解冻核对
     Domain.BOUNDARY to listOf(
+        "W4-D/D3（2026-09-15）：annualAlchemyCount / yearlyReports 转入关闭" +
+            "——harness 对齐生产后稳态写者重评：年报快照与年度计数重置 = " +
+            "C++ runYearSettlement（T1 全部 11 项在位，§2.73 宿主族解冻核对）；" +
+            "Kotlin 残余 = CultivationEventMonthlyOps.kt:236/:245 与 " +
+            "YearSettlementExecutor 回退臂 + ProductionSettlement.kt:52 回退臂" +
+            "（4a/4b 炼丹完成结算已入 C++，S4 口径）；原\"DiffAuthoritativeTickTest " +
+            "把 Kotlin 月/年编排纳入 AUTHORITATIVE 稳态\"的覆写理由随 D3 对齐失效",
         "W4-D/D2（2026-09-15）：GameEngineGuideOps.kt:52 claimGuideReward — 引导领奖已下沉" +
             "（GUIDE_REWARD_CLAIM_TX=1830 + guide_reward_tx.h：任务注册表 25 条/9 类条件求值/" +
             "可行性预检/SYSTEM 2×nextLong UUID 复刻/凭据溢出抑制）；guideClaimedRewardIds 转入关闭" +

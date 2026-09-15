@@ -368,6 +368,23 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreSettlePhase(
     return static_cast<jint>(g_core->settleOnePhase());
 }
 
+// ── 月/年边界结算通道（W4-D/D3 harness 对齐生产：与生产 GameCoreBridge
+//    nativeSettleMonth/nativeSettleYear 同协议——结算 + 信封 JSON 原样回传）────
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreSettleMonth(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_core) return stringToJbytes(env, "{}");
+    return stringToJbytes(env, g_core->settleMonth());
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreSettleYear(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_core) return stringToJbytes(env, "{}");
+    return stringToJbytes(env, g_core->settleYear());
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreRngNextInt(
     JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId) {

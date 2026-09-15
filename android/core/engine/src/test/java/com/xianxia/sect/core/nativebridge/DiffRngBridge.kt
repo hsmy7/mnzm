@@ -78,6 +78,10 @@ object DiffRngBridge {
     // ── AUTHORITATIVE tick 标量通道（对拍用） ──
     /** 单旬推进（时间 + 核心结算），返回边界标志位（bit0=月变 bit1=年变） */
     external fun nativeCoreSettlePhase(): Int
+    /** C++ 完整月变结算（信封 JSON——与生产 GameCoreBridge.nativeSettleMonth 同协议） */
+    external fun nativeCoreSettleMonth(): ByteArray
+    /** C++ 完整年变结算（信封 JSON——与生产 GameCoreBridge.nativeSettleYear 同协议） */
+    external fun nativeCoreSettleYear(): ByteArray
     /** RNG 分区标量抽取（PCG-XSH-RR 原始输出，与 DeterministicRng.nextInt 逐位一致） */
     external fun nativeCoreRngNextInt(partitionId: Int): Int
     /** 读取分区状态（对应 DeterministicRng.snapshot()） */
