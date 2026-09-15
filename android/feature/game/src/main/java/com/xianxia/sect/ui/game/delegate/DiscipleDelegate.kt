@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.delegate
 import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.apprenticeToMaster
+import com.xianxia.sect.core.engine.applyConversationEffectAtomic
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
 import com.xianxia.sect.core.engine.changeDiscipleTypeAtomic
 import com.xianxia.sect.core.engine.confiscateStorageBagItem
@@ -235,20 +236,17 @@ class DiscipleDelegate(
     ) {
         gameEngine.launchOnEngine {
             try {
-                gameEngine.updateDisciple(discipleId) { disciple ->
-                    val newStatus = disciple.statusData.toMutableMap().apply {
-                        this["lastChatYear"] = currentYear.toString()
-                    }
-                    disciple.copy(
-                        cultivation = maxOf(0.0, disciple.cultivation + cultivationDelta),
-                        skills = disciple.skills.copy(
-                            morality = (disciple.skills.morality + moralityDelta).coerceIn(1, 100),
-                            loyalty = (disciple.skills.loyalty + loyaltyDelta).coerceIn(1, 100),
-                            intelligence = (disciple.skills.intelligence + intelligenceDelta).coerceIn(1, 100)
-                        ),
-                        statusData = newStatus
-                    )
-                }
+                // W4-D 续批：C++ 真相先行（DISCIPLE_CHAT_EFFECT_TX=1860，零 RNG——
+                // 增量已由引擎侧 CHAT 分区签发后参数传入）；失败信封/降级 →
+                // updateDisciple Kotlin 回退臂（红线 3）
+                gameEngine.applyConversationEffectAtomic(
+                    discipleId = discipleId,
+                    currentYear = currentYear,
+                    moralityDelta = moralityDelta,
+                    loyaltyDelta = loyaltyDelta,
+                    cultivationDelta = cultivationDelta,
+                    intelligenceDelta = intelligenceDelta
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

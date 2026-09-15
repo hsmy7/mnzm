@@ -30,4 +30,13 @@ export const CATALOG = [
   // 1831–1839 留空（w3-11 其余扇出项判定结论：附庸年贡/脱离 C++ 已在位——
   // year_settlement.h / month_settlement.h 子事件 12，开臂即双重执行；
   // 兑换码登记不下沉；月/年残留执行器 = 通知/平台效应留 Kotlin）。
+
+  // ── 1860–1869 · W4-D 机动 ──
+  // D4 续批实施口径（2026-09-15）：弟子交谈效果写面下沉（chat_effect_tx.h）。
+  // 承接 Kotlin 写者 = DiscipleDelegate.applyConversationEffects →
+  // updateDisciple（弟子通道最后一个协议列数据丢失风险写者，W4-A·A5 登记
+  // "写入面留待 W4-D"）。增量数值由引擎侧 CHAT 分区签发后参数传入——
+  // 事务零 RNG，双臂抽取增量恒 0。
+  { id: 1860, name: 'DISCIPLE_CHAT_EFFECT_TX', desc: '弟子交谈效果事务（修炼/道德/忠诚/悟性参数化应用 + lastChatYear 冷却标记，零 RNG）' },
+  // 1861–1869 留空（W4-D 机动余量）。
 ];

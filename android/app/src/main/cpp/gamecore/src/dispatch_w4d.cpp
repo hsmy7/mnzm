@@ -34,6 +34,7 @@
 #include "gamecore/action_ids.h"
 #include "gamecore/game_core.h"   // GameCore 完整类型（dispatch_w4.h 仅前向声明）
 #include "gamecore/system/guide_reward_tx.h"
+#include "gamecore/system/chat_effect_tx.h"
 
 namespace gamecore {
 
@@ -69,6 +70,33 @@ nlohmann::json handleGuideRewardTx(GameCore& core, int32_t actionId,
     return ok({{"claimed", true}, {"itemId", r.itemId}});
 }
 
+// ── 1860–1869 · W4-D 机动（chat_effect_tx.h）────────────────────────
+
+nlohmann::json handleChatEffectTx(GameCore& core, const nlohmann::json& p) {
+    const auto idIt = p.find("discipleId");
+    const auto yearIt = p.find("currentYear");
+    const auto cultIt = p.find("cultivationDelta");
+    const auto morIt = p.find("moralityDelta");
+    const auto loyIt = p.find("loyaltyDelta");
+    const auto intIt = p.find("intelligenceDelta");
+    if (idIt == p.end() || !idIt->is_number_integer() ||
+        yearIt == p.end() || !yearIt->is_number_integer() ||
+        cultIt == p.end() || !cultIt->is_number() ||
+        morIt == p.end() || !morIt->is_number_integer() ||
+        loyIt == p.end() || !loyIt->is_number_integer() ||
+        intIt == p.end() || !intIt->is_number_integer()) {
+        return invalidParams(
+            "chat effect requires discipleId/currentYear(int), "
+            "cultivationDelta(number), morality/loyalty/intelligenceDelta(int)");
+    }
+    const auto r = gamecore::system::chat_tx::applyChatEffectTx(
+        core.state(), idIt->get<int32_t>(), yearIt->get<int32_t>(),
+        cultIt->get<double>(), morIt->get<int32_t>(),
+        loyIt->get<int32_t>(), intIt->get<int32_t>());
+    // 弟子不存在 = 成功无操作（Kotlin `return@update` 同语义，非失败信封）
+    return ok({{"applied", true}, {"found", r.found}});
+}
+
 }  // namespace
 
 std::optional<nlohmann::json> dispatchW4D(GameCore& core, int32_t actionId,
@@ -78,7 +106,11 @@ std::optional<nlohmann::json> dispatchW4D(GameCore& core, int32_t actionId,
         actionId <= action::GUIDE_REWARD_CLAIM_TX) {
         return handleGuideRewardTx(core, actionId, params);
     }
-    // 1831–1839（w3-11 余项：C++ 已在位/登记不下沉）与 1860–1869（机动）不认领。
+    if (actionId >= action::DISCIPLE_CHAT_EFFECT_TX &&
+        actionId <= action::DISCIPLE_CHAT_EFFECT_TX) {
+        return handleChatEffectTx(core, params);
+    }
+    // 1831–1839（w3-11 余项：C++ 已在位/登记不下沉）与 1861–1869（机动余量）不认领。
     return std::nullopt;
 }
 

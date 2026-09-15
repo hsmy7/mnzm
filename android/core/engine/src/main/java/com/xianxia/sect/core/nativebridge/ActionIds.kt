@@ -593,4 +593,7 @@ object ActionIds {
     /** 引导领奖事务（任务校验链 + 储物袋发放 + 已领标记，凭据类溢出抑制） */
     const val GUIDE_REWARD_CLAIM_TX: Int = 1830
 
+    /** 弟子交谈效果事务（修炼/道德/忠诚/悟性参数化应用 + lastChatYear 冷却标记，零 RNG） */
+    const val DISCIPLE_CHAT_EFFECT_TX: Int = 1860
+
 }

@@ -110,6 +110,55 @@ suspend fun GameEngine.updateDisciple(discipleId: String, update: (Disciple) -> 
 }
 
 /**
+ * 弟子交谈效果原子应用（W4-D 续批：交谈写面下沉——弟子通道最后一个
+ * "协议列数据丢失风险"写者，W4-A·A5 登记的 W4-D 决策项）。
+ *
+ * C++ 真相先行（`DISCIPLE_CHAT_EFFECT_TX=1860`：修为 max(0,+x)、道德/忠诚/悟性
+ * 和 clamp [1,100]、`statusData["lastChatYear"]` 冷却标记——chat_effect_tx.h，
+ * **零 RNG**：增量数值已由引擎侧 `RngPartition.CHAT` 签发（[chatDraw] 族）后
+ * 参数传入，双臂抽取增量恒 0）。弟子不存在 = 成功无操作（Kotlin `return@update`
+ * 同语义）。失败信封/降级 null → Kotlin 原路径（[updateDisciple]，回退臂语义
+ * 不变——红线 3）。
+ *
+ * 非数字 id：C++ 臂不尝试（协议为整数 id），直接走 Kotlin 原路径——其
+ * `toInt()` 抛出 + 调用方捕获的原行为保持不变。
+ */
+suspend fun GameEngine.applyConversationEffectAtomic(
+    discipleId: String,
+    currentYear: Int,
+    moralityDelta: Int,
+    loyaltyDelta: Int,
+    cultivationDelta: Double,
+    intelligenceDelta: Int
+) {
+    val intId = discipleId.toIntOrNull()
+    if (intId != null && tryDiscipleOpNative(ActionIds.DISCIPLE_CHAT_EFFECT_TX) {
+            put("discipleId", intId)
+            put("currentYear", currentYear)
+            put("cultivationDelta", cultivationDelta)
+            put("moralityDelta", moralityDelta)
+            put("loyaltyDelta", loyaltyDelta)
+            put("intelligenceDelta", intelligenceDelta)
+        } != null) {
+        return
+    }
+    updateDisciple(discipleId) { disciple ->
+        val newStatus = disciple.statusData.toMutableMap().apply {
+            this["lastChatYear"] = currentYear.toString()
+        }
+        disciple.copy(
+            cultivation = maxOf(0.0, disciple.cultivation + cultivationDelta),
+            skills = disciple.skills.copy(
+                morality = (disciple.skills.morality + moralityDelta).coerceIn(1, 100),
+                loyalty = (disciple.skills.loyalty + loyaltyDelta).coerceIn(1, 100),
+                intelligence = (disciple.skills.intelligence + intelligenceDelta).coerceIn(1, 100)
+            ),
+            statusData = newStatus
+        )
+    }
+}
+
+/**
  * 原子重命名宗门弟子，并在同一事务内清除招募列表中与"旧身份"同人的残留条目。
  * 改名会破坏 [RecruitIntegrity.isSamePerson] 的 5 字段签名匹配，
  * 若不在此净化，残留双胞胎将永久逃脱净化、可被重复招募。
