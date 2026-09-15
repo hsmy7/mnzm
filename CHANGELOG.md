@@ -1,6 +1,16 @@
 ## [4.01.14] - 2026-09-08
 
 
+### 天枢殿迁移补偿下线 + `existsByRemoteId` 死代码清偿（§2.71）
+
+> 需求：①旧档天枢殿"读档拆除 + 补偿 1000 万灵石邮件"迁移路径整体下线——邮件系统清理（§2.70）后它是最后一条会自动发补偿邮件的通道；②清偿上批登记的 `MailRepository.existsByRemoteId` 零调用死代码。**零 C++ 改动、零协议面、零 Room 迁移**。行为变化：未迁移老档的天枢殿不再被拆除，回归 `fixupBuildingSizes` 正常尺寸修正（改为当前配置尺寸 + 越界钳位），建筑保留、无补偿邮件。
+
+- **迁移路径删除**：`TianshuHallCompensationOps.kt`（补偿邮件构造）整文件删除；`BootSequenceController` 删 `migrateLegacyTianshuHalls`（Step 3.1 编排）、Step 3 中的 `filterLegacyTianshuHalls` 识别调用与 `legacyTianshuHalls` 状态、构造参数 `mailService`（唯一用途即发补偿邮件）；`BuildingLoadSelfHeal` 删 `TIANSHU_LEGACY_FOOTPRINTS` 历史尺寸白名单、`filterLegacyTianshuHalls` 与 `TIANSHU_HALL_DISPLAY_NAME`。老档遗留天枢殿（6×3/12×6）此后与任何尺寸异常建筑同等对待——走 fixup 改写尺寸，绝不拆除。
+- **死代码清偿**：`existsByRemoteId` 三点删除（`MailRepository` 接口 + `MailRepositoryImpl` 实现 + `MailDao` `@Query`）——旧在线邮件路径遗留，`fetchOnlineMails` 删除前即已零调用。
+- **测试**：删 `TianshuHallCompensationOpsTest`（整类）、`BuildingLoadSelfHealTest` 6 个识别用例、`BootSequenceControllerTest` 4 个迁移用例，**新增 1 个下线回归守卫**（`boot - 旧尺寸天枢殿保留不再拆除`，锁定"读档绝不拆殿"新行为）；`BootSequenceControllerTest` 构造同步去 `mailService`。**`:core:engine` 3313 → 3303（−10：−6 −3 −整类 1，精确对账）**。
+- **门禁**：`:core:engine` **3303/303 类/0 失败**｜`:core:data` **716/0/0（15 既有跳过）**｜`:core:domain` **1758/0**｜`:app` **1003/0/0**｜六模块 detekt 全绿｜四模块主源 + 测试源编译全绿。生成物未触碰。
+- **文档**：handover 新增 §2.71 + §3 基线表引擎行更新；knowledge-base 邮件来源收敛条目与运营邮件行更正；双更新日志同步。
+
 ### 邮件系统清理：仅保留节日邮件 + 白名单特权邮件，在线拉取与单用户定向注入整体下线
 
 > 需求：清理游戏内邮件，仅保留节日邮件（`BuiltinMailConfig`）与白名单特权邮件（`whitelist_bonus_v1`）。拍板口径：**溢出/秘境关闭/天枢殿迁移补偿等功能性邮件保留**（资产保护机制，非运营噪音）；**存量邮件不清理**（仅停新产生，旧邮件按原过期时间自然消失）；**代码彻底删除**（非仅断开入口）。**零 C++ 逻辑改动、零协议面、零 ActionId 变更、零 Room 迁移**（`month_settlement.h` 仅 3 处过时注释修正）。

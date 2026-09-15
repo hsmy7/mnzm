@@ -38,9 +38,6 @@ class MailRepositoryImpl @Inject constructor(
     override suspend fun getById(slotId: Int, mailId: String): MailEntity? =
         mailDao.getById(slotId, mailId)
 
-    override suspend fun existsByRemoteId(slotId: Int, remoteId: String): Boolean =
-        mailDao.existsByRemoteId(slotId, remoteId)
-
     override suspend fun insertWithEnforceLimit(entity: MailEntity, maxPerSlot: Int) =
         mailDao.insertWithEnforceLimit(entity, maxPerSlot)
 

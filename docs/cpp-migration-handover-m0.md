@@ -920,13 +920,28 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 **遗留**: `MailRepository.existsByRemoteId` 为**本批之前即存在的零调用死代码**（旧在线邮件路径遗留），登记待 D5 死代码清偿统一处置，本批未越界处理。
 
 
+## 2.71 天枢殿迁移补偿下线 + `existsByRemoteId` 死代码清偿（2026-09-15）
+
+批次: 需求「天枢殿迁移补偿清理，死代码清理」（§2.70 邮件系统清理的收尾轮） | 行为变化: 未迁移老档的天枢殿不再被"读档拆除 + 补偿 1000 万灵石邮件"，回归 `fixupBuildingSizes` 正常尺寸修正（当前配置尺寸 + 越界钳位），建筑保留、无补偿邮件 | **零 C++ 改动、零协议面、零 Room 迁移**
+
+**删除面**:
+- `TianshuHallCompensationOps.kt`（补偿邮件构造）整文件删除；`BootSequenceController` 删 `migrateLegacyTianshuHalls`（Step 3.1）、Step 3 的 `filterLegacyTianshuHalls` 识别调用与 `legacyTianshuHalls` 状态、构造参数 `mailService`（唯一用途即发补偿邮件）；`BuildingLoadSelfHeal` 删 `TIANSHU_LEGACY_FOOTPRINTS` 历史尺寸白名单 / `filterLegacyTianshuHalls` / `TIANSHU_HALL_DISPLAY_NAME`。
+- **死代码清偿**（§2.70 遗留项销账）：`existsByRemoteId` 三点删除——`MailRepository` 接口 + `MailRepositoryImpl` 实现 + `MailDao` `@Query`（旧在线邮件路径遗留，`fetchOnlineMails` 删除前即已零调用）。
+
+**测试**: 删 `TianshuHallCompensationOpsTest`（整类 1 用例）、`BuildingLoadSelfHealTest` 识别用例 6 个、`BootSequenceControllerTest` 迁移用例 4 个；**新增下线回归守卫 1 个**（`boot - 旧尺寸天枢殿保留不再拆除（迁移补偿路径已下线）`——锁定"读档绝不拆殿"新行为）；**`:core:engine` 3313 → 3303（−6 −3 −1，精确对账）**。
+
+**门禁实跑**: `:core:engine` **3303 / 303 类 / 0 失败**｜`:core:data` **716/0/0（15 既有跳过）**｜`:core:domain` **1758/0**｜`:app` **1003/0/0（2 既有跳过）**｜六模块 detekt 全绿｜四模块主源 + 测试源编译全绿。
+
+**遗留**: 无（§2.70 遗留项已销账）。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.70 邮件清理后）**：
+**当前门禁基线（2026-09-15，§2.71 天枢殿迁移下线后）**：
 
 | 验证 | 结果 |
 |---|---|
 | 桌面 C++ 全量单测 | **1407/1407 全绿**（§2.68 实跑；§2.69 零 C++ 改动未复跑）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3313 用例 / 304 类 / 0 失败 / 0 错误 / 0 跳过**（§2.69 复跑，`--rerun-tasks` + 本工作树 desktop-jni；含 47 个 `Diff*` 对拍全绿；= 3306 + `PresentationRandomSceneTest` 7） |
+| 引擎全量单测 `:core:engine` | **3303 用例 / 303 类 / 0 失败 / 0 错误 / 0 跳过**（§2.71 复跑；含 47 个 `Diff*` 对拍全绿；= 3313 − §2.71 天枢殿迁移用例 10） |
 | `:core:domain` 单测 | **1758 用例 / 0 失败**（含 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
 | `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
@@ -948,6 +963,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.71 天枢殿迁移下线 + 死代码清偿（09-15）** | —（零 C++ 改动） | **3303 / 303 类 / 0 / 0**（= 3313 − 10） |
 | **§2.70 邮件系统清理（09-15）** | —（仅注释改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`；`:app` 1020→1003） |
 | **§2.69 W4 ②③ 双项（09-15）** | —（零 C++ 改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`） |
 | **§2.68 W4 三批集成收口（09-15）** | **1407/1407** | **3306 / 0 / 0**（303 类，47 `Diff*`） |

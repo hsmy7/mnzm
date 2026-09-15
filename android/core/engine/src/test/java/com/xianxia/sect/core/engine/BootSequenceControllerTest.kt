@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
-import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -52,7 +51,6 @@ class BootSequenceControllerTest {
     private lateinit var gameEngineCore: GameEngineCore
     private lateinit var gameEngine: GameEngine
     private lateinit var buildingConfigService: BuildingConfigService
-    private lateinit var mailService: MailService
     private lateinit var controller: BootSequenceController
 
     private val gameDataFlow = MutableStateFlow(GameData())
@@ -65,10 +63,6 @@ class BootSequenceControllerTest {
         gameEngineCore = mock()
         gameEngine = mock()
         buildingConfigService = mock()
-        mailService = mock()
-
-        // 天枢殿旧档判定用**历史尺寸白名单**（TIANSHU_LEGACY_FOOTPRINTS = 6×3 / 12×6），
-        // 不再依赖当前配置尺寸——此处无需 stub getBuildingGridSize
 
         // EngineContextDispatcher: 使用 Fake 确保 extension 函数内部 withEngineContext 正常执行
         whenever(gameEngine.engineContextDispatcher).thenReturn(FakeEngineContextDispatcher())
@@ -127,7 +121,6 @@ class BootSequenceControllerTest {
             gameEngineCore = gameEngineCore,
             gameEngine = gameEngine,
             buildingConfigService = buildingConfigService,
-            mailService = mailService,
             presentationRandom = PresentationRandom()
         )
     }
@@ -171,86 +164,13 @@ class BootSequenceControllerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 旧档天枢殿删除 + 补偿邮件
+    // 旧档天枢殿迁移补偿路径已下线——任何尺寸的天枢殿读档一律保留
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `boot - 旧尺寸天枢殿被删除并发送补偿邮件`() = runTest {
-        stateStore.runState.value = RunState.IDLE
-        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
-        stateStore.update {
-            gameData = GameData(
-                placedBuildings = listOf(
-                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
-                        width = 6, height = 3, instanceId = "legacy_tianshu"),
-                    // 置于边界树环之外（BORDER_TREE_RING 内侧）——否则
-                    // migrateBorderZoneBuildings 会把它一并拆除，断言失去语义
-                    GridBuildingData(displayName = "灵田", gridX = 40, gridY = 40,
-                        width = 1, height = 1, instanceId = "field")
-                )
-            )
-        }
-
-        val result = controller.boot(slot = 1, onSuccess = {})
-
-        assertTrue("boot should succeed", result.isSuccess)
-        val placed = stateStore.gameData.value.placedBuildings
-        assertTrue("旧尺寸天枢殿（6×3）应被删除", placed.none { it.displayName == "天枢殿" })
-        assertEquals("其他建筑应保留", listOf("field"), placed.map { it.instanceId })
-        verify(mailService).insertMail(any())
-    }
-
-    @Test
-    fun `boot - 当前尺寸天枢殿保留且不发补偿邮件`() = runTest {
-        stateStore.runState.value = RunState.IDLE
-        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
-        stateStore.update {
-            gameData = GameData(
-                placedBuildings = listOf(
-                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
-                        width = 18, height = 13, instanceId = "new_tianshu")
-                )
-            )
-        }
-
-        val result = controller.boot(slot = 1, onSuccess = {})
-
-        assertTrue("boot should succeed", result.isSuccess)
-        assertTrue(
-            "当前尺寸天枢殿（18×13）应保留",
-            stateStore.gameData.value.placedBuildings.any { it.instanceId == "new_tianshu" }
-        )
-        verify(mailService, never()).insertMail(any())
-    }
-
-    @Test
-    fun `boot - 非历史尺寸天枢殿保留且不发补偿邮件_尺寸调整零拆除`() = runTest {
-        // 根因回归（端到端）：旧判据「尺寸 ≠ 当前配置」下，任何一次天枢殿配置尺寸调整
-        // 都会让存量天枢殿被判定为"旧档遗留"并拆除 + 补偿。现白名单口径下，
-        // 非历史尺寸（未来调整后的新尺寸）由 fixupBuildingSizes 正常改写尺寸并保留。
-        stateStore.runState.value = RunState.IDLE
-        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
-        stateStore.update {
-            gameData = GameData(
-                placedBuildings = listOf(
-                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
-                        width = 20, height = 14, instanceId = "future_tianshu")
-                )
-            )
-        }
-
-        val result = controller.boot(slot = 1, onSuccess = {})
-
-        assertTrue("boot should succeed", result.isSuccess)
-        assertTrue(
-            "非历史尺寸天枢殿不得被删除（尺寸调整不得触发全服拆殿）",
-            stateStore.gameData.value.placedBuildings.any { it.instanceId == "future_tianshu" }
-        )
-        verify(mailService, never()).insertMail(any())
-    }
-
-    @Test
-    fun `boot - 补偿邮件插入失败时保留天枢殿防资产丢失`() = runTest {
+    fun `boot - 旧尺寸天枢殿保留不再拆除（迁移补偿路径已下线）`() = runTest {
+        // 回归守卫：历史尺寸（6×3）天枢殿曾走"读档删除 + 补偿 1000 万灵石邮件"路径，
+        // 该路径已随邮件系统清理下线——天枢殿回归 fixup 正常尺寸修正，读档绝不拆除。
         stateStore.runState.value = RunState.IDLE
         stateStore.bootPhase.value = BootPhase.UNINITIALIZED
         stateStore.update {
@@ -261,17 +181,14 @@ class BootSequenceControllerTest {
                 )
             )
         }
-        whenever(mailService.insertMail(any())).thenThrow(RuntimeException("db down"))
 
         val result = controller.boot(slot = 1, onSuccess = {})
 
-        assertTrue("邮件失败不应阻塞 boot", result.isSuccess)
+        assertTrue("boot should succeed", result.isSuccess)
         assertTrue(
-            "补偿邮件插入失败时应保留天枢殿（无补偿不删除）",
+            "旧尺寸天枢殿应保留（不再有读档拆除+补偿路径）",
             stateStore.gameData.value.placedBuildings.any { it.instanceId == "legacy_tianshu" }
         )
-        // 删除步骤应被跳过（update 事务不应移除天枢殿）
-        verify(mailService).insertMail(any())
     }
 
     // ──────────────────────────────────────────────────────────────────

@@ -17,8 +17,6 @@ interface MailRepository {
 
     suspend fun getById(slotId: Int, mailId: String): MailEntity?
 
-    suspend fun existsByRemoteId(slotId: Int, remoteId: String): Boolean
-
     suspend fun insertWithEnforceLimit(entity: MailEntity, maxPerSlot: Int)
 
     suspend fun update(entity: MailEntity)

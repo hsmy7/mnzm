@@ -30,9 +30,6 @@ interface MailDao {
     @Query("SELECT COUNT(*) FROM mails WHERE slotId = :slotId")
     suspend fun countMails(slotId: Int): Int
 
-    @Query("SELECT EXISTS(SELECT 1 FROM mails WHERE slotId = :slotId AND remoteMailId = :remoteId LIMIT 1)")
-    suspend fun existsByRemoteId(slotId: Int, remoteId: String): Boolean
-
     @Transaction
     suspend fun insertWithEnforceLimit(mail: MailEntity, maxLimit: Int = 1000) {
         // 决策项② 2026-09-09：过期邮件自动删除——每次写入顺带清理本槽过期
