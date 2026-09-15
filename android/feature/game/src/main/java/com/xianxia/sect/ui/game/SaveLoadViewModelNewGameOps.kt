@@ -5,8 +5,6 @@ import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import kotlinx.coroutines.*
 import com.xianxia.sect.core.engine.sendWhitelistBonus
-import com.xianxia.sect.core.engine.sendExclusiveBonus
-import com.xianxia.sect.core.engine.sendStorageBagCompensation
 import com.xianxia.sect.core.engine.createNewGame
 import com.xianxia.sect.core.engine.updateGameData
 
@@ -111,13 +109,6 @@ internal suspend fun SaveLoadViewModel.performNewGameBoot(slot: Int, startTime: 
 
         // 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
         gameEngine.sendWhitelistBonus(slot)
-
-        // 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
-        //（2026-09-04 截止，每档一次，非目标用户自动跳过）
-        gameEngine.sendExclusiveBonus(slot)
-
-        // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
-        gameEngine.sendStorageBagCompensation(slot)
 
         val gd = gameEngine.gameData.value
         Log.i(SaveLoadViewModelConstants.TAG, "=== startNewGame SUCCESS === " +

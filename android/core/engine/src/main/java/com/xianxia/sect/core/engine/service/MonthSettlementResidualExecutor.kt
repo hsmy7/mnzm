@@ -2,8 +2,6 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.MonthPurchaseLog
 import com.xianxia.sect.core.engine.MonthSettlementEnvelope
-import com.xianxia.sect.core.engine.system.MailSystem
-import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.annotation.GameService
 
@@ -16,8 +14,6 @@ import com.xianxia.sect.core.engine.annotation.GameService
  * 炼丹锻造完成结算+自动排班/任务完成/灵田/生育/关卡/
  * 伴侣/血炼/排班忠诚/月衰减 + 十六子事件已下沉 14 件），本执行器承接未下沉
  * 扇出（相对序保持原 Kotlin 月变编排）：
- * - 步骤 4g：邮件月度拉取（[MailSystem] 异步网络，事务内零状态效果）——
- *   登记为平台效应保留 Kotlin（总方案 S5 拍板口径）
  * （子事件 5 任务完成、子事件 6 洞天 AI、子事件 9 AI 兽战余量均在 C++ 侧执行——
  *   AI 独立 RNG 突破/补全与兽战组装入 C++，
  *   热控批量上界为平台效应经 nativeSetAiThermalBatchSize 推送）
@@ -39,13 +35,12 @@ import com.xianxia.sect.core.engine.annotation.GameService
  * 子事件 5 位——同为登记过的编排基线。
  *
  * 事务契约：必须在 [com.xianxia.sect.core.state.GameStateStore.update]
- * 事务内调用（与下沉前的旬结算残留执行器一致）；异步扇出（邮件）经
- * 各系统 scope launch 独立事务，不在本事务 buffer 内产生状态效果。
+ * 事务内调用（与下沉前的旬结算残留执行器一致）；平台效应草稿应用只写
+ * 本事务 buffer 内状态（原邮件异步扇出步骤已随在线邮件通道下线移除）。
  */
 @GameService("MonthSettlementResidualExecutor")
 internal class MonthSettlementResidualExecutor(
-    private val eventProcessor: CultivationEventProcessor,
-    private val systemManager: SystemManager
+    private val eventProcessor: CultivationEventProcessor
 ) {
 
     /**
@@ -56,10 +51,9 @@ internal class MonthSettlementResidualExecutor(
      * @param env nativeSettleMonth 信封（policyCosts/秘境/购买日志草稿）
      */
     fun execute(state: MutableGameState, env: MonthSettlementEnvelope) {
-        // 4g：邮件月度拉取（异步网络——与原 MailSystem.onMonthlyEvent 一致）
-        systemManager.getSystem(MailSystem::class).onMonthlyEvent(state)
         // （子事件 6 洞天 AI / 子事件 9 AI 兽战余量在 C++ 侧执行
-        //   ——月变残留扇出缩至 3 项平台/UI 效应：4g 邮件 + 秘境关闭 + 购买日志）
+        //   ——月变残留扇出缩至 2 项平台/UI 效应：秘境关闭 + 购买日志；
+        //   原 4g 邮件月度拉取已随在线邮件通道下线移除）
 
         // ── 平台效应草稿应用 ──────────────────────────────────────
         // 弟子购买日志写 lifeEvents 瞬态列（协议外字段——Kotlin

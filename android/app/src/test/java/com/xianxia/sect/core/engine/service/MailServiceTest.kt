@@ -12,7 +12,6 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.di.ApplicationScopeProvider
-import com.xianxia.sect.core.util.HttpClientProvider
 import com.xianxia.sect.core.state.testGameStateRepository
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -43,7 +42,6 @@ class MailServiceTest {
     private lateinit var mailRepo: MailRepository
     private lateinit var stateStore: GameStateStore
     private lateinit var inventoryConfig: InventoryConfig
-    private lateinit var httpClient: HttpClientProvider
     private lateinit var scopeProvider: ApplicationScopeProvider
     private lateinit var serviceScopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider
     private val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
@@ -90,7 +88,6 @@ class MailServiceTest {
         // E5 守卫：maxStack<=0 时 addXxx 直接失败——储物袋/材料等附件发放
         // 需要真实堆叠上限（默认 9999），裸 mock 默认返回 0 会导致发放失败
         `when`(inventoryConfig.getMaxStackSize(any())).thenReturn(9999)
-        httpClient = mock(HttpClientProvider::class.java)
         stateStore = GameStateStoreImpl(
             scopeProvider,
             testGameStateRepository()
@@ -110,7 +107,6 @@ class MailServiceTest {
         service = MailService(
             mailRepo = mailRepo,
             stateStore = stateStore,
-            httpClient = httpClient,
             spiritStoneWallet = spiritStoneWallet,
             scopeProvider = serviceScopeProvider,
             gameRngManager = gameRngManager,
@@ -293,23 +289,6 @@ class MailServiceTest {
         const val WHITELIST_UNION_ID = "4FTGX7tp7MO1nr+j/Vwm5A=="
         const val WHITELIST_BONUS_MAIL_ID = "whitelist_bonus_v1"
         const val WHITELIST_BONUS_AMOUNT = 10_000_000
-
-        // 专属福利（单用户定向活动，2026-08-04 发放）测试常量
-        const val EXCLUSIVE_UNION_ID = "4FTGX7tp7MO1nr+j/Vwm5A=="
-        const val EXCLUSIVE_BONUS_MAIL_ID = "exclusive_bonus_20260904"
-        const val EXCLUSIVE_BONUS_AMOUNT = 10_000_000
-        /** 固定测试时钟（审计门槛：定时炸弹测试根治）：须早于专属福利截止
-         *  EXCLUSIVE_BONUS_EXPIRE_MS = 1_788_537_599_000（2026-09-04 23:59:59+08）——
-         *  截止日期真实流逝后用真实时钟跑注入用例必失败。 */
-        const val PINNED_NOW_MS = 1_788_000_000_000L
-        const val EXCLUSIVE_BONUS_DISCIPLE_COUNT = 10
-        const val EXCLUSIVE_BONUS_EXPIRE_MS = 1_788_537_599_000L
-
-        // 单用户定向补偿邮件（地品储物袋 ×10）测试常量
-        const val COMPENSATION_UNION_ID = "I13lvAJjLgqSvh/LHjiJCg=="
-        const val COMPENSATION_MAIL_ID = "compensation_storage_bag_v1"
-        const val COMPENSATION_BAG_COUNT = 10
-        const val COMPENSATION_BAG_RARITY = 5
     }
 
     @Test
@@ -467,393 +446,18 @@ class MailServiceTest {
         )
     }
 
-    // ============================================================
-    // injectExclusiveBonus — 单用户专属运营福利
-    //（1000 万灵石 + 10 单灵根弟子，2026-09-04 截止，每档一次）
-    // ============================================================
-
-    /** 用内存 map 模拟 Room DB 的写入可见性（含 getById 与 insert） */
-    private suspend fun installInMemoryMailDb(): MutableMap<String, MailEntity> {
-        val db = mutableMapOf<String, MailEntity>()
-        `when`(mailRepo.getById(eq(testSlotId), any())).thenAnswer { inv ->
-            val mailId: String = inv.getArgument(1)
-            db[mailId]
-        }
-        `when`(mailRepo.insertWithEnforceLimit(any(), any())).thenAnswer { inv ->
-            val mail: MailEntity = inv.getArgument(0)
-            db[mail.id] = mail
-            null
-        }
-        return db
-    }
-
-    @Test
-    fun `injectExclusiveBonus - target user injects 10M stones and 10 disciples with deadline expiry`() = runBlocking {
-        // Arrange: 目标用户，DB 中无该邮件；注入固定时钟（下同，防日期流逝炸弹）
-        AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
-                service.timeSource = { PINNED_NOW_MS }
-        `when`(mailRepo.getById(eq(testSlotId), eq(EXCLUSIVE_BONUS_MAIL_ID))).thenReturn(null)
-
-        // Act
-        val injected = service.injectExclusiveBonus(testSlotId)
-
-        // Assert: 注入成功且附件配置正确（1000 万灵石 + 10 单灵根弟子，截止 2026-09-04）
-        assertTrue("目标用户应成功注入", injected)
-        verify(mailRepo).insertWithEnforceLimit(argThat { mail ->
-            mail.id == EXCLUSIVE_BONUS_MAIL_ID &&
-                mail.expireTime == EXCLUSIVE_BONUS_EXPIRE_MS &&
-                mail.source == "admin" &&
-                mail.hasAttachment &&
-                mail.attachments.contains("\"quantity\":$EXCLUSIVE_BONUS_AMOUNT") &&
-                mail.attachments.contains("\"quantity\":$EXCLUSIVE_BONUS_DISCIPLE_COUNT") &&
-                mail.attachments.contains("\"spiritRootCount\":\"1\"")
-        }, any())
-    }
-
-    @Test
-    fun `injectExclusiveBonus - non target user skips`() = runBlocking {
-        // Arrange: 其他 unionId 用户（非专属目标）
-        AdFreeWhitelist.initialize("some_other_union_id")
-
-        // Act
-        val injected = service.injectExclusiveBonus(testSlotId)
-
-        // Assert
-        assertFalse("非目标用户应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectExclusiveBonus - uninitialized unionId skips`() = runBlocking {
-        // Arrange: 未初始化（时序兜底：即使初始化丢失也不注入）
-        AdFreeWhitelist.initialize(null)
-
-        // Act
-        val injected = service.injectExclusiveBonus(testSlotId)
-
-        // Assert
-        assertFalse("unionId 未初始化时应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectExclusiveBonus - already claimed in mailRecords skips`() = runBlocking {
-        // Arrange: 目标用户，但 mailRecords 已有领取记录
-        AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
-        stateStore.update {
-            gameData = gameData.copy(
-                mailRecords = listOf(
-                    MailClaimRecord(EXCLUSIVE_BONUS_MAIL_ID, now, "admin")
-                )
-            )
-        }
-
-        // Act
-        val injected = service.injectExclusiveBonus(testSlotId)
-
-        // Assert: 每个存档仅可领取一次
-        assertFalse("已领取时应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectExclusiveBonus - mail already in DB skips`() = runBlocking {
-        // Arrange: 目标用户，但 DB 中已存在该邮件
-        AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
-        val existing = MailEntity(
-            id = EXCLUSIVE_BONUS_MAIL_ID,
-            slotId = testSlotId,
-            source = "admin",
-            mailType = "reward",
-            title = "专属修士礼包",
-            content = "",
-            senderName = "天道意志",
-            sendTime = now,
-            expireTime = EXCLUSIVE_BONUS_EXPIRE_MS,
-            hasAttachment = true,
-            attachments = "[]"
-        )
-        `when`(mailRepo.getById(eq(testSlotId), eq(EXCLUSIVE_BONUS_MAIL_ID)))
-            .thenReturn(existing)
-
-        // Act
-        val injected = service.injectExclusiveBonus(testSlotId)
-
-        // Assert
-        assertFalse("邮件已存在时应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectExclusiveBonus - repeated calls inject only once`() = runBlocking {
-        // Arrange: 用内存 map 模拟 Room DB 的写入可见性；时钟固定在福利截止前
-        AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
-                service.timeSource = { PINNED_NOW_MS }
-        val db = installInMemoryMailDb()
-
-        // Act
-        val first = service.injectExclusiveBonus(testSlotId)
-        val second = service.injectExclusiveBonus(testSlotId)
-
-        // Assert: 首次注入成功，第二次被 DB 存在性检查拦截
-        assertTrue("首次调用应注入成功", first)
-        assertFalse("第二次调用应跳过（DB 已存在）", second)
-        assertEquals("DB 中应只有一封专属邮件", 1, db.size)
-    }
-
-    @Test
-    fun `injectExclusiveBonus - getById throws still injects`() = runBlocking {
-        // Arrange: DB 检查异常时不应阻塞注入（与 getById 容错模式一致）；时钟固定在福利截止前
-        AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
-                service.timeSource = { PINNED_NOW_MS }
-        `when`(mailRepo.getById(eq(testSlotId), eq(EXCLUSIVE_BONUS_MAIL_ID)))
-            .thenThrow(RuntimeException("DB error"))
-
-        // Act
-        val injected = service.injectExclusiveBonus(testSlotId)
-
-        // Assert
-        assertTrue("getById 抛异常时仍应注入", injected)
-        verify(mailRepo).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `claimAttachment - exclusive bonus distributes 10M stones and 10 single-root disciples`() = runBlocking {
-        // Arrange: 目标用户注入专属邮件，wallet 以真实入账方式响应（验证灵石到账）；时钟固定在福利截止前
-        AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
-                service.timeSource = { PINNED_NOW_MS }
-        installInMemoryMailDb()
-        assertTrue("预置专属邮件应注入成功", service.injectExclusiveBonus(testSlotId))
-        val initialStones = stateStore.gameData.value.spiritStones
-        `when`(spiritStoneWallet.add(any(), any(), any(), any(), any())).thenAnswer { inv ->
-            val state = inv.getArgument<com.xianxia.sect.core.state.MutableGameState>(0)
-            val amount = inv.getArgument<Long>(1)
-            state.gameData = state.gameData.copy(spiritStones = state.gameData.spiritStones + amount)
-            state.gameData.spiritStones
-        }
-
-        // Act: 领取专属邮件
-        val result = service.claimAttachment(EXCLUSIVE_BONUS_MAIL_ID, testSlotId)
-
-        // Assert: 领取成功，灵石 +1000 万
-        assertTrue("专属邮件应领取成功", result is ClaimResult.Success)
-        assertEquals(
-            "灵石应增加 1000 万",
-            initialStones + EXCLUSIVE_BONUS_AMOUNT.toLong(),
-            stateStore.gameData.value.spiritStones
-        )
-
-        // Assert: 10 位弟子全部入账且均为单灵根
-        val disciples = stateStore.discipleTables.assembleAll()
-        assertEquals("应获得 10 位弟子", EXCLUSIVE_BONUS_DISCIPLE_COUNT, disciples.size)
-        disciples.forEach { disciple ->
-            assertEquals(
-                "弟子 ${disciple.name} 应为单灵根",
-                1,
-                disciple.spiritRootType.split(",").size
-            )
-        }
-
-        // Assert: 领取记录已写入（每档一次）
-        assertTrue(
-            "领取后 mailRecords 应包含专属邮件",
-            stateStore.gameData.value.mailRecords.any { it.mailId == EXCLUSIVE_BONUS_MAIL_ID }
-        )
-    }
-
-    @Test
-    fun `claimAttachment - exclusive bonus expired after deadline returns Expired`() = runBlocking {
-        // Arrange: 目标用户注入专属邮件后，模拟已过截止时间（时钟先固定在截止前注入，
-        // 再把过期时间改到固定时钟之前——全用确定性时钟，防日期流逝炸弹）
-        service.timeSource = { PINNED_NOW_MS }
-        AdFreeWhitelist.initialize(EXCLUSIVE_UNION_ID)
-        val db = installInMemoryMailDb()
-        assertTrue("预置专属邮件应注入成功", service.injectExclusiveBonus(testSlotId))
-        db[EXCLUSIVE_BONUS_MAIL_ID] = db[EXCLUSIVE_BONUS_MAIL_ID]!!.copy(expireTime = PINNED_NOW_MS - 1000)
-        val initialStones = stateStore.gameData.value.spiritStones
-
-        // Act: 截止后领取
-        val result = service.claimAttachment(EXCLUSIVE_BONUS_MAIL_ID, testSlotId)
-
-        // Assert: 为期一个月的活动截止后不可再领取
-        assertTrue("过期邮件应返回 Expired", result is ClaimResult.Expired)
-        assertEquals("过期邮件不应发放灵石", initialStones, stateStore.gameData.value.spiritStones)
-    }
-
-    // ============================================================
-    // injectStorageBagCompensation — 单用户定向补偿邮件
-    //（地品储物袋 ×10，3 天有效，每档一次）
-    // ============================================================
-
-    @Test
-    fun `injectStorageBagCompensation - target user injects 10 earth-tier bags with 3d expiry`() = runBlocking {
-        // Arrange: 目标用户，DB 中无该邮件
-        AdFreeWhitelist.initialize(COMPENSATION_UNION_ID)
-        `when`(mailRepo.getById(eq(testSlotId), eq(COMPENSATION_MAIL_ID))).thenReturn(null)
-
-        // Act
-        val injected = service.injectStorageBagCompensation(testSlotId)
-
-        // Assert: 注入成功且附件配置正确（地品储物袋 ×10，rarity=5，3 天有效）
-        assertTrue("目标用户应成功注入", injected)
-        verify(mailRepo).insertWithEnforceLimit(argThat { mail ->
-            mail.id == COMPENSATION_MAIL_ID &&
-                mail.source == "admin" &&
-                mail.mailType == "compensation" &&
-                mail.hasAttachment &&
-                mail.expireTime > now + 2L * 24 * 60 * 60 * 1000 &&
-                mail.expireTime <= now + 4L * 24 * 60 * 60 * 1000 &&
-                mail.attachments.contains("\"type\":\"storageBag\"") &&
-                mail.attachments.contains("\"quantity\":$COMPENSATION_BAG_COUNT") &&
-                mail.attachments.contains("\"rarity\":$COMPENSATION_BAG_RARITY") &&
-                mail.attachments.contains("地品储物袋")
-        }, any())
-    }
-
-    @Test
-    fun `injectStorageBagCompensation - non target user skips`() = runBlocking {
-        // Arrange: 其他 unionId 用户（非补偿目标）
-        AdFreeWhitelist.initialize("some_other_union_id")
-
-        // Act
-        val injected = service.injectStorageBagCompensation(testSlotId)
-
-        // Assert
-        assertFalse("非目标用户应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectStorageBagCompensation - uninitialized unionId skips`() = runBlocking {
-        // Arrange: 未初始化（时序兜底：即使初始化丢失也不注入）
-        AdFreeWhitelist.initialize(null)
-
-        // Act
-        val injected = service.injectStorageBagCompensation(testSlotId)
-
-        // Assert
-        assertFalse("unionId 未初始化时应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectStorageBagCompensation - already claimed in mailRecords skips`() = runBlocking {
-        // Arrange: 目标用户，但 mailRecords 已有领取记录
-        AdFreeWhitelist.initialize(COMPENSATION_UNION_ID)
-        stateStore.update {
-            gameData = gameData.copy(
-                mailRecords = listOf(
-                    MailClaimRecord(COMPENSATION_MAIL_ID, now, "admin")
-                )
-            )
-        }
-
-        // Act
-        val injected = service.injectStorageBagCompensation(testSlotId)
-
-        // Assert: 每个存档仅可领取一次
-        assertFalse("已领取时应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectStorageBagCompensation - mail already in DB skips`() = runBlocking {
-        // Arrange: 目标用户，但 DB 中已存在该邮件
-        AdFreeWhitelist.initialize(COMPENSATION_UNION_ID)
-        val existing = MailEntity(
-            id = COMPENSATION_MAIL_ID,
-            slotId = testSlotId,
-            source = "admin",
-            mailType = "compensation",
-            title = "补偿礼包",
-            content = "",
-            senderName = "天道意志",
-            sendTime = now,
-            expireTime = now + 3L * 24 * 60 * 60 * 1000,
-            hasAttachment = true,
-            attachments = "[]"
-        )
-        `when`(mailRepo.getById(eq(testSlotId), eq(COMPENSATION_MAIL_ID)))
-            .thenReturn(existing)
-
-        // Act
-        val injected = service.injectStorageBagCompensation(testSlotId)
-
-        // Assert
-        assertFalse("邮件已存在时应跳过", injected)
-        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `injectStorageBagCompensation - repeated calls inject only once`() = runBlocking {
-        // Arrange: 用内存 map 模拟 Room DB 的写入可见性
-        AdFreeWhitelist.initialize(COMPENSATION_UNION_ID)
-        val db = installInMemoryMailDb()
-
-        // Act
-        val first = service.injectStorageBagCompensation(testSlotId)
-        val second = service.injectStorageBagCompensation(testSlotId)
-
-        // Assert: 首次注入成功，第二次被 DB 存在性检查拦截
-        assertTrue("首次调用应注入成功", first)
-        assertFalse("第二次调用应跳过（DB 已存在）", second)
-        assertEquals("DB 中应只有一封补偿邮件", 1, db.size)
-    }
-
-    @Test
-    fun `injectStorageBagCompensation - getById throws still injects`() = runBlocking {
-        // Arrange: DB 检查异常时不应阻塞注入（与 getById 容错模式一致）
-        AdFreeWhitelist.initialize(COMPENSATION_UNION_ID)
-        `when`(mailRepo.getById(eq(testSlotId), eq(COMPENSATION_MAIL_ID)))
-            .thenThrow(RuntimeException("DB error"))
-
-        // Act
-        val injected = service.injectStorageBagCompensation(testSlotId)
-
-        // Assert
-        assertTrue("getById 抛异常时仍应注入", injected)
-        verify(mailRepo).insertWithEnforceLimit(any(), any())
-    }
-
-    @Test
-    fun `claimAttachment - compensation distributes 10 earth-tier storage bags as one stack`() = runBlocking {
-        // Arrange: 目标用户注入补偿邮件
-        AdFreeWhitelist.initialize(COMPENSATION_UNION_ID)
-        installInMemoryMailDb()
-        assertTrue("预置补偿邮件应注入成功", service.injectStorageBagCompensation(testSlotId))
-
-        // Act: 领取补偿邮件
-        val result = service.claimAttachment(COMPENSATION_MAIL_ID, testSlotId)
-
-        // Assert: 领取成功，10 个地品储物袋合并为单个堆叠入袋
-        assertTrue("补偿邮件应领取成功", result is ClaimResult.Success)
-        val bags = stateStore.storageBags.value
-        assertEquals("储物袋应合并为一个堆叠", 1, bags.size)
-        assertEquals("应获得地品储物袋", "地品储物袋", bags[0].name)
-        assertEquals("地品储物袋数量应为 10", COMPENSATION_BAG_COUNT, bags[0].quantity)
-        assertEquals("地品储物袋品阶应为 5", COMPENSATION_BAG_RARITY, bags[0].rarity)
-
-        // Assert: 领取记录已写入（每档一次）
-        assertTrue(
-            "领取后 mailRecords 应包含补偿邮件",
-            stateStore.gameData.value.mailRecords.any { it.mailId == COMPENSATION_MAIL_ID }
-        )
-    }
-
     @Test
     fun `resetAndInitSlot - never deletes any mail (mails retained forever)`() = runBlocking {
-        // Arrange: startMailFlowCollector 需要真实 scope；在线接口返回空列表
+        // Arrange: startMailFlowCollector 需要真实 scope
         `when`(serviceScopeProvider.scope).thenReturn(
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
         )
-        `when`(httpClient.get(any())).thenReturn("{}")
 
         // Act: 读档/切档/重开路径
         service.resetAndInitSlot(testSlotId)
 
         // Assert: 邮件永久保留——reset 绝不删除任何邮件（全量清空或按源删除都不发生），
         // 否则未领取的溢出/直发邮件（草稿已被 drain 消费、无处重建）会被静默清掉
-        verify(mailRepo, never()).deleteAllForSlot(testSlotId)
         verify(mailRepo, never()).deleteAllReadAndClaimed(testSlotId)
         verify(mailRepo, never()).deleteIfClaimed(any(), any())
     }

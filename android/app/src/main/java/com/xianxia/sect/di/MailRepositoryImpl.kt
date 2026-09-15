@@ -56,9 +56,6 @@ class MailRepositoryImpl @Inject constructor(
     override suspend fun deleteIfClaimed(slotId: Int, mailId: String) =
         mailDao.deleteIfClaimed(slotId, mailId)
 
-    override suspend fun deleteAllForSlot(slotId: Int) =
-        mailDao.deleteAllForSlot(slotId)
-
     override suspend fun deleteAllReadAndClaimed(slotId: Int) =
         mailDao.deleteAllReadAndClaimed(slotId)
 

@@ -5,17 +5,14 @@ import com.xianxia.sect.core.util.ItemNames
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.config.BuiltinMailConfig
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import com.xianxia.sect.core.util.HttpClientProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +22,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import kotlinx.serialization.encodeToString
@@ -57,11 +53,10 @@ data class MarkAllReadResult(
 @GameService("MailService")
 @Singleton
 class MailService @Inject constructor(
-    // stateStore/mailRepo 为 internal：MailCompensationOps.kt 扩展（单用户定向补偿邮件）
+    // stateStore/mailRepo 为 internal：MailAttachmentDistributeOps.kt 扩展
     // 需要读取存档领取记录与 Room 邮件存在性（三重防护），同一模块内可见即可
     internal val mailRepo: MailRepository,
     internal val stateStore: GameStateStore,
-    private val httpClient: HttpClientProvider,
     internal val spiritStoneWallet: SpiritStoneWallet,
     private val scopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider,
     /**
@@ -80,13 +75,6 @@ class MailService @Inject constructor(
     var timeSource: () -> Long = System::currentTimeMillis
 
     companion object {
-        /**
-         * 单用户定向补偿邮件（MailService 扩展，独立文件）。
-         *
-         * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
-         * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
-         * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
-         */
         internal const val TAG = "MailService"
 
         /**
@@ -105,17 +93,6 @@ class MailService @Inject constructor(
         private const val WHITELIST_BONUS_MAIL_ID = "whitelist_bonus_v1"
         /** 白名单福利灵石：1000 万 */
         private const val WHITELIST_BONUS_SPIRIT_STONES = 10_000_000
-
-        // ── 单用户专属运营福利常量（定向活动）──
-        internal const val EXCLUSIVE_BONUS_MAIL_ID = "exclusive_bonus_20260904"
-        /** 专属福利目标用户 TapTap unionId */
-        internal const val EXCLUSIVE_BONUS_UNION_ID = "4FTGX7tp7MO1nr+j/Vwm5A=="
-        /** 专属福利灵石：1000 万 */
-        internal const val EXCLUSIVE_BONUS_SPIRIT_STONES = 10_000_000
-        /** 专属福利单灵根弟子数量 */
-        internal const val EXCLUSIVE_BONUS_DISCIPLE_COUNT = 10
-        /** 专属福利截止时间：2026-09-04 23:59:59 北京时间（发放日起一个月） */
-        internal const val EXCLUSIVE_BONUS_EXPIRE_MS = 1_788_537_599_000L
     }
 
     private val slotMutexes = mutableMapOf<Int, Mutex>()
@@ -161,80 +138,6 @@ class MailService @Inject constructor(
 
     private fun getMutex(slotId: Int): Mutex {
         return slotMutexes.getOrPut(slotId) { Mutex() }
-    }
-
-    /**
-     * 初始化建筑配置（每次 boot 经 `ResourcePreloader.preloadGameResources` 调用）。
-     * 重复调用直接跳过，避免 `config/buildings.json` 重复 I/O（首次加载失败已回退默认配置，
-     * 无需重试语义）。
-     */
-    fun initialize() = Unit
-
-    fun release() = Unit
-
-    fun clearForSlot(slotId: Int) {
-        scopeProvider.scope.launch {
-            getMutex(slotId).withLock {
-                mailRepo.deleteAllForSlot(slotId)
-            }
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun processMonthlyMails(state: MutableGameState) {
-        val slotId = state.gameData.currentSlot.coerceAtLeast(1)
-        try {
-            // 非关键邮件操作，异步执行不阻塞游戏线程
-            scopeProvider.scope.launch {
-                fetchOnlineMails(slotId)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "Error in onMonthTick for slot $slotId", e)
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun fetchOnlineMails(slotId: Int) {
-        try {
-            val url = "${BuildConfig.API_BASE_URL}mail/list?version=${BuildConfig.VERSION_CODE}"
-            val body = httpClient.get(url)
-
-            val apiResponse = json.decodeFromString<MailListApiResponse>(body)
-            apiResponse.mails.forEach { mailData ->
-                // 使用 remoteId 构造稳定 ID，跨会话一致，claimed 状态可恢复
-                val stableId = "online_${mailData.remoteId}"
-                if (mailRepo.getById(slotId, stableId) == null) {
-                    val now = timeSource()
-                    // 若 mailRecords 已有领取记录（如"删除已读"后月度重拉），
-                    // 新实体直接标记为已领，避免 Room 与 mailRecords 不一致
-                    val alreadyClaimed = stateStore.gameData.value
-                        .mailRecords.any { it.mailId == stableId }
-                    val entity = MailEntity(
-                        id = stableId,
-                        slotId = slotId,
-                        source = "online",
-                        mailType = mailData.type,
-                        title = mailData.title,
-                        content = mailData.content,
-                        senderName = "天道意志",
-                        sendTime = mailData.sendTime,
-                        expireTime = mailData.expireTime.coerceAtLeast(now + EXPIRE_MS),
-                        hasAttachment = mailData.attachments.isNotEmpty(),
-                        attachmentClaimed = alreadyClaimed,
-                        isRead = alreadyClaimed,
-                        attachments = json.encodeToString(serializer<List<MailAttachment>>(), mailData.attachments),
-                        remoteMailId = mailData.remoteId
-                    )
-                    mailRepo.insertWithEnforceLimit(entity, MAX_MAILS_PER_SLOT)
-                }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.w(TAG, "Failed to fetch online mails for slot $slotId", e)
-        }
     }
 
     suspend fun loadBuiltinMails(slotId: Int) {
@@ -363,11 +266,11 @@ class MailService @Inject constructor(
     }
 
     /**
-     * 重置并初始化指定存档的邮件（拉取在线+加载内置，恢复已领取状态）。
+     * 重置并初始化指定存档的邮件（加载内置邮件，恢复已领取状态）。
      * 用于新游戏/读档/重开场景。
      *
      * **不删除任何已有邮件**——邮件永久保留，仅玩家手动"删除已读"清理；
-     * 在线/内置邮件的拉取是幂等插入（已存在则跳过），溢出/直发邮件继续保留，
+     * 内置邮件的发放是幂等插入（已存在则跳过），溢出/直发邮件继续保留，
      * 未领取附件绝不因读档/切档/重开而丢失。
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
@@ -375,7 +278,6 @@ class MailService @Inject constructor(
         getMutex(slotId).withLock {
             DomainLog.i(TAG, "resetAndInitSlot for slot $slotId")
             try {
-                fetchOnlineMails(slotId)
                 loadBuiltinMails(slotId)
                 // 根据存档数据恢复已领取状态
                 val claimedIds = stateStore.gameData.value.mailRecords.map { it.mailId }.toSet()
@@ -394,20 +296,6 @@ class MailService @Inject constructor(
             } catch (e: Exception) {
                 DomainLog.e(TAG, "Error in resetAndInitSlot for slot $slotId", e)
             }
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun initializeForSlot(slotId: Int) {
-        DomainLog.i(TAG, "initializeForSlot BEGIN for slot $slotId")
-        try {
-            fetchOnlineMails(slotId)
-            loadBuiltinMails(slotId)
-            DomainLog.i(TAG, "initializeForSlot DONE for slot $slotId")
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "Error initializing mail for slot $slotId", e)
         }
     }
 
@@ -496,83 +384,4 @@ class MailService @Inject constructor(
         }
     }
 
-    /**
-     * 注入单用户专属运营福利邮件（2026-09-04 截止，每档一次）。
-     *
-     * 奖励：1000 万灵石 + 10 名单灵根弟子。
-     * 与 [injectWhitelistBonus] 的防护结构一致：
-     * 保护0：活动期检查 — 截止时间后不再注入；
-     * 保护1：当前用户必须是指定目标 unionId（专属判定，非全量白名单）；
-     * 保护2：mailRecords 已领取则跳过（每个存档仅可领取一次）；
-     * 保护3：邮件已存在 Room 中则跳过（防重复注入）。
-     *
-     * @param slotId 目标存档槽位
-     * @return true=成功注入, false=跳过
-     */
-    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    @Suppress("TooGenericExceptionCaught", "ReturnCount")
-    suspend fun injectExclusiveBonus(slotId: Int): Boolean {
-        // 保护0：活动期检查 — 截止后不再注入（避免产生不可见的过期邮件）
-        if (timeSource() > EXCLUSIVE_BONUS_EXPIRE_MS) {
-            DomainLog.i(TAG, "专属福利活动已结束，跳过注入")
-            return false
-        }
-
-        // 保护1：专属用户判定
-        if (!AdFreeWhitelist.isCurrentUser(EXCLUSIVE_BONUS_UNION_ID)) {
-            DomainLog.i(TAG, "非专属用户，跳过专属福利注入")
-            return false
-        }
-
-        val snapshot = stateStore.gameData.value
-
-        // 保护2：mailRecords 已领取检查 — 每个存档仅可领取一次
-        if (snapshot.mailRecords.any { it.mailId == EXCLUSIVE_BONUS_MAIL_ID }) {
-            DomainLog.i(TAG, "专属福利已领取，跳过注入")
-            return false
-        }
-
-        // 保护3：重复注入检查 — 邮件已存在 DB 中则跳过
-        val existing = try {
-            mailRepo.getById(slotId, EXCLUSIVE_BONUS_MAIL_ID)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "检查专属福利邮件是否存在时失败", e)
-            null
-        }
-        if (existing != null) {
-            DomainLog.i(TAG, "专属福利邮件已存在，跳过重复注入")
-            return false
-        }
-
-        return try {
-            insertMail(buildExclusiveBonusMail(slotId))
-            DomainLog.i(TAG, "专属福利已注入到 slot=$slotId")
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // 注入失败不应阻塞游戏启动（boot 已成功），下次启动自动重试
-            DomainLog.e(TAG, "专属福利邮件插入失败 slot=$slotId", e)
-            false
-        }
-    }
-
 }
-
-@Serializable
-data class MailListApiResponse(
-    val mails: List<MailApiData> = emptyList()
-)
-
-@Serializable
-data class MailApiData(
-    val remoteId: String = "",
-    val title: String = "",
-    val content: String = "",
-    val type: String = "reward",
-    val sendTime: Long = 0,
-    val expireTime: Long = 0,
-    val attachments: List<MailAttachment> = emptyList()
-)

@@ -6,8 +6,6 @@ import com.xianxia.sect.core.engine.restartGameSuspend
 import com.xianxia.sect.data.model.SaveData
 import kotlinx.coroutines.*
 import com.xianxia.sect.core.engine.sendWhitelistBonus
-import com.xianxia.sect.core.engine.sendExclusiveBonus
-import com.xianxia.sect.core.engine.sendStorageBagCompensation
 
 // ── 重启流程（守卫/取锁/引擎重置/重存/收尾复位）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
@@ -192,12 +190,6 @@ internal suspend fun SaveLoadViewModel.performRestartBoot(currentSlot: Int): Boo
         isTimeRunningFlow.value = true
         // 重开即新档：与主菜单新游戏路径一致，注入白名单福利
         gameEngine.sendWhitelistBonus(currentSlot)
-
-        // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
-        gameEngine.sendExclusiveBonus(currentSlot)
-
-        // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
-        gameEngine.sendStorageBagCompensation(currentSlot)
         return true
     } else {
         Log.e(SaveLoadViewModelConstants.TAG,

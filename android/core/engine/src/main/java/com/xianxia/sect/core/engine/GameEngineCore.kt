@@ -643,14 +643,13 @@ class GameEngineCore @Inject constructor(
 
     /**
      * 月变真相源切换残留执行器：nativeSettleMonth（C++ 完整月变）
-     * 之后的 Kotlin 未下沉扇出 + 平台效应草稿应用（生产结算/战斗三件/邮件/
+     * 之后的 Kotlin 未下沉扇出 + 平台效应草稿应用（生产结算/战斗三件/
      * 秘境邮件与 gate/购买日志）。手动构造（与 MonthSettlementExecutor
      * 同风格）；依赖经 cultivationService.eventProcessor 访问事件域服务。
      */
     internal val monthSettlementResidualExecutor: MonthSettlementResidualExecutor by lazy {
         MonthSettlementResidualExecutor(
-            eventProcessor = cultivationService.eventProcessorForMonthSettlement,
-            systemManager = systemManager
+            eventProcessor = cultivationService.eventProcessorForMonthSettlement
         )
     }
 

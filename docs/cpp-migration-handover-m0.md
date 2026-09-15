@@ -902,8 +902,26 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 **遗留**: 手工验证项（同一天劫重进 3 次立绘一致 / 同年交谈开场白一致——需真机或模拟器人工确认，自动化已覆盖序列恒定语义）；表现面变更（文案/立绘选择序列改变）属预期口径修正，已登记双更新日志；`version.properties` 递增由用户决定。
 
 
+## 2.70 邮件系统清理（2026-09-15）：仅保留节日 + 白名单特权邮件，在线拉取与单用户定向注入整体下线
+
+批次: 需求「清理游戏内的邮件，仅保留节日邮件和白名单特权邮件」 | 拍板口径: 溢出/秘境关闭/天枢殿迁移补偿等功能性邮件**保留**（资产保护机制）；存量邮件**不清理**（仅停新产生，自然过期）；代码**彻底删除** | 产物: 3 文件删除 + 14 文件修改；**零 C++ 逻辑改动（`month_settlement.h` 仅 3 处过时注释修正）、零协议面、零 ActionId 变更、零 Room 迁移**
+
+**删除面**:
+- **在线邮件月度拉取**：`MailService.fetchOnlineMails` / `processMonthlyMails` / `MailListApiResponse` / `MailApiData` 删除，`resetAndInitSlot` 不再拉 `mail/list`；构造参数 `httpClient` 移除。**`MailSystem` 整文件删除**（唯一存在意义 = 月结触发在线拉取 + 转发 no-op 生命周期）——`CoreModule.provideSystemManager` 集合 9 → 8；`MonthSettlementResidualExecutor` 删步骤 4g + `systemManager` 参数（月变残留扇出 3 → 2 项），`GameEngineCore` 构造点同步。
+- **单用户定向邮件**：`MailExclusiveBonusOps.kt`（`exclusive_bonus_20260904`，已过 2026-09-04 截止日 = 守卫永假死代码）与 `MailCompensationOps.kt`（`compensation_storage_bag_v1`）整文件删除；`injectExclusiveBonus` + `EXCLUSIVE_BONUS_*` 常量、`GameEngine.sendExclusiveBonus` / `sendStorageBagCompensation`、4 个 boot 注入点（Load/NewGame/Restart/CloudLoad）同步清除。**`injectWhitelistBonus` / `sendWhitelistBonus` 全数保留**。
+- **顺带清偿（本批删除造成的孤儿链）**：`MailService.clearForSlot` / `initialize()` / `release()`（唯一调用者 MailSystem 已删；档位删除实际走 `StorageEngine:436` 直调 `MailDao`，本就旁路）+ `MailRepository.deleteAllForSlot` 接口方法与 `MailRepositoryImpl` 实现；`TianshuHallCompensationOps` KDoc 对已删文件的引用更正。
+
+**保留面（逐项核验未动）**: 节日/内置发放 `loadBuiltinMails`、白名单福利三重防护、溢出邮件全链路（`OverflowMailSender`/`handleOverflowResult`/C++ 草稿桥接）、秘境到期关闭邮件、天枢殿重建补偿、GM 通用补偿入口 `sendAdminCompensation`；存量 `online_*`/定向邮件的领取/过期/"删除已读"路径（`mailRecords` 对账 + `remoteMailId` 索引）原样保留。
+
+**测试**: `MailServiceTest` 删专属福利 9 用例 + 储物袋补偿 8 用例（含共用 `installInMemoryMailDb` 辅助与 `httpClient` 桩），白名单/领取/`resetAndInitSlot` 用例保留；`:app` 用例数 **1020 → 1003（−17，精确对账）**。
+
+**门禁实跑（桌面 C++ 套件豁免——仅注释改动；生成物未触碰）**: `:core:engine` **3313 / 304 类 / 0 失败**（47 `Diff*` 全绿，基线持平）｜`:core:domain` **1758/0**｜`:feature:game` **872/0/0**｜`:app` **1003/0/0（2 既有跳过）**｜六模块 detekt 全绿｜四模块主源 + 测试源编译全绿。
+
+**遗留**: `MailRepository.existsByRemoteId` 为**本批之前即存在的零调用死代码**（旧在线邮件路径遗留），登记待 D5 死代码清偿统一处置，本批未越界处理。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.69 ②③ 双项后）**：
+**当前门禁基线（2026-09-15，§2.70 邮件清理后）**：
 
 | 验证 | 结果 |
 |---|---|
@@ -913,7 +931,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
 | `:feature:game` 单测 | **872 用例 / 0 失败 / 0 错误**（§2.68 复跑；W4-00 表所列 2 例 `EdgeKtxSyncTest` 失败已随并行渲染批落地消除） |
-| `:app` 单测 | **1020 用例 / 0 失败 / 0 错误 / 2 跳过**（§2.68 复跑；W4-00 表所列 `SpriteCodegenSyncTest` 失败已消除） |
+| `:app` 单测 | **1003 用例 / 0 失败 / 0 错误 / 2 跳过（既有）**（§2.70 复跑；= §2.68 基线 1020 − §2.70 删除的定向邮件用例 17，精确对账） |
 | detekt | ✅ **六模块 `detekt` 全绿，baseline 全 0**（§2.68 复跑；新增唯一违规 `SpreadOperator` 按本仓既有 4 处同款先例以带理由 `@Suppress` 处置，未进 baseline） |
 | 动作计数 | **195 动作，maxId=1843**（`gen-action-ids.mjs` 实跑口径；W4-00 后 169 → 三批 +26 = A 12 + B 9 + C 5）。**1843 = `DIPLOMACY_WARNING_STAGE_TX`** |
 | 生成物 | 生成器**幂等**（连跑两次哈希相同）+ `git diff --exit-code` 空 |
@@ -930,6 +948,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.70 邮件系统清理（09-15）** | —（仅注释改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`；`:app` 1020→1003） |
 | **§2.69 W4 ②③ 双项（09-15）** | —（零 C++ 改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`） |
 | **§2.68 W4 三批集成收口（09-15）** | **1407/1407** | **3306 / 0 / 0**（303 类，47 `Diff*`） |
 | **§2.62～§2.64 W4-A/B/C 三批（09-15，并行）** | 1361→1407（批内逐步） | 3295→3306（批内逐步） |

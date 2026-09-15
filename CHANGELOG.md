@@ -1,6 +1,19 @@
 ## [4.01.14] - 2026-09-08
 
 
+### 邮件系统清理：仅保留节日邮件 + 白名单特权邮件，在线拉取与单用户定向注入整体下线
+
+> 需求：清理游戏内邮件，仅保留节日邮件（`BuiltinMailConfig`）与白名单特权邮件（`whitelist_bonus_v1`）。拍板口径：**溢出/秘境关闭/天枢殿迁移补偿等功能性邮件保留**（资产保护机制，非运营噪音）；**存量邮件不清理**（仅停新产生，旧邮件按原过期时间自然消失）；**代码彻底删除**（非仅断开入口）。**零 C++ 逻辑改动、零协议面、零 ActionId 变更、零 Room 迁移**（`month_settlement.h` 仅 3 处过时注释修正）。
+
+- **在线邮件月度拉取通道删除**：`MailService.fetchOnlineMails` / `processMonthlyMails` / `MailListApiResponse` / `MailApiData` 整体删除，`resetAndInitSlot` 不再拉取服务端 `mail/list`（KDoc 同步）；构造参数 `httpClient` 随之移除。`MailSystem`（TickSystem，存在意义仅为月结触发在线拉取 + 转发 no-op 生命周期）**整文件删除**——`CoreModule.provideSystemManager` 系统集合缩至 8 个；`MonthSettlementResidualExecutor` 删步骤 4g 与 `systemManager` 构造参数（月变残留扇出 3 项 → 2 项：秘境关闭 + 购买日志），`GameEngineCore` 手动构造点同步。
+- **单用户定向邮件整体删除**：`MailExclusiveBonusOps.kt`（专属福利 `exclusive_bonus_20260904`，已过 2026-09-04 截止日 = 守卫永假的死代码）与 `MailCompensationOps.kt`（储物袋补偿 `compensation_storage_bag_v1`）两文件删除；`MailService.injectExclusiveBonus` + `EXCLUSIVE_BONUS_*` 常量、`GameEngine.sendExclusiveBonus` / `sendStorageBagCompensation`、4 个 boot 注入点（Load/NewGame/Restart/CloudLoad 各 2 行调用 + import）同步清除，**白名单福利注入 `sendWhitelistBonus` 全部保留**。
+- **顺带清偿（本批删除造成的孤儿链）**：`MailService.clearForSlot` / `initialize()` / `release()`（唯一调用者 MailSystem 已删；档位删除实际走 `StorageEngine` 直调 `MailDao`，本就旁路）+ `MailRepository.deleteAllForSlot` 接口方法与实现；`TianshuHallCompensationOps` KDoc 中对已删 `MailCompensationOps` 的引用更正。
+- **保留面（逐项核验未动）**：节日/内置发放 `loadBuiltinMails`、白名单福利 `injectWhitelistBonus`（三重防护原样）、溢出邮件全链路（`OverflowMailSender`/`OverflowMailHandler`/`handleOverflowResult`/C++ 草稿桥接）、秘境到期关闭邮件、天枢殿重建补偿、GM 通用补偿入口 `sendAdminCompensation`；存量 `online_*`/定向邮件的领取、过期、"删除已读"路径（`mailRecords` 对账 + `remoteMailId` 索引）原样保留。
+- **测试**：`MailServiceTest` 删除专属福利 9 用例 + 储物袋补偿 8 用例（含共用的 `installInMemoryMailDb` 辅助与 `httpClient` 桩），白名单/领取/`resetAndInitSlot` 用例全数保留；**`:app` 用例数 1020 → 1003（−17）**，与删除数精确对账。
+- **门禁**：`:core:engine` **3313/304 类/0 失败**（47 个 `Diff*` 全绿，基线持平）｜`:core:domain` **1758/0**｜`:feature:game` **872/0/0**｜`:app` **1003/0/0（2 既有跳过）**｜六模块 detekt 全绿｜四模块主源 + 测试源编译全绿。桌面 C++ 套件豁免（仅注释改动）；生成物未触碰。
+- **文档**：handover 新增 §2.70 + §3 基线表 `:app` 行更新；[knowledge-base](docs/knowledge-base.md) "Mail & Reward System" 增"邮件来源收敛"条目 + 运营邮件行更正；双更新日志同步。
+- **遗留**：`MailRepository.existsByRemoteId` 为**本批之前即存在的零调用死代码**（旧在线邮件路径遗留，非本批造成），登记待 D5 死代码清偿统一处置；`version.properties` 递增由用户决定。
+
 ### W4 ②③ 双项：`PresentationRandom` 按场景派生（跨会话一致）+ `TimeSystem.onPhaseTick` 迁测试源集（§2.69）
 
 > 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 交他人实施的 ②③ 两项。**零 C++ 改动、零协议面、零 ActionId 变更**。交接记录见 handover §2.69。

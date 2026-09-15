@@ -12,8 +12,6 @@ import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import kotlinx.coroutines.*
 import com.xianxia.sect.core.engine.sendWhitelistBonus
-import com.xianxia.sect.core.engine.sendExclusiveBonus
-import com.xianxia.sect.core.engine.sendStorageBagCompensation
 
 // ── 云读档流程（云档管线/云会话独立加载/槽位归一）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
@@ -178,12 +176,6 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(reconciled: SaveDa
         return if (bootResult.isSuccess) {
             // 与本地读档/新游戏路径一致：注入白名单福利
             gameEngine.sendWhitelistBonus(effectiveSlot)
-
-            // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
-            gameEngine.sendExclusiveBonus(effectiveSlot)
-
-            // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
-            gameEngine.sendStorageBagCompensation(effectiveSlot)
 
             Result.success(Unit)
         } else {

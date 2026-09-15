@@ -13,7 +13,7 @@ import kotlinx.serialization.serializer
  * [com.xianxia.sect.core.engine.TIANSHU_LEGACY_FOOTPRINTS] 与
  * [com.xianxia.sect.core.engine.filterLegacyTianshuHalls]）读档时直接删除，
  * 通过本邮件补偿玩家 1000 万灵石（用户指定金额）。
- * 独立文件保持 BootSequenceController 规模稳定（参照 MailCompensationOps 拆分模式）。
+ * 独立文件保持 BootSequenceController 规模稳定（一次性迁移补偿，非持续邮件源）。
  */
 
 /** 补偿邮件稳定 ID（天枢殿全局唯一 + 删除后不再触发 → 天然幂等） */

@@ -48,7 +48,8 @@
 //      消费方巡视楼/子事件 9 保留 Kotlin）
 //   4. systemManager.onMonthlyEvent 七系统扇出（@SystemPriority 升序）：
 //      Alchemy(210) → Forge(211) → Planting(214) → ChildBirth(235) →
-//      Exploration(240) → Partner(240，稳定排序居后) → Mail(960)
+//      Exploration(240) → Partner(240，稳定排序居后)
+//      （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
 //   5. 血炼完成检测            ← blood_refinement 原语 + 本文件结算段
 //   6. 月度自动排班 + 住所忠诚   ← processResidenceLoyalty（排班未下沉）
 //   7. 丹药持续效果月度衰减      ← HpMpRecoveryService.applyMonthlyDurationDecay
@@ -82,7 +83,6 @@
 //   - 生育：场景 childBirthMonth 全空 → 双端零效果
 //   - 炼丹/锻造自动排班与完成结算（Room 仓储/物品数据库域）：
 //     场景无到期槽位且自动政策全关；ForgeSystem 为异步 launch（事务内零效果）
-//   - 邮件（MailService.processMonthlyMails 为异步网络拉取，事务内零状态效果）
 //   - 自动排班：11 槽占用扫描 + 住所分配 + 四类生产候选 + 原子写入
 //     （住所建筑表静态数据 + 双端守卫）
 //   - 子事件：recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
@@ -2417,8 +2417,6 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 无玩家宗门 → 双端纯早退零抽取
     // 4f Partner(240)：道侣配对（SYSTEM 配对概率抽卡）
     detail::processPartnerMatching(state, rng, idx, world);
-    // 4g Mail(960)：异步网络邮件拉取——事务内零状态效果（C++ 空操作等价）
-
     // 步骤 5：血炼完成检测
     detail::processBloodRefinementCompletions(state, idx);
 

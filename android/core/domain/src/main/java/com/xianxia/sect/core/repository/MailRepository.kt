@@ -31,8 +31,6 @@ interface MailRepository {
     /** 删除槽位内过期邮件（决策项②：过期即删；expireTime=0 永久有效）。@return 删除行数 */
     suspend fun deleteExpiredMails(slotId: Int, now: Long): Int
 
-    suspend fun deleteAllForSlot(slotId: Int)
-
     /** 玩家手动"删除已读"：仅删已读且已领取的邮件（邮件唯一删除入口） */
     suspend fun deleteAllReadAndClaimed(slotId: Int)
 

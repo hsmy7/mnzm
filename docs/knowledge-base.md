@@ -427,11 +427,12 @@ com.taptap.sdk.cloudsave.ArchiveData      ← getUuid/getFileId/getName/getSumma
 
 Mail reward claims use Saga compensation: `stateStore.update {}` 原子写入物品+claim记录，若 `distributeAttachmentsInline` 抛出则 `mailRecords` 不写入，邮件保持未领取。
 
-- **Stable IDs**: 内置邮件用 BuiltinMailConfig 确定性 ID，在线邮件用 `"online_${remoteMailId}"`
+- **Stable IDs**: 内置邮件用 BuiltinMailConfig 确定性 ID，在线邮件用 `"online_${remoteMailId}"`（在线拉取通道已于 2026-09-15 下线，`online_*` 仅存量邮件仍可领取/过期）
 - **GameData 存储**: `mailRecords: List<MailClaimRecord>`（含 mailId/claimedAt/source），非邮件内容
 - **初始化**: `mailService.resetAndInitSlot()` 在世界初始化后调用
 - **清理**: `StorageEngine.delete()` 清理已删档位的 mails 表
 - **RNG 分区（2026-07-26）：** 邮件奖励随机生成使用 `RngPartition.MAIL` 分区 PRNG，通过 `GameRngManager` 注入到 `MailService` 和 `RedeemCodeService`，所有 `generateRandom*` 调用传入一致的 RNG 实例。
+- **邮件来源收敛（2026-09-15）：** 仅保留节日/内置邮件（`loadBuiltinMails`）与白名单福利（`injectWhitelistBonus`）两条运营注入通道 + 功能性邮件（溢出/秘境关闭/天枢殿迁移补偿/`sendAdminCompensation` 通用工具）；在线邮件月度拉取（原 `fetchOnlineMails`/`MailSystem`）与单用户定向注入（专属福利/储物袋补偿）已整体删除，存量邮件不清理、自然过期。
 
 ---
 
@@ -627,7 +628,7 @@ fun watchAdForNewFeature() {
 | 激励视频广告位 | 仅 1 个：`JADE_SYMBOL_BONUS`（观看广告获得玉符） | `AdPurpose` 枚举：`core/engine/.../service/AdService.kt` |
 | 广告调用链 | `AdService`（接口）→ `AdServiceImpl`（app 层，白名单守卫集中检查）→ `RewardVideoAdManager`（TapTap SDK 封装，冷却+每日次数限制） | `:app/.../taptap/AdServiceImpl.kt`、`AdsDelegate.kt` |
 | IAP/内购 | **0 个付费点**（无月卡/战令/礼包/直购） | 无代码 |
-| 运营邮件 | 全部客户端内置 `BuiltinMailConfig`（节日 14 天限时/`minVersion` 门槛/白名单专属/QQ 群引导）；管理员可经 `GameEngineAdminOps` 注入补偿邮件 | `core/engine/.../config/BuiltinMailConfig.kt` |
+| 运营邮件 | 全部客户端内置 `BuiltinMailConfig`（节日 14 天限时/`minVersion` 门槛/QQ 群引导）+ 白名单福利 `injectWhitelistBonus`；在线月度拉取与单用户定向注入已于 2026-09-15 删除（存量自然过期）；管理员通用补偿入口 `GameEngineAdminOps.sendAdminCompensation` 保留 | `core/engine/.../config/BuiltinMailConfig.kt`、`MailService.kt` |
 | 远程配置 | **未绑定**：`CoreModule.kt:157` 的 `HttpRemoteConfigProvider` 处于注释状态，`ConfigLoader(assetReader)` 无远程；接口 `RemoteConfigProvider`（core/domain）+ 实现 `HttpRemoteConfigProvider`（core/engine，10s 超时）已存在 | `:app/.../di/CoreModule.kt:156-158`、`core/domain/.../config/RemoteConfigProvider.kt` |
 | 免广告白名单 | `AdFreeWhitelist` + `GameConfig.Whitelist.AD_FREE_UNION_IDS`（硬编码）+ 专属福利邮件 | 见"免广告特权白名单"章节 |
 | 更新日志 | 游戏内 `android/app/src/main/assets/changelog_entries.json`（本地 asset，`core/data/.../ChangelogData.kt` 解析） | `ChangelogData.kt:39` |
