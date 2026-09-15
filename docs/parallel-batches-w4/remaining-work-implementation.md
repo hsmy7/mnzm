@@ -18,7 +18,7 @@
 | **D2** | `w3-11` 月年编排残差 + §2.3 宿主文件族调用点清理 | 串行 | D1 | `GameEngineCoreMonthOps/YearOps`、`CultivationEventMonthlyOps`、`MonthSettlementResidualExecutor`、`YearSettlementResidualExecutor`、`GameEngineCore` | 扇出项逐条判定落地；宿主族解冻后清理完成；引擎全量绿 —— **✅ 已实施（2026-09-15，§2.73，tag `w4-rem/03`）** |
 | **③B** | `PresentationRandom` 按场景派生（跨会话一致） | **可并行**（文件面与 D 系列不重叠） | — | `PresentationRandom.kt` + 6 个场景调用点（见 §2.B） | 同一存档同一场景恒定、跨会话一致；决策流零扰动 |
 | **②C** | `TimeSystem.onPhaseTick` 迁入测试源集 | 串行（**须在 D3 之前**） | — | `TimeSystem.kt` + 6 个 Diff 测试 | 生产面零死方法；对拍语义零变更（引擎全量用例数不变） |
-| **D3** | `DiffAuthoritativeTickTest` harness 对齐生产 | 串行 | D2、C | `DiffAuthoritativeTickTest`、`DiffSurfaceAssertion`（含**地形 2 字段退出排除面**） | harness = 生产口径；4 个覆写字段重评；地形 2 字段参与全字段对拍 |
+| **D3** | `DiffAuthoritativeTickTest` harness 对齐生产 | 串行 | D2、C | `DiffAuthoritativeTickTest`、`DiffSurfaceAssertion`（含**地形 2 字段退出排除面**） | harness = 生产口径；4 个覆写字段重评；地形 2 字段参与全字段对拍 —— **✅ 已实施（2026-09-15，§2.74，tag `w4-rem/04`）** |
 | **D4** | `w3-13` 反向通道删除（终局） | 串行 | D1–D3、B、C | `captureReverseDirty`、`ReverseDirtyAccumulator`、`applyDirtyToNative`、信封构建、`GameCore::applyReverseDirty`、`ReverseChannelPolicy` | 五步流程走完；关闭域写入检测零命中；状态指纹零差异 |
 | **D5** | 死代码清零 + 守卫面收口 | 串行 | D4（地形字段落定） | 见 §2.D 清单 | 三份零调用者清单产出并逐条删除；守卫只缩不增 |
 | **D6** | 文档与版本收口 | 串行（末项） | D1–D5、B、C | handover §3/§4.1/§5/§6、`ui-read-surface.md` §4.4、`cpp-engine.md` §9、`CODE_WIKI.md`、双更新日志 | 全文档口径与实测一致；双日志同批更新 |
@@ -60,12 +60,14 @@ E 非并行轨：真机验证（需设备）｜WS-4（需玩法文档）｜WS-1 
 |---|---|
 | D1 | **✅ 已实施（2026-09-15，见 handover §2.72，tag `w4-rem/02`）**：两文件 `BuildConfig.DEBUG` 门控落地——`StateSyncService`（`logReverseEnvelopeProfile`：信封总体积 + 分段体积 + 构建/发送耗时）与 `GameEngineCoreAuthoritativeOps`（`PhaseSegmentTimer`：baseline/settle/mirror.inc·full/breakthrough/boundary/reverse，µs 精度每旬一行）。**release 无埋点已实证**（`assembleRelease` 后 4 DEX 字符串扫描零命中 + debug 产物对照命中）；engine 全量 3303/303/0/0 基线持平。真机 logcat 采样归 §2.E 非并行轨 |
 | D2 | **✅ 已实施（2026-09-15，见 handover §2.73，tag `w4-rem/03`）**：①引导领奖下沉（`GUIDE_REWARD_CLAIM_TX=1830` + `guide_reward_tx.h`——batch-18a"Kotlin 注册表不可复刻"判定被推翻：25 任务条件全为结构化数据谓词，9 类条件逐字复刻；可行性预检 + SYSTEM 2×nextLong UUID 复刻 ⇒ 四象限抽取增量恒 +2，B3 通道预检同款）；②扇出项逐条判定收口（purchaseLogs/丧亲 = lifeEvents 非协议列留 Kotlin；秘境邮件 = DAO 通知；死亡链袋物化 = 平台效应链不迁——openStorageBag 逐件入库仍为两臂共用稳态写者，物化下沉无关闭收益；兑换码登记不下沉）；③B4 转入项实裁（附庸年贡/脱离 C++ 已在位——开臂即双重执行，不占号）；④宿主族解冻核对（16 月子事件 + 年 T1 全部已在位，零死调用点；`missionCheck` = AUTHORITATIVE 下防御性 no-op 保留；三处 KDoc 陈旧扇出描述修正）；⑤关闭动作：`guideClaimedRewardIds` 转入 W4-D closedUnits（BOUNDARY 域首单元），GuardTest 6 用例绿。门禁：桌面 **1417/1417**（+10）｜引擎 **3305/304/0/0**（+2）｜`:core:domain` 1758/0｜detekt 六绿｜NDK+lint 绿｜生成物零漂移（196 动作/maxId=1843） |
-| D3 | ① 把 harness 的 AUTHORITATIVE 管线由"Kotlin 月/年完整编排"改为"C++ 月结 + Kotlin 残差"；② **重评** 4 个被覆写字段（`spiritMineLastSettledMonth` / `annualAlchemyCount` / `availableMissions` / `yearlyReports`）的关闭结论；③ **并入项（2026-09-15 拍板）**：见下方"D3 并入项" |
+| D3 | **✅ 已实施（2026-09-15，见 handover §2.74，tag `w4-rem/04`）**：①harness Side A 边界改生产同款——桌面 JNI + `DiffRngBridge` 新增 `nativeCoreSettleMonth/Year`（与生产同协议）+ Kotlin 残留执行器装配；对齐红点逐条归因**全部为 harness 缺装配**（真实 `DiscipleLifecycleProcessor`/`MerchantAndRecruitService`+`ManualDatabase` 注入/cave Processor Provider 实例化/收购 id 排除面），零两端真分叉；②4 个覆写字段（`annualAlchemyCount`/`yearlyReports`/`availableMissions`/`spiritMineLastSettledMonth`）重评后全部转入 W4-D closedUnits（守卫 6/6 绿）；③地形 2 字段退出排除面——`mapSeed` 非零 + `backfillTerrainOnBoot`（生产同款）+ 删 `DiffSurfaceAssertion` 两分支，`terrainTiles`/`mapGenVersion` 参与全状态对拍。门禁：桌面 **1417/1417**｜引擎 **3305/304/0/0**（持平，47 `Diff*` 全绿）｜`:core:domain` 1758/0｜detekt 六绿｜NDK+lint 绿｜生成物零漂移（196 动作/maxId=1843）。**登记**：空世界兜底分支（worldMapSects 空，生产不可达）双臂招募差异不展开，`lastRecruitYear=4` 规避（DiffYearSettlementTest 同款）；harness 场景红点归因明细见 §2.74 |
 | D4 | 严格按 ADR §4 五步：**先禁用（信封体积=0 但代码在）→ 跑完整业务周期（≥1 游戏年 + 离线结算 + 跨旬月 + 存档写读，期间关闭域写入检测零命中）→ 状态指纹零差异（同档同输入 ≥100 旬）→ 删前打归档 tag → 再删除**。删除面/保留面见 §8；**防复发**：镜像只读契约（结构性/编译期优先）+ "稳态零写入断言"进长期 CI |
 | D5 | 第一件事是**先补清单**（handover §5④ 的"18+11+5 处零调用者站点"仓库内**无分项清单**，无基准不可验收）：用 `git grep` 产出"生产调用 0 / 测试引用 n"三份清单再逐条删除；其余见 §2.D |
 | D6 | 双更新日志**必须一起**更新（`CHANGELOG.md` + `changelog_entries.json`；同版本条目追加到 `changes` 末尾，**禁新建同版本第二条目**）；`version.properties` 是否递增**由用户决定** |
 
-**D3 并入项（地形 2 字段退出对拍排除面）—— 完整实施单**
+**D3 并入项（地形 2 字段退出对拍排除面）—— 完整实施单 —— ✅ 已实施（2026-09-15，§2.74）**
+
+> **实施结果**：harness 补生产同款 boot 回填（`mapSeed=987654321` + `backfillTerrainOnBoot` 经 `SectTerrainBridge`）+ 删除 `DiffSurfaceAssertion` 两排除分支后，47 个 `Diff*` **直接全绿**（预期"先红"未出现——其余 45 个场景 mapSeed=0 恒无段，主场景两端经"存的地形恒优先"持有同段逐位一致）；键存在性断言（`:48`）对两字段生效。跨语言生成等价仍由 `terrain_freeze_test.cpp` + `DiffSectTerrainTest` 承担。
 
 - **背景**：`DiffSurfaceAssertion.kt:76-77` 把 WS-5b 的 `terrainTiles` / `mapGenVersion` 列入 `diffIsMirrorGeneratedField` ⇒ 遍历到即 `continue`，**既不校验值一致、也不校验 Kotlin 侧存在**。原因：harness 的 Kotlin 侧不跑 boot 回填，Kotlin 期望快照恒无该段，比对必假红（当初以"排除"代替"对齐"）。
 - **已覆盖的部分（不必重做）**：生成算法跨语言一致性由 `DiffSectTerrainTest`（多种子全数组逐位 + 生产配置 + `cellHash`/`smoothNoise` 探针）保障；冻结链路各环节由 C++ `terrain_freeze_test.cpp`（6 用例）+ `SaveDataTerrainFreezeTest` + `RoomMigrationV50To51Test` 保障。

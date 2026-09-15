@@ -1,6 +1,17 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D3 harness 对齐生产：`DiffAuthoritativeTickTest` 管线对齐 + 地形 2 字段退出对拍排除面 + 4 字段关闭重评（§2.74）
+
+> 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链第三项 D3（前置 D1/D2 已交付）。**测试面 + 反向通道传输面收口——零生产 Kotlin 改动、零协议面、零 ActionId 变更、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（§2.72/§2.73 同款口径）。
+
+- **harness AUTHORITATIVE 管线对齐生产（ADR §8 债清偿）**：桌面测试 JNI（`GameCoreJni.cpp`）+ `DiffRngBridge` 新增 `nativeCoreSettleMonth`/`nativeCoreSettleYear`（与生产 `GameCoreBridge.nativeSettleMonth/Year` 同协议，生产桥零改动）；`DiffAuthoritativeTickTest` Side A（AUTHORITATIVE 臂）边界编排由"Kotlin 月/年完整编排"改为生产同款——`nativeCoreSettleYear/Month`（C++ 完整月/年结算）→ 前向增量镜像 → Kotlin 残留执行器（信封草稿应用），Side B 保留 Kotlin 完整编排 = flag-OFF 回退臂语义。至此跨语言对拍 harness 与生产管线同构，"harness 为生产超集"的口径偏差消除。
+- **对齐红点逐条归因（全部为 harness 缺装配，非两端真分叉）**：① 换装真实 `DiscipleLifecycleProcessor`（mock 零行为 → 年变老化缺失，第 9 旬 `disciples[0].age` 16 vs 17——DiffYearSettlementTest 同款教训）；② 真实 `MerchantAndRecruitService` + `ManualDatabase` 样本注入（mock → 年变 T2 #12 收购刷新缺失，`merchantAcquisitionItems` 0 vs 9）；③ `caveExplorationProcessor` Provider 改返回 mock 实例（mock Provider `get()` 恒 null → T2 #4 NPE 中断队列 drain）；④ 商人收购 `id`/`itemId` 加入镜像生成字段排除面（Kotlin UUID vs C++ `gc-trade-N`，内容字段仍逐位对拍）。
+- **4 个覆写字段关闭重评**：`annualAlchemyCount`/`yearlyReports`（BOUNDARY）、`availableMissions`（RECRUIT）、`spiritMineLastSettledMonth`（PATROL，原 W4-B retained 转出）由 retained 转入 **W4-D closedUnits**——harness 对齐后"覆写保留传输"理由失效；稳态写者重评 = C++（年报/任务刷新/灵矿水位），Kotlin 残余 = 回退臂 + 读档归一化（LOAD_BOOT 族，基线前写入不触发关闭域误报）。`ReverseChannelPolicyGuardTest` 6 用例绿。
+- **地形 2 字段退出对拍排除面（D3 并入项）**：harness 场景补生产同款 boot 回填（`mapSeed` 非零 + `backfillTerrainOnBoot` 经 `SectTerrainBridge` 生成落段，导入 C++ 前落段 ⇒ "存的地形恒优先"两端同段）；`DiffSurfaceAssertion` 删除 `terrainTiles`/`mapGenVersion` 排除分支——两字段按普通字段参与全状态逐字段对拍（含键存在性断言）；WS-5b 的对拍口径风险（§4.1）就此解除。
+- **空世界兜底分支登记（不展开）**：harness 场景无玩家宗门 ⇒ 年变招募刷新落入生产不可达的"空世界兜底分支"，双臂自动招募/净化输出差异实测（`recruitList` 4 vs 1）——以 `lastRecruitYear=4` 置满差值门规避（DiffYearSettlementTest 规避清单同款）；真实分支对拍由 `RECRUIT_REFRESH_TX` 读档自愈臂 + 后续带宗门场景承担。
+- **门禁**：桌面 C++ **1417/1417**（持平；C++ 改动仅桌面 JNI 层）｜`:core:engine` **3305/304 类/0 失败/0 跳过**（基线持平；47 `Diff*` 全绿）｜`:core:domain` **1758/0**｜六模块 detekt 全绿｜主源 + 测试源编译绿｜NDK `externalNativeBuildRelease` + `lintRelease` 绿｜生成物零漂移（196 动作 / maxId=1843）。
+
 ### W4-D/D2 w3-11 月年编排残差：引导领奖事务下沉 + 宿主族解冻核对 + 扇出判定收口（§2.73）
 
 > 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链第二项 D2（前置 D1 已交付）。引导领奖为玩家操作面（引导任务页领取奖励），**领取的触发条件、奖励内容与 UI 表现零变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（§2.72 同款口径）；本批变更的是"谁执行这笔发放"（Kotlin → C++ 权威事务）。

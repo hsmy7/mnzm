@@ -980,14 +980,36 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **遗留**: D3（harness 对齐 + 地形 2 字段退出排除面 + 4 字段重评）为串行链下一项；`w4-rem/03` tag + bundle 已落盘。
 
+## 2.74 W4-D/D3 harness 对齐生产（2026-09-15，tag `w4-rem/04`）：`DiffAuthoritativeTickTest` 管线对齐 + 地形 2 字段退出对拍排除面 + 4 字段关闭重评
+
+批次: [W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md) §0 序 D3（串行链第三项） | 性质: **测试面 + 传输面收口——零生产 Kotlin 改动、零协议面、零 ActionId 变更**；C++ 侧仅桌面测试 JNI（`GameCoreJni.cpp` 新增 2 导出，生产 `GameCoreBridge.cpp` 零改动）
+
+**① harness AUTHORITATIVE 管线对齐生产（ADR §8 债清偿）**:
+- 桌面 JNI（`gamecore/jni/GameCoreJni.cpp`）+ `DiffRngBridge` 新增 `nativeCoreSettleMonth`/`nativeCoreSettleYear`（与生产 `GameCoreBridge.nativeSettleMonth/Year` 同协议——结算 + 信封 JSON 原样回传）；`GameCore::settleMonth/settleYear` 既有公开方法零改动。
+- `DiffAuthoritativeTickTest` Side A（AUTHORITATIVE 臂）边界编排由"Kotlin 月/年完整编排"改为**生产同款**：`nativeCoreSettleYear/Month`（C++ 完整月/年结算）→ 前向增量镜像 → Kotlin 残留执行器（`MonthSettlementResidualExecutor`/`YearSettlementResidualExecutor` 信封草稿应用）——与生产 `settleYearNative`/`settleMonthNative` 逐步对应（差异仅平台面：月结前槽位窗口对齐/AI 热控推送/DAO 清理+DeathEvent+没收 handler 不装配——夹具无 Room/平台依赖，对应生产组件在本夹具为 mock no-op）。Side B（对拍基准）保留 Kotlin 完整编排 = 生产 flag-OFF 回退臂语义；Side B 年变后 `flushYearlyOpsQueue` forceDrain 对齐生产 tick drain 与 C++ T2 内联执行（DiffYearSettlementTest 同款）。
+- **harness 基准臂装配实裁（对齐红点逐条归因——全部为"harness 缺装配"，非两端真分叉）**: ① 换装真实 `DiscipleLifecycleProcessor`（mock 零行为 → 年变老化缺失，**第 9 旬 `disciples[0].age` 16 vs 17**——DiffYearSettlementTest 同款装配与同款教训）；② 真实 `MerchantAndRecruitService` + `ManualDatabase` 样本注入（mock → 年变 T2 #12 收购刷新缺失，`merchantAcquisitionItems` 0 vs 9）；③ `caveExplorationProcessor` Provider 改为返回 mock 实例（mock Provider `get()` 恒 null → T2 #4 `sectDisciplesAging` NPE 中断队列 drain ⇒ #12 永不执行）；④ 商人收购 `id`/`itemId` 加入本地排除面（Kotlin UUID vs C++ `gc-trade-N` 确定性自增——镜像生成字段，DiffYearSettlementTest 同口径；name/rarity/price/quantity 等内容字段仍逐位对拍）。
+- **空世界兜底分支登记（不展开）**: 本场景 `worldMapSects` 为空（无玩家宗门）⇒ 年变招募刷新落入"空世界兜底分支"（`nextInt(7)` 兜底 + 无容量约束自动招募）——**生产不可达**（boot 后 `worldMapSects` 恒非空）；该分支下双臂自动招募/净化输出差异实测（`recruitList` 4 vs 1）。harness 以 `lastRecruitYear=4` 置满差值门规避（DiffYearSettlementTest 规避清单同款）；真实分支的跨语言对拍由读档自愈 native 臂（`RECRUIT_REFRESH_TX`）+ 后续带宗门场景承担。
+
+**② 4 个覆写字段关闭重评（harness 对齐后"harness 覆写"retained 理由失效）**: `annualAlchemyCount`/`yearlyReports`（BOUNDARY）、`availableMissions`（RECRUIT）、`spiritMineLastSettledMonth`（PATROL；原 W4-B retained 转出）由 retained 转入 **W4-D closedUnits**。稳态写者重评：年报快照/年度计数重置 = C++ `runYearSettlement`（T1 在位，§2.73 宿主族解冻核对）；任务刷新/清理 = C++ 月结子事件 13；灵矿月结水位 = C++ 月结灵矿步无条件推进；Kotlin 残余 = 回退臂（native 未就绪时反向通道本就不活跃）+ 读档/新档归一化（LOAD_BOOT 族——基线建立前写入，`detectClosedFieldWrites` 不误报）+ `SectPolicyToggleUseCase.toggleSpiritMineBoost` 回退臂（native 臂 `GOV_SPIRIT_MINE_BOOST_TOGGLE_TX=1682` 在位，batch-18b）；任务接取 `startMission`（`GameEngineMissionOps.kt:37`）只写 `activeMissions` 不写 `availableMissions`。`ReverseChannelPolicyGuardTest` 6 用例绿（穷尽分类保持；证据回写 `W4DChannelClosures.kt`）。
+
+**③ 地形 2 字段退出对拍排除面（D3 并入项，2026-09-15 拍板）**:
+- harness 场景补 **boot 回填（生产同款）**：`mapSeed = 987654321`（非零 = 真实存档前置）+ `backfillTerrainOnBoot`（无段 + 有种子 ⇒ `SectTerrainBridge.generateFlatTileData` 生成 flat 瓦片段 + 落 `GameData.terrainTiles` + 戳 `MAP_GEN_VERSION`；幂等；桌面 JVM 走 Kotlin 生成器——`DiffSectTerrainTest` 全数组逐位对拍已证与 C++ 位级一致）；写时机 = 导入 C++ 之前（生产同序：boot 回填先于引擎 AUTHORITATIVE 初始化）⇒ `importStateInternal` 归一化族按"存的地形恒优先"采用同段。
+- `DiffSurfaceAssertion.diffIsMirrorGeneratedField` 删除 `terrainTiles`/`mapGenVersion` 两条分支——`DiffAuthoritativeTickTest` 主场景两字段自此**按普通字段参与全状态逐字段对拍**（含 `:48` 的"C++ 导出而 Kotlin 缺失即红"键存在性断言）；其余 46 个 `Diff*` 场景 mapSeed=0 恒无段（桌面测试面未配置地形参数 ⇒ `ensureTerrainGenerated` 跳过），不受影响。跨语言生成等价仍由 `terrain_freeze_test.cpp` + `DiffSectTerrainTest` + `SaveDataTerrainFreezeTest` 承担（§4.1 WS-5b 行遗留口径风险就此解除）。
+
+**测试**: 无新增用例（harness 自身即验收面；引擎全量用例数与基线**完全一致** = 测试面外零行为变更得证）。
+
+**门禁实跑**: 桌面 C++ **1417/1417**（ctest + 单进程直跑复核；C++ 改动仅桌面 JNI 层）｜`:core:engine` **3305 / 304 类 / 0 失败 / 0 跳过**（= §2.73 基线持平；47 个 `Diff*` 对拍全绿，JNI 指向本树 desktop-jni 重建产物）｜`:core:domain` **1758/0**（`ReverseChannelPolicyGuardTest` 6/6）｜六模块 detekt 全绿｜主源 + 测试源编译绿｜`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿｜生成器幂等 + 生成物 `git diff --exit-code` 空（196 动作 / maxId=1843）。
+
+**遗留**: ① 空世界兜底分支双臂差异（生产不可达，登记观测）；② 带宗门的年变招募刷新对拍场景未立项（真实分支由 `RECRUIT_REFRESH_TX` 读档自愈臂 + `DiffDiscipleFactoryTest` 生成等价承担）；③ D4（w3-13 反向通道删除·终局）为串行链下一项；`w4-rem/04` tag + bundle 已落盘。
+
 
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.73 W4-D/D2 引导领奖下沉后）**：
+**当前门禁基线（2026-09-15，§2.74 W4-D/D3 harness 对齐生产后）**：
 
 | 验证 | 结果 |
 |---|---|
-| 桌面 C++ 全量单测 | **1417/1417 全绿**（§2.73 实跑 = §2.68 基线 1407 + 引导领奖事务 10 用例；含单进程直跑复核）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3305 用例 / 304 类 / 0 失败 / 0 错误 / 0 跳过**（§2.73 复跑；= §2.72 基线 3303 + GateTest 2；含 47 个 `Diff*` 对拍全绿） |
+| 桌面 C++ 全量单测 | **1417/1417 全绿**（= §2.73 基线持平；D3 C++ 改动仅桌面 JNI 层；含单进程直跑复核）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 引擎全量单测 `:core:engine` | **3305 用例 / 304 类 / 0 失败 / 0 错误 / 0 跳过**（§2.74 复跑 = §2.73 基线持平；含 47 个 `Diff*` 对拍全绿——harness 已对齐生产口径） |
 | `:core:domain` 单测 | **1758 用例 / 0 失败**（含 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
 | `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
@@ -1009,6 +1031,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.74 W4-D/D3 harness 对齐生产（09-15）** | **1417/1417**（持平；仅桌面 JNI 层） | **3305 / 304 类 / 0 / 0**（持平；47 `Diff*`） |
 | **§2.73 W4-D/D2 引导领奖下沉（09-15）** | **1417/1417**（+10） | **3305 / 304 类 / 0 / 0**（+2） |
 | **§2.71 天枢殿迁移下线 + 死代码清偿（09-15）** | —（零 C++ 改动） | **3303 / 303 类 / 0 / 0**（= 3313 − 10） |
 | **§2.70 邮件系统清理（09-15）** | —（仅注释改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`；`:app` 1020→1003） |
@@ -1059,7 +1082,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 |---|---|
 | **三处顶层可变 `xxxRngManager` 同族遗留**（`EnemyGenerator` / `AISectAttackManager` / `AISectTeamComposer`） | **✅ 已清偿（2026-09-15，§2.64.1 W4-C C-③）**——三处均改为形参必传，`GameEngine.kt` init 块三行赋值随之移除；实测全仓顶层可变 `*RngManager` **0 处**。`RngEngineIsolationGuardTest` 白名单未新增条目 |
 | **反向同步通道逐域收尾 → 通道删除（长期主轴）** | **⚠️ 方向已定（§2.53）**——"按域全关"经 288 站点穷尽审计实测**前置不成立**（14 域无一可整体关闭）；已交付可证关闭面 68 单元（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制（策略单点 / 双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）。**2026-09-15 W4-A/B/C 三批再消除一批稳态写者**（弟子管理九事务 / 婚姻审批拒绝 / 巡逻·矿场 UI 直改 / 战斗伤亡与战前结算 / 秘境换岗兜底 / 洞府死链，逐条 `file:line` 见 [ui-read-surface §4.4](ui-read-surface.md) 滚动更新表），但**域级"可整体关闭"仍无一成立**。**后续按 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 十三批推进**，终局删除 = `docs/parallel-batches-w4/README.md` §8 的 W4-D/D4 |
-| **WS-5b 地图冻结批** | **✅ 已落地（2026-09-15，§2.64.2 W4-C C-②）**——"生成即数据 + `mapGenVersion` 协议全链 + 老档按种子再生回填"全链交付（C++ 状态模型 + `json_codec` 双向 + Kotlin `@ProtoNumber`/`@ColumnInfo` + Room `@Database` 50→51 + `MIGRATION_50_51` + 迁移测试 + 存档往返测试）。**遗留口径风险**: 对拍面把 `terrainTiles`/`mapGenVersion` 列为镜像生成字段排除比对（§2.68），跨实现等价由 `terrain_freeze_test.cpp` + `DiffSectTerrainTest` 承担 |
+| **WS-5b 地图冻结批** | **✅ 已落地（2026-09-15，§2.64.2 W4-C C-②）**——"生成即数据 + `mapGenVersion` 协议全链 + 老档按种子再生回填"全链交付（C++ 状态模型 + `json_codec` 双向 + Kotlin `@ProtoNumber`/`@ColumnInfo` + Room `@Database` 50→51 + `MIGRATION_50_51` + 迁移测试 + 存档往返测试）。~~遗留口径风险: 对拍面把 `terrainTiles`/`mapGenVersion` 列为镜像生成字段排除比对~~ → **✅ 已清偿（2026-09-15，§2.74 W4-D/D3）**——harness 补生产同款 boot 回填后两字段退出排除面、按普通字段参与全状态对拍（47 `Diff*` 全绿） |
 | **WS-4 NPC 移动系统（待玩法设计文档）** | 实现前需用户补充玩法设计文档（数量上限 / 生成规则 / 与弟子系统关系）；E3 组件族（§2.14）与寻路地基（静态地形 + 建筑占位 + 道路，§2.19）已就绪，可行走语义（树/边界是否阻塞）待拍板 |
 | **WS-1 残留口径 / 阶段 3 立项** | **✅ 已决策（2026-09-15，用户拍板"按桌面 Release 数据决策"）：不立项协议 v2**。**决策依据（桌面 Release 实跑 `dirty_tracker_bench_test.cpp`）**：每旬全脏 `diffToJson` = **7.9ms@100 弟子**（实测口径 ~0.10 ms/弟子/旬：100→7.9ms、1000→100.9ms）；**玩家实际规模 ≈100 弟子**（用户口径）⇒ 2x 速（1s/旬）下导出仅占**旬间隔 0.8%**；且每旬镜像跑在**引擎后台协程**（`GameEngineCoreAuthoritativeOps.kt:63` → `engineScope`/`gameDispatcher`），**不占渲染线程** ⇒ 不直接掉帧。按中端机 2.5× 系数估算 ≈20ms/旬 = 间隔 2%，**约 5 倍余量**。⇒ **协议 v2（145+ 列写点 + 47 对拍 + 存档格式）的风险远大于收益，不做**；同时**不做**非协议微优化（空闲窗口 3.8ms@100，且任何"跳过序列化"的优化都必须引入写屏障——正是 §2.34 已摘除的风险面）。**再评估阈值（数值化，可机测）**：① 实际弟子规模 **>400**（= 0.10 ms/弟子/旬 × 2.5 设备系数 ≈ 旬间隔 10%）；② 或 D1 埋点真机实测每旬镜像 **>100ms**。**观测手段 = W4-D/D1 既有埋点（零额外成本）** |
 | **真机（物理设备）验证残留** | 模拟器会话未覆盖 10 项：A2 ASTC 缺失机 RGBA 回退 / A4 旋屏 / C1 偷盗钩子自然触发 + TapDB 上报 / C3 S5 战斗任务 / C4 S6 秘境全链 / C6 ThermalMonitor 真实热档 / D2 放置确认步 / D3 道路装配 / E2 云存档 / E3 WS-1 绝对值（需先补 debug 埋点小批） |
@@ -1091,11 +1114,11 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **① 主轴：反向通道逐域收尾 → 通道删除**（§2.53 / [ADR](adr/reverse-channel-elimination.md) / [w3 十三批](parallel-batches-w3/README.md)）
 288 站点穷尽审计实测 **14 个域无一可整体关闭**（弟子通道 46 稳态站点 / 9 类实体集合 82 站点 / 64 个 gameData 字段仍有稳态写者）⇒ "按域全关"改判为**长期主轴**：按 `ui-read-surface §4.4` 域级残余清单逐域下沉，**每完成一域即可一行关闭**（机制已就位）。
-验收门禁 = **Diff 对拍全绿**（4 字段被 `DiffAuthoritativeTickTest` 覆写保留传输——该 harness 把 Kotlin 月/年完整编排纳入 AUTHORITATIVE 稳态，为生产超集；**可选清偿**：把 harness 对齐生产（C++ 月结 + Kotlin 残差），届时这 4 字段可重评）。
+验收门禁 = **Diff 对拍全绿**（~~4 字段被 `DiffAuthoritativeTickTest` 覆写保留传输——该 harness 把 Kotlin 月/年完整编排纳入 AUTHORITATIVE 稳态，为生产超集；**可选清偿**：把 harness 对齐生产（C++ 月结 + Kotlin 残差），届时这 4 字段可重评~~ → **✅ 已清偿（2026-09-15，§2.74 W4-D/D3）**：harness 已对齐生产口径（C++ 月/年结算 + Kotlin 残差），4 个覆写字段（`spiritMineLastSettledMonth`/`annualAlchemyCount`/`availableMissions`/`yearlyReports`）重评后全部转入关闭）。
 
 **② 真机（物理设备）验证批**——§4.1 登记 10 项残留；真机不可得时的替代口径见 §2.39（模拟器 + 产物字符串核验）。
 
-**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；~~`TimeSystem.onPhaseTick`（§2.C）与 `PresentationRandom` 一致性口径（§2.B）~~ **两项已实施（2026-09-15，§2.69）**；`GameSettingsData.autoSave` 删除（§4.2，已拍板待实施）。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：D1 埋点 → D2 `w3-11` → D3 harness 对齐（**含地形 2 字段退出对拍排除面**）→ D4 反向通道删除 → D5 死代码清零 → D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
+**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；~~`TimeSystem.onPhaseTick`（§2.C）与 `PresentationRandom` 一致性口径（§2.B）~~ **两项已实施（2026-09-15，§2.69）**；`GameSettingsData.autoSave` 删除（§4.2，已拍板待实施）。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：~~D1 埋点 → D2 `w3-11` → D3 harness 对齐（含地形 2 字段退出对拍排除面）~~ **D1–D3 已实施（2026-09-15，§2.72/§2.73/§2.74）** → D4 反向通道删除 → D5 死代码清零 → D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
 
 > **🔴 派工入口**：上述全部剩余工作已整理为可逐项照单执行的 **[W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md)**——含执行顺序与冲突矩阵、逐项影响范围清单（`文件:行号`）、测试方案、验收判据、风险兜底与盲区自查。派工时连同该文档一起交给实施人员。
 

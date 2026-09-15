@@ -274,6 +274,10 @@ C++）。
 | 月年编排 | `GameEngineGuideOps.kt:57` claimGuideReward（引导领奖，无 native 臂） | 已下沉：`GUIDE_REWARD_CLAIM_TX=1830`（`guide_reward_tx.h`——25 任务注册表/9 类条件求值/可行性预检/SYSTEM 2×nextLong UUID 复刻/凭据溢出抑制）；`guideClaimedRewardIds` 转入关闭（W4-D 分片）；Kotlin 残余 = 回退臂-only；UI 奖励卡片两臂同形 | §2.73 |
 | 月年编排 | `GameEngineCoreMonthOps.kt:90` / `YearOps.kt:126` 残留执行器 | 逐条判定收口：purchaseLogs/丧亲 = lifeEvents 瞬态列（@Ignore 非协议）⇒ Kotlin 日志；秘境关闭邮件 = DAO 通知；死亡链袋物化 = 平台效应链（openStorageBag 逐件入库仍为两臂共用稳态写者 ⇒ 物化下沉无关闭收益，不迁）；兑换码 `RedeemCodeService.kt:153/:402` 登记不下沉（RNG 红线） | §2.73 |
 | 月年编排 | 附庸年贡/附属年贡/月度脱离（B4 转入项） | 实裁：C++ 逻辑已在位（`year_settlement.h` T1 #1/#2 + `month_settlement.h` 子事件 12，AUTHORITATIVE 原生执行）；Kotlin 调用点（`CultivationEventMonthlyOps.kt:73/:105/:125/:126`）保留为 flag-OFF 回退臂——开臂即双重扣贡/抽取 ⇒ 不占号 | §2.73 |
+| 月年编排 | （harness 覆写 retained：`annualAlchemyCount` / `yearlyReports`） | **转入关闭（W4-D 分片）**——D3 harness 对齐生产（C++ 月/年结算 + Kotlin 残差）后覆写理由失效：年报快照/年度计数重置 = C++ `runYearSettlement`（T1 在位）；Kotlin 残余 = `YearSettlementExecutor`/`CultivationEventMonthlyOps.kt:236/:245` 回退臂 + `ProductionSettlement.kt:52` 回退臂（4a/4b 已入 C++）+ 读档归一化（LOAD_BOOT 族，基线前写入不误报） | §2.74 |
+| 招募/派遣 | （harness 覆写 retained：`availableMissions`） | **转入关闭（W4-D 分片）**——任务刷新/清理 = C++ 月结子事件 13；Kotlin 残余 = `CultivationEventMissionOps.kt:132` 回退臂 + `GameEngineLoadDataOps.kt:425` 读档归一化；任务接取 `GameEngineMissionOps.kt:37` 只写 `activeMissions` 不写本字段 | §2.74 |
+| 巡逻/矿场 | （W4-B retained：`spiritMineLastSettledMonth`） | **转入关闭（W4-D 分片）**——月结水位由 C++ 月结灵矿步无条件推进；Kotlin 残余 = `CultivationSettlement.kt:485` 回退臂 + `GameEngineLoadDataOps.kt:245/:295/:363` 读档/新档归一化 + `SectPolicyToggleUseCase.kt:230` 回退臂（native 臂 `GOV_SPIRIT_MINE_BOOST_TOGGLE_TX=1682` 在位） | §2.74 |
+| 对拍面 | `DiffSurfaceAssertion.kt:76-77` 地形 2 字段对拍排除 | **排除面删除**——harness 补生产同款 boot 回填（`mapSeed` 非零 + `SectTerrainBridge` 生成落段，导入 C++ 前落段 ⇒ "存的地形恒优先"两端同段）；`terrainTiles`/`mapGenVersion` 按普通字段参与全状态对拍（键存在性 + 内容逐位）；空世界兜底分支（worldMapSects 空，生产不可达）双臂招募差异登记不展开，harness 以 `lastRecruitYear=4` 置满差值门规避 | §2.74 |
 
 **新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
 
