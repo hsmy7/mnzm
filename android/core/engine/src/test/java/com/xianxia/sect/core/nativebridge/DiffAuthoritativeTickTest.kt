@@ -46,6 +46,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RecruitIntegrity
+import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
@@ -597,6 +598,131 @@ class DiffAuthoritativeTickTest {
         assertEquals("年报应恰 3 份", 3, gdA.yearlyReports.size)
         storeA.disciplesValue.forEach { d ->
             assertTrue("弟子 ${d.id} 未收到年俸", d.equipment.storageBagSpiritStones >= SALARY_REALM9)
+        }
+    }
+
+    /**
+     * w3-13 阶段 A 观察窗（先禁用后删除，ADR reverse-channel-elimination §4 安全下线）：
+     * 反向通道**停发**状态下重跑同场景 100 旬 AUTHORITATIVE 全管线——C++ 结算、
+     * 前向镜像与 Kotlin 残留执行器照常，每旬步骤⑤照常消费捕获窗口，但信封
+     * **不发送** C++（版本号/锚点/变化检测缓存不推进）。
+     *
+     * 闸门（任一命中 ⇒ 按 ADR 重置流程、回滚对应域并回到下沉批，**不得删除通道**）：
+     * ① 零信封发送（传输体积 = 0 可观测）；② 关闭域写入检测零命中（禁用不得
+     * 掩盖漏域写者）；③ 终态全量结构对拍仍逐位一致 + 时间线/年俸/年报不变量保持
+     * （结算周期与镜像链路在停发态无退化——窗口消费、锚点停推、缓存停更路径全被踩过）。
+     *
+     * 口径说明：本用例证明的是"观察窗仪器 + AUTHORITATIVE 结算周期在停发态无退化"；
+     * 生产 AUTHORITATIVE 下是否残留依赖通道的稳态写者，以
+     * `ReverseChannelPolicyGuardTest` 审计红线与 ui-read-surface §4.4 滚动表为准
+     * （删通道的前置 = 全部传输单元关闭，见 w3 README §4）。
+     */
+    @Test
+    @Suppress("LongMethod")  // 观察窗对拍主流程：与上方 100 旬用例同构（差异仅停发与三闸门断言）
+    fun `authoritative pipeline runs clean with reverse transport disabled`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInitMode(true)
+
+        val snapshot = buildSnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        // ── Side B：纯 Kotlin 全量引擎（对拍基准，与主用例同款装配） ──
+        val storeB = FakeGameStateStore().also {
+            it.gameDataValue = snapshot.gameData
+            it.disciplesValue = snapshot.disciples
+        }
+        val (_, rngB, exB) = buildHarness(storeB, snapshot.gameData.rngStates, delegating = false)
+
+        // ── Side A：AUTHORITATIVE 管线 + 反向通道停发（观察窗） ──
+        assertTrue("导入失败", DiffRngBridge.nativeCoreImportState(encoded.encodeToByteArray()))
+        val storeA = FakeGameStateStore().also {
+            it.gameDataValue = snapshot.gameData
+            it.disciplesValue = snapshot.disciples
+        }
+        var sentEnvelopes = 0
+        val syncA = StateSyncService(storeA) { sentEnvelopes++; true }
+        val (_, _, exA) = buildHarness(storeA, snapshot.gameData.rngStates, delegating = true)
+        val closedWriteBaseline = ReverseChannelPolicy.closedWriteCountSnapshot()
+        ReverseChannelPolicy.setReverseTransportEnabled(false)
+        try {
+            runTest {
+                repeat(TICKS) { tick ->
+                    // Side B 一旬（与主用例同款）
+                    var yearChangedB = false
+                    var monthChangedB = false
+                    storeB.update {
+                        val prevYear = gameData.gameYear
+                        val prevMonth = gameData.gameMonth
+                        advancePhaseBaseline(1)
+                        exB.phase.execute(this)
+                        yearChangedB = gameData.gameYear != prevYear
+                        monthChangedB = gameData.gameMonth != prevMonth
+                    }
+                    runBoundary(exB, storeB, yearChangedB, monthChangedB)
+                    // Side A 一旬（结算 + 前向镜像 + 边界编排同款；步骤⑤照常调用
+                    // applyDirtyToNative——观察窗语义 = 消费窗口 + 构建检测 + 不发送）
+                    val flags = DiffRngBridge.nativeCoreSettlePhase()
+                    val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
+                    val applyResult = syncA.applyDirty(dirty)
+                    assertEquals("镜像失败", false, applyResult == null)
+                    if (flags != 0) {
+                        runNativeBoundary(storeA, syncA, exA, flags)
+                    }
+                    assertTrue(
+                        "观察窗下回导调用必须照常成功（消费窗口不发送，不得触发全量降级）",
+                        syncA.applyDirtyToNative()
+                    )
+                    // 逐旬对拍（每 5 旬一次全量结构，与主用例同款）
+                    if (tick % 5 == 4) {
+                        val actualEl = json.parseToJsonElement(
+                            DiffRngBridge.nativeCoreExportState().decodeToString()
+                        )
+                        val expectedEl = json.encodeToJsonElement(
+                            NativeGameState.serializer(),
+                            NativeGameState(
+                                gameData = storeB.gameDataValue.copy(
+                                    rngStates = rngB.exportStates().toMutableMap()
+                                ),
+                                disciples = storeB.disciplesValue
+                            )
+                        )
+                        try {
+                            assertNodeMatches(expectedEl, actualEl, "$")
+                        } catch (e: AssertionError) {
+                            throw AssertionError("观察窗第 $tick 旬全量结构分歧: ${e.message}", e)
+                        }
+                    }
+                }
+            }
+            // 终态对拍 + 时间线/经济不变量（与主用例同款）
+            val actual = json.parseToJsonElement(
+                DiffRngBridge.nativeCoreExportState().decodeToString()
+            )
+            val expectedEl = json.encodeToJsonElement(NativeGameState.serializer(), NativeGameState(
+                gameData = storeB.gameDataValue.copy(
+                    rngStates = rngB.exportStates().toMutableMap()
+                ),
+                disciples = storeB.disciplesValue
+            ))
+            assertNodeMatches(expectedEl, actual, "$")
+            val gdA = storeA.gameDataValue
+            assertEquals(4, gdA.gameYear)
+            assertEquals(7, gdA.gameMonth)
+            assertEquals(
+                "年俸扣减总额不符",
+                INITIAL_STONES - SALARY_REALM9 * DISCIPLE_COUNT * 3,
+                gdA.spiritStones
+            )
+            assertEquals("年报应恰 3 份", 3, gdA.yearlyReports.size)
+            // 闸门①：零信封发送（传输体积 = 0 可观测）
+            assertEquals("观察窗不得发送任何信封", 0, sentEnvelopes)
+            // 闸门②：关闭域写入检测零命中（禁用不得掩盖漏域写者）
+            assertEquals(
+                "关闭域写入检测零命中",
+                closedWriteBaseline, ReverseChannelPolicy.closedWriteCountSnapshot()
+            )
+        } finally {
+            ReverseChannelPolicy.setReverseTransportEnabled(true)
         }
     }
 

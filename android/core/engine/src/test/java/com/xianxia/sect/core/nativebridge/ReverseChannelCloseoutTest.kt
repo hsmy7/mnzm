@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.After
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -198,5 +199,32 @@ class ReverseChannelCloseoutTest {
             "同一数值的两种输出形式不得被判为越权写入",
             ReverseChannelPolicy.closedWriteCountSnapshot() == 0L
         )
+    }
+
+    @Test
+    fun `observation window - disabled transport sends nothing while capture and detection stay alive`() {
+        // w3-13 阶段 A 观察窗（先禁用后删除，ADR §4）：禁用 = 信封只构建不发送。
+        // 三条窗口不变量：① 零字节到达 C++（信封体积 = 0 可观测）；
+        // ② 关闭域写入检测保持存活（禁用不是掩盖漏域写者）；
+        // ③ 捕获窗口照常消费（防无界累积）。
+        ReverseChannelPolicy.overrideClosedUnitsForTest(listOf(closedField("spiritStones")))
+        ReverseChannelPolicy.setReverseTransportEnabled(false)
+        try {
+            val store = FakeGameStateStore()
+            val sent = mutableListOf<String>()
+            val sync = StateSyncService(store) { sent += it.decodeToString(); true }
+            sync.applySnapshot(NativeGameState(gameData = store.gameDataValue))
+
+            store.update { gameData = gameData.copy(spiritStones = 999, jadeSymbols = 7) }
+            assertTrue("禁用窗下 applyDirtyToNative 必须照常成功（不触发全量降级）", sync.applyDirtyToNative())
+            assertTrue("禁用窗不得发送任何信封（发送体积 = 0）", sent.isEmpty())
+            assertTrue(
+                "关闭域写入检测必须保持存活（禁用不得掩盖漏域写者）",
+                ReverseChannelPolicy.closedWriteCountSnapshot() > 0
+            )
+            assertNull("捕获窗口必须照常消费（防无界累积）", store.consumeReverseDirty())
+        } finally {
+            ReverseChannelPolicy.setReverseTransportEnabled(true)
+        }
     }
 }

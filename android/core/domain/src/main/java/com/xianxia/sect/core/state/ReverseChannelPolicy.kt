@@ -355,4 +355,27 @@ object ReverseChannelPolicy {
 
     /** 诊断记录上限（防无界增长）。 */
     private const val MAX_CLOSED_WRITE_RECORDS = 64
+
+    // === w3-13 阶段 A 观察窗开关（先禁用后删除——ADR reverse-channel-elimination §4） ===
+
+    /**
+     * 反向通道**发送开关**（w3-13 阶段 A 观察窗仪器；默认 `true` = 现状传输）。
+     *
+     * 置 `false` = 通道**停发**：捕获与信封构建照常执行（关闭域写入检测保持存活、
+     * 捕获窗口照常消费防无界累积），但信封**不发送** C++（传输体积 = 0 可观测，
+     * 版本号/锚点/变化检测缓存不推进——与"C++ 未收到任何字节"语义一致）。
+     *
+     * 用途（ADR §4 安全下线五步之"先禁用"）：删除通道前以"禁用态跑完整业务周期 +
+     * 状态指纹零差异 + 关闭域写入检测零命中"实证 AUTHORITATIVE 稳态对通道的
+     * 真实依赖面；观察窗内任何一次命中 ⇒ 重置流程、回滚该域并回到对应下沉批。
+     * 仪器随 `ReverseChannelPolicy` 本体在删除批一并移除。
+     */
+    @Volatile
+    var reverseTransportEnabled: Boolean = true
+        private set
+
+    /** 观察窗开关切换（测试/观察窗实验专用；生产代码不得调用）。 */
+    fun setReverseTransportEnabled(enabled: Boolean) {
+        reverseTransportEnabled = enabled
+    }
 }

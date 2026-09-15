@@ -422,6 +422,19 @@ class StateSyncService @Inject constructor(
         pendingReverseGameDataAnchor = null
         val encoded = envelope.toString().encodeToByteArray()
         val sendStartNanos = if (BuildConfig.DEBUG) System.nanoTime() else 0L
+        // w3-13 阶段 A 观察窗（先禁用后删除）：信封已构建（关闭域写入检测保持
+        // 存活），但**不发送** C++——传输体积 = 0 可观测；版本号/AI 池与锁定集
+        // 缓存/锚点均不推进（与"C++ 未收到任何字节"语义一致）。仪器随删除批移除。
+        if (!ReverseChannelPolicy.reverseTransportEnabled) {
+            if (BuildConfig.DEBUG) {
+                DomainLog.d(
+                    TAG,
+                    "反向通道已禁用（w3-13 观察窗）：本窗口信封 ${encoded.size}B 构建未发送 " +
+                        "removed=${(envelope["removed"] as? JsonObject)?.values?.size ?: 0} 段"
+                )
+            }
+            return true
+        }
         // 双实现并行契约：native 失败降级 false（调用方回退全量）
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         return try {
