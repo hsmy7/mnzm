@@ -3,11 +3,20 @@ package com.xianxia.sect.ui.game.dialogs
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.SectRelationLevel
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+
+/**
+ * 外交文案场景流入口（键规则 = `"diplomacy.<sectId>.<文案种类>"`）：
+ * 同一宗门同一类文案恒定（跨会话一致）；关系值/成功与否等仍按原入参参与
+ * 变体选择。键含场景实例身份（键纪律见 PresentationRandom KDoc）。
+ */
+private fun WorldMapInteractionViewModel.diplomacyScene(sectId: String, kind: String): PresentationRandom =
+    presentationRandom.scene("diplomacy.$sectId.$kind")
 
 
 /** 送礼聊天流程（SectDiplomacyDialog 拆分，原 onGiftTierClick 内联逻辑） */
@@ -21,14 +30,18 @@ internal suspend fun performGiftFlow(
     val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
         interactionViewModel.performGiftSpiritStones(sectId, tier)
     }
-    val playerGiftText = buildPlayerGiftText(sectName, tier, interactionViewModel.presentationRandom)
+    val playerGiftText = buildPlayerGiftText(
+        sectName, tier, interactionViewModel.diplomacyScene(sectId, "gift.player")
+    )
     if (result != null) {
         val aiResponseText = if (result.success) {
-            getGiftAiAcceptText(relationLevel, interactionViewModel.presentationRandom)
+            getGiftAiAcceptText(relationLevel, interactionViewModel.diplomacyScene(sectId, "gift.aiAccept"))
         } else {
-            getGiftAiRejectText(relationLevel, interactionViewModel.presentationRandom)
+            getGiftAiRejectText(relationLevel, interactionViewModel.diplomacyScene(sectId, "gift.aiReject"))
         }
-        val playerReplyText = buildPlayerReplyText(result.success, interactionViewModel.presentationRandom)
+        val playerReplyText = buildPlayerReplyText(
+            result.success, interactionViewModel.diplomacyScene(sectId, "gift.reply")
+        )
         return listOf(
             ChatMessage(text = playerGiftText, isPlayer = true),
             ChatMessage(text = aiResponseText, isPlayer = false),
@@ -117,10 +130,14 @@ internal suspend fun performVassalFlow(
         interactionViewModel.requestVassalContract(sect.id)
     }
     val aiText = getVassalAiResponseText(favor, success)
-    val playerReply = buildPlayerVassalReplyText(success, interactionViewModel.presentationRandom)
+    val playerReply = buildPlayerVassalReplyText(
+        success, interactionViewModel.diplomacyScene(sect.id, "vassal.reply")
+    )
     return listOf(
         ChatMessage(
-            text = buildPlayerVassalRequestText(sect.name, interactionViewModel.presentationRandom),
+            text = buildPlayerVassalRequestText(
+                sect.name, interactionViewModel.diplomacyScene(sect.id, "vassal.request")
+            ),
             isPlayer = true
         ),
         ChatMessage(text = aiText, isPlayer = false),
@@ -137,8 +154,16 @@ internal suspend fun performDissolveVassalFlow(
         interactionViewModel.dissolveVassalContract(sectId)
     }
     return listOf(
-        ChatMessage(text = buildPlayerVassalDissolveText(interactionViewModel.presentationRandom), isPlayer = true),
-        ChatMessage(text = getVassalAiDissolveText(interactionViewModel.presentationRandom), isPlayer = false),
+        ChatMessage(
+            text = buildPlayerVassalDissolveText(
+                interactionViewModel.diplomacyScene(sectId, "vassal.dissolvePlayer")
+            ),
+            isPlayer = true
+        ),
+        ChatMessage(
+            text = getVassalAiDissolveText(interactionViewModel.diplomacyScene(sectId, "vassal.dissolveAi")),
+            isPlayer = false
+        ),
         ChatMessage(text = "好自为之。", isPlayer = true)
     )
 }

@@ -30,6 +30,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.RunState
+import com.xianxia.sect.core.util.PresentationRandom
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -126,7 +127,8 @@ class BootSequenceControllerTest {
             gameEngineCore = gameEngineCore,
             gameEngine = gameEngine,
             buildingConfigService = buildingConfigService,
-            mailService = mailService
+            mailService = mailService,
+            presentationRandom = PresentationRandom()
         )
     }
 

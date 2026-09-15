@@ -23,9 +23,23 @@ import javax.inject.Singleton
  * - **不写入 = 表现类** → 用本类
  *
  * ## 不落盘（已登记的产品口径）
- * 种子由 `mapSeed` 派生（同会话内可复现），**不入存档**——`R3` 明确定义该类不落盘。
- * 推论：同一存档重进游戏后文案可能不同。若未来要求"跨会话表现完全一致"，
- * 须先拍板改为入档（会新增协议面），见 ADR §11 盲区 5 的登记。
+ * 种子 = **存档 `mapSeed` × 场景键** 派生（`BootSequenceController` 在
+ * `generateMapPreloadData` 处接线播种——新档/读档的唯一汇合点，一处接线
+ * 覆盖两端），**不入存档**——`R3` 明确定义该类不落盘。
+ * ⇒ 同一存档 + 同一场景实例 ⇒ 每次进入结果恒定（**跨会话一致**）；
+ *   不同场景实例之间保留多样性；零协议面、不污染决策流。
+ *
+ * ## 两种取用方式（新增消费点前必读）
+ * 1. **共享根流**（DI 单例直用）：适合"持续变化更好"的装饰/动画
+ *    （云层 `CloudLayerAnimator` 等刻意不用本类、走 config 维度固定种子）；
+ *    缺点：抽到什么取决于"玩家点过哪些界面"（90+ 消费点共流的时序耦合）。
+ * 2. **场景流 `scene(key)`（推荐）**：返回**独立实例**，序列只由
+ *    `(worldSeed, key)` 决定——同键恒定、异键无关、与根流零竞争。
+ *    键**必须含场景实例身份**（如弟子 id / 参战者 id / 宗门 id）：
+ *    全部调用共用同一常量键 ⇒ 每次同一结果、**表现多样性归零**
+ *    （比"重进会变"更糟；常量键仅限"本就该固定轮播"的场景，如加载提示）。
+ *    哈希用 [fnv1a64]（FNV-1a 64，跨平台契约）——**禁用 `String.hashCode()`**
+ *    （JVM 实现约定，KMP/Native 侧取值可能不同）。
  *
  * ## 线程
  * UI 层（Compose 组合/对话框）与引擎层都会调用——内部
@@ -38,8 +52,18 @@ class PresentationRandom @Inject constructor() {
     @Volatile
     private var rng: DeterministicRng = DeterministicRng.fromSeed(DEFAULT_SEED)
 
+    /** 世界种子（场景派生基底；播种前为 [DEFAULT_SEED] 兜底） */
+    @Volatile
+    private var worldSeed: Long = DEFAULT_SEED
+
+    /** 场景流专用：种子即派生结果（委托主构造完成 DI 面初始化后覆盖流） */
+    private constructor(rngSeed: Long) : this() {
+        rng = DeterministicRng.fromSeed(rngSeed)
+    }
+
     /**
-     * 以世界种子播种表现流（新档/读档时调用）。
+     * 以世界种子播种表现流（`BootSequenceController.generateMapPreloadData`
+     * 在新档/读档时调用——全仓唯一接线点，守卫测试锁死其存在）。
      *
      * 派生式 `mapSeed xor SALT`：与决策分区同源但**不同序列**——即使
      * `mapSeed` 与某分区种子巧合相同，salt 保证两条流不重合。
@@ -47,8 +71,21 @@ class PresentationRandom @Inject constructor() {
      * @param mapSeed 世界种子（`GameData.mapSeed`，可为负数）
      */
     fun seedFromWorld(mapSeed: Long) {
+        worldSeed = mapSeed
         rng = DeterministicRng.fromSeed(mapSeed xor PRESENTATION_SALT)
     }
+
+    /**
+     * 派生**场景流**：独立实例，序列由 `(worldSeed, key)` 唯一决定。
+     *
+     * - 同键 ⇒ 两次取用序列逐位相同（跨会话一致）
+     * - 异键 ⇒ 序列不同（键参与哈希）
+     * - 与根实例互不影响（各抽各的，零时序耦合）
+     *
+     * 键纪律见类 KDoc"两种取用方式"。
+     */
+    fun scene(key: String): PresentationRandom =
+        PresentationRandom(worldSeed xor PRESENTATION_SALT xor fnv1a64(key))
 
     /** `[0, bound)` 均匀整数（bound <= 0 时返回 0，防调用方传入空池尺寸） */
     fun nextInt(bound: Int): Int = if (bound <= 0) 0 else rng.nextInt(bound)
@@ -108,7 +145,24 @@ class PresentationRandom @Inject constructor() {
         /** 表现流派生 salt（改此值会改变全部表现文案的选择序列，属表现面变更） */
         const val PRESENTATION_SALT = -0x5EED_5EED_5EED_5EEDL
 
-        /** 引擎播种前的兜底种子（固定值——表现类不要求跨会话一致，但要求确定性可测） */
+        /** 引擎播种前的兜底种子（固定值——场景键派生同样要求确定性可测） */
         const val DEFAULT_SEED = -7046029254386353131L
     }
+}
+
+/**
+ * FNV-1a 64 位哈希（场景键派生专用，`internal` 以便锚点测试直测）。
+ *
+ * 跨平台契约：字节序取 `encodeToByteArray()`（UTF-8）、basis `0xcbf29ce484222325`、
+ * prime `0x100000001b3`——iOS（KMP/Native）侧实现必须复现同一取值，
+ * `PresentationRandomSceneTest` 以字面量期望值锁死（跨平台回归锚点）。
+ * **禁用 `String.hashCode()`**：JVM 实现约定而非跨平台契约。
+ */
+internal fun fnv1a64(key: String): Long {
+    var hash = -0x340d631b7bdddcdbL // FNV-1a 64 offset basis (0xcbf29ce484222325)
+    for (b in key.encodeToByteArray()) {
+        hash = hash xor (b.toLong() and 0xFF)
+        hash *= 0x100000001b3L
+    }
+    return hash
 }

@@ -69,6 +69,9 @@ class GiftService @Inject constructor(
      * 表现随机源（ADR R3）——送礼反馈文案（接受/拒绝措辞）是纯表现，
      * 走独立表现流：原先 `SectResponseTexts` 内部用 `responses.random()`
      *（`Random.Default`，进程启动随机、不入档）属未受治理的第二类入口。
+     * 文案抽取经 `scene("favor.<sectId>.gift.<结果>")` 场景流派生：
+     * 同一宗门同一结果文案恒定（跨会话一致）；**native 臂与 Kotlin 臂同键**
+     * ⇒ flag 开关两侧文案一致。
      */
     private val presentationRandom: PresentationRandom
 ) {
@@ -76,6 +79,11 @@ class GiftService @Inject constructor(
     private val gameEngineCore: GameEngineCore? get() = gameEngineCoreProvider?.get()
 
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
+
+    /** 送礼回应文案场景流（键含宗门 id + 结果种类——键纪律见 PresentationRandom KDoc） */
+    private fun giftScene(sectId: String, kind: String): PresentationRandom =
+        presentationRandom.scene("favor.$sectId.gift.$kind")
+
     companion object {
         private const val TAG = "GiftService"
     }
@@ -118,7 +126,7 @@ class GiftService @Inject constructor(
                 responseType = "rejected",
                 message = SectResponseTexts.getRejectResponse(
                     ready.sect.level, "spirit_stones", ready.tierConfig.name,
-                    presentationRandom.asKotlinRandom()
+                    giftScene(sectId, "rejected").asKotlinRandom()
                 )
             )
         }
@@ -160,7 +168,7 @@ class GiftService @Inject constructor(
             responseType = "accept",
             message = SectResponseTexts.getAcceptResponse(
                 ready.sect.level, "spirit_stones", ready.tierConfig.name, favor.favorIncrease,
-                presentationRandom.asKotlinRandom()
+                giftScene(sectId, "accept").asKotlinRandom()
             )
         )
     }
@@ -370,7 +378,7 @@ class GiftService @Inject constructor(
                     message = SectResponseTexts.getAcceptResponse(
                         data.long("sectLevel")?.toInt() ?: 0,
                         "spirit_stones", tierName, favorChange,
-                        presentationRandom.asKotlinRandom()
+                        giftScene(sectId, "accept").asKotlinRandom()
                     )
                 )
             }
@@ -381,7 +389,7 @@ class GiftService @Inject constructor(
                 message = SectResponseTexts.getRejectResponse(
                     data.long("sectLevel")?.toInt() ?: 0,
                     "spirit_stones", tierName,
-                    presentationRandom.asKotlinRandom()
+                    giftScene(sectId, "rejected").asKotlinRandom()
                 )
             )
             "failed" -> GiftResult(

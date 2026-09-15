@@ -12,6 +12,7 @@ import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.PresentationRandom
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -44,7 +45,8 @@ class BootSequenceController @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     private val gameEngine: GameEngine,
     private val buildingConfigService: BuildingConfigService,
-    private val mailService: MailService
+    private val mailService: MailService,
+    private val presentationRandom: PresentationRandom
 ) {
     companion object {
         private const val TAG = "BootSequence"
@@ -409,6 +411,9 @@ class BootSequenceController @Inject constructor(
         val worldWidthCells = com.xianxia.sect.core.GameConfig.SectMap.WORLD_WIDTH_CELLS
         val worldHeightCells = com.xianxia.sect.core.GameConfig.SectMap.WORLD_HEIGHT_CELLS
         val mapSeed = gameEngine.gameData.value?.mapSeed ?: 0
+        // 表现流播种（W4 §2.B）：boot 是新档/读档的唯一汇合点 ⇒ 一处接线即
+        // 两端覆盖；此后 scene(key) 场景流 = 同存档同场景恒定（跨会话一致）
+        if (mapSeed != 0) presentationRandom.seedFromWorld(mapSeed.toLong())
 
         // 地图冻结（WS-5b）：**存的地形恒优先**——已回填的权威地形段直接采用
         //（跨版本冻结，不重算）；无段（新档/老档未回填）才走生成路径，并经

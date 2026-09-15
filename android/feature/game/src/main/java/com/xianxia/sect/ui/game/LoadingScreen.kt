@@ -160,8 +160,10 @@ private fun BoxScope.LoadingProgressPanel(
 private fun LoadingTipSection() {
     // 表现随机源（ADR R3）：提示轮播是纯表现，走独立表现流——
     // 原 `LoadingTips.randomTip()` 内部用 `tips.random()`（`Random.Default`，
-    // 进程启动随机、不入档）属未受治理的第二类入口（R1/R5）
-    val presentationRandom = remember { PresentationRandom() }
+    // 进程启动随机、不入档）属未受治理的第二类入口（R1/R5）。
+    // 场景键为常量是**刻意的**（W4 §2.B 键表）：提示本就该固定轮播——
+    // 每次进入轮播序列一致（跨会话一致）
+    val presentationRandom = remember { PresentationRandom().scene("loading.tip") }
     // 游戏玩法提示（每2秒轮换）
     var currentTip by remember { mutableStateOf(LoadingTips.randomTip(presentationRandom)) }
     LaunchedEffect(presentationRandom) {

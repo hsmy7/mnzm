@@ -318,8 +318,12 @@ fun DiscipleChatDialog(
     var isChatDone by remember { mutableStateOf(false) }
     var currentNode by remember { mutableStateOf<ConversationNode?>(null) }
     var currentEffectAnnotated by remember { mutableStateOf(AnnotatedString("")) }
-    // 表现类流（文本变体，不落盘——LoadingScreen 同款 UI 位实例化）
-    val presentationRandom = remember { PresentationRandom().asKotlinRandom() }
+    // 表现类流（文本变体，不落盘）——按 场景键 = 弟子 id + 游戏年 派生：
+    // 同年重进同一套台词（跨会话一致），跨年换新（保留多样性）。
+    // 键含场景实例身份（键纪律见 PresentationRandom KDoc）
+    val presentationRandom = remember(disciple.id, gameYear) {
+        PresentationRandom().scene("chat.${disciple.id}.$gameYear").asKotlinRandom()
+    }
     val scope = rememberCoroutineScope()
     val engine = viewModel?.disciple?.gameEngine
 

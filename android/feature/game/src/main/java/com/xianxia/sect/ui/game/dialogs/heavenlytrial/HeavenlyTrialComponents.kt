@@ -177,7 +177,8 @@ private fun CombatUnitCellContent(
  * @param random 表现类随机源（[PresentationRandom]）——三支中"无立绘"分支按性别随机
  *               取一张肖像；该抽取**不写任何状态**（纯立绘选择），故走表现流而非
  *               决策分区（此前经已删除的 `GameRandom` 直连全局随机，且位于 UI 层，
- *               属架构违规）。
+ *               属架构违规）。抽取经 `scene("trial.portrait.<id>")` 场景流派生：
+ *               **同一参战者永远同一张立绘**（跨会话一致，不再"退出重进换一张"）。
  */
 @Composable
 internal fun CombatantPortrait(combatant: Combatant, random: PresentationRandom, size: Int = 44) {
@@ -192,9 +193,11 @@ internal fun CombatantPortrait(combatant: Combatant, random: PresentationRandom,
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }
             else -> {
+                // 场景键含参战者身份：他就是他（键纪律见 PresentationRandom KDoc）
+                val sceneRandom = random.scene("trial.portrait.${combatant.id}")
                 val randomPortrait = PortraitPool.getRandomPortrait(
-                    if (random.nextBoolean()) "male" else "female",
-                    random.boundPicker()
+                    if (sceneRandom.nextBoolean()) "male" else "female",
+                    sceneRandom.boundPicker()
                 )
                 PortraitPool.getResourceId(randomPortrait).takeIf { it != 0 }
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
