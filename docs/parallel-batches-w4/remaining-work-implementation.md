@@ -58,7 +58,7 @@ E 非并行轨：真机验证（需设备）｜WS-4（需玩法文档）｜WS-1 
 
 | 序 | 补充执行细节（方案 §8 之外的操作性内容） |
 |---|---|
-| D1 | 埋点只进 **debug 构建**：用 `if (BuildConfig.DEBUG)` 或 `DomainLog.d` 级别门控；采集项 = ① 反向信封**体积**（分段：gameData / 弟子通道 / 各集合段）② 信封构建**耗时**③ 每旬镜像分段耗时（`GameEngineCoreAuthoritativeOps.kt:50-83`）。**验收**：release APK 反编译无埋点字符串；debug 构建 logcat 可见三类数值。**用途**：D4 前采"关闭前基线"，且为本文件 §2.E 的 WS-1 阈值提供真机数据 |
+| D1 | **✅ 已实施（2026-09-15，见 handover §2.72，tag `w4-rem/02`）**：两文件 `BuildConfig.DEBUG` 门控落地——`StateSyncService`（`logReverseEnvelopeProfile`：信封总体积 + 分段体积 + 构建/发送耗时）与 `GameEngineCoreAuthoritativeOps`（`PhaseSegmentTimer`：baseline/settle/mirror.inc·full/breakthrough/boundary/reverse，µs 精度每旬一行）。**release 无埋点已实证**（`assembleRelease` 后 4 DEX 字符串扫描零命中 + debug 产物对照命中）；engine 全量 3303/303/0/0 基线持平。真机 logcat 采样归 §2.E 非并行轨 |
 | D2 | 扇出项**逐条**判定（状态写 → C++；通知/日志 → Kotlin）；引导领奖 `GameEngineGuideOps.claimGuideReward`（`:57`）下沉；兑换码 `RedeemCodeService`（`:153/:402`）**登记不下沉**（C++ 无物品随机生成器，RNG 红线）；**同批**清理 §2.3 冻结的 6 个宿主文件族的调用点（这是它们解冻的唯一时机） |
 | D3 | ① 把 harness 的 AUTHORITATIVE 管线由"Kotlin 月/年完整编排"改为"C++ 月结 + Kotlin 残差"；② **重评** 4 个被覆写字段（`spiritMineLastSettledMonth` / `annualAlchemyCount` / `availableMissions` / `yearlyReports`）的关闭结论；③ **并入项（2026-09-15 拍板）**：见下方"D3 并入项" |
 | D4 | 严格按 ADR §4 五步：**先禁用（信封体积=0 但代码在）→ 跑完整业务周期（≥1 游戏年 + 离线结算 + 跨旬月 + 存档写读，期间关闭域写入检测零命中）→ 状态指纹零差异（同档同输入 ≥100 旬）→ 删前打归档 tag → 再删除**。删除面/保留面见 §8；**防复发**：镜像只读契约（结构性/编译期优先）+ "稳态零写入断言"进长期 CI |
