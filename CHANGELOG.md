@@ -1,6 +1,15 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 w3-13 反向通道删除（终局）：阶段 A+B 观察窗交付 + 删除步阻断判定（§2.75）
+
+> 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链第四项 D4，按 [ADR reverse-channel-elimination](docs/adr/reverse-channel-elimination.md) §4 安全下线五步推进。**零生产行为变更（传输默认照常、开关默认开启）、零协议面、零 ActionId 变更、零 C++ 改动、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
+
+- **阶段 A 观察窗仪器（"先禁用"——信封体积 = 0 但代码在）**：`ReverseChannelPolicy` 新增 `reverseTransportEnabled` 停发开关（默认 `true` = 现状传输）；`StateSyncService.sendReverseEnvelope` 停发分支——信封照常构建（关闭域写入检测保持存活，禁用不得掩盖漏域写者），但不发送 C++（传输体积 = 0 可观测）；版本号/变化检测缓存/反向锚点不推进，捕获窗口照常消费（防无界累积）。
+- **阶段 B 观察窗验证（仪器进 CI，可复跑）**：`DiffAuthoritativeTickTest` 新增 100 旬停发对拍用例（与主对拍同场景）——三闸门全绿：① 零信封发送；② 关闭域写入检测零命中；③ 终态全量结构对拍逐位一致 + 时间线/年俸/年报不变量保持。`ReverseChannelCloseoutTest` 新增窗口语义单元用例（零发送 + 检测存活 + 窗口消费）。
+- **删除步判定 = 阻断（诚实口径）**：硬前置"关闭清单 = 全部传输单元"不成立（在册保留字段 + 弟子通道 + 9 类集合 + `aiSectDisciples` 段仍开放）；AUTHORITATIVE 稳态 Kotlin 写者实测在位——交谈效果（`DiscipleDelegate.applyConversationEffects`，弟子行直改无 native 臂）、任务派遣/完成（`startMission` 等，`activeMissions` 与 C++ 月结子事件 13 冲突）、存档前自愈（`regenerateSectsBeforeSave`，`worldMapSects`/`aiSectDisciples` 冲突）；守卫红线（弟子通道与 `aiSectDisciples` 段必须保持传输）仍在位。按五步规程"观察窗内任何意外活动即重置流程"处置，逐写者完成路径登记 handover §2.75④（交谈写面下沉 1860–1869 预留段 / 任务域 native 臂 / 自愈后全量重建基线 / retained 字段逐域判定），收口后重启五步④（归档 tag）→ ⑤（删除）。
+- **门禁**：桌面 C++ 全量豁免（零 C++ 改动）｜`:core:engine` **3307/304 类/0 失败/0 跳过**（基线 3305 + 2；47 `Diff*` 全绿含停发用例）｜`:core:domain` **1758/0**｜六模块 detekt 全绿｜主源 + 测试源编译绿｜NDK + lint 豁免（零 C++/资源/Manifest 改动）｜生成物零漂移（196 动作 / maxId=1843）。
+
 ### W4-D/D3 harness 对齐生产：`DiffAuthoritativeTickTest` 管线对齐 + 地形 2 字段退出对拍排除面 + 4 字段关闭重评（§2.74）
 
 > 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链第三项 D3（前置 D1/D2 已交付）。**测试面 + 反向通道传输面收口——零生产 Kotlin 改动、零协议面、零 ActionId 变更、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（§2.72/§2.73 同款口径）。

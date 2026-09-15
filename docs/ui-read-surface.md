@@ -279,6 +279,11 @@ C++）。
 | 巡逻/矿场 | （W4-B retained：`spiritMineLastSettledMonth`） | **转入关闭（W4-D 分片）**——月结水位由 C++ 月结灵矿步无条件推进；Kotlin 残余 = `CultivationSettlement.kt:485` 回退臂 + `GameEngineLoadDataOps.kt:245/:295/:363` 读档/新档归一化 + `SectPolicyToggleUseCase.kt:230` 回退臂（native 臂 `GOV_SPIRIT_MINE_BOOST_TOGGLE_TX=1682` 在位） | §2.74 |
 | 对拍面 | `DiffSurfaceAssertion.kt:76-77` 地形 2 字段对拍排除 | **排除面删除**——harness 补生产同款 boot 回填（`mapSeed` 非零 + `SectTerrainBridge` 生成落段，导入 C++ 前落段 ⇒ "存的地形恒优先"两端同段）；`terrainTiles`/`mapGenVersion` 按普通字段参与全状态对拍（键存在性 + 内容逐位）；空世界兜底分支（worldMapSects 空，生产不可达）双臂招募差异登记不展开，harness 以 `lastRecruitYear=4` 置满差值门规避 | §2.74 |
 
+**滚动更新（2026-09-15，W4-D/D4 阶段 A+B 观察窗）**——本批**未消除写者站点**，交付的是 w3-13 删除批的阶段 A 仪器与判定：
+
+- **观察窗仪器进 CI**：`ReverseChannelPolicy.reverseTransportEnabled` 停发开关（默认 `true` = 现状传输）+ `StateSyncService.sendReverseEnvelope` 停发分支（信封照常构建以保持关闭域写入检测存活，不发送 C++，版本/锚点/缓存不推进，窗口照常消费）；`DiffAuthoritativeTickTest` 新增 100 旬停发对拍用例（零信封发送 + 关闭域写入检测零命中 + 终态全量对拍逐位一致，全绿）——ADR §4"先禁用 + 完整业务周期 + 指纹零差异"三步自此可复跑。
+- **删除步判定 = 阻断**：硬前置"关闭清单 = 全部传输单元"不成立（在册保留字段 + 弟子通道 + 9 类集合 + `aiSectDisciples` 段仍开放）；AUTHORITATIVE 稳态 Kotlin 写者实测在位——交谈效果（`DiscipleDelegate.kt:238` → `GameEngineCoordination.kt:99`）、任务派遣/完成（`GameEngineMissionOps.kt:26/:44`）、存档前自愈（`SaveFacadeImpl.kt:56`）等；守卫红线（弟子通道与 `aiSectDisciples` 段必须保持传输）仍在位。逐写者完成路径见 handover §2.75④——写者收口后重启五步④（归档 tag）→ ⑤（删除）。
+
 **新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
 
 - **双端同源闸门**——捕获侧（`GameStateStoreImpl.captureReverseDirty`：弟子通道 + 集合段停载荷构造）与信封侧
