@@ -271,6 +271,9 @@ C++）。
 | 战斗 | `CombatService.kt:78`（伤亡残差） | 现为 native 臂：`GameEngineNativeOps.tryExecuteNative(BATTLE_CASUALTY_SETTLE_TX=1780)`；标记/装备/槽位/HP 残差留 Kotlin | §2.64.4 |
 | 战斗/探索 | `WorldBattleOps` / `GameEngineBattleOps` / `ExplorationNativeOps` | 战前结算 1782 + 胜利发奖 1781 下沉；秘境换岗 1800 / 到期兜底 1801 下沉 | §2.64.4 |
 | 月年编排 | （W4-A A4 生产残差核对） | **零代码改动**：续炼链已 C++ 直辖；"对齐窗口"删除登记 W4-D | §2.62.4 |
+| 月年编排 | `GameEngineGuideOps.kt:57` claimGuideReward（引导领奖，无 native 臂） | 已下沉：`GUIDE_REWARD_CLAIM_TX=1830`（`guide_reward_tx.h`——25 任务注册表/9 类条件求值/可行性预检/SYSTEM 2×nextLong UUID 复刻/凭据溢出抑制）；`guideClaimedRewardIds` 转入关闭（W4-D 分片）；Kotlin 残余 = 回退臂-only；UI 奖励卡片两臂同形 | §2.73 |
+| 月年编排 | `GameEngineCoreMonthOps.kt:90` / `YearOps.kt:126` 残留执行器 | 逐条判定收口：purchaseLogs/丧亲 = lifeEvents 瞬态列（@Ignore 非协议）⇒ Kotlin 日志；秘境关闭邮件 = DAO 通知；死亡链袋物化 = 平台效应链（openStorageBag 逐件入库仍为两臂共用稳态写者 ⇒ 物化下沉无关闭收益，不迁）；兑换码 `RedeemCodeService.kt:153/:402` 登记不下沉（RNG 红线） | §2.73 |
+| 月年编排 | 附庸年贡/附属年贡/月度脱离（B4 转入项） | 实裁：C++ 逻辑已在位（`year_settlement.h` T1 #1/#2 + `month_settlement.h` 子事件 12，AUTHORITATIVE 原生执行）；Kotlin 调用点（`CultivationEventMonthlyOps.kt:73/:105/:125/:126`）保留为 flag-OFF 回退臂——开臂即双重扣贡/抽取 ⇒ 不占号 | §2.73 |
 
 **新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
 

@@ -951,21 +951,50 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **遗留**: 真机 logcat 采样（debug 构建）属非并行轨（需物理设备），本批交付埋点面本身；`version.properties` 递增由用户决定。
 
+## 2.73 W4-D/D2 w3-11 月年编排残差（2026-09-15，tag `w4-rem/03`）：引导领奖事务下沉 + 宿主族解冻核对 + 扇出项逐条判定收口
+
+批次: [W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md) §0 序 D2（串行链第二项） | ActionId: **1830 `GUIDE_REWARD_CLAIM_TX`**（段 1830–1839，`w4d.mjs` 新建——W4-D 作为串行收口波对并行切分结构的一次性延续：`gen-action-ids.mjs` 加 import、`dispatch_w4d.cpp` 第四端口 + execute_dispatch 一行接线、`w4d_tests.cmake` + include、`build-desktop-jni.ps1` 源清单，与 W4-00 建立的四件套模式同构） | 生成物 **195 → 196 动作 / maxId=1843 不变**
+
+**引导领奖下沉（`guide_reward_tx.h` 新建 + `GameEngineGuideOps.claimGuideReward` native 臂）**:
+- 承接写者: `claimGuideReward`（batch-18a 审计登记"Kotlin 注册表不可复刻"⇒ W4 派工判下沉；本批实测推翻该判定——`GuideTaskRegistry` 的 25 任务条件全部为**结构化数据谓词**（9 类条件，`DiscipleReachRealm` 未被任何任务引用），可逐字复刻）。C++ `registry()` 逐条复刻 25 任务/条件 + `claimGuideRewardTx` 判定序 = 任务存在 → 未领取 → 条件全满足 → **可行性预检（干跑真实 StackableItemStore 决策）** → SYSTEM 2×nextLong 造 id → `addStorageBag`（凭据溢出抑制，与 Kotlin `withOverflowMailSuppressed` 同语义）→ 标记已领取；UI 奖励卡片为 Kotlin 平台效应两臂同形。
+- 🔴 **抽取序四象限对齐（B3 通道预检同款）**: 校验链失败/仓库满路径 C++ **零抽取**即失败信封 ⇒ Kotlin 回退臂重跑时同样只消耗 2×nextLong 后失败；成功路径 C++ 恰 2×nextLong——四象限（成功/失败 × flag ON/OFF）抽取增量恒 **+2**，与 flag-OFF 基线逐位一致。UUID 格式 = Java `UUID(msb,lsb).toString()` 原始位型复刻（`formatUuid`，GTest 字面量锚点锁定；两侧 `nextLong()` 均为非负 ⇒ 符号位恒 0）。
+- 失败码: `UNKNOWN_TASK` / `ALREADY_CLAIMED` / `CONDITIONS_NOT_MET` / `STORAGE_FULL`（零写入）。
+
+**扇出项逐条判定（ADR w3-11 定式"状态写→C++；通知/日志→Kotlin"的收口结论，证据回写 `W4DChannelClosures.kt` + [ui-read-surface §4.4](ui-read-surface.md)）**:
+| 扇出项 | 判定 |
+|---|---|
+| 月残留: purchaseLogs / 丧亲 | lifeEvents 瞬态列（`@Ignore` 非协议字段，DiscipleSerializer.kt:28）⇒ **Kotlin 日志，零协议面** |
+| 月残留: 秘境关闭邮件 | MailService DAO ⇒ **Kotlin 通知** |
+| 年残留: 死亡链袋物化 | **平台效应链，不迁**——`openStorageBag` 逐件入库（InventoryFacadeImpl.kt:678）仍为两臂共用 Kotlin 稳态写者 ⇒ 仓库集合传输面本就不可关，物化下沉对关闭**无收益**（诚实口径：非"不能"而是"无关闭收益"） |
+| 兑换码 `RedeemCodeService.kt:153/:402` | **登记不下沉**（C++ 无物品随机生成器，RNG 红线，§2.50/B3 同先例；`usedRedeemCodes` 保持 retained） |
+| 附庸年贡/附属年贡/月度脱离（B4 转入项实裁） | **C++ 逻辑已在位**（`year_settlement.h` detail::processYearlyTribute/processYearlyVassalTribute + `month_settlement.h` 子事件 12 processVassalBreakaway，AUTHORITATIVE 原生执行）⇒ 开 native 臂即**双重扣贡/双重抽取**；Kotlin 调用点（`CultivationEventMonthlyOps.kt:73/:105/:125/:126`）保留为 flag-OFF 回退臂，**不占号** |
+| partnerMatching (#14) / aiAlliances (#17) | 双侧均为**空扩展点**（`DiplomacyEventProcessor.kt:60/:65` 自述"尚未实现"）⇒ 年结平价成立，无需处理 |
+
+**宿主族解冻核对（§2.3 六文件冻结的唯一解除时机）**: C++ `runMonthSettlement` **16 子事件全量在位**（`month_settlement.h:1012` 起，含 6b/6c 征伐与防守）+ `runYearSettlement` **T1 全部 11 项 + T2 主要子项**（`year_settlement.h:1805` 起）——Kotlin 完整编排（`processMonthlyEvents`/`processYearlyEvents`）自此为**纯 flag-OFF 回退臂 + DiffAuthoritativeTickTest 测试超集**（后者留 D3 对齐）。6 个宿主文件的扇出调用点核对**零死调用点**（全部为回退臂/live 管线组成部分）；同批修正三处 KDoc 陈旧扇出描述（`GameEngineCoreMonthOps.kt`/"生产结算+战斗三件"、`GameEngineCoreYearOps.kt`/"招募生成④+AI招募②+商人收购③+交易刷新④"、`GameEngineCore.kt` 两执行器 KDoc——S4/W4 时代遗留）。`missionCheck` 回调核对：AUTHORITATIVE 下 C++ 子事件 5 已结算 ⇒ 该回调为防御性 no-op，保留（回退臂活路）。
+
+**关闭动作（w3 §2 第 5 步）**: `guideClaimedRewardIds` 由 W4-B retained 转入 **W4-D closedUnits（BOUNDARY 域首个关闭单元）**；`ReverseChannelPolicyGuardTest` 6 用例绿（穷尽分类/域结论/证据格式守卫全过）。BOUNDARY 域自 OPEN → **PARTIAL**（关闭 1 单元 + retained 余量：引导计数器三写者已随 batch-18a native 化但 `usedRedeemCodes` 等仍在册）。
+
+**测试**: 新 GTest `guide_reward_tx_test.cpp`（**10 用例**: 成功路径标记+发放+抽取推进 / UNKNOWN_TASK·ALREADY_CLAIMED·CONDITIONS_NOT_MET·STORAGE_FULL 四失败码零写入零抽取 / 建造计数 max(累计,存量) 语义 / 长老·集合槽位条件门 / 注册表形状锚点 25 任务 / UUID 字面量锚点 / INVALID_PARAMS 信封面）；新 Kotlin `GuideRewardNativeTxGateTest`（2 用例: flag OFF vs AUTHORITATIVE 降级等价 + 条件不满足两臂均不领取）。
+
+**门禁实跑**: 桌面 C++ **1417/1417**（基线 1407 + 本批 10；含单进程直跑复核）｜`:core:engine` **3305 / 304 类 / 0 失败 / 0 跳过**（= §2.72 基线 3303 + 2；47 个 `Diff*` 对拍全绿，JNI 指向本树 desktop-jni 重建产物）｜`:core:domain` **1758/0**（守卫套件含）｜六模块 detekt 全绿｜主源 + 测试源编译绿｜`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿｜生成器幂等 + 生成物 `git diff --exit-code` 空（196 动作 / maxId=1843）。
+
+**遗留**: D3（harness 对齐 + 地形 2 字段退出排除面 + 4 字段重评）为串行链下一项；`w4-rem/03` tag + bundle 已落盘。
+
 
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.71 天枢殿迁移下线后）**：
+**当前门禁基线（2026-09-15，§2.73 W4-D/D2 引导领奖下沉后）**：
 
 | 验证 | 结果 |
 |---|---|
-| 桌面 C++ 全量单测 | **1407/1407 全绿**（§2.68 实跑；§2.69 零 C++ 改动未复跑）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3303 用例 / 303 类 / 0 失败 / 0 错误 / 0 跳过**（§2.71 复跑；含 47 个 `Diff*` 对拍全绿；= 3313 − §2.71 天枢殿迁移用例 10） |
+| 桌面 C++ 全量单测 | **1417/1417 全绿**（§2.73 实跑 = §2.68 基线 1407 + 引导领奖事务 10 用例；含单进程直跑复核）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 引擎全量单测 `:core:engine` | **3305 用例 / 304 类 / 0 失败 / 0 错误 / 0 跳过**（§2.73 复跑；= §2.72 基线 3303 + GateTest 2；含 47 个 `Diff*` 对拍全绿） |
 | `:core:domain` 单测 | **1758 用例 / 0 失败**（含 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
 | `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
 | `:feature:game` 单测 | **872 用例 / 0 失败 / 0 错误**（§2.68 复跑；W4-00 表所列 2 例 `EdgeKtxSyncTest` 失败已随并行渲染批落地消除） |
 | `:app` 单测 | **1003 用例 / 0 失败 / 0 错误 / 2 跳过（既有）**（§2.70 复跑；= §2.68 基线 1020 − §2.70 删除的定向邮件用例 17，精确对账） |
 | detekt | ✅ **六模块 `detekt` 全绿，baseline 全 0**（§2.68 复跑；新增唯一违规 `SpreadOperator` 按本仓既有 4 处同款先例以带理由 `@Suppress` 处置，未进 baseline） |
-| 动作计数 | **195 动作，maxId=1843**（`gen-action-ids.mjs` 实跑口径；W4-00 后 169 → 三批 +26 = A 12 + B 9 + C 5）。**1843 = `DIPLOMACY_WARNING_STAGE_TX`** |
+| 动作计数 | **196 动作，maxId=1843**（`gen-action-ids.mjs` 实跑口径；W4-00 后 169 → 三批 +26 = A 12 + B 9 + C 5 → W4-D/D2 +1 = 1830 `GUIDE_REWARD_CLAIM_TX`） |
 | 生成物 | 生成器**幂等**（连跑两次哈希相同）+ `git diff --exit-code` 空 |
 | **NDK arm64** | ✅ **`:app:externalNativeBuildRelease` BUILD SUCCESSFUL（§2.68 实跑，3m03s）** |
 | **lintRelease** | ✅ **`:app:lintRelease` BUILD SUCCESSFUL（§2.68 实跑，6m15s；42 warnings 非阻断 + 3 条走 `lint-baseline.xml` 过滤）** |
@@ -980,6 +1009,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.73 W4-D/D2 引导领奖下沉（09-15）** | **1417/1417**（+10） | **3305 / 304 类 / 0 / 0**（+2） |
 | **§2.71 天枢殿迁移下线 + 死代码清偿（09-15）** | —（零 C++ 改动） | **3303 / 303 类 / 0 / 0**（= 3313 − 10） |
 | **§2.70 邮件系统清理（09-15）** | —（仅注释改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`；`:app` 1020→1003） |
 | **§2.69 W4 ②③ 双项（09-15）** | —（零 C++ 改动） | **3313 / 304 类 / 0 / 0**（47 `Diff*`） |

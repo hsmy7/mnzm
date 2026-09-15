@@ -1,6 +1,17 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D2 w3-11 月年编排残差：引导领奖事务下沉 + 宿主族解冻核对 + 扇出判定收口（§2.73）
+
+> 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链第二项 D2（前置 D1 已交付）。引导领奖为玩家操作面（引导任务页领取奖励），**领取的触发条件、奖励内容与 UI 表现零变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（§2.72 同款口径）；本批变更的是"谁执行这笔发放"（Kotlin → C++ 权威事务）。
+
+- **引导领奖下沉**：新 ActionId **1830 `GUIDE_REWARD_CLAIM_TX`**（段 1830–1839，`w4d.mjs` 新建——W4-D 串行收口波对并行切分结构的一次性延续：生成器 import + `dispatch_w4d.cpp` 第四端口 + `w4d_tests.cmake` + 桌面 JNI 脚本源清单，与 W4-00 四件套模式同构）；新 `guide_reward_tx.h`——`GuideTaskRegistry` 25 任务/9 类条件逐字复刻（batch-18a"Kotlin 注册表不可复刻"判定推翻：条件全为结构化数据谓词）、判定序 = 任务存在→未领取→条件全满足→**可行性预检（干跑）**→SYSTEM 2×nextLong 造 UUID→`addStorageBag` 凭据溢出抑制→标记已领取；`GameEngineGuideOps.claimGuideReward` 加 native 臂（失败信封/降级 → Kotlin 原路径，回退臂语义不变）。🔴 抽取序四象限对齐（成功/失败 × flag ON/OFF 抽取增量恒 +2，B3 通道预检同款）；UI 奖励卡片两臂同形留 Kotlin。
+- **扇出项逐条判定收口（ADR w3-11 定式落地）**：月残留 purchaseLogs/丧亲 = lifeEvents 瞬态列（@Ignore 非协议字段）⇒ Kotlin 日志；秘境关闭邮件 = DAO 通知 ⇒ Kotlin；死亡链袋物化 = 平台效应链不迁（openStorageBag 逐件入库仍为两臂共用稳态写者，物化下沉对通道关闭无收益——诚实口径）；兑换码 `RedeemCodeService` 登记不下沉（RNG 红线）；附庸年贡/附属年贡/月度脱离（B4 转入项）实裁 **C++ 逻辑已在位**（year_settlement.h T1 #1/#2 + month_settlement.h 子事件 12）⇒ 开臂即双重扣贡，不占号，Kotlin 调用点保留为回退臂。
+- **宿主族解冻核对**（§2.3 六文件冻结唯一解除时机）：C++ `runMonthSettlement` 16 子事件全量在位 + `runYearSettlement` T1 全部 11 项 + T2 主要子项 ⇒ Kotlin 完整编排自此为纯 flag-OFF 回退臂 + 测试超集（后者留 D3 对齐）；6 宿主文件扇出调用点核对**零死调用点**，`missionCheck` = AUTHORITATIVE 下防御性 no-op 保留；三处 KDoc 陈旧扇出描述同批修正（S4/W4 时代遗留）。
+- **关闭动作**：`guideClaimedRewardIds` 由 W4-B retained 转入 **W4-D closedUnits**（BOUNDARY 域首个关闭单元）；`ReverseChannelPolicyGuardTest` 6 用例绿。
+- **测试**：新 GTest `guide_reward_tx_test.cpp` **10 用例**（成功路径/四失败码零写入零抽取/建造计数 max 语义/长老与槽位条件门/注册表形状锚点/UUID 字面量锚点/信封面）；新 `GuideRewardNativeTxGateTest` 2 用例（flag OFF vs AUTHORITATIVE 降级等价 + 条件不满足两臂均不领取）。
+- **门禁**：桌面 C++ **1417/1417**（1407 + 10，含单进程直跑复核）｜`:core:engine` **3305/304 类/0 失败/0 跳过**（3303 + 2；47 `Diff*` 全绿）｜`:core:domain` **1758/0**｜六模块 detekt 全绿｜主源 + 测试源编译绿｜NDK `externalNativeBuildRelease` + `lintRelease` 绿｜生成物零漂移（**196 动作 / maxId=1843**）。
+
 ### W4-D/D1 batch-22a debug 埋点小批：反向信封体积/耗时 + 每旬镜像分段计时（§2.72）
 
 > 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链首项 D1。**纯 debug 埋点——零行为变更、零 C++ 改动、零协议面、零 ActionId 变更，零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（§2.68 文档批同款口径）。用途：D4（反向通道删除）前的"关闭前基线"真机采样 + WS-1 再评估阈值（每旬镜像 >100ms）的观测输入。

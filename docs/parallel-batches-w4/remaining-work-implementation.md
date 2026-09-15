@@ -15,7 +15,7 @@
 | # | 任务 | 类型 | 前置 | 主要面 | 验收一句话 |
 |---|---|---|---|---|---|
 | **D1** | `batch-22a` debug 埋点小批 | 串行（首项） | — | `StateSyncService`（反向信身体积/耗时）、`GameEngineCoreAuthoritativeOps`（每旬镜像分段计时） | debug 构建有埋点、release 零开销；真机可采"关闭前基线" |
-| **D2** | `w3-11` 月年编排残差 + §2.3 宿主文件族调用点清理 | 串行 | D1 | `GameEngineCoreMonthOps/YearOps`、`CultivationEventMonthlyOps`、`MonthSettlementResidualExecutor`、`YearSettlementResidualExecutor`、`GameEngineCore` | 扇出项逐条判定落地；宿主族解冻后清理完成；引擎全量绿 |
+| **D2** | `w3-11` 月年编排残差 + §2.3 宿主文件族调用点清理 | 串行 | D1 | `GameEngineCoreMonthOps/YearOps`、`CultivationEventMonthlyOps`、`MonthSettlementResidualExecutor`、`YearSettlementResidualExecutor`、`GameEngineCore` | 扇出项逐条判定落地；宿主族解冻后清理完成；引擎全量绿 —— **✅ 已实施（2026-09-15，§2.73，tag `w4-rem/03`）** |
 | **③B** | `PresentationRandom` 按场景派生（跨会话一致） | **可并行**（文件面与 D 系列不重叠） | — | `PresentationRandom.kt` + 6 个场景调用点（见 §2.B） | 同一存档同一场景恒定、跨会话一致；决策流零扰动 |
 | **②C** | `TimeSystem.onPhaseTick` 迁入测试源集 | 串行（**须在 D3 之前**） | — | `TimeSystem.kt` + 6 个 Diff 测试 | 生产面零死方法；对拍语义零变更（引擎全量用例数不变） |
 | **D3** | `DiffAuthoritativeTickTest` harness 对齐生产 | 串行 | D2、C | `DiffAuthoritativeTickTest`、`DiffSurfaceAssertion`（含**地形 2 字段退出排除面**） | harness = 生产口径；4 个覆写字段重评；地形 2 字段参与全字段对拍 |
@@ -59,7 +59,7 @@ E 非并行轨：真机验证（需设备）｜WS-4（需玩法文档）｜WS-1 
 | 序 | 补充执行细节（方案 §8 之外的操作性内容） |
 |---|---|
 | D1 | **✅ 已实施（2026-09-15，见 handover §2.72，tag `w4-rem/02`）**：两文件 `BuildConfig.DEBUG` 门控落地——`StateSyncService`（`logReverseEnvelopeProfile`：信封总体积 + 分段体积 + 构建/发送耗时）与 `GameEngineCoreAuthoritativeOps`（`PhaseSegmentTimer`：baseline/settle/mirror.inc·full/breakthrough/boundary/reverse，µs 精度每旬一行）。**release 无埋点已实证**（`assembleRelease` 后 4 DEX 字符串扫描零命中 + debug 产物对照命中）；engine 全量 3303/303/0/0 基线持平。真机 logcat 采样归 §2.E 非并行轨 |
-| D2 | 扇出项**逐条**判定（状态写 → C++；通知/日志 → Kotlin）；引导领奖 `GameEngineGuideOps.claimGuideReward`（`:57`）下沉；兑换码 `RedeemCodeService`（`:153/:402`）**登记不下沉**（C++ 无物品随机生成器，RNG 红线）；**同批**清理 §2.3 冻结的 6 个宿主文件族的调用点（这是它们解冻的唯一时机） |
+| D2 | **✅ 已实施（2026-09-15，见 handover §2.73，tag `w4-rem/03`）**：①引导领奖下沉（`GUIDE_REWARD_CLAIM_TX=1830` + `guide_reward_tx.h`——batch-18a"Kotlin 注册表不可复刻"判定被推翻：25 任务条件全为结构化数据谓词，9 类条件逐字复刻；可行性预检 + SYSTEM 2×nextLong UUID 复刻 ⇒ 四象限抽取增量恒 +2，B3 通道预检同款）；②扇出项逐条判定收口（purchaseLogs/丧亲 = lifeEvents 非协议列留 Kotlin；秘境邮件 = DAO 通知；死亡链袋物化 = 平台效应链不迁——openStorageBag 逐件入库仍为两臂共用稳态写者，物化下沉无关闭收益；兑换码登记不下沉）；③B4 转入项实裁（附庸年贡/脱离 C++ 已在位——开臂即双重执行，不占号）；④宿主族解冻核对（16 月子事件 + 年 T1 全部已在位，零死调用点；`missionCheck` = AUTHORITATIVE 下防御性 no-op 保留；三处 KDoc 陈旧扇出描述修正）；⑤关闭动作：`guideClaimedRewardIds` 转入 W4-D closedUnits（BOUNDARY 域首单元），GuardTest 6 用例绿。门禁：桌面 **1417/1417**（+10）｜引擎 **3305/304/0/0**（+2）｜`:core:domain` 1758/0｜detekt 六绿｜NDK+lint 绿｜生成物零漂移（196 动作/maxId=1843） |
 | D3 | ① 把 harness 的 AUTHORITATIVE 管线由"Kotlin 月/年完整编排"改为"C++ 月结 + Kotlin 残差"；② **重评** 4 个被覆写字段（`spiritMineLastSettledMonth` / `annualAlchemyCount` / `availableMissions` / `yearlyReports`）的关闭结论；③ **并入项（2026-09-15 拍板）**：见下方"D3 并入项" |
 | D4 | 严格按 ADR §4 五步：**先禁用（信封体积=0 但代码在）→ 跑完整业务周期（≥1 游戏年 + 离线结算 + 跨旬月 + 存档写读，期间关闭域写入检测零命中）→ 状态指纹零差异（同档同输入 ≥100 旬）→ 删前打归档 tag → 再删除**。删除面/保留面见 §8；**防复发**：镜像只读契约（结构性/编译期优先）+ "稳态零写入断言"进长期 CI |
 | D5 | 第一件事是**先补清单**（handover §5④ 的"18+11+5 处零调用者站点"仓库内**无分项清单**，无基准不可验收）：用 `git grep` 产出"生产调用 0 / 测试引用 n"三份清单再逐条删除；其余见 §2.D |
