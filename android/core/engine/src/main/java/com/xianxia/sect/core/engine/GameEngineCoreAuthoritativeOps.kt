@@ -54,19 +54,25 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
     val capped = phasesToAdvance.coerceAtMost(GameTimeClock.maxPhasesPerTick(gameClock.speed))
     try {
         repeat(capped) {
+            // 分段计时（batch-22a debug 埋点；release 恒 null = 零实例化零开销）
+            val segments = if (BuildConfig.DEBUG) PhaseSegmentTimer() else null
             // ① 埋点基线（旬间 Kotlin 域突破并入基线，防重复上报）
             breakthroughAnalyticsObserver.captureBaseline(stateStore.discipleTables)
+            segments?.split("baseline")
             // ② C++ 单旬推进（时间 + 完整七步结算）
             val settleFlags = GameCoreBridge.nativeSettlePhase()
+            segments?.split("settle")
             // ③ 增量镜像；失败先试全量兜底，仍失败则走异常回退路径
             val applied = stateSyncServiceRef.applyDirtyFromNative()
             if (applied == null && !stateSyncServiceRef.syncFromNative()) {
                 error("AUTHORITATIVE 镜像失败（增量+全量均不可用）")
             }
+            segments?.split(if (applied == null) "mirror.full" else "mirror.inc")
             // ③' 突破埋点（UI 通知类残留——镜像后差分）
             breakthroughAnalyticsObserver.reportNewBreakthroughs(
                 stateStore.discipleTables
             )
+            segments?.split("breakthrough")
             // ④ 月/年边界：完整编排（年变先于月变）
             if (settleFlags != 0) {
                 processMonthYearChange(
@@ -74,12 +80,18 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
                     yearChanged = (settleFlags and GameCoreBridge.FLAG_YEAR_CHANGED) != 0
                 )
             }
+            segments?.split("boundary")
             // ⑤ 反向增量回导 C++（玩家操作 + 边界效果写回真相源）
             if (!stateSyncServiceRef.applyDirtyToNative()) {
                 DomainLog.w(TAG, "AUTHORITATIVE 反向增量回导失败（降级全量回导）")
                 if (!stateSyncServiceRef.importToNative(restoreRng = false)) {
                     DomainLog.w(TAG, "AUTHORITATIVE 全量回导失败（下一旬重试）")
                 }
+            }
+            segments?.split("reverse")
+            segments?.let { timer ->
+                val gd = stateStore.gameData.value
+                timer.log(TAG, "y${gd.gameYear}m${gd.gameMonth}")
             }
         }
     } catch (e: CancellationException) {
@@ -94,6 +106,33 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
             gameClock.refundPhases(capped)
         }
         throw e
+    }
+}
+
+/**
+ * 每旬分段计时器（batch-22a debug 埋点专用；release 构建恒不实例化 = 零开销）。
+ *
+ * 采集项（µs 精度，每旬一行 DomainLog.d）：
+ *   baseline（Kotlin 突破基线捕获）→ settle（C++ 单旬结算）→
+ *   mirror.inc / mirror.full（前向增量镜像，.full = 增量失败已走全量兜底）→
+ *   breakthrough（突破差分上报）→ boundary（月/年边界编排）→
+ *   reverse（反向增量回导）。
+ * 为 w3-13 通道删除（W4-D/D4）前的"关闭前基线"与 WS-1 再评估阈值
+ * （每旬镜像 >100ms，handover §4.1）提供真机绝对值观测输入。
+ */
+private class PhaseSegmentTimer {
+    private var lastNanos = System.nanoTime()
+    private val parts = ArrayList<String>(8)
+
+    /** 结束当前段并记录耗时（自上一次 [split] 或构造起）。 */
+    fun split(name: String) {
+        val now = System.nanoTime()
+        parts += "$name=${(now - lastNanos) / 1_000L}µs"
+        lastNanos = now
+    }
+
+    fun log(tag: String, phaseLabel: String) {
+        DomainLog.d(tag, "每旬分段[$phaseLabel]: ${parts.joinToString(" ")}")
     }
 }
 

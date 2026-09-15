@@ -1,6 +1,16 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D1 batch-22a debug 埋点小批：反向信封体积/耗时 + 每旬镜像分段计时（§2.72）
+
+> 需求：实施 [W4 剩余工作实施文档](docs/parallel-batches-w4/remaining-work-implementation.md) 串行链首项 D1。**纯 debug 埋点——零行为变更、零 C++ 改动、零协议面、零 ActionId 变更，零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（§2.68 文档批同款口径）。用途：D4（反向通道删除）前的"关闭前基线"真机采样 + WS-1 再评估阈值（每旬镜像 >100ms）的观测输入。
+
+- **反向信封体积/耗时**（`StateSyncService.sendReverseEnvelope` + 新增 `logReverseEnvelopeProfile`）：信封总体积（UTF-8 字节 = JNI 实际传输量）、分段体积（gameData / 弟子通道 / AI 池 / 锁定集 / 各集合段，与 `ReverseChannelVolumeProfileTest` 单元 harness 口径同源）、构建耗时与 native 发送耗时（µs），`DomainLog.d("StateSyncService")` 每次发送一行。
+- **每旬镜像分段计时**（`GameEngineCoreAuthoritativeOps.processAuthoritativeTick` + 新增 `PhaseSegmentTimer`）：每旬一行 `baseline → settle → mirror.inc|full → breakthrough → boundary → reverse`（µs 精度；`mirror.full` 标记增量失败已走全量兜底）。
+- **release 零开销实证**：两处埋点全部 `if (BuildConfig.DEBUG)` 门控——release 变体 `DEBUG=false` 为编译期常量，kotlinc 恒定折叠直接剔除字符串（engine release 编译产物已验证无埋点字符串），R8 `minifyEnabled` 兜底；`:app:assembleRelease` 后对 4 个 DEX 全量字符串扫描**零命中**，debug 编译产物同字符串全部命中（扫描方法对照）。
+- **门禁**：`:core:engine` **3303/303 类/0 失败/0 跳过**（§2.71 基线持平＝零行为变更得证）｜六模块 detekt 全绿｜主源 + 测试源编译绿｜生成物零漂移（195 动作 / maxId=1843）｜`:app:assembleRelease` 绿。桌面 C++ 套件豁免（零 C++ 改动）。
+- **遗留**：真机 logcat 采样（debug 构建）属非并行轨（需物理设备）；`version.properties` 递增由用户决定。
+
 ### 天枢殿迁移补偿下线 + `existsByRemoteId` 死代码清偿（§2.71）
 
 > 需求：①旧档天枢殿"读档拆除 + 补偿 1000 万灵石邮件"迁移路径整体下线——邮件系统清理（§2.70）后它是最后一条会自动发补偿邮件的通道；②清偿上批登记的 `MailRepository.existsByRemoteId` 零调用死代码。**零 C++ 改动、零协议面、零 Room 迁移**。行为变化：未迁移老档的天枢殿不再被拆除，回归 `fixupBuildingSizes` 正常尺寸修正（改为当前配置尺寸 + 越界钳位），建筑保留、无补偿邮件。

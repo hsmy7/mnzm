@@ -935,6 +935,23 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 **遗留**: 无（§2.70 遗留项已销账）。
 
 
+## 2.72 W4-D/D1 batch-22a debug 埋点小批（2026-09-15）：反向信封体积/耗时 + 每旬镜像分段计时（debug-only）
+
+批次: [W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md) §0 序 D1（串行链首项） | 性质: **纯 debug 埋点，零行为变更、零 C++ 改动、零协议面、零 ActionId 变更** | 用途: D4（w3-13 通道删除）前的"关闭前基线"真机采样 + WS-1 再评估阈值（每旬镜像 >100ms）观测输入（§4.1 E3/N5）
+
+**采集面**（两文件，全部 `if (BuildConfig.DEBUG)` 门控——release 变体 `DEBUG=false` 为编译期常量，经 R8 常量折叠整段剔除）:
+- `StateSyncService.sendReverseEnvelope`（发送链原 `:410-440`）+ 新增私有 `logReverseEnvelopeProfile`：① 反向信封**总体积**（UTF-8 字节 = JNI 实际传输量）与**分段体积**（gameData / 弟子通道 / AI 池 / 锁定集 / 各集合段——与 `ReverseChannelVolumeProfileTest` 单元 harness 口径同源）② 信封**构建耗时**（µs）③ native **发送耗时**（µs）。`DomainLog.d(TAG="StateSyncService")` 每次发送一行。
+- `GameEngineCoreAuthoritativeOps.processAuthoritativeTick` + 新增文件级 `PhaseSegmentTimer`：每旬**分段计时**一行（µs 精度）——`baseline`（Kotlin 突破基线捕获）→ `settle`（C++ 单旬结算）→ `mirror.inc`/`mirror.full`（前向增量镜像，`.full` = 已走全量兜底）→ `breakthrough`（突破差分上报）→ `boundary`（月/年边界编排）→ `reverse`（反向增量回导）。release 恒不实例化（`segments = null`，`?.` 短路 = 零参数求值）。
+
+**release 零开销实证**: `:app:assembleRelease` 后对 APK 全部 DEX 做**字符串扫描**——埋点字符串（"反向信封体积/耗时"、"每旬分段"、"mirror.full" 等）**零命中**（R8 `minifyEnabled=true` 折叠 `BuildConfig.DEBUG=false` 死分支并剔除字符串常量）；debug 变体同类编译产物中同字符串**命中**（扫描方法有效性的对照）。
+
+**测试**: 无新增用例（纯 debug 日志埋点，无可断言行为面；分段体积语义由既有 `ReverseChannelVolumeProfileTest` 承担）。
+
+**门禁实跑（桌面 C++ 套件豁免——零 C++ 改动）**: `:core:engine` **3303 / 303 类 / 0 失败 / 0 跳过**（§2.71 基线持平，零行为变更得证）｜六模块 detekt 全绿｜`:core:engine` 主源 + 测试源编译绿｜`:app:assembleRelease` 绿｜生成器幂等 + 生成物 `git diff --exit-code` 空（195 动作 / maxId=1843）。
+
+**遗留**: 真机 logcat 采样（debug 构建）属非并行轨（需物理设备），本批交付埋点面本身；`version.properties` 递增由用户决定。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
 **当前门禁基线（2026-09-15，§2.71 天枢殿迁移下线后）**：
 

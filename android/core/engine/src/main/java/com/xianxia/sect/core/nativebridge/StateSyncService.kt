@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
+import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
@@ -409,6 +410,7 @@ class StateSyncService @Inject constructor(
     /** 构建反向信封并发送（版本单调递增；native 失败返回 false 由调用方降级全量）。 */
     private fun sendReverseEnvelope(snapshot: GameStateStore.ReverseDirtySnapshot): Boolean {
         val gameData = stateStore.gameData.value
+        val buildStartNanos = if (BuildConfig.DEBUG) System.nanoTime() else 0L
         val envelope = buildReverseEnvelope(
             snapshot = snapshot,
             tables = stateStore.discipleTables,
@@ -419,10 +421,20 @@ class StateSyncService @Inject constructor(
         val anchorCandidate = pendingReverseGameDataAnchor
         pendingReverseGameDataAnchor = null
         val encoded = envelope.toString().encodeToByteArray()
+        val sendStartNanos = if (BuildConfig.DEBUG) System.nanoTime() else 0L
         // 双实现并行契约：native 失败降级 false（调用方回退全量）
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         return try {
             val ok = reverseSender(encoded)
+            if (BuildConfig.DEBUG) {
+                logReverseEnvelopeProfile(
+                    envelope = envelope,
+                    totalBytes = encoded.size,
+                    buildMicros = (sendStartNanos - buildStartNanos) / 1_000L,
+                    sendMicros = (System.nanoTime() - sendStartNanos) / 1_000L,
+                    ok = ok,
+                )
+            }
             if (ok) {
                 reverseVersion++
                 // 发送成功后缓存与 C++ 一致（下次仅在变化时重发）
@@ -437,6 +449,36 @@ class StateSyncService @Inject constructor(
         } catch (e: Throwable) {
             false
         }
+    }
+
+    /**
+     * 反向信封体积/耗时埋点（batch-22a，debug 构建专属——`BuildConfig.DEBUG`
+     * 为编译期常量，release 变体恒 false，经 R8 常量折叠整段剔除，零字节进 APK）。
+     *
+     * 采集项：① 信封总体积（UTF-8 字节 = JNI 实际传输量）与**分段体积**
+     * （gameData / 弟子通道 / AI 池 / 锁定集 / 各集合段——与
+     * ReverseChannelVolumeProfileTest 的单元 harness 口径同源）；② 信封构建
+     * 耗时；③ native 发送耗时。三者构成 w3-13 通道删除（W4-D/D4）前的
+     * "关闭前基线"真机采样与 WS-1 再评估阈值（E3/N5）的观测输入。
+     */
+    private fun logReverseEnvelopeProfile(
+        envelope: JsonObject,
+        totalBytes: Int,
+        buildMicros: Long,
+        sendMicros: Long,
+        ok: Boolean,
+    ) {
+        val changed = envelope["changed"] as? JsonObject ?: JsonObject(emptyMap())
+        val sectionBytes = changed.entries.joinToString(" ") { (name, el) ->
+            "$name=${el.toString().toByteArray().size}B"
+        }
+        val removedBytes = (envelope["removed"] as? JsonObject)
+            ?.values?.sumOf { it.toString().toByteArray().size } ?: 0
+        DomainLog.d(
+            TAG,
+            "反向信封体积/耗时：total=${totalBytes}B 构建=${buildMicros}µs 发送=${sendMicros}µs " +
+                "ok=$ok removed=${removedBytes}B 分段[$sectionBytes]"
+        )
     }
 
     /**
