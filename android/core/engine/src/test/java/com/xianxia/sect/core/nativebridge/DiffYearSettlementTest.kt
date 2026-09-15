@@ -31,7 +31,7 @@ import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.YearSettlementExecutor
 import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
-import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.model.Alliance
@@ -736,7 +736,6 @@ class DiffYearSettlementTest {
         val phaseExecutor = PhaseSettlementExecutor(service)
         val yearExecutor = YearSettlementExecutor(service)
         val monthExecutor = buildMonthExecutor(service, gameRng)
-        val timeSystem = TimeSystem(store)
         runTest {
             repeat(PHASES) {
                 var yearChanged = false
@@ -744,7 +743,7 @@ class DiffYearSettlementTest {
                 store.update {
                     val prevYear = gameData.gameYear
                     val prevMonth = gameData.gameMonth
-                    timeSystem.onPhaseTick(this, phasesToSettle = 1)
+                    advancePhaseBaseline(1)
                     phaseExecutor.execute(this)
                     yearChanged = gameData.gameYear != prevYear
                     monthChanged = gameData.gameMonth != prevMonth

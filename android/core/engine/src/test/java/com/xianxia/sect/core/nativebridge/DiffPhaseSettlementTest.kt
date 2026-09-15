@@ -21,7 +21,7 @@ import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.PartnerSystem
-import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.engine.config.GameConfigProvider
@@ -70,7 +70,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
  *
  * 守护目标：C++ `gamecore::system::runPhaseSettlement`（注册于 onPhaseSettle，
  * 经 nativeCoreAdvancePhases 触发）与 Kotlin [PhaseSettlementExecutor] +
- * [TimeSystem] 的六步结算语义**逐位一致**（含 RNG 抽取序列）。
+ * 冻结基准 [advancePhaseBaseline] 的六步结算语义**逐位一致**（含 RNG 抽取序列）。
  *
  * 流程：同一导入状态 → Kotlin 侧真实服务编排推进 N 旬 / C++ 侧
  * nativeCoreAdvancePhases(N) → 双侧导出 → JSON 结构对拍。
@@ -411,7 +411,7 @@ class DiffPhaseSettlementTest {
 
         val encoded = json.encodeToString(NativeGameState.serializer(), buildSnapshot())
 
-        // Kotlin 基准侧：真实 TimeSystem + PhaseSettlementExecutor 逐旬推进
+        // Kotlin 基准侧：冻结基准 advancePhaseBaseline + PhaseSettlementExecutor 逐旬推进
         val snapshot = json.decodeFromString(NativeGameState.serializer(), encoded)
         val store = FakeGameStateStore().also {
             it.gameDataValue = snapshot.gameData
@@ -424,13 +424,12 @@ class DiffPhaseSettlementTest {
         val gameRng = serviceAndRng.second
         val executor = PhaseSettlementExecutor(service)
         val monthExecutor = buildMonthExecutor(service, gameRng)
-        val timeSystem = TimeSystem(store)
         store.update {
             repeat(PHASES) {
                 // 组合管线同构 C++ SettlementEngine.advanceOnePhase：
                 // 时间推进 → 旬结算钩子 → （跨界时）月变钩子
                 val prevMonth = gameData.gameMonth
-                timeSystem.onPhaseTick(this, phasesToSettle = 1)
+                advancePhaseBaseline(1)
                 executor.execute(this)
                 if (gameData.gameMonth != prevMonth) {
                     monthExecutor.execute(this)
@@ -498,12 +497,11 @@ class DiffPhaseSettlementTest {
         val serviceAndRng = buildService(store, snapshot.gameData.rngStates)
         val executor = PhaseSettlementExecutor(serviceAndRng.first)
         val monthExecutor = buildMonthExecutor(serviceAndRng.first, serviceAndRng.second)
-        val timeSystem = TimeSystem(store)
         store.update {
             repeat(PHASES) {
                 // 组合管线：时间推进 → 旬结算 → （跨界时）月变（同 C++ 钩子序）
                 val prevMonth = gameData.gameMonth
-                timeSystem.onPhaseTick(this, phasesToSettle = 1)
+                advancePhaseBaseline(1)
                 executor.execute(this)
                 if (gameData.gameMonth != prevMonth) {
                     monthExecutor.execute(this)
@@ -618,7 +616,7 @@ class DiffPhaseSettlementTest {
         rarity = rarity, quantity = quantity, obtainedYear = 1, obtainedMonth = 1
     )
 
-    /** 双端同构推进：Kotlin 基准（TimeSystem + execute + 月变）vs C++ advancePhases */
+    /** 双端同构推进：Kotlin 基准（advancePhaseBaseline + execute + 月变）vs C++ advancePhases */
     private fun runDiffPhases(
         snapshot: NativeGameState,
         realLawEnforcement: Boolean = false,
@@ -637,11 +635,10 @@ class DiffPhaseSettlementTest {
         val serviceAndRng = buildService(store, snapshot.gameData.rngStates, realLawEnforcement)
         val executor = PhaseSettlementExecutor(serviceAndRng.first)
         val monthExecutor = buildMonthExecutor(serviceAndRng.first, serviceAndRng.second)
-        val timeSystem = TimeSystem(store)
         store.update {
             repeat(phases) {
                 val prevMonth = gameData.gameMonth
-                timeSystem.onPhaseTick(this, phasesToSettle = 1)
+                advancePhaseBaseline(1)
                 executor.execute(this)
                 if (gameData.gameMonth != prevMonth) {
                     monthExecutor.execute(this)

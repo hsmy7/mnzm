@@ -30,7 +30,7 @@ import com.xianxia.sect.core.engine.service.DisciplePurchaseService
 import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.ExplorationTickSystem
-import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.engine.system.ChildBirthSystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.event.EventBus
@@ -546,11 +546,10 @@ internal fun advanceKotlinMonthSide(
     val monthExecutor = buildMonthDiffExecutor(
         service, gameRng, aiBeastAttackProcessor, store
     )
-    val timeSystem = TimeSystem(store)
     store.update {
         repeat(phases) {
             val prevMonth = gameData.gameMonth
-            timeSystem.onPhaseTick(this, phasesToSettle = 1)
+            advancePhaseBaseline(1)
             phaseExecutor.execute(this)
             if (gameData.gameMonth != prevMonth) {
                 monthExecutor.execute(this)

@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
@@ -15,12 +15,13 @@ import org.junit.Test
  * DiffTimeTest — 时间推进跨语言差分对拍（真实引擎基准）。
  *
  * 守护目标：C++ SettlementEngine/TimeSystem 的时间推进（年/月/旬进位、
- * 边界检测）与 Kotlin [TimeSystem].onPhaseTick 语义**逐位一致**。
+ * 边界检测）与 Kotlin 冻结基准 [advancePhaseBaseline]（原 TimeSystem.onPhaseTick，
+ * 逐字移入测试源集）语义**逐位一致**。
  *
- * Kotlin 基准：真实 [TimeSystem] 实例驱动 [MutableGameState]
- * （直接调用生产实现，杜绝复刻漂移盲区）。
+ * Kotlin 基准：冻结基准 [advancePhaseBaseline] 驱动 [MutableGameState]
+ * （直接调用对拍标准答案，杜绝复刻漂移盲区）。
  *
- * 流程：Kotlin 真实 TimeSystem 推进 N 旬 → 期望 (y,m,p)；C++ 经 JNI
+ * 流程：Kotlin 基准推进 N 旬 → 期望 (y,m,p)；C++ 经 JNI
  * advancePhases(N) → export 读 (y,m,p)；断言相等。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
@@ -31,9 +32,8 @@ class DiffTimeTest {
     // Disciple 镜像字段未落——对拍解码容忍协议超集（落地后可回收）
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
-    /** Kotlin 基准：真实 TimeSystem 推进 N 旬（不再内联复刻）。 */
+    /** Kotlin 基准：冻结基准 advancePhaseBaseline 推进 N 旬（不内联复刻）。 */
     private fun kotlinAdvanceN(start: Triple<Int, Int, Int>, n: Int): Triple<Int, Int, Int> {
-        val store = FakeGameStateStore()
         val mutableState = MutableGameState(
             gameData = GameData().apply {
                 gameYear = start.first; gameMonth = start.second; gamePhase = start.third
@@ -53,8 +53,7 @@ class DiffTimeTest {
             isLoading = false,
             isSaving = false
         )
-        val timeSystem = TimeSystem(store)
-        repeat(n) { timeSystem.onPhaseTick(mutableState, 1) }
+        repeat(n) { mutableState.advancePhaseBaseline(1) }
         val gd = mutableState.gameData
         return Triple(gd.gameYear, gd.gameMonth, gd.gamePhase)
     }

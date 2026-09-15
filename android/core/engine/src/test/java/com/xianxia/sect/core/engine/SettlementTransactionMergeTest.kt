@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.MutableGameState
 import org.junit.Assert.assertEquals
@@ -30,8 +30,8 @@ class SettlementTransactionMergeTest {
     }
 
     /** 模拟一旬结算：时间推进 + 修炼累积 + 年龄增长（纯 state 函数，同 processTickPhases 形态） */
-    private fun MutableGameState.settlePhase(timeSystem: TimeSystem) {
-        timeSystem.onPhaseTick(this, phasesToSettle = 1)
+    private fun MutableGameState.settlePhase() {
+        advancePhaseBaseline(1)
         val id = 1
         val cultivations = discipleTables.cultivations.getOrDefault(id, 0.0)
         discipleTables.cultivations[id] = cultivations + 10.0
@@ -43,16 +43,14 @@ class SettlementTransactionMergeTest {
     fun `merged multi-phase settlement equals per-phase settlement`() {
         // A：每旬独立事务（合并前形态）
         val storeA = newStore()
-        val timeA = TimeSystem(FakeAtomicStateStore())
         repeat(5) {
-            storeA.update { settlePhase(timeA) }
+            storeA.update { settlePhase() }
         }
 
         // B：单事务合并（P1-A 形态）
         val storeB = newStore()
-        val timeB = TimeSystem(FakeAtomicStateStore())
         storeB.update {
-            repeat(5) { settlePhase(timeB) }
+            repeat(5) { settlePhase() }
         }
 
         // 等价断言：游戏时间 + 弟子数据逐字段一致
@@ -74,15 +72,13 @@ class SettlementTransactionMergeTest {
     fun `merged settlement crosses month boundary identically`() {
         // 跨月边界：从旬 2 开始跑 5 旬（月变判定逐旬捕获 prevMonth——P1-A 保留语义）
         val storeA = newStore().apply { update { gameData = gameData.copy(gamePhase = 2) } }
-        val timeA = TimeSystem(FakeAtomicStateStore())
         repeat(5) {
-            storeA.update { settlePhase(timeA) }
+            storeA.update { settlePhase() }
         }
 
         val storeB = newStore().apply { update { gameData = gameData.copy(gamePhase = 2) } }
-        val timeB = TimeSystem(FakeAtomicStateStore())
         storeB.update {
-            repeat(5) { settlePhase(timeB) }
+            repeat(5) { settlePhase() }
         }
 
         assertEquals(

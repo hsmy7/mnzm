@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.model.GamePhase
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,32 +35,8 @@ class TimeSystem @Inject constructor(
     @Suppress("UnusedParameter") // phasesToSettle: 对拍基准时间驱动器（DiffTimeTest 契约面）——签名即协议
     override fun clearForSlot(slotId: Int) = Unit
 
-    /**
-     * Kotlin 时间推进基准（纯时间进位：旬→月→年）。
-     *
-     * **生产 tick 不再调用本方法**（旬结算真相源为 C++
-     * nativeSettlePhase，单引擎终态无 Kotlin 路径）；本方法保留为跨语言
-     * 对拍/回归基准的时间驱动器（DiffTimeTest / DiffAuthoritativeTickTest）。
-     */
-    @Suppress("UnusedParameter") // phasesToSettle: 对拍基准时间驱动器（DiffTimeTest 契约面）——签名即协议
-    fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
-        val gd = state.gameData
-        var newPhase = gd.gamePhase + 1
-        var newMonth = gd.gameMonth
-        var newYear = gd.gameYear
-
-        if (newPhase >= PHASES_PER_MONTH) {
-            newPhase = 0
-            newMonth++
-            if (newMonth > MONTHS_PER_YEAR) {
-                newMonth = 1
-                newYear++
-            }
-        }
-
-        state.gameData = gd.copy(gamePhase = newPhase, gameMonth = newMonth, gameYear = newYear)
-    }
-
+    // Kotlin 时间推进对拍基准已移入测试源集：TimeAdvanceBaseline.advancePhaseBaseline
+    // （生产面零调用，保留生产类只会构成"形似 API 的死方法"误用面；见 W4 实施文档 §2.C）
 
     fun getCurrentTime(): Triple<Int, Int, Int> {
         val data = stateStore.gameData.value

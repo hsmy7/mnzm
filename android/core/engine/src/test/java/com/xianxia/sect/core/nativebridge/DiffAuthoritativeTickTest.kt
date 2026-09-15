@@ -26,7 +26,7 @@ import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.YearSettlementExecutor
 import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
-import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
@@ -370,7 +370,6 @@ class DiffAuthoritativeTickTest {
             it.disciplesValue = snapshot.disciples
         }
         val (_, rngB, exB) = buildHarness(storeB, snapshot.gameData.rngStates, delegating = false)
-        val timeB = TimeSystem(storeB)
 
         // ── Side A：AUTHORITATIVE 管线（C++ 核心 + Kotlin 残留 + 委托 RNG） ──
         assertTrue("导入失败", DiffRngBridge.nativeCoreImportState(encoded.encodeToByteArray()))
@@ -393,7 +392,7 @@ class DiffAuthoritativeTickTest {
                 storeB.update {
                     val prevYear = gameData.gameYear
                     val prevMonth = gameData.gameMonth
-                    timeB.onPhaseTick(this, phasesToSettle = 1)
+                    advancePhaseBaseline(1)
                     exB.phase.execute(this)
                     yearChangedB = gameData.gameYear != prevYear
                     monthChangedB = gameData.gameMonth != prevMonth
@@ -490,7 +489,6 @@ class DiffAuthoritativeTickTest {
             it.disciplesValue = snapshot.disciples
         }
         val (_, rngB, exB) = buildHarness(storeB, snapshot.gameData.rngStates, delegating = false)
-        val timeB = TimeSystem(storeB)
         runTest {
             storeB.update {
                 val recruit = gameData.recruitList.toList().find { it.id == RECRUIT_ID }
@@ -520,7 +518,7 @@ class DiffAuthoritativeTickTest {
             storeB.update {
                 val prevYear = gameData.gameYear
                 val prevMonth = gameData.gameMonth
-                timeB.onPhaseTick(this, phasesToSettle = 1)
+                advancePhaseBaseline(1)
                 exB.phase.execute(this)
                 yearChangedB = gameData.gameYear != prevYear
                 monthChangedB = gameData.gameMonth != prevMonth

@@ -1,5 +1,9 @@
 package com.xianxia.sect.core.engine.system
 
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.MutableGameState
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -9,31 +13,31 @@ class TimeSystemPureLogicTest {
 
     @Test
     fun phasesPerMonth_is3() {
-        assertEquals(3, PHASES_PER_MONTH)
+        assertEquals(3, TimeSystem.PHASES_PER_MONTH)
     }
 
     @Test
     fun monthsPerYear_is12() {
-        assertEquals(12, MONTHS_PER_YEAR)
+        assertEquals(12, TimeSystem.MONTHS_PER_YEAR)
     }
 
-    // --- advancePhase 纯逻辑（复刻 TimeSystem.onPhaseTick 中的计算） ---
+    // --- advancePhase 纯逻辑（驱动冻结基准 advancePhaseBaseline，不再内联复刻） ---
 
     private fun advancePhase(currentPhase: Int, currentMonth: Int, currentYear: Int): Triple<Int, Int, Int> {
-        val phasesPerMonth = 3
-        val monthsPerYear = 12
-        var newPhase = currentPhase + 1
-        var newMonth = currentMonth
-        var newYear = currentYear
-        if (newPhase >= phasesPerMonth) {
-            newPhase = 0
-            newMonth++
-            if (newMonth > monthsPerYear) {
-                newMonth = 1
-                newYear++
-            }
-        }
-        return Triple(newYear, newMonth, newPhase)
+        val state = MutableGameState(
+            gameData = GameData().apply {
+                gamePhase = currentPhase; gameMonth = currentMonth; gameYear = currentYear
+            },
+            discipleTables = DiscipleTables(),
+            equipmentStacks = EntityStore(), equipmentInstances = EntityStore(),
+            manualStacks = EntityStore(), manualInstances = EntityStore(),
+            pills = EntityStore(), materials = EntityStore(),
+            herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),
+            battleLogs = emptyList(),
+            isPaused = false, isLoading = false, isSaving = false
+        )
+        state.advancePhaseBaseline(1)
+        return Triple(state.gameData.gameYear, state.gameData.gameMonth, state.gameData.gamePhase)
     }
 
     @Test
@@ -93,10 +97,5 @@ class TimeSystemPureLogicTest {
         val phase = 2
         val totalPhases = year * 12 * 3 + (month - 1) * 3 + phase
         assertEquals(122, totalPhases)
-    }
-
-    companion object {
-        private const val PHASES_PER_MONTH = 3
-        private const val MONTHS_PER_YEAR = 12
     }
 }
