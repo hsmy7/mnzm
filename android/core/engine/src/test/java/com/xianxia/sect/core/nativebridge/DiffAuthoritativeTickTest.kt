@@ -46,6 +46,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RecruitIntegrity
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
@@ -524,33 +525,38 @@ class DiffAuthoritativeTickTest {
         // 逐旬互锁：两侧各推进一旬后比较，首次分歧即报旬号与字段路径
         runTest {
             repeat(TICKS) { tick ->
-                // Side B 一旬（现行生产路径）
+                // Side B 一旬（flag-OFF 基准臂语义；w3-13 起捕获侧检测
+                // AUTHORITATIVE 门控——基准臂写入即真相，不触发关闭域检测计数）
                 var yearChangedB = false
                 var monthChangedB = false
-                storeB.update {
-                    val prevYear = gameData.gameYear
-                    val prevMonth = gameData.gameMonth
-                    advancePhaseBaseline(1)
-                    exB.phase.execute(this)
-                    yearChangedB = gameData.gameYear != prevYear
-                    monthChangedB = gameData.gameMonth != prevMonth
+                NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
+                    storeB.update {
+                        val prevYear = gameData.gameYear
+                        val prevMonth = gameData.gameMonth
+                        advancePhaseBaseline(1)
+                        exB.phase.execute(this)
+                        yearChangedB = gameData.gameYear != prevYear
+                        monthChangedB = gameData.gameMonth != prevMonth
+                    }
+                    runBoundary(exB, storeB, yearChangedB, monthChangedB)
                 }
-                runBoundary(exB, storeB, yearChangedB, monthChangedB)
                 // Side A 一旬（AUTHORITATIVE 管线：每旬完整七步
                 // 在 nativeCoreSettlePhase 内执行，原 Kotlin executeResidual 删除）
-                val flags = DiffRngBridge.nativeCoreSettlePhase()
-                val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
-                val applyResult = syncA.applyDirty(dirty)
-                assertEquals("镜像失败", false, applyResult == null)
-                // ★ 镜像写入经 updateMirror 不参与反向捕获——
-                //   玩家操作捕获不会被镜像清空，保留至 ⑤ 与边界变更一并回导
-                if (flags != 0) {
-                    runNativeBoundary(storeA, syncA, exA, flags)
+                NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+                    val flags = DiffRngBridge.nativeCoreSettlePhase()
+                    val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
+                    val applyResult = syncA.applyDirty(dirty)
+                    assertEquals("镜像失败", false, applyResult == null)
+                    // ★ 镜像写入经 updateMirror 不参与反向捕获——
+                    //   玩家操作捕获不会被镜像清空，保留至 ⑤ 与边界变更一并回导
+                    if (flags != 0) {
+                        runNativeBoundary(storeA, syncA, exA, flags)
+                    }
+                    // ⑤ 反向增量回导（取代每旬全量 importToNative。w3-13 弟子通道
+                    // 关闭 + 残留执行器转非捕获事务后，AUTHORITATIVE 稳态窗口恒空
+                    // = 零发送；生产语义同）
+                    assertTrue("反向增量回导失败", syncA.applyDirtyToNative())
                 }
-                // ⑤ 反向增量回导（取代每旬全量 importToNative——残留/边界
-                // 效果经 applyReverseDirty 增量写回 C++ 真相源；生产侧失败降级全量，
-                // 本测试断言增量通道成功）
-                assertTrue("反向增量回导失败", syncA.applyDirtyToNative())
                 // 逐旬对拍（每 5 旬一次全量结构）
                 if (tick % 5 == 4) {
                     val actualEl = json.parseToJsonElement(
@@ -647,31 +653,35 @@ class DiffAuthoritativeTickTest {
         try {
             runTest {
                 repeat(TICKS) { tick ->
-                    // Side B 一旬（与主用例同款）
+                    // Side B 一旬（flag-OFF 基准臂语义——同主用例，检测门控不计数）
                     var yearChangedB = false
                     var monthChangedB = false
-                    storeB.update {
-                        val prevYear = gameData.gameYear
-                        val prevMonth = gameData.gameMonth
-                        advancePhaseBaseline(1)
-                        exB.phase.execute(this)
-                        yearChangedB = gameData.gameYear != prevYear
-                        monthChangedB = gameData.gameMonth != prevMonth
+                    NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
+                        storeB.update {
+                            val prevYear = gameData.gameYear
+                            val prevMonth = gameData.gameMonth
+                            advancePhaseBaseline(1)
+                            exB.phase.execute(this)
+                            yearChangedB = gameData.gameYear != prevYear
+                            monthChangedB = gameData.gameMonth != prevMonth
+                        }
+                        runBoundary(exB, storeB, yearChangedB, monthChangedB)
                     }
-                    runBoundary(exB, storeB, yearChangedB, monthChangedB)
                     // Side A 一旬（结算 + 前向镜像 + 边界编排同款；步骤⑤照常调用
                     // applyDirtyToNative——观察窗语义 = 消费窗口 + 构建检测 + 不发送）
-                    val flags = DiffRngBridge.nativeCoreSettlePhase()
-                    val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
-                    val applyResult = syncA.applyDirty(dirty)
-                    assertEquals("镜像失败", false, applyResult == null)
-                    if (flags != 0) {
-                        runNativeBoundary(storeA, syncA, exA, flags)
+                    NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+                        val flags = DiffRngBridge.nativeCoreSettlePhase()
+                        val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
+                        val applyResult = syncA.applyDirty(dirty)
+                        assertEquals("镜像失败", false, applyResult == null)
+                        if (flags != 0) {
+                            runNativeBoundary(storeA, syncA, exA, flags)
+                        }
+                        assertTrue(
+                            "观察窗下回导调用必须照常成功（消费窗口不发送，不得触发全量降级）",
+                            syncA.applyDirtyToNative()
+                        )
                     }
-                    assertTrue(
-                        "观察窗下回导调用必须照常成功（消费窗口不发送，不得触发全量降级）",
-                        syncA.applyDirtyToNative()
-                    )
                     // 逐旬对拍（每 5 旬一次全量结构，与主用例同款）
                     if (tick % 5 == 4) {
                         val actualEl = json.parseToJsonElement(
@@ -718,7 +728,8 @@ class DiffAuthoritativeTickTest {
             assertEquals("观察窗不得发送任何信封", 0, sentEnvelopes)
             // 闸门②：关闭域写入检测零命中（禁用不得掩盖漏域写者）
             assertEquals(
-                "关闭域写入检测零命中",
+                "关闭域写入检测零命中 records=" +
+                    ReverseChannelPolicy.closedWriteRecordsSnapshot().take(5),
                 closedWriteBaseline, ReverseChannelPolicy.closedWriteCountSnapshot()
             )
         } finally {
@@ -751,6 +762,8 @@ class DiffAuthoritativeTickTest {
         }
         val (_, rngB, exB) = buildHarness(storeB, snapshot.gameData.rngStates, delegating = false)
         runTest {
+            // Side B 全段 = flag-OFF 基准臂语义（w3-13 捕获侧检测门控不计数）
+            NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             storeB.update {
                 val recruit = gameData.recruitList.toList().find { it.id == RECRUIT_ID }
                 val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
@@ -785,8 +798,10 @@ class DiffAuthoritativeTickTest {
                 monthChangedB = gameData.gameMonth != prevMonth
             }
             runBoundary(exB, storeB, yearChangedB, monthChangedB)
+            }
 
             // ── Side A：AUTHORITATIVE 管线（C++ 核心 + 委托 RNG） ──
+            NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
             assertTrue("导入失败", DiffRngBridge.nativeCoreImportState(encoded.encodeToByteArray()))
             val storeA = FakeGameStateStore().also {
                 it.gameDataValue = snapshot.gameData
@@ -830,6 +845,7 @@ class DiffAuthoritativeTickTest {
             assertTrue("招募列表未清空", storeA.gameDataValue.recruitList.isEmpty())
             assertEquals(1, storeA.gameDataValue.recruitCountThisMonth)
             assertEquals(1, storeA.gameDataValue.annualNewDisciples)
+            }
         }
     }
 
@@ -876,7 +892,8 @@ class DiffAuthoritativeTickTest {
             )
             val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
             assertTrue("年变镜像失败", sync.applyDirty(dirty) != null)
-            store.update { ex.yearResidual.execute(this, env) }
+            // 非捕获事务（生产 GameEngineCoreYearOps 同款——C++ 事实的 Kotlin 投影）
+            store.updateMirror { ex.yearResidual.execute(this, env) }
         }
         if (monthChanged) {
             val env = parseMonthSettlementEnvelope(
@@ -884,7 +901,8 @@ class DiffAuthoritativeTickTest {
             )
             val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
             assertTrue("月变镜像失败", sync.applyDirty(dirty) != null)
-            store.update { ex.monthResidual.execute(this, env) }
+            // 非捕获事务（生产 GameEngineCoreMonthOps 同款）
+            store.updateMirror { ex.monthResidual.execute(this, env) }
         }
     }
 

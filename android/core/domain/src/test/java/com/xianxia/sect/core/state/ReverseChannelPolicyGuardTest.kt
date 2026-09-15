@@ -107,13 +107,17 @@ class ReverseChannelPolicyGuardTest {
     }
 
     @Test
-    fun `audit red line - disciple channel and aiSectDisciples section stay transported`() {
-        // 实测（batch-21 写者穷尽审计）：弟子表稳态写者 46 站点、aiSectDisciples 稳态写者
-        // 见 AI_SECT 域结论——关闭二者即为数据丢失缺陷
-        assertTrue(
-            "弟子通道仍有稳态 Kotlin 写者（46 站点，见 docs/ui-read-surface.md §4.1），不得关闭",
+    fun `audit red line - disciple channel closed, aiSectDisciples section stays transported`() {
+        // 弟子通道：**已关闭**（w3-13 删除批硬前置达成——W4-D 续批任务域收口后，
+        // AUTHORITATIVE 稳态协议列写者全部拥有 C++ 真相先行臂：交谈 1860 / 派遣 1861 /
+        // 弟子操作面 1740–1759；lifeEvents 协议外投影转非捕获路径；检测 AUTHORITATIVE
+        // 门控）。若回退（通道恢复传输），本测试失败并指向 handover §2.76。
+        assertFalse(
+            "弟子通道应已关闭（写者收口完成，见 handover §2.76），恢复传输须回滚本判定",
             ReverseChannelPolicy.isDiscipleChannelTransported()
         )
+        // aiSectDisciples 顶层段：**仍必须保留传输**（存档前自愈 regenerateSectsBeforeSave /
+        // 攻宗守军清理等稳态写者在位——§2.75④ 第 3 项未完成）
         assertTrue(
             "aiSectDisciples 顶层段仍有稳态写者（AI_SECT 域结论），不得关闭",
             ReverseChannelPolicy.isSectionTransported(ReverseChannelPolicy.SECTION_AI_SECT_DISCIPLES)

@@ -596,4 +596,7 @@ object ActionIds {
     /** 弟子交谈效果事务（修炼/道德/忠诚/悟性参数化应用 + lastChatYear 冷却标记，零 RNG） */
     const val DISCIPLE_CHAT_EFFECT_TX: Int = 1860
 
+    /** 任务派遣事务（模板快照 + 全槽位清理含住所保留 + 状态重置 IDLE，零 RNG） */
+    const val MISSION_START_TX: Int = 1861
+
 }

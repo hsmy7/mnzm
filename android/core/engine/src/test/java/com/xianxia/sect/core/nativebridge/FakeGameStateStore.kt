@@ -19,6 +19,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -157,11 +158,14 @@ open class FakeGameStateStore : GameStateStore {
         for (i in collectionNames().indices) {
             val name = collectionNames()[i]
             val changedReference = baseline.collections[i] !== current[i]
-            // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（与生产 GameStateStoreImpl 同源）
+            // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（与生产 GameStateStoreImpl 同源）；
+            // 检测 AUTHORITATIVE 门控同生产（flag-OFF 写入即真相，无回导缺口）
             if (changedReference && !ReverseChannelPolicy.isCollectionTransported(name)) {
-                ReverseChannelPolicy.noteClosedWrite(
-                    ReverseChannelPolicy.Kind.COLLECTION, name, "FakeGameStateStore"
-                )
+                if (NativeEngineFlag.authoritative) {
+                    ReverseChannelPolicy.noteClosedWrite(
+                        ReverseChannelPolicy.Kind.COLLECTION, name, "FakeGameStateStore"
+                    )
+                }
             } else if (changedReference) {
                 val removedIds = baseline.collections[i].mapTo(HashSet()) { (it as HasId).id } -
                     current[i].mapTo(HashSet()) { (it as HasId).id }
@@ -179,7 +183,8 @@ open class FakeGameStateStore : GameStateStore {
             if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
                 reverseAcc.discipleIds += ids
                 if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
-            } else {
+            } else if (NativeEngineFlag.authoritative) {
+                // 检测 AUTHORITATIVE 门控同生产（w3-13）
                 ReverseChannelPolicy.noteClosedWrite(
                     ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
                     ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,

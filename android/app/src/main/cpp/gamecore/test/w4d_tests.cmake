@@ -12,4 +12,6 @@ set(W4D_TEST_SOURCES
     guide_reward_tx_test.cpp
     # D4 续批·弟子通道收口：交谈效果事务（逐位语义/clamp 边界/无操作零写入/零抽取/端口形状）
     chat_effect_tx_test.cpp
+    # D4 续批·任务域收口：任务派遣事务（模板快照/槽位清理/状态重置/零抽取/端口形状）
+    mission_start_tx_test.cpp
 )

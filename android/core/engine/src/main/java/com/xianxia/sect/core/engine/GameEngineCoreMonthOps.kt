@@ -90,7 +90,10 @@ internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
         // ③ Kotlin 残留执行器（单事务：战斗三件 + 邮件 + 草稿应用
         //    ——S4 后炼丹/锻造完成结算与自动排班已入 C++；C++ 状态已变更，
         //    此处失败必须传播）
-        stateStore.update { monthSettlementResidualExecutor.execute(this, env) }
+        // updateMirror = 非捕获事务（w3-13 弟子通道关闭配套）：本事务全部为
+        // C++ 结算事实的 Kotlin 投影（协议外 lifeEvents 显示列 + 平台草稿），
+        // 无需回导 C++——捕获会使已关闭通道的行级检测误报
+        stateStore.updateMirror { monthSettlementResidualExecutor.execute(this, env) }
         // ③' 事务外平台效应：玩家占领宗门被夺回的建筑没收（独立事务——
         //    建筑拆除含嵌套 update 与 Room 槽位清理，禁止嵌套，
         //    AISectOccupationResolver 事务外拆除先例；变更经反向通道回同步）

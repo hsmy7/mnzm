@@ -3,6 +3,7 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.state.ReverseChannelPolicy
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.After
@@ -102,6 +103,9 @@ class ReverseChannelCloseoutTest {
 
     @Test
     fun `closed collection capture is dropped and detected`() {
+        // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（省 O(n) 差集与后续全实体
+        // JSON 序列化）；关闭后仍有 Kotlin 写者 = 回导缺口，必须可观测。
+        // 捕获侧检测已 AUTHORITATIVE 门控（w3-13）⇒ 本用例置位。
         ReverseChannelPolicy.overrideClosedUnitsForTest(
             listOf(
                 ReverseChannelPolicy.ClosedUnit(
@@ -111,15 +115,17 @@ class ReverseChannelCloseoutTest {
                 )
             )
         )
-        val store = FakeGameStateStore()
-        store.update { pills.add(Pill(id = "p1", name = "丹", quantity = 1)) }
+        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+            val store = FakeGameStateStore()
+            store.update { pills.add(Pill(id = "p1", name = "丹", quantity = 1)) }
 
-        val snapshot = store.consumeReverseDirty()
-        assertTrue("仅关闭集合被改写时窗口应为空（不产生捕获载荷）", snapshot == null)
-        assertTrue(
-            "关闭集合被 Kotlin 写入必须被检测",
-            ReverseChannelPolicy.closedWriteRecordsSnapshot().any { it.contains("pills") }
-        )
+            val snapshot = store.consumeReverseDirty()
+            assertTrue("仅关闭集合被改写时窗口应为空（不产生捕获载荷）", snapshot == null)
+            assertTrue(
+                "关闭集合被 Kotlin 写入必须被检测",
+                ReverseChannelPolicy.closedWriteRecordsSnapshot().any { it.contains("pills") }
+            )
+        }
     }
 
     @Test
@@ -210,19 +216,22 @@ class ReverseChannelCloseoutTest {
         ReverseChannelPolicy.overrideClosedUnitsForTest(listOf(closedField("spiritStones")))
         ReverseChannelPolicy.setReverseTransportEnabled(false)
         try {
-            val store = FakeGameStateStore()
-            val sent = mutableListOf<String>()
-            val sync = StateSyncService(store) { sent += it.decodeToString(); true }
-            sync.applySnapshot(NativeGameState(gameData = store.gameDataValue))
+            // 捕获侧检测已 AUTHORITATIVE 门控（w3-13：flag-OFF 无真相源不存在回导缺口）
+            NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+                val store = FakeGameStateStore()
+                val sent = mutableListOf<String>()
+                val sync = StateSyncService(store) { sent += it.decodeToString(); true }
+                sync.applySnapshot(NativeGameState(gameData = store.gameDataValue))
 
-            store.update { gameData = gameData.copy(spiritStones = 999, jadeSymbols = 7) }
-            assertTrue("禁用窗下 applyDirtyToNative 必须照常成功（不触发全量降级）", sync.applyDirtyToNative())
-            assertTrue("禁用窗不得发送任何信封（发送体积 = 0）", sent.isEmpty())
-            assertTrue(
-                "关闭域写入检测必须保持存活（禁用不得掩盖漏域写者）",
-                ReverseChannelPolicy.closedWriteCountSnapshot() > 0
-            )
-            assertNull("捕获窗口必须照常消费（防无界累积）", store.consumeReverseDirty())
+                store.update { gameData = gameData.copy(spiritStones = 999, jadeSymbols = 7) }
+                assertTrue("禁用窗下 applyDirtyToNative 必须照常成功（不触发全量降级）", sync.applyDirtyToNative())
+                assertTrue("禁用窗不得发送任何信封（发送体积 = 0）", sent.isEmpty())
+                assertTrue(
+                    "关闭域写入检测必须保持存活（禁用不得掩盖漏域写者）",
+                    ReverseChannelPolicy.closedWriteCountSnapshot() > 0
+                )
+                assertNull("捕获窗口必须照常消费（防无界累积）", store.consumeReverseDirty())
+            }
         } finally {
             ReverseChannelPolicy.setReverseTransportEnabled(true)
         }

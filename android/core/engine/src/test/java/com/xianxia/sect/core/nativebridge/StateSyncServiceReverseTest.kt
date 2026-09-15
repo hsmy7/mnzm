@@ -37,6 +37,18 @@ class StateSyncServiceReverseTest {
 
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
+    @org.junit.Before
+    fun restoreTransportForMachineryTest() {
+        // 弟子通道已随 w3-13 关闭（handover §2.76 续批）；信封机械语义守护经
+        // 覆盖钩子恢复传输前提。
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.DISCIPLE)
+    }
+
+    @org.junit.After
+    fun tearDownPolicy() {
+        ReverseChannelPolicy.resetSwitches()
+    }
+
     private fun disciple(id: String, name: String, cultivation: Double = 10.0) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = cultivation,
         spiritRootType = "metal"

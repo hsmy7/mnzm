@@ -123,7 +123,9 @@ internal suspend fun GameEngineCore.settleYearNative(): Boolean {
         }
         val env = parseYearSettlementEnvelope(envJson)
         // ③ Kotlin 残留执行器（单事务——C++ 状态已变更，此处失败必须传播）
-        stateStore.update { yearSettlementResidualExecutor.execute(this, env) }
+        // updateMirror = 非捕获事务（w3-13 弟子通道关闭配套，MonthOps 同款）：
+        // 物化/丧亲均为 C++ 年结事实的 Kotlin 投影，无需回导
+        stateStore.updateMirror { yearSettlementResidualExecutor.execute(this, env) }
         // ④ 事务外平台效应（Room 生产槽 DAO 清理 + DeathEvent 分发）
         yearSettlementResidualExecutor.applyPlatformEffects(env)
         true

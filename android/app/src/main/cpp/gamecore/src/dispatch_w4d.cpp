@@ -35,6 +35,7 @@
 #include "gamecore/game_core.h"   // GameCore 完整类型（dispatch_w4.h 仅前向声明）
 #include "gamecore/system/guide_reward_tx.h"
 #include "gamecore/system/chat_effect_tx.h"
+#include "gamecore/system/mission_start_tx.h"
 
 namespace gamecore {
 
@@ -97,6 +98,35 @@ nlohmann::json handleChatEffectTx(GameCore& core, const nlohmann::json& p) {
     return ok({{"applied", true}, {"found", r.found}});
 }
 
+// ── 1861 · 任务域收口（mission_start_tx.h）──────────────────────────
+
+nlohmann::json handleMissionStartTx(GameCore& core, const nlohmann::json& p) {
+    const auto idIt = p.find("missionId");
+    const auto amIdIt = p.find("activeMissionId");
+    const auto idsIt = p.find("discipleIds");
+    if (idIt == p.end() || !idIt->is_string() ||
+        amIdIt == p.end() || !amIdIt->is_string() ||
+        idsIt == p.end() || !idsIt->is_array()) {
+        return invalidParams(
+            "mission start requires missionId/activeMissionId(string) and discipleIds(array)");
+    }
+    std::vector<std::string> discipleIds;
+    for (const auto& el : *idsIt) {
+        if (!el.is_string()) {
+            return invalidParams("discipleIds must be an array of strings");
+        }
+        discipleIds.push_back(el.get<std::string>());
+    }
+    const auto r = gamecore::system::mission_tx::startMissionTx(
+        core.state(), idIt->get<std::string>(), amIdIt->get<std::string>(), discipleIds);
+    if (!r.started) {
+        return {{"status", "failure"},
+                {"code", r.errorCode},
+                {"message", "mission start rejected"}};
+    }
+    return ok({{"started", true}, {"activeMissionId", amIdIt->get<std::string>()}});
+}
+
 }  // namespace
 
 std::optional<nlohmann::json> dispatchW4D(GameCore& core, int32_t actionId,
@@ -110,7 +140,11 @@ std::optional<nlohmann::json> dispatchW4D(GameCore& core, int32_t actionId,
         actionId <= action::DISCIPLE_CHAT_EFFECT_TX) {
         return handleChatEffectTx(core, params);
     }
-    // 1831–1839（w3-11 余项：C++ 已在位/登记不下沉）与 1861–1869（机动余量）不认领。
+    if (actionId >= action::MISSION_START_TX &&
+        actionId <= action::MISSION_START_TX) {
+        return handleMissionStartTx(core, params);
+    }
+    // 1831–1839（w3-11 余项：C++ 已在位/登记不下沉）与 1862–1869（机动余量）不认领。
     return std::nullopt;
 }
 

@@ -43,12 +43,26 @@ internal val w4DClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
     // SectPolicyToggleUseCase.toggleSpiritMineBoost 回退臂（native 臂 1682 在位，
     // §2.63 batch-18b）——原 W4-B retained 条目同批转出）
     gameDataField(Domain.PATROL, "spiritMineLastSettledMonth"),
+    // RECRUIT（W4-D 续·任务域收口——startMission sunk 1861 MISSION_START_TX；
+    // 周期刷新/完成 = C++ 月结子事件 13/5；Kotlin checkAndProcessCompletedMissions
+    // 在 AUTHORITATIVE 为防御性 no-op（C++ 完成经前向镜像后无可完成项）+
+    // 读档归一化（LOAD_BOOT 族）+ flag-OFF 回退臂（检测 AUTHORITATIVE 门控不计数））
+    gameDataField(Domain.RECRUIT, "activeMissions"),
+    // DISCIPLE（W4-D 续·弟子通道关闭——w3-13 删除批硬前置达成判定）：
+    // 通道的 AUTHORITATIVE 稳态协议列写者已全部获得 C++ 真相先行臂——
+    // 交谈效果 1860（chat_effect_tx.h）/ 任务派遣 1861（mission_start_tx.h）/
+    // 改名·类型·关注·赏赐·服药·状态派生·血炼·功法·婚姻（1740–1759，W4-A）。
+    // lifeEvents 协议外列投影（购买日志/丧亲）随残留执行器事务转 updateMirror
+    // 非捕获路径（C++ 事实的 Kotlin 显示投影，无需回导）；检测已 AUTHORITATIVE
+    // 门控（flag-OFF 回退臂写入 = 写入即真相，不存在回导缺口）。
+    discipleChannel(Domain.DISCIPLE),
 )
 
 /** 本批的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4DRetainedGameDataFields: Set<String> = linkedSetOf(
-    // 招募列表 / 任务（RECRUIT 域残余）
-    "recruitList", "activeMissions",
+    // 招募列表（RECRUIT 域残余——RecruitService 回退臂 + 读档归一化；
+    // activeMissions 已随任务域收口转关闭，见 closedUnits）
+    "recruitList",
     // 经济：钱包三阶与灵草（Kotlin 钱包与统一入库入口为稳态写者）
     "spiritStones", "midGradeSpiritStones", "highGradeSpiritStones", "spiritHerbs",
     // 世界与宗门标识

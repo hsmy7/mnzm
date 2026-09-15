@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -31,11 +32,19 @@ class GameStateStoreReverseDirtyTest {
 
     @Before
     fun setUp() {
+        // 弟子通道已随 w3-13 关闭（handover §2.76 续批）；本类守护**捕获机械**
+        // 语义（弟子列写 → changed id → 快照），经覆盖钩子恢复传输前提。
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.DISCIPLE)
         stateStore = GameStateStoreImpl(
             applicationScopeProvider = ApplicationScopeProvider(),
             repository = testGameStateRepository()
         )
         stateStore.unsafeAllowMainThreadUpdateForTest = true
+    }
+
+    @After
+    fun tearDown() {
+        ReverseChannelPolicy.resetSwitches()
     }
 
     private fun makeDisciple(id: Int): Disciple = Disciple(

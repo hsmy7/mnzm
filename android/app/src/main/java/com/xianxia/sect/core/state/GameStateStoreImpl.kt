@@ -30,6 +30,7 @@ import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.spiritStones
 import android.os.Looper
 import com.xianxia.sect.BuildConfig
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -1102,7 +1103,9 @@ class GameStateStoreImpl @Inject constructor(
                     ids = tracker.snapshotChangedIds(),
                     rejected = tracker.snapshotRejectedRecord()
                 )
-            } else if (tracker.snapshotChangedIds().isNotEmpty()) {
+            } else if (NativeEngineFlag.authoritative && tracker.snapshotChangedIds().isNotEmpty()) {
+                // 关闭域写入检测 = "C++ 真相源在位时的回导缺口"检测——flag-OFF
+                // 下无真相源（写入即真相），不存在回导缺口，不计数（w3-13 门控）
                 ReverseChannelPolicy.noteClosedWrite(
                     ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
                     ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
@@ -1147,9 +1150,12 @@ class GameStateStoreImpl @Inject constructor(
         // JSON 序列化随之省去；引用变化本身仍被观测（关闭后集合若仍被 Kotlin
         // 改写即为回导缺口，登记检测并从快照剔除）
         if (!ReverseChannelPolicy.isCollectionTransported(name)) {
-            ReverseChannelPolicy.noteClosedWrite(
-                ReverseChannelPolicy.Kind.COLLECTION, name, "captureCollection"
-            )
+            if (NativeEngineFlag.authoritative) {
+                // 同上：回导缺口检测仅在 AUTHORITATIVE（C++ 真相源在位）时计数
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.COLLECTION, name, "captureCollection"
+                )
+            }
             return
         }
         val removedIds = baseline.mapTo(HashSet()) { (it as HasId).id } -

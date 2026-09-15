@@ -1,6 +1,10 @@
 package com.xianxia.sect.core.engine
 
 import kotlinx.coroutines.flow.map
+import com.xianxia.sect.core.nativebridge.ActionIds
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.put
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogEnemy
@@ -26,15 +30,29 @@ import com.xianxia.sect.core.engine.domain.building.updateDiscipleStatus
 fun GameEngine.startMission(mission: Mission, selectedDisciples: List<Disciple>) {
     gameEngineCore.launchInScope {
         val discipleIds = selectedDisciples.map { it.id }
-        stateStore.update {
-            // 前置清理：派遣即换岗——释放每个队员在全部槽位的旧引用（保留住所），
-            // 防止同一弟子同时出现在岗位与任务中（不清理会
-            // 任务完成后 status 强制 IDLE 而岗位槽位残留，状态/槽位永久不一致）
-            discipleIds.forEach { releaseDiscipleToIdleInside(this, it) }
-            val activeMission = MissionSystem.createActiveMission(
-                mission, selectedDisciples, gameData.gameYear, gameData.gameMonth
-            )
-            gameData = gameData.copy(activeMissions = gameData.activeMissions + activeMission)
+        // C++ 真相先行（W4-D 续批·任务域收口：MISSION_START_TX=1861——模板快照 +
+        // 全槽位清理（保留住所）+ 状态重置在 C++（mission_start_tx.h）。ActiveMission.id
+        // 由本侧 UUID.randomUUID() 生成后参数传入——Java 随机非游戏分区，原基线即
+        // 零游戏抽取 ⇒ 双臂抽取增量恒 0（红线 1）。失败信封/降级 → Kotlin 原路径
+        // 回退臂（红线 3）。事务外部平台面（gate 释放/Repository 清理/状态同步）
+        // 两臂同形，照原序执行。
+        val nativeDone = discipleIds.all { it.toIntOrNull() != null } &&
+            tryDiscipleOpNative(ActionIds.MISSION_START_TX) {
+                put("missionId", mission.id)
+                put("activeMissionId", java.util.UUID.randomUUID().toString())
+                put("discipleIds", JsonArray(discipleIds.map { JsonPrimitive(it) }))
+            } != null
+        if (!nativeDone) {
+            stateStore.update {
+                // 前置清理：派遣即换岗——释放每个队员在全部槽位的旧引用（保留住所），
+                // 防止同一弟子同时出现在岗位与任务中（不清理会
+                // 任务完成后 status 强制 IDLE 而岗位槽位残留，状态/槽位永久不一致）
+                discipleIds.forEach { releaseDiscipleToIdleInside(this, it) }
+                val activeMission = MissionSystem.createActiveMission(
+                    mission, selectedDisciples, gameData.gameYear, gameData.gameMonth
+                )
+                gameData = gameData.copy(activeMissions = gameData.activeMissions + activeMission)
+            }
         }
         discipleIds.forEach { assignmentGate.release(it) }
         // 双存储同步：清 Room 生产槽 Repository
