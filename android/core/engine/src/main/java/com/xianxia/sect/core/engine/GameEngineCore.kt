@@ -643,9 +643,10 @@ class GameEngineCore @Inject constructor(
 
     /**
      * 月变真相源切换残留执行器：nativeSettleMonth（C++ 完整月变）
-     * 之后的 Kotlin 未下沉扇出 + 平台效应草稿应用（生产结算/战斗三件/
-     * 秘境邮件与 gate/购买日志）。手动构造（与 MonthSettlementExecutor
-     * 同风格）；依赖经 cultivationService.eventProcessor 访问事件域服务。
+     * 之后的 Kotlin 未下沉扇出 + 平台效应草稿应用（购买日志 + 秘境关闭邮件
+     * ——生产结算/战斗三件均已入 C++，判定口径 = 通知/日志留 Kotlin）。
+     * 手动构造（与 MonthSettlementExecutor 同风格）；依赖经
+     * cultivationService.eventProcessor 访问事件域服务。
      */
     internal val monthSettlementResidualExecutor: MonthSettlementResidualExecutor by lazy {
         MonthSettlementResidualExecutor(
@@ -654,10 +655,10 @@ class GameEngineCore @Inject constructor(
     }
 
     /**
-     * 年变真相源切换残留执行器：nativeSettleYear（C++ 完整年变）
-     * 之后的 Kotlin 未下沉扇出（死亡链 ③ + 招募生成 ④ + AI 招募 ② + 商人收购
-     * ③ + 交易刷新 ④）。手动构造；依赖经 cultivationService.eventProcessor 访问
-     * 事件域服务。
+     * 年变真相源切换残留执行器：nativeSettleYear（C++ 完整年变）之后的
+     * Kotlin 未下沉扇出（死亡链物化/丧亲/死亡档案——招募生成/AI 招募/
+     * 商人收购/交易刷新均已下沉 C++）。手动构造；依赖经
+     * cultivationService.eventProcessor 访问事件域服务。
      */
     internal val yearSettlementResidualExecutor: YearSettlementResidualExecutor by lazy {
         YearSettlementResidualExecutor(

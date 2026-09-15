@@ -68,4 +68,15 @@ std::optional<nlohmann::json> dispatchW4B(GameCore& core, int32_t actionId,
 std::optional<nlohmann::json> dispatchW4C(GameCore& core, int32_t actionId,
                                          const nlohmann::json& params);
 
+/**
+ * W4-D 分派端口（汇流波/串行收口轴；w3-11 月年编排残差等）。
+ *
+ * @param core 引擎实例
+ * @param actionId 业务操作码
+ * @param params 已解析的参数对象（非 null）
+ * @return 认领并产出的结果信封；不认领返回 `std::nullopt`
+ */
+std::optional<nlohmann::json> dispatchW4D(GameCore& core, int32_t actionId,
+                                         const nlohmann::json& params);
+
 }  // namespace gamecore

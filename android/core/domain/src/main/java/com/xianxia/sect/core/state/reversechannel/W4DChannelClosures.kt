@@ -27,6 +27,9 @@ internal val w4DClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
     gameDataField(Domain.RECRUIT, "lastAiSectRecruitYear"),
     // AI_SECT
     gameDataField(Domain.AI_SECT, "aiSectPersonalities"),
+    // BOUNDARY（W4-D/D2 · w3-11 引导领奖下沉——claimGuideReward 写面归 C++，
+    // Kotlin 残余 = 回退臂-only；原 W4-B retained 条目同批转出）
+    gameDataField(Domain.BOUNDARY, "guideClaimedRewardIds"),
 )
 
 /** 本批的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
@@ -64,5 +67,33 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
         "SaveFacadeImpl.kt:56 regenerateSectsBeforeSave — 存档前世界/AI 池自愈（会话中途稳态）",
         "GameEngineBattleOps.kt:176/:339 — 攻宗阵亡守军清理/吞并（剩余写者）",
         "GameEngineLifecycleOps.kt:177/:196 — 自愈同步族（经 upgradeSectLevel 稳态可达）",
+    ),
+    // W4-D/D2（2026-09-15）w3-11 月年编排残差——扇出项逐条判定与宿主族解冻核对
+    Domain.BOUNDARY to listOf(
+        "W4-D/D2（2026-09-15）：GameEngineGuideOps.kt:52 claimGuideReward — 引导领奖已下沉" +
+            "（GUIDE_REWARD_CLAIM_TX=1830 + guide_reward_tx.h：任务注册表 25 条/9 类条件求值/" +
+            "可行性预检/SYSTEM 2×nextLong UUID 复刻/凭据溢出抑制）；guideClaimedRewardIds 转入关闭" +
+           "（Kotlin 残余 = 回退臂-only）；UI 奖励卡片两臂同形留 Kotlin",
+        "W4-D/D2（2026-09-15）：GameEngineCoreMonthOps.kt:90 / GameEngineCoreYearOps.kt:126 " +
+            "残留执行器逐条判定收口——purchaseLogs 与丧亲 = lifeEvents 瞬态列（@Ignore 非协议字段，" +
+            "DiscipleSerializer.kt:28）⇒ Kotlin 日志；秘境关闭邮件 = MailService DAO 通知；" +
+            "死亡链袋物化 = 平台效应链（InventoryFacadeImpl.kt:678 openStorageBag 逐件入库仍为" +
+            "两臂共用 Kotlin 稳态写者 ⇒ 物化下沉对关闭无收益，不迁）；" +
+            "RedeemCodeService.kt:153/:402 兑换码登记不下沉（C++ 无物品随机生成器，RNG 红线，" +
+            "§2.50/B3 同先例）",
+        "W4-D/D2（2026-09-15）：宿主族解冻核对（month_settlement.h:1012 / year_settlement.h:1805）" +
+            "——C++ runMonthSettlement 16 子事件全在位（含子事件 12 附庸脱离/13 任务刷新/" +
+            "15 秘境期满/16 秘境 AI 队）；runYearSettlement T1 全部 11 项 + T2 主要子项在位，" +
+            "partnerMatching/aiAlliances 双侧均为空扩展点（DiplomacyEventProcessor.kt:60/:65）平价；" +
+            "6 个冻结宿主调用点核对完毕，KDoc 陈旧面（S4/W4 时代扇出描述）同批修正",
+    ),
+    Domain.DIPLOMACY to listOf(
+        "W4-D/D2（2026-09-15）：VassalService.kt:99/:323 年贡/附属年贡/月度脱离判定收口——" +
+            "C++ 逻辑已在位（year_settlement.h detail::processYearlyTribute/" +
+            "processYearlyVassalTribute + month_settlement.h detail::processVassalBreakaway，" +
+            "AUTHORITATIVE 管线原生执行）；Kotlin 调用点保留为 flag-OFF 回退臂" +
+            "（CultivationEventMonthlyOps.kt:73/:105/:125/:126）——开 native 臂即双重扣贡/" +
+            "双重抽取 ⇒ 不占号（B4 预判实裁）；sectRelations/vassalContracts/suzerainSectId " +
+            "保持 in-flight（外交赠礼/自愈等写者面另行评估）",
     ),
 )

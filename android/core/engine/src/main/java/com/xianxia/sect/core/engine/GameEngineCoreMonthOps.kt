@@ -49,10 +49,13 @@ private const val MONTH_TAG = "GameEngineCore"
 /**
  * 月变真相源切换管线：生产月变路径从 Kotlin MonthSettlementExecutor
  * 八步编排切换为 C++ `runMonthSettlement` + Kotlin 残留执行器互插——
- * ① nativeSettleMonth——C++ 完整月变结算（八步 + 十六子事件已下沉 13 件），
- *    信封含 policyCosts.disabledPolicies / 秘境关闭草稿 / 购买日志草稿；
+ * ① nativeSettleMonth——C++ 完整月变结算（八步 + 十六子事件已全量下沉），
+ *    信封含 policyCosts.disabledPolicies / 秘境关闭草稿 / 购买日志草稿 /
+ *    征伐没收 sectId 集；
  * ② applyDirtyFromNative——增量镜像（失败先全量兜底，仍失败异常传播）；
- * ③ Kotlin 残留执行器（单事务：生产结算 + 战斗三件 5/6/9 + 邮件 + 草稿应用）。
+ * ③ Kotlin 残留执行器（单事务：购买日志 + 秘境关闭邮件——S4 后生产结算入 C++，
+ *    W4-C 后战斗三件入 C++；判定口径 = 通知/日志留 Kotlin，见
+ *    MonthSettlementResidualExecutor KDoc）。
  *
  * 返回 null 表示 native 未就绪（调用方回退 Kotlin 完整编排——此时 C++ 状态
  * 未变更，回退安全）；返回信封表示 C++ 状态已变更——**此点之后任何失败必须

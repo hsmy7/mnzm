@@ -2778,6 +2778,11 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (auto w4c = dispatchW4C(*this, actionId, params);
                    w4c.has_value()) {
             result = std::move(*w4c);
+        } else if (auto w4d = dispatchW4D(*this, actionId, params);
+                   w4d.has_value()) {
+            // W4-D 汇流波（串行收口）端口——三批合入后由 W4-D 追加的第四端口，
+            // 同一模式的一次性延续（src/dispatch_w4d.cpp）。
+            result = std::move(*w4d);
         } else {
             result = fail("NOT_IMPLEMENTED",
                           "action not implemented yet: " + std::to_string(actionId));

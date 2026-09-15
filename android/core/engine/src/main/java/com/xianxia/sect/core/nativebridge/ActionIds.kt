@@ -590,4 +590,7 @@ object ActionIds {
     /** 秘境到期兜底（到期判定 + 关闭状态段 + 关闭草稿信封，零 RNG） */
     const val SECRET_REALM_EXPIRY_GUARD_TX: Int = 1801
 
+    /** 引导领奖事务（任务校验链 + 储物袋发放 + 已领标记，凭据类溢出抑制） */
+    const val GUIDE_REWARD_CLAIM_TX: Int = 1830
+
 }

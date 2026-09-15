@@ -95,11 +95,11 @@ internal fun parseYearSettlementEnvelope(envJson: String): YearSettlementEnvelop
 /**
  * 年变真相源切换管线：生产年变路径从 Kotlin YearSettlementExecutor
  * 编排切换为 C++ `runYearSettlement` + Kotlin 残留执行器互插——
- * ① nativeSettleYear——C++ 完整年变（T1 已下沉面 + T2 已下沉面 + 年报 + 年俸），
+ * ① nativeSettleYear——C++ 完整年变（T1 全部 11 项 + T2 主要子项 + 年报 + 年俸），
  *    信封含死亡链平台效应草稿（agedDeaths/bereavements）；
  * ② applyDirtyFromNative——增量镜像（失败先全量兜底，仍失败异常传播）；
- * ③ Kotlin 残留执行器（单事务：死亡链 ③ 平台效应 + 招募生成 ④ + AI 招募 ② +
- *    商人收购 ③ + 交易刷新 ④ + 物化/丧亲/死亡档案）；
+ * ③ Kotlin 残留执行器（单事务：物化/丧亲/死亡档案——招募生成/AI 招募/
+ *    商人收购/交易刷新均已下沉 C++，本执行器不再调用）；
  * ④ 事务外平台效应（DAO 清理 + DeathEvent）。
  *
  * 返回 false 表示 native 未就绪（调用方回退 Kotlin 完整编排——此时 C++

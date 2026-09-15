@@ -36,6 +36,8 @@ add_library(game-core STATIC
     src/dispatch_w4a.cpp
     src/dispatch_w4b.cpp
     src/dispatch_w4c.cpp
+    # W4-D 汇流波（串行收口）第四端口——同一模式对并行切分结构的一次性延续。
+    src/dispatch_w4d.cpp
 )
 
 target_include_directories(game-core PUBLIC

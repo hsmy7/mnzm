@@ -51,6 +51,17 @@ private fun GameEngine.tryNativeBoundaryTx(actionId: Int, paramsJson: ByteArray)
  */
 fun GameEngine.claimGuideReward(taskId: Int): Boolean {
     val task = com.xianxia.sect.core.model.guide.GuideTaskRegistry.getTask(taskId) ?: return false
+    // W4-D/D2 native 臂（GUIDE_REWARD_CLAIM_TX=1830——判定序/可行性预检/凭据
+    // 发放在 C++（guide_reward_tx.h）；SYSTEM 2×nextLong 造 UUID 双臂抽取位
+    // 一致。失败信封/降级 → Kotlin 原路径（双实现并行契约））。
+    if (tryNativeBoundaryTx(
+            actionId = ActionIds.GUIDE_REWARD_CLAIM_TX,
+            paramsJson = params { put("taskId", taskId) }
+        )
+    ) {
+        enqueueGuideRewardCard(task)
+        return true
+    }
     /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
     val rng = gameRngManager.getRng(RngPartition.SYSTEM)
     var claimed = false
@@ -84,17 +95,21 @@ fun GameEngine.claimGuideReward(taskId: Int): Boolean {
         }
     }
     if (claimed) {
-        // 入队奖励卡片，触发 RewardCardHost 飞出动画
-        stateStore.enqueueRewardCards(listOf(
-            RewardCardItem(
-                itemName = StorageBag.TIER_NAMES[0],
-                itemType = "storageBag",
-                rarity = 1,
-                quantity = task.rewardItemQuantity
-            )
-        ))
+        enqueueGuideRewardCard(task)
     }
     return claimed
+}
+
+/** 入队奖励卡片（RewardCardHost 飞出动画——UI 平台效应，两臂同形，不入事务）。 */
+private fun GameEngine.enqueueGuideRewardCard(task: com.xianxia.sect.core.model.guide.GuideTask) {
+    stateStore.enqueueRewardCards(listOf(
+        RewardCardItem(
+            itemName = StorageBag.TIER_NAMES[0],
+            itemType = "storageBag",
+            rarity = 1,
+            quantity = task.rewardItemQuantity
+        )
+    ))
 }
 
 /**

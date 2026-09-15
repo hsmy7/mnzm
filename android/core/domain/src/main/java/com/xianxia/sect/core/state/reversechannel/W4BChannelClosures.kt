@@ -94,8 +94,8 @@ internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
     // MAIL 分区随机生成 + 凭据类原子性禁止拆双写域——与 RedeemCodeService 同先例；
     // 自动购买列表为 InventoryDelegate UI 直改）
     "autoBuyList", "mailRecords",
-    // 引导领奖（BOUNDARY 域）
-    "guideClaimedRewardIds",
+    // （原"引导领奖 guideClaimedRewardIds"已由 W4-D/D2 下沉转出——
+    //   GUIDE_REWARD_CLAIM_TX=1830，关闭单元与证据见 W4DChannelClosures.kt）
     // 外交/附庸（DIPLOMACY 域）
     "sectRelations", "vassalContracts", "suzerainSectId",
     // 天道试炼（登记不下沉：模板随机与凭据溢出抑制同事务）
