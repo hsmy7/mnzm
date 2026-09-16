@@ -6,31 +6,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * ProductionProcessor 炼丹完成逻辑纯函数测试。
+ * ProductionProcessor 炼丹完成逻辑纯函数测试（findBestCraftableRecipe 边界条件）。
  *
- * 覆盖 processAlchemyCompletion 中的 PillGrade.random()
- * 概率分布和 findBestCraftableRecipe 的边界条件。
+ * 旧 PillGrade.random() 概率分布用例随该死函数删除（W4-D/D5——生产炼丹品阶
+ * 已走分区 RNG，无参裸抽取重载零生产调用方）。
  */
 class ProductionProcessorAlchemyTest {
-
-    // ═══════════════════════════════════════════════════════════════
-    // PillGrade.random() — 概率分布
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    fun `PillGrade random - probability distribution within tolerance`() {
-        val trials = 10000
-        val counts = IntArray(3)
-        repeat(trials) { counts[com.xianxia.sect.core.model.PillGrade.random().ordinal]++ }
-        val lowPct = counts[0].toDouble() / trials
-        val medPct = counts[1].toDouble() / trials
-        val highPct = counts[2].toDouble() / trials
-
-        // LOW: 60%, MEDIUM: 34%, HIGH: 6% — 允许 ±4% 误差
-        assertEquals(0.60, lowPct, 0.04)
-        assertEquals(0.34, medPct, 0.04)
-        assertEquals(0.06, highPct, 0.03)
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // findBestCraftableRecipe — 边界条件

@@ -69,8 +69,6 @@ class StorageConfig @Inject constructor(
     val maxDeltaChainLength: Int
         get() = store().getInt("max_delta_chain_length", DEFAULT_MAX_DELTA_CHAIN_LENGTH)
 
-    val maxDisciples: Int
-        get() = store().getInt("max_disciples", DEFAULT_MAX_DISCIPLES)
 
     val cacheDerivedKey: Boolean
         get() = store().getBoolean("cache_derived_key", DEFAULT_CACHE_DERIVED_KEY)
@@ -132,7 +130,6 @@ class StorageConfig @Inject constructor(
         const val DEFAULT_RETRY_DELAY_MS = 100L
         const val DEFAULT_COMPACTION_THRESHOLD = 10
         const val DEFAULT_MAX_DELTA_CHAIN_LENGTH = 50
-        const val DEFAULT_MAX_DISCIPLES = 1000
         const val DEFAULT_CACHE_DERIVED_KEY = true
         const val DEFAULT_KEY_CACHE_DURATION_MS = 300_000L
         const val DEFAULT_UPDATE_CACHE_AFTER_SAVE = true

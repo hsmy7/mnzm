@@ -871,15 +871,6 @@ enum class PillGrade {
     }
 
     companion object {
-        fun random(): PillGrade {
-            val roll = kotlin.random.Random.nextDouble()
-            return when {
-                roll < 0.06 -> HIGH
-                roll < 0.40 -> MEDIUM
-                else -> LOW
-            }
-        }
-
         /** 使用指定 RNG 生成品阶（用于存档确定性场景） */
         fun random(rng: kotlin.random.Random): PillGrade {
             val roll = rng.nextDouble()

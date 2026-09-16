@@ -1248,19 +1248,58 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 
 
+### §2.83 W4-D/D5——死代码清零 + 守卫面收口（2026-09-17）
+
+批次: [W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md) §0 序 D5 + §2.D 全清单 | 性质: **零 C++ 改动、零协议面、零 ActionId 变更、玩家可见语义零变更**（纯删除 + 守卫数值只缩）。
+
+**① 先补清单（D5 硬前置）**: handover §5④ 的"18+11+5 处零调用者站点"原始分项清单在仓库内不可考（§14 #15 已定性"无基准不可验收"）⇒ 本批以**全量重扫 + 逐点核实**建立新基准，产出三份可核对清单（每条带"生产调用 n / 测试引用 n"证据）：
+
+**A. 已由前批清偿（本批逐项核实，免做）**:
+| 项 | 清偿批次与证据 |
+|---|---|
+| 洞府探索生命周期入口死链 | W4-B/B4（`CaveExplorationProcessor` 构造面收敛注释 + 委托段已空；`processSectDisciplesAging`/`processAISectOperations`/`currentAiThermalBatchSize`/`processSectDisciplesYearlyRecruitment` 四活路逐一核实带生产调用方） |
+| `GameEnginePatrolOps.updatePatrolConfig` 死 API | W4-B（现存仅复数版 `updatePatrolConfigs` 活版；`PatrolTowerViewModel.updatePatrolConfig` 为同名不同函数） |
+| `InventorySystem.materializeDiscipleBagAndMarkDead` 同签名遮蔽 | W4-C 根治（`InventorySystem校验Ops3.kt:163` 根治注释） |
+| `GameEngineSectLevelOps` `bloodMaterials.random()` 输入侧随机流入 C++ 事务（§2.D ⑧ / §12 债表） | W4-B/B0 已分区化（`:210` 现走 `RngPartition.MAIL`，注释在案；§12 债表行同步销账） |
+| `CultivationEventAutoWarehouseOps` 悬空 KDoc（§2.D ②） | §2.68 已修 |
+
+**B. 本批删除（逐条带证据；`生产` = 主源引用数，`测试` = 测试源引用数）**:
+| # | 死链 | 生产 | 测试 |
+|---|---|---|---|
+| B1 | `maxDisciples` 误导性死配置：`GameConfigData.DiscipleSection.maxDisciples` + `StorageConfig.maxDisciples` 属性与 `DEFAULT_MAX_DISCIPLES` 常量 + `game_config.json` 键（引擎零消费，"性能规划以实际规模为输入"纪律见 §2.68） | 0 | `ConfigLoaderTest:47` 断言（同步删） |
+| B2 | `GameSettingsData` 孤儿模型（`GameDataMerchant.kt:29`，已拍板"按清理执行"）+ `EnumConverters` 悬空 TypeConverter 对 + `AudioConfig.updateFromSettings` | 0 | `GameDataTest` 默认构造用例（同步删） |
+| B3 | `GameData` 六个死辅助函数：`totalSpiritStonesSellValue`/`withOrganization`/`withExploration`（真零引用）+ `withWorldMap`/`withBuildings`/`withEconomy`（仅测试引用） | 0 | `GameDataTest` 三个 `with*` 用例（同步删） |
+| B4 | `assignManual`/`removeManual` 复制链三层：`DiscipleFacade:45/46` + `DiscipleFacadeImpl:216/220`（仅委托 `learnManual`/`forgetManual`）+ `GameEngineDiscipleItemOps:26/27` GameEngine 扩展（UI 实际走 `DiscipleDelegate.learnManual/forgetManual` 直达 GameEngine，与链无关） | 0 | 0 |
+| B5 | `EquipItemUseCase` / `HarvestProductionUseCase`（`:app` usecase，零生产调用方） | 0 | `UseCaseInvocationTest` 两段（同步删） |
+| B6 | `AISectPersonality.random()` + `randomDenounceInterval` + 失去唯一消费者的 `weightedPool` | 0 | `AISectPersonalityTest` 4 用例（同步删，余 8 个枚举/权重/门槛用例保留） |
+| B7 | `PillGrade.random()` 无参重载（裸 `Random.Default`；生产炼丹品阶已走分区 RNG 重载） | 0 | `ProductionProcessorAlchemyTest` 概率分布用例（同步删） |
+| B8 | `BaseTemplateRegistry.pickWeightedRandom`/`generateWeightedRarity`/`generateTieredRarity`（后者两个零生产调用方；前者的**唯一生产调用方** = B9 两函数，链条闭合后整体死） | 0 | `BaseTemplateRegistryTest` 4 用例 + 2 个暴露 protected 的测试辅助（同步删） |
+| B9 | `BeastMaterialRegistry.getRandomMaterialByRealm`/`getRandomMaterialByBeastType`（实例类两随机函数，全仓零调用方——生产掉落走的是 `BeastMaterialDatabase` **object** 同名函数） | 0 | 0 |
+| B10 | `BeastMaterialDatabase.getRandomMaterialByRealm`（裸 `Random.Default` 加权抽取） | 0 | `BeastMaterialDatabaseTest` 1 用例（同步删） |
+
+**C. 核实后保留（诚实口径——A5 存量并非全死）**: `BeastMaterialDatabase.getRandomMaterialByBeastType`（裸 `Random.nextDouble()` 加权抽取）有 **3 个生产调用方**（`GameEngineWorldBattleOps:322` / `ExplorationService:364` / `PatrolBattleSystem:595`，妖兽材料掉落）⇒ **非死代码，本批不删**；其"全局随机不可复现"属 **RNG 阶段 3 分区化**范畴（与 `MaterialTemplateRegistry.generateRandom` 家族同批），已登记阶段 3 清单。A5 当初"8 处均仅测试调用方"的表述对其中 2 处（B8/B10 及其上游）不准确，以本清单为准。
+
+**② 守卫面收口（守卫只缩不增 + 计数断言落地）**:
+- `RngSourceGuardTest` core/domain BARE_DRAW 登记上限 **13 → 6**（= 原基线 5 + 存活 1；A5 显形 8 处中 7 处随 B6–B10 删除，余 1 处为 C 项活代码并附归属说明）；
+- `RngEngineIsolationGuardTest` 白名单 **4 → 1**（删 3 条陈旧"同族遗留"豁免——三处 `var xxxRngManager` 已随 W4-C C-③ 改形参必传，生产面 0 命中核实）+ **新增"白名单条目数必须等于登记值"计数断言**（`expectedExclusionCount = 1`；§12 债表"白名单无计数断言"项同步销账——新增豁免从此机器可拦）。
+
+**③ 门禁实跑**: 桌面 C++ 全量**豁免**（零 C++ 改动）｜`:core:engine` **3288 / 0 / 0 / 0**（= 3288 − 1 炼丹用例 + 1 白名单计数断言；47 `Diff*` 全绿 0 跳过，JNI 指向本树 desktop-jni）｜`:core:domain` **1743/0**（= 1752 − 9：settings 1 + with* 3 + registry 4 + byRealm 1）｜`:core:data` **716/0/15 既有跳过**｜`:feature:game` **872/0**｜`:app` **986/0/2 既有跳过**（= 995 − 9：personality 4 + usecase 5）｜六模块 detekt 全绿（3 处 UnusedImports 删除批残留实修，未进 baseline）｜NDK + lint **豁免**（零 C++/资源/Manifest 改动）｜生成器幂等 + 生成物零漂移（198 动作 / maxId=1861）。
+
+**遗留**: ① D6 文档与版本收口（`version.properties` 由用户决定）；② RNG 阶段 3 的 `BeastMaterialDatabase.getRandomMaterialByBeastType` 分区化已登记阶段 3 清单（唯一存活裸抽取）。
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-17，§2.82 w3-13 反向通道删除后）**：
+**当前门禁基线（2026-09-17，§2.83 D5 死代码清零后）**：
 
 | 验证 | 结果 |
 |---|---|
 | 桌面 C++ 全量单测 | **1417/1417 全绿**（§2.82 = 1430（§2.77 实测真值）− 13 反向用例；此前本表记 1417 为 §2.73 时点漂移值——§2.76/§2.77 实为 1424/1430 而表未同步，已修注；含单进程直跑复核）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3288 用例 / 0 失败 / 0 错误 / 0 跳过**（§2.82 = 3315 − 25 反向/观察窗用例 + 1 `MirrorReadOnlyGuardTest`；47 个 `Diff*` 对拍全绿 + **100 旬管线稳态零写入断言绿**——通道删除后 AUTHORITATIVE 管线 Kotlin 非镜像持久写入为零） |
-| `:core:domain` 单测 | **1752 用例 / 0 失败**（§2.82 = 1762 − 10（`ReverseChannelPolicyGuardTest` 随通道删除）） |
-| `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.82 复跑，持平） |
+| 引擎全量单测 `:core:engine` | **3288 用例 / 0 失败 / 0 错误 / 0 跳过**（§2.83 = −1 炼丹死函数用例 + 1 白名单计数断言，净持平；47 个 `Diff*` 对拍全绿 0 跳过 + **100 旬管线稳态零写入断言绿**——AUTHORITATIVE 管线 Kotlin 非镜像持久写入为零） |
+| `:core:domain` 单测 | **1743 用例 / 0 失败**（§2.83 = 1752 − 9：GameSettingsData 1 + GameData with* 3 + BaseTemplateRegistry 4 + BeastMaterialDatabase 1，随死函数删除） |
+| `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.83 复跑，持平） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
-| `:feature:game` 单测 | **872 用例 / 0 失败 / 0 错误**（§2.82 复跑，持平） |
-| `:app` 单测 | **995 用例 / 0 失败 / 0 错误 / 2 跳过（既有）**（§2.82 = 1003 − 8（`GameStateStoreReverseDirtyTest` 随通道删除）） |
-| detekt | ✅ **六模块 `detekt` 全绿，baseline 全 0**（§2.82 复跑；3 处删除批新增违规 UnusedPrivateProperty/UnusedImports/MaxLineLength 实修，未进 baseline） |
+| `:feature:game` 单测 | **872 用例 / 0 失败 / 0 错误**（§2.83 零触碰持平） |
+| `:app` 单测 | **986 用例 / 0 失败 / 0 错误 / 2 跳过（既有）**（§2.83 = 995 − 9：AISectPersonality 4 + UseCase 5，随死代码删除） |
+| detekt | ✅ **六模块 `detekt` 全绿，baseline 全 0**（§2.83 复跑；3 处 UnusedImports 删除批残留实修，未进 baseline） |
 | 动作计数 | **198 动作，maxId=1861**（`gen-action-ids.mjs` 实跑口径；§2.82 零协议变更） |
 | 生成物 | 生成器**幂等**（连跑两次哈希相同）+ `git diff --exit-code` 空 |
 | **NDK arm64** | ✅ **`:app:externalNativeBuildRelease` BUILD SUCCESSFUL（§2.68 实跑，3m03s）** |
@@ -1276,6 +1315,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.83 D5 死代码清零 + 守卫面收口（09-17）** | —（零 C++ 改动，豁免） | **3288 / 0 / 0 / 0**（−1 +1 净持平；47 `Diff*` 全绿 0 跳过；`:core:domain` 1743/0、`:core:data` 716/0/15、`:feature:game` 872/0、`:app` 986/0/2 复跑） |
 | **§2.82 w3-13 反向通道删除（终局，09-17）** | **1417 / 1417**（= 1430 − 13 反向用例；ctest + 单进程直跑复核） | **3288 / 0 / 0 / 0**（= 3315 − 26 + 1 守卫；47 `Diff*` 全绿 + 稳态零写入断言绿；`:core:domain` 1752/0、`:core:data` 716/0/15、`:feature:game` 872/0、`:app` 995/0/2 复跑；NDK + lint 绿） |
 | **§2.81 retained 字段族第三段（终段）——硬前置全量达成（09-15）** | —（零 C++ 改动，豁免） | **3315 / 0 / 0 / 0**（持平；47 `Diff*` 全绿 + 停发 100 旬闸门绿；`:core:domain` 1762/0、`:feature:game` 872/0、`:app` 1003/0 复跑） |
 | **§2.80 retained 字段族第二段——字段面全闭（09-15）** | —（零 C++ 改动，豁免） | **3315 / 0 / 0 / 0**（持平；47 `Diff*` 全绿；`:core:domain` 1761/0、`:feature:game` 872/0、`:app` 1003/0 复跑） |
@@ -1340,7 +1380,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | **WS-1 残留口径 / 阶段 3 立项** | **✅ 已决策（2026-09-15，用户拍板"按桌面 Release 数据决策"）：不立项协议 v2**。**决策依据（桌面 Release 实跑 `dirty_tracker_bench_test.cpp`）**：每旬全脏 `diffToJson` = **7.9ms@100 弟子**（实测口径 ~0.10 ms/弟子/旬：100→7.9ms、1000→100.9ms）；**玩家实际规模 ≈100 弟子**（用户口径）⇒ 2x 速（1s/旬）下导出仅占**旬间隔 0.8%**；且每旬镜像跑在**引擎后台协程**（`GameEngineCoreAuthoritativeOps.kt:63` → `engineScope`/`gameDispatcher`），**不占渲染线程** ⇒ 不直接掉帧。按中端机 2.5× 系数估算 ≈20ms/旬 = 间隔 2%，**约 5 倍余量**。⇒ **协议 v2（145+ 列写点 + 47 对拍 + 存档格式）的风险远大于收益，不做**；同时**不做**非协议微优化（空闲窗口 3.8ms@100，且任何"跳过序列化"的优化都必须引入写屏障——正是 §2.34 已摘除的风险面）。**再评估阈值（数值化，可机测）**：① 实际弟子规模 **>400**（= 0.10 ms/弟子/旬 × 2.5 设备系数 ≈ 旬间隔 10%）；② 或 D1 埋点真机实测每旬镜像 **>100ms**。**观测手段 = W4-D/D1 既有埋点（零额外成本）** |
 | **真机（物理设备）验证残留** | 模拟器会话未覆盖 10 项：A2 ASTC 缺失机 RGBA 回退 / A4 旋屏 / C1 偷盗钩子自然触发 + TapDB 上报 / C3 S5 战斗任务 / C4 S6 秘境全链 / C6 ThermalMonitor 真实热档 / D2 放置确认步 / D3 道路装配 / E2 云存档 / ~~E3 WS-1 绝对值（需先补 debug 埋点小批）~~（**E3 的反向信封体积/耗时观测面已随 §2.82 通道删除取消**——WS-1 再评估阈值只剩"每旬镜像 >100ms"，由 D1 保留的镜像分段埋点承担） |
 | **`Jade` 凭据持久化环境缺陷** | **✅ 已清偿（2026-09-15，§2.63.B0 W4-B）**——契约考古推翻 §2.50 的 batch-19 归因，环境缺陷随凭据持久化契约修正一并消除 |
-| **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` 已拍板按"清理执行"（2026-09-15）** → 实施落点 W4-D/D5；**`onPhaseTick` 已按 §2.C 实施迁入测试源集（2026-09-15，§2.69）**——`TimeAdvanceBaseline.advancePhaseBaseline` 冻结基准 + 6 测试改调用 + 反向验证过；`PhaseSettlementExecutor` 同类项登记 D5 复议 |
+| **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` ✅ 已按"清理执行"（§2.83 D5）**——孤儿模型 + 悬空 TypeConverter + `AudioConfig.updateFromSettings` 一并删除；**`onPhaseTick` 已按 §2.C 实施迁入测试源集（2026-09-15，§2.69）**——`TimeAdvanceBaseline.advancePhaseBaseline` 冻结基准 + 6 测试改调用 + 反向验证过；`PhaseSettlementExecutor` 同类项登记 D5 复议 |
 | **线上隐私政策落后于实际集成**（§2.67） | **✅ 已修复（2026-09-15）**——Pages 发布源由 `master/docs` **切到 `main/docs`**（根因修复：政策更新写在 main，源指向 main 即自动同步），线上实测已是「2026年8月13日」版并声明全部聚合广告 SDK 与 TapDB |
 | **远端 `hsmy7/mnzm` 与本地的关系**（§2.67） | **已查清**：它是**本项目自己的远端仓库**（非网页仓——网页仓是另一个 `hsmy7/index.html`，其末次提交写着"将隐私政策重定向到新地址 mnzm 仓库"）。内含两条分支：`master`（默认 + Pages 源，旧 1.4.x 线，内容停 2026-06-28）与 `main`（**本项目线**，tip `ad6ff6c9` = 2026-09-04「程序化天空」批，`version.properties=4.01.12`）。**本地与远端内容连续但提交血缘断裂**：本地 26 个提交全为 2026-09-12～09-14、作者 `mnzm-dev`，远端提交在本地对象库中**零命中**，本地 `.git` 无任何 remote-tracking ref（从未 fetch）⇒ **2026-09-04 之后（M0–M3 + W4-00）的内容只存在于本地，远端一个都没有**；历史重建见 §2.40 |
 
@@ -1355,7 +1395,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | `TimeSystem.onPhaseTick` | 审计标"生产死代码"，但它是 **6 个 Diff 测试文件的 Kotlin 跨语言对拍基准**（C-15 特意切真实 TimeSystem 防"复刻漂移"）⇒ **保留**。若要按审计字面删除，须先把 6 个测试重写为纯 C++ 断言——会失去独立 Kotlin 基准，**需用户拍板**。**2026-09-15 补充实测（§2.68 复验）**：① `onPhaseTick` 全仓**零生产调用**（唯一非测试引用是 `SystemManager.kt:22` 的注释）；② 它**不是孤例**——`PhaseSettlementExecutor.execute()`（`PhaseSettlementExecutor.kt:61`，KDoc 自述"纯对拍基准，生产 AUTHORITATIVE 每旬走 C++ `runPhaseSettlementCore`"）是同一类"Kotlin 基准路径"构造 ⇒ 二者应同进同退；③ 若目的只是"去掉看起来像生产 API 的死方法"，**更省的替代** = 把基准实现移入测试源集（6 个测试仅改 import）——同样消除生产面死方法，且**不损失**对拍基准。**✅ 已按③实施（2026-09-15，§2.69）**：`TimeAdvanceBaseline`（逐字搬运 + 冻结基准 KDoc）+ 6 测试改调用 + 反向验证（改坏即红）+ 引擎全量 3306 零漂移；`PhaseSettlementExecutor` 登记 D5 复议 |
 | `StorageConfig.maxDisciples` / `GameConfigData.DiscipleSection.maxDisciples` | **2026-09-15 实测：死配置 + 性能评估陷阱**——① `GameConfigData.kt:50 val maxDisciples = 1000` **引擎零引用**（无任何招募/容量判定使用它；实际名额由长老槽"招贤"/特质加成与 `GameConfig.kt:730` 每月招募上限等玩法机制决定，玩家实际规模 ≈100 弟子）；② `StorageConfig.kt:72 val maxDisciples: Int` 接口属性**无实现读取**，全仓唯一读取点是 `ConfigLoaderTest.kt:47` 断言默认值 1000。⇒ **按它做性能/容量评估会得出错误结论**（本波 §2.68 性能决策过程中即差点如此）。**处置**：登记 W4-D/D5 死配置清理；**性能规划口径纪律** = 一律以"实际规模"而非"配置上限"为输入（已回写 §2.68 与 §4.1 WS-1 行） |
 | `PresentationRandom` 跨会话一致性 | **2026-09-15 实测（§2.68 复验）发现文档与实现不符**：`seedFromWorld(mapSeed)`（`PresentationRandom.kt:49`）**全仓零调用**（生产与测试均无；`git grep` 该提交引入时即无调用者）⇒ 表现流种子**恒为编译期常量 `DEFAULT_SEED = -7046029254386353131`**（`:112`），KDoc 所述"种子由 `mapSeed` 派生（同会话内可复现）"**不成立**——实际是"进程启动起的一条固定序列，谁先抽谁拿到"，连"同会话可复现"都取决于玩家点过哪些界面（90 处消费点共享同一流）。**候选处置（需拍板）**：(a) **按场景派生**（推荐）——调用方改为 `seed = mapSeed xor SALT xor hash(场景键)` 每次重新派生 ⇒ **同一存档同一界面文案恒定、跨会话一致**，且**零协议面、不入档、不污染决策流**；(b) 回到文档承诺——在新档/读档处调用 `seedFromWorld(mapSeed)`（按存档播种，但同一存档两次进入仍可能不同，因为流位置取决于会话内抽取历史）；(c) 彻底入档（写进 `rngStates` 或新字段）——**不推荐**：新增协议面 + 存档迁移 + 47 对拍面 + iOS 侧同步，收益仅"第 N 次进入看到第 N 套文案"。**✅ 已按(a)实施（2026-09-15，§2.69）**：boot 接线播种（`seedFromWorld` 守卫锁死）+ `scene(key)` 场景派生（FNV-1a 64 跨平台锚点）+ 场景键表全接线 + `PresentationRandomSceneTest` 7 用例；跨会话一致性达成 |
-| `GameSettingsData.autoSave` | 原判"风险>收益"**缺证据支撑**（2026-09-15 核查）：`GameSettingsData` 为**零消费者孤儿模型**（全仓无属性/列/DAO 以该类型声明，`autoSave` 无人读写）⇒ 保留的真实效果只是"多一份死模型 + 一份序列化面"，删除成本远低于原判；建议后续清理批单独处置（已登记 [w3 §1.1](parallel-batches-w3/README.md)） |
+| `GameSettingsData.autoSave` | ✅ **已删除（2026-09-17，§2.83 D5）**——孤儿模型 + `EnumConverters` 悬空 TypeConverter 对 + `AudioConfig.updateFromSettings` 一并清理 |
 
 
 ### 4.3 规划文档说明
@@ -1371,7 +1411,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 **② 真机（物理设备）验证批**——§4.1 登记 10 项残留；真机不可得时的替代口径见 §2.39（模拟器 + 产物字符串核验）。
 
-**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；~~`TimeSystem.onPhaseTick`（§2.C）与 `PresentationRandom` 一致性口径（§2.B）~~ **两项已实施（2026-09-15，§2.69）**；`GameSettingsData.autoSave` 删除（§4.2，已拍板待实施）。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：~~D1 埋点 → D2 `w3-11` → D3 harness 对齐（含地形 2 字段退出对拍排除面）~~ **D1–D3 已实施（2026-09-15，§2.72/§2.73/§2.74）** → D4 反向通道删除 → D5 死代码清零 → D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
+**③ 待拍板 / 待立项**——WS-4 NPC 移动（需玩法设计文档）；~~`TimeSystem.onPhaseTick`（§2.C）与 `PresentationRandom` 一致性口径（§2.B）~~ **两项已实施（2026-09-15，§2.69）**；~~`GameSettingsData.autoSave` 删除~~ **✅ 已实施（§2.83 D5）**。**已决策不做** = WS-1 阶段 3 数据导向存储（2026-09-15 按桌面 Release 实测决策：真实规模 ≈100 弟子下占旬间隔 0.8% 且不占渲染线程 ⇒ 无瓶颈；再评估阈值 >400 弟子或真机每旬镜像 >100ms，见 §4.1）。**已拍板待实施** = W4-D 汇流波（`docs/parallel-batches-w4/README.md` §8：~~D1 埋点 → D2 `w3-11` → D3 harness 对齐 → D4 反向通道删除 → D5 死代码清零~~ **D1–D5 已实施（2026-09-15～09-17，§2.72–§2.83，`w4-rem/02`–`13`）** → 剩余 D6 文档收口）；WS-5b 地图冻结批 **✅ 已随 W4-C 落地（§2.64.2）**。
 
 > **🔴 派工入口**：上述全部剩余工作已整理为可逐项照单执行的 **[W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md)**——含执行顺序与冲突矩阵、逐项影响范围清单（`文件:行号`）、测试方案、验收判据、风险兜底与盲区自查。派工时连同该文档一起交给实施人员。
 

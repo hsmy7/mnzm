@@ -1,11 +1,10 @@
 package com.xianxia.sect.core.audio
 
-import com.xianxia.sect.core.model.GameSettingsData
 
 /**
  * 音频配置管理器
  *
- * 管理游戏音效/音乐的开关状态。支持从 [GameSettingsData] 同步更新。
+ * 管理游戏音效/音乐的开关状态。
  *
  * 使用 @Volatile 确保跨线程可见性（引擎线程 + UI 线程均可能读写）。
  */
@@ -16,12 +15,6 @@ class AudioConfig {
 
     @Volatile
     var musicEnabled: Boolean = true
-
-    /** 从游戏存档设置同步音频开关 */
-    fun updateFromSettings(settings: GameSettingsData) {
-        soundEnabled = settings.soundEnabled
-        musicEnabled = settings.musicEnabled
-    }
 
     /**
      * 从 SessionManager 持久化设置初始化。

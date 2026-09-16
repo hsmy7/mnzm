@@ -6,7 +6,6 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
-import com.xianxia.sect.core.model.AlchemyResult
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -73,34 +72,6 @@ class UseCaseInvocationTest {
 
         assertTrue(result.isSuccess)
         verify(discipleFacade).updateDiscipleStatus("disciple-2", DiscipleStatus.MINING)
-    }
-
-    // ==================== 2. EquipItemUseCase ====================
-
-    @Test
-    fun `EquipItemUseCase - success path`() = runTest {
-        val discipleFacade = mock<DiscipleFacade>()
-        whenever(discipleFacade.equipEquipment("disciple-1", "equip-1"))
-            .thenReturn(DomainResult.Success(Unit))
-        val useCase = EquipItemUseCase(discipleFacade)
-
-        val result = useCase("disciple-1", "equip-1")
-
-        assertTrue(result.isSuccess)
-        assertEquals(DomainResult.Success(Unit), result.getOrNull())
-        verify(discipleFacade).equipEquipment("disciple-1", "equip-1")
-    }
-
-    @Test
-    fun `EquipItemUseCase - failure when facade throws`() = runTest {
-        val discipleFacade = mock<DiscipleFacade>()
-        whenever(discipleFacade.equipEquipment("disciple-1", "equip-1"))
-            .thenThrow(RuntimeException("装备失败"))
-        val useCase = EquipItemUseCase(discipleFacade)
-
-        val result = useCase("disciple-1", "equip-1")
-
-        assertTrue(result.isFailure)
     }
 
     // ==================== 3. ExpelDiscipleUseCase ====================
@@ -305,50 +276,6 @@ class UseCaseInvocationTest {
         val saveFacade = mock<SaveFacade>()
         whenever(saveFacade.getStateSnapshot()).thenThrow(RuntimeException("获取快照失败"))
         val useCase = GetStateSnapshotUseCase(saveFacade)
-
-        val result = useCase()
-
-        assertTrue(result.isFailure)
-    }
-
-    // ==================== 9. HarvestProductionUseCase ====================
-
-    @Test
-    fun `HarvestProductionUseCase - success path with results`() = runTest {
-        val buildingFacade = mock<BuildingFacade>()
-        val results = listOf(
-            AlchemyResult(success = true, message = "炼丹成功"),
-            AlchemyResult(success = false, message = "炼制失败")
-        )
-        whenever(buildingFacade.autoHarvestCompletedAlchemySlots()).thenReturn(results)
-        val useCase = HarvestProductionUseCase(buildingFacade)
-
-        val result = useCase()
-
-        assertTrue(result.isSuccess)
-        assertEquals(2, result.getOrNull()?.size)
-        assertEquals("炼丹成功", result.getOrNull()?.get(0)?.message)
-        verify(buildingFacade).autoHarvestCompletedAlchemySlots()
-    }
-
-    @Test
-    fun `HarvestProductionUseCase - success path with empty list`() = runTest {
-        val buildingFacade = mock<BuildingFacade>()
-        whenever(buildingFacade.autoHarvestCompletedAlchemySlots()).thenReturn(emptyList())
-        val useCase = HarvestProductionUseCase(buildingFacade)
-
-        val result = useCase()
-
-        assertTrue(result.isSuccess)
-        assertTrue(result.getOrNull().orEmpty().isEmpty())
-    }
-
-    @Test
-    fun `HarvestProductionUseCase - failure when facade throws`() = runTest {
-        val buildingFacade = mock<BuildingFacade>()
-        whenever(buildingFacade.autoHarvestCompletedAlchemySlots())
-            .thenThrow(RuntimeException("收获失败"))
-        val useCase = HarvestProductionUseCase(buildingFacade)
 
         val result = useCase()
 

@@ -76,8 +76,11 @@ class RngSourceGuardTest {
      */
     private val registeredLimits: Map<String, Map<RandomSourceCategory, Int>> = mapOf(
         "core/domain" to mapOf(
-            // W4-A·A5 扩面：5 → 13（存量显形 8 处，见上方登记块；D5 清偿后下调）
-            RandomSourceCategory.BARE_DRAW to 13,
+            // W4-D/D5 清偿下调：13 → 6（A5 显形的 8 处存量死链已删 7——AISectPersonality×2 /
+            // Items PillGrade.random() 无参重载 / BaseTemplateRegistry 三保护函数（唯一生产调用方
+            // BeastMaterialRegistry 两随机函数同批删除）/ BeastMaterialDatabase.getRandomMaterialByRealm。
+            // 余 1 处 = getRandomMaterialByBeastType 裸抽取（活代码，3 生产调用方）→ RNG 阶段 3 分区化）
+            RandomSourceCategory.BARE_DRAW to 6,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 0,
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 19

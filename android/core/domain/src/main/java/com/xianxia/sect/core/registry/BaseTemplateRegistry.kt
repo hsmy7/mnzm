@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.registry
 
-import kotlin.random.Random
 
 /**
  * 模板注册表抽象基类
@@ -122,78 +121,5 @@ abstract class BaseTemplateRegistry<T> : TemplateRegistry<T> {
     fun autoInitialize() {
         // 触发 lazy 初始化
         markInitialized()
-    }
-
-    // ==================== 通用工具方法 ====================
-
-    /**
-     * 根据权重分布随机选择一个元素
-     *
-     * @param candidates 候选元素列表
-     * @param weightExtractor 权重提取函数
-     * @return 随机选中的元素
-     */
-    protected fun <E> pickWeightedRandom(
-        candidates: List<E>,
-        weightExtractor: (E) -> Double
-    ): E {
-        require(candidates.isNotEmpty()) { "candidates cannot be empty" }
-
-        val totalWeight = candidates.sumOf { weightExtractor(it) }
-        var random = Random.nextDouble() * totalWeight
-
-        for (candidate in candidates) {
-            random -= weightExtractor(candidate)
-            if (random <= 0) return candidate
-        }
-
-        // 浮点精度问题时的兜底
-        return candidates.last()
-    }
-
-    /**
-     * 生成带权重的稀有度值
-     *
-     * 用于实现非均匀分布的稀有度生成（如装备掉落）。
-     *
-     * @param rarityDistribution 稀有度到概率的映射（概率之和应为1.0）
-     * @return 生成的稀有度值
-     */
-    protected fun generateWeightedRarity(
-        rarityDistribution: List<Pair<Int, Double>>
-    ): Int {
-        val roll = Random.nextDouble()
-        var cumulative = 0.0
-
-        for ((rarity, probability) in rarityDistribution) {
-            cumulative += probability
-            if (roll <= cumulative) {
-                return rarity
-            }
-        }
-
-        // 兜底返回最后一个
-        return rarityDistribution.last().first
-    }
-
-    /**
-     * 生成阶梯式稀有度（用于突破、炼丹等场景）
-     *
-     * 分布特点：低稀有度概率高，高稀有度概率低
-     *
-     * @param minRarity 最低稀有度
-     * @param maxRarity 最高稀有度
-     * @return 生成的稀有度值
-     */
-    protected fun generateTieredRarity(minRarity: Int, maxRarity: Int): Int {
-        val roll = Random.nextDouble()
-        return when {
-            roll < 0.50 -> minRarity.coerceAtMost(maxRarity)
-            roll < 0.75 -> (minRarity + 1).coerceIn(minRarity, maxRarity)
-            roll < 0.90 -> (minRarity + 2).coerceIn(minRarity, maxRarity)
-            roll < 0.97 -> (minRarity + 3).coerceIn(minRarity, maxRarity)
-            roll < 0.99 -> (minRarity + 4).coerceIn(minRarity, maxRarity)
-            else -> maxRarity
-        }
     }
 }

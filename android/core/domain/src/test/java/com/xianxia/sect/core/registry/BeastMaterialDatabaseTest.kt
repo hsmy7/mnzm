@@ -84,15 +84,4 @@ class BeastMaterialDatabaseTest {
         assertTrue(BeastMaterialDatabase.getMaterialsByRarity(0).isEmpty())
         assertTrue(BeastMaterialDatabase.getMaterialsByRarity(99).isEmpty())
     }
-
-    // 9. getRandomMaterialByRealm returns material with valid rarity in range
-    @Test
-    fun `getRandomMaterialByRealm returns material with valid rarity`() {
-        // Test multiple times to account for randomness
-        repeat(50) {
-            val material = BeastMaterialDatabase.getRandomMaterialByRealm(5)
-            assertNotNull("should return a material for valid realm", material)
-            assertTrue("material rarity should be in 1-6", material!!.rarity in 1..6)
-        }
-    }
 }

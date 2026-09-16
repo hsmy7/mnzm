@@ -35,31 +35,22 @@ class RngEngineIsolationGuardTest {
      *
      * key = 相对 `src/main/java` 的路径（`/` 分隔），value = 豁免理由。
      *
-     * **同族遗留（登记为待偿还技术债）**：`EnemyGenerator` / `AISectAttackManager` /
-     * `AISectTeamComposer` 三处 `var xxxRngManager: GameRngManager?` 与
-     * `MissionSystem` 是**同一形态**（顶层可变全局 + 外部覆写），仅服务各自域。
-     * 生产单引擎下无实际分叉；双引擎同进程（对拍夹具）下需夹具显式置位
-     *（`DiffMonthSettlementFixture.initMissionDomainRng` 即此手法）。本批只锁
-     * **不新增**；三处改形参必传属独立批次（触发条件：该域出现"双引擎同进程"
-     * 的第三个消费场景，或该域 UI 操作面下沉时顺手收敛）。
+     * **W4-C C-③ 收敛后（handover §2.64.1）**：`EnemyGenerator` /
+     * `AISectAttackManager` / `AISectTeamComposer` 三处顶层可变 `var xxxRngManager`
+     * 已改形参必传，白名单条目随之删除；现值 = **恰 1 条**（`AISectDiscipleManager`
+     * ——AI 随机源解析器，非自持流）。条目数由本文件的白名单计数断言机器锁死
+     *（新增豁免 = 该断言红，与 detekt-baseline-count.guard 同纪律）。
      */
     private val intentionallyExcluded: Map<String, String> = mapOf(
         "com/xianxia/sect/core/engine/domain/diplomacy/AISectDiscipleManager.kt" to
             "AI 随机源**解析器**（非自持流）：rngManager 只用于按模式解析分区 9/6，" +
             "状态归宿主侧（C++ aiRng_ / 本地 PCG 分区）保管；" +
             "且 initialize 由 GameEngine 构造注入，生产单实例——同进程多引擎下" +
-            "该解析器仅服务 AI 域，消费点已随阶段 1② 归一（见 DiffAiRngSeedingTest 锁守）",
-        "com/xianxia/sect/core/engine/domain/battle/EnemyGenerator.kt" to
-            "同族遗留：顶层 `var enemyGenRngManager`（GameEngine 构造注入）+ " +
-            "`private val enemyRng` 解析器；仅服务 ENEMY_GEN 分区。待偿还：改形参必传",
-        "com/xianxia/sect/core/engine/domain/battle/AISectAttackManager.kt" to
-            "同族遗留：顶层 `var aisRngManager`（GameEngine 构造注入）+ `internal val aisRng` " +
-            "解析器；仅服务 BATTLE 分区（AI 攻宗决策）。待偿还：改形参必传",
-        "com/xianxia/sect/core/engine/domain/battle/AISectTeamComposer.kt" to
-            "同族遗留：顶层 `var teamComposerRngManager`（GameEngine 构造注入）+" +
-            "`internal val teamComposerRng` 解析器；仅服务 BATTLE 分区（AI 队伍组队）。" +
-            "待偿还：改形参必传"
+            "该解析器仅服务 AI 域，消费点已随阶段 1② 归一（见 DiffAiRngSeedingTest 锁守）"
     )
+
+    /** 白名单条目登记值（**只缩不增**；新增豁免必须同步改本值并在 PR 说明——机器锁死防静默扩权） */
+    private val expectedExclusionCount = 1
 
     /** `object`/单例内声明 `GameRngManager` 可变字段（= 可被外部覆写的全局随机上下文） */
     private val mutableRngFieldPattern =
@@ -92,6 +83,21 @@ class RngEngineIsolationGuardTest {
                 "\n  2) 若确为'接入真源的解析器'（状态归宿主侧保管）→ 加入 intentionallyExcluded " +
                 "并写明理由（只缩不增，参照 CLAUDE.md 13.2）",
             offenders.isEmpty()
+        )
+    }
+
+    /**
+     * 白名单条目计数断言（§12 债表项落地）：此前"只缩不增"仅靠注释纪律，
+     * 手工加一条豁免不会被任何机器检查拦下。本断言锁死条目数——
+     * 新增/恢复豁免 = 本用例红，必须同步修改 [expectedExclusionCount] 并在
+     * PR 说明中给出豁免理由（与 detekt-baseline-count.guard 同纪律）。
+     */
+    @Test
+    fun `白名单条目数必须等于登记值`() {
+        assertTrue(
+            "intentionallyExcluded 条目数 ${intentionallyExcluded.size} ≠ 登记值 " +
+                "$expectedExclusionCount——新增豁免须同步改登记值并说明理由（只缩不增）",
+            intentionallyExcluded.size == expectedExclusionCount
         )
     }
 

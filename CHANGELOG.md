@@ -1,6 +1,16 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D5——死代码清零 + 守卫面收口（§2.83）
+
+> 需求：实施 W4 实施文档 §0 序 D5（串行链第五项）。**零 C++ 改动、零协议面、零 ActionId 变更、玩家可见语义零变更（纯删除 + 守卫数值只缩）⇒ 游戏内 `changelog_entries.json` 未追加**。
+
+- **先补清单（D5 硬前置）**：原"18+11+5 处零调用者站点"聚合数原始分项不可考 ⇒ 全量重扫建立新基准（三份"生产调用 0 / 测试引用 n"清单逐条带证据，全文见 handover §2.83①）。
+- **前批已清偿核实 5 项（免做）**：洞府探索入口死链（W4-B/B4）、`updatePatrolConfig` 死 API（W4-B）、`materializeDiscipleBagAndMarkDead` 遮蔽（W4-C）、`bloodMaterials.random()` 输入侧随机分区化（W4-B/B0，债表销账）、悬空 KDoc（§2.68）。
+- **本批删除 10 组**：①`maxDisciples` 误导性死配置（GameConfigData + StorageConfig 属性/常量 + game_config.json 键）；②`GameSettingsData` 孤儿模型 + 悬空 TypeConverter 对 + `AudioConfig.updateFromSettings`（已拍板"按清理执行"）；③`GameData` 六个死辅助函数（totalSpiritStonesSellValue/withOrganization/withExploration/withWorldMap/withBuildings/withEconomy）；④`assignManual`/`removeManual` 三层复制链（UI 实际走 DiscipleDelegate 直达路径，与链无关）；⑤`EquipItemUseCase`/`HarvestProductionUseCase`（零生产调用）；⑥`AISectPersonality.random()`/`randomDenounceInterval` + 失去消费者的 `weightedPool`；⑦`PillGrade.random()` 无参重载；⑧`BaseTemplateRegistry` 三随机函数（唯一生产调用方随⑨删除，链条闭合）；⑨`BeastMaterialRegistry` 两随机函数（零调用方）；⑩`BeastMaterialDatabase.getRandomMaterialByRealm`。关联测试用例 14 个同步删除。
+- **诚实口径**：A5 存量裸抽取 8 处核实仅 7 处为死——`BeastMaterialDatabase.getRandomMaterialByBeastType` 有 3 个生产调用方（世界关卡/探索/巡逻掉落）**保留**，登记 RNG 阶段 3 分区化清单。
+- **守卫面收口**：`RngSourceGuardTest` core/domain BARE_DRAW 上限 **13 → 6**；`RngEngineIsolationGuardTest` 白名单 **4 → 1** + **新增白名单条目数计数断言**（新增豁免从此机器可拦）。
+- **门禁**：`:core:engine` **3288/0/0/0**（−1 死函数用例 + 1 计数断言，净持平；47 `Diff*` 全绿 0 跳过）｜`:core:domain` **1743/0**（−9 精确对账）｜`:core:data` **716/0/15 既有**｜`:feature:game` **872/0**｜`:app` **986/0/2 既有**（−9 精确对账）｜六模块 detekt 绿（3 处 UnusedImports 实修未进 baseline）｜桌面 C++ / NDK / lint 豁免（零 C++/资源/Manifest 改动）｜生成器幂等零漂移（198 动作 / maxId=1861）。
 ### W4-D/D4 终局——w3-13 反向通道删除（五步⑤落地，通道不复存在）（§2.82）
 
 > 需求：实施 handover §2.75④ 第 5 项——写者收口四段（§2.76–§2.81）达成硬前置 + 五步④归档 tag `w3-13-pre-delete` 后的⑤删除本体。**纯删除批：零新增行为、零协议面、零 ActionId 变更、玩家可见语义零变更（§2.80 已证稳态窗口恒空 = 通道零流量）⇒ 游戏内 `changelog_entries.json` 未追加**。

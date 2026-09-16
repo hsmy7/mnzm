@@ -23,17 +23,6 @@ data class MerchantItem(
     @ProtoNumber(11) val grade: String? = null
 )
 
-// 游戏设置数据
-@Keep
-@Serializable
-data class GameSettingsData(
-    val soundEnabled: Boolean = true,
-    val musicEnabled: Boolean = true,
-    val vibrationEnabled: Boolean = true,
-    val autoSave: Boolean = true,
-    val language: String = "zh"
-)
-
 // 功法熟练度数据
 @Keep
 @Serializable

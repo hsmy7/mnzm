@@ -213,14 +213,6 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    override fun assignManual(discipleId: String, stackId: String) {
-        gameEngineCore.launchInScope { learnManual(discipleId, stackId) }
-    }
-
-    override fun removeManual(discipleId: String, instanceId: String) {
-        gameEngineCore.launchInScope { forgetManual(discipleId, instanceId) }
-    }
-
     @Suppress("ReturnCount")  // 分发链：空校验/native 转发/回退——逐级早退（与库存转发 tryForward 同构）
     override fun recruitDiscipleFromList(discipleId: String): String {
         if (discipleId.isBlank()) {

@@ -89,38 +89,6 @@ class BeastMaterialRegistry : BaseTemplateRegistry<BeastMaterialDatabase.BeastMa
     fun getByName(name: String): BeastMaterialDatabase.BeastMaterial? =
         allMaterialsList.find { it.name == name }
 
-    /**
-     * 根据境界和运气值随机获取一个材料（带权重）
-     *
-     * 使用材料的 dropWeight 属性进行加权随机。
-     *
-     * @param realm 玩家境界
-     * @param luck 运气倍数（默认1.0）
-     * @return 随机选中的材料，无候选时返回 null
-     */
-    fun getRandomMaterialByRealm(realm: Int, luck: Double = 1.0): BeastMaterialDatabase.BeastMaterial? {
-        val candidates = getDropMaterialsByRealm(realm)
-        if (candidates.isEmpty()) return null
-
-        return pickWeightedRandom(candidates) { it.dropWeight * luck }
-    }
-
-    /**
-     * 根据妖兽类型和层级随机获取材料（带权重）
-     *
-     * @param beastType 妖兽类型
-     * @param tier 目标层级
-     * @param luck 运气倍数（默认1.0）
-     * @return 随机选中的材料，无候选时返回 null
-     */
-    fun getRandomMaterialByBeastType(beastType: String, tier: Int,
-        luck: Double = 1.0): BeastMaterialDatabase.BeastMaterial? {
-        val materials = getByBeastType(beastType).filter { it.tier == tier }
-        if (materials.isEmpty()) return null
-
-        return pickWeightedRandom(materials) { it.dropWeight * luck }
-    }
-
     // ==================== 私有辅助方法 ====================
 
     companion object {

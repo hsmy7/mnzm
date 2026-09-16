@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.model
 
 import kotlinx.serialization.Serializable
-import kotlin.random.Random
 
 /**
  * AI宗门攻击个性，决定该宗门的谴责频率、宣战阈值和攻击冷却。
@@ -54,25 +53,4 @@ enum class AISectPersonality(
         powerRatioThreshold = 1.20,
         attackCooldownMonths = 96
     );
-
-    companion object {
-        private val weightedPool: List<AISectPersonality> by lazy {
-            entries.flatMap { p -> List(p.weight) { p } }
-        }
-
-        /** 按权重纯随机分配个性 */
-        fun random(): AISectPersonality =
-            weightedPool[Random.nextInt(weightedPool.size)]
-
-        /** 获取随机的谴责间隔（月数） */
-        fun randomDenounceInterval(personality: AISectPersonality): Int {
-            val max = personality.denounceIntervalMax
-            // Int.MAX_VALUE + 1 会溢出，对这种极端值直接返回一个大数
-            if (max == Int.MAX_VALUE) return Int.MAX_VALUE
-            return Random.nextInt(
-                personality.denounceIntervalMin,
-                max + 1
-            )
-        }
-    }
 }

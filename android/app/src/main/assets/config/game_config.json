@@ -6,7 +6,6 @@
     "maxSaveSlots": 5
   },
   "disciple": {
-    "maxDisciples": 1000,
     "minLoyalty": 0,
     "maxLoyalty": 100,
     "minAge": 5,

@@ -18,15 +18,6 @@ private class TestRegistry : BaseTemplateRegistry<TestItem>() {
 
     override fun loadTemplates(): Map<String, TestItem> = templates
     override fun extractRarity(template: TestItem): Int = template.rarity
-
-    // 暴露 protected 方法供测试
-    fun testPickWeightedRandom(
-        candidates: List<TestItem>,
-        weightExtractor: (TestItem) -> Double
-    ): TestItem = pickWeightedRandom(candidates, weightExtractor)
-
-    fun testGenerateTieredRarity(minRarity: Int, maxRarity: Int): Int =
-        generateTieredRarity(minRarity, maxRarity)
 }
 
 class BaseTemplateRegistryTest {
@@ -112,44 +103,5 @@ class BaseTemplateRegistryTest {
     @Test
     fun getCount_returnsTotalTemplateCount() {
         assertEquals(6, registry.getCount())
-    }
-
-    // ==================== pickWeightedRandom 测试 ====================
-
-    @Test
-    fun pickWeightedRandom_selectsFromCandidates() {
-        val candidates = listOf(
-            TestItem("a", "heavy", 1),
-            TestItem("b", "light", 2)
-        )
-        // 多次调用确保不抛异常且返回候选列表中的元素
-        repeat(100) {
-            val result = registry.testPickWeightedRandom(candidates) { item ->
-                if (item.id == "a") 10.0 else 1.0
-            }
-            assertTrue(result.id == "a" || result.id == "b")
-        }
-    }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun pickWeightedRandom_throwsForEmptyCandidates() {
-        registry.testPickWeightedRandom(emptyList()) { 1.0 }
-    }
-
-    // ==================== generateTieredRarity 测试 ====================
-
-    @Test
-    fun generateTieredRarity_producesValuesInRange() {
-        repeat(200) {
-            val result = registry.testGenerateTieredRarity(1, 6)
-            assertTrue("Generated rarity $result not in range [1, 6]", result in 1..6)
-        }
-    }
-
-    @Test
-    fun generateTieredRarity_withMinEqualsMax_returnsThatValue() {
-        repeat(50) {
-            assertEquals(3, registry.testGenerateTieredRarity(3, 3))
-        }
     }
 }

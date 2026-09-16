@@ -42,8 +42,6 @@ interface DiscipleFacade {
     fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus)
     fun dismissDisciple(discipleId: String)
     fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String)
-    fun assignManual(discipleId: String, stackId: String)
-    fun removeManual(discipleId: String, instanceId: String)
     fun recruitDiscipleFromList(discipleId: String): String
     fun addLifeEvent(discipleId: String, event: String)
     fun getLifeEvents(discipleId: String): List<String>

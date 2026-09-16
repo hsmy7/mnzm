@@ -250,41 +250,6 @@ class GameDataTest {
         assertTrue(worldMap.sectRelations.isEmpty())
     }
 
-    // ==================== with* 方法 ====================
-
-    @Test
-    fun gameData_withBuildings() {
-        val data = GameData()
-        val newBuildings = BuildingState(
-            spiritMineSlots = listOf(SpiritMineSlot(index = 0, discipleId = "d1"))
-        )
-        val updated = data.withBuildings(newBuildings)
-        assertEquals(1, updated.spiritMineSlots.size)
-        assertEquals("d1", updated.spiritMineSlots[0].discipleId)
-        assertTrue(data.spiritMineSlots.isEmpty())
-    }
-
-    @Test
-    fun gameData_withEconomy() {
-        val data = GameData()
-        val newEconomy = EconomicState(merchantRefreshCount = 5)
-        val updated = data.withEconomy(newEconomy)
-        assertEquals(5, updated.merchantRefreshCount)
-        assertEquals(0, data.merchantRefreshCount)
-    }
-
-    @Test
-    fun gameData_withWorldMap() {
-        val data = GameData()
-        val newWorldMap = WorldMapState(
-            worldMapSects = listOf(WorldSect(id = "s1", name = "宗门1"))
-        )
-        val updated = data.withWorldMap(newWorldMap)
-        assertEquals(1, updated.worldMapSects.size)
-        assertEquals("宗门1", updated.worldMapSects[0].name)
-        assertTrue(data.worldMapSects.isEmpty())
-    }
-
     // ==================== Companion 常量 ====================
 
     @Test
@@ -510,17 +475,6 @@ class GameDataTest {
         assertEquals(1, item.quantity)
     }
 
-    // ==================== GameSettingsData ====================
-
-    @Test
-    fun gameSettingsData_defaultConstruction() {
-        val settings = GameSettingsData()
-        assertTrue(settings.soundEnabled)
-        assertTrue(settings.musicEnabled)
-        assertTrue(settings.vibrationEnabled)
-        assertTrue(settings.autoSave)
-        assertEquals("zh", settings.language)
-    }
 
     // ==================== ManualProficiencyData ====================
 

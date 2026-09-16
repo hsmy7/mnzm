@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.BattleTeam
 import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentNurtureData
-import com.xianxia.sect.core.model.GameSettingsData
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.SectScoutInfo
@@ -24,16 +23,6 @@ object EnumConverters {
 
 
     // ==================== 复杂对象转换器（纯 Protobuf）====================
-
-    @TypeConverter
-    @JvmStatic
-    fun fromGameSettingsData(value: GameSettingsData?): String =
-        ProtobufConverters.encodeNullableToBase64(GameSettingsData.serializer(), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toGameSettingsData(value: String): GameSettingsData? =
-        ProtobufConverters.decodeFromBase64(GameSettingsData.serializer().nullable, value) { null }
 
     @TypeConverter
     @JvmStatic

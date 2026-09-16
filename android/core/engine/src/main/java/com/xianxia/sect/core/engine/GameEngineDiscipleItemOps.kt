@@ -23,9 +23,6 @@ fun GameEngine.getDiscipleAggregate(discipleId: String): DiscipleAggregate? = di
 fun GameEngine.getAllDiscipleAggregates(): List<DiscipleAggregate> = discipleFacade.getAllDiscipleAggregates()
 fun GameEngine.giveItemToDisciple(discipleId: String, itemId: String,
     itemType: String) = discipleFacade.giveItemToDisciple(discipleId, itemId, itemType)
-fun GameEngine.assignManual(discipleId: String, stackId: String) = discipleFacade.assignManual(discipleId, stackId)
-fun GameEngine.removeManual(discipleId: String, instanceId: String) = discipleFacade.removeManual(discipleId,
-    instanceId)
 suspend fun GameEngine.rewardItemsToDisciple(discipleId: String,
     items: List<RewardSelectedItem>) = discipleFacade.rewardItemsToDisciple(discipleId, items)
 /** 功法学习资格守卫：境界 / 名额 / 心法唯一 / 同名唯一，校验序与原早退链一致 */

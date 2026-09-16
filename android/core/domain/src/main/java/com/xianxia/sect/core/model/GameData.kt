@@ -907,12 +907,6 @@ data class GameData(
         SpiritStoneGrade.HIGH -> highGradeSpiritStones
     }
 
-    /** 按售卖价折算的总灵石价值（下品等价） */
-    fun totalSpiritStonesSellValue(): Long =
-        SpiritStoneExchange.totalSellValue(
-            spiritStones, midGradeSpiritStones, highGradeSpiritStones
-        )
-
     val isPlayerProtected: Boolean get() {
         if (!playerProtectionEnabled) return false
         if (playerHasAttackedAI) return false
@@ -979,62 +973,6 @@ data class GameData(
         unlockedManuals = unlockedManuals,
         manualProficiencies = manualProficiencies,
         worldLevels = worldLevels
-    )
-
-    /**
-     * 从子状态创建副本，用于批量更新某个领域的多个字段。
-     * 示例: gd.withWorldMap(gd.worldMap.copy(worldMapSects = newSects))
-     *
-     * 注意: WorldMapState 不包含 sectDetails，调用此方法不会覆盖 sectDetails。
-     * 如需同步更新 sectDetails（如 scoutInfo），请直接使用 copy()。
-     */
-    fun withWorldMap(state: WorldMapState): GameData = this.copy(
-        worldMapSects = state.worldMapSects,
-        exploredSects = state.exploredSects,
-        scoutInfo = state.scoutInfo,
-        sectRelations = state.sectRelations
-    )
-
-    fun withBuildings(state: BuildingState): GameData = this.copy(
-        productionSlots = state.productionSlots,
-        spiritMineSlots = state.spiritMineSlots,
-        librarySlots = state.librarySlots
-    )
-
-    fun withEconomy(state: EconomicState): GameData = this.copy(
-        travelingMerchantItems = state.travelingMerchantItems,
-        merchantLastRefreshYear = state.merchantLastRefreshYear,
-        merchantRefreshCount = state.merchantRefreshCount,
-        merchantRefreshChances = state.merchantRefreshChances,
-        merchantLastRefreshChanceGrantYear = state.merchantLastRefreshChanceGrantYear,
-        playerListedItems = state.playerListedItems,
-        merchantAcquisitionItems = state.merchantAcquisitionItems,
-        merchantAcquisitionLastRefreshYear = state.merchantAcquisitionLastRefreshYear,
-        autoBuyList = state.autoBuyList
-    )
-
-    fun withOrganization(state: SectOrganizationState): GameData = this.copy(
-        elderSlots = state.elderSlots,
-        alliances = state.alliances,
-        battleTeams = state.battleTeams,
-        aiBattleTeams = state.aiBattleTeams,
-        sectPolicies = state.sectPolicies,
-        activeMissions = state.activeMissions,
-        availableMissions = state.availableMissions,
-        usedRedeemCodes = state.usedRedeemCodes
-    )
-
-    fun withExploration(state: ExplorationState): GameData = this.copy(
-        recruitList = state.recruitList,
-        lastRecruitYear = state.lastRecruitYear,
-        cultivatorCaves = state.cultivatorCaves,
-        caveExplorationTeams = state.caveExplorationTeams,
-        aiCaveTeams = state.aiCaveTeams,
-        // unlockedDungeons removed
-        unlockedRecipes = state.unlockedRecipes,
-        unlockedManuals = state.unlockedManuals,
-        manualProficiencies = state.manualProficiencies,
-        worldLevels = state.worldLevels
     )
 
     companion object {

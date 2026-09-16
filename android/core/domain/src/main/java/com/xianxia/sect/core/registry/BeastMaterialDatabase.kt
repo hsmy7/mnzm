@@ -328,21 +328,6 @@ object BeastMaterialDatabase {
         return allMaterials.filter { it.tier in tiers }
     }
     
-    fun getRandomMaterialByRealm(realm: Int, luck: Double = 1.0): BeastMaterial? {
-        val candidates = getDropMaterialsByRealm(realm)
-        if (candidates.isEmpty()) return null
-        
-        val totalWeight = candidates.sumOf { it.dropWeight * luck }
-        var random = kotlin.random.Random.nextDouble() * totalWeight
-        
-        for (material in candidates) {
-            random -= material.dropWeight * luck
-            if (random <= 0) return material
-        }
-        
-        return candidates.firstOrNull()
-    }
-    
     fun getRandomMaterialByBeastType(beastType: String, tier: Int, luck: Double = 1.0): BeastMaterial? {
         val materials = getMaterialsByBeastType(beastType).filter { it.tier == tier }
         if (materials.isEmpty()) return null
