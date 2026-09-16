@@ -3,7 +3,7 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.state.ReverseChannelPolicy
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag as NativeEngineFlagX
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.After
@@ -115,7 +115,7 @@ class ReverseChannelCloseoutTest {
                 )
             )
         )
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+        NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.AUTHORITATIVE) {
             val store = FakeGameStateStore()
             store.update { pills.add(Pill(id = "p1", name = "丹", quantity = 1)) }
 
@@ -217,7 +217,7 @@ class ReverseChannelCloseoutTest {
         ReverseChannelPolicy.setReverseTransportEnabled(false)
         try {
             // 捕获侧检测已 AUTHORITATIVE 门控（w3-13：flag-OFF 无真相源不存在回导缺口）
-            NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+            NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.AUTHORITATIVE) {
                 val store = FakeGameStateStore()
                 val sent = mutableListOf<String>()
                 val sync = StateSyncService(store) { sent += it.decodeToString(); true }

@@ -107,7 +107,7 @@ class ReverseChannelPolicyGuardTest {
     }
 
     @Test
-    fun `audit red line - disciple channel closed, aiSectDisciples section stays transported`() {
+    fun `audit red line - disciple channel and aiSectDisciples and worldMapSects stay closed`() {
         // 弟子通道：**已关闭**（w3-13 删除批硬前置达成——W4-D 续批任务域收口后，
         // AUTHORITATIVE 稳态协议列写者全部拥有 C++ 真相先行臂：交谈 1860 / 派遣 1861 /
         // 弟子操作面 1740–1759；lifeEvents 协议外投影转非捕获路径；检测 AUTHORITATIVE
@@ -116,11 +116,16 @@ class ReverseChannelPolicyGuardTest {
             "弟子通道应已关闭（写者收口完成，见 handover §2.76），恢复传输须回滚本判定",
             ReverseChannelPolicy.isDiscipleChannelTransported()
         )
-        // aiSectDisciples 顶层段：**仍必须保留传输**（存档前自愈 regenerateSectsBeforeSave /
-        // 攻宗守军清理等稳态写者在位——§2.75④ 第 3 项未完成）
-        assertTrue(
-            "aiSectDisciples 顶层段仍有稳态写者（AI_SECT 域结论），不得关闭",
+        // aiSectDisciples 段 + worldMapSects：**已关闭**（§2.75④ 第 3 项存档自愈收口——
+        // 写者全部接线"写入后 native 基线重建"（rebaselineNativeMirror / importToNative）
+        // 或 native 臂就位；boot 归一化由首旬全量导入吸收）。若回退，本测试失败并指向 §2.78。
+        assertFalse(
+            "aiSectDisciples 段应已关闭（写者已接线基线重建，见 handover §2.78）",
             ReverseChannelPolicy.isSectionTransported(ReverseChannelPolicy.SECTION_AI_SECT_DISCIPLES)
+        )
+        assertFalse(
+            "worldMapSects 应已关闭（写者已接线基线重建，见 handover §2.78）",
+            ReverseChannelPolicy.isGameDataFieldTransported("worldMapSects")
         )
     }
 

@@ -29,6 +29,7 @@ class SaveFacadeImpl @Inject constructor(
      * 确保 snapshot 包含已修复的数据。
      */
     private fun validateWorldMapSectsBeforeSave() {
+        worldMapSelfHealPending = false
         val gd = stateStore.gameDataSnapshot
         // 阶段1：列表为空 → 重生
         if (gd.worldMapSects.isEmpty()) {
@@ -42,6 +43,11 @@ class SaveFacadeImpl @Inject constructor(
             regenerateSectsBeforeSave(gd.sectName)
         }
     }
+
+    /** w3-13：存档自愈发生标记（GameEngine 包装层读取后触发 native 基线重建）。 */
+    @Volatile
+    override var worldMapSelfHealPending: Boolean = false
+        private set
 
     private fun SaveFacadeImpl.regenerateSectsBeforeSave(sectName: String) {
         if (sectName.isBlank()) {
@@ -64,6 +70,9 @@ class SaveFacadeImpl @Inject constructor(
         }
         DomainLog.w("SaveFacade", "worldMapSects 同步重生完成，" +
             "sects=${generationResult.sects.size}")
+        // w3-13 通道关闭配套：自愈写面（worldMapSects/aiSectDisciples 已关闭回导）——
+        // 置位自愈标记，由 GameEngine 存档包装层触发 native 基线重建（§2.75④）
+        worldMapSelfHealPending = true
     }
 
     override fun getStateSnapshotSync(): GameStateSnapshot {

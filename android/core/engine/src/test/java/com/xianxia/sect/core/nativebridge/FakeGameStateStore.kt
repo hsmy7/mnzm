@@ -19,7 +19,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag as NativeEngineFlagX
 import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -161,7 +161,7 @@ open class FakeGameStateStore : GameStateStore {
             // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（与生产 GameStateStoreImpl 同源）；
             // 检测 AUTHORITATIVE 门控同生产（flag-OFF 写入即真相，无回导缺口）
             if (changedReference && !ReverseChannelPolicy.isCollectionTransported(name)) {
-                if (NativeEngineFlag.authoritative) {
+                if (NativeEngineFlagX.authoritative) {
                     ReverseChannelPolicy.noteClosedWrite(
                         ReverseChannelPolicy.Kind.COLLECTION, name, "FakeGameStateStore"
                     )
@@ -183,7 +183,7 @@ open class FakeGameStateStore : GameStateStore {
             if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
                 reverseAcc.discipleIds += ids
                 if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
-            } else if (NativeEngineFlag.authoritative) {
+            } else if (NativeEngineFlagX.authoritative) {
                 // 检测 AUTHORITATIVE 门控同生产（w3-13）
                 ReverseChannelPolicy.noteClosedWrite(
                     ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,

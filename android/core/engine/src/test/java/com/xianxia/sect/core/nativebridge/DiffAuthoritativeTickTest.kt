@@ -46,7 +46,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RecruitIntegrity
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag as NativeEngineFlagX
 import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
@@ -529,7 +529,7 @@ class DiffAuthoritativeTickTest {
                 // AUTHORITATIVE 门控——基准臂写入即真相，不触发关闭域检测计数）
                 var yearChangedB = false
                 var monthChangedB = false
-                NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
+                NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.OFF) {
                     storeB.update {
                         val prevYear = gameData.gameYear
                         val prevMonth = gameData.gameMonth
@@ -542,7 +542,7 @@ class DiffAuthoritativeTickTest {
                 }
                 // Side A 一旬（AUTHORITATIVE 管线：每旬完整七步
                 // 在 nativeCoreSettlePhase 内执行，原 Kotlin executeResidual 删除）
-                NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+                NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.AUTHORITATIVE) {
                     val flags = DiffRngBridge.nativeCoreSettlePhase()
                     val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
                     val applyResult = syncA.applyDirty(dirty)
@@ -656,7 +656,7 @@ class DiffAuthoritativeTickTest {
                     // Side B 一旬（flag-OFF 基准臂语义——同主用例，检测门控不计数）
                     var yearChangedB = false
                     var monthChangedB = false
-                    NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
+                    NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.OFF) {
                         storeB.update {
                             val prevYear = gameData.gameYear
                             val prevMonth = gameData.gameMonth
@@ -669,7 +669,7 @@ class DiffAuthoritativeTickTest {
                     }
                     // Side A 一旬（结算 + 前向镜像 + 边界编排同款；步骤⑤照常调用
                     // applyDirtyToNative——观察窗语义 = 消费窗口 + 构建检测 + 不发送）
-                    NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+                    NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.AUTHORITATIVE) {
                         val flags = DiffRngBridge.nativeCoreSettlePhase()
                         val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
                         val applyResult = syncA.applyDirty(dirty)
@@ -763,7 +763,7 @@ class DiffAuthoritativeTickTest {
         val (_, rngB, exB) = buildHarness(storeB, snapshot.gameData.rngStates, delegating = false)
         runTest {
             // Side B 全段 = flag-OFF 基准臂语义（w3-13 捕获侧检测门控不计数）
-            NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
+            NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.OFF) {
             storeB.update {
                 val recruit = gameData.recruitList.toList().find { it.id == RECRUIT_ID }
                 val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
@@ -801,7 +801,7 @@ class DiffAuthoritativeTickTest {
             }
 
             // ── Side A：AUTHORITATIVE 管线（C++ 核心 + 委托 RNG） ──
-            NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+            NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.AUTHORITATIVE) {
             assertTrue("导入失败", DiffRngBridge.nativeCoreImportState(encoded.encodeToByteArray()))
             val storeA = FakeGameStateStore().also {
                 it.gameDataValue = snapshot.gameData

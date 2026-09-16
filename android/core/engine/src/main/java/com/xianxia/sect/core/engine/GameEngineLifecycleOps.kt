@@ -203,6 +203,11 @@ private suspend fun GameEngine.checkAndRepairMerchantAndRecruit() {
         DomainLog.w("ensureGameDataIntegrity", "recruitList 为空，刷新")
         cultivationService.refreshRecruitList(gd.gameYear)
     }
+    // w3-13 通道关闭配套：本函数的修复写面（aiSectDisciples 池/商人/招募列表）在
+    // AUTHORITATIVE 中途路径（upgradeSectLevel 修复重试）不再经反向通道回导——
+    // 发生过修复即重建 native 基线（boot 路径 native 未就绪时为静默跳过，
+    // 基线由首旬 ensureAuthoritativeNative 的全量导入吸收）
+    rebaselineNativeMirror("ensureGameDataIntegrity 修复")
 }
 
 // ── Cross-domain: Sect / Map ────────────────────────────────────────

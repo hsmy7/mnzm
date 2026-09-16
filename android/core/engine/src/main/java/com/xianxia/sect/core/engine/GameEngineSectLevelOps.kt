@@ -419,6 +419,9 @@ suspend fun GameEngine.upgradeSectLevel(): SectLevelUpgradeResult = engineContex
                     }
                 )
             }
+            // w3-13 通道关闭配套：回退臂写面（worldMapSects 已关闭回导）——
+            // Kotlin 原路径写入后重建 native 基线（native 臂成功路径无需：C++ 已直写）
+            rebaselineNativeMirror("宗门升级回退臂")
         }
         DomainLog.d(TAG, "upgradeSectLevel: level=$currentLevel->$targetLevel success")
         return@withEngineContext SectLevelUpgradeResult.Success(targetLevel)

@@ -48,6 +48,14 @@ internal val w4DClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
     // 在 AUTHORITATIVE 为防御性 no-op（C++ 完成经前向镜像后无可完成项）+
     // 读档归一化（LOAD_BOOT 族）+ flag-OFF 回退臂（检测 AUTHORITATIVE 门控不计数））
     gameDataField(Domain.RECRUIT, "activeMissions"),
+    // AI_SECT（W4-D 续·存档自愈收口——§2.75④ 第 3 项）：
+    // 写者全部获得回导替代路径——存档自愈/完整性修复/攻宗占领/升级回退臂四处
+    // 均已接线"写入后 native 基线重建"（rebaselineNativeMirror / importToNative，
+    // ADR 保留面 sanctioned 复用）；boot 归一化（LOAD_BOOT 族）由首旬全量导入吸收；
+    // removeDeadDefenders native 臂就位（batch-20b）。遭遇战/好感事件写者挂
+    // 月结子事件表（flag-OFF 回退臂，检测门控不计数）。
+    topLevelSection(Domain.AI_SECT, ReverseChannelPolicy.SECTION_AI_SECT_DISCIPLES),
+    gameDataField(Domain.AI_SECT, "worldMapSects"),
     // DISCIPLE（W4-D 续·弟子通道关闭——w3-13 删除批硬前置达成判定）：
     // 通道的 AUTHORITATIVE 稳态协议列写者已全部获得 C++ 真相先行臂——
     // 交谈效果 1860（chat_effect_tx.h）/ 任务派遣 1861（mission_start_tx.h）/
@@ -65,8 +73,10 @@ internal val w4DRetainedGameDataFields: Set<String> = linkedSetOf(
     "recruitList",
     // 经济：钱包三阶与灵草（Kotlin 钱包与统一入库入口为稳态写者）
     "spiritStones", "midGradeSpiritStones", "highGradeSpiritStones", "spiritHerbs",
-    // 世界与宗门标识
-    "worldMapSects", "activeSectId", "sectName",
+    // 世界与宗门标识（worldMapSects 已随存档自愈收口转关闭，见 closedUnits；
+    // activeSectId = enterSect 净化条件写者 + LOAD_BOOT，sectName = LOAD_BOOT 族——
+    // 二者下一轮清偿扫除时随域判定转关闭）
+    "activeSectId", "sectName",
     // 执法堂月账
     "theftJudgementsThisMonth",
     // 年度收支账（Kotlin 为稳态写者）

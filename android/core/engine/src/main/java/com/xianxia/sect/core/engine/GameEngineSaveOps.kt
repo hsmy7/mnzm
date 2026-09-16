@@ -39,7 +39,13 @@ fun GameEngine.getStateSnapshotSync(): GameStateSnapshot {
     // 引擎线程——saveFacade.getStateSnapshotSync() 内的 exportStates() 会读取
     // C++ PCG 分区状态，**必须在引擎线程调用**（当前生产代码无调用方；
     // 挂起版快照请用 GameEngine.buildSaveSnapshot()，自带引擎线程收敛）。
-    return saveFacade.getStateSnapshotSync()
+    val snapshot = saveFacade.getStateSnapshotSync()
+    // w3-13 通道关闭配套：存档自愈写面（worldMapSects/aiSectDisciples 已关闭
+    // 回导）发生后全量重建 native 基线（§2.75④ "自愈后全量重建基线"）
+    if (economyFacade.saveFacade.worldMapSelfHealPending) {
+        rebaselineNativeMirror("存档自愈")
+    }
+    return snapshot
 }
 fun GameEngine.validateState(): List<String> = saveFacade.validateState()
 fun GameEngine.getStateStatistics(): Map<String, Any> = saveFacade.getStateStatistics()

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
@@ -272,6 +273,9 @@ class DiffStateSyncTest {
     fun `reverse envelope carries aiSectDisciples only when changed`() {
         // 反向回导：@Transient aiSectDisciples 单独全量段；变化检测
         //（缓存对齐）避免每 tick 重发重型数据——未变化不携带，变化才携带
+        // aiSectDisciples 段已随 w3-13 关闭（handover §2.78）；本用例守护**段变化
+        // 检测机械**（缓存对齐/变化携带），经逐域回滚钩子恢复传输前提。
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.AI_SECT)
         val store = FakeGameStateStore()
         val sent = mutableListOf<String>()
         val service = StateSyncService(store, reverseSender = { bytes ->
@@ -305,5 +309,8 @@ class DiffStateSyncTest {
         assertTrue(service.applyDirtyToNative())
         assertTrue("变化应携带 aiSectDisciples 段", sent.last().contains("\"ai-2\""))
         assertTrue(sent.last().contains("\"赤火弟子\""))
+        ReverseChannelPolicy.resetSwitches()
     }
 }
+
+

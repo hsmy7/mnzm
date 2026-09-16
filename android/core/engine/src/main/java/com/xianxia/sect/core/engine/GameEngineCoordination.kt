@@ -1,3 +1,7 @@
+// 函数数即引擎操作入口（焦点/UI 态 + 弟子原子写面 + 交谈效果下沉），拆分反而割裂
+// 同域语义——TooManyFunctions 阈值（15）经文件级豁免登记（detekt baseline 全 0 纪律）
+@file:Suppress("TooManyFunctions")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.Disciple

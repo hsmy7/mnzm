@@ -110,6 +110,26 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
 }
 
 /**
+ * Kotlin 侧写入后的 native 基线重建（w3-13 通道关闭配套——§2.75④ "自愈后全量重建基线"）。
+ *
+ * 用途：世界/AI 域的中途防御性写入（存档自愈/完整性修复/攻宗占领/升级回退臂）在
+ * 对应单元关闭后不再经反向通道回导——写入完成即调本函数以当前镜像**全量重建**
+ * C++ 基线（读档/新档基线路径 `importToNative` 的 sanctioned 复用；restoreRng=false
+ * 保持 native RNG 真相源）。事件均为低频用户/存档动作，O(状态) 成本可接受。
+ *
+ * native 未就绪（boot 序列）时静默跳过——基线由 `ensureAuthoritativeNative` 的
+ * 全量导入建立，届时吸收已修复状态。
+ */
+internal fun GameEngine.rebaselineNativeMirror(reason: String) {
+    if (!GameCoreBridge.isLoaded || !GameCoreBridge.nativeIsInitialized()) return
+    if (stateSyncService.importToNative(restoreRng = false)) {
+        DomainLog.i(TAG, "native 基线重建完成（$reason）")
+    } else {
+        DomainLog.w(TAG, "native 基线重建失败（$reason）——C++ 侧待下一回导/导入收敛")
+    }
+}
+
+/**
  * 每旬分段计时器（batch-22a debug 埋点专用；release 构建恒不实例化 = 零开销）。
  *
  * 采集项（µs 精度，每旬一行 DomainLog.d）：

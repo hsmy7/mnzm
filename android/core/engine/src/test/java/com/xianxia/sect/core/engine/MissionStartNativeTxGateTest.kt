@@ -69,7 +69,8 @@ class MissionStartNativeTxGateTest {
             runBlocking { block(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)) }
             mock<kotlinx.coroutines.Job>()
         }
-        whenever(mockCore.scopeForStateIn()).thenReturn(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined))
+        whenever(mockCore.scopeForStateIn())
+            .thenReturn(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined))
         engine = GameEngine(
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
@@ -130,13 +131,8 @@ class MissionStartNativeTxGateTest {
     fun `fallback arm appends mission clears patrol keeps residence resets status`() = runBlocking {
         val team = seed()
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            try {
-                engine.startMission(mission, team)
-            } catch (t: Throwable) {
-                println("PROBE startMission threw: $t")
-            }
+            engine.startMission(mission, team)
         }
-        println("PROBE team=${team.size} gdYear=${store.gameDataSnapshot.gameYear} am=${store.gameDataSnapshot.activeMissions.size}")
         val gd = store.gameDataSnapshot
         assertEquals("恰一条进行中任务", 1, gd.activeMissions.size)
         val am = gd.activeMissions.single()

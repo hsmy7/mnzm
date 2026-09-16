@@ -365,6 +365,9 @@ private fun GameEngine.occupySectRewards(
             "玩家宗门占领了${targetSect.name}"
         )
     }
+    // w3-13 通道关闭配套：占领写面（worldMapSects/aiSectDisciples 清池 + recruitList
+    // 俘虏）已关闭回导——写入完成即重建 native 基线（§2.75④ "自愈后全量重建基线"）
+    rebaselineNativeMirror("攻宗占领")
 }
 
 /** 击溃奖励入账（attackSect 提取） */

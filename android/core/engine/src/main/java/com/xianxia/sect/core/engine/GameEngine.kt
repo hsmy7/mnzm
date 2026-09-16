@@ -204,6 +204,11 @@ class GameEngine @Inject constructor(
      * 在 mock 环境下整方法被 relaxed 拦截，行为与直通等价。
      */
     suspend fun buildSaveSnapshot(): GameStateSnapshot {
+        // w3-13 通道关闭配套：存档自愈写面（worldMapSects/aiSectDisciples 已关闭
+        // 回导）发生后全量重建 native 基线（§2.75④ "自愈后全量重建基线"）
+        if (economyFacade.saveFacade.worldMapSelfHealPending) {
+            rebaselineNativeMirror("存档自愈")
+        }
         return engineContextDispatcher.withEngineContext {
             cultivationService.flushYearlyOpsQueue()
             saveFacade.getStateSnapshot()
