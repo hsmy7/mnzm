@@ -42,3 +42,14 @@ internal fun discipleChannel(domain: ReverseChannelPolicy.Domain): ReverseChanne
         ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
         ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME
     )
+
+/**
+ * 构造一个**实体集合段**关闭单元。
+ *
+ * @param domain 归属域（回滚粒度）
+ * @param name 集合协议名（必须在 [ReverseChannelPolicy.COLLECTION_NAMES] 内——
+ *        `ReverseChannelPolicyGuardTest` 协议名守卫强制）
+ * @return 关闭单元
+ */
+internal fun collectionUnit(domain: ReverseChannelPolicy.Domain, name: String): ReverseChannelPolicy.ClosedUnit =
+    ReverseChannelPolicy.ClosedUnit(domain, ReverseChannelPolicy.Kind.COLLECTION, name)

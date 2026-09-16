@@ -181,10 +181,10 @@ class ReverseChannelPolicyGuardTest {
     }
 
     @Test
-    fun `gameData surface fully closed - only nine collections remain transported`() {
-        // 🔴 w3-13 删除步硬前置里程碑（§2.80）：gameData 序列化面**关闭清单 =
-        // 全部传输单元**。唯一剩余开放传输面 = 9 类实体集合（第三段专项：
-        // 统一入口事务面 updateMirror 化 + 逐动作基线重建后转关闭）。
+    fun `w3-13 hard precondition met - every transport unit is closed`() {
+        // 🔴 w3-13 删除步硬前置终局达成（§2.81 第三段：9 类实体集合转关闭）：
+        // 关闭清单 = 全部传输单元（gameData 字段面 §2.80 + 顶层段 §2.76–§2.78 +
+        // 弟子通道 §2.77 + 实体集合 §2.81）——无任何在册保留传输面。
         assertEquals(
             "gameData 字段面应全部关闭（§2.80 第二段达成）——若出现保留项，" +
                 "说明有写者回退或新字段未走关闭判定流程",
@@ -192,11 +192,44 @@ class ReverseChannelPolicyGuardTest {
             ReverseChannelPolicy.transportedGameDataFields,
         )
         for (name in ReverseChannelPolicy.COLLECTION_NAMES) {
-            assertTrue(
-                "集合段 $name 应保持传输（第三段专项完成前关闭 = 统一入口捕获面数据丢失）",
+            assertFalse(
+                "集合段 $name 应已关闭（§2.81 第三段：稳态写者已接线 updateMirror + " +
+                    "基线重建，见 handover §2.81）",
                 ReverseChannelPolicy.isCollectionTransported(name)
             )
         }
+        assertFalse(
+            "弟子通道应已关闭（§2.77）",
+            ReverseChannelPolicy.isDiscipleChannelTransported()
+        )
+        assertFalse(
+            "aiSectDisciples 段应已关闭（§2.78）",
+            ReverseChannelPolicy.isSectionTransported(ReverseChannelPolicy.SECTION_AI_SECT_DISCIPLES)
+        )
+        assertFalse(
+            "lockedBeastIds 段应已关闭（batch-23）",
+            ReverseChannelPolicy.isSectionTransported(ReverseChannelPolicy.SECTION_LOCKED_BEAST_IDS)
+        )
+    }
+
+    @Test
+    fun `audit red line - item4 third tranche nine collections stay closed`() {
+        // §2.81 retained 字段族逐域判定第三段（终段）转关闭的 9 类实体集合。
+        // 判定依据：AUTHORITATIVE 稳态可达写者六簇已接线 updateMirror + 基线重建
+        // （攻宗占领/碾压、世界关卡胜利奖励、逐出袋物化、仓库赏赐装备/功法、宗门
+        // 贸易购买、妖兽迎战）；余者为回退臂/flag-OFF 结算臂/LOAD_BOOT/no-op/
+        // 对拍基准专属/局部副本六类合法形态。若回退（恢复传输），本测试失败并指向
+        // handover §2.81。
+        val closed = listOf(
+            "equipmentStacks", "equipmentInstances", "manualStacks", "manualInstances",
+            "pills", "materials", "herbs", "seeds", "storageBags",
+        )
+        assertEquals("关闭集合清单必须恰为协议名全集", ReverseChannelPolicy.COLLECTION_NAMES, closed.toSet())
+        val stillTransported = closed.filter { ReverseChannelPolicy.isCollectionTransported(it) }
+        assertTrue(
+            "§2.81 第三段关闭项（9 类集合）不得恢复传输：$stillTransported（见 handover §2.81）",
+            stillTransported.isEmpty()
+        )
     }
 
     @Test

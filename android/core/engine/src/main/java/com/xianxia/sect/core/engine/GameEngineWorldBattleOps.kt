@@ -281,15 +281,20 @@ internal suspend fun GameEngine.applyVictoryRewards(
     teamMembers: List<BattleLogMember>
 ) {
     val allRewards = mutableListOf<BattleRewardItem>()
-    if (level.isBeast) {
-        allRewards.addAll(handleBeastLevelVictory(level))
-        if (spiritStonesReward > 0) {
-            addSpiritStones(spiritStonesReward.toLong())
-            allRewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = spiritStonesReward,
-                rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
+    // 捕获豁免（updateMirror，§2.81）：胜利奖励写面（9 类实体集合经 addXxx 重入
+    // 本事务 + 钱包）——集合段已关闭回导且引用比较检测不适用值等值收敛，写入经
+    // 双臂尾部基线重建（attackWorldLevel "世界关卡战斗"）回导 C++
+    stateStore.updateMirror {
+        if (level.isBeast) {
+            allRewards.addAll(handleBeastLevelVictory(level))
+            if (spiritStonesReward > 0) {
+                addSpiritStones(spiritStonesReward.toLong())
+                allRewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = spiritStonesReward,
+                    rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
+            }
+        } else {
+            allRewards.addAll(handleCaveLevelVictory(level))
         }
-    } else {
-        allRewards.addAll(handleCaveLevelVictory(level))
     }
     stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true,
         teamMembers = teamMembers, rewards = allRewards))
@@ -308,7 +313,7 @@ internal fun GameEngine.applyWorldLevelDefeat(
 
 // ── Private: Victory rewards ────────────────────────────────────────
 
-private suspend fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<BattleRewardItem> {
+private fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<BattleRewardItem> {
     val rewards = mutableListOf<BattleRewardItem>()
     val beastConfig = GameConfig.Beast.getType(level.beastType ?: 0)
     val tier = GameConfig.Realm.getMaxRarity(level.realm)
@@ -335,7 +340,7 @@ private suspend fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<
     return rewards
 }
 
-private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<BattleRewardItem> {
+private fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<BattleRewardItem> {
     val rewards = mutableListOf<BattleRewardItem>()
     val config = LevelGenerator.getCaveReward(level.realm)
     // 基于关卡 ID 散列的确定性奖励（替代 kotlin.random.Random）

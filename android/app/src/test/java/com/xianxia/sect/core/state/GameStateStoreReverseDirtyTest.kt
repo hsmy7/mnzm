@@ -35,6 +35,9 @@ class GameStateStoreReverseDirtyTest {
         // 弟子通道已随 w3-13 关闭（handover §2.76 续批）；本类守护**捕获机械**
         // 语义（弟子列写 → changed id → 快照），经覆盖钩子恢复传输前提。
         ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.DISCIPLE)
+        // 9 类实体集合已随 §2.81 第三段关闭——本类守护集合捕获机械语义
+        // （upsert+removed），同款覆盖钩子恢复传输前提。
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.INVENTORY)
         stateStore = GameStateStoreImpl(
             applicationScopeProvider = ApplicationScopeProvider(),
             repository = testGameStateRepository()
@@ -134,6 +137,9 @@ class GameStateStoreReverseDirtyTest {
     fun `closed collection is not captured and its write is detected`() {
         // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（省 O(n) 差集与实体序列化）；
         // 关闭后仍有 Kotlin 写者 = 回导缺口，必须可从诊断面观测
+        // 复位 setUp 的 reopen（§2.81 集合关闭后夹具恢复传输前提）——本用例以
+        // override 关闭 pills，reopen 优先级高于 override 会使其失效
+        ReverseChannelPolicy.resetSwitches()
         ReverseChannelPolicy.overrideClosedUnitsForTest(
             listOf(
                 ReverseChannelPolicy.ClosedUnit(

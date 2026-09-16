@@ -88,14 +88,18 @@ internal fun DiscipleFacadeImpl.tryNativeExpelDisciple(discipleId: String): Doma
     discipleService.clearDiscipleFromAllSlots(discipleId)
 
     // ② 袋物品物化（信封草稿 → Kotlin 物化回仓库；与 Kotlin 原路径同口径：
-    //    withTrackingSource 归因 + 溢出自动转邮件）
+    //    withTrackingSource 归因 + 溢出自动转邮件）。
+    //    捕获豁免（updateMirror，§2.81）：物化经统一入口 addXxx 写 9 类实体集合
+    //    （已关闭回导，引用比较检测不适用值等值收敛）——写入经下方基线重建回导 C++
     val bagItems = parseBagItemDrafts(data)
     if (bagItems.isNotEmpty()) {
         val inventorySystem = discipleService.inventorySystem
-        inventorySystem.withTrackingSource(EXPEL_TRACKING_SOURCE) {
-            inventorySystem.materializeBagItemsToWarehouse(bagItems)
+        stateStore.updateMirror {
+            inventorySystem.withTrackingSource(EXPEL_TRACKING_SOURCE) {
+                inventorySystem.materializeBagItemsToWarehouse(bagItems)
+            }
         }
-        // w3-13 通道关闭配套（§2.80）：物化写面（9 类集合/钱包/年度账均已关闭）
+        // w3-13 通道关闭配套（§2.80/§2.81）：物化写面（9 类集合/钱包/年度账均已关闭）
         // 发生后全量重建 native 基线回导 C++（§2.79 偷盗钩子同口径——捕获通道
         // 已关闭，物化所得必须经基线重建到达 C++ 真相源）
         gameEngineCore.rebaselineNativeMirror("逐出袋物化")

@@ -96,15 +96,19 @@ suspend fun ExplorationService.resolveBeastAttackFight(
     val level = snapshot.worldLevels.find { it.id == beastLevelId } ?: return false
     if (level.defeated) return false
     var handled = false
-    stateStore.update {
+    // 捕获豁免（updateMirror，§2.81）：迎战写面（worldLevels/战报 + 战利品经
+    // 统一入口 addXxx 重入本事务写 9 类实体集合——已关闭回导，引用比较检测
+    // 不适用值等值收敛）——写入经 GameEngine 尾部基线重建（"妖兽迎战"/
+    // "遭遇战分支"）回导 C++
+    stateStore.updateMirror {
         // 锁内二次检查 defeated（防 TOCTOU：锁外快照可能已过时）
         val currentLevel = gameData.worldLevels.find { it.id == beastLevelId }
-        if (currentLevel == null || currentLevel.defeated) return@update
+        if (currentLevel == null || currentLevel.defeated) return@updateMirror
 
         // 遭遇战检查：妖兽附近有 AI 宗门拦截
         if (resolveEncounterPath(this, beastLevelId, level, manualDefenders)) {
             handled = true
-            return@update
+            return@updateMirror
         }
         // 无遭遇战，走正常妖兽战斗路径
         handled = true

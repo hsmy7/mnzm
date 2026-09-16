@@ -350,7 +350,10 @@ private fun GameEngine.occupySectRewards(
             "俘虏管理: 接收${acceptedCaptives.size}人, " +
             "丢弃${capturedDisciples.size - acceptedCaptives.size}人")
     }
-    stateStore.update {
+    // 捕获豁免（updateMirror，§2.81）：事务内 grantWarRewardsInside 写 9 类实体集合
+    // （第三段已关闭回导，值等值收敛不适用于集合通道的引用比较检测）——写入经尾部
+    // 基线重建回导 C++
+    stateStore.updateMirror {
         gameData = gameData.copy(
             worldMapSects = gameData.worldMapSects.toList().map { sect -> if (sect.id == sectId) sect
                 .copy(isPlayerOccupied = true, occupierSectId = playerSect?.id ?: "",
@@ -380,7 +383,9 @@ private fun GameEngine.occupySectRewards(
 
 /** 击溃奖励入账（attackSect 提取） */
 private fun GameEngine.crushSectRewards(rewards: WarRewards) {
-    stateStore.update {
+    // 捕获豁免（updateMirror，§2.81）：grantWarRewardsInside 写 9 类实体集合
+    // （已关闭回导）——写入经调用方尾部基线重建（attackSect "攻宗碾压奖励"）回导 C++
+    stateStore.updateMirror {
         grantWarRewardsInside(this, rewards)
     }
 }

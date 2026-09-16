@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.model.PillEffect
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
@@ -142,11 +143,17 @@ internal fun DiscipleFacadeImpl.recruitDiscipleFromListLegacy(discipleId: String
 
 
 internal fun DiscipleFacadeImpl.rewardEquipment(discipleId: String, item: RewardSelectedItem) {
-    stateStore.update {
+    var wrote = false
+    // 捕获豁免（updateMirror，§2.81）：赏赐写 9 类实体集合（equipmentStacks/
+    // equipmentInstances——已关闭回导，引用比较检测不适用值等值收敛）；本链无
+    // native 臂（C++ rewardItemTx 仅支持消耗品四类），Kotlin 即 AUTHORITATIVE
+    // 正主——写入经尾部基线重建回导 C++（§2.79 宗门改名迁移同口径）
+    stateStore.updateMirror {
         val stack = equipmentStacks.get(item.id)
-        if (stack == null || stack.quantity < 1) return@update
+        if (stack == null || stack.quantity < 1) return@updateMirror
         val id = discipleId.toIntOrNull()
-        if (id == null || !discipleTables.ids.contains(id)) return@update
+        if (id == null || !discipleTables.ids.contains(id)) return@updateMirror
+        wrote = true
         val discipleRealm = discipleTables.realms[id]
         val canEquip = GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
         if (canEquip) {
@@ -169,6 +176,8 @@ internal fun DiscipleFacadeImpl.rewardEquipment(discipleId: String, item: Reward
             grantEquipmentToBag(discipleId = discipleId, item = item, stack = stack, id = id)
         }
     }
+    // 条件性重建：未发生写入（堆叠缺失/弟子无效）时零成本
+    if (wrote) gameEngineCore.rebaselineNativeMirror("仓库赏赐装备")
 }
 
 /** 当前装备 ID 读取 */
@@ -258,11 +267,16 @@ internal fun MutableGameState.grantEquipmentToBag(
 }
 
 internal fun DiscipleFacadeImpl.rewardManual(discipleId: String, item: RewardSelectedItem) {
-    stateStore.update {
+    var wrote = false
+    // 捕获豁免（updateMirror，§2.81）：赏赐写 9 类实体集合（manualStacks/
+    // manualInstances——已关闭回导）；无 native 臂，Kotlin 即 AUTHORITATIVE 正主，
+    // 写入经尾部基线重建回导 C++（rewardEquipment 同口径）
+    stateStore.updateMirror {
         val stack = manualStacks.get(item.id)
-        if (stack == null || stack.quantity < 1) return@update
+        if (stack == null || stack.quantity < 1) return@updateMirror
         val id = discipleId.toIntOrNull()
-        if (id == null || !discipleTables.ids.contains(id)) return@update
+        if (id == null || !discipleTables.ids.contains(id)) return@updateMirror
+        wrote = true
         val discipleRealm = discipleTables.realms[id]
         val currentManualIds = discipleTables.manualIds[id]
         val canLearn = GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm) &&
@@ -292,6 +306,8 @@ internal fun DiscipleFacadeImpl.rewardManual(discipleId: String, item: RewardSel
             )
         }
     }
+    // 条件性重建：未发生写入（堆叠缺失/弟子无效）时零成本
+    if (wrote) gameEngineCore.rebaselineNativeMirror("仓库赏赐功法")
 }
 
 

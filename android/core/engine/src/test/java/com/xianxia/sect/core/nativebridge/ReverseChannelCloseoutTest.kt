@@ -70,26 +70,30 @@ class ReverseChannelCloseoutTest {
     }
 
     @Test
-    fun `transported collection still flows`() {
-        // §2.80 起 gameData 字段面已全部关闭（唯一保留面 = 9 类实体集合）——
-        // "在册保留单元必须继续回导"语义由集合通道承载（pills 采样）。
-        val store = FakeGameStateStore()
-        val sent = mutableListOf<String>()
-        val sync = StateSyncService(store) { sent += it.decodeToString(); true }
-        sync.applySnapshot(NativeGameState(gameData = store.gameDataValue))
+    fun `all collections closed - envelope carries no collection section`() {
+        // §2.81 第三段（终段）：9 类实体集合全部转关闭（w3-13 删除步硬前置达成）——
+        // 集合写入不再构造捕获载荷，信封零发送（原"在册保留单元必须继续回导"语义
+        // 随最后保留面关闭而终结）；AUTHORITATIVE 下写入仍被检测链路登记。
+        NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.AUTHORITATIVE) {
+            val store = FakeGameStateStore()
+            val sent = mutableListOf<String>()
+            val sync = StateSyncService(store) { sent += it.decodeToString(); true }
+            sync.applySnapshot(NativeGameState(gameData = store.gameDataValue))
 
-        store.update { pills.add(com.xianxia.sect.core.model.Pill(id = "p1", name = "回导丹")) }
-        assertTrue(sync.applyDirtyToNative())
-        sent.clear()
-        store.update { pills.update("p1") { it.copy(quantity = 7) } }
-        assertTrue(sync.applyDirtyToNative())
-
-        val changed = json.parseToJsonElement(sent.last()).jsonObject["changed"]!!.jsonObject
-        assertTrue(
-            "在册保留集合（9 类集合为第三段专项前唯一保留面，§2.80）必须继续回导",
-            changed["pills"] != null
-        )
-        assertTrue("在册保留单元的写入不得计入关闭域检测", ReverseChannelPolicy.closedWriteCountSnapshot() == 0L)
+            store.update { pills.add(com.xianxia.sect.core.model.Pill(id = "p1", name = "回导丹")) }
+            store.update { pills.update("p1") { it.copy(quantity = 7) } }
+            assertTrue("关闭捕获被丢弃后 applyDirtyToNative 照常成功（不触发全量降级）", sync.applyDirtyToNative())
+            assertTrue(
+                "已关闭集合（§2.81 全部 9 类）不得构造捕获载荷——信封零发送，集合写入经" +
+                    "统一入口 updateMirror + 基线重建到达 C++（handover §2.81）",
+                sent.isEmpty()
+            )
+            assertNull("捕获窗口必须照常消费（防无界累积）", store.consumeReverseDirty())
+            assertTrue(
+                "关闭集合被 Kotlin 写入必须被检测（内置审计结论，非 override）",
+                ReverseChannelPolicy.closedWriteRecordsSnapshot().any { it.contains("pills") }
+            )
+        }
     }
 
     @Test

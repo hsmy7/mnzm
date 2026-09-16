@@ -175,19 +175,45 @@ internal val w4DClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
     // 信封值比较零命中）；1811 派生写面迁入引擎层 appendProductionSlots + 重建
     gameDataField(Domain.PRODUCTION, "productionSlots"),
     // 事件日志 + 功法熟练度（DISCIPLE 域）——偷盗钩子（updateMirror）/战争奖励
-    // （占领 §2.78 + 碾压败北本批）/世界胜利接线；余者回退臂/旗臂/LOAD_BOOT
+    // （占领 §2.78 + 碾压败北本批接线）/世界胜利接线；余者回退臂/旗臂/LOAD_BOOT
     gameDataField(Domain.DISCIPLE, "gameEventRecords"),
     gameDataField(Domain.DISCIPLE, "manualProficiencies"),
+    // ═══ §2.81 retained 字段族逐域判定·第三段（终段）——9 类实体集合转关闭 ═══
+    // 至此 **w3-13 删除步硬前置"关闭清单 = 全部传输单元"全量达成**（gameData
+    // 字段面 §2.80 + 顶层段 §2.76–§2.78 + 弟子通道 §2.77 + 实体集合本段）。
+    // 写者穷尽审计（三代理并行 + 逐点核对）后，AUTHORITATIVE 稳态可达写者全部
+    // 接线"宿主事务 updateMirror 化（非捕获）+ 尾部/双臂基线重建回导"：
+    // 攻宗占领/碾压奖励（GameEngineBattleOps occupySectRewards/crushSectRewards，
+    // rebaseline :378/:111 既有）、世界关卡胜利奖励（GameEngineWorldBattleOps
+    // applyVictoryRewards 包裹 updateMirror，双臂尾部 rebaseline 既有）、逐出袋
+    // 物化残差（DiscipleLifecycleNativeTx 包裹 updateMirror，rebaseline 既有）、
+    // 仓库赏赐装备/功法（DiscipleFacadeImpl功法Ops1 updateMirror + 新增条件性
+    // rebaseline——本链无 native 臂，C++ rewardItemTx 仅支持消耗品四类）、宗门
+    // 贸易购买（DiplomacyService buyFromSectTradeSync，rebaseline 既有）、妖兽
+    // 迎战奖励（ExplorationServiceBeastRaidOps resolveBeastAttackFight，
+    // GameEngine/ExplorationNativeOps 双入口 rebaseline 既有）。余者全部落
+    // "native 臂回退臂（检测 AUTHORITATIVE 门控不计数）/ flag-OFF 月年结臂
+    // （C++ 直辖）/ LOAD_BOOT 族 / AUTHORITATIVE 防御性 no-op / 对拍基准专属
+    // / 局部副本"六类合法形态（逐域证据见 w4DDomainEvidence 与 handover §2.81）
+    collectionUnit(Domain.INVENTORY, "equipmentStacks"),
+    collectionUnit(Domain.INVENTORY, "equipmentInstances"),
+    collectionUnit(Domain.INVENTORY, "manualStacks"),
+    collectionUnit(Domain.INVENTORY, "manualInstances"),
+    collectionUnit(Domain.INVENTORY, "pills"),
+    collectionUnit(Domain.INVENTORY, "materials"),
+    collectionUnit(Domain.INVENTORY, "herbs"),
+    collectionUnit(Domain.INVENTORY, "seeds"),
+    collectionUnit(Domain.INVENTORY, "storageBags"),
 )
 
 
 /** 本批的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4DRetainedGameDataFields: Set<String> = linkedSetOf(
     // 🔴 §2.80 起本集合为**空**——gameData 序列化面 30+29+既有关闭项 = 全部传输
-    // 单元已关闭（w3-13 删除步硬前置"关闭清单 = 全部传输单元"对 gameData 字段面
-    // 达成）。唯一剩余开放传输面 = **9 类实体集合**（COLLECTION_NAMES——在册保留
-    // 判定见 ReverseChannelPolicyGuardTest 第二段守卫断言与 handover §2.80：
-    // 第三段专项 = 统一入口事务面 updateMirror 化 + 逐动作基线重建后转关闭）。
+    // 单元已关闭；§2.81 第三段（终段）9 类实体集合亦转关闭（w4DClosedUnits 末尾
+    // collectionUnit 条目）⇒ **w3-13 删除步硬前置"关闭清单 = 全部传输单元"全量
+    // 达成**（`ReverseChannelPolicyGuardTest` 终局断言锁死），五步④（归档 tag
+    // w3-13-pre-delete）→ ⑤（通道删除）就绪。
 )
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
@@ -302,6 +328,24 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
     ),
     // ═══ §2.79 第一段逐域判定证据（W4-D/D4 续·第 4 项；groupBy 聚合与既有分片并存）═══
     Domain.INVENTORY to listOf(
+        "W4-D/D4 续（2026-09-15，§2.81 第三段终段）：9 类实体集合（equipmentStacks/" +
+            "equipmentInstances/manualStacks/manualInstances/pills/materials/herbs/seeds/" +
+            "storageBags）转入关闭——AUTHORITATIVE 稳态可达写者六簇接线 updateMirror + " +
+            "基线重建：攻宗占领/碾压奖励（GameEngineBattleOps.kt:353/:383 改非捕获，" +
+            "rebaseline :378/:111 既有）、世界关卡胜利奖励（GameEngineWorldBattleOps.kt " +
+            "applyVictoryRewards 包裹 updateMirror，双臂尾部 :52/:84 既有）、逐出袋物化" +
+            "（DiscipleLifecycleNativeTx.kt:96 包裹 updateMirror，rebaseline :101 既有）、" +
+            "仓库赏赐装备/功法（DiscipleFacadeImpl功法Ops1.kt:145/:261 改非捕获 + 新增" +
+            "条件性 rebaseline——无 native 臂，C++ rewardItemTx 仅支持消耗品四类）、宗门" +
+            "贸易购买（DiplomacyService.kt buyFromSectTradeSync 改非捕获，rebaseline " +
+            ":748 既有）、妖兽迎战奖励（ExplorationServiceBeastRaidOps.kt:99 改非捕获，" +
+            "GameEngine.kt:272 + ExplorationNativeOps.kt:186 rebaseline 既有）；余者" +
+            "native 臂回退臂（卖/用/锁/消耗/购买 1010–1029/1520/1521/1525/1530/1531、" +
+            "弟子操作面 1740–1759——检测 AUTHORITATIVE 门控不计数）/ flag-OFF 月年结臂" +
+            "（自动购买/任务奖励/生产完成/灵田/CultivationEvent——C++ 月结直辖）/ " +
+            "LOAD_BOOT 族 / 对拍基准专属（PhaseSettlementExecutor 族）/ 局部副本" +
+            "（SecretRealmRuinsResolver/MissionSystemRewardOps/AISectTeamComposer/" +
+            "EnemyGenerator/BagOps）五类合法形态",
         "W4-D/D4 续（2026-09-15，§2.80 第二段）：mailRecords/autoBuyList 转入关闭——" +
             "领取事务改 updateMirror + claimAttachment/markAllAsRead 尾部基线重建（MailService" +
             ".kt:199/:246）；自动购买列表增删迁入引擎层 wrapper（GameEngineServiceOps.kt:46/:58 " +

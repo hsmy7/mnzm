@@ -712,8 +712,11 @@ class DiplomacyService @Inject constructor(
     }
 
 suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) {
-        stateStore.update {
-            val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
+        // 捕获豁免（updateMirror，§2.81）：购买写面（钱包/sectRelations/sectDetails
+        // 均已关闭回导；addSectTradeItemToMutableState 经统一入口 addXxx 重入本事务
+        // 写 9 类实体集合——已关闭回导，引用比较检测不适用值等值收敛）
+        stateStore.updateMirror {
+            val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@updateMirror
 
             // 确保双方已相识
             gameData = gameData.copy(
@@ -729,12 +732,12 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
             // 仓库满时拒绝购买不扣灵石，避免"灵石已扣物品丢失"
             if (!inventorySystem.canAddItemInTransaction(this)) {
                 stateStore.warehouseFullEvent.tryEmit("仓库容量不足，无法购买宗门贸易物品")
-                return@update
+                return@updateMirror
             }
             val deductResult = spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW,
                 SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             if (deductResult !is DeductResult.Success) {
-                return@update
+                return@updateMirror
             }
             gameData = gameData.copy(
                 sectRelations = gameData.sectRelations,
@@ -743,8 +746,8 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
             // 预检后仍 Partial（合并空间不足）→ 溢出自动转邮件（手动-消耗类路径），物品不丢失
             addSectTradeItemToMutableState(v.item, v.actualQuantity)
         }
-        // w3-13 通道关闭配套（§2.80）：购买写面（sectRelations/sectDetails/钱包/集合
-        // 均已关闭回导或经捕获）发生后全量重建 native 基线回导 C++（低频用户动作）
+        // w3-13 通道关闭配套（§2.80/§2.81）：购买写面全部非捕获——发生后全量重建
+        // native 基线回导 C++（低频用户动作）
         gameEngineCore?.rebaselineNativeMirror("宗门贸易购买")
     }
 

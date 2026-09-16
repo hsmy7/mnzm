@@ -43,6 +43,9 @@ class StateSyncServiceReverseTest {
         // 第二段关闭——信封机械语义守护经覆盖钩子恢复传输前提。
         ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.DISCIPLE)
         ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.BOUNDARY)
+        // 9 类实体集合已随 §2.81 第三段关闭——集合段机械语义守护（体积剖面/编解码）
+        // 同款恢复传输前提
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.INVENTORY)
     }
 
     @org.junit.After
