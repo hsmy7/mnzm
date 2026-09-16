@@ -1,6 +1,17 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 续·retained 字段族逐域判定第三段（终段）——9 类实体集合转关闭，w3-13 删除步硬前置全量达成（§2.81）
+
+> 需求：实施 handover §2.80③ 登记的最后一块拼图——9 类实体集合关闭专项。**零协议面、零 ActionId 变更、零 C++ 改动、玩家可见语义零变更（宿主事务 updateMirror 化 + 尾部/双臂基线重建）⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
+
+- **写者穷尽审计（三代理并行 + 逐点核对，约 90 调用点 / 25 文件）**：集合通道与 gameData 字段的本质差异 = 捕获侧 presence 检测（引用变化即计数，§2.80 已定性）⇒ 值等值收敛不适用，稳态写者宿主事务必须先转非捕获。判定结果：AUTHORITATIVE 稳态**可达且捕获型**仅 6 簇 7 处；其余全部落六类合法形态——native 臂回退臂（卖/用/锁/消耗/购买 1010–1029/1520/1521/1525/1530/1531、弟子操作面 1740–1759，检测 AUTHORITATIVE 门控不计数）、flag-OFF 月年结臂（自动购买/任务奖励/生产完成/灵田/CultivationEvent——C++ 月结直辖含子事件 10 自动购买）、LOAD_BOOT 族、AUTHORITATIVE 防御性 no-op（任务完成结算）、对拍基准专属（`PhaseSettlementExecutor` 族零生产调用）、局部副本（秘境背包/任务奖励生成/AI 编队/敌人生成/开袋暂存批）。
+- **接线 6 簇 7 处**：①攻宗占领（`occupySectRewards` update→updateMirror，rebaseline :378 既有）；②攻宗碾压（`crushSectRewards` 同款，rebaseline :111 既有）；③世界关卡胜利奖励（`applyVictoryRewards` 奖励段包裹 updateMirror——addXxx 重入非捕获；`handleBeastLevelVictory`/`handleCaveLevelVictory` 去 suspend（体内无挂起点）；双臂尾部 rebaseline :52/:84 既有）；④逐出袋物化残差（`DiscipleLifecycleNativeTx.tryNativeExpelDisciple` 物化段包裹 updateMirror，rebaseline :101 既有）；⑤**仓库赏赐装备/功法**（`DiscipleFacadeImpl功法Ops1.rewardEquipment/rewardManual` update→updateMirror + **新增条件性 rebaseline**——本链无 native 臂（C++ `rewardItemTx` 仅支持消耗品四类），Kotlin 即 AUTHORITATIVE 正主）；⑥宗门贸易购买（`buyFromSectTradeSync` update→updateMirror，原注释"或经捕获"口径终结，rebaseline :748 既有）；⑦妖兽迎战奖励（`resolveBeastAttackFight` update→updateMirror，`GameEngine`"妖兽迎战"/`ExplorationNativeOps`"遭遇战分支"双入口 rebaseline 既有）。
+- **关闭登记 9 项**：`collectionUnit(INVENTORY, …)` ×9（equipmentStacks/equipmentInstances/manualStacks/manualInstances/pills/materials/herbs/seeds/storageBags）入 `W4DChannelClosures` + `ChannelClosureEntries` 新增 `collectionUnit` 助手。🔴 **终局达成：w3-13 删除步硬前置"关闭清单 = 全部传输单元"全量成立**（gameData 字段面 §2.80 + 顶层段 §2.76–§2.78 + 弟子通道 §2.77 + 实体集合本段；无任何在册保留传输面）——五步④（归档 tag `w3-13-pre-delete`）→ ⑤（通道删除）就绪。
+- **测试**：守卫翻转（`ReverseChannelPolicyGuardTest` 里程碑断言改为终局形态"every transport unit is closed" + 新增第三段 9 集合红线，1761→**1762**）；`ReverseChannelCloseoutTest`"在册保留集合仍回导"用例翻转终局语义（关闭后零信封 + AUTHORITATIVE 内置审计检测登记）；4 处机械面 fixture 补 `reopenDomain(INVENTORY)` 恢复传输前提（VolumeProfile/StateSyncServiceReverse/GameStateStoreReverseDirty ×1 + override 用例开头复位开关）。
+- **运行时实证**：引擎全量含 100 旬停发对拍（闸门②关闭域写入检测零命中）在 9 集合关闭后保持绿——结算管线 AUTHORITATIVE 无集合写入，与穷尽审计结论互证。
+- **门禁**：桌面 C++ 全量豁免（零 C++ 改动）｜`:core:engine` **3315/0/0/0**（持平；47 `Diff*` 全绿 270 用例 + 停发 100 旬闸门绿）｜`:core:domain` **1762/0**（+1 净：里程碑翻转 + 第三段红线）｜`:feature:game` **872/0**｜`:app` **1003/0/0（2 既有跳过）**｜六模块 detekt 绿｜`:app:lintRelease` 绿｜NDK 豁免｜生成器幂等 + 生成物零漂移（198 动作 / maxId=1861）。
+
 ### W4-D/D4 续·retained 字段族逐域判定第二段——gameData 字段面关闭清单 = 全部传输单元（§2.80）
 
 > 需求：实施 handover §2.75④ 第 4 项第二段。**零协议面、零 ActionId 变更、零 C++ 改动、玩家可见语义零变更（写入语义逐字保形迁移 + 逐动作基线重建/非捕获改造）⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
