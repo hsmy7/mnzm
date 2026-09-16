@@ -26,6 +26,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.recordGameEvent
+import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
@@ -550,7 +551,9 @@ class DiplomacyService @Inject constructor(
         val currentYear = data.gameYear
         if (shouldRefreshSectTrade(currentYear, sectDetail)) {
             val newItems = generateSectTradeItems(currentYear, sectId)
-            stateStore.modifyState {
+            // 捕获豁免（updateMirror，§2.80）：懒刷新写 sectDetails（已关闭回导）——
+            // 刷新发生即基线重建回导 C++（贸易界面打开触发，刷新周期 2 游戏年/宗门）
+            stateStore.updateMirror {
                 val updatedSectDetails = gameData.sectDetails.toMutableMap()
                 updatedSectDetails[sectId] = (gameData.sectDetails[sectId] ?: SectDetail(sectId = sectId)).copy(
                     tradeItems = newItems,
@@ -558,6 +561,7 @@ class DiplomacyService @Inject constructor(
                 )
                 gameData = gameData.copy(sectDetails = updatedSectDetails)
             }
+            gameEngineCore?.rebaselineNativeMirror("宗门贸易懒刷新")
             return newItems
         }
 
@@ -739,6 +743,9 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
             // 预检后仍 Partial（合并空间不足）→ 溢出自动转邮件（手动-消耗类路径），物品不丢失
             addSectTradeItemToMutableState(v.item, v.actualQuantity)
         }
+        // w3-13 通道关闭配套（§2.80）：购买写面（sectRelations/sectDetails/钱包/集合
+        // 均已关闭回导或经捕获）发生后全量重建 native 基线回导 C++（低频用户动作）
+        gameEngineCore?.rebaselineNativeMirror("宗门贸易购买")
     }
 
     /**

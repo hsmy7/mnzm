@@ -121,7 +121,10 @@ internal suspend fun MailService.grantAttachments(
 ): Pair<List<RewardCardItem>, ClaimResult?> {
     if (attachments.isEmpty()) return Pair(emptyList(), null)
     return try {
-        stateStore.update {
+        // 捕获豁免（updateMirror，§2.80）：发放写面（钱包/年度账/mailRecords 已关闭
+        // 回导 + 9 类集合在册保留经捕获传输）——领取成功由调用方 claimAttachment 尾部
+        // 基线重建回导 C++；updateMirror 与 update 唯一差异即捕获豁免，行为零变更
+        stateStore.updateMirror {
             distributeAttachmentsInline(this, attachments)
             gameData = gameData.copy(
                 // 幂等账本按防重复窗口截断：追加即裁剪，
@@ -180,7 +183,9 @@ internal suspend fun MailService.claimAttachmentInternal(mail: MailEntity, slotI
     val rewardCards: List<RewardCardItem>
     if (attachments.isNotEmpty()) {
         try {
-            stateStore.update {
+            // 捕获豁免（updateMirror，§2.80）：同 grantAttachments——领取成功由
+            // markAllAsRead 尾部基线重建回导 C++
+            stateStore.updateMirror {
                 distributeAttachmentsInline(this, attachments)
                 gameData = gameData.copy(
                     // 同上：追加即裁剪

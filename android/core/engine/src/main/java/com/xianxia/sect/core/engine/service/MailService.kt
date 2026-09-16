@@ -6,6 +6,7 @@ import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.config.GameConfigProvider
+import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.config.BuiltinMailConfig
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
@@ -67,7 +68,19 @@ class MailService @Inject constructor(
     internal val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
     internal val gameConfigProvider: GameConfigProvider,
     internal val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
+    /**
+     * C++ 引擎核心（w3-13 通道关闭配套 §2.80：附件领取写面——钱包/年度账/mailRecords
+     * 已关闭回导——领取后经 [com.xianxia.sect.core.engine.rebaselineNativeMirror] 全量
+     * 重建基线回导 C++）。默认 null 仅供测试直构。
+     *
+     * 经 [Provider] 注入（DiplomacyService 同款）：MailService 在 GameEngineCore 构造
+     * 链下游，直接注入会成 Dagger 环；Provider 为惰性破环边。
+     */
+    private val gameEngineCoreProvider: javax.inject.Provider<com.xianxia.sect.core.engine.GameEngineCore>? = null,
 ) {
+    /** 基线重建用引擎核心；无 Provider（测试直构）时为 null → 跳过（JVM 语义等价） */
+    private val gameEngineCore: com.xianxia.sect.core.engine.GameEngineCore?
+        get() = gameEngineCoreProvider?.get()
     /** 时钟源（默认系统墙钟，生产行为不变）：测试注入固定时钟，根治专属福利
      *  截止日期真实流逝后的定时炸弹测试失败（MailServiceTest PINNED_NOW_MS）。
      *  仅测试写入——@VisibleForTesting 而非 internal（:app 测试跨模块不可见 internal）。 */
@@ -190,6 +203,9 @@ class MailService @Inject constructor(
                 slotId = slotId
             )
             if (distributeError != null) return@withLock distributeError
+            // w3-13 通道关闭配套（§2.80）：发放事务为非捕获（updateMirror）——领取
+            // 写面经基线重建回导 C++（低频用户动作，O(状态) 一次性成本可接受）
+            gameEngineCore?.rebaselineNativeMirror("邮件附件领取")
 
             // Room DB 更新失败不影响领取结果（物品已安全入库 + mailRecord 已写入），
             // 仅记录日志；mailRecords 二次保护防止重复领取
@@ -238,6 +254,9 @@ class MailService @Inject constructor(
             }
 
             refreshActiveMails(slotId)
+            // w3-13 通道关闭配套（§2.80）：发放事务为非捕获（updateMirror）——发生
+            // 领取即基线重建回导 C++（与单个领取同口径）
+            if (claimedCount > 0) gameEngineCore?.rebaselineNativeMirror("邮件一键领取")
             MarkAllReadResult(claimedCount, skippedCount, skipReasons, allCards)
         }
     }

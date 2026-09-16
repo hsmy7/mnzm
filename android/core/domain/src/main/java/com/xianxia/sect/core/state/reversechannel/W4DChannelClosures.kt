@@ -127,36 +127,68 @@ internal val w4DClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
     // 或 flag-OFF 旗臂（spirit_field.h），零会话中途稳态 Kotlin 写者
     gameDataField(Domain.BUILDING, "placedBuildings"),
     gameDataField(Domain.PRODUCTION, "spiritFieldPlants"),
+    // ═══ §2.80 retained 字段族逐域判定·第二段（30 项转关闭——钱包/年度账/执法堂/
+    // 兑换/关注/邮件账本/自动购买/弹窗队列/天道试炼/外交关系/战斗世界域/事件日志/
+    // 功法熟练度/生产槽。至此 **gameData 序列化面关闭清单 = 全部传输单元**，仅余
+    // 9 类实体集合在册保留（第三段专项：统一入口事务面 updateMirror 化））═══
+    // 钱包三阶 + 灵草 + 年度收支账 + 执法堂三项 + 兑换/关注（BOUNDARY 域）——
+    // 全部写者经 §2.79/§2.80 十二处接线收敛：世界关卡战斗/邮件领取/宗门交易购买
+    // 与懒刷新/天道试炼通关与领取/兑换码/妖兽迎战/攻宗占领碾压/逐出袋物化/开袋
+    // 入库/偷盗钩子（updateMirror）/设置重置族（updateMirror）尾部基线重建回导
+    // C++；余者 = native 臂回退臂 / flag-OFF 结算臂 / LOAD_BOOT 族
+    gameDataField(Domain.BOUNDARY, "spiritStones"),
+    gameDataField(Domain.BOUNDARY, "midGradeSpiritStones"),
+    gameDataField(Domain.BOUNDARY, "highGradeSpiritStones"),
+    gameDataField(Domain.BOUNDARY, "spiritHerbs"),
+    gameDataField(Domain.BOUNDARY, "theftJudgementsThisMonth"),
+    gameDataField(Domain.BOUNDARY, "annualTheftCount"),
+    gameDataField(Domain.BOUNDARY, "annualDesertedDisciples"),
+    gameDataField(Domain.BOUNDARY, "annualIncomeBySource"),
+    gameDataField(Domain.BOUNDARY, "annualExpenditureByReason"),
+    gameDataField(Domain.BOUNDARY, "annualTotalIncome"),
+    gameDataField(Domain.BOUNDARY, "annualTotalExpenditure"),
+    gameDataField(Domain.BOUNDARY, "annualNewDisciples"),
+    gameDataField(Domain.BOUNDARY, "annualDeceasedDisciples"),
+    gameDataField(Domain.BOUNDARY, "annualEquipmentBySource"),
+    gameDataField(Domain.BOUNDARY, "annualPillBySource"),
+    gameDataField(Domain.BOUNDARY, "annualHerbBySource"),
+    gameDataField(Domain.BOUNDARY, "usedRedeemCodes"),
+    gameDataField(Domain.BOUNDARY, "watchedItemIds"),
+    // 邮件账本 + 自动购买列表（INVENTORY 域）——领取事务 updateMirror + 尾部重建；
+    // 列表增删迁入引擎层 wrapper + 重建
+    gameDataField(Domain.INVENTORY, "mailRecords"),
+    gameDataField(Domain.INVENTORY, "autoBuyList"),
+    // 外交关系（DIPLOMACY 域）——遭遇战分支（§2.79）+ 宗门交易购买/懒刷新接线
+    gameDataField(Domain.DIPLOMACY, "sectRelations"),
+    // 战斗世界域（BATTLE 域）——世界胜利 defeated 标记（§2.79 口径，双臂收敛）/
+    // 攻宗战史（占领 §2.78 + 碾压与败北本批接线）/侦查胜利情报/宗门详情（含贸易
+    // 懒刷新）/天道试炼运行态（通关与领取接线）
+    gameDataField(Domain.BATTLE, "worldLevels"),
+    gameDataField(Domain.BATTLE, "sectBattleRecords"),
+    gameDataField(Domain.BATTLE, "sectDetails"),
+    gameDataField(Domain.BATTLE, "scoutInfo"),
+    gameDataField(Domain.BATTLE, "heavenlyTrialState"),
+    // 弹窗队列（PATROL 域）——清空事务 updateMirror + 消费后基线重建；追加写者
+    // 全部在已接线的迎战/遭遇战流程内
+    gameDataField(Domain.PATROL, "pendingPatrolBattleResults"),
+    // 生产槽位（PRODUCTION 域）——align 兜底为值等值写入（读档后镜像本已对齐，
+    // 信封值比较零命中）；1811 派生写面迁入引擎层 appendProductionSlots + 重建
+    gameDataField(Domain.PRODUCTION, "productionSlots"),
+    // 事件日志 + 功法熟练度（DISCIPLE 域）——偷盗钩子（updateMirror）/战争奖励
+    // （占领 §2.78 + 碾压败北本批）/世界胜利接线；余者回退臂/旗臂/LOAD_BOOT
+    gameDataField(Domain.DISCIPLE, "gameEventRecords"),
+    gameDataField(Domain.DISCIPLE, "manualProficiencies"),
 )
+
 
 /** 本批的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4DRetainedGameDataFields: Set<String> = linkedSetOf(
-    // 经济：钱包三阶与灵草（§2.79 审计确认 LIVE 写者族 = 邮件附件领取/宗门交易/
-    // 天劫结算/妖兽突袭奖励/开袋入库/兑换码——统一属"第 4 项第二段"下沉面，
-    // 与"登记不下撤"项同批裁决；详见 w4DDomainEvidence BOUNDARY 条目）
-    "spiritStones", "midGradeSpiritStones", "highGradeSpiritStones", "spiritHerbs",
-    // 执法堂（§2.79 审计修正：赏赐/服药 native 臂成功后的偷盗判定钩子在
-    // AUTHORITATIVE 仍以 Kotlin 原序执行完整执法链（判定标记 + 偷盗所得），
-    // "执法域不下沉"（batch-14/A1 登记）——钩子写入面已改 updateMirror 非捕获 +
-    // 尾部 rebaseline 回导（DiscipleOpsNativeTxForward.applyTheftHookResidual），
-    // 但写者本体在位 ⇒ 字段保持传输）
-    "theftJudgementsThisMonth", "annualTheftCount", "annualDesertedDisciples",
-    // 年度收支账（§2.79 审计：wallet recordAndEmit 与钱包三阶同一 LIVE 调用者集；
-    // combat 胜利奖励/邮件/宗门交易/天劫/妖兽突袭/开袋/兑换族 = 第 4 项第二段）
-    "annualIncomeBySource", "annualExpenditureByReason", "annualTotalIncome",
-    "annualTotalExpenditure", "annualNewDisciples", "annualDeceasedDisciples",
-    "annualEquipmentBySource", "annualPillBySource", "annualHerbBySource",
-    // 兑换码 / 关注列表（§2.79 审计确认 LIVE：兑换码 = RedeemCodeService 用户动作
-    // 登记不下沉（RNG 红线）；关注列表 = GameEngineLifecycleOps:70 用户动作）
-    "usedRedeemCodes", "watchedItemIds",
-    // （§2.79 第一段转关闭 29 项：recruitList/activeSectId/sectName/shownWarning
-    //   StageIds/vassalContracts/suzerainSectId/jade×4/patrolConfigs/spiritMineSlots/
-    //   patrolSlots/residenceSlots/terrainTiles/mapGenVersion/secretRealm×4/cave×2/
-    //   elderSlots/librarySlots/warehouseGarrisons/battleTeams/activeBloodRefinements/
-    //   placedBuildings/spiritFieldPlants——关闭单元与逐域证据见 closedUnits 与
-    //   w4DDomainEvidence §2.79 条目）
+    // 🔴 §2.80 起本集合为**空**——gameData 序列化面 30+29+既有关闭项 = 全部传输
+    // 单元已关闭（w3-13 删除步硬前置"关闭清单 = 全部传输单元"对 gameData 字段面
+    // 达成）。唯一剩余开放传输面 = **9 类实体集合**（COLLECTION_NAMES——在册保留
+    // 判定见 ReverseChannelPolicyGuardTest 第二段守卫断言与 handover §2.80：
+    // 第三段专项 = 统一入口事务面 updateMirror 化 + 逐动作基线重建后转关闭）。
 )
-
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.RECRUIT to listOf(
@@ -176,6 +208,10 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
             "（RecruitListCleanupRule.kt:32 等 LOAD_BOOT 族）",
     ),
     Domain.PATROL to listOf(
+        "W4-D/D4 续（2026-09-15，§2.80 第二段）：pendingPatrolBattleResults 转入关闭——" +
+            "清空事务改 updateMirror + 消费到防守弹窗时基线重建（ExplorationService.kt:180 + " +
+            "GameEngineCoreLoopOps.kt:66，无消费零成本）；追加写者全部在已接线的迎战/遭遇战" +
+            "流程内（§2.79）",
         "W4-D/D3（2026-09-15）：spiritMineLastSettledMonth 转入关闭（原 W4-B retained" +
             "——\"harness 对拍把 Kotlin 月变编排纳入稳态\"的理由随 harness 对齐失效）：" +
             "月结水位由 C++ runMonthSettlement 灵矿步无条件推进；Kotlin 残余 = " +
@@ -209,6 +245,17 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
     // 详见 w4DRetainedGameDataFields 注释与 handover §2.79"第 4 项第二段"工作清单
     // W4-D/D2（2026-09-15）w3-11 月年编排残差——扇出项逐条判定与宿主族解冻核对
     Domain.BOUNDARY to listOf(
+        "W4-D/D4 续（2026-09-15，§2.80 第二段）：钱包三阶/灵草/年度收支账/执法堂三项/" +
+            "usedRedeemCodes/watchedItemIds 转入关闭——接线全部收敛：世界关卡胜利奖励" +
+            "（GameEngineWorldBattleOps.kt:60/:88 双臂尾部基线重建）/邮件领取（MailService" +
+            ".kt:199/:246 updateMirror + 重建）/宗门交易购买与懒刷新（DiplomacyService.kt" +
+            ":747/:568）/天道试炼通关与领取（HeavenlyTrialService.kt:266/:323 updateMirror +" +
+            " 重建）/兑换码（GameEngineServiceOps.kt:37）/妖兽迎战（§2.79 已接线）/攻宗占领" +
+            "（§2.78）/碾压与败北（GameEngineBattleOps.kt:106/:112）/逐出袋物化（Disciple" +
+            "LifecycleNativeTx.kt:101）/开袋入库（InventoryFacadeImpl.kt:693 updateMirror + " +
+            ":705 重建）/偷盗钩子（§2.79 updateMirror）；watchedItemIds 写者 = ensureGame" +
+            "DataIntegrity 修复（§2.78 已接线吸收）；任务奖励 addSpiritStones = AUTHORITATIVE " +
+            "防御性 no-op（§2.77 口径，C++ 子事件 5 直辖）",
         "W4-D/D3（2026-09-15）：annualAlchemyCount / yearlyReports 转入关闭" +
             "——harness 对齐生产后稳态写者重评：年报快照与年度计数重置 = " +
             "C++ runYearSettlement（T1 全部 11 项在位，§2.73 宿主族解冻核对）；" +
@@ -234,6 +281,10 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
             "6 个冻结宿主调用点核对完毕，KDoc 陈旧面（S4/W4 时代扇出描述）同批修正",
     ),
     Domain.DIPLOMACY to listOf(
+        "W4-D/D4 续（2026-09-15，§2.80 第二段）：sectRelations 转入关闭——遭遇战分支" +
+            "（§2.79 已接线）+ 宗门贸易购买 setAcquainted（DiplomacyService.kt:747 接线）+ " +
+            "贸易懒刷新（:568 updateMirror + 重建）；赠礼/结盟/散盟/附庸 = native 臂回退臂" +
+            "（1500/VASSAL_TX）；好感衰减 = 年 T2 旗臂；完整性修复 = §2.78 吸收",
         "W4-D/D2（2026-09-15）：VassalService.kt:99/:323 年贡/附属年贡/月度脱离判定收口——" +
             "C++ 逻辑已在位（year_settlement.h detail::processYearlyTribute/" +
             "processYearlyVassalTribute + month_settlement.h detail::processVassalBreakaway，" +
@@ -251,6 +302,10 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
     ),
     // ═══ §2.79 第一段逐域判定证据（W4-D/D4 续·第 4 项；groupBy 聚合与既有分片并存）═══
     Domain.INVENTORY to listOf(
+        "W4-D/D4 续（2026-09-15，§2.80 第二段）：mailRecords/autoBuyList 转入关闭——" +
+            "领取事务改 updateMirror + claimAttachment/markAllAsRead 尾部基线重建（MailService" +
+            ".kt:199/:246）；自动购买列表增删迁入引擎层 wrapper（GameEngineServiceOps.kt:46/:58 " +
+            "add/removeAutoBuyEntries + 重建），InventoryDelegate 改委派",
         "W4-D/D4 续（2026-09-15，§2.79 第一段）：jadeSymbols/jadeSymbolsToday/jadeAccumMs/" +
             "jadeDayAnchorMs 转入关闭——JadeSymbolService.kt 全部写入点 native 臂先行" +
             "（CHECKPOINT_TX :245/:284、GRANT_AD_TX :355、SETTLE_TX :410、DAY_RESET_TX :473、" +
@@ -278,6 +333,11 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
             "native 死亡事务后镜像已刷新的幂等 no-op（batch-11 口径）",
     ),
     Domain.DISCIPLE to listOf(
+        "W4-D/D4 续（2026-09-15，§2.80 第二段）：gameEventRecords/manualProficiencies 转入" +
+            "关闭——偷盗钩子 updateMirror + 重建（§2.79）覆盖执法链写面；战争奖励事件经占领 " +
+            "§2.78 + 碾压/败北接线（GameEngineBattleOps.kt:106/:112）收敛；世界胜利事件经 " +
+            "attackWorldLevel 尾部接线；余者 = 婚姻/外交/秘境回退臂 + 月年旗臂 + boot 补序" +
+            "（GameStateStoreImpl.kt:1743）",
         "W4-D/D4 续（2026-09-15，§2.79 第一段）：elderSlots/librarySlots/warehouseGarrisons/" +
             "battleTeams/activeBloodRefinements 转入关闭——槽位事务族 native 臂在位" +
             "（1480-1485/1746/1780/1861 + patrol/warehouse/garrison/residence 原子族）；" +
@@ -299,10 +359,24 @@ internal val w4DDomainEvidence: Map<Domain, List<String>> = mapOf(
             ".kt:293 + GameEngineServiceOps.kt:190 = LOAD_BOOT 族",
     ),
     Domain.PRODUCTION to listOf(
+        "W4-D/D4 续（2026-09-15，§2.80 第二段）：productionSlots 转入关闭——align 兜底为" +
+            "值等值写入（ProductionProcessorCleaOps3.kt:288 读档后镜像本已对齐，信封值比较" +
+            "零命中）；1811 placeSlotsResidual 派生写面迁入引擎层 wrapper（GameEngineService" +
+            "Ops.kt:70 appendProductionSlots + 重建，BuildingDelegate.kt:158 改委派）；槽位" +
+            "事务族 native 臂回退臂（batch-17）+ 设置重置族 §2.79 已接线",
         "W4-D/D4 续（2026-09-15，§2.79 第一段）：spiritFieldPlants 转入关闭——种植/移除/" +
             "收获全部 native 臂先行（BuildingFacadeImpl.kt:381/:419/:447/:472 灵田事务族）" +
             "或 flag-OFF 旗臂（ProductionProcessor处理Ops1.kt:312 收获，spirit_field.h " +
             "C++ 直辖）；BuildingFeature.kt:184 拆除清理随 1810 回退臂；灵田重置 = " +
             "GameEngineLoadDataOps.kt:304（LOAD_BOOT 族）",
+    ),
+    Domain.BATTLE to listOf(
+        "W4-D/D4 续（2026-09-15，§2.80 第二段）：worldLevels/sectBattleRecords/sectDetails/" +
+            "scoutInfo/heavenlyTrialState 转入关闭——世界关卡胜利 defeated 标记双臂经 attack" +
+            "WorldLevel 尾部基线重建收敛（GameEngineWorldBattleOps.kt:60/:88）；攻宗战史三分支" +
+            "收敛（占领 §2.78 + 碾压 :106 + 败北 :112 接线，countRecentBattleRecords 消费语义" +
+            "保持）；侦查胜利情报双臂经 scoutSect 尾部接线（GameEngineScoutOps.kt:46/:100）；" +
+            "宗门详情贸易懒刷新（DiplomacyService.kt:568）；天道试炼通关/领取 updateMirror + " +
+            "重建（HeavenlyTrialService.kt:266/:323）",
     ),
 )

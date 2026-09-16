@@ -10,6 +10,7 @@ import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.BagItemReconstructor
 import com.xianxia.sect.core.engine.system.ReconstructedBagStack
@@ -675,9 +676,14 @@ class InventoryFacadeImpl @Inject constructor(
 
         // 单事务原子写入：消耗储物袋 + 发放所有奖励
         // （手动-消耗类路径：统一委托 addXxx，仓库满时溢出自动转邮件，物品不丢失）
-        stateStore.update {
+        // 捕获豁免（updateMirror，§2.80）：开袋写面（钱包/年度账 + 9 类集合）经
+        // 尾部基线重建回导 C++（集合段第三段专项前由重建覆盖收敛）
+        stateStore.updateMirror {
             consumeStorageBagAndGrant(bagId = bagId, batch = batch)
         }
+
+        // w3-13 通道关闭配套（§2.80）：发放事务为非捕获——开袋后基线重建回导 C++
+        gameEngineCore.rebaselineNativeMirror("开袋入库")
 
         // 储物袋开启是手动操作，展示奖励卡片
         val cards = batch.rewards.map { reward ->

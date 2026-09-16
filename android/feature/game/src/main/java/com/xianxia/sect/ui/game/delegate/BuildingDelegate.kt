@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.building.GridRect
 import com.xianxia.sect.core.engine.addProductionSlot
 import com.xianxia.sect.core.engine.assignToResidenceAtomic
+import com.xianxia.sect.core.engine.appendProductionSlots
 import com.xianxia.sect.core.engine.moveBuildingDirect
 import com.xianxia.sect.core.engine.removeBuilding
 import com.xianxia.sect.core.engine.removeBuildings
@@ -157,9 +158,9 @@ class BuildingDelegate(
                     ).copy(buildingInstanceId = instanceId)
                 }
             if (newProductionSlots.isNotEmpty()) {
-                gameEngine.updateGameData { data ->
-                    data.copy(productionSlots = data.productionSlots + newProductionSlots)
-                }
+                // §2.80：写入迁入引擎层 GameEngine.appendProductionSlots（通道关闭配套——
+                // productionSlots 已关闭回导，写入后基线重建）
+                gameEngine.appendProductionSlots(newProductionSlots)
                 newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
             }
             return

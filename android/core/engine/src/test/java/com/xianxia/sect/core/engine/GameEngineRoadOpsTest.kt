@@ -40,6 +40,19 @@ class GameEngineRoadOpsTest {
 
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
+    @org.junit.Before
+    fun restoreTransportForMachineryTest() {
+        // 钱包族已随 §2.80 第二段关闭回导（写入经逐动作基线重建收敛）；道路放置的
+        // 回导机械语义守护经覆盖钩子恢复传输前提（StateSyncServiceReverseTest 同款）。
+        com.xianxia.sect.core.state.ReverseChannelPolicy
+            .reopenDomain(com.xianxia.sect.core.state.ReverseChannelPolicy.Domain.BOUNDARY)
+    }
+
+    @org.junit.After
+    fun tearDownPolicy() {
+        com.xianxia.sect.core.state.ReverseChannelPolicy.resetSwitches()
+    }
+
     /** 记录型反向发送器：记录收到的信封 JSON，返回可配置结果。 */
     private class RecordingSender : (ByteArray) -> Boolean {
         val envelopes = mutableListOf<String>()

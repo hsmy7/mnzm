@@ -46,7 +46,12 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
         // 伤亡写回经 C++；奖励生成（Random.Default 非镜像随机域）/胜利事务
         // （soulPowers/winAttr/defeated TOCTOU 原子块）/战报留 Kotlin（S5/S6 口径）。
         // flag 关/镜像不可用/失败信封 → false 回退 Kotlin 原路径（双实现并行契约）
-        if (attackWorldLevelNative(level, validIds)) return@withEngineContext
+        if (attackWorldLevelNative(level, validIds)) {
+            // w3-13 通道关闭配套（§2.80）：胜利奖励写面（钱包/年度账/集合/worldLevels
+            // 均已关闭或本批转关闭）发生后全量重建 native 基线回导 C++（§2.79 同口径）
+            rebaselineNativeMirror("世界关卡战斗")
+            return@withEngineContext
+        }
         val setup = buildWorldLevelBattle(data, level, validIds) ?: return@withEngineContext
         val hpMap = setup.result.battle.team.associate { it.id to (it.hp to it.mp) }
         val survivorIds = setup.result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
@@ -74,6 +79,9 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
         } else {
             applyWorldLevelDefeat(log, teamMembers, updatedLogs)
         }
+        // w3-13 通道关闭配套（§2.80）：回退臂写面（战报/伤亡/胜负标记）发生后全量
+        // 重建 native 基线（native 未就绪时静默跳过——基线由首旬全量导入吸收）
+        rebaselineNativeMirror("世界关卡战斗")
     }
 }
 

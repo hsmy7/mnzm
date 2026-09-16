@@ -44,7 +44,12 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
         // ── Native 臂（AUTHORITATIVE）：AI 守卫选取/战斗执行（BATTLE 分区同序）/
         // 伤亡写回经 C++；战报/胜利情报留 Kotlin（S5/S6 口径）。降级 false →
         // Kotlin 原路径（双实现并行契约）
-        if (scoutSectNative(sectId, data, targetSect, memberIds)) return@withEngineContext
+        if (scoutSectNative(sectId, data, targetSect, memberIds)) {
+            // w3-13 通道关闭配套（§2.80）：胜利情报写面（sectDetails/scoutInfo 本批
+            // 转关闭）发生后全量重建 native 基线回导 C++
+            rebaselineNativeMirror("侦查宗门")
+            return@withEngineContext
+        }
         if (memberIds.isNotEmpty()) {
             stateStore.update {
                 cultivationService.forceSettleDisciplesBeforeBattle(
@@ -93,6 +98,9 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
         if (victory) {
             applyScoutVictoryInfo(sectId, data, targetSect)
         }
+        // w3-13 通道关闭配套（§2.80）：回退臂写面（伤亡/战报/胜利情报）发生后全量
+        // 重建 native 基线（native 未就绪时静默跳过）
+        rebaselineNativeMirror("侦查宗门")
     }
 }
 

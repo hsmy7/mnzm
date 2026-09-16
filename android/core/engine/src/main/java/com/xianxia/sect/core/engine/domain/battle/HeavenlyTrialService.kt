@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.TrialEnemyDef
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
@@ -45,8 +46,19 @@ class HeavenlyTrialService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val spiritStoneWallet: SpiritStoneWallet,
-    private val inventorySystem: InventorySystem
+    private val inventorySystem: InventorySystem,
+    /**
+     * C++ 引擎核心（w3-13 通道关闭配套 §2.80：试炼写面——heavenlyTrialState/
+     * 钱包/年度账/集合奖励——领取与通关后经 rebaselineNativeMirror 全量重建基线
+     * 回导 C++）。默认 null 仅供测试直构。
+     *
+     * 经 [javax.inject.Provider] 注入（DiplomacyService 同款惰性破环边）。
+     */
+    private val gameEngineCoreProvider: javax.inject.Provider<com.xianxia.sect.core.engine.GameEngineCore>? = null,
 ) {
+    /** 基线重建用引擎核心；无 Provider（测试直构）时为 null → 跳过（JVM 语义等价） */
+    private val gameEngineCore: com.xianxia.sect.core.engine.GameEngineCore?
+        get() = gameEngineCoreProvider?.get()
 
     fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
         // 篡改防御：realm/realmLayer 钳制合法范围——非法层数会产生
@@ -236,7 +248,9 @@ class HeavenlyTrialService @Inject constructor(
     // endregion
 
     suspend fun recordPhaseClear(levelIndex: Int, phaseIndex: Int) {
-        stateStore.update {
+        // 捕获豁免（updateMirror，§2.80）：heavenlyTrialState 已关闭回导——通关记录
+        // 经尾部基线重建回导 C++（试炼通关为低频用户动作，O(状态) 一次性成本可接受）
+        stateStore.updateMirror {
             /** 当前设备的电源管理配置 */
             val current = gameData.heavenlyTrialState
             val newP1 = if (phaseIndex == 0) (current.phase1ClearedLevels + levelIndex).distinct()
@@ -262,6 +276,7 @@ class HeavenlyTrialService @Inject constructor(
                 )
             )
         }
+        gameEngineCore?.rebaselineNativeMirror("天劫通关记录")
     }
 
     // region Clear Reward
@@ -279,10 +294,13 @@ class HeavenlyTrialService @Inject constructor(
         val generatedCards = mutableListOf<RewardCardItem>()
 
         try {
-            stateStore.update {
+            // 捕获豁免（updateMirror，§2.80）：领取写面（钱包/年度账/集合奖励/
+            // heavenlyTrialState 均已关闭回导）——成功路径尾部基线重建回导 C++；
+            // 容量不足异常整体回滚（零写入）不触发重建
+            stateStore.updateMirror {
                 // 原子内二次检查：防止并发重复领取（外层检查在 mutex 外，快速双击可能绕过）
                 if (levelIndex in gameData.heavenlyTrialState.claimedRewardLevels) {
-                    return@update
+                    return@updateMirror
                 }
                 // 凭据类路径（与宗门等级奖励一致）：溢出抑制转邮件，
                 // addXxx 返回 Partial/Failure 时抛异常 → 异常传播出 update → 事务整体回滚，
@@ -306,6 +324,7 @@ class HeavenlyTrialService @Inject constructor(
             return ClaimClearRewardResult.CapacityInsufficient(e.message)
         }
 
+        gameEngineCore?.rebaselineNativeMirror("天劫奖励领取")
         return ClaimClearRewardResult.Success(generatedCards)
     }
 

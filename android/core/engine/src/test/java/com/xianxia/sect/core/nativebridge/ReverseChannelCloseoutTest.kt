@@ -70,21 +70,26 @@ class ReverseChannelCloseoutTest {
     }
 
     @Test
-    fun `transported gameData field still flows`() {
+    fun `transported collection still flows`() {
+        // §2.80 起 gameData 字段面已全部关闭（唯一保留面 = 9 类实体集合）——
+        // "在册保留单元必须继续回导"语义由集合通道承载（pills 采样）。
         val store = FakeGameStateStore()
         val sent = mutableListOf<String>()
         val sync = StateSyncService(store) { sent += it.decodeToString(); true }
         sync.applySnapshot(NativeGameState(gameData = store.gameDataValue))
 
-        store.update { gameData = gameData.copy(spiritStones = 42) }
+        store.update { pills.add(com.xianxia.sect.core.model.Pill(id = "p1", name = "回导丹")) }
+        assertTrue(sync.applyDirtyToNative())
+        sent.clear()
+        store.update { pills.update("p1") { it.copy(quantity = 7) } }
         assertTrue(sync.applyDirtyToNative())
 
         val changed = json.parseToJsonElement(sent.last()).jsonObject["changed"]!!.jsonObject
         assertTrue(
-            "在册保留字段（钱包三阶为第 4 项第二段在册保留，§2.79）必须继续回导",
-            changed["gameData"]?.jsonObject?.containsKey("spiritStones") == true
+            "在册保留集合（9 类集合为第三段专项前唯一保留面，§2.80）必须继续回导",
+            changed["pills"] != null
         )
-        assertTrue("在册保留字段的写入不得计入关闭域检测", ReverseChannelPolicy.closedWriteCountSnapshot() == 0L)
+        assertTrue("在册保留单元的写入不得计入关闭域检测", ReverseChannelPolicy.closedWriteCountSnapshot() == 0L)
     }
 
     @Test

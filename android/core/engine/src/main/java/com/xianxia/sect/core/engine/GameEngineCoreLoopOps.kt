@@ -60,9 +60,17 @@ internal fun GameEngineCore.tickThermalControl() {
 /** 每 tick 尾部残留职责：年变分帧 drain + 巡逻结果入待战斗 */
 internal suspend fun GameEngineCore.postTickResidualDuties() {
     cultivationService.drainYearlyOpsQueue()
-    val patrolResults = explorationService.consumePendingPatrolResults()
+    val (patrolResults, defenseResults) = explorationService.consumePendingPatrolResults()
     for (result in patrolResults) {
         stateStore.setPendingBattleResult(result)
+    }
+    if (defenseResults.isNotEmpty()) {
+        for (result in defenseResults) {
+            stateStore.setPendingBattleResult(result)
+        }
+        // w3-13 通道关闭配套（§2.80）：清空事务为非捕获（updateMirror）——防守
+        // 弹窗消费后基线重建收敛 C++ 侧迎战导入的残留条目；无消费零成本
+        rebaselineNativeMirror("防守弹窗清空")
     }
 }
 

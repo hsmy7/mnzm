@@ -33,8 +33,62 @@ private const val MEMORY_RELEASE_LOG_KEEP_MODERATE = 20
 // ── Service delegates ───────────────────────────────────────────────
 
 suspend fun GameEngine.redeemCode(code: String, usedCodes: List<String>, currentYear: Int,
-    currentMonth: Int): RedeemResult = redeemCodeService.redeemCode(code, usedCodes, currentYear, currentMonth)
+    currentMonth: Int): RedeemResult {
+        val result = redeemCodeService.redeemCode(code, usedCodes, currentYear, currentMonth)
+        // w3-13 通道关闭配套（§2.80）：兑换写面（usedRedeemCodes/钱包/年度账字段族
+        // 均已关闭回导）发生后基线重建收敛 C++（值等值写入后重建 = §2.78 原语；
+        // 兑换码"登记不下沉"既有口径不变：本接线非事务下沉，零 RNG 影响）
+        gameEngineCore.rebaselineNativeMirror("兑换码")
+        return result
+    }
 fun GameEngine.resetCultivationTimer() { cultivationService.resetHighFrequencyData() }
+
+// ── §2.80 引擎层收口：UI 直改写面迁入（w3-13 通道关闭配套） ──────────────
+
+/** 自动购买列表新增（UI 入口 InventoryDelegate.addAutoBuyEntries 迁入引擎层）。 */
+suspend fun GameEngine.addAutoBuyEntries(entries: List<com.xianxia.sect.core.model.AutoBuyEntry>) {
+    engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            gameData = gameData.copy(
+                autoBuyList = (gameData.autoBuyList + entries).distinctBy {
+                    "${it.itemName}:${it.itemType}:${it.rarity}"
+                }
+            )
+        }
+        // autoBuyList 已关闭回导（§2.80）——值等值写入后基线重建收敛 C++
+        rebaselineNativeMirror("自动购买列表新增")
+    }
+}
+
+/** 自动购买列表移除（UI 入口 InventoryDelegate.removeAutoBuyEntries 迁入引擎层）。 */
+suspend fun GameEngine.removeAutoBuyEntries(entries: List<com.xianxia.sect.core.model.AutoBuyEntry>) {
+    engineContextDispatcher.withEngineContext {
+        val keysToRemove = entries.map {
+            "${it.itemName}:${it.itemType}:${it.rarity}"
+        }.toSet()
+        stateStore.update {
+            gameData = gameData.copy(
+                autoBuyList = gameData.autoBuyList.filter { entry ->
+                    "${entry.itemName}:${entry.itemType}:${entry.rarity}" !in keysToRemove
+                }
+            )
+        }
+        rebaselineNativeMirror("自动购买列表移除")
+    }
+}
+
+/** 生产槽位追加（UI 入口 BuildingDelegate.placeSlotsResidual native 成功路径迁入）。 */
+suspend fun GameEngine.appendProductionSlots(newSlots: List<com.xianxia.sect.core.model.production.ProductionSlot>) {
+    if (newSlots.isEmpty()) return
+    engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            gameData = gameData.copy(productionSlots = gameData.productionSlots + newSlots)
+        }
+        // productionSlots 已关闭回导（§2.80）——1811 native 臂不写生产槽（W4-A
+        // 登记偏差），Kotlin 派生写面经基线重建回导 C++
+        rebaselineNativeMirror("放置建筑生产槽派生")
+    }
+}
 suspend fun GameEngine.checkpointAllProduction() { cultivationService.checkpointAllProduction() }
 suspend fun GameEngine.checkpointAllDisciples() {
     engineContextDispatcher.withEngineContext {

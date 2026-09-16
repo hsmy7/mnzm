@@ -79,26 +79,11 @@ internal val w4BClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
 
 /** 本批域的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
-    // 巡逻战斗待结算（PATROL 域——§2.79 审计：迎战弹窗队列 append/drain 为
-    // AUTHORITATIVE 稳态写者，ExplorationService.kt:179/:280/:486）
-    "pendingPatrolBattleResults",
-    // 自动购买列表与邮件账本（INVENTORY 域，登记不下沉：邮件附件领取含 7 类
-    // MAIL 分区随机生成 + 凭据类原子性禁止拆双写域——与 RedeemCodeService 同先例；
-    // 自动购买列表为 InventoryDelegate UI 直改）
-    "autoBuyList", "mailRecords",
-    // 外交/附庸（DIPLOMACY 域——sectRelations §2.79 审计：遭遇战
-    // EncounterBattleService.kt:261 用户迎战路径 + 宗门交易购买 setAcquainted
-    // DiplomacyService.kt:716 两处 LIVE 写者（SECT_TRADE txs 1429-1432 未接线），
-    // 保持传输；第 4 项第二段与交易族同批下沉）
-    "sectRelations",
-    // 天道试炼（登记不下沉：模板随机与凭据溢出抑制同事务）
-    "heavenlyTrialState",
-    // （原 11 项已随 W4-D retained 字段族逐域判定转出关闭——jadeSymbols 族×4/
-    //   spiritMineSlots/residenceSlots/patrolSlots/patrolConfigs/vassalContracts/
-    //   suzerainSectId；见 W4DChannelClosures.kt §2.79 closedUnits 与证据。
-    //   此前转出：spiritMineLastSettledMonth→W4-D/D3、guideClaimedRewardIds→W4-D/D2）
+    // 🔴 §2.80 起为空——pendingPatrolBattleResults（清空 updateMirror + 消费重建）/
+    // autoBuyList（引擎 wrapper 接线）/mailRecords（领取 updateMirror + 重建）/
+    // sectRelations（遭遇战 + 交易接线）/heavenlyTrialState（通关与领取接线）
+    // 已随 W4-D/§2.80 第二段转关闭（见 W4DChannelClosures.kt）
 )
-
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4BDomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.PATROL to listOf(

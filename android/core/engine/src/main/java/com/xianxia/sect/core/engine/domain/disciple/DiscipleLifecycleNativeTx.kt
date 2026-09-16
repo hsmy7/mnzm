@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.engine.system.materializeBagItemsToWarehouse
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.nativebridge.ActionIds
@@ -94,6 +95,10 @@ internal fun DiscipleFacadeImpl.tryNativeExpelDisciple(discipleId: String): Doma
         inventorySystem.withTrackingSource(EXPEL_TRACKING_SOURCE) {
             inventorySystem.materializeBagItemsToWarehouse(bagItems)
         }
+        // w3-13 通道关闭配套（§2.80）：物化写面（9 类集合/钱包/年度账均已关闭）
+        // 发生后全量重建 native 基线回导 C++（§2.79 偷盗钩子同口径——捕获通道
+        // 已关闭，物化所得必须经基线重建到达 C++ 真相源）
+        gameEngineCore.rebaselineNativeMirror("逐出袋物化")
     }
     DomainLog.i(TAG, "expelDisciple: native expelled $discipleId (bag=${bagItems.size})")
     return DomainResult.Success(Unit)

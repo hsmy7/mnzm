@@ -31,22 +31,10 @@ internal val w4CClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
 
 /** 本批域的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4CRetainedGameDataFields: Set<String> = linkedSetOf(
-    // 战斗/探索残差与运行态（§2.79 审计维持保留）：
-    // - worldLevels：世界关卡胜利 defeated 标记双臂共用（batch-13 TOCTOU 口径，
-    //   GameEngineWorldBattleOps.kt:212）+ 遭遇战/妖兽突袭击败标记（用户迎战路径，
-    //   EncounterBattleService.kt:347 / ExplorationServiceBeastRaidOps.kt:208）
-    // - sectBattleRecords：attackSect 战报（与 battleLogs 显示域同事务，登记不下沉；
-    //   C++ sect_attack_decision.h countRecentBattleRecords 消费该字段）
-    // - sectDetails/scoutInfo：侦查胜利情报双臂写（GameEngineScoutOps.kt:258）+
-    //   宗门交易懒刷新/购买（DiplomacyService.kt:559/:737，SECT_TRADE txs 未接线）
-    "worldLevels", "sectBattleRecords", "sectDetails", "scoutInfo",
-    // （原 10 项已随 W4-D/§2.79 retained 字段族逐域判定转出关闭——secretRealmState/
-    //   secretRealmSession/secretRealmAITeams/secretRealmCooldownYear/caveExploration
-    //   Teams/aiCaveTeams/terrainTiles/mapGenVersion；关闭单元与证据见
-    //   W4DChannelClosures.kt §2.79。地形 2 字段当初的"回填误报"担忧已随
-    //   跨语言生成等价证明 + 值比较检测消解，见 w4DDomainEvidence SAVE_LOAD 条目）
+    // 🔴 §2.80 起为空——worldLevels（世界胜利接线）/sectBattleRecords（攻宗三分支
+    // 接线）/sectDetails/scoutInfo（侦查 + 交易懒刷新接线）已随 W4-D/§2.80
+    // 第二段转关闭（见 W4DChannelClosures.kt）
 )
-
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4CDomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.BATTLE to listOf(

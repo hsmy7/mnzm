@@ -105,10 +105,18 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                 occupySectRewards(sectId, data, attackers, deadPlayerIds, rewards)
             } else {
                 crushSectRewards(rewards)
+                // w3-13 通道关闭配套（§2.80）：碾压奖励写面（9 类集合 + sectDetails 等）
+                // 发生后全量重建 native 基线（占领路径由 occupySectRewards 尾部 §2.78
+                // 接线承载，无需重复）
+                rebaselineNativeMirror("攻宗碾压奖励")
             }
             applyVictoryPendingResult(log, teamMembers, rewards)
         } else {
             applyDefeatPendingResult(log, teamMembers)
+            // w3-13 通道关闭配套（§2.80）：败北路径的战史写面（sectBattleRecords，
+            // recordSectBattleRecord 先于本分支）发生后全量重建 native 基线回导
+            // C++（countRecentBattleRecords 消费方语义保持）
+            rebaselineNativeMirror("攻宗败北")
         }
     }
 }

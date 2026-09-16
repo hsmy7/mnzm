@@ -168,19 +168,26 @@ class ExplorationService @Inject constructor(
 
     // ── 巡视塔战斗结果 ─────────────────────────────────────────────────────
 
-    /** 消费未展示的战斗结果弹窗（巡视塔 + 妖兽防守），由 GameEngineCore 每 tick 调用 */
-    suspend fun consumePendingPatrolResults(): List<BattleResultUIData> {
+    /**
+     * 消费未展示的战斗结果弹窗（巡视塔 + 妖兽防守），由 GameEngineCore 每 tick 调用。
+     *
+     * w3-13 通道关闭配套（§2.80）：清空事务改 updateMirror 非捕获（pendingPatrol
+     * BattleResults 已关闭回导——清空为纯 UI 队列消费，C++ 侧无该弹窗概念）；
+     * 消费到防守弹窗时由调用方（GameEngineCoreLoopOps）触发基线重建收敛 C++ 侧
+     * 残留（迎战线§2.79 导入的条目）。返回 (巡视塔弹窗, 妖兽防守弹窗) 二元组。
+     */
+    suspend fun consumePendingPatrolResults(): Pair<List<BattleResultUIData>, List<BattleResultUIData>> {
         val patrolResults = patrolBattleSystem.consumePendingPatrolResults()
         val defenseResults = stateStore.gameData.value
             .pendingPatrolBattleResults
         if (defenseResults.isNotEmpty()) {
-            stateStore.update {
+            stateStore.updateMirror {
                 gameData = gameData.copy(
                     pendingPatrolBattleResults = emptyList()
                 )
             }
         }
-        return patrolResults + defenseResults
+        return Pair(patrolResults, defenseResults)
     }
 
     // ── 妖兽袭击处理 ──────────────────────────────────────────────────────

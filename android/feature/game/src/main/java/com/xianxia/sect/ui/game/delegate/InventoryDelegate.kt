@@ -2,9 +2,11 @@ package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.addAutoBuyEntries
 import com.xianxia.sect.core.engine.buyMerchantItem
 import com.xianxia.sect.core.engine.getAllAutoBuyableItems
 import com.xianxia.sect.core.engine.listItemsToMerchant
+import com.xianxia.sect.core.engine.removeAutoBuyEntries
 import com.xianxia.sect.core.engine.removePlayerListedItem
 import com.xianxia.sect.core.engine.sellEquipment
 import com.xianxia.sect.core.engine.sellHerb
@@ -15,7 +17,6 @@ import com.xianxia.sect.core.engine.sellSeed
 import com.xianxia.sect.core.engine.sellToMerchant
 import com.xianxia.sect.core.engine.toggleItemLock
 import com.xianxia.sect.core.engine.toggleWatchItem
-import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.AutoBuyCatalogItem
 import com.xianxia.sect.core.model.AutoBuyEntry
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -150,15 +151,12 @@ class InventoryDelegate(
 
     // ── 自动购买 ────────────────────────────────────────────────────
 
+    /** §2.80：写入迁入引擎层 GameEngine.addAutoBuyEntries（通道关闭配套） */
     @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun addAutoBuyEntries(entries: List<AutoBuyEntry>) {
         gameEngine.launchOnEngine {
             try {
-                gameEngine.updateGameData { gd ->
-                    gd.copy(autoBuyList = (gd.autoBuyList + entries).distinctBy {
-                        "${it.itemName}:${it.itemType}:${it.rarity}"
-                    })
-                }
+                gameEngine.addAutoBuyEntries(entries)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (ignored: Exception) {
@@ -167,18 +165,12 @@ class InventoryDelegate(
         }
     }
 
+    /** §2.80：写入迁入引擎层 GameEngine.removeAutoBuyEntries（通道关闭配套） */
     @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
     fun removeAutoBuyEntries(entries: List<AutoBuyEntry>) {
         gameEngine.launchOnEngine {
             try {
-                val keysToRemove = entries.map {
-                    "${it.itemName}:${it.itemType}:${it.rarity}"
-                }.toSet()
-                gameEngine.updateGameData { gd ->
-                    gd.copy(autoBuyList = gd.autoBuyList.filter { entry ->
-                        "${entry.itemName}:${entry.itemType}:${entry.rarity}" !in keysToRemove
-                    })
-                }
+                gameEngine.removeAutoBuyEntries(entries)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (ignored: Exception) {

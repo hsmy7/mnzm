@@ -154,29 +154,49 @@ class ReverseChannelPolicyGuardTest {
     }
 
     @Test
-    fun `item4 second tranche fields remain transported until writers sink`() {
-        // §2.79 第二段（未关闭项）——AUTHORITATIVE 稳态 Kotlin 写者实测在位
-        // （钱包/年度账/执法堂钩子/兑换码/事件日志/生产槽对齐/战斗世界域/交易族/
-        // 集合 9 类等，逐域证据见 w4D/W4A/W4B/W4C closures 文件与 handover §2.79）。
-        // 关闭其中任一项 = 该写入永不到达 C++（前向镜像覆盖 = 数据丢失）——
-        // 必须先完成写者下沉/接线，再转 closedUnits。
-        val retained = listOf(
+    fun `audit red line - item4 second tranche fields stay closed`() {
+        // §2.80 retained 字段族逐域判定第二段转关闭的 30 项（钱包/年度账/执法堂/
+        // 兑换/关注/邮件账本/自动购买/弹窗队列/天道试炼/外交关系/战斗世界域/
+        // 事件日志/功法熟练度/生产槽）。写者经十二处接线（逐动作基线重建 /
+        // updateMirror 非捕获）收敛。若回退，本测试失败并指向 handover §2.80。
+        val closed = listOf(
             "spiritStones", "midGradeSpiritStones", "highGradeSpiritStones", "spiritHerbs",
             "theftJudgementsThisMonth", "annualTheftCount", "annualDesertedDisciples",
             "annualIncomeBySource", "annualExpenditureByReason", "annualTotalIncome",
             "annualTotalExpenditure", "annualNewDisciples", "annualDeceasedDisciples",
             "annualEquipmentBySource", "annualPillBySource", "annualHerbBySource",
             "usedRedeemCodes", "watchedItemIds",
-            "gameEventRecords", "manualProficiencies", "productionSlots",
-            "worldLevels", "sectBattleRecords", "sectDetails", "scoutInfo",
-            "sectRelations", "pendingPatrolBattleResults",
-            "autoBuyList", "mailRecords", "heavenlyTrialState",
+            "mailRecords", "autoBuyList",
+            "sectRelations",
+            "worldLevels", "sectBattleRecords", "sectDetails", "scoutInfo", "heavenlyTrialState",
+            "pendingPatrolBattleResults",
+            "productionSlots",
+            "gameEventRecords", "manualProficiencies",
         )
-        val wronglyClosed = retained.filter { !ReverseChannelPolicy.isGameDataFieldTransported(it) }
+        val stillTransported = closed.filter { ReverseChannelPolicy.isGameDataFieldTransported(it) }
         assertTrue(
-            "第二段保留项在写者下沉前不得关闭（数据丢失面）：$wronglyClosed",
-            wronglyClosed.isEmpty()
+            "§2.80 第二段关闭项不得恢复传输：$stillTransported（见 handover §2.80）",
+            stillTransported.isEmpty()
         )
+    }
+
+    @Test
+    fun `gameData surface fully closed - only nine collections remain transported`() {
+        // 🔴 w3-13 删除步硬前置里程碑（§2.80）：gameData 序列化面**关闭清单 =
+        // 全部传输单元**。唯一剩余开放传输面 = 9 类实体集合（第三段专项：
+        // 统一入口事务面 updateMirror 化 + 逐动作基线重建后转关闭）。
+        assertEquals(
+            "gameData 字段面应全部关闭（§2.80 第二段达成）——若出现保留项，" +
+                "说明有写者回退或新字段未走关闭判定流程",
+            emptySet<String>(),
+            ReverseChannelPolicy.transportedGameDataFields,
+        )
+        for (name in ReverseChannelPolicy.COLLECTION_NAMES) {
+            assertTrue(
+                "集合段 $name 应保持传输（第三段专项完成前关闭 = 统一入口捕获面数据丢失）",
+                ReverseChannelPolicy.isCollectionTransported(name)
+            )
+        }
     }
 
     @Test

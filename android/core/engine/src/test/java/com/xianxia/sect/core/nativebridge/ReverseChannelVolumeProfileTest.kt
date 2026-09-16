@@ -35,9 +35,10 @@ class ReverseChannelVolumeProfileTest {
 
     @Before
     fun restoreTransportForMachineryTest() {
-        // 弟子通道已随 w3-13 关闭（handover §2.76 续批）；体积口径守护经覆盖钩子
-        // 恢复传输前提（信封机械语义不变）。
+        // 弟子通道已随 w3-13 关闭（handover §2.76 续批）、钱包族已随 §2.80 第二段
+        // 关闭——体积口径守护经覆盖钩子恢复传输前提（信封机械语义不变）。
         ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.DISCIPLE)
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.BOUNDARY)
     }
 
     private fun disciple(id: Int) = Disciple(

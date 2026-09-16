@@ -39,9 +39,10 @@ class StateSyncServiceReverseTest {
 
     @org.junit.Before
     fun restoreTransportForMachineryTest() {
-        // 弟子通道已随 w3-13 关闭（handover §2.76 续批）；信封机械语义守护经
-        // 覆盖钩子恢复传输前提。
+        // 弟子通道已随 w3-13 关闭（handover §2.76 续批）；钱包/年度账族已随 §2.80
+        // 第二段关闭——信封机械语义守护经覆盖钩子恢复传输前提。
         ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.DISCIPLE)
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.BOUNDARY)
     }
 
     @org.junit.After

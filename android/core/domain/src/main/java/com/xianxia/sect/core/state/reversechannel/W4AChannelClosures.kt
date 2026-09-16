@@ -32,19 +32,10 @@ internal val w4AClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
 
 /** 本批域的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4ARetainedGameDataFields: Set<String> = linkedSetOf(
-    // 生产槽位（生产域稳态写者：alignMirrorFromRepository 每 AUTHORITATIVE 月结
-    // 期前整表对齐 + 1811 placeSlotsResidual native 成功后 Kotlin 补写——两处
-    // W4-A 登记偏差，§2.79 审计维持保留）
-    "productionSlots",
-    // 事件日志与功法熟练度（§2.79 审计：赏赐/服药偷盗判定钩子在 AUTHORITATIVE
-    // 以 Kotlin 原序执行完整执法链——偷盗取走功法/写入事件记录；"执法域不下沉"
-    // batch-14/A1 既有登记，钩子写入面已改非捕获 + rebaseline，写者本体在位）
-    "gameEventRecords", "manualProficiencies",
-    // （原 7 项已随 W4-D/§2.79 retained 字段族逐域判定转出关闭——elderSlots/
-    //   librarySlots/warehouseGarrisons/battleTeams/activeBloodRefinements/
-    //   placedBuildings/spiritFieldPlants；关闭单元与证据见 W4DChannelClosures.kt）
+    // 🔴 §2.80 起为空——productionSlots（align 值等值 + 1811 派生接线）/gameEvent
+    // Records/manualProficiencies（偷盗钩子 updateMirror + 战争奖励接线）已随
+    // W4-D/§2.80 第二段转关闭（见 W4DChannelClosures.kt）
 )
-
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4ADomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.BUILDING to listOf(
