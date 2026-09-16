@@ -1,6 +1,16 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 续·存档自愈收口：aiSectDisciples 段 + worldMapSects 关闭（§2.78）
+
+> 需求：实施 handover §2.75④ 第 3 项（存档自愈收口）。**零协议面、零 ActionId 变更、零 C++ 改动、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
+
+- **写者穷尽审计（worldMapSects + aiSectDisciples）**： AUTHORITATIVE 中途写者 = 存档自愈（`SaveFacadeImpl.regenerateSectsBeforeSave`）/ 攻宗占领（`occupySectRewards`：worldMapSects + aiSectDisciples 清池 + recruitList）/ 宗门升级回退臂（`SECT_LEVEL_UPGRADE_TX` 失败臂）/ 完整性修复（`ensureGameDataIntegrity`，经 upgradeSectLevel 中途可达）；boot/读档归一化（LOAD_BOOT 族）与存档持久化路径不依赖通道；`removeDeadDefenders` native 臂就位（batch-20b）；遭遇战/好感事件写者挂月结子事件表（flag-OFF 回退臂）。
+- **re-baseline 原语**：`GameEngine.rebaselineNativeMirror(reason)`（`GameEngineCoreAuthoritativeOps`）——写入后以 `importToNative(restoreRng=false)` 全量重建 C++ 基线（ADR 保留面 sanctioned 复用，读档/新档基线路径；restoreRng=false 保持 native RNG 真相源）；native 未就绪（boot 序列）静默跳过——基线由首旬 `ensureAuthoritativeNative` 全量导入吸收。
+- **四处接线**：存档自愈（`SaveFacadeImpl` 注入 `StateSyncService`，自愈更新后重建）/ `ensureGameDataIntegrity` 尾（boot 路径无害跳过，中途修复路径覆盖）/ 攻宗占领尾 / 宗门升级回退臂分支（native 臂成功路径无需——C++ 已直写）。
+- **关闭登记**：`topLevelSection(AI_SECT, aiSectDisciples)` + `gameDataField(AI_SECT, worldMapSects)` 入 `W4DChannelClosures`；守卫红线断言三连翻转（弟子通道 + aiSectDisciples 段 + worldMapSects 必须 closed）。`sectRelations`（遭遇战/好感事件活写者）与 `activeSectId`/`sectName` 保留并登记审计结论（下一轮清偿候选）。
+- **门禁**：桌面 C++ 全量豁免（零 C++ 改动）｜`:core:engine` **3312/306 类/0/0**｜`:core:domain` **1758/0**｜`:app` **1003/0**｜六模块 detekt 绿 + lintRelease 绿｜NDK 豁免（零 C++/资源/Manifest）｜生成物零漂移（198 动作 / maxId=1861）。
+
 ### W4-D/D4 续·任务域收口 + 弟子通道关闭（§2.77）
 
 > 需求：实施 handover §2.76 完成路径剩余项——任务域收口 + `DISCIPLE_CHANNEL` 关闭（守卫红线翻转）。**玩家可见语义零变更；两个新事务均零游戏分区抽取，双臂抽取增量恒 0 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。

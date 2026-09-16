@@ -301,6 +301,14 @@ C++）。
 
 **剩余开放面（删除步前置）**：`aiSectDisciples` 段（存档前自愈/攻宗守军清理）、9 类实体集合（统一入库入口/openStorageBag）、retained 字段族（钱包/年度收支账/recruitList 等）——§2.75④ 第 3/4 项。
 
+**滚动更新（2026-09-15，W4-D/D4 续·存档自愈收口）**：
+
+| 域 | 原稳态写者站点 | 实施后形态 | 来源 |
+|---|---|---|---|
+| AI 宗门/世界 | `SaveFacadeImpl.kt:56` 存档自愈（worldMapSects/aiSectDisciples）、`occupySectRewards`（占领+清池）、`upgradeSectLevel` 回退臂、`ensureGameDataIntegrity`（upgradeSectLevel 中途可达） | **aiSectDisciples 段 + worldMapSects 已关闭**——写者全部接线"写入后 native 基线重建"（`rebaselineNativeMirror` = importToNative(restoreRng=false) sanctioned 复用，native 未就绪静默跳过）；boot 归一化由首旬全量导入吸收；遭遇战/好感写者挂月结子事件表（flag-OFF 回退臂） | §2.78 |
+
+**§2.78 后剩余开放面**：`sectRelations`（遭遇战/好感事件活写者——外交域收口）、`activeSectId`/`sectName`（enterSect 净化 + LOAD_BOOT，下一轮清偿候选）、9 类实体集合、retained 字段族（钱包/年度收支账/recruitList/生产槽位等）——§2.75④ 第 4 项。
+
 **新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
 
 - **双端同源闸门**——捕获侧（`GameStateStoreImpl.captureReverseDirty`：弟子通道 + 集合段停载荷构造）与信封侧
