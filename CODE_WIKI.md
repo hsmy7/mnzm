@@ -380,12 +380,15 @@ EventBus 通过 `EventBusPort` 接口暴露，支持测试替换。
 
 | 入口 | 方法 | 并发保护 | 适用场景 |
 |------|------|---------|---------|
-| **主事务** | `suspend fun update(block)` | `transactionMutex.withLock { }` | tick 驱动更新、玩家操作 |
+| **主事务** | `suspend fun update(block)` | `transactionMutex.withLock { }` | Kotlin 游戏写入：玩家操作、flag-OFF 回退臂 |
+| **镜像投影** | `suspend fun updateMirror(block)` | `transactionMutex.withLock { }` | C++ AUTHORITATIVE 真相源回写（前向镜像落库、基线重建后的投影写——**非玩家写入路径**） |
 | **快照加载** | `suspend fun loadFromSnapshot(...)` | `transactionMutex.withLock { }` | 存档加载 |
 | **结算合并** | `suspend fun swapFromShadow(shadow)` | 在 `update { }` 内执行 | 月度/年度结算 |
 | **重置** | `suspend fun reset()` | `transactionMutex.withLock { }` | 新游戏 / 清档 |
 
 > ⚠️ `updateGameDataDirect()` / `updateXxxDirect()` 方法已废弃。这些方法直接写 StateFlow.value，绕过 `transactionMutex`，存在竞态条件。所有外部调用已迁移到 `stateStore.update { }`。保留仅为内部兼容，不建议新代码使用。
+
+> 🔴 **AUTHORITATIVE 镜像只读契约（2026-09-17，W4-D/D4 §2.82 起）**：反向通道（Kotlin→C++ 增量回导，原 `captureReverseDirty`/`ReverseChannelPolicy` 族）已**整体删除**——AUTHORITATIVE 稳态下 Kotlin 对 C++ **只读**，唯一合法 C++ 写入路径 = `importToNative` 全量导入（读档/新档基线 + `rebaselineNativeMirror` 事件后重建）。`update` = Kotlin 游戏写入，`updateMirror` = C++ 真相源投影——**命名约定即契约载体**。防复发双门禁：`MirrorReadOnlyGuardTest`（六模块主源通道符号零命中）+ `DiffAuthoritativeTickTest` 100 旬管线 `nonMirrorWriteCount == 0` 硬断言（变红处置 = 下沉 native 事务，禁止放宽断言）。
 
 ### 向后兼容
 

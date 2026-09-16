@@ -158,6 +158,11 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 
 ### 4.3 关闭动作（原样有效，但前置未达成）
 
+> 🔴 **终局（2026-09-17，W4-D/D4 §2.82）**：反向通道与 `ReverseChannelPolicy` 已**整体删除**——
+> 本节所述"停捕获 + 信封不携带"关闭机制随之消亡，"前置"议题成为历史；镜像只读契约
+> （`MirrorReadOnlyGuardTest` 符号面守卫 + 100 旬管线 `nonMirrorWriteCount == 0` 硬断言）接替长期看护。
+> 见 §4.4 末尾终局块。
+
 关闭动作 = `GameStateStoreImpl.captureReverseDirty` 停止捕获该域 + `StateSyncService`
 信封不再携带该域段；每关闭一域，反向信封体积相应归零（可观测验收）。
 **在 4.1 表全部域下沉前执行任何"停捕获"都是数据丢失缺陷**（该域 Kotlin 写入将永达
@@ -237,6 +242,11 @@ C++）。
 | `UNKNOWN` | 无法判定 | 本轮实测=**零调用者死代码**（统一登记为死码清理项） |
 
 **域级结论表**（稳态写者 = 必须保留回导的理由；关闭单元 = 本批已摘出信封的单元）：
+
+> 🔧 **勘误标注（2026-09-17，W4-D/D6）**：下表两处 `file:line` 系 w3 README 传播链误引
+> （[W4 README §1.1 勘误块](parallel-batches-w4/README.md) 已裁定真值，原文保留不重写）——
+> 道路行 `RoadFacadeImpl.kt:41/:141`（构造/私有函数形参）真值 = **`:67`（placeRoad）/`:85`（removeRoad）**；
+> 秘境行 `SecretRealmNativeOps.kt` **文件不存在**，真值 = **`GameEngineSecretRealmNativeOps.kt:100/:263`**。
 
 | 域 | 稳态写者（代表站点） | 关闭单元 |
 |---|---|---|

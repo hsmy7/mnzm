@@ -8,6 +8,11 @@
 > `DiffAuthoritativeTickTest` 1 例），**1 例未收敛**（`DiffYearSettlementTest`，分歧窗口已再收窄）；
 > §3.2 的 `:feature:game` 10 处**未清偿**（根因已定位，需 testFixtures 基建）；
 > §3.3 的阶段 0/2/4 未完成项**已全部完成**。
+>
+> **2026-09-17 追记（W4-D/D6）**：上文两处"未收敛/未清偿"**均早已清偿**——`DiffYearSettlementTest`
+> 见 handover **§2.59.1**（夹具快照 9 号键垃圾值，测试侧修复）；`:feature:game` 两族见 **§2.59.2**。
+> **阶段 3 弟子侧/战斗侧已交付**（§2.62.1 W4-A/A5 `CHAT` 分区 / §2.64.1 W4-C/C7 散列确定性选词），
+> 余量与守卫收口（② 上限 13→6、白名单 4→1 + 计数断言）见 [rng-source-inventory §8](rng-source-inventory.md)。
 
 | 项 | 内容 |
 |---|---|

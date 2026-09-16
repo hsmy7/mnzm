@@ -1,6 +1,15 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D6——文档与版本收口（W4 波可派工项收官）（§2.84）
+
+> 需求：实施 W4 实施文档 §0 序 D6（最小串行链末项）。**纯文档批：零代码、零协议面、零 ActionId 变更、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加（D1–D5 同口径）；`version.properties` 未递增——由用户决定。**
+
+- **handover**：新增 §2.84（本批记录）；§4.1 已清偿项索引补齐 §2.69–§2.84；§5③ 汇流波改"已全部实施（D1–D6，`w4-rem/02`–`14`）"、§5④ 死代码滚动清零标记 ✅（§2.83 新基准）、批次文档索引更新（w3/w4 均已全部交付）；§6 主轴"接手必读"行门禁数值刷新为 §2.83 后现值（引擎 3288/0/0/0、domain 1743/0、data 716/0/15、桌面 1417/1417）+ 守卫面 13→6、白名单 4→1 + 计数断言 + 阶段 3 状态（弟子侧/战斗侧已交付 + 余量登记）。
+- **§7.2/§7.3 勘误补齐**（W4 README §1.1 移交收口人的欠账）：6 项存量口径按"勘误标注不重写历史"原位追加——`VulkanBackend.cpp` 清屏色现值 `:2733`；`IslandCliffTextureLoader` SwallowedException 现值 `:177`（复核一致）；§2.58.2"六个扩展函数"实为 8 个；§2.51 `kOpenYears` 双常量复核仍并存（值相等无行为差，收敛维持低危技术债登记）；§2.53 46/82 站点明细权威落档处 = ui-read-surface §4.4；`rng_manager.h` 已迁 `rng/rng_manager.h`（`exportStates` 现值 `:88`）。§7.3 三处未登记稳态写者全部标记已收口（`replaceManual` → §2.62 / `approveMarriageProposal` → §2.62.2 / `forceSettleDisciplesBeforeBattle` → §2.64.4）；§7.4 ②⑤⑥ 标注已取消/已裁决/已定论。
+- **其余文档**：`cpp-engine.md` §9 权威指针更正（动作总数 **198 / maxId=1861**，生成器实跑口径）；`CODE_WIKI.md` 更新入口表补 `updateMirror` 镜像投影行 + AUTHORITATIVE 镜像只读契约块（§2.82 起长期不变量）；`ui-read-surface.md` §4.3 终局标注（关闭机制随通道删除消亡）+ §4.4 域级结论表前两处 w3 README 传播链误引勘误（`RoadFacadeImpl.kt` 真值 `:67`/`:85`；`SecretRealmNativeOps.kt` → `GameEngineSecretRealmNativeOps.kt`）；`rng-source-inventory.md` 新增 §8（D5 清偿销账 + 守卫收口 + 阶段 3 余量 + `CaveExplorationRewardOps` 死链证据行更正）；`rng-remediation-status.md` 头部追记 §2.59 清偿与阶段 3 进展。
+- **门禁**：纯文档批 ⇒ 桌面 C++ / NDK / lint / 全量测试豁免；`node scripts/gen-action-ids.mjs && git diff --exit-code` 空（生成物零漂移自证）。
+
 ### W4-D/D5——死代码清零 + 守卫面收口（§2.83）
 
 > 需求：实施 W4 实施文档 §0 序 D5（串行链第五项）。**零 C++ 改动、零协议面、零 ActionId 变更、玩家可见语义零变更（纯删除 + 守卫数值只缩）⇒ 游戏内 `changelog_entries.json` 未追加**。

@@ -556,13 +556,14 @@ android/app/src/main/cpp/
 > **2026-09-15 再更正（§2.61 W4-00 实测）**：动作总数 **169 / maxId=1734**——删除
 > `INV_ADD_EQUIPMENT_INSTANCE=1011` / `INV_ADD_MANUAL_INSTANCE=1013` 两处**死导出**
 > （由新增的分派覆盖守卫首跑抓出，详见 §库存残差条）。
-> 下方「ActionId 总数 114 / maxId=1525」「handler 20」为 **2026-09-11 时点口径**，**已过期**——
-> 权威现值以 `handover §3 门禁基线`（**169 动作 / maxId=1734 / handler 33**）与
-> `docs/parallel-batches-w2/README.md §基线实测值` 为准。
+> **2026-09-17 再更正（W4-D/D6 §2.84 口径对齐）**：W4-A/B/C/D 各批新增事务后动作总数 **198 / maxId=1861**
+> （§2.82 通道删除批零协议变更）——权威现值以 `handover §3 门禁基线` 与
+> `node scripts/gen-action-ids.mjs` **实跑**为准（文档禁手抄计数）。
+> 下方「ActionId 总数 114 / maxId=1525」「handler 20」为 **2026-09-11 时点口径**，**已过期**。
 
 | 项 | 实测值（2026-09-11 时点；**总数/handler 见上方更新**） | 取证 |
 |---|---|---|
-| ActionId 总数（`action_ids.h` / `ActionIds.kt`，单一事实源 `scripts/gen-action-ids.mjs`） | ~~114~~ → **170（maxId=1733）** | `node scripts/gen-action-ids.mjs`；两份生成物同源一致 |
+| ActionId 总数（`action_ids.h` / `ActionIds.kt`，单一事实源 `scripts/gen-action-ids.mjs`） | ~~114~~ → **198（maxId=1861，2026-09-17 实跑；演进史 114→170→171→169→198 见上方更新块）** | `node scripts/gen-action-ids.mjs`；两份生成物同源一致 |
 | `execute_dispatch.cpp` handler 域函数 | 20（2026-09-11）/ 现值见 `parallel-batches-w2/README.md` | handleWallet/Inventory/…/DeathHandler |
 | 集中 switch case 标签 | 104（其余经范围分支覆盖） | `^\s*case action::` 计数 |
 | JNI 导出 ↔ Kotlin external 声明 | ~~39 ↔ 39~~ → **38 ↔ 38（无孤儿）**（§2.82 删 `nativeApplyReverseDirty`——w3-13 反向通道删除） | `GameCoreBridge.cpp` / `GameCoreBridge.kt` 符号面扫描 |

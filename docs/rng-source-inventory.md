@@ -283,3 +283,25 @@
 `PresentationRandomSceneTest`（新增 7 用例）：同键逐位相同 / 异键不同 / 世界种子参与派生 /
 与根流互不影响 / 零状态写入（FakeAtomicStateStore 快照前后相等）/ FNV-1a 字面量锚点 /
 `seedFromWorld` 生产调用点守卫。
+
+---
+
+## 8. W4-D/D5 死代码清零 + 守卫面收口（2026-09-17，handover §2.83；§2.84 登记）
+
+§6.2 登记的 8 处显形存量裸抽取**已清偿销账**——逐点核实仅 7 处为死代码，随 §2.83 B6–B10 删除；
+**1 处存活保留**：`BeastMaterialDatabase.getRandomMaterialByBeastType`（`Random.nextDouble()` 加权抽取）
+经核实有 **3 个生产调用方**（`GameEngineWorldBattleOps:322` / `ExplorationService:364` /
+`PatrolBattleSystem:595`，妖兽材料掉落）⇒ **非死代码**，归 RNG 阶段 3 分区化清单（注册表随机家族同批）。
+
+| 守卫面 | 变化 |
+|---|---|
+| `RngSourceGuardTest` core/domain ② 登记上限 | **13 → 6**（= 原基线 5 + 存活 1，附归属说明；只缩不增） |
+| `RngEngineIsolationGuardTest` 白名单 | **4 → 1**（3 条陈旧"同族遗留"豁免随 W4-C C-③ 形参必传删除）+ **白名单条目数计数断言**（`expectedExclusionCount = 1`——新增豁免从此机器可拦） |
+
+**阶段 3 已交付子项（指针）**：弟子侧 = §6 `CHAT` 分区（handover §2.62.1 W4-A/A5）；战斗侧 =
+`BattleDescriptionGenerator` 14 处 `.random()` 归零——ID 散列确定性选词，零抽取零分区影响
+（handover §2.64.1 W4-C/C7）。**阶段 3 余量登记** = 注册表随机家族（`MaterialTemplateRegistry.generateRandom`
+家族 + 上列 `getRandomMaterialByBeastType`）+ §3 表两处挂钟播种（`WorldMapGenerator.kt:15` /
+`CaveExplorationSystem.kt:39`——⚠️ 其证据行所引 `CaveExplorationRewardOps.kt:29` 已随 §2.63.B4
+洞府死链删除**整文件移除**，`CaveExplorationSystem` 本体与挂钟播种仍在，登记行证据需换）+
+⑤ 默认值陷阱清零（上限 27，未动）。
