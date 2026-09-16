@@ -1,6 +1,16 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 续·retained 字段族逐域判定第二段——gameData 字段面关闭清单 = 全部传输单元（§2.80）
+
+> 需求：实施 handover §2.75④ 第 4 项第二段。**零协议面、零 ActionId 变更、零 C++ 改动、玩家可见语义零变更（写入语义逐字保形迁移 + 逐动作基线重建/非捕获改造）⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
+
+- **审计先行**：剩余 LIVE 写面逐缝定位为 12 处用户动作接线缝 + 3 项免接线判定（妖兽防守死亡已随迎战接线吸收/关注列表修复已随完整性接线吸收/生产槽 align 兜底为值等值写入）；裁决降级回退臂安全性（事务失败 ⇒ C++ 未写 ⇒ 镜像不覆盖 ⇒ 无数据丢失面），集合关闭的真正阻断面在 native 成功后的 Kotlin 残差。
+- **接线 12 处**（§2.78 原语）：世界关卡战斗双臂尾部/侦查宗门双臂尾部/攻宗碾压与败北分支/宗门贸易购买与懒刷新/邮件附件领取×2（事务 updateMirror + 尾部重建）/天道试炼通关与领取（updateMirror + 重建，新增 `Provider<GameEngineCore>` 惰性注入——DiplomacyService 破环先例）/兑换码 wrapper/逐出袋物化/开袋入库（updateMirror + 重建）/弹窗队列清空（updateMirror + 消费时重建）/自动购买列表与生产槽派生迁入引擎层 wrapper。
+- **关闭登记 30 项**：钱包三阶+灵草、年度收支账族、执法堂三项、兑换/关注、邮件账本、自动购买列表、`sectRelations`、战斗世界域五字段（worldLevels/sectBattleRecords/sectDetails/scoutInfo/heavenlyTrialState）、弹窗队列、生产槽、事件日志、功法熟练度——四份 retained 分片全空。🔴 **里程碑：gameData 序列化面关闭清单 = 全部传输单元**（`transportedGameDataFields` = 空集，守卫锁死）。**唯一剩余开放面 = 9 类实体集合**（第三段终段专项：统一入口事务面 updateMirror 化 + 逐动作基线重建——完成后即重启 w3-13 五步④⑤通道删除）。
+- **测试**：4 处机械面 fixture 恢复传输前提（`reopenDomain(BOUNDARY)` 钩子 ×3 + 保留样本切集合通道）；守卫翻转（第二段 30 项红线 + 全闭里程碑断言）。
+- **门禁**：桌面 C++ 全量豁免（零 C++ 改动）｜`:core:engine` **3315/0/0/0**（47 `Diff*` 全绿，关闭后对拍零漂移）｜`:core:domain` **1761/0**（+1 里程碑断言）｜`:feature:game` **872/0**｜`:app` **1003/0**｜六模块 detekt 绿｜`:app:lintRelease` 绿｜NDK 豁免｜生成物零漂移（198 动作 / maxId=1861）。
+
 ### W4-D/D4 续·retained 字段族逐域判定第一段 + 关闭域写者补漏（§2.79）
 
 > 需求：实施 handover §2.75④ 第 4 项第一段（retained 字段逐域判定）+ §2.77/§2.78 关闭域漏网写者补漏。**零协议面、零 ActionId 变更、零 C++ 改动、玩家可见语义零变更（写入语义逐字保形迁移 + 写入后基线重建）⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
