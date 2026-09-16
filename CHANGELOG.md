@@ -1,6 +1,17 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 续·retained 字段族逐域判定第一段 + 关闭域写者补漏（§2.79）
+
+> 需求：实施 handover §2.75④ 第 4 项第一段（retained 字段逐域判定）+ §2.77/§2.78 关闭域漏网写者补漏。**零协议面、零 ActionId 变更、零 C++ 改动、玩家可见语义零变更（写入语义逐字保形迁移 + 写入后基线重建）⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。
+
+- **审计先行（三路并行穷尽 + 逐点核对）**：retained 字段族全量重审，写者四分类（native 臂回退臂 / LOAD_BOOT / flag-OFF 旗臂 / LIVE 阻断）。**审计修正**：① `sectName` 原"LOAD_BOOT 族"登记证伪——`SectDelegate.renameSect` 是稳态写者且同时写 `worldMapSects`（§2.78 关闭的漏网写者，改名会被镜像覆盖 = 静默丢失）；② 设置重置/槽位释放/取消血炼写弟子协议列、赏赐/服药偷盗判定钩子写弟子列+集合——§2.77 通道关闭后的真实回导缺口，同批补漏；③ 执法堂/事件日志/功法熟练度的 LIVE 状态由偷盗钩子维持，保持保留。
+- **补漏接线 8 处（复用 §2.78 rebaselineNativeMirror 原语）**：宗门改名与仓库驻守卸任从 UI delegate 迁入引擎层（`GameEngine.renameSect` / `GameEngine.removeWarehouseGarrison`，写入后基线重建）；enterSect 收敛、内存裁剪 = 条件性 rebaseline；设置重置/槽位释放/取消血炼/偷盗钩子 = `updateMirror` 非捕获 + 尾部 rebaseline（捕获侧 presence 检测对合法写入误报，弟子列属通道级关闭值比较不可用）。
+- **关闭登记 29 项**（retained → closedUnits，穷尽分类守卫自动验证）：recruitList、activeSectId、sectName、shownWarningStageIds、vassalContracts、suzerainSectId、玉符×4、patrolConfigs/spiritMineSlots/patrolSlots/residenceSlots、terrainTiles/mapGenVersion（boot 回填与 C++ 同源生成恒等，原"误报"担忧消解）、秘境×4、洞府队×2、弟子槽位×5、placedBuildings、spiritFieldPlants。**第二段保留面落守卫断言防抢跑**（钱包/年度账/执法堂/兑换码/事件日志/生产槽/战斗世界域/sectRelations/9 类集合——写者下沉前禁止关闭）。
+- **死链登记（D5 清单）**：`BuildingService.assignDiscipleToBuilding` 链（零界面调用方）、`VassalService.establishVassalage`、`FavorServiceImpl.updateFavor/modifyFavor`。
+- **测试**：新 `GameEngineSectIdentityOpsTest` 3 用例（改名只动玩家宗门/同名仍写入/仓库卸任+gate 释放）+ 守卫 2 用例（第一段红线 + 第二段保留）；`ReverseChannelCloseoutTest` 样本字段随关闭状态更新。
+- **门禁**：桌面 C++ 全量豁免（零 C++ 改动）｜`:core:engine` **3315/0/0/0**（3312+3；47 `Diff*` 全绿）｜`:core:domain` **1760/0**（+2）｜`:feature:game` **872/0**｜`:app` **1003/0**｜六模块 detekt 绿（顺带清偿 §2.76/§2.77 漏网违规 2 处：MaxLineLength/UnusedImports）｜`:app:lintRelease` 绿｜NDK 豁免（零 C++/资源/Manifest）｜生成物零漂移（198 动作 / maxId=1861）。
+
 ### W4-D/D4 续·存档自愈收口：aiSectDisciples 段 + worldMapSects 关闭（§2.78）
 
 > 需求：实施 handover §2.75④ 第 3 项（存档自愈收口）。**零协议面、零 ActionId 变更、零 C++ 改动、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。

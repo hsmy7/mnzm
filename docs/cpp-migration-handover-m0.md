@@ -1115,14 +1115,55 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 **遗留**: ① `sectRelations` 关闭 = 外交域收口（遭遇战/好感事件写者下沉或 re-baseline 接线）；② `activeSectId`/`sectName` 下一轮清偿扫除随域判定转关闭；③ 9 类实体集合 + retained 字段族（钱包/年度收支账/recruitList/生产槽位等）= §2.75④ 第 4 项；④ 全部传输单元关闭后重启五步④⑤（通道删除）；`w4-rem/08` tag + bundle 已落盘。
 
 
+### §2.79 W4-D/D4 续·retained 字段族逐域判定第一段 + 关闭域写者补漏（2026-09-15）
+
+批次: handover §2.75④ **第 4 项第一段**（retained 字段逐域判定，D2 §2.73 同款"逐条判定"格式）+ **§2.77/§2.78 关闭域漏网写者补漏** | 性质: **零协议面、零 ActionId 变更、零 C++ 改动**；玩家可见语义零变更（写入语义逐字保形迁移 + 写入后基线重建）。
+
+**① 审计先行（三路并行 `git grep` 穷尽 + 逐点核对，审计修正两处旧登记）**:
+- **retained 字段族全量重审**：§2.78 收口时在册保留的 40 字段（W4-A 13 + W4-B 21 + W4-C 13 − 已转出）+ 9 类实体集合逐域穷尽写者审计，分类 = native 臂就位后的回退臂 / LOAD_BOOT 族 / flag-OFF 结算臂 / LIVE（阻断关闭）四类。
+- **审计修正 1（§2.78 登记错误）**：`sectName` 原 retained 注记"LOAD_BOOT 族"**证伪**——`SectDelegate.kt:38 renameSect` 是稳态写者（UI 改名动作），且它同时写 `worldMapSects`（§2.78 已关闭）⇒ **§2.78 的 worldMapSects 关闭存在漏网写者**：AUTHORITATIVE 下改名会被关闭域写入检测计数、且经前向镜像被 C++ 侧旧值覆盖 = 改名静默丢失。
+- **审计修正 2（§2.77 漏网写者）**：`resetAllDisciplesStatus`（设置"重置弟子"）写 `worldMapSects`/`activeMissions`（均已关闭）+ 弟子协议列（通道已关闭）；`releaseDiscipleFromAllSlotsAtomic`（长老分配前清理/释放流程）与 `cancelBloodRefinement` 写弟子协议列；赏赐/服药**偷盗判定钩子**（`applyTheftHookResidual`，native 臂成功后按"执法域不下沉"原序执行完整执法链）写弟子 `lastTheftJudgementYears`/`statuses` + 集合（偷盗取走）——这些在 §2.77 通道关闭后已构成真实回导缺口（写入被镜像覆盖 = 数据丢失面），同批补漏。
+- **审计修正 3（域判定纠偏）**：`annualTheftCount`/`annualDesertedDisciples`/`theftJudgementsThisMonth`/`gameEventRecords`/`manualProficiencies` 的 LIVE 状态由偷盗钩子维持（执法域不下沉既有登记）——保持保留；`pendingPatrolBattleResults` 的迎战弹窗队列 append/drain 为稳态写者——保持保留。
+
+**② 补漏接线（8 处，全部复用 §2.78 `rebaselineNativeMirror` 原语）**:
+1. **宗门改名迁入引擎层**：新增 `GameEngine.renameSect`（`GameEngineLifecycleOps.kt`，写 `sectName` + `worldMapSects` 玩家宗门名后 rebaseline）；`SectDelegate.renameSect` 改为委派（UI 收尾不变）。
+2. **仓库驻守卸任迁入引擎层**：新增 `GameEngine.removeWarehouseGarrison`（`GameEngineWarehouseOps.kt`，`updateGameDataAndSync` + gate 释放逐字保形 + rebaseline）；`ProductionViewModel.removeWarehouseGarrison` 改委派。
+3. **enterSect 收敛**：`GameEngineLifecycleOps.kt` 归一化发生时（条件性幂等，未发生零成本）rebaseline——解除 `activeSectId`/`placedBuildings`/`spiritMineSlots` 的写者阻断。
+4. **设置重置**：`DiscipleStatusService.resetAllDisciplesStatus` 事务改 `updateMirror`（**非捕获**——捕获侧 presence 检测对合法重置误报；弟子协议列属通道级关闭，值比较不可用）+ `GameEngineDiscipleOps.kt:22` 包装层 rebaseline。
+5. **槽位释放**：`GameEngineDiscipleSlotOps.releaseDiscipleFromAllSlotsAtomic` 同款 `updateMirror` + rebaseline。
+6. **取消血炼**：`GameEngineBloodRefinementOps.cancelBloodRefinement` 同款 `updateMirror` + rebaseline。
+7. **偷盗判定钩子**：`DiscipleOpsNativeTxForward.applyTheftHookResidual` 事务改 `updateMirror` + `GameEngineCore.rebaselineNativeMirror`（新增 Core 侧变体，与 GameEngine 侧同一 StateSyncService 实例）——执法域写面（弟子列 + 集合 + 执法堂字段）整段经基线重建推入 C++。
+8. **内存裁剪**：`GameEngineServiceOps.releaseMemory` CRITICAL 分支裁剪发生时 rebaseline（裁剪语义 = 双侧释放内存）。
+
+**③ 关闭登记（29 项 retained → closedUnits，守卫穷尽分类自动验证）**:
+- RECRUIT：`recruitList`（占领 rebaseline 吸收 + 回退臂/旗臂/LOAD_BOOT）。
+- AI_SECT：`activeSectId`、`sectName`（enterSect/改名接线后余者 LOAD_BOOT）。
+- DIPLOMACY：`shownWarningStageIds`（1843 回退臂-only）、`vassalContracts`、`suzerainSectId`（占领吸收 + VASSAL_TX 回退臂 + 旗臂 + `establishVassalage` 死 API）。
+- INVENTORY：玉符四字段（`jadeSymbols`/`jadeSymbolsToday`/`jadeAccumMs`/`jadeDayAnchorMs`——JadeSymbolService 全部写入点 native 臂先行）。
+- PATROL：`patrolConfigs`、`spiritMineSlots`、`patrolSlots`、`residenceSlots`（槽位事务族 native 臂在位 + ② 接线）。
+- SAVE_LOAD：`terrainTiles`、`mapGenVersion`（唯一 Kotlin 写者 = boot 回填，仅 `mapSeed≠0` 触发且与 C++ `ensureTerrainGenerated` 同源恒等——W4-C 当初的"回填误报"担忧随 D3 等价性证明消解；`mapSeed=0` 老档两端恒空无丢失面）。
+- SECRET_REALM：`secretRealmState/Session/AITeams/CooldownYear` + `caveExplorationTeams`、`aiCaveTeams`（1800/1801/1442 族回退臂-only + ② 接线）。
+- DISCIPLE：`elderSlots`、`librarySlots`、`warehouseGarrisons`、`battleTeams`、`activeBloodRefinements`（槽位事务族 + ② 接线）。
+- BUILDING：`placedBuildings`（enterSect 接线后余者回退臂/LOAD_BOOT）。PRODUCTION：`spiritFieldPlants`（灵田事务族全 native 臂/旗臂/LOAD_BOOT，零接线需求）。
+- **第二段（保持保留，附守卫断言防抢跑）**：钱包三阶+灵草、年度收支账族、执法堂三项、`usedRedeemCodes`、`watchedItemIds`、`gameEventRecords`、`manualProficiencies`、`productionSlots`（align/placeSlots 两处 W4-A 登记偏差）、W4-C 战斗世界域四字段、`sectRelations`（遭遇战 + 宗门交易 LIVE）、`pendingPatrolBattleResults`、`autoBuyList`/`mailRecords`/`heavenlyTrialState`（登记不下沉族）与 9 类实体集合——写者下沉/接线后逐域转关闭。
+
+**④ 死链登记（D5 清单）**: `BuildingService.assignDiscipleToBuilding` 链（`BuildingService.kt:111` ← `BuildingFacadeImpl.kt:138` ← `GameEngineBuildingOps.kt:18` ← `DiscipleDelegate.kt:94`）——末级 delegate 方法零界面调用方，整链死代码；`VassalService.establishVassalage`、`FavorServiceImpl.updateFavor/modifyFavor` 同批登记。
+
+**测试**: 引擎新增 `GameEngineSectIdentityOpsTest` **3 用例**（改名只更新 sectName + 玩家宗门 / 同名仍写入 / 仓库卸任移除条目 + gate 释放——Robolectric JVM 面，rebaseline 走 GameCoreBridge 短路）；domain 新增守卫 2 用例（**第一段 29 项不得恢复传输** + **第二段保留项写者下沉前不得关闭**）；`ReverseChannelCloseoutTest` 样本字段 `jadeSymbols`（已关闭）→ `spiritStones`（第二段保留代表）。`GameViewModelTest.renameSect` 三用例改断言"委派引擎层"（语义守卫随迁引擎测试类）。
+
+**门禁实跑**: 桌面 C++ 全量**豁免**（零 C++ 改动）｜`:core:engine` **3315 / 0 失败 / 0 错误 / 0 跳过**（3312 + 3；47 `Diff*` 全绿 270 用例，JNI 指向本树 desktop-jni）｜`:core:domain` **1760/0**（1758 + 2 守卫）｜`:feature:game` **872/0**｜`:app` **1003/0/0（2 既有跳过）**｜六模块 detekt 全绿（**顺带清偿两处前批漏网违规**：`ChannelClosureEntries.kt:40` MaxLineLength、`DiscipleDelegate.kt:18` UnusedImports——§2.76/§2.77 交付时 detekt 缓存未拦下）｜`:app:lintRelease` 绿｜`:app:externalNativeBuildRelease` **豁免**（零 C++/资源/Manifest 改动）｜生成器幂等 + 生成物零漂移（198 动作 / maxId=1861）。
+
+**遗留（w3-13 删除步继续收口）**: ① **第 4 项第二段**——钱包/年度账/执法堂/兑换码/事件日志/生产槽对齐偏差 + W4-C 战斗世界域 + `sectRelations`（交易族下沉或 per-action 接线）+ 9 类集合（战争奖励/开袋/驱逐物化/试炼奖励），全部转关闭后即达成"关闭清单 = 全部传输单元"；② 死链清单（④）随 D5 逐条删除；③ 全部关闭后重启五步④⑤（通道删除）；`w4-rem/09` tag + bundle 已落盘。
+
+
 ## 3. 验证结果（当前门禁基线 + 各批数值；未达项与归属见本节末）
-**当前门禁基线（2026-09-15，§2.78 存档自愈收口后）**：
+**当前门禁基线（2026-09-15，§2.79 retained 字段族第一段后）**：
 
 | 验证 | 结果 |
 |---|---|
-| 桌面 C++ 全量单测 | **1417/1417 全绿**（§2.73 基线；§2.75 零 C++ 改动豁免复跑；含单进程直跑复核）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 `:core:engine` | **3312 用例 / 306 类 / 0 失败 / 0 错误 / 0 跳过**（§2.77 = §2.76 基线 3310 + 任务派遣 GateTest 2 用例；含 47 个 `Diff*` 对拍全绿 + 停发 100 旬用例——弟子通道关闭后 Side B 基准臂显式 flag-OFF 语义） |
-| `:core:domain` 单测 | **1758 用例 / 0 失败**（含 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
+| 桌面 C++ 全量单测 | **1417/1417 全绿**（§2.73 基线；§2.75/§2.78/§2.79 零 C++ 改动豁免复跑；含单进程直跑复核）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 引擎全量单测 `:core:engine` | **3315 用例 / 0 失败 / 0 错误 / 0 跳过**（§2.79 = §2.78 基线 3312 + `GameEngineSectIdentityOpsTest` 3 用例；含 47 个 `Diff*` 对拍全绿 270 用例 + 停发 100 旬用例） |
+| `:core:domain` 单测 | **1760 用例 / 0 失败**（§2.79 = 1758 + 关闭守卫 2 用例；`ReverseChannelPolicyGuardTest` 8 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚 / §2.79 第一段红线 / 第二段保留守卫） |
 | `:core:data` 单测 | **716 用例 / 0 失败 / 0 错误 / 15 跳过（既有）**（§2.68 复跑；= W4-00 基线 707 + C-② 新增 5 + 新 `MigrationChainGuardTest` 4） |
 | `:core:ui` 单测 | **146 用例 / 0 失败**（W4-00 实测值；三批零触碰 `:core:ui`，本波未复跑） |
 | `:feature:game` 单测 | **872 用例 / 0 失败 / 0 错误**（§2.68 复跑；W4-00 表所列 2 例 `EdgeKtxSyncTest` 失败已随并行渲染批落地消除） |
@@ -1143,6 +1184,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 | 批号（日期） | 桌面 C++ | 引擎 `:core:engine` |
 |---|---|---|
+| **§2.79 retained 字段族第一段 + 写者补漏（09-15）** | —（零 C++ 改动，豁免） | **3315 / 0 / 0 / 0**（+3；47 `Diff*` 全绿；`:core:domain` 1760/0、`:feature:game` 872/0、`:app` 1003/0 复跑） |
 | **§2.78 存档自愈收口（09-15）** | —（零 C++ 改动，豁免） | **3312 / 306 类 / 0 / 0**（持平） |
 | **§2.77 任务域收口 + 弟子通道关闭（09-15）** | **1430/1430**（+6） | **3312 / 306 类 / 0 / 0**（+2） |
 | **§2.76 W4-D/D4 续·交谈写面下沉（09-15）** | **1424/1424**（+7） | **3310 / 305 类 / 0 / 0**（+3；47 `Diff*`） |
@@ -1197,7 +1239,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | 项 | 状态 |
 |---|---|
 | **三处顶层可变 `xxxRngManager` 同族遗留**（`EnemyGenerator` / `AISectAttackManager` / `AISectTeamComposer`） | **✅ 已清偿（2026-09-15，§2.64.1 W4-C C-③）**——三处均改为形参必传，`GameEngine.kt` init 块三行赋值随之移除；实测全仓顶层可变 `*RngManager` **0 处**。`RngEngineIsolationGuardTest` 白名单未新增条目 |
-| **反向同步通道逐域收尾 → 通道删除（长期主轴）** | **⚠️ 方向已定（§2.53）**——"按域全关"经 288 站点穷尽审计实测**前置不成立**（14 域无一可整体关闭）；已交付可证关闭面 68 单元（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制（策略单点 / 双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）。**2026-09-15 W4-A/B/C 三批再消除一批稳态写者**（弟子管理九事务 / 婚姻审批拒绝 / 巡逻·矿场 UI 直改 / 战斗伤亡与战前结算 / 秘境换岗兜底 / 洞府死链，逐条 `file:line` 见 [ui-read-surface §4.4](ui-read-surface.md) 滚动更新表），但**域级"可整体关闭"仍无一成立**。**后续按 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 十三批推进**，终局删除 = `docs/parallel-batches-w4/README.md` §8 的 W4-D/D4。**2026-09-15 D4 阶段 A+B 已实施（§2.75，`w4-rem/05`）**：观察窗停发仪器进 CI（100 旬停发对拍绿：零发送 + 关闭域写入检测零命中 + 指纹零差异）；**删除步判定 = 阻断**——硬前置"关闭清单 = 全部传输单元"不成立，稳态 Kotlin 写者实测在位（交谈效果/任务派遣/存档前自愈等，逐条 `file:line` 与完成路径见 §2.75④），按五步规程重置流程、写者收口后重启删除步。**完成路径第 1 项已实施（§2.76，`w4-rem/06`）**：交谈效果写面下沉（`DISCIPLE_CHAT_EFFECT_TX=1860`，事务零 RNG 双臂抽取恒 0）；审计修正——通道整体关闭还依赖任务域收口（`startMission` 写槽位协议列）+ lifeEvents 协议外投影的检测裁决（§2.76 审计先行节），完成路径相应顺延。**§2.77（`w4-rem/07`）任务域收口 + 弟子通道关闭已实施**：`MISSION_START_TX=1861`（事务零 RNG）+ `DISCIPLE_CHANNEL` 关闭（守卫红线翻转）+ lifeEvents 投影转非捕获路径 + 捕获侧检测 AUTHORITATIVE 门控；剩余开放面 = `aiSectDisciples` 段（存档自愈）、9 类集合、retained 字段族（§2.75④ 第 3/4 项）。**§2.78（`w4-rem/08`）第 3 项已实施**：`aiSectDisciples` 段 + `worldMapSects` 关闭——写者穷尽审计后四处接线"写入后 native 基线重建"（rebaselineNativeMirror：存档自愈/ensureGameDataIntegrity/攻宗占领/升级回退臂）；`sectRelations`（遭遇战+好感事件活写者，外交域）与 `activeSectId`/`sectName`（下一轮清偿候选）保留并登记 |
+| **反向同步通道逐域收尾 → 通道删除（长期主轴）** | **⚠️ 方向已定（§2.53）**——"按域全关"经 288 站点穷尽审计实测**前置不成立**（14 域无一可整体关闭）；已交付可证关闭面 68 单元（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制（策略单点 / 双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）。**2026-09-15 W4-A/B/C 三批再消除一批稳态写者**（弟子管理九事务 / 婚姻审批拒绝 / 巡逻·矿场 UI 直改 / 战斗伤亡与战前结算 / 秘境换岗兜底 / 洞府死链，逐条 `file:line` 见 [ui-read-surface §4.4](ui-read-surface.md) 滚动更新表），但**域级"可整体关闭"仍无一成立**。**后续按 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 十三批推进**，终局删除 = `docs/parallel-batches-w4/README.md` §8 的 W4-D/D4。**2026-09-15 D4 阶段 A+B 已实施（§2.75，`w4-rem/05`）**：观察窗停发仪器进 CI（100 旬停发对拍绿：零发送 + 关闭域写入检测零命中 + 指纹零差异）；**删除步判定 = 阻断**——硬前置"关闭清单 = 全部传输单元"不成立，稳态 Kotlin 写者实测在位（交谈效果/任务派遣/存档前自愈等，逐条 `file:line` 与完成路径见 §2.75④），按五步规程重置流程、写者收口后重启删除步。**完成路径第 1 项已实施（§2.76，`w4-rem/06`）**：交谈效果写面下沉（`DISCIPLE_CHAT_EFFECT_TX=1860`，事务零 RNG 双臂抽取恒 0）；审计修正——通道整体关闭还依赖任务域收口（`startMission` 写槽位协议列）+ lifeEvents 协议外投影的检测裁决（§2.76 审计先行节），完成路径相应顺延。**§2.77（`w4-rem/07`）任务域收口 + 弟子通道关闭已实施**：`MISSION_START_TX=1861`（事务零 RNG）+ `DISCIPLE_CHANNEL` 关闭（守卫红线翻转）+ lifeEvents 投影转非捕获路径 + 捕获侧检测 AUTHORITATIVE 门控；剩余开放面 = `aiSectDisciples` 段（存档自愈）、9 类集合、retained 字段族（§2.75④ 第 3/4 项）。**§2.78（`w4-rem/08`）第 3 项已实施**：`aiSectDisciples` 段 + `worldMapSects` 关闭——写者穷尽审计后四处接线"写入后 native 基线重建"（rebaselineNativeMirror：存档自愈/ensureGameDataIntegrity/攻宗占领/升级回退臂）；`sectRelations`（遭遇战+好感事件活写者，外交域）与 `activeSectId`/`sectName`（下一轮清偿候选）保留并登记。**§2.79（`w4-rem/09`）第 4 项第一段已实施**：retained 字段族逐域判定——**29 项转 closedUnits**（recruitList/activeSectId/sectName/预警去重/附庸契约/宗主/玉符×4/巡逻灵矿住所槽位×4/地形×2/秘境×4/洞府队×2/弟子槽位×5/placedBuildings/spiritFieldPlants）+ **§2.77/§2.78 漏网写者补漏 8 处接线**（宗门改名/仓库卸任迁入引擎层、enterSect/设置重置/槽位释放/取消血炼/偷盗钩子/内存裁剪 rebaseline 或 updateMirror+rebaseline）+ 第二段保留面守卫断言；`sectRelations`（遭遇战+宗门交易 LIVE）与钱包/年度账/执法堂/9 类集合保持保留（第二段清册见 §2.79③ 遗留） |
 | **WS-5b 地图冻结批** | **✅ 已落地（2026-09-15，§2.64.2 W4-C C-②）**——"生成即数据 + `mapGenVersion` 协议全链 + 老档按种子再生回填"全链交付（C++ 状态模型 + `json_codec` 双向 + Kotlin `@ProtoNumber`/`@ColumnInfo` + Room `@Database` 50→51 + `MIGRATION_50_51` + 迁移测试 + 存档往返测试）。~~遗留口径风险: 对拍面把 `terrainTiles`/`mapGenVersion` 列为镜像生成字段排除比对~~ → **✅ 已清偿（2026-09-15，§2.74 W4-D/D3）**——harness 补生产同款 boot 回填后两字段退出排除面、按普通字段参与全状态对拍（47 `Diff*` 全绿） |
 | **WS-4 NPC 移动系统（待玩法设计文档）** | 实现前需用户补充玩法设计文档（数量上限 / 生成规则 / 与弟子系统关系）；E3 组件族（§2.14）与寻路地基（静态地形 + 建筑占位 + 道路，§2.19）已就绪，可行走语义（树/边界是否阻塞）待拍板 |
 | **WS-1 残留口径 / 阶段 3 立项** | **✅ 已决策（2026-09-15，用户拍板"按桌面 Release 数据决策"）：不立项协议 v2**。**决策依据（桌面 Release 实跑 `dirty_tracker_bench_test.cpp`）**：每旬全脏 `diffToJson` = **7.9ms@100 弟子**（实测口径 ~0.10 ms/弟子/旬：100→7.9ms、1000→100.9ms）；**玩家实际规模 ≈100 弟子**（用户口径）⇒ 2x 速（1s/旬）下导出仅占**旬间隔 0.8%**；且每旬镜像跑在**引擎后台协程**（`GameEngineCoreAuthoritativeOps.kt:63` → `engineScope`/`gameDispatcher`），**不占渲染线程** ⇒ 不直接掉帧。按中端机 2.5× 系数估算 ≈20ms/旬 = 间隔 2%，**约 5 倍余量**。⇒ **协议 v2（145+ 列写点 + 47 对拍 + 存档格式）的风险远大于收益，不做**；同时**不做**非协议微优化（空闲窗口 3.8ms@100，且任何"跳过序列化"的优化都必须引入写屏障——正是 §2.34 已摘除的风险面）。**再评估阈值（数值化，可机测）**：① 实际弟子规模 **>400**（= 0.10 ms/弟子/旬 × 2.5 设备系数 ≈ 旬间隔 10%）；② 或 D1 埋点真机实测每旬镜像 **>100ms**。**观测手段 = W4-D/D1 既有埋点（零额外成本）** |

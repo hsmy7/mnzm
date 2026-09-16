@@ -307,7 +307,7 @@ C++）。
 |---|---|---|---|
 | AI 宗门/世界 | `SaveFacadeImpl.kt:56` 存档自愈（worldMapSects/aiSectDisciples）、`occupySectRewards`（占领+清池）、`upgradeSectLevel` 回退臂、`ensureGameDataIntegrity`（upgradeSectLevel 中途可达） | **aiSectDisciples 段 + worldMapSects 已关闭**——写者全部接线"写入后 native 基线重建"（`rebaselineNativeMirror` = importToNative(restoreRng=false) sanctioned 复用，native 未就绪静默跳过）；boot 归一化由首旬全量导入吸收；遭遇战/好感写者挂月结子事件表（flag-OFF 回退臂） | §2.78 |
 
-**§2.78 后剩余开放面**：`sectRelations`（遭遇战/好感事件活写者——外交域收口）、`activeSectId`/`sectName`（enterSect 净化 + LOAD_BOOT，下一轮清偿候选）、9 类实体集合、retained 字段族（钱包/年度收支账/recruitList/生产槽位等）——§2.75④ 第 4 项。
+**§2.79（`w4-rem/09`）retained 字段族逐域判定第一段**：29 项转关闭（recruitList/activeSectId/sectName/预警去重/附庸契约/宗主/玉符×4/巡逻灵矿住所槽位×4/地形×2/秘境×4/洞府队×2/弟子槽位×5/placedBuildings/spiritFieldPlants）——写者穷尽审计后全部落"native 臂回退臂 / LOAD_BOOT / flag-OFF 旗臂 / 已接线基线重建"四类合法形态；**§2.77/§2.78 漏网写者补漏 8 处**（宗门改名/仓库驻守卸任迁入引擎层 + enterSect 收敛/设置重置/槽位释放/取消血炼/偷盗判定钩子/内存裁剪——updateMirror 非捕获或值等值写入后 rebaselineNativeMirror）；审计修正：sectName 原"LOAD_BOOT 族"登记证伪（SectDelegate 改名 = 稳态写者且写 worldMapSects）。**§2.79 后剩余开放面（第 4 项第二段）**：钱包三阶+灵草、年度收支账族、执法堂三项（偷盗钩子）、`usedRedeemCodes`/`watchedItemIds`、`gameEventRecords`/`manualProficiencies`、`productionSlots`（align/placeSlots 偏差）、W4-C 战斗世界域四字段、`sectRelations`（遭遇战+宗门交易）、`pendingPatrolBattleResults`、`autoBuyList`/`mailRecords`/`heavenlyTrialState`、9 类实体集合——写者下沉/接线后逐域转关闭（守卫断言防抢跑）。
 
 **新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
 
