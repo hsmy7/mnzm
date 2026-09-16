@@ -180,6 +180,10 @@ internal suspend fun GameEngine.resolveBeastEncounterIfAny(
     val combatDisciples = validIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
     if (combatDisciples.isEmpty()) return true
     resolveBeastAttackFight(levelId, manualDefenders = combatDisciples)
+    // w3-13 通道关闭配套（§2.79）：遭遇战分支整臂留 Kotlin，写面含 worldMapSects
+    // 守军清理（§2.78 关闭）——战斗后全量重建 native 基线回导 C++（与
+    // GameEngine.resolveBeastAttackFight 主入口同口径）
+    rebaselineNativeMirror("遭遇战分支")
     return true
 }
 

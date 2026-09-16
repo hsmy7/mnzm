@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.config.GameConfigNativeBridge
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.GameCoreRngChannel
+import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.CancellationException
 
@@ -121,8 +122,21 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
  * 全量导入建立，届时吸收已修复状态。
  */
 internal fun GameEngine.rebaselineNativeMirror(reason: String) {
+    rebaselineNativeMirror(stateSyncService, reason)
+}
+
+/**
+ * [GameEngineCore] 侧变体：服务/门面层（仅持 [GameEngineCore]，如 DiscipleFacadeImpl
+ * 残差钩子）在非捕获写入（updateMirror）后重建基线用——与 [GameEngine] 变体同一
+ * StateSyncService 实例（`GameEngine.stateSyncService = gameEngineCore.stateSyncServiceRef`）。
+ */
+internal fun GameEngineCore.rebaselineNativeMirror(reason: String) {
+    rebaselineNativeMirror(stateSyncServiceRef, reason)
+}
+
+private fun rebaselineNativeMirror(stateSync: StateSyncService, reason: String) {
     if (!GameCoreBridge.isLoaded || !GameCoreBridge.nativeIsInitialized()) return
-    if (stateSyncService.importToNative(restoreRng = false)) {
+    if (stateSync.importToNative(restoreRng = false)) {
         DomainLog.i(TAG, "native 基线重建完成（$reason）")
     } else {
         DomainLog.w(TAG, "native 基线重建失败（$reason）——C++ 侧待下一回导/导入收敛")

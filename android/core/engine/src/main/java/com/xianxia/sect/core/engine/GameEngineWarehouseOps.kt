@@ -96,3 +96,27 @@ private fun GameEngine.applyWarehouseGarrisonResiduals(
         DomainLog.w("GameEngine", "assignWarehouseGarrison: sync 失败", e)
     }
 }
+
+/**
+ * 卸任仓库驻守（UI 入口 ProductionViewModel.removeWarehouseGarrison 迁入引擎层
+ * ——w3-13 通道关闭配套 §2.79）：移除槽位条目 + gate/Repository 清理；warehouseGarrisons
+ * §2.79 转关闭后，本写入为该字段唯一非 boot/回退臂稳态 Kotlin 写者，写后全量
+ * 重建 native 基线回导 C++（低频用户动作，O(状态) 一次性成本可接受）。
+ */
+suspend fun GameEngine.removeWarehouseGarrison(buildingInstanceId: String) {
+    engineContextDispatcher.withEngineContext {
+        val currentDiscipleId = stateStore.gameDataSnapshot.warehouseGarrisons
+            .find { it.buildingInstanceId == buildingInstanceId }?.discipleId.orEmpty()
+        updateGameDataAndSync { data ->
+            data.copy(
+                warehouseGarrisons = data.warehouseGarrisons.filter {
+                    it.buildingInstanceId != buildingInstanceId
+                }
+            )
+        }
+        if (currentDiscipleId.isNotEmpty()) {
+            assignmentGate.release(currentDiscipleId)
+        }
+        rebaselineNativeMirror("仓库驻守卸任")
+    }
+}

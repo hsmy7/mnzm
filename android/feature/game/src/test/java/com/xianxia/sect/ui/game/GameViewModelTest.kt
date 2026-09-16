@@ -14,6 +14,7 @@ import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
 import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.notifyUserInteraction
+import com.xianxia.sect.core.engine.renameSect
 import com.xianxia.sect.core.engine.setActiveDialog
 import com.xianxia.sect.core.engine.setFocusedDiscipleId
 import com.xianxia.sect.core.engine.updateGameData
@@ -58,6 +59,7 @@ import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.slot
 import io.mockk.unmockkAll
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -98,6 +100,9 @@ import org.junit.Test
  *   来间接验证委托转发是否正确。
  */
 class GameViewModelTest {
+
+    /** §2.79：renameSect 迁入引擎层 GameEngineLifecycleOps.kt 扩展——mockkStatic 定位用 */
+    private val gameEngineLifecycleOpsKt = "com.xianxia.sect.core.engine.GameEngineLifecycleOpsKt"
 
     // ── 12 个注入依赖的 MockK mock（GameVmServices 归组后按值对象注入）──
     private val gameEngine: GameEngine = mockk(relaxed = true)
@@ -734,59 +739,58 @@ class GameViewModelTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 场景 4：宗门改名逻辑（renameSect）
+    // 场景 4：宗门改名逻辑（renameSect——§2.79 起写入迁入引擎层
+    // GameEngine.renameSect，语义守卫随迁 core:engine GameEngineSectIdentityOpsTest；
+    // 本处只守护 delegate 的委派与 UI 收尾）
     // ════════════════════════════════════════════════════════════════
 
     @Test
     fun `renameSect - 更新 sectName 和玩家宗门名称，不影响其他宗门`() = runTest(testDispatcher) {
-        val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        mockkStatic(gameEngineLifecycleOpsKt)
+        try {
+            coEvery { gameEngine.renameSect(any()) } just runs
 
-        val playerSect = WorldSect(id = "player", name = "青云宗", isPlayerSect = true)
-        val aiSect = WorldSect(id = "ai-1", name = "血煞宗", isPlayerSect = false)
-        val originalData = GameData(
-            sectName = "青云宗",
-            worldMapSects = listOf(playerSect, aiSect)
-        )
+            viewModel.sectDelegate.renameSect("太虚宗")
+            runEngineBlocks()
+            advanceUntilIdle()
 
-        viewModel.sectDelegate.renameSect("太虚宗")
-        runEngineBlocks()
-        advanceUntilIdle()
-
-        val result = lambdaSlot.captured(originalData)
-        assertEquals("GameData.sectName 应更新为新名称", "太虚宗", result.sectName)
-        assertEquals("玩家宗门名称应更新", "太虚宗", result.worldMapSects.find { it.isPlayerSect }?.name)
-        assertEquals("AI 宗门名称不应被修改", "血煞宗", result.worldMapSects.find { !it.isPlayerSect }?.name)
+            coVerify { gameEngine.renameSect("太虚宗") }
+        } finally {
+            unmockkStatic(gameEngineLifecycleOpsKt)
+        }
     }
 
     @Test
     fun `renameSect - 同名更新仍传递到 updateGameData`() = runTest(testDispatcher) {
-        val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        mockkStatic(gameEngineLifecycleOpsKt)
+        try {
+            coEvery { gameEngine.renameSect(any()) } just runs
 
-        val playerSect = WorldSect(id = "player", name = "青云宗", isPlayerSect = true)
-        val originalData = GameData(sectName = "青云宗", worldMapSects = listOf(playerSect))
+            viewModel.sectDelegate.renameSect("青云宗")
+            runEngineBlocks()
+            advanceUntilIdle()
 
-        viewModel.sectDelegate.renameSect("青云宗")
-        runEngineBlocks()
-        advanceUntilIdle()
-
-        val result = lambdaSlot.captured(originalData)
-        assertEquals("同名更新应保持不变", "青云宗", result.sectName)
-        assertEquals("玩家宗门名称应保持不变", "青云宗", result.worldMapSects.find { it.isPlayerSect }?.name)
+            coVerify { gameEngine.renameSect("青云宗") }
+        } finally {
+            unmockkStatic(gameEngineLifecycleOpsKt)
+        }
     }
 
     @Test
     fun `renameSect - 调用 dismissDialog`() = runTest(testDispatcher) {
-        val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        mockkStatic(gameEngineLifecycleOpsKt)
+        try {
+            coEvery { gameEngine.renameSect(any()) } just runs
 
-        viewModel.sectDelegate.renameSect("太虚宗")
-        runEngineBlocks()
-        advanceUntilIdle()
+            viewModel.sectDelegate.renameSect("太虚宗")
+            runEngineBlocks()
+            advanceUntilIdle()
 
-        coVerify { gameEngine.updateGameData(any()) }
-        verify { gameEngine.setActiveDialog(null) }
+            coVerify { gameEngine.renameSect(any()) }
+            verify { gameEngine.setActiveDialog(null) }
+        } finally {
+            unmockkStatic(gameEngineLifecycleOpsKt)
+        }
     }
 
     // ════════════════════════════════════════════════════════════════

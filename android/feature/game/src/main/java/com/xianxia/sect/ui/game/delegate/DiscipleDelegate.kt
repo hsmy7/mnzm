@@ -15,7 +15,6 @@ import com.xianxia.sect.core.engine.releaseReflectionDisciple
 import com.xianxia.sect.core.engine.removeFromRecruitList
 import com.xianxia.sect.core.engine.renameDisciple
 import com.xianxia.sect.core.engine.rewardItemsToDisciple
-import com.xianxia.sect.core.engine.updateDisciple
 import com.xianxia.sect.core.engine.toggleFollowDisciple
 import com.xianxia.sect.core.engine.setAutoRecruitFilterValidated
 import com.xianxia.sect.core.engine.setAutoRejectFilterValidated

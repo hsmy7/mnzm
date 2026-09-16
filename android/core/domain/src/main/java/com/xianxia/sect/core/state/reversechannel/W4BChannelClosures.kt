@@ -79,26 +79,24 @@ internal val w4BClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
 
 /** 本批域的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4BRetainedGameDataFields: Set<String> = linkedSetOf(
-    // 玉符运行时（W4-B/B2 已下沉 1766–1769：settle/dayReset/checkpoint/广告落账
-    // 归 C++，Kotlin 残余 = JadeSymbolService.deduct 唯一消耗入口——洗炼/灵根改等
-    // W4-A 消耗面随其操作事务下沉后才可关；届时 deduct 降级为回退臂-only）
-    "jadeSymbols", "jadeSymbolsToday", "jadeAccumMs", "jadeDayAnchorMs",
-    // 灵矿/住所/巡逻槽位与配置（PATROL 域稳态写者）
-    "spiritMineSlots", "residenceSlots", "patrolSlots", "patrolConfigs",
-    // （原"灵矿月结水位 spiritMineLastSettledMonth"已由 W4-D/D3 转出——
-    //   harness 对齐生产后稳态写者重评，关闭单元与证据见 W4DChannelClosures.kt）
-    // 巡逻战斗待结算（PATROL 域）
+    // 巡逻战斗待结算（PATROL 域——§2.79 审计：迎战弹窗队列 append/drain 为
+    // AUTHORITATIVE 稳态写者，ExplorationService.kt:179/:280/:486）
     "pendingPatrolBattleResults",
     // 自动购买列表与邮件账本（INVENTORY 域，登记不下沉：邮件附件领取含 7 类
     // MAIL 分区随机生成 + 凭据类原子性禁止拆双写域——与 RedeemCodeService 同先例；
     // 自动购买列表为 InventoryDelegate UI 直改）
     "autoBuyList", "mailRecords",
-    // （原"引导领奖 guideClaimedRewardIds"已由 W4-D/D2 下沉转出——
-    //   GUIDE_REWARD_CLAIM_TX=1830，关闭单元与证据见 W4DChannelClosures.kt）
-    // 外交/附庸（DIPLOMACY 域）
-    "sectRelations", "vassalContracts", "suzerainSectId",
+    // 外交/附庸（DIPLOMACY 域——sectRelations §2.79 审计：遭遇战
+    // EncounterBattleService.kt:261 用户迎战路径 + 宗门交易购买 setAcquainted
+    // DiplomacyService.kt:716 两处 LIVE 写者（SECT_TRADE txs 1429-1432 未接线），
+    // 保持传输；第 4 项第二段与交易族同批下沉）
+    "sectRelations",
     // 天道试炼（登记不下沉：模板随机与凭据溢出抑制同事务）
     "heavenlyTrialState",
+    // （原 11 项已随 W4-D retained 字段族逐域判定转出关闭——jadeSymbols 族×4/
+    //   spiritMineSlots/residenceSlots/patrolSlots/patrolConfigs/vassalContracts/
+    //   suzerainSectId；见 W4DChannelClosures.kt §2.79 closedUnits 与证据。
+    //   此前转出：spiritMineLastSettledMonth→W4-D/D3、guideClaimedRewardIds→W4-D/D2）
 )
 
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */

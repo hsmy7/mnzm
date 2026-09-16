@@ -31,22 +31,20 @@ internal val w4CClosedUnits: List<ReverseChannelPolicy.ClosedUnit> = listOf(
 
 /** 本批域的**在册保留**gameData 字段（不可关闭；口径见 `ReverseChannelPolicy.transportedGameDataFields`）。 */
 internal val w4CRetainedGameDataFields: Set<String> = linkedSetOf(
-    // 战斗/探索残差与运行态
+    // 战斗/探索残差与运行态（§2.79 审计维持保留）：
+    // - worldLevels：世界关卡胜利 defeated 标记双臂共用（batch-13 TOCTOU 口径，
+    //   GameEngineWorldBattleOps.kt:212）+ 遭遇战/妖兽突袭击败标记（用户迎战路径，
+    //   EncounterBattleService.kt:347 / ExplorationServiceBeastRaidOps.kt:208）
+    // - sectBattleRecords：attackSect 战报（与 battleLogs 显示域同事务，登记不下沉；
+    //   C++ sect_attack_decision.h countRecentBattleRecords 消费该字段）
+    // - sectDetails/scoutInfo：侦查胜利情报双臂写（GameEngineScoutOps.kt:258）+
+    //   宗门交易懒刷新/购买（DiplomacyService.kt:559/:737，SECT_TRADE txs 未接线）
     "worldLevels", "sectBattleRecords", "sectDetails", "scoutInfo",
-    // 秘境残差与运行态
-    "secretRealmState", "secretRealmSession", "secretRealmAITeams",
-    "secretRealmCooldownYear", "caveExplorationTeams", "aiCaveTeams",
-    // 地图冻结（WS-5b）：地形段与生成器版本戳——**在册保留（照常传输）而非
-    // CLOSED**。批次方案 R7 原拟登记 CLOSED（"地形无 Kotlin 稳态写者"），实施
-    // 定界发现 CLOSED + boot 回填写者会触发 `detectClosedFieldWrites` 误报
-    // （ERROR + 数据丢失计数，gate#7 红）：回填（ensureSectTerrainBackfilled）
-    // 是合法的一次性 Kotlin 写者。保留传输的代价 = 回填那一次的反向信封携带
-    // 一次地形段（≈64KB，一次性，非每旬）；C++ 侧由 importStateInternal
-    // ensureTerrainGenerated 同源生成，回导为幂等覆盖——不承载地形存续
-    //（w3-13 删除反向通道后地形不依赖它），符合 R7 "不得依赖反向回导"的实质。
-    // 域归属：SAVE_LOAD 族（mapSeed 同族，域级证据归 W4-B 的 closures 文件，
-    // 本文件不重复登记——聚合表 toMap 后写会静默覆盖 W4-B 结论）。
-    "terrainTiles", "mapGenVersion",
+    // （原 10 项已随 W4-D/§2.79 retained 字段族逐域判定转出关闭——secretRealmState/
+    //   secretRealmSession/secretRealmAITeams/secretRealmCooldownYear/caveExploration
+    //   Teams/aiCaveTeams/terrainTiles/mapGenVersion；关闭单元与证据见
+    //   W4DChannelClosures.kt §2.79。地形 2 字段当初的"回填误报"担忧已随
+    //   跨语言生成等价证明 + 值比较检测消解，见 w4DDomainEvidence SAVE_LOAD 条目）
 )
 
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */

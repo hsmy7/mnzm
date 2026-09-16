@@ -154,9 +154,13 @@ fun GameEngine.removeDiscipleFromLibrarySlot(slotIndex: Int) {
  */
 suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
     engineContextDispatcher.withEngineContext {
-        stateStore.update {
+        // 捕获豁免（updateMirror，§2.79）：本事务写弟子协议列（statuses/statusData，
+        // 通道已关闭 §2.77）+ 槽位族字段（elderSlots/librarySlots 等 §2.79 关闭）——
+        // 捕获侧 presence 检测会对合法释放误报，写入经尾部 rebaselineNativeMirror
+        // 全量重建基线回导 C++（释放为低频用户动作，O(状态) 一次性成本可接受）
+        stateStore.updateMirror {
             val id = discipleId.toIntOrNull()
-            if (id == null || id !in discipleTables.ids) return@update
+            if (id == null || id !in discipleTables.ids) return@updateMirror
 
             when (discipleTables.statuses[id]) {
                 DiscipleStatus.REFLECTING -> {
@@ -181,6 +185,7 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
                 }
             }
         }
+        rebaselineNativeMirror("弟子槽位释放")
         syncSingleDiscipleStatus(discipleId)
         // clearAllSlots 内部已调用 gate.release()，无需重复调用
         // 双存储同步：事务内只清了镜像，必须同步清 Room 生产槽 Repository，

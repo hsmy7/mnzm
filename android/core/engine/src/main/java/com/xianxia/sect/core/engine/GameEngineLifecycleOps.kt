@@ -214,6 +214,7 @@ private suspend fun GameEngine.checkAndRepairMerchantAndRecruit() {
 
 suspend fun GameEngine.enterSect(sectId: String) {
     return engineContextDispatcher.withEngineContext {
+        var normalized = false
         stateStore.update {
             // boot 自愈只在读档时跑一次，世界重生后（worldSects 曾为空，
             // 归一化整体跳过）进入宗门时旧 sectId 建筑永不匹配 → 不可见不可点。
@@ -227,10 +228,10 @@ suspend fun GameEngine.enterSect(sectId: String) {
                 gameData.placedBuildings, gameData.spiritMineSlots, worldSects, playerOwnedSectIds
             )
             val purified = purifyStaleActiveSectId(sectId, worldSects, playerOwnedSectIds)
-            if (norm.buildings != gameData.placedBuildings ||
+            normalized = norm.buildings != gameData.placedBuildings ||
                 norm.spiritMineSlots != gameData.spiritMineSlots ||
                 purified != sectId
-            ) {
+            if (normalized) {
                 DomainLog.w(
                     "GameEngine",
                     "enterSect 收敛：activeSectId=$sectId→\"$purified\"，" +
@@ -243,6 +244,29 @@ suspend fun GameEngine.enterSect(sectId: String) {
                 spiritMineSlots = norm.spiritMineSlots
             )
         }
+        // w3-13 通道关闭配套：收敛写面（activeSectId/spiritMineSlots §2.79 关闭）发生后
+        // 全量重建 native 基线（§2.75④ "自愈后全量重建基线"）；未发生写入时零成本。
+        if (normalized) rebaselineNativeMirror("enterSect 收敛")
+    }
+}
+
+/**
+ * 宗门改名（UI 入口 SectDelegate.renameSect 迁入引擎层——w3-13 通道关闭配套）：
+ * 写 sectName + worldMapSects 玩家宗门名（worldMapSects §2.78 已关闭、sectName
+ * §2.79 关闭——本写入为二者唯一的非 boot 稳态 Kotlin 写者），写后全量重建
+ * native 基线回导 C++。改名是低频用户动作，O(状态) 一次性成本可接受（§2.78 同口径）。
+ */
+suspend fun GameEngine.renameSect(newName: String) {
+    engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            gameData = gameData.copy(
+                sectName = newName,
+                worldMapSects = gameData.worldMapSects.map { ws ->
+                    if (ws.isPlayerSect) ws.copy(name = newName) else ws
+                }
+            )
+        }
+        rebaselineNativeMirror("宗门改名")
     }
 }
 

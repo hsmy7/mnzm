@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.service.checkpointAllProduction
+import com.xianxia.sect.core.state.MutableGameState
 
 
 /** 内存压力释放时世界地图宗门裁剪上限（无玩家宗门时） */
@@ -74,41 +75,52 @@ fun GameEngine.releaseMemory(level: Int) {
     val logsToKeep = if (normalizedLevel == 1) MEMORY_RELEASE_LOG_KEEP_MODERATE else MEMORY_RELEASE_LOG_KEEP_CRITICAL
     val levelName = if (normalizedLevel == 1) "MODERATE" else "CRITICAL"
     gameEngineCore.launchInScope {
+        var trimmedAny = false
         stateStore.update {
             if (battleLogs.size > logsToKeep) { battleLogs = battleLogs.take(logsToKeep); DomainLog.d("GameEngine",
                 "内存释放($levelName): 战斗日志已清理，保留最近$logsToKeep 条") }
             if (normalizedLevel == 2) {
-                var trimmed = false
-                val worldSects = gameData.worldMapSects
-                if (worldSects.size > 30) {
-                    val playerSect = worldSects.find { it.isPlayerSect }
-                    val sectLimit =
-                        if (playerSect != null) MEMORY_SECT_LIMIT_WITH_PLAYER else MEMORY_SECT_LIMIT_PLAIN
-                    val otherSects = worldSects.filter { !it.isPlayerSect }
-                        .sortedByDescending { s -> s.relation }.take(sectLimit)
-                    val trimmedSects = if (playerSect != null) listOf(playerSect) + otherSects else otherSects
-                    gameData = gameData.copy(worldMapSects = trimmedSects); trimmed = true; DomainLog.d("GameEngine",
-                        "内存释放($levelName): worldMapSects 裁剪至 ${trimmedSects.size} 个")
-                }
-                val caveTeams = gameData.caveExplorationTeams
-                if (caveTeams.size > MEMORY_RELEASE_CAVE_TEAM_LIMIT) {
-                    val trimmedCave = caveTeams.take(MEMORY_RELEASE_CAVE_TEAM_LIMIT)
-                    gameData = gameData.copy(caveExplorationTeams = trimmedCave)
-                    trimmed = true
-                    DomainLog.d("GameEngine", "内存释放($levelName): caveExplorationTeams 裁剪至 ${trimmedCave.size} 个")
-                }
-                val aiCaveTeams = gameData.aiCaveTeams
-                if (aiCaveTeams.size > MEMORY_RELEASE_CAVE_TEAM_LIMIT) {
-                    val trimmedAiCave = aiCaveTeams.take(MEMORY_RELEASE_CAVE_TEAM_LIMIT)
-                    gameData = gameData.copy(aiCaveTeams = trimmedAiCave)
-                    trimmed = true
-                    DomainLog.d("GameEngine", "内存释放($levelName): aiCaveTeams 裁剪至 ${trimmedAiCave.size} 个")
-                }
-                if (!trimmed) DomainLog.d("GameEngine", "内存释放($levelName): 无需裁剪其他列表")
+                trimmedAny = trimHeavyListsForMemoryRelease(levelName)
             }
         }
+        // w3-13 通道关闭配套：裁剪写面（worldMapSects/caveExplorationTeams/aiCaveTeams
+        // 均已关闭 §2.78/§2.79）发生后全量重建 native 基线——裁剪语义 = 双侧释放内存
+        //（C++ 侧同步收敛到裁剪后状态）；未裁剪时零成本
+        if (trimmedAny) rebaselineNativeMirror("内存裁剪")
     }
 
+}
+
+/** CRITICAL 级裁剪体（releaseMemory 提取）：worldMapSects/洞府探索队/AI 洞府队三列表。 */
+private fun MutableGameState.trimHeavyListsForMemoryRelease(levelName: String): Boolean {
+    var trimmed = false
+    val worldSects = gameData.worldMapSects
+    if (worldSects.size > 30) {
+        val playerSect = worldSects.find { it.isPlayerSect }
+        val sectLimit =
+            if (playerSect != null) MEMORY_SECT_LIMIT_WITH_PLAYER else MEMORY_SECT_LIMIT_PLAIN
+        val otherSects = worldSects.filter { !it.isPlayerSect }
+            .sortedByDescending { s -> s.relation }.take(sectLimit)
+        val trimmedSects = if (playerSect != null) listOf(playerSect) + otherSects else otherSects
+        gameData = gameData.copy(worldMapSects = trimmedSects); trimmed = true; DomainLog.d("GameEngine",
+            "内存释放($levelName): worldMapSects 裁剪至 ${trimmedSects.size} 个")
+    }
+    val caveTeams = gameData.caveExplorationTeams
+    if (caveTeams.size > MEMORY_RELEASE_CAVE_TEAM_LIMIT) {
+        val trimmedCave = caveTeams.take(MEMORY_RELEASE_CAVE_TEAM_LIMIT)
+        gameData = gameData.copy(caveExplorationTeams = trimmedCave)
+        trimmed = true
+        DomainLog.d("GameEngine", "内存释放($levelName): caveExplorationTeams 裁剪至 ${trimmedCave.size} 个")
+    }
+    val aiCaveTeams = gameData.aiCaveTeams
+    if (aiCaveTeams.size > MEMORY_RELEASE_CAVE_TEAM_LIMIT) {
+        val trimmedAiCave = aiCaveTeams.take(MEMORY_RELEASE_CAVE_TEAM_LIMIT)
+        gameData = gameData.copy(aiCaveTeams = trimmedAiCave)
+        trimmed = true
+        DomainLog.d("GameEngine", "内存释放($levelName): aiCaveTeams 裁剪至 ${trimmedAiCave.size} 个")
+    }
+    if (!trimmed) DomainLog.d("GameEngine", "内存释放($levelName): 无需裁剪其他列表")
+    return trimmed
 }
 
 // ── 血炼原子操作 ────────────────────────────────────────────────────

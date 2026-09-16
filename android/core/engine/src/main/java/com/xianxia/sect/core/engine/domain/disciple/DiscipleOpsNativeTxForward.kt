@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.nativebridge.ActionIds
@@ -51,9 +52,14 @@ internal fun DiscipleFacadeImpl.applyTheftHookResidual(
     if (!theftCandidate) return
     val id = discipleId.toIntOrNull() ?: return
     if (moralityAfter >= GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) return
-    stateStore.update {
+    // 捕获豁免（updateMirror，§2.79）：执法域写面覆盖弟子协议列（lastTheftJudgementYears/
+    // statuses，通道已关闭 §2.77）+ 集合（偷盗取走）+ 执法堂字段（在册保留）——
+    // 捕获通道已关闭会使判定标记/偷盗所得永不到达 C++（前向镜像覆盖 = 数据丢失）；
+    // 非捕获写入 + 尾部基线重建把整个执法域写面原样推入 C++ 真相源
+    stateStore.updateMirror {
         lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
     }
+    gameEngineCore.rebaselineNativeMirror("偷盗判定钩子")
 }
 
 /** w3-01 赏赐/服药事务转发（AUTHORITATIVE 门控；失败信封/降级返回 null）。 */

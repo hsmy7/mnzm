@@ -114,9 +114,13 @@ suspend fun GameEngine.cancelBloodRefinement(
     discipleId: String
 ) {
     return engineContextDispatcher.withEngineContext {
-        stateStore.update {
+        // 捕获豁免（updateMirror，§2.79）：本事务写弟子协议列（statuses/statusData，
+        // 通道已关闭 §2.77）+ activeBloodRefinements（§2.79 关闭）——写入经尾部
+        // rebaselineNativeMirror 全量重建基线回导 C++（取消为低频用户动作）
+        stateStore.updateMirror {
             cancelBloodRefinement(buildingInstanceId, discipleId)
         }
+        rebaselineNativeMirror("取消血炼")
     }
 }
 

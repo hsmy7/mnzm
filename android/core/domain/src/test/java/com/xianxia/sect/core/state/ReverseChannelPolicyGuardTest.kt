@@ -130,6 +130,56 @@ class ReverseChannelPolicyGuardTest {
     }
 
     @Test
+    fun `audit red line - item4 first tranche fields stay closed`() {
+        // §2.79 retained 字段族逐域判定第一段转关闭的 29 项（w3-13 删除步继续收口）。
+        // 判定依据：AUTHORITATIVE 稳态 Kotlin 写者全部为 native 臂就位后的回退臂 /
+        // LOAD_BOOT 族 / flag-OFF 结算臂 / 已接线基线重建（updateMirror + re-baseline）
+        // 四类合法形态。若回退（恢复传输），本测试失败并指向 handover §2.79。
+        val closed = listOf(
+            "recruitList", "activeSectId", "sectName", "shownWarningStageIds",
+            "vassalContracts", "suzerainSectId",
+            "jadeSymbols", "jadeSymbolsToday", "jadeAccumMs", "jadeDayAnchorMs",
+            "patrolConfigs", "spiritMineSlots", "patrolSlots", "residenceSlots",
+            "terrainTiles", "mapGenVersion",
+            "secretRealmState", "secretRealmSession", "secretRealmAITeams", "secretRealmCooldownYear",
+            "caveExplorationTeams", "aiCaveTeams",
+            "elderSlots", "librarySlots", "warehouseGarrisons", "battleTeams", "activeBloodRefinements",
+            "placedBuildings", "spiritFieldPlants",
+        )
+        val stillTransported = closed.filter { ReverseChannelPolicy.isGameDataFieldTransported(it) }
+        assertTrue(
+            "§2.79 第一段关闭项不得恢复传输：$stillTransported（见 handover §2.79）",
+            stillTransported.isEmpty()
+        )
+    }
+
+    @Test
+    fun `item4 second tranche fields remain transported until writers sink`() {
+        // §2.79 第二段（未关闭项）——AUTHORITATIVE 稳态 Kotlin 写者实测在位
+        // （钱包/年度账/执法堂钩子/兑换码/事件日志/生产槽对齐/战斗世界域/交易族/
+        // 集合 9 类等，逐域证据见 w4D/W4A/W4B/W4C closures 文件与 handover §2.79）。
+        // 关闭其中任一项 = 该写入永不到达 C++（前向镜像覆盖 = 数据丢失）——
+        // 必须先完成写者下沉/接线，再转 closedUnits。
+        val retained = listOf(
+            "spiritStones", "midGradeSpiritStones", "highGradeSpiritStones", "spiritHerbs",
+            "theftJudgementsThisMonth", "annualTheftCount", "annualDesertedDisciples",
+            "annualIncomeBySource", "annualExpenditureByReason", "annualTotalIncome",
+            "annualTotalExpenditure", "annualNewDisciples", "annualDeceasedDisciples",
+            "annualEquipmentBySource", "annualPillBySource", "annualHerbBySource",
+            "usedRedeemCodes", "watchedItemIds",
+            "gameEventRecords", "manualProficiencies", "productionSlots",
+            "worldLevels", "sectBattleRecords", "sectDetails", "scoutInfo",
+            "sectRelations", "pendingPatrolBattleResults",
+            "autoBuyList", "mailRecords", "heavenlyTrialState",
+        )
+        val wronglyClosed = retained.filter { !ReverseChannelPolicy.isGameDataFieldTransported(it) }
+        assertTrue(
+            "第二段保留项在写者下沉前不得关闭（数据丢失面）：$wronglyClosed",
+            wronglyClosed.isEmpty()
+        )
+    }
+
+    @Test
     fun `closed sections are dropped and reopen restores transport`() {
         val section = ReverseChannelPolicy.SECTION_LOCKED_BEAST_IDS
         assertFalse(

@@ -474,7 +474,13 @@ class DiscipleStatusService @Inject constructor(
      * 清除所有槽位分配（灵脉矿/藏经阁/长老/驻守/洞府探索队伍/任务/秘境会话）。
      */
     suspend fun resetAllDisciplesStatus() {
-        val protectedIds = stateStore.updateAndReturn { clearSlotsForReset() }
+        // 捕获豁免（updateMirror，§2.79）：重置族写弟子协议列（statuses/statusData，
+        // 通道已关闭 §2.77）+ worldMapSects/activeMissions（§2.78 关闭）+ 槽位族字段
+        // （§2.79 关闭）——捕获侧 presence 检测会对合法重置误报；写入经
+        // GameEngine.resetAllDisciplesStatus 包装层的 rebaselineNativeMirror 全量
+        // 重建基线回导 C++（重置为低频设置动作，O(状态) 一次性成本可接受）
+        var protectedIds: Set<String> = emptySet()
+        stateStore.updateMirror { protectedIds = clearSlotsForReset() }
 
         // 生产槽位通过 DiscipleLifecycleManager 清理（涉及 Repository）
         discipleLifecycleManager.clearProductionSlots(protectedIds)

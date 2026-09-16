@@ -37,4 +37,8 @@ internal fun topLevelSection(domain: ReverseChannelPolicy.Domain, name: String):
  * 构造**弟子通道**关闭单元（w3-13：通道整体关闭用；协议名 = `disciples`）。
  */
 internal fun discipleChannel(domain: ReverseChannelPolicy.Domain): ReverseChannelPolicy.ClosedUnit =
-    ReverseChannelPolicy.ClosedUnit(domain, ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL, ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME)
+    ReverseChannelPolicy.ClosedUnit(
+        domain,
+        ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
+        ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME
+    )

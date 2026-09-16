@@ -76,13 +76,13 @@ class ReverseChannelCloseoutTest {
         val sync = StateSyncService(store) { sent += it.decodeToString(); true }
         sync.applySnapshot(NativeGameState(gameData = store.gameDataValue))
 
-        store.update { gameData = gameData.copy(jadeSymbols = 42) }
+        store.update { gameData = gameData.copy(spiritStones = 42) }
         assertTrue(sync.applyDirtyToNative())
 
         val changed = json.parseToJsonElement(sent.last()).jsonObject["changed"]!!.jsonObject
         assertTrue(
-            "在册保留字段（玉符运行时为 Kotlin 掌有）必须继续回导",
-            changed["gameData"]?.jsonObject?.containsKey("jadeSymbols") == true
+            "在册保留字段（钱包三阶为第 4 项第二段在册保留，§2.79）必须继续回导",
+            changed["gameData"]?.jsonObject?.containsKey("spiritStones") == true
         )
         assertTrue("在册保留字段的写入不得计入关闭域检测", ReverseChannelPolicy.closedWriteCountSnapshot() == 0L)
     }

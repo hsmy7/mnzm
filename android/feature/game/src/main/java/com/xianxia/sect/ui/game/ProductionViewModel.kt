@@ -4,9 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.assignDiscipleToLibrarySlot
 import com.xianxia.sect.core.engine.assignWarehouseGarrisonAtomic
-import com.xianxia.sect.core.engine.releaseDiscipleAssignment
 import com.xianxia.sect.core.engine.removeDiscipleFromLibrarySlot
-import com.xianxia.sect.core.engine.updateGameDataAndSync
+import com.xianxia.sect.core.engine.removeWarehouseGarrison
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
@@ -45,17 +44,9 @@ class ProductionViewModel @Inject constructor(
         )
     }
 
+    /** 卸任仓库驻守（写入迁入引擎层 GameEngine.removeWarehouseGarrison——§2.79 通道关闭配套） */
     suspend fun removeWarehouseGarrison(buildingInstanceId: String) {
-        val currentDiscipleId = gameEngine.gameDataSnapshot.warehouseGarrisons
-            .find { it.buildingInstanceId == buildingInstanceId }?.discipleId.orEmpty()
-        gameEngine.updateGameDataAndSync { data ->
-            data.copy(warehouseGarrisons = data.warehouseGarrisons.filter {
-                it.buildingInstanceId != buildingInstanceId
-            })
-        }
-        if (currentDiscipleId.isNotEmpty()) {
-            gameEngine.releaseDiscipleAssignment(currentDiscipleId)
-        }
+        gameEngine.removeWarehouseGarrison(buildingInstanceId)
     }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬

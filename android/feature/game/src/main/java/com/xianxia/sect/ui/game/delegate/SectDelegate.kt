@@ -5,10 +5,8 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.SectLevelClaimResult
 import com.xianxia.sect.core.engine.SectLevelUpgradeResult
 import com.xianxia.sect.core.engine.claimSectLevelReward
+import com.xianxia.sect.core.engine.renameSect
 import com.xianxia.sect.core.engine.upgradeSectLevel
-import com.xianxia.sect.core.engine.updateGameData
-import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.WorldSect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -30,17 +28,10 @@ class SectDelegate(
         onNavigateToDialog(com.xianxia.sect.core.domain.dialog.DialogType.SectLevelDetail)
     }
 
-    /** 修改宗门名称 */
+    /** 修改宗门名称（写入迁入引擎层 GameEngine.renameSect——§2.79 通道关闭配套） */
     fun renameSect(newName: String) {
         gameEngine.launchOnEngine {
-            gameEngine.updateGameData { data: GameData ->
-                data.copy(
-                    sectName = newName,
-                    worldMapSects = data.worldMapSects.map { ws: WorldSect ->
-                        if (ws.isPlayerSect) ws.copy(name = newName) else ws
-                    }
-                )
-            }
+            gameEngine.renameSect(newName)
             withContext(Dispatchers.Main) {
                 onDismissDialog()
                 onShowSuccess("宗门已更名为「${newName}」")

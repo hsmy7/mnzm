@@ -265,7 +265,12 @@ class GameEngine @Inject constructor(
         beastLevelId: String,
         manualDefenders: List<Disciple>? = null
     ): Boolean {
-        return explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
+        val handled = explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
+        // w3-13 通道关闭配套（§2.79）：迎战写面（worldMapSects 守军清理 §2.78 关闭、
+        // worldLevels 在册保留）发生战斗即全量重建 native 基线回导 C++（用户迎战为
+        // 低频动作）；未处理（妖兽已不在）零成本
+        if (handled) rebaselineNativeMirror("妖兽迎战")
+        return handled
     }
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
 
