@@ -1,6 +1,15 @@
 ## [4.01.14] - 2026-09-08
 
 
+### W4-D/D4 终局——w3-13 反向通道删除（五步⑤落地，通道不复存在）（§2.82）
+
+> 需求：实施 handover §2.75④ 第 5 项——写者收口四段（§2.76–§2.81）达成硬前置 + 五步④归档 tag `w3-13-pre-delete` 后的⑤删除本体。**纯删除批：零新增行为、零协议面、零 ActionId 变更、玩家可见语义零变更（§2.80 已证稳态窗口恒空 = 通道零流量）⇒ 游戏内 `changelog_entries.json` 未追加**。
+
+- **删除面**：① Kotlin 捕获链——`GameStateStoreImpl.ReverseDirtyAccumulator` + `captureReverseDirty`/`captureCollection` + `consumeReverseDirty`/`resetReverseAccumulator` + 接口 `ReverseDirtySnapshot`/`CollectionCapture` 整段；② 信封/发送链——`StateSyncService` 删约 470 行（`applyDirtyToNative`/`buildReverseEnvelope` 族/关闭字段检测族/信封体积埋点 + `reverseSender` 构造参数 + 版本/缓存/锚点字段）；③ `ReverseChannelPolicy.kt` + `reversechannel/` 包五文件**整包删除**；④ tick 集成——步骤⑤反向回导与 `resetReverseAccumulator` 接线、`GameEngineRoadOps.syncRoadChangeToNative`；⑤ C++——`GameCore::applyReverseDirty` + 匿名辅助簇四函数（`upsertEntities`/`removeEntities`/`applyCollectionUpsert`/`applyCollectionRemove`）+ `reverseVersion_` + 双 JNI 导出（生产 `nativeApplyReverseDirty` + 对拍 `nativeCoreApplyReverseDirty`）+ GTest `apply_reverse_dirty_test.cpp`（13 用例）；⑥ 5 个 Kotlin 反向测试类删除（`ReverseChannelPolicyGuardTest`/`ReverseChannelCloseoutTest`/`ReverseChannelVolumeProfileTest`/`StateSyncServiceReverseTest`/`GameStateStoreReverseDirtyTest`）+ 停发观察窗用例删除（仪器随通道移除）。
+- **保留面（原样）**：前向镜像（`applyDirtyFromNative`/`applySnapshot`/`syncFromNative`）+ 全量导入（`importToNative(restoreRng)`）+ `rebaselineNativeMirror` 事件后基线重建 + `updateMirror` 镜像投影入口 + 各域 native 事务回退臂。**AUTHORITATIVE 稳态 Kotlin 对 C++ 只读**——唯一合法 C++ 写入路径 = `importToNative` 全量导入。
+- **防复发两道门禁（§2.75④ 第 5 项承诺落地）**：① `MirrorReadOnlyGuardTest`（新增，源码扫描守卫）——六模块主源对通道符号族零命中，命中即 = 删除步被局部回退；② 稳态零写入断言转正式硬门禁——`FakeGameStateStore.nonMirrorWriteCount`（非镜像入口持久变更计数，AUTHORITATIVE 门控）+ `DiffAuthoritativeTickTest` 100 旬全管线断言其为 0（变红处置 = 下沉 native 事务，禁止放宽断言）。
+- **门禁**：桌面 C++ **1417/1417**（= 1430（§2.77 实测真值）− 13 反向用例；基线表旧记 1417 系 §2.73 漂移值，已修注）｜`:core:engine` **3288/0/0/0**（47 `Diff*` 全绿 + 稳态零写入断言绿）｜`:core:domain` **1752/0**｜`:core:data` **716/0/15 既有跳过**｜`:feature:game` **872/0**｜`:app` **995/0/2 既有跳过**｜六模块 detekt 全绿（3 处删除批新增违规实修，未进 baseline）｜NDK + lintRelease 绿｜生成器幂等零漂移（198 动作 / maxId=1861）｜JNI 导出 ↔ Kotlin external **38 ↔ 38**。真机 E3/N5（信封体积/耗时）观测面随通道删除取消。
+
 ### W4-D/D4 续·retained 字段族逐域判定第三段（终段）——9 类实体集合转关闭，w3-13 删除步硬前置全量达成（§2.81）
 
 > 需求：实施 handover §2.80③ 登记的最后一块拼图——9 类实体集合关闭专项。**零协议面、零 ActionId 变更、零 C++ 改动、玩家可见语义零变更（宿主事务 updateMirror 化 + 尾部/双臂基线重建）⇒ 游戏内 `changelog_entries.json` 未追加**（D1–D3 同款口径）。

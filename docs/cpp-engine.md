@@ -565,7 +565,7 @@ android/app/src/main/cpp/
 | ActionId 总数（`action_ids.h` / `ActionIds.kt`，单一事实源 `scripts/gen-action-ids.mjs`） | ~~114~~ → **170（maxId=1733）** | `node scripts/gen-action-ids.mjs`；两份生成物同源一致 |
 | `execute_dispatch.cpp` handler 域函数 | 20（2026-09-11）/ 现值见 `parallel-batches-w2/README.md` | handleWallet/Inventory/…/DeathHandler |
 | 集中 switch case 标签 | 104（其余经范围分支覆盖） | `^\s*case action::` 计数 |
-| JNI 导出 ↔ Kotlin external 声明 | 39 ↔ 39（无孤儿） | `GameCoreBridge.cpp` / `GameCoreBridge.kt` 符号面扫描 |
+| JNI 导出 ↔ Kotlin external 声明 | ~~39 ↔ 39~~ → **38 ↔ 38（无孤儿）**（§2.82 删 `nativeApplyReverseDirty`——w3-13 反向通道删除） | `GameCoreBridge.cpp` / `GameCoreBridge.kt` 符号面扫描 |
 | Kotlin 侧零引用 ActionId | 42（纯函数·影子对拍基准 + 查询留守族，批 8-4 六类裁决在案） | 名称面全仓扫描（含测试） |
 
 **UI 操作面下沉批（反向通道按域关闭的前置，2026-09-10 交付 / 2026-09-11 集成收口）**：

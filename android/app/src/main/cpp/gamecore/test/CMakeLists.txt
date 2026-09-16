@@ -45,7 +45,6 @@ add_executable(game-core-tests
     json_codec_test.cpp
     dirty_tracker_test.cpp
     dirty_tracker_bench_test.cpp
-    apply_reverse_dirty_test.cpp
     manual_recruit_test.cpp
     disciple_store_test.cpp
     disciple_store_bench_test.cpp

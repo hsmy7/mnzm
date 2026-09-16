@@ -312,15 +312,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreImportStateNoRng
     return g_core->importStateJsonNoRng(jbytesToString(env, stateJson)) ? JNI_TRUE : JNI_FALSE;
 }
 
-// ── 反向增量通道（applyReverseDirty 对拍用）──────
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreApplyReverseDirty(
-    JNIEnv* env, jobject /*thiz*/, jbyteArray dirtyJson) {
-    if (!g_core) return JNI_FALSE;
-    return g_core->applyReverseDirty(jbytesToString(env, dirtyJson)) ? JNI_TRUE : JNI_FALSE;
-}
-
 // 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉
 // 对拍用：协议与生产 GameCoreBridge.nativeManualRecruitFromList 一致）
 extern "C" JNIEXPORT jbyteArray JNICALL

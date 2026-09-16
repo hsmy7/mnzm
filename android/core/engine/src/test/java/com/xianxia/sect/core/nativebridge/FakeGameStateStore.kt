@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
@@ -20,7 +19,6 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag as NativeEngineFlagX
-import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +31,11 @@ import kotlinx.coroutines.flow.StateFlow
  * takeAtomicSnapshot/实体列表/原子快照）；未用接口成员为合法 no-op 桩。
  * 从 DiffStateSyncTest 内部类提取为顶级类——StateSyncService、增量镜像
  * （applyDirty）、TimeSystem 对拍等测试复用同一实现，避免多份拷贝漂移。
+ *
+ * 稳态零写入断言（w3-13 防复发，handover §2.82）：[nonMirrorWriteCount] 计数
+ * "非镜像入口（update/updateAndReturn/modifyState）提交的持久状态变更"且仅在
+ * AUTHORITATIVE 模式下计数（flag-OFF 写入即真相，不是违规）。对拍用例据此断言
+ * AUTHORITATIVE 稳态管线的 Kotlin 侧游戏写入为零。
  */
 @Suppress("EmptyFunctionBlock")  // 未用接口成员为合法 no-op 桩（测试只验证被测服务自身逻辑）
 open class FakeGameStateStore : GameStateStore {
@@ -51,46 +54,34 @@ open class FakeGameStateStore : GameStateStore {
     // 记录 update 调用（验证单事务）
     var updateCallCount = 0
 
-    // ── 反向增量通道：镜像生产 GameStateStoreImpl 的事务级捕获 ──
-
-    private class ReverseAcc {
-        val discipleIds = LinkedHashSet<Int>()
-        var rejectedRecord = false
-        var gameDataChanged = false
-        val collections = LinkedHashMap<String, GameStateStore.CollectionCapture>()
-
-        fun clear() {
-            discipleIds.clear()
-            rejectedRecord = false
-            gameDataChanged = false
-            collections.clear()
-        }
-    }
-
-    private val reverseAcc = ReverseAcc()
+    /**
+     * 非镜像入口的持久状态变更计数（AUTHORITATIVE 下即"稳态违规写入"观测面）。
+     * 镜像入口（[updateMirror]）不计——镜像写入源自 C++ 真相源，属合法投影。
+     */
+    var nonMirrorWriteCount = 0
+        private set
 
     // ── 嵌套事务重入────────────────────────
     // 对齐生产 GameStateStoreImpl 的 ReentrantLock 重入语义（:913-1015）：
     // 最外层 update 创建事务 buffer（activeTransaction）；嵌套 update 检测到
-    // 活跃事务时**复用同一 buffer** 执行 block（不 persist、不 captureReverse、
+    // 活跃事务时**复用同一 buffer** 执行 block（不 persist、不计数、
     // 不递增 updateCallCount）——内层写入进入外层事务，最外层结束时统一
-    // persistFrom + captureReverse，内层写入不被外层提交覆盖。
+    // persistFrom 与计数，内层写入不被外层提交覆盖。
     private var activeTransaction: MutableGameState? = null
 
     override fun update(block: MutableGameState.() -> Unit) {
-        updateInternal(block, captureReverse = true)
+        updateInternal(block, mirror = false)
     }
 
     /**
      * 镜像专用事务更新（对齐生产 GameStateStoreImpl.updateMirror）：
-     * C++ → Kotlin 前向镜像写入不参与反向捕获——镜像变更由 C++ 产生、无需回导，
-     * 不污染玩家操作捕获窗口（tick ⑤ 只发送玩家操作 + 残留执行器产生的变更）。
+     * C++ → Kotlin 前向镜像的投影写入入口——镜像只读契约的命名约定。
      */
     override fun updateMirror(block: MutableGameState.() -> Unit) {
-        updateInternal(block, captureReverse = false)
+        updateInternal(block, mirror = true)
     }
 
-    private fun updateInternal(block: MutableGameState.() -> Unit, captureReverse: Boolean) {
+    private fun updateInternal(block: MutableGameState.() -> Unit, mirror: Boolean) {
         val active = activeTransaction
         if (active != null) {
             active.block()
@@ -103,9 +94,7 @@ open class FakeGameStateStore : GameStateStore {
             val baseline = CaptureBaseline(gameDataValue, collectionValues())
             mgs.block()
             persistFrom(mgs)
-            if (captureReverse) {
-                captureReverse(baseline, mgs)
-            }
+            if (!mirror) countNonMirrorWrite(baseline, mgs)
         } finally {
             activeTransaction = null
         }
@@ -123,7 +112,7 @@ open class FakeGameStateStore : GameStateStore {
             val baseline = CaptureBaseline(gameDataValue, collectionValues())
             val result = mgs.block()
             persistFrom(mgs)
-            captureReverse(baseline, mgs)
+            countNonMirrorWrite(baseline, mgs)
             return result
         } finally {
             activeTransaction = null
@@ -147,68 +136,22 @@ open class FakeGameStateStore : GameStateStore {
         "seeds", "storageBags"
     )
 
-    /** 镜像生产 captureReverseDirty：弟子脏 id（peek）+ gameData 引用 + 集合引用。 */
-    private fun captureReverse(baseline: CaptureBaseline, mgs: MutableGameState) {
-        if (mgs.gameData !== baseline.gameData) reverseAcc.gameDataChanged = true
+    /** 非镜像入口提交了持久状态变更 ⇒ AUTHORITATIVE 下计数（稳态零写入断言观测面）。 */
+    private fun countNonMirrorWrite(baseline: CaptureBaseline, mgs: MutableGameState) {
+        if (!NativeEngineFlagX.authoritative) return
+        val gameDataChanged = mgs.gameData !== baseline.gameData
         val current = listOf(
             mgs.equipmentStacks.items, mgs.equipmentInstances.items, mgs.manualStacks.items,
             mgs.manualInstances.items, mgs.pills.items, mgs.materials.items,
             mgs.herbs.items, mgs.seeds.items, mgs.storageBags.items
         )
-        for (i in collectionNames().indices) {
-            val name = collectionNames()[i]
-            val changedReference = baseline.collections[i] !== current[i]
-            // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（与生产 GameStateStoreImpl 同源）；
-            // 检测 AUTHORITATIVE 门控同生产（flag-OFF 写入即真相，无回导缺口）
-            if (changedReference && !ReverseChannelPolicy.isCollectionTransported(name)) {
-                if (NativeEngineFlagX.authoritative) {
-                    ReverseChannelPolicy.noteClosedWrite(
-                        ReverseChannelPolicy.Kind.COLLECTION, name, "FakeGameStateStore"
-                    )
-                }
-            } else if (changedReference) {
-                val removedIds = baseline.collections[i].mapTo(HashSet()) { (it as HasId).id } -
-                    current[i].mapTo(HashSet()) { (it as HasId).id }
-                @Suppress("UNCHECKED_CAST")
-                reverseAcc.collections[name] = GameStateStore.CollectionCapture(
-                    upserts = current[i] as List<HasId>,
-                    removedIds = removedIds
-                )
-            }
+        val collectionsChanged = collectionNames().indices.any { i ->
+            baseline.collections[i] !== current[i]
         }
-        val tracker = mgs.discipleTables.changedIdTracker
-        val ids = tracker.snapshotChangedIds()
-        if (ids.isNotEmpty()) {
-            // 逐域关闭（batch-21）：弟子通道关闭后不累积脏 id，但写入仍登记检测
-            if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
-                reverseAcc.discipleIds += ids
-                if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
-            } else if (NativeEngineFlagX.authoritative) {
-                // 检测 AUTHORITATIVE 门控同生产（w3-13）
-                ReverseChannelPolicy.noteClosedWrite(
-                    ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
-                    ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
-                    "FakeGameStateStore"
-                )
-            }
+        val disciplesChanged = mgs.discipleTables.dirtyTracker.isDirty
+        if (gameDataChanged || collectionsChanged || disciplesChanged) {
+            nonMirrorWriteCount++
         }
-    }
-
-    override fun consumeReverseDirty(): GameStateStore.ReverseDirtySnapshot? {
-        val snap = GameStateStore.ReverseDirtySnapshot(
-            discipleIds = reverseAcc.discipleIds.toSet(),
-            rejectedRecord = reverseAcc.rejectedRecord,
-            gameDataChanged = reverseAcc.gameDataChanged,
-            collections = reverseAcc.collections.toMap()
-        )
-        // 空窗口不产生快照（消费方零发送）
-        if (snap.isEmpty) return null
-        reverseAcc.clear()
-        return snap
-    }
-
-    override fun resetReverseAccumulator() {
-        reverseAcc.clear()
     }
 
     /** 构建可写事务态（与生产 store 相同的字段面）。 */

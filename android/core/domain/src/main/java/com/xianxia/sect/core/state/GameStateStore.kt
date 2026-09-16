@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -241,16 +240,18 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun update(block: MutableGameState.() -> Unit)
 
     /**
-     * 镜像专用事务更新：与 [update] 语义一致，但**不参与反向
-     * 增量捕获**（[consumeReverseDirty] 窗口）。
+     * 镜像专用事务更新：C++ → Kotlin 前向镜像（[com.xianxia.sect.core.nativebridge.StateSyncService]
+     * 的 applyDirty/applySnapshot）与生产同款"非捕获事务"语义的命名入口。
      *
-     * 用途：C++ → Kotlin 前向镜像（[com.xianxia.sect.core.nativebridge.StateSyncService]
-     * 的 applyDirty/applySnapshot）——镜像写入的变更由 C++ 产生、无需回导；
-     * 若混入反向累加器会污染玩家操作捕获窗口，导致 Kotlin 侧灵石扣除等
-     * 玩家操作变更无法同步回 C++ 真相源。
+     * 语义约定（w3-13 反向通道删除后的镜像只读契约，handover §2.82）：
+     * `updateMirror` = "写入内容源自 C++ 真相源的投影"，`update` = "Kotlin 侧
+     * 游戏写入"。AUTHORITATIVE 稳态下 tick 管线的状态写入必须全部经
+     * `updateMirror`（Kotlin 对 C++ 状态只读，唯一合法的 C++ 写入路径是
+     * `StateSyncService.importToNative` 全量导入）；该纪律由引擎对拍的
+     * 稳态零写入断言与镜像只读契约守卫长期看护。
      *
      * 默认实现委托 [update]（保持既有 GameStateStore 实现零改动兼容；生产实现
-     * [GameStateStoreImpl] 与测试替身 FakeGameStateStore 覆写为"不捕获"）。
+     * [GameStateStoreImpl] 与测试替身 FakeGameStateStore 覆写为独立入口）。
      */
     fun updateMirror(block: MutableGameState.() -> Unit) {
         update(block)
@@ -334,58 +335,4 @@ interface GameStateStore : GameStateSnapshotProvider {
     suspend fun resetForSlot(slotId: Int) {
         reset()
     }
-
-    // === 反向增量通道（Kotlin → C++ 增量回导） ===
-
-    /**
-     * 单集合反向捕获：upsert 实体全量 + 自捕获基线消失的 id。
-     *
-     * @property upserts 捕获时刻该集合的完整实体列表（幂等覆盖语义）
-     * @property removedIds 捕获基线中存在、捕获时刻已消失的 id（删除语义）
-     */
-    @Immutable
-    data class CollectionCapture(
-        val upserts: List<HasId>,
-        val removedIds: Set<String>
-    )
-
-    /**
-     * 反向增量捕获快照：AUTHORITATIVE tick 残留窗口（自上次消费以来全部事务）的
-     * Kotlin 侧状态变化汇总，供 StateSyncService 增量回导 C++（取代每旬全量回导）。
-     *
-     * @property discipleIds 窗口内被修改过的弟子 id（消费方 flush 时从当前表组装
-     *           最新值；已从表中移除的 id 由消费方核对后进 removed）
-     * @property rejectedRecord 任一事务因 id 超上限拒绝记录 → 弟子侧必须全量兜底
-     * @property gameDataChanged gameData 整对象引用变化 → 消费方全量发送（排除 rngStates）
-     * @property collections 集合名 → 该集合最近一次捕获
-     */
-    @Immutable
-    data class ReverseDirtySnapshot(
-        val discipleIds: Set<Int> = emptySet(),
-        val rejectedRecord: Boolean = false,
-        val gameDataChanged: Boolean = false,
-        val collections: Map<String, CollectionCapture> = emptyMap()
-    ) {
-        /** 窗口内是否无任何可回导变化。 */
-        val isEmpty: Boolean
-            get() = discipleIds.isEmpty() && !rejectedRecord && !gameDataChanged &&
-                collections.isEmpty()
-    }
-
-    /**
-     * 消费并清空反向增量捕获。
-     *
-     * 由 StateSyncService 在 AUTHORITATIVE tick 步骤 ⑤ 调用；无捕获时返回 null
-     * （空窗口零发送）。默认实现（无捕获能力）返回 null。
-     */
-    fun consumeReverseDirty(): ReverseDirtySnapshot? = null
-
-    /**
-     * 清空反向增量捕获。
-     *
-     * 由 AUTHORITATIVE tick 在步骤 ②（forward 增量镜像）后调用——forward 通道
-     * 自身的变更由 C++ 产生、无需回导，重置窗口避免其污染反向增量；
-     * 全量导入成功后同样调用（防陈旧捕获误发）。默认实现为无操作。
-     */
-    fun resetReverseAccumulator() {}
 }

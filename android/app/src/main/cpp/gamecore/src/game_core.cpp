@@ -18,88 +18,7 @@
 
 namespace gamecore {
 
-// ── 反向增量应用辅助 ─────────────────────────────
-
 namespace {
-
-/// 实体集合按 id upsert：已存在原位覆盖（保序），新实体追加末尾（保序）。
-/// 与 Kotlin StateSyncService.applyToStore 的"先删后插"不同——原位覆盖保留
-/// 既有顺序（RNG 对拍红线：弟子向量序 == Kotlin ids 序）。
-template <typename T>
-void upsertEntities(std::vector<T>& vec, const nlohmann::json& upserts) {
-    // 规模解耦（/ 方案 D7 改动 2）：一次 O(N) 建 id→index 索引，
-    // M 条增量 O(1) 查找——替代 O(N×M) find_if（旬节拍成本随状态规模平方级
-    // 放大的根因）。upsert 语义保持：已存在原位覆盖（保序）、新实体追加。
-    if (upserts.empty()) return;
-    std::unordered_map<std::string, std::size_t> index;
-    index.reserve(vec.size() * 2);
-    for (std::size_t i = 0; i < vec.size(); ++i) index.emplace(vec[i].id, i);
-    for (const auto& e : upserts) {
-        if (!e.is_object() || !e.contains("id")) continue;
-        T entity = e.get<T>();
-        const auto it = index.find(entity.id);
-        if (it != index.end()) {
-            vec[it->second] = std::move(entity);
-        } else {
-            index.emplace(entity.id, vec.size());
-            vec.push_back(std::move(entity));
-        }
-    }
-}
-
-/// 实体集合按 id 删除（其余顺序保留）。
-template <typename T>
-void removeEntities(std::vector<T>& vec, const nlohmann::json& removed) {
-    // 同 upsertEntities：待删 id 集合化后单趟 compaction——
-    // 替代每条增量一趟全表 remove_if 的 O(N×M)
-    if (removed.empty()) return;
-    std::unordered_set<std::string> toRemove;
-    toRemove.reserve(removed.size() * 2);
-    for (const auto& idEl : removed) {
-        if (idEl.is_string()) toRemove.insert(idEl.get<std::string>());
-    }
-    if (toRemove.empty()) return;
-    vec.erase(std::remove_if(vec.begin(), vec.end(),
-        [&](const T& x) { return toRemove.count(x.id) > 0; }), vec.end());
-}
-
-/// 集合名分发：upsert（disciples + 9 实体集合；未知集合宽松忽略——前向兼容）。
-/// disciples 走 DiscipleStore（SoA）：已存在原位覆盖（保序）、新弟子追加（保序）。
-void applyCollectionUpsert(state::GameState& s, const std::string& name,
-                           const nlohmann::json& arr) {
-    if (name == "disciples") {
-        for (const auto& e : arr) {
-            if (!e.is_object() || !e.contains("id")) continue;
-            s.disciples.upsertDisciple(e.get<state::Disciple>());
-        }
-    } else if (name == "equipmentStacks") upsertEntities(s.equipmentStacks, arr);
-    else if (name == "equipmentInstances") upsertEntities(s.equipmentInstances, arr);
-    else if (name == "manualStacks") upsertEntities(s.manualStacks, arr);
-    else if (name == "manualInstances") upsertEntities(s.manualInstances, arr);
-    else if (name == "pills") upsertEntities(s.pills, arr);
-    else if (name == "materials") upsertEntities(s.materials, arr);
-    else if (name == "herbs") upsertEntities(s.herbs, arr);
-    else if (name == "seeds") upsertEntities(s.seeds, arr);
-    else if (name == "storageBags") upsertEntities(s.storageBags, arr);
-}
-
-/// 集合名分发：remove
-void applyCollectionRemove(state::GameState& s, const std::string& name,
-                           const nlohmann::json& arr) {
-    if (name == "disciples") {
-        for (const auto& idEl : arr) {
-            if (idEl.is_string()) s.disciples.removeById(idEl.get<std::string>());
-        }
-    } else if (name == "equipmentStacks") removeEntities(s.equipmentStacks, arr);
-    else if (name == "equipmentInstances") removeEntities(s.equipmentInstances, arr);
-    else if (name == "manualStacks") removeEntities(s.manualStacks, arr);
-    else if (name == "manualInstances") removeEntities(s.manualInstances, arr);
-    else if (name == "pills") removeEntities(s.pills, arr);
-    else if (name == "materials") removeEntities(s.materials, arr);
-    else if (name == "herbs") removeEntities(s.herbs, arr);
-    else if (name == "seeds") removeEntities(s.seeds, arr);
-    else if (name == "storageBags") removeEntities(s.storageBags, arr);
-}
 
 /// 导入侧 id 计数器对齐：递归遍历存档 JSON 全部字符串，
 /// 凡 "gc-<prefix>-<纯数字>" 形态即把对应注册表计数器推到 max(current, N)
@@ -544,10 +463,6 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
         // 前向/反向镜像零载荷（稳态每旬零增量）。
         ensureTerrainGenerated();
         dirtyTracker_.resetBaseline(state_);
-        // 全量导入 = 重同步基线：反向增量版本归零（配对 Kotlin
-        // StateSyncService.importToNative 成功后重置 reverseVersion——
-        // 防跨会话/热重载两端版本错位导致增量回导永久 version mismatch）
-        reverseVersion_ = 0;
         return true;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
@@ -595,88 +510,6 @@ std::string GameCore::exportDirtyJson() {
         logger_->log(LogLevel::kError, "GameCore",
                      std::string("exportDirtyJson failed: ") + e.what());
         return R"({"version":0,"changed":{},"removed":{}})";
-    }
-}
-
-bool GameCore::applyReverseDirty(const std::string& dirtyJson) {
-    if (!initialized_) return false;
-    try {
-        const auto j = nlohmann::json::parse(dirtyJson);
-        // 版本严格递增校验（防乱序/重复应用——Kotlin 侧单线程发送天然有序，
-        // 但全量回导兜底路径可能交错，防御性拒绝）
-        const uint64_t v = j.value("version", 0ULL);
-        if (v != reverseVersion_ + 1) {
-            logger_->log(LogLevel::kWarn, "GameCore",
-                "applyReverseDirty: version mismatch v=" + std::to_string(v) +
-                " expected=" + std::to_string(reverseVersion_ + 1));
-            return false;
-        }
-
-        // changed：gameData 字段级补丁（反向通道——Kotlin 侧只发
-        // 变更字段的 dirty 集）+ 实体集合按 id upsert。补丁语义：从当前
-        // gameData 起步仅覆盖信封携带键（from_json 宽松读：缺失键保持现值）；
-        // 全量信封（携带全部键）与旧"整段替换"逐位等价。rngStates 由 Kotlin
-        // 侧剔除、缺失保持 live 值——旧全量解码会把缺失键落成默认空表再整体
-        // 赋值（覆盖后由下次导出的 syncRngStates 回写兜住），现显式不动。
-        if (j.contains("changed") && j.at("changed").is_object()) {
-            const auto& changed = j.at("changed");
-            for (auto it = changed.begin(); it != changed.end(); ++it) {
-                const std::string& name = it.key();
-                const auto& value = it.value();
-                if (name == "gameData") {
-                    if (value.is_object()) {
-                        state::GameData patched = state_.gameData;
-                        value.get_to(patched);
-                        state_.gameData = std::move(patched);
-                    }
-                } else if (name == "aiSectDisciples") {
-                    // AI 宗门弟子池全量段（GameState 顶层字段——Kotlin
-                    // GameData.aiSectDisciples @Transient 不入 gameData JSON）
-                    if (value.is_object()) {
-                        state_.aiSectDisciples = value.get<
-                            std::map<std::string, std::vector<state::Disciple>>>();
-                    }
-                } else if (name == "lockedBeastIds") {
-                    // 妖兽视图锁定顶层段（GameState.lockedBeastIds——Kotlin
-                    // GameData.lockedBeastIds @Transient 不入 gameData JSON）。
-                    // 语义 = 整体替换（Kotlin 变化检测后发全量 id 集，lock/unlock
-                    // 均为集合重写）；月结跳过判定消费（month_settlement）。
-                    if (value.is_array()) {
-                        state_.lockedBeastIds.clear();
-                        for (const auto& idEl : value) {
-                            if (idEl.is_string()) {
-                                state_.lockedBeastIds.push_back(
-                                    idEl.get<std::string>());
-                            }
-                        }
-                    }
-                } else if (value.is_array()) {
-                    applyCollectionUpsert(state_, name, value);
-                }
-            }
-        }
-        // removed：按 id 删除
-        if (j.contains("removed") && j.at("removed").is_object()) {
-            const auto& removed = j.at("removed");
-            for (auto it = removed.begin(); it != removed.end(); ++it) {
-                if (it.value().is_array()) {
-                    applyCollectionRemove(state_, it.key(), it.value());
-                }
-            }
-        }
-        // 基线同步：C++ 状态已与 Kotlin 一致——防下一旬 exportDirty 把反向
-        // 应用值当变更重发回 Kotlin（冗余镜像写）
-        dirtyTracker_.syncBaselineToCurrent(state_);
-        // 版本推进必须在**全部应用成功后**执行：若在应用逻辑前推进，后续
-        // 步骤抛异常时版本已前进但返回 false，与 Kotlin 侧"发送成功才++"
-        // 失去对称 → 之后所有增量回导将永久 version mismatch，只能退化为
-        // 每旬全量回导兜底。
-        reverseVersion_ = v;
-        return true;
-    } catch (const std::exception& e) {
-        logger_->log(LogLevel::kError, "GameCore",
-                     std::string("applyReverseDirty failed: ") + e.what());
-        return false;
     }
 }
 

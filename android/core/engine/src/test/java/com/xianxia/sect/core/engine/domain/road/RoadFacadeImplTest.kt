@@ -97,7 +97,7 @@ class RoadFacadeImplTest {
     fun `native arm off - flag OFF falls back to kotlin path`() {
         NativeEngineFlag.mode = NativeEngineFlag.Mode.OFF
         val store = newStore(spiritStones = 1000L)
-        val facade = RoadFacadeImpl(store, StateSyncService(store) { true })
+        val facade = RoadFacadeImpl(store, StateSyncService(store))
 
         val result = facade.placeRoad(20, 20)
 
@@ -125,7 +125,7 @@ class RoadFacadeImplTest {
     fun `native arm degraded - bridge unavailable falls back and succeeds`() {
         // AUTHORITATIVE + 镜像服务在，但 JVM 桥未加载 → tryExecuteNative null → 回退成功
         val store = newStore(spiritStones = 1000L)
-        val facade = RoadFacadeImpl(store, StateSyncService(store) { true })
+        val facade = RoadFacadeImpl(store, StateSyncService(store))
 
         val result = facade.placeRoad(20, 20)
 

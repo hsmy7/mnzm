@@ -489,17 +489,6 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeImportStateNoRng(
                : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeApplyReverseDirty(
-    JNIEnv* env, jobject /*thiz*/,
-    jbyteArray dirtyJson) {
-    jniRequireEngineThread("nativeApplyReverseDirty");
-    if (!g_gameCore) return JNI_FALSE;
-    return g_gameCore->applyReverseDirty(jbytesToString(env, dirtyJson))
-               ? JNI_TRUE
-               : JNI_FALSE;
-}
-
 // 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉：
 // AUTHORITATIVE 单真相源——C++ 直接招募入宗，状态变化经下一 tick 前向 diff
 // 推送镜像。信封见 GameCore::manualRecruitFromList KDoc）。

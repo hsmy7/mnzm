@@ -17,7 +17,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -30,7 +29,6 @@ import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.spiritStones
 import android.os.Looper
 import com.xianxia.sect.BuildConfig
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -133,17 +131,6 @@ class GameStateStoreImpl @Inject constructor(
     companion object {
         private const val TAG = "GameStateStore"
         private const val UPDATE_WARN_THRESHOLD_MS = 500L
-
-        // ── 反向增量通道集合名（与 forward 信封协议/StateSyncService 同名） ──
-        private const val COLLECTION_EQUIPMENT_STACKS = "equipmentStacks"
-        private const val COLLECTION_EQUIPMENT_INSTANCES = "equipmentInstances"
-        private const val COLLECTION_MANUAL_STACKS = "manualStacks"
-        private const val COLLECTION_MANUAL_INSTANCES = "manualInstances"
-        private const val COLLECTION_PILLS = "pills"
-        private const val COLLECTION_MATERIALS = "materials"
-        private const val COLLECTION_HERBS = "herbs"
-        private const val COLLECTION_SEEDS = "seeds"
-        private const val COLLECTION_STORAGE_BAGS = "storageBags"
     }
 
     private var _discipleTables = DiscipleTables().also {
@@ -157,68 +144,13 @@ class GameStateStoreImpl @Inject constructor(
     private var lastDirtyColumns: Set<Int> = emptySet()
     override val discipleTables: DiscipleTables get() = _discipleTables
 
-    // ── 反向增量通道────────────────────────────────
-
-    /** 反向增量累加器：事务级捕获累积，AUTHORITATIVE tick 步骤 ⑤ flush 消费 */
-    private val reverseDirtyAccumulator = ReverseDirtyAccumulator()
+    // ── 事务锁与反向通道删除后的镜像语义────────────────
 
     private val transactionLock = ReentrantLock()
 
-    /**
-     * 反向增量累加器：事务级捕获累积 + 旬末 flush 消费。
-     *
-     * 同步契约：捕获在 transactionLock 内（update 提交阶段），消费在引擎线程
-     * （AUTHORITATIVE tick 步骤 ⑤）——异步系统事务（Alchemy/Forge scope.launch）
-     * 提交可能与消费并发，内部方法全同步保证无竞态。
-     */
-    private class ReverseDirtyAccumulator {
-        private val discipleIds = LinkedHashSet<Int>()
-        private var rejectedRecord = false
-        private var gameDataChanged = false
-        private val collections = LinkedHashMap<String, GameStateStore.CollectionCapture>()
-
-        /** 捕获弟子脏 id（非消费 peek 结果；rejected=容量拒绝置位）。 */
-        fun captureDisciples(ids: Set<Int>, rejected: Boolean) {
-            synchronized(this) {
-                discipleIds += ids
-                if (rejected) rejectedRecord = true
-            }
-        }
-
-        /** 捕获 gameData 整对象引用变化。 */
-        fun captureGameDataChanged() {
-            synchronized(this) { gameDataChanged = true }
-        }
-
-        /** 捕获集合变化（同名集合以最近一次捕获为准——flush 发送最新态）。 */
-        fun captureCollection(name: String, capture: GameStateStore.CollectionCapture) {
-            synchronized(this) { collections[name] = capture }
-        }
-
-        /** 消费并清空（返回窗口快照；空窗口消费后仍清空）。 */
-        fun consume(): GameStateStore.ReverseDirtySnapshot = synchronized(this) {
-            val snap = GameStateStore.ReverseDirtySnapshot(
-                discipleIds = discipleIds.toSet(),
-                rejectedRecord = rejectedRecord,
-                gameDataChanged = gameDataChanged,
-                collections = collections.toMap()
-            )
-            clearLocked()
-            snap
-        }
-
-        /** 清空（② 后/全量导入后调用，防 forward 变更污染窗口）。 */
-        fun reset() {
-            synchronized(this) { clearLocked() }
-        }
-
-        private fun clearLocked() {
-            discipleIds.clear()
-            rejectedRecord = false
-            gameDataChanged = false
-            collections.clear()
-        }
-    }
+    // 反向增量通道已随 w3-13 删除（handover §2.82）：updateMirror 与 update
+    // 事务语义一致，区别仅为命名约定（updateMirror = C++ 真相源投影写入，
+    // update = Kotlin 游戏写入）——镜像只读契约的稳态零写入断言依赖该区分。
 
     // ── 事务世代号与观察者（溢出草稿按事务提交/回滚落盘/丢弃） ──
 
@@ -927,30 +859,13 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 镜像专用事务更新：事务语义与 [update] 完全一致，
-     * 仅**跳过反向增量捕获**——C++ → Kotlin 前向镜像写入的变更由 C++ 产生、无需
-     * 回导；跳过捕获避免镜像变更污染玩家操作捕获窗口（误清玩家放置/消耗捕获
-     * 会导致 Kotlin 侧灵石扣除等变更永不同步 C++ 真相源，被前向镜像覆盖）。
+     * 镜像专用事务更新：事务语义与 [update] 完全一致；保留独立入口是
+     * **镜像只读契约的命名约定**（updateMirror = C++ 真相源投影写入，
+     * update = Kotlin 游戏写入）——AUTHORITATIVE 稳态下 tick 管线的状态写入
+     * 必须全部经本入口，由引擎对拍的稳态零写入断言长期看护（handover §2.82）。
      */
     override fun updateMirror(block: MutableGameState.() -> Unit) {
-        // 与 update 同构：主线程监护 + 锁内事务 + 锁外提交钩子/增量组装
-        if (!unsafeAllowMainThreadUpdateForTest && Looper.myLooper() == Looper.getMainLooper()) {
-            if (BuildConfig.DEBUG) {
-                error("stateStore.updateMirror() 被主线程调用，架构违规必须修复")
-            } else {
-                DomainLog.e(
-                    TAG,
-                    "updateMirror() 被主线程调用! 已跳过此次更新。",
-                    IllegalStateException("主线程调用堆栈")
-                )
-                return
-            }
-        }
-        val outcome = executeUpdateTransaction(block = block, captureReverse = false)
-        if (outcome.committed && outcome.txGen > 0L) fireCommitted(outcome.txGen)
-        if (outcome.disciplesNeedReassemble) {
-            dispatchAssemble()
-        }
+        update(block)
     }
 
     /** update 事务结果：锁外阶段（fireCommitted/dispatchAssemble）所需状态 */
@@ -966,13 +881,9 @@ class GameStateStoreImpl @Inject constructor(
      * 事务世代号：本次顶层事务的世代号（0 = 无事务/重入路径）。
      * committed 标记事务是否成功提交——异常/取消传播到锁外时 finally 据此
      * fireRollback（草稿丢弃，防复制）；成功则在锁外 fireCommitted（草稿落盘）。
-     *
-     * @param captureReverse 是否参与反向增量捕获（[updateMirror] 传 false——
-     *        C++ → Kotlin 前向镜像写入不污染玩家操作捕获窗口）
      */
     private fun executeUpdateTransaction(
-        block: MutableGameState.() -> Unit,
-        captureReverse: Boolean = true
+        block: MutableGameState.() -> Unit
     ): TransactionOutcome {
         var txGen = 0L
         var committed = false
@@ -1008,9 +919,7 @@ class GameStateStoreImpl @Inject constructor(
                     )
                     // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
                     emitStateFlows(baseline = baseline, flags = flags)
-                    disciplesNeedReassemble = commitUpdateState(
-                        baseline = baseline, flags = flags, captureReverse = captureReverse
-                    )
+                    disciplesNeedReassemble = commitUpdateState(baseline = baseline, flags = flags)
                     logSlowLockTime(lockStartNs = lockStartNs)
                 } finally {
                     reusableMutableState.discipleTables.writeAllowed = false
@@ -1040,8 +949,7 @@ class GameStateStoreImpl @Inject constructor(
      */
     private fun commitUpdateState(
         baseline: UpdateBaseline,
-        flags: CommitFlags,
-        captureReverse: Boolean = true
+        flags: CommitFlags
     ): Boolean {
         // COW 快照隔离后，副本的 mutationVersion 从 0 起步且不再被
         // copyTo 逐元素写入污染，dirtyTracker 只记录本次事务真实写入的列。
@@ -1073,112 +981,7 @@ class GameStateStoreImpl @Inject constructor(
         // 捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
         // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
         lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
-        // 反向增量捕获（锁内提交阶段；非消费 peek，dispatchAssemble 随后正常消费）。
-        // 镜像事务（updateMirror）跳过捕获：C++ → Kotlin 前向镜像变更无需回导，
-        // 跳过捕获避免污染玩家操作捕获窗口（无条件清空累加器会误清玩家放置/消耗
-        // 捕获 → Kotlin 侧灵石扣除等变更永不同步 C++ 真相源）
-        if (captureReverse) {
-            captureReverseDirty(baseline = baseline, disciplesNeedReassemble = disciplesNeedReassemble)
-        }
         return disciplesNeedReassemble
-    }
-
-    /**
-     * 捕获本事务的反向增量（锁内提交阶段调用）。
-     *
-     * 三通道：弟子脏 id（changedIdTracker 非消费 peek）/ gameData 整对象引用变化 /
-     * 实体集合引用变化（全量实体 + 消失 id）。捕获产物累积到 [reverseDirtyAccumulator]，
-     * 由 AUTHORITATIVE tick 步骤 ⑤ 经 [consumeReverseDirty] 消费回导 C++。
-     */
-    private fun captureReverseDirty(baseline: UpdateBaseline, disciplesNeedReassemble: Boolean) {
-        val acc = reverseDirtyAccumulator
-        // 1. 弟子脏 id（非消费 peek——dispatchAssemble 按原路径 consume，互不干扰）
-        if (disciplesNeedReassemble) {
-            val tracker = reusableMutableState.discipleTables.changedIdTracker
-            // 逐域关闭（batch-21）：弟子通道关闭后不再累积脏 id（省去消费侧的
-            // 全实体组装与 JSON 序列化）；但 peek 仍执行——关闭后若有弟子侧写入
-            // 即为回导缺口，必须可观测（见 ReverseChannelPolicy 关闭检测）
-            if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
-                acc.captureDisciples(
-                    ids = tracker.snapshotChangedIds(),
-                    rejected = tracker.snapshotRejectedRecord()
-                )
-            } else if (NativeEngineFlag.authoritative && tracker.snapshotChangedIds().isNotEmpty()) {
-                // 关闭域写入检测 = "C++ 真相源在位时的回导缺口"检测——flag-OFF
-                // 下无真相源（写入即真相），不存在回导缺口，不计数（w3-13 门控）
-                ReverseChannelPolicy.noteClosedWrite(
-                    ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
-                    ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
-                    "captureReverseDirty"
-                )
-            }
-        }
-        // 2. gameData 整对象引用变化（任一字段 copy 即新实例）
-        if (reusableMutableState.gameData !== baseline.gameData) {
-            acc.captureGameDataChanged()
-        }
-        // 3. 实体集合引用变化 → 捕获（upsert 全量 + 消失 id）
-        captureCollection(acc, COLLECTION_EQUIPMENT_STACKS,
-            baseline.equipmentStacks, reusableMutableState.equipmentStacks.items)
-        captureCollection(acc, COLLECTION_EQUIPMENT_INSTANCES,
-            baseline.equipmentInstances, reusableMutableState.equipmentInstances.items)
-        captureCollection(acc, COLLECTION_MANUAL_STACKS,
-            baseline.manualStacks, reusableMutableState.manualStacks.items)
-        captureCollection(acc, COLLECTION_MANUAL_INSTANCES,
-            baseline.manualInstances, reusableMutableState.manualInstances.items)
-        captureCollection(acc, COLLECTION_PILLS,
-            baseline.pills, reusableMutableState.pills.items)
-        captureCollection(acc, COLLECTION_MATERIALS,
-            baseline.materials, reusableMutableState.materials.items)
-        captureCollection(acc, COLLECTION_HERBS,
-            baseline.herbs, reusableMutableState.herbs.items)
-        captureCollection(acc, COLLECTION_SEEDS,
-            baseline.seeds, reusableMutableState.seeds.items)
-        captureCollection(acc, COLLECTION_STORAGE_BAGS,
-            baseline.storageBags, reusableMutableState.storageBags.items)
-    }
-
-    /** 单集合反向捕获：引用变化时记录（upsert=当前全量实体，removed=基线消失 id）。 */
-    private fun captureCollection(
-        acc: ReverseDirtyAccumulator,
-        name: String,
-        baseline: List<*>,
-        current: List<*>
-    ) {
-        if (baseline === current) return
-        // 逐域关闭（batch-21）：关闭集合不构造捕获载荷——O(n) 差集与后续全实体
-        // JSON 序列化随之省去；引用变化本身仍被观测（关闭后集合若仍被 Kotlin
-        // 改写即为回导缺口，登记检测并从快照剔除）
-        if (!ReverseChannelPolicy.isCollectionTransported(name)) {
-            if (NativeEngineFlag.authoritative) {
-                // 同上：回导缺口检测仅在 AUTHORITATIVE（C++ 真相源在位）时计数
-                ReverseChannelPolicy.noteClosedWrite(
-                    ReverseChannelPolicy.Kind.COLLECTION, name, "captureCollection"
-                )
-            }
-            return
-        }
-        val removedIds = baseline.mapTo(HashSet()) { (it as HasId).id } -
-            current.mapTo(HashSet()) { (it as HasId).id }
-        @Suppress("UNCHECKED_CAST")
-        acc.captureCollection(
-            name,
-            GameStateStore.CollectionCapture(
-                upserts = current as List<HasId>,
-                removedIds = removedIds
-            )
-        )
-    }
-
-    // === 反向增量通道公开 API ===
-
-    override fun consumeReverseDirty(): GameStateStore.ReverseDirtySnapshot? {
-        val snap = reverseDirtyAccumulator.consume()
-        return snap.takeIf { !it.isEmpty }
-    }
-
-    override fun resetReverseAccumulator() {
-        reverseDirtyAccumulator.reset()
     }
 
     /** ANR 诊断：记录锁内耗时超过阈值的 update 调用 */

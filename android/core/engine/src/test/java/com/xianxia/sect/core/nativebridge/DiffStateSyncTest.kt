@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
@@ -10,7 +9,6 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -268,49 +266,4 @@ class DiffStateSyncTest {
             store.gameDataValue.aiSectDisciples.keys)
         assertEquals("99", store.gameDataValue.aiSectDisciples["ai-9"]?.first()?.id)
     }
-
-    @Test
-    fun `reverse envelope carries aiSectDisciples only when changed`() {
-        // 反向回导：@Transient aiSectDisciples 单独全量段；变化检测
-        //（缓存对齐）避免每 tick 重发重型数据——未变化不携带，变化才携带
-        // aiSectDisciples 段已随 w3-13 关闭（handover §2.78）；本用例守护**段变化
-        // 检测机械**（缓存对齐/变化携带），经逐域回滚钩子恢复传输前提。
-        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.AI_SECT)
-        val store = FakeGameStateStore()
-        val sent = mutableListOf<String>()
-        val service = StateSyncService(store, reverseSender = { bytes ->
-            sent.add(bytes.decodeToString()); true
-        })
-        store.gameDataValue = GameData().apply {
-            aiSectDisciples = mapOf("ai-1" to listOf(Disciple().apply {
-                id = "90"; name = "玄水弟子"; realm = 7
-            }))
-        }
-
-        // 窗口 1：gameData 变化（缓存 null 未同步）→ 携带 aiSectDisciples 段
-        store.update { gameData = gameData.copy(gameYear = 2) }
-        assertTrue("首次应携带 aiSectDisciples 段", service.applyDirtyToNative())
-        assertTrue(sent.last().contains("\"aiSectDisciples\""))
-        assertTrue(sent.last().contains("\"玄水弟子\""))
-
-        // 窗口 2：gameData 再变（aiSectDisciples 未变）→ 不携带
-        store.update { gameData = gameData.copy(gameYear = 3) }
-        assertTrue(service.applyDirtyToNative())
-        assertFalse("未变化不应携带 aiSectDisciples 段", sent.last().contains("\"aiSectDisciples\""))
-
-        // 窗口 3：aiSectDisciples 变化 → 携带新值
-        store.update {
-            gameData = gameData.copy(
-                aiSectDisciples = mapOf("ai-2" to listOf(Disciple().apply {
-                    id = "91"; name = "赤火弟子"; realm = 8
-                }))
-            )
-        }
-        assertTrue(service.applyDirtyToNative())
-        assertTrue("变化应携带 aiSectDisciples 段", sent.last().contains("\"ai-2\""))
-        assertTrue(sent.last().contains("\"赤火弟子\""))
-        ReverseChannelPolicy.resetSwitches()
-    }
 }
-
-

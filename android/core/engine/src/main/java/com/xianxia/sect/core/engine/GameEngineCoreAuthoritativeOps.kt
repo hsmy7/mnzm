@@ -23,6 +23,9 @@ private const val TAG = "GameEngineCore"
  *   即实测的每旬热点路径）
  * - Kotlin 残留：自动装备/丹药/突破（偷盗钩子/亲属赠送/埋点副作用面）
  *   + 完整月变/年变编排——RNG 经 NativeBackedRng 委托 native 单一真相源
+ *
+ * 反向增量回导已随 w3-13 删除（handover §2.82）：tick 管线对 C++ 状态只读，
+ * Kotlin 侧事件后状态收敛走 [rebaselineNativeMirror]（importToNative 全量重建）。
  */
 
 /**
@@ -32,14 +35,10 @@ private const val TAG = "GameEngineCore"
      *    核心批次/丹药+偷盗钩子/突破+亲属赠送；月/年边界只记标志），
      *    C++ 每旬即完整结算，Kotlin 侧无残留结算路径。
      * ② applyDirtyFromNative——增量镜像（失败先试全量兜底，仍失败走异常回退）
-     *    镜像写入经 updateMirror 不参与反向捕获——反向累积器一旦被无条件清空，
-     *    玩家操作（放置/消耗灵石等 Kotlin 侧变更）会被一并清掉，
-     *    永不同步 C++ 真相源并被前向镜像覆盖
+     *    镜像写入经 updateMirror（C++ 真相源投影语义）
  * ②' 突破埋点（UI 通知类残留）：基线在 settle 前捕获，镜像后差分上报
  *    ——C++ 每旬突破判定不再经 Kotlin 处理器，埋点由镜像差分重建
  * ③ 月/年边界：完整编排（年变先于月变）
- * ④ 反向增量回导 C++（Kotlin 侧玩家操作 + 边界效果写回真相源）。
- * restoreRng=false 语义保留：增量信封剔除 rngStates；容量拒绝/失败降级全量
  *
  * 时钟语义：墙钟消费/速度/暂停/refundPhases 仍由 Kotlin GameTimeClock 独占
  * （C++ 侧不维护 speed/pause/refund 状态机，避免双语言两套状态机漂移）。
@@ -82,14 +81,6 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
                 )
             }
             segments?.split("boundary")
-            // ⑤ 反向增量回导 C++（玩家操作 + 边界效果写回真相源）
-            if (!stateSyncServiceRef.applyDirtyToNative()) {
-                DomainLog.w(TAG, "AUTHORITATIVE 反向增量回导失败（降级全量回导）")
-                if (!stateSyncServiceRef.importToNative(restoreRng = false)) {
-                    DomainLog.w(TAG, "AUTHORITATIVE 全量回导失败（下一旬重试）")
-                }
-            }
-            segments?.split("reverse")
             segments?.let { timer ->
                 val gd = stateStore.gameData.value
                 timer.log(TAG, "y${gd.gameYear}m${gd.gameMonth}")
@@ -149,10 +140,8 @@ private fun rebaselineNativeMirror(stateSync: StateSyncService, reason: String) 
  * 采集项（µs 精度，每旬一行 DomainLog.d）：
  *   baseline（Kotlin 突破基线捕获）→ settle（C++ 单旬结算）→
  *   mirror.inc / mirror.full（前向增量镜像，.full = 增量失败已走全量兜底）→
- *   breakthrough（突破差分上报）→ boundary（月/年边界编排）→
- *   reverse（反向增量回导）。
- * 为 w3-13 通道删除（W4-D/D4）前的"关闭前基线"与 WS-1 再评估阈值
- * （每旬镜像 >100ms，handover §4.1）提供真机绝对值观测输入。
+ *   breakthrough（突破差分上报）→ boundary（月/年边界编排）。
+ * 为 WS-1 再评估阈值（每旬镜像 >100ms，handover §4.1）提供真机绝对值观测输入。
  */
 private class PhaseSegmentTimer {
     private var lastNanos = System.nanoTime()
@@ -211,9 +200,6 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             // 引擎循环时钟基准启动（防 PhaseClock 残留 lastWallMs 造成
             // 首帧巨量 delta → 追补上限截断丢时间）
             GameCoreBridge.nativeLoopStart()
-            // 全量导入成功后清空反向捕获窗口——读档/加载路径的事务捕获若残留，
-            // 首个 ⑤ 会把陈旧变更误发 C++（反向通道窗口管理）
-            stateStore.resetReverseAccumulator()
             DomainLog.i(TAG, "AUTHORITATIVE native 引擎已初始化（seed=${stateStore.gameData.value.mapSeed}）")
         }
         true

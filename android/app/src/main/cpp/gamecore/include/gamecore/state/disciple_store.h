@@ -204,7 +204,7 @@ public:
     // 行级变更（保持行序：删除为原位 erase，新增为末尾追加）
     // ============================================================
 
-    /// 按 id 原位覆盖或追加（upsert；applyReverseDirty 弟子通道用）
+    /// 按 id 原位覆盖或追加（upsert；导入路径与行内恢复共用）
     void upsertDisciple(const Disciple& d);
 
     /// 按 id 删除（其余行序保留）
