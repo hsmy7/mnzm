@@ -128,6 +128,7 @@
   - 2026-09-18 06:53 截屏：B05 切点锁定——createBeastBattle 仍直调 Kotlin executeBattle（参照 AiSectBeastAttackProcessor 的 router 模式应为改造点）；继续排查 PatrolBattleSystem/CaveExplorationSystem。
   - 2026-09-18 06:56 截屏：B05 范围甄别——UI 事务 native 臂不动、关卡刷新段防误切/漏切核对中；参照 B04 守卫测试模式查 Diff 对拍覆盖现状。
   - 2026-09-18 07:06 截屏：B05 关键风险确认——JVM 测试中 GameCoreBridge.isLoaded 恒 false，路由器测试恒走 Kotlin mock 臂（与 B04 同前提），据此设计守卫测试。
+  - 2026-09-18 07:16 截屏：B05 守卫测试调试中——单类先行验证遇断言失败（mock 泛型方法未 stub 等），正读报告逐项修正；正常迭代非停滞。
 
 ## 经验教训（随批追加）
 
