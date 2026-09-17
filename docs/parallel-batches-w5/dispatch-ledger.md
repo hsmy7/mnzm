@@ -87,6 +87,7 @@
   - 2026-09-18 00:27 截屏：B02 深度分析中——读 disciple_store.h（R1.3 核心）与 disciple_stats.h（R1.2 依赖），梳理 equipmentInstances/manualInstances 引用面，自建任务清单；无停滞。
   - 2026-09-18 00:37 截屏：B02 改码前语义验证——elderSlots 清除语义已验证（R1.2 前提成立）；R1.3 改动面确认为步骤入口派生映射（GameState 存储与事务文件零改动），正枚举 eqMap/mnMap 消费函数定签名迁移面。
   - 2026-09-18 00:47 截屏：B02 进入实施——构建环境确认（Ninja+llvm-mingw 缓存可用），正编辑 phase_settlement.h 实施 R1.2（+41-5、+3-3）。
+  - 2026-09-18 00:57 截屏：B02 R1.3 第一步实施中——disciple_store.cpp numeric id 列与 eraseAt/swapRows 维护完成，settlement_detail.h indexById 已改（免逐字符串重解析），正逐点替换 phase_settlement.h。
 
 ## 经验教训（随批追加）
 
