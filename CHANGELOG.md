@@ -1,3 +1,13 @@
+## [4.01.15] - 2026-09-17
+
+### R1 形状解锁首批 B01——R1.1 + R1.5（map 重建提升到步骤入口）
+
+> 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R1 表首批（批次文件 `docs/parallel-batches-w5/batch-R1A.md`）。纯 C++ 内部形状改造：**零协议面/JNI 签名/存档变更、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；`version.properties` 未递增——由用户决定。每子项独立 commit（01849d8b4 / ad5ca62ee）。
+
+- **R1.1 `isFullHpMp` 装备/功法映射重建提升到步骤入口**：两重载（`Disciple&`/`DiscipleStore` SoA）去掉逐实体现场重建映射（原每弟子每次判定重建全量装备/功法两张 map），签名改为映射由步骤入口构建一次传入。步骤 7（`processBreakthroughs`）入口一次构建——候选筛选 D 次重建 → 1 次，`performBreakthrough` 循环内逐尝试重建同步消除；战前突破事务（`battle_residual_tx.h` battlePresettleTx）候选筛选同型改造。"孕养升级当旬"语义保持：步骤 7 在核心批次（步骤 1-5 含孕养提交 `applyEquipmentUpdates`）之后执行，入口映射已含当旬最新 nurtureLevel，与 Kotlin `battleWritebackMaxHpMp` 当前 state 现场口径对齐（步骤 7 全程只读 equipmentInstances/manualInstances，`attemptAutoPill` 只写 pills/储物袋 ⇒ 入口映射与逐实体现场重建逐位一致）。
+- **R1.5 `getMaxHpMp` 临时 effects map 消除**（随 R1.1 同一改造）：两重载不再物化 `mergeEffects(talentEffectsFor, affixEffectsFor)` 三次中间 `map<string,double>`（原每弟子每次调用三重 map 分配 + 全部键聚合，实际基础公式只消费 maxHp/maxMp 两键）；新增 `hpMpEffectsFor` 两键直算——单键加法序 = 天赋 id 序 → 词条 id 序、每模板单键至多累加一次、初值同为 0.0，与 map 版逐位一致；`computeBaseHpMp` 拆出效果已解析版 `computeBaseHpMpResolved`（基础公式单一来源，map 版委托之），breakthrough.h/pill_system.h/`applyBreakthroughFailure`/GameCoreJni 等 7 处既有调用方签名不变零改动。
+- **门禁**：桌面全量 GTest **1419/1419**（携 `-ffp-contract=off` 旗标；R1.1 单独态与 R1.1+R1.5 终态各实跑一轮）；`testReleaseUnitTest --max-workers=1` 六模块 **7777 用例 / 0 失败**（`:core:engine` 3296 含全部 `Diff*Test` 桌面 JNI 对拍桥 `-Dgamecore.jni.path` **0 skip 实跑**）；detekt 六模块绿；`compileReleaseKotlin`/`lintRelease` 绿。
+
 ## [4.01.14] - 2026-09-08
 
 

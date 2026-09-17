@@ -6,6 +6,7 @@
 > - **✅ 随机源治理**：`R1` 覆盖完整性（`RngSourceGuardTest` 五类入口逐模块登记上限**只缩不增**）+ `R5` 禁止自建随机源（`RngEngineIsolationGuardTest`）+ **跨语言等价性**（`DiffAiRngSeedingTest`）；**10k JNI 成本基准 ratio 0.8**（`kotlin(local PCG)=14ns/op` vs `native(JNI roundtrip)=11ns/op`）⇒ ADR §8 首行 JNI 开销风险**不成立**
 > - **🔴 反向通道现状与后续（2026-09-15 实测，取代 2026-09-14 "阶段 1 = 关闭前置已达成"口径）**：288 写入点穷尽审计证明**14 个域无一可整体关闭**（弟子表 46 稳态写者 / 9 类实体集合 82 站点 / 64 个 gameData 字段仍有稳态写者）；batch-21（§2.53）已交付**逐域关闭机制 + 68 个可证关闭单元**，**"直接关闭反向通道"路线作废**，改由 **[ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md)**（13 批 UI 操作面收尾 → 通道删除）承接；残余写者清单见 [ui-read-surface §4.4](ui-read-surface.md)
 > - **当前 ActionId 口径**：**169 动作 / maxId=1734**（`scripts/gen-action-ids.mjs` 实跑；旧记"170 / 1733"为漂移，漏计 `STORAGE_BAG_OPEN_TX=1734`；**2026-09-15 §2.61 W4-00 净减 2**——删除两处死导出，见下 §库存残差）
+> - **引擎重构 R1 进展（2026-09-17，B01 批）**：自研引擎重构方案（[native-engine-refactor-plan-2026-09-17.md](native-engine-refactor-plan-2026-09-17.md)）§3 R1 首批落地——`isFullHpMp` 装备/功法映射重建提升到步骤入口（步骤 7 突破候选筛选 + 战前突破事务各入口一次构建，消逐实体 D 次重建；孕养升级当旬语义保持）+ `getMaxHpMp` 临时 effects map 消除（`hpMpEffectsFor` 两键直算 + `computeBaseHpMpResolved`）；只改形状不改结果（桌面 GTest 1419/1419 + JUnit 桌面对拍 0 skip），协议/JNI 零变更；登记见方案 §7.2
 
 > 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划（迁移主线批次的；**引擎整体现状 + 后续工作计划见 §0**）。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。

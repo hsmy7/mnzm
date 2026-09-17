@@ -247,3 +247,18 @@ VulkanBackend / GlesBackend(消费 SceneStore,含C++侧网格/高亮/预览生�
 - §"CI 与度量执法"：JNI 面计数不增静态门禁尚未建设（R0.2 探针 +1 已在 CHANGELOG 登记豁免理由）；
 - `arm64-fp-determinism.yml` 需仓库 Secrets 配置 Firebase 服务账号后方可周期执行；
 - R4.2–R4.4 / R1–R3 按 §4 排期推进；R4.1 的删臂（BattleSystem 转 golden 夹具）按 R4 统一流程在灰度一个版本周期后执行。
+
+### 7.2 R1 首批（2026-09-17）：B01 批 = R1.1 + R1.5（map 重建提升到步骤入口）
+
+批次文件 `docs/parallel-batches-w5/batch-R1A.md`；每子项独立 commit（01849d8b4 / ad5ca62ee），
+只改形状不改结果。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R1.1 | ✅ | `isFullHpMp` 两重载（`phase_settlement.h`）去逐实体现场重建，签名改 `gd + eqMap + mnMap` 由步骤入口传入；步骤 7（`processBreakthroughs`）入口一次构建——候选筛选 D 次重建 → 1 次，`performBreakthrough` 循环内逐尝试重建同步消除；`battle_residual_tx.h` 战前突破事务（battlePresettleTx）同型改造。孕养升级当旬语义保持：步骤 7 在核心批次（1-5 含孕养提交）之后执行，入口映射已含当旬最新 nurtureLevel，与 Kotlin `battleWritebackMaxHpMp` 当前 state 现场口径对齐（步骤 7 全程只读 equipmentInstances/manualInstances，`attemptAutoPill` 只写 pills/储物袋） |
+| R1.5 | ✅ | `getMaxHpMp` 两重载（`disciple_stats.h`）不再物化 `mergeEffects(talentEffectsFor, affixEffectsFor)` 三次中间 map（原每弟子每次调用三重 map 分配，实际只消费 maxHp/maxMp 两键）；新增 `hpMpEffectsFor` 两键直算（加法序 = 天赋 id 序 → 词条 id 序，与 map 版逐位一致）+ `computeBaseHpMpResolved` 效果已解析版（基础公式单一来源，map 版委托之——breakthrough.h/pill_system.h/applyBreakthroughFailure/GameCoreJni 等 7 处调用方签名不变零改动） |
+
+测试口径：桌面全量 GTest **1419/1419**（携 `-ffp-contract=off` 旗标；R1.1 单独态与 R1.1+R1.5
+终态各实跑一轮）+ engine JUnit 全量串行（桌面 JNI 对拍桥 `-Dgamecore.jni.path` 0 skip）+
+detekt 绿 + `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更。
+
