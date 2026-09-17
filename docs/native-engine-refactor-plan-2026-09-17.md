@@ -248,7 +248,9 @@ VulkanBackend / GlesBackend(消费 SceneStore,含C++侧网格/高亮/预览生�
 - `arm64-fp-determinism.yml` 需仓库 Secrets 配置 Firebase 服务账号后方可周期执行；
 - R4.2–R4.4 / R1–R3 按 §4 排期推进；R4.1 的删臂（BattleSystem 转 golden 夹具）按 R4 统一流程在灰度一个版本周期后执行。
 
-### 7.2 R1 首批（2026-09-17）：B01 批 = R1.1 + R1.5（map 重建提升到步骤入口）
+### 7.2 R1 逐批落地（2026-09-17/18）
+
+#### B01 批（2026-09-17）= R1.1 + R1.5（map 重建提升到步骤入口）
 
 批次文件 `docs/parallel-batches-w5/batch-R1A.md`；每子项独立 commit（01849d8b4 / ad5ca62ee），
 只改形状不改结果。
@@ -261,4 +263,22 @@ VulkanBackend / GlesBackend(消费 SceneStore,含C++侧网格/高亮/预览生�
 测试口径：桌面全量 GTest **1419/1419**（携 `-ffp-contract=off` 旗标；R1.1 单独态与 R1.1+R1.5
 终态各实跑一轮）+ engine JUnit 全量串行（桌面 JNI 对拍桥 `-Dgamecore.jni.path` 0 skip）+
 detekt 绿 + `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更。
+
+#### B02 批（2026-09-18）= R1.2 + R1.3（去物化 + dense 索引）
+
+批次文件 `docs/parallel-batches-w5/batch-R1B.md`；每子项独立 commit（R1.2 = 96636ec95；
+R1.3 分两步 = d4e25dac1 / dd2b4e0e9，补遗 f7e9b3251——JNI 纯特质速率通道桶视图迁移），
+只改形状不改结果。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R1.2 | ✅ | 结算入口全量 D 弟子物化快照 `committedDisciples` 退役（每旬 D 次深拷贝 → **0 次**；剩余物化仅突破命中候选的工作副本 = 候选数次）。快照唯一消费点 = `breakthroughChanceInput` 长老悟性读取（内/外门长老位 ≤2 名弟子）⇒ 新增 `committedElderComprehensionOf`：按 elderSlots 数值 id 行扫描、SoA 列直算 `baseComprehension` 捕获**入口时点**值（零物化）。逐位一致论证：键命中 = 数值 id 入口已存在（同 id 首行 == 原 emplace 首写）；值 = 入口时点 comprehensions/talentIds/affixIds 列直算（与物化快照同列同序）；结算步骤间 elderSlots 无重指派（任命属 UI 事务不入结算；偷盗叛逃仅清空槽位——消费点读空 id 提前返回），步骤 7 读到的非空长老 id 与入口一致；入口后新出现 → 回退 live 列（同原快照缺失路径）。`performBreakthrough`/`processBreakthroughs`/`battlePresettleTx` 传参随视图收窄（`map<int32,Disciple>` → `map<int32,int32>`），数值 id 键控语义保留（偷盗叛逃行移除不影响关联） |
+| R1.3 | ✅ | 分两步：**第一步（d4e25dac1）** DiscipleStore 增 `numericIds`/`hasNumericIds` 派生列（ids 本是数字串——装载/增删时按 Kotlin toIntOrNull 同口径全串严格解析一次，纯内存列不进协议）+ `numericIdToRow` 数值行索引（与 `idToRow` 同点同步维护：append/eraseAt 同循环重建/swapRows 双键/clear）；`indexById(DiscipleStore)` 改数值列直读；热路径逐点替换（核心批次串行/并行循环、突破候选筛选、亲属赠送/日志循环、自动丹药钩子、`rowOf(to_string)` 往返 → `rowOfNumber`、战前突破事务、residenceBuildingBonus 数值 id 重载）；**第二步（dd2b4e0e9）** equipment/manual 映射改 owner 行索引桶式存储（`instance_buckets.h`：桶值 = 全局向量下标零拷贝、构建 O(E)、本人桶内末次匹配零分配；无主/异常 owner 回退全量末次扫描 = 原 `map.find` 同覆盖面；实例 id 唯一不变量下逐位一致）——每步入口 `equipmentMapOf`/`manualMapOf` 全量深拷贝映射（E 次实例深拷贝 + 字符串键节点）退役，`getMaxHpMp`/`calculateCultivationPerPhaseColumn` 收敛桶查找单源；`idToRow` 字符串键仅保留在协议边界（JSON 编解码/JNI/UI 事务字符串寻址），GameState 实例存储形状与 JSON 协议零变更 |
+
+测试口径：桌面全量 GTest **1425/1425**（携 `-ffp-contract=off` 旗标；基线 1419 + 新增
+DiscipleStore 数值列守卫 6 条；R1.2 单独态 1419、R1.3 第一步终态 1425、R1.3 第二步终态
+1425 各实跑一轮）+ testReleaseUnitTest 全量串行 `--rerun-tasks` 实跑（六模块 **7777 用例 /
+0 失败**；`:core:engine` 3296 含 47 个 `Diff*Test` 桌面 JNI 对拍类 **268 用例 0 skip**——
+JNI 桥经 `scripts/build-desktop-jni.ps1` 重建携入本批 C++ 改动）+ detekt 绿 +
+`compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更。
 
