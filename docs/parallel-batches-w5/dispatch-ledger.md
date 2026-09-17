@@ -42,7 +42,7 @@
 
 | 批 | 内容 | 方案条目 | 状态 | 证据（提交/测试） |
 |---|---|---|---|---|
-| B01 | map 重建提升到步骤入口 + getMaxHpMp 临时 map 消除 | R1.1 + R1.5 | dispatching | — |
+| B01 | map 重建提升到步骤入口 + getMaxHpMp 临时 map 消除 | R1.1 + R1.5 | **accepted**（2026-09-18 00:25） | 01849d8b4 / ad5ca62ee / 文档 90db91f6b；看护亲跑：GTest 1419/1419（33s）+ JUnit 六模块强制实跑 229 任务全 executed 绿（engine 3296/0skip/0fail，XML 实证）+ detekt/lint/compile 绿；改动面仅 gamecore 3 头文件+3 文档，JNI/协议面零变更 |
 | B02 | committedDisciples 去物化 + 字符串键 → dense 索引 | R1.2 + R1.3 | pending | — |
 | B03 | DirtyTracker 列级写屏障 + destroyDiscipleEntities 去 O(D²) + R1 收官 bench（证明 G1） | R1.4 + R1.6 | pending | — |
 | B04 | 秘境战斗切 native（会话/邮件/暂停租约留 Kotlin） | R4.2 | pending | — |
@@ -67,10 +67,10 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-18 00:10（verifying 进行中：GTest 1419/1419 已过，全量 JUnit 强制实跑 --rerun-tasks 后台中；后续轮次只做监控勿抢）
-- **状态**：`verifying`（B01 子会话已完成并给出最终报告，看护亲自复跑验收门）
-- **当前批**：B01（R1.1 + R1.5，批次文件 `batch-R1A.md` @ e36f5102f）
-- **派发时间**：2026-09-17 22:55（GUI 新建任务派发，模型 GLM-5.3-Flash，完全访问，项目 XianxiaSectNative/main）
+- **看护锁**：—
+- **状态**：`dispatch`（B01 已验收通过，待派 B02）
+- **当前批**：B02（R1.2 + R1.3，批次文件 `batch-R1B.md` 已就绪）
+- **派发时间**：—
 - **缺陷清单**：—
 - **监控日志**：
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
@@ -80,7 +80,10 @@
   - 2026-09-17 23:37 截屏：方案 §7.2 登记小节与 cpp-engine.md 进展行已写；JUnit exit 0 但子会话自查发现多数任务 UP-TO-DATE（测试可能未真正重跑），正核查任务实际执行情况与 gamecore.jni.path 注入——防"假绿"，严谨合格。
   - 2026-09-17 23:47 截屏：UP-TO-DATE 疑点已澄清——core:engine 3296/0skip/0失败 Diff 对拍全实跑，六模块合计 7777 用例 0 失败（17 既有 skip）；detekt+compileReleaseKotlin+lintRelease 全绿；CHANGELOG 4.01.15 + cpp-engine.md 已写，正在提交文档批次。下一轮预期转 verifying。
   - 2026-09-17 23:57 截屏：B01 最终完成报告已出（含假绿排除/版本口径/台账代改边界三条说明），会话空闲。看护占锁转 verifying，开始亲自复跑验收门。
+  - 2026-09-18 00:25 **B01 验收通过**：六项门全绿（详见批次总表证据列）。看护亲跑 GTest 1419/1419 + JUnit --rerun-tasks 全实跑（229 任务 executed，engine XML 3296/0skip/0fail）+ detekt/lint/compile；提交谱系与改动面核对无越界。转入派发 B02。
 
 ## 经验教训（随批追加）
 
-- （待首批派发后积累）
+- 子会话（GLM-5.3-Flash）质量好：会自查 UP-TO-DATE 假绿并以 XML 时间戳证明实跑；版本口径主动对齐仓库先例（纯内部批不动 version.properties/changelog_entries.json）；不代改看护台账。
+- 看护复跑方法（固化为验收 SOP）：① GTest：llvm-mingw + SDK cmake 3.22.1 入 PATH，`ctest` 于 `android/app/src/main/cpp/gamecore/build/desktop-test`（约 33s）；② JUnit：先 `pwsh -File scripts/build-desktop-jni.ps1` 重建 .so，再 `testReleaseUnitTest --max-workers=1 --rerun-tasks "-Dgamecore.jni.path=<so 绝对路径>"`（约 11 分钟，必须 --rerun-tasks 否则 UP-TO-DATE 不实跑）；③ detekt/compileReleaseKotlin/lintRelease 可并入一道 gradle 调用。
+- 派发指令引用批次文件（而非塞满 prompt）效果良好；批次文件内写明"续接上一批提交号与 §7.2 登记"有助连贯。
