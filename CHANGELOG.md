@@ -10,6 +10,14 @@
 - **R1.3 dense 索引收尾（随 bench 揭示）**：bench 实测暴露每旬入口最后一处 O(D) 分配 = 串行/并行核心批次与两版步骤 7 入口的 `indexById` 全量 map 重建（2×D 节点/旬）——`numericIdToRow` 本就是其"免重建缓存"（R1.3 索引镜像守卫锁定内容一致），4 处调用点收尾替换为直用 store 索引；行结构变更经 eraseAt 同点维护（步骤 6 偷盗叛逃移除行后，步骤 7 入口语义 == 原快照重建时点），核心批次/步骤 7 内无行结构变更（既有契约）⇒ 引用绑定 == 快照，行为逐位一致。
 - **门禁**：桌面全量 GTest **1443/1443**（携 `-ffp-contract=off` 旗标；基线 1425 + ColumnDirty 守卫 11 + ECS swap-and-pop 守卫 4 + bench 门禁 3；`GAMECORE_BUILD_BENCH` 默认关时 1440/1440）；`testReleaseUnitTest --max-workers=1 --rerun-tasks` 六模块 **7777 用例 / 0 失败**（222 任务全 executed 非 UP-TO-DATE；`:core:engine` 含 47 个 `Diff*Test` **268 用例 0 skip**——对拍桥经 `scripts/build-desktop-jni.ps1` 重建携入本批 C++ 改动；17 跳过 = data 15 + app 2 既有）。途中偶发：`GameEngineCoreLifecycleInterleavingTest` 首两轮各 1 例失败（emergency/snapshot 5s 并发时序窗），单独重跑 12/12 绿 + 第三轮全量绿——既有偶发（`progress.md` §912 同款前例），与本批无关（本批零 Kotlin/JNI 变更）。detekt 绿；`compileReleaseKotlin`/`lintRelease` 绿；JNI 面/协议面/存档格式零变更。
 
+### R4.2 秘境战斗切 native 批 B04（2026-09-18）——秘境战斗执行段经 BattleExecutionRouter 接线
+
+> 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R4 表 R4.2 行（批次文件 `docs/parallel-batches-w5/batch-R4A.md`）。**零协议面/JNI 签名/存档变更、零玩家可见变更（战斗结果逐位一致）⇒ 游戏内 `changelog_entries.json` 未追加**；沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。单代码 commit（`fa8fa5833`）。
+
+- **R4.2 秘境战斗执行段切 native**：`SecretRealmService` 新增战斗执行统一入口 `executeRouted`（妖兽战 PvE / AI 宗门遭遇 PvP 两分支共用）——AUTHORITATIVE 生产经 `BattleExecutionRouter.tryExecuteNative` → `nativeBattleExecute`，与 R4.1 遭遇战同一路由与灰度模式；flag 关（`NativeEngineFlag.authoritative`，生产默认 AUTHORITATIVE，零新增 flag）/ native 未加载 / 失败信封回退 Kotlin `executeBattleWithTimeout` 既有臂（超时口径不变），**回退臂保留一个版本周期（本批不删臂、不转 golden）**。会话管理 / UI / 邮件 / 暂停租约留 Kotlin 平台域——只切战斗执行段；秘境会话交互面既有 native 事务通道不动。RNG 走既有 NativeBackedRng 委托式约定（BATTLE 分区同区同序），分区零调整（R4.4 范围）。
+- **守卫**：新增 `SecretRealmServiceRouteTest`（3 用例）——桥未加载 AUTHORITATIVE 与旗标 OFF 两条回退路径下，妖兽战与 AI 宗门 PvP 均无障碍走 Kotlin `BattleSystem` 完成结算（战报记录/成员写回/胜负一致/体力扣除/AI 队伍移除一致性断言）；等价性由 `DiffBattleExecutionTest`（C++ `battle_execution.h` 逐位对拍）守护。
+- **门禁**：桌面全量 GTest **1443/1443**（携 `-ffp-contract=off` 旗标；零 C++ 变更基线持平）；`testReleaseUnitTest --max-workers=1 --rerun-tasks` 六模块 **7780 用例 / 0 失败**（222 任务全 executed 非 UP-TO-DATE；对拍桥重建携入，47 个 `Diff*Test` 268 用例 0 skip；17 跳过 = data 15 + app 2 既有）；detekt 绿；`compileReleaseKotlin`/`lintRelease` 绿。
+
 ### R1 形状解锁首批 B01——R1.1 + R1.5（map 重建提升到步骤入口）
 
 > 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R1 表首批（批次文件 `docs/parallel-batches-w5/batch-R1A.md`）。纯 C++ 内部形状改造：**零协议面/JNI 签名/存档变更、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；`version.properties` 未递增——由用户决定。每子项独立 commit（01849d8b4 / ad5ca62ee）。

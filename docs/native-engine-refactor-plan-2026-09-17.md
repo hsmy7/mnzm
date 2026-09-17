@@ -310,3 +310,18 @@ ColumnDirty 守卫 11 + ECS swap-and-pop 守卫 4 + bench 门禁 3；`GAMECORE_B
 （progress.md §912 同款前例），与本批无关：本批零 Kotlin/JNI 变更）+ detekt 绿 +
 `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更。
 
+
+#### B04 批（2026-09-18）= R4.2 秘境战斗切 native（复用 BattleExecutionRouter 路由与灰度模式）
+
+批次文件 `docs/parallel-batches-w5/batch-R4A.md`；单代码 commit（fa8fa5833），零 C++ 变更。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R4.2 | ✅ | `SecretRealmService` 新增战斗执行统一入口 `executeRouted`（妖兽战 PvE `buildAndExecuteBattle` / AI 宗门遭遇 PvP `buildAndExecuteAISectBattle` 两分支共用）：AUTHORITATIVE 生产经 `BattleExecutionRouter.tryExecuteNative` → `GameCoreBridge.nativeBattleExecute`（C++ `battle::executeBattle`，消费 BATTLE 分区——NativeBackedRng 委托式约定同区同序）；flag 关 / native 未加载 / 失败信封（C++ 全 catch 返回 `{"error"}`）→ null 回退 Kotlin `executeBattleWithTimeout` 既有臂（超时口径不变），**回退臂保留一个版本周期（本批不删臂、不转 golden）**。会话管理 / UI / 邮件 / 暂停租约留 Kotlin 平台域——只切战斗执行段；秘境会话交互面既有 native 事务通道（SECRET_REALM_CHOOSE / CONTINUE / END / EXPIRY_GUARD / START_RELEASE）不动。**灰度 flag：`NativeEngineFlag.authoritative`（`NativeEngineFlag.kt`，`mode` 生产默认 `AUTHORITATIVE`——R4.1 既有旗标体系，零新增 flag）**。守卫：`SecretRealmServiceRouteTest` 3 用例（桥未加载 AUTHORITATIVE + 旗标 OFF 两回退路径 × 妖兽/PvP 编排面：战报记录/成员写回/胜负一致/体力扣除/AI 队伍移除一致性）；等价性由 `DiffBattleExecutionTest`（C++ `battle_execution.h` 逐位对拍）+ `DiffSecretRealmTest`（事件生成/判定段）守护 |
+
+测试口径：桌面全量 GTest **1443/1443**（携 `-ffp-contract=off` 旗标；本批零 C++ 变更，基线 1443 持平）+
+testReleaseUnitTest 全量串行 `--rerun-tasks` 实跑（六模块 **7780 用例 / 0 失败**，222 任务全 executed
+非 UP-TO-DATE；`:core:engine` 3299 = 基线 3296 + `SecretRealmServiceRouteTest` 3，含 47 个 `Diff*Test`
+**268 用例 0 skip**——对拍桥经 `scripts/build-desktop-jni.ps1` 重建；17 跳过 = data 15 + app 2 既有）+
+detekt 绿 + `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更、
+RNG 分区零调整（分区独立属 R4.4）。
