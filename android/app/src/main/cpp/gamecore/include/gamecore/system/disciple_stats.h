@@ -180,7 +180,54 @@ inline double effectValue(const std::map<std::string, double>& effects,
     return (it != effects.end()) ? it->second : 0.0;
 }
 
+/// 天赋+词条 maxHp/maxMp 两键效果和直算（getMaxHpMp 热路径专用——免
+/// talentEffectsFor/affixEffectsFor/mergeEffects 三次中间 map 物化）。
+/// 与 map 版逐位一致：单键加法序 = 天赋 id 序 → 词条 id 序，每模板单键
+/// 至多累加一次（与 accumulateEffects 同序），初值同为 0.0。
+inline void hpMpEffectsFor(const std::vector<std::string>& talentIds,
+                           const std::vector<std::string>& affixIds,
+                           double& outMaxHpEffect, double& outMaxMpEffect) {
+    outMaxHpEffect = 0.0;
+    outMaxMpEffect = 0.0;
+    for (const std::string& id : talentIds) {
+        const auto tpl = gamecore::data::talentById(id);
+        if (!tpl.has_value()) continue;
+        const auto hp = tpl->effects.find("maxHp");
+        if (hp != tpl->effects.end()) outMaxHpEffect += hp->second;
+        const auto mp = tpl->effects.find("maxMp");
+        if (mp != tpl->effects.end()) outMaxMpEffect += mp->second;
+    }
+    for (const std::string& id : affixIds) {
+        const auto tpl = gamecore::data::affixById(id);
+        if (!tpl.has_value()) continue;
+        const auto hp = tpl->effects.find("maxHp");
+        if (hp != tpl->effects.end()) outMaxHpEffect += hp->second;
+        const auto mp = tpl->effects.find("maxMp");
+        if (mp != tpl->effects.end()) outMaxMpEffect += mp->second;
+    }
+}
+
 // ── 基础 HP/MP（computeBaseHpMp） ───────────────────────────────────
+
+/// maxHp/maxMp 基础值核心（效果和已解析为两键标量——getMaxHpMp 热路径
+/// 免 effects map 物化；map 版 computeBaseHpMp 委托本函数）：
+/// 基础 × 方差乘区 × 层数乘区 × (1 + 天赋% + 血炼%)
+inline void computeBaseHpMpResolved(
+        int32_t realm, int32_t realmLayer, int32_t hpVariance,
+        int32_t mpVariance, double maxHpEffect, double maxMpEffect,
+        const BloodRefinementPctTotal* bloodRefinementPct,
+        int32_t& outMaxHp, int32_t& outMaxMp) {
+    const auto& rc = gamecore::disciple::realmConfig(realm);
+    const double layerMult =
+        gamecore::disciple::safeLayerMult(realmLayer);
+    const double hpBonus = maxHpEffect +
+        safeBrPct(bloodRefinementPct ? bloodRefinementPct->hpBonusPct : 0.0);
+    const double mpBonus = maxMpEffect;
+    const double hpVar = gamecore::disciple::safeVarianceMultiplier(hpVariance);
+    const double mpVar = gamecore::disciple::safeVarianceMultiplier(mpVariance);
+    outMaxHp = roundToInt(rc.baseHp * hpVar * layerMult * (1.0 + hpBonus));
+    outMaxMp = roundToInt(rc.baseMp * mpVar * layerMult * (1.0 + mpBonus));
+}
 
 /// maxHp/maxMp 基础值：基础 × 方差乘区 × 层数乘区 × (1 + 天赋% + 血炼%)
 inline void computeBaseHpMp(int32_t realm, int32_t realmLayer,
@@ -188,16 +235,10 @@ inline void computeBaseHpMp(int32_t realm, int32_t realmLayer,
                             const std::map<std::string, double>& talentEffects,
                             const BloodRefinementPctTotal* bloodRefinementPct,
                             int32_t& outMaxHp, int32_t& outMaxMp) {
-    const auto& rc = gamecore::disciple::realmConfig(realm);
-    const double layerMult =
-        gamecore::disciple::safeLayerMult(realmLayer);
-    const double hpBonus = effectValue(talentEffects, "maxHp") +
-        safeBrPct(bloodRefinementPct ? bloodRefinementPct->hpBonusPct : 0.0);
-    const double mpBonus = effectValue(talentEffects, "maxMp");
-    const double hpVar = gamecore::disciple::safeVarianceMultiplier(hpVariance);
-    const double mpVar = gamecore::disciple::safeVarianceMultiplier(mpVariance);
-    outMaxHp = roundToInt(rc.baseHp * hpVar * layerMult * (1.0 + hpBonus));
-    outMaxMp = roundToInt(rc.baseMp * mpVar * layerMult * (1.0 + mpBonus));
+    computeBaseHpMpResolved(realm, realmLayer, hpVariance, mpVariance,
+                            effectValue(talentEffects, "maxHp"),
+                            effectValue(talentEffects, "maxMp"),
+                            bloodRefinementPct, outMaxHp, outMaxMp);
 }
 
 // ── 装备最终属性（EquipmentInstance.getFinalStats） ─────────────────
@@ -286,10 +327,11 @@ inline void getMaxHpMp(
         const std::map<std::string, ManualInstance>& manualMap,
         const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
         int32_t& outMaxHp, int32_t& outMaxMp) {
-    std::map<std::string, double> effects = mergeEffects(
-        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
-    computeBaseHpMp(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
-                    effects, bloodRefinementPct, outMaxHp, outMaxMp);
+    double maxHpEffect = 0.0, maxMpEffect = 0.0;
+    hpMpEffectsFor(d.talentIds, d.affixIds, maxHpEffect, maxMpEffect);
+    computeBaseHpMpResolved(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
+                            maxHpEffect, maxMpEffect, bloodRefinementPct,
+                            outMaxHp, outMaxMp);
     for (const std::string& eqId : {d.weaponId, d.armorId, d.bootsId, d.accessoryId}) {
         if (eqId.empty()) continue;
         const auto it = equipmentMap.find(eqId);
@@ -328,11 +370,13 @@ inline void getMaxHpMp(
         const std::map<std::string, ManualInstance>& manualMap,
         const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
         int32_t& outMaxHp, int32_t& outMaxMp) {
-    std::map<std::string, double> effects = mergeEffects(
-        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
-    computeBaseHpMp(ds.realms[row], ds.realmLayers[row], ds.hpVariances[row],
-                    ds.mpVariances[row], effects, bloodRefinementPct,
-                    outMaxHp, outMaxMp);
+    double maxHpEffect = 0.0, maxMpEffect = 0.0;
+    hpMpEffectsFor(ds.talentIds[row], ds.affixIds[row], maxHpEffect,
+                   maxMpEffect);
+    computeBaseHpMpResolved(ds.realms[row], ds.realmLayers[row],
+                            ds.hpVariances[row], ds.mpVariances[row],
+                            maxHpEffect, maxMpEffect, bloodRefinementPct,
+                            outMaxHp, outMaxMp);
     for (const std::string& eqId :
          {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row], ds.accessoryIds[row]}) {
         if (eqId.empty()) continue;
