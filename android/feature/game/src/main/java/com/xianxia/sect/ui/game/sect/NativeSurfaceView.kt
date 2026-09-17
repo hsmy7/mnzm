@@ -517,6 +517,8 @@ class NativeSurfaceView(
         /** 软件渲染分辨率上限（CPU 逐像素路径兜底：即使策略异常也不超过此值，避免全分辨率卡顿；
          *  低值换取拿起/移动预览的跟随流畅度） */
         private const val SOFTWARE_RENDER_SCALE_CAP = 0.5f
+        /** 精灵溢出遥测轮询间隔（渲染帧）：60 帧 ≈ 1s@60fps，摊薄 JNI 轮询开销（R0.3） */
+        private const val OVERFLOW_POLL_INTERVAL = 60L
     }
 
     /**
@@ -1415,6 +1417,11 @@ class NativeSurfaceView(
                 lastRenderedSkyConfig = skyConfig
                 diagRenderCount++
 
+                // R0.3 精灵溢出遥测轮询（每 60 渲染帧 ≈1s；C++ 累计计数单调，折叠进 RenderMetrics）
+                if (diagRenderCount % OVERFLOW_POLL_INTERVAL == 0L) {
+                    pollSpriteOverflowStats()
+                }
+
                 // 统一 EWMA 渲染能力追踪（VULKAN/SOFTWARE 双路径一致）。
                 // 关键设计：**不写回 targetFps**——渲染线程内部维护 effectiveFps =
                 // min(targetFps, ewmaFps)，避免"只降不升 + StateFlow 不重发"钉死竞态；
@@ -1429,6 +1436,17 @@ class NativeSurfaceView(
                 // 帧率变化后向系统声明（高刷面板声明 60/30 省屏耗 + 升档防抖）
                 maybeDeclareFrameRate(effectiveFps, pacing.displayFps, System.currentTimeMillis())
                 }
+            }
+        }
+
+        /** 精灵溢出累计遥测折叠（R0.3，低频轮询；渲染器未初始化返回全 0，max 折叠无副作用） */
+        @Suppress("TooGenericExceptionCaught") // 遥测兜底: JNI/状态异常源不可枚举, 失败留痕下一周期重试
+        private fun pollSpriteOverflowStats() {
+            try {
+                val stats = NativeBridge.nativeGetSpriteOverflowStats()
+                if (stats.size >= 3) RenderMetrics.foldSpriteOverflowStats(stats[0], stats[1], stats[2])
+            } catch (e: Exception) {
+                android.util.Log.w(LOG_TAG, "sprite overflow stats poll failed", e)
             }
         }
 

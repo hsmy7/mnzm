@@ -55,6 +55,17 @@ object RenderMetrics {
     /** 图集内单个精灵加载失败次数 */
     val atlasLoadSpriteFailed = AtomicLong(0)
 
+    // ── 精灵容量溢出（R0.3，C++ SpriteBatcher 累计遥测的低频折叠）──
+
+    /** 累计丢弃精灵数（MAX_SPRITES_PER_FRAME 容量封顶后的丢弃） */
+    val spriteOverflowDropped = AtomicLong(0)
+
+    /** 累计溢出帧数（该帧任一批量构建器发生容量丢弃） */
+    val spriteOverflowFrames = AtomicLong(0)
+
+    /** 累计降级生效帧数（溢出后跳装饰层的帧——有序降级生效信号） */
+    val spriteOverflowDegradeFrames = AtomicLong(0)
+
     // ── FPS 滑动窗口（2 秒窗口，120 槽 @60fps） ──
 
     private val frameTimestamps = LongArray(120)
@@ -88,8 +99,22 @@ object RenderMetrics {
         val fps: Float,
         val softwareRatio: Float,
         val droppedFrames: Long,
-        val atlasFailed: Boolean
+        val atlasFailed: Boolean,
+        val spriteOverflowDropped: Long = 0,
+        val spriteOverflowDegradeFrames: Long = 0
     )
+
+    /**
+     * 折叠 C++ 侧溢出累计计数（[NativeBridge.nativeGetSpriteOverflowStats] 低频轮询）。
+     *
+     * C++ 计数单调递增，Kotlin 侧取 max 单调折叠（渲染器重建不会使累计回退；
+     * C++ 侧累计计数跨 surface 代际保留，仅有 resetForTest 显式清零）。
+     */
+    fun foldSpriteOverflowStats(droppedTotal: Long, overflowFrames: Long, degradeFrames: Long) {
+        spriteOverflowDropped.updateAndGet { maxOf(it, droppedTotal) }
+        spriteOverflowFrames.updateAndGet { maxOf(it, overflowFrames) }
+        spriteOverflowDegradeFrames.updateAndGet { maxOf(it, degradeFrames) }
+    }
 
     /** 获取当前指标快照，供 CrashHandler 在崩溃时携带上报 */
     fun snapshot(): Snapshot {
@@ -99,7 +124,9 @@ object RenderMetrics {
             fps = fps(),
             softwareRatio = if (total > 0) softwareFrames.get().toFloat() / total else 0f,
             droppedFrames = renderFrameNull.get(),
-            atlasFailed = atlasBuildFailed.get() > 0
+            atlasFailed = atlasBuildFailed.get() > 0,
+            spriteOverflowDropped = spriteOverflowDropped.get(),
+            spriteOverflowDegradeFrames = spriteOverflowDegradeFrames.get()
         )
     }
 
@@ -114,5 +141,8 @@ object RenderMetrics {
         lockCanvasFailed.set(0)
         atlasBuildFailed.set(0)
         atlasLoadSpriteFailed.set(0)
+        spriteOverflowDropped.set(0)
+        spriteOverflowFrames.set(0)
+        spriteOverflowDegradeFrames.set(0)
     }
 }

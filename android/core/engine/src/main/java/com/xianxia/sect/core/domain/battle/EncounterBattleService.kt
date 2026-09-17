@@ -4,6 +4,7 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
@@ -36,6 +37,11 @@ import javax.inject.Singleton
  *
  * Phase 1 — 遭遇战（PvP）：两队弟子对战，胜者进入 Phase 2。
  * Phase 2 — 胜者 vs 妖兽（PvE）：胜者的幸存弟子与指定妖兽战斗。
+ *
+ * 战斗执行经 [BattleExecutionRouter] 路由：AUTHORITATIVE 生产走 C++ 战斗引擎
+ * （nativeBattleExecute），flag 关/native 不可用/执行失败时回退 Kotlin
+ * [BattleSystem.executeBattle]；战斗日志（rounds/成员终态）由路由器从 C++
+ * 动作序列重建，满足战报完整回放。
  *
  * 所有修改在调用方提供的 GameStateStore.update 事务内完成，函数本身非挂起。
  */
@@ -139,6 +145,15 @@ class EncounterBattleService @Inject constructor(
         executePhase2Pve(state, p1.winnerP1, p1.winnerSide, p1.winnerSurvivors, beast, year, month)
     }
 
+    /**
+     * 战斗执行统一入口：AUTHORITATIVE 生产走 C++ 战斗引擎，回退 Kotlin
+     * [BattleSystem.executeBattle]。遭遇战无额外伤害修正（与原实现默认值一致）。
+     */
+    private fun executeRouted(battle: Battle): BattleSystemResult {
+        return BattleExecutionRouter.tryExecuteNative(battle)
+            ?: battleSystem.executeBattle(battle)
+    }
+
     /** Phase 1 结算结果（胜方 + 幸存弟子 + 胜方配置） */
     private data class Phase1Result(
         val winnerP1: EncounterAttacker,
@@ -165,7 +180,7 @@ class EncounterBattleService @Inject constructor(
         month: EncounterMonth,
         favorDedup: MutableSet<String>?
     ): Phase1Result {
-        val pvpResult = battleSystem.executeBattle(pvpBattle)
+        val pvpResult = executeRouted(pvpBattle)
         val outcome = resolvePhase1Outcome(pvpResult, attackerA, attackerB)
         DomainLog.i(TAG, "Phase 1 结果: ${outcome.winner.sectName} 胜, " +
             "胜方存活=${outcome.winnerAliveIds.size}, 败方阵亡=${outcome.loserDeadIds.size}")
@@ -277,7 +292,7 @@ class EncounterBattleService @Inject constructor(
         val pveBattle = buildPhase2Battle(
             winnerSurvivors, winnerSide, beast, state.gameData.bloodRefinementPctTotals
         )
-        val pveResult = battleSystem.executeBattle(pveBattle)
+        val pveResult = executeRouted(pveBattle)
 
         DomainLog.i(TAG, "Phase 2 结果: ${winnerP1.sectName} " +
             if (pveResult.victory) "击败了" else "被" + "妖兽击败")

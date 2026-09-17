@@ -22,7 +22,15 @@ import javax.inject.Singleton
  * 功能：
  * - 支持每个主机配置多个 SPKI 哈希（主证书 + 备用证书）
  * - Debug 构建可通过 [NetworkSecurityConfig] 开关绕过固定（方便抓包调试）
- * - Release 构建强制启用，不可绕过
+ * - pin 声明/开关集中在 [NetworkSecurityConfig]（单一声明源）
+ *
+ * ## 占位 pin 的降级契约（R0.1）
+ *
+ * 占位 pin 一律过滤，**任何构建类型下都不因占位 pin 崩溃**：
+ * - 凭证未就绪（CERT_PINNING_ENFORCED=false）→ pinning 显式关闭，等效空 pinner
+ * - 声明启用但个别 pin 仍是占位 → 过滤占位，用真实 pin 子集构建
+ * - "占位 pin + 声明启用"的矛盾状态由构建期任务 `validateCertificatePins`
+ *   拦截（release 直接 fail），运行时只做防御性降级
  *
  * ## 如何获取 SPKI SHA-256 哈希
  *
@@ -43,56 +51,6 @@ class CertificatePinnerProvider @Inject constructor() {
 
     companion object {
         private const val TAG = "CertificatePinnerProvider"
-
-        // ──────────────────────────────────────────
-        // SPKI SHA-256 哈希值（Base64 编码）
-        // ──────────────────────────────────────────
-        //
-        // 【重要】以下为占位值，部署前必须替换为实际的服务器证书 SPKI 哈希！
-        // 获取方式见类注释中的 openssl 命令。
-        //
-        // 格式：sha256/<Base64编码的SPKI-SHA256>
-        //
-
-        /**
-         * api.xianxia.com - 主证书 SPKI 哈希
-         *
-         * Pin: replace with production SHA256 hash after CDN deployment
-         *   阻塞项：需服务器部署后使用 openssl 提取（见类注释命令）
-         *   风险：Release 构建中占位值会触发 IllegalStateException 导致启动失败
-         */
-        private const val API_PRIMARY_PIN = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-
-        /**
-         * api.xianxia.com - 备用证书 SPKI 哈希（用于证书轮换期）
-         *
-         * 当主证书即将到期、需要切换到新证书时，
-         * 将新证书的 SPKI hash 添加到此位置，
-         * 两套 hash 并存期间均可通过校验。
-         *
-         * Pin: replace with production SHA256 hash after CDN deployment
-         *   阻塞项：需服务器配置备用证书后提取；若无轮换计划可暂留占位
-         */
-        private const val API_BACKUP_PIN = "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
-
-        /**
-         * cdn.xianxia.com - 主证书 SPKI 哈希
-         *
-         * CDN 通常使用不同的证书（如 Cloudflare/Akamai 托管证书），
-         * 需要单独配置其 SPKI hash。
-         *
-         * Pin: replace with production SHA256 hash after CDN deployment
-         *   阻塞项：需 CDN 服务商确定后提取；若不使用独立 CDN 域名可移除此项
-         */
-        private const val CDN_PRIMARY_PIN = "sha256/CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC="
-
-        /**
-         * cdn.xianxia.com - 备用证书 SPKI 哈希
-         *
-         * Pin: replace with production SHA256 hash after CDN deployment
-         *   阻塞项：需 CDN 服务商确定后提取；若无轮换计划可暂留占位
-         */
-        private const val CDN_BACKUP_PIN = "sha256/DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD="
     }
 
     /** 已构建的 CertificatePinner 实例（懒加载） */
@@ -122,19 +80,17 @@ class CertificatePinnerProvider @Inject constructor() {
      * 构建 OkHttp CertificatePinner 实例。
      *
      * 根据 [NetworkSecurityConfig.isCertificatePinningEnabled] 决定是否启用：
-     * - **Release 构建**：始终启用，使用完整的 pin 集合
-     * - **Debug 构建**：根据 [NetworkSecurityConfig.ENABLE_PINNING_IN_DEBUG] 决定；
-     *   若关闭则返回空 pinner（等效于不固定），方便 Charles/Fiddler 抓包
+     * - **未启用**（显式降级态 / debug 抓包态）：空 pinner，等效于不固定
+     * - **启用**：仅使用各主机的有效（非占位）pin；全部占位时降级为空 pinner
+     *   并告警（该矛盾状态在 release 构建期已被 `validateCertificatePins` 拦截）
      */
     @Suppress("SpreadOperator") // OkHttp CertificatePinner.add 为 vararg API，动态 pin 列表必须散布传入
     private fun buildCertificatePinner(): CertificatePinner {
         if (!NetworkSecurityConfig.isCertificatePinningEnabled) {
-            Log.w(
+            Log.i(
                 TAG,
-                """[安全警告] 证书固定已禁用！
-                   |仅在 Debug 开发环境下允许此操作。
-                   |Release 构建必须启用证书固定。
-                """.trimMargin()
+                "证书固定未启用（显式降级态或 debug 抓包态，" +
+                    "CERT_PINNING_ENFORCED=${BuildConfig.CERT_PINNING_ENFORCED}）"
             )
             return CertificatePinner.Builder().build()
         }
@@ -143,7 +99,7 @@ class CertificatePinnerProvider @Inject constructor() {
         var totalValidPins = 0
 
         for (host in NetworkSecurityConfig.pinnedHosts) {
-            val pins = getPinsForHost(host)
+            val pins = NetworkSecurityConfig.realPinsForHost(host)
             if (pins.isNotEmpty()) {
                 builder.add(host, *pins.toTypedArray())
                 totalValidPins += pins.size
@@ -153,12 +109,13 @@ class CertificatePinnerProvider @Inject constructor() {
             }
         }
 
-        if (totalValidPins == 0 && NetworkSecurityConfig.pinnedHosts.isNotEmpty()) {
+        if (totalValidPins == 0) {
             Log.e(
                 TAG,
-                """[严重安全警告] 所有主机的证书固定值均为占位符！
-                   |当前等效于完全禁用证书固定，存在中间人攻击风险。
-                   |请立即使用 extractSpkiHash() 方法提取真实证书哈希并替换常量中的占位值。
+                """[严重安全警告] 所有主机的证书固定值均为占位符，已降级为无固定！
+                   |该状态在 release 构建期应被 validateCertificatePins 拦截。
+                   |请使用 extractSpkiHash() 提取真实证书哈希并替换
+                   |NetworkSecurityConfig 中的占位值。
                 """.trimMargin()
             )
         }
@@ -166,59 +123,7 @@ class CertificatePinnerProvider @Inject constructor() {
         val pinner = builder.build()
         Log.i(TAG, "CertificatePinner 构建完成，覆盖 ${NetworkSecurityConfig.pinnedHosts.size} 个主机，共 $totalValidPins 个有效 pin")
 
-        if (totalValidPins == 0 && NetworkSecurityConfig.pinnedHosts.isNotEmpty()) {
-            if (!BuildConfig.DEBUG) {
-                throw IllegalStateException(
-                    "[SECURITY] Release build has placeholder certificate pins! " +
-                    "Replace placeholder SPKI hashes in CertificatePinnerProvider before release."
-                )
-            }
-        }
-
         return pinner
-    }
-
-    /**
-     * 根据主机名返回对应的主 + 备用 SPKI pin 列表。
-     *
-     * @param host 主机名（如 "api.xianxia.com"）
-     * @return 该主机所有有效的 SPKI pin 字符串列表
-     */
-    private fun getPinsForHost(host: String): List<String> {
-        return when (host) {
-            "api.xianxia.com" -> listOfNotNull(
-                API_PRIMARY_PIN.takeIf { isPlaceholderPin(it).not() },
-                API_BACKUP_PIN.takeIf { isPlaceholderPin(it).not() }
-            )
-            "cdn.xianxia.com" -> listOfNotNull(
-                CDN_PRIMARY_PIN.takeIf { isPlaceholderPin(it).not() },
-                CDN_BACKUP_PIN.takeIf { isPlaceholderPin(it).not() }
-            )
-            else -> emptyList()
-        }
-    }
-
-    /**
-     * 检测一个 pin 是否仍是占位符（尚未被替换为真实值）。
-     *
-     * 占位特征：包含连续重复字符模式（如 AAAA..., BBBB...），
-     * 这不是合法的 Base64 编码的 SHA-256 输出。
-     *
-     * @param pin SPKI pin 字符串（格式: sha256/...）
-     * @return true 表示该 pin 是占位符，不应投入使用
-     */
-    private fun isPlaceholderPin(pin: String): Boolean {
-        val hashPart = pin.removePrefix("sha256/")
-        if (hashPart.length < 16) return true
-
-        // 检测简单重复模式（如全 A, 全 B 等）
-        val firstChar = hashPart[0]
-        var repeatCount = 0
-        for (c in hashPart) {
-            if (c == firstChar) repeatCount++
-        }
-        // 如果超过 80% 的字符相同，判定为占位符
-        return repeatCount > hashPart.length * 0.8
     }
 
     // ──────────────────────────────────────────────
@@ -229,7 +134,7 @@ class CertificatePinnerProvider @Inject constructor() {
      * 从 DER/PEM 编码的 X.509 证书中提取 SPKI SHA-256 哈希。
      *
      * 此方法主要用于开发阶段的辅助工具，
-     * 从 .cer / .crt 文件中提取正确的 pin 值填入上方常量。
+     * 从 .cer / .crt 文件中提取正确的 pin 值填入 [NetworkSecurityConfig] 常量。
      *
      * @param certBytes 证书原始字节（DER 或 PEM 文本）
      * @return sha256/<Base64> 格式的 pin 字符串

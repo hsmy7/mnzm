@@ -74,6 +74,9 @@ class XianxiaApplication : Application() {
     @Inject
     lateinit var crashReporter: CrashReporter
 
+    @Inject
+    lateinit var crashHandler: com.xianxia.sect.core.CrashHandler
+
     private val memoryPressureListeners = CopyOnWriteArrayList<MemoryPressureListener>()
 
     /** AppStartup-Init 后台初始化执行器（Bugly/MMKV 一次性任务），onTerminate 时幂等 shutdown */
@@ -387,6 +390,17 @@ class XianxiaApplication : Application() {
             // Bugly 内部会覆盖默认崩溃处理器——必须在其后重新安装 TapTap 守卫，
             //   使守卫位于 Bugly 之外层（守卫被覆盖后 TapTap 崩溃直达 Bugly 上报）。
             installTapTapCrashGuard()
+
+            // R0.5 遥测闭环：崩溃时刻的上传大概率失败（进程即将退出/网络不可达），
+            // 启动时重传 crash_logs 积压（成功即删，失败保留待下次），后台线程执行
+            try {
+                val uploaded = crashHandler.uploadPendingCrashLogs()
+                if (uploaded > 0) {
+                    Log.i(TAG, "Crash backlog uploaded: $uploaded file(s)")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Crash backlog upload failed (kept for next launch)", e)
+            }
         }
     }
 

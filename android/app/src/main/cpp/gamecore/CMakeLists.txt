@@ -55,6 +55,18 @@ target_compile_options(game-core PRIVATE
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wno-unused-parameter>
 )
 
+# ── FP 确定性钉死（R0.2）────────────────────────────────────────────
+# 浮点位一致由编译器选项保证而非测试巧合：
+#   - GCC/Clang：-ffp-contract=off 禁止乘加融合（FMA）——arm64 clang 默认
+#     允许 contraction，与 x86-64 桌面 CI 产物位漂移（对拍红线的根因面）
+#   - MSVC：/fp:precise 对齐桌面桥语义（默认即 off，显式声明防策略漂移）
+# PUBLIC：消费方（JNI 桥层、桌面对拍桥）继承同一策略——桥层若有浮点
+# 中间计算（如 UV/几何换算）也与引擎同口径。
+target_compile_options(game-core PUBLIC
+    $<$<CXX_COMPILER_ID:MSVC>:/fp:precise>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-ffp-contract=off>
+)
+
 # ── 测试（仅桌面/CI；Android 构建不启用）──────────────────────────
 option(GAMECORE_BUILD_TESTS "Build game-core unit tests (desktop/CI only)" OFF)
 if(GAMECORE_BUILD_TESTS)

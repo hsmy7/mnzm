@@ -21,7 +21,9 @@ OUT="$OUT_DIR/libgamecorejni.so"
 # independent interface; a dedicated dir avoids Bionic/libc++ header conflicts)
 JNI_INCLUDE="$SRC/jni-include"
 
-g++ -shared -fPIC -std=c++20 -O2 \
+# -ffp-contract=off：FP 确定性钉死（R0.2）——桌面对拍基线与 arm64 真机
+# （NDK CMake 同选项）位一致的前提，缺省 FMA 融合会造成跨架构漂移
+g++ -shared -fPIC -std=c++20 -O2 -ffp-contract=off \
     -I "$SRC/include" \
     -I "$SRC/third_party" \
     -I "$JNI_INCLUDE" \
@@ -33,6 +35,7 @@ g++ -shared -fPIC -std=c++20 -O2 \
     "$SRC/src/dispatch_w4a.cpp" \
     "$SRC/src/dispatch_w4b.cpp" \
     "$SRC/src/dispatch_w4c.cpp" \
+    "$SRC/src/dispatch_w4d.cpp" \
     "$SRC/src/dirty_tracker.cpp" \
     "$SRC/src/disciple_store.cpp" \
     -o "$OUT"

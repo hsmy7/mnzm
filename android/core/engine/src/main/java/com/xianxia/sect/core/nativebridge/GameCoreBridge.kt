@@ -473,6 +473,16 @@ object GameCoreBridge {
         gateHeight: Int,
         gateSpriteY: Int
     ): IntArray
+
+    /**
+     * FP 确定性对拍探针（R0.2 真机腿）：运行自包含确定性场景（弟子创建 +
+     * 40 旬结算 + 战斗全链 + RNG 序列），返回 FNV-1a 摘要十六进制字符串。
+     *
+     * Android instrumentation 测试断言其与桌面腿（x86-64 GTest）录制的
+     * golden 摘要一致——浮点位一致的跨架构工程锁定。自包含（不触碰
+     * 生产引擎状态），kAnyThread。
+     */
+    external fun nativeFpDeterminismProbe(): String
 }
 
 /**

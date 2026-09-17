@@ -203,6 +203,30 @@ static void logBatcherOverflowOncePerSecond(const char* layer, int dropped) {
     LOGW("batcher overflow: layer=%s dropped=%d sprites this frame (capacity capped)", layer, dropped);
 }
 
+// ── 精灵容量溢出遥测 + 有序降级（R0.3）──────────────────────────
+// 溢出 = 任一批量构建器帧内触发容量丢弃（SpriteBatcher::droppedSprites）。
+// 降级策略（先跳装饰层 → 仍溢出再截断）：上一帧溢出 → 下一帧跳过装饰层
+// （草/石/树/云，与热控/LOD 在同一 skipDecor 判定汇合）；降级后连续
+// kOverflowRecoveryCleanFrames 个渲染帧无溢出才解除（防单帧抖动振荡）。
+// 累计计数经 nativeGetSpriteOverflowStats 暴露 Kotlin，折叠进 RenderMetrics。
+static std::atomic<bool> s_overflowDegradeActive{false};
+static std::atomic<uint64_t> s_overflowDroppedTotal{0};   // 累计丢弃精灵数
+static std::atomic<uint64_t> s_overflowFramesTotal{0};    // 累计溢出帧数
+static std::atomic<uint64_t> s_degradeFramesTotal{0};     // 累计降级生效帧数
+static int64_t s_cleanFramesSinceOverflow = 0;            // 降级后连续无溢出帧数（渲染线程单写者）
+
+/** 降级解除所需的连续无溢出渲染帧数（30 帧 ≈ 0.5s@60fps） */
+static constexpr int64_t kOverflowRecoveryCleanFrames = 30;
+
+/** 溢出登记（批量构建器帧终值 → 累计计数 + 下帧降级标志；渲染线程调用） */
+static void noteBatcherOverflow(int dropped) {
+    if (dropped <= 0) return;
+    s_overflowDroppedTotal.fetch_add(static_cast<uint64_t>(dropped), std::memory_order_relaxed);
+    s_overflowFramesTotal.fetch_add(1, std::memory_order_relaxed);
+    s_overflowDegradeActive.store(true, std::memory_order_relaxed);
+    s_cleanFramesSinceOverflow = 0;
+}
+
 // 云层实例数据单条步长（[x, y, w, h, spriteIndex, alpha]，与 CloudLayerAnimator.CLOUD_DATA_STRIDE 同值）
 static constexpr int CLOUD_DATA_STRIDE = 6;
 
@@ -307,6 +331,26 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderBackend(
     JNIEnv* /*env*/, jobject /*thiz*/,
     jint backend) {
     g_backendType = backend;
+}
+
+/**
+ * 精灵容量溢出累计遥测（R0.3；kAnyThread 读——atomic 累计计数）。
+ *
+ * 返回 LongArray[3]：[0]=累计丢弃精灵数、[1]=累计溢出帧数、[2]=累计降级生效帧数。
+ * Kotlin 渲染线程低频轮询折叠进 RenderMetrics（崩溃上报随快照携带）。
+ */
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_nativeGetSpriteOverflowStats(
+    JNIEnv* env, jobject /*thiz*/) {
+    const jlong stats[3] = {
+        static_cast<jlong>(s_overflowDroppedTotal.load(std::memory_order_relaxed)),
+        static_cast<jlong>(s_overflowFramesTotal.load(std::memory_order_relaxed)),
+        static_cast<jlong>(s_degradeFramesTotal.load(std::memory_order_relaxed))
+    };
+    jlongArray arr = env->NewLongArray(3);
+    if (arr == nullptr) return nullptr;
+    env->SetLongArrayRegion(arr, 0, 3, stats);
+    return arr;
 }
 
 /** Phase 2: 初始化 Surface（在 SurfaceView 就绪后调用）。renderScale 为渲染缩放
@@ -448,6 +492,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     g_decorLod.store(true);
     // 淡入同理：新 RenderThread 启动时 fadeIn() 重置 startNs 并推送新 alpha
     g_fadeAlpha.store(1.0f);
+    // 溢出降级标志随 surface 代际复位（累计遥测计数保留——进程级诊断数据）
+    s_overflowDegradeActive.store(false, std::memory_order_relaxed);
+    s_cleanFramesSinceOverflow = 0;
     // 作物插值状态清空：
     // 旧 surface 的进度基准不得污染新 surface 的播种/收获插值
     g_lastCropProgress.clear();
@@ -847,6 +894,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     SpriteBatcher& batcher = g_mapBatcher;
     batcher.begin(g_projMatrix);
 
+    // ★ 溢出降级标志（帧始单次读取）：上一帧溢出 → 本帧跳过装饰层
+    //   （草/石/树/云），把容量让给地面/道路/建筑/作物等必需层；
+    //   仍溢出再走既有截断（丢弃顺序 = 后添加者，地面层永远完整）
+    const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
+
     // ---- 1. 瓦片层 ----
     // 地面：单张无缝纹理整图铺（REPEAT 采样，UV=世界坐标/tileSize）。
     // 1 UV 单位 = 1 格 = 32 世界像素 → 地面纹理 64×64 每格 2× 降采样，与逐格绘制同分辨率；
@@ -941,7 +993,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // 显示尺寸/绘制层/实体区间取自生成常量（TextureAtlas.h DECOR_TILE_MIN/MAX
             // + TILE_SPRITE_W/H + TILE_OBJECT_LAYER，源数据 = build-atlas.mjs LAYOUT.tiles）
             //——新增装饰种类只改 LAYOUT，渲染侧零硬编码瓦片序号
-            const bool skipDecor = g_decorationsDisabled.load() ||
+            const bool skipDecor = overflowDegrade ||
+                                   g_decorationsDisabled.load() ||
                                    g_qualityFactor.load() < DECOR_QUALITY_THRESHOLD ||
                                    (g_decorLod.load() && g_scale < DECOR_QUALITY_THRESHOLD);
             if (!skipDecor && tile >= DECOR_TILE_MIN && tile <= DECOR_TILE_MAX &&
@@ -1271,8 +1324,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         jsize cuvCount = env->GetArrayLength(cloudUVMap) / 4;
         jsize cloudCount = env->GetArrayLength(cloudData) / CLOUD_DATA_STRIDE;
 
-        // 热控降质/装饰关闭/缩放 LOD 时跳过（与装饰层同判定——云层属装饰性环境动画）
-        const bool skipClouds = g_decorationsDisabled.load() ||
+        // 热控降质/装饰关闭/缩放 LOD/溢出降级时跳过（与装饰层同判定——云层属装饰性环境动画）
+        const bool skipClouds = overflowDegrade ||
+                                g_decorationsDisabled.load() ||
                                 g_qualityFactor.load() < DECOR_QUALITY_THRESHOLD ||
                                 (g_decorLod.load() && g_scale < DECOR_QUALITY_THRESHOLD);
         if (!skipClouds) {
@@ -1319,6 +1373,17 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     int vertCount = batcher.end();
     if (batcher.droppedSprites > 0) {
         logBatcherOverflowOncePerSecond("map", batcher.droppedSprites);
+    }
+    // 溢出遥测结算（地图层为主判定 pass：降级帧计数 + 恢复计数仅在此维护）
+    noteBatcherOverflow(batcher.droppedSprites);
+    if (overflowDegrade) {
+        s_degradeFramesTotal.fetch_add(1, std::memory_order_relaxed);
+        if (batcher.droppedSprites == 0) {
+            // 降级帧未再溢出 → 连续恢复计数满阈值解除（恢复正常渲染）
+            if (++s_cleanFramesSinceOverflow >= kOverflowRecoveryCleanFrames) {
+                s_overflowDegradeActive.store(false, std::memory_order_relaxed);
+            }
+        }
     }
     if (vertCount > 0) {
         g_renderer->draw(batcher.vertices, vertCount,
@@ -1438,6 +1503,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawIslandCliffs(
     if (batcher.droppedSprites > 0) {
         logBatcherOverflowOncePerSecond("cliff", batcher.droppedSprites);
     }
+    // 崖壁层溢出只登记（下帧降级由地图层装饰跳过承接，崖壁为结构层不可跳）
+    noteBatcherOverflow(batcher.droppedSprites);
 
     env->ReleaseFloatArrayElements(cliffData, data, JNI_ABORT);
 }

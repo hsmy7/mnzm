@@ -12,7 +12,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /**
- * 战斗执行路由（AI 兽战/任务完成生产接线）。
+ * 战斗执行路由（AI 兽战/任务完成/遭遇战生产接线）。
  *
  * AUTHORITATIVE 模式下把 [BattleSystem.executeBattle] 路由到 C++ 战斗引擎
  * （gamecore::battle::executeBattle，经 [GameCoreBridge.nativeBattleExecute]
@@ -25,8 +25,10 @@ import kotlinx.serialization.json.putJsonArray
  *   动作序列重建（确定性字段，message 为确定性摘要——原 message 由 JVM
  *   全局 Random 生成随机措辞，评估报告"diff 排除 message"同源决策）
  *
- * 适配范围：系统内部战斗（AI 兽战/任务完成）——玩家直接观看回放的战斗
- * （遭遇战/洞府探索）不在本路由范围（log 需完整回放）。
+ * 适配范围：系统内部战斗（AI 兽战/任务完成）+ 遭遇战两阶段
+ * （PvP/PvE，战报回放由 rounds 重建满足——C++ 动作序列为确定性字段，
+ * 仅 message 摘要口径与 Kotlin 随机措辞不同，diff 对拍同源排除）。
+ * 洞府探索不在本路由范围（R4.3 评估）。
  */
 internal object BattleExecutionRouter {
 

@@ -1,6 +1,18 @@
 ## [4.01.14] - 2026-09-08
 
 
+### R0 发布阻断与确定性护栏 + R4.1 遭遇战 native 接线（自研引擎重构方案 2026-09-17 首批落地）
+
+> 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) 的 R0 全部 5 项 + R4.1（按方案 §4 排期：R0 立即 + R4.1 无依赖随时可摘）。`version.properties` 未递增——由用户决定。
+
+- **R0.1 证书固定构建期执法**：pin 声明/开关收敛到 `NetworkSecurityConfig`（`pinnedHostPins` 单一声明源，`pinnedHosts`/`realPinsForHost` 派生）；新构建任务 `validateCertificatePins`（挂 release preBuild）——`CERT_PINNING_ENFORCED=true` 且存在占位 pin 即 fail（原 release 运行时 `IllegalStateException` 崩溃前移到构建期）；`false`（当前凭证未就绪态）= pinning 显式降级，release 可出包、运行时占位 pin 一律过滤不再崩溃；`api.properties` 新增 `CERT_PINNING_ENFORCED` + BuildConfig 字段。测试：`CertificatePinnerProviderTest` 扩展降级契约回归。
+- **R0.2 FP 钉死 + arm64 对拍双锁**：gamecore CMake 加 `-ffp-contract=off`（PUBLIC，消费方 JNI 桥继承；MSVC 对齐 `/fp:precise`）——arm64 clang 默认 FMA 融合的跨架构漂移面封死；桌面桥两脚本（`build-desktop-jni-linux.sh`/`.ps1`）同旗标。新增确定性对拍探针 `gamecore/determinism_probe.h`（单一实现双腿消费）：自包含场景（弟子创建固定消费序 + 40 旬跨月/年结算 + 战斗全链 + RNG 序列）→ 位规范型转录（double 走 IEEE754 位模式，规避 printf/JSON 跨平台舍入）→ FNV-1a 64 位摘要；桌面腿 GTest `determinism_probe_test`（1419 项全量 GTest 携旗标全绿 = pin 后对拍无漂移）；真机腿 `GameCoreBridge.nativeFpDeterminismProbe` + androidTest `NativeFpDeterminismTest` 断言同一 golden（`0x490e8dc522e12921`，两处常量同步约定见测试 KDoc）；新 workflow `arm64-fp-determinism.yml`（Test Lab 周期跑，需 `FIREBASE_SERVICE_ACCOUNT` secret）。顺手修复：`build-desktop-jni-linux.sh` 漏编 `dispatch_w4d.cpp`（ps1 有、sh 无）。
+- **R0.3 精灵容量悬崖**：`NativeBridge.cpp` 溢出遥测（累计丢弃/溢出帧 atomic 计数）+ 有序降级（上一帧溢出 → 下帧跳装饰层草/石/树/云，与热控/LOD 同 skipDecor 汇合点；连续 30 渲染帧无溢出才解除，防振荡；仍溢出再走既有截断——先装饰后必需有序牺牲）；`shutdownRenderer` 复位降级标志（累计计数保留）；JNI `nativeGetSpriteOverflowStats` 低频轮询（60 渲染帧一次）折叠进 `RenderMetrics` 三个新计数器 + `Snapshot` 扩展（崩溃上报随携）。
+- **R0.4 存档静默空档**：`SaveSlot` 新增 `isLoadError` 显式三态（有存档/空档/读取失败）；`StorageEngine.getSaveSlots` 异常路径不再回填空 `SaveSlot`（损坏不再伪装空档）；`SaveSelectScreen` 读取失败槽红字提示、LOAD 模式点击无操作（杜绝"点击创建新游戏"静默覆盖损坏档），NEW_GAME 模式保留覆盖确认（显式重建路径）、删除按钮保留。`dispatchSlotClick` 提为 `internal` + 守卫测试 `SaveSlotDispatchTest`。
+- **R0.5 遥测最小闭环**：`CrashHandler` 新增 `uploadPendingCrashLogs`——启动时重传 crash_logs 积压（崩溃时刻上传大概率失败；成功即删、失败保留），接线到 `XianxiaApplication` AppStartup-Init 后台线程；`postCrashReport` 抽取共用（HTTP 2xx 判定 + Response use 关闭）；原两处 `catch (_: Exception) { /* 静默失败 */ }` 修复为归因日志（违反编码规范 8.2 的存量违例一并清偿）。测试：`CrashHandlerBacklogTest`（Robolectric，注入桩 uploader）。
+- **R4.1 遭遇战接线**：`EncounterBattleService` Phase 1 PvP（`:168`）与 Phase 2 PvE（`:280`）经 `BattleExecutionRouter.tryExecuteNative` 路由到已建成的 `nativeBattleExecute` 通道（flag 关/native 不可用/失败信封回退 Kotlin），战报 rounds 由 C++ 动作序列重建；`BattleExecutionRouter` 适配范围注释更新（遭遇战移入范围，洞府探索仍留 R4.3）。测试：`EncounterBattleServiceRouteTest`（bridge 缺席回退回归 + 好感度去重 + 同宗门拒绝）。
+- **门禁**：全量 `testReleaseUnitTest --max-workers=1` 绿；六模块 detekt 绿（4 处新增违规实修未进 baseline）；桌面 GTest 1419/1419（`-ffp-contract=off` 携旗标）；`compileReleaseKotlin`/`validateCertificatePins` 绿。JNI 面 +1（`nativeFpDeterminismProbe`，探针通道——方案"JNI 面计数不增"静态门禁属"CI 与度量执法"后续批次建设项，此处登记豁免理由）。
+
 ### W4-D/D6——文档与版本收口（W4 波可派工项收官）（§2.84）
 
 > 需求：实施 W4 实施文档 §0 序 D6（最小串行链末项）。**纯文档批：零代码、零协议面、零 ActionId 变更、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加（D1–D5 同口径）；`version.properties` 未递增——由用户决定。**

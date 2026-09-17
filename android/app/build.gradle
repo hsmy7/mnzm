@@ -44,6 +44,8 @@ android {
 
     defaultConfig {
         applicationId = "com.xianxia.sect"
+        // AndroidX instrumentation runner（androidTest：SmokeTest / R0.2 FP 确定性探针）
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         versionCode = versionProps.getProperty('versionCode', '1').toInteger()
         versionName = versionProps.getProperty('versionName', '0.0.00')
 
@@ -57,6 +59,8 @@ android {
         buildConfigField "String", "BUGLY_APP_KEY", '"' + apiProperties.getProperty('BUGLY_APP_KEY', '') + '"'
         buildConfigField "String", "UMENG_APP_KEY", '"' + apiProperties.getProperty('UMENG_APP_KEY', '') + '"'
         buildConfigField "String", "UMENG_CHANNEL", '"' + apiProperties.getProperty('UMENG_CHANNEL', 'taptap') + '"'
+        // R0.1 证书固定声明开关（占位 pin 状态与该声明的一致性由 validateCertificatePins 执法）
+        buildConfigField "boolean", "CERT_PINNING_ENFORCED", apiProperties.getProperty('CERT_PINNING_ENFORCED', 'false')
 
         // 友盟集成测试唤起码（AndroidManifest um.${umengAppKey} scheme）——AppKey 就位后
         // 由 Umeng 后台/集成测试工具自动唤起，未配置时占位不影响其他 scheme 行为
@@ -441,6 +445,64 @@ tasks.register('validateChangelogJson') {
     }
 }
 tasks.named('check').configure { dependsOn('validateChangelogJson') }
+
+// 🔴 R0.1 证书固定构建期执法：占位 pin 状态与 CERT_PINNING_ENFORCED 声明一致性校验
+// （把"占位 pin 在 release 运行时失效/崩溃"前移到构建期——占位判定口径与
+// NetworkSecurityConfig.isPlaceholderPin 一致：哈希段 >80% 字符相同）
+tasks.register('validateCertificatePins') {
+    group = 'verification'
+    description = '校验证书 pin 占位状态与 CERT_PINNING_ENFORCED 声明一致（release 门禁）'
+    // 配置期捕获文件引用（配置缓存约束，同 validateChangelogJson）
+    def configFile = file("$projectDir/src/main/java/com/xianxia/sect/network/NetworkSecurityConfig.kt")
+    inputs.file(configFile)
+    doLast {
+        def source = configFile.getText('UTF-8')
+        def pinPattern = /"sha256\/[A-Za-z0-9+\/=]{16,}"/
+        def pins = (source =~ pinPattern).collect { it.replaceAll('"', '') }
+        if (pins.isEmpty()) {
+            throw new GradleException(
+                "validateCertificatePins: ${configFile.name} 中未解析到任何 SPKI pin 声明（sha256/... 格式）。" +
+                "若 pin 声明表被移动/重命名，请同步更新本任务的解析锚点"
+            )
+        }
+        // 占位判定：哈希段内 >80% 字符相同（与 Kotlin isPlaceholderPin 同口径）
+        def isPlaceholder = { String pin ->
+            def hashPart = pin.substring('sha256/'.length())
+            if (hashPart.length() < 16) return true
+            def firstChar = hashPart.charAt(0)
+            int repeatCount = 0
+            for (int i = 0; i < hashPart.length(); i++) {
+                if (hashPart.charAt(i) == firstChar) repeatCount++
+            }
+            return repeatCount > hashPart.length() * 0.8
+        }
+        def placeholderCount = pins.count { isPlaceholder(it) }
+        def enforced = apiProperties.getProperty('CERT_PINNING_ENFORCED', 'false').toBoolean()
+
+        if (enforced && placeholderCount > 0) {
+            throw new GradleException(
+                "[SECURITY] CERT_PINNING_ENFORCED=true 但存在 ${placeholderCount}/${pins.size} 个占位 pin！" +
+                "release 构建被构建期门禁拦截（占位 pin 上线=固定失效=中间人风险）。" +
+                "请用 openssl 提取真实 SPKI hash 替换 NetworkSecurityConfig 占位值，" +
+                "或（确无凭证时）将 api.properties 的 CERT_PINNING_ENFORCED 显式置为 false"
+            )
+        }
+        if (!enforced && placeholderCount == 0) {
+            logger.warn(
+                "validateCertificatePins: 检测到 ${pins.size} 个真实 pin 但 CERT_PINNING_ENFORCED=false" +
+                "——证书固定未生效！替换真实 pin 后请将 api.properties 置 CERT_PINNING_ENFORCED=true"
+            )
+        }
+        logger.lifecycle(
+            "validateCertificatePins 通过：${pins.size} 个 pin（占位 ${placeholderCount}），" +
+            "CERT_PINNING_ENFORCED=${enforced}"
+        )
+    }
+}
+// release 变体构建门禁（debug 不阻断——本地开发无需凭证）
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+    dependsOn 'validateCertificatePins'
+}
 
 // ============================================================
 // 建筑占地尺寸 C++ 头文件生成任务

@@ -22,18 +22,82 @@ object NetworkSecurityConfig {
     // 证书固定 (Certificate Pinning)
     // ──────────────────────────────────────────────
 
-    /** 是否启用证书固定。Release 构建强制开启，Debug 构建可关闭以便开发调试 */
+    /**
+     * 是否启用证书固定。
+     *
+     * 声明式开关：[BuildConfig.CERT_PINNING_ENFORCED]（源自 api.properties）。
+     * - false（凭证未就绪的当前态）：pinning 显式关闭，release 可正常出包，
+     *   构建期任务 `validateCertificatePins` 只告警不阻断
+     * - true（真实 pin 已就位）：pinning 强制启用，构建期遇占位 pin 即 fail
+     *   （把占位 pin 的运行时失效/崩溃前移到构建期）
+     *
+     * Debug 构建可经 [ENABLE_PINNING_IN_DEBUG] 关闭以便抓包调试。
+     */
     val isCertificatePinningEnabled: Boolean
-        get() = !BuildConfig.DEBUG || ENABLE_PINNING_IN_DEBUG
+        get() = BuildConfig.CERT_PINNING_ENFORCED && (!BuildConfig.DEBUG || ENABLE_PINNING_IN_DEBUG)
 
     /** Debug 构建是否也启用证书固定（默认 false，方便本地抓包调试） */
     private const val ENABLE_PINNING_IN_DEBUG = false
 
-    /** 需要固定证书的主机列表 */
-    val pinnedHosts: List<String> = listOf(
-        "api.xianxia.com",
-        "cdn.xianxia.com"
+    // ── SPKI SHA-256 pin 声明表（单一声明源：主机 + 主/备 pin）──────────
+    //
+    // 【重要】以下为占位值，部署前必须替换为实际服务器证书 SPKI 哈希！
+    // 获取方式见 CertificatePinnerProvider 类注释中的 openssl 命令。
+    //
+    // 占位状态与声明开关的一致性由构建期任务 `validateCertificatePins` 执法：
+    // CERT_PINNING_ENFORCED=true 时存在占位 pin → release 构建失败。
+
+    /** api.xianxia.com 主 pin（占位——服务器部署后用 openssl 提取） */
+    private const val API_PRIMARY_PIN = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+    /** api.xianxia.com 备用 pin（占位——证书轮换期新证书 SPKI hash，无轮换计划可留占位） */
+    private const val API_BACKUP_PIN = "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+
+    /** cdn.xianxia.com 主 pin（占位——CDN 服务商确定后提取；不用独立 CDN 可移除该主机） */
+    private const val CDN_PRIMARY_PIN = "sha256/CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC="
+
+    /** cdn.xianxia.com 备用 pin（占位） */
+    private const val CDN_BACKUP_PIN = "sha256/DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD="
+
+    /**
+     * 主机 → SPKI pin 列表声明表（主 + 备用）。
+     * 占位 pin 在构建 pinner 时被过滤，等效于该主机无固定。
+     */
+    val pinnedHostPins: Map<String, List<String>> = linkedMapOf(
+        "api.xianxia.com" to listOf(API_PRIMARY_PIN, API_BACKUP_PIN),
+        "cdn.xianxia.com" to listOf(CDN_PRIMARY_PIN, CDN_BACKUP_PIN)
     )
+
+    /** 需要固定证书的主机列表（从 [pinnedHostPins] 派生，保持声明单一源） */
+    val pinnedHosts: List<String>
+        get() = pinnedHostPins.keys.toList()
+
+    /** 指定主机的有效（非占位）pin 列表 */
+    fun realPinsForHost(host: String): List<String> =
+        pinnedHostPins[host].orEmpty().filter { !isPlaceholderPin(it) }
+
+    /** 全部声明 pin 中有效（非占位）pin 总数 */
+    val realPinCount: Int
+        get() = pinnedHostPins.values.sumOf { pins -> pins.count { !isPlaceholderPin(it) } }
+
+    /**
+     * 检测一个 pin 是否仍是占位符（尚未被替换为真实值）。
+     *
+     * 占位特征：哈希段内超过 80% 字符相同（如 AAAA... 模式）——
+     * 不是合法 Base64 编码的 SHA-256 输出。与构建期任务
+     * `validateCertificatePins` 的判定口径一致。
+     */
+    fun isPlaceholderPin(pin: String): Boolean {
+        val hashPart = pin.removePrefix("sha256/")
+        if (hashPart.length < 16) return true
+
+        val firstChar = hashPart[0]
+        var repeatCount = 0
+        for (c in hashPart) {
+            if (c == firstChar) repeatCount++
+        }
+        return repeatCount > hashPart.length * 0.8
+    }
 
     // ──────────────────────────────────────────────
     // TLS 版本限制
@@ -150,8 +214,21 @@ object NetworkSecurityConfig {
     fun validate(): Boolean {
         var valid = true
 
-        if (!isCertificatePinningEnabled && !BuildConfig.DEBUG) {
-            Log.e(TAG, "[安全警告] Release 构建未启用证书固定！")
+        if (!BuildConfig.DEBUG && !isCertificatePinningEnabled) {
+            // 凭证未就绪的显式降级态（CERT_PINNING_ENFORCED=false）：有意的安全权衡，
+            // 非配置错误——告警提示补齐路径，不计入校验失败
+            Log.w(
+                TAG,
+                """[安全警告] Release 构建证书固定未启用（显式降级态）！
+                   |存在中间人攻击风险。服务器证书就绪后：
+                   |1. 用 openssl 提取 SPKI hash 替换 NetworkSecurityConfig 占位 pin
+                   |2. api.properties 置 CERT_PINNING_ENFORCED=true（构建期强制真实值）
+                """.trimMargin()
+            )
+        }
+
+        if (isCertificatePinningEnabled && realPinCount == 0) {
+            Log.e(TAG, "[配置错误] 证书固定声明启用但无任何有效 pin（构建期校验应已拦截）")
             valid = false
         }
 

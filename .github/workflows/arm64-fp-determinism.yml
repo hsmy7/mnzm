@@ -1,0 +1,61 @@
+name: arm64 FP Determinism (Firebase Test Lab)
+
+# R0.2 arm64 真机对拍周期跑：真机 arm64 跑 FP 确定性探针
+# （NativeFpDeterminismTest），断言与 x86-64 桌面腿（ci.yml cpp-engine-test
+# job 的 determinism_probe_test）录制的 golden 摘要逐位一致——
+# 浮点位一致由编译器选项（-ffp-contract=off）+ 本真机对拍双锁保证。
+
+on:
+  workflow_dispatch:      # 手动触发（golden 重录后立即验证用）
+  schedule:
+    - cron: '0 3 * * 1'   # 每周一 03:00 UTC 周期跑（对拍基线漂移监控）
+
+jobs:
+  arm64-fp-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # preBuild codegen 任务依赖 node（同 ci.yml build job）
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble debug APK + androidTest APK (arm64)
+        run: |
+          cd android
+          ./gradlew assembleDebug assembleDebugAndroidTest --max-workers=1
+
+      # 🔴 前置：仓库 Secrets 需配置 FIREBASE_SERVICE_ACCOUNT
+      # （服务账号 JSON，具备 Firebase Test Lab 权限）——未配置时本 job 在
+      # 认证步失败（显式红，非静默跳过）
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run FP determinism probe on arm64 devices
+        run: |
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app android/app/build/outputs/apk/debug/app-debug.apk \
+            --test android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            --test-targets "class com.xianxia.sect.NativeFpDeterminismTest" \
+            --device model=pixel2,version=30,locale=zh_CN,orientation=portrait \
+            --device model=pixel6,version=31,locale=zh_CN,orientation=portrait \
+            --timeout 5m \
+            --results-bucket gs://xianxia-test-results \
+            --results-dir "$(date +%Y%m%d_%H%M%S)_arm64-fp-probe"

@@ -538,8 +538,23 @@ class StorageEngine @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to query slot $slot, using empty placeholder", e)
-                slots.add(SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true))
+                Log.e(TAG, "Failed to query slot $slot, marking as load error (not empty)", e)
+                // 查询异常必须与"空档"区分（isLoadError 态）：损坏存档若伪装成空档，
+                // 用户会在读取界面点击创建新游戏而静默覆盖损坏数据
+                slots.add(
+                    SaveSlot(
+                        slot = slot,
+                        name = "",
+                        timestamp = 0L,
+                        gameYear = 1,
+                        gameMonth = 1,
+                        sectName = "",
+                        discipleCount = 0,
+                        spiritStones = 0L,
+                        isEmpty = false,
+                        isLoadError = true
+                    )
+                )
             }
         }
 

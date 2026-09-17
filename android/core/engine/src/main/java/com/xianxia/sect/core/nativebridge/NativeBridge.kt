@@ -387,4 +387,13 @@ object NativeBridge {
 
     /** 获取最后一次成功读取的 GPU 设备名（"" = 未知） */
     external fun getVulkanDeviceName(): String
+
+    /**
+     * 精灵容量溢出累计遥测（R0.3；kAnyThread 读——C++ atomic 累计计数）。
+     *
+     * 返回 LongArray[3]：[0]=累计丢弃精灵数、[1]=累计溢出帧数、[2]=累计降级生效帧数。
+     * 渲染线程低频轮询（每 60 渲染帧一次）折叠进 RenderMetrics；
+     * 渲染器未初始化时返回全 0。
+     */
+    external fun nativeGetSpriteOverflowStats(): LongArray
 }

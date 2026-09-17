@@ -58,6 +58,8 @@ add_executable(game-core-tests
     manual_db_test.cpp
     time_system_test.cpp
     settle_phase_test.cpp
+    # R0.2 FP 确定性对拍探针（桌面腿：x86-64 golden 位锁定；真机腿走 JNI）
+    determinism_probe_test.cpp
     road_system_test.cpp
     road_compositor_test.cpp
     draw_order_test.cpp

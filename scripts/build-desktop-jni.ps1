@@ -40,7 +40,9 @@ $out = Join-Path $outDir 'libgamecorejni.so'
 # -static: link libc++/libunwind statically -> self-contained .so (no runtime DLL deps)
 $staticArgs = @('-static', '-static-libgcc', '-static-libstdc++')
 
-& $clang -shared -fPIC -std=c++20 -O2 `
+# -ffp-contract=off：FP 确定性钉死（R0.2）——桌面对拍基线与 arm64 真机
+# （NDK CMake 同选项）位一致的前提，缺省 FMA 融合会造成跨架构漂移
+& $clang -shared -fPIC -std=c++20 -O2 -ffp-contract=off `
     @staticArgs `
     -I (Join-Path $src 'include') `
     -I (Join-Path $src 'third_party') `

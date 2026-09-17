@@ -116,9 +116,9 @@ fun SaveSelectScreen(
     )
 }
 
-/** 存档槽位点击分发：云存档入口/新游戏/覆盖确认/空槽创建/读取 五分支 */
+/** 存档槽位点击分发：云存档入口/读取失败/新游戏/覆盖确认/空槽创建/读取 分支（internal 供守卫测试） */
 @Suppress("LongParameterList")
-private fun dispatchSlotClick(
+internal fun dispatchSlotClick(
     slot: SaveSlot,
     mode: SaveSelectMode,
     cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo?,
@@ -138,6 +138,9 @@ private fun dispatchSlotClick(
                 onShowCloudInfo()
             }
         }
+        // 读取失败槽位：禁止加载（数据损坏，加载必失败），点击无操作；
+        // 删除按钮保留供用户清理。新建模式不拦截——覆盖确认弹窗即显式重建路径
+        slot.isLoadError && mode == SaveSelectMode.LOAD_SAVE -> Unit
         mode == SaveSelectMode.NEW_GAME && slot.isEmpty -> onStartNewGameDialog(slot.slot)
         mode == SaveSelectMode.NEW_GAME -> onShowOverwriteConfirm(slot.slot)
         slot.isEmpty -> onStartNewGameDialog(slot.slot)
@@ -467,6 +470,14 @@ private fun SlotContent(
         CloudSlotContent(
             cloudSaveInfo = cloudSaveInfo,
             mode = mode
+        )
+    } else if (slot.isLoadError) {
+        // 读取失败态（与空档严格区分）：损坏数据不得伪装成"空槽位"，
+        // 否则"点击创建新游戏"会静默覆盖损坏存档
+        Text(
+            text = "读取失败 - 存档数据异常",
+            fontSize = 16.sp,
+            color = Color(0xFFE53935)
         )
     } else if (!slot.isEmpty) {
         LocalSlotContent(

@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "gamecore/game_core.h"
+#include "gamecore/determinism_probe.h"
 #include "gamecore/core/game_config.h"
 #include "gamecore/state/json_codec.h"
 #include "gamecore/system/engine_loop.h"
@@ -1097,4 +1098,22 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeGenerateSectTerrain
     env->SetIntArrayRegion(out, 0, n,
                            reinterpret_cast<const jint*>(tiles.data()));
     return out;
+}
+
+// ============================================================
+// FP 确定性对拍探针（R0.2 真机腿）
+// ============================================================
+
+/**
+ * 运行 FP 确定性对拍探针（gamecore/determinism_probe.h 单一实现），
+ * 返回 FNV-1a 64 位摘要的十六进制字符串——Android instrumentation
+ * 测试断言其与桌面腿录制的 kGoldenDigest 一致（跨架构浮点位锁定）。
+ * 自包含：新建 GameCore 实例，不触碰 g_gameCore 生产状态。kAnyThread。
+ */
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeFpDeterminismProbe(
+    JNIEnv* env, jobject /*thiz*/) {
+    const auto probeResult = gamecore::probe::runDeterminismProbe();
+    const std::string hex = gamecore::probe::digestHex(probeResult.digest);
+    return env->NewStringUTF(hex.c_str());
 }

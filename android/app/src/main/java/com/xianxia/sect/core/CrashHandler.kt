@@ -28,6 +28,7 @@ import javax.inject.Singleton
  * 负责捕获未处理异常、记录崩溃日志、管理崩溃状态
  */
 @Singleton
+@Suppress("TooManyFunctions") // 崩溃处理面：落盘/上传/积压重传/状态查询均为独立公共职责
 class CrashHandler @Inject constructor(
     @ApplicationContext private val context: Context
 ) : Thread.UncaughtExceptionHandler {
@@ -46,6 +47,12 @@ class CrashHandler @Inject constructor(
         private const val MAX_CRASH_LOGS = 5
         private const val CRASH_LOG_PREFIX = "crash_"
         private const val CRASH_LOG_EXTENSION = ".log"
+
+        /** 单次上报的堆栈内容截断上限（崩溃处理期减小网络载荷与服务端压力） */
+        private const val MAX_UPLOAD_CONTENT_LENGTH = 8000
+
+        /** 崩溃上报连接超时（秒）——崩溃路径/启动路径都不应被慢网络拖住 */
+        private const val CRASH_UPLOAD_CONNECT_TIMEOUT_SECONDS = 3L
 
         @Volatile
         private var instance: CrashHandler? = null
@@ -152,32 +159,83 @@ class CrashHandler @Inject constructor(
     }
 
     /**
-     * 尝试上传崩溃日志到远程服务器
+     * 尝试上传崩溃日志到远程服务器（崩溃路径即时上传）。
+     *
+     * 崩溃时刻进程即将退出、网络状态未知——失败不重试（由下次启动的
+     * [uploadPendingCrashLogs] 积压重传兜底），仅记录结果日志。
      */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 崩溃路径异常源不可枚举, 降级跳过+日志留痕, 非静默吞噬
     private fun tryUploadCrashLog(crashLogFile: File?) {
-        try {
-            if (crashLogFile == null || !crashLogFile.exists()) return
-            val content = crashLogFile.readText().take(8000)
+        if (crashLogFile == null || !crashLogFile.exists()) return
+        val content = try {
+            crashLogFile.readText().take(MAX_UPLOAD_CONTENT_LENGTH)
+        } catch (e: Exception) {
+            Log.w(TAG, "崩溃日志读取失败，跳过即时上报（本地保留）", e)
+            return
+        }
+        Thread {
+            val success = postCrashReport(content)
+            Log.i(TAG, "崩溃即时上报${if (success) "成功" else "失败（本地保留，待启动重传）"}")
+        }.start()
+    }
 
-            Thread {
-                try {
-                    val client = OkHttpClient.Builder()
-                        .connectTimeout(3, TimeUnit.SECONDS)
-                        .build()
-                    val body = okhttp3.FormBody.Builder()
-                        .add("version", BuildConfig.VERSION_NAME)
-                        .add("device", "${Build.MANUFACTURER} ${Build.MODEL}")
-                        .add("sdk", Build.VERSION.SDK_INT.toString())
-                        .add("stack", content)
-                        .build()
-                    val request = okhttp3.Request.Builder()
-                        .url("${BuildConfig.API_BASE_URL}crash-report")
-                        .post(body)
-                        .build()
-                    client.newCall(request).execute().close()
-                } catch (_: Exception) { /* 静默失败 */ }
-            }.start()
-        } catch (_: Exception) { /* 静默失败 */ }
+    /**
+     * 重传本地积压的崩溃日志（R0.5 遥测最小闭环：下次启动兜底通道）。
+     *
+     * 崩溃时刻的上传大概率失败（进程退出/网络不可达），闭环的关键是
+     * **启动时扫描 crash_logs 积压并重传**：上传成功即删除本地文件，
+     * 失败保留待下次启动。必须在后台线程调用（同步网络请求）。
+     *
+     * @param uploader 上传函数（默认 [postCrashReport]；测试注入桩）
+     * @return 成功上传并清理的日志数
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: IO/网络异常源不可枚举, 单文件失败不阻断其余积压+日志留痕
+    internal fun uploadPendingCrashLogs(
+        uploader: (content: String) -> Boolean = { postCrashReport(it) }
+    ): Int {
+        var uploaded = 0
+        for (file in getCrashLogFiles()) {
+            try {
+                val content = file.readText().take(MAX_UPLOAD_CONTENT_LENGTH)
+                if (uploader(content) && file.delete()) {
+                    uploaded++
+                    Log.i(TAG, "积压崩溃日志已上传并清理: ${file.name}")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "积压崩溃日志上传失败（保留待下次）: ${file.name}", e)
+            }
+        }
+        return uploaded
+    }
+
+    /**
+     * POST 崩溃日志到服务端（`${API_BASE_URL}crash-report`）。
+     *
+     * @return HTTP 2xx 视为成功；网络/服务端异常返回 false（失败已记日志，非静默）
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 网络异常源不可枚举, 失败返回false+日志留痕, 非静默吞噬
+    private fun postCrashReport(content: String): Boolean {
+        return try {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(CRASH_UPLOAD_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build()
+            val body = FormBody.Builder()
+                .add("version", BuildConfig.VERSION_NAME)
+                .add("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+                .add("sdk", Build.VERSION.SDK_INT.toString())
+                .add("stack", content)
+                .build()
+            val request = Request.Builder()
+                .url("${BuildConfig.API_BASE_URL}crash-report")
+                .post(body)
+                .build()
+            client.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "崩溃上报请求失败（本地日志保留）", e)
+            false
+        }
     }
 
 
