@@ -282,3 +282,31 @@ DiscipleStore 数值列守卫 6 条；R1.2 单独态 1419、R1.3 第一步终态
 JNI 桥经 `scripts/build-desktop-jni.ps1` 重建携入本批 C++ 改动）+ detekt 绿 +
 `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更。
 
+#### B03 批（2026-09-18）= R1.4 + R1.6 + R1 收官 bench（G1 达成）
+
+批次文件 `docs/parallel-batches-w5/batch-R1C.md`；每子项独立 commit（R1.4 = eb9812c0a；
+R1.6 = 7e3bb87a9；bench = c97d7a4b0——含 R1.3 dense 索引收尾的每旬入口 indexById 逐点
+替换），只改形状不改结果。**R1（解锁形状锁）全部条目至此收官。**
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R1.4 | ✅ | `column_dirty.h`：`ColumnDirtyTracker` 列级写屏障——DiscipleStore SoA 协议列枚举（109 列，与 Disciple to_json 协议字段双射，守卫锁定）+ 行主序脏位图 + 集合 tombstone（通用实体集合名）+ gameData 域级标脏；导出仅序列化脏列（`{version,changed,removed}` 与 diffToJson 同形同版本语义，脏行恒携 id 键；tombstone 撤销规则 = upsert 保序旋转删→回不复删、漏标保守兜底整行标脏）。写屏障挂点 = DiscipleStore 协议边界变更原语（append/eraseAt 位移段/swapRows/clear，`attachColumnDirtyTracker` 显式挂载、未挂载零开销）；**生产 exportDirtyJson 仍走全量树 diff（对拍显式依赖的全量模式开关，零漂移）**，列级导出为显式 opt-in 能力，热路径写点标脏接线随 R2。R2 前置就绪 |
+| R1.6 | ✅ | `eraseEntityUnordered` swap-and-pop 变体（O(1)；IStorage 虚接口 + World/Registry 门面）与保序 `eraseEntity` 并存——**仅用于顺序无观察点场景**：唯一接线点 `destroyDiscipleEntities`（buildDiscipleEntities 先全清再按行序重建场景），批量销毁 O(D²) → O(D)；保序单删 `destroyDiscipleEntity` 与 View 迭代域不变；重建后行序不变量由 syncDiscipleEntities 校验兜底 |
+| R1 bench | ✅ | `test/bench/`：全局 operator new 计数替换（malloc 后端）+ runPhaseSettlement 全八步 e2e——**D=5000 修炼热路径结算 17 次 malloc / ~1.8ms**（G1 基线同族口径；确定性计数 3 轮一致），门禁断言 < 10000 硬红；带实例清单真实快照 85017 次（残差 = 桶节点 + 熟练度/孕养 pending 提交的数据驱动每旬分配，登记为后续形状观察项，非 materialize/map 重建形状）；耗时三档打印。门禁接线 kover 模式：`GAMECORE_BUILD_BENCH` 本地默认关、ci.yml 显式 ON（独立 game-core-bench 目标，计数替换不进主测试二进制）。**G1 达成**：基线构成（committedDisciples 物化 + 每旬/逐实体 map 重建）分配形状全部退役 |
+
+R1.3 收尾（随 bench commit）：bench 实测暴露每旬入口最后一处 O(D) 分配 = 串行/并行核心
+批次与两版步骤 7 入口的 `indexById` 全量 map 重建（2×D 节点）——`numericIdToRow` 本是其
+"免重建缓存"（R1.3 索引镜像守卫锁定一致），4 处调用点收尾替换为直用 store 索引（行结构
+变更经 eraseAt 同点维护，步骤内无行结构变更 ⇒ 引用绑定 == 快照，行为逐位一致）。
+
+测试口径：桌面全量 GTest **1443/1443**（携 `-ffp-contract=off` 旗标；基线 1425 + 新增
+ColumnDirty 守卫 11 + ECS swap-and-pop 守卫 4 + bench 门禁 3；`GAMECORE_BUILD_BENCH`
+本地默认关时 1440/1440；GTest 分项实跑：R1.4 终态 1436、R1.6 终态 1440、bench 终态
+1443 各实跑一轮）+ testReleaseUnitTest 全量串行 `--rerun-tasks` 实跑（六模块 **7777 用例 /
+0 失败**，222 任务全 executed 非 UP-TO-DATE；`:core:engine` 3296 含 47 个 `Diff*Test`
+**268 用例 0 skip**——JNI 桥经 `scripts/build-desktop-jni.ps1` 重建携入本批 C++ 改动；
+17 跳过 = data 15 + app 2 既有。途中偶发：`GameEngineCoreLifecycleInterleavingTest`
+首两轮各 1 例失败（5s 并发时序窗），单独重跑 12/12 绿 + 第三轮全量绿——既有偶发
+（progress.md §912 同款前例），与本批无关：本批零 Kotlin/JNI 变更）+ detekt 绿 +
+`compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更。
+
