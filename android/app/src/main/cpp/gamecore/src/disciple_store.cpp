@@ -1,8 +1,23 @@
 #include "gamecore/state/models.h"  // 定义 Disciple/嵌套类型 + 尾部引入 disciple_store.h
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace gamecore::state {
+
+std::pair<int32_t, int8_t> DiscipleStore::parseNumericId(const std::string& s) {
+    // Kotlin String.toIntOrNull 同口径：全串严格校验（与 settle_util::
+    // toIntOrNull 同实现；state 层不反向依赖 system 层故单点复制）
+    if (s.empty()) return {0, 0};
+    try {
+        std::size_t pos = 0;
+        const long v = std::stol(s, &pos);
+        if (pos != s.size()) return {0, 0};   // Kotlin 全串校验
+        return {static_cast<int32_t>(v), 1};
+    } catch (...) {
+        return {0, 0};
+    }
+}
 
 Disciple DiscipleStore::materialize(std::size_t row) const {
     Disciple d;
@@ -142,6 +157,9 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     }
     const std::size_t row = ids.size();
     ids.push_back(d.id);
+    const auto [numId, numOk] = parseNumericId(d.id);
+    numericIds.push_back(numOk ? numId : 0);
+    hasNumericIds.push_back(numOk);
     names.push_back(d.name);
     surnames.push_back(d.surname);
     genders.push_back(d.gender);
@@ -264,6 +282,7 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
 
     // 同 id 保留最后（SparseArray 写入语义）；行序 = 追加序
     idToRow[d.id] = row;
+    if (numOk) numericIdToRow[numId] = row;
 }
 
 void DiscipleStore::loadFromVector(const std::vector<Disciple>& disciples) {
@@ -307,6 +326,8 @@ void DiscipleStore::removeById(const std::string& id) {
 
 void DiscipleStore::clear() {
     ids.clear();
+    numericIds.clear();
+    hasNumericIds.clear();
     names.clear();
     surnames.clear();
     genders.clear();
@@ -417,11 +438,14 @@ void DiscipleStore::clear() {
     hasReviveEffects.clear();
     hasClearAllEffects.clear();
     idToRow.clear();
+    numericIdToRow.clear();
 }
 
 void DiscipleStore::eraseAt(std::size_t row) {
     const std::string removedId = ids[row];
     ids.erase(ids.begin() + static_cast<std::ptrdiff_t>(row));
+    numericIds.erase(numericIds.begin() + static_cast<std::ptrdiff_t>(row));
+    hasNumericIds.erase(hasNumericIds.begin() + static_cast<std::ptrdiff_t>(row));
     names.erase(names.begin() + static_cast<std::ptrdiff_t>(row));
     surnames.erase(surnames.begin() + static_cast<std::ptrdiff_t>(row));
     genders.erase(genders.begin() + static_cast<std::ptrdiff_t>(row));
@@ -537,6 +561,12 @@ void DiscipleStore::eraseAt(std::size_t row) {
     for (std::size_t i = 0; i < ids.size(); ++i) {
         idToRow[ids[i]] = i;
     }
+    // 同步重建数值索引（复用已解析数值列，免逐行重解析；同 id 保留最后
+    // 与 idToRow 重建循环一致）
+    numericIdToRow.clear();
+    for (std::size_t i = 0; i < ids.size(); ++i) {
+        if (hasNumericIds[i] != 0) numericIdToRow[numericIds[i]] = i;
+    }
     (void)removedId;
 }
 
@@ -544,6 +574,8 @@ void DiscipleStore::eraseAt(std::size_t row) {
 void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     using std::swap;
     swap(ids[a], ids[b]);
+    swap(numericIds[a], numericIds[b]);
+    swap(hasNumericIds[a], hasNumericIds[b]);
     swap(names[a], names[b]);
     swap(surnames[a], surnames[b]);
     swap(genders[a], genders[b]);
@@ -658,6 +690,9 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     // 业务保证 id 唯一，重复 id 时以交换后的行覆盖为准）
     idToRow[ids[a]] = a;
     idToRow[ids[b]] = b;
+    // 数值索引同法同步（键域 = 数值 id 行）
+    if (hasNumericIds[a] != 0) numericIdToRow[numericIds[a]] = a;
+    if (hasNumericIds[b] != 0) numericIdToRow[numericIds[b]] = b;
 }
 
 }  // namespace gamecore::state

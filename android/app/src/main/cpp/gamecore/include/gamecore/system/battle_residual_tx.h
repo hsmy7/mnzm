@@ -154,7 +154,7 @@ inline void applyGriefToRelativesBattle(DiscipleStore& ds,
                     : (!ds.parentId2s[row].empty() && ds.parentId2s[row] == ds.ids[deadRow])
                         ? "父/母"
                     : "亲属";
-                const auto gid = gamecore::system::settle_util::toIntOrNull(ds.ids[row]);
+                const auto gid = ds.numericIdAt(row);
                 if (gid.has_value()) {
                     LifeEventDraft d;
                     d.discipleId = *gid;
@@ -413,7 +413,7 @@ inline WorldVictoryOutcome worldLevelVictoryTx(
         // 词条不参与；talentEffectsFor 合并映射 containsKey 同义）
         const auto talentEffects = gamecore::stats::talentEffectsFor(ds.talentIds[row]);
         if (talentEffects.count("winBattleRandomAttrPlus") > 0) {
-            const auto idOpt = gamecore::system::settle_util::toIntOrNull(ds.ids[row]);
+            const auto idOpt = ds.numericIdAt(row);
             if (idOpt.has_value()) {
                 applyDeterministicWinAttr(state, row, *idOpt, currentMonth, rngSystem, world, out);
             }
@@ -502,7 +502,7 @@ inline BattlePresettleOutcome battlePresettleTx(
         const auto& oldVals = before[row];
         const bool realmChanged = oldVals.first != ds.realms[row];
         const bool layerChanged = oldVals.second != ds.realmLayers[row];
-        const auto idOpt = gamecore::system::settle_util::toIntOrNull(ds.ids[row]);
+        const auto idOpt = ds.numericIdAt(row);
         if ((realmChanged || layerChanged) && idOpt.has_value()) {
             gamecore::system::relative_gift::processGiftsForBreakthrough(
                 state, *idOpt, rngSystem);

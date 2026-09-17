@@ -46,12 +46,15 @@ inline std::map<int32_t, std::size_t> indexById(const std::vector<state::Discipl
     return m;
 }
 
-/// 弟子 Int id → 行下标（DiscipleStore SoA 版；行序 == 数组序）
+/// 弟子 Int id → 行下标（DiscipleStore SoA 版；行序 == 数组序）。
+/// R1.3 dense 索引：数值 id 列直读（装载/增删时已按 Kotlin
+/// String.toIntOrNull 同口径解析一次），免逐行字符串重解析；
+/// 键域/行序/同 id 保留最后语义与逐行解析版逐位一致
 inline std::map<int32_t, std::size_t> indexById(const state::DiscipleStore& ds) {
     std::map<int32_t, std::size_t> m;
     for (std::size_t i = 0; i < ds.size(); ++i) {
-        const auto id = toIntOrNull(ds.idAt(i));
-        if (id.has_value()) m[*id] = i;
+        if (ds.hasNumericIds[i] == 0) continue;
+        m[ds.numericIds[i]] = i;
     }
     return m;
 }

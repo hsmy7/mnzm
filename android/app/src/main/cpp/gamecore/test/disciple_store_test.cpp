@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "gamecore/state/models.h"
+#include "gamecore/system/settlement_detail.h"  // toIntOrNull 口径对齐守卫
 
 namespace gamecore {
 namespace {
@@ -142,6 +143,104 @@ TEST(DiscipleStoreTest, ColumnWriteReflectedInMaterialize) {
     EXPECT_DOUBLE_EQ(42.0, d.cultivation);
     EXPECT_EQ(99, d.currentHp);
     EXPECT_FALSE(d.isAlive);
+}
+
+// ── R1.3 dense 索引：numericIds 列与 numericIdToRow 维护守卫 ─────────
+
+TEST(DiscipleStoreTest, NumericIdColumnParsesOnAppend) {
+    DiscipleStore store;
+    store.appendDisciple(makeDisciple("1", "甲"));
+    store.appendDisciple(makeDisciple("42", "乙"));
+    store.appendDisciple(makeDisciple("not_a_number", "丙"));
+    store.appendDisciple(makeDisciple("", "丁"));
+
+    ASSERT_EQ(4u, store.size());
+    ASSERT_EQ(4u, store.numericIds.size());
+    ASSERT_EQ(4u, store.hasNumericIds.size());
+    EXPECT_EQ(1, store.numericIdAt(0).value());
+    EXPECT_EQ(42, store.numericIdAt(1).value());
+    // 非法/空 id → 无数值语义（toIntOrNull 同口径），数值置 0
+    EXPECT_FALSE(store.numericIdAt(2).has_value());
+    EXPECT_EQ(0, store.numericIds[2]);
+    EXPECT_EQ(0, store.hasNumericIds[2]);
+    EXPECT_FALSE(store.numericIdAt(3).has_value());
+}
+
+TEST(DiscipleStoreTest, RowOfNumberMirrorsIdToRow) {
+    DiscipleStore store;
+    store.appendDisciple(makeDisciple("7", "庚"));
+    store.appendDisciple(makeDisciple("8", "辛"));
+
+    EXPECT_EQ(0u, store.rowOfNumber(7).value());
+    EXPECT_EQ(1u, store.rowOfNumber(8).value());
+    EXPECT_FALSE(store.rowOfNumber(9).has_value());
+}
+
+TEST(DiscipleStoreTest, NumericIndexSurvivesUpsertRotation) {
+    DiscipleStore store;
+    store.appendDisciple(makeDisciple("1", "甲"));
+    store.appendDisciple(makeDisciple("2", "乙"));
+    store.appendDisciple(makeDisciple("3", "丙"));
+    // 原位覆盖弟子 2（eraseAt + 末尾追加 + 保序旋转——索引维护命门路径）
+    store.upsertDisciple(makeDisciple("2", "乙改"));
+
+    ASSERT_EQ(3u, store.size());
+    EXPECT_EQ(0u, store.rowOfNumber(1).value());
+    EXPECT_EQ(1u, store.rowOfNumber(2).value());
+    EXPECT_EQ(2u, store.rowOfNumber(3).value());
+    EXPECT_EQ("乙改", store.materialize(store.rowOfNumber(2).value()).name);
+}
+
+TEST(DiscipleStoreTest, NumericIndexSurvivesRemove) {
+    DiscipleStore store;
+    store.appendDisciple(makeDisciple("1", "甲"));
+    store.appendDisciple(makeDisciple("2", "乙"));
+    store.appendDisciple(makeDisciple("3", "丙"));
+    store.removeById("2");
+
+    ASSERT_EQ(2u, store.size());
+    EXPECT_EQ(0u, store.rowOfNumber(1).value());
+    EXPECT_EQ(1u, store.rowOfNumber(3).value());
+    EXPECT_FALSE(store.rowOfNumber(2).has_value());
+    // 行删除后数值列与 id 列仍逐行一致
+    EXPECT_EQ(1, store.numericIdAt(0).value());
+    EXPECT_EQ(3, store.numericIdAt(1).value());
+}
+
+TEST(DiscipleStoreTest, NumericIndexClearAndReload) {
+    DiscipleStore store;
+    store.appendDisciple(makeDisciple("1", "甲"));
+    const std::vector<Disciple> vec = {makeDisciple("9", "壬"),
+                                       makeDisciple("4", "肆")};
+    store.loadFromVector(vec);
+
+    ASSERT_EQ(2u, store.size());
+    EXPECT_EQ(0u, store.rowOfNumber(9).value());
+    EXPECT_EQ(1u, store.rowOfNumber(4).value());
+    EXPECT_FALSE(store.rowOfNumber(1).has_value());
+    store.clear();
+    EXPECT_TRUE(store.numericIdToRow.empty());
+    EXPECT_TRUE(store.numericIds.empty());
+    EXPECT_TRUE(store.hasNumericIds.empty());
+}
+
+TEST(DiscipleStoreTest, ParseParityWithSettleUtilToIntOrNull) {
+    // 数值列解析与 settle_util::toIntOrNull 单点同实现——边界样本对齐守卫
+    const std::vector<std::string> samples = {
+        "", "abc", "12a", " 12", "12 ", "+12", "-5", "007",
+        "2147483647", "99999999999",
+    };
+    for (const std::string& s : samples) {
+        DiscipleStore store;
+        store.appendDisciple(makeDisciple(s, "甲"));
+        const auto viaColumn = store.numericIdAt(0);
+        const auto viaUtil =
+            gamecore::system::settle_util::toIntOrNull(s);
+        ASSERT_EQ(viaUtil.has_value(), viaColumn.has_value()) << s;
+        if (viaUtil.has_value()) {
+            EXPECT_EQ(*viaUtil, *viaColumn) << s;
+        }
+    }
 }
 
 }  // namespace

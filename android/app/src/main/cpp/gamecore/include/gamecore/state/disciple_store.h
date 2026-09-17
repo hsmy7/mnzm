@@ -35,6 +35,12 @@ class DiscipleStore {
 public:
     // ── 标识列 ──
     std::vector<std::string> ids;                // 行序 == 弟子顺序（RNG 红线）
+    /// ids 的数值视图（R1.3 dense 索引：ids 本是数字串——装载/增删时按
+    /// Kotlin String.toIntOrNull 同口径全串严格解析一次，热路径免逐行
+    /// 重解析）。hasNumericIds[row]==0 时数值无意义（置 0）。
+    /// 纯内存派生列，不进 JSON 协议（materialize/appendDisciple 内聚维护）
+    std::vector<int32_t> numericIds;
+    std::vector<int8_t> hasNumericIds;           // 0/1：ids[row] 全串整数解析成功
     // ── 基础信息列 ──
     std::vector<std::string> names;
     std::vector<std::string> surnames;
@@ -165,8 +171,15 @@ public:
     std::vector<int8_t> hasClearAllEffects;      // 0/1
 
     // ── 索引 ──
-    /// id → 行索引（std::map 有序；同 id 保留最后——SparseArray 写入语义）
+    /// id → 行索引（std::map 有序；同 id 保留最后——SparseArray 写入语义）。
+    /// 协议边界（JSON/JNI 字符串 id 进出口）与 UI 事务字符串寻址专用；
+    /// 引擎内部热路径数值寻址走 numericIdToRow/numericIdAt
     std::map<std::string, std::size_t> idToRow;
+
+    /// 数值 id → 行索引（R1.3 dense 索引：与 idToRow 同步维护，内容 ==
+    /// settle_util::indexById 逐行重解析版的免重建缓存；同 id 保留最后，
+    /// 键域 = hasNumericIds 行）
+    std::map<int32_t, std::size_t> numericIdToRow;
 
     // ============================================================
     // 容量/索引
@@ -178,10 +191,23 @@ public:
     /// 行索引 → 弟子 id（行序即插入序，RNG 对拍红线）
     const std::string& idAt(std::size_t row) const { return ids[row]; }
 
-    /// id → 行索引；不存在返回 npos
+    /// 行索引 → 数值 id（Kotlin toIntOrNull(ids[row]) 语义；无效 → nullopt）
+    std::optional<int32_t> numericIdAt(std::size_t row) const {
+        if (hasNumericIds[row] == 0) return std::nullopt;
+        return numericIds[row];
+    }
+
+    /// id → 行索引；不存在返回 nullopt
     std::optional<std::size_t> rowOf(const std::string& id) const {
         const auto it = idToRow.find(id);
         if (it == idToRow.end()) return std::nullopt;
+        return it->second;
+    }
+
+    /// 数值 id → 行索引；不存在返回 nullopt
+    std::optional<std::size_t> rowOfNumber(int32_t id) const {
+        const auto it = numericIdToRow.find(id);
+        if (it == numericIdToRow.end()) return std::nullopt;
         return it->second;
     }
 
@@ -214,6 +240,11 @@ public:
     void clear();
 
 private:
+    /// ids 全串严格整数解析（Kotlin String.toIntOrNull 同口径，与
+    /// settle_util::toIntOrNull 同实现——state 层不反向依赖 system 层，
+    /// 此处单点复制；返回 (数值, 是否有效)，守卫测试校验两端口径一致）
+    static std::pair<int32_t, int8_t> parseNumericId(const std::string& s);
+
     /// 按行索引删除（removeById 内部；不做 idToRow 之外的校验）
     void eraseAt(std::size_t row);
 

@@ -248,11 +248,10 @@ inline int32_t effectiveTeaching(const DiscipleStore& ds, std::size_t row) {
            static_cast<int32_t>(stats::effectValue(effects, "teachingFlat"));
 }
 
-/// 住所建筑修炼系数（calculateBuildingCultivationBonus 列直读版：
-/// 首匹配槽位 → 匹配建筑 displayName 查表；无槽/无建筑 → 1.0）
+/// 住所建筑修炼系数（数值 id 版：R1.3 dense 索引——调用方从数值 id 列
+/// 直读传入，免字符串重解析；查找语义与字符串版逐位一致）
 inline double residenceBuildingBonus(const GameData& gd,
-                                     const std::string& discipleIdStr) {
-    const auto idOpt = toIntOrNull(discipleIdStr);
+                                     std::optional<int32_t> idOpt) {
     if (!idOpt.has_value()) return 1.0;
     for (const auto& slot : gd.residenceSlots) {
         const auto rid = toIntOrNull(slot.discipleId);
@@ -265,6 +264,13 @@ inline double residenceBuildingBonus(const GameData& gd,
         return 1.0;   // 有槽无建筑 → 无加成
     }
     return 1.0;
+}
+
+/// 住所建筑修炼系数（calculateBuildingCultivationBonus 列直读版：
+/// 首匹配槽位 → 匹配建筑 displayName 查表；无槽/无建筑 → 1.0）
+inline double residenceBuildingBonus(const GameData& gd,
+                                     const std::string& discipleIdStr) {
+    return residenceBuildingBonus(gd, toIntOrNull(discipleIdStr));
 }
 
 /// 讲道长老/师兄加成（calculatePreachingBonusesColumn；inner=false 外门 / true 青云内门）。
@@ -365,7 +371,7 @@ inline void accumulateCultivation(
     if (cultivation >= maxCultivation) return;
 
     stats::CultivationRateInput extra;
-    extra.buildingBonus = residenceBuildingBonus(gd, ds.ids[row]);
+    extra.buildingBonus = residenceBuildingBonus(gd, ds.numericIdAt(row));
 
     double wenDaoElder = 0.0, wenDaoMasters = 0.0;
     preachingBonuses(state, idx, realm, ds.discipleTypes[row], false,
@@ -792,12 +798,12 @@ inline void processAutoPills(GameState& state,
     view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
         const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
         if (ds.isAlive[row] == 0) return;
-        const auto id = toIntOrNull(ds.ids[row]);
+        const auto id = ds.numericIdAt(row);
         if (!id.has_value() || secretIds.count(*id)) return;
         idSnapshot.push_back(*id);
     });
     for (const int32_t id : idSnapshot) {
-        const auto rowOpt = ds.rowOf(std::to_string(id));
+        const auto rowOpt = ds.rowOfNumber(id);
         if (!rowOpt.has_value()) continue;   // 前序钩子已移除（叛逃）
         const std::size_t row = *rowOpt;
 
@@ -840,7 +846,7 @@ inline std::map<int32_t, int32_t> committedElderComprehensionOf(
         const auto eid = toIntOrNull(elderId);
         if (!eid.has_value() || out.count(*eid) > 0) return;
         for (std::size_t i = 0; i < ds.size(); ++i) {
-            const auto id = toIntOrNull(ds.ids[i]);
+            const auto id = ds.numericIdAt(i);
             if (!id.has_value() || *id != *eid) continue;
             out.emplace(*eid, stats::baseComprehension(ds, i));
             return;   // 首行即止（同数值 id 保留首行 == emplace 首写）
@@ -1217,7 +1223,7 @@ inline void processBreakthroughs(
         view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
             const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
             if (ds.isAlive[row] == 0) return;
-            const auto id = toIntOrNull(ds.ids[row]);
+            const auto id = ds.numericIdAt(row);
             if (!id.has_value() || secretIds.count(*id)) return;
             if (ds.realms[row] <= 0) return;
             const double maxCult = computeMaxCultivation(
@@ -1252,7 +1258,7 @@ inline void processBreakthroughs(
         const bool realmChanged = oldVals.first != ds.realms[row];
         const bool layerChanged = oldVals.second != ds.realmLayers[row];
         if (realmChanged || layerChanged) {
-            const auto id = toIntOrNull(ds.ids[row]);
+            const auto id = ds.numericIdAt(row);
             if (id.has_value()) {
                 relative_gift::processGiftsForBreakthrough(state, *id,
                                                            rngSystem);
@@ -1297,7 +1303,7 @@ inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
     view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
         const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
         if (ds.isAlive[row] == 0) return;
-        const auto id = detail::toIntOrNull(ds.ids[row]);
+        const auto id = ds.numericIdAt(row);
         if (!id.has_value() || secretIds.count(*id)) return;
         // 1) HP/MP 恢复（列直读直写）
         detail::recoverHpMp(ds, row, state.gameData, eqMap, mnMap);
@@ -1387,7 +1393,7 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
         for (std::size_t pos = begin; pos < end; ++pos) {
             const std::size_t row = refStorage.find(entityByRow[pos])->row;
             if (ds.isAlive[row] == 0) continue;
-            const auto id = detail::toIntOrNull(ds.ids[row]);
+            const auto id = ds.numericIdAt(row);
             if (!id.has_value() || secretIds.count(*id)) continue;
             // 1) HP/MP 恢复（本人行列直写）
             detail::recoverHpMp(ds, row, state.gameData, eqMap, mnMap);
