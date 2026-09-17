@@ -1202,7 +1202,6 @@ inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
         state.disciples, state.equipmentInstances);
     const auto mnBuckets = detail::inst_bucket::makeInstanceBuckets(
         state.disciples, state.manualInstances);
-    const auto idx = detail::indexById(state.disciples);
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
     // 藏经阁弟子预构建集合
     std::set<std::string> libraryIds;
@@ -1215,6 +1214,10 @@ inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
 
     state::DiscipleStore& ds = state.disciples;
     ecs::syncDiscipleEntities(world, ds.size());
+    // 数值 id → 行索引：直用 DiscipleStore::numericIdToRow（R1.3 dense 索引
+    // 的免重建缓存——内容 == indexById 逐行重解析版，索引镜像守卫锁定），
+    // 每旬入口免 O(D) 全量 map 重建（G1 残余分配形状清除）。
+    const std::map<int32_t, std::size_t>& idx = ds.numericIdToRow;
     // 合并遍历：恢复 + 修炼累积 + 熟练度暂存 + 孕养暂存（语义保留）
     ecs::View<ecs::DiscipleRef> view(world.registry());
     view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
@@ -1289,7 +1292,11 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
         state.disciples, state.equipmentInstances);
     const auto mnBuckets = detail::inst_bucket::makeInstanceBuckets(
         state.disciples, state.manualInstances);
-    const auto idx = detail::indexById(state.disciples);
+    // 数值 id 索引直用 store 的免重建缓存（同 runPhaseCoreBatch——R1.3
+    // dense 索引收尾，免每旬 O(D) map 重建）；批次内行结构不变（既有契约）
+    // ⇒ 并行块只读共享安全
+    const std::map<int32_t, std::size_t>& idx =
+        state.disciples.numericIdToRow;
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
     // 藏经阁弟子预构建集合
     std::set<std::string> libraryIds;
@@ -1379,7 +1386,12 @@ inline void runPhaseSettlement(state::GameState& state,
     detail::processAutoPills(state, secretIds, rng, world);
 
     // 7) 突破检测（唯一 RNG 消耗点：BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM）
-    const auto idx = detail::indexById(state.disciples);
+    //    数值 id 索引直用 store 的免重建缓存（同 runPhaseCoreBatch——R1.3
+    //    dense 索引收尾，免每旬 O(D) map 重建）。步骤 6 偷盗叛逃的行移除
+    //    已经 eraseAt 同点维护进该索引（== 原入口快照重建的时点语义）；
+    //    步骤 7 内无行结构变更（突破/亲属赠送不移除行）⇒ 引用 == 快照。
+    const std::map<int32_t, std::size_t>& idx =
+        state.disciples.numericIdToRow;
     detail::processBreakthroughs(state, rng, idx, committedElderComprehension,
                                  secretIds, world);
 }
@@ -1413,7 +1425,10 @@ inline void runPhaseSettlementCore(state::GameState& state,
     detail::processAutoPills(state, secretIds, rng, world);
 
     // 7) 突破检测（BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM 分区）
-    const auto idx = detail::indexById(state.disciples);
+    //    数值 id 索引直用 store 的免重建缓存（同 runPhaseSettlement——
+    //    R1.3 dense 索引收尾，免每旬 O(D) map 重建）
+    const std::map<int32_t, std::size_t>& idx =
+        state.disciples.numericIdToRow;
     detail::processBreakthroughs(state, rng, idx, committedElderComprehension,
                                  secretIds, world);
 }

@@ -73,3 +73,11 @@ if(GAMECORE_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+# ── 性能基准门禁（R1 收官 bench，G1 证明）───────────────────────────
+# 沿用 kover 开关模式：本地默认 OFF（可关），CI 必跑（ci.yml 显式置 ON）。
+# 独立可执行目标：bench 内的全局 operator new 计数替换不进主测试二进制。
+option(GAMECORE_BUILD_BENCH "Build game-core benchmark gate (malloc count + timing; CI on)" OFF)
+if(GAMECORE_BUILD_BENCH AND GAMECORE_BUILD_TESTS)
+    add_subdirectory(test/bench)
+endif()
