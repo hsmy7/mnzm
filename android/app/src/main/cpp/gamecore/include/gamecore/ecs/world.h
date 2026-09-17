@@ -28,6 +28,14 @@ public:
         return entities_.destroy(e);
     }
 
+    /// 销毁实体（swap-and-pop 变体；R1.6——重建/批量删除等顺序无观察点
+    /// 场景专用，把逐实体销毁从 O(N) 降到 O(1)、整批从 O(N²) 降到 O(N)。
+    /// 需要保留确定性迭代序的路径一律走 destroyEntity）
+    bool destroyEntityUnordered(EntityId e) {
+        registry_.eraseFromAllUnordered(e);
+        return entities_.destroy(e);
+    }
+
 private:
     EntityManager entities_;
     ComponentRegistry registry_;

@@ -38,12 +38,16 @@ struct DiscipleRef {
     std::size_t row = 0;
 };
 
-/// 销毁所有携带 DiscipleRef 的实体（副本迭代防迭代器失效）
+/// 销毁所有携带 DiscipleRef 的实体（副本迭代防迭代器失效）。
+/// R1.6：swap-and-pop 批量销毁（destroyEntityUnordered）——本函数只服务
+/// buildDiscipleEntities 的"先全清再按行序重建"场景（草稿装配/读档对齐/
+/// sync 漂移自愈），销毁集合内实体相对序无任何观察点；整批复杂度
+/// O(D²) → O(D)。需要保序单删的路径走 destroyDiscipleEntity（保序压缩）。
 inline void destroyDiscipleEntities(World& world) {
     auto& storage = world.registry().storage<DiscipleRef>();
     const auto entityList = storage.entityList();  // 拷贝，避免边迭代边销毁
     for (const EntityId e : entityList) {
-        world.destroyEntity(e);
+        world.destroyEntityUnordered(e);
     }
 }
 

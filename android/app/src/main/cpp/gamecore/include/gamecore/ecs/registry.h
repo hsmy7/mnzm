@@ -60,6 +60,15 @@ public:
         }
     }
 
+    /// 从所有已存在组件存储中移除实体（swap-and-pop 变体；R1.6——
+    /// destroyEntityUnordered 用，仅限顺序无观察点场景，见 storage.h）
+    void eraseFromAllUnordered(EntityId e) {
+        for (auto& [id, storage] : storages_) {
+            (void)id;
+            if (storage) storage->eraseEntityUnordered(e);
+        }
+    }
+
     std::size_t storageCount() const { return storages_.size(); }
 
     void clearAll() {

@@ -91,6 +91,33 @@ TEST(DiscipleEntityTest, DestroyAllClearsDiscipleEntities) {
     EXPECT_EQ(world.entities().aliveCount(), 0u);
 }
 
+// ── R1.6：swap-and-pop 批量销毁（重建场景去 O(D²)）──
+
+TEST(DiscipleEntityTest, BatchDestroyThenRebuildKeepsRowOrderInvariant) {
+    // 重建场景（buildDiscipleEntities 先全清再按行序重建）经 swap-and-pop
+    // 批量销毁后，新实体集的"View 序 == 行序"不变量必须成立（sync 零重建
+    // 直通）——swap 带来的 dense 重排不得泄漏到重建后的迭代域。
+    World world;
+    const auto before = buildDiscipleEntities(world, 64);
+    destroyDiscipleEntities(world);  // O(D) 批量销毁（R1.6 swap-and-pop）
+    auto& store = world.registry().storage<DiscipleRef>();
+    EXPECT_EQ(store.size(), 0u);
+    for (const EntityId e : before) {
+        EXPECT_FALSE(world.entities().isAlive(e));
+        EXPECT_EQ(store.find(e), nullptr);  // 组件已清 + 句柄失效
+    }
+
+    const auto after = buildDiscipleEntities(world, 48);
+    // 不变量自检：syncDiscipleEntities 校验"View 序 == 行序 0..N-1"
+    // 成立 ⇒ 零重建原样返回（若 swap 破坏重建序，此处返回的将是新集）
+    const auto synced = syncDiscipleEntities(world, 48);
+    ASSERT_EQ(synced.size(), 48u);
+    for (std::size_t i = 0; i < 48; ++i) {
+        EXPECT_EQ(synced[i], after[i]);
+        EXPECT_EQ(store.find(synced[i])->row, i);
+    }
+}
+
 // ── 保序验证：syncDiscipleEntities（桥接规范红线） ──
 
 TEST(DiscipleEntityTest, SyncReturnsSameEntitiesWhenInvariantHolds) {

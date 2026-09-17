@@ -22,7 +22,11 @@
 //   1. dense 行序 == 实体插入序（append-only 直至 erase）。
 //   2. erase 采用**保序压缩**（从被删行起整体左移）——保持剩余实体相对顺序不变，
 //      与 DiscipleStore 的 vector.erase 原位语义一致；代价 O(N)，换取确定性。
-//   3. 禁用 unordered_map 参与迭代；sparse_ 仅用于 O(1) 实体↔行查找。
+//   3. eraseEntityUnordered（R1.6）：swap-and-pop 变体——尾行换入被删行 + 弹尾，
+//      O(1)。**仅限顺序无观察点场景**（重建/批量删除：buildDiscipleEntities
+//      先销毁全部再按行序重建，销毁集合内相对序无消费者）；确定性迭代序
+//      需要保留的路径一律走保序 eraseEntity。
+//   4. 禁用 unordered_map 参与迭代；sparse_ 仅用于 O(1) 实体↔行查找。
 //
 // ## 类型擦除
 //   实现 IStorage 基类（virtual eraseEntity/containsEntity/clearAll/typeId），
@@ -37,6 +41,8 @@ public:
     virtual ComponentTypeId typeId() const = 0;
     virtual bool containsEntity(EntityId e) const = 0;
     virtual bool eraseEntity(EntityId e) = 0;
+    /// swap-and-pop 删除（R1.6；顺序无观察点场景专用，见类注释第 3 条）
+    virtual bool eraseEntityUnordered(EntityId e) = 0;
     virtual void clearAll() = 0;
     virtual std::size_t size() const = 0;
 };
@@ -103,6 +109,25 @@ public:
         if (e.index < sparse_.size() && sparse_[e.index] == row) {
             sparse_[e.index] = kInvalid;
         }
+        return true;
+    }
+
+    /// 删除实体组件（swap-and-pop：O(1)；**仅限顺序无观察点场景**——
+    /// 尾行换入被删行，剩余实体相对序不保留。不存在返回 false）
+    bool eraseEntityUnordered(EntityId e) override {
+        const auto r = rowOf(e);
+        if (!r) return false;
+        const std::size_t row = *r;
+        const std::size_t last = entities_.size() - 1;
+        if (row != last) {
+            // 尾行换入被删行（实体与组件同步搬移 + sparse 重锚）
+            values_[row] = std::move(values_[last]);
+            entities_[row] = entities_[last];
+            sparse_[entities_[row].index] = row;
+        }
+        values_.pop_back();
+        entities_.pop_back();
+        sparse_[e.index] = kInvalid;
         return true;
     }
 

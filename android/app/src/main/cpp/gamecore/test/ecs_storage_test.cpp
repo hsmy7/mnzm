@@ -94,6 +94,59 @@ TEST(ComponentStorageTest, ClearAllResets) {
     EXPECT_EQ(store.size(), 0u);
 }
 
+// ── R1.6：swap-and-pop 删除变体（顺序无观察点场景专用）──────────────
+TEST(ComponentStorageTest, EraseUnorderedRemovesTargetKeepsOthersFindable) {
+    World world;
+    auto& store = world.registry().storage<Pos>();
+    std::vector<EntityId> es;
+    for (int i = 0; i < 8; ++i) {
+        es.push_back(world.createEntity());
+        store.addOrAssign(es.back(), Pos{i, i});
+    }
+
+    // 逐个 swap-and-pop 全部删除（重建/批量删除场景的工作负载）
+    for (const EntityId e : es) {
+        EXPECT_TRUE(store.eraseEntityUnordered(e));
+        EXPECT_FALSE(store.containsEntity(e));  // 被删实体不再命中
+    }
+    EXPECT_EQ(store.size(), 0u);
+}
+
+TEST(ComponentStorageTest, EraseUnorderedMidRowReanchorsSparseAndTail) {
+    World world;
+    auto& store = world.registry().storage<Pos>();
+    std::vector<EntityId> es;
+    for (int i = 0; i < 5; ++i) {
+        es.push_back(world.createEntity());
+        store.addOrAssign(es.back(), Pos{i, 0});
+    }
+
+    // 删中段行 1：尾实体（行 4）换入行 1；其余实体查找与行值仍正确
+    EXPECT_TRUE(store.eraseEntityUnordered(es[1]));
+    EXPECT_EQ(store.size(), 4u);
+    EXPECT_EQ(store.find(es[1]), nullptr);           // 被删实体不再命中
+    EXPECT_EQ(store.find(es[4])->x, 4);              // 尾实体换行后查找正确
+    EXPECT_EQ(store.find(es[0])->x, 0);
+    EXPECT_EQ(store.find(es[2])->x, 2);
+    EXPECT_EQ(store.find(es[3])->x, 3);
+    // dense 序：行 1 处 = 换入的尾实体（相对序不保留——本变体的既定语义）
+    EXPECT_EQ(store.entityList()[1], es[4]);
+    EXPECT_EQ(store.entityList().size(), 4u);
+}
+
+TEST(ComponentStorageTest, EraseUnorderedMissingOrRepeatedReturnsFalse) {
+    World world;
+    auto& store = world.registry().storage<Pos>();
+    const EntityId withComp = world.createEntity();
+    const EntityId noComp = world.createEntity();
+    store.addOrAssign(withComp, Pos{1, 0});
+
+    EXPECT_FALSE(store.eraseEntityUnordered(noComp));  // 无该组件实体
+    EXPECT_TRUE(store.eraseEntityUnordered(withComp));
+    EXPECT_FALSE(store.eraseEntityUnordered(withComp));  // 重复删除：已 kInvalid
+    EXPECT_EQ(store.size(), 0u);
+}
+
 // ── ComponentRegistry：类型存储注册/复用 ─────────────────────────────
 TEST(ComponentRegistryTest, StorageCreatesAndReusesPerType) {
     ComponentRegistry registry;
