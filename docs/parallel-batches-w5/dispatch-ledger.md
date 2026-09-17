@@ -116,6 +116,7 @@
   - 2026-09-18 05:11 截屏：B04 目标定位——SecretRealmService 两处战斗段（L879/L603）锁定，调研路由器秘境信封 rebuildBattleLogData 能否复用于 native 通道。
   - 2026-09-18 05:12 截屏：B04 R4.1 模式吃透（tryExecuteNative ?: battleSystem.executeBattle），正读 BattleSystem/GameCoreBridge 确认 RNG 委托与超时语义。
   - 2026-09-18 05:16 截屏：B04 异常语义闭环确认（error 信封→null→回退），旗标体系与路由器测试模式明确；排查秘境端其他战斗执行点与服务测试覆盖。
+  - 2026-09-18 05:26 截屏：B04 路由回归测试编写中——SecretRealmServiceRouteTest +234 行（仿 R4.1 同款），按 WriteGuardRule 修正导入/作用域/空安全。
 
 ## 经验教训（随批追加）
 
