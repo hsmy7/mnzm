@@ -68,9 +68,9 @@
 ## 当前状态
 
 - **看护锁**：—
-- **状态**：`dispatch`（B01 已验收通过，待派 B02）
-- **当前批**：B02（R1.2 + R1.3，批次文件 `batch-R1B.md` 已就绪）
-- **派发时间**：—
+- **状态**：`in_progress`（B02 施工中）
+- **当前批**：B02（R1.2 + R1.3，批次文件 `batch-R1B.md`）
+- **派发时间**：2026-09-18 00:22（GUI 新建任务派发，模型 GLM-5.3-Flash，完全访问，项目 XianxiaSectNative/main）
 - **缺陷清单**：—
 - **监控日志**：
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
@@ -81,6 +81,7 @@
   - 2026-09-17 23:47 截屏：UP-TO-DATE 疑点已澄清——core:engine 3296/0skip/0失败 Diff 对拍全实跑，六模块合计 7777 用例 0 失败（17 既有 skip）；detekt+compileReleaseKotlin+lintRelease 全绿；CHANGELOG 4.01.15 + cpp-engine.md 已写，正在提交文档批次。下一轮预期转 verifying。
   - 2026-09-17 23:57 截屏：B01 最终完成报告已出（含假绿排除/版本口径/台账代改边界三条说明），会话空闲。看护占锁转 verifying，开始亲自复跑验收门。
   - 2026-09-18 00:25 **B01 验收通过**：六项门全绿（详见批次总表证据列）。看护亲跑 GTest 1419/1419 + JUnit --rerun-tasks 全实跑（229 任务 executed，engine XML 3296/0skip/0fail）+ detekt/lint/compile；提交谱系与改动面核对无越界。转入派发 B02。
+  - 2026-09-18 00:22 B02 经 GUI 派发（batch-R1B.md），截屏确认子会话已读取批次文件开工。
 
 ## 经验教训（随批追加）
 
