@@ -96,21 +96,11 @@ using settle_util::kotlinCharLength;
 using settle_util::spiritRootCount;
 using settle_util::toIntOrNull;
 
-/// 装备实例 id 映射（associateBy：同 id 保留最后一个）
-inline std::map<std::string, EquipmentInstance> equipmentMapOf(
-        const std::vector<EquipmentInstance>& list) {
-    std::map<std::string, EquipmentInstance> m;
-    for (const auto& e : list) m[e.id] = e;
-    return m;
-}
-
-/// 功法实例 id 映射
-inline std::map<std::string, ManualInstance> manualMapOf(
-        const std::vector<ManualInstance>& list) {
-    std::map<std::string, ManualInstance> m;
-    for (const auto& e : list) m[e.id] = e;
-    return m;
-}
+// R1.3 第二步：装备/功法实例映射 = owner 行索引桶视图（原 associateBy id
+// 全量深拷贝 map equipmentMapOf/manualMapOf 退役）
+namespace inst_bucket = gamecore::system::instance_bucket;
+using inst_bucket::EquipmentInstanceBuckets;
+using inst_bucket::ManualInstanceBuckets;
 
 /// 秘境探索中存活成员 id 集合（GameData.secretRealmMemberIds）
 inline std::set<int32_t> secretRealmMemberIds(const GameData& gd) {
@@ -130,51 +120,47 @@ inline const state::BloodRefinementPctTotal* findBloodRefinementPct(
     return (it != gd.bloodRefinementPctTotals.end()) ? &it->second : nullptr;
 }
 
-/// 含血炼口径最终 maxHp/maxMp（battleWritebackMaxHpMp 数学等价：
-/// getFinalStats 的 maxHp/maxMp 与 getMaxHpMpColumn 共用同一基础公式）
-inline void finalMaxHpMp(const Disciple& d, const GameData& gd,
-                         const std::map<std::string, EquipmentInstance>& eqMap,
-                         const std::map<std::string, ManualInstance>& mnMap,
-                         int32_t& outMaxHp, int32_t& outMaxMp) {
-    stats::getMaxHpMp(d, findBloodRefinementPct(gd, d.id), eqMap, mnMap,
-                      gd.manualProficiencies, outMaxHp, outMaxMp);
-}
-
-/// 含血炼口径最终 maxHp/maxMp（DiscipleStore SoA 版，热路径用）
+/// 含血炼口径最终 maxHp/maxMp（DiscipleStore SoA 版，热路径用；
+/// battleWritebackMaxHpMp 数学等价：getFinalStats 的 maxHp/maxMp 与
+/// getMaxHpMpColumn 共用同一基础公式）
 inline void finalMaxHpMp(const DiscipleStore& ds, std::size_t row,
                          const GameData& gd,
-                         const std::map<std::string, EquipmentInstance>& eqMap,
-                         const std::map<std::string, ManualInstance>& mnMap,
+                         const EquipmentInstanceBuckets& eqBuckets,
+                         const ManualInstanceBuckets& mnBuckets,
                          int32_t& outMaxHp, int32_t& outMaxMp) {
-    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]), eqMap,
-                      mnMap, gd.manualProficiencies, outMaxHp, outMaxMp);
+    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]),
+                      eqBuckets, mnBuckets, gd.manualProficiencies, outMaxHp,
+                      outMaxMp);
 }
 
 /// HP/MP 是否均已满（isDiscipleFullHpMp；负值视为满）。
-/// 装备/功法映射由**步骤入口**构建一次传入：突破候选筛选（步骤 7）在核心
-/// 批次（步骤 1-5 含孕养提交 applyEquipmentUpdates）之后执行，入口映射已含
-/// 当旬最新 nurtureLevel——"当旬最新"语义对齐 Kotlin battleWritebackMaxHpMp
-/// 的当前 state 现场口径；步骤 7 全程只读 equipmentInstances/manualInstances
-/// （attemptAutoPill 只写 pills/储物袋），入口映射与逐实体现场重建逐位一致。
-inline bool isFullHpMp(const Disciple& d, const GameData& gd,
-                       const std::map<std::string, EquipmentInstance>& eqMap,
-                       const std::map<std::string, ManualInstance>& mnMap) {
+/// 装备/功法**桶视图**由**步骤入口**构建一次传入：突破候选筛选（步骤 7）
+/// 在核心批次（步骤 1-5 含孕养提交 applyEquipmentUpdates）之后执行，入口
+/// 桶已含当旬最新 nurtureLevel——"当旬最新"语义对齐 Kotlin
+/// battleWritebackMaxHpMp 的当前 state 现场口径；步骤 7 全程只读
+/// equipmentInstances/manualInstances（attemptAutoPill 只写 pills/储物袋），
+/// 入口桶与逐实体现场重建逐位一致。
+inline bool isFullHpMp(const Disciple& d, std::size_t ownerRow,
+                       const GameData& gd,
+                       const EquipmentInstanceBuckets& eqBuckets,
+                       const ManualInstanceBuckets& mnBuckets) {
     int32_t maxHp = 0, maxMp = 0;
-    stats::getMaxHpMp(d, findBloodRefinementPct(gd, d.id), eqMap, mnMap,
-                      gd.manualProficiencies, maxHp, maxMp);
+    stats::getMaxHpMp(d, ownerRow, findBloodRefinementPct(gd, d.id), eqBuckets,
+                      mnBuckets, gd.manualProficiencies, maxHp, maxMp);
     const int32_t hp = d.currentHp < 0 ? maxHp : d.currentHp;
     const int32_t mp = d.currentMp < 0 ? maxMp : d.currentMp;
     return hp >= maxHp && mp >= maxMp;
 }
 
-/// HP/MP 是否均已满（DiscipleStore SoA 版，候选筛选用；映射同上由步骤入口传入）
+/// HP/MP 是否均已满（DiscipleStore SoA 版，候选筛选用；桶同上由步骤入口传入）
 inline bool isFullHpMp(const DiscipleStore& ds, std::size_t row,
                        const GameData& gd,
-                       const std::map<std::string, EquipmentInstance>& eqMap,
-                       const std::map<std::string, ManualInstance>& mnMap) {
+                       const EquipmentInstanceBuckets& eqBuckets,
+                       const ManualInstanceBuckets& mnBuckets) {
     int32_t maxHp = 0, maxMp = 0;
-    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]), eqMap,
-                      mnMap, gd.manualProficiencies, maxHp, maxMp);
+    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]),
+                      eqBuckets, mnBuckets, gd.manualProficiencies, maxHp,
+                      maxMp);
     const int32_t hp = ds.currentHps[row] < 0 ? maxHp : ds.currentHps[row];
     const int32_t mp = ds.currentMps[row] < 0 ? maxMp : ds.currentMps[row];
     return hp >= maxHp && mp >= maxMp;
@@ -190,36 +176,16 @@ inline int32_t recoveryAmount(int32_t maxValue, double multiplier) {
     return std::max(static_cast<int32_t>(total), 1);
 }
 
-inline void recoverHpMp(Disciple& d, const GameData& gd,
-                        const std::map<std::string, EquipmentInstance>& eqMap,
-                        const std::map<std::string, ManualInstance>& mnMap) {
-    const int32_t curHp = d.currentHp;
-    const int32_t curMp = d.currentMp;
-    if (curHp < 0 && curMp < 0) return;   // 特殊状态（负值=满）整体跳过
-
-    int32_t maxHp = 0, maxMp = 0;
-    finalMaxHpMp(d, gd, eqMap, mnMap, maxHp, maxMp);
-
-    // 满血提前退出（负值视为满，语义与对象版一致）
-    const int32_t effHp = curHp < 0 ? maxHp : curHp;
-    const int32_t effMp = curMp < 0 ? maxMp : curMp;
-    if (effHp >= maxHp && effMp >= maxMp) return;
-
-    const double multiplier = 1.0;   // phasesToSettle = 1
-    if (curHp >= 0) d.currentHp = std::min(curHp + recoveryAmount(maxHp, multiplier), maxHp);
-    if (curMp >= 0) d.currentMp = std::min(curMp + recoveryAmount(maxMp, multiplier), maxMp);
-}
-
 /// HP/MP 恢复（DiscipleStore SoA 版，热路径用——列直读直写）
 inline void recoverHpMp(DiscipleStore& ds, std::size_t row, const GameData& gd,
-                        const std::map<std::string, EquipmentInstance>& eqMap,
-                        const std::map<std::string, ManualInstance>& mnMap) {
+                        const EquipmentInstanceBuckets& eqBuckets,
+                        const ManualInstanceBuckets& mnBuckets) {
     const int32_t curHp = ds.currentHps[row];
     const int32_t curMp = ds.currentMps[row];
     if (curHp < 0 && curMp < 0) return;   // 特殊状态（负值=满）整体跳过
 
     int32_t maxHp = 0, maxMp = 0;
-    finalMaxHpMp(ds, row, gd, eqMap, mnMap, maxHp, maxMp);
+    finalMaxHpMp(ds, row, gd, eqBuckets, mnBuckets, maxHp, maxMp);
 
     // 满血提前退出（负值视为满，语义与对象版一致）
     const int32_t effHp = curHp < 0 ? maxHp : curHp;
@@ -360,7 +326,7 @@ inline double masterBonusFor(const GameState& state,
 inline void accumulateCultivation(
         GameState& state, std::size_t row,
         const std::map<int32_t, std::size_t>& idx,
-        const std::map<std::string, ManualInstance>& mnMap) {
+        const ManualInstanceBuckets& mnBuckets) {
     DiscipleStore& ds = state.disciples;
     const GameData& gd = state.gameData;
     const int32_t realm = ds.realms[row];
@@ -388,7 +354,7 @@ inline void accumulateCultivation(
         masterBonusFor(state, idx, ds.masterIds[row], realm);
 
     const double rate = stats::calculateCultivationPerPhaseColumn(
-        ds, row, gd, mnMap, gd.manualProficiencies, extra);
+        ds, row, gd, mnBuckets, gd.manualProficiencies, extra);
     if (rate <= 0.0) return;
     ds.cultivations[row] = gamecore::disciple::coerceAtMost(
         cultivation + rate, maxCultivation);
@@ -428,57 +394,11 @@ inline bool accumulateProficiencyForManual(
 }
 
 /// 步骤 3：单弟子熟练度增长（批量模式：只暂存到 pending，不写 state；
-/// pending 显式条目优先于旧值，防同周期双倍增长）
-inline void processManualProficiency(
-        const GameData& gd, const Disciple& d,
-        const std::map<std::string, ManualInstance>& mnMap,
-        bool inLibrary, PendingProficiencies& pending) {
-    if (d.manualIds.empty()) return;
-    const double libraryBonus =
-        inLibrary ? kLibraryProficiencyBonusRate : 0.0;
-    const double profGain = kBaseProficiencyRate * (1.0 + libraryBonus) *
-                            kMsPerPhase1x / 1000.0;
-    if (profGain <= 0.0) return;
-
-    std::vector<ManualProficiencyData> profList;
-    const auto pit = pending.find(d.id);
-    if (pit != pending.end()) {
-        if (pit->second.has_value()) profList = *pit->second;
-    } else {
-        const auto git = gd.manualProficiencies.find(d.id);
-        if (git != gd.manualProficiencies.end()) profList = git->second;
-    }
-
-    bool changed = false;
-    for (const std::string& manualId : d.manualIds) {
-        const auto mit = mnMap.find(manualId);
-        if (mit == mnMap.end()) continue;
-        if (accumulateProficiencyForManual(profList, manualId, mit->second,
-                                           profGain)) {
-            changed = true;
-        }
-    }
-    // 清理已替换/遗忘功法的残留条目（防僵尸条目累积）
-    const auto newEnd = std::remove_if(profList.begin(), profList.end(),
-        [&](const ManualProficiencyData& p) {
-            return !containsString(d.manualIds, p.manualId);
-        });
-    if (newEnd != profList.end()) {
-        profList.erase(newEnd, profList.end());
-        changed = true;
-    }
-
-    if (changed) {
-        pending[d.id] = profList.empty()
-            ? std::nullopt
-            : std::optional<std::vector<ManualProficiencyData>>(profList);
-    }
-}
-
-/// 步骤 3：单弟子熟练度增长（DiscipleStore 行版，列直读 manualIds/id）
+/// pending 显式条目优先于旧值，防同周期双倍增长。DiscipleStore 行版——
+/// 原对象版无调用方，随桶迁移删除）
 inline void processManualProficiency(
         const GameData& gd, const DiscipleStore& ds, std::size_t row,
-        const std::map<std::string, ManualInstance>& mnMap,
+        const ManualInstanceBuckets& mnBuckets,
         bool inLibrary, PendingProficiencies& pending) {
     const std::vector<std::string>& manualIds = ds.manualIds[row];
     const std::string& id = ds.ids[row];
@@ -500,9 +420,9 @@ inline void processManualProficiency(
 
     bool changed = false;
     for (const std::string& manualId : manualIds) {
-        const auto mit = mnMap.find(manualId);
-        if (mit == mnMap.end()) continue;
-        if (accumulateProficiencyForManual(profList, manualId, mit->second,
+        const state::ManualInstance* manual = mnBuckets.find(row, manualId);
+        if (manual == nullptr) continue;
+        if (accumulateProficiencyForManual(profList, manualId, *manual,
                                            profGain)) {
             changed = true;
         }
@@ -581,35 +501,19 @@ inline void applyNurtureEffect(state::GameState& state, Disciple& d,
     }
 }
 
-/// 步骤 4：单弟子四槽孕养增长（批量模式：从共享快照映射读原值，
-/// 更新累积到 updates——与 Kotlin settleNurtureInPlace 读写面一致）
-inline void processEquipmentNurture(
-        const Disciple& d,
-        const std::map<std::string, EquipmentInstance>& eqMap,
-        std::map<std::string, EquipmentInstance>& updates) {
-    for (const std::string& eqId :
-         {d.weaponId, d.armorId, d.bootsId, d.accessoryId}) {
-        if (eqId.empty()) continue;
-        const auto sit = eqMap.find(eqId);
-        if (sit == eqMap.end()) continue;
-        EquipmentInstance working = sit->second;
-        if (applyNurtureExp(working, kNurtureGainPerPhase)) {
-            updates[eqId] = working;
-        }
-    }
-}
-
-/// 步骤 4：单弟子四槽孕养增长（DiscipleStore 行版，列直读四槽 id）
+/// 步骤 4：单弟子四槽孕养增长（批量模式：从入口桶视图读原值，
+/// 更新累积到 updates——与 Kotlin settleNurtureInPlace 读写面一致；
+/// DiscipleStore 行版——原对象版无调用方，随桶迁移删除）
 inline void processEquipmentNurture(
         const DiscipleStore& ds, std::size_t row,
-        const std::map<std::string, EquipmentInstance>& eqMap,
+        const EquipmentInstanceBuckets& eqBuckets,
         std::map<std::string, EquipmentInstance>& updates) {
     for (const std::string& eqId :
          {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row], ds.accessoryIds[row]}) {
         if (eqId.empty()) continue;
-        const auto sit = eqMap.find(eqId);
-        if (sit == eqMap.end()) continue;
-        EquipmentInstance working = sit->second;
+        const state::EquipmentInstance* shared = eqBuckets.find(row, eqId);
+        if (shared == nullptr) continue;
+        EquipmentInstance working = *shared;
         if (applyNurtureExp(working, kNurtureGainPerPhase)) {
             updates[eqId] = working;
         }
@@ -1083,13 +987,15 @@ inline std::pair<double, bool> attemptAutoPill(
 }
 
 /// 突破后修炼完成时间预估（updateCompletionEstimate；速率复用列直读乘区——
-/// 与 Kotlin 对象版共享同一公式源；manualInstances 结算全程不被写入，
-/// 现场构建映射与 Kotlin store 缓存视图等价）
+/// 与 Kotlin 对象版共享同一公式源；功法段经入口桶视图查找——R1.3 第二步，
+/// 原逐候选 manualMapOf 全量重建退役；ownerRow = 弟子原行号，工作副本
+/// 突破后的境界推进不影响桶键）
 inline void updateCompletionEstimate(Disciple& d, GameState& state,
-                                     const std::map<int32_t, std::size_t>& idx) {
+                                     const std::map<int32_t, std::size_t>& idx,
+                                     std::size_t ownerRow,
+                                     const ManualInstanceBuckets& mnBuckets) {
     const GameData& gd = state.gameData;
     const int32_t currentMonth = gd.gameYear * 12 + gd.gameMonth;
-    const auto mnMap = manualMapOf(state.manualInstances);
 
     stats::CultivationRateInput extra;
     extra.buildingBonus = residenceBuildingBonus(gd, d.id);
@@ -1105,7 +1011,7 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
         masterBonusFor(state, idx, d.masterId, d.realm);
 
     const double rate = stats::calculateCultivationPerPhaseColumn(
-        d, gd, mnMap, gd.manualProficiencies, extra);
+        d, ownerRow, gd, mnBuckets, gd.manualProficiencies, extra);
     const double maxCult = computeMaxCultivation(
         d.realm, d.realmLayer, d.cultivation);
     const double remaining =
@@ -1119,12 +1025,14 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
 /// RNG 契约：每次尝试恰好一次 BREAKTHROUGH 分区 nextDouble()。
 /// 循环条件与 Kotlin 一致（shouldContinue && realm>0，无迭代上限——
 /// 大境界递减天然有限：≤9 境界 × 9 层）
+/// @param ownerRow 弟子在 DiscipleStore 的行号（装备/功法桶寻址键——
+///        工作副本四槽/已学功法 id 与该行列一致，桶视图步骤内只读）
 inline void performBreakthrough(
-        Disciple& live, GameState& state,
+        Disciple& live, GameState& state, std::size_t ownerRow,
         const std::map<int32_t, std::size_t>& idx,
         const std::map<int32_t, int32_t>& committedElderComprehension,
-        const std::map<std::string, EquipmentInstance>& eqMap,
-        const std::map<std::string, ManualInstance>& mnMap,
+        const EquipmentInstanceBuckets& eqBuckets,
+        const ManualInstanceBuckets& mnBuckets,
         rng::RngManager& rng) {
     Disciple d = live;   // Kotlin: copy(cultivation = tables.cultivations[...]) 同步
     bool shouldContinue = true;
@@ -1135,7 +1043,9 @@ inline void performBreakthrough(
         const double maxCult = computeMaxCultivation(
             d.realm, d.realmLayer, d.cultivation);
         if (d.cultivation < maxCult) break;
-        if (!isFullHpMp(d, state.gameData, eqMap, mnMap)) break;
+        if (!isFullHpMp(d, ownerRow, state.gameData, eqBuckets, mnBuckets)) {
+            break;
+        }
 
         const int32_t pillTargetRealm =
             (d.realmLayer >= gamecore::disciple::realmConfig(d.realm).maxLayers)
@@ -1176,7 +1086,7 @@ inline void performBreakthrough(
     if (successCount > 0) live.breakthroughCount += successCount;
     if (failCount > 0) live.breakthroughFailCount += failCount;
 
-    updateCompletionEstimate(d, state, idx);
+    updateCompletionEstimate(d, state, idx, ownerRow, mnBuckets);
 
     // 精准字段写回（processRealtimeBreakthroughs 的 forEach 写回字段面）
     live.cultivation = d.cultivation;
@@ -1204,14 +1114,17 @@ inline void processBreakthroughs(
         const std::map<int32_t, int32_t>& committedElderComprehension,
         const std::set<int32_t>& secretIds, ecs::World& world) {
     DiscipleStore& ds = state.disciples;
-    // 步骤 7 入口：装备/功法映射一次构建。本步骤在核心批次（步骤 1-5 含
-    // 孕养提交 applyEquipmentUpdates）之后执行——映射已含当旬最新
-    // nurtureLevel（"当旬最新"语义对齐 Kotlin battleWritebackMaxHpMp 的
-    // 当前 state 现场口径）；步骤 7 全程只读两表（attemptAutoPill 只写
-    // pills/储物袋），候选筛选与逐候选突破循环共享同一映射，
+    // 步骤 7 入口：装备/功法**桶视图**一次构建（R1.3 第二步：原 id 键全量
+    // 深拷贝映射退役——构建 O(E) 指针入桶，零实例拷贝）。本步骤在核心批次
+    // （步骤 1-5 含孕养提交 applyEquipmentUpdates）之后执行——桶已含当旬
+    // 最新 nurtureLevel（"当旬最新"语义对齐 Kotlin battleWritebackMaxHpMp
+    // 的当前 state 现场口径）；步骤 7 全程只读两表（attemptAutoPill 只写
+    // pills/储物袋），候选筛选与逐候选突破循环共享同一桶视图，
     // 消除逐实体 D 次重建。
-    const auto eqMap = equipmentMapOf(state.equipmentInstances);
-    const auto mnMap = manualMapOf(state.manualInstances);
+    const auto eqBuckets = inst_bucket::makeInstanceBuckets(
+        ds, state.equipmentInstances);
+    const auto mnBuckets = inst_bucket::makeInstanceBuckets(
+        ds, state.manualInstances);
     // 1. 列级直读筛选候选（存活 + 非秘境 + realm>0 + 修为满 + HP/MP 满）。
     //    迭代域：syncDiscipleEntities 校验/恢复
     //    不变量后按 View<DiscipleRef> 行序筛选（候选序 == 行序 == Kotlin ids
@@ -1229,7 +1142,9 @@ inline void processBreakthroughs(
             const double maxCult = computeMaxCultivation(
                 ds.realms[row], ds.realmLayers[row], ds.cultivations[row]);
             if (ds.cultivations[row] < maxCult) return;
-            if (!isFullHpMp(ds, row, state.gameData, eqMap, mnMap)) return;
+            if (!isFullHpMp(ds, row, state.gameData, eqBuckets, mnBuckets)) {
+                return;
+            }
             candidates.push_back(row);
         });
     }
@@ -1244,8 +1159,8 @@ inline void processBreakthroughs(
     // 2. 仅候选弟子按需处理（顺序 == ids 顺序 → RNG 抽取序列逐位一致）
     for (std::size_t row : candidates) {
         Disciple live = ds.materialize(row);   // 工作副本（语义 == 旧向量元素）
-        performBreakthrough(live, state, idx, committedElderComprehension,
-                            eqMap, mnMap, rng);
+        performBreakthrough(live, state, row, idx, committedElderComprehension,
+                            eqBuckets, mnBuckets, rng);
         ds.upsertDisciple(live);               // 原位写回（保序）
     }
 
@@ -1283,8 +1198,10 @@ inline void processBreakthroughs(
 /// "View 迭代序 == Store 行序"不变量后按 View<DiscipleRef> 行序迭代
 /// （与并行版 runPhaseCoreBatchParallel 同域；语义逐位不变）。
 inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
-    const auto eqMap = detail::equipmentMapOf(state.equipmentInstances);
-    const auto mnMap = detail::manualMapOf(state.manualInstances);
+    const auto eqBuckets = detail::inst_bucket::makeInstanceBuckets(
+        state.disciples, state.equipmentInstances);
+    const auto mnBuckets = detail::inst_bucket::makeInstanceBuckets(
+        state.disciples, state.manualInstances);
     const auto idx = detail::indexById(state.disciples);
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
     // 藏经阁弟子预构建集合
@@ -1306,17 +1223,18 @@ inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
         const auto id = ds.numericIdAt(row);
         if (!id.has_value() || secretIds.count(*id)) return;
         // 1) HP/MP 恢复（列直读直写）
-        detail::recoverHpMp(ds, row, state.gameData, eqMap, mnMap);
+        detail::recoverHpMp(ds, row, state.gameData, eqBuckets, mnBuckets);
         // 2) 修炼累积（≥1e8 视为异常满值跳过）
         if (ds.cultivations[row] < kCultivationSkipThreshold) {
-            detail::accumulateCultivation(state, row, idx, mnMap);
+            detail::accumulateCultivation(state, row, idx, mnBuckets);
         }
         // 3) 功法熟练度增长（批量模式）
         detail::processManualProficiency(
-            state.gameData, ds, row, mnMap,
+            state.gameData, ds, row, mnBuckets,
             libraryIds.count(ds.ids[row]) > 0, pendingProficiencies);
         // 4) 装备孕养增长（批量模式）
-        detail::processEquipmentNurture(ds, row, eqMap, pendingEquipmentUpdates);
+        detail::processEquipmentNurture(ds, row, eqBuckets,
+                                        pendingEquipmentUpdates);
     });
 
     // 5a) 单次提交熟练度；5b) 单次重建装备列表
@@ -1365,8 +1283,12 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
                                       ecs::World& world) {
     const std::size_t rowCount = state.disciples.size();
     if (rowCount == 0) return;
-    const auto eqMap = detail::equipmentMapOf(state.equipmentInstances);
-    const auto mnMap = detail::manualMapOf(state.manualInstances);
+    // 桶视图构建于 parallelFor 之前；块内 find 只读（并发读安全），
+    // 实例向量批次内不被写（孕养走 pending 暂存，提交在并行段之后）
+    const auto eqBuckets = detail::inst_bucket::makeInstanceBuckets(
+        state.disciples, state.equipmentInstances);
+    const auto mnBuckets = detail::inst_bucket::makeInstanceBuckets(
+        state.disciples, state.manualInstances);
     const auto idx = detail::indexById(state.disciples);
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
     // 藏经阁弟子预构建集合
@@ -1396,17 +1318,17 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
             const auto id = ds.numericIdAt(row);
             if (!id.has_value() || secretIds.count(*id)) continue;
             // 1) HP/MP 恢复（本人行列直写）
-            detail::recoverHpMp(ds, row, state.gameData, eqMap, mnMap);
+            detail::recoverHpMp(ds, row, state.gameData, eqBuckets, mnBuckets);
             // 2) 修炼累积（≥1e8 视为异常满值跳过）
             if (ds.cultivations[row] < kCultivationSkipThreshold) {
-                detail::accumulateCultivation(state, row, idx, mnMap);
+                detail::accumulateCultivation(state, row, idx, mnBuckets);
             }
             // 3) 功法熟练度（局部暂存）
             detail::processManualProficiency(
-                state.gameData, ds, row, mnMap,
+                state.gameData, ds, row, mnBuckets,
                 libraryIds.count(ds.ids[row]) > 0, local.pending);
             // 4) 装备孕养（局部暂存）
-            detail::processEquipmentNurture(ds, row, eqMap,
+            detail::processEquipmentNurture(ds, row, eqBuckets,
                                             local.equipmentUpdates);
         }
         chunkResults[c] = std::move(local);

@@ -221,9 +221,12 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
     // 幸存者回写预计算（Kotlin computeSurvivorUpdates——**先于**标死读列：
     // 钳制上限经 assemble/stats::getMaxHpMp 含血炼口径；⚠ Kotlin 计算出的
     // updatedStatus（IN_TEAM/GARRISONING→IDLE）从未写回（applySurvivorHpMp
-    // Updates 只写 HP/MP）——本事务同口径不写状态列）。
-    const auto eqMap = gamecore::system::detail::equipmentMapOf(state.equipmentInstances);
-    const auto mnMap = gamecore::system::detail::manualMapOf(state.manualInstances);
+    // Updates 只写 HP/MP）——本事务同口径不写状态列）。R1.3 第二步：实例
+    // 映射 = owner 行索引桶视图（免 id 键全量深拷贝）。
+    const auto eqBuckets = gamecore::system::instance_bucket::makeInstanceBuckets(
+        ds, state.equipmentInstances);
+    const auto mnBuckets = gamecore::system::instance_bucket::makeInstanceBuckets(
+        ds, state.manualInstances);
     struct SurvivorWrite { std::size_t row; int32_t hp; int32_t mp; };
     std::vector<SurvivorWrite> survivors;
     for (const auto& [memberId, hp] : survivorHpMap) {
@@ -236,8 +239,10 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
         int32_t finalMaxHp = 0;
         int32_t finalMaxMp = 0;
         gamecore::stats::getMaxHpMp(
-            d, gamecore::system::detail::findBloodRefinementPct(gd, memberId),
-            eqMap, mnMap, gd.manualProficiencies, finalMaxHp, finalMaxMp);
+            d, *rowOpt,
+            gamecore::system::detail::findBloodRefinementPct(gd, memberId),
+            eqBuckets, mnBuckets, gd.manualProficiencies, finalMaxHp,
+            finalMaxMp);
         const auto mpIt = survivorMpMap.find(memberId);
         const int32_t mp = mpIt != survivorMpMap.end()
                                ? mpIt->second
@@ -455,17 +460,17 @@ inline BattlePresettleOutcome battlePresettleTx(
         gamecore::system::detail::committedElderComprehensionOf(state);
     const auto idx = gamecore::system::settle_util::indexById(ds);
 
-    // 步骤入口：装备/功法映射一次构建（战前突破在旬结算核心批次含孕养提交
-    // 之后执行，映射已含当旬最新 nurtureLevel；本事务全程只读两表，
+    // 步骤入口：装备/功法**桶视图**一次构建（战前突破在旬结算核心批次含
+    // 孕养提交之后执行，桶已含当旬最新 nurtureLevel；本事务全程只读两表，
     // 候选筛选与逐候选突破循环共享——phase_settlement::processBreakthroughs
-    // 同一模式）
-    const auto eqMap = gamecore::system::detail::equipmentMapOf(
-        state.equipmentInstances);
-    const auto mnMap = gamecore::system::detail::manualMapOf(
-        state.manualInstances);
+    // 同一模式；R1.3 第二步：免 id 键全量深拷贝）
+    const auto eqBuckets = gamecore::system::instance_bucket::makeInstanceBuckets(
+        ds, state.equipmentInstances);
+    const auto mnBuckets = gamecore::system::instance_bucket::makeInstanceBuckets(
+        ds, state.manualInstances);
 
     // 候选筛选（行序 == Kotlin _ids 追加序；存活 ∧ 队伍内 ∧ realm>0 ∧
-    // 修为满 ∧ 满血蓝（入口映射共享——battleWritebackMaxHpMp 同源口径））
+    // 修为满 ∧ 满血蓝（入口桶共享——battleWritebackMaxHpMp 同源口径））
     std::vector<std::size_t> candidates;
     for (std::size_t row = 0; row < ds.size(); ++row) {
         if (ds.isAlive[row] == 0) continue;
@@ -474,7 +479,8 @@ inline BattlePresettleOutcome battlePresettleTx(
         const double maxCult = computeMaxCultivation(
             ds.realms[row], ds.realmLayers[row], ds.cultivations[row]);
         if (ds.cultivations[row] < maxCult) continue;
-        if (!gamecore::system::detail::isFullHpMp(ds, row, gd, eqMap, mnMap))
+        if (!gamecore::system::detail::isFullHpMp(ds, row, gd, eqBuckets,
+                                                  mnBuckets))
             continue;
         candidates.push_back(row);
     }
@@ -490,7 +496,8 @@ inline BattlePresettleOutcome battlePresettleTx(
     for (std::size_t row : candidates) {
         Disciple live = ds.materialize(row);
         gamecore::system::detail::performBreakthrough(
-            live, state, idx, committedElderComprehension, eqMap, mnMap, rng);
+            live, state, row, idx, committedElderComprehension, eqBuckets,
+            mnBuckets, rng);
         ds.upsertDisciple(live);
         ++out.candidateCount;
     }

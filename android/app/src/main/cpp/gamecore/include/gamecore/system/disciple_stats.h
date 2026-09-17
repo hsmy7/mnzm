@@ -11,6 +11,7 @@
 #include "gamecore/data/trait_db.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
+#include "gamecore/system/instance_buckets.h"
 
 // ============================================================
 // 弟子列直读属性计算（每旬结算）
@@ -42,6 +43,9 @@ using gamecore::state::Disciple;
 using gamecore::state::EquipmentInstance;
 using gamecore::state::ManualInstance;
 using gamecore::state::ManualProficiencyData;
+
+// R1.3 第二步：装备/功法实例查找 = owner 行索引桶视图
+namespace instance_bucket = gamecore::system::instance_bucket;
 
 // ── 常量（Kotlin GameConfig / DiscipleStatCalculator） ────────────────
 
@@ -317,34 +321,39 @@ inline int32_t manualStatWithMastery(const std::map<std::string, int32_t>& stats
     return static_cast<int32_t>(value * bonus);
 }
 
-/// 列直读 maxHp/maxMp（DiscipleStatCalculator.getMaxHpMpColumn 数学等价）。
-/// 输入直接取自 C++ Disciple 平铺字段（对应 Kotlin DiscipleTables 列直读）；
-/// 血炼累计（bloodRefinementPctTotals[id]）由调用方查表传入。
-inline void getMaxHpMp(
-        const Disciple& d,
-        const BloodRefinementPctTotal* bloodRefinementPct,
-        const std::map<std::string, EquipmentInstance>& equipmentMap,
-        const std::map<std::string, ManualInstance>& manualMap,
-        const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
-        int32_t& outMaxHp, int32_t& outMaxMp) {
-    double maxHpEffect = 0.0, maxMpEffect = 0.0;
-    hpMpEffectsFor(d.talentIds, d.affixIds, maxHpEffect, maxMpEffect);
-    computeBaseHpMpResolved(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
-                            maxHpEffect, maxMpEffect, bloodRefinementPct,
-                            outMaxHp, outMaxMp);
-    for (const std::string& eqId : {d.weaponId, d.armorId, d.bootsId, d.accessoryId}) {
-        if (eqId.empty()) continue;
-        const auto it = equipmentMap.find(eqId);
-        if (it == equipmentMap.end()) continue;
-        const auto fs = equipmentFinalStats(it->second);
+/// 装备段求和（桶查找版：owner 行索引桶逐槽 find——R1.3 第二步，
+/// 步骤入口映射不再物化 id 键全量深拷贝 map；加法序 = weapon → armor →
+/// boots → accessory 与 map 版逐位一致）
+inline void accumulateEquipmentHpMp(
+        const instance_bucket::EquipmentInstanceBuckets& equipmentBuckets,
+        std::size_t ownerRow, const std::string& weaponId,
+        const std::string& armorId, const std::string& bootsId,
+        const std::string& accessoryId, int32_t& outMaxHp, int32_t& outMaxMp) {
+    for (const std::string* eqId :
+         {&weaponId, &armorId, &bootsId, &accessoryId}) {
+        if (eqId->empty()) continue;
+        const state::EquipmentInstance* eq =
+            equipmentBuckets.find(ownerRow, *eqId);
+        if (eq == nullptr) continue;
+        const auto fs = equipmentFinalStats(*eq);
         outMaxHp += fs.hp;
         outMaxMp += fs.mp;
     }
-    const auto profListIt = proficiencies.find(d.id);
-    for (const std::string& manualId : d.manualIds) {
-        const auto it = manualMap.find(manualId);
-        if (it == manualMap.end()) continue;
-        const ManualInstance& manual = it->second;
+}
+
+/// 功法段求和（桶查找版；加法序 = manualIds 序与 map 版逐位一致）
+inline void accumulateManualHpMp(
+        const instance_bucket::ManualInstanceBuckets& manualBuckets,
+        std::size_t ownerRow,
+        const std::vector<std::string>& manualIds,
+        const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
+        const std::string& discipleId,
+        int32_t& outMaxHp, int32_t& outMaxMp) {
+    const auto profListIt = proficiencies.find(discipleId);
+    for (const std::string& manualId : manualIds) {
+        const state::ManualInstance* manual =
+            manualBuckets.find(ownerRow, manualId);
+        if (manual == nullptr) continue;
         int32_t masteryLevel = 0;
         if (profListIt != proficiencies.end()) {
             for (const auto& p : profListIt->second) {
@@ -352,9 +361,33 @@ inline void getMaxHpMp(
             }
         }
         const double bonus = masteryBonusFromProficiencyLevel(masteryLevel);
-        outMaxHp += manualStatWithMastery(manual.stats, "hp", "maxHp", bonus);
-        outMaxMp += manualStatWithMastery(manual.stats, "mp", "maxMp", bonus);
+        outMaxHp += manualStatWithMastery(manual->stats, "hp", "maxHp", bonus);
+        outMaxMp += manualStatWithMastery(manual->stats, "mp", "maxMp", bonus);
     }
+}
+
+/// 列直读 maxHp/maxMp（DiscipleStatCalculator.getMaxHpMpColumn 数学等价）。
+/// 输入直接取自 C++ Disciple 平铺字段（对应 Kotlin DiscipleTables 列直读）；
+/// 血炼累计（bloodRefinementPctTotals[id]）由调用方查表传入。
+/// 装备/功法段经 owner 行索引桶查找（R1.3 第二步——ownerRow = 弟子在
+/// DiscipleStore 的行号，工作副本场景由调用方传入原行号，其四槽/已学
+/// 功法 id 与桶键一致）。
+inline void getMaxHpMp(
+        const Disciple& d, std::size_t ownerRow,
+        const BloodRefinementPctTotal* bloodRefinementPct,
+        const instance_bucket::EquipmentInstanceBuckets& equipmentBuckets,
+        const instance_bucket::ManualInstanceBuckets& manualBuckets,
+        const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
+        int32_t& outMaxHp, int32_t& outMaxMp) {
+    double maxHpEffect = 0.0, maxMpEffect = 0.0;
+    hpMpEffectsFor(d.talentIds, d.affixIds, maxHpEffect, maxMpEffect);
+    computeBaseHpMpResolved(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
+                            maxHpEffect, maxMpEffect, bloodRefinementPct,
+                            outMaxHp, outMaxMp);
+    accumulateEquipmentHpMp(equipmentBuckets, ownerRow, d.weaponId, d.armorId,
+                            d.bootsId, d.accessoryId, outMaxHp, outMaxMp);
+    accumulateManualHpMp(manualBuckets, ownerRow, d.manualIds, proficiencies,
+                         d.id, outMaxHp, outMaxMp);
     if (d.pillEffectDuration > 0) {
         outMaxHp += d.pillHpBonus;
         outMaxMp += d.pillMpBonus;
@@ -366,8 +399,8 @@ inline void getMaxHpMp(
 inline void getMaxHpMp(
         const state::DiscipleStore& ds, std::size_t row,
         const BloodRefinementPctTotal* bloodRefinementPct,
-        const std::map<std::string, EquipmentInstance>& equipmentMap,
-        const std::map<std::string, ManualInstance>& manualMap,
+        const instance_bucket::EquipmentInstanceBuckets& equipmentBuckets,
+        const instance_bucket::ManualInstanceBuckets& manualBuckets,
         const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
         int32_t& outMaxHp, int32_t& outMaxMp) {
     double maxHpEffect = 0.0, maxMpEffect = 0.0;
@@ -377,30 +410,11 @@ inline void getMaxHpMp(
                             ds.hpVariances[row], ds.mpVariances[row],
                             maxHpEffect, maxMpEffect, bloodRefinementPct,
                             outMaxHp, outMaxMp);
-    for (const std::string& eqId :
-         {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row], ds.accessoryIds[row]}) {
-        if (eqId.empty()) continue;
-        const auto it = equipmentMap.find(eqId);
-        if (it == equipmentMap.end()) continue;
-        const auto fs = equipmentFinalStats(it->second);
-        outMaxHp += fs.hp;
-        outMaxMp += fs.mp;
-    }
-    const auto profListIt = proficiencies.find(ds.ids[row]);
-    for (const std::string& manualId : ds.manualIds[row]) {
-        const auto it = manualMap.find(manualId);
-        if (it == manualMap.end()) continue;
-        const ManualInstance& manual = it->second;
-        int32_t masteryLevel = 0;
-        if (profListIt != proficiencies.end()) {
-            for (const auto& p : profListIt->second) {
-                if (p.manualId == manualId) { masteryLevel = p.masteryLevel; break; }
-            }
-        }
-        const double bonus = masteryBonusFromProficiencyLevel(masteryLevel);
-        outMaxHp += manualStatWithMastery(manual.stats, "hp", "maxHp", bonus);
-        outMaxMp += manualStatWithMastery(manual.stats, "mp", "maxMp", bonus);
-    }
+    accumulateEquipmentHpMp(equipmentBuckets, row, ds.weaponIds[row],
+                            ds.armorIds[row], ds.bootsIds[row],
+                            ds.accessoryIds[row], outMaxHp, outMaxMp);
+    accumulateManualHpMp(manualBuckets, row, ds.manualIds[row], proficiencies,
+                         ds.ids[row], outMaxHp, outMaxMp);
     if (ds.pillEffectDurations[row] > 0) {
         outMaxHp += ds.pillHpBonuses[row];
         outMaxMp += ds.pillMpBonuses[row];
@@ -663,11 +677,42 @@ struct CultivationRateInput {
     double masterDiscipleBonus = 0.0;        // 师徒加成
 };
 
-/// 每旬修炼速率（5 乘区连乘，下限 1.0；与 Kotlin 列直读版数学等价）
+/// 功法段速率加成（桶查找版共享段——R1.3 第二步；加法序 = manualIds 序、
+/// 每条 speedPct × bonus / 100 与 map 版逐位一致）
+inline double accumulateManualCultivationSpeed(
+        const instance_bucket::ManualInstanceBuckets& manualBuckets,
+        std::size_t ownerRow,
+        const std::vector<std::string>& manualIds,
+        const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
+        const std::string& discipleId) {
+    double resourceBonus = 0.0;
+    const auto profListIt = proficiencies.find(discipleId);
+    for (const std::string& manualId : manualIds) {
+        const state::ManualInstance* manual =
+            manualBuckets.find(ownerRow, manualId);
+        if (manual == nullptr) continue;
+        int32_t masteryLevel = 0;
+        if (profListIt != proficiencies.end()) {
+            for (const auto& p : profListIt->second) {
+                if (p.manualId == manualId) { masteryLevel = p.masteryLevel; break; }
+            }
+        }
+        const double bonus = masteryBonusFromProficiencyLevel(masteryLevel);
+        double speedPct = 0.0;
+        const auto s = manual->stats.find("cultivationSpeedPercent");
+        if (s != manual->stats.end()) speedPct = static_cast<double>(s->second);
+        resourceBonus += speedPct * bonus / 100.0;
+    }
+    return resourceBonus;
+}
+
+/// 每旬修炼速率（5 乘区连乘，下限 1.0；与 Kotlin 列直读版数学等价）。
+/// ownerRow = 弟子在 DiscipleStore 的行号（工作副本场景——突破后境界
+/// 已推进而商店行未写回——桶寻址用，数值面全部取自工作副本 d）
 inline double calculateCultivationPerPhaseColumn(
-        const Disciple& d,
+        const Disciple& d, std::size_t ownerRow,
         const state::GameData& gd,
-        const std::map<std::string, ManualInstance>& manualMap,
+        const instance_bucket::ManualInstanceBuckets& manualBuckets,
         const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
         const CultivationRateInput& extra) {
     // 灵根数量（spiritRootTypes 按 "," 切分；空串按 1 兜底，与列版 ?: 1 一致）
@@ -686,23 +731,8 @@ inline double calculateCultivationPerPhaseColumn(
 
     // ── 资源乘区：建筑 + 功法（熟练度加成） ──
     double resourceBonus = extra.buildingBonus - 1.0;
-    const auto profListIt = proficiencies.find(d.id);
-    for (const std::string& manualId : d.manualIds) {
-        const auto it = manualMap.find(manualId);
-        if (it == manualMap.end()) continue;
-        const ManualInstance& manual = it->second;
-        int32_t masteryLevel = 0;
-        if (profListIt != proficiencies.end()) {
-            for (const auto& p : profListIt->second) {
-                if (p.manualId == manualId) { masteryLevel = p.masteryLevel; break; }
-            }
-        }
-        const double bonus = masteryBonusFromProficiencyLevel(masteryLevel);
-        double speedPct = 0.0;
-        const auto s = manual.stats.find("cultivationSpeedPercent");
-        if (s != manual.stats.end()) speedPct = static_cast<double>(s->second);
-        resourceBonus += speedPct * bonus / 100.0;
-    }
+    resourceBonus += accumulateManualCultivationSpeed(
+        manualBuckets, ownerRow, d.manualIds, proficiencies, d.id);
 
     // ── 社交乘区：讲道 + 师徒 + 父母 ──
     const double socialBonus = extra.preachingElderBonus +
@@ -742,7 +772,7 @@ inline double calculateCultivationPerPhaseColumn(
 inline double calculateCultivationPerPhaseColumn(
         const state::DiscipleStore& ds, std::size_t row,
         const state::GameData& gd,
-        const std::map<std::string, ManualInstance>& manualMap,
+        const instance_bucket::ManualInstanceBuckets& manualBuckets,
         const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
         const CultivationRateInput& extra) {
     // 灵根数量（spiritRootTypes 按 "," 切分；空串按 1 兜底）
@@ -761,23 +791,8 @@ inline double calculateCultivationPerPhaseColumn(
 
     // ── 资源乘区：建筑 + 功法（熟练度加成） ──
     double resourceBonus = extra.buildingBonus - 1.0;
-    const auto profListIt = proficiencies.find(ds.ids[row]);
-    for (const std::string& manualId : ds.manualIds[row]) {
-        const auto it = manualMap.find(manualId);
-        if (it == manualMap.end()) continue;
-        const ManualInstance& manual = it->second;
-        int32_t masteryLevel = 0;
-        if (profListIt != proficiencies.end()) {
-            for (const auto& p : profListIt->second) {
-                if (p.manualId == manualId) { masteryLevel = p.masteryLevel; break; }
-            }
-        }
-        const double bonus = masteryBonusFromProficiencyLevel(masteryLevel);
-        double speedPct = 0.0;
-        const auto s = manual.stats.find("cultivationSpeedPercent");
-        if (s != manual.stats.end()) speedPct = static_cast<double>(s->second);
-        resourceBonus += speedPct * bonus / 100.0;
-    }
+    resourceBonus += accumulateManualCultivationSpeed(
+        manualBuckets, row, ds.manualIds[row], proficiencies, ds.ids[row]);
 
     // ── 社交乘区：讲道 + 师徒 + 父母 ──
     const double socialBonus = extra.preachingElderBonus +
