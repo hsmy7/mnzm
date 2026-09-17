@@ -107,6 +107,7 @@
   - 2026-09-18 03:36 截屏：B03 bench 实施中——CMake 接 GAMECORE_BUILD_BENCH 开关（kover 式），phase_settlement_bench_test.cpp +221 行写入；R1.6 已提交。
   - 2026-09-18 03:46 截屏：**G1 达成**——bench 实测 core 17 次 malloc / 1826µs @5000 弟子（目标 <1 万、基线 ~15 万；3 轮确定性一致）；GTest 1443/1443 绿（基线上移），CI 门禁接线中；三子项全部提交，验收门自检开始。
   - 2026-09-18 03:56 截屏：B03 文档三件套落笔（§7.2/CHANGELOG/cpp-engine），JUnit 强制实跑编译中；等待出最终报告。
+  - 2026-09-18 04:06 截屏：B03 JUnit 实跑遇 1 失败——GameEngineCoreLifecycleInterleavingTest（并发时序，与 C++ 改动无因果，Diff 全过）；单类重跑绿确认为负载抖动，正重跑全量满足"全绿实跑"门。看护验收时将把该用例列为已知抖动、必要时复跑一次。
 
 ## 经验教训（随批追加）
 
