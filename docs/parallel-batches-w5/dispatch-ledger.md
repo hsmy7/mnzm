@@ -44,7 +44,7 @@
 |---|---|---|---|---|
 | B01 | map 重建提升到步骤入口 + getMaxHpMp 临时 map 消除 | R1.1 + R1.5 | **accepted**（2026-09-18 00:25） | 01849d8b4 / ad5ca62ee / 文档 90db91f6b；看护亲跑：GTest 1419/1419（33s）+ JUnit 六模块强制实跑 229 任务全 executed 绿（engine 3296/0skip/0fail，XML 实证）+ detekt/lint/compile 绿；改动面仅 gamecore 3 头文件+3 文档，JNI/协议面零变更 |
 | B02 | committedDisciples 去物化 + 字符串键 → dense 索引 | R1.2 + R1.3 | **accepted**（2026-09-18 02:35） | 96636ec95 / d4e25dac1 / dd2b4e0e9 / 补遗 f7e9b3251 / 文档 c656dce3f；看护亲跑：GTest 1425/1425（36.7s，含 +6 新守卫）+ 组合门 346 任务全 executed 21m33s（JUnit 强制实跑+detekt+compile+lint；engine XML 3296/0skip/0fail，对拍桥携 B02 C++ 重建）+ 改动面仅 gamecore C++（新增 instance_buckets.h 与 99 行守卫测试），JNI 面零变更 |
-| B03 | DirtyTracker 列级写屏障 + destroyDiscipleEntities 去 O(D²) + R1 收官 bench（证明 G1） | R1.4 + R1.6 | pending | — |
+| B03 | DirtyTracker 列级写屏障 + destroyDiscipleEntities 去 O(D²) + R1 收官 bench（证明 G1） | R1.4 + R1.6 | **accepted**（2026-09-18 05:20）**R1 阶段收官** | eb9812c0a / 7e3bb87a9 / c97d7a4b0 / 文档 144dcb238；看护亲跑：GTest 1443/1443（35s）+ 组合门 339 任务全 executed 22m55s（engine XML 3296/0skip/0fail）；**G1 实证：结算 core 17 次 malloc / ~1.8ms @5000 弟子（目标 <1 万、基线 ~15 万），门禁断言 <10000 接线 ci.yml**；改动面全 gamecore C++（新增 column_dirty.h 698 行 + bench 229 行 + 守卫 346 行），CI 面仅 ci.yml 门禁开关 |
 | B04 | 秘境战斗切 native（会话/邮件/暂停租约留 Kotlin） | R4.2 | pending | — |
 | B05 | 探索/巡逻生产结果下沉 | R4.3 | pending | — |
 | B06 | GameView proto 定义 + nativeExportDirty 信封 + StateSyncService 解码 | R2.1 + R2.2 | pending | — |
@@ -67,10 +67,10 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-18 04:37（verifying 进行中：B03 报告已出，看护复跑验收门；后续轮次只做监控勿抢）
-- **状态**：`verifying`（B03 子会话已交付最终报告，看护亲自复跑验收门）
-- **当前批**：B03（R1.4 + R1.6 + R1 收官 bench，批次文件 `batch-R1C.md`）
-- **派发时间**：2026-09-18 02:37（GUI 新建任务派发，模型 GLM-5.3-Flash，完全访问，项目 XianxiaSectNative/main）
+- **看护锁**：—
+- **状态**：`dispatch`（B03 已验收通过、R1 阶段收官，待派 B04）
+- **当前批**：B04（R4.2 秘境战斗切 native，批次文件 `batch-R4A.md` 已就绪）
+- **派发时间**：—
 - **缺陷清单**：—
 - **监控日志**：
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
@@ -110,6 +110,7 @@
   - 2026-09-18 04:06 截屏：B03 JUnit 实跑遇 1 失败——GameEngineCoreLifecycleInterleavingTest（并发时序，与 C++ 改动无因果，Diff 全过）；单类重跑绿确认为负载抖动，正重跑全量满足"全绿实跑"门。看护验收时将把该用例列为已知抖动、必要时复跑一次。
   - 2026-09-18 04:16 截屏：抖动用例第二轮全量仍失败——子会话深挖因果：读测试实现（5s await 并发时序）与历史，发现 progress.md:912 既有间歇失败前例（W2 期旧文件，本批未触碰 Kotlin/JNI，Diff 全过）；已在无并行负载环境重跑全量。若第三轮仍红，看护验收时按既有前例口径裁定或单列处置。
   - 2026-09-18 04:27 截屏：独立环境全量重跑通过——7777/0 失败，Diff 对拍 47 类 268 用例 0 skip，六模块全 executed；抖动判定成立（负载相关）。剩余门禁 detekt/lint/compile 跑完即出最终报告。
+  - 2026-09-18 05:20 **B03 验收通过，R1 阶段收官**：六门全绿（证据见批次总表）。G1 实证落账。转入派发 B04（R4.2）。
 
 ## 经验教训（随批追加）
 
@@ -118,3 +119,5 @@
 - 派发指令引用批次文件（而非塞满 prompt）效果良好；批次文件内写明"续接上一批提交号与 §7.2 登记"有助连贯。
 - B02 期间一次 JNI 桥构建失败（迁移面遗漏调用点）子会话 10 分钟内自愈并补提交（f7e9b3251）；子会话会主动新增守卫测试（B02 +6 条），验收基线随批上移（1419→1425），看护复跑前须读当批报告确认基线。
 - 组合门一道跑（JUnit --rerun-tasks + detekt + compile + lint）约 21 分钟，比分次跑省 daemon 争用；对拍桥必须先于 JUnit 重建（build-desktop-jni.ps1）。
+- **已知抖动用例**：GameEngineCoreLifecycleInterleavingTest（W2 期并发时序，5s await 窗口，全量负载下偶发超时；progress.md:912 前例）。单点失败且 Diff 全过 → 单类重跑绿即记录放行，勿改测试；全量负载重跑建议避开并行构建。B03 已三次实证该模式。
+- GTest 基线随守卫增长：1419（B01 前）→ 1425（B02）→ 1443（B03，含 bench 3 用例；GAMECORE_BUILD_BENCH 本地默认关时 1440）。验收前先读当批报告确认基线。
