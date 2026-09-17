@@ -151,13 +151,14 @@ inline void finalMaxHpMp(const DiscipleStore& ds, std::size_t row,
 }
 
 /// HP/MP 是否均已满（isDiscipleFullHpMp；负值视为满）。
-/// 映射重建时机对齐 Kotlin battleWritebackMaxHpMp——每次从**当前 state**现场
-/// 重建装备/功法映射（孕养升级当旬的候选判定即依赖最新 nurtureLevel）；
-/// 与恢复步骤的入口快照映射（recoverHpMpSingleColumn 共享映射）刻意区分。
-inline bool isFullHpMp(const Disciple& d, const GameState& state) {
-    const GameData& gd = state.gameData;
-    const auto eqMap = equipmentMapOf(state.equipmentInstances);
-    const auto mnMap = manualMapOf(state.manualInstances);
+/// 装备/功法映射由**步骤入口**构建一次传入：突破候选筛选（步骤 7）在核心
+/// 批次（步骤 1-5 含孕养提交 applyEquipmentUpdates）之后执行，入口映射已含
+/// 当旬最新 nurtureLevel——"当旬最新"语义对齐 Kotlin battleWritebackMaxHpMp
+/// 的当前 state 现场口径；步骤 7 全程只读 equipmentInstances/manualInstances
+/// （attemptAutoPill 只写 pills/储物袋），入口映射与逐实体现场重建逐位一致。
+inline bool isFullHpMp(const Disciple& d, const GameData& gd,
+                       const std::map<std::string, EquipmentInstance>& eqMap,
+                       const std::map<std::string, ManualInstance>& mnMap) {
     int32_t maxHp = 0, maxMp = 0;
     stats::getMaxHpMp(d, findBloodRefinementPct(gd, d.id), eqMap, mnMap,
                       gd.manualProficiencies, maxHp, maxMp);
@@ -166,12 +167,11 @@ inline bool isFullHpMp(const Disciple& d, const GameState& state) {
     return hp >= maxHp && mp >= maxMp;
 }
 
-/// HP/MP 是否均已满（DiscipleStore SoA 版，候选筛选用）
+/// HP/MP 是否均已满（DiscipleStore SoA 版，候选筛选用；映射同上由步骤入口传入）
 inline bool isFullHpMp(const DiscipleStore& ds, std::size_t row,
-                       const GameState& state) {
-    const GameData& gd = state.gameData;
-    const auto eqMap = equipmentMapOf(state.equipmentInstances);
-    const auto mnMap = manualMapOf(state.manualInstances);
+                       const GameData& gd,
+                       const std::map<std::string, EquipmentInstance>& eqMap,
+                       const std::map<std::string, ManualInstance>& mnMap) {
     int32_t maxHp = 0, maxMp = 0;
     stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]), eqMap,
                       mnMap, gd.manualProficiencies, maxHp, maxMp);
@@ -1081,6 +1081,8 @@ inline void performBreakthrough(
         Disciple& live, GameState& state,
         const std::map<int32_t, std::size_t>& idx,
         const std::map<int32_t, Disciple>& committed,
+        const std::map<std::string, EquipmentInstance>& eqMap,
+        const std::map<std::string, ManualInstance>& mnMap,
         rng::RngManager& rng) {
     Disciple d = live;   // Kotlin: copy(cultivation = tables.cultivations[...]) 同步
     bool shouldContinue = true;
@@ -1091,7 +1093,7 @@ inline void performBreakthrough(
         const double maxCult = computeMaxCultivation(
             d.realm, d.realmLayer, d.cultivation);
         if (d.cultivation < maxCult) break;
-        if (!isFullHpMp(d, state)) break;
+        if (!isFullHpMp(d, state.gameData, eqMap, mnMap)) break;
 
         const int32_t pillTargetRealm =
             (d.realmLayer >= gamecore::disciple::realmConfig(d.realm).maxLayers)
@@ -1159,8 +1161,15 @@ inline void processBreakthroughs(
         const std::map<int32_t, Disciple>& committed,
         const std::set<int32_t>& secretIds, ecs::World& world) {
     DiscipleStore& ds = state.disciples;
-    // 1. 列级直读筛选候选（存活 + 非秘境 + realm>0 + 修为满 + HP/MP 满；
-    //    满血判定现场重建映射——对齐 battleWritebackMaxHpMp 语义）。
+    // 步骤 7 入口：装备/功法映射一次构建。本步骤在核心批次（步骤 1-5 含
+    // 孕养提交 applyEquipmentUpdates）之后执行——映射已含当旬最新
+    // nurtureLevel（"当旬最新"语义对齐 Kotlin battleWritebackMaxHpMp 的
+    // 当前 state 现场口径）；步骤 7 全程只读两表（attemptAutoPill 只写
+    // pills/储物袋），候选筛选与逐候选突破循环共享同一映射，
+    // 消除逐实体 D 次重建。
+    const auto eqMap = equipmentMapOf(state.equipmentInstances);
+    const auto mnMap = manualMapOf(state.manualInstances);
+    // 1. 列级直读筛选候选（存活 + 非秘境 + realm>0 + 修为满 + HP/MP 满）。
     //    迭代域：syncDiscipleEntities 校验/恢复
     //    不变量后按 View<DiscipleRef> 行序筛选（候选序 == 行序 == Kotlin ids
     //    序，RNG 抽取序逐位不变）。
@@ -1177,7 +1186,7 @@ inline void processBreakthroughs(
             const double maxCult = computeMaxCultivation(
                 ds.realms[row], ds.realmLayers[row], ds.cultivations[row]);
             if (ds.cultivations[row] < maxCult) return;
-            if (!isFullHpMp(ds, row, state)) return;
+            if (!isFullHpMp(ds, row, state.gameData, eqMap, mnMap)) return;
             candidates.push_back(row);
         });
     }
@@ -1192,7 +1201,7 @@ inline void processBreakthroughs(
     // 2. 仅候选弟子按需处理（顺序 == ids 顺序 → RNG 抽取序列逐位一致）
     for (std::size_t row : candidates) {
         Disciple live = ds.materialize(row);   // 工作副本（语义 == 旧向量元素）
-        performBreakthrough(live, state, idx, committed, rng);
+        performBreakthrough(live, state, idx, committed, eqMap, mnMap, rng);
         ds.upsertDisciple(live);               // 原位写回（保序）
     }
 

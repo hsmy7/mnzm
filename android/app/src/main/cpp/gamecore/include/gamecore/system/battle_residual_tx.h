@@ -49,7 +49,8 @@
 //     = CultivationService.forceSettleDisciplesBeforeBattle →
 //     DiscipleBreakthroughHandler.processRealtimeBreakthroughs：
 //     候选 = **传入队伍 id 集**内（存活 ∧ realm>0 ∧ 修为满 ∧ 满血蓝——
-//     phase_settlement::isFullHpMp 含装备/功法/血炼映射重建）→ 逐候选
+//     phase_settlement::isFullHpMp 含装备/功法/血炼口径，映射由事务入口
+//     一次构建传入）→ 逐候选
 //     performBreakthrough（自动嗑丹/引导计数/检查点/完成预估/精准写回——
 //     phase_settlement 已验证移植）→ 亲属赠送（SYSTEM 分区）→
 //     大境界 lifeEvents 草稿 + 消息栏事件。
@@ -455,9 +456,17 @@ inline BattlePresettleOutcome battlePresettleTx(
     }
     const auto idx = gamecore::system::settle_util::indexById(ds);
 
+    // 步骤入口：装备/功法映射一次构建（战前突破在旬结算核心批次含孕养提交
+    // 之后执行，映射已含当旬最新 nurtureLevel；本事务全程只读两表，
+    // 候选筛选与逐候选突破循环共享——phase_settlement::processBreakthroughs
+    // 同一模式）
+    const auto eqMap = gamecore::system::detail::equipmentMapOf(
+        state.equipmentInstances);
+    const auto mnMap = gamecore::system::detail::manualMapOf(
+        state.manualInstances);
+
     // 候选筛选（行序 == Kotlin _ids 追加序；存活 ∧ 队伍内 ∧ realm>0 ∧
-    // 修为满 ∧ 满血蓝（含装备/功法/血炼映射重建——battleWritebackMaxHpMp
-    // 同源口径））
+    // 修为满 ∧ 满血蓝（入口映射共享——battleWritebackMaxHpMp 同源口径））
     std::vector<std::size_t> candidates;
     for (std::size_t row = 0; row < ds.size(); ++row) {
         if (ds.isAlive[row] == 0) continue;
@@ -466,7 +475,8 @@ inline BattlePresettleOutcome battlePresettleTx(
         const double maxCult = computeMaxCultivation(
             ds.realms[row], ds.realmLayers[row], ds.cultivations[row]);
         if (ds.cultivations[row] < maxCult) continue;
-        if (!gamecore::system::detail::isFullHpMp(ds, row, state)) continue;
+        if (!gamecore::system::detail::isFullHpMp(ds, row, gd, eqMap, mnMap))
+            continue;
         candidates.push_back(row);
     }
     if (candidates.empty()) return out;
@@ -481,7 +491,7 @@ inline BattlePresettleOutcome battlePresettleTx(
     for (std::size_t row : candidates) {
         Disciple live = ds.materialize(row);
         gamecore::system::detail::performBreakthrough(
-            live, state, idx, committed, rng);
+            live, state, idx, committed, eqMap, mnMap, rng);
         ds.upsertDisciple(live);
         ++out.candidateCount;
     }
