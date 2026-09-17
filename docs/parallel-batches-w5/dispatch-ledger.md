@@ -88,6 +88,7 @@
   - 2026-09-18 00:37 截屏：B02 改码前语义验证——elderSlots 清除语义已验证（R1.2 前提成立）；R1.3 改动面确认为步骤入口派生映射（GameState 存储与事务文件零改动），正枚举 eqMap/mnMap 消费函数定签名迁移面。
   - 2026-09-18 00:47 截屏：B02 进入实施——构建环境确认（Ninja+llvm-mingw 缓存可用），正编辑 phase_settlement.h 实施 R1.2（+41-5、+3-3）。
   - 2026-09-18 00:57 截屏：B02 R1.3 第一步实施中——disciple_store.cpp numeric id 列与 eraseAt/swapRows 维护完成，settlement_detail.h indexById 已改（免逐字符串重解析），正逐点替换 phase_settlement.h。
+  - 2026-09-18 01:07 截屏：B02 R1.3 第一步完成并自增守卫——disciple_store_test.cpp +98 行（6 条新守卫），GTest 1425/1425 全绿（1419+6），提交中；R1.2 battle_residual_tx.h 收尾已见。验收基线此后按 1425。
 
 ## 经验教训（随批追加）
 
