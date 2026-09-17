@@ -84,6 +84,7 @@
   - 2026-09-18 00:22 B02 经 GUI 派发（batch-R1B.md），截屏确认子会话已读取批次文件开工。
   - 2026-09-18 00:23 截屏：B02 施工健康——已读批次文件/CLAUDE.md/方案 §3.R1+§7.2/B01 两笔提交，正定位 committedDisciples 物化点与 DiscipleStore string 键结构；无弹窗。
   - 2026-09-18 00:24 截屏：B02 上下文收集进行中，正读 phase_settlement.h 物化点；输出持续增长，无停滞。
+  - 2026-09-18 00:27 截屏：B02 深度分析中——读 disciple_store.h（R1.3 核心）与 disciple_stats.h（R1.2 依赖），梳理 equipmentInstances/manualInstances 引用面，自建任务清单；无停滞。
 
 ## 经验教训（随批追加）
 
