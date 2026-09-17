@@ -702,8 +702,13 @@ nlohmann::json execTraitEffectsOp(const nlohmann::json& op,
         d.talentIds = stringListFromJson(op, "talentIds");
         d.physiqueIds = stringListFromJson(op, "physiqueIds");
         d.affixIds = stringListFromJson(op, "affixIds");
+        // R1.3 第二步：实例查找走 owner 行索引桶——本通道无功法实例
+        // （manualIds 空，find 恒不触达），空桶视图防御性指向静态空向量
+        static const std::vector<gamecore::state::ManualInstance> kNoManuals;
+        gamecore::system::instance_bucket::ManualInstanceBuckets mnBuckets;
+        mnBuckets.instances = &kNoManuals;
         result["value"] = stats::calculateCultivationPerPhaseColumn(
-            d, gd, {}, {}, stats::CultivationRateInput{});
+            d, 0, gd, mnBuckets, {}, stats::CultivationRateInput{});
     }
     return result;
 }
