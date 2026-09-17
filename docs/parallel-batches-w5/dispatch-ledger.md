@@ -78,6 +78,7 @@
   - 2026-09-17 23:16 截屏：R1.1+R1.5 代码改造完成，桌面 GTest 全量 1419/1419 全绿（与 §7.1 基线一致）；正按"每子项独立 commit"红线做拆分验证（stash R1.5 单验 R1.1）。
   - 2026-09-17 23:26 截屏：R1.1、R1.5 两笔独立提交均已落库（各自 1419/1419 全绿验证）；子会话转入全量 JUnit（预估 ~10 分钟）+ detekt + 文档三件套。
   - 2026-09-17 23:37 截屏：方案 §7.2 登记小节与 cpp-engine.md 进展行已写；JUnit exit 0 但子会话自查发现多数任务 UP-TO-DATE（测试可能未真正重跑），正核查任务实际执行情况与 gamecore.jni.path 注入——防"假绿"，严谨合格。
+  - 2026-09-17 23:47 截屏：UP-TO-DATE 疑点已澄清——core:engine 3296/0skip/0失败 Diff 对拍全实跑，六模块合计 7777 用例 0 失败（17 既有 skip）；detekt+compileReleaseKotlin+lintRelease 全绿；CHANGELOG 4.01.15 + cpp-engine.md 已写，正在提交文档批次。下一轮预期转 verifying。
 
 ## 经验教训（随批追加）
 
