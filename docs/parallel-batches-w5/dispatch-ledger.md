@@ -124,6 +124,7 @@
   - 2026-09-18 07:05 **B04 验收通过**：六门全绿（证据见批次总表）。转入派发 B05（R4.3）。
   - 2026-09-18 06:48 B05 经 GUI 派发（batch-R4B.md），截屏确认子会话正确复述任务理解并开跑。
   - 2026-09-18 06:50 截屏：B05 调研按序推进——CLAUDE.md/方案/ADR/B04 范例已读，ExplorationService 主体已过，正调研 BeastRaidOps native 优先模式参照。
+  - 2026-09-18 06:51 截屏：B05 调研扩展——发现 C++ 侧已有 exploration/patrol 头文件，正搜索 AI 兽战决策（子事件 9）既有实现与 PatrolBattleSystem/CaveExplorationSystem 生产路径。
 
 ## 经验教训（随批追加）
 
