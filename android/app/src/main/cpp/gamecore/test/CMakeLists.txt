@@ -45,6 +45,9 @@ add_executable(game-core-tests
     json_codec_test.cpp
     dirty_tracker_test.cpp
     dirty_tracker_bench_test.cpp
+    # R1.4 列级写屏障（重构方案 2026-09-17 B03 批）：列枚举双射/挂点标脏/
+    # 列级导出/与全量树 diff 等价性守卫
+    column_dirty_test.cpp
     manual_recruit_test.cpp
     disciple_store_test.cpp
     disciple_store_bench_test.cpp

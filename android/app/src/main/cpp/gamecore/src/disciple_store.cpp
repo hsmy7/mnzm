@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <stdexcept>
 
+#include "gamecore/state/column_dirty.h"
+
 namespace gamecore::state {
 
 std::pair<int32_t, int8_t> DiscipleStore::parseNumericId(const std::string& s) {
@@ -283,6 +285,9 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     // 同 id 保留最后（SparseArray 写入语义）；行序 = 追加序
     idToRow[d.id] = row;
     if (numOk) numericIdToRow[numId] = row;
+
+    // R1.4 列级写屏障：新行整行标脏（挂载时；未挂载零开销直通）
+    if (columnDirty_) columnDirty_->markRowAllColumns(row);
 }
 
 void DiscipleStore::loadFromVector(const std::vector<Disciple>& disciples) {
@@ -325,6 +330,14 @@ void DiscipleStore::removeById(const std::string& id) {
 }
 
 void DiscipleStore::clear() {
+    // R1.4 列级写屏障：清空即全体删除——逐 id tombstone 记账（先于清空，
+    // ids 仍在）；行位图随行消亡复位（tombstone 保留供导出 removed）
+    if (columnDirty_) {
+        for (const auto& id : ids) {
+            columnDirty_->tombstone(kDisciplesCollection, id);
+        }
+        columnDirty_->clearRowBits();
+    }
     ids.clear();
     numericIds.clear();
     hasNumericIds.clear();
@@ -567,6 +580,12 @@ void DiscipleStore::eraseAt(std::size_t row) {
     for (std::size_t i = 0; i < ids.size(); ++i) {
         if (hasNumericIds[i] != 0) numericIdToRow[numericIds[i]] = i;
     }
+    // R1.4 列级写屏障：被删 id tombstone 记账 + 行位移段（[row, 新行数)
+    // 每行内容整体左移一格）全列标脏
+    if (columnDirty_) {
+        columnDirty_->tombstone(kDisciplesCollection, removedId);
+        columnDirty_->markRowsShiftedFrom(row, ids.size());
+    }
     (void)removedId;
 }
 
@@ -693,6 +712,12 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     // 数值索引同法同步（键域 = 数值 id 行）
     if (hasNumericIds[a] != 0) numericIdToRow[numericIds[a]] = a;
     if (hasNumericIds[b] != 0) numericIdToRow[numericIds[b]] = b;
+
+    // R1.4 列级写屏障：两行内容互换 ⇒ 两行整行标脏
+    if (columnDirty_) {
+        columnDirty_->markRowAllColumns(a);
+        columnDirty_->markRowAllColumns(b);
+    }
 }
 
 }  // namespace gamecore::state

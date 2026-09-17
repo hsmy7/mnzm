@@ -31,6 +31,8 @@
 // ============================================================
 namespace gamecore::state {
 
+class ColumnDirtyTracker;  // 列级写屏障（R1.4；前向声明——本类只持指针）
+
 class DiscipleStore {
 public:
     // ── 标识列 ──
@@ -239,6 +241,22 @@ public:
     /// 清空全部列与索引
     void clear();
 
+    // ============================================================
+    // 列级写屏障挂点（R1.4——可选；未挂载零开销直通）
+    // ============================================================
+
+    /// 挂载列级写屏障追踪器（nullptr = 卸载）。挂载后，本 store 的协议
+    /// 边界变更原语（append/upsert 旋转/eraseAt 行位移/swapRows/clear）
+    /// 向追踪器标记脏行/列 + tombstone，供列级增量导出消费。
+    /// **范围口径**：结算热路径的列直写（ds.cultivations[row] += … 等公有
+    /// 列访问）不经本屏障——写点标脏接线属 R2；生产 exportDirtyJson 仍走
+    /// DirtyTracker 全量树 diff（对拍零漂移），列级导出为显式 opt-in 能力。
+    void attachColumnDirtyTracker(ColumnDirtyTracker* tracker) {
+        columnDirty_ = tracker;
+    }
+
+    ColumnDirtyTracker* columnDirtyTracker() const { return columnDirty_; }
+
 private:
     /// ids 全串严格整数解析（Kotlin String.toIntOrNull 同口径，与
     /// settle_util::toIntOrNull 同实现——state 层不反向依赖 system 层，
@@ -250,6 +268,10 @@ private:
 
     /// 交换两行完整数据（upsert 保序旋转用；各列逐元素 swap）
     void swapRows(std::size_t a, std::size_t b);
+
+    /// 列级写屏障（R1.4；未挂载为 nullptr——所有变更原语的标脏调用点
+    /// 均以 `if (columnDirty_)` 守卫，零开销直通）
+    ColumnDirtyTracker* columnDirty_ = nullptr;
 };
 
 }  // namespace gamecore::state
