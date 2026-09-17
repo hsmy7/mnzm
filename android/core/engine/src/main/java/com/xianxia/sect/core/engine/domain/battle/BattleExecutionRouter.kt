@@ -27,8 +27,10 @@ import kotlinx.serialization.json.putJsonArray
  *
  * 适配范围：系统内部战斗（AI 兽战/任务完成）+ 遭遇战两阶段
  * （PvP/PvE，战报回放由 rounds 重建满足——C++ 动作序列为确定性字段，
- * 仅 message 摘要口径与 Kotlin 随机措辞不同，diff 对拍同源排除）。
- * 洞府探索不在本路由范围（R4.3 评估）。
+ * 仅 message 摘要口径与 Kotlin 随机措辞不同，diff 对拍同源排除）
+ * + 探索/巡逻生产（R4.3：妖兽防守战/巡逻楼 PvE/冲突战 PvP+PvE）。
+ * 洞府探索（CaveExplorationSystem）不在本路由范围：会话管理属平台域，
+ * 且其生成随机为非分区随机域（System.nanoTime 种子，不进镜像协议）。
  */
 internal object BattleExecutionRouter {
 

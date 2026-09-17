@@ -6,6 +6,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
@@ -333,7 +334,9 @@ class PatrolBattleSystem @Inject constructor(
             pvpResult.victory, winnerDisciples, target, equipmentMap, manualMap,
             allProficiencies, battleSystem, bloodRefinementMap
         )
-        val pveResult = battleSystem.executeBattle(pveBattle)
+        // 冲突战 Phase 2（胜者 vs 妖兽）生产路由（R4.3）：native 优先，降级回退 Kotlin 臂
+        val pveResult = BattleExecutionRouter.tryExecuteNative(pveBattle)
+            ?: battleSystem.executeBattle(pveBattle)
         return resolveTowerBattleResult(team, target, pveResult, patrolDead, winnerDisciples)
     }
 
@@ -372,7 +375,11 @@ class PatrolBattleSystem @Inject constructor(
                 beastPreGenStats = beastPreGenStats,
                 bloodRefinementMap = bloodRefinementMap
             )
-            val result = battleSystem.executeBattle(battle)
+            // 巡逻生产经 BattleExecutionRouter 路由（R4.3）：AUTHORITATIVE 生产走
+            // C++ 战斗引擎（BATTLE 分区同区同序）；flag 关/native 未加载/失败信封
+            // → null 回退 Kotlin 既有臂（不删臂）
+            val result = BattleExecutionRouter.tryExecuteNative(battle)
+                ?: battleSystem.executeBattle(battle)
 
             val survivorIds = result.battle.team
                 .filter { !it.isDead }.map { it.id }.toSet()
@@ -748,7 +755,9 @@ private fun buildTeamPhase1Battle(
         beasts = aiCombatants,
         maxTurns = GameConfig.Battle.MAX_TURNS
     )
-    val pvpResult = battleSystem.executeBattle(pvpBattle)
+    // 冲突战 Phase 1（巡逻队 vs AI PvP）生产路由（R4.3）：native 优先，降级回退 Kotlin 臂
+    val pvpResult = BattleExecutionRouter.tryExecuteNative(pvpBattle)
+        ?: battleSystem.executeBattle(pvpBattle)
 
     // 收集 Phase 1 阵亡集合
     val patrolDead = pvpResult.battle.team.filter { it.isDead }.map { it.id }.toSet()

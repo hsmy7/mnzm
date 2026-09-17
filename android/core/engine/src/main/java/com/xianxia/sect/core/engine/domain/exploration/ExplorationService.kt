@@ -5,6 +5,7 @@ import com.xianxia.sect.core.util.sortedByRealmForDefense
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.domain.battle.EncounterBattleService
+import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.service.CultivationService
@@ -325,7 +326,11 @@ class ExplorationService @Inject constructor(
             beastPreGenStats = beastPreGenStats,
             bloodRefinementMap = gameData.bloodRefinementPctTotals
         )
-        return battleSystem.executeBattle(battle)
+        // 妖兽防守生产经 BattleExecutionRouter 路由（R4.3）：AUTHORITATIVE 生产走
+        // C++ 战斗引擎（BATTLE 分区同区同序，与兽战/遭遇战/秘境同一路由契约）；
+        // flag 关/native 未加载/失败信封 → null 回退 Kotlin 既有臂（不删臂）
+        return BattleExecutionRouter.tryExecuteNative(battle)
+            ?: battleSystem.executeBattle(battle)
     }
 
     // ── 战后伤亡处理 ───────────────────────────────────────────────────────
