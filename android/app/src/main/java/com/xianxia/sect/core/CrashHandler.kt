@@ -7,6 +7,7 @@ import android.os.Process
 import android.util.Log
 import androidx.core.content.edit
 import com.xianxia.sect.BuildConfig
+import com.xianxia.sect.core.render.RenderMetrics
 import com.xianxia.sect.umeng.UmengManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.FormBody
@@ -292,6 +293,8 @@ class CrashHandler @Inject constructor(
 
                     writeAppInfoSection(printWriter)
 
+                    writeRenderMetricsSection(printWriter)
+
                     printWriter.println("=== Exception ===")
                     printWriter.println("Type: ${throwable.javaClass.name}")
                     printWriter.println("Message: ${throwable.message}")
@@ -325,6 +328,25 @@ class CrashHandler @Inject constructor(
             printWriter.println("Version: Unknown (${e.javaClass.simpleName}: ${e.message})")
         }
         printWriter.println()
+    }
+
+    /**
+     * 写入渲染健康段（RenderMetrics 快照——归因"崩溃前渲染是否已异常"，
+     * GPU 驱动多样性场景下真机远程排查的主线索）。
+     *
+     * 纯内存读取本不会失败；防御性捕获仅为保证崩溃处理路径自身永不抛出
+     * （该纪律优先于"provably safe 不加 catch"的一般原则）。
+     */
+    @Suppress("TooGenericExceptionCaught") // 崩溃路径防御兜底: 崩溃处理自身永不抛出的纪律优先
+    private fun writeRenderMetricsSection(printWriter: PrintWriter) {
+        try {
+            printWriter.println("=== Render Metrics ===")
+            printWriter.println(RenderMetrics.formatForCrashReport())
+            printWriter.println()
+        } catch (e: Exception) {
+            printWriter.println("Render Metrics: unavailable (${e.javaClass.simpleName}: ${e.message})")
+            printWriter.println()
+        }
     }
 
     /**

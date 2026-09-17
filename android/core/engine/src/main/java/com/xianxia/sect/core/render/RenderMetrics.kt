@@ -14,7 +14,8 @@ import java.util.concurrent.atomic.AtomicLong
  * - Vulkan 路径: [vulkanFrames] / [totalFrames]
  * - Canvas 路径: [softwareFrames] / [totalFrames] / [lockCanvasFailed]
  * - 异常: [renderFrameNull] / [atlasBuildFailed]
- * - 崩溃上报: [snapshot()] 由 CrashHandler 携带
+ * - 崩溃上报: [formatForCrashReport()] 由 CrashHandler 写入崩溃日志
+ *   （本地落盘 + 远程上传携带；[snapshot()] 为其数据来源）
  *
  * ## 线程安全
  * 所有计数器使用 AtomicLong/AtomicInteger，支持多线程并发写入。
@@ -94,14 +95,34 @@ object RenderMetrics {
 
     // ── 快照（崩溃上报用） ──
 
+    /**
+     * 渲染健康快照（崩溃报告"Render Metrics"段的字段来源）。
+     *
+     * 字段为崩溃时点的累计值/时窗值，用于归因"崩溃前渲染是否已异常"
+     * （GPU 驱动多样性场景下真机远程排查的主线索）。
+     */
     data class Snapshot(
         val totalFrames: Long,
+        /** 崩溃前 2 秒滑动窗口 FPS */
         val fps: Float,
+        val vulkanFrames: Long,
+        val softwareFrames: Long,
+        /** 软件路径占比（[softwareFrames] / [totalFrames]；total=0 时为 0） */
         val softwareRatio: Float,
-        val droppedFrames: Long,
-        val atlasFailed: Boolean,
-        val spriteOverflowDropped: Long = 0,
-        val spriteOverflowDegradeFrames: Long = 0
+        /** renderFrame 返回 null 次数（软件路径无有效帧输出） */
+        val renderFrameNullCount: Long,
+        /** lockCanvas 最终失败次数（3 次重试耗尽） */
+        val lockCanvasFailed: Long,
+        /** Vulkan 路径装饰层被热控/LOD 跳过的帧数 */
+        val vulkanDecorSkippedFrames: Long,
+        /** 图集构建失败次数 */
+        val atlasBuildFailed: Long,
+        /** 图集内单个精灵加载失败次数 */
+        val atlasLoadSpriteFailed: Long,
+        /** 精灵容量溢出累计丢弃数（R0.3） */
+        val spriteOverflowDropped: Long,
+        /** 精灵溢出降级生效帧数（R0.3） */
+        val spriteOverflowDegradeFrames: Long
     )
 
     /**
@@ -116,18 +137,48 @@ object RenderMetrics {
         spriteOverflowDegradeFrames.updateAndGet { maxOf(it, degradeFrames) }
     }
 
-    /** 获取当前指标快照，供 CrashHandler 在崩溃时携带上报 */
+    /** 获取当前指标快照（[formatForCrashReport] 的数据来源） */
     fun snapshot(): Snapshot {
         val total = totalFrames.get()
         return Snapshot(
             totalFrames = total,
             fps = fps(),
+            vulkanFrames = vulkanFrames.get(),
+            softwareFrames = softwareFrames.get(),
             softwareRatio = if (total > 0) softwareFrames.get().toFloat() / total else 0f,
-            droppedFrames = renderFrameNull.get(),
-            atlasFailed = atlasBuildFailed.get() > 0,
+            renderFrameNullCount = renderFrameNull.get(),
+            lockCanvasFailed = lockCanvasFailed.get(),
+            vulkanDecorSkippedFrames = vulkanDecorSkippedFrames.get(),
+            atlasBuildFailed = atlasBuildFailed.get(),
+            atlasLoadSpriteFailed = atlasLoadSpriteFailed.get(),
             spriteOverflowDropped = spriteOverflowDropped.get(),
             spriteOverflowDegradeFrames = spriteOverflowDegradeFrames.get()
         )
+    }
+
+    /**
+     * 渲染健康快照的崩溃报告文本段（一行一指标，键值格式）。
+     *
+     * 由 CrashHandler 写入崩溃日志（本地落盘与远程上传共用同一内容）；
+     * 纯内存 Atomic 读取，崩溃线程调用安全。浮点用 [java.util.Locale.US]
+     * 固定小数点格式，规避区域设置差异。
+     */
+    fun formatForCrashReport(): String {
+        val s = snapshot()
+        return buildString {
+            append("TotalFrames: ").append(s.totalFrames).append('\n')
+            append("FPS(2s): ").append("%.1f".format(java.util.Locale.US, s.fps)).append('\n')
+            append("VulkanFrames: ").append(s.vulkanFrames).append('\n')
+            append("SoftwareFrames: ").append(s.softwareFrames).append('\n')
+            append("SoftwareRatio: ").append("%.2f".format(java.util.Locale.US, s.softwareRatio)).append('\n')
+            append("RenderFrameNull: ").append(s.renderFrameNullCount).append('\n')
+            append("LockCanvasFailed: ").append(s.lockCanvasFailed).append('\n')
+            append("DecorSkippedFrames: ").append(s.vulkanDecorSkippedFrames).append('\n')
+            append("AtlasBuildFailed: ").append(s.atlasBuildFailed).append('\n')
+            append("AtlasLoadSpriteFailed: ").append(s.atlasLoadSpriteFailed).append('\n')
+            append("SpriteOverflowDropped: ").append(s.spriteOverflowDropped).append('\n')
+            append("SpriteOverflowDegradeFrames: ").append(s.spriteOverflowDegradeFrames)
+        }
     }
 
     /** 重置所有计数器（仅测试用） */

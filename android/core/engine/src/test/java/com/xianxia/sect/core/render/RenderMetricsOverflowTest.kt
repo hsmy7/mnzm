@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.render
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -54,5 +55,33 @@ class RenderMetricsOverflowTest {
         val snapshot = RenderMetrics.snapshot()
         assertEquals(42L, snapshot.spriteOverflowDropped)
         assertEquals(2L, snapshot.spriteOverflowDegradeFrames)
+    }
+
+    @Test
+    fun `formatForCrashReport - renders key-value lines for all counters`() {
+        RenderMetrics.resetForTest()
+        RenderMetrics.totalFrames.set(120)
+        RenderMetrics.softwareFrames.set(30)
+        RenderMetrics.renderFrameNull.set(3)
+        RenderMetrics.lockCanvasFailed.set(1)
+        RenderMetrics.atlasBuildFailed.set(2)
+        RenderMetrics.foldSpriteOverflowStats(droppedTotal = 42, overflowFrames = 1, degradeFrames = 2)
+
+        val report = RenderMetrics.formatForCrashReport()
+
+        val expectedLines = listOf(
+            "TotalFrames: 120",
+            "SoftwareFrames: 30",
+            "RenderFrameNull: 3",
+            "LockCanvasFailed: 1",
+            "AtlasBuildFailed: 2",
+            "SpriteOverflowDropped: 42",
+            "SpriteOverflowDegradeFrames: 2"
+        )
+        expectedLines.forEach { line ->
+            assertTrue("崩溃报告渲染段缺少 $line\n实际：\n$report", report.contains(line))
+        }
+        // 浮点固定 Locale.US 小数点格式（无区域设置逗号漂移）
+        assertTrue("SoftwareRatio 应为 0.25\n实际：\n$report", report.contains("SoftwareRatio: 0.25"))
     }
 }

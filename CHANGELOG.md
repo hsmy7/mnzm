@@ -1,6 +1,14 @@
 ## [4.01.14] - 2026-09-08
 
 
+### RenderMetrics.snapshot() 崩溃上报接线（悬空接口兑现 + 快照字段修正）
+
+> 背景：`snapshot()` 自诞生（`244988133` 渲染管线统一重构）KDoc 即声称"由 CrashHandler 携带"，但全仓考古确认 CrashHandler 从未引用过 RenderMetrics——注释描述了从未实现的意图。纯内部诊断批：**零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；`version.properties` 未递增。
+
+- **接线**：`CrashHandler.writeCrashLogToFile` 新增 `=== Render Metrics ===` 段（`writeAppInfoSection` 与 `Exception` 段之间）——崩溃日志落盘与 `tryUploadCrashLog` 远程上传共用同一内容，天然双通道携带；`recordCaughtException`（引擎非致命异常归因路径）同样受益。崩溃路径防御纪律：渲染段自身加兜底 catch（失败写占位行），保证崩溃处理永不二次抛出。
+- **快照字段修正**：`Snapshot.droppedFrames` 实际取 `renderFrameNull`（renderFrame 返回 null 次数）与工程语境"掉帧"（脏帧跳过）混淆 → 更名 `renderFrameNullCount`；`atlasFailed: Boolean` 布尔改为 `atlasBuildFailed`/`atlasLoadSpriteFailed` 计数；补齐 `vulkanFrames`/`softwareFrames`/`lockCanvasFailed`/`vulkanDecorSkippedFrames`（崩溃归因高价值计数器）。
+- **新增出口**：`RenderMetrics.formatForCrashReport()`（一行一键值的文本段，浮点固定 `Locale.US` 小数点规避区域差异；纯 Atomic 读取崩溃线程安全）。
+- **测试**：`RenderMetricsOverflowTest` 扩展（渲染段逐行键值 + Locale.US 固定小数点断言）；新增 `CrashHandlerCrashLogTest`（Robolectric：`recordCaughtException` 落盘内容含渲染段 + 零值计数器不退化为失败占位）。
 ### R0 发布阻断与确定性护栏 + R4.1 遭遇战 native 接线（自研引擎重构方案 2026-09-17 首批落地）
 
 > 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) 的 R0 全部 5 项 + R4.1（按方案 §4 排期：R0 立即 + R4.1 无依赖随时可摘）。`version.properties` 未递增——由用户决定。
