@@ -104,6 +104,7 @@
   - 2026-09-18 03:07 截屏：B03 R1.4 实施中——disciple_store.cpp 四个写入粘点埋 dirty 位，新建 column_dirty_test.cpp 守卫（+339 行）并接入 CMake 构建。
   - 2026-09-18 03:17 截屏：B03 R1.4 打磨——导出签名收紧（依赖更窄），守卫测试随语义细化多轮调整（行删除保守标记=设计行为、行移位保留旧标脏）。
   - 2026-09-18 03:26 截屏：B03 R1.6 接近完成——swap-and-pop 变体已实现，ECS 守卫全绿（ecs_storage_test +51、ecs_disciple_test +27），跑全量确认零回归后提交。
+  - 2026-09-18 03:36 截屏：B03 bench 实施中——CMake 接 GAMECORE_BUILD_BENCH 开关（kover 式），phase_settlement_bench_test.cpp +221 行写入；R1.6 已提交。
 
 ## 经验教训（随批追加）
 
