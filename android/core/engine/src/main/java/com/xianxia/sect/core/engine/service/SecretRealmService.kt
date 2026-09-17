@@ -4,6 +4,7 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
@@ -600,7 +601,7 @@ class SecretRealmService @Inject constructor(
             beasts = beasts,
             maxTurns = GameConfig.Battle.MAX_TURNS
         )
-        return battleSystem.executeBattleWithTimeout(battle)
+        return executeRouted(battle)
     }
 
     /** AI 遭遇战斗日志（BattleType.PVP），镜像 [recordBattleLog] 的字段口径 */
@@ -790,6 +791,18 @@ class SecretRealmService @Inject constructor(
 
     // ── 战斗执行（事务内） ────────────────────────────────────────────
 
+    /**
+     * 战斗执行统一入口（R4.2）：AUTHORITATIVE 生产走 C++ 战斗引擎
+     * （[BattleExecutionRouter.tryExecuteNative] → nativeBattleExecute，
+     * 与遭遇战 R4.1 同一路由与灰度契约——flag 关/native 不可用/失败信封
+     * 返回 null 回退）；Kotlin 臂保留既有超时口径
+     * [BattleSystem.executeBattleWithTimeout]。妖兽战/PvP 两分支共用。
+     */
+    private fun executeRouted(battle: Battle): BattleSystemResult {
+        return BattleExecutionRouter.tryExecuteNative(battle)
+            ?: battleSystem.executeBattleWithTimeout(battle)
+    }
+
     private fun runBeastBattle(
         state: MutableGameState,
         session: SecretRealmExplorationSession,
@@ -876,7 +889,7 @@ class SecretRealmService @Inject constructor(
             beastPreGenStats = beastPreGenStats,
             bloodRefinementMap = data.bloodRefinementPctTotals
         )
-        return battleSystem.executeBattleWithTimeout(battle)
+        return executeRouted(battle)
     }
 
     /**
