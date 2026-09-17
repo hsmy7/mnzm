@@ -114,6 +114,7 @@
   - 2026-09-18 05:08 B04 经 GUI 派发（batch-R4A.md），截屏确认子会话开跑。
   - 2026-09-18 05:10 截屏：B04 上下文准备——批次文件/CLAUDE.md/方案/ADR 已读，正研究 R4.1 BattleExecutionRouter 既有接线模式；无弹窗。
   - 2026-09-18 05:11 截屏：B04 目标定位——SecretRealmService 两处战斗段（L879/L603）锁定，调研路由器秘境信封 rebuildBattleLogData 能否复用于 native 通道。
+  - 2026-09-18 05:12 截屏：B04 R4.1 模式吃透（tryExecuteNative ?: battleSystem.executeBattle），正读 BattleSystem/GameCoreBridge 确认 RNG 委托与超时语义。
 
 ## 经验教训（随批追加）
 
