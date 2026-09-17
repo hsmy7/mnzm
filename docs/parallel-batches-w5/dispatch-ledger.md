@@ -106,6 +106,7 @@
   - 2026-09-18 03:26 截屏：B03 R1.6 接近完成——swap-and-pop 变体已实现，ECS 守卫全绿（ecs_storage_test +51、ecs_disciple_test +27），跑全量确认零回归后提交。
   - 2026-09-18 03:36 截屏：B03 bench 实施中——CMake 接 GAMECORE_BUILD_BENCH 开关（kover 式），phase_settlement_bench_test.cpp +221 行写入；R1.6 已提交。
   - 2026-09-18 03:46 截屏：**G1 达成**——bench 实测 core 17 次 malloc / 1826µs @5000 弟子（目标 <1 万、基线 ~15 万；3 轮确定性一致）；GTest 1443/1443 绿（基线上移），CI 门禁接线中；三子项全部提交，验收门自检开始。
+  - 2026-09-18 03:56 截屏：B03 文档三件套落笔（§7.2/CHANGELOG/cpp-engine），JUnit 强制实跑编译中；等待出最终报告。
 
 ## 经验教训（随批追加）
 
