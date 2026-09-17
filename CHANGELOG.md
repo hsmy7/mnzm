@@ -18,6 +18,15 @@
 - **守卫**：新增 `SecretRealmServiceRouteTest`（3 用例）——桥未加载 AUTHORITATIVE 与旗标 OFF 两条回退路径下，妖兽战与 AI 宗门 PvP 均无障碍走 Kotlin `BattleSystem` 完成结算（战报记录/成员写回/胜负一致/体力扣除/AI 队伍移除一致性断言）；等价性由 `DiffBattleExecutionTest`（C++ `battle_execution.h` 逐位对拍）守护。
 - **门禁**：桌面全量 GTest **1443/1443**（携 `-ffp-contract=off` 旗标；零 C++ 变更基线持平）；`testReleaseUnitTest --max-workers=1 --rerun-tasks` 六模块 **7780 用例 / 0 失败**（222 任务全 executed 非 UP-TO-DATE；对拍桥重建携入，47 个 `Diff*Test` 268 用例 0 skip；17 跳过 = data 15 + app 2 既有）；detekt 绿；`compileReleaseKotlin`/`lintRelease` 绿。
 
+### R4.3 探索/巡逻生产下沉批 B05（2026-09-18）——妖兽防守与巡逻战斗执行段经 BattleExecutionRouter 接线
+
+> 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R4 表 R4.3 行（批次文件 `docs/parallel-batches-w5/batch-R4B.md`）。**零协议面/JNI 签名/存档变更、零玩家可见变更（探索/巡逻结果产出物/数量/RNG 消耗序逐位一致）⇒ 游戏内 `changelog_entries.json` 未追加**；沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。单代码 commit，零 C++ 变更。
+
+- **R4.3 探索/巡逻结果生产评估切 native**：参照系 = AI 兽战处理器既有 `BattleExecutionRouter.tryExecuteNative(battle) ?: battleSystem.executeBattle(battle)` native 优先模式（R4.1/R4.2 同一路由与灰度契约），接线 4 处生产战斗执行段——① `ExplorationService.createBeastBattle`（妖兽防守战：排期妖兽自动防守 + 弹窗迎战/手动进攻无遭遇战路径共用）；② `PatrolBattleSystem` 三处（巡逻楼普通 PvE `executeBattles` + 冲突战 Phase 1 PvP `buildTeamPhase1Battle` 巡逻队 vs AI + 冲突战 Phase 2 PvE `executeTeamConflict` 胜者 vs 妖兽）。AUTHORITATIVE 生产走 C++ `battle::executeBattle`（`nativeBattleExecute` 通道，消费 BATTLE 分区——NativeBackedRng 委托式同区同序，战后神魂/属性/材料/灵石结算的抽取序逐位不变）；flag 关 / native 未加载 / 失败信封 → null 回退 Kotlin 既有臂，**回退臂保留一个版本周期（本批不删臂、不转 golden）**。**灰度 flag：`NativeEngineFlag.authoritative`（生产默认 AUTHORITATIVE，零新增 flag）**；RNG 分区零调整（分区独立属 R4.4）。
+- **平台域边界（留 Kotlin）**：探索会话管理/UI/通知不动——战报/弹窗（`BattleResultUIData`/`pendingPatrolBattleResults`）、奖励生成（材料 `BeastMaterialDatabase` 非分区随机域 + `InventorySystem` 统一入口 + `SpiritStoneWallet`）、伤亡写回/悲痛/死亡处理、世界关卡刷新（`WorldLevelManager`）/妖兽攻击检测（`BeastAttackDetector`）；洞府探索（`CaveExplorationSystem`）评估结论 = 仍留 Kotlin（会话管理平台域 + `System.nanoTime` 种子非分区随机域），`BattleExecutionRouter` KDoc 同步该边界。
+- **守卫**：新增 `ExplorationPatrolRouteTest`（5 用例）——桥未加载 AUTHORITATIVE 与旗标 OFF 两条回退路径下，妖兽防守/巡逻 PvE/冲突战两阶段均无障碍走 Kotlin `BattleSystem` 完成结算（击败标记/战报记录/防守弹窗与奖励卡/幸存者 HP 写回/引导计数一致性断言）；等价性由 `DiffBattleExecutionTest`（C++ `battle_execution.h` 逐位对拍）+ 既有 `PatrolBattleSystemTest`/`ResolveBeastAttackFightTest`/`ScheduledBeastAttackTest` 族守护。
+- **门禁**：桌面全量 GTest **1443/1443**（携 `-ffp-contract=off` 旗标；零 C++ 变更基线持平）；`testReleaseUnitTest --max-workers=1 --rerun-tasks` 六模块 **7785 用例 / 0 失败**（222 任务全 executed 非 UP-TO-DATE；对拍桥重建携入，47 个 `Diff*Test` 268 用例 0 skip；17 跳过 = data 15 + app 2 既有）；detekt 绿；`compileReleaseKotlin`/`lintRelease` 绿。
+
 ### R1 形状解锁首批 B01——R1.1 + R1.5（map 重建提升到步骤入口）
 
 > 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R1 表首批（批次文件 `docs/parallel-batches-w5/batch-R1A.md`）。纯 C++ 内部形状改造：**零协议面/JNI 签名/存档变更、零玩家可见变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；`version.properties` 未递增——由用户决定。每子项独立 commit（01849d8b4 / ad5ca62ee）。

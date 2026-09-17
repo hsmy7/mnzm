@@ -325,3 +325,19 @@ testReleaseUnitTest 全量串行 `--rerun-tasks` 实跑（六模块 **7780 用�
 **268 用例 0 skip**——对拍桥经 `scripts/build-desktop-jni.ps1` 重建；17 跳过 = data 15 + app 2 既有）+
 detekt 绿 + `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更、
 RNG 分区零调整（分区独立属 R4.4）。
+
+
+#### B05 批（2026-09-18）= R4.3 探索/巡逻生产下沉（复用 BattleExecutionRouter 路由与灰度模式）
+
+批次文件 `docs/parallel-batches-w5/batch-R4B.md`；单代码 commit，零 C++ 变更。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R4.3 | ✅ | 探索/巡逻**结果生产评估**切 native（参照系 = AI 兽战处理器既有 `tryExecuteNative ?: executeBattle` 模式，R4.1/R4.2 同一路由与灰度契约）：① `ExplorationService.createBeastBattle`——妖兽防守战生产（排期妖兽自动防守 `executeScheduledBeastAttack` + 弹窗迎战/手动进攻无遭遇战路径 `resolveBeastAttackFight` 共用）；② `PatrolBattleSystem` 三处——巡逻楼普通 PvE（`executeBattles`）+ 冲突战 Phase 1 PvP（`buildTeamPhase1Battle` 巡逻队 vs AI）+ 冲突战 Phase 2 PvE（`executeTeamConflict` 胜者 vs 妖兽）。AUTHORITATIVE 生产经 `BattleExecutionRouter.tryExecuteNative` → `GameCoreBridge.nativeBattleExecute`（C++ `battle::executeBattle`，消费 BATTLE 分区——NativeBackedRng 委托式同区同序，战后神魂/属性/材料/灵石结算的抽取序逐位不变）；flag 关 / native 未加载 / 失败信封（C++ 全 catch 返回 `{"error"}`）→ null 回退 Kotlin `executeBattle` 既有臂，**回退臂保留一个版本周期（本批不删臂、不转 golden）**。**探索会话管理/UI/通知留 Kotlin 平台域**：战报/弹窗（`BattleResultUIData`/`pendingPatrolBattleResults`）、奖励生成（材料 `BeastMaterialDatabase` 非分区随机域 + `InventorySystem` 统一入口 + `SpiritStoneWallet`）、伤亡写回/悲痛/死亡处理、世界关卡刷新（`WorldLevelManager`）/妖兽攻击检测（`BeastAttackDetector`）不动；洞府探索（`CaveExplorationSystem`）评估结论 = 仍留 Kotlin（会话管理平台域 + `System.nanoTime` 种子非分区随机域，`BattleExecutionRouter` KDoc 已同步该边界）。**灰度 flag：`NativeEngineFlag.authoritative`（`NativeEngineFlag.kt`，`mode` 生产默认 `AUTHORITATIVE`——R4.1 既有旗标体系，零新增 flag）**。守卫：`ExplorationPatrolRouteTest` 5 用例（桥未加载 AUTHORITATIVE + 旗标 OFF 两回退路径 × 妖兽防守/巡逻 PvE/冲突战两阶段编排面：击败标记/战报记录/防守弹窗与奖励卡/幸存者 HP 写回/引导计数一致性）；等价性由 `DiffBattleExecutionTest`（C++ `battle_execution.h` 逐位对拍）+ 既有 `PatrolBattleSystemTest`/`ResolveBeastAttackFightTest`/`ScheduledBeastAttackTest` 族守护 |
+
+测试口径：桌面全量 GTest **1443/1443**（携 `-ffp-contract=off` 旗标；本批零 C++ 变更，基线 1443 持平）+
+testReleaseUnitTest 全量串行 `--rerun-tasks` 实跑（六模块 **7785 用例 / 0 失败**，222 任务全 executed
+非 UP-TO-DATE；`:core:engine` 3304 = 基线 3299 + `ExplorationPatrolRouteTest` 5，含 47 个 `Diff*Test`
+**268 用例 0 skip**——对拍桥经 `scripts/build-desktop-jni.ps1` 重建；17 跳过 = data 15 + app 2 既有）+
+detekt 绿 + `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更、
+RNG 分区零调整（分区独立属 R4.4）。
