@@ -43,7 +43,7 @@
 | 批 | 内容 | 方案条目 | 状态 | 证据（提交/测试） |
 |---|---|---|---|---|
 | B01 | map 重建提升到步骤入口 + getMaxHpMp 临时 map 消除 | R1.1 + R1.5 | **accepted**（2026-09-18 00:25） | 01849d8b4 / ad5ca62ee / 文档 90db91f6b；看护亲跑：GTest 1419/1419（33s）+ JUnit 六模块强制实跑 229 任务全 executed 绿（engine 3296/0skip/0fail，XML 实证）+ detekt/lint/compile 绿；改动面仅 gamecore 3 头文件+3 文档，JNI/协议面零变更 |
-| B02 | committedDisciples 去物化 + 字符串键 → dense 索引 | R1.2 + R1.3 | pending | — |
+| B02 | committedDisciples 去物化 + 字符串键 → dense 索引 | R1.2 + R1.3 | **accepted**（2026-09-18 02:35） | 96636ec95 / d4e25dac1 / dd2b4e0e9 / 补遗 f7e9b3251 / 文档 c656dce3f；看护亲跑：GTest 1425/1425（36.7s，含 +6 新守卫）+ 组合门 346 任务全 executed 21m33s（JUnit 强制实跑+detekt+compile+lint；engine XML 3296/0skip/0fail，对拍桥携 B02 C++ 重建）+ 改动面仅 gamecore C++（新增 instance_buckets.h 与 99 行守卫测试），JNI 面零变更 |
 | B03 | DirtyTracker 列级写屏障 + destroyDiscipleEntities 去 O(D²) + R1 收官 bench（证明 G1） | R1.4 + R1.6 | pending | — |
 | B04 | 秘境战斗切 native（会话/邮件/暂停租约留 Kotlin） | R4.2 | pending | — |
 | B05 | 探索/巡逻生产结果下沉 | R4.3 | pending | — |
@@ -67,10 +67,10 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-18 02:08（verifying 进行中：B02 报告已出，看护复跑验收门；后续轮次只做监控勿抢）
-- **状态**：`verifying`（B02 子会话已交付最终报告，看护亲自复跑验收门）
-- **当前批**：B02（R1.2 + R1.3，批次文件 `batch-R1B.md`）
-- **派发时间**：2026-09-18 00:22（GUI 新建任务派发，模型 GLM-5.3-Flash，完全访问，项目 XianxiaSectNative/main）
+- **看护锁**：—
+- **状态**：`dispatch`（B02 已验收通过，待派 B03）
+- **当前批**：B03（R1.4 + R1.6 + R1 收官 bench，批次文件 `batch-R1C.md` 已就绪）
+- **派发时间**：—
 - **缺陷清单**：—
 - **监控日志**：
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
@@ -94,9 +94,12 @@
   - 2026-09-18 01:37 截屏：B02 三笔代码提交已落（9663ec95/d4e25da/dd2b4ca），验收门重建 JNI 桥时构建失败（疑似新类型未覆盖编译单元），子会话正抓报错排查中——主动调试非停滞；若 3 轮无进展再处置。
   - 2026-09-18 01:47 截屏：JNI 桥失败已自愈——遗漏调用点补修复并提交（7fe9b325），GTest 复跑 1425/1425 全绿；JUnit 强制实跑后台进行（~11 分钟），并行起草文档三件套。
   - 2026-09-18 01:57 截屏：B02 验收门自检全过——JUnit 全量实跑 11m17s（222 任务全 executed），各模块全绿 0 失败（engine 3296 含对拍 0 skip）；正在做模块校准与文档收尾。下轮预期转 verifying。
+  - 2026-09-18 02:35 **B02 验收通过**：六门全绿（详见批次总表证据列）。看护亲跑 GTest 1425/1425 + 组合门 346 任务全 executed（engine XML 3296/0skip/0fail，桥携 B02 改动重建）；提交谱系 4 笔代码 + 1 笔文档核对无越界，JNI 面零变更。转入派发 B03。
 
 ## 经验教训（随批追加）
 
 - 子会话（GLM-5.3-Flash）质量好：会自查 UP-TO-DATE 假绿并以 XML 时间戳证明实跑；版本口径主动对齐仓库先例（纯内部批不动 version.properties/changelog_entries.json）；不代改看护台账。
 - 看护复跑方法（固化为验收 SOP）：① GTest：llvm-mingw + SDK cmake 3.22.1 入 PATH，`ctest` 于 `android/app/src/main/cpp/gamecore/build/desktop-test`（约 33s）；② JUnit：先 `pwsh -File scripts/build-desktop-jni.ps1` 重建 .so，再 `testReleaseUnitTest --max-workers=1 --rerun-tasks "-Dgamecore.jni.path=<so 绝对路径>"`（约 11 分钟，必须 --rerun-tasks 否则 UP-TO-DATE 不实跑）；③ detekt/compileReleaseKotlin/lintRelease 可并入一道 gradle 调用。
 - 派发指令引用批次文件（而非塞满 prompt）效果良好；批次文件内写明"续接上一批提交号与 §7.2 登记"有助连贯。
+- B02 期间一次 JNI 桥构建失败（迁移面遗漏调用点）子会话 10 分钟内自愈并补提交（f7e9b3251）；子会话会主动新增守卫测试（B02 +6 条），验收基线随批上移（1419→1425），看护复跑前须读当批报告确认基线。
+- 组合门一道跑（JUnit --rerun-tasks + detekt + compile + lint）约 21 分钟，比分次跑省 daemon 争用；对拍桥必须先于 JUnit 重建（build-desktop-jni.ps1）。
