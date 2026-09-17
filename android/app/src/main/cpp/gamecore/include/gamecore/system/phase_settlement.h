@@ -816,15 +816,51 @@ inline void processAutoPills(GameState& state,
 
 // ── 步骤 7：突破检测（processBreakthroughs / performBreakthrough） ───
 
+/// 结算入口长老悟性 committed 视图（R1.2 去物化：原全量 D 弟子物化快照
+/// committedDisciples 的唯一消费点 = breakthroughChanceInput 的长老悟性
+/// 读取——内/外门长老位 ≤2 名弟子。本函数按 elderSlots 数值 id 行扫描，
+/// 以 SoA 列直算 baseComprehension 捕获**入口时点**值，零物化——
+/// 每旬 D 次深拷贝 → 0 次，剩余物化仅突破命中候选的工作副本）。
+///
+/// 与原全量快照逐位一致：
+/// - 键命中 = 该数值 id 在**结算入口**已存在（同数值 id 多行保留首行，
+///   与原 emplace 首写语义一致）；
+/// - 值 = 入口时点 comprehensions/talentIds/affixIds 列的 baseComprehension
+///   （与物化快照同列同序计算，逐位一致）；
+/// - 结算步骤间 elderSlots 无重指派（任命属 UI 事务不入结算；偷盗后叛逃
+///   仅**清空**叛逃长老槽位——消费点读空 id 提前返回，不入本表查询），
+///   步骤 7 读到的非空长老 id 与入口一致；
+/// - 入口后新出现/非数值 id 的长老 → 不入表，消费点回退 live 列
+///   （与原快照缺失路径一致，idx 于步骤 7 现查）。
+inline std::map<int32_t, int32_t> committedElderComprehensionOf(
+        const GameState& state) {
+    std::map<int32_t, int32_t> out;
+    const DiscipleStore& ds = state.disciples;
+    const auto capture = [&](const std::string& elderId) {
+        const auto eid = toIntOrNull(elderId);
+        if (!eid.has_value() || out.count(*eid) > 0) return;
+        for (std::size_t i = 0; i < ds.size(); ++i) {
+            const auto id = toIntOrNull(ds.ids[i]);
+            if (!id.has_value() || *id != *eid) continue;
+            out.emplace(*eid, stats::baseComprehension(ds, i));
+            return;   // 首行即止（同数值 id 保留首行 == emplace 首写）
+        }
+    };
+    capture(state.gameData.elderSlots.innerElder);
+    capture(state.gameData.elderSlots.outerElder);
+    return out;
+}
+
 /// 突破概率输入组装（tryBreakthrough 的长老悟性/职务/广告/丧亲/师徒提取）。
-/// @param committed 结算入口时的弟子快照副本（id 键控——对齐 Kotlin
-///        tryBreakthrough:282 经 stateStore.disciples.value（事务前已提交
-///        视图，按 id 关联）读取长老悟性；id 键控使偷盗叛逃等行移除后
-///        快照仍正确关联）；存活/境界条件判断仍用 live 状态
+/// @param committedElderComprehension 结算入口长老悟性 committed 视图
+///        （id → 入口时点基础悟性——对齐 Kotlin tryBreakthrough:282 经
+///        stateStore.disciples.value（事务前已提交视图，按 id 关联）读取
+///        长老悟性；id 键控使偷盗叛逃等行移除后仍正确关联；视图缺失
+///        （入口后新出现）回退 live 列）；存活/境界条件判断仍用 live 状态
 inline stats::BreakthroughChanceInput breakthroughChanceInput(
         const Disciple& d, const GameState& state,
         const std::map<int32_t, std::size_t>& idx,
-        const std::map<int32_t, Disciple>& committed,
+        const std::map<int32_t, int32_t>& committedElderComprehension,
         double pillBonus) {
     stats::BreakthroughChanceInput in;
     in.pillBonus = pillBonus;   // 突破丹概率加成（attemptAutoPill 返回值）
@@ -849,9 +885,9 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
         }
         // Kotlin: allDisciples[elderId]?.getBaseStats()?.comprehension
         //         ?: tables.comprehensions[elderId] —— 快照优先、live 列兜底
-        const auto cit = committed.find(*eid);
-        if (cit != committed.end()) {
-            return {stats::baseComprehension(cit->second), 0.0};
+        const auto cit = committedElderComprehension.find(*eid);
+        if (cit != committedElderComprehension.end()) {
+            return {cit->second, 0.0};
         }
         return {stats::baseComprehension(ds, it->second), 0.0};
     };
@@ -1080,7 +1116,7 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
 inline void performBreakthrough(
         Disciple& live, GameState& state,
         const std::map<int32_t, std::size_t>& idx,
-        const std::map<int32_t, Disciple>& committed,
+        const std::map<int32_t, int32_t>& committedElderComprehension,
         const std::map<std::string, EquipmentInstance>& eqMap,
         const std::map<std::string, ManualInstance>& mnMap,
         rng::RngManager& rng) {
@@ -1103,7 +1139,7 @@ inline void performBreakthrough(
         const auto pill = attemptAutoPill(d, pillTargetRealm, state);
 
         const auto input = breakthroughChanceInput(
-            d, state, idx, committed, pill.first);
+            d, state, idx, committedElderComprehension, pill.first);
         const double chance = stats::calculateBreakthroughChance(d, input);
         const bool success =
             rng.getRng(rng::RngPartition::kBreakthrough).nextDouble() < chance;
@@ -1153,12 +1189,13 @@ inline void performBreakthrough(
 /// 大境界日志（候选级前后比对，与 Kotlin processRealtimeBreakthroughs 同构）。
 /// DiscipleStore SoA 版：候选为行索引，逐候选物化工作副本 →
 /// performBreakthrough（原地改 live）→ upsert 原位写回；RNG 抽取序 = 行序。
-/// @param committed 结算入口时的弟子快照（id 键控；长老悟性等 store 已提交
-///        视图读取源）
+/// @param committedElderComprehension 结算入口长老悟性 committed 视图
+///        （committedElderComprehensionOf——R1.2 去物化：长老悟性等 store
+///        已提交视图读取源；全量 D 弟子物化快照退役）
 inline void processBreakthroughs(
         GameState& state, rng::RngManager& rng,
         const std::map<int32_t, std::size_t>& idx,
-        const std::map<int32_t, Disciple>& committed,
+        const std::map<int32_t, int32_t>& committedElderComprehension,
         const std::set<int32_t>& secretIds, ecs::World& world) {
     DiscipleStore& ds = state.disciples;
     // 步骤 7 入口：装备/功法映射一次构建。本步骤在核心批次（步骤 1-5 含
@@ -1201,7 +1238,8 @@ inline void processBreakthroughs(
     // 2. 仅候选弟子按需处理（顺序 == ids 顺序 → RNG 抽取序列逐位一致）
     for (std::size_t row : candidates) {
         Disciple live = ds.materialize(row);   // 工作副本（语义 == 旧向量元素）
-        performBreakthrough(live, state, idx, committed, eqMap, mnMap, rng);
+        performBreakthrough(live, state, idx, committedElderComprehension,
+                            eqMap, mnMap, rng);
         ds.upsertDisciple(live);               // 原位写回（保序）
     }
 
@@ -1389,18 +1427,16 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
 /// @param world ECS 实体域（E2：步骤 0/1-5/6/7 迭代域经 sync 行序映射）
 inline void runPhaseSettlement(state::GameState& state,
                                rng::RngManager& rng, ecs::World& world) {
-    // 结算入口弟子快照：突破概率的长老悟性等字段对齐 Kotlin
+    // 结算入口长老悟性 committed 视图：突破概率的长老悟性等字段对齐 Kotlin
     // stateStore.disciples.value（事务前已提交视图）——同旬长老属性变更
     // 不影响本旬突破判定（与 Kotlin 逐位一致）。
-    // DiscipleStore 版：逐行物化快照；**id 键控**（Kotlin allDisciples 按
-    // id 关联）——S2 起偷盗后叛逃可在突破前移除行（行号漂移），行索引
+    // R1.2 去物化：快照唯一消费点 = 步骤 7 长老悟性读取（内/外门长老位
+    // ≤2 名弟子），不再逐行物化全量 D 弟子（每旬 D 次深拷贝 → 0 次），
+    // 直接按 SoA 列捕获入口时点值；**数值 id 键控**（Kotlin allDisciples
+    // 按 id 关联）——S2 起偷盗后叛逃可在突破前移除行（行号漂移），行索引
     // 快照会错位关联，id 键控不受影响。
-    std::map<int32_t, state::Disciple> committedDisciples;
-    for (std::size_t i = 0; i < state.disciples.size(); ++i) {
-        const auto id = detail::toIntOrNull(state.disciples.ids[i]);
-        if (!id.has_value()) continue;
-        committedDisciples.emplace(*id, state.disciples.materialize(i));
-    }
+    const auto committedElderComprehension =
+        detail::committedElderComprehensionOf(state);
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
 
     // 0) 自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换）。
@@ -1416,8 +1452,8 @@ inline void runPhaseSettlement(state::GameState& state,
 
     // 7) 突破检测（唯一 RNG 消耗点：BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM）
     const auto idx = detail::indexById(state.disciples);
-    detail::processBreakthroughs(state, rng, idx, committedDisciples, secretIds,
-                                 world);
+    detail::processBreakthroughs(state, rng, idx, committedElderComprehension,
+                                 secretIds, world);
 }
 
 /// AUTHORITATIVE core 模式每旬结算（生产每旬不再需要 Kotlin
@@ -1433,13 +1469,11 @@ inline void runPhaseSettlementCore(state::GameState& state,
                                    rng::RngManager& rng,
                                    const std::function<void()>& runCoreBatch,
                                    ecs::World& world) {
-    // 入口 id 键控快照（突破长老悟性 committed 视图；同 runPhaseSettlement）
-    std::map<int32_t, state::Disciple> committedDisciples;
-    for (std::size_t i = 0; i < state.disciples.size(); ++i) {
-        const auto id = detail::toIntOrNull(state.disciples.ids[i]);
-        if (!id.has_value()) continue;
-        committedDisciples.emplace(*id, state.disciples.materialize(i));
-    }
+    // 入口长老悟性 committed 视图（突破长老悟性 committed 视图；同
+    // runPhaseSettlement——R1.2 去物化：全量 D 弟子物化 → 长老位 ≤2 名
+    // SoA 列直算，零物化）
+    const auto committedElderComprehension =
+        detail::committedElderComprehensionOf(state);
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
 
     // 0) 自动装备/学习（先于核心批次——对齐 Kotlin execute 首步序）
@@ -1452,8 +1486,8 @@ inline void runPhaseSettlementCore(state::GameState& state,
 
     // 7) 突破检测（BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM 分区）
     const auto idx = detail::indexById(state.disciples);
-    detail::processBreakthroughs(state, rng, idx, committedDisciples, secretIds,
-                                 world);
+    detail::processBreakthroughs(state, rng, idx, committedElderComprehension,
+                                 secretIds, world);
 }
 
 // ── ECS System 适配器：把每旬核心批次表达为可调度系统 ──

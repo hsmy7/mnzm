@@ -447,13 +447,12 @@ inline BattlePresettleOutcome battlePresettleTx(
     auto& gd = state.gameData;
     const std::set<std::string> inputSet(discipleIds.begin(), discipleIds.end());
 
-    // 提交视图快照（Kotlin stateStore.disciples.value.associateBy——事务入口
-    // 已提交视图；长老悟性读取源）
-    std::map<int32_t, Disciple> committed;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        const auto idOpt = gamecore::system::settle_util::toIntOrNull(ds.ids[row]);
-        if (idOpt.has_value()) committed.emplace(*idOpt, ds.materialize(row));
-    }
+    // 提交视图长老悟性（Kotlin stateStore.disciples.value——事务入口
+    // 已提交视图；长老悟性读取源）。R1.2 去物化：同 phase_settlement
+    // 入口口径——全量 D 弟子物化快照退役，长老位 ≤2 名 SoA 列直算
+    // 入口时点悟性（committedElderComprehensionOf 语义注释见彼处）
+    const auto committedElderComprehension =
+        gamecore::system::detail::committedElderComprehensionOf(state);
     const auto idx = gamecore::system::settle_util::indexById(ds);
 
     // 步骤入口：装备/功法映射一次构建（战前突破在旬结算核心批次含孕养提交
@@ -491,7 +490,7 @@ inline BattlePresettleOutcome battlePresettleTx(
     for (std::size_t row : candidates) {
         Disciple live = ds.materialize(row);
         gamecore::system::detail::performBreakthrough(
-            live, state, idx, committed, eqMap, mnMap, rng);
+            live, state, idx, committedElderComprehension, eqMap, mnMap, rng);
         ds.upsertDisciple(live);
         ++out.candidateCount;
     }
