@@ -85,6 +85,7 @@
   - 2026-09-18 00:23 截屏：B02 施工健康——已读批次文件/CLAUDE.md/方案 §3.R1+§7.2/B01 两笔提交，正定位 committedDisciples 物化点与 DiscipleStore string 键结构；无弹窗。
   - 2026-09-18 00:24 截屏：B02 上下文收集进行中，正读 phase_settlement.h 物化点；输出持续增长，无停滞。
   - 2026-09-18 00:27 截屏：B02 深度分析中——读 disciple_store.h（R1.3 核心）与 disciple_stats.h（R1.2 依赖），梳理 equipmentInstances/manualInstances 引用面，自建任务清单；无停滞。
+  - 2026-09-18 00:37 截屏：B02 改码前语义验证——elderSlots 清除语义已验证（R1.2 前提成立）；R1.3 改动面确认为步骤入口派生映射（GameState 存储与事务文件零改动），正枚举 eqMap/mnMap 消费函数定签名迁移面。
 
 ## 经验教训（随批追加）
 
