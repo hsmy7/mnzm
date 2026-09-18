@@ -50,6 +50,9 @@ add_executable(game-core-tests
     column_dirty_test.cpp
     # R2.4/B09 列级导出生产接线：真实结算列级↔全量双臂等价 + eventFeed 入流守卫
     column_export_equivalence_test.cpp
+    # R3.1/B10 SceneStore（native-renderer 场景真相持有者）：六要素导入-读取
+    # 逐值往返 + 整表替换/清空语义 + 纪元复位（头文件在 cpp/scene/，见下方 include）
+    scene_store_test.cpp
     # R2.1 GameView protobuf 信封编码器 wire format 锁定（重构方案 2026-09-17 B06 批）
     gameview_encode_test.cpp
     manual_recruit_test.cpp
@@ -142,6 +145,16 @@ add_executable(game-core-tests
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)
 target_compile_features(game-core-tests PRIVATE cxx_std_20)
+
+# R3.1/B10 SceneStore 场景模块（native-renderer 侧，cpp/scene/）：
+# 测试目标追加仓库 cpp 根目录为 include 路径（仅测试可执行目标——game-core
+# 静态库本体保持零渲染依赖）。scene_equivalence_test（R3.2）另需 SpriteBatcher。
+target_include_directories(game-core-tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../..
+)
+target_sources(game-core-tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../SpriteBatcher.cpp
+)
 
 include(GoogleTest)
 gtest_discover_tests(game-core-tests)
