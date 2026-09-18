@@ -5,6 +5,7 @@
 #include <string>
 
 #include "gamecore/state/dirty_tracker.h"
+#include "gamecore/state/gameview_encode.h"
 
 namespace gamecore {
 namespace {
@@ -91,6 +92,48 @@ TEST(DirtyTrackerBench, DiffToJsonIdleNoChange) {
             g_benchSink = out.size();
         });
         std::printf("[DirtyTrackerBench] diffToJson idle n=%d: %.0f us\n", n, bestUs);
+    }
+}
+
+// R2.2 镜像通道传输编码开销对照（PhaseSegmentTimer mirror 段"未劣化"证据）：
+// 同一"每旬全脏"负载下，对同一棵 diffToTree 分别取两种终端编码——
+//   JSON 文本：tree.dump()（旧 nativeExportDirty 载荷）
+//   protobuf ：state::encodeGameView(tree)（换轨后载荷）
+// 二者共享 diffToTree 全量序列化 + 基线推进（mirror 段主体，两格式逐字节同源），
+// 差异仅在终端编码。断言恒真（不设阈值门，CI 抖动），printf 供人工观测：
+// protobuf 信封字节应显著 < JSON 文本、终端编码耗时不劣于 dump（消费者侧还省
+// 一次 kotlinx 全量 JSON parse）。G2 <10ms 终态由 R2.3 镜像瘦身达成（本批镜像仍全量）。
+TEST(DirtyTrackerBench, MirrorTransportJsonVsProtobuf) {
+    const int counts[] = {100, 1000, 5000};
+    volatile std::size_t jsonBytes = 0;
+    volatile std::size_t protoBytes = 0;
+    for (int n : counts) {
+        const auto n32 = static_cast<int32_t>(n);
+        const double jsonUs = bestOfUs(3, 5, [&] {
+            GameState state;
+            for (int32_t i = 0; i < n32; ++i) state.disciples.appendDisciple(makeBenchDisciple(i));
+            DirtyTracker tracker;
+            tracker.resetBaseline(state);
+            for (int32_t r = 0; r < n32; ++r) state.disciples.cultivations[r] += 1.0;
+            const std::string out = tracker.diffToJson(state);
+            jsonBytes = out.size();
+        });
+        const double protoUs = bestOfUs(3, 5, [&] {
+            GameState state;
+            for (int32_t i = 0; i < n32; ++i) state.disciples.appendDisciple(makeBenchDisciple(i));
+            DirtyTracker tracker;
+            tracker.resetBaseline(state);
+            for (int32_t r = 0; r < n32; ++r) state.disciples.cultivations[r] += 1.0;
+            const nlohmann::json tree = tracker.diffToTree(state);
+            const std::string out = state::encodeGameView(tree, "bench");
+            protoBytes = out.size();
+        });
+        std::printf(
+            "[DirtyTrackerBench] mirror n=%d JSON=%.0fus/%zuB  protobuf=%.0fus/%zuB\n",
+            n, jsonUs, static_cast<std::size_t>(jsonBytes),
+            protoUs, static_cast<std::size_t>(protoBytes));
+        EXPECT_GT(jsonBytes, 0u);
+        EXPECT_GT(protoBytes, 0u);
     }
 }
 
