@@ -69,6 +69,11 @@ object DiffRngBridge {
     // ── GameCore 变更集通道（exportDirty 对拍用） ──
     external fun nativeCoreExportDirty(): ByteArray
 
+    /** 列级增量树导出（R2.4/B09 对拍守卫专用，JSON 文本——只消费
+     *  ColumnDirtyTracker：弟子域仅脏行×脏列；不触碰 DirtyTracker 基线与
+     *  事件队列。与 [nativeCoreExportDirty] 组成"同写集双臂对照"） */
+    external fun nativeCoreExportDirtyColumn(): ByteArray
+
     /** GameView protobuf 纯编码（R2.2 等价性守卫）：把给定变更集 JSON 树
      * （[nativeCoreExportDirty] 产出的同一棵 {version,changed,removed} 树）编为
      * GameView 信封字节。纯函数、不触碰导出基线，使守卫能配对同一棵树的
