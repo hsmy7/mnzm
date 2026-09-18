@@ -136,6 +136,7 @@
   - 2026-09-18 08:25 B06 经 GUI 派发（batch-R2A.md），截屏确认子会话开跑（读批次文件/CLAUDE.md/B03 前置提交）。
   - 2026-09-18 08:27 截屏：B06 调研——proto 基建确认（javaLite+templates.proto 风格），StateSyncService/镜像链路理清，正看 C++ exportDirtyJson/DirtyTracker/JNI 构建脚本。
   - 2026-09-18 08:29 截屏：B06 JNI 桥确认为纯字节搬运（exportDirtyJson JSON 字符串）；正梳理 dirty 协议携带域与 mirror 段位置。
+  - 2026-09-18 08:30 截屏：B06 设计权衡——考量 C++ 直出 protobuf（免中间 JSON）与 JSON 转码两条路线的取舍。
 
 ## 经验教训（随批追加）
 
