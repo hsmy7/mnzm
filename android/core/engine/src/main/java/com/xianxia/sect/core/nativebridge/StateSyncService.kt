@@ -50,6 +50,12 @@ private data class DirtyEnvelope(
     val version: Long,
     val changed: JsonObject,
     val removed: JsonObject,
+    /**
+     * 弟子行 typed 投影（R2.3 第二波，[NativeEngineFlag.gameViewProjection] 开时
+     * 非空且 `changed["disciples"]` 恒缺）；JSON 回滚臂 / 第一波形态为空表，
+     * 弟子行走 `changed["disciples"]` 的 JSON 数组重建。
+     */
+    val discipleProjections: List<Disciple> = emptyList(),
 ) {
     /** 是否为空变更集（零写入快速路径）。 */
     val isEmpty: Boolean get() = changed.isEmpty() && removed.isEmpty()
@@ -325,8 +331,16 @@ class StateSyncService @Inject constructor(
      * @return 应用结果；字节非法（parseFrom 抛错，调用方 runCatching 捕获）
      */
     fun applyDirtyProto(protoBytes: ByteArray): DirtyApplyResult? {
-        val decoded = GameViewMirrorCodec.decode(protoBytes)
-        val envelope = DirtyEnvelope(decoded.version, decoded.changed, decoded.removed)
+        val view = GameViewMirrorCodec.parse(protoBytes)
+        // R2.3 第二波灰度：投影臂下弟子行以 typed 载荷交付（每行 109 节点的 JSON
+        // 造树整段退场）；关旗标即回第一波形态（同一棵树、同一 applier）。
+        val projection = NativeEngineFlag.gameViewProjection
+        val decoded = GameViewMirrorCodec.decodeView(
+            view, includeDiscipleJson = !projection, discipleJson = json
+        )
+        val envelope = DirtyEnvelope(
+            decoded.version, decoded.changed, decoded.removed, decoded.discipleProjections
+        )
         return when {
             envelope.isEmpty -> DirtyApplyResult(envelope.version, 0, 0, 0)
             else -> applyEnvelope(envelope)
@@ -340,7 +354,9 @@ class StateSyncService @Inject constructor(
         var removedCount = 0
         stateStore.updateMirror {
             changedFieldCount = mergeGameDataChanges(envelope.changed)
-            val applied = applyEntityCollections(envelope.changed, envelope.removed)
+            val applied = applyEntityCollections(
+                envelope.changed, envelope.removed, envelope.discipleProjections
+            )
             upsertCount = applied.first
             removedCount = applied.second
         }
@@ -440,6 +456,7 @@ class StateSyncService @Inject constructor(
     private fun MutableGameState.applyEntityCollections(
         changed: JsonObject,
         removed: JsonObject,
+        discipleProjections: List<Disciple> = emptyList(),
     ): Pair<Int, Int> {
         var ups = 0
         var rms = 0
@@ -457,6 +474,12 @@ class StateSyncService @Inject constructor(
                 val removals = runCatching { removalsEl.jsonArray }.getOrNull()
                 rms += applyCollection(name, null, removals).second
             }
+        }
+        // 第二波投影臂：弟子行以 typed 载荷交付（changed 内无 "disciples" 键），
+        // 删除通道已在上方按 removed["disciples"] 应用——此处只做行级 upsert，
+        // 与旧臂"先删后插、同 id upsert 胜"的结果逐值一致。
+        if (discipleProjections.isNotEmpty()) {
+            ups += applyDiscipleUpserts(discipleTables, discipleProjections).first
         }
         return ups to rms
     }
@@ -526,7 +549,6 @@ class StateSyncService @Inject constructor(
         upserts: JsonArray?,
         removals: JsonArray?,
     ): Pair<Int, Int> {
-        var ups = 0
         var rms = 0
         if (removals != null) {
             for (el in removals) {
@@ -539,6 +561,7 @@ class StateSyncService @Inject constructor(
                 }
             }
         }
+        var ups = 0
         if (upserts != null) {
             for (el in upserts) {
                 val disciple = json.decodeFromJsonElement(Disciple.serializer(), el)
@@ -552,6 +575,24 @@ class StateSyncService @Inject constructor(
             }
         }
         return ups to rms
+    }
+
+    /**
+     * 弟子行 typed 直读 upsert（R2.3 第二波投影臂，
+     * [com.xianxia.sect.core.gameview.GameViewDiscipleRows]）：与 JSON 臂同一
+     * `upsertMirrorRow` 落表、同一 id 数字性显式失败语义；分歧即
+     * `DiscipleRowTypedProjectionTest` 红。
+     */
+    private fun applyDiscipleUpserts(tables: DiscipleTables, rows: List<Disciple>): Pair<Int, Int> {
+        var ups = 0
+        for (disciple in rows) {
+            require(disciple.id.toIntOrNull() != null) {
+                "镜像弟子 id 非数字: ${disciple.id}"
+            }
+            tables.upsertMirrorRow(disciple)
+            ups++
+        }
+        return ups to 0
     }
 
     companion object {

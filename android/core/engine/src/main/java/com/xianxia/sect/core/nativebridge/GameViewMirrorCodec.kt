@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.google.protobuf.ByteString
+import com.xianxia.sect.core.gameview.GameViewDiscipleRows
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.proto.gameview.DiscipleRow
 import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.GameView
@@ -38,14 +40,37 @@ internal object GameViewMirrorCodec {
         val version: Long,
         val changed: JsonObject,
         val removed: JsonObject,
+        /**
+         * 弟子行 typed 投影（R2.3 第二波，[GameViewDiscipleRows]）：非空时
+         * `changed["disciples"]` 恒缺——每行 109 个 JsonElement 节点的造树成本
+         * 整段退场；空表 = 本封走第一波形态（`changed["disciples"]` 承载 JSON 数组）。
+         */
+        val discipleProjections: List<Disciple> = emptyList(),
     )
 
+    /** GameView 信封字节 → proto 对象（非法字节抛 InvalidProtocolBufferException）。 */
+    fun parse(bytes: ByteArray): GameView = GameView.parseFrom(bytes)
+
     /**
-     * GameView 信封字节 → 变更集树。非法字节抛 InvalidProtocolBufferException
-     * （调用方 runCatching 降级，不触碰状态）。
+     * GameView 信封字节 → 变更集树（第一波形态：弟子行走 JSON 树承载）。
+     * 非法字节抛 InvalidProtocolBufferException（调用方 runCatching 降级，不触碰状态）。
      */
-    fun decode(bytes: ByteArray): Decoded {
-        val gv = GameView.parseFrom(bytes)
+    fun decode(bytes: ByteArray): Decoded = decodeView(parse(bytes))
+
+    /**
+     * GameView proto 对象 → 变更集树。
+     *
+     * @param includeDiscipleJson true = 弟子行按旧协议在 `changed["disciples"]`
+     *        重建 JSON 数组（回滚臂 / 等价对照面）；false = 弟子行以 typed
+     *        [Decoded.discipleRows] 交付（R2.3 第二波投影臂——每行 109 个
+     *        JsonElement 节点的造树成本整段退场）
+     */
+    fun decodeView(
+        view: GameView,
+        includeDiscipleJson: Boolean = true,
+        discipleJson: Json = json,
+    ): Decoded {
+        val gv = view
         val changed = LinkedHashMap<String, JsonElement>()
         val removed = LinkedHashMap<String, JsonElement>()
 
@@ -69,16 +94,34 @@ internal object GameViewMirrorCodec {
         }
 
         // 块 2：discipleListDelta（typed 行重建 + removedIds）
+        var discipleProjections: List<Disciple> = emptyList()
         if (gv.hasDiscipleListDelta()) {
             val delta = gv.discipleListDelta
             if (delta.upsertsCount > 0) {
-                changed["disciples"] = JsonArray(delta.upsertsList.map { it.toJsonObject() })
+                discipleProjections = if (includeDiscipleJson) {
+                    changed["disciples"] = JsonArray(delta.upsertsList.map { it.toJsonObject() })
+                    emptyList()
+                } else {
+                    delta.upsertsList.map { GameViewDiscipleRows.toDisciple(it, discipleJson) }
+                }
             }
             if (delta.removedIdsCount > 0) removed["disciples"] = delta.removedIdsList.toJsonIdArray()
         }
 
-        return Decoded(gv.version, JsonObject(changed), JsonObject(removed))
+        return Decoded(gv.version, JsonObject(changed), JsonObject(removed), discipleProjections)
     }
+
+    /**
+     * 行字段表中的**标量面**字段名（present 由 hasXxx 判定的那一批）——
+     * 弟子投影契约（[com.xianxia.sect.core.gameview.GameViewDiscipleRows.requiredScalarFields]）
+     * 与本表逐字段双射由 GameViewDiscipleProjectionTest 锁定：编码器新增标量字段
+     * 而未登记进投影契约 ⇒ 守卫红（防止新字段被静默漏投）。
+     */
+    fun rowScalarFieldNames(): Set<String> =
+        ROW_SPECS.filter { it.kind in SCALAR_KINDS }.map { it.key }.toSet()
+
+    private val SCALAR_KINDS: Set<Kind> =
+        setOf(Kind.STR, Kind.INT, Kind.LONG, Kind.BOOL, Kind.DOUBLE)
 
     private fun List<String>.toJsonIdArray(): JsonArray = JsonArray(map { JsonPrimitive(it) })
 
