@@ -10,6 +10,11 @@ import com.xianxia.sect.core.engine.system.materializeBagItemsToWarehouse
  * YearSettlementResidualExecutor — 年变真相源切换后的 Kotlin 残留执行器
  * （nativeSettleYear 之后的 Kotlin 侧未下沉扇出 + 平台效应）。
  *
+ * **R2.4 退化契约**：纯平台效应适配器（袋物品物化回仓库 / lifeEvents 丧亲
+ * 事件 / Room DAO 清理 / DeathEvent 分发）——输入信封的生产来源 = proto
+ * eventFeed 的 typed 事件（buildYearEnvelopeFromEvents，零 JSON 解析）；
+ * 执行器源零 JSON 解析由静态守卫固化（ResidualExecutorPurityGuardTest）。
+ *
  * 与月变残留执行器同模式：C++ `runYearSettlement` 执行年变已下沉面
  * （T1 全面子面 + 年报快照 + 年俸 + T2 部分子面），
  * 本执行器承接：

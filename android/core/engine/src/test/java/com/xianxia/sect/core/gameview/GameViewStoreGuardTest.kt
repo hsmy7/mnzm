@@ -133,7 +133,7 @@ class GameViewStoreGuardTest {
         viewStore.reset()
         assertEquals("换档复位 = 头部块回空态（与 GameStateStore 未装载同形）", 0L, viewStore.resourcesHeader.value.spiritStones)
         assertEquals("换档复位 = 事件块清空", emptyList<GameEventRecord>(), viewStore.eventLog.value.records)
-        assertEquals("proto eventFeed 块本批不产出（R2.4）", "reserved-not-produced", GameViewStore.PROTO_EVENT_FEED_BLOCK)
+        assertEquals("proto eventFeed 块 R2.4 起正式产出", "produced-r2.4", GameViewStore.PROTO_EVENT_FEED_BLOCK)
     }
 
     @Test

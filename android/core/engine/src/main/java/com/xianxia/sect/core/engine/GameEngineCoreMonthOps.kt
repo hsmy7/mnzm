@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.gameview.GameViewStreamEvent
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.util.DomainLog
@@ -19,6 +20,10 @@ import com.xianxia.sect.core.engine.service.restoreProductionSlotsFromMirror
  * 月变真相源切换的信封数据（nativeSettleMonth 回传草稿/决策信息）。
  * 手工解析（字段少且非协议类型，避免 @Serializable 与 C++ nlohmann 键名
  * 二次维护——SecretRealmBackpack 复用协议编解码）。
+ *
+ * **R2.4 起生产输入 = proto eventFeed**（月结事件入流，typed 载荷经
+ * [buildMonthEnvelopeFromEvents] 组装——Kotlin 侧零 JSON 解析）；本类型
+ * 保持不变，残留执行器输入形状逐字段等价（行为等价红线）。
  */
 internal data class MonthSettlementEnvelope(
     /** 政策费用不足被自动禁用的政策名列表（事务外 checkpointAllProduction 决策） */
@@ -43,6 +48,44 @@ internal data class MonthPurchaseLog(
     val itemName: String,
     val age: Int
 )
+
+/**
+ * 从 proto eventFeed 的 typed 事件组装月结信封（R2.4 生产路径——**零 JSON
+ * 解析**：载荷已由 codec 解为 typed）。
+ *
+ * 以 MONTH_SETTLED 事件为本月事件流的**在场证明**：信封四段（禁用政策/
+ * 没收 sectId/购买日志/秘境关闭）全部来自 PURCHASE / SECRET_REALM_CLOSED /
+ * MONTH_SETTLED 载荷；无 MONTH_SETTLED 事件（JSON 回滚臂 / 解码失败丢事件）
+ * 返回 null，调用方回退旧信封 JSON 解析（回滚臂保留，登记：删除随回滚臂
+ * 移除批次）。
+ */
+internal fun buildMonthEnvelopeFromEvents(
+    events: List<GameViewStreamEvent>,
+): MonthSettlementEnvelope? {
+    val monthEvent = events.lastOrNull {
+        it.kind == GameViewStreamEvent.Kind.MONTH_SETTLED
+    } ?: return null
+    val settled = monthEvent.payload as? GameViewStreamEvent.Payload.MonthSettled
+        ?: GameViewStreamEvent.Payload.MonthSettled(emptyList(), emptyList())
+    val purchases = events.mapNotNull { event ->
+        (event.payload as? GameViewStreamEvent.Payload.Purchase)?.let {
+            MonthPurchaseLog(discipleId = it.discipleId, itemName = it.itemName, age = it.age)
+        }
+    }
+    val secretRealmClose = events.lastOrNull {
+        it.kind == GameViewStreamEvent.Kind.SECRET_REALM_CLOSED
+    }?.let { event ->
+        (event.payload as? GameViewStreamEvent.Payload.SecretRealmClosed)?.let {
+            MonthSecretRealmClose(memberIds = it.memberIds, backpack = it.backpack)
+        }
+    }
+    return MonthSettlementEnvelope(
+        disabledPolicies = settled.disabledPolicies,
+        secretRealmClose = secretRealmClose,
+        purchaseLogs = purchases,
+        seizedBuildingsOfSect = settled.seizedSectBuildings,
+    )
+}
 
 private const val MONTH_TAG = "GameEngineCore"
 
@@ -86,7 +129,11 @@ internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
         if (applied == null && !stateSyncServiceRef.syncFromNative()) {
             error("月变镜像失败（增量+全量均不可用）")
         }
-        val env = parseMonthSettlementEnvelope(envJson)
+        // ②' 信封输入（R2.4）：优先 proto eventFeed 的 typed 事件组装
+        //    （生产路径，零 JSON 解析）；无 MONTH_SETTLED 在场证明（JSON
+        //    回滚臂/事件丢失）→ 回退旧信封 JSON 解析（行为等价，登记保留）
+        val env = buildMonthEnvelopeFromEvents(stateSyncServiceRef.gameViewStore.drainEvents())
+            ?: parseMonthSettlementEnvelope(envJson)
         // ③ Kotlin 残留执行器（单事务：战斗三件 + 邮件 + 草稿应用
         //    ——S4 后炼丹/锻造完成结算与自动排班已入 C++；C++ 状态已变更，
         //    此处失败必须传播）
@@ -112,7 +159,15 @@ internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
     }
 }
 
-/** 解析 nativeSettleMonth 信封（宽松：缺键 → 空/默认，兼容旧 .so 无草稿段）。 */
+/**
+ * 解析 nativeSettleMonth 信封（宽松：缺键 → 空/默认，兼容旧 .so 无草稿段）。
+ *
+ * **回滚臂专用**（R2.4 起）：生产路径的信封输入 = proto eventFeed 的
+ * [buildMonthEnvelopeFromEvents]（零 JSON 解析）；本函数仅在无 MONTH_SETTLED
+ * 事件在场证明时兜底（`mirrorProtobufTransport=false` 的 JSON 回滚臂 / 事件
+ * 解码失败丢失）。执行器零 JSON 解析由静态守卫锁定（本文件为登记的解析边界，
+ * 不属执行器源）；删除随 JSON 回滚臂移除批次。
+ */
 @Suppress("TooGenericExceptionCaught")  // 降级契约：信封损坏按空信封处理（旧 .so/异常输出）
 internal fun parseMonthSettlementEnvelope(envJson: String): MonthSettlementEnvelope {
     val root = try {

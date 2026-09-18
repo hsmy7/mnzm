@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.gameview.GameViewStreamEvent
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.util.DomainLog
@@ -44,7 +45,35 @@ internal data class BereavementDraft(
     val grievingAge: Int
 )
 
-/** 解析 nativeSettleYear 信封（宽松：缺键 → 空，兼容旧 .so 无草稿段）。 */
+/**
+ * 从 proto eventFeed 的 typed 事件组装年结信封（R2.4 生产路径——**零 JSON
+ * 解析**：载荷已由 codec 解为 typed）。
+ *
+ * 以 YEAR_SETTLED 事件为本年事件流的在场证明：丧亲草稿来自其载荷，死亡
+ * 草稿来自 DEATH 事件；无 YEAR_SETTLED（JSON 回滚臂/事件丢失）返回 null，
+ * 调用方回退旧信封 JSON 解析（回滚臂保留，登记：删除随回滚臂移除批次）。
+ */
+internal fun buildYearEnvelopeFromEvents(
+    events: List<GameViewStreamEvent>,
+): YearSettlementEnvelope? {
+    val yearEvent = events.lastOrNull {
+        it.kind == GameViewStreamEvent.Kind.YEAR_SETTLED
+    } ?: return null
+    val bereavements = (yearEvent.payload as? GameViewStreamEvent.Payload.YearSettled)
+        ?.bereavements ?: emptyList()
+    val agedDeaths = events.mapNotNull { event ->
+        (event.payload as? GameViewStreamEvent.Payload.Death)?.draft
+    }
+    return YearSettlementEnvelope(agedDeaths, bereavements)
+}
+
+/**
+ * 解析 nativeSettleYear 信封（宽松：缺键 → 空，兼容旧 .so 无草稿段）。
+ *
+ * **回滚臂专用**（R2.4 起）：生产路径 = [buildYearEnvelopeFromEvents]
+ * （零 JSON 解析）；执行器零 JSON 解析由静态守卫锁定（本文件为登记的
+ * 解析边界，不属执行器源）。
+ */
 @Suppress("TooGenericExceptionCaught", "CyclomaticComplexMethod")  // 降级契约 + 信封多字段解析分支
 internal fun parseYearSettlementEnvelope(envJson: String): YearSettlementEnvelope {
     val root = try {
@@ -116,12 +145,16 @@ internal suspend fun GameEngineCore.settleYearNative(): Boolean {
     return try {
         // ① C++ 完整年变结算（信封含死亡链平台效应草稿）
         val envJson = GameCoreBridge.nativeSettleYear().decodeToString()
-        // ② 增量镜像；失败先全量兜底，仍失败走异常回退路径
+        // ② 增量镜像；失败先全量兜底，仍失败异常回退路径
         val applied = stateSyncServiceRef.applyDirtyFromNative()
         if (applied == null && !stateSyncServiceRef.syncFromNative()) {
             error("年变镜像失败（增量+全量均不可用）")
         }
-        val env = parseYearSettlementEnvelope(envJson)
+        // ②' 信封输入（R2.4）：优先 proto eventFeed 的 typed 事件组装
+        //    （生产路径，零 JSON 解析）；无 YEAR_SETTLED 在场证明 → 回退
+        //    旧信封 JSON 解析（回滚臂保留）
+        val env = buildYearEnvelopeFromEvents(stateSyncServiceRef.gameViewStore.drainEvents())
+            ?: parseYearSettlementEnvelope(envJson)
         // ③ Kotlin 残留执行器（单事务——C++ 状态已变更，此处失败必须传播）
         // updateMirror = 非捕获事务（w3-13 弟子通道关闭配套，MonthOps 同款）：
         // 物化/丧亲均为 C++ 年结事实的 Kotlin 投影，无需回导

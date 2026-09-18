@@ -303,6 +303,18 @@ object GameCoreBridge {
      */
     external fun nativeSetDirtyExportProtobuf(on: Boolean)
 
+    /**
+     * 设置 [nativeExportDirty] 增量来源（重构方案 R2.4/B09 列级导出接生产）：
+     * true = ColumnDirtyTracker 列级整树导出（弟子域仅脏行×脏列，
+     * gameData/集合域与全量 diff 共享比对段），false = 全量树 diff（对拍
+     * 零漂移回滚臂）。引擎线程调用；native 未收到本调用时缺省 false。
+     * 【JNI 面豁免登记】新增引擎控制端口（非玩法操作，不塞业务操作码表），
+     * 沿 R0.2 nativeFpDeterminismProbe / R2.2 nativeSetDirtyExportProtobuf
+     * 先例。仅 protobuf 臂生效；异构写入路径 C++ 侧自动锁存回退全量一封。
+     * 生产由 [NativeEngineFlag.dirtyColumnExport] 在 native 初始化后推送。
+     */
+    external fun nativeSetDirtyExportColumn(on: Boolean)
+
     // ============================================================
     // 引擎循环 + 看门狗（游戏循环入 C++）
     // ============================================================

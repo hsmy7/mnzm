@@ -9,6 +9,11 @@ import com.xianxia.sect.core.engine.annotation.GameService
  * MonthSettlementResidualExecutor — 月变真相源切换后的 Kotlin 残留执行器
  * （nativeSettleMonth 之后的 Kotlin 侧未下沉扇出 + 平台效应草稿应用）。
  *
+ * **R2.4 退化契约**：本执行器是**纯平台效应适配器**（写 lifeEvents 瞬态列 /
+ * 发邮件 / gate release）——输入信封的生产来源 = proto eventFeed 的 typed
+ * 事件（[com.xianxia.sect.core.engine.buildMonthEnvelopeFromEvents]，零
+ * JSON 解析）；执行器源零 JSON 解析由静态守卫固化（ResidualExecutorPurityGuardTest）。
+ *
  * 与旬结算残留执行器同模式：
  * C++ 侧 `runMonthSettlement` 执行八步编排中已下沉面（政策扣除/月效/AI 预计算/
  * 炼丹锻造完成结算+自动排班/任务完成/灵田/生育/关卡/

@@ -80,6 +80,26 @@ object NativeEngineFlag {
     var gameViewProjection: Boolean = true
 
     /**
+     * 列级增量导出灰度开关（重构方案 R2.4/B09：R1.4 列级写屏障接生产）。
+     *
+     * - **true（生产默认）**：`nativeExportDirty`（protobuf 臂）优先走
+     *   ColumnDirtyTracker 整树导出——弟子域仅脏行×脏列（结算热路径写点
+     *   markCol 精确标脏；月/年边界按审计列集粗粒度标脏），gameData/实体集合
+     *   域与全量 diff 共享同一比对段（构造等价）；
+     * - false（回滚臂，共存一个版本周期）：全量树 diff（B06 前口径，
+     *   对拍显式依赖的全量模式开关，零漂移）。
+     *
+     * 由 native 初始化后经 [GameCoreBridge.nativeSetDirtyExportColumn] 推送
+     * C++（引擎控制端口族，登记豁免沿 nativeSetDirtyExportProtobuf 先例）。
+     * **仅 protobuf 臂生效**：JSON 回滚臂（[mirrorProtobufTransport]=false）
+     * 恒全量树 diff，且 C++ 侧异构写入路径（业务事务/战斗/招募）自动锁存
+     * 回退全量导出一封。列级↔全量语义等价由 ColumnExportEquivalenceTest
+     * （C++ GTest，真实结算双臂对照）+ Kotlin 侧部分行合并守卫锁定。
+     */
+    @Volatile
+    var dirtyColumnExport: Boolean = true
+
+    /**
      * 在 [block] 执行期间临时设置模式（对拍/转发测试用，自动恢复）。
      */
     inline fun <T> withMode(mode: Mode, block: () -> T): T {

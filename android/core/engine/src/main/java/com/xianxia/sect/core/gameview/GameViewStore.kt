@@ -33,7 +33,7 @@ data class ConfigEchoView(
     val autoRecruitSpiritRootFilter: Set<Int>
 )
 
-/** 块③：事件流当前载体（消息栏；R2.4 由 proto `eventFeed` 承接后转 typed 投影） */
+/** 块③：事件流当前载体（消息栏；proto 块④ `eventFeed` 为平台效应事件流，二者并行不互换） */
 data class EventLogView(val records: List<GameEventRecord>)
 
 /**
@@ -54,7 +54,9 @@ data class EventLogView(val records: List<GameEventRecord>)
  * | ① 资源头部 | [ResourcesHeaderView] | 三阶灵石 + 年/月/旬 | HUD、仓库页灵石卡 |
  * | ② 配置回声 | [ConfigEchoView] | 政策 / 年俸(+开关) / 长老槽 / 已放置建筑 / 自动招募灵根 | ConfigState 消费面 |
  * | ③ 事件流（当前载体） | [EventLogView] | gameEventRecords | 消息栏 |
- * | ④ proto `eventFeed` | — | C++ 本批不产出（R2.4 接线） | 不建消费面，见 [PROTO_EVENT_FEED_BLOCK] |
+ * | ④ proto `eventFeed`（R2.4/B09 转正） | [GameViewStreamEvent] 待消费缓冲 |
+ *   月/年结算信封 + 突破/死亡/购买/秘境关闭事件 | 残留执行器与
+ *   processMonthYearChange 消费面（[recordEvents]/[drainEvents]） |
  *
  * ## 一致性（非镜像写入的对账）
  * 投影只由镜像推进，而 Kotlin 侧仍有稳态写入（回退臂 / 未下沉 UI 事务）。故本 store
@@ -84,6 +86,30 @@ class GameViewStore @Inject constructor() {
 
     /** 已迁 UI 消费块的只读投影面（块③事件流当前载体） */
     val eventLog: StateFlow<EventLogView> = _eventLog.asStateFlow()
+
+    /** proto 块④事件流的待消费缓冲（引擎线程单写单读；非 StateFlow——一次性消费语义） */
+    private val pendingEvents = ArrayDeque<GameViewStreamEvent>()
+
+    /**
+     * 镜像链馈送事件（[com.xianxia.sect.core.nativebridge.StateSyncService]
+     * 在解码信封时调用，应用成败与否均先入队——事件消费与应用解耦）。
+     * 引擎线程契约：与 [drainEvents] 同一引擎线程串行调用。
+     */
+    internal fun recordEvents(events: List<GameViewStreamEvent>) {
+        pendingEvents.addAll(events)
+    }
+
+    /**
+     * 排水全部待消费事件（月/年结算残留路径消费；导出即消费的同族语义——
+     * 消费后的事件不重放；突破事件当前无生产消费者，随排水丢弃（观测面 =
+     * 守卫测试与日志）。
+     */
+    internal fun drainEvents(): List<GameViewStreamEvent> {
+        if (pendingEvents.isEmpty()) return emptyList()
+        val drained = pendingEvents.toList()
+        pendingEvents.clear()
+        return drained
+    }
 
     /** 最近一次投影的 gameData 实例（引用比对 = 是否需要重投） */
     private var projectedGameData: GameData? = null
@@ -169,6 +195,7 @@ class GameViewStore @Inject constructor() {
         _resourcesHeader.value = RESOURCES_EMPTY
         _configEcho.value = CONFIG_EMPTY
         _eventLog.value = EventLogView(emptyList())
+        pendingEvents.clear()
         projectionGeneration++
     }
 
@@ -189,8 +216,12 @@ class GameViewStore @Inject constructor() {
     companion object {
         private const val MIRROR_GENERATION_NONE = -1L
 
-        /** proto 块 3 `eventFeed` 接线状态（R2.4 产出前不得长出消费面，守卫锁定） */
-        const val PROTO_EVENT_FEED_BLOCK = "reserved-not-produced"
+        /**
+         * proto 块 3 `eventFeed` 接线状态（R2.4 起正式产出：月/年结算信封 +
+         * 突破/死亡/购买/秘境关闭入流，消费面 = [GameViewStreamEvent] 经
+         * [recordEvents]/[drainEvents] 缓冲排水）。
+         */
+        const val PROTO_EVENT_FEED_BLOCK = "produced-r2.4"
 
         /** 块①消费面字段清单（投影契约；与 [resourcesView] 一一对应，守卫锁定） */
         val RESOURCES_FIELDS: Set<String> = setOf(

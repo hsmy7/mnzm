@@ -56,8 +56,8 @@ message GameView {
   /// 块 2：弟子行级增量（upsert 全行 + 行删除）
   DiscipleListDelta discipleListDelta = 3;
 
-  /// 块 3：事件流（R2.4 接线：月/年结算信封、突破/死亡/购买/秘境关闭；
-  /// 本批 schema 预留，C++ 编码器暂不产出）
+  /// 块 3：事件流（R2.4 起正式产出：月/年结算信封、突破/死亡/购买/
+  /// 秘境关闭——B09 接线，GameCore 事件队列导出即消费）
   repeated ViewEvent eventFeed = 4;
 
   /// 块 4：配置回声（每封携带；供消费端做 schema/配置版本协商与日志归因）
@@ -277,8 +277,9 @@ message JsonFieldChange {
   optional bytes valueJson = 2;
 }
 
-/// 镜像事件流条目（R2.4 接线：月/年结算信封并入；突破/死亡/购买/秘境关闭
-/// 等推断型事件由消费侧或引擎侧按块补充——枚举只增不改）
+/// 镜像事件流条目（R2.4/B09 转正：月/年结算信封并入 eventFeed——
+/// 月年结算/突破/死亡/购买/秘境关闭入流；载荷 v1 = detailJson 过渡编码，
+/// typed 化时只增不改追加新字段——枚举只增不改）
 enum ViewEventType {
   VIEW_EVENT_TYPE_UNKNOWN = 0;
   VIEW_EVENT_TYPE_MONTH_SETTLED = 1;

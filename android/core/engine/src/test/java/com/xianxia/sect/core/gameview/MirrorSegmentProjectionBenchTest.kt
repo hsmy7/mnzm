@@ -58,6 +58,108 @@ class MirrorSegmentProjectionBenchTest {
         for (size in SCALES) runOneScale(size)
     }
 
+    /**
+     * R2.4/B09 G2 重测：**列级导出信封**（每旬修炼热路径脏列——
+     * cultivation/currentHp/currentMp，即 C++ 写屏障稳态产出形状）的消费
+     * 侧对照——列级臂（补丁合并应用）对第二波全脏投影臂。
+     *
+     * 断言口径：硬性质两条（列级臂不得明显慢于全脏投影臂；两臂落库逐字段
+     * 全等）+ 数字打印供方案 §7.2 B09 行与 WS-1 判定引用。
+     */
+    @Test
+    fun `mirror 段消费侧列级导出臂对照 G2 重测`() {
+        for (size in SCALES) runColumnOneScale(size)
+    }
+
+    private fun runColumnOneScale(count: Int) {
+        discipleCount = count
+        val sparseBytes = sparseEnvelope(count).toByteArray()
+        val fullBytes = envelope(discipleRows(count)).toByteArray()
+
+        val column = measureColumn(sparseBytes)
+        val projectedFull = measure(fullBytes, projection = true)
+
+        val line = "[B09-mirror-bench] D=" + count +
+            " 列级信封=" + sparseBytes.size + "B 全脏信封=" + fullBytes.size + "B " +
+            "列级臂=decode " + ms(column.decodeNs) + "ms + apply " + ms(column.applyNs) +
+            "ms 合计 " + ms(column.totalNs) + "ms | " +
+            "全脏投影臂=decode " + ms(projectedFull.decodeNs) + "ms + apply " +
+            ms(projectedFull.applyNs) + "ms 合计 " + ms(projectedFull.totalNs) + "ms | " +
+            "列级降本 " + pct(column, projectedFull)
+        println(line)
+        System.err.println(line)
+
+        assertTrue(
+            "列级臂不得比全脏投影臂明显更慢（列级导出是 G2 瘦身不是增重）：\n$line",
+            column.totalNs <= projectedFull.totalNs * 1.15,
+        )
+        assertTrue(
+            "列级臂与全脏投影臂 store 落库必须逐字段全等（合并语义 = 全行语义）",
+            column.store.gameDataValue == projectedFull.store.gameDataValue &&
+                column.store.disciplesValue == projectedFull.store.disciplesValue,
+        )
+    }
+
+    /**
+     * 稳态列级信封：全部行各携**仅脏列**（每旬修炼热路径 = cultivation +
+     * currentHp/currentMp；与 C++ 写屏障稳态产出形状一致——id 键恒携带）。
+     */
+    private fun sparseEnvelope(count: Int): GameView {
+        val rows = List(count) { index ->
+            // 从零构造稀疏行（不从全行改写——只有 id 键 + 脏列 presence，
+            // 与 C++ 列级写屏障稳态产出形状一致）
+            DiscipleRow.newBuilder()
+                .setId((index + 1).toString())
+                .setCultivation(11.0 + index)
+                .setCurrentHp(500 + index)
+                .setCurrentMp(300)
+                .build()
+        }
+        return GameView.newBuilder()
+            .setVersion(1L)
+            .setResourcesHeader(ResourcesHeader.newBuilder().setSpiritStones(SPIRIT_STONES).build())
+            .setDiscipleListDelta(DiscipleListDelta.newBuilder().addAllUpserts(rows).build())
+            .build()
+    }
+
+    /** 列级臂计时：投影 + 列级两旗标开，decode/apply 分段同 [measure]。 */
+    private fun measureColumn(bytes: ByteArray): Arm {
+        val previousProjection = NativeEngineFlag.gameViewProjection
+        val previousColumn = NativeEngineFlag.dirtyColumnExport
+        NativeEngineFlag.gameViewProjection = true
+        NativeEngineFlag.dirtyColumnExport = true
+        try {
+            var bestDecode = Long.MAX_VALUE
+            var bestApply = Long.MAX_VALUE
+            var store: FakeGameStateStore? = null
+            var views: GameViewStore? = null
+            repeat(REPEATS) {
+                val localStore = seededStore()
+                val localViews = GameViewStore().also { it.attach(localStore) }
+                val service = StateSyncService(localStore, localViews)
+                val t0 = System.nanoTime()
+                val decoded = GameViewMirrorCodec.decodeView(
+                    GameView.parseFrom(bytes),
+                    includeDiscipleJson = false,
+                    discipleJson = lenientJson,
+                    discipleRowsAsPatches = true,
+                )
+                val t1 = System.nanoTime()
+                val applied = service.applyDirtyProto(bytes)
+                val t2 = System.nanoTime()
+                bestDecode = minOf(bestDecode, t1 - t0)
+                bestApply = minOf(bestApply, t2 - t1)
+                check(applied != null && decoded.disciplePatches.isNotEmpty()) { "列级信封未被应用（守卫空转）" }
+                store = localStore
+                views = localViews
+            }
+            return Arm(requireNotNull(store), requireNotNull(views), bestDecode, bestApply)
+        } finally {
+            NativeEngineFlag.gameViewProjection = previousProjection
+            NativeEngineFlag.dirtyColumnExport = previousColumn
+        }
+    }
+
     private fun runOneScale(count: Int) {
         discipleCount = count
         val bytes = envelope(discipleRows(count)).toByteArray()

@@ -8,7 +8,9 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.gameview.GameDataFieldPatch
+import com.xianxia.sect.core.gameview.GameViewDiscipleRows
 import com.xianxia.sect.core.gameview.GameViewStore
+import com.xianxia.sect.core.gameview.GameViewStreamEvent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -57,6 +59,14 @@ private data class DirtyEnvelope(
      * 弟子行走 `changed["disciples"]` 的 JSON 数组重建。
      */
     val discipleProjections: List<Disciple> = emptyList(),
+    /**
+     * 弟子行**补丁**（R2.4/B09 列级导出，[NativeEngineFlag.dirtyColumnExport] 开
+     * 且投影臂时非空、`discipleProjections` 恒空）——行内仅脏列 presence，
+     * 应用时以 store 既有行为基线合并（[GameViewDiscipleRows.mergeToDisciple]）。
+     */
+    val disciplePatches: List<GameViewDiscipleRows.DiscipleRowPatch> = emptyList(),
+    /** proto 块④事件流（R2.4 转正：月/年结算信封 + 突破/死亡/购买/秘境关闭）。 */
+    val events: List<GameViewStreamEvent> = emptyList(),
 ) {
     /** 是否为空变更集（零写入快速路径）。 */
     val isEmpty: Boolean get() = changed.isEmpty() && removed.isEmpty()
@@ -360,12 +370,22 @@ class StateSyncService @Inject constructor(
         val view = GameViewMirrorCodec.parse(protoBytes)
         // R2.3 第二波灰度：投影臂下弟子行以 typed 载荷交付（每行 109 节点的 JSON
         // 造树整段退场）；关旗标即回第一波形态（同一棵树、同一 applier）。
+        // R2.4/B09 列级灰度：列级导出开（且投影臂）时弟子行以**补丁**交付
+        // （行内仅脏列，应用时按 store 既有行合并）——全量封（异构锁存/回滚）
+        // 的全行补丁同走合并面，语义一致。
         val projection = NativeEngineFlag.gameViewProjection
         val decoded = GameViewMirrorCodec.decodeView(
-            view, includeDiscipleJson = !projection, discipleJson = json
+            view,
+            includeDiscipleJson = !projection,
+            discipleJson = json,
+            discipleRowsAsPatches = projection && NativeEngineFlag.dirtyColumnExport,
         )
+        // 事件流馈送（应用成败与否均先入队——事件消费与镜像应用解耦：
+        // apply 失败走全量兜底时事件不丢）
+        if (decoded.events.isNotEmpty()) gameViewStore.recordEvents(decoded.events)
         val envelope = DirtyEnvelope(
-            decoded.version, decoded.changed, decoded.removed, decoded.discipleProjections
+            decoded.version, decoded.changed, decoded.removed,
+            decoded.discipleProjections, decoded.disciplePatches,
         )
         return when {
             envelope.isEmpty -> DirtyApplyResult(envelope.version, 0, 0, 0)
@@ -384,7 +404,8 @@ class StateSyncService @Inject constructor(
         stateStore.updateMirror {
             changedFieldCount = mergeGameDataChanges(envelope.changed)
             val applied = applyEntityCollections(
-                envelope.changed, envelope.removed, envelope.discipleProjections
+                envelope.changed, envelope.removed, envelope.discipleProjections,
+                envelope.disciplePatches,
             )
             upsertCount = applied.first
             removedCount = applied.second
@@ -499,6 +520,7 @@ class StateSyncService @Inject constructor(
         changed: JsonObject,
         removed: JsonObject,
         discipleProjections: List<Disciple> = emptyList(),
+        disciplePatches: List<GameViewDiscipleRows.DiscipleRowPatch> = emptyList(),
     ): Pair<Int, Int> {
         var ups = 0
         var rms = 0
@@ -523,7 +545,36 @@ class StateSyncService @Inject constructor(
         if (discipleProjections.isNotEmpty()) {
             ups += applyDiscipleUpserts(discipleTables, discipleProjections).first
         }
+        // 列级补丁臂（R2.4/B09）：部分行按基线合并后落表（同 upsertMirrorRow 面）
+        if (disciplePatches.isNotEmpty()) {
+            ups += applyDisciplePatches(discipleTables, disciplePatches).first
+        }
         return ups to rms
+    }
+
+    /**
+     * 列级弟子行补丁应用（R2.4/B09）：store 内已有行 = 组装为基线、
+     * [GameViewDiscipleRows.mergeToDisciple] 按补丁 presence 覆盖后落表；
+     * 新行 = 补丁须自携全字段（C++ append 恒整行标脏），稀疏新增抛错
+     * （与全量臂 fail-fast 同语义，经降级契约转全量兜底）。
+     */
+    private fun applyDisciplePatches(
+        tables: DiscipleTables,
+        patches: List<GameViewDiscipleRows.DiscipleRowPatch>,
+    ): Pair<Int, Int> {
+        var ups = 0
+        for (patch in patches) {
+            val id = patch.row.id
+            require(id.toIntOrNull() != null) {
+                "镜像弟子 id 非数字: $id"
+            }
+            val numericId = id.toInt()
+            val base = if (tables.isAlive.contains(numericId)) tables.assemble(numericId) else null
+            val merged = GameViewDiscipleRows.mergeToDisciple(base, patch, json)
+            tables.upsertMirrorRow(merged)
+            ups++
+        }
+        return ups to 0
     }
 
     /** 变更集实体集合分发（集合名 → 对应存储；返回 upsert/removed 计数对）。 */

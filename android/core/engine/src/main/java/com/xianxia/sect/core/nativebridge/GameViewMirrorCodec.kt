@@ -1,8 +1,13 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.google.protobuf.ByteString
+import com.xianxia.sect.core.engine.AgedDeathDraft
+import com.xianxia.sect.core.engine.BereavementDraft
 import com.xianxia.sect.core.gameview.GameViewDiscipleRows
+import com.xianxia.sect.core.gameview.GameViewStreamEvent
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.SecretRealmBackpack
+import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.proto.gameview.DiscipleRow
 import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.GameView
@@ -13,6 +18,12 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * GameViewMirrorCodec — GameView protobuf 信封 → 变更集树解码（重构方案 R2.2）。
@@ -46,6 +57,18 @@ internal object GameViewMirrorCodec {
          * 整段退场；空表 = 本封走第一波形态（`changed["disciples"]` 承载 JSON 数组）。
          */
         val discipleProjections: List<Disciple> = emptyList(),
+        /**
+         * 弟子行**补丁**（R2.4/B09 列级导出：行内仅脏列 presence）——
+         * 非空时 `discipleProjections` 恒空，消费侧以 store 既有行为基线
+         * 合并后落表（[GameViewDiscipleRows.mergeToDisciple]）。
+         */
+        val disciplePatches: List<GameViewDiscipleRows.DiscipleRowPatch> = emptyList(),
+        /**
+         * 事件流（R2.4 转正：proto 块 3 `eventFeed` 的 typed 解码产物——
+         * 月/年结算信封 + 突破/死亡/购买/秘境关闭；detailJson 的 v1 过渡
+         * 编码在本对象一处解析，下游执行器零 JSON 解析）。
+         */
+        val events: List<GameViewStreamEvent> = emptyList(),
     )
 
     /** GameView 信封字节 → proto 对象（非法字节抛 InvalidProtocolBufferException）。 */
@@ -62,13 +85,17 @@ internal object GameViewMirrorCodec {
      *
      * @param includeDiscipleJson true = 弟子行按旧协议在 `changed["disciples"]`
      *        重建 JSON 数组（回滚臂 / 等价对照面）；false = 弟子行以 typed
-     *        [Decoded.discipleRows] 交付（R2.3 第二波投影臂——每行 109 个
+     *        [Decoded.discipleProjections] 交付（R2.3 第二波投影臂——每行 109 个
      *        JsonElement 节点的造树成本整段退场）
+     * @param discipleRowsAsPatches true = 弟子行以 [Decoded.disciplePatches]
+     *        补丁交付（R2.4/B09 列级导出：行内仅脏列，消费侧按基线合并），
+     *        优先于 [includeDiscipleJson]=false 的全行投影
      */
     fun decodeView(
         view: GameView,
         includeDiscipleJson: Boolean = true,
         discipleJson: Json = json,
+        discipleRowsAsPatches: Boolean = false,
     ): Decoded {
         val gv = view
         val changed = LinkedHashMap<String, JsonElement>()
@@ -86,30 +113,180 @@ internal object GameViewMirrorCodec {
         }
 
         // 扩展区 collectionChange：非弟子实体集合（upsertsJson 数组 + removedIds）
+        decodeCollectionChanges(gv, changed, removed)
+
+        // 块 2：discipleListDelta（typed 行重建 / 列级补丁 + removedIds）
+        val rows = decodeDiscipleDelta(
+            gv, changed, removed,
+            includeDiscipleJson = includeDiscipleJson,
+            discipleJson = discipleJson,
+            discipleRowsAsPatches = discipleRowsAsPatches,
+        )
+
+        // 块 3：eventFeed（R2.4 转正——月/年结算信封 + 突破/死亡/购买/秘境
+        // 关闭入流；detailJson v1 过渡编码在此一处解析）
+        val events = gv.eventFeedList.map { it.toStreamEvent() }
+
+        return Decoded(
+            gv.version, JsonObject(changed), JsonObject(removed),
+            rows.projections, rows.patches, events,
+        )
+    }
+
+    /** 扩展区 collectionChange：非弟子实体集合（upsertsJson 数组 + removedIds）。 */
+    private fun decodeCollectionChanges(
+        gv: GameView,
+        changed: MutableMap<String, JsonElement>,
+        removed: MutableMap<String, JsonElement>,
+    ) {
         for (cc in gv.collectionChangeList) {
             if (!cc.upsertsJson.isEmpty) {
                 changed[cc.name] = json.parseToJsonElement(cc.upsertsJson.toStringUtf8())
             }
             if (cc.removedIdsCount > 0) removed[cc.name] = cc.removedIdsList.toJsonIdArray()
         }
-
-        // 块 2：discipleListDelta（typed 行重建 + removedIds）
-        var discipleProjections: List<Disciple> = emptyList()
-        if (gv.hasDiscipleListDelta()) {
-            val delta = gv.discipleListDelta
-            if (delta.upsertsCount > 0) {
-                discipleProjections = if (includeDiscipleJson) {
-                    changed["disciples"] = JsonArray(delta.upsertsList.map { it.toJsonObject() })
-                    emptyList()
-                } else {
-                    delta.upsertsList.map { GameViewDiscipleRows.toDisciple(it, discipleJson) }
-                }
-            }
-            if (delta.removedIdsCount > 0) removed["disciples"] = delta.removedIdsList.toJsonIdArray()
-        }
-
-        return Decoded(gv.version, JsonObject(changed), JsonObject(removed), discipleProjections)
     }
+
+    private class DiscipleDelta(
+        val projections: List<Disciple>,
+        val patches: List<GameViewDiscipleRows.DiscipleRowPatch>,
+    )
+
+    /** 块 2：discipleListDelta（typed 行重建 / 列级补丁 + removedIds）。 */
+    private fun decodeDiscipleDelta(
+        gv: GameView,
+        changed: MutableMap<String, JsonElement>,
+        removed: MutableMap<String, JsonElement>,
+        includeDiscipleJson: Boolean,
+        discipleJson: Json,
+        discipleRowsAsPatches: Boolean,
+    ): DiscipleDelta {
+        if (!gv.hasDiscipleListDelta()) return DiscipleDelta(emptyList(), emptyList())
+        val delta = gv.discipleListDelta
+        var projections: List<Disciple> = emptyList()
+        var patches: List<GameViewDiscipleRows.DiscipleRowPatch> = emptyList()
+        if (delta.upsertsCount > 0) {
+            when {
+                discipleRowsAsPatches ->
+                    patches = delta.upsertsList.map { GameViewDiscipleRows.DiscipleRowPatch(it) }
+                includeDiscipleJson ->
+                    changed["disciples"] = JsonArray(delta.upsertsList.map { it.toJsonObject() })
+                else ->
+                    projections =
+                        delta.upsertsList.map { GameViewDiscipleRows.toDisciple(it, discipleJson) }
+            }
+        }
+        if (delta.removedIdsCount > 0) removed["disciples"] = delta.removedIdsList.toJsonIdArray()
+        return DiscipleDelta(projections, patches)
+    }
+
+    /** proto `ViewEvent` → typed 事件（未登记种类 → UNKNOWN 宽松忽略）。 */
+    private fun com.xianxia.sect.proto.gameview.ViewEvent.toStreamEvent(): GameViewStreamEvent {
+        val kind = when (type) {
+            com.xianxia.sect.proto.gameview.ViewEventType.VIEW_EVENT_TYPE_MONTH_SETTLED ->
+                GameViewStreamEvent.Kind.MONTH_SETTLED
+            com.xianxia.sect.proto.gameview.ViewEventType.VIEW_EVENT_TYPE_YEAR_SETTLED ->
+                GameViewStreamEvent.Kind.YEAR_SETTLED
+            com.xianxia.sect.proto.gameview.ViewEventType.VIEW_EVENT_TYPE_BREAKTHROUGH ->
+                GameViewStreamEvent.Kind.BREAKTHROUGH
+            com.xianxia.sect.proto.gameview.ViewEventType.VIEW_EVENT_TYPE_DEATH ->
+                GameViewStreamEvent.Kind.DEATH
+            com.xianxia.sect.proto.gameview.ViewEventType.VIEW_EVENT_TYPE_PURCHASE ->
+                GameViewStreamEvent.Kind.PURCHASE
+            com.xianxia.sect.proto.gameview.ViewEventType.VIEW_EVENT_TYPE_SECRET_REALM_CLOSED ->
+                GameViewStreamEvent.Kind.SECRET_REALM_CLOSED
+            else -> GameViewStreamEvent.Kind.UNKNOWN
+        }
+        val detail = if (detailJson.isEmpty) "" else detailJson.toStringUtf8()
+        return GameViewStreamEvent(kind, gameYear, gameMonth, parsePayload(kind, detail))
+    }
+
+    /** detailJson（v1 过渡编码）→ typed 载荷；解析失败按空载荷降级（宽松语义同旧信封解析）。 */
+    private fun parsePayload(kind: GameViewStreamEvent.Kind, detail: String): GameViewStreamEvent.Payload? {
+        if (detail.isEmpty()) return null
+        val root = runCatching { json.parseToJsonElement(detail).jsonObject }.getOrNull() ?: return null
+        return runCatching { payloadOf(kind, root) }.getOrNull()
+    }
+
+    private fun payloadOf(
+        kind: GameViewStreamEvent.Kind,
+        root: JsonObject,
+    ): GameViewStreamEvent.Payload? = when (kind) {
+        GameViewStreamEvent.Kind.MONTH_SETTLED -> parseMonthDetail(root)
+        GameViewStreamEvent.Kind.YEAR_SETTLED -> parseYearDetail(root)
+        GameViewStreamEvent.Kind.BREAKTHROUGH -> GameViewStreamEvent.Payload.Breakthrough(
+            discipleId = root.string("discipleId") ?: "",
+            summary = root.string("summary") ?: "",
+        )
+        GameViewStreamEvent.Kind.DEATH -> parseDeathDetail(root)
+        GameViewStreamEvent.Kind.PURCHASE -> parsePurchaseDetail(root)
+        GameViewStreamEvent.Kind.SECRET_REALM_CLOSED -> GameViewStreamEvent.Payload.SecretRealmClosed(
+            memberIds = root.stringList("memberIds"),
+            backpack = root["backpack"]?.let {
+                json.decodeFromJsonElement<SecretRealmBackpack>(it)
+            } ?: SecretRealmBackpack(),
+        )
+        GameViewStreamEvent.Kind.UNKNOWN -> null
+    }
+
+    private fun parseMonthDetail(root: JsonObject) = GameViewStreamEvent.Payload.MonthSettled(
+        disabledPolicies = root.stringList("disabledPolicies"),
+        seizedSectBuildings = root.stringList("seizedSectBuildings"),
+    )
+
+    private fun parseYearDetail(root: JsonObject) = GameViewStreamEvent.Payload.YearSettled(
+        bereavements = root["bereavements"]?.jsonArray?.mapNotNull { el ->
+            val o = el.jsonObject
+            val gid = o.int("grievingId") ?: return@mapNotNull null
+            BereavementDraft(
+                grievingId = gid,
+                relationship = o.string("relationship") ?: "亲属",
+                deceasedName = o.string("deceasedName") ?: "",
+                grievingAge = o.int("grievingAge") ?: 0,
+            )
+        } ?: emptyList(),
+    )
+
+    private fun parsePurchaseDetail(root: JsonObject): GameViewStreamEvent.Payload.Purchase? {
+        val id = root.string("discipleId") ?: return null
+        return GameViewStreamEvent.Payload.Purchase(
+            discipleId = id,
+            itemName = root.string("itemName") ?: "",
+            age = root.int("age") ?: 0,
+        )
+    }
+
+    private fun parseDeathDetail(root: JsonObject): GameViewStreamEvent.Payload.Death? {
+        val id = root.string("discipleId") ?: return null
+        return GameViewStreamEvent.Payload.Death(
+            AgedDeathDraft(
+                discipleId = id,
+                name = root.string("name") ?: "",
+                surname = root.string("surname") ?: "",
+                age = root.int("age") ?: 0,
+                realm = root.int("realm") ?: 9,
+                realmLayer = root.int("realmLayer") ?: 1,
+                deathYear = root.int("deathYear") ?: 0,
+                cause = root.string("cause") ?: "age",
+                storageBagItems = root["storageBagItems"]?.jsonArray?.mapNotNull { item ->
+                    runCatching {
+                        json.decodeFromJsonElement<StorageBagItem>(item)
+                    }.getOrNull()
+                } ?: emptyList(),
+            )
+        )
+    }
+
+    private fun JsonObject.string(key: String): String? =
+        (this[key] as? JsonPrimitive)?.contentOrNull
+
+    private fun JsonObject.int(key: String): Int? =
+        (this[key] as? JsonPrimitive)?.intOrNull
+
+    private fun JsonObject.stringList(key: String): List<String> =
+        this[key]?.jsonArray
+            ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            ?: emptyList()
 
     /**
      * 行字段表中的**标量面**字段名（present 由 hasXxx 判定的那一批）——

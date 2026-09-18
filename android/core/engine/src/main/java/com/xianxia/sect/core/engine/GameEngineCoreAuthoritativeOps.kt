@@ -198,6 +198,10 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             // 模式，早于任何 nativeExportDirty 调用——与 Kotlin 解码侧读同一
             // [NativeEngineFlag.mirrorProtobufTransport]，生产/解码两端一致。
             GameCoreBridge.nativeSetDirtyExportProtobuf(NativeEngineFlag.mirrorProtobufTransport)
+            // 列级增量导出接线（R2.4/B09 灰度）：与传输编码旗标同点推送，
+            // 早于任何 nativeExportDirty 调用——C++ 导出模式与 Kotlin 解码侧
+            // 读同一 [NativeEngineFlag.dirtyColumnExport]。
+            GameCoreBridge.nativeSetDirtyExportColumn(NativeEngineFlag.dirtyColumnExport)
             // native 初始化完成后补注运行时配置
             // （CultivationEventProcessor 构造时 native 可能未加载——此处幂等补注）
             GameConfigNativeBridge.ensureInjected()
