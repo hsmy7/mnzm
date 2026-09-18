@@ -87,6 +87,7 @@
   - 2026-09-19 06:41 截屏：B10 R3.2 JNI 面重构推进——NativeBridge.cpp 多笔编辑，CLOUD_DATA_STRIDE/tsRectVisible 移核心，核查 drawAllTiles 边界。
   - 2026-09-19 06:50 截屏：B10 Kotlin 侧开工——UV 计数守卫等价修正；NativeEngineFlag 灰度旗标（+22）落地，NativeBridge.kt 新增 8 端口 + drawAllTiles 标 deprecated。
   - 2026-09-19 07:00 截屏：B10 Kotlin 编译通过——drawAllTiles 引用核对；场景等价守卫 scene_equivalence_test.cpp 编写中（六要素×相机多位逐位对照）。
+  - 2026-09-19 07:10 截屏：B10 Kotlin 镜像守卫 5 用例全绿；发现注释内 ✔ 提前终结块注释的经典问题，修复+全局排查；NDK 编译验证中。
   - 2026-09-19 00:00 **队列清理**：发现 3 条滞留看护触发堆积于 ZCode 输入队列（响应出错暂停所致），逐条删除完毕，防三重派工。
   - 2026-09-19 00:08 B09 经 ZCode 派发（焦点红线全过），截屏确认子会话正确复述 4 子项+6 门并开跑。
   - 2026-09-19 00:13 截屏：B09 调研深入——残留执行器现状明确（nativeSettleMonth/Year 返回 JSON 信封、Kotlin 手工解析），读 proto/编码器/GameViewStore 并派并行探索代理理清 C++ 信封生产面与 G2 列级导出面。
