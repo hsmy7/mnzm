@@ -135,6 +135,7 @@
   - 2026-09-18 08:30 **B05 验收通过**：六门全绿（证据见批次总表）。守卫测试发现的既有生产行为缺陷（PatrolBattleSystem 三处写入被结局覆盖）已登记为范围外观察，建议单独立项。转入派发 B06（R2.1+R2.2，进入 R2 阶段）。
   - 2026-09-18 08:25 B06 经 GUI 派发（batch-R2A.md），截屏确认子会话开跑（读批次文件/CLAUDE.md/B03 前置提交）。
   - 2026-09-18 08:27 截屏：B06 调研——proto 基建确认（javaLite+templates.proto 风格），StateSyncService/镜像链路理清，正看 C++ exportDirtyJson/DirtyTracker/JNI 构建脚本。
+  - 2026-09-18 08:29 截屏：B06 JNI 桥确认为纯字节搬运（exportDirtyJson JSON 字符串）；正梳理 dirty 协议携带域与 mirror 段位置。
 
 ## 经验教训（随批追加）
 
