@@ -100,7 +100,7 @@ class StateSyncService @Inject constructor(
      * R2.3 第二波投影态（GameViewStore）。默认值 = 手工构造（测试/非 Hilt 环境）
      * 时的独立实例；生产经 Hilt 注入全局单例，与 UI 消费面读的是同一份投影。
      */
-    private val gameViewStore: GameViewStore = GameViewStore(),
+    internal val gameViewStore: GameViewStore = GameViewStore(),
 ) {
 
     init {

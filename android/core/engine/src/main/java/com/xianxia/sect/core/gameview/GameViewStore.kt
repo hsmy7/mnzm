@@ -72,8 +72,8 @@ data class EventLogView(val records: List<GameEventRecord>)
 @Singleton
 class GameViewStore @Inject constructor() {
 
-    private val _resourcesHeader = MutableStateFlow(RESOURCES_EMPTY)
-    private val _configEcho = MutableStateFlow(CONFIG_EMPTY)
+    private val _resourcesHeader = MutableStateFlow(GameViewStore.RESOURCES_EMPTY)
+    private val _configEcho = MutableStateFlow(GameViewStore.CONFIG_EMPTY)
     private val _eventLog = MutableStateFlow(EventLogView(emptyList()))
 
     /** 已迁 UI 消费块的只读投影面（块①资源头部） */
@@ -140,15 +140,15 @@ class GameViewStore @Inject constructor() {
         projectedGameData = source
         var touched = false
         if (carriedGameDataFields intersects RESOURCES_FIELDS) {
-            _resourcesHeader.value = resourcesView(source)
+            _resourcesHeader.value = resourcesViewOf(source)
             touched = true
         }
         if (carriedGameDataFields intersects CONFIG_FIELDS) {
-            _configEcho.value = configView(source)
+            _configEcho.value = configViewOf(source)
             touched = true
         }
         if (carriedGameDataFields intersects EVENT_LOG_FIELDS) {
-            _eventLog.value = EventLogView(source.gameEventRecords)
+            _eventLog.value = EventLogView(eventRecordsOf(source))
             touched = true
         }
         if (touched) projectionGeneration++
@@ -157,9 +157,9 @@ class GameViewStore @Inject constructor() {
     /** 全块重投（对账 / 低频全量臂）：不区分本封变了什么，三块一次到位。 */
     fun reprojectAll(source: GameData) {
         projectedGameData = source
-        _resourcesHeader.value = resourcesView(source)
-        _configEcho.value = configView(source)
-        _eventLog.value = EventLogView(source.gameEventRecords)
+        _resourcesHeader.value = resourcesViewOf(source)
+        _configEcho.value = configViewOf(source)
+        _eventLog.value = EventLogView(eventRecordsOf(source))
         projectionGeneration++
     }
 
@@ -179,28 +179,9 @@ class GameViewStore @Inject constructor() {
         reprojectAll(current)
     }
 
-    private fun resourcesView(gd: GameData): ResourcesHeaderView {
-        requireInMirrorSurface("资源头部", RESOURCES_FIELDS)
-        return ResourcesHeaderView(
-            spiritStones = gd.spiritStones,
-            midGradeSpiritStones = gd.midGradeSpiritStones,
-            highGradeSpiritStones = gd.highGradeSpiritStones,
-            gameYear = gd.gameYear,
-            gameMonth = gd.gameMonth,
-            gamePhase = gd.gamePhase
-        )
-    }
-
-    private fun configView(gd: GameData): ConfigEchoView {
-        requireInMirrorSurface("配置回声", CONFIG_FIELDS)
-        return ConfigEchoView(
-            sectPolicies = gd.sectPolicies,
-            yearlySalary = gd.yearlySalary,
-            yearlySalaryEnabled = gd.yearlySalaryEnabled,
-            elderSlots = gd.elderSlots,
-            placedBuildings = gd.placedBuildings,
-            autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter
-        )
+    private fun eventRecordsOf(gd: GameData): List<GameEventRecord> {
+        requireInMirrorSurface("事件流", EVENT_LOG_FIELDS)
+        return gd.gameEventRecords
     }
 
     private infix fun Set<String>.intersects(other: Set<String>): Boolean = any { it in other }
@@ -229,8 +210,42 @@ class GameViewStore @Inject constructor() {
         /** 全部已建投影块的消费面字段（对账面） */
         val PROJECTED_FIELDS: Set<String> = RESOURCES_FIELDS + CONFIG_FIELDS + EVENT_LOG_FIELDS
 
-        private val RESOURCES_EMPTY = ResourcesHeaderView(0L, 0L, 0L, 1, 1, 0)
-        private val CONFIG_EMPTY = ConfigEchoView(
+        /**
+         * 块①视图构造（投影契约 = [RESOURCES_FIELDS]）。
+         *
+         * 纯函数且两臂共用：[com.xianxia.sect.core.engine.GameEngine] 的回滚臂
+         * （旗标关）从整份 gameData 派生同一视图，保证"迁移只换来源、不换值"。
+         */
+        fun resourcesViewOf(gd: GameData): ResourcesHeaderView {
+            requireInMirrorSurface("资源头部", RESOURCES_FIELDS)
+            return ResourcesHeaderView(
+                spiritStones = gd.spiritStones,
+                midGradeSpiritStones = gd.midGradeSpiritStones,
+                highGradeSpiritStones = gd.highGradeSpiritStones,
+                gameYear = gd.gameYear,
+                gameMonth = gd.gameMonth,
+                gamePhase = gd.gamePhase
+            )
+        }
+
+        /** 块②视图构造（投影契约 = [CONFIG_FIELDS]，两臂共用纯函数） */
+        fun configViewOf(gd: GameData): ConfigEchoView {
+            requireInMirrorSurface("配置回声", CONFIG_FIELDS)
+            return ConfigEchoView(
+                sectPolicies = gd.sectPolicies,
+                yearlySalary = gd.yearlySalary,
+                yearlySalaryEnabled = gd.yearlySalaryEnabled,
+                elderSlots = gd.elderSlots,
+                placedBuildings = gd.placedBuildings,
+                autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter
+            )
+        }
+
+        /** 块①空态（未装载 / 换档复位） */
+        val RESOURCES_EMPTY = ResourcesHeaderView(0L, 0L, 0L, 1, 1, 0)
+
+        /** 块②空态 */
+        val CONFIG_EMPTY = ConfigEchoView(
             sectPolicies = SectPolicies(),
             yearlySalary = emptyMap(),
             yearlySalaryEnabled = emptyMap(),

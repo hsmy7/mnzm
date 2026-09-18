@@ -96,7 +96,40 @@ class MirrorConsumerSurfaceGuardTest {
             flagSource.contains("var mirrorProtobufTransport: Boolean = true")
         )
         assertTrue("运行期旗标默认值", NativeEngineFlag.mirrorProtobufTransport)
+        assertTrue(
+            "第二波投影旗标默认值漂移（R2.3 二波生产默认 = 投影态生效）",
+            flagSource.contains("var gameViewProjection: Boolean = true")
+        )
+        assertTrue("运行期旗标默认值（第二波）", NativeEngineFlag.gameViewProjection)
     }
+
+    /**
+     * R2.3 第二波「ViewModel 逐块迁移」来源锁定。
+     *
+     * 每迁一个 UI 消费块，就把该块登记进 [MIGRATED_BLOCKS]：块的 ViewModel 取数面
+     * 必须引用投影入口（[projectedFrom]），且迁移前的整份快照取数面
+     * （[legacySource]）必须已从源码消失。漏登记 / 半途回退 / 只改一半 ⇒ 本守卫红，
+     * 保证"逐块可回滚"的编排前提在源码面可核。
+     */
+    @Test
+    fun `已迁 UI 消费块以投影为来源（逐块迁移台账）`() {
+        val viewModel = readMainFile(GAME_VIEW_MODEL_FILE)
+        for (block in MIGRATED_BLOCKS) {
+            assertTrue(
+                "已迁块「${block.name}」的投影入口消失（${block.projectedFrom}）——" +
+                    "第二波迁移被回退或改到一半",
+                viewModel.contains(block.projectedFrom)
+            )
+            assertTrue(
+                "已迁块「${block.name}」仍从整份 gameData 快照取数（${block.legacySource}）" +
+                    "——迁移未完成却保留双源，两臂可能分叉",
+                !viewModel.contains(block.legacySource)
+            )
+        }
+    }
+
+    /** 已迁 UI 消费块台账（块名 / 投影入口 / 迁移前取数面） */
+    private data class MigratedBlock(val name: String, val projectedFrom: String, val legacySource: String)
 
     // ── 扫描工具 ────────────────────────────────────────────────
 
@@ -140,6 +173,20 @@ class MirrorConsumerSurfaceGuardTest {
             "core/engine:java/com/xianxia/sect/core/gameview/GameViewDiscipleRows.kt"
         private const val FLAG_FILE =
             "core/engine:java/com/xianxia/sect/core/nativebridge/NativeEngineFlag.kt"
+        private const val GAME_VIEW_MODEL_FILE =
+            "feature/game:java/com/xianxia/sect/ui/game/GameViewModel.kt"
+
+        /**
+         * R2.3 第二波逐块迁移台账（块①资源头部 / 块②配置回声 / 块③事件流）。
+         * 每迁一块加一行；未迁块不得出现在此表。
+         */
+        private val MIGRATED_BLOCKS = listOf(
+            MigratedBlock(
+                name = "块①资源头部（仓库页灵石三阶）",
+                projectedFrom = "gameEngine.resourcesHeader",
+                legacySource = "val spiritStoneTotals: StateFlow<SpiritStoneTotals> = gameData"
+            )
+        )
 
         /** 镜像通道符号族（UI 侧出现即 = 绕过 GameStateStore 直连馈送链） */
         private val MIRROR_SYMBOLS = Regex(

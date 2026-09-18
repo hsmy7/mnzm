@@ -156,6 +156,9 @@ class GameViewModelTest {
         // 测试通过改 gameDataFlow.value 驱动命令总线推送
         gameDataFlow = MutableStateFlow(GameData())
         every { gameEngine.gameData } returns gameDataFlow
+        every { gameEngine.resourcesHeader } returns MutableStateFlow(
+            com.xianxia.sect.core.gameview.GameViewStore.RESOURCES_EMPTY
+        )
         every { gameEngine.discipleAggregates } returns MutableStateFlow(emptyList<DiscipleAggregate>())
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
         every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())

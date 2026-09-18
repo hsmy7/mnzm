@@ -154,6 +154,10 @@ class GameEngine @Inject constructor(
     internal val stateSyncService: com.xianxia.sect.core.nativebridge.StateSyncService
         get() = gameEngineCore.stateSyncServiceRef
 
+    /** 镜像消费块投影态（R2.3 第二波；随 StateSyncService 同实例，UI 已迁块的来源） */
+    internal val gameViewStore: com.xianxia.sect.core.gameview.GameViewStore
+        get() = stateSyncService.gameViewStore
+
     init {
         // 注入任务完成检测回调到 GameEngineCore，
         // 确保空闲期间任务完成也能被每月结算及时检测
@@ -402,6 +406,28 @@ class GameEngine @Inject constructor(
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
     val sectCombatPower: StateFlow<Long> get() = stateStore.sectCombatPower
     val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = stateStore.aiSectCombatPowers
+    /**
+     * UI 消费块①「资源头部」的取数入口（R2.3 第二波逐块迁移首块）。
+     *
+     * 开旗标 = GameViewStore 投影（镜像按封触及才重投，未触及块引用不变）；
+     * 关旗标 = 从整份 gameData 快照派生**同一视图类型**（第一波形态回滚臂）——
+     * 两臂共用 [com.xianxia.sect.core.gameview.GameViewStore.resourcesViewOf]，
+     * 同输入同输出，迁移只换来源不换值。
+     */
+    val resourcesHeader: StateFlow<com.xianxia.sect.core.gameview.ResourcesHeaderView> by lazy {
+        if (com.xianxia.sect.core.nativebridge.NativeEngineFlag.gameViewProjection) {
+            gameViewStore.resourcesHeader
+        } else {
+            stateStore.gameData.map { com.xianxia.sect.core.gameview.GameViewStore.resourcesViewOf(it) }
+                .distinctUntilChanged()
+                .stateIn(
+                    gameEngineCore.scopeForStateIn(),
+                    kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
+                    com.xianxia.sect.core.gameview.GameViewStore.RESOURCES_EMPTY
+                )
+        }
+    }
+
     val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = stateStore.highFreqState
     val entityState: StateFlow<GameStateStore.EntityState> get() = stateStore.entityState
     val configState: StateFlow<GameStateStore.ConfigState> get() = stateStore.configState

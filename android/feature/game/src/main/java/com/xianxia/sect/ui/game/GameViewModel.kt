@@ -188,8 +188,14 @@ class GameViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, gameData.value.watchedItemIds.toSet())
 
-    /** 灵石三品阶总量（仓库页窄流，替代整份 gameData 收集减少重组） */
-    val spiritStoneTotals: StateFlow<SpiritStoneTotals> = gameData
+    /**
+     * 灵石三品阶总量（仓库页窄流数据）。
+     *
+     * R2.3 第二波逐块迁移·块①「资源头部」：来源由整份 gameData 快照 map 换成
+     * [GameEngine.resourcesHeader] 投影流——镜像未按封触及头部时不产生新值，
+     * UI 消费语义与取值逐字段不变（两臂共用同一视图构造函数）。
+     */
+    val spiritStoneTotals: StateFlow<SpiritStoneTotals> = gameEngine.resourcesHeader
         .map { SpiritStoneTotals(it.spiritStones, it.midGradeSpiritStones, it.highGradeSpiritStones) }
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, SpiritStoneTotals(0, 0, 0))
