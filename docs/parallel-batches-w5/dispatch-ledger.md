@@ -139,6 +139,7 @@
   - 2026-09-18 08:30 截屏：B06 设计权衡——考量 C++ 直出 protobuf（免中间 JSON）与 JSON 转码两条路线的取舍。
   - 2026-09-18 08:36 截屏：B06 schema 勘探——Disciple 模型 109 协议列+嵌套子结构确认，正查 json_codec 实际协议形状定 proto 字段清单。
   - 2026-09-18 08:46 截屏：B06 架构成型——镜像 proto 定为独立新 schema（存档面 DiscipleSurrogate 不动）；ActionId 同源生成机制确认为扩展正道；正确认生成器/桌面桥/NDK 源清单。
+  - 2026-09-18 08:56 截屏：B06 R2.1 实施中——game_view.proto +305 行；C++ 编码器表驱动+手写 wire format（gamecore 零依赖）470 余行；DirtyTracker 增 diffToTree 共用树产物。
 
 ## 经验教训（随批追加）
 
