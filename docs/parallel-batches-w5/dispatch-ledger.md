@@ -48,7 +48,7 @@
 | B04 | 秘境战斗切 native（会话/邮件/暂停租约留 Kotlin） | R4.2 | **accepted**（2026-09-18 07:05） | fa8fa5833（SecretRealmService 17 行战斗段切换 + 246 行路由回归测试）/ 文档 29a033abc；看护亲跑：GTest 1443/1443（34.6s）+ 组合门 339 任务全 executed 22m13s（engine XML 3299/0skip/0fail）；改动面极小而精准（Kotlin 仅服务 17 行），回退臂按规保留 |
 | B05 | 探索/巡逻生产结果下沉 | R4.3 | **accepted**（2026-09-18 08:30） | 7197a4847（路由器 6 行+ExplorationService 7 行+PatrolBattleSystem 15 行+404 行守卫测试）/ 文档 8e8b8e144；看护亲跑：GTest 1443/1443（37.4s，纯 Kotlin 批无需重建二进制）+ 组合门 339 任务全 executed 23m20s（engine XML 3304/0skip/0fail）；守卫测试实测发现既有生产行为缺陷（PatrolBattleSystem 结局覆盖事务缓冲）已按红线登记建议另立项 |
 | B06 | GameView proto 定义 + nativeExportDirty 信封 + StateSyncService 解码 | R2.1 + R2.2 | **accepted**（2026-09-18 09:55） | daa8eeb11（proto 305 行+C++ 零依赖编码器 466 行+317 行测试）/ 6b3354708（JNI 换轨+解码器 309 行+等价守卫 189 行+灰度 flag）/ 9e1d9c0cc（bench 43 行）/ 文档 147a53cab；看护亲跑：GTest 1453/1453（49.8s，二进制显式重建）+ 组合门 339 任务全 executed 25m06s（engine XML 3307/0skip/0fail）；JNI 新增 1 控制端口已登记豁免，存档面零变更 |
-| B07 | UI 消费面第一波：只换传输（镜像仍全量、二进制） | R2.3(一) | pending | — |
+| B07 | UI 消费面第一波：只换传输（镜像仍全量、二进制） | R2.3(一) | **accepted**（2026-09-18 21:05） | 五提交：707cbf2df（馈送等价守卫 478 行）/ cb59bf537（三臂收敛 247 行）/ 57f1d67ae（单一入口静态门禁 145 行）/ 18083ac5a（夹具拆分合规）/ 34f9ec767（文档+审计报告）；看护亲跑：GTest 1453/1453（纯 Kotlin 批）+ 组合门 339 任务全 executed 23m02s（engine XML 3313/0skip/0fail）；审计结论：B06 后热路径已 100% proto 馈送，F3 兜底臂为设计保留非缺口——按批次文件零缺口分支交付守卫与证明 |
 | B08 | 第二波：replaceAll 退役 + GameViewStore 投影态 + ViewModel 逐块迁移 | R2.3(二) | pending | — |
 | B09 | 月/年信封并入 eventFeed + 残留执行器退化为平台效应适配器；G2/WS-1 验收 | R2.4 | pending | — |
 | B10 | C++ SceneStore 新模块 + JNI 面重构（drawAllTiles 17 参数退役） | R3.1 + R3.2 | pending | — |
@@ -67,15 +67,19 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-18 20:03（verifying 进行中：B07 报告已出，看护复跑验收门；后续轮次只做监控勿抢）
-- **状态**：`verifying`（B07 子会话已交付最终报告，看护亲自复跑验收门）
-- **当前批**：B07（R2.3 第一波 UI 消费面二进制切换，批次文件 `batch-R2B.md`）
-- **派发渠道**：**Qoder**（用户指定，默认模型 Qwen3.8-Flash，完全访问，新建任务快捷键 Ctrl+N；工作区 XianxiaSectNative/main）
-- **派发时间**：2026-09-18 18:40（Qoder Ctrl+N 新任务，输入指令回车，截屏确认开跑）
+- **看护锁**：—
+- **状态**：`dispatch`（B07 已验收通过，待派 B08）
+- **当前批**：B08（R2.3 第二波 GameViewStore 投影态+replaceAll 退役，批次文件 `batch-R2C.md` 已就绪）
+- **派发渠道**：**Qoder**（默认模型 Qwen3.8-Flash，完全访问，Ctrl+N 新建任务）
+- **派发时间**：—
 - **缺陷清单**：—
 - **监控日志**：
   - 2026-09-18 ~09:55 **B06 验收通过**：五门全绿（证据见批次总表）。用户暂停后于傍晚恢复，确认 B06 已由用户在 Qoder 亲自完成并交付；看护复跑验收门后转 accepted。
   - 2026-09-18 18:40 **恢复编排 + 渠道切 Qoder**：B07 经 Qoder Ctrl+N 派发，截屏确认子会话开跑（读批次文件/审计镜像馈送链消费点）。
+  - 2026-09-18 ~20:40 **事故与纠正**：两轮看护触发派发时未核实窗口焦点，Ctrl+N 误落 ZCode 产生两条指令——用户已取消，仓库零污染（无提交无改动）。纠正：派发步骤硬性增加"Ctrl+N 前截屏确认前台窗口为 Qoder，不是则先 App switch 并复验"。
+  - 2026-09-18 21:05 **B07 验收通过**：五门全绿（证据见批次总表）。转入派发 B08（R2.3 第二波）。
+
+## 经验教训（随批追加）
   - 2026-09-18 18:53 截屏：B07 审计深入（执行 763s）——解析 Disciple 领域模型与 DiscipleSerializer 协议字段映射，守卫测试夹具设计中。
   - 2026-09-18 19:03 截屏：B07 等价性工作展开（+780 行）——发现 JSON 臂 vs proto 臂 upsert 计数语义分歧（2 vs 3）正追因；T1 typed 行同形馈送守卫通过；写 T2 DiffMirrorArmConvergenceTest（JUnit+桌面 JNI）。
   - 2026-09-18 19:13 截屏：B07 守卫测试调试迭代（步骤 2/4，3 文件 +141 行）——修正字符串字面量/注释语法小问题。
@@ -163,3 +167,4 @@
 - GTest 基线随守卫增长：1419（B01 前）→ 1425（B02）→ 1443（B03，含 bench 3 用例；GAMECORE_BUILD_BENCH 本地默认关时 1440）。验收前先读当批报告确认基线。
 - **环境隐患（B04 实证）**：Kotlin 编译守护进程可能在增量编译后持续持有 classes.jar 句柄，导致 --rerun-tasks 全量在同一任务确定性失败（FileSystemException）；处置 = 终止 Kotlin 编译守护进程 + 清理后重跑。看护验收组合门与子会话构建不要同时跑（先后错峰）。
 - B05 实证：纯 Kotlin 批（R4.2/R4.3 类）验收时 GTest 二进制无需重建（ctest 直接跑，35 秒级）；组合门仍须 --rerun-tasks。子会话会主动发现既有生产缺陷并按"不改行为"红线登记而非擅修（PatrolBattleSystem 结局覆盖三处写入，PatrolBattleSystem.kt:396-512 一带）——此类发现须在收官总结单列。
+- **派发焦点红线（B07 后事故教训）**：Qoder 派发前必须截屏确认前台窗口是 Qoder——windows-mcp 的键击发给"当前焦点窗口"，焦点判定曾出现"找不到活动窗口"的空窗态，此时 Ctrl+N 会落到别的应用（曾误落 ZCode）。标准序：App switch Qoder → 截屏确认（标题/UI 特征）→ 再 Ctrl+N → 截屏再确认新任务页特征 → 输入 → 回车 → 截屏确认开跑。任一步特征不符即中止重试，禁止盲发。
