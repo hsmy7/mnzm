@@ -77,6 +77,7 @@
   - 2026-09-18 ~09:55 **B06 验收通过**：五门全绿（证据见批次总表）。用户暂停后于傍晚恢复，确认 B06 已由用户在 Qoder 亲自完成并交付；看护复跑验收门后转 accepted。
   - 2026-09-18 18:40 **恢复编排 + 渠道切 Qoder**：B07 经 Qoder Ctrl+N 派发，截屏确认子会话开跑（读批次文件/审计镜像馈送链消费点）。
   - 2026-09-18 18:53 截屏：B07 审计深入（执行 763s）——解析 Disciple 领域模型与 DiscipleSerializer 协议字段映射，守卫测试夹具设计中。
+  - 2026-09-18 19:03 截屏：B07 等价性工作展开（+780 行）——发现 JSON 臂 vs proto 臂 upsert 计数语义分歧（2 vs 3）正追因；T1 typed 行同形馈送守卫通过；写 T2 DiffMirrorArmConvergenceTest（JUnit+桌面 JNI）。
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
   - 2026-09-17 23:07 截屏：B01 施工健康——上下文就绪（CLAUDE.md/CHANGELOG/桌面对拍构建入口已读，build/desktop-test/ 缓存在），核对 breakthrough_test.cpp 的 performBreakthrough 版本后即动手 R1.1；无弹窗。
   - 2026-09-17 23:16 截屏：R1.1+R1.5 代码改造完成，桌面 GTest 全量 1419/1419 全绿（与 §7.1 基线一致）；正按"每子项独立 commit"红线做拆分验证（stash R1.5 单验 R1.1）。
