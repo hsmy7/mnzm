@@ -80,6 +80,7 @@
   - 2026-09-19 06:00 截屏：B10 调研推进——SpriteAtlasDef/RenderFrame/CMakeLists/build-desktop-jni.ps1 依次读透。
   - 2026-09-19 06:05 截屏：B10 调研深入——数据流清楚，正看 gamecore 地图模块/terrain 单一来源、JNI 豁免先例、灰度旗标先例与 SpriteBatcher/SceneCloud 结构。
   - 2026-09-19 06:08 截屏：B10 思考更新——SceneCloud 结构与 -DSPRITE_GENERATED_DIR 生成头在桌面 GTest 的源控落位问题考量中。
+  - 2026-09-19 06:15 截屏：B10 设计成型——核查 Rhi.h 零 Android 依赖（桌面复用 SpriteBatcher 可行性）、CI 桌面 GTest+codegen 接线；规划 scene_equivalence_test.cpp（vertex-stream）场景等价守卫。注：本轮发现看护窗口聚焦过编排队列编排会话本身，已通过点侧栏会话项切至 B10 视图——后续监控轮次需先确认视图。
   - 2026-09-19 00:00 **队列清理**：发现 3 条滞留看护触发堆积于 ZCode 输入队列（响应出错暂停所致），逐条删除完毕，防三重派工。
   - 2026-09-19 00:08 B09 经 ZCode 派发（焦点红线全过），截屏确认子会话正确复述 4 子项+6 门并开跑。
   - 2026-09-19 00:13 截屏：B09 调研深入——残留执行器现状明确（nativeSettleMonth/Year 返回 JSON 信封、Kotlin 手工解析），读 proto/编码器/GameViewStore 并派并行探索代理理清 C++ 信封生产面与 G2 列级导出面。
