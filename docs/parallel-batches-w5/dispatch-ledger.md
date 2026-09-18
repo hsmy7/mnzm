@@ -47,7 +47,7 @@
 | B03 | DirtyTracker 列级写屏障 + destroyDiscipleEntities 去 O(D²) + R1 收官 bench（证明 G1） | R1.4 + R1.6 | **accepted**（2026-09-18 05:20）**R1 阶段收官** | eb9812c0a / 7e3bb87a9 / c97d7a4b0 / 文档 144dcb238；看护亲跑：GTest 1443/1443（35s）+ 组合门 339 任务全 executed 22m55s（engine XML 3296/0skip/0fail）；**G1 实证：结算 core 17 次 malloc / ~1.8ms @5000 弟子（目标 <1 万、基线 ~15 万），门禁断言 <10000 接线 ci.yml**；改动面全 gamecore C++（新增 column_dirty.h 698 行 + bench 229 行 + 守卫 346 行），CI 面仅 ci.yml 门禁开关 |
 | B04 | 秘境战斗切 native（会话/邮件/暂停租约留 Kotlin） | R4.2 | **accepted**（2026-09-18 07:05） | fa8fa5833（SecretRealmService 17 行战斗段切换 + 246 行路由回归测试）/ 文档 29a033abc；看护亲跑：GTest 1443/1443（34.6s）+ 组合门 339 任务全 executed 22m13s（engine XML 3299/0skip/0fail）；改动面极小而精准（Kotlin 仅服务 17 行），回退臂按规保留 |
 | B05 | 探索/巡逻生产结果下沉 | R4.3 | **accepted**（2026-09-18 08:30） | 7197a4847（路由器 6 行+ExplorationService 7 行+PatrolBattleSystem 15 行+404 行守卫测试）/ 文档 8e8b8e144；看护亲跑：GTest 1443/1443（37.4s，纯 Kotlin 批无需重建二进制）+ 组合门 339 任务全 executed 23m20s（engine XML 3304/0skip/0fail）；守卫测试实测发现既有生产行为缺陷（PatrolBattleSystem 结局覆盖事务缓冲）已按红线登记建议另立项 |
-| B06 | GameView proto 定义 + nativeExportDirty 信封 + StateSyncService 解码 | R2.1 + R2.2 | pending | — |
+| B06 | GameView proto 定义 + nativeExportDirty 信封 + StateSyncService 解码 | R2.1 + R2.2 | **accepted**（2026-09-18 09:55） | daa8eeb11（proto 305 行+C++ 零依赖编码器 466 行+317 行测试）/ 6b3354708（JNI 换轨+解码器 309 行+等价守卫 189 行+灰度 flag）/ 9e1d9c0cc（bench 43 行）/ 文档 147a53cab；看护亲跑：GTest 1453/1453（49.8s，二进制显式重建）+ 组合门 339 任务全 executed 25m06s（engine XML 3307/0skip/0fail）；JNI 新增 1 控制端口已登记豁免，存档面零变更 |
 | B07 | UI 消费面第一波：只换传输（镜像仍全量、二进制） | R2.3(一) | pending | — |
 | B08 | 第二波：replaceAll 退役 + GameViewStore 投影态 + ViewModel 逐块迁移 | R2.3(二) | pending | — |
 | B09 | 月/年信封并入 eventFeed + 残留执行器退化为平台效应适配器；G2/WS-1 验收 | R2.4 | pending | — |
@@ -68,12 +68,13 @@
 ## 当前状态
 
 - **看护锁**：—
-- **状态**：`paused_by_user`（用户于 2026-09-18 ~09:00 要求暂停；看护定时任务 automation-6b6fabaf 已删除）
-- **当前批**：B06（R2.1+R2.2 GameView proto+镜像通道换 protobuf，批次文件 `batch-R2A.md`）
-- **派发时间**：2026-09-18 08:25（GUI 新建任务派发，模型 GLM-5.3-Flash，完全访问，项目 XianxiaSectNative/main）
+- **状态**：`dispatch`（B06 已验收通过，待派 B07）
+- **当前批**：B07（R2.3 第一波 UI 消费面二进制切换，批次文件 `batch-R2B.md` 已就绪）
+- **派发渠道**：**Qoder**（用户指定，默认模型，新建任务快捷键 Ctrl+N；B06 为 ZCode 末批）
+- **派发时间**：—
 - **缺陷清单**：—
-- **恢复指引（用户说"继续"后照做）**：① 重建 10 分钟看护 cron（原 prompt 逐字复用）；② 先截屏看 B06 子会话现状——若已出最终报告则按手册转 verifying，若仍在施工则恢复监控，若已中断/报错则视提交情况处置（git log 看 B06 提交是否落库）；③ 其余照手册。
 - **监控日志**：
+  - 2026-09-18 ~09:55 **B06 验收通过**：五门全绿（证据见批次总表）。转入派发 B07（R2.3 第一波），渠道切 Qoder。
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
   - 2026-09-17 23:07 截屏：B01 施工健康——上下文就绪（CLAUDE.md/CHANGELOG/桌面对拍构建入口已读，build/desktop-test/ 缓存在），核对 breakthrough_test.cpp 的 performBreakthrough 版本后即动手 R1.1；无弹窗。
   - 2026-09-17 23:16 截屏：R1.1+R1.5 代码改造完成，桌面 GTest 全量 1419/1419 全绿（与 §7.1 基线一致）；正按"每子项独立 commit"红线做拆分验证（stash R1.5 单验 R1.1）。
