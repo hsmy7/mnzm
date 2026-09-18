@@ -100,7 +100,7 @@ class MirrorConsumerSurfaceGuardTest {
     private fun kotlinHits(pattern: Regex): List<String> =
         moduleMainDirs.flatMap { (moduleName, dir) -> scan(dir, moduleName, pattern) }.sorted()
 
-    /** 命中记为 "模块:相对路径:行号 | 行内容"，比对时仅取路径部分（行号随编辑漂移）。 */
+    /** 命中记为 `模块:相对路径:行号`，比对时仅取路径部分（行号随编辑漂移）。 */
     private fun scan(dir: File, moduleName: String, pattern: Regex): List<String> {
         assertTrue("模块主源目录不存在: $moduleName -> $dir", dir.isDirectory)
         return dir.walkTopDown()

@@ -365,3 +365,25 @@ data 15 + app 2 既有；`GameEngineCoreLifecycleInterleavingTest` 已知抖动�
 `compileReleaseKotlin`/`lintRelease` 绿；协议 JSON 面零变更、存档格式零变更，JNI 面仅新增 1 个
 引擎控制端口（`nativeSetDirtyExportProtobuf`，已登记豁免理由）。**G2 <10ms 终态属 R2.3 镜像瘦身
 （本批镜像仍全量，仅换传输编码；本批证明 mirror 段未劣化、JNI 传输字节缩至 1/5.5）**。
+
+#### B07 批（2026-09-18）= R2.3 第一波（UI 消费面完成二进制传输切换，镜像仍全量）
+
+批次文件 `docs/parallel-batches-w5/batch-R2B.md`；逐子项独立 commit（全链路馈送等价守卫 =
+707cbf2df；三臂收敛守卫 + 观测固化 = cb59bf537；消费面单一入口静态门禁 = 57f1d67ae；守卫夹具
+拆分（detekt 合规）= 18083ac5a；文档三件套 + 审计报告 = 见下）。审计报告
+**`docs/mirror-consumer-audit-2026-09-18.md`**。前置 = B06（R2.1+R2.2）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R2.3（一） | ✅ | **UI 消费面二进制传输切换收官（生产代码零变更——切换实质已由 B06 完成，本批补齐守卫与证明）**。① **消费面审计**（馈送点清单 F1–F7，逐点核查 `StateSyncService → GameStateStore`）：以"JNI 拉取点 / store 写入点 / 解码产物 import 面 / UI 模块符号命中"四锚定位——热路径稳态馈送（每旬 tick、`tryExecuteNative`/`executeRaw`、月变、年变后，13 个调用文件）**已 100% 由 GameView protobuf 二进制信封馈送**（F1）；**唯一残余 JSON 点 = F3 全量快照兜底臂**（`syncFromNative`，仅在增量臂返回 null 时触发），判**不属本波可切面**并留档四条依据：R2.2 已声明 `nativeExportState` 全量 JSON 保留、本批"C++ 侧不动"红线（切它需 C++ 全量 GameView 编码器 + 新端口）、全量视图字段域应与第二波 GameViewStore 投影一起定、且 F1↔F3 收敛已由守卫锁定（不构成 UI 语义分叉）。F4 月/年信封属 R2.4、F5 动作结果信封非馈送点、F6 为反向回导、F7 渲染面属 R3；**GameStateStore 仍全量 replaceAll 一字未改**（第二波退役）。② **全链路守卫补齐**（验收门 4）：`MirrorProtoFeedEquivalenceTest`（Robolectric，夹具拆至 `MirrorProtoFeedFixture`/`MirrorDiscipleRowFixture`）——proto 信封 → 解码 → applier → **GameStateStore 馈送**与旧 JSON 路径逐字段同形同值（弟子整行 **109 协议字段**恒设、每个 wire 类别取非默认值，集合 upsert/remove、gameData 标量+容器、`DirtyApplyResult` 计数、单事务原子 + "防两臂同错"期望值断言）；`DiffMirrorArmConvergenceTest`（桌面 JNI 0 skip）——12 旬真实 C++ 结算下 **F1（二进制增量）↔ F2（JSON 回滚）↔ F3（全量兜底）三臂全等** + 版本号单调（基线消费在**序列**上不错位，B06 只锁单封）+ 换轨生效（信封非 JSON 文本）。③ **审计结论静态化**：`MirrorConsumerSurfaceGuardTest`——`GameCoreBridge.nativeExport(Dirty\|State)(` 调用点唯一 = `StateSyncService`、`proto.gameview` import 唯一 = `GameViewMirrorCodec`、`core/ui` + `feature` 各模块对镜像符号零命中（UI 只读 GameStateStore 流）、灰度双分支与旗标默认值在源码面保留 ⇒ 未审计的第二消费入口一旦长出即红。**观测固化**：传输字节比 0.20（proto 18493B vs JSON 91480B，与 B06 bench 5000 弟子 1/5.5 同向）、增量臂 mirror 稳态中位 2.6ms/旬（首封 194ms = protobuf 运行时一次性初始化）、兜底臂 3.2ms/旬，两臂 < 100ms 告警线；F3 触发 0/12 旬（增量臂恒非 null）。**灰度开关零变更**：`NativeEngineFlag.mirrorProtobufTransport` 默认 true，false = F2 回滚臂，新旧共存一个版本周期（删除属独立批次）。**诚实边界登记**：解码树内 `collectionChange.upsertsJson`/`gameDataChange.valueJson`/`storageBagItemsJson` 仍为"二进制信封内嵌 JSON 原文"（R2.1 v1 过渡编码）——跨语言字节已全二进制，消费者侧 JSON parse 与全量 replaceAll 一并属第二波收益面，**G2 <10ms 终态仍在 R2.3 第二波**。**本批零 C++ 变更、零 Kotlin 主源变更、零 JNI/协议 JSON/存档变更**（桌面 GTest 基线 1453 持平、二进制无重建）。
+
+测试口径：桌面全量 GTest **1453/1453**（携 `-ffp-contract=off` 旗标；本批零 C++ 变更，
+`ninja: no work to do` + ctest 直接跑，68.19s）+ `testReleaseUnitTest` 全量串行
+`--rerun-tasks` 实跑（六模块 **7794 用例 / 0 失败 / 17 跳过**，**339 任务全 executed
+非 UP-TO-DATE**（组合门：testReleaseUnitTest + detekt + compileReleaseKotlin +
+lintRelease，24m43s）；
+`:core:engine` 3313 = 基线 3307 + `MirrorProtoFeedEquivalenceTest` 1 +
+`DiffMirrorArmConvergenceTest` 1 + `MirrorConsumerSurfaceGuardTest` 4，含 49 个 `Diff*Test`
+**272 用例 0 skip**；17 跳过 = data 15 + app 2 既有）+ detekt 绿 +
+`compileReleaseKotlin`/`lintRelease` 绿。
+

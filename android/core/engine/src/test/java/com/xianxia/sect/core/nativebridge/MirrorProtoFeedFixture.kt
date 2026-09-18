@@ -36,7 +36,7 @@ internal object MirrorProtoFeedFixture {
     const val UNLOCKED_MANUALS_JSON = """["man-a","man-b"]"""
     val json: Json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
-    /** 弟子 upsert 载荷：旧臂直接进 JSON 树，新臂经 [toGameViewRow] 逐字段 typed 化。 */
+    /** 弟子 upsert 载荷：旧臂直接进 JSON 树，新臂经 [MirrorDiscipleRowFixture.toGameViewRow] 逐字段 typed 化。 */
     fun discipleUpsertsJson(d: Disciple): String {
         val rich = json.encodeToString(Disciple.serializer(), d)
         val fresh = """{"id":"$NEW_DISCIPLE_ID","name":"新弟子","isAlive":true}"""
