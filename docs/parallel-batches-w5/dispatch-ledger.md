@@ -138,6 +138,7 @@
   - 2026-09-18 08:29 截屏：B06 JNI 桥确认为纯字节搬运（exportDirtyJson JSON 字符串）；正梳理 dirty 协议携带域与 mirror 段位置。
   - 2026-09-18 08:30 截屏：B06 设计权衡——考量 C++ 直出 protobuf（免中间 JSON）与 JSON 转码两条路线的取舍。
   - 2026-09-18 08:36 截屏：B06 schema 勘探——Disciple 模型 109 协议列+嵌套子结构确认，正查 json_codec 实际协议形状定 proto 字段清单。
+  - 2026-09-18 08:46 截屏：B06 架构成型——镜像 proto 定为独立新 schema（存档面 DiscipleSurrogate 不动）；ActionId 同源生成机制确认为扩展正道；正确认生成器/桌面桥/NDK 源清单。
 
 ## 经验教训（随批追加）
 
