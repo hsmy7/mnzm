@@ -14,6 +14,7 @@
 #include "gamecore/state/column_dirty.h"
 #include "gamecore/state/dirty_tracker.h"
 #include "gamecore/state/models.h"
+#include "gamecore/state/gameview_encode.h"
 #include "gamecore/system/ai_sect_ops.h"
 #include "gamecore/system/engine_loop.h"
 #include "gamecore/system/settlement.h"
@@ -320,9 +321,22 @@ private:
     /// 列级写屏障追踪器（R1.4 能力 + B09 挂载：与 dirtyTracker_ 同点
     /// resetBaseline、同点全量导出清位图）
     state::ColumnDirtyTracker columnTracker_;
+    /// proto eventFeed 待发队列（R2.4：月/年结算信封 + 突破事件入流；
+    /// proto 传输开启时入队、exportDirtyProto 编码成功后清空——导出即消费；
+    /// JSON 回滚臂不入队（信封 JSON 面零变更红线））
+    std::vector<state::ViewEventDraft> pendingViewEvents_;
+    /// 突破事件收割游标（gameEventRecords.sequenceId 水位——phase 结算后
+    /// 只收割新增 SECT/breakthrough 记录；导入时推到当前最大防旧档重放）
+    int64_t breakthroughHarvestedSequence_ = 0;
+
     /// 月/年结算边界粗粒度列标脏（审计列集全行标脏——月/年级频率，
     /// 宁多标不漏标；phase 路径为写点级精确标脏不经此）
     void markMonthYearBoundaryColumns();
+    /// proto eventFeed 入队（dirtyExportProtobuf_ 开启时才入队——JSON 回滚臂
+    /// 不产事件，信封 JSON 面零变更）
+    void queueViewEvent(state::ViewEventType type, const std::string& detailJson);
+    /// 突破记录收割为 BREAKTHROUGH 事件（sequenceId 水位增量扫描）
+    void harvestBreakthroughEvents();
 };
 
 }  // namespace gamecore

@@ -276,7 +276,7 @@ TEST_F(GameViewEncodeTest, ConfigEchoPresentWhenVersionNonEmpty) {
     EXPECT_TRUE(fieldsWith(fs2, 5).empty());  // 空 schemaVersion → 省略
 }
 
-// ── eventFeed：本批不产出（R2.4 接线）──────────────────────────────
+// ── eventFeed：缺省不产出（R2.1/R2.2 历史字节不变）────────────────
 TEST_F(GameViewEncodeTest, EventFeedNotEmitted) {
     const json tree = {
         {"version", 1},
@@ -286,6 +286,69 @@ TEST_F(GameViewEncodeTest, EventFeedNotEmitted) {
     std::vector<std::pair<uint32_t, DecodedField>> fs;
     ASSERT_TRUE(decodeFields(encodeGameView(tree, ""), fs));
     EXPECT_TRUE(fieldsWith(fs, 4).empty());  // 无 field 4
+}
+
+// ── eventFeed：R2.4 转正——事件列表逐条编码为 ViewEvent ────────────
+TEST_F(GameViewEncodeTest, EventFeedEmittedWhenProvided) {
+    using gamecore::state::ViewEventDraft;
+    using gamecore::state::ViewEventType;
+    const json tree = {{"version", 1}, {"changed", json::object()},
+                       {"removed", json::object()}};
+    std::vector<ViewEventDraft> events;
+    ViewEventDraft month;
+    month.type = ViewEventType::kMonthSettled;
+    month.gameYear = 37;
+    month.gameMonth = 12;
+    month.detailJson = R"({"disabledPolicies":[],"seizedSectBuildings":[]})";
+    events.push_back(month);
+    ViewEventDraft purchase;
+    purchase.type = ViewEventType::kPurchase;
+    purchase.gameYear = 37;
+    purchase.gameMonth = 12;
+    purchase.detailJson = R"({"discipleId":"3","itemName":"聚气丹","age":21})";
+    events.push_back(purchase);
+    ViewEventDraft bare;
+    bare.type = ViewEventType::kBreakthrough;
+    bare.gameYear = 38;
+    bare.gameMonth = 1;
+    // detailJson 空 → detail 字段省略（proto3 显式 presence）
+    events.push_back(bare);
+
+    std::vector<std::pair<uint32_t, DecodedField>> fs;
+    ASSERT_TRUE(decodeFields(encodeGameView(tree, "", &events), fs));
+    const auto evs = fieldsWith(fs, 4);
+    ASSERT_EQ(3u, evs.size());                      // 三条 ViewEvent 子消息
+    for (const auto& ev : evs) EXPECT_EQ(2u, ev.wire);
+
+    // 第一条 = MONTH_SETTLED（type=1），载荷字段 1/2/3/4 逐一断言
+    std::vector<std::pair<uint32_t, DecodedField>> m;
+    ASSERT_TRUE(decodeFields(evs[0].bytes, m));
+    ASSERT_EQ(4u, m.size());
+    EXPECT_EQ(1u, m[0].first); EXPECT_EQ(1u, m[0].second.varint);   // type
+    EXPECT_EQ(2u, m[1].first); EXPECT_EQ(37u, m[1].second.varint);  // gameYear
+    EXPECT_EQ(3u, m[2].first); EXPECT_EQ(12u, m[2].second.varint);  // gameMonth
+    EXPECT_EQ(4u, m[3].first);                                      // detailJson
+    EXPECT_EQ(std::string(R"({"disabledPolicies":[],"seizedSectBuildings":[]})"),
+              m[3].second.bytes);
+
+    // 第二条 = PURCHASE（type=5）
+    std::vector<std::pair<uint32_t, DecodedField>> p;
+    ASSERT_TRUE(decodeFields(evs[1].bytes, p));
+    ASSERT_FALSE(p.empty());
+    EXPECT_EQ(5u, p[0].second.varint);
+
+    // 第三条 = BREAKTHROUGH（type=3），无 detail（仅 3 个字段）
+    std::vector<std::pair<uint32_t, DecodedField>> b;
+    ASSERT_TRUE(decodeFields(evs[2].bytes, b));
+    ASSERT_EQ(3u, b.size());
+    EXPECT_EQ(3u, b[0].second.varint);
+    EXPECT_EQ(38u, b[1].second.varint);
+    EXPECT_EQ(1u, b[2].second.varint);
+
+    // 确定性：同输入两次编码逐字节相同
+    const std::string a = encodeGameView(tree, "", &events);
+    const std::string c = encodeGameView(tree, "", &events);
+    EXPECT_EQ(a, c);
 }
 
 // ── 确定性：同一变更集树 → 逐字节相同信封 ─────────────────────────

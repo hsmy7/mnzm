@@ -21,6 +21,15 @@ namespace gamecore {
 
 namespace {
 
+/// gameEventRecords 当前最大 sequenceId（收割水位初始化/导入防重放用）
+int64_t maxGameEventSequence_(const state::GameState& s) {
+    int64_t maxSeq = 0;
+    for (const auto& r : s.gameData.gameEventRecords) {
+        maxSeq = std::max(maxSeq, r.sequenceId);
+    }
+    return maxSeq;
+}
+
 
 /// 导入侧 id 计数器对齐：递归遍历存档 JSON 全部字符串，
 /// 凡 "gc-<prefix>-<纯数字>" 形态即把对应注册表计数器推到 max(current, N)
@@ -155,6 +164,8 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     settlement_.onPhaseSettle = [this](state::GameState& s, state::GameData&) {
         // 步骤 0/1-5/6/7 迭代域经 ecsWorld_ 行序桥接（sync 校验/恢复）
         system::runPhaseSettlement(s, rng_, ecsWorld_);
+        // R2.4：突破事件收割（列写点已在结算内逐一 markCol）
+        harvestBreakthroughEvents();
     };
     // 月变结算钩子——八步事务编排（政策/月效/七系统
     // 扇出/血炼/排班忠诚/月衰减/月度事件），RNG 消耗 EXPLORATION（妖兽移动）
@@ -198,6 +209,8 @@ bool GameCore::initialize(const GameCoreConfig& config) {
             system::runPhaseSettlementCore(state_, rng_, [this]() {
                 ecsScheduler_.runAll(ecsWorld_);
             }, ecsWorld_);
+            // R2.4：突破事件收割（核心批次列写点同走 markCol 屏障）
+            harvestBreakthroughEvents();
         };
     }
     syncRngStates();
@@ -205,6 +218,7 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     // R2.4/B09：列级写屏障挂载 + 基线同点重置（位图清零 + 非弟子域基线树）
     state_.disciples.attachColumnDirtyTracker(&columnTracker_);
     columnTracker_.resetBaseline(state_);
+    breakthroughHarvestedSequence_ = maxGameEventSequence_(state_);
     initialized_ = true;
     logger_->log(LogLevel::kInfo, "GameCore",
                  "initialized (schema=" + config.snapshotSchemaVersion + ")");
@@ -217,6 +231,31 @@ void GameCore::shutdown() {
     logger_->log(LogLevel::kInfo, "GameCore", "shutdown");
 }
 
+
+void GameCore::harvestBreakthroughEvents() {
+    if (!dirtyExportProtobuf_) return;   // JSON 回滚臂不产事件
+    for (const auto& r : state_.gameData.gameEventRecords) {
+        if (r.sequenceId <= breakthroughHarvestedSequence_) continue;
+        if (r.eventType != "breakthrough") continue;
+        breakthroughHarvestedSequence_ = r.sequenceId;
+        nlohmann::json detail = {{"discipleId", r.relatedEntityId},
+                                 {"summary", r.summary}};
+        queueViewEvent(state::ViewEventType::kBreakthrough, detail.dump());
+    }
+    // 水位推进到当前最大（含非突破记录——它们不经事件流入流）
+    breakthroughHarvestedSequence_ =
+        std::max(breakthroughHarvestedSequence_, maxGameEventSequence_(state_));
+}
+
+void GameCore::queueViewEvent(state::ViewEventType type, const std::string& detailJson) {
+    if (!dirtyExportProtobuf_) return;   // JSON 回滚臂不入队（信封 JSON 面零变更）
+    state::ViewEventDraft draft;
+    draft.type = type;
+    draft.gameYear = state_.gameData.gameYear;
+    draft.gameMonth = state_.gameData.gameMonth;
+    draft.detailJson = detailJson;
+    pendingViewEvents_.push_back(std::move(draft));
+}
 
 void GameCore::markMonthYearBoundaryColumns() {
     // 月/年结算路径审计写列并集（month_settlement/year_settlement/
@@ -303,6 +342,30 @@ std::string GameCore::settleMonth() {
     // 全行标脏——宁多标不漏标；phase 路径为写点级精确标脏不经此）
     markMonthYearBoundaryColumns();
 
+    // ── R2.4 eventFeed 入队（proto 传输开启时；JSON 回滚臂不入队——
+    //    信封 JSON 面零变更红线，事件与信封同一事实双面）──────────
+    {
+        nlohmann::json detail;
+        detail["disabledPolicies"] = result.policyCosts.disabledPolicies;
+        nlohmann::json seized = nlohmann::json::array();
+        for (const auto& sectId : result.seizedSectBuildings) seized.push_back(sectId);
+        detail["seizedSectBuildings"] = std::move(seized);
+        queueViewEvent(state::ViewEventType::kMonthSettled, detail.dump());
+    }
+    for (const auto& log : result.purchaseLogs) {
+        nlohmann::json detail = {{"discipleId", log.discipleId},
+                                 {"itemName", log.itemName},
+                                 {"age", log.age}};
+        queueViewEvent(state::ViewEventType::kPurchase, detail.dump());
+    }
+    if (result.secretRealmClose.has_value() && result.secretRealmClose.value().closed) {
+        const auto& c = result.secretRealmClose.value();
+        nlohmann::json bp;
+        to_json(bp, c.backpack);
+        nlohmann::json detail = {{"memberIds", c.memberIds},
+                                 {"backpack", std::move(bp)}};
+        queueViewEvent(state::ViewEventType::kSecretRealmClosed, detail.dump());
+    }
 
     // 信封 JSON（nativeSettleMonth 回传 Kotlin 残留执行器的平台效应输入：
     // disabledPolicies → checkpointAllProduction；secretRealmClose → 秘境
@@ -347,6 +410,37 @@ std::string GameCore::settleYear() {
     // R2/B09：年结边界粗粒度列标脏（与月结共用审计并集列集）
     markMonthYearBoundaryColumns();
 
+    // ── R2.4 eventFeed 入队（proto 传输开启时）────────────────────
+    for (const auto& d : draft.agedDeaths) {
+        nlohmann::json bags = nlohmann::json::array();
+        for (const auto& item : d.storageBagItems) {
+            nlohmann::json itemJson;
+            to_json(itemJson, item);   // 完整协议（物化回仓库需要实例/堆叠重建数据）
+            bags.push_back(std::move(itemJson));
+        }
+        nlohmann::json detail = {{"discipleId", d.discipleId},
+                                 {"name", d.name},
+                                 {"surname", d.surname},
+                                 {"age", d.age},
+                                 {"realm", d.realm},
+                                 {"realmLayer", d.realmLayer},
+                                 {"deathYear", d.deathYear},
+                                 {"cause", d.cause},
+                                 {"storageBagItems", std::move(bags)}};
+        queueViewEvent(state::ViewEventType::kDeath, detail.dump());
+    }
+    {
+        nlohmann::json bereavements = nlohmann::json::array();
+        for (const auto& b : draft.bereavements) {
+            bereavements.push_back({{"grievingId", b.grievingId},
+                                    {"relationship", b.relationship},
+                                    {"deceasedName", b.deceasedName},
+                                    {"grievingAge", b.grievingAge}});
+        }
+        nlohmann::json detail;
+        detail["bereavements"] = std::move(bereavements);
+        queueViewEvent(state::ViewEventType::kYearSettled, detail.dump());
+    }
 
     // 信封 JSON（nativeSettleYear 回传 Kotlin 残留执行器的平台效应输入：
     // agedDeaths → 袋物品物化/DAO 清理/DeathEvent/死亡记录档案；
@@ -545,6 +639,8 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
         // 收割游标推到导入态最大（防旧档记录重放）
         state_.disciples.attachColumnDirtyTracker(&columnTracker_);
         columnTracker_.resetBaseline(state_);
+        breakthroughHarvestedSequence_ = maxGameEventSequence_(state_);
+        pendingViewEvents_.clear();
         return true;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
@@ -618,7 +714,12 @@ std::string GameCore::exportDirtyProto() {
                   columnTracker_.resetBaseline();
                   return t;
               }();
-        return state::encodeGameView(tree, config_.snapshotSchemaVersion);
+        // 事件流随封产出（导出即消费：编码成功后清空队列——编码异常时保留
+        // 供下一封重试，与变更集的"基线未推进"降级语义一致）
+        const std::string out = state::encodeGameView(
+            tree, config_.snapshotSchemaVersion, &pendingViewEvents_);
+        pendingViewEvents_.clear();
+        return out;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
                      std::string("exportDirtyProto failed: ") + e.what());

@@ -323,7 +323,8 @@ bool isGameDataPath(const std::string& key) {
 
 }  // namespace
 
-std::string encodeGameView(const json& diff, const std::string& schemaVersion) {
+std::string encodeGameView(const json& diff, const std::string& schemaVersion,
+                           const std::vector<ViewEventDraft>* eventFeed) {
     ProtoWriter out;
 
     // field 1: version
@@ -370,7 +371,23 @@ std::string encodeGameView(const json& diff, const std::string& schemaVersion) {
         out.messageField(3, delta);
     }
 
-    // field 4: eventFeed —— 本批 schema 预留不产出（R2.4 接线）
+    // field 4: eventFeed（R2.4 转正：月/年结算信封 + 突破/死亡/购买/秘境
+    // 关闭事件入流；nullptr/空队列不产出——与 R2.1/R2.2 历史字节一致）。
+    // ViewEvent{type=1 varint, gameYear=2 varint, gameMonth=3 varint,
+    // detailJson=4 bytes}；type/gameYear/gameMonth 恒携带（事件语义必需），
+    // detailJson 空串省略（proto3 显式 presence）。
+    if (eventFeed != nullptr) {
+        for (const ViewEventDraft& draft : *eventFeed) {
+            ProtoWriter ev;
+            ev.uint64Field(1, static_cast<uint64_t>(draft.type));
+            ev.int32Field(2, draft.gameYear);
+            ev.int32Field(3, draft.gameMonth);
+            if (!draft.detailJson.empty()) {
+                ev.bytesField(4, draft.detailJson);
+            }
+            out.messageField(4, ev);
+        }
+    }
 
     // field 5: configEcho（schemaVersion 非空才携带）
     if (!schemaVersion.empty()) {

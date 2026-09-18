@@ -34,6 +34,68 @@ namespace gamecore {
 namespace {
 
 using nlohmann::json;
+using state::ViewEventType;
+
+// ── 最小 wire 解码器（同 gameview_encode_test 模式；本文件独立匿名域）──
+struct WireField {
+    uint32_t wire = 0;
+    uint64_t varint = 0;
+    std::string bytes;
+};
+
+bool decodeTopLevel(const std::string& in,
+                    std::vector<std::pair<uint32_t, WireField>>& out) {
+    std::size_t pos = 0;
+    const auto readVarint = [&](uint64_t& v) -> bool {
+        v = 0;
+        int shift = 0;
+        while (pos < in.size()) {
+            const uint8_t b = static_cast<uint8_t>(in[pos++]);
+            v |= static_cast<uint64_t>(b & 0x7Fu) << shift;
+            if ((b & 0x80u) == 0) return true;
+            shift += 7;
+            if (shift > 63) return false;
+        }
+        return false;
+    };
+    while (pos < in.size()) {
+        uint64_t key = 0;
+        if (!readVarint(key)) return false;
+        WireField f;
+        f.wire = static_cast<uint32_t>(key & 0x7u);
+        const uint32_t field = static_cast<uint32_t>(key >> 3);
+        switch (f.wire) {
+            case 0:
+                if (!readVarint(f.varint)) return false;
+                break;
+            case 1:
+                if (pos + 8 > in.size()) return false;
+                pos += 8;   // fixed64：事件流不涉及，跳过即可
+                break;
+            case 2: {
+                uint64_t len = 0;
+                if (!readVarint(len)) return false;
+                if (pos + len > in.size()) return false;
+                f.bytes = in.substr(pos, static_cast<std::size_t>(len));
+                pos += static_cast<std::size_t>(len);
+                break;
+            }
+            default:
+                return false;
+        }
+        out.emplace_back(field, std::move(f));
+    }
+    return true;
+}
+
+std::vector<WireField> fieldsWith(
+    const std::vector<std::pair<uint32_t, WireField>>& fs, uint32_t field) {
+    std::vector<WireField> r;
+    for (const auto& kv : fs) {
+        if (kv.first == field) r.push_back(kv.second);
+    }
+    return r;
+}
 
 class ColumnExportEquivalenceTest : public ::testing::Test {
 protected:
@@ -167,6 +229,50 @@ TEST_F(ColumnExportEquivalenceTest, RealSettlementsColumnMatchesFullExport) {
     }
     EXPECT_GT(monthSettles, 0) << "40 旬未跨月界（夹具失效）";
     EXPECT_GT(yearSettles, 0) << "40 旬未跨年界（夹具失效）";
+}
+
+TEST_F(ColumnExportEquivalenceTest, EventFeedFlowsThroughProtoExport) {
+    GameCore core(&clock_, &logger_);
+    GameCoreConfig config;
+    config.seedInitialized = true;
+    config.authoritativeTickMode = true;
+    ASSERT_TRUE(core.initialize(config));
+    auto& st = core.state();
+    for (int i = 0; i < 30; ++i) {
+        st.disciples.appendDisciple(makeDisciple(std::to_string(i + 1), i));
+    }
+    core.setDirtyExportProtobuf(true);   // proto 臂（R2.2 旗标）
+
+    // 月结 → MONTH_SETTLED 事件入队；purchaseLogs 为空 ⇒ 无 PURCHASE 事件
+    static_cast<void>(core.settleMonth());
+    static_cast<void>(core.settleYear());  // YEAR_SETTLED 事件入队
+
+    const std::string bytes = core.exportDirty();
+    std::vector<std::pair<uint32_t, WireField>> fs;
+    ASSERT_TRUE(decodeTopLevel(bytes, fs));
+    const auto events = fieldsWith(fs, 4);
+    ASSERT_FALSE(events.empty()) << "proto 封未携带 eventFeed";
+
+    std::vector<int> types;
+    for (const auto& ev : events) {
+        std::vector<std::pair<uint32_t, WireField>> inner;
+        ASSERT_TRUE(decodeTopLevel(ev.bytes, inner));
+        ASSERT_FALSE(inner.empty());
+        EXPECT_EQ(1u, inner[0].first);   // field 1 = type
+        types.push_back(static_cast<int>(inner[0].second.varint));
+    }
+    EXPECT_NE(std::find(types.begin(), types.end(),
+                        static_cast<int>(ViewEventType::kMonthSettled)),
+              types.end()) << "缺 MONTH_SETTLED 事件";
+    EXPECT_NE(std::find(types.begin(), types.end(),
+                        static_cast<int>(ViewEventType::kYearSettled)),
+              types.end()) << "缺 YEAR_SETTLED 事件";
+
+    // 导出即消费：再导一封 = 事件队列为空
+    const std::string second = core.exportDirty();
+    std::vector<std::pair<uint32_t, WireField>> fs2;
+    ASSERT_TRUE(decodeTopLevel(second, fs2));
+    EXPECT_TRUE(fieldsWith(fs2, 4).empty());
 }
 
 }  // namespace
