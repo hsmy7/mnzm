@@ -341,3 +341,27 @@ testReleaseUnitTest 全量串行 `--rerun-tasks` 实跑（六模块 **7785 用�
 **268 用例 0 skip**——对拍桥经 `scripts/build-desktop-jni.ps1` 重建；17 跳过 = data 15 + app 2 既有）+
 detekt 绿 + `compileReleaseKotlin`/`lintRelease` 绿；JNI 面零变更、协议面零变更、存档格式零变更、
 RNG 分区零调整（分区独立属 R4.4）。
+
+#### B06 批（2026-09-18）= R2.1 + R2.2（GameView proto 定义 + 镜像通道换 protobuf）
+
+批次文件 `docs/parallel-batches-w5/batch-R2A.md`；逐子项独立 commit（R2.1 = daa8eeb11；
+R2.2 = 6b3354708；mirror 传输对照 bench = 9e1d9c0cc）。前置 = B03 R1.4 列级写屏障。**进入 R2 阶段**
+（状态同步协议重构——JSON 镜像 → protobuf 视图契约）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R2.1 | ✅ | **`GameView` proto 定义**（`core/engine/src/main/proto/game_view.proto`，选型 protobuf 不引 flatbuffers，基建已在 core:engine java_lite 插件）：镜像信封四块结构——`resourcesHeader`（每旬热路径 gameData 资源标量直拷，v1 = spiritStones）/ `discipleListDelta`（typed `DiscipleRow` 109 字段行级增量 upsert 全行 + removed id 列表，与 Disciple to_json 协议字段一一对应，含 CombatAttributes/PillEffects/EquipmentSet/SocialData/SkillStats/UsageTracking 扁平化、storageBagItems JSON 原文过渡编码）/ `eventFeed`（月年结算·突破·死亡·购买·秘境关闭，本批 **schema 预留不产出**，R2.4 接线）/ `configEcho`（快照 schema 版本，版本协商用）；其余实体集合与 gameData 字段经 `collectionChange`/`gameDataChange` 扩展区承载（v1 = JSON 载荷过渡编码）。**schema 演进纪律「proto 字段只增不改」在文件头声明**（方案 §5 风险条款：字段号冻结/不复用/不改型、新字段追加最大号+1、枚举只增不改号、proto3 标量恒 `optional` 显式 presence、集合恒 repeated 不用 map 沿 §7.3）；**C++ 零依赖 wire 编码器** `gamecore/state/gameview_encode.h/.cpp`（gamecore 纯 C++ 不链 libprotobuf，手写 varint/fixed64/长度前缀，表驱动 `kDiscipleRowFields` 与 proto 字段号双向锁定，字段号升序 + nlohmann 键有序遍历 ⇒ 同一变更集树恒产出逐字节相同信封，对拍/RNG 红线）；DirtyTracker 抽 `diffToTree`（规范化变更集树），`diffToJson` 与 `encodeGameView` 共用同一树源（同 ++version/同基线推进）⇒ 双传输格式逐值等价由构造保证。守卫 `gameview_encode_test.cpp`（9 用例：内置最小 wire 解码器按字段/值断言 version/resourcesHeader/DiscipleRow typed 全类别/collectionChange/gameDataChange/configEcho/eventFeed 不产出/确定性/畸形输入鲁棒，锁定字节级正确并证明产出合法 protobuf）|
+| R2.2 | ✅ | **镜像通道换 protobuf**：生产 JNI `nativeExportDirty` 改走 `GameCore::exportDirty()` 分发（按 `dirtyExportProtobuf_` 选 JSON/protobuf，缺省 false = 旧格式跨版本回滚安全；**JNI 返回 jbyteArray 签名不变、仅字节载荷编码换轨**）；桌面对拍桥 `nativeCoreExportDirty` **仍走 `exportDirtyJson`（对拍全量 JSON 零漂移红线保留）**，另加纯编码入口 `nativeCoreEncodeGameView`（不触碰基线）供等价对照；Kotlin `StateSyncService` 新增 `applyDirtyProto` 经 `GameViewMirrorCodec` 把 GameView 信封还原为与旧协议**同形**的 `{changed, removed}` 变更集树、**复用既有 `applyEnvelope`（同一 applier，逐值等价由构造保证）**，`applyDirtyFromNative` 按灰度旗标选分支；**存档格式不动**（`nativeExportState` 全量 JSON 仅保留给存档/rebaseline，低频兼容优先）；**UI 消费面本批不动**（镜像仍全量、仅换传输编码为二进制 protobuf）。**灰度开关：`NativeEngineFlag.mirrorProtobufTransport`（默认 `true` = 换轨生效；`false` = 旧 JSON 镜像回滚臂，新旧共存一个版本周期）**。**【JNI 面豁免登记】**：新增 `external fun nativeSetDirtyExportProtobuf(Boolean)` + C++ 同名 setter，无法沿用既有业务 `nativeExecute` ActionId codegen 通道（传输格式为引擎控制态、非玩法操作，塞进业务操作码表是语义误用），沿 R0.2 `nativeFpDeterminismProbe` 探针先例登记，与既有 `nativeSetAiThermalBatchSize` 同族引擎线程控制端口。**镜像通道等价性证据（验收门 4）**：`DiffDirtyEnvelopeEquivalenceTest`（3 用例）编码面富变更集树 protobuf 往返逐值 deep-equal（弟子全字段 typed 重建/集合 raw json/gameData 标量与容器/removed，数字按值归一、空 repeated 容器与缺省键域等价）+ 应用面真实 native 变更集双解码对照（`DirtyApplyResult`+`GameData` 全等）；`DirtyTrackerBench.MirrorTransportJsonVsProtobuf` 观测 mirror 段非劣化 |
+
+**proto schema 摘要**：`GameView{ version, resourcesHeader{spiritStones}, discipleListDelta{upserts[DiscipleRow×109], removedIds}, eventFeed[ViewEvent], configEcho{snapshotSchemaVersion}, collectionChange[name,upsertsJson,removedIds], gameDataChange[name,valueJson] }`。
+**灰度开关**：`NativeEngineFlag.mirrorProtobufTransport`，默认 `true`（换轨生效），`false` 回旧 JSON 镜像路径。
+
+测试口径：桌面全量 GTest **1453/1453**（携 `-ffp-contract=off` 旗标；基线 1443 + R2.1 编码守卫
+9 + R2.2 传输对照 bench 1；`GAMECORE_BUILD_BENCH` 本地默认关时 1450）+ `testReleaseUnitTest`
+全量串行 `--rerun-tasks` 实跑（六模块 **7788 用例 / 0 失败**，222 任务全 executed 非 UP-TO-DATE；
+`:core:engine` 3307 = 基线 3304 + `DiffDirtyEnvelopeEquivalenceTest` 3，含 48 个 `Diff*Test`
+**271 用例 0 skip**——对拍桥经 `scripts/build-desktop-jni.ps1` 重建携入本批 C++ 改动；17 跳过 =
+data 15 + app 2 既有；`GameEngineCoreLifecycleInterleavingTest` 已知抖动本轮未触发）+ detekt 绿 +
+`compileReleaseKotlin`/`lintRelease` 绿；协议 JSON 面零变更、存档格式零变更，JNI 面仅新增 1 个
+引擎控制端口（`nativeSetDirtyExportProtobuf`，已登记豁免理由）。**G2 <10ms 终态属 R2.3 镜像瘦身
+（本批镜像仍全量，仅换传输编码；本批证明 mirror 段未劣化、JNI 传输字节缩至 1/5.5）**。
