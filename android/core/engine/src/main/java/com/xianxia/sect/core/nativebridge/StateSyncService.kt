@@ -7,6 +7,7 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.gameview.GameDataFieldPatch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -387,11 +388,27 @@ class StateSyncService @Inject constructor(
 
     /**
      * gameData 字段级覆盖（未变化字段零改动，单事务内合并）。
-     * @return 应用的字段数
+     *
+     * 两臂（R2.3 第二波灰度，[NativeEngineFlag.gameViewProjection]）：
+     * - 开（生产默认）：[GameDataFieldPatch] 一次浅拷贝 + 变更字段逐个解码；
+     * - 关（回滚臂）：整份 GameData JSON 往返（第一波形态，每旬级全量重建）。
+     * 两臂逐值等价由 `GameDataFieldPatchEquivalenceTest` 锁定。
+     *
+     * @return 本封携带的 gameData 变更字段数（与旧路径同：解码失败丢弃仍计数）
      */
     private fun MutableGameState.mergeGameDataChanges(changed: JsonObject): Int {
         val gameDataChanges = changed.filterKeys { it.startsWith(GAMEDATA_PATH_PREFIX) }
         if (gameDataChanges.isEmpty()) return 0
+        if (NativeEngineFlag.gameViewProjection) {
+            GameDataFieldPatch.apply(
+                current = gameData,
+                changes = gameDataChanges.map { (path, value) ->
+                    path.removePrefix(GAMEDATA_PATH_PREFIX) to value
+                },
+                json = json
+            )?.let { patched -> gameData = patched }
+            return gameDataChanges.size
+        }
         val currentJson =
             json.encodeToJsonElement(GameData.serializer(), gameData).jsonObject
         val overrides =
