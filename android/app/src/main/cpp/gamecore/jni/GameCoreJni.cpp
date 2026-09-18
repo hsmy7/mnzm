@@ -22,6 +22,7 @@
 
 #include "gamecore/game_core.h"
 #include "gamecore/state/json_codec.h"
+#include "gamecore/state/gameview_encode.h"
 #include "gamecore/map/road_system.h"
 #include "gamecore/map/road_compositor.h"
 #include "gamecore/map/terrain.h"
@@ -339,6 +340,22 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportDirty(
     JNIEnv* env, jobject /*thiz*/) {
     if (!g_core) return stringToJbytes(env, R"({"version":0,"changed":{},"removed":{}})");
     return stringToJbytes(env, g_core->exportDirtyJson());
+}
+
+// GameView protobuf 纯编码（R2.2 等价性守卫用）：把给定的变更集 JSON 树
+//（nativeCoreExportDirty 产出的同一棵 {version,changed,removed} 树）编码为
+// GameView 信封字节——**不触碰导出基线**（encodeGameView 是纯函数），使守卫
+// 能把同一棵树的两种传输编码（JSON 文本 / protobuf）配对照相，锁定双端逐值等价。
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreEncodeGameView(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray dirtyJson) {
+    nlohmann::json tree = nlohmann::json::object();
+    try {
+        tree = nlohmann::json::parse(jbytesToString(env, dirtyJson));
+    } catch (const std::exception&) {
+        tree = nlohmann::json::object();
+    }
+    return stringToJbytes(env, gamecore::state::encodeGameView(tree, ""));
 }
 
 // ── 时间推进通道（对拍用）────────────────────────────────────────

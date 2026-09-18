@@ -283,9 +283,15 @@ class StateSyncService @Inject constructor(
      */
     fun applyDirtyFromNative(): DirtyApplyResult? {
         val raw = fetchNativeDirty() ?: return null
-        // 双实现并行契约：变更集解析/应用异常均降级 null（调用方可回退全量同步）
+        // 双实现并行契约：变更集解析/应用异常均降级 null（调用方可回退全量同步）。
+        // R2.2 传输编码换轨：灰度开 = protobuf 信封解码，关 = 旧 JSON 文本
+        //（两分支产出同一棵变更集树，复用同一 applyEnvelope，逐值等价）。
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
-        return runCatching { applyDirty(raw.decodeToString()) }.getOrNull()
+        return if (NativeEngineFlag.mirrorProtobufTransport) {
+            runCatching { applyDirtyProto(raw) }.getOrNull()
+        } else {
+            runCatching { applyDirty(raw.decodeToString()) }.getOrNull()
+        }
     }
 
     /**
@@ -303,6 +309,24 @@ class StateSyncService @Inject constructor(
         val envelope = parseDirtyEnvelope(dirtyJson) ?: return null
         return when {
             // 空变更集：零写入（不触发事务与 StateFlow 发射——镜像空闲期零开销）
+            envelope.isEmpty -> DirtyApplyResult(envelope.version, 0, 0, 0)
+            else -> applyEnvelope(envelope)
+        }
+    }
+
+    /**
+     * 解码并应用 GameView protobuf 变更集信封（R2.2 换轨后的镜像通道格式）。
+     *
+     * 经 [GameViewMirrorCodec] 还原为与旧 JSON 协议同形的变更集树，复用
+     * [applyEnvelope]——与 [applyDirty]（JSON）共享同一应用逻辑，故两传输格式
+     * 在相同 state 输入下逐值等价（DiffDirtyEnvelopeEquivalenceTest 守卫）。
+     *
+     * @return 应用结果；字节非法（parseFrom 抛错，调用方 runCatching 捕获）
+     */
+    fun applyDirtyProto(protoBytes: ByteArray): DirtyApplyResult? {
+        val decoded = GameViewMirrorCodec.decode(protoBytes)
+        val envelope = DirtyEnvelope(decoded.version, decoded.changed, decoded.removed)
+        return when {
             envelope.isEmpty -> DirtyApplyResult(envelope.version, 0, 0, 0)
             else -> applyEnvelope(envelope)
         }

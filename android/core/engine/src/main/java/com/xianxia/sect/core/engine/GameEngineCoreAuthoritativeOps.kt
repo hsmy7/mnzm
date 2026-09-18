@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.config.GameConfigNativeBridge
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.GameCoreRngChannel
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.CancellationException
@@ -193,6 +194,10 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             )
             if (!initialized) return false
             gameRngManager.attachNativeChannel(GameCoreRngChannel)
+            // 镜像通道传输编码换轨（R2.2 灰度）：native 初始化后立即推送分发
+            // 模式，早于任何 nativeExportDirty 调用——与 Kotlin 解码侧读同一
+            // [NativeEngineFlag.mirrorProtobufTransport]，生产/解码两端一致。
+            GameCoreBridge.nativeSetDirtyExportProtobuf(NativeEngineFlag.mirrorProtobufTransport)
             // native 初始化完成后补注运行时配置
             // （CultivationEventProcessor 构造时 native 可能未加载——此处幂等补注）
             GameConfigNativeBridge.ensureInjected()

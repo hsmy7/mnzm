@@ -524,7 +524,21 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeExportDirty(
     if (!g_gameCore) {
         return stringToJbytes(env, R"({"version":0,"changed":{},"removed":{}})");
     }
-    return stringToJbytes(env, g_gameCore->exportDirtyJson());
+    // 传输编码分发（R2.2）：dirtyExportProtobuf 关 = 旧 JSON 文本，开 = GameView
+    // protobuf 信封（exportDirty 内部按模式选择，未初始化/异常返回合法空信封）。
+    // JNI 签名不变，仅字节载荷编码换轨。
+    return stringToJbytes(env, g_gameCore->exportDirty());
+}
+
+// 镜像通道传输编码开关（R2.2 灰度：Kotlin NativeEngineFlag.mirrorProtobufTransport
+// 驱动）——与 nativeSetAiThermalBatchSize 同族引擎线程控制端口，仅切换
+// nativeExportDirty 的输出编码，不改导出内容/版本号/基线消费语义。
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetDirtyExportProtobuf(
+    JNIEnv* /*env*/, jobject /*thiz*/, jboolean on) {
+    jniRequireEngineThread("nativeSetDirtyExportProtobuf");
+    if (!g_gameCore) return;
+    g_gameCore->setDirtyExportProtobuf(on == JNI_TRUE);
 }
 
 // ============================================================

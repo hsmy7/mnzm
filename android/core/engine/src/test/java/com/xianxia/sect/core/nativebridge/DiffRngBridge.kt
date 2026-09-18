@@ -69,6 +69,12 @@ object DiffRngBridge {
     // ── GameCore 变更集通道（exportDirty 对拍用） ──
     external fun nativeCoreExportDirty(): ByteArray
 
+    /** GameView protobuf 纯编码（R2.2 等价性守卫）：把给定变更集 JSON 树
+     * （[nativeCoreExportDirty] 产出的同一棵 {version,changed,removed} 树）编为
+     * GameView 信封字节。纯函数、不触碰导出基线，使守卫能配对同一棵树的
+     * 两种传输编码（JSON 文本 / protobuf）做逐值等价对照。 */
+    external fun nativeCoreEncodeGameView(dirtyJson: ByteArray): ByteArray
+
     // ── GameCore 时间推进通道（对拍用） ──────────────────
     external fun nativeCoreAdvancePhases(phaseCount: Int): Int
 

@@ -57,6 +57,7 @@ $staticArgs = @('-static', '-static-libgcc', '-static-libstdc++')
     (Join-Path $src 'src\dispatch_w4c.cpp') `
     (Join-Path $src 'src\dispatch_w4d.cpp') `
     (Join-Path $src 'src\dirty_tracker.cpp') `
+    (Join-Path $src 'src\gameview_encode.cpp') `
     (Join-Path $src 'src\disciple_store.cpp') `
     -o $out
 
