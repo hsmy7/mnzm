@@ -46,7 +46,7 @@
 | B02 | committedDisciples 去物化 + 字符串键 → dense 索引 | R1.2 + R1.3 | **accepted**（2026-09-18 02:35） | 96636ec95 / d4e25dac1 / dd2b4e0e9 / 补遗 f7e9b3251 / 文档 c656dce3f；看护亲跑：GTest 1425/1425（36.7s，含 +6 新守卫）+ 组合门 346 任务全 executed 21m33s（JUnit 强制实跑+detekt+compile+lint；engine XML 3296/0skip/0fail，对拍桥携 B02 C++ 重建）+ 改动面仅 gamecore C++（新增 instance_buckets.h 与 99 行守卫测试），JNI 面零变更 |
 | B03 | DirtyTracker 列级写屏障 + destroyDiscipleEntities 去 O(D²) + R1 收官 bench（证明 G1） | R1.4 + R1.6 | **accepted**（2026-09-18 05:20）**R1 阶段收官** | eb9812c0a / 7e3bb87a9 / c97d7a4b0 / 文档 144dcb238；看护亲跑：GTest 1443/1443（35s）+ 组合门 339 任务全 executed 22m55s（engine XML 3296/0skip/0fail）；**G1 实证：结算 core 17 次 malloc / ~1.8ms @5000 弟子（目标 <1 万、基线 ~15 万），门禁断言 <10000 接线 ci.yml**；改动面全 gamecore C++（新增 column_dirty.h 698 行 + bench 229 行 + 守卫 346 行），CI 面仅 ci.yml 门禁开关 |
 | B04 | 秘境战斗切 native（会话/邮件/暂停租约留 Kotlin） | R4.2 | **accepted**（2026-09-18 07:05） | fa8fa5833（SecretRealmService 17 行战斗段切换 + 246 行路由回归测试）/ 文档 29a033abc；看护亲跑：GTest 1443/1443（34.6s）+ 组合门 339 任务全 executed 22m13s（engine XML 3299/0skip/0fail）；改动面极小而精准（Kotlin 仅服务 17 行），回退臂按规保留 |
-| B05 | 探索/巡逻生产结果下沉 | R4.3 | pending | — |
+| B05 | 探索/巡逻生产结果下沉 | R4.3 | **accepted**（2026-09-18 08:30） | 7197a4847（路由器 6 行+ExplorationService 7 行+PatrolBattleSystem 15 行+404 行守卫测试）/ 文档 8e8b8e144；看护亲跑：GTest 1443/1443（37.4s，纯 Kotlin 批无需重建二进制）+ 组合门 339 任务全 executed 23m20s（engine XML 3304/0skip/0fail）；守卫测试实测发现既有生产行为缺陷（PatrolBattleSystem 结局覆盖事务缓冲）已按红线登记建议另立项 |
 | B06 | GameView proto 定义 + nativeExportDirty 信封 + StateSyncService 解码 | R2.1 + R2.2 | pending | — |
 | B07 | UI 消费面第一波：只换传输（镜像仍全量、二进制） | R2.3(一) | pending | — |
 | B08 | 第二波：replaceAll 退役 + GameViewStore 投影态 + ViewModel 逐块迁移 | R2.3(二) | pending | — |
@@ -67,10 +67,10 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-18 07:58（verifying 进行中：B05 报告已出，看护复跑验收门；后续轮次只做监控勿抢）
-- **状态**：`verifying`（B05 子会话已交付最终报告，看护亲自复跑验收门）
-- **当前批**：B05（R4.3 探索/巡逻生产下沉，批次文件 `batch-R4B.md`）
-- **派发时间**：2026-09-18 06:48（GUI 新建任务派发，模型 GLM-5.3-Flash，完全访问，项目 XianxiaSectNative/main）
+- **看护锁**：—
+- **状态**：`dispatch`（B05 已验收通过，待派 B06）
+- **当前批**：B06（R2.1+R2.2 GameView proto+镜像通道换 protobuf，批次文件 `batch-R2A.md` 已就绪）
+- **派发时间**：—
 - **缺陷清单**：—
 - **监控日志**：
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
@@ -132,6 +132,7 @@
   - 2026-09-18 07:26 截屏：B05 守卫 5/5 绿，验收门 1 自过（GTest 1443/1443 与基线持平，正确判定纯 Kotlin 改动无需重建二进制，且复用了台账 SOP）；JUnit 门后台实跑中。
   - 2026-09-18 07:36 截屏：B05 文档三件套初稿完成（§7.2/CHANGELOG/cpp-engine），JUnit 全链重建编译中，轮询等待。
   - 2026-09-18 07:46 截屏：B05 验收门 2 过——JUnit 222 任务全 executed、7785/0（engine 3304=3299+5 新守卫）、Diff 268 用例 0 skip；自纠文档数字笔误（7783→7785）；门 3 detekt+提交前检查运行中。
+  - 2026-09-18 08:30 **B05 验收通过**：六门全绿（证据见批次总表）。守卫测试发现的既有生产行为缺陷（PatrolBattleSystem 三处写入被结局覆盖）已登记为范围外观察，建议单独立项。转入派发 B06（R2.1+R2.2，进入 R2 阶段）。
 
 ## 经验教训（随批追加）
 
@@ -143,3 +144,4 @@
 - **已知抖动用例**：GameEngineCoreLifecycleInterleavingTest（W2 期并发时序，5s await 窗口，全量负载下偶发超时；progress.md:912 前例）。单点失败且 Diff 全过 → 单类重跑绿即记录放行，勿改测试；全量负载重跑建议避开并行构建。B03 已三次实证该模式。
 - GTest 基线随守卫增长：1419（B01 前）→ 1425（B02）→ 1443（B03，含 bench 3 用例；GAMECORE_BUILD_BENCH 本地默认关时 1440）。验收前先读当批报告确认基线。
 - **环境隐患（B04 实证）**：Kotlin 编译守护进程可能在增量编译后持续持有 classes.jar 句柄，导致 --rerun-tasks 全量在同一任务确定性失败（FileSystemException）；处置 = 终止 Kotlin 编译守护进程 + 清理后重跑。看护验收组合门与子会话构建不要同时跑（先后错峰）。
+- B05 实证：纯 Kotlin 批（R4.2/R4.3 类）验收时 GTest 二进制无需重建（ctest 直接跑，35 秒级）；组合门仍须 --rerun-tasks。子会话会主动发现既有生产缺陷并按"不改行为"红线登记而非擅修（PatrolBattleSystem 结局覆盖三处写入，PatrolBattleSystem.kt:396-512 一带）——此类发现须在收官总结单列。
