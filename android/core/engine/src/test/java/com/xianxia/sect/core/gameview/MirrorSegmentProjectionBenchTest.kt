@@ -189,10 +189,13 @@ class MirrorSegmentProjectionBenchTest {
         .setDiscipleListDelta(DiscipleListDelta.newBuilder().addAllUpserts(rows).build())
         .build()
 
-    private fun ms(ns: Long): String = String.format("%.2f", ns / 1_000_000.0)
+    private fun ms(ns: Long): String = String.format(java.util.Locale.ROOT, "%.2f", ns / 1_000_000.0)
 
-    private fun pct(faster: Arm, slower: Arm): String =
-        String.format("%.0f%%", (1.0 - faster.totalNs.toDouble() / slower.totalNs.toDouble()) * 100.0)
+    private fun pct(faster: Arm, slower: Arm): String = String.format(
+        java.util.Locale.ROOT,
+        "%.0f%%",
+        (1.0 - faster.totalNs.toDouble() / slower.totalNs.toDouble()) * 100.0
+    )
 
     companion object {
         /** 观测规模：与 B06 C++ bench 同族口径（1000 / 5000 弟子） */

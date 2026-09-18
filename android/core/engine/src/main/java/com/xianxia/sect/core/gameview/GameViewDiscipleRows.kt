@@ -44,7 +44,11 @@ import kotlinx.serialization.json.Json
  * 抛出经 `applyDirtyFromNative` 的降级契约转为"本封增量失败 → 全量兜底"，
  * 不会污染镜像。repeated 字段（列表/映射）与嵌套消息按 proto3
  * "absent = empty"语义取值，不属于"缺失"。
+ *
+ * 逐段构造函数（combat/pillEffects/equipment/social/skills/usage）是域模型
+ * 分段形状的样板拆分，函数数即协议段数。
  */
+@Suppress("TooManyFunctions")
 internal object GameViewDiscipleRows {
 
     /** 储物袋条目 v1 仍为 JSON 原文承载（R2.1 过渡编码，typed 化时只增不改追加号） */
@@ -196,8 +200,21 @@ internal object GameViewDiscipleRows {
             equipmentNurturingCompletionMonth = row.equipmentNurturingCompletionMonth,
             equipmentNurturingCompletionPhase = row.equipmentNurturingCompletionPhase
         )
-        return disciple.copy(
-            combat = CombatAttributes(
+        return withEmbeddedSegments(disciple, row, json)
+    }
+
+    /** 各 @Embedded 段填充（与 DiscipleSerializer buildDisciple 的分段构造同形） */
+    private fun withEmbeddedSegments(disciple: Disciple, row: DiscipleRow, json: Json): Disciple =
+        disciple.copy(
+            combat = combatOf(row),
+            pillEffects = pillEffectsOf(row),
+            equipment = equipmentOf(row, json),
+            social = socialOf(row),
+            skills = skillsOf(row),
+            usage = usageOf(row)
+        )
+
+    private fun combatOf(row: DiscipleRow) = CombatAttributes(
                 baseHp = row.baseHp,
                 baseMp = row.baseMp,
                 basePhysicalAttack = row.basePhysicalAttack,
@@ -217,8 +234,9 @@ internal object GameViewDiscipleRows {
                 breakthroughFailCount = row.breakthroughFailCount,
                 currentHp = row.currentHp,
                 currentMp = row.currentMp
-            ),
-            pillEffects = PillEffects(
+        )
+
+    private fun pillEffectsOf(row: DiscipleRow) = PillEffects(
                 pillPhysicalAttackBonus = row.pillPhysicalAttackBonus,
                 pillMagicAttackBonus = row.pillMagicAttackBonus,
                 pillPhysicalDefenseBonus = row.pillPhysicalDefenseBonus,
@@ -234,8 +252,9 @@ internal object GameViewDiscipleRows {
                 pillEffectDuration = row.pillEffectDuration,
                 activePillCategory = row.activePillCategory,
                 activePillTypes = row.activePillTypesList.toSet()
-            ),
-            equipment = EquipmentSet(
+        )
+
+    private fun equipmentOf(row: DiscipleRow, json: Json) = EquipmentSet(
                 weaponId = row.weaponId,
                 armorId = row.armorId,
                 bootsId = row.bootsId,
@@ -247,8 +266,9 @@ internal object GameViewDiscipleRows {
                 storageBagItems = row.storageBagItems(bagItemSerializer, json),
                 storageBagSpiritStones = row.storageBagSpiritStones,
                 spiritStones = row.spiritStones
-            ),
-            social = SocialData(
+        )
+
+    private fun socialOf(row: DiscipleRow) = SocialData(
                 partnerId = row.partnerId.ifEmpty { null },
                 partnerSectId = row.partnerSectId.ifEmpty { null },
                 parentId1 = row.parentId1.ifEmpty { null },
@@ -257,8 +277,9 @@ internal object GameViewDiscipleRows {
                 childBirthMonth = row.childBirthMonth.takeIf { it != 0 },
                 griefEndYear = row.griefEndYear.takeIf { it != NULL_INT_SENTINEL },
                 masterId = row.masterId.ifEmpty { null }
-            ),
-            skills = SkillStats(
+        )
+
+    private fun skillsOf(row: DiscipleRow) = SkillStats(
                 intelligence = row.intelligence,
                 charm = row.charm,
                 loyalty = row.loyalty,
@@ -276,8 +297,9 @@ internal object GameViewDiscipleRows {
                 alchemyPromotionCount = row.alchemyPromotionCount,
                 forgeLevel = row.forgeLevel,
                 forgePromotionCount = row.forgePromotionCount
-            ),
-            usage = UsageTracking(
+        )
+
+    private fun usageOf(row: DiscipleRow) = UsageTracking(
                 usedFunctionalPillTypes = row.usedFunctionalPillTypesList,
                 usedExtendLifePillIds = row.usedExtendLifePillIdsList,
                 usedPermanentPillKeys = row.usedPermanentPillKeysList.toSet(),
@@ -285,9 +307,7 @@ internal object GameViewDiscipleRows {
                 recruitedMonth = row.recruitedMonth,
                 hasReviveEffect = row.hasReviveEffect,
                 hasClearAllEffect = row.hasClearAllEffect
-            )
         )
-    }
 
     /** 与 `DiscipleSerializer.safeDiscipleStatus` 同口径：未知状态宽松回退 IDLE */
     private fun safeStatus(name: String): DiscipleStatus =

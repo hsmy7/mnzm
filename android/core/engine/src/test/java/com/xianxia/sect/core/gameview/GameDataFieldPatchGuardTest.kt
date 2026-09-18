@@ -92,7 +92,10 @@ class GameDataFieldPatchGuardTest {
                 change("worldMapSects", listOf(WorldSect(id = "w1", name = "剑宗", level = 4)))
             ),
             "实体列表-GameEventRecord" to listOf(
-                change("gameEventRecords", listOf(GameEventRecord(timestamp = FIXED_EVENT_TS, eventType = "BREAKTHROUGH", summary = "突破")))
+                change(
+                    "gameEventRecords",
+                    listOf(GameEventRecord(timestamp = FIXED_EVENT_TS, eventType = "BREAKTHROUGH", summary = "突破"))
+                )
             ),
             "混合-多字段同封" to listOf(
                 change("gameYear", 7),

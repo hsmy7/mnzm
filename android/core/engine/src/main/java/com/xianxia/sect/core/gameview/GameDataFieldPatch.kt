@@ -157,20 +157,34 @@ internal object GameDataFieldPatch {
         f("spiritHerbs", { gd, el, j -> gd.spiritHerbs = j.decodeFromJsonElement<Int>(el) }),
         f("sectCultivation", { gd, el, j -> gd.sectCultivation = j.decodeFromJsonElement<Double>(el) }),
         f("yearlySalary", { gd, el, j -> gd.yearlySalary = j.decodeFromJsonElement<Map<Int, Int>>(el) }),
-        f("yearlySalaryEnabled", { gd, el, j -> gd.yearlySalaryEnabled = j.decodeFromJsonElement<Map<Int, Boolean>>(el) }),
+        f("yearlySalaryEnabled", { gd, el, j ->
+            gd.yearlySalaryEnabled = j.decodeFromJsonElement<Map<Int, Boolean>>(el)
+        }),
         f("worldMapSects", { gd, el, j -> gd.worldMapSects = j.decodeFromJsonElement<List<WorldSect>>(el) }),
         f("sectDetails", { gd, el, j -> gd.sectDetails = j.decodeFromJsonElement<Map<String, SectDetail>>(el) }),
-        f("exploredSects", { gd, el, j -> gd.exploredSects = j.decodeFromJsonElement<Map<String, ExploredSectInfo>>(el) }),
+        f("exploredSects", { gd, el, j ->
+            gd.exploredSects = j.decodeFromJsonElement<Map<String, ExploredSectInfo>>(el)
+        }),
         f("scoutInfo", { gd, el, j -> gd.scoutInfo = j.decodeFromJsonElement<Map<String, SectScoutInfo>>(el) }),
-        f("manualProficiencies", { gd, el, j -> gd.manualProficiencies = j.decodeFromJsonElement<Map<String, List<ManualProficiencyData>>>(el) }),
-        f("travelingMerchantItems", { gd, el, j -> gd.travelingMerchantItems = j.decodeFromJsonElement<List<MerchantItem>>(el) }),
+        f("manualProficiencies", { gd, el, j ->
+            gd.manualProficiencies = j.decodeFromJsonElement<Map<String, List<ManualProficiencyData>>>(el)
+        }),
+        f("travelingMerchantItems", { gd, el, j ->
+            gd.travelingMerchantItems = j.decodeFromJsonElement<List<MerchantItem>>(el)
+        }),
         f("merchantLastRefreshYear", { gd, el, j -> gd.merchantLastRefreshYear = j.decodeFromJsonElement<Int>(el) }),
         f("merchantRefreshCount", { gd, el, j -> gd.merchantRefreshCount = j.decodeFromJsonElement<Int>(el) }),
         f("merchantRefreshChances", { gd, el, j -> gd.merchantRefreshChances = j.decodeFromJsonElement<Int>(el) }),
-        f("merchantLastRefreshChanceGrantYear", { gd, el, j -> gd.merchantLastRefreshChanceGrantYear = j.decodeFromJsonElement<Int>(el) }),
+        f("merchantLastRefreshChanceGrantYear", { gd, el, j ->
+            gd.merchantLastRefreshChanceGrantYear = j.decodeFromJsonElement<Int>(el)
+        }),
         f("playerListedItems", { gd, el, j -> gd.playerListedItems = j.decodeFromJsonElement<List<MerchantItem>>(el) }),
-        f("merchantAcquisitionItems", { gd, el, j -> gd.merchantAcquisitionItems = j.decodeFromJsonElement<List<MerchantItem>>(el) }),
-        f("merchantAcquisitionLastRefreshYear", { gd, el, j -> gd.merchantAcquisitionLastRefreshYear = j.decodeFromJsonElement<Int>(el) }),
+        f("merchantAcquisitionItems", { gd, el, j ->
+            gd.merchantAcquisitionItems = j.decodeFromJsonElement<List<MerchantItem>>(el)
+        }),
+        f("merchantAcquisitionLastRefreshYear", { gd, el, j ->
+            gd.merchantAcquisitionLastRefreshYear = j.decodeFromJsonElement<Int>(el)
+        }),
         f("autoBuyList", { gd, el, j -> gd.autoBuyList = j.decodeFromJsonElement<List<AutoBuyEntry>>(el) }),
         f("recruitList", { gd, el, j -> gd.recruitList = j.decodeFromJsonElement<List<Disciple>>(el) }),
         f("lastRecruitYear", { gd, el, j -> gd.lastRecruitYear = j.decodeFromJsonElement<Int>(el) }),
@@ -180,10 +194,14 @@ internal object GameDataFieldPatch {
         f("jadeDayAnchorMs", { gd, el, j -> gd.jadeDayAnchorMs = j.decodeFromJsonElement<Long>(el) }),
         f("jadeAccumMs", { gd, el, j -> gd.jadeAccumMs = j.decodeFromJsonElement<Long>(el) }),
         f("worldLevels", { gd, el, j -> gd.worldLevels = j.decodeFromJsonElement<List<WorldLevel>>(el) }),
-        f("worldLevelLastRefreshMonth", { gd, el, j -> gd.worldLevelLastRefreshMonth = j.decodeFromJsonElement<Int>(el) }),
+        f("worldLevelLastRefreshMonth", { gd, el, j ->
+            gd.worldLevelLastRefreshMonth = j.decodeFromJsonElement<Int>(el)
+        }),
         f("rngStates", { gd, el, j -> gd.rngStates = j.decodeFromJsonElement<Map<Int, Long>>(el) }),
         f("cultivatorCaves", { gd, el, j -> gd.cultivatorCaves = j.decodeFromJsonElement<List<CultivatorCave>>(el) }),
-        f("caveExplorationTeams", { gd, el, j -> gd.caveExplorationTeams = j.decodeFromJsonElement<List<CaveExplorationTeam>>(el) }),
+        f("caveExplorationTeams", { gd, el, j ->
+            gd.caveExplorationTeams = j.decodeFromJsonElement<List<CaveExplorationTeam>>(el)
+        }),
         f("aiCaveTeams", { gd, el, j -> gd.aiCaveTeams = j.decodeFromJsonElement<List<AICaveTeam>>(el) }),
         f("unlockedRecipes", { gd, el, j -> gd.unlockedRecipes = j.decodeFromJsonElement<List<String>>(el) }),
         f("unlockedManuals", { gd, el, j -> gd.unlockedManuals = j.decodeFromJsonElement<List<String>>(el) }),
@@ -191,78 +209,154 @@ internal object GameDataFieldPatch {
         f("elderSlots", { gd, el, j -> gd.elderSlots = j.decodeFromJsonElement<ElderSlots>(el) }),
         f("spiritMineSlots", { gd, el, j -> gd.spiritMineSlots = j.decodeFromJsonElement<List<SpiritMineSlot>>(el) }),
         f("spiritMineExpansions", { gd, el, j -> gd.spiritMineExpansions = j.decodeFromJsonElement<Int>(el) }),
-        f("spiritMineLastSettledMonth", { gd, el, j -> gd.spiritMineLastSettledMonth = j.decodeFromJsonElement<Int>(el) }),
+        f("spiritMineLastSettledMonth", { gd, el, j ->
+            gd.spiritMineLastSettledMonth = j.decodeFromJsonElement<Int>(el)
+        }),
         f("librarySlots", { gd, el, j -> gd.librarySlots = j.decodeFromJsonElement<List<LibrarySlot>>(el) }),
         f("productionSlots", { gd, el, j -> gd.productionSlots = j.decodeFromJsonElement<List<ProductionSlot>>(el) }),
         f("placedBuildings", { gd, el, j -> gd.placedBuildings = j.decodeFromJsonElement<List<GridBuildingData>>(el) }),
         f("roads", { gd, el, j -> gd.roads = j.decodeFromJsonElement<List<RoadData>>(el) }),
-        f("spiritFieldPlants", { gd, el, j -> gd.spiritFieldPlants = j.decodeFromJsonElement<List<SpiritFieldPlant>>(el) }),
+        f("spiritFieldPlants", { gd, el, j ->
+            gd.spiritFieldPlants = j.decodeFromJsonElement<List<SpiritFieldPlant>>(el)
+        }),
         f("activeSectId", { gd, el, j -> gd.activeSectId = j.decodeFromJsonElement<String>(el) }),
         f("residenceSlots", { gd, el, j -> gd.residenceSlots = j.decodeFromJsonElement<List<ResidenceSlot>>(el) }),
-        f("warehouseGarrisons", { gd, el, j -> gd.warehouseGarrisons = j.decodeFromJsonElement<List<WarehouseGarrisonSlot>>(el) }),
+        f("warehouseGarrisons", { gd, el, j ->
+            gd.warehouseGarrisons = j.decodeFromJsonElement<List<WarehouseGarrisonSlot>>(el)
+        }),
         f("patrolSlots", { gd, el, j -> gd.patrolSlots = j.decodeFromJsonElement<List<PatrolSlot>>(el) }),
         f("patrolConfig", { gd, el, j -> gd.patrolConfig = j.decodeFromJsonElement<PatrolConfig>(el) }),
         f("patrolConfigs", { gd, el, j -> gd.patrolConfigs = j.decodeFromJsonElement<List<PatrolConfig>>(el) }),
-        f("pendingPatrolBattleResults", { gd, el, j -> gd.pendingPatrolBattleResults = j.decodeFromJsonElement<List<BattleResultUIData>>(el) }),
+        f("pendingPatrolBattleResults", { gd, el, j ->
+            gd.pendingPatrolBattleResults = j.decodeFromJsonElement<List<BattleResultUIData>>(el)
+        }),
         f("alliances", { gd, el, j -> gd.alliances = j.decodeFromJsonElement<List<Alliance>>(el) }),
         f("vassalContracts", { gd, el, j -> gd.vassalContracts = j.decodeFromJsonElement<List<VassalContract>>(el) }),
         f("sectRelations", { gd, el, j -> gd.sectRelations = j.decodeFromJsonElement<List<SectRelation>>(el) }),
         f("playerAllianceSlots", { gd, el, j -> gd.playerAllianceSlots = j.decodeFromJsonElement<Int>(el) }),
         f("sectPolicies", { gd, el, j -> gd.sectPolicies = j.decodeFromJsonElement<SectPolicies>(el) }),
-        f("openRecruitmentLastPaidMonth", { gd, el, j -> gd.openRecruitmentLastPaidMonth = j.decodeFromJsonElement<Int>(el) }),
+        f("openRecruitmentLastPaidMonth", { gd, el, j ->
+            gd.openRecruitmentLastPaidMonth = j.decodeFromJsonElement<Int>(el)
+        }),
         f("battleTeams", { gd, el, j -> gd.battleTeams = j.decodeFromJsonElement<List<BattleTeam>>(el) }),
         f("usedTeamNumbers", { gd, el, j -> gd.usedTeamNumbers = j.decodeFromJsonElement<List<Int>>(el) }),
         f("battleTeamsInitialized", { gd, el, j -> gd.battleTeamsInitialized = j.decodeFromJsonElement<Boolean>(el) }),
         f("usedRedeemCodes", { gd, el, j -> gd.usedRedeemCodes = j.decodeFromJsonElement<List<String>>(el) }),
         f("mailRecords", { gd, el, j -> gd.mailRecords = j.decodeFromJsonElement<List<MailClaimRecord>>(el) }),
-        f("sectLevelClaimRecords", { gd, el, j -> gd.sectLevelClaimRecords = j.decodeFromJsonElement<List<SectLevelClaimRecord>>(el) }),
+        f("sectLevelClaimRecords", { gd, el, j ->
+            gd.sectLevelClaimRecords = j.decodeFromJsonElement<List<SectLevelClaimRecord>>(el)
+        }),
         f("saveVersion", { gd, el, j -> gd.saveVersion = j.decodeFromJsonElement<Int>(el) }),
-        f("playerProtectionEnabled", { gd, el, j -> gd.playerProtectionEnabled = j.decodeFromJsonElement<Boolean>(el) }),
-        f("playerProtectionStartYear", { gd, el, j -> gd.playerProtectionStartYear = j.decodeFromJsonElement<Int>(el) }),
+        f("playerProtectionEnabled", { gd, el, j ->
+            gd.playerProtectionEnabled = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("playerProtectionStartYear", { gd, el, j ->
+            gd.playerProtectionStartYear = j.decodeFromJsonElement<Int>(el)
+        }),
         f("playerHasAttackedAI", { gd, el, j -> gd.playerHasAttackedAI = j.decodeFromJsonElement<Boolean>(el) }),
         f("activeMissions", { gd, el, j -> gd.activeMissions = j.decodeFromJsonElement<List<ActiveMission>>(el) }),
         f("availableMissions", { gd, el, j -> gd.availableMissions = j.decodeFromJsonElement<List<Mission>>(el) }),
-        f("autoRecruitSpiritRootFilter", { gd, el, j -> gd.autoRecruitSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el) }),
-        f("prisonerSpiritRootFilter", { gd, el, j -> gd.prisonerSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el) }),
+        f("autoRecruitSpiritRootFilter", { gd, el, j ->
+            gd.autoRecruitSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el)
+        }),
+        f("prisonerSpiritRootFilter", { gd, el, j ->
+            gd.prisonerSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el)
+        }),
         f("recruitCountThisMonth", { gd, el, j -> gd.recruitCountThisMonth = j.decodeFromJsonElement<Int>(el) }),
-        f("autoRejectSpiritRootFilter", { gd, el, j -> gd.autoRejectSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el) }),
+        f("autoRejectSpiritRootFilter", { gd, el, j ->
+            gd.autoRejectSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el)
+        }),
         f("watchedItemIds", { gd, el, j -> gd.watchedItemIds = j.decodeFromJsonElement<List<String>>(el) }),
         f("secretRealmState", { gd, el, j -> gd.secretRealmState = j.decodeFromJsonElement<SecretRealmState>(el) }),
         f("secretRealmCooldownYear", { gd, el, j -> gd.secretRealmCooldownYear = j.decodeFromJsonElement<Int>(el) }),
-        f("secretRealmSession", { gd, el, j -> gd.secretRealmSession = j.decodeFromJsonElement<SecretRealmExplorationSession>(el) }),
-        f("secretRealmAITeams", { gd, el, j -> gd.secretRealmAITeams = j.decodeFromJsonElement<List<SecretRealmAITeam>>(el) }),
-        f("daoCompanionBannedRootCounts", { gd, el, j -> gd.daoCompanionBannedRootCounts = j.decodeFromJsonElement<Set<Int>>(el) }),
-        f("daoCompanionConsentRequired", { gd, el, j -> gd.daoCompanionConsentRequired = j.decodeFromJsonElement<Boolean>(el) }),
-        f("patrolBattleResultPopup", { gd, el, j -> gd.patrolBattleResultPopup = j.decodeFromJsonElement<Boolean>(el) }),
-        f("autoSellMidGradeForPurchase", { gd, el, j -> gd.autoSellMidGradeForPurchase = j.decodeFromJsonElement<Boolean>(el) }),
-        f("autoSellHighGradeForPurchase", { gd, el, j -> gd.autoSellHighGradeForPurchase = j.decodeFromJsonElement<Boolean>(el) }),
-        f("showAllAvailableDisciples", { gd, el, j -> gd.showAllAvailableDisciples = j.decodeFromJsonElement<Boolean>(el) }),
-        f("breakthroughAutoPillFocused", { gd, el, j -> gd.breakthroughAutoPillFocused = j.decodeFromJsonElement<Boolean>(el) }),
-        f("breakthroughAutoPillRootCounts", { gd, el, j -> gd.breakthroughAutoPillRootCounts = j.decodeFromJsonElement<Set<Int>>(el) }),
-        f("autoEquipFromWarehouseFocused", { gd, el, j -> gd.autoEquipFromWarehouseFocused = j.decodeFromJsonElement<Boolean>(el) }),
-        f("autoEquipFromWarehouseRootCounts", { gd, el, j -> gd.autoEquipFromWarehouseRootCounts = j.decodeFromJsonElement<Set<Int>>(el) }),
-        f("autoLearnFromWarehouseFocused", { gd, el, j -> gd.autoLearnFromWarehouseFocused = j.decodeFromJsonElement<Boolean>(el) }),
-        f("autoLearnFromWarehouseRootCounts", { gd, el, j -> gd.autoLearnFromWarehouseRootCounts = j.decodeFromJsonElement<Set<Int>>(el) }),
+        f("secretRealmSession", { gd, el, j ->
+            gd.secretRealmSession = j.decodeFromJsonElement<SecretRealmExplorationSession>(el)
+        }),
+        f("secretRealmAITeams", { gd, el, j ->
+            gd.secretRealmAITeams = j.decodeFromJsonElement<List<SecretRealmAITeam>>(el)
+        }),
+        f("daoCompanionBannedRootCounts", { gd, el, j ->
+            gd.daoCompanionBannedRootCounts = j.decodeFromJsonElement<Set<Int>>(el)
+        }),
+        f("daoCompanionConsentRequired", { gd, el, j ->
+            gd.daoCompanionConsentRequired = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("patrolBattleResultPopup", { gd, el, j ->
+            gd.patrolBattleResultPopup = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("autoSellMidGradeForPurchase", { gd, el, j ->
+            gd.autoSellMidGradeForPurchase = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("autoSellHighGradeForPurchase", { gd, el, j ->
+            gd.autoSellHighGradeForPurchase = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("showAllAvailableDisciples", { gd, el, j ->
+            gd.showAllAvailableDisciples = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("breakthroughAutoPillFocused", { gd, el, j ->
+            gd.breakthroughAutoPillFocused = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("breakthroughAutoPillRootCounts", { gd, el, j ->
+            gd.breakthroughAutoPillRootCounts = j.decodeFromJsonElement<Set<Int>>(el)
+        }),
+        f("autoEquipFromWarehouseFocused", { gd, el, j ->
+            gd.autoEquipFromWarehouseFocused = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("autoEquipFromWarehouseRootCounts", { gd, el, j ->
+            gd.autoEquipFromWarehouseRootCounts = j.decodeFromJsonElement<Set<Int>>(el)
+        }),
+        f("autoLearnFromWarehouseFocused", { gd, el, j ->
+            gd.autoLearnFromWarehouseFocused = j.decodeFromJsonElement<Boolean>(el)
+        }),
+        f("autoLearnFromWarehouseRootCounts", { gd, el, j ->
+            gd.autoLearnFromWarehouseRootCounts = j.decodeFromJsonElement<Set<Int>>(el)
+        }),
         f("isGameOver", { gd, el, j -> gd.isGameOver = j.decodeFromJsonElement<Boolean>(el) }),
-        f("bloodRefinements", { gd, el, j -> gd.bloodRefinements = j.decodeFromJsonElement<Map<String, List<String>>>(el) }),
-        f("activeBloodRefinements", { gd, el, j -> gd.activeBloodRefinements = j.decodeFromJsonElement<Map<String, BloodRefinementProgress>>(el) }),
-        f("bloodRefinementBonusTotals", { gd, el, j -> gd.bloodRefinementBonusTotals = j.decodeFromJsonElement<Map<String, BloodRefinementBonusTotal>>(el) }),
-        f("bloodRefinementPctTotals", { gd, el, j -> gd.bloodRefinementPctTotals = j.decodeFromJsonElement<Map<String, BloodRefinementPctTotal>>(el) }),
-        f("heavenlyTrialState", { gd, el, j -> gd.heavenlyTrialState = j.decodeFromJsonElement<HeavenlyTrialSaveData>(el) }),
+        f("bloodRefinements", { gd, el, j ->
+            gd.bloodRefinements = j.decodeFromJsonElement<Map<String, List<String>>>(el)
+        }),
+        f("activeBloodRefinements", { gd, el, j ->
+            gd.activeBloodRefinements = j.decodeFromJsonElement<Map<String, BloodRefinementProgress>>(el)
+        }),
+        f("bloodRefinementBonusTotals", { gd, el, j ->
+            gd.bloodRefinementBonusTotals = j.decodeFromJsonElement<Map<String, BloodRefinementBonusTotal>>(el)
+        }),
+        f("bloodRefinementPctTotals", { gd, el, j ->
+            gd.bloodRefinementPctTotals = j.decodeFromJsonElement<Map<String, BloodRefinementPctTotal>>(el)
+        }),
+        f("heavenlyTrialState", { gd, el, j ->
+            gd.heavenlyTrialState = j.decodeFromJsonElement<HeavenlyTrialSaveData>(el)
+        }),
         f("signInState", { gd, el, j -> gd.signInState = j.decodeFromJsonElement<SignInState>(el) }),
-        f("aiSectPersonalities", { gd, el, j -> gd.aiSectPersonalities = j.decodeFromJsonElement<Map<String, AISectPersonality>>(el) }),
+        f("aiSectPersonalities", { gd, el, j ->
+            gd.aiSectPersonalities = j.decodeFromJsonElement<Map<String, AISectPersonality>>(el)
+        }),
         f("suzerainSectId", { gd, el, j -> gd.suzerainSectId = j.decodeFromJsonElement<String>(el) }),
-        f("lastYearSpiritStoneIncome", { gd, el, j -> gd.lastYearSpiritStoneIncome = j.decodeFromJsonElement<Long>(el) }),
-        f("activeAttackWarnings", { gd, el, j -> gd.activeAttackWarnings = j.decodeFromJsonElement<List<AttackWarning>>(el) }),
+        f("lastYearSpiritStoneIncome", { gd, el, j ->
+            gd.lastYearSpiritStoneIncome = j.decodeFromJsonElement<Long>(el)
+        }),
+        f("activeAttackWarnings", { gd, el, j ->
+            gd.activeAttackWarnings = j.decodeFromJsonElement<List<AttackWarning>>(el)
+        }),
         f("shownWarningStageIds", { gd, el, j -> gd.shownWarningStageIds = j.decodeFromJsonElement<List<String>>(el) }),
-        f("sectAttackCooldowns", { gd, el, j -> gd.sectAttackCooldowns = j.decodeFromJsonElement<Map<String, Int>>(el) }),
-        f("sectBattleRecords", { gd, el, j -> gd.sectBattleRecords = j.decodeFromJsonElement<List<SectBattleRecord>>(el) }),
-        f("gameEventRecords", { gd, el, j -> gd.gameEventRecords = j.decodeFromJsonElement<List<GameEventRecord>>(el) }),
+        f("sectAttackCooldowns", { gd, el, j ->
+            gd.sectAttackCooldowns = j.decodeFromJsonElement<Map<String, Int>>(el)
+        }),
+        f("sectBattleRecords", { gd, el, j ->
+            gd.sectBattleRecords = j.decodeFromJsonElement<List<SectBattleRecord>>(el)
+        }),
+        f("gameEventRecords", { gd, el, j ->
+            gd.gameEventRecords = j.decodeFromJsonElement<List<GameEventRecord>>(el)
+        }),
         f("guideClaimedRewardIds", { gd, el, j -> gd.guideClaimedRewardIds = j.decodeFromJsonElement<Set<Int>>(el) }),
         f("guideCounters", { gd, el, j -> gd.guideCounters = j.decodeFromJsonElement<Map<String, Long>>(el) }),
         f("mapSeed", { gd, el, j -> gd.mapSeed = j.decodeFromJsonElement<Int>(el) }),
-        f("annualIncomeBySource", { gd, el, j -> gd.annualIncomeBySource = j.decodeFromJsonElement<Map<String, Long>>(el) }),
-        f("annualExpenditureByReason", { gd, el, j -> gd.annualExpenditureByReason = j.decodeFromJsonElement<Map<String, Long>>(el) }),
+        f("annualIncomeBySource", { gd, el, j ->
+            gd.annualIncomeBySource = j.decodeFromJsonElement<Map<String, Long>>(el)
+        }),
+        f("annualExpenditureByReason", { gd, el, j ->
+            gd.annualExpenditureByReason = j.decodeFromJsonElement<Map<String, Long>>(el)
+        }),
         f("annualTotalIncome", { gd, el, j -> gd.annualTotalIncome = j.decodeFromJsonElement<Long>(el) }),
         f("annualTotalExpenditure", { gd, el, j -> gd.annualTotalExpenditure = j.decodeFromJsonElement<Long>(el) }),
         f("annualAlchemyCount", { gd, el, j -> gd.annualAlchemyCount = j.decodeFromJsonElement<Int>(el) }),
@@ -273,13 +367,17 @@ internal object GameDataFieldPatch {
         f("annualDesertedDisciples", { gd, el, j -> gd.annualDesertedDisciples = j.decodeFromJsonElement<Int>(el) }),
         f("annualTheftCount", { gd, el, j -> gd.annualTheftCount = j.decodeFromJsonElement<Int>(el) }),
         f("theftJudgementsThisMonth", { gd, el, j -> gd.theftJudgementsThisMonth = j.decodeFromJsonElement<Int>(el) }),
-        f("annualEquipmentBySource", { gd, el, j -> gd.annualEquipmentBySource = j.decodeFromJsonElement<Map<String, Int>>(el) }),
+        f("annualEquipmentBySource", { gd, el, j ->
+            gd.annualEquipmentBySource = j.decodeFromJsonElement<Map<String, Int>>(el)
+        }),
         f("annualPillBySource", { gd, el, j -> gd.annualPillBySource = j.decodeFromJsonElement<Map<String, Int>>(el) }),
         f("annualHerbBySource", { gd, el, j -> gd.annualHerbBySource = j.decodeFromJsonElement<Map<String, Int>>(el) }),
         f("yearlyReports", { gd, el, j -> gd.yearlyReports = j.decodeFromJsonElement<List<YearlyReport>>(el) }),
         f("soundEnabled", { gd, el, j -> gd.soundEnabled = j.decodeFromJsonElement<Boolean>(el) }),
         f("musicEnabled", { gd, el, j -> gd.musicEnabled = j.decodeFromJsonElement<Boolean>(el) }),
-        f("pendingTraitAdds", { gd, el, j -> gd.pendingTraitAdds = j.decodeFromJsonElement<List<PendingTraitAdd>>(el) }),
+        f("pendingTraitAdds", { gd, el, j ->
+            gd.pendingTraitAdds = j.decodeFromJsonElement<List<PendingTraitAdd>>(el)
+        }),
         f("mapGenVersion", { gd, el, j -> gd.mapGenVersion = j.decodeFromJsonElement<Int>(el) }),
         f("terrainTiles", { gd, el, j -> gd.terrainTiles = j.decodeFromJsonElement<List<Int>>(el) }),
     )
