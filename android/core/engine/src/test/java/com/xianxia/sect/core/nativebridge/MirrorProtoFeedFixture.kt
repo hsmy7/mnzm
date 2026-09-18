@@ -39,9 +39,15 @@ internal object MirrorProtoFeedFixture {
     /** 弟子 upsert 载荷：旧臂直接进 JSON 树，新臂经 [MirrorDiscipleRowFixture.toGameViewRow] 逐字段 typed 化。 */
     fun discipleUpsertsJson(d: Disciple): String {
         val rich = json.encodeToString(Disciple.serializer(), d)
-        val fresh = """{"id":"$NEW_DISCIPLE_ID","name":"新弟子","isAlive":true}"""
+        // 新增弟子也按**全字段**载荷表达（与 C++ 编码器 emit-always 同规）——
+        // 三键稀疏行是只有测试才存在的形状，第二波行投影对缺字段 fail-fast（红线），
+        // 故夹具随契约收敛：两臂都消费同一份全字段 Disciple 的编码。
+        val fresh = json.encodeToString(Disciple.serializer(), newDisciple())
         return "[$rich,$fresh]"
     }
+
+    /** 新弟子（id/名字外全取域默认值；两臂共同事实源） */
+    fun newDisciple(): Disciple = Disciple(id = NEW_DISCIPLE_ID, name = "新弟子")
 
     /** 全字段弟子（每个 wire 类别取非默认值，逐字段与旧平铺协议同源）。 */
     fun richDisciple(): Disciple = Disciple(

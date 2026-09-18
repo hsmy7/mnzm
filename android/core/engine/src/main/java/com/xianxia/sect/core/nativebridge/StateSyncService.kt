@@ -8,6 +8,7 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.gameview.GameDataFieldPatch
+import com.xianxia.sect.core.gameview.GameViewStore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -95,7 +96,17 @@ private data class DirtyEnvelope(
 @Singleton
 class StateSyncService @Inject constructor(
     private val stateStore: GameStateStore,
+    /**
+     * R2.3 第二波投影态（GameViewStore）。默认值 = 手工构造（测试/非 Hilt 环境）
+     * 时的独立实例；生产经 Hilt 注入全局单例，与 UI 消费面读的是同一份投影。
+     */
+    private val gameViewStore: GameViewStore = GameViewStore(),
 ) {
+
+    init {
+        // 投影态只被镜像馈送；绑定 store 仅用于注册"非镜像事务"对账钩子
+        gameViewStore.attach(stateStore)
+    }
 
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
@@ -187,7 +198,18 @@ class StateSyncService @Inject constructor(
             herbs.replaceAll(snapshot.herbs)
             seeds.replaceAll(snapshot.seeds)
             storageBags.replaceAll(snapshot.storageBags)
+            reprojectFromSnapshot()
         }
+    }
+
+    /**
+     * 全量快照臂后重投投影（R2.3 第二波）：低频兜底臂（F3）一次覆盖全部消费块，
+     * 与增量臂共用同一 gameData 实例 ⇒ 两臂馈送后投影不可能分叉。
+     */
+    private fun MutableGameState.reprojectFromSnapshot() {
+        if (!NativeEngineFlag.gameViewProjection) return
+        gameViewStore.recordMirrorCommit(stateStore.currentTransactionGeneration)
+        gameViewStore.reprojectAll(gameData)
     }
 
     /**
@@ -260,6 +282,10 @@ class StateSyncService @Inject constructor(
      */
     fun importToNative(restoreRng: Boolean = true): Boolean {
         val state = buildNativeState()
+        // 基线建立点 = 投影重投点（读档 / 新档 / 事件后 rebaseline 三处共用）：
+        // 换档走 loadFromSnapshot 而非 update 事务，对账钩子不覆盖，必须在此收敛，
+        // 否则暂停态读档后 HUD 会停在上一档的头部值。
+        if (NativeEngineFlag.gameViewProjection) gameViewStore.reprojectAll(state.gameData)
         val encoded = json.encodeToString(NativeGameState.serializer(), state)
         // 双实现并行契约：native 不可用降级 false（不崩溃，Kotlin 引擎照常）
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
@@ -352,6 +378,9 @@ class StateSyncService @Inject constructor(
         var changedFieldCount = 0
         var upsertCount = 0
         var removedCount = 0
+        val carriedGameDataFields = envelope.changed.keys
+            .filter { it.startsWith(GAMEDATA_PATH_PREFIX) }
+            .mapTo(linkedSetOf()) { it.removePrefix(GAMEDATA_PATH_PREFIX) }
         stateStore.updateMirror {
             changedFieldCount = mergeGameDataChanges(envelope.changed)
             val applied = applyEntityCollections(
@@ -359,8 +388,21 @@ class StateSyncService @Inject constructor(
             )
             upsertCount = applied.first
             removedCount = applied.second
+            feedProjection(carriedGameDataFields)
         }
         return DirtyApplyResult(envelope.version, changedFieldCount, upsertCount, removedCount)
+    }
+
+    /**
+     * 镜像事务内馈送投影（R2.3 第二波，[NativeEngineFlag.gameViewProjection] 灰度）：
+     * 与 store 写回同一事务、同一 gameData 实例 ⇒ 投影与全量镜像不可能读到彼此
+     * 不同步的中间态；关旗标即不馈送，UI 消费块由 [GameEngine] 转发回退到
+     * GameStateStore 全量流（第一波形态）。
+     */
+    private fun MutableGameState.feedProjection(carriedGameDataFields: Set<String>) {
+        if (!NativeEngineFlag.gameViewProjection) return
+        gameViewStore.recordMirrorCommit(stateStore.currentTransactionGeneration)
+        gameViewStore.project(carriedGameDataFields, gameData)
     }
 
     /** 拉取 native 变更集字节（native 不可用/空响应 → null）。 */

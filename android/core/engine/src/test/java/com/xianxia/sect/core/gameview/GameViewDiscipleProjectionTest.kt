@@ -71,7 +71,8 @@ class GameViewDiscipleProjectionTest {
 
     @Test
     fun `稀疏行缺必在字段即 fail-fast（禁止以默认值掩盖）`() {
-        val sparse = MirrorDiscipleRowFixture.newDiscipleRow()
+        // 稀疏行 = 只有三键的旧 JSON 臂形状（生产 C++ 恒 emit-always，此形状即协议漂移）
+        val sparse = DiscipleRow.newBuilder().setId("1").setName("稀疏").setIsAlive(true).build()
         val missing = GameViewDiscipleRows.missingRequiredFields(sparse)
         assertTrue("稀疏行应报出缺失标量字段（仅带 id/name/isAlive）：$missing", missing.size > 80)
         val error = assertThrows(IllegalArgumentException::class.java) {

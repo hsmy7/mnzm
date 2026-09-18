@@ -40,12 +40,8 @@ internal object MirrorDiscipleRowFixture {
         return b.build()
     }
 
-    /** 新弟子行（与 [MirrorProtoFeedFixture.discipleUpsertsJson] 的 `fresh` 片段同值：仅 id/name/isAlive）。 */
-    fun newDiscipleRow(): DiscipleRow = DiscipleRow.newBuilder()
-        .setId(MirrorProtoFeedFixture.NEW_DISCIPLE_ID)
-        .setName("新弟子")
-        .setIsAlive(true)
-        .build()
+    /** 新弟子行（与 [MirrorProtoFeedFixture.discipleUpsertsJson] 的 `fresh` 片段同值：全字段 emit-always）。 */
+    fun newDiscipleRow(): DiscipleRow = toGameViewRow(MirrorProtoFeedFixture.newDisciple())
 
     private fun fillDirectRowFields(b: DiscipleRow.Builder, d: Disciple) {
         b.id = d.id

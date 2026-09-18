@@ -48,7 +48,12 @@ class JadeSymbolConsumptionGuardTest {
     private val allowedFiles = setOf(
         "com" + File.separator + "xianxia" + File.separator + "sect" + File.separator +
             "core" + File.separator + "engine" + File.separator + "service" + File.separator +
-            "JadeSymbolService.kt"
+            "JadeSymbolService.kt",
+        // 镜像协议面字段级应用（R2.3 第二波）：C++ 真相源 → Kotlin 镜像的合法写入面，
+        // 与旧「整份 GameData JSON 往返」对 jadeSymbols 的覆写逐项同语义；
+        // 本豁免只覆盖 gameview 字段表的机械写入，玩法侧扣减/发放仍必须走服务。
+        "com" + File.separator + "xianxia" + File.separator + "sect" + File.separator +
+            "core" + File.separator + "gameview" + File.separator + "GameDataFieldPatch.kt"
     )
 
     // Gradle 测试工作目录为模块目录（android/core/engine）

@@ -23,7 +23,10 @@ import java.io.File
  * 1. 镜像导出 JNI 调用点（`GameCoreBridge.nativeExportDirty/State(`）只允许出现在
  *    `StateSyncService.kt`——馈送链唯一入口；
  * 2. `GameView` protobuf 契约（`com.xianxia.sect.proto.gameview`）import 只允许
- *    出现在 `GameViewMirrorCodec.kt`——信封解码唯一出口；
+ *    出现在 `GameViewMirrorCodec.kt`（信封解码唯一出口）与
+ *    `gameview/GameViewDiscipleRows.kt`（R2.3 第二波弟子行 typed 投影——只消费
+ *    `DiscipleRow` 行契约类型，不解析信封、不产变更集树）——信封级类型的第二处
+ *    解析者一旦出现即红；
  * 3. UI 模块（`core/ui` 与 `feature` 各模块）主源对镜像符号零命中——UI 只经
  *    GameStateStore 只读流消费，不直连镜像通道（"UI 行为零变更"的结构面）；
  * 4. 灰度共存两臂与旗标默认值在源码面保留（`applyDirtyProto` / `applyDirty` 双分支
@@ -58,7 +61,7 @@ class MirrorConsumerSurfaceGuardTest {
         assertEquals(
             "GameView protobuf 契约只允许镜像解码器消费（第二处解码 = 双解码器漂移）：\n" +
                 hits.joinToString("\n"),
-            listOf(CODEC_FILE),
+            listOf(CODEC_FILE, ROW_PROJECTION_FILE).sorted(),
             hits.paths,
         )
     }
@@ -129,6 +132,12 @@ class MirrorConsumerSurfaceGuardTest {
             "core/engine:java/com/xianxia/sect/core/nativebridge/StateSyncService.kt"
         private const val CODEC_FILE =
             "core/engine:java/com/xianxia/sect/core/nativebridge/GameViewMirrorCodec.kt"
+        /**
+         * 弟子行 typed 投影（R2.3 第二波）：只消费 `DiscipleRow` **行契约类型**，
+         * 不解析 GameView 信封、不产变更集树——解码出口仍唯一 = [CODEC_FILE]。
+         */
+        private const val ROW_PROJECTION_FILE =
+            "core/engine:java/com/xianxia/sect/core/gameview/GameViewDiscipleRows.kt"
         private const val FLAG_FILE =
             "core/engine:java/com/xianxia/sect/core/nativebridge/NativeEngineFlag.kt"
 
