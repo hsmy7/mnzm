@@ -106,6 +106,7 @@ constexpr int32_t kMonthlyDecayPhases = 3;
 namespace detail {
 
 using gamecore::state::Disciple;
+using gamecore::state::DiscipleColumn;
 using gamecore::state::DiscipleStore;
 using gamecore::state::GameData;
 using gamecore::state::GameState;
@@ -1453,10 +1454,12 @@ inline void captureDiscipleForTheft(GameState& state,
     const std::size_t row = it->second;
     if (ds.isAlive[row] != 1) return;
     ds.statuses[row] = "REFLECTING";
+    ds.markCol(DiscipleColumn::Status, row);   // R2 列级写屏障（偷盗链写点）
     auto& sd = ds.statusData[row];
     sd["reflectionStartYear"] = std::to_string(state.gameData.gameYear);
     sd["reflectionEndYear"] =
         std::to_string(state.gameData.gameYear + lawReflectionYears());
+    ds.markCol(DiscipleColumn::StatusData, row);
     recordGameEvent(state, "SECT", "theft_caught", disciple.name + "偷盗被捕",
                     disciple.id, disciple.name);
 }
@@ -1676,6 +1679,7 @@ inline void executeSuccessfulTheft(
     if (it == ds.idToRow.end()) return;   // Kotlin firstOrNull null → return
     const std::size_t row = it->second;
     ds.storageBagSpiritStones[row] += stolenAmount;
+    ds.markCol(DiscipleColumn::StorageBagSpiritStones, row);  // R2 列级写屏障
     for (const auto& item : stolenItems) {
         state::StorageBagItem entry;
         entry.itemId = item.id;
@@ -1691,6 +1695,7 @@ inline void executeSuccessfulTheft(
             break;
         }
     }
+    ds.markCol(DiscipleColumn::StorageBagItems, row);   // R2 列级写屏障
     std::string itemSummary;
     if (!stolenItems.empty()) {
         itemSummary = "（含" + std::to_string(stolenItems.size()) + "种物品）";

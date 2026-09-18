@@ -50,29 +50,23 @@ std::map<std::string, std::size_t> indexById(const json& arr) {
 
 }  // namespace
 
-void DirtyTracker::resetBaseline(const GameState& s) {
-    baselineJson_ = stateToJson(s);
-}
+/// 非 disciples 集合名清单（列级导出共享段；顺序 = kEntityCollections 去
+/// disciples，保证输出遍历序稳定）
+const std::vector<const char*> kNonDiscipleCollections = {
+    "equipmentStacks",
+    "equipmentInstances",
+    "manualStacks",
+    "manualInstances",
+    "pills",
+    "materials",
+    "herbs",
+    "seeds",
+    "storageBags",
+};
 
-void DirtyTracker::syncBaselineToCurrent(const GameState& current) {
-    baselineJson_ = stateToJson(current);
-}
-
-std::string DirtyTracker::diffToJson(const GameState& current) {
-    return diffToTree(current).dump();
-}
-
-nlohmann::json DirtyTracker::diffToTree(const GameState& current) {
-    ++version_;
-
-    // WS-1.3：仅当前状态一次全量序列化；基线用缓存树（resetBaseline/
-    // syncBaselineToCurrent/上次 diff 消费时已重建），比较后移入缓存。
-    const json& base = baselineJson_;
-    json cur = stateToJson(current);
-
-    json changed = json::object();
-    json removed = json::object();
-
+void diffTreeSegments(const json& base, const json& cur,
+                      const std::vector<const char*>& names,
+                      json& changed, json& removed) {
     // ── gameData：顶层字段级 diff（嵌套容器为整体替换语义）──────────
     const json& baseGd = base.contains("gameData") ? base.at("gameData") : json::object();
     if (cur.contains("gameData") && cur.at("gameData").is_object()) {
@@ -88,7 +82,7 @@ nlohmann::json DirtyTracker::diffToTree(const GameState& current) {
     }
 
     // ── 实体集合：按 id upsert/remove ─────────────────────────────
-    for (const char* name : kEntityCollections) {
+    for (const char* name : names) {
         const json baseArr = base.contains(name) ? base.at(name) : json::array();
         if (!cur.contains(name) || !cur.at(name).is_array()) continue;
         const json& curArr = cur.at(name);
@@ -118,6 +112,51 @@ nlohmann::json DirtyTracker::diffToTree(const GameState& current) {
         if (!upserts.empty()) changed[name] = std::move(upserts);
         if (!removedIds.empty()) removed[name] = std::move(removedIds);
     }
+}
+
+json stateWithoutDisciplesToJson(const GameState& s) {
+    json j = json::object();
+    j["gameData"] = s.gameData;
+    j["equipmentStacks"] = s.equipmentStacks;
+    j["equipmentInstances"] = s.equipmentInstances;
+    j["manualStacks"] = s.manualStacks;
+    j["manualInstances"] = s.manualInstances;
+    j["pills"] = s.pills;
+    j["materials"] = s.materials;
+    j["herbs"] = s.herbs;
+    j["seeds"] = s.seeds;
+    j["storageBags"] = s.storageBags;
+    return j;
+}
+
+void DirtyTracker::resetBaseline(const GameState& s) {
+    baselineJson_ = stateToJson(s);
+}
+
+void DirtyTracker::syncBaselineToCurrent(const GameState& current) {
+    baselineJson_ = stateToJson(current);
+}
+
+std::string DirtyTracker::diffToJson(const GameState& current) {
+    return diffToTree(current).dump();
+}
+
+nlohmann::json DirtyTracker::diffToTree(const GameState& current) {
+    ++version_;
+
+    // WS-1.3：仅当前状态一次全量序列化；基线用缓存树（resetBaseline/
+    // syncBaselineToCurrent/上次 diff 消费时已重建），比较后移入缓存。
+    const json& base = baselineJson_;
+    json cur = stateToJson(current);
+
+    json changed = json::object();
+    json removed = json::object();
+
+    // gameData 字段级 + 全部实体集合按 id diff（与列级导出共享同一比对段）
+    diffTreeSegments(base, cur,
+                     std::vector<const char*>(std::begin(kEntityCollections),
+                                              std::end(kEntityCollections)),
+                     changed, removed);
 
     json out;
     out["version"] = version_;

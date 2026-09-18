@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -38,6 +39,28 @@
 // 集合内重复 id 以末次出现为准（Kotlin 侧各存储均保证 id 唯一）。
 // ============================================================
 namespace gamecore::state {
+
+/// ── 共享 diff 段（重构方案 R2.4/B09 列级导出接线）───────────────────
+/// gameData 字段级 + 实体集合按 id upsert/remove 的增量比对——
+/// [DirtyTracker::diffToTree] 与列级导出（ColumnDirtyTracker::exportDirtyTree）
+/// 共用的比对段。[names] = 参与比对的集合名清单（顺序 = 输出遍历序）；
+/// base/cur 两树形状一致（键集相同）。语义与全量 diff 逐位一致（同一循环体），
+/// 列级通道的 gameData/集合域因此与全量导出**由构造保证等价**——列级通道的
+/// 新增正确性面收窄为弟子列位图（写点标脏），由对拍守卫测试锁定。
+void diffTreeSegments(const nlohmann::json& base, const nlohmann::json& cur,
+                      const std::vector<const char*>& names,
+                      nlohmann::json& changed, nlohmann::json& removed);
+
+/// 序列化 gameData + 九个实体集合（**不含 disciples**——弟子域由列级位图
+/// 通道承载，免去每次导出 5000×109 行的整树序列化）。@Transient 顶层域
+/// （aiSectDisciples 等 AI 池）不在序列化面——与镜像协议无关（Kotlin 消费端
+/// 对未知集合名宽松忽略），列级信封因此不携带（全量 diff 臂携带但同样被
+/// 消费端忽略，语义等价）。
+nlohmann::json stateWithoutDisciplesToJson(const GameState& s);
+
+/// 实体集合名清单（gameData 之外的镜像面集合；与 kEntityCollections 的
+/// 非 disciples 子集一致，顺序固定保证输出稳定）
+extern const std::vector<const char*> kNonDiscipleCollections;
 
 class DirtyTracker {
 public:

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
+#include <memory>
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -15,6 +17,9 @@
 // 侧为前向声明 + 指针成员，无反向包含）；导出函数与列序列化需完整类型
 // 与 JSON 编解码声明（to_json/normalizeIntegralFloats，均在 json_codec.h）。
 #include "gamecore/state/json_codec.h"
+// B09 R2 接线：gameData/集合域共享比对段 + 无弟子域序列化（dirty_tracker.h
+// 与 json_codec.h/models.h 无循环依赖——前者只被本文件包含）
+#include "gamecore/state/dirty_tracker.h"
 
 // ============================================================
 // ColumnDirtyTracker — 列级写屏障（重构方案 R1.4，R2 的前置）
@@ -24,18 +29,21 @@
 // 标记脏（写屏障），导出只序列化脏行 × 脏列 + 集合 tombstone + 标脏的
 // gameData 顶层域，免去每次导出的全量序列化与树比较。
 //
-// ## 范围（本批 = C++ 侧能力，生产不挂载）
+// ## 范围（B09 R2 生产接线：写屏障挂载 + 混合导出）
 //   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，109 列——与
 //     Disciple to_json 字段一一对应；非协议派生列 numericIds/hasNumericIds/
 //     deathYears/lastTheftJudgementYears 不在册，协议字段 deathYear 无列
-//     支撑亦不在册）+ 集合 tombstone（通用：任意实体集合名）+ gameData
+//     支撑亦不在册）+ 集合 tombstone（通用实体集合名）+ gameData
 //     顶层域名集合。
-//   - 写屏障挂点（本批）= DiscipleStore 协议边界变更原语（append/upsert
-//     旋转/eraseAt 行位移/swapRows/clear）——即 recruit/死亡/叛逃/读档等
-//     行结构变更路径。结算热路径的列直写（ds.cultivations[row] += …）**
-//     尚不经屏障**——写点标脏接线属 R2（protobuf 视图契约）范围；生产
-//     exportDirtyJson 仍走全量树 diff（对拍显式依赖其逐位行为，零漂移），
-//     本层导出为显式 opt-in 能力，挂载前不存在"半正确"的中间态。
+//   - 写屏障挂点（B09 起）= DiscipleStore 协议边界变更原语（append/upsert
+//     旋转/eraseAt 行位移/swapRows/clear）+ **结算热路径写点**（phase 路径
+//     修炼/恢复/丹药写回/突破/自动装备/亲属赠送/偷盗链，逐写点 markColumn
+//     精确标脏；月/年路径为 GameCore 边界按审计列集粗粒度标脏）。生产
+//     exportDirtyProto 在列级模式开启时走本层整树导出（[exportDirtyTree]），
+//     gameData/集合域与全量 diff 共享同一比对段（构造等价）；对拍显式依赖
+//     的全量模式开关保留（列级关闭/异构路径锁存 = 全量树 diff，零漂移）。
+//   - 列级通道的新增正确性面 = 弟子列位图的漏标/错标，由对拍守卫测试
+//     （同初态+同写集下与全量导出语义对照）锁定。
 //
 // ## 导出协议（与 diffToJson 同形：{version, changed, removed}）
 //   - changed["disciples"] = 脏行数组；每行恒携带 "id"（键）+ 仅脏列字段；
@@ -60,125 +68,8 @@
 // ============================================================
 namespace gamecore::state {
 
-/// DiscipleStore SoA 协议列枚举（列身份；与 Disciple to_json 协议字段
-/// 一一对应，守卫测试锁定双射——新增列时本枚举与序列化同步扩展）
-enum class DiscipleColumn : uint16_t {
-    Id,
-    Name,
-    Surname,
-    Realm,
-    RealmLayer,
-    Cultivation,
-    CultivationCheckpoint,
-    CultivationCheckpointGameMonth,
-    SpiritRootType,
-    Age,
-    Lifespan,
-    IsAlive,
-    Gender,
-    PortraitRes,
-    ManualIds,
-    TalentIds,
-    PhysiqueIds,
-    AffixIds,
-    ManualMasteries,
-    Status,
-    StatusData,
-    CultivationSpeedBonus,
-    CultivationSpeedDuration,
-    DiscipleType,
-    SoulPower,
-    CultivationCompletionMonth,
-    CultivationCompletionPhase,
-    ManualCompletionMonth,
-    ManualCompletionPhase,
-    EquipmentNurturingCompletionMonth,
-    EquipmentNurturingCompletionPhase,
-    // CombatAttributes
-    BaseHp,
-    BaseMp,
-    BasePhysicalAttack,
-    BaseMagicAttack,
-    BasePhysicalDefense,
-    BaseMagicDefense,
-    BaseSpeed,
-    HpVariance,
-    MpVariance,
-    PhysicalAttackVariance,
-    MagicAttackVariance,
-    PhysicalDefenseVariance,
-    MagicDefenseVariance,
-    SpeedVariance,
-    TotalCultivation,
-    BreakthroughCount,
-    BreakthroughFailCount,
-    CurrentHp,
-    CurrentMp,
-    // PillEffects
-    PillPhysicalAttackBonus,
-    PillMagicAttackBonus,
-    PillPhysicalDefenseBonus,
-    PillMagicDefenseBonus,
-    PillHpBonus,
-    PillMpBonus,
-    PillSpeedBonus,
-    PillCritRateBonus,
-    PillCritEffectBonus,
-    PillCultivationSpeedBonus,
-    PillSkillExpSpeedBonus,
-    PillNurtureSpeedBonus,
-    PillEffectDuration,
-    ActivePillTypes,
-    ActivePillCategory,
-    // EquipmentSet
-    WeaponId,
-    ArmorId,
-    BootsId,
-    AccessoryId,
-    WeaponNurture,
-    ArmorNurture,
-    BootsNurture,
-    AccessoryNurture,
-    StorageBagItems,
-    StorageBagSpiritStones,
-    SpiritStones,
-    // SocialData
-    PartnerId,
-    PartnerSectId,
-    ParentId1,
-    ParentId2,
-    LastChildYear,
-    ChildBirthMonth,
-    GriefEndYear,
-    MasterId,
-    // SkillStats
-    Intelligence,
-    Charm,
-    Loyalty,
-    Comprehension,
-    ArtifactRefining,
-    PillRefining,
-    SpiritPlanting,
-    Mining,
-    Teaching,
-    Morality,
-    Aptitude,
-    SalaryPaidCount,
-    SalaryMissedCount,
-    AlchemyLevel,
-    AlchemyPromotionCount,
-    ForgeLevel,
-    ForgePromotionCount,
-    // UsageTracking
-    UsedPermanentPillKeys,
-    UsedExtendLifePillTypes,
-    UsedFunctionalPillTypes,
-    UsedExtendLifePillIds,
-    RecruitedMonth,
-    HasReviveEffect,
-    HasClearAllEffect,
-    kCount,
-};
+/// DiscipleStore SoA 协议列枚举 [DiscipleColumn] 定义于 disciple_store.h
+/// （列身份与 store 同源；本文件只承载列名映射与列序列化）。
 
 inline constexpr uint16_t kDiscipleColumnCount =
     static_cast<uint16_t>(DiscipleColumn::kCount);
@@ -532,7 +423,7 @@ public:
         ensureRowCapacity(row + 1);
         const std::size_t base = row * kWordsPerRow;
         for (std::size_t w = 0; w < kWordsPerRow; ++w) {
-            rowBits_[base + w] = ~uint64_t{0};
+            rowBits_[base + w].store(~uint64_t{0}, std::memory_order_relaxed);
         }
     }
 
@@ -560,18 +451,25 @@ public:
     }
 
     // ── 查询（守卫/测试）────────────────────────────────────
+    // 位图原子性说明（B09）：核心批次经 JobSystem 并行（每旬核心批次并行
+    // 化），各线程写**各自行**的位字——行互斥但同 64 位字内的位 RMW 在
+    // 多线程下仍可能丢位（编译器/内核层的读-改-写非原子），故位字统一
+    // std::atomic<uint64_t>：置位 fetch_or、清位 store、读位 load，全部
+    // relaxed（互斥性由原子 RMW 保证，跨线程同步由批次 join 的
+    // happens-before 提供）。
     bool columnRowDirty(DiscipleColumn col, std::size_t row) const {
         const std::size_t base = row * kWordsPerRow;
         const std::size_t w = static_cast<std::size_t>(col) / 64;
-        if (base + w >= rowBits_.size()) return false;
-        return (rowBits_[base + w] >> (static_cast<std::size_t>(col) % 64)) & 1u;
+        if (base + w >= rowBitsSize_) return false;
+        return (rowBits_[base + w].load(std::memory_order_relaxed) >>
+                (static_cast<std::size_t>(col) % 64)) & 1u;
     }
 
     bool anyRowDirty(std::size_t rowCount) const {
         const std::size_t words =
-            std::min(rowCount * kWordsPerRow, rowBits_.size());
+            std::min(rowCount * kWordsPerRow, rowBitsSize_);
         for (std::size_t i = 0; i < words; ++i) {
-            if (rowBits_[i] != 0) return true;
+            if (rowBits_[i].load(std::memory_order_relaxed) != 0) return true;
         }
         return false;
     }
@@ -580,15 +478,30 @@ public:
     /// 基线重置（全量导出/导入后；清空标脏集，版本号不回退——与
     /// DirtyTracker::resetBaseline 版本语义一致）
     void resetBaseline() {
-        rowBits_.clear();
+        // 清零但**保留已分配容量**：位图扩容只允许发生在串行段（行结构
+        // 变更路径），若此处释放内存，下一旬并行核心批次的置位会并发触发
+        // 扩容（unique_ptr 替换 + 旧字释放）= use-after-free 竞争。
+        for (std::size_t i = 0; i < rowBitsSize_; ++i) {
+            rowBits_[i].store(0, std::memory_order_relaxed);
+        }
         tombstones_.clear();
         gameDataFields_.clear();
+    }
+
+    /// 基线重置并重捕非弟子域基线树（B09：初始化/导入/全量导出后与
+    /// DirtyTracker::resetBaseline 同点调用——gameData/集合域的列级 diff
+    /// 基线自此与全量 diff 基线同源同步）
+    void resetBaseline(const GameState& s) {
+        resetBaseline();
+        restBaseline_ = stateWithoutDisciplesToJson(s);
     }
 
     /// 仅复位行位图（DiscipleStore::clear 用：行已全部删除、每 id 经
     /// tombstone 记账——tombstone 必须保留供导出 removed，行位图随行消亡）
     void clearRowBits() {
-        rowBits_.clear();
+        for (std::size_t i = 0; i < rowBitsSize_; ++i) {
+            rowBits_[i].store(0, std::memory_order_relaxed);
+        }
     }
 
     /// 导出仅脏列/行/tombstone/域；返回后标脏集清空（导出即消费）。
@@ -661,6 +574,79 @@ public:
         return out.dump();
     }
 
+    // ── 整树列级导出（B09 R2 生产接线）────────────────────────────
+    /// 列级导出**树**（{"version","changed","removed"}，已过
+    /// normalizeIntegralFloats）：
+    ///   - gameData + 九个实体集合：经 [diffTreeSegments] 与全量 diff 共享
+    ///     同一比对段（基线 = [resetBaseline(const GameState&)] 捕获的非弟子
+    ///     域树）——语义与全量导出由构造保证等价；
+    ///   - disciples：行主序脏位图通道（仅脏行 × 脏列 + 恒携带 id 键；
+    ///     tombstone 撤销规则同 [exportDirtyJson]）；
+    ///   - 导出即消费：位图/tombstone 清空、非弟子域基线推进到当前。
+    nlohmann::json exportDirtyTree(const GameState& s) {
+        ++version_;
+        const DiscipleStore& ds = s.disciples;
+        const std::size_t rowCount = ds.size();
+
+        using nlohmann::json;
+        json changed = json::object();
+        json removed = json::object();
+
+        // gameData + 集合域：与全量 diff 共享比对段（基线推进到当前）
+        json cur = stateWithoutDisciplesToJson(s);
+        diffTreeSegments(restBaseline_, cur, kNonDiscipleCollections, changed, removed);
+        restBaseline_ = std::move(cur);
+
+        // tombstone 消费（弟子集合复活撤销规则，与旧导出同语义）
+        for (const auto& [collection, ids] : tombstones_) {
+            json removedIds = json::array();
+            for (const auto& id : ids) {
+                if (collection == kDisciplesCollection) {
+                    const auto row = ds.rowOf(id);
+                    if (row.has_value()) {
+                        markRowAllColumns(*row);
+                        continue;
+                    }
+                }
+                removedIds.push_back(id);
+            }
+            if (!removedIds.empty()) removed[collection] = std::move(removedIds);
+        }
+
+        // 脏行 × 脏列序列化（行序 = 店行序，确定性；"id" 恒携带）
+        if (anyRowDirty(rowCount)) {
+            json upserts = json::array();
+            for (std::size_t row = 0; row < rowCount; ++row) {
+                if (!rowHasAnyBit(row)) continue;
+                json e = json::object();
+                e["id"] = ds.ids[row];
+                for (uint16_t c = 0; c < kDiscipleColumnCount; ++c) {
+                    const auto col = static_cast<DiscipleColumn>(c);
+                    if (col == DiscipleColumn::Id) continue;  // 键已携带
+                    if (columnRowDirty(col, row)) {
+                        serializeDiscipleColumn(e, ds, row, col);
+                    }
+                }
+                upserts.push_back(std::move(e));
+            }
+            if (!upserts.empty()) changed[kDisciplesCollection] = std::move(upserts);
+        }
+
+        json out;
+        out["version"] = version_;
+        out["changed"] = std::move(changed);
+        out["removed"] = std::move(removed);
+        normalizeIntegralFloats(out);
+
+        resetBaseline();
+        return out;
+    }
+
+    /// 列级导出 JSON 文本（整树版；GameCore 混合导出/守卫对照用）
+    std::string exportDirtyJson(const GameState& s) {
+        return exportDirtyTree(s).dump();
+    }
+
     /// 当前版本号（每次导出后递增；初始 0——语义同 DirtyTracker）
     uint64_t version() const { return version_; }
 
@@ -670,28 +656,48 @@ private:
 
     void ensureRowCapacity(std::size_t rows) {
         const std::size_t need = rows * kWordsPerRow;
-        if (rowBits_.size() < need) rowBits_.resize(need, 0);
+        if (rowBitsSize_ >= need) return;
+        // 扩容仅在行结构变更路径（串行段）发生；新字 value-init 清零，
+        // 旧字逐字搬运（relaxed——扩容与并行置位不同时发生）
+        std::unique_ptr<std::atomic<uint64_t>[]> grown(
+            new std::atomic<uint64_t>[need]);
+        for (std::size_t i = 0; i < need; ++i) {
+            grown[i].store(i < rowBitsSize_
+                               ? rowBits_[i].load(std::memory_order_relaxed)
+                               : 0,
+                           std::memory_order_relaxed);
+        }
+        rowBits_ = std::move(grown);
+        rowBitsSize_ = need;
     }
 
     void setBit(std::size_t row, DiscipleColumn col) {
         ensureRowCapacity(row + 1);
-        const std::size_t base = row * kWordsPerRow;
-        rowBits_[base + static_cast<std::size_t>(col) / 64] |=
-            (uint64_t{1} << (static_cast<std::size_t>(col) % 64));
+        rowBits_[row * kWordsPerRow + static_cast<std::size_t>(col) / 64]
+            .fetch_or(uint64_t{1} << (static_cast<std::size_t>(col) % 64),
+                      std::memory_order_relaxed);
     }
 
     bool rowHasAnyBit(std::size_t row) const {
         const std::size_t base = row * kWordsPerRow;
-        if (base + kWordsPerRow > rowBits_.size()) return false;
+        if (base + kWordsPerRow > rowBitsSize_) return false;
         for (std::size_t w = 0; w < kWordsPerRow; ++w) {
-            if (rowBits_[base + w] != 0) return true;
+            if (rowBits_[base + w].load(std::memory_order_relaxed) != 0) {
+                return true;
+            }
         }
         return false;
     }
 
-    std::vector<uint64_t> rowBits_;                 // 行主序脏位图（懒扩容）
+    /// 行主序脏位图（懒扩容；原子字——并行核心批次多线程置位，见
+    /// 查询段的原子性说明；vector<atomic> 不可移动故用 unique_ptr 数组）
+    std::unique_ptr<std::atomic<uint64_t>[]> rowBits_;
+    std::size_t rowBitsSize_ = 0;   // rowBits_ 字数（= 容量行数 × kWordsPerRow）
     std::map<std::string, std::set<std::string>> tombstones_;  // 集合 → 被删 id（有序）
     std::set<std::string> gameDataFields_;          // gameData 标脏顶层域（有序）
+    /// 非弟子域（gameData + 九集合）基线树（resetBaseline(const GameState&)
+    /// 捕获、exportDirtyTree 消费推进——与 DirtyTracker 基线同语义）
+    nlohmann::json restBaseline_ = nlohmann::json::object();
     uint64_t version_ = 0;
 };
 

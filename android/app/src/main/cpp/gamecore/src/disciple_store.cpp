@@ -720,4 +720,10 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     }
 }
 
+void DiscipleStore::markCol(DiscipleColumn col, std::size_t row) {
+    // B09 R2 热路径写点列标脏：未挂载零开销直通；宁多标不漏标
+    //（多标 = 导出重写同值；漏标 = 镜像静默丢变更，对拍守卫红）。
+    if (columnDirty_ != nullptr) columnDirty_->markColumn(col, row);
+}
+
 }  // namespace gamecore::state

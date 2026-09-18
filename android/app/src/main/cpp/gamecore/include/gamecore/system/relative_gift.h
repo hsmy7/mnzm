@@ -86,6 +86,7 @@ enum class GiftResult { kSuccess, kBagTooSmall, kBagEmpty, kNoSuitableItem };
 
 namespace detail {
 
+using gamecore::state::DiscipleColumn;
 using gamecore::state::DiscipleStore;
 using gamecore::state::EquipmentStack;
 using gamecore::state::GameState;
@@ -397,11 +398,13 @@ inline GiftResult tryGiveGift(state::GameState& state,
     // 从赠送者储物袋移除（quantity-1，=0 整条移除）
     ds.storageBagItems[giverRow] = pill::decreaseItemQuantity(
         giverBag, selected->itemId, 1);
+    ds.markCol(gamecore::state::DiscipleColumn::StorageBagItems, giverRow);  // R2 列级写屏障
     // 添加到接收者储物袋（quantity=1 合并追加）
      state::StorageBagItem gift = *selected;
     gift.quantity = 1;
     ds.storageBagItems[receiverRow] = detail::increaseItemQuantity(
         ds.storageBagItems[receiverRow], gift);
+    ds.markCol(gamecore::state::DiscipleColumn::StorageBagItems, receiverRow);  // R2 列级写屏障
     return GiftResult::kSuccess;
 }
 

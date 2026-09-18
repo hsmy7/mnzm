@@ -33,6 +33,128 @@ namespace gamecore::state {
 
 class ColumnDirtyTracker;  // 列级写屏障（R1.4；前向声明——本类只持指针）
 
+/// DiscipleStore SoA 协议列枚举（列身份；与 Disciple to_json 协议字段
+/// 一一对应，守卫测试锁定双射——新增列时本枚举与序列化同步扩展）
+enum class DiscipleColumn : uint16_t {
+    Id,
+    Name,
+    Surname,
+    Realm,
+    RealmLayer,
+    Cultivation,
+    CultivationCheckpoint,
+    CultivationCheckpointGameMonth,
+    SpiritRootType,
+    Age,
+    Lifespan,
+    IsAlive,
+    Gender,
+    PortraitRes,
+    ManualIds,
+    TalentIds,
+    PhysiqueIds,
+    AffixIds,
+    ManualMasteries,
+    Status,
+    StatusData,
+    CultivationSpeedBonus,
+    CultivationSpeedDuration,
+    DiscipleType,
+    SoulPower,
+    CultivationCompletionMonth,
+    CultivationCompletionPhase,
+    ManualCompletionMonth,
+    ManualCompletionPhase,
+    EquipmentNurturingCompletionMonth,
+    EquipmentNurturingCompletionPhase,
+    // CombatAttributes
+    BaseHp,
+    BaseMp,
+    BasePhysicalAttack,
+    BaseMagicAttack,
+    BasePhysicalDefense,
+    BaseMagicDefense,
+    BaseSpeed,
+    HpVariance,
+    MpVariance,
+    PhysicalAttackVariance,
+    MagicAttackVariance,
+    PhysicalDefenseVariance,
+    MagicDefenseVariance,
+    SpeedVariance,
+    TotalCultivation,
+    BreakthroughCount,
+    BreakthroughFailCount,
+    CurrentHp,
+    CurrentMp,
+    // PillEffects
+    PillPhysicalAttackBonus,
+    PillMagicAttackBonus,
+    PillPhysicalDefenseBonus,
+    PillMagicDefenseBonus,
+    PillHpBonus,
+    PillMpBonus,
+    PillSpeedBonus,
+    PillCritRateBonus,
+    PillCritEffectBonus,
+    PillCultivationSpeedBonus,
+    PillSkillExpSpeedBonus,
+    PillNurtureSpeedBonus,
+    PillEffectDuration,
+    ActivePillTypes,
+    ActivePillCategory,
+    // EquipmentSet
+    WeaponId,
+    ArmorId,
+    BootsId,
+    AccessoryId,
+    WeaponNurture,
+    ArmorNurture,
+    BootsNurture,
+    AccessoryNurture,
+    StorageBagItems,
+    StorageBagSpiritStones,
+    SpiritStones,
+    // SocialData
+    PartnerId,
+    PartnerSectId,
+    ParentId1,
+    ParentId2,
+    LastChildYear,
+    ChildBirthMonth,
+    GriefEndYear,
+    MasterId,
+    // SkillStats
+    Intelligence,
+    Charm,
+    Loyalty,
+    Comprehension,
+    ArtifactRefining,
+    PillRefining,
+    SpiritPlanting,
+    Mining,
+    Teaching,
+    Morality,
+    Aptitude,
+    SalaryPaidCount,
+    SalaryMissedCount,
+    AlchemyLevel,
+    AlchemyPromotionCount,
+    ForgeLevel,
+    ForgePromotionCount,
+    // UsageTracking
+    UsedPermanentPillKeys,
+    UsedExtendLifePillTypes,
+    UsedFunctionalPillTypes,
+    UsedExtendLifePillIds,
+    RecruitedMonth,
+    HasReviveEffect,
+    HasClearAllEffect,
+    kCount,
+};
+
+
+
 class DiscipleStore {
 public:
     // ── 标识列 ──
@@ -248,14 +370,21 @@ public:
     /// 挂载列级写屏障追踪器（nullptr = 卸载）。挂载后，本 store 的协议
     /// 边界变更原语（append/upsert 旋转/eraseAt 行位移/swapRows/clear）
     /// 向追踪器标记脏行/列 + tombstone，供列级增量导出消费。
-    /// **范围口径**：结算热路径的列直写（ds.cultivations[row] += … 等公有
-    /// 列访问）不经本屏障——写点标脏接线属 R2；生产 exportDirtyJson 仍走
-    /// DirtyTracker 全量树 diff（对拍零漂移），列级导出为显式 opt-in 能力。
+    /// **范围口径（B09 起）**：结算热路径写点经 [markCol] 逐点标脏（修炼/
+    /// 恢复/丹药写回/突破/自动装备/亲属赠送/偷盗链），行结构变更路径由
+    /// 变更原语整行标脏；生产 exportDirtyProto 列级模式消费本层导出，
+    /// 全量模式开关保留（对拍零漂移）。
     void attachColumnDirtyTracker(ColumnDirtyTracker* tracker) {
         columnDirty_ = tracker;
     }
 
     ColumnDirtyTracker* columnDirtyTracker() const { return columnDirty_; }
+
+    /// 结算写点列标脏（B09 R2 热路径写点模式；定义见 disciple_store.cpp
+    /// ——经前向声明避免包含环）。语义 = 该 (列, 行) 单元格自基线以来被
+    /// 写过——**宁多标不漏标**（多标只是重导同值；漏标 = 镜像静默丢变更）。
+    /// 未挂载追踪器时零开销直通。
+    void markCol(DiscipleColumn col, std::size_t row);
 
 private:
     /// ids 全串严格整数解析（Kotlin String.toIntOrNull 同口径，与

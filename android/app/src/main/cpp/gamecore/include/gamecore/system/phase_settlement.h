@@ -74,6 +74,7 @@ constexpr std::size_t kMaxEventLogs = 200;
 namespace detail {
 
 using gamecore::state::Disciple;
+using gamecore::state::DiscipleColumn;
 using gamecore::state::DiscipleStore;
 using gamecore::state::EquipmentInstance;
 using gamecore::state::GameData;
@@ -193,8 +194,14 @@ inline void recoverHpMp(DiscipleStore& ds, std::size_t row, const GameData& gd,
     if (effHp >= maxHp && effMp >= maxMp) return;
 
     const double multiplier = 1.0;   // phasesToSettle = 1
-    if (curHp >= 0) ds.currentHps[row] = std::min(curHp + recoveryAmount(maxHp, multiplier), maxHp);
-    if (curMp >= 0) ds.currentMps[row] = std::min(curMp + recoveryAmount(maxMp, multiplier), maxMp);
+    if (curHp >= 0) {
+        ds.currentHps[row] = std::min(curHp + recoveryAmount(maxHp, multiplier), maxHp);
+        ds.markCol(DiscipleColumn::CurrentHp, row);   // R2 列级写屏障（写点标脏）
+    }
+    if (curMp >= 0) {
+        ds.currentMps[row] = std::min(curMp + recoveryAmount(maxMp, multiplier), maxMp);
+        ds.markCol(DiscipleColumn::CurrentMp, row);
+    }
 }
 
 // ── 步骤 2：修炼累积（accumulateCultivationPerPhase） ───────────────
@@ -358,6 +365,7 @@ inline void accumulateCultivation(
     if (rate <= 0.0) return;
     ds.cultivations[row] = gamecore::disciple::coerceAtMost(
         cultivation + rate, maxCultivation);
+    ds.markCol(DiscipleColumn::Cultivation, row);   // R2 列级写屏障（写点标脏）
 }
 
 // ── 步骤 3：功法熟练度（批量暂存 + 单次提交） ────────────────────────

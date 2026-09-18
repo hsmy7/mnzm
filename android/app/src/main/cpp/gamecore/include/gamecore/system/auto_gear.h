@@ -50,6 +50,7 @@ namespace gamecore::system {
 namespace detail {
 
 using gamecore::state::Disciple;
+using gamecore::state::DiscipleColumn;
 using gamecore::state::DiscipleStore;
 using gamecore::state::EquipmentInstance;
 using gamecore::state::EquipmentStack;
@@ -931,6 +932,15 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         ds.manualIds[row] = d.manualIds;
         ds.currentHps[row] = d.currentHp;
         ds.currentMps[row] = d.currentMp;
+        // R2 列级写屏障（写点标脏）：精准字段写回面整段标脏
+        ds.markCol(DiscipleColumn::StorageBagItems, row);
+        ds.markCol(DiscipleColumn::WeaponId, row);
+        ds.markCol(DiscipleColumn::ArmorId, row);
+        ds.markCol(DiscipleColumn::BootsId, row);
+        ds.markCol(DiscipleColumn::AccessoryId, row);
+        ds.markCol(DiscipleColumn::ManualIds, row);
+        ds.markCol(DiscipleColumn::CurrentHp, row);
+        ds.markCol(DiscipleColumn::CurrentMp, row);
     }
     // 仓库堆叠写回（就地更新的快照 → 状态）
     state.equipmentStacks = std::move(eqStacks);
