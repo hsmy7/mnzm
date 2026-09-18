@@ -49,7 +49,7 @@
 | B05 | 探索/巡逻生产结果下沉 | R4.3 | **accepted**（2026-09-18 08:30） | 7197a4847（路由器 6 行+ExplorationService 7 行+PatrolBattleSystem 15 行+404 行守卫测试）/ 文档 8e8b8e144；看护亲跑：GTest 1443/1443（37.4s，纯 Kotlin 批无需重建二进制）+ 组合门 339 任务全 executed 23m20s（engine XML 3304/0skip/0fail）；守卫测试实测发现既有生产行为缺陷（PatrolBattleSystem 结局覆盖事务缓冲）已按红线登记建议另立项 |
 | B06 | GameView proto 定义 + nativeExportDirty 信封 + StateSyncService 解码 | R2.1 + R2.2 | **accepted**（2026-09-18 09:55） | daa8eeb11（proto 305 行+C++ 零依赖编码器 466 行+317 行测试）/ 6b3354708（JNI 换轨+解码器 309 行+等价守卫 189 行+灰度 flag）/ 9e1d9c0cc（bench 43 行）/ 文档 147a53cab；看护亲跑：GTest 1453/1453（49.8s，二进制显式重建）+ 组合门 339 任务全 executed 25m06s（engine XML 3307/0skip/0fail）；JNI 新增 1 控制端口已登记豁免，存档面零变更 |
 | B07 | UI 消费面第一波：只换传输（镜像仍全量、二进制） | R2.3(一) | **accepted**（2026-09-18 21:05） | 五提交：707cbf2df（馈送等价守卫 478 行）/ cb59bf537（三臂收敛 247 行）/ 57f1d67ae（单一入口静态门禁 145 行）/ 18083ac5a（夹具拆分合规）/ 34f9ec767（文档+审计报告）；看护亲跑：GTest 1453/1453（纯 Kotlin 批）+ 组合门 339 任务全 executed 23m02s（engine XML 3313/0skip/0fail）；审计结论：B06 后热路径已 100% proto 馈送，F3 兜底臂为设计保留非缺口——按批次文件零缺口分支交付守卫与证明 |
-| B08 | 第二波：replaceAll 退役 + GameViewStore 投影态 + ViewModel 逐块迁移 | R2.3(二) | pending | — |
+| B08 | 第二波：replaceAll 退役 + GameViewStore 投影态 + ViewModel 逐块迁移 | R2.3(二) | **accepted**（2026-09-18 23:45） | 九笔代码提交：块①②③ 迁移（759526124/9a8d9a96a/3b5c3ac22）+ gameData 字段级应用/typed 投影/GameViewStore（4d053b9be/b7b68b4ba/6fd9fe03d）+ 退场门禁（c61e2c9c7）+ G2 bench（1d4086f89）+ detekt（3061da72f）+ 文档（965209667）；看护亲跑：GTest 1453/1453（55.3s，零 C++ 变更）+ 组合门 339 任务全 executed 22m58s（engine XML 3313/0skip/0fail）；G2 诚实登记：消费端 D=5000 −61%（343→132.68ms），<10ms 未达（残余=R1.4 列级导出未接生产，转 B09） |
 | B09 | 月/年信封并入 eventFeed + 残留执行器退化为平台效应适配器；G2/WS-1 验收 | R2.4 | pending | — |
 | B10 | C++ SceneStore 新模块 + JNI 面重构（drawAllTiles 17 参数退役） | R3.1 + R3.2 | pending | — |
 | B11 | overlay 几何 C++ 生成（消 258 drawRect）+ 脏更新协议 | R3.3 + R3.4 | pending | — |
@@ -67,15 +67,14 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-18 23:13（verifying 进行中：B08 报告已出，看护复跑验收门；后续轮次只做监控勿抢）
-- **状态**：`verifying`（B08 子会话已交付最终报告，看护亲自复跑验收门）
-- **当前批**：B08（R2.3 第二波 GameViewStore 投影态+replaceAll 退役，批次文件 `batch-R2C.md`）
-- **派发渠道**：B08 = **Qoder**（施工中）；**B09 起 = ZCode**（用户 2026-09-18 21:1x 指示改回；默认模型，Ctrl+N 新建任务）
-- **派发时间**：B08 = 2026-09-18 20:36（焦点红线流程：switch→截屏验 Qoder→Ctrl+N→截屏验新任务页→输入→回车→截屏验开跑，三重确认全过）
+- **看护锁**：—
+- **状态**：`dispatch`（B08 已验收通过，待派 B09——**渠道=ZCode，焦点红线流程**）
+- **当前批**：B09（R2.4 + R2 收官核对 G2/WS-1，批次文件 `batch-R2D.md` 已就绪）
+- **派发渠道**：B09 起 = **ZCode**（默认模型 GLM-5.3-Flash，Ctrl+N 新建任务；焦点红线六步）
+- **派发时间**：—
 - **缺陷清单**：—
 - **监控日志**：
-  - 2026-09-18 20:37 B08 经 Qoder 派发（焦点红线三重确认），截屏确认子会话开跑（探索 store 架构与 UI 消费面）。
-  - 2026-09-18 21:1x **用户指示**：B08 完成验收后，B09 起派发渠道改回 ZCode。看护 cron 已按此重建（派发步骤含焦点核验：Ctrl+N 前截屏确认前台为 ZCode）。
+  - 2026-09-18 23:45 **B08 验收通过**：五门全绿（证据见批次总表）。转入派发 B09（R2.4 + R2 收官），渠道按用户指示切回 ZCode。
   - 2026-09-18 21:20 截屏：B08 实施推进（6 文件 +651 行）——投影块 C2 守卫 5/5 绿提交中；C3 等价性/完整性守卫编写中。
   - 2026-09-18 21:31 截屏：B08 深化（8 文件 +1,069 行）——GTest 基线 1453 确认（零 C++ 变更），投影 store C1 与 F3 applySnapshot 投影馈送 + replaceAll 退役（C4）推进中。
   - 2026-09-18 21:40 截屏：B08 守卫调试（10 文件 +1,307 行）——MirrorConsumerSurfaceGuardTest 两失败排查中，静态门禁规则随投影消费更新。
