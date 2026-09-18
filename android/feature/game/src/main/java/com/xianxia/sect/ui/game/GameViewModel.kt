@@ -457,7 +457,25 @@ class GameViewModel @Inject constructor(
 
     val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = gameEngine.highFreqState
     val entityState: StateFlow<GameStateStore.EntityState> get() = gameEngine.entityState
-    val configState: StateFlow<GameStateStore.ConfigState> get() = gameEngine.configState
+    /**
+     * 配置块（R2.3 第二波逐块迁移·块②「配置回声」）：来源换成
+     * [GameEngine.configEcho] 投影后按 UI 既有类型形状还原
+     * [GameStateStore.ConfigState]——字段集与取值逐字段等价
+     * （gameSpeed 属运行态，两臂都不由镜像供给）。
+     */
+    val configState: StateFlow<GameStateStore.ConfigState> = gameEngine.configEcho
+        .map {
+            GameStateStore.ConfigState(
+                sectPolicies = it.sectPolicies,
+                yearlySalary = it.yearlySalary,
+                yearlySalaryEnabled = it.yearlySalaryEnabled,
+                elderSlots = it.elderSlots,
+                placedBuildings = it.placedBuildings,
+                autoRecruitSpiritRootFilter = it.autoRecruitSpiritRootFilter
+            )
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, GameStateStore.ConfigState())
 
     @Immutable
     data class GameScreenAggState(

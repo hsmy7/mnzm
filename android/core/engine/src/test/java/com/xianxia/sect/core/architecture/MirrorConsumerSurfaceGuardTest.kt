@@ -185,6 +185,11 @@ class MirrorConsumerSurfaceGuardTest {
                 name = "块①资源头部（仓库页灵石三阶）",
                 projectedFrom = "gameEngine.resourcesHeader",
                 legacySource = "val spiritStoneTotals: StateFlow<SpiritStoneTotals> = gameData"
+            ),
+            MigratedBlock(
+                name = "块②配置回声（政策/年俸/长老槽/放置建筑/招募灵根）",
+                projectedFrom = "gameEngine.configEcho",
+                legacySource = "val configState: StateFlow<GameStateStore.ConfigState> get() = gameEngine.configState"
             )
         )
 

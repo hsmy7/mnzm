@@ -430,6 +430,27 @@ class GameEngine @Inject constructor(
 
     val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = stateStore.highFreqState
     val entityState: StateFlow<GameStateStore.EntityState> get() = stateStore.entityState
+    /**
+     * UI 消费块②「配置回声」的取数入口（R2.3 第二波逐块迁移第二块）。
+     *
+     * 与块①同构：开旗标 = 投影（本封变更集未触及配置字段即不重投）；
+     * 关旗标 = 从整份 gameData 快照派生同一视图。既有 [configState]
+     * （GameStateStore 三层流）保留给未迁消费面，两臂同源不分叉。
+     */
+    val configEcho: StateFlow<com.xianxia.sect.core.gameview.ConfigEchoView> by lazy {
+        if (com.xianxia.sect.core.nativebridge.NativeEngineFlag.gameViewProjection) {
+            gameViewStore.configEcho
+        } else {
+            stateStore.gameData.map { com.xianxia.sect.core.gameview.GameViewStore.configViewOf(it) }
+                .distinctUntilChanged()
+                .stateIn(
+                    gameEngineCore.scopeForStateIn(),
+                    kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
+                    com.xianxia.sect.core.gameview.GameViewStore.CONFIG_EMPTY
+                )
+        }
+    }
+
     val configState: StateFlow<GameStateStore.ConfigState> get() = stateStore.configState
     /** 高频修炼数据（Q-2：对外只读，写入经 [updateHighFrequencyData]） */
     val highFrequencyData: StateFlow<HighFrequencyData> = cultivationService.getHighFrequencyData()

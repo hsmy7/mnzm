@@ -159,7 +159,9 @@ class GameViewModelTest {
         every { gameEngine.resourcesHeader } returns MutableStateFlow(
             com.xianxia.sect.core.gameview.GameViewStore.RESOURCES_EMPTY
         )
-        every { gameEngine.discipleAggregates } returns MutableStateFlow(emptyList<DiscipleAggregate>())
+        every { gameEngine.configEcho } returns MutableStateFlow(
+            com.xianxia.sect.core.gameview.GameViewStore.CONFIG_EMPTY
+        )
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
         every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
         every { gameEngine.productionSlots } returns MutableStateFlow(emptyList<ProductionSlot>())
