@@ -541,6 +541,19 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetDirtyExportProto
     g_gameCore->setDirtyExportProtobuf(on == JNI_TRUE);
 }
 
+// 列级增量导出开关（R2.4/B09：Kotlin NativeEngineFlag.dirtyColumnExport 驱动）
+// ——与 nativeSetDirtyExportProtobuf 同族引擎线程控制端口，仅切换 exportDirty
+// 的增量来源（列级写屏障 vs 全量树 diff），不改导出面协议/版本号语义；
+// 【JNI 面豁免登记】新增引擎控制端口（非玩法操作，不塞业务操作码表），
+// 沿 R0.2 nativeFpDeterminismProbe / R2.2 nativeSetDirtyExportProtobuf 先例。
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetDirtyExportColumn(
+    JNIEnv* /*env*/, jobject /*thiz*/, jboolean on) {
+    jniRequireEngineThread("nativeSetDirtyExportColumn");
+    if (!g_gameCore) return;
+    g_gameCore->setDirtyExportColumn(on == JNI_TRUE);
+}
+
 // ============================================================
 // 战斗执行通道（AI 兽战/任务完成生产接线）
 //
@@ -559,6 +572,7 @@ extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeBattleExecute(
     JNIEnv* env, jobject /*thiz*/, jbyteArray opJson) {
     jniRequireEngineThread("nativeBattleExecute");
+    if (g_gameCore) g_gameCore->noteNonSettlementMutation();  // R2/B09 列级锁存
     if (!g_gameCore) {
         return stringToJbytes(env, R"({"error":"GameCore not initialized"})");
     }
@@ -624,6 +638,7 @@ extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAiBattleExecute(
     JNIEnv* env, jobject /*thiz*/, jbyteArray opJson) {
     jniRequireEngineThread("nativeAiBattleExecute");
+    if (g_gameCore) g_gameCore->noteNonSettlementMutation();  // R2/B09 列级锁存
     if (!g_gameCore) {
         return stringToJbytes(env, R"({"error":"GameCore not initialized"})");
     }
@@ -677,6 +692,7 @@ extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeDecidePlayerAttack(
     JNIEnv* env, jobject /*thiz*/) {
     jniRequireEngineThread("nativeDecidePlayerAttack");
+    if (g_gameCore) g_gameCore->noteNonSettlementMutation();  // R2/B09 列级锁存
     if (!g_gameCore) return stringToJbytes(env, R"({"error":"GameCore not initialized"})");
     try {
         const auto decision = gamecore::system::detail::decidePlayerAttack(
@@ -700,6 +716,7 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeCheckAttackConditio
     JNIEnv* env, jobject /*thiz*/, jstring attackerId, jstring defenderId,
     jbyteArray playerGarrisonJson) {
     jniRequireEngineThread("nativeCheckAttackConditions");
+    if (g_gameCore) g_gameCore->noteNonSettlementMutation();  // R2/B09 列级锁存
     if (!g_gameCore) return JNI_FALSE;
     try {
         const std::string aiStr = jstringToStd(env, attackerId);

@@ -21,6 +21,7 @@ namespace gamecore {
 
 namespace {
 
+
 /// 导入侧 id 计数器对齐：递归遍历存档 JSON 全部字符串，
 /// 凡 "gc-<prefix>-<纯数字>" 形态即把对应注册表计数器推到 max(current, N)
 /// （解析与幂等语义见 inventory.h observeItemIdForReseed）。
@@ -162,6 +163,8 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     settlement_.onMonthChange = [this](state::GameState& s, state::GameData&) {
         // 月结域全部弟子迭代经 ecsWorld_ 行序桥接
         system::runMonthSettlement(s, rng_, aiRng_, aiMonthBatch_, ecsWorld_);
+        // R2/B09：月结边界粗粒度列标脏（advance 路径同生产 settleMonth 口径）
+        markMonthYearBoundaryColumns();
     };
     // 年变结算钩子——年报快照 + annual* 清零 +
     // gameMonth==1 年俸；年变全程零 RNG 抽取（场景规避后）。钩子调用序
@@ -169,6 +172,8 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     settlement_.onYearChange = [this](state::GameState& s, state::GameData&) {
         // 年结域全部弟子迭代经 ecsWorld_ 行序桥接
         system::runYearSettlement(s, rng_, aiRng_, ecsWorld_);
+        // R2/B09：年结边界粗粒度列标脏（advance 路径同生产 settleYear 口径）
+        markMonthYearBoundaryColumns();
     };
     if (config.authoritativeTickMode) {
         // AUTHORITATIVE 模式——core 模式每旬
@@ -197,6 +202,9 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     }
     syncRngStates();
     dirtyTracker_.resetBaseline(state_);
+    // R2.4/B09：列级写屏障挂载 + 基线同点重置（位图清零 + 非弟子域基线树）
+    state_.disciples.attachColumnDirtyTracker(&columnTracker_);
+    columnTracker_.resetBaseline(state_);
     initialized_ = true;
     logger_->log(LogLevel::kInfo, "GameCore",
                  "initialized (schema=" + config.snapshotSchemaVersion + ")");
@@ -207,6 +215,66 @@ void GameCore::shutdown() {
     if (!initialized_) return;
     initialized_ = false;
     logger_->log(LogLevel::kInfo, "GameCore", "shutdown");
+}
+
+
+void GameCore::markMonthYearBoundaryColumns() {
+    // 月/年结算路径审计写列并集（month_settlement/year_settlement/
+    // profession/disciple_purchase/mission_completion/government/production/
+    // sect_defense_battle/recruit_settlement 俘虏装备与月度衰减/晋升/购买/
+    // 任务/政策/防守战/死亡链——宁多标不漏标；行序 = 店行序）
+    static constexpr state::DiscipleColumn kBoundaryColumns[] = {
+        state::DiscipleColumn::Loyalty,
+        state::DiscipleColumn::Morality,
+        state::DiscipleColumn::PartnerId,
+        state::DiscipleColumn::MasterId,
+        state::DiscipleColumn::Status,
+        state::DiscipleColumn::StatusData,
+        state::DiscipleColumn::GriefEndYear,
+        state::DiscipleColumn::Age,
+        state::DiscipleColumn::RealmLayer,
+        state::DiscipleColumn::IsAlive,
+        state::DiscipleColumn::SoulPower,
+        state::DiscipleColumn::CurrentHp,
+        state::DiscipleColumn::CurrentMp,
+        state::DiscipleColumn::ManualIds,
+        state::DiscipleColumn::ManualMasteries,
+        state::DiscipleColumn::WeaponId,
+        state::DiscipleColumn::ArmorId,
+        state::DiscipleColumn::BootsId,
+        state::DiscipleColumn::AccessoryId,
+        state::DiscipleColumn::StorageBagItems,
+        state::DiscipleColumn::StorageBagSpiritStones,
+        state::DiscipleColumn::SpiritStones,
+        state::DiscipleColumn::SalaryPaidCount,
+        state::DiscipleColumn::ChildBirthMonth,
+        state::DiscipleColumn::LastChildYear,
+        state::DiscipleColumn::PillPhysicalAttackBonus,
+        state::DiscipleColumn::PillMagicAttackBonus,
+        state::DiscipleColumn::PillPhysicalDefenseBonus,
+        state::DiscipleColumn::PillMagicDefenseBonus,
+        state::DiscipleColumn::PillHpBonus,
+        state::DiscipleColumn::PillMpBonus,
+        state::DiscipleColumn::PillSpeedBonus,
+        state::DiscipleColumn::PillCritRateBonus,
+        state::DiscipleColumn::PillCritEffectBonus,
+        state::DiscipleColumn::PillCultivationSpeedBonus,
+        state::DiscipleColumn::PillSkillExpSpeedBonus,
+        state::DiscipleColumn::PillNurtureSpeedBonus,
+        state::DiscipleColumn::PillEffectDuration,
+        state::DiscipleColumn::ActivePillTypes,
+        state::DiscipleColumn::ActivePillCategory,
+        state::DiscipleColumn::AlchemyLevel,
+        state::DiscipleColumn::AlchemyPromotionCount,
+        state::DiscipleColumn::ForgeLevel,
+        state::DiscipleColumn::ForgePromotionCount,
+    };
+    const std::size_t rows = state_.disciples.size();
+    for (const auto col : kBoundaryColumns) {
+        for (std::size_t row = 0; row < rows; ++row) {
+            state_.disciples.markCol(col, row);
+        }
+    }
 }
 
 bool GameCore::advance(int64_t wallDeltaMs, int64_t nowMs) {
@@ -231,6 +299,10 @@ std::string GameCore::settleMonth() {
     if (!initialized_) return "{}";
     const system::MonthSettlementResult result =
         system::runMonthSettlement(state_, rng_, aiRng_, aiMonthBatch_, ecsWorld_);
+    // R2/B09：月结边界粗粒度列标脏（列集 = 月/年路径审计写列的并集，
+    // 全行标脏——宁多标不漏标；phase 路径为写点级精确标脏不经此）
+    markMonthYearBoundaryColumns();
+
 
     // 信封 JSON（nativeSettleMonth 回传 Kotlin 残留执行器的平台效应输入：
     // disabledPolicies → checkpointAllProduction；secretRealmClose → 秘境
@@ -272,6 +344,9 @@ std::string GameCore::settleYear() {
     if (!initialized_) return "{}";
     system::YearSettlementDraft draft;
     system::runYearSettlement(state_, rng_, aiRng_, ecsWorld_, &draft);
+    // R2/B09：年结边界粗粒度列标脏（与月结共用审计并集列集）
+    markMonthYearBoundaryColumns();
+
 
     // 信封 JSON（nativeSettleYear 回传 Kotlin 残留执行器的平台效应输入：
     // agedDeaths → 袋物品物化/DAO 清理/DeathEvent/死亡记录档案；
@@ -396,6 +471,7 @@ std::string GameCore::exportStateJson() {
         std::string out = state::dumpStateJson(state_);
         // 全量导出即完整基线：接收方已拿到全部状态，变更集从此刻起算
         dirtyTracker_.resetBaseline(state_);
+        columnTracker_.resetBaseline(state_);
         return out;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
@@ -464,6 +540,11 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
         // 前向/反向镜像零载荷（稳态每旬零增量）。
         ensureTerrainGenerated();
         dirtyTracker_.resetBaseline(state_);
+        // R2.4/B09：导入整体替换 state_ ⇒ 新 DiscipleStore 的写屏障指针随
+        // 对象归零，必须重挂；列级基线（位图/非弟子域树）同点重置，
+        // 收割游标推到导入态最大（防旧档记录重放）
+        state_.disciples.attachColumnDirtyTracker(&columnTracker_);
+        columnTracker_.resetBaseline(state_);
         return true;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
@@ -506,7 +587,11 @@ std::string GameCore::exportDirtyJson() {
     if (!initialized_) return R"({"version":0,"changed":{},"removed":{}})";
     syncRngStates();
     try {
-        return dirtyTracker_.diffToJson(state_);
+        const std::string out = dirtyTracker_.diffToJson(state_);
+        // 全量封已携带全部变更：列级位图/事件游标随基线清零（防之后列级封
+        // 重发同值变更——重发无害，清零更省）
+        columnTracker_.resetBaseline();
+        return out;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
                      std::string("exportDirtyJson failed: ") + e.what());
@@ -520,8 +605,19 @@ std::string GameCore::exportDirtyProto() {
     if (!initialized_) return state::encodeGameView(nlohmann::json::object(), "");
     syncRngStates();
     try {
-        // 与 exportDirtyJson 同一 diffToTree 源（同版本号/同基线消费）→ 双格式逐值等价
-        const nlohmann::json tree = dirtyTracker_.diffToTree(state_);
+        // R2.4/B09 混合导出：列级模式（且无异构写入锁存）走 ColumnDirtyTracker
+        // 整树导出（弟子域仅脏行×脏列；gameData/集合域与全量 diff 共享同一
+        // 比对段，构造等价）；全量开关/锁存命中 = 全量树 diff（对拍零漂移）。
+        // 全量封后列级位图清零（变更已由全量封携带，位图重置防重发）。
+        const bool useColumnLevel = columnLevelDirtyExport_ && !columnExportBlocked_;
+        columnExportBlocked_ = false;
+        nlohmann::json tree = useColumnLevel
+            ? columnTracker_.exportDirtyTree(state_)
+            : [this]() {
+                  nlohmann::json t = dirtyTracker_.diffToTree(state_);
+                  columnTracker_.resetBaseline();
+                  return t;
+              }();
         return state::encodeGameView(tree, config_.snapshotSchemaVersion);
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
@@ -532,6 +628,12 @@ std::string GameCore::exportDirtyProto() {
 
 std::string GameCore::exportDirty() {
     return dirtyExportProtobuf_ ? exportDirtyProto() : exportDirtyJson();
+}
+
+std::string GameCore::exportDirtyColumnJson() {
+    if (!initialized_) return R"({"version":0,"changed":{},"removed":{}})";
+    syncRngStates();
+    return columnTracker_.exportDirtyJson(state_);
 }
 
 void GameCore::syncRngStates() {
@@ -551,6 +653,7 @@ void GameCore::syncRngStates() {
 }
 
 std::string GameCore::manualRecruitFromList(const std::string& discipleId) {
+    noteNonSettlementMutation();   // R2/B09：非结算写入路径锁存回退全量导出
     if (!initialized_) {
         return R"({"ok":false,"newId":"","age":0,"name":"","reason":"UNKNOWN"})";
     }
@@ -572,6 +675,7 @@ std::string GameCore::manualRecruitFromList(const std::string& discipleId) {
 }
 
 std::string GameCore::manualRecruitAll() {
+    noteNonSettlementMutation();   // R2/B09：非结算写入路径锁存回退全量导出
     if (!initialized_) {
         return R"({"ok":false,"count":0,"reason":"UNKNOWN"})";
     }

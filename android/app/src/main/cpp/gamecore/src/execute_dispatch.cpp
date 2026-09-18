@@ -2648,6 +2648,7 @@ nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
 std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
                               int64_t nowMs) {
     (void)nowMs;
+    noteNonSettlementMutation();   // R2/B09：非结算写入路径锁存回退全量导出
     if (!initialized_) {
         return R"({"status":"failure","code":"kInternal","message":"GameCore not initialized"})";
     }

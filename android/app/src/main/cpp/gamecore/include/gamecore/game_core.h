@@ -11,6 +11,7 @@
 #include "gamecore/ecs/system.h"
 #include "gamecore/ecs/world.h"
 #include "gamecore/rng/rng_manager.h"
+#include "gamecore/state/column_dirty.h"
 #include "gamecore/state/dirty_tracker.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/ai_sect_ops.h"
@@ -193,9 +194,32 @@ public:
     /// 分发——两格式导出能力本身恒并存（对拍/回退面不动）。
     void setDirtyExportProtobuf(bool on) { dirtyExportProtobuf_ = on; }
     bool dirtyExportProtobuf() const { return dirtyExportProtobuf_; }
-    /// 按 [setDirtyExportProtobuf] 模式导出变更集（nativeExportDirty JNI 面
-    /// 唯一入口；JNI 签名不变、仅输出编码换轨）
+
+    /// ── 列级增量导出开关（重构方案 R2.4/B09：R1.4 列级写屏障接生产）──
+    /// true = exportDirtyProto 优先走 ColumnDirtyTracker 整树导出（弟子域
+    /// 仅脏行×脏列；gameData/集合域与全量 diff 共享同一比对段，构造等价）；
+    /// false = 全量树 diff（对拍显式依赖的全量模式开关，零漂移缺省）。
+    /// 生产由 Kotlin NativeEngineFlag.dirtyColumnExport 驱动（新增引擎控制
+    /// 端口，登记豁免——与 setDirtyExportProtobuf 同族）。**月/年/旬边界
+    /// 之外的异构写入路径（业务事务/战斗/招募）自动锁存回退全量导出一封**
+    /// （[noteNonSettlementMutation]），防列屏障未覆盖路径漏报。
+    void setDirtyExportColumn(bool on) { columnLevelDirtyExport_ = on; }
+    bool dirtyExportColumn() const { return columnLevelDirtyExport_; }
+    /// 异构路径锁存：任何不经结算边界（settleOnePhase/settleMonth/settleYear）
+    /// 的状态写入路径（业务事务/战斗/招募等）调用后，下一封导出回退全量
+    /// 树 diff（该封之后恢复列级——全量封已携带全部变更，位图同时清零）。
+    void noteNonSettlementMutation() { columnExportBlocked_ = true; }
+
+    /// 按 [setDirtyExportProtobuf]/[setDirtyExportColumn] 模式导出变更集
+    ///（nativeExportDirty JNI 面唯一入口；JNI 签名不变、仅输出编码换轨）
     std::string exportDirty();
+
+    /// 列级增量树导出，JSON 文本（对拍守卫专用）：仅消费
+    /// ColumnDirtyTracker（位图/非弟子域基线），不触碰 DirtyTracker 基线、
+    /// 异构锁存与 eventFeed 队列——与 [exportDirtyJson] 组成"同写集双臂
+    /// 对照"（先列级后全量，两封分别消费各自追踪器；全量封恒携带自上次
+    /// 全量导出以来的全部变更，列级封只携写屏障标脏面）。
+    std::string exportDirtyColumnJson();
 
     /// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉
     /// ——AUTHORITATIVE 单真相源，与自动招募同侧；循环外任意时刻调用，状态
@@ -289,6 +313,16 @@ private:
     GameCoreConfig config_;
     /// nativeExportDirty 传输编码模式（R2.2 灰度开关，缺省 false = 旧 JSON）
     bool dirtyExportProtobuf_ = false;
+    /// 列级增量导出模式（R2.4/B09；缺省 false = 全量树 diff，零漂移缺省）
+    bool columnLevelDirtyExport_ = false;
+    /// 异构写入锁存（[noteNonSettlementMutation]；导出后消费清零）
+    bool columnExportBlocked_ = false;
+    /// 列级写屏障追踪器（R1.4 能力 + B09 挂载：与 dirtyTracker_ 同点
+    /// resetBaseline、同点全量导出清位图）
+    state::ColumnDirtyTracker columnTracker_;
+    /// 月/年结算边界粗粒度列标脏（审计列集全行标脏——月/年级频率，
+    /// 宁多标不漏标；phase 路径为写点级精确标脏不经此）
+    void markMonthYearBoundaryColumns();
 };
 
 }  // namespace gamecore

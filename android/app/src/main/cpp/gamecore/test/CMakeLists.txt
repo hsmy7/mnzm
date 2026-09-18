@@ -48,6 +48,8 @@ add_executable(game-core-tests
     # R1.4 列级写屏障（重构方案 2026-09-17 B03 批）：列枚举双射/挂点标脏/
     # 列级导出/与全量树 diff 等价性守卫
     column_dirty_test.cpp
+    # R2.4/B09 列级导出生产接线：真实结算列级↔全量双臂等价 + eventFeed 入流守卫
+    column_export_equivalence_test.cpp
     # R2.1 GameView protobuf 信封编码器 wire format 锁定（重构方案 2026-09-17 B06 批）
     gameview_encode_test.cpp
     manual_recruit_test.cpp

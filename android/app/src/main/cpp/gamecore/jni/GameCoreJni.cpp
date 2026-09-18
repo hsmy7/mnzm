@@ -342,6 +342,16 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportDirty(
     return stringToJbytes(env, g_core->exportDirtyJson());
 }
 
+// 列级增量树导出（R2.4/B09 对拍守卫专用）：只消费 ColumnDirtyTracker
+//（位图/非弟子域基线），不触碰 DirtyTracker 基线与事件队列——与
+// nativeCoreExportDirty 组成"同写集双臂对照"（先列级后全量）。
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportDirtyColumn(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_core) return stringToJbytes(env, R"({"version":0,"changed":{},"removed":{}})");
+    return stringToJbytes(env, g_core->exportDirtyColumnJson());
+}
+
 // GameView protobuf 纯编码（R2.2 等价性守卫用）：把给定的变更集 JSON 树
 //（nativeCoreExportDirty 产出的同一棵 {version,changed,removed} 树）编码为
 // GameView 信封字节——**不触碰导出基线**（encodeGameView 是纯函数），使守卫
