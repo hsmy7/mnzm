@@ -29,6 +29,7 @@ add_library(game-core STATIC
     src/json_codec.cpp
     src/execute_dispatch.cpp
     src/dirty_tracker.cpp
+    src/gameview_encode.cpp
     src/disciple_store.cpp
     # W4 三批次并行的分派端口（W4-00 并行前置批建立；各批只写自己那个文件，
     # 从而消除「三批同时往 execute_dispatch.cpp 链尾追加分支」的必然冲突）。

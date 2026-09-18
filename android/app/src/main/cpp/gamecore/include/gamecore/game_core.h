@@ -179,6 +179,24 @@ public:
     /// 导出自上次导出以来的变更集（增量同步协议，见 DirtyTracker）
     std::string exportDirtyJson();
 
+    // ── 镜像通道传输编码（重构方案 R2.2：JSON → protobuf 换轨）──────
+    /// 导出变更集 GameView protobuf 信封（schema 见
+    /// core/engine/src/main/proto/game_view.proto；编码器 gameview_encode.h）。
+    /// 与 [exportDirtyJson] 同一 diffToTree 源（同一版本号/同一基线消费语义，
+    /// 双格式逐值等价）——同一封不可两种格式各导一次（导出即消费）。
+    /// 未初始化/异常返回合法的空信封字节（消费端零写入快速路径）。
+    std::string exportDirtyProto();
+    /// nativeExportDirty 传输编码开关（true = protobuf 信封；false = 旧 JSON
+    /// 文本）。缺省 false = 旧格式（跨版本回滚安全缺省）；生产由 Kotlin
+    /// NativeEngineFlag.mirrorProtobufTransport 经 SET_DIRTY_EXPORT_FORMAT
+    /// 动作驱动（灰度开关，新旧共存一个版本周期）。仅影响 [exportDirty]
+    /// 分发——两格式导出能力本身恒并存（对拍/回退面不动）。
+    void setDirtyExportProtobuf(bool on) { dirtyExportProtobuf_ = on; }
+    bool dirtyExportProtobuf() const { return dirtyExportProtobuf_; }
+    /// 按 [setDirtyExportProtobuf] 模式导出变更集（nativeExportDirty JNI 面
+    /// 唯一入口；JNI 签名不变、仅输出编码换轨）
+    std::string exportDirty();
+
     /// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉
     /// ——AUTHORITATIVE 单真相源，与自动招募同侧；循环外任意时刻调用，状态
     /// 变化经下一 tick 前向 diff 推送镜像）。返回 JSON 信封：
@@ -269,6 +287,8 @@ private:
     void ensureTerrainGenerated();
     /// initialize(config) 的配置留存（ensureTerrainGenerated 消费地形参数）
     GameCoreConfig config_;
+    /// nativeExportDirty 传输编码模式（R2.2 灰度开关，缺省 false = 旧 JSON）
+    bool dirtyExportProtobuf_ = false;
 };
 
 }  // namespace gamecore

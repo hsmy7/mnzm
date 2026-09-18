@@ -59,6 +59,10 @@ void DirtyTracker::syncBaselineToCurrent(const GameState& current) {
 }
 
 std::string DirtyTracker::diffToJson(const GameState& current) {
+    return diffToTree(current).dump();
+}
+
+nlohmann::json DirtyTracker::diffToTree(const GameState& current) {
     ++version_;
 
     // WS-1.3：仅当前状态一次全量序列化；基线用缓存树（resetBaseline/
@@ -120,11 +124,13 @@ std::string DirtyTracker::diffToJson(const GameState& current) {
     out["changed"] = std::move(changed);
     out["removed"] = std::move(removed);
 
-    // 面向 kotlinx 解码器的浮点规范化（与 dumpStateJson 同一规则）
+    // 面向 kotlinx 解码器的浮点规范化（与 dumpStateJson 同一规则）——
+    // protobuf 信封（R2.2 encodeGameView）消费同一棵规范化后的树，
+    // 保证双传输格式逐值等价
     normalizeIntegralFloats(out);
 
     baselineJson_ = std::move(cur);  // 导出即消费：基线推进到当前状态
-    return out.dump();
+    return out;
 }
 
 }  // namespace gamecore::state

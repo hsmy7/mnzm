@@ -48,6 +48,13 @@ public:
     /// （标准增量同步语义：导出即消费）。无变化时 changed/removed 为空对象。
     std::string diffToJson(const GameState& current);
 
+    /// 计算当前状态相对基线的变更集**树**（{"version","changed","removed"}，
+    /// 已过 normalizeIntegralFloats 规范化），并把基线推进到当前状态——
+    /// 语义与 [diffToJson] 完全同源（同一 ++version/同一树/同一基线推进），
+    /// JSON 文本导出（diffToJson）与 GameView protobuf 信封编码
+    /// （encodeGameView，R2.2）共用本入口，保证双格式逐值等价。
+    nlohmann::json diffToTree(const GameState& current);
+
     /// 把基线同步为当前状态（版本号不递增）。
     /// 计划 v2 阶段 3：反向增量（Kotlin → C++）应用后调用——C++ 状态已与
     /// Kotlin 一致，防下一旬 exportDirty 把反向应用值当变更重发回 Kotlin。

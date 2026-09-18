@@ -1,0 +1,305 @@
+syntax = "proto3";
+
+package xianxia.gameview;
+
+option java_package = "com.xianxia.sect.proto.gameview";
+option java_multiple_files = true;
+
+// ============================================================
+// GameView — C++ 真相源 → Kotlin 镜像通道传输信封（重构方案 R2.1/R2.2）
+//
+// ## 🔴 schema 演进纪律（方案 §5 风险条款）：proto 字段只增不改
+//   - 字段号（field number）一经发布即冻结，**禁止复用、禁止改号、禁止改
+//     字段类型与 wire type**；废弃字段保留在文件中并注释废弃批次；
+//   - 新增字段一律追加**新的最大字段号 +1**（不允许在旧字段间插号）；
+//   - 枚举值只增不改号；枚举首值恒为 *_UNKNOWN = 0（proto3 缺省值语义）；
+//   - 标量字段一律 `optional`（proto3 显式 presence）——"未携带"与"携带
+//     零值"语义可区分，解码侧以 Kotlin 域模型默认值补位（与 JSON 协议
+//     缺键宽松语义对齐）；
+//   - 集合一律 repeated（消息/字符串条目），不使用 proto map（仓库规约
+//     §7.3：ProtoBuf 仅 List，禁止 Set/Map）。
+//
+// ## 选型
+//   protobuf（仓库基建已在：gradle 插件 + 本目录 + protobuf-javalite），
+//   不引 flatbuffers——每旬级镜像频率无需零拷贝，schema 演进与 javalite
+//   解码性能（vs 逐旬全量 JSON parse）是本通道的主要诉求。
+//
+// ## 与旧 JSON 变更集协议（{version, changed, removed}）的关系
+//   本信封是同一增量语义的**二进制传输编码**（R2.2 换轨），语义等价性由
+//   DiffDirtyEnvelopeEquivalenceTest 守卫锁定（同 state 输入双解码对照）。
+//   四块结构（方案 R2.1）：
+//     resourcesHeader    —— 资源头部（每旬热路径 gameData 资源标量直拷）
+//     discipleListDelta  —— 弟子行级增量（upsert 全行 + removed id 列表）
+//     eventFeed          —— 事件流（月年结算/突破/死亡/购买/秘境关闭；
+//                           本批只定义 schema，产出接线属 R2.4）
+//     configEcho         —— 配置回声（快照 schema 版本，版本协商用）
+//   其余实体集合（equipmentStacks/pills/materials/herbs/seeds/storageBags/
+//   manualStacks/manualInstances/equipmentInstances）与其余 gameData 字段
+//   经 collectionChange/gameDataChange 扩展区承载（v1 为 JSON 载荷过渡
+//   编码，后续批次按块迁 typed 字段——只增不改）。
+//
+// ## C++ 侧编码
+//   gamecore（纯 C++、零三方依赖）按本 schema 手写 wire 编码（见
+//   gamecore/state/gameview_encode.h）；字段号/类型以本文件为唯一权威，
+//   编码表与守卫测试（gameview_encode_test.cpp）双锁定。
+// ============================================================
+
+/// 镜像信封（每次导出恰一封；版本语义同旧 JSON 协议：单调 +1、导出即消费）
+message GameView {
+  /// 变更集版本号（C++ 每次导出单调 +1；与旧 JSON 协议 version 同源同语义）
+  uint64 version = 1;
+
+  /// 块 1：资源头部（gameData 中每旬热路径资源标量；只携带**本封变化的**
+  /// 字段——presence 即"已变化"语义）
+  ResourcesHeader resourcesHeader = 2;
+
+  /// 块 2：弟子行级增量（upsert 全行 + 行删除）
+  DiscipleListDelta discipleListDelta = 3;
+
+  /// 块 3：事件流（R2.4 接线：月/年结算信封、突破/死亡/购买/秘境关闭；
+  /// 本批 schema 预留，C++ 编码器暂不产出）
+  repeated ViewEvent eventFeed = 4;
+
+  /// 块 4：配置回声（每封携带；供消费端做 schema/配置版本协商与日志归因）
+  ConfigEcho configEcho = 5;
+
+  /// 扩展区：disciples 之外的实体集合增量（v1 载荷 = 实体数组 JSON 文本，
+  /// 与旧 JSON 协议 changed[集合名]/removed[集合名] 同值；typed 化随 R2.3
+  /// 消费面迁移逐块追加新字段）
+  repeated CollectionChange collectionChange = 6;
+
+  /// 扩展区：resourcesHeader 未覆盖的 gameData 字段增量（嵌套容器整体替换
+  /// 语义同旧协议；v1 载荷 = 字段值 JSON 文本）
+  repeated JsonFieldChange gameDataChange = 7;
+}
+
+/// 资源头部（v1 仅 spiritStones——每旬生产结算的热路径资源标量；
+/// 后续资源字段只增不改追加号）
+message ResourcesHeader {
+  /// 宗门灵石余额（gameData.spiritStones，Long）
+  optional int64 spiritStones = 1;
+}
+
+/// 弟子行级增量
+message DiscipleListDelta {
+  /// 新增/变更行（全行快照，与旧 JSON 协议 changed["disciples"] 数组同值；
+  /// 行内字段见 [DiscipleRow]）
+  repeated DiscipleRow upserts = 1;
+
+  /// 本封删除的弟子 id（与旧协议 removed["disciples"] 同值；顺序 =
+  /// C++ 侧基线 id 有序遍历序，确定性）
+  repeated string removedIds = 2;
+}
+
+/// 弟子行（与 Disciple to_json 协议字段一一对应的扁平结构；字段号即
+/// 契约——发布后冻结。C++ 侧 emit-always：全字段显式编码（含零值/false），
+/// 解码侧 hasXxx()==false 仅出现在 schema 演进（老 native 不认识新字段）
+/// 场景，此时按 Kotlin 域模型默认值补位）
+message DiscipleRow {
+  // ── 直接字段（Disciple 顶层）────────────────────────────
+  optional string id = 1;
+  optional string name = 2;
+  optional string surname = 3;
+  optional int32 realm = 4;
+  optional int32 realmLayer = 5;
+  optional double cultivation = 6;
+  /// Kotlin 域模型 Double，JSON 协议按 Long 截断输出——proto 同语义 int64
+  optional int64 cultivationCheckpoint = 7;
+  optional int32 cultivationCheckpointGameMonth = 8;
+  optional string spiritRootType = 9;
+  optional int32 age = 10;
+  optional int32 lifespan = 11;
+  optional bool isAlive = 12;
+  /// 协议字段但 Kotlin 弟子域模型无对应（死亡年份在 DiscipleTables.deathYears
+  /// 列）——解码侧忽略；为契约完整性随行携带
+  optional int32 deathYear = 13;
+  optional string gender = 14;
+  optional string portraitRes = 15;
+
+  // ── 列表/映射（repeated；映射走条目消息，仓库规约禁 proto map）──
+  repeated string manualIds = 16;
+  repeated string talentIds = 17;
+  repeated string physiqueIds = 18;
+  repeated string affixIds = 19;
+  repeated StringIntEntry manualMasteries = 20;
+  optional string status = 21;
+  repeated StringStringEntry statusData = 22;
+
+  optional double cultivationSpeedBonus = 23;
+  optional int32 cultivationSpeedDuration = 24;
+  optional string discipleType = 25;
+  optional int32 soulPower = 26;
+  optional int32 cultivationCompletionMonth = 27;
+  optional int32 cultivationCompletionPhase = 28;
+  optional int32 manualCompletionMonth = 29;
+  optional int32 manualCompletionPhase = 30;
+  optional int32 equipmentNurturingCompletionMonth = 31;
+  optional int32 equipmentNurturingCompletionPhase = 32;
+
+  // ── CombatAttributes（C++/JSON 协议为扁平字段，本消息同构扁平）──
+  optional int32 baseHp = 33;
+  optional int32 baseMp = 34;
+  optional int32 basePhysicalAttack = 35;
+  optional int32 baseMagicAttack = 36;
+  optional int32 basePhysicalDefense = 37;
+  optional int32 baseMagicDefense = 38;
+  optional int32 baseSpeed = 39;
+  optional int32 hpVariance = 40;
+  optional int32 mpVariance = 41;
+  optional int32 physicalAttackVariance = 42;
+  optional int32 magicAttackVariance = 43;
+  optional int32 physicalDefenseVariance = 44;
+  optional int32 magicDefenseVariance = 45;
+  optional int32 speedVariance = 46;
+  optional int64 totalCultivation = 47;
+  optional int32 breakthroughCount = 48;
+  optional int32 breakthroughFailCount = 49;
+  /// -1 = 满血/满灵力（向后兼容哨兵，与域模型同值）
+  optional int32 currentHp = 50;
+  optional int32 currentMp = 51;
+
+  // ── PillEffects ────────────────────────────────────────
+  optional int32 pillPhysicalAttackBonus = 52;
+  optional int32 pillMagicAttackBonus = 53;
+  optional int32 pillPhysicalDefenseBonus = 54;
+  optional int32 pillMagicDefenseBonus = 55;
+  optional int32 pillHpBonus = 56;
+  optional int32 pillMpBonus = 57;
+  optional int32 pillSpeedBonus = 58;
+  optional double pillCritRateBonus = 59;
+  optional double pillCritEffectBonus = 60;
+  optional double pillCultivationSpeedBonus = 61;
+  optional double pillSkillExpSpeedBonus = 62;
+  optional double pillNurtureSpeedBonus = 63;
+  optional int32 pillEffectDuration = 64;
+  repeated string activePillTypes = 65;
+  optional string activePillCategory = 66;
+
+  // ── EquipmentSet ───────────────────────────────────────
+  optional string weaponId = 67;
+  optional string armorId = 68;
+  optional string bootsId = 69;
+  optional string accessoryId = 70;
+  optional EquipmentNurtureDataView weaponNurture = 71;
+  optional EquipmentNurtureDataView armorNurture = 72;
+  optional EquipmentNurtureDataView bootsNurture = 73;
+  optional EquipmentNurtureDataView accessoryNurture = 74;
+  /// 过渡编码（v1）：储物袋条目为递归复杂结构（StorageBagItem →
+  /// ItemEffect/EquipmentInstance/ManualInstance），本批不 typed 化——
+  /// 携带该字段的 JSON 数组原文（与旧 JSON 协议逐字节同值），仅变更行
+  /// 需解析。typed 化时追加新字段，本字段保留不改。
+  optional bytes storageBagItemsJson = 75;
+  optional int64 storageBagSpiritStones = 76;
+  /// 弟子随身灵石（int32；注意与宗门灵石 gameData.spiritStones int64 区分）
+  optional int32 spiritStones = 77;
+
+  // ── SocialData（C++/JSON 协议为扁平标量；"" / 0 / -1 为 null 哨兵，
+  //    与 JSON 路径 DiscipleSerializer 重建语义一致）─────────────────
+  optional string partnerId = 78;
+  optional string partnerSectId = 79;
+  optional string parentId1 = 80;
+  optional string parentId2 = 81;
+  optional int32 lastChildYear = 82;
+  optional int32 childBirthMonth = 83;
+  optional int32 griefEndYear = 84;
+  optional string masterId = 85;
+
+  // ── SkillStats ─────────────────────────────────────────
+  optional int32 intelligence = 86;
+  optional int32 charm = 87;
+  optional int32 loyalty = 88;
+  optional int32 comprehension = 89;
+  optional int32 artifactRefining = 90;
+  optional int32 pillRefining = 91;
+  optional int32 spiritPlanting = 92;
+  optional int32 mining = 93;
+  optional int32 teaching = 94;
+  optional int32 morality = 95;
+  optional int32 aptitude = 96;
+  optional int32 salaryPaidCount = 97;
+  optional int32 salaryMissedCount = 98;
+  optional int32 alchemyLevel = 99;
+  optional int32 alchemyPromotionCount = 100;
+  optional int32 forgeLevel = 101;
+  optional int32 forgePromotionCount = 102;
+
+  // ── UsageTracking ──────────────────────────────────────
+  repeated string usedPermanentPillKeys = 103;
+  repeated string usedExtendLifePillTypes = 104;
+  repeated string usedFunctionalPillTypes = 105;
+  repeated string usedExtendLifePillIds = 106;
+  optional int32 recruitedMonth = 107;
+  optional bool hasReviveEffect = 108;
+  optional bool hasClearAllEffect = 109;
+}
+
+/// 装备孕育数据（EquipmentNurtureData 的视图投影）
+message EquipmentNurtureDataView {
+  optional string equipmentId = 1;
+  optional int32 rarity = 2;
+  optional int32 nurtureLevel = 3;
+  optional double nurtureProgress = 4;
+}
+
+/// string → int32 映射条目（禁 proto map 的等价承载；顺序 = C++ 侧
+/// std::map 键有序遍历，确定性）
+message StringIntEntry {
+  optional string key = 1;
+  optional int32 value = 2;
+}
+
+/// string → string 映射条目
+message StringStringEntry {
+  optional string key = 1;
+  optional string value = 2;
+}
+
+/// 实体集合增量（disciples 之外的集合；upsert 载荷 = 实体数组的 JSON 文本，
+/// 与旧 JSON 协议 changed[集合名] 同值——消费端解析语义逐字节一致）
+message CollectionChange {
+  /// 集合名（equipmentStacks/pills/materials/herbs/seeds/storageBags/
+  /// manualStacks/manualInstances/equipmentInstances——与旧协议键一致）
+  optional string name = 1;
+
+  /// upsert 实体数组 JSON 文本（空数组/无变更时不携带）
+  optional bytes upsertsJson = 2;
+
+  /// 本封删除的实体 id（与旧协议 removed[集合名] 同值）
+  repeated string removedIds = 3;
+}
+
+/// gameData 字段增量（resourcesHeader 未覆盖字段的通用承载）
+message JsonFieldChange {
+  /// gameData 字段名（无 "gameData." 前缀）
+  optional string name = 1;
+
+  /// 字段值 JSON 文本（嵌套容器为整体替换语义，与旧协议同值）
+  optional bytes valueJson = 2;
+}
+
+/// 镜像事件流条目（R2.4 接线：月/年结算信封并入；突破/死亡/购买/秘境关闭
+/// 等推断型事件由消费侧或引擎侧按块补充——枚举只增不改）
+enum ViewEventType {
+  VIEW_EVENT_TYPE_UNKNOWN = 0;
+  VIEW_EVENT_TYPE_MONTH_SETTLED = 1;
+  VIEW_EVENT_TYPE_YEAR_SETTLED = 2;
+  VIEW_EVENT_TYPE_BREAKTHROUGH = 3;
+  VIEW_EVENT_TYPE_DEATH = 4;
+  VIEW_EVENT_TYPE_PURCHASE = 5;
+  VIEW_EVENT_TYPE_SECRET_REALM_CLOSED = 6;
+}
+
+message ViewEvent {
+  optional ViewEventType type = 1;
+  /// 事件发生的游戏时间（年/月，便于消费端排序与归因）
+  optional int32 gameYear = 2;
+  optional int32 gameMonth = 3;
+  /// 扩展载荷（事件专属结构化明细的 JSON 文本；typed 化时追加新字段）
+  optional bytes detailJson = 4;
+}
+
+/// 配置回声（消费端 schema/配置版本协商与日志归因）
+message ConfigEcho {
+  /// 快照 schema 版本（GameCoreConfig.snapshotSchemaVersion，nativeInit 注入）
+  optional string snapshotSchemaVersion = 1;
+}

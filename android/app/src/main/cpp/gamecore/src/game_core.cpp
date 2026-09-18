@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 #include "gamecore/state/json_codec.h"
+#include "gamecore/state/gameview_encode.h"
 #include "gamecore/map/terrain.h"
 #include "gamecore/system/month_settlement.h"
 #include "gamecore/system/phase_settlement.h"
@@ -511,6 +512,26 @@ std::string GameCore::exportDirtyJson() {
                      std::string("exportDirtyJson failed: ") + e.what());
         return R"({"version":0,"changed":{},"removed":{}})";
     }
+}
+
+std::string GameCore::exportDirtyProto() {
+    // 空信封（version=0、无 changed/removed）：消费端零写入快速路径——
+    // 未初始化/异常时恒产出合法 GameView，Kotlin parseFrom 得 DirtyApplyResult(0,0,0,0)
+    if (!initialized_) return state::encodeGameView(nlohmann::json::object(), "");
+    syncRngStates();
+    try {
+        // 与 exportDirtyJson 同一 diffToTree 源（同版本号/同基线消费）→ 双格式逐值等价
+        const nlohmann::json tree = dirtyTracker_.diffToTree(state_);
+        return state::encodeGameView(tree, config_.snapshotSchemaVersion);
+    } catch (const std::exception& e) {
+        logger_->log(LogLevel::kError, "GameCore",
+                     std::string("exportDirtyProto failed: ") + e.what());
+        return state::encodeGameView(nlohmann::json::object(), "");
+    }
+}
+
+std::string GameCore::exportDirty() {
+    return dirtyExportProtobuf_ ? exportDirtyProto() : exportDirtyJson();
 }
 
 void GameCore::syncRngStates() {

@@ -48,6 +48,8 @@ add_executable(game-core-tests
     # R1.4 列级写屏障（重构方案 2026-09-17 B03 批）：列枚举双射/挂点标脏/
     # 列级导出/与全量树 diff 等价性守卫
     column_dirty_test.cpp
+    # R2.1 GameView protobuf 信封编码器 wire format 锁定（重构方案 2026-09-17 B06 批）
+    gameview_encode_test.cpp
     manual_recruit_test.cpp
     disciple_store_test.cpp
     disciple_store_bench_test.cpp
