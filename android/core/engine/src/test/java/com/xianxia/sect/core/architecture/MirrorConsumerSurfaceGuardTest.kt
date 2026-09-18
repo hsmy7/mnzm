@@ -190,6 +190,11 @@ class MirrorConsumerSurfaceGuardTest {
                 name = "块②配置回声（政策/年俸/长老槽/放置建筑/招募灵根）",
                 projectedFrom = "gameEngine.configEcho",
                 legacySource = "val configState: StateFlow<GameStateStore.ConfigState> get() = gameEngine.configState"
+            ),
+            MigratedBlock(
+                name = "块③事件流（消息栏 gameEventRecords）",
+                projectedFrom = "gameEngine.eventLog",
+                legacySource = "val gameEventRecords: StateFlow<List<GameEventRecord>> = gameEngine.gameData"
             )
         )
 

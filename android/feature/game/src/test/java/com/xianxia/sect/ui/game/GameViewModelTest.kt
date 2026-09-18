@@ -162,6 +162,9 @@ class GameViewModelTest {
         every { gameEngine.configEcho } returns MutableStateFlow(
             com.xianxia.sect.core.gameview.GameViewStore.CONFIG_EMPTY
         )
+        every { gameEngine.eventLog } returns MutableStateFlow(
+            com.xianxia.sect.core.gameview.EventLogView(emptyList())
+        )
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
         every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
         every { gameEngine.productionSlots } returns MutableStateFlow(emptyList<ProductionSlot>())

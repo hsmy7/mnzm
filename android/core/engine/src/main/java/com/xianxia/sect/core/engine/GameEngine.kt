@@ -451,6 +451,28 @@ class GameEngine @Inject constructor(
         }
     }
 
+    /**
+     * UI 消费块③「事件流（当前载体 = gameData.gameEventRecords）」的取数入口
+     * （R2.3 第二波逐块迁移第三块）。
+     *
+     * 与块①②同构：开旗标 = 投影（本封未携带事件记录即引用不变，消息栏不随每旬
+     * 整份快照重算）；关旗标 = 从整份 gameData 快照派生同一视图。
+     * proto 信封块 3 `eventFeed` 由 R2.4 产出后，本块来源改吃 typed 事件流。
+     */
+    val eventLog: StateFlow<com.xianxia.sect.core.gameview.EventLogView> by lazy {
+        if (com.xianxia.sect.core.nativebridge.NativeEngineFlag.gameViewProjection) {
+            gameViewStore.eventLog
+        } else {
+            stateStore.gameData.map { com.xianxia.sect.core.gameview.EventLogView(it.gameEventRecords) }
+                .distinctUntilChanged()
+                .stateIn(
+                    gameEngineCore.scopeForStateIn(),
+                    kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
+                    com.xianxia.sect.core.gameview.EventLogView(emptyList())
+                )
+        }
+    }
+
     val configState: StateFlow<GameStateStore.ConfigState> get() = stateStore.configState
     /** 高频修炼数据（Q-2：对外只读，写入经 [updateHighFrequencyData]） */
     val highFrequencyData: StateFlow<HighFrequencyData> = cultivationService.getHighFrequencyData()

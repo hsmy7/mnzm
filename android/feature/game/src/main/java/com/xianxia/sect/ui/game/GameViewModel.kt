@@ -604,8 +604,14 @@ class GameViewModel @Inject constructor(
     // 混用会导致快速双击被吞
     val isPaused: StateFlow<Boolean> = coreServices.gameEngineCore.isPaused
 
-    val gameEventRecords: StateFlow<List<GameEventRecord>> = gameEngine.gameData
-        .map { it.gameEventRecords }.distinctUntilChanged()
+    /**
+     * 消息栏事件流（R2.3 第二波逐块迁移·块③「事件流当前载体」）：来源换成
+     * [GameEngine.eventLog] 投影——gameEventRecords 未被本封变更集触及时投影
+     * 引用不变，UI 不再随每旬整份 gameData 换引用而重算；proto `eventFeed`
+     * （信封块 3）由 R2.4 产出后本块改吃 typed 事件流。
+     */
+    val gameEventRecords: StateFlow<List<GameEventRecord>> = gameEngine.eventLog
+        .map { it.records }.distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val yearlyReports: StateFlow<List<YearlyReport>> = gameEngine.gameData

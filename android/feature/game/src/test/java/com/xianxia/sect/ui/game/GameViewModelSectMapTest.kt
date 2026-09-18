@@ -97,6 +97,9 @@ class GameViewModelSectMapTest {
         every { gameEngine.configEcho } returns MutableStateFlow(
             com.xianxia.sect.core.gameview.GameViewStore.CONFIG_EMPTY
         )
+        every { gameEngine.eventLog } returns MutableStateFlow(
+            com.xianxia.sect.core.gameview.EventLogView(emptyList())
+        )
         every { gameEngine.discipleAggregates } returns MutableStateFlow(emptyList<DiscipleAggregate>())
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
         every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
