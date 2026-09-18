@@ -131,6 +131,44 @@ class MirrorConsumerSurfaceGuardTest {
     /** 已迁 UI 消费块台账（块名 / 投影入口 / 迁移前取数面） */
     private data class MigratedBlock(val name: String, val projectedFrom: String, val legacySource: String)
 
+    /**
+     * R2.3 第二波「每旬级全量重建路径退场」门禁。
+     *
+     * 稳态热路径（[StateSyncService.applyDirtyFromNative] 起至文件尾：两臂解析 +
+     * applyEnvelope + mergeGameDataChanges + 实体集合/弟子行应用）必须**零全表替换**，
+     * 且第二波形状（字段级 gameData 应用 + 弟子行 typed 投影）必须在位。
+     * 全表 `replaceAll` 只允许留在低频全量兜底臂 F3（[StateSyncService.applySnapshot]，
+     * 实测 12 旬 0 次触发，见 docs/mirror-consumer-audit-2026-09-18.md 观测表）——
+     * 热路径若重新长出全表替换，即"每旬级全量重建"复活，本守卫红。
+     */
+    @Test
+    fun `每旬增量臂零全表替换且第二波形状在位`() {
+        val sync = readMainFile(MIRROR_ENTRY_FILE)
+        val hotPathStart = sync.indexOf("fun applyDirtyFromNative(")
+        assertTrue("增量臂入口消失（applyDirtyFromNative）", hotPathStart > 0)
+        val hotPath = sync.substring(hotPathStart)
+        assertTrue(
+            "每旬热路径重新出现全表替换（= 每旬级全量重建复活）：\n" +
+                hotPath.lines().filter { it.contains(".replaceAll(") }.joinToString("\n"),
+            !hotPath.contains(".replaceAll(")
+        )
+        assertTrue(
+            "gameData 字段级应用缺失（第二波瘦身被回退成整份 JSON 往返）",
+            hotPath.contains("GameDataFieldPatch.apply(")
+        )
+        assertTrue(
+            "弟子行 typed 投影臂缺失（每行 JSON 造树复活）",
+            hotPath.contains("discipleProjections")
+        )
+        val snapshotArm = sync.substring(0, sync.indexOf("fun applyDirtyFromNative("))
+        val replaceAllCount = Regex("""\.replaceAll\(""").findAll(snapshotArm).count()
+        assertEquals(
+            "全量兜底臂（F3）的全表替换面漂移（10 个实体集合各一处；增删集合需同步本门禁" +
+                "与方案 §7.2 B08 行）",
+            10, replaceAllCount
+        )
+    }
+
     // ── 扫描工具 ────────────────────────────────────────────────
 
     private fun kotlinHits(pattern: Regex): List<String> =
