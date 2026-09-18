@@ -404,3 +404,27 @@ lintRelease，24m43s）；
 | 等价守卫（验收门 5） | ✅ | `GameDataFieldPatchGuardTest`（5：生产两臂旗标开/关对照，20 个字段覆盖全部 wire 类别 + 失败整组丢弃 + 未知键宽松 + @Transient 复刻面 + 表↔序列化面双射）；`GameViewDiscipleProjectionTest`（4：B07 富弟子夹具三方对照 `源 == typed 投影 == JSON 树重建` + 契约双射 + 稀疏行 fail-fast + **真实 C++ 结算信封逐行 presence 实证**，桌面 JNI 0 skip）；`GameViewStoreGuardTest`（6：投影值↔迁移前整份快照取数逐字段等价、未触及块引用不变、fail-fast、非镜像事务对账、换档复位、关旗标不馈送）；`MirrorSegmentProjectionBenchTest` 附带两臂落库全等断言。既有 B06/B07 守卫（`DiffDirtyEnvelopeEquivalenceTest`、`MirrorProtoFeedEquivalenceTest`、`DiffMirrorArmConvergenceTest` 三臂收敛）全绿未改语义——仅把 `MirrorDiscipleRowFixture`/`MirrorProtoFeedFixture` 的"三键稀疏新弟子"夹具随 emit-always 契约收敛为全字段两臂同源（原形状只有测试存在，生产 C++ 恒全字段）。 |
 | 灰度共存 | ✅ | 新增旗标 `NativeEngineFlag.gameViewProjection`（默认 **true** = 第二波形态：字段级 gameData 应用 + 弟子行 typed 直读 + 投影馈送 + 已迁 UI 块以投影为来源；**false** = 第一波形态回滚臂：整份 GameData JSON 往返 + 每行 JSON 造树 + UI 块读 GameStateStore 全量流）。UI 块来源在 `GameEngine` 转发面首次访问时决策（进程级），回退 = 旗标默认值改 false 重编/重启；`mirrorProtobufTransport`（R2.2 传输臂）语义与默认值零变更，两旗标正交。回滚臂物理删除属独立批次。 |
 | 登记缺陷（不在重构批顺手改行为） | 📌 | 旧「整份 GameData 解码」必然把不入 JSON 的 5 个 @Transient 运行态字段（`slotId`/`autoSaveIntervalMonths`/`aiBeastEncounterTargets`/`battleTeam`/`aiBattleTeams`）**每旬打回声明默认值**（现状即缺陷：镜像每旬静默重置 Kotlin 运行态字段）。本批按"UI 行为零变更"红线以 `LEGACY_RESET_ON_MIRROR` **原样复刻**，修复须另批裁决并跑全量对拍（改变 Diff 基准面）。 |
+
+#### B09 批（2026-09-18）= R2.4（eventFeed 并入 + 执行器退化）+ G2 缺口处理（列级导出接生产）+ R2 收官核对
+
+批次文件 `docs/parallel-batches-w5/batch-R2D.md`；逐子项独立 commit（C++ 列级基建 =
+b9fc8b1ae；G2 生产接线 = 见下；eventFeed C++ 转正 = 0a15970e0；Kotlin 消费面 = 见下；
+文档三件套 = 见下）。前置 = B06/B07/B08。**零存档格式/协议 JSON 面变更**（信封 JSON、
+存档、nativeSettleMonth/Year 信封原文逐字节不变）；JNI 面新增 2 端口（生产
+`nativeSetDirtyExportColumn` + 对拍桥 `nativeCoreExportDirtyColumn`，均登记豁免）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R2.4 eventFeed 并入（C++ 产出） | ✅ | `GameCore` 事件队列：月结 MONTH_SETTLED（disabledPolicies + seizedSectBuildings）/ PURCHASE×N / SECRET_REALM_CLOSED，年结 YEAR_SETTLED（bereavements）/ DEATH×N（死亡链草稿全字段含 storageBagItems 完整协议）；突破经 gameEventRecords sequenceId 水位收割（phase 钩子，导入推到最大防旧档重放）；`encodeGameView(…, eventFeed)` field 4 编码（缺省 nullptr 不产出 = R2.1/R2.2 历史字节不变）；导出即消费（编码成功清空、异常保留）；JSON 回滚臂不入队（信封 JSON 面零变更）。守卫：EventFeedEmittedWhenProvided（wire 逐字段 + 确定性）+ EventFeedFlowsThroughProtoExport（月/年入流 + 导出即消费） |
+| R2.4 eventFeed 并入（Kotlin 消费） | ✅ | codec 解 eventFeed 为 typed `GameViewStreamEvent`（detailJson v1 过渡编码在 codec 一处解析，同 upsertsJson 族）；`StateSyncService` 应用成败与否均先 `gameViewStore.recordEvents`（消费与镜像应用解耦）；月/年信封生产输入 = `buildMonth/YearEnvelopeFromEvents`（typed 组装零 JSON 解析，MONTH/YEAR_SETTLED 为在场证明）——执行器输入形状与旧解析逐字段等价（GameViewEventEnvelopeAssemblyTest 双路对照）；无证明（回滚臂/事件丢失）回退旧 `parseXxxEnvelope`（登记保留，删除随回滚臂批次）；`PROTO_EVENT_FEED_BLOCK` 转正 `produced-r2.4`（守卫同步） |
+| R2.4 执行器退化 | ✅ | 月/年残留执行器 = 纯平台效应适配器（lifeEvents 瞬态列 / 秘境关闭邮件+gate / 袋物品物化+DAO 清理+DeathEvent）——输入恒 typed，**执行器源零 JSON 解析**由 `ResidualExecutorPurityGuardTest` 静态固化（JSON 解析符号零命中 + parseXxxEnvelope 消费面收敛登记边界） |
+| G2 列级导出接生产（C++） | ✅ | `DirtyTracker` 抽 `diffTreeSegments`/`stateWithoutDisciplesToJson` 共享段（gameData/集合域与全量 diff 同一循环体 = 构造等价零漂移）；`ColumnDirtyTracker` 整树导出 `exportDirtyTree(GameState)` + 位图原子化（并行核心批次多线程置位丢位修复——同字 RMW 非原子；扩容仅串行段、resetBaseline 清零保留容量防并行扩容 use-after-free）；**结算热路径写点 markCol 精确标脏**（修炼累积/HP·MP 恢复/auto_gear 写回/亲属赠送/偷盗链 13 处）+ 月/年边界审计列集粗粒度标脏（44 列并集全行）+ **异构路径锁存**（execute 分发/战斗四通道/招募 → 下一封回退全量）；`exportDirtyProto` 混合分发；`exportDirtyColumnJson` 对拍臂 |
+| G2 列级导出接生产（Kotlin + 旗标） | ✅ | `NativeEngineFlag.dirtyColumnExport`（默认 true，回滚臂 false = 全量树 diff 共存一个版本周期）经 `nativeSetDirtyExportColumn`（JNI 豁免登记）推送；codec 列级臂弟子行以 `DiscipleRowPatch` 补丁交付（全行补丁同走合并面 = 全量封兼容）；`applyDisciplePatches` 以 store 既有行 assemble 为基线、proto mergeFrom 覆盖（repeated 先清后并）后全行走同一 toDisciple 投影（新行稀疏 = append 全行不变量破坏，抛错降级全量兜底） |
+| G2 重测 + WS-1 判定 | ❌ 诚实登记 | `MirrorSegmentProjectionBenchTest` 列级臂（稳态形状：id + cultivation/currentHp/currentMp 稀疏行 ×5000）：**列级信封 123,906B vs 全脏 2,177,797B（−94%）**；decode 段 27.87→**1.37ms（−95%）**；apply 段 104.80→137.92ms（全组列写未收窄，测试替身波动带内）；mirror 段合计 **139.30ms** vs B08 132.68ms。**<10ms 未达成 → WS-1 保持悬置，不得虚报**。残余成本中心：① Kotlin `upsertMirrorRow` 全组列写（writeAllFields 109 列/行未随列级收窄——列级落表属后续批次）② store 侧 O(D) assembleAll（测试替身常数，生产为锁外增量组装）③ C++ rest 域（gameData+集合）每封序列化仍在 ④ 弟子列表块未迁投影。后续计划：Kotlin 列级落表（ComponentTable 按列写）→ 弟子块投影迁移 → C++ rest 域标脏细粒度化 |
+| R2 收官核对（§3 R2 验收口径） | ✅/❌ | ① mirror 段 <10ms@5000：**未达成**（139.30ms，见上行——列级导出已接生产并兑现信封 −94%/decode −95%，终态受 Kotlin 侧残余成本牵制）；② Kotlin 每旬 GC 分配显著下降：✅（信封 −94% 字节 + decode 段 proto 节点构造 109→3 列/行，每旬跨语言分配面显著收缩；G1 已于 B03 达成）；③ WS-1 关闭：**未关闭**（悬置，验收线维持 100ms 告警，B07 已证稳态 <100ms） |
+
+测试口径：桌面全量 GTest **1453/1453**（携 `-ffp-contract=off` 旗标；本构建目录基线 1450 +
+新增 3 = encode 事件 1 + 列级等价 2；对拍桥 `build-desktop-jni.ps1` 重建携入本批 C++）+
+组合门 `testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`（`--max-workers=1
+--rerun-tasks -Dgamecore.jni.path=…`）全绿（六模块数字见完成报告）；已知抖动
+`GameEngineCoreLifecycleInterleavingTest` 按 B03 前例处置（未触发）。
