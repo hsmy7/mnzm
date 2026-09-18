@@ -68,10 +68,11 @@
 ## 当前状态
 
 - **看护锁**：—
-- **状态**：`in_progress`（B06 施工中）
+- **状态**：`paused_by_user`（用户于 2026-09-18 ~09:00 要求暂停；看护定时任务 automation-6b6fabaf 已删除）
 - **当前批**：B06（R2.1+R2.2 GameView proto+镜像通道换 protobuf，批次文件 `batch-R2A.md`）
 - **派发时间**：2026-09-18 08:25（GUI 新建任务派发，模型 GLM-5.3-Flash，完全访问，项目 XianxiaSectNative/main）
 - **缺陷清单**：—
+- **恢复指引（用户说"继续"后照做）**：① 重建 10 分钟看护 cron（原 prompt 逐字复用）；② 先截屏看 B06 子会话现状——若已出最终报告则按手册转 verifying，若仍在施工则恢复监控，若已中断/报错则视提交情况处置（git log 看 B06 提交是否落库）；③ 其余照手册。
 - **监控日志**：
   - 2026-09-17 22:55 编排建立：台账 + B01 批次文件提交（e36f5102f）；B01 经 GUI 派发，截屏确认子会话已读取批次文件并锁定 phase_settlement.h 开工。
   - 2026-09-17 23:07 截屏：B01 施工健康——上下文就绪（CLAUDE.md/CHANGELOG/桌面对拍构建入口已读，build/desktop-test/ 缓存在），核对 breakthrough_test.cpp 的 performBreakthrough 版本后即动手 R1.1；无弹窗。
@@ -140,6 +141,7 @@
   - 2026-09-18 08:36 截屏：B06 schema 勘探——Disciple 模型 109 协议列+嵌套子结构确认，正查 json_codec 实际协议形状定 proto 字段清单。
   - 2026-09-18 08:46 截屏：B06 架构成型——镜像 proto 定为独立新 schema（存档面 DiscipleSurrogate 不动）；ActionId 同源生成机制确认为扩展正道；正确认生成器/桌面桥/NDK 源清单。
   - 2026-09-18 08:56 截屏：B06 R2.1 实施中——game_view.proto +305 行；C++ 编码器表驱动+手写 wire format（gamecore 零依赖）470 余行；DirtyTracker 增 diffToTree 共用树产物。
+  - 2026-09-18 ~09:00 **用户要求暂停**：看护 cron 已删除，编排挂起。B06 子会话独立运行不受影响（派发时状态：R2.1 proto schema 与 C++ 编码器实施中，未提交）。恢复时按"恢复指引"执行。
 
 ## 经验教训（随批追加）
 
