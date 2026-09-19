@@ -312,9 +312,21 @@ class SceneUvTablesMirrorGuardTest {
     @Test
     fun `tier1 asset counts and indices mirror C++ constants`() {
         val header = generatedHeader().readText()
-        assertEquals("kFloatWordCount 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_WORD_COUNT, intScalar(header, "kFloatWordCount"))
-        assertEquals("kFloatGlyphCount 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_GLYPH_COUNT, intScalar(header, "kFloatGlyphCount"))
-        assertEquals("kFloatAssetCount 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_ASSET_COUNT, intScalar(header, "kFloatAssetCount"))
+        assertEquals(
+            "kFloatWordCount 与 Kotlin 不一致",
+            SpriteAtlasDef.FLOAT_WORD_COUNT,
+            intScalar(header, "kFloatWordCount")
+        )
+        assertEquals(
+            "kFloatGlyphCount 与 Kotlin 不一致",
+            SpriteAtlasDef.FLOAT_GLYPH_COUNT,
+            intScalar(header, "kFloatGlyphCount")
+        )
+        assertEquals(
+            "kFloatAssetCount 与 Kotlin 不一致",
+            SpriteAtlasDef.FLOAT_ASSET_COUNT,
+            intScalar(header, "kFloatAssetCount")
+        )
         assertEquals(
             "kFloatGlyphBaseIndex 与 Kotlin 不一致（字形段起始索引 = 词条数）",
             SpriteAtlasDef.FLOAT_GLYPH_BASE_INDEX,
