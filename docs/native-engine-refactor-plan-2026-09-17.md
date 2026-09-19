@@ -428,3 +428,35 @@ b9fc8b1ae；G2 生产接线 = 见下；eventFeed C++ 转正 = 0a15970e0；Kotlin
 组合门 `testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`（`--max-workers=1
 --rerun-tasks -Dgamecore.jni.path=…`）全绿（六模块数字见完成报告）；已知抖动
 `GameEngineCoreLifecycleInterleavingTest` 按 B03 前例处置（未触发）。
+
+#### B10 批（2026-09-19）= R3.1 + R3.2（C++ SceneStore 场景真相 + JNI 面重构：drawAllTiles 退役）
+
+批次文件 `docs/parallel-batches-w5/batch-R3A.md`；每子项独立 commit（R3.1 SceneStore =
+见 git log；R3.2 JNI 面 + Kotlin 驱动 = 见下）。前置 = R0/R1/R2（B01–B09）。
+**R3 渲染阶段结构性开端**——行为等价性风险最高批，等价性以**单份绘制核心**
+构造性保证 + 顶点流逐位对照锁定。零存档格式/协议 JSON 面变更；JNI 面新增 8 端口
+（场景导入 7 + 每帧绘制 1，统一登记豁免）；`drawAllTiles` 标记 deprecated 保留
+（灰度回滚臂，共存一个版本周期）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R3.1 C++ SceneStore | ✅ | 新建 `app/src/main/cpp/scene/scene_store.h`（native-renderer 内新模块，零 Android 依赖桌面可测）：持有 terrain（与 gamecore 地形单一权威同值一次性导入，含建筑占位标记语义同旧路径）/road mask/建筑集/作物集/崖壁布局（Kotlin 预计算稳定布局导入，IslandCliffBridge 生产者角色不变）/云实例六类场景状态；协议步长常量（建筑 5/作物 3/云 6/崖壁 10）与旧 drawAllTiles 17 参数面逐一同形；整表替换语义 + 无效入参防御清空 + `reset()` 纪元复位（shutdownRenderer 接线）。**只做逐值存储，零几何/层序/UV 计算**——绘制判定仍集中单份核心 |
+| R3.2 绘制核心单实现 | ✅ | 新建 `scene/scene_draw.h`：旧 drawAllTiles 函数体逐段收敛为 `buildMapBatch`（地形+装饰收集→道路合成→建筑+立体装饰 Y 归并→作物帧间平滑→云层）+ `buildCliffLayer`（逐纹理连续段，submit 回调生产=renderer->draw/测试=顶点流记录器）——旧路径（JNI 数组装配）与新路径（SceneStore + 生成表装配）消费**同一构建逻辑**，像素等价由构造保证；热控/LOD/溢出降级判定与提交/遥测结算收敛桥侧共享函数（decorSkipActive/submitMapBatchCommon/drawCliffLayerInternal）；作物帧间平滑状态收敛 `CropSmoothingState` 单例（两路同态）；setCamera 相机段收敛 `updateCameraGlobals`（drawFrame 复用，消毒/投影/视野单实现） |
+| R3.2 JNI 面重构 | ✅ | 废弃 drawAllTiles(17 参数全量数组) → 8 端口：`sceneSetTerrain`（一次性）/`sceneUpdateBuildings`/`sceneUpdateCrops`/`sceneUpdateRoads`/`sceneUpdateClouds`/`sceneSetCliffLayout`（六类场景变化驱动导入，Kotlin 侧引用比较——RenderCommandBus copyOf/RoadMaskTracker 等价早退/CloudLayerAnimator snapshot/remember 稳定引用）/`sceneSetAtlasTexture`（0=未就绪跳过地图层，崖壁不受影响）+ `drawFrame(camX, camY, scale, vpW, vpH, overlayFlags, fadeAlpha, frameAlpha)`（每帧 8 标量 ≈ 36B，G3 <200B 达成口径；overlayFlags bit0 = buildingVisible，其余位预留 R3.3）。**【JNI 面豁免登记】**（沿 R0.2 探针/B06 nativeSetDirtyExportProtobuf 先例）：8 端口属"场景数据导入 + 每帧绘制"通道，无法沿用既有通道（ActionId 业务事务面/镜像导出面均非渲染场景数据形状），即 drawAllTiles 每帧全量数组跨线的退役替身；drawAllTiles 标记 deprecated 保留一个版本周期 |
+| R3.2 UV 表 C++ 生成 | ✅ | `build-atlas.mjs --codegen` 新增 `generateSceneUvTablesH`：产出 `cpp/scene/scene_uv_tables.h`（**仓库内生成物**，与 shaders.h 同策略——桌面 GTest 与 NDK 构建无需先跑 codegen）：五张 UV 表（瓦片/建筑+固定结构尾部/作物/云/道路，与 SpriteAtlasDef 同式同序）+ 占地尺寸表（footprint_table.h 同源，消费位接替、生成任务保留）+ 双端共享渲染常量/瓦片分类表；k-前缀命名与 TextureAtlas.h 同名宏 token 不冲突（双头共存同一编译单元）；UV 以除法表达式生成（图集尺寸 2 的幂 ⇒ 除法精确，Kotlin/C++/测试三侧逐位一致）；生成器模板+助手纳入 codegen hash（助手变更强制重生成）；Kotlin 不再每帧传 SpriteAtlasDef 数组 |
+| R3.2 Kotlin 薄驱动化 | ✅ | `NativeEngineFlag.sceneStoreRender`（默认 **true** = 新路径；**false** = 旧路径回滚臂：setFadeAlpha + drawIslandCliffs + drawAllTiles 17 参数，行为 = R3.2 前现状）。`VulkanRenderBackend`（GLES 继承同享）双路驱动：新路径 = pushSceneUpdates（引用比较变化驱动）+ drawFrame；渲染线程模型/后端降级链/相机 setCamera 通道/预览与高亮 drawRect 面零变更；**Canvas 兜底路径不动（R3.6 红线）**——SoftwareCanvasBackend 直接消费 RenderFrame 不经本旗标；surface 纪元纪律：shutdownRenderer 清 C++ 场景 + 新后端实例首帧全量重推 |
+| 场景等价性证据（验收门 4） | ✅ | C++ `SceneEquivalenceTest`（10 用例）：新 SceneStore 路径 vs 旧 drawAllTiles 路径**顶点流逐位对照**（draw call 纹理序 + 每顶点 px/py/u/v/r/g/b/a 全等 = 语义等价的最强形态）——**六要素单要素场景**（地形/道路/建筑含固定结构与阴影/作物含帧间平滑第二帧/云/崖壁含镜像条目）**× 相机三档位**（近 2.0/中 1.0/远 0.3 整岛，含可见性剔除差异面）+ 全要素两帧 + skipDecor/skipClouds 降级路径 + buildingVisible=false overlay 位 + 要素在场证明（防退化等价）+ 生成 UV 表↔Kotlin 公式夹具静态对照。Kotlin `SceneUvTablesMirrorGuardTest`（5 用例）：解析生成头与 SpriteAtlasDef 五张 UV 表 + 占地表 + 共享常量**逐位（toRawBits）对照**——LAYOUT 变更后任一侧生成物漏提交即红 |
+| 三后端一致性 | ✅/📌 | Vulkan/GLES 共享 VulkanRenderBackend 同一新路径（Rhi 虚函数面后端无关）；Canvas 兜底路径**不动**（R3.6 红线，Kotlin 数据流保留，兜底专属技术债显式登记）——三后端覆盖 = 两 GPU 后端切新路径（等价守卫锁定）+ Canvas 保持既有像素级独立路径（既有 SoftwareCanvasBackendTest 族继续守护） |
+| 红线自查 | ✅ | 新旧路径共存一个版本周期（sceneStoreRender 灰度旗标 + drawAllTiles deprecated 保留）✓；§3.1 治理规则：本批零新视觉元素（纯通道重构）✓；协议 JSON 面/存档格式零变更 ✓；Canvas 兜底不动 ✓；每子项独立 commit ✓ |
+
+测试口径：桌面全量 GTest **1476/1476**（携 `-ffp-contract=off` 旗标；desktop-test 基线
+1456（B09 后）+ 本批 20 = SceneStoreTest 10 + SceneEquivalenceTest 10；对拍桥
+`build-desktop-jni.ps1` 重建；NDK arm64 `libnative-renderer.so` 重建携入本批）+
+组合门 `testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`
+（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）**BUILD SUCCESSFUL 26m35s、
+339 任务全 executed 非 UP-TO-DATE**：六模块 XML 汇总 **7825 用例 / 0 失败 / 0 错误 /
+17 跳过**（`:core:engine` **3344** = B09 后基线 3339 + 本批 Kotlin 镜像守卫 5、
+`:core:domain` 1743、`:core:data` 716（15 既有跳过）、`:core:ui` 146、
+`:feature:game` 872、`:app` 1004（2 既有跳过））；50 个 `Diff*Test` **273 用例
+0 skip**；detekt 六模块全绿、`compileReleaseKotlin`/`lintRelease` 全绿；
+已知抖动 `GameEngineCoreLifecycleInterleavingTest` 按 B03 前例处置（未触发）。
