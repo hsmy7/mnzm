@@ -77,17 +77,46 @@ class NativeBackedRngTest {
         manager.attachNativeChannel(channel)
         assertTrue(manager.isDelegatingToNative())
         val exported = manager.exportStates()
-        // 参与存档的分区键在位；快照值 == 通道内对应流状态。
-        // AI_SECT_MIRROR 是**通道型分区**（inSnapshot=false，状态归 C++ aiRng_ 保管
-        // 并随同一 9 号键自行落盘）——不进出 rngStates，故此处不遍历它
-        RngPartition.entries.filter { it.inSnapshot }.forEach { p ->
-            assertEquals(channel.snapshot(p.id), exported[p.id])
+        // 参与存档的分区键在位；**委托式分区**的快照值 == 通道内对应流状态。
+        // 两类分区不适用该口径：
+        // 1. AI_SECT_MIRROR 是**通道型分区**（inSnapshot=false，状态归 C++ aiRng_
+        //    保管并随同一 9 号键自行落盘）——不进出 rngStates，故不遍历它；
+        // 2. RESIDUAL(11) 是**本地 PCG 分区**（R4.4/B14：isLocal=true ⇒ 不参与
+        //    委托，零 per-roll JNI）——其快照来自本地 state 而非通道流，
+        //    故此处按 isLocal 分流断言（见 ResidualRngLocalityGuardTest 行为级守卫）。
+        RngPartition.entries.filter { it.inSnapshot && !it.isLocal }.forEach { p ->
+            assertEquals(
+                "委托式分区 $p 的快照必须等于通道内对应流状态",
+                channel.snapshot(p.id),
+                exported[p.id]
+            )
         }
         assertEquals(RngPartition.entries.count { it.inSnapshot }, exported.size)
         // restore 推入通道（事务回滚守卫路径）
         manager.restoreStates(mapOf(RngPartition.BATTLE.id to 42L))
         assertTrue(RngPartition.BATTLE.id in channel.restoreCalls)
         assertEquals(42L, channel.snapshot(RngPartition.BATTLE.id))
+    }
+
+    @Test
+    fun `local PCG partition snapshots locally and never touches channel`() {
+        // R4.4/B14 基线重定：残留执行器随机域（RESIDUAL/11）从委托面移到本地
+        // PCG —— 导出值必须来自本地 state，且不得在通道上留下任何痕迹。
+        val channel = FakeChannel()
+        val manager = GameRngManager().also { it.attachNativeChannel(channel) }
+        val residual = RngPartition.RESIDUAL
+        assertTrue("RESIDUAL 必须声明为本地 PCG 分区", residual.isLocal)
+
+        repeat(5) { manager.getRng(residual).nextInt() }
+        val exportedValue = manager.exportStates().getValue(residual.id)
+        // 本地 state 真值 = 分区自身 snapshot（通道对该分区无任何写入）
+        assertEquals(manager.getRng(residual).snapshot(), exportedValue)
+        assertTrue(
+            "本地 PCG 分区不得出现在通道的 restore 调用面",
+            residual.id !in channel.restoreCalls
+        )
+        // 其余分区仍走通道（对照）
+        assertEquals(channel.snapshot(RngPartition.BATTLE.id), manager.exportStates()[RngPartition.BATTLE.id])
     }
 
     @Test
