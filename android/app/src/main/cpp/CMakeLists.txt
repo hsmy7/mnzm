@@ -73,6 +73,21 @@ target_link_libraries(native-game-core
     log
 )
 
+# ════════════════════════════════════════════════════════════════
+# FP 确定性钉死（G6 渲染层闭合，重构方案 2026-09-17 R3.3/B11 前置缺陷 B）
+#
+# R0.2 的 -ffp-contract=off 只加在 game-core（PUBLIC 传导至 native-game-core 与
+# 桌面 GTest/对拍桥），**native-renderer 未覆盖**——而 R3.1/R3.2 起场景几何
+# （格→世界像素、线宽除 scale、俯视 Y 轴压缩、UV 收缩）全部在 native-renderer 内
+# 做浮点运算，arm64 clang 默认可把乘加融合成 FMA ⇒ 桌面顶点流逐位对照绿
+# **不等于** 真机位一致（同一输入可能产出末位不同的顶点）。
+# 写法沿用 gamecore/CMakeLists.txt 的 MSVC 豁免（桌面工具链无该 GCC/Clang 旗标）。
+# ════════════════════════════════════════════════════════════════
+target_compile_options(native-renderer PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/fp:precise>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-ffp-contract=off>
+)
+
 set_target_properties(native-renderer PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
