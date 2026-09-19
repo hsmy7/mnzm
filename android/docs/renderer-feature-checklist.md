@@ -21,8 +21,8 @@
 | building_draw | 建筑精灵绘制 | ✅ | ✅ | ✅ | 已实现 |
 | camera_offset | 相机平移偏移 | ✅ | ✅ | ✅ | v4.0.45 修复 |
 | camera_zoom | 缩放 (scale) | ✅ | ✅ | ✅ | 已实现 |
-| building_preview | 建造/移动预览 | ✅ | ✅ | ✅ | 已实现 |
-| preview_tint | 预览精灵调色 | ✅ | ✅ | ✅ | 已实现 |
+| building_preview | 建造/移动预览 | ✅ | ✅ | ✅ | 已实现；**2026-09 R3.3/B11**：预览精灵与占地框改由 drawFrame 内 C++ 生成（几何经 sceneSetPreview 变化驱动导入，overlayFlags bit2/bit3 驱动；层序不变=精灵先、占地框后） |
+| preview_tint | 预览精灵调色 | ✅ | ✅ | ✅ | **2026-09 R3.3/B11**：r/g/b/a 随预览几何一并导入，C++ 侧按同式（UV 收缩 kUvEpsilon）装配顶点 |
 | viewport_culling | 视锥剔除 | ✅ | ✅ | ✅ | v4.0.45 修复 |
 | building_culling | 建筑视口外裁剪 | ✅ | ✅ | ✅ | v4.0.45 修复 |
 | fling_30fps | 弹射动画 30FPS | ✅ | ✅ | ✅ | 已实现 |
@@ -31,17 +31,18 @@
 | decor_lod | 缩放 LOD（scale<0.6 装饰层跳过，双端同阈值；Canvas 离散档位失效，Vulkan g_scale 条件） | ✅ | ✅ | ✅ | 2026-08-10 WP5 |
 | vsync_pacing | 渲染线程 vsync 帧节奏（Canvas Choreographer 对齐 + FrameDropPolicy 帧跳过；Vulkan FIFO 交换链天然对齐；失败回退 sleep 节拍） | ✅ | ✅ | ✅ | 2026-08-10 WP5 |
 | building_shadow | 建筑投影阴影（半透明黑 quad + 右下偏移 0.25 格） | ✅ | ✅ | ✅ | 2026-08-10 WP3（硬边无高斯模糊，0.2 alpha 视觉补偿，已知取舍） |
-| selection_highlight | 普通点击选中金色描边（动态叠加，不烘焙 chunk） | ✅ | ✅ | ✅ | 2026-08-10 WP3（RenderFlags 双端开关 + 总线脏帧防错位） |
-| demolish_highlight | 一键拆除模式绿/红占地高亮（数据通道 RenderFrame.demolishHighlightData，与 buildingData 同序；总线脏帧跳帧防索引错位；null=跳过） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose 覆盖层迁移至 native——同帧同相机，消除拖拽相位差） |
-| grid_overlay | 放置/移动模式全视口网格线（RenderFrame.gridOverlayVisible 标志驱动，范围钳制到世界边界；Canvas drawLine / Vulkan 薄 quad） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose GridOverlay 迁移至 native——同帧同相机，消除拖拽相位差） |
+| selection_highlight | 普通点击选中金色描边（动态叠加，不烘焙 chunk） | ✅ | ✅ | ✅ | 2026-08-10 WP3（RenderFlags 双端开关 + 总线脏帧防错位）；**2026-09 R3.3/B11**：Vulkan/GLES 几何改由 C++ `scene_draw.h::buildOverlayLayers` 生成（overlayFlags bit5 驱动，占地矩形/线宽/alpha 常量在 C++ 算），旧逐 rect 路径保留为回滚臂 |
+| demolish_highlight | 一键拆除模式绿/红占地高亮（数据通道 RenderFrame.demolishHighlightData，与 buildingData 同序；总线脏帧跳帧防索引错位；null=跳过） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose 覆盖层迁移至 native——同帧同相机，消除拖拽相位差）；**2026-09 R3.3/B11**：逐建筑矩形改由 C++ 生成（标记经 sceneSetDemolishMarkers 变化驱动导入，每建筑不再逐次跨线） |
+| grid_overlay | 放置/移动模式全视口网格线（RenderFrame.gridOverlayVisible 标志驱动，范围钳制到世界边界；Canvas drawLine / Vulkan 薄 quad） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose GridOverlay 迁移至 native——同帧同相机，消除拖拽相位差）；**2026-09 R3.3/B11**：逐列/逐行 rect 改由 C++ 生成并合批（消每帧最坏 258 次 drawRect 跨线，overlayFlags bit1 驱动）；**同批修复前置缺陷 A**——行范围补乘俯视 Y 压缩系数（旧 Vulkan 漏乘致视口底部缺横线、与 Canvas 不一致），三端口径由 SceneOverlayProtocolGuardTest 锁定 |
+| overlay_geometry_cpp | 世界叠加层几何 C++ 单份生成（R3.3/B11：网格线/占地预览框+预览精灵/选中高亮/拆除高亮四要素，SceneStore 持状态 + drawFrame overlayFlags 位驱动；层序 选中→拆除→精灵→占地框→网格线 = 旧 Kotlin 序；常量单源 LAYOUT.overlay） | ✅ | ✅（C++ 生成；Canvas 兜底路径保持自身独立绘制 = R3.6 红线零改动） | ✅ | 2026-09 B11（C++ SceneOverlayEquivalenceTest 12 用例顶点流逐位对照 + Kotlin SceneOverlayProtocolGuardTest 5 + SceneUvTablesMirrorGuardTest 叠加层常量 30 项逐位；G4 draw call 276→3） |
 | spirit_crop | 灵田作物三阶段生长动画（stage 边界 1/3、2/3 + crossfade × 全局 fade 乘算；Vulkan 瓦片层后批内追加，Canvas 不烘焙逐帧叠加；数据通道 RenderFrame.spiritCropData，null=跳过） | ✅ | ✅ | ✅ | 2026-08-10 WP6（NaN/越界双端防御；无专属 flag，数据驱动；cropBitmaps 死代码已删） |
 | texture_compression | Vulkan GPU 图集 ASTC 4x4 LDR 压缩（KTX1 容器全字段校验，16MB→4MB；设备不支持/资产损坏全链回退 RGBA 视觉零差异；Canvas 保持运行时 RGBA 拼装不变） | ✅ | ➖（仅 Vulkan 路径） | ✅ | 2026-08-10 WP7（KtxLoader 校验 + AtlasManifestSyncTest 守卫 + 构建管线 build-atlas.mjs） |
 | gesture_pan | 拖拽平移 | ✅ | ✅ | ✅ | 手势引擎共用 |
 | gesture_tap | 点击建筑 | ✅ | ✅ | ✅ | 手势引擎共用 |
 | gesture_longpress | 长按拖动 | ✅ | ✅ | ✅ | 手势引擎共用 |
 | gesture_fling | 惯性滑行 | ✅ | ✅ | ✅ | 手势引擎共用 |
-| shared_constants | 双端共享渲染常量 codegen 收敛（LOD 阈值/阴影常量/瓦片索引/语义建筑索引——LAYOUT 单一数据源，Kotlin SpriteAtlasDef + C++ TextureAtlas.h 双产物自动一致） | ✅ | ✅ | ✅ | 2026-08-13 批次 2（SpriteCodegenSyncTest 双端常量全等守卫） |
-| render_command_bus | 渲染命令总线（单槽覆盖式建筑数据通道——命令 FIFO 双通道已按对抗性审查删除：零生产消费者，见 RenderCommandBus.kt KDoc） | ✅ | ✅ | ✅ | 2026-08-13 批次 2 + 对抗性审查修正 |
+| shared_constants | 双端共享渲染常量 codegen 收敛（LOD 阈值/阴影常量/瓦片索引/语义建筑索引——LAYOUT 单一数据源，Kotlin SpriteAtlasDef + C++ TextureAtlas.h 双产物自动一致） | ✅ | ✅ | ✅ | 2026-08-13 批次 2（SpriteCodegenSyncTest 双端常量全等守卫）；**2026-09 R3.3/B11**：新增 LAYOUT.overlay 30 项叠加层视觉常量（颜色/不透明度/线宽），双端生成 scene_uv_tables.h 与 SpriteAtlasDef，旧路径改引用别名 ⇒ 两路共用单源（SceneUvTablesMirrorGuardTest 逐位锁） |
+| render_command_bus | 渲染命令总线（单槽覆盖式建筑数据通道——命令 FIFO 双通道已按对抗性审查删除：零生产消费者，见 RenderCommandBus.kt KDoc） | ✅ | ✅ | ✅ | 2026-08-13 批次 2 + 对抗性审查修正；**2026-09 R3.4/B11**：同一「变化才跨线」语义平移到 C++ 场景更新侧 = `SceneUpdateChannel`（十路导入端口的判据与基线；稳态帧触线 0 次；RenderMetrics.sceneUpdatePushes/Frames 即 G4 每帧 JNI 遥测口径） |
 | render_scale | 渲染分辨率缩放（平板/大屏省电：RenderScalePolicy 决策 → Vulkan 离屏目标 + vkCmdBlitImage 上采样 / Canvas 降采样帧缓冲 + 双线性拉伸提交；renderScale=1.0 时两端行为与现状逐位一致为回归基线；接口契约保持物理像素） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP1（RenderScalePolicyTest + SoftwareCanvasBackendRenderScaleTest + RenderBackendContractTest 基线） |
 | refresh_rate_declaration | 帧率↔刷新率联动声明（>60Hz 面板声明 {60,30} 两档省屏耗 + 升档 2s 防抖；≤60Hz 面板旧行为逐位一致；RenderFlags.refreshRateDeclaration 开关回退） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP2（FrameRateDeclarationPolicyTest） |
 | dirty_frame_skip | 脏帧跳过（静止画面跳过渲染与指标：相机/帧引用/总线/淡入/缩放五守卫；EWMA 跳帧不统计防虚高） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP3（FrameSkipPolicyTest） |
