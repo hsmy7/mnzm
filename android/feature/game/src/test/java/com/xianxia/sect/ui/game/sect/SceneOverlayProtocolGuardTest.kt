@@ -51,11 +51,14 @@ class SceneOverlayProtocolGuardTest {
     private val sceneStoreSource: String
         get() = sourceOf("app/src/main/cpp/scene/scene_store.h")
 
-    /** 解析 `private const val NAME = <整数字面量>`（十六进制或十进制） */
+    private val sceneUpdateSource: String
+        get() = sourceOf("feature/game/src/main/java/com/xianxia/sect/ui/game/sect/SceneUpdateChannel.kt")
+
+    /** 解析 `const val NAME = <整数字面量>`（十六进制或十进制） */
     private fun kotlinIntConst(source: String, name: String): Int {
         val regex = Regex("const val $name = (0x[0-9A-Fa-f]+|\\d+)")
         val match = regex.find(source)
-            ?: throw AssertionError("$name 未在 VulkanRenderBackend 声明（叠加层协议面被改动？）")
+            ?: error("$name 未在预期源文件中声明（叠加层/脏更新协议面被改动？）")
         return match.groupValues[1].let { if (it.startsWith("0x")) it.substring(2).toInt(16) else it.toInt() }
     }
 
@@ -63,7 +66,7 @@ class SceneOverlayProtocolGuardTest {
     private fun cppIntConst(source: String, name: String): Int {
         val regex = Regex("inline constexpr (?:int32_t|int|uint8_t) $name = (?:1 << (\\d+)|(\\d+));")
         val match = regex.find(source)
-            ?: throw AssertionError("scene_draw.h/scene_store.h 缺少 $name（双端协议漂移）")
+            ?: error("scene_draw.h/scene_store.h 缺少 $name（双端协议漂移）")
         val shift = match.groupValues[1]
         return if (shift.isNotEmpty()) 1 shl shift.toInt() else match.groupValues[2].toInt()
     }
@@ -93,12 +96,11 @@ class SceneOverlayProtocolGuardTest {
 
     @Test
     fun `preview data stride matches C++ kPreviewStride protocol`() {
-        val storeSource = sceneStoreSource
         assertEquals(
-            "预览数据步长双端不一致（Kotlin PREVIEW_DATA_STRIDE ↔ C++ kPreviewStride；" +
-                "字段序 = box×4 + sprite×4 + uv×4 + tint×4）",
-            cppIntConst(storeSource, "kPreviewStride"),
-            kotlinIntConst(backendSource, "PREVIEW_DATA_STRIDE")
+            "预览数据步长双端不一致（Kotlin SceneUpdateChannel.PREVIEW_DATA_STRIDE ↔ C++ " +
+                "kPreviewStride；字段序 = box×4 + sprite×4 + uv×4 + tint×4）",
+            cppIntConst(sceneStoreSource, "kPreviewStride"),
+            kotlinIntConst(sceneUpdateSource, "PREVIEW_DATA_STRIDE")
         )
     }
 

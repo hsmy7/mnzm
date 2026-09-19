@@ -67,6 +67,21 @@ object RenderMetrics {
     /** 累计降级生效帧数（溢出后跳装饰层的帧——有序降级生效信号） */
     val spriteOverflowDegradeFrames = AtomicLong(0)
 
+    // ── 场景脏更新（R3.4/B11，重构方案 G4 的遥测口径）──
+
+    /**
+     * 场景/叠加层导入端口的**累计跨线次数**（渲染层 SceneUpdateChannel.push 的
+     * 实际触线数）。
+     *
+     * 与 [sceneUpdateFrames] 相除 = 平摊"每帧场景导入 JNI 次数"；稳态（相机静止、
+     * 场景未变）应趋近 0——变化驱动是 R3.4 的判据，本计数是其可观测面：
+     * 若非零帧率远高于变化率，即说明脏更新协议被绕过（某生产者产了新引用而内容未变）。
+     */
+    val sceneUpdatePushes = AtomicLong(0)
+
+    /** 走 SceneStore 新路径的累计帧数（分母；旧路径回滚帧不计数） */
+    val sceneUpdateFrames = AtomicLong(0)
+
     // ── FPS 滑动窗口（2 秒窗口，120 槽 @60fps） ──
 
     private val frameTimestamps = LongArray(120)
@@ -122,7 +137,11 @@ object RenderMetrics {
         /** 精灵容量溢出累计丢弃数（R0.3） */
         val spriteOverflowDropped: Long,
         /** 精灵溢出降级生效帧数（R0.3） */
-        val spriteOverflowDegradeFrames: Long
+        val spriteOverflowDegradeFrames: Long,
+        /** 场景/叠加层导入累计跨线次数（R3.4；脏更新协议可观测面） */
+        val sceneUpdatePushes: Long,
+        /** 走 SceneStore 新路径的累计帧数（R3.4；与上一字段相除 = 每帧导入次数） */
+        val sceneUpdateFrames: Long
     )
 
     /**
@@ -152,7 +171,9 @@ object RenderMetrics {
             atlasBuildFailed = atlasBuildFailed.get(),
             atlasLoadSpriteFailed = atlasLoadSpriteFailed.get(),
             spriteOverflowDropped = spriteOverflowDropped.get(),
-            spriteOverflowDegradeFrames = spriteOverflowDegradeFrames.get()
+            spriteOverflowDegradeFrames = spriteOverflowDegradeFrames.get(),
+            sceneUpdatePushes = sceneUpdatePushes.get(),
+            sceneUpdateFrames = sceneUpdateFrames.get()
         )
     }
 
@@ -177,7 +198,9 @@ object RenderMetrics {
             append("AtlasBuildFailed: ").append(s.atlasBuildFailed).append('\n')
             append("AtlasLoadSpriteFailed: ").append(s.atlasLoadSpriteFailed).append('\n')
             append("SpriteOverflowDropped: ").append(s.spriteOverflowDropped).append('\n')
-            append("SpriteOverflowDegradeFrames: ").append(s.spriteOverflowDegradeFrames)
+            append("SpriteOverflowDegradeFrames: ").append(s.spriteOverflowDegradeFrames).append('\n')
+            append("SceneUpdatePushes: ").append(s.sceneUpdatePushes).append('\n')
+            append("SceneUpdateFrames: ").append(s.sceneUpdateFrames)
         }
     }
 
@@ -195,5 +218,7 @@ object RenderMetrics {
         spriteOverflowDropped.set(0)
         spriteOverflowFrames.set(0)
         spriteOverflowDegradeFrames.set(0)
+        sceneUpdatePushes.set(0)
+        sceneUpdateFrames.set(0)
     }
 }

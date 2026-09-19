@@ -18,9 +18,10 @@ import com.xianxia.sect.core.render.SpriteAtlasDef
  * - [setCamera] → NativeBridge.setCamera（独立相机通道）
  * - [renderFrame] → beginFrame → 天空背景 → 场景绘制（按
  *   [NativeEngineFlag.sceneStoreRender] 双路，R3.2/R3.3 灰度共存）：
- *   - **新路径（默认）**：pushSceneUpdates（场景 + 叠加层状态变化驱动导入 C++
- *     SceneStore）+ drawFrame(相机, overlayFlags)——Kotlin 不再每帧传全量数组，
- *     **也不再每帧逐 rect 传叠加层几何**（选中/拆除/预览/网格线由 C++ 生成）；
+ *   - **新路径（默认）**：[SceneUpdateChannel.push]（场景 + 叠加层状态变化驱动
+ *     导入 C++ SceneStore，R3.4）+ drawFrame(相机, overlayFlags)——Kotlin 不再
+ *     每帧传全量数组，**也不再每帧逐 rect 传叠加层几何**（选中/拆除/预览/
+ *     网格线由 C++ 生成）；
  *   - **旧路径（回滚臂）**：setFadeAlpha + drawIslandCliffs + drawAllTiles
  *     （17 参数全量数组）+ drawSprite/drawRect 逐条叠加层，
  *     行为 = 本批开工前现状，各保留一个版本周期；
@@ -47,35 +48,12 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     @Volatile
     private var cachedScale = 1f
 
-    // ── SceneStore 新路径的场景引用追踪（R3.2）──
-    // 渲染线程单消费者：与 C++ SceneStore 导入端口同线程顺序执行；
-    // 引用变化即推送（场景数据全部为 remember/快照稳定引用——
-    // RenderCommandBus.postBuildingData copyOf / RoadMaskTracker 等价早退 /
-    // CloudLayerAnimator.snapshot / derivedStateOf 重算均产出新引用），
-    // 内容未变时零 JNI。surface 重建 = 新后端实例，追踪基线随实例复位，
-    // 首帧重推全部场景（C++ 侧 shutdownRenderer 已同步清空 SceneStore）。
-    private var pushedTerrain: IntArray? = null
-    private var pushedBuildings: FloatArray? = null
-    private var pushedBuildingCount: Int = -1
-    private var pushedCrops: FloatArray? = null
-    private var pushedRoads: IntArray? = null
-    private var pushedClouds: FloatArray? = null
-    private var pushedCliffs: FloatArray? = null
-    private var pushedAtlasTexId: Int = -1
-
-    // ── SceneStore 新路径的叠加层状态追踪（R3.3）──
-    // 同一脏更新协议：值/引用变化才触 JNI（几何生成在 C++，见 scene_draw.h）。
-    // surface 重建 = 新后端实例 ⇒ 基线随实例复位，首帧重推（C++ 侧
-    // shutdownRenderer 已同步清空 SceneStore 叠加层状态）。
-    private var pushedSelectionIndex: Int = SENTINEL_SELECTION_UNSET
-    private var pushedMarkers: ByteArray? = null
-
-    /** 预览几何暂存缓冲（逐帧填写比对，跨线时随 [NativeBridge.sceneSetPreview]
-     *  拷贝进 C++，故复用零分配） */
-    private val previewScratch = FloatArray(PREVIEW_DATA_STRIDE)
-
-    /** 已推送预览基线（NaN 初值 ⇒ 首帧恒判脏） */
-    private val pushedPreviewValues = FloatArray(PREVIEW_DATA_STRIDE) { Float.NaN }
+    // ── SceneStore 新路径的脏更新通道（R3.2 场景导入 + R3.3 叠加层状态）──
+    // 「变化才跨线」的判定与基线全部收敛在 SceneUpdateChannel（R3.4）：
+    // 渲染线程单消费者，与 C++ 导入端口同线程顺序执行；surface 重建 = 新后端
+    // 实例 = 新通道实例 ⇒ 基线随实例复位，首帧重推全部场景（C++ 侧
+    // shutdownRenderer 已同步清空 SceneStore）。
+    private val sceneUpdates = SceneUpdateChannel(nativeSceneUpdateSink)
 
     init {
         // 渲染特性开关推送：surface 重建后 C++ globals 已重置为默认全开，
@@ -209,7 +187,7 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
      *
      * R3.3：叠加层（选中/拆除/预览/网格线）同样只导状态不导几何——
      * overlayFlags 位每帧携带可见性与合法性，选中索引/拆除标记/预览几何
-     * 在 [pushSceneUpdates] 内变化驱动导入。
+     * 与场景六要素一起在 [SceneUpdateChannel.push] 内变化驱动导入（R3.4）。
      */
     private fun renderSceneStorePath(
         frame: RenderFrame,
@@ -219,7 +197,19 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         buildingCount: Int,
         busWasDirty: Boolean
     ) {
-        pushSceneUpdates(frame, buildingData, buildingCount)
+        RenderMetrics.sceneUpdateFrames.incrementAndGet()
+        sceneUpdates.push(
+            SceneUpdateInputs(
+                frame = frame,
+                buildingData = buildingData,
+                buildingCount = buildingCount,
+                cloudData = host.cloudData,
+                atlasTextureId = host.atlasTextureId,
+                worldCols = host.renderConfig.worldWidthCells,
+                worldRows = host.renderConfig.worldHeightCells,
+                tileSize = host.renderConfig.tileSize
+            )
+        )
         var flags = 0
         if (frame.buildingVisible) flags = flags or OVERLAY_FLAG_BUILDING_VISIBLE
         if (frame.gridOverlayVisible) flags = flags or OVERLAY_FLAG_GRID_VISIBLE
@@ -295,124 +285,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
                 roadUVMap = SpriteAtlasDef.ROAD_UV_MAP
             )
         }
-    }
-
-    /**
-     * SceneStore 场景数据推送（R3.2 新路径；渲染线程调用）。
-     *
-     * 变化驱动：仅当数据引用（或建筑数）相对上次推送变化时才触 JNI——
-     * 场景数据生产者全部产出稳定引用：
-     * - tileData：remember(基座, 建筑集) 占位副本（建筑变动一次 copyOf）；
-     * - buildingData：RenderCommandBus.postBuildingData copyOf（每 post 一新引用）
-     *   或帧率门控 RenderFrame 的 remember 数组；
-     * - spiritCropData：derivedStateOf 重算（作物进度变化 = 每旬级）；
-     * - roadData：RoadMaskTracker.syncTo 内容等价早退返回稳定引用；
-     * - cloudData：CloudLayerAnimator.snapshot（脏帧才刷新）；
-     * - islandCliffData：remember(尺寸/种子/掩码) 一次性预计算。
-     * 内容未变时本函数零 JNI 调用；surface 重建后新实例基线为空 → 首帧全量重推
-     * （C++ SceneStore 已由 shutdownRenderer 清空，两侧一致）。
-     *
-     * @param frame 当前帧（地形/作物/道路/云/崖壁来源）
-     * @param buildingData 建筑快照（与旧路径 drawAllTiles 传入同一份：总线优先）
-     * @param buildingCount 建筑数（已钳制）
-     */
-    private fun pushSceneUpdates(frame: RenderFrame, buildingData: FloatArray?, buildingCount: Int) {
-        if (frame.tileData !== pushedTerrain) {
-            NativeBridge.sceneSetTerrain(
-                frame.tileData,
-                host.renderConfig.worldWidthCells,
-                host.renderConfig.worldHeightCells,
-                host.renderConfig.tileSize
-            )
-            pushedTerrain = frame.tileData
-        }
-        if (buildingData !== pushedBuildings || buildingCount != pushedBuildingCount) {
-            NativeBridge.sceneUpdateBuildings(buildingData, buildingCount)
-            pushedBuildings = buildingData
-            pushedBuildingCount = buildingCount
-        }
-        if (frame.spiritCropData !== pushedCrops) {
-            NativeBridge.sceneUpdateCrops(frame.spiritCropData, countOf(frame.spiritCropData, CROP_DATA_STRIDE))
-            pushedCrops = frame.spiritCropData
-        }
-        if (frame.roadData !== pushedRoads) {
-            NativeBridge.sceneUpdateRoads(frame.roadData, frame.roadData?.size ?: 0)
-            pushedRoads = frame.roadData
-        }
-        val clouds = host.cloudData
-        if (clouds !== pushedClouds) {
-            NativeBridge.sceneUpdateClouds(clouds, countOf(clouds, CLOUD_DATA_STRIDE))
-            pushedClouds = clouds
-        }
-        if (frame.islandCliffData !== pushedCliffs) {
-            NativeBridge.sceneSetCliffLayout(
-                frame.islandCliffData,
-                countOf(frame.islandCliffData, IslandCliffBridge.PIECE_STRIDE)
-            )
-            pushedCliffs = frame.islandCliffData
-        }
-        if (host.atlasTextureId != pushedAtlasTexId) {
-            NativeBridge.sceneSetAtlasTexture(host.atlasTextureId)
-            pushedAtlasTexId = host.atlasTextureId
-        }
-        pushOverlayUpdates(frame)
-    }
-
-    /**
-     * 叠加层状态推送（R3.3；渲染线程调用）——只导状态、不导几何。
-     *
-     * 与场景六要素同一脏更新协议：**值/引用比较**后才触 JNI——
-     * - 选中索引：Int 值比较（选中切换那一帧才触线）；
-     * - 拆除标记：引用比较（`derivedStateOf` 仅在拆除模式/勾选集变化时产新数组）；
-     * - 预览几何：16 个浮点逐项值比较（拖拽帧才触线；精灵与占地框同源一帧，
-     *   与旧路径 `frame.showPreview && previewBoxVisible` 同帧携带一致）。
-     *
-     * 网格线/占地框/高亮**本帧可见性与合法性**不经本函数——每帧由
-     * [renderSceneStorePath] 的 overlayFlags 位携带（drawFrame 已有一次跨线，零新增）。
-     */
-    private fun pushOverlayUpdates(frame: RenderFrame) {
-        if (frame.selectedBuildingIndex != pushedSelectionIndex) {
-            NativeBridge.sceneSetSelection(frame.selectedBuildingIndex)
-            pushedSelectionIndex = frame.selectedBuildingIndex
-        }
-        val markers = frame.demolishHighlightData
-        if (markers !== pushedMarkers) {
-            NativeBridge.sceneSetDemolishMarkers(markers, markers?.size ?: 0)
-            pushedMarkers = markers
-        }
-        // 预览几何写进复用缓冲后与已推送基线逐项比较（基线初值 NaN ⇒ 首帧恒判脏；
-        // 跨线时 C++ 侧按值拷贝，故缓冲可复用零分配）
-        val preview = previewScratch
-        preview[0] = frame.previewBoxX
-        preview[1] = frame.previewBoxY
-        preview[2] = frame.previewBoxW
-        preview[3] = frame.previewBoxH
-        preview[4] = frame.previewX
-        preview[5] = frame.previewY
-        preview[6] = frame.previewW
-        preview[7] = frame.previewH
-        preview[8] = frame.previewU0
-        preview[9] = frame.previewV0
-        preview[10] = frame.previewU1
-        preview[11] = frame.previewV1
-        preview[12] = frame.previewTintRed
-        preview[13] = frame.previewTintGreen
-        preview[14] = frame.previewTintBlue
-        preview[15] = frame.previewAlpha
-        var previewChanged = false
-        for (i in preview.indices) {
-            if (preview[i] != pushedPreviewValues[i]) previewChanged = true
-        }
-        if (previewChanged) {
-            NativeBridge.sceneSetPreview(preview)
-            preview.copyInto(pushedPreviewValues)
-        }
-    }
-
-    /** 步长数组 → 条目数（null = 0） */
-    private fun countOf(data: FloatArray?, stride: Int): Int {
-        if (data == null) return 0
-        return data.size / stride
     }
 
     /** 帧指标记录（热控降级可观测 + 帧计数——提取以收敛 renderFrame 行数） */
@@ -715,18 +587,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         private const val OVERLAY_FLAG_PREVIEW_VALID = 0x10
         private const val OVERLAY_FLAG_SELECTION = 0x20
         private const val OVERLAY_FLAG_DEMOLISH = 0x40
-
-        /** 预览数据单条步长（与 C++ `scene::kPreviewStride` 同值，见 sceneSetPreview） */
-        private const val PREVIEW_DATA_STRIDE = 16
-
-        /** 叠加层推送基线的"尚未推送"哨兵（-1 是合法的"无选中"值，不可复用） */
-        private const val SENTINEL_SELECTION_UNSET = Int.MIN_VALUE
-
-        /** 灵田作物数据单条步长（[gx, gy, progress01]，与 C++ scene::kCropStride 同值） */
-        private const val CROP_DATA_STRIDE = 3
-
-        /** 云实例数据单条步长（[x, y, w, h, spriteIndex, alpha]，与 CloudLayerAnimator 同值） */
-        private const val CLOUD_DATA_STRIDE = 6
 
         // ── 叠加层视觉常量（R3.3/B11）──
         // 单一权威 = build-atlas.mjs 的 LAYOUT.overlay，双端生成物
