@@ -206,6 +206,13 @@ static uint32_t g_sceneAtlasTexId = 0;
  *  互不串批；无 native 句柄，shutdownRenderer 无需清理（同 g_mapBatcher 纪律） */
 static SpriteBatcher g_overlayBatcher;
 
+/** R3.5 远景观看容量路径开关（Kotlin `FarViewGroundPolicy` 判定后经
+ *  nativeSetFarViewGroundQuad 推送：设备白名单 + 缩放到位 + 图集就绪 + 用户旗标
+ *  四重门的**合取结果**）。默认 false = 逐格地面（与 R3.5 前现状逐位一致），
+ *  未验证设备恒不启用（黑名单/白名单为空 ⇒ 恒 false）。仅在两路地面绘制分支
+ *  参与判定，不改变任何其他绘制形状。 */
+static std::atomic<bool> g_farViewGroundQuad{false};
+
 // 批量构建器容量溢出限频日志（此前极小缩放下静默丢弃无日志）
 static int64_t s_lastOverflowLogNs = 0;
 static void logBatcherOverflowOncePerSecond(const char* layer, int dropped) {
@@ -509,6 +516,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     // 新 surface（新后端实例首帧经 sceneSet*/sceneUpdate* 重推全部场景，
     // 与 g_groundTexId/g_fadeAlpha 等清理同纪律）
     g_scene.reset();
+    // R3.5 远景容量开关随纪元复位（新 surface 首帧由 Kotlin 侧重新判定推送）
+    g_farViewGroundQuad.store(false, std::memory_order_relaxed);
     g_sceneAtlasTexId = 0;
     // resize 请求通道清残留：shutdownRenderer 后到达旧表面的 pending
     // 请求不得作用于新 surface（同 g_cropSmooth 的代际残留纪律）
@@ -1029,9 +1038,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     p.rows = rows;
     p.tileSize = tileSize;
     p.atlasTexId = static_cast<uint32_t>(atlasTexId);
-    // 整图 REPEAT 地面 quad 在部分 Adreno 驱动采样异常（黑屏）——编译期关闭，
-    // 恒走逐格地面（判定形状保留，待驱动/采样问题定位后再启用）
-    p.groundQuadEnabled = false;
+    // 整图 REPEAT 地面 quad 在部分 Adreno 驱动采样异常（黑屏）——设备白名单
+    // （FarViewGroundPolicy.ALLOWED_DEVICES，当前为空）+ 缩放/图集/用户旗标四重门
+    // 由 Kotlin 侧判定后推入 g_farViewGroundQuad；默认 false = 恒走逐格地面
+    p.groundQuadEnabled = g_farViewGroundQuad.load(std::memory_order_relaxed);
     p.groundTexId = g_groundTexId;
     p.tileUv = uvs;
     p.tileUvCount = env->GetArrayLength(uvMap) / 4;
@@ -1053,7 +1063,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     p.cloudUv = cloudUvs;
     p.cloudUvCount = cloudUvs ? env->GetArrayLength(cloudUVMap) / 4 : 0;
 
-    scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
+    scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth,
+        [](uint32_t texId, const SpriteVertex* verts, int count) {
+            // R3.5 整图 REPEAT 地面：独立纹理，须自带一次 draw
+            //（与主批 atlasTexId 不同——不能并入 submitMapBatchCommon）
+            if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+        });
     submitMapBatchCommon(overflowDegrade, static_cast<uint32_t>(atlasTexId));
 
     env->ReleaseIntArrayElements(tileData, tiles, JNI_ABORT);
@@ -1227,6 +1242,29 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetAtlasTexture(
 }
 
 // ============================================================
+// R3.5/B12 远景观看容量路径开关（引擎控制端口）
+//
+// 【JNI 面豁免登记】（沿 R0.2 nativeFpDeterminismProbe / B06
+// nativeSetDirtyExportProtobuf / B09 nativeSetDirtyExportColumn 先例）：
+// 本端口是**引擎渲染控制态**，无法沿用既有通道——ActionId 业务事务面
+// （nativeExecute）承载玩法操作，镜像导出面（nativeExport*）承载状态同步，
+// 二者均非"渲染容量策略开关"形状；与既有 nativeSetAiThermalBatchSize /
+// nativeSetDirtyExportProtobuf 同族（引擎线程控制端口）。
+//
+// 语义：Kotlin 侧由 com.xianxia.sect.core.render.FarViewGroundPolicy 逐帧/变化时
+// 判定四重门（用户旗标 ∧ 图集就绪 ∧ 缩放到位 ∧ 设备白名单），把**合取结果**
+// 推为单一布尔——C++ 侧不做设备判定（保持 native-renderer 零平台依赖，
+// 桌面 GTest 可直测），只按布尔选地面绘制形态。
+// ============================================================
+
+/** 远景整图 REPEAT 地面开关（false = 逐格地面，R3.5 前现状；默认 false） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_nativeSetFarViewGroundQuad(
+    JNIEnv* /*env*/, jobject /*thiz*/, jboolean on) {
+    g_farViewGroundQuad.store(on == JNI_TRUE, std::memory_order_relaxed);
+}
+
+// ============================================================
 // R3.3/B11 叠加层状态导入端口（选中索引 / 拆除标记 / 预览几何）
 //
 // 【JNI 面豁免登记】（沿 R0.2 探针 / B06 nativeSetDirtyExportProtobuf /
@@ -1351,7 +1389,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
         p.rows = g_scene.rows();
         p.tileSize = g_scene.tileSize();
         p.atlasTexId = g_sceneAtlasTexId;
-        p.groundQuadEnabled = false;  // 同旧路径：整图 REPEAT 恒关闭（Adreno 防御）
+        p.groundQuadEnabled = g_farViewGroundQuad.load(std::memory_order_relaxed);
         p.groundTexId = g_groundTexId;
         p.tileUv = scene::kTileUv;
         p.tileUvCount = scene::kTileUvCount;
@@ -1373,7 +1411,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
         p.cloudUv = scene::kCloudUv;
         p.cloudUvCount = scene::kCloudUvCount;
 
-        scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
+        scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth,
+            [](uint32_t texId, const SpriteVertex* verts, int count) {
+                // R3.5 整图 REPEAT 地面：独立纹理，须自带一次 draw
+                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+            });
         submitMapBatchCommon(overflowDegrade, g_sceneAtlasTexId);
     }
 

@@ -234,8 +234,17 @@ inline constexpr size_t kMaxObjectDecorItems = 20000;
 /// 与旧 drawAllTiles 函数体逐段同构（段序/判定/常量/浮点表达式一一对应）；
 /// 跨帧复用的装饰/建筑收集缓冲为函数级 static（渲染线程单消费者，
 /// 与旧实现同纪律）。返回 batcher.end() 顶点数（提交/溢出结算在桥侧）。
+///
+/// [submitGround]（R3.5/B12）：整图 REPEAT 地面 quad 的提交回调。地面 quad 用
+/// **独立纹理**（groundTexId ≠ atlasTexId），无法并入本函数末尾以 atlasTexId
+/// 单次提交的主批，故与 [buildCliffLayer]/[buildOverlayLayers] 同形，经回调
+/// 逐段提交（生产实现 = `renderer->draw(verts, count, groundTexId)`）。
+/// 缺省空回调 = 不提交地面 quad（此时上层必须保证不启用整图路径，否则地面层
+/// 会整体缺失）；本函数只在 `p.groundQuadEnabled && p.groundTexId != 0` 时触发。
+template <typename GroundSubmit>
 inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
-                         const float projMatrix[16], CropSmoothingState& cropState) {
+                         const float projMatrix[16], CropSmoothingState& cropState,
+                         GroundSubmit&& submitGround) {
     if (p.tiles == nullptr || p.tileUv == nullptr) return 0;
     // 深度防御：rows×cols 超数组实际长度即堆越界读（旧路径同源防御）
     if (static_cast<int64_t>(p.rows) * p.cols > p.tileCount) return 0;
@@ -246,7 +255,10 @@ inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
 
     batcher.begin(projMatrix);
 
-    // ---- 整图 REPEAT 地面（GROUND_QUAD_ENABLED 恒 false——保留既有形状）----
+    // ---- 整图 REPEAT 地面（R3.5/B12：设备白名单放行时替代逐格地面）----
+    // 与下方逐格地面（(A) 段）互斥：本分支命中时 (A) 段恒跳过。
+    // 几何 = 世界可见域 ∩ 地图矩形（整图铺满可见部分，UV = 世界坐标/格边长的
+    // 无缝 REPEAT 映射——地面纹理取自 map_grass_1 64×64，REPEAT 寻址）。
     if (p.groundQuadEnabled && p.groundTexId != 0) {
         SpriteBatcher groundBatcher;
         groundBatcher.begin(projMatrix);
@@ -262,9 +274,10 @@ inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
                 1.0f, 1.0f, 1.0f, fadeAlpha);
         }
         const int groundVerts = groundBatcher.end();
-        // 提交由回调之外承担——本分支两路调用点恒 false，绘制路径不可达
-        // （与旧实现一致：g_renderer->draw 在桥侧；此处仅保持形状）
-        (void)groundVerts;
+        // 独立纹理提交（不复用主批 atlasTexId——地面纹理 id 不同）
+        if (groundVerts > 0) {
+            submitGround(p.groundTexId, groundBatcher.vertices, groundVerts);
+        }
     }
 
     // 可见范围钳制迭代（平板省电）+ 装饰越界余量外扩
@@ -616,6 +629,16 @@ inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
     }
 
     return batcher.end();
+}
+
+/// [buildMapBatch] 无地面提交回调重载（既有调用点：测试与不启用整图路径的路径）。
+/// 与四参重载同体，仅把地面提交回调解为 no-op——**调用方必须确保
+/// `!p.groundQuadEnabled || p.groundTexId == 0`**，否则整图地面不会被绘制
+/// （地面层缺失）。生产两路调用点均传真实回调，见 NativeBridge.cpp。
+inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
+                         const float projMatrix[16], CropSmoothingState& cropState) {
+    return buildMapBatch(batcher, p, projMatrix, cropState,
+                         [](uint32_t, const SpriteVertex*, int) {});
 }
 
 /// 崖壁层构建 + 逐纹理连续段提交（z 序：天空 → 崖壁 → 地面）。
