@@ -9,6 +9,8 @@
 #include "Rhi.h"
 #include "SpriteBatcher.h"
 #include "scene_uv_tables.h"
+// 叠加层状态与预览协议（R3.3）——纯声明头文件，零 Android 依赖
+#include "scene_store.h"
 // 石板道路求解器 + 渲染合成器 + 绘制层序合成器（单一权威，与旧路径同源）
 #include "gamecore/map/road_compositor.h"
 #include "gamecore/map/draw_order.h"
@@ -27,6 +29,12 @@
 //   - 提交与溢出遥测结算（桥侧 g_renderer->draw / noteBatcherOverflow）；
 //   - 热控/LOD/溢出降级判定（桥侧读全局量装配 skipDecor/skipClouds）。
 // 线程契约：渲染线程单消费者（与既有 drawAllTiles 同）。
+//
+// R3.3/B11 追加 `buildOverlayLayers`：四类世界叠加层（网格线/占地预览框+
+// 预览精灵/选中高亮/拆除高亮）的几何生成——旧路径由 Kotlin 每帧逐 rect 跨
+// JNI（放置模式最坏 ~258 次 drawRect），现由 drawFrame 的 overlayFlags 模式位
+// 驱动在本头单份实现内算出（格→世界矩形、线宽、透明度常量、相机投影、
+// Y 轴压缩全在 C++ 侧），Kotlin 只在值变化时推选中索引/拆除标记/预览几何。
 // ============================================================
 namespace scene {
 
@@ -118,6 +126,75 @@ struct CliffLayerParams {
     float scale = 1.0f;
     float fadeAlpha = 1.0f;
 };
+
+// ============================================================
+// 叠加层（overlay）——R3.3/B11：几何全部 C++ 生成，每帧零逐 rect 跨线
+// ============================================================
+
+/// drawFrame 的 overlayFlags 位定义（**与 Kotlin VulkanRenderBackend 的
+/// OVERLAY_FLAG_* 常量逐位同值**，双端由守卫测试 SceneOverlayFlagsMirrorGuardTest 锁定）
+inline constexpr int32_t kOverlayBitBuildingVisible = 1 << 0;  ///< 建筑层可见
+inline constexpr int32_t kOverlayBitGridVisible = 1 << 1;      ///< 放置/移动模式网格线
+inline constexpr int32_t kOverlayBitPreviewSprite = 1 << 2;    ///< 预览精灵（showPreview）
+inline constexpr int32_t kOverlayBitPreviewBox = 1 << 3;       ///< 占地预览框
+inline constexpr int32_t kOverlayBitPreviewValid = 1 << 4;     ///< 预览合法性（绿/红）
+inline constexpr int32_t kOverlayBitSelection = 1 << 5;        ///< 选中高亮本帧可画
+inline constexpr int32_t kOverlayBitDemolish = 1 << 6;         ///< 拆除高亮本帧可画
+
+/// 叠加层绘制输入——数据来自 SceneStore 的叠加层状态（变化驱动导入），
+/// 相机/视口来自 drawFrame 每帧标量，常量来自生成表 scene_uv_tables.h。
+struct OverlayParams {
+    // 相机与视口（与投影矩阵同源——drawFrame 消毒后的值）
+    float camX = 0.0f;
+    float camY = 0.0f;
+    float scale = 1.0f;
+    int32_t viewportW = 0;
+    int32_t viewportH = 0;
+
+    // 场景来源（网格线世界尺寸 + 高亮占地换算）
+    int32_t cols = 0;
+    int32_t rows = 0;
+    int32_t tileSize = 48;
+
+    // 选中高亮
+    const float* buildings = nullptr;
+    int32_t buildingCount = 0;
+    int32_t selectionIndex = -1;
+
+    // 拆除高亮（与 buildings 同序，逐建筑 1 字节）
+    const uint8_t* markers = nullptr;
+    int32_t markerCount = 0;
+
+    // 预览（占地框 + 精灵，触控驱动的世界像素几何）
+    PreviewState preview;
+    uint32_t atlasTexId = 0;
+
+    // 层开关（桥侧按 overlayFlags 位装配）
+    bool gridVisible = false;
+    bool previewSpriteVisible = false;
+    bool previewBoxVisible = false;
+    bool previewValid = true;
+    bool selectionEnabled = false;
+    bool demolishEnabled = false;
+    /// 选中高亮特性开关（RenderFlags.selectionHighlight 经 setRenderFlags 推送）
+    bool selectionHighlightFlag = true;
+};
+
+/// 预览几何有限性守卫：非有限值（NaN/±Inf）整层跳过——旧路径把 NaN 直接送进
+/// 顶点流（该帧矩形本身已不可辨），新路径不产出这类退化顶点。真实输入恒有限
+/// （触控/图集常量），本守卫只挡数据篡改/上游算错，不构成视觉差异。
+inline bool previewFinite(const PreviewState& s) {
+    const float vals[16] = {
+        s.boxX, s.boxY, s.boxW, s.boxH,
+        s.spriteX, s.spriteY, s.spriteW, s.spriteH,
+        s.u0, s.v0, s.u1, s.v1,
+        s.r, s.g, s.b, s.a
+    };
+    for (const float v : vals) {
+        if (!(v >= -1e9f && v <= 1e9f)) return false;  // NaN 比较恒 false 一并拦截
+    }
+    return true;
+}
 
 /// 可见性检测（视口世界坐标矩形相交；与旧 NativeBridge isRectVisible 同式）
 inline bool sceneRectVisible(float x, float y, float w, float h,
@@ -610,4 +687,180 @@ inline void buildCliffLayer(SpriteBatcher& batcher, const float projMatrix[16],
     }
 }
 
+/// 叠加层占地尺寸（高亮层口径）——与旧 Kotlin
+/// `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.getOrElse(nameIdx) { 2 to 2 }` 逐位
+/// 同语义：表内直取，表外（含固定结构 nameIdx ≥ kStructureNameBase）回退 2×2。
+/// **与地图建筑层的占地判定不同**（那一层对固定结构另有 kStructureFpW/H 分支）——
+/// 高亮框沿用旧路径口径以保证两路等价（固定结构高亮框偏小属既有缺陷，
+/// 按方案 §7.2 登记留待后续批裁决，不在等价重构批顺手改）。
+inline void overlayFootprint(int32_t nameIdx, int32_t* outW, int32_t* outH) {
+    const int32_t fpCount = static_cast<int32_t>(sizeof(kFootprintW) / sizeof(kFootprintW[0]));
+    if (nameIdx >= 0 && nameIdx < fpCount) {
+        *outW = kFootprintW[nameIdx];
+        *outH = kFootprintH[nameIdx];
+    } else {
+        *outW = 2;
+        *outH = 2;
+    }
+}
+
+/// 屏幕线宽折算世界线宽（高亮/描边类）：max(2px, tileSize×0.06×scale) / scale
+/// ——与旧 Kotlin `maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale) / scale`
+/// 同式同序（乘法左结合序一致，逐位等价）。
+inline float overlayLineWidth(float tileSizeF, float scale) {
+    const float scaleSafe = (scale > kOverlayMinScale) ? scale : kOverlayMinScale;
+    return std::max(kHighlightLineMinPx, tileSizeF * kHighlightLineWidthTiles * scaleSafe) / scaleSafe;
+}
+
+/// 叠加层（overlay）几何生成 + 逐纹理连续段提交（R3.3/B11）。
+///
+/// **旧路径每帧逐 rect 跨线的替身**：网格线 / 放置预览框 / 选中高亮 / 拆除高亮
+/// 四类叠加层的全部矩形（含预览精灵）在此按 SceneStore 状态 + 相机算出，
+/// 层序与旧 Kotlin 路径严格一致：
+///   选中高亮 → 拆除高亮 → 预览精灵 → 占地框 → 网格线
+/// （精灵绘于两处高亮之上、占地框与网格线之下——"填充绿纱罩于精灵之上"的
+///   既有观感；预览精灵用图集纹理，故其前后各成一段颜色批）。
+///
+/// 与旧路径逐条 drawRect 的关系：每个矩形仍是**同一 6 顶点三角带**
+/// （SpriteBatcher.add 的顶点序与 NativeBridge.drawRect 手写 6 顶点完全一致），
+/// 仅按纹理合批 ⇒ 顶点流逐位相同、draw call 数从"每 rect 一次"降为"每纹理段一次"
+/// （由 scene_overlay_equivalence_test 锁定）。
+///
+/// 覆盖层**不乘 fadeAlpha**（与旧路径一致：淡入只作用于地图层 quad，
+/// 预览/高亮不受影响——双端同语义）。
+template <typename Submit>
+inline void buildOverlayLayers(SpriteBatcher& batcher, const float projMatrix[16],
+                               const OverlayParams& p, Submit&& submit) {
+    const float tileSizeF = static_cast<float>(p.tileSize);
+    const float scaleSafe = (p.scale > kOverlayMinScale) ? p.scale : kOverlayMinScale;
+
+    bool haveBatch = false;
+    uint32_t batchTexId = 0;
+    auto flushBatch = [&]() {
+        if (haveBatch && batcher.vertexCount > 0) {
+            submit(batchTexId, batcher.vertices, batcher.vertexCount);
+        }
+        haveBatch = false;
+    };
+    auto emit = [&](uint32_t texId, float x, float y, float w, float h,
+                    float u0, float v0, float u1, float v1,
+                    float r, float g, float b, float a) {
+        if (haveBatch && texId != batchTexId) flushBatch();
+        if (!haveBatch) {
+            batcher.begin(projMatrix);
+            batchTexId = texId;
+            haveBatch = true;
+        }
+        batcher.add(texId, x, y, w, h, u0, v0, u1, v1, r, g, b, a);
+    };
+    // 纯色矩形（图集外——高亮/网格线/占地框）
+    auto emitRect = [&](float x, float y, float w, float h,
+                        float r, float g, float b, float a) {
+        emit(0u, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a);
+    };
+    // 填充 + 四边描边（描边盖住填充边缘，避免颜色叠加发亮——旧路径同序）
+    auto emitBox = [&](float x, float y, float w, float h, float lw,
+                       float r, float g, float b, float fillAlpha, float edgeAlpha) {
+        emitRect(x, y, w, h, r, g, b, fillAlpha);
+        emitRect(x, y, w, lw, r, g, b, edgeAlpha);
+        emitRect(x, (y + h) - lw, w, lw, r, g, b, edgeAlpha);
+        emitRect(x, y, lw, h, r, g, b, edgeAlpha);
+        emitRect((x + w) - lw, y, lw, h, r, g, b, edgeAlpha);
+    };
+    // 建筑条目占地矩形（gridX/gridY/nameIdx → 世界矩形；旧路径同口径）
+    auto footprintRect = [&](int32_t buildingIndex, float* out) {
+        const int32_t base = buildingIndex * kBuildingStride;
+        const int32_t gx = static_cast<int32_t>(p.buildings[base]);
+        const int32_t gy = static_cast<int32_t>(p.buildings[base + 1]);
+        const int32_t nameIdx = static_cast<int32_t>(p.buildings[base + 4]);
+        int32_t fpW = 2;
+        int32_t fpH = 2;
+        overlayFootprint(nameIdx, &fpW, &fpH);
+        out[0] = static_cast<float>(gx) * tileSizeF;
+        out[1] = static_cast<float>(gy) * tileSizeF;
+        out[2] = static_cast<float>(fpW) * tileSizeF;
+        out[3] = static_cast<float>(fpH) * tileSizeF;
+    };
+
+    // ---- 1. 选中建筑高亮（金色描边 + 半透明填充，5 rect）----
+    if (p.selectionEnabled && p.selectionHighlightFlag &&
+        p.buildings != nullptr && p.selectionIndex >= 0 && p.selectionIndex < p.buildingCount) {
+        float rect[4];
+        footprintRect(p.selectionIndex, rect);
+        emitBox(rect[0], rect[1], rect[2], rect[3], overlayLineWidth(tileSizeF, p.scale),
+            kGoldR, kGoldG, kGoldB, kHighlightFillAlpha, kHighlightEdgeAlpha);
+    }
+
+    // ---- 2. 一键拆除占地高亮（逐建筑绿填充 / 选中红填充 + 红描边）----
+    if (p.demolishEnabled && p.buildings != nullptr && p.markers != nullptr) {
+        const int32_t count = std::min(p.buildingCount, p.markerCount);
+        float rect[4];
+        for (int32_t i = 0; i < count; i++) {
+            if (p.markers[i] == kDemolishMarkNone) continue;
+            footprintRect(i, rect);
+            if (p.markers[i] == kDemolishMarkSelected) {
+                emitBox(rect[0], rect[1], rect[2], rect[3], overlayLineWidth(tileSizeF, p.scale),
+                    kDemolishRedR, kDemolishRedG, kDemolishRedB,
+                    kDemolishFillAlpha, kDemolishEdgeAlpha);
+            } else {
+                emitRect(rect[0], rect[1], rect[2], rect[3],
+                    kDemolishGreenR, kDemolishGreenG, kDemolishGreenB, kDemolishFillAlpha);
+            }
+        }
+    }
+
+    // ---- 3. 放置/移动预览（精灵图集 sprite，其后叠占地框——图集纹理单独成段）----
+    const bool previewUsable = p.previewSpriteVisible && p.atlasTexId != 0 &&
+        previewFinite(p.preview);
+    if (previewUsable) {
+        // UV 向内收缩同旧 drawSprite（防图集邻居渗色）
+        emit(p.atlasTexId,
+            p.preview.spriteX, p.preview.spriteY, p.preview.spriteW, p.preview.spriteH,
+            p.preview.u0 + kSceneUvEpsilon, p.preview.v0 + kSceneUvEpsilon,
+            p.preview.u1 - kSceneUvEpsilon, p.preview.v1 - kSceneUvEpsilon,
+            p.preview.r, p.preview.g, p.preview.b, p.preview.a);
+
+        // ---- 4. 占地框（预览框）：绿=可放置 / 红=不可放置 ----
+        if (p.previewBoxVisible) {
+            const float br = p.previewValid ? kPreviewGreenR : kPreviewRedR;
+            const float bg = p.previewValid ? kPreviewGreenG : kPreviewRedG;
+            const float bb = p.previewValid ? kPreviewGreenB : kPreviewRedB;
+            emitBox(p.preview.boxX, p.preview.boxY, p.preview.boxW, p.preview.boxH,
+                overlayLineWidth(tileSizeF, p.scale), br, bg, bb,
+                kPreviewBoxFillAlpha, kPreviewBoxEdgeAlpha);
+        }
+    }
+
+    // ---- 5. 放置/移动模式全视口网格线（视口内逐列/逐行各一条薄矩形）----
+    // 视口非法（0/负）整层跳过 = 旧 Kotlin drawGridOverlay 的同语义早退
+    if (p.gridVisible && p.viewportW > 0 && p.viewportH > 0 &&
+        p.cols > 0 && p.rows > 0 && p.tileSize > 0) {
+        const float worldW = static_cast<float>(p.cols * p.tileSize);
+        const float worldH = static_cast<float>(p.rows * p.tileSize);
+        // 目标屏幕线宽 2px 折回世界坐标；下限 0.5 世界单位防退化 quad
+        const float lineWidth = std::max(kGridLineWidthMinWorld, kGridLineWidthPx / scaleSafe);
+        const int32_t firstCol = std::max(0, static_cast<int32_t>(p.camX / tileSizeF));
+        const int32_t lastCol = std::min(p.cols,
+            static_cast<int32_t>((p.camX + static_cast<float>(p.viewportW) / scaleSafe) / tileSizeF));
+        const int32_t firstRow = std::max(0, static_cast<int32_t>(p.camY / tileSizeF));
+        // 行范围按视口高 / scale 换算（**未乘俯视 Y 压缩系数**）——逐位复刻旧
+        // Kotlin drawGridOverlay 现状（含与 Canvas 侧不一致的那部分），
+        // 差异根因与处置见方案 §7.2 B11 段「前置缺陷 A」。
+        const int32_t lastRow = std::min(p.rows,
+            static_cast<int32_t>((p.camY + static_cast<float>(p.viewportH) / scaleSafe) / tileSizeF));
+
+        for (int32_t col = firstCol; col <= lastCol; col++) {
+            emitRect(static_cast<float>(col) * tileSizeF, 0.0f, lineWidth, worldH,
+                kGridR, kGridG, kGridB, kGridAlpha);
+        }
+        for (int32_t row = firstRow; row <= lastRow; row++) {
+            emitRect(0.0f, static_cast<float>(row) * tileSizeF, worldW, lineWidth,
+                kGridR, kGridG, kGridB, kGridAlpha);
+        }
+    }
+
+    flushBatch();
+}
+
 }  // namespace scene
+

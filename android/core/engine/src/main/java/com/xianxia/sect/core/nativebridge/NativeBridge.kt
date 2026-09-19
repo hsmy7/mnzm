@@ -375,13 +375,58 @@ object NativeBridge {
      */
     external fun sceneSetAtlasTexture(atlasTexId: Int)
 
+    // ============================================================
+    // R3.3/B11 叠加层状态导入端口（选中索引 / 拆除标记 / 预览几何）
+    //
+    // 【JNI 面豁免登记】（沿 R0.2 探针 / B06 nativeSetDirtyExportProtobuf /
+    // 上方场景 8 端口先例）：本组 3 端口属"叠加层状态变化驱动导入"通道，
+    // 与场景 8 端口同族（既有通道均非渲染叠加状态形状）。它们替代的是旧路径
+    // **每帧逐 rect 跨线**（放置模式最坏 258 次 drawRect 网格线 + 5 占地框 +
+    // 5 选中 + 逐建筑拆除矩形）：仅在值变化的那一帧触线，几何生成全在 C++
+    // （scene_draw.h::buildOverlayLayers）。既有 [drawRect] 端口保留不删。
+    // ============================================================
+
+    /**
+     * 选中建筑索引导入（R3.3）。-1 = 无选中；越界时 C++ 侧按建筑数跳过高亮
+     * （与旧路径 `index in 0 until buildingCount` 判定同语义）。
+     */
+    external fun sceneSetSelection(selectedIndex: Int)
+
+    /**
+     * 拆除高亮标记导入（R3.3；逐建筑 1 字节，与建筑集同序，取值见
+     * [com.xianxia.sect.core.render.DemolishHighlightMark]）。
+     *
+     * @param markers null = 非拆除模式（整层跳过）
+     * @param markerCount 标记数（C++ 侧与数组长度、建筑数取小）
+     */
+    external fun sceneSetDemolishMarkers(markers: ByteArray?, markerCount: Int)
+
+    /**
+     * 预览几何导入（R3.3）：占地框 + 预览精灵同源一帧。
+     *
+     * 布局 = `[boxX, boxY, boxW, boxH, spriteX, spriteY, spriteW, spriteH,
+     * u0, v0, u1, v1, r, g, b, a]`（世界像素 + 图集归一化 UV + 调色，
+     * 与 [com.xianxia.sect.core.render.RenderFrame] 的 preview/previewBox
+     * 字段族逐项同值）。
+     * 各层可见性与可放置/阻挡（绿/红）**不在此承载**——每帧经
+     * [drawFrame] 的 overlayFlags 位表达；线宽/不透明度/相机投影/Y 轴压缩
+     * 全部由 C++ 侧生成常量计算。
+     *
+     * @param previewData null 或长度不足 = 清空预览几何
+     */
+    external fun sceneSetPreview(previewData: FloatArray?)
+
     /**
      * 每帧绘制（新路径唯一帧入口）：相机标量 + 覆盖标志 + 帧级 alpha
      * （G3 <200B/帧）；场景数据由 C++ SceneStore 持有，Kotlin 不再传
      * SpriteAtlasDef UV 数组（UV 表由 build-atlas.mjs 同源生成进 C++）。
      *
-     * @param overlayFlags 覆盖标志位掩码：bit0 = buildingVisible（建筑层可见）；
-     *   其余位预留 R3.3（网格线/预览/选中/拆除高亮的 C++ 几何生成）
+     * @param overlayFlags 覆盖标志位掩码（与 C++ `scene::kOverlayBit*` 逐位同值）：
+     *   bit0 = buildingVisible（建筑层可见）/ bit1 = 网格线 / bit2 = 预览精灵 /
+     *   bit3 = 占地框 / bit4 = 预览合法性（绿/红）/ bit5 = 选中高亮 /
+     *   bit6 = 拆除高亮——bit1–6 为 R3.3 启用，对应叠加层几何由 C++ 侧
+     *   按本掩码 + [sceneSetSelection]/[sceneSetDemolishMarkers]/[sceneSetPreview]
+     *   导入的状态生成（旧路径每帧逐 rect 跨线的替代）
      * @param fadeAlpha 地图淡入 alpha（C++ 侧 clamp [0,1]，同 setFadeAlpha 语义）
      * @param frameAlpha 逻辑帧插值因子（作物进度帧间平滑权重，同旧路径 frameAlpha）
      */

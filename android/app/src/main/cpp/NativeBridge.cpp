@@ -202,6 +202,9 @@ static scene::CropSmoothingState g_cropSmooth;
 /** SceneStore 路径的图集纹理 ID（sceneSetAtlasTexture 注入；0 = 未上传，
  *  与旧路径 host.atlasTextureId==0 跳过地图层的守卫语义一致） */
 static uint32_t g_sceneAtlasTexId = 0;
+/** R3.3 叠加层专用构建器（跨帧复用容量）——与地图/崖壁批各用独立 static，
+ *  互不串批；无 native 句柄，shutdownRenderer 无需清理（同 g_mapBatcher 纪律） */
+static SpriteBatcher g_overlayBatcher;
 
 // 批量构建器容量溢出限频日志（此前极小缩放下静默丢弃无日志）
 static int64_t s_lastOverflowLogNs = 0;
@@ -915,6 +918,58 @@ static void drawCliffLayerInternal(const jfloat* data, int pieceCount) {
     noteBatcherOverflow(g_edgeBatcher.droppedSprites);
 }
 
+/**
+ * 叠加层绘制（R3.3/B11，仅新路径）：网格线 / 占地预览框 + 预览精灵 / 选中高亮 /
+ * 拆除高亮的几何由 scene_draw.h 生成，参数全部取自 SceneStore 状态 + 本帧相机。
+ *
+ * 相机取 g_viewLeft/g_viewTop/g_scale（= drawFrame 消毒后的相机，与投影矩阵
+ * 严格同源）——旧路径高亮线宽用 RenderFrame.scale（帧率门控旧值）、网格线用
+ * 后端自留的 cachedScale，两值在相机移动帧可差一帧；新路径统一到投影同源，
+ * 叠加层与地图层物理上不可能错位。
+ *
+ * 覆盖层不乘 g_fadeAlpha（与旧路径同语义：淡入只作用于地图层 quad）。
+ */
+static void drawOverlayLayerInternal(int32_t overlayFlags, jint vpW, jint vpH) {
+    scene::OverlayParams p;
+    p.camX = g_viewLeft;
+    p.camY = g_viewTop;
+    p.scale = g_scale;
+    p.viewportW = vpW;
+    p.viewportH = vpH;
+    p.cols = g_scene.cols();
+    p.rows = g_scene.rows();
+    p.tileSize = g_scene.tileSize();
+    p.buildings = g_scene.buildingsData();
+    p.buildingCount = g_scene.buildingCount();
+    p.selectionIndex = g_scene.selectionIndex();
+    p.markers = g_scene.markersData();
+    p.markerCount = g_scene.markerCount();
+    p.preview = g_scene.preview();
+    p.atlasTexId = g_sceneAtlasTexId;
+    p.gridVisible = (overlayFlags & scene::kOverlayBitGridVisible) != 0;
+    p.previewSpriteVisible = (overlayFlags & scene::kOverlayBitPreviewSprite) != 0;
+    p.previewBoxVisible = (overlayFlags & scene::kOverlayBitPreviewBox) != 0;
+    p.previewValid = (overlayFlags & scene::kOverlayBitPreviewValid) != 0;
+    p.selectionEnabled = (overlayFlags & scene::kOverlayBitSelection) != 0;
+    p.demolishEnabled = (overlayFlags & scene::kOverlayBitDemolish) != 0;
+    // RenderFlags.selectionHighlight：既有通道（setRenderFlags 推送），
+    // 新路径由 C++ 直接消费（旧路径由 Kotlin 侧判定，两路同源同值）
+    p.selectionHighlightFlag = g_selectionHighlight.load();
+
+    Renderer2D* renderer = g_renderer;
+    scene::buildOverlayLayers(
+        g_overlayBatcher, g_projMatrix, p,
+        [renderer](uint32_t texId, const SpriteVertex* verts, int count) {
+            if (renderer) renderer->draw(verts, count, texId);
+        });
+
+    if (g_overlayBatcher.droppedSprites > 0) {
+        logBatcherOverflowOncePerSecond("overlay", g_overlayBatcher.droppedSprites);
+    }
+    // 叠加层容量丢弃只观测不登记降级：装饰降级以地图层为判定 pass（叠加层
+    // 为结构层不可跳），且叠加层 quad 数量级远小于地图层，不参与降级振荡
+}
+
 // ============================================================
 // 旧绘制路径：drawAllTiles（17 参数全量数组——灰度回滚臂，保留一个版本周期）
 //
@@ -1014,7 +1069,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
 }
 
 // ============================================================
-// 新绘制路径：SceneStore 导入端口 + drawFrame（R3.2——JNI 面 8 端口）
+// 新绘制路径：SceneStore 导入端口 + drawFrame（R3.2——JNI 面 8 端口；
+// R3.3/B11 在同一段追加叠加层状态导入 3 端口，见其独立豁免登记块）
 //
 // 【JNI 面豁免登记】（沿 R0.2 nativeFpDeterminismProbe / B06
 // nativeSetDirtyExportProtobuf 先例）：8 端口属"场景数据导入 + 每帧绘制"
@@ -1170,12 +1226,79 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetAtlasTexture(
     g_sceneAtlasTexId = atlasTexId > 0 ? static_cast<uint32_t>(atlasTexId) : 0;
 }
 
+// ============================================================
+// R3.3/B11 叠加层状态导入端口（选中索引 / 拆除标记 / 预览几何）
+//
+// 【JNI 面豁免登记】（沿 R0.2 探针 / B06 nativeSetDirtyExportProtobuf /
+// B10 场景 8 端口先例）：本组 3 端口是"叠加层状态变化驱动导入"通道，与
+// 场景 8 端口同族（ActionId 业务事务面 / 镜像导出面均非渲染叠加状态形状）。
+// 它们替代的是旧路径**每帧逐 rect 跨线**——放置模式下每帧最坏 258 次
+// drawRect（网格线）+ 5（占地框）+ 5（选中）+ 逐建筑拆除矩形；本组端口
+// 只在状态**变化**的那一帧触线（选中切换/拆除勾选/拖拽预览），几何
+// 生成全部在 C++ 侧（scene_draw.h::buildOverlayLayers）。
+// 既有 drawRect 端口**保留不删**（回滚臂与其他消费者仍用）。
+// ============================================================
+
+/** 选中建筑索引导入（-1 = 无选中；越界由绘制核心按建筑数跳过——旧路径同语义） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetSelection(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint selectedIndex) {
+    g_scene.setSelection(static_cast<int32_t>(selectedIndex));
+}
+
+/** 拆除高亮标记导入（逐建筑 1 字节，与建筑集同序；null/0 = 非拆除模式整层跳过） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetDemolishMarkers(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray markers, jint markerCount) {
+    if (markers == nullptr || markerCount <= 0) {
+        g_scene.setDemolishMarkers(nullptr, 0);
+        return;
+    }
+    const jsize n = env->GetArrayLength(markers);
+    const jsize capped = static_cast<jsize>(std::min<int64_t>(markerCount, n));
+    if (capped <= 0) {
+        g_scene.setDemolishMarkers(nullptr, 0);
+        return;
+    }
+    std::vector<uint8_t> data(static_cast<size_t>(capped));
+    env->GetByteArrayRegion(markers, 0, capped, reinterpret_cast<jbyte*>(data.data()));
+    g_scene.setDemolishMarkers(data.data(), capped);
+}
+
+/**
+ * 预览几何导入（[boxX,boxY,boxW,boxH, spriteX,spriteY,spriteW,spriteH,
+ * u0,v0,u1,v1, r,g,b,a]；null = 清空）。
+ *
+ * 位置由触控驱动（非网格对齐），故按**值变化**推送；占地框颜色（可放置/阻挡）
+ * 与各层可见性不在此承载——每帧经 drawFrame 的 overlayFlags 位表达。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetPreview(
+    JNIEnv* env, jobject /*thiz*/, jfloatArray previewData) {
+    if (previewData == nullptr) {
+        g_scene.setPreview(nullptr);
+        return;
+    }
+    const jsize n = env->GetArrayLength(previewData);
+    if (n < scene::kPreviewStride) {
+        g_scene.setPreview(nullptr);
+        return;
+    }
+    float values[scene::kPreviewStride];
+    env->GetFloatArrayRegion(previewData, 0, scene::kPreviewStride, values);
+    g_scene.setPreview(values);
+}
+
 /**
  * 每帧绘制（R3.2 新路径唯一帧入口）：相机标量 + 覆盖标志（G3 <200B/帧），
  * 场景数据从 SceneStore 消费（sceneSet* / sceneUpdate* 变化驱动维护）。
  *
- * overlayFlags 位定义：bit0 = buildingVisible（建筑层可见）；
- * 其余位预留 R3.3（网格线/放置预览/选中/拆除高亮的 C++ 几何生成）。
+ * overlayFlags 位定义（scene::kOverlayBit*，与 Kotlin OVERLAY_FLAG_* 逐位同值）：
+ *   bit0 buildingVisible / bit1 网格线 / bit2 预览精灵 / bit3 占地框 /
+ *   bit4 预览合法性（绿/红）/ bit5 选中高亮 / bit6 拆除高亮。
+ * 位 1–6 为 R3.3 启用：四类叠加层几何在本函数内由 scene_draw.h 生成
+ * （旧路径的每帧逐 rect 跨线由此退役；其数据经 sceneSetSelection /
+ * sceneSetDemolishMarkers / sceneSetPreview 变化驱动导入）。
  */
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
@@ -1221,7 +1344,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
         p.skipDecor = decorSkipActive(overflowDegrade);
         p.skipClouds = p.skipDecor;
         p.buildingShadows = g_buildingShadows.load();
-        p.buildingVisible = (overlayFlags & 0x1) != 0;
+        p.buildingVisible = (overlayFlags & scene::kOverlayBitBuildingVisible) != 0;
         p.tiles = g_scene.terrainData();
         p.tileCount = g_scene.terrainCount();
         p.cols = g_scene.cols();
@@ -1253,6 +1376,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
         scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
         submitMapBatchCommon(overflowDegrade, g_sceneAtlasTexId);
     }
+
+    // 叠加层（R3.3）：选中高亮 → 拆除高亮 → 预览精灵 → 占地框 → 网格线，
+    // 层序与旧 Kotlin 路径严格一致。地图层/图集未就绪时仍须绘制（旧路径的
+    // 网格线与高亮本就不依赖瓦片层；预览精灵的图集守卫在生成核心内）
+    drawOverlayLayerInternal(overlayFlags, vpW, vpH);
 }
 
 // ============================================================

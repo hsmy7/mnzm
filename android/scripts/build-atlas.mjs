@@ -207,6 +207,48 @@ const LAYOUT = {
   //   /SectCameraStateTest 镜像常量）与 C++（cameraProjMatrix/NativeBridge 视野
   //   边界）必须同值。
   topdownYScale: 0.75,
+  // ── 世界叠加层（overlay）视觉常量（重构方案 2026-09-17 R3.3/B11）──
+  // 四类叠加层——放置/移动模式网格线、占地预览框、选中高亮、一键拆除高亮——的
+  // 颜色/不透明度/线宽常量。R3.3 起叠加层几何由 C++ drawFrame 生成（新路径），
+  // Kotlin 旧逐 rect 路径（灰度回滚臂）引用本表生成的同一组 Kotlin 常量，
+  // 两路同值由构造保证（此前双写在 VulkanRenderBackend 私有常量里）。
+  // 色值 = 十六进制色的 0-1 分量（沿用旧 Compose 覆盖层配色）；
+  // 线宽公式：高亮类屏幕线宽 max(2px, tileSize×0.06×scale)，除 scale 折回世界坐标；
+  // 网格线世界线宽 max(0.5, 2/scale)——离屏降采样下 1 物理屏像素 = 0.5 离屏像素，
+  // 细线光栅化会被整条丢弃，故按 2 物理屏像素起。
+  // 条目形态：kotlin = SpriteAtlasDef 常量名，cpp = scene:: 常量名，note = 双端注释。
+  overlay: [
+    { kotlin: 'GOLD_R', cpp: 'kGoldR', v: 1.0, note: '选中高亮金色 #FFD700（R=255/255）' },
+    { kotlin: 'GOLD_G', cpp: 'kGoldG', v: 0.843, note: '选中高亮金色 #FFD700（G=215/255）' },
+    { kotlin: 'GOLD_B', cpp: 'kGoldB', v: 0.0, note: '选中高亮金色 #FFD700（B=0/255）' },
+    { kotlin: 'HIGHLIGHT_FILL_ALPHA', cpp: 'kHighlightFillAlpha', v: 0.15, note: '选中高亮填充不透明度（金色半透明填充）' },
+    { kotlin: 'HIGHLIGHT_EDGE_ALPHA', cpp: 'kHighlightEdgeAlpha', v: 0.9, note: '选中高亮描边不透明度' },
+    { kotlin: 'DEMOLISH_GREEN_R', cpp: 'kDemolishGreenR', v: 0.298, note: '拆除未选中绿 #4CAF50（R=76/255）' },
+    { kotlin: 'DEMOLISH_GREEN_G', cpp: 'kDemolishGreenG', v: 0.686, note: '拆除未选中绿 #4CAF50（G=175/255）' },
+    { kotlin: 'DEMOLISH_GREEN_B', cpp: 'kDemolishGreenB', v: 0.314, note: '拆除未选中绿 #4CAF50（B=80/255）' },
+    { kotlin: 'DEMOLISH_RED_R', cpp: 'kDemolishRedR', v: 0.957, note: '拆除选中红 #F44336（R=244/255）' },
+    { kotlin: 'DEMOLISH_RED_G', cpp: 'kDemolishRedG', v: 0.267, note: '拆除选中红 #F44336（G=68/255）' },
+    { kotlin: 'DEMOLISH_RED_B', cpp: 'kDemolishRedB', v: 0.212, note: '拆除选中红 #F44336（B=54/255）' },
+    { kotlin: 'DEMOLISH_FILL_ALPHA', cpp: 'kDemolishFillAlpha', v: 0.4, note: '拆除填充不透明度（0x66 = 40% 半透明）' },
+    { kotlin: 'DEMOLISH_EDGE_ALPHA', cpp: 'kDemolishEdgeAlpha', v: 1.0, note: '拆除描边不透明度' },
+    { kotlin: 'PREVIEW_GREEN_R', cpp: 'kPreviewGreenR', v: 0.298, note: '可放置 #4CAF50（R=76/255）' },
+    { kotlin: 'PREVIEW_GREEN_G', cpp: 'kPreviewGreenG', v: 0.686, note: '可放置 #4CAF50（G=175/255）' },
+    { kotlin: 'PREVIEW_GREEN_B', cpp: 'kPreviewGreenB', v: 0.314, note: '可放置 #4CAF50（B=80/255）' },
+    { kotlin: 'PREVIEW_RED_R', cpp: 'kPreviewRedR', v: 0.957, note: '不可放置 #F44336（R=244/255）' },
+    { kotlin: 'PREVIEW_RED_G', cpp: 'kPreviewRedG', v: 0.267, note: '不可放置 #F44336（G=68/255）' },
+    { kotlin: 'PREVIEW_RED_B', cpp: 'kPreviewRedB', v: 0.212, note: '不可放置 #F44336（B=54/255）' },
+    { kotlin: 'PREVIEW_BOX_FILL_ALPHA', cpp: 'kPreviewBoxFillAlpha', v: 0.35, note: '占地框填充不透明度（0x59 ≈ 35% 半透明）' },
+    { kotlin: 'PREVIEW_BOX_EDGE_ALPHA', cpp: 'kPreviewBoxEdgeAlpha', v: 0.9, note: '占地框描边不透明度（0xE6 ≈ 90%）' },
+    { kotlin: 'GRID_R', cpp: 'kGridR', v: 0.894, note: '网格线 #E4DDD0（R=228/255）' },
+    { kotlin: 'GRID_G', cpp: 'kGridG', v: 0.867, note: '网格线 #E4DDD0（G=221/255）' },
+    { kotlin: 'GRID_B', cpp: 'kGridB', v: 0.816, note: '网格线 #E4DDD0（B=208/255）' },
+    { kotlin: 'GRID_ALPHA', cpp: 'kGridAlpha', v: 1.0, note: '网格线不透明度' },
+    { kotlin: 'HIGHLIGHT_LINE_WIDTH_TILES', cpp: 'kHighlightLineWidthTiles', v: 0.06, note: '高亮线宽（格数）：max(2px, tileSize×0.06) 的格数分量' },
+    { kotlin: 'HIGHLIGHT_LINE_MIN_PX', cpp: 'kHighlightLineMinPx', v: 2.0, note: '高亮线宽下限（屏幕像素）' },
+    { kotlin: 'GRID_LINE_WIDTH_MIN_WORLD', cpp: 'kGridLineWidthMinWorld', v: 0.5, note: '网格线世界线宽下限（防退化 quad）' },
+    { kotlin: 'GRID_LINE_WIDTH_PX', cpp: 'kGridLineWidthPx', v: 2.0, note: '网格线目标屏幕线宽（2 物理屏像素，防降采样整条丢弃）' },
+    { kotlin: 'OVERLAY_MIN_SCALE', cpp: 'kOverlayMinScale', v: 0.001, note: '缩放下限（线宽除 scale 的除零防御）' },
+  ],
   // C++ MAP_SPRITES 由 LAYOUT 各段派生（见下方 buildMapSprites——瓦片段取自
   // LAYOUT.tiles.cppName，建筑段取自 buildingNames + 行公式，杜绝双写漂移）
 };
@@ -485,6 +527,30 @@ function cppFloatLiteral(v) {
   return Number.isInteger(v) ? `${v}.0f` : `${v}f`;
 }
 
+/** Kotlin 浮点字面量（与 cppFloatLiteral 同形态，整数值补 .0 保持可读性） */
+function kotlinFloatLiteral(v) {
+  return Number.isInteger(v) ? `${v}.0f` : `${v}f`;
+}
+
+/**
+ * 叠加层常量的双端生成行（LAYOUT.overlay 单一数据源，R3.3/B11）。
+ *
+ * 同值性论证：两侧字面量文本相同（`${v}f`），Kotlin 与 C++ 编译器各自按
+ * IEEE-754 最近舍入解析 ⇒ 逐位一致（与既有 SHADOW_ALPHA 等同机制）。
+ */
+function overlayKotlinLines(layout) {
+  return layout.overlay.map((e) => `    const val ${e.kotlin} = ${kotlinFloatLiteral(e.v)}`);
+}
+
+function overlayCppLines(layout) {
+  const out = [];
+  for (const e of layout.overlay) {
+    out.push(`// ${e.note}`);
+    out.push(`inline constexpr float ${e.cpp} = ${cppFloatLiteral(e.v)};`);
+  }
+  return out;
+}
+
 /** 建筑配置内容（纳入 codegen hash：配置改动同样触发保真校验与重生成） */
 function buildingsConfigForHash() {
   return JSON.parse(fs.readFileSync(BUILDINGS_CONFIG_FILE, 'utf8'));
@@ -646,6 +712,12 @@ function generateSpriteAtlasDef(layout) {
     `    const val SPIRIT_FIELD_NAME_INDEX = ${si.spiritField}`,
     `    const val TILE_GROUND_INDEX = ${si.tileGround}`,
     `    const val TILE_BUILDING_INDEX = ${si.tileBuilding}`,
+    '',
+    '    // ============================================================',
+    '    // 世界叠加层（overlay）视觉常量（R3.3/B11：C++ drawFrame 生成叠加层几何',
+    '    // 与 Kotlin 旧逐 rect 回滚臂共用同一数据源——两路同值由构造保证）',
+    '    // ============================================================',
+    ...overlayKotlinLines(layout),
     '',
     '    // ============================================================',
     '    // 瓦片类型定义',
@@ -1245,6 +1317,10 @@ function generateSceneUvTablesH(layout) {
     `inline constexpr float kShadowOffsetTiles = ${cppFloatLiteral(layout.shadowOffsetTiles)};`,
     `inline constexpr float kShadowAlpha = ${cppFloatLiteral(layout.shadowAlpha)};`,
     `inline constexpr float kTopdownYScale = ${cppFloatLiteral(layout.topdownYScale)};`,
+    '',
+    '// ── 世界叠加层（overlay）视觉常量（R3.3/B11：网格线/预览框/选中/拆除高亮的',
+    '//    颜色、不透明度、线宽——C++ 侧生成叠加层几何消费本表，与 Kotlin 回滚臂同源）──',
+    ...overlayCppLines(layout),
     '',
     '// ── 瓦片分类（装饰区间/显示尺寸/绘制层/越界余量——绘制核心按表直取，',
     '//    禁止在渲染代码硬编码瓦片序号）──',

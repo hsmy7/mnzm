@@ -12,8 +12,9 @@ import org.junit.Test
  * 守护目标：`app/src/main/cpp/scene/scene_uv_tables.h`（build-atlas.mjs
  * --codegen 生成的仓库内生成物）与 Kotlin [SpriteAtlasDef]（同一生成器产出）
  * **逐位一致**——五张 UV 表（瓦片/建筑+固定结构/作物/云/道路）、占地尺寸表、
- * 双端共享渲染常量。任一侧漂移（改 LAYOUT 后漏提交 C++ 头 / 手改生成物）
- * 即失败并指引重跑 `node scripts/build-atlas.mjs --codegen`。
+ * 双端共享渲染常量，以及 R3.3/B11 的叠加层视觉常量（网格线/预览框/选中/拆除
+ * 高亮的颜色、不透明度、线宽 30 项）。任一侧漂移（改 LAYOUT 后漏提交 C++ 头 /
+ * 手改生成物）即失败并指引重跑 `node scripts/build-atlas.mjs --codegen`。
  *
  * 双向等价链：LAYOUT（唯一权威）→ 同一生成器 → Kotlin 常量（本测试读取）
  * 与 C++ 头（本测试解析）；R3.2 后 Kotlin 渲染新路径不再每帧传 UV 数组，
@@ -200,5 +201,71 @@ class SceneUvTablesMirrorGuardTest {
             SpriteAtlasDef.BUILDING_NAMES.size,
             intScalar(header, "kStructureNameBase")
         )
+    }
+
+    // ── 叠加层视觉常量（R3.3/B11）────────────────────────────────
+
+    /**
+     * C++ `scene::kXxx` ↔ Kotlin [SpriteAtlasDef] 叠加层常量配对表。
+     *
+     * 二者同由 build-atlas.mjs 的 LAYOUT.overlay 生成；本表**逐条点名**消费侧引用名，
+     * 使"新增 overlay 常量但漏登记消费侧"成为可检失败（数量断言 + 逐位断言）。
+     * VulkanRenderBackend 旧路径（逐 rect 回滚臂）与 C++ 新路径（几何生成）都引用
+     * 这组值 ⇒ 两路同值由构造保证（本守卫锁定生成物一侧不漂移）。
+     */
+    private val overlayConstants: List<Pair<String, Float>> = listOf(
+        "kGoldR" to SpriteAtlasDef.GOLD_R,
+        "kGoldG" to SpriteAtlasDef.GOLD_G,
+        "kGoldB" to SpriteAtlasDef.GOLD_B,
+        "kHighlightFillAlpha" to SpriteAtlasDef.HIGHLIGHT_FILL_ALPHA,
+        "kHighlightEdgeAlpha" to SpriteAtlasDef.HIGHLIGHT_EDGE_ALPHA,
+        "kDemolishGreenR" to SpriteAtlasDef.DEMOLISH_GREEN_R,
+        "kDemolishGreenG" to SpriteAtlasDef.DEMOLISH_GREEN_G,
+        "kDemolishGreenB" to SpriteAtlasDef.DEMOLISH_GREEN_B,
+        "kDemolishRedR" to SpriteAtlasDef.DEMOLISH_RED_R,
+        "kDemolishRedG" to SpriteAtlasDef.DEMOLISH_RED_G,
+        "kDemolishRedB" to SpriteAtlasDef.DEMOLISH_RED_B,
+        "kDemolishFillAlpha" to SpriteAtlasDef.DEMOLISH_FILL_ALPHA,
+        "kDemolishEdgeAlpha" to SpriteAtlasDef.DEMOLISH_EDGE_ALPHA,
+        "kPreviewGreenR" to SpriteAtlasDef.PREVIEW_GREEN_R,
+        "kPreviewGreenG" to SpriteAtlasDef.PREVIEW_GREEN_G,
+        "kPreviewGreenB" to SpriteAtlasDef.PREVIEW_GREEN_B,
+        "kPreviewRedR" to SpriteAtlasDef.PREVIEW_RED_R,
+        "kPreviewRedG" to SpriteAtlasDef.PREVIEW_RED_G,
+        "kPreviewRedB" to SpriteAtlasDef.PREVIEW_RED_B,
+        "kPreviewBoxFillAlpha" to SpriteAtlasDef.PREVIEW_BOX_FILL_ALPHA,
+        "kPreviewBoxEdgeAlpha" to SpriteAtlasDef.PREVIEW_BOX_EDGE_ALPHA,
+        "kGridR" to SpriteAtlasDef.GRID_R,
+        "kGridG" to SpriteAtlasDef.GRID_G,
+        "kGridB" to SpriteAtlasDef.GRID_B,
+        "kGridAlpha" to SpriteAtlasDef.GRID_ALPHA,
+        "kHighlightLineWidthTiles" to SpriteAtlasDef.HIGHLIGHT_LINE_WIDTH_TILES,
+        "kHighlightLineMinPx" to SpriteAtlasDef.HIGHLIGHT_LINE_MIN_PX,
+        "kGridLineWidthMinWorld" to SpriteAtlasDef.GRID_LINE_WIDTH_MIN_WORLD,
+        "kGridLineWidthPx" to SpriteAtlasDef.GRID_LINE_WIDTH_PX,
+        "kOverlayMinScale" to SpriteAtlasDef.OVERLAY_MIN_SCALE
+    )
+
+    @Test
+    fun `overlay visual constants mirror SpriteAtlasDef bit-exactly`() {
+        val header = generatedHeader().readText()
+        assertEquals(
+            "生成头的叠加层常量条目数与 Kotlin 配对表不一致（新增/删除常量须双端同步，" +
+                "并重跑 node scripts/build-atlas.mjs --codegen）",
+            overlaySectionConstantCount(header),
+            overlayConstants.size
+        )
+        for ((name, expected) in overlayConstants) {
+            assertBitsEqual(name, expected, floatScalar(header, name))
+        }
+    }
+
+    /** 生成头「世界叠加层」段的 `inline constexpr float` 条目数 */
+    private fun overlaySectionConstantCount(header: String): Int {
+        val start = header.indexOf("// ── 世界叠加层（overlay）视觉常量")
+        assertTrue("scene_uv_tables.h 缺少叠加层常量段（生成物被手改/损坏？）", start >= 0)
+        val end = header.indexOf("// ── 瓦片分类", start)
+        assertTrue("叠加层常量段未正常闭合（缺少后续「瓦片分类」段）", end > start)
+        return header.substring(start, end).lines().count { it.startsWith("inline constexpr float") }
     }
 }

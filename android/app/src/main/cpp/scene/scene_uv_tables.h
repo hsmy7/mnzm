@@ -94,6 +94,69 @@ inline constexpr float kShadowOffsetTiles = 0.25f;
 inline constexpr float kShadowAlpha = 0.2f;
 inline constexpr float kTopdownYScale = 0.75f;
 
+// ── 世界叠加层（overlay）视觉常量（R3.3/B11：网格线/预览框/选中/拆除高亮的
+//    颜色、不透明度、线宽——C++ 侧生成叠加层几何消费本表，与 Kotlin 回滚臂同源）──
+// 选中高亮金色 #FFD700（R=255/255）
+inline constexpr float kGoldR = 1.0f;
+// 选中高亮金色 #FFD700（G=215/255）
+inline constexpr float kGoldG = 0.843f;
+// 选中高亮金色 #FFD700（B=0/255）
+inline constexpr float kGoldB = 0.0f;
+// 选中高亮填充不透明度（金色半透明填充）
+inline constexpr float kHighlightFillAlpha = 0.15f;
+// 选中高亮描边不透明度
+inline constexpr float kHighlightEdgeAlpha = 0.9f;
+// 拆除未选中绿 #4CAF50（R=76/255）
+inline constexpr float kDemolishGreenR = 0.298f;
+// 拆除未选中绿 #4CAF50（G=175/255）
+inline constexpr float kDemolishGreenG = 0.686f;
+// 拆除未选中绿 #4CAF50（B=80/255）
+inline constexpr float kDemolishGreenB = 0.314f;
+// 拆除选中红 #F44336（R=244/255）
+inline constexpr float kDemolishRedR = 0.957f;
+// 拆除选中红 #F44336（G=68/255）
+inline constexpr float kDemolishRedG = 0.267f;
+// 拆除选中红 #F44336（B=54/255）
+inline constexpr float kDemolishRedB = 0.212f;
+// 拆除填充不透明度（0x66 = 40% 半透明）
+inline constexpr float kDemolishFillAlpha = 0.4f;
+// 拆除描边不透明度
+inline constexpr float kDemolishEdgeAlpha = 1.0f;
+// 可放置 #4CAF50（R=76/255）
+inline constexpr float kPreviewGreenR = 0.298f;
+// 可放置 #4CAF50（G=175/255）
+inline constexpr float kPreviewGreenG = 0.686f;
+// 可放置 #4CAF50（B=80/255）
+inline constexpr float kPreviewGreenB = 0.314f;
+// 不可放置 #F44336（R=244/255）
+inline constexpr float kPreviewRedR = 0.957f;
+// 不可放置 #F44336（G=68/255）
+inline constexpr float kPreviewRedG = 0.267f;
+// 不可放置 #F44336（B=54/255）
+inline constexpr float kPreviewRedB = 0.212f;
+// 占地框填充不透明度（0x59 ≈ 35% 半透明）
+inline constexpr float kPreviewBoxFillAlpha = 0.35f;
+// 占地框描边不透明度（0xE6 ≈ 90%）
+inline constexpr float kPreviewBoxEdgeAlpha = 0.9f;
+// 网格线 #E4DDD0（R=228/255）
+inline constexpr float kGridR = 0.894f;
+// 网格线 #E4DDD0（G=221/255）
+inline constexpr float kGridG = 0.867f;
+// 网格线 #E4DDD0（B=208/255）
+inline constexpr float kGridB = 0.816f;
+// 网格线不透明度
+inline constexpr float kGridAlpha = 1.0f;
+// 高亮线宽（格数）：max(2px, tileSize×0.06) 的格数分量
+inline constexpr float kHighlightLineWidthTiles = 0.06f;
+// 高亮线宽下限（屏幕像素）
+inline constexpr float kHighlightLineMinPx = 2.0f;
+// 网格线世界线宽下限（防退化 quad）
+inline constexpr float kGridLineWidthMinWorld = 0.5f;
+// 网格线目标屏幕线宽（2 物理屏像素，防降采样整条丢弃）
+inline constexpr float kGridLineWidthPx = 2.0f;
+// 缩放下限（线宽除 scale 的除零防御）
+inline constexpr float kOverlayMinScale = 0.001f;
+
 // ── 瓦片分类（装饰区间/显示尺寸/绘制层/越界余量——绘制核心按表直取，
 //    禁止在渲染代码硬编码瓦片序号）──
 inline constexpr int kTileGround = 0;

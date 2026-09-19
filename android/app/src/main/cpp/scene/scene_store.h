@@ -22,6 +22,9 @@
 //   - 崖壁布局：IslandCliffBridge（C++ gamecore::map::island_cliff.h 单一权威
 //     合成器）一次性预计算的稳定布局导入；纹理 ID 表仍走
 //     setIslandCliffTextures 既有端口。
+//   - 叠加层状态（R3.3/B11）：选中索引 / 逐建筑拆除标记 / 预览几何（占地框 +
+//     预览精灵），同样变化驱动导入——叠加层的**几何生成**不在本模块，
+//     由 scene_draw.h 按这些状态 + 相机算出（旧路径每帧逐 rect 跨线的替代）。
 //
 // ## 等价性红线（R3 行为等价性风险最高）
 //   本模块只做**存储**（逐值搬运，零几何/层序/UV 计算）——所有绘制判定仍在
@@ -49,6 +52,30 @@ inline constexpr int kCloudStride = 6;
 /// 崖壁布局单条步长（[texIdx, x, y, w, h, u0, v0, u1, v1, flags]，
 /// 与 IslandCliffBridge.PIECE_STRIDE / 旧 cliffData 协议同形）
 inline constexpr int kCliffStride = 10;
+
+/// 叠加层预览数据单条步长（R3.3）：
+/// [boxX, boxY, boxW, boxH, spriteX, spriteY, spriteW, spriteH,
+///  u0, v0, u1, v1, r, g, b, a]
+/// 占地框与预览精灵同源同帧（与旧 RenderFrame.previewXxx/previewBoxXxx 字段族
+/// 逐项同值）——几何位置来自触控（非网格对齐），故按值变化推送；颜色/线宽/
+/// 可见性判定在 C++ 侧（scene_draw.h）。
+inline constexpr int kPreviewStride = 16;
+
+/// 拆除高亮标记取值（与 Kotlin DemolishHighlightMark 同值：逐建筑 1 字节）
+inline constexpr uint8_t kDemolishMarkNone = 0;
+inline constexpr uint8_t kDemolishMarkGreen = 1;
+inline constexpr uint8_t kDemolishMarkSelected = 2;
+
+/// 叠加层预览状态（占地框 + 预览精灵；世界像素，值变化驱动导入）
+struct PreviewState {
+    // 占地框（预览框）矩形
+    float boxX = 0.0f, boxY = 0.0f, boxW = 0.0f, boxH = 0.0f;
+    // 预览精灵矩形（居中 + 底部对齐绘于占地框内）
+    float spriteX = 0.0f, spriteY = 0.0f, spriteW = 0.0f, spriteH = 0.0f;
+    // 精灵图集 UV 与调色
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+};
 
 class SceneStore {
 public:
@@ -167,6 +194,55 @@ public:
     int cliffPieceCount() const { return cliffPieceCount_; }
     bool hasCliffs() const { return cliffPieceCount_ > 0; }
 
+    // ── 叠加层状态（R3.3：选中索引 / 拆除标记 / 预览几何） ─────────
+    //
+    // 三类数据均**变化驱动**导入（Kotlin 侧值比较后才触 JNI），几何生成
+    // （格→世界矩形、线宽、透明度、相机投影、Y 轴压缩）全在 scene_draw.h——
+    // 每帧绘制不再逐 rect 跨线（旧路径放置模式最坏 ~258 次 drawRect 的主体来源）。
+
+    /// 设置选中建筑索引（-1 = 无选中；越界由绘制核心按建筑数判跳过）
+    void setSelection(int32_t index) { selectionIndex_ = index; }
+    int32_t selectionIndex() const { return selectionIndex_; }
+
+    /// 更新拆除标记（逐建筑 1 字节，与 buildings_ 同序；count 由调用方按
+    /// min(建筑数, 标记数) 钳制）。nullptr/0 = 非拆除模式（整层跳过）。
+    void setDemolishMarkers(const uint8_t* markers, int count) {
+        if (markers == nullptr || count <= 0) {
+            markers_.clear();
+            return;
+        }
+        markers_.assign(markers, markers + count);
+    }
+    const uint8_t* markersData() const { return markers_.data(); }
+    int markerCount() const { return static_cast<int>(markers_.size()); }
+    bool hasDemolishMarkers() const { return !markers_.empty(); }
+
+    /// 导入预览状态（kPreviewStride 个浮点；nullptr = 清空预览几何）。
+    /// 可见性/合法性不在此承载——每帧经 drawFrame 的 overlayFlags 位表达。
+    void setPreview(const float* values) {
+        if (values == nullptr) {
+            preview_ = PreviewState{};
+            return;
+        }
+        preview_.boxX = values[0];
+        preview_.boxY = values[1];
+        preview_.boxW = values[2];
+        preview_.boxH = values[3];
+        preview_.spriteX = values[4];
+        preview_.spriteY = values[5];
+        preview_.spriteW = values[6];
+        preview_.spriteH = values[7];
+        preview_.u0 = values[8];
+        preview_.v0 = values[9];
+        preview_.u1 = values[10];
+        preview_.v1 = values[11];
+        preview_.r = values[12];
+        preview_.g = values[13];
+        preview_.b = values[14];
+        preview_.a = values[15];
+    }
+    const PreviewState& preview() const { return preview_; }
+
     // ── 生命周期 ───────────────────────────────────────────────
 
     /// 清空全部场景状态（shutdownRenderer 纪元复位调用——防跨 surface 代际
@@ -182,6 +258,9 @@ public:
         cloudCount_ = 0;
         cliffs_.clear();
         cliffPieceCount_ = 0;
+        selectionIndex_ = -1;
+        markers_.clear();
+        preview_ = PreviewState{};
     }
 
 private:
@@ -210,6 +289,10 @@ private:
 
     std::vector<float> cliffs_;
     int cliffPieceCount_ = 0;
+
+    int32_t selectionIndex_ = -1;
+    std::vector<uint8_t> markers_;
+    PreviewState preview_;
 };
 
 }  // namespace scene

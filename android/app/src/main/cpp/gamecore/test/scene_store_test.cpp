@@ -13,11 +13,12 @@ using scene::kCropStride;
 using scene::SceneStore;
 
 // ============================================================
-// SceneStore 单元测试（重构方案 2026-09-17 R3.1/B10）
+// SceneStore 单元测试（重构方案 2026-09-17 R3.1/B10 + R3.3/B11）
 //
 // 覆盖：六类场景要素（地形/道路/建筑/作物/云/崖壁）的导入-读取逐值往返、
 //      整表替换、清空语义（nullptr/零计数 = 层清空）、无效入参防御、
-//      reset 纪元复位、步长常量与 Kotlin 侧协议一致锚点。
+//      reset 纪元复位、步长常量与 Kotlin 侧协议一致锚点；
+//      R3.3 追加叠加层状态（选中索引 / 逐建筑拆除标记 / 预览几何 16 浮点）。
 // 等价性红线：本模块只做逐值存储——读回值必须与导入值逐位一致
 // （旧 drawAllTiles 路径每次读同一数组；新路径读 SceneStore 副本，
 //  两者等价的前提即此处锁定的"零改动搬运"）。
@@ -165,8 +166,69 @@ TEST(SceneStoreTest, CliffLayoutRoundTripsTenFloatStride) {
     EXPECT_FALSE(store.hasCliffs());
 }
 
+TEST(SceneStoreTest, OverlaySelectionAndMarkersRoundTrip) {
+    // R3.3：选中索引与逐建筑拆除标记 = 变化驱动导入的叠加层状态（零加工搬运）
+    SceneStore store;
+    EXPECT_EQ(-1, store.selectionIndex());   // 初值 = 无选中
+    EXPECT_FALSE(store.hasDemolishMarkers());
+    EXPECT_EQ(0, store.markerCount());
+
+    store.setSelection(7);
+    EXPECT_EQ(7, store.selectionIndex());
+    store.setSelection(-1);
+    EXPECT_EQ(-1, store.selectionIndex());
+
+    const uint8_t markers[4] = {
+        scene::kDemolishMarkNone, scene::kDemolishMarkGreen,
+        scene::kDemolishMarkSelected, scene::kDemolishMarkGreen
+    };
+    store.setDemolishMarkers(markers, 4);
+    ASSERT_TRUE(store.hasDemolishMarkers());
+    ASSERT_EQ(4, store.markerCount());
+    for (int i = 0; i < 4; i++) {
+        ASSERT_EQ(markers[i], store.markersData()[i]) << "拆除标记逐字节往返 " << i;
+    }
+    // 空入参 = 非拆除模式（整层清空，与 Kotlin markers=null 同语义）
+    store.setDemolishMarkers(nullptr, 3);
+    EXPECT_FALSE(store.hasDemolishMarkers());
+}
+
+TEST(SceneStoreTest, PreviewKeepsSixteenFloatStride) {
+    // R3.3 预览协议步长：占地框 4 + 精灵矩形 4 + UV 4 + 调色 4
+    SceneStore store;
+    const float values[scene::kPreviewStride] = {
+        240.0f, 132.0f, 96.0f, 144.0f,
+        246.5f, 150.25f, 83.0f, 120.5f,
+        0.25f, 0.125f, 0.3f, 0.2f,
+        1.0f, 1.0f, 1.0f, 0.5f
+    };
+    store.setPreview(values);
+    const scene::PreviewState& p = store.preview();
+    EXPECT_EQ(240.0f, p.boxX);
+    EXPECT_EQ(132.0f, p.boxY);
+    EXPECT_EQ(96.0f, p.boxW);
+    EXPECT_EQ(144.0f, p.boxH);
+    EXPECT_EQ(246.5f, p.spriteX);
+    EXPECT_EQ(150.25f, p.spriteY);
+    EXPECT_EQ(83.0f, p.spriteW);
+    EXPECT_EQ(120.5f, p.spriteH);
+    EXPECT_EQ(0.25f, p.u0);
+    EXPECT_EQ(0.125f, p.v0);
+    EXPECT_EQ(0.3f, p.u1);
+    EXPECT_EQ(0.2f, p.v1);
+    EXPECT_EQ(1.0f, p.r);
+    EXPECT_EQ(1.0f, p.g);
+    EXPECT_EQ(1.0f, p.b);
+    EXPECT_EQ(0.5f, p.a);
+
+    store.setPreview(nullptr);
+    // 清空 = 复位默认（可见性由 overlayFlags 位表达，此处只保证不留旧几何）
+    EXPECT_EQ(0.0f, store.preview().boxX);
+    EXPECT_EQ(1.0f, store.preview().a);
+}
+
 TEST(SceneStoreTest, ResetClearsAllLayersForSurfaceEpoch) {
-    // shutdownRenderer 纪元复位：六层全清，防跨 surface 代际残留
+    // shutdownRenderer 纪元复位：六层 + 叠加层状态全清，防跨 surface 代际残留
     SceneStore store;
     const int32_t tiles[4] = {0, 1, 2, 3};
     const int32_t roads[2] = {0, 1};
@@ -174,12 +236,19 @@ TEST(SceneStoreTest, ResetClearsAllLayersForSurfaceEpoch) {
     const float crops[3] = {0, 0, 0.5f};
     const float clouds[6] = {0, 0, 1, 1, 0, 1};
     const float cliffs[10] = {0, 0, 0, 1, 1, 0, 0, 1, 1, 0};
+    const float preview[scene::kPreviewStride] = {
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
+    };
+    const uint8_t markers[1] = {scene::kDemolishMarkSelected};
     store.setTerrain(tiles, 4, 2, 2, 48);
     store.updateRoads(roads, 2);
     store.updateBuildings(buildings, 1);
     store.updateCrops(crops, 1);
     store.updateClouds(clouds, 1);
     store.setCliffLayout(cliffs, 1);
+    store.setSelection(0);
+    store.setDemolishMarkers(markers, 1);
+    store.setPreview(preview);
 
     store.reset();
     EXPECT_FALSE(store.hasTerrain());
@@ -191,6 +260,9 @@ TEST(SceneStoreTest, ResetClearsAllLayersForSurfaceEpoch) {
     EXPECT_EQ(0, store.cols());
     EXPECT_EQ(0, store.rows());
     EXPECT_EQ(0, store.tileSize());
+    EXPECT_EQ(-1, store.selectionIndex());
+    EXPECT_FALSE(store.hasDemolishMarkers());
+    EXPECT_EQ(0.0f, store.preview().boxW);
 }
 
 TEST(SceneStoreTest, ProtocolStridesMatchLegacyJniFace) {
@@ -200,6 +272,7 @@ TEST(SceneStoreTest, ProtocolStridesMatchLegacyJniFace) {
     EXPECT_EQ(3, kCropStride);
     EXPECT_EQ(6, kCloudStride);
     EXPECT_EQ(10, kCliffStride);
+    EXPECT_EQ(16, scene::kPreviewStride);
 }
 
 }  // namespace

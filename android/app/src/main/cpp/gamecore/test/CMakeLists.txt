@@ -56,6 +56,9 @@ add_executable(game-core-tests
     # R3.2/B10 场景等价性守卫（验收门 4）：新 SceneStore 路径 vs 旧 drawAllTiles
     # 路径顶点流逐位对照（六要素 × 相机三档位 + 生成 UV 表↔Kotlin 公式夹具对照）
     scene_equivalence_test.cpp
+    # R3.3/B11 叠加层等价性守卫（验收门 5）：C++ 生成几何 vs 旧 Kotlin 逐 rect
+    # 路径顶点流逐位对照（四要素 × 相机三档位 × overlayFlags 组合 + G4 draw call 量化）
+    scene_overlay_equivalence_test.cpp
     # R2.1 GameView protobuf 信封编码器 wire format 锁定（重构方案 2026-09-17 B06 批）
     gameview_encode_test.cpp
     manual_recruit_test.cpp
