@@ -1,0 +1,26 @@
+# 场景回归集 golden 基线（R3.8/B13）——确定性软件光栅化像素校验和
+# 格式: <用例键>=<FNV1a64 十六进制>:<drawCalls>:<drawnPixels>
+#   drawnPixels = 被任意三角覆盖过的像素数（活性判据；非 clear 底色计数）
+# 重生: SCENE_GOLDEN_UPDATE=1 运行本测试套件（显式重生，说明原因后提交）
+float_birth/far=7ed7b7b272fa874b:2:2127
+float_birth/mid=f448415c45459a02:2:106766
+float_birth/near=2f6c175759ad1520:2:230400
+float_fading/far=7ed7b7b272fa874b:2:2127
+float_fading/mid=f448415c45459a02:2:106766
+float_fading/near=e15d42e0cf2eb7b2:2:230400
+float_layer_top=f448415c45459a02:2:106766
+float_rising/far=7ed7b7b272fa874b:2:2127
+float_rising/mid=f448415c45459a02:2:106766
+float_rising/near=3113fdc423a64889:2:230400
+float_saturated/far=7ed7b7b272fa874b:2:2127
+float_saturated/mid=761d7a5fb8e90e0e:2:112046
+float_saturated/near=e804c29d98c2b657:2:230400
+full_scene/far=7ed7b7b272fa874b:1:2127
+full_scene/mid=f448415c45459a02:1:106766
+full_scene/near=9f88520b67ad3488:1:230400
+full_scene_overlays/far=7fe8854c1049fc30:2:2188
+full_scene_overlays/mid=c29859b4b48eccbc:2:107564
+full_scene_overlays/near=488af709a7b5454:2:230400
+terrain_only/far=7ed7b7b272fa874b:1:2127
+terrain_only/mid=f448415c45459a02:1:106766
+terrain_only/near=9f88520b67ad3488:1:230400
