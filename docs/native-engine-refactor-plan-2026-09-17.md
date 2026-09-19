@@ -484,3 +484,23 @@ R3 行为等价性风险延续：overlay 新路径与旧逐 rect 路径以**顶�
 
 测试口径：桌面全量 GTest **1491/1491**（携 `-ffp-contract=off`；desktop-test 基线 1476 + 本批 15 = SceneOverlayEquivalenceTest 13 + SceneStoreTest 2，64.81s；对拍桥重建携入本批；NDK arm64 `libnative-renderer.so` 重建携入本批并逐文件核到 FP 旗标）+ 组合门 `testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）**BUILD SUCCESSFUL 27m52s、339 任务全 executed 非 UP-TO-DATE**：六模块 XML 汇总 **7840 用例 / 0 失败 / 0 错误 / 17 跳过**（`:core:engine` **3345** = B10 后基线 3344 + 叠加层常量镜像守卫 1、`:feature:game` **886** = 872 + `SceneOverlayProtocolGuardTest` 5 + `SceneUpdateChannelTest` 9、`:core:domain` 1743、`:core:data` 716（15 既有跳过）、`:core:ui` 146、`:app` 1004（2 既有跳过））；50 个 `Diff*Test` **273 用例 0 skip**（桥真加载）；detekt 六模块全绿、`compileReleaseKotlin`/`lintRelease` 全绿；已知抖动 `GameEngineCoreLifecycleInterleavingTest` 12/12 未触发；Canvas 兜底三层测试（Grid 5 / Demolish 7 / Highlight 8）全绿 = R3.6 零改动旁证。
 
+#### B12 批（2026-09-19）= R3.5 + R3.6（远景观看容量路径 + GLES 后端同构改造，Canvas 兜底不动）
+
+批次文件 `docs/parallel-batches-w5/batch-R3C.md`；每子项独立 commit。前置 = B10（R3.1
+SceneStore / R3.2 JNI 面）/ B11（R3.3 overlay 几何 / R3.4 脏更新协议）。
+R3 行为等价性风险延续：整图地面路径与逐格路径以**互斥性 + 其余层不动**双向锁定，
+灰度共存一个版本周期（`farViewGroundQuad` 默认 false）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R3.5 远景观看容量路径（带黑名单验证） | ✅ | 整岛缩小观看档（`scale ≤ RenderLodPolicy.DECOR_ZOOM_THRESHOLD`，与装饰层跳过同界不打架）下，地面层由**逐格地面**（最坏 128×128 ≈ 16384 sprite/帧，逼近 `Rhi.h::MAX_SPRITES_PER_FRAME`=20480 容量悬崖、溢出走 R0.3 有序降级）改为**整图 REPEAT quad**（几何 = 世界可见域 ∩ 地图矩形，UV = 世界坐标/格边长无缝 REPEAT 映射，1 draw call）——容量与画质同时受益。**修正既有缺陷**：`scene/scene_draw.h` 原整图地面分支虽在（编译期恒 false 保留形状），但 `groundBatcher` 构建后仅 `(void)groundVerts` 丢弃、**从未提交**——一旦启用将"抑制逐格地面却不画任何东西 ⇒ 整图黑屏"。本批为 `buildMapBatch` 增 `submitGround` 回调参数（沿 `buildCliffLayer`/`buildOverlayLayers` 同形），整图 quad 以其**独立纹理 id**经回调提交（不能并入主批 `atlasTexId` 单次提交）；同时保留四参 no-op 重载供不启用整图路径的调用点/测试（KDoc 明示调用方须保证不启用，否则地面缺失）。**设备黑名单（可测纯函数）**：新建 `FarViewGroundPolicy`（core/engine，零 Android 依赖）——四重门合取 `用户旗标 ∧ 图集就绪 ∧ 缩放达标 ∧ 设备白名单`；**白名单 `ALLOWED_DEVICES` 默认为空 = 未验证设备恒走逐格地面**（方案 R3.5「带黑名单验证」红线，登记口径=真机验证/行业报告，禁凭推测添加）；设备键经 `RenderDeviceKey` 按 `Build.SOC_MANUFACTURER`/`SOC_MODEL` 组装（**API 31+ 守卫**，旧设备返回空串不抛 `NoSuchFieldError`，沿仓库规范 13.3）。Kotlin 侧判定后经 `nativeSetFarViewGroundQuad`（JNI 豁免登记，沿 `nativeSetDirtyExportProtobuf` 先例）推**单个布尔**入 C++ `g_farViewGroundQuad`——渲染核心保持平台纯粹、桌面可测；**结果变化时才跨线**（逐帧判定廉价，推送按值比较防冗余 JNI）。`host.groundTextureId` 经 `NativeSurfaceView` 新属性 + `AtlasAsyncPipeline.uploadGroundTexture` 两条上传路径（ASTC / RGBA）写入、surface 关闭置零；`shutdownRenderer` 后 `g_farViewGroundQuad` 纪元复位。灰度：**新增 `NativeEngineFlag.farViewGroundQuad`（默认 false = 回滚臂）**，与 `sceneStoreRender` **正交**（只决定地面层绘制形态，与场景数据通道归属无关；两条绘制路径 `renderSceneStorePath`/`renderLegacyDrawAllTilesPath` 共用同一 `pushFarViewGroundDecision()`） |
+| R3.6 GLES 后端同构改造（Canvas 兜底不动） | ✅ | `GlesRenderBackend : VulkanRenderBackend`（同一渲染适配逻辑，仅底层 C++ 图形 API 不同）——新判定 `pushFarViewGroundDecision()` 与提交逻辑落在**基类**，两 GPU 后端构造性同构，零 GLES 专属分支。**GLES 天然降级**：`GlesBackend` 不支持 `uploadRepeatTexture`（`NativeBridge.cpp::uploadGroundTextureDirect` 经 `dynamic_cast<VulkanBackend*>` 失败即返回 0）⇒ `g_groundTexId==0` ⇒ `groundTextureReady=false` ⇒ 远景整图路径**在策略层即被拒**——同构改造的核心收益：后端差异体现为**数据**（纹理 id）而非 if-else 分支。**Canvas 兜底零改动**（R3.6 红线）：`SoftwareCanvasBackend`/`SoftwareCanvasBackendOverlays` 未出现在本批 git 改动清单，`SoftwareCanvasBackend*Test` 全绿为证；`RenderBackendContractTest` 锁双后端消费同一 `RenderFrame` 契约（字段语义不变） |
+| 远景/GLES 守卫 | ✅ | C++ `scene_equivalence_test.cpp` +3 用例：`FarViewGroundQuadReplacesPerTileGround`（整图臂地面经独立提交恰 `VERTICES_PER_SPRITE`=6 顶点、以其自身纹理 id 提交、主批显著小于逐格臂）/ `WithoutTextureFallsBack`（`groundTexId=0` 时整图开关无效、主批与逐格臂逐位一致、回退后地面仍在主批）/ `LeavesOtherLayersUntouched`（**同夹具**下整图臂主批 = 逐格臂主批 − 逐格地面段，差值须为整格倍数 ⇒ 地面换形态不扰动其他层）。Kotlin `FarViewGroundPolicyTest` 8 用例（白名单空=安全默认、四门逐门必要性、非有限缩放/空设备键防御、阈值与装饰 LOD 同源）+ `RenderBackendIsomorphismTest` 5 用例（判定为后端无关纯函数对同参恒等、GLES 因纹理不就绪自动降级、Vulkan 须白名单放行、`RenderFrame` 后端无关载体、降级链相机/视口语义恒同） |
+| 三后端与红线自查 | ✅/📌 | Vulkan/GLES 共享基类同一判定与提交路径；Canvas 兜底零改动（git 实证 + 测试复跑）；灰度共存一个版本周期 ✓；协议 JSON 面/存档格式/既有 JNI 签名零变更 ✓；每子项独立 commit ✓。**残余（登记，不在本批顺手改）**：① 白名单为空 = 本路径**暂无设备启用**，真机验证后逐条登记（R3.5 要求「带黑名单地验证」，未验证前不得全局打开）；② 远景整图 quad 的 REPEAT 采样在 Adreno 驱动的黑屏异常需真机复现以补全黑名单条目；③ 真机像素级回归仍属 R3 验收面（截图回归基建未建，同 B11 残余③） |
+
+测试口径：桌面全量 GTest **1494/1494**（携 `-ffp-contract=off`；B11 基线 1491 + 本批 3
+= `scene_equivalence_test.cpp` 远景/GLES 三用例）+ 组合门
+`testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`
+（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）；Canvas 兜底测试全绿 = R3.6
+零改动旁证。
+

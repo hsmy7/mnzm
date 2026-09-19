@@ -15,6 +15,8 @@
 | 特性 | 描述 | Vulkan | Canvas | 测试 | 状态 |
 |------|------|--------|--------|------|------|
 | ground_tiling | 地面平铺绘制 | ✅ | ✅ | ✅ | 已实现 |
+| far_view_ground_quad | 远景观看容量路径（整岛缩小档 `scale ≤ DECOR_ZOOM_THRESHOLD` 时地面层由逐格改整图 REPEAT quad；几何 = 世界可见域 ∩ 地图矩形，1 draw call 替代最坏 ≈16384 sprite/帧） | ✅（仅白名单设备；默认禁用） | —（Canvas 兜底独立绘制，不受本路径影响） | ✅ | **2026-09 R3.5/B12**：`FarViewGroundPolicy` 四重门（用户旗标 ∧ 图集就绪 ∧ 缩放达标 ∧ 设备白名单）；白名单默认为空 = 未验证设备恒走逐格地面（安全默认）；`NativeEngineFlag.farViewGroundQuad` 默认 false（回滚臂）；`scene_draw.h::buildMapBatch` 增 `submitGround` 回调以独立纹理提交整图 quad（修正原分支构建后丢弃的缺陷）；C++ 3 用例 + Kotlin 8 用例守卫 |
+| gles_backend_isomorphic | GLES 后端与 Vulkan 同构（消费同一环境数据 + 同一判定策略，非各自维护渲染分支） | ✅ | — | ✅ | **2026-09 R3.6/B12**：`GlesRenderBackend : VulkanRenderBackend` 构造性同构（判定/提交逻辑在基类，两 GPU 后端共享）；GLES 不支持 REPEAT 纹理 ⇒ `groundTextureReady=false` ⇒ 远景整图路径**策略层自动拒绝**（无 GLES 专属分支）；Canvas 兜底零改动；`RenderBackendIsomorphismTest` 5 用例锁同构 + 降级链语义 |
 | decor_overlay | 装饰叠加（草/石/树：显示尺寸按素材纵横比取小数格，锚点 = 格底边居中；草/石走地面层逐格绘制） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（TILE_SPRITE_W/H codegen + SpriteSizingFidelityTest） |
 | decor_object_layer | 立体层装饰（树）与建筑同一画家序（按地面接触点归并，同键建筑在后，覆盖同接触点装饰；树冠可向上越出 2.29 格而不再被北侧建筑无脑压掉） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（gamecore/map/draw_order.h + draw_order_test + SoftwareCanvasBackendDecorLayerTest） |
 | decor_overhang_range | 装饰越界绘制范围外扩（渲染遍历/可见性按 DECOR_MARGIN_COLS/ROWS 外扩——否则 chunk 缝处树冠被整块裁掉） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（SoftwareCanvasBackendDecorLayerTest chunk 顶行树用例） |
