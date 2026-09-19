@@ -181,9 +181,7 @@ class NativeSurfaceView(
     /** 防抖候选起始时间（System.currentTimeMillis） */
     private var declareCandidateSinceMs = 0L
 
-    // ============================================================
-    // 渲染分辨率缩放（RenderScalePolicy 决策 + 双端下发）
-    // ============================================================
+    // ═══════════ 渲染分辨率缩放（RenderScalePolicy 决策 + 双端下发） ═══════════
 
     /**
      * GPU 档位（由 GameViewModel 经 SectMapViewportParams 注入，
@@ -394,13 +392,19 @@ class NativeSurfaceView(
         fun onVulkanChainSucceeded() = Unit
     }
 
-    // ============================================================
-    // 纹理资源（由外部在 renderer 就绪后上传，统一走图集）
-    // ============================================================
+    // ═══════════ 纹理资源（由外部在 renderer 就绪后上传，统一走图集） ═══════════
 
     /** 主图集纹理 GPU ID（包含地面/装饰/建筑）——Vulkan 路径使用 */
     @Volatile
     var atlasTextureId: Int = 0
+
+    /**
+     * 整图地面纹理 GPU ID（REPEAT 采样，R3.5 远景观看容量路径的地面层替代源）——
+     * 0 = 未上传（远景 quad 不可用，地面恒走逐格绘制）。由 [AtlasAsyncPipeline]
+     * 图集上传段写入；surface 销毁时与 [atlasTextureId] 同纪律清零。
+     */
+    @Volatile
+    var groundTextureId: Int = 0
 
     /** 主图集 Bitmap（包含地面/装饰/建筑）——Canvas 回退路径使用 */
     @Volatile
@@ -409,10 +413,10 @@ class NativeSurfaceView(
     /**
      * 浮空岛崖壁纹理加载状态持有者（Compose 可观察掩码 + Canvas 路径位图集）。
      *
-     * 崖壁素材单张超出图集容量，走**独立纹理**而非图集；加载在 [onRendererReady]
-     * 回调内触发（与图集同纪律），掩码经 [IslandCliffTextureHolder.textureMask]
-     * 暴露给 Compose 层——布局合成据此排除未上传成功的条目（部分降级）。
-     * 渲染端经 [hasAnyCliffTexture] / [cliffTextureCount] 读同一份状态。
+     * 崖壁素材单张超出图集容量，走**独立纹理**而非图集；加载在 [onRendererReady] 回调内
+     * 触发（与图集同纪律），掩码经 [IslandCliffTextureHolder.textureMask] 暴露给 Compose
+     * 层——布局合成据此排除未上传成功的条目（部分降级）；渲染端经 [hasAnyCliffTexture] /
+     * [cliffTextureCount] 读同一份状态。
      */
     internal val islandCliffTextures: IslandCliffTextureHolder by lazy {
         IslandCliffTextureHolder(context)
@@ -635,9 +639,7 @@ class NativeSurfaceView(
     /** 跨平台手势引擎 */
     var touchEngine: SectMapTouchEngine? = null
 
-    // ============================================================
-    // 平台 surface 事件（SurfaceProvider 抽象 — iOS 迁移点）
-    // ============================================================
+    // ═══════════ 平台 surface 事件（SurfaceProvider 抽象 — iOS 迁移点） ═══════════
 
     /**
      * 平台 surface 事件监听器 — 由 [surfaceProvider] 派发（主线程同步）。
@@ -695,9 +697,7 @@ class NativeSurfaceView(
         isFocusableInTouchMode = true
     }
 
-    // ============================================================
-    // Surface 事件处理（经 SurfaceProvider 派发）
-    // ============================================================
+    // ══════════════════════ Surface 事件处理（经 SurfaceProvider 派发） ══════════════════════
 
     /**
      * 表面可用（含初始尺寸）— 初始化渲染器。
@@ -829,10 +829,11 @@ class NativeSurfaceView(
         renderThread = null
         activeBackend = null
         softwareBackend = null
-        // surface 销毁后必须清纹理引用——重建后 buildAtlas 若失败
-        // （OOM/资产损坏）残留旧 GPU 纹理 ID 会提交已销毁纹理（C++ 查表未命中
-        // 回退白纹 → 地图全白）；清零后 Vulkan 侧 atlasTextureId==0 守卫跳过瓦片层
+        // surface 销毁后必须清纹理引用——重建后 buildAtlas 若失败（OOM/资产损坏）
+        // 残留旧 GPU 纹理 ID 会提交已销毁纹理（C++ 查表未命中回退白纹 → 地图全白）；
+        // 清零后 Vulkan 侧 atlasTextureId==0 / groundTexId==0 守卫跳过对应层
         atlasTextureId = 0
+        groundTextureId = 0
         // 注：atlasBitmap 禁止 recycle()（国产 ROM double-free 教训），置 null 让 GC
         atlasBitmap = null
     }
@@ -1239,9 +1240,7 @@ class NativeSurfaceView(
         }
     }
 
-    // ============================================================
-    // 触摸事件 → 转换为 TouchData → 喂入跨平台手势引擎
-    // ============================================================
+    // ═══════ 触摸事件 → 转换为 TouchData → 喂入跨平台手势引擎 ═══════
 
     // Lint 豁免（ClickableViewAccessibility）：本视图是原生游戏画布，必须直接
     // 拦截触摸流转换为跨平台 TouchData（Compose pointerInput 无法与 Vulkan 帧循环解耦）
@@ -1263,9 +1262,7 @@ class NativeSurfaceView(
         return super.performClick()
     }
 
-    // ============================================================
-    // 渲染线程 — 双路径派遣
-    // ============================================================
+    // ═══════════════════════ 渲染线程 — 双路径派遣 ═══════════════════════
 
     inner class RenderThread : Thread("NativeRenderer") {
         @Volatile

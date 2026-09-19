@@ -128,6 +128,30 @@ object NativeEngineFlag {
     var sceneStoreRender: Boolean = true
 
     /**
+     * 远景观看容量路径灰度开关（重构方案 R3.5）。
+     *
+     * - **false（生产默认，回滚臂）**：地面层恒走逐格绘制（R3.5 前现状逐位一致）；
+     * - true：允许在**整岛缩小观看档**把地面层改走「整图 REPEAT quad」
+     *   （1 个 draw call 替代最坏 ~16384 sprite/帧），缓解 SpriteBatcher 容量悬崖。
+     *
+     * ## 为什么默认关
+     * 整图 REPEAT 采样在部分 **Adreno 驱动**上异常（黑屏）——须带**设备白名单**
+     * 验证后逐条放行；白名单（[com.xianxia.sect.core.render.FarViewGroundPolicy.ALLOWED_DEVICES]）
+     * 当前为空 ⇒ 即便本旗标置 true，[com.xianxia.sect.core.render.FarViewGroundPolicy]
+     * 的合取判定仍返回 false（四重门之一不满足）。
+     *
+     * ## 与 [sceneStoreRender] 的关系
+     * **正交**：本旗标只决定地面层**绘制形态**（整图 quad / 逐格），
+     * 无论新旧路径都生效；[sceneStoreRender] 决定场景数据通道与叠加层几何归属。
+     * 因此两旗标可任意组合，回退本旗标不影响新路径其余部分。
+     *
+     * 语义边界：仅地面层；Canvas 兜底路径不经本旗标（R3.6 红线）。
+     * 回退 = 旗标置 false；C++ 侧开关随 surface 纪元复位。
+     */
+    @Volatile
+    var farViewGroundQuad: Boolean = false
+
+    /**
      * 在 [block] 执行期间临时设置模式（对拍/转发测试用，自动恢复）。
      */
     inline fun <T> withMode(mode: Mode, block: () -> T): T {

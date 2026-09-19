@@ -283,8 +283,10 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         try {
             val pixels = payload.groundPixels
             if (pixels != null && payload.groundWidth > 0 && payload.groundHeight > 0) {
-                NativeBridge.uploadGroundTextureDirect(
-                    pixels, payload.groundWidth, payload.groundHeight
+                publishGroundTextureId(
+                    NativeBridge.uploadGroundTextureDirect(
+                        pixels, payload.groundWidth, payload.groundHeight
+                    )
                 )
                 return
             }
@@ -292,10 +294,24 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
             val bmp = android.graphics.BitmapFactory.decodeResource(
                 context.resources, com.xianxia.sect.feature.game.R.drawable.map_grass_1, opts
             ) ?: return
-            NativeBridge.uploadGroundTextureDirect(encodeBitmapToRgbaBuffer(bmp), bmp.width, bmp.height)
+            publishGroundTextureId(
+                NativeBridge.uploadGroundTextureDirect(
+                    encodeBitmapToRgbaBuffer(bmp), bmp.width, bmp.height
+                )
+            )
         } catch (t: Throwable) {
             android.util.Log.e(NativeSurfaceView.LOG_TAG, "uploadGroundTexture failed", t)
         }
+    }
+
+    /**
+     * 回写整图地面纹理 ID 到宿主（R3.5 远景观看容量路径的就绪信号）。
+     *
+     * 上传失败（返回 0）时保持 0 ⇒ [FarViewGroundPolicy.groundQuadEnabled]
+     * 的图集就绪门不满足 ⇒ 地面层恒走逐格绘制（降级而非黑屏）。
+     */
+    private fun publishGroundTextureId(texId: Int) {
+        if (texId > 0) view.groundTextureId = texId
     }
 }
 

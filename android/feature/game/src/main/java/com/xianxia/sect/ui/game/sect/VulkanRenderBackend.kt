@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.sect
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.render.DemolishHighlightMark
+import com.xianxia.sect.core.render.FarViewGroundPolicy
 import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
@@ -211,6 +212,7 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
                 tileSize = host.renderConfig.tileSize
             )
         )
+        pushFarViewGroundDecision()
         var flags = 0
         if (frame.buildingVisible) flags = flags or OVERLAY_FLAG_BUILDING_VISIBLE
         if (frame.gridOverlayVisible) flags = flags or OVERLAY_FLAG_GRID_VISIBLE
@@ -236,6 +238,33 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     }
 
     /**
+     * 远景观看容量路径判定与推送（R3.5）——两条绘制路径（新 SceneStore 路径与
+     * 旧 drawAllTiles 回滚臂）共用同一判定，因为本开关只决定**地面层绘制形态**
+     * （整图 REPEAT quad / 逐格），与场景数据通道归属正交（见
+     * [NativeEngineFlag.farViewGroundQuad] KDoc）。
+     *
+     * 判定为纯函数 [FarViewGroundPolicy.groundQuadEnabled] 的四重门合取
+     * （用户旗标 ∧ 图集就绪 ∧ 缩放达标 ∧ 设备白名单）；设备标识经
+     * [RenderDeviceKey] 按 `SOC_MANUFACTURER/SOC_MODEL`（API 31+ 守卫）组装。
+     * 结果**变化时才跨线**（避免每帧无谓 JNI——逐帧判定廉价，推送按值比较）。
+     */
+    private fun pushFarViewGroundDecision() {
+        val enabled = FarViewGroundPolicy.groundQuadEnabled(
+            scale = cachedScale,
+            deviceKey = RenderDeviceKey.current,
+            groundTextureReady = host.groundTextureId != 0,
+            userEnabled = NativeEngineFlag.farViewGroundQuad
+        )
+        if (enabled != lastFarViewGroundQuad) {
+            lastFarViewGroundQuad = enabled
+            NativeBridge.nativeSetFarViewGroundQuad(enabled)
+        }
+    }
+
+    /** 上一次推送的远景地面开关值（变化驱动跨线，防每帧冗余 JNI） */
+    private var lastFarViewGroundQuad = false
+
+    /**
      * 旧路径（灰度回滚臂，[NativeEngineFlag.sceneStoreRender]=false）：
      * setFadeAlpha + drawIslandCliffs + drawAllTiles（17 参数全量数组每帧跨线）。
      * 行为 = R3.2 前现状——崖壁层与瓦片层共用同帧淡入 alpha（零相位差），
@@ -249,6 +278,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         // 地图淡入 alpha 推送：渲染线程每帧计算（EaseOutCubic 纯时钟驱动），
         // C++ g_fadeAlpha 乘算 drawAllTiles 全部 quad——预览/高亮 drawRect 不受影响
         NativeBridge.setFadeAlpha(host.fadeAlpha)
+
+        pushFarViewGroundDecision()
 
         // 浮空岛崖壁层（世界空间；z 序：天空 → 崖壁 → 地面——先于瓦片/建筑绘制，
         // 地面层覆盖内缘接缝）。布局数据由 IslandCliffBridge 一次性预计算
