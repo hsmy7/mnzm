@@ -109,8 +109,9 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
             frame.buildingCount.coerceAtMost((frame.buildingData?.size ?: 0) / 5)
         }
 
-        // 场景绘制按灰度旗标双路（R3.2 灰度共存——两路消费 C++ 同一份绘制核心，
-        // 像素等价由构造保证 + SceneEquivalenceTest 顶点流对照锁定）
+        // 场景绘制按灰度旗标双路（R3.2/R3.3 灰度共存——两路消费 C++ 同一份绘制
+        // 核心，像素等价由构造保证 + SceneEquivalenceTest（地图/崖壁）与
+        // SceneOverlayEquivalenceTest（叠加层）顶点流逐位对照锁定）
         if (NativeEngineFlag.sceneStoreRender) {
             // R3.3：叠加层（选中/拆除/预览/网格线）几何亦由 C++ 生成——
             // 四类叠加层的可见性经 overlayFlags 每帧携带，其状态数据变化驱动

@@ -14,9 +14,14 @@
 
 namespace {
 
+using scene::buildCliffLayer;
+using scene::buildMapBatch;
 using scene::buildOverlayLayers;
+using scene::CliffLayerParams;
+using scene::CropSmoothingState;
 using scene::kBuildingStride;
 using scene::kPreviewStride;
+using scene::MapLayerParams;
 using scene::OverlayParams;
 using scene::PreviewState;
 using scene::SceneStore;
@@ -733,6 +738,122 @@ TEST_F(SceneOverlayEquivalenceTest, GridRowRangeFollowsProjectedViewportBand) {
     }
     EXPECT_GT(presetsThatWereMissingRows, 0)
         << "缺陷 A 的差异面必须在部分档位真实存在（否则本修复无的放矢）";
+}
+
+// 13. G4 整帧口径：放置模式最坏帧的**全帧** draw call 组成实测
+//（叠加层 3 + 地图层 1 + 崖壁逐纹理连续段最坏 8 = 12；另有天空背景 1 条
+//  vkCmdDraw（VulkanBackend::drawBackground → submitFrame 单发）= 13 < 15 目标）。
+// 崖壁按 8 张纹理交替排列构造最坏切段数（真实布局同纹理连续，段数更少）。
+TEST_F(SceneOverlayEquivalenceTest, PlacementModeFullFrameDrawCallBudget) {
+    RecorderRenderer rec;
+    const CameraView view{0.0f, 0.0f, 0.17f, kVpW, kVpH};
+    float proj[16];
+    cameraProjMatrix(proj, view.camX, view.camY, view.scale,
+        static_cast<float>(view.vpW), static_cast<float>(view.vpH), scene::kTopdownYScale);
+
+    // 地图层（真实 128×128 整岛 + 若干装饰/建筑；整层图集单批 = 1 次 draw）
+    SceneStore store;
+    const int cellCount = kRealCols * kRealRows;
+    std::vector<int32_t> tiles(static_cast<size_t>(cellCount), 0);
+    for (int i = 0; i < 400; i++) {
+        tiles[static_cast<size_t>(i * 7) % cellCount] = 8;  // 树（立体层装饰）
+    }
+    store.setTerrain(tiles.data(), cellCount, kRealCols, kRealRows, kTileSize);
+    std::vector<float> b = fixtureBuildings();
+    store.updateBuildings(b.data(), 3);
+
+    OverlayParams op;
+    op.camX = view.camX;
+    op.camY = view.camY;
+    op.scale = view.scale;
+    op.viewportW = view.vpW;
+    op.viewportH = view.vpH;
+    op.cols = kRealCols;
+    op.rows = kRealRows;
+    op.tileSize = kTileSize;
+    op.buildings = store.buildingsData();
+    op.buildingCount = store.buildingCount();
+    op.selectionIndex = 1;
+    op.atlasTexId = kAtlasTexId;
+    op.preview = fixturePreview();
+    op.gridVisible = true;
+    op.previewSpriteVisible = true;
+    op.previewBoxVisible = true;
+    op.previewValid = true;
+    op.selectionEnabled = true;
+    op.demolishEnabled = false;
+
+    MapLayerParams mp;
+    mp.viewLeft = view.camX;
+    mp.viewTop = view.camY;
+    mp.viewRight = view.camX + static_cast<float>(view.vpW) / view.scale;
+    mp.viewBottom = view.camY + static_cast<float>(view.vpH) / (view.scale * scene::kTopdownYScale);
+    mp.scale = view.scale;
+    mp.fadeAlpha = 1.0f;
+    mp.frameAlpha = 1.0f;
+    mp.buildingVisible = true;
+    mp.tiles = store.terrainData();
+    mp.tileCount = store.terrainCount();
+    mp.cols = store.cols();
+    mp.rows = store.rows();
+    mp.tileSize = store.tileSize();
+    mp.atlasTexId = kAtlasTexId;
+    mp.tileUv = scene::kTileUv;
+    mp.tileUvCount = scene::kTileUvCount;
+    mp.buildings = store.buildingsData();
+    mp.buildingClaim = store.buildingCount();
+    mp.buildingDataFloats = store.buildingCount() * scene::kBuildingStride;
+    mp.buildingUv = scene::kBuildingUv;
+    mp.buildingUvCount = scene::kBuildingUvCount;
+
+    SpriteBatcher mapBatcher;
+    CropSmoothingState cropState;
+    buildMapBatch(mapBatcher, mp, proj, cropState);
+    if (mapBatcher.vertexCount > 0) {
+        rec.draw(mapBatcher.vertices, mapBatcher.vertexCount, kAtlasTexId);
+    }
+
+    // 崖壁层：8 张纹理交替 = 最坏切段
+    const int pieceCount = 8;
+    std::vector<float> cliffPieces;
+    for (int i = 0; i < pieceCount; i++) {
+        const float piece[scene::kCliffStride] = {
+            static_cast<float>(i), 0.0f, 7000.0f + static_cast<float>(i * 48), 48.0f, 96.0f,
+            0.0f, 0.0f, 0.5f, 0.5f, 0.0f
+        };
+        cliffPieces.insert(cliffPieces.end(), piece, piece + scene::kCliffStride);
+    }
+    const uint32_t cliffTexIds[8] = {11, 12, 13, 14, 15, 16, 17, 18};
+    CliffLayerParams cp;
+    cp.data = cliffPieces.data();
+    cp.pieceCount = pieceCount;
+    cp.texIds = cliffTexIds;
+    cp.texCount = 8;
+    cp.viewLeft = mp.viewLeft;
+    cp.viewTop = 7000.0f;
+    cp.viewRight = mp.viewRight;
+    cp.viewBottom = mp.viewBottom + 800.0f;
+    cp.scale = view.scale;
+    cp.fadeAlpha = 1.0f;
+    SpriteBatcher cliffBatcher;
+    buildCliffLayer(cliffBatcher, proj, cp,
+        [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+            rec.draw(verts, count, texId);
+        });
+
+    // 叠加层（选中高亮 + 预览精灵 + 占地框 + 网格线）
+    SpriteBatcher overlayBatcher;
+    buildOverlayLayers(overlayBatcher, proj, op,
+        [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+            rec.draw(verts, count, texId);
+        });
+
+    const size_t worldCalls = rec.calls.size();
+    std::printf("[G4 整帧] 放置模式最坏帧世界内容 draw call = %zu（地图 1 + 崖壁最坏 %d 段 + 叠加层 3）"
+                "，另加天空 1 = %zu，目标 < 15\n",
+        worldCalls, pieceCount, worldCalls + 1);
+    EXPECT_EQ(12u, worldCalls);
+    EXPECT_LT(worldCalls + 1, 15u) << "G4 vkCmdDraw 目标";
 }
 
 }  // namespace

@@ -333,7 +333,9 @@ class SceneUpdateChannelTest {
 
         val gridLines = (WORLD_CELLS + 1) * 2
         val demolishRects = 5 + 1 + 1  // 一栋红（填充+四边）+ 两栋绿填充
-        val legacyFrame = FIXED_NEW_PATH_PORTS + LEGACY_EXTRA_PORTS + 1 +
+        // 旧路径固定端口 = beginFrame/drawSky/submitFrame + setFadeAlpha/
+        // drawIslandCliffs/drawAllTiles（无 drawFrame——旧路径逐层各自跨线）
+        val legacyFrame = LEGACY_FIXED_PORTS + 1 +
             PREVIEW_BOX_RECTS + SELECTION_RECTS + demolishRects + gridLines
         assertTrue("旧路径同帧应处于数百量级（实测口径=$legacyFrame）", legacyFrame > 250)
         println(
@@ -349,8 +351,9 @@ class SceneUpdateChannelTest {
         /** 新路径每帧固定端口：beginFrame / drawSky / drawFrame / submitFrame */
         const val FIXED_NEW_PATH_PORTS = 4
 
-        /** 旧路径每帧额外固定端口：setFadeAlpha / drawIslandCliffs / drawAllTiles */
-        const val LEGACY_EXTRA_PORTS = 3
+        /** 旧路径每帧固定端口：beginFrame / drawSky / submitFrame +
+         *  setFadeAlpha / drawIslandCliffs / drawAllTiles */
+        const val LEGACY_FIXED_PORTS = 6
 
         /** 占地框矩形数（填充 + 四边） */
         const val PREVIEW_BOX_RECTS = 5
