@@ -77,6 +77,7 @@ export PATH="/c/Users/cp050/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin:/c/Us
 
 ### 当前待办（接手后立即）
 1. **B10 已 accepted**（2026-09-19 09:15，五门亲跑全绿：GTest **1476/1476** + 组合门 23m/339 executed + Diff 273 用例 0 skip + 六模块 7825/0/17；提交 `ba0901c89`/`242440778`/`cd5df439b`）。GTest 新基线 **1476**。
-2. **B11 已于 09:21 经 Qoder 派发**（批次文件 `batch-R3B.md` = R3.3 overlay 几何 C++ 生成消 258 drawRect + R3.4 脏更新协议；会话标题"读取 docs/parallel-batches-w5/batch-R3B.md…"）。每轮按手册监控该 Qoder 会话（免 GUI 旁证优先：`git status` / 文件 mtime / `/tmp/*.log` / `Get-Process java`）。
-3. B11 批次文件内置两处**前置缺陷红线**（验收时须盯其交付）：① `VulkanRenderBackend.kt:552/555` 网格线 Y 轴漏乘 `TOPDOWN_Y_SCALE` —— 修复须独立 commit 或逐位保留现状，禁止混入等价重构；② `-ffp-contract=off` 未覆盖 native-renderer（`android/app/src/main/cpp/CMakeLists.txt`）—— overlay 几何进 C++ 前须先闭合，独立 commit。
-4. B11 通过后按台账批次总表滚动 B12–B17（B12=R3.5+R3.6 远景容量+GLES 同构；B13=R3.8 原生浮层 Tier1 + G3/G4 截图回归；B14=R4.4 RNG 分区；B15=R6.1 图集离线化；B16=R6.2 数值外置；B17=CI 与度量执法 + 收官核对），直至收官。
+2. **B11 正在施工中**（09:21 经 Qoder 派发，批次文件 `batch-R3B.md` = R3.3 overlay 几何 C++ 生成消 258 drawRect + R3.4 脏更新协议；会话标题"读取 docs/parallel-batches-w5/batch-R3B.md…"）。09:53 轮实况：步骤 2/6、C++ 侧五文件纯增量在改（`NativeBridge.cpp`/`scene_draw.h`/`scene_store.h`/`scene_uv_tables.h`/`build-atlas.mjs`）、无并发构建。每轮按手册监控该 Qoder 会话（免 GUI 旁证优先：`git status` / 文件 mtime / `/tmp/*.log` / `Get-Process java`）。
+3. B11 批次文件内置两处**前置缺陷红线**（验收时须盯其交付）：① `VulkanRenderBackend.kt:552/555` 网格线 Y 轴漏乘 `TOPDOWN_Y_SCALE` —— 修复须独立 commit 或逐位保留现状，禁止混入等价重构（**09:53 尚未出现在改动面，须继续盯**）；② `-ffp-contract=off` 未覆盖 native-renderer —— **已按红线独立提交 `fb465f0b1`（仅 `cpp/CMakeLists.txt` +15 行）**，验收时核其提交仍为独立单笔即可。
+4. B11 验收要点：C++ 批口径须先重建对拍桥再跑门 1（基线预期 ≥1476）；R3.4 新增 JNI 端口须登记豁免；消费面须见**负增量**（258 drawRect 真被替换，而非只加 C++ 生成面）。
+5. B11 通过后按台账批次总表滚动 B12–B17（B12=R3.5+R3.6 远景容量+GLES 同构；B13=R3.8 原生浮层 Tier1 + G3/G4 截图回归；B14=R4.4 RNG 分区；B15=R6.1 图集离线化；B16=R6.2 数值外置；B17=CI 与度量执法 + 收官核对），直至收官。
