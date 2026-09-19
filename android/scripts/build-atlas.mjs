@@ -38,6 +38,7 @@ import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { ensureManifest } from './resource-manifest.mjs';
+import { loadPremultipliedRgba, writeOfflineRgbaArtifacts } from './lib/atlas-offline-rgba-lib.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ANDROID_DIR = path.resolve(__dirname, '..');
@@ -1746,36 +1747,10 @@ function resolveDrawablePath(manifest, name) {
   return path.join(ANDROID_DIR, entry.relPath);
 }
 
-/**
- * 预乘 alpha（直通 → 预乘，raw RGBA 就地生成新缓冲）：RGB ← RGB × α/255。
- *
- * 素材透明区常带非零 RGB（导出工具残留的白色）——预乘后这些像素 RGB 归零，
- * 重采样时不再把"看不见的颜色"混入邻近可见像素（灰白毛边根因）。
- * 本地 sharp 构建未暴露 premultiply()/unpremultiply()，故按 raw 像素手工处理。
- *
- * @param {Buffer} data raw RGBA 像素缓冲
- * @returns {{buffer: Buffer, transparent: boolean}} 预乘缓冲 + 是否含半透明像素
- *（false = 全不透明，后续解预乘可整段跳过——值恒等）
- */
-function premultiplyRawRgba(data) {
-  const out = Buffer.allocUnsafe(data.length);
-  let transparent = false;
-  for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3];
-    if (a === 255) {
-      out[i] = data[i];
-      out[i + 1] = data[i + 1];
-      out[i + 2] = data[i + 2];
-    } else {
-      transparent = true;
-      out[i] = Math.round((data[i] * a) / 255);
-      out[i + 1] = Math.round((data[i + 1] * a) / 255);
-      out[i + 2] = Math.round((data[i + 2] * a) / 255);
-    }
-    out[i + 3] = a;
-  }
-  return { buffer: out, transparent };
-}
+// B15 / R6.1：原 `premultiplyRawRgba(data)` 已删除——其唯一消费点是
+//   `loadSpriteContents` 的槽位加载内联分支，现已抽为共享实现
+//   `lib/atlas-offline-rgba-lib.mjs::loadPremultipliedRgba`（ASTC 图集与离线
+//   RGBA 产物共用，保证两侧精灵内容同源）。
 
 /**
  * 解预乘 alpha（预乘 → 直通）：RGB ← RGB × 255/α（α=0 保持 0）。
@@ -1859,29 +1834,19 @@ async function loadSpriteContents(sprites, manifest) {
         `资源缺失: ${s.drawable} (${s.name})——精灵图必须双模块放置（rules/static-resources.md），缺失即构建失败`
       );
     }
-    const meta = await sharp(file).metadata();
-    srcDims.set(s.name, { w: meta.width, h: meta.height });
-    let slotPng;
-    if (!meta.hasAlpha) {
-      slotPng = await sharp(file)
-        .ensureAlpha()
-        .resize(s.w, s.h, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
-        .png()
-        .toBuffer();
-    } else {
-      const { data, info } = await sharp(file)
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      const { buffer: pmRaw, transparent: hasAlpha } = premultiplyRawRgba(data);
-      if (hasAlpha) transparent.add(s.name);
-      slotPng = await sharp(pmRaw, {
-        raw: { width: info.width, height: info.height, channels: 4 },
-      })
-        .resize(s.w, s.h, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
-        .png()
-        .toBuffer();
-    }
+    // B15：槽位加载口径抽到 lib/atlas-offline-rgba-lib.mjs 的 loadPremultipliedRgba
+    //   ——离线 RGBA 产物与本 ASTC 图集**共用同一加载实现**，「两条图集路径的
+    //   精灵内容同源」成为结构事实（不再依赖两侧逐次比对）。语义与原先内联实现
+    //   逐字等价：无 alpha 源免预乘往返；有 alpha 源先预乘再 lanczos3 缩放。
+    const { pm, width, height, transparent: hasAlpha } = await loadPremultipliedRgba(file);
+    srcDims.set(s.name, { w: width, h: height });
+    if (hasAlpha) transparent.add(s.name);
+    const slotPng = await sharp(pm, {
+      raw: { width, height, channels: 4 },
+    })
+      .resize(s.w, s.h, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+      .png()
+      .toBuffer();
     contents.set(s.name, slotPng);
     loaded++;
   }
@@ -2230,6 +2195,17 @@ async function main() {
     console.log('压缩 ASTC + 生成 per-sprite mip 链 ...');
     mips = await generateMips(astcenc, transparent, sprites, padded);
   }
+
+  // B15 / R6.1：同源产出离线 RGBA 降采样产物（Canvas 软渲染 + RGBA 回退臂像素源）
+  //   —— 复用 contents（与 ASTC 图集同一份 premultiply + lanczos3 槽位内容），
+  //   故两条图集路径的精灵内容同源是结构事实。产物入库，运行时零拼装。
+  console.log('产出离线 RGBA 降采样产物（B15：Canvas/回退臂像素源）...');
+  const offlineManifest = await writeOfflineRgbaArtifacts(contents, transparent, sprites, OUT_DIR);
+  console.log(
+    `      离线 RGBA: ${offlineManifest.width}² ${(offlineManifest.rawBytes / 1024 / 1024).toFixed(2)}MB` +
+      ` + mip${offlineManifest.mipLevels}级 ${(offlineManifest.mipBytes / 1024 / 1024).toFixed(2)}MB` +
+      ` (${offlineManifest.spriteCount} 精灵, frameSha256=${offlineManifest.frameSha256.slice(0, 16)})`
+  );
 
   console.log('封装 KTX1（多 mip）...');
   const ktx = wrapKtx1(mips);

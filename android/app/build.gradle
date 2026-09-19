@@ -647,11 +647,20 @@ android {
 }
 
 // preBuild 前生成全链路——确保 Kotlin/C++ 编译时生成物最新
+// generateOfflineRgbaAtlas 入链：assets 离线产物缺失即构建失败（B15 任务 3 口径），
+//   防止「产物未生成 → 运行时静默降级回退」在打包阶段无人察觉。
 tasks.named('preBuild').configure {
-    dependsOn(':core:engine:generateSpriteAtlasDef', 'generateFootprintHeader', 'generateSpriteCode')
+    dependsOn(
+        ':core:engine:generateSpriteAtlasDef',
+        'generateFootprintHeader',
+        'generateSpriteCode',
+        'generateOfflineRgbaAtlas'
+    )
 }
 // 守卫测试读取生成物文本——测试前必须已生成
-tasks.withType(Test).configureEach { dependsOn('generateResourceManifest', 'generateSpriteCode') }
+tasks.withType(Test).configureEach {
+    dependsOn('generateResourceManifest', 'generateSpriteCode', 'generateOfflineRgbaAtlas')
+}
 
 // ============================================================
 // 图集 ASTC 压缩产物生成任务
@@ -734,6 +743,63 @@ tasks.register('generateEdgeKtx') {
             throw new GradleException("generateEdgeKtx: build-edge-ktx.mjs 退出码 ${exit}")
         }
         logger.lifecycle('generateEdgeKtx: 完成')
+    }
+}
+
+// ============================================================
+// 图集离线 RGBA 降采样产物生成任务（B15 / R6.1 图集离线化）
+// 权威源：SpriteAtlasDef.kt（布局）+ 两个 drawable-nodpi（源像素）
+// 产物：assets/atlas/atlas-rgba-raw.bin（2048² 直通 alpha RGBA 裸像素）
+//       assets/atlas/atlas-rgba-mips.bin（level-major 11 级，2048→2）
+//       assets/atlas/atlas-rgba-manifest.json（逐精灵 golden 校验和）
+// 动机：运行时历史上用 SectAtlasAssembler 在设备上做「逐精灵解码 + Canvas 拼装」
+//   2048² 位图（RGBA 回退臂 / mip 链源 / Canvas 软渲染像素源三条支路），带来启动期
+//   Canvas 依赖 + 数百毫秒拼装 + 16MB 位图与逐精灵解码中间缓冲的内存尖峰，且是
+//   iOS 后端的启动前置阻塞项。本任务把同一份像素在构建期产出为可直接映射的裸像素。
+// 守卫：AtlasOfflineRgbaSyncTest 锁住 manifest ↔ SpriteAtlasDef 一致性 + 产物
+//   尺寸/校验和，权威源变更后该测试变红提示重跑此任务。
+// node/sharp 缺失时构建直接失败，不允许静默跳过（沿 astcenc 先例）——静默跳过会
+//   产出过期产物让守卫测试误通过，运行时落回「资产缺失」降级路径。
+// ============================================================
+tasks.register('generateOfflineRgbaAtlas') {
+    group = 'build'
+    description = '生成图集离线 RGBA 降采样产物（裸像素 + mip 链 + golden manifest）'
+    // 依赖链：manifest（资源清单）与 SpriteAtlasDef（布局权威）必须先于本任务产出。
+    //   Gradle 会校验「读取他人 output 必须显式声明依赖」，缺一即报 implicit dependency。
+    dependsOn ':core:engine:generateSpriteAtlasDef'
+    mustRunAfter 'generateResourceManifest'
+    // 声明 inputs 获得 Gradle up-to-date 判定（源未变则跳过 sharp 缩放开销）
+    inputs.file("${projectDir}/build/generated/sprite/atlas-manifest.json")
+    inputs.file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
+    inputs.file("${rootProject.projectDir}/scripts/atlas-offline-rgba.mjs")
+    inputs.file("${rootProject.projectDir}/scripts/lib/atlas-offline-rgba-lib.mjs")
+    inputs.files(fileTree("${rootProject.projectDir}/app/src/main/res/drawable-nodpi"))
+    inputs.files(fileTree("${rootProject.projectDir}/feature/game/src/main/res/drawable-nodpi"))
+    outputs.file("${projectDir}/src/main/assets/atlas/atlas-rgba-raw.bin")
+    outputs.file("${projectDir}/src/main/assets/atlas/atlas-rgba-mips.bin")
+    outputs.file("${projectDir}/src/main/assets/atlas/atlas-rgba-manifest.json")
+    // 配置缓存约束——路径在配置期捕获（doLast 内禁止脚本对象）
+    def scriptDir = rootProject.projectDir
+    def assetsDir = file("${projectDir}/src/main/assets/atlas")
+    doLast {
+        // fail-fast：产物缺失即构建失败，不允许静默跳过（沿 astcenc 先例）
+        def proc = ['node', 'scripts/atlas-offline-rgba.mjs'].execute(null, scriptDir)
+        proc.consumeProcessOutput(System.out, System.err)
+        def exit = proc.waitFor()
+        if (exit != 0) {
+            throw new GradleException(
+                "generateOfflineRgbaAtlas: atlas-offline-rgba.mjs 退出码 ${exit}——" +
+                "请确认 node 与 scripts/node_modules/sharp 可用（cd scripts && npm install）"
+            )
+        }
+        // 产物存在性复校：脚本成功但未落盘（路径错配）会让运行时静默降级
+        ['atlas-rgba-raw.bin', 'atlas-rgba-mips.bin', 'atlas-rgba-manifest.json'].each { name ->
+            def f = new File(assetsDir, name)
+            if (!f.exists() || f.length() == 0L) {
+                throw new GradleException("generateOfflineRgbaAtlas: 产物缺失或为空——${f}")
+            }
+        }
+        logger.lifecycle('generateOfflineRgbaAtlas: 完成')
     }
 }
 

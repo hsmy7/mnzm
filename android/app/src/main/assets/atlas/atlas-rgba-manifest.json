@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "kind": "offline-rgba",
+  "format": "RGBA8888",
+  "sourceSize": 4096,
+  "width": 2048,
+  "height": 2048,
+  "scale": 0.5,
+  "rawFile": "atlas-rgba-raw.bin",
+  "rawBytes": 16777216,
+  "mipMode": "box-2x1",
+  "mipLevels": 11,
+  "mipWidths": [
+    2048,
+    1024,
+    512,
+    256,
+    128,
+    64,
+    32,
+    16,
+    8,
+    4,
+    2
+  ],
+  "mipFile": "atlas-rgba-mips.bin",
+  "mipBytes": 22369616,
+  "spriteCount": 41,
+  "transparentSpriteCount": 37,
+  "frameSha256": "00d74ed537e0018b3034df460ac9c53f5572966924ce69edbd83e88405d59e07",
+  "sprites": [
+    {
+      "name": "GROUND",
+      "sha256": "738f0d862cd615a2e377c9c3f268f1f2f0dfa8e40503a732659cced0069c3e8b",
+      "bytes": 16384
+    },
+    {
+      "name": "GRASS1",
+      "sha256": "c0c89a728736cf52584cf3dd046581bd49919c7f2e0e5d74e73938d22b980651",
+      "bytes": 16384
+    },
+    {
+      "name": "GRASS2",
+      "sha256": "3ebd5875d80d4f6adc28657d32dd61b49646120779e1fc0802cfc3417ac7f65b",
+      "bytes": 16384
+    },
+    {
+      "name": "GRASS3",
+      "sha256": "0c5abe68b3d7adb65fc79640c88f44bd5be111d8af4f037aceff67a322c931d6",
+      "bytes": 16384
+    },
+    {
+      "name": "GRASS4",
+      "sha256": "c052df448d80bd5b531f567b0b8f7da6dd9c0786d763b3946495d1dd490fedf6",
+      "bytes": 16384
+    },
+    {
+      "name": "STONE1",
+      "sha256": "d28af6ab1b826aeada4e860b50a818811b01f03cc62678f512a875826daa20da",
+      "bytes": 16384
+    },
+    {
+      "name": "STONE2",
+      "sha256": "4a2f291efe4c6135c289169bda294aa9e475589a18270e8023be5e14326fa266",
+      "bytes": 16384
+    },
+    {
+      "name": "STONE3",
+      "sha256": "5af059eded2792c7d859fa606d1c49a7716518bb4b34e432764491f07f3d99bc",
+      "bytes": 16384
+    },
+    {
+      "name": "TREE1",
+      "sha256": "53bc2932bd560584bbbba8e4c624c4d6423bd6efc83557ae50e833846dccb270",
+      "bytes": 65536
+    },
+    {
+      "name": "TREE2",
+      "sha256": "82020f91dcf32f62e4a43f79c3cf24bffb8007586bb5c63857c83f6654306857",
+      "bytes": 65536
+    },
+    {
+      "name": "SEEDLING",
+      "sha256": "55d82f8f3931f22cd256ffc0c9b7925e519e48d90ac7a19fae031e812bf9936e",
+      "bytes": 16384
+    },
+    {
+      "name": "GROWING",
+      "sha256": "bf0f51a2733c453a18c26f25fa118744bf4a7eba767569973d7b1fb778689e7d",
+      "bytes": 16384
+    },
+    {
+      "name": "MATURE",
+      "sha256": "c588b0923c26b4d3012af48d8fb5a490cc18569253641c93571378db24be7416",
+      "bytes": 16384
+    },
+    {
+      "name": "灵矿场",
+      "sha256": "22bd43ba1140269dc5f35210beaf3c43b4b6971f7c31bc23e1bf9364d72537a0",
+      "bytes": 262144
+    },
+    {
+      "name": "灵植阁",
+      "sha256": "30ade03163ec1456df3e3498a0ee4f8ad538d11fc64732b6f8e197da5cb9e118",
+      "bytes": 262144
+    },
+    {
+      "name": "灵田",
+      "sha256": "c093260cd604fb0aa0420083b7f31c1cd7007622b715528b0c524a24c5d23399",
+      "bytes": 16384
+    },
+    {
+      "name": "炼丹炉",
+      "sha256": "1da4940c7d00b2b99c93f1ca83461a8f3c128381a4c3e1060b22826d19b0e3e2",
+      "bytes": 262144
+    },
+    {
+      "name": "锻造坊",
+      "sha256": "a0d284336ecea09139d642c79ef9f5b2deb2366dd2a42a959969b479e7dbf268",
+      "bytes": 262144
+    },
+    {
+      "name": "仓库",
+      "sha256": "2306ab6d349b789e577950702624f80aa27f7b9867347cf3c2a2b73cab047717",
+      "bytes": 262144
+    },
+    {
+      "name": "藏经阁",
+      "sha256": "75e4f8d57f14df0fdb7235596301aa77384cd8b53953947813d39b8a909a5e76",
+      "bytes": 262144
+    },
+    {
+      "name": "问道塔",
+      "sha256": "3172238ea858b777971b68036b14e7c6a4bfc89ed0b3d284b1655e7571565775",
+      "bytes": 262144
+    },
+    {
+      "name": "青云塔",
+      "sha256": "248c65f5a365afc88d426b2e55d333a1843813f68247e9bf4fb966b05d66f978",
+      "bytes": 262144
+    },
+    {
+      "name": "天枢殿",
+      "sha256": "a56dcb2925551145c285b09483bcdb410358d519a682058cca4e1b5a780089b0",
+      "bytes": 1048576
+    },
+    {
+      "name": "执法堂",
+      "sha256": "36af9e6146aefe208da1141ad1c6fc95944515d2692519d6d6f9520e46182780",
+      "bytes": 262144
+    },
+    {
+      "name": "任务阁",
+      "sha256": "3b4d1cde4909f31a8d06ce318fdf4aaccd7be9e1459c8556fd42bb77d52047b1",
+      "bytes": 262144
+    },
+    {
+      "name": "巡视楼",
+      "sha256": "7f18b8fc24b8ff1d6483a86c3c453a3659c0bbd6f96b6fe854f538713997da32",
+      "bytes": 262144
+    },
+    {
+      "name": "监牢",
+      "sha256": "253172565738df36b10f852bb2ccaf22f45f34c864e87af3055a64fd878b0964",
+      "bytes": 262144
+    },
+    {
+      "name": "单人住所",
+      "sha256": "44c64ca199cb666de166b2340fd1c81409cd1f248f173baab6d2cf95b1bbd3e6",
+      "bytes": 262144
+    },
+    {
+      "name": "中级单人住所",
+      "sha256": "acaf3f2563a579f4db07380e61a4cd5b6afe3649cf31462b61530c486c061ecb",
+      "bytes": 262144
+    },
+    {
+      "name": "多人住所",
+      "sha256": "5dbddb0b47cda79762ed5964ff771835187179cf93b613b08eaafb2f8c237d38",
+      "bytes": 262144
+    },
+    {
+      "name": "血炼池",
+      "sha256": "34a1a8c9f649c406bfcde8a9dd91cc0a2f724a09c79611449529c98285a1a3e3",
+      "bytes": 262144
+    },
+    {
+      "name": "中级多人住所",
+      "sha256": "cfd4cb318544f45209a5e253835674fedf0f9ad432c5acfde09f85425d4fa741",
+      "bytes": 262144
+    },
+    {
+      "name": "sect_gate",
+      "sha256": "cc1924fdaf440ffad56c818ad14502ff20e14ec669a9fb5bb286bb6a0907da57",
+      "bytes": 196608
+    },
+    {
+      "name": "cloud_1",
+      "sha256": "cf04dcff87c3e1156bacdd3e898e0d6528b33293416a4b39d33cae8177087657",
+      "bytes": 232320
+    },
+    {
+      "name": "cloud_2",
+      "sha256": "9e36cd90a0fbb40c995ac36c7f06bf612ddb1b82bfef3aab99557e7e04892242",
+      "bytes": 339904
+    },
+    {
+      "name": "cloud_3",
+      "sha256": "07ccedebf6e1fd876d3727a45f116cbb4d752512dadbf896e55dc6abc9169383",
+      "bytes": 187392
+    },
+    {
+      "name": "cloud_4",
+      "sha256": "0117460474af6f7542436936b49711bf2f396f1ce14fb569651f80297c523931",
+      "bytes": 226368
+    },
+    {
+      "name": "cloud_5",
+      "sha256": "6af232cc54728a388a98d4f1212800b7b9223895bfaa76d0019791cdf17332ce",
+      "bytes": 377600
+    },
+    {
+      "name": "road_body",
+      "sha256": "738c4805daf64e0b6e05a6de3468f617ae1366f0e860ba1a13e8bad3fd5366db",
+      "bytes": 16384
+    },
+    {
+      "name": "road_edge_v",
+      "sha256": "404239cae88d6174604e8eda36e69f69f9c3e7b703ab8c58b06a638971cfee0d",
+      "bytes": 3072
+    },
+    {
+      "name": "road_edge_h",
+      "sha256": "fad2ea1ce09e42362426910155082489f0afb778928beb2fa8b3508306259fd8",
+      "bytes": 3072
+    }
+  ],
+  "generatedAt": "2026-09-19T19:40:19.849Z"
+}
