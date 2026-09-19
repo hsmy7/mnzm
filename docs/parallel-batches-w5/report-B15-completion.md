@@ -1,8 +1,8 @@
 # 批次 B15 完成报告（R6.1 — 图集离线化：消运行时 Canvas 拼装，运行时只 upload）
 
 > 批次文件：`docs/parallel-batches-w5/batch-R6A.md`
-> 完成结论：**自检全绿，待看护复核**
-> 台账：`docs/parallel-batches-w5/dispatch-ledger.md` B15 行
+> 完成结论：**自检全绿（两门均实测非 UP-TO-DATE），待看护复核**
+> 台账：`docs/parallel-batches-w5/dispatch-ledger.md` B15 行（状态由看护验收后回填）
 > 性质：**像素来源搬迁批** —— 把「Canvas 软渲染 / RGBA 回退臂 / RGBA mip 链」三条
 > 支路的启动期运行时拼装，整体替换为构建期离线产物；**画面上零可见变化**，
 > 消除的是一条**启动期内存/耗时尖峰**（数字见 §4）
@@ -16,7 +16,15 @@
 
 ## 提交号列表（逐子项）
 
-_COMMITS_TABLE_
+| # | 提交号 | 主题 | 文件 |
+|---|---|---|---|
+| ① | `c27309f93` | `feat(renderer): 重构方案 R6.1/B15 图集离线化①——离线 RGBA 产物管线与构建接线` | 7 文件（+1029/−55）：共享库 `lib/atlas-offline-rgba-lib.mjs`、独立入口 `atlas-offline-rgba.mjs`、`build-atlas.mjs`、`app/build.gradle`、三件产物 |
+| ② | `cc410bbd4` | `feat(renderer): 重构方案 R6.1/B15 图集离线化②——运行时消费面切换与 SectAtlasAssembler 退役` | 3 文件（+245/−333）：`AtlasAsyncPipeline.kt`、`SectAtlasAssembler.kt`、`SoftwareCanvasBackend.kt` |
+| ③ | `3be27eba2` | `test(renderer): 重构方案 R6.1/B15 图集离线化③——等价性守卫、内存实证与产物契约守卫` | 6 文件（+1396/−60）：`verify-offline-rgba-equivalence.mjs`、`measure-atlas-memory.mjs`、`summarize-junit-xml.py`、`AtlasOfflineRgbaSyncTest.kt`、`NativeSurfaceViewTest.kt`、`AtlasAsyncPipelineMipChainTest.kt` |
+| ④ | `855bf2e2b` | `docs(w5): 重构方案 R6.1/B15 图集离线化④——文档三件套、特性清单与完成报告` | 7 文件（+696/−1）：`native-engine-refactor-plan-2026-09-17.md`、`CHANGELOG.md`、`cpp-engine.md`、`renderer-feature-checklist.md`、本报告、记忆日志 |
+
+> 台账 `dispatch-ledger.md` B15 行状态与提交号列由**看护**在验收后回填
+> （本批实施侧不经手台账状态，避免越权自登记）。
 
 ## 一、运行时消费面切换（任务 1）
 
