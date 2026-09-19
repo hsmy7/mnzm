@@ -5,7 +5,6 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.NativeRngChannel
 import com.xianxia.sect.core.util.RngPartition
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
