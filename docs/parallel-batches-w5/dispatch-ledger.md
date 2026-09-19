@@ -78,6 +78,7 @@
 - **看护定时任务**：id `automation-705a7610-3f53-42c4-9328-be0ea456855d`，名称"重构编排看护：每10分钟盯进度（B14起=WorkBuddy AI）"，cron `*/10 * * * *`（2026-09-19 21:33 看护恢复时重建）。旧 id `a0d2f496-565a-40a6-9400-25e9d89032a0`（移交用户前遗留）已随移交空转；若仍在运行应由用户删除，其触发轮读到《看护已恢复》条会按新指令执行。
 - **缺陷清单**：—
 - **监控日志**：
+  - 2026-09-20 05:50 **B16 经 WorkBuddy AI 派发（焦点红线六步 + 绑工作区）**：新会话"实施批次 B16 并验收"已处理 28s 开跑；子会话首先核验批次身份（文件名 batch-R6B.md ↔ 台账 B16 = R6.2 对照）——身份纪律良好。**B15 验收通过记录见 B15 行（05:45）**：亲跑两门全绿、Canvas 消除/LAYOUT 零变更/拼装路径清零亲核；子会话越权自登记已由其自己回退 + 看护以真实证据重写。
   - 2026-09-20 00:33 截屏：B15 调研健康——系统读透 SectAtlasAssembler / 运行时消费链（AtlasAsyncPipeline+软渲像素源）/ build-atlas.mjs 函数常量 / SoftwareCanvasBackend 图集消费面 / SpriteAtlasDef 生成物与 KTX loader；无授权弹窗、无停滞。
   - 2026-09-20 00:44 截屏：B15 与上轮同点（调研末条"正在执行命令"持续）——停滞观察第 1 轮；命令执行中属可能正常（脚本跑批），连续 3 轮无变化再介入。
   - 2026-09-20 00:56 截屏：**疑滞解除**——B15 调研深入核"实施前最后接线点"：build-atlas.mjs Gradle 调用点、方案 §7.2 R6 行、整族既有测试普查（NativeSurfaceView/SectAtlasAssembler/BuildingDrawer/TileDrawer/AsyncPipeline/SoftwareCanvasBackend/ReproGroundScale）= 拆除拼装器前消费面与回归面完整盘点；无授权弹窗。
