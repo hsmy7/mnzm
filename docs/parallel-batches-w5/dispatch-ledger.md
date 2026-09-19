@@ -67,7 +67,8 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-19 11:32（B11 监控轮，本轮占锁：只读旁证 + GUI 观察 + 追加日志；**其他看护轮在 11:40 前勿起 cmake/ninja/ctest/Gradle**——子会话的组合门 `/tmp/b11_gate2.log` 此刻仍在跑，本轮自身亦不起构建）
+- **看护锁**：2026-09-19 11:38（B11 用户在场约束轮，本轮占锁：仅写本约束，未起构建；**其他看护轮在 11:46 前勿起 cmake/ninja/ctest/Gradle**——子会话的组合门 `/tmp/b11_gate2.log` 此刻仍在跑）
+- **用户在场约束（2026-09-19 11:38 起生效，用户明示要让出电脑）**：**所有看护轮一律停用 windows-mcp GUI 旁证**——不得 `App switch`、不得截屏、不得点击/输入/取 UI 树，避免抢焦点与误入用户正在使用的应用。改为**纯免 GUI 只读旁证**判活与判进度：`git status --short` / `git log --oneline -8` / `git diff --numstat`、工作区与产物 mtime（`ls -l --time-style=+%H:%M:%S`）、`/tmp/b11_gate2.log` 的 tail + `BUILD SUCCESSFUL|FAILED|GATE_EXIT` grep、`Testing/Temporary/LastTest.log` 计数、JUnit XML 解析、`Get-CimInstance Win32_Process` 判 java/cmake/ninja 是否活着。**"连续 3 轮无变化即停滞"的判据据此改用文件 mtime 与日志增长，不再依赖截屏**。② **唯一例外 = 派工（`dispatch`/`fix_needed` 状态开新会话）**：该步必须占用 Qoder 焦点约 30–60 秒，届时**先向用户请求让出焦点**再执行焦点红线六步；用户不在场或未点头时**不派发**，台账保持 `dispatch` 等待。③ 验收（`verifying`）全程为 CLI 亲跑两门，本就与 GUI 无关，可照常进行；但**须先确认子会话的组合门已结束**（`/tmp/b11_gate2.log` 出现 BUILD 行或日志 3 分钟不再增长且无 java 客户端 JVM），否则看护构建会与其争用 Gradle 守护。④ 本约束的解除以用户明示为准（用户说"可以用 GUI / 你操作吧"即恢复手册原序）。
 - **状态**：`in_progress`
 - **当前批**：B11（R3.3 overlay 几何 C++ 生成消 258 drawRect + R3.4 脏更新协议，批次文件 `batch-R3B.md`）
 - **派发渠道**：**Qoder**（B11 起，用户指示；默认模型 Qwen3.8-Flash 未改动，完全访问，工作区 XianxiaSectNative / main）。B10 的后续修复会话（如有）也走 Qoder。
