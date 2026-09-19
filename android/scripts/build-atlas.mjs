@@ -249,6 +249,58 @@ const LAYOUT = {
     { kotlin: 'GRID_LINE_WIDTH_PX', cpp: 'kGridLineWidthPx', v: 2.0, note: '网格线目标屏幕线宽（2 物理屏像素，防降采样整条丢弃）' },
     { kotlin: 'OVERLAY_MIN_SCALE', cpp: 'kOverlayMinScale', v: 0.001, note: '缩放下限（线宽除 scale 的除零防御）' },
   ],
+  // ── Tier1 文本资产（重构方案 2026-09-17 R3.8/B13）──
+  // 目的：浮动文字（伤害/治疗/词条提示）不引入动态字体渲染——数字 0-9、拉丁
+  // A-Z、少量标点、以及**有限固定游戏词条**在构建期预烘焙为 sprite 资产进图集，
+  // 运行期按资产索引直取 UV，零每帧字形光栅化、零每帧 JNI。
+  // Tier2（任意 CJK 动态字形 / 富文本 / 排版引擎）**明确不在本批**——本表即
+  // 「Tier1 词表冻结清单」，新增词条须显式在本表加一行并重跑 codegen。
+  // 布局位置：图集 y 3640..4096 空带（云层行 2 底 = 3640 为全图最低既有边界，
+  //   与任何既有槽位不重叠；本段与上方保持 ≥gutter 间距）。
+  //   两行等高 224：行 1 = 词条（宽格，2 字 CJK），行 2 = 单字形（窄格）。
+  //   容量：行 1 每格 wordCellW=329 + 8 gutter（4096 宽可容 12 词，现用 8）；
+  //         行 2 每格 glyphCellW=88 + 8 gutter（可容 42 字形，现用 40）。
+  // 渲染口径：所有字形按**同一缩放因子**（= 基准 CJK 全高字形 ink 高 → 格高
+  //   × glyphScale）等比缩放、居中入格——保证词条/数字/字母/标点视觉相对大小
+  //   一致（若各自 trim 后拉满格，'-' 这类扁平字形会被放大成巨块）。
+  //   字形素材为**白色**：运行期按样式档（普通/暴击/治疗/警告）整体染色，
+  //   避免为每种颜色各烘焙一份。
+  tier1: {
+    // 段起 y（= 云层行 2 底 3240+400）。行 1 顶 = originY，行 2 顶 = originY + rowH + gutter
+    originY: 3640,
+    rowH: 224,
+    gutter: 8,
+    // 单字形格宽（40 字形 × 88 + 39 × 8 = 3832 ≤ 4096，余 264px 供后续扩表）
+    glyphCellW: 88,
+    // 词条格宽（2 字 CJK 在字高 = 224 × glyphScale 下的实际宽度 + 内缩）
+    wordCellW: 329,
+    // 字形 ink 高 / 格高（0.62 → CJK 全高字形 139px，居中留出动画位移余量）
+    glyphScale: 0.62,
+    // 基准字形：定义「字高标尺」的 CJK 全高字（所有格共用其缩放因子）
+    refGlyph: '国',
+    // 生成期字体与 DPI（仅构建脚本使用，不入运行期）
+    fontFile: 'C:/Windows/Fonts/msyhbd.ttc',
+    fontDpi: 150,
+    // ★ 冻结词条清单（顺序 = 资产索引序，双端以此为唯一权威）
+    words: ['会心', '格挡', '闪避', '连击', '暴击', '破防', '吸血', '免疫'],
+    // ★ 冻结单字形清单（顺序 = 资产索引序 = words.length + i）
+    glyphs: [
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+      'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+      '+', '-', '.', '%',
+    ],
+    // 运行期样式档（R3.8/B13）——**仅档位索引**（颜色/透明度在 C++ 浮字池内
+    // 按档位查表，避免为每种颜色各烘焙一份字形素材）。双端共享，防索引漂移。
+    styles: [
+      { kotlin: 'FLOAT_STYLE_NORMAL', cpp: 'kFloatStyleNormal', v: 0, note: '普通伤害浮字档（白）' },
+      { kotlin: 'FLOAT_STYLE_CRIT', cpp: 'kFloatStyleCrit', v: 1, note: '暴击浮字档（金，带上浮弹跳）' },
+      { kotlin: 'FLOAT_STYLE_HEAL', cpp: 'kFloatStyleHeal', v: 2, note: '治疗浮字档（绿）' },
+      { kotlin: 'FLOAT_STYLE_WARN', cpp: 'kFloatStyleWarn', v: 3, note: '警告/减益浮字档（红）' },
+    ],
+    // 样式档总数（C++ 池按此分配颜色表；新增档位须同步）
+    styleCount: 4,
+  },
   // C++ MAP_SPRITES 由 LAYOUT 各段派生（见下方 buildMapSprites——瓦片段取自
   // LAYOUT.tiles.cppName，建筑段取自 buildingNames + 行公式，杜绝双写漂移）
 };
@@ -405,6 +457,153 @@ function buildingRectOf(colsPerRow, nameIndex) {
   throw new Error(`buildingRect 越界: ${nameIndex}`);
 }
 
+// ── Tier1 文本资产几何（R3.8/B13）──
+
+/**
+ * Tier1 文本资产的全部 rect（词条行 + 单字形行）——**单一权威**，
+ * 生成器（C++ 头 / Kotlin 常量）与图集拼装（buildSpriteList）都消费本函数，
+ * 杜绝双写漂移。
+ *
+ * 布局：
+ *   行 1（词条）   y = originY，            格宽 wordCellW，x = i × (wordCellW + gutter)
+ *   行 2（单字形） y = originY + rowH + gutter，格宽 glyphCellW，x = i × (glyphCellW + gutter)
+ *
+ * 资产索引序（双端以此为准）：
+ *   [0 .. words.length-1]                       → 词条（tier1.words 声明序）
+ *   [words.length .. words.length+glyphs-1]     → 单字形（tier1.glyphs 声明序）
+ *
+ * @returns {{entries: Array<{kind: string, text: string, index: number, rect: number[]}>}}
+ */
+function tier1Entries(layout) {
+  const t1 = layout.tier1;
+  if (!t1) throw new Error('LAYOUT.tier1 缺失（R3.8/B13 文本资产段）');
+  if (!Number.isInteger(t1.originY) || !Number.isInteger(t1.rowH) || !Number.isInteger(t1.gutter)) {
+    throw new Error(`LAYOUT.tier1 几何参数非法: originY=${t1.originY} rowH=${t1.rowH} gutter=${t1.gutter}`);
+  }
+  if (!Array.isArray(t1.words) || t1.words.length === 0) {
+    throw new Error('LAYOUT.tier1.words 须为非空数组（Tier1 冻结词表）');
+  }
+  if (!Array.isArray(t1.glyphs) || t1.glyphs.length === 0) {
+    throw new Error('LAYOUT.tier1.glyphs 须为非空数组（Tier1 冻结字形表）');
+  }
+  // 非法输入自抓：词表/字形表不得含空串或重复（重复 = 资产索引歧义，静默错误）
+  const seen = new Set();
+  for (const [tag, list] of [['words', t1.words], ['glyphs', t1.glyphs]]) {
+    for (const item of list) {
+      if (typeof item !== 'string' || item.length === 0) {
+        throw new Error(`LAYOUT.tier1.${tag} 含非法条目: ${JSON.stringify(item)}（须为非空字符串）`);
+      }
+      if (seen.has(item)) throw new Error(`LAYOUT.tier1 条目重复: "${item}"（资产索引歧义）`);
+      seen.add(item);
+    }
+  }
+  // 两行不得越出图集下缘 / 右缘（构建期快速失败，防静默裁切）
+  const row2Y = t1.originY + t1.rowH + t1.gutter;
+  const bottom = row2Y + t1.rowH;
+  if (bottom > layout.atlasH) {
+    throw new Error(`LAYOUT.tier1 越出图集下缘: 底=${bottom} > atlasH=${layout.atlasH}`);
+  }
+  const wordRight = t1.words.length * t1.wordCellW + (t1.words.length - 1) * t1.gutter;
+  const glyphRight = t1.glyphs.length * t1.glyphCellW + (t1.glyphs.length - 1) * t1.gutter;
+  if (wordRight > layout.atlasW || glyphRight > layout.atlasW) {
+    throw new Error(`LAYOUT.tier1 越出图集右缘: 词条右=${wordRight} 字形右=${glyphRight} > atlasW=${layout.atlasW}`);
+  }
+
+  const entries = [];
+  t1.words.forEach((text, i) => {
+    entries.push({
+      kind: 'word', text, index: i,
+      rect: [i * (t1.wordCellW + t1.gutter), t1.originY, t1.wordCellW, t1.rowH],
+    });
+  });
+  t1.glyphs.forEach((text, i) => {
+    entries.push({
+      kind: 'glyph', text, index: t1.words.length + i,
+      rect: [i * (t1.glyphCellW + t1.gutter), row2Y, t1.glyphCellW, t1.rowH],
+    });
+  });
+  return { entries };
+}
+
+/** Tier1 资产的图集精灵名（图集内唯一名；`tier1_` 前缀便于识别与排查） */
+function tier1SpriteName(entry) {
+  return `tier1_${entry.kind}_${entry.index}`;
+}
+
+/**
+ * Tier1 字形缩放因子（R3.8/B13）——**全部格共用同一因子**。
+ *
+ * 口径：用基准 CJK 全高字形（tier1.refGlyph，缺省「国」）在当前 DPI 下的
+ * ink 高度，反推「字高 = 格高 × glyphScale」所需的缩放因子。所有词条/字形
+ * 都用这一个因子等比缩放 ⇒ 视觉相对大小自然正确（数字/字母/标点按各自
+ * ink 尺寸参与）。若改为各自 trim 后拉满格，'-' 这类扁平字形会被放大成巨块。
+ *
+ * @returns {Promise<number>} 缩放因子（> 0）
+ */
+async function tier1GlyphScale(layout) {
+  const t1 = layout.tier1;
+  if (!t1.fontFile || !fs.existsSync(t1.fontFile)) {
+    throw new Error(
+      `Tier1 字体缺失: ${t1.fontFile}——构建期字形光栅化需要系统 CJK 粗体` +
+      `（Windows: C:/Windows/Fonts/msyhbd.ttc）`
+    );
+  }
+  const refRaw = await sharp({
+    text: { text: t1.refGlyph, fontfile: t1.fontFile, dpi: t1.fontDpi, rgba: true },
+  }).png().toBuffer();
+  const refMeta = await sharp(refRaw).metadata();
+  if (!refMeta.height || refMeta.height <= 0) {
+    throw new Error(`Tier1 基准字形 "${t1.refGlyph}" 光栅化高度非法: ${refMeta.height}`);
+  }
+  const scale = (t1.rowH * t1.glyphScale) / refMeta.height;
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new Error(`Tier1 字形缩放因子非法: ${scale}`);
+  }
+  return scale;
+}
+
+/**
+ * 光栅化一个 Tier1 单元格（R3.8/B13）：字号由 DPI 定 → 按共用因子等比缩放
+ * → 居中入固定格（透明背景）。
+ *
+ * 输出恒为 `wordCellW × rowH`（词条）或 `glyphCellW × rowH`（单字形），
+ * RGBA 四通道（含抗锯齿 alpha），与 `tier1Entries` 的 rect 尺寸严格一致
+ * （供图集按 rect 贴入）。
+ *
+ * @returns {Promise<Buffer>} PNG 缓冲（格尺寸）
+ */
+async function rasterizeTier1Cell(layout, entry, scale) {
+  const t1 = layout.tier1;
+  const cellW = entry.kind === 'word' ? t1.wordCellW : t1.glyphCellW;
+  const cellH = t1.rowH;
+  const text = entry.text;
+  if (typeof text !== 'string' || text.length === 0) {
+    throw new Error(`Tier1 非法文本条目: ${JSON.stringify(text)}`);
+  }
+  const raw = await sharp({
+    text: { text, fontfile: t1.fontFile, dpi: t1.fontDpi, rgba: true },
+  }).png().toBuffer();
+  const m = await sharp(raw).metadata();
+  if (!m.width || !m.height) {
+    throw new Error(`Tier1 字形光栅化尺寸非法: "${text}" -> ${m.width}x${m.height}`);
+  }
+  const tw = Math.max(1, Math.min(Math.round(m.width * scale), cellW - 4));
+  const th = Math.max(1, Math.min(Math.round(m.height * scale), cellH - 4));
+  const fitted = await sharp(raw)
+    .resize({
+      width: tw, height: th, fit: 'inside',
+      background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: sharp.kernel.lanczos3,
+    })
+    .png()
+    .toBuffer();
+  return sharp({
+    create: { width: cellW, height: cellH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: fitted, gravity: 'centre' }])
+    .png()
+    .toBuffer();
+}
+
 /**
  * 构建 C++ MAP_SPRITES 条目序列（单一数据源 = LAYOUT，禁止另写一份精灵表）。
  *
@@ -460,6 +659,9 @@ function codegenSource() {
     generateSpriteRegistryData.toString(),
     generateTextureAtlasH.toString(),
     generateSceneUvTablesH.toString(),
+    tier1CppLines.toString(),
+    tier1KotlinLines.toString(),
+    tier1Entries.toString(),
     cppFloatLiteral.toString(),
     cppUvExpr.toString(),
   ].join('\n');
@@ -547,6 +749,45 @@ function overlayCppLines(layout) {
   for (const e of layout.overlay) {
     out.push(`// ${e.note}`);
     out.push(`inline constexpr float ${e.cpp} = ${cppFloatLiteral(e.v)};`);
+  }
+  return out;
+}
+
+/**
+ * Tier1 文本资产的 Kotlin 常量行（R3.8/B13）——与 C++ `kFloat*` 同源同值。
+ *
+ * UV 表用**表达式**形态（`x.toFloat() / ATLAS_W`）与既有 UV 表同式：
+ * 图集尺寸为 2 的幂 ⇒ 除法精确，双端逐位一致（`SceneUvTablesMirrorGuardTest`
+ * 逐位对照锁定）。
+ */
+function tier1KotlinLines(layout) {
+  const { entries } = tier1Entries(layout);
+  const t1 = layout.tier1;
+  const out = [];
+  out.push(`    const val FLOAT_WORD_COUNT = ${t1.words.length}`);
+  out.push(`    const val FLOAT_GLYPH_COUNT = ${t1.glyphs.length}`);
+  out.push(`    const val FLOAT_ASSET_COUNT = ${entries.length}`);
+  out.push(`    const val FLOAT_GLYPH_BASE_INDEX = ${t1.words.length}`);
+  out.push('    /** 资产索引 → UV（[u0,v0,u1,v1] 展平；索引序 = 词条段 → 单字形段） */');
+  out.push('    val FLOAT_UV: FloatArray = floatArrayOf(');
+  for (const e of entries) {
+    out.push(`        ${e.rect[0]}.toFloat() / ATLAS_W, ${e.rect[1]}.toFloat() / ATLAS_H, ` +
+      `${e.rect[0] + e.rect[2]}.toFloat() / ATLAS_W, ${e.rect[1] + e.rect[3]}.toFloat() / ATLAS_H,`);
+  }
+  out.push('    )');
+  out.push('    /** Tier1 冻结词条清单（索引 0..FLOAT_WORD_COUNT-1；本表即冻结清单） */');
+  out.push(`    val FLOAT_WORD_TEXT: List<String> = listOf(${t1.words.map((s) => JSON.stringify(s)).join(', ')})`);
+  out.push('    /** Tier1 冻结单字形清单（索引 FLOAT_GLYPH_BASE_INDEX..） */');
+  out.push(`    val FLOAT_GLYPH_TEXT: List<String> = listOf(${t1.glyphs.map((s) => JSON.stringify(s)).join(', ')})`);
+  out.push('    /** 词条字数（渲染宽度换算 = 字数 × 字宽；本批恒为 2） */');
+  out.push(`    val FLOAT_WORD_LENGTH: List<Int> = listOf(${t1.words.map((s) => s.length).join(', ')})`);
+  out.push(`    const val FLOAT_CELL_W = ${t1.wordCellW}`);
+  out.push(`    const val FLOAT_CELL_H = ${t1.rowH}`);
+  out.push(`    const val FLOAT_GLYPH_SCALE = ${kotlinFloatLiteral(t1.glyphScale)}`);
+  out.push(`    const val FLOAT_STYLE_COUNT = ${t1.styleCount}`);
+  for (const s of t1.styles) {
+    out.push(`    /** ${s.note} */`);
+    out.push(`    const val ${s.kotlin} = ${s.v}`);
   }
   return out;
 }
@@ -718,6 +959,12 @@ function generateSpriteAtlasDef(layout) {
     '    // 与 Kotlin 旧逐 rect 回滚臂共用同一数据源——两路同值由构造保证）',
     '    // ============================================================',
     ...overlayKotlinLines(layout),
+    '',
+    '    // ============================================================',
+    '    // Tier1 文本资产（R3.8/B13：浮动文字预烘焙 sprite——数字/拉丁/标点/',
+    '    // 有限固定游戏词条；与 C++ scene_uv_tables.h kFloat* 同源生成）',
+    '    // ============================================================',
+    ...tier1KotlinLines(layout),
     '',
     '    // ============================================================',
     '    // 瓦片类型定义',
@@ -1230,6 +1477,60 @@ function cppUvQuadLine(rect, atlasW, atlasH, indent) {
 }
 
 /**
+ * Tier1 文本资产的 C++ 常量段（R3.8/B13）——UV 表 + 索引常量 + 样式档。
+ *
+ * 与既有 UV 表同式：`kUvExpr` 除法表达式（图集尺寸 2 的幂 ⇒ 双端逐位一致）。
+ * 词条文本以 **C++ 字符串字面量数组** 生成（UTF-8 源文件字面量）——供调试
+ * 打印与守卫断言使用；运行期**不**消费文本（按索引直取 UV，零字符串比较）。
+ */
+function tier1CppLines(layout) {
+  const { entries } = tier1Entries(layout);
+  const t1 = layout.tier1;
+  const w = layout.atlasW;
+  const h = layout.atlasH;
+  const out = [];
+
+  out.push('// ── Tier1 文本资产（R3.8/B13：浮动文字预烘焙 sprite——数字/拉丁/标点/');
+  out.push('//    有限固定游戏词条；运行期按资产索引直取 UV，零动态字形光栅化、零每帧 JNI）──');
+  out.push('// 资产索引序 = 词条段（LAYOUT.tier1.words 声明序）→ 单字形段（glyphs 声明序）。');
+  out.push('// ★ 本表即「Tier1 词表冻结清单」：新增词条须在 LAYOUT.tier1 显式加一行并重跑');
+  out.push('//   node scripts/build-atlas.mjs --codegen（Tier2 动态 CJK 字形明确不在本批）。');
+  out.push(`inline constexpr int kFloatWordCount = ${t1.words.length};`);
+  out.push(`inline constexpr int kFloatGlyphCount = ${t1.glyphs.length};`);
+  out.push(`inline constexpr int kFloatAssetCount = ${entries.length};`);
+  out.push(`inline constexpr int kFloatGlyphBaseIndex = ${t1.words.length};`);
+  // 词条/字形文本（UTF-8 字面量数组；索引 = 资产索引）
+  out.push('// 词条文本（索引 0..kFloatWordCount-1；仅调试/守卫用，运行期按索引取 UV）');
+  out.push(`inline constexpr const char* kFloatWordText[] = {${t1.words.map((s) => `"${s}"`).join(', ')}};`);
+  out.push('// 单字形文本（索引 kFloatGlyphBaseIndex..；如上）');
+  out.push(`inline constexpr const char* kFloatGlyphText[] = {${t1.glyphs.map((s) => `"${s}"`).join(', ')}};`);
+  // 字数表（词条渲染时按字数取格子——本批词条均为 2 字，表仍逐条列出以便扩展）
+  out.push('// 词条字数（渲染宽度换算：宽 = 字数 × 字宽；本批恒为 2）');
+  out.push(`inline constexpr int kFloatWordLength[] = {${t1.words.map((s) => s.length).join(', ')}};`);
+  // 几何常量（格高/字形缩比——供 C++ 动画与尺寸换算消费）
+  out.push('// 几何：格高（世界单位换算基准）+ 字形 ink 高 / 格高 的缩比');
+  out.push(`inline constexpr int kFloatCellW = ${t1.wordCellW};`);
+  out.push(`inline constexpr int kFloatCellH = ${t1.rowH};`);
+  out.push(`inline constexpr float kFloatGlyphScale = ${cppFloatLiteral(t1.glyphScale)};`);
+  // UV 表（资产索引序）
+  out.push('');
+  out.push('// Tier1 资产 UV 表（[u0,v0,u1,v1] × kFloatAssetCount，索引 = 资产索引序）');
+  out.push('inline constexpr float kFloatUv[] = {');
+  for (const e of entries) out.push(cppUvQuadLine(e.rect, w, h, '    '));
+  out.push('};');
+  // 样式档
+  out.push('');
+  out.push('// Tier1 浮字样式档位索引（R3.8/B13：颜色/透明度在 C++ 浮字池内按档位查表，');
+  out.push('//    字形素材为白色——避免为每种颜色各烘焙一份。双端共享，防索引漂移）');
+  out.push(`inline constexpr int kFloatStyleCount = ${t1.styleCount};`);
+  for (const s of t1.styles) {
+    out.push(`// ${s.note}`);
+    out.push(`inline constexpr int ${s.cpp} = ${s.v};`);
+  }
+  return out;
+}
+
+/**
  * 生成 C++ 场景常量表（native-renderer SceneStore 路径的 UV/占地/渲染常量
  * 单一来源——Kotlin 不再每帧传 SpriteAtlasDef 数组）。
  *
@@ -1345,6 +1646,8 @@ function generateSceneUvTablesH(layout) {
     `inline constexpr int kStructureFpW[] = {${layout.structures.map((s) => s.footprint[0]).join(', ')}};`,
     `inline constexpr int kStructureFpH[] = {${layout.structures.map((s) => s.footprint[1]).join(', ')}};`,
     '',
+    ...tier1CppLines(layout),
+    '',
     '}  // namespace scene',
     '',
   ].join('\n');
@@ -1416,6 +1719,17 @@ function buildSpriteList() {
       drawable: ROAD_DRAWABLE[r.name] ?? null,
     });
   });
+
+  // Tier1 文本资产（R3.8/B13）：词条段 → 单字形段（索引序 = tier1Entries）
+  // drawable 为**合成名**（tier1TextDrawable 前缀），图集拼装时由
+  // loadSpriteContents 内的 tier1 光栅化钩子产出（不落 drawable-nodpi 资源）。
+  for (const e of tier1Entries(LAYOUT).entries) {
+    sprites.push({
+      name: tier1SpriteName(e),
+      x: e.rect[0], y: e.rect[1], w: e.rect[2], h: e.rect[3],
+      drawable: tier1SpriteName(e),
+    });
+  }
 
 
   return sprites;
@@ -1517,8 +1831,25 @@ async function loadSpriteContents(sprites, manifest) {
   const transparent = new Set();
   const srcDims = new Map();
   let loaded = 0;
+  // Tier1 文本资产：构建期光栅化（不进 drawable-nodpi，故不走 resolveDrawablePath）
+  const tier1BySpriteName = new Map(
+    tier1Entries(LAYOUT).entries.map((e) => [tier1SpriteName(e), e])
+  );
+  let tier1Scale = null;   // 基准字形缩放因子（惰性计算一次，全部格共用）
   for (const s of sprites) {
     if (!s.drawable) continue;
+    // ── Tier1 文本资产分支（R3.8/B13）──
+    const tier1Entry = tier1BySpriteName.get(s.name);
+    if (tier1Entry) {
+      if (tier1Scale === null) tier1Scale = await tier1GlyphScale(LAYOUT);
+      const slotPng = await rasterizeTier1Cell(LAYOUT, tier1Entry, tier1Scale);
+      contents.set(s.name, slotPng);
+      // 字形素材含大量半透明抗锯齿边 → 标记透明（走预乘路径，避免灰白毛边）
+      transparent.add(s.name);
+      srcDims.set(s.name, { w: LAYOUT.tier1.wordCellW, h: LAYOUT.tier1.rowH });
+      loaded++;
+      continue;
+    }
     const file = resolveDrawablePath(manifest, s.drawable);
     if (!file || !fs.existsSync(file)) {
       // fail-fast：预期精灵缺失 = 构建失败，
