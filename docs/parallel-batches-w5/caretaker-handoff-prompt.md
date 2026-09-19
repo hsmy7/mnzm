@@ -16,11 +16,12 @@
 2. `docs/native-engine-refactor-plan-2026-09-17.md`（下称"方案"）—— 重构总方案，§3 为批次依据，§7 为滚动实施状态。
 3. 进入派工/验收时，另读对应批次文件 `docs/parallel-batches-w5/batch-*.md`。
 
-### 交接时刻快照（2026-09-19 08:28）
-- **B01–B09 已验收通过**（R0/R1/R4.1-4.3/R2 全阶段，证据见台账批次总表；GTest 基线已上移至 1456）。
-- **B10（R3.1+R3.2：C++ SceneStore 新模块 + JNI 面重构，批次文件 `batch-R3A.md`）正在一个 ZCode 子会话中施工**（2026-09-19 05:54 派发）。**第三轮完整组合门已 BUILD SUCCESSFUL 26m35s / 339 任务全 executed / GATE_EXIT=0**（日志 `/tmp/junit_gate3.log`，08:27:33 落盘）；子会话正在汇总判定数字，尚未提交 R3.2 面改动（工作区仍 M/?? 若干文件；仅 R3.1 已提交 ba0901c89）。前两轮门自抓并修复两个真实缺陷：旧 renderFrame 残留 setFadeAlpha+drawIslandCliffs 导致悬崖层双路重复绘制；drawFrame fade 写回时序早于重叠层消费。第一轮数字：JUnit 7825/0 失败/17 模块，engine XML 3344 含 Diff* 50 类 273 用例 0 skip。
-- **派发渠道（用户指示）**：B10 在 ZCode 收尾；**B11 起（含一切修复会话）一律在 Qoder 上派发**，使用默认模型即可，不点模型选择器。
-- 看护定时任务由接手会话重建（cron `*/10 * * * *`，prompt 即本提示词）。
+### 交接时刻快照（2026-09-19 09:22）
+- **B01–B10 已验收通过**（R0/R1/R4.1-4.3/R2 全阶段 + R3 开端；证据见台账批次总表；**GTest 基线已上移至 1476**）。
+- **B10（R3.1+R3.2 SceneStore + JNI 面重构）accepted 于 09:15**：看护亲跑 GTest 1476/1476 + 组合门 BUILD SUCCESSFUL 23m/339 executed（首轮唯一失败 = 已知抖动 `GameEngineCoreLifecycleInterleavingTest`，按 B03 前例重跑放行）、Diff* 273 用例 0 skip、六模块 7825/0/17；提交 `ba0901c89`/`242440778`/`cd5df439b`。
+- **B11（R3.3+R3.4，批次文件 `batch-R3B.md`）已于 09:21 经 Qoder 派发**，正在施工。
+- **派发渠道（用户指示）**：B11 起（含一切修复会话）**一律在 Qoder**，默认模型即可，不点模型选择器；ZCode 侧仅存历史会话（B10 已完成、空闲）。
+- 看护定时任务 id `a0d2f496-565a-40a6-9400-25e9d89032a0`（cron `*/10 * * * *`），收官时删除。
 
 ### 每轮循环（严格照台账《看护运行手册》）
 1. **读状态**：读台账"当前状态"。
@@ -60,7 +61,7 @@ export PATH="/c/Users/cp050/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin:/c/Us
 5. 看护自己的构建与子会话构建**错峰**，勿同时跑（Gradle daemon 争用）。
 
 ### Qoder 派发 SOP（焦点红线六步，严禁跳步，B11 起用）
-① `App switch` 到 Qoder；② 截屏**确认前台窗口是 Qoder IDE 界面**，不符则重试切换（键击发给"当前焦点窗口"，曾发生焦点空窗态误发别的应用的事故）；③ `Ctrl+N` 新建任务（Qoder 与 ZCode 同快捷键）；④ 截屏确认进入新任务输入页（**默认模型即可，不点模型选择器**）；⑤ 点输入框 → 输入指令 → 回车。指令模板：
+① `App switch` 到 Qoder；② **用 `Snapshot(use_ui_tree=true)` 读 "Focused Window: Name" 确认 = Qoder**（勿靠截屏肉眼判归属：Qoder 与 ZCode 两套 UI 几乎同形，且看护自身会话就在 Qoder 窗口内，极易误判）；不符则重试切换；③ 新建任务：点侧栏"新的任务"链接（UI 树坐标，比 Ctrl+N 稳，不依赖焦点键击）；④ 截屏确认进入新任务输入页（**默认模型即可，不点模型选择器**）；⑤ 点输入框 → 输入指令 → 回车。**所有 `loc` 必须取自 UI 树元素坐标**——截屏图是下采样的，按图心算会落空（实测欢迎页输入框 = 编辑 "新的任务" @(1084,778)）。落空特征：输入框仍显示占位符 + 侧栏无新会话 + 页面不变 → 重新取坐标，切勿连发。指令模板：
 `读取 docs/parallel-batches-w5/batch-XXX.md，严格按该文件实施批次 XXX。完成后按文件内验收门自检，并按完成报告格式给出报告。`
 ⑥ 截屏确认子会话开跑（应见其读批次文件/复述任务）。任一步特征不符 → 中止重试，**禁止盲发**。派发前检查目标应用输入队列无滞留旧指令（曾发生 3 条积压险些三重派工）。
 
@@ -75,6 +76,7 @@ export PATH="/c/Users/cp050/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin:/c/Us
 - **免 GUI 旁证**：子会话的门日志落在 `/tmp/junit_gate*.log`（Git Bash 视角 = `C:\Users\cp050\AppData\Local\Temp`），直接 `tail`/`grep "BUILD \|GATE_EXIT"` 即可判门进度；配合 `ls -l --time-style` 看工作区文件 mtime 与 `Get-Process java` 判构建是否活着，比单纯截屏更不容易误判停滞。
 
 ### 当前待办（接手后立即）
-1. 切 ZCode → 用侧栏搜索面板定位 B10 会话项（标题"读取 docs/parallel-batches-w5/batch-R3A.md…"）→ 截屏看 B10 是否已交最终报告（第三轮门已绿，缺其提交 R3.2 面改动与报告）。
-2. 已交 → 按台账手册占锁转 `verifying`，亲跑验收门（B10 含 C++ 改动：先重建桥与 GTest 二进制；留意两处缺陷修复后的组合门绿证与场景等价守卫证据）；未交 → 记监控日志等下轮；
-3. B10 通过后：写 B11 批次文件（`batch-R3B.md`：R3.3+R3.4 overlay 几何 C++ 生成消 258 drawRect + 脏更新协议），**在 Qoder 上按焦点红线派发**；此后 B12–B17 依台账批次总表顺序滚动，直至收官。
+1. **B10 已 accepted**（2026-09-19 09:15，五门亲跑全绿：GTest **1476/1476** + 组合门 23m/339 executed + Diff 273 用例 0 skip + 六模块 7825/0/17；提交 `ba0901c89`/`242440778`/`cd5df439b`）。GTest 新基线 **1476**。
+2. **B11 已于 09:21 经 Qoder 派发**（批次文件 `batch-R3B.md` = R3.3 overlay 几何 C++ 生成消 258 drawRect + R3.4 脏更新协议；会话标题"读取 docs/parallel-batches-w5/batch-R3B.md…"）。每轮按手册监控该 Qoder 会话（免 GUI 旁证优先：`git status` / 文件 mtime / `/tmp/*.log` / `Get-Process java`）。
+3. B11 批次文件内置两处**前置缺陷红线**（验收时须盯其交付）：① `VulkanRenderBackend.kt:552/555` 网格线 Y 轴漏乘 `TOPDOWN_Y_SCALE` —— 修复须独立 commit 或逐位保留现状，禁止混入等价重构；② `-ffp-contract=off` 未覆盖 native-renderer（`android/app/src/main/cpp/CMakeLists.txt`）—— overlay 几何进 C++ 前须先闭合，独立 commit。
+4. B11 通过后按台账批次总表滚动 B12–B17（B12=R3.5+R3.6 远景容量+GLES 同构；B13=R3.8 原生浮层 Tier1 + G3/G4 截图回归；B14=R4.4 RNG 分区；B15=R6.1 图集离线化；B16=R6.2 数值外置；B17=CI 与度量执法 + 收官核对），直至收官。
