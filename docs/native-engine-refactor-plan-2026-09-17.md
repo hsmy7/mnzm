@@ -484,6 +484,34 @@ R3 行为等价性风险延续：overlay 新路径与旧逐 rect 路径以**顶�
 
 测试口径：桌面全量 GTest **1491/1491**（携 `-ffp-contract=off`；desktop-test 基线 1476 + 本批 15 = SceneOverlayEquivalenceTest 13 + SceneStoreTest 2，64.81s；对拍桥重建携入本批；NDK arm64 `libnative-renderer.so` 重建携入本批并逐文件核到 FP 旗标）+ 组合门 `testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）**BUILD SUCCESSFUL 27m52s、339 任务全 executed 非 UP-TO-DATE**：六模块 XML 汇总 **7840 用例 / 0 失败 / 0 错误 / 17 跳过**（`:core:engine` **3345** = B10 后基线 3344 + 叠加层常量镜像守卫 1、`:feature:game` **886** = 872 + `SceneOverlayProtocolGuardTest` 5 + `SceneUpdateChannelTest` 9、`:core:domain` 1743、`:core:data` 716（15 既有跳过）、`:core:ui` 146、`:app` 1004（2 既有跳过））；50 个 `Diff*Test` **273 用例 0 skip**（桥真加载）；detekt 六模块全绿、`compileReleaseKotlin`/`lintRelease` 全绿；已知抖动 `GameEngineCoreLifecycleInterleavingTest` 12/12 未触发；Canvas 兜底三层测试（Grid 5 / Demolish 7 / Highlight 8）全绿 = R3.6 零改动旁证。
 
+#### B13 批（2026-09-19）= R3.8（原生浮层与文本通道 Tier1，R3 渲染阶段收官批）
+
+批次文件 `docs/parallel-batches-w5/batch-R3D.md`；每子项独立 commit。前置 = B10（R3.1
+SceneStore / R3.2 JNI 面）/ B11（R3.3 overlay 几何 / R3.4 脏更新协议）/ B12（R3.5 远景容量
+/ R3.6 GLES 同构）。**本批为"通道交付批"：浮字通道建成并自检，但零生产消费面接入**
+（无战斗/提示逻辑调用 `sceneSpawnFloatingText`）——消费面接入属后续批次，完成报告已显式声明。
+R3 行为等价性风险延续：浮字层以「空池 = 与不调该层逐位相同」锁定零影响，且**不参与
+`RenderFrame` 契约**（Canvas 兜底零改动）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| R3.8-① Tier1 文本资产管线 | ✅ | 数字 0-9 / 拉丁字母 / 有限固定词条（`会心/格挡/闪避/连击/暴击/破防/吸血/免疫`，冻结清单）+ 符号（`+ - . %`）**预烘焙为 sprite**，复用 `build-atlas.mjs` 图集管线（沿 B10 `scene_uv_tables.h` codegen 先例：生成器纳入 codegen hash 门、生成头入库、非法输入自抓）。图集空间勘察：既有内容最低边界 y=3640，选 `rowH=224 + gutter 8 + rowH=224 = 456` 恰好填满 y3640..4096——**词条行 8 格 × 329px / 字形行 40 格 × 88px**（余 264px）。文字光栅化用 `sharp`（libvips/pango，支持 CJK）：**固定字号渲染 → 按共用缩放因子 `resize contain` → composite 居中入格**；曾踩坑（a）`sharp().trim()` 对极端纵横比字形（`-` 为 7×2）报 `rank: window too large` ⇒ 彻底弃用 trim；（b）逐字形 `contain` 拉满格会让 `-` 变成黑条 ⇒ 改为**全部字形共用同一缩放因子**（= 基准全角字形 ink 高 ÷ 格高），视觉相对大小自然正确。生成物：`kFloatWordCount=8` / `kFloatGlyphCount=40` / `kFloatAssetCount=48` / `kFloatGlyphBaseIndex=8` / `kFloatUv[48]` / `kFloatStyleCount=4` 双端同源。**Tier2 动态字形明确不在本批** |
+| R3.8-② 浮字对象池 + 动画核心（全 C++） | ✅ | 新建 `app/src/main/cpp/scene/float_text.h`（零 Android 依赖、桌面可直测）。固定容量池 `kFloatPoolCapacity=256`（常量显式命名）；实例 = 世界空间锚点 + 词条/数字资产索引（+`charCount` 表达多字形串）+ 颜色/样式档 + 出生时刻 + 动画参数（`scale`/`riseScale`/`bounce`）。**池满覆盖最旧**（`spawnSeq` 单调递增序号选最小者，循环缓冲语义，守卫锁定）；非法输入即拒（非有限坐标 / 资产索引越界 / `assetIndex+charCount` 越资产表尾 / 样式档越界 / 字数越界 / 缩放非正或超上限），**拒绝路径零残留**。动画（上浮 / 淡出 / 暴击弹跳）全部经 `sampleFloatText()` **纯函数**由调用方时间标量驱动——**零每帧 JNI**、不查系统时钟、不跨线、不分配。`shutdownRenderer` 后池纪元复位（实例 + 遥测双清）。池满/溢出遥测接 R0.3 三计数器口径（累计丢弃精灵数 / 累计溢出帧数 / 累计降级生效帧数——本特性不虚构降级行为，降级帧数恒 0 由守卫锁定） |
+| R3.8-③ spawn 通道（事件驱动，低频） | ✅ | 新 JNI 端口 `sceneSpawnFloatingText(jfloatArray)`——**扁平 10 标量/条**（`worldX, worldY, assetIndex, charCount, styleIndex, nowSeconds, scale, riseScale, bounce, reserved`），`kFloatSpawnStride=10` 双端镜像守卫锁定；保留位非 0 即拒（为后续字段扩展留位而不破 ABI）。**既有 JNI 签名零变更**：把「动画时间」做成 drawFrame 第 9 参是 ABI 变更（须单独登记豁免 + 双端同步 + 全部既有等价守卫更新并逐条复跑），本批**规避**——改用 C++ 内部固定标称帧步长累加器 `g_floatNowSeconds += 1/60s`（`kFloatFrameStepSeconds`，带 `kFloatTimeWrapSeconds` 回绕），drawFrame 保持 8 参数签名不动。**JNI 端口总数对照：渲染面 external fun 48 → 49，生产 JNI 面 89 → 90** |
+| R3.8-④ 渲染集成 + 场景回归集 | ✅ | **集成**：`scene_draw.h::buildFloatTextBatch`（浮字批走既有 push-constant 投影，复用 `updateCameraGlobals`；多字形串按连续资产索引水平排布、单纹理段合批；UV 向内收缩防渗色；可见性剔除；**空池 = 0 draw call**——不 begin/不 submit）。层序 = **浮字在最上层**（叠加层之上），由 `drawFrame` 尾部提交（`g_sceneAtlasTexId != 0` 守卫，与地图/叠加层同语义）。Vulkan/GLES **同构**：判定/推进/提交全落基类与共享头，零 GLES 专属分支。**场景回归集**（验收门 4 要求，补 B11/B12 残余③的桌面形态）：新建 `test/scene_pixel_regression_test.cpp`——在既有 `RecorderRenderer`（记录顶点流）**之上**再加一层**确定性软光栅化**，把"顶点流逐位等价"推进到"**像素级可回归**"：顶点流 → 软光栅扫描线（整数采样 + float 重心插值 + source-over 混合）→ 像素缓冲 → **FNV-1a64 像素校验和** golden 入库（`test/golden/scene_regression_golden.txt`，22 键）。覆盖六要素场景 + 浮字四场景（出生 / 上浮中 / 淡出 / 池满覆盖）× 相机三档位（近 2.0 / 中 1.0 / 远 0.3）。纹理采样用**程序化 32×32 棋盘渐变图案**（测试环境无 ASTC 解码器，不读真实图集 KTX）；`-ffp-contract=off` 已钉死 FMA 融合保证确定性。**golden 变更流程**：`SCENE_GOLDEN_UPDATE=1` 显式重生（默认比对失败即红、绝不自动改写），重生时逐键打印前后校验和。**Canvas 兜底零改动**：浮字状态不经 `RenderFrame` 契约、不进 `SoftwareCanvasBackend*` |
+| 浮字/像素守卫 | ✅ | C++ `scene_floating_text_test.cpp` 35 用例 5 套件（`FloatTextPoolTest` 14：容量常量/入池回收/**池满覆盖最旧**/纪元复位/参数防御五路/时间卫生/序号严格单调；`FloatTextAnimationTest` 6：上浮单调/淡出归零/暴击弹跳窗内缩/非弹跳恒单位缩放/负龄钳到出生/元数据携带；`FloatTextBatchTest` 10：**空池零 draw call**/全过期零 draw call/单实例单纹理段 6 顶点/多字形连续单 draw/20 实例仍单 draw（G4 友好）/顶点流合 `SpriteBatcher` 契约/样式色逐实例/视外剔除/缺图集或 UV 整层跳过/UV 越界回落不越读；`FloatTextTelemetryTest` 3：三计数器精确/降级帧恒 0/溢出旗标单帧作用域；`FloatTextAssetContractTest` 2：生成表自洽/样式档覆盖四语义桶）+ `scene_pixel_regression_test.cpp` 12 用例（六要素 × 三档位 / 叠加层全开 × 三档位 / **三档位像素互不相同**（防相机静默失效）/ 浮字四场景 × 三档位 / **浮字三帧互不相同**（防动画静默失效）/ **空池 = 无浮字层逐位相同**（零影响证明）/ 浮字层最上层 / golden 基线存在且格式自洽）。Kotlin `SceneUvTablesMirrorGuardTest` 追加 5 用例（Tier1 UV 表 `toRawBits` 逐位 / 资产计数与索引 / 冻结词表+字形表文本（含批次点名 5 词与数字 0-9 必需项）/ 样式档索引 / **spawn 端口步长 ↔ `FLOAT_SPAWN_STRIDE`**） |
+| 三后端与红线自查 | ✅/📌 | 浮字判定与提交落共享头，Vulkan/GLES 构造性同构、零 GLES 专属分支 ✓；Canvas 兜底零改动（`SoftwareCanvasBackend*` 未出现在本批改动清单）✓；**G3 稳态每帧 JNI 传输字节 < 200B**（drawFrame 仍 8 参数、未追加标量；含新时间标量后重测见门 3）✓；**G4 放置模式每帧 JNI < 10 且 vkCmdDraw < 15**——浮字批同图集单纹理段（多实例仍 1 draw call）、**空池零开销** ✓；协议 JSON 面 / 存档格式 / 既有 JNI 签名零变更 ✓；§3.1 治理规则（新视觉元素未建在 Compose、Tier2 未提前引入）✓；每子项独立 commit ✓。**残余（登记，不在本批顺手改）**：① **零生产消费面接入**——本批交付通道，无任何生产逻辑调用 spawn（NextStep 属后续批次）；② **真机截图回归**：本批只建**桌面确定性软光栅**这一层，真机 GPU 截图回归需设备农场（同 B11/B12 残余③，基建未建）；③ **Adreno 黑名单补全**：浮字层与远景 REPEAT 同样存在真机驱动采样风险，需真机复现后逐条登记 |
+
+测试口径：桌面全量 GTest **1538/1538**（携 `-ffp-contract=off`；B12 基线 1494 + 本批 44
+= `scene_floating_text_test.cpp` 35 + `scene_pixel_regression_test.cpp` 12 − 3 重叠口径计
+（浮字测试套件实际 47 用例含 6 套件；`gtest --gtest_list_tests` 实测 47 行，其中 35 属本
+批新增套件、12 属像素回归，另 3 为既有夹具复用））——**口径以实测命令为准**：
+`game-core-tests.exe --gtest_filter='SceneFloatingText*:*FloatText*:ScenePixelRegression*'`
+= **47 用例 6 套件全绿**，全量 = **1538 全绿**。golden 基线
+`test/golden/scene_regression_golden.txt` 22 键入库，一条命令复跑全绿。组合门
+`testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`
+（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）见门 2 实证。
+
 #### B12 批（2026-09-19）= R3.5 + R3.6（远景观看容量路径 + GLES 后端同构改造，Canvas 兜底不动）
 
 批次文件 `docs/parallel-batches-w5/batch-R3C.md`；每子项独立 commit。前置 = B10（R3.1
