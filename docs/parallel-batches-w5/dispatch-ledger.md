@@ -78,6 +78,7 @@
 - **看护定时任务**：id `automation-705a7610-3f53-42c4-9328-be0ea456855d`，名称"重构编排看护：每10分钟盯进度（B14起=WorkBuddy AI）"，cron `*/10 * * * *`（2026-09-19 21:33 看护恢复时重建）。旧 id `a0d2f496-565a-40a6-9400-25e9d89032a0`（移交用户前遗留）已随移交空转；若仍在运行应由用户删除，其触发轮读到《看护已恢复》条会按新指令执行。
 - **缺陷清单**：—
 - **监控日志**：
+  - 2026-09-20 00:33 截屏：B15 调研健康——系统读透 SectAtlasAssembler / 运行时消费链（AtlasAsyncPipeline+软渲像素源）/ build-atlas.mjs 函数常量 / SoftwareCanvasBackend 图集消费面 / SpriteAtlasDef 生成物与 KTX loader；无授权弹窗、无停滞。
   - 2026-09-20 00:30 **B14 验收通过 + B15 经 WorkBuddy 派发（本轮跨验收与派发）**：验收详见 B14 行（亲跑两门全绿、残余③闭合）；B15 = R6.1 图集离线化（batch-R6A.md 就绪后）经 WorkBuddy AI 派发（焦点红线六步 + 绑 XianxiaSectNative 工作区；新会话"实施批次 B15 并自检"已处理 17s 开跑）。**R4 阶段收官，进入 R6 阶段**（R6.1 图集离线化 → R6.2 数值外置 → §CI 执法收官）。
   - 2026-09-19 23:34 **B14 转 verifying**：子会话交付最终报告（report-B14-completion.md 16.6KB 已入库；含逐门实测输出、对拍重定基线清单、R4.4 口径逐条对照；自述组合门第三轮 22:28 起跑、测试段零失败、XML 23:11 实证）；git 干净、四笔提交在案；看护占锁 23:35 亲跑门 1（桥+GTest 重建+ctest）与门 2（组合门 --rerun-tasks）。
   - 2026-09-19 21:46 截屏：B14 推进健康——实施+守卫成形，正做对拍重定基线（NativeBackedRngTest 基线位移断言 = RESIDUAL 分区不再委托属设计内行为变更）+ C++ rng_test.cpp 新分区快照计数守卫；桥携 rng_manager.h 改动后台重建中（1 后台任务运行中），全量 GTest 排队；无授权弹窗。
