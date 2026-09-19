@@ -206,6 +206,39 @@ static uint32_t g_sceneAtlasTexId = 0;
  *  互不串批；无 native 句柄，shutdownRenderer 无需清理（同 g_mapBatcher 纪律） */
 static SpriteBatcher g_overlayBatcher;
 
+// ============================================================
+// 浮字通道（重构方案 2026-09-17 R3.8/B13）
+//
+// 浮动文字（伤害/治疗/词条提示）走**预烘焙 sprite + C++ 对象池**路线：
+//   - Tier1 字形资产在构建期入图集（scene_uv_tables.h kFloatUv 单一权威）；
+//   - 实例池 g_floatPool 全 C++ 持有，唯一写入入口是**低频事件驱动**的
+//     sceneSpawnFloatingText（JNI 端口），动画由帧时间累加器在 C++ 内推进；
+//   - 每帧绘制只在 drawFrame 尾部追加一次浮字批构建（**零每帧 JNI**）；
+//   - 空池 = 零 draw call（buildFloatTextBatch 直接返回）；
+//   - shutdownRenderer 复位池纪元（g_floatPool.reset）。
+// 图层序：浮字在**最上层**（地图层 → 叠加层 → 浮字）。
+// 线程契约：与 g_scene 同（渲染线程单消费者；spawn 与 drawFrame 同线程）。
+// ============================================================
+static scene::FloatTextPool g_floatPool;
+/** 浮字批专用构建器（跨帧复用容量，与地图/崖壁/叠加层各用独立 static） */
+static SpriteBatcher g_floatBatcher;
+/**
+ * 浮字动画帧时间累加器（秒）。
+ *
+ * **为什么不在 drawFrame 追加时间标量**：既有 `drawFrame` 8 参数签名是
+ * R3.2 建立的 ABI 契约（红线"既有 JNI 签名零变更"）——为浮字动画新增
+ * 标量属 ABI 变更，须单独豁免 + 双端同步 + 既有等价守卫逐条复跑。
+ * 本批选择**零 ABI 变更**路线：C++ 侧按固定标称帧步长（1/60s）自累加，
+ * 完全确定性（GTest 可重现同一时刻采样）、不查系统时钟、不跨线。
+ * 长时间运行与真实墙钟的漂移对浮字（1.1s 寿命）无观感影响；
+ * 若未来需要墙钟精确对齐，可另开端口推送（登记豁免）而不动 drawFrame。
+ */
+static float g_floatNowSeconds = 0.0f;
+/** 固定标称帧步长（秒）= 1/60；改此值须同步浮字动画守卫的期望值 */
+static constexpr float kFloatFrameStepSeconds = 1.0f / 60.0f;
+/** 浮字时间标量上界（与 FloatTextPool::kFloatMaxTimeSeconds 同语义，防长期累加溢出） */
+static constexpr float kFloatTimeWrapSeconds = 1.0e6f;
+
 /** R3.5 远景观看容量路径开关（Kotlin `FarViewGroundPolicy` 判定后经
  *  nativeSetFarViewGroundQuad 推送：设备白名单 + 缩放到位 + 图集就绪 + 用户旗标
  *  四重门的**合取结果**）。默认 false = 逐格地面（与 R3.5 前现状逐位一致），
@@ -519,6 +552,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     // R3.5 远景容量开关随纪元复位（新 surface 首帧由 Kotlin 侧重新判定推送）
     g_farViewGroundQuad.store(false, std::memory_order_relaxed);
     g_sceneAtlasTexId = 0;
+    // 浮字池随纪元复位（R3.8/B13）：旧 surface 的浮字实例与动画时刻不得残留
+    // 到新 surface（池实例/纪元序号/遥测计数/时间累加器一并清零）
+    g_floatPool.reset();
+    g_floatNowSeconds = 0.0f;
     // resize 请求通道清残留：shutdownRenderer 后到达旧表面的 pending
     // 请求不得作用于新 surface（同 g_cropSmooth 的代际残留纪律）
     g_resizeRequested.store(false, std::memory_order_relaxed);
@@ -1328,6 +1365,50 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetPreview(
 }
 
 /**
+ * 浮字生成（R3.8/B13）——**低频事件驱动**通道，非每帧。
+ *
+ * 入参扁平序（10 个标量，`kFloatSpawnStride` = 10）：
+ *   [0] worldX          世界锚点 X（格）
+ *   [1] worldY          世界锚点 Y（格）
+ *   [2] assetIndex      Tier1 资产索引（词条 0..kFloatWordCount-1 /
+ *                       单字形 kFloatGlyphBaseIndex..）
+ *   [3] charCount       连续字形数（词条 = 词条字数；数字串 = 位数）
+ *   [4] styleIndex      样式档（kFloatStyle* 0..3）
+ *   [5] scale           附加缩放（<=0 或非有限 → 拒绝）
+ *   [6] riseScale       上浮速度倍率（<=0 或非有限 → 拒绝）
+ *   [7] bounce          是否播放暴击弹跳（非 0 = true）
+ *   [8] reserved        保留（须为 0；非 0 直接拒绝，防未来协议歧义）
+ *   [9] reserved2       保留（须为 0）
+ *
+ * **零每帧 JNI 纪律**：本端口只在游戏事件（伤害结算/治疗/词条提示）发生时
+ * 调用，绝不由渲染循环驱动；动画/上浮/淡出全在 C++ 池内时间驱动。
+ * 池满覆盖最旧（不报错、不阻塞调用方）——溢出经 g_floatPool.stats() 可观测。
+ * 非法参数（非有限坐标 / 越界索引 / 保留位非 0）**静默拒绝**（不入池、不崩溃）。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSpawnFloatingText(
+    JNIEnv* env, jobject /*thiz*/, jfloatArray spawnData) {
+    if (spawnData == nullptr) return;
+    const jsize n = env->GetArrayLength(spawnData);
+    if (n < scene::kFloatSpawnStride) return;
+    float v[scene::kFloatSpawnStride];
+    env->GetFloatArrayRegion(spawnData, 0, scene::kFloatSpawnStride, v);
+
+    // 保留位协议守卫：非 0 = 调用方与 native 版本不匹配 → 拒绝（防静默错读）
+    if (v[8] != 0.0f || v[9] != 0.0f) return;
+
+    const int32_t assetIndex = static_cast<int32_t>(v[2]);
+    const int32_t charCount = static_cast<int32_t>(v[3]);
+    const int32_t styleIndex = static_cast<int32_t>(v[4]);
+
+    g_floatPool.spawn(
+        v[0], v[1], assetIndex, charCount, styleIndex,
+        g_floatNowSeconds,
+        scene::kFloatAssetCount,
+        v[5], v[6], v[7] != 0.0f);
+}
+
+/**
  * 每帧绘制（R3.2 新路径唯一帧入口）：相机标量 + 覆盖标志（G3 <200B/帧），
  * 场景数据从 SceneStore 消费（sceneSet* / sceneUpdate* 变化驱动维护）。
  *
@@ -1337,6 +1418,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetPreview(
  * 位 1–6 为 R3.3 启用：四类叠加层几何在本函数内由 scene_draw.h 生成
  * （旧路径的每帧逐 rect 跨线由此退役；其数据经 sceneSetSelection /
  * sceneSetDemolishMarkers / sceneSetPreview 变化驱动导入）。
+ * 层序（R3.8）：天空 → 崖壁 → 地图 → 叠加层 → **浮字（最上层）**。
  */
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
@@ -1350,6 +1432,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
 
     // 相机段：消毒 + 投影 + 视野边界（与 setCamera 单实现）
     updateCameraGlobals(camX, camY, scale, vpW, vpH);
+
+    // 浮字时间标量推进（C++ 内自累加——零 ABI 变更，见 g_floatNowSeconds 说明）
+    g_floatNowSeconds += kFloatFrameStepSeconds;
+    if (g_floatNowSeconds >= kFloatTimeWrapSeconds) g_floatNowSeconds = 0.0f;
+    g_floatPool.advance(g_floatNowSeconds);
 
     const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
 
@@ -1423,6 +1510,34 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
     // 层序与旧 Kotlin 路径严格一致。地图层/图集未就绪时仍须绘制（旧路径的
     // 网格线与高亮本就不依赖瓦片层；预览精灵的图集守卫在生成核心内）
     drawOverlayLayerInternal(overlayFlags, vpW, vpH);
+
+    // 浮字层（R3.8/B13）：**最上层**（叠加层之上）。空池 = 零 draw call；
+    // 图集未就绪整层跳过（与地图层/叠加层预览精灵同守卫语义）。零每帧 JNI。
+    if (g_sceneAtlasTexId != 0) {
+        scene::FloatTextParams fp;
+        fp.instances = &g_floatPool.slot(0);
+        fp.instanceCount = scene::FloatTextPool::capacity();
+        fp.nowSeconds = g_floatNowSeconds;
+        fp.atlasTexId = g_sceneAtlasTexId;
+        fp.uv = scene::kFloatUv;
+        fp.assetCount = scene::kFloatAssetCount;
+        fp.glyphBaseIndex = scene::kFloatGlyphBaseIndex;
+        fp.tileSize = static_cast<float>(g_scene.tileSize());
+        fp.baseWorldHeight = scene::kFloatBaseWorldHeight;
+        fp.viewLeft = g_viewLeft;
+        fp.viewTop = g_viewTop;
+        fp.viewRight = g_viewRight;
+        fp.viewBottom = g_viewBottom;
+        // 提交顺序即 draw call 序：浮字整批一个纹理段（同图集）——
+        // 空池时 buildFloatTextBatch 不 begin/不 submit ⇒ 零 draw call
+        scene::buildFloatTextBatch(g_floatBatcher, g_projMatrix, fp,
+            [](uint32_t texId, const SpriteVertex* verts, int count) {
+                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+            });
+        if (g_floatBatcher.droppedSprites > 0) {
+            logBatcherOverflowOncePerSecond("float", g_floatBatcher.droppedSprites);
+        }
+    }
 }
 
 // ============================================================
