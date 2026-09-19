@@ -67,8 +67,8 @@
 
 ## 当前状态
 
-- **看护锁**：2026-09-19 08:28
-- **状态**：`in_progress`（用户 08:2x 口头"继续"恢复编排；看护已接管轮询。B10 施工见下）
+- **看护锁**：2026-09-19 08:33
+- **状态**：`verifying`（B10 已交最终报告 + 工作区干净；看护亲自复跑验收门中）
 - **当前批**：B10（R3.1+R3.2 SceneStore+JNI 面重构，批次文件 `batch-R3A.md`）
 - **派发渠道**：B10 = **ZCode**（施工中，不动）；**B11 起 = Qoder**（用户 2026-09-19 08:0x 指示改回；默认模型即可，Ctrl+N 新建任务；焦点红线六步）
 - **派发时间**：2026-09-19 05:54（ZCode Ctrl+N 新任务，输入指令回车，截屏确认开跑）
@@ -99,6 +99,7 @@
   - 2026-09-19 08:14 截屏：B10 与上轮同点——第三轮完整门仍在跑（子会话 sleep 420+grep 轮询 gate3 日志，命令活跃非停滞）；本轮曾误聚焦看护会话自身，点侧栏 B10 会话项切回。
   - 2026-09-19 08:15 **用户指示暂停**：看护 cron 已删除（automation-1c2977cb）。B10 子会话保持运行。恢复时：①截屏看 B10 状态；②按手册重建看护 cron（B11 起派发渠道=Qoder）；③从台账状态接续。
   - 2026-09-19 08:28 **编排恢复**（用户口头"继续"）：占锁、状态回 `in_progress`。侧栏会话列表默认视图不含 B10 会话（仅显示看护自身与 B06–B08），经搜索面板定位到 B10 会话（标题"读取 docs/parallel-batches-w5/batch-R3A.md…"）并截屏确认。旁证：直接读子会话门日志 `/tmp/junit_gate3.log`（Git Bash 下即 AppData\Local\Temp）——**第三轮完整组合门 BUILD SUCCESSFUL in 26m35s，339 任务全 executed，GATE_EXIT=0**（08:27:33 落盘）。截屏显示子会话正在汇总第三轮判定数字（python 解析 XML），输入框为"运行中"态，非停滞；注：看护本轮曾按 Esc 关闭搜索面板，经复核**未打断**子会话（其后仍在推进）。工作区仍有未提交改动（R3.2 面：NativeBridge.cpp/.kt、VulkanRenderBackend.kt、build-atlas.mjs、scene_draw.h/scene_uv_tables.h/scene_equivalence_test.cpp/镜像守卫），仅 R3.1 已提交（ba0901c89）——待其提交+出报告后转 verifying。下轮重点：确认最终报告与提交谱系。
+  - 2026-09-19 08:33 **B10 收尾 → 转 verifying**：子会话依次提交 `ba0901c89`（R3.1 SceneStore 模块，+433 行 3 文件）、`242440778`（R3.2 JNI 面重构，10 文件 +2494/-717）、`cd5df439b`（文档三件套 +45 行），**工作区干净**；截屏确认最终报告已出（输入框空闲），报告自陈：GTest 1476/1476（基线 1456+20）、组合门 BUILD SUCCESSFUL 26m35s/339 executed、六模块 7825/0 失败/17 既有跳过（engine 3344、Diff* 50 类 273 用例 0 skip）、G3 每帧 ≈36B 达成、灰度旗标 `NativeEngineFlag.sceneStoreRender` 默认 true、JNI 新增 8 端口登记豁免、drawAllTiles 标 deprecated 保留、Canvas 兜底零改动；并诚实登记三处门禁/自查暴露的自身缺陷（崖壁层双路重复绘制、fade 写回时序、生成器 hash 漏覆盖）。**看护开始亲自复跑，不采信自述**：门 1（重建对拍桥 + GTest 二进制 + ctest）后台运行中，日志 `/tmp/caretaker_b10_gtest.log`；随后门 2 组合门。提交谱系与文档三件套（方案 §7.2 B10 行 / CHANGELOG 4.01.15 段内 / cpp-engine.md 进展行）已核对在库。
   - 2026-09-19 00:00 **队列清理**：发现 3 条滞留看护触发堆积于 ZCode 输入队列（响应出错暂停所致），逐条删除完毕，防三重派工。
   - 2026-09-19 00:08 B09 经 ZCode 派发（焦点红线全过），截屏确认子会话正确复述 4 子项+6 门并开跑。
   - 2026-09-19 00:13 截屏：B09 调研深入——残留执行器现状明确（nativeSettleMonth/Year 返回 JSON 信封、Kotlin 手工解析），读 proto/编码器/GameViewStore 并派并行探索代理理清 C++ 信封生产面与 G2 列级导出面。
