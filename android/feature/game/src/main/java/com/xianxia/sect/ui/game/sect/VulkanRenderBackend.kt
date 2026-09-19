@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.sect
 
 import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.RenderBackend
@@ -15,8 +16,14 @@ import com.xianxia.sect.core.render.SpriteAtlasDef
  * ## 职责
  * - [resize] → NativeBridge.resizeRenderer（交换链重建）
  * - [setCamera] → NativeBridge.setCamera（独立相机通道）
- * - [renderFrame] → beginFrame → drawAllTiles（含命令总线建筑快照）→
- *   drawSprite（预览覆盖层）→ 指标 → submitFrame
+ * - [renderFrame] → beginFrame → 天空背景 → 场景绘制（按
+ *   [NativeEngineFlag.sceneStoreRender] 双路，R3.2 灰度共存）：
+ *   - **新路径（默认）**：pushSceneUpdates（场景变化驱动导入 C++ SceneStore）+
+ *     drawFrame(相机, overlayFlags)——Kotlin 不再每帧传全量数组；
+ *   - **旧路径（回滚臂）**：setFadeAlpha + drawIslandCliffs + drawAllTiles
+ *     （17 参数全量数组，行为 = R3.2 前现状，保留一个版本周期）；
+ *   两路消费 C++ 同一份绘制核心（scene_draw.h）——像素等价由构造保证。
+ *   → drawSprite（预览覆盖层）→ 指标 → submitFrame
  * - [release] → NativeBridge.shutdownRenderer（surface 销毁时由宿主调用）
  *
  * ## 数据流
@@ -37,6 +44,22 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     private var cachedCamY = 0f
     @Volatile
     private var cachedScale = 1f
+
+    // ── SceneStore 新路径的场景引用追踪（R3.2）──
+    // 渲染线程单消费者：与 C++ SceneStore 导入端口同线程顺序执行；
+    // 引用变化即推送（场景数据全部为 remember/快照稳定引用——
+    // RenderCommandBus.postBuildingData copyOf / RoadMaskTracker 等价早退 /
+    // CloudLayerAnimator.snapshot / derivedStateOf 重算均产出新引用），
+    // 内容未变时零 JNI。surface 重建 = 新后端实例，追踪基线随实例复位，
+    // 首帧重推全部场景（C++ 侧 shutdownRenderer 已同步清空 SceneStore）。
+    private var pushedTerrain: IntArray? = null
+    private var pushedBuildings: FloatArray? = null
+    private var pushedBuildingCount: Int = -1
+    private var pushedCrops: FloatArray? = null
+    private var pushedRoads: IntArray? = null
+    private var pushedClouds: FloatArray? = null
+    private var pushedCliffs: FloatArray? = null
+    private var pushedAtlasTexId: Int = -1
 
     init {
         // 渲染特性开关推送：surface 重建后 C++ globals 已重置为默认全开，
@@ -76,19 +99,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         // Camera 平移/缩放不影响背景（Screen Space / Background Layer）。
         drawSkyBackground()
 
-        // 地图淡入 alpha 推送：渲染线程每帧计算（EaseOutCubic 纯时钟驱动），
-        // C++ g_fadeAlpha 乘算 drawAllTiles 全部 quad——预览/高亮 drawRect 不受影响
-        NativeBridge.setFadeAlpha(host.fadeAlpha)
-
-        // 浮空岛崖壁层（世界空间；z 序：天空 → 崖壁 → 地面——先于瓦片/建筑绘制，
-        // 地面层覆盖内缘接缝）。布局数据由 IslandCliffBridge 一次性预计算（地图尺寸/种子
-        // 变化时重建；Camera 平移/缩放不重建——本条目不参与帧率门控数据变更）。
-        // 置于 setFadeAlpha 之后：崖壁层与瓦片层共用同帧淡入 alpha（零相位差）。
-        // 不依赖图集纹理（走独立纹理）——图集未就绪时崖壁仍可绘制。
-        if (frame.islandCliffData != null) {
-            drawIslandCliffs(frame)
-        }
-
         // 从命令总线读取建筑数据快照（一次性读取，消除 TOCTOU 竞态）
         // 对标 UE ENQUEUE_RENDER_COMMAND：建筑变更即时送达，不依赖 Compose 重组时序
         // busWasDirty：建筑数据本次刚被推送——frame.selectedBuildingIndex 是
@@ -105,33 +115,13 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
             frame.buildingCount.coerceAtMost((frame.buildingData?.size ?: 0) / 5)
         }
 
-        // 从 RenderFrame 读取瓦片数据 + SpriteAtlasDef 编译时常量
-        if (host.atlasTextureId != 0) {
-            NativeBridge.drawAllTiles(
-                tileData = frame.tileData,
-                cols = host.renderConfig.worldWidthCells,
-                rows = host.renderConfig.worldHeightCells,
-                buildingData = effectiveBuildingData,
-                buildingCount = effectiveBuildingCount,
-                buildingVisible = frame.buildingVisible,
-                tileSize = host.renderConfig.tileSize,
-                atlasTexId = host.atlasTextureId,
-                uvMap = SpriteAtlasDef.TILE_UV_MAP,
-                buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP,
-                // 灵田作物数据：低频变化走帧率门控 RenderFrame，
-                // C++ 侧按进度计算阶段索引 + 淡化 alpha（与 Kotlin SpiritCropRender 同数学）
-                cropData = frame.spiritCropData,
-                cropUVMap = SpriteAtlasDef.CROP_UV_MAP,
-                // 逻辑帧插值：作物进度帧间平滑权重（仅渲染契约）
-                frameAlpha = frame.currentAlpha,
-                // 云层实例数据（渲染线程逐帧生成快照——双后端共享同一份 host.cloudData，
-                // 与 C++ 侧同一快照保证像素级一致；cloudUVMap 与 SpriteAtlasDef 同源）
-                cloudData = host.cloudData,
-                cloudUVMap = SpriteAtlasDef.CLOUD_UV_MAP,
-                // 石板道路每格位掩码 + UV（双后端按位掩码合成主体/边缘/转角/十字装饰）
-                roadData = frame.roadData,
-                roadUVMap = SpriteAtlasDef.ROAD_UV_MAP
-            )
+        // 场景绘制按灰度旗标双路（R3.2 灰度共存——两路消费 C++ 同一份绘制核心，
+        // 像素等价由构造保证 + SceneEquivalenceTest 顶点流对照锁定）
+        if (NativeEngineFlag.sceneStoreRender) {
+            renderSceneStorePath(frame, viewportW, viewportH,
+                effectiveBuildingData, effectiveBuildingCount)
+        } else {
+            renderLegacyDrawAllTilesPath(frame, effectiveBuildingData, effectiveBuildingCount)
         }
 
         // 普通选中高亮（选中建筑金色描边——动态叠加，独立 draw calls，不烘焙进瓦片层）
@@ -166,6 +156,152 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         recordMetrics()
         NativeBridge.submitFrame()
         return true
+    }
+
+    /**
+     * 新路径（R3.2 生产默认）：场景数据变化驱动导入 C++ SceneStore +
+     * [NativeBridge.drawFrame]（相机标量 + overlay 标志，每帧 ≈36B——
+     * G3 <200B 达成）。崖壁/地图层序与相机消毒段在 C++ drawFrame 内，
+     * 与旧路径共享同一绘制核心；UV 表由 C++ 生成常量消费，
+     * Kotlin 不再每帧传 SpriteAtlasDef 数组。
+     */
+    private fun renderSceneStorePath(
+        frame: RenderFrame,
+        viewportW: Int,
+        viewportH: Int,
+        buildingData: FloatArray?,
+        buildingCount: Int
+    ) {
+        pushSceneUpdates(frame, buildingData, buildingCount)
+        NativeBridge.drawFrame(
+            camX = cachedCamX,
+            camY = cachedCamY,
+            scale = cachedScale,
+            viewportW = viewportW,
+            viewportH = viewportH,
+            overlayFlags = if (frame.buildingVisible) OVERLAY_FLAG_BUILDING_VISIBLE else 0,
+            fadeAlpha = host.fadeAlpha,
+            frameAlpha = frame.currentAlpha
+        )
+    }
+
+    /**
+     * 旧路径（灰度回滚臂，[NativeEngineFlag.sceneStoreRender]=false）：
+     * setFadeAlpha + drawIslandCliffs + drawAllTiles（17 参数全量数组每帧跨线）。
+     * 行为 = R3.2 前现状——崖壁层与瓦片层共用同帧淡入 alpha（零相位差），
+     * 不依赖图集纹理（崖壁走独立纹理，图集未就绪时崖壁仍可绘制）。
+     */
+    private fun renderLegacyDrawAllTilesPath(
+        frame: RenderFrame,
+        buildingData: FloatArray?,
+        buildingCount: Int
+    ) {
+        // 地图淡入 alpha 推送：渲染线程每帧计算（EaseOutCubic 纯时钟驱动），
+        // C++ g_fadeAlpha 乘算 drawAllTiles 全部 quad——预览/高亮 drawRect 不受影响
+        NativeBridge.setFadeAlpha(host.fadeAlpha)
+
+        // 浮空岛崖壁层（世界空间；z 序：天空 → 崖壁 → 地面——先于瓦片/建筑绘制，
+        // 地面层覆盖内缘接缝）。布局数据由 IslandCliffBridge 一次性预计算
+        //（地图尺寸/种子变化时重建；Camera 平移/缩放不重建）。
+        if (frame.islandCliffData != null) {
+            drawIslandCliffs(frame)
+        }
+
+        // 从 RenderFrame 读取瓦片数据 + SpriteAtlasDef 编译时常量
+        if (host.atlasTextureId != 0) {
+            @Suppress("DEPRECATION") // 灰度回滚臂：旧路径保留一个版本周期（R3.2 红线）
+            NativeBridge.drawAllTiles(
+                tileData = frame.tileData,
+                cols = host.renderConfig.worldWidthCells,
+                rows = host.renderConfig.worldHeightCells,
+                buildingData = buildingData,
+                buildingCount = buildingCount,
+                buildingVisible = frame.buildingVisible,
+                tileSize = host.renderConfig.tileSize,
+                atlasTexId = host.atlasTextureId,
+                uvMap = SpriteAtlasDef.TILE_UV_MAP,
+                buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP,
+                // 灵田作物数据：低频变化走帧率门控 RenderFrame，
+                // C++ 侧按进度计算阶段索引 + 淡化 alpha（与 Kotlin SpiritCropRender 同数学）
+                cropData = frame.spiritCropData,
+                cropUVMap = SpriteAtlasDef.CROP_UV_MAP,
+                // 逻辑帧插值：作物进度帧间平滑权重（仅渲染契约）
+                frameAlpha = frame.currentAlpha,
+                // 云层实例数据（渲染线程逐帧生成快照——双后端共享同一份 host.cloudData，
+                // 与 C++ 侧同一快照保证像素级一致；cloudUVMap 与 SpriteAtlasDef 同源）
+                cloudData = host.cloudData,
+                cloudUVMap = SpriteAtlasDef.CLOUD_UV_MAP,
+                // 石板道路每格位掩码 + UV（双后端按位掩码合成主体/边缘/转角/十字装饰）
+                roadData = frame.roadData,
+                roadUVMap = SpriteAtlasDef.ROAD_UV_MAP
+            )
+        }
+    }
+
+    /**
+     * SceneStore 场景数据推送（R3.2 新路径；渲染线程调用）。
+     *
+     * 变化驱动：仅当数据引用（或建筑数）相对上次推送变化时才触 JNI——
+     * 场景数据生产者全部产出稳定引用：
+     * - tileData：remember(基座, 建筑集) 占位副本（建筑变动一次 copyOf）；
+     * - buildingData：RenderCommandBus.postBuildingData copyOf（每 post 一新引用）
+     *   或帧率门控 RenderFrame 的 remember 数组；
+     * - spiritCropData：derivedStateOf 重算（作物进度变化 = 每旬级）；
+     * - roadData：RoadMaskTracker.syncTo 内容等价早退返回稳定引用；
+     * - cloudData：CloudLayerAnimator.snapshot（脏帧才刷新）；
+     * - islandCliffData：remember(尺寸/种子/掩码) 一次性预计算。
+     * 内容未变时本函数零 JNI 调用；surface 重建后新实例基线为空 → 首帧全量重推
+     * （C++ SceneStore 已由 shutdownRenderer 清空，两侧一致）。
+     *
+     * @param frame 当前帧（地形/作物/道路/云/崖壁来源）
+     * @param buildingData 建筑快照（与旧路径 drawAllTiles 传入同一份：总线优先）
+     * @param buildingCount 建筑数（已钳制）
+     */
+    private fun pushSceneUpdates(frame: RenderFrame, buildingData: FloatArray?, buildingCount: Int) {
+        if (frame.tileData !== pushedTerrain) {
+            NativeBridge.sceneSetTerrain(
+                frame.tileData,
+                host.renderConfig.worldWidthCells,
+                host.renderConfig.worldHeightCells,
+                host.renderConfig.tileSize
+            )
+            pushedTerrain = frame.tileData
+        }
+        if (buildingData !== pushedBuildings || buildingCount != pushedBuildingCount) {
+            NativeBridge.sceneUpdateBuildings(buildingData, buildingCount)
+            pushedBuildings = buildingData
+            pushedBuildingCount = buildingCount
+        }
+        if (frame.spiritCropData !== pushedCrops) {
+            NativeBridge.sceneUpdateCrops(frame.spiritCropData, countOf(frame.spiritCropData, CROP_DATA_STRIDE))
+            pushedCrops = frame.spiritCropData
+        }
+        if (frame.roadData !== pushedRoads) {
+            NativeBridge.sceneUpdateRoads(frame.roadData, frame.roadData?.size ?: 0)
+            pushedRoads = frame.roadData
+        }
+        val clouds = host.cloudData
+        if (clouds !== pushedClouds) {
+            NativeBridge.sceneUpdateClouds(clouds, countOf(clouds, CLOUD_DATA_STRIDE))
+            pushedClouds = clouds
+        }
+        if (frame.islandCliffData !== pushedCliffs) {
+            NativeBridge.sceneSetCliffLayout(
+                frame.islandCliffData,
+                countOf(frame.islandCliffData, IslandCliffBridge.PIECE_STRIDE)
+            )
+            pushedCliffs = frame.islandCliffData
+        }
+        if (host.atlasTextureId != pushedAtlasTexId) {
+            NativeBridge.sceneSetAtlasTexture(host.atlasTextureId)
+            pushedAtlasTexId = host.atlasTextureId
+        }
+    }
+
+    /** 步长数组 → 条目数（null = 0） */
+    private fun countOf(data: FloatArray?, stride: Int): Int {
+        if (data == null) return 0
+        return data.size / stride
     }
 
     /** 帧指标记录（热控降级可观测 + 帧计数——提取以收敛 renderFrame 行数） */
@@ -445,6 +581,15 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
 
         /** 建筑数据单条步长（[gx, gy, sw, sh, nameIdx]） */
         private const val SELECTED_DATA_STRIDE = 5
+
+        /** drawFrame overlayFlags bit0：建筑层可见（其余位预留 R3.3 C++ 几何生成） */
+        private const val OVERLAY_FLAG_BUILDING_VISIBLE = 0x1
+
+        /** 灵田作物数据单条步长（[gx, gy, progress01]，与 C++ scene::kCropStride 同值） */
+        private const val CROP_DATA_STRIDE = 3
+
+        /** 云实例数据单条步长（[x, y, w, h, spriteIndex, alpha]，与 CloudLayerAnimator 同值） */
+        private const val CLOUD_DATA_STRIDE = 6
 
         /** 缩放下限（防御除零） */
         private const val MIN_SCALE = 0.001f

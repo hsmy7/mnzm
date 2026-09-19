@@ -276,10 +276,24 @@ object NativeBridge {
      */
     external fun drawSky()
 
-    /** 统一瓦片绘制（地面+装饰+建筑+地砖合并到图集单次 draw call） */
+    /** 统一瓦片绘制（地面+装饰+建筑+地砖合并到图集单次 draw call）。
+     *
+     * **Deprecated（R3.2/B10）**：生产默认走 SceneStore 新路径
+     * （[sceneSetTerrain]/[sceneUpdateBuildings]/[sceneUpdateCrops]/
+     * [sceneUpdateRoads]/[sceneUpdateClouds]/[sceneSetCliffLayout]/
+     * [sceneSetAtlasTexture] + [drawFrame]——17 参数全量数组每帧跨线退役）。
+     * 旧路径**保留不删除**（灰度红线：新旧共存一个版本周期），由
+     * [NativeEngineFlag.sceneStoreRender]=false 即时回退启用；C++ 侧两路
+     * 消费同一绘制核心（scene_draw.h），像素等价由构造保证。
+     */
     // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
     // LongParameterList 抑制为声明性豁免，参数语义见逐行注释
     @Suppress("LongParameterList")
+    @Deprecated(
+        message = "R3.2 起生产默认走 SceneStore 路径（drawFrame）；本端口为灰度回滚臂，" +
+            "保留一个版本周期后随回滚臂批次删除",
+        level = DeprecationLevel.WARNING
+    )
     external fun drawAllTiles(
         tileData: IntArray,          // 展平瓦片类型数组 [0..N]
         cols: Int, rows: Int,        // 地图网格尺寸
@@ -297,6 +311,89 @@ object NativeBridge {
         cloudUVMap: FloatArray? = null, // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可为 null）
         roadData: IntArray? = null, // 石板道路每格位掩码（展平，0=非道路；可为 null）
         roadUVMap: FloatArray? = null // 道路 UV 映射 [u0,v0,u1,v1] × ROAD_RECTS 数（可为 null）
+    )
+
+    // ============================================================
+    // SceneStore 新绘制路径（R3.2/B10）——场景数据变化驱动导入 +
+    // drawFrame(相机, 覆盖标志) 每帧调用
+    //
+    // 【JNI 面豁免登记】（沿 R0.2/B06 先例）：8 端口属"场景数据导入 +
+    // 每帧绘制"通道，无法沿用既有通道（nativeExecute ActionId 业务事务面 /
+    // 镜像导出面均非渲染场景数据形状）；即 drawAllTiles 17 参数全量数组
+    // 每帧跨线的退役替身。C++ 侧见 NativeBridge.cpp 同名实现。
+    // ============================================================
+
+    /**
+     * 地形一次性导入（C++ SceneStore；地图切换/建筑占位变化时重导，
+     * 非每帧）。与 gamecore 地形单一权威同值（Kotlin 侧消费的
+     * flatTileData 含建筑占位标记，与旧路径 drawAllTiles 传入值逐位同源）。
+     *
+     * @param tileData 展平瓦片类型数组（index = row * cols + col）
+     */
+    external fun sceneSetTerrain(tileData: IntArray, cols: Int, rows: Int, tileSize: Int)
+
+    /**
+     * 建筑集更新（变化驱动推送——RenderCommandBus 快照或帧数据引用变化时）。
+     *
+     * @param buildingData [gx, gy, spriteW, spriteH, nameIdx] × N（与旧路径同形）
+     * @param buildingCount 建筑数（C++ 侧与数组容量钳制，同旧路径 effectiveCount）
+     */
+    external fun sceneUpdateBuildings(buildingData: FloatArray?, buildingCount: Int)
+
+    /**
+     * 灵田作物集更新（变化驱动推送；progress 的帧间平滑在 C++ 绘制核心）。
+     *
+     * @param cropData [gx, gy, progress01] × N（与旧路径同形）
+     */
+    external fun sceneUpdateCrops(cropData: FloatArray?, cropCount: Int)
+
+    /**
+     * 石板道路掩码更新（变化驱动推送；RoadMaskTracker 内容等价早退保证
+     * 稳定引用——引用变化即内容变化）。
+     *
+     * @param roadData 展平 1-based 编码（0=非道路，与旧路径同形）；null = 清空道路层
+     */
+    external fun sceneUpdateRoads(roadData: IntArray?, cellCount: Int)
+
+    /**
+     * 云实例快照更新（渲染线程 CloudLayerAnimator 生成、变化时推送）。
+     *
+     * @param cloudData [x, y, w, h, spriteIndex, alpha] × N（与旧路径同形）
+     */
+    external fun sceneUpdateClouds(cloudData: FloatArray?, cloudCount: Int)
+
+    /**
+     * 崖壁布局导入（IslandCliffBridge 一次性预计算的稳定布局；
+     * 地图尺寸/种子/纹理掩码变化时重导）。纹理 ID 表仍走
+     * [setIslandCliffTextures] 既有端口。
+     */
+    external fun sceneSetCliffLayout(cliffData: FloatArray?, pieceCount: Int)
+
+    /**
+     * 图集纹理 ID 注入（上传完成时；0 = 未就绪——C++ 侧跳过地图层，
+     * 崖壁层不受影响，与旧路径 atlasTextureId==0 守卫语义一致）。
+     */
+    external fun sceneSetAtlasTexture(atlasTexId: Int)
+
+    /**
+     * 每帧绘制（新路径唯一帧入口）：相机标量 + 覆盖标志 + 帧级 alpha
+     * （G3 <200B/帧）；场景数据由 C++ SceneStore 持有，Kotlin 不再传
+     * SpriteAtlasDef UV 数组（UV 表由 build-atlas.mjs 同源生成进 C++）。
+     *
+     * @param overlayFlags 覆盖标志位掩码：bit0 = buildingVisible（建筑层可见）；
+     *   其余位预留 R3.3（网格线/预览/选中/拆除高亮的 C++ 几何生成）
+     * @param fadeAlpha 地图淡入 alpha（C++ 侧 clamp [0,1]，同 setFadeAlpha 语义）
+     * @param frameAlpha 逻辑帧插值因子（作物进度帧间平滑权重，同旧路径 frameAlpha）
+     */
+    // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
+    // LongParameterList 抑制为声明性豁免（与 drawAllTiles 同约定），参数语义见逐行注释
+    @Suppress("LongParameterList")
+    external fun drawFrame(
+        camX: Float, camY: Float, scale: Float,
+        viewportW: Int, viewportH: Int,
+        overlayFlags: Int,
+        fadeAlpha: Float,
+        frameAlpha: Float
     )
 
     /**

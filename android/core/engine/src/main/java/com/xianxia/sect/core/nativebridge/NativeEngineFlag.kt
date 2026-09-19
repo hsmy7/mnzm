@@ -100,6 +100,28 @@ object NativeEngineFlag {
     var dirtyColumnExport: Boolean = true
 
     /**
+     * 场景渲染路径灰度开关（重构方案 R3.2/B10：drawAllTiles 17 参数全量数组
+     * → SceneStore 场景真相 + drawFrame(相机, 覆盖标志)）。
+     *
+     * - **true（生产默认）**：Vulkan/GLES 渲染走新路径——场景数据（地形/道路/
+     *   建筑/作物/云/崖壁）变化驱动导入 C++ [SceneStore]
+     *   （sceneSetTerrain / sceneUpdateBuildings / sceneUpdateCrops /
+     *   sceneUpdateRoads / sceneUpdateClouds / sceneSetCliffLayout /
+     *   sceneSetAtlasTexture），每帧只剩 [NativeBridge.drawFrame]
+     *   （相机 5 标量 + overlay 标志 + 淡入/插值 alpha，G3 <200B/帧）；
+     * - **false（回滚臂，共存一个版本周期）**：旧路径——setCamera +
+     *   drawAllTiles(17 参数全量数组) 每帧全量跨线（旧行为不删除，即时回退）。
+     *
+     * 语义边界：仅切**渲染数据通道**，渲染线程模型/后端降级链/Canvas 兜底路径
+     * （R3.6 红线：SoftwareCanvasBackend 直接消费 RenderFrame，不经本旗标）零变更；
+     * 两臂像素等价由 C++ 单份绘制核心（scene_draw.h）构造性保证 +
+     * SceneEquivalenceTest 顶点流逐位对照锁定。回滚 = 旗标默认值改 false
+     * 重编/重启；进程级开关（首次访问前确定）。
+     */
+    @Volatile
+    var sceneStoreRender: Boolean = true
+
+    /**
      * 在 [block] 执行期间临时设置模式（对拍/转发测试用，自动恢复）。
      */
     inline fun <T> withMode(mode: Mode, block: () -> T): T {

@@ -17,20 +17,13 @@
 #include "SpriteBatcher.h"
 #include "KtxLoader.h"
 #include "SkyBackground.h"
-// 建筑占地尺寸查找表（由 SpriteAtlasDef.kt 生成，禁止手改——
-// 运行 ./gradlew generateFootprintHeader 重新生成）
-#include "footprint_table.h"
-// 石板道路求解器 + 渲染合成器（位掩码→形态/描边判定与
-// 逐格合成操作序列收敛为单一权威——Kotlin RoadTiling 与双端渲染路径
-// 统一引用 gamecore/map/road_system.h + road_compositor.h）
-#include "gamecore/map/road_system.h"
-#include "gamecore/map/road_compositor.h"
-// 绘制层序合成器（立体层装饰 ↔ 建筑按地面接触点归并；锚点公式双端同式）
-#include "gamecore/map/draw_order.h"
-
-// UV 向内收缩 0.5 texel（匹配 Cocos2d-x CC_FIX_ARTIFACTS_BY_STRECHING_TEXEL）
-// 防止 CLAMP_TO_EDGE + NEAREST 采样下 UV 边界采样到相邻图素，消除彩色缝合线
-static constexpr float UV_EPSILON = 0.5f / static_cast<float>(ATLAS_W);
+// SceneStore 场景真相 + 场景绘制核心（重构方案 2026-09-17 R3.1/R3.2）——
+// 旧 drawAllTiles 路径与新 SceneStore 路径消费同一构建逻辑（scene_draw.h），
+// 像素等价由构造保证 + scene_equivalence_test 顶点流对照锁定。
+// 占地/UV/渲染常量表由 build-atlas.mjs 同源生成进 C++（scene_uv_tables.h，
+// 仓库内生成物——footprint_table.h 的消费位由此接替，生成任务保留）。
+#include "scene/scene_store.h"
+#include "scene/scene_draw.h"
 
 // ============================================================
 // 日志宏
@@ -120,7 +113,7 @@ static void applyCliffTextures(const uint32_t* ids, int32_t count) {
     g_cliffTexCount = count;
 }
 
-// 视口世界坐标范围（由 setCamera 更新，用于 drawAllTiles 的可见性检测）
+// 视口世界坐标范围（由 setCamera/drawFrame 更新，用于瓦片/崖壁层可见性检测）
 static float g_viewLeft   = 0.0f;
 static float g_viewTop    = 0.0f;
 static float g_viewRight  = 0.0f;
@@ -137,8 +130,8 @@ static int g_worldPixelsH = 0;
 // 渲染质量热控状态（由 setRenderQuality 更新，渲染线程单消费者读）
 // std::atomic 保证 Compose 线程写 / 渲染线程读的可见性（仿 setCamera 独立通道）。
 // 装饰层跳过条件与 Canvas 侧 SoftwareCanvasBackend 对齐：
-//   decorationsDisabled || qualityFactor < DECOR_QUALITY_THRESHOLD
-//   （阈值由生成 TextureAtlas.h 提供——与 SpriteAtlasDef 同源）
+//   decorationsDisabled || qualityFactor < scene::kDecorQualityThreshold
+//   （阈值由生成 scene_uv_tables.h 提供——与 SpriteAtlasDef 同源）
 // ============================================================
 
 /** 热控质量因子（0-1，1 = 全质量） */
@@ -166,32 +159,49 @@ static std::atomic<bool> g_selectionHighlight{true};
  *  不含 g_scale 条件，行为 = 特性未实现前现状，用于低端设备兜底） */
 static std::atomic<bool> g_decorLod{true};
 
-// SHADOW_OFFSET_TILES / SHADOW_ALPHA 由生成 TextureAtlas.h 提供
-//（与 SpriteAtlasDef 同源）
+// SHADOW_OFFSET_TILES / SHADOW_ALPHA 由生成 scene_uv_tables.h 提供
+//（与 SpriteAtlasDef 同源；绘制核心 scene_draw.h 消费）
 
 // ============================================================
 // 地图淡入过渡状态（由 setFadeAlpha 更新，渲染线程单消费者读）
 // 与 Kotlin 侧 FadeTransition（core:engine）同一数学来源：
 //   触发：RenderThread 启动时 NativeSurfaceView.fadeIn()（首次/重入/降级统一）
 //   计算：渲染线程每帧 alphaAt(elapsedNs, durationNs)（EaseOutCubic，纯时钟驱动）
-//   应用：drawAllTiles 所有 add 的 alpha 乘算；drawRect/drawSprite（预览/高亮）不受影响
+//   应用：地图层（drawAllTiles/drawFrame）全部 add 的 alpha 乘算；
+//   drawRect/drawSprite（预览/高亮）不受影响
 // ============================================================
 
 /** 地图淡入 alpha（0-1，1 = 完全不透明） */
 static std::atomic<float> g_fadeAlpha{1.0f};
 
-// 作物插值状态（文件级 static——shutdownRenderer 需清空，
-// 防 surface 代际残留：旧 surface 的进度基准会污染新 surface 播种闪帧）
-static std::map<int64_t, float> g_lastCropProgress;
-static std::vector<int64_t> g_activeCropKeys;
+// 作物插值状态收敛进 scene::CropSmoothingState（g_cropSmooth，SceneStore 段）——
+// 新旧两条绘制路径消费同一平滑状态（单份绘制核心的配套单例）
 
 // ── 帧批量构建器（跨帧复用）──
-// 渲染线程单消费者：drawAllTiles/drawIslandCliffs 仅由 RenderThread 经 JNI 调用，
-// 无并发；grow 一次后堆缓冲跨帧复用，根除每帧 5 次 new/memcpy/delete ×2 的分配链。
-// 清理策略与 g_lastCropProgress 同纪律（文件级状态须在 shutdownRenderer 说明）：
-// batcher 无 native 句柄，无需清理，仅容量驻留 ≤2×16384×32B=1MB 堆。
+// 渲染线程单消费者：drawAllTiles/drawFrame/drawIslandCliffs 仅由 RenderThread
+// 经 JNI 调用，无并发；grow 一次后堆缓冲跨帧复用，根除每帧 5 次 new/memcpy/
+// delete ×2 的分配链。清理策略与 g_cropSmooth 同纪律（文件级状态须在
+// shutdownRenderer 说明）：batcher 无 native 句柄，无需清理，仅容量驻留
+// ≤2×16384×32B=1MB 堆。
 static SpriteBatcher g_mapBatcher;
 static SpriteBatcher g_edgeBatcher;
+
+// ============================================================
+// SceneStore 场景真相（重构方案 2026-09-17 R3.1/R3.2）
+//
+// 场景数据（地形/道路/建筑/作物/云/崖壁）下沉 native 侧持有：
+// Kotlin 仅在数据变化时经 sceneSet*/sceneUpdate* 端口导入（变化驱动，
+// 非每帧），每帧绘制只剩 drawFrame(camera, overlayFlags)（G3 <200B/帧）。
+// 线程契约：与每帧绘制同（渲染线程单消费者，导入与消费同线程顺序执行）。
+// 纪元纪律：shutdownRenderer 复位（g_scene.reset/g_cropSmooth.clear/
+// 图集纹理 ID 清零），Kotlin 侧新 surface 的新后端实例首帧重推全部场景。
+// 旧 drawAllTiles 路径不消费本状态（两路数据面独立，经灰度旗标互斥选择）。
+// ============================================================
+static scene::SceneStore g_scene;
+static scene::CropSmoothingState g_cropSmooth;
+/** SceneStore 路径的图集纹理 ID（sceneSetAtlasTexture 注入；0 = 未上传，
+ *  与旧路径 host.atlasTextureId==0 跳过地图层的守卫语义一致） */
+static uint32_t g_sceneAtlasTexId = 0;
 
 // 批量构建器容量溢出限频日志（此前极小缩放下静默丢弃无日志）
 static int64_t s_lastOverflowLogNs = 0;
@@ -227,18 +237,12 @@ static void noteBatcherOverflow(int dropped) {
     s_cleanFramesSinceOverflow = 0;
 }
 
-// 云层实例数据单条步长（[x, y, w, h, spriteIndex, alpha]，与 CloudLayerAnimator.CLOUD_DATA_STRIDE 同值）
-static constexpr int CLOUD_DATA_STRIDE = 6;
-
-/** 检查世界坐标矩形是否与视口相交（可见性检测） */
-static inline bool isRectVisible(float x, float y, float w, float h) {
-    // 矩形完全在视口之外才返回 false
-    return !(x + w <= g_viewLeft || x >= g_viewRight ||
-             y + h <= g_viewTop || y >= g_viewBottom);
-}
+// 云层步长常量与可见性检测收敛进 scene_draw.h（kCloudStride/sceneRectVisible）——
+// 单份绘制核心的组成部分，桥侧不再重复持有
 
 // 瓷砖类型常量（TILE_GROUND / TILE_BUILDING）
-// 由生成 TextureAtlas.h 提供（与 SpriteAtlasDef.TileType.index 同源）
+// 由生成 TextureAtlas.h 提供（与 SpriteAtlasDef.TileType.index 同源）；
+// SceneStore 路径的常量面（UV 表/占地表/瓦片分类）由 scene_uv_tables.h 提供
 
 // ============================================================
 // 纹理图集
@@ -370,7 +374,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
 
     g_lastInitError.store(0, std::memory_order_release);  // 新尝试：清上次错误码
     // 清跨 surface 代际残留的 resize 请求（防旧尺寸误 resize 新 surface——
-    // 同 g_lastCropProgress 的清理理由）
+    // 同 g_cropSmooth 的清理理由）
     g_resizeRequested.store(false, std::memory_order_relaxed);
 
     ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
@@ -497,10 +501,14 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     s_cleanFramesSinceOverflow = 0;
     // 作物插值状态清空：
     // 旧 surface 的进度基准不得污染新 surface 的播种/收获插值
-    g_lastCropProgress.clear();
-    g_activeCropKeys.clear();
+    g_cropSmooth.clear();
+    // SceneStore 场景真相随纪元复位：旧 surface 的场景状态不得残留到
+    // 新 surface（新后端实例首帧经 sceneSet*/sceneUpdate* 重推全部场景，
+    // 与 g_groundTexId/g_fadeAlpha 等清理同纪律）
+    g_scene.reset();
+    g_sceneAtlasTexId = 0;
     // resize 请求通道清残留：shutdownRenderer 后到达旧表面的 pending
-    // 请求不得作用于新 surface（同 g_lastCropProgress 的代际残留纪律）
+    // 请求不得作用于新 surface（同 g_cropSmooth 的代际残留纪律）
     g_resizeRequested.store(false, std::memory_order_relaxed);
     // SkyBackground：surface 重建/降级链切换后恢复默认天空配置，防代际残留；
     // 新 surface 初始化后由 NativeSurfaceView 重放当前 skyConfig（仿 pushRenderQuality）
@@ -713,12 +721,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_beginFrame(
     if (g_renderer) g_renderer->beginFrame();
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_setCamera(
-    JNIEnv* /*env*/, jobject /*thiz*/,
-    jfloat camX, jfloat camY, jfloat scale,
-    jint vpW, jint vpH) {
-
+/**
+ * 相机全局量更新（setCamera 与 drawFrame 共用——消毒/投影/视野边界单实现）。
+ * 渲染线程调用（每帧路径）。
+ */
+static void updateCameraGlobals(jfloat camX, jfloat camY, jfloat scale,
+                                jint vpW, jint vpH) {
     // 防御：scale=0/NaN → 除零产生 NaN 投影矩阵 → 全屏黑无法恢复。
     // 统一 sanitize 后所有下游（投影矩阵/视口范围/LOD 门控）使用同一安全值
     // （与 Canvas 侧 SoftwareCanvasBackend.sanitizeScale 语义对齐：非法 → 1.0）
@@ -733,17 +741,25 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setCamera(
     if (!(safeCamY > -1e9f && safeCamY < 1e9f)) safeCamY = 0.0f;
 
     g_scale = safeScale;
-    // 统一俯视投影：纵向压缩系数与 Kotlin 相机数学同源（TextureAtlas.h 生成）
-    const float topdownYScale = TOPDOWN_Y_SCALE;
+    // 统一俯视投影：纵向压缩系数与 Kotlin 相机数学同源（生成常量）
+    const float topdownYScale = scene::kTopdownYScale;
     cameraProjMatrix(g_projMatrix, safeCamX, safeCamY, safeScale, (float)vpW, (float)vpH, topdownYScale);
     if (g_renderer) g_renderer->setProjection(g_projMatrix);
 
-    // 记录视口世界坐标范围（供 drawAllTiles 可见性检测使用；Y 轴按俯视压缩
+    // 记录视口世界坐标范围（供瓦片/崖壁层可见性检测使用；Y 轴按俯视压缩
     // 系数扩大可见世界高度，与投影矩阵可见带严格一致）
     g_viewLeft   = safeCamX;
     g_viewTop    = safeCamY;
     g_viewRight  = safeCamX + (float)vpW / safeScale;
     g_viewBottom = safeCamY + (float)vpH / (safeScale * topdownYScale);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setCamera(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat camX, jfloat camY, jfloat scale,
+    jint vpW, jint vpH) {
+    updateCameraGlobals(camX, camY, scale, vpW, vpH);
 }
 
 /** 渲染质量热控状态推送（仿 setCamera 独立通道：Compose 线程写、渲染线程单消费者读） */
@@ -772,7 +788,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderFlags(
 
 /**
  * 地图淡入 alpha 推送（渲染线程每帧调用，Compose 线程不写）。
- * 只影响 drawAllTiles 的地图层 quad alpha；drawRect/drawSprite（预览/高亮）
+ * 只影响地图层 quad alpha（旧 drawAllTiles 路径经本端口推送；新 drawFrame
+ * 路径以帧参数携带）；drawRect/drawSprite（预览/高亮）
  * 不受影响——与 Canvas 侧（预览/高亮用独立 Paint）行为双端一致。
  */
 extern "C" JNIEXPORT void JNICALL
@@ -826,575 +843,416 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawSky(
     g_sky.markDrawn();
 }
 
-/**
- * 立体层装饰绘制项（树——收集后与建筑按地面接触点归并绘制）。
- *
- * 层序键 = bottomY（地面接触点 = 格底边世界像素）；同键时建筑在后
- * （契约见 gamecore/map/draw_order.h）。
- */
-struct ObjectDecorDrawItem {
-    float bottomY;
-    float x, y, w, h;
-    float u0, v0, u1, v1;
-};
+// ============================================================
+// 场景绘制提交辅助（新旧路径共用——单实现防漂移）
+// ============================================================
 
-/** 单帧立体层装饰收集上限（视口最大格数上界，防异常数据把缓冲撑爆） */
-static constexpr size_t kMaxObjectDecorItems = 20000;
+/** 装饰层跳过判定（溢出降级/热控关闭/质量因子/缩放 LOD——与旧 drawAllTiles
+ *  内联判定同式；两路调用点读同一组全局量） */
+static bool decorSkipActive(bool overflowDegrade) {
+    return overflowDegrade ||
+           g_decorationsDisabled.load() ||
+           g_qualityFactor.load() < scene::kDecorQualityThreshold ||
+           (g_decorLod.load() && g_scale < scene::kDecorQualityThreshold);
+}
 
-/** 可见建筑绘制项（预计算几何 + 底边 Y，供层序归并） */
-struct BuildingDrawItem {
-    float bottomY;
-    float x, y, w, h;
-    float floorX, floorY, floorW, floorH;  // 占地矩形（阴影用）
-    int uvIndex;
-    bool shadow;
-};
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
-    JNIEnv* env, jobject /*thiz*/,
-    jintArray tileData,          // 展平瓦片类型数组 [0..N]
-    jint cols, jint rows,        // 地图网格尺寸
-    jfloatArray buildingData,    // 建筑数据 [x,y,w,h,nameIdx] × count
-    jint buildingCount,          // 建筑数量
-    jboolean buildingVisible,    // 是否显示建筑
-    jint tileSize,
-    jint atlasTexId,             // 图集纹理 ID
-    jfloatArray uvMap,           // UV 映射 [u0,v0,u1,v1] × tileTypeCount
-    jfloatArray buildingUVMap,
-    jfloatArray cropData,        // 灵田作物数据 [gx, gy, progress01] × N（可 null）
-    jfloatArray cropUVMap,       // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（可 null）
-    jfloat frameAlpha,           // 逻辑帧插值因子（作物进度帧间平滑）
-    jfloatArray cloudData,       // 云层实例数据 [x, y, w, h, spriteIndex, alpha] × N（可 null）
-    jfloatArray cloudUVMap,      // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可 null）
-    jintArray roadData,          // 石板道路每格位掩码（展平 [0..N]，0=非道路；可 null）
-    jfloatArray roadUVMap) {     // 道路 UV 映射 [u0,v0,u1,v1] × ROAD_RECTS 数（可 null）
-
-    if (!g_renderer || !tileData || !uvMap) return;
-
-    // 深度防御：tileData 是唯一无长度
-    // 校验的数组（building/crop/uvMap 均有防御）——rows×cols 超数组实际长度
-    // 即堆越界读 → SIGSEGV。生产路径同源一致，此为防篡改兜底。
-    const jsize tileCount = env->GetArrayLength(tileData);
-    if ((jsize)rows * cols > tileCount) return;
-
-    // ★ 地图淡入 alpha（本帧单次读取——所有 add 共用同一值，避免逐次 atomic load）
-    const float fadeAlpha = g_fadeAlpha.load();
-
-    // ★ 瓦片几何扩展因子：每个瓦片扩展 0.5 屏幕像素，消除相邻瓦片间 1px 裂缝。
-    // 当 scale 极小（<0.001）时用 scale=1 防止除零。
-    const float EPS_SCALE = (g_scale > 0.001f) ? g_scale : 1.0f;
-    const float GAP_EPSILON = 0.5f / EPS_SCALE;
-
-    jint* tiles = env->GetIntArrayElements(tileData, nullptr);
-    jfloat* uvs = env->GetFloatArrayElements(uvMap, nullptr);
-    jsize uvCount = env->GetArrayLength(uvMap) / 4;
-
-    // 跨帧复用构建器：引用绑定文件级 static，堆缓冲 grow 一次后驻留
-    SpriteBatcher& batcher = g_mapBatcher;
-    batcher.begin(g_projMatrix);
-
-    // ★ 溢出降级标志（帧始单次读取）：上一帧溢出 → 本帧跳过装饰层
-    //   （草/石/树/云），把容量让给地面/道路/建筑/作物等必需层；
-    //   仍溢出再走既有截断（丢弃顺序 = 后添加者，地面层永远完整）
-    const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
-
-    // ---- 1. 瓦片层 ----
-    // 地面：单张无缝纹理整图铺（REPEAT 采样，UV=世界坐标/tileSize）。
-    // 1 UV 单位 = 1 格 = 32 世界像素 → 地面纹理 64×64 每格 2× 降采样，与逐格绘制同分辨率；
-    // 整图单 quad 消除逐格接缝。g_groundTexId==0（未上传）时回退逐格地面保证可见。
-    const float tileSizeF = (float)tileSize;
-
-    // 地面绘制约束：整图 REPEAT 地面 quad 在部分 Adreno 驱动上采样异常（黑屏），
-    //   且与图集非同一纹理需独立 draw。恒走逐格地面（图集 GROUND 精灵，
-    //   与软件渲染路径同源同表现）——整图 quad 代码保留
-    //   （GROUND_QUAD_ENABLED 关闭），待驱动/采样问题定位后再启用。
-    constexpr bool GROUND_QUAD_ENABLED = false;
-    if (GROUND_QUAD_ENABLED && g_groundTexId != 0) {
-        SpriteBatcher groundBatcher;
-        groundBatcher.begin(g_projMatrix);
-        float gx0 = std::max(0.0f, g_viewLeft);
-        float gy0 = std::max(0.0f, g_viewTop);
-        float gx1 = std::min((float)(cols * tileSize), g_viewRight);
-        float gy1 = std::min((float)(rows * tileSize), g_viewBottom);
-        if (gx1 > gx0 && gy1 > gy0) {
-            groundBatcher.add(g_groundTexId,
-                gx0, gy0, gx1 - gx0, gy1 - gy0,
-                gx0 / tileSizeF, gy0 / tileSizeF,
-                gx1 / tileSizeF, gy1 / tileSizeF,
-                1.0f, 1.0f, 1.0f, fadeAlpha);
-        }
-        const int groundVerts = groundBatcher.end();
-        if (groundVerts > 0) {
-            g_renderer->draw(groundBatcher.vertices, groundVerts, g_groundTexId);
-        }
-    }
-
-    // 可见范围钳制迭代（平板省电）：若直接双重循环遍历全部
-    // rows×cols（128×128=16384 格）再逐格剔除，平板默认视口仅可见 ~1700 格、
-    // 绝大多数为无效遍历。
-    // 按 g_view* 世界坐标钳制行列区间（setCamera 同帧先写，天然可用）；
-    // 装饰精灵底边居中锚定在格上（可向上伸出 maxH−1 格、左右各 (maxW−1)/2 格），
-    // 故钳制区间须按生成常量 DECOR_MARGIN_COLS/ROWS 外扩——否则视口边缘外的
-    // 装饰越界段（树冠）会被整块漏绘（旧实现固定 ±1 格对应"2×2 树 + 1 格偏移"）。
-    const int minCol = std::max(0, (int)std::floor(g_viewLeft / tileSizeF) - DECOR_MARGIN_COLS);
-    const int maxCol = std::min(cols - 1, (int)std::ceil(g_viewRight / tileSizeF) + DECOR_MARGIN_COLS);
-    const int minRow = std::max(0, (int)std::floor(g_viewTop / tileSizeF) - DECOR_MARGIN_ROWS);
-    const int maxRow = std::min(rows - 1, (int)std::ceil(g_viewBottom / tileSizeF) + DECOR_MARGIN_ROWS);
-
-    // 立体层装饰 / 建筑绘制项缓冲（跨帧复用容量，避免逐帧堆分配；
-    // 渲染线程单消费者，见文件头"渲染线程"约定）
-    static std::vector<ObjectDecorDrawItem> decorItems;
-    static std::vector<BuildingDrawItem> buildingItems;
-    static std::vector<float> decorBottomY;
-    static std::vector<float> buildingBottomY;
-    static std::vector<uint8_t> mergedOrder;
-    decorItems.clear();
-    buildingItems.clear();
-    decorBottomY.clear();
-    buildingBottomY.clear();
-    mergedOrder.clear();
-
-    for (int row = minRow; row <= maxRow; row++) {
-        jint rowBase = row * cols;
-        float wy = (float)(row * tileSize);
-        for (int col = minCol; col <= maxCol; col++) {
-            int tile = static_cast<int>(tiles[rowBase + col]);
-
-            float wx = (float)(col * tileSize);
-
-            // 可见性检测（钳制区间内仍保留——钳制边界含装饰溢出 1 格，地面格用精确检测）
-            if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
-
-            // (A) 地面底图：逐格绘制（图集 GROUND 精灵，与软件渲染路径同源）。
-            //     整图 REPEAT quad 采样异常黑屏（GROUND_QUAD_ENABLED 关闭），
-            //     恒走逐格地面
-            if (!GROUND_QUAD_ENABLED || g_groundTexId == 0) {
-                int gIdx = 0;
-                for (int gv = 0; gv < GROUND_VARIANT_COUNT; gv++) {
-                    if (tile == GROUND_VARIANTS[gv]) { gIdx = tile; break; }
-                }
-                if (gIdx < (int)uvCount) {
-                    batcher.add(atlasTexId,
-                        wx - GAP_EPSILON, wy - GAP_EPSILON,
-                        (float)tileSize + 2.0f * GAP_EPSILON,
-                        (float)tileSize + 2.0f * GAP_EPSILON,
-                        uvs[gIdx * 4] + UV_EPSILON,
-                        uvs[gIdx * 4 + 1] + UV_EPSILON,
-                        uvs[gIdx * 4 + 2] - UV_EPSILON,
-                        uvs[gIdx * 4 + 3] - UV_EPSILON,
-                        1.0f, 1.0f, 1.0f, fadeAlpha);
-                }
-            }
-
-            // (B) 装饰叠加层（草/石/树）
-            // 热控降质/装饰关闭/缩放 LOD 时跳过（g_scale 条件经 g_decorLod 门控；
-            // 与 Canvas RenderLodPolicy 同阈值 0.6 双端对齐）
-            // 显示尺寸/绘制层/实体区间取自生成常量（TextureAtlas.h DECOR_TILE_MIN/MAX
-            // + TILE_SPRITE_W/H + TILE_OBJECT_LAYER，源数据 = build-atlas.mjs LAYOUT.tiles）
-            //——新增装饰种类只改 LAYOUT，渲染侧零硬编码瓦片序号
-            const bool skipDecor = overflowDegrade ||
-                                   g_decorationsDisabled.load() ||
-                                   g_qualityFactor.load() < DECOR_QUALITY_THRESHOLD ||
-                                   (g_decorLod.load() && g_scale < DECOR_QUALITY_THRESHOLD);
-            if (!skipDecor && tile >= DECOR_TILE_MIN && tile <= DECOR_TILE_MAX &&
-                tile < TILE_TYPE_COUNT) {
-                int uvIdx = tile;
-                if (uvIdx < (int)uvCount) {
-                    float u0 = uvs[uvIdx * 4] + UV_EPSILON;
-                    float v0 = uvs[uvIdx * 4 + 1] + UV_EPSILON;
-                    float u1 = uvs[uvIdx * 4 + 2] - UV_EPSILON;
-                    float v1 = uvs[uvIdx * 4 + 3] - UV_EPSILON;
-
-                    // 锚点 = 格底边居中（对象"站在"自己格子上）：显示尺寸按素材纵横比
-                    // 取值（小数格），树冠因此向上伸出、草石略高于格——与 Kotlin
-                    // SoftwareCanvasBackend.drawGroundRow 及 gamecore/map/draw_order.h
-                    // decorDrawRect 同式（双端逐位一致）
-                    float geo[4];
-                    gamecore::map::decorDrawRect(wx, wy, tileSizeF,
-                        TILE_SPRITE_W[tile], TILE_SPRITE_H[tile], geo);
-                    if (TILE_OBJECT_LAYER[tile] == 0) {
-                        // 地面层（草/石）：跟随地面逐格绘制
-                        batcher.add(atlasTexId,
-                            geo[0] - GAP_EPSILON,
-                            geo[1] - GAP_EPSILON,
-                            geo[2] + 2.0f * GAP_EPSILON,
-                            geo[3] + 2.0f * GAP_EPSILON,
-                            u0, v0, u1, v1,
-                            1.0f, 1.0f, 1.0f, fadeAlpha);
-                    } else if (decorItems.size() < kMaxObjectDecorItems) {
-                        // 立体层（树）：收集后与建筑按地面接触点归并绘制（第 3 段）——
-                        // 若仍留在地面层，北侧建筑会把树冠无脑压掉（层序错误）
-                        decorItems.push_back(ObjectDecorDrawItem{
-                            wy + tileSizeF, geo[0], geo[1], geo[2], geo[3],
-                            u0, v0, u1, v1});
-                    }
-                }
-            }
-            // (C) 建筑占位格（tile = TILE_BUILDING）：地面已画，建筑精灵由下面的建筑层叠加上去
-        }
-    }
-
-    // ---- 2. 石板道路层（装饰之上、建筑之下 —— 与 Canvas 侧烘焙顺序一致） ----
-    // 逐格合成操作序列由单一权威 gamecore/map/road_compositor.h 产出
-    //（主体→描边条→转角件→十字中心；物理下沉——本层只做
-    // 操作 → SpriteBatcher 的数据装配，不再持有合成逻辑/UV 硬编码）。
-    if (roadData && roadUVMap) {
-        jint* roads = env->GetIntArrayElements(roadData, nullptr);
-        jfloat* ruvs = env->GetFloatArrayElements(roadUVMap, nullptr);
-        jsize roadArrCount = env->GetArrayLength(roadData);
-        const jsize roadUVCount = env->GetArrayLength(roadUVMap);
-        // 防御：roadUVMap 须容纳 kRoadSpriteCount 组 [u0,v0,u1,v1]（上游 SpriteAtlasDef.ROAD_UV_MAP 恒为 12）
-        if ((jsize)rows * cols <= roadArrCount && roadUVCount >= gamecore::map::kRoadSpriteCount * 4) {
-            for (int row = minRow; row <= maxRow; row++) {
-                float wy = (float)(row * tileSize);
-                for (int col = minCol; col <= maxCol; col++) {
-                    // roadData 为 1-based 编码（0=非道路，1=单格道路，
-                    // 2..16=四邻掩码 1..15）——单格道路存储值为 1 而非 0，
-                    // 把存储值直接当掩码会把单格道路当非道路格跳过
-                    //（玩家放置的第一格无邻居 → 永不显示）
-                    const int raw = roads[row * cols + col];
-                    if (raw == 0) continue;
-                    const int mask = raw - 1;
-                    float wx = (float)(col * tileSize);
-                    if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
-
-                    // 单一权威合成器：格内局部整型几何（运行时 tileSize=48，
-                    // 4 的倍数下与浮点逐位一致——road_compositor.h 几何约定）
-                    gamecore::map::RoadDrawOp ops[gamecore::map::kMaxRoadDrawOpsPerTile];
-                    const int opCount = gamecore::map::emitRoadDrawOps(mask, tileSize, ops);
-                    for (int i = 0; i < opCount; i++) {
-                        const int si = static_cast<int>(ops[i].sprite);
-                        // 2.4 flipU 消费：左/上缘条水平镜像（深色描边边朝外）——
-                        // 交换 u0/u1（v 不变）即水平镜像采样
-                        float ru0 = ruvs[si*4] + UV_EPSILON;
-                        float ru1 = ruvs[si*4+2] - UV_EPSILON;
-                        if (ops[i].flipU) {
-                            float tmp = ru0; ru0 = ru1; ru1 = tmp;
-                        }
-                        batcher.add(atlasTexId,
-                            wx + (float)ops[i].x, wy + (float)ops[i].y,
-                            (float)ops[i].w, (float)ops[i].h,
-                            ru0, ruvs[si*4+1]+UV_EPSILON,
-                            ru1, ruvs[si*4+3]-UV_EPSILON,
-                            1.0f, 1.0f, 1.0f, fadeAlpha);
-                    }
-                }
-            }
-        }
-        env->ReleaseIntArrayElements(roadData, roads, JNI_ABORT);
-        env->ReleaseFloatArrayElements(roadUVMap, ruvs, JNI_ABORT);
-    }
-
-    // ---- 3. 建筑层 + 立体层装饰（同一画家序归并） ----
-    // 层序键 = 地面接触点（底边 Y）；同键时建筑在后（装饰被覆盖，见
-    // gamecore/map/draw_order.h）。立体装饰（树）若留在地面层，北侧建筑会把
-    // 树冠无脑压掉——归并后树冠正确地"压住"其前方（更靠南）的建筑底段。
-    jfloat* buildings = nullptr;
-    jfloat* buvs = nullptr;
-    jsize buvCount = 0;
-
-    if (buildingVisible && buildingData && buildingUVMap && buildingCount > 0) {
-        buildings = env->GetFloatArrayElements(buildingData, nullptr);
-        buvs = env->GetFloatArrayElements(buildingUVMap, nullptr);
-        buvCount = env->GetArrayLength(buildingUVMap) / 4;
-
-        // buildingCount 与数组长度取小（防御上游不一致的越界读）
-        const jsize buildingArrCount = env->GetArrayLength(buildingData) / 5;
-        const int effectiveCount = (int)std::min((jsize)buildingCount, buildingArrCount);
-
-        static const int FP_COUNT = sizeof(FP_W) / sizeof(FP_W[0]);
-
-        for (int i = 0; i < effectiveCount; i++) {
-            int idx = i * 5;
-            float gx = buildings[idx];
-            float gy = buildings[idx + 1];
-            float sw = buildings[idx + 2];   // 精灵宽度（比例尺寸，可能大于占地）
-            float sh = buildings[idx + 3];   // 精灵高度
-            int nameIdx = static_cast<int>(buildings[idx + 4]);
-
-            // 固定结构（宗门入口门楼/阶梯）nameIdx ≥ STRUCTURE_NAME_BASE：
-            // 占地来自 STRUCTURE_FP_W/H 表（供精灵底部对齐）；建筑走 FP_W/H
-            const bool isStructure = nameIdx >= STRUCTURE_NAME_BASE;
-            int fpW, fpH;
-            if (isStructure) {
-                const int si = nameIdx - STRUCTURE_NAME_BASE;
-                const int sfpCount = (int)(sizeof(STRUCTURE_FP_W) / sizeof(STRUCTURE_FP_W[0]));
-                if (si >= 0 && si < sfpCount) { fpW = STRUCTURE_FP_W[si]; fpH = STRUCTURE_FP_H[si]; }
-                else { fpW = 2; fpH = 2; }
-            } else if (nameIdx >= 0 && nameIdx < FP_COUNT) {
-                fpW = FP_W[nameIdx];
-                fpH = FP_H[nameIdx];
-            } else {
-                fpW = 2; fpH = 2;
-            }
-
-            // 精灵底部对齐于占地网格：offsetX 居中，offsetY 底部对齐
-            float offsetX = (fpW - sw) * tileSize * 0.5f;
-            float offsetY = (fpH - sh) * tileSize; // 底部对齐
-            float px = gx * tileSize + offsetX;
-            float py = gy * tileSize + offsetY;
-            float pw = sw * tileSize;
-            float ph = sh * tileSize;
-
-            // 地砖使用占地尺寸
-            float ftPx = gx * tileSize;
-            float ftPy = gy * tileSize;
-            float ftPw = fpW * tileSize;
-            float ftPh = fpH * tileSize;
-
-            // 可见性检测（使用精灵尺寸）
-            if (!isRectVisible(px, py, pw, ph)) continue;
-
-            int buvIdx = nameIdx;
-            // 负 nameIdx 会负索引越界读，须与上界一并钳制
-            if (buvIdx < 0 || buvIdx >= (int)buvCount) buvIdx = 0;
-
-            // 地面接触点（占地底边）——归并序键；上游数组已按 gridY + height 升序
-            //（Kotlin buildBuildingDataArray Y-sorting），本函数保序收集即可
-            buildingItems.push_back(BuildingDrawItem{
-                (gy + fpH) * tileSizeF,
-                px, py, pw, ph,
-                ftPx, ftPy, ftPw, ftPh,
-                buvIdx,
-                g_buildingShadows.load() && !isStructure});
-        }
-
-        // 归并绘制序：立体层装饰 + 可见建筑（两组各自已按底边 Y 升序）
-        const size_t itemCount = decorItems.size() + buildingItems.size();
-        mergedOrder.resize(itemCount);
-        if (itemCount > 0) {
-            decorBottomY.clear();
-            decorBottomY.reserve(decorItems.size());
-            for (const ObjectDecorDrawItem& d : decorItems) decorBottomY.push_back(d.bottomY);
-            buildingBottomY.clear();
-            buildingBottomY.reserve(buildingItems.size());
-            for (const BuildingDrawItem& b : buildingItems) buildingBottomY.push_back(b.bottomY);
-            gamecore::map::mergeObjectLayerOrder(
-                decorBottomY.data(), (int)decorBottomY.size(),
-                buildingBottomY.data(), (int)buildingBottomY.size(),
-                mergedOrder.data());
-        }
-
-        size_t di = 0;
-        size_t bi = 0;
-        for (size_t k = 0; k < mergedOrder.size(); k++) {
-            if (mergedOrder[k] == 0) {
-                const ObjectDecorDrawItem& d = decorItems[di++];
-                batcher.add(atlasTexId, d.x, d.y, d.w, d.h, d.u0, d.v0, d.u1, d.v1,
-                    1.0f, 1.0f, 1.0f, fadeAlpha);
-                continue;
-            }
-            const BuildingDrawItem& b = buildingItems[bi++];
-            // (A2) 建筑投影阴影（精灵之下，绘制顺序保证阴影被精灵覆盖）
-            // 半透明黑 quad + 右下偏移 0.25 格（textureId=0 = 白色纹理 × 顶点色）
-            // 坐标/常量与 BuildingRenderGeometry.shadowRect 同数学（双端一致）
-            // 固定结构（门楼/阶梯）不投影——避免阴影压到阶梯/地图底边外
-            if (b.shadow) {
-                float shx = b.floorX + tileSize * SHADOW_OFFSET_TILES;
-                float shy = b.floorY + tileSize * SHADOW_OFFSET_TILES;
-                batcher.add(0, shx, shy, b.floorW, b.floorH,
-                    0.0f, 0.0f, 0.0f, 0.0f,
-                    0.0f, 0.0f, 0.0f, SHADOW_ALPHA * fadeAlpha);
-            }
-            // (B) 建筑精灵
-            batcher.add(atlasTexId, b.x, b.y, b.w, b.h,
-                buvs[b.uvIndex * 4] + UV_EPSILON,
-                buvs[b.uvIndex * 4 + 1] + UV_EPSILON,
-                buvs[b.uvIndex * 4 + 2] - UV_EPSILON,
-                buvs[b.uvIndex * 4 + 3] - UV_EPSILON,
-                1.0f, 1.0f, 1.0f, fadeAlpha);
-        }
-    } else if (!decorItems.empty()) {
-        // 建筑层关闭/无建筑：立体装饰仍须绘制（单独成序——已按行序升序收集）
-        for (const ObjectDecorDrawItem& d : decorItems) {
-            batcher.add(atlasTexId, d.x, d.y, d.w, d.h, d.u0, d.v0, d.u1, d.v1,
-                1.0f, 1.0f, 1.0f, fadeAlpha);
-        }
-    }
-
-    // ---- 3. 灵田作物层（建筑精灵之上——作物浮在灵田建筑上） ----
-    // 数据 [gx, gy, progress01] × N；阶段索引 + 阶段内淡化 alpha 与
-    // Kotlin SpiritCropRender 同数学（阶段边界 1/3、2/3，crossfade=(p-stage/3)×3）
-    if (cropData && cropUVMap) {
-        jfloat* crops = env->GetFloatArrayElements(cropData, nullptr);
-        jfloat* cuvs = env->GetFloatArrayElements(cropUVMap, nullptr);
-        jsize cuvCount = env->GetArrayLength(cropUVMap) / 4;
-        jsize cropCount = env->GetArrayLength(cropData) / 3;
-
-        // 插值消费链：上一帧作物原始进度（key = gx/gy 网格编码）——
-        // 插值基准必须存原始逻辑值（存平滑值会累积漂移），平滑值仅用于绘制；
-        // 状态为文件级 static（g_lastCropProgress/g_activeCropKeys），
-        // shutdownRenderer 清空防 surface 代际残留
-        for (int i = 0; i < cropCount; i++) {
-            int idx = i * 3;
-            float gx = crops[idx];
-            float gy = crops[idx + 1];
-            float progress = crops[idx + 2];
-
-            // NaN/越界防御：非法进度 → 跳过（Kotlin 侧 clamp 后必为合法值，
-            // 此处为数据篡改防御层——不画任何像素）
-            if (progress != progress || progress < 0.0f || progress > 1.0f) continue;
-            // gx/gy NaN 会产生 NaN 顶点（isRectVisible 对 NaN
-            // 恒返回可见，GPU 对 NaN 顶点行为未定义）——与 Canvas 侧同式防御
-            if (gx != gx || gy != gy) continue;
-
-            // 帧间平滑（与 Kotlin SpiritCropRender.smoothedProgress 同数学：
-            // draw = prev + (cur - prev) × frameAlpha；插值基准存原始 cur）
-            // 范围检查：超 int 范围的
-            // float 转 int 是 UB（实践 INT_MIN 饱和）→ 多值收敛同 key 串扰；
-            // 真实网格坐标为小整数，1e6 上限远大于任何合法地图
-            if (gx < -1e6f || gx > 1e6f || gy < -1e6f || gy > 1e6f) continue;
-            const int64_t key = (static_cast<int64_t>(static_cast<int>(gx)) << 32) |
-                                static_cast<int64_t>(static_cast<int>(gy));
-            g_activeCropKeys.push_back(key);
-            float drawProgress = progress;
-            const auto prevIt = g_lastCropProgress.find(key);
-            if (prevIt != g_lastCropProgress.end()) {
-                const float prev = prevIt->second;
-                // frameAlpha 防御：NaN 比较恒 false
-                // 会穿透 clamp——显式 isNaN 拦截为 0（无插值 = 直接用当前进度）
-                float a = frameAlpha;
-                if (a != a) {
-                    a = 0.0f;
-                } else if (a < 0.0f) {
-                    a = 0.0f;
-                } else if (a > 1.0f) {
-                    a = 1.0f;
-                }
-                drawProgress = prev + (progress - prev) * a;
-                if (drawProgress < 0.0f) drawProgress = 0.0f;
-                if (drawProgress > 1.0f) drawProgress = 1.0f;
-            }
-            g_lastCropProgress[key] = progress;
-
-            int stage;
-            float alpha;
-            if (drawProgress < 1.0f / 3.0f) {
-                stage = 0;
-                alpha = drawProgress * 3.0f;
-            } else if (drawProgress < 2.0f / 3.0f) {
-                stage = 1;
-                alpha = (drawProgress - 1.0f / 3.0f) * 3.0f;
-            } else {
-                stage = 2;
-                alpha = (drawProgress - 2.0f / 3.0f) * 3.0f;
-            }
-            if (stage >= (int)cuvCount) continue;
-
-            float px = gx * tileSize;
-            float py = gy * tileSize;
-            if (!isRectVisible(px, py, (float)tileSize, (float)tileSize)) continue;
-
-            batcher.add(atlasTexId, px, py, (float)tileSize, (float)tileSize,
-                cuvs[stage * 4] + UV_EPSILON,
-                cuvs[stage * 4 + 1] + UV_EPSILON,
-                cuvs[stage * 4 + 2] - UV_EPSILON,
-                cuvs[stage * 4 + 3] - UV_EPSILON,
-                1.0f, 1.0f, 1.0f, alpha * fadeAlpha);
-        }
-
-        // 帧末裁剪：无作物的格清除残留进度条目（收获/拆除场景）。
-        // 复杂度 O(n×m)（std::find 嵌套）；
-        // 上界 = 同屏作物数（有界且小），未来作物 >500 时需改 unordered_set 查重。
-        // 代际残留已由 shutdownRenderer 清空（状态破坏者#1）——本裁剪只负责
-        // 同代内的收获/拆除清理。
-        for (auto it = g_lastCropProgress.begin(); it != g_lastCropProgress.end();) {
-            const bool active = std::find(g_activeCropKeys.begin(), g_activeCropKeys.end(),
-                it->first) != g_activeCropKeys.end();
-            if (!active) {
-                it = g_lastCropProgress.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        g_activeCropKeys.clear();
-
-        env->ReleaseFloatArrayElements(cropData, crops, JNI_ABORT);
-        env->ReleaseFloatArrayElements(cropUVMap, cuvs, JNI_ABORT);
-    }
-
-    // ---- 3.5 云层（世界顶部动态云朵——建筑/作物之上、UI 之下） ----
-    // 实例数据由 Kotlin CloudLayerAnimator 逐帧生成（只在世界外生成/穿越/出界消失，
-    // 速度 3 格/秒，尺寸为原生 rect × 0.4~0.8 缩放）；本段只消费快照，
-    // 与 Canvas 侧 drawClouds 同一份数据保证双端一致。
-    if (cloudData && cloudUVMap) {
-        jfloat* clouds = env->GetFloatArrayElements(cloudData, nullptr);
-        jfloat* cuvs = env->GetFloatArrayElements(cloudUVMap, nullptr);
-        jsize cuvCount = env->GetArrayLength(cloudUVMap) / 4;
-        jsize cloudCount = env->GetArrayLength(cloudData) / CLOUD_DATA_STRIDE;
-
-        // 热控降质/装饰关闭/缩放 LOD/溢出降级时跳过（与装饰层同判定——云层属装饰性环境动画）
-        const bool skipClouds = overflowDegrade ||
-                                g_decorationsDisabled.load() ||
-                                g_qualityFactor.load() < DECOR_QUALITY_THRESHOLD ||
-                                (g_decorLod.load() && g_scale < DECOR_QUALITY_THRESHOLD);
-        if (!skipClouds) {
-            for (int i = 0; i < cloudCount; i++) {
-                int idx = i * CLOUD_DATA_STRIDE;
-                float cx = clouds[idx];
-                float cy = clouds[idx + 1];
-                float cw = clouds[idx + 2];
-                float ch = clouds[idx + 3];
-                float alpha = clouds[idx + 5];
-
-                // NaN/非法值防御（数据篡改层——非法实例不画任何像素；
-                // alpha 用显式 NaN 判定：NaN 比较恒 false 会穿透区间检查）
-                if (cx != cx || cy != cy || cw != cw || ch != ch) continue;
-                if (cw <= 0.0f || ch <= 0.0f) continue;
-                if (alpha != alpha || alpha < 0.0f || alpha > 1.0f) continue;
-                if (cx < -1e6f || cx > 1e6f || cy < -1e6f || cy > 1e6f) continue;
-
-                if (!isRectVisible(cx, cy, cw, ch)) continue;
-
-                // spriteIndex → UV 索引（NaN/负值/越界统一回退 0，仿 crop 段防御风格）
-                float spriteF = clouds[idx + 4];
-                int uvIdx;
-                if (!(spriteF >= 0.0f && spriteF < (float)cuvCount)) {
-                    uvIdx = 0;
-                } else {
-                    uvIdx = static_cast<int>(spriteF);
-                }
-
-                batcher.add(atlasTexId, cx, cy, cw, ch,
-                    cuvs[uvIdx * 4] + UV_EPSILON,
-                    cuvs[uvIdx * 4 + 1] + UV_EPSILON,
-                    cuvs[uvIdx * 4 + 2] - UV_EPSILON,
-                    cuvs[uvIdx * 4 + 3] - UV_EPSILON,
-                    1.0f, 1.0f, 1.0f, alpha * fadeAlpha);
-            }
-        }
-
-        env->ReleaseFloatArrayElements(cloudData, clouds, JNI_ABORT);
-        env->ReleaseFloatArrayElements(cloudUVMap, cuvs, JNI_ABORT);
-    }
-
-    // ---- 4. 提交合并后的图集绘制 ----
-    int vertCount = batcher.end();
-    if (batcher.droppedSprites > 0) {
-        logBatcherOverflowOncePerSecond("map", batcher.droppedSprites);
+/** 地图层批提交 + 溢出遥测结算（旧 drawAllTiles 帧尾段收敛——两路共用） */
+static void submitMapBatchCommon(bool overflowDegrade, uint32_t atlasTexId) {
+    const int vertCount = g_mapBatcher.end();
+    if (g_mapBatcher.droppedSprites > 0) {
+        logBatcherOverflowOncePerSecond("map", g_mapBatcher.droppedSprites);
     }
     // 溢出遥测结算（地图层为主判定 pass：降级帧计数 + 恢复计数仅在此维护）
-    noteBatcherOverflow(batcher.droppedSprites);
+    noteBatcherOverflow(g_mapBatcher.droppedSprites);
     if (overflowDegrade) {
         s_degradeFramesTotal.fetch_add(1, std::memory_order_relaxed);
-        if (batcher.droppedSprites == 0) {
+        if (g_mapBatcher.droppedSprites == 0) {
             // 降级帧未再溢出 → 连续恢复计数满阈值解除（恢复正常渲染）
             if (++s_cleanFramesSinceOverflow >= kOverflowRecoveryCleanFrames) {
                 s_overflowDegradeActive.store(false, std::memory_order_relaxed);
             }
         }
     }
-    if (vertCount > 0) {
-        g_renderer->draw(batcher.vertices, vertCount,
-                         static_cast<uint32_t>(atlasTexId));
+    if (vertCount > 0 && g_renderer) {
+        g_renderer->draw(g_mapBatcher.vertices, vertCount, atlasTexId);
+    }
+}
+
+/** 崖壁层构建 + 逐纹理连续段提交（drawIslandCliffs 旧路径与 drawFrame 新路径共用；
+ *  观测锚点日志进程内一次，两路等价消费布局数据） */
+static void drawCliffLayerInternal(const jfloat* data, int pieceCount) {
+    // 观测锚点（进程内一次）：确认 C++ 侧消费到布局数据（真机排查按此过滤）
+    static bool s_islandCliffLogged = false;
+    if (!s_islandCliffLogged) {
+        s_islandCliffLogged = true;
+        LOGI("drawIslandCliffs: %d pieces (textures=%d)", pieceCount, (int)g_cliffTexCount);
     }
 
-    // 释放 JNI 数组
+    scene::CliffLayerParams p;
+    p.data = data;
+    p.pieceCount = pieceCount;
+    p.texIds = g_cliffTexIds;
+    p.texCount = g_cliffTexCount;
+    p.viewLeft = g_viewLeft;
+    p.viewTop = g_viewTop;
+    p.viewRight = g_viewRight;
+    p.viewBottom = g_viewBottom;
+    p.scale = g_scale;
+    p.fadeAlpha = g_fadeAlpha.load();
+
+    // 跨帧复用构建器：崖壁层与地图层各用独立 static，互不串批
+    Renderer2D* renderer = g_renderer;
+    scene::buildCliffLayer(
+        g_edgeBatcher, g_projMatrix, p,
+        [renderer](uint32_t texId, const SpriteVertex* verts, int count) {
+            if (renderer) renderer->draw(verts, count, texId);
+        });
+
+    if (g_edgeBatcher.droppedSprites > 0) {
+        logBatcherOverflowOncePerSecond("cliff", g_edgeBatcher.droppedSprites);
+    }
+    // 崖壁层溢出只登记（下帧降级由地图层装饰跳过承接，崖壁为结构层不可跳）
+    noteBatcherOverflow(g_edgeBatcher.droppedSprites);
+}
+
+// ============================================================
+// 旧绘制路径：drawAllTiles（17 参数全量数组——灰度回滚臂，保留一个版本周期）
+//
+// **deprecated（R3.2 起）**：生产默认走 SceneStore 新路径
+// （sceneSetTerrain / sceneUpdateBuildings / sceneUpdateCrops /
+//   sceneUpdateRoads / sceneUpdateClouds / sceneSetCliffLayout /
+//   sceneSetAtlasTexture + drawFrame）。
+// 回退 = NativeEngineFlag.sceneStoreRender=false（Kotlin 侧即时切回本端口）。
+// 绘制构建已收敛进 scene_draw.h 单份核心（新旧路径像素等价的构造性保证），
+// 本函数只剩 JNI 数组解包 + 参数装配 + 提交。
+// ============================================================
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
+    JNIEnv* env, jobject /*thiz*/,
+    jintArray tileData, jint cols, jint rows,
+    jfloatArray buildingData, jint buildingCount, jboolean buildingVisible,
+    jint tileSize, jint atlasTexId,
+    jfloatArray uvMap, jfloatArray buildingUVMap,
+    jfloatArray cropData, jfloatArray cropUVMap, jfloat frameAlpha,
+    jfloatArray cloudData, jfloatArray cloudUVMap,
+    jintArray roadData, jfloatArray roadUVMap) {
+
+    if (!g_renderer || !tileData || !uvMap) return;
+    const jsize tileArrCount = env->GetArrayLength(tileData);
+    if ((jsize)rows * cols > tileArrCount) return;
+
+    // JNI 数组解包（渲染线程独占的帧快照，一次性取齐与逐一取放等价；
+    // 全部 JNI_ABORT 释放——C++ 侧只读不回写）
+    jint* tiles = env->GetIntArrayElements(tileData, nullptr);
+    jfloat* uvs = env->GetFloatArrayElements(uvMap, nullptr);
+    jfloat* buildings = buildingData ? env->GetFloatArrayElements(buildingData, nullptr) : nullptr;
+    jfloat* buvs = buildingUVMap ? env->GetFloatArrayElements(buildingUVMap, nullptr) : nullptr;
+    jfloat* crops = cropData ? env->GetFloatArrayElements(cropData, nullptr) : nullptr;
+    jfloat* cuvs = cropUVMap ? env->GetFloatArrayElements(cropUVMap, nullptr) : nullptr;
+    jfloat* clouds = cloudData ? env->GetFloatArrayElements(cloudData, nullptr) : nullptr;
+    jfloat* cloudUvs = cloudUVMap ? env->GetFloatArrayElements(cloudUVMap, nullptr) : nullptr;
+    jint* roads = roadData ? env->GetIntArrayElements(roadData, nullptr) : nullptr;
+    jfloat* ruvs = roadUVMap ? env->GetFloatArrayElements(roadUVMap, nullptr) : nullptr;
+
+    const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
+
+    scene::MapLayerParams p;
+    p.viewLeft = g_viewLeft;
+    p.viewTop = g_viewTop;
+    p.viewRight = g_viewRight;
+    p.viewBottom = g_viewBottom;
+    p.scale = g_scale;
+    p.fadeAlpha = g_fadeAlpha.load();
+    p.frameAlpha = frameAlpha;
+    p.skipDecor = decorSkipActive(overflowDegrade);
+    p.skipClouds = p.skipDecor;  // 云层与装饰层同一 skip 判定（热控/LOD/溢出降级汇合）
+    p.buildingShadows = g_buildingShadows.load();
+    p.buildingVisible = buildingVisible == JNI_TRUE;
+    p.tiles = tiles;
+    p.tileCount = tileArrCount;
+    p.cols = cols;
+    p.rows = rows;
+    p.tileSize = tileSize;
+    p.atlasTexId = static_cast<uint32_t>(atlasTexId);
+    // 整图 REPEAT 地面 quad 在部分 Adreno 驱动采样异常（黑屏）——编译期关闭，
+    // 恒走逐格地面（判定形状保留，待驱动/采样问题定位后再启用）
+    p.groundQuadEnabled = false;
+    p.groundTexId = g_groundTexId;
+    p.tileUv = uvs;
+    p.tileUvCount = env->GetArrayLength(uvMap) / 4;
+    p.roads = roads;
+    p.roadCount = roads ? env->GetArrayLength(roadData) : 0;
+    p.roadUv = ruvs;
+    p.roadUvCount = ruvs ? env->GetArrayLength(roadUVMap) / 4 : 0;
+    p.buildings = buildings;
+    p.buildingClaim = buildingCount;
+    p.buildingDataFloats = buildings ? env->GetArrayLength(buildingData) : 0;
+    p.buildingUv = buvs;
+    p.buildingUvCount = buvs ? env->GetArrayLength(buildingUVMap) / 4 : 0;
+    p.crops = crops;
+    p.cropCount = crops ? env->GetArrayLength(cropData) / 3 : 0;
+    p.cropUv = cuvs;
+    p.cropUvCount = cuvs ? env->GetArrayLength(cropUVMap) / 4 : 0;
+    p.clouds = clouds;
+    p.cloudCount = clouds ? env->GetArrayLength(cloudData) / scene::kCloudStride : 0;
+    p.cloudUv = cloudUvs;
+    p.cloudUvCount = cloudUvs ? env->GetArrayLength(cloudUVMap) / 4 : 0;
+
+    scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
+    submitMapBatchCommon(overflowDegrade, static_cast<uint32_t>(atlasTexId));
+
     env->ReleaseIntArrayElements(tileData, tiles, JNI_ABORT);
     env->ReleaseFloatArrayElements(uvMap, uvs, JNI_ABORT);
     if (buildings) env->ReleaseFloatArrayElements(buildingData, buildings, JNI_ABORT);
     if (buvs) env->ReleaseFloatArrayElements(buildingUVMap, buvs, JNI_ABORT);
+    if (crops) env->ReleaseFloatArrayElements(cropData, crops, JNI_ABORT);
+    if (cuvs) env->ReleaseFloatArrayElements(cropUVMap, cuvs, JNI_ABORT);
+    if (clouds) env->ReleaseFloatArrayElements(cloudData, clouds, JNI_ABORT);
+    if (cloudUvs) env->ReleaseFloatArrayElements(cloudUVMap, cloudUvs, JNI_ABORT);
+    if (roads) env->ReleaseIntArrayElements(roadData, roads, JNI_ABORT);
+    if (ruvs) env->ReleaseFloatArrayElements(roadUVMap, ruvs, JNI_ABORT);
+}
+
+// ============================================================
+// 新绘制路径：SceneStore 导入端口 + drawFrame（R3.2——JNI 面 8 端口）
+//
+// 【JNI 面豁免登记】（沿 R0.2 nativeFpDeterminismProbe / B06
+// nativeSetDirtyExportProtobuf 先例）：8 端口属"场景数据导入 + 每帧绘制"
+// 通道，无法沿用既有通道（nativeExecute ActionId 业务事务面 / 镜像导出面
+// 均非渲染场景数据形状）；R3.2 之前唯一渲染入口 drawAllTiles 以 17 参数
+// 全量数组每帧跨线——本组端口即其退役替身（drawAllTiles deprecated 保留
+// 一个版本周期，NativeEngineFlag.sceneStoreRender 灰度互斥）。
+// ============================================================
+
+/** 地形一次性导入（展平瓦片 + 网格尺寸 + 格像素；地图切换/建筑占位变化时重导） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetTerrain(
+    JNIEnv* env, jobject /*thiz*/,
+    jintArray tileData, jint cols, jint rows, jint tileSize) {
+    if (tileData == nullptr) {
+        g_scene.setTerrain(nullptr, 0, 0, 0, 0);
+        return;
+    }
+    const jsize n = env->GetArrayLength(tileData);
+    if (n <= 0) {
+        g_scene.setTerrain(nullptr, 0, 0, 0, 0);
+        return;
+    }
+    std::vector<int32_t> tiles(static_cast<size_t>(n));
+    env->GetIntArrayRegion(tileData, 0, n, tiles.data());
+    g_scene.setTerrain(tiles.data(), n, cols, rows, tileSize);
+}
+
+/** 建筑集更新（变化驱动推送；count 与数组容量钳制语义同旧路径 effectiveCount） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneUpdateBuildings(
+    JNIEnv* env, jobject /*thiz*/,
+    jfloatArray buildingData, jint buildingCount) {
+    if (buildingData == nullptr || buildingCount <= 0) {
+        g_scene.updateBuildings(nullptr, 0);
+        return;
+    }
+    const jsize floats = env->GetArrayLength(buildingData);
+    if (floats < scene::kBuildingStride) {
+        g_scene.updateBuildings(nullptr, 0);
+        return;
+    }
+    const jsize capped = static_cast<jsize>(
+        std::min<int64_t>(buildingCount, floats / scene::kBuildingStride));
+    if (capped <= 0) {
+        g_scene.updateBuildings(nullptr, 0);
+        return;
+    }
+    std::vector<float> data(static_cast<size_t>(capped) * scene::kBuildingStride);
+    env->GetFloatArrayRegion(buildingData, 0, static_cast<jsize>(data.size()), data.data());
+    g_scene.updateBuildings(data.data(), capped);
+}
+
+/** 灵田作物集更新（[gx,gy,progress01]×N；进度的帧间平滑在绘制核心） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneUpdateCrops(
+    JNIEnv* env, jobject /*thiz*/,
+    jfloatArray cropData, jint cropCount) {
+    if (cropData == nullptr || cropCount <= 0) {
+        g_scene.updateCrops(nullptr, 0);
+        return;
+    }
+    const jsize floats = env->GetArrayLength(cropData);
+    if (floats < scene::kCropStride) {
+        g_scene.updateCrops(nullptr, 0);
+        return;
+    }
+    const jsize capped = static_cast<jsize>(
+        std::min<int64_t>(cropCount, floats / scene::kCropStride));
+    if (capped <= 0) {
+        g_scene.updateCrops(nullptr, 0);
+        return;
+    }
+    std::vector<float> data(static_cast<size_t>(capped) * scene::kCropStride);
+    env->GetFloatArrayRegion(cropData, 0, static_cast<jsize>(data.size()), data.data());
+    g_scene.updateCrops(data.data(), capped);
+}
+
+/** 石板道路掩码更新（展平 1-based 编码；空 = 清空道路层，双端跳过整层） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneUpdateRoads(
+    JNIEnv* env, jobject /*thiz*/,
+    jintArray roadData, jint cellCount) {
+    if (roadData == nullptr || cellCount <= 0) {
+        g_scene.updateRoads(nullptr, 0);
+        return;
+    }
+    const jsize n = env->GetArrayLength(roadData);
+    const jsize capped = static_cast<jsize>(std::min<int64_t>(cellCount, n));
+    if (capped <= 0) {
+        g_scene.updateRoads(nullptr, 0);
+        return;
+    }
+    std::vector<int32_t> data(static_cast<size_t>(capped));
+    env->GetIntArrayRegion(roadData, 0, capped, data.data());
+    g_scene.updateRoads(data.data(), capped);
+}
+
+/** 云实例快照更新（渲染线程 CloudLayerAnimator 生成、变化时推送） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneUpdateClouds(
+    JNIEnv* env, jobject /*thiz*/,
+    jfloatArray cloudData, jint cloudCount) {
+    if (cloudData == nullptr || cloudCount <= 0) {
+        g_scene.updateClouds(nullptr, 0);
+        return;
+    }
+    const jsize floats = env->GetArrayLength(cloudData);
+    if (floats < scene::kCloudStride) {
+        g_scene.updateClouds(nullptr, 0);
+        return;
+    }
+    const jsize capped = static_cast<jsize>(
+        std::min<int64_t>(cloudCount, floats / scene::kCloudStride));
+    if (capped <= 0) {
+        g_scene.updateClouds(nullptr, 0);
+        return;
+    }
+    std::vector<float> data(static_cast<size_t>(capped) * scene::kCloudStride);
+    env->GetFloatArrayRegion(cloudData, 0, static_cast<jsize>(data.size()), data.data());
+    g_scene.updateClouds(data.data(), capped);
+}
+
+/** 崖壁布局导入（IslandCliffBridge 一次性预计算的稳定布局；null = 清空整层） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetCliffLayout(
+    JNIEnv* env, jobject /*thiz*/,
+    jfloatArray cliffData, jint pieceCount) {
+    if (cliffData == nullptr || pieceCount <= 0) {
+        g_scene.setCliffLayout(nullptr, 0);
+        return;
+    }
+    const jsize floats = env->GetArrayLength(cliffData);
+    if (floats < scene::kCliffStride) {
+        g_scene.setCliffLayout(nullptr, 0);
+        return;
+    }
+    const jsize capped = static_cast<jsize>(
+        std::min<int64_t>(pieceCount, floats / scene::kCliffStride));
+    if (capped <= 0) {
+        g_scene.setCliffLayout(nullptr, 0);
+        return;
+    }
+    std::vector<float> data(static_cast<size_t>(capped) * scene::kCliffStride);
+    env->GetFloatArrayRegion(cliffData, 0, static_cast<jsize>(data.size()), data.data());
+    g_scene.setCliffLayout(data.data(), capped);
+}
+
+/** 图集纹理 ID 注入（上传完成时；0 = 未就绪——地图层跳过，崖壁层不受影响） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetAtlasTexture(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint atlasTexId) {
+    g_sceneAtlasTexId = atlasTexId > 0 ? static_cast<uint32_t>(atlasTexId) : 0;
+}
+
+/**
+ * 每帧绘制（R3.2 新路径唯一帧入口）：相机标量 + 覆盖标志（G3 <200B/帧），
+ * 场景数据从 SceneStore 消费（sceneSet* / sceneUpdate* 变化驱动维护）。
+ *
+ * overlayFlags 位定义：bit0 = buildingVisible（建筑层可见）；
+ * 其余位预留 R3.3（网格线/放置预览/选中/拆除高亮的 C++ 几何生成）。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat camX, jfloat camY, jfloat scale,
+    jint vpW, jint vpH,
+    jint overlayFlags,
+    jfloat fadeAlpha, jfloat frameAlpha) {
+
+    if (!g_renderer) return;
+
+    // 相机段：消毒 + 投影 + 视野边界（与 setCamera 单实现）
+    updateCameraGlobals(camX, camY, scale, vpW, vpH);
+
+    const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
+
+    // 淡入 alpha 消毒同 setFadeAlpha（NaN 行为双路一致：clamp 不拦 NaN）；
+    // 消毒后先写回全局量——崖壁层与地图层共享消费 g_fadeAlpha 单一来源
+    // （新路径不再另行调用 setFadeAlpha；必须先于崖壁层——图集未就绪窗口
+    // 地图层跳过时崖壁淡入仍随帧推进，与旧路径 setFadeAlpha 每帧无条件
+    // 推送的时序一致）
+    float fade = fadeAlpha;
+    if (fade < 0.0f) fade = 0.0f;
+    if (fade > 1.0f) fade = 1.0f;
+    g_fadeAlpha.store(fade);
+
+    // 崖壁层（z 序：天空 → 崖壁 → 地面；独立纹理不依赖图集——与旧路径
+    // drawIslandCliffs 先于瓦片层的层序一致）
+    if (g_scene.hasCliffs() && g_cliffTexCount > 0) {
+        drawCliffLayerInternal(g_scene.cliffsData(), g_scene.cliffPieceCount());
+    }
+
+    // 地图层（地形已导入 + 图集就绪；buildingVisible = overlayFlags bit0）
+    if (g_scene.hasTerrain() && g_sceneAtlasTexId != 0) {
+        scene::MapLayerParams p;
+        p.viewLeft = g_viewLeft;
+        p.viewTop = g_viewTop;
+        p.viewRight = g_viewRight;
+        p.viewBottom = g_viewBottom;
+        p.scale = g_scale;
+        p.fadeAlpha = fade;
+        p.frameAlpha = frameAlpha;
+        p.skipDecor = decorSkipActive(overflowDegrade);
+        p.skipClouds = p.skipDecor;
+        p.buildingShadows = g_buildingShadows.load();
+        p.buildingVisible = (overlayFlags & 0x1) != 0;
+        p.tiles = g_scene.terrainData();
+        p.tileCount = g_scene.terrainCount();
+        p.cols = g_scene.cols();
+        p.rows = g_scene.rows();
+        p.tileSize = g_scene.tileSize();
+        p.atlasTexId = g_sceneAtlasTexId;
+        p.groundQuadEnabled = false;  // 同旧路径：整图 REPEAT 恒关闭（Adreno 防御）
+        p.groundTexId = g_groundTexId;
+        p.tileUv = scene::kTileUv;
+        p.tileUvCount = scene::kTileUvCount;
+        p.roads = g_scene.roadsData();
+        p.roadCount = g_scene.roadsCount();
+        p.roadUv = scene::kRoadUv;
+        p.roadUvCount = scene::kRoadUvCount;
+        p.buildings = g_scene.buildingsData();
+        p.buildingClaim = g_scene.buildingCount();
+        p.buildingDataFloats = g_scene.buildingCount() * scene::kBuildingStride;
+        p.buildingUv = scene::kBuildingUv;
+        p.buildingUvCount = scene::kBuildingUvCount;
+        p.crops = g_scene.cropsData();
+        p.cropCount = g_scene.cropCount();
+        p.cropUv = scene::kCropUv;
+        p.cropUvCount = scene::kCropUvCount;
+        p.clouds = g_scene.cloudsData();
+        p.cloudCount = g_scene.cloudCount();
+        p.cloudUv = scene::kCloudUv;
+        p.cloudUvCount = scene::kCloudUvCount;
+
+        scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
+        submitMapBatchCommon(overflowDegrade, g_sceneAtlasTexId);
+    }
 }
 
 // ============================================================
@@ -1407,7 +1265,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
 // （g_fadeAlpha）；GAP_EPSILON 同式（防接缝）。
 //
 // 与瓦片层的差异（独立纹理）：
-//   - UV 逐条目携带，**不再**加 UV_EPSILON——该常量按 4096 图集纹素推导
+//   - UV 逐条目携带，**不再**加 UV 收缩偏移——该常量按 4096 图集纹素推导
 //     （0.5/4096），用于防图集邻居渗色；独立纹理各自归一化且无邻居，
 //     加该偏移会在地图边界处露出 0.5 纹素的透明缝（UV 张成问题）。
 //   - 每张纹理一次 g_renderer->draw（submitFrame 亦按 DrawBatch.textureId
@@ -1421,90 +1279,13 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawIslandCliffs(
     jfloatArray cliffData) {
 
     if (!g_renderer || !cliffData) return;
-    constexpr int32_t kStride = 10;
-    const jsize pieceCount = env->GetArrayLength(cliffData) / kStride;
+    const jsize pieceCount = env->GetArrayLength(cliffData) / scene::kCliffStride;
     if (pieceCount <= 0 || g_cliffTexCount <= 0) return;
 
     jfloat* data = env->GetFloatArrayElements(cliffData, nullptr);
     if (data == nullptr) return;
 
-    // 观测锚点（进程内一次）：确认 C++ 侧消费到布局数据（真机排查按此过滤）
-    static bool s_islandCliffLogged = false;
-    if (!s_islandCliffLogged) {
-        s_islandCliffLogged = true;
-        LOGI("drawIslandCliffs: %d pieces (textures=%d)", (int)pieceCount, (int)g_cliffTexCount);
-    }
-
-    // ★ 地图淡入 alpha（本帧单次读取——所有 add 共用同一值，与瓦片层同式）
-    const float fadeAlpha = g_fadeAlpha.load();
-
-    // 瓦片几何扩展因子（复用 drawAllTiles 同式：每边扩展 0.5 屏幕像素防裂缝）
-    const float EPS_SCALE = (g_scale > 0.001f) ? g_scale : 1.0f;
-    const float GAP_EPSILON = 0.5f / EPS_SCALE;
-
-    // 跨帧复用构建器：崖壁层与地图层各用独立 static，互不串批
-    SpriteBatcher& batcher = g_edgeBatcher;
-    batcher.begin(g_projMatrix);
-
-    uint32_t batchTexId = 0;
-    bool haveBatch = false;
-
-    // 按条目遍历；纹理切换处切分批次（布局按池分组产出，切换极少）
-    for (jsize i = 0; i < pieceCount; i++) {
-        const int32_t base = static_cast<int32_t>(i) * kStride;
-        const int32_t texIdx = static_cast<int32_t>(data[base]);
-        const float sx = data[base + 1];
-        const float sy = data[base + 2];
-        const float sw = data[base + 3];
-        const float sh = data[base + 4];
-        float u0 = data[base + 5];
-        float v0 = data[base + 6];
-        float u1 = data[base + 7];
-        float v1 = data[base + 8];
-
-        // 纹理缺失降级（上传失败/越界）→ 跳过该条目，不画白、不崩溃
-        if (texIdx < 0 || texIdx >= g_cliffTexCount) continue;
-        const uint32_t texId = g_cliffTexIds[texIdx];
-        if (texId == 0) continue;
-
-        // NaN/非法值防御（数据篡改层——非法条目不画任何像素；NaN 比较恒 false
-        // 会穿透区间检查，须显式判定；与 crop/cloud 段同风格）
-        const bool badFloat = (sx != sx) || (sy != sy) || (sw != sw) || (sh != sh) ||
-                              (u0 != u0) || (v0 != v0) || (u1 != u1) || (v1 != v1);
-        if (badFloat) continue;
-        if (sw <= 0.0f || sh <= 0.0f) continue;
-        if (!isRectVisible(sx, sy, sw, sh)) continue;
-
-        // 镜像/裁剪归一：批只接受 u0 ≤ u1、v0 ≤ v1 的矩形语义
-        // （镜像由 UV 朝向表达，故 flags 不参与绘制决策）
-        if (u0 > u1) { const float t = u0; u0 = u1; u1 = t; }
-        if (v0 > v1) { const float t = v0; v0 = v1; v1 = t; }
-        if (u0 < 0.0f || v0 < 0.0f || u1 > 1.0f || v1 > 1.0f) continue;
-
-        if (!haveBatch || texId != batchTexId) {
-            if (haveBatch && batcher.vertexCount > 0) {
-                g_renderer->draw(batcher.vertices, batcher.vertexCount, batchTexId);
-            }
-            batcher.begin(g_projMatrix);
-            batchTexId = texId;
-            haveBatch = true;
-        }
-
-        batcher.add(texId,
-            sx - GAP_EPSILON, sy - GAP_EPSILON,
-            sw + 2.0f * GAP_EPSILON, sh + 2.0f * GAP_EPSILON,
-            u0, v0, u1, v1,
-            1.0f, 1.0f, 1.0f, fadeAlpha);
-    }
-
-    if (haveBatch && batcher.vertexCount > 0) {
-        g_renderer->draw(batcher.vertices, batcher.vertexCount, batchTexId);
-    }
-    if (batcher.droppedSprites > 0) {
-        logBatcherOverflowOncePerSecond("cliff", batcher.droppedSprites);
-    }
-    // 崖壁层溢出只登记（下帧降级由地图层装饰跳过承接，崖壁为结构层不可跳）
-    noteBatcherOverflow(batcher.droppedSprites);
+    drawCliffLayerInternal(data, pieceCount);
 
     env->ReleaseFloatArrayElements(cliffData, data, JNI_ABORT);
 }
@@ -1651,8 +1432,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawSprite(
     for (int i = 0; i < 6; i++) {
         verts[i] = { 0, 0, 0, 0, r, g, b, a };
     }
-    float su0 = u0 + UV_EPSILON, sv0 = v0 + UV_EPSILON;
-    float su1 = u1 - UV_EPSILON, sv1 = v1 - UV_EPSILON;
+    float su0 = u0 + scene::kUvEpsilon, sv0 = v0 + scene::kUvEpsilon;
+    float su1 = u1 - scene::kUvEpsilon, sv1 = v1 - scene::kUvEpsilon;
     verts[0] = { x,   y,   su0, sv0, r, g, b, a };
     verts[1] = { x+w, y,   su1, sv0, r, g, b, a };
     verts[2] = { x,   y+h, su0, sv1, r, g, b, a };

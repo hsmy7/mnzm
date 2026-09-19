@@ -11,6 +11,10 @@
  * - core/engine/build/generated/sprite/.../SpriteAtlasDef.kt — Kotlin 图集布局常量（--atlas-def-only）
  * - app/build/generated/sprite/SpriteRegistryData.kt — 精灵注册数据（--codegen）
  * - app/build/generated/sprite/TextureAtlas.h — C++ MAP_SPRITES（--codegen）
+ * - app/src/main/cpp/scene/scene_uv_tables.h — C++ 场景 UV 常量表 + 占地表 + 双端渲染
+ *   常量（--codegen；R3.2/B10：SceneStore 路径 Kotlin 不再每帧传 SpriteAtlasDef
+ *   数组，UV 表同源生成进 C++；与 shaders.h 同属"仓库内生成物"——桌面 GTest
+ *   与 Android 构建无需先跑 codegen 即可编译）
  * - app/src/main/assets/atlas/atlas_astc.ktx — KTX1 封装 ASTC 4×4 LDR 图集（无参数模式）
  * - app/src/main/assets/atlas/atlas-manifest.json — 图集布局清单 + 布局哈希（无参数模式）
  *
@@ -47,6 +51,9 @@ const ATLAS_DEF_OUT_DIR = path.resolve(ANDROID_DIR, 'core/engine/build/generated
 const SPRITE_CODE_OUT_DIR = path.resolve(ANDROID_DIR, 'app/build/generated/sprite');
 const ASTCENC_DIR = path.resolve(ANDROID_DIR, 'scripts/tools/astcenc/bin');
 const OUT_DIR = path.resolve(ANDROID_DIR, 'app/src/main/assets/atlas');
+// R3.2/B10：场景 UV 常量表落仓库内生成物（cpp/scene/，提交进版本库）——
+// 桌面 GTest（scene_equivalence_test）与 Android NDK 构建共用，无需先跑 codegen
+const SCENE_UV_TABLES_OUT = path.resolve(ANDROID_DIR, 'app/src/main/cpp/scene/scene_uv_tables.h');
 const TMP_PNG = path.resolve(ANDROID_DIR, 'scripts/tools/atlas_tmp.png');
 const TMP_ASTC = path.resolve(ANDROID_DIR, 'scripts/tools/atlas_tmp.astc');
 
@@ -403,12 +410,16 @@ function contentHash(obj) {
   return crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex').slice(0, 16);
 }
 
-/** 生成器函数源码（hash 因子：模板代码变更 → 内容变更 → 强制重生成） */
+/** 生成器函数源码（hash 因子：模板代码变更 → 内容变更 → 强制重生成）。
+ *  含生成器用到的浮点字面量/UV 表达式助手——助手变更同样触发重生成 */
 function codegenSource() {
   return [
     generateSpriteAtlasDef.toString(),
     generateSpriteRegistryData.toString(),
     generateTextureAtlasH.toString(),
+    generateSceneUvTablesH.toString(),
+    cppFloatLiteral.toString(),
+    cppUvExpr.toString(),
   ].join('\n');
 }
 
@@ -1127,6 +1138,142 @@ function generateTextureAtlasH(layout) {
   ].join('\n');
 }
 
+// ── 生成器：scene_uv_tables.h（cpp/scene/，R3.2/B10 场景常量进 C++） ──
+
+/**
+ * C++ 浮点除法表达式（UV 归一化）：`x.0f / 4096.0f` 形态。
+ *
+ * 生成**表达式**而非预计算字面量——图集尺寸为 2 的幂，除法在二进制浮点下
+ * 精确（指数移位无舍入），Kotlin `r.x.toFloat() / ATLAS_W` 与 C++ 编译期
+ * 常量折叠逐位一致（constexpr 浮点按抽象机器语义求值，禁止收缩）。
+ */
+function cppUvExpr(pixel, atlasDim) {
+  return `${cppFloatLiteral(pixel)} / ${cppFloatLiteral(atlasDim)}`;
+}
+
+/** UV 四元组行（u0, v0, u1, v1 = rect 归一化，与 SpriteAtlasDef 同式） */
+function cppUvQuadLine(rect, atlasW, atlasH, indent) {
+  return `${indent}${cppUvExpr(rect[0], atlasW)}, ${cppUvExpr(rect[1], atlasH)}, ` +
+    `${cppUvExpr(rect[0] + rect[2], atlasW)}, ${cppUvExpr(rect[1] + rect[3], atlasH)},`;
+}
+
+/**
+ * 生成 C++ 场景常量表（native-renderer SceneStore 路径的 UV/占地/渲染常量
+ * 单一来源——Kotlin 不再每帧传 SpriteAtlasDef 数组）。
+ *
+ * 命名用 k-前缀（namespace scene 成员）：与 TextureAtlas.h 的同名宏
+ * （DECOR_QUALITY_THRESHOLD 等）-token 不冲突——NativeBridge.cpp 同时包含
+ * 两个头时宏替换不会污染 scene:: 限定名。
+ *
+ * 布局源数据 = LAYOUT（与 SpriteAtlasDef.kt / TextureAtlas.h 同一权威）：
+ *   - kTileUv/kBuildingUv/kCropUv/kCloudUv/kRoadUv：五张 UV 表，
+ *     与 Kotlin SpriteAtlasDef.TILE_UV_MAP/BUILDING_UV_MAP/CROP_UV_MAP/
+ *     CLOUD_UV_MAP/ROAD_UV_MAP 同式同序（建筑表尾部追加固定结构，同 Kotlin）；
+ *   - kFootprintW/H + kStructureFpW/H：占地尺寸表（footprint_table.h 同源）；
+ *   - 其余：双端共享渲染常量 + 瓦片分类表（TextureAtlas.h 同源）。
+ */
+function generateSceneUvTablesH(layout) {
+  const si = semanticIndices(layout);
+  const w = layout.atlasW;
+  const h = layout.atlasH;
+
+  const tableBlock = (name, count, rows, comment) => {
+    const lines = rows.map((r) => cppUvQuadLine(r, w, h, '    '));
+    return [
+      comment,
+      `inline constexpr float ${name}[] = {`,
+      ...lines,
+      '};',
+      `inline constexpr int ${name.replace(/Uv$/, 'UvCount')} = ${count};`,
+    ];
+  };
+
+  const tileRows = [...layout.tiles]
+    .sort((a, b) => a.index - b.index)
+    .map((t) => t.rect);
+  const buildingRows = layout.buildingNames.map((_, i) => {
+    const r = buildingRectOf(layout.buildingColsPerRow, i);
+    return [r.x, r.y, r.w, r.h];
+  });
+  const structureRows = layout.structures.map((s) => s.rect);
+  const cropRows = layout.crops.map((c) => c.rect);
+  const cloudRows = layout.clouds.map((c) => c.rect);
+  const roadRows = layout.roads.map((r) => r.rect);
+
+  return [
+    '// ============================================================',
+    '// GENERATED FILE — 由 scripts/build-atlas.mjs 自动生成，禁止手改。',
+    '// 图集布局源数据位于 build-atlas.mjs 的 LAYOUT 常量，运行',
+    '//   cd android && node scripts/build-atlas.mjs --codegen',
+    '// 重新生成。仓库内生成物（与 shaders.h 同策略）：桌面 GTest 与',
+    '// Android NDK 构建无需先跑 codegen 即可编译。',
+    '// ============================================================',
+    '#pragma once',
+    '',
+    '#include <cstdint>',
+    '',
+    '// ============================================================',
+    '// SceneStore 路径场景常量（重构方案 2026-09-17 R3.2/B10）——',
+    '// Kotlin 不再每帧传 SpriteAtlasDef 数组，UV 表由本头同源生成进 C++。',
+    '// 值与 Kotlin SpriteAtlasDef（TILE_UV_MAP 等）逐位一致：图集尺寸为',
+    '// 2 的幂，UV 除法在二进制浮点下精确（无舍入），双端同式同值。',
+    '// ============================================================',
+    'namespace scene {',
+    '',
+    `inline constexpr int kAtlasW = ${w};`,
+    `inline constexpr int kAtlasH = ${h};`,
+    '',
+    '// UV 向内收缩 0.5 texel（防 CLAMP_TO_EDGE + NEAREST 邻居渗色；',
+    '// 与旧 NativeBridge.cpp UV_EPSILON 同式同值）',
+    `inline constexpr float kUvEpsilon = ${cppUvExpr(0.5, w)};`,
+    '',
+    '// ── UV 表（归一化；[u0,v0,u1,v1] × N，与 SpriteAtlasDef 同源同序）──',
+    ...tableBlock('kTileUv', si.tileTypeCount, tileRows,
+      '// 瓦片 UV（按 TileType.index 直取；TILE_BUILDING 占位复刻 GROUND rect，同 Kotlin）'),
+    ...tableBlock('kBuildingUv', layout.buildingNames.length + layout.structures.length,
+      [...buildingRows, ...structureRows],
+      '// 建筑 UV + 固定结构尾部（nameIdx = 建筑序；结构 nameIdx = kStructureNameBase + 序，同 Kotlin BUILDING_UV_MAP）'),
+    ...tableBlock('kCropUv', layout.crops.length, cropRows,
+      '// 灵田作物三阶段 UV（按阶段序直取）'),
+    ...tableBlock('kCloudUv', layout.clouds.length, cloudRows,
+      '// 云层精灵 UV（按 LAYOUT.clouds 声明序直取）'),
+    ...tableBlock('kRoadUv', layout.roads.length, roadRows,
+      '// 石板道路 UV（按 LAYOUT.roads 声明序直取；emitRoadDrawOps 的 sprite 下标直取）'),
+    '',
+    '// ── 双端共享渲染常量（与 SpriteAtlasDef.kt / TextureAtlas.h 同源）──',
+    `inline constexpr float kDecorQualityThreshold = ${cppFloatLiteral(layout.lodThreshold)};`,
+    `inline constexpr float kShadowOffsetTiles = ${cppFloatLiteral(layout.shadowOffsetTiles)};`,
+    `inline constexpr float kShadowAlpha = ${cppFloatLiteral(layout.shadowAlpha)};`,
+    `inline constexpr float kTopdownYScale = ${cppFloatLiteral(layout.topdownYScale)};`,
+    '',
+    '// ── 瓦片分类（装饰区间/显示尺寸/绘制层/越界余量——绘制核心按表直取，',
+    '//    禁止在渲染代码硬编码瓦片序号）──',
+    `inline constexpr int kTileGround = ${si.tileGround};`,
+    `inline constexpr int kTileTypeCount = ${si.tileTypeCount};`,
+    `inline constexpr int kDecorTileMin = ${si.decorMin};`,
+    `inline constexpr int kDecorTileMax = ${si.decorMax};`,
+    '// 装饰越界余量（格）：左右各 (maxW−1)/2 上取整、向上 maxH−1 上取整',
+    `inline constexpr int kDecorMarginCols = ${si.decorMarginCols};`,
+    `inline constexpr int kDecorMarginRows = ${si.decorMarginRows};`,
+    `inline constexpr float kTileSpriteW[] = {${si.tileSpriteW.map(cppFloatLiteral).join(', ')}};`,
+    `inline constexpr float kTileSpriteH[] = {${si.tileSpriteH.map(cppFloatLiteral).join(', ')}};`,
+    `inline constexpr int kTileObjectLayer[] = {${si.objectLayer.join(', ')}};`,
+    '// 地面草皮变体索引（渲染器把变体格映射到自身地面纹理）',
+    `inline constexpr int kGroundVariantCount = ${si.groundVariants.length};`,
+    `inline constexpr int kGroundVariants[] = {${si.groundVariants.join(', ')}};`,
+    '',
+    '// ── 占地尺寸表（footprint_table.h 同源：建筑按 nameIdx；固定结构单列）──',
+    `inline constexpr int kFootprintW[] = {${layout.footprints.map((f) => f[0]).join(', ')}};`,
+    `inline constexpr int kFootprintH[] = {${layout.footprints.map((f) => f[1]).join(', ')}};`,
+    `inline constexpr int kStructureNameBase = ${si.structureNameBase};`,
+    `inline constexpr int kStructureFpW[] = {${layout.structures.map((s) => s.footprint[0]).join(', ')}};`,
+    `inline constexpr int kStructureFpH[] = {${layout.structures.map((s) => s.footprint[1]).join(', ')}};`,
+    '',
+    '}  // namespace scene',
+    '',
+  ].join('\n');
+}
+
 // ── 注册源数据加载 ──
 
 /** 读取 resource-registry.json（校验结构完整性） */
@@ -1620,6 +1767,10 @@ async function runSpriteCodegen() {
   const hOut = path.join(SPRITE_CODE_OUT_DIR, 'TextureAtlas.h');
   fs.writeFileSync(hOut, generateTextureAtlasH(LAYOUT));
   console.log(`生成 TextureAtlas.h -> ${hOut}`);
+
+  // R3.2/B10：场景 UV 常量表进 cpp/scene/（仓库内生成物，随版本库提交）
+  fs.writeFileSync(SCENE_UV_TABLES_OUT, generateSceneUvTablesH(LAYOUT));
+  console.log(`生成 scene_uv_tables.h -> ${SCENE_UV_TABLES_OUT}`);
 
   fs.writeFileSync(hashFile, hash);
 }
