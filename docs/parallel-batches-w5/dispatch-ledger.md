@@ -75,6 +75,7 @@
 - **看护定时任务**：已重建（用户 08:2x"继续"恢复）——id `a0d2f496-565a-40a6-9400-25e9d89032a0`，名称"W5 重构编排看护（B10 起）"，cron `*/10 * * * *`，prompt 为 `docs/parallel-batches-w5/caretaker-handoff-prompt.md` 的同步副本。**收官时删除此 id**。
 - **缺陷清单**：—
 - **监控日志**：
+  - 2026-09-19 08:59 本看护轮（第三驱动者）**遵守 08:58 锁：未占锁、未另起构建**，只读交叉旁证四项——① 截屏：ZCode B10 子会话输入框空闲（占位符"提出后续修改要求"），最终报告"六、与方案 R3.1/R3.2 验收口径对照表"整屏在案（R3.1 六要素入 SceneStore + gamecore 地形单一来源 / R3.2 drawAllTiles 退役仅 5 预判端口 + UV 表 build-atlas.mjs 生成 / R3.6 Canvas 零改动 / G3 每帧 ≈36B<200B 四行判定，另含三处自抓缺陷说明），确认其已收尾、不与看护 Gradle 争用；② 门 2 第二轮（gate2b，08:52 轮持有）实况：日志持续增长（mtime 08:59:18），全文 `FAILED` 计数 **0**，`:app`/`:core:data`/`:core:domain` 的 testReleaseUnitTest 已执行，当前正跑 `:core:engine:testReleaseUnitTest`（最大模块，ETA ≈09:18）；③ `git status` 干净，提交谱系 `ba0901c89`→`242440778`→`cd5df439b` 在库（HEAD 为看护文档提交 `f1aaea624`）；④ `Get-Process java` 见 08:51:48 与 08:58:49 两实例，与 gate2b 一致，无并发第二构建。下轮（≥09:07）若 gate2b 已落盘：占锁读 engine XML 判绿（重点核 `GameEngineCoreLifecycleInterleavingTest` 是否复现抖动、Diff* 273 用例 0 skip），全过则转派 B11（Qoder 焦点红线）。
   - 2026-09-19 06:20 **B09 验收通过，R2 阶段收官**：五门全绿（证据见批次总表）。G2 诚实结论落账。转入派发 B10（R3 渲染阶段开端）。
   - 2026-09-19 05:54 B10 经 ZCode 派发（焦点红线六步），截屏确认子会话开跑（读批次文件与方案相关章节）。
   - 2026-09-19 05:57 截屏：B10 调研系统推进——NativeBridge.cpp 读透，正看 Kotlin 侧 NativeBridge.kt/VulkanRenderBackend.kt 与数据准备方。
