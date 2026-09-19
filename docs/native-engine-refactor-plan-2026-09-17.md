@@ -250,6 +250,43 @@ VulkanBackend / GlesBackend(消费 SceneStore,含C++侧网格/高亮/预览生�
 
 ### 7.2 R1 逐批落地（2026-09-17/18）
 
+#### B15 批（2026-09-20）= R6.1（图集离线化：消运行时 Canvas 拼装，运行时只 upload）
+
+批次文件 `docs/parallel-batches-w5/batch-R6A.md`；每子项独立 commit。前置 = B14
+（R4.4，`batch-R4C.md`，CTest 1545）。来源方案 §3 表 R6.1 行；与 R6.2 并行不冲突
+（本批不触 Metal/iOS 后端）。
+
+**本批最重要的事实（先说结论）**：B15 前，Canvas 软渲染 / RGBA 回退臂 / RGBA mip 链
+三条支路共用同一实现 `SectAtlasAssembler.buildAtlasBitmap`——**启动期在设备上**逐精灵
+`BitmapFactory.decodeResource` + `Canvas.drawBitmap` 拼一张 2048² ARGB_8888 位图。
+本批把「像素来源」整体搬到**构建期**（离线产物），运行时只做**一次性解码/映射 + upload**，
+**零 Canvas、零逐精灵循环、零运行时降采样**。消除的是一条**启动期内存与耗时尖峰**
+（见下对照表），而非某个视觉特性；**画面上不产生任何可见变化**（2048 封顶语义与
+`sourceScale` 契约零变化，见红线自查）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| ① 运行时消费面切换 | ✅ | `AtlasAsyncPipeline.prepareAtlas` 的 `prepareRgbaAtlas` 整体替换为 `prepareOfflineRgbaAtlas(context, software)`：软渲臂走 `decodeOfflineSoftwareBitmap`（`readRawSpec` → `mapAsset` 零拷贝映射 → `Bitmap.createBitmap(2048,2048,ARGB_8888).copyPixelsFromBuffer` **一次 native memcpy**——直通 alpha RGBA8888 与小端 ARGB_8888 逐字节等值，**无需 swizzle**）；回退臂走 `openOfflineMipChain`（`FileChannel.map` 只读 direct `ByteBuffer` + 容量校验 → `MipChainPayload`）。新增 `mapAsset`（`assets.openFd` → `FileInputStream(fd).channel.map(READ_ONLY, startOffset, length)`，`use{}` 关闭）、`OfflineAtlasSpec`、`internal object OfflineAtlasAssets`（三个资产路径常量 + `readRawSpec` 用 `org.json.JSONObject` 解析）。**删除** `prepareRgbaAtlas`/`encodeMipChainOrNull`/`assembleAtlasBitmap`/`encodeAtlasPixels`/`encodeBitmapToRgbaMipChain`。**ASTC 直传路径零改动**（`SectAtlasPrefetch`/`compressedAtlasReader`/`compressedAtlasUploader`/KTX 生成未触碰） |
+| ② `SectAtlasAssembler` 退役 | ✅ | 类本体 338 → **111 行**：删除 `buildAtlasBitmap`（**唯一生产拼装调用点**）、`buildSpriteSlots`/`buildTileSlots`/`buildBuildingSlots`/`buildCropSlots`/`buildStructureSlots`/`buildCloudSlots`/`buildRoadSlots`、`drawSlotsToAtlas`、`resolveSlotBitmap`、`SpriteSlot`、`ATLAS_BITMAP_MAX_EDGE`/`atlasBitmapScale`、四张只服务拼装的 drawable 映射表，及随之无用的 import。**形态选择 = 「类本体转测试夹具」（非删除）**，理由：① `downscaleWithBilinearChain` 是 `SoftwareCanvasBackend.drawPreScaled`（红线路径）**深缩放兜底的单一实现**，删除即破坏 R3.6 兜底；② `buildingAtlasDrawableMap`/`tileDrawableRes` 是既有守卫测试（`SectAtlasBuildingDrawableGuardTest` / `SectAtlasTileDrawableGuardTest`）的入口。**生产源码零拼装引用**由 `AtlasOfflineRgbaSyncTest.生产源码零运行时图集拼装引用` 静态门禁锁定（去注释后扫描三个生产源码根） |
+| ③ 离线产物管线接线 | ✅ | **产物三件**（入库 `app/src/main/assets/atlas/`）：`atlas-rgba-raw.bin`（2048² 直通 alpha RGBA8888 裸像素，16,777,216 B）、`atlas-rgba-mips.bin`（level-major 11 级 box-2x1 mip 链，22,369,616 B）、`atlas-rgba-manifest.json`（几何 + `frameSha256` + 逐精灵 sha256）。**同源架构**：产物由 `build-atlas.mjs` 的 `main()` **内联**产出（`writeOfflineRgbaArtifacts(contents, transparent, sprites, OUT_DIR)`，`contents` 即 ASTC 图集同一份），并把「源 → 预乘 → lanczos3 槽位」抽为共享 `lib/atlas-offline-rgba-lib.mjs::loadPremultipliedRgba` 供两侧共用 ⇒ 「两条图集路径精灵内容同源」成为**结构事实**而非比对断言。独立入口 `scripts/atlas-offline-rgba.mjs` 委托同一 writer（产物逐位一致）。**Gradle**：`tasks.register('generateOfflineRgbaAtlas')`——`dependsOn ':core:engine:generateSpriteAtlasDef'` + `mustRunAfter 'generateResourceManifest'`；`inputs.file`（manifest / `SpriteAtlasDef.kt` / 两个 mjs）+ `inputs.files`（两个 `drawable-nodpi` 目录）；`outputs.file` 三项产物（获得 up-to-date 判定，实测二次运行 `UP-TO-DATE`）；`doLast` 内 node 非零退出即 `GradleException` + 逐项复校产物 `exists() && length()>0`（**assets 缺失即构建失败，不允许静默跳过**，沿 `generateAstcAtlas` 的 astcenc 先例）。接线：`preBuild.dependsOn(... 'generateOfflineRgbaAtlas')` + `tasks.withType(Test) { dependsOn('generateResourceManifest','generateSpriteCode','generateOfflineRgbaAtlas') }` |
+| ④ 内存尖峰消除实证 | ✅ | 可复跑脚本 `scripts/measure-atlas-memory.mjs`（真实源图尺寸 + 真实槽位布局；`--json` 给机器可读值）。**Java heap 峰值对照**：回退臂 **53.26 MiB → 0**（16 MiB 目标位图 + 17.26 MiB 最大源图解码缓冲 `TREE2` 2079×2176 + 20 MiB mip 链编码中间位图 `L0+L1`；原始字节 55,844,352 → 0，mapped 16.00 MiB 转出 heap）；软渲臂 **33.26 MiB → 16.00 MiB**（消除 17.26 MiB）。**诚实残余**：① 16 MiB 级解码位图在软渲臂**未消除**（旧 = 目标位图，新 = 产物解码位图，同量）；② mapped 22.37 MiB（mip 链）与 16 MiB（raw）仍占地址空间/页缓存，只是不计 Java heap；③ 本脚本量的是**算法分配量**而非真机 RSS（GC 时机 / NativeAllocationRegistry / page cache 会影响实测） |
+| ⑤ Canvas 软渲等价性守卫 | ✅ | 脚本 `scripts/verify-offline-rgba-equivalence.mjs` **四层全绿**：层 1 结构等价（41 槽位几何 vs `SpriteAtlasDef` 权威，无重叠/无越界）；层 2 golden 校验和（整图 sha256 + **41/41** 逐槽位切片 sha256 一致）；层 3a **确定性逐位对照（硬门）**——按产物**真实生产链**（源→预乘→lanczos3 槽位→lanczos3 半槽位→解预乘）重建，**41/41 与产物切片逐位相等**（`Buffer.compare === 0`）；层 3b 消费面容差对照（离线两段 lanczos3 vs 运行时单步 Skia 双线性近似）：alpha 超阈值 **3.3575%**（阈值 15%）、颜色 **16.4163%**（阈值 20%）。**口径登记（关键）**：实测四组候选配方（`lanczos3` / `linear` / 链式减半 / 精确区域平均）超阈值占比区间 **3.59%–26.50%**，**没有任何核能与 Skia 双线性逐位对齐** ⇒ 3b 是「**守卫退化**」而非「证明等价」；真正的等价硬门是 3a 逐位复现 + 层 1/2。「2048 封顶缩放语义」**保持不变即零影响**（产物恒 2048²，`sourceScale = 2048/4096` 与 UV 布局零变化） |
+| ⑥ iOS 前置登记 | ✅ | 「消启动 Canvas 依赖」对 iOS 的达成面：本批把「图集像素来自设备端 Canvas 拼装」这一**平台专属实现**替换为**平台无关的构建期产物**（裸像素 + manifest），iOS 侧只需 `mmap` + 一次上传，**不再需要等价重写一套 CoreGraphics 拼装** ⇒ iOS 图集消费面的**最大前置阻塞项消除**（属方案 L202「R5：iOS 立项触发；前置 = R3 + R6.1」的 R6.1 部分）。**残余**：① iOS 后端本体（Metal 渲染管线）仍属 R5 独立立项，本批只在**资产与消费契约**层面解阻塞；② 产物格式为**裸像素 + JSON 清单**（平台无关），但「上传到 Metal 纹理」的接口尚未实现；③ macOS/iOS 构建脚本（本批 Gradle 任务为 Windows/Android 侧）未建 |
+
+测试口径：桌面全量 GTest **1545/1545**（与 B14 基线持平——本批为纯
+Kotlin/脚本批，**零 C++ 改动**，故用例数不变，1545 即门 1 的期望值）+
+组合门 `testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`
+（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）见批次完成报告门 2 实证；
+新增 `AtlasOfflineRgbaSyncTest` **7 用例 0 失败**（产物几何/体积、11 级 mip 级联、
+精灵清单 vs 权威布局、整图 golden、逐槽位 golden、生产源码零拼装静态门禁、
+`SectAtlasAssembler` 保留职责），`AtlasAsyncPipelineMipChainTest` **4 用例 0 失败**、
+`NativeSurfaceViewTest` **27 用例 0 失败**、`SectAtlasAssemblerDownscaleTest` 4、
+`SectAtlasBuildingDrawableGuardTest` 3、`SectAtlasTileDrawableGuardTest` 2、
+`EdgeKtxSyncTest` 3、`ReproGroundScaleTest` 1（均 0 失败）；
+**红线自查**：UV 布局零变更 ✓；`SoftwareCanvasBackend*` **绘制逻辑零改动**（仅 4 处注释更新）✓；
+ASTC 直传路径不变 ✓；协议 JSON / 存档格式 / 既有 JNI 签名零变更、**不新增 `external fun`**（本批零 JNI 端口）✓；
+生成物入库 + codegen hash 门 ✓；每子项独立 commit ✓。
+
 #### B01 批（2026-09-17）= R1.1 + R1.5（map 重建提升到步骤入口）
 
 批次文件 `docs/parallel-batches-w5/batch-R1A.md`；每子项独立 commit（01849d8b4 / ad5ca62ee），
