@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.render
 
+import com.xianxia.sect.core.nativebridge.NativeBridge
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -50,6 +51,21 @@ class SceneUvTablesMirrorGuardTest {
         val direct = File(base, "app/src/main/cpp/scene/scene_uv_tables.h")
         if (direct.exists()) return direct
         return File(base, "android/app/src/main/cpp/scene/scene_uv_tables.h")
+    }
+
+    /**
+     * 手写头 `scene_draw.h`（非生成物）。
+     *
+     * 少数跨端常量（如浮字 spawn 端口的 `kFloatSpawnStride`）落在生成核心而非
+     * 生成表内——它们同样是双端契约，须同样纳入镜像守卫。
+     */
+    private fun sceneDrawHeader(): File {
+        val root = repoRoot()
+        assumeTrue("仓库根定位失败（工作目录: ${System.getProperty("user.dir")}）", root != null)
+        val base = root ?: return File("scene_draw.h")
+        val direct = File(base, "app/src/main/cpp/scene/scene_draw.h")
+        if (direct.exists()) return direct
+        return File(base, "android/app/src/main/cpp/scene/scene_draw.h")
     }
 
     // ── 生成头解析 ─────────────────────────────────────────────
@@ -267,5 +283,181 @@ class SceneUvTablesMirrorGuardTest {
         val end = header.indexOf("// ── 瓦片分类", start)
         assertTrue("叠加层常量段未正常闭合（缺少后续「瓦片分类」段）", end > start)
         return header.substring(start, end).lines().count { it.startsWith("inline constexpr float") }
+    }
+
+    // ── Tier1 文本资产（R3.8/B13）────────────────────────────────
+
+    /**
+     * Tier1 文本资产 UV 表逐位镜像：C++ `scene::kFloatUv` ↔ Kotlin
+     * [SpriteAtlasDef.FLOAT_UV]。
+     *
+     * 这是「浮字批按资产索引直取 UV」这一零每帧 JNI 设计的地基——两侧任一侧
+     * 漂移（改 LAYOUT 后漏跑 codegen / 手改生成物）即红。
+     * 索引序 = 词条段（0..FLOAT_WORD_COUNT-1）→ 单字形段（FLOAT_GLYPH_BASE_INDEX..）。
+     */
+    @Test
+    fun `tier1 float uv table mirrors SpriteAtlasDef bit-exactly`() {
+        val header = generatedHeader().readText()
+        assertTableBitsEqual("kFloatUv", SpriteAtlasDef.FLOAT_UV, parseUvTable(header, "kFloatUv"))
+    }
+
+    /**
+     * Tier1 索引/几何常量双端一致 + 冻结清单内部自洽。
+     *
+     * 除逐位比对外，本用例显式锁定"冻结清单"这一语义：词条表 + 字形表拼接序
+     * 与资产索引序严格对应（`FLOAT_ASSET_COUNT == WORD_COUNT + GLYPH_COUNT`，
+     * 且 `FLOAT_GLYPH_BASE_INDEX == WORD_COUNT`）——新增词条只改 LAYOUT 也能被
+     * 本守卫捕获（两侧索引偏移即失败）。
+     */
+    @Test
+    fun `tier1 asset counts and indices mirror C++ constants`() {
+        val header = generatedHeader().readText()
+        assertEquals("kFloatWordCount 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_WORD_COUNT, intScalar(header, "kFloatWordCount"))
+        assertEquals("kFloatGlyphCount 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_GLYPH_COUNT, intScalar(header, "kFloatGlyphCount"))
+        assertEquals("kFloatAssetCount 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_ASSET_COUNT, intScalar(header, "kFloatAssetCount"))
+        assertEquals(
+            "kFloatGlyphBaseIndex 与 Kotlin 不一致（字形段起始索引 = 词条数）",
+            SpriteAtlasDef.FLOAT_GLYPH_BASE_INDEX,
+            intScalar(header, "kFloatGlyphBaseIndex")
+        )
+        assertEquals(
+            "kFloatCellW 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_CELL_W, intScalar(header, "kFloatCellW")
+        )
+        assertEquals(
+            "kFloatCellH 与 Kotlin 不一致", SpriteAtlasDef.FLOAT_CELL_H, intScalar(header, "kFloatCellH")
+        )
+        assertBitsEqual(
+            "kFloatGlyphScale", SpriteAtlasDef.FLOAT_GLYPH_SCALE, floatScalar(header, "kFloatGlyphScale")
+        )
+        // 冻结清单内部自洽（两端同一份 LAYOUT 派生，此处防生成器逻辑漂移）
+        assertEquals(
+            "FLOAT_ASSET_COUNT ≠ FLOAT_WORD_COUNT + FLOAT_GLYPH_COUNT",
+            SpriteAtlasDef.FLOAT_WORD_COUNT + SpriteAtlasDef.FLOAT_GLYPH_COUNT,
+            SpriteAtlasDef.FLOAT_ASSET_COUNT
+        )
+        assertEquals(
+            "FLOAT_GLYPH_BASE_INDEX ≠ FLOAT_WORD_COUNT（字形段索引基准漂移）",
+            SpriteAtlasDef.FLOAT_WORD_COUNT,
+            SpriteAtlasDef.FLOAT_GLYPH_BASE_INDEX
+        )
+        assertEquals(
+            "FLOAT_UV 长度 ≠ FLOAT_ASSET_COUNT × 4（每资产 4 分量 u0,v0,u1,v1）",
+            SpriteAtlasDef.FLOAT_ASSET_COUNT * 4,
+            SpriteAtlasDef.FLOAT_UV.size
+        )
+    }
+
+    /**
+     * Tier1 冻结词表/字形表双端文本一致 + 与索引序对应。
+     *
+     * 批次要求「词表须在批次内显式冻结并列清单」——本用例把生成头中的 C++
+     * 字符串字面量数组与 Kotlin 清单逐条对照，使"改了一侧漏改另一侧"成为
+     * 可检失败；同时锁定运行期不依赖文本（仅按索引取 UV）这一前提不被动摇。
+     */
+    @Test
+    fun `tier1 frozen word and glyph text lists mirror C++ literals`() {
+        val header = generatedHeader().readText()
+        val cppWords = parseCStringArray(header, "kFloatWordText")
+        val cppGlyphs = parseCStringArray(header, "kFloatGlyphText")
+        assertEquals(
+            "C++ kFloatWordText 长度与 Kotlin FLOAT_WORD_TEXT 不一致",
+            SpriteAtlasDef.FLOAT_WORD_TEXT.size, cppWords.size
+        )
+        assertEquals(
+            "C++ kFloatGlyphText 长度与 Kotlin FLOAT_GLYPH_TEXT 不一致",
+            SpriteAtlasDef.FLOAT_GLYPH_TEXT.size, cppGlyphs.size
+        )
+        for (i in cppWords.indices) {
+            assertEquals("kFloatWordText[$i] 与 Kotlin 冻结词表不一致", SpriteAtlasDef.FLOAT_WORD_TEXT[i], cppWords[i])
+        }
+        for (i in cppGlyphs.indices) {
+            assertEquals("kFloatGlyphText[$i] 与 Kotlin 冻结字形表不一致", SpriteAtlasDef.FLOAT_GLYPH_TEXT[i], cppGlyphs[i])
+        }
+        // 冻结清单不得有重复条目（重复 = 资产索引歧义）
+        assertEquals(
+            "FLOAT_WORD_TEXT 含重复条目", SpriteAtlasDef.FLOAT_WORD_TEXT.size,
+            SpriteAtlasDef.FLOAT_WORD_TEXT.toSet().size
+        )
+        assertEquals(
+            "FLOAT_GLYPH_TEXT 含重复条目", SpriteAtlasDef.FLOAT_GLYPH_TEXT.size,
+            SpriteAtlasDef.FLOAT_GLYPH_TEXT.toSet().size
+        )
+        // 批次点名要求的最小词集必须在冻结清单内（漏删检测）
+        for (required in listOf("会心", "格挡", "闪避", "连击", "暴击")) {
+            assertTrue(
+                "Tier1 冻结词表缺少批次点名词条「$required」",
+                SpriteAtlasDef.FLOAT_WORD_TEXT.contains(required)
+            )
+        }
+        // 数字 0-9 必须完整（伤害数字是浮字主用途）
+        for (d in 0..9) {
+            assertTrue("Tier1 冻结字形表缺少数字 '$d'", SpriteAtlasDef.FLOAT_GLYPH_TEXT.contains(d.toString()))
+        }
+    }
+
+    /** 解析 `inline constexpr const char* <name>[] = { "a", "b" };` 的字符串列表 */
+    private fun parseCStringArray(header: String, name: String): List<String> {
+        val marker = "inline constexpr const char* $name[] = {"
+        val start = header.indexOf(marker)
+        assertTrue("scene_uv_tables.h 缺少 $name（生成物被手改/损坏？）", start >= 0)
+        val bodyStart = start + marker.length
+        val end = header.indexOf("};", bodyStart)
+        assertTrue("scene_uv_tables.h 的 $name 未正常闭合", end > bodyStart)
+        val body = header.substring(bodyStart, end)
+        // 逗号分隔的 "..." 字面量（生成器用 JSON.stringify 产出纯 ASCII 引号）
+        return Regex("\"([^\"]*)\"").findAll(body).map { it.groupValues[1] }.toList()
+    }
+
+    // ── Tier1 样式档（R3.8/B13）─────────────────────────────────
+
+    /** C++ `kFloatStyle*` ↔ Kotlin [SpriteAtlasDef] 样式档索引配对表 */
+    private val floatStyleConstants: List<Pair<String, Int>> = listOf(
+        "kFloatStyleNormal" to SpriteAtlasDef.FLOAT_STYLE_NORMAL,
+        "kFloatStyleCrit" to SpriteAtlasDef.FLOAT_STYLE_CRIT,
+        "kFloatStyleHeal" to SpriteAtlasDef.FLOAT_STYLE_HEAL,
+        "kFloatStyleWarn" to SpriteAtlasDef.FLOAT_STYLE_WARN
+    )
+
+    @Test
+    fun `tier1 float style indices mirror SpriteAtlasDef`() {
+        val header = generatedHeader().readText()
+        assertEquals(
+            "kFloatStyleCount 与 Kotlin FLOAT_STYLE_COUNT 不一致",
+            SpriteAtlasDef.FLOAT_STYLE_COUNT, intScalar(header, "kFloatStyleCount")
+        )
+        assertEquals(
+            "样式档索引条目数与 Kotlin 配对表不一致（新增/删除档位须双端同步）",
+            floatStyleConstants.size, SpriteAtlasDef.FLOAT_STYLE_COUNT
+        )
+        val seen = mutableSetOf<Int>()
+        for ((cppName, expected) in floatStyleConstants) {
+            val actual = intScalar(header, cppName)
+            assertEquals("$cppName 与 Kotlin 不一致", expected, actual)
+            assertTrue("$cppName 档位索引重复", seen.add(actual))
+        }
+    }
+
+    // ── 浮字 spawn 端口步长（R3.8-③/B13）─────────────────────────
+
+    /**
+     * `sceneSpawnFloatingText` 的**扁平标量步长**双端镜像。
+     *
+     * 端口契约：`jfloatArray` 长度必须是 `FLOAT_SPAWN_STRIDE` 的整数倍，
+     * 每 10 个标量描述一条浮字：
+     * `[worldX, worldY, assetIndex, charCount, styleIndex, nowSeconds,
+     *   scale, riseScale, bounce, reserved]`
+     *
+     * 双端任一侧改动步长而另一侧未同步 ⇒ 参数错位（静默错渲染），
+     * 故在此逐值锁定。
+     */
+    @Test
+    fun `float spawn stride mirrors NativeBridge constant`() {
+        val impl = sceneDrawHeader().readText()
+        assertEquals(
+            "C++ kFloatSpawnStride 与 Kotlin FLOAT_SPAWN_STRIDE 不一致" +
+                "（步长错位会导致 spawn 参数静默错读）",
+            NativeBridge.FLOAT_SPAWN_STRIDE, intScalar(impl, "kFloatSpawnStride")
+        )
+        assertTrue("spawn 步长必须为正", NativeBridge.FLOAT_SPAWN_STRIDE > 0)
     }
 }

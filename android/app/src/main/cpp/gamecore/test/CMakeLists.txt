@@ -60,6 +60,11 @@ add_executable(game-core-tests
     # 路径顶点流逐位对照（四要素 × 相机三档位 × overlayFlags 组合 +
     # G4 叠加层/整帧 draw call 量化 + 前置缺陷 A 现状与修复双向锁定）
     scene_overlay_equivalence_test.cpp
+    # R3.8/B13 浮字池语义 + 动画守卫：容量/池满覆盖最旧/纪元复位/spawn 参数防御/
+    # 动画采样（上浮/淡出/弹跳）纯函数 + 空池零 draw call（顶点流与 draw call 量化）
+    scene_floating_text_test.cpp
+    # R3.8/B13 场景回归集：确定性软光栅化 golden 基线（六要素 + 浮字多帧 × 相机三档位）
+    scene_pixel_regression_test.cpp
     # R2.1 GameView protobuf 信封编码器 wire format 锁定（重构方案 2026-09-17 B06 批）
     gameview_encode_test.cpp
     manual_recruit_test.cpp

@@ -416,6 +416,51 @@ object NativeBridge {
      */
     external fun sceneSetPreview(previewData: FloatArray?)
 
+    // ============================================================
+    // R3.8/B13 浮字通道端口（浮动文字池·事件驱动 spawn）
+    //
+    // 【JNI 面豁免登记】（沿 R0.2 探针 / B06 nativeSetDirtyExportProtobuf /
+    // 上方场景 8 端口 / R3.3 叠加层 3 端口先例）：本端口属"**低频游戏事件**
+    // 驱动"通道（伤害结算/治疗/词条提示发生时才调用），与渲染循环**正交**——
+    // 不构成任何每帧形状的 JNI 传输。它替代的是"浮动文字动态字形渲染"这一
+    // 原本需要每帧提交文本/字形数据的通道：Tier1 字形预烘焙进图集、
+    // C++ 侧对象池持实例 + 时间驱动动画 ⇒ **浮字活跃期每帧 JNI 次数 = 0**
+    // （批次红线），既有的逐 rect/文本提交端口一个都不新增。
+    // 端口总数前后对照见完成报告。
+    // ============================================================
+
+    /**
+     * 浮字生成（R3.8/B13）——**事件驱动**低频通道，绝不由渲染循环调用。
+     *
+     * 入参扁平序（长度 = [FLOAT_SPAWN_STRIDE]，与 C++
+     * `scene::kFloatSpawnStride` 镜像）：
+     * ```
+     * [0] worldX      世界锚点 X（格）
+     * [1] worldY      世界锚点 Y（格）
+     * [2] assetIndex  Tier1 资产索引（词条 0..FLOAT_WORD_COUNT-1 /
+     *                 单字形 FLOAT_GLYPH_BASE_INDEX..）
+     * [3] charCount   连续字形数（词条 = FLOAT_WORD_LENGTH[i]；数字串 = 位数）
+     * [4] styleIndex  样式档（FLOAT_STYLE_*）
+     * [5] scale       附加缩放（<=0 或非有限 → 拒绝）
+     * [6] riseScale   上浮速度倍率（<=0 或非有限 → 拒绝）
+     * [7] bounce      暴击弹跳（非 0 = 播放）
+     * [8] reserved    保留（须为 0，非 0 直接拒绝）
+     * [9] reserved2   保留（须为 0）
+     * ```
+     *
+     * ## 零每帧 JNI 纪律
+     * 动画（上浮/淡出/弹跳）全在 C++ `scene::FloatTextPool` 内按帧时间标量
+     * 推进——**本端口每帧调用次数 = 0**（只在事件发生时调用）。池满覆盖
+     * 最旧（不阻塞调用方）；非法参数静默拒绝（不入池、不崩溃）。
+     *
+     * ## 与 Canvas 兜底的关系
+     * 浮字状态**不经** `RenderFrame` 契约、不进 `SoftwareCanvasBackend`——
+     * Canvas 兜底零改动（GPU 路径增强特性）。
+     *
+     * @param spawnData null 或长度不足 = 忽略（不崩溃）
+     */
+    external fun sceneSpawnFloatingText(spawnData: FloatArray?)
+
     /**
      * 远景观看容量路径开关（R3.5）：整岛缩小观看时地面层改走「整图 REPEAT
      * quad」（1 个 draw call）替代逐格地面（最坏 128×128 ≈ 16384 sprite/帧，
@@ -559,4 +604,16 @@ object NativeBridge {
      * 渲染器未初始化时返回全 0。
      */
     external fun nativeGetSpriteOverflowStats(): LongArray
+
+    // ============================================================
+    // 双端协议常量（与 C++ scene_draw.h / scene_store.h 镜像；
+    // SceneOverlayProtocolGuardTest / SceneUvTablesMirrorGuardTest 逐位锁定）
+    // ============================================================
+
+    /**
+     * 浮字 spawn 入参步长（R3.8/B13）——与 C++
+     * `scene::kFloatSpawnStride` 同值（镜像守卫锁定）。
+     * 字段序见 [sceneSpawnFloatingText] KDoc。
+     */
+    const val FLOAT_SPAWN_STRIDE = 10
 }

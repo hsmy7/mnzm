@@ -11,6 +11,8 @@
 #include "scene_uv_tables.h"
 // 叠加层状态与预览协议（R3.3）——纯声明头文件，零 Android 依赖
 #include "scene_store.h"
+// 浮字对象池 + 动画核心（R3.8/B13）——纯 C++，零 Android 依赖
+#include "float_text.h"
 // 石板道路求解器 + 渲染合成器 + 绘制层序合成器（单一权威，与旧路径同源）
 #include "gamecore/map/road_compositor.h"
 #include "gamecore/map/draw_order.h"
@@ -886,6 +888,162 @@ inline void buildOverlayLayers(SpriteBatcher& batcher, const float projMatrix[16
     }
 
     flushBatch();
+}
+
+// ============================================================
+// 浮字批（R3.8/B13）——层序：浮字在**最上层**（叠加层之上；世界内容最后提交）
+//
+// 数据来源：FloatTextPool（C++ 全量持有；实例经事件驱动 spawn 低频入池，
+// 动画由时间标量在 C++ 内推进——**零每帧 JNI、零每帧几何跨线**）。
+//
+// 与地图层的投影关系：浮字锚点是**世界像素**坐标（格 × tileSize），与地图层
+// 同处世界空间；本函数只产出**世界像素 quad**，投影由调用方（NativeBridge）
+// 经既有 push-constant 投影（updateCameraGlobals 单实现）完成——不引入第二条
+// 投影路径（Vulkan/GLES 同构由基类保证，本函数零后端分支）。
+//
+// 空池 = **零 draw call**（`buildFloatTextBatch` 直接返回，不 begin/不 submit）；
+// 池满由 FloatTextPool 内部覆盖最旧（本函数无丢弃逻辑——单一职责）。
+// ============================================================
+
+/// 浮字 spawn 协议步长（JNI `sceneSpawnFloatingText` 扁平入参长度；
+/// 字段序见 NativeBridge.cpp 该端口注释——双端常量镜像守卫锁定）
+inline constexpr int kFloatSpawnStride = 10;
+
+/// 浮字批绘制输入——池状态 + 资产 UV 表 + 相机换算常量
+struct FloatTextParams {    /// 池实例数组（只读；长度 = FloatTextPool::capacity()）
+    const FloatTextInstance* instances = nullptr;
+    /// 池容量（= FloatTextPool::capacity()）
+    int32_t instanceCount = 0;
+    /// 当前时基（秒；由调用方的帧时间累加器提供）
+    float nowSeconds = 0.0f;
+    /// 图集纹理（Tier1 字形资产所在纹理；0 = 未就绪 → 整层跳过）
+    uint32_t atlasTexId = 0;
+    /// Tier1 资产 UV 表（[u0,v0,u1,v1] × assetCount；生成表 scene::kFloatUv）
+    const float* uv = nullptr;
+    /// 资产总数（= scene::kFloatAssetCount）
+    int32_t assetCount = 0;
+    /// 单字形基准资产索引（= scene::kFloatGlyphBaseIndex；数字 0-9 自此连续）
+    int32_t glyphBaseIndex = 0;
+    /// 场景 tileSize（格 → 世界像素换算，与地图层同口径）
+    float tileSize = 48.0f;
+    /// 基础世界高度（格；字形格高 224px 对应的世界高度）
+    float baseWorldHeight = 0.5f;
+    /// 相机可见世界矩形（剔除不可见浮字——与地图层同源视野边界）
+    float viewLeft = 0.0f;
+    float viewTop = 0.0f;
+    float viewRight = 0.0f;
+    float viewBottom = 0.0f;
+    /// 可见性剔除余量（世界像素；浮字可上浮出视野边界）
+    float cullMargin = 512.0f;
+};
+
+/// 样式档颜色查询（越界回落白色——防御，不崩溃）
+inline void floatStyleColor(int32_t styleIndex, float* r, float* g, float* b, float* a) {
+    if (styleIndex >= 0 && styleIndex < kFloatStyleCount) {
+        *r = kFloatStyles[styleIndex].r;
+        *g = kFloatStyles[styleIndex].g;
+        *b = kFloatStyles[styleIndex].b;
+        *a = kFloatStyles[styleIndex].a;
+    } else {
+        *r = 1.0f; *g = 1.0f; *b = 1.0f; *a = 1.0f;
+    }
+}
+
+/// UV 表条目取用（越界回落零 UV——防御，不读越界内存）
+inline void floatAssetUv(const FloatTextParams& p, int32_t assetIndex,
+                         float* u0, float* v0, float* u1, float* v1) {
+    if (p.uv != nullptr && assetIndex >= 0 && assetIndex < p.assetCount) {
+        const float* e = p.uv + assetIndex * 4;
+        *u0 = e[0]; *v0 = e[1]; *u1 = e[2]; *v1 = e[3];
+    } else {
+        *u0 = 0.0f; *v0 = 0.0f; *u1 = 0.0f; *v1 = 0.0f;
+    }
+}
+
+/**
+ * 构建浮字批（世界像素 quad；空池 = 零 draw call）。
+ *
+ * 多字形串排布：`charCount` 个连续资产索引（`assetIndex..assetIndex+charCount-1`）
+ * 自左向右水平排布，整体以锚点水平居中（浮字锚点在格中心上方）。
+ * 上浮/淡出/弹跳由 [sampleFloatText] 纯函数采样（可独立守卫）。
+ *
+ * @returns 提交的浮字条数（0 = 空池或整层跳过 → 零 draw call）
+ */
+template <typename Submit>
+inline int buildFloatTextBatch(SpriteBatcher& batcher, const float projMatrix[16],
+                               const FloatTextParams& p, Submit&& submit) {
+    if (p.instances == nullptr || p.instanceCount <= 0) return 0;
+    if (p.atlasTexId == 0 || p.uv == nullptr || p.assetCount <= 0) return 0;
+
+    const float height = p.baseWorldHeight * p.tileSize;
+    const float cellAspect = kFloatCellAspect;
+    const float glyphW = height * cellAspect;   // 单字形世界宽（格高 × 格宽高比）
+
+    int emitted = 0;
+    bool haveBatch = false;
+    const float cullL = p.viewLeft - p.cullMargin;
+    const float cullR = p.viewRight + p.cullMargin;
+    const float cullT = p.viewTop - p.cullMargin;
+    const float cullB = p.viewBottom + p.cullMargin;
+
+    auto flush = [&]() {
+        if (haveBatch && batcher.vertexCount > 0) {
+            submit(p.atlasTexId, batcher.vertices, batcher.vertexCount);
+        }
+        haveBatch = false;
+    };
+
+    for (int32_t i = 0; i < p.instanceCount; i++) {
+        const FloatTextInstance& inst = p.instances[i];
+        if (!inst.alive) continue;
+
+        FloatTextRenderSample s = sampleFloatText(inst, p.nowSeconds);
+        if (s.alpha <= 0.0f) continue;
+
+        // 世界像素锚点（浮字锚点在格中心；y 为格底 → 上浮）
+        const float anchorPxX = s.worldX * p.tileSize;
+        const float anchorPxY = s.worldY * p.tileSize;
+
+        const int32_t chars = (s.charCount > 0) ? s.charCount : 1;
+        const float totalW = glyphW * static_cast<float>(chars) * s.scale;
+        const float cellH = height * s.scale;
+        // 整体水平居中于锚点
+        float x = anchorPxX - totalW * 0.5f;
+        const float y = anchorPxY;
+
+        // 可见性剔除（整条浮字矩形与视野余量无交 → 跳过，不产顶点）
+        if (x + totalW < cullL || x > cullR || y + cellH < cullT || y > cullB) continue;
+
+        float cr;
+        float cg;
+        float cb;
+        float ca;
+        floatStyleColor(s.styleIndex, &cr, &cg, &cb, &ca);
+        const float alpha = ca * s.alpha;
+
+        if (!haveBatch) {
+            batcher.begin(projMatrix);
+            haveBatch = true;
+        }
+        for (int32_t c = 0; c < chars; c++) {
+            const int32_t assetIndex = s.assetIndex + c;
+            float u0;
+            float v0;
+            float u1;
+            float v1;
+            floatAssetUv(p, assetIndex, &u0, &v0, &u1, &v1);
+            // UV 向内收缩（与地图层/预览同式，防图集邻居渗色）
+            batcher.add(p.atlasTexId,
+                x, y, glyphW * s.scale, cellH,
+                u0 + kSceneUvEpsilon, v0 + kSceneUvEpsilon,
+                u1 - kSceneUvEpsilon, v1 - kSceneUvEpsilon,
+                cr, cg, cb, alpha);
+            x += glyphW * s.scale;
+        }
+        emitted++;
+    }
+    flush();
+    return emitted;
 }
 
 }  // namespace scene
