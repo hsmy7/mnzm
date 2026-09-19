@@ -123,10 +123,10 @@ class RngSourceGuardTest {
      * 分区 id 是**存档 `rngStates` 的持久化键，不得改动**（见 [RngPartition] KDoc）；
      * 新增分区 = 必须同时在 `docs/rng-source-inventory.md` 登记消费点。
      */
-    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
 
     /** 参与 `rngStates` 序列化的分区 id（= id 全集 − 通道型分区） */
-    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10)
+    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11)
 
     /** 随机源类别（与 `docs/rng-source-inventory.md` §1 的五类入口一一对应） */
     private enum class RandomSourceCategory(val label: String, val pattern: Regex) {
@@ -251,12 +251,36 @@ class RngSourceGuardTest {
         )
         val expectedNames = listOf(
             "BATTLE", "BREAKTHROUGH", "EXPLORATION", "SYSTEM", "ENEMY_GEN",
-            "MAIL", "AI_SECT", "SECRET_REALM", "MISSION", "AI_SECT_MIRROR", "CHAT"
+            "MAIL", "AI_SECT", "SECRET_REALM", "MISSION", "AI_SECT_MIRROR", "CHAT",
+            "RESIDUAL"
         )
         assertTrue(
             "RngPartition 名字/顺序偏移：实测 ${names.take(10)}——" +
                 "名字是存档语义的一部分（rngStates 日志/诊断面），增删须同步 inventory 文档与本断言",
             names.size >= expectedNames.size && names.take(expectedNames.size) == expectedNames
+        )
+    }
+
+    @Test
+    fun `R4_4 残留执行器分区必须是本地 PCG 分区且参与快照`() {
+        // B14/R4.4 核心断言：残留执行器随机域（11）从委托通道独立出来，
+        // Kotlin 侧持有本地 PCG 实例 ⇒ **零 per-roll JNI**。
+        // 若本分区被改回委托式（isLocal=false），每次抽取都会跨线——
+        // 本用例红即是回归信号（行为级零跨线证明见 ResidualRngLocalityGuardTest）。
+        val residual = RngPartition.entries.firstOrNull { it.name == "RESIDUAL" }
+        assertTrue(
+            "RngPartition.RESIDUAL 缺失（R4.4/B14：残留执行器随机域须独立为 11 号分区）",
+            residual != null && residual.id == 11
+        )
+        assertTrue(
+            "RngPartition.RESIDUAL(11) 必须参与 rngStates 序列化（inSnapshot=true）——" +
+                "否则读档后残留域随机序列不可复现",
+            residual!!.inSnapshot
+        )
+        assertTrue(
+            "RngPartition.RESIDUAL(11) 必须是**本地 PCG 分区**（isLocal=true）——" +
+                "改回委托式即 R4.4 目标回退（per-roll JNI 复现）",
+            residual.isLocal
         )
     }
 

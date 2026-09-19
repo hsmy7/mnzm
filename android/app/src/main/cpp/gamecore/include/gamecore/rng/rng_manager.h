@@ -16,8 +16,24 @@
 // 不得改动——存档 rngStates 的键）：
 //   BATTLE=0 / BREAKTHROUGH=1 / EXPLORATION=2 / SYSTEM=3 /
 //   ENEMY_GEN=4 / MAIL=5 / AI_SECT=6 / SECRET_REALM=7 / MISSION=8 /
-//   AI_SECT_MIRROR=9（保留）
+//   AI_SECT_MIRROR=9（保留）/ CHAT=10 / RESIDUAL=11
 //
+// RESIDUAL(11) 语义（R4.4/B14 新增）：
+//   Kotlin 残留执行器**本地随机域**。B14 起该域改为 Kotlin 侧持有本地 PCG
+//   实例（DeterministicRng，state 真实使用），抽取/快照/恢复全在 Kotlin 完成
+//   ⇒ **零 per-roll JNI**（消费面见 Kotlin `RngPartition.RESIDUAL` KDoc）。
+//   C++ 侧仍登记该 id 并沿用 `seed + 11` 播种，理由有三：
+//     1. `kMaxPartitionId` 是 JNI 合法分区上界，Kotlin 经 `exportStates`
+//        导出的 11 号键在读档/对拍面会走 `importStateInternal` →
+//        `rng_.restoreStates()`——虽当前该键只回写本地实例，登记可保证
+//        上界口径与两侧枚举一致（否则未来新增消费面会被静默拒绝）；
+//     2. 对拍（Diff*）与 `RngSourceGuardTest` 的 id↔name 双射守卫要求
+//        两侧枚举逐项对应；
+//     3. `importStateInternal` 的未知 id 虽被 `restoreStates` 跳过，
+//        但登记后语义是"已知且可恢复"，而非"未知忽略"。
+//   注意：本分区**不参与** C++ 生产消费（无 C++ 调用点取它），
+//   它的存在是登记 + 播种对齐，不引入任何新的跨线路径。
+// ============================================================
 // AI_SECT_MIRROR(9) 语义（**保留 id，永不改义**）：
 //   C++ AI 域真实消费的流是 GameCore::aiRng_（种子 seed + 6×31337），而它
 //   原先**不在 rngStates 协议面内**（syncRngStates 只导 rng_.exportStates()）
@@ -42,6 +58,7 @@ enum class RngPartition : int32_t {
     kMission = 8,   // 任务系统（任务刷新/奖励 RNG 收敛分区）
     kAiSectMirror = 9,  // AI 流镜像态（GameCore::aiRng_ 的归档通道；保留 id 永不改义）
     kChat = 10,     // 弟子交谈（W4-A·A5：DiscipleChatDialog 决策类抽取——用户时序独立流，不与结算分区共用）
+    kResidual = 11, // 残留执行器本地随机域（R4.4/B14：Kotlin 侧本地 PCG，零 per-roll JNI；C++ 仅登记 + 播种对齐）
 };
 
 class RngManager {
@@ -49,7 +66,7 @@ public:
     /// 分区 id 上界（**唯一权威**：JNI 入口的合法性守卫必须引用本常量，
     /// 不得写死枚举成员——新增分区时写死的守卫会静默拒绝新 id，
     /// MISSION(8) 曾因此在 AUTHORITATIVE 下恒返回 0）
-    static constexpr int32_t kMaxPartitionId = static_cast<int32_t>(RngPartition::kAiSectMirror);
+    static constexpr int32_t kMaxPartitionId = static_cast<int32_t>(RngPartition::kResidual);
 
     RngManager() = default;
 
@@ -68,6 +85,9 @@ public:
         partitions_[RngPartition::kSecretRealm] = DeterministicRng::fromSeed(seed + 7);
         partitions_[RngPartition::kMission] = DeterministicRng::fromSeed(seed + 8);
         partitions_[RngPartition::kChat] = DeterministicRng::fromSeed(seed + 10);
+        // 残留执行器本地随机域（R4.4/B14）：与 Kotlin `systemSeed + id` 逐位同式。
+        // C++ 侧无生产消费点——播种只为读档面/对拍面两侧枚举与初值对齐。
+        partitions_[RngPartition::kResidual] = DeterministicRng::fromSeed(seed + 11);
         // 镜像分区按同一公式播种（= aiRng_ 的播种式 seed + 6×31337 的等价初值；
         // GameCore::initialize 播种 aiRng_ 后经 mirrorAiRng 覆盖为权威态）
         partitions_[RngPartition::kAiSectMirror] = DeterministicRng::fromSeed(seed + 9);

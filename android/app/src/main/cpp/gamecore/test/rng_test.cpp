@@ -176,9 +176,9 @@ TEST(RngManagerTest, ExportRestoreRoundTrip) {
     for (int i = 0; i < 5; ++i) mgr.getRng(RngPartition::kSystem).nextInt(100);
 
     const auto states = mgr.exportStates();
-    // 10 个快照分区（含 MISSION=8 + W4-A·A5 CHAT=10；AI_SECT_MIRROR=9 为
-    // 通道型不进快照——新增快照分区时本断言同步 +1）
-    EXPECT_EQ(states.size(), 10u);
+    // 11 个快照分区（含 MISSION=8 + W4-A·A5 CHAT=10 + R4.4/B14 RESIDUAL=11；
+    // AI_SECT_MIRROR=9 为通道型不进快照——新增快照分区时本断言同步 +1）
+    EXPECT_EQ(states.size(), 11u);
 
     const auto valBefore = mgr.getRng(RngPartition::kSystem).nextInt(100);
     mgr.restoreStates(states);
@@ -194,6 +194,71 @@ TEST(RngManagerTest, RestoreIgnoresUnknownPartition) {
     mgr.restoreStates(states);                          // 不应崩溃
     // 未知分区被跳过，BATTLE 状态不变
     EXPECT_EQ(snapshotBefore, mgr.getRng(RngPartition::kBattle).snapshot());
+}
+
+// ============================================================
+// R4.4/B14 — 残留执行器本地随机域（RESIDUAL=11）登记与播种
+//
+// Kotlin 侧该分区是**本地 PCG 分区**（isLocal=true ⇒ 零 per-roll JNI），
+// C++ 侧不设生产消费点；此处锁死"登记 + 播种对齐"三件事：
+//   1. id 上界随新分区上移（否则 JNI 合法分区守卫会静默拒绝 11）；
+//   2. 播种式与 Kotlin `systemSeed + id` 逐位同式；
+//   3. 参与快照导出/恢复（inSnapshot=true）。
+// ============================================================
+
+TEST(RngManagerTest, ResidualPartitionIdIsRegisteredAndWithinMaxId) {
+    // 新分区 id 必须落在 kMaxPartitionId 上界内——上界是 JNI 入口的
+    // 合法性守卫唯一权威（曾因写死成员导致 MISSION(8) 恒返回 0）
+    EXPECT_EQ(static_cast<int32_t>(RngPartition::kResidual), 11);
+    EXPECT_EQ(RngManager::kMaxPartitionId, 11);
+    EXPECT_LE(static_cast<int32_t>(RngPartition::kResidual), RngManager::kMaxPartitionId);
+    // 既有 id 逐位不变（红线 1：本批只追加新分区，不改旧分区）
+    EXPECT_EQ(static_cast<int32_t>(RngPartition::kBattle), 0);
+    EXPECT_EQ(static_cast<int32_t>(RngPartition::kChat), 10);
+    EXPECT_EQ(static_cast<int32_t>(RngPartition::kAiSectMirror), 9);
+}
+
+TEST(RngManagerTest, ResidualPartitionSeededBySystemSeedPlusId) {
+    // 与 Kotlin `DeterministicRng.fromSeed(systemSeed + partition.id)` 同式
+    constexpr int64_t kSeed = 987654321LL;
+    RngManager mgr;
+    mgr.initSystemSeed(kSeed);
+    auto expected = DeterministicRng::fromSeed(kSeed + 11);
+    auto& actual = mgr.getRng(RngPartition::kResidual);
+    for (int i = 0; i < 16; ++i) {
+        EXPECT_EQ(expected.nextInt(), actual.nextInt());
+    }
+}
+
+TEST(RngManagerTest, ResidualPartitionInSnapshotAndRestorable) {
+    EXPECT_TRUE(RngManager::inSnapshot(RngPartition::kResidual));
+    RngManager mgr;
+    mgr.initSystemSeed(4242);
+    for (int i = 0; i < 7; ++i) mgr.getRng(RngPartition::kResidual).nextInt(50);
+
+    const auto states = mgr.exportStates();
+    EXPECT_TRUE(states.count(11) == 1u);  // 11 号键在导出面内
+
+    const auto before = mgr.getRng(RngPartition::kResidual).nextInt(50);
+    mgr.restoreStates(states);
+    EXPECT_EQ(before, mgr.getRng(RngPartition::kResidual).nextInt(50));
+}
+
+TEST(RngManagerTest, ResidualPartitionDoesNotDisturbOthers) {
+    // 取用新分区不得扰动既有分区的抽取序（红线 1）
+    RngManager a;
+    RngManager b;
+    a.initSystemSeed(2026);
+    b.initSystemSeed(2026);
+    for (int i = 0; i < 10; ++i) b.getRng(RngPartition::kResidual).nextInt();
+    for (int i = 0; i < 12; ++i) {
+        EXPECT_EQ(a.getRng(RngPartition::kBattle).nextInt(),
+                  b.getRng(RngPartition::kBattle).nextInt());
+        EXPECT_EQ(a.getRng(RngPartition::kSystem).nextInt(),
+                  b.getRng(RngPartition::kSystem).nextInt());
+        EXPECT_EQ(a.getRng(RngPartition::kChat).nextInt(),
+                  b.getRng(RngPartition::kChat).nextInt());
+    }
 }
 
 }  // namespace

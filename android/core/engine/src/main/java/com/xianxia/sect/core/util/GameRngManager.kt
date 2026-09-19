@@ -87,7 +87,7 @@ class GameRngManager @Inject constructor() {
     private fun rebuildPartitions() {
         val channel = rngChannel
         RngPartition.values().forEach { partition ->
-            rngMap[partition] = if (channel != null) {
+            rngMap[partition] = if (channel != null && !partition.isLocal) {
                 NativeBackedRng(partition.id, channel)
             } else {
                 DeterministicRng.fromSeed(systemSeed + partition.id)
@@ -119,6 +119,28 @@ class GameRngManager @Inject constructor() {
         for ((partitionId, savedState) in states) {
             val partition = RngPartition.entries.find { it.id == partitionId && it.inSnapshot } ?: continue
             (rngMap[partition] ?: error("RNG $partition not found")).restore(savedState)
+        }
+        reseedMissingPartitions(states)
+    }
+
+    /**
+     * **无键重播**（R4.4/B14 老档兼容）：`rngStates` 里缺失键的分区按
+     * `systemSeed + id` 确定性重种。
+     *
+     * 旧档（R4.4 前）不含 [RngPartition.RESIDUAL] 的 11 号键；若置之不问，
+     * 该分区会停在 `initSystemSeed` 时构造的实例 state 上——而读档路径上
+     * `systemSeed` 可能仍是构造期的挂钟初值（`System.currentTimeMillis()`），
+     * ⇒ 同一存档两次加载得到**不同序列**（漂移）。此处显式重播，语义与
+     * MISSION(8) / CHAT(10) 的既有恢复口径一致：**缺键 ⇒ 按当前系统种子
+     * 确定性重种**，可复跑断言（非仅日志），且不写入 `rngStates`
+     *（本方法只改内存流态，导出仍以真实 snapshot 为准）。
+     *
+     * 通道型分区（`inSnapshot = false`）不在此面内——其状态归宿主侧保管。
+     */
+    private fun reseedMissingPartitions(states: Map<Int, Long>) {
+        RngPartition.entries.filter { it.inSnapshot && it.id !in states }.forEach { partition ->
+            (rngMap[partition] ?: error("RNG $partition not found"))
+                .restore(DeterministicRng.fromSeed(systemSeed + partition.id).snapshot())
         }
     }
 }
