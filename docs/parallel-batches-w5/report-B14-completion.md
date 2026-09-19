@@ -17,9 +17,12 @@
 
 | 子项 | 提交号 | 说明 |
 |---|---|---|
-| 分区 + 本地 PCG 机制 + C++ 同步 + 登记 | `2b506889e` | `RngPartition.RESIDUAL(11)` + `isLocal` + `GameRngManager` 分流与无键重种 + `rng_manager.h` 枚举/播种/上界 + `RngSourceGuardTest` 登记同步 + `rng_test.cpp` 4 用例 |
-| per-roll JNI 消除守卫 + 老档重种守卫 | `934cd1bbd` | 新建 `ResidualRngLocalityGuardTest` 7 用例 + `NativeBackedRngTest` 按 `isLocal` 分流并新增 1 用例 |
-| 文档三件套 + inventory | 见下方"文档"节 | 方案 §7.2 B14 段 / `CHANGELOG.md` 4.01.15 内 B14 小节 / `docs/cpp-engine.md` 进展行 / `docs/rng-source-inventory.md` §8 |
+| 分区 + 本地 PCG 机制 + C++ 同步 + 登记 | `2b506889e` | `RngPartition.RESIDUAL(11)` + `isLocal` + `GameRngManager` 分流与无键重种 + `rng_manager.h` 枚举/播种/上界 + `RngSourceGuardTest` 登记同步 + `rng_test.cpp` 4 用例（5 文件 +190/−10） |
+| per-roll JNI 消除守卫 + 老档重种守卫 | `934cd1bbd` | 新建 `ResidualRngLocalityGuardTest` 7 用例 + `NativeBackedRngTest` 按 `isLocal` 分流并新增 1 用例（2 文件 +313/−5） |
+| detekt 打回修复 | `fdbb23c13` | 移除未用 import（零语义改动，1 文件 −1） |
+| 文档三件套 + inventory §8 + 完成报告 | `b312dc231` | 方案 §7.2 / `CHANGELOG.md` / `docs/cpp-engine.md` / `docs/rng-source-inventory.md` §8 / 本报告（5 文件 +326） |
+
+> `git status` 干净；上游看护台账提交（`ed3b3599a`）自然位于本批提交之间（看护监控日志）。
 
 ## 一、消费面枚举清单（分区 / 调用点 / 迁移前后对照）
 

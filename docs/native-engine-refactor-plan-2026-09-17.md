@@ -486,7 +486,9 @@ R3 行为等价性风险延续：overlay 新路径与旧逐 rect 路径以**顶�
 
 #### B14 批（2026-09-19）= R4.4（RNG 分区独立：残留执行器本地 PCG，消 per-roll JNI）
 
-批次文件 `docs/parallel-batches-w5/batch-R4C.md`；每子项独立 commit。前置 = B13
+批次文件 `docs/parallel-batches-w5/batch-R4C.md`；每子项独立 commit（**4 笔**：
+`2b506889e` 分区+机制+C+++登记 / `934cd1bbd` 守卫 / `fdbb23c13` detekt 修复 /
+`b312dc231` 文档三件套+inventory+报告）。前置 = B13
 （R3 收官，`batch-R3D.md`）。R4.4 标注"权威翻转后允许"——B04/B05 起 AUTHORITATIVE
 已是生产默认，残留执行器已按 B09 退化为平台效应适配器，**本批是其随机域的最终独立化**。
 
