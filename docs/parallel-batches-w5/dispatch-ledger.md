@@ -86,6 +86,7 @@
   - 2026-09-20 06:14 截屏：B16 注入通道接线中——data_store_test 自身过严断言修复后 **11 条守卫全绿**；JNI 端口（Kotlin external fun + 豁免登记 +24）与 C++ 实现（紧邻 nativeSetGameConfig）接线中；Kotlin 注入桥沿用 AssetSource 平台端口模式（+96）；改动面含 GameCoreBridge.cpp/kt + CMakeLists + 5 DB 头；无授权弹窗。
   - 2026-09-20 06:23 截屏：B16 注册点接线完成（AssetSource 已在 CultivationEventProcessor/ResourcePreloader 作用域）——正构建桌面 JNI 桥验证 C++ 编译 + 核对 Gradle 数据文件生成；排障方法得当（PowerShell 输出转文件捕获、直接调 clang 看真实错误、查 NDK log.h stub）；无授权弹窗。
   - 2026-09-20 06:33 截屏：B16 桥编译取证——正确诊断 **Bionic 头文件 × llvm-mingw libc++ 根本不兼容**（需 Windows 侧 log.h shim 或不同 include 组合），通读 build-desktop-jni.ps1 全文找真实解法，cmd 重定向跑桥脚本捕获输出 + 仅 jni-include 直编桥验证；无授权弹窗。
+  - 2026-09-20 06:43 截屏：B16 补环境缺口 shim——确认 android/log.h 缺失系**先于本批的环境缺口**（未改动桥同样受影响）；最小 shim 递进补齐（log.h → android_LogPriority/gettid Bionic-only API → 新建 gamecore/jni-include/unistd.h +29）后重编完整桥；**验收盯点：shim 须仅作用桌面桥 include 路径，不污染 NDK 真实头文件**；无授权弹窗。
   - 2026-09-20 05:50 **B16 经 WorkBuddy AI 派发（焦点红线六步 + 绑工作区）**：新会话"实施批次 B16 并验收"已处理 28s 开跑；子会话首先核验批次身份（文件名 batch-R6B.md ↔ 台账 B16 = R6.2 对照）——身份纪律良好。**B15 验收通过记录见 B15 行（05:45）**：亲跑两门全绿、Canvas 消除/LAYOUT 零变更/拼装路径清零亲核；子会话越权自登记已由其自己回退 + 看护以真实证据重写。
   - 2026-09-20 00:33 截屏：B15 调研健康——系统读透 SectAtlasAssembler / 运行时消费链（AtlasAsyncPipeline+软渲像素源）/ build-atlas.mjs 函数常量 / SoftwareCanvasBackend 图集消费面 / SpriteAtlasDef 生成物与 KTX loader；无授权弹窗、无停滞。
   - 2026-09-20 00:44 截屏：B15 与上轮同点（调研末条"正在执行命令"持续）——停滞观察第 1 轮；命令执行中属可能正常（脚本跑批），连续 3 轮无变化再介入。
