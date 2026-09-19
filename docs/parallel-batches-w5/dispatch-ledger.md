@@ -96,6 +96,7 @@
   - 2026-09-20 02:13 截屏（按任务栏时钟校准）：B15 组合门重跑 ~12 分钟（91 任务 pre-test 编译段）；子会话 git diff 自查两条核心红线——**SoftwareCanvasBackend 仅 4 处纯注释零代码改动（Canvas 兜底红线达成）**、**build-atlas.mjs 仅像素加载 LAYOUT 未动（UV 权威零变更达成）**——与看护验收盯点完全对齐；无授权弹窗。
   - 2026-09-20 02:23 截屏：B15 组合门**越过 mergeReleaseResources 热点**（清锁生效），现处 :app:compileReleaseKotlin；红线自查结论不变；1 后台任务；无授权弹窗。
   - 2026-09-20 02:33 截屏：B15 组合门测试段执行中——:app/:core:data/:core:domain 三模块已跑完，等其余模块；门客户端持续运行；无授权弹窗。
+  - 2026-09-20 02:43 截屏：B15 又一轮 detekt 迭代——本轮门测试段全过，唯一败因 = 自曝 NativeSurfaceViewTest:56 未用参数 ctx（自己 path-helper 重构引入）；已删参+更新调用点+核 KDoc 残留，detekt 六模块转绿；改了测试文件 ⇒ 将再重跑完整组合门（改文件必重跑门纪律）；无授权弹窗。
   - 2026-09-20 00:30 **B14 验收通过 + B15 经 WorkBuddy 派发（本轮跨验收与派发）**：验收详见 B14 行（亲跑两门全绿、残余③闭合）；B15 = R6.1 图集离线化（batch-R6A.md 就绪后）经 WorkBuddy AI 派发（焦点红线六步 + 绑 XianxiaSectNative 工作区；新会话"实施批次 B15 并自检"已处理 17s 开跑）。**R4 阶段收官，进入 R6 阶段**（R6.1 图集离线化 → R6.2 数值外置 → §CI 执法收官）。
   - 2026-09-19 23:34 **B14 转 verifying**：子会话交付最终报告（report-B14-completion.md 16.6KB 已入库；含逐门实测输出、对拍重定基线清单、R4.4 口径逐条对照；自述组合门第三轮 22:28 起跑、测试段零失败、XML 23:11 实证）；git 干净、四笔提交在案；看护占锁 23:35 亲跑门 1（桥+GTest 重建+ctest）与门 2（组合门 --rerun-tasks）。
   - 2026-09-19 21:46 截屏：B14 推进健康——实施+守卫成形，正做对拍重定基线（NativeBackedRngTest 基线位移断言 = RESIDUAL 分区不再委托属设计内行为变更）+ C++ rng_test.cpp 新分区快照计数守卫；桥携 rng_manager.h 改动后台重建中（1 后台任务运行中），全量 GTest 排队；无授权弹窗。
