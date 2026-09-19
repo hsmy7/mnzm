@@ -80,6 +80,7 @@
 - **监控日志**：
   - 2026-09-20 05:53 截屏：B16 调研深入——7 个 DB 头文件确认在位并逐个读透（herb_db 等）+ JNI 注入通道（game_config.h）+ 生成器（gen-templates.mjs）+ 方案 R6.2 验收口径 + Gradle 模式（.gradle 非 .kts、B15 BuildConfig 接线先例）+ native_test_config.h 预期位置与 C++ 测试目录配置头引用；工作区净；无授权弹窗。
   - 2026-09-20 05:55 截屏：B16 按批次任务 1 构建消费面清单（逐 DB 列消费文件）——已核对 CMakeLists/对拍桥脚本可消费注入 DB/既有 herb_db_test.cpp 形态基线；调研收口记录计划；无授权弹窗。
+  - 2026-09-20 05:56 截屏：B16 子项①入库 efb1be5f2（消费面枚举清单）+ 关键发现：**分支假设验证成立**（无外部文件触碰 DB 内部表、全走头文件 accessor、爆炸半径锁定 data/）；**assets/data/manuals.json 已存在** + gen-manual-db.mjs 生成器 = 单源模式可平移；正确识别"最后提交"误信号（我的并发看护提交）；无授权弹窗。
   - 2026-09-20 05:50 **B16 经 WorkBuddy AI 派发（焦点红线六步 + 绑工作区）**：新会话"实施批次 B16 并验收"已处理 28s 开跑；子会话首先核验批次身份（文件名 batch-R6B.md ↔ 台账 B16 = R6.2 对照）——身份纪律良好。**B15 验收通过记录见 B15 行（05:45）**：亲跑两门全绿、Canvas 消除/LAYOUT 零变更/拼装路径清零亲核；子会话越权自登记已由其自己回退 + 看护以真实证据重写。
   - 2026-09-20 00:33 截屏：B15 调研健康——系统读透 SectAtlasAssembler / 运行时消费链（AtlasAsyncPipeline+软渲像素源）/ build-atlas.mjs 函数常量 / SoftwareCanvasBackend 图集消费面 / SpriteAtlasDef 生成物与 KTX loader；无授权弹窗、无停滞。
   - 2026-09-20 00:44 截屏：B15 与上轮同点（调研末条"正在执行命令"持续）——停滞观察第 1 轮；命令执行中属可能正常（脚本跑批），连续 3 轮无变化再介入。
