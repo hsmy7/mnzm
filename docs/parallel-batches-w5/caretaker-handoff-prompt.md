@@ -16,11 +16,11 @@
 2. `docs/native-engine-refactor-plan-2026-09-17.md`（下称"方案"）—— 重构总方案，§3 为批次依据，§7 为滚动实施状态。
 3. 进入派工/验收时，另读对应批次文件 `docs/parallel-batches-w5/batch-*.md`。
 
-### 交接时刻快照（2026-09-19 08:15）
+### 交接时刻快照（2026-09-19 08:28）
 - **B01–B09 已验收通过**（R0/R1/R4.1-4.3/R2 全阶段，证据见台账批次总表；GTest 基线已上移至 1456）。
-- **B10（R3.1+R3.2：C++ SceneStore 新模块 + JNI 面重构，批次文件 `batch-R3A.md`）正在一个 ZCode 子会话中施工**（2026-09-19 05:54 派发）。交接时它处于第三轮完整组合门运行中（前两轮门自抓并修复了两个真实缺陷：旧 renderFrame 残留 setFadeAlpha+drawIslandCliffs 导致悬崖层双路重复绘制；drawFrame fade 写回时序早于重叠层消费。第一轮数字：JUnit 7825/0 失败/17 模块，engine XML 3344 含 Diff* 50 类 273 用例 0 skip）。
+- **B10（R3.1+R3.2：C++ SceneStore 新模块 + JNI 面重构，批次文件 `batch-R3A.md`）正在一个 ZCode 子会话中施工**（2026-09-19 05:54 派发）。**第三轮完整组合门已 BUILD SUCCESSFUL 26m35s / 339 任务全 executed / GATE_EXIT=0**（日志 `/tmp/junit_gate3.log`，08:27:33 落盘）；子会话正在汇总判定数字，尚未提交 R3.2 面改动（工作区仍 M/?? 若干文件；仅 R3.1 已提交 ba0901c89）。前两轮门自抓并修复两个真实缺陷：旧 renderFrame 残留 setFadeAlpha+drawIslandCliffs 导致悬崖层双路重复绘制；drawFrame fade 写回时序早于重叠层消费。第一轮数字：JUnit 7825/0 失败/17 模块，engine XML 3344 含 Diff* 50 类 273 用例 0 skip。
 - **派发渠道（用户指示）**：B10 在 ZCode 收尾；**B11 起（含一切修复会话）一律在 Qoder 上派发**，使用默认模型即可，不点模型选择器。
-- 交接前的看护定时任务已被删除（用户暂停）。若你的运行环境支持定时自动化（如 CronCreate），请重建每 10 分钟一轮的看护（cron `*/10 * * * *`，prompt 即本提示词）；否则由你的驱动方每约 10 分钟唤起你执行一轮。
+- 看护定时任务由接手会话重建（cron `*/10 * * * *`，prompt 即本提示词）。
 
 ### 每轮循环（严格照台账《看护运行手册》）
 1. **读状态**：读台账"当前状态"。
@@ -71,8 +71,10 @@ export PATH="/c/Users/cp050/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin:/c/Us
 - windows-mcp `Type` 必须显式传 `loc` 坐标；截屏图落盘为 PNG 文件，需 Read 该路径查看。
 - 子会话质量好但会自增守卫测试（GTest 基线上移）、会自查假绿、不代改看护台账——保持此分工：看护只写台账与批次文件，**绝不代子会话改代码**。
 - 台账每次状态变更后 git 提交（`docs(w5): ...`），保持仓库内状态可追溯、可被任意后续会话接续。
+- **定位子会话视图**：ZCode 侧栏默认列表可能不含目标会话（只见看护自身与更早批次）——点侧栏"搜索"打开会话搜索面板即可列出全部会话并选中目标；面板用 Esc 关闭。看护只读会话视图是安全的，**切勿在子会话输入框里打字**（除手册允许的"温和催促"）。
+- **免 GUI 旁证**：子会话的门日志落在 `/tmp/junit_gate*.log`（Git Bash 视角 = `C:\Users\cp050\AppData\Local\Temp`），直接 `tail`/`grep "BUILD \|GATE_EXIT"` 即可判门进度；配合 `ls -l --time-style` 看工作区文件 mtime 与 `Get-Process java` 判构建是否活着，比单纯截屏更不容易误判停滞。
 
 ### 当前待办（接手后立即）
-1. 切 ZCode → 点侧栏 B10 会话项（标题"读取 docs/parallel-batches-w5/batch-R3A.md…"）→ 截屏看 B10 是否已交最终报告；
+1. 切 ZCode → 用侧栏搜索面板定位 B10 会话项（标题"读取 docs/parallel-batches-w5/batch-R3A.md…"）→ 截屏看 B10 是否已交最终报告（第三轮门已绿，缺其提交 R3.2 面改动与报告）。
 2. 已交 → 按台账手册占锁转 `verifying`，亲跑验收门（B10 含 C++ 改动：先重建桥与 GTest 二进制；留意两处缺陷修复后的组合门绿证与场景等价守卫证据）；未交 → 记监控日志等下轮；
 3. B10 通过后：写 B11 批次文件（`batch-R3B.md`：R3.3+R3.4 overlay 几何 C++ 生成消 258 drawRect + 脏更新协议），**在 Qoder 上按焦点红线派发**；此后 B12–B17 依台账批次总表顺序滚动，直至收官。
