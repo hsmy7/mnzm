@@ -83,6 +83,7 @@
   - 2026-09-20 05:56 截屏：B16 子项①入库 efb1be5f2（消费面枚举清单）+ 关键发现：**分支假设验证成立**（无外部文件触碰 DB 内部表、全走头文件 accessor、爆炸半径锁定 data/）；**assets/data/manuals.json 已存在** + gen-manual-db.mjs 生成器 = 单源模式可平移；正确识别"最后提交"误信号（我的并发看护提交）；无授权弹窗。
   - 2026-09-20 05:58 截屏+git 双证：B16 子项②实施中——**数据文件 game-data.json + hash 门 game-data.hash.txt + 注入容器 data_store.h** 落盘；data_store.cpp（+74）编写中；5 个 DB 头文件改造为"可注入表 + inline 默认兜底"（beast_config 含函数式 realm 查找）——与注入失败语义红线对齐；无授权弹窗。
   - 2026-09-20 06:04 截屏：B16 关键中间实证——自抓修复 beast_config.h 两自身缺陷（重复 tigerSkills/缺失 wolfSkills）；**7 头文件编译链接过 + 169 个 DB 相关测试全绿 = accessor 重构行为保持**；注入层 data_inject.h（+105）创建、JSON→容器映射编写中；等价守卫测试生成中（核心验收证据）；无授权弹窗。
+  - 2026-09-20 06:14 截屏：B16 注入通道接线中——data_store_test 自身过严断言修复后 **11 条守卫全绿**；JNI 端口（Kotlin external fun + 豁免登记 +24）与 C++ 实现（紧邻 nativeSetGameConfig）接线中；Kotlin 注入桥沿用 AssetSource 平台端口模式（+96）；改动面含 GameCoreBridge.cpp/kt + CMakeLists + 5 DB 头；无授权弹窗。
   - 2026-09-20 05:50 **B16 经 WorkBuddy AI 派发（焦点红线六步 + 绑工作区）**：新会话"实施批次 B16 并验收"已处理 28s 开跑；子会话首先核验批次身份（文件名 batch-R6B.md ↔ 台账 B16 = R6.2 对照）——身份纪律良好。**B15 验收通过记录见 B15 行（05:45）**：亲跑两门全绿、Canvas 消除/LAYOUT 零变更/拼装路径清零亲核；子会话越权自登记已由其自己回退 + 看护以真实证据重写。
   - 2026-09-20 00:33 截屏：B15 调研健康——系统读透 SectAtlasAssembler / 运行时消费链（AtlasAsyncPipeline+软渲像素源）/ build-atlas.mjs 函数常量 / SoftwareCanvasBackend 图集消费面 / SpriteAtlasDef 生成物与 KTX loader；无授权弹窗、无停滞。
   - 2026-09-20 00:44 截屏：B15 与上轮同点（调研末条"正在执行命令"持续）——停滞观察第 1 轮；命令执行中属可能正常（脚本跑批），连续 3 轮无变化再介入。
