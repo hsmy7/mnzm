@@ -253,6 +253,70 @@
 
 ---
 
+## 8. R4.4/B14 新增分区 `RESIDUAL`（id=11）——残留执行器本地随机域（2026-09-19）
+
+### 8.1 分区登记
+
+| 项 | 内容 |
+|---|---|
+| 分区 | `RngPartition.RESIDUAL`（id=**11**，`inSnapshot=true`，`isLocal=true`） |
+| 播种公式 | `DeterministicRng.fromSeed(systemSeed + 11)`（与既有分区**同式**，Kotlin `rebuildPartitions` / `reseedMissingPartitions` 与 C++ `RngManager::initSystemSeed` 三处同源） |
+| 持久化 | `rngStates` **11 号键**（`Map<Int, Long>`，schema 零变更，仅新增键值）；旧档缺失该键 ⇒ 按 `systemSeed + 11` **确定性重种**（MISSION(8)/CHAT(10) 同款恢复语义，见 `GameRngManager.reseedMissingPartitions`） |
+| C++ 同步 | `gamecore/rng/rng_manager.h`：枚举 `kResidual = 11` + `initSystemSeed` 播种 `seed + 11` + `kMaxPartitionId` 上界随之上移（原钉在 `kAiSectMirror`）。**C++ 侧无生产消费点**——登记与播种是为读档面/对拍面两侧枚举口径一致 |
+| 为什么独立分区 | R4.4 前该域的随机**全部**经 `NativeBackedRng` 逐 roll 跨 JNI 取标量（`NativeBackedRng.kt:46`）。把该域独立成 `isLocal` 分区后，Kotlin 持有本地 PCG 实例，抽取/快照/恢复全在本地完成 ⇒ **零 per-roll JNI**。同时该域与既有分区彻底解耦：本分区抽取**不得**扰动任何既有分区的抽取序（红线 1） |
+
+### 8.2 消费面枚举（B14 实施前——"残留执行器"的实际消费面）
+
+本文档口径 = **以 `NativeBackedRng` 逐 roll 委托的实际消费面为准**（方案原文指认
+"残留执行器"= B09 退化后的平台效应适配器；其随机消费点即下表）。枚举结果：
+**生产源码中无任何 `RngPartition` 消费点需要迁移**——见 §8.3 的实测结论。
+
+| 消费点（batch 文件点名） | 实际分区 | 频率 | 存档依赖 | 迁移处置 |
+|---|---|---|---|---|
+| `GameEngineCoreAuthoritativeOps` 月/年变编排 | **无**（本文件 `grep RngPartition` 零命中） | — | — | 无需迁移（编排本身不直接抽取；其下辖服务各自持分区） |
+| `BattleExecutionRouter` 回退臂 | **无**（本文件 `grep RngPartition/GameRngManager` 零命中） | — | — | 无需迁移（路由只调 `nativeBattleExecute`；BATTLE 抽取在 C++ 侧，Kotlin 侧消费点为 `BattleSystem:31`，走 BATTLE 分区不变） |
+| `AISectDiscipleManager` | `AI_SECT_MIRROR(9)` / `AI_SECT(6)`（按模式解析，`:115`） | 低频（AI 弟子生成/装备补全） | 通道型（9 号键归 C++ `aiRng_` 保管） | **不迁移**：AI 域与 C++ `aiRng_` 同源是**设计目标**（`DiffAiRngSeedingTest` 锁守），通道型语义属红线 |
+| 其余 11 个既有分区消费面（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL / AI_SECT / SECRET_REALM / MISSION / CHAT） | 各自分区 | 见下表逐条 | 各分区持久化键 | **逐一不迁移**：红线 1 要求既有分区的委托关系与抽取序**逐位不变** |
+
+**既有分区消费点逐条清单**（`grep -rn "RngPartition\." android/{core,feature,app}/src/main`，
+共 76 命中，按分区归并）：
+
+| 分区 | 主要消费点 |
+|---|---|
+| `SYSTEM(3)`（35 处） | `LawEnforcement*`（9）/ `ProductionProcessor*`（4）/ `BuildingService`（3）/ `GiftService` / `DiplomacyService` / `VassalService` / `DiscipleService` / `MerchantAndRecruitService` / `RecruitService` / `ChildBirthSystem` / `PartnerSystem` / `RelativeGiftHandler` / `DisciplePurchaseService` / `ProductionTransactionManager` / `GameEngineGuideOps` / `GameEngineSpiritRootOps` / `GameEngineTraitAddOps` / `GameEngineTraitWashOps` |
+| `EXPLORATION(2)`（8） | `LevelGenerator` / `AISectBeastAttackProcessor` / `BeastAttackDetector` / `LootCalculator` / `PatrolBattleSystem` / `WorldLevelManager` / `InventoryFacadeImpl` |
+| `BATTLE(0)`（8） | `BattleSystem` / `AISectAttackDecisionOps` / `AISectAttackManager`(2) / `ExplorationService`(2) / `GameEngineBattleOps`(2) |
+| `AI_SECT(6)`（7，含 KDoc 与注册点） | `AISectDiscipleManager:116/:150/:154` |
+| `CHAT(10)`（6） | `GameEngineConversationDraw`(3) / `GameEngineCoordination`(KDoc) |
+| `MAIL(5)`（5） | `GameEngineSectLevelOps` / `MailAttachmentDistributeOps` / `RedeemCodeService`(2) |
+| `AI_SECT_MIRROR(9)`（4） | `AISectDiscipleManager:115` + KDoc |
+| `SECRET_REALM(7)`（3） | `SecretRealmService`(3) |
+| `MISSION(8)`（2） | `MissionSystem:41` |
+| `BREAKTHROUGH(1)`（2） | `DiscipleBreakthroughHandler:359` / `DiscipleStatCalculator修炼Ops6:38` |
+| `ENEMY_GEN(4)`（1） | `EnemyGenerator:39` |
+
+### 8.3 实测结论（B14 迁移面为零的诚实登记）
+
+`grep -rn "RngPartition\.RESIDUAL"` 在**任何生产源码中零命中**——本批次
+**没有把任何既有消费点切到新分区**。原因：batch-R4C.md 任务 1 要求"以
+`NativeBackedRng` 逐 roll 委托的实际消费面为准"枚举每个消费点的分区/频率/存档
+依赖；枚举后**全部命中点均已有明确归属**（见 §8.2），按红线 1「其余分区
+（BATTLE/BREAKTHROUGH/…）的既有委托关系与序列不动」，**不得**把它们迁到新分区。
+
+因此本批的交付形态是：**新建独立分区 + 本地 PCG 化机制 + 逐 roll 跨线行为级
+守卫**，而"迁移量"这一维度为**零**。这是刻意且必要的结果——构造一个真实
+消费面只会违反红线 1。
+
+**残余登记（诚实）**：`RESIDUAL(11)` 当前无生产消费点。其价值有二：
+1. **机制在位于被测**：`ResidualRngLocalityGuardTest` 7 用例实证"本地 PCG 分区
+   在委托模式下零跨线""其余分区委托关系不受影响""老档无键确定性重种""快照
+   恢复往返"——后续批次接入真实残留消费面时，只需把消费点指向该分区即获得
+   零跨线 + 存取档确定性，无需再改基础设施；
+2. **per-roll JNI 消除的判据已可复跑**：通道计数替身给出了可机器复跑的
+   "零跨线"证明（对照臂证明 BATTLE 等仍逐 roll 委托）。
+
+---
+
 ## 7. 表现流取用方式收口：`scene(key)` 场景派生（2026-09-15，W4 实施文档 §2.B 落地）
 
 > **背景**：`PresentationRandom.seedFromWorld(mapSeed)` 自引入（`85498c4c3`）起**全仓零调用**

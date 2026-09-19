@@ -484,6 +484,46 @@ R3 行为等价性风险延续：overlay 新路径与旧逐 rect 路径以**顶�
 
 测试口径：桌面全量 GTest **1491/1491**（携 `-ffp-contract=off`；desktop-test 基线 1476 + 本批 15 = SceneOverlayEquivalenceTest 13 + SceneStoreTest 2，64.81s；对拍桥重建携入本批；NDK arm64 `libnative-renderer.so` 重建携入本批并逐文件核到 FP 旗标）+ 组合门 `testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）**BUILD SUCCESSFUL 27m52s、339 任务全 executed 非 UP-TO-DATE**：六模块 XML 汇总 **7840 用例 / 0 失败 / 0 错误 / 17 跳过**（`:core:engine` **3345** = B10 后基线 3344 + 叠加层常量镜像守卫 1、`:feature:game` **886** = 872 + `SceneOverlayProtocolGuardTest` 5 + `SceneUpdateChannelTest` 9、`:core:domain` 1743、`:core:data` 716（15 既有跳过）、`:core:ui` 146、`:app` 1004（2 既有跳过））；50 个 `Diff*Test` **273 用例 0 skip**（桥真加载）；detekt 六模块全绿、`compileReleaseKotlin`/`lintRelease` 全绿；已知抖动 `GameEngineCoreLifecycleInterleavingTest` 12/12 未触发；Canvas 兜底三层测试（Grid 5 / Demolish 7 / Highlight 8）全绿 = R3.6 零改动旁证。
 
+#### B14 批（2026-09-19）= R4.4（RNG 分区独立：残留执行器本地 PCG，消 per-roll JNI）
+
+批次文件 `docs/parallel-batches-w5/batch-R4C.md`；每子项独立 commit。前置 = B13
+（R3 收官，`batch-R3D.md`）。R4.4 标注"权威翻转后允许"——B04/B05 起 AUTHORITATIVE
+已是生产默认，残留执行器已按 B09 退化为平台效应适配器，**本批是其随机域的最终独立化**。
+
+**本批最重要的事实（先说结论，避免读者误判交付面）**：任务 1 要求"枚举每个消费点的
+分区、频率、存档依赖，列出清单再动手"。逐点枚举后结论是——**生产源码中无任何
+`RngPartition` 消费点需要迁移**。`GameEngineCoreAuthoritativeOps`（月/年变编排）与
+`BattleExecutionRouter`（回退臂）本身**均不直接抽取**（grep `RngPartition` 零命中）；
+`AISectDiscipleManager` 走的是 `AI_SECT_MIRROR(9)`/`AI_SECT(6)`，其与 C++ `aiRng_`
+同源是**设计目标**且属通道型红线；其余 11 个既有分区的消费面按红线 1「既有委托关系
+与序列不动」**不得迁移**。**因此本批的"迁移量"为零**——交付形态是「新建独立分区 +
+本地 PCG 化机制 + 逐 roll 跨线行为级守卫」。这在完成报告与 `docs/rng-source-inventory.md`
+§8.3 均作显式登记（残余：分区暂无生产消费点），不粉饰为"已完成迁移"。
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| 消费面枚举清单 | ✅ | 见 `docs/rng-source-inventory.md` §8.2——按 `NativeBackedRng` 逐 roll 委托的**实际消费面**枚举（批次文件点名三处 + 全部既有分区逐条）。结论：**生产零迁移点**（理由如上）。`GameEngineCoreAuthoritativeOps` / `BattleExecutionRouter` 不直接抽取；`AISectDiscipleManager` 属 AI 通道型（9/6，红线段） |
+| 新分区 `RESIDUAL(11)` + 本地 PCG 化 | ✅ | `RngPartition.RESIDUAL(11, inSnapshot=true)` 追加下一个空闲 id；新增**纯声明式**属性 `RngPartition.isLocal`（`this == RESIDUAL`，零平台依赖、桌面可直测、无 `Build.*` 读取 ⇒ 无需 API 级守卫）。`GameRngManager.rebuildPartitions()` 分流：`channel != null && !partition.isLocal` 才实例化 `NativeBackedRng`，`isLocal` 分区恒为本地 `DeterministicRng`（**state 字段真实使用**，不再经 `NativeBackedRng`/`NativeRngChannel` 逐 roll 跨线——消 `NativeBackedRng.kt:46` 的 per-roll JNI）。seed 随分区 init（沿 `systemSeed + id` 既有播种语义）；快照/恢复走本地 state |
+| C++ 侧同步登记 | ✅ | `gamecore/rng/rng_manager.h`：枚举 `kResidual = 11` + `initSystemSeed` 播种 `seed + 11`（与 Kotlin 同式）+ **`kMaxPartitionId` 上界从 `kAiSectMirror` 上移到 `kResidual`**（该常量是 JNI 合法分区守卫的唯一权威——不上移会让 11 号键在 JNI 面被静默拒绝，MISSION(8) 曾因此恒返回 0）。文件头 KDoc 补 RESIDUAL 语义段（含"C++ 无生产消费点"的显式声明）。`RngSourceGuardTest` 会拦截未登记追加——本批同步 `registeredPartitionIds`(0..11) / `snapshotPartitionIds`(0..8,10,11) / `expectedNames`(+RESIDUAL) 并**新增 1 用例**锁 `RESIDUAL` 的 id/inSnapshot/isLocal 三重语义 |
+| 老档兼容（无键重播语义） | ✅ | `GameRngManager.reseedMissingPartitions()`：`restoreStates` 末尾对"`inSnapshot` 且缺键"的分区按 `DeterministicRng.fromSeed(systemSeed + id)` **确定性重种**（MISSION(8)/CHAT(10) 同款语义）。必要性实证：读档路径上 `systemSeed` 可能仍是构造期挂钟初值 ⇒ 不重种会**同一存档两次加载得到不同序列**（漂移）。**可复跑断言**（非仅日志）：`ResidualRngLocalityGuardTest.老档兼容` 两次独立加载同序列 + 与 `fromSeed(seed+11)` 直接推演逐位相等。存档版本说明见下 |
+| 存档版本说明 | ✅ | **`rngStates` schema 零变更**（仍是 `Map<Int, Long>`，仅新增 11 号键值）；协议 JSON 面/其他存档字段零变更。**行为变更**：11 号分区在旧档缺失时按 `systemSeed + 11` 重种 ⇒ 同 seed 下本分区序列与"R4.4 前借道委托分区"不同，属**设计内**变更（该域此前无独立序列，不存在"老档序列漂移"——见残余登记）。落点：本段 + `CHANGELOG.md` 4.01.15 内 B14 小节 + `RngPartition.RESIDUAL` KDoc「存档版本说明」小节 |
+| 对拍重定基线 | ✅ | **零 `Diff*` 测试被改动**——清单见完成报告表：43 个 `Diff*` 测试全量**未改**，理由逐条给出（两条既有基线断言属**单元测试**而非 `Diff*`：`RngManagerTest.ExportRestoreRoundTrip` 的快照分区数 10 → 11、`NativeBackedRngTest.manager delegation…` 的遍历面改按 `isLocal` 分流——均为**口径随分区面扩展的必要重定**，非静默放宽断言，见下） |
+| 三后端/红线自查 | ✅/📌 | **JNI 纪律**：本批**不新增** `external fun`；`NativeRngChannel` 既有三入口签名零变更（消的是调用频率，不是通道——通道保留供其余分区）✓；**既有分区 id 与序列零扰动**：id 0–10 的持久化键/播种公式/抽取序逐位不变（`RngManagerTest.ResidualPartitionDoesNotDisturbOthers` + `RngSourceGuardTest` 名字顺序断言 + 本地 PCG 与通道流互不干扰三条独立锁定）✓；`AI_SECT_MIRROR(9)` 通道型语义（`inSnapshot=false`、C++ 保管流态）未被波及（对照臂实测仍逐 roll 委托）✓；**存档 schema 零变更** ✓；**确定性**：同 seed 同操作序（含 bound/double/gaussian/long 上层公式）逐位可复现 ✓；**snapshot/restore 语义保持**：本地 state 真实使用、回滚往返绿 ✓；Canvas 兜底路径零改动（`SoftwareCanvasBackend*` 未入改动清单）✓；每子项独立 commit ✓。**残余（登记）**：① `RESIDUAL(11)` **当前无生产消费点**——本批交付"分区 + 本地 PCG 机制 + 零跨线判据"，真实残留消费面接入属后续批次（接入时只需指向该分区即获零跨线 + 存取档确定性）；② **per-roll JNI 的"消除量"在本次生产面上不可量化**——因迁移量为零，行为级守卫给出的是"**新机制零跨线**"与"**既有分区仍逐 roll 委托**"的正反对照，而非"旧调用次数 → 新调用次数"的计数下降（该下降须待消费面接入批次）；③ 真机/Android 侧未跑（本批 Kotlin 面为纯 JVM 可测逻辑，无平台依赖） |
+
+测试口径：桌面全量 GTest **1545/1545**（B13 基线 **1541** + 本批 **4** =
+`RngManagerTest` 新增 4 用例；373.85s，0 失败）+ 组合门
+`testReleaseUnitTest + detekt + compileReleaseKotlin + lintRelease`
+（`--max-workers=1 --rerun-tasks -Dgamecore.jni.path=…`）**BUILD SUCCESSFUL 58m18s、
+339 任务全 executed 非 UP-TO-DATE**：六模块 XML 汇总 **7867 用例 / 0 失败 / 0 错误 /
+17 既有跳过**（`:core:engine` **3372** = B13 后基线 3363 + 本批 9、
+`:core:domain` 1743、`:core:data` 716（15 既有跳过）、`:core:ui` 146、
+`:feature:game` 886、`:app` 1004（2 既有跳过）；XML 时间戳 22:55–23:11 实证实跑）；
+**`Diff*` 50 类 273 用例 0 失败 0 skip**（对拍桥真加载，与 B13 逐位持平）；
+detekt / `compileReleaseKotlin` / `lintRelease` 全绿；已知抖动
+`GameEngineCoreLifecycleInterleavingTest` 本轮未触发。途中已知环境故障一处（非代码问题）：
+首轮在 `:app:mergeReleaseResources` 报 Windows 文件锁（`Unable to delete directory …
+merged_res/release/mergeReleaseResources`），按既有口径 `gradlew --stop` + `rm -rf`
+该目录后重跑即绿。完成报告：`docs/parallel-batches-w5/report-B14-completion.md`。
+
 #### B13 批（2026-09-19）= R3.8（原生浮层与文本通道 Tier1，R3 渲染阶段收官批）
 
 批次文件 `docs/parallel-batches-w5/batch-R3D.md`；每子项独立 commit。前置 = B10（R3.1
