@@ -642,10 +642,17 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     /**
      * 绘制放置/移动模式全视口网格线（世界坐标薄矩形，drawRect×视口线数）。
      *
-     * 范围数学与旧 Compose GridOverlay.drawFullGrid 同式：按缓存最新相机
-     * （setCamera 自留份，与 g_projMatrix 同源）计算视口内行列区间并钳制到
-     * 世界边界；列线 x = col×tileSize、行线 y = row×tileSize，全高/全宽延伸
-     * （投影矩阵自动裁剪视口外部分）。线宽换算为世界坐标（屏幕 1px）。
+     * 范围数学与 Canvas 侧 `SoftwareCanvasBackend.drawGridOverlay` 同式：按缓存
+     * 最新相机（setCamera 自留份，与 g_projMatrix 同源）计算视口内行列区间并
+     * 钳制到世界边界，**行范围含俯视 Y 轴压缩**（视口高 ÷ (scale × 0.75)）——
+     * 与投影可见带严格一致；列线 x = col×tileSize、行线 y = row×tileSize，
+     * 全高/全宽延伸（投影矩阵自动裁剪视口外部分）。线宽换算为世界坐标
+     * （目标 2 物理屏像素，下限 0.5 世界单位）。
+     *
+     * 新路径（[NativeEngineFlag.sceneStoreRender]=true）下本函数不参与渲染——
+     * 同一几何由 C++ `scene_draw.h::buildOverlayLayers` 以同式产出（含本行范围
+     * 口径），两路一致由 SceneOverlayProtocolGuardTest 的公式守卫与
+     * SceneOverlayEquivalenceTest 的顶点流对照共同锁定。
      *
      * @param frame 当前帧（gridOverlayVisible 开关）
      * @param viewportW 视口宽（px）
@@ -663,7 +670,12 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         val lastCol = ((cachedCamX + viewportW / scale) / tileSize).toInt()
             .coerceAtMost(host.renderConfig.worldWidthCells)
         val firstRow = (cachedCamY / tileSize).toInt().coerceAtLeast(0)
-        val lastRow = ((cachedCamY + viewportH / scale) / tileSize).toInt()
+        // 行范围按投影可见带：世界可见高度 = 视口高 / (scale × 俯视 Y 压缩系数)
+        // ——与 C++ g_viewBottom / Canvas 侧 drawGridOverlay 同式（B11 前置缺陷 A
+        // 修复：旧写法漏乘 TOPDOWN_Y_SCALE，导致 Vulkan/GLES 放置模式视口底部
+        // 缺横线、与 Canvas 兜底路径不一致）
+        val lastRow = ((cachedCamY + viewportH / (scale * SpriteAtlasDef.TOPDOWN_Y_SCALE)) / tileSize)
+            .toInt()
             .coerceAtMost(host.renderConfig.worldHeightCells)
 
         // 目标屏幕线宽 1px，换算回世界坐标（除 scale）；下限 0.5 世界单位防退化 quad。

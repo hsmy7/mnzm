@@ -843,11 +843,14 @@ inline void buildOverlayLayers(SpriteBatcher& batcher, const float projMatrix[16
         const int32_t lastCol = std::min(p.cols,
             static_cast<int32_t>((p.camX + static_cast<float>(p.viewportW) / scaleSafe) / tileSizeF));
         const int32_t firstRow = std::max(0, static_cast<int32_t>(p.camY / tileSizeF));
-        // 行范围按视口高 / scale 换算（**未乘俯视 Y 压缩系数**）——逐位复刻旧
-        // Kotlin drawGridOverlay 现状（含与 Canvas 侧不一致的那部分），
-        // 差异根因与处置见方案 §7.2 B11 段「前置缺陷 A」。
+        // 行范围按**投影可见带**换算：世界可见高度 = 视口高 / (scale × 俯视 Y 压缩
+        // 系数)——与 g_viewBottom（updateCameraGlobals）和 Canvas 侧
+        // SoftwareCanvasBackend.drawGridOverlay 同式。视口底部因此不再缺横线
+        //（旧 Vulkan 路径漏乘压缩系数 ⇒ 横线根数少于 Canvas 且底部留白带，
+        //  B11 前置缺陷 A，随本修复闭合）
         const int32_t lastRow = std::min(p.rows,
-            static_cast<int32_t>((p.camY + static_cast<float>(p.viewportH) / scaleSafe) / tileSizeF));
+            static_cast<int32_t>(
+                (p.camY + static_cast<float>(p.viewportH) / (scaleSafe * kTopdownYScale)) / tileSizeF));
 
         for (int32_t col = firstCol; col <= lastCol; col++) {
             emitRect(static_cast<float>(col) * tileSizeF, 0.0f, lineWidth, worldH,

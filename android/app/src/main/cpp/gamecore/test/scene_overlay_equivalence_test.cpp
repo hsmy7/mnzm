@@ -353,8 +353,9 @@ std::vector<RecorderRenderer::DrawCall> runOldModel(const OverlayCase& c) {
     drawOverlaySelectionModel(rec, c);
     drawOverlayDemolishModel(rec, c);
     drawOverlayPreviewModel(rec, c);
-    // false ⇒ 与 R3.3 开工前的 Vulkan 生产行为一致（缺陷 A 现状，等价批不夹带修复）
-    drawOverlayGridModel(rec, c, false);
+    // true ⇒ 行范围按投影可见带（B11 前置缺陷 A 修复后的 Kotlin 回滚臂口径，
+    // 与 C++ buildOverlayLayers 同式）
+    drawOverlayGridModel(rec, c, true);
     return std::move(rec.calls);
 }
 
@@ -430,6 +431,14 @@ std::vector<uint32_t> textureRuns(const std::vector<RecorderRenderer::DrawCall>&
 
 size_t rectsOf(const std::vector<RecorderRenderer::DrawCall>& calls) {
     return flatten(calls).size() / 6;
+}
+
+/// 修复前的旧 Vulkan 网格口径（行范围漏乘俯视 Y 压缩系数）——只用于缺陷 A 的
+/// 修复前后对照证据（GridRowRangeFollowsProjectedViewportBand）
+size_t gridRectsWithUncompressedRowRange(const OverlayCase& c) {
+    RecorderRenderer rec;
+    drawOverlayGridModel(rec, c, false);
+    return rectsOf(std::move(rec.calls));
 }
 
 /** 两臂顶点流逐位对照 + 纹理段序一致（本守卫的核心断言） */
@@ -685,41 +694,45 @@ TEST_F(SceneOverlayEquivalenceTest, PlacementModeDrawCallBudget) {
     EXPECT_EQ(rectsOf(oldCalls), rectsOf(newWorst)) << "两臂矩形数必须相同（等价前提）";
 }
 
-// 12. 前置缺陷 A 现状锁定（R3.3 等价批）：C++ 行范围逐位复刻旧 Vulkan 公式，
-// 并量化与 Canvas/投影口径的行数差（差异登记与修复见后续独立 commit）。
-//
-// 真实地图 128×128 格（6144×6144 世界像素）逐缩放档核对：
-//   现状（未压缩）与投影口径（乘 TOPDOWN_Y_SCALE）在**行上限未被世界边界钳住**
-//   的档位上确实不同——即放置模式下视口底部若干根横线在 Vulkan/GLES 缺失、
-//   在 Canvas 存在（双端不一致的病灶）；被钳住的档位（缩到整岛以下）两式同根数。
-TEST_F(SceneOverlayEquivalenceTest, GridRowRangeReplicatesLegacyUncompressedFormula) {
+// 12. 前置缺陷 A 修复（独立于 R3.3 等价重构的行为变更批）：网格线行范围按
+// **投影可见带**（视口高 ÷ (scale × TOPDOWN_Y_SCALE)）计算——
+//   ① C++ 生成几何 == Canvas/投影口径（旧 Vulkan 漏乘压缩系数的行为已改）；
+//   ② 修复后两臂（C++ 新路径 / Kotlin 回滚臂）仍逐位等价（同一口径同时改）；
+//   ③ 逐缩放档打印「修复前 → 修复后」横线根数差（未达世界边界的档实测缺 6/13/26
+//      根横线；达到世界边界的档被钳住故无差异——差异面真实存在且已闭合）。
+TEST_F(SceneOverlayEquivalenceTest, GridRowRangeFollowsProjectedViewportBand) {
     const float scales[] = {2.0f, 1.0f, 0.5f, 0.3f, 0.17f};
-    int presetsWithGap = 0;
+    int presetsThatWereMissingRows = 0;
     for (const float scale : scales) {
         OverlayCase c = baseCase(CameraView{0.0f, 0.0f, scale, kVpW, kVpH});
         c.cols = kRealCols;
         c.rows = kRealRows;
         c.flags = scene::kOverlayBitGridVisible;
 
-        const auto newCalls = runNewModel(c);
-        const auto legacyCalls = runOldModel(c);  // 未压缩（现状）
+        // Canvas / 投影口径（修复后的正确形态）
         RecorderRenderer projectedRec;
-        drawOverlayGridModel(projectedRec, c, true);  // Canvas / 投影口径
+        drawOverlayGridModel(projectedRec, c, true);
         const auto projectedCalls = std::move(projectedRec.calls);
 
-        ASSERT_EQ(rectsOf(legacyCalls), rectsOf(newCalls))
-            << "scale=" << scale << "：等价批的 C++ 行范围必须逐位复刻旧 Vulkan 现状";
-        const size_t legacyRects = rectsOf(legacyCalls);
-        const size_t projectedRects = rectsOf(projectedCalls);
-        if (projectedRects > legacyRects) presetsWithGap++;
+        const auto newCalls = runNewModel(c);
+        const auto legacyArmCalls = runOldModel(c);  // 修复后的 Kotlin 回滚臂建模
+        const size_t before = gridRectsWithUncompressedRowRange(c);
+        if (rectsOf(projectedCalls) > before) presetsThatWereMissingRows++;
+
+        ASSERT_EQ(rectsOf(projectedCalls), rectsOf(newCalls))
+            << "scale=" << scale << "：C++ 行范围未按投影可见带";
+        ASSERT_EQ(rectsOf(projectedCalls), rectsOf(legacyArmCalls))
+            << "scale=" << scale << "：回滚臂与新路径口径不一致（灰度等价红线）";
+        // 逐顶点核对（不只比根数）
+        ASSERT_NO_FATAL_FAILURE(expectEquivalent(c, "grid projected band"));
         std::printf(
-            "[缺陷 A] 128×128 地图 scale=%.2f：现状 Vulkan 网格 %zu rect / "
-            "Canvas·投影口径 %zu rect（差 %zu 条横线%s）\n",
-            scale, legacyRects, projectedRects, projectedRects - legacyRects,
-            projectedRects > legacyRects ? "" : "，该档被世界边界钳住");
+            "[缺陷 A 修复] 128×128 地图 scale=%.2f：修复前 %zu rect → 修复后 %zu rect"
+            "（补回 %zu 条底部横线%s）\n",
+            scale, before, rectsOf(newCalls), rectsOf(newCalls) - before,
+            rectsOf(newCalls) > before ? "" : "，该档被世界边界钳住");
     }
-    EXPECT_GT(presetsWithGap, 0)
-        << "差异面必须在部分档位真实存在（否则缺陷 A 登记项失去意义）";
+    EXPECT_GT(presetsThatWereMissingRows, 0)
+        << "缺陷 A 的差异面必须在部分档位真实存在（否则本修复无的放矢）";
 }
 
 }  // namespace

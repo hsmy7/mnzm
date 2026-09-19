@@ -10,13 +10,14 @@ import org.junit.Test
  * 叠加层双端协议守卫（重构方案 2026-09-17 R3.3/B11）。
  *
  * 锁定 Kotlin 侧（[VulkanRenderBackend] 装配 overlayFlags / 推送叠加层状态）与
- * C++ 侧（`scene_draw.h` 位定义 + `scene_store.h` 协议步长/标记取值）四个
+ * C++ 侧（`scene_draw.h` 位定义 + `scene_store.h` 协议步长/标记取值）五个
  * **不可漂移**的接缝——任一侧改动而另一侧漏改即红，且失败信息直接点名去处：
  *
  * 1. overlayFlags 位值（bit0–bit6）；
  * 2. 预览数据步长（16 浮点的顺序契约）；
  * 3. 拆除标记取值（Kotlin [DemolishHighlightMark] ↔ C++ `kDemolishMark*`）；
- * 4. 新路径零逐 rect 跨线（drawRect/drawSprite 调用点只存在于回滚臂函数内）。
+ * 4. 新路径零逐 rect 跨线（drawRect/drawSprite 调用点只存在于回滚臂函数内）；
+ * 5. 网格线行范围的俯视 Y 压缩口径（Vulkan 回滚臂 / Canvas 兜底 / C++ 三路同源）。
  *
  * 视觉常量（颜色/不透明度/线宽）的双端逐位对照在
  * `SceneUvTablesMirrorGuardTest`（:core:engine，生成物 ↔ SpriteAtlasDef）；
@@ -146,6 +147,36 @@ class SceneOverlayProtocolGuardTest {
             val body = functionBody(backendSource, fn)
             assertTrue("旧路径函数 $fn 缺失", body.isNotEmpty())
         }
+    }
+
+    /**
+     * 前置缺陷 A 的防复发锁：两 GPU 后端路径（本类旧路径）与 Canvas 兜底路径的
+     * 网格线**行上限**都必须按俯视 Y 轴压缩系数换算（`视口高 / (scale ×
+     * TOPDOWN_Y_SCALE)`），并与 C++ `scene_draw.h` 的行范围同式。
+     *
+     * 缺陷本体 = 旧 Vulkan 写法 `视口高 / scale` 漏乘压缩系数 ⇒ 放置模式视口
+     * 底部缺横线、与 Canvas 不一致（B11 修复）。此守卫锁住三处口径不再分叉。
+     */
+    @Test
+    fun `grid row range uses the topdown Y-compressed viewport band on all arms`() {
+        val compressed = Regex("viewportH / \\(scale \\* SpriteAtlasDef\\.TOPDOWN_Y_SCALE\\)")
+        val canvasSource =
+            sourceOf("feature/game/src/main/java/com/xianxia/sect/ui/game/sect/SoftwareCanvasBackend.kt")
+        val canvasCompressed =
+            Regex("fbH / \\(drawScale \\* TOPDOWN_Y_SCALE\\)")
+        assertTrue(
+            "Vulkan 旧路径网格行范围漏乘俯视 Y 压缩系数（缺陷 A 复发：视口底部缺横线）",
+            compressed.containsMatchIn(backendSource)
+        )
+        assertTrue(
+            "Canvas 兜底路径网格行范围不再按俯视 Y 压缩换算（双端口径漂移）",
+            canvasCompressed.containsMatchIn(canvasSource)
+        )
+        val drawSource = sceneDrawSource
+        assertTrue(
+            "C++ 叠加层行范围未按投影可见带换算（与 Kotlin 两路漂移）",
+            Regex("p\\.viewportH\\) / \\(scaleSafe \\* kTopdownYScale\\)").containsMatchIn(drawSource)
+        )
     }
 
     /** 提取 `private fun <name>(...)` 到匹配的收尾大括号之间的函数体文本 */
