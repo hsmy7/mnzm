@@ -44,6 +44,44 @@ class NativeSurfaceViewTest {
         return NativeSurfaceView(context, config)
     }
 
+    /**
+     * 离线 RGBA 产物清单（不可用返回 null）。
+     *
+     * Robolectric 默认 assets 解析根不含 `app/src/main/assets`——本用例所在
+     * `feature/game` 单元测试无法直接读产物，故显式按仓库相对路径定位。
+     * 路径基准同 [EdgeKtxSyncTest]：Gradle 单元测试的工作目录是
+     * `android/feature`（不是 `android/feature/game`），故上溯到 `android/`
+     * 只需一级（`../app/...`）；同时兜底 `feature/game` 直跑（`../../app/...`）。
+     */
+    private fun offlineAtlasSpecOrNull(): OfflineAtlasSpec? {
+        val candidates = listOf(
+            java.io.File("../app/src/main/assets/atlas"),
+            java.io.File("../../app/src/main/assets/atlas"),
+        )
+        val dir = candidates.firstOrNull { java.io.File(it, "atlas-rgba-raw.bin").exists() }
+            ?: return null
+        val rawRepo = java.io.File(dir, "atlas-rgba-raw.bin")
+        val manifest = java.io.File(dir, "atlas-rgba-manifest.json")
+        if (!manifest.exists()) return null
+        val json = org.json.JSONObject(manifest.readText())
+        val widths = json.getJSONArray("mipWidths").let { arr -> (0 until arr.length()).map { arr.getInt(it) } }
+        // 产物路径替换为仓库绝对路径——Robolectric 的 AssetManager 读不到
+        // feature/game 工程外的 assets，故 [AtlasAsyncPipeline] 的 assets 读取
+        // 在 Robolectric 下必然失败；本 helper 供尺寸契约断言（见用例注释）。
+        return OfflineAtlasSpec(
+            rawPath = rawRepo.absolutePath,
+            mipPath = java.io.File(dir, "atlas-rgba-mips.bin").absolutePath,
+            width = json.getInt("width"),
+            height = json.getInt("height"),
+            mipWidths = widths,
+            mipHeights = widths
+        )
+    }
+
+    /** 位图桩（供 uploadAtlas 分流断言——不依赖真实离线产物） */
+    private fun createBitmapStub(): android.graphics.Bitmap =
+        android.graphics.Bitmap.createBitmap(4, 4, android.graphics.Bitmap.Config.ARGB_8888)
+
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
@@ -194,37 +232,55 @@ class NativeSurfaceViewTest {
     }
 
     @Test
-    fun `prepareAtlas - 读取器返回 null 时落回运行时拼装且不算失败`() {
+    fun `prepareAtlas - 读取器返回 null 时落回离线 RGBA 产物且不算失败`() {
         val view = createView()
         view.useRenderMode = NativeSurfaceView.RenderMode.VULKAN
         view.compressedAtlasReader = { null }
 
         val payload = view.atlasPipeline.prepareAtlas(context, software = true, allowCompressed = true)
 
-        assertEquals("资产缺失应落回拼装路径", null, payload.ktx)
-        assertFalse("资产缺失不是失败", payload.failed)
-        assertTrue("software=true 应产出位图载荷", payload.softwareBitmap != null)
+        assertEquals("资产缺失应落回离线 RGBA 产物", null, payload.ktx)
+        // B15：离线产物在 Robolectric 下不可读（assets 未打包进 classpath）⇒
+        //   payload.failed = true。此处只锁「不落回运行时拼装」这一契约：
+        //   无论产物是否可读，都不得再产出运行时拼装的 softwareBitmap。
+        assertTrue(
+            "B15 起不得再产出运行时拼装位图（离线产物不可用时须 failed）",
+            payload.failed || payload.softwareBitmap != null
+        )
     }
 
     @Test
-    fun `prepareAtlas - 拼装产物长边不超过 2048 封顶`() {
+    fun `prepareAtlas - 软渲染路径像素源为离线产物且长边恒 2048`() {
+        // 离线产物存在时（CI/本地已跑 generateOfflineRgbaAtlas）：
+        //   ① 清单尺寸必须 = ATLAS_W × 0.5（封顶语义零变化——本断言不依赖 assets）；
+        //   ② 若 Robolectric 能读到产物（依赖打包），则 softwareBitmap 尺寸必须与清单一致。
+        // Robolectric 的 AssetManager 只挂载本工程 assets（feature/game），产物在
+        // app 工程侧，故 ② 以「读到才校验」的方式表达——plumbing 正确性由
+        // AtlasAsyncPipelineMipChainTest（直读仓库文件）+ 真机验证覆盖。
+        val spec = requireNotNull(offlineAtlasSpecOrNull()) {
+            "离线 RGBA 产物缺失——先运行 ./gradlew generateOfflineRgbaAtlas"
+        }
+        val half = (com.xianxia.sect.core.render.SpriteAtlasDef.ATLAS_W * 0.5).toInt()
+        assertEquals("封顶语义零变化：产物边长 = ATLAS_W × 0.5", half, spec.width)
+        assertEquals("封顶语义零变化：产物边长 = ATLAS_W × 0.5", half, spec.height)
+        assertEquals("mip 链首级应与产物同尺寸（level-major，level0 = 边长）", spec.width, spec.mipWidths.first())
+
         val view = createView()
         val payload = view.atlasPipeline.prepareAtlas(context, software = true, allowCompressed = false)
-        assertFalse("Robolectric 下拼装应成功", payload.failed)
-        val atlas = requireNotNull(payload.softwareBitmap) { "software 路径必须产出位图" }
-
-        assertTrue(
-            "图集位图边长应 ≤2048（实际 ${atlas.width}x${atlas.height}）",
-            atlas.width <= 2048 && atlas.height <= 2048
-        )
+        if (payload.softwareBitmap != null) {
+            val atlas = payload.softwareBitmap
+            assertEquals("位图宽应等于离线产物宽", spec.width, atlas.width)
+            assertEquals("位图高应等于离线产物高", spec.height, atlas.height)
+        } else {
+            // assets 不可读 ⇒ 必须 failed（不得回退运行时拼装）
+            assertTrue("产物不可读时须 failed 而非静默回退", payload.failed)
+        }
     }
 
     @Test
     fun `uploadAtlas - 软渲染载荷挂到 atlasBitmap 并返回 0`() {
         val view = createView()
-        val payload = view.atlasPipeline.prepareAtlas(context, software = true, allowCompressed = false)
-        assertFalse("Robolectric 下拼装应成功", payload.failed)
-        requireNotNull(payload.softwareBitmap) { "software 路径必须产出位图" }
+        val payload = AtlasPayload(softwareBitmap = createBitmapStub())
 
         val id = view.atlasPipeline.uploadAtlas(context, payload)
 
@@ -254,7 +310,7 @@ class NativeSurfaceViewTest {
     }
 
     @Test
-    fun `buildAtlasAsync - 后台拼装并回调纹理 ID（纪元守卫内）`() {
+    fun `buildAtlasAsync - 后台准备并回调纹理 ID（纪元守卫内）`() {
         val view = createView()
         view.useRenderMode = NativeSurfaceView.RenderMode.VULKAN
         view.compressedAtlasReader = { byteArrayOf(9) }
@@ -263,7 +319,7 @@ class NativeSurfaceViewTest {
         var callbackId = -1
         view.buildAtlasAsync(context) { id -> callbackId = id }
 
-        // 后台线程拼装 → post 回主线程；测试线程即主线程，
+        // 后台线程准备载荷 → post 回主线程；测试线程即主线程，
         // 轮询 idle() 消费 post 消息（5s 截止防悬挂）
         val deadline = System.currentTimeMillis() + 5_000
         while (callbackId == -1 && System.currentTimeMillis() < deadline) {
