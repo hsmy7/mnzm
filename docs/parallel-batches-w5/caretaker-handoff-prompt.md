@@ -35,7 +35,7 @@
 4. **状态 verifying（验收）**：验收人=看护自己，**绝不信任子会话自述**：
    a. `git log --oneline -15` 核对本批要求的提交全部存在且逐子项独立；
    b. 亲自复跑批次文件"验收门"全部命令（见下方"验收门 SOP"；长命令用后台运行+轮询）;
-   c. 核对方案 §7 已新增本批登记、`CHANGELOG.md` 已更新、`android/core/engine/docs/cpp-engine.md` 进展行已写、`git status` 干净；
+   c. 核对方案 §7 已新增本批登记、`CHANGELOG.md` 已更新、`docs/cpp-engine.md` 进展行已写（注意：该文件在 `docs/` 下，不在 core/engine 模块内）、`git status` 干净；
    d. 全过 → 批次状态改 `accepted`、证据列填提交号+测试数字，转入派发下批；任一不过 → 状态 `fix_needed`，缺陷写进台账"缺陷清单"。
 5. **状态 dispatch / fix_needed（派工）**：
    - `dispatch`：依据方案 §3 对应条目 + 台账"经验教训"写下一批批次文件 `docs/parallel-batches-w5/batch-XXX.md`（模板照 `batch-R1A.md`：任务/红线/验收门/完成报告格式；范围严格限本批；写明"续接上一批提交号与 §7.2 登记"）；
