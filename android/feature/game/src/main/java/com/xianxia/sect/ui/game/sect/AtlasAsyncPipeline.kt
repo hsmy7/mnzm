@@ -21,15 +21,24 @@ private const val RGBA_BYTES_PER_PIXEL = 4
  * beginFrame/draw/submit 并发进入——因此"上传"不能搬到后台线程。拆分后
  * 各段都在正确的线程上：
  *
- * 1. **后台线程** [prepareAtlas]：ASTC 资产读取 → 逐精灵解码 + Canvas 拼装
- *    → ARGB→RGBA 转换。2048² 图集在低端机上可达数百毫秒，这段就是原
- *    ANR/OOM 高危路径。
+ * 1. **后台线程** [prepareAtlas]：ASTC 资产读取 → **离线 RGBA 产物读取**
+ *    （assets 裸像素 + mip 链）。图集在构建期已降采样完毕，这段只剩
+ *    `AssetManager` 读取 + 一次性解码/映射。
  * 2. **主线程**（经 `post`）[uploadAtlas]：只做一次 GPU 上传调用
  *    （staging memcpy + vkCmdCopy / GL 入队），随后回调 [start] 的 onReady。
  *
  * 线程模型：[start] 在主线程调用并捕获参数；[buildThread] 承载全部重活；
  * 结果经 `mainHandler.post` 回主线程，post 的 happens-before 保证
  * [AtlasPayload] 字段对主线程可见，无需额外同步。
+ *
+ * ## B15 / R6.1：Canvas 运行时拼装的退役
+ *
+ * 本类历史上走 `SectAtlasAssembler.buildAtlasBitmap()`——在设备上逐精灵解码 +
+ * Canvas 画布拼装 2048² 位图（启动期 Canvas 依赖 + 数百毫秒 + 16MB 位图与逐
+ * 精灵解码中间缓冲的内存尖峰），服务 RGBA 回退臂 / mip 链源 / Canvas 软渲染
+ * 三条支路。B15 起三条支路统一改为消费 `build-atlas.mjs` 同源产出的**离线产物**
+ * （`assets/atlas/atlas-rgba-raw.bin` / `atlas-rgba-mips.bin`）：
+ * **零 Canvas、零逐精灵循环、零运行时降采样**。ASTC 直传路径不变。
  */
 internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
 
@@ -89,11 +98,11 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
     }
 
     /**
-     * 拼装图集（**重活**，只能由 [start] 在后台线程驱动）。
+     * 准备图集载荷（**重活**，只能由 [start] 在后台线程驱动）。
      *
-     * 段内顺序：ASTC 资产读取（IO）→ 失败/不启用则运行时逐精灵解码 +
-     * Canvas 拼装 + ARGB→RGBA 转换（CPU 密集）。全程不触碰 C++ renderer，
-     * 也不读取 View 可变状态（渲染模式由调用方捕获后传入）。
+     * 段内顺序：ASTC 资产读取（IO）→ 失败/不启用则读取**离线 RGBA 产物**
+     * （B15：assets 裸像素 + mip 链，一次性映射，零解码循环）。全程不触碰
+     * C++ renderer，也不读取 View 可变状态（渲染模式由调用方捕获后传入）。
      *
      * @param software true = 软渲染路径（产出 Bitmap，不转换像素）
      * @param allowCompressed 是否允许尝试 ASTC 压缩图集
@@ -106,9 +115,9 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         val payload = if (allowCompressed) {
             compressedAtlasReader(context)
                 ?.let { AtlasPayload(ktx = it) }
-                ?: prepareRgbaAtlas(context, software)
+                ?: prepareOfflineRgbaAtlas(context, software)
         } else {
-            prepareRgbaAtlas(context, software)
+            prepareOfflineRgbaAtlas(context, software)
         }
         // 地面纹理（map_grass_1 64²）解码 + RGBA 编码在后台线程执行，
         //   不与图集上传叠加阻塞主线程。软渲路径无 GPU 地面纹理（走 atlasBitmap），跳过。
@@ -136,61 +145,152 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
     private fun compressedAtlasReader(context: android.content.Context): ByteArray? =
         view.compressedAtlasReader(context)
 
+    /**
+     * 离线 RGBA 产物消费段（B15：软渲分流 + 零解码映射）。
+     *
+     * 两条支路都只读 assets，**不做**逐精灵解码 / Canvas 拼装 / 运行时降采样：
+     * - `software = true` → 裸像素 2048² 直接填 ARGB_8888 Bitmap（`copyPixelsFromBuffer`，
+     *   一次 native memcpy）；
+     * - `software = false` → mip 链裸像素包成 direct [ByteBuffer]（`map()` 零拷贝）
+     *   交主线程多级上传。
+     *
+     * 任一环失败（资产缺失/IO/尺寸不符）记指标并返回 [AtlasPayload.failed]
+     * ——不静默降级回运行时拼装（该路径已随 B15 退役）。
+     */
+    private fun prepareOfflineRgbaAtlas(
+        context: android.content.Context,
+        software: Boolean
+    ): AtlasPayload = if (software) {
+        decodeOfflineSoftwareBitmap(context)?.let { AtlasPayload(softwareBitmap = it) }
+            ?: AtlasPayload(failed = true)
+    } else {
+        openOfflineMipChain(context)?.let {
+            AtlasPayload(
+                rgbaMipPixels = it.buffer,
+                mipCount = it.mipCount,
+                width = it.widths.first(),
+                height = it.heights.first()
+            )
+        } ?: AtlasPayload(failed = true)
+    }
+
+    /**
+     * 裸像素 → ARGB_8888 位图（软渲染路径像素源）。
+     *
+     * 释放语义：`copyPixelsFromBuffer` 后直接缓冲即可被 GC 回收，Bitmap 独立持有
+     * 一份像素——`assets` 的 16MB 缓冲不驻留（软渲仅需一份）。
+     * 传入缓冲为**直通 alpha** RGBA8888（与 ARGB_8888 在小端内存布局上等值：
+     * 逐字节 R,G,B,A），无需 swizzle。
+     *
+     * @return 2048² 位图；资产缺失/尺寸不符时 null（指标已记）
+     */
+    // 资产读取/位图分配失败模式无稳定异常契约（IO/OOM/ROM 差异），全捕获按非关键路径处理
+    @Suppress("TooGenericExceptionCaught")
+    private fun decodeOfflineSoftwareBitmap(context: android.content.Context): Bitmap? = try {
+        val spec = OfflineAtlasAssets.readRawSpec(context)
+        val buf = readRawPixels(context, spec.rawPath, spec.width, spec.height)
+        if (buf == null) {
+            RenderMetrics.atlasBuildFailed.incrementAndGet()
+            null
+        } else {
+            val bmp = Bitmap.createBitmap(spec.width, spec.height, Bitmap.Config.ARGB_8888)
+            bmp.copyPixelsFromBuffer(buf)
+            android.util.Log.i(
+                NativeSurfaceView.LOG_TAG,
+                "buildAtlas: offline RGBA bitmap ${spec.width}x${spec.height} (zero canvas, zero per-sprite)"
+            )
+            bmp
+        }
+    } catch (t: Throwable) {
+        android.util.Log.e(NativeSurfaceView.LOG_TAG, "buildAtlas: offline RGBA bitmap failed", t)
+        RenderMetrics.atlasBuildFailed.incrementAndGet()
+        null
+    }
+
+    /**
+     * mip 链裸像素 → direct [ByteBuffer]（GPU 多级上传源）。
+     *
+     * 用 `FileChannel.map(READ_ONLY)` 直接映射 assets 文件——**零拷贝**，不占用
+     * 堆/直接内存（历史上此处要级联缩放 11 级、峰值 ~22MB）。native 侧
+     * `GetDirectBufferAddress` 可直接读。
+     * level-major 紧凑布局，首级 = 完整 2048² 图集，天然兼容单级回退。
+     *
+     * @return mip 链载荷；资产缺失/尺寸不符时 null（指标已记）
+     */
+    // 资产映射失败模式无稳定异常契约（IO/映射失败/ROM 差异），全捕获按非关键路径处理
+    @Suppress("TooGenericExceptionCaught")
+    private fun openOfflineMipChain(context: android.content.Context): MipChainPayload? = try {
+        val spec = OfflineAtlasAssets.readRawSpec(context)
+        val levelCount = spec.mipWidths.size
+        val mapped = mapAsset(context, spec.mipPath)
+        val expected = spec.mipWidths.indices.sumOf { i ->
+            val w = spec.mipWidths[i]
+            val h = spec.mipHeights[i]
+            w.toLong() * h * RGBA_BYTES_PER_PIXEL
+        }
+        if (mapped == null || mapped.capacity().toLong() < expected) {
+            android.util.Log.w(
+                NativeSurfaceView.LOG_TAG,
+                "buildAtlas: offline mip chain missing/short (need ${expected}B)"
+            )
+            RenderMetrics.atlasBuildFailed.incrementAndGet()
+            null
+        } else {
+            android.util.Log.i(
+                NativeSurfaceView.LOG_TAG,
+                "buildAtlas: offline mip chain mapped ${mapped.capacity()}B / $levelCount levels"
+            )
+            MipChainPayload(
+                mapped,
+                spec.mipWidths.toIntArray(),
+                spec.mipHeights.toIntArray()
+            )
+        }
+    } catch (t: Throwable) {
+        android.util.Log.e(NativeSurfaceView.LOG_TAG, "buildAtlas: offline mip chain failed", t)
+        RenderMetrics.atlasBuildFailed.incrementAndGet()
+        null
+    }
+
+    /** 读 assets 裸像素为 direct 缓冲（软渲位图源；容量不足/资产缺失返回 null） */
+    private fun readRawPixels(
+        context: android.content.Context,
+        assetPath: String,
+        width: Int,
+        height: Int
+    ): ByteBuffer? {
+        val mapped = mapAsset(context, assetPath) ?: return null
+        val need = width.toLong() * height * RGBA_BYTES_PER_PIXEL
+        return if (mapped.capacity().toLong() < need) null else mapped
+    }
+
+    /**
+     * assets → 只读 direct [ByteBuffer]（`FileChannel.map`，零拷贝）。
+     *
+     * 失败（资产缺失/IO 异常）返回 null 并记日志——调用方按支路决定是否算失败。
+     * 映射视图不持有 AssetFileDescriptor 生命周期（`openFd` 随函数退出关闭，
+     * 映射在进程内保持有效——Android 上 assets 映射生命周期由 VM 管理）。
+     */
+    // 资产 IO 失败模式无稳定异常契约（缺失/损坏/ROM 差异），全捕获按非关键路径处理
+    @Suppress("TooGenericExceptionCaught")
+    private fun mapAsset(context: android.content.Context, assetPath: String): ByteBuffer? = try {
+        context.assets.openFd(assetPath).use { afd ->
+            java.io.FileInputStream(afd.fileDescriptor).channel.use { ch ->
+                ch.map(
+                    java.nio.channels.FileChannel.MapMode.READ_ONLY,
+                    afd.startOffset,
+                    afd.length
+                )
+            }
+        }
+    } catch (t: Throwable) {
+        android.util.Log.w(NativeSurfaceView.LOG_TAG, "buildAtlas: asset map failed '$assetPath': ${t.message}")
+        null
+    }
+
     /** ASTC 上传 → 委托 View 的注入点（测试可换 Fake；默认 NativeBridge.uploadCompressedAtlas） */
     private fun compressedAtlasUploader(bytes: ByteArray): Int =
         view.compressedAtlasUploader(bytes)
-
-    /** 运行时 RGBA 拼装段（软渲分流 + 像素编码，任一失败返回 [AtlasPayload.failed]） */
-    private fun prepareRgbaAtlas(context: android.content.Context, software: Boolean): AtlasPayload {
-        val atlas = assembleAtlasBitmap(context) ?: return AtlasPayload(failed = true)
-        return when {
-            software -> AtlasPayload(softwareBitmap = atlas)
-            // 优先 mip 链；编码失败 → 单级回退
-            else -> encodeMipChainOrNull(atlas)?.let {
-                AtlasPayload(
-                    rgbaMipPixels = it.buffer,
-                    mipCount = it.mipCount,
-                    width = atlas.width,
-                    height = atlas.height
-                )
-            } ?: encodeAtlasPixels(atlas)?.let {
-                AtlasPayload(rgbaPixels = it, width = atlas.width, height = atlas.height)
-            } ?: AtlasPayload(failed = true)
-        }
-    }
-
-    /** mip 链编码（失败记指标并返回 null——单级回退由调用方承接） */
-    // 级联缩放/缓冲分配失败模式无稳定异常契约（OOM/ROM 差异），全捕获按非关键路径处理
-    @Suppress("TooGenericExceptionCaught")
-    private fun encodeMipChainOrNull(atlas: Bitmap): MipChainPayload? = try {
-        encodeBitmapToRgbaMipChain(atlas)
-    } catch (t: Throwable) {
-        android.util.Log.e(NativeSurfaceView.LOG_TAG, "buildAtlas: RGBA mip chain encode failed", t)
-        RenderMetrics.atlasBuildFailed.incrementAndGet()
-        null
-    }
-
-    /** 逐精灵解码 + Canvas 拼装（失败记指标并返回 null） */
-    // 子精灵/位图创建失败模式无稳定异常契约（资源损坏/OOM/ROM 差异），全捕获按非关键路径处理
-    @Suppress("TooGenericExceptionCaught")
-    private fun assembleAtlasBitmap(context: android.content.Context): Bitmap? = try {
-        SectAtlasAssembler.buildAtlasBitmap(context)
-    } catch (t: Throwable) {
-        android.util.Log.e(NativeSurfaceView.LOG_TAG, "buildAtlas: assembly failed", t)
-        RenderMetrics.atlasBuildFailed.incrementAndGet()
-        null
-    }
-
-    /** ARGB→RGBA direct 缓冲区编码（失败记指标并返回 null） */
-    // 像素读取/缓冲分配失败模式无稳定异常契约（OOM/ROM 差异），全捕获按非关键路径处理
-    @Suppress("TooGenericExceptionCaught")
-    private fun encodeAtlasPixels(atlas: Bitmap): ByteBuffer? = try {
-        encodeBitmapToRgbaBuffer(atlas)
-    } catch (t: Throwable) {
-        android.util.Log.e(NativeSurfaceView.LOG_TAG, "buildAtlas: RGBA encode failed", t)
-        RenderMetrics.atlasBuildFailed.incrementAndGet()
-        null
-    }
 
     /**
      * 上传已拼装好的图集（**轻活**，[prepareAtlas] 的对偶；主线程调用）。
@@ -322,7 +422,8 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
  * - [ktx]：ASTC 压缩图集资产字节（主线程上传）
  * - [rgbaMipPixels]：运行时拼装的 RGBA **mip 链**（2.3，level-major 紧凑布局，
  *   首级 = 完整图集；主线程 [NativeBridge.uploadTextureMipChainDirect] 上传）
- * - [rgbaPixels]：单级 RGBA direct 缓冲区（mip 链编码失败时的单级回退路径）
+ * - [rgbaPixels]：单级 RGBA direct 缓冲区（B15 前 mip 链编码失败时的单级回退路径；
+ *   离线产物路径恒走 [rgbaMipPixels]，本字段保留给既有测试与未来单级注入）
  * - [softwareBitmap]：软渲染路径位图（不上传 GPU，直接交 Canvas 后端）
  * - [failed]：拼装失败（跳过上传，指标已记）
  */
@@ -356,7 +457,7 @@ internal class AtlasPayload(
 }
 
 /**
- * RGBA mip 链编码产物（[encodeBitmapToRgbaMipChain] 输出）。
+ * RGBA mip 链载荷（运行时**只承载**离线产物；B15 前的级联编码已退役）。
  *
  * @property buffer level-major 紧凑 direct 缓冲区（首级 = 完整图集，天然兼容单级回退）
  * @property widths 各级宽（mip0 在前）
@@ -372,62 +473,77 @@ internal class MipChainPayload(
 }
 
 /**
- * ARGB [Bitmap] → RGBA **mip 链** direct 字节缓冲区（2.3：RGBA 回退路径真 mip）。
+ * 离线图集资产清单（`assets/atlas/atlas-rgba-manifest.json` 的消费视图）。
  *
- * 从拼装位图（2048²）逐级 50% 双线性缩放（[Bitmap.createScaledBitmap] filter=true，
- * 级联生成；2048→2 共 11 级），各级像素经 ARGB→RGBA swizzle 后按 **level-major**
- * 顺序写入单一 direct [ByteBuffer]——与 C++ `uploadTextureMipChainDirect` 的
- * 逐级 VkBufferImageCopy 布局约定一致（RGBA8 每级尺寸 4 字节倍数，bufferOffset
- * 累积恒 4 字节对齐，满足 VUID）。
+ * 单一职责：把构建期产物的元数据（裸像素尺寸 / mip 各级尺寸 / 资产文件名）
+ * 从 assets 解析出来，供 [AtlasAsyncPipeline] 两条支路共用。**不含**布局数值
+ * （槽位权威在 `SpriteAtlasDef`），只有产物自身的几何。
  *
- * 峰值内存：约 22MB（Σ level² × 4 字节 = 2048²·4/3·4），后台线程一次性，可接受。
- * 中间缩放位图生命周期随编码结束即废（不 recycle，遵循既有 double-free 规避惯例）。
- *
- * 调用线程：后台（拼装线程）——纯 CPU，不触碰任何 View/C++ 状态。
- *
- * @param source 源位图（ARGB_8888）
- * @return mip 链（最少 1 级——源 ≤2×2 时即单级）
+ * @property rawPath 2048² 直通 alpha 裸像素资产路径
+ * @property mipPath level-major mip 链裸像素资产路径
+ * @property width 裸像素宽（= [SpriteAtlasDef.ATLAS_W] × manifest.scale）
+ * @property height 裸像素高
+ * @property mipWidths 各级 mip 宽（mip0 在前）
+ * @property mipHeights 各级 mip 高
  */
-internal fun encodeBitmapToRgbaMipChain(source: Bitmap): MipChainPayload {
-    // 级联 50% 双线性缩放：2048, 1024, ..., 2（>2 才继续，11 级止）
-    val levels = ArrayList<Bitmap>(12)
-    var current: Bitmap = source
-    levels.add(current)
-    while (current.width > 2 && current.height > 2) {
-        current = Bitmap.createScaledBitmap(current, current.width / 2, current.height / 2, true)
-        levels.add(current)
-    }
+internal class OfflineAtlasSpec(
+    val rawPath: String,
+    val mipPath: String,
+    val width: Int,
+    val height: Int,
+    val mipWidths: List<Int>,
+    val mipHeights: List<Int>
+)
 
-    val widths = IntArray(levels.size)
-    val heights = IntArray(levels.size)
-    var totalBytes = 0L
-    for ((i, b) in levels.withIndex()) {
-        widths[i] = b.width
-        heights[i] = b.height
-        totalBytes += b.width.toLong() * b.height * RGBA_BYTES_PER_PIXEL
-    }
-    val buffer = ByteBuffer.allocateDirect(totalBytes.toInt())
-        .order(java.nio.ByteOrder.nativeOrder())
-    val intView = buffer.asIntBuffer()
-    val row = IntArray(widths.max())
-    // level-major 顺序逐级编码（首级 = 完整图集，单级回退可直接复用本缓冲）
-    for (b in levels) {
-        val w = b.width
-        val h = b.height
-        for (y in 0 until h) {
-            b.getPixels(row, 0, w, 0, y, w, 1)
-            for (x in 0 until w) {
-                val argb = row[x]
-                // 0xAARRGGBB → 0xAABBGGRR（小端内存布局即 R,G,B,A）
-                row[x] = ((argb and 0xFF) shl 16) or
-                    (argb and 0x0000_FF00) or
-                    ((argb ushr 16) and 0xFF) or
-                    (argb and 0xFF00_0000.toInt())
-            }
-            intView.put(row, 0, w)
+/**
+ * 离线图集资产解析。
+ *
+ * 与 `scripts/atlas-offline-rgba.mjs` 的 manifest 契约一一对应：脚本写什么字段，
+ * 这里读什么字段。**路径常量与 `SectAtlasPrefetch.ASTC_ATLAS_ASSET_PATH` 同目录**
+ * （`assets/atlas/`），便于资产清单审查时一处看全。
+ */
+internal object OfflineAtlasAssets {
+
+    /** 离线 RGBA 裸像素资产（2048² 直通 alpha） */
+    const val RAW_ASSET_PATH = "atlas/atlas-rgba-raw.bin"
+
+    /** 离线 RGBA mip 链资产（level-major 紧凑） */
+    const val MIP_ASSET_PATH = "atlas/atlas-rgba-mips.bin"
+
+    /** 离线产物清单（尺寸/mip 级几何/校验和） */
+    const val MANIFEST_ASSET_PATH = "atlas/atlas-rgba-manifest.json"
+
+    /**
+     * 读取清单并解析产物几何。
+     *
+     * 用 `org.json`（Android 平台自带，零新增依赖）——字段缺失/类型不符直接抛
+     * `JSONException`，由调用方按「产物不可用」处理（fail 而非静默用错尺寸）。
+     *
+     * @throws org.json.JSONException 清单缺失/字段非法
+     * @throws java.io.IOException assets 读取失败
+     */
+    fun readRawSpec(context: android.content.Context): OfflineAtlasSpec {
+        val text = context.assets.open(MANIFEST_ASSET_PATH).use { input ->
+            input.readBytes().toString(Charsets.UTF_8)
         }
+        val json = org.json.JSONObject(text)
+        val width = json.getInt("width")
+        val height = json.getInt("height")
+        val mipWidths = json.getJSONArray("mipWidths").let { arr ->
+            (0 until arr.length()).map { arr.getInt(it) }
+        }
+        // 清单只记各级宽度（产物恒为正方图集，宽高同源）——高按同值展开，
+        // 与脚本的 mipWidths 由同一循环产出保持等价。
+        val mipHeights = mipWidths
+        return OfflineAtlasSpec(
+            rawPath = json.optString("rawFile", "atlas-rgba-raw.bin").let { "atlas/$it" },
+            mipPath = json.optString("mipFile", "atlas-rgba-mips.bin").let { "atlas/$it" },
+            width = width,
+            height = height,
+            mipWidths = mipWidths,
+            mipHeights = mipHeights
+        )
     }
-    return MipChainPayload(buffer, widths, heights)
 }
 
 /**
@@ -445,6 +561,7 @@ internal fun encodeBitmapToRgbaMipChain(source: Bitmap): MipChainPayload {
  * - 逐像素 swizzle 为 ARGB(0xAARRGGBB) → RGBA(0xAABBGGRR)。
  *
  * 调用线程：后台（拼装线程）——纯 CPU，不触碰任何 View/C++ 状态。
+ * B15 起仅地面纹理（64×64）走此函数；图集本体改走离线产物零拷贝映射。
  *
  * @param bitmap 源位图（ARGB_8888）
  * @return 容量为 width*height*4 的 direct 缓冲区，position 在末尾（可直接上传）

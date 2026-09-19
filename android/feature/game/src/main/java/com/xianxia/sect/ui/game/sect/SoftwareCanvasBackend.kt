@@ -590,8 +590,9 @@ class SoftwareCanvasBackend(
          * 1. **链式预降采样**：源矩形宽高 > 目标 2 倍（深度降采样场景）时，先从图集
          *    裁出源区，经 [SectAtlasAssembler.downscaleWithBilinearChain]（同模块
          *    internal 复用，单一实现）逐级 2:1 双线性预降采样（软件 mip 近似，抑制
-         *    一步到位降采样的摩尔纹），再绘制到目标矩形。生产图集已由
-         *    SectAtlasAssembler 拼装期预降采样，本分支为深缩放兜底；中间位图生命
+         *    一步到位降采样的摩尔纹），再绘制到目标矩形。生产图集的精灵内容已由
+         *    `scripts/atlas-offline-rgba.mjs` 在构建期按槽位尺寸降采样（B15 / R6.1），
+         *    本分支为 **LOD 跨级深缩放兜底**（放远时目标 < 源 1/2）；中间位图生命
          *    周期随绘制结束即废（普通局部变量，GC 回收，不 recycle——遵循既有
          *    double-free 规避惯例）。
          * 2. **flipU 水平镜像**：绕目标矩形中心 scale(-1,1) 后按原源矩形绘制——
@@ -840,14 +841,16 @@ class SoftwareCanvasBackend(
     /**
      * 软件路径图集坐标缩放比。
      *
-     * SectAtlasAssembler.buildAtlasBitmap 为防低端机 OOM 把 4096 图集封顶缩放到
-     * 2048（atlasBitmapScale = ATLAS_BITMAP_MAX_EDGE / ATLAS_W = 2048/4096 = 0.5），但
+     * 离线图集产物（B15 / R6.1 起由 scripts/atlas-offline-rgba.mjs 产出）为防低端机
+     * OOM 把 4096 图集封顶缩放到 2048（scale = 2048/4096 = 0.5），此封顶语义与 B15 前
+     * 的 SectAtlasAssembler.buildAtlasBitmap 一致（ATLAS_BITMAP_MAX_EDGE / ATLAS_W），但
      * SpriteAtlasDef 的图集源矩形仍是 4096 坐标系。若直接用 4096 坐标在 2048 位图上
      * 采样，会越界/取样到相邻槽位——地面 REPEAT 源裁出「绿块+透明」导致整图铺出米色
      * 空隙，装饰/建筑错位。故所有源矩形与地面源裁切必须按实际图集宽度缩放。
      *
      * 值由渲染帧传入的 atlas 实际宽度推导（atlas.width / SpriteAtlasDef.ATLAS_W），
      * 生产图集恒正方形（2048/4096=0.5），测试用任意宽位图亦自动适配。
+     * B15 起像素源改为离线产物，**封顶语义与缩放系数零变化**（产物恒 2048²）。
      */
     private var sourceScale: Float = 1f
 
@@ -932,8 +935,9 @@ class SoftwareCanvasBackend(
         skyConfig: SkyBackgroundConfig = SkyBackgroundConfig.DEFAULT,
         cliffTextures: List<Bitmap?>? = null
     ): Bitmap? {
-        // 源矩形坐标缩放比：软件路径图集由 SectAtlasAssembler 按 0.5× 缩到 2048，
-        // 而 SpriteAtlasDef 源矩形是 4096 坐标系——直接采样会越界/取到相邻槽位，
+        // 源矩形坐标缩放比：软件路径图集（B15 起为离线产物，此前由 SectAtlasAssembler
+        // 拼装）按 0.5× 缩到 2048，而 SpriteAtlasDef 源矩形是 4096 坐标系——
+        // 直接采样会越界/取到相邻槽位，
         // 导致地面 REPEAT 源裁出「绿块+透明」铺出米色空隙、装饰/建筑错位。
         // 渲染帧实际 atlas 宽度推导（图集恒正方形，生产 2048/4096=0.5；测试任意宽亦适配）。
         val aw = atlas.width
