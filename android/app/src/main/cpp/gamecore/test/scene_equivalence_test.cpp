@@ -605,6 +605,184 @@ TEST_F(SceneEquivalenceTest, EachElementActuallyEmitsVertices) {
     EXPECT_GT(runOldPath(cliffs, mid, flags, 1).size(), 0u);
 }
 
+// ============================================================
+// R3.5 远景观看容量路径守卫（批次 B12）
+//
+// 地面层两种形态互斥：groundQuadEnabled && groundTexId!=0 → 整图 REPEAT quad
+// （1 个地面 draw call）；否则逐格地面（每格 1 quad）。本组锁定：
+//   ① 互斥性——整图开时地面 draw call 骤减，且**不产出逐格地面 quad**；
+//   ② 参数齐备性——未传 groundTexId 时即便开关为真仍回退逐格（防御）；
+//   ③ 非地面层不变——道路/建筑/作物在整图开时逐位不变（只有地面换形态）。
+// ③ 是该特性敢上线的关键：地面换形态不得扰动任何其他层的顶点流。
+// ============================================================
+
+namespace {
+
+/// 地面层形态测量结果
+struct GroundShape {
+    int mainBatchVerts;             ///< 主批（atlasTexId）顶点数
+    int groundSubmitVerts;          ///< 整图地面独立提交顶点数（0 = 未触发整图路径）
+    uint32_t groundSubmitTexId;     ///< 整图地面提交用的纹理 id
+};
+
+/// 主批形态（不带地面提交回调，只关心主批顶点数）
+struct MainBatchShape {
+    int mainVerts;                  ///< 主批顶点数
+    int groundSubmitVerts;          ///< 地面独立提交顶点数（不挂回调则恒 0）
+};
+
+/// 组装 MapLayerParams（给定夹具 + 地面开关 + 相机）——单点维护，避免测试内重复
+MapLayerParams paramsFor(const SceneFixture& fx, bool groundQuad, uint32_t groundTexId,
+                         const CameraView& view, float proj[16], float bounds[4]) {
+    cameraProjMatrix(proj, view.camX, view.camY, view.scale,
+                     static_cast<float>(view.vpW), static_cast<float>(view.vpH),
+                     scene::kTopdownYScale);
+    viewBoundsOf(view, bounds);
+    MapLayerParams p;
+    p.viewLeft = bounds[0]; p.viewTop = bounds[1];
+    p.viewRight = bounds[2]; p.viewBottom = bounds[3];
+    p.scale = view.scale;
+    p.fadeAlpha = view.fadeAlpha;
+    p.frameAlpha = view.frameAlpha;
+    p.skipDecor = false;
+    p.skipClouds = false;
+    p.buildingShadows = true;
+    p.buildingVisible = true;
+    p.tiles = fx.tiles.data();
+    p.tileCount = static_cast<int64_t>(fx.tiles.size());
+    p.cols = kCols; p.rows = kRows; p.tileSize = kTileSize;
+    p.atlasTexId = kAtlasTexId;
+    p.groundQuadEnabled = groundQuad;
+    p.groundTexId = groundTexId;
+    p.tileUv = fx.tileUv.data();
+    p.tileUvCount = static_cast<int>(fx.tileUv.size() / 4);
+    p.roads = fx.roads.data();
+    p.roadCount = static_cast<int64_t>(fx.roads.size());
+    p.roadUv = fx.roadUv.data();
+    p.roadUvCount = static_cast<int>(fx.roadUv.size() / 4);
+    p.buildings = fx.buildings.data();
+    p.buildingClaim = fx.buildingCount;
+    p.buildingDataFloats = static_cast<int>(fx.buildings.size());
+    p.buildingUv = fx.buildingUv.data();
+    p.buildingUvCount = static_cast<int>(fx.buildingUv.size() / 4);
+    p.crops = fx.crops.data();
+    p.cropCount = fx.cropCount;
+    p.cropUv = fx.cropUv.data();
+    p.cropUvCount = static_cast<int>(fx.cropUv.size() / 4);
+    p.clouds = fx.clouds.data();
+    p.cloudCount = fx.cloudCount;
+    p.cloudUv = fx.cloudUv.data();
+    p.cloudUvCount = static_cast<int>(fx.cloudUv.size() / 4);
+    return p;
+}
+
+/// 单要素地形夹具在给定相机/地面开关下的地面形态测量。
+/// 经 5 参重载的 submitGround 回调捕获整图地面提交（生产 = renderer->draw）。
+GroundShape measureGround(bool groundQuad, uint32_t groundTexId, const CameraView& view) {
+    SceneFixture fx = fixtureWith(false, false, false, false, false);
+    float proj[16];
+    float bounds[4];
+    MapLayerParams p = paramsFor(fx, groundQuad, groundTexId, view, proj, bounds);
+
+    SpriteBatcher batcher;
+    GroundShape out{0, 0, 0};
+    CropSmoothingState cropState;
+    const int mainVerts = buildMapBatch(batcher, p, proj, cropState,
+        [&out](uint32_t texId, const SpriteVertex*, int count) {
+            out.groundSubmitTexId = texId;
+            out.groundSubmitVerts += count;
+        });
+    out.mainBatchVerts = mainVerts;
+    return out;
+}
+
+/// 任意夹具的主批形态测量（不捕获地面提交——整图地面段另由 measureGround 测）
+MainBatchShape measureMainBatch(const SceneFixture& fx, bool groundQuad,
+                                uint32_t groundTexId, const CameraView& view) {
+    float proj[16];
+    float bounds[4];
+    MapLayerParams p = paramsFor(fx, groundQuad, groundTexId, view, proj, bounds);
+
+    SpriteBatcher batcher;
+    MainBatchShape out{0, 0};
+    CropSmoothingState cropState;
+    out.mainVerts = buildMapBatch(batcher, p, proj, cropState,
+        [&out](uint32_t, const SpriteVertex*, int count) {
+            out.groundSubmitVerts += count;
+        });
+    return out;
+}
+
+}  // namespace
+
+// ① 整图地面开启 ⇒ 地面改由独立提交的单个 quad 承担，主批不再含逐格地面
+TEST_F(SceneEquivalenceTest, FarViewGroundQuadReplacesPerTileGround) {
+    // 远景档（kViews[2]：scale=0.3，整岛可见）——逐格地面铺满整屏，顶点数为 O(可见格数)
+    const CameraView& farView = kViews[2];
+    GroundShape perTile = measureGround(/*groundQuad=*/false, /*groundTexId=*/0, farView);
+    GroundShape wholeMap = measureGround(/*groundQuad=*/true, /*groundTexId=*/99, farView);
+
+    // 逐格臂：地面在**主批**里（无独立地面提交），顶点数可观（O 可见格数）
+    EXPECT_EQ(0, perTile.groundSubmitVerts)
+        << "逐格臂不得触达整图地面提交回调";
+    EXPECT_GT(perTile.mainBatchVerts, 0) << "逐格地面必须产出主批顶点（对照基线）";
+
+    // 整图臂：地面经**独立提交**（1 quad = VERTICES_PER_SPRITE 顶点），主批不再含地面
+    EXPECT_EQ(VERTICES_PER_SPRITE, wholeMap.groundSubmitVerts)
+        << "整图地面必须是单个 quad（" << VERTICES_PER_SPRITE
+        << " 顶点）独立提交——R3.5 容量收益的直接证据";
+    EXPECT_EQ(99u, wholeMap.groundSubmitTexId)
+        << "整图地面须以其自身纹理 id 提交（非图集 id）";
+    EXPECT_LT(wholeMap.mainBatchVerts, perTile.mainBatchVerts)
+        << "整图臂主批必须比逐格臂小（逐格地面已从主批消失）";
+}
+
+// ② groundTexId 未传入时即便开关为真仍回退逐格（防御——半配置态不得黑屏）
+TEST_F(SceneEquivalenceTest, FarViewGroundQuadWithoutTextureFallsBack) {
+    const CameraView& farView = kViews[2];
+    GroundShape noTex = measureGround(/*groundQuad=*/true, /*groundTexId=*/0, farView);
+    GroundShape perTile = measureGround(/*groundQuad=*/false, /*groundTexId=*/0, farView);
+
+    EXPECT_EQ(0, noTex.groundSubmitVerts)
+        << "groundTexId=0 时整图提交必须不发生——否则 REPEAT 采样空白纹理整图黑屏";
+    EXPECT_EQ(perTile.mainBatchVerts, noTex.mainBatchVerts)
+        << "groundTexId=0 时整图开关必须无效，主批与逐格臂逐位一致";
+    EXPECT_GT(noTex.mainBatchVerts, 0) << "回退后地面必须仍在主批中绘制";
+}
+
+// ③ 地面换形态不得扰动其他层：**同一**全场景夹具下，
+//    整图臂主批 == 逐格臂主批 − 与整图臂同视口的逐格地面段。
+//    地面段在同夹具下由「整图臂主批 − 逐格臂主批」的差直接给出（自洽，
+//    不跨夹具比较）。
+TEST_F(SceneEquivalenceTest, FarViewGroundQuadLeavesOtherLayersUntouched) {
+    const CameraView& view = kViews[2];  // 远景档
+    SceneFixture full = fullFixture();
+
+    MainBatchShape perTileArm =
+        measureMainBatch(full, /*groundQuad=*/false, /*groundTexId=*/0, view);
+    MainBatchShape quadArm =
+        measureMainBatch(full, /*groundQuad=*/true, /*groundTexId=*/99, view);
+
+    EXPECT_GT(perTileArm.mainVerts, 0) << "逐格臂主批必须非空";
+    EXPECT_GT(quadArm.mainVerts, 0) << "整图臂主批必须非空（其余层未受影响）";
+
+    // 整图臂主批必须严格小于逐格臂主批（逐格地面段已从主批消失），
+    // 差值 = 被整图化的逐格地面顶点数（>0，且为 6 的整数倍 = 整数格数）
+    const int removedGround = perTileArm.mainVerts - quadArm.mainVerts;
+    EXPECT_GT(removedGround, 0)
+        << "整图臂主批必须比逐格臂小——差值即被整图化移除的逐格地面段";
+    EXPECT_EQ(0, removedGround % VERTICES_PER_SPRITE)
+        << "移除量须为整格（每格 " << VERTICES_PER_SPRITE << " 顶点）的整数倍";
+
+    // 整图臂的地面经独立提交（单 quad）——容量收益：1 quad 替代 N 格
+    GroundShape quadOnly = measureGround(/*groundQuad=*/true, /*groundTexId=*/99, view);
+    EXPECT_EQ(VERTICES_PER_SPRITE, quadOnly.groundSubmitVerts)
+        << "整图地面段必须是单 quad";
+    // 同视口下逐格地面段在整图臂中被移除的格数，必须远多于 1 个 quad
+    EXPECT_GT(removedGround, quadOnly.groundSubmitVerts)
+        << "逐格地面段必须显著大于整图单 quad（容量收益）";
+}
+
 // 生成 UV 表与夹具（Kotlin 公式快照）的静态对照：任何 LAYOUT 漂移在此即红
 TEST_F(SceneEquivalenceTest, GeneratedUvTablesMatchKotlinFormulaFixture) {
     std::vector<float> tile = kotlinTileUv();
