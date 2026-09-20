@@ -2,6 +2,7 @@ package com.xianxia.sect.core.architecture
 
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -29,8 +30,8 @@ import java.io.File
  *    解析者一旦出现即红；
  * 3. UI 模块（`core/ui` 与 `feature` 各模块）主源对镜像符号零命中——UI 只经
  *    GameStateStore 只读流消费，不直连镜像通道（"UI 行为零变更"的结构面）；
- * 4. 灰度共存两臂与旗标默认值在源码面保留（`applyDirtyProto` / `applyDirty` 双分支
- *    + `mirrorProtobufTransport` 默认 true）——回滚臂物理删除须等灰度期满、走独立批次。
+ * 4. 传输臂退役后的单臂源码面（B18，2026-09-20 用户决策开工）：生产通道恒
+ *    `applyDirtyProto`，JSON 回滚分支与 `mirrorProtobufTransport` 旗标不得回流。
  */
 class MirrorConsumerSurfaceGuardTest {
 
@@ -80,22 +81,21 @@ class MirrorConsumerSurfaceGuardTest {
     }
 
     @Test
-    fun `灰度共存两臂与旗标默认值保留`() {
+    fun `传输臂已退役（B18 后单臂源码面）`() {
         val syncService = readMainFile(MIRROR_ENTRY_FILE)
         val flagSource = readMainFile(FLAG_FILE)
         assertTrue(
-            "二进制臂缺失（applyDirtyProto 分支）——R2.2 换轨被回退",
+            "二进制臂缺失（applyDirtyProto 恒走）——R2.2 换轨被回退",
             syncService.contains("applyDirtyProto(raw)")
         )
-        assertTrue(
-            "JSON 回滚臂缺失（applyDirty(raw.decodeToString())）——灰度共存期未满不得删臂",
+        assertFalse(
+            "JSON 回滚臂不得回流生产分发（applyDirty(raw.decodeToString())）",
             syncService.contains("applyDirty(raw.decodeToString())")
         )
-        assertTrue(
-            "旗标默认值漂移（生产默认应为换轨生效 true）",
-            flagSource.contains("var mirrorProtobufTransport: Boolean = true")
+        assertFalse(
+            "传输旗标不得回流（mirrorProtobufTransport 已随 B18 删除）",
+            flagSource.contains("mirrorProtobufTransport")
         )
-        assertTrue("运行期旗标默认值", NativeEngineFlag.mirrorProtobufTransport)
         assertTrue(
             "第二波投影旗标默认值漂移（R2.3 二波生产默认 = 投影态生效）",
             flagSource.contains("var gameViewProjection: Boolean = true")

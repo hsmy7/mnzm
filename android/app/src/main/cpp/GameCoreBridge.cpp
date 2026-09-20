@@ -541,17 +541,6 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeExportDirty(
     return stringToJbytes(env, g_gameCore->exportDirty());
 }
 
-// 镜像通道传输编码开关（R2.2 灰度：Kotlin NativeEngineFlag.mirrorProtobufTransport
-// 驱动）——与 nativeSetAiThermalBatchSize 同族引擎线程控制端口，仅切换
-// nativeExportDirty 的输出编码，不改导出内容/版本号/基线消费语义。
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetDirtyExportProtobuf(
-    JNIEnv* /*env*/, jobject /*thiz*/, jboolean on) {
-    jniRequireEngineThread("nativeSetDirtyExportProtobuf");
-    if (!g_gameCore) return;
-    g_gameCore->setDirtyExportProtobuf(on == JNI_TRUE);
-}
-
 // 列级增量导出开关（R2.4/B09：Kotlin NativeEngineFlag.dirtyColumnExport 驱动）
 // ——与 nativeSetDirtyExportProtobuf 同族引擎线程控制端口，仅切换 exportDirty
 // 的增量来源（列级写屏障 vs 全量树 diff），不改导出面协议/版本号语义；

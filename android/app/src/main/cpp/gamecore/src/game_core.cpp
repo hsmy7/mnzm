@@ -233,7 +233,6 @@ void GameCore::shutdown() {
 
 
 void GameCore::harvestBreakthroughEvents() {
-    if (!dirtyExportProtobuf_) return;   // JSON 回滚臂不产事件
     for (const auto& r : state_.gameData.gameEventRecords) {
         if (r.sequenceId <= breakthroughHarvestedSequence_) continue;
         if (r.eventType != "breakthrough") continue;
@@ -248,7 +247,7 @@ void GameCore::harvestBreakthroughEvents() {
 }
 
 void GameCore::queueViewEvent(state::ViewEventType type, const std::string& detailJson) {
-    if (!dirtyExportProtobuf_) return;   // JSON 回滚臂不入队（信封 JSON 面零变更）
+    // 传输臂退役（B18）：生产通道恒 protobuf，事件恒入队
     state::ViewEventDraft draft;
     draft.type = type;
     draft.gameYear = state_.gameData.gameYear;
@@ -728,7 +727,8 @@ std::string GameCore::exportDirtyProto() {
 }
 
 std::string GameCore::exportDirty() {
-    return dirtyExportProtobuf_ ? exportDirtyProto() : exportDirtyJson();
+    // B18 传输臂退役：恒 protobuf（JSON 导出能力保留在 exportDirtyJson 供对拍）
+    return exportDirtyProto();
 }
 
 std::string GameCore::exportDirtyColumnJson() {

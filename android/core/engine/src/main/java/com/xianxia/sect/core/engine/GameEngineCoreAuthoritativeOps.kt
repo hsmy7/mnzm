@@ -196,10 +196,6 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             )
             if (!initialized) return false
             gameRngManager.attachNativeChannel(GameCoreRngChannel)
-            // 镜像通道传输编码换轨（R2.2 灰度）：native 初始化后立即推送分发
-            // 模式，早于任何 nativeExportDirty 调用——与 Kotlin 解码侧读同一
-            // [NativeEngineFlag.mirrorProtobufTransport]，生产/解码两端一致。
-            GameCoreBridge.nativeSetDirtyExportProtobuf(NativeEngineFlag.mirrorProtobufTransport)
             // 列级增量导出接线（R2.4/B09 灰度）：与传输编码旗标同点推送，
             // 早于任何 nativeExportDirty 调用——C++ 导出模式与 Kotlin 解码侧
             // 读同一 [NativeEngineFlag.dirtyColumnExport]。

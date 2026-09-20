@@ -43,21 +43,6 @@ object NativeEngineFlag {
     /** 是否 AUTHORITATIVE 过渡模式（tick 路径分支依据） */
     val authoritative: Boolean get() = mode == Mode.AUTHORITATIVE
 
-    /**
-     * 镜像通道传输编码灰度开关（重构方案 R2.2：JSON 镜像 → protobuf 视图契约）。
-     *
-     * - **true（换轨后生产默认）**：`nativeExportDirty` 产出 GameView protobuf
-     *   信封，[StateSyncService] 走 protobuf 解码分支；
-     * - false：旧 JSON 变更集文本路径（新旧共存一个版本周期的回滚臂，R2.2
-     *   红线——UI 消费面本批不动，仅换传输编码）。
-     *
-     * 语义：仅影响镜像通道的**字节载荷编码**（全量镜像内容、版本号、基线消费、
-     * 存档格式零变更）；由 native 初始化后经
-     * [GameCoreBridge.nativeSetDirtyExportProtobuf] 推送 C++ 分发模式，解码侧
-     * 据此选分支。protobuf↔JSON 逐值等价由 DiffDirtyEnvelopeEquivalenceTest 守卫。
-     */
-    @Volatile
-    var mirrorProtobufTransport: Boolean = true
 
     /**
      * 镜像瘦身灰度开关（重构方案 R2.3 第二波：GameViewStore 投影态 + 全量重建退场）。
@@ -91,7 +76,7 @@ object NativeEngineFlag {
      *
      * 由 native 初始化后经 [GameCoreBridge.nativeSetDirtyExportColumn] 推送
      * C++（引擎控制端口族，登记豁免沿 nativeSetDirtyExportProtobuf 先例）。
-     * **仅 protobuf 臂生效**：JSON 回滚臂（[mirrorProtobufTransport]=false）
+     * **仅 protobuf 臂生效**（B18 传输臂退役后生产通道恒 protobuf）
      * 恒全量树 diff，且 C++ 侧异构写入路径（业务事务/战斗/招募）自动锁存
      * 回退全量导出一封。列级↔全量语义等价由 ColumnExportEquivalenceTest
      * （C++ GTest，真实结算双臂对照）+ Kotlin 侧部分行合并守卫锁定。

@@ -188,14 +188,6 @@ public:
     /// 双格式逐值等价）——同一封不可两种格式各导一次（导出即消费）。
     /// 未初始化/异常返回合法的空信封字节（消费端零写入快速路径）。
     std::string exportDirtyProto();
-    /// nativeExportDirty 传输编码开关（true = protobuf 信封；false = 旧 JSON
-    /// 文本）。缺省 false = 旧格式（跨版本回滚安全缺省）；生产由 Kotlin
-    /// NativeEngineFlag.mirrorProtobufTransport 经 SET_DIRTY_EXPORT_FORMAT
-    /// 动作驱动（灰度开关，新旧共存一个版本周期）。仅影响 [exportDirty]
-    /// 分发——两格式导出能力本身恒并存（对拍/回退面不动）。
-    void setDirtyExportProtobuf(bool on) { dirtyExportProtobuf_ = on; }
-    bool dirtyExportProtobuf() const { return dirtyExportProtobuf_; }
-
     /// ── 列级增量导出开关（重构方案 R2.4/B09：R1.4 列级写屏障接生产）──
     /// true = exportDirtyProto 优先走 ColumnDirtyTracker 整树导出（弟子域
     /// 仅脏行×脏列；gameData/集合域与全量 diff 共享同一比对段，构造等价）；
@@ -211,8 +203,8 @@ public:
     /// 树 diff（该封之后恢复列级——全量封已携带全部变更，位图同时清零）。
     void noteNonSettlementMutation() { columnExportBlocked_ = true; }
 
-    /// 按 [setDirtyExportProtobuf]/[setDirtyExportColumn] 模式导出变更集
-    ///（nativeExportDirty JNI 面唯一入口；JNI 签名不变、仅输出编码换轨）
+    /// 导出变更集（nativeExportDirty JNI 面唯一入口）。恒 protobuf 信封
+    ///（B18 传输臂退役）；JSON 能力由 [exportDirtyJson] 保留供对拍/测试。
     std::string exportDirty();
 
     /// 列级增量树导出，JSON 文本（对拍守卫专用）：仅消费
@@ -312,8 +304,6 @@ private:
     void ensureTerrainGenerated();
     /// initialize(config) 的配置留存（ensureTerrainGenerated 消费地形参数）
     GameCoreConfig config_;
-    /// nativeExportDirty 传输编码模式（R2.2 灰度开关，缺省 false = 旧 JSON）
-    bool dirtyExportProtobuf_ = false;
     /// 列级增量导出模式（R2.4/B09；缺省 false = 全量树 diff，零漂移缺省）
     bool columnLevelDirtyExport_ = false;
     /// 异构写入锁存（[noteNonSettlementMutation]；导出后消费清零）
@@ -332,8 +322,7 @@ private:
     /// 月/年结算边界粗粒度列标脏（审计列集全行标脏——月/年级频率，
     /// 宁多标不漏标；phase 路径为写点级精确标脏不经此）
     void markMonthYearBoundaryColumns();
-    /// proto eventFeed 入队（dirtyExportProtobuf_ 开启时才入队——JSON 回滚臂
-    /// 不产事件，信封 JSON 面零变更）
+    /// proto eventFeed 入队（exportDirtyProto 编码成功后清空——导出即消费）
     void queueViewEvent(state::ViewEventType type, const std::string& detailJson);
     /// 突破记录收割为 BREAKTHROUGH 事件（sequenceId 水位增量扫描）
     void harvestBreakthroughEvents();

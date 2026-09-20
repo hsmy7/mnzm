@@ -241,13 +241,11 @@ TEST_F(ColumnExportEquivalenceTest, EventFeedFlowsThroughProtoExport) {
     for (int i = 0; i < 30; ++i) {
         st.disciples.appendDisciple(makeDisciple(std::to_string(i + 1), i));
     }
-    core.setDirtyExportProtobuf(true);   // proto 臂（R2.2 旗标）
-
     // 月结 → MONTH_SETTLED 事件入队；purchaseLogs 为空 ⇒ 无 PURCHASE 事件
     static_cast<void>(core.settleMonth());
     static_cast<void>(core.settleYear());  // YEAR_SETTLED 事件入队
 
-    const std::string bytes = core.exportDirty();
+    const std::string bytes = core.exportDirtyProto();  // B18 后恒 proto（原旗标删除）
     std::vector<std::pair<uint32_t, WireField>> fs;
     ASSERT_TRUE(decodeTopLevel(bytes, fs));
     const auto events = fieldsWith(fs, 4);

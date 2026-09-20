@@ -326,14 +326,10 @@ class StateSyncService @Inject constructor(
     fun applyDirtyFromNative(): DirtyApplyResult? {
         val raw = fetchNativeDirty() ?: return null
         // 双实现并行契约：变更集解析/应用异常均降级 null（调用方可回退全量同步）。
-        // R2.2 传输编码换轨：灰度开 = protobuf 信封解码，关 = 旧 JSON 文本
-        //（两分支产出同一棵变更集树，复用同一 applyEnvelope，逐值等价）。
+        // 传输编码恒 protobuf（B18 传输臂退役——JSON 导出能力保留在 C++
+        // exportDirtyJson 供桌面对拍/测试作 golden 对照，不经本生产通道分发）。
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
-        return if (NativeEngineFlag.mirrorProtobufTransport) {
-            runCatching { applyDirtyProto(raw) }.getOrNull()
-        } else {
-            runCatching { applyDirty(raw.decodeToString()) }.getOrNull()
-        }
+        return runCatching { applyDirtyProto(raw) }.getOrNull()
     }
 
     /**

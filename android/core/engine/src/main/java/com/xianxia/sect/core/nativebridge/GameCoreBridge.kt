@@ -285,23 +285,12 @@ object GameCoreBridge {
     external fun nativeRecruitAllFromList(): ByteArray
 
     /**
-     * 导出自上次导出以来的变更集（UI 镜像增量同步）。传输编码由
-     * [nativeSetDirtyExportProtobuf] 决定：关 = 旧 JSON 文本，开 = GameView
-     * protobuf 信封（schema 见 `core/engine/src/main/proto/game_view.proto`，
-     * 解码见 [StateSyncService]）。JNI 签名与导出内容/版本号/基线消费语义不变，
-     * 仅字节载荷编码换轨（重构方案 R2.2）。
+     * 导出自上次导出以来的变更集（UI 镜像增量同步）。恒产出 GameView
+     * protobuf 信封（B18 传输臂退役；JSON 导出能力保留在 C++ exportDirtyJson
+     * 供桌面对拍/测试作 golden 对照）。schema 见
+     * `core/engine/src/main/proto/game_view.proto`，解码见 [StateSyncService]。
      */
     external fun nativeExportDirty(): ByteArray
-
-    /**
-     * 设置 [nativeExportDirty] 传输编码（重构方案 R2.2 灰度开关）：
-     * true = GameView protobuf 信封，false = 旧 JSON 文本。引擎线程调用；
-     * native 未收到本调用时缺省 false = 旧格式（跨版本回滚安全缺省）。
-     * 与 `nativeSetAiThermalBatchSize` 同族引擎线程控制端口——仅切输出编码，
-     * 不改导出内容/版本/基线消费语义。生产由
-     * [NativeEngineFlag.mirrorProtobufTransport] 在 native 初始化后推送。
-     */
-    external fun nativeSetDirtyExportProtobuf(on: Boolean)
 
     /**
      * 设置 [nativeExportDirty] 增量来源（重构方案 R2.4/B09 列级导出接生产）：
