@@ -63,6 +63,10 @@ struct ForgeRecipeTemplate {
     std::map<std::string, int32_t> materials;
     int32_t duration = 0;
     double successRate = 0.0;
+
+    /// B16/R6.2 数值等价守卫用。C++20 默认派生 ==：逐成员比较由编译器生成，
+    /// 覆盖**全部字段**（比手写字段清单更严——不存在漏比某字段的可能）。
+    friend bool operator==(const ForgeRecipeTemplate&, const ForgeRecipeTemplate&) = default;
 };
 
 /// 丹药配方模板（对应 Kotlin `PillRecipeDatabase.PillRecipe`）
@@ -113,6 +117,11 @@ struct PillRecipeTemplate {
     int32_t teachingAdd = 0;
     int32_t moralityAdd = 0;
     int32_t miningAdd = 0;
+
+    /// B16/R6.2 数值等价守卫用（同 ForgeRecipeTemplate：默认派生，全字段比较）。
+    /// 注：`price` 为派生字段（见上方字段注释）——数据文件不含该键，注入后由
+    /// `data_inject.h` 按 C++ 同一公式回填，等价守卫仍含 price 全字段比对。
+    friend bool operator==(const PillRecipeTemplate&, const PillRecipeTemplate&) = default;
 };
 
 namespace detail {
@@ -1318,15 +1327,35 @@ inline std::vector<PillRecipeTemplate> buildPillRecipes() {
 // ============================================================
 
 /// 全部锻造配方（6 tier × 12 = 72 条，顺序与 Kotlin tier1~tier6 一致）
-inline const std::vector<ForgeRecipeTemplate>& forgeRecipes() {
-    static const std::vector<ForgeRecipeTemplate> kRecipes = detail::buildForgeRecipes();
+///
+/// B16/R6.2 数值外置：本表为**内联默认值兜底**（= detail::buildForgeRecipes()
+/// 产出），与数据文件 `assets/data/game-data.json` 的 `db.forgeRecipes` 段同源
+/// （中性源 scripts/data/recipe_db_sample.json 复刻同一 Kotlin 生成逻辑）。
+/// 运行时由 `gamecore/data/data_inject.h` 初始化期一次性注入；注入前/失败时
+/// 此处即为权威值（与数据文件默认值逐字段相等，data_store_test 锁定）。
+inline std::vector<ForgeRecipeTemplate>& forgeRecipesMutable() {
+    static std::vector<ForgeRecipeTemplate> kRecipes = detail::buildForgeRecipes();
     return kRecipes;
 }
 
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<ForgeRecipeTemplate>& forgeRecipes() {
+    return forgeRecipesMutable();
+}
+
 /// 全部丹药配方（修炼 138 + 战斗 288 + 功能 306 = 732 条）
-inline const std::vector<PillRecipeTemplate>& pillRecipes() {
-    static const std::vector<PillRecipeTemplate> kRecipes = detail::buildPillRecipes();
+///
+/// B16/R6.2：同 forgeRecipesMutable——兜底与 `db.pillRecipes` 段同源。
+/// 注：条目的 `price` 是派生字段（数据文件不含该键），注入后由
+/// `data_inject.h` 按 detail 同一构建公式回填（派生逻辑保持 C++ 侧）。
+inline std::vector<PillRecipeTemplate>& pillRecipesMutable() {
+    static std::vector<PillRecipeTemplate> kRecipes = detail::buildPillRecipes();
     return kRecipes;
+}
+
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<PillRecipeTemplate>& pillRecipes() {
+    return pillRecipesMutable();
 }
 
 /// 按 id 查询锻造配方（不存在返回空 optional）

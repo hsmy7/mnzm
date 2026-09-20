@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.config.GameConfigNativeBridge
+import com.xianxia.sect.core.engine.config.GameDataNativeBridge
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.GameCoreRngChannel
@@ -205,6 +206,9 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             // native 初始化完成后补注运行时配置
             // （CultivationEventProcessor 构造时 native 可能未加载——此处幂等补注）
             GameConfigNativeBridge.ensureInjected()
+            // 静态数据表补注（R6.2/B16 数值外置）：与上同点幂等，
+            // 保证 native 引擎开始结算前 DB 已由数据文件注入（否则用内联兜底）
+            GameDataNativeBridge.ensureInjected()
             if (!stateSyncServiceRef.importToNative()) return false
             // 引擎循环时钟基准启动（防 PhaseClock 残留 lastWallMs 造成
             // 首帧巨量 delta → 追补上限截断丢时间）

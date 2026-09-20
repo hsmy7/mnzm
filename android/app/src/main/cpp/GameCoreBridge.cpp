@@ -9,6 +9,8 @@
 #include "gamecore/game_core.h"
 #include "gamecore/determinism_probe.h"
 #include "gamecore/core/game_config.h"
+// R6.2/B16 数值外置：数据文件 → DB 容器注入（含 nlohmann 适配）
+#include "gamecore/data/data_inject.h"
 #include "gamecore/state/json_codec.h"
 #include "gamecore/system/engine_loop.h"
 #include "gamecore/map/road_compositor.h"
@@ -177,10 +179,19 @@ public:
 
 /// 单调时钟适配器——CLOCK_BOOTTIME 与 SystemClock.elapsedRealtime 一致
 /// （单调递增 + 含深度睡眠；steady_clock 不含休眠会低估挂机时长）
+///
+/// 桌面（Windows）腿：Bionic 的 `CLOCK_BOOTTIME` 与 32 位 time ABI
+/// （`clock_gettime64`）在 llvm-mingw/UCRT 下不存在（链接期 undefined symbol），
+/// 故桌面替身为不含深度睡眠的 `CLOCK_MONOTONIC`。**仅影响桌面对拍测试**
+/// （Android 真机/模拟器走 Bionic 分支，语义零变化）。
 class AndroidMonotonicClock final : public gamecore::MonotonicClock {
 public:
     int64_t nowMs() override {
-#if defined(CLOCK_BOOTTIME)
+#if defined(_WIN32)
+        struct timespec ts {};
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1'000'000;
+#elif defined(CLOCK_BOOTTIME)
         struct timespec ts {};
         clock_gettime(CLOCK_BOOTTIME, &ts);
         return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1'000'000;
@@ -936,6 +947,29 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetGameConfig(
         static_cast<int32_t>(lawMaxTheftJudgementsPerMonth);
     gamecore::setGameConfig(cfg);
     (void)env;
+}
+
+// ============================================================
+// 数值外置数据注入（R6.2 / B16）
+//
+// 豁免登记与端口总数对照见 Kotlin 侧
+// GameCoreBridge.nativeSetGameData 的 KDoc——**+1 端口**，注入仅初始化期一次，
+// 零每帧/每事务跨线。
+//
+// 语义：把 assets/data/game-data.json 全文交给 C++
+// `gamecore::data::inject::injectFromJson`，由 data_store 状态机保证
+// 「仅初始化期一次」；重复注入被拒（幂等），解析失败时**保留头文件内联默认
+// 兜底**（禁止静默空表），不抛异常、不阻断引擎启动。
+// ============================================================
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetGameData(
+    JNIEnv* env, jobject /*thiz*/, jstring json) {
+    if (json == nullptr) return JNI_FALSE;
+    const char* chars = env->GetStringUTFChars(json, nullptr);
+    if (chars == nullptr) return JNI_FALSE;
+    const std::string payload(chars);
+    env->ReleaseStringUTFChars(json, chars);
+    return gamecore::data::inject::injectFromJson(payload) ? JNI_TRUE : JNI_FALSE;
 }
 
 // ============================================================

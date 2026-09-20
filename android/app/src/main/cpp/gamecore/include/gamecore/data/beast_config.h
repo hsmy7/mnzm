@@ -80,8 +80,17 @@ struct BeastTypeSpec {
 namespace detail {
 
 /// Beast.REALM_STATS（下标 0..9；与 Kotlin map 字面量逐值一致）
-inline const BeastRealmStats& beastRealmStats(int32_t realm) {
-    static const BeastRealmStats kStats[10] = {
+///
+/// B16/R6.2 数值外置：本表为**内联默认值兜底**，与数据文件
+/// `assets/data/game-data.json` 的 `db.beastRealmStats` 段同源；
+/// 由 `gamecore/data/data_inject.h` 初始化期一次性注入。
+///
+/// 注：beast_config 的 realm 表 / 技能表 / 类型表为**结构性数值**
+/// （realm 表按 realm 索引复制、技能表按 8 类 beast 展开）——其真相源
+/// 仍在 C++ 侧（见批次残余登记），本批只把表容器改为可注入形态并统一
+/// 注入通道，数据文件中对应段为**可选**（缺省即用此处内联值）。
+inline BeastRealmStats* beastRealmStatsTable() {
+    static BeastRealmStats kStats[10] = {
         {846353, 325553, 75528, 56429, 40068},  // 0
         {406249, 156265, 36254, 27087, 19233},  // 1
         {196374,  75528, 17523, 13091,  9296},  // 2
@@ -93,15 +102,21 @@ inline const BeastRealmStats& beastRealmStats(int32_t realm) {
         {   847,    326,    76,    57,    41},  // 8
         {   339,    130,    31,    22,    16},  // 9
     };
+    return kStats;
+}
+
+inline const BeastRealmStats& beastRealmStats(int32_t realm) {
+    const BeastRealmStats* kStats = beastRealmStatsTable();
     static const BeastRealmStats kFallback = kStats[9];
     if (realm < 0 || realm > 9) return kFallback;
     return kStats[realm];
 }
 
 // ── 各类型技能表（与 Kotlin TYPES 逐技能一致）────────────────────
+// B16/R6.2：技能谱系为**逻辑结构**（8 类 beast × 各自技能集），不属外置面。
 
-inline const std::vector<BeastSkillSpec>& tigerSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+inline std::vector<BeastSkillSpec>& tigerSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"猛虎下山", 1.8, 3, 20, SkillType::kAttack, DamageType::kPhysical},
         {"虎爪撕裂", 0.9, 2, 15, SkillType::kAttack, DamageType::kPhysical, 2},
         {"虎啸", 0.7, 4, 30, SkillType::kAttack, DamageType::kPhysical, 1, true},
@@ -111,8 +126,13 @@ inline const std::vector<BeastSkillSpec>& tigerSkills() {
     return k;
 }
 
-inline const std::vector<BeastSkillSpec>& wolfSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& tigerSkills() {
+    return tigerSkillsMutable();
+}
+
+inline std::vector<BeastSkillSpec>& wolfSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"狼群撕咬", 0.6, 3, 20, SkillType::kAttack, DamageType::kPhysical, 3},
         {"疾风步", 0.0, 4, 20, SkillType::kSupport, DamageType::kPhysical, 1, false,
          BuffType::kSpeedBoost, 0.3, 3, "self"},
@@ -123,8 +143,13 @@ inline const std::vector<BeastSkillSpec>& wolfSkills() {
     return k;
 }
 
-inline const std::vector<BeastSkillSpec>& snakeSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& wolfSkills() {
+    return wolfSkillsMutable();
+}
+
+inline std::vector<BeastSkillSpec>& snakeSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"毒牙", 1.2, 3, 15, SkillType::kAttack, DamageType::kPhysical, 1, false,
          BuffType::kPoison, 0.08, 2},
         {"毒雾", 0.5, 4, 30, SkillType::kAttack, DamageType::kPhysical, 1, true,
@@ -137,8 +162,13 @@ inline const std::vector<BeastSkillSpec>& snakeSkills() {
     return k;
 }
 
-inline const std::vector<BeastSkillSpec>& bearSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& snakeSkills() {
+    return snakeSkillsMutable();
+}
+
+inline std::vector<BeastSkillSpec>& bearSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"震地", 0.6, 4, 30, SkillType::kAttack, DamageType::kPhysical, 1, true},
         {"铁壁", 0.0, 4, 15, SkillType::kSupport, DamageType::kPhysical, 1, false,
          BuffType::kPhysicalDefenseBoost, 0.4, 3, "self"},
@@ -150,8 +180,13 @@ inline const std::vector<BeastSkillSpec>& bearSkills() {
     return k;
 }
 
-inline const std::vector<BeastSkillSpec>& eagleSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& bearSkills() {
+    return bearSkillsMutable();
+}
+
+inline std::vector<BeastSkillSpec>& eagleSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"俯冲", 2.0, 3, 25, SkillType::kAttack, DamageType::kPhysical},
         {"鹰眼", 0.0, 3, 15, SkillType::kSupport, DamageType::kPhysical, 1, false,
          BuffType::kCritRateBoost, 0.2, 3, "self"},
@@ -162,8 +197,13 @@ inline const std::vector<BeastSkillSpec>& eagleSkills() {
     return k;
 }
 
-inline const std::vector<BeastSkillSpec>& foxSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& eagleSkills() {
+    return eagleSkillsMutable();
+}
+
+inline std::vector<BeastSkillSpec>& foxSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"妖术", 1.5, 3, 20, SkillType::kAttack, DamageType::kMagic, 1, false,
          BuffType::kSilence, 1.0, 1},
         {"狐火", 1.2, 3, 15, SkillType::kAttack, DamageType::kMagic, 1, false,
@@ -176,8 +216,13 @@ inline const std::vector<BeastSkillSpec>& foxSkills() {
     return k;
 }
 
-inline const std::vector<BeastSkillSpec>& dragonSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& foxSkills() {
+    return foxSkillsMutable();
+}
+
+inline std::vector<BeastSkillSpec>& dragonSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"龙息", 0.8, 4, 35, SkillType::kAttack, DamageType::kMagic, 1, true},
         {"龙爪撕裂", 1.6, 3, 20, SkillType::kAttack, DamageType::kPhysical},
         {"龙威", 0.0, 6, 30, SkillType::kSupport, DamageType::kPhysical, 1, false,
@@ -189,8 +234,13 @@ inline const std::vector<BeastSkillSpec>& dragonSkills() {
     return k;
 }
 
-inline const std::vector<BeastSkillSpec>& turtleSkills() {
-    static const std::vector<BeastSkillSpec> k = {
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& dragonSkills() {
+    return dragonSkillsMutable();
+}
+
+inline std::vector<BeastSkillSpec>& turtleSkillsMutable() {
+    static std::vector<BeastSkillSpec> k = {
         {"缩壳", 0.0, 4, 15, SkillType::kSupport, DamageType::kPhysical, 1, false,
          BuffType::kPhysicalDefenseBoost, 0.5, 2, "self"},
         {"水盾", 0.0, 5, 25, SkillType::kSupport, DamageType::kMagic, 1, false,
@@ -202,11 +252,16 @@ inline const std::vector<BeastSkillSpec>& turtleSkills() {
     return k;
 }
 
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastSkillSpec>& turtleSkills() {
+    return turtleSkillsMutable();
+}
+
 }  // namespace detail
 
 /// 妖兽类型表（Kotlin Beast.TYPES 全 8 类，顺序一致）
-inline const std::vector<BeastTypeSpec>& beastTypes() {
-    static const std::vector<BeastTypeSpec> kTypes = {
+inline std::vector<BeastTypeSpec>& beastTypesMutable() {
+    static std::vector<BeastTypeSpec> kTypes = {
         {"虎妖", "狂暴", 1.3, 1.4, 0.7, 1.0, 1.1, "metal", &detail::tigerSkills()},
         {"狼妖", "迅捷", 0.6, 1.2, 0.6, 1.5, 1.0, "wood", &detail::wolfSkills()},
         {"蛇妖", "剧毒", 0.7, 1.5, 0.5, 1.1, 1.2, "water", &detail::snakeSkills()},
@@ -217,6 +272,11 @@ inline const std::vector<BeastTypeSpec>& beastTypes() {
         {"龟妖", "玄甲", 1.6, 0.4, 1.5, 0.4, 1.0, "water", &detail::turtleSkills()},
     };
     return kTypes;
+}
+
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastTypeSpec>& beastTypes() {
+    return beastTypesMutable();
 }
 
 /// 按名查找类型（Kotlin `TYPES.find { it.name == beastType } ?: getType(0)`）

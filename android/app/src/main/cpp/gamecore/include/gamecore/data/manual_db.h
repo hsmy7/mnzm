@@ -18,6 +18,11 @@ struct ManualBuffInfo {
     int32_t duration = 0;
 };
 
+/// B16/R6.2：数值等价守卫用（逐字段默认比较；C++20 自动派生 !=）
+inline bool operator==(const ManualBuffInfo& a, const ManualBuffInfo& b) {
+    return a.type == b.type && a.value == b.value && a.duration == b.duration;
+}
+
 struct ManualTemplate {
     std::string id;
     std::string name;
@@ -50,9 +55,19 @@ struct ManualTemplate {
     double skillDamageLinkPercent = 0.0;
 };
 
+/// B16/R6.2：数值等价守卫用（逐字段默认比较；C++20 自动派生 !=）
+inline bool operator==(const ManualTemplate& a, const ManualTemplate& b) {
+    return a.id == b.id && a.name == b.name && a.type == b.type && a.rarity == b.rarity && a.description == b.description && a.stats == b.stats && a.skillName == b.skillName && a.skillDescription == b.skillDescription && a.skillType == b.skillType && a.skillDamageType == b.skillDamageType && a.skillHits == b.skillHits && a.skillDamageMultiplier == b.skillDamageMultiplier && a.skillCooldown == b.skillCooldown && a.skillMpCost == b.skillMpCost && a.skillHealPercent == b.skillHealPercent && a.skillHealFixed == b.skillHealFixed && a.skillHealType == b.skillHealType && a.skillBuffType == b.skillBuffType && a.skillBuffValue == b.skillBuffValue && a.skillBuffDuration == b.skillBuffDuration && a.skillBuffs == b.skillBuffs && a.price == b.price && a.minRealm == b.minRealm && a.skillIsAoe == b.skillIsAoe && a.skillTargetScope == b.skillTargetScope && a.skillShieldPercent == b.skillShieldPercent && a.skillTurnAdvancePercent == b.skillTurnAdvancePercent && a.skillDamageSharePercent == b.skillDamageSharePercent && a.skillDamageLinkPercent == b.skillDamageLinkPercent;
+}
+
 /// 全部功法模板（attack + defense + support + mind）
-inline const std::vector<ManualTemplate>& manualTemplates() {
-    static const std::vector<ManualTemplate> kTemplates = {
+///
+/// B16/R6.2 数值外置：本表为**内联默认值兜底**，与数据文件
+/// `assets/data/game-data.json` 的 `db.manuals` 段**同源**（均由
+/// scripts/gen-manual-db.mjs 从 scripts/data/manual_db_sample.json 产出）。
+/// 运行时由 `gamecore/data/data_inject.h` 初始化期一次性注入。
+inline std::vector<ManualTemplate>& manualTemplatesMutable() {
+    static std::vector<ManualTemplate> kTemplates = {
         {
             "common_phys_single_1", "青冥剑诀", "ATTACK", 1,
             "凡阶物理攻击功法，提升物理攻击力",
@@ -7615,6 +7630,11 @@ inline const std::vector<ManualTemplate>& manualTemplates() {
         },
     };
     return kTemplates;
+}
+
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<ManualTemplate>& manualTemplates() {
+    return manualTemplatesMutable();
 }
 
 /// 按 id 查询功法

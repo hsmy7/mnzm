@@ -31,6 +31,9 @@ add_library(game-core STATIC
     src/dirty_tracker.cpp
     src/gameview_encode.cpp
     src/disciple_store.cpp
+    # R6.2/B16 数值外置：数据文件（assets/data/game-data.json）→ DB 容器
+    # 的注入状态机（纯 C++，零平台依赖；表映射在 data/data_inject.h）
+    src/data_store.cpp
     # W4 三批次并行的分派端口（W4-00 并行前置批建立；各批只写自己那个文件，
     # 从而消除「三批同时往 execute_dispatch.cpp 链尾追加分支」的必然冲突）。
     # 见 docs/parallel-batches-w4/README.md §3.1 项 3。

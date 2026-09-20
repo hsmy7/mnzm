@@ -24,9 +24,14 @@ struct BeastMaterialTemplate {
     std::string materialCategory;
 };
 
+/// B16/R6.2：数值等价守卫用（逐字段默认比较；C++20 自动派生 !=）
+inline bool operator==(const BeastMaterialTemplate& a, const BeastMaterialTemplate& b) {
+    return a.id == b.id && a.name == b.name && a.tier == b.tier && a.rarity == b.rarity && a.category == b.category && a.description == b.description && a.icon == b.icon && a.dropWeight == b.dropWeight && a.price == b.price && a.materialCategory == b.materialCategory;
+}
+
 /// 全部妖兽材料模板
-inline const std::vector<BeastMaterialTemplate>& beastMaterialTemplates() {
-    static const std::vector<BeastMaterialTemplate> kTemplates = {
+inline std::vector<BeastMaterialTemplate>& beastMaterialTemplatesMutable() {
+    static std::vector<BeastMaterialTemplate> kTemplates = {
         {"tigerHide0", "凡虎皮", 1, 1, "hide", "凡品虎妖的皮毛，蕴含狂暴之力", "🟧", 1, 400, "BEAST_HIDE"},
         {"tigerBlood0", "凡虎血", 1, 1, "blood", "凡品虎妖的精血，蕴含狂暴之力", "🩸", 1, 400, "BEAST_BLOOD"},
         {"tigerTooth0", "凡虎牙", 1, 1, "tooth", "凡品虎妖的利齿，锋利异常", "🦷", 0.8, 400, "BEAST_TOOTH"},
@@ -221,6 +226,11 @@ inline const std::vector<BeastMaterialTemplate>& beastMaterialTemplates() {
         {"turtleCore5", "天龟内丹", 6, 6, "core", "天品龟妖的内丹，蕴含天道厚重灵力", "🔮", 0.06, 2688000, "BEAST_CORE"},
     };
     return kTemplates;
+}
+
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<BeastMaterialTemplate>& beastMaterialTemplates() {
+    return beastMaterialTemplatesMutable();
 }
 
 /// 按 id 查询妖兽材料

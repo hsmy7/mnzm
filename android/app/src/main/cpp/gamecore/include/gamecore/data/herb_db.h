@@ -20,6 +20,11 @@ struct HerbTemplate {
     std::string description;
 };
 
+/// B16/R6.2：数值等价守卫用（逐字段默认比较；C++20 自动派生 !=）
+inline bool operator==(const HerbTemplate& a, const HerbTemplate& b) {
+    return a.id == b.id && a.name == b.name && a.tier == b.tier && a.rarity == b.rarity && a.category == b.category && a.description == b.description;
+}
+
 struct SeedTemplate {
     std::string id;
     std::string name;
@@ -30,9 +35,19 @@ struct SeedTemplate {
     std::string description;
 };
 
+/// B16/R6.2：数值等价守卫用（逐字段默认比较；C++20 自动派生 !=）
+inline bool operator==(const SeedTemplate& a, const SeedTemplate& b) {
+    return a.id == b.id && a.name == b.name && a.tier == b.tier && a.rarity == b.rarity && a.growTime == b.growTime && a.yield == b.yield && a.description == b.description;
+}
+
 /// 全部灵草模板
-inline const std::vector<HerbTemplate>& herbTemplates() {
-    static const std::vector<HerbTemplate> kHerbs = {
+///
+/// B16/R6.2 数值外置：本表为**内联默认值兜底**，与数据文件
+/// `assets/data/game-data.json` 的 `db.herbs` 段**同源**（均由
+/// scripts/gen-templates.mjs 从 scripts/data/herb_db_sample.json 产出）。
+/// 运行时由 `gamecore/data/data_inject.h` 初始化期一次性注入。
+inline std::vector<HerbTemplate>& herbTemplatesMutable() {
+    static std::vector<HerbTemplate> kHerbs = {
         {"spiritGrass1", "聚灵草", 1, 1, "grass", "吸收天地灵气而生的灵草，炼丹基础材料"},
         {"spiritGrass2", "清心草", 1, 1, "grass", "叶片清凉，可清心明目，安神定志"},
         {"spiritGrass3", "凝气草", 1, 1, "grass", "凝聚灵气的灵草，辅助修炼佳品"},
@@ -91,9 +106,16 @@ inline const std::vector<HerbTemplate>& herbTemplates() {
     return kHerbs;
 }
 
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<HerbTemplate>& herbTemplates() {
+    return herbTemplatesMutable();
+}
+
 /// 全部种子模板
-inline const std::vector<SeedTemplate>& seedTemplates() {
-    static const std::vector<SeedTemplate> kSeeds = {
+///
+/// B16/R6.2：同 herbTemplatesMutable，兜底与数据文件 `db.seeds` 段同源。
+inline std::vector<SeedTemplate>& seedTemplatesMutable() {
+    static std::vector<SeedTemplate> kSeeds = {
         {"spiritGrass1Seed", "聚灵草种", 1, 1, 36, 5, "种植后可收获聚灵草"},
         {"spiritGrass2Seed", "清心草种", 1, 1, 36, 5, "种植后可收获清心草"},
         {"spiritGrass3Seed", "凝气草种", 1, 1, 36, 4, "种植后可收获凝气草"},
@@ -150,6 +172,11 @@ inline const std::vector<SeedTemplate>& seedTemplates() {
         {"spiritFruit18Seed", "混沌神果核", 6, 6, 1440, 1, "种植后可收获混沌神果"},
     };
     return kSeeds;
+}
+
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<SeedTemplate>& seedTemplates() {
+    return seedTemplatesMutable();
 }
 
 /// 种子 id → 灵草 id（Kotlin seedToHerbMap：seed.id 去 "Seed" 后缀）

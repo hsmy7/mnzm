@@ -28,9 +28,20 @@ struct EquipmentTemplate {
     int32_t price = 0;
 };
 
+/// B16/R6.2：数值等价守卫用（逐字段默认比较；C++20 自动派生 !=）
+inline bool operator==(const EquipmentTemplate& a, const EquipmentTemplate& b) {
+    return a.id == b.id && a.name == b.name && a.slot == b.slot && a.rarity == b.rarity && a.physicalAttack == b.physicalAttack && a.magicAttack == b.magicAttack && a.physicalDefense == b.physicalDefense && a.magicDefense == b.magicDefense && a.speed == b.speed && a.hp == b.hp && a.mp == b.mp && a.critChance == b.critChance && a.description == b.description && a.price == b.price;
+}
+
 /// 全部装备模板（weapons + armors + boots + accessories）
-inline const std::vector<EquipmentTemplate>& equipmentTemplates() {
-    static const std::vector<EquipmentTemplate> kTemplates = {
+///
+/// B16/R6.2 数值外置：本表为**内联默认值兜底**，与数据文件
+/// `assets/data/game-data.json` 的 `db.equipment` 段**同源**
+/// （均由 scripts/gen-templates.mjs 从 scripts/data/equipment_db_sample.json
+/// 产出）。运行时由 `gamecore/data/data_inject.h` 在引擎初始化期一次性注入；
+/// 注入前/失败时此处即为权威值（与数据文件默认值逐字段相等，守卫锁定）。
+inline std::vector<EquipmentTemplate>& equipmentTemplatesMutable() {
+    static std::vector<EquipmentTemplate> kTemplates = {
         {
             "ironSword", "精铁剑", "WEAPON", 1,
             15, 0,
@@ -537,6 +548,11 @@ inline const std::vector<EquipmentTemplate>& equipmentTemplates() {
         },
     };
     return kTemplates;
+}
+
+/// 只读消费入口（52 个消费点的唯一通道；B16 在外置后保持签名零变更）
+inline const std::vector<EquipmentTemplate>& equipmentTemplates() {
+    return equipmentTemplatesMutable();
 }
 
 }  // namespace gamecore::data

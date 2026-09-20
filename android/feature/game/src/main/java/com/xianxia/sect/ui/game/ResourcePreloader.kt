@@ -19,6 +19,7 @@ import com.xianxia.sect.ui.components.AtlasPacker
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.core.engine.config.GameDataNativeBridge
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -108,6 +109,9 @@ class ResourcePreloader @Inject constructor(
                 if (ok) {
                     GameConfig.initialize(configLoader.load())
                     buildingConfigService.initialize()
+                    // R6.2/B16 数值外置：注册静态数据表注入源（native 已加载则
+                    // 立即注入；未加载时由 ensureAuthoritativeNative 补注——双点幂等）
+                    GameDataNativeBridge.register(assetSource)
                 }
                 ok
             }

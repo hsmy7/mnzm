@@ -37,6 +37,10 @@ struct PositionBonus {
     std::string slotType;
     /// 该职务职能效果的百分比加成（乘算因子）
     double effectBonus = 0.0;
+
+    /// B16/R6.2 数值等价守卫用。C++20 默认派生 ==：逐成员比较由编译器生成，
+    /// 覆盖**全部字段**（比手写字段清单更严——不存在漏比某字段的可能）。
+    friend bool operator==(const PositionBonus&, const PositionBonus&) = default;
 };
 
 /// 天赋模板（对应 Kotlin `TalentDatabase.TalentData`）
@@ -54,6 +58,9 @@ struct TalentTemplate {
     std::string tmpl;
     /// 职务加成（无则为空）
     std::optional<PositionBonus> positionBonus;
+
+    /// B16/R6.2 数值等价守卫用（同 PositionBonus：默认派生，全字段比较）
+    friend bool operator==(const TalentTemplate&, const TalentTemplate&) = default;
 };
 
 /// 体质模板（对应 Kotlin `PhysiqueDatabase.PhysiqueData`）
@@ -72,6 +79,9 @@ struct PhysiqueTemplate {
     std::string type;
     /// Kotlin 字段名 `template`；C++ 关键字因故改名 tmpl
     std::string tmpl;
+
+    /// B16/R6.2 数值等价守卫用（同 PositionBonus：默认派生，全字段比较）
+    friend bool operator==(const PhysiqueTemplate&, const PhysiqueTemplate&) = default;
 };
 
 /// 词条模板（对应 Kotlin `AffixDatabase.AffixData`）
@@ -89,6 +99,9 @@ struct AffixTemplate {
     std::string tmpl;
     /// 职务加成（无则为空）
     std::optional<PositionBonus> positionBonus;
+
+    /// B16/R6.2 数值等价守卫用（同 PositionBonus：默认派生，全字段比较）
+    friend bool operator==(const AffixTemplate&, const AffixTemplate&) = default;
 };
 
 namespace detail {
@@ -691,21 +704,46 @@ inline std::vector<AffixTemplate> buildAffixTemplates() {
 // ============================================================
 
 /// 全部天赋模板（正面 104 + 负面 5 = 109；生成顺序与 Kotlin buildList 一致）
-inline const std::vector<TalentTemplate>& talentTemplates() {
-    static const std::vector<TalentTemplate> kTemplates = detail::buildTalentTemplates();
+///
+/// B16/R6.2 数值外置：本表为**内联默认值兜底**（= detail::buildTalentTemplates()
+/// 产出），与数据文件 `assets/data/game-data.json` 的 `db.talents` 段同源
+/// （中性源 scripts/data/trait_db_sample.json 复刻同一 Kotlin 生成逻辑）。
+/// 运行时由 `gamecore/data/data_inject.h` 初始化期一次性注入；注入前/失败时
+/// 此处即为权威值（与数据文件默认值逐字段相等，data_store_test 锁定）。
+inline std::vector<TalentTemplate>& talentTemplatesMutable() {
+    static std::vector<TalentTemplate> kTemplates = detail::buildTalentTemplates();
     return kTemplates;
+}
+
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<TalentTemplate>& talentTemplates() {
+    return talentTemplatesMutable();
 }
 
 /// 全部体质模板（正面 21 + 负面 3 = 24）
-inline const std::vector<PhysiqueTemplate>& physiqueTemplates() {
-    static const std::vector<PhysiqueTemplate> kTemplates = detail::buildPhysiqueTemplates();
+///
+/// B16/R6.2：同 talentTemplatesMutable——兜底与 `db.physiques` 段同源。
+inline std::vector<PhysiqueTemplate>& physiqueTemplatesMutable() {
+    static std::vector<PhysiqueTemplate> kTemplates = detail::buildPhysiqueTemplates();
     return kTemplates;
 }
 
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<PhysiqueTemplate>& physiqueTemplates() {
+    return physiqueTemplatesMutable();
+}
+
 /// 全部词条模板（正面 68 + 负面 3 = 71）
-inline const std::vector<AffixTemplate>& affixTemplates() {
-    static const std::vector<AffixTemplate> kTemplates = detail::buildAffixTemplates();
+///
+/// B16/R6.2：同 talentTemplatesMutable——兜底与 `db.affixes` 段同源。
+inline std::vector<AffixTemplate>& affixTemplatesMutable() {
+    static std::vector<AffixTemplate> kTemplates = detail::buildAffixTemplates();
     return kTemplates;
+}
+
+/// 只读消费入口（外置后签名零变更）
+inline const std::vector<AffixTemplate>& affixTemplates() {
+    return affixTemplatesMutable();
 }
 
 /// 按 id 查询天赋（不存在返回空 optional）
