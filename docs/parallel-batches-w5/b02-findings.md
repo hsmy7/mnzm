@@ -21,6 +21,14 @@
 > 施工完成报告"途中发现"第 2/3/4 条的展开。因 B08（R2.3 第二波）与 B09（R2.4）
 > 已在其后落地，**每条均按 2026-09-20 的代码现状复核过清偿进度**（发现 8 半清偿），
 > 登记口径与本册 B02/B06 各条一致：观察登记、非阻塞项、处置建议带触发条件。
+>
+> **第五次增补（2026-09-20）**：发现 11 来自批次 B08（R2.3 第二波，镜像瘦身 /
+> GameViewStore 投影态 / UI 逐块迁移；关联提交 `4d053b9be` / `b7b68b4ba` /
+> `6fd9fe03d` / `759526124` / `9a8d9a96a` / `3b5c3ac22` / `c61e2c9c7` / `1d4086f89`，
+> 登记见方案 §7.2 B08 行"登记缺陷"条）。它是 B08 为守"UI 行为零变更"红线而**有意复刻**
+> 的既有副作用——非 B08 引入、也非 B08 可修，故按本册口径展开为独立观察登记（带触发
+> 条件的处置建议），并显式与发现 8 划清边界：**发现 8 说 applier 层"已清偿"只指成本
+> 形状（整份 JSON 往返已退役），不含本条这一副作用**，勿读成已随 B08 关闭。
 
 ---
 
@@ -422,6 +430,96 @@ B08 已把**另一半**堵死：字段名在 `GameData` 序列化面内、但 `G
 
 ---
 
+## 发现 11（2026-09-20 增补，来源批次 B08）——镜像每旬把 5 个 @Transient 运行态字段打回声明默认值（B08 按红线**有意复刻**的既有副作用）
+
+### 现象与事实链
+
+`GameData` 有 9 个字段标 `@kotlinx.serialization.Transient`（不进 JSON：C++ 不承载、
+不入协议面）。第一波及之前的 applier 形状是
+
+```
+当前 gameData → encodeToJsonElement(整份) → 覆盖本封变更键 → decodeFromJsonElement(整份)
+```
+
+**整份解码时"JSON 里没有的键"一律取构造器声明的默认值** ⇒ 这 9 个字段每次被打回默认。
+其中 4 个（`aiSectDisciples` / `aiSectBeastDirectTargets` / `aiSectBeastSkipCooldowns` /
+`lockedBeastIds`）旧代码认出来了，在解码后显式 `.copy(...)` 回填事务内当前值（口径：
+"镜像永不主动清空该域"；C++ 侧它们另经 `NativeGameState.kt:36-44` 顶层可空字段承载，
+非 null 才覆盖）；**剩下 5 个没有任何回填路径**：
+
+`slotId`、`autoSaveIntervalMonths`、`aiBeastEncounterTargets`、`battleTeam`、`aiBattleTeams`
+
+触发条件：本封变更集携带 ≥1 个 gameData 字段——每旬 `gamePhase` / `spiritStones` 必变，
+故**稳态每旬必然触发**；F1/F2/F3 三臂共用同一 applier ⇒ 三臂一致地清（这也正是三臂收敛
+守卫 `DiffMirrorArmConvergenceTest` 一直全绿却看不见它的原因：它们一起错，对照不出来）。
+
+B08 把 applier 换成字段级 `copy()` 后，这 5 个字段本来会被**自然保留**（`copy()` 不动
+未变更字段）。但本批红线是"UI 行为零变更 + 两臂逐值等价"，所以没有顺手改，而是显式复刻：
+
+| 面 | 位置 |
+|---|---|
+| 复刻表 | `GameDataFieldPatch.kt:99-110`（`LEGACY_RESET_ON_MIRROR`），施加于 `:128` |
+| 生产臂入口 | `StateSyncService.kt:481-482`（旗标 `gameViewProjection` 默认 true 走字段级应用） |
+| 锁死守卫 | `GameDataFieldPatchGuardTest.kt:153` `transient 运行态字段两臂同值`（显式断言 `slotId→0`、`aiBeastEncounterTargets→空`，并标注"复刻语义 = 与旧臂同样"） |
+
+⇒ **本批对玩家可见行为零变更，副作用原样存活**。本条把它从"批次报告里的一行登记"展开为
+可独立裁决的缺陷项。
+
+### 逐字段现状实扫（2026-09-20，只算主源，排除生成物）
+
+| 字段 | 写者（gameData 侧） | 读者 | 现状判断 |
+|---|---|---|---|
+| `slotId` | **无**（会话内没人写 `gameData.slotId`；装载期由 Room 行带进来） | `MailDelegate.kt:31` 活动读 `gameData.value?.slotId`（`markAsRead` 等以此为槽位参数）；`GameStateStoreImpl.kt:1407` `repository.setActiveSlot(...)`、`GameEngineLoadDataOps.kt:122` `resetAndInitSlot(...)` 仅装载期用 | **候选可观察**：装载后自第一旬起活动读者读到 0。旁证——云档路径已把"恒 0"当既定事实绕：`SaveLoadViewModelCloudLoadOps.kt:123` 与 `:197-198` 注释明写"云档 gameData.slotId 为 @Transient 恒 0……只修 currentSlot 会导致 repository 脏写指向槽位 0"，并为此专门写了 `reconcileCloudSlot` |
+| `aiBeastEncounterTargets` | **主源无插入者**（只有 `ExplorationServiceBeastRaidOps.kt:179-180` 一处**删除**式覆写） | `GameEngineExplorationNativeOps.kt:178` 门判 `containsKey`；`ExplorationServiceBeastRaidOps.kt:128` 取值 | **当前无害但属埋雷**：表恒空 ⇒ 清零不可观察，而门判恒 false（该"AI 与玩家同时距妖兽最近 ⇒ AI 暂不进攻、留给玩家遭遇战"分支是否已死值得单查，见处置建议 4）；一旦有人接上插入者，跨旬标记会被下一旬静默吞掉 |
+| `battleTeam` / `aiBattleTeams` | 无（逻辑层用 `battleTeams`；`battleTeam` 为 Room 旧列兼容占位） | 主源无活读者；两者都是 Room 列（`aiBattleTeams` NOT NULL） | **候选落盘面**：每旬清空后若被写回 Room 即覆盖存档内容——是否真丢数据需存档读写回归确认，不在本条下结论 |
+| `autoSaveIntervalMonths` | 无 | 无（列已删、`@Ignore`，纯旧档兼容） | 无影响 |
+
+### 与相邻两条的边界（避免重复立项）
+
+- **与发现 10**：同一处 applier 的两个不同分支——发现 10 是"字段名**完全不在** `GameData`
+  序列化面 ⇒ 宽松忽略"（前向兼容契约，不改）；本条是"字段在类里但**被排除在**序列化面外
+  （@Transient）⇒ 整份解码打回默认"。B08 已给前者配了"在册未登记即抛错 + 表↔序列化面双射"，
+  后者是**有意复刻**，两者不是同一件事。
+- **与发现 8**：发现 8 判定 applier 层"已清偿"，指的是**成本形状**（每旬整份 GameData
+  JSON 往返已退役）。本条那条副作用**不在**已清偿范围内——这是本条存在的主要理由。
+
+### 风险评估
+
+中低，但有两条要记着：
+
+1. **已发生过实际困扰**：`slotId` 一行有生产侧 workaround 为证（`reconcileCloudSlot`），
+   说明"这个字段会读回 0"不是纯理论；
+2. **结构性风险大于当前个案**：这是"形状决定的默认行为"——今后任何人新增一个
+   `@Transient` 的 `GameData` 字段，都会自动继承"每旬被清空"，且三臂对照守卫看不见它
+   （三臂同错）。真正的隐患是第 2 条，不是这 5 个字段本身。
+
+### 处置建议
+
+**必须独立成批（缺陷修复批），不得塞进后续重构批**——它会改变镜像写入结果，可能动 Diff
+对拍基准与 Room 落盘内容；混装会让"哪一批引起的差异"不可归因（B08 正是据此选择复刻）。
+
+1. 生产改动本身极小：删 `GameDataFieldPatch.kt:99-110` 的 `LEGACY_RESET_ON_MIRROR` 及其
+   在 `:128` 的施加（字段级 apply 天然保留这些字段），同步删/改
+   `GameDataFieldPatchGuardTest.kt:153` 那条复刻断言为"保留"断言；
+2. **逐字段先判归属再改**（不要五合一）：`slotId` / `aiBeastEncounterTargets` 该保留；
+   `battleTeam` / `aiBattleTeams` 若确认已无写者无读者，按死字段清理（走发现 5 那类
+   "死管道清理"口径，连 Room 列一起评）而不是"保留一个没人写的字段"；
+   `autoSaveIntervalMonths` 随废弃字段清理；
+3. 同批必做两件事：给"镜像不触碰 @Transient 面"加**防复发守卫**（枚举 `GameData` 的
+   @Transient 字段集，断言任一镜像臂馈送前后其值不变——新增字段自动纳入，把一次性修复
+   变成结构性护栏）；复核 `SaveLoadViewModelCloudLoadOps.reconcileCloudSlot` 的前提，
+   修好后"恒 0"不再成立，那段绕法要一并收敛否则语义漂移；
+4. 顺带核一个相邻疑点：`GameEngineExplorationNativeOps.kt:178` 的门判在"无插入者"前提下
+   恒 false，即该遭遇战分支是否已是死臂（若确认死，另登清理项，别在本条里顺手删）；
+5. 门禁要求：全量 `testReleaseUnitTest`（携桌面对拍桥 0 skip）+ 存档读写回归（Room 列内容
+   会变）+ detekt/lint；CHANGELOG 记为**玩家可见修复**，不能再写"零变更"。
+
+触发条件：① 有人要给 `GameData` 新增 @Transient 运行态字段（先修本条再加字段）；
+② 邮件/槽位或存档槽位落盘出现真实报障；③ R2 灰度期满删回滚臂批（届时两臂合一，
+"逐值等价"约束消失，改动面最小）。
+
+---
+
 ## 处置建议汇总
 
 | # | 事项 | 是否需要行动 | 建议归属 / 触发条件 |
@@ -436,3 +534,4 @@ B08 已把**另一半**堵死：字段名在 `GameData` 序列化面内、但 `G
 | 8 | mirror 段双层 JSON 尾巴（B07 增补；applier 层已由 B08 清偿、信封层仍开放） | 否（生产零影响；G2 未达已按 B08/B09 诚实登记，不重复立项） | 触发条件三选一：某字段实测成为 mirror 段主要占比 / G2 收口需再降 decode 成本 / **R2 灰度期满删回滚臂批**（`upsertsJson` 族与 gameData 回滚臂一并处理，同批吸收方案 B09 残余③④）；做法=proto 追加 typed 字段 + codec 单点切读 + 等价守卫 + 桥重建 |
 | 9 | protobuf 首封 ~194ms 一次性初始化（B07 增补） | 否（零正确性影响；纯观测噪声与冷启动归属问题） | 随下一个 mirror 打点/启动预算批顺带，二选一约 3 行：native 初始化后解一次空 GameView 信封预热，或 cold/warm 分列口径（B07 守卫已按弃首封的稳态中位取证）；触发条件=mirror 段出现单帧尖刺告警或做启动 P0 拆解 |
 | 10 | 未知 gameData 字段名被宽松忽略 ⇒ 等价守卫可"绿着空转"（B07 增补；B08 已堵在册漏写入器的 fail-fast 半边） | 否（生产宽松语义是既有前向兼容契约，不改） | 纪律化零成本：后续镜像/投影类守卫的载荷字段名取自 `GameDataFieldPatch.coveredFields` 并断言 ∈ 该集合（选错名即红）；可选把"可用字段名单源"并入 R2 回滚臂删除批；触发条件=R3/R4 消费面接入新增同类守卫时 |
+| 11 | 镜像每旬把 5 个 @Transient 运行态字段打回声明默认值（B08 增补；**B08 按红线有意复刻**，非 B08 引入） | **是，但须独立成批**（缺陷修复批；本批改=夹带行为修复、对拍归因失效）。当前可观察面小：`slotId` 有生产 workaround 为证、`aiBeastEncounterTargets` 主源无插入者故恒空、`battleTeam`/`aiBattleTeams` 待存档面确认；真正风险是**结构性**的——今后新增 @Transient 字段会自动继承"每旬被清空"且三臂守卫看不见（三臂同错） | 归属：独立"镜像不触碰 @Transient 面"修复批，**或**并入 R2 灰度期满删回滚臂批（两臂合一后改动面最小）。做法四步：删 `GameDataFieldPatch` 的 `LEGACY_RESET_ON_MIRROR`（:99-110/:128）→ 逐字段判归属（保留 vs 按死字段清理，勿五合一）→ 加 @Transient 集防复发守卫 + 收敛 `reconcileCloudSlot` 的"恒 0"前提 → 门禁含全量对拍 + 存档读写回归、CHANGELOG 记为玩家可见修复。触发条件：给 `GameData` 新增 @Transient 字段前 / 邮件-槽位或存档落盘报障 / 删回滚臂批 |
