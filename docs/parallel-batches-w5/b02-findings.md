@@ -4,6 +4,11 @@
 > "途中发现"第 3、4 条的展开与复核。关联提交：`96636ec95`（R1.2）/ `d4e25dac1`、
 > `dd2b4e0e9`、`f7e9b3251`（R1.3 两步 + 补遗）/ `c656dce3f`（文档三件套）。
 > 性质：均为**观察登记**，不是 B02 交付的阻塞项；逐项处置建议见文末汇总表。
+>
+> **增补（2026-09-20）**：本登记册扩展承接跨批"预存可清理项"登记——发现 5 来自
+> 批次 B10（R3.1 + R3.2，C++ SceneStore 与 JNI 面重构；关联提交 `ba0901c89` /
+> `242440778` / `cd5df439b`），登记口径与 B02 各条一致（观察登记、非阻塞项、
+> 带触发条件的处置建议）。
 
 ---
 
@@ -109,6 +114,72 @@ inline void applyEquipmentUpdates(
 
 ---
 
+## 发现 5（2026-09-20 增补，来源批次 B10）——`generateFootprintHeader` 生成管道消费位退役（纯死管道，可清理）
+
+### 现象与事实链
+
+B10（R3.2）把 C++ 侧建筑占地表的来源从 `footprint_table.h` 换轨为
+`scene_uv_tables.h` 后，`generateFootprintHeader` 生成管道的**生产消费位已消失**，
+但管道本身仍在每次构建中运行。逐环节事实（file:line 实测于 2026-09-20）：
+
+1. **任务本体**：`android/app/build.gradle:512-576` `generateFootprintHeader`——
+   用 Groovy 正则解析**生成版** `SpriteAtlasDef.kt`（LAYOUT → build-atlas.mjs 生成
+   的 Kotlin 常量），提取 `FOOTPRINT_BY_NAME_INDEX` 产出
+   `app/build/generated/sprite/footprint_table.h`（`FP_W[]`/`FP_H[]` 两张整型表）。
+2. **接线**：`android/app/build.gradle:655` 挂在 `preBuild` 的 `dependsOn` 链上——
+   **每次构建都跑**（Groovy 解析开销毫秒级，无构建时长痛点）。
+3. **生产消费位（已退役）**：唯一 include 方 `NativeBridge.cpp` 的
+   `#include "footprint_table.h"` 已在 B10（`242440778`）删除，建筑占地查找改消费
+   `scene/scene_uv_tables.h` 的 `kFootprintW/kFootprintH`（含固定结构
+   `kStructureFpW/kStructureFpH`）——由 build-atlas.mjs `generateSceneUvTablesH`
+   从 LAYOUT **直接**生成（一跳），替代原"二跳"链（LAYOUT → SpriteAtlasDef.kt →
+   Groovy 解析 → C++ 头）。B10 后全仓 `footprint_table.h` 引用仅剩：
+   NativeBridge.cpp 的一句"消费位接替"注释、scene_uv_tables.h 生成头内的
+   "同源"注释、以及下述测试。
+4. **测试消费位（仍在，守卫职责已被接替）**：
+   `app/src/test/.../FootprintTableSyncTest.kt` 三个用例中，**用例 1**
+   （`FP_W FP_H 与 FOOTPRINT_BY_NAME_INDEX 逐项一致`，解析 build 产物做
+   "生成器幂等 + C++ 消费表同步"守卫）的 C++ 消费侧职责已由 B10 新守卫
+   `SceneUvTablesMirrorGuardTest.footprint tables mirror SpriteAtlasDef`
+   （`:core:engine`，`cd5df439b` 随批落库）**逐项接替**——后者直接锁
+   `scene_uv_tables.h` 的 `kFootprintW/kFootprintH` ↔ `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX`
+   （这是生产代码实际消费的表）。用例 2/3（`BUILDING_NAMES` 数量一致 /
+   `BuildingFeatureRegistry` 占地逐项一致）守的是 **Kotlin 侧两表一致性**，
+   与 footprint_table.h 无关，须保留。
+5. **文案级引用（无结构依赖）**：`BuildingSpriteFootprintJsonGuardTest.kt:86`
+   的失败消息提及"重新生成 footprint_table.h"，仅措辞。
+
+### 风险评估：当前无风险，清理动机是管线简化
+
+- 产物无人消费 = 死管道，**不影响正确性**（多生成一个无人读的头文件）；
+- 运行成本毫秒级，**不影响构建时长**；
+- 真正的动机：少维护一条"Groovy 正则解析生成版 Kotlin 文件"的脆弱管线
+  （其行级锚定解析对 SpriteAtlasDef.kt 格式变化敏感），并让占地表的
+  C++ 来源收敛到单一生成器（build-atlas.mjs）单跳产出。
+
+### 清理范围清单（执行时按单处理）
+
+1. 删 `generateFootprintHeader` 任务（`app/build.gradle:512-576`）+
+   `preBuild` dependsOn 链中的 `'generateFootprintHeader'` 条目（:655 附近）；
+2. `FootprintTableSyncTest` 用例 1 退役（删或改注"守卫职责已迁
+   `SceneUvTablesMirrorGuardTest`"）；用例 2/3 保留；
+3. `BuildingSpriteFootprintJsonGuardTest.kt:86` 失败消息措辞更新（去掉
+   "/ footprint_table.h"）;
+4. `build-atlas.mjs` `generateSceneUvTablesH` 模板注释与
+   `scene_uv_tables.h`（生成物）中"footprint_table.h 同源"的历史指认措辞
+   择机改为"消费位接替记录"（纯注释，随生成器自然刷新）；
+5. 基线联动：`:app` JUnit 计数 1004 → 1003（用例 1 退役），登记于当批完成报告。
+
+### 处置建议
+
+**无需立即行动**（当前零风险、零可观测成本）。建议归属：**R3 回滚臂删除批**
+（drawAllTiles + `sceneStoreRender=false` 旧臂一起退役的批次）顺带处理——该批
+本就要跑组合门与基线对账，顺手收口可摊薄验证成本；若回滚臂批次推迟，可作
+独立小清理批执行。执行门槛：无前置条件（守卫职责迁移已在 B10 完成），
+仅需按上面清单逐项处理并跑 `:app` 测试 + 组合门。
+
+---
+
 ## 处置建议汇总
 
 | # | 事项 | 是否需要行动 | 建议归属 / 触发条件 |
@@ -117,3 +188,4 @@ inline void applyEquipmentUpdates(
 | 3 附注 | 64 位平台溢出语义与 Kotlin 不一致 | 否（当前不可达） | 触发条件二选一：id 生成口径可能超 int32；或 arm64 对拍 CI 配好后补超界样本——届时按对拍纪律单独走批根治（`stol` 超界 → 无效） |
 | 4a | 战斗组装域 map 版 `finalStats` | 否（语义必须保留） | 无待办；若未来战斗域也要求实例寻址统一，需先解决"临时模拟装备无行号"的前置问题（属 R4 战斗域批次范畴） |
 | 4b | `applyEquipmentUpdates` 扫描方式 | 否（更正：已是单遍 O(E)） | 无待办；本条仅为更正施工报告口径 |
+| 5 | `generateFootprintHeader` 死管道（B10 增补） | 否（当前零风险零成本） | 无前置触发条件；建议归属 R3 回滚臂删除批顺带（或独立小清理批），按发现 5 清理范围清单逐项执行 |
