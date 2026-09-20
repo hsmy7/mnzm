@@ -76,10 +76,9 @@ internal typealias GameDataFieldWriter = (GameData, JsonElement, Json) -> Unit
  *   `Json { ignoreUnknownKeys = true }` 同语义；
  * - 任一变更多余的在册字段解码失败 ⇒ 整组丢弃、gameData 保持现状——旧路径
  *   "解码异常 → 保留 Kotlin 现状"同语义；
- * - [LEGACY_RESET_ON_MIRROR] 显式复刻旧全量解码的一个副作用：@Transient 字段
- *   不进 JSON，整份解码必然把它们打回声明默认值。逐值等价是本批红线，故先
- *   原样复刻，并把"镜像每旬重置运行态字段"作为独立缺陷登记（方案 §7.2 B08 行），
- *   不在重构批里顺手改行为。
+ * - @Transient 运行态字段：本表天然不触碰（浅拷贝保留现值）——旧全量解码
+ *   "打回默认值"的副作用属已根治缺陷（b02 发现 11，镜像永不触碰 @Transient 面，
+ *   结构性承载见 [GameDataTransientFace]），不再复刻。
  *
  * ## fail-fast 红线（方案 §5「投影缺失字段 fail-fast 而非静默空」）
  * 字段名在 GameData 序列化面内、但本表无写入器 ⇒ 抛错（新增字段漏登记立即
@@ -93,20 +92,6 @@ internal object GameDataFieldPatch {
     /** GameData 序列化面（kotlinx 描述符 elementNames，@Transient 天然不在其中） */
     private val SERIALIZED_FIELDS: Set<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
         GameData.serializer().descriptor.elementNames.toSet()
-    }
-
-    /** 旧全量 JSON 往返必然打回声明默认值的 @Transient 字段（逐值等价复刻面） */
-    private val LEGACY_RESET_ON_MIRROR: List<(GameData) -> Unit> by lazy(
-        LazyThreadSafetyMode.PUBLICATION
-    ) {
-        val defaults = GameData()
-        listOf(
-            { target -> target.slotId = defaults.slotId },
-            { target -> target.autoSaveIntervalMonths = defaults.autoSaveIntervalMonths },
-            { target -> target.aiBeastEncounterTargets = defaults.aiBeastEncounterTargets },
-            { target -> target.battleTeam = defaults.battleTeam },
-            { target -> target.aiBattleTeams = defaults.aiBattleTeams }
-        )
     }
 
     /** 本表覆盖的字段名集（守卫比对 GameData 序列化面用）。 */
@@ -125,7 +110,6 @@ internal object GameDataFieldPatch {
         val next = current.copy()
         return try {
             for ((name, value) in changes) writerOf(name)?.invoke(next, value, json)
-            LEGACY_RESET_ON_MIRROR.forEach { reset -> reset(next) }
             next
         } catch (e: Exception) {
             null

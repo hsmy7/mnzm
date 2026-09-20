@@ -121,7 +121,10 @@ internal suspend fun SaveLoadViewModel.handleCloudLoadSuccess(result: TapCloudSa
 internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(reconciled: SaveData, effectiveSlot: Int): Result<Unit> {
     // 云档 slotId 为 @Transient 恒 0——只修 currentSlot
     // 会让 loadFromSnapshot 内 repository.setActiveSlot(gameData.slotId) 拿到 0，
-    // 后续 repository 脏写指向错误槽位；slotId/currentSlot 必须同时修正
+    // 后续 repository 脏写指向错误槽位；slotId/currentSlot 必须同时修正。
+    // 注（b02 发现 11 根治后口径精确化）：本处"恒 0"源于**存档序列化面**
+    // （@Transient 不入 JSON，云档解码必为 0）——与已根治的"镜像每旬重置"
+    // 是两个来源；镜像修复不影响本绕法必要性（云档侧恒 0 依旧成立）
     val resolvedGameData = reconcileCloudSlot(reconciled, effectiveSlot)
     // 玉符防回退：与 performLoadToSlot 同因——云下载替换快照前
     // 必须等待旧循环 finally 的玉符 checkpointNow 彻底完成，否则旧运行时值

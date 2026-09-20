@@ -46,9 +46,9 @@ import org.junit.Test
  *    丢镜像变更"）的静态对应面，两者合成"投影缺失字段 fail-fast"红线的闭环。
  * 2. **失败语义**：任一在册字段解码失败 ⇒ 整组丢弃、gameData 原实例不动
  *    （旧全量臂"解码异常 → 保留 Kotlin 现状"同语义）。
- * 3. **@Transient 副作用面**：旧整份解码必然把不入 JSON 的运行态字段打回声明
- *    默认值，新路径显式复刻（红线 = 逐值等价；"镜像每旬重置运行态字段"作为独立
- *    缺陷登记，见方案 §7.2 B08 行，不在重构批顺手改行为）。
+ * 3. **@Transient 副作用面**：旧形状"整份解码把运行态字段打回默认值"的缺陷已
+ *    根治（b02 发现 11）——镜像三臂统一经 [GameDataTransientFace] 以事务前值
+ *    承载 @Transient 面，且由反射枚举的防复发守卫逐字段锁定（新增字段自动纳管）。
  */
 class GameDataFieldPatchGuardTest {
 
@@ -150,18 +150,40 @@ class GameDataFieldPatchGuardTest {
     }
 
     @Test
-    fun `transient 运行态字段两臂同值（旧整份解码打回默认值的复刻面）`() {
+    fun `transient 运行态字段两臂同值（镜像不触碰 @Transient 面——b02 发现 11 根治）`() {
         val patched = feed(listOf(change("gameYear", 8)), projection = true)
         val legacy = feed(listOf(change("gameYear", 8)), projection = false)
         assertEquals("@Transient 面两臂逐值一致", legacy.gameDataValue, patched.gameDataValue)
         val gd = patched.gameDataValue
-        assertEquals("复刻语义 = 与旧臂同样把 slotId 打回默认值", 0, gd.slotId)
+        assertEquals("镜像保留 slotId 现值（不再打回默认 0）", 3, gd.slotId)
         assertEquals(
-            "复刻语义 = 与旧臂同样清空 aiBeastEncounterTargets",
-            emptyMap<String, String>(), gd.aiBeastEncounterTargets
+            "镜像保留 aiBeastEncounterTargets 现值（不再清空）",
+            mapOf("beast1" to "aiSectA"), gd.aiBeastEncounterTargets
         )
+        assertEquals("镜像保留 autoSaveIntervalMonths 现值", 9, gd.autoSaveIntervalMonths)
         assertEquals("镜像永不主动清空域：aiSectDisciples 两臂均保留现值", mapOf("s" to emptyList<Disciple>()), gd.aiSectDisciples)
         assertEquals("镜像永不主动清空域：lockedBeastIds 保留现值", setOf("b7"), gd.lockedBeastIds)
+    }
+
+    /**
+     * 防复发守卫（结构性）：以 @Transient 注解为权威反射枚举全部运行态字段，
+     * 断言镜像馈送（两臂各跑）前后逐字段值不变——**新增 @Transient 字段自动
+     * 纳管**，不再依赖手抄清单（旧形状的教训：手抄 4 字段回填漏掉 5 个，三臂
+     * 对照守卫因"三臂同错"而看不见该缺陷）。
+     */
+    @Test
+    fun `防复发 - 全部 Transient 字段经镜像馈送后逐字段保留（新增字段自动纳管）`() {
+        for (projection in listOf(true, false)) {
+            val before = richGameData()
+            val after = feed(listOf(change("gameMonth", 6)), projection = projection)
+            for (name in GameDataTransientFace.fieldNames) {
+                val field = GameData::class.java.getDeclaredField(name).apply { isAccessible = true }
+                assertEquals(
+                    "projection=$projection：镜像不得触碰 @Transient 字段 $name",
+                    field.get(before), field.get(after.gameDataValue)
+                )
+            }
+        }
     }
 
     // ── 两臂馈送夹具 ────────────────────────────────────────────
@@ -188,8 +210,12 @@ class GameDataFieldPatchGuardTest {
             putJsonObject("removed") {}
         }.toString()
 
-    private inline fun <reified T> change(name: String, value: T): Pair<String, JsonElement> =
-        name to json.encodeToJsonElement(json.serializersModule.serializer<T>(), value)
+    private inline fun <reified T> change(name: String, value: T): Pair<String, JsonElement> {
+        // 夹具字段名卡点（b02 发现 10）：不在册字段名会被应用器宽松忽略，
+        // 等价断言随之"绿着空转"——在唯一入口拦下
+        require(name in GameDataFieldPatch.coveredFields) { "测试字段 '$name' 不在 coveredFields" }
+        return name to json.encodeToJsonElement(json.serializersModule.serializer<T>(), value)
+    }
 
     /** 非默认值密集的 gameData——让两臂在每个 wire 类别上都有可观察差异面 */
     private fun richGameData(): GameData = GameData().apply {

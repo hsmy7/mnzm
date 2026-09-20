@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.gameview.GameDataTransientFace
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.state.DiscipleTables
@@ -164,25 +165,23 @@ class StateSyncService @Inject constructor(
         // 镜像写入走 updateMirror（镜像投影语义）——C++ 产生的变更属真相源
         // 自身推进，非 Kotlin 游戏写入（稳态写纪律由镜像只读契约守卫约束）
         stateStore.updateMirror {
+            val before = gameData
             val carriedAi = snapshot.aiSectDisciples
             val carriedBeastTargets = snapshot.aiSectBeastDirectTargets
             val carriedBeastCooldowns = snapshot.aiSectBeastSkipCooldowns
             val carriedLockedBeasts = snapshot.lockedBeastIds
             gameData = (if (exportedGameDataKeys.isEmpty()) {
-                // 全量替换：@Transient 字段不在快照 gameData（不入 kotlinx
-                // 序列化）——以事务内当前值回填（顶层字段携带时下方覆盖）
-                snapshot.gameData.copy(
-                    aiSectDisciples = gameData.aiSectDisciples,
-                    aiSectBeastDirectTargets = gameData.aiSectBeastDirectTargets,
-                    aiSectBeastSkipCooldowns = gameData.aiSectBeastSkipCooldowns,
-                    lockedBeastIds = gameData.lockedBeastIds
-                )
+                // 全量替换：@Transient 运行态面不在快照 gameData（不入 kotlinx
+                // 序列化）——由下方 GameDataTransientFace.carryOver 以事务前值
+                // 整体承载（b02 发现 11 根治：镜像永不触碰该面）
+                snapshot.gameData
             } else {
                 mergeGameData(gameData, snapshot.gameData, exportedGameDataKeys)
             }).let { base ->
-                // @Transient 字段经顶层字段承载——C++ 导出
-                // 携带（非 null）才覆盖；未携带保留事务内当前值，镜像永不主动
-                // 清空该域
+                // @Transient 面（全部 9 字段，反射枚举——新增字段自动纳入）以
+                // 事务前值承载；顶层携带字段（非 null）在其后覆盖——携带优先、
+                // 其余保留，与既有"镜像永不主动清空该域"语义同向且更完整
+                GameDataTransientFace.carryOver(before, base)
                 var merged = base
                 if (carriedAi != null) merged = merged.copy(aiSectDisciples = carriedAi)
                 if (carriedBeastTargets != null) {
@@ -498,16 +497,12 @@ class StateSyncService @Inject constructor(
         }
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         gameData = try {
-            json.decodeFromJsonElement(GameData.serializer(), merged)
-                // @Transient 字段（aiSectDisciples /
-                // aiSectBeastDirectTargets / aiSectBeastSkipCooldowns / lockedBeastIds）
-                // 解码必然丢失——显式回填事务内当前值（dirty 路径同样永不清空）
-                .copy(
-                    aiSectDisciples = gameData.aiSectDisciples,
-                    aiSectBeastDirectTargets = gameData.aiSectBeastDirectTargets,
-                    aiSectBeastSkipCooldowns = gameData.aiSectBeastSkipCooldowns,
-                    lockedBeastIds = gameData.lockedBeastIds
-                )
+            val decoded = json.decodeFromJsonElement(GameData.serializer(), merged)
+            // @Transient 运行态面（全部 9 字段）解码必然丢失——以事务前值整体
+            // 承载（b02 发现 11 根治：与生产臂同语义，镜像永不触碰该面）；
+            // 反射枚举新增字段自动纳入，不再手抄回填清单
+            GameDataTransientFace.carryOver(gameData, decoded)
+            decoded
         } catch (e: Exception) {
             // 变更值与 schema 不符（版本漂移防御）——保留 Kotlin 现状
             gameData
