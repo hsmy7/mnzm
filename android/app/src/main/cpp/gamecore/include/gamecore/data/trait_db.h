@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "gamecore/data/index_snapshot.h"
+
 namespace gamecore::data {
 
 // ============================================================
@@ -748,38 +750,32 @@ inline const std::vector<AffixTemplate>& affixTemplates() {
 
 /// 按 id 查询天赋（不存在返回空 optional）
 inline std::optional<TalentTemplate> talentById(const std::string& id) {
-    static const std::map<std::string, const TalentTemplate*> kIndex = [] {
-        std::map<std::string, const TalentTemplate*> idx;
-        for (const auto& t : talentTemplates()) idx.emplace(t.id, &t);
-        return idx;
-    }();
-    const auto it = kIndex.find(id);
-    if (it == kIndex.end()) return std::nullopt;
-    return *it->second;
+    // 失效自检的索引快照（根治悬挂指针 UAF，见 index_snapshot.h）：向量被数据
+    // 注入/测试复位整体替换时自动重建，注入后稳态零重建（指针稳定性契约不变）
+    static detail::IdIndexSnapshot<TalentTemplate> kIndex;
+    const TalentTemplate* t = kIndex.find(talentTemplates(), id);
+    if (t == nullptr) return std::nullopt;
+    return *t;
 }
 
 /// 按 id 查询体质（不存在返回空 optional）
 inline std::optional<PhysiqueTemplate> physiqueById(const std::string& id) {
-    static const std::map<std::string, const PhysiqueTemplate*> kIndex = [] {
-        std::map<std::string, const PhysiqueTemplate*> idx;
-        for (const auto& t : physiqueTemplates()) idx.emplace(t.id, &t);
-        return idx;
-    }();
-    const auto it = kIndex.find(id);
-    if (it == kIndex.end()) return std::nullopt;
-    return *it->second;
+    // 失效自检的索引快照（根治悬挂指针 UAF，见 index_snapshot.h）：向量被数据
+    // 注入/测试复位整体替换时自动重建，注入后稳态零重建（指针稳定性契约不变）
+    static detail::IdIndexSnapshot<PhysiqueTemplate> kIndex;
+    const PhysiqueTemplate* t = kIndex.find(physiqueTemplates(), id);
+    if (t == nullptr) return std::nullopt;
+    return *t;
 }
 
 /// 按 id 查询词条（不存在返回空 optional）
 inline std::optional<AffixTemplate> affixById(const std::string& id) {
-    static const std::map<std::string, const AffixTemplate*> kIndex = [] {
-        std::map<std::string, const AffixTemplate*> idx;
-        for (const auto& t : affixTemplates()) idx.emplace(t.id, &t);
-        return idx;
-    }();
-    const auto it = kIndex.find(id);
-    if (it == kIndex.end()) return std::nullopt;
-    return *it->second;
+    // 失效自检的索引快照（根治悬挂指针 UAF，见 index_snapshot.h）：向量被数据
+    // 注入/测试复位整体替换时自动重建，注入后稳态零重建（指针稳定性契约不变）
+    static detail::IdIndexSnapshot<AffixTemplate> kIndex;
+    const AffixTemplate* t = kIndex.find(affixTemplates(), id);
+    if (t == nullptr) return std::nullopt;
+    return *t;
 }
 
 }  // namespace gamecore::data

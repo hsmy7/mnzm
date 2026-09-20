@@ -41,6 +41,8 @@
 #include <string>
 #include <vector>
 
+#include "gamecore/data/index_snapshot.h"
+
 // S5：pillFromSpec 构造 state::Pill（models.h 无反向依赖，无环）
 #include "gamecore/state/models.h"
 
@@ -1360,26 +1362,22 @@ inline const std::vector<PillRecipeTemplate>& pillRecipes() {
 
 /// 按 id 查询锻造配方（不存在返回空 optional）
 inline std::optional<ForgeRecipeTemplate> forgeRecipeById(const std::string& id) {
-    static const std::map<std::string, const ForgeRecipeTemplate*> kIndex = [] {
-        std::map<std::string, const ForgeRecipeTemplate*> idx;
-        for (const auto& r : forgeRecipes()) idx.emplace(r.id, &r);
-        return idx;
-    }();
-    const auto it = kIndex.find(id);
-    if (it == kIndex.end()) return std::nullopt;
-    return *it->second;
+    // 失效自检的索引快照（根治悬挂指针 UAF，见 index_snapshot.h）：向量被数据
+    // 注入/测试复位整体替换时自动重建，注入后稳态零重建（指针稳定性契约不变）
+    static detail::IdIndexSnapshot<ForgeRecipeTemplate> kIndex;
+    const ForgeRecipeTemplate* r = kIndex.find(forgeRecipes(), id);
+    if (r == nullptr) return std::nullopt;
+    return *r;
 }
 
 /// 按 id 查询丹药配方（不存在返回空 optional）
 inline std::optional<PillRecipeTemplate> pillRecipeById(const std::string& id) {
-    static const std::map<std::string, const PillRecipeTemplate*> kIndex = [] {
-        std::map<std::string, const PillRecipeTemplate*> idx;
-        for (const auto& r : pillRecipes()) idx.emplace(r.id, &r);
-        return idx;
-    }();
-    const auto it = kIndex.find(id);
-    if (it == kIndex.end()) return std::nullopt;
-    return *it->second;
+    // 失效自检的索引快照（根治悬挂指针 UAF，见 index_snapshot.h）：向量被数据
+    // 注入/测试复位整体替换时自动重建，注入后稳态零重建（指针稳定性契约不变）
+    static detail::IdIndexSnapshot<PillRecipeTemplate> kIndex;
+    const PillRecipeTemplate* r = kIndex.find(pillRecipes(), id);
+    if (r == nullptr) return std::nullopt;
+    return *r;
 }
 
 /// 品阶名称（对应 Kotlin PillRecipeDatabase.getTierName）
