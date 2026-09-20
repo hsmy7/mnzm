@@ -1,5 +1,18 @@
 ## [4.01.15] - 2026-09-17
 
+### W5 收口批（2026-09-20）——最终审查后六项收口施工（含 2 项行为变更：B05 玩家可见修复 + 镜像运行态字段不再被清空）
+
+> 来源 = 2026-09-20 最终审查（完成度核对 + b02-findings 处置）后的收口施工；交接文档 [docs/parallel-batches-w5/handover-closing-batch-2026-09-20.md](docs/parallel-batches-w5/handover-closing-batch-2026-09-20.md)（根治逻辑 / 验证 SOP / 剩余工作）；方案登记见 §7.3。组 A–F 各自独立 commit。
+
+- **⚠️ 行为变更（玩家可见）· B05 巡逻灵石丢失修复**：巡逻战斗中灵石奖励此前**不入账**——弹窗显示了奖励但 `gameData.spiritStones` 未增（`executePatrolRound` 终局 `state.gameData = finalGd` 用入口快照覆盖了三笔中途直写）。同批一并修正两处关联缺陷：冲突 AI 直攻目标未被移除、AI 阵亡被"复活"。根治为**单写者**（`applyResults` 链头改 `state.gameData` 当前值；灵石入账移进 `applyVictoryGdChanges` 链；`applySpiritStoneReward` 删直写只出弹窗卡）。**玩家可见**：巡逻胜后灵石现在**真实入账**且与弹窗一致。
+- **⚠️ 行为变更 · b02 发现 11：镜像不再清空 @Transient 运行态字段**：镜像每旬把 9 个 @Transient 运行态字段（`slotId` / `autoSaveIntervalMonths` / `aiBeastEncounterTargets` / `aiSectDisciples` / `aiSectBeastSkipCooldowns` / `lockedBeastIds` / `aiSectBeastDirectTargets` / `battleTeam` / `aiBattleTeams`）打回声明默认值（旧全量 JSON 往返副作用）。→ **玩家可见修正**：`slotId` 相关邮件/槽位行为不再错乱。根治 = 删 `LEGACY_RESET_ON_MIRROR` + 新增 `GameDataTransientFace.carryOver`（镜像三臂统一以事务前值承载）；枚举面以 **kotlinx 序列化 descriptor 差集**为权威（新增 @Transient 字段自动纳管、防复发结构性）。**红线提醒**：本项触碰镜像写结果，`Diff*` 对拍已复跑全绿（三臂收敛）。
+- **UAF 段错误根治（组 A，内部健壮性）**：`trait_db.h`/`recipe_db.h` 5 个按 id 查询的裸指针索引缓存在数据向量整体替换后悬挂（桌面单进程直跑必崩 exit=139，ctest 分进程掩盖）。新增 `data/index_snapshot.h` 的 `IdIndexSnapshot`（RCU 发布：无锁读 + 双检重建 + 旧快照故意不释放）。证据：单进程 **1553/1553 exit=0**；ctest **1556/1556**；NDK arm64 构建成功。生产路径此前未触达（注入仅一次、早于首次查询），属契约违规预防性根治。
+- **组 D · B17-min JNI 计数门禁**：新增 `scripts/check-jni-count.mjs`（双桥 external fun 计数不增 42+49=91 / 面不扩散 / 收缩提示，豁免=显式改基线附理由，无跳过通道）+ CI `jni-count-gate` job。**B17 整批关闭**（其余项由既有 ci 覆盖）。
+- **组 E · 发现 5 死管道清理**：删 `generateFootprintHeader` Gradle 任务 + preBuild 接线（守卫职责已由 `SceneUvTablesMirrorGuardTest` 接替）；`:app` 基线 1004 → 1003。
+- **组 F · 发现 7/9/10**：proto3 present 纪律补条 + 守卫；`ensureAuthoritativeNative` protobuf 首封预热（消 ~194ms 首封）+ bench 首轮不计时预热遍；夹具字段名卡点（不在 `coveredFields` 即红，防"等价断言绿着空转"）。`game_view.proto` **schema 零变更**（仅注释）。
+- **G2/WS-1 拍板（纯文档）**：`<10ms@5000` 单点终态不再作为 WS-1 关闭判据，改立**分档基线**（D≤1000 <10ms、D=5000 <150ms，当前 139.30ms 达标），**WS-1 以"已收口"关闭**，残余成本中心①②（`upsertMirrorRow` 列级收窄、store 侧 `assembleAll`）登 **B18**。
+- **测试计数（实测）**：桌面 GTest **1556 不变**；`:core:engine` **3374**（+2）；`:app` **1010**（含 2 skip；`FootprintTableSyncTest` 用例 1 退役后为 2 用例——交接文档"1004→1003"为不同口径，以实测为准）。六模块全量组合门 TOTAL **7876 tests / 0 fail / 17 既有 skip**，`Diff*` 50 类 273 用例 **0 skip**。沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。
+
 ### R6.2 批 B16（2026-09-20）——数值外置：C++ 头文件 DB → 数据文件加载（改数值不再触发逻辑重编译）
 
 > 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R6 表 R6.2 行（批次文件 `docs/parallel-batches-w5/batch-R6B.md`；前置 = B15/R6.1）。**零玩家可见变更（数值逐位等价）、协议 JSON 面/存档格式/既有 JNI 签名零变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。每子项独立 commit。渠道注记：WorkBuddy 首发完成子项①与子项②大部后配额中断，ZCode 会话接续补全。

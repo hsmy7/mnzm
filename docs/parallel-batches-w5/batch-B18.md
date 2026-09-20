@@ -1,0 +1,71 @@
+# 批次 B18 — 回滚臂删除批（R2 灰度期满 + 各批遗留清理合并批）
+
+> 来源：`docs/parallel-batches-w5/handover-closing-batch-2026-09-20.md` §4 第 4 项
+> （本文件为该条的落地定义）；方案 §7.3 收口批登记。
+> 台账批次总表：`docs/parallel-batches-w5/dispatch-ledger.md`。
+> 前置 = W5 收口批（组 A–F）已提交 + 组合门绿。
+
+## ⛔ 到期判据（**硬前置，须显式核验；未满足不得开工**）
+
+> **一个完整发版周期经过 + 零回滚事件（RenderMetrics / 崩溃快照可查证）。**
+
+- 五条灰度臂于 **2026-09-18/19** 建立（R2 传输切换臂、R2.3 投影臂、R2.4 eventFeed 臂、
+  R2.2 列级导出臂、R3 场景臂），**截至 2026-09-20 尚未经历任何发版** ⇒ **当前不得执行**。
+- 开工前须给出**可查证证据**：① 发版周期起止（`version.properties` 版本号变更记录）②
+  该周期内零回滚事件（`RenderMetrics` 回滚计数器 / 崩溃快照 / Bugly 记录）。
+- **未附证据即开工 = 验收打回**（本批删除的是灰度期间的"退路"，提前删除会丧失回滚能力）。
+
+## 任务
+
+### 1. 回滚臂删除（本批主体）
+
+- `drawAllTiles` 旧臂退役；
+- `sceneStoreRender` / `gameViewProjection` / `mirror`（JSON 回退分支）退役；
+- 灰度旗标（`NativeEngineFlag.mirrorProtobufTransport` / `dirtyColumnExport` /
+  `gameViewProjection` 等）与**回滚臂生产分支**一并删除（守卫测试对照臂保留为 golden 夹具）；
+- **每删一条臂前**：确认其对拍测试（`Diff*`）已改为"对照臂转 golden 夹具"形态，
+  否则删臂后守卫失去对照面。
+
+### 2. 吸收清单（各批遗留，逐项登记来源）
+
+| 来源 | 项 | 说明 |
+|---|---|---|
+| b02 发现 8③④ | `upsertsJson` 族 typed 化 | proto **只增字段**（type 化后 `collectionChange` 不再内嵌 JSON 原文）；codec 单点切读 + 等价守卫 + 桥重建 |
+| 方案 R2.3 残余①② | `upsertMirrorRow` 列级收窄、store 侧 `assembleAll` | G2 分档基线后的残余成本中心（§7.3 已登） |
+| G5 | `BattleSystem` → golden 夹具退场 | 4 个生产回退点退役（战斗/秘境/探索/3 执行器） |
+| 方案 B09 残余③④ | C++ rest 域标脏细粒度化、弟子列表块迁投影 | — |
+| b03 遗留 | `month_settlement.h` 9 处 `indexById` 现场重建 | 含 `:1361` / `:1842` **循环内重建**（A 组 UAF 根治后的同族收口） |
+| 收口批 C 组判归 | `battleTeam` / `aiBattleTeams` **Room 死列清理** | 删列需 **schema migration**，须**存档回归单独走批**（不得与回滚臂删除混装） |
+| 收口批 F 项 | `build-atlas.mjs` / `scene_uv_tables.h` 历史注释措辞收口 | — |
+| 收口批 G2 | `MirrorSegmentProjectionBenchTest` 残余①② 断言口径 | 随分档基线一并重定 |
+| 收口批 §4⑤ | `aiBeastEncounterTargets` 死臂 | **已确证死臂（2026-09-20 核查）**：全仓（Kotlin + C++）该表**零插入者**——仅 `GameEngineExplorationNativeOps.kt:178` 门判 + `ExplorationServiceBeastRaidOps.kt:128` 读取 + `:179-180` 删除，**无任何 `+`/`put`/`copy(aiBeastEncounterTargets = ...含新增)` 写入** ⇒ 表恒空 ⇒ 两处门判恒 false ⇒ 遭遇战路径（`resolveEncounterPath` / `resolveBeastEncounterIfAny`）整条死代码。按 B18 口径清理（**勿顺手删**：修复后该表保留现值，一旦有人接上插入者即恢复工作——见收口批 C 组"值保留"判归） |
+
+### 3. 必须遵守的纪律
+
+- **分组独立 commit**：回滚臂删除 / `upsertsJson` typed 化 / Room 死列（含 migration）/
+  注释收口 **各自独立**，勿混装（对拍归因红线）。
+- **Room 死列删除须附存档回归**（旧档 → 新 schema migration → 读写往返逐字段等价）。
+- **删臂后守卫不得失去对照面**：对照臂 = golden 夹具（非删除）。
+- 删臂每步后：受影响测试套全绿 + 组合门（`testReleaseUnitTest + detekt +
+  compileReleaseKotlin + lintRelease`）。
+
+## 红线（违者验收打回）
+
+- **存档 schema 变更（Room 死列）必须单独走批 + 存档回归**，不得夹带回滚臂删除；
+- **协议 JSON 面**：typed 化只允许 **proto 追加字段**，既有字段号与语义零变更；
+- 删臂前必须**有发版周期零回滚**的可查证证据（见上"到期判据"）；
+- 每子项独立 commit；`CHANGELOG` 若产生玩家可见变更须记（本批预计零玩家可见变更）。
+
+## 验收门
+
+1. 桌面对拍 `Diff*` 全绿（对照臂 = golden 夹具）；
+2. 组合门绿；受影响 Kotlin 套绿；C++ 有改动则桌面 GTest 全绿 + NDK arm64 构建通过；
+3. 存档回归（Room migration）逐字段等价；
+4. 到期判据证据附于完成报告（发版周期 + 零回滚）。
+
+## 参考
+
+- `docs/parallel-batches-w5/handover-closing-batch-2026-09-20.md` §4（剩余工作清单）
+- `docs/parallel-batches-w5/b02-findings.md`（发现 8③④ / 11 附带）
+- `docs/parallel-batches-w5/b03-findings.md`（`month_settlement.h` 遗留）
+- `docs/native-engine-refactor-plan-2026-09-17.md` §7.3（收口批登记 + G2 拍板）

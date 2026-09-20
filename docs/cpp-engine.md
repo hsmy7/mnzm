@@ -68,6 +68,7 @@
 - **渲染双路径**：Vulkan 完整实现（Device/Swapchain/CommandBuffer/RenderPass/Pipeline/Draw/离屏 renderScale/ASTC 图集）+ Canvas 软件渲染兜底，经 `Rhi.h` 抽象 + `RenderFrame` 契约。
 - **平台解耦**：engine 层 `import android.*` 清零；`core/platform.h` 端口注入；gamecore 无任何 Android 泄漏。
 - **确定性/对拍体系**：跨语言 Diff 对拍 + GTest 黄金序列 + RNG 分区 + kotlinx-proto 存档链路零改动。
+- **数据 DB 索引快照（2026-09-20，W5 收口批组 A）**：`data/index_snapshot.h` 的 `IdIndexSnapshot`（**RCU 发布模式**：快照记录数据向量 `data()+size()`，每次查询比对、失效即重建；读路径无锁原子指针 acquire，重建持互斥双检，旧快照故意不释放——替换在生产上至多一次、KB 级）取代 `trait_db.h`/`recipe_db.h` 5 个按 id 查询中的函数级 `static const std::map<std::string, const T*>` 裸指针缓存，根治「数据注入/测试复位**整体替换向量**后索引悬挂」的 UAF（违反 `data_store.h:108-110` 指针稳定性契约；显形为段错误/bad_alloc/垃圾断言）。判定实验：桌面**单进程直跑** `game-core-tests.exe` **exit=0、1553/1553、~24s**（修复前同命令必崩 exit=139，ctest 分进程掩盖）。**不用 `std::atomic<std::shared_ptr>`**——llvm-mingw libc++ 无该特化（编译实证）。
 
 **⚠️ 缺口（审计确凿，后续工作对象）**
 | # | 缺口 | 证据 | 影响 |
