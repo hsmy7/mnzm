@@ -138,11 +138,11 @@
 
 | 来源 | 项 | 说明 |
 |---|---|---|
-| b02 发现 8③④ | `upsertsJson` 族 typed 化 | proto **只增字段**（type 化后 `collectionChange` 不再内嵌 JSON 原文）；codec 单点切读 + 等价守卫 + 桥重建 |
+| b02 发现 8③④ | `upsertsJson` 族 typed 化 | **族 = 三字段**（`CollectionChange.upsertsJson` + `JsonFieldChange.valueJson` + `DiscipleRow.storageBagItemsJson`；2026-09-20 看护复核补全）；proto **只增字段**；codec 单点切读 + 等价守卫 + 桥重建；设计/分期（A1 标量面 / A2 嵌套面）见 `b18-solution-2026-09-20.md` §3.1 |
 | 方案 R2.3 残余①② | `upsertMirrorRow` 列级收窄、store 侧 `assembleAll` | G2 分档基线后的残余成本中心（§7.3 已登） |
-| G5 | `BattleSystem` → golden 夹具退场 | 4 个生产回退点退役（战斗/秘境/探索/3 执行器） |
+| G5 | `BattleSystem` → golden 夹具退场 | **口径勘误（2026-09-20 看护实测）**：生产回退点 = **6 文件 11 调用点**（遭遇/秘境/妖兽防守/任务双分支/巡逻 3 段/AI 宗门 3 段）；「3 执行器」= Phase/Month/Year **结算执行器**（方案 :169，非 MissionSystem 分支，属远期程序）。**判归建议 A = 零删除**（`authoritative` 门 = OFF kill-switch 投影非灰度臂；`?:` = 容错+测试兜底）——**待拍板**，见 `b18-solution-2026-09-20.md` §2 |
 | 方案 B09 残余③④ | C++ rest 域标脏细粒度化、弟子列表块迁投影 | — |
-| b03 遗留 | `month_settlement.h` 9 处 `indexById` 现场重建 | 含 `:1361` / `:1842` **循环内重建**（A 组 UAF 根治后的同族收口） |
+| b03 遗留 | `month_settlement.h` `indexById` 收口 | **口径勘误（2026-09-20 看护实测）**：10 行命中（1 注释 + 1 using + 8 调用），**待收口 2 处**——`:1842` 同表达式两次重建、`:1358-1375` 循环体 3→1 次；`:1727`/`:1773`/`:2304` 本就正常**勿动**（A 组 UAF 根治后的同族收口；跨迭代重建是正确性机制，不得提循环外） |
 | 收口批 C 组判归 | `battleTeam` / `aiBattleTeams` **Room 死列清理** | 删列需 **schema migration**，须**存档回归单独走批**（不得与回滚臂删除混装） |
 | 收口批 F 项 | `build-atlas.mjs` / `scene_uv_tables.h` 历史注释措辞收口 | — |
 | 收口批 G2 | `MirrorSegmentProjectionBenchTest` 残余①② 断言口径 | 随分档基线一并重定 |
