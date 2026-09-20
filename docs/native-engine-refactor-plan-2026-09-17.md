@@ -250,6 +250,45 @@ VulkanBackend / GlesBackend(消费 SceneStore,含C++侧网格/高亮/预览生�
 
 ### 7.2 R1 逐批落地（2026-09-17/18）
 
+#### B16 批（2026-09-20）= R6.2（数值外置：C++ 头文件 DB → 数据文件加载，`nativeSetGameConfig` 通道扩展）
+
+批次文件 `docs/parallel-batches-w5/batch-R6B.md`；每子项独立 commit。前置 = B15（R6.1，
+`batch-R6A.md`，CTest 1545）。**渠道注记**：本批首发 WorkBuddy AI（05:50），子项①入库
+（`efb1be5f2` 消费面枚举）+ 子项②大部完成后因模型配额中断（07:03）；续作由 ZCode 会话
+接续补全（先核查再补全，未推倒重来）。
+
+**本批最重要的事实（先说结论）**：`data/` 七个头文件 DB 的 52 个消费点**全部**经「头文件内
+inline 访问器函数」进入（无外部直访常量表）⇒ 只改访问器函数体即可外置，52 个消费文件零改动。
+本批把 7 个 DB 中的**10 张数值表**搬入单文件聚合数据文件 `assets/data/game-data.json`
+（equipment 72 / herbs 54 / seeds 54 / manuals 540 / beastMaterials 192 / forgeRecipes 72 /
+pillRecipes 732 / talents 109 / physiques 24 / affixes 71，合计 1,920 条），C++ 启动期经
+**新增单端口** `nativeSetGameData(json: String)` 一次性注入；**改一个数值（如某丹药
+`cultivationAdd`）从此只改数据文件，C++ 逻辑零重编译**（门 5 实证）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| ① 消费面枚举 | ✅ | `docs/parallel-batches-w5/b16-db-consumer-inventory.md`（7 DB / 10,968 行 / 16 结构体 / ~2,325 数据行 / 52 消费点去重 21 文件；外置三约束：指针稳定性 / 纯函数不外置 / trait→equipment·herb 加载序） |
+| ② 数据文件化 | ✅ | `assets/data/game-data.json`（1.13 MB，schemaVersion=1）+ hash 门 `game-data.hash.txt`（sha256 入库防漂移）。单源链：`scripts/data/*_sample.json`（Kotlin Registry 单一源快照，既有 `StaticDataSingleSourceGuardTest`/`*RegistryGuardTest` 兜底）→ `scripts/gen-game-data.mjs`（稳定序列化键序固定，产物逐位可复现）→ 数据文件。**格式选型**：单文件聚合 JSON——①与 Kotlin 侧同源可校验（中性源即 Kotlin 快照）②天然满足 trait→equipment/herb 加载序 ③nlohmann 零新依赖（vendored 3.11.3）。`--check` 只校验不落盘（CI 用）、`--hash` 打印 sha256（codegen hash 门先例） |
+| ③ 注入通道扩展 | ✅ | **+1 端口 `nativeSetGameData(json: String)`**（生产面 external fun 41 → 42，渲染面 50 零改动）：单端口批量注入全文，**零每帧/每事务跨线**（仅初始化期一次）。豁免理由（KDoc 登记沿 `nativeSetGameConfig` 先例）：`nativeSetGameConfig` 是定长标量通道（16 参），无法表达 7 DB 变长条目集；既有 `nativeSetXxxJson` 均为事务/tick 级语义。C++ 侧 `data_store` 状态机（`kUninitialized→kLoadedFromFile/kFallbackDefault`）保证「已 seal 即拒」+ 表容器地址不再变（`beastMaterialById`/`manualById` 等指针型消费点硬约束）。注入时点双点幂等：`ResourcePreloader`（native 已加载则即注）+ `ensureAuthoritativeNative`（补注），`GameDataNativeBridge.injected` 标志 + C++ seal 双防线。**失败语义**：解析/schema 不符/段类型错/空段/行 id 无派生源 ⇒ 整体落 `kFallbackDefault`（保留头文件内联默认兜底，**禁止静默空表**），不阻断引擎启动；重复注入被拒且计数可观测（`GameDataInjectionStats`） |
+| ④ 桌面/测试接线 | ✅ | 桌面 GTest 与生产同源：`data_store_test.cpp` 从仓库 `assets/data/game-data.json` 真读真注入（ctest WORKING_DIRECTORY 钉死 gamecore 源码根）；对拍桥（`GameCoreJni.cpp` 面）的 C++ 侧走头文件内联兜底，与数据文件**逐位相等**由守卫锁定 ⇒ Diff 对拍不受注入与否影响（注入的是同一份值）。环境缺口补齐：`gamecore/jni-include/` 增 `android/log.h`（`__android_log_print`→stdout）、`time.h`（补 winpthreads 缺失的 `clock_gettime64` 实现——inline `clock_gettime` 委托它而库无实现，链接期 undefined symbol；早期"挡头"方案与该头 inline 定义冲突已废弃）、`unistd.h`（Bionic `gettid`→`GetCurrentThreadId`）；**shim 仅在 `build-desktop-jni.ps1` 的 include 路径生效，NDK 构建不含该目录**（`cpp/CMakeLists.txt` 未加此路径），真机语义零变化；`GameCoreBridge.cpp::AndroidMonotonicClock` 增 `_WIN32` 分支（CLOCK_MONOTONIC）——Android 路径（CLOCK_BOOTTIME）零变更 |
+| ⑤ 头文件 DB 退场形态 | ✅ | **选 ②「默认值兜底 + 生成物」**，理由：① 52 个消费点的访问器签名零变更红线（删除则爆炸半径失控）；② 兜底值 = 注入失败时的显式语义（红线下不可为空表/崩溃）；③ 其中 equipment/herb（`gen-templates.mjs`）、manual（`gen-manual-db.mjs`）、beast_material（`gen-beast-material-db.mjs`）4 个 DB 头**本就是生成物**；recipe/trait 为 C++ 手写等价复刻（Kotlin 生成逻辑复刻，与中性源同源）。**防双真相源**：数据文件与内联兜底的逐位一致由 `DataStoreGuardTest.注入后内联兜底与数据文件默认值一致` 锁定（前后快照全字段比对）；中性源↔Kotlin 由既有守卫锁定。**残余**：头文件兜底的自动再生成工具（recipe/trait 两表数值变更时须人工同步——当前守卫会在漂移时变红兜住） |
+| ⑥ 等价守卫 + 注入纪律守卫 | ✅ | `data_store_test.cpp` **11 用例三层口径**：层 1 数值逐位等价（10 表容器 vs 数据文件段**全字段**比对（nlohmann 序列化往返，非抽样）+ 行数断言（72/54/54/540/192/72/732/109/24/71）+ pillRecipes 派生 `price` 逐行回填比对）+ 兜底一致性（注入前后快照全字段相等 = 数据文件不是另一套数值）；层 2 兜底语义（未注入态非空 / 畸形 JSON / schema 不符 / 段类型错 / 空段落兜底）；层 3 注入纪律（仅初始化期一次 + 重复注入被拒 + 失败后再成功亦被拒（防"静默修正"）+ 指针稳定性） |
+
+**边界登记（外置面 vs 派生面）**：`beast_config`（realm 表按 realm 索引复制、技能表按 8 类
+beast 展开且含 `SkillType`/`DamageType`/`BuffType` 引擎枚举——数据化需枚举线格式）与
+`recipe_db` 的 `PillTemplateSpec` 中间表（`buildPillTemplates` 程序化产出、`pillRecipes` 的
+构建器输入）登记为**结构性/派生型数值，真相源保持 C++ 侧**（game-data.json 对应段不设）；
+`pillRecipes.price` 为派生字段（`tierPrice × gradeMultiplier × 双属性 1.2`），数据文件不含该键，
+注入后按 C++ 同一构建器（`detail::buildPillRecipes`）按 id 回填（行缺失即注入失败）——
+派生逻辑保持 C++ 的边界由此可辩护。
+
+**测试口径**：桌面全量 GTest **1556/1556**（74.05s，= B15 基线 1545 + 本批 11；携
+`data_store.cpp` 与 7 DB 头改动重建）+ 组合门 `testReleaseUnitTest --max-workers=1
+--rerun-tasks -Dgamecore.jni.path=…` + `detekt` + `compileReleaseKotlin` + `lintRelease`
+见批次完成报告门 2 实证。**红线自查**：协议 JSON 面/存档格式/既有 JNI 签名零变更
+（新增端口独立登记豁免）✓；`Diff*` 对拍测试零改动 ✓；52 个消费文件零改动
+（爆炸半径收束在 `data/` 目录内）✓；每子项独立 commit ✓。
+
 #### B15 批（2026-09-20）= R6.1（图集离线化：消运行时 Canvas 拼装，运行时只 upload）
 
 批次文件 `docs/parallel-batches-w5/batch-R6A.md`；每子项独立 commit。前置 = B14

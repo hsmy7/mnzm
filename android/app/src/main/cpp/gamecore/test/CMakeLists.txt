@@ -78,6 +78,11 @@ add_executable(game-core-tests
     recipe_db_test.cpp
     beast_material_db_test.cpp
     manual_db_test.cpp
+    # R6.2/B16 数值外置：数据文件 → C++ DB 容器注入。三层守卫——
+    # ①数值逐位等价（数据文件加载后 DB vs 数据文件段逐行逐字段）
+    # ②兜底语义（注入前/失败时表非空且等于内联默认，禁止静默空表）
+    # ③注入纪律（仅初始化期一次 + 重复注入被拒 + 指针稳定性）
+    data_store_test.cpp
     time_system_test.cpp
     settle_phase_test.cpp
     # R0.2 FP 确定性对拍探针（桌面腿：x86-64 golden 位锁定；真机腿走 JNI）
@@ -169,4 +174,10 @@ target_sources(game-core-tests PRIVATE
 )
 
 include(GoogleTest)
-gtest_discover_tests(game-core-tests)
+# B16/R6.2：显式钉死测试工作目录 = gamecore 源码根。
+# 动机：data_store_test 需按相对路径读取仓库资产（assets/data/game-data.json），
+# 而 ctest 的默认工作目录是实现细节（逐构建目录而异）。钉死为源码根后
+# "android/app/src/main/assets/data/game-data.json" 成为稳定相对路径。
+gtest_discover_tests(game-core-tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
