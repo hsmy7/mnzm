@@ -41,6 +41,7 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -303,7 +304,7 @@ class ExplorationPatrolRouteTest {
         )
     }
 
-    /** 巡逻胜利回退臂结算面断言：击败/引导计数/战报/奖励卡/HP 写回。 */
+    /** 巡逻胜利回退臂结算面断言：击败/引导计数/战报/奖励卡/HP 写回/灵石入账。 */
     private fun assertPatrolVictorySettled(system: PatrolBattleSystem, state: MutableGameState) {
         val gd = state.gameData
         assertTrue("妖兽必须标记击败", gd.worldLevels.single().defeated)
@@ -311,6 +312,9 @@ class ExplorationPatrolRouteTest {
             "引导计数必须累加", 1L,
             gd.guideCounters[GuideCounterKeys.PATROL_BEAST_DEFEATED]
         )
+        // b05 意图断言（根治恢复）：灵石奖励必须真实入账（基线 1000 + 奖励 100），
+        // 不得被 applyResults 终局的旧快照链覆盖——修复前恒 1000（弹窗显示与实际不符）
+        assertEquals("灵石奖励必须入账（b05）", 1100L, gd.spiritStones)
         val log = state.battleLogs.single()
         assertEquals(BattleType.PVE, log.type)
         assertEquals("巡视队伍", log.attackerName)
@@ -399,6 +403,18 @@ class ExplorationPatrolRouteTest {
 
             // 两阶段均经回退臂完成：Phase 2 终态（hp=50/灵石奖励卡/击败标记）落地面
             assertPatrolVictorySettled(system, state)
+
+            // b05 意图断言（根治恢复）：冲突段两笔直写必须保留——
+            // ① 已处理的冲突妖兽从 AI 直攻目标表移除（修复前残留 b1 键）
+            assertTrue(
+                "冲突目标必须从 AI 直攻表移除（b05）",
+                state.gameData.aiSectBeastDirectTargets.isEmpty()
+            )
+            // ② Phase 1 战死的 AI 弟子阵亡标记不被终局覆盖复活（修复前 isAlive 回 true）
+            assertFalse(
+                "AI 阵亡标记必须保留（b05）",
+                state.gameData.aiSectDisciples.getValue("sect1").single().isAlive
+            )
         }
     }
 }

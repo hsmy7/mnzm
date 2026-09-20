@@ -170,7 +170,7 @@ class PatrolBattleSystem @Inject constructor(
         }
 
         if (allResults.isEmpty()) return
-        applyResults(allResults, state, gd, disciples)
+        applyResults(allResults, state, disciples)
     }
 
     // ── 步骤 1: 构建巡逻队伍 ──────────────────────────────────────────────
@@ -403,11 +403,13 @@ class PatrolBattleSystem @Inject constructor(
     private fun applyResults(
         results: List<TowerBattleResult>,
         state: MutableGameState,
-        gd: GameData,
         disciples: List<Disciple>
     ) {
+        // 链头 = state.gameData 当前值（非入口快照）：冲突段两笔直写（AI 直攻目标
+        // 移除 / markAiDeaths 阵亡标记）与灵石入账统一经此链落终值——applyResults
+        // 全程对 gameData 单写者，终局覆盖不再吞并中途写入（b05 缺陷根治）。
         var updatedDisciples = disciples
-        var updatedGd = gd
+        var updatedGd = state.gameData
         val allDeadIds = mutableSetOf<String>()
 
         for (result in results) {
@@ -423,7 +425,7 @@ class PatrolBattleSystem @Inject constructor(
             // 胜利奖励
             if (result.victory) {
                 updatedDisciples = applyVictoryRewards(
-                    state, result.target, result.survivors,
+                    result.target, result.survivors,
                     updatedDisciples, allRewards, result.result
                 )
                 updatedGd = applyVictoryGdChanges(result, updatedGd)
@@ -520,22 +522,23 @@ class PatrolBattleSystem @Inject constructor(
 
     // ── 胜利奖励：击败标记 + 神魂/属性 + 材料 + 灵石 ──────────────────────
 
-    /** 应用胜利后的 GameData 变更：击败妖兽标记 */
+    /** 应用胜利后的 GameData 变更：击败妖兽标记 + 灵石入账（单写者——经 updatedGd 链终局落值） */
     private fun applyVictoryGdChanges(
         result: TowerBattleResult, gd: GameData
     ): GameData {
         val prevCount = gd.guideCounters[GuideCounterKeys.PATROL_BEAST_DEFEATED] ?: 0L
+        val spiritStoneReward = result.result.rewards["spiritStones"] ?: 0
         return gd.copy(
             worldLevels = gd.worldLevels.map {
                 if (it.id == result.target.id) it.copy(defeated = true) else it
             },
-            guideCounters = gd.guideCounters + (GuideCounterKeys.PATROL_BEAST_DEFEATED to prevCount + 1)
+            guideCounters = gd.guideCounters + (GuideCounterKeys.PATROL_BEAST_DEFEATED to prevCount + 1),
+            spiritStones = gd.spiritStones + spiritStoneReward
         )
     }
 
     /** 应用胜利奖励：神魂/属性 + 妖兽材料 + 灵石 */
     private fun applyVictoryRewards(
-        state: MutableGameState,
         target: WorldLevel,
         survivors: Set<String>,
         disciples: List<Disciple>,
@@ -549,7 +552,7 @@ class PatrolBattleSystem @Inject constructor(
             target, survivors, disciples, rng
         )
         generateBeastMaterialRewards(target, rng, allRewards)
-        applySpiritStoneReward(state, battleResult, allRewards)
+        applySpiritStoneReward(battleResult, allRewards)
 
         return soulUpdated
     }
@@ -638,17 +641,14 @@ class PatrolBattleSystem @Inject constructor(
         }
     }
 
-    /** 灵石奖励 */
+    /** 灵石奖励：只产出弹窗奖励卡——入账经 [applyVictoryGdChanges] 的 updatedGd
+     *  链终局落值（b05 根治：此处不再直写 state.gameData，applyResults 全程单写者） */
     private fun applySpiritStoneReward(
-        state: MutableGameState,
         battleResult: BattleSystemResult,
         allRewards: MutableList<BattleRewardItem>
     ) {
         val spiritStoneReward = battleResult.rewards["spiritStones"] ?: 0
         if (spiritStoneReward > 0) {
-            state.gameData = state.gameData.copy(
-                spiritStones = state.gameData.spiritStones + spiritStoneReward
-            )
             allRewards += BattleRewardItem(
                 name = ItemNames.SPIRIT_STONE, quantity = spiritStoneReward,
                 rarity = 1, type = "spiritStones"
