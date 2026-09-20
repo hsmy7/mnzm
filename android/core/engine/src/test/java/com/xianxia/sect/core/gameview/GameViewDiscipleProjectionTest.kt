@@ -115,13 +115,24 @@ class GameViewDiscipleProjectionTest {
 
     // ── 夹具 ────────────────────────────────────────────────────
 
-    /** 第一波形态：DiscipleRow → 变更集树（changed["disciples"] JSON 数组）→ kotlinx 解码 */
+    /**
+     * golden 对照面：DiscipleRow → 变更集树（changed["disciples"] JSON 数组）
+     * → kotlinx 解码。这是 B18 前生产臂的形态（第一波 JSON 造树），现由本守卫
+     * 冻结为测试侧对照——**必须显式 `discipleRowsAsPatches = false`**：
+     * B18 后缺省 = 生产形态 = 恒列级补丁，而补丁优先于 JSON 树
+     * （`decodeDiscipleDelta` 的 `when` 分支顺序），不传本参 `changed["disciples"]`
+     * 恒缺、本对照面静默失效。
+     */
     private fun jsonViaTree(row: DiscipleRow): Disciple {
         val view = GameView.newBuilder()
             .setVersion(1L)
             .setDiscipleListDelta(DiscipleListDelta.newBuilder().addUpserts(row).build())
             .build()
-        val changed = GameViewMirrorCodec.decodeView(view).changed
+        val changed = GameViewMirrorCodec.decodeView(
+            view,
+            includeDiscipleJson = true,
+            discipleRowsAsPatches = false,
+        ).changed
         val element = changed.getValue("disciples").jsonArray[0].jsonObject
         return json.decodeFromJsonElement(Disciple.serializer(), element)
     }

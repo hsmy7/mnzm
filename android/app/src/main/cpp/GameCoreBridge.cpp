@@ -541,18 +541,9 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeExportDirty(
     return stringToJbytes(env, g_gameCore->exportDirty());
 }
 
-// 列级增量导出开关（R2.4/B09：Kotlin NativeEngineFlag.dirtyColumnExport 驱动）
-// ——与 nativeSetDirtyExportProtobuf 同族引擎线程控制端口，仅切换 exportDirty
-// 的增量来源（列级写屏障 vs 全量树 diff），不改导出面协议/版本号语义；
-// 【JNI 面豁免登记】新增引擎控制端口（非玩法操作，不塞业务操作码表），
-// 沿 R0.2 nativeFpDeterminismProbe / R2.2 nativeSetDirtyExportProtobuf 先例。
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetDirtyExportColumn(
-    JNIEnv* /*env*/, jobject /*thiz*/, jboolean on) {
-    jniRequireEngineThread("nativeSetDirtyExportColumn");
-    if (!g_gameCore) return;
-    g_gameCore->setDirtyExportColumn(on == JNI_TRUE);
-}
+// B18 列级臂退役：原 nativeSetDirtyExportColumn 引擎控制端口已删除——
+// 列级导出恒开（exportDirtyProto 恒走 ColumnDirtyTracker，异构写入锁存
+// columnExportBlocked_ 保留为运行时正确性机制），无旗标可推。
 
 // ============================================================
 // 战斗执行通道（AI 兽战/任务完成生产接线）

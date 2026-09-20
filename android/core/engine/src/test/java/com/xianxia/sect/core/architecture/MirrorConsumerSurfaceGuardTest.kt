@@ -82,7 +82,7 @@ class MirrorConsumerSurfaceGuardTest {
     }
 
     @Test
-    fun `传输臂已退役（B18 后单臂源码面）`() {
+    fun `B18 三条臂已退役（单臂源码面）`() {
         val syncService = readMainFile(MIRROR_ENTRY_FILE)
         val flagSource = readMainFile(FLAG_FILE)
         assertTrue(
@@ -94,13 +94,26 @@ class MirrorConsumerSurfaceGuardTest {
             syncService.contains("applyDirty(raw.decodeToString())")
         )
         assertFalse(
-            "传输旗标不得回流（mirrorProtobufTransport 已随 B18 删除）",
+            "传输旗标不得回流（mirrorProtobufTransport 已随 B18-臂1 删除）",
             flagSource.contains("mirrorProtobufTransport")
         )
         assertFalse(
-            "投影旗标不得回流（gameViewProjection 已随 B18 删除，" +
+            "投影旗标不得回流（gameViewProjection 已随 B18-臂2 删除，" +
                 "UI 消费块恒走 GameViewStore 投影）",
             flagSource.contains("gameViewProjection")
+        )
+        assertFalse(
+            "列级旗标不得回流（dirtyColumnExport 已随 B18-臂3 删除，" +
+                "导出与解码恒列级——注意 C++ 侧异构锁存 columnExportBlocked_ 保留）",
+            flagSource.contains("dirtyColumnExport")
+        )
+        assertTrue(
+            "弟子行必须恒以列级补丁交付（decodeView 生产形态缺省值）",
+            syncService.contains("GameViewMirrorCodec.decodeView(it, discipleJson = json)")
+        )
+        assertFalse(
+            "生产分发不得显式关掉列级补丁（discipleRowsAsPatches 不再由旗标决定）",
+            syncService.contains("discipleRowsAsPatches = NativeEngineFlag")
         )
     }
 

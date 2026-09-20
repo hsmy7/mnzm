@@ -188,16 +188,13 @@ public:
     /// 双格式逐值等价）——同一封不可两种格式各导一次（导出即消费）。
     /// 未初始化/异常返回合法的空信封字节（消费端零写入快速路径）。
     std::string exportDirtyProto();
-    /// ── 列级增量导出开关（重构方案 R2.4/B09：R1.4 列级写屏障接生产）──
-    /// true = exportDirtyProto 优先走 ColumnDirtyTracker 整树导出（弟子域
-    /// 仅脏行×脏列；gameData/集合域与全量 diff 共享同一比对段，构造等价）；
-    /// false = 全量树 diff（对拍显式依赖的全量模式开关，零漂移缺省）。
-    /// 生产由 Kotlin NativeEngineFlag.dirtyColumnExport 驱动（新增引擎控制
-    /// 端口，登记豁免——与 setDirtyExportProtobuf 同族）。**月/年/旬边界
-    /// 之外的异构写入路径（业务事务/战斗/招募）自动锁存回退全量导出一封**
-    /// （[noteNonSettlementMutation]），防列屏障未覆盖路径漏报。
-    void setDirtyExportColumn(bool on) { columnLevelDirtyExport_ = on; }
-    bool dirtyExportColumn() const { return columnLevelDirtyExport_; }
+    /// ── 列级增量导出（重构方案 R2.4/B09；B18 列级臂退役后**恒列级**）──
+    /// exportDirtyProto 恒走 ColumnDirtyTracker 整树导出（弟子域仅脏行×脏列；
+    /// gameData/集合域与全量 diff 共享同一比对段，构造等价）。原
+    /// `setDirtyExportColumn` 灰度开关与 `columnLevelDirtyExport_` 成员已随
+    /// B18 删除（恒列级）。**月/年/旬边界之外的异构写入路径（业务事务/战斗/
+    /// 招募）自动锁存回退全量导出一封**（[noteNonSettlementMutation]），
+    /// 防列屏障未覆盖路径漏报——该机制是运行时正确性保证，非回滚臂，保留。
     /// 异构路径锁存：任何不经结算边界（settleOnePhase/settleMonth/settleYear）
     /// 的状态写入路径（业务事务/战斗/招募等）调用后，下一封导出回退全量
     /// 树 diff（该封之后恢复列级——全量封已携带全部变更，位图同时清零）。
@@ -304,8 +301,6 @@ private:
     void ensureTerrainGenerated();
     /// initialize(config) 的配置留存（ensureTerrainGenerated 消费地形参数）
     GameCoreConfig config_;
-    /// 列级增量导出模式（R2.4/B09；缺省 false = 全量树 diff，零漂移缺省）
-    bool columnLevelDirtyExport_ = false;
     /// 异构写入锁存（[noteNonSettlementMutation]；导出后消费清零）
     bool columnExportBlocked_ = false;
     /// 列级写屏障追踪器（R1.4 能力 + B09 挂载：与 dirtyTracker_ 同点

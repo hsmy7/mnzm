@@ -700,19 +700,19 @@ std::string GameCore::exportDirtyProto() {
     if (!initialized_) return state::encodeGameView(nlohmann::json::object(), "");
     syncRngStates();
     try {
-        // R2.4/B09 混合导出：列级模式（且无异构写入锁存）走 ColumnDirtyTracker
-        // 整树导出（弟子域仅脏行×脏列；gameData/集合域与全量 diff 共享同一
-        // 比对段，构造等价）；全量开关/锁存命中 = 全量树 diff（对拍零漂移）。
-        // 全量封后列级位图清零（变更已由全量封携带，位图重置防重发）。
-        const bool useColumnLevel = columnLevelDirtyExport_ && !columnExportBlocked_;
+        // B18 列级臂退役：恒列级导出（原 columnLevelDirtyExport_ 灰度开关已删）。
+        // 异构写入锁存（columnExportBlocked_）**保留**——它是运行时正确性机制
+        // （月/年/旬边界之外的写入路径由列屏障覆盖不到的，须回退全量一封防漏报），
+        // 不是回滚臂。全量封后置回 false（变更已由全量封携带，位图重置防重发）。
+        const bool fullExport = columnExportBlocked_;
         columnExportBlocked_ = false;
-        nlohmann::json tree = useColumnLevel
-            ? columnTracker_.exportDirtyTree(state_)
-            : [this]() {
+        nlohmann::json tree = fullExport
+            ? [this]() {
                   nlohmann::json t = dirtyTracker_.diffToTree(state_);
                   columnTracker_.resetBaseline();
                   return t;
-              }();
+              }()
+            : columnTracker_.exportDirtyTree(state_);
         // 事件流随封产出（导出即消费：编码成功后清空队列——编码异常时保留
         // 供下一封重试，与变更集的"基线未推进"降级语义一致）
         const std::string out = state::encodeGameView(

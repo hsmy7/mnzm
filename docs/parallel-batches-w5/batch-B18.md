@@ -53,8 +53,8 @@
 | 臂 | 内容 | 状态 |
 |---|---|---|
 | 臂 1 | 传输臂退役：`mirrorProtobufTransport` 旗标 + JSON 分发分支 + `nativeSetDirtyExportProtobuf` 端口删除；`exportDirtyJson` 保留作桌面对拍 golden | ✅ 已提交 `df6b70d5a`（ctest 1556/1556 + 单进程 1553/1553 exit=0 + SurfaceGuard 6/6） |
-| 臂 2 | 投影臂退役：`gameViewProjection` 旗标删除 + `GameEngine` 三块 UI 消费恒投影 + 旧全量往返臂转测试 golden | ✅ 本轮实施 |
-| 臂 3 | 列级导出臂（`dirtyColumnExport`）退役 | ⬜ 未动 |
+| 臂 2 | 投影臂退役：`gameViewProjection` 旗标删除 + `GameEngine` 三块 UI 消费恒投影 + 旧全量往返臂转测试 golden | ✅ 已提交 `efba3ee72` |
+| 臂 3 | 列级臂退役：`dirtyColumnExport` 旗标 + `nativeSetDirtyExportColumn` 端口删除，恒列级导出（**异构锁存 `columnExportBlocked_` 保留**）；`exportDirtyColumnJson` 保留作 golden；解码侧 `decodeView` 缺省值即生产形态（恒列级补丁） | ✅ 本轮实施 |
 | 臂 β | 场景臂（`sceneStoreRender`）退役 | ⬜ 未动 |
 | 臂 γ / 吸收项 | `upsertsJson` typed 化 / G5 / b03 遗留 / Room 死列 / 注释收口 | ⬜ 未动 |
 
@@ -67,6 +67,31 @@
   补"镜像馈送恒推进投影"正向用例；`MirrorSegmentProjectionBenchTest` 单臂化（去对照臂计时，
   保留全等断言 + 趋势数字打印）。
 - 门禁：JNI 基线 `91 → 90`（臂 1 删端口后实测值，随臂 2 提交同步下调）。
+
+**臂 3 实施要点**：
+- 生产侧（C++）：`setDirtyExportColumn` / `dirtyExportColumn()` / `columnLevelDirtyExport_`
+  成员删除；`exportDirtyProto` 恒列级（`columnExportBlocked_` 异构锁存**保留**——它是
+  月/年/旬边界外写入路径的防漏报正确性机制，**不是回滚臂**）。
+- 生产侧（Kotlin）：`GameCoreBridge.nativeSetDirtyExportColumn` decl 删、
+  `GameEngineCoreAuthoritativeOps` 推送调用点删、`NativeEngineFlag.dirtyColumnExport` 旗标删、
+  JNI 实现删（`GameCoreBridge.cpp`）。
+- 解码侧重构：`GameViewMirrorCodec.decodeView` 缺省值翻转为**生产形态**
+  （`includeDiscipleJson = false` + `discipleRowsAsPatches = true`）；
+  `StateSyncService.applyDirtyProto` 改为单参重载 + `internal applyDirtyProtoWith(decode)`
+  注入点（golden 对照臂用）。
+- 守卫侧：`DiffColumnExportMergeConvergenceTest` 的"全量信封→全行应用"臂**转 golden**
+  （`goldenApplyFullRows` 显式传 `discipleRowsAsPatches = false`）；
+  `MirrorConsumerSurfaceGuardTest` 补 `dirtyColumnExport` 反向断言 +
+  "不得由旗标决定 `discipleRowsAsPatches`"断言；
+  `GameViewDiscipleProjectionTest.jsonViaTree` 显式传参（原依赖旧缺省值）；
+  `MirrorSegmentProjectionBenchTest.measureColumn` 去旗标 try/finally。
+- 门禁：JNI 基线 `90 → 89`（臂 3 删端口后实测值）。
+- **踩坑登记**：`decodeDiscipleDelta` 的 `when` 分支顺序为「补丁 > JSON 树 > typed 全行」，
+  故**只翻 `includeDiscipleJson` 缺省值不足以表达形态**——`discipleRowsAsPatches = true`
+  会屏蔽 JSON 树分支，使对照臂静默失效（3 个用例红）。凡依赖旧缺省值的对照面**必须显式传
+  `discipleRowsAsPatches = false`**。另：`StateSyncService` **不得 import `proto.gameview.*`**
+  （该 import 面被 `MirrorConsumerSurfaceGuardTest` 锁死在 codec + 行投影两处），
+  故 `applyDirtyProtoWith` 的解码器形参用**全限定名**声明。
 
 ### 1. 回滚臂删除（本批主体）
 

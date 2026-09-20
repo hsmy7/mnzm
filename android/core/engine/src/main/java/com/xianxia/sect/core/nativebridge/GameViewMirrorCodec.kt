@@ -79,27 +79,42 @@ internal object GameViewMirrorCodec {
     fun parse(bytes: ByteArray): GameView = GameView.parseFrom(bytes)
 
     /**
-     * GameView 信封字节 → 变更集树（第一波形态：弟子行走 JSON 树承载）。
+     * GameView 信封字节 → 变更集树（旧协议形态：弟子行恒走 `changed["disciples"]`
+     * JSON 树）。**这是 B18 前的第一波形态，非生产路径**——生产恒经
+     * [StateSyncService.applyDirtyProto]（typed 投影 + 列级补丁）。本重载保留
+     * 供对拍守卫（[DiffDirtyEnvelopeEquivalenceTest] 逐键对照）与启动期预热，
+     * 语义**显式冻结**（补丁形态关、JSON 树开），不随生产缺省值漂移。
      * 非法字节抛 InvalidProtocolBufferException（调用方 runCatching 降级，不触碰状态）。
      */
-    fun decode(bytes: ByteArray): Decoded = decodeView(parse(bytes))
+    fun decode(bytes: ByteArray): Decoded = decodeView(
+        parse(bytes),
+        includeDiscipleJson = true,
+        discipleRowsAsPatches = false,
+    )
 
     /**
      * GameView proto 对象 → 变更集树。
      *
+     * ## 弟子行的三种交付形态（互斥，优先级：补丁 > JSON 树 > typed 全行投影）
+     * - **生产**（B18 两臂退役后唯一形态）：`includeDiscipleJson = false` +
+     *   `discipleRowsAsPatches = true` —— 行内仅脏列，消费侧按 store 基线合并；
+     * - **golden / 对拍对照面**：`includeDiscipleJson = true`（旧协议 JSON 数组）或
+     *   `discipleRowsAsPatches = false`（全行 typed 投影）——B18 前生产臂的历史
+     *   形态，保留供守卫冻结对照（改动须回到生产实现复审）。
+     *
+     * 缺省值 = 生产形态；但**形态选择必须显式传参**（历史上缺省值翻转曾使
+     * 对照臂静默失效——[decodeDiscipleDelta] 的 `when` 以补丁优先级最高）。
+     *
      * @param includeDiscipleJson true = 弟子行按旧协议在 `changed["disciples"]`
-     *        重建 JSON 数组（回滚臂 / 等价对照面）；false = 弟子行以 typed
-     *        [Decoded.discipleProjections] 交付（R2.3 第二波投影臂——每行 109 个
-     *        JsonElement 节点的造树成本整段退场）
+     *        重建 JSON 数组（B18 前回滚臂形态；golden 对照面）
      * @param discipleRowsAsPatches true = 弟子行以 [Decoded.disciplePatches]
-     *        补丁交付（R2.4/B09 列级导出：行内仅脏列，消费侧按基线合并），
-     *        优先于 [includeDiscipleJson]=false 的全行投影
+     *        补丁交付（行内仅脏列），优先于 [includeDiscipleJson]
      */
     fun decodeView(
         view: GameView,
-        includeDiscipleJson: Boolean = true,
+        includeDiscipleJson: Boolean = false,
         discipleJson: Json = json,
-        discipleRowsAsPatches: Boolean = false,
+        discipleRowsAsPatches: Boolean = true,
     ): Decoded {
         val gv = view
         val changed = LinkedHashMap<String, JsonElement>()

@@ -6,7 +6,6 @@ import com.xianxia.sect.core.engine.config.GameDataNativeBridge
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.GameCoreRngChannel
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.GameViewMirrorCodec
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.util.DomainLog
@@ -196,10 +195,8 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             )
             if (!initialized) return false
             gameRngManager.attachNativeChannel(GameCoreRngChannel)
-            // 列级增量导出接线（R2.4/B09 灰度）：与传输编码旗标同点推送，
-            // 早于任何 nativeExportDirty 调用——C++ 导出模式与 Kotlin 解码侧
-            // 读同一 [NativeEngineFlag.dirtyColumnExport]。
-            GameCoreBridge.nativeSetDirtyExportColumn(NativeEngineFlag.dirtyColumnExport)
+            // B18 列级臂退役：原列级增量导出旗标推送点已删——C++ 侧恒列级
+            // 导出（异构写入路径自动锁存回退全量一封），无旗标需与 Kotlin 对齐。
             // native 初始化完成后补注运行时配置
             // （CultivationEventProcessor 构造时 native 可能未加载——此处幂等补注）
             GameConfigNativeBridge.ensureInjected()

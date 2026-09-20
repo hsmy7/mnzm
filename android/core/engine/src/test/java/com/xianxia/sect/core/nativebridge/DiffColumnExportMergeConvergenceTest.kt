@@ -26,6 +26,16 @@ import org.junit.Test
  * 全行应用」馈送到同初态的两个 store，逐旬断言 gameData/实体集合/弟子表
  * 逐字段全等——C++ 写屏障漏标/错标或 Kotlin 合并语义漂移即红。
  *
+ * ## B18-臂3 后的对照面（重要）
+ * 列级旗标 `NativeEngineFlag.dirtyColumnExport` 已随臂 3 删除，生产解码恒
+ * 走列级补丁（`decodeView` 默认值即生产形态）。但"列级 vs 全行"的**对照面
+ * 不得失去**——故「全量信封 → 全行应用」这条臂**转写为测试侧 golden**：
+ * [goldenApplyFullRows] 直接调 `GameViewMirrorCodec.decodeView` 的历史形态
+ * 参数组合（`includeDiscipleJson = false, discipleRowsAsPatches = false`）
+ * 取全行 typed 投影，再与生产路径（恒补丁）馈送结果逐旬对照。C++ 侧两条
+ * 导出通道（`nativeCoreExportDirtyColumn` 列级树 / `nativeCoreExportDirty`
+ * 全量树）仍严格配对同一写集——它们是**对拍输入**而非 Kotlin 回滚臂，保留。
+ *
  * 平台约束：普通 JUnit（桌面 .so 单 ClassLoader）；对拍桥
  * `nativeCoreExportDirtyColumn`（列级树 JSON，只消费 ColumnDirtyTracker）
  * 与 `nativeCoreExportDirty`（全量树 JSON）严格配对同一写集，
@@ -79,9 +89,10 @@ class DiffColumnExportMergeConvergenceTest {
                 println("[probe] FULLTREE=$fullTree")
             }
 
-            val viaColumn = withColumnFlag(true) { columnArm.applyDirtyProto(columnProto) }
-            val viaFull = withColumnFlag(false) { fullArm.applyDirtyProto(fullProto) }
-
+            // 生产路径：恒列级补丁（decodeView 默认值 = 生产形态）
+            val viaColumn = columnArm.applyDirtyProto(columnProto)
+            // golden 对照面：全量信封按 B18 前的"全行 typed 投影"形态解码
+            val viaFull = goldenApplyFullRows(fullProto)
             assertNotNull("列级信封解析/应用失败", viaColumn)
             assertNotNull("全量信封解析/应用失败", viaFull)
             assertEquals(
@@ -100,15 +111,21 @@ class DiffColumnExportMergeConvergenceTest {
             assertTrue("须完成 ≥1 旬对账（否则本守卫空转）", convergedPhases >= 1)
         }
 
-        private inline fun <T> withColumnFlag(on: Boolean, block: () -> T): T {
-            val previous = NativeEngineFlag.dirtyColumnExport
-            NativeEngineFlag.dirtyColumnExport = on
-            return try {
-                block()
-            } finally {
-                NativeEngineFlag.dirtyColumnExport = previous
+        /**
+         * golden 对照臂：全量信封 → **全行 typed 投影**（B18 前生产形态的语义
+         * 冻结转写）。以 `decodeView` 的历史参数组合取全行投影，再复用生产
+         * applier——本函数改动须回到 `GameViewMirrorCodec` 复审（防止被顺手
+         * 改绿而失去对照意义）。
+         */
+        private fun goldenApplyFullRows(protoBytes: ByteArray): DirtyApplyResult? =
+            fullArm.applyDirtyProtoWith(protoBytes) { view ->
+                GameViewMirrorCodec.decodeView(
+                    view,
+                    includeDiscipleJson = false,
+                    discipleJson = json,
+                    discipleRowsAsPatches = false,
+                )
             }
-        }
 
         private fun seedStore(store: FakeGameStateStore, seed: NativeGameState) {
             store.gameDataValue = seed.gameData

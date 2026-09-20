@@ -61,9 +61,9 @@ private data class DirtyEnvelope(
      */
     val discipleProjections: List<Disciple> = emptyList(),
     /**
-     * 弟子行**补丁**（R2.4/B09 列级导出，[NativeEngineFlag.dirtyColumnExport] 开
-     * 且投影臂时非空、`discipleProjections` 恒空）——行内仅脏列 presence，
-     * 应用时以 store 既有行为基线合并（[GameViewDiscipleRows.mergeToDisciple]）。
+     * 弟子行**补丁**（R2.4/B09 列级导出；B18 后恒非空且 `discipleProjections`
+     * 恒空）——行内仅脏列 presence，应用时以 store 既有行为基线合并
+     * （[GameViewDiscipleRows.mergeToDisciple]）。
      */
     val disciplePatches: List<GameViewDiscipleRows.DiscipleRowPatch> = emptyList(),
     /** proto 块④事件流（R2.4 转正：月/年结算信封 + 突破/死亡/购买/秘境关闭）。 */
@@ -360,17 +360,26 @@ class StateSyncService @Inject constructor(
      *
      * @return 应用结果；字节非法（parseFrom 抛错，调用方 runCatching 捕获）
      */
-    fun applyDirtyProto(protoBytes: ByteArray): DirtyApplyResult? {
-        val view = GameViewMirrorCodec.parse(protoBytes)
-        // B18 投影臂退役：弟子行恒 typed 载荷交付（每行 109 节点的 JSON 造树整段
-        // 退场）；列级补丁交付由 dirtyColumnExport 灰度旗标决定（R2.4/B09 灰度臂，
-        // 待其退役后恒补丁）。
-        val decoded = GameViewMirrorCodec.decodeView(
-            view,
-            includeDiscipleJson = false,
-            discipleJson = json,
-            discipleRowsAsPatches = NativeEngineFlag.dirtyColumnExport,
-        )
+    fun applyDirtyProto(protoBytes: ByteArray): DirtyApplyResult? =
+        applyDirtyProtoWith(protoBytes) { GameViewMirrorCodec.decodeView(it, discipleJson = json) }
+
+    /**
+     * 同 [applyDirtyProto]，但由调用方提供**解码器**——供守卫测试注入被删生产臂的
+     * 历史解码形态（golden 对照面），不改变生产路径（生产恒用默认形态的
+     * [applyDirtyProto] 单参重载）。
+     *
+     * B18-臂3 后"列级补丁 vs 全行 typed 投影"的对照面：生产恒补丁，对照臂由
+     * `DiffColumnExportMergeConvergenceTest` 以历史参数组合注入。
+     *
+     * 解码器形参类型经 [GameViewMirrorCodec.parse] 的返回类型表达——本文件
+     * **不得 import `proto.gameview.*`**（`MirrorConsumerSurfaceGuardTest`
+     * 的"信封解码只经 codec"门禁把 import 面锁死在 codec + 行投影两处）。
+     */
+    internal fun applyDirtyProtoWith(
+        protoBytes: ByteArray,
+        decode: (com.xianxia.sect.proto.gameview.GameView) -> GameViewMirrorCodec.Decoded,
+    ): DirtyApplyResult? {
+        val decoded = decode(GameViewMirrorCodec.parse(protoBytes))
         // 事件流馈送（应用成败与否均先入队——事件消费与镜像应用解耦：
         // apply 失败走全量兜底时事件不丢）
         if (decoded.events.isNotEmpty()) gameViewStore.recordEvents(decoded.events)
