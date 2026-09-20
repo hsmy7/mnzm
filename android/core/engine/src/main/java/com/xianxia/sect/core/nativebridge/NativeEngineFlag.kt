@@ -44,25 +44,6 @@ object NativeEngineFlag {
     val authoritative: Boolean get() = mode == Mode.AUTHORITATIVE
 
 
-    /**
-     * 镜像瘦身灰度开关（重构方案 R2.3 第二波：GameViewStore 投影态 + 全量重建退场）。
-     *
-     * - **true（本批生产默认）**：镜像消费面走第二波形态——
-     *   ① [com.xianxia.sect.core.gameview.GameDataFieldPatch] 字段级应用 gameData
-     *   变更（替代整份 GameData JSON 往返的每旬级全量重建）；
-     *   ② [com.xianxia.sect.core.gameview.GameViewStore] 投影态承载已迁 UI 消费块
-     *   （资源头部/配置回声/事件流），[com.xianxia.sect.core.engine.GameEngine]
-     *   对应转发面以投影为入口；
-     *   ③ 弟子行走 typed 直读（`DiscipleRow → Disciple`，去每行 JSON 树重建）。
-     * - **false（回滚臂，共存一个版本周期）**：第一波形态——整份 GameData JSON
-     *   往返 + DiscipleRow→JsonObject→kotlinx 重建 + UI 只读 GameStateStore 全量流。
-     *
-     * 语义边界：仅改**消费侧应用形状**，不改协议、不改镜像内容、不改存档；
-     * 两臂逐值等价由 `GameDataFieldPatchEquivalenceTest` /
-     * `DiscipleRowTypedProjectionTest` / `GameViewProjectionFeedEquivalenceTest` 守卫。
-     */
-    @Volatile
-    var gameViewProjection: Boolean = true
 
     /**
      * 列级增量导出灰度开关（重构方案 R2.4/B09：R1.4 列级写屏障接生产）。

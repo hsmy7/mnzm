@@ -407,70 +407,35 @@ class GameEngine @Inject constructor(
     val sectCombatPower: StateFlow<Long> get() = stateStore.sectCombatPower
     val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = stateStore.aiSectCombatPowers
     /**
-     * UI 消费块①「资源头部」的取数入口（R2.3 第二波逐块迁移首块）。
-     *
-     * 开旗标 = GameViewStore 投影（镜像按封触及才重投，未触及块引用不变）；
-     * 关旗标 = 从整份 gameData 快照派生**同一视图类型**（第一波形态回滚臂）——
-     * 两臂共用 [com.xianxia.sect.core.gameview.GameViewStore.resourcesViewOf]，
-     * 同输入同输出，迁移只换来源不换值。
+     * UI 消费块①「资源头部」取数入口（B18 后恒 GameViewStore 投影来源——镜像
+     * 按封触及才重投）。"从整份 gameData 快照派生"的第一波回滚取数面已随臂
+     * 删除（[com.xianxia.sect.core.gameview.GameViewStore.resourcesViewOf] 派生
+     * 函数保留在 GameViewStore 供投影重投与测试 golden 使用）。
      */
     val resourcesHeader: StateFlow<com.xianxia.sect.core.gameview.ResourcesHeaderView> by lazy {
-        if (com.xianxia.sect.core.nativebridge.NativeEngineFlag.gameViewProjection) {
-            gameViewStore.resourcesHeader
-        } else {
-            stateStore.gameData.map { com.xianxia.sect.core.gameview.GameViewStore.resourcesViewOf(it) }
-                .distinctUntilChanged()
-                .stateIn(
-                    gameEngineCore.scopeForStateIn(),
-                    kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
-                    com.xianxia.sect.core.gameview.GameViewStore.RESOURCES_EMPTY
-                )
-        }
+        gameViewStore.resourcesHeader
     }
 
     val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = stateStore.highFreqState
     val entityState: StateFlow<GameStateStore.EntityState> get() = stateStore.entityState
     /**
-     * UI 消费块②「配置回声」的取数入口（R2.3 第二波逐块迁移第二块）。
-     *
-     * 与块①同构：开旗标 = 投影（本封变更集未触及配置字段即不重投）；
-     * 关旗标 = 从整份 gameData 快照派生同一视图。既有 [configState]
-     * （GameStateStore 三层流）保留给未迁消费面，两臂同源不分叉。
+     * UI 消费块②「配置回声」取数入口（B18 后恒 GameViewStore 投影来源——本封
+     * 变更集未触及配置字段即不重投）。既有 [configState]（GameStateStore 三层流）
+     * 保留给未迁消费面，与投影同源不分叉；"从整份 gameData 快照派生"的回滚取数面
+     * 已随臂删除。
      */
     val configEcho: StateFlow<com.xianxia.sect.core.gameview.ConfigEchoView> by lazy {
-        if (com.xianxia.sect.core.nativebridge.NativeEngineFlag.gameViewProjection) {
-            gameViewStore.configEcho
-        } else {
-            stateStore.gameData.map { com.xianxia.sect.core.gameview.GameViewStore.configViewOf(it) }
-                .distinctUntilChanged()
-                .stateIn(
-                    gameEngineCore.scopeForStateIn(),
-                    kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
-                    com.xianxia.sect.core.gameview.GameViewStore.CONFIG_EMPTY
-                )
-        }
+        gameViewStore.configEcho
     }
 
     /**
-     * UI 消费块③「事件流（当前载体 = gameData.gameEventRecords）」的取数入口
-     * （R2.3 第二波逐块迁移第三块）。
-     *
-     * 与块①②同构：开旗标 = 投影（本封未携带事件记录即引用不变，消息栏不随每旬
-     * 整份快照重算）；关旗标 = 从整份 gameData 快照派生同一视图。
+     * UI 消费块③「事件流（当前载体 = gameData.gameEventRecords）」取数入口
+     * （B18 后恒 GameViewStore 投影来源——本封未携带事件记录即引用不变，消息栏
+     * 不随每旬整份快照重算）；"从整份 gameData 快照派生"的回滚取数面已随臂删除。
      * proto 信封块 3 `eventFeed` 由 R2.4 产出后，本块来源改吃 typed 事件流。
      */
     val eventLog: StateFlow<com.xianxia.sect.core.gameview.EventLogView> by lazy {
-        if (com.xianxia.sect.core.nativebridge.NativeEngineFlag.gameViewProjection) {
-            gameViewStore.eventLog
-        } else {
-            stateStore.gameData.map { com.xianxia.sect.core.gameview.EventLogView(it.gameEventRecords) }
-                .distinctUntilChanged()
-                .stateIn(
-                    gameEngineCore.scopeForStateIn(),
-                    kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
-                    com.xianxia.sect.core.gameview.EventLogView(emptyList())
-                )
-        }
+        gameViewStore.eventLog
     }
 
     val configState: StateFlow<GameStateStore.ConfigState> get() = stateStore.configState

@@ -162,11 +162,13 @@ internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
 /**
  * 解析 nativeSettleMonth 信封（宽松：缺键 → 空/默认，兼容旧 .so 无草稿段）。
  *
- * **回滚臂专用**（R2.4 起）：生产路径的信封输入 = proto eventFeed 的
+ * **兜底专用**（R2.4 起）：生产路径的信封输入 = proto eventFeed 的
  * [buildMonthEnvelopeFromEvents]（零 JSON 解析）；本函数仅在无 MONTH_SETTLED
- * 事件在场证明时兜底（`mirrorProtobufTransport=false` 的 JSON 回滚臂 / 事件
- * 解码失败丢失）。执行器零 JSON 解析由静态守卫锁定（本文件为登记的解析边界，
- * 不属执行器源）；删除随 JSON 回滚臂移除批次。
+ * 事件在场证明时兜底（事件解码失败丢失 / 旧 .so 无 eventFeed 段）。
+ * 执行器零 JSON 解析由静态守卫锁定（本文件为登记的解析边界，不属执行器源）；
+ * B18 后 `mirrorProtobufTransport=false` 的 JSON 回滚臂已删除，本函数的保留
+ * 理由收敛为"旧 .so 兼容 + 事件丢失兜底"，不再承担回滚臂职责（事件在场证明
+ * 口径见历史批次登记）。
  */
 @Suppress("TooGenericExceptionCaught")  // 降级契约：信封损坏按空信封处理（旧 .so/异常输出）
 internal fun parseMonthSettlementEnvelope(envJson: String): MonthSettlementEnvelope {

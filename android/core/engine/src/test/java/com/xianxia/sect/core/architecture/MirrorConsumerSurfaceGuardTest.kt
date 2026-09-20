@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.architecture
 
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,7 +30,9 @@ import java.io.File
  * 3. UI 模块（`core/ui` 与 `feature` 各模块）主源对镜像符号零命中——UI 只经
  *    GameStateStore 只读流消费，不直连镜像通道（"UI 行为零变更"的结构面）；
  * 4. 传输臂退役后的单臂源码面（B18，2026-09-20 用户决策开工）：生产通道恒
- *    `applyDirtyProto`，JSON 回滚分支与 `mirrorProtobufTransport` 旗标不得回流。
+ *    `applyDirtyProto`，JSON 回滚分支与 `mirrorProtobufTransport` 旗标不得回流；
+ *    投影臂退役（B18-臂2）后 `gameViewProjection` 旗标同样不得回流——UI 消费块
+ *    恒走 GameViewStore 投影，旧的"整份 gameData 快照派生"回滚取数面不得长回。
  */
 class MirrorConsumerSurfaceGuardTest {
 
@@ -96,11 +97,11 @@ class MirrorConsumerSurfaceGuardTest {
             "传输旗标不得回流（mirrorProtobufTransport 已随 B18 删除）",
             flagSource.contains("mirrorProtobufTransport")
         )
-        assertTrue(
-            "第二波投影旗标默认值漂移（R2.3 二波生产默认 = 投影态生效）",
-            flagSource.contains("var gameViewProjection: Boolean = true")
+        assertFalse(
+            "投影旗标不得回流（gameViewProjection 已随 B18 删除，" +
+                "UI 消费块恒走 GameViewStore 投影）",
+            flagSource.contains("gameViewProjection")
         )
-        assertTrue("运行期旗标默认值（第二波）", NativeEngineFlag.gameViewProjection)
     }
 
     /**

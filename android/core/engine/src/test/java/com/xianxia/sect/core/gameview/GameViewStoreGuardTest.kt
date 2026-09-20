@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventRecord
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.nativebridge.FakeGameStateStore
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -137,20 +136,16 @@ class GameViewStoreGuardTest {
     }
 
     @Test
-    fun `灰度旗标关闭即不馈送投影（回滚臂第一波形态）`() {
+    fun `镜像馈送恒推进投影（B18 后无灰度开关）`() {
         val store = FakeGameStateStore().apply { gameDataValue = seededGameData() }
         val viewStore = GameViewStore().also { it.attach(store) }
         val service = StateSyncService(store, viewStore)
-        val previous = NativeEngineFlag.gameViewProjection
-        NativeEngineFlag.gameViewProjection = false
-        try {
-            service.applyDirty(dirtyJson(change("spiritStones", 777L)))
-        } finally {
-            NativeEngineFlag.gameViewProjection = previous
-        }
-        assertEquals("关旗标后投影不得被镜像推进（UI 块由 GameEngine 转发回退全量流）", 777L, store.gameDataValue.spiritStones)
-        assertEquals(0L, viewStore.resourcesHeader.value.spiritStones)
-        assertEquals(0L, viewStore.projectionGeneration)
+
+        service.applyDirty(dirtyJson(change("spiritStones", 777L)))
+
+        assertEquals("镜像写回 store 生效", 777L, store.gameDataValue.spiritStones)
+        assertEquals("镜像封必须恒推进投影（旗标已随 B18 删除）", 777L, viewStore.resourcesHeader.value.spiritStones)
+        assertEquals("投影代际必须随镜像封推进", 1L, viewStore.projectionGeneration)
     }
 
     // ── 夹具 ────────────────────────────────────────────────────

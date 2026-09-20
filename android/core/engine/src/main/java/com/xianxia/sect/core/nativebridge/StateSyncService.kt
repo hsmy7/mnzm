@@ -55,9 +55,9 @@ private data class DirtyEnvelope(
     val changed: JsonObject,
     val removed: JsonObject,
     /**
-     * 弟子行 typed 投影（R2.3 第二波，[NativeEngineFlag.gameViewProjection] 开时
-     * 非空且 `changed["disciples"]` 恒缺）；JSON 回滚臂 / 第一波形态为空表，
-     * 弟子行走 `changed["disciples"]` 的 JSON 数组重建。
+     * 弟子行 typed 投影（R2.3 第二波；B18 后恒非空且 `changed["disciples"]` 恒缺）。
+     * 旧的 JSON 重建臂已于 B18 随投影旗标删除，弟子行恒走 typed 投影而不走
+     * `changed["disciples"]` 的 JSON 数组重建。
      */
     val discipleProjections: List<Disciple> = emptyList(),
     /**
@@ -216,7 +216,6 @@ class StateSyncService @Inject constructor(
      * 与增量臂共用同一 gameData 实例 ⇒ 两臂馈送后投影不可能分叉。
      */
     private fun MutableGameState.reprojectFromSnapshot() {
-        if (!NativeEngineFlag.gameViewProjection) return
         gameViewStore.recordMirrorCommit(stateStore.currentTransactionGeneration)
         gameViewStore.reprojectAll(gameData)
     }
@@ -294,7 +293,7 @@ class StateSyncService @Inject constructor(
         // 基线建立点 = 投影重投点（读档 / 新档 / 事件后 rebaseline 三处共用）：
         // 换档走 loadFromSnapshot 而非 update 事务，对账钩子不覆盖，必须在此收敛，
         // 否则暂停态读档后 HUD 会停在上一档的头部值。
-        if (NativeEngineFlag.gameViewProjection) gameViewStore.reprojectAll(state.gameData)
+        gameViewStore.reprojectAll(state.gameData)
         val encoded = json.encodeToString(NativeGameState.serializer(), state)
         // 双实现并行契约：native 不可用降级 false（不崩溃，Kotlin 引擎照常）
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
@@ -363,17 +362,14 @@ class StateSyncService @Inject constructor(
      */
     fun applyDirtyProto(protoBytes: ByteArray): DirtyApplyResult? {
         val view = GameViewMirrorCodec.parse(protoBytes)
-        // R2.3 第二波灰度：投影臂下弟子行以 typed 载荷交付（每行 109 节点的 JSON
-        // 造树整段退场）；关旗标即回第一波形态（同一棵树、同一 applier）。
-        // R2.4/B09 列级灰度：列级导出开（且投影臂）时弟子行以**补丁**交付
-        // （行内仅脏列，应用时按 store 既有行合并）——全量封（异构锁存/回滚）
-        // 的全行补丁同走合并面，语义一致。
-        val projection = NativeEngineFlag.gameViewProjection
+        // B18 投影臂退役：弟子行恒 typed 载荷交付（每行 109 节点的 JSON 造树整段
+        // 退场）；列级补丁交付由 dirtyColumnExport 灰度旗标决定（R2.4/B09 灰度臂，
+        // 待其退役后恒补丁）。
         val decoded = GameViewMirrorCodec.decodeView(
             view,
-            includeDiscipleJson = !projection,
+            includeDiscipleJson = false,
             discipleJson = json,
-            discipleRowsAsPatches = projection && NativeEngineFlag.dirtyColumnExport,
+            discipleRowsAsPatches = NativeEngineFlag.dirtyColumnExport,
         )
         // 事件流馈送（应用成败与否均先入队——事件消费与镜像应用解耦：
         // apply 失败走全量兜底时事件不丢）
@@ -410,13 +406,11 @@ class StateSyncService @Inject constructor(
     }
 
     /**
-     * 镜像事务内馈送投影（R2.3 第二波，[NativeEngineFlag.gameViewProjection] 灰度）：
+     * 镜像事务内馈送投影（R2.3 第二波；B18 后恒执行，无灰度开关）：
      * 与 store 写回同一事务、同一 gameData 实例 ⇒ 投影与全量镜像不可能读到彼此
-     * 不同步的中间态；关旗标即不馈送，UI 消费块由 [GameEngine] 转发回退到
-     * GameStateStore 全量流（第一波形态）。
+     * 不同步的中间态。UI 消费块由 [GameEngine] 转发到本投影。
      */
     private fun MutableGameState.feedProjection(carriedGameDataFields: Set<String>) {
-        if (!NativeEngineFlag.gameViewProjection) return
         gameViewStore.recordMirrorCommit(stateStore.currentTransactionGeneration)
         gameViewStore.project(carriedGameDataFields, gameData)
     }
@@ -463,46 +457,27 @@ class StateSyncService @Inject constructor(
     /**
      * gameData 字段级覆盖（未变化字段零改动，单事务内合并）。
      *
-     * 两臂（R2.3 第二波灰度，[NativeEngineFlag.gameViewProjection]）：
-     * - 开（生产默认）：[GameDataFieldPatch] 一次浅拷贝 + 变更字段逐个解码；
-     * - 关（回滚臂）：整份 GameData JSON 往返（第一波形态，每旬级全量重建）。
-     * 两臂逐值等价由 `GameDataFieldPatchEquivalenceTest` 锁定。
+     * B18 后单一形态：[GameDataFieldPatch] 一次浅拷贝 + 变更字段逐个解码。原
+     * "关旗标走整份 GameData JSON 往返"的回滚臂（第一波形态，每旬级全量重建）
+     * 已随 `gameViewProjection` 旗标删除；其最终语义转写为测试侧 golden 夹具
+     * （`GameDataFieldPatchGuardTest.goldenRoundTrip`）。
+     * 字段级应用与旧往返臂的逐值等价由 `GameDataFieldPatchEquivalenceTest` 锁定。
      *
      * @return 本封携带的 gameData 变更字段数（与旧路径同：解码失败丢弃仍计数）
      */
     private fun MutableGameState.mergeGameDataChanges(changed: JsonObject): Int {
         val gameDataChanges = changed.filterKeys { it.startsWith(GAMEDATA_PATH_PREFIX) }
         if (gameDataChanges.isEmpty()) return 0
-        if (NativeEngineFlag.gameViewProjection) {
-            GameDataFieldPatch.apply(
-                current = gameData,
-                changes = gameDataChanges.map { (path, value) ->
-                    path.removePrefix(GAMEDATA_PATH_PREFIX) to value
-                },
-                json = json
-            )?.let { patched -> gameData = patched }
-            return gameDataChanges.size
-        }
-        val currentJson =
-            json.encodeToJsonElement(GameData.serializer(), gameData).jsonObject
-        val overrides =
-            gameDataChanges.mapKeys { it.key.removePrefix(GAMEDATA_PATH_PREFIX) }
-        val merged = buildJsonObject {
-            currentJson.forEach { (k, v) -> put(k, v) }
-            overrides.forEach { (k, v) -> put(k, v) }
-        }
-        @Suppress("TooGenericExceptionCaught", "SwallowedException")
-        gameData = try {
-            val decoded = json.decodeFromJsonElement(GameData.serializer(), merged)
-            // @Transient 运行态面（全部 9 字段）解码必然丢失——以事务前值整体
-            // 承载（b02 发现 11 根治：与生产臂同语义，镜像永不触碰该面）；
-            // 反射枚举新增字段自动纳入，不再手抄回填清单
-            GameDataTransientFace.carryOver(gameData, decoded)
-            decoded
-        } catch (e: Exception) {
-            // 变更值与 schema 不符（版本漂移防御）——保留 Kotlin 现状
-            gameData
-        }
+        // B18 投影臂退役：恒字段级应用。原"整份 JSON 往返"回滚臂（全量往返 +
+        // GameDataTransientFace 承载）的最终语义已转写为测试侧 golden 夹具
+        // （GameDataFieldPatchGuardTest.goldenRoundTrip）——守卫对照面不因删臂丢失。
+        GameDataFieldPatch.apply(
+            current = gameData,
+            changes = gameDataChanges.map { (path, value) ->
+                path.removePrefix(GAMEDATA_PATH_PREFIX) to value
+            },
+            json = json
+        )?.let { patched -> gameData = patched }
         return gameDataChanges.size
     }
 

@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.nativebridge.DirtyApplyResult
 import com.xianxia.sect.core.nativebridge.FakeGameStateStore
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import kotlinx.serialization.descriptors.elementNames
 import kotlinx.serialization.json.Json
@@ -18,6 +17,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.serializer
@@ -35,9 +35,12 @@ import org.junit.Test
  * 换的是**形状**，一个字段都不能换出**结果**：任何字段级解码与整份解码在
  * 同一 Json 实例 / 同一 serializer 下出现分歧，UI 看到的就是与迁移前不同的值。
  *
- * 对照面用**生产两臂**（`NativeEngineFlag.gameViewProjection` 开/关走
- * [StateSyncService.applyDirty] 的两条分支），而不是测试内复刻的参考实现——
- * 守卫锁的是"线上真跑的那两条臂同值"，旗标一关即回第一波形态。
+ * 对照面 = **测试侧 golden 转写**（[goldenRoundTrip]：被删生产臂的最终语义
+ * 冻结快照，B18-臂2）。B18 前对照面是"生产两臂"（`NativeEngineFlag.gameViewProjection`
+ * 开/关走 [StateSyncService.applyDirty] 的两条分支）；投影臂退役后回滚臂已从
+ * 生产删除，但守卫不得失去对照面——故把旧全量往返臂的最终语义原样搬到测试侧
+ * 冻结，[feed]（生产路径）继续与之逐值对照。golden 一旦被"顺手改绿"即失去
+ * 对照意义，改动须回到 `GameDataFieldPatch.apply` 复审。
  *
  * ## 三条边界
  * 1. **双射**：写入器键集 == GameData 序列化面（kotlinx 描述符 elementNames）。
@@ -68,7 +71,7 @@ class GameDataFieldPatchGuardTest {
     }
 
     @Test
-    fun `字段级应用与旧全量 JSON 往返逐值等价（逐类别两臂对照）`() {
+    fun `字段级应用与旧全量 JSON 往返逐值等价（逐类别 golden 对照）`() {
         val cases: List<Pair<String, List<Pair<String, JsonElement>>>> = listOf(
             "标量-String" to listOf(change("sectName", "等价宗")),
             "标量-Int" to listOf(change("gamePhase", 2)),
@@ -108,14 +111,13 @@ class GameDataFieldPatchGuardTest {
             "空变更集" to emptyList()
         )
         for ((label, changes) in cases) {
-            val legacy = feed(changes, projection = false)
-            val patched = feed(changes, projection = true)
-            assertEquals("$label：两臂 gameData 逐值分歧", legacy.gameDataValue, patched.gameDataValue)
-            assertEquals("$label：两臂应用计数分歧", legacy.applyResult, patched.applyResult)
+            val golden = goldenRoundTrip(changes)
+            val patched = feed(changes)
+            assertEquals("$label：golden 与生产臂 gameData 逐值分歧", golden, patched.gameDataValue)
             if (changes.isNotEmpty()) {
                 assertNotSame(
                     "$label：新实例缺失（store 事务以引用变化为提交判据）",
-                    legacy.gameDataValue, patched.gameDataValue
+                    richGameData(), patched.gameDataValue
                 )
             }
         }
@@ -127,33 +129,29 @@ class GameDataFieldPatchGuardTest {
             change("gameYear", 5),
             "gamePhase" to JsonPrimitive("旬位不是字符串")
         )
-        val legacy = feed(changes, projection = false)
-        val patched = feed(changes, projection = true)
-        assertEquals("两臂失败语义一致：整组变更丢弃", legacy.gameDataValue, patched.gameDataValue)
+        val patched = feed(changes)
+        assertEquals("失败语义：整组变更丢弃（原实例不动）", patched.initialGameData, patched.gameDataValue)
         assertEquals("gameYear 不得留下半套变更", RICH_GAME_YEAR, patched.gameDataValue.gameYear)
         assertSame(
-            "旧臂丢弃后保留的必须是同一实例（引用不变 = 不触发 StateFlow 重发）",
-            legacy.gameDataValue, legacy.store.gameDataValue
+            "丢弃后保留的必须是同一实例（引用不变 = 不触发 StateFlow 重发）",
+            patched.initialGameData, patched.store.gameDataValue
         )
-        assertEquals("两臂计数同为携带字段数（失败也计数，与旧语义一致）", legacy.applyResult, patched.applyResult)
+        assertEquals("计数为携带字段数（失败也计数，与旧语义一致）", 2, patched.applyResult?.changedFieldCount)
     }
 
     @Test
     fun `未知键宽松忽略且不中断其余在册字段（前向兼容面）`() {
         val changes = listOf("futureFieldFromNewerNative" to JsonPrimitive(123), change("gameMonth", 6))
-        val legacy = feed(changes, projection = false)
-        val patched = feed(changes, projection = true)
-        assertEquals("未知键两臂均不影响在册字段", legacy.gameDataValue, patched.gameDataValue)
+        val patched = feed(changes)
+        assertEquals("未知键不中断在册字段应用", 6, patched.gameDataValue.gameMonth)
         assertEquals("未知键在 gameData 序列化面之外", false, patched.gameDataValue.run {
             GameData.Companion.serializer().descriptor.elementNames.contains("futureFieldFromNewerNative")
         })
     }
 
     @Test
-    fun `transient 运行态字段两臂同值（镜像不触碰 @Transient 面——b02 发现 11 根治）`() {
-        val patched = feed(listOf(change("gameYear", 8)), projection = true)
-        val legacy = feed(listOf(change("gameYear", 8)), projection = false)
-        assertEquals("@Transient 面两臂逐值一致", legacy.gameDataValue, patched.gameDataValue)
+    fun `transient 运行态字段经镜像馈送同值（镜像不触碰 @Transient 面——b02 发现 11 根治）`() {
+        val patched = feed(listOf(change("gameYear", 8)))
         val gd = patched.gameDataValue
         assertEquals("镜像保留 slotId 现值（不再打回默认 0）", 3, gd.slotId)
         assertEquals(
@@ -161,46 +159,63 @@ class GameDataFieldPatchGuardTest {
             mapOf("beast1" to "aiSectA"), gd.aiBeastEncounterTargets
         )
         assertEquals("镜像保留 autoSaveIntervalMonths 现值", 9, gd.autoSaveIntervalMonths)
-        assertEquals("镜像永不主动清空域：aiSectDisciples 两臂均保留现值", mapOf("s" to emptyList<Disciple>()), gd.aiSectDisciples)
+        assertEquals("镜像永不主动清空域：aiSectDisciples 保留现值", mapOf("s" to emptyList<Disciple>()), gd.aiSectDisciples)
         assertEquals("镜像永不主动清空域：lockedBeastIds 保留现值", setOf("b7"), gd.lockedBeastIds)
     }
 
     /**
      * 防复发守卫（结构性）：以 @Transient 注解为权威反射枚举全部运行态字段，
-     * 断言镜像馈送（两臂各跑）前后逐字段值不变——**新增 @Transient 字段自动
-     * 纳管**，不再依赖手抄清单（旧形状的教训：手抄 4 字段回填漏掉 5 个，三臂
-     * 对照守卫因"三臂同错"而看不见该缺陷）。
+     * 断言镜像馈送前后逐字段值不变——**新增 @Transient 字段自动纳管**，不再依赖
+     * 手抄清单（旧形状的教训：手抄 4 字段回填漏掉 5 个，三臂对照守卫因"三臂同错"
+     * 而看不见该缺陷）。
      */
     @Test
     fun `防复发 - 全部 Transient 字段经镜像馈送后逐字段保留（新增字段自动纳管）`() {
-        for (projection in listOf(true, false)) {
-            val before = richGameData()
-            val after = feed(listOf(change("gameMonth", 6)), projection = projection)
-            for (name in GameDataTransientFace.fieldNames) {
-                val field = GameData::class.java.getDeclaredField(name).apply { isAccessible = true }
-                assertEquals(
-                    "projection=$projection：镜像不得触碰 @Transient 字段 $name",
-                    field.get(before), field.get(after.gameDataValue)
-                )
-            }
+        val before = richGameData()
+        val after = feed(listOf(change("gameMonth", 6)))
+        for (name in GameDataTransientFace.fieldNames) {
+            val field = GameData::class.java.getDeclaredField(name).apply { isAccessible = true }
+            assertEquals(
+                "镜像不得触碰 @Transient 字段 $name",
+                field.get(before), field.get(after.gameDataValue)
+            )
         }
     }
 
-    // ── 两臂馈送夹具 ────────────────────────────────────────────
+    // ── 对照面夹具 ──────────────────────────────────────────────
 
-    private class Feed(val store: FakeGameStateStore, val gameDataValue: GameData, val applyResult: DirtyApplyResult?)
+    private class Feed(
+        val store: FakeGameStateStore,
+        /** 馈送**前**的 store 现值实例（失败语义断言的"原实例"基准）。 */
+        val initialGameData: GameData,
+        val gameDataValue: GameData,
+        val applyResult: DirtyApplyResult?
+    )
 
-    /** 同一初态 + 同一封变更集，按灰度旗标分别走两臂馈送。 */
-    private fun feed(changes: List<Pair<String, JsonElement>>, projection: Boolean): Feed {
+    /** 生产路径馈送（B18 后单臂：恒 [GameDataFieldPatch] 字段级应用）。 */
+    private fun feed(changes: List<Pair<String, JsonElement>>): Feed {
         val store = FakeGameStateStore().apply { gameDataValue = richGameData() }
-        val previous = NativeEngineFlag.gameViewProjection
-        NativeEngineFlag.gameViewProjection = projection
-        return try {
-            val result = StateSyncService(store).applyDirty(envelopeJson(changes))
-            Feed(store, store.gameDataValue, result)
-        } finally {
-            NativeEngineFlag.gameViewProjection = previous
+        val initial = store.gameDataValue
+        val result = StateSyncService(store).applyDirty(envelopeJson(changes))
+        return Feed(store, initial, store.gameDataValue, result)
+    }
+
+    /**
+     * golden 夹具：被删生产臂（整份 JSON 往返 + @Transient 承载）的最终语义转写。
+     *
+     * B18-臂2 把「关旗标走整份 GameData JSON 往返」的回滚臂从生产删除；本函数
+     * 以测试侧实现冻结其语义，供 [feed] 逐值对照——守卫的对照面因此不因删臂丢失。
+     */
+    private fun goldenRoundTrip(changes: List<Pair<String, JsonElement>>): GameData {
+        val before = richGameData()
+        val currentJson = json.encodeToJsonElement(GameData.serializer(), before).jsonObject
+        val merged = buildJsonObject {
+            currentJson.forEach { (k, v) -> put(k, v) }
+            changes.forEach { (name, value) -> put(name, value) }
         }
+        val decoded = json.decodeFromJsonElement(GameData.serializer(), merged)
+        GameDataTransientFace.carryOver(before, decoded)
+        return decoded
     }
 
     private fun envelopeJson(changes: List<Pair<String, JsonElement>>): String =

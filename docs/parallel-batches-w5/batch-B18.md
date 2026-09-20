@@ -48,6 +48,26 @@
 
 ## 任务
 
+### 0. 臂级施工进展（2026-09-20 晚用户两次显式指令开工——到期判据缺口知情覆盖）
+
+| 臂 | 内容 | 状态 |
+|---|---|---|
+| 臂 1 | 传输臂退役：`mirrorProtobufTransport` 旗标 + JSON 分发分支 + `nativeSetDirtyExportProtobuf` 端口删除；`exportDirtyJson` 保留作桌面对拍 golden | ✅ 已提交 `df6b70d5a`（ctest 1556/1556 + 单进程 1553/1553 exit=0 + SurfaceGuard 6/6） |
+| 臂 2 | 投影臂退役：`gameViewProjection` 旗标删除 + `GameEngine` 三块 UI 消费恒投影 + 旧全量往返臂转测试 golden | ✅ 本轮实施 |
+| 臂 3 | 列级导出臂（`dirtyColumnExport`）退役 | ⬜ 未动 |
+| 臂 β | 场景臂（`sceneStoreRender`）退役 | ⬜ 未动 |
+| 臂 γ / 吸收项 | `upsertsJson` typed 化 / G5 / b03 遗留 / Room 死列 / 注释收口 | ⬜ 未动 |
+
+**臂 2 实施要点**（施工卡见 `docs/parallel-batches-w5/handover-b18-wip-2026-09-20.md` §2）：
+- 生产侧：`GameEngine.resourcesHeader / configEcho / eventLog` 三块删 if/else 回滚分支，恒
+  `gameViewStore.*`；`StateSyncService` 恒字段级应用 + 恒馈送投影；KDoc 残留全清。
+- 守卫侧：`MirrorConsumerSurfaceGuardTest` 旗标断言转**反向断言**（不得回流）；
+  `GameDataFieldPatchGuardTest` 两臂对照 → **测试侧 golden 夹具**（`goldenRoundTrip`，
+  即"删臂后守卫不得失去对照面"纪律的落地）；`GameViewStoreGuardTest` 删旗标关闭用例、
+  补"镜像馈送恒推进投影"正向用例；`MirrorSegmentProjectionBenchTest` 单臂化（去对照臂计时，
+  保留全等断言 + 趋势数字打印）。
+- 门禁：JNI 基线 `91 → 90`（臂 1 删端口后实测值，随臂 2 提交同步下调）。
+
 ### 1. 回滚臂删除（本批主体）
 
 - `drawAllTiles` 旧臂退役；
