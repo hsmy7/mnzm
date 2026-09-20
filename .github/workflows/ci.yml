@@ -92,6 +92,27 @@ jobs:
       - name: Run engine unit tests with desktop JNI
         run: ./gradlew :core:engine:testReleaseUnitTest --max-workers=1 --build-cache "-Dgamecore.jni.path=$GITHUB_WORKSPACE/android/core/engine/build/desktop-jni/libgamecorejni.so"
 
+  # ── JNI 面计数门禁（b02 发现 6 根治；B17-min 交付物）──────────────────
+  # 「external fun 只增不减无闸累积」是 W5 期间实证过的风险（74 → 91，+17 全靠
+  # 人工豁免登记）。本门禁三条规则：计数不增 / 面不扩散（只许在册双桥）/
+  # 收缩提示。豁免 = 同 PR 显式改 scripts/jni-count.baseline.json 并附理由。
+  # 触发面：android/** 变更即跑（脚本本身变化走 push/pull_request 全触发兜底）。
+  jni-count-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: JNI count gate
+        run: node scripts/check-jni-count.mjs
+
   build:
     runs-on: ubuntu-latest
     defaults:

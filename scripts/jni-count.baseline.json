@@ -1,0 +1,9 @@
+{
+  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。增长须同 PR 显式改本文件并附豁免理由；收缩建议随 PR 同步下调。基线口径 = W5 收官实数（B16 后）：GameCoreBridge 42（含 nativeSetGameData）+ NativeBridge 49（含 sceneSpawnFloatingText）= 91。",
+  "perFile": {
+    "android/core/engine/src/main/java/com/xianxia/sect/core/nativebridge/GameCoreBridge.kt": 42,
+    "android/core/engine/src/main/java/com/xianxia/sect/core/nativebridge/NativeBridge.kt": 49
+  },
+  "total": 91,
+  "updatedAt": "2026-09-20"
+}
