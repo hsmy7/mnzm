@@ -46,6 +46,9 @@
 2. 发一次版本（`version.properties` 涨号 + 发布），开始累计周期；
 3. 周期内零回滚 ⇒ 产出证据 → 方可开工。
 
+**✅ 书面豁免（2026-09-20 深夜用户确认）**：按 `b18-solution-2026-09-20.md` §4 文本执行——
+用户两次显式指令开工在先、四项拍板确认在后；验收门第 4 条以**豁免文本 + 拍板记录**替代（附完成报告）。
+
 ## 任务
 
 ### 0. 臂级施工进展（2026-09-20 晚用户两次显式指令开工——到期判据缺口知情覆盖）
@@ -56,7 +59,7 @@
 | 臂 2 | 投影臂退役：`gameViewProjection` 旗标删除 + `GameEngine` 三块 UI 消费恒投影 + 旧全量往返臂转测试 golden | ✅ 已提交 `efba3ee72` |
 | 臂 3 | 列级臂退役：`dirtyColumnExport` 旗标 + `nativeSetDirtyExportColumn` 端口删除，恒列级导出（**异构锁存 `columnExportBlocked_` 保留**）；`exportDirtyColumnJson` 保留作 golden；解码侧 `decodeView` 缺省值即生产形态（恒列级补丁） | ✅ 本轮实施 |
 | 臂 β | 场景臂（`sceneStoreRender`）退役 | ✅ 已提交 `4ed1d7c24`（组合门 20m58s/319 任务 + ctest 1553/1553 + 单进程 1553/1553 exit=0 + NDK arm64 8m51s + JNI 87/87） |
-| 臂 γ / 吸收项 | `upsertsJson` typed 化 / G5 / b03 遗留 / Room 死列 / 注释收口 | ⬜ 未动 |
+| 臂 γ / 吸收项 | `upsertsJson` typed 化 / G5 / b03 遗留 / Room 死列 / 注释收口 | ⬜ 未动（**已拍板**：γ 判归 A 零删除 / G+H 移出 B20 / 豁免确认；**实施文档就绪**：`b18-remaining-impl-2026-09-20.md`——P1–P5 施工细则 + B20/B19 卡定义 + 派发指令模板） |
 
 **臂 2 实施要点**（施工卡见 `docs/parallel-batches-w5/handover-b18-wip-2026-09-20.md` §2）：
 - 生产侧：`GameEngine.resourcesHeader / configEcho / eventLog` 三块删 if/else 回滚分支，恒
@@ -139,11 +142,11 @@
 | 来源 | 项 | 说明 |
 |---|---|---|
 | b02 发现 8③④ | `upsertsJson` 族 typed 化 | **族 = 三字段**（`CollectionChange.upsertsJson` + `JsonFieldChange.valueJson` + `DiscipleRow.storageBagItemsJson`；2026-09-20 看护复核补全）；proto **只增字段**；codec 单点切读 + 等价守卫 + 桥重建；设计/分期（A1 标量面 / A2 嵌套面）见 `b18-solution-2026-09-20.md` §3.1 |
-| 方案 R2.3 残余①② | `upsertMirrorRow` 列级收窄、store 侧 `assembleAll` | G2 分档基线后的残余成本中心（§7.3 已登） |
-| G5 | `BattleSystem` → golden 夹具退场 | **口径勘误（2026-09-20 看护实测）**：生产回退点 = **6 文件 11 调用点**（遭遇/秘境/妖兽防守/任务双分支/巡逻 3 段/AI 宗门 3 段）；「3 执行器」= Phase/Month/Year **结算执行器**（方案 :169，非 MissionSystem 分支，属远期程序）。**判归建议 A = 零删除**（`authoritative` 门 = OFF kill-switch 投影非灰度臂；`?:` = 容错+测试兜底）——**待拍板**，见 `b18-solution-2026-09-20.md` §2 |
-| 方案 B09 残余③④ | C++ rest 域标脏细粒度化、弟子列表块迁投影 | — |
+| 方案 R2.3 残余①② | `upsertMirrorRow` 列级收窄、store 侧 `assembleAll` | G2 分档基线后的残余成本中心（§7.3 已登）；**已拍板移出 B18 → B20 镜像残余专项批**（卡定义见 `b18-remaining-impl-2026-09-20.md` 附A） |
+| G5 | `BattleSystem` → golden 夹具退场 | **口径勘误（2026-09-20 看护实测）**：生产回退点 = **6 文件 11 调用点**（遭遇/秘境/妖兽防守/任务双分支/巡逻 3 段/AI 宗门 3 段）；「3 执行器」= Phase/Month/Year **结算执行器**（方案 :169，非 MissionSystem 分支，属远期程序）。**判归建议 A = 零删除**（`authoritative` 门 = OFF kill-switch 投影非灰度臂；`?:` = 容错+测试兜底）——**已拍板 A = 零删除**（2026-09-20 深夜用户确认）——收口 commit 内容见 `b18-remaining-impl-2026-09-20.md` §5 |
+| 方案 B09 残余③④ | C++ rest 域标脏细粒度化、弟子列表块迁投影 | **已拍板并入 B20**（B20b/B20c 阶段，见 `b18-remaining-impl-2026-09-20.md` 附A） |
 | b03 遗留 | `month_settlement.h` `indexById` 收口 | **口径勘误（2026-09-20 看护实测）**：10 行命中（1 注释 + 1 using + 8 调用），**待收口 2 处**——`:1842` 同表达式两次重建、`:1358-1375` 循环体 3→1 次；`:1727`/`:1773`/`:2304` 本就正常**勿动**（A 组 UAF 根治后的同族收口；跨迭代重建是正确性机制，不得提循环外） |
-| 收口批 C 组判归 | `battleTeam` / `aiBattleTeams` **Room 死列清理** | 删列需 **schema migration**，须**存档回归单独走批**（不得与回滚臂删除混装） |
+| 收口批 C 组判归 | `battleTeam` / `aiBattleTeams` **Room 死列清理** | 删列需 **schema migration**，须**存档回归单独走批**（不得与回滚臂删除混装）→ **B19**（卡骨架见 `b18-remaining-impl-2026-09-20.md` 附B；本轮澄清：死列 = `battleTeam` 单数 + `aiBattleTeams`，`battleTeams` 复数是活跃列**勿动**） |
 | 收口批 F 项 | `build-atlas.mjs` / `scene_uv_tables.h` 历史注释措辞收口 | — |
 | 收口批 G2 | `MirrorSegmentProjectionBenchTest` 残余①② 断言口径 | 随分档基线一并重定 |
 | 收口批 §4⑤ | `aiBeastEncounterTargets` 死臂 | **已确证死臂（2026-09-20 核查）**：全仓（Kotlin + C++）该表**零插入者**——仅 `GameEngineExplorationNativeOps.kt:178` 门判 + `ExplorationServiceBeastRaidOps.kt:128` 读取 + `:179-180` 删除，**无任何 `+`/`put`/`copy(aiBeastEncounterTargets = ...含新增)` 写入** ⇒ 表恒空 ⇒ 两处门判恒 false ⇒ 遭遇战路径（`resolveEncounterPath` / `resolveBeastEncounterIfAny`）整条死代码。按 B18 口径清理（**勿顺手删**：修复后该表保留现值，一旦有人接上插入者即恢复工作——见收口批 C 组"值保留"判归） |
