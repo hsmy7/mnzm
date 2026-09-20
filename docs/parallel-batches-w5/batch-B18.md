@@ -55,7 +55,7 @@
 | 臂 1 | 传输臂退役：`mirrorProtobufTransport` 旗标 + JSON 分发分支 + `nativeSetDirtyExportProtobuf` 端口删除；`exportDirtyJson` 保留作桌面对拍 golden | ✅ 已提交 `df6b70d5a`（ctest 1556/1556 + 单进程 1553/1553 exit=0 + SurfaceGuard 6/6） |
 | 臂 2 | 投影臂退役：`gameViewProjection` 旗标删除 + `GameEngine` 三块 UI 消费恒投影 + 旧全量往返臂转测试 golden | ✅ 已提交 `efba3ee72` |
 | 臂 3 | 列级臂退役：`dirtyColumnExport` 旗标 + `nativeSetDirtyExportColumn` 端口删除，恒列级导出（**异构锁存 `columnExportBlocked_` 保留**）；`exportDirtyColumnJson` 保留作 golden；解码侧 `decodeView` 缺省值即生产形态（恒列级补丁） | ✅ 本轮实施 |
-| 臂 β | 场景臂（`sceneStoreRender`）退役 | ✅ 本轮实施 |
+| 臂 β | 场景臂（`sceneStoreRender`）退役 | ✅ 已提交 `4ed1d7c24`（组合门 20m58s/319 任务 + ctest 1553/1553 + 单进程 1553/1553 exit=0 + NDK arm64 8m51s + JNI 87/87） |
 | 臂 γ / 吸收项 | `upsertsJson` typed 化 / G5 / b03 遗留 / Room 死列 / 注释收口 | ⬜ 未动 |
 
 **臂 2 实施要点**（施工卡见 `docs/parallel-batches-w5/handover-b18-wip-2026-09-20.md` §2）：
