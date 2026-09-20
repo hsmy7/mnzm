@@ -7,7 +7,7 @@ package com.xianxia.sect.core.render
  * - [computeStage]：三阶段精灵索引（0=幼苗 / 1=成长期 / 2=成熟）
  * - [crossfade]：阶段内交叉淡化 alpha（0..1，随进度线性淡入）
  *
- * 绘制端（Vulkan drawAllTiles 作物段 / Canvas chunk 合成后逐帧绘制）
+ * 绘制端（Vulkan 场景绘制核心作物段 / Canvas chunk 合成后逐帧绘制）
  * 均消费本纯函数输出，保证双端动画节奏一致。
  */
 object SpiritCropRender {

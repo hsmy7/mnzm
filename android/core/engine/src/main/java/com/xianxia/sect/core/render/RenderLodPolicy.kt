@@ -14,7 +14,7 @@ package com.xianxia.sect.core.render
  * 变化为界：档位内变化（如 0.5→0.7 跨档）才重建，浮点微动不触发重建防抖动。
  *
  * ## 双端对齐
- * C++ drawAllTiles skipDecor 判定与本函数同阈值同语义（0.6 与 Canvas
+ * C++ 场景绘制核心 skipDecor 判定与本函数同阈值同语义（0.6 与 Canvas
  * 帧缓冲 RGB_565 降级阈值同常量）——修改任一侧必须同步另一侧。
  */
 object RenderLodPolicy {

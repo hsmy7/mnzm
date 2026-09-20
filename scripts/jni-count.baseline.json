@@ -1,9 +1,9 @@
 {
-  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。增长须同 PR 显式改本文件并附豁免理由；收缩建议随 PR 同步下调。基线口径 = W5 收官实数（B16 后）：GameCoreBridge 42（含 nativeSetGameData）+ NativeBridge 49（含 sceneSpawnFloatingText）= 91；B18-臂1 删 nativeSetDirtyExportProtobuf 后 GameCoreBridge 41 → total 90；B18-臂3 删 nativeSetDirtyExportColumn 后 GameCoreBridge 40 → total 89（列级导出恒开，无异构锁存以外开关）。",
+  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。增长须同 PR 显式改本文件并附豁免理由；收缩建议随 PR 同步下调。基线口径 = W5 收官实数（B16 后）：GameCoreBridge 42（含 nativeSetGameData）+ NativeBridge 49（含 sceneSpawnFloatingText）= 91；B18-臂1 删 nativeSetDirtyExportProtobuf 后 GameCoreBridge 41 → total 90；B18-臂3 删 nativeSetDirtyExportColumn 后 GameCoreBridge 40 → total 89（列级导出恒开，无异构锁存以外开关）；B18-臂β 删 drawAllTiles + setFadeAlpha 后 NativeBridge 47 → total 87（场景绘制单入口 drawFrame，17 参数全量数组通道退役）。",
   "perFile": {
     "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 40,
-    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\NativeBridge.kt": 49
+    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\NativeBridge.kt": 47
   },
-  "total": 89,
+  "total": 87,
   "updatedAt": "2026-09-20"
 }

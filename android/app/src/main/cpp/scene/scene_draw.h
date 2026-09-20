@@ -20,17 +20,18 @@
 // ============================================================
 // scene_draw — 场景绘制核心（重构方案 2026-09-17 R3.2/B10）
 //
-// **单份绘制实现**：旧 drawAllTiles（17 参数全量数组，灰度回滚臂）与
-// 新 drawFrame（SceneStore + 生成 UV 表）消费同一构建逻辑——新旧路径
-// 像素等价由构造保证（同代码同值 ⇒ 同顶点流 ⇒ 同像素），
-// scene_equivalence_test 以顶点流逐位对照锁定。
+// **单份绘制实现**：地图/崖壁/叠加层/浮字四类层共用同一构建逻辑，
+// 各层经 drawFrame 单入口消费（SceneStore + 生成 UV 表）。
+// B18 前旧 drawAllTiles 臂与新臂的像素等价由构造保证
+//（同代码同值 ⇒ 同顶点流 ⇒ 同像素），scene_equivalence_test 以顶点流逐位
+// 对照锁定；B18 删除旧臂后该对照面转为**冻结 golden 快照**。
 //
 // 本头只做「数据 → SpriteBatcher 顶点」的装配（可见性剔除/装饰锚点/
 // 道路合成/建筑 Y 归并/作物阶段插值/云层），不含：
 //   - JNI/Android 依赖（桌面 GTest 直编）；
 //   - 提交与溢出遥测结算（桥侧 g_renderer->draw / noteBatcherOverflow）；
 //   - 热控/LOD/溢出降级判定（桥侧读全局量装配 skipDecor/skipClouds）。
-// 线程契约：渲染线程单消费者（与既有 drawAllTiles 同）。
+// 线程契约：渲染线程单消费者。
 //
 // R3.3/B11 追加 `buildOverlayLayers`：四类世界叠加层（网格线/占地预览框+
 // 预览精灵/选中高亮/拆除高亮）的几何生成——旧路径由 Kotlin 每帧逐 rect 跨
@@ -233,9 +234,10 @@ inline constexpr size_t kMaxObjectDecorItems = 20000;
 
 /// 地图层批量构建（地形+装饰 → 道路 → 建筑+立体装饰归并 → 作物 → 云）。
 ///
-/// 与旧 drawAllTiles 函数体逐段同构（段序/判定/常量/浮点表达式一一对应）；
-/// 跨帧复用的装饰/建筑收集缓冲为函数级 static（渲染线程单消费者，
-/// 与旧实现同纪律）。返回 batcher.end() 顶点数（提交/溢出结算在桥侧）。
+/// 段序/判定/常量/浮点表达式由 scene_equivalence_test 的冻结 golden 快照锁定
+///（B18 前与旧 drawAllTiles 函数体逐段同构）；跨帧复用的装饰/建筑收集缓冲为
+/// 函数级 static（渲染线程单消费者）。返回 batcher.end() 顶点数
+///（提交/溢出结算在桥侧）。
 ///
 /// [submitGround]（R3.5/B12）：整图 REPEAT 地面 quad 的提交回调。地面 quad 用
 /// **独立纹理**（groundTexId ≠ atlasTexId），无法并入本函数末尾以 atlasTexId

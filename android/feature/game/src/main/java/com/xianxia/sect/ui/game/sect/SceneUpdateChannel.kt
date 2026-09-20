@@ -285,7 +285,7 @@ class SceneUpdateChannel(private val sink: Sink) {
  * 的纯函数输入形态，使脏更新判定可脱离 JNI 单测）。
  *
  * @param frame 当前帧（地形/作物/道路/崖壁/选中/拆除/预览来源）
- * @param buildingData 建筑快照（与旧路径 drawAllTiles 传入同一份：总线优先）
+ * @param buildingData 建筑快照（与地图层绘制消费同一份：总线优先）
  * @param buildingCount 建筑数（已按数组容量钳制）
  * @param cloudData 云实例快照（宿主渲染线程生成，非帧数据）
  * @param atlasTextureId 图集 GPU 纹理 ID（宿主上传后持有）

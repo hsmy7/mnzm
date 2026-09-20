@@ -211,9 +211,9 @@ object NativeBridge {
     /**
      * 推送渲染特性开关（仿 [setRenderQuality] 独立通道，Compose 线程写、渲染线程单消费者读）。
      * 与 [RenderFlags] 数据类（core:engine）保持一致，双端开关同一时刻生效：
-     * [RenderFlags.buildingShadows] 由 C++ drawAllTiles 消费（阴影 quad）；
-     * [RenderFlags.selectionHighlight] 由 Kotlin 侧 VulkanRenderBackend 消费（drawRect×5），
-     * C++ 侧仅存储保持通道对称；
+     * [RenderFlags.buildingShadows] 由 C++ 场景绘制核心消费（阴影 quad）；
+     * [RenderFlags.selectionHighlight] 由 C++ 叠加层生成核心消费（新路径），
+     * Kotlin 侧保留同源对照实现（drawRect×5）；
      * [RenderFlags.decorLod] 由 C++ skipDecor 消费（缩放 LOD 门控）。
      *
      * @param buildingShadows 建筑投影阴影开关
@@ -233,15 +233,6 @@ object NativeBridge {
      */
     external fun setTextureQuality(anisotropyMax: Float, mipmap: Boolean)
 
-    /**
-     * 推送地图淡入 alpha（0-1，渲染线程每帧调用）。
-     * 只影响 drawAllTiles 的地图层 quad alpha（C++ 侧乘算）；
-     * drawRect/drawSprite（预览/高亮）不受影响——与 Canvas 侧独立 Paint 行为一致。
-     *
-     * @param fadeAlpha 淡入 alpha（0 = 全透明，1 = 完全不透明；C++ 侧 clamp 防御）
-     */
-    external fun setFadeAlpha(fadeAlpha: Float)
-
     // ============================================================
     // 程序绘制天空渐变背景（SkyBackground，2026 天幕组件）
     // ============================================================
@@ -260,7 +251,7 @@ object NativeBridge {
      * @param strength 渐变强度（0=整面平铺为顶色，1=全渐变；C++ 侧 clamp [0,1]）
      */
     // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
-    // LongParameterList 抑制为声明性豁免（与 drawAllTiles 同约定），参数语义见逐行注释
+    // LongParameterList 抑制为声明性豁免（JNI 面 1:1 平铺约定），参数语义见逐行注释
     @Suppress("LongParameterList")
     external fun setSkyConfig(
         topR: Float, topG: Float, topB: Float,
@@ -271,62 +262,26 @@ object NativeBridge {
     )
 
     /**
-     * 绘制屏幕空间天空背景（渲染线程帧首调用：beginFrame 之后、drawAllTiles 之前）。
+     * 绘制屏幕空间天空背景（渲染线程帧首调用：beginFrame 之后、drawFrame 之前）。
      * 背景以屏幕正交投影绘制（相机平移/缩放不影响），始终为最底图层。
      */
     external fun drawSky()
 
-    /** 统一瓦片绘制（地面+装饰+建筑+地砖合并到图集单次 draw call）。
-     *
-     * **Deprecated（R3.2/B10）**：生产默认走 SceneStore 新路径
-     * （[sceneSetTerrain]/[sceneUpdateBuildings]/[sceneUpdateCrops]/
-     * [sceneUpdateRoads]/[sceneUpdateClouds]/[sceneSetCliffLayout]/
-     * [sceneSetAtlasTexture] + [drawFrame]——17 参数全量数组每帧跨线退役）。
-     * 旧路径**保留不删除**（灰度红线：新旧共存一个版本周期），由
-     * [NativeEngineFlag.sceneStoreRender]=false 即时回退启用；C++ 侧两路
-     * 消费同一绘制核心（scene_draw.h），像素等价由构造保证。
-     */
-    // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
-    // LongParameterList 抑制为声明性豁免，参数语义见逐行注释
-    @Suppress("LongParameterList")
-    @Deprecated(
-        message = "R3.2 起生产默认走 SceneStore 路径（drawFrame）；本端口为灰度回滚臂，" +
-            "保留一个版本周期后随回滚臂批次删除",
-        level = DeprecationLevel.WARNING
-    )
-    external fun drawAllTiles(
-        tileData: IntArray,          // 展平瓦片类型数组 [0..N]
-        cols: Int, rows: Int,        // 地图网格尺寸
-        buildingData: FloatArray?,   // 建筑数据 [x,y,w,h,nameIdx] × count
-        buildingCount: Int,          // 建筑数量
-        buildingVisible: Boolean,    // 是否显示建筑
-        tileSize: Int,
-        atlasTexId: Int,
-        uvMap: FloatArray,           // UV 映射 [u0,v0,u1,v1] 按 tile 类型索引
-        buildingUVMap: FloatArray?,  // 建筑 UV 映射
-        cropData: FloatArray? = null, // 灵田作物数据 [gx, gy, progress01] × N（可为 null）
-        cropUVMap: FloatArray? = null, // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段
-        frameAlpha: Float = 0f, // 逻辑帧插值因子（作物进度帧间平滑权重）
-        cloudData: FloatArray? = null, // 云层实例数据 [x, y, w, h, spriteIndex, alpha] × N（可为 null）
-        cloudUVMap: FloatArray? = null, // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可为 null）
-        roadData: IntArray? = null, // 石板道路每格位掩码（展平，0=非道路；可为 null）
-        roadUVMap: FloatArray? = null // 道路 UV 映射 [u0,v0,u1,v1] × ROAD_RECTS 数（可为 null）
-    )
-
     // ============================================================
-    // SceneStore 新绘制路径（R3.2/B10）——场景数据变化驱动导入 +
-    // drawFrame(相机, 覆盖标志) 每帧调用
+    // SceneStore 场景绘制路径（R3.2/B10；B18 起为唯一渲染路径）——
+    // 场景数据变化驱动导入 + drawFrame(相机, 覆盖标志) 每帧调用
     //
     // 【JNI 面豁免登记】（沿 R0.2/B06 先例）：8 端口属"场景数据导入 +
     // 每帧绘制"通道，无法沿用既有通道（nativeExecute ActionId 业务事务面 /
-    // 镜像导出面均非渲染场景数据形状）；即 drawAllTiles 17 参数全量数组
-    // 每帧跨线的退役替身。C++ 侧见 NativeBridge.cpp 同名实现。
+    // 镜像导出面均非渲染场景数据形状）；即 B18 已退役的旧唯一渲染入口
+    // drawAllTiles（17 参数全量数组每帧跨线）的替身。C++ 侧见 NativeBridge.cpp
+    // 同名实现。
     // ============================================================
 
     /**
      * 地形一次性导入（C++ SceneStore；地图切换/建筑占位变化时重导，
      * 非每帧）。与 gamecore 地形单一权威同值（Kotlin 侧消费的
-     * flatTileData 含建筑占位标记，与旧路径 drawAllTiles 传入值逐位同源）。
+     * flatTileData 含建筑占位标记）。
      *
      * @param tileData 展平瓦片类型数组（index = row * cols + col）
      */
@@ -492,12 +447,12 @@ object NativeBridge {
      *   bit3 = 占地框 / bit4 = 预览合法性（绿/红）/ bit5 = 选中高亮 /
      *   bit6 = 拆除高亮——bit1–6 为 R3.3 启用，对应叠加层几何由 C++ 侧
      *   按本掩码 + [sceneSetSelection]/[sceneSetDemolishMarkers]/[sceneSetPreview]
-     *   导入的状态生成（旧路径每帧逐 rect 跨线的替代）
-     * @param fadeAlpha 地图淡入 alpha（C++ 侧 clamp [0,1]，同 setFadeAlpha 语义）
-     * @param frameAlpha 逻辑帧插值因子（作物进度帧间平滑权重，同旧路径 frameAlpha）
+     *   导入的状态生成（Kotlin 侧每帧逐 rect 跨线的替代）
+     * @param fadeAlpha 地图淡入 alpha（C++ 侧 clamp [0,1]）
+     * @param frameAlpha 逻辑帧插值因子（作物进度帧间平滑权重）
      */
     // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
-    // LongParameterList 抑制为声明性豁免（与 drawAllTiles 同约定），参数语义见逐行注释
+    // LongParameterList 抑制为声明性豁免（JNI 面 1:1 平铺约定），参数语义见逐行注释
     @Suppress("LongParameterList")
     external fun drawFrame(
         camX: Float, camY: Float, scale: Float,

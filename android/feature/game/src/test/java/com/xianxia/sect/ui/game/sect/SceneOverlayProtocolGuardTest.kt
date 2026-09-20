@@ -16,8 +16,9 @@ import org.junit.Test
  * 1. overlayFlags 位值（bit0–bit6）；
  * 2. 预览数据步长（16 浮点的顺序契约）；
  * 3. 拆除标记取值（Kotlin [DemolishHighlightMark] ↔ C++ `kDemolishMark*`）；
- * 4. 新路径零逐 rect 跨线（drawRect/drawSprite 调用点只存在于回滚臂函数内）；
- * 5. 网格线行范围的俯视 Y 压缩口径（Vulkan 回滚臂 / Canvas 兜底 / C++ 三路同源）。
+ * 4. 新路径零逐 rect 跨线（`drawRect`/`drawSprite` 不得出现在 SceneStore 路径体内；
+ *    B18 已把旧回滚臂及其逐 rect 函数**全部删除**，本项转为单向 + 反向断言）;
+ * 5. 网格线行范围的俯视 Y 压缩口径（Canvas 兜底 / C++ 两路同源）。
  *
  * 视觉常量（颜色/不透明度/线宽）的双端逐位对照在
  * `SceneUvTablesMirrorGuardTest`（:core:engine，生成物 ↔ SpriteAtlasDef）；
@@ -113,70 +114,68 @@ class SceneOverlayProtocolGuardTest {
     }
 
     /**
-     * 新路径零逐 rect 跨线（G4 的源码面证明）：`drawRect` / `drawSprite` 调用点
-     * 只允许出现在回滚臂 [VulkanRenderBackend] 的旧路径函数体内，
-     * 且 `renderSceneStorePath` 体内不得出现任何逐矩形调用。
+     * 新路径零逐 rect 跨线（G4 的源码面证明）：`renderSceneStorePath` 体内
+     * 不得出现任何逐矩形调用；B18 已把旧回滚臂（`renderLegacyDrawAllTilesPath` /
+     * `renderLegacyOverlayPath`）连同其四个逐 rect 辅助函数**整体删除**
+     * （detekt `UnusedPrivateMember` 确认它们确无消费者），故本项转为
+     * **单向 + 反向断言**：新路径不得混用，旧臂不得回流。
      *
-     * 这条同时守住灰度红线：旧路径完整保留可即时回退，新路径不得混用两条通道
-     * （B10 曾出现"崖壁层双路重复绘制"缺陷，同一失效形状在此被静态拦截）。
+     * 守住的失效形状：B10 曾出现"崖壁层双路重复绘制"缺陷（同一层在两条通道
+     * 各画一次），同一形状在此被静态拦截。
      */
     @Test
-    fun `per-rect draw calls exist only in the legacy rollback arm`() {
-        val legacyFns = listOf(
-            "drawSelectionHighlight",
-            "drawDemolishMarker",
-            "drawPreviewHighlight",
-            "drawGridOverlay",
-            "renderLegacyOverlayPath"
-        )
+    fun `per-rect draw calls never appear in the scene store path`() {
         val scenePath = functionBody(backendSource, "renderSceneStorePath")
         assertTrue("新路径函数体缺失（改名即断言失效，请同步本守卫）", scenePath.isNotEmpty())
         for (call in listOf("NativeBridge.drawRect(", "NativeBridge.drawSprite(")) {
             assertTrue(
-                "新路径不得再逐 rect 跨线：$call 出现在 renderSceneStorePath 体内",
+                "新路径不得逐 rect 跨线：$call 出现在 renderSceneStorePath 体内",
                 !scenePath.contains(call)
             )
         }
-        // 旧路径调用点必须仍在（回退臂不得被删除）
-        val legacyBody = functionBody(backendSource, "renderLegacyOverlayPath")
-        assertTrue("回滚臂缺失 renderLegacyOverlayPath", legacyBody.isNotEmpty())
-        assertTrue(
-            "回滚臂必须继续绘制叠加层（旧路径代码不得删除）",
-            legacyBody.contains("drawGridOverlay(") && legacyBody.contains("drawSprite(") &&
-                legacyBody.contains("drawSelectionHighlight(") && legacyBody.contains("drawDemolishHighlight(")
-        )
-        for (fn in legacyFns) {
-            val body = functionBody(backendSource, fn)
-            assertTrue("旧路径函数 $fn 缺失", body.isNotEmpty())
+        // B18：旧回滚臂与其逐 rect 辅助函数已删除，且不得以任何形式回流
+        // （灰度回退须走旗标重启，而非双路共存）
+        for (fn in listOf(
+            "renderLegacyOverlayPath",
+            "renderLegacyDrawAllTilesPath",
+            "drawSelectionHighlight",
+            "drawDemolishMarker",
+            "drawPreviewHighlight",
+            "drawGridOverlay"
+        )) {
+            assertTrue(
+                "旧路径函数 $fn 已被 B18 删除，不得回流",
+                functionBody(backendSource, fn).isEmpty()
+            )
         }
+        assertTrue(
+            "旧旗标 sceneStoreRender 不得回流（场景绘制已是单一路径）",
+            !backendSource.contains("sceneStoreRender")
+        )
     }
 
     /**
-     * 前置缺陷 A 的防复发锁：两 GPU 后端路径（本类旧路径）与 Canvas 兜底路径的
-     * 网格线**行上限**都必须按俯视 Y 轴压缩系数换算（`视口高 / (scale ×
-     * TOPDOWN_Y_SCALE)`），并与 C++ `scene_draw.h` 的行范围同式。
+     * 前置缺陷 A 的防复发锁：Canvas 兜底路径的网格线**行上限**必须按俯视 Y 轴
+     * 压缩系数换算（`视口高 / (scale × TOPDOWN_Y_SCALE)`），并与 C++ `scene_draw.h`
+     * 的行范围同式。
      *
      * 缺陷本体 = 旧 Vulkan 写法 `视口高 / scale` 漏乘压缩系数 ⇒ 放置模式视口
-     * 底部缺横线、与 Canvas 不一致（B11 修复）。此守卫锁住三处口径不再分叉。
+     * 底部缺横线、与 Canvas 不一致（B11 修复）。B18 后 Vulkan 侧该实现已删除
+     * （几何统一由 C++ 生成），故守卫锁 **Canvas + C++ 两处**口径不再分叉。
      */
     @Test
-    fun `grid row range uses the topdown Y-compressed viewport band on all arms`() {
-        val compressed = Regex("viewportH / \\(scale \\* SpriteAtlasDef\\.TOPDOWN_Y_SCALE\\)")
+    fun `grid row range uses the topdown Y-compressed viewport band on remaining arms`() {
         val canvasSource =
             sourceOf("feature/game/src/main/java/com/xianxia/sect/ui/game/sect/SoftwareCanvasBackend.kt")
         val canvasCompressed =
             Regex("fbH / \\(drawScale \\* TOPDOWN_Y_SCALE\\)")
-        assertTrue(
-            "Vulkan 旧路径网格行范围漏乘俯视 Y 压缩系数（缺陷 A 复发：视口底部缺横线）",
-            compressed.containsMatchIn(backendSource)
-        )
         assertTrue(
             "Canvas 兜底路径网格行范围不再按俯视 Y 压缩换算（双端口径漂移）",
             canvasCompressed.containsMatchIn(canvasSource)
         )
         val drawSource = sceneDrawSource
         assertTrue(
-            "C++ 叠加层行范围未按投影可见带换算（与 Kotlin 两路漂移）",
+            "C++ 叠加层行范围未按投影可见带换算（与 Kotlin 侧漂移）",
             Regex("p\\.viewportH\\) / \\(scaleSafe \\* kTopdownYScale\\)").containsMatchIn(drawSource)
         )
     }

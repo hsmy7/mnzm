@@ -2,14 +2,12 @@ package com.xianxia.sect.ui.game.sect
 
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
-import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.render.FarViewGroundPolicy
 import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
 import com.xianxia.sect.core.render.SkyBackgroundConfig
-import com.xianxia.sect.core.render.SpriteAtlasDef
 
 /**
  * Vulkan 渲染后端适配器 — 将 [RenderBackend] 契约翻译为 C++ NativeBridge 调用。
@@ -17,16 +15,14 @@ import com.xianxia.sect.core.render.SpriteAtlasDef
  * ## 职责
  * - [resize] → NativeBridge.resizeRenderer（交换链重建）
  * - [setCamera] → NativeBridge.setCamera（独立相机通道）
- * - [renderFrame] → beginFrame → 天空背景 → 场景绘制（按
- *   [NativeEngineFlag.sceneStoreRender] 双路，R3.2/R3.3 灰度共存）：
- *   - **新路径（默认）**：[SceneUpdateChannel.push]（场景 + 叠加层状态变化驱动
- *     导入 C++ SceneStore，R3.4）+ drawFrame(相机, overlayFlags)——Kotlin 不再
+ * - [renderFrame] → beginFrame → 天空背景 → 场景绘制（SceneStore 单一路径，
+ *   R3.2/R3.3 灰度收口后旧 drawAllTiles 回滚臂已随 B18 删除）：
+ *   - [SceneUpdateChannel.push]（场景 + 叠加层状态变化驱动导入 C++
+ *     SceneStore，R3.4）+ drawFrame(相机, overlayFlags)——Kotlin 不再
  *     每帧传全量数组，**也不再每帧逐 rect 传叠加层几何**（选中/拆除/预览/
  *     网格线由 C++ 生成）；
- *   - **旧路径（回滚臂）**：setFadeAlpha + drawIslandCliffs + drawAllTiles
- *     （17 参数全量数组）+ drawSprite/drawRect 逐条叠加层，
- *     行为 = 本批开工前现状，各保留一个版本周期；
- *   两路消费 C++ 同一份绘制核心（scene_draw.h）——像素等价由构造保证。
+ *   绘制核心在 C++ 侧单份（scene_draw.h）——与 Canvas 兜底的像素等价由
+ *   构造 + SceneEquivalenceTest / SceneOverlayEquivalenceTest 顶点流锁定。
  *   → 指标 → submitFrame
  * - [release] → NativeBridge.shutdownRenderer（surface 销毁时由宿主调用）
  *
@@ -110,24 +106,15 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
             frame.buildingCount.coerceAtMost((frame.buildingData?.size ?: 0) / 5)
         }
 
-        // 场景绘制按灰度旗标双路（R3.2/R3.3 灰度共存——两路消费 C++ 同一份绘制
-        // 核心，像素等价由构造保证 + SceneEquivalenceTest（地图/崖壁）与
-        // SceneOverlayEquivalenceTest（叠加层）顶点流逐位对照锁定）
-        if (NativeEngineFlag.sceneStoreRender) {
-            // R3.3：叠加层（选中/拆除/预览/网格线）几何亦由 C++ 生成——
-            // 四类叠加层的可见性经 overlayFlags 每帧携带，其状态数据变化驱动
-            // 导入，本帧不再有任何逐 rect 跨线（旧路径最坏 ~258 次 drawRect）。
-            renderSceneStorePath(
-                frame, viewportW, viewportH,
-                effectiveBuildingData, effectiveBuildingCount, busWasDirty
-            )
-        } else {
-            renderLegacyDrawAllTilesPath(frame, effectiveBuildingData, effectiveBuildingCount)
-            renderLegacyOverlayPath(
-                frame, effectiveBuildingData, effectiveBuildingCount, busWasDirty,
-                viewportW, viewportH
-            )
-        }
+        // 场景绘制（SceneStore 单一路径，R3.3 起叠加层几何亦由 C++ 生成——
+        // 四类叠加层的可见性经 overlayFlags 每帧携带，其状态数据变化驱动导入，
+        // 本帧不再有任何逐 rect 跨线（旧路径最坏 ~258 次 drawRect，B18 已退役）。
+        // 两路等价曾由 SceneEquivalenceTest（地图/崖壁）与
+        // SceneOverlayEquivalenceTest（叠加层）顶点流逐位对照锁定
+        renderSceneStorePath(
+            frame, viewportW, viewportH,
+            effectiveBuildingData, effectiveBuildingCount, busWasDirty
+        )
 
         recordMetrics()
         NativeBridge.submitFrame()
@@ -135,53 +122,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     }
 
     /**
-     * 旧叠加层路径（[NativeEngineFlag.sceneStoreRender]=false 的回滚臂，R3.3 红线：
-     * 逐 rect 每帧跨线，代码与行为 = R3.3 开工前现状，可即时回退）：
-     * 选中高亮 → 拆除高亮 → 预览精灵 → 占地框 → 网格线。
-     *
-     * 新路径下这五段整体由 C++ 单份生成核心产出（同层序、同几何、
-     * 同常量——SceneOverlayEquivalenceTest 顶点流逐位对照锁定）。
-     */
-    private fun renderLegacyOverlayPath(
-        frame: RenderFrame,
-        buildingData: FloatArray?,
-        buildingCount: Int,
-        busWasDirty: Boolean,
-        viewportW: Int,
-        viewportH: Int
-    ) {
-        // 普通选中高亮（选中建筑金色描边——动态叠加，独立 draw calls，不烘焙进瓦片层）
-        // 用同一份 effectiveBuildingData 快照计算，杜绝命令总线消费后索引错位
-        drawSelectionHighlight(frame, buildingData, buildingCount, busWasDirty)
-
-        // 一键拆除模式占地高亮（绿/红半透明填充——与精灵同帧同相机，
-        // 与选中高亮同一份建筑快照；总线脏帧跳帧防索引错位）
-        drawDemolishHighlight(frame, buildingData, buildingCount, busWasDirty)
-
-        if (frame.showPreview && host.atlasTextureId != 0) {
-            // 绘制顺序：精灵先画、占地框（填充+描边）后画——填充绿纱罩于
-            //   精灵之上（标准放置 UI），且精灵透明区不透出填充色
-            NativeBridge.drawSprite(
-                frame.previewX, frame.previewY,
-                frame.previewW, frame.previewH,
-                host.atlasTextureId,
-                frame.previewU0, frame.previewV0,
-                frame.previewU1, frame.previewV1,
-                frame.previewTintRed, frame.previewTintGreen,
-                frame.previewTintBlue, frame.previewAlpha
-            )
-            if (frame.previewBoxVisible) {
-                drawPreviewHighlight(frame)
-            }
-        }
-
-        // 放置/移动模式网格线（预览精灵之上）；
-        // 范围按缓存最新相机计算，与 g_projMatrix 同源零错位
-        drawGridOverlay(frame, viewportW, viewportH)
-    }
-
-    /**
-     * 新路径（R3.2 生产默认）：场景数据变化驱动导入 C++ SceneStore +
+     * 新路径（R3.2 生产默认，B18 后为唯一路径）：场景数据变化驱动导入 C++
+     * SceneStore +
      * [NativeBridge.drawFrame]（相机标量 + overlay 标志，每帧 ≈36B——
      * G3 <200B 达成）。崖壁/地图层序与相机消毒段在 C++ drawFrame 内，
      * 与旧路径共享同一绘制核心；UV 表由 C++ 生成常量消费，
@@ -238,9 +180,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     }
 
     /**
-     * 远景观看容量路径判定与推送（R3.5）——两条绘制路径（新 SceneStore 路径与
-     * 旧 drawAllTiles 回滚臂）共用同一判定，因为本开关只决定**地面层绘制形态**
-     * （整图 REPEAT quad / 逐格），与场景数据通道归属正交（见
+     * 远景观看容量路径判定与推送（R3.5）——地面层绘制形态（整图 REPEAT quad /
+     * 逐格）的唯一开关，与场景数据通道归属正交（见
      * [NativeEngineFlag.farViewGroundQuad] KDoc）。
      *
      * 判定为纯函数 [FarViewGroundPolicy.groundQuadEnabled] 的四重门合取
@@ -263,61 +204,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
 
     /** 上一次推送的远景地面开关值（变化驱动跨线，防每帧冗余 JNI） */
     private var lastFarViewGroundQuad = false
-
-    /**
-     * 旧路径（灰度回滚臂，[NativeEngineFlag.sceneStoreRender]=false）：
-     * setFadeAlpha + drawIslandCliffs + drawAllTiles（17 参数全量数组每帧跨线）。
-     * 行为 = R3.2 前现状——崖壁层与瓦片层共用同帧淡入 alpha（零相位差），
-     * 不依赖图集纹理（崖壁走独立纹理，图集未就绪时崖壁仍可绘制）。
-     */
-    private fun renderLegacyDrawAllTilesPath(
-        frame: RenderFrame,
-        buildingData: FloatArray?,
-        buildingCount: Int
-    ) {
-        // 地图淡入 alpha 推送：渲染线程每帧计算（EaseOutCubic 纯时钟驱动），
-        // C++ g_fadeAlpha 乘算 drawAllTiles 全部 quad——预览/高亮 drawRect 不受影响
-        NativeBridge.setFadeAlpha(host.fadeAlpha)
-
-        pushFarViewGroundDecision()
-
-        // 浮空岛崖壁层（世界空间；z 序：天空 → 崖壁 → 地面——先于瓦片/建筑绘制，
-        // 地面层覆盖内缘接缝）。布局数据由 IslandCliffBridge 一次性预计算
-        //（地图尺寸/种子变化时重建；Camera 平移/缩放不重建）。
-        if (frame.islandCliffData != null) {
-            drawIslandCliffs(frame)
-        }
-
-        // 从 RenderFrame 读取瓦片数据 + SpriteAtlasDef 编译时常量
-        if (host.atlasTextureId != 0) {
-            @Suppress("DEPRECATION") // 灰度回滚臂：旧路径保留一个版本周期（R3.2 红线）
-            NativeBridge.drawAllTiles(
-                tileData = frame.tileData,
-                cols = host.renderConfig.worldWidthCells,
-                rows = host.renderConfig.worldHeightCells,
-                buildingData = buildingData,
-                buildingCount = buildingCount,
-                buildingVisible = frame.buildingVisible,
-                tileSize = host.renderConfig.tileSize,
-                atlasTexId = host.atlasTextureId,
-                uvMap = SpriteAtlasDef.TILE_UV_MAP,
-                buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP,
-                // 灵田作物数据：低频变化走帧率门控 RenderFrame，
-                // C++ 侧按进度计算阶段索引 + 淡化 alpha（与 Kotlin SpiritCropRender 同数学）
-                cropData = frame.spiritCropData,
-                cropUVMap = SpriteAtlasDef.CROP_UV_MAP,
-                // 逻辑帧插值：作物进度帧间平滑权重（仅渲染契约）
-                frameAlpha = frame.currentAlpha,
-                // 云层实例数据（渲染线程逐帧生成快照——双后端共享同一份 host.cloudData，
-                // 与 C++ 侧同一快照保证像素级一致；cloudUVMap 与 SpriteAtlasDef 同源）
-                cloudData = host.cloudData,
-                cloudUVMap = SpriteAtlasDef.CLOUD_UV_MAP,
-                // 石板道路每格位掩码 + UV（双后端按位掩码合成主体/边缘/转角/十字装饰）
-                roadData = frame.roadData,
-                roadUVMap = SpriteAtlasDef.ROAD_UV_MAP
-            )
-        }
-    }
 
     /** 帧指标记录（热控降级可观测 + 帧计数——提取以收敛 renderFrame 行数） */
     private fun recordMetrics() {
@@ -384,218 +270,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         NativeBridge.drawIslandCliffs(cliffData = layout)
     }
 
-    /**
-     * 绘制选中建筑高亮（金色描边 + 半透明填充，drawRect×5）。
-     *
-     * 框选**占地矩形**（与点击命中判定 [com.xianxia.sect.core.render.BuildingRenderGeometry.findBuildingIndex]
-     * 同一几何来源），精灵超出占地的透明像素不计入高亮区域。
-     * 线宽按相机缩放折算：屏幕线宽恒定 max(2px, tileSize×0.06)。
-     *
-     * @param frame 当前帧（含 selectedBuildingIndex）
-     * @param buildingData 建筑数据快照（与瓦片绘制同一份，防索引错位）
-     * @param buildingCount 建筑数量
-     * @param busWasDirty 建筑数据本帧刚被命令总线推送（旧索引可能错位，跳过本次）
-     */
-    private fun drawSelectionHighlight(
-        frame: RenderFrame,
-        buildingData: FloatArray?,
-        buildingCount: Int,
-        busWasDirty: Boolean
-    ) {
-        val index = frame.selectedBuildingIndex
-        val base = index * SELECTED_DATA_STRIDE
-        val flagOk = !busWasDirty && host.renderConfig.renderFlags.selectionHighlight
-        val dataOk = buildingData != null && index in 0 until buildingCount &&
-            base + SELECTED_DATA_STRIDE - 1 < buildingData.size // 防御：数组截断
-        if (!flagOk || !dataOk) return
-
-        val gx = buildingData[base].toInt()
-        val gy = buildingData[base + 1].toInt()
-        val nameIdx = buildingData[base + 4].toInt()
-        val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.getOrElse(nameIdx) { 2 to 2 }
-        val tileSize = host.renderConfig.tileSize
-
-        val x = gx * tileSize.toFloat()
-        val y = gy * tileSize.toFloat()
-        val w = fpW * tileSize.toFloat()
-        val h = fpH * tileSize.toFloat()
-        val scale = frame.scale.coerceAtLeast(MIN_SCALE)
-        // 目标屏幕线宽 max(2px, tileSize×0.06×scale)，换算回世界坐标除以 scale
-        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale) / scale
-
-        // 填充 → 上边 → 下边 → 左边 → 右边（描边盖住填充边缘，避免颜色叠加发亮）
-        NativeBridge.drawRect(x, y, w, h, GOLD_R, GOLD_G, GOLD_B, HIGHLIGHT_FILL_ALPHA)
-        NativeBridge.drawRect(x, y, w, lineWidth, GOLD_R, GOLD_G, GOLD_B, HIGHLIGHT_EDGE_ALPHA)
-        NativeBridge.drawRect(x, y + h - lineWidth, w, lineWidth, GOLD_R, GOLD_G, GOLD_B, HIGHLIGHT_EDGE_ALPHA)
-        NativeBridge.drawRect(x, y, lineWidth, h, GOLD_R, GOLD_G, GOLD_B, HIGHLIGHT_EDGE_ALPHA)
-        NativeBridge.drawRect(x + w - lineWidth, y, lineWidth, h, GOLD_R, GOLD_G, GOLD_B, HIGHLIGHT_EDGE_ALPHA)
-    }
-
-    /**
-     * 绘制一键拆除模式占地高亮（绿/红半透明填充 + 选中红描边，drawRect×5/建筑）。
-     *
-     * 数据驱动：markers 与 buildingData **同序同长**（Compose 侧
-     * buildDemolishHighlightData 按与 buildBuildingDataArray 同一排序构建），
-     * 每建筑 1 字节：[DemolishHighlightMark.NONE] 跳过、GREEN 绿填充、
-     * SELECTED 红填充 + 红描边。世界坐标直传 drawRect——C++ 侧投影矩阵
-     * （g_projMatrix 来自 setCamera）做相机变换，与精灵同相机零错位。
-     *
-     * @param frame 当前帧（含 demolishHighlightData）
-     * @param buildingData 建筑数据快照（与瓦片绘制同一份，防索引错位）
-     * @param buildingCount 建筑数量
-     * @param busWasDirty 建筑数据本帧刚被命令总线推送（旧 markers 可能错位，跳过本次）
-     */
-    private fun drawDemolishHighlight(
-        frame: RenderFrame,
-        buildingData: FloatArray?,
-        buildingCount: Int,
-        busWasDirty: Boolean
-    ) {
-        val markers = frame.demolishHighlightData
-        if (busWasDirty || markers == null || buildingData == null) return
-        val count = minOf(buildingCount, markers.size)
-            .coerceAtMost(buildingData.size / SELECTED_DATA_STRIDE)
-
-        for (i in 0 until count) {
-            val base = i * SELECTED_DATA_STRIDE
-            if (base + SELECTED_DATA_STRIDE - 1 >= buildingData.size) return // 截断防御
-            drawDemolishMarker(frame, buildingData, base, markers[i])
-        }
-    }
-
-    /**
-     * 绘制单个建筑的高亮矩形（NONE 跳过 / GREEN 绿填充 / SELECTED 红填充 + 红描边）。
-     * 世界坐标直传 drawRect——投影矩阵（g_projMatrix 来自 setCamera）做相机变换。
-     */
-    private fun drawDemolishMarker(
-        frame: RenderFrame,
-        buildingData: FloatArray,
-        base: Int,
-        marker: Byte
-    ) {
-        if (marker == DemolishHighlightMark.NONE.toByte()) return
-        val tileSize = host.renderConfig.tileSize
-        val gx = buildingData[base].toInt()
-        val gy = buildingData[base + 1].toInt()
-        val nameIdx = buildingData[base + 4].toInt()
-        val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.getOrElse(nameIdx) { 2 to 2 }
-        val x = gx * tileSize.toFloat()
-        val y = gy * tileSize.toFloat()
-        val w = fpW * tileSize.toFloat()
-        val h = fpH * tileSize.toFloat()
-        val scale = frame.scale.coerceAtLeast(MIN_SCALE)
-        // 目标屏幕线宽 max(2px, tileSize×0.06×scale)，换算回世界坐标除以 scale
-        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale) / scale
-
-        if (marker == DemolishHighlightMark.SELECTED.toByte()) {
-            NativeBridge.drawRect(
-                x, y, w, h, DEMOLISH_RED_R, DEMOLISH_RED_G, DEMOLISH_RED_B, DEMOLISH_FILL_ALPHA
-            )
-            // 填充 → 上边 → 下边 → 左边 → 右边（描边盖住填充边缘，避免颜色叠加发亮）
-            NativeBridge.drawRect(
-                x, y, w, lineWidth, DEMOLISH_RED_R, DEMOLISH_RED_G, DEMOLISH_RED_B, DEMOLISH_EDGE_ALPHA
-            )
-            NativeBridge.drawRect(
-                x, y + h - lineWidth, w, lineWidth,
-                DEMOLISH_RED_R, DEMOLISH_RED_G, DEMOLISH_RED_B, DEMOLISH_EDGE_ALPHA
-            )
-            NativeBridge.drawRect(
-                x, y, lineWidth, h, DEMOLISH_RED_R, DEMOLISH_RED_G, DEMOLISH_RED_B, DEMOLISH_EDGE_ALPHA
-            )
-            NativeBridge.drawRect(
-                x + w - lineWidth, y, lineWidth, h,
-                DEMOLISH_RED_R, DEMOLISH_RED_G, DEMOLISH_RED_B, DEMOLISH_EDGE_ALPHA
-            )
-        } else {
-            NativeBridge.drawRect(
-                x, y, w, h, DEMOLISH_GREEN_R, DEMOLISH_GREEN_G, DEMOLISH_GREEN_B, DEMOLISH_FILL_ALPHA
-            )
-        }
-    }
-
-    /**
-     * 绘制放置/移动模式占地框（预览框）：与建筑精灵同帧同源（绿=可放置 / 红=不可放置提示）。
-     * 世界坐标直传 drawRect（投影矩阵 g_projMatrix 做相机变换，与精灵同相机零错位）；
-     * 精灵居中+底部对齐绘于其内——两者共享同一份预览快照，物理上永不同步脱节。
-     *
-     * @param frame 当前帧（previewBoxVisible 开关 + 几何/合法性）
-     */
-    private fun drawPreviewHighlight(frame: RenderFrame) {
-        if (!frame.previewBoxVisible) return
-        val x = frame.previewBoxX
-        val y = frame.previewBoxY
-        val w = frame.previewBoxW
-        val h = frame.previewBoxH
-        val tileSize = host.renderConfig.tileSize
-        val scale = cachedScale.coerceAtLeast(MIN_SCALE)
-        // 目标屏幕线宽 max(2px, tileSize×0.06×scale)，换算回世界坐标除以 scale
-        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale) / scale
-        val valid = frame.previewBoxValid
-        val fillR = if (valid) PREVIEW_GREEN_R else PREVIEW_RED_R
-        val fillG = if (valid) PREVIEW_GREEN_G else PREVIEW_RED_G
-        val fillB = if (valid) PREVIEW_GREEN_B else PREVIEW_RED_B
-        // 填充（绿/红半透明，可放置提示）→ 上边 → 下边 → 左边 → 右边
-        //（描边盖住填充边缘，避免颜色叠加发亮）
-        NativeBridge.drawRect(x, y, w, h, fillR, fillG, fillB, PREVIEW_BOX_FILL_ALPHA)
-        NativeBridge.drawRect(x, y, w, lineWidth, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
-        NativeBridge.drawRect(x, y + h - lineWidth, w, lineWidth, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
-        NativeBridge.drawRect(x, y, lineWidth, h, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
-        NativeBridge.drawRect(x + w - lineWidth, y, lineWidth, h, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
-    }
-
-    /**
-     * 绘制放置/移动模式全视口网格线（世界坐标薄矩形，drawRect×视口线数）。
-     *
-     * 范围数学与 Canvas 侧 `SoftwareCanvasBackend.drawGridOverlay` 同式：按缓存
-     * 最新相机（setCamera 自留份，与 g_projMatrix 同源）计算视口内行列区间并
-     * 钳制到世界边界，**行范围含俯视 Y 轴压缩**（视口高 ÷ (scale × 0.75)）——
-     * 与投影可见带严格一致；列线 x = col×tileSize、行线 y = row×tileSize，
-     * 全高/全宽延伸（投影矩阵自动裁剪视口外部分）。线宽换算为世界坐标
-     * （目标 2 物理屏像素，下限 0.5 世界单位）。
-     *
-     * 新路径（[NativeEngineFlag.sceneStoreRender]=true）下本函数不参与渲染——
-     * 同一几何由 C++ `scene_draw.h::buildOverlayLayers` 以同式产出（含本行范围
-     * 口径），两路一致由 SceneOverlayProtocolGuardTest 的公式守卫与
-     * SceneOverlayEquivalenceTest 的顶点流对照共同锁定。
-     *
-     * @param frame 当前帧（gridOverlayVisible 开关）
-     * @param viewportW 视口宽（px）
-     * @param viewportH 视口高（px）
-     */
-    private fun drawGridOverlay(frame: RenderFrame, viewportW: Int, viewportH: Int) {
-        if (!frame.gridOverlayVisible) return
-        val tileSize = host.renderConfig.tileSize
-        val scale = cachedScale.coerceAtLeast(MIN_SCALE)
-        if (viewportW <= 0 || viewportH <= 0) return
-
-        val worldW = host.renderConfig.worldWidthCells * tileSize
-        val worldH = host.renderConfig.worldHeightCells * tileSize
-        val firstCol = (cachedCamX / tileSize).toInt().coerceAtLeast(0)
-        val lastCol = ((cachedCamX + viewportW / scale) / tileSize).toInt()
-            .coerceAtMost(host.renderConfig.worldWidthCells)
-        val firstRow = (cachedCamY / tileSize).toInt().coerceAtLeast(0)
-        // 行范围按投影可见带：世界可见高度 = 视口高 / (scale × 俯视 Y 压缩系数)
-        // ——与 C++ g_viewBottom / Canvas 侧 drawGridOverlay 同式（B11 前置缺陷 A
-        // 修复：旧写法漏乘 TOPDOWN_Y_SCALE，导致 Vulkan/GLES 放置模式视口底部
-        // 缺横线、与 Canvas 兜底路径不一致）
-        val lastRow = ((cachedCamY + viewportH / (scale * SpriteAtlasDef.TOPDOWN_Y_SCALE)) / tileSize)
-            .toInt()
-            .coerceAtMost(host.renderConfig.worldHeightCells)
-
-        // 目标屏幕线宽 1px，换算回世界坐标（除 scale）；下限 0.5 世界单位防退化 quad。
-        //    离屏降采样渲染下 1 物理屏像素 = 0.5 离屏像素，细线光栅化会被整条丢弃
-        //    （放置模式方格不完整/单线根因）——线宽按 2 物理屏像素起
-        val lineWidth = maxOf(0.5f, 2f / scale)
-        for (col in firstCol..lastCol) {
-            val x = col * tileSize.toFloat()
-            NativeBridge.drawRect(x, 0f, lineWidth, worldH.toFloat(), GRID_R, GRID_G, GRID_B, GRID_ALPHA)
-        }
-        for (row in firstRow..lastRow) {
-            val y = row * tileSize.toFloat()
-            NativeBridge.drawRect(0f, y, worldW.toFloat(), lineWidth, GRID_R, GRID_G, GRID_B, GRID_ALPHA)
-        }
-    }
-
     companion object {
         /** 浮空岛边缘观测日志标签（渲染端消费锚点） */
         private const val ISLAND_CLIFF_LOG_TAG = "IslandCliff"
@@ -605,9 +279,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
 
         /** 装饰层跳过阈值（qualityFactor < 0.6 时装饰降级——与 Canvas 帧缓冲 RGB_565 阈值同常量） */
         private const val DECOR_QUALITY_THRESHOLD = 0.6f
-
-        /** 建筑数据单条步长（[gx, gy, sw, sh, nameIdx]） */
-        private const val SELECTED_DATA_STRIDE = 5
 
         /** drawFrame overlayFlags bit0：建筑层可见 */
         private const val OVERLAY_FLAG_BUILDING_VISIBLE = 0x1
@@ -620,66 +291,5 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         private const val OVERLAY_FLAG_SELECTION = 0x20
         private const val OVERLAY_FLAG_DEMOLISH = 0x40
 
-        // ── 叠加层视觉常量（R3.3/B11）──
-        // 单一权威 = build-atlas.mjs 的 LAYOUT.overlay，双端生成物
-        // （Kotlin SpriteAtlasDef / C++ scene_uv_tables.h）同值——旧路径（本类
-        // 逐 rect）与新路径（C++ 几何生成）共用一份数据源，两路同值由构造保证。
-        // 本段为引用别名（值与 R3.3 前逐位一致），语义见 SpriteAtlasDef 同名常量。
-
-        /** 缩放下限（防御除零） */
-        private const val MIN_SCALE = SpriteAtlasDef.OVERLAY_MIN_SCALE
-
-        /** 高亮线宽（格数）：max(2px, tileSize×0.06) 的格数分量 */
-        private const val HIGHLIGHT_LINE_WIDTH_TILES = SpriteAtlasDef.HIGHLIGHT_LINE_WIDTH_TILES
-
-        /** 高亮填充不透明度（金色半透明填充） */
-        private const val HIGHLIGHT_FILL_ALPHA = SpriteAtlasDef.HIGHLIGHT_FILL_ALPHA
-
-        /** 高亮描边不透明度 */
-        private const val HIGHLIGHT_EDGE_ALPHA = SpriteAtlasDef.HIGHLIGHT_EDGE_ALPHA
-
-        /** 金色 #FFD700 */
-        private const val GOLD_R = SpriteAtlasDef.GOLD_R
-        private const val GOLD_G = SpriteAtlasDef.GOLD_G
-        private const val GOLD_B = SpriteAtlasDef.GOLD_B
-
-        // ── 拆除模式占地高亮（与旧 Compose 覆盖层同色 #4CAF50 / #F44336） ──
-
-        /** 未选中绿 #4CAF50 */
-        private const val DEMOLISH_GREEN_R = SpriteAtlasDef.DEMOLISH_GREEN_R
-        private const val DEMOLISH_GREEN_G = SpriteAtlasDef.DEMOLISH_GREEN_G
-        private const val DEMOLISH_GREEN_B = SpriteAtlasDef.DEMOLISH_GREEN_B
-        /** 选中红 #F44336 */
-        private const val DEMOLISH_RED_R = SpriteAtlasDef.DEMOLISH_RED_R
-        private const val DEMOLISH_RED_G = SpriteAtlasDef.DEMOLISH_RED_G
-        private const val DEMOLISH_RED_B = SpriteAtlasDef.DEMOLISH_RED_B
-        /** 拆除填充不透明度（0x66 = 40% 半透明） */
-        private const val DEMOLISH_FILL_ALPHA = SpriteAtlasDef.DEMOLISH_FILL_ALPHA
-        /** 拆除描边不透明度 */
-        private const val DEMOLISH_EDGE_ALPHA = SpriteAtlasDef.DEMOLISH_EDGE_ALPHA
-
-        // ── 放置/移动模式网格线（与旧 Compose GridOverlay 同色 #E4DDD0） ──
-
-        /** 网格线 #E4DDD0 */
-        private const val GRID_R = SpriteAtlasDef.GRID_R
-        private const val GRID_G = SpriteAtlasDef.GRID_G
-        private const val GRID_B = SpriteAtlasDef.GRID_B
-        /** 网格线不透明度 */
-        private const val GRID_ALPHA = SpriteAtlasDef.GRID_ALPHA
-
-        // ── 放置/移动模式占地框（预览框）：绿/红提示可放置/不可放置（与拆除色系一致） ──
-
-        /** 可放置 #4CAF50 */
-        private const val PREVIEW_GREEN_R = SpriteAtlasDef.PREVIEW_GREEN_R
-        private const val PREVIEW_GREEN_G = SpriteAtlasDef.PREVIEW_GREEN_G
-        private const val PREVIEW_GREEN_B = SpriteAtlasDef.PREVIEW_GREEN_B
-        /** 不可放置 #F44336 */
-        private const val PREVIEW_RED_R = SpriteAtlasDef.PREVIEW_RED_R
-        private const val PREVIEW_RED_G = SpriteAtlasDef.PREVIEW_RED_G
-        private const val PREVIEW_RED_B = SpriteAtlasDef.PREVIEW_RED_B
-        /** 占地框填充不透明度（0x59 ≈ 35% 半透明） */
-        private const val PREVIEW_BOX_FILL_ALPHA = SpriteAtlasDef.PREVIEW_BOX_FILL_ALPHA
-        /** 占地框描边不透明度（0xE6 ≈ 90%） */
-        private const val PREVIEW_BOX_EDGE_ALPHA = SpriteAtlasDef.PREVIEW_BOX_EDGE_ALPHA
     }
 }

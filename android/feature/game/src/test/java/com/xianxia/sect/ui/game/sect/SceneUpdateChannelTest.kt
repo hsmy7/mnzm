@@ -305,25 +305,27 @@ class SceneUpdateChannelTest {
     }
 
     /**
-     * G4 的 Kotlin 侧口径：放置模式每帧 JNI 次数（新路径真实计数 / 旧路径调用点算术）。
+     * G4 的 Kotlin 侧口径：放置模式每帧 JNI 次数（当前路径真实计数 +
+     * 旧路径算术对照，B18 基线冻结）。
      *
-     * 新路径 = 帧固定端口（beginFrame + drawSky + drawFrame + submitFrame）
+     * 当前路径 = 帧固定端口（beginFrame + drawSky + drawFrame + submitFrame）
      * + [SceneUpdateChannel.push] 返回值（本测试实测）；
-     * 旧路径 = 帧固定端口 + setFadeAlpha + drawIslandCliffs + drawAllTiles
-     * + drawSprite + 逐 rect（占地框 5 + 选中 5 + 拆除逐建筑 + 网格线根数）。
+     * 旧路径（B18 已删除的回滚臂，此处保留为**冻结对照基线**）= 帧固定端口
+     * + setFadeAlpha + drawIslandCliffs + drawAllTiles + drawSprite
+     * + 逐 rect（占地框 5 + 选中 5 + 拆除逐建筑 + 网格线根数）。
      * 网格线根数按真实地图（128×128 格）+ 1080×1920 视口 + 整岛缩放档
      * = (128+1)×2 = 258（与方案 §1 病灶计数同口径）。
      */
     @Test
-    fun `placement mode per-frame JNI calls stay under ten on the new path`() {
+    fun `placement mode per-frame JNI calls stay under ten on the current path`() {
         channel.push(inputs())
         sink.calls.clear()
 
         val steadyPushes = channel.push(inputs())
-        val steadyFrame = FIXED_NEW_PATH_PORTS + steadyPushes + cameraPort(moved = false)
-        val cameraFrame = FIXED_NEW_PATH_PORTS + channel.push(inputs()) + cameraPort(moved = true)
+        val steadyFrame = FIXED_PATH_PORTS + steadyPushes + cameraPort(moved = false)
+        val cameraFrame = FIXED_PATH_PORTS + channel.push(inputs()) + cameraPort(moved = true)
         val dragPushes = channel.push(inputs(f = frame(previewBoxX = 300f)))
-        val dragFrame = FIXED_NEW_PATH_PORTS + dragPushes + cameraPort(moved = false)
+        val dragFrame = FIXED_PATH_PORTS + dragPushes + cameraPort(moved = false)
 
         assertEquals("稳态放置帧零导入跨线", 0, steadyPushes)
         assertEquals(1, dragPushes)
@@ -333,13 +335,13 @@ class SceneUpdateChannelTest {
 
         val gridLines = (WORLD_CELLS + 1) * 2
         val demolishRects = 5 + 1 + 1  // 一栋红（填充+四边）+ 两栋绿填充
-        // 旧路径固定端口 = beginFrame/drawSky/submitFrame + setFadeAlpha/
-        // drawIslandCliffs/drawAllTiles（无 drawFrame——旧路径逐层各自跨线）
-        val legacyFrame = LEGACY_FIXED_PORTS + 1 +
+        // 旧路径（B18 已删除）固定端口 = beginFrame/drawSky/submitFrame +
+        // setFadeAlpha/drawIslandCliffs/drawAllTiles（无 drawFrame——旧路径逐层各自跨线）
+        val legacyFrame = LEGACY_FIXED_PORTS_FROZEN + 1 +
             PREVIEW_BOX_RECTS + SELECTION_RECTS + demolishRects + gridLines
         assertTrue("旧路径同帧应处于数百量级（实测口径=$legacyFrame）", legacyFrame > 250)
         println(
-            "[G4 JNI] 放置模式每帧：旧 $legacyFrame → 新 $steadyFrame（稳态）/ " +
+            "[G4 JNI] 放置模式每帧：旧（B18 前基线）$legacyFrame → 当前 $steadyFrame（稳态）/ " +
                 "$cameraFrame（相机移动）/ $dragFrame（拖拽预览），目标 <$G4_JNI_TARGET"
         )
     }
@@ -348,12 +350,14 @@ class SceneUpdateChannelTest {
     private fun cameraPort(moved: Boolean): Int = if (moved) 1 else 0
 
     private companion object {
-        /** 新路径每帧固定端口：beginFrame / drawSky / drawFrame / submitFrame */
-        const val FIXED_NEW_PATH_PORTS = 4
+        /** 当前路径每帧固定端口：beginFrame / drawSky / drawFrame / submitFrame */
+        const val FIXED_PATH_PORTS = 4
 
-        /** 旧路径每帧固定端口：beginFrame / drawSky / submitFrame +
-         *  setFadeAlpha / drawIslandCliffs / drawAllTiles */
-        const val LEGACY_FIXED_PORTS = 6
+        /** B18 前旧路径每帧固定端口：beginFrame / drawSky / submitFrame +
+         *  setFadeAlpha / drawIslandCliffs / drawAllTiles（回滚臂已删除，
+         *  此值作为对照基线冻结——使"当前路径 < 目标"与"旧路径数百量级"
+         *  两个陈述可同帧比较） */
+        const val LEGACY_FIXED_PORTS_FROZEN = 6
 
         /** 占地框矩形数（填充 + 四边） */
         const val PREVIEW_BOX_RECTS = 5

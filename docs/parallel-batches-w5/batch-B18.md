@@ -55,7 +55,7 @@
 | 臂 1 | 传输臂退役：`mirrorProtobufTransport` 旗标 + JSON 分发分支 + `nativeSetDirtyExportProtobuf` 端口删除；`exportDirtyJson` 保留作桌面对拍 golden | ✅ 已提交 `df6b70d5a`（ctest 1556/1556 + 单进程 1553/1553 exit=0 + SurfaceGuard 6/6） |
 | 臂 2 | 投影臂退役：`gameViewProjection` 旗标删除 + `GameEngine` 三块 UI 消费恒投影 + 旧全量往返臂转测试 golden | ✅ 已提交 `efba3ee72` |
 | 臂 3 | 列级臂退役：`dirtyColumnExport` 旗标 + `nativeSetDirtyExportColumn` 端口删除，恒列级导出（**异构锁存 `columnExportBlocked_` 保留**）；`exportDirtyColumnJson` 保留作 golden；解码侧 `decodeView` 缺省值即生产形态（恒列级补丁） | ✅ 本轮实施 |
-| 臂 β | 场景臂（`sceneStoreRender`）退役 | ⬜ 未动 |
+| 臂 β | 场景臂（`sceneStoreRender`）退役 | ✅ 本轮实施 |
 | 臂 γ / 吸收项 | `upsertsJson` typed 化 / G5 / b03 遗留 / Room 死列 / 注释收口 | ⬜ 未动 |
 
 **臂 2 实施要点**（施工卡见 `docs/parallel-batches-w5/handover-b18-wip-2026-09-20.md` §2）：
@@ -93,8 +93,40 @@
   （该 import 面被 `MirrorConsumerSurfaceGuardTest` 锁死在 codec + 行投影两处），
   故 `applyDirtyProtoWith` 的解码器形参用**全限定名**声明。
 
-### 1. 回滚臂删除（本批主体）
+**臂 β 实施要点**（`sceneStoreRender` 场景臂退役）：
+- 侦察结论：该臂的删除面**比旗标本身宽**——`setFadeAlpha` 与 `drawAllTiles`（Kotlin JNI
+  + C++ 实现）**仅**由旧臂 `renderLegacyDrawAllTilesPath` 调用（新路径的淡入经
+  `drawFrame` 的 `fadeAlpha` 参数、崖壁经 `sceneSetCliffLayout`），故删旧臂后这三个端口
+  一并成为死面。反之 `drawIslandCliffs`/`drawRect`/`drawSprite` 仍有独立 ABI 价值
+  （场景测试驱动 + 叠加层手绘），**保留**。
+- 生产侧（Kotlin）：`NativeEngineFlag.sceneStoreRender` 旗标删；
+  `VulkanRenderBackend.renderFrame` 双路分支收敛为单路 `renderSceneStorePath`；
+  `renderLegacyDrawAllTilesPath` / `renderLegacyOverlayPath` 两函数整体删除，
+  **其四个逐 rect 辅助函数一并删除**（`drawSelectionHighlight` / `drawDemolishMarker` /
+  `drawPreviewHighlight` / `drawGridOverlay`）——原拟"保留作对照实现"，但 detekt
+  `UnusedPrivateMember` 判其确无消费者 ⇒ 诚实删除；连带清理 `SELECTED_DATA_STRIDE` /
+  `MIN_SCALE` / 叠加层全套视觉常量（`SpriteAtlasDef` / `DemolishHighlightMark` import 随之
+  成孤儿，一并删）。**网格线公式守卫并未失去对照面**：Canvas 与 C++ 两处仍在（原为三处）。
+- 生产侧（JNI/Kotlin）：`NativeBridge.drawAllTiles`（17 参数）与 `setFadeAlpha` 端口删。
+- 生产侧（C++）：`NativeBridge.cpp` 两个 JNI 实现删（`drawAllTiles` 约 5.2KB 大块 +
+  `setFadeAlpha`）；`g_fadeAlpha` 保留（`drawFrame` 写、崖壁/地图层读）；`g_mapBatcher` /
+  `submitMapBatchCommon` / `decorSkipActive` / `drawCliffLayerInternal` 保留（单路仍用）。
+- 守卫侧（**关键纪律：删臂后守卫不得失去对照面**）：`SceneOverlayProtocolGuardTest`
+  的"逐 rect 调用点只在回滚臂内"改**单向 + 反向断言** ——
+  ① 新路径体内不得逐 rect；② 六个别名函数（两旧臂 + 四辅助）**不得回流**
+  （`functionBody(...).isEmpty()`）；③ `sceneStoreRender` 字符串不得出现在后端源码。
+  网格线行范围守卫从"Vulkan/Canvas/C++ 三路"缩为"**Canvas/C++ 两路**"并更名
+  `...on remaining arms`（Vulkan 侧实现已删，强行保留断言只会锁住死码）。
+  `SceneUpdateChannelTest` 的旧路径计数从"活体调用点算术"转**冻结对照基线**
+  （`LEGACY_FIXED_PORTS_FROZEN`，值不变，注释标明已删除），"数百量级 vs <10"的
+  对比陈述因此仍可复现。
+- 门禁：JNI 基线 `89 → 87`（`NativeBridge.kt` 49 → 47）。桌面 GTest 无新增用例改动
+  （`scene_equivalence_test` 的"旧路径臂"是**非 JNI 等价驱动**，不依赖已删端口）。
+- 语义边界复核：`farViewGroundQuad` 与 `sceneStoreRender` 原为**正交**旗标
+  （前者决定地面层绘制形态，后者决定数据通道），删后者后前者语义不变——
+  `NativeEngineFlag` 中对二者的交叉引用已改写为单向说明。
 
+### 1. 回滚臂删除（本批主体）
 - `drawAllTiles` 旧臂退役；
 - `sceneStoreRender` / `gameViewProjection` / `mirror`（JSON 回退分支）退役；
 - 灰度旗标（`NativeEngineFlag.mirrorProtobufTransport` / `dirtyColumnExport` /

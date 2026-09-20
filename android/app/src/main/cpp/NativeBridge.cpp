@@ -18,8 +18,8 @@
 #include "KtxLoader.h"
 #include "SkyBackground.h"
 // SceneStore 场景真相 + 场景绘制核心（重构方案 2026-09-17 R3.1/R3.2）——
-// 旧 drawAllTiles 路径与新 SceneStore 路径消费同一构建逻辑（scene_draw.h），
-// 像素等价由构造保证 + scene_equivalence_test 顶点流对照锁定。
+// 地图/崖壁/叠加层/浮字各层共用同一构建逻辑（scene_draw.h）；
+// B18 前新旧两路的像素等价由 scene_equivalence_test 顶点流对照锁定。
 // 占地/UV/渲染常量表由 build-atlas.mjs 同源生成进 C++（scene_uv_tables.h，
 // 仓库内生成物——footprint_table.h 的消费位由此接替，生成任务保留）。
 #include "scene/scene_store.h"
@@ -163,22 +163,21 @@ static std::atomic<bool> g_decorLod{true};
 //（与 SpriteAtlasDef 同源；绘制核心 scene_draw.h 消费）
 
 // ============================================================
-// 地图淡入过渡状态（由 setFadeAlpha 更新，渲染线程单消费者读）
+// 地图淡入过渡状态（每帧经 drawFrame 的 fadeAlpha 参数携带，渲染线程写读）
 // 与 Kotlin 侧 FadeTransition（core:engine）同一数学来源：
 //   触发：RenderThread 启动时 NativeSurfaceView.fadeIn()（首次/重入/降级统一）
 //   计算：渲染线程每帧 alphaAt(elapsedNs, durationNs)（EaseOutCubic，纯时钟驱动）
-//   应用：地图层（drawAllTiles/drawFrame）全部 add 的 alpha 乘算；
-//   drawRect/drawSprite（预览/高亮）不受影响
+//   应用：地图层/崖壁层全部 add 的 alpha 乘算；叠加层（预览/高亮）不受影响
 // ============================================================
 
 /** 地图淡入 alpha（0-1，1 = 完全不透明） */
 static std::atomic<float> g_fadeAlpha{1.0f};
 
 // 作物插值状态收敛进 scene::CropSmoothingState（g_cropSmooth，SceneStore 段）——
-// 新旧两条绘制路径消费同一平滑状态（单份绘制核心的配套单例）
+// 地图层绘制消费该平滑状态（绘制核心的配套单例）
 
 // ── 帧批量构建器（跨帧复用）──
-// 渲染线程单消费者：drawAllTiles/drawFrame/drawIslandCliffs 仅由 RenderThread
+// 渲染线程单消费者：drawFrame/drawIslandCliffs 仅由 RenderThread
 // 经 JNI 调用，无并发；grow 一次后堆缓冲跨帧复用，根除每帧 5 次 new/memcpy/
 // delete ×2 的分配链。清理策略与 g_cropSmooth 同纪律（文件级状态须在
 // shutdownRenderer 说明）：batcher 无 native 句柄，无需清理，仅容量驻留
@@ -195,12 +194,12 @@ static SpriteBatcher g_edgeBatcher;
 // 线程契约：与每帧绘制同（渲染线程单消费者，导入与消费同线程顺序执行）。
 // 纪元纪律：shutdownRenderer 复位（g_scene.reset/g_cropSmooth.clear/
 // 图集纹理 ID 清零），Kotlin 侧新 surface 的新后端实例首帧重推全部场景。
-// 旧 drawAllTiles 路径不消费本状态（两路数据面独立，经灰度旗标互斥选择）。
+// 场景绘制路径为唯一渲染入口（B18 后无第二数据面）。
 // ============================================================
 static scene::SceneStore g_scene;
 static scene::CropSmoothingState g_cropSmooth;
-/** SceneStore 路径的图集纹理 ID（sceneSetAtlasTexture 注入；0 = 未上传，
- *  与旧路径 host.atlasTextureId==0 跳过地图层的守卫语义一致） */
+/** 场景绘制路径的图集纹理 ID（sceneSetAtlasTexture 注入；0 = 未上传，
+ *  与 Kotlin 侧 host.atlasTextureId==0 跳过地图层的守卫语义一致） */
 static uint32_t g_sceneAtlasTexId = 0;
 /** R3.3 叠加层专用构建器（跨帧复用容量）——与地图/崖壁批各用独立 static，
  *  互不串批；无 native 句柄，shutdownRenderer 无需清理（同 g_mapBatcher 纪律） */
@@ -836,23 +835,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderFlags(
 }
 
 /**
- * 地图淡入 alpha 推送（渲染线程每帧调用，Compose 线程不写）。
- * 只影响地图层 quad alpha（旧 drawAllTiles 路径经本端口推送；新 drawFrame
- * 路径以帧参数携带）；drawRect/drawSprite（预览/高亮）
- * 不受影响——与 Canvas 侧（预览/高亮用独立 Paint）行为双端一致。
- */
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_setFadeAlpha(
-    JNIEnv* /*env*/, jobject /*thiz*/,
-    jfloat fadeAlpha) {
-
-    float a = fadeAlpha;
-    if (a < 0.0f) a = 0.0f;
-    if (a > 1.0f) a = 1.0f;
-    g_fadeAlpha.store(a);
-}
-
-/**
  * SkyBackground 配置推送（Compose 线程调用，渲染线程下一帧生效）。
  * 四段渐变（top→second→third→bottom）。只需改颜色/位置/强度即可实现未来
  * 晴天/傍晚/夜晚/阴天切换，不改地图渲染。
@@ -876,7 +858,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setSkyConfig(
 }
 
 /**
- * 绘制屏幕空间天空背景（渲染线程帧首调用，beginFrame 之后、drawAllTiles 之前）。
+ * 绘制屏幕空间天空背景（渲染线程帧首调用，beginFrame 之后、drawFrame 之前）。
  * 背景以屏幕正交投影绘制（相机平移/缩放不影响），始终为最底图层。
  */
 extern "C" JNIEXPORT void JNICALL
@@ -893,11 +875,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawSky(
 }
 
 // ============================================================
-// 场景绘制提交辅助（新旧路径共用——单实现防漂移）
+// 场景绘制提交辅助（地图层/崖壁层/叠加层共用——单实现防漂移）
 // ============================================================
 
-/** 装饰层跳过判定（溢出降级/热控关闭/质量因子/缩放 LOD——与旧 drawAllTiles
- *  内联判定同式；两路调用点读同一组全局量） */
+/** 装饰层跳过判定（溢出降级/热控关闭/质量因子/缩放 LOD——地图层唯一判定点） */
 static bool decorSkipActive(bool overflowDegrade) {
     return overflowDegrade ||
            g_decorationsDisabled.load() ||
@@ -905,7 +886,7 @@ static bool decorSkipActive(bool overflowDegrade) {
            (g_decorLod.load() && g_scale < scene::kDecorQualityThreshold);
 }
 
-/** 地图层批提交 + 溢出遥测结算（旧 drawAllTiles 帧尾段收敛——两路共用） */
+/** 地图层批提交 + 溢出遥测结算（地图层绘制帧尾段单一实现） */
 static void submitMapBatchCommon(bool overflowDegrade, uint32_t atlasTexId) {
     const int vertCount = g_mapBatcher.end();
     if (g_mapBatcher.droppedSprites > 0) {
@@ -927,7 +908,7 @@ static void submitMapBatchCommon(bool overflowDegrade, uint32_t atlasTexId) {
     }
 }
 
-/** 崖壁层构建 + 逐纹理连续段提交（drawIslandCliffs 旧路径与 drawFrame 新路径共用；
+/** 崖壁层构建 + 逐纹理连续段提交（drawFrame 路径与独立 drawIslandCliffs 端口共用；
  *  观测锚点日志进程内一次，两路等价消费布局数据） */
 static void drawCliffLayerInternal(const jfloat* data, int pieceCount) {
     // 观测锚点（进程内一次）：确认 C++ 侧消费到布局数据（真机排查按此过滤）
@@ -973,7 +954,7 @@ static void drawCliffLayerInternal(const jfloat* data, int pieceCount) {
  * 后端自留的 cachedScale，两值在相机移动帧可差一帧；新路径统一到投影同源，
  * 叠加层与地图层物理上不可能错位。
  *
- * 覆盖层不乘 g_fadeAlpha（与旧路径同语义：淡入只作用于地图层 quad）。
+ * 覆盖层不乘 g_fadeAlpha（淡入只作用于地图层 quad）。
  */
 static void drawOverlayLayerInternal(int32_t overlayFlags, jint vpW, jint vpH) {
     scene::OverlayParams p;
@@ -1017,119 +998,14 @@ static void drawOverlayLayerInternal(int32_t overlayFlags, jint vpW, jint vpH) {
 }
 
 // ============================================================
-// 旧绘制路径：drawAllTiles（17 参数全量数组——灰度回滚臂，保留一个版本周期）
-//
-// **deprecated（R3.2 起）**：生产默认走 SceneStore 新路径
-// （sceneSetTerrain / sceneUpdateBuildings / sceneUpdateCrops /
-//   sceneUpdateRoads / sceneUpdateClouds / sceneSetCliffLayout /
-//   sceneSetAtlasTexture + drawFrame）。
-// 回退 = NativeEngineFlag.sceneStoreRender=false（Kotlin 侧即时切回本端口）。
-// 绘制构建已收敛进 scene_draw.h 单份核心（新旧路径像素等价的构造性保证），
-// 本函数只剩 JNI 数组解包 + 参数装配 + 提交。
-// ============================================================
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
-    JNIEnv* env, jobject /*thiz*/,
-    jintArray tileData, jint cols, jint rows,
-    jfloatArray buildingData, jint buildingCount, jboolean buildingVisible,
-    jint tileSize, jint atlasTexId,
-    jfloatArray uvMap, jfloatArray buildingUVMap,
-    jfloatArray cropData, jfloatArray cropUVMap, jfloat frameAlpha,
-    jfloatArray cloudData, jfloatArray cloudUVMap,
-    jintArray roadData, jfloatArray roadUVMap) {
-
-    if (!g_renderer || !tileData || !uvMap) return;
-    const jsize tileArrCount = env->GetArrayLength(tileData);
-    if ((jsize)rows * cols > tileArrCount) return;
-
-    // JNI 数组解包（渲染线程独占的帧快照，一次性取齐与逐一取放等价；
-    // 全部 JNI_ABORT 释放——C++ 侧只读不回写）
-    jint* tiles = env->GetIntArrayElements(tileData, nullptr);
-    jfloat* uvs = env->GetFloatArrayElements(uvMap, nullptr);
-    jfloat* buildings = buildingData ? env->GetFloatArrayElements(buildingData, nullptr) : nullptr;
-    jfloat* buvs = buildingUVMap ? env->GetFloatArrayElements(buildingUVMap, nullptr) : nullptr;
-    jfloat* crops = cropData ? env->GetFloatArrayElements(cropData, nullptr) : nullptr;
-    jfloat* cuvs = cropUVMap ? env->GetFloatArrayElements(cropUVMap, nullptr) : nullptr;
-    jfloat* clouds = cloudData ? env->GetFloatArrayElements(cloudData, nullptr) : nullptr;
-    jfloat* cloudUvs = cloudUVMap ? env->GetFloatArrayElements(cloudUVMap, nullptr) : nullptr;
-    jint* roads = roadData ? env->GetIntArrayElements(roadData, nullptr) : nullptr;
-    jfloat* ruvs = roadUVMap ? env->GetFloatArrayElements(roadUVMap, nullptr) : nullptr;
-
-    const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
-
-    scene::MapLayerParams p;
-    p.viewLeft = g_viewLeft;
-    p.viewTop = g_viewTop;
-    p.viewRight = g_viewRight;
-    p.viewBottom = g_viewBottom;
-    p.scale = g_scale;
-    p.fadeAlpha = g_fadeAlpha.load();
-    p.frameAlpha = frameAlpha;
-    p.skipDecor = decorSkipActive(overflowDegrade);
-    p.skipClouds = p.skipDecor;  // 云层与装饰层同一 skip 判定（热控/LOD/溢出降级汇合）
-    p.buildingShadows = g_buildingShadows.load();
-    p.buildingVisible = buildingVisible == JNI_TRUE;
-    p.tiles = tiles;
-    p.tileCount = tileArrCount;
-    p.cols = cols;
-    p.rows = rows;
-    p.tileSize = tileSize;
-    p.atlasTexId = static_cast<uint32_t>(atlasTexId);
-    // 整图 REPEAT 地面 quad 在部分 Adreno 驱动采样异常（黑屏）——设备白名单
-    // （FarViewGroundPolicy.ALLOWED_DEVICES，当前为空）+ 缩放/图集/用户旗标四重门
-    // 由 Kotlin 侧判定后推入 g_farViewGroundQuad；默认 false = 恒走逐格地面
-    p.groundQuadEnabled = g_farViewGroundQuad.load(std::memory_order_relaxed);
-    p.groundTexId = g_groundTexId;
-    p.tileUv = uvs;
-    p.tileUvCount = env->GetArrayLength(uvMap) / 4;
-    p.roads = roads;
-    p.roadCount = roads ? env->GetArrayLength(roadData) : 0;
-    p.roadUv = ruvs;
-    p.roadUvCount = ruvs ? env->GetArrayLength(roadUVMap) / 4 : 0;
-    p.buildings = buildings;
-    p.buildingClaim = buildingCount;
-    p.buildingDataFloats = buildings ? env->GetArrayLength(buildingData) : 0;
-    p.buildingUv = buvs;
-    p.buildingUvCount = buvs ? env->GetArrayLength(buildingUVMap) / 4 : 0;
-    p.crops = crops;
-    p.cropCount = crops ? env->GetArrayLength(cropData) / 3 : 0;
-    p.cropUv = cuvs;
-    p.cropUvCount = cuvs ? env->GetArrayLength(cropUVMap) / 4 : 0;
-    p.clouds = clouds;
-    p.cloudCount = clouds ? env->GetArrayLength(cloudData) / scene::kCloudStride : 0;
-    p.cloudUv = cloudUvs;
-    p.cloudUvCount = cloudUvs ? env->GetArrayLength(cloudUVMap) / 4 : 0;
-
-    scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth,
-        [](uint32_t texId, const SpriteVertex* verts, int count) {
-            // R3.5 整图 REPEAT 地面：独立纹理，须自带一次 draw
-            //（与主批 atlasTexId 不同——不能并入 submitMapBatchCommon）
-            if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
-        });
-    submitMapBatchCommon(overflowDegrade, static_cast<uint32_t>(atlasTexId));
-
-    env->ReleaseIntArrayElements(tileData, tiles, JNI_ABORT);
-    env->ReleaseFloatArrayElements(uvMap, uvs, JNI_ABORT);
-    if (buildings) env->ReleaseFloatArrayElements(buildingData, buildings, JNI_ABORT);
-    if (buvs) env->ReleaseFloatArrayElements(buildingUVMap, buvs, JNI_ABORT);
-    if (crops) env->ReleaseFloatArrayElements(cropData, crops, JNI_ABORT);
-    if (cuvs) env->ReleaseFloatArrayElements(cropUVMap, cuvs, JNI_ABORT);
-    if (clouds) env->ReleaseFloatArrayElements(cloudData, clouds, JNI_ABORT);
-    if (cloudUvs) env->ReleaseFloatArrayElements(cloudUVMap, cloudUvs, JNI_ABORT);
-    if (roads) env->ReleaseIntArrayElements(roadData, roads, JNI_ABORT);
-    if (ruvs) env->ReleaseFloatArrayElements(roadUVMap, ruvs, JNI_ABORT);
-}
-
-// ============================================================
-// 新绘制路径：SceneStore 导入端口 + drawFrame（R3.2——JNI 面 8 端口；
+// 场景绘制路径：SceneStore 导入端口 + drawFrame（R3.2——JNI 面 8 端口；
 // R3.3/B11 在同一段追加叠加层状态导入 3 端口，见其独立豁免登记块）
 //
 // 【JNI 面豁免登记】（沿 R0.2 nativeFpDeterminismProbe / B06
 // nativeSetDirtyExportProtobuf 先例）：8 端口属"场景数据导入 + 每帧绘制"
 // 通道，无法沿用既有通道（nativeExecute ActionId 业务事务面 / 镜像导出面
-// 均非渲染场景数据形状）；R3.2 之前唯一渲染入口 drawAllTiles 以 17 参数
-// 全量数组每帧跨线——本组端口即其退役替身（drawAllTiles deprecated 保留
-// 一个版本周期，NativeEngineFlag.sceneStoreRender 灰度互斥）。
+// 均非渲染场景数据形状）；即 B18 已退役的旧唯一渲染入口 drawAllTiles
+// （17 参数全量数组每帧跨线）的替身。
 // ============================================================
 
 /** 地形一次性导入（展平瓦片 + 网格尺寸 + 格像素；地图切换/建筑占位变化时重导） */
@@ -1440,11 +1316,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
 
     const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
 
-    // 淡入 alpha 消毒同 setFadeAlpha（NaN 行为双路一致：clamp 不拦 NaN）；
+    // 淡入 alpha 消毒（NaN 行为：clamp 不拦 NaN）；
     // 消毒后先写回全局量——崖壁层与地图层共享消费 g_fadeAlpha 单一来源
-    // （新路径不再另行调用 setFadeAlpha；必须先于崖壁层——图集未就绪窗口
-    // 地图层跳过时崖壁淡入仍随帧推进，与旧路径 setFadeAlpha 每帧无条件
-    // 推送的时序一致）
+    // （必须先于崖壁层——图集未就绪窗口地图层跳过时崖壁淡入仍随帧推进）
     float fade = fadeAlpha;
     if (fade < 0.0f) fade = 0.0f;
     if (fade > 1.0f) fade = 1.0f;

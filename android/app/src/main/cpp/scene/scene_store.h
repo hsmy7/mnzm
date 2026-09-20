@@ -24,12 +24,12 @@
 //     setIslandCliffTextures 既有端口。
 //   - 叠加层状态（R3.3/B11）：选中索引 / 逐建筑拆除标记 / 预览几何（占地框 +
 //     预览精灵），同样变化驱动导入——叠加层的**几何生成**不在本模块，
-//     由 scene_draw.h 按这些状态 + 相机算出（旧路径每帧逐 rect 跨线的替代）。
+//     由 scene_draw.h 按这些状态 + 相机算出（Kotlin 每帧逐 rect 跨线的替代）。
 //
 // ## 等价性红线（R3 行为等价性风险最高）
 //   本模块只做**存储**（逐值搬运，零几何/层序/UV 计算）——所有绘制判定仍在
-//   scene_draw.h 单份绘制核心（旧 drawAllTiles 路径与新路径消费同一实现），
-//   新旧路径像素等价由构造保证 + scene_equivalence_test 顶点流对照锁定。
+//   scene_draw.h 单份绘制核心（四类层共用同一实现），
+//   双端像素等价由构造保证 + scene_equivalence_test 顶点流对照锁定。
 //
 // ## 平台纯度
 //   零 Android/JNI 依赖（桌面 GTest 直接覆盖）；线程契约与既有渲染全局量同：
@@ -38,8 +38,8 @@
 // ============================================================
 namespace scene {
 
-/// 建筑数据单条步长（[gx, gy, spriteW, spriteH, nameIdx]，与旧 drawAllTiles
-/// buildingData 协议同形——Kotlin buildBuildingDataArray 逐位同值）
+/// 建筑数据单条步长（[gx, gy, spriteW, spriteH, nameIdx]——Kotlin
+/// buildBuildingDataArray 逐位同值）
 inline constexpr int kBuildingStride = 5;
 
 /// 作物数据单条步长（[gx, gy, progress01]，与旧 cropData 协议同形）

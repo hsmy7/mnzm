@@ -630,7 +630,7 @@ class NativeSurfaceView(
      * 当前淡入 alpha（0-1，EaseOutCubic）。
      * 纯时钟驱动纯函数（[FadeTransition.alphaAt]）——每帧独立计算，无累积误差，
      * 热控降帧（10fps 挂机档）下淡入时长按墙钟精确。
-     * 渲染线程每帧读取并推送到双端（Vulkan=setFadeAlpha / Canvas=合成 paint.alpha）。
+     * 渲染线程每帧读取并推送到双端（Vulkan=drawFrame 的 fadeAlpha 参数 / Canvas=合成 paint.alpha）。
      */
     val fadeAlpha: Float
         get() = FadeTransition.alphaAt(
