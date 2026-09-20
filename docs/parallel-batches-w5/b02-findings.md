@@ -9,6 +9,11 @@
 > 批次 B10（R3.1 + R3.2，C++ SceneStore 与 JNI 面重构；关联提交 `ba0901c89` /
 > `242440778` / `cd5df439b`），登记口径与 B02 各条一致（观察登记、非阻塞项、
 > 带触发条件的处置建议）。
+>
+> **再增补（2026-09-20）**：发现 6、7 来自批次 B06（R2.1 + R2.2，GameView proto
+> 定义 + 镜像通道换 protobuf；关联提交 `daa8eeb11` / `6b3354708` / `9e1d9c0cc` /
+> `147a53cab`）。发现 6 为**架构级护栏缺失**（非 B06 引入），发现 7 为 R2.3 前瞻
+> 语义纪律（B06 域等价无损）。均观察登记、非 B06 阻塞项，处置建议见文末汇总表。
 
 ---
 
@@ -180,6 +185,90 @@ B10（R3.2）把 C++ 侧建筑占地表的来源从 `footprint_table.h` 换轨�
 
 ---
 
+## 发现 6（2026-09-20 增补，来源批次 B06）——JNI 面"计数不增"缺自动门禁（架构级护栏缺失，非本批引入）
+
+### 现象与事实链
+
+方案 §"CI 与度量执法"第 3 条要求「JNI 面计数不增（脚本比对 external fun 总数）」，
+但该门禁**自 R0.2 起只有登记、从未建设**。逐环节事实（实测于 2026-09-20）：
+
+1. **要求已白纸黑字**：`docs/native-engine-refactor-plan-2026-09-17.md` §"CI 与度量
+   执法"第 3 条列「静态门禁：JNI 面计数不增（脚本比对 external fun 总数）」。
+2. **前例已登记、未落闸**：§7.1「登记的后续衔接项」明载——「'CI 与度量执法'：JNI 面
+   计数不增静态门禁尚未建设（R0.2 探针 +1 已在 CHANGELOG 登记豁免理由）」，即
+   `nativeFpDeterminismProbe` 当时 +1 只做了人工豁免登记，没有拦截工具。
+3. **B06 再次 +1**：为把 C++ 变更集导出分发切到 protobuf，新增
+   `external fun nativeSetDirtyExportProtobuf(Boolean)`（`GameCoreBridge.kt`）+ C++
+   同名 setter（`GameCoreBridge.cpp`）。**无自动门禁 ⇒ 此次增长仅靠 CHANGELOG/§7.2
+   人工登记被记录，不会被任何工具拦截**。
+4. **为何没走零新增路子**：评估过用既有 `nativeExecute` ActionId 通道承载此开关
+   （真·零新增 external fun），但 `action_ids.h`/`ActionIds.kt` 是 198 个**业务玩法
+   操作**的 codegen 清单，把"传输编码格式"这种引擎控制态塞进业务操作码表属语义误用、
+   且要改 codegen 反而面更大。最终选与既有 `nativeSetAiThermalBatchSize` 同族的
+   "引擎线程控制 setter"，代价是 1 个受控豁免（已在 §7.2/CHANGELOG 写明理由）。
+
+### 风险评估：单批无害，累积回弹是真风险（架构级）
+
+- 本批增量合规（已豁免登记），**当前零生产影响**；
+- 结构性风险：护栏缺失 → **每批 +1、无人察觉地累积**，最终把 G3/G4（稳态每帧 JNI
+  次数）的病根重新养回来——与整份重构方案收敛 JNI 的方向背道而驰；
+- 属"度量执法缺位"，非某批的代码缺陷，故登记为架构级观察项。
+
+### 处置建议
+
+**无需 B06 内立即行动**（本批已按 R0.2 先例登记豁免）。根治建议：
+
+- 在 **B17（CI 与度量执法批）** 落 `external fun` 计数基线脚本——比对当前总数与仓库
+  基线数字，**增长即 fail**，除非 PR 显式改基线 + 附豁免理由。让后续每批 JNI 变更有
+  硬闸，替代人评审。
+- 归属倾向：并入 B17 既有的「平台纯度 gate（grep `#include <android`）+ bench 门禁」
+  一起做（同属度量执法），不单独立项，摊薄验证成本。
+- 执行门槛：无前置条件；B17 开工即纳入其交付面。
+
+---
+
+## 发现 7（2026-09-20 增补，来源批次 B06）——proto3 空集合与"缺省键"线路不可区分（R2.3 前瞻语义纪律；本批域等价无损）
+
+### 现象与事实链
+
+弟子行（`DiscipleRow`）里的**空数组/空映射字段**（如 `physiqueIds:[]`、空
+`manualMasteries`/`statusData`），经 protobuf 传输后**键会被整个省略**。逐环节事实：
+
+1. **线路根因**：protobuf 的 repeated/map 无"空集合"编码位——长度为 0 的 repeated
+   字段与"该字段完全不出现"在 wire format 上字节相同、无法区分（proto3 语义特性，
+   非实现 bug）。
+2. **编码器侧**：`gameview_encode.cpp` 逐键遍历，空数组循环 0 次 ⇒ 不产出该字段的任何
+   entry；`removed`/`upserts` 同理。
+3. **解码器侧**：`GameViewMirrorCodec.kt` 以 `hasXxx()` / `count==0` 判定 presence，
+   不重建空集合键 ⇒ 还原的变更集树里该弟子行**没有** `physiqueIds` 键。
+4. **域层面被默认值补回**：`Disciple` 各集合字段 `@Serializable` 默认值即
+   `emptyList()`/`emptyMap()` ⇒ 无论"键缺失"还是"键为 `[]`"，`Disciple.serializer()`
+   解码都得同一个空集合域值。**R2.2 传输换轨因此逐值等价、零生产影响**——
+   `DiffDirtyEnvelopeEquivalenceTest` 对"空容器 vs 缺省键"做了归一化 deep-equal，
+   实跑 0 失败已锁定这一点。
+
+### 风险评估：B06 无损，风险前移到 R2.3
+
+- **当前（R2.2）**：仅换传输编码、走同一 JSON applier、域默认补位 ⇒ **等价无损**，
+  无待办；
+- **前瞻（R2.3）**：UI 消费面从"整块 JSON 反序列化"迁到"直接读 typed proto 字段"时，
+  若有人拿"字段 present 与否"当**业务判据**（例如"present=有变化 / absent=无变化"），
+  就会把"集合被清空"误读成"该字段未携带"——语义分叉。
+
+### 处置建议
+
+**无需 B06 内行动**（等价已由守卫锁定）。纪律前置建议：
+
+- **R2.3 开工时**，在 `game_view.proto` 文件头的「字段只增不改」演进纪律里补一条：
+  *集合字段（repeated/map）的 present 不得承载业务语义，"空集合"与"缺省键"一律
+  回落到域模型默认值判断*；并在 `GameViewMirrorCodec` / 未来 `GameViewStore` 注释
+  钉死，等价性守卫继续跑。
+- 触发条件：R2.3 第一/二波消费面开始直读 typed proto 字段之前提入演进纪律清单，
+  避免各消费点各自发明 present 语义。
+- 现状不动代码（无生产影响、避免过度改动），仅登记为 R2.3 使用约束。
+
+---
+
 ## 处置建议汇总
 
 | # | 事项 | 是否需要行动 | 建议归属 / 触发条件 |
@@ -189,3 +278,5 @@ B10（R3.2）把 C++ 侧建筑占地表的来源从 `footprint_table.h` 换轨�
 | 4a | 战斗组装域 map 版 `finalStats` | 否（语义必须保留） | 无待办；若未来战斗域也要求实例寻址统一，需先解决"临时模拟装备无行号"的前置问题（属 R4 战斗域批次范畴） |
 | 4b | `applyEquipmentUpdates` 扫描方式 | 否（更正：已是单遍 O(E)） | 无待办；本条仅为更正施工报告口径 |
 | 5 | `generateFootprintHeader` 死管道（B10 增补） | 否（当前零风险零成本） | 无前置触发条件；建议归属 R3 回滚臂删除批顺带（或独立小清理批），按发现 5 清理范围清单逐项执行 |
+| 6 | JNI 面计数不增缺自动门禁（B06 增补，架构级） | 否（本批已按 R0.2 先例登记豁免；当前零生产影响） | 归属 B17（CI 与度量执法批）：落 `external fun` 计数基线脚本，增长即 fail 除非显式改基线+附豁免理由；无前置条件，与平台纯度 gate/bench 门禁同批交付 |
+| 7 | proto3 空集合与缺省键不可区分（B06 增补，R2.3 前瞻） | 否（R2.2 域等价无损，已由 `DiffDirtyEnvelopeEquivalenceTest` 锁定） | 触发条件：R2.3 消费面直读 typed proto 字段之前——在 `game_view.proto` 演进纪律补「集合字段 present 不作业务判据、空↔缺省回落域默认」，并在 `GameViewMirrorCodec`/`GameViewStore` 注释钉死 |
