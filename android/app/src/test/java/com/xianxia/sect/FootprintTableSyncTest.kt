@@ -5,49 +5,20 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.ui.game.building.registerDefaults
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 /**
- * C++/Kotlin 足迹尺寸表同步守卫测试。
+ * Kotlin 侧占地表一致性守卫。
  *
- * `footprint_table.h`（由 `./gradlew generateFootprintHeader` 从
- * `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX` 自动生成）与 Kotlin 表必须逐项一致——
- * 若生成任务失效或有人手改头文件，本测试失败。
- * 同时校验 BUILDING_NAMES 与足迹表数量一致（新增建筑时两侧同步）。
+ * **口径变更（b02 发现 5 清理，2026-09-20）**：原用例 1（footprint_table.h ↔
+ * FOOTPRINT_BY_NAME_INDEX 逐项一致）已随 `generateFootprintHeader` 死管道退役——
+ * C++ 消费面自 B10 起改用 `scene/scene_uv_tables.h`（build-atlas.mjs 单跳生成），
+ * 其"生成器幂等 + C++ 消费表同步"守卫职责由
+ * `SceneUvTablesMirrorGuardTest.footprint tables mirror SpriteAtlasDef`（:core:engine）
+ * 逐项接替。本文件保留的是 **Kotlin 侧两表一致性**（名称表 ↔ 占地表 ↔ 注册表），
+ * 与 footprint_table.h 无关。
  */
 class FootprintTableSyncTest {
-
-    @Test
-    fun `FP_W FP_H 与 FOOTPRINT_BY_NAME_INDEX 逐项一致`() {
-        val (cppW, cppH) = parseFootprintArrays()
-        val kotlinFootprints = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX
-
-        assertEquals(
-            "C++ FP_W 数量(${cppW.size}) 与 Kotlin 足迹表数量(${kotlinFootprints.size})不一致——" +
-                "新增/删除建筑时必须同步 NativeBridge.cpp 的 FP_W/FP_H 与 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX",
-            kotlinFootprints.size, cppW.size
-        )
-        assertEquals(
-            "C++ FP_H 数量(${cppH.size}) 与 Kotlin 足迹表数量(${kotlinFootprints.size})不一致",
-            kotlinFootprints.size, cppH.size
-        )
-
-        for (i in kotlinFootprints.indices) {
-            val (kotlinW, kotlinH) = kotlinFootprints[i]
-            assertEquals(
-                "FP_W[$i] (${SpriteAtlasDef.BUILDING_NAMES.getOrNull(i) ?: "?"}) " +
-                    "C++=${cppW[i]} ≠ Kotlin=$kotlinW —— 修改占地尺寸必须两端同步",
-                kotlinW, cppW[i]
-            )
-            assertEquals(
-                "FP_H[$i] (${SpriteAtlasDef.BUILDING_NAMES.getOrNull(i) ?: "?"}) " +
-                    "C++=${cppH[i]} ≠ Kotlin=$kotlinH —— 修改占地尺寸必须两端同步",
-                kotlinH, cppH[i]
-            )
-        }
-    }
 
     @Test
     fun `BUILDING_NAMES 与足迹表数量一致`() {
@@ -81,7 +52,7 @@ class FootprintTableSyncTest {
             val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX[nameIdx]
             assertEquals(
                 "'${feature.displayName}' gridWidth=${feature.gridWidth} ≠ 图集占地宽=$fpW——" +
-                    "修改注册表占地必须同步 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX（并重新生成 footprint_table.h）",
+                    "修改注册表占地必须同步 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX",
                 feature.gridWidth, fpW
             )
             assertEquals(
@@ -90,30 +61,5 @@ class FootprintTableSyncTest {
                 feature.gridHeight, fpH
             )
         }
-    }
-
-    /**
-     * 解析 footprint_table.h 的 FP_W[]/FP_H[] 整型字面量。
-     * 数组是纯数字字面量单行格式，正则提取可靠。
-     * 被测文件位于 build/generated/sprite/（codegen 产物）。
-     */
-    private fun parseFootprintArrays(): Pair<List<Int>, List<Int>> {
-        val headerFile = File("build/generated/sprite/footprint_table.h")
-        assertTrue(
-            "footprint_table.h 不存在：${headerFile.absolutePath}——请运行 ./gradlew generateFootprintHeader",
-            headerFile.exists()
-        )
-        val source = headerFile.readText()
-
-        fun extractArray(name: String): List<Int> {
-            val regex = Regex("""$name\[\]\s*=\s*\{(.*?)\}""", RegexOption.DOT_MATCHES_ALL)
-            val match = regex.find(source)
-                ?: throw AssertionError("footprint_table.h 中未找到 $name[] 数组")
-            return match.groupValues[1]
-                .split(",")
-                .map { it.trim().toInt() }
-        }
-
-        return Pair(extractArray("FP_W"), extractArray("FP_H"))
     }
 }
