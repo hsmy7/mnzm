@@ -14,6 +14,13 @@
 > 定义 + 镜像通道换 protobuf；关联提交 `daa8eeb11` / `6b3354708` / `9e1d9c0cc` /
 > `147a53cab`）。发现 6 为**架构级护栏缺失**（非 B06 引入），发现 7 为 R2.3 前瞻
 > 语义纪律（B06 域等价无损）。均观察登记、非 B06 阻塞项，处置建议见文末汇总表。
+>
+> **第四次增补（2026-09-20）**：发现 8、9、10 来自批次 B07（R2.3 第一波，UI 消费面
+> 二进制传输切换；关联提交 `707cbf2df` / `cb59bf537` / `57f1d67ae` / `18083ac5a` /
+> `34f9ec767`，审计报告 `docs/mirror-consumer-audit-2026-09-18.md`）。三条均为
+> 施工完成报告"途中发现"第 2/3/4 条的展开。因 B08（R2.3 第二波）与 B09（R2.4）
+> 已在其后落地，**每条均按 2026-09-20 的代码现状复核过清偿进度**（发现 8 半清偿），
+> 登记口径与本册 B02/B06 各条一致：观察登记、非阻塞项、处置建议带触发条件。
 
 ---
 
@@ -269,6 +276,152 @@ B10（R3.2）把 C++ 侧建筑占地表的来源从 `footprint_table.h` 换轨�
 
 ---
 
+## 发现 8（2026-09-20 增补，来源批次 B07）——mirror 段双层 JSON 尾巴：每旬全量 gameData JSON 往返 + GameView 信封内嵌 JSON 原文（B08/B09 后**半清偿**）
+
+### 现象与事实链
+
+B07 审计 `StateSyncService → GameStateStore` 时，实测到"传输已二进制、消费侧仍两次 JSON"
+的双层形状（当时 R2.3 第一波红线内**有意不动**，登记为"诚实边界"）：
+
+1. **applier 层**：`StateSyncService.mergeGameDataChanges` 为改 3~5 个标量，每旬把整份
+   `GameData`（137 个序列化字段，含 `recruitList` / `worldMapSects` / `gameEventRecords`
+   等巨型容器）做 `encodeToJsonElement → 覆写变更键 → decodeFromJsonElement` 各一次
+   ——即"每旬级全量重建"，与传输编码无关，换 protobuf 消不掉它；
+2. **信封层**：GameView 的扩展区四个载荷字段是"二进制外壳 + JSON 原文"——
+   `game_view.proto:265 upsertsJson`（非弟子实体集合）、`:277 valueJson`（未 typed 的
+   gameData 字段）、`:191 storageBagItemsJson`（弟子储物袋）、`:299 detailJson`（事件流载荷）；
+   解码集中在 `GameViewMirrorCodec`（`:144` / `:112` / `:337` BYTES_JSON / `:200-207`）
+   各 `parseToJsonElement` 一次。
+
+因果链：R2.1 把这些字段定为 v1 过渡编码（typed 化时按「只增不改」追加新字段号）→ R2.2
+只换传输 → R2.3 第一波红线"镜像仍全量、UI 零变更" ⇒ 中间态是设计结果，不是缺陷；
+但 **G2「每旬镜像 < 10ms@5000 弟子」不可能在只换传输的前提下达成**——这条判断是
+B07 报告拒绝用它的 2.6ms/旬 小态冒充 G2 达成的依据。
+
+### 现状复核（2026-09-20，B08/B09 之后）
+
+| 层 | 状态 | 证据 |
+|---|---|---|
+| applier 全量往返 | **已清偿**（B08） | `StateSyncService.kt:481-490` 生产走 `GameViewProjection` 旗标下的 `GameDataFieldPatch.apply`（一次浅拷贝 + 变更字段逐个解码，成本与"本封变了什么"成比例）；旧全量往返降为回滚臂（`:491-515`，`NativeEngineFlag.gameViewProjection` 默认 true，`:80`） |
+| 信封内嵌 JSON 原文 | **仍开放** | 四处字段与 codec 解析点逐一在位（上表行号），B09 只是把 `detailJson` 的解析收敛到 codec 一处（族内口径一致），未 typed 化 |
+
+G2 权威口径以方案 §7.2 B08/B09 行为准，测量单点即 B08 新增的
+**`MirrorSegmentProjectionBenchTest`**（Robolectric，同一封"每旬全脏"信封两臂分阶段计时）：
+D=5000（信封 2,177,797B）旧臂 **343.13ms**（decode 65.49 + apply 277.64）→ 投影臂
+**132.68ms**（27.87 + 104.80）＝ **−61%**；B09 列级臂再把 decode 段打到 **1.37ms（−95%）**，
+但 mirror 合计仍 **139.30ms**，**`<10ms` 未达、WS-1 保持悬置**。方案已列的残余成本中心
+①`upsertMirrorRow` 全组列写未随列级收窄、②store 侧 O(D) `assembleAll`、③C++ rest 域
+每封序列化、④弟子列表块未迁投影——**其中 ③④ 与本条"信封内嵌 JSON 原文 + 未 typed 化"
+同源**，处置时并入同一批避免两次触碰 codec（本条不重复立项，只补 B07 侧的字节/耗时观测）。
+
+### 风险评估
+
+低。真正要注意的是"每一次 typed 化都要过逐值等价守卫"，并遵守发现 7 的
+proto3 present 语义纪律（集合 present 不作业务判据）；长期不做，则扩展区永远留一次
+JSON parse，但它当前不在预算瓶颈上（瓶颈已外移到渲染链）。
+
+### 处置建议
+
+**不单独立批**。触发条件三选一即启动：① 某集合/字段经实测成为 mirror 段主要占比；
+② G2 收口需要再降 decode 成本；③ **R2 灰度期满删回滚臂批**（届时 `upsertsJson` 族与
+`gameDataChange` 回滚臂一并处理，避免两次触碰同一 codec 函数）。做法固定：
+proto 追加 typed 字段（新字段号）→ C++ 编码器与 codec 单点切换 → 等价守卫对照
+（`DiffDirtyEnvelopeEquivalenceTest` / `MirrorProtoFeedEquivalenceTest` 家族）→
+桌面对拍桥重建。
+
+---
+
+## 发现 9（2026-09-20 增补，来源批次 B07）——protobuf 首封一次性初始化 ~194ms（冷启动成本 + mirror 观测口径污染风险）
+
+### 现象与事实链
+
+B07 的 e2e 守卫（`DiffMirrorArmConvergenceTest`，12 旬真实 C++ 结算）逐旬计时打印：
+**首封 194.017ms，其后 11 旬稳态中位 2.611ms（差约 74 倍）**，兜底臂稳态 3.172ms/旬。
+
+根因链：protobuf-javalite 生成消息类首次使用 = 类装载 + 字段表/`Oneof`/descriptor 初始化
++ 未经 JIT 的解码路径整体走一遍；桌面 JUnit JVM 无预热，这笔一次性成本全额显形在
+"第一封信封的 mirror 段"上。生产侧对应落点是 **native 初始化后的第一个镜像旬**
+（AUTHORITATIVE 启动序列本就在此做 `importToNative` + 首轮镜像），故玩家感知被启动
+耗时吸收。
+
+### 现状复核（2026-09-20）
+
+主源**仍无任何 protobuf 预热**：`grep 预热|prewarm|warm --include=*.kt core/engine/src/main`
+只命中渲染器的 `prewarmDevice`/`VulkanPrewarmState`（与本条无关）。而 B08/B09 之后
+mirror 段已经是**被计量、被报道**的面（`MirrorSegmentProjectionBenchTest` 分阶段
+decode/apply 计时 + PhaseSegmentTimer mirror 段 + G2 趋势登记），本条尖刺正好处在
+这套口径的入口第一帧上。
+
+### 风险评估
+
+非缺陷、零正确性影响。风险全部在**误判成本**上：一个 0.2s 的单帧尖刺出现在
+mirror 段监控或 CI 波动里，形态与真回归一致——"区分抖动与回归"在本项目已是反复发生的
+排查动作（B03 两轮偶发后单类重跑放行并写入 CHANGELOG；B10 首轮组合门唯一失败即该类、
+按 B03 前例重跑 + 第二看护轮独立复核；B07 看护轮亦曾就 engine XML 进度疑滞做过一次误判
+复核），每多一类可预防的尖刺就多一轮重跑。属"低成本可预防的观测噪声"。
+
+### 处置建议
+
+**不单开批次**（为 0.2s 改启动序列不划算）。两个做法二选一，随下一个"mirror 打点 /
+启动预算"批次顺带做，成本各约 3 行：
+
+1. **预热**：native 初始化完成后主动解一次空 GameView 信封（version=0、空树）——与
+   `applyEnvelope` 的空变更集零写入快速路径同语义，不触碰状态、不推进版本；
+2. **口径隔离**：打点与 bench 显式区分 cold/warm（首封单列，不进稳态中位与预算断言）——
+   B07 守卫内部已按"稳态段中位数"取证（`steadyMedian` 弃首封），可直接沿用该口径。
+
+触发条件：mirror 段出现单帧尖刺告警、或做启动 P0 预算拆解时。
+
+---
+
+## 发现 10（2026-09-20 增补，来源批次 B07）——镜像应用面对"不在 GameData 序列化面"的字段名宽松忽略 ⇒ 契约测试可"绿着空转"
+
+### 现象与事实链
+
+B07 写全链路守卫时，载荷字段先照抄了 B06 夹具里的 `gameData.disabledPolicies`，
+编译器立刻报 `Unresolved reference 'disabledPolicies'`——**`GameData` 根本没有这个字段**。
+
+根因链：增量应用器对不认识的 gameData 键**宽松忽略**（前向兼容设计：C++ 可先上新字段、
+Kotlin 后跟，镜像不能因此崩）——旧路径靠 `Json { ignoreUnknownKeys = true }`，B08 新路径
+在 `GameDataFieldPatch.kt:76-78` 显式保持"未知键宽松忽略、不中断其余字段"的同语义。
+后果：**任何以不存在的字段名写出的断言，两臂都会被静默丢弃而"彼此相等"，测试全绿却不
+校验任何东西**（假绿，不是假失败——比红更贵）。
+
+### 对 B06 的澄清（防误读为缺陷）
+
+B06 在**编码面**用例里用这个键是**有效的**：那一层验的是"任意 JSON 载荷能原样过
+protobuf 信封再回来"，字段是否真属于 `GameData` 与该校验无关。失配的只是
+"验证 gameData 容器合并"这一层意图——B07 的 `MirrorProtoFeedEquivalenceTest` 已用真实
+字段 `unlockedManuals`（`List<String>` 容器）在 store 馈送面补上，B06 无需回改。
+
+### 现状复核（2026-09-20）
+
+B08 已把**另一半**堵死：字段名在 `GameData` 序列化面内、但 `GameDataFieldPatch` 写入器表
+缺失 ⇒ **抛错 fail-fast**（方案 §5"投影缺失字段 fail-fast 而非静默空"），并有
+"写入器键集 ↔ `GameData.serializer().descriptor.elementNames` 双射"守卫锁定表完整性。
+本条描述的"**完全不在序列化面**"分支仍按设计宽松——**不应改成抛错**（改了协议前向兼容就破）。
+⇒ 风险面收敛为"测试夹具选错字段名"，生产无隐患。
+
+### 风险评估
+
+低，但隐蔽且随守卫密度上升而放大：B08/B09 之后镜像/投影/事件流各有一批等价对照测试，
+任何一条的载荷字段名写错都是"绿着空转"，成本远高于一次真红。
+
+### 处置建议
+
+零成本纪律化，不碰生产语义：
+
+1. 写镜像/投影类等价守卫时，gameData 载荷字段名一律取自
+   **`GameDataFieldPatch.coveredFields`**（它就是权威清单），并在测试里加一条
+   `assertTrue(name in GameDataFieldPatch.coveredFields)`——把"选错名"从静默忽略
+   变成运行期红；触发条件：后续批次（R3/R4 消费面接入）新增同类守卫时顺带做；
+2. 可选加固：把"镜像载荷测试可用字段名"收敛为单一常量源（同发现 3 的
+   `ParseParityWithSettleUtilToIntOrNull` 处置思路——双份口径靠守卫单源化），
+   归属 R2 回滚臂删除批顺带；
+3. 不改应用器的宽松语义（前向兼容是既有契约，非本条问题）。
+
+---
+
 ## 处置建议汇总
 
 | # | 事项 | 是否需要行动 | 建议归属 / 触发条件 |
@@ -280,3 +433,6 @@ B10（R3.2）把 C++ 侧建筑占地表的来源从 `footprint_table.h` 换轨�
 | 5 | `generateFootprintHeader` 死管道（B10 增补） | 否（当前零风险零成本） | 无前置触发条件；建议归属 R3 回滚臂删除批顺带（或独立小清理批），按发现 5 清理范围清单逐项执行 |
 | 6 | JNI 面计数不增缺自动门禁（B06 增补，架构级） | 否（本批已按 R0.2 先例登记豁免；当前零生产影响） | 归属 B17（CI 与度量执法批）：落 `external fun` 计数基线脚本，增长即 fail 除非显式改基线+附豁免理由；无前置条件，与平台纯度 gate/bench 门禁同批交付 |
 | 7 | proto3 空集合与缺省键不可区分（B06 增补，R2.3 前瞻） | 否（R2.2 域等价无损，已由 `DiffDirtyEnvelopeEquivalenceTest` 锁定） | 触发条件：R2.3 消费面直读 typed proto 字段之前——在 `game_view.proto` 演进纪律补「集合字段 present 不作业务判据、空↔缺省回落域默认」，并在 `GameViewMirrorCodec`/`GameViewStore` 注释钉死 |
+| 8 | mirror 段双层 JSON 尾巴（B07 增补；applier 层已由 B08 清偿、信封层仍开放） | 否（生产零影响；G2 未达已按 B08/B09 诚实登记，不重复立项） | 触发条件三选一：某字段实测成为 mirror 段主要占比 / G2 收口需再降 decode 成本 / **R2 灰度期满删回滚臂批**（`upsertsJson` 族与 gameData 回滚臂一并处理，同批吸收方案 B09 残余③④）；做法=proto 追加 typed 字段 + codec 单点切读 + 等价守卫 + 桥重建 |
+| 9 | protobuf 首封 ~194ms 一次性初始化（B07 增补） | 否（零正确性影响；纯观测噪声与冷启动归属问题） | 随下一个 mirror 打点/启动预算批顺带，二选一约 3 行：native 初始化后解一次空 GameView 信封预热，或 cold/warm 分列口径（B07 守卫已按弃首封的稳态中位取证）；触发条件=mirror 段出现单帧尖刺告警或做启动 P0 拆解 |
+| 10 | 未知 gameData 字段名被宽松忽略 ⇒ 等价守卫可"绿着空转"（B07 增补；B08 已堵在册漏写入器的 fail-fast 半边） | 否（生产宽松语义是既有前向兼容契约，不改） | 纪律化零成本：后续镜像/投影类守卫的载荷字段名取自 `GameDataFieldPatch.coveredFields` 并断言 ∈ 该集合（选错名即红）；可选把"可用字段名单源"并入 R2 回滚臂删除批；触发条件=R3/R4 消费面接入新增同类守卫时 |
