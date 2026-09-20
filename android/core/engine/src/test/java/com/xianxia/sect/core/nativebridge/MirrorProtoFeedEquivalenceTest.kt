@@ -116,9 +116,12 @@ class MirrorProtoFeedEquivalenceTest {
         put("version", fixture.VERSION)
         put(
             "changed", buildJsonObject {
-                put("gameData.spiritStones", fixture.SPIRIT_STONES)
-                put("gameData.gameYear", fixture.GAME_YEAR)
-                put("gameData.unlockedManuals", element(fixture.UNLOCKED_MANUALS_JSON))
+                put("gameData.${fixture.mirrorGameDataField("spiritStones")}", fixture.SPIRIT_STONES)
+                put("gameData.${fixture.mirrorGameDataField("gameYear")}", fixture.GAME_YEAR)
+                put(
+                    "gameData.${fixture.mirrorGameDataField("unlockedManuals")}",
+                    element(fixture.UNLOCKED_MANUALS_JSON)
+                )
                 put("disciples", element(fixture.discipleUpsertsJson(changed)))
                 put("pills", element(fixture.PILLS_UPSERT_JSON))
             }
@@ -143,11 +146,11 @@ class MirrorProtoFeedEquivalenceTest {
             .setVersion(fixture.VERSION)
             .setResourcesHeader(ResourcesHeader.newBuilder().setSpiritStones(fixture.SPIRIT_STONES))
             .addGameDataChange(
-                JsonFieldChange.newBuilder().setName("gameYear")
+                JsonFieldChange.newBuilder().setName(fixture.mirrorGameDataField("gameYear"))
                     .setValueJson(ByteString.copyFromUtf8(fixture.GAME_YEAR.toString()))
             )
             .addGameDataChange(
-                JsonFieldChange.newBuilder().setName("unlockedManuals")
+                JsonFieldChange.newBuilder().setName(fixture.mirrorGameDataField("unlockedManuals"))
                     .setValueJson(ByteString.copyFromUtf8(fixture.UNLOCKED_MANUALS_JSON))
             )
             .setDiscipleListDelta(
@@ -195,5 +198,30 @@ class MirrorProtoFeedEquivalenceTest {
         assertNull(actual.social.parentId1)
         assertEquals(setOf("3#hpAdd"), actual.usage.usedPermanentPillKeys)
         assertTrue(actual.usage.hasClearAllEffect)
+    }
+
+    /**
+     * proto3 present 语义纪律守卫（b02 发现 7）：空信封零变更可解；wire 层
+     * "空集合"与"字段缺省"不可区分（缺省消息序列化为零字节）——消费侧一律
+     * 回落域模型默认值，present 不得作业务判据（纪律全文见 game_view.proto 头）。
+     * 本测试同时是启动期预热（ensureAuthoritativeNative 解空信封）的同形状证明。
+     */
+    @Test
+    fun `空信封零变更可解且空集合与缺省线路同形（present 不承载业务语义）`() {
+        val decoded = GameViewMirrorCodec.decode(GameView.getDefaultInstance().toByteArray())
+        assertEquals("缺省信封 version=0", 0L, decoded.version)
+        assertTrue("缺省信封不得产出变更键", decoded.changed.isEmpty())
+        assertTrue("缺省信封不得产出删除键", decoded.removed.isEmpty())
+        assertTrue("缺省信封不携带弟子投影", decoded.discipleProjections.isEmpty())
+        // wire 不可区分性的直接证明：全缺省消息序列化为零字节——proto3 没有
+        // "空集合"的编码位，任何按 present 分叉业务语义的消费点都在制造假语义
+        assertTrue(
+            "缺省 GameView 应序列化为零字节",
+            GameView.getDefaultInstance().toByteArray().isEmpty()
+        )
+        assertTrue(
+            "缺省 DiscipleListDelta 应序列化为零字节",
+            DiscipleListDelta.getDefaultInstance().toByteArray().isEmpty()
+        )
     }
 }

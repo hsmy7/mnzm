@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
+import com.xianxia.sect.core.gameview.GameDataFieldPatch
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -35,6 +36,18 @@ internal object MirrorProtoFeedFixture {
     const val PILLS_UPSERT_JSON = """[{"id":"p-new","name":"凝气丹","rarity":3,"quantity":7}]"""
     const val UNLOCKED_MANUALS_JSON = """["man-a","man-b"]"""
     val json: Json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
+
+    /**
+     * 镜像载荷测试可用 gameData 字段名单源卡点（b02 发现 10）：字段名不在
+     * [GameDataFieldPatch.coveredFields]（= 权威在册清单）即红——防"选错名
+     * 被应用器宽松忽略 ⇒ 两臂同绿空转"的假绿（比红更贵）。
+     */
+    fun mirrorGameDataField(name: String): String = name.also {
+        require(it in GameDataFieldPatch.coveredFields) {
+            "镜像载荷字段名 '$it' 不在 GameDataFieldPatch.coveredFields——" +
+                "名字写错会被应用器宽松忽略，等价守卫将绿着空转（b02 发现 10）"
+        }
+    }
 
     /** 弟子 upsert 载荷：旧臂直接进 JSON 树，新臂经 [MirrorDiscipleRowFixture.toGameViewRow] 逐字段 typed 化。 */
     fun discipleUpsertsJson(d: Disciple): String {

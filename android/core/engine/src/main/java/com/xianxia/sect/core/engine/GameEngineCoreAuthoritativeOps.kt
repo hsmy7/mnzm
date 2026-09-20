@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.GameCoreRngChannel
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.GameViewMirrorCodec
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.CancellationException
@@ -213,6 +214,16 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             // 引擎循环时钟基准启动（防 PhaseClock 残留 lastWallMs 造成
             // 首帧巨量 delta → 追补上限截断丢时间）
             GameCoreBridge.nativeLoopStart()
+            // protobuf 运行时预热（b02 发现 9）：解一次全缺省 GameView 信封
+            // （零变更集、零写入——与 applyEnvelope 空快速路径同语义），把
+            // javalite 生成类装载/描述符初始化/JIT 冷路径从"首个真实镜像旬"
+            // 挪进启动序列（实测首封 ~194ms vs 稳态 ~2.6ms，冷成本被启动
+            // 耗时吸收而非留作首帧尖刺）
+            runCatching {
+                GameViewMirrorCodec.decode(
+                    com.xianxia.sect.proto.gameview.GameView.getDefaultInstance().toByteArray()
+                )
+            }
             DomainLog.i(TAG, "AUTHORITATIVE native 引擎已初始化（seed=${stateStore.gameData.value.mapSeed}）")
         }
         true

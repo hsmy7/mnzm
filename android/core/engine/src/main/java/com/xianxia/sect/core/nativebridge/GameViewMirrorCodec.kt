@@ -37,6 +37,10 @@ import kotlinx.serialization.json.jsonPrimitive
  * 本批红线：UI 消费面不动（R2.3 才瘦身），镜像仍全量、仅换传输编码——故本解码
  * 面只做**编码换轨**（protobuf → 同一棵变更集树），不改应用语义。
  *
+ * proto3 present 语义纪律（b02 发现 7）：repeated 字段"空集合"与"缺省键"在
+ * wire 上不可区分——本解码器与下游消费点一律回落域模型默认值，present 不得
+ * 作业务判据（纪律声明见 game_view.proto 头部）。
+ *
  * DiscipleRow → JSON 逐字段重建与 C++ 编码器 `kDiscipleRowFields` 表一一对应：
  * 只重建 protobuf 中 present 的字段（C++ 编码器 emit-always + 逐键 presence 判定
  * 与本解码器 `hasXxx()`/count 判定同源），storageBagItems 走 JSON 原文回填（v1 过渡编码）。

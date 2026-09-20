@@ -133,7 +133,10 @@ class MirrorSegmentProjectionBenchTest {
             var bestApply = Long.MAX_VALUE
             var store: FakeGameStateStore? = null
             var views: GameViewStore? = null
-            repeat(REPEATS) {
+            // 冷/热口径（b02 发现 9）：首轮为不计时预热遍（protobuf 生成类
+            // 装载 + JIT 冷路径），计时段量稳态（warm）口径——生产侧冷首封
+            // 已由 ensureAuthoritativeNative 启动期预热吸收，本台架只对稳态负责
+            repeat(REPEATS + 1) { iteration ->
                 val localStore = seededStore()
                 val localViews = GameViewStore().also { it.attach(localStore) }
                 val service = StateSyncService(localStore, localViews)
@@ -147,8 +150,10 @@ class MirrorSegmentProjectionBenchTest {
                 val t1 = System.nanoTime()
                 val applied = service.applyDirtyProto(bytes)
                 val t2 = System.nanoTime()
-                bestDecode = minOf(bestDecode, t1 - t0)
-                bestApply = minOf(bestApply, t2 - t1)
+                if (iteration > 0) {
+                    bestDecode = minOf(bestDecode, t1 - t0)
+                    bestApply = minOf(bestApply, t2 - t1)
+                }
                 check(applied != null && decoded.disciplePatches.isNotEmpty()) { "列级信封未被应用（守卫空转）" }
                 store = localStore
                 views = localViews

@@ -17,7 +17,11 @@ option java_multiple_files = true;
 //     零值"语义可区分，解码侧以 Kotlin 域模型默认值补位（与 JSON 协议
 //     缺键宽松语义对齐）；
 //   - 集合一律 repeated（消息/字符串条目），不使用 proto map（仓库规约
-//     §7.3：ProtoBuf 仅 List，禁止 Set/Map）。
+//     §7.3：ProtoBuf 仅 List，禁止 Set/Map）；
+//   - 集合字段（repeated）的 present **不得承载业务语义**（b02 发现 7 纪律）：
+//     proto3 wire format 中"空集合"与"字段缺省"字节相同、不可区分——消费侧
+//     （GameViewMirrorCodec / GameViewStore / 未来 typed 消费点）一律以**域模型
+//     默认值**判断，禁止把 hasXxx()/count==0 当作"有变化/无变化"业务判据。
 //
 // ## 选型
 //   protobuf（仓库基建已在：gradle 插件 + 本目录 + protobuf-javalite），
