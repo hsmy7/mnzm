@@ -66,6 +66,7 @@ sealed class SaveBackendResult<out T> {
  * 400001→RATE_LIMITED；400006→TOKEN_EXPIRED；400007→CONCURRENT；400002→ARCHIVE_MISSING；
  * 400000/400009→SIZE_LIMIT（构造缺陷族）；400003/400004/400005→QUOTA_EXCEEDED；
  * 300001→AUTH_REQUIRED；SDK 不可达→SDK_UNAVAILABLE；其余→NETWORK/UNKNOWN。
+ * CONFLICT 非传输错误：下载前仲裁判真冲突（下载路径的显式暴露形态，UI 二选一）。
  */
 enum class SaveBackendError {
     RATE_LIMITED,
@@ -79,6 +80,7 @@ enum class SaveBackendError {
     TIMEOUT,
     SERIALIZATION,
     SDK_UNAVAILABLE,
+    CONFLICT,
     UNKNOWN
 }
 

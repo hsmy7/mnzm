@@ -65,6 +65,16 @@ class UploadLedger @Inject constructor(private val store: KeyValueStore) {
         return true
     }
 
+    /**
+     * 冲突收口"玩家选云档"的基线收敛（Q10）：本地与云端序号统一收敛到云端实际保存序号
+     * [saveId]（保存序号语义，无时钟输入，IN2 合规）——丢弃的本地待传不再保持脏标志。
+     */
+    fun adoptCloudState(slot: Int, saveId: Long) {
+        store.putLong(lastLocalKey(slot), saveId)
+        store.putLong(lastConfirmedKey(slot), saveId)
+        store.putLong(pendingKey(slot), 0L)
+    }
+
     /** 槽位记账全清（删档/测试复位用；与 clearAllSlotTables 清单纪律对齐） */
     fun resetSlot(slot: Int) {
         store.remove(lastLocalKey(slot))
