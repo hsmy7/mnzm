@@ -204,4 +204,32 @@ class SaveResultTest {
         assertEquals(1024L, result.getOrNull()!!.bytesWritten)
         assertEquals(0.75, result.getOrNull()!!.compressionRatio, 0.001)
     }
+
+    // ── 后置步骤降级告警（审计 §12-C：不得谎报"保存成功"） ──
+
+    @Test
+    fun `Success without warning reports null warning`() {
+        val result: SaveResult<Unit> = SaveResult.success(Unit)
+        assertNull("普通成功无告警", result.warning)
+    }
+
+    @Test
+    fun `successWithWarning carries reason so caller can report honestly`() {
+        val result: SaveResult<Unit> = SaveResult.successWithWarning(Unit, "备份轮转失败（.bak 未更新）")
+        assertTrue("主保存仍算成功", result.isSuccess)
+        assertEquals("备份轮转失败（.bak 未更新）", result.warning)
+    }
+
+    @Test
+    fun `map preserves warning across transformation`() {
+        val mapped = SaveResult.successWithWarning(Unit, "备份被跳过").map { it.toString() }
+        assertTrue(mapped.isSuccess)
+        assertEquals("备份被跳过", mapped.warning)
+    }
+
+    @Test
+    fun `Failure never carries warning`() {
+        val result: SaveResult<Unit> = SaveResult.failure(SaveError.SAVE_FAILED, "boom")
+        assertNull("失败路径无降级告警语义", result.warning)
+    }
 }

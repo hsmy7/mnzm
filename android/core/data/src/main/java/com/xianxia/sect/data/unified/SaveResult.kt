@@ -1,12 +1,19 @@
 package com.xianxia.sect.data.unified
 
 sealed class SaveResult<out T> {
-    data class Success<T>(val data: T) : SaveResult<T>()
+    /**
+     * @param warning 主流程成功但**后置步骤降级**的原因（如 `.sav` 文件镜像 / `.bak` 备份
+     *   未写入）；null = 全部完成。调用方须如实提示，不得只报"成功"（审计 §12-C）。
+     */
+    data class Success<T>(val data: T, override val warning: String? = null) : SaveResult<T>()
     data class Failure(val error: SaveError, val message: String = "",
         val cause: Throwable? = null) : SaveResult<Nothing>()
     
     val isSuccess: Boolean get() = this is Success
     val isFailure: Boolean get() = this is Failure
+
+    /** 后置步骤降级原因（仅 [Success] 可能非 null；Failure 恒 null）。 */
+    open val warning: String? get() = null
     
     fun getOrNull(): T? = (this as? Success)?.data
     fun getOrThrow(): T = when (this) {
@@ -20,7 +27,7 @@ sealed class SaveResult<out T> {
     }
     
     inline fun <R> map(transform: (T) -> R): SaveResult<R> = when (this) {
-        is Success -> Success(transform(data))
+        is Success -> Success(transform(data), this.warning)
         is Failure -> this
     }
     
@@ -41,6 +48,10 @@ sealed class SaveResult<out T> {
     
     companion object {
         fun <T> success(data: T): SaveResult<T> = Success(data)
+
+        /** 成功但后置步骤降级（[warning] 非 null）——调用方须如实提示，不得只报"成功"。 */
+        fun <T> successWithWarning(data: T, warning: String?): SaveResult<T> =
+            Success(data, warning)
         fun failure(error: SaveError, message: String = "", cause: Throwable? = null): SaveResult<Nothing> = 
             Failure(error, message, cause)
     }

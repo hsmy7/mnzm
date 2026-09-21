@@ -136,39 +136,27 @@ internal suspend fun StorageEngine.recordSaveCircuitResult(slot: Int, result: St
  * 备份仅在 DB 事务成功后写入，避免"备份比真相新"。
  */
 // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-@Suppress("TooGenericExceptionCaught", "NestedBlockDepth") // 备份异常处理守卫结构（try/catch 嵌套为既有模式）
+@Suppress("TooGenericExceptionCaught", "NestedBlockDepth") // 成功/失败双分支 + 备份恢复读的 try/catch 守卫结构（既有模式）
 internal suspend fun StorageEngine.handleSaveResult(
     slot: Int,
     result: StorageResult<SaveOperationStats>,
     dataWithTimestamp: SaveData
-) {
+): StorageResult<SaveOperationStats> {
     if (result.isSuccess) {
-        if (storageConfig.autoBackupOnSave) {
-            _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
-            try {
-                val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
-                when (br) {
-                    is StorageResult.Success -> infra.storageMetrics.recordBackupSuccess()
-                    is StorageResult.Skipped -> {
-                        // 备份超限跳过——主保存已成功，如实记录跳过不谎报成功
-                        Log.w(TAG, "备份被跳过 slot=$slot: ${br.message}（主保存成功，非阻断）")
-                        infra.storageMetrics.recordBackupSkippedOversize()
-                    }
-                    is StorageResult.Failure -> infra.storageMetrics.recordBackupFailure()
-                }
-            } catch (e: CancellationException) {
-                throw e // 取消穿透: 取消时中止备份链路, 保存流程由外层 CE 分支收口
-            } catch (e: Exception) {
-                Log.w(TAG, "备份异常 slot=$slot (非阻断)", e)
-                infra.storageMetrics.recordBackupFailure()
-            }
-        }
+        // 文件镜像（.sav）+ 备份（.bak）——**非阻断**，但降级原因必须带回给调用方
+        // （审计 §12-C：备份失败不改写 result ⇒ UI 谎报"保存成功"）
+        val postSaveWarning = writeFileMirrorAndBackup(slot, dataWithTimestamp)
         _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache")
         updateCacheAfterSave(slot, dataWithTimestamp)
         _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
         logSaveChanges(slot)
         infra.storageMetrics.recordSave()
         _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
+        return if (postSaveWarning == null) {
+            result
+        } else {
+            result.map { it.copy(postSaveWarning = postSaveWarning) }
+        }
     } else {
         Log.e(TAG, "保存失败（${storageConfig.maxRetryCount}次重试），尝试恢复 slot=$slot")
         try {
@@ -187,7 +175,55 @@ internal suspend fun StorageEngine.handleSaveResult(
         } catch (e2: Exception) {
             Log.e(TAG, "备份恢复也失败 slot=$slot", e2)
         }
+        return result
     }
+}
+
+/**
+ * 写入 `.sav` 文件镜像 + `.bak` 备份（**非阻断**后置步骤）。
+ *
+ * @return 降级原因（null = 全部完成）：超限跳过 / 写失败 / 异常——供调用方
+ *   带进 [StorageOperationStats.postSaveWarning]，让 UI 如实提示而非谎报"保存成功"。
+ */
+// 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+@Suppress("TooGenericExceptionCaught", "ReturnCount") // 三种降级各自 early-return 原因串，为守卫风格
+private suspend fun StorageEngine.writeFileMirrorAndBackup(slot: Int, data: SaveData): String? {
+    if (!storageConfig.autoBackupOnSave) return null
+    _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
+    return try {
+        val br = saveFileManager.atomicWrite(slot, data)
+        when (br) {
+            is StorageResult.Success -> infra.storageMetrics.recordBackupSuccess()
+            is StorageResult.Skipped -> {
+                // 备份超限跳过——主保存已成功，如实记录跳过并带回告警
+                Log.w(TAG, "备份被跳过 slot=$slot: ${br.message}（主保存成功，非阻断）")
+                infra.storageMetrics.recordBackupSkippedOversize()
+            }
+            is StorageResult.Failure -> {
+                Log.w(TAG, "文件镜像/备份写入失败 slot=$slot: ${br.message}（主保存成功，非阻断）")
+                infra.storageMetrics.recordBackupFailure()
+            }
+        }
+        backupWriteDegradationReason(br)
+    } catch (e: CancellationException) {
+        throw e // 取消穿透: 取消时中止备份链路, 保存流程由外层 CE 分支收口
+    } catch (e: Exception) {
+        Log.w(TAG, "文件镜像/备份异常 slot=$slot (非阻断)", e)
+        infra.storageMetrics.recordBackupFailure()
+        "文件镜像/备份写入异常: ${e.message ?: e::class.simpleName}"
+    }
+}
+
+/**
+ * `SaveFileManager.atomicWrite` 结果 → 后置步骤降级原因（null = 无降级）。
+ *
+ * **纯函数**（零副作用、零依赖）⇒ 桌面/JVM 可直测；指标记录留在调用方。
+ * 空 message 也必须有可读原因（否则 UI 会弹出"游戏保存成功（）"这种空括注）。
+ */
+internal fun backupWriteDegradationReason(result: StorageResult<Unit>): String? = when (result) {
+    is StorageResult.Success -> null
+    is StorageResult.Skipped -> result.message.ifBlank { "备份被跳过（主保存成功）" }
+    is StorageResult.Failure -> result.message.ifBlank { "文件镜像/备份写入失败（主保存成功）" }
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬

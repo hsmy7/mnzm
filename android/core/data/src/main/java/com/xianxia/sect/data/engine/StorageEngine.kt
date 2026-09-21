@@ -52,7 +52,14 @@ data class EngineProgress(
 data class SaveOperationStats(
     val bytesWritten: Long = 0,
     val timeMs: Long = 0,
-    val wasIncremental: Boolean = false
+    val wasIncremental: Boolean = false,
+    /**
+     * 落盘**后置步骤**（`.sav` 文件镜像 / `.bak` 备份）的降级原因；null = 全部完成。
+     *
+     * 非 null 时**主保存仍成功**（Room 事务已提交，DB 是真相源），但文件镜像或备份
+     * 缺失/被跳过 ⇒ 调用方（UI）**必须如实提示**，不得只报"游戏保存成功"（审计 §12-C）。
+     */
+    val postSaveWarning: String? = null
 )
 
 enum class SavePriority {
@@ -144,13 +151,14 @@ class StorageEngine @Inject constructor(
                 // 重试保存（OOM 短路）
                 val result = saveWithRetry(slot, dataWithTimestamp)
 
-                // 结果处理（备份/缓存/变更日志/失败恢复）
-                handleSaveResult(slot, result, dataWithTimestamp)
+                // 结果处理（备份/缓存/变更日志/失败恢复）——返回可能带 postSaveWarning 的结果
+                // （审计 §12-C：文件镜像/备份降级必须传到 UI，不得谎报"保存成功"）
+                val handled = handleSaveResult(slot, result, dataWithTimestamp)
 
                 // 保存结果反馈熔断器（成功重置计数，失败累计）
-                recordSaveCircuitResult(slot = slot, result = result)
+                recordSaveCircuitResult(slot = slot, result = handled)
 
-                result.map { stats ->
+                handled.map { stats ->
                     val elapsed = System.currentTimeMillis() - startTime
                     stats.copy(timeMs = elapsed)
                 }

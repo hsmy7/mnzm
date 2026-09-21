@@ -301,13 +301,52 @@ class SaveFileManagerTest {
     }
 
     @Test
-    fun `normal size write returns Success and writes both files`() {
+    fun `first save writes sav only and second save rotates previous sav into bak`() {
+        // 语义（审计 §12-B 修正）：.bak = **前一版本**快照，而非"同一 payload 再写一遍"。
+        // 首次保存没有"前一版本"可轮转 ⇒ 只有 .sav；第二次保存才产生 .bak。
         val slot = 6
-        val result = manager.atomicWrite(slot, mockSaveData())
-
-        assertTrue("应返回 Success，实际 $result", result is StorageResult.Success)
+        val first = manager.atomicWrite(slot, mockSaveData())
+        assertTrue("首次应 Success，实际 $first", first is StorageResult.Success)
         assertTrue("主 .sav 存在", getSavFile(slot).exists())
-        assertTrue("备份 .bak 存在", getBakFile(slot).exists())
+        assertFalse("首次保存不产生 .bak（无前一版本可轮转）", getBakFile(slot).exists())
+        val firstSavBytes = getSavFile(slot).readBytes()
+
+        // 第二次保存（另一 payload）⇒ .bak 必须逐字节等于第一次的 .sav
+        val secondManager = SaveFileManager(
+            saveSerializer = SaveSerializer { data -> "第二版:${data.gameData.sectName}".encodeToByteArray() }
+        ).also { it.initialize(tempFolder.root) }
+        val second = secondManager.atomicWrite(slot, mockSaveData())
+        assertTrue("第二次应 Success，实际 $second", second is StorageResult.Success)
+        assertArrayEquals(
+            ".bak 应为第一次保存的原始字节（真备份 = 前一版本）",
+            firstSavBytes,
+            getBakFile(slot).readBytes()
+        )
+
+        val reread = secondManager.readWithFallback(slot)
+        assertEquals("读取 SUCCESS（读的是 .sav）", BackupStatus.SUCCESS, reread.status)
+        assertArrayEquals("读取到第二版内容", "第二版:测试宗".encodeToByteArray(), reread.payload)
+    }
+
+    @Test
+    fun `rotated bak recovers previous save when current sav is corrupted`() {
+        // 轮转的实际价值：.sav 损坏时可退回**上一存档点**（旧实现 .bak ≡ .sav，退不回去）
+        val slot = 5
+        manager.atomicWrite(slot, mockSaveData())
+        val v1SavBytes = getSavFile(slot).readBytes()
+
+        val v2Manager = SaveFileManager(
+            saveSerializer = SaveSerializer { data -> "第二版:${data.gameData.sectName}".encodeToByteArray() }
+        ).also { it.initialize(tempFolder.root) }
+        v2Manager.atomicWrite(slot, mockSaveData())
+        assertArrayEquals(".bak 已轮转为 v1", v1SavBytes, getBakFile(slot).readBytes())
+
+        // 破坏 .sav（合法头之外全垃圾）⇒ 回退 .bak 并修复 .sav
+        getSavFile(slot).writeBytes(ByteArray(64) { 0x7F })
+        val recovered = v2Manager.readWithFallback(slot)
+        assertEquals("应从轮转 .bak 恢复", BackupStatus.RECOVERED, recovered.status)
+        assertArrayEquals("恢复内容 = v1（上一存档点）", "测试宗".encodeToByteArray(), recovered.payload)
+        assertFalse("修复 .sav 应成功", recovered.repairFailed)
     }
 
     // ============================================================

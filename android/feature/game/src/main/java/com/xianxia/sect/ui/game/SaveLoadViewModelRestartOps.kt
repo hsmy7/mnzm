@@ -292,8 +292,13 @@ internal suspend fun SaveLoadViewModel.persistRestartSave(slot: Int, previousSlo
             Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave timeout for slot $slot")
             persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
             if (persistenceFacade.storageFacade.isSaveCorruptedSuspend(slot)) {
-                persistenceFacade.storageFacade.restoreFromBackupIfCorrupted(slot)
-                Log.w(SaveLoadViewModelConstants.TAG, "Save may be corrupted, attempted to restore from backup")
+                // 真恢复（读 .sav/.bak → 写回 DB）；旧实现是空函数，日志谎报"已尝试恢复"
+                val restored = persistenceFacade.storageFacade.restoreFromBackupIfCorrupted(slot)
+                Log.w(
+                    SaveLoadViewModelConstants.TAG,
+                    "Save may be corrupted, backup restore " +
+                        "${if (restored) "succeeded" else "failed"} for slot $slot"
+                )
             }
             false
         }

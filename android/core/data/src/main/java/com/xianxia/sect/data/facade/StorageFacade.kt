@@ -245,7 +245,9 @@ class StorageFacade @Inject constructor(
                 saveCount.incrementAndGet()
                 totalSaveTimeMs.addAndGet(elapsed)
                 _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Save completed")
-                SaveResult.success(Unit)
+                // 后置步骤（.sav 镜像 / .bak 备份）降级原因必须带给调用方
+                // —— UI 据此如实提示，不得只报"游戏保存成功"（审计 §12-C）
+                SaveResult.successWithWarning(Unit, result.getOrNull()?.postSaveWarning)
             } else {
                 _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Save failed")
                 result.toUnifiedResult().map { }
@@ -368,11 +370,45 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    fun restoreFromBackupIfCorrupted(slot: Int) {
-        Log.w(TAG, "Backup/restore delegated to StorageEngine.load() for slot $slot")
-        // StorageEngine.load() 已内置从 .sav/.bak 自动恢复的逻辑，
-        // 由 SaveFileManager.readWithFallback() 处理 CRC32C 校验和回退。
-        // 上层调用方应通过 StorageEngine.load(slot) 触发自动恢复。
+    /**
+     * 从备份恢复指定槽位（**真恢复**，审计 §12-D 修正）。
+     *
+     * 旧实现函数体只有一行日志（"已委派给 StorageEngine.load()"）却**不触发任何恢复**，
+     * 被 `persistRestartSave` 的失败分支当真恢复手段调用 ⇒ 安全网实际是空的。
+     *
+     * 现委派 [StorageEngine.restoreFromBackup]（真链路）：读 `.sav`/`.bak`
+     * （CRC32C 校验 + 回退）→ 反序列化 → 版本迁移 → 二次校验 → 隔离当前库 →
+     * **写回 DB**（`performFullTransactionSave`）→ 更新缓存。
+     *
+     * 槽位锁：本入口不在 load 持锁路径内（调用方为保存失败分支），故自取写锁；
+     * 与 [StorageEngine.load] 内的同族调用不构成重入（锁为同一把排他锁，非可重入）。
+     *
+     * @return true = 已从备份成功恢复并写回 DB；false = 备份不可用或恢复失败
+     *   （调用方**保持失败语义**，不得据此报成功）
+     */
+    @Suppress("TooGenericExceptionCaught") // 恢复链异常面广（IO/反序列化/写库），失败即如实返回 false
+    suspend fun restoreFromBackupIfCorrupted(slot: Int): Boolean {
+        if (!lockManager.isValidSlot(slot)) {
+            Log.w(TAG, "restoreFromBackupIfCorrupted: 非法槽位 $slot")
+            return false
+        }
+        return lockManager.withWriteLockLight(slot) {
+            try {
+                val restored = engine.restoreFromBackup(slot)
+                val ok = restored?.isSuccess == true
+                if (ok) {
+                    Log.w(TAG, "已从备份恢复 slot=$slot（.sav/.bak → DB）")
+                } else {
+                    Log.e(TAG, "备份恢复失败 slot=$slot（备份不可用或写库失败）")
+                }
+                ok
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "备份恢复异常 slot=$slot", e)
+                false
+            }
+        }
     }
 
     // ==================== 统计与健康检查方法 ====================

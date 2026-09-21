@@ -256,7 +256,14 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(slot: Int, previousS
           catch (e: Exception) {
             Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after successful save: ${e.message}", e)
         }
-        showSuccess("游戏保存成功")
+        // 后置步骤降级（.sav 镜像/备份未写入）必须如实提示，不得只报"保存成功"（审计 §12-C）
+        val postSaveWarning = saveResult.warning
+        if (postSaveWarning == null) {
+            showSuccess("游戏保存成功")
+        } else {
+            Log.w(SaveLoadViewModelConstants.TAG, "saveGame 降级（主保存成功）: $postSaveWarning")
+            showSuccess("游戏保存成功（备份未写入）")
+        }
 
         Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame SUCCESS === " +
             "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +

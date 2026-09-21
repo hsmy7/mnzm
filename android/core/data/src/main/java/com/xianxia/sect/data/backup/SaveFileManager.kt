@@ -80,15 +80,18 @@ class SaveFileManager @Inject constructor(
     /**
      * 原子写入存档数据。
      *
-     * 流程（主保存无条件执行，超限只跳过备份）：
-     * 1. 序列化 payload → 写入 .tmp 文件 (FileOutputStream)
+     * 流程（主保存无条件执行，备份降级只告警不阻断）：
+     * 1. 序列化 payload → 写入 `.sav.tmp` 文件 (FileOutputStream)
      * 2. fsync 强制刷盘
-     * 3. 重命名 .tmp → .sav（同一文件系统上的原子操作）——**主保存必执行**
-     * 4. payload 超 100MB → 跳过 .bak 写入，返回 [StorageResult.Skipped]（不再谎报成功）
-     * 5. 复制 .sav → .bak（保留历史快照）
-     * 6. 删除 .tmp（清理）
+     * 3. **备份轮转**：把当前有效 `.sav` 复制为 `.bak`（真备份 = 前一版本快照，
+     *    见 [rotateCurrentSaveToBackup]）——必须在 `.sav` 被覆盖前执行
+     * 4. 重命名 `.sav.tmp` → `.sav`（同一文件系统上的原子操作）——**主保存必执行**
+     * 5. payload 超 100MB / 轮转失败 → 返回 [StorageResult.Skipped]（带原因，不谎报成功）
+     * 6. 删除残留 `.sav.tmp`（清理）
      *
-     * payload 超限时仍必须先完成 .sav 主保存，仅跳过 .bak 备份写入。
+     * **返回语义**：`Success` = `.sav` 已落盘且 `.bak` 已更新为前一版本；
+     * `Skipped(message)` = `.sav` 已落盘但备份降级（超限/轮转失败）；
+     * `Failure` = `.sav` 未落盘（IO 失败）。调用方据此向 UI 如实反馈（审计 §12-B/§12-C）。
      */
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     fun atomicWrite(slot: Int, saveData: SaveData): StorageResult<Unit> {
@@ -108,6 +111,11 @@ class SaveFileManager @Inject constructor(
             // 2. 写入 .tmp（write-tmp）
             writeFileAtomic(tmpFile, payload)
 
+            // 2'. 备份轮转：把"当前有效 .sav"变成 .bak（真备份 = **前一版本**快照）
+            //     —— 必须在 .sav 被 rename 覆盖**之前**执行，否则拿到的是新内容；
+            //     失败/超限只降级告警，不阻断主保存（返回原因供 UI 如实提示）
+            val backupWarning = rotateCurrentSaveToBackup(savFile, bakFile, slot, payload.size)
+
             // 3. 重命名 .tmp → .sav（原子交换）——主保存无条件执行
             // 先试无 delete 的 rename 原子覆盖（Linux/Android rename() 原子替换目标），
             // 避免 delete 与 renameTo 之间进程崩溃导致 .sav 缺失；
@@ -125,33 +133,73 @@ class SaveFileManager @Inject constructor(
                 }
             }
 
-            // 4. 检查备份文件大小限制（主保存已成功，跳过备份不阻断）
-            if (payload.size > MAX_BACKUP_SIZE_MB * 1024 * 1024) {
-                Log.w(TAG, "存档数据过大 (${payload.size / 1024 / 1024}MB)，跳过备份写入（主保存已成功）")
-                return StorageResult.skipped(
-                    "备份因超过 ${MAX_BACKUP_SIZE_MB}MB 上限被跳过（主保存成功，非阻断）"
-                )
-            }
-
-            // 5. 原子写 .bak（write-tmp → rename）
-            val bakTmpFile = getBakTmpFile(slot)
-            writeFileAtomic(bakTmpFile, payload)
-            bakFile.delete()
-            if (!bakTmpFile.renameTo(bakFile)) {
-                bakTmpFile.delete()
-                Log.w(TAG, ".bak rename 失败 slot=$slot（非阻断，.sav 仍有效）")
-            }
-
-            // 6. 清除残留 .tmp
+            // 4. 清除残留 .tmp
             if (tmpFile.exists()) tmpFile.delete()
 
-            StorageResult.success(Unit)
+            // 5. 主保存成功；备份轮转若降级（超限/失败）⇒ 如实返回 skipped 原因
+            if (backupWarning != null) {
+                StorageResult.skipped(backupWarning)
+            } else {
+                StorageResult.success(Unit)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "备份写入失败 slot=$slot", e)
             // 清理残留 .tmp
             if (getTmpFile(slot).exists()) getTmpFile(slot).delete()
             // 备份失败不阻断主保存——返回 failure 但由调用方决定是否中断
             StorageResult.failure(StorageError.BACKUP_FAILED, "备份写入失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 备份轮转：把**当前有效 `.sav`** 复制为 `.bak`（真备份 = 前一版本快照）。
+     *
+     * 语义修正（审计 §12-B）：旧实现用**同一个 payload** 同时写 `.sav` 与 `.bak`
+     * ⇒ `.bak ≡ .sav`，对"内容本身错 / 误覆盖 / 逻辑 bug"零防护（只能防同一次写坏）。
+     * 轮转后 `.bak` 恒为**上一次成功保存**的内容 ⇒ [readWithFallback] 回退即可退回上一存档点。
+     *
+     * 时机：必须在 `.sav` 被 rename 覆盖**之前**调用。
+     * 写盘：流拷贝 + `fsync` + rename（`.bak` 不会半写）；任何失败只降级、不阻断主保存。
+     *
+     * @return 降级原因（null = 轮转完成或无需轮转）
+     */
+    @Suppress("TooGenericExceptionCaught", "ReturnCount") // 三种降级各自 early-return 原因串，为守卫风格
+    private fun rotateCurrentSaveToBackup(
+        savFile: File,
+        bakFile: File,
+        slot: Int,
+        payloadSize: Int
+    ): String? {
+        // 超限优先判定（与旧契约一致：超限恒报 Skipped，无论有无可轮转的旧档）
+        if (payloadSize > MAX_BACKUP_SIZE_MB * 1024 * 1024) {
+            Log.w(TAG, "存档数据过大 (${payloadSize / 1024 / 1024}MB)，跳过备份轮转（主保存不受影响）")
+            return "备份因超过 ${MAX_BACKUP_SIZE_MB}MB 上限被跳过（主保存成功，非阻断）"
+        }
+        // 首次保存：没有"前一版本"可轮转，`.bak` 保持不存在（readWithFallback 会走 CORRUPTED）
+        if (!savFile.exists()) return null
+        val bakTmpFile = File(backupDir, "slot_${slot}.bak.tmp")
+        return try {
+            savFile.inputStream().use { input ->
+                FileOutputStream(bakTmpFile).use { output ->
+                    input.copyTo(output)
+                    output.fd.sync()
+                }
+            }
+            if (bakFile.exists() && !bakFile.delete()) {
+                Log.w(TAG, "旧 .bak 删除失败 slot=$slot（继续 rename 覆盖）")
+            }
+            if (bakTmpFile.renameTo(bakFile)) {
+                Log.d(TAG, "备份轮转完成 slot=$slot（.bak = 上一次保存）")
+                null
+            } else {
+                bakTmpFile.delete()
+                Log.w(TAG, ".bak 轮转 rename 失败 slot=$slot（非阻断，.sav 仍有效）")
+                "备份轮转失败（.bak 未更新，主保存成功）"
+            }
+        } catch (e: Exception) {
+            bakTmpFile.delete()
+            Log.w(TAG, ".bak 轮转失败 slot=$slot（非阻断）", e)
+            "备份轮转失败（.bak 未更新，主保存成功）"
         }
     }
 
@@ -360,7 +408,6 @@ class SaveFileManager @Inject constructor(
 
     private fun getSavFile(slot: Int): File = File(backupDir, "slot_${slot}.sav")
     private fun getBakFile(slot: Int): File = File(backupDir, "slot_${slot}.bak")
-    private fun getBakTmpFile(slot: Int): File = File(backupDir, "slot_${slot}.bak.tmp")
     private fun getTmpFile(slot: Int): File = File(backupDir, "slot_${slot}.sav.tmp")
 
     /**
