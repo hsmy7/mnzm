@@ -13,7 +13,6 @@ class StateEntitiesTest {
         assertEquals(ElderSlots(), state.elderSlots)
         assertEquals(emptyList<Alliance>(), state.alliances)
         assertEquals(emptyList<BattleTeam>(), state.battleTeams)
-        assertEquals(emptyList<AIBattleTeam>(), state.aiBattleTeams)
         assertEquals(SectPolicies(), state.sectPolicies)
         assertEquals(emptyList<ActiveMission>(), state.activeMissions)
         assertEquals(emptyList<Mission>(), state.availableMissions)
