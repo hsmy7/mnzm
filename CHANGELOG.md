@@ -82,6 +82,55 @@
   KDoc；P3 生成注释「删预览框/选中/拆除高亮」**与事实相反**（C++ `buildOverlayLayers` 仍消费四类，
   退役的是 Kotlin 逐 rect 绘制臂）⇒ 按事实改写。
 
+### B19 批（2026-09-21）——Room 死列清理（`game_data.battleTeam` 单数 / `aiBattleTeams`，v51→v52）
+
+> 实施 [docs/parallel-batches-w5/batch-B19-room-dead-columns.md](docs/parallel-batches-w5/batch-B19-room-dead-columns.md)
+> （卡骨架 = `b18-remaining-impl-2026-09-20.md` 附 B；独立取证 = [docs/save-system-audit-2026-09-21.md](docs/save-system-audit-2026-09-21.md) §5/§15）。
+> **🔴 存档 schema 单独走批**（不与任何其他批混装）。**零玩家可见变更**——删的是全仓
+> 零写入者/零读取者的死列，且两列均 `@kotlinx.serialization.Transient`（不进 `.sav`/proto/
+> 镜像信封，只存在于 Room 列）⇒ 游戏内 `changelog_entries.json` 未追加；沿用本段不新建
+> 版本条目，`version.properties` 未递增——由用户决定。每子项独立 commit。
+
+- **死判复核（实测取证，非推测）**：`battleTeam`（**单数**）与 `aiBattleTeams` 全仓
+  **零生产者/零消费者**。`aiBattleTeams` 唯一读取链 `GameData.organization →
+  SectOrganizationState.aiBattleTeams` 的终点是**生产零消费者的 DTO**
+  （`grep -rn "\.organization" --include=*.kt` 生产命中 **0**）；C++ 全仓零出现
+  （`models.h` 只有复数 `battleTeams`）⇒ **零 C++ 改动**。命中的其余位置全属
+  「迁移链历史基线 SQL」（不属死判范围）或测试侧种子列清单。
+- **旧档数据窗口勘察（判归：业务上可弃，直接删列不搬运）**：v40 `MIGRATION_39_40`
+  引入复数三列 `battle_teams`/`used_team_numbers`/`battle_teams_initialized` 时**只做
+  ADD COLUMN、未搬运单数数据**，旧档队伍语义改由 `battleTeamsInitialized=false`
+  走默认队伍初始化。**搬运会凭空多出一支队伍 = 行为变更**，故明确不做。
+- **迁移实现（v51 → v52）**：`DATABASE_VERSION` 51→52 + `MIGRATION_51_52`——SQLite < 3.35
+  （API24 内置 3.9）无 `DROP COLUMN` ⇒ **create-copy-drop-rename**（PRAGMA 驱动逐列重建 +
+  `INSERT SELECT` + 重建 5 索引 + 幂等：待删列不存在即返回）。**删列实现收敛为单一实现**
+  `rebuildTableDroppingColumns`（多列通用），`MIGRATION_49_50` 的私有单列实现改为委托
+  （纯抽取，语义逐字等价）。`52.json` 由 KSP 导出：game_data **141 → 139** 列。
+- **波及面同步清理**：`GameData` 两字段 + `SectOrganizationState.aiBattleTeams` +
+  `CollectionConverters` 两转换器（仅服务被删列，否则成为无消费者的活体死码）+
+  `GameDataTransientFace` 差集面 9 → **7** 字段（差集法自动收缩，实现零改动）。
+- **守卫（5 例，`RoomMigrationV51To52Test`）**：① 真实 Room 打开校验（v51→v52，触发
+  `onValidateSchema` 列/索引/主键全等比较）；② 删列 + **存档回归逐字段等价**（v51 种子含
+  **非空**单数 `battleTeam` 与 NULL 两种形态；除两死列外**所有列值 + 相对列序 + NULL 语义**
+  全等；活跃复数列三列逐字保留；5 索引重建）；③ **v39 旧档全链迁移**（被删列集**精确等于**
+  `{autoSaveIntervalMonths, battleTeam, aiBattleTeams}`，且 `battle_teams` 取 v40 DEFAULT ''
+  ——**证明未搬运**）；④ 幂等重放零变化；⑤ **schema 静态防回流**（`52.json` 无两列 ∧
+  `51.json` 有 = 对照面非空转）。
+- **本批两条工具级教训（已写入 batch 卡 §5.2）**：① **删列迁移的等价断言不得用 `SELECT *`**
+  ——Robolectric legacy cursor 对同一 SQL 串缓存列元数据，重建表后 `SELECT *` 拿到**过期列
+  清单**（实测两种假象：`IndexOutOfBoundsException: Index 139 out of bounds for length 139`
+  与"被删列集算出空集"）⇒ 必须按 `PRAGMA table_info` 显式列清单构造 SELECT；②
+  **`ALL_MIGRATIONS` 与 `DATABASE_VERSION` 必须同笔改**——只递增版本未登记迁移会让
+  **12 个既有"真实 Room 校验"用例全红**（`A migration from 51 to 52 was required but not
+  found`）；`MigrationChainGuardTest` 只断言 `ALL_MIGRATIONS` 自身连续，**拦不住**这类错配。
+- **诚实边界**：`AIBattleTeam` 模型类型本体保留（删列后零引用；删它属领域模型清理、
+  触碰 proto/序列化守卫面，超出本批范围）；`save-system-audit` §16 优先级建议 1–10
+  **全部未处理**；真机升级路径未实测（无截图回归基建）——以 Robolectric 真实 Room 打开
+  校验 + 存档回归逐字段等价为证。
+- **测试计数（实测）**：`core:data` **721 例 / 0 失败 / 0 错误 / 15 既有跳过**（= 716 + 本批 5）；
+  桌面 GTest **1558/1558**（`ninja: no work to do.` ⇒ 纯 Kotlin 批零 C++ 回归，基线持平）；
+  六模块组合门与 detekt/lint 见下方「门禁」行。
+
 ### R6.2 批 B16（2026-09-20）——数值外置：C++ 头文件 DB → 数据文件加载（改数值不再触发逻辑重编译）
 
 > 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R6 表 R6.2 行（批次文件 `docs/parallel-batches-w5/batch-R6B.md`；前置 = B15/R6.1）。**零玩家可见变更（数值逐位等价）、协议 JSON 面/存档格式/既有 JNI 签名零变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。每子项独立 commit。渠道注记：WorkBuddy 首发完成子项①与子项②大部后配额中断，ZCode 会话接续补全。

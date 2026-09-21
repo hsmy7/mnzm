@@ -337,6 +337,36 @@ physiqueIds / affixIds / statusData / activePillTypes / usedPill*）同样缺该
 ——实测 **C++ `buildOverlayLayers` 仍消费全部四类**，退役的是 Kotlin 逐 rect 绘制臂
 ⇒ 按事实改写（否则注释失真）。
 
+#### B19 批（2026-09-21）= Room 死列清理（`game_data.battleTeam` 单数 / `aiBattleTeams`，v51→v52）
+
+批次文件 `docs/parallel-batches-w5/batch-B19-room-dead-columns.md`（§0 死判复核 +
+旧档数据窗口勘察，§5 实施记录）；卡骨架来源 = `b18-remaining-impl-2026-09-20.md` 附 B；
+独立取证 = `docs/save-system-audit-2026-09-21.md` §5（145/146 行）、§15（存疑项 7）。
+用户 2026-09-21 指令「直接实施 B19，完成后收尾」。**🔴 存档 schema 单独走批**（不与其他批混装）。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| 死判复核 | ✅ | `battleTeam`（单数）/`aiBattleTeams` 全仓 **零生产者/零消费者**；唯一读取链 `GameData.organization → SectOrganizationState.aiBattleTeams` **生产零消费者**（`grep "\.organization"` 生产命中 0）；C++ 全仓零出现（只有复数 `battleTeams`） |
+| 旧档数据窗口勘察 | ✅ | v40 `MIGRATION_39_40` 引入复数三列时**未搬运**单数数据（旧档走 `battleTeamsInitialized=false` 默认队伍初始化）⇒ 判归 **业务上可弃，直接删列不做搬运**（搬运会凭空多出一支队伍 = 行为变更） |
+| 实体字段删除 | ✅ | `GameData.battleTeam` / `GameData.aiBattleTeams` + `SectOrganizationState.aiBattleTeams` + `CollectionConverters` 两转换器（仅服务该列） |
+| 迁移与版本 | ✅ | `DATABASE_VERSION` 51→52 + `MIGRATION_51_52`（**create-copy-drop-rename**，SQLite < 3.35 无 DROP COLUMN）+ 5 索引重建 + 幂等；`52.json` 141→139 列（KSP 导出） |
+| 删列实现收敛 | ✅ | 新增 `rebuildTableDroppingColumns`（PRAGMA 驱动**多列**通用 + 幂等）为**删列迁移唯一实现**；`MIGRATION_49_50` 私有单列实现改为委托（纯抽取，语义逐字等价） |
+| 存档回归守卫 | ✅ | `RoomMigrationV51To52Test` 5 例：真实 Room 校验 / 删列 + **逐字段等价**（含单数 `battleTeam` 非空旧档样本 + NULL 形态）/ V39 全链（被删列集**精确等于** `{autoSaveIntervalMonths, battleTeam, aiBattleTeams}`）/ 幂等 / schema 静态防回流（`52.json` 无两列 ∧ `51.json` 有 = 对照面非空转） |
+
+**本批两条工具级教训（写入 batch 卡 §5.2）**：
+① **删列迁移的等价断言不得用 `SELECT *`**——Robolectric legacy cursor 对同一 SQL 串
+缓存列元数据，重建表后 `SELECT *` 拿到**过期列清单**（实测报
+`IndexOutOfBoundsException: Index 139 out of bounds for length 139`，且"被删列集"算出空集
+两种假象）⇒ 必须按 `PRAGMA table_info` 显式列清单构造 SELECT；
+② **`ALL_MIGRATIONS` 与 `DATABASE_VERSION` 必须同笔改**——只递增版本未登记迁移会让
+**12 个既有"真实 Room 校验"用例全红**（`A migration from 51 to 52 was required but not found`）；
+`MigrationChainGuardTest` 只断言 `ALL_MIGRATIONS` 自身连续，**拦不住**这类错配。
+
+**诚实边界**：`AIBattleTeam` 模型类型本体保留（删列后零引用；删它属领域模型清理、触碰
+proto/序列化守卫面，超出本批范围）；`save-system-audit` §16 优先级建议 1–10 全部未处理；
+真机升级路径未实测（无截图回归基建）——以 Robolectric 真实 Room 打开校验 + 存档回归
+逐字段等价为证。
+
 #### B16 批（2026-09-20）= R6.2（数值外置：C++ 头文件 DB → 数据文件加载，`nativeSetGameConfig` 通道扩展）
 
 批次文件 `docs/parallel-batches-w5/batch-R6B.md`；每子项独立 commit。前置 = B15（R6.1，
