@@ -243,15 +243,65 @@ internal fun StorageEngine.clearCacheForSlot(slot: Int) {
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 internal suspend fun StorageEngine.clearSlotDataQuietly(slot: Int) {
     try {
-        core.database.withTransaction {
-            core.database.gameDataDao().deleteAll(slot)
-            core.database.discipleDao().deleteAll(slot)
-        }
+        // 审计 §12-K：旧实现只删 game_data + disciples **两张表** ⇒ tombstone 路径
+        // 残留 27 表行（合规与正确性双重问题）。现与 delete() 共用同一份全表清理。
+        clearAllSlotTables(slot)
         saveFileManager.deleteSlot(slot)
         saveFileManager.clearSlotDeleted(slot)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         Log.w(TAG, "tombstone 清理残留数据失败 slot=$slot（非阻断）", e)
+    }
+}
+
+/**
+ * 清空槽位在 DB 的**全部表行**（单事务）。
+ *
+ * **唯一实现**：删除槽位（`StorageEngine.delete`）与 tombstone 残留清理
+ * （[clearSlotDataQuietly]）共用，避免两处清单漂移——审计 §12-K 的根因正是
+ * "删档路径清 29 表、tombstone 路径只清 2 表"。
+ *
+ * 新增 Room 实体（`@Database(entities=…)`）时**必须**在此补一行 DAO 删除，
+ * 否则删档/tombstone 会留下新表残行（`GameDatabase` 注册实体数 = 本清单唯一权威对照）。
+ */
+@Suppress("LongMethod") // 29 个 DAO 逐行清理清单：按实体顺序平铺，拆函数反而遮蔽"清单完整性"
+internal suspend fun StorageEngine.clearAllSlotTables(slot: Int) {
+    core.database.withTransaction {
+        core.database.gameDataDao().deleteAll(slot)
+        core.database.discipleDao().deleteAll(slot)
+        core.database.discipleCoreDao().deleteAll(slot)
+        core.database.discipleCombatStatsDao().deleteAll(slot)
+        core.database.discipleEquipmentDao().deleteAll(slot)
+        core.database.discipleExtendedDao().deleteAll(slot)
+        core.database.discipleAttributesDao().deleteAll(slot)
+        core.database.equipmentStackDao().deleteAll(slot)
+        core.database.equipmentInstanceDao().deleteAll(slot)
+        core.database.manualStackDao().deleteAll(slot)
+        core.database.manualInstanceDao().deleteAll(slot)
+        core.database.pillDao().deleteAll(slot)
+        core.database.materialDao().deleteAll(slot)
+        core.database.seedDao().deleteAll(slot)
+        core.database.herbDao().deleteAll(slot)
+        core.database.buildingSlotDao().deleteAll(slot)
+        core.database.recipeDao().deleteAll(slot)
+        core.database.productionSlotDao().deleteBySlot(slot)
+        core.database.battleLogDao().deleteAll(slot)
+        core.database.mailDao().deleteAllForSlot(slot)
+        core.database.saveSlotMetadataDao().deleteBySlotId(slot)
+        core.database.storageBagDao().deleteAll(slot)
+        core.database.gameHeavyDataDao().deleteAllForSlot(slot)
+        core.database.diplomacyStateDao().deleteBySlot(slot)
+        core.database.productionStateDao().deleteBySlot(slot)
+        core.database.patrolStateDao().deleteBySlot(slot)
+        core.database.worldMapStateDao().deleteBySlot(slot)
+        core.database.sectPolicyStateDao().deleteBySlot(slot)
+        core.database.discipleCompactDao().deleteAll(slot)
+        // 审计 §12-K 补齐：归档表与邮件草稿表同样带 slot 列，删档必须一并清
+        //（旧实现全链漏删这 4 张表 ⇒ 账号注销/删档后仍残留玩家数据）
+        core.database.archivedBattleLogDao().deleteBySlot(slot)
+        core.database.archivedDiscipleDao().deleteBySlot(slot)
+        core.database.mailDraftDao().deleteAllOverflowDraftsForSlot(slot)
+        core.database.mailDraftDao().deleteAllDirectMailDraftsForSlot(slot)
     }
 }

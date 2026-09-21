@@ -421,37 +421,9 @@ class StorageEngine @Inject constructor(
                 // load 见 tombstone 即返回空档，不会从残留 .sav 复活已删存档
                 saveFileManager.markSlotDeleted(slot)
 
-                core.database.withTransaction {
-                    core.database.gameDataDao().deleteAll(slot)
-                    core.database.discipleDao().deleteAll(slot)
-                    core.database.discipleCoreDao().deleteAll(slot)
-                    core.database.discipleCombatStatsDao().deleteAll(slot)
-                    core.database.discipleEquipmentDao().deleteAll(slot)
-                    core.database.discipleExtendedDao().deleteAll(slot)
-                    core.database.discipleAttributesDao().deleteAll(slot)
-                    core.database.equipmentStackDao().deleteAll(slot)
-                    core.database.equipmentInstanceDao().deleteAll(slot)
-                    core.database.manualStackDao().deleteAll(slot)
-                    core.database.manualInstanceDao().deleteAll(slot)
-                    core.database.pillDao().deleteAll(slot)
-                    core.database.materialDao().deleteAll(slot)
-                    core.database.seedDao().deleteAll(slot)
-                    core.database.herbDao().deleteAll(slot)
-                    core.database.buildingSlotDao().deleteAll(slot)
-                    core.database.recipeDao().deleteAll(slot)
-                    core.database.productionSlotDao().deleteBySlot(slot)
-                    core.database.battleLogDao().deleteAll(slot)
-                    core.database.mailDao().deleteAllForSlot(slot)
-                    core.database.saveSlotMetadataDao().deleteBySlotId(slot)
-                    core.database.storageBagDao().deleteAll(slot)
-                    core.database.gameHeavyDataDao().deleteAllForSlot(slot)
-                    core.database.diplomacyStateDao().deleteBySlot(slot)
-                    core.database.productionStateDao().deleteBySlot(slot)
-                    core.database.patrolStateDao().deleteBySlot(slot)
-                    core.database.worldMapStateDao().deleteBySlot(slot)
-                    core.database.sectPolicyStateDao().deleteBySlot(slot)
-                    core.database.discipleCompactDao().deleteAll(slot)
-                }
+                // 全表清理与 tombstone 路径**共用同一实现**（审计 §12-K：两处清单漂移
+                // 会让 tombstone 路径残留 27 表行）
+                clearAllSlotTables(slot)
 
                 clearCacheForSlot(slot)
                 saveFileManager.deleteSlot(slot)
