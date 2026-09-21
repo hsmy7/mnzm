@@ -569,6 +569,27 @@ class DiscipleTables {
     }
 
     /**
+     * 镜像列级补丁的**存在行原位写入口**（B20a 列级收窄）。
+     *
+     * 列级信封的补丁行只携带脏列——全行合并臂（[upsertMirrorRow]）对其要付
+     * "基线组装 + 全行合并 + 全组列写"三次全行遍历；本入口让调用方按补丁
+     * presence 只写携带列（净效果与全组列写逐列全等：未携带列保持表内既有值
+     * ——全组合并回写对未携带列本就是恒等回写）。锁/守卫/changedId 语义与
+     * [upsertMirrorRow] 相同（synchronized(_ids) + 写守卫 + 行级脏记录）。
+     *
+     * @return false = 行不存在（新行或幽灵行：isAlive 缺键），调用方回退
+     *         [upsertMirrorRow] 全行臂（新行恒整行标脏，语义不变）
+     */
+    fun patchExistingMirrorRow(id: Int, block: DiscipleTables.() -> Unit): Boolean =
+        synchronized(_ids) {
+            requireWriteAccess()
+            if (!isAlive.contains(id)) return@synchronized false
+            recordChangedId(id)
+            block()
+            true
+        }
+
+    /**
      * 原子全量替换所有弟子数据。
      *
      * 在单个 [synchronized(ids)] 锁内完成四步操作：

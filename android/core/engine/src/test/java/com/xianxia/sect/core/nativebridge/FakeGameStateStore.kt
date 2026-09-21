@@ -32,6 +32,10 @@ import kotlinx.coroutines.flow.StateFlow
  * 从 DiffStateSyncTest 内部类提取为顶级类——StateSyncService、增量镜像
  * （applyDirty）、TimeSystem 对拍等测试复用同一实现，避免多份拷贝漂移。
  *
+ * 弟子持久化走生产口径（B20a 偏置消除，[dispatchAssemble]）：无弟子写入零组装、
+ * 有写入走增量/patch 组装（GameStateStoreImpl.dispatchAssemble 同款）——
+ * 旧面每事务 assembleAll() 全表组装是 Bench 登记的 O(D) 观测偏置，已消除。
+ *
  * 稳态零写入断言（w3-13 防复发，handover §2.82）：[nonMirrorWriteCount] 计数
  * "非镜像入口（update/updateAndReturn/modifyState）提交的持久状态变更"且仅在
  * AUTHORITATIVE 模式下计数（flag-OFF 写入即真相，不是违规）。对拍用例据此断言
@@ -93,8 +97,11 @@ open class FakeGameStateStore : GameStateStore {
         try {
             val baseline = CaptureBaseline(gameDataValue, collectionValues())
             mgs.block()
-            persistFrom(mgs)
+            persistCollections(mgs)
             if (!mirror) countNonMirrorWrite(baseline, mgs)
+            // 生产口径：dispatchAssemble 在提交判定（countNonMirrorWrite 的
+            // isDirty 检查）之后消费 trackers——顺序对齐 GameStateStoreImpl
+            dispatchAssemble(mgs)
         } finally {
             activeTransaction = null
         }
@@ -111,8 +118,9 @@ open class FakeGameStateStore : GameStateStore {
         try {
             val baseline = CaptureBaseline(gameDataValue, collectionValues())
             val result = mgs.block()
-            persistFrom(mgs)
+            persistCollections(mgs)
             countNonMirrorWrite(baseline, mgs)
+            dispatchAssemble(mgs)
             return result
         } finally {
             activeTransaction = null
@@ -161,9 +169,12 @@ open class FakeGameStateStore : GameStateStore {
             it.writeAllowed = true
             it.replaceAll(disciplesValue)
             // 丢弃构造期 replaceAll 的记录——模拟生产 COW 已提交态（生产表
-            // 的 changedIdTracker 在上次事务后已被 dispatchAssemble 消费）；
-            // 反向捕获只应看到本事务 block 的真实写入
+            // 的 changedIdTracker/dirtyTracker 在上次事务后已被 dispatchAssemble
+            // 消费，提交态基线 = 双 tracker 空）；反向捕获只应看到本事务
+            // block 的真实写入（B20a 起 dispatchAssemble 依赖该基线判定
+            // "零弟子写入零组装"，消费不彻底会让纯 gameData 事务白付全量组装）
             it.changedIdTracker.consumeChangedIds()
+            it.dirtyTracker.consumeDirtyColumns()
         },
         equipmentStacks = EntityStore(equipmentStacksValue),
         equipmentInstances = EntityStore(equipmentInstancesValue),
@@ -180,10 +191,9 @@ open class FakeGameStateStore : GameStateStore {
         isSaving = false
     )
 
-    /** 事务结束后回读各存储到 Fake 字段。 */
-    private fun persistFrom(mgs: MutableGameState) {
+    /** 事务结束后回读 gameData 与实体集合到 Fake 字段（弟子面走 [dispatchAssemble]）。 */
+    private fun persistCollections(mgs: MutableGameState) {
         gameDataValue = mgs.gameData
-        disciplesValue = mgs.discipleTables.assembleAll()
         equipmentStacksValue = mgs.equipmentStacks.all()
         equipmentInstancesValue = mgs.equipmentInstances.all()
         manualStacksValue = mgs.manualStacks.all()
@@ -193,6 +203,36 @@ open class FakeGameStateStore : GameStateStore {
         herbsValue = mgs.herbs.all()
         seedsValue = mgs.seeds.all()
         storageBagsValue = mgs.storageBags.all()
+    }
+
+    /**
+     * 生产口径的弟子组装（B20a 偏置消除，对齐 GameStateStoreImpl.dispatchAssemble）。
+     *
+     * 旧面 persistFrom 每事务 `assembleAll()` 全表组装 = MirrorSegmentProjection
+     * BenchTest 登记的消费侧 O(D) 观测偏置（两臂各背同一常数，且在 D=1000 档
+     * 掩盖列级臂真实成本）。本方法对齐生产三判据：
+     * ① 无弟子写入（dirtyTracker 空）→ 零组装（生产 commitUpdateState 同判据）；
+     * ② changedIds ≳ 半表 → 子对象级 patch 组装（assembleAllPatched，脏组外
+     *    复用 prev 子对象引用）；
+     * ③ 稀疏变更 → 双指针增量归并（assembleAllIncremental，未变弟子复用旧引用）；
+     * 容量拒绝（rejectedRecord）强制全量兜底，与生产同序。组装产物与 assembleAll
+     * 逐字段全等由 DiscipleTables 增量族内部守卫 + Bench 两臂落库全等断言看护。
+     */
+    private fun dispatchAssemble(mgs: MutableGameState) {
+        val tables = mgs.discipleTables
+        if (!tables.dirtyTracker.isDirty) return
+        val changedIds = tables.changedIdTracker.consumeChangedIds()
+        val forceFullAssemble = tables.changedIdTracker.consumeRejectedRecord()
+        val dirtyColumns = tables.dirtyTracker.consumeDirtyColumns()
+        disciplesValue = if (!forceFullAssemble && changedIds.isNotEmpty()) {
+            if (changedIds.size >= disciplesValue.size / 2) {
+                tables.assembleAllPatched(disciplesValue, changedIds, dirtyColumns)
+            } else {
+                tables.assembleAllIncremental(disciplesValue, changedIds)
+            }
+        } else {
+            tables.assembleAll()
+        }
     }
 
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot(

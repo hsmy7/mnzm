@@ -528,10 +528,14 @@ class StateSyncService @Inject constructor(
     }
 
     /**
-     * 列级弟子行补丁应用（R2.4/B09）：store 内已有行 = 组装为基线、
-     * [GameViewDiscipleRows.mergeToDisciple] 按补丁 presence 覆盖后落表；
-     * 新行 = 补丁须自携全字段（C++ append 恒整行标脏），稀疏新增抛错
-     * （与全量臂 fail-fast 同语义，经降级契约转全量兜底）。
+     * 列级弟子行补丁应用（R2.4/B09；B20a 列级收窄）：**存在行**按补丁
+     * presence 列直写（[GameViewDiscipleRows.applyPatchInPlace]，跳过旧面
+     * "基线组装 + 全行合并 + 全组列写"三次全行遍历——列级信封稳态只携
+     * 3~5 脏列，全行臂每行 ~300 次列访问曾致列级臂比全行臂更慢、
+     * MirrorSegmentProjectionBenchTest 的 1.15× sanity 门在 D=1000 档红）；
+     * **新行/幽灵行**回退全行臂（[GameViewDiscipleRows.mergeToDisciple]
+     * base=null + [DiscipleTables.upsertMirrorRow]：C++ append 恒整行标脏，
+     * 补丁稀疏即协议漂移抛错，经降级契约转全量兜底，语义不变）。
      */
     private fun applyDisciplePatches(
         tables: DiscipleTables,
@@ -543,10 +547,12 @@ class StateSyncService @Inject constructor(
             require(id.toIntOrNull() != null) {
                 "镜像弟子 id 非数字: $id"
             }
-            val numericId = id.toInt()
-            val base = if (tables.isAlive.contains(numericId)) tables.assemble(numericId) else null
-            val merged = GameViewDiscipleRows.mergeToDisciple(base, patch, json)
-            tables.upsertMirrorRow(merged)
+            if (!GameViewDiscipleRows.applyPatchInPlace(tables, patch, json)) {
+                val numericId = id.toInt()
+                val base = if (tables.isAlive.contains(numericId)) tables.assemble(numericId) else null
+                val merged = GameViewDiscipleRows.mergeToDisciple(base, patch, json)
+                tables.upsertMirrorRow(merged)
+            }
             ups++
         }
         return ups to 0

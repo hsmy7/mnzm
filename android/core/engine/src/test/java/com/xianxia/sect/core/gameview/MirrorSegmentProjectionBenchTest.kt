@@ -38,10 +38,18 @@ import org.junit.Test
  * 确被镜像馈送过（空转即红）。数字经 println/stderr 输出，供方案 §7.2 B08 行与
  * 完成报告引用。
  *
- * ## 已知观测偏差（诚实登记）
- * 测试替身 [FakeGameStateStore] 每次事务提交后 `assembleAll()` 全表组装（生产是
- * 锁外增量/patch 组装），故两段都含一份相同的 O(D) 组装常数；真实设备的 mirror
- * 段构成另由 PhaseSegmentTimer 每旬打点（debug 构建）。
+ * ## 观测口径（B20a 后 = 生产形态稳态成本）
+ * B20a 前本台架有两层登记偏差，均已消除：
+ * ① 测试替身 [FakeGameStateStore] 每事务 `assembleAll()` 全表组装（生产是
+ *    锁外增量/patch 组装）——两段各背一份相同 O(D) 常数；
+ * ② 列级补丁应用走"基线组装 + 全行合并 + 全组列写"三次全行遍历——每行成本
+ *    ~2.5× 于全行臂，被①的常数掩盖后在 D=1000 档致 1.15× sanity 门红
+ *    （实测列级 37.62ms vs 全脏 28.00ms，2026-09-21 复捕）。
+ * B20a 处置：替身换生产口径（GameStateStoreImpl.dispatchAssemble 同款）+
+ * 列级补丁切 presence 列直写（GameViewDiscipleRows.applyPatchInPlace）。
+ * 本台架现量得生产形态的稳态成本；真实设备的 mirror 段构成另由
+ * PhaseSegmentTimer 每旬打点（debug 构建）。历史基线（B09 登记口径）：
+ * D=5000 列级合计 139.30ms / 全脏投影臂 132.68ms。
  */
 @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 class MirrorSegmentProjectionBenchTest {
@@ -63,11 +71,10 @@ class MirrorSegmentProjectionBenchTest {
      *   ② **两臂落库逐字段全等**（列级补丁合并语义 == 全行语义）——本测的等价守卫
      *      本体，删它即"守卫失去对照面"（红线），禁止改为"仅对自身趋势"。
      *
-     * 数字打印供方案 §7.2 B09 行与 WS-1 判定引用。
-     * 观测偏差（诚实登记）：测试替身 [FakeGameStateStore] 每次事务提交后
-     * `assembleAll()` 全表组装（生产是锁外增量/patch 组装），两段均含同一 O(D)
-     * 常数偏置；消除工作属 B20a。
-     */
+ * 数字打印供方案 §7.2 B09 行与 WS-1 判定引用。
+ * 观测口径（B20a 后）：替身 O(D) 组装偏置已消除（生产口径 dispatchAssemble），
+ * 列级补丁已切 presence 列直写——本测即生产形态稳态成本（类 KDoc「观测口径」）。
+ */
     @Test
     fun `mirror 段消费侧列级信封基线 G2 重测`() {
         for (size in SCALES) runColumnOneScale(size)

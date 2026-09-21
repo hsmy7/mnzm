@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.UsageTracking
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.proto.gameview.DiscipleRow
 import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.StringIntEntry
@@ -453,12 +454,276 @@ internal object GameViewDiscipleRows {
         }) { it.clearStorageBagItemsTyped() },
     )
 
+    // ============================================================
+    // B20a：列级补丁「presence 列直写」（列级收窄）
+    // ============================================================
+
+    /**
+     * 列级补丁直写（B20a 列级收窄）：补丁行 presence 列**原位写**
+     * [DiscipleTables]，跳过全行合并臂「基线组装 + 全行合并 + 全组列写」的
+     * 三次全行遍历——列级信封稳态只携 3~5 脏列，全行臂对每行付 ~300 次
+     * 列访问，直写只付 ~2×脏列（presence 位测试 + 实写）。
+     *
+     * ## 逐列等价口径（对照 [mergeToDisciple] + [DiscipleTables.upsertMirrorRow]
+     * 全行臂，守卫 = `GameViewDiscipleColumnApplyEquivalenceTest` +
+     * `MirrorSegmentProjectionBenchTest` 两臂落库全等断言）
+     * - presence 标量列 → 映射列直写（协议 ↔ 域的既有口径原样保留：
+     *   `cultivationCheckpoint` Long→Double、社交空串/0/-1 线路哨兵 → null、
+     *   `status` 宽松枚举回退、usage 布尔 → 0/1）；
+     * - presence repeated 列 → 整列替换（[REPEATED_FIELD_CLEARERS] 同清单：
+     *   列级协议携带整列新值，先清后并 == 直写整列）；
+     * - presence 嵌套消息列（装备孕养）→ **整值替换**（全行臂 clearer 对消息列
+     *   同 repeated 家族先清后写——列级协议携带整列新值；absent 子字段按域默认，
+     *   [toNurture] 同源），非字段级 overlay；
+     * - storageBagItems 三表达（110 typed / 75 旧 JSON 原文 / present 零条目）
+     *   → 整列替换，解码分派与 [toDisciple] 同源；
+     * - **协议外瞬态列净效果显式复刻**：全行臂对每行恒写
+     *   `lifeEvents = 空`（协议外瞬态显示列，每旬镜像重投后由投影事务重写）
+     *   与 `slotIds = 0`（[toDisciple] 恒 0 回写）——直写同净效果；
+     * - `deathYear` 两臂同语义丢弃（域模型无对应列）；
+     * - 未 presence 列 → 表内既有值零触碰（全行臂对其为恒等回写）。
+     *
+     * @return true = 已按列直写应用（存在行）；false = 行不存在（新行/幽灵行），
+     *         调用方回退全行臂（[mergeToDisciple] base=null + [DiscipleTables.
+     *         upsertMirrorRow]：C++ append 恒整行标脏，稀疏新增照旧 fail-fast）
+     */
+    fun applyPatchInPlace(tables: DiscipleTables, patch: DiscipleRowPatch, json: Json): Boolean {
+        val row = patch.row
+        val id = row.id.toIntOrNull() ?: return false
+        return tables.patchExistingMirrorRow(id) {
+            // 协议外瞬态列净效果（全行臂恒写：lifeEvents 空 / slotIds 0）
+            lifeEvents[id] = emptyList()
+            slotIds[id] = 0
+            applyBasicPatchColumns(id, row)
+            applyCombatPatchColumns(id, row)
+            applyPillPatchColumns(id, row)
+            applyEquipmentPatchColumns(id, row, json)
+            applySocialPatchColumns(id, row)
+            applySkillPatchColumns(id, row)
+            applyUsagePatchColumns(id, row)
+        }
+    }
+
+    /** 基础段 presence 列直写（映射表 = [toDisciple] 基础段 ↔ `writeAllFields` 基本面）。 */
+    private fun DiscipleTables.applyBasicPatchColumns(id: Int, row: DiscipleRow) {
+        if (row.hasName()) names[id] = row.name
+        if (row.hasSurname()) surnames[id] = row.surname
+        if (row.hasRealm()) realms[id] = row.realm
+        if (row.hasRealmLayer()) realmLayers[id] = row.realmLayer
+        if (row.hasCultivation()) cultivations[id] = row.cultivation
+        if (row.hasCultivationCheckpoint()) {
+            cultivationCheckpoints[id] = row.cultivationCheckpoint.toDouble()
+        }
+        if (row.hasCultivationCheckpointGameMonth()) {
+            cultivationCheckpointGameMonths[id] = row.cultivationCheckpointGameMonth
+        }
+        if (row.hasSpiritRootType()) spiritRootTypes[id] = row.spiritRootType
+        if (row.hasAge()) ages[id] = row.age
+        if (row.hasLifespan()) lifespans[id] = row.lifespan
+        if (row.hasIsAlive()) isAlive[id] = if (row.isAlive) 1 else 0
+        // deathYear：协议随行字段，域模型无对应列——两臂同语义丢弃
+        if (row.hasGender()) genders[id] = row.gender
+        if (row.hasPortraitRes()) portraitRes[id] = row.portraitRes
+        if (row.manualIdsCount > 0) manualIds[id] = row.manualIdsList
+        if (row.talentIdsCount > 0) talentIds[id] = row.talentIdsList
+        if (row.physiqueIdsCount > 0) physiqueIds[id] = row.physiqueIdsList
+        if (row.affixIdsCount > 0) affixIds[id] = row.affixIdsList
+        if (row.manualMasteriesCount > 0) {
+            manualMasteries[id] = row.manualMasteriesList.associate { it.key to it.value }
+        }
+        if (row.hasStatus()) statuses[id] = safeStatus(row.status)
+        if (row.statusDataCount > 0) {
+            statusData[id] = row.statusDataList.associate { it.key to it.value }
+        }
+        if (row.hasCultivationSpeedBonus()) cultivationSpeedBonuses[id] = row.cultivationSpeedBonus
+        if (row.hasCultivationSpeedDuration()) {
+            cultivationSpeedDurations[id] = row.cultivationSpeedDuration
+        }
+        if (row.hasDiscipleType()) discipleTypes[id] = row.discipleType
+        if (row.hasSoulPower()) soulPowers[id] = row.soulPower
+        if (row.hasCultivationCompletionMonth()) {
+            cultivationCompletionMonths[id] = row.cultivationCompletionMonth
+        }
+        if (row.hasCultivationCompletionPhase()) {
+            cultivationCompletionPhases[id] = row.cultivationCompletionPhase
+        }
+        if (row.hasManualCompletionMonth()) manualCompletionMonths[id] = row.manualCompletionMonth
+        if (row.hasManualCompletionPhase()) manualCompletionPhases[id] = row.manualCompletionPhase
+        if (row.hasEquipmentNurturingCompletionMonth()) {
+            equipmentNurturingCompletionMonths[id] = row.equipmentNurturingCompletionMonth
+        }
+        if (row.hasEquipmentNurturingCompletionPhase()) {
+            equipmentNurturingCompletionPhases[id] = row.equipmentNurturingCompletionPhase
+        }
+    }
+
+    /** 战斗段 presence 列直写（映射表 = [combatOf] ↔ `writeAllFields` 战斗面）。 */
+    private fun DiscipleTables.applyCombatPatchColumns(id: Int, row: DiscipleRow) {
+        if (row.hasBaseHp()) baseHps[id] = row.baseHp
+        if (row.hasBaseMp()) baseMps[id] = row.baseMp
+        if (row.hasBasePhysicalAttack()) basePhysicalAttacks[id] = row.basePhysicalAttack
+        if (row.hasBaseMagicAttack()) baseMagicAttacks[id] = row.baseMagicAttack
+        if (row.hasBasePhysicalDefense()) basePhysicalDefenses[id] = row.basePhysicalDefense
+        if (row.hasBaseMagicDefense()) baseMagicDefenses[id] = row.baseMagicDefense
+        if (row.hasBaseSpeed()) baseSpeeds[id] = row.baseSpeed
+        if (row.hasHpVariance()) hpVariances[id] = row.hpVariance
+        if (row.hasMpVariance()) mpVariances[id] = row.mpVariance
+        if (row.hasPhysicalAttackVariance()) {
+            physicalAttackVariances[id] = row.physicalAttackVariance
+        }
+        if (row.hasMagicAttackVariance()) magicAttackVariances[id] = row.magicAttackVariance
+        if (row.hasPhysicalDefenseVariance()) {
+            physicalDefenseVariances[id] = row.physicalDefenseVariance
+        }
+        if (row.hasMagicDefenseVariance()) magicDefenseVariances[id] = row.magicDefenseVariance
+        if (row.hasSpeedVariance()) speedVariances[id] = row.speedVariance
+        if (row.hasTotalCultivation()) totalCultivations[id] = row.totalCultivation
+        if (row.hasBreakthroughCount()) breakthroughCounts[id] = row.breakthroughCount
+        if (row.hasBreakthroughFailCount()) breakthroughFailCounts[id] = row.breakthroughFailCount
+        if (row.hasCurrentHp()) currentHps[id] = row.currentHp
+        if (row.hasCurrentMp()) currentMps[id] = row.currentMp
+    }
+
+    /** 丹药段 presence 列直写（映射表 = [pillEffectsOf] ↔ `writeAllFields` 丹药面）。 */
+    private fun DiscipleTables.applyPillPatchColumns(id: Int, row: DiscipleRow) {
+        if (row.hasPillPhysicalAttackBonus()) {
+            pillPhysicalAttackBonuses[id] = row.pillPhysicalAttackBonus
+        }
+        if (row.hasPillMagicAttackBonus()) pillMagicAttackBonuses[id] = row.pillMagicAttackBonus
+        if (row.hasPillPhysicalDefenseBonus()) {
+            pillPhysicalDefenseBonuses[id] = row.pillPhysicalDefenseBonus
+        }
+        if (row.hasPillMagicDefenseBonus()) pillMagicDefenseBonuses[id] = row.pillMagicDefenseBonus
+        if (row.hasPillHpBonus()) pillHpBonuses[id] = row.pillHpBonus
+        if (row.hasPillMpBonus()) pillMpBonuses[id] = row.pillMpBonus
+        if (row.hasPillSpeedBonus()) pillSpeedBonuses[id] = row.pillSpeedBonus
+        if (row.hasPillEffectDuration()) pillEffectDurations[id] = row.pillEffectDuration
+        if (row.hasPillCritRateBonus()) pillCritRateBonuses[id] = row.pillCritRateBonus
+        if (row.hasPillCritEffectBonus()) pillCritEffectBonuses[id] = row.pillCritEffectBonus
+        if (row.hasPillCultivationSpeedBonus()) {
+            pillCultivationSpeedBonuses[id] = row.pillCultivationSpeedBonus
+        }
+        if (row.hasPillSkillExpSpeedBonus()) {
+            pillSkillExpSpeedBonuses[id] = row.pillSkillExpSpeedBonus
+        }
+        if (row.hasPillNurtureSpeedBonus()) {
+            pillNurtureSpeedBonuses[id] = row.pillNurtureSpeedBonus
+        }
+        if (row.hasActivePillCategory()) activePillCategories[id] = row.activePillCategory
+        if (row.activePillTypesCount > 0) activePillTypes[id] = row.activePillTypesList.toSet()
+    }
+
+    /** 装备段 presence 列直写（映射表 = [equipmentOf] ↔ 装备列写入面）。 */
+    private fun DiscipleTables.applyEquipmentPatchColumns(
+        id: Int,
+        row: DiscipleRow,
+        json: Json,
+    ) {
+        if (row.hasWeaponId()) weaponIds[id] = row.weaponId
+        if (row.hasArmorId()) armorIds[id] = row.armorId
+        if (row.hasBootsId()) bootsIds[id] = row.bootsId
+        if (row.hasAccessoryId()) accessoryIds[id] = row.accessoryId
+        // 孕养嵌套消息：全行臂对消息列同 repeated 家族——clearer 先清、mergeFrom
+        // 整值写入（列级协议携带整列新值），absent 子字段按域默认（toNurture 同源）
+        if (row.hasWeaponNurture()) weaponNurtures[id] = row.weaponNurture.toNurture()
+        if (row.hasArmorNurture()) armorNurtures[id] = row.armorNurture.toNurture()
+        if (row.hasBootsNurture()) bootsNurtures[id] = row.bootsNurture.toNurture()
+        if (row.hasAccessoryNurture()) accessoryNurtures[id] = row.accessoryNurture.toNurture()
+        // 储物袋：净效果 = 全行臂 merged 行的解码分派（typed 优先，基线 typed
+        // 经 toRow 进入 merged 行）——故补丁携带位（typed/present）在位 ⇒ 整列
+        // 替换（typed → 75 → 空）；**75-only 且基线袋为空** ⇒ 75 解码（merged
+        // 行 typed 计数 0 时 75 才可见）；75-only 且基线袋非空 ⇒ typed 优先
+        // 吞掉 75 ⇒ 基线保留。三判定与 mergeToDisciple+toDisciple 逐输入对齐。
+        val bagCarried = row.storageBagItemsTypedCount > 0 || row.storageBagItemsPresent
+        when {
+            bagCarried -> storageBagItems[id] = row.bagItemsOrEmpty(json)
+            !row.storageBagItemsJson.isEmpty &&
+                storageBagItems.getOrDefault(id, emptyList()).isEmpty() -> {
+                storageBagItems[id] = row.bagItemsOrEmpty(json)
+            }
+        }
+        if (row.hasStorageBagSpiritStones()) {
+            storageBagSpiritStones[id] = row.storageBagSpiritStones
+        }
+        if (row.hasSpiritStones()) discipleSpiritStones[id] = row.spiritStones
+    }
+
+    /** 社交段 presence 列直写（映射表 = [socialOf] ↔ `writeAllFields` 社交面，线路哨兵同口径）。 */
+    private fun DiscipleTables.applySocialPatchColumns(id: Int, row: DiscipleRow) {
+        if (row.hasPartnerId()) partnerIds[id] = row.partnerId.ifEmpty { null }
+        if (row.hasPartnerSectId()) partnerSectIds[id] = row.partnerSectId.ifEmpty { null }
+        if (row.hasParentId1()) parentId1s[id] = row.parentId1.ifEmpty { null }
+        if (row.hasParentId2()) parentId2s[id] = row.parentId2.ifEmpty { null }
+        if (row.hasLastChildYear()) lastChildYears[id] = row.lastChildYear
+        if (row.hasChildBirthMonth()) {
+            childBirthMonths[id] = row.childBirthMonth.takeIf { it != 0 }
+        }
+        // -1 = 域 null 的线路哨兵：merged 臂 -1 → null → 回写哨兵，直写透传同值
+        if (row.hasGriefEndYear()) griefEndYears[id] = row.griefEndYear
+        if (row.hasMasterId()) masterIds[id] = row.masterId.ifEmpty { null }
+    }
+
+    /** 技能段 presence 列直写（映射表 = [skillsOf] ↔ `writeAllFields` 技能面）。 */
+    private fun DiscipleTables.applySkillPatchColumns(id: Int, row: DiscipleRow) {
+        if (row.hasIntelligence()) intelligences[id] = row.intelligence
+        if (row.hasCharm()) charms[id] = row.charm
+        if (row.hasLoyalty()) loyalties[id] = row.loyalty
+        if (row.hasComprehension()) comprehensions[id] = row.comprehension
+        if (row.hasArtifactRefining()) artifactRefinings[id] = row.artifactRefining
+        if (row.hasPillRefining()) pillRefinings[id] = row.pillRefining
+        if (row.hasSpiritPlanting()) spiritPlantings[id] = row.spiritPlanting
+        if (row.hasMining()) minings[id] = row.mining
+        if (row.hasTeaching()) teachings[id] = row.teaching
+        if (row.hasMorality()) moralities[id] = row.morality
+        if (row.hasAptitude()) aptitudes[id] = row.aptitude
+        if (row.hasSalaryPaidCount()) salaryPaidCounts[id] = row.salaryPaidCount
+        if (row.hasSalaryMissedCount()) salaryMissedCounts[id] = row.salaryMissedCount
+        if (row.hasAlchemyLevel()) alchemyLevels[id] = row.alchemyLevel
+        if (row.hasAlchemyPromotionCount()) alchemyPromotionCounts[id] = row.alchemyPromotionCount
+        if (row.hasForgeLevel()) forgeLevels[id] = row.forgeLevel
+        if (row.hasForgePromotionCount()) forgePromotionCounts[id] = row.forgePromotionCount
+    }
+
+    /** 使用追踪段 presence 列直写（映射表 = [usageOf] ↔ `writeAllFields` 使用面）。 */
+    private fun DiscipleTables.applyUsagePatchColumns(id: Int, row: DiscipleRow) {
+        if (row.usedFunctionalPillTypesCount > 0) {
+            usedFunctionalPillTypes[id] = row.usedFunctionalPillTypesList
+        }
+        if (row.usedExtendLifePillIdsCount > 0) {
+            usedExtendLifePillIds[id] = row.usedExtendLifePillIdsList
+        }
+        if (row.usedPermanentPillKeysCount > 0) {
+            usedPermanentPillKeys[id] = row.usedPermanentPillKeysList.toSet()
+        }
+        if (row.usedExtendLifePillTypesCount > 0) {
+            usedExtendLifePillTypes[id] = row.usedExtendLifePillTypesList.toSet()
+        }
+        if (row.hasRecruitedMonth()) recruitedMonths[id] = row.recruitedMonth
+        if (row.hasHasReviveEffect()) hasReviveEffects[id] = if (row.hasReviveEffect) 1 else 0
+        if (row.hasHasClearAllEffect()) hasClearAllEffects[id] = if (row.hasClearAllEffect) 1 else 0
+    }
+
+    /**
+     * 补丁行储物袋列值（presence 判定与 [mergeToDisciple] 的 clearer + [toDisciple]
+     * 的解码分派同口径）：typed 优先 → 旧 75 号 JSON 原文 fallback → 零条目空袋。
+     */
+    private fun DiscipleRow.bagItemsOrEmpty(json: Json): List<StorageBagItem> = when {
+        storageBagItemsTypedCount > 0 -> json.decodeFromJsonElement(
+            bagItemSerializer,
+            JsonArray(storageBagItemsTypedList.map { it.toJsonObject() })
+        )
+        !storageBagItemsJson.isEmpty -> json.decodeFromString(
+            bagItemSerializer,
+            storageBagItemsJson.toStringUtf8()
+        )
+        else -> emptyList()
+    }
+
     /**
      * 弟子域模型 → `DiscipleRow` 全字段行编码（生产面；与 C++ 编码器
      * `kDiscipleRowFields` 表逐项对应，emit-always 恒设全部字段）。
      * 列级合并的基线行来源（[mergeToDisciple]），亦供测试夹具复用。
-     */
-    fun toRow(d: Disciple, json: Json): DiscipleRow {
+     */    fun toRow(d: Disciple, json: Json): DiscipleRow {
         val b = DiscipleRow.newBuilder()
         fillDirectRowFields(b, d)
         fillCombatPillRowFields(b, d)
