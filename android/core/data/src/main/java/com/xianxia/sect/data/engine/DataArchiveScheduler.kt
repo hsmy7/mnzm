@@ -4,7 +4,10 @@ import android.util.Log
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.archive.ArchivedBattleLog
 import com.xianxia.sect.data.archive.ArchivedDisciple
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -150,6 +153,15 @@ class DataArchiveScheduler @Inject constructor(
         )
     }
 
+    /**
+     * 战斗日志溢出归档：把超出 [ArchiveConfig.battleLogHotCount] 的最旧日志搬出主表。
+     *
+     * 归档行现为**可还原载荷**（`dataBlob` = 全量序列化 [BattleLog] 的 Base64，
+     * 见 [encodeArchivedBattleLogBlob]）——此前固定写 ""，配合"归档表零查询调用者"
+     * 等于单向数据销毁（审计 §12-F）。
+     * "搬出主表"本身保留（主表保持精简），保留期由 [ArchiveConfig.archiveRetentionMs]
+     * 控制，到期由 `deleteArchivedBefore` 清理。
+     */
     private suspend fun archiveBattleLogs(slotId: Int): Int {
         val totalCount = database.battleLogDao().countBySlot(slotId)
         if (totalCount <= config.battleLogHotCount) return 0
@@ -168,7 +180,7 @@ class DataArchiveScheduler @Inject constructor(
                 timestamp = log.timestamp,
                 attackerName = log.attackerName,
                 defenderName = log.defenderName,
-                dataBlob = ""
+                dataBlob = encodeArchivedBattleLogBlob(log)
             )
         }
 
@@ -182,6 +194,15 @@ class DataArchiveScheduler @Inject constructor(
         return archived.size
     }
 
+    /**
+     * 已故弟子归档：把死亡弟子搬出 `disciples` 主表。
+     *
+     * 归档行现为**可还原载荷**（`dataBlob` = 全量序列化 [Disciple] 的 Base64，
+     * 见 [encodeArchivedDiscipleBlob]）——此前固定写 ""（只剩 id/名/境界），
+     * 不可还原（审计 §12-F）。
+     * "搬出主表"本身保留（主表保持精简），保留期由 [ArchiveConfig.archiveRetentionMs]
+     * 控制，到期由 `deleteArchivedBefore` 清理。
+     */
     private suspend fun archiveDeadDisciples(slotId: Int): Int {
         val deadDisciples = database.discipleDao().getDeadBySlotSync(slotId)
 
@@ -193,7 +214,7 @@ class DataArchiveScheduler @Inject constructor(
                 originalId = disciple.id,
                 name = disciple.name,
                 realm = disciple.realm,
-                dataBlob = ""
+                dataBlob = encodeArchivedDiscipleBlob(disciple)
             )
         }
 
@@ -209,3 +230,31 @@ class DataArchiveScheduler @Inject constructor(
         private const val TAG = "DataArchiveScheduler"
     }
 }
+
+/**
+ * 归档载荷编码（审计 §12-F）：把已故弟子**全量序列化**为 Base64 载荷，存入
+ * [ArchivedDisciple.dataBlob]，使归档行可还原——此前固定写 ""（仅存 id/名/境界），
+ * 配合"归档表零查询调用者"等于单向数据销毁。
+ *
+ * 保留策略不变：搬出主表仍在 [DataArchiveScheduler.archiveDeadDisciples] 执行，
+ * 保留期由 [ArchiveConfig.archiveRetentionMs]（180 天）控制，到期由
+ * `deleteArchivedBefore` 清理。本函数只负责载荷的可还原性。
+ *
+ * 注：[DiscipleSerializer] 不序列化 `slotId` 与 `@Ignore` 的 lifeEvents，且
+ * `cultivationCheckpoint` 以 Double↔Long 取整——还原时这些字段回到默认值。
+ */
+internal fun encodeArchivedDiscipleBlob(disciple: Disciple): String =
+    ProtobufConverters.encodeToBase64(Disciple.serializer(), disciple)
+
+/**
+ * 归档载荷编码（审计 §12-F）：把战斗日志**全量序列化**为 Base64 载荷，存入
+ * [ArchivedBattleLog.dataBlob]，使归档行可还原——此前固定写 ""。
+ *
+ * 保留策略不变：搬出主表仍在 [DataArchiveScheduler.archiveBattleLogs] 执行，
+ * 保留期由 [ArchiveConfig.archiveRetentionMs]（180 天）控制，到期由
+ * `deleteArchivedBefore` 清理。
+ *
+ * 注：[BattleLog] 的 `@Transient` 字段（slotId/teamId/battleResult）不序列化。
+ */
+internal fun encodeArchivedBattleLogBlob(log: BattleLog): String =
+    ProtobufConverters.encodeToBase64(BattleLog.serializer(), log)
