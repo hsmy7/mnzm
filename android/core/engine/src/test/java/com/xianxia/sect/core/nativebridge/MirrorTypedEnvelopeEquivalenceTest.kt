@@ -237,9 +237,7 @@ class MirrorTypedEnvelopeEquivalenceTest {
                 // `v.is_string()` 同序。否则 "123"/"true" 这类**数字形字符串**
                 // 会被本臂误分类成 vInt/vBool，而生产 C++ 侧仍走 vString ⇒
                 // 两臂在"字符串恰好是数字形"时静默分叉（守卫假绿）。
-                // 判据用 JSON 字面量形态（字符串的 toString 恒带引号），
-                // 不依赖实验性 `isString` 属性。
-                e.toString().startsWith("\"") -> b.setVString(e.content)
+                e.isString -> b.setVString(e.content)
                 e.booleanOrNull != null -> b.setVBool(e.booleanOrNull!!)
                 e.longOrNull != null -> b.setVInt(e.longOrNull!!)
                 else -> b.setVDouble(requireNotNull(e.doubleOrNull) { "非数值字面量：$e" })
