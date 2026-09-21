@@ -102,6 +102,10 @@ open class FakeGameStateStore : GameStateStore {
             // 生产口径：dispatchAssemble 在提交判定（countNonMirrorWrite 的
             // isDirty 检查）之后消费 trackers——顺序对齐 GameStateStoreImpl
             dispatchAssemble(mgs)
+            // 事务表晋升为提交基线（生产 _discipleTables = 提交表同语义，
+            // 出厂即锁写）；COW 共享存储下下一事务副本零列写（见 [mutableState]）
+            committedTables = mgs.discipleTables.also { it.writeAllowed = false }
+            committedSource = disciplesValue
         } finally {
             activeTransaction = null
         }
@@ -121,6 +125,8 @@ open class FakeGameStateStore : GameStateStore {
             persistCollections(mgs)
             countNonMirrorWrite(baseline, mgs)
             dispatchAssemble(mgs)
+            committedTables = mgs.discipleTables.also { it.writeAllowed = false }
+            committedSource = disciplesValue
             return result
         } finally {
             activeTransaction = null
@@ -162,34 +168,47 @@ open class FakeGameStateStore : GameStateStore {
         }
     }
 
-    /** 构建可写事务态（与生产 store 相同的字段面）。 */
-    private fun mutableState(): MutableGameState = MutableGameState(
-        gameData = gameDataValue,
-        discipleTables = DiscipleTables().also {
-            it.writeAllowed = true
-            it.replaceAll(disciplesValue)
-            // 丢弃构造期 replaceAll 的记录——模拟生产 COW 已提交态（生产表
-            // 的 changedIdTracker/dirtyTracker 在上次事务后已被 dispatchAssemble
-            // 消费，提交态基线 = 双 tracker 空）；反向捕获只应看到本事务
-            // block 的真实写入（B20a 起 dispatchAssemble 依赖该基线判定
-            // "零弟子写入零组装"，消费不彻底会让纯 gameData 事务白付全量组装）
-            it.changedIdTracker.consumeChangedIds()
-            it.dirtyTracker.consumeDirtyColumns()
-        },
-        equipmentStacks = EntityStore(equipmentStacksValue),
-        equipmentInstances = EntityStore(equipmentInstancesValue),
-        manualStacks = EntityStore(manualStacksValue),
-        manualInstances = EntityStore(manualInstancesValue),
-        pills = EntityStore(pillsValue),
-        materials = EntityStore(materialsValue),
-        herbs = EntityStore(herbsValue),
-        seeds = EntityStore(seedsValue),
-        storageBags = EntityStore(storageBagsValue),
-        battleLogs = emptyList(),
-        isPaused = false,
-        isLoading = false,
-        isSaving = false
-    )
+    /**
+     * 事务态构建（B20c COW 保真）：优先从提交基线表 [deepCopy]——COW 路径
+     * 每列 O(1) 存储共享、零列写（生产 GameStateStoreImpl 每事务
+     * deepCopy 同语义）；仅当无有效基线（初次 / 测试直改 [disciplesValue]
+     * 使源列表引用失效）时才走 replaceAll 全列写重建（ trackers 消费 =
+     * 模拟生产"提交态 trackers 空"，构造期记录不流入本事务）。
+     */
+    private fun mutableState(): MutableGameState {
+        val committed = committedTables
+        val tables = if (committed != null && committedSource === disciplesValue) {
+            committed.deepCopy().also { it.writeAllowed = true }
+        } else {
+            DiscipleTables().also {
+                it.writeAllowed = true
+                it.replaceAll(disciplesValue)
+                it.changedIdTracker.consumeChangedIds()
+                it.dirtyTracker.consumeDirtyColumns()
+            }
+        }
+        return MutableGameState(
+            gameData = gameDataValue,
+            discipleTables = tables,
+            equipmentStacks = EntityStore(equipmentStacksValue),
+            equipmentInstances = EntityStore(equipmentInstancesValue),
+            manualStacks = EntityStore(manualStacksValue),
+            manualInstances = EntityStore(manualInstancesValue),
+            pills = EntityStore(pillsValue),
+            materials = EntityStore(materialsValue),
+            herbs = EntityStore(herbsValue),
+            seeds = EntityStore(seedsValue),
+            storageBags = EntityStore(storageBagsValue),
+            battleLogs = emptyList(),
+            isPaused = false,
+            isLoading = false,
+            isSaving = false
+        )
+    }
+
+    /** 事务表晋升为提交基线（COW 源）；committedSource 恒与其配套失效检测。 */
+    private var committedTables: DiscipleTables? = null
+    private var committedSource: List<Disciple>? = null
 
     /** 事务结束后回读 gameData 与实体集合到 Fake 字段（弟子面走 [dispatchAssemble]）。 */
     private fun persistCollections(mgs: MutableGameState) {

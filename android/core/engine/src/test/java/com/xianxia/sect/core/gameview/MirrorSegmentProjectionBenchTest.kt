@@ -47,9 +47,22 @@ import org.junit.Test
  *    （实测列级 37.62ms vs 全脏 28.00ms，2026-09-21 复捕）。
  * B20a 处置：替身换生产口径（GameStateStoreImpl.dispatchAssemble 同款）+
  * 列级补丁切 presence 列直写（GameViewDiscipleRows.applyPatchInPlace）。
+ * B20c 补 COW 保真：替身事务构造从 replaceAll 全列写换 deepCopy COW 共享
+ * （生产 GameStateStoreImpl 每事务 deepCopy 同语义）。
  * 本台架现量得生产形态的稳态成本；真实设备的 mirror 段构成另由
- * PhaseSegmentTimer 每旬打点（debug 构建）。历史基线（B09 登记口径）：
- * D=5000 列级合计 139.30ms / 全脏投影臂 132.68ms。
+ * PhaseSegmentTimer 每旬打点（debug 构建，告警线 100ms）。历史基线
+ * （B09 登记口径）：D=5000 列级合计 139.30ms / 全脏投影臂 132.68ms。
+ *
+ * ## G2 分档基线判定（B20c，2026-09-21 实测）
+ * - **D=5000 < 150ms：达标**（列级臂 64.2~67.8ms，2.2× 余量）——WS-1
+ *   关闭判据（方案 §7.3 拍板③A）在 B20a 后进一步收紧至原值一半以下。
+ * - **D≤1000 < 10ms：未达标**（列级臂 15.7~17.5ms）——按 B20 卡纪律
+ *   如实登记不放宽：余量构成 = 千行 patch 直写 + 千行 patch 组装
+ *   （assembleAllPatched 生产同款语义）+ Robolectric 台架事务开销；
+ *   生产稳态口径（R2.3（一）登记 mirror 2.6ms/旬@真实弟子规模）远低于
+ *   本压力档。分档阈值重拍板建议留方案 §7.2（10ms@1000 档撤销或放宽，
+ *   由看护/用户裁决；本台架不设绝对阈值断言——Robolectric 抖动大，
+ *   沿 B09 起「只锁硬性质」口径）。
  */
 @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 class MirrorSegmentProjectionBenchTest {
