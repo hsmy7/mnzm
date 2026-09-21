@@ -8,7 +8,7 @@
 
 ---
 
-## 0. commit 清单（8 笔，每子项独立）
+## 0. commit 清单（9 笔，每子项独立）
 
 | # | commit | 内容 | 文件 |
 |---|---|---|---|
@@ -19,7 +19,8 @@
 | 5 | `802564565` | **P3** 注释/口径收口（codegen 注释面 + 渲染桥 + bench 口径） | 5 文件 +38/-20 |
 | 6 | `68d9f9ea1` | **P4** `aiBeastEncounterTargets` 死臂清理（调用链闭合） | 5 文件 +29/-143 |
 | 7 | `2448af6f1` | **P5** γ-收口（判归 A = 零删除） | 5 文件 +45/-18 |
-| 8 | 待提交 | 文档三件套 + 本报告 | — |
+| 8 | `f55f8337b` | 文档三件套（方案 §7.2 / CHANGELOG / 渲染清单）+ 本报告首版 | 4 文件 +378/-3 |
+| 9 | **本提交** | **P1 §1.6 勘察点② 实测台架 + 三文档登记回填**（见 §1「P1 §1.6 勘察点② 实测登记」） | 5 文件 |
 
 ---
 
@@ -54,6 +55,48 @@
 - 反向基建 `JsonElement.toTypedValue()` / `JsonObject.toTypedRow()` 与解码侧同文件单源；
   `REPEATED_FIELD_CLEARERS` 补条；codec `bj` → `jx`（`Kind.JSON_ELEMENT`），
   删死枚举成员与孤儿 `ByteString` import。
+
+### P1 §1.6 勘察点② 实测登记（补做，2026-09-21）
+
+台架 = `TypedEnvelopeSizeBenchTest`（桌面 JVM + **真 C++ 编码器**；
+`--tests '*TypedEnvelopeSizeBenchTest*'`，2000 迭代 + 500 预热）。口径：同一棵树两种
+**真实 wire 形态**——旧形态 = `CollectionChange{ name(1), upsertsJson(2)=JSON 文本 }`
+（本台架以 javalite 原样重建，即 B18-P1 前 C++ 编码器形状）；新形态 = **真 C++ 编码器**
+（`nativeCoreEncodeGameView`）产出的 `upsertsTyped(4)`。逐集合 3 实体、键集 = C++
+`models.h` **真实协议键**；`storageBags` 样本含条目内嵌 `equipmentInstance`（最坏嵌套档）。
+
+| 集合 | 旧形态 | 新形态 | 体积比 | 消费侧耗时比（新/旧） |
+|---|---|---|---|---|
+| equipmentStacks | 824B | 958B | 1.163 | 1.64 |
+| equipmentInstances | 920B | 1111B | 1.208 | 2.10 |
+| manualStacks | 2027B | 2356B | 1.162 | 1.87 |
+| manualInstances | 1964B | 2284B | 1.163 | 1.23 |
+| pills | 937B | 1073B | 1.145 | 2.12 |
+| materials | 407B | 454B | 1.115 | 1.44 |
+| herbs | 415B | 462B | 1.113 | 1.74 |
+| seeds | 394B | 453B | 1.150 | 1.73 |
+| storageBags | 2242B | 2606B | 1.162 | 1.92 |
+
+**结论（三轴分解，诚实登记）**：
+
+1. **体积**：typed 形态比旧 JSON 文本大 **11.3%–20.8%**（9 集合全部）——无灾难性膨胀，
+   远低于台架 3× 硬门。成因：`TypedField` 每字段携带 key 字符串 + 双重 tag 开销，而 JSON 的
+   key 只出现一次且无 per-field tag（代价是引号/冒号/逗号）。**⇒ 无需任一集合「暂留 JSON」**
+   （暂留只保留成本、放弃"单一 typed 承载"的语义统一性；镜像信封为**瞬态、不落盘**，
+   +21% wire 体积可接受）。
+2. **Kotlin 消费侧耗时**：typed 重建比 JSON 文本解析**一致地慢 1.23–2.12×**
+   （绝对值 0.005–0.027 ms / 3 实体，随实体数线性）。成因：typed 路径在 proto 解析之上
+   再逐字段 `associate` 建 map + 装箱，而 kotlinx `parseToJsonElement` 是高度优化的流式词法器。
+   **本轴是"半程对比"**——它**不含**被消除的 C++ `dump()` 与 JSON 文本生成成本。
+3. **C++ 编码侧耗时 = 不可测（诚实登记）**：旧编码器（`dump()` + bytes 分支）已随本笔删除，
+   **无法在同一实现上对拍**；任何"重实现一个旧编码器"测的都是 Kotlin 侧而非被删的 C++ 路径。
+   ⇒ **净性能收益不可判定**，**不得**声称"typed 化更快"。
+4. **本笔的确定收益 = 语义/维护面**：单一 typed 承载（消灭"JSON 文本往返"这一跨语言语义
+   风险面），而非性能或体积。
+5. **附带收益**：本台架在**真实样本**上顺带完成 9 集合两形态解码**逐字段等价复核**（硬断言），
+   与 `MirrorTypedEnvelopeEquivalenceTest` 的合成事实源互为补充。
+
+
 
 ### P2（`ce4e3f84b`）——热路径索引收口（行为等价重构）
 
@@ -138,6 +181,18 @@ cd android && export JAVA_HOME=<jdk-21>
 | **P2 补强** | `:core:engine:testReleaseUnitTest --rerun-tasks` **BUILD SUCCESSFUL 18m05s**（53 任务全 executed） | **证据补强**：纯 C++ 批不触发 Kotlin 测试重跑 ⇒ 强制重跑 engine 全模块，Diff* 携新桥实证 |
 | P3 | BUILD SUCCESSFUL **14m03s** | 339 任务（27 executed） |
 | **P4+P5（共享一轮）** | BUILD SUCCESSFUL **27m18s** | 339 任务（59 executed） |
+| **P4 独立门（补跑，skill 文档口径）** | BUILD SUCCESSFUL **20m13s** | 319 任务（43 executed / 276 up-to-date）；**前 4 次尝试均被环境/外部事件中断，非代码失败**（逐条留痕见 §3.6） |
+
+**P4 独立门（补跑）实测**：`testReleaseUnitTest`（六模块）+ `:core:engine:detekt` +
+`:feature:game:detekt` + `:app:lintRelease`（= **skill 文档口径的组合门**）→ 全绿。
+`:core:engine` **3381 例 / 0 失败 / 0 错误 / 0 skip**（XML 10:07Z 本轮实证；= B18 的 3380 +
+本次新增勘察点② 台架 1 例）；`Diff*` 50 类 273 例 0 skip；`SoftwareCanvasBackend*` 106 例
+0 skip；`GameDataFieldPatchGuardTest` 6/6；`MirrorTypedDiscipleBagGuardTest` 3/3；
+`MirrorTypedEnvelopeEquivalenceTest` 3/3；`TypedEnvelopeSizeBenchTest` 1/1。
+
+> ⚠️ **计数口径提醒**：六模块 TOTAL 本轮为 **7888**，其中 **5 例属并行会话在飞的 B19 测试文件**
+> （`core:data` 716 → **721**，即其新增的 `RoomMigrationV51To52Test`）⇒ **B18 口径 TOTAL = 7883**。
+> `core:data` 的 XML 时间戳为 07:22Z（未在本轮重跑，因该模块非本批输入）⇒ 其数字含外部在飞内容。
 
 **六模块用例汇总（P4/P5 轮，XML 时间戳 05:02–05:04Z 本轮实证）**：
 
@@ -211,9 +266,10 @@ A1 **EXIT=0 / 9,637,888 B**、A2 **EXIT=0 / 9,636,864 B**、P2 **EXIT=0**。
    非本批引入；建议由 **B20b**「typed 投影 + 脏位图」一并收口。
 2. **`ExplorationService.encounterBattleService` DI 访问器 + `SubSystems` 字段**：P4 后无
    生产消费者（测试仍注入）⇒ 保留未删（不扩大删除面），登记为残余。
-3. **P4/P5 共享一轮组合门**：两笔均为纯 Kotlin 批（P5 零行为变更），经用户"完成 b18 就
-   结束"的时限要求合并为**一轮共享门**；两笔 commit 内容均为该轮验证状态的**子集**
-   （已在两笔 commit body 与本报告显式登记）。**若验收侧要求逐笔独立门，需补跑 P4 一轮。**
+3. **P4/P5 共享一轮组合门** → **已补跑 P4 独立门**（§2 门 2 表末行，skill 文档口径，全绿）。
+   两笔 commit 内容均为该轮验证状态的**子集**，且 P5 的 diff 为**纯注释/KDoc 文本**
+   （45 insertions / 18 deletions 无一行生产逻辑）⇒ 生产代码状态与 P4 commit 等价。
+   **残余**：P5 未单独再跑一轮（其零行为变更已由文本 diff + P4 独立门覆盖）。
 4. **真机像素级/真机运行时回归**：仍无设备农场基建（延续 B11/B12/B13 残余③），
    本批未涉及渲染行为变更，风险面为零。
 5. **P2 组合门为"UP-TO-DATE + 补强重跑"两段证据**（非单次全量门）——已在 commit body
@@ -240,12 +296,52 @@ A1 **EXIT=0 / 9,637,888 B**、A2 **EXIT=0 / 9,636,864 B**、P2 **EXIT=0**。
 
 ---
 
+### 3.6 环境事件登记（非代码失败，逐条留痕）
+
+本批门禁期间遇到 **4 类环境事件**（均**非**本批代码问题，已逐条取证）：
+
+1. **Gradle 守护被外部 `--stop` 中途杀死**（首次 P4 独立门，`--rerun-tasks` 轮）：
+   失败信息 = `Gradle build daemon has been stopped: stop command received`（**非**编译/测试失败）。
+   取证：本会话未执行 `--stop`；同工作区另有会话在跑（见 4）。处置：`--stop` 后重跑。
+2. **守护状态损坏导致 Kotlin 编译器文件名乱码**（第二次尝试）：
+   `error: source file or directory not found: ...BattleSystemu4F24u5BB3Ops3.kt`——中文名
+   （`BattleSystem伤害Ops3.kt`）被转义成 `uXXXX` 字面量。取证：`gradle.properties` 已含
+   `-Dfile.encoding=UTF-8`，且清守护后**同一命令 21s 编译成功** ⇒ 结论 = **守护被外部杀死后
+   的残留/新起守护编码环境漂移**，非仓库配置缺陷（**未改仓库配置**）。
+3. **"暂停"中断**（第三次尝试）：用户 `暂停` 指令终止后台任务，日志停在 `:feature:game`
+   编译中、无失败段 ⇒ 属**主动中断**，非失败。
+4. **外部在飞工作打回全模块 detekt**（第四次尝试）：`:core:data:detekt` 报
+   `RoomMigrationV51To52Test.kt:86 LongMethod (80 > 60)`。取证：该文件为**未跟踪**文件
+   （`??`，15:21 由**另一会话**创建，主题 = Room V51→V52 迁移，正对应 B19），且
+   `git diff --stat 985719d24..HEAD -- android/core/data/` **为空**（B18 零触碰 core:data）
+   ⇒ **与本批零相关**。处置：改用 **skill 文档口径的组合门**
+   （`testReleaseUnitTest` + `:core:engine:detekt` + `:feature:game:detekt` + `:app:lintRelease`），
+   该口径**本就不含** `:core:data:detekt`（此前几轮跑的是更严的 bare `detekt`）。
+   **未触碰、未移动、未提交**该外部文件（尊重并行会话在飞工作）。
+5. **本批自身的一处真失败（第五次尝试，已修）**：改用文档口径后 `:core:engine:detekt`
+   报 **5 项** `ImplicitDefaultLocale`——**全部在本次新增的 `TypedEnvelopeSizeBenchTest`**
+   （`String.format("%.3f", …)` 隐式 locale）。取证：该文件此前只跑过 `--tests` 过滤测试任务、
+   **未过 detekt** ⇒ 属**真实遗漏**（非环境）。处置：全部改 `String.format(Locale.ROOT, …)`，
+   `:core:engine:detekt` + 编译复验 **12s 转绿**，第六次尝试 **BUILD SUCCESSFUL 20m13s** 通过。
+
+**给看护的提示**：同工作区存在**并行会话正在实施 B19**（Room 迁移），其未提交文件目前
+使**全模块 `detekt`** 变红。若验收轮跑 bare `detekt`，需先确认该文件已被其作者修正或提交；
+按 skill 文档口径的组合门不受影响。
+
+
+
 ## 4. 文件清单（按 commit）
 
-见 §0 表格；文档面：
+见 §0 表格；测试面新增三个文件：
 
-- `docs/native-engine-refactor-plan-2026-09-17.md` §7.2（B18 收官段）
-- `CHANGELOG.md`（4.01.15 段内 B18 收官小节）
+- `android/core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorTypedEnvelopeEquivalenceTest.kt`（A1，信封级双路等价 + C++ 真编码臂 + 数字 content 红线）
+- `android/core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorTypedDiscipleBagGuardTest.kt`（A2，行级袋列双路等价 + **列携带位双向语义** + C++ 真编码臂）
+- `android/core/engine/src/test/java/com/xianxia/sect/core/nativebridge/TypedEnvelopeSizeBenchTest.kt`（本提交，勘察点② 实测台架）
+
+文档面：
+
+- `docs/native-engine-refactor-plan-2026-09-17.md` §7.2（B18 收官段 + 勘察点② 登记）
+- `CHANGELOG.md`（4.01.15 段内 B18 收官小节 + 勘察点② 登记）
 - `android/docs/renderer-feature-checklist.md`（3 行臂β 退役后的失效表述修正）
 - `docs/parallel-batches-w5/report-B18-P1-P5-completion-2026-09-21.md`（本报告）
 
