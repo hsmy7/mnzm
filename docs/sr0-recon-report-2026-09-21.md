@@ -144,9 +144,59 @@ battleLogs 条数敏感性（LZ4 后）：100 条 21KB / 500 条 105KB / 1000 �
 
 **结论：D3"限频 1 次/分钟 + 单档 10MB 是硬约束"的设计前提与官方 v4 文档一致，SR-2/SR-3 可开工。**
 
-## §3 云多档语义勘察（T3）
+## §3 云多档语义勘察（T3）——✅ 结论：`archiveName=slot_N` 代码层可行，SDK 签名已核验；6 项待真机
 
-（待 T3 完成后回填）
+### 3.1 CloudSaveApi 抽象现状（`TapCloudSaveManager.kt`）
+
+- 抽象接口 `CloudSaveApi`（:678-689）**全名参数化**：`createOrUpdateArchive(archiveName,…)` /
+  `downloadArchive(archiveName)` / `queryArchiveInfo(archiveName)` / `listAllArchives()` / `deleteArchive(uuid)`；
+- 双实现探测（`CloudSaveApiReflector` :644-675）：`tryDetectXDSdkApi`（`com.xd.sdk.taptap.XDTapCloudSave`，
+  需额外依赖 `com.xd.sdk:xdsdk-taptap`，本项目**未集成**，运行时探测落空）→ `tryDetectTapSdkApi`
+  （`com.taptap.sdk.cloudsave.TapTapCloudSave`，**tap-cloudsave 4.10.5 在库**，运行时实际走此路径）；
+- **SDK 签名核验**（gradle 缓存 AAR `tap-cloudsave-4.10.5` javap 反汇编）：`createArchive(ArchiveMetadata,
+  filePath, coverPath?, callback)` / `updateArchive(uuid, metadata, filePath, fileId?, callback)` /
+  `deleteArchive(uuid, callback)` / `getArchiveList(callback)` / `getArchiveData(uuid, fileId, callback)`；
+  回调 `onArchiveCreated/Updated/Deleted(ArchiveData)` / `onArchiveListResult(List<ArchiveData>)` /
+  `onArchiveDataResult(byte[])` / `onRequestError(int, String)`——与反射桥
+  `ReflectiveCloudSaveApi` 的动态派发**逐签名匹配**，`ArchiveData` 携带
+  `uuid/fileId/name/summary/extra/playtime/saveSize/coverSize/createdTime/modifiedTime` 十字段。
+
+### 3.2 多档并存的代码层判定
+
+**可行。** 依据：
+1. 上传/下载/查询全部以 `archiveName` 为键：`findArchiveUuidByName` 每次对 `getArchiveList`
+   结果做 `firstOrNull { getName(it) == name }` 扫描；不同名字即不同云档，互不覆盖；
+2. `listAllArchives()` 返回**全部**档（uuid+name+modifiedTime）——SR-3 槽位列表 UI 的
+   数据源现成；`oneTimeCleanup`（:606-629）已实践"非本命存档一律保留"的多档共存先例；
+3. 命名 `slot_1..slot_6` 满足官方命名规则（英文/数字/下划线，§2.2）。
+
+**SR-2/SR-3 施工面清单（单档假设 → 多档要改的点）**：
+
+| 现状（单档硬编码） | 位置 | 多档化方向 |
+|---|---|---|
+| `CLOUD_SAVE_ARCHIVE_NAME = "mnzm_cloud_save"` | :51 | `slot_N` 派生；保留旧名作迁移源（SR-6） |
+| 单一 UUID 缓存 `KEY_ARCHIVE_UUID` | :58, :140-155 | 按 slot 分键；不缓存也能靠名字扫描兜底（多一次列表往返） |
+| 单一摘要缓存 `KEY_CLOUD_SAVE_INFO` | :60, :429-476 | 按 slot 分键 |
+| 单一临时文件 `CLOUD_SAVE_FILE_NAME` | :45 | 按操作/分档命名（现 `cloudOpLock` 全局互斥下安全） |
+| `cloudOpLock` 全局互斥 | :138 | **保留全局**——限频（1 次/分钟共享冷却）按游戏全局计，多档更需串行 |
+| 仲裁 `arbitrateCloudVersion` / `resolveCloudSaveInfo` | :359 / :104 | 按 slot 实例化（SR-2 脏标志仲裁整体替换，版本串比较退役——方案 §1.3/IN2） |
+| 上传即触发 `getArchiveList` 扫描 | :732 findArchiveUuidByName | 分档 UUID 缓存命中后可省列表往返；上传冷却（400001）重试按档参数化 |
+
+### 3.3 待真机/沙盒实测清单（本环境无法执行，如实登记）
+
+1. **服务端实际多档行为**：同一账号连续创建 6 个 `slot_N`（100 档上限是文档值，实际放行/报 400003 的边界未验）；
+2. **列表最终一致性**：上传 `slot_1` 后立即 `getArchiveList` 是否立即可见（影响 SR-3 槽位列表刷新与 SR-6 迁移完成度判定；单档时代 `resolveCloudSaveInfo` 已记录过 metadata 陈旧问题，多档下影响放大）；
+3. **限频真实粒度**：1 次/分钟（开发指南）vs 60 次/分钟（功能介绍，§2.3 口径冲突）——真机触发 400001 实测为准；
+4. **命名校验**：`slot_N` 实际过服务端校验（400009 风险，理论上合法）；
+5. **回调可靠性**：SDK 回调不触发的场景面（现有 15s 超时兜底 :828-836）与 400100（SDK 未就绪）的实际触发条件；
+6. **大档传输**：接近 10MB 的档上传/下载在弱网下的成功率与 400006（令牌失效）触发频率——当前实测 payload ≤0.3MB，风险本就低。
+
+### 3.4 SR-3 槽位映射方案确认
+
+`slot_N (N=1..6)` ↔ `ArchiveData.name`，列表 = `listAllArchives().filter { name matches slot_N }`，
+摘要渲染用 `ArchiveData.summary/extra`（现有 extra JSON 协议 year/month/sect/disciples/stones/version
+直接复用），读档 = `downloadArchive("slot_N")`，删档 = `deleteArchive(uuid)`。
+**存量 `mnzm_cloud_save` 在 SR-6 引导期作为第 0 源参与迁移矩阵（本地有 × 云无 等），CLOUD_ONLY 后退役。**
 
 ## §4 双设备冲突剧本设计（T4）
 
