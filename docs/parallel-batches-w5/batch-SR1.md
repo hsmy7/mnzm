@@ -92,9 +92,9 @@
 
 | 子项 | 状态 | commit | 备注 |
 |---|---|---|---|
-| C1 施工卡 + 台账 | ✅ 完成 | 本笔 | |
-| C2 wire 面 | ⏳ 进行中 | — | |
-| C3 core:data 读写面 | ⬜ 待开工 | — | |
-| C4 feature/game 注入面 | ⬜ 待开工 | — | |
-| C5 测试 | ⬜ 待开工 | — | |
-| C6 门禁 + 报告 | ⬜ 待开工 | — |
+| C1 施工卡 + 台账 | ✅ 完成 | `81efe4bd4` | |
+| C2 wire 面 | ✅ 完成 | `e7185c971` | SaveData tag 56 + MailEntity 14 字段显式标注（5 字段 EncodeDefault ALWAYS）+ IN4 守卫扩展（data/model 入扫 + mails=56 方向锁） |
+| C3 core:data 读写面 | ✅ 完成 | `d44d3babc` | getAllForSlotSync + 写路径整对象替换（同事务）+ getMailsForSlot/replaceMailsForSlot + StorageFacade 窄接口 |
+| C4 feature/game 注入面 | ✅ 完成 | `0c6d48ced` | trim 必填 mails 参数 + 4 构造点注入 + 云恢复 boot 前替换 + 死代码删除（IN6；saveOnBackground 为 SR-4 挂点原样保留） |
+| C5 测试 | ✅ 完成 | `df7d59f4b` | wire roundtrip 逐字段等价（5 形态含未领附件）+ 旧档默认空表 + Robolectric 真库替换/隔离 + 源扫描守卫 + trim 注入；12/12 绿 0 skip |
+| C6 门禁 + 报告 | ✅ 完成 | `8e554a765`/`252b2e3c0`/本笔 | 组合门两轮 detekt 失败如实修复（TooManyFunctions→邮件 ops 独立成文件；LongMethod→注入压缩单行；SR-0 台架潜伏违例一并清理）后第三轮全绿：**7893/0/17 + Diff* 273/0 skip + ctest 1561/1561**；报告 `report-SR1-completion-2026-09-22.md`；台账 delivered |
