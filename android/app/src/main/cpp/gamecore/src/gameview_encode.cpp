@@ -107,7 +107,7 @@ enum class RowKind : uint8_t {
     kStringIntMap,
     kStringStringMap,
     kNurture,     ///< EquipmentNurtureDataView 子消息
-    kBytesJson,   ///< 字段值 JSON 原文（storageBagItems 过渡编码）
+    kTypedRows,   ///< TypedRow 行列表（storageBagItems：B18-P1-A2 typed 化）
 };
 
 struct RowField {
@@ -193,7 +193,7 @@ constexpr RowField kDiscipleRowFields[] = {
     {"armorNurture", 72, RowKind::kNurture},
     {"bootsNurture", 73, RowKind::kNurture},
     {"accessoryNurture", 74, RowKind::kNurture},
-    {"storageBagItems", 75, RowKind::kBytesJson},
+    {"storageBagItems", 110, RowKind::kTypedRows},
     {"storageBagSpiritStones", 76, RowKind::kInt64},
     {"spiritStones", 77, RowKind::kInt32},
     {"partnerId", 78, RowKind::kString},
@@ -254,6 +254,9 @@ void encodeNurture(uint32_t field, const json& value, ProtoWriter& out) {
     out.messageField(field, sub);
 }
 
+/// 通用 typed 行编码（定义见文件后段；行字段表按字段号 110 复用）
+void appendTypedRow(uint32_t field, const json& row, ProtoWriter& out);
+
 void encodeRowField(const RowField& f, const json& row, ProtoWriter& out) {
     const auto it = row.find(f.key);
     if (it == row.end() || it->is_null()) return;  // 缺键 = 不携带（presence 语义）
@@ -303,17 +306,29 @@ void encodeRowField(const RowField& f, const json& row, ProtoWriter& out) {
         case RowKind::kNurture:
             encodeNurture(f.no, v, out);
             return;
-        case RowKind::kBytesJson:
-            // storageBagItems：数组 JSON 原文（与旧 JSON 协议逐字节同值）
-            if (v.is_array()) out.bytesField(f.no, v.dump());
+        case RowKind::kTypedRows:
+            // storageBagItems（B18-P1-A2）：typed 行递归承载（旧 75 号 JSON
+            // 原文停写保留）。零条目 = 空袋——列携带语义由 field 111 单独承载
+            // （见 encodeDiscipleRow）
+            if (!v.is_array()) return;
+            for (const json& e : v) appendTypedRow(f.no, e, out);
             return;
     }
 }
+
+/// 列携带判别位字段号（game_view.proto DiscipleRow.storageBagItemsPresent）——
+/// repeated 列"零条目"无法区分"列缺省"与"列脏且清空"，本位置单独承载
+constexpr uint32_t kStorageBagItemsPresentNo = 111;
 
 void encodeDiscipleRow(const json& row, ProtoWriter& out) {
     if (!row.is_object()) return;
     for (const RowField& f : kDiscipleRowFields) {
         encodeRowField(f, row, out);
+    }
+    // 列携带位（B18-P1-A2）：行 JSON 携带 storageBagItems 键 = 该列脏
+    // （列级补丁）或 emit-always（全量行）。排在全部字段之后 ⇒ 保持字段号升序。
+    if (row.contains("storageBagItems")) {
+        out.boolField(kStorageBagItemsPresentNo, true);
     }
 }
 

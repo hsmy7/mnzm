@@ -202,13 +202,27 @@ TEST_F(GameViewEncodeTest, DiscipleRowTypedFields) {
     ASSERT_TRUE(decodeFields(nurture[0].bytes, ne));
     EXPECT_EQ("w1", fieldsWith(ne, 1)[0].bytes);
     EXPECT_DOUBLE_EQ(0.25, asDouble(fieldsWith(ne, 4)[0].fixed64));
-    auto bag = fieldsWith(r, 75);                // storageBagItemsJson bytes
-    ASSERT_EQ(1u, bag.size());
-    EXPECT_NO_THROW({
-        const json parsed = json::parse(bag[0].bytes);
-        ASSERT_TRUE(parsed.is_array());
-        EXPECT_EQ("s1", parsed[0].at("id").get<std::string>());
-    });
+    EXPECT_TRUE(fieldsWith(r, 75).empty());      // storageBagItemsJson 停写保留（号冻结）
+    auto bagRows = fieldsWith(r, 110);           // storageBagItemsTyped（TypedRow ×1）
+    ASSERT_EQ(1u, bagRows.size());
+    std::vector<std::pair<uint32_t, DecodedField>> bagRow;
+    ASSERT_TRUE(decodeFields(bagRows[0].bytes, bagRow));
+    ASSERT_EQ(2u, bagRow.size());                // TypedField ×2（键字典序：count < id）
+    std::vector<std::pair<uint32_t, DecodedField>> bc;      // TypedField{count}
+    ASSERT_TRUE(decodeFields(bagRow[0].second.bytes, bc));
+    EXPECT_EQ("count", fieldsWith(bc, 1)[0].bytes);
+    std::vector<std::pair<uint32_t, DecodedField>> bcv;     // TypedValue(vInt=9)
+    ASSERT_TRUE(decodeFields(fieldsWith(bc, 2)[0].bytes, bcv));
+    EXPECT_EQ(9, asInt64(fieldsWith(bcv, 2)[0].varint));
+    std::vector<std::pair<uint32_t, DecodedField>> bi;      // TypedField{id}
+    ASSERT_TRUE(decodeFields(bagRow[1].second.bytes, bi));
+    EXPECT_EQ("id", fieldsWith(bi, 1)[0].bytes);
+    std::vector<std::pair<uint32_t, DecodedField>> biv;     // TypedValue(vString="s1")
+    ASSERT_TRUE(decodeFields(fieldsWith(bi, 2)[0].bytes, biv));
+    EXPECT_EQ("s1", fieldsWith(biv, 1)[0].bytes);
+    auto bagPresent = fieldsWith(r, 111);        // storageBagItemsPresent（列携带位）
+    ASSERT_EQ(1u, bagPresent.size());
+    EXPECT_EQ(1u, bagPresent[0].varint);
     ASSERT_EQ(1u, fieldsWith(r, 77).size());
     EXPECT_EQ(88, asInt64(fieldsWith(r, 77)[0].varint));  // spiritStones int32
 
@@ -216,6 +230,33 @@ TEST_F(GameViewEncodeTest, DiscipleRowTypedFields) {
     ASSERT_EQ(2u, removedIds.size());
     EXPECT_EQ("7", removedIds[0].bytes);
     EXPECT_EQ("8", removedIds[1].bytes);
+}
+
+// ── DiscipleRow：空袋仍携列携带位（repeated 列"列脏且清空"不可丢）─────
+TEST_F(GameViewEncodeTest, DiscipleRowEmptyBagCarriesPresenceBit) {
+    const json row = {
+        {"id", "7"},
+        {"storageBagItems", json::array()},
+    };
+    const json tree = {
+        {"version", 10},
+        {"changed", {{"disciples", json::array({row})}}},
+        {"removed", json::object()},
+    };
+    std::vector<std::pair<uint32_t, DecodedField>> fs;
+    ASSERT_TRUE(decodeFields(encodeGameView(tree, ""), fs));
+    auto delta = fieldsWith(fs, 3);              // DiscipleListDelta
+    ASSERT_EQ(1u, delta.size());
+    std::vector<std::pair<uint32_t, DecodedField>> d;
+    ASSERT_TRUE(decodeFields(delta[0].bytes, d));
+    auto rows = fieldsWith(d, 1);                // upserts（DiscipleRow）
+    ASSERT_EQ(1u, rows.size());
+    std::vector<std::pair<uint32_t, DecodedField>> r;
+    ASSERT_TRUE(decodeFields(rows[0].bytes, r));
+    EXPECT_TRUE(fieldsWith(r, 110).empty());     // 空袋：零 TypedRow
+    auto present = fieldsWith(r, 111);           // 但列携带位必须在位
+    ASSERT_EQ(1u, present.size());
+    EXPECT_EQ(1u, present[0].varint);
 }
 
 // ── collectionChange：非弟子集合（B18-P1 typed 行 + removedIds；

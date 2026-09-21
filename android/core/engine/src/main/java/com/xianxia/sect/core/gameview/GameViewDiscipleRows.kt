@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.gameview
 
-import com.google.protobuf.ByteString
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -15,6 +14,7 @@ import com.xianxia.sect.proto.gameview.DiscipleRow
 import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.StringIntEntry
 import com.xianxia.sect.proto.gameview.StringStringEntry
+import com.xianxia.sect.proto.gameview.TypedField
 import com.xianxia.sect.proto.gameview.TypedRow
 import com.xianxia.sect.proto.gameview.TypedValue
 import kotlinx.serialization.KSerializer
@@ -25,6 +25,10 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.longOrNull
 
 /**
  * GameViewDiscipleRows —— `DiscipleRow` → [Disciple] 的 **typed 直读投影**
@@ -331,12 +335,26 @@ internal object GameViewDiscipleRows {
         nurtureProgress = if (hasNurtureProgress()) nurtureProgress else 0.0
     )
 
+    /**
+     * 储物袋条目（B18-P1-A2）：`storageBagItemsTyped` 优先（typed 行重建
+     * JsonArray → 既有域反序列化器零变更），旧 75 号 JSON 原文 fallback
+     * ——旧格式 golden 夹具仍可解码（对照面保留，非删断言）。
+     *
+     * 零条目 = 空袋（列携带语义由 `storageBagItemsPresent` 承载，仅列级合并
+     * 需要——解码侧零条目与缺省同义，均取空表）。
+     */
     private fun DiscipleRow.storageBagItems(
         serializer: KSerializer<List<StorageBagItem>>,
         json: Json
     ): List<StorageBagItem> =
-        if (storageBagItemsJson.isEmpty) emptyList()
-        else json.decodeFromString(serializer, storageBagItemsJson.toStringUtf8())
+        when {
+            storageBagItemsTypedCount > 0 -> json.decodeFromJsonElement(
+                serializer,
+                JsonArray(storageBagItemsTypedList.map { it.toJsonObject() })
+            )
+            storageBagItemsJson.isEmpty -> emptyList()
+            else -> json.decodeFromString(serializer, storageBagItemsJson.toStringUtf8())
+        }
 
     private const val NULL_INT_SENTINEL = -1
 
@@ -366,6 +384,11 @@ internal object GameViewDiscipleRows {
      * **repeated 先清后并**（proto repeated mergeFrom 是追加，而列级协议
      * 携带的是整列新值——脏 repeated 列必须整体替换，故先按补丁 presence
      * 清空基线同名字段再合并）。
+     *
+     * **repeated 列 presence 的两种表达**：条目数 > 0 即携带；**零条目**的
+     * "列脏且清空"在 wire 层与"列缺省"不可区分，须由专用列携带位补回
+     * （B18-P1-A2 `DiscipleRow.storageBagItemsPresent` —— 由标量换轨到
+     * repeated 的列必须补该位，否则清空语义丢失）。
      *
      * @param base 既有行（store 组装）；null = 新行——列级协议下新增行走
      *        DiscipleStore 结构原语（整行标脏）恒携全字段，补丁稀疏即协议
@@ -420,6 +443,14 @@ internal object GameViewDiscipleRows {
         RepeatedClearer("usedExtendLifePillIds", { it.usedExtendLifePillIdsCount > 0 }) {
             it.clearUsedExtendLifePillIds()
         },
+        // B18-P1-A2：storageBagItems 由 75 号**标量**（presence 天然可表达"空袋"）
+        // 换轨到 110 号 repeated —— 列级合并须整体替换（repeated mergeFrom 是追加），
+        // 且"列脏且清空"必须靠列携带位表达：零条目 + present=true 仍须清空基线，
+        // 否则"袋被扣空/清袋"在列级合并路径上静默丢失（B18-P1-A2 实测可达：
+        // auto_gear.h:936 / month_settlement.h:1698 均可在扣空后标脏该列）。
+        RepeatedClearer("storageBagItemsTyped", {
+            it.storageBagItemsTypedCount > 0 || it.storageBagItemsPresent
+        }) { it.clearStorageBagItemsTyped() },
     )
 
     /**
@@ -527,12 +558,15 @@ internal object GameViewDiscipleRows {
         b.armorNurture = d.equipment.armorNurture.toRowView()
         b.bootsNurture = d.equipment.bootsNurture.toRowView()
         b.accessoryNurture = d.equipment.accessoryNurture.toRowView()
-        // storageBagItems v1 过渡编码：JSON 原文（与旧协议同值）
-        b.storageBagItemsJson = ByteString.copyFromUtf8(
-            json.encodeToString(
-                ListSerializer(StorageBagItem.serializer()), d.equipment.storageBagItems
+        // storageBagItems（B18-P1-A2）：typed 行承载（旧 75 号 JSON 原文停写保留）；
+        // 列携带位恒置 true（全量行 = emit-always；列级补丁侧由 C++ 按"该列脏"置位）
+        // ——repeated 零条目无法区分"列缺省"与"列脏且清空"，清空语义全靠本位置
+        d.equipment.storageBagItems.forEach { item ->
+            b.addStorageBagItemsTyped(
+                json.encodeToJsonElement(StorageBagItem.serializer(), item).jsonObject.toTypedRow()
             )
-        )
+        }
+        b.storageBagItemsPresent = true
         b.storageBagSpiritStones = d.equipment.storageBagSpiritStones
         b.spiritStones = d.equipment.spiritStones
         // 社交可空字段的线路哨兵（"" / 0 / -1 = null）与 DiscipleSerializer 同口径
@@ -621,5 +655,35 @@ internal fun TypedValue.toJsonElement(): JsonElement = when {
  */
 internal fun TypedRow.toJsonObject(): JsonObject = JsonObject(fieldsList.associate { it.toEntry() })
 
-private fun com.xianxia.sect.proto.gameview.TypedField.toEntry(): Pair<String, JsonElement> =
+private fun TypedField.toEntry(): Pair<String, JsonElement> =
     key to (if (hasValue()) value.toJsonElement() else JsonNull)
+
+// ── 反向（B18-P1-A2）：JSON 元素树 → proto typed 承载 ────────────────
+// 生产消费点 = [toRow]（弟子域模型 → DiscipleRow 全字段行的 storageBagItems 列，
+// 兼作列级合并的基线行与测试夹具编码侧）。分派口径与 C++ 编码器同序
+// （字符串 → 数值 → 布尔 → 数组 → 对象 → null）。
+
+/** JSON 元素 → proto typed 值（递归；空数组写 `vEmptyArray` 判别位）。 */
+internal fun JsonElement.toTypedValue(): TypedValue {
+    val b = TypedValue.newBuilder()
+    when (this) {
+        is JsonNull -> b.setVNull(true)
+        is JsonObject -> forEach { (k, v) ->
+            b.addVObject(TypedField.newBuilder().setKey(k).setValue(v.toTypedValue()))
+        }
+        is JsonArray ->
+            if (isEmpty()) b.setVEmptyArray(true) else forEach { b.addVArray(it.toTypedValue()) }
+        is JsonPrimitive -> when {
+            isString -> b.setVString(content)
+            booleanOrNull != null -> b.setVBool(booleanOrNull!!)
+            longOrNull != null -> b.setVInt(longOrNull!!)
+            else -> b.setVDouble(requireNotNull(doubleOrNull) { "非数值字面量：$this" })
+        }
+    }
+    return b.build()
+}
+
+/** JSON 对象 → proto typed 行（键序 = JsonObject 插入序 = C++ nlohmann 键字典序）。 */
+internal fun JsonObject.toTypedRow(): TypedRow = TypedRow.newBuilder().apply {
+    forEach { (k, v) -> addFields(TypedField.newBuilder().setKey(k).setValue(v.toTypedValue())) }
+}.build()

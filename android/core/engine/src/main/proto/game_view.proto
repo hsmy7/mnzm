@@ -190,10 +190,9 @@ message DiscipleRow {
   optional EquipmentNurtureDataView armorNurture = 72;
   optional EquipmentNurtureDataView bootsNurture = 73;
   optional EquipmentNurtureDataView accessoryNurture = 74;
-  /// 过渡编码（v1）：储物袋条目为递归复杂结构（StorageBagItem →
-  /// ItemEffect/EquipmentInstance/ManualInstance），本批不 typed 化——
-  /// 携带该字段的 JSON 数组原文（与旧 JSON 协议逐字节同值），仅变更行
-  /// 需解析。typed 化时追加新字段，本字段保留不改。
+  /// 🔴 停写保留（B18-P1-A2，号冻结永不复用）：储物袋条目 JSON 数组原文
+  /// （v1 过渡编码历史形态）。C++ 编码器已改走 110 号 typed 行；本字段
+  /// 保留供**旧格式 golden 夹具**解码（对照面保留，非删断言）。
   optional bytes storageBagItemsJson = 75;
   optional int64 storageBagSpiritStones = 76;
   /// 弟子随身灵石（int32；注意与宗门灵石 gameData.spiritStones int64 区分）
@@ -237,6 +236,25 @@ message DiscipleRow {
   optional int32 recruitedMonth = 107;
   optional bool hasReviveEffect = 108;
   optional bool hasClearAllEffect = 109;
+
+  // ── 储物袋条目 typed 化（B18-P1-A2）──────────────────────────────
+  /// 储物袋条目 typed 行（B18-P1-A2；每个条目 = 一个 TypedRow，条目内的
+  /// 嵌套对象/数组经 TypedField/TypedValue 递归承载——StorageBagItem →
+  /// ItemEffect/EquipmentInstance/BagStackedData/ManualInstance 全覆盖）。
+  /// 与旧 75 号 JSON 原文逐值等价，等价性守卫锁定。
+  repeated TypedRow storageBagItemsTyped = 110;
+
+  /// 🔴 列携带判别位（B18-P1-A2）——**repeated 字段的 wire 层歧义**：
+  /// `storageBagItemsTyped` 零条目同时表示两种相反语义——「列缺省（未脏，
+  /// 保留 store 基线）」与「列脏且清空（袋被扣空/清袋，须整体替换为空）」。
+  /// C++ 行编码器在行 JSON 携带 `storageBagItems` 键时**恒置 true**
+  /// （列级补丁 = 该列脏；全量行 = emit-always），消费侧列级合并据此判定
+  /// 「整列替换」。缺失 = 列未携带。
+  /// 与 75 号 bytes 的关系：旧字段是**标量**（presence 天然可表达"空袋"），
+  /// 换轨到 repeated 后该表达能力必须显式补回——否则"清空袋"在列级合并
+  /// 路径上静默丢失（B18-P1-A2 实测：`auto_gear.h:936` /
+  /// `month_settlement.h:1698` 均可在袋被扣空后标脏该列）。
+  optional bool storageBagItemsPresent = 111;
 }
 
 /// 装备孕育数据（EquipmentNurtureData 的视图投影）

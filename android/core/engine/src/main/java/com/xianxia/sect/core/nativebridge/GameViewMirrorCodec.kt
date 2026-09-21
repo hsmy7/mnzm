@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.google.protobuf.ByteString
 import com.xianxia.sect.core.engine.AgedDeathDraft
 import com.xianxia.sect.core.engine.BereavementDraft
 import com.xianxia.sect.core.gameview.GameViewDiscipleRows
@@ -363,15 +362,14 @@ internal object GameViewMirrorCodec {
                     }
                 )
                 Kind.NURTURE -> (spec.value(this) as EquipmentNurtureDataView).nurtureToJson()
-                Kind.BYTES_JSON ->
-                    json.parseToJsonElement((spec.value(this) as ByteString).toStringUtf8())
+                Kind.JSON_ELEMENT -> spec.value(this) as JsonElement
             }
         }
         return JsonObject(map)
     }
 
     /** 行字段 wire 类别（与 game_view.proto DiscipleRow / C++ kDiscipleRowFields 对应）。 */
-    private enum class Kind { STR, INT, LONG, BOOL, DOUBLE, STR_LIST, INT_MAP, STR_MAP, NURTURE, BYTES_JSON }
+    private enum class Kind { STR, INT, LONG, BOOL, DOUBLE, STR_LIST, INT_MAP, STR_MAP, NURTURE, JSON_ELEMENT }
 
     private class Spec(
         val key: String,
@@ -410,8 +408,16 @@ internal object GameViewMirrorCodec {
         get: (DiscipleRow) -> EquipmentNurtureDataView,
     ) = Spec(k, Kind.NURTURE, has, get)
 
-    private fun bj(k: String, get: (DiscipleRow) -> ByteString) =
-        Spec(k, Kind.BYTES_JSON, { get(it).isEmpty.not() }, get)
+    /**
+     * JSON 元素直接承载（B18-P1-A2：`storageBagItems` 由 75 号 bytes 原文换轨
+     * 110 号 typed 行，故值形态从 ByteString 变 JsonElement；旧 bytes 解析
+     * 下移到调用点 lambda 内，作为对照面 fallback 保留）。
+     */
+    private fun jx(
+        k: String,
+        has: (DiscipleRow) -> Boolean,
+        get: (DiscipleRow) -> JsonElement,
+    ) = Spec(k, Kind.JSON_ELEMENT, has, get)
 
     // 表序 = proto 字段号升序，键 = C++ to_json 协议键（与 kDiscipleRowFields 逐项对齐）。
     // present 判定与 C++ 编码器逐字段 presence 判定同源（emit-always ⇒ 稳态恒 present）；
@@ -516,7 +522,19 @@ internal object GameViewMirrorCodec {
         nu("armorNurture", { it.hasArmorNurture() }, { it.armorNurture }),
         nu("bootsNurture", { it.hasBootsNurture() }, { it.bootsNurture }),
         nu("accessoryNurture", { it.hasAccessoryNurture() }, { it.accessoryNurture }),
-        bj("storageBagItems", { it.storageBagItemsJson }),
+        jx(
+            "storageBagItems",
+            { it.storageBagItemsTypedCount > 0 || it.storageBagItemsJson.isEmpty.not() },
+            { row ->
+                // B18-P1-A2：typed 行优先；旧 75 号 JSON 原文 fallback
+                // （旧格式 golden 夹具仍可解码——对照面保留，非删断言）
+                if (row.storageBagItemsTypedCount > 0) {
+                    JsonArray(row.storageBagItemsTypedList.map { it.toJsonObject() })
+                } else {
+                    json.parseToJsonElement(row.storageBagItemsJson.toStringUtf8())
+                }
+            },
+        ),
         i64("storageBagSpiritStones", { it.hasStorageBagSpiritStones() }, { it.storageBagSpiritStones }),
         i32("spiritStones", { it.hasSpiritStones() }, { it.spiritStones }),
         str("partnerId", { it.hasPartnerId() }, { it.partnerId }),
