@@ -84,8 +84,14 @@ class TapTapSaveBackendTest {
         assertEquals(SaveBackendError.SIZE_LIMIT, TapTapSaveBackend.classify(err("400009")))
         assertEquals(SaveBackendError.QUOTA_EXCEEDED, TapTapSaveBackend.classify(err("400003")))
         assertEquals(SaveBackendError.QUOTA_EXCEEDED, TapTapSaveBackend.classify(err("400005")))
-        assertEquals(SaveBackendError.AUTH_REQUIRED, TapTapSaveBackend.classify(RuntimeException("x [300001] not login")))
-        assertEquals(SaveBackendError.SDK_UNAVAILABLE, TapTapSaveBackend.classify(RuntimeException("x [400100] not ready")))
+        assertEquals(
+            SaveBackendError.AUTH_REQUIRED,
+            TapTapSaveBackend.classify(RuntimeException("x [300001] not login"))
+        )
+        assertEquals(
+            SaveBackendError.SDK_UNAVAILABLE,
+            TapTapSaveBackend.classify(RuntimeException("x [400100] not ready"))
+        )
     }
 
     @Test

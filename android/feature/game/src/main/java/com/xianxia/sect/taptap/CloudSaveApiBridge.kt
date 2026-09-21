@@ -331,8 +331,12 @@ internal class ReflectiveCloudSaveApi(
         return try {
             archive.javaClass.getMethod(methodName).invoke(archive)?.toString()
         } catch (e: Exception) {
-            DomainLog.w(TAG_BRIDGE, "invokeGetterString failed: method=$methodName class=${archive.javaClass.simpleName}",
-                e)
+            DomainLog.w(
+                TAG_BRIDGE,
+                "invokeGetterString failed: method=$methodName " +
+                    "class=${archive.javaClass.simpleName}",
+                e
+            )
             null
         }
     }
@@ -343,8 +347,8 @@ internal class ReflectiveCloudSaveApi(
         } catch (_: Exception) { 0L }
     }
 
-    /** 搬移注记：原引用 TapCloudSaveManager companion 的 TAG（"TapCloudSaveManager"），
-     *  独立成文件后改用本文件 TAG_BRIDGE——仅日志 tag 文案差异，无行为语义 */
+    // 搬移注记：原引用 TapCloudSaveManager companion 的 TAG（"TapCloudSaveManager"），
+    // 独立成文件后改用本文件 TAG_BRIDGE——仅日志 tag 文案差异，无行为语义
     private companion object {
         private const val TAG_BRIDGE = "TapCloudSaveManager"
     }

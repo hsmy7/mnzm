@@ -43,7 +43,9 @@ import javax.inject.Singleton
  *   反射桥全路径无 TapTap SDK 编译期类型。
  */
 // TooManyFunctions：SaveBackend 端口五操作 + 错误/extra/槽位三映射 = 接口契约下界
-@Suppress("TooManyFunctions")
+// TooGenericExceptionCaught：防御兜底边界——异常源跨 IO/SDK 不可枚举，统一分类为
+// 类型化 SaveBackendError 上抛（classify），非静默吞噬
+@Suppress("TooManyFunctions", "TooGenericExceptionCaught")
 @Singleton
 class TapTapSaveBackend @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -117,12 +119,39 @@ class TapTapSaveBackend @Inject constructor(
         DomainLog.i(TAG, "backend download: slot=$slot archive=$archiveName")
 
         // IN2 仲裁：云端 W（extra.saveId）+ 本端账本 (L, C) —— 零时钟输入
+        val arbitration = arbitrateAgainstCloud(api, slot, archiveName)
+        if (arbitration.conflict != null) return@withLock arbitration.conflict
+
+        val payload = when (val fetched = fetchAndDeserialize(api, slot, archiveName)) {
+            is SaveBackendResult.Success -> fetched.data
+            is SaveBackendResult.Failure -> return@withLock fetched
+        }
+        DomainLog.i(TAG, "backend download success: slot=$slot W=${arbitration.cloudSaveId} " +
+            "verdict=${arbitration.verdict}")
+        SaveBackendResult.Success(CloudSavePayload(payload, arbitration.cloudSaveId, arbitration.verdict))
+    }
+
+    /** 云端仲裁结果：W + verdict +（真冲突时的）类型化 CONFLICT 结果 */
+    private data class CloudArbitration(
+        val cloudSaveId: Long?,
+        val verdict: ArbitrationVerdict,
+        val conflict: SaveBackendResult.Failure?
+    )
+
+    /** 云端元数据查询 + 脏标志仲裁（IN2 零时钟）；真冲突时发事件并携带 CONFLICT 结果 */
+    private suspend fun arbitrateAgainstCloud(
+        api: CloudSaveApi,
+        slot: Int,
+        archiveName: String
+    ): CloudArbitration {
         val rawInfo = try {
             api.queryArchiveInfo(archiveName)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return@withLock SaveBackendResult.Failure(classify(e), e.message ?: "查询失败", e)
+            return CloudArbitration(null, ArbitrationVerdict.IN_SYNC, SaveBackendResult.Failure(
+                classify(e), e.message ?: "查询失败", e
+            ))
         }
         val cloudSaveId = rawInfo?.extra?.let { parseSaveId(it) }
         val verdict = SaveArbiter.arbitrate(
@@ -130,49 +159,55 @@ class TapTapSaveBackend @Inject constructor(
             lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(slot),
             cloudSaveId = cloudSaveId
         )
-        if (verdict == ArbitrationVerdict.CONFLICT) {
-            val conflict = SaveConflictEvent(
-                slot = slot,
-                lastLocalSaveId = uploadLedger.lastLocalSaveId(slot),
-                lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(slot),
-                cloudSaveId = cloudSaveId,
-                source = "download"
-            )
-            DomainLog.w(TAG, "conflict on download: slot=$slot L=${conflict.lastLocalSaveId} " +
-                "C=${conflict.lastConfirmedCloudId} W=$cloudSaveId — 显式暴露给 UI，不静默覆盖")
-            _conflicts.tryEmit(conflict)
-            return@withLock SaveBackendResult.Failure(
+        if (verdict != ArbitrationVerdict.CONFLICT) {
+            return CloudArbitration(cloudSaveId, verdict, null)
+        }
+        val conflict = SaveConflictEvent(
+            slot = slot,
+            lastLocalSaveId = uploadLedger.lastLocalSaveId(slot),
+            lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(slot),
+            cloudSaveId = cloudSaveId,
+            source = "download"
+        )
+        DomainLog.w(TAG, "conflict on download: slot=$slot L=${conflict.lastLocalSaveId} " +
+            "C=${conflict.lastConfirmedCloudId} W=$cloudSaveId — 显式暴露给 UI，不静默覆盖")
+        _conflicts.tryEmit(conflict)
+        return CloudArbitration(
+            cloudSaveId, verdict,
+            SaveBackendResult.Failure(
                 SaveBackendError.CONFLICT,
                 "本地与云端均有新进度，需要选择保留哪一份"
             )
-        }
+        )
+    }
 
-        // 下载 + 反序列化（尺寸防御 50MB 对齐 manager）
+    /** 下载字节 → 反序列化（尺寸防御 50MB 对齐 manager）；失败返回 Failure 由调用方短路 */
+    private suspend fun fetchAndDeserialize(
+        api: CloudSaveApi,
+        slot: Int,
+        archiveName: String
+    ): SaveBackendResult<SaveData> {
         val bytes = try {
             api.downloadArchive(archiveName)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return@withLock SaveBackendResult.Failure(classify(e), e.message ?: "下载失败", e)
+            return SaveBackendResult.Failure(classify(e), e.message ?: "下载失败", e)
         }
         if (bytes == null || bytes.isEmpty()) {
-            return@withLock SaveBackendResult.Failure(SaveBackendError.ARCHIVE_MISSING, "云存档不存在或为空")
+            return SaveBackendResult.Failure(SaveBackendError.ARCHIVE_MISSING, "云存档不存在或为空")
         }
         if (bytes.size > MAX_DOWNLOAD_SIZE_BYTES) {
-            return@withLock SaveBackendResult.Failure(
-                SaveBackendError.SIZE_LIMIT, "云存档过大：${bytes.size}B"
-            )
+            return SaveBackendResult.Failure(SaveBackendError.SIZE_LIMIT, "云存档过大：${bytes.size}B")
         }
-        val saveData = try {
-            serializationModule.deserializeSaveData(bytes)
+        return try {
+            SaveBackendResult.Success(serializationModule.deserializeSaveData(bytes))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             DomainLog.e(TAG, "deserialize failed for slot $slot", e)
-            return@withLock SaveBackendResult.Failure(SaveBackendError.SERIALIZATION, e.message ?: "反序列化失败", e)
+            SaveBackendResult.Failure(SaveBackendError.SERIALIZATION, e.message ?: "反序列化失败", e)
         }
-        DomainLog.i(TAG, "backend download success: slot=$slot W=$cloudSaveId verdict=$verdict")
-        SaveBackendResult.Success(CloudSavePayload(saveData, cloudSaveId, verdict))
     }
 
     override suspend fun list(): SaveBackendResult<List<CloudSaveEntry>> {
@@ -269,8 +304,9 @@ class TapTapSaveBackend @Inject constructor(
         internal fun tempFileName(slot: Int): String = "cloud_save_temp_slot_$slot.dat"
 
         /** extra JSON → 云端保存序号 W；缺失/解析失败/0 = null（存量档 U11 保守退化） */
-        // 防御兜底: extra 内容跨服务端版本不可枚举, 解析失败降级 null, 非静默吞噬
-        @Suppress("TooGenericExceptionCaught")
+        // 防御兜底: extra 内容跨服务端版本不可枚举, 解析失败降级 null（W 未知由仲裁
+        // U11 保守接管）, 非静默吞噬
+        @Suppress("TooGenericExceptionCaught", "SwallowedException")
         internal fun parseSaveId(extra: String): Long? = try {
             JSONObject(extra).optLong(EXTRA_KEY_SAVE_ID, 0L).takeIf { it > 0L }
         } catch (e: Exception) {
@@ -284,18 +320,26 @@ class TapTapSaveBackend @Inject constructor(
         internal fun classify(e: Exception): SaveBackendError {
             if (e is CloudSaveOperationTimeoutException) return SaveBackendError.TIMEOUT
             val message = e.message ?: return SaveBackendError.UNKNOWN
-            return when {
-                message.contains("[400001]") -> SaveBackendError.RATE_LIMITED
-                message.contains("[400006]") -> SaveBackendError.TOKEN_EXPIRED
-                message.contains("[400007]") -> SaveBackendError.CONCURRENT
-                message.contains("[400002]") -> SaveBackendError.ARCHIVE_MISSING
-                message.contains("[400000]") || message.contains("[400009]") -> SaveBackendError.SIZE_LIMIT
-                message.contains("[400003]") || message.contains("[400004]") ||
-                    message.contains("[400005]") -> SaveBackendError.QUOTA_EXCEEDED
-                message.contains("300001") -> SaveBackendError.AUTH_REQUIRED
-                message.contains("400100") -> SaveBackendError.SDK_UNAVAILABLE
-                else -> SaveBackendError.NETWORK
+            ERROR_CODE_MAP.firstOrNull { message.contains(it.first) }?.let { return it.second }
+            return if (message.contains("300001")) {
+                SaveBackendError.AUTH_REQUIRED
+            } else {
+                SaveBackendError.NETWORK
             }
         }
+
+        /** TapTap 错误码 → 类型化错误（SR-0 §2.4 归组；列表顺序即匹配优先级） */
+        private val ERROR_CODE_MAP = listOf(
+            "[400001]" to SaveBackendError.RATE_LIMITED,
+            "[400006]" to SaveBackendError.TOKEN_EXPIRED,
+            "[400007]" to SaveBackendError.CONCURRENT,
+            "[400002]" to SaveBackendError.ARCHIVE_MISSING,
+            "[400000]" to SaveBackendError.SIZE_LIMIT,
+            "[400009]" to SaveBackendError.SIZE_LIMIT,
+            "[400003]" to SaveBackendError.QUOTA_EXCEEDED,
+            "[400004]" to SaveBackendError.QUOTA_EXCEEDED,
+            "[400005]" to SaveBackendError.QUOTA_EXCEEDED,
+            "400100" to SaveBackendError.SDK_UNAVAILABLE
+        )
     }
 }

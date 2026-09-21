@@ -22,8 +22,13 @@ import javax.inject.Singleton
  *
  * 注：持久化层不直接触碰 RNG——重启播种在引擎线程
  *（restartGameInternal）内完成。
+ *
+ * LongParameterList：聚合门面即职责本身（把 VM 可接受的构造参数上限保持在 7，
+ * 依赖收拢于本类一个注入点）——SR-2 增补云上传收口三依赖（queue/ledger/mode），
+ * 与既有先例同口径，非参数失控。
  */
 @Singleton
+@Suppress("LongParameterList")
 class PersistenceFacade @Inject constructor(
     val storageFacade: StorageFacade,
     val bootSequenceController: BootSequenceController,

@@ -20,6 +20,9 @@ import kotlinx.coroutines.CancellationException
  * saveId 由 [UploadLedger.recordLocalSave] 派发（账本 L++ 并落待传指针）；
  * 窗口合并/退避/限频/冲突仲裁均由 UploadQueue 状态机负责（SR-0 Q1-Q10）。
  */
+// TooGenericExceptionCaught：防御兜底——入队异常源跨账本存储/队列不可枚举，
+// 如实提示后保存链继续（本地已提交，IN1），非静默吞噬
+@Suppress("TooGenericExceptionCaught")
 internal suspend fun SaveLoadViewModel.maybeEnqueueCloudUploadAfterLocalSave(slot: Int, saveData: SaveData) {
     val mode = persistenceFacade.saveBackendModeProvider.current()
     if (!shouldEnqueueCloudUpload(mode)) {
