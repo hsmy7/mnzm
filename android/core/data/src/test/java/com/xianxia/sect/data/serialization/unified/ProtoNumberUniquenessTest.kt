@@ -20,10 +20,14 @@ import java.io.File
 class ProtoNumberUniquenessTest {
 
     private companion object {
-        /** 模型源码根（单元测试工作目录 = 模块根 `android/core/data`） */
+        /** 模型源码根（单元测试工作目录 = 模块根 `android/core/data`）。
+         *  SR-1 起纳入 core:data `data/model`（SaveData 所在目录）——wire 面新字段
+         *  必须过本守卫（方案 IN4）；两种路径形状分别对应模块根/仓库根两种 cwd。 */
         val MODEL_ROOTS = listOf(
             "../domain/src/main/java/com/xianxia/sect/core/model",
-            "core/domain/src/main/java/com/xianxia/sect/core/model"
+            "core/domain/src/main/java/com/xianxia/sect/core/model",
+            "../data/src/main/java/com/xianxia/sect/data/model",
+            "core/data/src/main/java/com/xianxia/sect/data/model"
         )
 
         /** 类/对象声明（含嵌套——嵌套声明会重置作用域，故天然按最内层类归属） */
@@ -98,6 +102,23 @@ class ProtoNumberUniquenessTest {
         assertTrue(
             "pendingTraitAdds 应使用 @ProtoNumber(1002)",
             pendingAnnotations.contains("@ProtoNumber(1002)")
+        )
+    }
+
+    @Test
+    fun `SaveData mails keeps proto tag 56`() {
+        // SR-1 方向锁：SaveData.mails 用 56（本类现有最大 55+1，升序口径）。
+        // 防后人改号——改号 = 云档/.sav wire 破裂（旧档按旧号解码）。
+        // 56 的类内唯一性由本类第一例扫描保证（SaveData.kt 已入 MODEL_ROOTS）。
+        val saveData = MODEL_ROOTS.map { File(it, "SaveData.kt") }.firstOrNull { it.isFile }
+            ?: error("SaveData.kt 未找到（cwd=${File(".").absolutePath}）")
+        val text = saveData.readText()
+
+        val mailsAnnotations = text.substringBefore("val mails").takeLast(200)
+
+        assertTrue(
+            "SaveData.mails 应使用 @ProtoNumber(56)（SR-1 wire 契约）",
+            mailsAnnotations.contains("@ProtoNumber(56)")
         )
     }
 }

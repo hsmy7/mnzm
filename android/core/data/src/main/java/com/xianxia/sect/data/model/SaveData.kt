@@ -9,6 +9,7 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -77,5 +78,15 @@ data class SaveData(
     @ProtoNumber(15) val storageBags: List<StorageBag> = emptyList(),
     @ProtoNumber(13) val battleLogs: List<BattleLog> = emptyList(),
     @ProtoNumber(14) val alliances: List<Alliance> = emptyList(),
-    @ProtoNumber(52) val productionSlots: List<ProductionSlot> = emptyList()
+    @ProtoNumber(52) val productionSlots: List<ProductionSlot> = emptyList(),
+    /**
+     * 槽位邮件快照（SR-1：邮件并入 SaveData，云唯一存档下换设备不丢邮件）。
+     *
+     * 保存 = 从 `mails` 表读当前 slot 全量入快照；加载/云恢复 = 整对象替换回表；
+     * 删档走 `clearAllSlotTables` 清单纪律（守卫自动覆盖）。
+     * 兼容：旧档无此字段 ⇒ 反序列化默认空表（向后兼容单向，无需迁移器条目）；
+     * proto 号 56 = 本类现有最大 55+1（908f24180 升序口径），受
+     * `ProtoNumberUniquenessTest` IN4 守卫 + mails=56 方向锁约束。
+     */
+    @ProtoNumber(56) val mails: List<MailEntity> = emptyList()
 )
