@@ -319,7 +319,8 @@ class ExplorationService @Inject constructor(
         )
         // 妖兽防守生产经 BattleExecutionRouter 路由（R4.3）：AUTHORITATIVE 生产走
         // C++ 战斗引擎（BATTLE 分区同区同序，与兽战/遭遇战/秘境同一路由契约）；
-        // flag 关/native 未加载/失败信封 → null 回退 Kotlin 既有臂（不删臂）
+        // flag 关（OFF kill-switch 投影）/ native 未加载（平台兜底）/ 失败信封
+        // → null 回退 Kotlin —— B18 判归：**非灰度回滚臂，不删**（正确性机制）
         return BattleExecutionRouter.tryExecuteNative(battle)
             ?: battleSystem.executeBattle(battle)
     }

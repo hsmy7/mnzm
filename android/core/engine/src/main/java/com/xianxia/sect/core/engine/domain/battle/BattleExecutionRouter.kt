@@ -12,25 +12,40 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /**
- * 战斗执行路由（AI 兽战/任务完成/遭遇战生产接线）。
+ * 战斗执行路由（生产接线：兽战 / 任务完成 / 遭遇战 / 巡逻 / 秘境 / AI 宗门）。
  *
  * AUTHORITATIVE 模式下把 [BattleSystem.executeBattle] 路由到 C++ 战斗引擎
  * （gamecore::battle::executeBattle，经 [GameCoreBridge.nativeBattleExecute]
- * 生产通道）；降级契约：
- * - flag 非 AUTHORITATIVE / native 未加载 / native 返回 error → null，
- *   调用方回退 Kotlin 原实现
- * - C++ 侧消费 BATTLE 分区（kBattle）——AUTHORITATIVE 下委托式 RNG 单一
- *   真相源（Kotlin NativeBackedRng 委托同一分区），序列天然一致
- * - 战斗日志重建：teamMembers/enemies 从战斗终态重建 + rounds 从 C++
- *   动作序列重建（确定性字段，message 为确定性摘要——原 message 由 JVM
- *   全局 Random 生成随机措辞，评估报告"diff 排除 message"同源决策）
+ * 生产通道）。
  *
- * 适配范围：系统内部战斗（AI 兽战/任务完成）+ 遭遇战两阶段
- * （PvP/PvE，战报回放由 rounds 重建满足——C++ 动作序列为确定性字段，
- * 仅 message 摘要口径与 Kotlin 随机措辞不同，diff 对拍同源排除）
- * + 探索/巡逻生产（R4.3：妖兽防守战/巡逻楼 PvE/冲突战 PvP+PvE）。
+ * ## 降级契约（B18-P5 判归：**三条出口均非灰度回滚臂 ⇒ 不删**）
+ * 三处 `null` 出口性质各异，但**没有一条是灰度回滚臂**（同臂 3
+ * `columnExportBlocked_` 判例）——它们是**正确性机制**，灰度旗标永远为真之后
+ * 仍会被触发，故不进任何删臂面：
+ * 1. `!NativeEngineFlag.authoritative` → **全局逐动作 OFF kill-switch 投影**
+ *    （`GameEngineNativeOps` 等 ~30 生产点共用；旗标本体不可删，本路由只是投影面）；
+ * 2. `!GameCoreBridge.isLoaded` → **平台兜底前置**（native 未加载 / ABI 不匹配设备）；
+ * 3. `out.containsKey("error")` → **失败信封容错**（C++ 报错时不得崩、不得无结果）。
+ * 调用方的 `?: battleSystem.executeBattle(battle)` 承担**容错 + JVM 测试回退 +
+ * Diff* 对照面**三职，整链保留（B18 五条灰度臂名单本不含战斗子系统）。
+ *
+ * ## 适配范围（B18-P5 校准；实测 6 文件 11 调用点）
+ * - `exploration/PatrolBattleSystem.kt` ×3（巡逻 PvE / 巡逻 PvP / 冲突战）
+ * - `exploration/AISectBeastAttackProcessor.kt` ×3（AI 宗门三段）
+ * - `engine/domain/exploration/MissionSystem.kt` ×2（任务完成：妖兽 / 人族）
+ * - `engine/domain/exploration/ExplorationService.kt` ×1（妖兽防守）
+ * - `engine/service/SecretRealmService.kt` ×1（秘境 R4.2，妖兽战/PvP 共用）
+ * - `domain/battle/EncounterBattleService.kt` ×1（遭遇战两阶段）
+ *
  * 洞府探索（CaveExplorationSystem）不在本路由范围：会话管理属平台域，
  * 且其生成随机为非分区随机域（System.nanoTime 种子，不进镜像协议）。
+ *
+ * ## C++ 侧契约
+ * - 消费 BATTLE 分区（kBattle）——AUTHORITATIVE 下委托式 RNG 单一真相源
+ *   （Kotlin NativeBackedRng 委托同一分区），序列天然一致；
+ * - 战斗日志重建：teamMembers/enemies 从战斗终态重建 + rounds 从 C++
+ *   动作序列重建（确定性字段，message 为确定性摘要——原 message 由 JVM
+ *   全局 Random 生成随机措辞，评估报告"diff 排除 message"同源决策）。
  */
 internal object BattleExecutionRouter {
 

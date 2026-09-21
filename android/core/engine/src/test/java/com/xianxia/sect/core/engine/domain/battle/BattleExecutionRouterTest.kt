@@ -24,6 +24,15 @@ import org.junit.Test
  *
  * 等价性：AUTHORITATIVE + 生产桥已加载路径的 C++ 执行语义由
  * DiffBattleExecutionTest（桌面对拍桥，同源 battle_execution.h）逐位守护。
+ *
+ * ## 诚实登记（B18-P5）：第三条出口（失败信封）**JVM 不可单测**
+ * `tryExecuteNative` 的三条 `null` 出口中，前两条（flag OFF / 桥未加载）由上
+ * 两个用例锁定；**第三条 `out.containsKey("error")`（C++ 失败信封容错）无注入缝**
+ * ——它要求 native 桥已加载**且** C++ 返回错误信封，JVM 侧既无法伪造
+ * `GameCoreBridge.isLoaded`（`object` 初始化即定），也无 C++ 侧错误注入点。
+ * ⇒ 该分支的守卫由**两处承担**：① 本文件头部的 KDoc 契约（性质与不可删性
+ * 声明）；② 桌面 `Diff*` 对拍族（真桥路径的行为面）。**不为凑覆盖率造桥/造假
+ * 用例**（假绿比缺测更贵）。
  */
 class BattleExecutionRouterTest {
 

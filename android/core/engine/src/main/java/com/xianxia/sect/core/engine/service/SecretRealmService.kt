@@ -794,8 +794,9 @@ class SecretRealmService @Inject constructor(
     /**
      * 战斗执行统一入口（R4.2）：AUTHORITATIVE 生产走 C++ 战斗引擎
      * （[BattleExecutionRouter.tryExecuteNative] → nativeBattleExecute，
-     * 与遭遇战 R4.1 同一路由与灰度契约——flag 关/native 不可用/失败信封
-     * 返回 null 回退）；Kotlin 臂保留既有超时口径
+     * 与遭遇战 R4.1 同一路由与**降级契约（非灰度）**——flag 关 = OFF
+     * kill-switch 投影 / native 不可用 = 平台兜底 / 失败信封 = 容错，
+     * 三者均非灰度回滚臂，B18 判归不删）；Kotlin 臂保留既有超时口径
      * [BattleSystem.executeBattleWithTimeout]。妖兽战/PvP 两分支共用。
      */
     private fun executeRouted(battle: Battle): BattleSystemResult {
