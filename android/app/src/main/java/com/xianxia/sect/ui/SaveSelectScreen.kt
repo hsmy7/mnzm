@@ -157,11 +157,8 @@ internal fun dispatchSlotClick(
 /**
  * 云槽位卡可见性（internal 供守卫测试）：LOAD_SAVE 模式显示云端槽位存档；
  * NEW_GAME 模式隐藏（新游戏=建本地档，云端槽位与新游戏无关）。
+ * 实现随 CloudSlotEntryCard 一并移至 CloudSlotEntryCard.kt（detekt 文件预算拆分）。
  */
-internal fun visibleCloudSlots(
-    mode: SaveSelectMode,
-    cloudSlots: List<CloudSaveEntry>
-): List<CloudSaveEntry> = if (mode == SaveSelectMode.LOAD_SAVE) cloudSlots else emptyList()
 
 /** 主内容区：标题行 + 槽位滚动列表 */
 @Composable
@@ -625,94 +622,9 @@ private fun LocalSlotContent(
 
 /**
  * 云端槽位存档卡（SR-3）：slot_N 档的摘要渲染 + 点击下载。
- *
- * 摘要来源 = 云端 extra JSON（year/month/sect/disciples/stones/version）；
- * 摘要缺失（TapTap 元数据最终一致性延迟常态）时退化为"云端存档 N"占位文案——
- * 有档无摘要非错误，点击仍可下载。样式对齐 [SaveSlotCard] 云存档入口（蓝系）。
+ * 组件本体与可见性守卫在 CloudSlotEntryCard.kt（本文件函数数 detekt 预算，与
+ * batch-SR2 C7a 同口径的文件级拆分，零逻辑变化）。
  */
-@Composable
-fun CloudSlotEntryCard(
-    entry: CloudSaveEntry,
-    dateFormat: SimpleDateFormat,
-    onClick: () -> Unit
-) {
-    val summary = entry.summary
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF0F7FF))
-            .border(2.dp, Color(0xFF4A90E2), RoundedCornerShape(8.dp))
-            .clickable { onClick() }
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF4A90E2)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "云",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-                Column {
-                    Text(
-                        text = if (summary != null && summary.sectName.isNotBlank()) {
-                            summary.sectName
-                        } else {
-                            "云端存档 ${entry.slot}"
-                        },
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.Black
-                    )
-                    if (summary != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "第${summary.gameYear}年 ${summary.gameMonth}月",
-                            fontSize = 13.sp,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "弟子: ${summary.discipleCount}  灵石: ${summary.spiritStones}",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    if (entry.modifiedTimeMs > 0) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "云端保存: ${dateFormat.format(Date(entry.modifiedTimeMs))}",
-                            fontSize = 11.sp,
-                            color = Color(0xFF999999)
-                        )
-                    }
-                }
-            }
-            Text(
-                text = "点击下载",
-                fontSize = 12.sp,
-                color = Color(0xFF4A90E2),
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-}
 
 private fun formatTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA)
