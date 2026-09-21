@@ -131,6 +131,17 @@
   桌面 GTest **1558/1558**（`ninja: no work to do.` ⇒ 纯 Kotlin 批零 C++ 回归，基线持平）；
   六模块组合门与 detekt/lint 见下方「门禁」行。
 
+### B20 批（2026-09-21）——镜像残余专项批：消费侧组装偏置消除 + 列级直写 + rest 域成本定数 + G2 分档收官
+
+> 卡定义 = `b18-remaining-impl-2026-09-20.md` 附A；施工卡 [batch-B20-mirror-residual.md](docs/parallel-batches-w5/batch-B20-mirror-residual.md)（§6 勘察结论）。
+> 用户 2026-09-21 指令「直接实施 B20，完成后收尾」。**零玩家可见变更、零存档面变更、零 proto schema 变更、零生产 C++ 变更**（B20b 为测试台架）⇒ 游戏内 `changelog_entries.json` 未追加；沿用 4.01.15 段不新建版本条目，`version.properties` 未递增——由用户决定。每阶段独立 commit。
+
+- **B20a · 列级补丁 presence 列直写（列级收窄，`07bc405b6` + detekt 补 `a115921bb`）**：列级信封稳态每行只携 3~5 脏列，旧全行合并臂（基线组装 + 全行合并 + 全组列写）每行 ~300 次列访问，**比全行臂更慢**——`MirrorSegmentProjectionBenchTest` 的 1.15× sanity 门在 main 实红（D=1000 列级 37.62ms vs 全脏 28.00ms；D=5000 的大 O(D) 偏置曾掩盖该每行成本）。新 `GameViewDiscipleRows.applyPatchInPlace` 按补丁 presence 原位写列；净效果与全行臂**逐列全等**（社交 ""/0/-1 哨兵→null、repeated 整列替换、孕养消息**整值替换**——非字段级 overlay，等价守卫实测逮出该误读、储物袋 75-only 的 typed 优先怪语义逐输入对齐、协议外瞬态列 `lifeEvents` 恒清空/`slotIds` 恒 0 显式复刻）；新行/幽灵行回退全行臂（稀疏新增 fail-fast 语义不变）。守卫：新增 `GameViewDiscipleColumnApplyEquivalenceTest` **12 场景**（老合并臂 vs 新直写臂：组装弟子逐字段全等 + 协议外/稀疏列净效果 + changedId）。
+- **B20a · 测试替身生产口径化（Bench 登记 O(D) 偏置消除）**：`FakeGameStateStore` 旧面每事务 `assembleAll()` 全表组装 → `GameStateStoreImpl.dispatchAssemble` 同款（零弟子写入零组装 / changedIds≳半表走 `assembleAllPatched` / 稀疏走 `assembleAllIncremental` / 容量拒绝全量兜底）；稳态零写入断言（`nonMirrorWriteCount`）判定序不变。**Bench 前后对照（同机同轮）**：列级臂 D=1000 **37.62 → 15.72ms**（对全脏臂 -34% → +37% 降本，sanity 门复绿）；D=5000 **139.30 → 64.21ms**。
+- **B20b · rest 域每旬标脏段量化台架（`131019d61`，成本定性→定数）**：新增 `RestDomainDiffBench`（G1 bench 同族，`GAMECORE_BUILD_BENCH` 模式，bench 6 例入 ctest 套件）。**实测反转预估**：列级导出非弟子域段（`stateWithoutDisciplesToJson` + `diffTreeSegments`）**零变更旬段 = 160.2ms / 997,951 mallocs**（树 5.9MB @D=5000 带实例清单 1.5 万 rest 实体）——不是按生产稳态外推的 1-3ms，而是 G2 压力口径下**最大的单项镜像成本**。**屏障迁移登记推迟**：完整迁移 = gameData 137 字段 + 9 集合全仓写屏障审计（仅 `execute_dispatch.cpp` 即 74 处 push_back/erase），部分挂载 = 漏标 = 静默陈旧镜像，不可接受；B09 弟子域屏障为独立整批先例 ⇒ 独立立卡建议 `batch-b09-residual`（本台架为验收基线），**零生产 C++ 变更**。
+- **B20c · G2 分档基线收官（`46bfa2cfc`）**：替身事务构造再补 **COW 保真**（committed 基线表 `deepCopy` 共享存储零列写，生产每事务 deepCopy 同语义；D=1000 带 15.7→17.5ms，±12% 抖动带内 = 保真改非提速改）。**分档判定**：D=5000 <150ms **达标**（64.2~67.8ms，较 B09 基线余量翻倍）⇒ **WS-1 关闭判据持续满足**；D≤1000 <10ms **未达标**（15.7~17.5ms）——**如实登记不放宽断言**（余量 = 千行 patch 直写 + 千行 patch 组装 + Robolectric 事务开销；生产稳态 mirror 2.6ms/旬@真实弟子规模远低于压力档），重拍板建议（撤销或放宽该档）留 §7.2 待裁决。ci.yml 接入考虑 = **不接入**（G2 是计时断言，Robolectric 同轮实测 ±12%，硬阈值门必抖红；G1 可 CI 因断言为确定性 malloc 计数）。弟子块迁评估（H④）：与 H③ 同物（报告 §2.8(b) 原文 = 非弟子域迁弟子域同族机制），弟子域已终态（行位图 + typed 直读 + B20a 列直写），**无实施面**。
+- **测试计数（实测）**：桌面 GTest **1561/1561**（= 1553 + bench 6 例 + RestDomainDiffBench 2 例新增；`GAMECORE_BUILD_BENCH=ON`）；`:core:engine` **3396 / 0 失败**（= 3372 + 等价守卫 12 + 前期增量；含已知抖动 `GameEngineCoreLifecycleInterleavingTest` 按 B03 先例单跑 12/12 甄别）；`:core:domain` **1743 / 0**。组合门/ Diff* 0 skip 见完成报告门禁段。**JNI 计数 87 不变**（零生产 C++/JNI 面）；**存档回归零触及声明**（B20 三阶段零存档 schema/序列化面变更）。
+
 ### R6.2 批 B16（2026-09-20）——数值外置：C++ 头文件 DB → 数据文件加载（改数值不再触发逻辑重编译）
 
 > 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R6 表 R6.2 行（批次文件 `docs/parallel-batches-w5/batch-R6B.md`；前置 = B15/R6.1）。**零玩家可见变更（数值逐位等价）、协议 JSON 面/存档格式/既有 JNI 签名零变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。每子项独立 commit。渠道注记：WorkBuddy 首发完成子项①与子项②大部后配额中断，ZCode 会话接续补全。

@@ -25,7 +25,7 @@
 | # | 度量 | 基线（审计实测/推断） | 目标 |
 |---|---|---|---|
 | G1 | 每旬结算堆分配次数（5000 弟子） | ~15 万次（materialize + map 重建） | **< 1 万次** |
-| G2 | 每旬镜像耗时（PhaseSegmentTimer mirror 段） | 阈值告警线 100ms（WS-1 已收口，2026-09-20 §7.3 拍板） | **分档基线**：D≤1000 **< 10ms**、D=5000 **< 150ms**（原单点 `<10ms@5000` 因受 Kotlin 侧残余成本牵制而重定；残余①②登 B18） |
+| G2 | 每旬镜像耗时（PhaseSegmentTimer mirror 段） | 阈值告警线 100ms（WS-1 已收口，2026-09-20 §7.3 拍板） | **分档基线**：D≤1000 **< 10ms**、D=5000 **< 150ms**（原单点 `<10ms@5000` 因受 Kotlin 侧残余成本牵制而重定；残余①②登 B18）。**B20 后实测（2026-09-21）**：D=5000 **64.2~67.8ms 达标**（余量较 B09 基线 139.30 翻倍）；D≤1000 15.7~17.5ms 未达 10ms——**重拍板待裁决**（撤销或放宽，登记 §7.2 B20 行） |
 | G3 | 稳态每帧 JNI 传输字节（相机移动帧） | ≥128KB（tileData+roadData+UV 表） | **< 200B**（相机 6 标量+overlay 标志） |
 | G4 | 放置模式每帧 JNI 次数 / vkCmdDraw | 最坏 ~300 / 数十 | **< 10 / < 15** |
 | G5 | Kotlin 回退臂数量（battle/executor 系） | 战斗+秘境+探索+3 个 Executor 全保留 | **归零**（仅存 golden 测试夹具） |
@@ -366,6 +366,27 @@ physiqueIds / affixIds / statusData / activePillTypes / usedPill*）同样缺该
 proto/序列化守卫面，超出本批范围）；`save-system-audit` §16 优先级建议 1–10 全部未处理；
 真机升级路径未实测（无截图回归基建）——以 Robolectric 真实 Room 打开校验 + 存档回归
 逐字段等价为证。
+
+#### B20 批（2026-09-21）= 镜像残余专项批（G2 残余①② + B09 残余③④量化 + G2 分档收官 + WS-1 回填）
+
+批次文件 `docs/parallel-batches-w5/batch-B20-mirror-residual.md`（§6 勘察结论）；
+卡定义来源 = `b18-remaining-impl-2026-09-20.md` 附A；前置 = B18 P3 ✅（`802564565`）+
+P1 TypedRow 基建 ✅（`85603146a`/`ed235c479`）。用户 2026-09-21 指令「直接实施 B20，
+完成后收尾」（单实施会话，非派发）。**零玩家可见变更、零存档面变更、零 proto schema
+变更、零生产 C++ 变更**（B20b 为测试台架）。每阶段独立 commit。
+
+| 项 | 状态 | 关键落点 |
+|---|---|---|
+| B20a 列级补丁 presence 列直写 | ✅ `07bc405b6` + detekt 补 `a115921bb` | 列级信封稳态每行 3~5 脏列 vs 旧全行合并臂 ~300 次列访问/行——**main 实红证据**：Bench sanity 门（列级 ≤ 全脏×1.15）D=1000 档列级 37.62ms vs 全脏 28.00ms（1.34×），D=5000 大 O(D) 偏置曾掩盖该每行成本（B09 登记 139.30 压线）。新 `GameViewDiscipleRows.applyPatchInPlace`（`DiscipleTables.patchExistingMirrorRow` 原位写入口：锁/写守卫/changedId 与 upsertMirrorRow 同语义）；净效果逐列全等口径含社交哨兵→null、repeated/映射整列替换、孕养消息**整值替换**（clearer 先清 + mergeFrom 整值写入——非字段级 overlay，等价守卫实测逮出该误读后修正）、储物袋三表达含 75-only 基线空/非空的 typed 优先怪语义、协议外瞬态列净效果显式复刻（`lifeEvents` 恒清空 = 瞬态显示列每旬重投、`slotIds` 恒 0、deathYear 两臂同丢弃）；新行/幽灵行回退全行臂。守卫 = 新增 `GameViewDiscipleColumnApplyEquivalenceTest` 12 场景（老臂 vs 新臂逐列全等 + 协议外/稀疏列 + changedId） |
+| B20a Bench 登记 O(D) 偏置消除 | ✅ 同笔 | `FakeGameStateStore` 每事务 `assembleAll()` → `GameStateStoreImpl.dispatchAssemble` 同款三判据（零弟子写入零组装 / changedIds≳半表 patched / 稀疏 incremental / 容量拒绝全量兜底）；稳态零写入断言判定序不变。**前后对照（同机同轮）**：列级臂 D=1000 37.62→**15.72ms**（对全脏臂 -34%→+37%，sanity 门复绿）、D=5000 139.30→**64.21ms** |
+| B20b rest 域成本定数 | ✅ `131019d61` | 新增 `RestDomainDiffBench`（G1 bench 同族、GAMECORE_BUILD_BENCH 模式、入 ctest 套件）。**实测反转预估**：非弟子域每旬段（`stateWithoutDisciplesToJson`+`diffTreeSegments`）**零变更旬 = 160.2ms / 997,951 mallocs**（树 5.9MB @D=5000 带实例清单 1.5 万 rest 实体 + gameData 容器现实面）——非按生产稳态外推的 1-3ms，是 G2 压力口径最大单项镜像成本。**屏障迁移登记推迟 = 独立立卡建议 `batch-b09-residual`**：完整迁移 = gameData 137 字段 + 9 集合全仓写屏障审计（仅 execute_dispatch.cpp 即 74 处变异点），部分挂载 = 漏标 = 静默陈旧镜像不可接受（B09 弟子域屏障为独立整批先例）；本台架为该批验收基线。零生产 C++ 变更 |
+| B20c 分档收官 + COW 保真 | ✅ `46bfa2cfc` | 替身事务构造换 committed 基线表 `deepCopy` COW 共享（生产同语义；D=1000 带 15.7→17.5ms 抖动带内 = 保真改非提速改）。**分档判定**：D=5000 <150ms **达标**（64.2~67.8ms，较 B09 基线余量翻倍）⇒ **WS-1 关闭判据持续满足**；D≤1000 <10ms **未达标**（15.7~17.5ms）——如实登记不放宽（余量 = 千行 patch 直写 + 千行 assembleAllPatched 组装 + Robolectric 事务开销；生产稳态 mirror 2.6ms/旬@真实弟子规模远低于压力档），**重拍板建议：撤销或放宽 10ms@1000 档（待用户/看护裁决）**。ci.yml 接入考虑 = **不接入**（G2 计时断言在 Robolectric 抖动 ±12%/轮，硬阈值门必抖红；G1 可 CI 因断言为确定性 malloc 计数；生产长期门 = PhaseSegmentTimer 告警线 100ms 已在线）。弟子块迁评估（H④）：报告 §2.8(b) 原文 = 非弟子域迁弟子域同族机制，与 H③ 同物（B20b 已量化登记）；弟子域已终态（行位图 + typed 直读 + B20a 列直写），**无实施面** |
+
+**诚实边界**：① D≤1000 档未达 10ms——按卡纪律不放宽断言，重拍板待裁决；② rest 域
+屏障迁移（B09 残余③本体）未实施，以实测 + 独立立卡建议交付；③ bench 计时无 CI 门
+（Robolectric 抖动），G2 长期观测依赖 PhaseSegmentTimer（真机 debug 构建）；④ 本批
+门禁 NDK arm64 免跑（零生产 C++/JNI 面，bench 仅桌面测试构建 `GAMECORE_BUILD_TESTS=OFF`
+不触及 NDK），桥重建免（生产 .so 输入零变化），Diff* 0 skip 以最终组合门实证。
 
 #### B16 批（2026-09-20）= R6.2（数值外置：C++ 头文件 DB → 数据文件加载，`nativeSetGameConfig` 通道扩展）
 
