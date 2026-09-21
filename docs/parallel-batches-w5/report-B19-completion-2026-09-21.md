@@ -168,7 +168,7 @@ Total Test time (real) = 385.27 sec
 |---|---|---|
 | 1 | `aa740d25c` | `feat(data): B19 Room 死列清理——game_data v51→v52 删除 battleTeam/aiBattleTeams 两死列`（9 文件 / +5799 −71） |
 | 2 | `6852868b3` | `test(data): B19 迁移与存档回归守卫——RoomMigrationV51To52Test 5 例`（2 文件 / +427 −1） |
-| 3 | 见下（docs 笔） | `docs(B19): 施工卡 + 方案 §7.2 + CHANGELOG + 台账 + 完成报告 + 存档勘察报告入库` |
+| 3 | `76d39b053` | `docs(B19): 施工卡 + 方案 §7.2 + CHANGELOG + 台账 + 完成报告 + 存档勘察报告入库`（6 文件 / +1023 −2） |
 
 （第 1 笔含 KSP 生成的 `52.json`（约 5.6k 行 JSON）⇒ 行数占比大属正常。）
 
