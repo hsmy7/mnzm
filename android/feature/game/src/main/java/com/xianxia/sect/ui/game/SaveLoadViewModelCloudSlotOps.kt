@@ -1,3 +1,8 @@
+// MatchingDeclarationName（文件级豁免，声明级 Suppress 对本规则无效）：本文件主语 =
+// SaveLoadViewModel 云槽位链扩展函数族，CloudSlotLoadOutcome 是其共享结果信封，
+// 不为凑文件名拆文件（SR-2 聚合门面同口径注记）
+@file:Suppress("MatchingDeclarationName")
+
 package com.xianxia.sect.ui.game
 
 import android.util.Log
@@ -86,7 +91,9 @@ fun SaveLoadViewModel.resolveCloudConflict(keepLocal: Boolean) {
  * 入口对齐（boot/重启/保存/云锁/加载互斥）；真冲突时不置操作态，由冲突弹窗二选一
  * 接管（禁止静默覆盖，方案 §2/IN2）。
  */
-@Suppress("ReturnCount") // 云下载入口多守卫（boot/重启/保存/云锁/加载），多 return 为守卫风格
+// TooGenericExceptionCaught：防御兜底——下载/加载链异常源跨 IO/SDK 不可枚举，
+// 降级为错误提示+日志留痕（含 launch 协程体内 catch），非静默吞噬
+@Suppress("ReturnCount", "TooGenericExceptionCaught")
 fun SaveLoadViewModel.loadCloudSlot(slot: Int) {
     // boot 进行中禁止任何云下载入口
     if (isBootOperationBlocked()) return

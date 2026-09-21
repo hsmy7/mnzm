@@ -333,7 +333,11 @@ class TapTapSaveBackend @Inject constructor(
                 val month = json.optInt("month", 0)
                 val disciples = json.optInt("disciples", 0)
                 val stones = json.optLong("stones", 0L)
-                if (sect.isBlank() && year <= 0 && month <= 0 && disciples <= 0 && stones <= 0L) {
+                // 有档无真实摘要（全空）= null（TapTap 元数据最终一致性延迟常态，
+                // 对齐 CloudSaveInfo.hasMeaningfulSummary 同纪律）
+                val hasSummary = sect.isNotBlank() || year > 0 || month > 0 ||
+                    disciples > 0 || stones > 0L
+                if (!hasSummary) {
                     null
                 } else {
                     CloudSaveSummary(
