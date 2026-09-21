@@ -18,8 +18,10 @@
 #include "KtxLoader.h"
 #include "SkyBackground.h"
 // SceneStore 场景真相 + 场景绘制核心（重构方案 2026-09-17 R3.1/R3.2）——
-// 地图/崖壁/叠加层/浮字各层共用同一构建逻辑（scene_draw.h）；
-// B18 前新旧两路的像素等价由 scene_equivalence_test 顶点流对照锁定。
+// 地图/崖壁/叠加层/浮字各层共用同一构建逻辑（scene_draw.h）。
+// 顶点流等价性：B18-臂β 后生产路径唯一（旧 drawAllTiles 回滚臂与
+// setFadeAlpha 端口已退役），等价面由 scene_equivalence_test 的**测试侧冻结
+// 参考臂**（Kotlin 形状数组 + 夹具 UV 的非 JNI 等价驱动）顶点流对照锁定。
 // 占地/UV/渲染常量表由 build-atlas.mjs 同源生成进 C++（scene_uv_tables.h，
 // 仓库内生成物——footprint_table.h 的消费位由此接替，生成任务保留）。
 #include "scene/scene_store.h"

@@ -135,7 +135,8 @@ struct CliffLayerParams {
 // ============================================================
 
 /// drawFrame 的 overlayFlags 位定义（**与 Kotlin VulkanRenderBackend 的
-/// OVERLAY_FLAG_* 常量逐位同值**，双端由守卫测试 SceneOverlayFlagsMirrorGuardTest 锁定）
+/// OVERLAY_FLAG_* 常量逐位同值**，双端由守卫测试 SceneOverlayProtocolGuardTest 锁定
+/// ——B18-臂β 后该守卫为双向断言：新路径体内不得逐 rect + 旧臂函数不得回流）
 inline constexpr int32_t kOverlayBitBuildingVisible = 1 << 0;  ///< 建筑层可见
 inline constexpr int32_t kOverlayBitGridVisible = 1 << 1;      ///< 放置/移动模式网格线
 inline constexpr int32_t kOverlayBitPreviewSprite = 1 << 2;    ///< 预览精灵（showPreview）

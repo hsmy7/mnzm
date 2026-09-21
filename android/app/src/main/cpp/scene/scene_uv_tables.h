@@ -95,7 +95,8 @@ inline constexpr float kShadowAlpha = 0.2f;
 inline constexpr float kTopdownYScale = 0.75f;
 
 // ── 世界叠加层（overlay）视觉常量（R3.3/B11：网格线/预览框/选中/拆除高亮的
-//    颜色、不透明度、线宽——C++ 侧生成叠加层几何消费本表，与 Kotlin 回滚臂同源）──
+//    颜色、不透明度、线宽——C++ buildOverlayLayers 生成**四类**几何消费本表；
+//    Kotlin 侧 Canvas 兜底手绘消费同源常量，两路同值由构造保证）──
 // 选中高亮金色 #FFD700（R=255/255）
 inline constexpr float kGoldR = 1.0f;
 // 选中高亮金色 #FFD700（G=215/255）

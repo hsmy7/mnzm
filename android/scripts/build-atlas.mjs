@@ -11,10 +11,10 @@
  * - core/engine/build/generated/sprite/.../SpriteAtlasDef.kt — Kotlin 图集布局常量（--atlas-def-only）
  * - app/build/generated/sprite/SpriteRegistryData.kt — 精灵注册数据（--codegen）
  * - app/build/generated/sprite/TextureAtlas.h — C++ MAP_SPRITES（--codegen）
- * - app/src/main/cpp/scene/scene_uv_tables.h — C++ 场景 UV 常量表 + 占地表 + 双端渲染
- *   常量（--codegen；R3.2/B10：SceneStore 路径 Kotlin 不再每帧传 SpriteAtlasDef
- *   数组，UV 表同源生成进 C++；与 shaders.h 同属"仓库内生成物"——桌面 GTest
- *   与 Android 构建无需先跑 codegen 即可编译）
+ * - app/src/main/cpp/scene/scene_uv_tables.h — C++ 场景 UV 常量表 + 占地表 +
+ *   与 Kotlin 同源的渲染常量（--codegen；R3.2/B10：SceneStore 路径 Kotlin 不再
+ *   每帧传 SpriteAtlasDef 数组，UV 表同源生成进 C++；与 shaders.h 同属"仓库内
+ *   生成物"——桌面 GTest 与 Android 构建无需先跑 codegen 即可编译）
  * - app/src/main/assets/atlas/atlas_astc.ktx — KTX1 封装 ASTC 4×4 LDR 图集（无参数模式）
  * - app/src/main/assets/atlas/atlas-manifest.json — 图集布局清单 + 布局哈希（无参数模式）
  *
@@ -210,9 +210,13 @@ const LAYOUT = {
   topdownYScale: 0.75,
   // ── 世界叠加层（overlay）视觉常量（重构方案 2026-09-17 R3.3/B11）──
   // 四类叠加层——放置/移动模式网格线、占地预览框、选中高亮、一键拆除高亮——的
-  // 颜色/不透明度/线宽常量。R3.3 起叠加层几何由 C++ drawFrame 生成（新路径），
-  // Kotlin 旧逐 rect 路径（灰度回滚臂）引用本表生成的同一组 Kotlin 常量，
-  // 两路同值由构造保证（此前双写在 VulkanRenderBackend 私有常量里）。
+  // 颜色/不透明度/线宽常量。R3.3 起叠加层几何由 C++ drawFrame（buildOverlayLayers）
+  // 生成；B18-臂β 后**消费者为两路**：C++ 几何生成（四类全消费）+ Kotlin
+  // （Canvas 兜底 SoftwareCanvasBackend 手绘 + VulkanRenderBackend 的
+  // OVERLAY_FLAG_* 位定义装配 overlayFlags），同值由构造保证。
+  // ⚠️ 原 Kotlin 逐 rect 绘制臂（VulkanRenderBackend 私有常量 +
+  // drawGridOverlay/drawPreviewHighlight/drawSelectionHighlight/drawDemolishMarker）
+  // 已随 B18-臂β 退役——生成常量仍被 Canvas/C++ 两路消费，勿据此删条目。
   // 色值 = 十六进制色的 0-1 分量（沿用旧 Compose 覆盖层配色）；
   // 线宽公式：高亮类屏幕线宽 max(2px, tileSize×0.06×scale)，除 scale 折回世界坐标；
   // 网格线世界线宽 max(0.5, 2/scale)——离屏降采样下 1 物理屏像素 = 0.5 离屏像素，
@@ -956,8 +960,8 @@ function generateSpriteAtlasDef(layout) {
     `    const val TILE_BUILDING_INDEX = ${si.tileBuilding}`,
     '',
     '    // ============================================================',
-    '    // 世界叠加层（overlay）视觉常量（R3.3/B11：C++ drawFrame 生成叠加层几何',
-    '    // 与 Kotlin 旧逐 rect 回滚臂共用同一数据源——两路同值由构造保证）',
+    '    // 世界叠加层（overlay）视觉常量（R3.3/B11：C++ drawFrame 生成叠加层几何；',
+    '    // B18-臂β 后消费者 = C++ 几何生成 + Canvas 兜底手绘，同值由构造保证）',
     '    // ============================================================',
     ...overlayKotlinLines(layout),
     '',
@@ -1621,7 +1625,8 @@ function generateSceneUvTablesH(layout) {
     `inline constexpr float kTopdownYScale = ${cppFloatLiteral(layout.topdownYScale)};`,
     '',
     '// ── 世界叠加层（overlay）视觉常量（R3.3/B11：网格线/预览框/选中/拆除高亮的',
-    '//    颜色、不透明度、线宽——C++ 侧生成叠加层几何消费本表，与 Kotlin 回滚臂同源）──',
+    '//    颜色、不透明度、线宽——C++ buildOverlayLayers 生成**四类**几何消费本表；',
+    '//    Kotlin 侧 Canvas 兜底手绘消费同源常量，两路同值由构造保证）──',
     ...overlayCppLines(layout),
     '',
     '// ── 瓦片分类（装饰区间/显示尺寸/绘制层/越界余量——绘制核心按表直取，',
