@@ -167,6 +167,13 @@ class MainActivity : ComponentActivity() {
     internal var tapTapReady = mutableStateOf(false)
     internal val loadingProgress = mutableFloatStateOf(0f)
     internal var isLoadComplete = false
+
+    /**
+     * StorageFacade 初始化全败阻断态（SR-3，审计 §12-J 修复）。
+     * 非空 = 加载页切换为如实错误屏（[StorageInitErrorScreen]），进度动画停摆、
+     * onLoadingComplete 不触发——不再"proceeding with empty cache"静默放行。
+     */
+    internal val storageInitError = mutableStateOf<String?>(null)
     internal val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())
     
     companion object {
@@ -399,8 +406,23 @@ class MainActivity : ComponentActivity() {
             // 满足"仅在用户同意隐私政策后采集数据"的合规契约（preInit 已在 Application 完成）。
             // IO 线程执行——init 内部 SP 读取/注册回调不在主线程冷启动关键路径上
             com.xianxia.sect.umeng.UmengManager.init(application)
+            initializeStorageWithRetry()
+        }
+    }
+
+    /**
+     * StorageFacade 初始化（3 次重试）+ 全败处置（SR-3，审计 §12-J 修复）。
+     *
+     * 全败 = 置 [storageInitError] 阻断态（如实错误屏 + 重试按钮），**不再放行**——
+     * 旧实现"proceeding with empty cache"静默进主菜单，玩家在存档不可用的会话里
+     * 保存静默失败/读档全空，进度被静默丢弃。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 初始化异常源跨IO/DB不可枚举, 计入重试, 非静默吞噬
+    private fun initializeStorageWithRetry() {
+        lifecycleScope.launch(ioDispatcher.dispatcher) {
             var initialized = false
             var retryCount = 0
+            var lastError: String? = null
             val maxRetries = 3
             while (!initialized && retryCount < maxRetries) {
                 try {
@@ -410,7 +432,9 @@ class MainActivity : ComponentActivity() {
                         initialized = true
                     } else {
                         retryCount++
-                        Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $initResult")
+                        lastError = (initResult as? com.xianxia.sect.data.unified.SaveResult.Failure)?.message
+                            ?: "初始化失败"
+                        Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $lastError")
                         if (retryCount < maxRetries) {
                             kotlinx.coroutines.delay(500L * retryCount)
                         }
@@ -419,23 +443,36 @@ class MainActivity : ComponentActivity() {
                     throw e
                 } catch (e: Exception) {
                     retryCount++
+                    lastError = e.message
                     Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)
                     if (retryCount < maxRetries) {
                         kotlinx.coroutines.delay(500L * retryCount)
                     }
                 }
             }
-            if (!initialized) {
-                Log.e(
-                    TAG,
-                    "StorageFacade initialization failed after $maxRetries attempts, " +
-                        "proceeding with empty cache"
-                )
-            }
             withContext(Dispatchers.Main) {
-                isLoadComplete = true
+                if (initialized) {
+                    isLoadComplete = true
+                } else {
+                    Log.e(
+                        TAG,
+                        "StorageFacade initialization failed after $maxRetries attempts, " +
+                            "blocking with retry UI (audit §12-J)"
+                    )
+                    storageInitError.value = storageInitFailureMessage(
+                        saveBackendModeProvider.current(),
+                        lastError
+                    )
+                }
             }
         }
+    }
+
+    /** 初始化失败重试入口（错误屏按钮）：清阻断态 → 回加载页 → 重跑初始化。 */
+    internal fun retryStorageInitialization() {
+        storageInitError.value = null
+        showLoadingScreen()
+        initializeStorageWithRetry()
     }
     
     private fun startProgressAnimation() {
@@ -495,11 +532,20 @@ class MainActivity : ComponentActivity() {
     private fun showLoadingScreen() {
         setContent {
             XianxiaTheme {
-                val progress by loadingProgress
-                LoadingScreen(
-                    progress = progress,
-                    showProgress = true
-                )
+                // SR-3：初始化全败 → 如实阻断错误屏（重试入口）；否则正常加载页
+                val initError by storageInitError
+                if (initError != null) {
+                    StorageInitErrorScreen(
+                        message = initError ?: "",
+                        onRetry = { retryStorageInitialization() }
+                    )
+                } else {
+                    val progress by loadingProgress
+                    LoadingScreen(
+                        progress = progress,
+                        showProgress = true
+                    )
+                }
             }
         }
     }
