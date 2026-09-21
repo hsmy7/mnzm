@@ -83,6 +83,34 @@ internal fun SaveLoadViewModel.releaseRestartLocks() {
 }
 
 /**
+ * 重开保护性预存（SR-2，审计 §2 重开顺序缺陷修正）：重置引擎**前**把当前内存态落盘。
+ *
+ * 复用 [performRestartSave] 全链（当前态快照 → 槽位邮件 → SaveData → 带超时落盘 →
+ * 损坏自愈 → 失败回滚 currentSlot）——预存与"重置后落新档"同一条代码路径，零新保存逻辑。
+ *
+ * @return true = 预存成功（可安全重置引擎）；false = 预存失败（**必须中止重置**：
+ * 旧档此时仅存在于盘上，继续重置将以重置态覆写唯一副本；已如实提示）
+ */
+internal suspend fun SaveLoadViewModel.protectivePreSaveBeforeRestart(slot: Int, previousSlot: Int): Boolean {
+    setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
+    val success = try {
+        performRestartSave(slot = slot, previousSlot = previousSlot)
+    } finally {
+        setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+    }
+    if (!success) {
+        Log.e(
+            SaveLoadViewModelConstants.TAG,
+            "=== restartGame ABORTED === protective pre-save failed (slot=$slot), old save preserved"
+        )
+        showError("重置中止：预存当前进度失败，原存档已保留，请重试")
+    } else {
+        Log.i(SaveLoadViewModelConstants.TAG, "restartGame: protective pre-save OK (slot=$slot)")
+    }
+    return success
+}
+
+/**
  *重启主流程。
  * 停止循环 → 重置引擎 → RNG 重新播种 → 重启存档 → BootSequenceController 启动。
  */
@@ -107,6 +135,13 @@ internal suspend fun SaveLoadViewModel.performRestartGame(wasRunning: Boolean) {
             "=== restartGame BEGIN === currentSlot=$currentSlot, previousSlot=$previousSlot, sectName=$sectName")
 
         persistenceFacade.storageFacade.setCurrentSlot(currentSlot)
+
+        // SR-2 修复（审计 §2 重开顺序缺陷，先预存 → 后重置 → 再落新档）：
+        // 旧实现先 restartEngineAndReseed（内存态被引擎重置覆盖）后落新档——若重置后
+        // 落盘前被杀/失败，旧档被重置态覆写。保护性预存复用 performRestartSave 全链
+        //（快照/邮件/落盘/超时/损坏自愈/槽位回滚）；预存失败 = 中止重置：此时引擎
+        // 未动、旧档仍在盘上，如实提示后玩家可直接重试。
+        if (!protectivePreSaveBeforeRestart(slot = currentSlot, previousSlot = previousSlot)) return
 
         restartEngineAndReseed(sectName = sectName, currentSlot = currentSlot)
 

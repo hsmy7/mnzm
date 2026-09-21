@@ -15,6 +15,7 @@ import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
+import com.xianxia.sect.data.unified.SaveOperationStats
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
@@ -46,6 +47,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.xianxia.sect.core.engine.restartGameSuspend
 import com.xianxia.sect.core.engine.resume
 
 /**
@@ -911,5 +913,79 @@ class SaveLoadViewModelLoadTest {
 
         coVerify(exactly = 0) { gameEngineCore.resume() }
         assertEquals("仅反馈 UI 倍速，不触发恢复", 2, viewModel.timeScale.value)
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // SR-2 审计 §2：重开顺序缺陷修正——先保护性预存当前态，后重置引擎，再落新档
+    // ──────────────────────────────────────────────────────────────────
+
+    private fun restartSnapshot(year: Int) = GameStateSnapshot(
+        gameData = GameData(sectName = "青云宗", saveVersion = 2, gameYear = year),
+        disciples = emptyList(),
+        equipmentStacks = emptyList(),
+        equipmentInstances = emptyList(),
+        manualStacks = emptyList(),
+        manualInstances = emptyList(),
+        pills = emptyList(),
+        materials = emptyList(),
+        herbs = emptyList(),
+        seeds = emptyList(),
+        battleLogs = emptyList(),
+        alliances = emptyList()
+    )
+
+    private fun stubRestartOrderGuards() {
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { gameEngine.gameData } returns MutableStateFlow(
+            GameData(sectName = "青云宗", saveVersion = 2, currentSlot = 1)
+        )
+        coEvery { storageFacade.getCurrentSlot() } returns 1
+        coEvery { storageFacade.getMailsForSlot(any()) } returns emptyList()
+        coEvery { storageFacade.isSaveCorruptedSuspend(any()) } returns false
+    }
+
+    @Test
+    fun `SR-2 重开顺序 - 先保护性预存当前态后重置引擎再落新档`() = runTest(testDispatcher) {
+        stubRestartOrderGuards()
+        val order = mutableListOf<String>()
+        // buildSaveSnapshot 依次返回：重置前当前态（year=12）→ 重置后新档（year=1）
+        coEvery { gameEngine.buildSaveSnapshot() } returnsMany listOf(
+            restartSnapshot(year = 12),
+            restartSnapshot(year = 1)
+        )
+        coEvery { storageFacade.save(any(), any()) } coAnswers {
+            order.add("save:year=${secondArg<SaveData>().gameData.gameYear}")
+            SaveResult.success(Unit)
+        }
+        mockkStatic("com.xianxia.sect.core.engine.GameEngineLoadDataOpsKt")
+        coEvery { gameEngine.restartGameSuspend(any(), any()) } coAnswers { order.add("reset") }
+
+        viewModel.restartGame()
+        advanceUntilIdle()
+
+        // 修复语义：预存（year=12 当前态）→ 引擎重置 → 落新档（year=1）。
+        // 旧实现为 [reset, save:year=1]——重置前旧态无任何落盘保护
+        assertEquals(listOf("save:year=12", "reset", "save:year=1"), order)
+    }
+
+    @Test
+    fun `SR-2 重开预存失败 - 中止重置引擎旧档保留`() = runTest(testDispatcher) {
+        stubRestartOrderGuards()
+        val order = mutableListOf<String>()
+        coEvery { gameEngine.buildSaveSnapshot() } returns restartSnapshot(year = 12)
+        coEvery { storageFacade.save(any(), any()) } coAnswers {
+            order.add("save")
+            SaveResult.failure(SaveError.SAVE_FAILED, "disk full")
+        }
+        mockkStatic("com.xianxia.sect.core.engine.GameEngineLoadDataOpsKt")
+        coEvery { gameEngine.restartGameSuspend(any(), any()) } coAnswers { order.add("reset") }
+
+        viewModel.restartGame()
+        advanceUntilIdle()
+
+        // 预存失败 ⇒ 引擎不得重置（旧档仅在盘上，重置将覆写唯一副本）；恰一次预存尝试
+        assertEquals(listOf("save"), order)
     }
 }
