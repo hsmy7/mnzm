@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.engine
 
 import android.util.Log
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.archive.ArchivedBattleLog
 import com.xianxia.sect.data.archive.ArchivedDisciple
 import com.xianxia.sect.data.local.GameDatabase
@@ -21,7 +22,10 @@ data class ArchiveConfig(
     val battleLogHotCount: Int = 200,
     val deadDiscipleArchiveDelayMs: Long = 60_000L,
     val archiveRetentionMs: Long = 180L * 24 * 60 * 60 * 1000L,
-    val slotIds: List<Int> = listOf(1, 2, 3, 4, 5),
+    // 审计 §12-F：原硬编码 `listOf(1,2,3,4,5)` **漏 slot 6**（该槽永不归档，数据无界增长），
+    // 与 DataPruningScheduler 的 `(0..DEFAULT_MAX_SLOTS)` 口径不一致。改为覆盖全部
+    // **本地存档槽** 1..DEFAULT_MAX_SLOTS；slot 0 是云档槽（本地无行）故不纳入。
+    val slotIds: List<Int> = (1..StorageConstants.DEFAULT_MAX_SLOTS).toList(),
     val enableAutoArchive: Boolean = true
 )
 
