@@ -859,7 +859,14 @@ data class GameData(
     // 新增天赋/体质/词条：已刷新未确认的新增产物（discipleId+type → traitId）。
     // 刷新即扣玉符并立即持久化——关闭界面再打开仍显示该产物，可直接确认新增
     // （确认不消耗玉符）。空列表经 ProtobufConverters 编码为空字符串。
-    @ProtoNumber(162)
+    // ⚠️ 审计 §12-E 修正：本字段原用 **162**，与 `prisonerSpiritRootFilter`（:569，同样 162）
+    // 冲突——两者 wire type 均为 length-delimited，同时非空时解码互相抢占/抛错，
+    // 即"云档 / `.sav` 恢复路径必爆"。本字段是 v47 新加，故**让号**到 1002（= 现有最大值 1001 + 1，
+    // 保持字段号升序）；`prisonerSpiritRootFilter` 保留 162 以兼容更老的存档。
+    // 兼容性影响（登记）：v47~v52 期间**同时**写过这两列的旧档，162 号会被解成
+    // `prisonerSpiritRootFilter`（可能含越界值）且 `pendingTraitAdds` 丢失；该形态旧档
+    // 在本修正前本就解码失败，修正后至少可读出其余全部字段。
+    @ProtoNumber(1002)
     @ColumnInfo(name = "pending_trait_adds", defaultValue = "")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var pendingTraitAdds: List<PendingTraitAdd> = emptyList(),

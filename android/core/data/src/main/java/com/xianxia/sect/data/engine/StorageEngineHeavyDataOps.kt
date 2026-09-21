@@ -137,11 +137,6 @@ internal fun StorageEngine.decodeHeavyDataFromRows(gameData: GameData, allRows: 
     )
 }
 
-internal suspend fun StorageEngine.loadHeavyDataForSlot(slot: Int): Map<String, ByteArray> {
-    val heavyDataList = loadHeavyDataSafe(slot)
-    return GameHeavyData.reassemble(heavyDataList)
-}
-
 /**
  * 安全加载重型数据：逐 key 读取，跳过超过 CursorWindow 限制的单行。
  * 跳过的数据会在下次保存时由游戏逻辑重新生成并分块存储。
