@@ -232,7 +232,10 @@ internal suspend fun SaveLoadViewModel.performRestartSave(slot: Int, previousSlo
                 "gameData.productionSlots=${snapshot.gameData.productionSlots.size}, " +
                 "disciples=${snapshot.disciples.size}")
 
-            val saveData = buildRestartSaveData(snapshot = snapshot)
+            // SR-1：重启预存从 mails 表读当前 slot 全量入快照
+            // （读失败经外层 catch 如实报失败并回滚 currentSlot）
+            val slotMails = readSlotMails(slot)
+            val saveData = buildRestartSaveData(snapshot = snapshot, mails = slotMails)
             persistRestartSave(slot = slot, previousSlot = previousSlot, saveData = saveData)
         } catch (e: OutOfMemoryError) {
             Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave OutOfMemoryError for slot $slot", e)
@@ -247,8 +250,11 @@ internal suspend fun SaveLoadViewModel.performRestartSave(slot: Int, previousSlo
     }
 }
 
-/**重启存档数据组装：快照 → SaveData（stacksSerialized 防旧堆叠泄漏） */
-internal fun SaveLoadViewModel.buildRestartSaveData(snapshot: GameStateSnapshot): SaveData {
+/**重启存档数据组装：快照 + 槽位邮件快照 → SaveData（stacksSerialized 防旧堆叠泄漏；mails 必填见 SaveDataTrimmer） */
+internal fun SaveLoadViewModel.buildRestartSaveData(
+    snapshot: GameStateSnapshot,
+    mails: List<com.xianxia.sect.core.model.MailEntity>
+): SaveData {
     return SaveData(
         gameData = snapshot.gameData,
         disciples = snapshot.disciples,
@@ -264,6 +270,7 @@ internal fun SaveLoadViewModel.buildRestartSaveData(snapshot: GameStateSnapshot)
         alliances = snapshot.alliances,
         productionSlots = snapshot.productionSlots,
         storageBags = snapshot.storageBags,
+        mails = mails,
         // restart 保存必须带该标志，否则删表守卫失效，
         // 旧世界堆叠残留泄漏进新世界
         stacksSerialized = true

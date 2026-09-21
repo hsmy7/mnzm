@@ -162,6 +162,16 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(reconciled: SaveDa
             productionSlots = reconciled.productionSlots
         )
 
+        // SR-1：云恢复邮件整对象替换回表——云会话槽位（0）的邮件表替换为
+        // 下载快照的 mails，boot/会话期新邮件在其上叠加；否则下次保存/上传
+        // 会用本地残留旧表覆盖云邮件（换设备丢邮件 = 本批要根治的缺口）。
+        // 仅替换邮件表——云恢复全量落盘归 SR-3（审计 §3/§12-I），此处不越界；
+        // 失败上抛由 performCloudLoad 统一报"加载云存档失败"。
+        persistenceFacade.storageFacade.replaceMailsForSlot(
+            effectiveSlot,
+            reconciled.mails
+        )
+
         // 与本地读档路径一致：AI 宗门 RNG 不在此播种——真源 = C++ GameCore::aiRng_，
         // 随 rngStates 9 号键（AI_SECT_MIRROR）续接归档态；旧档无该键时 native 侧按
         // GameData.mapSeed + 6×31337 播种（原 initForSlot 语义，见 applyLoadedSaveToEngine KDoc）

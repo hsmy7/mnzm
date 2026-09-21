@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameStateSnapshot
-import com.xianxia.sect.core.engine.getStateSnapshotSync
 import com.xianxia.sect.data.model.SaveData
 import kotlinx.coroutines.*
 
@@ -14,10 +13,13 @@ internal fun SaveLoadViewModel.isCloudSaveAvailable(): Boolean = persistenceFaca
 
 // unifiedState（20Hz 锁竞争 + 50ms 采样延迟）→ 独立窄流直连（零延迟）
 
-internal suspend fun SaveLoadViewModel.createSaveData(): SaveData {
-    val snapshot = gameEngine.buildSaveSnapshot()
-    return trimSaveData(snapshot)
-}
+/**
+ * 槽位全量邮件快照读取（SR-1）：保存编排在快照构造前从 `mails` 表读当前 slot
+ * 全量，注入 SaveData.mails（整对象替换语义——漏注入 = 空表抹邮件，故每个
+ * SaveData 构造点必须经此读取）。失败异常上抛，不做静默空表降级。
+ */
+internal suspend fun SaveLoadViewModel.readSlotMails(slot: Int): List<com.xianxia.sect.core.model.MailEntity> =
+    persistenceFacade.storageFacade.getMailsForSlot(slot)
 
 /**
  * 后台保存触发入口（审计 §16 #6 方案 A：`onStop` 触发一次保存）。
@@ -30,11 +32,6 @@ internal suspend fun SaveLoadViewModel.createSaveData(): SaveData {
  * 灰度：由 `SaveTriggerFlag.saveOnBackground` 门控（默认关 ⇒ 本入口不被调用）。
  */
 fun SaveLoadViewModel.saveOnBackground() = saveGame()
-
-internal fun SaveLoadViewModel.createSaveDataSync(): SaveData {
-    val snapshot = gameEngine.getStateSnapshotSync()
-    return trimSaveData(snapshot)
-}
 
 internal fun SaveLoadViewModel.saveGame(slotId: String? = null) {
     val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value?.currentSlot ?: 1
@@ -74,8 +71,10 @@ internal fun SaveLoadViewModel.saveGame(slotId: String? = null) {
     gameEngineCore.registerActiveLoadJob(job) // 保存协程注册，看门狗可取消复位
 }
 
-internal fun SaveLoadViewModel.trimSaveData(snapshot: com.xianxia.sect.core.engine.GameStateSnapshot): SaveData =
-    SaveDataTrimmer.trimSaveData(snapshot)
+internal fun SaveLoadViewModel.trimSaveData(
+    snapshot: com.xianxia.sect.core.engine.GameStateSnapshot,
+    mails: List<com.xianxia.sect.core.model.MailEntity>
+): SaveData = SaveDataTrimmer.trimSaveData(snapshot, mails)
 
 @Suppress("ExplicitGarbageCollectionCall") // 存档前低内存触发的刻意 gc：降低大快照序列化期间 OOM 概率
 internal fun SaveLoadViewModel.canPerformSaveOperation(): Boolean {
@@ -255,7 +254,10 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(slot: Int, previousS
         return
     }
     val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
-    val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
+    // SR-1：从 mails 表读当前 slot 全量入快照（目标 slot 的表 = 整对象替换回写同表，
+    // 常规保存无损；读失败上抛中止保存——空表降级 = 抹邮件）
+    val slotMails = readSlotMails(slot)
+    val saveData = trimSaveData(snapshot, slotMails).copy(gameData = updatedGameData)
 
     val saveResult = withTimeoutOrNull(30_000L) {
         persistenceFacade.storageFacade.save(slot, saveData)

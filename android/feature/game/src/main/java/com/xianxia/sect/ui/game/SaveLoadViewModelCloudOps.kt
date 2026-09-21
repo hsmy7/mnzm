@@ -361,7 +361,14 @@ internal fun SaveLoadViewModel.mergeCloudSlot(
     }
 }
 
+/**
+ * 云上传 SaveData 构造（SR-1）：从 mails 表读**会话槽位**（getCurrentSlot——
+ * 云会话为 CLOUD_SAVE_SLOT=0、常规会话为所在档）全量邮件入快照。
+ * 云上传不走本地 save，邮件入云档只能在本构造点注入；读失败上抛 = 上传中止，
+ * 不做空表静默降级。
+ */
 internal suspend fun SaveLoadViewModel.createSaveDataFromSnapshot(snapshot:
     com.xianxia.sect.core.engine.GameStateSnapshot): SaveData {
-    return SaveDataTrimmer.trimSaveData(snapshot)
+    val sessionMails = readSlotMails(persistenceFacade.storageFacade.getCurrentSlot())
+    return SaveDataTrimmer.trimSaveData(snapshot, sessionMails)
 }

@@ -132,7 +132,10 @@ internal suspend fun SaveLoadViewModel.performSynchronousSave(slot: Int): Boolea
             return false
         }
         val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
-        val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
+        // SR-1：新游戏首存同样从 mails 表读当前 slot 全量入快照
+        // （读失败经外层 catch 如实报首存失败——空表降级 = 抹邮件）
+        val slotMails = readSlotMails(slot)
+        val saveData = trimSaveData(snapshot, slotMails).copy(gameData = updatedGameData)
 
         val result = withTimeoutOrNull(30_000L) {
             persistenceFacade.storageFacade.save(slot, saveData)
