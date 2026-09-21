@@ -7,6 +7,7 @@
 
 add_executable(game-core-bench
     phase_settlement_bench_test.cpp
+    rest_domain_diff_bench_test.cpp
 )
 
 target_link_libraries(game-core-bench PRIVATE game-core gtest_main)
