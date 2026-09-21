@@ -128,19 +128,28 @@ class CloudPayloadSizeBenchTest {
 
     @Test
     fun `payload 成分归因-单项成本`() {
-        val baseline = saveBytes(SaveData(gameData = minimalGameData(), disciples = emptyList(), pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList()))
+        val baseline = saveBytes(
+            SaveData(gameData = minimalGameData(), disciples = emptyList(), pills = emptyList(),
+                materials = emptyList(), herbs = emptyList(), seeds = emptyList())
+        )
         val oneDisciple = saveBytes(
-            SaveData(gameData = minimalGameData(), disciples = listOf(bulkDisciple(0, "sect_1")), pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList())
+            SaveData(gameData = minimalGameData(), disciples = listOf(bulkDisciple(0, "sect_1")),
+                pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList())
         ) - baseline
         val oneBattleLog = saveBytes(
-            SaveData(gameData = minimalGameData(), battleLogs = listOf(bulkBattleLog(0)), disciples = emptyList(), pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList())
+            SaveData(gameData = minimalGameData(), battleLogs = listOf(bulkBattleLog(0)),
+                disciples = emptyList(), pills = emptyList(), materials = emptyList(),
+                herbs = emptyList(), seeds = emptyList())
         ) - baseline
         val terrainDelta = saveBytes(
             SaveData(gameData = minimalGameData().copy(terrainTiles = fullTerrainTiles()),
                 disciples = emptyList(), pills = emptyList(), materials = emptyList(),
                 herbs = emptyList(), seeds = emptyList())
         ) - baseline
-        val fullWorldGameData = saveBytes(SaveData(gameData = bulkGameData(bulkDisciples(50, 1), 8, 50), disciples = emptyList(), pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList()))
+        val fullWorldGameData = saveBytes(
+            SaveData(gameData = bulkGameData(8, 50), disciples = emptyList(),
+                pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList())
+        )
 
         println(
             "[payload-attribution]\n" +
@@ -305,7 +314,8 @@ class CloudPayloadSizeBenchTest {
         isRighteous = idx % 2 == 0
     )
 
-    private fun bulkGameData(aiDisciples: List<Disciple>, exploredCount: Int, yearlyReports: Int): GameData {
+    // aiDisciples 形参已移除：aiSectDisciples @Transient 不进 payload，不构造（见类 KDoc）
+    private fun bulkGameData(exploredCount: Int, yearlyReports: Int): GameData {
         val sects = (0..AI_SECTS).map { bulkWorldSect(it) }
         return GameData(
             gameYear = 50, gameMonth = 6, sectName = "青云宗",
@@ -340,8 +350,7 @@ class CloudPayloadSizeBenchTest {
     }
 
     private fun buildSaveData(p: Profile): SaveData = SaveData(
-        gameData = bulkGameData(bulkDisciples(50, 1), p.exploredSects,
-            minOf(p.gameYear, MAX_YEARLY_REPORTS)),
+        gameData = bulkGameData(p.exploredSects, minOf(p.gameYear, MAX_YEARLY_REPORTS)),
         disciples = bulkDisciples(p.playerDisciples, 0),
         equipmentStacks = (0 until p.equipmentInstances / 4).map {
             EquipmentStack(id = "stack-${UUID_PAD}$it", name = "精铁剑·堆叠${it % 20}")

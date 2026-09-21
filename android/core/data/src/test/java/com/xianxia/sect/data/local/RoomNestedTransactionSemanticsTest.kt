@@ -108,7 +108,7 @@ class RoomNestedTransactionSemanticsTest {
                 db.withTransaction {
                     innerProbeWrite(KEY_NESTED, "nested")
                     dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_OUTER, dataValue = byteArrayOf(2)))
-                    throw IllegalStateException("outer-fail")
+                    error("outer-fail")
                 }
                 fail("外层异常应穿透")
             } catch (e: IllegalStateException) {
@@ -129,7 +129,7 @@ class RoomNestedTransactionSemanticsTest {
                     dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_OUTER, dataValue = byteArrayOf(3)))
                     db.withTransaction {
                         dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_NESTED, dataValue = byteArrayOf(4)))
-                        throw IllegalStateException("inner-fail")
+                        error("inner-fail")
                     }
                 }
                 fail("内层异常应穿透外层")
@@ -151,7 +151,7 @@ class RoomNestedTransactionSemanticsTest {
                 try {
                     db.withTransaction {
                         dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_NESTED, dataValue = byteArrayOf(6)))
-                        throw IllegalStateException("inner-swallowed")
+                        error("inner-swallowed")
                     }
                 } catch (e: IllegalStateException) {
                     assertEquals("inner-swallowed", e.message)

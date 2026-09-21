@@ -44,7 +44,8 @@ class SaveDataMailWireRoundtripTest {
             isRead = false,
             attachmentClaimed = false,
             hasAttachment = true,
-            attachments = "[{\"type\":\"material\",\"name\":\"灵石\",\"quantity\":1000,\"rarity\":4,\"itemId\":\"stone_r4\"}," +
+            attachments = "[{\"type\":\"material\",\"name\":\"灵石\",\"quantity\":1000," +
+                "\"rarity\":4,\"itemId\":\"stone_r4\"}," +
                 "{\"type\":\"pill\",\"name\":\"筑基丹\",\"quantity\":3,\"extra\":{\"bind\":\"true\"}}]"
         )
 
