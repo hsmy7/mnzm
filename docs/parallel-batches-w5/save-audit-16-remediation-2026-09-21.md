@@ -7,20 +7,29 @@
 
 ---
 
-## 0. 总览
+## 0. 总览（2026-09-21 收尾：**10/10 项全部实施入库**）
 
-| 序 | 项 | 状态 | 依据 / commit |
+| 序 | 项 | 状态 | commit |
 |---|---|---|---|
-| 1 | §12-F 归档物理删弟子主表 / 战斗日志 + `slotIds` 漏 slot 6 | **部分解决**：slot 6 已修；"是否停止物理删主表"= 保留策略 → **待拍板** | `DATAARCHIVE_SLOTFIX` |
-| 2 | §12-C UI 谎报"保存成功" | ✅ **已解决** | `b35f1d9fb` |
-| 3 | §12-A heavy「先删后写」+ 超大行跳过 | **前提勘误**（不成立）+ 真缺口待实施 | §2.1 / §4.1 |
-| 4 | §12-B 假 `.bak`（无历史/无轮转） | ✅ **已解决** | `b35f1d9fb` |
-| 5 | §12-E `@ProtoNumber(162)` 冲突 + 守卫缺唯一性断言 | 待实施（**wire 面单独走批**） | §4.2 |
-| 6 | 触发模型：补 `onStop`/`onTrimMemory`/事件驱动保存 | **待拍板**（产品决策） | §3.1 |
-| 7 | §12-K 删档残留 + `clearSlotDataQuietly` 只删 2 表 | ✅ **已解决**（并补 4 张漏表） | `2ecb51e2b` |
-| 8 | §12-D 空函数 `restoreFromBackupIfCorrupted` | ✅ **已解决** | `b35f1d9fb` |
-| 9 | §12-G 读档后 boot 覆盖存档值 | **已逐条判归**：多数不该动；5 子项待拍板 | §2.2 / §3.2 |
-| 10 | §14 死代码清理 | 勘察完成（**推翻 3 处审计前提**）→ 待实施 | §2.3 / §4.3 |
+| 1 | §12-F 归档物理删主表 / 战斗日志 + `slotIds` 漏 slot 6 | ✅ 已实施（slot 6 修复 + 归档载荷**可还原**） | `e9c8988ed` / `0f6215981` |
+| 2 | §12-C UI 谎报"保存成功" | ✅ 已实施 | `b35f1d9fb` |
+| 3 | §12-A heavy「先删后写」+ 超大行跳过 | ✅ 已实施（**前提勘误后**按真缺口修） | `853bb2d8b` |
+| 4 | §12-B 假 `.bak`（无历史/无轮转） | ✅ 已实施（真轮转） | `b35f1d9fb` |
+| 5 | §12-E `@ProtoNumber(162)` 冲突 + 守卫缺唯一性断言 | ✅ 已实施（**wire 面单独走批**） | `908f24180` |
+| 6 | 触发模型：补 `onStop`/事件驱动保存 | ✅ 已实施（**方案 A：旗标默认关**） | `870be9771` |
+| 7 | §12-K 删档残留 + `clearSlotDataQuietly` 只删 2 表 | ✅ 已实施（并补 4 张漏表） | `2ecb51e2b` |
+| 8 | §12-D 空函数 `restoreFromBackupIfCorrupted` | ✅ 已实施（真恢复） | `b35f1d9fb` |
+| 9 | §12-G 读档后 boot 覆盖存档值 | ✅ 已实施（**1 项真修 + 其余判归锁定**） | `bf8394bbc` |
+| 10 | §14 死代码清理 | ✅ 已实施**第一刀**（schema 中性；冗余表留待 schema 批） | `5a421f3d6` |
+
+**剩余登记**（非本 10 项内，或明确留给后续批）：
+- 6 张冗余表（`disciples_core/combat/equipment/extended/attributes` + `disciple_compact`）的
+  实体/DAO/表删除 = **Room schema 变更**，须单独走批带 migration；
+- 保存链"严格静默"（给 `saveGame` 链加 `silent` 形参）；
+- engine→facade→UI 全链集成测试基建（core:data 无 engine/facade 测试目录，构造
+  `StorageEngine` 需 8 个 fake）⇒ 现有证据 = 纯函数直测 + 文件层语义 + 静态源码守卫；
+- 真机升级路径未实测（无截图回归基建）。
+
 
 ---
 
@@ -149,6 +158,40 @@ SaveFileManager.getBackupInfo/loadHeavyDataForSlot/6 张冗余表 + 其 DAO/Enti
 ---
 
 ## 5. 门禁与残余
+
+### 5.1 收尾组合门（2026-09-21 实测）
+
+```
+cd android && export JAVA_HOME=C:/Users/cp050/.jdks/jdk-21.0.12.1+1
+./gradlew.bat testReleaseUnitTest --max-workers=1 \
+  "-Dgamecore.jni.path=C:/Mnzm/.../libgamecorejni.so" detekt compileReleaseKotlin lintRelease
+→ BUILD SUCCESSFUL in 22m 50s / 339 actionable tasks: 78 executed, 261 up-to-date
+```
+XML 汇总（timestamp 区间 `11:46:13Z → 13:01:58Z`）：
+
+| 模块 | 用例 | 失败 | 错误 | 跳过 |
+|---|---|---|---|---|
+| `:core:domain` | 1743 | 0 | 0 | 0 |
+| `:core:data` | 710 | 0 | 0 | 15 |
+| `:core:engine` | 3384 | 0 | 0 | 0 |
+| `:core:ui` | 146 | 0 | 0 | 0 |
+| `:feature:game` | 887 | 0 | 0 | 0 |
+| `:app` | 991 | 0 | 0 | 2 |
+| **TOTAL** | **7861** | **0** | **0** | **17** |
+
+`Diff*` **50 类 / 273 例 / 0 skip**（镜像对拍面零退化）。
+相对 B19 基线 7888：**−27**（#10 删掉的 crypto 死测试随链移除）**+ 本批新增 29 例守卫**
+（backup 降级 5 + SaveResult 4 + 归档往返 3 + heavy 保全 5 + proto 唯一性 2 +
+删档覆盖 2 + 商人锚 3 + 后台保存 5）。
+
+### 5.2 残余（诚实登记）
+
+- 6 张冗余表删除（Room schema 变更）→ 须单独走批带 migration；
+- 保存链"严格静默"（`silent` 形参）；
+- engine→facade→UI 全链集成测试基建缺失（构造 `StorageEngine` 需 8 个 fake）
+  ⇒ 已实施项以「纯函数直测 + 文件层语义 + 静态源码守卫」为证；
+- 真机升级路径未实测；
+- `crypto/` 存档加密链删除后，`SaveCryptoKeyCache` 改为本地 `sha256Hex`（行为等价，已编译/测试验证）。
 
 - 已实施两批实测：`:core:data` **733/0/0/15**（721 基线 + 本批 12）；`:core:data:detekt` 绿；
   `:core:data` + `:feature:game` `compileReleaseKotlin` BUILD SUCCESSFUL。
