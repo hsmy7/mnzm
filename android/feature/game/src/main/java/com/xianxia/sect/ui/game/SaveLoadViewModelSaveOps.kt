@@ -279,6 +279,10 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(slot: Int, previousS
             showSuccess("游戏保存成功（备份未写入）")
         }
 
+        // SR-2：本地保存成功后投递云上传队列（D3 第二步）。LEGACY（默认）在
+        // shouldEnqueueCloudUpload 短路——零新增行为（硬红线，守卫测试锚定）
+        maybeEnqueueCloudUploadAfterLocalSave(slot, saveData)
+
         Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame SUCCESS === " +
             "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +
             "month=${snapshot.gameData.gameMonth}, phase=${snapshot.gameData.gamePhase}, " +

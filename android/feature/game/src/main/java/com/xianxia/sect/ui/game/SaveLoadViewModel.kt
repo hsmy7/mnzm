@@ -14,6 +14,7 @@ import com.xianxia.sect.core.engine.setSaveLoadFlags
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
+import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.AtlasResult
@@ -190,6 +191,22 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
+        // SR-2：上传队列终态失败事件 → 如实告警（postSaveWarning 同纪律：不静默）。
+        // LEGACY 模式队列零活动 ⇒ 收不到任何事件，零行为变化；可重试中的瞬时失败
+        // 不打扰用户（队列自动退避重试），仅永久失败/熔断上浮
+        viewModelScope.launch {
+            persistenceFacade.uploadQueue.events.collect { event ->
+                when (event) {
+                    is UploadQueue.Event.UploadFailed -> if (!event.willRetry) {
+                        showError("云同步失败：本地已保存，未自动上传（${event.message}）")
+                    }
+                    is UploadQueue.Event.CircuitOpened -> showError(
+                        "云同步暂时不可用（连续失败 ${event.consecutiveFailures} 次）：本地进度已保存，稍后自动恢复"
+                    )
+                    else -> {} // UploadConfirmed 静默；ConflictHeld 弹窗归 SR-3 冲突 UI
+                }
+            }
+        }
     }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬

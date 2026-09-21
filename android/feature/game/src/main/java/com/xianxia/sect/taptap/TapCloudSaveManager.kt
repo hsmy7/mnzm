@@ -3,6 +3,7 @@ package com.xianxia.sect.taptap
 import android.content.Context
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -32,7 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class TapCloudSaveManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val serializationModule: SerializationModule,
-    private val keyValueStore: com.xianxia.sect.data.prefs.KeyValueStore
+    private val keyValueStore: com.xianxia.sect.data.prefs.KeyValueStore,
+    private val uploadLedger: com.xianxia.sect.data.cloud.UploadLedger
 ) {
     companion object {
         private const val TAG = "TapCloudSaveManager"
@@ -62,8 +64,10 @@ class TapCloudSaveManager @Inject constructor(
         /**
          * 版本号字符串比较（点分段数值比较，"4.0.9" < "4.0.13"）。
          *
-         * 云跨版本仲裁：下载前用 extra JSON 的 version 字段先仲裁，
-         * 云端版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch] 明确提示。
+         * **SR-2 拍板：兼容闸，非进度仲裁**（SR-0 §4.3C 预授权）。仅用于下载前拒绝
+         * "云端 App 版本 > 当前 App"的不可加载档（[arbitrateCloudVersion]），判据是
+         * **App 版本**不是进度新旧——与 IN2（仲裁无时钟/进度只看序号）相容：进度
+         * "谁新"的唯一判定入口是 `SaveArbiter.arbitrate`（脏标志/保存序号）。
          *
          * @return 负数 cloud < current；0 相等；正数 cloud > current
          */
@@ -82,29 +86,34 @@ class TapCloudSaveManager @Inject constructor(
         }
 
         /**
-         * 合并本地缓存与 API 摘要，返回应对外暴露的云存档摘要。
+         * 合并本地缓存与 API 摘要，返回应对外暴露的云存档摘要（SR-2 去时钟重写，IN2）。
          *
          * TapTap metadata 存在最终一致性延迟——上传后立刻查询
          * 可能返回"有存档但摘要全空"的旧 extra，直接采用会把真实游戏字段清零
          *（游戏内存档卡片显示全 0）；也可能返回旧但非空的摘要，把更新的本地数据降级。
          *
-         * 规则：
+         * 规则（**无任何时钟比较**——旧规则 5 的 mtime 对比已随 IN2 退役）：
          * 1. API 确认云端无存档 → 有缓存用缓存，无缓存返回空
          * 2. 本地无缓存 → 只能采用 API 结果
          * 3. API 摘要为空（陈旧 extra）→ 保留本地缓存真实摘要
          * 4. 缓存无真实摘要但 API 有 → 采用 API
-         * 5. 两者都有真实摘要 → 取更新时间较新者（lastModifiedTime）
+         * 5. 两者都有真实摘要 → 脏标志裁决：本地脏（有未确认上传，[UploadLedger]
+         *    L>C，刚保存的本地摘要最新）→ 缓存；本地净 → API（服务器当前状态为准）。
+         *    旧行为 = 按 lastModifiedTime 比大小（performCloudUpload 曾以挂钟
+         *    System.currentTimeMillis() 伪造该值写入缓存，时钟偏移即长期误判，
+         *    审计 §12-I 的"mtime-对-挂钟"落点），SR-2 整体退役。
          */
         internal fun resolveCloudSaveInfo(
             cached: CloudSaveInfo?,
-            api: CloudSaveInfo
+            api: CloudSaveInfo,
+            localDirty: Boolean
         ): CloudSaveInfo = when {
             !api.hasSaveData -> cached ?: api
             cached == null -> api
             !api.hasMeaningfulSummary() -> cached
             !cached.hasMeaningfulSummary() -> api
-            api.lastModifiedTime >= cached.lastModifiedTime -> api
-            else -> cached
+            localDirty -> cached
+            else -> api
         }
     }
 
@@ -339,8 +348,9 @@ class TapCloudSaveManager @Inject constructor(
     }
 
     /**
-     * 云跨版本仲裁：查询云端 extra JSON 的 version 字段，
-     * 云端版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch]。
+     * 云跨版本**兼容闸**（SR-2 改注，行为不变）：查询云端 extra JSON 的 version 字段，
+     * 云端 App 版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch]——判据是
+     * App 版本兼容性不是进度新旧，与 IN2 相容（进度"谁新"唯一入口 = SaveArbiter）。
      *
      * @return 版本不兼容结果；云端版本可接受/查询失败时返回 null（继续下载）
      */
@@ -399,8 +409,13 @@ class TapCloudSaveManager @Inject constructor(
             // 防止 TapTap metadata 最终一致性延迟——上传后
             // 立刻查询可能返回"有存档但摘要全空"的旧 extra，直接采用会把真实游戏字段
             // 清零（游戏内存档卡片显示全 0）；也可能返回旧但非空的摘要，把更新的本地
-            // 数据降级。合并策略见 [resolveCloudSaveInfo]。
-            val result = resolveCloudSaveInfo(cached, apiResult)
+            // 数据降级。合并策略见 [resolveCloudSaveInfo]；脏标志取存量单档（slot 0）
+            // 账本——SR-2 起云上传队列确认写入同一账本。
+            val result = resolveCloudSaveInfo(
+                cached = cached,
+                api = apiResult,
+                localDirty = uploadLedger.isLocalDirty(StorageConstants.CLOUD_SAVE_SLOT)
+            )
             // 仅持久化含真实摘要的结果，避免把陈旧空摘要写死进本地缓存
             if (result.hasSaveData && result.hasMeaningfulSummary()) {
                 saveCloudSaveInfoToLocal(result)

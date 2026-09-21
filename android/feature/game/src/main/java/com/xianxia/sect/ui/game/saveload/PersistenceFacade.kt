@@ -5,6 +5,9 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.BootSequenceController
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.cloud.SaveBackendModeProvider
+import com.xianxia.sect.data.cloud.UploadLedger
+import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -28,5 +31,9 @@ class PersistenceFacade @Inject constructor(
     val buildingConfigService: BuildingConfigService,
     val tapCloudSaveManager: TapCloudSaveManager,
     val sessionManager: SessionManager,
+    // SR-2 云上传收口（LEGACY 默认模式下零活动）
+    val uploadQueue: UploadQueue,
+    val uploadLedger: UploadLedger,
+    val saveBackendModeProvider: SaveBackendModeProvider,
     @ApplicationContext val context: Context
 )

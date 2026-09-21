@@ -10,6 +10,9 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.cloud.SaveBackendMode
+import com.xianxia.sect.data.cloud.SaveBackendModeProvider
+import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
@@ -77,6 +80,8 @@ class SaveLoadViewModelLoadTest {
     // ── PersistenceFacade 内部依赖（主菜单云读档路径使用）──
     private val storageFacade: StorageFacade = mockk(relaxed = true)
     private val tapCloudSaveManager: TapCloudSaveManager = mockk(relaxed = true)
+    private val uploadQueue: UploadQueue = mockk(relaxed = true)
+    private val saveBackendModeProvider: SaveBackendModeProvider = mockk()
     private val sessionManager: SessionManager = mockk(relaxed = true)
     private val bootSequenceController: BootSequenceController = mockk(relaxed = true)
 
@@ -98,6 +103,13 @@ class SaveLoadViewModelLoadTest {
 
         every { persistenceFacade.storageFacade } returns storageFacade
         every { persistenceFacade.tapCloudSaveManager } returns tapCloudSaveManager
+        // SR-2 云上传收口：默认 LEGACY（守卫测试锚定零行为变化）。
+        // events 须桩真实 SharedFlow（同 stuckResetEvents：relaxed mock 的 collect 抛
+        // KotlinNothingValueException）
+        every { persistenceFacade.uploadQueue } returns uploadQueue
+        every { uploadQueue.events } returns MutableSharedFlow()
+        every { persistenceFacade.saveBackendModeProvider } returns saveBackendModeProvider
+        every { saveBackendModeProvider.current() } returns SaveBackendMode.LEGACY
         every { persistenceFacade.sessionManager } returns sessionManager
         // 统一守卫读 bootInProgress + applyCloudSaveToEngine
         // 调 boot——relaxed mock 返回 null 会 NPE，显式 stub 为 false/成功
@@ -987,5 +999,38 @@ class SaveLoadViewModelLoadTest {
 
         // 预存失败 ⇒ 引擎不得重置（旧档仅在盘上，重置将覆写唯一副本）；恰一次预存尝试
         assertEquals(listOf("save"), order)
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // SR-2 云上传触发钩子：LEGACY 短路（硬红线守卫）× CLOUD_TRANSITION 入队
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `SR-2 LEGACY 守卫 - 本地保存成功不入队云上传（默认模式零行为变化）`() = runTest(testDispatcher) {
+        stubRestartOrderGuards()
+        coEvery { gameEngine.buildSaveSnapshot() } returns restartSnapshot(year = 3)
+        coEvery { storageFacade.save(any(), any()) } returns SaveResult.success(Unit)
+
+        viewModel.saveGame("1")
+        advanceUntilIdle()
+
+        // 本地保存照常完成（IN1 第一步不受影响）
+        coVerify(exactly = 1) { storageFacade.save(any(), any()) }
+        // 硬红线：LEGACY 模式队列零活动——无入队、无账本写入路径
+        coVerify(exactly = 0) { uploadQueue.enqueue(any(), any(), any()) }
+    }
+
+    @Test
+    fun `SR-2 CLOUD_TRANSITION - 本地保存成功后投递云上传队列`() = runTest(testDispatcher) {
+        stubRestartOrderGuards()
+        every { saveBackendModeProvider.current() } returns SaveBackendMode.CLOUD_TRANSITION
+        coEvery { gameEngine.buildSaveSnapshot() } returns restartSnapshot(year = 3)
+        coEvery { storageFacade.save(any(), any()) } returns SaveResult.success(Unit)
+
+        viewModel.saveGame("1")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 1) { uploadQueue.enqueue(any(), any(), any()) }
     }
 }
