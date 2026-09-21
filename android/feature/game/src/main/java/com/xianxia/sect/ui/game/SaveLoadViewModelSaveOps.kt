@@ -19,6 +19,18 @@ internal suspend fun SaveLoadViewModel.createSaveData(): SaveData {
     return trimSaveData(snapshot)
 }
 
+/**
+ * 后台保存触发入口（审计 §16 #6 方案 A：`onStop` 触发一次保存）。
+ *
+ * **复用既有保存链**，不新增保存逻辑；`saveGame` 内部已有 `checkLocalSaveGuards()`
+ * （引擎未加载 / 槽位非法即返回），且为非挂起、内部自行派发 ⇒ 调用方非阻塞。
+ *
+ * 提示通道（登记）：本链路失败仍走既有 `showError`——App 已退到后台，提示不可见；
+ * 如需严格静默需给保存链加 `silent` 形参，属后续项。
+ * 灰度：由 `SaveTriggerFlag.saveOnBackground` 门控（默认关 ⇒ 本入口不被调用）。
+ */
+fun SaveLoadViewModel.saveOnBackground() = saveGame()
+
 internal fun SaveLoadViewModel.createSaveDataSync(): SaveData {
     val snapshot = gameEngine.getStateSnapshotSync()
     return trimSaveData(snapshot)

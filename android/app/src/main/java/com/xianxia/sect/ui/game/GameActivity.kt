@@ -825,9 +825,34 @@ class GameActivity : ComponentActivity() {
         // 窗口切换期间宿主转发无缝衔接）
         complianceCallbackHost.clearGameWindow(complianceWindowPort)
         super.onStop()
+        // 后台保存触发（审计 §16 #6 方案 A，旗标默认关 ⇒ 默认零行为变更）
+        triggerBackgroundSaveIfEnabled()
         // pauseForBackground 已移到 onPause（保证调用），此处不再重复
         // onPause+onStop 序列中 pauseForBackground 幂等
         Log.d(TAG, "onStop: background tasks already paused in onPause")
+    }
+
+    /**
+     * 退到后台时的保存触发（审计 §16 #6 方案 A）。
+     *
+     * 旗标 `SaveTriggerFlag.saveOnBackground` **默认关** ⇒ 本方法在第一行短路返回，
+     * 与历史行为逐行等价（零副作用）。开启后：有有效槽位且引擎已加载才落一次盘。
+     * 保存链自身非阻塞（内部派发），失败走既有提示通道（后台不可见）。
+     */
+    private fun triggerBackgroundSaveIfEnabled() {
+        if (!com.xianxia.sect.data.SaveTriggerFlag.saveOnBackground) return
+        val slot = viewModel.gameData.value?.currentSlot ?: -1
+        val enabled = com.xianxia.sect.data.shouldSaveOnBackground(
+            flagOn = true,
+            hasActiveSlot = slot >= 1,
+            engineLoaded = saveLoadViewModel.isGameLoaded
+        )
+        if (!enabled) {
+            Log.d(TAG, "onStop: 后台保存跳过（slot=$slot, loaded=${saveLoadViewModel.isGameLoaded}）")
+            return
+        }
+        saveLoadViewModel.saveOnBackground()
+        Log.i(TAG, "onStop: 已触发后台保存 slot=$slot")
     }
 
     override fun onResume() {
