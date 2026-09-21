@@ -2,9 +2,12 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.data.backup.SaveFileManager
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
+import com.xianxia.sect.data.engine.getMailsForSlot
+import com.xianxia.sect.data.engine.replaceMailsForSlot
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 
@@ -180,6 +183,27 @@ class StorageFacade @Inject constructor(
             Log.e(TAG, "Load failed for slot $slot", e)
             SaveResult.failure(SaveError.LOAD_FAILED, e.message ?: "Load failed", e)
         }
+    }
+
+    // ==================== 邮件快照方法（SR-1） ====================
+
+    /**
+     * 槽位全量邮件读取（保存编排注入 SaveData.mails 用）。
+     * 如实返回表内现状，不做任何过期清理（30 天删除逻辑归 SR-5）。
+     * 失败异常直接上抛——邮件快照缺失会以空表替换回写，静默降级 = 丢邮件。
+     */
+    suspend fun getMailsForSlot(slot: Int): List<MailEntity> {
+        ensureInitialized()
+        return engine.getMailsForSlot(slot)
+    }
+
+    /**
+     * 槽位邮件整对象替换（云恢复面用）：先删后写单事务，仅动邮件表。
+     * 内层异常直接上抛（Room 2.7.0 吞内层异常 = 仅回滚内层写，不得依赖其做部分提交）。
+     */
+    suspend fun replaceMailsForSlot(slot: Int, mails: List<MailEntity>) {
+        ensureInitialized()
+        engine.replaceMailsForSlot(slot, mails)
     }
 
     // ==================== 删除方法 ====================

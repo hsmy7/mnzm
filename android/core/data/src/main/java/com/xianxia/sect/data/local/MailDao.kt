@@ -17,6 +17,13 @@ interface MailDao {
     fun getActiveMails(slotId: Int): Flow<List<MailEntity>>
 
     /**
+     * 槽位全量邮件快照读取（SR-1：保存时入 SaveData 用）。
+     * 如实返回表内现状（含尚未被惰性清理的过期行——30 天删除语义归 SR-5，本读取不做任何删除）。
+     */
+    @Query("SELECT * FROM mails WHERE slotId = :slotId ORDER BY sendTime DESC")
+    suspend fun getAllForSlotSync(slotId: Int): List<MailEntity>
+
+    /**
      * 删除槽位内全部过期邮件（决策项② 2026-09-09：过期即删）。
      * 过期邮件领取路径本就返回 Expired 不可领——删除无功能损失。
      * expireTime=0（永久有效）不受影响。@return 删除行数

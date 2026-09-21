@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.DiscipleExtended
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameHeavyData
+import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.PatrolStateEntity
 import com.xianxia.sect.core.model.ProductionState
 import com.xianxia.sect.core.model.Recipe
@@ -155,6 +156,10 @@ internal suspend fun StorageEngine.clearOldSlotEntities(slot: Int, data: SaveDat
     core.database.recipeDao().deleteAll(slot)
     core.database.productionSlotDao().deleteBySlot(slot)
     core.database.discipleCompactDao().deleteAll(slot)
+    // 邮件整对象替换的删侧（SR-1）：SaveData.mails 是槽位邮件的唯一真相——
+    // 旧档无该字段 ⇒ 快照空表 ⇒ 替换后表为空（方案明示单向兼容，与堆叠的
+    // stacksSerialized 条件保留语义**不同**，此处无条件删，交由写侧回填快照）。
+    core.database.mailDao().deleteAllForSlot(slot)
 }
 
 /** 写入核心实体（轻型 GameData + 弟子/堆叠/实例/生产槽等）。 */
@@ -165,6 +170,7 @@ internal suspend fun StorageEngine.writeCoreEntities(slot: Int, data: SaveData, 
     val bptSnapshot = data.gameData.bloodRefinementPctTotals
     writeDisciples(slot, data, bptSnapshot)
     writeStackedItems(slot, data)
+    writeMails(slot, data)
     writeProductionSlotsAndRecipes(slot, data)
 
     syncSlotMetadata(slot, data)
@@ -235,6 +241,43 @@ internal suspend fun StorageEngine.writeProductionSlotsAndRecipes(slot: Int, dat
 
     data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
         core.database.recipeDao().upsertAll(recipes)
+    }
+}
+
+/**
+ * 邮件快照回填（SR-1 整对象替换的写侧）：SaveData.mails → `mails` 表。
+ *
+ * 删侧在 [clearOldSlotEntities]（同处 `writeAllDataToDatabase` 的外层事务内），
+ * 先删后写 = 整对象替换；调用链在 `performFullTransactionSave` 的
+ * `withTransaction` 之内（IN1 原子性），且不得依赖吞内层异常做部分提交
+ * （SR-0 §5 Room 2.7.0 savepoint 语义警示）。
+ */
+internal suspend fun StorageEngine.writeMails(slot: Int, data: SaveData) {
+    data.mails.chunked(MAX_BATCH_SIZE).forEach { batch ->
+        core.database.mailDao().insertAll(batch.map { it.copy(slotId = slot) })
+    }
+}
+
+/**
+ * 槽位全量邮件快照读取（SR-1 保存面注入用）：保存编排从表读当前 slot 全量入 SaveData。
+ * 如实返回表内现状，不做任何过期清理（30 天删除逻辑归 SR-5）。
+ */
+internal suspend fun StorageEngine.getMailsForSlot(slot: Int): List<MailEntity> =
+    core.database.mailDao().getAllForSlotSync(slot)
+
+/**
+ * 槽位邮件整对象替换（SR-1 云恢复面用）：下载快照的邮件单表回填（先删后写，单事务）。
+ *
+ * 仅替换邮件表——云恢复全量落盘归 SR-3（审计 §3/§12-I），本函数不越界；
+ * 内层异常直接上抛（Room 2.7.0 吞内层异常 = 仅回滚内层写，不得依赖其做部分提交，
+ * SR-0 §5 警示）。
+ */
+internal suspend fun StorageEngine.replaceMailsForSlot(slot: Int, mails: List<MailEntity>) {
+    core.database.withTransaction {
+        core.database.mailDao().deleteAllForSlot(slot)
+        mails.chunked(MAX_BATCH_SIZE).forEach { batch ->
+            core.database.mailDao().insertAll(batch.map { it.copy(slotId = slot) })
+        }
     }
 }
 
