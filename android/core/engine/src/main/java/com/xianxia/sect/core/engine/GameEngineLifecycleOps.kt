@@ -182,10 +182,25 @@ private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
     }
 }
 
+/**
+ * 商人列表为空时是否应触发**修复性**刷新（审计 §12-G #15）。
+ *
+ * 判据 = "列表为空 **且** 商人从未生成过"（`merchantLastRefreshYear == 0`）。
+ * 反例（修复对象）：玩家把商品**买光**后列表同样为空，但 `merchantLastRefreshYear > 0`
+ * —— 此时若照旧刷新，读档即等于免费补货（绕过刷新节奏）。纯函数，桌面/JVM 可直测。
+ */
+internal fun shouldRepairMerchantInventory(itemsEmpty: Boolean, lastRefreshYear: Int): Boolean =
+    itemsEmpty && lastRefreshYear == 0
+
 private suspend fun GameEngine.checkAndRepairMerchantAndRecruit() {
     val gd = stateStore.gameDataSnapshot
-    if (gd.travelingMerchantItems.isEmpty()) {
-        DomainLog.w("ensureGameDataIntegrity", "travelingMerchantItems 为空，刷新")
+    // 审计 §12-G #15 修正：原判据只看"列表为空" ⇒ 玩家把商品**买光**后读档会被白送一次
+    // 刷新（绕过 merchantLastRefreshYear 的节奏，等于免费补货）。改为只在
+    // "从未生成过商人"（merchantLastRefreshYear == 0，新档/损坏档）时才做修复性刷新；
+    // 非 0 的空列表属"已买光"，交由正常节奏刷新——与下方 recruitList 的
+    // `gameYear - lastRecruitYear >= 3` 判据同族。
+    if (shouldRepairMerchantInventory(gd.travelingMerchantItems.isEmpty(), gd.merchantLastRefreshYear)) {
+        DomainLog.w("ensureGameDataIntegrity", "travelingMerchantItems 为空且商人从未生成，刷新")
         cultivationService.refreshTravelingMerchant(gd.gameYear, gd.gameMonth)
     }
     // 商人商品 id 去重净化：损坏/旧存档可能出现重复或空 id 商品，
