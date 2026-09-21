@@ -46,7 +46,7 @@ SR 全系列（SR-1…SR-7）的前置事实核：四个设计假设（payload �
 |---|---|---|---|
 | 施工卡 + 台账 | ✅ 完成 | `d096a05ef` | |
 | T5 嵌套事务 | ✅ 完成 | 见本行 commit 列下笔 | **结论：并入同一事务，存疑解除**（4/4 实测全绿 + Room 2.7.0 源码证据；详见 `docs/sr0-recon-report-2026-09-21.md` §5 与审计 §15 补注） |
-| T1 payload 实测 | queued | — | |
+| T1 payload 实测 | ✅ 完成 | 见完成报告 | **Go**：最大档 ≈0.28MB（上限 2.8%）；IN5 红线建议 2MB；战斗日志维持 1000 封顶、heavy 分 key 无必要；@Transient 发现（AI 弟子不进云档）登记 SR-3 |
 | T2 TapTap 限额 | queued | — | |
 | T3 云多档语义 | queued | — | |
 | T4 冲突剧本 | queued | — | |

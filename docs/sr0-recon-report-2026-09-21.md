@@ -47,9 +47,56 @@ Room 2.7.0（KMP 重写）事务实现在 `ConnectionPoolImpl`：
 
 ---
 
-## §1 payload 尺寸分布实测（T1）
+## §1 payload 尺寸分布实测（T1）——✅ 结论：最大档 ≈0.28MB，远低于红线，Go
 
-（待 T1 完成后回填）
+### 1.1 测量路径（生产同构）
+
+`SaveData → NullSafeProtoBuf(PROTOBUF) → LZ4 + SHA-256 checksum`——与云上传
+`SerializationModule.serializeAndCompressSaveData` 完全相同的 `SerializationContext`。
+台架 = `android/core/data/src/test/.../CloudPayloadSizeBenchTest.kt`（**保留为 IN5 CI 断言种子**，
+方案 §3 IN5 落地时收紧为红线门）。
+
+### 1.2 两个改变判断的代码事实（勘察发现）
+
+1. **`GameData.aiSectDisciples` 带 `@kotlinx.serialization.Transient`，不进 SaveData proto**
+   ⇒ **云档 payload 根本不含 AI 宗弟子**（29 宗 × 至多 1000 人的最坏担心不成立）。
+   AI 弟子走 Room `game_heavy_data` 独立通道；`GameData.kt:892` 注释自证
+   "云存档链无 heavy_data 侧车补偿"。同 @Transient 还有 aiSectBeastSkipCooldowns /
+   aiBeastEncounterTargets / lockedBeastIds / aiSectBeastDirectTargets。
+   **SR-3 必读推论**：跨设备云读档时 AI 宗弟子由 `ensureGameDataIntegrity`
+   按 ~初始态重生成（`MAX_AI_SECT_DISCIPLES=50`/宗），玩家在原设备花资源打出来的
+   AI 宗弟子池（占领战、装备补全）在换设备后**不保真**——这是现役云链路的既有语义，
+   CLOUD_TRANSITION 设计槽位云化时必须拍板：接受重生成 or heavy 域并入云档（体积可行，见 1.4）。
+2. **`terrainTiles`（@ProtoNumber(1001)，16384 瓦片 flat）在云档 payload 内**，实测仅 ≈3KB（LZ4）。
+
+### 1.3 尺寸-游戏年曲线（3/3 测试绿，2026-09-21 实测）
+
+| 档位 | 玩家弟子 | 战斗日志 | 装备/功法/材料 | proto 原始 B | **LZ4 后 B** | LZ4 后 MB | 压缩率 |
+|---|---|---|---|---|---|---|---|
+| 第1年 | 20 | 100 | 60/30/40 | 317,478 | **32,775** | 0.03 | 0.103 |
+| 第5年 | 60 | 400 | 180/80/120 | 1,089,598 | **106,426** | 0.10 | 0.098 |
+| 第20年 | 120 | 1000 | 350/150/250 | 2,620,136 | **247,988** | 0.24 | 0.095 |
+| 第50年 | 200 | 1000 | 500/200/300 | 2,669,881 | **263,665** | 0.25 | 0.099 |
+| 第50年·重玩家档 | 300 | 1000 | 800/300/400 | 2,734,070 | **283,206** | 0.27 | 0.104 |
+| 极限档·年报满100(200年) | 300 | 1000 | 800/300/400 | 2,743,458 | **286,313** | 0.27 | 0.104 |
+
+成分归因（LZ4 后增量）：单弟子 ≈351B；单战斗日志（中等密度 4-9 回合）≈437B；
+terrainTiles 16384 瓦片 ≈3KB；满探索世界 GameData ≈9KB。
+battleLogs 条数敏感性（LZ4 后）：100 条 21KB / 500 条 105KB / 1000 条 209KB——**线性 ≈215B/条，
+是 20 年后档位的最大单项（≈73%）**。
+
+### 1.4 云档裁剪决策 + IN5 红线建议
+
+- **战斗日志限条数：维持现役 1000 条封顶（`SaveDataTrimmer`），无需收紧**。1000 条 = 209KB，
+  即便未来内容密度翻倍也不构成压力；"heavy 分 key 上传"**无必要**（AI 宗弟子域本就 @Transient
+  不进 payload；其余域实测总和 <100KB）。
+- **IN5 红线建议 = 2MB（2,000,000 字节，LZ4 后）**：对最坏实测档（0.29MB）留 ~7× 余量，
+  对 TapTap 10MB 硬上限留 5× 保护；覆盖 SR-1 邮件并入快照、未来功能漂移、
+  以及"台架合成内容密度低于真实存档 3×"的最坏修正后仍有 ~2.3× 余量。
+- CI 断言落地（IN5 收紧时）：`CloudPayloadSizeBenchTest` 的"极限档"断言
+  `compressed < 2_000_000`（当前 <10MB 宽松断言照旧保留作硬上限兜底）。
+- 诚实登记：样本为**合成生产形状**（字段内容长度取真实中位数、无 mail/SR-1 增量、
+  存量真实档未采样）；若验收轮要求真档校准，可在真机导出 `.sav` 对拍一次。
 
 ## §2 TapTap v4 限额复核（T2）
 
