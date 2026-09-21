@@ -13,6 +13,69 @@
 - **G2/WS-1 拍板（纯文档）**：`<10ms@5000` 单点终态不再作为 WS-1 关闭判据，改立**分档基线**（D≤1000 <10ms、D=5000 <150ms，当前 139.30ms 达标），**WS-1 以"已收口"关闭**，残余成本中心①②（`upsertMirrorRow` 列级收窄、store 侧 `assembleAll`）登 **B18**。
 - **测试计数（实测）**：桌面 GTest **1556 不变**；`:core:engine` **3374**（+2）；`:app` **1010**（含 2 skip；`FootprintTableSyncTest` 用例 1 退役后为 2 用例——交接文档"1004→1003"为不同口径，以实测为准）。六模块全量组合门 TOTAL **7876 tests / 0 fail / 17 既有 skip**，`Diff*` 50 类 273 用例 **0 skip**。沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。
 
+### R6.2 + §7.3 批 B18 收官（2026-09-21）——回滚臂删除批剩余项 P1–P5（镜像 typed 化 / 热路径收口 / 死臂清理 / γ 判归）
+
+> 实施 [docs/parallel-batches-w5/b18-remaining-impl-2026-09-20.md](docs/parallel-batches-w5/b18-remaining-impl-2026-09-20.md)
+> §1–§5（前置四臂见 [batch-B18.md](docs/parallel-batches-w5/batch-B18.md) §0：臂1 `df6b70d5a` /
+> 臂2 `efba3ee72` / 臂3 `a7de1360a` / 臂β `4ed1d7c24`，JNI 基线 91→87）。
+> **零玩家可见变更**（协议只增字段 + 行为等价重构 + 注释/口径）⇒ 游戏内
+> `changelog_entries.json` 未追加；沿用 4.01.15 段不新建版本条目，`version.properties`
+> 未递增——由用户决定。每子项独立 commit。**到期判据**（一个完整发版周期 + 零回滚事件）
+> 经 `a17a3330f` 实测不满足，用户 2026-09-20 晚两次显式指令开工 + 书面豁免（知情覆盖）。
+
+- **P1-A1 · 镜像 `upsertsJson`/`valueJson` typed 化**（`85603146a`）：proto 新增通用递归承载
+  `TypedValue`/`TypedField`/`TypedRow`（`TypedValue` 含 `vNull` 防御位 + **`vEmptyArray` 判别位**
+  ——`[]` 与 `{}` 在 wire 层同为零字节不可区分，而形状语义不同）；`CollectionChange` 追加
+  `repeated TypedRow upsertsTyped = 4`、`JsonFieldChange` 追加 `optional TypedValue valueTyped = 3`；
+  旧 2 号 bytes 字段**停写保留、号冻结永不复用**（Kotlin 解码保留 fallback ⇒ 旧格式 golden 夹具
+  仍可解码 = 对照面非删断言）。C++ 侧新增递归编码助手 `appendTypedValue`/`appendTypedRow` 并删两处
+  JSON 文本序列化分支——**消灭 C++ JSON 文本序列化 + Kotlin JSON parse 的第一半**。守卫三层：
+  C++ 编码层 3 用例（含空容器判别）、新增 `MirrorTypedEnvelopeEquivalenceTest`（JVM 双路逐字段
+  相等 + **桌面 C++ 真编码臂** + 数字 content 逐字符串红线）、端到端原断言零改动。
+- **P1-A2 · `DiscipleRow.storageBagItems` typed 化**（`ed235c479` + 补遗 `ff127abc8`）：110 号
+  `repeated TypedRow storageBagItemsTyped`（递归覆盖 StorageBagItem → ItemEffect /
+  EquipmentInstance / BagStackedData / ManualInstance），75 号停写保留。**本批最值钱的判据**：
+  75 号是**标量**（bytes 空/非空天然区分「未携带」与「携带空袋」），换轨 repeated 后**零条目同时
+  表示两种相反语义**（列缺省 / 列脏且清空）⇒ 列级合并会让"清空袋"**静默丢失**（镜像保留已消耗
+  丹药 = 用户可见数据错误；可达性实测 `auto_gear.h:936` / `month_settlement.h:1698`）⇒ 追加
+  `optional bool storageBagItemsPresent = 111` 列携带位（写在全部字段之后保持字段号升序），
+  Kotlin 合并判据改 `count > 0 || present`。新增 `MirrorTypedDiscipleBagGuardTest` 3 例（双路等价
+  + **列携带位双向语义** + C++ 真编码臂）。**同类系统性残余**（登记）：其余 repeated 列同样缺该位
+  ——属既有协议空洞，建议 B20b「typed 投影 + 脏位图」收口。
+- **P2 · `indexById` 收口**（`ce4e3f84b`）：`month_settlement.h` 两处（同一表达式内两次重建 /
+  叛逃检查每轮 3 次重建）→ 一轮一次构建复用。**红线守住**：跨迭代重建是 A 组 UAF 根治后的正确性
+  机制，**未提循环外**（只做同轮复用，重建时机不变）。I 族三文件（`phase_settlement.h` /
+  `battle_residual_tx.h` / `disciple_store.h`）逐点勘察 = **零改动**（非同型）。ctest 计数与前一
+  笔持平 = 行为等价重构实证。
+- **P3 · 注释/口径收口**（`802564565`）：`build-atlas.mjs` 叠加层段删「Kotlin 旧逐 rect 路径
+  （灰度回滚臂）引用本表」**失效陈述**（该臂已随臂β 退役），改「C++ 几何生成（四类全消费）+
+  Kotlin Canvas 兜底手绘」两路消费者口径；重跑 codegen ⇒ `scene_uv_tables.h` **纯注释 +2/-1**
+  （值面零漂移）；`NativeBridge.cpp` 删「B18 前新旧两路」措辞；**`scene_draw.h` 修正失效守卫名**
+  （原引用不存在的 `SceneOverlayFlagsMirrorGuardTest`，实名 `SceneOverlayProtocolGuardTest`）；
+  `MirrorSegmentProjectionBenchTest` 测试 2 去「对照」措辞。
+- **P4 · `aiBeastEncounterTargets` 死臂清理**（`68d9f9ea1`）：`gameData.aiBeastEncounterTargets`
+  全仓（Kotlin + C++）**零插入者** ⇒ 恒空 ⇒ 遭遇战分支**自始不可执行** ⇒ 调用链闭合删除
+  （`resolveEncounterPath` / `launchEncounterBattle` / `selectBeastDefenders` /
+  `resolveBeastEncounterIfAny` + `manualDefenders` 死形参（detekt `UnusedParameter` 实证）+
+  孤儿 import）。**保留面（红线）**：`GameData` 字段本体（判归 = **值保留**，镜像承载现值不被清空，
+  `GameDataFieldPatchGuardTest` 锁定）、C++ 侧 `exploration_tx.h` 字段（零 C++ 改动）、DI 访问器。
+  文件内留 **tombstone 注释**（删除理由 + 复活须知：接上插入者不会自动恢复特性）。
+- **P5 · γ-收口（判归 A = 零删除）**（`2448af6f1`）：`BattleExecutionRouter` 三处 `null` 出口
+  **重标性质**——`!authoritative` = 全局逐动作 OFF kill-switch 投影 / `!isLoaded` = 平台兜底前置 /
+  `containsKey("error")` = 失败信封容错，**均非灰度回滚臂**（同臂 3 `columnExportBlocked_` 判例），
+  灰度旗标永远为真之后仍会触发 ⇒ 整链保留（调用方 `?: executeBattle` 承担容错 + JVM 测试回退 +
+  Diff* 对照面三职）。"适配范围"段实测校准为 **6 文件 11 调用点**；失败信封分支 JVM 不可单测的
+  **诚实登记**（无注入缝，守卫由 KDoc 契约 + 桌面 Diff* 承担，**不造假用例**）。**守卫零变更**。
+- **测试计数（实测）**：桌面 GTest **1558/1558**（= 臂β 基线 1556 + 本批 2 例；**历史文档记的
+  「ctest 1553」为单进程直跑口径误记，ctest 真实基线 = 1556**）；六模块组合门 **7882 例 / 0 失败 /
+  0 错误 / 17 既有跳过**（`:core:engine` **3380**、domain 1743、data 716+15 既有、ui 146、
+  feature:game 887、app 1010+2 既有）；`Diff*` 50 类 273 例 **0 skip**；`SoftwareCanvasBackend*`
+  106 例 0 skip（Canvas 兜底零改动实证）；**JNI 面 87/87 不变**（零新端口）；NDK arm64 编译验证通过。
+- **施工卡口径勘误（已回头登记）**：P3 §3.2「对照对象列级臂已于臂 3 删除」**前提反向**（臂 3 删的是
+  **非列级**导出臂），按其字面改会削弱「列级补丁合并语义 == 全行语义」等价守卫 ⇒ 保留断言只校正
+  KDoc；P3 生成注释「删预览框/选中/拆除高亮」**与事实相反**（C++ `buildOverlayLayers` 仍消费四类，
+  退役的是 Kotlin 逐 rect 绘制臂）⇒ 按事实改写。
+
 ### R6.2 批 B16（2026-09-20）——数值外置：C++ 头文件 DB → 数据文件加载（改数值不再触发逻辑重编译）
 
 > 实施 [docs/native-engine-refactor-plan-2026-09-17.md](docs/native-engine-refactor-plan-2026-09-17.md) §3 R6 表 R6.2 行（批次文件 `docs/parallel-batches-w5/batch-R6B.md`；前置 = B15/R6.1）。**零玩家可见变更（数值逐位等价）、协议 JSON 面/存档格式/既有 JNI 签名零变更 ⇒ 游戏内 `changelog_entries.json` 未追加**；沿用本段不新建版本条目，`version.properties` 未递增——由用户决定。每子项独立 commit。渠道注记：WorkBuddy 首发完成子项①与子项②大部后配额中断，ZCode 会话接续补全。
