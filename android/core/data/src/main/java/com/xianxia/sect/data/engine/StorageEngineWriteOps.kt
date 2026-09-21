@@ -61,18 +61,24 @@ internal suspend fun StorageEngine.writeAllDataToDatabase(slot: Int, data: SaveD
     return StorageResult.success(Unit)
 }
 
-/** 清除旧重型数据（按前缀批量删除）。 */
+/**
+ * 计算本次可安全清除的 heavy 前缀 = 全部 key 中排除"读档时被跳过"的 key。
+ *
+ * 被跳过的 key 其 DB 原值必须保留（读档跳过后内存值为空，若照常删除再用空值
+ * 重写会永久覆盖）。纯函数，便于直测。
+ */
+internal fun heavyPrefixesToClear(allKeys: List<String>, skippedKeys: Set<String>): List<String> =
+    allKeys.filterNot { it in skippedKeys }
+
+/** 清除旧重型数据（按前缀批量删除；读档被跳过的 key 除外，见审计 §12-A）。 */
 internal suspend fun StorageEngine.clearHeavyDataByPrefix(heavyDao: GameHeavyDataDao, slot: Int) {
-    val allPrefixes = listOf(
-        GameHeavyData.KEY_AI_SECT_DISCIPLES,
-        GameHeavyData.KEY_SECT_DETAILS,
-        GameHeavyData.KEY_EXPLORED_SECTS,
-        GameHeavyData.KEY_SCOUT_INFO,
-        GameHeavyData.KEY_MANUAL_PROFICIENCIES,
-        GameHeavyData.KEY_RECRUIT_LIST,
-        GameHeavyData.KEY_WORLD_MAP_SECTS
-    )
-    for (prefix in allPrefixes) {
+    val skipped = skippedHeavyKeysBySlot[slot].orEmpty()
+    val prefixes = heavyPrefixesToClear(GameHeavyData.ALL_KEYS, skipped)
+    if (skipped.isNotEmpty()) {
+        Log.w(TAG, "clearHeavyDataByPrefix: 保留被跳过的 heavy key $skipped (slot=$slot)，" +
+            "避免用空内存值覆盖 DB 完整数据")
+    }
+    for (prefix in prefixes) {
         heavyDao.deleteByKeyPrefix(slot, prefix)
     }
 }

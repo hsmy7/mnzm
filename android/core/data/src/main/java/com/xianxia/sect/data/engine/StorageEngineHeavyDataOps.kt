@@ -25,6 +25,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 // StorageEngine 的重数据域:合并恢复/域表回填/解码/实体装载与槽位隔离处置。
 
@@ -34,8 +35,26 @@ private const val MAX_BATCH_SIZE = StorageEngine.MAX_BATCH_SIZE
 
 private const val LOW_MEMORY_THRESHOLD_MB = StorageEngine.LOW_MEMORY_THRESHOLD_MB
 
+/**
+ * 一次重型数据安全读取的结果：成功读取的行 + 因单行超 CursorWindow 被跳过的 key。
+ */
+internal data class HeavyDataLoadReport(
+    val rows: List<GameHeavyData>,
+    val skippedKeys: Set<String>
+)
+
+/**
+ * 进程内、按 slot 记录"最近一次读档被跳过的 heavy key"。
+ *
+ * 被跳过的 key 其内存值为空，若下一次保存照常 `deleteByKeyPrefix` 再用空值重写，
+ * 会**永久覆盖** DB 中的完整数据（exploredSects/scoutInfo 等无再生源）。
+ * clearHeavyDataByPrefix 据此排除这些 key，保住 DB 原值。
+ */
+internal val skippedHeavyKeysBySlot = ConcurrentHashMap<Int, MutableSet<String>>()
+
 internal suspend fun StorageEngine.mergeHeavyData(gameData: GameData, slot: Int): GameData {
-    val allRows = loadHeavyDataSafe(slot)
+    val report = loadHeavyDataSafeWithReport(slot)
+    val allRows = report.rows
 
     // heavy_data 表无数据时，依次从 domain state 表 fallback 恢复所有重型字段。
     // 这 5 个 domain state 表与 heavy_data 在同一事务中写入（writeAllDataToDatabase
@@ -48,7 +67,25 @@ internal suspend fun StorageEngine.mergeHeavyData(gameData: GameData, slot: Int)
         return gameData
     }
 
-    return decodeHeavyDataFromRows(gameData = gameData, allRows = allRows)
+    val decoded = decodeHeavyDataFromRows(gameData = gameData, allRows = allRows)
+
+    // 有 key 被跳过（超 CursorWindow）或 7 个 heavy key 任一缺失时，用 domain state
+    // 表回填**缺失**的 key（只补缺失，不覆盖已存在）。审计 §12-A 关键防线：
+    // 被跳过的 key 内存值为空，若原样存回会永久抹掉 DB 中的完整数据。
+    val presentKeys = GameHeavyData.ALL_KEYS.filter { prefix ->
+        allRows.any { it.dataKey == prefix || it.dataKey.startsWith("$prefix/") }
+    }.toSet()
+    val missingKeys = keysNeedingBackfill(GameHeavyData.ALL_KEYS, presentKeys)
+    if (missingKeys.isNotEmpty()) {
+        Log.w(TAG, "mergeHeavyData: slot $slot missing heavy keys=$missingKeys, " +
+            "skipped=${report.skippedKeys}, backfilling from domain tables")
+        return restoreMissingHeavyKeysFromDomainTables(decoded, slot, missingKeys.toSet())
+    }
+    if (report.skippedKeys.isNotEmpty()) {
+        Log.w(TAG, "mergeHeavyData: slot $slot skipped=${report.skippedKeys} " +
+            "but no heavy key missing from rows; nothing to backfill")
+    }
+    return decoded
 }
 
 /**
@@ -138,21 +175,35 @@ internal fun StorageEngine.decodeHeavyDataFromRows(gameData: GameData, allRows: 
 }
 
 /**
- * 安全加载重型数据：逐 key 读取，跳过超过 CursorWindow 限制的单行。
- * 跳过的数据会在下次保存时由游戏逻辑重新生成并分块存储。
+ * 需要域表回填的 key = [allKeys] 中不在 [presentKeys] 的 key（缺失或被跳过）。
+ * 纯函数，便于直测。
+ */
+internal fun keysNeedingBackfill(allKeys: List<String>, presentKeys: Set<String>): List<String> =
+    allKeys.filterNot { it in presentKeys }
+
+/** 薄封装：仅返回行，供既有调用点（loadHeavyDataForSlot 等）使用。 */
+internal suspend fun StorageEngine.loadHeavyDataSafe(slot: Int): List<GameHeavyData> =
+    loadHeavyDataSafeWithReport(slot).rows
+
+/**
+ * 安全加载重型数据：逐 key 读取，跳过超过 CursorWindow 限制的单行，并**报告**被跳过的 key。
+ *
+ * 被跳过的行保留在 DB（不删），同时把 key 记入 [skippedHeavyKeysBySlot]，
+ * 使下一次保存的 clearHeavyDataByPrefix 跳过它，避免用空内存值覆盖 DB 完整数据。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.loadHeavyDataSafe(slot: Int): List<GameHeavyData> {
+internal suspend fun StorageEngine.loadHeavyDataSafeWithReport(slot: Int): HeavyDataLoadReport {
     val keys = try {
         core.database.gameHeavyDataDao().getLoadedKeys(slot)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         Log.w(TAG, "Failed to load heavy data keys for slot $slot, skipping", e)
-        return emptyList()
+        return HeavyDataLoadReport(emptyList(), emptySet())
     }
 
     val result = mutableListOf<GameHeavyData>()
+    val skipped = mutableSetOf<String>()
     for (key in keys) {
         try {
             val row = core.database.gameHeavyDataDao().getByKey(slot, key)
@@ -162,12 +213,19 @@ internal suspend fun StorageEngine.loadHeavyDataSafe(slot: Int): List<GameHeavyD
         } catch (e: Exception) {
             // 超大行跳过不删——删除会静默丢失数据：sectDetails/exploredSects/
             // scoutInfo 等无再生源（ensureGameDataIntegrity 仅告警不重生），
-            // 删除后该数据永久消失。跳过保持 DB 原样，仅本次读档缺失该 key
-            //（下次保存若仍超限，由分块编码防复发）
+            // 删除后该数据永久消失。跳过保持 DB 原样，并登记 skipped 以防
+            // 下次保存用空内存值覆盖（见 clearHeavyDataByPrefix）。
+            skipped.add(key)
             Log.w(TAG, "Heavy data key '$key' exceeds CursorWindow limit, skipping (kept in DB)", e)
         }
     }
-    return result
+
+    if (skipped.isEmpty()) {
+        skippedHeavyKeysBySlot.remove(slot)
+    } else {
+        skippedHeavyKeysBySlot[slot] = skipped
+    }
+    return HeavyDataLoadReport(result, skipped)
 }
 
 internal suspend fun StorageEngine.buildSaveDataFromDatabase(slot: Int,
