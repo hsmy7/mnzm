@@ -505,6 +505,9 @@ internal object GameViewDiscipleRows {
     }
 
     /** 基础段 presence 列直写（映射表 = [toDisciple] 基础段 ↔ `writeAllFields` 基本面）。 */
+    // 列级补丁 presence 直写映射表：函数数=协议列数，每行一列 presence 位测试
+    // + 直写（与 C++ serializeDiscipleColumn switch 同形样板），拆分即机械切半
+    @Suppress("CyclomaticComplexMethod")
     private fun DiscipleTables.applyBasicPatchColumns(id: Int, row: DiscipleRow) {
         if (row.hasName()) names[id] = row.name
         if (row.hasSurname()) surnames[id] = row.surname
@@ -558,6 +561,9 @@ internal object GameViewDiscipleRows {
     }
 
     /** 战斗段 presence 列直写（映射表 = [combatOf] ↔ `writeAllFields` 战斗面）。 */
+    // 列级补丁 presence 直写映射表：函数数=协议列数，每行一列 presence 位测试
+    // + 直写（与 C++ serializeDiscipleColumn switch 同形样板），拆分即机械切半
+    @Suppress("CyclomaticComplexMethod")
     private fun DiscipleTables.applyCombatPatchColumns(id: Int, row: DiscipleRow) {
         if (row.hasBaseHp()) baseHps[id] = row.baseHp
         if (row.hasBaseMp()) baseMps[id] = row.baseMp
@@ -585,6 +591,9 @@ internal object GameViewDiscipleRows {
     }
 
     /** 丹药段 presence 列直写（映射表 = [pillEffectsOf] ↔ `writeAllFields` 丹药面）。 */
+    // 列级补丁 presence 直写映射表：函数数=协议列数，每行一列 presence 位测试
+    // + 直写（与 C++ serializeDiscipleColumn switch 同形样板），拆分即机械切半
+    @Suppress("CyclomaticComplexMethod")
     private fun DiscipleTables.applyPillPatchColumns(id: Int, row: DiscipleRow) {
         if (row.hasPillPhysicalAttackBonus()) {
             pillPhysicalAttackBonuses[id] = row.pillPhysicalAttackBonus
@@ -614,6 +623,9 @@ internal object GameViewDiscipleRows {
     }
 
     /** 装备段 presence 列直写（映射表 = [equipmentOf] ↔ 装备列写入面）。 */
+    // 列级补丁 presence 直写映射表：函数数=协议列数，每行一列 presence 位测试
+    // + 直写（与 C++ serializeDiscipleColumn switch 同形样板），拆分即机械切半
+    @Suppress("CyclomaticComplexMethod")
     private fun DiscipleTables.applyEquipmentPatchColumns(
         id: Int,
         row: DiscipleRow,
@@ -664,6 +676,9 @@ internal object GameViewDiscipleRows {
     }
 
     /** 技能段 presence 列直写（映射表 = [skillsOf] ↔ `writeAllFields` 技能面）。 */
+    // 列级补丁 presence 直写映射表：函数数=协议列数，每行一列 presence 位测试
+    // + 直写（与 C++ serializeDiscipleColumn switch 同形样板），拆分即机械切半
+    @Suppress("CyclomaticComplexMethod")
     private fun DiscipleTables.applySkillPatchColumns(id: Int, row: DiscipleRow) {
         if (row.hasIntelligence()) intelligences[id] = row.intelligence
         if (row.hasCharm()) charms[id] = row.charm
