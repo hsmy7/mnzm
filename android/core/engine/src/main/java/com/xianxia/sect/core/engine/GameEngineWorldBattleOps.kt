@@ -40,8 +40,8 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
         if (level.defeated) return@withEngineContext
         val validIds = discipleIds.filterNotNull()
         if (validIds.isEmpty()) return@withEngineContext
-        // 遭遇战检查：该妖兽已被 AI 宗门盯上，与 AI 打遭遇战，胜者进攻妖兽
-        if (resolveBeastEncounterIfAny(levelId, validIds)) return@withEngineContext
+        // B18-P4：遭遇战检查已删（`resolveBeastEncounterIfAny` 死路径，
+        // 门判源 aiBeastEncounterTargets 全仓零插入者 ⇒ 恒空 ⇒ 恒 false）
         // ── Native 臂（AUTHORITATIVE）：关卡校验链/战斗执行（BATTLE 分区同序）/
         // 伤亡写回经 C++；奖励生成（Random.Default 非镜像随机域）/胜利事务
         // （soulPowers/winAttr/defeated TOCTOU 原子块）/战报留 Kotlin（S5/S6 口径）。

@@ -266,10 +266,12 @@ class GameEngine @Inject constructor(
     fun clearPendingBeastAttacks() { stateStore.clearPendingBeastAttacks() }
     fun removePendingBeastAttack(beastLevelId: String) { stateStore.removePendingBeastAttack(beastLevelId) }
     suspend fun resolveBeastAttackFight(
-        beastLevelId: String,
-        manualDefenders: List<Disciple>? = null
+        beastLevelId: String
     ): Boolean {
-        val handled = explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
+        // B18-P4：原 manualDefenders 形参已删——唯一消费者（遭遇战分支
+        // selectBeastDefenders）随死臂清理退役，形参无消费者即死形参（detekt
+        // UnusedParameter 实证）；UI 侧 BeastAttackDelegate 历来只传 beastLevelId
+        val handled = explorationService.resolveBeastAttackFight(beastLevelId)
         // w3-13 通道关闭配套（§2.79）：迎战写面（worldMapSects 守军清理 §2.78 关闭、
         // worldLevels 在册保留）发生战斗即全量重建 native 基线回导 C++（用户迎战为
         // 低频动作）；未处理（妖兽已不在）零成本

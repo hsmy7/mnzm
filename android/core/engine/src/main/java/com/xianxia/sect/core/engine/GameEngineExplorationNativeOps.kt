@@ -164,28 +164,11 @@ internal fun GameEngine.tryNativeWorldVictoryRewards(
 }
 
 // ── attackWorldLevel native 臂（主入口见 GameEngineWorldBattleOps.kt）──
-
-/**
- * 遭遇战分支（attackWorldLevel 提取）：妖兽被 AI 宗门盯上 → 与 AI 打遭遇战
- * （aiBeastEncounterTargets 为 @Transient Kotlin 域字段——本分支整臂留 Kotlin）。
- * 目标存在返回 true（含无可用弟子的静默返回原语义）；不存在返回 false 继续。
- */
-internal suspend fun GameEngine.resolveBeastEncounterIfAny(
-    levelId: String,
-    validIds: List<String>
-): Boolean {
-    val data = stateStore.gameDataSnapshot
-    if (!data.aiBeastEncounterTargets.containsKey(levelId)) return false
-    val allDisciples = stateStore.discipleTables.assembleAll()
-    val combatDisciples = validIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
-    if (combatDisciples.isEmpty()) return true
-    resolveBeastAttackFight(levelId, manualDefenders = combatDisciples)
-    // w3-13 通道关闭配套（§2.79）：遭遇战分支整臂留 Kotlin，写面含 worldMapSects
-    // 守军清理（§2.78 关闭）——战斗后全量重建 native 基线回导 C++（与
-    // GameEngine.resolveBeastAttackFight 主入口同口径）
-    rebaselineNativeMirror("遭遇战分支")
-    return true
-}
+//
+// B18-P4：原 `resolveBeastEncounterIfAny`（遭遇战分支）已删除——门判源
+// `gameData.aiBeastEncounterTargets` 全仓零插入者 ⇒ 恒空 ⇒ 门判恒 false
+// （死路径）。字段本体保留（判归 = 值保留，见 ExplorationServiceBeastRaidOps.kt
+// 同注与 `GameDataFieldPatchGuardTest`）。
 
 /**
  * Native 臂（attackWorldLevel）：C++ 执行关卡战斗 + 伤亡写回，Kotlin 事务外

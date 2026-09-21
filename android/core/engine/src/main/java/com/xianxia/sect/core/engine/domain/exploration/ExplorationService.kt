@@ -69,7 +69,9 @@ import javax.inject.Singleton
  * 保留的对外接口：
  * - [processMonthlyWorldLevels] — 由 ExplorationTickSystem 调用（含排期妖兽攻击自动执行）
  * - [executeScheduledBeastAttack] — 月度结算内执行排期妖兽攻击（自动防守）
- * - [resolveBeastAttackFight] — 世界地图手动进攻（带遭遇战）路径
+ * - [resolveBeastAttackFight] — 世界地图手动进攻路径（B18-P4：遭遇战分支已删；
+ *   原 `manualDefenders` 形参随之删除——唯一消费者 `selectBeastDefenders` 退役后
+ *   它是死形参，UI 侧历来只传 beastLevelId）
  * - [consumePendingPatrolResults] — UI 层定时消费
  */
 @Singleton
@@ -99,17 +101,6 @@ class ExplorationService @Inject constructor(
          * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
          */
         internal const val TAG = "ExplorationService"
-
-        /** 妖兽防守弟子排除状态（selectBeastDefenders 两路径共享） */
-        internal val BEAST_DEFENDER_EXCLUDE_STATUSES = setOf(
-            DiscipleStatus.ON_MISSION,
-            DiscipleStatus.IN_TEAM,
-            DiscipleStatus.SECRET_REALM,        // 远古秘境成员不可防守
-            DiscipleStatus.WAREHOUSE_GARRISON,  // 仓库驻守不可防守
-            DiscipleStatus.REFLECTING,
-            DiscipleStatus.GARRISONING,
-            DiscipleStatus.REFINING
-        )
     }
 
     // ── 月度处理（由 ExplorationTickSystem 调用） ───────────────────────────

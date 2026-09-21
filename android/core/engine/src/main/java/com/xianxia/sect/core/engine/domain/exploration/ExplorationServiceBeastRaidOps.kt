@@ -1,14 +1,11 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.domain.battle.EncounterAttacker
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.exploration.BeastAttackDetector
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GarrisonSlot
-import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
@@ -28,9 +25,6 @@ import com.xianxia.sect.core.engine.domain.disciple.applyGriefToRelatives
 // ── 妖兽袭击域（自 ExplorationService 拆出，行为零变更） ─────────────────────
 
 private val TAG = ExplorationService.TAG
-/** 妖兽防守弟子排除状态（selectBeastDefenders 两路径共享） */
-private val BEAST_DEFENDER_EXCLUDE_STATUSES =
-    ExplorationService.BEAST_DEFENDER_EXCLUDE_STATUSES
 /**
  * 执行上月排期的妖兽攻击（自动防守）并清空排期。
  *
@@ -80,17 +74,14 @@ fun ExplorationService.executeScheduledBeastAttack(
 ): Boolean {
     val level = state.gameData.worldLevels.find { it.id == beastLevelId }
     if (level == null || level.defeated) return false
-    // 遭遇战检查：妖兽附近有 AI 宗门拦截（与弹窗"迎战"路径一致）
-    val resolvedByEncounter = resolveEncounterPath(state, beastLevelId, level, null)
-    if (!resolvedByEncounter) {
-        state.resolveBeastFightInternal(beastLevelId, level)
-    }
+    // B18-P4：遭遇战分支已删——`aiBeastEncounterTargets` 全仓零插入者 ⇒ 恒空 ⇒
+    // 原 resolveEncounterPath 首行门判恒 false（死路径，B18 复核确证），直走妖兽战斗
+    state.resolveBeastFightInternal(beastLevelId, level)
     return true
 }
 
 suspend fun ExplorationService.resolveBeastAttackFight(
-    beastLevelId: String,
-    manualDefenders: List<Disciple>? = null
+    beastLevelId: String
 ): Boolean {
     val snapshot = stateStore.gameData.value
     val level = snapshot.worldLevels.find { it.id == beastLevelId } ?: return false
@@ -105,103 +96,22 @@ suspend fun ExplorationService.resolveBeastAttackFight(
         val currentLevel = gameData.worldLevels.find { it.id == beastLevelId }
         if (currentLevel == null || currentLevel.defeated) return@updateMirror
 
-        // 遭遇战检查：妖兽附近有 AI 宗门拦截
-        if (resolveEncounterPath(this, beastLevelId, level, manualDefenders)) {
-            handled = true
-            return@updateMirror
-        }
-        // 无遭遇战，走正常妖兽战斗路径
+        // B18-P4：遭遇战分支已删（死路径，见 executeScheduledBeastAttack 同注）
         handled = true
         resolveBeastFightInternal(beastLevelId, level)
     }
     return handled
 }
 
-/** 遭遇战路径（resolveBeastAttackFight 提取）；返回是否已处理（命中遭遇战且 AI 应战） */
-
-internal fun ExplorationService.resolveEncounterPath(
-    state: MutableGameState,
-    beastLevelId: String,
-    level: WorldLevel,
-    manualDefenders: List<Disciple>?
-): Boolean {
-    val aiSectId = state.gameData.aiBeastEncounterTargets[beastLevelId]
-    val aiSect = state.gameData.worldMapSects.find { it.id == aiSectId }
-    val targetSect = state.gameData.worldMapSects.find {
-        it.isPlayerSect || it.isPlayerOccupied
-    }
-    if (aiSectId == null || aiSect == null || targetSect == null) return false
-
-    val defenders = selectBeastDefenders(state, manualDefenders)
-    state.prepareBeastDefenders(defenders.map { it.id }.toSet())
-    val aiTeam = state.gameData.aiSectDisciples[aiSectId]
-        ?.filter { it.isAlive }
-        ?.take(GameConfig.AI.TEAM_SIZE) ?: emptyList()
-
-    // 防守弟子与 AI 应战队伍均非空才执行遭遇战
-    val ready = defenders.isNotEmpty() && aiTeam.isNotEmpty()
-    if (ready && aiSect != null && targetSect != null) {
-        launchEncounterBattle(state, aiSect, targetSect, defenders, aiTeam, level, beastLevelId)
-    }
-    return ready
-}
-
-/** 遭遇战执行（resolveEncounterPath 提取） */
-
-internal fun ExplorationService.launchEncounterBattle(
-    state: MutableGameState,
-    aiSect: WorldSect,
-    targetSect: WorldSect,
-    defenders: List<Disciple>,
-    aiTeam: List<Disciple>,
-    level: WorldLevel,
-    beastLevelId: String
-) {
-    encounterBattleService.encounter(
-        state = state,
-        attackerA = EncounterAttacker(
-            sectId = targetSect.id,
-            sectName = targetSect.name,
-            isPlayer = true,
-            teamDisciples = defenders
-        ),
-        attackerB = EncounterAttacker(
-            sectId = aiSect.id,
-            sectName = aiSect.name,
-            isPlayer = false,
-            teamDisciples = aiTeam
-        ),
-        beast = level,
-        year = state.gameData.gameYear,
-        month = state.gameData.gameMonth
-    )
-    state.gameData = state.gameData.copy(
-        aiBeastEncounterTargets =
-            state.gameData.aiBeastEncounterTargets - beastLevelId
-    )
-}
-
-/** 防守弟子选择（resolveEncounterPath 提取）：手动路径锁内重查，自动路径巡视塔弟子 */
-
-internal fun ExplorationService.selectBeastDefenders(
-    state: MutableGameState,
-    manualDefenders: List<Disciple>?
-): List<Disciple> {
-    // 使用手动选择的弟子（世界地图进攻）或自动选择（弹窗迎战）
-    // 手动选择路径在锁内重新查询弟子状态，避免锁外快照的 isAlive 过期
-    return if (manualDefenders != null) {
-        val manualIds = manualDefenders.map { it.id }.toSet()
-        state.discipleTables.assembleAll()
-            .filter { it.id in manualIds && it.isAlive && it.status !in BEAST_DEFENDER_EXCLUDE_STATUSES }
-    } else {
-        val pids = state.gameData.patrolSlots
-            .filter { it.discipleId.isNotEmpty() }
-            .map { it.discipleId }.toSet()
-        state.discipleTables.assembleAll()
-            .filter { it.id in pids && it.isAlive && it.status !in BEAST_DEFENDER_EXCLUDE_STATUSES }
-            .take(8)
-    }
-}
+// ── 遭遇战路径（B18-P4 死臂清理，三函数已删）─────────────────────────────
+// 原 `resolveEncounterPath` / `launchEncounterBattle` / `selectBeastDefenders`
+// 已删除：门判源 `gameData.aiBeastEncounterTargets` 全仓（Kotlin + C++）**零插入者**
+// ⇒ 恒空 ⇒ 门判恒 false（遭遇战分支自始不可执行；B18 复核 + 本批 grep 再证）。
+//
+// ⚠️ 字段本体**保留**（判归 = 值保留：镜像承载现值不被清空，
+// `GameDataFieldPatchGuardTest` 锁定；C++ 侧 `exploration_tx.h` 字段零改动）。
+// **复活须知**：接上"插入者"（AI 宗门盯上妖兽的写入点）**不会**自动恢复本特性
+// ——消费链已随本批删除，须一并重建上述三函数（对照面见 git 历史本文件）。
 
 // ── 内部战斗编排（≤60 行，委派各子阶段） ─────────────────────────────
 
