@@ -367,37 +367,6 @@ class SaveFileManager @Inject constructor(
     private fun getTombstoneFile(slot: Int): File = File(backupDir, "slot_${slot}.deleted")
 
     // ============================================================
-    // 信息查询
-    // ============================================================
-
-    /** 获取备份信息（用于 UI 展示） */
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun getBackupInfo(slot: Int): BackupInfo? {
-        ensureInitialized()
-        if (!isValidSlot(slot)) return null
-
-        val savFile = getSavFile(slot)
-        val bakFile = getBakFile(slot)
-
-        return try {
-            BackupInfo(
-                slot = slot,
-                primaryExists = savFile.exists(),
-                backupExists = bakFile.exists(),
-                primaryValid = null, // 惰性校验：用户点击时再调用 verifySlot
-                backupValid = null,
-                primaryTimestamp = if (savFile.exists()) savFile.lastModified() else null,
-                backupTimestamp = if (bakFile.exists()) bakFile.lastModified() else null,
-                primarySizeBytes = if (savFile.exists()) savFile.length() else null,
-                backupSizeBytes = if (bakFile.exists()) bakFile.length() else null
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "获取备份信息失败 slot=$slot", e)
-            null
-        }
-    }
-
-    // ============================================================
     // 内部方法
     // ============================================================
 
@@ -517,19 +486,6 @@ data class BackupIntegrity(
     val backupExists: Boolean,
     val primaryValid: Boolean?,
     val backupValid: Boolean?
-)
-
-/** 备份信息（用于 UI 展示） */
-data class BackupInfo(
-    val slot: Int,
-    val primaryExists: Boolean,
-    val backupExists: Boolean,
-    val primaryValid: Boolean?,
-    val backupValid: Boolean?,
-    val primaryTimestamp: Long?,
-    val backupTimestamp: Long?,
-    val primarySizeBytes: Long?,
-    val backupSizeBytes: Long?
 )
 
 private fun isValidSlot(slot: Int): Boolean = slot in 0..StorageConstants.DEFAULT_MAX_SLOTS

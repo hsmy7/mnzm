@@ -13,79 +13,11 @@ import com.xianxia.sect.data.unified.SaveResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
-
-// ==================== 数据类定义 ====================
-
-data class FacadeSaveProgress(
-    val stage: Stage,
-    val progress: Float,
-    val message: String = ""
-) {
-    enum class Stage {
-        IDLE,
-        INITIALIZING,
-        VALIDATING,
-        SAVING,
-        LOADING,
-        COMPLETED,
-        FAILED
-    }
-}
-
-data class SlotCacheEntry(
-    val slot: Int,
-    val lastAccessTime: Long,
-    val dataSize: Long = 0,
-    val hitCount: Int = 0
-)
-
-data class StorageHealthReport(
-    val isHealthy: Boolean,
-    val totalSlots: Int,
-    val activeSlots: Int,
-    val corruptedSlots: List<Int>,
-    val warnings: List<String>,
-    val timestamp: Long = System.currentTimeMillis()
-)
-
-data class SlotHealthReport(
-    val slot: Int,
-    val isHealthy: Boolean,
-    val hasData: Boolean,
-    val lastSaveTime: Long,
-    val integrityValid: Boolean,
-    val warnings: List<String>
-)
-
-data class StorageSystemStats(
-    val totalSaveOperations: Long,
-    val totalLoadOperations: Long,
-    val totalDeleteOperations: Long,
-    val cacheHitRate: Float,
-    val averageSaveTimeMs: Long,
-    val averageLoadTimeMs: Long,
-    val activeSlot: Int,
-    val timestamp: Long = System.currentTimeMillis()
-)
-
-data class StorageUsage(
-    val totalBytes: Long,
-    val slotBytes: Map<Int, Long>,
-    val cacheBytes: Long,
-    val walBytes: Long,
-    val timestamp: Long = System.currentTimeMillis()
-) {
-    val totalMB: Float get() = totalBytes / (1024f * 1024f)
-    fun slotMB(slot: Int): Float = (slotBytes[slot] ?: 0L) / (1024f * 1024f)
-}
 
 // ==================== 扩展函数 ====================
 
@@ -133,20 +65,10 @@ class StorageFacade @Inject constructor(
         private const val TAG = "StorageFacade"
     }
 
-    private val _progress = MutableStateFlow(FacadeSaveProgress(FacadeSaveProgress.Stage.IDLE, 0f))
-    val progress: StateFlow<FacadeSaveProgress> = _progress.asStateFlow()
-
     private val _currentSlot = MutableStateFlow(1)
-    val currentSlotFlow: StateFlow<Int> = _currentSlot.asStateFlow()
 
     private val isInitialized = AtomicBoolean(false)
     private val isShuttingDown = AtomicBoolean(false)
-
-    private val saveCount = AtomicLong(0)
-    private val loadCount = AtomicLong(0)
-    private val deleteCount = AtomicLong(0)
-    private val totalSaveTimeMs = AtomicLong(0)
-    private val totalLoadTimeMs = AtomicLong(0)
 
     // ==================== 生命周期方法 ====================
 
@@ -159,8 +81,6 @@ class StorageFacade @Inject constructor(
         }
 
         return try {
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.INITIALIZING, 0.1f, "Initializing storage")
-
             engine.startMaintenance()
             // 初始化 SaveFileManager 双缓冲备份（.sav/.bak）
             saveFileManager.initialize(context.filesDir)
@@ -178,8 +98,6 @@ class StorageFacade @Inject constructor(
             // Database integrity check: verify the database can be read.
             // If Room schema validation fails (e.g., FK mismatch on orphaned sub-tables),
             // this throws immediately, giving a clear error instead of silent failure.
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f,
-                "Verifying database integrity")
             try {
                 val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(1) }
                 Log.d(TAG, "Database integrity check passed (slot 1: ${metadata?.sectName ?: "empty"})")
@@ -187,8 +105,6 @@ class StorageFacade @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Database integrity check FAILED -- database may have schema mismatch", e)
-                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f,
-                    "Database integrity check failed: ${e.message}")
                 return SaveResult.failure(
                     SaveError.DATABASE_ERROR,
                     "Database schema is invalid or corrupted: ${e.message}",
@@ -197,7 +113,6 @@ class StorageFacade @Inject constructor(
             }
 
             isInitialized.set(true)
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Initialization completed")
 
             Log.i(TAG, "StorageFacade initialized successfully")
             SaveResult.success(Unit)
@@ -205,7 +120,6 @@ class StorageFacade @Inject constructor(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "StorageFacade initialization failed", e)
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
             SaveResult.failure(SaveError.IO_ERROR, e.message ?: "Initialization failed", e)
         }
     }
@@ -233,30 +147,21 @@ class StorageFacade @Inject constructor(
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     suspend fun save(slot: Int, data: SaveData): SaveResult<Unit> {
         ensureInitialized()
-        val startTime = System.currentTimeMillis()
 
         return try {
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.SAVING, 0.1f, "Saving slot $slot")
-
             val result = engine.save(slot, data)
-            val elapsed = System.currentTimeMillis() - startTime
 
             if (result.isSuccess) {
-                saveCount.incrementAndGet()
-                totalSaveTimeMs.addAndGet(elapsed)
-                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Save completed")
                 // 后置步骤（.sav 镜像 / .bak 备份）降级原因必须带给调用方
                 // —— UI 据此如实提示，不得只报"游戏保存成功"（审计 §12-C）
                 SaveResult.successWithWarning(Unit, result.getOrNull()?.postSaveWarning)
             } else {
-                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Save failed")
                 result.toUnifiedResult().map { }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Save failed for slot $slot", e)
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
             SaveResult.failure(SaveError.SAVE_FAILED, e.message ?: "Save failed", e)
         }
     }
@@ -264,28 +169,15 @@ class StorageFacade @Inject constructor(
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     suspend fun load(slot: Int): SaveResult<SaveData> {
         ensureInitialized()
-        val startTime = System.currentTimeMillis()
 
         return try {
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.LOADING, 0.1f, "Loading slot $slot")
-
             val result = engine.load(slot)
-            val elapsed = System.currentTimeMillis() - startTime
-
-            if (result.isSuccess) {
-                loadCount.incrementAndGet()
-                totalLoadTimeMs.addAndGet(elapsed)
-                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Load completed")
-            } else {
-                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Load failed")
-            }
 
             result.toUnifiedResult()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Load failed for slot $slot", e)
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
             SaveResult.failure(SaveError.LOAD_FAILED, e.message ?: "Load failed", e)
         }
     }
@@ -298,7 +190,6 @@ class StorageFacade @Inject constructor(
             ensureInitialized()
             val result = engine.delete(slot)
             if (result.isSuccess) {
-                deleteCount.incrementAndGet()
                 Log.i(TAG, "Deleted slot $slot")
                 SaveResult.success(Unit)
             } else {
@@ -311,14 +202,6 @@ class StorageFacade @Inject constructor(
             Log.e(TAG, "Delete failed for slot $slot", e)
             SaveResult.failure(SaveError.DELETE_FAILED, e.message ?: "Unknown error", e)
         }
-    }
-
-    /**
-     * 强制删除 slot 数据（跳过校验，用于云存档 slot 0 等特殊槽位）。
-     * 只清理 Room DB，不做文件级清理。
-     */
-    suspend fun forceDeleteSlotData(slot: Int) {
-        engine.forceDeleteSlotData(slot)
     }
 
     // ==================== 槽位管理方法 ====================
@@ -345,18 +228,6 @@ class StorageFacade @Inject constructor(
     fun getCurrentSlot(): Int = _currentSlot.value
 
     // ==================== 数据检查方法 ====================
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun hasSaveSuspend(slot: Int): Boolean {
-        return try {
-            engine.hasData(slot)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "hasSave check failed for slot $slot", e)
-            false
-        }
-    }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun isSaveCorruptedSuspend(slot: Int): Boolean {
@@ -408,119 +279,6 @@ class StorageFacade @Inject constructor(
                 Log.e(TAG, "备份恢复异常 slot=$slot", e)
                 false
             }
-        }
-    }
-
-    // ==================== 统计与健康检查方法 ====================
-
-    fun getStorageStats(): StorageSystemStats {
-        return StorageSystemStats(
-            totalSaveOperations = saveCount.get(),
-            totalLoadOperations = loadCount.get(),
-            totalDeleteOperations = deleteCount.get(),
-            cacheHitRate = 0f,
-            averageSaveTimeMs = if (saveCount.get() > 0) totalSaveTimeMs.get() / saveCount.get() else 0L,
-            averageLoadTimeMs = if (loadCount.get() > 0) totalLoadTimeMs.get() / loadCount.get() else 0L,
-            activeSlot = _currentSlot.value
-        )
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
-    suspend fun getStorageHealth(): StorageHealthReport {
-        val corruptedSlots = mutableListOf<Int>()
-        val warnings = mutableListOf<String>()
-        var activeSlots = 0
-
-        for (slot in 1..lockManager.getMaxSlots()) {
-            try {
-                val hasData = engine.hasData(slot)
-                if (hasData) {
-                    activeSlots++
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                warnings.add("Slot $slot health check error: ${e.message}")
-            }
-        }
-
-        return StorageHealthReport(
-            isHealthy = corruptedSlots.isEmpty() && warnings.isEmpty(),
-            totalSlots = lockManager.getMaxSlots(),
-            activeSlots = activeSlots,
-            corruptedSlots = corruptedSlots,
-            warnings = warnings
-        )
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
-    suspend fun getSlotHealth(slot: Int): SlotHealthReport {
-        if (!lockManager.isValidSlot(slot)) {
-            return SlotHealthReport(slot, false, false, 0L, false, listOf("Invalid slot"))
-        }
-
-        return try {
-            val hasData = engine.hasData(slot)
-            val metadata = engine.getSlotMetadata(slot)
-
-            SlotHealthReport(
-                slot = slot,
-                isHealthy = hasData,
-                hasData = hasData,
-                lastSaveTime = metadata?.timestamp ?: 0L,
-                integrityValid = true,
-                warnings = emptyList()
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            SlotHealthReport(slot, false, false, 0L, false, listOf("Health check error: ${e.message}"))
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
-    suspend fun getStorageUsageSuspend(): StorageUsage {
-        return try {
-            val slotBytes = mutableMapOf<Int, Long>()
-            var totalBytes = 0L
-
-            for (slot in 0..lockManager.getMaxSlots()) {
-                val size = slotUsageBytes(slot)
-                slotBytes[slot] = size
-                totalBytes += size
-            }
-
-            StorageUsage(
-                totalBytes = totalBytes,
-                slotBytes = slotBytes,
-                cacheBytes = 0L,
-                walBytes = 0L
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "getStorageUsage failed", e)
-            StorageUsage(0L, emptyMap(), 0L, 0L)
-        }
-    }
-
-    /**
-     * 单槽占用字节数：无数据或读取失败计 0；
-     * 协程取消正常传播，不吞取消信号。
-     */
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级计 0, 非静默吞噬
-    private suspend fun slotUsageBytes(slot: Int): Long {
-        return try {
-            if (engine.hasData(slot)) {
-                val data = engine.load(slot).getOrNull()
-                if (data != null) {
-                    com.xianxia.sect.data.engine.StorageEngine.estimateSaveSize(data)
-                } else 0L
-            } else 0L
-        } catch (e: CancellationException) {
-            throw e
-        } catch (ignored: Exception) {
-            0L
         }
     }
 

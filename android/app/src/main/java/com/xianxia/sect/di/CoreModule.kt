@@ -239,10 +239,6 @@ object CoreModule {
 
     @Provides
     @Singleton
-    fun provideSaveStorage(impl: SaveStorageImpl): com.xianxia.sect.core.repository.SaveStorage = impl
-
-    @Provides
-    @Singleton
     fun provideThermalReader(impl: com.xianxia.sect.platform.AndroidThermalReader): com.xianxia.sect.core.thermal
         .ThermalReader = impl
 

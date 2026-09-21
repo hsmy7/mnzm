@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.crypto
 
 import android.util.Log
+import java.security.MessageDigest
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.data.config.StorageConfig
 import java.util.concurrent.ConcurrentHashMap
@@ -14,7 +15,7 @@ import kotlinx.coroutines.launch
 
 // SaveCrypto 的派生密钥缓存域:统一缓存表/周期清理/容量驱逐/初始化编排。
 
-private const val TAG = SaveCrypto.TAG
+private const val TAG = "SaveCryptoKeyCache"
 
 object SaveCryptoKeyCache {
 
@@ -287,4 +288,9 @@ object SaveCryptoKeyCache {
     }
     Log.d(TAG, "All unified key caches securely cleared (including periodic cleanup stopped)")
 }
+}
+
+private fun sha256Hex(data: ByteArray): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    return digest.digest(data).joinToString("") { "%02x".format(it) }
 }

@@ -112,13 +112,3 @@ fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppErr
     val (default, factory) = SAVE_ERROR_MAPPINGS.getValue(this)
     return factory(message.ifEmpty { default }, cause)
 }
-
-fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {
-    is com.xianxia.sect.data.crypto.VerificationResult.Valid -> null
-    is com.xianxia.sect.data.crypto.VerificationResult.Invalid ->
-        AppError.Domain.Storage.VerificationFailed(reason, null)
-    is com.xianxia.sect.data.crypto.VerificationResult.Expired ->
-        AppError.Domain.Storage.Expired("签名已过期 (签名时间: $signedAt, 当前时间: $currentTime)", null)
-    is com.xianxia.sect.data.crypto.VerificationResult.Tampered ->
-        AppError.Domain.Storage.Tampered(reason, null)
-}

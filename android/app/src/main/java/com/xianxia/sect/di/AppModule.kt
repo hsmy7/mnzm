@@ -32,7 +32,6 @@ import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.WorldDaos
 import com.xianxia.sect.data.cache.CacheConfig
 import com.xianxia.sect.data.cache.GameDataCacheManager
-import com.xianxia.sect.data.incremental.ChangeTracker
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.incremental.ChangeLogDao
 import com.xianxia.sect.core.dialog.DialogManagerImpl
@@ -220,12 +219,6 @@ object AppModule {
         return GameDataCacheManager(context, database, cacheConfig, null, applicationScopeProvider)
     }
     
-
-    @Provides
-    @Singleton
-    fun provideChangeTracker(): ChangeTracker {
-        return ChangeTracker()
-    }
 
     @Provides
     @Singleton

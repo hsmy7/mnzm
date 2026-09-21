@@ -480,21 +480,6 @@ class StorageEngine @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
-    suspend fun listSlots(): StorageResult<List<SlotMetadata>> {
-        return try {
-            val slots = (1..core.lockManager.getMaxSlots()).mapNotNull { slot ->
-                getSlotMetadata(slot)
-            }
-            StorageResult.success(slots)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "listSlots failed", e)
-            StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Failed to list slots")
-        }
-    }
-
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun getSaveSlots(): List<SaveSlot> {
         val slots = mutableListOf<SaveSlot>()
@@ -548,21 +533,6 @@ class StorageEngine @Inject constructor(
     }
 
     fun getCurrentSlot(): Int = _currentSlot.value
-
-    /**
-     * 强制删除指定 slot 的数据（跳过 slot 校验，用于云存档 slot 等特殊槽位）。
-     * 仅清理 Room DB 中的 game_data 条目，不涉及文件级清理。
-     */
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun forceDeleteSlotData(slot: Int) {
-        try {
-            core.database.gameDataDao().deleteAll(slot)
-            Log.i(TAG, "forceDeleteSlotData: deleted data for slot $slot")
-        } catch (e: CancellationException) { throw e }
-          catch (e: Exception) {
-            Log.w(TAG, "forceDeleteSlotData: failed for slot $slot", e)
-        }
-    }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun startMaintenance() {
