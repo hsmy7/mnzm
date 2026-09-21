@@ -39,8 +39,10 @@ option java_multiple_files = true;
 //     configEcho         —— 配置回声（快照 schema 版本，版本协商用）
 //   其余实体集合（equipmentStacks/pills/materials/herbs/seeds/storageBags/
 //   manualStacks/manualInstances/equipmentInstances）与其余 gameData 字段
-//   经 collectionChange/gameDataChange 扩展区承载（v1 为 JSON 载荷过渡
-//   编码，后续批次按块迁 typed 字段——只增不改）。
+//   经 collectionChange/gameDataChange 扩展区承载。B18-P1（2026-09-20）起
+//   typed 化换轨：upsertsTyped/valueTyped 承载（下方 TypedValue 通用行式），
+//   旧 bytes 字段（upsertsJson/valueJson）**停写保留**（号冻结永不复用，
+//   Kotlin 解码保留 fallback——旧格式 golden 夹具仍可解码，对照面非删断言）。
 //
 // ## C++ 侧编码
 //   gamecore（纯 C++、零三方依赖）按本 schema 手写 wire 编码（见
@@ -258,18 +260,62 @@ message StringStringEntry {
   optional string value = 2;
 }
 
-/// 实体集合增量（disciples 之外的集合；upsert 载荷 = 实体数组的 JSON 文本，
-/// 与旧 JSON 协议 changed[集合名] 同值——消费端解析语义逐字节一致）
+// ============================================================
+// 通用 typed 值承载（B18-P1：upsertsJson/valueJson 族 JSON 原文换轨为
+// proto 原生递归结构——消灭 C++ JSON 文本序列化 + Kotlin JSON parse）
+// ============================================================
+
+/// 通用 typed 值（JSON 树任意节点的 proto 原生承载；数组/对象经
+/// vArray/vObject 递归）。生产树恒已过 normalizeIntegralFloats（整值浮点
+/// 已转整数），vDouble 只承载非整值浮点。
+message TypedValue {
+  optional string vString = 1;
+  optional int64 vInt = 2;
+  optional double vDouble = 3;
+  optional bool vBool = 4;
+  repeated TypedValue vArray = 5;
+  repeated TypedField vObject = 6;
+  /// JSON null（生产载荷勘察：C++ 状态序列化无 null 生产者，本字段为
+  /// 防御性完备面——编码器对 is_null 恒可编码，不静默丢弃）
+  optional bool vNull = 7;
+  /// 空数组判别位（b02 发现 7 纪律：repeated 空集合与缺省线路上同为
+  /// 零字节不可区分，而 [] 与 {} 在 valueTyped 语义中形状不同且下游
+  /// 应用不同——空数组恒写 vEmptyArray=true，空对象/缺省 = 零字节）。
+  /// 非空容器形状自明，本字段不写。
+  optional bool vEmptyArray = 8;
+}
+
+/// 通用 typed 键值行（TypedValue 的对象成员；编码序 = 键字典序，
+/// 与 C++ nlohmann std::map 有序遍历同源，确定性保持）
+message TypedField {
+  optional string key = 1;
+  optional TypedValue value = 2;
+}
+
+/// 通用 typed 实体行（一个 upsert 实体 = 一个 TypedRow；行内字段经
+/// TypedField/TypedValue 递归承载任意嵌套）
+message TypedRow {
+  repeated TypedField fields = 1;
+}
+
+/// 实体集合增量（disciples 之外的集合；B18-P1 起 upsert 载荷 = typed 行
+/// 列表，与旧 JSON 协议 changed[集合名] 数组逐值等价——等价性守卫锁定）
 message CollectionChange {
   /// 集合名（equipmentStacks/pills/materials/herbs/seeds/storageBags/
   /// manualStacks/manualInstances/equipmentInstances——与旧协议键一致）
   optional string name = 1;
 
-  /// upsert 实体数组 JSON 文本（空数组/无变更时不携带）
+  /// 🔴 停写保留（B18-P1，号冻结永不复用）：upsert 实体数组 JSON 文本
+  /// （v1 过渡编码历史形态；C++ 编码器已停写，Kotlin 解码保留 fallback
+  /// 供旧格式 golden 夹具解码——对照面保留，非删断言）
   optional bytes upsertsJson = 2;
 
   /// 本封删除的实体 id（与旧协议 removed[集合名] 同值）
   repeated string removedIds = 3;
+
+  /// upsert 实体 typed 行（B18-P1；每行 = 数组中一个实体对象；空数组
+  /// 不携带——生产 diff 恒不产出空 upserts 数组，与旧编码行为一致）
+  repeated TypedRow upsertsTyped = 4;
 }
 
 /// gameData 字段增量（resourcesHeader 未覆盖字段的通用承载）
@@ -277,8 +323,13 @@ message JsonFieldChange {
   /// gameData 字段名（无 "gameData." 前缀）
   optional string name = 1;
 
-  /// 字段值 JSON 文本（嵌套容器为整体替换语义，与旧协议同值）
+  /// 🔴 停写保留（B18-P1，号冻结永不复用）：字段值 JSON 文本（v1 过渡
+  /// 编码历史形态；C++ 编码器已停写，Kotlin 解码保留 fallback）
   optional bytes valueJson = 2;
+
+  /// 字段值 typed 承载（B18-P1；嵌套容器整体替换语义同旧协议；标量/
+  /// 数组/对象经 TypedValue 统一承载）
+  optional TypedValue valueTyped = 3;
 }
 
 /// 镜像事件流条目（R2.4/B09 转正：月/年结算信封并入 eventFeed——

@@ -321,6 +321,59 @@ bool isGameDataPath(const std::string& key) {
     return key.rfind("gameData.", 0) == 0;
 }
 
+// ── 通用 typed 值编码（B18-P1）──────────────────────────────────────
+
+/// TypedValue 递归编码（game_view.proto TypedValue：JSON 树任意节点的
+/// proto 原生承载）。分派按 nlohmann 类型谓词；数组/对象递归。
+/// 确定性：对象成员按 nlohmann std::map 键序遍历 ⇒ TypedField 序恒定。
+void appendTypedValue(uint32_t field, const json& v, ProtoWriter& out) {
+    ProtoWriter sub;
+    if (v.is_string()) {
+        sub.stringField(1, v.get<std::string>());
+    } else if (v.is_number_integer()) {
+        sub.int64Field(2, v.get<int64_t>());
+    } else if (v.is_number_float()) {
+        // 生产树恒已过 normalizeIntegralFloats（整值浮点已转 int64），
+        // 此分支只承载非整值浮点
+        sub.doubleField(3, v.get<double>());
+    } else if (v.is_boolean()) {
+        sub.boolField(4, v.get<bool>());
+    } else if (v.is_array()) {
+        if (v.empty()) {
+            // vEmptyArray 判别位：[] 与 {} 在 wire 层同为零字节不可区分
+            // （b02 发现 7 纪律），而两者形状语义不同——空数组必须显式携带
+            sub.boolField(8, true);
+        } else {
+            for (const json& e : v) appendTypedValue(5, e, sub);
+        }
+    } else if (v.is_object()) {
+        for (auto it = v.begin(); it != v.end(); ++it) {
+            ProtoWriter member;
+            member.stringField(1, it.key());
+            appendTypedValue(2, it.value(), member);
+            sub.messageField(6, member);
+        }
+    } else if (v.is_null()) {
+        sub.boolField(7, true);  // vNull（生产载荷无 null 生产者，防御面）
+    }
+    out.messageField(field, sub);
+}
+
+/// TypedRow 编码（一个 upsert 实体 = 一个 TypedRow；行内字段 = nlohmann
+/// 键序的 TypedField 序列。非对象载荷按宽松语义不产出——与旧 dump 路径
+/// 的"垃圾进垃圾出"相比只少不差，实体恒为对象）
+void appendTypedRow(uint32_t field, const json& row, ProtoWriter& out) {
+    if (!row.is_object()) return;
+    ProtoWriter sub;
+    for (auto it = row.begin(); it != row.end(); ++it) {
+        ProtoWriter member;
+        member.stringField(1, it.key());
+        appendTypedValue(2, it.value(), member);
+        sub.messageField(1, member);
+    }
+    out.messageField(field, sub);
+}
+
 }  // namespace
 
 std::string encodeGameView(const json& diff, const std::string& schemaVersion,
@@ -397,18 +450,23 @@ std::string encodeGameView(const json& diff, const std::string& schemaVersion,
     }
 
     // field 6: collectionChange —— disciples 之外的实体集合（通用承载：
-    // 现有 9 集合 + 未来新增集合自动覆盖；changed/removed 键均有序遍历）
+    // 现有 9 集合 + 未来新增集合自动覆盖；changed/removed 键均有序遍历）。
+    // B18-P1：upsert 载荷换轨 upsertsTyped（通用 typed 行，递归承载），
+    // 旧 upsertsJson bytes 编码分支删除（对照面转 Kotlin 双路解码守卫）；
+    // 字段号升序 name(1) → removedIds(3) → upsertsTyped(4)
     for (auto it = changed.begin(); it != changed.end(); ++it) {
         if (isGameDataPath(it.key()) || it.key() == "disciples") continue;
         if (!it.value().is_array()) continue;
         ProtoWriter entry;
         entry.stringField(1, it.key());
-        entry.bytesField(2, it.value().dump());
         const auto rmIt = removed.find(it.key());
         if (rmIt != removed.end() && rmIt->is_array()) {
             for (const json& id : *rmIt) {
                 if (id.is_string()) entry.stringField(3, id.get<std::string>());
             }
+        }
+        for (const json& e : it.value()) {
+            appendTypedRow(4, e, entry);
         }
         out.messageField(6, entry);
     }
@@ -425,13 +483,14 @@ std::string encodeGameView(const json& diff, const std::string& schemaVersion,
     }
 
     // field 7: gameDataChange —— resourcesHeader 未覆盖的 gameData 字段
-    //（嵌套容器整体替换语义；载荷 = 字段值 JSON 原文）
+    //（嵌套容器整体替换语义；B18-P1 起载荷换轨 valueTyped，旧 valueJson
+    // bytes 编码分支删除）
     for (auto it = changed.begin(); it != changed.end(); ++it) {
         if (!isGameDataPath(it.key())) continue;
         if (it.key() == "gameData.spiritStones") continue;
         ProtoWriter entry;
         entry.stringField(1, it.key().substr(9));  // 去掉 "gameData." 前缀
-        entry.bytesField(2, it.value().dump());
+        appendTypedValue(3, it.value(), entry);
         out.messageField(7, entry);
     }
 

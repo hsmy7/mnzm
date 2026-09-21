@@ -27,8 +27,11 @@
 //     两形状 wire 层同构）；
 //   - removed["disciples"] → discipleListDelta.removedIds；
 //   - 其余 changed/removed 键（非 "gameData.*"/"disciples"）→
-//     collectionChange（upsertsJson = 实体数组 JSON 原文，与旧协议逐字节
-//     同值）；"gameData.*" 其余键 → gameDataChange（valueJson 同上）；
+//     collectionChange（B18-P1 起 upsert 载荷 = upsertsTyped 通用 typed 行
+//     ——TypedValue/TypedField/TypedRow 递归承载，与旧 JSON 协议逐值等价，
+//     等价性守卫锁定；旧 upsertsJson bytes 已停写，号冻结永不复用）；
+//     "gameData.*" 其余键 → gameDataChange（valueTyped 同法；旧 valueJson
+//     bytes 已停写）；
 //   - configEcho.snapshotSchemaVersion = GameCoreConfig.snapshotSchemaVersion；
 //   - eventFeed（R2.4 转正）：[ViewEventDraft] 列表逐条编码为 ViewEvent
 //     （type/gameYear/gameMonth/detailJson）——月/年结算信封 + 突破/死亡/

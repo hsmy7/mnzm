@@ -15,9 +15,16 @@ import com.xianxia.sect.proto.gameview.DiscipleRow
 import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.StringIntEntry
 import com.xianxia.sect.proto.gameview.StringStringEntry
+import com.xianxia.sect.proto.gameview.TypedRow
+import com.xianxia.sect.proto.gameview.TypedValue
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * GameViewDiscipleRows —— `DiscipleRow` → [Disciple] 的 **typed 直读投影**
@@ -574,3 +581,45 @@ internal object GameViewDiscipleRows {
             .setNurtureProgress(nurtureProgress)
             .build()
 }
+
+// ============================================================
+// B18-P1：通用 typed 值承载（proto `TypedValue`/`TypedRow`）→ JSON 元素树
+// 重建基建。upsertsJson/valueJson/storageBagItemsJson 三字段 typed 化后，
+// 解码侧以本单源重建 JsonElement（Kotlin 内部交换格式仍是 JsonElement 树，
+// 下游 applier 零变更）；挂本文件是因 proto.gameview import 守卫白名单仅
+// codec 与本文件，且 TypedRow 与 DiscipleRow 同为行契约类型。
+// ============================================================
+
+/**
+ * proto typed 值 → JSON 元素树（递归）。
+ *
+ * 等价口径（§1.6 数字格式红线）：`vInt` 经 [JsonPrimitive] 重建的 content
+ * 与旧 JSON 整数文本逐字符串相等；`vDouble` 同（生产树恒已过
+ * normalizeIntegralFloats——整值浮点已转 int64，此分支只见非整值浮点；
+ * 人间尺度数值的 Java 最短表示与 nlohmann dump 文本一致。极端量级浮点的
+ * content 文本可能表示形式不同而数值恒等——下游域解码按值消费零影响，
+ * 双路等价守卫为仲裁，红则按方案口径改 content 直构）。
+ *
+ * 空容器判别（b02 发现 7 wire 事实）：`[]` 与 `{}` 在 wire 层同为零字节——
+ * C++ 编码器对空数组恒写 `vEmptyArray=true` 判别位，零字节缺省 = `{}`。
+ */
+internal fun TypedValue.toJsonElement(): JsonElement = when {
+    hasVString() -> JsonPrimitive(vString)
+    hasVInt() -> JsonPrimitive(vInt)
+    hasVDouble() -> JsonPrimitive(vDouble)
+    hasVBool() -> JsonPrimitive(vBool)
+    hasVNull() -> JsonNull
+    vArrayCount > 0 -> JsonArray(vArrayList.map { it.toJsonElement() })
+    vObjectCount > 0 -> JsonObject(vObjectList.associate { it.toEntry() })
+    hasVEmptyArray() -> JsonArray(emptyList())
+    else -> JsonObject(emptyMap())
+}
+
+/**
+ * proto typed 实体行 → JSON 对象（键序 = wire 序 = C++ nlohmann 键字典序，
+ * 与旧 JSON 文本解析产物同形同值）。
+ */
+internal fun TypedRow.toJsonObject(): JsonObject = JsonObject(fieldsList.associate { it.toEntry() })
+
+private fun com.xianxia.sect.proto.gameview.TypedField.toEntry(): Pair<String, JsonElement> =
+    key to (if (hasValue()) value.toJsonElement() else JsonNull)

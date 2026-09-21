@@ -5,6 +5,8 @@ import com.xianxia.sect.core.engine.AgedDeathDraft
 import com.xianxia.sect.core.engine.BereavementDraft
 import com.xianxia.sect.core.gameview.GameViewDiscipleRows
 import com.xianxia.sect.core.gameview.GameViewStreamEvent
+import com.xianxia.sect.core.gameview.toJsonElement
+import com.xianxia.sect.core.gameview.toJsonObject
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.core.model.StorageBagItem
@@ -125,10 +127,15 @@ internal object GameViewMirrorCodec {
             changed["gameData.spiritStones"] = JsonPrimitive(gv.resourcesHeader.spiritStones)
         }
 
-        // 扩展区 gameDataChange：gameData.<name> = valueJson（原始值形态，标量/容器）
+        // 扩展区 gameDataChange：gameData.<name> = valueTyped（B18-P1 typed 化；
+        // 旧 valueJson bytes fallback——旧格式 golden 夹具仍可解码，对照面保留）
         for (jc in gv.gameDataChangeList) {
-            if (jc.valueJson.isEmpty) continue
-            changed["gameData.${jc.name}"] = json.parseToJsonElement(jc.valueJson.toStringUtf8())
+            if (!jc.hasValueTyped() && jc.valueJson.isEmpty) continue
+            changed["gameData.${jc.name}"] = if (jc.hasValueTyped()) {
+                jc.valueTyped.toJsonElement()
+            } else {
+                json.parseToJsonElement(jc.valueJson.toStringUtf8())
+            }
         }
 
         // 扩展区 collectionChange：非弟子实体集合（upsertsJson 数组 + removedIds）
@@ -152,14 +159,17 @@ internal object GameViewMirrorCodec {
         )
     }
 
-    /** 扩展区 collectionChange：非弟子实体集合（upsertsJson 数组 + removedIds）。 */
+    /** 扩展区 collectionChange：非弟子实体集合（B18-P1 起 upsertsTyped 优先，
+     *  旧 upsertsJson bytes fallback；removedIds 同旧）。 */
     private fun decodeCollectionChanges(
         gv: GameView,
         changed: MutableMap<String, JsonElement>,
         removed: MutableMap<String, JsonElement>,
     ) {
         for (cc in gv.collectionChangeList) {
-            if (!cc.upsertsJson.isEmpty) {
+            if (cc.upsertsTypedCount > 0) {
+                changed[cc.name] = JsonArray(cc.upsertsTypedList.map { it.toJsonObject() })
+            } else if (!cc.upsertsJson.isEmpty) {
                 changed[cc.name] = json.parseToJsonElement(cc.upsertsJson.toStringUtf8())
             }
             if (cc.removedIdsCount > 0) removed[cc.name] = cc.removedIdsList.toJsonIdArray()

@@ -218,8 +218,9 @@ TEST_F(GameViewEncodeTest, DiscipleRowTypedFields) {
     EXPECT_EQ("8", removedIds[1].bytes);
 }
 
-// ── collectionChange：非弟子集合（upsertsJson 原文 + removedIds）──
-TEST_F(GameViewEncodeTest, CollectionChangeCarriesRawJson) {
+// ── collectionChange：非弟子集合（B18-P1 typed 行 + removedIds；
+//    旧 upsertsJson bytes 已停写）─────────────────────────────────────
+TEST_F(GameViewEncodeTest, CollectionChangeCarriesTypedRows) {
     const json tree = {
         {"version", 4},
         {"changed", {{"pills", json::array({{{"id", "p1"}, {"quantity", 3}}})}}},
@@ -232,19 +233,35 @@ TEST_F(GameViewEncodeTest, CollectionChangeCarriesRawJson) {
     std::vector<std::pair<uint32_t, DecodedField>> c;
     ASSERT_TRUE(decodeFields(cc[0].bytes, c));
     EXPECT_EQ("pills", fieldsWith(c, 1)[0].bytes);          // name
-    auto upJson = fieldsWith(c, 2);                          // upsertsJson
-    ASSERT_EQ(1u, upJson.size());
-    const json parsed = json::parse(upJson[0].bytes);
-    ASSERT_TRUE(parsed.is_array());
-    EXPECT_EQ("p1", parsed[0].at("id").get<std::string>());
-    EXPECT_EQ(3, parsed[0].at("quantity").get<int>());
+    EXPECT_TRUE(fieldsWith(c, 2).empty());                   // upsertsJson 停写保留（号冻结，不再产出）
     auto rm = fieldsWith(c, 3);                              // removedIds
     ASSERT_EQ(1u, rm.size());
     EXPECT_EQ("p0", rm[0].bytes);
+    auto rows = fieldsWith(c, 4);                            // upsertsTyped（TypedRow）
+    ASSERT_EQ(1u, rows.size());
+    std::vector<std::pair<uint32_t, DecodedField>> row;
+    ASSERT_TRUE(decodeFields(rows[0].bytes, row));
+    ASSERT_EQ(2u, row.size());                                // TypedField ×2（键字典序：id < quantity）
+    EXPECT_EQ(1u, row[0].first);                              // TypedField.fields（field 1）
+    EXPECT_EQ(1u, row[1].first);
+    std::vector<std::pair<uint32_t, DecodedField>> f0;        // TypedField{id}
+    ASSERT_TRUE(decodeFields(row[0].second.bytes, f0));
+    EXPECT_EQ("id", fieldsWith(f0, 1)[0].bytes);              // 键（TypedField.key）
+    std::vector<std::pair<uint32_t, DecodedField>> v0;        // TypedValue(vString="p1")
+    ASSERT_TRUE(decodeFields(fieldsWith(f0, 2)[0].bytes, v0));
+    EXPECT_EQ("p1", fieldsWith(v0, 1)[0].bytes);
+    std::vector<std::pair<uint32_t, DecodedField>> f1;        // TypedField{quantity}
+    ASSERT_TRUE(decodeFields(row[1].second.bytes, f1));
+    EXPECT_EQ("quantity", fieldsWith(f1, 1)[0].bytes);        // 键字典序：id < quantity
+    std::vector<std::pair<uint32_t, DecodedField>> v1;        // TypedValue(vInt=3)
+    ASSERT_TRUE(decodeFields(fieldsWith(f1, 2)[0].bytes, v1));
+    EXPECT_EQ(3, asInt64(fieldsWith(v1, 2)[0].varint));
+    EXPECT_TRUE(fieldsWith(v1, 8).empty());                   // 非空容器无 vEmptyArray 判别位
 }
 
-// ── gameDataChange：resourcesHeader 未覆盖字段（去前缀 + valueJson）─
-TEST_F(GameViewEncodeTest, GameDataChangeStripsPrefixAndCarriesJson) {
+// ── gameDataChange：resourcesHeader 未覆盖字段（去前缀 + valueTyped；
+//    旧 valueJson bytes 已停写）───────────────────────────────────────
+TEST_F(GameViewEncodeTest, GameDataChangeStripsPrefixAndCarriesTypedValue) {
     const json tree = {
         {"version", 5},
         {"changed", {{"gameData.gameYear", 12}, {"gameData.someList", {1, 2, 3}}}},
@@ -257,7 +274,52 @@ TEST_F(GameViewEncodeTest, GameDataChangeStripsPrefixAndCarriesJson) {
     std::vector<std::pair<uint32_t, DecodedField>> g0;
     ASSERT_TRUE(decodeFields(gc[0].bytes, g0));
     EXPECT_EQ("gameYear", fieldsWith(g0, 1)[0].bytes);   // name（无 gameData. 前缀）
-    EXPECT_EQ("12", fieldsWith(g0, 2)[0].bytes);          // valueJson
+    EXPECT_TRUE(fieldsWith(g0, 2).empty());               // valueJson 停写保留（号冻结，不再产出）
+    std::vector<std::pair<uint32_t, DecodedField>> v0;    // TypedValue(vInt=12)
+    ASSERT_TRUE(decodeFields(fieldsWith(g0, 3)[0].bytes, v0));
+    EXPECT_EQ(12, asInt64(fieldsWith(v0, 2)[0].varint));
+    std::vector<std::pair<uint32_t, DecodedField>> g1;    // someList → vArray 递归
+    ASSERT_TRUE(decodeFields(gc[1].bytes, g1));
+    std::vector<std::pair<uint32_t, DecodedField>> v1;
+    ASSERT_TRUE(decodeFields(fieldsWith(g1, 3)[0].bytes, v1));
+    ASSERT_EQ(3u, v1.size());                             // repeated vArray = TypedValue ×3
+    EXPECT_EQ(5u, v1[0].first);
+    for (int i = 0; i < 3; ++i) {
+        std::vector<std::pair<uint32_t, DecodedField>> e;
+        ASSERT_TRUE(decodeFields(v1[static_cast<std::size_t>(i)].second.bytes, e));
+        EXPECT_EQ(i + 1, asInt64(fieldsWith(e, 2)[0].varint));  // vInt 1/2/3
+    }
+}
+
+// ── gameDataChange：空容器判别（[] 与 {} wire 层同为零字节——b02 发现 7）─
+TEST_F(GameViewEncodeTest, GameDataChangeEmptyContainerDiscriminator) {
+    const json tree = {
+        {"version", 6},
+        {"changed", {{"gameData.disabledPolicies", json::array()},
+                     {"gameData.someMap", json::object()}}},
+        {"removed", json::object()},
+    };
+    std::vector<std::pair<uint32_t, DecodedField>> fs;
+    ASSERT_TRUE(decodeFields(encodeGameView(tree, ""), fs));
+    auto gc = fieldsWith(fs, 7);
+    ASSERT_EQ(2u, gc.size());  // disabledPolicies < someMap（字典序）
+    // [] → vEmptyArray=true（field 8），vArray 零条目
+    std::vector<std::pair<uint32_t, DecodedField>> a;
+    ASSERT_TRUE(decodeFields(gc[0].bytes, a));
+    EXPECT_EQ("disabledPolicies", fieldsWith(a, 1)[0].bytes);
+    std::vector<std::pair<uint32_t, DecodedField>> av;
+    ASSERT_TRUE(decodeFields(fieldsWith(a, 3)[0].bytes, av));
+    ASSERT_EQ(1u, av.size());
+    EXPECT_EQ(8u, av[0].first);          // vEmptyArray（field 8）
+    EXPECT_EQ(0u, av[0].second.wire);    // boolField = varint wire
+    EXPECT_EQ(1u, av[0].second.varint);  // vEmptyArray=true
+    // {} → 零字节 TypedValue（presence 在，形状 = 默认对象）
+    std::vector<std::pair<uint32_t, DecodedField>> m;
+    ASSERT_TRUE(decodeFields(gc[1].bytes, m));
+    EXPECT_EQ("someMap", fieldsWith(m, 1)[0].bytes);
+    auto mv = fieldsWith(m, 3);
+    ASSERT_EQ(1u, mv.size());
+    EXPECT_TRUE(mv[0].bytes.empty());                         // 零字节子消息
 }
 
 // ── configEcho：schemaVersion 非空才携带 ──────────────────────────
