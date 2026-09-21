@@ -273,8 +273,8 @@ class GameActivity : ComponentActivity() {
         // 若等 Compose 重组，unionId 尚为 null，白名单判定会失败
         AdFreeWhitelist.initialize(sessionManager.unionId)
 
-        // 游戏初始化分发（新游戏/读档/云读档）
-        initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad)
+        // 游戏初始化分发（新游戏/读档/云读档/云槽位下载）
+        initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad, launch.cloudSlot)
 
         // Vulkan 设备预热（Phase1）+ ASTC 图集预取在进入 Activity 即后台执行——
         // 与 boot 数据阶段并行，避免 PLAYING 时点才发起的预热与 surface 初始化竞速。
@@ -728,11 +728,15 @@ class GameActivity : ComponentActivity() {
         val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)
         val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"
         val isCloudSaveLoad = intent.getBooleanExtra(MainActivity.EXTRA_CLOUD_SAVE_LOAD, false)
+        // SR-3：云槽位下载（slot_N → 云端 slot_N 档，下载落盘后 boot）。不随
+        // savedInstanceState 持久化——进程回收重建时若缓存已落盘则走常规槽位加载
+        val cloudSlot = intent.getIntExtra(MainActivity.EXTRA_CLOUD_SLOT, -1)
         return GameLaunchParams(
             slot = if (savedSlot >= 0) savedSlot else intentSlot,
             isNewGame = isNewGame,
             sectName = sectName,
             isCloudSaveLoad = isCloudSaveLoad,
+            cloudSlot = cloudSlot,
             isSoftwareRendering = _isSoftwareRendering,
             isGlesRendering = _isGlesRendering
         )
@@ -744,12 +748,19 @@ class GameActivity : ComponentActivity() {
         val isNewGame: Boolean,
         val sectName: String,
         val isCloudSaveLoad: Boolean,
+        val cloudSlot: Int = -1,
         val isSoftwareRendering: Boolean,
         val isGlesRendering: Boolean = false
     )
 
-    /** 游戏初始化分发（新游戏/读档/云读档，JIT 暂停下执行）。 */
-    private fun initializeGameIfNeeded(slot: Int, isNewGame: Boolean, sectName: String, isCloudSaveLoad: Boolean) {
+    /** 游戏初始化分发（新游戏/读档/云读档/云槽位下载，JIT 暂停下执行）。 */
+    private fun initializeGameIfNeeded(
+        slot: Int,
+        isNewGame: Boolean,
+        sectName: String,
+        isCloudSaveLoad: Boolean,
+        cloudSlot: Int
+    ) {
         if (saveLoadViewModel.isGameAlreadyLoaded()) {
             Log.d(TAG, "Game already loaded in ViewModel, skipping initialization")
             return
@@ -758,11 +769,16 @@ class GameActivity : ComponentActivity() {
         Log.d(
             TAG,
             "onCreate: Game not loaded, will initialize. slot=$slot, " +
-                "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad"
+                "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad, cloudSlot=$cloudSlot"
         )
         lifecycleScope.launch {
             VivoGCJITOptimizer.runWithJitPaused(block = {
                 when {
+                    // SR-3：云槽位下载优先（与 EXTRA_SLOT/EXTRA_CLOUD_SAVE_LOAD 互斥的独立入口）
+                    cloudSlot >= 0 -> {
+                        Log.d(TAG, "Loading cloud slot from MainActivity: slot=$cloudSlot")
+                        saveLoadViewModel.loadCloudSlot(cloudSlot)
+                    }
                     isCloudSaveLoad -> {
                         Log.d(TAG, "Loading cloud save from MainActivity")
                         saveLoadViewModel.loadFromCloudSave()

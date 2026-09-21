@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.InputValidator
+import com.xianxia.sect.data.cloud.CloudSaveEntry
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.components.GameBackground
@@ -55,7 +56,10 @@ fun SaveSelectScreen(
     onDeleteSlot: (Int) -> Unit,
     onBack: () -> Unit,
     cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo? = null,
-    onCloudSaveLoad: () -> Unit = {}
+    onCloudSaveLoad: () -> Unit = {},
+    /** SR-3：云端槽位存档（slot_N，CLOUD_TRANSITION 起与本地槽位并存） */
+    cloudSlots: List<CloudSaveEntry> = emptyList(),
+    onCloudSlotLoad: (Int) -> Unit = {}
 ) {
     var showOverwriteConfirm by remember { mutableStateOf<Int?>(null) }
     var showSectNameDialog by remember { mutableStateOf<Int?>(null) }
@@ -78,7 +82,9 @@ fun SaveSelectScreen(
             saveSlots = saveSlots,
             dateFormat = dateFormat,
             cloudSaveInfo = cloudSaveInfo,
+            cloudSlots = visibleCloudSlots(mode, cloudSlots),
             onBack = onBack,
+            onCloudSlotLoad = onCloudSlotLoad,
             onSlotClick = { slot ->
                 dispatchSlotClick(
                     slot = slot,
@@ -148,6 +154,15 @@ internal fun dispatchSlotClick(
     }
 }
 
+/**
+ * 云槽位卡可见性（internal 供守卫测试）：LOAD_SAVE 模式显示云端槽位存档；
+ * NEW_GAME 模式隐藏（新游戏=建本地档，云端槽位与新游戏无关）。
+ */
+internal fun visibleCloudSlots(
+    mode: SaveSelectMode,
+    cloudSlots: List<CloudSaveEntry>
+): List<CloudSaveEntry> = if (mode == SaveSelectMode.LOAD_SAVE) cloudSlots else emptyList()
+
 /** 主内容区：标题行 + 槽位滚动列表 */
 @Composable
 @Suppress("LongParameterList") // 槽位渲染上下文 + 回调聚合，分组会破坏可读性
@@ -156,7 +171,9 @@ private fun SaveSelectContent(
     saveSlots: List<SaveSlot>,
     dateFormat: SimpleDateFormat,
     cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo?,
+    cloudSlots: List<CloudSaveEntry>,
     onBack: () -> Unit,
+    onCloudSlotLoad: (Int) -> Unit,
     onSlotClick: (SaveSlot) -> Unit,
     onDeleteClick: (Int) -> Unit
 ) {
@@ -179,6 +196,8 @@ private fun SaveSelectContent(
             mode = mode,
             dateFormat = dateFormat,
             cloudSaveInfo = cloudSaveInfo,
+            cloudSlots = cloudSlots,
+            onCloudSlotLoad = onCloudSlotLoad,
             onSlotClick = onSlotClick,
             onDeleteClick = onDeleteClick
         )
@@ -225,6 +244,8 @@ private fun SaveSlotList(
     mode: SaveSelectMode,
     dateFormat: SimpleDateFormat,
     cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo?,
+    cloudSlots: List<CloudSaveEntry>,
+    onCloudSlotLoad: (Int) -> Unit,
     onSlotClick: (SaveSlot) -> Unit,
     onDeleteClick: (Int) -> Unit
 ) {
@@ -255,6 +276,15 @@ private fun SaveSlotList(
                     onDeleteClick = { onDeleteClick(slot.slot) }
                 )
             }
+        }
+        // SR-3：云端槽位存档区（cloudSlots 已由 visibleCloudSlots 按模式过滤；
+        // CLOUD_TRANSITION 下与本地槽位并存——本地照常可用，CLOUD_ONLY 后才移除）
+        cloudSlots.forEach { entry ->
+            CloudSlotEntryCard(
+                entry = entry,
+                dateFormat = dateFormat,
+                onClick = { onCloudSlotLoad(entry.slot) }
+            )
         }
     }
 }
@@ -588,6 +618,97 @@ private fun LocalSlotContent(
                 text = dateFormat.format(Date(slot.timestamp)),
                 fontSize = 11.sp,
                 color = Color.Black
+            )
+        }
+    }
+}
+
+/**
+ * 云端槽位存档卡（SR-3）：slot_N 档的摘要渲染 + 点击下载。
+ *
+ * 摘要来源 = 云端 extra JSON（year/month/sect/disciples/stones/version）；
+ * 摘要缺失（TapTap 元数据最终一致性延迟常态）时退化为"云端存档 N"占位文案——
+ * 有档无摘要非错误，点击仍可下载。样式对齐 [SaveSlotCard] 云存档入口（蓝系）。
+ */
+@Composable
+fun CloudSlotEntryCard(
+    entry: CloudSaveEntry,
+    dateFormat: SimpleDateFormat,
+    onClick: () -> Unit
+) {
+    val summary = entry.summary
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFF0F7FF))
+            .border(2.dp, Color(0xFF4A90E2), RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF4A90E2)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "云",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Column {
+                    Text(
+                        text = if (summary != null && summary.sectName.isNotBlank()) {
+                            summary.sectName
+                        } else {
+                            "云端存档 ${entry.slot}"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black
+                    )
+                    if (summary != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "第${summary.gameYear}年 ${summary.gameMonth}月",
+                            fontSize = 13.sp,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "弟子: ${summary.discipleCount}  灵石: ${summary.spiritStones}",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
+                    if (entry.modifiedTimeMs > 0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "云端保存: ${dateFormat.format(Date(entry.modifiedTimeMs))}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "点击下载",
+                fontSize = 12.sp,
+                color = Color(0xFF4A90E2),
+                fontWeight = FontWeight.Medium
             )
         }
     }

@@ -45,6 +45,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.cloud.CloudSaveEntry
+import com.xianxia.sect.data.cloud.SaveBackend
+import com.xianxia.sect.data.cloud.SaveBackendMode
+import com.xianxia.sect.data.cloud.SaveBackendModeProvider
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapTapAuthManager
@@ -133,6 +137,13 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var tapCloudSaveManager: TapCloudSaveManager
 
+    // SR-3 云主路径：云槽位列表数据源（接口隔离 IN3）+ 模式门控读取端
+    @Inject
+    lateinit var saveBackend: SaveBackend
+
+    @Inject
+    lateinit var saveBackendModeProvider: SaveBackendModeProvider
+
     @Inject
     lateinit var audioConfig: AudioConfig
 
@@ -179,6 +190,9 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_NEW_GAME = "new_game"
         const val EXTRA_SECT_NAME = "sect_name"
         const val EXTRA_CLOUD_SAVE_LOAD = "cloud_save_load"
+
+        /** SR-3：云槽位下载（slot_1..slot_6 → 云端 slot_N 档）目标槽位 */
+        const val EXTRA_CLOUD_SLOT = "cloud_slot"
     }
 
     /**
@@ -561,7 +575,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val saveSlots = loadSaveSlotsForSelect()
             val cloudInfo = queryCloudSaveInfo()
-            renderSaveSelectScreen(mode, saveSlots, cloudInfo)
+            val cloudSlots = queryCloudSlotEntries()
+            renderSaveSelectScreen(mode, saveSlots, cloudInfo, cloudSlots)
         }
     }
 
@@ -569,7 +584,8 @@ class MainActivity : ComponentActivity() {
     private fun renderSaveSelectScreen(
         mode: SaveSelectMode,
         saveSlots: List<SaveSlot>,
-        cloudInfo: TapCloudSaveManager.CloudSaveInfo?
+        cloudInfo: TapCloudSaveManager.CloudSaveInfo?,
+        cloudSlots: List<CloudSaveEntry> = emptyList()
     ) {
         setContent {
             XianxiaTheme {
@@ -581,6 +597,7 @@ class MainActivity : ComponentActivity() {
                         mode = mode,
                         saveSlots = saveSlots,
                         cloudSaveInfo = cloudInfo,
+                        cloudSlots = cloudSlots,
                         onLoadSlot = { slot ->
                             launchGame(slot = slot)
                         },
@@ -593,6 +610,16 @@ class MainActivity : ComponentActivity() {
                                 return@SaveSelectScreen
                             }
                             launchGame(cloudLoad = true)
+                        },
+                        onCloudSlotLoad = { slot ->
+                            if (!sessionManager.isLoggedIn) {
+                                Toast.makeText(
+                                    this@MainActivity, "请先登录 TapTap",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@SaveSelectScreen
+                            }
+                            launchGame(cloudSlot = slot)
                         },
                         onNewGame = { slot, sectName ->
                             launchGame(
@@ -617,13 +644,14 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    
-    /** 携带存档参数启动游戏 Activity（slot/新游戏/云存档 三选一或组合） */
+
+    /** 携带存档参数启动游戏 Activity（slot/新游戏/云存档/云槽位 四选一或组合） */
     private fun launchGame(
         slot: Int? = null,
         newGame: Boolean = false,
         sectName: String? = null,
-        cloudLoad: Boolean = false
+        cloudLoad: Boolean = false,
+        cloudSlot: Int? = null
     ) {
         val intent = Intent(this, GameActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -633,6 +661,7 @@ class MainActivity : ComponentActivity() {
                 putExtra(EXTRA_SECT_NAME, sectName)
             }
             if (cloudLoad) putExtra(EXTRA_CLOUD_SAVE_LOAD, true)
+            if (cloudSlot != null) putExtra(EXTRA_CLOUD_SLOT, cloudSlot)
         }
         startActivity(intent)
         finish()
@@ -662,6 +691,37 @@ class MainActivity : ComponentActivity() {
                 throw e // 取消穿透: 画面退出取消时上抛, 不以 null 冒充"无云存档"
             } catch (_: Exception) {
                 null
+            }
+        }
+    }
+
+    /**
+     * 查询云槽位列表（SR-3：SaveBackend.list() → slot_N 映射 + 摘要）。
+     *
+     * **LEGACY 短路（硬红线）**：默认模式零查询零 UI——与 SR-3 落库前主菜单行为
+     * 逐行一致。查询失败降级空列表（主菜单仍可用，云槽位区不显示，如实日志留痕）。
+     */
+    // 防御兜底: 列表查询异常源跨 IO/SDK 不可枚举, 降级空列表+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun queryCloudSlotEntries(): List<CloudSaveEntry> {
+        if (saveBackendModeProvider.current() == SaveBackendMode.LEGACY) {
+            Log.d(TAG, "cloud slot list skipped: mode=LEGACY")
+            return emptyList()
+        }
+        return withContext(ioDispatcher.dispatcher) {
+            try {
+                when (val result = saveBackend.list()) {
+                    is com.xianxia.sect.data.cloud.SaveBackendResult.Success -> result.data
+                    is com.xianxia.sect.data.cloud.SaveBackendResult.Failure -> {
+                        Log.w(TAG, "cloud slot list failed: ${result.message}")
+                        emptyList()
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e // 取消穿透: 画面退出取消时上抛
+            } catch (e: Exception) {
+                Log.e(TAG, "cloud slot list error", e)
+                emptyList()
             }
         }
     }
