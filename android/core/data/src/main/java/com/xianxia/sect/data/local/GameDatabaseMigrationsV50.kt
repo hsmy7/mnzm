@@ -61,8 +61,9 @@ internal val MIGRATION_49_50 = object : Migration(49, 50) {
     /**
      * 用 create-copy-drop-rename 重建指定表并删除一列。
      *
-     * 从 PRAGMA table_info 读旧表全部列（保留类型/NOT NULL/DEFAULT/主键位），
-     * 剔除 [columnToDrop] 后逐列重建新表；仅当目标列存在时才执行（幂等）。
+     * 实现已收敛到 [rebuildTableDroppingColumns]（B19 删列批抽取的多列通用实现，
+     * 语义与 v50 原私有实现逐字等价：待删列不存在即返回、PRAGMA 逐列重建、
+     * INSERT SELECT 复制、重建索引）；本函数保留为单列调用点的语义化入口。
      */
     private fun rebuildDroppingColumn(
         db: SupportSQLiteDatabase,
@@ -70,50 +71,11 @@ internal val MIGRATION_49_50 = object : Migration(49, 50) {
         columnToDrop: String,
         pkColumns: List<String>,
         indices: List<Triple<String, String, Boolean>>
-    ) {
-        if (!columnExists(db, table, columnToDrop)) return
-
-        // 1. 读旧表列定义（排除目标列）
-        val colDefs = mutableListOf<String>()
-        val colNames = mutableListOf<String>()
-        val cursor = db.query("PRAGMA table_info($table)")
-        cursor.use {
-            while (it.moveToNext()) {
-                val name = it.getString(it.getColumnIndexOrThrow("name"))
-                if (name == columnToDrop) continue
-                val type = it.getString(it.getColumnIndexOrThrow("type"))
-                val notNull = it.getInt(it.getColumnIndexOrThrow("notnull")) == 1
-                val default = it.getString(it.getColumnIndexOrThrow("dflt_value"))
-                val quoted = "`$name` $type"
-                val def = buildString {
-                    append(quoted)
-                    if (notNull) append(" NOT NULL")
-                    if (default != null) append(" DEFAULT $default")
-                }
-                colDefs.add(def)
-                colNames.add("`$name`")
-            }
-        }
-
-        val pkClause = if (pkColumns.isNotEmpty()) {
-            ", PRIMARY KEY(${pkColumns.joinToString(", ") { "`$it`" }})"
-        } else {
-            ""
-        }
-
-        db.execSQL(
-            "ALTER TABLE `$table` RENAME TO `${table}_old`"
-        )
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `$table` (${colDefs.joinToString(", ").removeSuffix(",")}$pkClause)"
-        )
-        db.execSQL(
-            "INSERT INTO `$table` SELECT ${colNames.joinToString(", ")} FROM `${table}_old`"
-        )
-        db.execSQL("DROP TABLE IF EXISTS `${table}_old`")
-        for ((idxName, idxExpr, isUnique) in indices) {
-            val unique = if (isUnique) "UNIQUE " else ""
-            db.execSQL("CREATE $unique INDEX IF NOT EXISTS `$idxName` ON $idxExpr")
-        }
-    }
+    ) = rebuildTableDroppingColumns(
+        db = db,
+        table = table,
+        columnsToDrop = listOf(columnToDrop),
+        pkColumns = pkColumns,
+        indices = indices
+    )
 }

@@ -488,11 +488,9 @@ data class GameData(
     var openRecruitmentLastPaidMonth: Int = 0,
 
     // 战斗队伍（支持多队伍）
-    // battleTeam 保留用于 Room schema 兼容旧存档，逻辑层使用 battleTeams
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    @kotlinx.serialization.Transient
-    var battleTeam: BattleTeam? = null,
-
+    // B19：单数 battleTeam（Room 死列）已随 v51→v52 迁移删除——全仓零写入者/零读取者，
+    // 且 @Transient 不进 .sav/proto；旧档队伍语义由 battleTeams + battleTeamsInitialized 承担。
+    //
     // battleTeams/usedTeamNumbers 持久化（Room 列 + proto 字段）；
     // 旧档（无对应字段）由 battleTeamsInitialized 区分
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
@@ -517,9 +515,8 @@ data class GameData(
     var battleTeamsInitialized: Boolean = false,
 
     // AI战斗队伍
-    @kotlinx.serialization.Transient
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    var aiBattleTeams: List<AIBattleTeam> = emptyList(),
+    // B19：aiBattleTeams（Room 死列 + @Transient）已随 v51→v52 迁移删除——全仓零写入者，
+    // 唯一读取链（organization → SectOrganizationState.aiBattleTeams）生产零消费者。
 
     // 已使用的兑换码列表（使用 LinkedHashSet 去重 + 上限保护）
     @ProtoNumber(45)
@@ -955,7 +952,6 @@ data class GameData(
         elderSlots = elderSlots,
         alliances = alliances,
         battleTeams = battleTeams,
-        aiBattleTeams = aiBattleTeams,
         sectPolicies = sectPolicies,
         activeMissions = activeMissions,
         availableMissions = availableMissions,

@@ -2,7 +2,6 @@ package com.xianxia.sect.data.local
 
 import android.util.Log
 import androidx.room.TypeConverter
-import com.xianxia.sect.core.model.AIBattleTeam
 import com.xianxia.sect.core.model.AICaveTeam
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.AlchemySlot
@@ -347,15 +346,8 @@ object CollectionConverters {
     fun toMissionList(value: String): List<Mission> =
         ProtobufConverters.decodeFromBase64(ListSerializer(Mission.serializer()), value) { emptyList() }
 
-    @TypeConverter
-    @JvmStatic
-    fun fromAIBattleTeamList(value: List<AIBattleTeam>): String =
-        ProtobufConverters.encodeToBase64(ListSerializer(AIBattleTeam.serializer()), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toAIBattleTeamList(value: String): List<AIBattleTeam> =
-        ProtobufConverters.decodeFromBase64(ListSerializer(AIBattleTeam.serializer()), value) { emptyList() }
+    // B19：fromAIBattleTeamList / toAIBattleTeamList 已随 game_data.aiBattleTeams 死列
+    // 一并删除（v51→v52 迁移删列，该转换器对无任何字段消费者）。
 
     // battleTeams/usedTeamNumbers 持久化所需的列表转换器
     @TypeConverter

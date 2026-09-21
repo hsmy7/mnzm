@@ -27,6 +27,68 @@ private const val TAG = "GameDatabase"
             }
         }
         /**
+         * create-copy-drop-rename 重建指定表并删除一列或多列（删列迁移的唯一实现）。
+         *
+         * SQLite < 3.35.0（API24 内置 3.9）不支持 `DROP COLUMN`，故：
+         *  1. 读旧表 `PRAGMA table_info` 的全部列定义（name/type/notnull/dflt_value）；
+         *  2. 剔除待删列后逐列重建 `CREATE TABLE`（保留类型 / NOT NULL / DEFAULT / 主键位）；
+         *  3. 逐列名 `INSERT SELECT` 复制数据 → 删旧表 → 重命名 → 重建索引。
+         *
+         * **幂等**：待删列一个都不存在时直接返回（重复执行 / 迁移中断重试均安全）。
+         *
+         * ⚠️ **不得**改用 [GAME_DATA_CREATE_SQL] 重建 `game_data`——那是 v29 历史基线，
+         * 会丢弃 v29 之后新增的全部列（先例：MIGRATION_49_50 的 KDoc 警告）。
+         *
+         * @param columnsToDrop 待删列名（按名剔除，不存在者忽略）
+         * @param pkColumns 原表主键列（重建时必须显式带回，Room 迁移后校验会比对主键）
+         * @param indices 需重建的索引三元组（索引名, ON 表达式, 是否 UNIQUE）
+         */
+        @Suppress("NestedBlockDepth") // PRAGMA 游标遍历 + 逐列拼装，双层为最少必要嵌套
+        internal fun rebuildTableDroppingColumns(
+            db: SupportSQLiteDatabase,
+            table: String,
+            columnsToDrop: List<String>,
+            pkColumns: List<String>,
+            indices: List<Triple<String, String, Boolean>>
+        ) {
+            if (columnsToDrop.none { columnExists(db, table, it) }) return
+            val dropSet = columnsToDrop.toSet()
+
+            val colDefs = mutableListOf<String>()
+            val colNames = mutableListOf<String>()
+            db.query("PRAGMA table_info($table)").use { cursor ->
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                    if (name in dropSet) continue
+                    val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                    val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) == 1
+                    val default = cursor.getString(cursor.getColumnIndexOrThrow("dflt_value"))
+                    colDefs.add(buildString {
+                        append("`$name` $type")
+                        if (notNull) append(" NOT NULL")
+                        if (default != null) append(" DEFAULT $default")
+                    })
+                    colNames.add("`$name`")
+                }
+            }
+
+            val pkClause = if (pkColumns.isEmpty()) {
+                ""
+            } else {
+                ", PRIMARY KEY(${pkColumns.joinToString(", ") { "`$it`" }})"
+            }
+
+            db.execSQL("ALTER TABLE `$table` RENAME TO `${table}_old`")
+            db.execSQL("CREATE TABLE IF NOT EXISTS `$table` (${colDefs.joinToString(", ")}$pkClause)")
+            db.execSQL("INSERT INTO `$table` SELECT ${colNames.joinToString(", ")} FROM `${table}_old`")
+            db.execSQL("DROP TABLE IF EXISTS `${table}_old`")
+            for ((idxName, idxExpr, isUnique) in indices) {
+                val unique = if (isUnique) "UNIQUE " else ""
+                db.execSQL("CREATE $unique INDEX IF NOT EXISTS `$idxName` ON $idxExpr")
+            }
+        }
+
+        /**
          * game_data 表全量 CREATE TABLE SQL（v29 基线 schema）。
          * 用于 MIGRATION_22_23 和 MIGRATION_24_25 重建 game_data 表。
          *

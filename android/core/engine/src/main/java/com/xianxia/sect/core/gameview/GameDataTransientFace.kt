@@ -27,7 +27,8 @@ import kotlinx.serialization.descriptors.elementNames
  * ⇒ 以 **kotlinx 序列化 descriptor 为权威**：`@Transient` 字段必不出现在
  * `serializer().descriptor.elementNames` 中。取
  * `实例字段集 − descriptor 元素名集` 的差集即该面（本工程实测精确得 9 个字段、
- * 双向无残余）。**新增 @Transient 字段自动纳管**（进不了 descriptor 即自动
+ * 双向无残余；**B19 删两死列 `battleTeam` / `aiBattleTeams` 后为 7 个**——差集法
+ * 自动收缩，无需改本实现）。**新增 @Transient 字段自动纳管**（进不了 descriptor 即自动
  * 落入差集），把一次性修复变成结构性护栏；且不引入 kotlin-reflect 生产依赖。
  *
  * ## 线程契约

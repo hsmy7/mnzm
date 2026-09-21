@@ -81,7 +81,7 @@ internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
-    MIGRATION_49_50, MIGRATION_50_51
+    MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52
 )
 
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
@@ -96,7 +96,7 @@ object GameDatabaseConfig {
      * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 51
+    const val DATABASE_VERSION = 52
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -198,6 +198,9 @@ object GameDatabaseConfig {
     // v51: MIGRATION_50_51 地图冻结（WS-5b）——game_data 新增地形段两列
     //（map_gen_version 版本戳 + terrain_tiles 行主序 flat 瓦片段；
     // "存的地形恒优先"，仅无段才按 mapSeed 生成回填）
+    // v52: MIGRATION_51_52 Room 死列清理（B19）——game_data 删除两列死列
+    //（battleTeam 单数 / aiBattleTeams：全仓零读写点，且 @Transient 不进 .sav；
+    // 旧档数据窗口勘察判归"业务上可弃"，不做单数→复数搬运）
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 

@@ -16,7 +16,6 @@ data class SectOrganizationState(
     val elderSlots: ElderSlots = ElderSlots(),
     val alliances: List<Alliance> = emptyList(),
     val battleTeams: List<BattleTeam> = emptyList(),
-    val aiBattleTeams: List<AIBattleTeam> = emptyList(),
     val sectPolicies: SectPolicies = SectPolicies(),
     val activeMissions: List<ActiveMission> = emptyList(),
     val availableMissions: List<Mission> = emptyList(),
