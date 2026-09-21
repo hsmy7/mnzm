@@ -527,6 +527,8 @@ slot 0 展示有两套不共享真值的链路：`StorageEngine.kt:529-541` 硬�
 | 4 | `performanceMode`/`clarityMode` 从 `SessionManager` 灌入引擎的具体绑定方向 | **B** | 持久化侧已确认（SP 列），灌入点未逐行追 |
 | 5 | `SNAPSHOT_DIR_NAME` 目录是否被别的子系统当恢复点写入 | **B** | 全仓 grep 只命中删除点与常量定义，未发现写入方，故判定安全 |
 
+> **【SR-0 补注 2026-09-21】存疑 1 已实跑收口（SR-0 前置侦察批 T5）**：**两处 `withTransaction` 并入同一事务，原存疑解除**。静态证据（room-runtime **2.7.0** sources，`ConnectionPoolImpl`）：同连接 `transactionStack` 非空时嵌套 `withTransaction` 发 `SAVEPOINT '<depth>'` 而非 `BEGIN`，提交 = `RELEASE SAVEPOINT`、回滚 = `ROLLBACK TO SAVEPOINT`/外层 `ROLLBACK`；`Transactor.withTransaction` KDoc 明示"已事务中再调用 = 嵌套事务，type 继承父事务"。实跑证据：`core/data` 测试 `RoomNestedTransactionSemanticsTest`（4/4 绿，Robolectric 真实 `GameDatabase`，与生产两调用点同构）——①嵌套成功双写均提交；②内层"已成功"后外层失败 ⇒ 内层写一并回滚（合并性核心证据，无独立提交点）；③内层失败未捕获 ⇒ 穿透 + 外层已写一并回滚；④内层失败被外层吞 ⇒ 仅内层写回滚（savepoint 语义），外层写照常提交。另证：外层/内层同线程（`arch_disk_io_*`）执行，"切线程导致不合并"的担忧不成立。行号漂移：审计原引 `StorageEngine.kt:646` 随源码演进现为 `:596`（`performFullTransactionSave`），内层 `StorageEngineWriteOps.kt:55` 未漂移。生产语义：`writeAllDataToDatabase` 内层抛异常是穿透路径（无吞点）⇒ 全量回滚，与 `performFullTransactionSave` 失败分支"事务已回滚"注释一致；注意 ④ 语义（吞内层异常 = 只回滚内层写）是 2.7 savepoint 行为，与旧 room-ktx（≤2.6 引用计数）不同，未来若有人在内外层之间吞异常，回滚范围即缩小。
+
 ---
 
 ## 16. 若要修复，优先级建议（本报告不改动代码）
