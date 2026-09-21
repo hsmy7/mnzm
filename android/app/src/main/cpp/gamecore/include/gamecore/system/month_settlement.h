@@ -1358,6 +1358,7 @@ inline void processLawEnforcementMonthly(GameState& state,
     }
     for (const int32_t id : atRiskIds) {
         // 前序捕获（remove+重插）/逃脱（remove）移行——行存在性重解析
+        // （B18-P2：本轮索引一次构建，同一轮内复用传参——见下方等价性论证）
         const auto freshIdx = indexById(ds);
         const auto rit = freshIdx.find(id);
         if (rit == freshIdx.end()) continue;
@@ -1366,11 +1367,11 @@ inline void processLawEnforcementMonthly(GameState& state,
         if (rngSystem.nextDouble() >= prob) continue;
         // 第二次抽取：捕获 vs 逃脱
         if (rngSystem.nextDouble() < captureRate) {
-            captureDiscipleForReflection(state, id, state.gameData.gameYear,
-                                         indexById(ds));
+            // B18-P2：复用本轮索引（构建与调用之间无 ds 变更——变异发生在被调
+            // 函数内部，只影响下一迭代的重解析需求）
+            captureDiscipleForReflection(state, id, state.gameData.gameYear, freshIdx);
         } else {
-            desertDiscipleCleanup(state, id, lawLoyaltyThreshold(),
-                                  indexById(ds));
+            desertDiscipleCleanup(state, id, lawLoyaltyThreshold(), freshIdx);
         }
     }
 }
@@ -1838,8 +1839,11 @@ inline void processTheftMonthlyFallback(
                      static_cast<std::size_t>(lawMaxTheftJudgementsPerMonth()));
         for (std::size_t k = 0; k < judgeCount; ++k) {
             const int32_t id = candidateIds[k];
-            // 前一候选叛逃会移除行——行存在性重解析（id 寻址等价）
-            if (indexById(ds).find(id) == indexById(ds).end()) continue;
+            // 前一候选叛逃会移除行——行存在性重解析（id 寻址等价）。
+            // B18-P2：索引**一次构建**供同一表达式复用（原写法同一表达式内
+            // 两次 indexById 重建，纯成本零语义）
+            const auto idx = indexById(ds);
+            if (idx.find(id) == idx.end()) continue;
             judgeSingleTheftCandidate(state, id, currentMonth, rngSystem, world);
         }
     } catch (const std::exception&) {
