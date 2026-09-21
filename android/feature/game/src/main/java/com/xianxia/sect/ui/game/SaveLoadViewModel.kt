@@ -137,6 +137,18 @@ class SaveLoadViewModel @Inject constructor(
     internal val cloudSaveOperationStateFlow = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
     val cloudSaveOperationState: StateFlow<CloudSaveOperationState> = cloudSaveOperationStateFlow.asStateFlow()
 
+    /**
+     * 云存档真冲突待决（SR-3，禁止静默覆盖——方案 §2/IN2）。
+     *
+     * 双源置态：下载侧 = `saveBackend.conflicts` 流（SaveBackend.download 仲裁 CONFLICT）；
+     * 上传侧 = UploadQueue `ConflictHeld` 事件（上传前仲裁挂起）。置态后由
+     * CloudConflictDialog（GameActivity 渲染）二选一，经 `resolveCloudConflict`
+     * 收口（SaveLoadViewModelCloudSlotOps）；null = 无待决冲突。
+     */
+    internal val pendingCloudConflictFlow = MutableStateFlow<com.xianxia.sect.data.cloud.SaveConflictEvent?>(null)
+    val pendingCloudConflict: StateFlow<com.xianxia.sect.data.cloud.SaveConflictEvent?> =
+        pendingCloudConflictFlow.asStateFlow()
+
     val saveLoadState: StateFlow<SaveLoadState> = combine(
         stateStore.isSaving,
         stateStore.isLoading,
@@ -203,8 +215,19 @@ class SaveLoadViewModel @Inject constructor(
                     is UploadQueue.Event.CircuitOpened -> showError(
                         "云同步暂时不可用（连续失败 ${event.consecutiveFailures} 次）：本地进度已保存，稍后自动恢复"
                     )
-                    else -> {} // UploadConfirmed 静默；ConflictHeld 弹窗归 SR-3 冲突 UI
+                    // SR-3：上传侧真冲突（上传前仲裁 CONFLICT 挂起）→ 冲突弹窗二选一，
+                    // 禁止自动上传覆盖（Q10/S10）
+                    is UploadQueue.Event.ConflictHeld -> pendingCloudConflictFlow.value = event.conflict
+                    else -> {} // UploadConfirmed 静默
                 }
+            }
+        }
+
+        // SR-3：下载侧真冲突（SaveBackend.download 仲裁 CONFLICT 发事件）→ 冲突弹窗
+        // 二选一。与上传侧共用 pendingCloudConflict 面板；收口见 resolveCloudConflict
+        viewModelScope.launch {
+            persistenceFacade.saveBackend.conflicts.collect { event ->
+                pendingCloudConflictFlow.value = event
             }
         }
     }

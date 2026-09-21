@@ -109,6 +109,12 @@ class SaveLoadViewModelLoadTest {
         every { uploadQueue.events } returns MutableSharedFlow()
         every { persistenceFacade.saveBackendModeProvider } returns saveBackendModeProvider
         every { saveBackendModeProvider.current() } returns SaveBackendMode.LEGACY
+        // SR-3：VM init 收集 saveBackend.conflicts——桩真实 SharedFlow
+        //（relaxed mock 的 collect 抛 KotlinNothingValueException）
+        every { persistenceFacade.saveBackend } returns mockk(relaxed = true) {
+            every { conflicts } returns MutableSharedFlow()
+        }
+        every { persistenceFacade.uploadLedger } returns mockk(relaxed = true)
         every { persistenceFacade.sessionManager } returns sessionManager
         // 统一守卫读 bootInProgress + applyCloudSaveToEngine
         // 调 boot——relaxed mock 返回 null 会 NPE，显式 stub 为 false/成功

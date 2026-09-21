@@ -551,6 +551,16 @@ class GameActivity : ComponentActivity() {
                     // 此时渲染 Dialog 会抛 BadTokenException（Bugly #3098）
                     val activityLifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
                     if (activityLifecycleState.isAtLeast(Lifecycle.State.STARTED)) {
+                        // SR-3：云存档真冲突弹窗（双源置态：下载侧 conflicts 流 /
+                        // 上传侧 ConflictHeld）——二选一收口，禁止静默覆盖
+                        val cloudConflict by saveLoadViewModel.pendingCloudConflict.collectAsStateWithLifecycle()
+                        cloudConflict?.let { conflict ->
+                            CloudConflictDialog(
+                                conflict = conflict,
+                                onKeepLocal = { saveLoadViewModel.resolveCloudConflict(keepLocal = true) },
+                                onKeepCloud = { saveLoadViewModel.resolveCloudConflict(keepLocal = false) }
+                            )
+                        }
                         errorMessage?.let { error ->
                             // boot 失败（isGameLoaded=false）时补"返回主菜单"按钮——
                             // 否则 LoadingScreen 无按钮，唯一出口是系统返回键

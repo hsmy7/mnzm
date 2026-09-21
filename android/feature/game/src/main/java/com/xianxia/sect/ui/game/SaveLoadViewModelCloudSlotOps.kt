@@ -31,6 +31,53 @@ internal sealed interface CloudSlotLoadOutcome {
     data object ConflictPending : CloudSlotLoadOutcome
 }
 
+/** SaveConflictEvent.source 的下载侧取值（与 TapTapSaveBackend.arbitrateAgainstCloud 一致） */
+internal const val CONFLICT_SOURCE_DOWNLOAD = "download"
+
+/**
+ * 真冲突二选一收口（公开扩展——GameActivity 冲突弹窗回调，SR-3）。
+ *
+ * **选谁留档明确可见**（弹窗文案见 CloudConflictDialog），本函数按冲突来源分流：
+ * - 下载侧（source="download"）：
+ *   - keepLocal=true → 仅清待决态，不做任何覆盖动作（本机槽位缓存与云端均原样）；
+ *   - keepLocal=false → 账本基线收敛到云端序号 W（`adoptCloudState`，L=C=W，IN2
+ *     序号语义）后重跑下载——仲裁转 IN_SYNC 正常通过（这是"玩家选云"的显式授权，
+ *     非静默覆盖）；
+ * - 上传侧（source="upload"）→ `UploadQueue.resolveConflict(slot, keepLocal)`
+ *   （keepLocal 授权越过冲突闸上传本机档 / keepCloud 丢弃待传并基线收敛，SR-2 Q10）。
+ *
+ * 重复调用/无待决冲突 = 无副作用；待决态先行清除（幂等，弹窗关闭即收口）。
+ */
+fun SaveLoadViewModel.resolveCloudConflict(keepLocal: Boolean) {
+    val conflict = pendingCloudConflictFlow.value ?: return
+    pendingCloudConflictFlow.value = null
+    viewModelScope.launch(ioDispatcher.dispatcher) {
+        if (conflict.source == CONFLICT_SOURCE_DOWNLOAD) {
+            if (keepLocal) {
+                Log.i(
+                    SaveLoadViewModelConstants.TAG,
+                    "conflict resolved (download): slot=${conflict.slot} 玩家保留本机——不下载不覆盖"
+                )
+                return@launch
+            }
+            val cloudId = conflict.cloudSaveId
+                ?: persistenceFacade.uploadLedger.lastConfirmedCloudId(conflict.slot)
+            persistenceFacade.uploadLedger.adoptCloudState(conflict.slot, cloudId)
+            Log.i(
+                SaveLoadViewModelConstants.TAG,
+                "conflict resolved (download): slot=${conflict.slot} 玩家选云端（W=$cloudId）——基线收敛后重跑下载"
+            )
+            loadCloudSlot(conflict.slot)
+        } else {
+            Log.i(
+                SaveLoadViewModelConstants.TAG,
+                "conflict resolved (upload): slot=${conflict.slot} keepLocal=$keepLocal —— 经上传队列收口"
+            )
+            persistenceFacade.uploadQueue.resolveConflict(conflict.slot, keepLocal)
+        }
+    }
+}
+
 /**
  * 云槽位下载入口（公开扩展——GameActivity/app 面经此分发）。
  *

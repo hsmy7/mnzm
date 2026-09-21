@@ -17,6 +17,7 @@ import com.xianxia.sect.data.cloud.SaveBackendError
 import com.xianxia.sect.data.cloud.SaveBackendMode
 import com.xianxia.sect.data.cloud.SaveBackendModeProvider
 import com.xianxia.sect.data.cloud.SaveBackendResult
+import com.xianxia.sect.data.cloud.SaveConflictEvent
 import com.xianxia.sect.data.cloud.UploadLedger
 import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.data.facade.StorageFacade
@@ -83,6 +84,10 @@ class SaveLoadViewModelCloudSlotLoadTest {
 
     private lateinit var viewModel: SaveLoadViewModel
 
+    // 双源冲突事件流（真实 SharedFlow 桩：VM init 收集器消费；SR-2 §5.2 教训）
+    private val conflictEvents = MutableSharedFlow<SaveConflictEvent>(extraBufferCapacity = 8)
+    private val queueEvents = MutableSharedFlow<UploadQueue.Event>(extraBufferCapacity = 8)
+
     @Before
     fun setUp() {
         MockKAnnotations.init(this, relaxUnitFun = true)
@@ -100,11 +105,11 @@ class SaveLoadViewModelCloudSlotLoadTest {
         every { persistenceFacade.storageFacade } returns storageFacade
         every { persistenceFacade.tapCloudSaveManager } returns tapCloudSaveManager
         every { persistenceFacade.uploadQueue } returns uploadQueue
-        every { uploadQueue.events } returns MutableSharedFlow()
+        every { uploadQueue.events } returns queueEvents
         // SR-3：云槽位链依赖 + conflicts 流须桩真实 SharedFlow（relaxed mock 的
         // collect 抛 KotlinNothingValueException，SR-2 §5.2 教训）
         every { persistenceFacade.saveBackend } returns saveBackend
-        every { saveBackend.conflicts } returns MutableSharedFlow()
+        every { saveBackend.conflicts } returns conflictEvents
         every { persistenceFacade.uploadLedger } returns uploadLedger
         every { persistenceFacade.saveBackendModeProvider } returns saveBackendModeProvider
         every { saveBackendModeProvider.current() } returns SaveBackendMode.CLOUD_TRANSITION
@@ -312,5 +317,94 @@ class SaveLoadViewModelCloudSlotLoadTest {
             CloudSaveOperationState.Error::class,
             viewModel.cloudSaveOperationState.value::class
         )
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 真冲突弹窗数据面（SR-3）：双源置态 + 二选一收口
+    // ──────────────────────────────────────────────────────────────────
+
+    private fun conflictEvent(slot: Int, source: String) = SaveConflictEvent(
+        slot = slot,
+        lastLocalSaveId = 5L,
+        lastConfirmedCloudId = 3L,
+        cloudSaveId = 7L,
+        source = source
+    )
+
+    @Test
+    fun `download side conflict event surfaces pending conflict`() = runTest(testDispatcher) {
+        conflictEvents.tryEmit(conflictEvent(4, "download"))
+        advanceUntilIdle()
+
+        assertEquals(conflictEvent(4, "download"), viewModel.pendingCloudConflict.value)
+    }
+
+    @Test
+    fun `upload side ConflictHeld surfaces pending conflict`() = runTest(testDispatcher) {
+        queueEvents.tryEmit(UploadQueue.Event.ConflictHeld(2, conflictEvent(2, "upload")))
+        advanceUntilIdle()
+
+        assertEquals(conflictEvent(2, "upload"), viewModel.pendingCloudConflict.value)
+    }
+
+    @Test
+    fun `resolve keepCloud on download conflict adopts ledger and reloads`() = runTest(testDispatcher) {
+        // 首次下载撞冲突（CONFLICT Failure 短路，见上方用例）；真实后端此时发
+        // conflicts 事件——测试侧手工注入等价事件
+        coEvery { saveBackend.download(4) } returns SaveBackendResult.Failure(
+            SaveBackendError.CONFLICT,
+            "本地与云端均有新进度"
+        )
+        viewModel.loadCloudSlot(4)
+        advanceUntilIdle()
+        conflictEvents.tryEmit(conflictEvent(4, "download"))
+        advanceUntilIdle()
+
+        viewModel.resolveCloudConflict(keepLocal = false)
+        advanceUntilIdle()
+
+        // 基线收敛到云端 W（IN2 序号语义）+ 重跑下载（玩家选云的显式授权路径）
+        verify { uploadLedger.adoptCloudState(4, 7L) }
+        coVerify(exactly = 2) { saveBackend.download(4) }
+        assertEquals(null, viewModel.pendingCloudConflict.value)
+    }
+
+    @Test
+    fun `resolve keepLocal on download conflict keeps both sides untouched`() = runTest(testDispatcher) {
+        coEvery { saveBackend.download(4) } returns SaveBackendResult.Failure(
+            SaveBackendError.CONFLICT,
+            "本地与云端均有新进度"
+        )
+        viewModel.loadCloudSlot(4)
+        advanceUntilIdle()
+
+        viewModel.resolveCloudConflict(keepLocal = true)
+        advanceUntilIdle()
+
+        // 保留本机：不覆盖任何一侧（无账本收敛、无重下载）
+        verify(exactly = 0) { uploadLedger.adoptCloudState(any(), any()) }
+        coVerify(exactly = 1) { saveBackend.download(4) }
+        assertEquals(null, viewModel.pendingCloudConflict.value)
+    }
+
+    @Test
+    fun `resolve on upload conflict delegates to queue`() = runTest(testDispatcher) {
+        queueEvents.tryEmit(UploadQueue.Event.ConflictHeld(2, conflictEvent(2, "upload")))
+        advanceUntilIdle()
+
+        viewModel.resolveCloudConflict(keepLocal = true)
+        advanceUntilIdle()
+
+        coVerify { uploadQueue.resolveConflict(2, true) }
+        assertEquals(null, viewModel.pendingCloudConflict.value)
+    }
+
+    @Test
+    fun `resolve without pending conflict is a no-op`() = runTest(testDispatcher) {
+        viewModel.resolveCloudConflict(keepLocal = false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { uploadQueue.resolveConflict(any(), any()) }
+        verify(exactly = 0) { uploadLedger.adoptCloudState(any(), any()) }
     }
 }
