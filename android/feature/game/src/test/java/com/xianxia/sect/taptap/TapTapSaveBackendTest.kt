@@ -71,6 +71,29 @@ class TapTapSaveBackendTest {
         }
     }
 
+    // ── extra JSON 摘要解析（SR-3 槽位列表选档 UI；缺字段降级 null 非错误）──
+
+    @Test
+    fun `parseSummary - 现役协议字段直映射`() {
+        val summary = TapTapSaveBackend.parseSummary(
+            """{"year":12,"month":7,"sect":"青云宗","disciples":35,"stones":999,"version":"1.2.3","saveId":4}"""
+        )
+        assertEquals(12, summary?.gameYear)
+        assertEquals(7, summary?.gameMonth)
+        assertEquals("青云宗", summary?.sectName)
+        assertEquals(35, summary?.discipleCount)
+        assertEquals(999L, summary?.spiritStones)
+        assertEquals("1.2.3", summary?.appVersion)
+    }
+
+    @Test
+    fun `parseSummary - 缺失空与全空摘要均降级 null`() {
+        assertNull(TapTapSaveBackend.parseSummary(null))
+        assertNull(TapTapSaveBackend.parseSummary(""))
+        assertNull(TapTapSaveBackend.parseSummary("{}")) // 全空 = 无真实摘要（最终一致性延迟常态）
+        assertNull(TapTapSaveBackend.parseSummary("not json"))
+    }
+
     // ── 错误码分类（SR-0 §2.4 归组 → 队列退避/熔断决策面）──
 
     @Test

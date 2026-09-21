@@ -36,7 +36,11 @@ internal data class CloudSaveRawInfo(
 internal data class ArchiveEntry(
     val uuid: String,
     val name: String,
-    val modifiedTime: Long
+    val modifiedTime: Long,
+    /** extra JSON（ArchiveData.getExtra）——saveId/游戏摘要协议载体（SR-3 槽位列表富化；旧调用方零影响，默认 null） */
+    val extra: String? = null,
+    /** 存档大小字节（ArchiveData.getSaveSize；SR-3 槽位列表展示用） */
+    val sizeBytes: Long = 0L
 )
 
 /** 反射调用的云存档 API 接口 */
@@ -178,7 +182,19 @@ internal class ReflectiveCloudSaveApi(
         return archives.mapNotNull { a ->
             val uuid = getUuid(a) ?: ""
             val name = getName(a) ?: ""
-            if (uuid.isBlank()) null else ArchiveEntry(uuid, name, getModifiedTime(a))
+            if (uuid.isBlank()) {
+                null
+            } else {
+                // SR-3：一次 getArchiveList 往返即提取 extra/size——槽位列表摘要免逐档
+                // queryArchiveInfo（那会对每档再各做一次全列表往返）
+                ArchiveEntry(
+                    uuid = uuid,
+                    name = name,
+                    modifiedTime = getModifiedTime(a),
+                    extra = getExtra(a),
+                    sizeBytes = getSaveSize(a)
+                )
+            }
         }
     }
 

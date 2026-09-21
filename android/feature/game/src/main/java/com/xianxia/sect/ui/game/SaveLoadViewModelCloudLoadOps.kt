@@ -116,9 +116,16 @@ internal suspend fun SaveLoadViewModel.handleCloudLoadSuccess(result: TapCloudSa
  * [StorageConstants.CLOUD_SAVE_SLOT]，不落盘任何本地槽位；返回 [Result] 由
  * 调用方决定成功/失败反馈（主菜单云读档与游戏内云下载反馈通道不同）。
  *
+ * SR-3：[pendingSlot] 参数化存档弹窗的槽位回显（默认 0 = 既有云会话调用零变化；
+ * 云槽位落盘链 SaveLoadViewModelCloudSlotOps 传目标槽 N）。
+ *
  * @return boot 结果；失败时消息可直接展示给玩家
  */
-internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(reconciled: SaveData, effectiveSlot: Int): Result<Unit> {
+internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
+    reconciled: SaveData,
+    effectiveSlot: Int,
+    pendingSlot: Int = 0
+): Result<Unit> {
     // 云档 slotId 为 @Transient 恒 0——只修 currentSlot
     // 会让 loadFromSnapshot 内 repository.setActiveSlot(gameData.slotId) 拿到 0，
     // 后续 repository 脏写指向错误槽位；slotId/currentSlot 必须同时修正。
@@ -142,7 +149,7 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(reconciled: SaveDa
     // 全屏加载页（游戏内弹窗独立窗口 + 遮罩会盖住全屏）
     loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START
     preloadPhaseFlow.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
-    setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
+    setSaveLoadState(isLoading = true, pendingSlot = pendingSlot, pendingAction = "load")
 
     try {
         gameEngine.loadData(

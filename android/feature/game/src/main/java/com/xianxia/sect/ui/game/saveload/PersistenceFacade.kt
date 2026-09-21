@@ -5,6 +5,7 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.BootSequenceController
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.cloud.SaveBackend
 import com.xianxia.sect.data.cloud.SaveBackendModeProvider
 import com.xianxia.sect.data.cloud.UploadLedger
 import com.xianxia.sect.data.cloud.UploadQueue
@@ -40,5 +41,7 @@ class PersistenceFacade @Inject constructor(
     val uploadQueue: UploadQueue,
     val uploadLedger: UploadLedger,
     val saveBackendModeProvider: SaveBackendModeProvider,
+    // SR-3 云主路径：云槽位下载/列表数据源（接口隔离 IN3，业务面零 SDK 类型）
+    val saveBackend: SaveBackend,
     @ApplicationContext val context: Context
 )

@@ -12,6 +12,7 @@ import com.xianxia.sect.data.cloud.SaveBackend
 import com.xianxia.sect.data.cloud.SaveBackendError
 import com.xianxia.sect.data.cloud.SaveBackendResult
 import com.xianxia.sect.data.cloud.SaveConflictEvent
+import com.xianxia.sect.data.cloud.CloudSaveSummary
 import com.xianxia.sect.data.cloud.UploadLedger
 import com.xianxia.sect.data.cloud.UploadReceipt
 import com.xianxia.sect.data.model.SaveData
@@ -214,15 +215,17 @@ class TapTapSaveBackend @Inject constructor(
         val api = CloudSaveApiReflector.resolve()
             ?: return SaveBackendResult.Failure(SaveBackendError.SDK_UNAVAILABLE, "TapTap 云存档 SDK 不可用")
         return try {
+            // SR-3 槽位列表数据源：一次 getArchiveList 往返，桥侧已带 extra/size——
+            // 摘要（extra JSON 协议）与保存序号 W 就地解析，免逐档查询往返
             val entries = api.listAllArchives().mapNotNull { archive ->
                 slotFromArchiveName(archive.name)?.let { slot ->
                     CloudSaveEntry(
                         slot = slot,
                         archiveName = archive.name,
-                        saveId = null, // 列表面不带 extra；逐档摘要/序号查询归 SR-3 选档 UI
-                        sizeBytes = 0L,
+                        saveId = archive.extra?.let { parseSaveId(it) },
+                        sizeBytes = archive.sizeBytes,
                         modifiedTimeMs = archive.modifiedTime * 1000,
-                        summary = null
+                        summary = parseSummary(archive.extra)
                     )
                 }
             }
@@ -311,6 +314,40 @@ class TapTapSaveBackend @Inject constructor(
             JSONObject(extra).optLong(EXTRA_KEY_SAVE_ID, 0L).takeIf { it > 0L }
         } catch (e: Exception) {
             null
+        }
+
+        /**
+         * extra JSON → 选档 UI 摘要（现役协议 year/month/sect/disciples/stones/version 直映射，
+         * SR-0 §3.4）。extra 缺失/解析失败/游戏字段全空 = null——列表卡退化为"有档无摘要"
+         * 展示（TapTap 元数据最终一致性延迟下常见，非错误，对齐 CloudSaveInfo
+         * .hasMeaningfulSummary 同纪律），不抛异常不阻断列表。
+         */
+        // 防御兜底: extra 内容跨服务端版本不可枚举, 解析失败降级 null, 非静默吞噬
+        @Suppress("TooGenericExceptionCaught", "SwallowedException")
+        internal fun parseSummary(extra: String?): CloudSaveSummary? {
+            if (extra.isNullOrBlank()) return null
+            return try {
+                val json = JSONObject(extra)
+                val sect = json.optString("sect", "")
+                val year = json.optInt("year", 0)
+                val month = json.optInt("month", 0)
+                val disciples = json.optInt("disciples", 0)
+                val stones = json.optLong("stones", 0L)
+                if (sect.isBlank() && year <= 0 && month <= 0 && disciples <= 0 && stones <= 0L) {
+                    null
+                } else {
+                    CloudSaveSummary(
+                        gameYear = year,
+                        gameMonth = month,
+                        sectName = sect,
+                        discipleCount = disciples,
+                        spiritStones = stones,
+                        appVersion = json.optString("version", "")
+                    )
+                }
+            } catch (e: Exception) {
+                null
+            }
         }
 
         /**
