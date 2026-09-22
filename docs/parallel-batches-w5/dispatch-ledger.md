@@ -94,6 +94,22 @@
 - **看护定时任务**：id `automation-714124e5-34cf-49bb-a7bc-889523faa2ff`（2026-09-20 23:03 重建，cron `*/10 * * * *`，渠道 ZCode；prompt 含 P1→P5 串行派发纪律 + P5 验收后 B18 收官自删 + 「暂停」即删即停）。旧 id ~~`automation-705a7610-3f53-42c4-9328-be0ea456855d`~~ 已于 07:3x 暂停时删除。
 - **缺陷清单**：—
 - **监控日志**：
+  - 2026-09-22 17:2x **分支收尾（用户指示"把 main/sr5/closing-gates 的收尾问题一并处理"）**：
+    SR-5 此前被并发切 HEAD 打散——C1–C7 落 `main`、收官两笔落 `sr5/closing-gates`、
+    纳管与根治落在 SR-6 分支上（`main` 因此持有"半个 SR-5"，含未修的密钥别名缺陷）。
+    处置（全程不触碰正在跑门禁的工作树）：在**独立 worktree** 里把尾巴五笔
+    （`2d5e9fa16`/`098daacff`/`04ae099f6`/`1039591e3`/`8f669fa30`）cherry-pick 到
+    `sr5/closing-gates` ⇒ 新链 `8f4ca811e`/`c56c8b5d4`/`7b8192a6c`/`bac1da4a3`/`fd0e84050`；
+    文档冲突取"被应用笔"的 SR-5 视角（台账 `--theirs` 一次），核验 = 无冲突标记残留、
+    四个关键代码文件与 SR-6 分支上的内容**逐字节相同**（`SecureKeyManager.kt`/
+    `SavePayloadSigner.kt`/`SecureKeyManagerKeyAliasTest.kt`/`GameViewModel.kt`）
+    ⇒ SR-6 未改这些文件，SR-5 单元完整无丢失。
+    `main` **纯快进**到 `fd0e84050`（快进前已核 `main` 是其祖先；非强推、**未 push**，
+    `origin/main` 未动，本地领先 391；回退锚点 `git branch -f main 122f43dea`）。
+    现状：`main` == `sr5/closing-gates` == **完整 SR-5 可独立审/可独立回滚单元**；
+    `w5/sr6-cloud-migration` 仍为 SR-6 工作分支（含 SR-5 历史 + SR-6 十笔 + 根治笔的原身）。
+    临时 worktree 已 `git worktree remove` 清理。**遗留**：SR-5 尾巴（纳管/根治）在两分支上
+    是"同内容不同哈希"，SR-6 收口合并时若遇重复提交，取任一即可（内容已核验一致）。
   - 2026-09-22 17:0x **SR-5 尾巴：主密钥缓存别名缺陷根治（用户指示"根治解决"）**：
     两笔落库 `04ae099f6`（`SecureKeyManager.getOrCreateKey` 两条返回路径改 `copyOf()` +
     契约测试 `SecureKeyManagerKeyAliasTest` 3 例）与 `1039591e3`（`SavePayloadSigner`
