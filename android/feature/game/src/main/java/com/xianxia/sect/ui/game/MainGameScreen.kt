@@ -1279,6 +1279,8 @@ private fun MainGameScreenUiOverlay(
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel
 ) {
+    // SR-4：自动存档常驻一行（纯 UI 态，不进存档事件流）——消息栏首行渲染
+    val autoSaveNotice by saveLoadViewModel.autoSaveNotice.collectAsStateWithLifecycle()
     Box(modifier = Modifier.fillMaxSize()) {
         MainGameScreenTopBar(
             state = state,
@@ -1292,6 +1294,7 @@ private fun MainGameScreenUiOverlay(
             MainGameScreenSideControls(
                 state = state,
                 viewModel = viewModel,
+                autoSaveNotice = autoSaveNotice,
                 onToggleBuildingBar = {
                     state.buildingBarExpanded = !state.buildingBarExpanded
                     state.exitAllEditModes()
@@ -1422,7 +1425,9 @@ private fun BoxScope.MainGameScreenSideControls(
     state: MainGameScreenState,
     viewModel: GameViewModel,
     onToggleBuildingBar: () -> Unit,
-    onCancelPlacement: () -> Unit
+    onCancelPlacement: () -> Unit,
+    /** SR-4 自动存档一行（null = 尚无自动存档） */
+    autoSaveNotice: String? = null
 ) {
     LeftSideButtons(
         viewModel = viewModel,
@@ -1434,6 +1439,7 @@ private fun BoxScope.MainGameScreenSideControls(
     MessageBarHost(
         events = gameEventRecords,
         isUiVisible = state.isUiVisible,
+        noticeLine = autoSaveNotice,
         modifier = Modifier
             .align(Alignment.BottomStart)
             .padding(start = 32.dp, bottom = 16.dp)

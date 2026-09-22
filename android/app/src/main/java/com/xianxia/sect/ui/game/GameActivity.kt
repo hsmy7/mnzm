@@ -868,7 +868,7 @@ class GameActivity : ComponentActivity() {
     private fun triggerBackgroundSaveIfEnabled() {
         if (!com.xianxia.sect.data.SaveTriggerFlag.saveOnBackground) return
         val slot = viewModel.gameData.value?.currentSlot ?: -1
-        val enabled = com.xianxia.sect.data.shouldSaveOnBackground(
+        val enabled = com.xianxia.sect.data.shouldAutoSave(
             flagOn = true,
             hasActiveSlot = slot >= 1,
             engineLoaded = saveLoadViewModel.isGameLoaded

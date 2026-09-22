@@ -20,6 +20,7 @@ import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
+import com.xianxia.sect.ui.game.saveload.SaveOrchestrator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -149,6 +150,25 @@ class SaveLoadViewModel @Inject constructor(
     val pendingCloudConflict: StateFlow<com.xianxia.sect.data.cloud.SaveConflictEvent?> =
         pendingCloudConflictFlow.asStateFlow()
 
+    /**
+     * 自动存档编排点（SR-4，方案 §2"去抖合并：窗口内多触发合并为一次快照"）。
+     *
+     * lazy：窗协程只在首个自动触发到来时才建立（手动-only 会话零协程开销）；
+     * scope 用 viewModelScope ⇒ 会话结束自动收窗，不跨会话遗留待触发保存。
+     */
+    internal val saveOrchestrator: SaveOrchestrator by lazy {
+        SaveOrchestrator(scope = viewModelScope) { triggers -> onAutoSaveFire(triggers) }
+    }
+
+    /**
+     * 消息栏"已自动存档"一行（SR-4 用户可见面）。
+     *
+     * **纯 UI 态，不落盘**：月变每 6 秒一次，写进 `gameEventRecords` 等于每 6 秒
+     * 往存档里塞一条事件（撑大云档 payload，违 IN5 精神），故走常驻状态流而非事件流。
+     */
+    internal val autoSaveNoticeFlow = MutableStateFlow<String?>(null)
+    val autoSaveNotice: StateFlow<String?> = autoSaveNoticeFlow.asStateFlow()
+
     val saveLoadState: StateFlow<SaveLoadState> = combine(
         stateStore.isSaving,
         stateStore.isLoading,
@@ -228,6 +248,14 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch {
             persistenceFacade.saveBackend.conflicts.collect { event ->
                 pendingCloudConflictFlow.value = event
+            }
+        }
+
+        // SR-4：月变完整结算 → 自动存档触发（引擎在 finalizeMonthBoundary 末句发布，
+        // 故此处收到时月副作用已全部落地）。旗标/槽位/加载三前置与合并窗见 requestAutoSave。
+        viewModelScope.launch {
+            gameEngineCore.monthSettledEvents.collect {
+                requestAutoSave(com.xianxia.sect.ui.game.saveload.AutoSaveTrigger.MONTHLY)
             }
         }
     }

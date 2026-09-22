@@ -48,6 +48,6 @@ class SaveBackendModeProvider @Inject constructor(private val store: KeyValueSto
 
 /**
  * 本地保存成功后是否投递云上传队列——**纯函数**，桌面/JVM 可直测
- * （参照 shouldSaveOnBackground 先例）。LEGACY 短路 = 默认全链零新增行为。
+ * （参照 shouldAutoSave 先例（SR-4 更名，月变与 onStop 共用））。LEGACY 短路 = 默认全链零新增行为。
  */
 fun shouldEnqueueCloudUpload(mode: SaveBackendMode): Boolean = mode != SaveBackendMode.LEGACY

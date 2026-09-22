@@ -28,7 +28,9 @@ import com.xianxia.sect.core.model.GameEventRecord
 fun MessageBarHost(
     events: List<GameEventRecord>,
     modifier: Modifier = Modifier,
-    isUiVisible: Boolean = true
+    isUiVisible: Boolean = true,
+    /** 常驻附加行（SR-4 自动存档一行；纯 UI 态，不来自存档事件流），null = 不显示 */
+    noticeLine: String? = null
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(GameEventCategory.SECT) }
@@ -76,6 +78,7 @@ fun MessageBarHost(
     ) {
         MessageBarCollapsed(
             latestMessage = latestMessage,
+            noticeLine = noticeLine,
             onClick = { isExpanded = true }
         )
     }

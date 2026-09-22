@@ -4,6 +4,8 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameStateSnapshot
 import com.xianxia.sect.data.model.SaveData
+import com.xianxia.sect.ui.game.saveload.SaveFeedback
+import com.xianxia.sect.ui.game.saveload.showsBlockingFeedback
 import kotlinx.coroutines.*
 
 // ── 存档流程（守卫/内存闸门/落盘/结果反馈）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
@@ -24,16 +26,19 @@ internal suspend fun SaveLoadViewModel.readSlotMails(slot: Int): List<com.xianxi
 /**
  * 后台保存触发入口（审计 §16 #6 方案 A：`onStop` 触发一次保存）。
  *
- * **复用既有保存链**，不新增保存逻辑；`saveGame` 内部已有 `checkLocalSaveGuards()`
- * （引擎未加载 / 槽位非法即返回），且为非挂起、内部自行派发 ⇒ 调用方非阻塞。
+ * **复用既有保存链**，不新增保存逻辑；SR-4 起反馈口径按 [SaveFeedback.Silent] 分流
+ * （玩家已离场 ⇒ 成功不提示；失败仍投递告警通道）。
  *
  * 提示通道（登记）：本链路失败仍走既有 `showError`——App 已退到后台，提示不可见；
- * 如需严格静默需给保存链加 `silent` 形参，属后续项。
- * 灰度：由 `SaveTriggerFlag.saveOnBackground` 门控（默认关 ⇒ 本入口不被调用）。
+ * 这是既有已登记限制，不粉饰为"静默成功"。
+ * 灰度：由 `SaveTriggerFlag.saveOnBackground` 门控（关闭态 = 回滚臂，D6）。
  */
-fun SaveLoadViewModel.saveOnBackground() = saveGame()
+fun SaveLoadViewModel.saveOnBackground() = requestAutoSave(com.xianxia.sect.ui.game.saveload.AutoSaveTrigger.BACKGROUND)
 
-internal fun SaveLoadViewModel.saveGame(slotId: String? = null) {
+internal fun SaveLoadViewModel.saveGame(
+    slotId: String? = null,
+    feedback: SaveFeedback = SaveFeedback.Manual
+) {
     val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value?.currentSlot ?: 1
 
     // slot 0 = 上传至云端（带 saveLoadState 管理 + 结果反馈）
@@ -42,10 +47,16 @@ internal fun SaveLoadViewModel.saveGame(slotId: String? = null) {
         return
     }
 
+    // SR-4：手动保存已覆盖待触发自动窗的同一状态——窗内再存一次纯属重复（合并语义）
+    if (feedback == SaveFeedback.Manual) saveOrchestrator.invalidate()
+
     when (val guard = checkLocalSaveGuards()) {
         is LocalSaveGuard.GameNotLoaded -> return
         is LocalSaveGuard.Blocked -> {
-            showError(guard.userMessage)
+            // 忙/互斥类拒绝只对手动口径弹提示：自动存档每 6 秒一次，
+            // 重叠窗口期刷 snackbar 会把消息刷没完；下一个触发点自然重试
+            if (feedback.showsBlockingFeedback()) showError(guard.userMessage) else
+                Log.i(SaveLoadViewModelConstants.TAG, "自动保存被守卫拒绝（${guard.userMessage}），下次触发重试")
             return
         }
         LocalSaveGuard.Passed -> {}
@@ -58,7 +69,7 @@ internal fun SaveLoadViewModel.saveGame(slotId: String? = null) {
     pendingSlotFlow.value = slot
     pendingActionFlow.value = "save"
 
-    Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
+    Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId, feedback=$feedback")
     val startTime = System.currentTimeMillis()
 
     // job 身份由 perform* 内部 coroutineContext[Job] 自取，
@@ -66,7 +77,7 @@ internal fun SaveLoadViewModel.saveGame(slotId: String? = null) {
     val job = viewModelScope.launch(ioDispatcher.dispatcher) {
         // 本地保存流程
         val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
-        performLocalSaveToSlot(slot, previousSlot, startTime)
+        performLocalSaveToSlot(slot, previousSlot, startTime, feedback)
     }
     gameEngineCore.registerActiveLoadJob(job) // 保存协程注册，看门狗可取消复位
 }
@@ -195,13 +206,20 @@ internal fun SaveLoadViewModel.checkSaveMutexGuards(): LocalSaveGuard? {
  */
 // [已合并 ThrowsCount 理由: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标] // 防御兜底: 取消异常已前置分支处理, 泛型段为刻意终局兜底
 @Suppress("ThrowsCount", "TooGenericExceptionCaught")
-internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long) {
+internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(
+    slot: Int,
+    previousSlot: Int,
+    startTime: Long,
+    feedback: SaveFeedback = SaveFeedback.Manual
+) {
     setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
 
     try {
         if (!waitForSaveLock(timeoutMs = 5000)) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === saveLock busy after timeout")
-            showError("保存操作繁忙，请稍后重试")
+            // 等锁超时属"忙"类：自动口径降日志（下一个触发点自然重试），手动口径如实提示
+            if (feedback.showsBlockingFeedback()) showError("保存操作繁忙，请稍后重试") else
+                Log.i(SaveLoadViewModelConstants.TAG, "自动保存等锁超时，下次触发重试")
             return
         }
 
@@ -209,7 +227,12 @@ internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(slot: Int, previou
         persistenceFacade.storageFacade.setCurrentSlot(slot)
 
         try {
-            performSaveOperation(slot = slot, previousSlot = previousSlot, startTime = startTime)
+            performSaveOperation(
+                slot = slot,
+                previousSlot = previousSlot,
+                startTime = startTime,
+                feedback = feedback
+            )
         } catch (e: OutOfMemoryError) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === OutOfMemoryError", e)
             persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
@@ -240,7 +263,12 @@ internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(slot: Int, previou
 
 /**本地保存核心：快照 → 校验 → 落盘 → 结果反馈 */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun SaveLoadViewModel.performSaveOperation(slot: Int, previousSlot: Int, startTime: Long) {
+internal suspend fun SaveLoadViewModel.performSaveOperation(
+    slot: Int,
+    previousSlot: Int,
+    startTime: Long,
+    feedback: SaveFeedback = SaveFeedback.Manual
+) {
     performGarbageCollection()
 
     val snapshot = gameEngine.buildSaveSnapshot()
@@ -272,12 +300,7 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(slot: Int, previousS
         }
         // 后置步骤降级（.sav 镜像/备份未写入）必须如实提示，不得只报"保存成功"（审计 §12-C）
         val postSaveWarning = saveResult.warning
-        if (postSaveWarning == null) {
-            showSuccess("游戏保存成功")
-        } else {
-            Log.w(SaveLoadViewModelConstants.TAG, "saveGame 降级（主保存成功）: $postSaveWarning")
-            showSuccess("游戏保存成功（备份未写入）")
-        }
+        reportSaveSuccess(feedback, snapshot.gameData, postSaveWarning)
 
         // SR-2：本地保存成功后投递云上传队列（D3 第二步）。LEGACY（默认）在
         // shouldEnqueueCloudUpload 短路——零新增行为（硬红线，守卫测试锚定）

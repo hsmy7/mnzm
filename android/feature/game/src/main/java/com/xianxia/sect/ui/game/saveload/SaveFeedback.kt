@@ -24,3 +24,15 @@ sealed interface SaveFeedback {
      */
     data object Silent : SaveFeedback
 }
+
+/**
+ * "忙/互斥类拒绝"（正在保存/读档/重启/云操作进行中）是否值得弹提示——**只有手动口径弹**。
+ *
+ * 自动存档触发频率是每游戏月一次（= 6 秒真实时间），保存链重叠窗口期若按手动语义弹
+ * "正在保存中，请稍后"，等于每 6 秒刷一次消息；此类拒绝不是失败（下一个触发点自然重试），
+ * 故降为日志。真失败（落盘异常/超时/内存不足/数据未初始化）不受本判据影响，一律如实告警。
+ */
+fun SaveFeedback.showsBlockingFeedback(): Boolean = this == SaveFeedback.Manual
+
+/** 消息栏自动存档行的固定前缀（时间戳与降级后缀由 `autoSaveNoticeText` 拼接） */
+const val AUTO_SAVE_NOTICE_LABEL: String = "已自动存档"

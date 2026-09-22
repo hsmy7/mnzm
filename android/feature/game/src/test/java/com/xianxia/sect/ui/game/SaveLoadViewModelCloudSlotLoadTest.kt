@@ -131,6 +131,8 @@ class SaveLoadViewModelCloudSlotLoadTest {
         every { stateStore.isSaving } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.IDLE)
         every { gameEngineCore.stuckResetEvents } returns MutableSharedFlow()
+        // SR-4：init 另收集 monthSettledEvents（月变自动存档触发）——同口径桩真实流
+        every { gameEngineCore.monthSettledEvents } returns MutableSharedFlow()
         coEvery { gameEngineCore.stopGameLoopAndWait(any()) } returns true
         every { gameEngine.gameData } returns MutableStateFlow(
             GameData(sectName = "青云宗", saveVersion = 2)

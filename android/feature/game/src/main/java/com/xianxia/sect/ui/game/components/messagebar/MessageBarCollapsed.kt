@@ -17,14 +17,17 @@ import com.xianxia.sect.ui.components.clickableWithSound
  * 仅显示上下两条横线表示区域，固定三行文本高度。
  *
  * @param latestMessage 最新消息文本，null 时显示"暂无消息"
+ * @param noticeLine 常驻附加行（SR-4 自动存档；高频刷新态），置首行保证不被消息流挤掉
  * @param onClick 展开回调
  */
 @Composable
 fun MessageBarCollapsed(
     latestMessage: String?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    noticeLine: String? = null
 ) {
     val lineColor = Color(0x66FFFFFF)
+    val displayText = listOfNotNull(noticeLine, latestMessage).joinToString("\n")
 
     Box(
         modifier = Modifier
@@ -51,7 +54,7 @@ fun MessageBarCollapsed(
         )
         // 消息文本
         Text(
-            text = if (latestMessage.isNullOrBlank()) "暂无消息" else latestMessage,
+            text = if (displayText.isBlank()) "暂无消息" else displayText,
             fontSize = 10.sp,
             color = Color.White,
             maxLines = 3,

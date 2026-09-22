@@ -144,6 +144,8 @@ class SaveLoadViewModelLoadTest {
         // init 会收集 stuckResetEvents——stub 为真实 SharedFlow
         // （collect 是扩展函数，relaxed mock 的 SharedFlow 会抛 KotlinNothingValueException）
         every { gameEngineCore.stuckResetEvents } returns MutableSharedFlow()
+        // SR-4：init 另收集 gameEngineCore.monthSettledEvents（月变自动存档触发）——同口径桩真实流
+        every { gameEngineCore.monthSettledEvents } returns MutableSharedFlow()
         // 玉符防回退：performLoadToSlot/applyCloudSaveToEngine 会调用
         // stopGameLoopAndWait——relaxed mock 默认返回 false 会中止读档流程，
         // 现有用例全部需要默认成功；各用例自己的 coEvery stub 后注册覆盖此处
