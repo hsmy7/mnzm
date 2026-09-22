@@ -6,7 +6,7 @@ import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.service.JadeSymbolService
-import com.xianxia.sect.core.engine.service.WallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag

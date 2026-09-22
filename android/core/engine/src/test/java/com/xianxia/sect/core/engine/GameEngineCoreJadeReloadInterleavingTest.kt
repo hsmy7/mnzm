@@ -3,7 +3,7 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.JadeSymbolService
-import com.xianxia.sect.core.engine.service.WallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSource

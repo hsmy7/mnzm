@@ -6,7 +6,7 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.service.JadeSymbolService
-import com.xianxia.sect.core.engine.service.WallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor

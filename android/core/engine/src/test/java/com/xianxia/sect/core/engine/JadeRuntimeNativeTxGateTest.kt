@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.service.JadeSymbolService
-import com.xianxia.sect.core.engine.service.WallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag

@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.TimeSource
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
@@ -11,10 +12,6 @@ import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,30 +26,6 @@ import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
-
-/**
- * 墙钟抽象（玉符跨天判定专用，构造注入）。
- *
- * 生产使用 [SystemWallClock]（System.currentTimeMillis）；
- * 测试注入可变 fake 验证跨天/回拨/快进。
- */
-fun interface WallClock {
-    fun currentTimeMillis(): Long
-}
-
-/** 生产实现：系统墙钟。 */
-object SystemWallClock : WallClock {
-    override fun currentTimeMillis(): Long = System.currentTimeMillis()
-}
-
-/** WallClock Hilt 绑定（生产恒为 [SystemWallClock]；测试直接构造 JadeSymbolService(Fake)）。 */
-@Module
-@InstallIn(SingletonComponent::class)
-object WallClockModule {
-    @Provides
-    @Singleton
-    fun provideWallClock(): WallClock = SystemWallClock
-}
 
 /**
  * 玉符运行时状态（1Hz 节流发布，驱动 UI 徽章与倒计时）。
@@ -96,7 +69,10 @@ data class JadeSymbolRuntimeState(
  *
  * @param timeSource 单调时钟（与 GameTimeClock 同源，Hilt 注入）
  * @param stateStore 游戏状态唯一真相源
- * @param wallClock 墙钟（生产 [SystemWallClock]；测试注入可变 fake）
+ * @param wallClock 墙钟（SR-5 起生产绑定
+ *   [com.xianxia.sect.core.engine.system.CalibratedWallClock] = 系统钟 + 云 mtime 校正偏移，
+ *   未采样时偏移恒 0 与 [com.xianxia.sect.core.engine.system.SystemWallClock] 逐位等价；
+ *   测试注入可变 fake 验证跨天/回拨/快进）
  */
 @Singleton
 @GameService("JadeSymbolService")

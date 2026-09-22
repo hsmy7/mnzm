@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.system.TimeSource
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.model.GameData
 import java.util.Calendar
 import org.junit.Assert.assertEquals
