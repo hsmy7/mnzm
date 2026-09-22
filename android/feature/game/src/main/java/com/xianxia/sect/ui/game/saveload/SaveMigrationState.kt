@@ -85,8 +85,19 @@ data class MigrationUiState(
     /** 「启用云存档」可用：LEGACY 下所有可引导槽均已收口（§2.4 玩家确认式升档） */
     val canEnableCloudSave: Boolean = false
 ) {
-    /** 迁移卡是否出现：有可迁内容就常驻（弹窗才需要"只弹一次"的抑制位，常驻卡不需要） */
-    val visible: Boolean get() = rows.isNotEmpty() || phase == MigrationPhase.SERVICE_UNAVAILABLE
+    /**
+     * 迁移卡是否出现：有可迁内容就常驻（弹窗才需要"只弹一次"的抑制位，常驻卡不需要）。
+     *
+     * 全部收口 **且** 云存档已启用（`canEnableCloudSave` 为假即代表已离开 LEGACY 或仍有待办）
+     * 且无存量单档待取回 ⇒ 引导完成，卡片消失（方案 §4 SR-6 的收口态）。
+     */
+    val visible: Boolean
+        get() = (rows.isNotEmpty() || phase == MigrationPhase.SERVICE_UNAVAILABLE) &&
+            !(allMigrated && !canEnableCloudSave && !legacyArchivePresent && cloudOnlyTotal == 0)
+
+    /** 所有可引导槽均已收口 */
+    val allMigrated: Boolean
+        get() = rows.isNotEmpty() && rows.all { it.status == SlotMigrationStatus.MIGRATED }
 }
 
 /** 运行期即时态（入队中/失败/待裁决——这些不在 MMKV 里，只属于本次引导） */
