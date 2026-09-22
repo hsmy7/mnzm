@@ -85,6 +85,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
 
+- **2026-09-23 07:58 监控轮（MR-2 进行态）**：守卫与 JNI 面现身——新增 `gpu_allocator_guard_test.cpp`（GpuAllocatorGuard）+ `gpu_budget_math_test.cpp`；NativeBridge.cpp/.kt 在改；**jni-count.baseline.json 被改 = JNI 计数门基线变更（B17 门），核验时须报告附豁免理由**；renderer-feature-checklist.md 同步（约束 12）。尚无提交；下轮盯 stats 单测/6 站点收口完成与切分提交。
+
 - **2026-09-23 07:38 监控轮（MR-2 进行态）**：P2.1 面落盘——新目录 `cpp/gpu/`（GpuAllocator）+ `cpp/third_party/`（VMA）现身，恰为批次预期落点；尚无既有文件改动与提交。下轮盯 VulkanBackend 6 站点收口展开。
 
 - **2026-09-23 06:48 监控轮（MR-1 收官在即）**：完成报告 `docs/report-MR1-completion-2026-09-23.md` 落盘（未提交）+ 方案 checkbox 勾选中 + atlas-rgba-manifest.json 副产物已还原剔除（留言区纪律生效）。就差收官笔落库——下轮核交付三要素并备 MR-2 派发。
