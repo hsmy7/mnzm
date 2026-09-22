@@ -129,7 +129,7 @@ class RedeemCodeManagerTest {
     @Test
     fun getRateLimitStats_defaultPlayer_returnsZeroAttempts() {
         RedeemCodeManager.clearAllCaches()
-        val stats = RedeemCodeManager.getRateLimitStats("new_player")
+        val stats = RedeemCodeManager.getRateLimitStats("new_player", System.currentTimeMillis())
         assertEquals(0, stats.attemptsInLastMinute)
         assertEquals(0, stats.attemptsInLastHour)
         assertEquals(0, stats.attemptsToday)

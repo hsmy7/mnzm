@@ -20,11 +20,13 @@ import kotlinx.coroutines.CancellationException
  * 4. **每日限制**：每天最多 100 次尝试
  *
  * @param playerId 设备/玩家标识（用于设备级限流）
+ * @param nowMs 本次检查的统一起算时刻（SR-5：由调用方经注入 [com.xianxia.sect.core.engine.system.WallClock]
+ *              采样一次后下传——一次兑换的 4 层限流必须同一时刻，且 object 内零取时）
  * @return 如果超限返回错误结果，否则返回 null 表示通过
  */
-suspend fun RedeemCodeManager.checkRateLimit(playerId: String = "default"): RedeemResult? {
+suspend fun RedeemCodeManager.checkRateLimit(playerId: String = "default", nowMs: Long): RedeemResult? {
     return rateLimitMutex.withLock {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = nowMs
 
         // ══════════════════════
         // 第1层：基础冷却检查
@@ -124,11 +126,12 @@ suspend fun RedeemCodeManager.checkIpRateLimit(ipAddress: String): RedeemResult?
  * 获取当前设备的频率使用统计（用于 UI 展示）
  *
  * @param playerId 设备/玩家标识
+ * @param nowMs 统一起算时刻（SR-5：调用方经注入墙钟采样后下传）
  * @return 频率使用统计信息
  */
-fun RedeemCodeManager.getRateLimitStats(playerId: String = "default"): RateLimitStats {
+fun RedeemCodeManager.getRateLimitStats(playerId: String = "default", nowMs: Long): RateLimitStats {
     val attemptHistory = deviceAttemptHistory[playerId] ?: emptyList()
-    val currentTime = System.currentTimeMillis()
+    val currentTime = nowMs
 
     val minuteAgo = currentTime - ONE_MINUTE_MS
     val hourAgo = currentTime - ONE_HOUR_MS

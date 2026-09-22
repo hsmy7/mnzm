@@ -234,9 +234,17 @@ object RedeemCodeManager {
         usedCodes: List<String>,
         currentYear: Int,
         currentMonth: Int,
-        playerId: String
+        playerId: String,
+        /** 起算时刻（SR-5：与本地校验同一次采样，透传 [validateCode]） */
+        nowMs: Long
     ): RedeemResult {
-        val localResult = validateCode(code, usedCodes, currentYear, currentMonth)
+        val localResult = validateCode(
+            code = code,
+            usedCodes = usedCodes,
+            currentYear = currentYear,
+            currentMonth = currentMonth,
+            nowMs = nowMs
+        )
         if (!localResult.success) return localResult
         
         val validator = remoteValidator
@@ -271,10 +279,12 @@ object RedeemCodeManager {
         usedCodes: List<String>,
         currentYear: Int,
         currentMonth: Int,
-        playerId: String = "default"
+        playerId: String = "default",
+        /** 本次校验的统一起算时刻（SR-5：调用方经注入 WallClock 采样一次后下传） */
+        nowMs: Long
     ): RedeemResult {
         // 定期清理过期的设备尝试记录（防止内存无限增长）
-        cleanupExpiredAttempts()
+        cleanupExpiredAttempts(nowMs)
 
         DomainLog.d(TAG, "Validating code: $code, usedCodes count: ${usedCodes.size}, playerId: $playerId")
 
@@ -283,7 +293,7 @@ object RedeemCodeManager {
             return inputError
         }
 
-        val rateLimitError = checkRateLimit(playerId)
+        val rateLimitError = checkRateLimit(playerId, nowMs)
         if (rateLimitError != null) {
             return rateLimitError
         }
@@ -346,13 +356,15 @@ object RedeemCodeManager {
         playerId: String = "default",
         deviceId: String = "unknown",
         existingNames: Set<String> = emptySet(),
-        random: kotlin.random.Random = kotlin.random.Random
+        random: kotlin.random.Random = kotlin.random.Random,
+        /** 兑换成功时刻（SR-5：调用方经注入 WallClock 采样后下传，写入基础冷却与使用记录） */
+        nowMs: Long
     ): RedeemResult {
         DomainLog.d(TAG, "Generating reward for code: ${redeemCode.code}, type: ${redeemCode.rewardType}")
 
         val upperCaseCode = redeemCode.code.uppercase(java.util.Locale.getDefault())
 
-        lastRedeemTime = System.currentTimeMillis()
+        lastRedeemTime = nowMs
         
         val rewards = mutableListOf<RewardSelectedItem>()
         val disciples = mutableListOf<Disciple>()
@@ -399,7 +411,7 @@ object RedeemCodeManager {
 
         // 奖励全部生成成功后，再标记兑换码为已使用。
         // 若在奖励生成过程中发生异常，兑换码不会被标记，玩家可重新尝试兑换。
-        markCodeAsUsed(upperCaseCode, playerId, deviceId)
+        markCodeAsUsed(upperCaseCode, playerId, deviceId, nowMs)
 
         return RedeemResult(
             success = true,

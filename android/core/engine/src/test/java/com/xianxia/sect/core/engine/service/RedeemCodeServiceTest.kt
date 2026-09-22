@@ -73,14 +73,16 @@ class RedeemCodeServiceTest {
     private fun applyLocalRedeem(
         code: String,
         existingNames: Set<String> = emptySet(),
-        random: kotlin.random.Random = mailRng
+        random: kotlin.random.Random = mailRng,
+        nowMs: Long = System.currentTimeMillis()
     ): Boolean {
         val redeemCodeData = RedeemCodeManager.getRedeemCode(code)
             ?: error("兑换码未注册: $code")
         val result = RedeemCodeManager.generateReward(
             redeemCodeData,
             existingNames = existingNames,
-            random = random
+            random = random,
+            nowMs = nowMs
         )
         check(result.success) { "generateReward 失败: ${result.message}" }
         return store.updateAndReturn {
@@ -121,7 +123,12 @@ class RedeemCodeServiceTest {
 
         val result2 = run {
             val code = RedeemCodeManager.getRedeemCode("8982") ?: error("8982 未注册")
-            RedeemCodeManager.generateReward(code, existingNames = emptySet(), random = mailRng)
+            RedeemCodeManager.generateReward(
+                code,
+                existingNames = emptySet(),
+                random = mailRng,
+                nowMs = System.currentTimeMillis()
+            )
         }
         val succeeded2 = store.updateAndReturn {
             service.applyLocalRedeemState(

@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.system.SystemWallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
@@ -63,6 +65,12 @@ class RedeemCodeService @Inject constructor(
     private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
     private val signingCertificates: ApkSigningCertificateSource,
     private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
+    /**
+     * 游戏语义墙钟（SR-5）：兑换码限流/使用记录的唯一取时点——一次兑换只采样一次，
+     * 4 层限流与清理起算共用同一时刻（收敛前分散 5 处裸读 `System.currentTimeMillis`）。
+     * 默认 [SystemWallClock] 供测试直构，生产由 Hilt 注入 CalibratedWallClock。
+     */
+    private val wallClock: WallClock = SystemWallClock
 ) {
     companion object {
         private const val TAG = "RedeemCodeService"
@@ -373,11 +381,14 @@ class RedeemCodeService @Inject constructor(
         currentYear: Int,
         currentMonth: Int
     ): RedeemResult {
+        // SR-5：一次兑换只采样一次墙钟，校验（4 层限流 + 过期清理）与奖励落账共用该时刻
+        val nowMs = wallClock.currentTimeMillis()
         val validationResult = RedeemCodeManager.validateCode(
             code = code,
             usedCodes = usedCodes,
             currentYear = currentYear,
-            currentMonth = currentMonth
+            currentMonth = currentMonth,
+            nowMs = nowMs
         )
 
         if (!validationResult.success) {
@@ -391,7 +402,12 @@ class RedeemCodeService @Inject constructor(
 
         val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
         val existingNames = stateStore.disciples.value.map { it.name }.toSet()
-        val result = RedeemCodeManager.generateReward(redeemCodeData, existingNames = existingNames, random = mailRng)
+        val result = RedeemCodeManager.generateReward(
+            redeemCodeData,
+            existingNames = existingNames,
+            random = mailRng,
+            nowMs = nowMs
+        )
 
         if (!result.success) {
             return result

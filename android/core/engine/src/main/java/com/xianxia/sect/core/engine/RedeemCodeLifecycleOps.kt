@@ -110,9 +110,11 @@ internal fun RedeemCodeManager.checkDayRateLimit(
  * 清理策略：
  * - 移除时间戳超过 24 小时的条目
  * - 如果某设备的所有尝试记录都已过期，则移除该设备的整个记录
+ *
+ * @param nowMs 起算时刻（SR-5：调用方经注入墙钟采样一次后下传，与本次限流检查同一时刻）
  */
-internal fun RedeemCodeManager.cleanupExpiredAttempts() {
-    val cutoff = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
+internal fun RedeemCodeManager.cleanupExpiredAttempts(nowMs: Long) {
+    val cutoff = nowMs - 24 * 60 * 60 * 1000L
     deviceAttemptHistory.entries.removeIf { (_, timestamps) ->
         timestamps.removeAll { it < cutoff }
         timestamps.isEmpty()
@@ -133,12 +135,17 @@ internal fun RedeemCodeManager.cleanupExpiredAttempts() {
  * @param code 兑换码（大写）
  * @param playerId 使用该码的玩家 ID
  * @param deviceId 使用该码的设备标识
+ * @param nowMs 记录使用时刻（SR-5：调用方经注入墙钟采样后下传，object 内零取时）
  */
-
-internal fun RedeemCodeManager.markCodeAsUsed(code: String, playerId: String, deviceId: String) {
+internal fun RedeemCodeManager.markCodeAsUsed(
+    code: String,
+    playerId: String,
+    deviceId: String,
+    nowMs: Long
+) {
     val record = UsedCodeRecord(
         code = code,
-        usedAt = System.currentTimeMillis(),
+        usedAt = nowMs,
         deviceId = deviceId,
         playerId = playerId
     )
