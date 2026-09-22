@@ -29,17 +29,17 @@ import kotlinx.coroutines.CancellationException
  * - 验签在**客户端**做、密钥也在同一设备：能取到本机密钥者即可自造合法签名。
  *   本批交付的是格式与接口预埋（后端就绪后把验签点挪到服务端即可），
  *   不是防作弊能力——方案 §4 SR-5 与 §6 风险表原文即此口径；
- * - master 不可得（文件损坏/权限异常）时 [sign] 返回 null ⇒ 上传照常（不签），
- *   [verify] 返回 [SavePayloadVerification.KEY_UNAVAILABLE] ⇒ **不判玩家篡改**。
- *   存档可用性优先于完整性判定（P4 拍板：降级放行 + 显式留痕）。
+ * - master 不可得（文件损坏/权限异常）或**取到全零 master**（密钥体系未就绪）时
+ *   [sign] 返回 null ⇒ 上传照常（不签），[verify] 返回
+ *   [SavePayloadIntegrity.KEY_UNAVAILABLE] ⇒ **不判玩家篡改**。
+ *   存档可用性优先于完整性判定（P4 拍板：降级放行 + 显式留痕）；
+ * - 密钥**不跨调用缓存**（见 [mac]）：主密钥轮换后不会继续用陈旧密钥，代价是每次
+ *   多 1000 轮 SHA-256（微秒级，且频率上限 = 云上传频率）。
  */
 @Singleton
 class SavePayloadSigner @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-
-    @Volatile
-    private var cachedKeySpec: SecretKeySpec? = null
 
     /**
      * 对 [payload] 签名。
@@ -86,25 +86,35 @@ class SavePayloadSigner @Inject constructor(
         }
     }
 
-    private fun mac(): Mac {
-        val key = cachedKeySpec ?: synchronized(this) {
-            cachedKeySpec ?: deriveKey().also { cachedKeySpec = it }
-        }
-        return Mac.getInstance(HMAC_ALGO).apply { init(key) }
-    }
+    /**
+     * 每次调用现场派生（**不缓存密钥**）：1000 轮 SHA-256 是微秒级，而签名/验签
+     * 频率上限就是云上传频率（TapTap 1 次/分钟）。不缓存换来两件事——
+     * ① 主密钥轮换（`handleKeyLossAndRegenerate` 会生成新密钥）后不会继续用陈旧密钥；
+     * ② 不会把一次异常窗口里派生出的错误密钥钉死整个进程生命周期。
+     */
+    private fun mac(): Mac = Mac.getInstance(HMAC_ALGO).apply { init(deriveKey()) }
 
-    /** 与网络签名链同构的派生（摘要/迭代一致），salt 不同值 ⇒ 两侧密钥不可互推。 */
+    /**
+     * 与网络签名链同构的派生（摘要/迭代一致），salt 不同值 ⇒ 两侧密钥不可互推。
+     *
+     * 🔴 全零主密钥直接拒绝派生：[SecureKeyManager.getOrCreateKey] 交的是副本，
+     * 调用方擦除自己那份不影响他方（该契约的根治笔见 SecureKeyManager KDoc），
+     * 但"文件损坏/密钥体系未就绪"仍可能给出全零——那样派出的密钥语法合法而内容恒定，
+     * 会把基础设施故障伪装成"玩家篡改"（MISMATCH）。宁可降级为不签名。
+     */
     private fun deriveKey(): SecretKeySpec {
         val master = SecureKeyManager.getOrCreateKey(context)
-        // 🔴 不得清零 master：SecureKeyManager 以**数组引用**缓存密钥（getOrCreateKey
-        //    直接返回 keyCache.key），清零会污染同进程后续取键。
-        //    （`+` 已产生新数组，本类零写入 master。）
-        var derived = master + SAVE_SALT.toByteArray(Charsets.UTF_8)
-        val md = MessageDigest.getInstance(HASH_ALGO)
-        repeat(KEY_ITERATIONS) { derived = md.digest(derived) }
-        val spec = SecretKeySpec(derived, HMAC_ALGO)
-        derived.fill(0)
-        return spec
+        try {
+            if (master.none { it != 0.toByte() }) {
+                throw IllegalStateException("主密钥全零（密钥体系未就绪或已损坏），拒绝派生云档签名密钥")
+            }
+            var derived = master + SAVE_SALT.toByteArray(Charsets.UTF_8)
+            val md = MessageDigest.getInstance(HASH_ALGO)
+            repeat(KEY_ITERATIONS) { derived = md.digest(derived) }
+            return SecretKeySpec(derived, HMAC_ALGO).also { securelyClear(derived) }
+        } finally {
+            securelyClear(master) // 副本，可清；清了不影响任何其他调用方
+        }
     }
 
     private fun hex(bytes: ByteArray): String = buildString(bytes.size * 2) {
