@@ -285,6 +285,31 @@ SR-2 引入（默认 LEGACY），SR-3/SR-6 逐级切换，任何一级出问题�
 - 归档任务判归重审：云唯一后 `DataArchive/DataPruning` 的存在意义（云档裁剪策略是否取代本地修剪）。
 - 收官：守卫测试全家桶固化进 CI（IN1-IN8 各配守卫）、审计报告补注终态、
   本文档 §0 决策回写 ADR、CHANGELOG、`dispatch-ledger` 收口。
+- **实施补记（2026-09-22 SR-7 交付）**：① **前置门实测不满足 ⇒ 本批按"终态代码就位"交付而非
+  "已切换"**：SR-3 真机 8 项未跑、SR-6 完成率无分子分母（TapDB 事件录入待运营），故全部新行为
+  门控在 `mode == CLOUD_ONLY`，而 CLOUD_ONLY 生产写入点仍为零（SR-6 `SaveMigrationGuardTest` 锁）。
+  ② **文件层组件本体未物理删除**——本批全量设备模式恒 LEGACY，而 D5 写明轮转备份"随文件层
+  **一起**退役"，现在删等于抽掉唯一还在生效的兜底；落地的是停写判据
+  `shouldWriteLocalSaveFile(mode)`（`.sav`/`.bak`/tombstone 停写）+ `readWithFallback(readOnly)`
+  把旧 `.sav` 转为字面意义的**只读**应急源。删档路径的 `deleteSlot`/`clearSlotDeleted` 与
+  `wal.shutdown`、过期文件清理**刻意不门控**（遗留 `.sav` 不删会在 DB 损坏时被复活成"删掉的档又回来"）。
+  ③ **schema 第二刀实测纠三条**：方案"删 6 表"不可读成"删 6 类"——`DiscipleAggregate` 与
+  `DiscipleStatCalculator` 实测在内存侧消费这 5 个类 ⇒ 保类去 Room 注解，仅零消费者的
+  `DiscipleCompact`/`DiscipleAggregateWithRelations` 连类删（IN6）；`FunctionalWAL` 调用点实测
+  **6 处**非 5 处；crypto 第二刀实测只剩 `SaveCryptoKeyCache` + `StorageConfig` 两个死壳
+  （真载荷加密码早在 `5a421f3d6` 切走），`.secure_key` 链零触碰并新立守卫。
+  ④ **归档判归**：`archived_battle_logs`/`archived_disciples` 实测 DAO 零 SELECT、归档内容
+  不入云档 payload、还原 API 零调用者、无 UI 入口 ⇒ 判"随文件层退役"，修剪三项（change_log/
+  迁移备份/snapshots）仍必要故保留；顺带暴露 `cleanSaveDataWithArchive` 落盘前把溢出战斗日志
+  裁进零读者归档 ⇒ 玩家视角静默丢失，与 D2 冲突，**属产品决策故本批不处置**（详情报告 §6）。
+  ⑤ **守卫缺口如实登记**：IN7（boot 只读不写）**至今无有效守卫**，能写的浅层断言是同义反复故
+  不写；IN4 唯一性扫描面漏 `state/BattleResultUIData.kt` 与 `backwardcompat/OldSerializableSaveData.kt`；
+  已补的是 IN1 事务形状、IN5 红线（新常量 `CLOUD_PAYLOAD_RED_LINE_BYTES = 2_000_000`，
+  原先只用 10MB 平台硬上限 ⇒ 可涨 30 倍仍判绿）、IN8（新 `DiffBridgeGateTest`：缺
+  `-Dgamecore.jni.path` 时 45/50 个 `Diff*` 文件静默 skip 而 Gradle 视为成功 ⇒ 改为判红）。
+  ⑥ 判别力自证两次实跑：schema 守卫初版共用生产常量导致"少删一张表"只有 3/5 例判红
+  （Room 校验对未声明表只告警）⇒ 期望改独立字面清单 + 漂移守卫；C3 守卫首跑抓到本会话漏删的
+  `setCacheDerivedKey`。
 - **门**：schema 批门（同 B19 口径）+ 组合门 + ctest + 真机升级路径实测
   （本批**必须**真机，无可豁免）。
 
