@@ -5,6 +5,7 @@ import androidx.core.graphics.createBitmap
 import android.graphics.*
 import com.xianxia.sect.core.render.BuildingRenderGeometry
 import com.xianxia.sect.core.render.DemolishHighlightMark
+import com.xianxia.sect.core.render.GroundBoundaryBridge
 import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderFrame
@@ -203,6 +204,174 @@ class SoftwareCanvasBackend(
     /** 本帧图集引用（renderFrame 入口快照——供 composeVisibleChunks 内图集类图层消费；
      *  渲染线程单消费者，无并发） */
     private var composeAtlas: Bitmap? = null
+    private var composeRockBitmap: Bitmap? = null
+
+    // ── 弯曲地皮轮廓缓存（地图边缘 v2；渲染线程单消费者）──────────────
+    // 帧数据引用（groundBoundaryData 数组身份）变化才重建；chunk 失效由
+    // renderFrame 入口的变更检测驱动。
+
+    /** 上一次消费的边界复合数据引用（身份比较——与 SceneUpdateChannel 同纪律） */
+    private var cachedBoundarySource: FloatArray? = null
+
+    /** 解析产物（null = 无边界 / 数据非法） */
+    private var cachedBoundary: GroundBoundaryCanvas? = null
+
+    /**
+     * 边界复合数据的 Canvas 消费形态：轮廓闭合 Path（世界坐标，chunk 合成期
+     * clip 用）、底部岩石带 Path（世界坐标，帧画布直接填充）、逐格掩码视图
+     * （chunk 烘焙期装饰门控）。几何与 C++ buildBottomRockLayer 同源同一折线。
+     */
+    private class GroundBoundaryCanvas(
+        val worldPath: Path,
+        val bandPath: Path,
+        val source: FloatArray,
+        val maskOffset: Int,
+        val maskCols: Int,
+        val maskRows: Int
+    ) {
+        /** 掩码位（bit0 = 格四角在轮廓内；bit1 = 树锚点在内）；无数据 = 3（全放行） */
+        fun maskAt(row: Int, col: Int): Int {
+            val idx = maskOffset + row * maskCols + col
+            if (idx >= source.size) return 3
+            return source[idx].toInt()
+        }
+    }
+
+    /** 复合数据 → Canvas 形态（非法/版本不符 = null，整层降级跳过） */
+    private fun parseGroundBoundary(src: FloatArray?): GroundBoundaryCanvas? {
+        if (src == null || src.size <= GroundBoundaryBridge.Header.FLOATS) return null
+        val f = GroundBoundaryBridge.Header.Field
+        if (src[f.VERSION].toInt() != GroundBoundaryBridge.Header.VERSION) return null
+        val polyCount = src[f.POLY_COUNT].toInt()
+        val cols = src[f.COLS].toInt()
+        val rows = src[f.ROWS].toInt()
+        if (polyCount < 3 || cols <= 0 || rows <= 0) return null
+        val maskOffset = src[f.MASK_OFFSET].toInt()
+        val groundMeshOffset = src[f.GROUND_MESH_OFFSET].toInt()
+        if (maskOffset != GroundBoundaryBridge.Header.FLOATS + polyCount * 2) return null
+        if (maskOffset + cols * rows != groundMeshOffset) return null
+        val bottomDepth = src[f.BOTTOM_DEPTH]
+        val tileSize = src[f.TILE_SIZE].toInt()
+
+        // 轮廓闭合 Path（世界坐标折线——消费端只描点，不再生成曲线）
+        val worldPath = Path()
+        val header = GroundBoundaryBridge.Header.FLOATS
+        worldPath.moveTo(src[header], src[header + 1])
+        for (i in 1 until polyCount) {
+            worldPath.lineTo(src[header + i * 2], src[header + i * 2 + 1])
+        }
+        worldPath.close()
+
+        // 底部岩石带 Path（与 C++ buildBottomMesh 同规则：外法线朝下段向下挤出）
+        val bandPath = buildBottomBandPath(src, header, polyCount, bottomDepth)
+
+        return GroundBoundaryCanvas(worldPath, bandPath, src, maskOffset, cols, rows)
+    }
+
+    /** 底部带 Path：连续「朝下」段为一条子路径（顶边前进 + 底边折返），规则同 C++ */
+    private fun buildBottomBandPath(
+        src: FloatArray,
+        header: Int,
+        polyCount: Int,
+        bottomDepth: Float
+    ): Path {
+        val band = Path()
+        if (bottomDepth <= 0f) return band
+        val tuck = GroundBoundaryBridge.BOTTOM_TUCK_PX
+        // 质心（外法线朝向判定基准）
+        var cx = 0f
+        var cy = 0f
+        for (i in 0 until polyCount) {
+            cx += src[header + i * 2]
+            cy += src[header + i * 2 + 1]
+        }
+        cx /= polyCount
+        cy /= polyCount
+        // 累计段缓冲：一条朝下 run = 顶边前进 + 底边折返的闭合子路径
+        val run = ArrayList<Float>(8)
+        fun flushRun() {
+            if (run.isEmpty()) return
+            band.moveTo(run[0], run[1] - tuck)
+            var i = 2
+            while (i < run.size) {
+                band.lineTo(run[i], run[i + 1] - tuck)
+                i += 2
+            }
+            // 底边折返（最后段终点 → 首段起点）
+            i = run.size - 2
+            while (i >= 0) {
+                band.lineTo(run[i], run[i + 1] + bottomDepth - tuck)
+                i -= 2
+            }
+            band.close()
+            run.clear()
+        }
+        for (i in 0 until polyCount) {
+            val j = (i + 1) % polyCount
+            val ax = src[header + i * 2]
+            val ay = src[header + i * 2 + 1]
+            val bx = src[header + j * 2]
+            val by = src[header + j * 2 + 1]
+            val dx = bx - ax
+            val dy = by - ay
+            val len = kotlin.math.sqrt(dx * dx + dy * dy)
+            if (len < 1.0e-6f) continue
+            var nx = dy / len
+            var ny = -dx / len
+            val mx = (ax + bx) * 0.5f - cx
+            val my = (ay + by) * 0.5f - cy
+            if (nx * mx + ny * my < 0f) {
+                nx = -nx
+                ny = -ny
+            }
+            if (ny > GroundBoundaryBridge.BOTTOM_NORMAL_MIN_Y) {
+                run.add(ax)
+                run.add(ay)
+                run.add(bx)
+                run.add(by)
+            } else {
+                flushRun()
+            }
+        }
+        flushRun()
+        return band
+    }
+
+    /** 岩石带 Paint（独立实例——shader 矩阵按岩石位图懒重建） */
+    private val groundBandPaint = Paint().apply {
+        isFilterBitmap = true
+        isAntiAlias = true
+    }
+    private var groundBandShaderSource: Bitmap? = null
+
+    /**
+     * 底部岩石带绘制（世界变换下填充 bandPath；岩石 BitmapShader REPEAT，
+     * 局部矩阵 scale = 纹理宽/格宽——每格一贴，与 GPU 路径 UV=世界/格边长同口径）。
+     * rockBitmap/composite 快照为 null 或边界缺失 = 整层跳过（降级而非黑屏）。
+     */
+    private fun drawGroundBoundaryBand(
+        canvas: Canvas,
+        frame: RenderFrame,
+        drawScale: Float,
+        fadeAlpha: Float
+    ) {
+        val boundary = cachedBoundary ?: return
+        val rock = composeRockBitmap ?: return
+        if (rock !== groundBandShaderSource) {
+            groundBandShaderSource = rock
+            val shader = BitmapShader(rock, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            val scale = rock.width.toFloat() / config.tileSize
+            shader.setLocalMatrix(android.graphics.Matrix().apply { setScale(scale, scale) })
+            groundBandPaint.shader = shader
+        }
+        groundBandPaint.alpha = (fadeAlpha.coerceIn(0f, 1f) * 255).toInt()
+        canvas.save()
+        canvas.translate(-frame.camX * drawScale, -frame.camY * drawScale * TOPDOWN_Y_SCALE)
+        canvas.scale(drawScale, drawScale * TOPDOWN_Y_SCALE)
+        canvas.drawPath(boundary.bandPath, groundBandPaint)
+        canvas.restore()
+        groundBandPaint.alpha = 255
+    }
 
     /**
      * 崖壁独立纹理位图集（下标序 = [IslandCliffBridge.TextureIndex]；宿主注入）。
@@ -324,14 +493,15 @@ class SoftwareCanvasBackend(
             atlas: Bitmap,
             groundSrc: Bitmap,
             decorSkip: Boolean,
-            buildingShadows: Boolean
+            buildingShadows: Boolean,
+            boundary: GroundBoundaryCanvas?
         ) {
             val bmp = bitmap ?: createBitmap(kit.chunkPixel, kit.chunkPixel, Bitmap.Config.RGB_565).also { bitmap = it }
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
 
             objectDecor.clear()
-            drawGroundAndDecor(canvas, atlas, groundSrc, frame.tileData, frame.cols, decorSkip)
+            drawGroundAndDecor(canvas, atlas, groundSrc, frame.tileData, frame.cols, decorSkip, boundary)
 
             // 局部值：RenderFrame 属性跨模块公开 API，smart cast 不可用
             val roadData = frame.roadData
@@ -395,7 +565,8 @@ class SoftwareCanvasBackend(
             groundSrc: Bitmap,
             tileData: IntArray,
             cols: Int,
-            decorSkip: Boolean
+            decorSkip: Boolean,
+            boundary: GroundBoundaryCanvas?
         ) {
             val rows = tileData.size / cols
             val startCol = col * kit.chunkSizeTiles
@@ -415,7 +586,7 @@ class SoftwareCanvasBackend(
             for (r in startRow until decoEndRow) {
                 drawGroundRow(
                     canvas, atlas, tileData, cols, decorSkip,
-                    GroundRowRange(r, startRow, decoStartCol, decoEndCol)
+                    GroundRowRange(r, startRow, decoStartCol, decoEndCol), boundary
                 )
             }
         }
@@ -468,7 +639,8 @@ class SoftwareCanvasBackend(
             tileData: IntArray,
             cols: Int,
             decorSkip: Boolean,
-            range: GroundRowRange
+            range: GroundRowRange,
+            boundary: GroundBoundaryCanvas?
         ) {
             val rowBase = range.r * cols
             val reuseRect = Rect()
@@ -479,15 +651,20 @@ class SoftwareCanvasBackend(
                 // A2: 装饰叠加（草/石/树——显示尺寸/绘制层取自 SpriteAtlasDef 生成
                 // 常量，与 C++ drawAllTiles 的 TILE_SPRITE_W/H + TILE_OBJECT_LAYER 同源；
                 // 锚点 = 格底边居中：x = 格左 + (格宽−显示宽)/2，y = 格底 − 显示高）
+                // 地图边缘 v2：掩码门控（bit0 = 平铺装饰，格四角须在轮廓内；
+                // bit1 = 树，锚点须在轮廓内）——边界带装饰不越过平滑轮廓
                 if (!decorSkip && SpriteAtlasDef.isDecorTile(tile)) {
+                    val mask = boundary?.maskAt(range.r, c) ?: 3
+                    val allowFlat = mask and GroundBoundaryBridge.MASK_BIT_QUAD != 0
+                    val allowTree = mask and GroundBoundaryBridge.MASK_BIT_TREE != 0
                     val decorSrc = kit.tileSrcRects.getOrNull(tile) ?: continue
                     val decoW = (SpriteAtlasDef.tileSpriteWidth(tile) * tileSize).roundToInt()
                     val decoH = (SpriteAtlasDef.tileSpriteHeight(tile) * tileSize).roundToInt()
                     val worldLeft = c * tileSize + (tileSize - decoW) / 2
                     val worldTop = (range.r + 1) * tileSize - decoH
                     if (SpriteAtlasDef.isObjectDecorTile(tile)) {
-                        objectDecor.collect(worldLeft, worldTop, decoW, decoH, tile)
-                    } else {
+                        if (allowTree) objectDecor.collect(worldLeft, worldTop, decoW, decoH, tile)
+                    } else if (allowFlat) {
                         val offX = worldLeft - range.startCol * tileSize
                         val offY = worldTop - range.startRow * tileSize
                         reuseRect.set(offX, offY, offX + decoW, offY + decoH)
@@ -933,7 +1110,8 @@ class SoftwareCanvasBackend(
         fadeAlpha: Float = 1f,
         cloudData: FloatArray? = null,
         skyConfig: SkyBackgroundConfig = SkyBackgroundConfig.DEFAULT,
-        cliffTextures: List<Bitmap?>? = null
+        cliffTextures: List<Bitmap?>? = null,
+        rockBitmap: Bitmap? = null
     ): Bitmap? {
         // 源矩形坐标缩放比：软件路径图集（B15 起为离线产物，此前由 SectAtlasAssembler
         // 拼装）按 0.5× 缩到 2048，而 SpriteAtlasDef 源矩形是 4096 坐标系——
@@ -972,6 +1150,15 @@ class SoftwareCanvasBackend(
         // Chunk 缓存完整渲染（Scroll Compositing 已废弃）
         // ═══════════════════════════════════════════════════════
 
+        // 弯曲地皮轮廓（地图边缘 v2）：帧数据引用变化才重建缓存并整体失效 chunk
+        //（新轮廓改变 clip 与装饰掩码——所有 chunk 必须重烘）
+        val boundarySource = frame.groundBoundaryData
+        if (boundarySource !== cachedBoundarySource) {
+            cachedBoundarySource = boundarySource
+            cachedBoundary = parseGroundBoundary(boundarySource)
+            if (hasEverComposedFrame) invalidateAllChunks()
+        }
+
         // Chunk 失效检查（装饰判定用 LOD 合并值——档位内浮点微动不触发重建防抖动）
         invalidateChunksForChanges(
             ChunkInvalidationInput(
@@ -998,6 +1185,12 @@ class SoftwareCanvasBackend(
 
         // 本帧崖壁独立纹理快照（同图集纪律：帧首取一次，绘制期只读）
         composeCliffTextures = cliffTextures
+        // 本帧底部岩石位图快照（地图边缘 v2 软渲染材质；null = 岩石带整层跳过）
+        composeRockBitmap = rockBitmap
+
+        // 底部岩石带（z 序：天空 → 底部岩石 → 地皮 chunk——带顶边藏进草皮之下，
+        // 与 GPU 路径的「岩石先绘、草皮后绘覆盖」同构）
+        drawGroundBoundaryBand(canvas, frame, drawScale, fadeAlpha)
 
         // 合成可见 chunk → 灵田作物层 → 云层 → 选中高亮 → 拆除高亮 → 预览精灵 → 网格线
         composeVisibleChunks(canvas, frame, tileSize, drawScale, fbW, fbH, fadeAlpha)
@@ -1235,7 +1428,8 @@ class SoftwareCanvasBackend(
                         atlas = atlas,
                         groundSrc = groundSrc,
                         decorSkip = decorSkip,
-                        buildingShadows = config.renderFlags.buildingShadows
+                        buildingShadows = config.renderFlags.buildingShadows,
+                        boundary = cachedBoundary
                     )
                     rebuilt++
                 } else {
@@ -1298,6 +1492,21 @@ class SoftwareCanvasBackend(
         val baseScreenY = ((firstChunkWorldY - frame.camY) * drawScale * TOPDOWN_Y_SCALE).roundToInt()
         val scaledW = (chunkPixel * drawScale).roundToInt().coerceAtLeast(1)
         val scaledH = (chunkPixel * drawScale * TOPDOWN_Y_SCALE).roundToInt().coerceAtLeast(1)
+        // 弯曲地皮轮廓（地图边缘 v2）：chunk 位图仍是**矩形不透明**烘焙——轮廓外的
+        // chunk 像素（曲线内缩露出的天空侧）在合成期按轮廓 clip 掉。仅边缘带 chunk
+        // 需要 clip（完全落在内缩安全带的 chunk 恒在轮廓内，免逐帧路径裁切）。
+        val boundary = cachedBoundary
+        val screenBoundaryClip = if (boundary != null) {
+            val m = android.graphics.Matrix().apply {
+                setScale(drawScale, drawScale * TOPDOWN_Y_SCALE)
+                postTranslate(-frame.camX * drawScale, -frame.camY * drawScale * TOPDOWN_Y_SCALE)
+            }
+            Path(boundary.worldPath).apply { transform(m) }
+        } else {
+            null
+        }
+        val safeInsetX = GroundBoundaryBridge.MAX_INSET * config.worldWidthCells * tileSize
+        val safeInsetY = GroundBoundaryBridge.MAX_INSET * config.worldHeightCells * tileSize
         for (chunkCol in firstChunkCol..lastChunkCol) {
             for (chunkRow in firstChunkRow..lastChunkRow) {
                 val chunk = chunkCaches[chunkCol][chunkRow]
@@ -1308,8 +1517,22 @@ class SoftwareCanvasBackend(
                 val offRightOrBottom = screenX > fbW || screenY > fbH
                 val chunkBmp = if (offLeftOrTop || offRightOrBottom) null else chunk.bitmap
                 if (chunkBmp == null) continue
+                // 边缘带 chunk：先按轮廓裁切再合成（内部安全带 chunk 免 clip）
+                val chunkWorldX0 = chunkCol * CHUNK_SIZE_TILES * tileSize.toFloat()
+                val chunkWorldY0 = chunkRow * CHUNK_SIZE_TILES * tileSize.toFloat()
+                val fullyInsideSafeBand =
+                    chunkWorldX0 >= safeInsetX &&
+                    chunkWorldY0 >= safeInsetY &&
+                    chunkWorldX0 + chunkPixel <= config.worldWidthCells * tileSize - safeInsetX &&
+                    chunkWorldY0 + chunkPixel <= config.worldHeightCells * tileSize - safeInsetY
+                val needClip = screenBoundaryClip != null && !fullyInsideSafeBand
+                if (needClip) {
+                    canvas.save()
+                    canvas.clipPath(screenBoundaryClip)
+                }
                 reuseRect.set(screenX, screenY, screenX + scaledW, screenY + scaledH)
                 canvas.drawBitmap(chunkBmp, null, reuseRect, paint)
+                if (needClip) canvas.restore()
             }
         }
         paint.alpha = 255 // 恢复：paint 供 chunk 烘焙复用，禁止残留半透明

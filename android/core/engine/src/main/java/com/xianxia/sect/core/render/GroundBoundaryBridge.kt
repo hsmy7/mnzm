@@ -50,6 +50,17 @@ object GroundBoundaryBridge {
     const val MASK_BIT_QUAD = 1
     const val MASK_BIT_TREE = 2
 
+    // ── 轮廓几何常量透传（消费端只用；单一权威值在 C++ ground_boundary.h，
+    //    Kotlin 镜像值经 [GroundBoundaryGenerator] 透传，漂移由 DiffTest 即红）──
+    /** 外扩上限（归一化）——chunk 免 clip 安全带判定用 */
+    const val MAX_OUTSET = GroundBoundaryGenerator.MAX_OUTSET
+    /** 内缩上限（归一化） */
+    const val MAX_INSET = GroundBoundaryGenerator.MAX_INSET
+    /** 底部带顶边藏缝（世界像素） */
+    const val BOTTOM_TUCK_PX = GroundBoundaryGenerator.BOTTOM_TUCK_PX
+    /** 底部带法线阈值 */
+    const val BOTTOM_NORMAL_MIN_Y = GroundBoundaryGenerator.BOTTOM_NORMAL_MIN_Y
+
     /** native 通道可用性缓存（null=未探测；进程级状态） */
     @Volatile
     private var channelAvailable: Boolean? = null

@@ -127,8 +127,8 @@ private fun createSectMapSurfaceView(
             scale = params.cameraState.scale,
             spiritCropData = params.spiritCropData,
             currentAlpha = params.alphaProvider(),
-            // 浮空岛边缘布局（一次性预计算稳定引用——Camera 平移/缩放不重建）
-            islandCliffData = params.islandCliffData
+            // 弯曲地皮轮廓（地图边缘 v2；一次性预计算稳定引用——Camera 平移/缩放不重建）
+            groundBoundaryData = params.groundBoundaryData
         )
     )
 }
@@ -267,6 +267,9 @@ private fun computeMapPreview(
 
 /** RenderFrame 构建：单通道推送，Vulkan/Canvas 双后端共用 */
 @Suppress("LongParameterList")
+/** 边界复合数据空实例（data class 数组字段按引用比较——默认值必须共享单例） */
+private val EMPTY_GROUND_BOUNDARY = FloatArray(0)
+
 private fun buildSectRenderFrame(
     params: SectMapViewportParams,
     snapCamX: Float,
@@ -319,7 +322,7 @@ private fun buildSectRenderFrame(
     // 石板道路每格位掩码（双后端按其合成道路主体/边缘/转角/十字装饰）
     roadData = params.roadData,
     // 浮空岛边缘布局（C++ 单一权威合成器一次性预计算——稳定引用）
-    islandCliffData = params.islandCliffData,
+    groundBoundaryData = params.groundBoundaryData,
     // 逻辑帧插值因子（作物进度帧间平滑权重）
     currentAlpha = currentAlpha
 )
@@ -377,7 +380,7 @@ internal data class SectMapViewportParams(
      * 一次性预计算，地图尺寸/种子变化才重建；null=无边缘层，双后端跳过）。
      * 稳定引用——Camera 平移/缩放不触发重建（与 flatTileData 同生命周期模式）。
      */
-    val islandCliffData: FloatArray? = null,
+    val groundBoundaryData: FloatArray = EMPTY_GROUND_BOUNDARY,
     /** 放置/移动模式全视口网格线开关（true=双后端画视口内网格线） */
     val gridOverlayVisible: Boolean = false,
     /**

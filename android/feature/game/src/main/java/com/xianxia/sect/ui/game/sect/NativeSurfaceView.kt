@@ -1,6 +1,8 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.os.Build
 import kotlin.concurrent.thread
@@ -405,6 +407,20 @@ class NativeSurfaceView(
      */
     @Volatile
     var groundTextureId: Int = 0
+
+    /**
+     * 底部岩石位图（地图边缘 v2 软渲染材质；GPU 路径走 uploadRockTextureDirect）。
+     * 惰性解码一次（进程级复用）；解码失败 = null → Canvas 岩石带整层跳过。
+     */
+    val softwareRockBitmap: Bitmap? by lazy {
+        try {
+            BitmapFactory.decodeResource(
+                context.resources, com.xianxia.sect.feature.game.R.drawable.map_rock_base
+            )
+        } catch (_: Throwable) {
+            null
+        }
+    }
 
     /** 主图集 Bitmap（包含地面/装饰/建筑）——Canvas 回退路径使用 */
     @Volatile

@@ -56,11 +56,10 @@ import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.FixedSectGateway
 
 import com.xianxia.sect.core.render.DemolishHighlightMark
-import com.xianxia.sect.core.render.IslandCliffBridge
+import com.xianxia.sect.core.render.GroundBoundaryBridge
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
-import com.xianxia.sect.ui.game.sect.IslandCliffTextureSet
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
@@ -131,7 +130,7 @@ internal const val BUILDING_TAP_TAG = "MainGameScreen"
  */
 
 /** 浮空岛边缘观测日志标签（布局生成/降级锚点——真机排查按此过滤） */
-private const val ISLAND_CLIFF_LOG_TAG = "IslandCliff"
+private const val GROUND_BOUNDARY_LOG_TAG = "GroundBoundary"
 
 /** 建筑脚印占位瓦片标记值（唯一来源 = SpriteAtlasDef 生成物——禁止硬编码序号） */
 private val TILE_BUILDING = SpriteAtlasDef.TileType.TILE_BUILDING.index
@@ -346,8 +345,8 @@ private data class MainGameScreenMapTiles(
     val spiritCropData: FloatArray?,
     val demolishHighlightData: ByteArray?,
     val roadData: IntArray?,
-    /** 浮空岛边缘布局（一次性预计算稳定引用；null=无边缘层，双后端跳过） */
-    val islandCliffData: FloatArray?
+    /** 弯曲地皮轮廓（一次性预计算稳定引用；地图边缘 v2 的地皮边界定义） */
+    val groundBoundaryData: FloatArray
 )
 
 /** MainGameScreen 渲染数据：索引/网格/精灵/配置 */
@@ -361,8 +360,8 @@ internal data class MainGameScreenRenderData(
     val spiritCropData: FloatArray?,
     val demolishHighlightData: ByteArray?,
     val roadData: IntArray?,
-    /** 浮空岛边缘布局（一次性预计算稳定引用；null=无边缘层，双后端跳过） */
-    val islandCliffData: FloatArray?
+    /** 弯曲地皮轮廓（一次性预计算稳定引用；地图边缘 v2 的地皮边界定义） */
+    val groundBoundaryData: FloatArray
 )
 
 /** MainGameScreen 视口数据：相机/预览/渲染参数 */
@@ -531,68 +530,50 @@ private fun rememberMainGameScreenMapTiles(
     val roadData = remember(gameData.roads) {
         roadTracker.syncTo(gameData.roads)
     }
-    // 浮空岛边缘布局（C++ 单一权威合成器；一次性预计算——仅地图尺寸/种子
-    //   （进入不同宗门地图）变化时重建，Camera 平移/缩放不重建。native 通道
-    //   不可用（JVM 测试环境/极端损坏）→ null：双端跳过边缘层（同道路层降级）。
-    //   textureMask = 崖壁纹理可用掩码（Compose 可观察）——加载完成/部分失败时
-    //   掩码变化驱动布局重建（未上传成功的条目由合成器跳过，部分降级不整层消失）；
-    //   视图尚未创建时按"全可用"乐观取值（与持有者初值同口径）
-    val islandCliffTextureMask = state.nativeSurfaceView?.islandCliffTextures?.textureMask?.value
-        ?: ((1 shl IslandCliffBridge.TextureIndex.COUNT) - 1)
-    val islandCliffData = rememberIslandCliffData(mapPreloadData, islandCliffTextureMask)
+    // 弯曲地皮轮廓（地图边缘 v2，替代崖壁布局）：GroundBoundaryBridge 一次性
+    //   预计算——地图尺寸变化时重建，Camera 平移/缩放不重建；第一阶段固定控制点，
+    //   与种子无关。native 不可用时 Kotlin 镜像顶上（地皮边界不可缺席）
+    val groundBoundaryData = rememberGroundBoundaryData(mapPreloadData)
     return MainGameScreenMapTiles(
         flatTileData = flatTileData,
         buildingDataArray = buildingDataArray,
         spiritCropData = spiritCropData.value,
         demolishHighlightData = demolishHighlightData.value,
         roadData = roadData,
-        islandCliffData = islandCliffData
+        groundBoundaryData = groundBoundaryData
     )
 }
 
 /**
- * 浮空岛崖壁布局预计算（remember 封装：仅地图尺寸/种子变化时经 C++ 合成器
- * 重建——Camera 平移/缩放不触发；null = native 通道不可用，双端跳过崖壁层）。
+ * 弯曲地皮轮廓预计算（地图边缘 v2，remember 封装：仅地图尺寸变化时经
+ * [GroundBoundaryBridge.compose] 重建——Camera 平移/缩放不触发；第一阶段
+ * 控制点固定，与种子无关）。
  *
- * 纹理尺寸表来自 [IslandCliffTextureSet.TEXTURE_SIZES]（编译期常量，由
- * `IslandCliffTextureDimensionTest` 解析真实 WebP 头守卫）——**不依赖纹理加载
- * 时序**：布局在纹理上传完成前即可算出，避免"首帧无崖壁 → 尺寸到达后重建整层"。
- * [textureMask] 表达"哪几张已上传成功"（未成功的条目由合成器跳过——部分降级）。
- *
- * 观测锚点（保留级，地图创建时各一次）：compose 结果日志——
- * 「IslandCliff: layout N pieces」= 布局数据链路正常；「compose 降级」= JNI/native 断点。
+ * 观测锚点（保留级，地图创建时一次）：「GroundBoundary: N points」= 数据链路
+ * 正常；「空轮廓」= 非法地图尺寸。
  */
 @Composable
-private fun rememberIslandCliffData(
-    mapPreloadData: MapPreloadData,
-    textureMask: Int
-): FloatArray? =
+private fun rememberGroundBoundaryData(mapPreloadData: MapPreloadData): FloatArray =
     remember(
-        mapPreloadData.seed, mapPreloadData.worldWidthCells,
-        mapPreloadData.worldHeightCells, mapPreloadData.tileSize, textureMask
+        mapPreloadData.worldWidthCells,
+        mapPreloadData.worldHeightCells, mapPreloadData.tileSize
     ) {
-        val layout = IslandCliffBridge.compose(
+        val data = GroundBoundaryBridge.compose(
             cols = mapPreloadData.worldWidthCells,
             rows = mapPreloadData.worldHeightCells,
-            tileSize = mapPreloadData.tileSize,
-            seed = mapPreloadData.seed,
-            textureSizes = IslandCliffTextureSet.TEXTURE_SIZES,
-            textureMask = textureMask
+            tileSize = mapPreloadData.tileSize
         )
-        if (layout == null) {
-            android.util.Log.w(
-                ISLAND_CLIFF_LOG_TAG,
-                "compose 降级（native 通道不可用/异常）→ 跳过崖壁层 " +
-                    "（地图 ${mapPreloadData.worldWidthCells}x${mapPreloadData.worldHeightCells}）"
-            )
+        val polyCount = if (data.size > GroundBoundaryBridge.Header.FLOATS) {
+            data[GroundBoundaryBridge.Header.Field.POLY_COUNT].toInt()
         } else {
-            android.util.Log.i(
-                ISLAND_CLIFF_LOG_TAG,
-                "layout ${layout.size / IslandCliffBridge.PIECE_STRIDE} pieces " +
-                    "(seed=${mapPreloadData.seed}, mask=0x${textureMask.toString(16)})"
-            )
+            0
         }
-        layout
+        android.util.Log.i(
+            GROUND_BOUNDARY_LOG_TAG,
+            "GroundBoundary: $polyCount points " +
+                "(map ${mapPreloadData.worldWidthCells}x${mapPreloadData.worldHeightCells})"
+        )
+        data
     }
 
 /** MainGameScreen 渲染数据计算：精灵位图 + 索引 + 渲染配置 */
@@ -656,7 +637,7 @@ private fun rememberMainGameScreenRenderData(
         spiritCropData = tiles.spiritCropData,
         demolishHighlightData = tiles.demolishHighlightData,
         roadData = tiles.roadData,
-        islandCliffData = tiles.islandCliffData
+        groundBoundaryData = tiles.groundBoundaryData
     )
 }
 
@@ -707,7 +688,7 @@ private fun rememberMainGameScreenViewportData(
                 buildingSpriteSizes = mapData.buildingSpriteSizes, selectedGrid = state.selectedBuildingGrid,
                 spiritCropData = renderData.spiritCropData, demolishHighlightData = renderData.demolishHighlightData,
                 roadData = renderData.roadData,
-                islandCliffData = renderData.islandCliffData,
+                groundBoundaryData = renderData.groundBoundaryData,
                 gridOverlayVisible = state.isPlacingBuilding || state.movingBuilding != null,
                 alphaProvider = { viewModel.gameEngineCore.currentAlpha }
             )
