@@ -92,6 +92,26 @@ internal fun SaveLoadViewModel.reportSaveSuccess(
 }
 
 /**
+ * 保存**失败**的分流反馈（SR-4，方案 §4 SR-4"失败走告警通道，不再静默"）。
+ *
+ * 手动口径不变（snackbar）。自动口径改走消息栏**持久一行**而非 snackbar：
+ * 月变每 6 秒一次，存储退化（例如连续失败触发 [recordSaveCircuitResult] 熔断 30s）
+ * 时 snackbar 会以 6 秒节奏刷屏并把真事件消息挤掉；持久行既满足"不静默"
+ * （一直挂在消息栏直到下一次成功），又自带"最后一次失败原因"语义。日志同步留痕。
+ */
+internal fun SaveLoadViewModel.reportSaveFailure(feedback: SaveFeedback, message: String) {
+    if (feedback == SaveFeedback.Manual) {
+        showError(message)
+        return
+    }
+    Log.e(SaveLoadViewModelConstants.TAG, "自动存档失败 feedback=$feedback: $message")
+    autoSaveNoticeFlow.value = "$AUTO_SAVE_FAILED_PREFIX$message"
+}
+
+/** 自动存档失败行的前缀（与成功行同一承载位，玩家看到的是一行连续状态） */
+internal const val AUTO_SAVE_FAILED_PREFIX = "自动存档失败："
+
+/**
  * 消息栏自动存档行文案（纯函数，JVM 直测）。
  *
  * 带游戏内时间戳而非墙钟：月变按游戏时间发生，玩家对照的是"存到哪一月"；

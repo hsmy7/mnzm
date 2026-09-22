@@ -17,6 +17,7 @@ import com.xianxia.sect.data.cloud.SaveBackendModeProvider
 import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.data.facade.StorageFacade
 
+import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.game.saveload.AutoSaveTrigger
@@ -229,6 +230,28 @@ class SaveLoadViewModelAutoSaveTest {
             coVerify(exactly = 1) { storageFacade.save(1, any()) }
             coVerify(exactly = 1) { uploadQueue.enqueue(eq(1), any(), any()) }
             verify(exactly = 1) { uploadQueue.requestDrain() }
+        }
+
+    @Test
+    fun `auto save failure lands on the persistent line, manual keeps the toast`() =
+        runTest(testDispatcher) {
+            SaveTriggerFlag.autoSaveOnMonthChange = true
+            coEvery { storageFacade.save(any(), any()) } returns
+                SaveResult.failure(SaveError.SLOT_EMPTY, "模拟落盘失败")
+
+            monthEvents.tryEmit(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                "自动口径失败必须可见但不刷屏（持久一行）",
+                "自动存档失败：保存失败，请重试",
+                viewModel.autoSaveNotice.value
+            )
+
+            viewModel.autoSaveNoticeFlow.value = null
+            viewModel.saveGame("1")
+            advanceUntilIdle()
+            assertNull("手动口径失败仍走 snackbar，不占用自动存档行", viewModel.autoSaveNotice.value)
         }
 
     @Test

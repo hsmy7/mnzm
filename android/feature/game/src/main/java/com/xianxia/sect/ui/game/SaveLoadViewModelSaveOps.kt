@@ -236,7 +236,7 @@ internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(
         } catch (e: OutOfMemoryError) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === OutOfMemoryError", e)
             persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            showError("内存不足，保存失败。请关闭其他应用后重试。")
+            reportSaveFailure(feedback, "内存不足，保存失败。请关闭其他应用后重试。")
             try { saveSlotsFlow.value = persistenceFacade.storageFacade
                 .getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
                     .e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after OOM", e2) }
@@ -247,7 +247,7 @@ internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(
         } catch (e: Exception) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === error=${e.message}", e)
             persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            showError("保存失败: ${e.message}")
+            reportSaveFailure(feedback, "保存失败: ${e.message}")
             try { saveSlotsFlow.value = persistenceFacade.storageFacade
                 .getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
                     .e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after save failure", e2) }
@@ -278,7 +278,7 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
     if (snapshot.gameData.sectName.isBlank()) {
         Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
         persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-        showError("游戏数据未初始化")
+        reportSaveFailure(feedback, "游戏数据未初始化")
         return
     }
     val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
@@ -318,7 +318,7 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
     } else {
         persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
         val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
-        showError(errorMsg)
+        reportSaveFailure(feedback, errorMsg)
         Log.e(
             SaveLoadViewModelConstants.TAG,
             "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}",
