@@ -70,12 +70,6 @@ class StorageConfig @Inject constructor(
         get() = store().getInt("max_delta_chain_length", DEFAULT_MAX_DELTA_CHAIN_LENGTH)
 
 
-    val cacheDerivedKey: Boolean
-        get() = store().getBoolean("cache_derived_key", DEFAULT_CACHE_DERIVED_KEY)
-
-    val keyCacheDurationMs: Long
-        get() = store().getLong("key_cache_duration_ms", DEFAULT_KEY_CACHE_DURATION_MS)
-
     val updateCacheAfterSave: Boolean
         get() = store().getBoolean("update_cache_after_save", DEFAULT_UPDATE_CACHE_AFTER_SAVE)
 
@@ -104,10 +98,6 @@ class StorageConfig @Inject constructor(
         store().putInt("max_backup_versions", versions.coerceIn(1, 20))
     }
 
-    fun setCacheDerivedKey(enabled: Boolean) {
-        store().putBoolean("cache_derived_key", enabled)
-    }
-
     fun setUpdateCacheAfterSave(enabled: Boolean) {
         store().putBoolean("update_cache_after_save", enabled)
     }
@@ -130,8 +120,6 @@ class StorageConfig @Inject constructor(
         const val DEFAULT_RETRY_DELAY_MS = 100L
         const val DEFAULT_COMPACTION_THRESHOLD = 10
         const val DEFAULT_MAX_DELTA_CHAIN_LENGTH = 50
-        const val DEFAULT_CACHE_DERIVED_KEY = true
-        const val DEFAULT_KEY_CACHE_DURATION_MS = 300_000L
         const val DEFAULT_UPDATE_CACHE_AFTER_SAVE = true
         val DEFAULT_SERIALIZATION_FORMAT = SerializationFormat.PROTOBUF
         val DEFAULT_COMPRESSION_TYPE = CompressionType.LZ4

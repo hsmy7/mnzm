@@ -26,7 +26,6 @@ import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.core.CrashRecoveryEngine
 import com.xianxia.sect.core.TapTapCrashGuard
 import com.xianxia.sect.core.VulkanPolicy
-import com.xianxia.sect.data.crypto.SaveCryptoKeyCache
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.umeng.UmengManager
 
@@ -124,8 +123,6 @@ class XianxiaApplication : Application() {
         injectDomainDependencies()
         initCrashProtection()
         initBuglyAndMmkv()
-
-        SaveCryptoKeyCache.initialize(applicationScopeProvider)
 
         // changelog_entries.json（129KB JSON 全量解析）在 AppStartup-Init 后台执行器
         // 解析。唯一消费者是设置页更新日志（SettingsTab，用户触达时后台解析早已完成）；
