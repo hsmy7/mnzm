@@ -62,7 +62,7 @@
 2. **C++ 优先**：分配器/纹理 cache 策略/位图/基线存储在 gamecore 或 renderer C++；Kotlin 只做 Trim 桥、上传编排、UI stats。禁止把 Android API 写进 `gamecore/**`。
 3. **AUTHORITATIVE 镜像只读**：禁止复活 Kotlin→C++ 增量回导；导入仅 `importToNative` 全量；导出/投影仅 `updateMirror` 路径。`MirrorReadOnlyGuardTest` + `DiffAuthoritativeTickTest` 必须保持绿。
 4. **存档兼容**：磁盘 `.sav` 格式与 Proto 契约**零变更**；无 Room Entity/Migration。
-5. **惰性结算不变量**：Trim/驱逐**禁止**清除 `cultivationCheckpoints`、`lastSettled*`、生产 `completionMonth`、账本业务字段——只释放**资源**不释放**进度语义**。
+5. **惰性结算不变量**：Trim/驱逐**禁止**清除 `cultivationCheckpoints`、`lastSettled*`、生产 `completionMonth`、账本业务字段，以及**角色卡池进度**（碎片 map / 星级 map / 保底 pity / 寻访历史，若已由角色重构 G01 落地）——只释放**资源**不释放**进度语义**。（交叉：`docs/design/character-gacha-implementation.md` §与内存重构交叉 R1）
 6. **线程**：GPU API 仅渲染线程；引擎线程只投递 trim 请求；`stateStore.update` 锁纪律不变。
 7. **配置开关**：`memory_subsystem.enabled`（BuildConfig/本地；RemoteConfig 键预留 `memory.*`）——OFF = 本方案新路径关闭、旧路径可用，直至债表触发删除。
 8. **命名常量**：禁魔法数字；新上限/阈值全部 `const`/`named`。
@@ -408,6 +408,7 @@ void     trim(TrimLevel);                 // 先 evictable（pinned=false）
 | fps P3.3 | **已升级含义**：复用 `DynamicMemoryManager`，不新建第二套 |
 | reverse-channel-elimination | D5 同向；**禁止**复活反向增量 |
 | cpp-engine-migration | 分配/基线/位图落 C++ |
+| character-gacha-implementation（角色卡池 15 批，`docs/design/character-gacha-implementation.md`） | **逻辑状态串行**：`column_dirty` 删列（G02–G06）与 D4、D5 基线与 G01 新字段/G10 对拍重录按该文档 §交叉 §2 窗口；Trim 白名单见全局约束 5；CODE_WIKI/changelog 与 G14 联席收口 |
 
 ---
 
