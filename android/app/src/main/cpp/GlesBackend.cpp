@@ -411,8 +411,10 @@ void GlesBackend::drainUploads() {
         // 0.5 texel（NativeBridge.cpp UV_EPSILON），LINEAR 不跨精灵渗色
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        // REPEAT（无缝材质，地图边缘 v2）须 POT——入队侧已守卫，按标记选寻址
+        const GLenum wrapMode = up.repeat ? GL_REPEAT : GL_CLAMP_TO_EDGE;
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, up.width, up.height, 0,
                      GL_RGBA, GL_UNSIGNED_BYTE, up.pixels.data());
         m_textures.push_back({ tex, up.id });
@@ -440,6 +442,23 @@ uint32_t GlesBackend::uploadTexture(const void* pixels, int width, int height) {
         id = m_nextTexId++;
         up.id = id;
         m_pendingUploads.push_back(std::move(up));
+    }
+    return id;
+}
+
+uint32_t GlesBackend::uploadRepeatTexture(const void* pixels, int width, int height) {
+    // GLES2 REPEAT 寻址硬性要求 2 的幂尺寸（非 POT 返回 0 = 调用方降级）
+    if (!pixels || width <= 0 || height <= 0) return 0;
+    if ((width & (width - 1)) != 0 || (height & (height - 1)) != 0) {
+        GLES_LOGI("uploadRepeatTexture: non-POT %dx%d rejected", width, height);
+        return 0;
+    }
+    const uint32_t id = uploadTexture(pixels, width, height);
+    if (id != 0) {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        for (auto it = m_pendingUploads.rbegin(); it != m_pendingUploads.rend(); ++it) {
+            if (it->id == id) { it->repeat = true; break; }
+        }
     }
     return id;
 }

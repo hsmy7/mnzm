@@ -7,12 +7,17 @@
 #include "SpriteBatcher.h"
 #include "scene/scene_store.h"
 #include "scene/scene_draw.h"
+#include "gamecore/map/ground_boundary.h"
 
 namespace {
 
-using scene::buildCliffLayer;
+using gamecore::map::computeGroundBoundary;
+using gamecore::map::GroundBoundaryConfig;
+using scene::buildBottomRockLayer;
+using scene::buildGroundMeshLayer;
 using scene::buildMapBatch;
-using scene::CliffLayerParams;
+using scene::GroundBoundaryView;
+using scene::groundBoundaryParse;
 using scene::CropSmoothingState;
 using scene::MapLayerParams;
 using scene::SceneStore;
@@ -36,6 +41,10 @@ using scene::SceneStore;
 // 同步更新——若生成表与夹具漂移，本测试即红）。UV = rect/4096，图集尺寸为
 // 2 的幂 ⇒ 除法精确（无舍入），Kotlin/C++/测试三侧逐位一致。
 // ============================================================
+
+/// 边界层独立纹理 id（底部岩石 / 地皮草——非图集，fake id 仅用于断言配对）
+constexpr uint32_t kBoundaryRockTexId = 99;
+constexpr uint32_t kBoundaryGroundTexId = 98;
 
 // 记录器后端：捕获 draw(verts, count, texId) 顶点流
 struct RecorderRenderer : public Renderer2D {
@@ -188,8 +197,8 @@ struct SceneFixture {
     int cropCount = 0;
     std::vector<float> clouds;
     int cloudCount = 0;
-    std::vector<float> cliffs;
-    int cliffPieceCount = 0;
+    // 弯曲地皮轮廓复合数据（ground_boundary.h 产出；空 = 无边界）
+    std::vector<float> boundary;
 
     // 旧路径 UV（Kotlin 公式夹具复刻）
     std::vector<float> tileUv = kotlinTileUv();
@@ -257,25 +266,25 @@ SceneFixture fullFixture() {
     fx.clouds.assign(cloudData, cloudData + 12);
     fx.cloudCount = 2;
 
-    // 崖壁：底部条带（纹理 0）+ 左缘（纹理 1，含镜像条目 flags=1 → u0>u1）
-    const float cliffData[] = {
-        0.0f, 0.0f, 768.0f, 48.0f, 96.0f, 0.0f, 0.5f, 0.5f, 0.75f, 0.0f,
-        0.0f, 48.0f, 768.0f, 48.0f, 96.0f, 0.0f, 0.25f, 0.5f, 0.5f, 0.0f,
-        1.0f, 0.0f, 192.0f, 24.0f, 192.0f, 0.75f, 0.0f, 0.25f, 0.5f, 1.0f,
-    };
-    fx.cliffs.assign(cliffData, cliffData + 30);
-    fx.cliffPieceCount = 3;
+    // 弯曲地皮轮廓：真实合成器产出（生产同参 128²×48、深度 768）——
+    // 夹具即权威输出，两臂从同一份数据分流（夹具直用 / SceneStore 往返）
+    GroundBoundaryConfig cfg;
+    cfg.cols = kCols;
+    cfg.rows = kRows;
+    cfg.tileSize = kTileSize;
+    cfg.bottomDepth = 768.0f;
+    computeGroundBoundary(cfg, fx.boundary);
     return fx;
 }
 
 /** 单要素裁剪：按启用层从全要素夹具派生（terrain 恒保留——层依赖基座） */
-SceneFixture fixtureWith(bool roads_, bool buildings_, bool crops_, bool clouds_, bool cliffs_) {
+SceneFixture fixtureWith(bool roads_, bool buildings_, bool crops_, bool clouds_, bool boundary_) {
     SceneFixture fx = fullFixture();
     if (!roads_) fx.roads.assign(static_cast<size_t>(kCols) * kRows, 0);
     if (!buildings_) { fx.buildings.clear(); fx.buildingCount = 0; }
     if (!crops_) { fx.crops.clear(); fx.cropCount = 0; }
     if (!clouds_) { fx.clouds.clear(); fx.cloudCount = 0; }
-    if (!cliffs_) { fx.cliffs.clear(); fx.cliffPieceCount = 0; }
+    if (!boundary_) { fx.boundary.clear(); }
     return fx;
 }
 
@@ -306,10 +315,25 @@ std::vector<RecorderRenderer::DrawCall> runOldPath(
     float bounds[4];
     viewBoundsOf(view, bounds);
 
-    const uint32_t cliffTexIds[2] = {7, 3};
+    // 边界解析（夹具臂：直接解析夹具复合数据；失败 = 数据坏，整层跳过）
+    GroundBoundaryView fxBoundary;
+    const bool fxBoundaryOk = groundBoundaryParse(
+        fx.boundary.data(), static_cast<int>(fx.boundary.size()), &fxBoundary);
 
     CropSmoothingState cropState;
     for (int f = 0; f < frames; f++) {
+        // 边界两层（生产层序：天空 → 底部岩石 → 地皮 → 地图批）
+        if (fxBoundaryOk) {
+            buildBottomRockLayer(fxBoundary, kBoundaryRockTexId, view.fadeAlpha,
+                [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+                    if (count > 0) rec.draw(verts, count, texId);
+                });
+            buildGroundMeshLayer(fxBoundary, kBoundaryGroundTexId, view.fadeAlpha,
+                [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+                    if (count > 0) rec.draw(verts, count, texId);
+                });
+        }
+
         SpriteBatcher batcher;
         MapLayerParams p;
         p.viewLeft = bounds[0]; p.viewTop = bounds[1];
@@ -325,8 +349,7 @@ std::vector<RecorderRenderer::DrawCall> runOldPath(
         p.tileCount = static_cast<int64_t>(fx.tiles.size());
         p.cols = kCols; p.rows = kRows; p.tileSize = kTileSize;
         p.atlasTexId = kAtlasTexId;
-        p.groundQuadEnabled = false;
-        p.groundTexId = 0;
+        p.tileMask = fxBoundaryOk ? fxBoundary.mask : nullptr;
         p.tileUv = fx.tileUv.data();
         p.tileUvCount = static_cast<int>(fx.tileUv.size() / 4);
         p.roads = fx.roads.data();
@@ -352,22 +375,6 @@ std::vector<RecorderRenderer::DrawCall> runOldPath(
             rec.draw(batcher.vertices, batcher.vertexCount, kAtlasTexId);
         }
 
-        if (fx.cliffPieceCount > 0) {
-            SpriteBatcher cliffBatcher;
-            CliffLayerParams cp;
-            cp.data = fx.cliffs.data();
-            cp.pieceCount = fx.cliffPieceCount;
-            cp.texIds = cliffTexIds;
-            cp.texCount = 2;
-            cp.viewLeft = bounds[0]; cp.viewTop = bounds[1];
-            cp.viewRight = bounds[2]; cp.viewBottom = bounds[3];
-            cp.scale = view.scale;
-            cp.fadeAlpha = view.fadeAlpha;
-            buildCliffLayer(cliffBatcher, proj, cp,
-                [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
-                    if (count > 0) rec.draw(verts, count, texId);
-                });
-        }
     }
     return std::move(rec.calls);
 }
@@ -391,12 +398,29 @@ std::vector<RecorderRenderer::DrawCall> runNewPath(
     store.updateBuildings(fx.buildings.data(), fx.buildingCount);
     store.updateCrops(fx.crops.data(), fx.cropCount);
     store.updateClouds(fx.clouds.data(), fx.cloudCount);
-    store.setCliffLayout(fx.cliffs.data(), fx.cliffPieceCount);
+    store.setGroundBoundary(fx.boundary.data(),
+                            static_cast<int>(fx.boundary.size()));
 
-    const uint32_t cliffTexIds[2] = {7, 3};
+    // 边界解析（新臂：从 SceneStore 往返数据解析——存储面纳入等价证明）
+    GroundBoundaryView storeBoundary;
+    const bool storeBoundaryOk = store.hasGroundBoundary() &&
+        groundBoundaryParse(store.groundBoundaryData(),
+                            store.groundBoundaryFloats(), &storeBoundary);
 
     CropSmoothingState cropState;
     for (int f = 0; f < frames; f++) {
+        // 边界两层（生产层序：天空 → 底部岩石 → 地皮 → 地图批）
+        if (storeBoundaryOk) {
+            buildBottomRockLayer(storeBoundary, kBoundaryRockTexId, view.fadeAlpha,
+                [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+                    if (count > 0) rec.draw(verts, count, texId);
+                });
+            buildGroundMeshLayer(storeBoundary, kBoundaryGroundTexId, view.fadeAlpha,
+                [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+                    if (count > 0) rec.draw(verts, count, texId);
+                });
+        }
+
         SpriteBatcher batcher;
         MapLayerParams p;
         p.viewLeft = bounds[0]; p.viewTop = bounds[1];
@@ -412,8 +436,7 @@ std::vector<RecorderRenderer::DrawCall> runNewPath(
         p.tileCount = store.terrainCount();
         p.cols = store.cols(); p.rows = store.rows(); p.tileSize = store.tileSize();
         p.atlasTexId = kAtlasTexId;
-        p.groundQuadEnabled = false;
-        p.groundTexId = 0;
+        p.tileMask = storeBoundaryOk ? storeBoundary.mask : nullptr;
         p.tileUv = scene::kTileUv;
         p.tileUvCount = scene::kTileUvCount;
         p.roads = store.roadsData();
@@ -439,22 +462,6 @@ std::vector<RecorderRenderer::DrawCall> runNewPath(
             rec.draw(batcher.vertices, batcher.vertexCount, kAtlasTexId);
         }
 
-        if (store.hasCliffs()) {
-            SpriteBatcher cliffBatcher;
-            CliffLayerParams cp;
-            cp.data = store.cliffsData();
-            cp.pieceCount = store.cliffPieceCount();
-            cp.texIds = cliffTexIds;
-            cp.texCount = 2;
-            cp.viewLeft = bounds[0]; cp.viewTop = bounds[1];
-            cp.viewRight = bounds[2]; cp.viewBottom = bounds[3];
-            cp.scale = view.scale;
-            cp.fadeAlpha = view.fadeAlpha;
-            buildCliffLayer(cliffBatcher, proj, cp,
-                [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
-                    if (count > 0) rec.draw(verts, count, texId);
-                });
-        }
     }
     return std::move(rec.calls);
 }
@@ -552,11 +559,12 @@ TEST_F(SceneEquivalenceTest, CloudsAllCameras) {
     }
 }
 
-TEST_F(SceneEquivalenceTest, CliffsMirroredPiecesAllCameras) {
+TEST_F(SceneEquivalenceTest, BoundaryLayersAllCameras) {
+    // 弯曲地皮轮廓（地图边缘 v2）：底部岩石 + 地皮草两层随相机三档位等价
     SceneFixture fx = fixtureWith(false, false, false, false, true);
     LayerFlags flags;
     for (const CameraView& view : kViews) {
-        std::string what = "cliffs cam(scale=" + std::to_string(view.scale) + ")";
+        std::string what = "boundary cam(scale=" + std::to_string(view.scale) + ")";
         assertVertexStreamEqual(runOldPath(fx, view, flags, 1),
                                 runNewPath(fx, view, flags, 1), what.c_str());
     }
@@ -601,38 +609,35 @@ TEST_F(SceneEquivalenceTest, EachElementActuallyEmitsVertices) {
     SceneFixture clouds = fixtureWith(false, false, false, true, false);
     EXPECT_GT(runOldPath(clouds, mid, flags, 1).size(), 0u);
 
-    SceneFixture cliffs = fixtureWith(false, false, false, false, true);
-    EXPECT_GT(runOldPath(cliffs, mid, flags, 1).size(), 0u);
+    SceneFixture boundary = fixtureWith(false, false, false, false, true);
+    auto boundaryCalls = runOldPath(boundary, mid, flags, 1);
+    EXPECT_GT(boundaryCalls.size(), 0u);
+    // 两层独立纹理提交齐全：岩石（99）+ 地皮（98），顶点流非空
+    bool hasRock = false, hasGround = false;
+    for (const auto& call : boundaryCalls) {
+        if (call.texId == kBoundaryRockTexId && !call.verts.empty()) hasRock = true;
+        if (call.texId == kBoundaryGroundTexId && !call.verts.empty()) hasGround = true;
+    }
+    EXPECT_TRUE(hasRock) << "底部岩石层必须产出顶点流";
+    EXPECT_TRUE(hasGround) << "地皮层必须产出顶点流";
 }
 
 // ============================================================
-// R3.5 远景观看容量路径守卫（批次 B12）
+// 弯曲地皮轮廓守卫（地图边缘系统 v2，替代 R3.5 远景地面路径组）
 //
-// 地面层两种形态互斥：groundQuadEnabled && groundTexId!=0 → 整图 REPEAT quad
-// （1 个地面 draw call）；否则逐格地面（每格 1 quad）。本组锁定：
-//   ① 互斥性——整图开时地面 draw call 骤减，且**不产出逐格地面 quad**；
-//   ② 参数齐备性——未传 groundTexId 时即便开关为真仍回退逐格（防御）；
-//   ③ 非地面层不变——道路/建筑/作物在整图开时逐位不变（只有地面换形态）。
-// ③ 是该特性敢上线的关键：地面换形态不得扰动任何其他层的顶点流。
+// 底色与边界的契约：地皮 mesh（独立草纹理 REPEAT）承担轮廓内全部底色，
+// 底部岩石 mesh（独立岩石纹理 REPEAT）沿同源折线向下挤出；地图批不再含
+// 逐格底色、只按掩码叠加 GRASS1..4 变体。本组锁定：
+//   ① 两层独立提交齐全且纹理 id 正确（岩石/地皮各自一次 draw）；
+//   ② 无边界数据时两层整体跳过、地图批不受影响（降级而非黑屏）；
+//   ③ 掩码门控——掩码清零时变体格从地图批消失（边界带不越轮廓），
+//     移除量为整格（6 顶点/格）的整数倍。
 // ============================================================
 
 namespace {
 
-/// 地面层形态测量结果
-struct GroundShape {
-    int mainBatchVerts;             ///< 主批（atlasTexId）顶点数
-    int groundSubmitVerts;          ///< 整图地面独立提交顶点数（0 = 未触发整图路径）
-    uint32_t groundSubmitTexId;     ///< 整图地面提交用的纹理 id
-};
-
-/// 主批形态（不带地面提交回调，只关心主批顶点数）
-struct MainBatchShape {
-    int mainVerts;                  ///< 主批顶点数
-    int groundSubmitVerts;          ///< 地面独立提交顶点数（不挂回调则恒 0）
-};
-
-/// 组装 MapLayerParams（给定夹具 + 地面开关 + 相机）——单点维护，避免测试内重复
-MapLayerParams paramsFor(const SceneFixture& fx, bool groundQuad, uint32_t groundTexId,
+/// 组装 MapLayerParams（给定夹具 + 掩码 + 相机）——单点维护，避免测试内重复
+MapLayerParams paramsFor(const SceneFixture& fx, const float* tileMask,
                          const CameraView& view, float proj[16], float bounds[4]) {
     cameraProjMatrix(proj, view.camX, view.camY, view.scale,
                      static_cast<float>(view.vpW), static_cast<float>(view.vpH),
@@ -652,8 +657,7 @@ MapLayerParams paramsFor(const SceneFixture& fx, bool groundQuad, uint32_t groun
     p.tileCount = static_cast<int64_t>(fx.tiles.size());
     p.cols = kCols; p.rows = kRows; p.tileSize = kTileSize;
     p.atlasTexId = kAtlasTexId;
-    p.groundQuadEnabled = groundQuad;
-    p.groundTexId = groundTexId;
+    p.tileMask = tileMask;
     p.tileUv = fx.tileUv.data();
     p.tileUvCount = static_cast<int>(fx.tileUv.size() / 4);
     p.roads = fx.roads.data();
@@ -676,111 +680,88 @@ MapLayerParams paramsFor(const SceneFixture& fx, bool groundQuad, uint32_t groun
     return p;
 }
 
-/// 单要素地形夹具在给定相机/地面开关下的地面形态测量。
-/// 经 5 参重载的 submitGround 回调捕获整图地面提交（生产 = renderer->draw）。
-GroundShape measureGround(bool groundQuad, uint32_t groundTexId, const CameraView& view) {
-    SceneFixture fx = fixtureWith(false, false, false, false, false);
-    float proj[16];
-    float bounds[4];
-    MapLayerParams p = paramsFor(fx, groundQuad, groundTexId, view, proj, bounds);
-
-    SpriteBatcher batcher;
-    GroundShape out{0, 0, 0};
-    CropSmoothingState cropState;
-    const int mainVerts = buildMapBatch(batcher, p, proj, cropState,
-        [&out](uint32_t texId, const SpriteVertex*, int count) {
-            out.groundSubmitTexId = texId;
-            out.groundSubmitVerts += count;
-        });
-    out.mainBatchVerts = mainVerts;
-    return out;
-}
-
-/// 任意夹具的主批形态测量（不捕获地面提交——整图地面段另由 measureGround 测）
-MainBatchShape measureMainBatch(const SceneFixture& fx, bool groundQuad,
-                                uint32_t groundTexId, const CameraView& view) {
-    float proj[16];
-    float bounds[4];
-    MapLayerParams p = paramsFor(fx, groundQuad, groundTexId, view, proj, bounds);
-
-    SpriteBatcher batcher;
-    MainBatchShape out{0, 0};
-    CropSmoothingState cropState;
-    out.mainVerts = buildMapBatch(batcher, p, proj, cropState,
-        [&out](uint32_t, const SpriteVertex*, int count) {
-            out.groundSubmitVerts += count;
-        });
-    return out;
+/// 解析夹具边界（无边界返回 false）
+bool parseBoundary(const SceneFixture& fx, GroundBoundaryView* out) {
+    return groundBoundaryParse(fx.boundary.data(),
+                               static_cast<int>(fx.boundary.size()), out);
 }
 
 }  // namespace
 
-// ① 整图地面开启 ⇒ 地面改由独立提交的单个 quad 承担，主批不再含逐格地面
-TEST_F(SceneEquivalenceTest, FarViewGroundQuadReplacesPerTileGround) {
-    // 远景档（kViews[2]：scale=0.3，整岛可见）——逐格地面铺满整屏，顶点数为 O(可见格数)
-    const CameraView& farView = kViews[2];
-    GroundShape perTile = measureGround(/*groundQuad=*/false, /*groundTexId=*/0, farView);
-    GroundShape wholeMap = measureGround(/*groundQuad=*/true, /*groundTexId=*/99, farView);
+// ① 边界两层：独立纹理提交齐全（岩石/地皮各一次 draw，顶点流非空，
+//    淡入 alpha 乘入顶点色——与 quad 的 fadeAlpha 同语义）
+TEST_F(SceneEquivalenceTest, BoundaryLayersSubmitRockThenGround) {
+    SceneFixture fx = fullFixture();
+    GroundBoundaryView v;
+    ASSERT_TRUE(parseBoundary(fx, &v));
 
-    // 逐格臂：地面在**主批**里（无独立地面提交），顶点数可观（O 可见格数）
-    EXPECT_EQ(0, perTile.groundSubmitVerts)
-        << "逐格臂不得触达整图地面提交回调";
-    EXPECT_GT(perTile.mainBatchVerts, 0) << "逐格地面必须产出主批顶点（对照基线）";
+    RecorderRenderer rec;
+    buildBottomRockLayer(v, kBoundaryRockTexId, /*fadeAlpha=*/0.5f,
+        [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+            if (count > 0) rec.draw(verts, count, texId);
+        });
+    buildGroundMeshLayer(v, kBoundaryGroundTexId, /*fadeAlpha=*/0.5f,
+        [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+            if (count > 0) rec.draw(verts, count, texId);
+        });
 
-    // 整图臂：地面经**独立提交**（1 quad = VERTICES_PER_SPRITE 顶点），主批不再含地面
-    EXPECT_EQ(VERTICES_PER_SPRITE, wholeMap.groundSubmitVerts)
-        << "整图地面必须是单个 quad（" << VERTICES_PER_SPRITE
-        << " 顶点）独立提交——R3.5 容量收益的直接证据";
-    EXPECT_EQ(99u, wholeMap.groundSubmitTexId)
-        << "整图地面须以其自身纹理 id 提交（非图集 id）";
-    EXPECT_LT(wholeMap.mainBatchVerts, perTile.mainBatchVerts)
-        << "整图臂主批必须比逐格臂小（逐格地面已从主批消失）";
+    ASSERT_EQ(rec.calls.size(), 2u) << "必须恰好岩石/地皮各一次 draw";
+    EXPECT_EQ(rec.calls[0].texId, kBoundaryRockTexId);
+    EXPECT_EQ(rec.calls[1].texId, kBoundaryGroundTexId);
+    for (const auto& call : rec.calls) {
+        ASSERT_GT(call.verts.size(), 0u);
+        EXPECT_EQ(call.verts.size() % 3u, 0u) << "三角列表顶点数须为 3 的倍数";
+        for (const auto& vert : call.verts) {
+            EXPECT_FLOAT_EQ(vert.a, 0.5f) << "淡入 alpha 必须乘入顶点色";
+        }
+    }
 }
 
-// ② groundTexId 未传入时即便开关为真仍回退逐格（防御——半配置态不得黑屏）
-TEST_F(SceneEquivalenceTest, FarViewGroundQuadWithoutTextureFallsBack) {
-    const CameraView& farView = kViews[2];
-    GroundShape noTex = measureGround(/*groundQuad=*/true, /*groundTexId=*/0, farView);
-    GroundShape perTile = measureGround(/*groundQuad=*/false, /*groundTexId=*/0, farView);
+// ② 无边界数据：两层整体跳过（纹理 id=0 / 空 mesh 同守卫），不崩溃不画白
+TEST_F(SceneEquivalenceTest, BoundaryAbsentSkipsBothLayers) {
+    SceneFixture fx = fixtureWith(false, false, false, false, false);
+    GroundBoundaryView v;
+    ASSERT_FALSE(parseBoundary(fx, &v));
 
-    EXPECT_EQ(0, noTex.groundSubmitVerts)
-        << "groundTexId=0 时整图提交必须不发生——否则 REPEAT 采样空白纹理整图黑屏";
-    EXPECT_EQ(perTile.mainBatchVerts, noTex.mainBatchVerts)
-        << "groundTexId=0 时整图开关必须无效，主批与逐格臂逐位一致";
-    EXPECT_GT(noTex.mainBatchVerts, 0) << "回退后地面必须仍在主批中绘制";
+    RecorderRenderer rec;
+    buildBottomRockLayer(v, kBoundaryRockTexId, 1.0f,
+        [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+            if (count > 0) rec.draw(verts, count, texId);
+        });
+    buildGroundMeshLayer(v, kBoundaryGroundTexId, 1.0f,
+        [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+            if (count > 0) rec.draw(verts, count, texId);
+        });
+    buildBottomRockLayer(v, 0, 1.0f,
+        [&rec](uint32_t, const SpriteVertex*, int) { FAIL() << "texId=0 不得提交"; });
+    EXPECT_EQ(rec.calls.size(), 0u) << "无边界/无纹理时两层必须整体跳过";
 }
 
-// ③ 地面换形态不得扰动其他层：**同一**全场景夹具下，
-//    整图臂主批 == 逐格臂主批 − 与整图臂同视口的逐格地面段。
-//    地面段在同夹具下由「整图臂主批 − 逐格臂主批」的差直接给出（自洽，
-//    不跨夹具比较）。
-TEST_F(SceneEquivalenceTest, FarViewGroundQuadLeavesOtherLayersUntouched) {
-    const CameraView& view = kViews[2];  // 远景档
-    SceneFixture full = fullFixture();
+// ③ 掩码门控：掩码清零 ⇒ 变体格退出地图批（差 = 整格顶点倍数）；
+//    掩码 = 真实轮廓 ⇒ 变体格保留（边界带才被剔除）
+TEST_F(SceneEquivalenceTest, TileMaskGatesGroundVariants) {
+    const CameraView& view = kViews[2];  // 远景：整岛可见，边界带格全部在场
+    SceneFixture fx = fullFixture();
+    GroundBoundaryView v;
+    ASSERT_TRUE(parseBoundary(fx, &v));
 
-    MainBatchShape perTileArm =
-        measureMainBatch(full, /*groundQuad=*/false, /*groundTexId=*/0, view);
-    MainBatchShape quadArm =
-        measureMainBatch(full, /*groundQuad=*/true, /*groundTexId=*/99, view);
+    float proj[16];
+    float bounds[4];
+    SpriteBatcher batcher;
+    CropSmoothingState cropState;
 
-    EXPECT_GT(perTileArm.mainVerts, 0) << "逐格臂主批必须非空";
-    EXPECT_GT(quadArm.mainVerts, 0) << "整图臂主批必须非空（其余层未受影响）";
+    MapLayerParams pReal = paramsFor(fx, v.mask, view, proj, bounds);
+    const int realVerts = buildMapBatch(batcher, pReal, proj, cropState);
 
-    // 整图臂主批必须严格小于逐格臂主批（逐格地面段已从主批消失），
-    // 差值 = 被整图化的逐格地面顶点数（>0，且为 6 的整数倍 = 整数格数）
-    const int removedGround = perTileArm.mainVerts - quadArm.mainVerts;
-    EXPECT_GT(removedGround, 0)
-        << "整图臂主批必须比逐格臂小——差值即被整图化移除的逐格地面段";
-    EXPECT_EQ(0, removedGround % VERTICES_PER_SPRITE)
-        << "移除量须为整格（每格 " << VERTICES_PER_SPRITE << " 顶点）的整数倍";
+    std::vector<float> zeroMask(static_cast<size_t>(kCols) * kRows, 0.0f);
+    MapLayerParams pZero = paramsFor(fx, zeroMask.data(), view, proj, bounds);
+    const int zeroVerts = buildMapBatch(batcher, pZero, proj, cropState);
 
-    // 整图臂的地面经独立提交（单 quad）——容量收益：1 quad 替代 N 格
-    GroundShape quadOnly = measureGround(/*groundQuad=*/true, /*groundTexId=*/99, view);
-    EXPECT_EQ(VERTICES_PER_SPRITE, quadOnly.groundSubmitVerts)
-        << "整图地面段必须是单 quad";
-    // 同视口下逐格地面段在整图臂中被移除的格数，必须远多于 1 个 quad
-    EXPECT_GT(removedGround, quadOnly.groundSubmitVerts)
-        << "逐格地面段必须显著大于整图单 quad（容量收益）";
+    EXPECT_GT(realVerts, 0) << "真实掩码臂主批必须非空";
+    EXPECT_LT(zeroVerts, realVerts) << "清零掩码必须剔掉全部变体格";
+    const int removed = realVerts - zeroVerts;
+    EXPECT_EQ(removed % 6, 0) << "变体移除量须为整格（6 顶点/格）的整数倍";
+    EXPECT_GT(removed, 0);
 }
 
 // 生成 UV 表与夹具（Kotlin 公式快照）的静态对照：任何 LAYOUT 漂移在此即红

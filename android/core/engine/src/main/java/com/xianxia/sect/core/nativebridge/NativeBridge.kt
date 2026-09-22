@@ -161,12 +161,19 @@ object NativeBridge {
      *
      * 与 [uploadTextureDirect] 同 staging 上传 + 同 RGBA direct 缓冲区布局，
      * 仅采样器地址模式为 REPEAT（UV 可超 [0,1] 循环平铺）。
-     * C++ 侧记录该纹理 ID，drawAllTiles 以单 quad 覆盖可见地面区域。
+     * C++ 侧记录该纹理 ID，地皮轮廓 mesh（地图边缘 v2）以 REPEAT 铺满轮廓内。
      *
      * @param pixelData RGBA 像素 direct 缓冲区（容量 ≥ width*height*4）
      * @return 纹理 ID；0 = 后端不支持/非 direct 缓冲区/容量不足
      */
     external fun uploadGroundTextureDirect(
+        pixelData: java.nio.ByteBuffer,
+        width: Int,
+        height: Int
+    ): Int
+
+    /** 底部岩石无缝纹理上传（REPEAT；map_rock_base 128²，地图边缘 v2 材质通道） */
+    external fun uploadRockTextureDirect(
         pixelData: java.nio.ByteBuffer,
         width: Int,
         height: Int
@@ -424,26 +431,6 @@ object NativeBridge {
      */
     external fun sceneSpawnFloatingText(spawnData: FloatArray?)
 
-    /**
-     * 远景观看容量路径开关（R3.5）：整岛缩小观看时地面层改走「整图 REPEAT
-     * quad」（1 个 draw call）替代逐格地面（最坏 128×128 ≈ 16384 sprite/帧，
-     * 逼近 SpriteBatcher 总上限 `Rhi.h::MAX_SPRITES_PER_FRAME` = 20480 的容量悬崖）。
-     *
-     * ## 谁判定
-     * 四重门的**合取结果**由
-     * [com.xianxia.sect.core.render.FarViewGroundPolicy.groundQuadEnabled]
-     * 在 Kotlin 侧算出（用户旗标 ∧ 图集就绪 ∧ 缩放达标 ∧ 设备白名单），
-     * 本端口只推单一布尔 ⇒ C++ 侧保持零平台依赖（桌面 GTest 直测），
-     * 设备知识全部留在 Kotlin 可测策略里。
-     *
-     * ## 回退
-     * false（默认）= 逐格地面，与 R3.5 前现状逐位一致。设备白名单当前为空
-     * （REPEAT 采样在部分 Adreno 驱动上黑屏，需真机验证后逐条放行）⇒
-     * **现状恒 false**。开关随 surface 纪元在 C++ 侧复位。
-     *
-     * @param on true = 允许整图 quad（仍受 C++ 侧图集/地形就绪守卫）
-     */
-    external fun nativeSetFarViewGroundQuad(on: Boolean)
 
     /**
      * 每帧绘制（新路径唯一帧入口）：相机标量 + 覆盖标志 + 帧级 alpha

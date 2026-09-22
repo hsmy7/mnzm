@@ -23,7 +23,7 @@
 // 与 VulkanBackend 的差异（这些 Vulkan 专属能力在 GLES 上不支持，NativeBridge
 // 经 dynamic_cast 返回空/0 自动回退到通用路径，行为 = 特性关闭而非错误）：
 //   - uploadCompressedTexture（ASTC/KTX）→ 不支持，走 RGBA 图集
-//   - uploadRepeatTexture（地面无缝纹理）→ 不支持，回退逐格地面（g_groundTexId==0）
+//   - uploadRepeatTexture（无缝 REPEAT 纹理，地图边缘 v2）→ POT 尺寸真实支持
 //   - setRenderScale（离屏降采样）→ 不支持，恒 1.0（直渲全分辨率）
 //   - initDevice/initSurface 两阶段（prewarm）→ 不需要，GLES 在 init 内一次性建链
 //
@@ -49,6 +49,9 @@ public:
     void endFrame() override;
     bool isReady() const override { return m_ready.load(); }
     uint32_t uploadTexture(const void* pixels, int width, int height) override;
+    // 无缝 REPEAT 采样纹理（地图边缘 v2 地皮/底部 mesh 材质）。GLES2 的
+    // REPEAT 寻址要求 2 的幂尺寸——非 POT 返回 0（调用方降级）。
+    uint32_t uploadRepeatTexture(const void* pixels, int width, int height) override;
     void destroyTexture(uint32_t id) override;
     // Rhi.h 接口实现（drawBackground 见下）
     void setProjection(const float mat[16]) override;
@@ -115,6 +118,7 @@ private:
         int width;
         int height;
         std::vector<uint8_t> pixels;
+        bool repeat = false;  ///< true = GL_REPEAT 寻址（无缝材质；入队侧守卫 POT）
     };
     std::vector<PendingUpload> m_pendingUploads;   // GUARDED_BY(m_stateMutex)
     /** 待删纹理队列（destroyTexture 任意线程入队；渲染线程 drainUploads 持上下文删除——

@@ -114,6 +114,15 @@ public:
     virtual uint32_t uploadTexture(const void* pixels, int width, int height) = 0;
     virtual void destroyTexture(uint32_t id) = 0;
 
+    // 无缝 REPEAT 采样纹理（UV 超 [0,1] 循环平铺；地图边缘 v2 的地皮/底部
+    // mesh 材质通道，替代旧崖壁独立纹理）。尺寸须为 2 的幂（GLES2 的
+    // REPEAT 寻址硬性前提；Vulkan 无此限制但两端同 POT 口径）。
+    // @return 纹理 ID；0 = 后端不支持/尺寸非 POT/上传失败（调用方降级）。
+    virtual uint32_t uploadRepeatTexture(const void* /*pixels*/, int /*width*/,
+                                         int /*height*/) {
+        return 0;
+    }
+
     // === 渲染 ===
     virtual void setProjection(const float mat[16]) = 0;
     virtual void draw(const SpriteVertex* vertices, int count, uint32_t textureId) = 0;

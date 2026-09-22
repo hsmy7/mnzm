@@ -16,6 +16,7 @@
 // 石板道路求解器 + 渲染合成器 + 绘制层序合成器（单一权威，与旧路径同源）
 #include "gamecore/map/road_compositor.h"
 #include "gamecore/map/draw_order.h"
+#include "gamecore/map/ground_boundary.h"
 
 // ============================================================
 // scene_draw — 场景绘制核心（重构方案 2026-09-17 R3.2/B10）
@@ -84,10 +85,12 @@ struct MapLayerParams {
     int tileSize = 48;
     uint32_t atlasTexId = 0;
 
-    // 整图 REPEAT 地面（既有编译期关闭特性 GROUND_QUAD_ENABLED 的参数化——
-    // 两路调用点恒传 false，保留判定形状待驱动问题定位后启用）
-    bool groundQuadEnabled = false;
-    uint32_t groundTexId = 0;
+    // 逐格掩码（地图边缘 v2；ground_boundary.h 产出，行主序 0..3 位组：
+    // bit0 = 格四角在轮廓内）。地面**底色由地皮 mesh 铺设**（buildGroundMeshLayer，
+    // 独立草纹理），本层只负责 GRASS1..4 变体格叠加——掩码 bit0 的格才画
+    // （边界带格不画变体，轮廓边缘由 mesh 平滑收边）。null = 全部按界内处理
+    // （无轮廓数据时的降级口径，与旧逐格行为一致）。
+    const float* tileMask = nullptr;
 
     // UV 表与逐层数据（指针 + 计数显式传入；计数语义与旧路径
     // GetArrayLength 推导一致）
@@ -240,16 +243,11 @@ inline constexpr size_t kMaxObjectDecorItems = 20000;
 /// 函数级 static（渲染线程单消费者）。返回 batcher.end() 顶点数
 ///（提交/溢出结算在桥侧）。
 ///
-/// [submitGround]（R3.5/B12）：整图 REPEAT 地面 quad 的提交回调。地面 quad 用
-/// **独立纹理**（groundTexId ≠ atlasTexId），无法并入本函数末尾以 atlasTexId
-/// 单次提交的主批，故与 [buildCliffLayer]/[buildOverlayLayers] 同形，经回调
-/// 逐段提交（生产实现 = `renderer->draw(verts, count, groundTexId)`）。
-/// 缺省空回调 = 不提交地面 quad（此时上层必须保证不启用整图路径，否则地面层
-/// 会整体缺失）；本函数只在 `p.groundQuadEnabled && p.groundTexId != 0` 时触发。
-template <typename GroundSubmit>
+/// 地图批不再含地面底色（地图边缘 v2）：底色由 [buildGroundMeshLayer] 以
+/// 独立草纹理 REPEAT 铺设（曲线轮廓内），本批只负责变体/装饰/道路/建筑/
+/// 作物/云（图集单纹理，函数末尾整批一次提交）。
 inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
-                         const float projMatrix[16], CropSmoothingState& cropState,
-                         GroundSubmit&& submitGround) {
+                         const float projMatrix[16], CropSmoothingState& cropState) {
     if (p.tiles == nullptr || p.tileUv == nullptr) return 0;
     // 深度防御：rows×cols 超数组实际长度即堆越界读（旧路径同源防御）
     if (static_cast<int64_t>(p.rows) * p.cols > p.tileCount) return 0;
@@ -259,31 +257,6 @@ inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
     const float tileSizeF = static_cast<float>(p.tileSize);
 
     batcher.begin(projMatrix);
-
-    // ---- 整图 REPEAT 地面（R3.5/B12：设备白名单放行时替代逐格地面）----
-    // 与下方逐格地面（(A) 段）互斥：本分支命中时 (A) 段恒跳过。
-    // 几何 = 世界可见域 ∩ 地图矩形（整图铺满可见部分，UV = 世界坐标/格边长的
-    // 无缝 REPEAT 映射——地面纹理取自 map_grass_1 64×64，REPEAT 寻址）。
-    if (p.groundQuadEnabled && p.groundTexId != 0) {
-        SpriteBatcher groundBatcher;
-        groundBatcher.begin(projMatrix);
-        float gx0 = std::max(0.0f, p.viewLeft);
-        float gy0 = std::max(0.0f, p.viewTop);
-        float gx1 = std::min(static_cast<float>(p.cols * p.tileSize), p.viewRight);
-        float gy1 = std::min(static_cast<float>(p.rows * p.tileSize), p.viewBottom);
-        if (gx1 > gx0 && gy1 > gy0) {
-            groundBatcher.add(p.groundTexId,
-                gx0, gy0, gx1 - gx0, gy1 - gy0,
-                gx0 / tileSizeF, gy0 / tileSizeF,
-                gx1 / tileSizeF, gy1 / tileSizeF,
-                1.0f, 1.0f, 1.0f, fadeAlpha);
-        }
-        const int groundVerts = groundBatcher.end();
-        // 独立纹理提交（不复用主批 atlasTexId——地面纹理 id 不同）
-        if (groundVerts > 0) {
-            submitGround(p.groundTexId, groundBatcher.vertices, groundVerts);
-        }
-    }
 
     // 可见范围钳制迭代（平板省电）+ 装饰越界余量外扩
     const int minCol = std::max(0, static_cast<int>(std::floor(p.viewLeft / tileSizeF)) - kDecorMarginCols);
@@ -315,22 +288,32 @@ inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
             if (!sceneRectVisible(wx, wy, tileSizeF, tileSizeF,
                                   p.viewLeft, p.viewTop, p.viewRight, p.viewBottom)) continue;
 
-            // (A) 地面底图：逐格绘制（整图 REPEAT 关闭期恒走此路径）
-            if (!p.groundQuadEnabled || p.groundTexId == 0) {
-                int gIdx = 0;
+            // (A') 草变体叠加（地图边缘 v2）：底色已由地皮 mesh 铺设，此处只
+            // 画 GRASS1..4 变体格，且仅当掩码 bit0（格四角全在轮廓内）——
+            // 边界带格跳过，避免变体 quad 越过平滑轮廓（mesh 在其下补底）。
+            // 掩码缺省（null）= 全部按界内处理（无轮廓降级口径）。
+            {
+                bool isVariant = false;
                 for (int gv = 0; gv < kGroundVariantCount; gv++) {
-                    if (tile == kGroundVariants[gv]) { gIdx = tile; break; }
+                    if (tile == kGroundVariants[gv]) { isVariant = true; break; }
                 }
-                if (gIdx < p.tileUvCount) {
-                    batcher.add(p.atlasTexId,
-                        wx - gapEpsilon, wy - gapEpsilon,
-                        tileSizeF + 2.0f * gapEpsilon,
-                        tileSizeF + 2.0f * gapEpsilon,
-                        p.tileUv[gIdx * 4] + kSceneUvEpsilon,
-                        p.tileUv[gIdx * 4 + 1] + kSceneUvEpsilon,
-                        p.tileUv[gIdx * 4 + 2] - kSceneUvEpsilon,
-                        p.tileUv[gIdx * 4 + 3] - kSceneUvEpsilon,
-                        1.0f, 1.0f, 1.0f, fadeAlpha);
+                if (isVariant && tile < p.tileUvCount) {
+                    bool quadInside = true;
+                    if (p.tileMask != nullptr) {
+                        const int m = static_cast<int>(p.tileMask[rowBase + col]);
+                        quadInside = (m & 1) != 0;
+                    }
+                    if (quadInside) {
+                        batcher.add(p.atlasTexId,
+                            wx - gapEpsilon, wy - gapEpsilon,
+                            tileSizeF + 2.0f * gapEpsilon,
+                            tileSizeF + 2.0f * gapEpsilon,
+                            p.tileUv[tile * 4] + kSceneUvEpsilon,
+                            p.tileUv[tile * 4 + 1] + kSceneUvEpsilon,
+                            p.tileUv[tile * 4 + 2] - kSceneUvEpsilon,
+                            p.tileUv[tile * 4 + 3] - kSceneUvEpsilon,
+                            1.0f, 1.0f, 1.0f, fadeAlpha);
+                    }
                 }
             }
 
@@ -636,14 +619,119 @@ inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
     return batcher.end();
 }
 
-/// [buildMapBatch] 无地面提交回调重载（既有调用点：测试与不启用整图路径的路径）。
-/// 与四参重载同体，仅把地面提交回调解为 no-op——**调用方必须确保
-/// `!p.groundQuadEnabled || p.groundTexId == 0`**，否则整图地面不会被绘制
-/// （地面层缺失）。生产两路调用点均传真实回调，见 NativeBridge.cpp。
-inline int buildMapBatch(SpriteBatcher& batcher, const MapLayerParams& p,
-                         const float projMatrix[16], CropSmoothingState& cropState) {
-    return buildMapBatch(batcher, p, projMatrix, cropState,
-                         [](uint32_t, const SpriteVertex*, int) {});
+// ============================================================
+// 弯曲地皮轮廓层（地图边缘系统 v2 —— gamecore/map/ground_boundary.h 消费端）
+//
+// 底部岩石与地皮草两层都直接消费 SceneStore 中的复合 mesh 顶点流（静态几何，
+// 地图尺寸变化时才重导），层序：天空 → 底部岩石 → 地皮 → 地图批（变体/装饰/
+// 道路/建筑/作物/云）→ 叠加层 → 浮字。两层的几何**同源同一折线**（底部顶边 =
+// 折线上移 kBottomTuckPx 藏缝，草皮后绘覆盖），构造性保证零缝隙/零错位。
+// ============================================================
+
+/// 复合数据解析视图（头部字段 → 段指针；布局见 ground_boundary.h 文件头）
+struct GroundBoundaryView {
+    int32_t polyCount = 0;
+    int32_t cols = 0;
+    int32_t rows = 0;
+    int32_t tileSize = 0;
+    float bottomDepth = 0.0f;
+    const float* polyline = nullptr;     ///< polyCount×2 世界像素
+    const float* mask = nullptr;         ///< cols×rows（0..3 位组）
+    const float* groundMesh = nullptr;   ///< SpriteVertex 布局顶点流
+    int64_t groundMeshFloats = 0;
+    const float* bottomMesh = nullptr;   ///< 同布局
+    int64_t bottomMeshFloats = 0;
+};
+
+/// 复合数据防御性解析（版本/偏移/尺寸越界任一命中 = 整体拒用，返回 false）
+inline bool groundBoundaryParse(const float* data, int floatCount,
+                                GroundBoundaryView* out) {
+    if (data == nullptr || out == nullptr ||
+        floatCount < gamecore::map::kGroundBoundaryHeaderFloats) {
+        return false;
+    }
+    if (static_cast<int32_t>(data[0]) != gamecore::map::kGroundBoundaryVersion) return false;
+    const int32_t polyCount = static_cast<int32_t>(data[1]);
+    const int32_t cols = static_cast<int32_t>(data[2]);
+    const int32_t rows = static_cast<int32_t>(data[3]);
+    const int32_t tileSize = static_cast<int32_t>(data[4]);
+    if (polyCount < 3 || cols <= 0 || rows <= 0 || tileSize <= 0) return false;
+    const size_t maskOff = static_cast<size_t>(data[6]);
+    const size_t groundOff = static_cast<size_t>(data[7]);
+    const int64_t groundCount = static_cast<int64_t>(data[8]);
+    const size_t bottomOff = static_cast<size_t>(data[9]);
+    const int64_t bottomCount = static_cast<int64_t>(data[10]);
+    // 偏移单调 + 段长与总长自洽（防数据篡改越界读）
+    if (maskOff != static_cast<size_t>(gamecore::map::kGroundBoundaryHeaderFloats) + static_cast<size_t>(polyCount) * 2) {
+        return false;
+    }
+    if (maskOff + static_cast<size_t>(cols) * rows != groundOff) return false;
+    if (groundOff + static_cast<size_t>(groundCount) != bottomOff) return false;
+    if (bottomOff + static_cast<size_t>(bottomCount) != static_cast<size_t>(floatCount)) {
+        return false;
+    }
+    if (groundCount < 0 || bottomCount < 0 ||
+        groundCount % 8 != 0 || bottomCount % 8 != 0) {
+        return false;
+    }
+    out->polyCount = polyCount;
+    out->cols = cols;
+    out->rows = rows;
+    out->tileSize = tileSize;
+    out->bottomDepth = data[5];
+    out->polyline = data + gamecore::map::kGroundBoundaryHeaderFloats;
+    out->mask = data + maskOff;
+    out->groundMesh = data + groundOff;
+    out->groundMeshFloats = groundCount;
+    out->bottomMesh = data + bottomOff;
+    out->bottomMeshFloats = bottomCount;
+    return true;
+}
+
+/// mesh 顶点流提交：淡入 alpha 逐帧乘入暂存缓冲（渲染线程单消费者静态存储，
+/// 跨帧零分配——与 buildMapBatch 的 static 缓冲同纪律）。mesh 常驻 alpha=1，
+/// 淡入语义与 quad 的逐精灵 alpha 一致。
+template <typename Submit>
+inline void submitGroundMeshStream(const float* mesh, int64_t floats,
+                                   float fadeAlpha, Submit&& submit) {
+    const int64_t vertCount = floats / 8;
+    if (mesh == nullptr || vertCount <= 0) return;
+    static std::vector<SpriteVertex> staging;
+    staging.clear();
+    staging.resize(static_cast<size_t>(vertCount));
+    for (int64_t i = 0; i < vertCount; ++i) {
+        const float* src = mesh + i * 8;
+        staging[static_cast<size_t>(i)] = SpriteVertex{
+            src[0], src[1], src[2], src[3],
+            src[4], src[5], src[6], src[7] * fadeAlpha};
+    }
+    submit(staging.data(), static_cast<int>(vertCount));
+}
+
+/// 底部岩石层（旧崖壁层位）：纯岩石材质 REPEAT 映射到沿折线挤出的三角带。
+/// 形状完全来自 ground_boundary.h 的 bottom mesh——岩石图不携带任何轮廓。
+/// [rockTexId] = 0（未上传/后端不支持 REPEAT）时整层跳过（与图集未就绪守卫同形）。
+template <typename Submit>
+inline void buildBottomRockLayer(const GroundBoundaryView& v, uint32_t rockTexId,
+                                 float fadeAlpha, Submit&& submit) {
+    if (rockTexId == 0 || v.bottomMeshFloats <= 0) return;
+    submitGroundMeshStream(v.bottomMesh, v.bottomMeshFloats, fadeAlpha,
+                           [&](const SpriteVertex* verts, int count) {
+                               submit(rockTexId, verts, count);
+                           });
+}
+
+/// 地皮层（地图批之前、底部岩石之上）：草纹理 REPEAT 铺满轮廓内三角 mesh，
+/// UV = 世界/tileSize（每格一贴，与旧逐格底图/整图 quad 同口径——
+/// 变体/装饰仍由地图批按 [GroundBoundaryView].mask 逐格叠加）。
+template <typename Submit>
+inline void buildGroundMeshLayer(const GroundBoundaryView& v, uint32_t groundTexId,
+                                 float fadeAlpha, Submit&& submit) {
+    if (groundTexId == 0 || v.groundMeshFloats <= 0) return;
+    submitGroundMeshStream(v.groundMesh, v.groundMeshFloats, fadeAlpha,
+                           [&](const SpriteVertex* verts, int count) {
+                               submit(groundTexId, verts, count);
+                           });
 }
 
 /// 崖壁层构建 + 逐纹理连续段提交（z 序：天空 → 崖壁 → 地面）。

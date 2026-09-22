@@ -137,6 +137,19 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
             } catch (t: Throwable) {
                 android.util.Log.e(NativeSurfaceView.LOG_TAG, "prepareAtlas: ground texture decode failed", t)
             }
+            @Suppress("TooGenericExceptionCaught")
+            try {
+                val opts = android.graphics.BitmapFactory.Options().apply { inScaled = false }
+                android.graphics.BitmapFactory.decodeResource(
+                    context.resources, com.xianxia.sect.feature.game.R.drawable.map_rock_base, opts
+                )?.let { bmp ->
+                    payload.rockPixels = encodeBitmapToRgbaBuffer(bmp)
+                    payload.rockWidth = bmp.width
+                    payload.rockHeight = bmp.height
+                }
+            } catch (t: Throwable) {
+                android.util.Log.e(NativeSurfaceView.LOG_TAG, "prepareAtlas: rock texture decode failed", t)
+            }
         }
         return payload
     }
@@ -402,14 +415,35 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         } catch (t: Throwable) {
             android.util.Log.e(NativeSurfaceView.LOG_TAG, "uploadGroundTexture failed", t)
         }
+        uploadRockTexture(context, payload)
     }
 
     /**
-     * 回写整图地面纹理 ID 到宿主（R3.5 远景观看容量路径的就绪信号）。
-     *
-     * 上传失败（返回 0）时保持 0 ⇒ [FarViewGroundPolicy.groundQuadEnabled]
-     * 的图集就绪门不满足 ⇒ 地面层恒走逐格绘制（降级而非黑屏）。
+     * 上传底部岩石无缝纹理（REPEAT 采样；地图边缘 v2 底部材质通道）。
+     * 与 [uploadGroundTexture] 同纪律：主线程一次 native 调用，后台解码
+     * 失败回退现场解码；失败仅缺底部岩石层（降级而非黑屏）。
      */
+    @Suppress("TooGenericExceptionCaught")
+    private fun uploadRockTexture(context: android.content.Context, payload: AtlasPayload) {
+        try {
+            val pixels = payload.rockPixels
+            if (pixels != null && payload.rockWidth > 0 && payload.rockHeight > 0) {
+                NativeBridge.uploadRockTextureDirect(pixels, payload.rockWidth, payload.rockHeight)
+                return
+            }
+            val opts = android.graphics.BitmapFactory.Options().apply { inScaled = false }
+            val bmp = android.graphics.BitmapFactory.decodeResource(
+                context.resources, com.xianxia.sect.feature.game.R.drawable.map_rock_base, opts
+            ) ?: return
+            NativeBridge.uploadRockTextureDirect(
+                encodeBitmapToRgbaBuffer(bmp), bmp.width, bmp.height
+            )
+        } catch (t: Throwable) {
+            android.util.Log.e(NativeSurfaceView.LOG_TAG, "uploadRockTexture failed", t)
+        }
+    }
+
+    /** 回写整图地面纹理 ID 到宿主（渲染宿主就绪信号；地皮轮廓 mesh 的 REPEAT 材质） */
     private fun publishGroundTextureId(texId: Int) {
         if (texId > 0) view.groundTextureId = texId
     }
@@ -454,6 +488,14 @@ internal class AtlasPayload(
     var groundWidth: Int = 0
     /** 地面纹理高（像素） */
     var groundHeight: Int = 0
+
+    // ── 底部岩石纹理（地图边缘 v2；与地面段同纪律）──
+    /** 岩石纹理 RGBA 像素（后台编码；null = 解码失败，上传路径回退现场解码） */
+    var rockPixels: ByteBuffer? = null
+    /** 岩石纹理宽（像素；rockPixels 有效时 > 0） */
+    var rockWidth: Int = 0
+    /** 岩石纹理高（像素） */
+    var rockHeight: Int = 0
 }
 
 /**

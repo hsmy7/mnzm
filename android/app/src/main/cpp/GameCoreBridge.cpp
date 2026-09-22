@@ -14,6 +14,7 @@
 #include "gamecore/state/json_codec.h"
 #include "gamecore/system/engine_loop.h"
 #include "gamecore/map/road_compositor.h"
+#include "gamecore/map/ground_boundary.h"
 #include "gamecore/map/island_cliff.h"
 #include "gamecore/map/terrain.h"
 #include "gamecore/system/battle_execution.h"

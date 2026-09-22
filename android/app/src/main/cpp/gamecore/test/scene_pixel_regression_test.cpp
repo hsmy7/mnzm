@@ -20,11 +20,15 @@
 
 namespace {
 
-using scene::buildCliffLayer;
+using gamecore::map::computeGroundBoundary;
+using gamecore::map::GroundBoundaryConfig;
+using scene::buildBottomRockLayer;
+using scene::buildGroundMeshLayer;
+using scene::GroundBoundaryView;
+using scene::groundBoundaryParse;
 using scene::buildFloatTextBatch;
 using scene::buildMapBatch;
 using scene::buildOverlayLayers;
-using scene::CliffLayerParams;
 using scene::CropSmoothingState;
 using scene::FloatTextParams;
 using scene::FloatTextPool;
@@ -513,17 +517,15 @@ std::vector<float> fixtureRoads() {
     return {};
 }
 
-/** 崖壁布局（stride 10，与 kCliffStride 一致） */
-std::vector<float> fixtureCliffs() {
+/** 弯曲地皮轮廓复合数据（ground_boundary.h 真实产出；与本夹具 store 同格数） */
+std::vector<float> fixtureBoundary() {
+    GroundBoundaryConfig cfg;
+    cfg.cols = 16;
+    cfg.rows = 16;
+    cfg.tileSize = 48;
+    cfg.bottomDepth = 768.0f;
     std::vector<float> c;
-    // [texIdx, x, y, w, h, u0, v0, u1, v1, flags]
-    const float pieces[2][10] = {
-        {0.0f, 0.0f, 0.0f, 200.0f, 120.0f, 0.0f, 0.0f, 0.5f, 0.5f, 0.0f},
-        {1.0f, 200.0f, 0.0f, 200.0f, 120.0f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f},
-    };
-    for (const auto& p : pieces) {
-        for (float v : p) c.push_back(v);
-    }
+    computeGroundBoundary(cfg, c);
     return c;
 }
 
@@ -547,8 +549,7 @@ MapLayerParams makeMapParams(const SceneStore& store, const float proj[16], cons
     p.rows = store.rows();
     p.tileSize = store.tileSize();
     p.atlasTexId = kAtlasTexId;
-    p.groundQuadEnabled = false;
-    p.groundTexId = 0;
+    p.tileMask = nullptr;  // 无边界：全部按界内处理（降级口径，golden 恒走此口径）
     p.tileUv = scene::kTileUv;
     p.tileUvCount = scene::kTileUvCount;
     p.roads = store.roadsData();
@@ -583,8 +584,8 @@ SceneStore makeFullSceneStore() {
     store.updateCrops(c.data(), static_cast<int>(c.size() / scene::kCropStride));
     const std::vector<float> cl = fixtureClouds();
     store.updateClouds(cl.data(), static_cast<int>(cl.size() / scene::kCloudStride));
-    const std::vector<float> cf = fixtureCliffs();
-    store.setCliffLayout(cf.data(), static_cast<int>(cf.size() / scene::kCliffStride));
+    const std::vector<float> cf = fixtureBoundary();
+    store.setGroundBoundary(cf.data(), static_cast<int>(cf.size()));
     // 道路：每格位掩码（值 0 = 无路；非零 = 有路形态）——给左上角一条横路
     std::vector<int32_t> roads(static_cast<size_t>(kCols) * kRows, 0);
     for (int32_t x = 0; x < kCols; x++) {
@@ -605,8 +606,8 @@ SceneStore makeFullSceneStore() {
 //   - `buildCliffLayer` / `buildOverlayLayers`  → **`void`**，生成核心内部
 //     按纹理段切批并**逐段调用 submit 回调**（回调即出口）；
 //   - `buildMapBatch`                          → **返回顶点数**，生成核心
-//     **只填充 batcher**，主批须由**调用方**提交（回调仅承担 R3.5 整图
-//     REPEAT 地面那一路独立纹理；本夹具 `groundQuadEnabled=false` 故回调不触发）。
+//     **只填充 batcher**，主批须由**调用方**提交（地图边缘 v2 后本批不再含
+//     地面底色——底色走 buildGroundMeshLayer 独立提交）。
 // 生产先例：`NativeBridge.cpp::submitMapBatchCommon`（`g_mapBatcher.end()` 后
 // 由调用方 `renderer->draw(vertices, vertCount, atlasTexId)`）。
 void submitBatch(SoftRasterRenderer& rr, const SpriteBatcher& batcher, int vertCount,
@@ -625,37 +626,28 @@ void renderFullScene(SoftRasterRenderer& rr, const SceneStore& store, const Came
                      static_cast<float>(kFbW), static_cast<float>(kFbH),
                      scene::kTopdownYScale);
     rr.setProjectionMatrix(proj);
-    // 崖壁层（最底）——submit 回调即出口（void 返回）
-    if (store.hasCliffs()) {
-        CliffLayerParams cp;
-        uint32_t texIds[2] = {kAtlasTexId, kAtlasTexId + 1};
-        cp.data = store.cliffsData();
-        cp.pieceCount = store.cliffPieceCount();
-        cp.texIds = texIds;
-        cp.texCount = 2;
-        cp.viewLeft = cam.camX;
-        cp.viewTop = cam.camY;
-        cp.viewRight = cam.camX + static_cast<float>(kFbW) / cam.scale;
-        cp.viewBottom = cam.camY + static_cast<float>(kFbH) / cam.scale;
-        cp.scale = cam.scale;
-        cp.fadeAlpha = 1.0f;
-        SpriteBatcher cliffBatcher;
-        // 崖壁逐 piece 自带 texId（与图集主批不同），由生成核心直接提交
-        buildCliffLayer(cliffBatcher, proj, cp,
-            [&rr](uint32_t texId, const SpriteVertex* verts, int count) {
-                rr.draw(verts, count, texId);
-            });
+    // 弯曲地皮轮廓两层（地图边缘 v2；最底）——submit 回调即出口（void 返回）。
+    // 纹理 id 用 kAtlasTexId/kAtlasTexId+1（软光栅 golden 只需 id 区分批次）。
+    if (store.hasGroundBoundary()) {
+        GroundBoundaryView bv;
+        if (groundBoundaryParse(store.groundBoundaryData(),
+                                store.groundBoundaryFloats(), &bv)) {
+            buildBottomRockLayer(bv, kAtlasTexId + 1, 1.0f,
+                [&rr](uint32_t texId, const SpriteVertex* verts, int count) {
+                    rr.draw(verts, count, texId);
+                });
+            buildGroundMeshLayer(bv, kAtlasTexId + 1, 1.0f,
+                [&rr](uint32_t texId, const SpriteVertex* verts, int count) {
+                    rr.draw(verts, count, texId);
+                });
+        }
     }
     // 地图层——主批由调用方提交（返回顶点数）
     {
         SpriteBatcher mapBatcher;
         CropSmoothingState cropState;
         MapLayerParams p = makeMapParams(store, proj, cam);
-        const int mapVerts = buildMapBatch(mapBatcher, p, proj, cropState,
-            [&rr](uint32_t texId, const SpriteVertex* verts, int count) {
-                // 整图 REPEAT 地面：独立纹理，须自带一次 draw（本夹具关闭该特性）
-                rr.draw(verts, count, texId);
-            });
+        const int mapVerts = buildMapBatch(mapBatcher, p, proj, cropState);
         submitBatch(rr, mapBatcher, mapVerts, kAtlasTexId);
     }
     // 叠加层（在地图之上、浮字之下）——submit 回调即出口（void 返回）
@@ -760,10 +752,7 @@ TEST_F(ScenePixelRegressionTest, TerrainOnlyPixelsAreStableAcrossCameras) {
                          scene::kTopdownYScale);
         rr.setProjectionMatrix(proj);
         MapLayerParams p = makeMapParams(store, proj, cam);
-        const int verts = buildMapBatch(batcher, p, proj, cropState,
-            [&rr](uint32_t texId, const SpriteVertex* vertices, int count) {
-                rr.draw(vertices, count, texId);
-            });
+        const int verts = buildMapBatch(batcher, p, proj, cropState);
         // 主批由调用方提交（buildMapBatch 只填充 + 返回顶点数）
         submitBatch(rr, batcher, verts, kAtlasTexId);
         EXPECT_GT(rr.drawCalls(), 0) << cam.name << " 地图层未产生 draw call";

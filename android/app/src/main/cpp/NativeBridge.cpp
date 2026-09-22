@@ -85,6 +85,7 @@ static int g_backendType = 0;
 
 // 宗门地图单一无缝地面纹理（REPEAT 采样，整图铺）。0 = 未上传（回退逐格地面）
 static uint32_t g_groundTexId = 0;
+static uint32_t g_rockTexId = 0;  // 底部岩石 REPEAT 纹理（地图边缘 v2）
 
 // ============================================================
 // 浮空岛崖壁独立纹理表（地图边缘系统）
@@ -239,13 +240,6 @@ static float g_floatNowSeconds = 0.0f;
 static constexpr float kFloatFrameStepSeconds = 1.0f / 60.0f;
 /** 浮字时间标量上界（与 FloatTextPool::kFloatMaxTimeSeconds 同语义，防长期累加溢出） */
 static constexpr float kFloatTimeWrapSeconds = 1.0e6f;
-
-/** R3.5 远景观看容量路径开关（Kotlin `FarViewGroundPolicy` 判定后经
- *  nativeSetFarViewGroundQuad 推送：设备白名单 + 缩放到位 + 图集就绪 + 用户旗标
- *  四重门的**合取结果**）。默认 false = 逐格地面（与 R3.5 前现状逐位一致），
- *  未验证设备恒不启用（黑名单/白名单为空 ⇒ 恒 false）。仅在两路地面绘制分支
- *  参与判定，不改变任何其他绘制形状。 */
-static std::atomic<bool> g_farViewGroundQuad{false};
 
 // 批量构建器容量溢出限频日志（此前极小缩放下静默丢弃无日志）
 static int64_t s_lastOverflowLogNs = 0;
@@ -530,6 +524,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     g_worldPixelsW = g_worldPixelsH = 0;
     g_scale = 1.0f;  // 双指缩放随纪元复位，防旧会话缩放残留污染新 surface
     g_groundTexId = 0;  // 地面纹理随渲染器释放重置
+    g_rockTexId = 0;    // 岩石纹理随渲染器释放重置（地图边缘 v2）
     // 重置热控状态为默认全质量——新 surface 初始化后由 NativeSurfaceView
     // pushRenderQuality 重放当前值，此处仅防旧 surface 残留状态泄漏
     g_qualityFactor.store(1.0f);
@@ -551,7 +546,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     // 与 g_groundTexId/g_fadeAlpha 等清理同纪律）
     g_scene.reset();
     // R3.5 远景容量开关随纪元复位（新 surface 首帧由 Kotlin 侧重新判定推送）
-    g_farViewGroundQuad.store(false, std::memory_order_relaxed);
     g_sceneAtlasTexId = 0;
     // 浮字池随纪元复位（R3.8/B13）：旧 surface 的浮字实例与动画时刻不得残留
     // 到新 surface（池实例/纪元序号/遥测计数/时间累加器一并清零）
@@ -696,13 +690,27 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadGroundTextureDirect(
     const void* pixels = lockDirectPixels(env, pixelData, width, height, "uploadGroundTextureDirect");
     if (!pixels) return 0;
 
-    uint32_t id = 0;
-    if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
-        id = vk->uploadRepeatTexture(pixels, width, height);
-    } else {
-        LOGE("uploadGroundTextureDirect: 后端不支持（非 VulkanBackend）");
-    }
+    // RHI 虚端口（Vulkan/GLES 均实现 REPEAT；GLES 侧 POT 守卫在实现内）
+    const uint32_t id = g_renderer->uploadRepeatTexture(pixels, width, height);
     if (id != 0) g_groundTexId = id;
+    return static_cast<jint>(id);
+}
+
+// ============================================================
+// 底部岩石无缝纹理上传（REPEAT 采样；地图边缘 v2——岩石材质只负责表现，
+// 形状由 ground_boundary.h 程序生成，岩石图不携带任何岛屿轮廓）
+// ============================================================
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadRockTextureDirect(
+    JNIEnv* env, jobject /*thiz*/,
+    jobject pixelData, jint width, jint height) {
+
+    if (!g_renderer) return 0;
+    const void* pixels = lockDirectPixels(env, pixelData, width, height, "uploadRockTextureDirect");
+    if (!pixels) return 0;
+
+    const uint32_t id = g_renderer->uploadRepeatTexture(pixels, width, height);
+    if (id != 0) g_rockTexId = id;
     return static_cast<jint>(id);
 }
 
@@ -1178,29 +1186,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetAtlasTexture(
 }
 
 // ============================================================
-// R3.5/B12 远景观看容量路径开关（引擎控制端口）
-//
-// 【JNI 面豁免登记】（沿 R0.2 nativeFpDeterminismProbe / B06
-// nativeSetDirtyExportProtobuf / B09 nativeSetDirtyExportColumn 先例）：
-// 本端口是**引擎渲染控制态**，无法沿用既有通道——ActionId 业务事务面
-// （nativeExecute）承载玩法操作，镜像导出面（nativeExport*）承载状态同步，
-// 二者均非"渲染容量策略开关"形状；与既有 nativeSetAiThermalBatchSize /
-// nativeSetDirtyExportProtobuf 同族（引擎线程控制端口）。
-//
-// 语义：Kotlin 侧由 com.xianxia.sect.core.render.FarViewGroundPolicy 逐帧/变化时
-// 判定四重门（用户旗标 ∧ 图集就绪 ∧ 缩放到位 ∧ 设备白名单），把**合取结果**
-// 推为单一布尔——C++ 侧不做设备判定（保持 native-renderer 零平台依赖，
-// 桌面 GTest 可直测），只按布尔选地面绘制形态。
-// ============================================================
-
-/** 远景整图 REPEAT 地面开关（false = 逐格地面，R3.5 前现状；默认 false） */
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_nativeSetFarViewGroundQuad(
-    JNIEnv* /*env*/, jobject /*thiz*/, jboolean on) {
-    g_farViewGroundQuad.store(on == JNI_TRUE, std::memory_order_relaxed);
-}
-
-// ============================================================
 // R3.3/B11 叠加层状态导入端口（选中索引 / 拆除标记 / 预览几何）
 //
 // 【JNI 面豁免登记】（沿 R0.2 探针 / B06 nativeSetDirtyExportProtobuf /
@@ -1347,10 +1332,25 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
     if (fade > 1.0f) fade = 1.0f;
     g_fadeAlpha.store(fade);
 
-    // 崖壁层（z 序：天空 → 崖壁 → 地面；独立纹理不依赖图集——与旧路径
-    // drawIslandCliffs 先于瓦片层的层序一致）
-    if (g_scene.hasCliffs() && g_cliffTexCount > 0) {
-        drawCliffLayerInternal(g_scene.cliffsData(), g_scene.cliffPieceCount());
+    // 弯曲地皮轮廓层（地图边缘 v2；z 序：天空 → 底部岩石 → 地皮 → 地图批）。
+    // 两层几何同源同一折线（ground_boundary.h 静态 mesh，地图变化才重导）：
+    // 底部顶边上移 kBottomTuckPx 藏进草皮之下，草皮后绘覆盖——零缝隙。
+    // 材质均为独立 REPEAT 纹理（草=map_grass_1、岩=map_rock_base）；id=0
+    // （未上传/后端不支持）时对应层跳过，与图集未就绪守卫同形。
+    scene::GroundBoundaryView boundaryView;
+    const bool hasBoundary =
+        g_scene.hasGroundBoundary() &&
+        scene::groundBoundaryParse(g_scene.groundBoundaryData(),
+                                   g_scene.groundBoundaryFloats(), &boundaryView);
+    if (hasBoundary) {
+        scene::buildBottomRockLayer(boundaryView, g_rockTexId, fade,
+            [](uint32_t texId, const SpriteVertex* verts, int count) {
+                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+            });
+        scene::buildGroundMeshLayer(boundaryView, g_groundTexId, fade,
+            [](uint32_t texId, const SpriteVertex* verts, int count) {
+                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+            });
     }
 
     // 地图层（地形已导入 + 图集就绪；buildingVisible = overlayFlags bit0）
@@ -1373,8 +1373,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
         p.rows = g_scene.rows();
         p.tileSize = g_scene.tileSize();
         p.atlasTexId = g_sceneAtlasTexId;
-        p.groundQuadEnabled = g_farViewGroundQuad.load(std::memory_order_relaxed);
-        p.groundTexId = g_groundTexId;
+        p.tileMask = hasBoundary ? boundaryView.mask : nullptr;
         p.tileUv = scene::kTileUv;
         p.tileUvCount = scene::kTileUvCount;
         p.roads = g_scene.roadsData();
@@ -1395,11 +1394,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
         p.cloudUv = scene::kCloudUv;
         p.cloudUvCount = scene::kCloudUvCount;
 
-        scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth,
-            [](uint32_t texId, const SpriteVertex* verts, int count) {
-                // R3.5 整图 REPEAT 地面：独立纹理，须自带一次 draw
-                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
-            });
+        scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
         submitMapBatchCommon(overflowDegrade, g_sceneAtlasTexId);
     }
 

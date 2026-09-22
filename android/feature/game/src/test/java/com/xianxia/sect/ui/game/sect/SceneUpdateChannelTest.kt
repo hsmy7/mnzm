@@ -57,6 +57,10 @@ class SceneUpdateChannelTest {
             calls += "cliffs"
         }
 
+        override fun setGroundBoundary(data: FloatArray?) {
+            calls += "boundary"
+        }
+
         override fun setAtlasTexture(texId: Int) {
             calls += "atlas"
         }
@@ -92,6 +96,8 @@ class SceneUpdateChannelTest {
     private lateinit var altCloudArr: FloatArray
     private lateinit var cliffArr: FloatArray
     private lateinit var altCliffArr: FloatArray
+    private lateinit var boundaryArr: FloatArray
+    private lateinit var altBoundaryArr: FloatArray
     private lateinit var markerArr: ByteArray
     private lateinit var altMarkerArr: ByteArray
 
@@ -112,6 +118,8 @@ class SceneUpdateChannelTest {
         altCloudArr = floatArrayOf(11f, 20f, 30f, 40f, 0f, 0.8f)
         cliffArr = FloatArray(10)
         altCliffArr = FloatArray(10) { 1f }
+        boundaryArr = FloatArray(32)
+        altBoundaryArr = FloatArray(32) { 1f }
         markerArr = byteArrayOf(DemolishHighlightMark.GREEN.toByte())
         altMarkerArr = byteArrayOf(DemolishHighlightMark.SELECTED.toByte())
 
@@ -125,6 +133,7 @@ class SceneUpdateChannelTest {
         crops: FloatArray? = cropArr,
         roads: IntArray? = roadArr,
         cliffs: FloatArray? = cliffArr,
+        groundBoundary: FloatArray? = boundaryArr,
         markers: ByteArray? = markerArr,
         selection: Int = -1,
         previewBoxX: Float = 240f,
@@ -135,6 +144,7 @@ class SceneUpdateChannelTest {
         rows = 4,
         roadData = roads,
         islandCliffData = cliffs,
+        groundBoundaryData = groundBoundary,
         buildingData = buildingData,
         buildingCount = if (buildingData == null) 0 else 2,
         selectedBuildingIndex = selection,
@@ -164,15 +174,15 @@ class SceneUpdateChannelTest {
     fun `first frame - every populated channel is imported once in protocol order`() {
         val calls = channel.push(inputs())
 
-        assertEquals(10, calls)
+        assertEquals(11, calls)
         assertEquals(
             listOf(
                 "terrain", "buildings", "crops", "roads", "clouds", "cliffs",
-                "atlas", "selection", "markers", "preview"
+                "boundary", "atlas", "selection", "markers", "preview"
             ),
             sink.calls
         )
-        assertEquals("遥测计数与实际触线一致", 10L, RenderMetrics.sceneUpdatePushes.get())
+        assertEquals("遥测计数与实际触线一致", 11L, RenderMetrics.sceneUpdatePushes.get())
     }
 
     @Test
@@ -185,7 +195,7 @@ class SceneUpdateChannelTest {
         assertEquals(0, channel.push(inputs()))
         assertEquals("重复构造的同值输入同样零跨线", 0, channel.push(inputs()))
         assertTrue(sink.calls.isEmpty())
-        assertEquals(10L, RenderMetrics.sceneUpdatePushes.get())
+        assertEquals(11L, RenderMetrics.sceneUpdatePushes.get())
     }
 
     @Test
@@ -209,12 +219,13 @@ class SceneUpdateChannelTest {
             "roads" to inputs(f = frame(roads = altRoadArr)),
             "clouds" to inputs(cloudData = altCloudArr),
             "cliffs" to inputs(f = frame(cliffs = altCliffArr)),
+            "boundary" to inputs(f = frame(groundBoundary = altBoundaryArr)),
             "atlas" to inputs(atlasTextureId = 43),
             "selection" to inputs(f = frame(selection = 1)),
             "markers" to inputs(f = frame(markers = altMarkerArr)),
             "preview" to inputs(f = frame(previewBoxX = 300f))
         )
-        assertEquals("用例表须覆盖十路", 10, changes.size)
+        assertEquals("用例表须覆盖十一路", 11, changes.size)
         for ((port, next) in changes) {
             // 每例独立通道：先建立全量基线，再只改一路——避免用例间基线串扰
             val localSink = CountingSink()
@@ -227,7 +238,7 @@ class SceneUpdateChannelTest {
             assertEquals("$port 变化后同帧零跨线", 0, localChannel.push(next))
         }
         assertTrue(
-            "遥测计数随十路触线累加",
+            "遥测计数随十一路触线累加",
             RenderMetrics.sceneUpdatePushes.get() >= 10L
         )
     }
@@ -261,7 +272,8 @@ class SceneUpdateChannelTest {
     @Test
     fun `empty channels do not re-push every frame`() {
         val emptyFrame = frame(
-            crops = null, roads = null, cliffs = null, markers = null, buildingData = null
+            crops = null, roads = null, cliffs = null, groundBoundary = null,
+            markers = null, buildingData = null
         )
         val first = channel.push(
             inputs(f = emptyFrame, buildingData = null, buildingCount = 0, cloudData = null)

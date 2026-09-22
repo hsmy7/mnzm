@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game.sect
 
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
-import com.xianxia.sect.core.render.FarViewGroundPolicy
 import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
@@ -154,7 +153,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
                 tileSize = host.renderConfig.tileSize
             )
         )
-        pushFarViewGroundDecision()
         var flags = 0
         if (frame.buildingVisible) flags = flags or OVERLAY_FLAG_BUILDING_VISIBLE
         if (frame.gridOverlayVisible) flags = flags or OVERLAY_FLAG_GRID_VISIBLE
@@ -179,31 +177,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         )
     }
 
-    /**
-     * 远景观看容量路径判定与推送（R3.5）——地面层绘制形态（整图 REPEAT quad /
-     * 逐格）的唯一开关，与场景数据通道归属正交（见
-     * [NativeEngineFlag.farViewGroundQuad] KDoc）。
-     *
-     * 判定为纯函数 [FarViewGroundPolicy.groundQuadEnabled] 的四重门合取
-     * （用户旗标 ∧ 图集就绪 ∧ 缩放达标 ∧ 设备白名单）；设备标识经
-     * [RenderDeviceKey] 按 `SOC_MANUFACTURER/SOC_MODEL`（API 31+ 守卫）组装。
-     * 结果**变化时才跨线**（避免每帧无谓 JNI——逐帧判定廉价，推送按值比较）。
-     */
-    private fun pushFarViewGroundDecision() {
-        val enabled = FarViewGroundPolicy.groundQuadEnabled(
-            scale = cachedScale,
-            deviceKey = RenderDeviceKey.current,
-            groundTextureReady = host.groundTextureId != 0,
-            userEnabled = NativeEngineFlag.farViewGroundQuad
-        )
-        if (enabled != lastFarViewGroundQuad) {
-            lastFarViewGroundQuad = enabled
-            NativeBridge.nativeSetFarViewGroundQuad(enabled)
-        }
-    }
-
-    /** 上一次推送的远景地面开关值（变化驱动跨线，防每帧冗余 JNI） */
-    private var lastFarViewGroundQuad = false
 
     /** 帧指标记录（热控降级可观测 + 帧计数——提取以收敛 renderFrame 行数） */
     private fun recordMetrics() {

@@ -66,6 +66,7 @@ class SceneUpdateChannel(private val sink: Sink) {
     private var pushedRoads: IntArray? = null
     private var pushedClouds: FloatArray? = null
     private var pushedCliffs: FloatArray? = null
+    private var pushedGroundBoundary: FloatArray? = null
     private var pushedAtlasTexId = -1
     private var pushedSelection = SENTINEL_NO_SELECTION
     private var pushedMarkers: ByteArray? = null
@@ -79,8 +80,8 @@ class SceneUpdateChannel(private val sink: Sink) {
     /**
      * 推本帧的场景/叠加层变化。
      *
-     * 推送序固定为「地形 → 建筑 → 作物 → 道路 → 云 → 崖壁 → 图集 →
-     * 选中 → 拆除标记 → 预览」，与 drawFrame 之前的同帧装配时序一致
+     * 推送序固定为「地形 → 建筑 → 作物 → 道路 → 云 → 崖壁 → 地皮轮廓 →
+     * 图集 → 选中 → 拆除标记 → 预览」（崖壁为过渡期双推，S6 移除），与 drawFrame 之前的同帧装配时序一致
      * （建筑先于其叠加层状态，保证 C++ 侧读到的建筑数与标记序不成对错位）。
      *
      * @return 本帧实际触线（JNI）次数——遥测与守卫观测面
@@ -93,6 +94,7 @@ class SceneUpdateChannel(private val sink: Sink) {
         calls += pushRoads(inputs.frame)
         calls += pushClouds(inputs)
         calls += pushCliffs(inputs.frame)
+        calls += pushGroundBoundary(inputs.frame)
         calls += pushAtlas(inputs.atlasTextureId)
         calls += pushSelection(inputs.frame.selectedBuildingIndex)
         calls += pushMarkers(inputs.frame.demolishHighlightData)
@@ -158,6 +160,14 @@ class SceneUpdateChannel(private val sink: Sink) {
             entriesOf(frame.islandCliffData, IslandCliffBridge.PIECE_STRIDE)
         )
         pushedCliffs = frame.islandCliffData
+        return 1
+    }
+
+    /** 弯曲地皮轮廓（GroundBoundaryBridge 一次性预计算的稳定引用；复合布局） */
+    private fun pushGroundBoundary(frame: RenderFrame): Int {
+        if (frame.groundBoundaryData === pushedGroundBoundary) return 0
+        sink.setGroundBoundary(frame.groundBoundaryData)
+        pushedGroundBoundary = frame.groundBoundaryData
         return 1
     }
 
@@ -266,6 +276,9 @@ class SceneUpdateChannel(private val sink: Sink) {
         /** 崖壁布局导入（[texIdx,x,y,w,h,u0,v0,u1,v1,flags] × pieceCount） */
         fun setCliffLayout(data: FloatArray?, pieceCount: Int)
 
+        /** 弯曲地皮轮廓复合数据导入（布局见 GroundBoundaryBridge.Header；null = 无轮廓） */
+        fun setGroundBoundary(data: FloatArray?)
+
         /** 图集纹理 ID（0 = 未就绪，C++ 侧跳过地图层） */
         fun setAtlasTexture(texId: Int)
 
@@ -333,6 +346,10 @@ internal val nativeSceneUpdateSink = object : SceneUpdateChannel.Sink {
 
     override fun setCliffLayout(data: FloatArray?, pieceCount: Int) {
         NativeBridge.sceneSetCliffLayout(data, pieceCount)
+    }
+
+    override fun setGroundBoundary(data: FloatArray?) {
+        NativeBridge.sceneSetGroundBoundary(data)
     }
 
     override fun setAtlasTexture(texId: Int) {

@@ -82,7 +82,7 @@ public:
      * 上传 REPEAT 采样地面纹理（宗门地图单一无缝地面整图铺）。
      * 与 uploadTexture 同 staging 上传，仅采样器地址模式为 REPEAT（UV 可超 [0,1] 循环平铺）。
      */
-    uint32_t uploadRepeatTexture(const void* pixels, int width, int height);
+    uint32_t uploadRepeatTexture(const void* pixels, int width, int height) override;
 
     /**
      * 上传 RGBA **mip 链**纹理（2.3：RGBA 回退路径真 mip；非 Vulkan 后端不经此路径）。
