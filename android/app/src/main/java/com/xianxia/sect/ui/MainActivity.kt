@@ -49,6 +49,8 @@ import com.xianxia.sect.data.cloud.CloudSaveEntry
 import com.xianxia.sect.data.cloud.SaveBackend
 import com.xianxia.sect.data.cloud.SaveBackendMode
 import com.xianxia.sect.data.cloud.SaveBackendModeProvider
+import com.xianxia.sect.ui.game.saveload.MigrationUiState
+import com.xianxia.sect.ui.game.saveload.SaveMigrationCoordinator
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapTapAuthManager
@@ -144,6 +146,10 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var saveBackendModeProvider: SaveBackendModeProvider
 
+    // SR-6 存量迁移引导：主菜单迁移卡的数据源与动作入口
+    @Inject
+    lateinit var migrationCoordinator: SaveMigrationCoordinator
+
     @Inject
     lateinit var audioConfig: AudioConfig
 
@@ -163,6 +169,9 @@ class MainActivity : ComponentActivity() {
     lateinit var complianceCallbackHost: com.xianxia.sect.taptap.ComplianceCallbackHost
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
+
+    /** SR-6：迁移态订阅任务（重复进入选档页时先取消上一轮，防多路重建互相覆盖） */
+    private var migrationRenderJob: Job? = null
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
     internal var tapTapReady = mutableStateOf(false)
     internal val loadingProgress = mutableFloatStateOf(0f)
@@ -622,7 +631,34 @@ class MainActivity : ComponentActivity() {
             val saveSlots = loadSaveSlotsForSelect()
             val cloudInfo = queryCloudSaveInfo()
             val cloudSlots = queryCloudSlotEntries()
-            renderSaveSelectScreen(mode, saveSlots, cloudInfo, cloudSlots)
+            // SR-6 阶段 A：本地扫描（零云请求），迁移态此后每次变化重建同一界面
+            migrationCoordinator.scan()
+            renderSaveSelectScreen(
+                mode, saveSlots, cloudInfo, cloudSlots, migrationCoordinator.state.value
+            )
+            observeMigrationState(mode, saveSlots, cloudInfo, cloudSlots)
+        }
+    }
+
+    /**
+     * 迁移态订阅（SR-6）：主菜单是 Activity 重建式 `setContent`，组合内没有
+     * `collectAsState` 先例（施工卡 F13）⇒ 用 lifecycleScope 收 StateFlow 后重建渲染。
+     * 只在迁移卡可见时重建，避免收口后的空态把已渲染的选档页刷掉。
+     */
+    private fun observeMigrationState(
+        mode: SaveSelectMode,
+        saveSlots: List<SaveSlot>,
+        cloudInfo: TapCloudSaveManager.CloudSaveInfo?,
+        cloudSlots: List<CloudSaveEntry>
+    ) {
+        migrationRenderJob?.cancel()
+        migrationRenderJob = lifecycleScope.launch {
+            // StateFlow 自带"只在值变化时发射"语义（distinctUntilChanged 对它已废弃且无效）
+            migrationCoordinator.state.collect { migration ->
+                if (migration.visible) {
+                    renderSaveSelectScreen(mode, saveSlots, cloudInfo, cloudSlots, migration)
+                }
+            }
         }
     }
 
@@ -631,7 +667,8 @@ class MainActivity : ComponentActivity() {
         mode: SaveSelectMode,
         saveSlots: List<SaveSlot>,
         cloudInfo: TapCloudSaveManager.CloudSaveInfo?,
-        cloudSlots: List<CloudSaveEntry> = emptyList()
+        cloudSlots: List<CloudSaveEntry> = emptyList(),
+        migration: MigrationUiState = MigrationUiState()
     ) {
         setContent {
             XianxiaTheme {
@@ -644,6 +681,7 @@ class MainActivity : ComponentActivity() {
                         saveSlots = saveSlots,
                         cloudSaveInfo = cloudInfo,
                         cloudSlots = cloudSlots,
+                        migration = migration, migrationActions = buildMigrationActions(),
                         onLoadSlot = { slot ->
                             launchGame(slot = slot)
                         },
@@ -690,6 +728,29 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /**
+     * 迁移卡动作位（SR-6）。
+     *
+     * 未登录时先如实提示，不静默失败（与相邻云槽位/云存档入口同纪律）；
+     * 「启用云存档」是同步的判据复核 + 写模式，无需协程。
+     */
+    private fun buildMigrationActions() = MigrationActions(
+        onStart = {
+            if (sessionManager.isLoggedIn) {
+                lifecycleScope.launch { migrationCoordinator.start() }
+            } else {
+                Toast.makeText(this@MainActivity, "请先登录 TapTap", Toast.LENGTH_SHORT).show()
+            }
+        },
+        onDecision = { slot, keepLocal ->
+            lifecycleScope.launch { migrationCoordinator.resolveConflict(slot, keepLocal) }
+        },
+        onLegacyDownload = { targetSlot ->
+            lifecycleScope.launch { migrationCoordinator.migrateLegacyArchive(targetSlot) }
+        },
+        onEnableCloud = { migrationCoordinator.confirmEnableCloud() }
+    )
 
     /** 携带存档参数启动游戏 Activity（slot/新游戏/云存档/云槽位 四选一或组合） */
     private fun launchGame(

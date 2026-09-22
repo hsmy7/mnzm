@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.cloud.CloudSaveEntry
+import com.xianxia.sect.ui.game.saveload.MigrationUiState
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.components.GameBackground
@@ -59,7 +60,8 @@ fun SaveSelectScreen(
     onCloudSaveLoad: () -> Unit = {},
     /** SR-3：云端槽位存档（slot_N，CLOUD_TRANSITION 起与本地槽位并存） */
     cloudSlots: List<CloudSaveEntry> = emptyList(),
-    onCloudSlotLoad: (Int) -> Unit = {}
+    onCloudSlotLoad: (Int) -> Unit = {},
+    migration: MigrationUiState = MigrationUiState(), migrationActions: MigrationActions = MigrationActions()
 ) {
     var showOverwriteConfirm by remember { mutableStateOf<Int?>(null) }
     var showSectNameDialog by remember { mutableStateOf<Int?>(null) }
@@ -83,6 +85,7 @@ fun SaveSelectScreen(
             dateFormat = dateFormat,
             cloudSaveInfo = cloudSaveInfo,
             cloudSlots = visibleCloudSlots(mode, cloudSlots),
+            migration = migration, migrationActions = migrationActions,
             onBack = onBack,
             onCloudSlotLoad = onCloudSlotLoad,
             onSlotClick = { slot ->
@@ -169,6 +172,8 @@ private fun SaveSelectContent(
     dateFormat: SimpleDateFormat,
     cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo?,
     cloudSlots: List<CloudSaveEntry>,
+    migration: MigrationUiState,
+    migrationActions: MigrationActions,
     onBack: () -> Unit,
     onCloudSlotLoad: (Int) -> Unit,
     onSlotClick: (SaveSlot) -> Unit,
@@ -186,6 +191,16 @@ private fun SaveSelectContent(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // SR-6：迁移卡常驻在滚动列表之外（进度不被列表卷走），且只在读档模式出现
+        if (migrationCardVisible(mode, migration)) {
+            SaveMigrationCard(
+                migration = migration,
+                emptyLocalSlots = saveSlots.filter { it.isEmpty && it.slot != 0 }.map { it.slot },
+                actions = migrationActions
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         SaveSlotList(
             modifier = Modifier.weight(1f),
