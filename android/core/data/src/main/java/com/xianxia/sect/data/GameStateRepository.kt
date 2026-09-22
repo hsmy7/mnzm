@@ -13,6 +13,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.data.local.DiscipleDao
 import com.xianxia.sect.data.local.GameDataDao
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -26,7 +27,7 @@ import javax.inject.Singleton
 @Singleton
 class GameStateRepository @Inject constructor(
     private val gameDataDao: GameDataDao,
-    private val discipleDaos: DiscipleDaos,
+    private val discipleDao: DiscipleDao,
     private val itemDaos: ItemDaos,
     private val worldDaos: WorldDaos
 ) {
@@ -45,7 +46,7 @@ class GameStateRepository @Inject constructor(
     suspend fun loadFullState(slotId: Int): FullGameState? {
         return try {
             val gameData = gameDataDao.getGameDataSync(slotId) ?: return null
-            val disciples = discipleDaos.discipleDao.getAllSync(slotId)
+            val disciples = discipleDao.getAllSync(slotId)
             val equipmentStacks = itemDaos.equipmentStackDao.getAllSync(slotId)
             val equipmentInstances = itemDaos.equipmentInstanceDao.getAllSync(slotId)
             val manualStacks = itemDaos.manualStackDao.getAllSync(slotId)

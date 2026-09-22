@@ -84,6 +84,13 @@ class DomainDependencyTest {
     /**
      * 架构决策守护：domain 层 Room 注解使用范围不得超出以下白名单。
      * 若新增 @Entity 类，需在此测试中登记，确保是有意为之而非无意识扩散。
+     *
+     * v53（SR-7 schema 第二刀）收缩 7 项：`DiscipleCore` / `DiscipleCombatStats` /
+     * `DiscipleEquipment` / `DiscipleExtended` / `DiscipleAttributes` 去 Room 注解降为纯领域类
+     *（内存侧仍被 `DiscipleAggregate` / `DiscipleStatCalculator` 消费），
+     * `DiscipleCompact` 与 `DiscipleAggregateWithRelations` 连类删除。
+     * 留在表内 = 允许该文件重新携带 @Entity ⇒ 今天把它们移出白名单，
+     * 将来有人把 @Entity 加回去即在此判红（口径：只缩不增）。
      */
     @Test
     fun `domain room annotations are within allowed scope`() {
@@ -92,14 +99,7 @@ class DomainDependencyTest {
             "CultivatorCave",
             "DiplomacyStateEntity",
             "Disciple",
-            "DiscipleAggregateWithRelations",
-            "DiscipleCombatStats",
-            "DiscipleAttributes",
             "DiscipleComponents",
-            "DiscipleCompact",
-            "DiscipleCore",
-            "DiscipleEquipment",
-            "DiscipleExtended",
             "GameData",
             "GameHeavyData",
             "Items",

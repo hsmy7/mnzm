@@ -1,13 +1,6 @@
 package com.xianxia.sect.data.engine
 import android.util.Log
 import com.xianxia.sect.core.model.DiplomacyState
-import com.xianxia.sect.core.model.DiscipleAttributes
-import com.xianxia.sect.core.model.DiscipleCombatStats
-import com.xianxia.sect.core.model.DiscipleCompact
-import com.xianxia.sect.core.model.DiscipleCore
-import com.xianxia.sect.core.model.DiscipleEquipment
-import com.xianxia.sect.core.model.DiscipleExtended
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameHeavyData
 import com.xianxia.sect.core.model.PatrolStateEntity
@@ -132,11 +125,6 @@ internal fun StorageEngine.buildLightGameData(data: SaveData, slot: Int): GameDa
 /** 清空槽位旧数据（先清后写，防止旧存档高 ID 行残留）。 */
 internal suspend fun StorageEngine.clearOldSlotEntities(slot: Int, data: SaveData) {
     core.database.discipleDao().deleteAll(slot)
-    core.database.discipleCoreDao().deleteAll(slot)
-    core.database.discipleCombatStatsDao().deleteAll(slot)
-    core.database.discipleEquipmentDao().deleteAll(slot)
-    core.database.discipleExtendedDao().deleteAll(slot)
-    core.database.discipleAttributesDao().deleteAll(slot)
     // 堆叠删表守卫：旧格式存档（stacksSerialized = false，如旧备份恢复）的
     // 堆叠未进入 SaveData，此时不删除 DB 残留的堆叠行——保留完好的既有堆叠，
     // 重建结果以 upsert 合并。
@@ -154,7 +142,6 @@ internal suspend fun StorageEngine.clearOldSlotEntities(slot: Int, data: SaveDat
     core.database.battleLogDao().deleteAll(slot)
     core.database.recipeDao().deleteAll(slot)
     core.database.productionSlotDao().deleteBySlot(slot)
-    core.database.discipleCompactDao().deleteAll(slot)
     // 邮件整对象替换的删侧（SR-1）：SaveData.mails 是槽位邮件的唯一真相——
     // 旧档无该字段 ⇒ 快照空表 ⇒ 替换后表为空（方案明示单向兼容，与堆叠的
     // stacksSerialized 条件保留语义**不同**，此处无条件删，交由写侧回填快照）。
@@ -165,9 +152,7 @@ internal suspend fun StorageEngine.clearOldSlotEntities(slot: Int, data: SaveDat
 internal suspend fun StorageEngine.writeCoreEntities(slot: Int, data: SaveData, lightGameData: GameData) {
     core.database.gameDataDao().insert(lightGameData)
 
-    // bloodRefinementPctTotals 拍快照防止并发修改
-    val bptSnapshot = data.gameData.bloodRefinementPctTotals
-    writeDisciples(slot, data, bptSnapshot)
+    writeDisciples(slot, data)
     writeStackedItems(slot, data)
     writeMails(slot, data)
     writeProductionSlotsAndRecipes(slot, data)
@@ -175,28 +160,17 @@ internal suspend fun StorageEngine.writeCoreEntities(slot: Int, data: SaveData, 
     syncSlotMetadata(slot, data)
 }
 
-/** 弟子族实体分批写入：核心/战斗/装备/扩展/属性五表 + 紧凑表 */
-internal suspend fun StorageEngine.writeDisciples(
-    slot: Int,
-    data: SaveData,
-    bptSnapshot: Map<String, BloodRefinementPctTotal>
-) {
+/**
+ * 弟子分批写入——**只写 `disciples` 一张表**。
+ *
+ * v53（SR-7 schema 第二刀）前此处还会把每个弟子二次投影成核心/战斗/装备/扩展/属性五表
+ * ＋紧凑表；六表的 SELECT 方法全仓零调用者，且每行都由本行的 `Disciple` 经
+ * `X.fromDisciple(...)` 派生（零外部输入）⇒ 纯冗余副本，已随迁移删除，
+ * 内存侧的同名领域类不受影响（`DiscipleAggregate` 构造路径不经 DB）。
+ */
+internal suspend fun StorageEngine.writeDisciples(slot: Int, data: SaveData) {
     data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
-        val withSlot = batch.map { d -> d.copy(slotId = slot) }
-        core.database.discipleDao().upsertAll(withSlot)
-        core.database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d)
-            .copy(slotId = slot) })
-        core.database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d)
-            .copy(slotId = slot) })
-        core.database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d)
-            .copy(slotId = slot) })
-        core.database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d)
-            .copy(slotId = slot) })
-        core.database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d)
-            .copy(slotId = slot) })
-            core.database.discipleCompactDao().insertAll(batch.map { d ->
-                DiscipleCompact.fromDisciple(d, bptSnapshot).copy(slotId = slot)
-            })
+        core.database.discipleDao().upsertAll(batch.map { d -> d.copy(slotId = slot) })
     }
 }
 

@@ -1,17 +1,12 @@
 package com.xianxia.sect.core.model
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-
-@Entity(
-    tableName = "disciples_combat",
-    primaryKeys = ["discipleId", "slot_id"]
-)
+/**
+ * 弟子战斗基值/方差的**内存侧**投影（v53/SR-7 起不再有 `disciples_combat` 表；
+ * [DiscipleStatCalculator] 直接从 [DiscipleAggregate.combatStats] 读，真相恒在 `disciples`）。
+ */
 data class DiscipleCombatStats(
-    @ColumnInfo(name = "discipleId")
     var discipleId: String = "",
 
-    @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
 
     var baseHp: Int = 120,

@@ -1,21 +1,12 @@
 package com.xianxia.sect.core.model
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.Index
-
-@Entity(
-    tableName = "disciples_attributes",
-    primaryKeys = ["discipleId", "slot_id"],
-    indices = [
-        Index(value = ["loyalty"])
-    ]
-)
+/**
+ * 弟子资质/忠诚等属性族的**内存侧**投影（v53/SR-7 起不再有 `disciples_attributes` 表；
+ * [DiscipleStatCalculator] 直接从 [DiscipleAggregate.attributes] 读，真相恒在 `disciples`）。
+ */
 data class DiscipleAttributes(
-    @ColumnInfo(name = "discipleId")
     var discipleId: String = "",
 
-    @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
 
     var intelligence: Int = 50,

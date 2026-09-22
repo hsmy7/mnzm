@@ -1,31 +1,17 @@
 package com.xianxia.sect.core.model
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
 
-@Entity(
-    tableName = "disciples_core",
-    primaryKeys = ["id", "slot_id"],
-    indices = [
-        Index(value = ["name"]),
-        Index(value = ["realm", "realmLayer"]),
-        Index(value = ["isAlive", "realm"]),
-        Index(value = ["isAlive", "status"]),
-        Index(value = ["discipleType"]),
-        Index(value = ["age"])
-    ]
-)
+/**
+ * 弟子核心属性的**内存侧**投影（v53/SR-7 起不再有 `disciples_core` 表——
+ * 该表 SELECT 全仓零调用者，真相恒在 `disciples` 单行 + [Disciple]）。
+ */
 data class DiscipleCore(
-    @ColumnInfo(name = "id")
     var id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
 
     var name: String = "",
-    @ColumnInfo(name = "surname")
     var surname: String = "",
     /** 境界等级：0=仙人(最高), 1=渡劫, 2=大乘, ..., 9=炼气(最低)。数字越小境界越高 */
     var realm: Int = 9,

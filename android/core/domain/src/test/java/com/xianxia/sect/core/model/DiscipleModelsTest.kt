@@ -123,56 +123,6 @@ class DiscipleModelsTest {
         assertEquals(200, copied.baseHp)
     }
 
-    // ---- DiscipleCompact ----
-
-    @Test
-    fun discipleCompact_construction() {
-        val compact = DiscipleCompact(
-            id = "d1",
-            slotId = 1,
-            name = "Zhang San",
-            cultivation = 100.0,
-            realm = 9,
-            realmLayer = 3,
-            lifespan = 80,
-            maxLifespan = 80,
-            isAlive = true,
-            spiritRoot = 1,
-            combatPower = 5000L,
-            cultivationSpeed = 1.5,
-            age = 20
-        )
-        assertEquals("d1", compact.id)
-        assertEquals("Zhang San", compact.name)
-        assertEquals(100.0, compact.cultivation, 0.001)
-        assertEquals(9, compact.realm)
-        assertEquals(3, compact.realmLayer)
-        assertTrue(compact.isAlive)
-        assertEquals(1, compact.spiritRoot)
-        assertEquals(5000L, compact.combatPower)
-        assertEquals(20, compact.age)
-    }
-
-    @Test
-    fun discipleCompact_defaultValues() {
-        val compact = DiscipleCompact(id = "d1", name = "Test")
-        assertEquals(0, compact.slotId)
-        assertEquals(0.0, compact.cultivation, 0.001)
-        assertEquals(0, compact.realm)
-        assertEquals(0, compact.realmLayer)
-        assertTrue(compact.isAlive)
-        assertEquals(8.0, compact.cultivationSpeed, 0.001)
-        assertEquals(0, compact.status)
-    }
-
-    @Test
-    fun discipleCompact_copy() {
-        val original = DiscipleCompact(id = "d1", name = "Test", realm = 9)
-        val copied = original.copy(realm = 7)
-        assertEquals("d1", copied.id)
-        assertEquals(7, copied.realm)
-    }
-
     // ---- CombatAttributes ----
 
     @Test
@@ -485,47 +435,6 @@ class DiscipleModelsTest {
         val copied = original.copy(cultivationSpeedBonus = 2.0)
         assertEquals("d1", copied.discipleId)
         assertEquals(2.0, copied.cultivationSpeedBonus, 0.001)
-    }
-
-    // ---- DiscipleAggregateWithRelations ----
-
-    @Test
-    fun discipleAggregateWithRelations_construction() {
-        val core = DiscipleCore(id = "d1", name = "Test")
-        val aggregate = DiscipleAggregateWithRelations(
-            core = core,
-            combatStats = null,
-            equipment = null,
-            extended = null,
-            attributes = null
-        )
-        assertEquals("d1", aggregate.core.id)
-        assertNull(aggregate.combatStats)
-        assertNull(aggregate.equipment)
-        assertNull(aggregate.extended)
-        assertNull(aggregate.attributes)
-    }
-
-    @Test
-    fun discipleAggregateWithRelations_withAllComponents() {
-        val core = DiscipleCore(id = "d1", name = "Test")
-        val combat = DiscipleCombatStats(discipleId = "d1")
-        val equip = DiscipleEquipment(discipleId = "d1")
-        val ext = DiscipleExtended(discipleId = "d1")
-        val attrs = DiscipleAttributes(discipleId = "d1")
-
-        val aggregate = DiscipleAggregateWithRelations(
-            core = core,
-            combatStats = combat,
-            equipment = equip,
-            extended = ext,
-            attributes = attrs
-        )
-        assertNotNull(aggregate.combatStats)
-        assertNotNull(aggregate.equipment)
-        assertNotNull(aggregate.extended)
-        assertNotNull(aggregate.attributes)
-        assertEquals("d1", aggregate.combatStats!!.discipleId)
     }
 
     // ---- EquipmentNurtureData ----

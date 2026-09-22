@@ -5,13 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.xianxia.sect.data.local.BattleLogDao
 import com.xianxia.sect.data.local.BuildingSlotDao
-import com.xianxia.sect.data.local.DiscipleAttributesDao
-import com.xianxia.sect.data.local.DiscipleCombatStatsDao
-import com.xianxia.sect.data.local.DiscipleCompactDao
-import com.xianxia.sect.data.local.DiscipleCoreDao
 import com.xianxia.sect.data.local.DiscipleDao
-import com.xianxia.sect.data.local.DiscipleEquipmentDao
-import com.xianxia.sect.data.local.DiscipleExtendedDao
 import com.xianxia.sect.data.local.EquipmentInstanceDao
 import com.xianxia.sect.data.local.EquipmentStackDao
 import com.xianxia.sect.data.local.GameDataDao
@@ -26,7 +20,6 @@ import com.xianxia.sect.data.local.PillDao
 import com.xianxia.sect.data.local.RecipeDao
 import com.xianxia.sect.data.local.SeedDao
 import com.xianxia.sect.data.local.StorageBagDao
-import com.xianxia.sect.data.DiscipleDaos
 import com.xianxia.sect.data.ItemDaos
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.WorldDaos
@@ -117,16 +110,6 @@ object AppModule {
     fun provideChangeLogDao(database: GameDatabase): ChangeLogDao = database.changeLogDao()
 
     @Provides
-    fun provideDiscipleDaos(database: GameDatabase): DiscipleDaos = DiscipleDaos(
-        discipleDao = database.discipleDao(),
-        discipleCoreDao = database.discipleCoreDao(),
-        discipleCombatStatsDao = database.discipleCombatStatsDao(),
-        discipleEquipmentDao = database.discipleEquipmentDao(),
-        discipleExtendedDao = database.discipleExtendedDao(),
-        discipleAttributesDao = database.discipleAttributesDao()
-    )
-
-    @Provides
     fun provideItemDaos(database: GameDatabase): ItemDaos = ItemDaos(
         equipmentStackDao = database.equipmentStackDao(),
         equipmentInstanceDao = database.equipmentInstanceDao(),
@@ -164,25 +147,6 @@ object AppModule {
     @Provides
     fun provideBattleLogDao(database: GameDatabase): BattleLogDao = database.battleLogDao()
 
-    @Provides
-    fun provideDiscipleCoreDao(database: GameDatabase): DiscipleCoreDao = database.discipleCoreDao()
-
-    @Provides
-    fun provideDiscipleCombatStatsDao(database: GameDatabase): DiscipleCombatStatsDao = database
-        .discipleCombatStatsDao()
-
-    @Provides
-    fun provideDiscipleEquipmentDao(database: GameDatabase): DiscipleEquipmentDao = database.discipleEquipmentDao()
-
-    @Provides
-    fun provideDiscipleExtendedDao(database: GameDatabase): DiscipleExtendedDao = database.discipleExtendedDao()
-
-    @Provides
-    fun provideDiscipleAttributesDao(database: GameDatabase): DiscipleAttributesDao = database.discipleAttributesDao()
-
-    @Provides
-    fun provideDiscipleCompactDao(database: GameDatabase): DiscipleCompactDao = database.discipleCompactDao()
-    
     @Provides
     @Singleton
     fun provideCacheConfig(@ApplicationContext context: Context): CacheConfig {

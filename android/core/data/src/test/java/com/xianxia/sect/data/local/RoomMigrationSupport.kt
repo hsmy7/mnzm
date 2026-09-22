@@ -271,6 +271,11 @@ internal object RoomMigrationSupport {
             columnExists(db, "production_slots", "buildingInstanceId"))
     }
 
+    /**
+     * 历史形态断言：两条链用例（`verifyFullChainColumns` 的链尾在 **v40**）里
+     * 镜像表尚未删除，故仍须存在且带当版列。
+     * v53 起六表被删的终态断言在 `RoomMigrationV52To53Test`（表集合精确比对，非本清单）。
+     */
     internal fun verifyDisciplesExtendedColumnsExist(db: SupportSQLiteDatabase) {
         assertTrue("disciples_extended should have masterId",
             columnExists(db, "disciples_extended", "masterId"))

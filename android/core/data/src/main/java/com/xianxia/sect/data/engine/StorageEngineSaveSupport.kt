@@ -265,16 +265,11 @@ internal suspend fun StorageEngine.clearSlotDataQuietly(slot: Int) {
  * 新增 Room 实体（`@Database(entities=…)`）时**必须**在此补一行 DAO 删除，
  * 否则删档/tombstone 会留下新表残行（`GameDatabase` 注册实体数 = 本清单唯一权威对照）。
  */
-@Suppress("LongMethod") // 29 个 DAO 逐行清理清单：按实体顺序平铺，拆函数反而遮蔽"清单完整性"
+@Suppress("LongMethod") // 27 个 DAO 逐行清理清单：按实体顺序平铺，拆函数反而遮蔽"清单完整性"
 internal suspend fun StorageEngine.clearAllSlotTables(slot: Int) {
     core.database.withTransaction {
         core.database.gameDataDao().deleteAll(slot)
         core.database.discipleDao().deleteAll(slot)
-        core.database.discipleCoreDao().deleteAll(slot)
-        core.database.discipleCombatStatsDao().deleteAll(slot)
-        core.database.discipleEquipmentDao().deleteAll(slot)
-        core.database.discipleExtendedDao().deleteAll(slot)
-        core.database.discipleAttributesDao().deleteAll(slot)
         core.database.equipmentStackDao().deleteAll(slot)
         core.database.equipmentInstanceDao().deleteAll(slot)
         core.database.manualStackDao().deleteAll(slot)
@@ -296,7 +291,6 @@ internal suspend fun StorageEngine.clearAllSlotTables(slot: Int) {
         core.database.patrolStateDao().deleteBySlot(slot)
         core.database.worldMapStateDao().deleteBySlot(slot)
         core.database.sectPolicyStateDao().deleteBySlot(slot)
-        core.database.discipleCompactDao().deleteAll(slot)
         // 审计 §12-K 补齐：归档表与邮件草稿表同样带 slot 列，删档必须一并清
         //（旧实现全链漏删这 4 张表 ⇒ 账号注销/删档后仍残留玩家数据）
         core.database.archivedBattleLogDao().deleteBySlot(slot)

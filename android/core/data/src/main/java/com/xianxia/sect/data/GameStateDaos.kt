@@ -1,11 +1,5 @@
 package com.xianxia.sect.data
 
-import com.xianxia.sect.data.local.DiscipleAttributesDao
-import com.xianxia.sect.data.local.DiscipleCombatStatsDao
-import com.xianxia.sect.data.local.DiscipleCoreDao
-import com.xianxia.sect.data.local.DiscipleDao
-import com.xianxia.sect.data.local.DiscipleEquipmentDao
-import com.xianxia.sect.data.local.DiscipleExtendedDao
 import com.xianxia.sect.data.local.EquipmentInstanceDao
 import com.xianxia.sect.data.local.EquipmentStackDao
 import com.xianxia.sect.data.local.HerbDao
@@ -21,19 +15,11 @@ import com.xianxia.sect.data.local.ProductionSlotDao
 import com.xianxia.sect.data.local.RecipeDao
 import com.xianxia.sect.data.incremental.ChangeLogDao
 
-/**
- * DAO 领域分组：收敛 GameStateRepository 的 22 个平铺 DAO 构造依赖。
- *
- * 分组仅为构造参数收敛，DAO 行为与调用方不变。
- */
-data class DiscipleDaos(
-    val discipleDao: DiscipleDao,
-    val discipleCoreDao: DiscipleCoreDao,
-    val discipleCombatStatsDao: DiscipleCombatStatsDao,
-    val discipleEquipmentDao: DiscipleEquipmentDao,
-    val discipleExtendedDao: DiscipleExtendedDao,
-    val discipleAttributesDao: DiscipleAttributesDao
-)
+// DAO 领域分组：收敛 GameStateRepository 的平铺 DAO 构造依赖。
+// 分组仅为构造参数收敛，DAO 行为与调用方不变。
+// v53（SR-7 schema 第二刀）前此处另有 `DiscipleDaos`——弟子域曾有六张表
+//（disciples + 五张镜像 + 紧凑表），那六张表的 SELECT 全仓零调用者，已随迁移删除，
+// 弟子域只剩 `disciples` 一张表 ⇒ 分组失去意义，`DiscipleDao` 改为直接注入。
 
 /** 物品域 DAO 分组 */
 data class ItemDaos(

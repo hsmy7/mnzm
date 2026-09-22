@@ -1,17 +1,12 @@
 package com.xianxia.sect.core.model
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-
-@Entity(
-    tableName = "disciples_equipment",
-    primaryKeys = ["discipleId", "slot_id"]
-)
+/**
+ * 弟子装备与储物格位的**内存侧**投影（v53/SR-7 起不再有 `disciples_equipment` 表，
+ * 真相恒在 `disciples` 与 `storage_bag`）。
+ */
 data class DiscipleEquipment(
-    @ColumnInfo(name = "discipleId")
     var discipleId: String = "",
 
-    @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
 
     var weaponId: String = "",

@@ -33,11 +33,6 @@ class GameDataRepositoryImpl @Inject constructor(
         database.withTransaction {
             gameDataDao.deleteAll(slotId)
             database.discipleDao().deleteAll(slotId)
-            database.discipleCoreDao().deleteAll(slotId)
-            database.discipleCombatStatsDao().deleteAll(slotId)
-            database.discipleEquipmentDao().deleteAll(slotId)
-            database.discipleExtendedDao().deleteAll(slotId)
-            database.discipleAttributesDao().deleteAll(slotId)
             database.equipmentStackDao().deleteAll(slotId)
             database.equipmentInstanceDao().deleteAll(slotId)
             database.manualStackDao().deleteAll(slotId)

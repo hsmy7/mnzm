@@ -1,17 +1,12 @@
 package com.xianxia.sect.core.model
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-
-@Entity(
-    tableName = "disciples_extended",
-    primaryKeys = ["discipleId", "slot_id"]
-)
+/**
+ * 弟子功法/天赋/关系等扩展字段的**内存侧**投影（v53/SR-7 起不再有 `disciples_extended`
+ * 表，真相恒在 `disciples`）。
+ */
 data class DiscipleExtended(
-    @ColumnInfo(name = "discipleId")
     var discipleId: String = "",
 
-    @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
 
     var manualIds: List<String> = emptyList(),
