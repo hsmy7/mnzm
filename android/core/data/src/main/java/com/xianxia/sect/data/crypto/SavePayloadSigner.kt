@@ -105,8 +105,8 @@ class SavePayloadSigner @Inject constructor(
     private fun deriveKey(): SecretKeySpec {
         val master = SecureKeyManager.getOrCreateKey(context)
         try {
-            if (master.none { it != 0.toByte() }) {
-                throw IllegalStateException("主密钥全零（密钥体系未就绪或已损坏），拒绝派生云档签名密钥")
+            check(master.any { it != 0.toByte() }) {
+                "主密钥全零（密钥体系未就绪或已损坏），拒绝派生云档签名密钥"
             }
             var derived = master + SAVE_SALT.toByteArray(Charsets.UTF_8)
             val md = MessageDigest.getInstance(HASH_ALGO)
