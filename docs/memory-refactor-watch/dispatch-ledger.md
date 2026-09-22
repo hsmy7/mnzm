@@ -83,6 +83,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
 
+- **2026-09-23 06:08 监控轮（MR-1 进行态）**：进入测试面阶段——`column_dirty_test.cpp`（P1.1 增长上界）+ `memory_trim_test.cpp`（P1.5/tick 挂点）+ `TrimConsumerCountGuardTest.kt`（P1.3 守卫）+ `SectMapCacheBoundTest.kt`（P1.2）+ `SceneUpdateChannelTest` 扩展 + test CMakeLists 同步，验收测试清单与 batch-MR1 对应齐。实现面趋完整；下轮预期切分提交 + 门禁（桥重建+ctest 1561 基线+JVM 串行+detekt）。
+
 - **2026-09-23 05:58 监控轮（MR-1 进行态）**：七任务面全部现身，工作树 24 改 + 2 新目录——新增 `VulkanBackend.cpp/.h`+`GameCoreJni.cpp`（P1.7/P1.6）、`GameActivity.kt`+`GameLoopDelegate.kt`（P1.3 四消费者收敛面齐）、`AtlasAsyncPipeline.kt`（P1.4）；`GameViewModel.kt` 新现待核（疑 GameLoopDelegate 挂点）。无越界；**24 文件未提交 = 切分纯度将是核验重点**（P1.3 与 P1.1/P1.6 共享面易混笔）。
 
 - **2026-09-23 05:48 监控轮（MR-1 进行态）**：工作树扩至 17 改 + 2 新目录（`app/.../core/memory/`、`core/domain/.../memory/`——Bridge 与 MemoryTrimLevel 落点），**P1.3 收敛面现身**（XianxiaApplication/CacheLayer/GameDataCacheMemoryPressure/GameDataCacheMaintenance/GameMonitorManager 在改 = 既有消费者正被吸收），P1.6/P1.4 JNI 面（NativeBridge.cpp/.kt + GameCoreBridge.cpp/.kt）同轮展开；无越界文件，尚未提交。下轮盯首笔切分提交（七任务面多，切分纯度重点核 P1.3 与 P1.1 不混笔）。
