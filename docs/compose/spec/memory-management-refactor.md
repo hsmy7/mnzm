@@ -64,7 +64,7 @@ commits: 2fd4fe6a6..c7643ae00
 | `docs/memory-audit-2026-09-22.md` | 主证据（A/B/C/D 分级取证，基线 `main@a7c459a90`） |
 | `docs/longrun-stability-audit-report.md` + remediation | 生命周期/P0 GPU 泄漏通道（与本方案交叉） |
 | `docs/performance-audit-2026-09-09.md` + remediation | `destroyTexture` 契约已补实现但**生产仍零调用**（P3-5） |
-| `docs/fps-optimization-plan.md` P3.3 | **决策不修**：`DynamicMemoryManager` 预算管理器不建，触发=OOM 事故报告——本方案改变该触发条件下的架构前提 |
+| `docs/fps-optimization-plan.md` P3.3 | **决策不修**：不**新建**独立预算管理器（触发=OOM 事故）；但 `DynamicMemoryManager` **已存在**（设备/Canvas 分档）——本方案复用并扩展 trim 分发，不造第二套 |
 | `docs/platform-abilities.md` | `RenderBackend` 已抽象；Metal 未建 → GPU 内存层必须可移植 |
 
 #### 1.2 目标（重构后应达到的性状）
@@ -185,12 +185,72 @@ commits: 2fd4fe6a6..c7643ae00
 
 | 既有决策 | 出处 | 本方案态度 |
 |----------|------|-----------|
-| 不建 `DynamicMemoryManager`（等 OOM 事故） | fps-plan P3.3 | **升级触发条件**：审计已证明结构性风险≥P0 五项，预算层改为**随本方案 GPU/CPU 重构一并建**（仍可用配置开关默认关闭观测-only） |
+| 不**新建**独立预算管理器（等 OOM 事故） | fps-plan P3.3 | **升级**：复用已存在 `DynamicMemoryManager` + 扩展 Trim/GPU stats 只读视图；仍不引入第二套分级类；开关默认观测-only |
 | `destroyTexture` 契约补齐即可 | performance remediation P3-5 | **仍不够**：缺的是调用方与纹理键缓存/refCount，不是入队实现 |
 
 ---
 
 ### 4. 技术方案（重构级根治）
+
+### 4.0 架构基线对齐（architecture.md + CODE_WIKI.md）
+
+> 本节在方案审查后补写：明确本方案**读过并遵守**的项目架构契约，以及此前遗漏的扩展性/可维护性约束。
+
+#### 4.0.1 已读架构文档与采用的契约
+
+| 架构文档 | 与内存方案的契约 |
+|----------|------------------|
+| docs/architecture.md 双层状态 + Frame-Driven | 内存操作**不得**在 UI 层直写 GameStateStore；trim/统计经 GameEngine/平台桥，不绕开 update/updateMirror |
+| 惰性结算四层 + Checkpoint | **trim 禁止**清除 cultivationCheckpoints / lastSettled* / 生产 completionMonth；资源驱逐≠状态驱逐 |
+| 双线程 + stateStore.update ReentrantLock | C++ 分配器/纹理 cache 的**渲染线程 vs 引擎线程**分界：GPU 操作仅渲染线程；引擎 tick 只投递 trim 事件 |
+| 列级 COW（DiscipleTables.deepCopy） | Kotlin 侧快照隔离与 native 列存并行存在；位图/列 
+eserve 只动 **gamecore DiscipleStore**，不动 Kotlin ComponentTable COW 语义 |
+| docs/architecture.md 扩展性预留 | 预算配置走 **RemoteConfig 未绑定模式**（本地默认 + 键 memory.配置名）；离线收益/商业化**不**扩内存 API；iOS 见 §7 |
+| CODE_WIKI.md AUTHORITATIVE 镜像只读 | 反向通道已删：Kotlin→C++ **仅** importToNative 全量；C++→Kotlin 仅 updateMirror。轨 D 改基线协议时**禁止**复活增量反向通道；门禁 MirrorReadOnlyGuardTest + DiffAuthoritativeTickTest 必须保持绿 |
+| CODE_WIKI.md ActionId 协议 | 新增内存类 JNI 若必须走 ActionId，只加 gen-action-ids.mjs 条目 + dispatch case，**不新增散落 JNI 导出**（与现有 UI 事务同构）；优先**零新 ActionId**（trim 用已有桥/回调） |
+
+#### 4.0.2 既有性能设施：扩展而非重造（可维护性）
+
+项目**已有**内存相关设施，方案必须**接入**，禁止平行再造：
+
+| 既有组件 | 位置（CODE_WIKI） | 方案动作 |
+|----------|-------------------|----------|
+| DynamicMemoryManager | core/data/memory/DynamicMemoryManager.kt | **扩展**为预算真相源之一（设备 tier / heap 分档）；轨 E「新建预算」改为「注册 MemoryBudget 源 + 分发 trim」，**不**新建第二套分级 |
+| GCOptimizer | CODE_WIKI 性能基础设施 | SOFT75%/HARD85%/CRITICAL92% 与 TrimMemoryBridge **同一压力轴**对齐，避免两套阈值 |
+| GpuTierDetector / DeviceCapabilityProfiler | GPU 分级 | 预算表按 tier 读取，禁止另写 RAM 判定 |
+| CacheLayer / GameDataCacheMemoryPressure | 压力归一化 0~1 | sectMap/UI 位图驱逐挂到已有 pressure，不新开压力通道 |
+| SoftwareCanvasBackend / Canvas 烘焙 RGB_565 | 软渲路径 | 软渲 Bitmap 预算沿用设备分档策略，补 onTrim 时 
+ecycle 已有 DisposableEffect 模式 |
+
+**fps-plan P3.3 的准确含义**（更正）：不是「项目从未有内存管理」，而是「**不新建**独立 DynamicMemoryManager 预算管理器（等 OOM 事故）」——但 DynamicMemoryManager **已存在**（Canvas/设备分级用途）。本方案升级为：**复用该类 + 扩展 trim 分发**，仍不引入第二套预算类；若需 GPU 预算，在 GpuAllocator.stats 上挂只读导出，Kotlin 侧只读。
+
+#### 4.0.3 扩展性预留（6 个月+）
+
+| 扩展方向 | 内存方案如何预留 | 明确不做 |
+|----------|------------------|----------|
+| RemoteConfig 激活 | memory.budget.* 键 + 本地默认（对齐 commercialization Key 规范）；未绑定时 BuildConfig | 不把预算写死进 C++ 常量导致改数发版 |
+| 商业化/活动 | 广告 SDK 等三方 native 堆列入 MemoryStats 分类；不进游戏核 | 不为广告 SDK 写进 gamecore |
+| 离线收益 | **零耦合**——收益仍挂 L0 时间推进；内存 trim 不碰结算时间戳 | 不把 trim 挂进结算钩子 |
+| 社交/排行 | 无关 | — |
+| 数据埋点 | MemoryStats 可选导出走独立 Analytics 接口预留（未实现则只 debug） | 不复用 GameEventBus 发内存事件 |
+| iOS | GpuAllocator/TextureCache/TrimLevel 枚举纯 C++/Kotlin Multiplatform 友好；Metal 对等 §7 | 不在 core 调 Android API |
+
+#### 4.0.4 可长期维护性（本方案自带）
+
+1. **单一入口**：上传只经 TextureCache，分配只经 GpuAllocator，trim 只经 TrimMemoryBridge——守卫测试钉死旁路。  
+2. **模块边界**：C++ 游戏核零 Android；Kotlin 只做桥与 UI；与 :core:domain/:core:engine 分层一致。  
+3. **双路径同步**：Vulkan/GLES/软渲 checklist + SoftwareCanvasBackend 测试（CLAUDE 渲染铁律）。  
+4. **文档义务**：实施合并时同步 CODE_WIKI.md（性能基础设施节）与 docs/architecture.md 扩展性预留中的内存子系统一行——**不可只改代码不改 Wiki**。  
+5. **确定性**：RNG 分区/对拍门禁不因内存改动放松；基线协议变更必须过 Diff 对拍。  
+6. **回滚开关**：memory_subsystem.enabled 保持可关，避免深度重构变成一次性赌注（design-plan-review §一 兼容回退）。
+
+#### 4.0.5 与轨 D 的强制修订（AUTHORITATIVE）
+
+原轨 D「每旬非弟子全量 JSON→增量」在镜像只读契约下的**合法形态**：
+
+- **允许**：C++ 内部换掉 aselineJson_ 存储实现（列/字节块），**导出**仍经既有 export → updateMirror/快照路径；**导入**仍 importToNative 全量。  
+- **禁止**：恢复 captureReverseDirty 式 Kotlin→C++ 增量回导；禁止绕过 MirrorReadOnlyGuardTest。  
+- **对拍**：改基线后 DiffAuthoritativeTickTest + 存档往返必须绿。
 
 #### 4.1 目标架构
 
@@ -302,7 +362,7 @@ public:
 |----|------|
 | GameActivity | 实现 `onLowMemory` = COMPLETE 级强 trim；RUNNING_LOW/MODERATE 不再只 Log |
 | Application | 对齐已有 `GameDataCacheMemoryPressure` 压力值，广播到 TextureCache/sectMapCache/Gpu trim |
-| 预算 | `DeviceCapabilityProfiler` 分级 → 预算表（MB）写入 `MemoryBudget`；默认观测-only，超限降级策略配置化 |
+| 预算 | **复用** `DynamicMemoryManager`/`GpuTierDetector` 分档 + `GCOptimizer` 阈值轴；新增只读 `MemoryBudget` 视图合并 `GpuAllocator.stats`；默认观测-only；RemoteConfig 键 `memory.budget.*` 预留 |
 | largeHeap | 重构后复测：若 Java 大对象（22MB ByteArray）下降，评估移除 `largeHeap`（单独开关验证，不盲删） |
 
 ##### 轨 F — 资产磁盘治理（P1-8）— 可并行轨
@@ -495,7 +555,7 @@ AtlasAsyncPipeline.start
 |------|------|
 | longrun remediation P0/P1 | **不重复修** initSurface 幂等等已列项；本方案在资源分配层给 P0 通道提供可释放性；实施时核对 P0-1 是否已修以免双改 |
 | performance remediation P3-5 | 已实现入队；本方案补**调用方与 cache** |
-| fps P3.3 | **本方案正式升级该决策**（预算层立项，开关默认观测） |
+| fps P3.3 | **升级**：不新建第二套预算类；复用 `DynamicMemoryManager` + 扩展 trim/GPU stats（见 §4.0.2） |
 | reverse-channel-elimination | 轨 D 减少每旬全量 JSON 跨 JNI，同向 |
 | cpp-engine-migration | 分配/基线/位图均落 C++，符合优先方向 |
 | save-system-refactor | 存档字节格式不动；仅运行时同步 |
