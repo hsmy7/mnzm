@@ -83,6 +83,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
 
+- **2026-09-23 05:38 监控轮（MR-1 进行态）**：代码面展开，8 文件在写全在预期面——C++ P1.1（`column_dirty.h` 几何扩容 + `disciple_store.h/.cpp` reserve）+ P1.5（`game_core.h/.cpp` 账本 cap/tick 挂点）；Kotlin P1.2（`SectMapController.kt` + `SceneUpdateChannel.kt`）+ P1.7 面（`VulkanRenderBackend.kt`）。无越界文件、无副产物混入；P1.3（TrimMemoryBridge.kt）与 P1.4/P1.6 面未现，尚未提交。下轮盯切分提交纯度与 P1.3 收敛面。
+
 - **2026-09-23 05:28 监控轮（MR-1 进行态）**：派发后 16 分钟零文件产物 → GUI 直读判活 = 深度勘察期非停滞：P1.3/P1.5 接口关系已清（正设计 `CacheLayer.onMemoryTrimBridge(level)` 收敛入口）、核对 memory-audit B-6 原文（账本增长在 Kotlin 侧，C++ cap 仅 import 生效——找 GameCore 每旬结算入口作 tick 边界挂点）、P1.2 面清楚，正补 SectMapController 全文/ctest 测试样式/GLES 挂点最后几个探查点。下轮预期立卡笔+代码面展开。
 
 - **2026-09-23 04:58 监控轮（MR-0 进行态）**：三任务面齐头展开且全在预期面——P0.1 = `NativeEngineFlag.kt` + 新测试 `NativeEngineFlagMemorySubsystemTest.kt` + `core/engine/build.gradle`（疑 BuildConfig 接线）；P0.2 = 方案文档附录 A 在改；P0.0 = `docs/threading-contract.md` 持续成形；仍无提交。附带：三个构建/codegen 副产物被连带改写（已留言区提示勿混提交）。下轮盯首笔提交切分纯度（契约/旗标/附录应各自独立）。
