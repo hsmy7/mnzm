@@ -49,6 +49,9 @@ object GroundBoundaryBridge {
     const val MASK_BIT_QUAD = 1
     const val MASK_BIT_TREE = 2
 
+    /** 掩码全放行值（无数据降级口径——位组 3 = bit0|bit1） */
+    const val MASK_ALL = MASK_BIT_QUAD or MASK_BIT_TREE
+
     // ── 轮廓几何常量透传（消费端只用；单一权威值在 C++ ground_boundary.h，
     //    Kotlin 镜像值经 [GroundBoundaryGenerator] 透传，漂移由 DiffTest 即红）──
     /** 外扩上限（归一化）——chunk 免 clip 安全带判定用 */
@@ -108,5 +111,31 @@ object GroundBoundaryBridge {
             }
         }
         return GroundBoundaryGenerator.generate(cols, rows, tileSize, bottomDepth)
+    }
+
+    /**
+     * 从复合数据提取逐格掩码（地图边缘 v2 放置校验消费：bit0 = 格四角在轮廓内）。
+     *
+     * @return 行主序 `cols×rows` 字节副本（值 0..3）；输入为 null/非法返回 null
+     *   （调用方退回纯矩形口径——与渲染端无轮廓时的降级语义一致）。
+     */
+    // 防御性解析早退合同（版本/偏移/尺寸逐段校验，任一命中即 null）——
+    // 与 C++ groundBoundaryParse 同构，声明性豁免
+    @Suppress("ReturnCount")
+    fun tileMaskOf(composite: FloatArray?): ByteArray? {
+        if (composite == null || composite.size <= Header.FLOATS) return null
+        val f = Header.Field
+        if (composite[f.VERSION].toInt() != Header.VERSION) return null
+        val polyCount = composite[f.POLY_COUNT].toInt()
+        val cols = composite[f.COLS].toInt()
+        val rows = composite[f.ROWS].toInt()
+        if (polyCount < 3 || cols <= 0 || rows <= 0) return null
+        val maskOffset = composite[f.MASK_OFFSET].toInt()
+        val groundMeshOffset = composite[f.GROUND_MESH_OFFSET].toInt()
+        if (maskOffset != Header.FLOATS + polyCount * 2) return null
+        if (maskOffset + cols * rows != groundMeshOffset) return null
+        val out = ByteArray(cols * rows)
+        for (i in out.indices) out[i] = composite[maskOffset + i].toInt().toByte()
+        return out
     }
 }

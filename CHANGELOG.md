@@ -1,6 +1,16 @@
 ## [4.01.16] - 2026-09-22
 
 ### 地图边缘系统重构（2026-09-22）——IslandCliff 崖壁拼接整体退役 → 弯曲地皮轮廓（Ground Boundary）
+- 🟢 **边缘草地禁建 + 红色预览（2026-09-22 增补）**：`GridSystem` 增可选
+  `buildableMask`（轮廓逐格掩码，bit0=格在曲线内）——占地格任一格在轮廓外即
+  `OutOfBounds`（拖拽占地框红、确认/落子被拒，与矩形越界同态）；MainGameScreen
+  接线 `GroundBoundaryBridge.tileMaskOf` 提取掩码。第一阶段曲线不出树环带 ⇒
+  掩码判定与矩形环判定**逐格等价（行为零变化）**，`GridSystemGroundBoundaryTest`
+  对生产地图 128² 全部 16384 格逐格对拍锁定；第二阶段曲线加深/随机化后禁建边界
+  自动跟随曲线（该对拍即红，届时 C++ 事务臂 building_tx 需同步接入掩码）。
+  现有链路（拖动→validatePlacement→boxValid→overlay 绿/红占地框→确认按钮禁用
+  →C++ building_tx 树环复拒）保持不变。
+
 
 > 分支 `w5/ground-boundary-refactor`（基线 = SR-7 WIP `029d827bd`）。S1–S7 分步提交：
 > `b9d574cc8`(S1) `f8f0750f7`(S2) `5f8794e85`(S3) `caf03b51e`(S4) `ffe00e393`(S5) + 本笔(S6/S7)。

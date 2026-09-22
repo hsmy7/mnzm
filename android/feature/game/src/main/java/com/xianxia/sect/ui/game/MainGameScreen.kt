@@ -601,11 +601,19 @@ private fun rememberMainGameScreenRenderData(
         }
     }
 
+    // 弯曲地皮轮廓掩码（地图边缘 v2）：轮廓外草地不可建——放置/移动校验与
+    // 红色占地框的数据源。掩码派生自边界复合数据（地图尺寸变化才重建，
+    // 与 gridSystem 的 remember 键同一身份窗口）
+    val buildableMask = remember(tiles.groundBoundaryData) {
+        GroundBoundaryBridge.tileMaskOf(tiles.groundBoundaryData)
+    }
+
     // 网格系统（管理建筑放置与占用格查询）
-    val gridSystem = remember(mapData.tileSize, mapData.worldWidthCells, mapData.worldHeightCells) {
+    val gridSystem = remember(mapData.tileSize, mapData.worldWidthCells, mapData.worldHeightCells, buildableMask) {
         GridSystem(mapData.tileSize, mapData.worldWidthCells, mapData.worldHeightCells,
             buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
-            blockedCells = FixedSectGateway.blockedCells)
+            blockedCells = FixedSectGateway.blockedCells,
+            buildableMask = buildableMask)
     }
 
     // 空间索引 — O(1) 触控检测，替代 O(n) 线性查找
