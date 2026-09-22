@@ -3,6 +3,7 @@ package com.xianxia.sect.data.crypto
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -74,17 +75,19 @@ class SavePayloadSignerTest {
     }
 
     @Test
-    fun `master 密钥可派生且签名器不污染缓存`() {
-        // sign() 的降级分支（返回 null）需要密钥文件系统故障才能复现，本环境不可造；
-        // 至少钉住两件事：① master 可取（故障时本用例先红，便于归因）；
-        // ② 签名器不得清零 SecureKeyManager 的**引用缓存**（清零会让同进程后续
-        //    取键全为 0，污染网络签名链——RequestSigner 侧该问题另行登记）
+    fun `master 密钥可派生且本类不污染他人副本`() {
+        // sign() 的降级分支（返回 null）需要密钥文件系统故障或全零 master 才能复现，
+        // 本环境两者都造不出 ⇒ 至少钉住两条前置：
+        // ① master 可取且非全零（全零会被 deriveKey 拒绝派生，故障时本用例先红便于归因）；
+        // ② 本类派生后，他方取键内容不变（别名契约由 SecureKeyManagerKeyAliasTest 主防，
+        //    这里是"签名器站在健康 master 上"的端到端旁证）
         val master = SecureKeyManager.getOrCreateKey(context)
         assertTrue(master.isNotEmpty())
+        assertTrue("主密钥全零会被拒绝派生", master.any { it != 0.toByte() })
+        val before = master.copyOf()
+
         signer.sign(payload)
-        assertTrue(
-            "签名后再次取键必须仍非零（缓存未被清零）",
-            SecureKeyManager.getOrCreateKey(context).any { it != 0.toByte() }
-        )
+
+        assertArrayEquals("签名后他方取键内容漂移", before, SecureKeyManager.getOrCreateKey(context))
     }
 }
