@@ -3,7 +3,7 @@ feature: memory-management-refactor
 status: delivered
 updated: 2026-09-23
 branch: docs/memory-refactor-plan
-commits: 2fd4fe6a6..26fab8137
+commits: 2fd4fe6a6..c7643ae00
 ---
 
 # 内存管理差距分析与重构级方案
