@@ -25,6 +25,7 @@ import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.taptap.TapCloudSaveManager
+import com.xianxia.sect.ui.game.saveload.CloudSaveCacheWriter
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
@@ -58,6 +59,10 @@ import org.junit.Test
  * 3. LEGACY 模式门控（硬红线）：download 零调用；
  * 4. 落缓存失败中止 boot（不带病进游戏）；
  * 5. 迁移拒绝（saveVersion 越界）不落盘。
+ *
+ * SR-6 C4 起本夹具的 `cloudSaveCacheWriter` 是**真实组件**（吃同一批 mock，不 stub 空转），
+ * 因此上面 5 条锚定面同时是"下载落盘段抽入 `CloudSaveCacheWriter` 的行为等价"证据
+ * （SR-3 §5.2 登记的收敛前置条件）。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SaveLoadViewModelCloudSlotLoadTest {
@@ -110,6 +115,10 @@ class SaveLoadViewModelCloudSlotLoadTest {
         // collect 抛 KotlinNothingValueException，SR-2 §5.2 教训）
         every { persistenceFacade.saveBackend } returns saveBackend
         every { saveBackend.conflicts } returns conflictEvents
+        // SR-6 C4：下载落盘段改为**真实组件**（吃同一批 mock 依赖，不用空转 stub）——
+        // 本文件既有 13 例的断言因此同时是"抽段等价"的证据
+        every { persistenceFacade.cloudSaveCacheWriter } returns
+            CloudSaveCacheWriter(saveBackend, storageFacade, uploadLedger)
         every { persistenceFacade.uploadLedger } returns uploadLedger
         every { persistenceFacade.saveBackendModeProvider } returns saveBackendModeProvider
         every { saveBackendModeProvider.current() } returns SaveBackendMode.CLOUD_TRANSITION
