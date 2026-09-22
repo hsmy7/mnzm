@@ -68,9 +68,9 @@ import java.util.Locale
  * battleLogs 100→1000（月级战斗频率 20 年内饱和），装备/丹药等库存线性积累。
  * 单条样本内容取生产形状（中文 2-3 字名、长 id、丰富子结构）。
  *
- * **保留为 IN5 CI 断言种子**（方案 §3 IN5：CI 构造老玩家样本档断言 payload ≤ 红线）。
- * 当前仅打印曲线 + 宽松 sanity 断言（>0 且 < TapTap 10MB 硬上限）；
- * IN5 红线定值（SR-0 结论，见 docs/sr0-recon-report-2026-09-21.md）落地方再收紧。
+ * **IN5 CI 断言已落地**（方案 §3 IN5：CI 构造老玩家样本档断言 payload ≤ 红线）：
+ * 曲线逐档断言 `≤ StorageConstants.CLOUD_PAYLOAD_RED_LINE_BYTES`（2,000,000B，
+ * 定值出处见该常量 KDoc），另保留 TapTap 10MB 硬上限断言作为第二道兜底。
  */
 @RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -117,6 +117,14 @@ class CloudPayloadSizeBenchTest {
                     "${p.equipmentInstances}/${p.manualInstances}/${p.materials} | $raw | $compressed | " +
                     String.format(Locale.US, "%.2f", compressed / 1024.0 / 1024.0) + "MB | " +
                     String.format(Locale.US, "%.3f", ratio) + " |"
+            )
+            // IN5 红线（SR-7 落地）：撞 10MB 才判红 = 玩家档已经顶到 SDK 墙，太晚。
+            // 红线 = StorageConstants.CLOUD_PAYLOAD_RED_LINE_BYTES（SR-0 实测 0.29MB ⇒ ~7x 余量）
+            assertTrue(
+                "IN5 红线：${p.label} 的 LZ4 后 payload ${compressed}B 不得超过 " +
+                    "${StorageConstants.CLOUD_PAYLOAD_RED_LINE_BYTES}B" +
+                    "（新字段/日志膨胀第一时间在此判红，而非撞到 TapTap 硬上限）",
+                compressed <= StorageConstants.CLOUD_PAYLOAD_RED_LINE_BYTES
             )
             assertTrue("payload 应小于 TapTap 10MB 硬上限（${p.label}）",
                 compressed < 10L * 1024 * 1024)

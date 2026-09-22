@@ -69,6 +69,17 @@ object StorageConstants {
     
     /** WAL 最大文件大小 (MB) - 超过后触发 compact */
     const val MAX_WAL_SIZE_BYTES = 10L * 1024 * 1024  // 10MB
+
+    /**
+     * IN5 云档 payload 红线（字节）——方案 §3 IN5 要求"CI 构造老玩家样本档断言 ≤ 红线值"，
+     * 定值来自 SR-0 实测（`docs/sr0-recon-report-2026-09-21.md`：最大档 0.29MB =
+     * TapTap 10MB 硬上限的 2.8%，建议红线 2MB）。
+     *
+     * 与 `MAX_WAL_SIZE_BYTES` 那种"平台硬上限"刻意分开：硬上限判红意味着玩家档已经撞到
+     * SDK 墙（太晚），红线留出 ~7 倍增长余量，长新字段/长日志的第一时间就判红。
+     * 消费者：`CloudPayloadSizeBenchTest`（IN5 CI 守卫）。
+     */
+    const val CLOUD_PAYLOAD_RED_LINE_BYTES = 2_000_000L
     
     /** 单个快照最大大小 (MB) */
     const val MAX_SNAPSHOT_SIZE_BYTES = 50L * 1024 * 1024  // 50MB
