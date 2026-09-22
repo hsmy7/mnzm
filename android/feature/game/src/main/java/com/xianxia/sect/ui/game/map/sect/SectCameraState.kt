@@ -76,21 +76,19 @@ class SectCameraState(
         const val CENTER_THRESHOLD = 100f
 
         /**
-         * 浮空岛崖壁可见外扩边距（世界像素）。
+         * 弯曲地皮轮廓可见外扩边距（世界像素；地图边缘 v2——替代崖壁带外扩）。
          *
-         * 崖壁绘制于世界矩形外侧，**左右下三侧**（无上边缘）：
-         * - 左右崖壁横向伸入地图外 = 纹理宽（最大 1180）
-         * - 下崖壁纵向伸入地图外 = 纹理高（最大 2400，含转角）
-         * 相机 clamp 外扩此厚度后，视口 < 世界的轴可平移进入崖壁带 → 拖到
-         * 地图边缘即完整看见崖壁（「地图边缘自然过渡为悬崖」的可达性契约）；
-         * 视口 ≥ 世界的轴由 [clampPosition] 居中（整岛悬浮天际）。
+         * 轮廓控制在地图矩形 ±kGroundMaxOutset（归一化 0.016 ≈ 98px）带内，
+         * 底部岩石带向下伸出 bottomDepth = 768px（GroundBoundaryBridge.BOTTOM_DEPTH_PX）：
+         * 相机 clamp 外扩此厚度后，视口 < 世界的轴可平移看到完整岩石带下缘
+         * （「草皮边缘自然过渡为岩石底」的可达性契约）；视口 ≥ 世界的轴由
+         * [clampPosition] 居中（整岛悬浮天际）。
          *
-         * 取值 = max(左右纹理宽 1180, 下纹理高 2400) + 余量 100 = 2500。
-         * 与 IslandCliffBridge / gamecore/map/island_cliff.h 的锚定契约对齐
-         * （左/右环外缘 = x=0-纹理宽 / x=mapW+纹理宽；下环外缘 = y=mapH+纹理高）。
-         * 修改须同步 clampPosition 与 SectCameraStateTest 期望。
+         * 取值 = 岩石深度 768 + 轮廓外扩 ≈98 + 余量 ≈234 = 1100。
+         * 与 GroundBoundaryBridge.BOTTOM_DEPTH_PX / gamecore/map/ground_boundary.h
+         * 的振幅带契约对齐。修改须同步 clampPosition 与 SectCameraStateTest 期望。
          */
-        const val ISLAND_CLIFF_VISIBLE_OUTSET = 2500f
+        const val GROUND_BOUNDARY_VISIBLE_OUTSET = 1100f
 
         /**
          * 天空可视缩小系数：缩放下界 = 世界适配缩放 × 该系数——使视口略大于世界、
@@ -174,7 +172,7 @@ class SectCameraState(
      *
      * 双分支按轴独立：
      * - **视口 < 世界**（该轴仍在游玩缩放内）：世界边框不是视线硬边界，相机允许
-     *   外扩 [ISLAND_CLIFF_VISIBLE_OUTSET]——拖到地图边缘时崖壁进入视口
+     *   外扩 [GROUND_BOUNDARY_VISIBLE_OUTSET]——拖到地图边缘时崖壁进入视口
      *   （左右下三侧；「地图→悬崖」可见）；
      * - **视口 ≥ 世界**（该轴整岛已完整可见，典型为最小缩放的"悬浮天际"视角）：
      *   该轴居中——世界（含两侧对称天空）悬浮于视口中央。
@@ -185,7 +183,7 @@ class SectCameraState(
      *   崖壁钳制带一侧（SectCameraStateTest 居中三用例锁守的回归）。
      */
     override fun clampPosition(visibleW: Float, visibleH: Float) {
-        val outset = ISLAND_CLIFF_VISIBLE_OUTSET
+        val outset = GROUND_BOUNDARY_VISIBLE_OUTSET
         cameraX = if (visibleW >= worldWidth) (worldWidth - visibleW) / 2f
                   else cameraX.coerceIn(-outset, worldWidth + outset - visibleW)
         cameraY = if (visibleH >= worldHeight) (worldHeight - visibleH) / 2f

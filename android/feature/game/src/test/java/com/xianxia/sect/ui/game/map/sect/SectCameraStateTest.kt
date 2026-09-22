@@ -261,10 +261,10 @@ class SectCameraStateTest {
 
     // ==================== 平移与 clamp ====================
 
-    /** 崖壁带外扩边距（与 SectCameraState.ISLAND_CLIFF_VISIBLE_OUTSET 同值——修改必同步）。
+    /** 弯曲地皮轮廓外扩边距（与 SectCameraState.GROUND_BOUNDARY_VISIBLE_OUTSET 同值——修改必同步）。
      *  取值依据：7 张整块崖壁绘制于世界矩形外侧，左右伸入 = 纹理宽（最大 1180）、
      *  下伸入 = 纹理高（最大 2400）⇒ outset = 2400 + 余量 100。 */
-    private val edgeOutset = 2500f
+    private val edgeOutset = 1100f
 
     @Test
     fun `pan - with default scale moves camera by screen pixels over scale`() {
@@ -437,7 +437,7 @@ class SectCameraStateTest {
         }
         // 缩到最小：视口世界尺寸 ≥ 世界（整岛完整可见）→ 该轴居中——
         // 浮空岛悬浮天际契约（两侧对称天空，岛不滞留在崖壁钳制带一侧）。
-        // 注：居中触发阈值 = 视口 ≥ 世界（非世界 + 2×outset）——outset(2500)
+        // 注：居中触发阈值 = 视口 ≥ 世界（非世界 + 2×outset）——outset(1100)
         // 远超最小缩放视口的天空余量，以 outset 为门槛时居中分支在常见机型
         // 不可达（回归史：崖壁素材换代曾把该阈值抬到世界+2×outset）。
         camera.zoom(0.001f, phoneVpW / 2f, phoneVpH / 2f)
