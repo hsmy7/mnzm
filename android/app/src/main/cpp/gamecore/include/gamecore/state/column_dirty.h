@@ -440,6 +440,21 @@ public:
         markRowsShiftedFrom(0, rowCount);
     }
 
+    // ── 容量预留（MR1-P1.1/D4：位图几何扩容 + 加载 reserve）──────
+    /// 一次到位预留（加载/批量导入路径：先 reserve 再逐行 append，消灭
+    /// O(N²) 逐行重分配搬运——5000 弟子档加载面）。预期大表（DiscipleStore
+    /// 列）同时抬 [kMinRows] 行下限；小集合勿调本入口（走写屏障按需
+    /// 几何增长，不抬大表下限防浪费）。
+    void reserve(std::size_t rows) {
+        const std::size_t needWords = std::max(rows, kMinRows) * kWordsPerRow;
+        if (rowBitsSize_ >= needWords) return;
+        growTo(needWords);
+    }
+
+    /// 当前位图容量（行数；ColumnResizeGrowthTest 据容量变化次数断言分配次数
+    /// ——每次容量变化恰对应一次 growTo 分配，零生产测试钩子）
+    std::size_t capacityRows() const { return rowBitsSize_ / kWordsPerRow; }
+
     /// 集合 tombstone（按 id 删除；任意实体集合名，通用 API）
     void tombstone(const std::string& collection, const std::string& id) {
         tombstones_[collection].insert(id);
@@ -654,21 +669,42 @@ private:
     static constexpr std::size_t kWordsPerRow =
         (static_cast<std::size_t>(kDiscipleColumnCount) + 63) / 64;
 
+    // ── 几何扩容常量（MR1-P1.1/D4；原精确步进 = 加载 N 弟子 O(N²) memcpy 根因）──
+    /// 写屏障按需路径容量倍增因子
+    static constexpr std::size_t kGrowthFactor = 2;
+    /// 预期大表最小行容量（仅 reserve() 加载路径生效——DiscipleStore 列、
+    /// 5000 弟子档量级；写屏障按需路径禁止抬到此值防小集合浪费）
+    static constexpr std::size_t kMinRows = 1024;
+    /// 小集合起步行容量（写屏障按需路径下限）
+    static constexpr std::size_t kMinRowsSmall = 16;
+
     void ensureRowCapacity(std::size_t rows) {
-        const std::size_t need = rows * kWordsPerRow;
-        if (rowBitsSize_ >= need) return;
-        // 扩容仅在行结构变更路径（串行段）发生；新字 value-init 清零，
-        // 旧字逐字搬运（relaxed——扩容与并行置位不同时发生）
+        const std::size_t needWords = rows * kWordsPerRow;
+        if (rowBitsSize_ >= needWords) return;
+        // 几何增长（MR1-P1.1/D4）：max(need, 容量×kGrowthFactor, kMinRowsSmall)
+        // ——写屏障按需路径不抬 kMinRows（大表下限仅在 reserve() 生效），
+        // 小集合从 kMinRowsSmall 起步按 need 倍增，append 分配次数 =
+        // O(log) 而非逐行 O(N)（验收 ColumnResizeGrowthTest）。
+        const std::size_t grownWords = std::max({
+            needWords,
+            rowBitsSize_ * kGrowthFactor,
+            kMinRowsSmall * kWordsPerRow});
+        growTo(grownWords);
+    }
+
+    /// 扩容到 words 字（新字 value-init 清零，旧字逐字搬运；仅串行段调用，
+    /// 见 resetBaseline 的容量保留注释）
+    void growTo(std::size_t words) {
         std::unique_ptr<std::atomic<uint64_t>[]> grown(
-            new std::atomic<uint64_t>[need]);
-        for (std::size_t i = 0; i < need; ++i) {
+            new std::atomic<uint64_t>[words]);
+        for (std::size_t i = 0; i < words; ++i) {
             grown[i].store(i < rowBitsSize_
                                ? rowBits_[i].load(std::memory_order_relaxed)
                                : 0,
                            std::memory_order_relaxed);
         }
         rowBits_ = std::move(grown);
-        rowBitsSize_ = need;
+        rowBitsSize_ = words;
     }
 
     void setBit(std::size_t row, DiscipleColumn col) {

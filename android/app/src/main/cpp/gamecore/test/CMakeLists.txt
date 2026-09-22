@@ -39,6 +39,7 @@ add_executable(game-core-tests
     result_test.cpp
     item_id_reseed_test.cpp
     ai_corpse_budget_test.cpp
+    memory_trim_test.cpp
     disciple_derived_maps_test.cpp
     storage_bag_capacity_test.cpp
     game_core_test.cpp
@@ -170,6 +171,11 @@ target_compile_features(game-core-tests PRIVATE cxx_std_20)
 # 静态库本体保持零渲染依赖）。scene_equivalence_test（R3.2）另需 SpriteBatcher。
 target_include_directories(game-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
+)
+# MR1-P1.6/P1.7 结构守卫：源码文本断言的仓库 cpp 根（GameCoreBridge.cpp /
+# VulkanBackend.cpp / gamecore/jni/GameCoreJni.cpp 相对定位）
+target_compile_definitions(game-core-tests PRIVATE
+    MR1_CPP_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../.."
 )
 target_sources(game-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../SpriteBatcher.cpp

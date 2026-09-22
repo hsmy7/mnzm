@@ -352,13 +352,13 @@ void     clearEpoch();                    // surface 纪元死亡：整表失效
 
 ### Phase 1 — 止血 + 压力闭环（可先交付）
 
-- [ ] **P1.1** `ensureRowCapacity` 几何增长 + 加载 `reserve`（D4） — acceptance: `ColumnResizeGrowthTest` 过 (covers: D4)
-- [ ] **P1.2** `sectMapCache` LRU/上限 + `pushedTerrain` 旧引用释放（D6 上半） — acceptance: 上限单测过 (covers: D6)
-- [ ] **P1.3** `TrimMemoryBridge` **收敛** GameActivity/Application/CacheLayer/GameLoopDelegate 现有 trim + `onLowMemory` 实装 + 档位映射 + 双发去抖（D3） — acceptance: `TrimDispatchTest` 过；`TrimConsumerCountGuardTest` 过；CRITICAL 不空转 (covers: D3)
-- [ ] **P1.4** `AtlasAsyncPipeline` 失败/重试路径 **手动** release 旧纹理 id（在 TextureCache 合入前的过渡：直接调既有 JNI `destroyTexture`） — acceptance: 同纪元重试 GPU 纹理数不增（单测/mock） (covers: M-P0-1 过渡; depends: 无)
-- [ ] **P1.5** 账本 tick/settle cap 与 import 同源（D6 下半） — acceptance: 双端同常量守卫 (covers: M-P1-4)
-- [ ] **P1.6** `jbytesToString` 空指针检查 + 大 JNI release RAII 化（M-P2-7/M-P2-8，廉价根因项） — acceptance: 空入参单测；无裸大缓冲泄漏路径 (covers: M-P2-7/8)
-- [ ] **P1.7** `m_pendingDraws` reserve + `m_textures` 查找收窄（M-P2-3/M-P2-4 轻量半边） — acceptance: 单测/结构断言；不改语义 (covers: M-P2-3/4)
+- [x] **P1.1** `ensureRowCapacity` 几何增长 + 加载 `reserve`（D4） — acceptance: `ColumnResizeGrowthTest` 过 (covers: D4)
+- [x] **P1.2** `sectMapCache` LRU/上限 + `pushedTerrain` 旧引用释放（D6 上半） — acceptance: 上限单测过 (covers: D6)
+- [x] **P1.3** `TrimMemoryBridge` **收敛** GameActivity/Application/CacheLayer/GameLoopDelegate 现有 trim + `onLowMemory` 实装 + 档位映射 + 双发去抖（D3） — acceptance: `TrimDispatchTest` 过；`TrimConsumerCountGuardTest` 过；CRITICAL 不空转 (covers: D3)
+- [x] **P1.4** `AtlasAsyncPipeline` 失败/重试路径 **手动** release 旧纹理 id（在 TextureCache 合入前的过渡：直接调既有 JNI `destroyTexture`） — acceptance: 同纪元重试 GPU 纹理数不增（单测/mock） (covers: M-P0-1 过渡; depends: 无)
+- [x] **P1.5** 账本 tick/settle cap 与 import 同源（D6 下半） — acceptance: 双端同常量守卫 (covers: M-P1-4)
+- [x] **P1.6** `jbytesToString` 空指针检查 + 大 JNI release RAII 化（M-P2-7/M-P2-8，廉价根因项） — acceptance: 空入参单测；无裸大缓冲泄漏路径 (covers: M-P2-7/8)
+- [x] **P1.7** `m_pendingDraws` reserve + `m_textures` 查找收窄（M-P2-3/M-P2-4 轻量半边） — acceptance: 单测/结构断言；不改语义 (covers: M-P2-3/4)
 
 ### Phase 2 — GPU 子系统（D1 + staging trim）
 

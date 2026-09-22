@@ -376,6 +376,8 @@ void VulkanBackend::destroySurfaceGeneration() {
         if (tex.sampler) { vkDestroySampler(m_device, tex.sampler, nullptr); tex.sampler = VK_NULL_HANDLE; }
     }
     m_textures.clear();
+    // MR1-P1.7：表清空使查表单槽缓存失效（descSet 版本递增）
+    m_descSetCacheVersion.fetch_add(1, std::memory_order_relaxed);
     // 退役队列一并清空（纹理资源已由上方循环/白纹清理释放；waitIdle 后无在途采样）
     m_retiredTextures.clear();
 
@@ -1534,6 +1536,9 @@ void VulkanBackend::updateTextureDescriptor(Texture& tex) {
         LOGE("updateTextureDescriptor: pool/layout not ready");
         return;
     }
+    // MR1-P1.7/M-P2-4：descSet 写点递增版本号——submitFrame 的查表单槽缓存
+    // 据此失效（version 未变 ⇒ 槽内 descSet 与锁内重查等价）
+    m_descSetCacheVersion.fetch_add(1, std::memory_order_relaxed);
     // 独立描述符集：未分配则先分配（池/布局在 createPipeline 中创建）
     if (tex.descSet == VK_NULL_HANDLE) {
         VkDescriptorSetAllocateInfo alloc{};
@@ -2820,6 +2825,14 @@ void VulkanBackend::submitFrame() {
                 VkDescriptorSet target = VK_NULL_HANDLE;
                 if (draw.textureId == 0) {
                     target = m_whiteTexture.descSet;
+                } else if (draw.textureId == m_cachedTexId &&
+                           m_cachedAtVersion ==
+                               m_descSetCacheVersion.load(std::memory_order_relaxed)) {
+                    // MR1-P1.7/M-P2-4 查找收窄命中：version 未变 ⇒ 自上次锁内
+                    // 查询以来任何 descSet 均未被改写/表未清空——槽内句柄与
+                    // 锁内重查结果逐位一致，免锁免扫描（A/B 交错切换模式
+                    // 不再逐次全表扫描）。语义零漂移。
+                    target = m_cachedDescSet;
                 } else {
                     // ★ 短临界区（m_gpuMutex）：m_textures 查表——上传线程可能正在
                     //   push_back（vector 扩容重分配），无锁遍历读到悬垂内存即
@@ -2838,6 +2851,12 @@ void VulkanBackend::submitFrame() {
                         // 纹理未找到/描述符集未就绪时回退到白色纹理
                         target = m_whiteTexture.descSet;
                         currentBoundTexId = 0;  // 下次遇到 ID≠0 会重新查找
+                    } else {
+                        // 登记单槽缓存（渲染线程私有写；descSet 变更点递增版本自动失效）
+                        m_cachedTexId = draw.textureId;
+                        m_cachedDescSet = target;
+                        m_cachedAtVersion =
+                            m_descSetCacheVersion.load(std::memory_order_relaxed);
                     }
                 }
                 if (target != VK_NULL_HANDLE && target != currentSet) {

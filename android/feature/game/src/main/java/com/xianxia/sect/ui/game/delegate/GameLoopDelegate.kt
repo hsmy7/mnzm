@@ -1,9 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
-import android.content.ComponentCallbacks2
 import android.util.Log
-import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.releaseMemory
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.monitor.StallVerdict
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -24,7 +21,6 @@ import com.xianxia.sect.core.engine.progressVerdict
 
 
 class GameLoopDelegate(
-    private val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
     private val systemManager: SystemManager,
     private val scope: CoroutineScope,
@@ -97,14 +93,6 @@ class GameLoopDelegate(
                 } catch (e: CancellationException) { throw e }
                   catch (e: Exception) { DomainLog.e(TAG, "HealthCheck: error", e) }
             }
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    fun onMemoryPressure(level: Int) {
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE) {
-            Log.w(TAG, "Memory pressure: $level, releasing resources")
-            gameEngine.releaseMemory(level)
         }
     }
 

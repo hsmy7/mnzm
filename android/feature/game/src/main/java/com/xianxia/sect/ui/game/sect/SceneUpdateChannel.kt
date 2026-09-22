@@ -99,6 +99,42 @@ class SceneUpdateChannel(private val sink: Sink) {
         return calls
     }
 
+    /**
+     * 释放全部已推送基线引用（MR1-P1.2/D6：`pushedTerrain` 等基线在场景/宗门
+     * 切换或内存压力时显式置空）——旧宗门的大数组（地形瓦片整表等）不再被本
+     * 通道滞留，GC 可即时回收；下一帧全部端口按「无基线」判脏整体重推当前
+     * 场景（重推 = 当前数据，语义无损，仅一次额外触线）。
+     *
+     * 调用面：内存 trim（Bridge → 渲染宿主）与场景切换；渲染线程或主线程
+     * 调用皆可（基线字段无并发读者——与 push 同线程纪律）。
+     *
+     * @return 被释放的基线引用数（观测面）
+     */
+    fun releaseBaselines(): Int {
+        var released = 0
+        if (pushedTerrain != null) released++
+        pushedTerrain = null
+        pushedTerrainCols = 0
+        pushedTerrainRows = 0
+        pushedTerrainTileSize = 0
+        if (pushedBuildings != null) released++
+        pushedBuildings = null
+        pushedBuildingCount = -1
+        if (pushedCrops != null) released++
+        pushedCrops = null
+        if (pushedRoads != null) released++
+        pushedRoads = null
+        if (pushedClouds != null) released++
+        pushedClouds = null
+        if (pushedGroundBoundary != null) released++
+        pushedGroundBoundary = null
+        pushedAtlasTexId = -1
+        pushedSelection = SENTINEL_NO_SELECTION
+        if (pushedMarkers != null) released++
+        pushedMarkers = null
+        return released
+    }
+
     /** 地形（引用 + 网格尺寸/格像素协议字段任一变化才重导整表） */
     private fun pushTerrain(inputs: SceneUpdateInputs): Int {
         val frame = inputs.frame

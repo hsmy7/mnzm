@@ -26,7 +26,11 @@
 
 class VulkanBackend final : public Renderer2D {
 public:
-    VulkanBackend() = default;
+    VulkanBackend() {
+        // MR1-P1.7/M-P2-3：帧绘制命令队列一次预留（常量在 .cpp 定义区），
+        // 高峰帧（放置模式数千项）不再触发多次几何重分配搬移
+        m_pendingDraws.reserve(kPendingDrawsReserveHint);
+    }
     ~VulkanBackend() override { shutdown(); }
 
     /** 最后一次成功读取的 Vulkan 驱动版本号（0 = 未知/未初始化） */
@@ -339,7 +343,23 @@ private:
         int count;              // 顶点数
         uint32_t textureId;     // 纹理 ID
     };
+    /// MR1-P1.7/M-P2-3：构造期一次 reserve（帧路径唯一堆增长面——
+    /// clear() 保留容量，稳态零分配；hint 消除首遇高峰帧内的多次几何
+    /// 重分配搬移。峰值仍由 VBO 溢出守卫间接约束）
     std::vector<DrawCommand> m_pendingDraws;
+
+    /// m_pendingDraws 预留 hint（条目；常态帧数十项、放置模式峰值数千项的
+    /// 折中值——预留 512×12B ≈ 6KB，高峰帧内零 realloc）
+    static constexpr size_t kPendingDrawsReserveHint = 512;
+
+    // ── 查表单槽缓存（MR1-P1.7/M-P2-4 收窄半边；语义等价于锁内重查）──
+    /// descSet 写/表清空点递增（updateTextureDescriptor / destroySurfaceGeneration）
+    std::atomic<uint32_t> m_descSetCacheVersion{0};
+    /// 渲染线程 submitFrame 单写单读：最近一次锁内命中的 (texId, descSet)
+    /// 及其登记时版本——version 未变 ⇒ descSet 未被改写 ⇒ 免锁免扫描复用
+    uint32_t m_cachedTexId = UINT32_MAX;
+    VkDescriptorSet m_cachedDescSet = VK_NULL_HANDLE;
+    uint32_t m_cachedAtVersion = 0;
 
     // VBO 双缓冲偏移
     int m_vboOffset = 0;                            // 当前帧 VBO 写入位置（字节偏移）

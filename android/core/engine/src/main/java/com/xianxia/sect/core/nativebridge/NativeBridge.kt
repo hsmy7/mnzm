@@ -135,9 +135,18 @@ object NativeBridge {
     /**
      * 删除纹理（Rhi 契约——GLES 入待删队列由渲染线程持上下文删除；
      * Vulkan 延迟释放在途帧采样结束后销毁）。id=0（白纹理）/无渲染器时无操作。
-     * Kotlin 暂无调用方——图集重建路径未来接入时免坑。
+     * 调用方 = 图集重建过渡释放（MR1-P1.4；MR3 起经 TextureCache release）。
      */
     external fun destroyTexture(id: Int)
+
+    /**
+     * 内存 trim 档位投递（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道
+     * 渲染面）。命令投递式：任意 Kotlin 线程可投；渲染线程 beginFrame 帧边界
+     * 取走消费（trim 回调线程禁止 GPU 操作/纹理重上传）。
+     *
+     * @param level TrimMemoryBridge.MemoryTrimLevel 序数
+     */
+    external fun nativeMemoryTrim(level: Int)
 
     /**
      * 上传 RGBA **mip 链**纹理（2.3：RGBA 回退路径真 mip），返回纹理 ID；0 = 失败。

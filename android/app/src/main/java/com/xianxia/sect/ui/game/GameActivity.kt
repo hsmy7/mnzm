@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game
 
 import android.annotation.SuppressLint
 import android.app.AlarmManager
-import android.content.ComponentCallbacks2
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -35,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.xianxia.sect.R
 import com.xianxia.sect.core.CrashHandler
+import com.xianxia.sect.core.memory.TrimMemoryBridge
 import com.xianxia.sect.core.CrashRecoveryEngine
 import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
@@ -239,6 +239,9 @@ class GameActivity : ComponentActivity() {
         applySafeModeThemeIfNeeded()
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
+
+        // TrimMemoryBridge UI 资源动作面（MR1-P1.3；onDestroy 对称注销）
+        registerTrimUiResourceAction()
 
         // 窗口背景/崩溃处理器/渲染策略/系统 UI
         setupWindowAndDiagnostics()
@@ -1082,6 +1085,8 @@ class GameActivity : ComponentActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         actionModeTracker?.finishActiveActionMode()
         actionModeTracker = null
+        // TrimMemoryBridge UI 资源动作面注销（onCreate 对称）
+        unregisterTrimUiResourceAction()
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
         if (::adServiceImpl.isInitialized) adServiceImpl.detachActivity()
@@ -1111,34 +1116,34 @@ class GameActivity : ComponentActivity() {
         // ViewModel.onCleared() 中会调用 stopGameLoopAndWait() 来停止游戏循环。
     }
 
-    override fun onLowMemory() {
-        super.onLowMemory()
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        when (level) {
-            ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
-                // Release UI-only resources
+    /**
+     * 注册 TrimMemoryBridge 的 UI 资源动作面（MR1-P1.3 收敛——原 onTrimMemory/
+     * onLowMemory 分支迁此，Activity 不再保留任何系统 trim 消费入口）。
+     * 动作语义（不触碰任何进度语义，只放可重建资源）：
+     * - SOFT 起：驱逐非当前宗门图缓存（LRU 驱逐的可重建面）
+     * - CRITICAL：地图预载引用置空 + 丢弃未消费图集预取（21MB 级）
+     */
+    private fun registerTrimUiResourceAction() {
+        TrimMemoryBridge.uiResourceTrimAction = TrimMemoryBridge.UiResourceTrimAction { level ->
+            when (level) {
+                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.SOFT,
+                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.AGGRESSIVE,
+                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.CRITICAL ->
+                    viewModel.sectMapEvictAction()
+                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.NONE -> Unit
             }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
-            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
+            if (level == com.xianxia.sect.core.domain.memory.MemoryTrimLevel.CRITICAL) {
                 // 释放地图 Bitmap 引用以允许 GC 回收内存（ImageBitmap 无 recycle API）
                 mapPreloadDataRef = null
                 // 丢弃未消费的图集预取缓存（21MB 级）——
                 // 已被上传路径消费时为空操作；未消费时丢弃后由 surface 期重新读取
                 com.xianxia.sect.ui.game.sect.SectAtlasPrefetch.clear()
             }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
-            ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> {
-                Log.w(TAG, "运行时内存压力(level=$level)")
-            }
-            ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
-                Log.w(TAG, "内存适中压力，建议释放部分资源")
-            }
         }
+    }
+
+    private fun unregisterTrimUiResourceAction() {
+        TrimMemoryBridge.uiResourceTrimAction = null
     }
 
     /**

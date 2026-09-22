@@ -350,6 +350,11 @@ public:
     /// 全量装载（清空后按序追加；JSON 导入/全量回导用）
     void loadFromVector(const std::vector<Disciple>& disciples);
 
+    /// 批量装载预留（MR1-P1.1/D4：全部列 + 列级写屏障位图一次 reserve(n)
+    /// ——loadFromVector 已内置调用；直接逐行 append 的批量入口也应先调本
+    /// 方法，消灭逐行 push_back 的 O(N²) 重分配搬运）
+    void reserveRows(std::size_t n);
+
     // ============================================================
     // 行级变更（保持行序：删除为原位 erase，新增为末尾追加）
     // ============================================================

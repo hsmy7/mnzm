@@ -189,6 +189,30 @@ class SceneUpdateChannelTest {
     }
 
     @Test
+    fun `releaseBaselines - 释放后下帧全端口重推当前场景`() {
+        // MR1-P1.2/D6：trim/切换时显式释放基线引用——旧宗门地形整表等大数组
+        // 不被通道滞留；下帧按「无基线」判脏整体重推（当前数据，语义无损）
+        channel.push(inputs())
+        sink.calls.clear()
+        assertEquals("稳态零跨线前提", 0, channel.push(inputs()))
+
+        val released = channel.releaseBaselines()
+        assertTrue("应释放到手的基线引用", released > 0)
+
+        sink.calls.clear()
+        val pushesAfterRelease = channel.push(inputs())
+        // 9 = 10 端口 - preview：预览基线是 16 浮点**值暂存**（pushedPreview
+        // scratch，非大数组引用），不在释放面——释放语义针对引用滞留
+        assertEquals("释放后引用基线端口全部重推", 9, pushesAfterRelease)
+        assertTrue(sink.calls.contains("terrain"))
+    }
+
+    @Test
+    fun `releaseBaselines - 空基线时返回零`() {
+        assertEquals("无基线可释放", 0, channel.releaseBaselines())
+    }
+
+    @Test
     fun `camera-only change costs no scene import call`() {
         val first = inputs()
         channel.push(first)

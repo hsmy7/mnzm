@@ -50,7 +50,25 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
     private var buildThread: Thread? = null
 
     /**
+     * 上一轮成功上传的 GPU 纹理 id（图集/地面/岩石；MR1-P1.4——M-P0-1 过渡）。
+     * 同纪元重跑（降级链重试/ASTC→RGBA 回退）会创建**新**纹理，旧 id 若不显式
+     * 释放即 GPU 纹理泄漏（`atlasTextureId` 覆盖写，旧 id 无人持有）。仅主线程
+     * 访问（[start]/[uploadAtlas] 均经 mainHandler.post 回主线程）。
+     * MR3 起 TextureCache 键控缓存接手后，本过渡直调面整体替换。
+     */
+    private val previousRoundTextureIds = ArrayList<Int>()
+
+    /** 记录本轮成功上传的纹理 id（主线程；供下一轮 start 前释放） */
+    private fun trackUploadedTexture(id: Int) {
+        if (id > 0) previousRoundTextureIds.add(id)
+    }
+
+    /**
      * 启动一轮流水线：后台拼装 → 主线程上传。
+     *
+     * 同纪元重跑（降级链重试/ASTC→RGBA 回退轮）入口先释放上一轮纹理 id
+     * （过渡直调 [NativeBridge.destroyTexture]；MR3 起由 TextureCache 替换；
+     * C++ 侧查找失败为 no-op，surface 纪元已清空时无害）。
      *
      * @param context 资源上下文
      * @param gen 发起时的 surface 纪元（stale 守卫；发起线程读取后传入）
@@ -65,6 +83,14 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         allowCompressed: Boolean,
         onReady: (Int) -> Unit
     ) {
+        for (id in previousRoundTextureIds) NativeBridge.destroyTexture(id)
+        if (previousRoundTextureIds.isNotEmpty()) {
+            android.util.Log.i(
+                NativeSurfaceView.LOG_TAG,
+                "buildAtlas: released ${previousRoundTextureIds.size} stale texture id(s) from previous round"
+            )
+        }
+        previousRoundTextureIds.clear()
         buildThread = kotlin.concurrent.thread(name = "AtlasBuild", isDaemon = true) {
             val payload = prepareAtlas(context, software, allowCompressed)
             if (gen != view.surfaceProvider.generation) return@thread
@@ -91,10 +117,13 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         }
     }
 
-    /** 打断在飞的拼装并清引用（surface 销毁路径）。不 join——拼装是 CPU 密集循环，主线程 join 会退化成"换了个地方阻塞"。 */
+    /** 打断在飞的拼装并清引用（surface 销毁路径）。不 join——拼装是 CPU 密集循环，主线程 join 会退化成"换了个地方阻塞"。
+     *  纹理登记同步清空：surface 纪元死亡时 C++ 侧已整表销毁（destroySurfaceGeneration），
+     *  保留旧 id 会在新纪元误触发无害但无意义的 destroy 查找。 */
     fun cancel() {
         buildThread?.interrupt()
         buildThread = null
+        previousRoundTextureIds.clear()
     }
 
     /**
@@ -327,6 +356,7 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
                 NativeSurfaceView.LOG_TAG,
                 "buildAtlas: ASTC compressed atlas uploaded (id=$id)"
             )
+            trackUploadedTexture(id)
             uploadStandaloneRepeatTextures(context, payload)
         }
         return id
@@ -344,7 +374,8 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
 
     /** RGBA 上传分支：mip 链多级上传，native 拒绝时单级回退 */
     private fun uploadRgbaAtlas(context: android.content.Context, payload: AtlasPayload): Int {
-        val texId = uploadMipChainOrFallback(payload)
+        val texId = tryMipChainUpload(payload) ?: fallbackSingleLevelUpload(payload)
+        if (texId != 0) trackUploadedTexture(texId)
         uploadStandaloneRepeatTextures(context, payload)
         // 不调 recycle()：避免国产 ROM NativeAllocationRegistry CleanerThunk
         //   double-free SIGABRT。Vulkan/GLES 模式下 atlasBitmap 不
@@ -352,14 +383,6 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         view.atlasBitmap = null
         return texId
     }
-
-    /**
-     * mip 链上传：native 拒绝（后端不支持/校验失败/部分驱动异常）
-     * 时**单级回退**——mip 链为 level-major 紧凑布局，首级 = 完整图集像素，
-     * [NativeBridge.uploadTextureDirect] 按 buffer 起始地址读取。
-     */
-    private fun uploadMipChainOrFallback(payload: AtlasPayload): Int =
-        tryMipChainUpload(payload) ?: fallbackSingleLevelUpload(payload)
 
     /** mip 链上传尝试（返回 null = 无链/被拒绝，走单级回退并记日志） */
     private fun tryMipChainUpload(payload: AtlasPayload): Int? {
@@ -420,10 +443,13 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         val grass = com.xianxia.sect.feature.game.R.drawable.map_grass_1
         val rock = com.xianxia.sect.feature.game.R.drawable.map_rock_base
         upload(grass, payload.groundPixels, payload.groundWidth, payload.groundHeight, "groundTexture") { px, w, h ->
-            publishGroundTextureId(NativeBridge.uploadGroundTextureDirect(px, w, h))
+            val groundId = NativeBridge.uploadGroundTextureDirect(px, w, h)
+            trackUploadedTexture(groundId)
+            publishGroundTextureId(groundId)
         }
         upload(rock, payload.rockPixels, payload.rockWidth, payload.rockHeight, "rockTexture") { px, w, h ->
-            NativeBridge.uploadRockTextureDirect(px, w, h)
+            // 岩石纹理 id 原先直接丢弃（无人持有）——同纪元重跑即泄漏，纳入登记
+            trackUploadedTexture(NativeBridge.uploadRockTextureDirect(px, w, h))
         }
     }
 

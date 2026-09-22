@@ -59,6 +59,13 @@ static std::atomic<bool> g_resizeRequested{false};
 static std::atomic<int> g_pendingResizeW{0};
 static std::atomic<int> g_pendingResizeH{0};
 
+// ── 内存 trim 水位通道（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 渲染面）——
+//    UI 主线程（TrimMemoryBridge 收敛后）仅投递档位（命令投递式），渲染线程在
+//    帧边界（beginFrame）取走消费；trim 回调线程禁止任何 GPU 操作/纹理重上传
+//    （表三）。MR1 消费动作 = 日志留痕；真实 GPU 收缩面（trimHostPool /
+//    TextureCache.trim）随 MR2/MR3 在本消费点接入，仍渲染线程独占。 ──
+static std::atomic<int> g_pendingRenderTrim{0};   // TrimMemoryBridge.MemoryTrimLevel 序数
+
 /** Harvest the last init error from a renderer about to be discarded (or inline value). */
 static void harvestInitError(RenderInitError err) {
     g_lastInitError.store(static_cast<int>(err), std::memory_order_release);
@@ -602,6 +609,28 @@ const void* lockDirectPixels(JNIEnv* env, jobject buffer, jint width, jint heigh
     }
     return pixels;
 }
+
+/// JNI 大缓冲 Get/Release RAII 配对（MR1-P1.6/M-P2-8：22MB 级压缩图集
+/// 上传缓冲——中间路径异常展开时析构保证释放，消灭裸大缓冲泄漏窗口）
+class ScopedByteArrayElements {
+public:
+    ScopedByteArrayElements(JNIEnv* env, jbyteArray array)
+        : env_(env), array_(array),
+          bytes_(array ? env->GetByteArrayElements(array, nullptr) : nullptr) {}
+    ~ScopedByteArrayElements() {
+        if (bytes_) env_->ReleaseByteArrayElements(array_, bytes_, JNI_ABORT);
+    }
+    ScopedByteArrayElements(const ScopedByteArrayElements&) = delete;
+    ScopedByteArrayElements& operator=(const ScopedByteArrayElements&) = delete;
+
+    const jbyte* get() const { return bytes_; }
+    explicit operator bool() const { return bytes_ != nullptr; }
+
+private:
+    JNIEnv* env_;
+    jbyteArray array_;
+    jbyte* bytes_;
+};
 }  // namespace
 
 extern "C" JNIEXPORT jint JNICALL
@@ -615,8 +644,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadTextureDirect(
     return static_cast<jint>(g_renderer->uploadTexture(pixels, width, height));
 }
 
-/** 纹理删除出口（Kotlin 暂无调用方，契约完整即可——图集重建路径
- *  未来接入时免坑。GLES 入待删队列由渲染线程删除；Vulkan 延迟释放在途帧后） */
+/** 纹理删除出口（MR1-P1.4 起有 Kotlin 调用方：AtlasAsyncPipeline 同纪元重跑
+ *  的过渡释放——MR3 起由 TextureCache release 接管。GLES 入待删队列由渲染线程
+ *  删除；Vulkan 延迟释放在途帧后） */
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_destroyTexture(
     JNIEnv* /*env*/, jobject /*thiz*/, jint id) {
@@ -706,12 +736,15 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadCompressedAtlas(
     const jsize len = env->GetArrayLength(ktxData);
     if (len <= 0) return 0;
 
-    jbyte* bytes = env->GetByteArrayElements(ktxData, nullptr);
-    if (!bytes) return 0;
+    // 22MB 级大缓冲（M-P2-8/MR1-P1.6）：RAII 配对 Get/Release——中间路径
+    // 异常展开时析构保证释放；GetByteArrayElements 失败返回 null 时跳过
+    //（与既有 null 检查同语义，统一走 guard）。
+    ScopedByteArrayElements scoped(env, ktxData);
+    if (!scoped) return 0;
 
     KtxInfo info;
     uint32_t id = 0;
-    if (loadKtx1(reinterpret_cast<const uint8_t*>(bytes), static_cast<size_t>(len), info)) {
+    if (loadKtx1(reinterpret_cast<const uint8_t*>(scoped.get()), static_cast<size_t>(len), info)) {
         if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
             id = vk->uploadCompressedTexture(
                 info.data, info.dataSize,
@@ -724,7 +757,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadCompressedAtlas(
         LOGW("uploadCompressedAtlas: KTX 校验失败，回退 RGBA 图集");
     }
 
-    env->ReleaseByteArrayElements(ktxData, bytes, JNI_ABORT);
     return static_cast<jint>(id);
 }
 
@@ -749,9 +781,24 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setTextureQuality(
 // 帧渲染
 // ============================================================
 
+/** 内存 trim 档位投递（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道渲染面）。
+ *  命令投递式：任意 Kotlin 线程可投；渲染线程 beginFrame 帧边界取走消费。
+ *  level = TrimMemoryBridge.MemoryTrimLevel 序数（0=NONE/1=SOFT/2=AGGRESSIVE/3=CRITICAL）。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_nativeMemoryTrim(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint level) {
+    g_pendingRenderTrim.store(static_cast<int>(level), std::memory_order_relaxed);
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_beginFrame(
     JNIEnv* /*env*/, jobject /*thiz*/) {
+    // MR1-P1.3：渲染线程帧边界消费 trim 水位（trim 回调线程禁止 GPU 操作/
+    // 纹理重上传——真实收缩面随 MR2 trimHostPool / MR3 TextureCache.trim 接入）
+    const int trimLevel = g_pendingRenderTrim.exchange(0, std::memory_order_relaxed);
+    if (trimLevel > 0) {
+        LOGI("memory trim consumed at frame boundary: level=%d", trimLevel);
+    }
     if (g_renderer) g_renderer->beginFrame();
 }
 

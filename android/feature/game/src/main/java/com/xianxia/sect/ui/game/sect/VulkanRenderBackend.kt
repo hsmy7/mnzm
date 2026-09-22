@@ -49,6 +49,13 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     // shutdownRenderer 已同步清空 SceneStore）。
     private val sceneUpdates = SceneUpdateChannel(nativeSceneUpdateSink)
 
+    /**
+     * 释放场景脏更新基线引用（MR1-P1.2/D6：内存 trim 面——旧宗门地形整表等
+     * 大数组不再被基线滞留，GC 即时回收；下一帧按「无基线」整体重推当前场景，
+     * 重推 = 当前数据，语义无损）。@return 被释放的基线引用数（观测面）
+     */
+    fun releaseSceneBaselines(): Int = sceneUpdates.releaseBaselines()
+
     init {
         // 渲染特性开关推送：surface 重建后 C++ globals 已重置为默认全开，
         // 此处重放当前配置值（仿 pushRenderQuality 重放语义）

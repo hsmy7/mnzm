@@ -2,10 +2,9 @@
 
 package com.xianxia.sect.data.cache
 
-import android.app.Application
-import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.core.domain.memory.MemoryTrimLevel
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.memory.DynamicMemoryManager
 import com.xianxia.sect.data.memory.MemoryEventListener
@@ -200,7 +199,7 @@ class GameDataCacheManager @Inject constructor(
     private val config: CacheConfig = CacheConfig.DEFAULT,
     internal val memoryManager: DynamicMemoryManager? = null,
     private val scopeProvider: CoroutineScopeProvider
-) : MemoryEventListener, ComponentCallbacks2 {
+) : MemoryEventListener {
     companion object {
         internal const val TAG = "GameDataCacheManager"
         internal const val STATS_LOG_INTERVAL_MS = 300_000L
@@ -278,14 +277,9 @@ class GameDataCacheManager @Inject constructor(
     // ==================== Initialization ====================
 
     init {
-        // 防御兜底: 回调注册失败不阻断启动, 异常类型不可枚举
-        @Suppress("TooGenericExceptionCaught")
-        try {
-            (context.applicationContext as Application).registerComponentCallbacks(this)
-            Log.i(TAG, "ComponentCallbacks2 registered for onTrimMemory")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to register ComponentCallbacks2: ${e.message}")
-        }
+        // MR1-P1.3：原自注册 ComponentCallbacks2（第二 trim 消费者）随 trim 收敛
+        // 删除——系统回调唯一入口 = XianxiaApplication → TrimMemoryBridge，
+        // 档位动作经 [onMemoryTrimBridge] 回到本类，避免双消费。
 
         performStartupMemoryBudgetCheck()
         startBackgroundTasks()
@@ -300,48 +294,26 @@ class GameDataCacheManager @Inject constructor(
         }
     }
 
-    // ==================== ComponentCallbacks2 ====================
+    // ==================== TrimMemoryBridge 动作面（MR1-P1.3/D3） ====================
 
-    @Suppress("DEPRECATION")
-    override fun onTrimMemory(level: Int) {
+    /**
+     * 内存 trim 档位动作（TrimMemoryBridge 收敛后的唯一系统 trim 消费入口；
+     * 原 `onTrimMemory`/`onLowMemory` 的档位动作面并入）：
+     * - SOFT → 驱逐冷数据（原 RUNNING_LOW / BACKGROUND 档）
+     * - AGGRESSIVE → 按平滑压力比逐出（原 RUNNING_MODERATE/CRITICAL/MODERATE 档）
+     * - CRITICAL → 紧急清空（原 COMPLETE / onLowMemory 档）
+     */
+    fun onMemoryTrimBridge(level: MemoryTrimLevel) {
         val ratio = smoothPressureCurve(level)
         currentSmoothedPressureRatio = ratio
-
-        Log.i(TAG, "onTrimMemory: level=$level, smoothedRatio=${"%.3f".format(ratio)}")
-
+        Log.i(TAG, "onMemoryTrimBridge: level=$level, smoothedRatio=${"%.3f".format(ratio)}")
         when (level) {
-            ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
-                // No special handling needed when UI is hidden
-            }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
-                scope.launch { evictColdData() }
-            }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
-                scope.launch { evictByRatio(ratio) }
-            }
-            ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
-                scope.launch { evictByRatio(ratio) }
-            }
-            ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> {
-                scope.launch { evictColdData() }
-            }
-            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
-                scope.launch { emergencyPurge() }
-            }
+            MemoryTrimLevel.SOFT -> scope.launch { evictColdData() }
+            MemoryTrimLevel.AGGRESSIVE -> scope.launch { evictByRatio(ratio) }
+            MemoryTrimLevel.CRITICAL -> scope.launch { emergencyPurge() }
+            MemoryTrimLevel.NONE -> Unit
         }
     }
-
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun onLowMemory() {
-        scope.launch { emergencyPurge() }
-    }
-
-
-
-
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
-
 
     // ==================== MemoryEventListener ====================
 

@@ -330,7 +330,12 @@ system::TickResult GameCore::advancePhases(int phaseCount) {
 
 int GameCore::settleOnePhase() {
     if (!initialized_) return system::kSettleFlagNone;
-    return settlement_.settleOnePhase(state_);
+    const int flags = settlement_.settleOnePhase(state_);
+    // MR1-P1.5/B-6：旬结算边界账本 cap（与 import 同源 normalizeLedgers——
+    // 原缺陷 = cap 只在 import 生效，生产路径跨会话无界）；同点消费 trim
+    // 水位（MR1-P1.3/D3：引擎线程结算边界，禁入并行段/结算中途）
+    consumePendingMemoryTrim();
+    return flags;
 }
 
 std::string GameCore::settleMonth() {
@@ -394,6 +399,8 @@ std::string GameCore::settleMonth() {
         seized.push_back(sectId);
     }
     env["seizedSectBuildings"] = std::move(seized);
+    // MR1-P1.5/P1.3：月结边界账本 cap + trim 水位消费（同 settleOnePhase）
+    consumePendingMemoryTrim();
     return env.dump();
 }
 
@@ -473,7 +480,47 @@ std::string GameCore::settleYear() {
                                 {"grievingAge", b.grievingAge}});
     }
     env["bereavements"] = std::move(bereavements);
+    // MR1-P1.5/P1.3：年结边界账本 cap + trim 水位消费（同 settleOnePhase）
+    consumePendingMemoryTrim();
     return env.dump();
+}
+
+// ── 内存压力 trim（MR1-P1.3/D3 + P1.5/B-6）────────────────────────
+
+void GameCore::postMemoryTrim(int level) {
+    // 命令投递式（线程契约表四）：只写原子水位，不触碰任何状态——消费统一
+    // 在引擎线程结算边界。只升不降：重复/降级投递不回退已登记的更高水位
+    //（同档重投在消费间隙被取走后仍会重新登记——exchange 归零后 level>0 成立）。
+    if (level <= kTrimNone || level > kTrimCritical) return;
+    const int current = pendingTrimLevel_.load(std::memory_order_relaxed);
+    if (level <= current) return;
+    pendingTrimLevel_.store(level, std::memory_order_relaxed);
+}
+
+GameCore::LedgerObservation GameCore::observeLedgers() const {
+    LedgerObservation o;
+    o.mailCount = state_.gameData.mailRecords.size();
+    o.mailCapacity = state_.gameData.mailRecords.capacity();
+    o.battleCount = state_.gameData.sectBattleRecords.size();
+    o.battleCapacity = state_.gameData.sectBattleRecords.capacity();
+    o.eventCount = state_.gameData.gameEventRecords.size();
+    o.eventCapacity = state_.gameData.gameEventRecords.capacity();
+    return o;
+}
+
+void GameCore::consumePendingMemoryTrim() {
+    const int level = pendingTrimLevel_.exchange(kTrimNone);
+    if (level == kTrimNone) return;
+    // 账本 cap 归一：与 import 同一常量源（normalizeLedgers 单源，
+    // 禁第二处字面量——MR1-P1.5 验收「import 与 tick 裁剪同一常量」）
+    normalizeLedgers(state_.gameData);
+    if (level >= kTrimCritical) {
+        // CRITICAL：裁剪后归还 OS（shrink 仅 trim 水位驱动的压力路径——
+        // 禁帧/tick 常规热路径调用，防 realloc 抖动）
+        state_.gameData.mailRecords.shrink_to_fit();
+        state_.gameData.sectBattleRecords.shrink_to_fit();
+        state_.gameData.gameEventRecords.shrink_to_fit();
+    }
 }
 
 // ── 引擎循环 + 看门狗 ─────────────────────────────
