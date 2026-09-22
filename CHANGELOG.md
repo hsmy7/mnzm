@@ -1,5 +1,56 @@
 ## [4.01.15] - 2026-09-17
 
+### SR-5 批（2026-09-22）——时间与签名面收敛：游戏语义取时全部走注入墙钟 + 云档载荷 HMAC 预埋
+
+> 方案 = [docs/save-system-refactor-plan-2026-09-21.md](docs/save-system-refactor-plan-2026-09-21.md)
+> §4 SR-5（§1.3 客户端墙钟信任族 + D4 联网化前置）；施工卡 [batch-SR5.md](docs/parallel-batches-w5/batch-SR5.md)；
+> 完成报告 [report-SR5-completion-2026-09-22.md](docs/parallel-batches-w5/report-SR5-completion-2026-09-22.md)。
+> `android/` 面 **50 文件 / +1,278 / −142**，**零 C++、零 wire/proto、零 Room schema、零迁移链触及**；
+> `version.properties` 未递增——由用户决定。8 笔 commit，每子项独立。
+
+- **墙钟抽象**：方案字面的"新 `TimeSource` 接口"落地为既有 **`WallClock`**（用户 P1 拍板的命名
+  偏离——`TimeSource` 已被两个**单调钟**占用：`GameTimeClock.kt:17-19` `elapsedRealtime` 与
+  `core/animation/TimeSource.kt:16-23` `nanoTime`）。原藏在 `JadeSymbolService.kt:39` 的抽象
+  提升为共享类型（`core/engine/.../engine/system/WallClock.kt`），生产实现改绑
+  **`CalibratedWallClock` = 系统钟 + 进程内云校正偏移**。
+- **取时点按"游戏语义全族"收敛（P2 拍板，24 处，不止方案点名的 4 处）**：周冷却 3 处
+  （引擎 2 处 + `GameViewModel:519` 与引擎**分歧**的内联 7 天硬编码，现统一为
+  `SectLevelRewardCooldown` 单一判据）、兑换码限流 5 处（宿主是 `object` 无 DI ⇒ 由注入式入口
+  `RedeemCodeService` **一次采样**后形参下传，不引入进程级可变钟；正向副作用：四层限流与
+  清理起算从此同一时刻）、邮件链 16 处（含 `MailDao.insertWithEnforceLimit` 这个
+  **@Transaction 内每次写入顺带删 30 天过期**的守卫抓不到的绕行点，以及勘察清单漏计、
+  由编译器抓到的 `MailAttachmentDistributeOps` 3 处）。玉符日额实测**早已收敛**，本批只做抽象搬迁。
+- **云 mtime 校正的采样点被实测证伪后改挂（P3 同一意图下修正）**：冷启动云列表的
+  `modifiedTimeMs` 是"上次归档写入时刻"，按其校正等于把本地钟往回拨"距上次上传过了多久"
+  （小时/天量级），会打穿日额与邮件判据 ⇒ 改挂**上传成功后的元数据读回**，进程内至多接受一次、
+  |漂移|>5min 丢弃、取样用未校正读数、观测函数必须不抛；**零新增启动往返、偏移不跨进程持久化**。
+- **云档载荷 HMAC 签名最小子集（D4/IN5 预埋）**：新 `SavePayloadSigner`（`core:data/crypto`）——
+  master 复用 `.secure_key` 体系、派生式与网络签名链同构但 **salt 独立**（两侧密钥域分离）；
+  签名域 = 压缩后载荷字节，写入云档 `extra` 的 `sig`/`sigVer`（**无签名不写键**，向后兼容存量档）；
+  下载侧复用同一次 `queryArchiveInfo` 验签（零新增往返），判据四态
+  `VERIFIED/UNSIGNED/MISMATCH/KEY_UNAVAILABLE`。**诚实口径**：验签在客户端做、密钥在同设备
+  ⇒ 是接口与格式预埋，**不是防篡改闭环**；`extra.saveId` 不在签名域内可伪造；
+  验签发生在反序列化之后。
+- **按 P4 拍板：完整性异常降级放行 + 显式留痕**——`MISMATCH`/`KEY_UNAVAILABLE` 不阻断玩家用档，
+  改为云读档成功态文案追加提示 + 日志留痕；`KEY_UNAVAILABLE` 单列以防把密钥故障判成玩家篡改。
+- **零回流静态守卫**：新 `WallClockReflowGuardTest`（仿 `RngSourceGuardTest`）——收敛清单 15 文件
+  内 `System.currentTimeMillis` 零回流 + 清单规模锁死 + 六模块族外裸钟**精确登记 168 处**
+  （变多判红、变少要求下调）。守卫首轮即抓住自身的路径分隔符 bug（Windows 反斜杠致排除清单
+  静默失效），已按仓库先例修正并独立笔留痕。
+- **LEGACY / 现有行为红线**：偏移仅在非 LEGACY 上传成功采样后非 0；未采样时
+  `CalibratedWallClock` 与 `System.currentTimeMillis()` **逐位一致**（`WallClockCalibrationTest`
+  锚定）；旧云链 `TapCloudSaveManager` 不签名、不改写；`MailRepository` 接口签名零改动 ⇒
+  现有 fake 零改；周冷却判据边界（`>= WEEK_MS`、墙钟回拨保守判不可领）逐位不变。
+- **IN2 界线**：新增的一切"时刻"只用于日/周/过期**阈值判定**；存档新旧仲裁唯一入口仍是
+  `SaveArbiter`（脏标志/序号），云 mtime 采样是时钟校正、结果不得回流任何仲裁入参。
+- **门禁实测**：桌面 ctest **1561/1561**（`ninja: no work to do.` = 零 C++ 面实证）；六模块组合门
+  三轮——第一轮判红于本批新守卫自身（路径分隔符致排除清单静默失效，独立笔 `04c4567a8` 自纠）、
+  第二轮被外部 `gradlew --stop` 中断（非判绿轮，重跑）、第三轮 **BUILD SUCCESSFUL 25m57s /
+  GATE_EXIT=0 / 339 任务全 executed**，**8,014 用例 / 0 失败 / 0 错误 / 17 既有跳过**
+  （SR-4 基线 7,986 + 本批 28 例新测试；XML 时间戳 05:50–05:57 UTC 单窗实证非 UP-TO-DATE）+
+  **`Diff*` 50 类 273 用例 0 skip（IN8）** + detekt/compileReleaseKotlin/lintRelease 全绿
+  （本批零 detekt 修复笔）。真机六项 = pending-device（报告 §7），本批未声称达标。
+
 ### SR-4 批（2026-09-22）——自动存档回归：游戏月月变 + onStop 双触发接入唯一编排点（⚠️ 玩家可见行为变更）
 
 > 方案 = [docs/save-system-refactor-plan-2026-09-21.md](docs/save-system-refactor-plan-2026-09-21.md)
