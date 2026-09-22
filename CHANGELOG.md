@@ -43,6 +43,16 @@
   现有 fake 零改；周冷却判据边界（`>= WEEK_MS`、墙钟回拨保守判不可领）逐位不变。
 - **IN2 界线**：新增的一切"时刻"只用于日/周/过期**阈值判定**；存档新旧仲裁唯一入口仍是
   `SaveArbiter`（脏标志/序号），云 mtime 采样是时钟校正、结果不得回流任何仲裁入参。
+- **🔒 随批根治一处主密钥缓存别名缺陷**（`04ae099f6`/`1039591e3`，SR-5 交付过程中抓到、
+  用户指示根治）：`SecureKeyManager.getOrCreateKey` 命中缓存时返回的是**缓存数组引用**，
+  而 `RequestSigner.deriveLocalSigningKey` 与 `SecureHttpClient.decryptResponse` 都按
+  "清自己副本"的意图写着 `masterKey.fill(0)` ⇒ 全零密钥被写回进程级缓存，且该缓存是
+  "命中即续期"的滑动 TTL，只要有取键流量即可无限期存活；连带响应解密派生错误密钥、
+  云档签名可能用全零 master 派出恒定密钥、`verifyKeyIntegrity` **误报密钥丢失并触发恢复预警**。
+  修法一处（两条返回路径各 `copyOf()`），两处 `fill(0)` 原样保留（从此成为它本来想做的
+  "擦除私有副本"）；新增契约测试 `SecureKeyManagerKeyAliasTest` 3 例——**临时退回旧语义
+  实测 3 例全红、修复后全绿**。签名器同批收口：不再永久缓存密钥（主密钥轮换后不用陈旧密钥）、
+  全零 master 拒绝派生并降级为"不签名 / `KEY_UNAVAILABLE`"而非误判玩家篡改。
 - **门禁实测**：桌面 ctest **1561/1561**（`ninja: no work to do.` = 零 C++ 面实证）；六模块组合门
   三轮——第一轮判红于本批新守卫自身（路径分隔符致排除清单静默失效，独立笔 `04c4567a8` 自纠）、
   第二轮被外部 `gradlew --stop` 中断（非判绿轮，重跑）、第三轮 **BUILD SUCCESSFUL 25m57s /
