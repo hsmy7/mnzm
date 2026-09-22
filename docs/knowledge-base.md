@@ -666,6 +666,7 @@ fun watchAdForNewFeature() {
 | `#breakthrough_success` | 引擎 `DiscipleBreakthroughHandler` 突破成功 | realm, realm_layer, disciple_name | 自定义 |
 | `#breakthrough_first` | 突破成功首次（`FirstEventTracker` 去重） | realm | 自定义 |
 | `#ad_reward_claim` | 广告奖励验证通过（AdServiceImpl.onRewardVerify） | purpose, reward_name, reward_amount | 自定义 |
+| `#save_migration_result` | 主菜单存量迁移引导收口（`SaveMigrationCoordinator` 进入 DONE / PARTIAL_FAILED 时边沿触发一次，`start()` 复位） | pending_total, migrated_total, conflict_total, blocked_total, mode_after | 自定义（SR-6 完成率指标；**TapDB 后台「事件管理」待录入**） |
 | `game_start` | GameActivity PLAYING（兼容旧事件） | sect_name, game_version | 兼容 |
 | `battle_end` | 引擎 `CaveExplorationProcessor`（兼容旧事件） | outcome, enemy_type, turns, team_size | 兼容 |
 

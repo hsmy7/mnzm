@@ -4,6 +4,7 @@ import android.util.Log
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MailEntity
+import com.xianxia.sect.core.util.AnalyticsEvents
 import com.xianxia.sect.data.cloud.ArbitrationVerdict
 import com.xianxia.sect.data.cloud.CloudSaveEntry
 import com.xianxia.sect.data.cloud.CloudSavePayload
@@ -68,6 +69,7 @@ class SaveMigrationCoordinatorTest {
     private val uploadLedger: UploadLedger = mockk(relaxed = true)
     private val migrationLedger: SaveMigrationLedger = mockk(relaxed = true)
     private val modeProvider: SaveBackendModeProvider = mockk()
+    private val analytics: com.xianxia.sect.core.util.AnalyticsTracker = mockk(relaxed = true)
     private val queueEvents = MutableSharedFlow<UploadQueue.Event>(extraBufferCapacity = 16)
 
     private var mode = SaveBackendMode.LEGACY
@@ -113,6 +115,7 @@ class SaveMigrationCoordinatorTest {
             migrationLedger = migrationLedger,
             modeProvider = modeProvider,
             cacheWriter = CloudSaveCacheWriter(saveBackend, storageFacade, uploadLedger),
+            analytics = analytics,
             ioDispatcher = IoDispatcher(testDispatcher)
         )
     }
@@ -326,6 +329,29 @@ class SaveMigrationCoordinatorTest {
         assertEquals(SlotMigrationStatus.MIGRATED, rowFor(1)?.status)
         assertTrue(coordinator.state.value.canEnableCloudSave)
         assertEquals(MigrationPhase.DONE, coordinator.state.value.phase)
+    }
+
+    @Test
+    fun `收口时上报一次完成率指标，同阶段重复刷新不重复上报（SR-6 完成率定义）`() = runTest(testDispatcher) {
+        localSlots = listOf(slotView(1))
+        stubLocalSave(1)
+        advanceUntilIdle()
+
+        coordinator.scan()
+        coordinator.start()
+        advanceUntilIdle()
+        queueEvents.tryEmit(UploadQueue.Event.UploadConfirmed(slot = 1, saveId = 1L))
+        advanceUntilIdle()
+        coordinator.scan()
+        advanceUntilIdle()
+
+        val props = slot<Map<String, Any>>()
+        verify(exactly = 1) {
+            analytics.trackEvent(eq(AnalyticsEvents.SAVE_MIGRATION_RESULT), capture(props))
+        }
+        assertEquals(1, props.captured[AnalyticsEvents.PROP_MIGRATION_MIGRATED_TOTAL])
+        assertEquals(0, props.captured[AnalyticsEvents.PROP_MIGRATION_PENDING_TOTAL])
+        assertEquals("LEGACY", props.captured[AnalyticsEvents.PROP_MIGRATION_MODE_AFTER])
     }
 
     @Test

@@ -2,6 +2,8 @@ package com.xianxia.sect.ui.game.saveload
 
 import android.util.Log
 import com.xianxia.sect.core.engine.di.IoDispatcher
+import com.xianxia.sect.core.util.AnalyticsEvents
+import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.cloud.CloudSaveEntry
 import com.xianxia.sect.data.cloud.MigrationPlan
@@ -71,6 +73,7 @@ class SaveMigrationCoordinator @Inject constructor(
     private val migrationLedger: SaveMigrationLedger,
     private val modeProvider: SaveBackendModeProvider,
     private val cacheWriter: CloudSaveCacheWriter,
+    private val analytics: AnalyticsTracker,
     private val ioDispatcher: IoDispatcher
 ) {
 
@@ -95,6 +98,9 @@ class SaveMigrationCoordinator @Inject constructor(
     private var cloudBySlot: Map<Int, CloudSaveEntry> = emptyMap()
     private var started = false
     private var notice: String? = null
+
+    /** 指标边沿触发用：同一阶段只报一次，[start] 复位（一轮引导一条记录） */
+    private var reportedPhase: MigrationPhase? = null
 
     init {
         scope.launch { uploadQueue.events.collect { handleEvent(it) } }
@@ -139,6 +145,7 @@ class SaveMigrationCoordinator @Inject constructor(
         cloudBySlot = (listed as SaveBackendResult.Success).data.associateBy { it.slot }
         started = true
         notice = null
+        reportedPhase = null
         refresh(MigrationPhase.RUNNING)
         val inputs = slots.map { inputOf(it, cloudBySlot[it.slot]) }
         dispatch(SaveMigrationPlanner.plan(inputs, cloudBySlot[StorageConstants.CLOUD_SAVE_SLOT]))
@@ -310,8 +317,9 @@ class SaveMigrationCoordinator @Inject constructor(
         val mode = modeProvider.current()
         val rows = slots.mapNotNull { rowOf(it) }
         val pending = rows.count { it.status in PENDING_STATUSES }
+        val phase = forcedPhase ?: phaseOf(rows, pending)
         _state.value = MigrationUiState(
-            phase = forcedPhase ?: phaseOf(rows, pending),
+            phase = phase,
             rows = rows,
             pendingTotal = pending,
             migratedTotal = rows.count { it.status == SlotMigrationStatus.MIGRATED },
@@ -321,6 +329,41 @@ class SaveMigrationCoordinator @Inject constructor(
             canEnableCloudSave = mode == SaveBackendMode.LEGACY &&
                 rows.isNotEmpty() && rows.all { it.status == SlotMigrationStatus.MIGRATED }
         )
+        reportMetricsIfNeeded(phase, rows, mode)
+    }
+
+    /**
+     * 完成率指标（方案 §4 SR-6「完成率指标定义（运营侧可查）」）。
+     *
+     * **边沿触发**：只在进入 DONE / PARTIAL_FAILED 的那一次上报，且同一阶段不重复报；
+     * `start()` 复位 ⇒ 玩家重试一轮就是一条新记录（运营要看的是"这轮跑到哪"）。
+     * 走 [scope] 而非调用线程：`rules/data-analytics.md` 1.3 禁止埋点占主线程/热路径，
+     * TapDB 未初始化或抛异常时其内部一律兜底降级（不影响引导本身）。
+     */
+    private fun reportMetricsIfNeeded(
+        phase: MigrationPhase,
+        rows: List<MigrationSlotRow>,
+        mode: SaveBackendMode
+    ) {
+        if (phase != MigrationPhase.DONE && phase != MigrationPhase.PARTIAL_FAILED) return
+        if (phase == reportedPhase) return
+        reportedPhase = phase
+        val pendingTotal = rows.count { it.status in PENDING_STATUSES }
+        scope.launch {
+            analytics.trackEvent(
+                AnalyticsEvents.SAVE_MIGRATION_RESULT,
+                mapOf(
+                    AnalyticsEvents.PROP_MIGRATION_PENDING_TOTAL to pendingTotal,
+                    AnalyticsEvents.PROP_MIGRATION_MIGRATED_TOTAL to
+                        rows.count { it.status == SlotMigrationStatus.MIGRATED },
+                    AnalyticsEvents.PROP_MIGRATION_CONFLICT_TOTAL to
+                        rows.count { it.status == SlotMigrationStatus.NEEDS_DECISION },
+                    AnalyticsEvents.PROP_MIGRATION_BLOCKED_TOTAL to
+                        rows.count { it.status == SlotMigrationStatus.BLOCKED_CORRUPT },
+                    AnalyticsEvents.PROP_MIGRATION_MODE_AFTER to mode.name
+                )
+            )
+        }
     }
 
     private fun rowOf(slotView: SaveSlot): MigrationSlotRow? {
