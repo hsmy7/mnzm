@@ -83,6 +83,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
 
+- **2026-09-23 06:28 监控轮（MR-1 进行态）**：**双 changelog 出现**（CHANGELOG.md + changelog_entries.json）= 收官材料准备期，门禁自检大概率已过/接近过（全局约束 13 每次合入即写，P1.1/P1.3 玩家可感知）；工作树 31 改 + 6 新增；atlas-rgba-manifest.json 副产物仍在待剔除。下轮预期切分提交连发 + 完成报告。
+
 - **2026-09-23 06:08 监控轮（MR-1 进行态）**：进入测试面阶段——`column_dirty_test.cpp`（P1.1 增长上界）+ `memory_trim_test.cpp`（P1.5/tick 挂点）+ `TrimConsumerCountGuardTest.kt`（P1.3 守卫）+ `SectMapCacheBoundTest.kt`（P1.2）+ `SceneUpdateChannelTest` 扩展 + test CMakeLists 同步，验收测试清单与 batch-MR1 对应齐。实现面趋完整；下轮预期切分提交 + 门禁（桥重建+ctest 1561 基线+JVM 串行+detekt）。
 
 - **2026-09-23 05:58 监控轮（MR-1 进行态）**：七任务面全部现身，工作树 24 改 + 2 新目录——新增 `VulkanBackend.cpp/.h`+`GameCoreJni.cpp`（P1.7/P1.6）、`GameActivity.kt`+`GameLoopDelegate.kt`（P1.3 四消费者收敛面齐）、`AtlasAsyncPipeline.kt`（P1.4）；`GameViewModel.kt` 新现待核（疑 GameLoopDelegate 挂点）。无越界；**24 文件未提交 = 切分纯度将是核验重点**（P1.3 与 P1.1/P1.6 共享面易混笔）。
