@@ -1,5 +1,41 @@
 ## [4.01.15] - 2026-09-17
 
+### SR-4 批（2026-09-22）——自动存档回归：游戏月月变 + onStop 双触发接入唯一编排点（⚠️ 玩家可见行为变更）
+
+> 方案 = [docs/save-system-refactor-plan-2026-09-21.md](docs/save-system-refactor-plan-2026-09-21.md)
+> §4 SR-4（D3/D6）；施工卡 [batch-SR4.md](docs/parallel-batches-w5/batch-SR4.md)；
+> 完成报告 [report-SR4-completion-2026-09-22.md](docs/parallel-batches-w5/report-SR4-completion-2026-09-22.md)。
+> 22 文件 / +1,142 / −63，**零 C++、零 wire/schema、零迁移链触及**；`version.properties` 未递增——由用户决定。
+
+- **⚠️ 玩家可见：自动存档回归**（产品 2026-07-25 曾主动移除自动存档改纯手动，本次按方案 D6 拍板回摆）。
+  两个触发点：**游戏月月变**（静默全量：本地事务 + 非 LEGACY 入队）与 **`onStop` 退后台**
+  （本地事务 + 上传队列排空尝试）。旗标 `SaveTriggerFlag.autoSaveOnMonthChange` /
+  `saveOnBackground` 均默认开（= D6 拍板形态），关闭态保留为回滚臂并有守卫测试。
+- **⚠️ 频率口径 = 月月必存（用户 2026-09-22 三选拍板）**：实测游戏月 = **6 秒真实时间**
+  （`GameTimeClock.kt:224` 2000ms/旬 × 3 旬；2x 下 3 秒），⇒ 自动存档实际是每 6 秒一次全量快照
+  + Room 事务。编排层的 500ms 合并窗只做同刻多源合并，**不构成按秒节流**。连带代价（已量化登记，
+  真机为硬门）：保存期间游戏时钟按 `isSaving` 停摆（时间流速受损）、低内存/高占用启发式下的周期性
+  `System.gc()`、非 LEGACY 下入队频率远高于 TapTap 1 次/分钟限频（靠队列窗口合并 + 共享冷却收敛）、
+  存储熔断 5 次/30s 在退化期会更常拒存。
+- **唯一保存编排点**：新增 `SaveOrchestrator`（月变开合并窗 / onStop 立即冲刷 / 手动保存即存则作废
+  待触发窗）+ `SaveFeedback` 三口径（`Manual` 默认 ⇒ 手动链逐行零变化 / `AutoNotice` 月变 /
+  `Silent` 后台）；忙与互斥类拒绝只对手动口径弹提示（每 6 秒刷 snackbar 等于刷屏），真失败三类
+  一律不静默。
+- **月变时序红线**：`GameEngineCorePausOps4` 把月分支两路径重复的尾务提取为
+  `finalizeMonthBoundary()`（任务检测 → 灵石事件事务外 flush → **月变发布**），发布点是末句
+  ⇒ "月副作用完整结算之后才存"由结构保证；通道 `replay=0`（陈旧月变不重放给新建 VM）。
+- **用户可见**：消息栏新增常驻一行 `已自动存档 · 第X年Y月`（降级带 `（备份未写入）`、失败显示
+  `自动存档失败：…`）。**纯 UI 态，不写存档事件流**——每 6 秒一条事件会污染存档并撑大云档 payload。
+- **互斥审查零改动**：自动保存完全复用 `storageFacade.save`，与 `DataPruning`(300s)/
+  `DataArchive`(600s) 同持 `SlotLockManager` 每槽排他锁（修剪/归档源码注释即声明该互斥），
+  跨槽取锁升序无死锁；两调度器仅观测 WAL 大小、不跑 checkpoint ⇒ 无新增对撞面。
+- **门禁实测**：桌面 ctest **1561/1561**（`ninja: no work to do.` = 零 C++ 面实证）；六模块组合门
+  第一轮 `:feature:game:detekt` 2 条未用 import 判红 → 独立笔 `189fc490e` 修复；第二轮
+  **BUILD SUCCESSFUL 28m48s / 404 任务 / GATE_EXIT=0**，**7,986 用例 / 0 失败 / 0 错误 / 17 既有
+  跳过**（SR-3 基线 7,964 + 本批 22 例新测试；XML 时间戳 03:12–03:19 UTC 实证非 UP-TO-DATE）+
+  **`Diff*` 50 类 273 用例 0 skip（IN8）** + detekt/compileReleaseKotlin/lintRelease 全绿。
+  真机后台杀与性能量化 = pending-device（报告 §7 六项），本批未声称达标。
+
 ### W5 收口批（2026-09-20）——最终审查后六项收口施工（含 2 项行为变更：B05 玩家可见修复 + 镜像运行态字段不再被清空）
 
 > 来源 = 2026-09-20 最终审查（完成度核对 + b02-findings 处置）后的收口施工；交接文档 [docs/parallel-batches-w5/handover-closing-batch-2026-09-20.md](docs/parallel-batches-w5/handover-closing-batch-2026-09-20.md)（根治逻辑 / 验证 SOP / 剩余工作）；方案登记见 §7.3。组 A–F 各自独立 commit。
