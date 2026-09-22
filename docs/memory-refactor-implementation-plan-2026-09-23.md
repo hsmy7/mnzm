@@ -521,6 +521,11 @@ adb shell dumpsys meminfo <pkg>   # 详表 Native Heap Alloc/Freed
 - [x] rules/ 交叉：cpp-priority / design-plan-review / static-resources（轨 F 若动）/ database-migration（不适用）/ renderer-feature-checklist  
 - [x] 决策分级 = 架构级  
 - [x] 影响范围含经济（不适用）/ iOS 标签  
+- [x] 与进行中 native-engine-refactor R1/R2 的复用/禁止边界已写明  
+- [x] threading-contract 登记义务已进全局约束 + Phase 0  
+- [x] 既有 trim 多路径收敛（非新增）+ 守卫  
+- [x] TextureKey schema / 纪元失效 / 延迟销毁竞态已闭合  
+- [x] 性能非回归验收已进约束与 P4.5  
 
 ### 盲区自查与完善建议
 

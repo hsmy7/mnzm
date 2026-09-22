@@ -2,6 +2,7 @@
 feature: memory-management-refactor
 status: delivered
 updated: 2026-09-23
+revised: 2026-09-23 交叉审查回写（R1/R2 对齐 / 线程契约 / trim 收敛 / TextureCache 纪元与键）
 branch: docs/memory-refactor-plan
 commits: 2fd4fe6a6..c7643ae00
 ---
@@ -14,7 +15,7 @@ commits: 2fd4fe6a6..c7643ae00
 
 **Verification** — 结构自检 + design-plan-review §八；独立子代理审查无 critical；major 三项已回写修复。
 
-**Journey log** — ① 行业外链不稳，对标配额改债表触发（§2.1/§11）；② destroyTexture 契约已补但仍零调用，方案补调用方+cache；③ 升级 fps P3.3 预算管理器决策。
+**Journey log** — ① 行业外链不稳，对标配额改债表触发（§2.1/§11）；② destroyTexture 契约已补但仍零调用，方案补调用方+cache；③ 升级 fps P3.3 预算管理器决策；④ 交叉审查补 R1/R2 对齐、threading-contract 登记、trim 多路径收敛、TextureKey/纪元/延迟销毁竞态（§4.0.5/轨 B/E）。
 
 ## [S1] Problem
 
@@ -604,6 +605,10 @@ AtlasAsyncPipeline.start
 | 流程 | 真机 GPU 计数采集无标准脚本 | 验收扯皮 | T8 出采集命令清单（dumpsys / kgsl 路径） |
 | 对标配额 | 外链 20 条未齐 | 偏离 CLAUDE 建议级 | 债表已登记补链；核心 VMA 已核实 |
 | 需求第二种解读 | 或许只想要 bug 修复列表 | 缺架构 | 已给两选项，选项 1 即止血清单 |
+| **与 R1/R2 双改** | column_dirty/dirty_tracker/export 同文件 | 合并冲突/双协议 | §4.0.5 强制复用符号清单（已回写） |
+| **既有 trim 多路径** | Application/CacheLayer/GameActivity/GameLoopDelegate 已并行 | 第四条旁路 | 轨 E 收敛 + 消费者守卫（已回写） |
+| **TextureCache 纪元/键** | surface 死亡悬垂、ASTC/RGBA 键碰撞 | GPU 崩溃/错纹理 | 轨 B clearEpoch + TextureKey 位段（已回写） |
+| **线程契约未登记** | trim/texture 跨线程面 | 审查打回 | §4.0.1 + T9/影响范围（已回写） |
 
 **实质性结论已回写**：双跑对拍→§6；重传限速→§9；补链→§11。
 
