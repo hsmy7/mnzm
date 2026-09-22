@@ -35,6 +35,12 @@ object AnalyticsEvents {
     /** 广告奖励发放成功（广告价值分析） */
     const val AD_REWARD_CLAIM = "#ad_reward_claim"
 
+    /**
+     * 存量迁移引导收口（SR-6 完成率指标）：一次迁移跑到 DONE / PARTIAL_FAILED 时上报一次。
+     * 属性见 `PROP_MIGRATION_*`（去标识化：只有计数与模式，零槽位内容、零 PII）。
+     */
+    const val SAVE_MIGRATION_RESULT = "#save_migration_result"
+
     // ==================== 历史兼容事件（保持旧名） ====================
 
     /** 游戏会话开始（GameActivity PLAYING 上报） */
@@ -83,4 +89,21 @@ object AnalyticsEvents {
 
     /** 游戏版本号 */
     const val PROP_GAME_VERSION = "game_version"
+
+    // ==================== SR-6 存量迁移指标属性（#save_migration_result）====================
+
+    /** 收口时仍未上云的槽位数（完成率分母的未完成侧） */
+    const val PROP_MIGRATION_PENDING_TOTAL = "pending_total"
+
+    /** 收口时已确认上云/已裁决以云端为准的槽位数（完成率的分子） */
+    const val PROP_MIGRATION_MIGRATED_TOTAL = "migrated_total"
+
+    /** 收口时仍待玩家二选一的槽位数（双端冲突或云态不可证） */
+    const val PROP_MIGRATION_CONFLICT_TOTAL = "conflict_total"
+
+    /** 收口时本机损坏而被跳过的槽位数（既未上云也未覆盖） */
+    const val PROP_MIGRATION_BLOCKED_TOTAL = "blocked_total"
+
+    /** 上报时的云后端模式（SaveBackendMode 枚举名，运营侧区分是否已升档） */
+    const val PROP_MIGRATION_MODE_AFTER = "mode_after"
 }
