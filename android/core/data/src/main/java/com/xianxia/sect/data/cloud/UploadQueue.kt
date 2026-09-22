@@ -45,7 +45,14 @@ class UploadQueue(
 ) {
 
     data class Config(
-        /** 窗口合并窗宽：worker 出队后先等此时长，窗内同 slot 多次入队合并为最新一条 */
+        /**
+         * 窗口合并窗宽：worker 出队后先等此时长，窗内同 slot 多次入队合并为最新一条。
+         *
+         * SR-4 §8 曾建议在本批（打开生产上传）把它提到与 [sharedUploadCooldownMs] 同量级，
+         * 实测**不需要**：单飞循环是"窗 → 上传 → 成功后 delay(冷却)"，两次成功上传的间隔
+         * 恒 ≥ `debounce + 上传耗时 + 冷却`（生产 ≈ 62s），已贴住 TapTap 1 次/分钟；
+         * 放宽窗只会让快照更旧、上传更少，不减少请求。节奏性质由 `UploadQueueTest` Q13 钉住。
+         */
         val debounceMs: Long = 2_000,
         /** 上传成功后的全局强制冷却（TapTap 创建/更新共享 1 次/分钟，多档共用） */
         val sharedUploadCooldownMs: Long = 60_000,
