@@ -594,6 +594,10 @@ AtlasAsyncPipeline.start
 
 ---
 
+## 实施分册（选项 2）
+
+具体可执行任务与全局决策 D1–D7 见：**[docs/memory-refactor-implementation-plan-2026-09-23.md](../../memory-refactor-implementation-plan-2026-09-23.md)**（根治实施方案，checkbox 按 Phase 执行）。
+
 ## [S3] Out of Scope
 
 1. 本交付不修改任何产品代码（只产方案）。
