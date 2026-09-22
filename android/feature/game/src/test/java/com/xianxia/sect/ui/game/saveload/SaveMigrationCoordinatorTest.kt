@@ -458,6 +458,38 @@ class SaveMigrationCoordinatorTest {
     }
 
     @Test
+    fun `队列已挂起的冲突选云端 - 丢弃待传后还要把云端落回本机缓存`() = runTest(testDispatcher) {
+        localSlots = listOf(slotView(4))
+        coEvery { uploadQueue.heldConflictSlots() } returns setOf(4)
+        coEvery { saveBackend.download(4) } returns
+            payload(saveId = 7L, verdict = ArbitrationVerdict.LOCAL_BEHIND, integrity = SavePayloadIntegrity.VERIFIED)
+        advanceUntilIdle()
+
+        coordinator.resolveConflict(4, keepLocal = false)
+        advanceUntilIdle()
+
+        // 队列侧只做"丢弃待传 + 基线收敛"，本机 Room 仍是分歧那份 ⇒ 必须覆盖回云端内容
+        coVerify { uploadQueue.resolveConflict(4, false) }
+        coVerify { storageFacade.save(4, any()) }
+        verify { uploadLedger.adoptCloudState(4, 7L) }
+        verify { migrationLedger.markCloudPreferred(4) }
+    }
+
+    @Test
+    fun `队列已挂起的冲突选本机 - 交还队列授权，不下载覆盖`() = runTest(testDispatcher) {
+        localSlots = listOf(slotView(4))
+        coEvery { uploadQueue.heldConflictSlots() } returns setOf(4)
+        advanceUntilIdle()
+
+        coordinator.resolveConflict(4, keepLocal = true)
+        advanceUntilIdle()
+
+        coVerify { uploadQueue.resolveConflict(4, true) }
+        coVerify(exactly = 0) { saveBackend.download(4) }
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+    }
+
+    @Test
     fun `存量单档迁到选定空槽 - 落目标槽且记 CLOUD_PREFERRED`() = runTest(testDispatcher) {
         localSlots = listOf(slotView(5, empty = true))
         coEvery { saveBackend.download(0) } returns
