@@ -73,11 +73,15 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （子会话只读区；看护纠错/环境事件写这里，子会话开工前须先读本区）
 
+- 2026-09-23 04:58（看护）：工作树出现构建/codegen 副产物连带改动——`android/app/src/main/assets/atlas/atlas-rgba-manifest.json`、`android/scripts/sprite-uid-map.json`、`android/app/src/main/cpp/scene/scene_uv_tables.h`（跑 Gradle/codegen 被再生成，B18 已知陷阱）——**这三个文件与本批无关，不要提交**（既定纪律：明确文件名 add；收官前若仍残留请还原）。
+
 - 2026-09-23 04:3x（看护）：工作树 `android/local.properties`、`android/keystore.properties` 为本地配置件已手拷，**绝不提交**；提交一律明确文件名 `git add <file>`。
 
 ## 监控日志
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
+
+- **2026-09-23 04:58 监控轮（MR-0 进行态）**：三任务面齐头展开且全在预期面——P0.1 = `NativeEngineFlag.kt` + 新测试 `NativeEngineFlagMemorySubsystemTest.kt` + `core/engine/build.gradle`（疑 BuildConfig 接线）；P0.2 = 方案文档附录 A 在改；P0.0 = `docs/threading-contract.md` 持续成形；仍无提交。附带：三个构建/codegen 副产物被连带改写（已留言区提示勿混提交）。下轮盯首笔提交切分纯度（契约/旗标/附录应各自独立）。
 
 - **2026-09-23 04:48 监控轮（MR-0 进行态）**：派发后 8 分钟首改动落盘 = `M docs/threading-contract.md`，恰为 P0.0 目标面（线程契约登记），无越界文件；尚无提交（勘察期收尾转落笔，正常节奏）。防重入核对：全机仅 automation-4e1892f4 一个看护自动化。下轮盯 P0.0 登记条目成形与 P0.1 旗标面。
 
