@@ -120,6 +120,12 @@ class GameViewModel @Inject constructor(
     private val wallClock: WallClock = SystemWallClock
 ) : BaseViewModel() {
 
+    /**
+     * 邮件过期文案的取时点（SR-5）：UI 侧不裸读系统钟，与引擎过期判据共用同一
+     * 注入墙钟实例，避免"引擎未过期、列表显示已过期"的分歧。
+     */
+    fun mailDisplayNowMs(): Long = wallClock.currentTimeMillis()
+
     // ── 新提取的领域委托 ──
 
     val ads = AdsDelegate(uiServices.adService, gameEngine)

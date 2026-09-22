@@ -38,12 +38,14 @@ interface MailDao {
     suspend fun countMails(slotId: Int): Int
 
     @Transaction
-    suspend fun insertWithEnforceLimit(mail: MailEntity, maxLimit: Int = 1000) {
+    suspend fun insertWithEnforceLimit(mail: MailEntity, now: Long, maxLimit: Int = 1000) {
         // 决策项② 2026-09-09：过期邮件自动删除——每次写入顺带清理本槽过期
         // 邮件（过期不可领取，删除无功能损失）；expireTime=0 永久有效不受影响。
         // REPLACE 保证确定性 mailId 重放幂等。
+        // SR-5：`now` 由调用方（:app MailRepositoryImpl）经注入墙钟供时——
+        // 本方法每次插入都会跑一遍 30 天删除，是收敛前守卫抓不到的裸钟绕行点。
         insertAll(listOf(mail))
-        deleteExpired(mail.slotId, System.currentTimeMillis())
+        deleteExpired(mail.slotId, now)
         // 容量溢出可见化（审计 P1-4）：过期删除后若仍超限（大量永久有效
         // 邮件的极端档），计数留痕供观察——不做容量淘汰
         val count = countMails(mail.slotId)

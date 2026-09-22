@@ -184,6 +184,7 @@ private fun RowScope.MailListPane(
         MailListContent(
             mails = mails,
             selectedMailId = selectedMailId,
+            nowMs = viewModel.mailDisplayNowMs(),
             onMailClick = onMailClick
         )
 
@@ -212,6 +213,8 @@ private fun RowScope.MailListPane(
 private fun ColumnScope.MailListContent(
     mails: List<MailEntity>,
     selectedMailId: String?,
+    /** 过期文案的取时点（SR-5：由 VM 的注入墙钟采样一次，composable 不裸读系统钟） */
+    nowMs: Long,
     onMailClick: (MailEntity) -> Unit
 ) {
     if (mails.isEmpty()) {
@@ -238,6 +241,7 @@ private fun ColumnScope.MailListContent(
                 MailCard(
                     mail = mail,
                     isSelected = mail.id == selectedMailId,
+                    nowMs = nowMs,
                     onClick = { onMailClick(mail) }
                 )
             }
@@ -322,6 +326,8 @@ private fun MailCapacityWarningDialog(message: String, onDismiss: () -> Unit) {
 private fun MailCard(
     mail: MailEntity,
     isSelected: Boolean,
+    /** 过期文案取时点（SR-5，与引擎过期判据同源墙钟） */
+    nowMs: Long,
     onClick: () -> Unit
 ) {
     val cardAlpha = if (mail.isRead) 0.5f else 1f
@@ -361,7 +367,7 @@ private fun MailCard(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = formatExpireTime(mail.expireTime),
+                    text = formatExpireTime(mail.expireTime, nowMs),
                     fontSize = 9.sp,
                     color = Color.Gray
                 )
@@ -650,8 +656,7 @@ private fun ClaimedAttachmentCard(
     }
 }
 
-private fun formatExpireTime(expireTime: Long): String {
-    val now = System.currentTimeMillis()
+private fun formatExpireTime(expireTime: Long, now: Long): String {
     val diff = expireTime - now
     if (diff <= 0) return "已过期"
     // 永久邮件（Long.MAX_VALUE）显示"永久有效"，而非超大天数

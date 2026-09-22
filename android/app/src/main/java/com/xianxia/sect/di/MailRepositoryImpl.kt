@@ -2,6 +2,8 @@ package com.xianxia.sect.di
 
 import android.util.Log
 import androidx.room.withTransaction
+import com.xianxia.sect.core.engine.system.SystemWallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.overflow.PersistedDirectMailDraft
 import com.xianxia.sect.core.overflow.PersistedOverflowDraft
@@ -22,7 +24,14 @@ import javax.inject.Singleton
 class MailRepositoryImpl @Inject constructor(
     private val mailDao: MailDao,
     private val mailDraftDao: MailDraftDao,
-    private val db: GameDatabase
+    private val db: GameDatabase,
+    /**
+     * 游戏语义墙钟（SR-5）：`MailDao.insertWithEnforceLimit` 每次写入顺带跑一遍
+     * 30 天过期删除，起算时刻由本类供（收敛前是 DAO 内裸读系统钟，注入缝抓不到）。
+     * 默认 [SystemWallClock] 供测试直构；生产为 CalibratedWallClock 单例，
+     * 与 MailService/引擎侧同一实例 ⇒ 判据同源。
+     */
+    private val wallClock: WallClock = SystemWallClock
 ) : MailRepository {
 
     private companion object {
@@ -39,7 +48,7 @@ class MailRepositoryImpl @Inject constructor(
         mailDao.getById(slotId, mailId)
 
     override suspend fun insertWithEnforceLimit(entity: MailEntity, maxPerSlot: Int) =
-        mailDao.insertWithEnforceLimit(entity, maxPerSlot)
+        mailDao.insertWithEnforceLimit(entity, wallClock.currentTimeMillis(), maxPerSlot)
 
     override suspend fun update(entity: MailEntity) =
         mailDao.update(entity)
@@ -140,7 +149,7 @@ class MailRepositoryImpl @Inject constructor(
         directDraftIds: List<String>
     ) {
         db.withTransaction {
-            mailDao.insertWithEnforceLimit(entity, maxPerSlot)
+            mailDao.insertWithEnforceLimit(entity, wallClock.currentTimeMillis(), maxPerSlot)
             if (overflowDraftIds.isNotEmpty()) mailDraftDao.deleteOverflowDrafts(overflowDraftIds)
             if (directDraftIds.isNotEmpty()) mailDraftDao.deleteDirectMailDrafts(directDraftIds)
         }

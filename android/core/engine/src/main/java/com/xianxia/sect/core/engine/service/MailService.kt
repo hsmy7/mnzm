@@ -7,6 +7,8 @@ import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.rebaselineNativeMirror
+import com.xianxia.sect.core.engine.system.SystemWallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.config.BuiltinMailConfig
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
@@ -77,15 +79,21 @@ class MailService @Inject constructor(
      * 链下游，直接注入会成 Dagger 环；Provider 为惰性破环边。
      */
     private val gameEngineCoreProvider: javax.inject.Provider<com.xianxia.sect.core.engine.GameEngineCore>? = null,
+    /**
+     * 游戏语义墙钟（SR-5）：邮件 30 天有效期的唯一取时入口（生效判定、过期删除、
+     * 发信时间戳共用）。默认 [SystemWallClock] 仅供测试直构——生产由 Hilt 注入
+     * [com.xianxia.sect.core.engine.system.CalibratedWallClock]。
+     *
+     * 取代收敛前的 `@VisibleForTesting var timeSource: () -> Long`：该缝实测**无任何**
+     * 写入者（KDoc 声称的 MailServiceTest PINNED_NOW_MS 在仓库内不存在），
+     * 按 IN6 不保留无人使用的机制。internal 而非 private——扩展文件
+     * `MailAttachmentDistributeOps` 的领取判据同源取时。
+     */
+    internal val wallClock: WallClock = SystemWallClock
 ) {
     /** 基线重建用引擎核心；无 Provider（测试直构）时为 null → 跳过（JVM 语义等价） */
     private val gameEngineCore: com.xianxia.sect.core.engine.GameEngineCore?
         get() = gameEngineCoreProvider?.get()
-    /** 时钟源（默认系统墙钟，生产行为不变）：测试注入固定时钟，根治专属福利
-     *  截止日期真实流逝后的定时炸弹测试失败（MailServiceTest PINNED_NOW_MS）。
-     *  仅测试写入——@VisibleForTesting 而非 internal（:app 测试跨模块不可见 internal）。 */
-    @androidx.annotation.VisibleForTesting
-    var timeSource: () -> Long = System::currentTimeMillis
 
     companion object {
         internal const val TAG = "MailService"
@@ -126,7 +134,7 @@ class MailService @Inject constructor(
         currentSlot = slotId
         // 决策项②：打开邮件列表前先清过期邮件（Room 失效通知会让随后的
         // flow 首值即为删除后的列表）
-        mailRepo.deleteExpiredMails(slotId, timeSource())
+        mailRepo.deleteExpiredMails(slotId, wallClock.currentTimeMillis())
         _activeMails.value = mailRepo.getActiveMails(slotId).first()
         _unreadCount.value = _activeMails.value.count { !it.isRead }
     }
@@ -141,7 +149,7 @@ class MailService @Inject constructor(
         mailFlowJob = scopeProvider.scope.launch {
             // 决策项②：收集前先清一次过期（此后插入路径 insertWithEnforceLimit
             // 每次写入顺带清理，删除触发的 Room 失效会自动重发列表）
-            mailRepo.deleteExpiredMails(slotId, timeSource())
+            mailRepo.deleteExpiredMails(slotId, wallClock.currentTimeMillis())
             mailRepo.getActiveMails(slotId).collect { mails ->
                 _activeMails.value = mails
                 _unreadCount.value = mails.count { !it.isRead }
@@ -154,7 +162,7 @@ class MailService @Inject constructor(
     }
 
     suspend fun loadBuiltinMails(slotId: Int) {
-        val now = timeSource()
+        val now = wallClock.currentTimeMillis()
         BuiltinMailConfig.mails.forEach { builtinMail ->
             // 限时邮件：未到生效时间，暂不发放
             if (builtinMail.startMs > 0 && now < builtinMail.startMs) {
@@ -223,7 +231,7 @@ class MailService @Inject constructor(
 
     suspend fun markAllAsRead(slotId: Int): MarkAllReadResult {
         return getMutex(slotId).withLock {
-            val now = timeSource()
+            val now = wallClock.currentTimeMillis()
             val mails = mailRepo.getActiveMails(slotId).first()
 
             var claimedCount = 0
@@ -381,7 +389,7 @@ class MailService @Inject constructor(
             content = "尊敬的修士，感谢您的长期支持！特赠白名单专属福利：灵石 ×10,000,000，" +
                 "永久有效，每档仅可领取一次。\n\n——天道意志",
             senderName = "天道意志",
-            sendTime = timeSource(),
+            sendTime = wallClock.currentTimeMillis(),
             expireTime = Long.MAX_VALUE,
             hasAttachment = true,
             attachments = json.encodeToString(

@@ -43,7 +43,7 @@ private val MAIL_RECORD_RETENTION = MailService.MAIL_RECORD_RETENTION
  */
 internal suspend fun MailService.findClaimableMail(mailId: String, slotId: Int): Pair<ClaimResult?, MailEntity?> {
     val mail = mailRepo.getById(slotId, mailId) ?: return ClaimResult.MailNotFound to null
-    val now = timeSource()
+    val now = wallClock.currentTimeMillis()
     if (mail.expireTime <= now) return ClaimResult.Expired to mail
     if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed to mail
     // 二次保护：若 Room DB 的 attachmentClaimed 未及时更新，
@@ -132,7 +132,7 @@ internal suspend fun MailService.grantAttachments(
                 // 「删除已读后重领」的交互窗口，500 条远超实际需要
                 mailRecords = (gameData.mailRecords + MailClaimRecord(
                     mailId = mail.id,
-                    claimedAt = timeSource(),
+                    claimedAt = wallClock.currentTimeMillis(),
                     source = mail.source
                 )).takeLast(MAIL_RECORD_RETENTION)
             )
@@ -191,7 +191,7 @@ internal suspend fun MailService.claimAttachmentInternal(mail: MailEntity, slotI
                     // 同上：追加即裁剪
                     mailRecords = (gameData.mailRecords + MailClaimRecord(
                         mailId = mail.id,
-                        claimedAt = timeSource(),
+                        claimedAt = wallClock.currentTimeMillis(),
                         source = mail.source
                     )).takeLast(MAIL_RECORD_RETENTION)
                 )

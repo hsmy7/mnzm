@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.system.SystemWallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.overflow.OverflowMailDraft
@@ -65,6 +67,11 @@ class OverflowMailSender @Inject constructor(
     private val mailRepo: MailRepository,
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
+    /**
+     * 游戏语义墙钟（SR-5）：草稿 `createdAt` 与 drain 的 TTL 起算统一取时点。
+     * 默认 [SystemWallClock] 供测试直构，生产由 Hilt 注入 CalibratedWallClock。
+     */
+    private val wallClock: WallClock = SystemWallClock
 ) : OverflowMailHandler, TransactionObserver {
 
     companion object {
@@ -180,7 +187,7 @@ class OverflowMailSender @Inject constructor(
         } else {
             val draft = PersistedDirectMailDraft(
                 id = mail.id, slotId = mail.slotId,
-                payload = json.encodeToString(mail), createdAt = System.currentTimeMillis()
+                payload = json.encodeToString(mail), createdAt = wallClock.currentTimeMillis()
             )
             if (!mailRepo.insertDirectMailDraftBlocking(draft)) {
                 unpublishedDirectMails.add(draft)
@@ -205,7 +212,7 @@ class OverflowMailSender @Inject constructor(
             for (mail in directMails) {
                 val draft = PersistedDirectMailDraft(
                     id = mail.id, slotId = mail.slotId,
-                    payload = json.encodeToString(mail), createdAt = System.currentTimeMillis()
+                    payload = json.encodeToString(mail), createdAt = wallClock.currentTimeMillis()
                 )
                 if (!mailRepo.insertDirectMailDraftBlocking(draft)) {
                     unpublishedDirectMails.add(draft)
@@ -228,7 +235,7 @@ class OverflowMailSender @Inject constructor(
 
     /** 立即落盘（事务外路径 / 提交钩子路径）；失败批入 unpublished 待 drain 补 */
     private fun persistOverflowDraftsImmediately(drafts: List<OverflowMailDraft>) {
-        val now = System.currentTimeMillis()
+        val now = wallClock.currentTimeMillis()
         val persisted = drafts.map { d ->
             PersistedOverflowDraft(
                 id = java.util.UUID.randomUUID().toString(),
@@ -290,7 +297,7 @@ class OverflowMailSender @Inject constructor(
         val persistedDirect = mailRepo.getPersistedDirectMailDraftsBlocking()
         if (persistedOverflow.isEmpty() && persistedDirect.isEmpty()) return
 
-        val anyWritten = drainPersistedOverflowDrafts(persistedOverflow, System.currentTimeMillis())
+        val anyWritten = drainPersistedOverflowDrafts(persistedOverflow, wallClock.currentTimeMillis())
         drainPersistedDirectMails(persistedDirect)
         // 通知玩家（统一容量提示框由 UI 层消费）；仅在有邮件成功写入时提示
         if (anyWritten) {

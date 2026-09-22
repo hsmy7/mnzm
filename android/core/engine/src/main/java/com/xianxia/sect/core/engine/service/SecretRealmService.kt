@@ -7,6 +7,8 @@ import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
+import com.xianxia.sect.core.engine.system.SystemWallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmBattleHelper
@@ -78,7 +80,12 @@ class SecretRealmService @Inject constructor(
     private val inventorySystem: InventorySystem,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val overflowMailSender: OverflowMailSender,
-    private val assignmentGate: DiscipleAssignmentGate
+    private val assignmentGate: DiscipleAssignmentGate,
+    /**
+     * 游戏语义墙钟（SR-5）：秘境到期关闭邮件的 `sendTime`/有效期起算。
+     * 默认 [SystemWallClock] 供测试直构，生产由 Hilt 注入 CalibratedWallClock。
+     */
+    private val wallClock: WallClock = SystemWallClock
 ) {
 
     // ── 年变刷新 ──────────────────────────────────────────────────────
@@ -1074,7 +1081,7 @@ class SecretRealmService @Inject constructor(
                 source = SpiritStoneSource.SecretRealm
             )
         }
-        val mail = buildExpiryCloseMail(data.currentSlot, session.backpack, System.currentTimeMillis())
+        val mail = buildExpiryCloseMail(data.currentSlot, session.backpack, wallClock.currentTimeMillis())
         // 先清空背包再 endSession：settleBackpack 对空背包 no-op，杜绝邮件+入仓双发放
         state.gameData = data.copy(secretRealmSession = session.copy(backpack = SecretRealmBackpack()))
         endSession(state, SecretRealmEndReason.EXPIRED)
@@ -1100,7 +1107,7 @@ class SecretRealmService @Inject constructor(
         backpack: SecretRealmBackpack,
         memberIds: Set<String>
     ) {
-        val mail = buildExpiryCloseMail(slotId, backpack, System.currentTimeMillis())
+        val mail = buildExpiryCloseMail(slotId, backpack, wallClock.currentTimeMillis())
         memberIds.forEach { assignmentGate.release(it) }
         mail?.let { overflowMailSender.sendDirectMail(it) }
     }

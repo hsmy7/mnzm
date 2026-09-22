@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.mockSmart
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.overflow.OverflowMailDraft
@@ -52,6 +53,9 @@ class OverflowMailSenderTest {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
+    /** SR-5：注入墙钟定值——草稿时间戳必须等于它（不再由实现自取系统钟） */
+    private val pinnedNowMs = 1_700_000_000_000L
+
     @Before
     fun setUp() {
         // mockSmart + 显式 stub：currentTransactionGeneration 需在用例内切换世代号
@@ -66,7 +70,7 @@ class OverflowMailSenderTest {
         // 默认落盘成功（测试主路径）；失败场景单独 stub
         whenever(mailRepo.insertOverflowDraftsBlocking(any())).thenReturn(1)
         whenever(mailRepo.insertDirectMailDraftBlocking(any())).thenReturn(true)
-        sender = OverflowMailSender(mailRepo, stateStore, TestScopeProvider())
+        sender = OverflowMailSender(mailRepo, stateStore, TestScopeProvider(), WallClock { pinnedNowMs })
     }
 
     private class TestScopeProvider : CoroutineScopeProvider {
@@ -192,7 +196,11 @@ class OverflowMailSenderTest {
         assertEquals("id 已分配（UUID）", persisted.size, persisted.map { it.id }.toSet().size)
         assertEquals("来源/槽位保真", "battle", persisted.first().source)
         assertEquals("slotId 保真", 1, persisted.first().slotId)
-        assertTrue("createdAt 已打时间戳", persisted.first().createdAt > 0)
+        assertEquals(
+            "createdAt 必须取自注入墙钟（SR-5：实现内零裸读系统钟，判据可复现）",
+            pinnedNowMs,
+            persisted.first().createdAt
+        )
     }
 
     @Test
