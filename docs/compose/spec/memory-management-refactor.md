@@ -208,6 +208,8 @@ eserve 只动 **gamecore DiscipleStore**，不动 Kotlin ComponentTable COW 语�
 | docs/architecture.md 扩展性预留 | 预算配置走 **RemoteConfig 未绑定模式**（本地默认 + 键 memory.配置名）；离线收益/商业化**不**扩内存 API；iOS 见 §7 |
 | CODE_WIKI.md AUTHORITATIVE 镜像只读 | 反向通道已删：Kotlin→C++ **仅** importToNative 全量；C++→Kotlin 仅 updateMirror。轨 D 改基线协议时**禁止**复活增量反向通道；门禁 MirrorReadOnlyGuardTest + DiffAuthoritativeTickTest 必须保持绿 |
 | CODE_WIKI.md ActionId 协议 | 新增内存类 JNI 若必须走 ActionId，只加 gen-action-ids.mjs 条目 + dispatch case，**不新增散落 JNI 导出**（与现有 UI 事务同构）；优先**零新 ActionId**（trim 用已有桥/回调） |
+| native-engine-refactor R1/R2/R2.4（`docs/native-engine-refactor-plan-2026-09-17.md` / `docs/cpp-engine.md`） | **已落地**列级写屏障、protobuf 镜像、`GameDataFieldPatch`+`GameViewStore`、列级导出接生产。轨 D **必须复用** `diffTreeSegments`/`exportDirtyTree`/`NativeEngineFlag` 族，只收口 rest 域全量基线残余；**禁止**第二套信封或第四种开关 |
+| `docs/threading-contract.md` | 新跨线程面（nativeMemoryTrim / textureAcquire/Release / stats）**先登记再实现**；TextureCache 渲染线程独占 |
 
 #### 4.0.2 既有性能设施：扩展而非重造（可维护性）
 
@@ -242,15 +244,19 @@ ecycle 已有 DisposableEffect 模式 |
 3. **双路径同步**：Vulkan/GLES/软渲 checklist + SoftwareCanvasBackend 测试（CLAUDE 渲染铁律）。  
 4. **文档义务**：实施合并时同步 CODE_WIKI.md（性能基础设施节）与 docs/architecture.md 扩展性预留中的内存子系统一行——**不可只改代码不改 Wiki**。  
 5. **确定性**：RNG 分区/对拍门禁不因内存改动放松；基线协议变更必须过 Diff 对拍。  
-6. **回滚开关**：memory_subsystem.enabled 保持可关，避免深度重构变成一次性赌注（design-plan-review §一 兼容回退）。
+6. **回滚开关**：`NativeEngineFlag.memorySubsystem` 保持可关，避免深度重构变成一次性赌注（design-plan-review §一 兼容回退）；与 R2 的 `mirrorProtobufTransport`/`gameViewProjection`/`dirtyColumnExport` 同族正交。
+7. **线程契约**：trim/texture/stats 新跨线程面实现前登记 `docs/threading-contract.md`；`TextureCache`/`GpuAllocator` 渲染线程独占。
+8. **与 R1/R2 对齐**：轨 D 复用列级导出/protobuf 信封（见 §4.0.5），禁止第二套镜像协议。
 
 #### 4.0.5 与轨 D 的强制修订（AUTHORITATIVE）
 
-原轨 D「每旬非弟子全量 JSON→增量」在镜像只读契约下的**合法形态**：
+原轨 D「每旬非弟子全量 JSON→增量」在镜像只读契约与 **R2.4 已落地列级导出**下的**合法形态**：
 
-- **允许**：C++ 内部换掉 aselineJson_ 存储实现（列/字节块），**导出**仍经既有 export → updateMirror/快照路径；**导入**仍 importToNative 全量。  
-- **禁止**：恢复 captureReverseDirty 式 Kotlin→C++ 增量回导；禁止绕过 MirrorReadOnlyGuardTest。  
-- **对拍**：改基线后 DiffAuthoritativeTickTest + 存档往返必须绿。
+- **必须复用**：R1.4 `ColumnDirtyTracker`、R2.2 `exportDirtyProto`、R2.3 `GameDataFieldPatch`/`GameViewStore`、R2.4 `diffTreeSegments`/`exportDirtyTree`、`NativeEngineFlag.dirtyColumnExport`。轨 D 只把 **rest 域基线**从全量 nlohmann 树换成字段/块基线。
+- **允许**：C++ 内部换掉 `baselineJson_` 存储实现（列/字节块），**导出**仍经既有 export → updateMirror/投影路径；**导入**仍 `importToNative` 全量。
+- **禁止**：恢复 captureReverseDirty 式 Kotlin→C++ 增量回导；禁止绕过 MirrorReadOnlyGuardTest；禁止与 GameDataFieldPatch 并行的第二套字段应用协议或第四种信封。
+- **对拍**：改基线后 DiffAuthoritativeTickTest + ColumnExportEquivalence 不回退 + 存档往返必须绿。
+- **守卫**：`BaselineFieldCoverageGuardTest`（`GameData.serializer` 元素名与基线字段表双射）。
 
 #### 4.1 目标架构
 
@@ -293,13 +299,15 @@ public:
   virtual GpuStats stats() const = 0;   // budget / used / blocks
 };
 
-// texture_cache.h
+// texture_cache.h —— 渲染线程独占
+// TextureKey 位段：[63:48] format | [47:32] variant | [31:0] assetId
 class TextureCache {
 public:
-  // 键 = 内容 hash 或资产 id；命中则 refCount++，不重复上传
+  // 键 = assetId+format+variant；命中则 refCount++，不重复上传
   uint32_t acquire(const TextureKey&, const UploadSource&);
-  void release(const TextureKey&);          // refCount==0 → 调 RHI destroyTexture
+  void release(const TextureKey&);          // refCount==0 → RHI destroyTexture（帧边界延迟）
   void trim(TrimLevel);                     // 平台压力：丢非必须驻留
+  void clearEpoch();                        // surface 纪元死亡整表失效，禁跨纪元悬垂句柄
 };
 ```
 
@@ -329,10 +337,11 @@ public:
 
 | 项 | 做法 |
 |----|------|
-| 键控缓存 | `TextureCache`：path/id → handle + refCount；重复 acquire 不上传 |
-| 真实释放 | Kotlin/Java 所有 upload 路径改为 acquire/release；ASTC 失败重试**先 release 旧键** |
+| 键控缓存 | `TextureCache`：`TextureKey(assetId,format,variant)` → handle + refCount + pendingDestroy；重复 acquire 不上传；ASTC/RGBA **必须不同键** |
+| 真实释放 | Kotlin/Java 所有 upload 路径改为 acquire/release；ASTC 失败重试**先 release 旧键**；`pendingDestroy` 条目禁止被再次 acquire 命中 |
+| 纪元失效 | `destroySurfaceGeneration` → `clearEpoch` + `GpuAllocator.destroy`；切宗门时 pinned 迁移（旧降级/新提升） |
 | 驻留策略 | 主图集、当前宗门 edge = pinned；预取非当前 = evictable；`onTrim` 先 evictable |
-| 上传峰值 | 改为 direct ByteBuffer / `AllocateDirect` + 分块 staging；上传完成立刻断 Java ByteArray 引用（缓解 B-1/B-2）；目标：峰值从 4 份降到 ≤2 份稳态 + 1 份受控峰值 |
+| 上传峰值 | 改为 direct ByteBuffer / `AllocateDirect` + 分块 staging；上传完成立刻断 Java ByteArray **与 Direct ByteBuffer** 引用（缓解 B-1/B-2）；目标：峰值从 4 份降到 ≤2 份稳态 + 1 份受控峰值 |
 | GLES | `PendingUpload` 池化复用 vector；`glBufferData` → 预分配 + `glBufferSubData`/`glBufferStorage` 能力探测 |
 
 ##### 轨 C — CPU 分层与容器（P0-5，P1-5）
@@ -349,18 +358,21 @@ public:
 
 | 项 | 做法 |
 |----|------|
-| 根因 | nlohmann 全量 `GameState` 树当 diff 基线 = 第二份状态 |
+| 根因 | nlohmann 全量 `GameState` 树当 diff 基线 = 第二份状态（**rest 域残余**；弟子列级导出 R2.4 已接生产） |
+| 与 R2 关系 | **复用** `diffTreeSegments`/`exportDirtyTree`/`GameDataFieldPatch`；只换 rest 基线存储；旗标并入 `NativeEngineFlag` 族 |
 | 方案 | 列级二进制/紧凑基线：非弟子段也走与列 dirty 对称的**字段/字节块基线**；或 C++ 侧结构 diff 替代 JSON 树 diff |
 | dump | 导出路径流式写入（`std::string` 复用 buffer + `reserve`），避免 `j.dump()` 临时大字符串叠加 |
-| import | 流式/分步导入：先构建新状态于独立缓冲，切换指针，**避免** parse 树 + 旧 `state_` + 新 `GameState` 三峰（P1-6） |
+| import | 流式/分步导入：先构建新状态于独立缓冲，校验后 C++ 内指针切换，**避免** parse 树 + 旧 `state_` + 新 `GameState` 三峰（P1-6） |
 | 兼容 | 存档对外格式不变；仅运行时同步协议变——Kotlin 镜像消费点需一次性适配（影响范围清单） |
-| JNI | 每旬非弟子全量 JSON → 改为列 dirty 增量或二进制块（与 reverse-channel 消除方向一致） |
+| JNI | 每旬 rest 域减载与 `dirtyColumnExport` 混合分发正交，**不**另造信封 |
+| 守卫 | `BaselineFieldCoverageGuardTest` + `BaselineMemoryTest` |
 
 ##### 轨 E — 平台压力与预算（P1-3，P3.3 决策升级）
 
 | 项 | 做法 |
 |----|------|
 | GameActivity | 实现 `onLowMemory` = COMPLETE 级强 trim；RUNNING_LOW/MODERATE 不再只 Log |
+| **收敛（非新增）** | `TrimMemoryBridge` **吸收** `XianxiaApplication.notifyMemoryPressure` 游戏侧分发、`CacheLayer.onTrimMemory` GPU 档位动作、`GameActivity` 分支、`GameLoopDelegate` 反应；Application+Activity 双发去抖；守卫：生产 trim 消费者 = 1 |
 | Application | 对齐已有 `GameDataCacheMemoryPressure` 压力值，广播到 TextureCache/sectMapCache/Gpu trim |
 | 预算 | **复用** `DynamicMemoryManager`/`GpuTierDetector` 分档 + `GCOptimizer` 阈值轴；新增只读 `MemoryBudget` 视图合并 `GpuAllocator.stats`；默认观测-only；RemoteConfig 键 `memory.budget.*` 预留 |
 | largeHeap | 重构后复测：若 Java 大对象（22MB ByteArray）下降，评估移除 `largeHeap`（单独开关验证，不盲删） |
@@ -420,11 +432,13 @@ AtlasAsyncPipeline.start
 | `.../SectMapController.kt` | 修改 | LRU/预算驱逐 sectMapCache |
 | `.../NativeSurfaceView.kt` | 修改 | trim → backend |
 | `.../GameActivity.kt` / `XianxiaApplication.kt` | 修改 | onLowMemory/onTrimMemory 实装 |
-| `.../TrimMemoryBridge.kt` | **新增** | 统一压力协议 |
+| `.../TrimMemoryBridge.kt` | **新增** | 统一压力协议；**收敛** Application/CacheLayer/GameActivity/GameLoopDelegate 既有分发 |
+| `docs/threading-contract.md` | 修改 | trim/texture/stats 跨线程面**先登记** |
+| `NativeEngineFlag`（既有） | 修改 | `memorySubsystem` 与 R2 三旗标正交 |
 | `.../memory/GpuAllocator` debug 展示 | 新增 | 可选 stats 展示 |
 | `rules/static-resources.md` 等 | 修改 | 若轨 F 改双模块资源放置 |
-| `docs/renderer-feature-checklist.md` | 修改 | 双路径勾选新增内存项 |
-| 守卫测试 | **新增** | `TextureUploadPathGuardTest`、`ColumnResizeGrowthTest`、`TrimDispatchTest` 等 |
+| `android/docs/renderer-feature-checklist.md` | 修改 | 双路径勾选新增内存项 |
+| 守卫测试 | **新增** | `TextureUploadPathGuardTest`、`ColumnResizeGrowthTest`、`TrimDispatchTest`、`TrimConsumerCountGuardTest`、`TrimPreserveFieldsGuardTest`、`BaselineFieldCoverageGuardTest` 等 |
 | `android/app/src/main/assets/changelog_entries.json` + `CHANGELOG.md` | 修改 | 若合入玩家可感知稳定性改进 |
 | `docs/platform-abilities.md` | 修改 | 登记 GpuAllocator/Metal 对等缺口 |
 | `docs/architecture.md` | 修改 | 内存子系统小节 |
@@ -453,7 +467,7 @@ AtlasAsyncPipeline.start
 | 存档格式 | **不变**（导出字节格式不变）。运行时基线协议变，需 Kotlin/C++ 镜像对拍测试 |
 | Migration | 无 Room Entity 变更 → **无 DB migration** |
 | 旧版本回读 | 同存档格式，兼容 |
-| 向后兼容开关 | `memory_subsystem.enabled`（RemoteConfig 未绑定前用 BuildConfig/本地）：关=现状路径，开=新路径；纹理 cache 可独立开关 |
+| 向后兼容开关 | `NativeEngineFlag.memorySubsystem`（RemoteConfig 未绑定前用 BuildConfig/本地）：关=现状路径，开=新路径（P1 止血不受控）；纹理 cache 可独立开关 |
 | 序列化 | 若基线改二进制，**仅同步通道**；落盘仍走现有 json/protobuf 出口直至另行立 ADR |
 | 混布版本 | 无跨进程协议变更（单进程） |
 
@@ -536,14 +550,14 @@ AtlasAsyncPipeline.start
 > 本文档交付时 **status=designed**，任务未勾选=未实施。每任务可独立验收。
 
 - [ ] **T1**: 引入 `GpuAllocator`+VMA，收口 `VulkanBackend` 全部 `vkAllocateMemory` — acceptance: 全仓渲染 cpp 中裸 `vkAllocateMemory` 调用点=0（测试/注释除外），统计接口可返回 used/budget — covers: S2 §4.3 轨A
-- [ ] **T2**: `TextureCache` 键控+refCount，改造 Atlas/崖壁/地面上传与失败重试 — acceptance: 同 key 重复 acquire 不产生第二次 upload；Guard Test 阻止旁路 — covers: 轨B; depends: T1
-- [ ] **T3**: staging/host pool 可 trim；接 `TrimMemoryBridge` 到 Vulkan/GLES — acceptance: 后台 COMPLETE 后 staging 高水位下降或回落基线；单测档位映射 — covers: 轨A/E; depends: T1
+- [ ] **T2**: `TextureCache` 键控+refCount+纪元失效，改造 Atlas/崖壁/地面上传与失败重试 — acceptance: 同 key 重复 acquire 不产生第二次 upload；Guard Test 阻止旁路；clearEpoch 无悬垂 — covers: 轨B; depends: T1
+- [ ] **T3**: staging/host pool 可 trim；`TrimMemoryBridge` **收敛**既有 trim 多路径到 Vulkan/GLES — acceptance: 后台 COMPLETE 后 staging 高水位下降或回落基线；单测档位映射；消费者=1 — covers: 轨A/E; depends: T1
 - [ ] **T4**: `column_dirty` 几何扩容 + 存档加载 `reserve` — acceptance: `ColumnResizeGrowthTest` 分配次数 ≤ 2⌈log₂N⌉+O(1) — covers: 轨C
-- [ ] **T5**: 状态基线去全量 DOM（列/字段基线）+ import 峰值治理 — acceptance: 对拍测试通过；diff 路径不再同时持有两棵 nlohmann 全量树 — covers: 轨D
+- [ ] **T5**: 状态基线去全量 DOM（rest 域字段/块基线，**复用 R2**）+ import 峰值治理 — acceptance: 对拍测试通过；diff 路径不再同时持有两棵 nlohmann 全量树；字段双射守卫 — covers: 轨D
 - [ ] **T6**: `sectMapCache` LRU + GameActivity/Application onLowMemory 实装 — acceptance: trim 下缓存条目数下降；Robolectric TrimDispatchTest — covers: 轨E
 - [ ] **T7**: GLES 顶点缓冲预分配 + PendingUpload 池化 — acceptance: 无每帧 `glBufferData` 全量重传（能力允许时）；双路径 checklist 更新 — covers: 轨B; depends: T2
 - [ ] **T8**: MemoryStats Debug 页 + 真机验收清单 — acceptance: 桌面/模拟器可读分类 MB；真机清单文档化 — covers: S2 §1.2-5; depends: T1–T7
-- [ ] **T9**: 文档/守卫/changelog/platform-abilities 同步 — acceptance: CLAUDE.md 12.4 双 changelog；platform-abilities 登记 GpuAllocator — covers: 影响范围; depends: T8
+- [ ] **T9**: 文档/守卫/changelog/platform-abilities/threading-contract 同步 — acceptance: CLAUDE.md 12.4 双 changelog；platform-abilities 登记 GpuAllocator；线程契约已登记 — covers: 影响范围; depends: T8
 
 依赖：T1→{T2,T3}→T7；T4/T5/T6 可与 T2 并行（文件集不相交时）；T8 收口；T9 最终。**机读权威以文末 `## Tasks` 为准，本节为同构摘要。**
 
@@ -553,6 +567,7 @@ AtlasAsyncPipeline.start
 
 | 方案 | 关系 |
 |------|------|
+| **native-engine-refactor R1/R2/R2.4** | **强制对齐**：列级导出/protobuf/GameViewStore 已落地；轨 D 只收 rest 基线残余，复用既有符号与旗标族 |
 | longrun remediation P0/P1 | **不重复修** initSurface 幂等等已列项；本方案在资源分配层给 P0 通道提供可释放性；实施时核对 P0-1 是否已修以免双改 |
 | performance remediation P3-5 | 已实现入队；本方案补**调用方与 cache** |
 | fps P3.3 | **升级**：不新建第二套预算类；复用 `DynamicMemoryManager` + 扩展 trim/GPU stats（见 §4.0.2） |
@@ -609,11 +624,11 @@ AtlasAsyncPipeline.start
 ## Tasks
 
 - [ ] T1: 引入 GpuAllocator+VMA 收口 vkAllocateMemory — acceptance: 渲染 cpp 裸分配点归零 + stats 可读 (covers: S2 §4.3 轨A)
-- [ ] T2: TextureCache 键控 refCount 改造上传/失败/trim — acceptance: 同 key 不双传；Guard Test 挡旁路 (covers: 轨B; depends: T1)
-- [ ] T3: staging trim + TrimMemoryBridge 双路径 — acceptance: COMPLETE 后高水位回落；档位单测 (covers: 轨A/E; depends: T1)
+- [ ] T2: TextureCache 键控 refCount + 纪元失效 + 改造上传/失败/trim — acceptance: 同 key 不双传；Guard Test 挡旁路；clearEpoch 无悬垂 (covers: 轨B; depends: T1)
+- [ ] T3: staging trim + TrimMemoryBridge **收敛既有 trim 多路径** — acceptance: COMPLETE 后高水位回落；档位单测；消费者=1 (covers: 轨A/E; depends: T1)
 - [ ] T4: column_dirty 几何扩容+加载 reserve — acceptance: GrowthTest 分配次数上界 (covers: 轨C)
-- [ ] T5: 状态基线去双 DOM + import 峰值 — acceptance: 对拍过；无双全量树 (covers: 轨D)
+- [ ] T5: 状态基线去双 DOM（复用 R2）+ import 峰值 — acceptance: 对拍过；无双全量树；字段双射守卫 (covers: 轨D)
 - [ ] T6: sectMapCache LRU + onLowMemory 实装 — acceptance: trim 后条目下降；TrimDispatchTest (covers: 轨E)
 - [ ] T7: GLES 顶点预分配+上传池化 — acceptance: 无每帧整批 glBufferData（能则）；checklist 更新 (covers: 轨B; depends: T2)
 - [ ] T8: MemoryStats 验收页+真机清单 — acceptance: 分类 MB 可读；清单文档 (covers: S2 §1.2; depends: T1,T2,T3,T4,T5,T6,T7)
-- [ ] T9: 双 changelog+platform-abilities+守卫文档 — acceptance: 12.4 双更新；能力表登记 (covers: 影响范围; depends: T8)
+- [ ] T9: 双 changelog+platform-abilities+threading-contract+守卫文档 — acceptance: 12.4 双更新；能力表登记 (covers: 影响范围; depends: T8)
