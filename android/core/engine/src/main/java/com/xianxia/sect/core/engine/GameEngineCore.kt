@@ -29,6 +29,7 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.monitor.GameTimeProgressMonitor
 import com.xianxia.sect.core.engine.monitor.GameTimeProgressSnapshot
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import com.xianxia.sect.core.overflow.OverflowMailHandler
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.*
@@ -507,6 +508,29 @@ class GameEngineCore @Inject constructor(
     @Suppress("VariableNaming")  // 下划线前缀沿袭 Kotlin 私有后备字段惯例
     internal val _stuckResetEvents = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 8)
     val stuckResetEvents: SharedFlow<String> = _stuckResetEvents.asSharedFlow()
+
+    /**
+     * 月变完整结算事件（SR-4 自动存档触发源，方案 D6"游戏月月变钩子"）。
+     *
+     * 发布点 = [finalizeMonthBoundary] 的最后一句 ⇒ 结构上保证"月副作用完整结算之后"
+     * （native 月结算/政策 checkpoint/任务检测/灵石事件 flush 全部返回后）才通知保存侧，
+     * 引擎对保存层零依赖（IN3：反向只有这条事件流，不引用 StorageFacade/SaveBackend）。
+     *
+     * 缓冲口径刻意与 [stuckResetEvents] 相反：**replay=0 + 容量 1 DROP_OLDEST**——自动存档是
+     * 幂等的"当前状态落盘"，无订阅者（主菜单/VM 空窗）时陈旧事件无价值，重放反而让新建 VM
+     * 被一次上个会话遗留的月变多触发一次保存；容量 1 溢出丢最旧 ⇒ 慢消费者至多滞后一次。
+     */
+    @Suppress("VariableNaming") // 下划线前缀沿袭 Kotlin 私有后备字段惯例（stuckResetEvents 同型）
+    private val _monthSettledEvents = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val monthSettledEvents: SharedFlow<Unit> = _monthSettledEvents.asSharedFlow()
+
+    /** 月变完整结算发布（引擎线程调用；缓冲非挂起 ⇒ 无订阅者也不阻塞热路径） */
+    internal fun notifyMonthSettled() {
+        _monthSettledEvents.tryEmit(Unit)
+    }
 
     /** 独立看门狗 Job — 运行在 Dispatchers.Default 上，监控游戏线程是否卡死 */
     internal var watchdogJob: Job? = null

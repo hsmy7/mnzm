@@ -133,9 +133,6 @@ internal suspend fun GameEngineCore.processMonthYearChange(monthChanged: Boolean
                 DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient spirit stones: " +
                     "${disabledList.joinToString(", ")}")
             }
-            missionCheck?.invoke()
-            // 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
-            spiritStoneWallet.flushPendingEvents(eventBus)
         } else {
             // native 路径：policyCosts 决策（政策被禁用 → 重算生产 checkpoints）
             if (env.disabledPolicies.isNotEmpty()) {
@@ -143,11 +140,25 @@ internal suspend fun GameEngineCore.processMonthYearChange(monthChanged: Boolean
                 DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient spirit stones: " +
                     "${env.disabledPolicies.joinToString(", ")}")
             }
-            missionCheck?.invoke()
-            // 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
-            spiritStoneWallet.flushPendingEvents(eventBus)
         }
+        // 事务外尾务（原两分支重复段 SR-4 去重提取，顺序逐行不变）+ 月变完整结算发布
+        finalizeMonthBoundary()
     }
+}
+
+/**
+ * 月变尾务（SR-4 提取）：结算/政策 checkpoint 之后的三件——任务检测 → 灵石变更事件
+ * 事务外 flush → **月变完整结算发布**（自动存档触发源，方案 D6/§4 SR-4）。
+ *
+ * 提取动机有二：① 原为 native/回退两分支各写一遍的重复段（去重，行为零变更）；
+ * ② 让"月副作用完整结算之后才触发自动存档"成为**结构事实**——发布点是尾务最后一句，
+ * 两分支的结算与 checkpoint 必然先于它返回，不必在两处各摆一次、也不会漏一处。
+ */
+internal suspend fun GameEngineCore.finalizeMonthBoundary() {
+    missionCheck?.invoke()
+    // 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
+    spiritStoneWallet.flushPendingEvents(eventBus)
+    notifyMonthSettled()
 }
 
 /** 每旬结算纯编排器（无状态，懒初始化复用同一实例；从 checkBreakthroughsAndPills 提取）。
