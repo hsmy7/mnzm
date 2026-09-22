@@ -82,6 +82,9 @@ class JadeNativeTxGateTest {
         // （handover findings 13：mock 未 stub 时返回 null 不得 NPE）
         val mockCore = mock<GameEngineCore>()
         whenever(mockCore.jadeSymbolServiceRef).thenReturn(jadeService)
+        // SR-5：引擎侧周奖励判据改经注入墙钟取时——mock 核心未 stub 时返回 null，
+        // NPE 会被 claimSectLevelReward 的 catch-all 吞成 Error（与 W4-B/B0 同族陷阱）
+        whenever(mockCore.wallClock).thenReturn(WallClock { 1_700_000_000_000L })
         val mockRng = mock<GameRngManager>()
         whenever(mockRng.getRng(RngPartition.SYSTEM))
             .thenReturn(DeterministicRng.fromSeed(20260808L))
@@ -310,7 +313,9 @@ class JadeNativeTxGateTest {
         store.update {
             gameData = gameData.copy(
                 sectLevelClaimRecords = listOf(
-                    SectLevelClaimRecord(level = SectLevel.SMALL, claimedAtEpochMs = System.currentTimeMillis())
+                    // SR-5：与 setup 里 pinned 引擎墙钟同值 ⇒ elapsed=0，必然在冷却内
+                    // （原为 System.currentTimeMillis()，与本类其余时刻同为定值口径）
+                    SectLevelClaimRecord(level = SectLevel.SMALL, claimedAtEpochMs = 1_700_000_000_000L)
                 )
             )
         }
