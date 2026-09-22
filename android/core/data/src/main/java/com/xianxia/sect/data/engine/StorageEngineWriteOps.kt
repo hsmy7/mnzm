@@ -173,7 +173,6 @@ internal suspend fun StorageEngine.writeCoreEntities(slot: Int, data: SaveData, 
     writeProductionSlotsAndRecipes(slot, data)
 
     syncSlotMetadata(slot, data)
-    syncSlotMetadata(slot, data)
 }
 
 /** 弟子族实体分批写入：核心/战斗/装备/扩展/属性五表 + 紧凑表 */
