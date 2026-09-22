@@ -182,63 +182,73 @@ SR 系列的**存量迁移引导批**（方案 §4 SR-6，"CLOUD_TRANSITION 收�
 ### 2.5 指标（运营侧可查）
 
 事件 `#save_migration_result`：属性白名单 `pending_total / migrated_total /
-conflict_total / skipped_total / mode_after`（去标识化，零槽位内容、零 PII）。三处同步 F9。
+conflict_total / blocked_total / mode_after`（去标识化，零槽位内容、零 PII；
+`blocked_total` = 损坏槽数，替代立卡初稿的 `skipped_total`——见 §2.6 差异注）。三处同步 F9。
 指标定义写进完成报告：完成率 = `migrated_total / (migrated_total + pending_total)`，
 按设备维度上报，TapDB 侧可聚合。
 
-### 2.6 接口签名（实施即照此落地，避免实施期再设计）
+### 2.6 接口签名（**C2/C3 已按此落库，签名以代码为准**；后续子项实施时照此对齐）
 
 ```kotlin
-// core/data/cloud/SaveMigrationLedger.kt
-enum class MigrationSlotState { NONE, QUEUED, UPLOADED, CLOUD_PREFERRED, SKIPPED }
+// core/data/cloud/SaveMigrationLedger.kt —— 已落库（ccbd262c2）
+enum class MigrationSlotState { NONE, QUEUED, UPLOADED, CLOUD_PREFERRED }  // 无 SKIPPED，见下注
+val settled: Boolean; val migrated: Boolean      // QUEUED 两者皆 false：入队 ≠ 上云
 
 @Singleton class SaveMigrationLedger @Inject constructor(store: KeyValueStore) {
     fun state(slot: Int): MigrationSlotState          // 未写入/非法值 → NONE（失败封闭）
-    fun markQueued(slot: Int); fun markUploaded(slot: Int)
-    fun markCloudPreferred(slot: Int); fun markSkipped(slot: Int)
+    fun markQueued(slot: Int); fun markUploaded(slot: Int); fun markCloudPreferred(slot: Int)
     fun clearSlot(slot: Int)                          // 删档面，与 UploadLedger.resetSlot 同清单
-    fun noticeSeen(): Boolean; fun markNoticeSeen()
-    fun promotionConfirmed(): Boolean; fun markPromotionConfirmed()
-    companion object { const val KEY_PREFIX = "cloud_migration_"; fun fromStored(raw: String?) }
+    companion object { fun fromStored(raw: String?): MigrationSlotState }  // key: cloud_migration_slotN_state
 }
+```
 
-// core/data/cloud/SaveMigrationPlanner.kt（纯函数 object，零时钟、零 IO）
-data class SlotLedgerState(val lastLocalSaveId: Long, val lastConfirmedCloudId: Long, val pendingSaveId: Long)
-data class SlotMigrationInput(
-    val slot: Int, val localHasSave: Boolean, val localLoadError: Boolean,
-    val cloud: CloudSaveEntry?, val migrationState: MigrationSlotState, val ledger: SlotLedgerState
-)
+**立卡后实施时删掉的两项（登记差异，防"记账面虚胖"）**：`SKIPPED` 态与
+`noticeSeen` / `promotionConfirmed` 两个一次性标记。理由——① 不标记即保持 `NONE`，
+下次冷启动矩阵照样列出，随手点掉一个"暂不"就把某槽永久排除在云唯一方向之外是净负债；
+② 迁移引导落为**常驻卡**（S3）而非弹窗，弹窗才需要"只弹一次"的抑制位，常驻卡不需要，
+留着就是 IN6 说的"没人用的机制"。升档确认因此只剩 `confirmEnableCloud()` 这一个动作面。
+
+```kotlin
+// core/data/cloud/SaveMigrationPlanner.kt —— 已落库（本笔）
+data class SlotLedgerSnapshot(lastLocalSaveId: Long, lastConfirmedCloudId: Long, pendingSaveId: Long) {
+    val hasUnconfirmedPending: Boolean      // F1 续传判据；EMPTY 常量供测试
+}
+data class SlotMigrationInput(slot: Int, localHasSave: Boolean, localLoadError: Boolean,
+                              cloud: CloudSaveEntry?, migrationState: MigrationSlotState,
+                              ledger: SlotLedgerSnapshot)
 enum class UploadReason { MIGRATE, RESUME_PENDING }
+enum class CloudConflictReason { BOTH_ADVANCED, UNVERIFIABLE_CLOUD_STATE }
 sealed class SlotMigrationAction {
-    data object None : SlotMigrationAction()
-    data class UploadLocal(val reason: UploadReason) : SlotMigrationAction()
-    data object ResolveConflict : SlotMigrationAction()   // 含 F12「W 未知且本机未确认」
-    data object UseCloud : SlotMigrationAction()          // 下载→落缓存，不 boot
-    data object BlockedLoadError : SlotMigrationAction()  // 损坏槽，不得当空档
+    data object NoAction
+    data class UploadLocal(reason: UploadReason)
+    data class ResolveConflict(reason: CloudConflictReason)
+    data object UseCloud
+    data object BlockedByLoadError
 }
-data class MigrationSlotPlan(val slot: Int, val action: SlotMigrationAction)
-data class MigrationPlan(
-    val slots: List<MigrationSlotPlan>,
-    val legacyArchive: CloudSaveEntry?      // slot 0 = mnzm_cloud_save（F4），单独引导下载
-) { val uploadSlots / conflictSlots / cloudSlots / blockedSlots: List<Int> }
-
+data class MigrationSlotPlan(slot: Int, action: SlotMigrationAction)
+data class MigrationPlan(slots: List<MigrationSlotPlan>, legacyArchive: CloudSaveEntry?) {
+    val uploadSlots / conflictSlots / cloudSlots / blockedSlots: List<Int>
+    val actionableCount: Int; val requiresPlayerDecision: Boolean
+}
 object SaveMigrationPlanner {
-    fun plan(inputs: List<SlotMigrationInput>, legacyArchive: CloudSaveEntry?): MigrationPlan
+    fun plan(inputs: List<SlotMigrationInput>, legacyArchive: CloudSaveEntry? = null): MigrationPlan
+    fun decide(input: SlotMigrationInput): SlotMigrationAction
     fun canPromoteToCloudOnly(inputs: List<SlotMigrationInput>): Boolean
 }
 ```
 
-判定顺序（逐槽，短路自上而下）：`localLoadError → BlockedLoadError` ⇒
+判定顺序（逐槽，短路自上而下）：`localLoadError → BlockedByLoadError` ⇒
 `pendingSaveId > lastConfirmedCloudId → UploadLocal(RESUME_PENDING)`（F1，优先于"已裁决"幂等）⇒
-`state ∈ {UPLOADED, CLOUD_PREFERRED, SKIPPED} → None` ⇒
-`!localHasSave → (cloud == null ? None : UseCloud)` ⇒
+`state.settled → NoAction` ⇒
+`!localHasSave → (cloud == null ? NoAction : UseCloud)` ⇒
 `localHasSave && cloud == null → UploadLocal(MIGRATE)` ⇒
-`localHasSave && cloud != null && (cloud.saveId == null || ledger.lastConfirmedCloudId == 0L)`
-→ `ResolveConflict`（F12）⇒ 其余按 `SaveArbiter.arbitrate(L, C, W)`：`CONFLICT → ResolveConflict`、
-`LOCAL_BEHIND → UseCloud`、`UPLOAD_PENDING/IN_SYNC → UploadLocal(MIGRATE)`。
+`cloud.saveId == null || ledger.lastConfirmedCloudId == 0L → ResolveConflict(UNVERIFIABLE_CLOUD_STATE)`
+（F12 前置守卫）⇒ 其余交 `SaveArbiter`：`CONFLICT → ResolveConflict(BOTH_ADVANCED)`、
+`LOCAL_BEHIND → UseCloud`、`UPLOAD_PENDING → UploadLocal(MIGRATE)`、`IN_SYNC → NoAction`。
 
-`canPromoteToCloudOnly` = 「所有 `localHasSave` 槽 state ∈ {UPLOADED, CLOUD_PREFERRED}」
-且「无任何 `BlockedLoadError` 槽」且「无 `pending > confirmed` 槽」——三条件缺一即 false（SR-7 前置门）。
+`canPromoteToCloudOnly` = 「无损坏槽 && 无未确认待传」且「所有 `localHasSave` 槽
+`migrationState.migrated`」——本地一槽无档时**真空成立**即 true（全新设备升档不需要迁移前置，
+迁移卡的可见性另有 `actionableCount` 判据，两者不混用）。
 
 ```kotlin
 // feature/game/ui/game/saveload/SaveMigrationCoordinator.kt（@Singleton，MainActivity 直注，F13）
