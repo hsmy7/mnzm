@@ -76,7 +76,7 @@
 | SR-3 | 云主路径 + 槽位云化 + 初始化如实（产品可见面；真机硬门）**＝SR 系列末批（用户 2026-09-22 指令「完成这项就结束」，SR-4..SR-7 留待用户后续驱动）** | **delivered（2026-09-22 上午实施会话交付，9 笔提交落库；`accepted` 待用户；⚠ 批次停在 pending-device 等用户真机/拍板）** | 施工卡 `batch-SR3.md`；完成报告 `report-SR3-completion-2026-09-22.md`。交付链：`3f9326bb2`（卡）→`8ca74f3f4`（C2 云下载落盘：CloudSlotOps download→迁移/校验→**落缓存**→账本收敛→boot，LEGACY 门控隔离；list() 富化 parseSummary）→`a02740a27`（C3 主菜单云槽位卡 slot_N 摘要 + EXTRA_CLOUD_SLOT 分发）→`b547fe31c`（C4 初始化 3 败如实阻断 §12-J + 模式感知文案 + 重试 UI）→`973998f05`（C5 真冲突弹窗：conflicts 流 + ConflictHeld 双源置态 + resolveCloudConflict 二选一收口，模态选谁留档明确可见）→`36169a76a`/`693ccdb31`（两轮 detekt 修复，风格级零逻辑变化）→收官笔。门禁全绿：组合门第四轮 **7964/0 失败/17 skip**（skip=基线 17 零新增；+22=本批新测试；689 个 XML 时间戳落在 08:25–08:31 判绿窗口）+ **Diff\* 50 类 273/0 skip（IN8）** + **ctest 1561/1561**（零 C++ 面桥重建豁免）+ 第三轮已知抖动 Lifecycle 测试甄别（engine 零触碰 + 单跑 12/12，B03/B20 先例）。LEGACY 硬红线：旧云读档链零触碰、新链模式门控（LEGACY 拒绝守卫测试锚定）、主菜单云槽位 LEGACY 短路；唯一全模式行为变化 = §12-J 初始化阻断（审计收编授权，报告 §4.5）。aiSectDisciples 现役语义维持（拍板项 open）。**pending-device 8 项**（报告 §7）：双设备剧本 S1-S10 / 云槽位落盘全链 / 冲突弹窗端到端 / 列表摘要+SR-0 六项 / 初始化阻断屏 / LEGACY 回归抽测 / 冷却校准 / aiSectDisciples 实测 |
 | SR-4 | 月变自动存档 + onStop 收口（自动触发面；真机后台杀场景） | **delivered（2026-09-22 实施会话交付，9 笔提交落库；`accepted` 待用户；⚠ 批次停在 pending-device 真机量化）** | 施工卡 `batch-SR4.md`；完成报告 `report-SR4-completion-2026-09-22.md`。交付链：`800f326ad`（卡）→`44e7f5662`（C2 引擎月变发布：monthSettledEvents + finalizeMonthBoundary 尾务去重提取，发布点末句 = 结构保证"月副作用完成后才存"）→`5268c8081`（C3 SaveOrchestrator 合并窗/onStop 立即冲刷/手动作废 + SaveFeedback 三口径）→`4e1c97e53`（C4 月变接线 + 保存链 feedback 透传 + 消息栏常驻一行 + SaveTriggerFlag 按 D6 定默认 + shouldAutoSave 更名）→`c25f507ed`（**自纠**：C4 误纳构建副产物 atlas manifest，单独回退）→`b5e3ebc00`（C5 UploadQueue.requestDrain 排空尝试 + onStop 走编排点）→`55a717427`（C5b 自动口径失败改持久一行，6 秒节奏下 snackbar 不可用）→`189fc490e`（第一轮 detekt 2 条未用 import）→收官笔。**门禁全绿**：组合门第二轮 **BUILD SUCCESSFUL 28m48s / 404 任务 / GATE_EXIT=0**、六模块 **7,986/0 失败/0 错误/17 skip**（skip=基线 17 零新增；+22=本批新测试；XML 时间戳 03:12–03:19 UTC 实证）+ **Diff\* 50 类 273/0 skip（IN8）** + **ctest 1561/1561**（`ninja: no work to do.` 零 C++ 面）；第一轮 detekt 判红如实独立笔修复。**关键拍板**：实测游戏月 = **6 秒真实时间**（2000ms/旬×3 旬），用户三选拍板 **严格按 D6 字面「月月必存」** ⇒ 编排层不做按秒节流；代价（每 6 秒全量快照+Room 事务、保存期 `isSaving` 停摆时钟、周期性 System.gc、非 LEGACY 入队 ≫ TapTap 1/min、熔断更常触发）量化登记于报告 §4 并列真机硬门。**互斥审查零改动**：自动保存复用 `storageFacade.save` ⇒ 与 DataPruning(300s)/DataArchive(600s) 同持 SlotLockManager 每槽排他锁，无新增锁、无死锁面。**LEGACY/手动硬红线**：SaveFeedback.Manual 为默认（手动链逐行不变，LoadTest 38 例零改动绿）、LEGACY 不 enqueue/不 requestDrain（守卫测试锚定）。**pending-device 6 项**（报告 §7）：性能量化 / 后台杀续传 / 限频收敛 / 消息栏可读性 / Compose 渲染未目视 / 修剪争用真机时长。CHANGELOG 4.01.15 段新增 SR-4 小节（SR-0..3 未进 CHANGELOG，本批按 §5.6 补齐并登记差异） |
 | SR-5 | TimeSource + HMAC 签名收敛（方案允许与 SR-3/4 并行，本编排串行置后） | **delivered（2026-09-22 实施会话交付，9 笔提交落库；`accepted` 待用户；⚠ 批次停在 pending-device 真机六项）** | 施工卡 `batch-SR5.md`；完成报告 `report-SR5-completion-2026-09-22.md`。交付链：`08fba3d2c`（卡）→`5adbe45b4`（C2 WallClock 提升为共享抽象 + CalibratedWallClock 云校正偏移 + DI 改绑）→`4dc0b2b99`（C3 SectLevelRewardCooldown 单一判据，引擎 2 处 + GameViewModel 内联重复同源）→`5e3ed9a86`（C3b mock 核心补桩 wallClock，否则 NPE 被 catch-all 吞成 Error）→`f93fa6235`（C4 兑换码 5 处改入参下传，object 内零取时）→`9c8ba90e1`（C5 邮件链 16 取时点收敛，含 MailDao @Transaction 内守卫抓不到的绕行点；删零写入者的 @VisibleForTesting timeSource 按 IN6）→`a7c459a90`（C6 零回流守卫）→`04c4567a8`（**自纠**：守卫首轮门判红，路径分隔符致排除清单静默失效）→`122f43dea`（C7+C8 payload HMAC 签名 + 上传后钟漂移采样）→收官笔。**门禁全绿**：组合门第三轮 **BUILD SUCCESSFUL 25m57s / GATE_EXIT=0 / 339 任务全 executed**、六模块 **8,014/0 失败/0 错误/17 skip**（SR-4 基线 7,986 + 本批 28 例；XML 时间戳 05:50–05:57 UTC 单窗实证）+ **Diff\* 50 类 273/0 skip（IN8）** + **ctest 1561/1561**（`ninja: no work to do.`）；第一轮判红=本批守卫自身缺陷独立笔修复、第二轮外部 `gradlew --stop` 中断非判绿轮，均如实入报告 §6；本批零 detekt 修复笔。**四项拍板**：P1 落地名沿用 `WallClock`（方案字面 TimeSource 已被两个单调钟占用，命名偏离入方案补记）、P2 游戏语义全族 24 处（非方案点名 4 处；玉符实测早已收敛）、P3 零新增启动往返（**施工期证伪冷启动列表 mtime 不可作偏移样本**⇒改挂上传成功后读回）、P4 验签失败降级放行+显式留痕（四态判据，密钥故障不误判玩家篡改）。**LEGACY 红线**：偏移仅在非 LEGACY 上传采样后非 0，未采样时与系统钟逐位一致（守卫测试锚定）；旧云链不签名不改写；MailRepository 接口零改。**pending-device 6 项**（报告 §7，首项为签名链路真机字节稳定性——不稳定则整批签名能力失效）。**登记遗留 5 项**（报告 §8 交用户裁决）：存档/模型时间戳族未收敛（WallClock 居 core:engine，core:data 不能反向依赖 ⇒ 需落点决策）、RequestSigner 对 SecureKeyManager 引用缓存数组 fill(0) 疑污染同进程取键、validateCodeWithServerAuth 零调用者（IN6）、verifySignature 是无密钥哈希、守卫建议按族拆逐文件预算。CHANGELOG 4.01.15 段新增 SR-5 小节 |
-| SR-6 | 存量迁移引导（前置：SR-3 已稳定） | queued | — |
+| SR-6 | 存量迁移引导（前置：SR-3 已稳定） | **in_progress（2026-09-22 实施会话开卡，用户「新开分支完成第六批」直接驱动；分支 `w5/sr6-cloud-migration`；`accepted` 归用户）** | 施工卡 `batch-SR6.md`（勘察 F1-F15 + 矩阵判定顺序 + 三个自定口径 S1-S3 登记待用户改判）；完成报告 `report-SR6-completion-2026-09-22.md`（待收官笔） |
 | SR-7 | 文件层废除 + Room v53 schema 第二刀 + 收官（前置：SR-6 迁移门槛达标；真机硬门） | queued | — |
 
 ---
@@ -94,6 +94,26 @@
 - **看护定时任务**：id `automation-714124e5-34cf-49bb-a7bc-889523faa2ff`（2026-09-20 23:03 重建，cron `*/10 * * * *`，渠道 ZCode；prompt 含 P1→P5 串行派发纪律 + P5 验收后 B18 收官自删 + 「暂停」即删即停）。旧 id ~~`automation-705a7610-3f53-42c4-9328-be0ea456855d`~~ 已于 07:3x 暂停时删除。
 - **缺陷清单**：—
 - **监控日志**：
+  - 2026-09-22 14:1x **SR-6 实施侧开跑（实施会话自记）**：用户「`docs/save-system-refactor-plan-2026-09-21.md`
+    新开分支完成第六批」直接驱动。① **开跑前置核对**：SR-5 收官笔 `45e025bbb` 已落库
+    （组合门第三轮 8,014/0 失败/17 skip + `Diff*` 273/0 skip + ctest 1561/1561）⇒ 本批基线取
+    **8,014/0/17**；gradle 已静默（守护日志 3 分钟零增长 + 五模块 build 零活动）后才动树。
+    ② **分支 `w5/sr6-cloud-migration`** 自 `45e025bbb` 开启（SR 系列首个非 main 施工批）。
+    ③ 施工卡 `batch-SR6.md` 立卡，勘察 F1-F15 三条硬发现入卡：**F1** `UploadLedger.pendingSaveId`
+    生产零消费者（SR-2 KDoc 声称的"重启按待传指针重入队"配方无调用者 ⇒ IN6 违例 + 真耐久性缺口，
+    本批补调用者）；**F2** `StorageFacade.load` 不返回 `SaveData.mails`（邮件由保存编排从表注入）⇒
+    迁移若直接 load→upload 即产出空邮件云档，云恢复又是整对象替换回表 ⇒ 换设备丢邮件，
+    本批迁移上传必须 `load().copy(mails = getMailsForSlot())`；**F12** `SaveArbiter` U11
+    （W 未知按 W==C 保守重算）在迁移语境下会把"云有历史无 saveId 档"判成 `UPLOAD_PENDING`
+    而**静默覆盖**另一台设备 ⇒ 矩阵在 planner 层前置拦截判 `RESOLVE_CONFLICT`，`SaveArbiter` 本体零改。
+    ④ 三条自定口径登记待用户改判（卡 §7 S1-S3）：S1 迁移收口后**玩家一次性确认**才写
+    `set(CLOUD_TRANSITION)`（本批是 SR-2 就绪后该写入点的第一个生产调用者，`CLOUD_ONLY` 仍零写入）；
+    S2 存量单档 `mnzm_cloud_save` 作"云有档"进矩阵可下载可二选一（SR-3 §4.1 移交项）；
+    S3 引导形态 = 主菜单迁移卡 + 逐槽排队进度（6 槽 × TapTap 1/min ⇒ ≥6 分钟，弹窗看不见进度）。
+    ⑤ **树污染基线**：开跑时工作区已含**他方未提交**的 `GameViewModel.kt`/`MailDelegate.kt`/
+    `MailDialog.kt`（SR-5 报告 §6.9/§8.6 已登记，待用户裁定归属）+ 构建副产物
+    `atlas-rgba-manifest.json` ⇒ 本批**不纳管、不改写、不回退、不提交**这些路径，
+    收官前按门禁树污染纪律再比对一次 `git status`。
   - 2026-09-22 13:5x **SR-5 全批交付（实施会话自记；`accepted` 待用户；批次停在 pending-device）**：
     9 笔提交落库（`08fba3d2c` 卡 / `5adbe45b4` C2 墙钟抽象 / `4dc0b2b99` C3 周冷却同源 /
     `5e3ed9a86` C3b mock 补桩 / `f93fa6235` C4 兑换码入参下传 / `9c8ba90e1` C5 邮件链 16 点 /
