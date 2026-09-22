@@ -125,7 +125,7 @@ internal data class LoopIterationState(
 )
 
 @Singleton
-@Suppress("LongParameterList") // 引擎核心 14 个真实依赖（含 EngineCrashReporter 端口），原 12 参数已 baseline 豁免
+@Suppress("LongParameterList") // 引擎核心 15 个真实依赖（含 EngineCrashReporter 端口），原 12 参数已 baseline 豁免
 class GameEngineCore @Inject constructor(
 
     internal val stateStore: GameStateStore,
@@ -158,7 +158,18 @@ class GameEngineCore @Inject constructor(
     internal val breakthroughAnalyticsObserver: com.xianxia.sect.core.engine.BreakthroughAnalyticsObserver =
         com.xianxia.sect.core.engine.BreakthroughAnalyticsObserver(
             com.xianxia.sect.core.engine.NoopAnalyticsTracker
-        )
+        ),
+    /**
+     * 游戏语义墙钟（SR-5）：日/周/过期**阈值判定**的唯一取时入口
+     * （周奖励冷却等引擎侧判据经此取时，不再裸读 `System.currentTimeMillis`）。
+     * 默认 [com.xianxia.sect.core.engine.system.SystemWallClock] 仅供测试直构——
+     * 生产由 Hilt 注入
+     * [com.xianxia.sect.core.engine.system.CalibratedWallClock]（未采样时偏移 0，
+     * 与系统钟逐位一致 ⇒ LEGACY 零行为变化）。
+     * 🔴 IN2 红线：本钟不参与存档新旧仲裁（唯一入口 `SaveArbiter`）。
+     */
+    internal val wallClock: com.xianxia.sect.core.engine.system.WallClock =
+        com.xianxia.sect.core.engine.system.SystemWallClock
 ) : EngineContextDispatcher {
 
     init {

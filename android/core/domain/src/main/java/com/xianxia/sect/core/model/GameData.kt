@@ -51,7 +51,7 @@ data class PendingTraitAdd(
 @Serializable
 data class SectLevelClaimRecord(
     @ProtoNumber(1) val level: Int,
-    @ProtoNumber(2) val claimedAtEpochMs: Long = 0L  // System.currentTimeMillis()
+    @ProtoNumber(2) val claimedAtEpochMs: Long = 0L  // epoch ms（SR-5 起经注入 WallClock 取样）
 )
 
 /**

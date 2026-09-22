@@ -158,6 +158,13 @@ class GameEngine @Inject constructor(
     internal val gameViewStore: com.xianxia.sect.core.gameview.GameViewStore
         get() = stateSyncService.gameViewStore
 
+    /**
+     * 游戏语义墙钟（SR-5）：日/周/过期阈值判据的取时入口，与 GameEngineCore 同实例。
+     * 🔴 IN2：不参与存档新旧仲裁。
+     */
+    internal val wallClock: com.xianxia.sect.core.engine.system.WallClock
+        get() = gameEngineCore.wallClock
+
     init {
         // 注入任务完成检测回调到 GameEngineCore，
         // 确保空闲期间任务完成也能被每月结算及时检测

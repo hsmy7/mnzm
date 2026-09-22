@@ -23,6 +23,9 @@ import com.xianxia.sect.core.engine.pushSubDialogDomain
 import com.xianxia.sect.core.engine.setActiveDialog
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.HighFrequencyData
+import com.xianxia.sect.core.config.SectLevelRewardCooldown
+import com.xianxia.sect.core.engine.system.SystemWallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 import com.xianxia.sect.core.util.GridSnapHelper
@@ -108,7 +111,13 @@ class GameViewModel @Inject constructor(
     private val coreServices: GameVmCoreServices,
     private val uiServices: GameVmUiServices,
     private val delegateServices: GameVmDelegateServices,
-    private val surfaceProviderFactory: SurfaceProviderFactory
+    private val surfaceProviderFactory: SurfaceProviderFactory,
+    /**
+     * 游戏语义墙钟（SR-5）：周奖励徽章判据取时。默认 [SystemWallClock] 供测试直构，
+     * 生产由 Hilt 注入 CalibratedWallClock；判据本体与引擎闸门同源
+     * （[SectLevelRewardCooldown]）。
+     */
+    private val wallClock: WallClock = SystemWallClock
 ) : BaseViewModel() {
 
     // ── 新提取的领域委托 ──
@@ -515,8 +524,11 @@ class GameViewModel @Inject constructor(
         .stateIn(viewModelScope, sharingStarted, SectLevel.SMALL)
 
     val sectLevelRewardClaimable: StateFlow<Boolean> = combine(gameData, playerSectLevel) { data, level ->
-        val lastClaim = data.sectLevelClaimRecords.find { it.level == level }
-        lastClaim == null || (System.currentTimeMillis() - lastClaim.claimedAtEpochMs) >= 7L * 24 * 60 * 60 * 1000
+        // SR-5 C3：与引擎领取闸门同源判据（收敛前此处内联硬编码 7 天，可与闸门分歧）
+        SectLevelRewardCooldown.isClaimable(
+            lastClaimedAtEpochMs = SectLevelRewardCooldown.lastClaimedAt(data.sectLevelClaimRecords, level),
+            nowMs = wallClock.currentTimeMillis()
+        )
     }.distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, false)
 

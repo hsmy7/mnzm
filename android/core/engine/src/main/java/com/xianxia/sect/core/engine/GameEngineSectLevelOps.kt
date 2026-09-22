@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.config.SectLevelRewardCooldown
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.SectLevelClaimRecord
@@ -48,19 +49,17 @@ sealed interface SectLevelUpgradeResult {
 
 // ── 宗门等级奖励领取 ──────────────────────────────────────────
 
-/** 7 天 = 604,800,000 毫秒 */
-private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
-
 /**
  * 领取当前 [level] 宗门等级的每周奖励。
  *
- * 检查该等级上一次领取时间戳，距现实时间不足 7 天则拒绝。
+ * 检查该等级上一次领取时间戳，距现实时间不足 7 天则拒绝
+ * （冷却判据唯一来源 [SectLevelRewardCooldown]，取时经 SR-5 注入墙钟）。
  * 奖励物品（兽血/储物袋/灵石）通过 inventorySystem 直接发放。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = engineContextDispatcher
     .withEngineContext {
-    val nowMs = System.currentTimeMillis()
+    val nowMs = wallClock.currentTimeMillis()
 
     // 检查是否在冷却中
     val cooldownResult = findSectLevelCooldownResult(
@@ -137,15 +136,11 @@ private suspend fun GameEngine.findSectLevelCooldownResult(
     val snapshot = stateStore.gameDataSnapshot
 
     // 检查是否在冷却中
-    val lastClaim = snapshot.sectLevelClaimRecords
-        .find { it.level == level }
-    if (lastClaim != null) {
-        val elapsed = nowMs - lastClaim.claimedAtEpochMs
-        if (elapsed < WEEK_MS) {
-            val nextClaimable = lastClaim.claimedAtEpochMs + WEEK_MS
-            DomainLog.d(TAG, "claimSectLevelReward: level=$level cooldown, nextClaimable=$nextClaimable")
-            return SectLevelClaimResult.AlreadyClaimed(nextClaimable)
-        }
+    val lastClaimedAt = SectLevelRewardCooldown.lastClaimedAt(snapshot.sectLevelClaimRecords, level)
+    if (!SectLevelRewardCooldown.isClaimable(lastClaimedAt, nowMs)) {
+        val nextClaimable = SectLevelRewardCooldown.nextClaimableAt(lastClaimedAt) ?: 0L
+        DomainLog.d(TAG, "claimSectLevelReward: level=$level cooldown, nextClaimable=$nextClaimable")
+        return SectLevelClaimResult.AlreadyClaimed(nextClaimable)
     }
     return null
 }
@@ -342,13 +337,14 @@ private fun GameEngine.writeSectLevelRewards(
 
 /**
  * 检查 [level] 宗门等级的奖励是否可领取（距上次领取 ≥ 7 天）。
+ *
+ * 与领取闸门、UI 徽章同源（[SectLevelRewardCooldown]）——收敛前三处各写一份判据，
+ * 存在"徽章亮、闸门拒"的分歧空间（SR-5 C3）。
  */
 fun GameEngine.canClaimSectLevelReward(level: Int): Boolean {
     val snapshot = stateStore.gameDataSnapshot
-    val lastClaim = snapshot.sectLevelClaimRecords.find { it.level == level }
-        ?: return true  // 从未领取过
-    val elapsed = System.currentTimeMillis() - lastClaim.claimedAtEpochMs
-    return elapsed >= WEEK_MS
+    val lastClaimedAt = SectLevelRewardCooldown.lastClaimedAt(snapshot.sectLevelClaimRecords, level)
+    return SectLevelRewardCooldown.isClaimable(lastClaimedAt, wallClock.currentTimeMillis())
 }
 
 // ── 宗门等级升级 ──────────────────────────────────────────────
