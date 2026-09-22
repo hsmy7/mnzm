@@ -184,7 +184,7 @@ private fun RowScope.MailListPane(
         MailListContent(
             mails = mails,
             selectedMailId = selectedMailId,
-            nowMs = viewModel.mailDisplayNowMs(),
+            nowMs = viewModel.mail.displayNowMs(),
             onMailClick = onMailClick
         )
 

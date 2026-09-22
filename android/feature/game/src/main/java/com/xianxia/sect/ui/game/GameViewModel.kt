@@ -113,18 +113,12 @@ class GameViewModel @Inject constructor(
     private val delegateServices: GameVmDelegateServices,
     private val surfaceProviderFactory: SurfaceProviderFactory,
     /**
-     * 游戏语义墙钟（SR-5）：周奖励徽章判据取时。默认 [SystemWallClock] 供测试直构，
-     * 生产由 Hilt 注入 CalibratedWallClock；判据本体与引擎闸门同源
-     * （[SectLevelRewardCooldown]）。
+     * 游戏语义墙钟（SR-5）：周奖励徽章判据与邮件过期文案取时。默认 [SystemWallClock] 供测试直构，
+     * 生产由 Hilt 注入 CalibratedWallClock；周奖励判据本体与引擎领取闸门同源
+     * （[SectLevelRewardCooldown]），邮件文案取时下传 [MailDelegate]。
      */
     private val wallClock: WallClock = SystemWallClock
 ) : BaseViewModel() {
-
-    /**
-     * 邮件过期文案的取时点（SR-5）：UI 侧不裸读系统钟，与引擎过期判据共用同一
-     * 注入墙钟实例，避免"引擎未过期、列表显示已过期"的分歧。
-     */
-    fun mailDisplayNowMs(): Long = wallClock.currentTimeMillis()
 
     // ── 新提取的领域委托 ──
 
@@ -138,7 +132,7 @@ class GameViewModel @Inject constructor(
         gameEngine, ::showSuccess, ::showError,
         onCapacityWarning = { msg -> showCapacityWarning(msg) }
     )
-    val mail = MailDelegate(gameEngine, delegateServices.mailService, ::showError)
+    val mail = MailDelegate(gameEngine, delegateServices.mailService, ::showError, wallClock)
     val gameLoop = GameLoopDelegate(
         gameEngine, coreServices.gameEngineCore, coreServices.systemManager, viewModelScope, ::showError
     )
