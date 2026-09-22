@@ -5,8 +5,8 @@
 > 方案 = [docs/save-system-refactor-plan-2026-09-21.md](docs/save-system-refactor-plan-2026-09-21.md)
 > §4 SR-5（§1.3 客户端墙钟信任族 + D4 联网化前置）；施工卡 [batch-SR5.md](docs/parallel-batches-w5/batch-SR5.md)；
 > 完成报告 [report-SR5-completion-2026-09-22.md](docs/parallel-batches-w5/report-SR5-completion-2026-09-22.md)。
-> `android/` 面 **50 文件 / +1,278 / −142**，**零 C++、零 wire/proto、零 Room schema、零迁移链触及**；
-> `version.properties` 未递增——由用户决定。8 笔 commit，每子项独立。
+> `android/` 面 **51 文件**、SR-5 自身 11 笔逐笔累计 **+1,795 / −158**（同一文件多笔改到会重复计入），
+> **零 C++、零 wire/proto、零 Room schema、零迁移链触及**；`version.properties` 未递增——由用户决定。
 
 - **墙钟抽象**：方案字面的"新 `TimeSource` 接口"落地为既有 **`WallClock`**（用户 P1 拍板的命名
   偏离——`TimeSource` 已被两个**单调钟**占用：`GameTimeClock.kt:17-19` `elapsedRealtime` 与
@@ -50,6 +50,10 @@
   （SR-4 基线 7,986 + 本批 28 例新测试；XML 时间戳 05:50–05:57 UTC 单窗实证非 UP-TO-DATE）+
   **`Diff*` 50 类 273 用例 0 skip（IN8）** + detekt/compileReleaseKotlin/lintRelease 全绿
   （本批零 detekt 修复笔）。真机六项 = pending-device（报告 §7），本批未声称达标。
+  ⚠ **证据边界如实登记**（报告 §6.9）：该整轮绿灯测的是 13:31–14:09 的树；同一分支上另有
+  并发 SR-6 会话在绿灯之后又提交 10 笔，故**整轮绿灯不覆盖当前 HEAD**——SR-5 的验收以
+  "逐子项定向实跑 + 逐笔独立提交"为凭，纳管笔 `2d5e9fa16` 另做过守卫与 `:feature:game`
+  邮件/后端测试的定向复验。
 
 ### SR-4 批（2026-09-22）——自动存档回归：游戏月月变 + onStop 双触发接入唯一编排点（⚠️ 玩家可见行为变更）
 

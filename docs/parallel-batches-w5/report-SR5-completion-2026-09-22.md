@@ -21,9 +21,14 @@
 | C6 | `WallClockReflowGuardTest` 零回流守卫 | `a7c459a90` |
 | C6b | **自纠**：守卫首轮组合门判红——相对路径分隔符未归一致排除清单静默失效 | `04c4567a8` |
 | C7+C8 | 载荷 HMAC 签名（`SavePayloadSigner`）+ 上传后云端钟漂移采样 | `122f43dea` |
-| C9 | 门禁 + 本报告 + CHANGELOG + 方案 §4 SR-5 补记 + 台账 delivered | 本笔 |
+| C9 | 门禁 + 本报告 + CHANGELOG + 方案 §4 SR-5 补记 + 台账 delivered | `45e025bbb` |
+| C10 | **纳管**门禁跑动期间出现的并发在制品（邮件取时下沉 `MailDelegate`） | `2d5e9fa16` |
 
-规模：**50 文件 / +1,268 / −142**；**零 C++、零 wire/proto、零 Room schema、零迁移链触及**。
+规模：**SR-5 自身 11 笔提交**（`08fba3d2c`…`2d5e9fa16`）逐笔累计 **+1,795 / −158**、
+去重后 **55 个文件**（`android/` 面 51，其余为施工卡/报告/台账/CHANGELOG）；
+**零 C++、零 wire/proto、零 Room schema、零迁移链触及**。
+⚠ 计数口径：不能用 `b9d198aa1..HEAD` 区间 diff（该区间另含并发 SR-6 会话的 10 笔提交，
+区间差会把 SR-6 计入，实测虚高为 71 文件 / +3,976）。
 
 四项用户拍板（P1-P4）落点：
 
@@ -184,26 +189,50 @@ detekt compileReleaseKotlin lintRelease`（桥 `.so` mtime 2026-09-21 21:40：�
 **门 6 · 文档三件套**：完成报告（本文件）+ `CHANGELOG.md` 4.01.15 段新增 SR-5 小节 +
 台账 SR-5 行 delivered + 方案 §4 SR-5 实施补记（方案文档按 SR 纪律保持 untracked）。
 
-### 6.9 证据污染声明（判绿轮的树 ≠ 本批提交树，如实登记）
+### 6.9 并发在制品处置记录（判绿轮曾覆盖他方未提交改动，已纳管归位）
 
 第三轮组合门跑动期间（13:31→14:09），工作区出现**三处非本会话所作**的源码改动
 （`GameViewModel.kt` 13:35:28 / `MailDelegate.kt` 13:35:49 / `MailDialog.kt` 13:35:54，
-内容为把本批 C5 的 `mailDisplayNowMs()` 从 VM 挪进 `MailDelegate` 并下传墙钟）。
-`git status` 现仍显示这三处为**未提交**状态，本批**未纳管、未改写、未回退**（他方在制品）。
+内容为把本批 C5 的 `mailDisplayNowMs()` 从 VM 挪进 `MailDelegate` 并下传墙钟），
+而 `:feature:game` 测试恰在 13:56 跑过它们 ⇒ 判绿轮覆盖的是
+"本批 9 笔提交 + 这三处未提交改动"的**合并树**，不是本批提交树。
 
-后果与边界：
+**处置 = 用户 2026-09-22 指示"直接处理他的改动" ⇒ 逐条复核后纳管，不回退不丢弃**
+（commit `2d5e9fa16`）。复核依据：
 
-1. 8,014/0/17 与 `Diff*` 273/0 的判绿轮 = **本批 9 笔提交 + 这三处未提交改动**的合并树；
-2. 本批自身提交树的独立证据链仍成立：C2-C7 每子项落库前后都跑过定向编译与测试
-   （`:core:engine` / `:app` / `:core:data` / `:feature:game` 的 `compileRelease*Kotlin`
-   与 `WallClockCalibrationTest` / `SectLevelRewardCooldownTest` / `RedeemCode*` /
-   `*Mail*` / `TapTapSaveBackendTest` / `OverflowMailSenderTest` 逐类实跑，
-   最后一次纯本批态 `:feature:game` 侧实跑在 13:16 前后，早于 13:35）；
-3. **未做**在纯净提交树上的整轮复跑（那需要动他方在制品或另建 worktree 全量重建，
-   代价与风险由用户裁定 ⇒ §8 条 6 列为待决项）；
-4. 与本批无关的旁证：第二轮组合门在 `:feature:game:compileReleaseKotlin` 处收到外部
-   `gradlew --stop`（全日志无任务 FAILED）——同一时间窗内本仓存在**第二个并发操作方**，
-   该中断疑为其所致。
+1. 判据语义零变化——同一个 Hilt 单例 `WallClock`，只是取时点从 VM 移到邮件委托；
+2. `MailDelegate` 全仓仅一个构造点（`GameViewModel.kt:135`），无测试直构 ⇒ 零连带改面；
+3. 无悬挂引用——`mailDisplayNowMs` 全仓零残留；
+4. 分层上优于原状（邮件 UI 取时归邮件委托，VM 不再挂邮件专用公开函数）；
+5. 纳管后复验：`WallClockReflowGuardTest` 3/0（六模块登记值不变，feature:game 仍 25、
+   族外合计仍 **168**）+ `:feature:game --tests "*Mail*"` 与 `"*TapTapSaveBackend*"` 全绿。
+
+⇒ 三处并发在制品经用户指示纳管为 `2d5e9fa16`（不回退不丢弃），该改动本身语义零变化。
+
+🔴 **但本报告此前一句结论是错的，就地更正**：曾写"纳管后 HEAD 源码树与判绿轮重新一致"。
+实测并非如此——**同一分支上另有并发 SR-6 会话在绿灯之后继续提交**：
+`e5c6f9391`(14:18)…`775217a58`(15:42) 共 **10 笔 SR-6 提交**落在本批 13:31→14:09 判绿轮之后。
+因此：
+
+| 证据 | 覆盖的树 | 是否覆盖当前 HEAD |
+|---|---|---|
+| 六模块组合门 8,014/0/17、`Diff*` 273/0、detekt/lint/compile 全绿 | 13:31–14:09 的树 = 本批至 `04c4567a8`/`122f43dea` 的提交 + 三处未提交在制品 | ❌ 不覆盖（HEAD 另含 SR-6 的 10 笔 + 本批 `45e025bbb`/`2d5e9fa16`） |
+| 桌面 ctest 1561/1561 + `ninja: no work to do.` | 14:1x 实测；本批零 C++ 面 ⇒ 对 SR-6 是否改 C++ 未复核 | ⚠ 仅对本批成立 |
+| 逐子项定向实跑（C2-C7 每笔落库前后） | 各自提交点 | ✅ 逐笔成立（这是本批真正的独立证据链） |
+| 纳管笔 `2d5e9fa16` 复验：`WallClockReflowGuardTest` 3/0 + `:feature:game` `*Mail*`/`*TapTapSaveBackend*` 全绿 | 16:1x 的当前树（含 SR-6） | ✅ 覆盖 HEAD，但只是**定向**范围，非六模块整轮 |
+
+**结论口径**：SR-5 的验收判据以"逐子项定向实跑 + 逐笔独立提交"为凭；
+六模块整轮绿灯是 13:31–14:09 那个树的结论，**不能当作当前 HEAD 的绿灯**。
+补一条覆盖 HEAD 的整轮需要现在重跑组合门——跑出来的是 **SR-5 + SR-6 合并树**的结论，
+不再纯化为本批证据 ⇒ 是否重跑、由谁跑（SR-6 会话仍在活动，跑期间树会继续漂移）
+交用户裁定（§8 条 6）。
+
+旁证留档：第二轮组合门在 `:feature:game:compileReleaseKotlin` 处收到外部
+`gradlew --stop`（全日志无任务 FAILED）——与本批并发存在的第二操作方（SR-6 会话）
+疑为其所致。**教训已入项目记忆**（门禁前后各比一次 `git status` 与 `git log`，见
+`memory/gate-tree-pollution-check.md`）。
+
+
 
 
 
@@ -240,8 +269,10 @@ detekt compileReleaseKotlin lintRelease`（桥 `.so` mtime 2026-09-21 21:40：�
    名为签名实非 MAC ⇒ 建议纳入后续"防作弊"议题一并处置（本批不动，防夹带）。
 5. 建议把 `WallClockReflowGuardTest` 的 residual 168 处按族拆成**逐文件预算**
    （现按模块预算，族内文件间搬移不会被抓到）。
-6. 🔴 **判绿轮的树污染需用户处置**（详见 §6.9）：三处非本会话所作、至今未提交的
-   `GameViewModel`/`MailDelegate`/`MailDialog` 改动落在本批判绿轮内。需要用户裁定：
-   ① 该在制品是谁的、是否要保留；② 是否要在纯净提交树（`git worktree` 拉 HEAD）
-   整轮复跑组合门以补一条无污染的绿灯证据（代价 ≈ 26 分钟冷构建）。
-   本批既未纳管也未回退它，不做默认处置。
+6. 🔴 **并发操作方需用户裁定（本批最重要的流程发现）**：同一分支 `w5/sr6-cloud-migration`
+   上存在**第二个会话在并行提交 SR-6**（绿灯后 10 笔），且它曾在门禁跑动中途就地改我的
+   C5 文件、还疑似发起过 `gradlew --stop` 中断第二轮门。三处并发在制品已按指示纳管
+   （`2d5e9fa16`，语义零变化 + 定向复验），但**六模块整轮绿灯不再覆盖当前 HEAD**（§6.9）。
+   需裁定：① 是否现在重跑整轮（结果是 SR-5+SR-6 合并树，且 SR-6 仍在动，跑期间会继续漂）；
+   ② 后续批次是否强制串行/分分支，避免两个实施会话共用一棵工作树。
+   **建议 ②**——共树并发已被实证会污染门禁证据。
