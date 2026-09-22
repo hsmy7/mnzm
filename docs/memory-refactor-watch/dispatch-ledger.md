@@ -83,6 +83,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
 
+- **2026-09-23 05:58 监控轮（MR-1 进行态）**：七任务面全部现身，工作树 24 改 + 2 新目录——新增 `VulkanBackend.cpp/.h`+`GameCoreJni.cpp`（P1.7/P1.6）、`GameActivity.kt`+`GameLoopDelegate.kt`（P1.3 四消费者收敛面齐）、`AtlasAsyncPipeline.kt`（P1.4）；`GameViewModel.kt` 新现待核（疑 GameLoopDelegate 挂点）。无越界；**24 文件未提交 = 切分纯度将是核验重点**（P1.3 与 P1.1/P1.6 共享面易混笔）。
+
 - **2026-09-23 05:48 监控轮（MR-1 进行态）**：工作树扩至 17 改 + 2 新目录（`app/.../core/memory/`、`core/domain/.../memory/`——Bridge 与 MemoryTrimLevel 落点），**P1.3 收敛面现身**（XianxiaApplication/CacheLayer/GameDataCacheMemoryPressure/GameDataCacheMaintenance/GameMonitorManager 在改 = 既有消费者正被吸收），P1.6/P1.4 JNI 面（NativeBridge.cpp/.kt + GameCoreBridge.cpp/.kt）同轮展开；无越界文件，尚未提交。下轮盯首笔切分提交（七任务面多，切分纯度重点核 P1.3 与 P1.1 不混笔）。
 
 - **2026-09-23 05:38 监控轮（MR-1 进行态）**：代码面展开，8 文件在写全在预期面——C++ P1.1（`column_dirty.h` 几何扩容 + `disciple_store.h/.cpp` reserve）+ P1.5（`game_core.h/.cpp` 账本 cap/tick 挂点）；Kotlin P1.2（`SectMapController.kt` + `SceneUpdateChannel.kt`）+ P1.7 面（`VulkanRenderBackend.kt`）。无越界文件、无副产物混入；P1.3（TrimMemoryBridge.kt）与 P1.4/P1.6 面未现，尚未提交。下轮盯切分提交纯度与 P1.3 收敛面。
