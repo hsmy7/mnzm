@@ -184,7 +184,7 @@ class RoomMigrationV52To53Test {
         context.deleteDatabase(dbName)
         try {
             val db = RoomMigrationSupport.createDatabaseFromSchema(context, dbName, 52)
-            insertSeedRow(db, "game_data", mapOf("id" to "'sect-sr7'", "slot_id" to "1", "sectName" to "'$SECT_MARKER'"))
+            insertSeedRow(db, "game_data", gameDataSeed())
             insertSeedRow(
                 db, "disciples",
                 mapOf(
@@ -194,26 +194,38 @@ class RoomMigrationV52To53Test {
             )
             val discipleRow = readAllRows(db, "disciples").single()
             EXPECTED_DROPPED_TABLES.forEach { table ->
-                val overrides = mutableMapOf("slot_id" to "1")
-                when (table) {
-                    "disciples_core" -> {
-                        overrides["id"] = "'d1'"
-                        discipleRow["name"]?.let { overrides["name"] = "'$it'" }
-                        discipleRow["realm"]?.let { overrides["realm"] = it }
-                    }
-                    "disciple_compact" -> {
-                        overrides["id"] = "'d1'"
-                        discipleRow["cultivation"]?.let { overrides["cultivation"] = it }
-                    }
-                    else -> overrides["discipleId"] = "'d1'"
-                }
-                insertSeedRow(db, table, overrides)
+                insertSeedRow(db, table, seedOverridesFor(table, discipleRow))
             }
             block(db)
             db.close()
         } finally {
             context.deleteDatabase(dbName)
         }
+    }
+
+    private fun gameDataSeed(): Map<String, String> = mapOf(
+        "id" to "'sect-sr7'", "slot_id" to "1", "sectName" to "'$SECT_MARKER'"
+    )
+
+    /** 镜像行按真相行的同名列取值 ⇒ "纯派生"断言有对照面；键布局随表而异（core/compact 用 `id`，其余用 `discipleId`）。 */
+    private fun seedOverridesFor(
+        table: String,
+        discipleRow: Map<String, String?>
+    ): MutableMap<String, String> {
+        val overrides = mutableMapOf("slot_id" to "1")
+        when (table) {
+            "disciples_core" -> {
+                overrides["id"] = "'d1'"
+                discipleRow["name"]?.let { overrides["name"] = "'$it'" }
+                discipleRow["realm"]?.let { overrides["realm"] = it }
+            }
+            "disciple_compact" -> {
+                overrides["id"] = "'d1'"
+                discipleRow["cultivation"]?.let { overrides["cultivation"] = it }
+            }
+            else -> overrides["discipleId"] = "'d1'"
+        }
+        return overrides
     }
 
     /** 种子自检：6 张镜像表必须真的建出来**且各带一行**（否则"删得准"无对照面） */

@@ -24,7 +24,7 @@ import java.io.File
 class ArchiveWriteOnlyGuardTest {
 
     private companion object {
-        val ARCHIVE_DAOS = "core/data/src/main/java/com/xianxia/sect/data/archive/ArchiveDaos.kt"
+        const val ARCHIVE_DAOS = "core/data/src/main/java/com/xianxia/sect/data/archive/ArchiveDaos.kt"
         val MODULES = listOf("app", "core/data", "core/domain", "core/engine", "core/ui", "feature/game")
         val ARCHIVED_TABLES = listOf("archived_battle_logs", "archived_disciples")
     }

@@ -18,8 +18,8 @@ import java.io.File
 class CacheWriteAtomicityGuardTest {
 
     private companion object {
-        val ENGINE = "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt"
-        val SAVE_SUPPORT = "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt"
+        const val ENGINE = "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt"
+        const val SAVE_SUPPORT = "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt"
         val MODULES = listOf("app", "core/data", "core/domain", "core/engine", "core/ui", "feature/game")
     }
 

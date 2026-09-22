@@ -246,15 +246,7 @@ class SaveFileManager @Inject constructor(
                 // 修复 .sav 失败必须如实反映：.sav 保持损坏时读取将持续回退 .bak，
                 // 调用方需通过 repairFailed 感知
                 // readOnly（CLOUD_ONLY 应急源）⇒ 不写回：数据照旧返回，文件保持原样
-                var repairFailed = false
-                if (!readOnly) {
-                    try {
-                        bakFile.copyTo(savFile, overwrite = true)
-                    } catch (e: Exception) {
-                        repairFailed = true
-                        Log.e(TAG, "修复 .sav 失败 slot=$slot——将持续回退 .bak 直至下次成功保存", e)
-                    }
-                }
+                val repairFailed = if (readOnly) false else repairSavFromBak(bakFile, savFile, slot)
                 return BackupReadResult(BackupStatus.RECOVERED, bakPayload, "bak", repairFailed)
             }
             Log.e(TAG, ".bak 也损坏 slot=$slot")
@@ -262,6 +254,17 @@ class SaveFileManager @Inject constructor(
 
         return BackupReadResult(BackupStatus.CORRUPTED, null, "none")
     }
+
+    /** 用 `.bak` 覆盖损坏的 `.sav`；返回是否修复失败（失败时调用方以 RECOVERED+repairFailed 如实上报）。 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun repairSavFromBak(bakFile: File, savFile: File, slot: Int): Boolean =
+        try {
+            bakFile.copyTo(savFile, overwrite = true)
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "修复 .sav 失败 slot=$slot——将持续回退 .bak 直至下次成功保存", e)
+            true
+        }
 
     // ============================================================
     // 完整性校验
