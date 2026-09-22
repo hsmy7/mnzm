@@ -238,6 +238,38 @@ detekt compileReleaseKotlin lintRelease`（桥 `.so` mtime 2026-09-21 21:40：�
 
 ---
 
+## 6A. 收官后追加门禁（根治笔与 detekt 自纠之后，四轮实录）
+
+§6 的绿灯属于 13:43–14:09 那棵树；其后本批又落了密钥别名根治两笔与一笔风格自纠，
+故按"判绿轮必须带树指纹"的新纪律追加四段实测（`TREE-BEGIN/TREE-END` 原文存
+`/tmp/sr5_gate4.log`、`/tmp/sr5_gate5.log`、`/tmp/sr5_gate5b.log`）：
+
+| 轮 | 起树 / 止树（源码脏文件数） | 结果 | 归属 |
+|---|---|---|---|
+| 第四轮 17:03 | `8f669fa30`(1) → `a93938f34`(1) | 六模块测试**全绿 8,086/0 失败/17 skip**（= SR-5 8,014 + SR-6 72 例）+ `Diff*` 273/0；**`:core:data:detekt` 判红** = 本批新代码 `SavePayloadSigner.kt:109` 用裸 `throw IllegalStateException`（`UseCheckOrError`） | 测试面覆盖 SR-5+SR-6 合并树；判红点是本批自身 |
+| 自纠 | — | `f3af824b6`：改 `check(master.any { it != 0.toByte() }) { … }`（`check` 抛的正是 `IllegalStateException`，仍由同一 catch 归口降级 ⇒ 零行为变化）；本地 `:core:data:detekt` + `SavePayloadSignerTest` 6 例复绿 | 本批 |
+| 第五轮 17:2x | `f3af824b6`(0) → `f3af824b6`(0) | **`:core:data` 810/0/15、`:core:domain` 1,748/0、`:core:engine` 3,414/0、`:core:ui` 146/0、`:feature:game` 963/0 全绿 + 六模块 `detekt` 全绿 + 六模块 `compileReleaseKotlin` 全绿 + `Diff*` 273/0 skip**；`**`:app:testReleaseUnitTest` 与 `lintRelease` 被外部 `gradlew --stop` 打断**（日志止于 `lintAnalyzeRelease` 段、无任务 FAILED 行、前后树指纹完全一致 ⇒ 非本批代码所致，与第二轮的中断同因同源） | 五模块 + 风格门覆盖合并树；`:app`/lint 未取证 |
+| 补跑 ×2 | 同上 | **未跑成**：`:core:domain:bundleLibCompileToJarRelease` 报 `classes.jar` 被另一进程占用（`FileSystemException`）⇒ 有另一路构建正在同一构建目录上活着。**本会话刻意不执行 `gradlew --stop`**——那会打断对方（SR-6）的构建，两败；改日重跑或按 §8 条 6 的隔离方案处理 | 零结论 |
+
+### 6A.1 现状结论口径（不吹绿）
+
+- SR-5 自身的验收凭据仍是 §6 的**逐子项定向实跑**（每笔落库前后各跑一次，含
+  `SecureKeyManagerKeyAliasTest` 的"退回旧语义判红"自证）；
+- 合并树（SR-5 + SR-6）当前已知：五模块测试 + 六模块 detekt + 六模块 compile +
+  `Diff*` 273/0 **绿**；`:app` 测试最近一次完整绿是第四轮 1,005/0/2（其后的两笔改动
+  只落在 `core:data/crypto` 与文档面，未触 `:app` 源码）；**`lintRelease` 在根治笔之后
+  尚未取证**——这是本批唯一未闭环的门禁项；
+- 追加两轮还顺手坐实了并发根因的另一半：两边共用同一 Gradle 守护与 `build/` 目录时，
+  一方按 SOP 执行 `--stop` 解 jar 锁，就会把另一方的整轮打停在半途（第二、五轮皆此形）。
+
+### 6A.2 分支落位（收尾后）
+
+`main` == `sr5/closing-gates` == `e76e60aca`（16 笔，纯 SR-5，含 detekt 自纠，未 push，
+回退锚点 `git branch -f main 122f43dea`）；`w5/sr6-cloud-migration` 仍为 SR-6 工作分支，
+其上的 SR-5 尾巴原身与本分支副本是"同内容不同哈希"，合并时取任一即可。
+
+---
+
 ## 7. pending-device（真机硬门，本环境不可测，逐项不虚报）
 
 1. **签名链路真机字节稳定性**：LZ4 + 序列化往返后跨设备读回是否逐位一致——
