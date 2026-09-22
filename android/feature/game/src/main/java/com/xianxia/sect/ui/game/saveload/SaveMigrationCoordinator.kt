@@ -155,30 +155,40 @@ class SaveMigrationCoordinator @Inject constructor(
     /**
      * 冲突二选一收口（矩阵格"本地有 × 云有"，禁止静默覆盖）。
      *
-     * 两条来源分流：队列已挂起该槽（上传前仲裁判 CONFLICT）⇒ 交还队列授权/丢弃；
-     * 尚未投递（[SlotMigrationAction.ResolveConflict] 的 F12 前置拦截）⇒ 本机为准走授权
-     * 上传，云端为准走下载覆盖本机缓存（`adoptCloudState` 语义由落盘段负责，IN2 序号）。
+     * 两条来源分流：队列已挂起该槽（上传前仲裁判 CONFLICT）⇒ 先交还队列授权/丢弃；
+     * 尚未投递（[SlotMigrationAction.ResolveConflict] 的 F12 前置拦截）⇒ 本机为准走授权上传。
+     * **两条"改用云端"的路径后果必须一致**：都把云端内容落回本机缓存
+     * （[migrateCloudOverLocal]），否则行内文案与玩家实际拿到的进度不符。
      */
     suspend fun resolveConflict(slot: Int, keepLocal: Boolean) {
         if (slot in uploadQueue.heldConflictSlots()) {
             uploadQueue.resolveConflict(slot, keepLocal)
-            if (!keepLocal) migrationLedger.markCloudPreferred(slot)
-            overlays.remove(slot)
+            if (!keepLocal) {
+                // 队列侧的"选云"只做了丢弃待传 + 基线收敛（SR-2 Q10），本机 Room 缓存仍是
+                // 分歧的那一份 ⇒ 必须把云端内容落回本机，否则行内文案与实际后果不符
+                migrateCloudOverLocal(slot)
+            }
         } else if (keepLocal) {
             overlays.remove(slot)
             enqueueSlot(slot, saveId = null)
         } else {
-            when (val outcome = cacheWriter.downloadIntoCache(sourceSlot = slot, targetSlot = slot)) {
-                is CloudSaveCacheWriter.Outcome.Written -> {
-                    migrationLedger.markCloudPreferred(slot)
-                    overlays.remove(slot)
-                }
-                is CloudSaveCacheWriter.Outcome.Rejected ->
-                    overlays[slot] = MigrationOverlay(SlotMigrationStatus.NEEDS_DECISION, outcome.message)
-                CloudSaveCacheWriter.Outcome.ConflictPending -> Unit
-            }
+            migrateCloudOverLocal(slot)
         }
         refresh()
+    }
+
+    /** 以云端为准：下载覆盖本机缓存（不 boot），成功才记 `CLOUD_PREFERRED`，失败留在待裁决 */
+    private suspend fun migrateCloudOverLocal(slot: Int) {
+        when (val outcome = cacheWriter.downloadIntoCache(sourceSlot = slot, targetSlot = slot)) {
+            is CloudSaveCacheWriter.Outcome.Written -> {
+                migrationLedger.markCloudPreferred(slot)
+                overlays.remove(slot)
+            }
+            is CloudSaveCacheWriter.Outcome.Rejected ->
+                overlays[slot] = MigrationOverlay(SlotMigrationStatus.NEEDS_DECISION, outcome.message)
+            CloudSaveCacheWriter.Outcome.ConflictPending ->
+                overlays[slot] = MigrationOverlay(SlotMigrationStatus.NEEDS_DECISION, "云端仍在等待裁决")
+        }
     }
 
     /**
