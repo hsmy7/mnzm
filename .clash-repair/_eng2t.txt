@@ -1,0 +1,20 @@
+34:> Task :core:engine:kspReleaseKotlin FROM-CACHE
+70:BUILD FAILED in 35s
+73:ENG2_EXIT=1
+---tail---
+ngs.class
+    - and more ...
+    New files were found. This might happen because a process is still writing to the target directory.
+    - C:\Mnzm\XianxiaSectNative\android\core\engine\build\tmp\kotlin-classes\release\com\xianxia\sect\core
+    - C:\Mnzm\XianxiaSectNative\android\core\engine\build\tmp\kotlin-classes\release\com\xianxia\sect\core\render
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 35s
+26 actionable tasks: 1 executed, 1 from cache, 24 up-to-date
+Configuration cache entry reused.
+ENG2_EXIT=1

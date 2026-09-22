@@ -1,0 +1,34 @@
+=== errors ===
+310:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystemu4F24u5BB3Ops3.kt
+311:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystemu56DEu5408Ops2.kt
+312:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystemu6218u6597Ops1.kt
+313:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystemu66F4u65B0Ops4.kt
+314:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\building\BuildingFacadeImplu540Cu6B65Ops.kt
+315:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\building\BuildingFacadeImplu751Fu4EA7UiOps.kt
+316:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleFacadeImplu529Fu6CD5Ops1.kt
+317:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleFacadeImplu6218u6597Ops2.kt
+318:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleStatCalculatoru4FEEu70BCOps1.kt
+319:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleStatCalculatoru4FEEu70BCOps6.kt
+320:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleStatCalculatoru4FEEu70BCOps7.kt
+321:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleStatCalculatoru5C5Eu6027Ops3.kt
+322:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleStatCalculatoru5C5Eu6027Ops4.kt
+323:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleStatCalculatoru6218u6597Ops2.kt
+324:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\domain\disciple\DiscipleStatCalculatoru7A81u7834Ops5.kt
+325:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\service\ProductionProcessoru5904u7406Ops1.kt
+326:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\service\ProductionProcessoru6784u7B51Ops2.kt
+327:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\system\InventorySystemu4E39u836FOps2.kt
+328:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\system\InventorySystemu4E39u836FOps5.kt
+329:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\system\InventorySystemu6821u9A8COps3.kt
+330:exception: error: source file or directory not found: C:\Mnzm\XianxiaSectNative\android\core\engine\src\main\java\com\xianxia\sect\core\engine\system\InventorySystemu88C5u5907Ops4.kt
+331:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineBloodRefinementOps.kt:19:53: error: unresolved reference 'addPctToTotal'.
+334:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineBloodRefinementOps.kt:243:32: error: unresolved reference 'addPctToTotal'.
+337:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineBloodRefinementOps.kt:245:32: error: unresolved reference 'addPctToTotal'.
+340:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineDiscipleItemOps.kt:14:53: error: unresolved reference 'getMaxManualSlots'.
+343:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineDiscipleItemOps.kt:31:43: error: unresolved reference 'getMaxManualSlots'.
+346:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineScoutOps.kt:24:53: error: unresolved reference 'battleWritebackMaxHpMp'.
+349:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineScoutOps.kt:203:48: error: operator call 'component1()' is ambiguous for destructuring of type 'ERROR CLASS: Unresolved name: battleWritebackMaxHpMp'. Applicable candidates:
+367:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineScoutOps.kt:203:48: error: operator call 'component2()' is ambiguous for destructuring of type 'ERROR CLASS: Unresolved name: battleWritebackMaxHpMp'. Applicable candidates:
+385:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineScoutOps.kt:203:71: error: unresolved reference 'battleWritebackMaxHpMp'.
+=== count ===
+336
+=== FileAnalysis ===

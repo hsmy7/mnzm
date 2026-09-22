@@ -1,0 +1,63 @@
+### V5 listSlots/forceDeleteSlotData ###
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:484:    suspend fun listSlots(): StorageResult<List<SlotMetadata>> {
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:493:            Log.e(TAG, "listSlots failed", e)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:557:    suspend fun forceDeleteSlotData(slot: Int) {
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:560:            Log.i(TAG, "forceDeleteSlotData: deleted data for slot $slot")
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:563:            Log.w(TAG, "forceDeleteSlotData: failed for slot $slot", e)
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:320:    suspend fun forceDeleteSlotData(slot: Int) {
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:321:        engine.forceDeleteSlotData(slot)
+### V6 getBackupInfo/loadHeavyDataForSlot ###
+core/data/src/main/java/com/xianxia/sect/data/backup/SaveFileManager.kt:375:    fun getBackupInfo(slot: Int): BackupInfo? {
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt:140:internal suspend fun StorageEngine.loadHeavyDataForSlot(slot: Int): Map<String, ByteArray> {
+### V7 archived DAO 方法 ###
+core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:120:            battleLogsCleaned = database.archivedBattleLogDao().deleteArchivedBefore(cutoff)
+core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:121:            disciplesCleaned = database.archivedDiscipleDao().deleteArchivedBefore(cutoff)
+core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:176:            database.archivedBattleLogDao().insertAll(archived)
+core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:201:            database.archivedDiscipleDao().insertAll(archived)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:302:        core.database.archivedBattleLogDao().deleteBySlot(slot)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:303:        core.database.archivedDiscipleDao().deleteBySlot(slot)
+core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:235:    abstract fun archivedBattleLogDao(): ArchivedBattleLogDao
+core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:236:    abstract fun archivedDiscipleDao(): ArchivedDiscipleDao
+### StorageFacade 模型引用 ###
+-- FacadeSaveProgress --
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:27:data class FacadeSaveProgress(
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:136:    private val _progress = MutableStateFlow(FacadeSaveProgress(FacadeSaveProgress.Stage.IDLE, 0f))
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:137:    val progress: StateFlow<FacadeSaveProgress> = _progress.asStateFlow()
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:162:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.INITIALIZING, 0.1f, "Initializing storage")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:181:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f,
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:190:                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f,
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:200:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Initialization completed")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:208:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:239:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.SAVING, 0.1f, "Saving slot $slot")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:247:                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Save completed")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:252:                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Save failed")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:259:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:270:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.LOADING, 0.1f, "Loading slot $slot")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:278:                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Load completed")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:280:                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Load failed")
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:288:            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
+-- SlotCacheEntry --
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:43:data class SlotCacheEntry(
+-- StorageHealthReport --
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:50:data class StorageHealthReport(
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:429:    suspend fun getStorageHealth(): StorageHealthReport {
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:447:        return StorageHealthReport(
+-- SlotHealthReport --
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:59:data class SlotHealthReport(
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:457:    suspend fun getSlotHealth(slot: Int): SlotHealthReport {
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:459:            return SlotHealthReport(slot, false, false, 0L, false, listOf("Invalid slot"))
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:466:            SlotHealthReport(
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:477:            SlotHealthReport(slot, false, false, 0L, false, listOf("Health check error: ${e.message}"))
+-- StorageSystemStats --
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:68:data class StorageSystemStats(
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:416:    fun getStorageStats(): StorageSystemStats {
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:417:        return StorageSystemStats(
+-- StorageUsage --
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:79:data class StorageUsage(
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:482:    suspend fun getStorageUsageSuspend(): StorageUsage {
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:493:            StorageUsage(
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:502:            Log.e(TAG, "getStorageUsage failed", e)
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:503:            StorageUsage(0L, emptyMap(), 0L, 0L)
+-- slotUsageBytes --
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:488:                val size = slotUsageBytes(slot)
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:512:    private suspend fun slotUsageBytes(slot: Int): Long {

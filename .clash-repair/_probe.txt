@@ -1,0 +1,7 @@
+ M android/core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngineLifecycleOps.kt
+?? .clash-repair/
+?? .workbuddy-ai/memory/2026-09-21.md
+?? android/core/engine/src/test/java/com/xianxia/sect/core/engine/MerchantInventoryRepairGuardTest.kt
+e9c8988ed fix(data): 归档槽位补齐 slot 6 + §16 十项修复台账（审计 §12-F / 收尾）
+2ecb51e2b fix(data): 删档完整性——tombstone 清理收敛到全表清单 + 补删 4 张漏表（审计 §12-K）
+b35f1d9fb fix(data): 存档安全网批——真 .bak 轮转 + 备份降级如实上报 + 恢复函数真实化（审计 §12-B/§12-C/§12-D）

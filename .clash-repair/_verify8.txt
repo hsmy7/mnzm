@@ -1,0 +1,30 @@
+### detekt config files ###
+./config/detekt/detekt.yml
+### UnusedPrivateMember config ###
+### UiError toAppError 段 ###
+            }
+            return UiError(
+                code = error.code,
+                userMessage = message,
+                appError = error,
+                isRecoverable = recoverable,
+                severity = severity
+            )
+        }
+
+        fun fromStorageError(error: com.xianxia.sect.data.result.StorageError, message: String = ""): UiError =
+            fromAppError(error.toAppError(message))
+
+        fun fromSaveError(error: com.xianxia.sect.data.unified.SaveError, message: String = ""): UiError =
+            fromAppError(error.toAppError(message))
+
+        fun fromException(e: Throwable): UiError = fromAppError(AppError.fromException(e))
+    }
+}
+
+/** 存储域错误 → (展示文案, 严重度, 可恢复性) 映射 */
+@Suppress("CyclomaticComplexMethod")
+private fun mapStorageError(error: AppError.Domain.Storage): Triple<String, UiErrorSeverity, Boolean> = when (error) {
+    is AppError.Domain.Storage.SlotNotFound -> Triple("存档不存在", UiErrorSeverity.INFO, true)
+    is AppError.Domain.Storage.SlotCorrupted -> Triple("存档数据损坏，请尝试恢复备份", UiErrorSeverity.ERROR, true)
+    is AppError.Domain.Storage.SaveFailed -> Triple("保存失败，请重试", UiErrorSeverity.WARNING, true)

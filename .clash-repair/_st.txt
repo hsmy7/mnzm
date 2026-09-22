@@ -1,0 +1,28 @@
+ D android/app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt
+ D android/app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoHashUtils.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/crypto/IntegrityPrimitives.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoDigest.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyDerivation.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineWriteOps.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SchemaVersion.kt
+ D android/core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt
+ D android/core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt
+ D android/core/data/src/test/java/com/xianxia/sect/data/crypto/IntegrityValidatorTest.kt
+ M android/core/domain/src/main/java/com/xianxia/sect/core/model/GameData.kt
+ M android/core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngineLifecycleOps.kt
+?? .archive_probe.txt
+?? .archive_probe2.txt
+?? .clash-repair/
+?? .workbuddy-ai/memory/2026-09-21.md
+?? android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataBackfill.kt
+?? android/core/data/src/test/java/com/xianxia/sect/data/engine/ArchivePayloadRoundTripTest.kt
+?? android/core/data/src/test/java/com/xianxia/sect/data/engine/HeavyDataPreservationTest.kt
+?? android/core/data/src/test/java/com/xianxia/sect/data/serialization/unified/ProtoNumberUniquenessTest.kt
+?? android/core/engine/src/test/java/com/xianxia/sect/core/engine/MerchantInventoryRepairGuardTest.kt

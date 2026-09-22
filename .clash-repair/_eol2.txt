@@ -1,0 +1,5 @@
+android/app/src/main/java/com/xianxia/sect/di/AppModule.kt CR=250
+android/core/data/src/main/java/com/xianxia/sect/data/archive/ArchiveDaos.kt CR=51
+android/app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt CR=124
+android/core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt CR=0
+android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt CR=0

@@ -1,0 +1,7 @@
+35:import com.xianxia.sect.data.incremental.ChangeTracker
+36:import com.xianxia.sect.data.incremental.ChangeLogPersistence
+118:    fun provideChangeLogDao(database: GameDatabase): ChangeLogDao = database.changeLogDao()
+226:    fun provideChangeTracker(): ChangeTracker {
+227:        return ChangeTracker()
+232:    fun provideChangeLogPersistence(database: GameDatabase): ChangeLogPersistence {
+233:        return ChangeLogPersistence(database)

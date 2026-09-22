@@ -1,0 +1,6 @@
+=== autocrlf ===
+true
+=== gitattributes kt ===
+=== hash-object ===
+warning: in the working copy of 'android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt', LF will be replaced by CRLF the next time Git touches it
+SHA=6e6a40fbd005fbc3c32b17161928a138b3d51fba

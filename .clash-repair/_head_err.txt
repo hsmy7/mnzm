@@ -1,0 +1,1 @@
+140:internal suspend fun StorageEngine.loadHeavyDataForSlot(slot: Int): Map<String, ByteArray> {

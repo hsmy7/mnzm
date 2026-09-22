@@ -1,0 +1,10 @@
+9:interface ArchivedBattleLogDao {
+12:    suspend fun insertAll(logs: List<ArchivedBattleLog>)
+15:    suspend fun getBySlot(slotId: Int): List<ArchivedBattleLog>
+19:    suspend fun getByTimeRange(slotId: Int, startMs: Long, endMs: Long): List<ArchivedBattleLog>
+22:    suspend fun getCountBySlot(slotId: Int): Int
+32:interface ArchivedDiscipleDao {
+35:    suspend fun insertAll(disciples: List<ArchivedDisciple>)
+38:    suspend fun getBySlot(slotId: Int): List<ArchivedDisciple>
+41:    suspend fun searchByName(slotId: Int, keyword: String): List<ArchivedDisciple>
+44:    suspend fun getCountBySlot(slotId: Int): Int

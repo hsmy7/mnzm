@@ -1,0 +1,6 @@
+=== FAILED lines ===
+124:e: org.jetbrains.kotlin.util.FileAnalysisException: While analysing C:/Mnzm/XianxiaSectNative/android/core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngineManualOps.kt:114:61: java.lang.IllegalStateException: Could not read file: C:/Mnzm/XianxiaSectNative/android/core/engine/build/tmp/kotlin-classes/release/com/xianxia/sect/core/engine/domain/disciple/DiscipleConstantsKt.class; size in bytes: 2566; file type: CLASS
+175:Caused by: java.lang.IllegalStateException: Could not read file: C:/Mnzm/XianxiaSectNative/android/core/engine/build/tmp/kotlin-classes/release/com/xianxia/sect/core/engine/domain/disciple/DiscipleConstantsKt.class; size in bytes: 2566; file type: CLASS
+445:e: Daemon compilation failed: null
+=== total lines ===
+583 .clash-repair/_gate1.log

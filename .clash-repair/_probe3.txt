@@ -1,0 +1,24 @@
+total 127
+drwxr-xr-x 1 cp050 197609     0 Sep 21 19:54 .
+drwxr-xr-x 1 cp050 197609     0 Sep 21 19:53 ..
+-rw-r--r-- 1 cp050 197609   504 Sep 21 19:53 _eol.txt
+-rw-r--r-- 1 cp050 197609   616 Sep 21 19:44 _probe.txt
+-rw-r--r-- 1 cp050 197609  2279 Sep 21 19:52 _probe2.txt
+-rw-r--r-- 1 cp050 197609     0 Sep 21 19:54 _probe3.txt
+-rw-r--r-- 1 cp050 197609    58 Sep 21 19:52 _py.txt
+-rw-r--r-- 1 cp050 197609     4 Sep 21 19:53 _t.out
+-rw-r--r-- 1 cp050 197609    12 Sep 21 19:53 _t.py
+-rw-r--r-- 1 cp050 197609  5459 Sep 21 19:44 _verify.txt
+-rw-r--r-- 1 cp050 197609 14505 Sep 21 19:45 _verify2.txt
+-rw-r--r-- 1 cp050 197609  7838 Sep 21 19:46 _verify3.txt
+-rw-r--r-- 1 cp050 197609 13545 Sep 21 19:48 _verify4.txt
+-rw-r--r-- 1 cp050 197609  2827 Sep 21 19:48 _verify5.txt
+-rw-r--r-- 1 cp050 197609  5675 Sep 21 19:49 _verify6.txt
+-rw-r--r-- 1 cp050 197609  1750 Sep 21 19:49 _verify7.txt
+-rw-r--r-- 1 cp050 197609  1374 Sep 21 19:50 _verify8.txt
+-rw-r--r-- 1 cp050 197609    80 Sep 21 19:50 _verify9.txt
+-rw-r--r-- 1 cp050 197609   392 Sep 21 08:18 c-root-acl.after.txt
+-rw-r--r-- 1 cp050 197609   668 Sep 21 08:06 c-root-acl.before.txt
+-rw-r--r-- 1 cp050 197609 11126 Sep 21 19:54 edit.py
+---editlog---
+cat: .clash-repair/_editlog.txt: No such file or directory

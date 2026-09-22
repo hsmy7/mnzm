@@ -1,0 +1,13 @@
+=== HEAD 是否还含 loadHeavyDataForSlot ===
+184:/** 薄封装：仅返回行，供既有调用点（loadHeavyDataForSlot 等）使用。 */
+(空=已不在)
+=== 853bb2d8b 是否含该函数删除 ===
+103:+/** 薄封装：仅返回行，供既有调用点（loadHeavyDataForSlot 等）使用。 */
+=== 我的 8 个修改文件是否仍带我的改动 ===
+3
+2
+0
+0
+0
+0
+0

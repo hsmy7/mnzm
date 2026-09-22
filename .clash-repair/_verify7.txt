@@ -1,0 +1,34 @@
+### loadHeavyDataSafe 用法 ###
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt:56:    val report = loadHeavyDataSafeWithReport(slot)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt:252:    val heavyDataList = loadHeavyDataSafe(slot)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt:257:internal suspend fun StorageEngine.loadHeavyDataSafe(slot: Int): List<GameHeavyData> =
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt:258:    loadHeavyDataSafeWithReport(slot).rows
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt:267:internal suspend fun StorageEngine.loadHeavyDataSafeWithReport(slot: Int): HeavyDataLoadReport {
+### CoreModule SaveStorageImpl import ###
+242:    fun provideSaveStorage(impl: SaveStorageImpl): com.xianxia.sect.core.repository.SaveStorage = impl
+### AppModule ChangeTracker import ###
+35:import com.xianxia.sect.data.incremental.ChangeTracker
+226:    fun provideChangeTracker(): ChangeTracker {
+227:        return ChangeTracker()
+### SaveFileManager BackupInfo 段 ###
+data class BackupIntegrity(
+    val primaryExists: Boolean,
+    val backupExists: Boolean,
+    val primaryValid: Boolean?,
+    val backupValid: Boolean?
+)
+
+/** 备份信息（用于 UI 展示） */
+data class BackupInfo(
+    val slot: Int,
+    val primaryExists: Boolean,
+    val backupExists: Boolean,
+    val primaryValid: Boolean?,
+    val backupValid: Boolean?,
+    val primaryTimestamp: Long?,
+    val backupTimestamp: Long?,
+    val primarySizeBytes: Long?,
+    val backupSizeBytes: Long?
+)
+
+private fun isValidSlot(slot: Int): Boolean = slot in 0..StorageConstants.DEFAULT_MAX_SLOTS

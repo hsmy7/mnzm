@@ -1,0 +1,47 @@
+### loadHeavyDataForSlot 定位 ###
+251:internal suspend fun StorageEngine.loadHeavyDataForSlot(slot: Int): Map<String, ByteArray> {
+256:/** 薄封装：仅返回行，供既有调用点（loadHeavyDataForSlot 等）使用。 */
+### BackupInfo 引用 ###
+core/data/src/main/java/com/xianxia/sect/data/backup/SaveFileManager.kt:375:    fun getBackupInfo(slot: Int): BackupInfo? {
+core/data/src/main/java/com/xianxia/sect/data/backup/SaveFileManager.kt:383:            BackupInfo(
+core/data/src/main/java/com/xianxia/sect/data/backup/SaveFileManager.kt:523:data class BackupInfo(
+core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:741:            val backup = readBackupInfo(backupFile)
+core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:901:private fun readBackupInfo(backupFile: File): BackupValidation {
+core/data/src/main/java/com/xianxia/sect/data/unified/StorageModels.kt:26:data class BackupInfo(
+### SlotMetadata 引用 ###
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:19:import com.xianxia.sect.data.unified.SlotMetadata
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:459:    suspend fun getSlotMetadata(slot: Int): SlotMetadata? {
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:464:            SlotMetadata(
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:478:            Log.w(TAG, "getSlotMetadata failed for slot $slot", e)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:484:    suspend fun listSlots(): StorageResult<List<SlotMetadata>> {
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:487:                getSlotMetadata(slot)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:6:import com.xianxia.sect.data.local.SaveSlotMetadata
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:51:internal suspend fun StorageEngine.syncSlotMetadata(slot: Int, data: SaveData) {
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:53:    val metadata = SaveSlotMetadata(
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:65:    core.database.saveSlotMetadataDao().upsert(metadata)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:291:        core.database.saveSlotMetadataDao().deleteBySlotId(slot)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineWriteOps.kt:170:    syncSlotMetadata(slot, data)
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineWriteOps.kt:171:    syncSlotMetadata(slot, data)
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:184:                val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(1) }
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:464:            val metadata = engine.getSlotMetadata(slot)
+core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:162:        SaveSlotMetadata::class,
+core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:233:    abstract fun saveSlotMetadataDao(): SaveSlotMetadataDao
+core/data/src/main/java/com/xianxia/sect/data/local/SaveSlotMetadata.kt:16:data class SaveSlotMetadata(
+core/data/src/main/java/com/xianxia/sect/data/local/SaveSlotMetadataDao.kt:10:interface SaveSlotMetadataDao {
+core/data/src/main/java/com/xianxia/sect/data/local/SaveSlotMetadataDao.kt:13:    suspend fun upsert(metadata: SaveSlotMetadata)
+### estimateSaveSize 引用 ###
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:92:        fun estimateSaveSize(data: SaveData): Long {
+core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:655:            val bytesWritten = estimateSaveSize(data)
+core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:517:                    com.xianxia.sect.data.engine.StorageEngine.estimateSaveSize(data)
+core/data/src/main/java/com/xianxia/sect/data/StorageConstants.kt:155:    // ==================== 存档大小估算常量（用于 estimateSaveSize）====================
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:213:    // ==================== estimateSaveSize ====================
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:216:    fun `estimateSaveSize - empty SaveData returns base overhead plus serialization overhead`() {
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:227:        val size = StorageEngine.estimateSaveSize(data)
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:233:    fun `estimateSaveSize - increases with disciples`() {
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:245:        val baseSize = StorageEngine.estimateSaveSize(base)
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:246:        val withSize = StorageEngine.estimateSaveSize(withDisciples)
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:251:    fun `estimateSaveSize - scales linearly with entity count`() {
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:263:        val size10 = StorageEngine.estimateSaveSize(data10)
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:264:        val size100 = StorageEngine.estimateSaveSize(data100)
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:269:    fun `estimateSaveSize - accounts for all entity types`() {
+core/data/src/test/java/com/xianxia/sect/data/StorageConstantsTest.kt:282:        val size = StorageEngine.estimateSaveSize(data)

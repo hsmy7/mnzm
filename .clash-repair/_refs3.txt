@@ -1,0 +1,16 @@
+=== archived dao callers (getBySlot/getByTimeRange/getCountBySlot/searchByName on archived) ===
+android/core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:123:            battleLogsCleaned = database.archivedBattleLogDao().deleteArchivedBefore(cutoff)
+android/core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:124:            disciplesCleaned = database.archivedDiscipleDao().deleteArchivedBefore(cutoff)
+android/core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:188:            database.archivedBattleLogDao().insertAll(archived)
+android/core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt:222:            database.archivedDiscipleDao().insertAll(archived)
+android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:302:        core.database.archivedBattleLogDao().deleteBySlot(slot)
+android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt:303:        core.database.archivedDiscipleDao().deleteBySlot(slot)
+=== import backup.BackupInfo ===
+=== StorageModels BackupInfo usage ===
+android/core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:741:            val backup = readBackupInfo(backupFile)
+android/core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:901:private fun readBackupInfo(backupFile: File): BackupValidation {
+android/core/data/src/main/java/com/xianxia/sect/data/unified/StorageModels.kt:26:data class BackupInfo(
+=== SaveStorage (interface) ===
+android/core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1008:        println("  3. 原子文件写入 (SaveStorage 实现): temp→rename")
+android/core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt:18: * Used by SaveStorage to persist/restore game state without depending on data-module types.
+android/core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt:41:interface SaveStorage {

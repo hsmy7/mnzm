@@ -1,0 +1,61 @@
+=== getPositionEffectBonus defs/refs ===
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/building/HerbGardenAuraService.kt:13:import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/building/HerbGardenAuraService.kt:54:        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elder, ElderSlotType.HERB_GARDEN)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/disciple/DiscipleStatCalculator战斗Ops2.kt:52:fun DiscipleStatCalculator.getPositionEffectBonus(disciple: Disciple, slotType: ElderSlotType): Double =
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/disciple/DiscipleStatCalculator战斗Ops2.kt:53:    getPositionEffectBonus(disciple.talentIds, disciple.affixIds, slotType)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/disciple/DiscipleStatCalculator战斗Ops2.kt:55:fun DiscipleStatCalculator.getPositionEffectBonus(
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/disciple/DiscipleStatCalculator战斗Ops2.kt:58:    getPositionEffectBonus(aggregate.talentIds, aggregate.affixIds, slotType)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/disciple/DiscipleStatCalculator战斗Ops2.kt:62:fun DiscipleStatCalculator.getPositionEffectBonus(
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/disciple/DiscipleStatCalculator突破Ops5.kt:159:            val posBonus = getPositionEffectBonus(preachingElder, slotType)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/CultivationRateCalculator.kt:22:import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/CultivationRateCalculator.kt:432:        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/DiscipleBreakthroughHandler.kt:36:import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/DiscipleBreakthroughHandler.kt:397:            DiscipleStatCalculator.getPositionEffectBonus(elder, slotType)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/FormulaService.kt:24:import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/FormulaService.kt:306:                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.FORGE)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/FormulaService.kt:312:                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.ALCHEMY)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/FormulaService.kt:318:                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.HERB_GARDEN)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/FormulaService.kt:406:        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(e, slotType)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/LawEnforcementProcessor.kt:31:import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/LawEnforcementProcessor.kt:163:                    val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elder, ElderSlotType.LAW_ENFORCEMENT)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/RecruitService.kt:37:import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/service/RecruitService.kt:382:            DiscipleStatCalculator.getPositionEffectBonus(it, ElderSlotType.RECRUITING)
+android/core/engine/src/main/java/com/xianxia/sect/core/usecase/SectPolicyToggleUseCase.kt:26:import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
+android/core/engine/src/main/java/com/xianxia/sect/core/usecase/SectPolicyToggleUseCase.kt:343:        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(viceSectMaster, ElderSlotType.VICE_SECT_MASTER)
+android/core/engine/src/main/java/com/xianxia/sect/core/usecase/SectPolicyToggleUseCase.kt:350:        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(viceSectMaster, ElderSlotType.VICE_SECT_MASTER)
+=== DiscipleStatCalculator location ===
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/domain/disciple/DiscipleStatCalculator.kt
+android/core/engine/src/test/java/com/xianxia/sect/core/engine/DiscipleStatCalculatorCombatBonusTest.kt
+android/core/engine/src/test/java/com/xianxia/sect/core/engine/DiscipleStatCalculatorLifespanGainTest.kt
+android/core/engine/src/test/java/com/xianxia/sect/core/engine/DiscipleStatCalculatorTest.kt
+=== error context ===
+124:e: org.jetbrains.kotlin.util.FileAnalysisException: While analysing C:/Mnzm/XianxiaSectNative/android/core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngineManualOps.kt:114:61: java.lang.IllegalStateException: Could not read file: C:/Mnzm/XianxiaSectNative/android/core/engine/build/tmp/kotlin-classes/release/com/xianxia/sect/core/engine/domain/disciple/DiscipleConstantsKt.class; size in bytes: 2566; file type: CLASS
+735:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineBloodRefinementOps.kt:19:53: error: unresolved reference 'addPctToTotal'.
+738:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineBloodRefinementOps.kt:243:32: error: unresolved reference 'addPctToTotal'.
+741:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineBloodRefinementOps.kt:245:32: error: unresolved reference 'addPctToTotal'.
+744:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineDiscipleItemOps.kt:14:53: error: unresolved reference 'getMaxManualSlots'.
+747:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineDiscipleItemOps.kt:31:43: error: unresolved reference 'getMaxManualSlots'.
+750:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineScoutOps.kt:24:53: error: unresolved reference 'battleWritebackMaxHpMp'.
+789:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineScoutOps.kt:203:71: error: unresolved reference 'battleWritebackMaxHpMp'.
+792:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineWorldBattleOps.kt:30:53: error: unresolved reference 'battleWritebackMaxHpMp'.
+831:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\GameEngineWorldBattleOps.kt:146:71: error: unresolved reference 'battleWritebackMaxHpMp'.
+834:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\SectCombatPowerCalculator.kt:8:53: error: unresolved reference 'getPermanentBaseStats'.
+837:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\SectCombatPowerCalculator.kt:84:44: error: unresolved reference 'getPermanentBaseStats'.
+840:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\AISectAttackManager.kt:36:53: error: unresolved reference 'getPhysiqueEffects'.
+843:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\AISectAttackManager.kt:37:53: error: unresolved reference 'getAffixCombatEffects'.
+846:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\AISectAttackManager.kt:367:54: error: unresolved reference 'getPhysiqueEffects'.
+849:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\AISectAttackManager.kt:369:50: error: unresolved reference 'getAffixCombatEffects'.
+852:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:11:53: error: unresolved reference 'getAffixCombatEffects'.
+855:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:12:53: error: unresolved reference 'getFinalStats'.
+858:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:13:53: error: unresolved reference 'getPhysiqueEffects'.
+864:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:163:13: error: unresolved reference 'createBeast'.
+867:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:191:38: error: unresolved reference 'buildBattleSnapshots'.
+906:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:208:30: error: unresolved reference 'executeTurnWithLog'.
+909:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:214:13: error: unresolved reference 'updateBattleSnapshots'.
+912:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:223:22: error: unresolved reference 'resolveBattleWinner'.
+915:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:233:56: error: unresolved reference 'generateRewards'.
+918:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:285:54: error: unresolved reference 'getPhysiqueEffects'.
+921:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\BattleSystem.kt:287:50: error: unresolved reference 'getAffixCombatEffects'.
+924:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\CombatService.kt:27:53: error: unresolved reference 'battleWritebackMaxHpMp'.
+927:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\CombatService.kt:28:53: error: unresolved reference 'areRelatives'.
+930:exception: core\engine\src\main\java\com\xianxia\sect\core\engine\domain\battle\CombatService.kt:29:53: error: unresolved reference 'applyGriefToRelatives'.

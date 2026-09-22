@@ -1,0 +1,51 @@
+=== kept crypto files ===
+DeviceBindingIdentity.kt
+SaveCryptoKeyCache.kt
+SecureKeyFileStore.kt
+SecureKeyManager.kt
+SecureKeyTypes.kt
+SecurityPrimitives.kt
+UiKeyRecoveryCallback.kt
+=== Argon2/PBKDF2/deriveKey refs ===
+android/core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:73: * - Argon2id/PBKDF2 派生在中端设备上�?100-200ms
+=== SecureKeyManager imports ===
+package com.xianxia.sect.data.crypto
+
+import android.content.Context
+import android.util.Log
+import java.io.File
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
+
+object SecureKeyManager {
+    internal const val TAG = "SecureKeyManager"
+
+    /**
+     * 密钥恢复回调（可选）
+     *
+     * 当主密钥和备份都不可读时，系统不再静默生成新密钥，
+     * 而是通过此回调让用户/调用方决策如何处理。
+     *
+     * 设置此回调后，密钥丢失将触发用户确认流程，防止旧存档被静默丢弃。
+     * 若不设置（null），则保持向后兼容行为：记录警告日志后自动恢复。
+     */
+    @Volatile
+    var recoveryCallback: KeyRecoveryCallback? = null
+
+    @Volatile
+    var allowAutoRecovery: Boolean = false
+
+
+    internal const val PREFS_NAME = "secure_key_prefs"
+    internal const val KEY_PREF_KEY = "derived_key_hash"
+    internal const val KEY_SIZE = 256
+    
+    
+
+    // 密钥版本化支持
+    internal const val KEY_VERSION_CURRENT = 2
+    internal const val KEY_VERSION_PREF_KEY = "key_version"

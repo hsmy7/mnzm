@@ -1,0 +1,34 @@
+Starting a Gradle Daemon, 2 busy and 7 stopped Daemons could not be reused, use --status for details
+Calculating task graph as no cached configuration is available for tasks: :core:data:testReleaseUnitTest :core:data:detekt :app:detekt :app:testReleaseUnitTest
+> Task :build-logic:convention:extractPluginRequests UP-TO-DATE
+> Task :build-logic:convention:generatePluginAdapters UP-TO-DATE
+> Task :build-logic:convention:compileJava UP-TO-DATE
+> Task :build-logic:convention:compileGroovy NO-SOURCE
+> Task :build-logic:convention:compileGroovyPlugins UP-TO-DATE
+> Task :build-logic:convention:pluginDescriptors UP-TO-DATE
+> Task :build-logic:convention:processResources UP-TO-DATE
+> Task :build-logic:convention:classes UP-TO-DATE
+> Task :build-logic:convention:jar UP-TO-DATE
+> Task :core:data:preBuild UP-TO-DATE
+> Task :core:data:preReleaseBuild UP-TO-DATE
+> Task :core:data:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:data:generateReleaseBuildConfig UP-TO-DATE
+> Task :core:data:generateReleaseResValues UP-TO-DATE
+> Task :core:data:generateReleaseResources UP-TO-DATE
+> Task :core:data:packageReleaseResources UP-TO-DATE
+> Task :core:data:parseReleaseLocalResources UP-TO-DATE
+> Task :core:data:generateReleaseRFile UP-TO-DATE
+> Task :core:domain:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:domain:preBuild UP-TO-DATE
+> Task :core:domain:preReleaseBuild UP-TO-DATE
+> Task :core:domain:generateReleaseBuildConfig UP-TO-DATE
+> Task :core:domain:generateReleaseResValues UP-TO-DATE
+> Task :core:domain:generateReleaseResources UP-TO-DATE
+> Task :core:domain:packageReleaseResources UP-TO-DATE
+> Task :core:domain:parseReleaseLocalResources UP-TO-DATE
+> Task :core:domain:generateReleaseRFile UP-TO-DATE
+> Task :core:domain:compileReleaseKotlin UP-TO-DATE
+> Task :core:domain:javaPreCompileRelease UP-TO-DATE
+> Task :core:domain:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :core:domain:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :core:data:kspReleaseKotlin

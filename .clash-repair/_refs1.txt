@@ -1,0 +1,13 @@
+=== SaveCrypto (excl KeyCache) ===
+android/app/src/main/java/com/xianxia/sect/XianxiaApplication.kt:345:     * Application.onCreate 后续代码不依赖 MMKV（已确认 SaveCrypto/ChangelogData 无依赖），
+android/core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1022:        println("  2. 加密层(SaveCrypto): SHA-256 checksum embed/verify")
+=== CryptoModule/IntegrityValidator/CryptoHashUtils/SaveCryptoDigest/SaveCryptoKeyDerivation/IntegrityPrimitives/CryptoConfig ===
+android/core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1023:        println("  3. 签名层(IntegrityValidator): HMAC-SHA256 + Merkle Root树哈希")
+=== ChangeTracker ===
+android/core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1029:        println("  6. ChangeTracker: 实体快照含SHA-256，变更时校验")
+=== SchemaVersion/SerializationQuota ===
+android/core/data/src/test/java/com/xianxia/sect/data/local/RoomMigrationSupport.kt:31:        fromSchemaVersion: Int,
+android/core/data/src/test/java/com/xianxia/sect/data/local/RoomMigrationSupport.kt:41:            val db = createDatabaseFromSchema(context, dbName, fromSchemaVersion)
+android/core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngineCoreAuthoritativeOps.kt:179:                snapshotSchemaVersion = NATIVE_SNAPSHOT_SCHEMA_VERSION,
+android/core/engine/src/main/java/com/xianxia/sect/core/nativebridge/GameCoreBridge.kt:69:        snapshotSchemaVersion: String,
+=== SaveStorageImpl / SaveStorage ===

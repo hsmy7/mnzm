@@ -1,0 +1,110 @@
+### CryptoConstants / KeyVersion ###
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:13:enum class KeyVersion(val byteValue: Byte, val description: String) {
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:24:        fun fromByte(byteValue: Byte): KeyVersion? = BYTE_MAP[byteValue]
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:34:object CryptoConstants {
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:42:    var activeVersion: KeyVersion = KeyVersion.DEFAULT
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:46:        KeyVersion.PBKDF2_AES_CBC,
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:47:        KeyVersion.ARGON2ID_AES_GCM,
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:48:        KeyVersion.XCHACHA20_POLY1305
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoConfig.kt:102:    val VERSION_ARGON2ID: Byte = KeyVersion.ARGON2ID_AES_GCM.byteValue
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:23: * | NEW | 密钥轮换无版本化支持 | 引入 KeyVersion 枚举和版本路�?|
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:44: * 2. 在加密数据头部版本标识（KeyVersion）中区分不同迭代次数
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:65:    enum class KeyVersion(val byteValue: Byte, val description: String) {
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:73:            fun fromByte(byte: Byte): KeyVersion? =
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:185:    internal val VERSION_ARGON2ID: Byte = KeyVersion.ARGON2ID_AES_GCM.byteValue
+### timingSafeEqual / securelyClear ###
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoHashUtils.kt:38:        return timingSafeEqual(actualChecksum, expectedChecksum)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoHashUtils.kt:68:        return timingSafeEqual(storedChecksum, actualChecksum)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:321:            if (!timingSafeEqual(storedSignature, computedSignature)) {
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:392:            if (!timingSafeEqual(storedSignature, computedSignature)) {
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:129:        securelyClear(cached.key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:130:        securelyClear(cached.salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:197:            securelyClear(removed.key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:198:            securelyClear(removed.salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:266:        securelyClear(entry.value.key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:267:        securelyClear(entry.value.salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:285:        securelyClear(entry.key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt:286:        securelyClear(entry.salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SecurityPrimitives.kt:17:fun timingSafeEqual(a: ByteArray, b: ByteArray): Boolean {
+core/data/src/main/java/com/xianxia/sect/data/crypto/SecurityPrimitives.kt:35:fun securelyClear(data: ByteArray?) {
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:119:    // ==================== timingSafeEqual ====================
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:122:    fun `timingSafeEqual - equal arrays returns true`() {
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:125:        assertTrue(timingSafeEqual(a, b))
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:129:    fun `timingSafeEqual - different arrays returns false`() {
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:132:        assertFalse(timingSafeEqual(a, b))
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:136:    fun `timingSafeEqual - different length returns false`() {
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:139:        assertFalse(timingSafeEqual(a, b))
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:143:    fun `timingSafeEqual - empty arrays returns true`() {
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:144:        assertTrue(timingSafeEqual(ByteArray(0), ByteArray(0)))
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:147:    // ==================== securelyClear ====================
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:150:    fun `securelyClear - fills array with zeros`() {
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:152:        securelyClear(data)
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:157:    fun `securelyClear - null input does not throw`() {
+core/data/src/test/java/com/xianxia/sect/data/crypto/CryptoHashUtilsTest.kt:158:        securelyClear(null)
+### IntegrityPrimitives funcs ###
+-- dataToJsonString --
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:107:        val dataJson = dataToJsonString(data)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:115:        val dataJson = dataToJsonString(data)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:131:        val dataJson = dataToJsonString(data)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:190:        val dataJson = dataToJsonString(data)
+core/data/src/main/java/com/xianxia/sect/data/crypto/IntegrityPrimitives.kt:20:internal fun dataToJsonString(data: Any): String {
+core/data/src/main/java/com/xianxia/sect/data/crypto/IntegrityPrimitives.kt:29:    val dataJson = dataToJsonString(data)
+-- computeMerkleRoot --
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:65:        computeMerkleRoot(data)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:133:        val merkleRoot = computeMerkleRoot(data)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:198:        val currentMerkleRoot = computeMerkleRoot(data)
+core/data/src/main/java/com/xianxia/sect/data/crypto/IntegrityPrimitives.kt:28:internal fun computeMerkleRoot(data: Any): String {
+-- computeHmacHex --
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:111:        return computeHmacHex(payloadWithVersion.toByteArray(Charsets.UTF_8), key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:151:        val signature = computeHmacHex(payloadToSign.toByteArray(Charsets.UTF_8), key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:225:        val expectedSignature = computeHmacHex(payloadToVerify.toByteArray(Charsets.UTF_8), key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:241:        return computeHmacHex(data.toByteArray(Charsets.UTF_8), key)
+core/data/src/main/java/com/xianxia/sect/data/crypto/IntegrityPrimitives.kt:80:internal fun computeHmacHex(data: ByteArray, key: ByteArray): String {
+-- canonicalizeJson --
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:108:        val canonicalJson = canonicalizeJson(dataJson)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:116:        val canonicalJson = canonicalizeJson(dataJson)
+core/data/src/main/java/com/xianxia/sect/data/crypto/IntegrityPrimitives.kt:90:internal fun canonicalizeJson(jsonStr: String): String {
+-- constantTimeEquals --
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:61:        return constantTimeEquals(actual, expectedHex)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:124:        return constantTimeEquals(actualSignature, expectedSignature)
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:193:        if (!constantTimeEquals(currentDataHash, payload.dataHash)) {
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:199:        if (!constantTimeEquals(currentMerkleRoot, payload.merkleRoot)) {
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:226:        if (!constantTimeEquals(payload.signature, expectedSignature)) {
+core/data/src/main/java/com/xianxia/sect/data/crypto/IntegrityPrimitives.kt:151:internal fun constantTimeEquals(a: String, b: String): Boolean {
+### SaveCryptoDigest / SaveCryptoKeyDerivation ###
+core/data/src/main/java/com/xianxia/sect/data/crypto/CryptoModule.kt:80:        SaveCryptoKeyDerivation.precomputeDerivedKey(password, salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:240:        val key = SaveCryptoKeyDerivation.deriveKeyArgon2id(password, salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:256:        val derivedKey = SaveCryptoKeyDerivation.deriveKeyFromKey(key, salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:289:            SaveCryptoKeyDerivation.deriveKeyArgon2id(pwd, salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:319:            val computedSignature = SaveCryptoKeyDerivation.computeHmac(
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:385:            val derivedKey = SaveCryptoKeyDerivation.deriveKeyFromKey(key, salt)
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:388:            val computedSignature = SaveCryptoKeyDerivation.computeHmac(
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCrypto.kt:551:    val signature = SaveCryptoKeyDerivation.computeHmac(
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoDigest.kt:6:object SaveCryptoDigest {
+core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyDerivation.kt:20:object SaveCryptoKeyDerivation {
+core/data/src/test/java/com/xianxia/sect/data/crypto/IntegrityValidatorTest.kt:143:        val embedded = SaveCryptoDigest.embedChecksum(originalData)
+core/data/src/test/java/com/xianxia/sect/data/crypto/IntegrityValidatorTest.kt:144:        assertTrue(SaveCryptoDigest.verifyEmbeddedChecksum(embedded))
+core/data/src/test/java/com/xianxia/sect/data/crypto/IntegrityValidatorTest.kt:150:        assertNull(SaveCryptoDigest.extractChecksumAndData(shortData))
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:84:        val hash = SaveCryptoDigest.sha256(data)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:91:        val hash1 = SaveCryptoDigest.sha256(data)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:92:        val hash2 = SaveCryptoDigest.sha256(data)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:100:        val hash1 = SaveCryptoDigest.sha256(data1)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:101:        val hash2 = SaveCryptoDigest.sha256(data2)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:108:        val hex = SaveCryptoDigest.sha256Hex(data)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:115:        val hex = SaveCryptoDigest.sha256Hex(data)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:122:        val checksum = SaveCryptoDigest.generateChecksum(data)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:123:        assertTrue(SaveCryptoDigest.verifyChecksum(data, checksum))
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:130:        assertFalse(SaveCryptoDigest.verifyChecksum(data, wrongChecksum))
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:136:        val embedded = SaveCryptoDigest.embedChecksum(originalData)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:137:        val result = SaveCryptoDigest.extractChecksumAndData(embedded)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:142:        val expectedChecksum = SaveCryptoDigest.sha256(originalData)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:149:        val embedded = SaveCryptoDigest.embedChecksum(original)
+app/src/test/java/com/xianxia/sect/data/crypto/SaveCryptoTest.kt:150:        assertTrue(SaveCryptoDigest.verifyEmbeddedChecksum(embedded))
+### StorageSystemBenchmark imports ###
+### CryptoModule/SignedPayload/VerificationResult/IntegrityReport ###
+core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1024:        println("     → 检测范围: 含版本/时间戳/数据哈希/Merkle根/签名的SignedPayload")
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:116:fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:117:    is com.xianxia.sect.data.crypto.VerificationResult.Valid -> null
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:118:    is com.xianxia.sect.data.crypto.VerificationResult.Invalid ->
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:120:    is com.xianxia.sect.data.crypto.VerificationResult.Expired ->
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:122:    is com.xianxia.sect.data.crypto.VerificationResult.Tampered ->

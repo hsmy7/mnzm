@@ -1,0 +1,46 @@
+erateReleaseResources UP-TO-DATE
+> Task :core:domain:packageReleaseResources UP-TO-DATE
+> Task :core:domain:parseReleaseLocalResources UP-TO-DATE
+> Task :core:domain:generateReleaseRFile UP-TO-DATE
+> Task :core:domain:compileReleaseKotlin UP-TO-DATE
+> Task :core:domain:javaPreCompileRelease UP-TO-DATE
+> Task :core:domain:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :core:domain:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :core:data:kspReleaseKotlin
+> Task :core:data:compileReleaseKotlin
+> Task :core:data:javaPreCompileRelease UP-TO-DATE
+> Task :core:data:compileReleaseJavaWithJavac
+> Task :core:domain:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :core:data:transformReleaseClassesWithAsm
+> Task :core:data:bundleLibRuntimeToJarRelease
+> Task :core:data:generateReleaseUnitTestAssets UP-TO-DATE
+> Task :core:data:mergeReleaseShaders UP-TO-DATE
+> Task :core:data:compileReleaseShaders NO-SOURCE
+> Task :core:data:generateReleaseAssets UP-TO-DATE
+> Task :core:data:mergeReleaseAssets UP-TO-DATE
+> Task :core:data:preReleaseUnitTestBuild UP-TO-DATE
+> Task :core:domain:mergeReleaseShaders UP-TO-DATE
+> Task :core:domain:compileReleaseShaders NO-SOURCE
+> Task :core:domain:generateReleaseAssets UP-TO-DATE
+> Task :core:domain:mergeReleaseAssets UP-TO-DATE
+> Task :core:data:mergeReleaseUnitTestAssets UP-TO-DATE
+> Task :core:data:writeReleaseAarMetadata UP-TO-DATE
+> Task :core:domain:writeReleaseAarMetadata UP-TO-DATE
+> Task :core:data:checkReleaseUnitTestAarMetadata UP-TO-DATE
+> Task :core:data:compileReleaseLibraryResources UP-TO-DATE
+> Task :core:data:generateReleaseUnitTestResValues UP-TO-DATE
+> Task :core:data:mapReleaseUnitTestSourceSetPaths UP-TO-DATE
+> Task :core:data:generateReleaseUnitTestResources UP-TO-DATE
+> Task :core:data:mergeReleaseUnitTestResources UP-TO-DATE
+> Task :core:data:extractDeepLinksRelease UP-TO-DATE
+> Task :core:data:processReleaseManifest UP-TO-DATE
+> Task :core:domain:extractDeepLinksRelease UP-TO-DATE
+> Task :core:domain:processReleaseManifest UP-TO-DATE
+> Task :core:data:processReleaseUnitTestManifest UP-TO-DATE
+> Task :core:domain:compileReleaseLibraryResources UP-TO-DATE
+> Task :core:data:processReleaseUnitTestResources UP-TO-DATE
+> Task :core:data:packageReleaseUnitTestForUnitTest UP-TO-DATE
+> Task :core:data:generateReleaseUnitTestConfig UP-TO-DATE
+> Task :core:data:koverFindJar UP-TO-DATE
+> Task :core:data:processReleaseJavaRes UP-TO-DATE
+> Task :core:data:bundleLibCompileToJarRelease

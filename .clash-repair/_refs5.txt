@@ -1,0 +1,50 @@
+=== StorageEngine StorageResult/SlotMetadata usage ===
+14:import com.xianxia.sect.data.result.StorageError
+15:import com.xianxia.sect.data.result.StorageResult
+19:import com.xianxia.sect.data.unified.SlotMetadata
+130:        priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
+132:            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
+139:                    return@withWriteLockLight StorageResult.failure(
+140:                        StorageError.SAVE_FAILED, "保存熔断中（存储连续失败），请稍后重试"
+147:                    ?: return@withWriteLockLight StorageResult.failure(
+148:                        StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
+172:                val error = if (isOom) StorageError.OUT_OF_MEMORY else StorageError.IO_ERROR
+173:                StorageResult.failure(error, e.message ?: "Save failed", e)
+181:                val error = if (isOom) StorageError.OUT_OF_MEMORY else StorageError.SAVE_FAILED
+182:                StorageResult.failure(error, e.message ?: "Save failed", e)
+239:    ): StorageResult<SaveOperationStats> {
+245:            if (result is StorageResult.Failure && result.error == StorageError.OUT_OF_MEMORY) break
+257:    suspend fun load(slot: Int): StorageResult<SaveData> {
+259:            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
+267:                    return@withReadLockLight StorageResult.failure(
+268:                        StorageError.LOAD_FAILED, "读档熔断中（存储连续失败），请稍后重试"
+274:                    return@withReadLockLight StorageResult.success(it)
+292:                StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
+299:                StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Load failed", e)
+306:                StorageResult.failure(StorageError.LOAD_FAILED, "内存不足，读档失败", e)
+328:    ): StorageResult<SaveData>? {
+348:                readResult.payload ?: return StorageResult.failure(
+349:                    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"
+362:                ?: return StorageResult.failure(
+363:                    StorageError.SLOT_CORRUPTED,
+369:                ?: return StorageResult.failure(
+370:                    StorageError.SLOT_CORRUPTED,
+387:            if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
+389:                return StorageResult.failure(
+390:                    StorageError.SLOT_CORRUPTED,
+397:            return StorageResult.success(restoredData)
+409:    suspend fun delete(slot: Int): StorageResult<Unit> {
+411:            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
+434:                StorageResult.success(Unit)
+439:                StorageResult.failure(StorageError.DELETE_FAILED, e.message ?: "Delete failed", e)
+459:    suspend fun getSlotMetadata(slot: Int): SlotMetadata? {
+464:            SlotMetadata(
+478:            Log.w(TAG, "getSlotMetadata failed for slot $slot", e)
+577:    private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
+581:            return StorageResult.failure(StorageError.OUT_OF_MEMORY, "内存不足（${availableMemoryMB()}MB），保存被拒绝")
+626:            return StorageResult.success(SaveOperationStats(bytesWritten = bytesWritten, timeMs = 0,
+=== getSlotMetadata def ===
+android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:459:    suspend fun getSlotMetadata(slot: Int): SlotMetadata? {
+=== getSaveSlots def ===
+android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt:484:    suspend fun getSaveSlots(): List<SaveSlot> {
+android/core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt:210:    suspend fun getSaveSlotsSuspend(): List<SaveSlot> {

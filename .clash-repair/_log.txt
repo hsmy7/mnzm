@@ -1,0 +1,16 @@
+=== LOG ===
+853bb2d8b fix(data): heavy 数据保全——缺失 key 按域表回填 + 被跳过 key 不被下次保存抹掉（审计 §12-A 勘误后）
+908f24180 fix(domain): proto 字段号唯一性——pendingTraitAdds 让号 162→1002 + 守卫（审计 §12-E）
+0f6215981 fix(data): 归档载荷可还原——dataBlob 存全量序列化行（审计 §12-F）
+e9c8988ed fix(data): 归档槽位补齐 slot 6 + §16 十项修复台账（审计 §12-F / 收尾）
+2ecb51e2b fix(data): 删档完整性——tombstone 清理收敛到全表清单 + 补删 4 张漏表（审计 §12-K）
+b35f1d9fb fix(data): 存档安全网批——真 .bak 轮转 + 备份降级如实上报 + 恢复函数真实化（审计 §12-B/§12-C/§12-D）
+b368ed61b docs(B19): 完成报告补第三笔 commit 哈希（76d39b053）
+76d39b053 docs(B19): 施工卡 + 方案 §7.2 + CHANGELOG + 台账 + 完成报告 + 存档勘察报告入库
+=== HEAD STAT ===
+853bb2d8b fix(data): heavy 数据保全——缺失 key 按域表回填 + 被跳过 key 不被下次保存抹掉（审计 §12-A 勘误后）
+ .../data/engine/StorageEngineHeavyDataBackfill.kt  | 81 ++++++++++++++++++++++
+ .../sect/data/engine/StorageEngineHeavyDataOps.kt  | 76 +++++++++++++++++---
+ .../sect/data/engine/StorageEngineWriteOps.kt      | 28 +++++---
+ .../sect/data/engine/HeavyDataPreservationTest.kt  | 67 ++++++++++++++++++
+ 4 files changed, 232 insertions(+), 20 deletions(-)

@@ -1,0 +1,107 @@
+### SaveSnapshot ###
+core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt:20:data class SaveSnapshot(
+core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt:42:    suspend fun save(slot: Int, snapshot: SaveSnapshot): Boolean
+core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt:43:    suspend fun load(slot: Int): SaveSnapshot?
+core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngine.kt:210:    suspend fun buildSaveSnapshot(): GameStateSnapshot {
+core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngineSaveOps.kt:41:    // 挂起版快照请用 GameEngine.buildSaveSnapshot()，自带引擎线程收敛）。
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:3:import com.xianxia.sect.core.repository.SaveSnapshot
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:12: * converts domain [SaveSnapshot] to data [SaveData] and delegates to [StorageFacade].
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:19:    override suspend fun save(slot: Int, snapshot: SaveSnapshot): Boolean {
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:41:    override suspend fun load(slot: Int): SaveSnapshot? {
+feature/game/src/main/java/com/xianxia/sect/ui/game/SaveLoadViewModelCloudOps.kt:65:            val snapshot = gameEngine.buildSaveSnapshot()
+feature/game/src/main/java/com/xianxia/sect/ui/game/SaveLoadViewModelNewGameOps.kt:129:        val snapshot = gameEngine.buildSaveSnapshot()
+feature/game/src/main/java/com/xianxia/sect/ui/game/SaveLoadViewModelRestartOps.kt:223:            val snapshot = gameEngine.buildSaveSnapshot()
+feature/game/src/main/java/com/xianxia/sect/ui/game/SaveLoadViewModelSaveOps.kt:18:    val snapshot = gameEngine.buildSaveSnapshot()
+feature/game/src/main/java/com/xianxia/sect/ui/game/SaveLoadViewModelSaveOps.kt:235:    val snapshot = gameEngine.buildSaveSnapshot()
+feature/game/src/test/java/com/xianxia/sect/ui/game/SaveLoadViewModelLoadTest.kt:716:        coEvery { gameEngine.buildSaveSnapshot() } returns snapshot
+### ChangeType ###
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:23:enum class ChangeType {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:51:    val changeType: ChangeType,
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:75:    fun getByChangeType(changeType: ChangeType): List<DataChange> = 
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:109:            changeType = ChangeType.CREATED,
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:131:            changeType = ChangeType.UPDATED,
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:147:            changeType = ChangeType.DELETED,
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:314:        val changeTypeCounts: Map<ChangeType, Int>,
+### DataType ###
+core/data/src/main/java/com/xianxia/sect/data/compression/DataCompressor.kt:209:    fun selectAlgorithm(dataSize: Int, dataType: DataType, useCase: UseCase): CompressionAlgorithm {
+core/data/src/main/java/com/xianxia/sect/data/compression/DataCompressor.kt:226:        return selectAlgorithm(0, DataType.ARCHIVED, useCase)
+core/data/src/main/java/com/xianxia/sect/data/compression/DataCompressor.kt:388:enum class DataType {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:29:enum class DataType(val prefix: String) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:49:    val dataType: DataType,
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:72:    fun getByType(dataType: DataType): List<DataChange> = 
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:103:    fun trackCreate(dataType: DataType, entityId: String, newValue: Any) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:118:    fun trackUpdate(dataType: DataType, entityId: String, oldValue: Any?, newValue: Any) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:141:    fun trackDelete(dataType: DataType, entityId: String, oldValue: Any?) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:193:    fun getChangesByType(dataType: DataType): List<DataChange> {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:199:    fun getChangesByTypes(dataTypes: Set<DataType>): List<DataChange> {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:218:    fun clearChangesByType(dataType: DataType) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:263:    fun getSnapshot(dataType: DataType, entityId: String): EntitySnapshot? {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:313:        val typeCounts: Map<DataType, Int>,
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:321:internal fun ChangeTracker.trackBatchCreate(dataType: DataType, entities: List<Pair<String, Any>>) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:327:internal fun ChangeTracker.trackBatchUpdate(dataType: DataType, entities: List<Triple<String, Any?, Any>>) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:333:internal fun ChangeTracker.trackBatchDelete(dataType: DataType, entities: List<Pair<String, Any?>>) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:430:private fun buildKey(dataType: DataType, entityId: String): String =
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationTypes.kt:77:enum class DataType {
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/UnifiedSerializationEngine.kt:361:    fun getRecommendedContext(dataSize: Int, dataType: DataType): SerializationContext {
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/UnifiedSerializationEngine.kt:363:            DataType.HOT_DATA -> SerializationContext(
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/UnifiedSerializationEngine.kt:368:            DataType.COLD_DATA -> SerializationContext(
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/UnifiedSerializationEngine.kt:373:            DataType.DELTA -> SerializationContext(
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/UnifiedSerializationEngine.kt:378:            DataType.PERFORMANCE_CRITICAL -> SerializationContext(
+core/data/src/test/java/com/xianxia/sect/data/compression/DataCompressorTest.kt:112:            dataType = DataType.ARCHIVED,
+### DataChange/DataChanges/FieldChange ###
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:47:data class DataChange(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:55:    val fieldChanges: Map<String, FieldChange> = emptyMap()
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:58:data class FieldChange(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:64:data class DataChanges(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:65:    val changes: List<DataChange>,
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:72:    fun getByType(dataType: DataType): List<DataChange> = 
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:75:    fun getByChangeType(changeType: ChangeType): List<DataChange> = 
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:87:    private val changes = ConcurrentHashMap<String, DataChange>()
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:105:        val change = DataChange(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:122:            computeFieldChanges(oldValue, newValue)
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:127:        val change = DataChange(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:143:        val change = DataChange(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:162:    private fun trackChange(key: String, change: DataChange) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:173:    fun getChanges(): DataChanges {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:174:        return DataChanges(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:181:    fun getChangesSince(sinceVersion: Long): DataChanges {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:186:        return DataChanges(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:193:    fun getChangesByType(dataType: DataType): List<DataChange> {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:199:    fun getChangesByTypes(dataTypes: Set<DataType>): List<DataChange> {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:374:private fun computeFieldChanges(oldValue: Any, newValue: Any): Map<String, FieldChange> {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:375:    val fieldChanges = mutableMapOf<String, FieldChange>()
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:393:            addFieldChangeIfChanged(field, oldValue, newValue, fieldChanges)
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:407:private fun addFieldChangeIfChanged(
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:411:    fieldChanges: MutableMap<String, FieldChange>
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:419:            fieldChanges[field.name] = FieldChange(
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/GameViewMirrorCodec.kt:129:        // 扩展区 gameDataChange：gameData.<name> = valueTyped（B18-P1 typed 化；
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/GameViewMirrorCodec.kt:131:        for (jc in gv.gameDataChangeList) {
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/StateSyncService.kt:405:            changedFieldCount = mergeGameDataChanges(envelope.changed)
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/StateSyncService.kt:477:    private fun MutableGameState.mergeGameDataChanges(changed: JsonObject): Int {
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/StateSyncService.kt:478:        val gameDataChanges = changed.filterKeys { it.startsWith(GAMEDATA_PATH_PREFIX) }
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/StateSyncService.kt:479:        if (gameDataChanges.isEmpty()) return 0
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/StateSyncService.kt:485:            changes = gameDataChanges.map { (path, value) ->
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/StateSyncService.kt:490:        return gameDataChanges.size
+core/engine/src/test/java/com/xianxia/sect/core/architecture/MirrorConsumerSurfaceGuardTest.kt:152:     * applyEnvelope + mergeGameDataChanges + 实体集合/弟子行应用）必须**零全表替换**，
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/DiffDirtyEnvelopeEquivalenceTest.kt:122:        // 推进 → gameData 时间字段变化（触发 resourcesHeader/gameDataChange 通道）
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/FakeGameStateStore.kt:142:        val gameDataChanged = mgs.gameData !== baseline.gameData
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/FakeGameStateStore.kt:152:        if (gameDataChanged || collectionsChanged || disciplesChanged) {
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorProtoFeedEquivalenceTest.kt:12:import com.xianxia.sect.proto.gameview.JsonFieldChange
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorProtoFeedEquivalenceTest.kt:141:     * + gameDataChange（其余 gameData 字段）+ discipleListDelta（typed 行 +
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorProtoFeedEquivalenceTest.kt:148:            .addGameDataChange(
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorProtoFeedEquivalenceTest.kt:149:                JsonFieldChange.newBuilder().setName(fixture.mirrorGameDataField("gameYear"))
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorProtoFeedEquivalenceTest.kt:152:            .addGameDataChange(
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorProtoFeedEquivalenceTest.kt:153:                JsonFieldChange.newBuilder().setName(fixture.mirrorGameDataField("unlockedManuals"))
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorTypedEnvelopeEquivalenceTest.kt:7:import com.xianxia.sect.proto.gameview.JsonFieldChange
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorTypedEnvelopeEquivalenceTest.kt:151:        assertTrue("gameDataChange 全部走 typed", cpp.gameDataChangeList.all { it.valueJson.isEmpty })
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorTypedEnvelopeEquivalenceTest.kt:197:            builder.addGameDataChange(gameDataField(name, value, typed))
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorTypedEnvelopeEquivalenceTest.kt:218:    private fun gameDataField(name: String, value: JsonElement, typed: Boolean): JsonFieldChange {
+core/engine/src/test/java/com/xianxia/sect/core/nativebridge/MirrorTypedEnvelopeEquivalenceTest.kt:219:        val jb = JsonFieldChange.newBuilder().setName(name)
+app/src/main/java/com/xianxia/sect/core/state/GameStateStoreImpl.kt:786:     * detectFieldChanges 等辅助函数出现超长参数列表（聚合 data class 模式）。
+app/src/main/java/com/xianxia/sect/core/state/GameStateStoreImpl.kt:962:        if (detectFieldChanges(baseline, disciplesNeedReassemble, flags)) {
+app/src/main/java/com/xianxia/sect/core/state/GameStateStoreImpl.kt:1151:    private fun detectFieldChanges(
+### ChangeLogEntity 引用 ###
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeLogDao.kt
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeLogEntity.kt
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeLogPersistence.kt
+core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt

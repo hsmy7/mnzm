@@ -1,0 +1,7 @@
+63:fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage {
+111:fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage {
+116:fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {
+117:    is com.xianxia.sect.data.crypto.VerificationResult.Valid -> null
+118:    is com.xianxia.sect.data.crypto.VerificationResult.Invalid ->
+120:    is com.xianxia.sect.data.crypto.VerificationResult.Expired ->
+122:    is com.xianxia.sect.data.crypto.VerificationResult.Tampered ->

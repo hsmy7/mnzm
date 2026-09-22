@@ -1,0 +1,51 @@
+### toAppError 调用 ###
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:63:fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage {
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:111:fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage {
+app/src/main/java/com/xianxia/sect/core/util/AppErrorExt.kt:116:fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {
+app/src/main/java/com/xianxia/sect/core/util/UiError.kt:36:            fromAppError(error.toAppError(message))
+app/src/main/java/com/xianxia/sect/core/util/UiError.kt:39:            fromAppError(error.toAppError(message))
+### AppErrorExt VerificationResult 段 ###
+        SaveError.CHECKSUM_MISMATCH to ("校验和不匹配" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.ChecksumMismatch(m, c) }),
+        SaveError.KEY_DERIVATION_ERROR to ("密钥派生错误" to { m: String, c: Throwable? ->
+            AppError.Domain.Storage.KeyDerivationError(m, c) })
+    )
+
+fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage {
+    val (default, factory) = SAVE_ERROR_MAPPINGS.getValue(this)
+    return factory(message.ifEmpty { default }, cause)
+}
+
+fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {
+    is com.xianxia.sect.data.crypto.VerificationResult.Valid -> null
+    is com.xianxia.sect.data.crypto.VerificationResult.Invalid ->
+        AppError.Domain.Storage.VerificationFailed(reason, null)
+    is com.xianxia.sect.data.crypto.VerificationResult.Expired ->
+        AppError.Domain.Storage.Expired("签名已过期 (签名时间: $signedAt, 当前时间: $currentTime)", null)
+    is com.xianxia.sect.data.crypto.VerificationResult.Tampered ->
+        AppError.Domain.Storage.Tampered(reason, null)
+}
+### SaveCryptoKeyCache 生产调用 ###
+app/src/main/java/com/xianxia/sect/XianxiaApplication.kt:29:import com.xianxia.sect.data.crypto.SaveCryptoKeyCache
+app/src/main/java/com/xianxia/sect/XianxiaApplication.kt:128:        SaveCryptoKeyCache.initialize(applicationScopeProvider)
+### SecureKeyTypesTest 内容头 ###
+package com.xianxia.sect.data.crypto
+
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+
+class SecureKeyTypesTest {
+
+    @Before
+    fun setUp() {
+        KeyManagerMetrics.reset()
+    }
+
+    // ==================== KeyManagerMetrics ====================
+
+    @Test
+    fun `KeyManagerMetrics - initial values are zero`() {
+        assertEquals(0, KeyManagerMetrics.permissionFixAttempts.get())
+        assertEquals(0, KeyManagerMetrics.permissionFixSuccesses.get())
+        assertEquals(0, KeyManagerMetrics.backupRecoveries.get())

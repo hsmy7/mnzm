@@ -1,0 +1,11 @@
+Starting a Gradle Daemon, 2 busy and 7 stopped Daemons could not be reused, use --status for details
+Calculating task graph as no cached configuration is available for tasks: :core:data:testReleaseUnitTest :core:data:detekt :app:detekt :app:testReleaseUnitTest
+> Task :build-logic:convention:extractPluginRequests UP-TO-DATE
+> Task :build-logic:convention:generatePluginAdapters UP-TO-DATE
+> Task :build-logic:convention:compileJava UP-TO-DATE
+> Task :build-logic:convention:compileGroovy NO-SOURCE
+> Task :build-logic:convention:compileGroovyPlugins UP-TO-DATE
+> Task :build-logic:convention:pluginDescriptors UP-TO-DATE
+> Task :build-logic:convention:processResources UP-TO-DATE
+> Task :build-logic:convention:classes UP-TO-DATE
+> Task :build-logic:convention:jar UP-TO-DATE

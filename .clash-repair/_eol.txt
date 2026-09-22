@@ -1,0 +1,22 @@
+C:\Users\cp050\.workbuddy-ai\binaries\PortableGit\versions\1.2.0\bin\bash.exe: line 1: file: command not found
+0
+# EditorConfig 文件
+# 统一项目编码和代码风格
+# 更多信息: https://editorconfig.org
+
+# 根目录配置
+root = true
+
+# 所有文件通用设置
+[*]
+# 使用 UTF-8 编码（防止中文乱码）
+charset = utf-8
+
+# 使用 LF 换行符（Unix 风格）
+end_of_line = lf
+
+# 文件末尾插入空行
+insert_final_newline = true
+
+# 删除行尾空格
+trim_trailing_whitespace = true

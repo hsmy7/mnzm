@@ -1,0 +1,43 @@
+########## V1 SaveStorageImpl ##########
+app/src/main/java/com/xianxia/sect/di/CoreModule.kt:242:    fun provideSaveStorage(impl: SaveStorageImpl): com.xianxia.sect.core.repository.SaveStorage = impl
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:15:class SaveStorageImpl @Inject constructor(
+--- SaveStorage interface refs ---
+core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1008:        println("  3. 原子文件写入 (SaveStorage 实现): temp→rename")
+core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt:18: * Used by SaveStorage to persist/restore game state without depending on data-module types.
+core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt:41:interface SaveStorage {
+app/src/main/java/com/xianxia/sect/di/CoreModule.kt:242:    fun provideSaveStorage(impl: SaveStorageImpl): com.xianxia.sect.core.repository.SaveStorage = impl
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:4:import com.xianxia.sect.core.repository.SaveStorage
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:11: * Bridge implementation of [SaveStorage] — lives in :app module,
+app/src/main/java/com/xianxia/sect/di/SaveStorageImpl.kt:17:) : SaveStorage {
+########## V2 SchemaVersion ##########
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SchemaVersion.kt:3:data class SchemaVersion(val major: Int, val minor: Int = 0) : Comparable<SchemaVersion> {
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SchemaVersion.kt:4:    override fun compareTo(other: SchemaVersion): Int {
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SchemaVersion.kt:12:        fun parse(value: String): SchemaVersion {
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SchemaVersion.kt:15:                SchemaVersion(parts[0].toIntOrNull() ?: 1, parts[1].toIntOrNull() ?: 0)
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SchemaVersion.kt:17:                SchemaVersion(value.toIntOrNull() ?: 1)
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SchemaVersion.kt:21:        val CURRENT = SchemaVersion(1)
+core/data/src/test/java/com/xianxia/sect/data/local/RoomMigrationSupport.kt:31:        fromSchemaVersion: Int,
+core/data/src/test/java/com/xianxia/sect/data/local/RoomMigrationSupport.kt:41:            val db = createDatabaseFromSchema(context, dbName, fromSchemaVersion)
+core/engine/src/main/java/com/xianxia/sect/core/engine/GameEngineCoreAuthoritativeOps.kt:179:                snapshotSchemaVersion = NATIVE_SNAPSHOT_SCHEMA_VERSION,
+core/engine/src/main/java/com/xianxia/sect/core/nativebridge/GameCoreBridge.kt:69:        snapshotSchemaVersion: String,
+########## V3 SerializationQuota/DataLimits ##########
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt:3:data class DataLimits(
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt:8:        val DEFAULT = DataLimits()
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt:9:        val LENIENT = DataLimits(
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt:16:data class DataLimitViolation(
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt:23:        "DataLimitViolation(domain='$domain', actual=$actualValue$unit, limit=$limit$unit)"
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt:26:data class DataLimitValidationResult(
+core/data/src/main/java/com/xianxia/sect/data/serialization/unified/SerializationQuota.kt:28:    val violations: List<DataLimitViolation> = emptyList()
+core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:898:        println("  最大存档大小: 200MB (DataLimits.DEFAULT.totalMaxBytes)")
+core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:899:        println("  最大弟子数: 5000 (DataLimits.DEFAULT.maxDiscipleCount)")
+########## V4 ChangeTracker ##########
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:79:class ChangeTracker {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:81:        internal const val TAG = "ChangeTracker"
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:321:internal fun ChangeTracker.trackBatchCreate(dataType: DataType, entities: List<Pair<String, Any>>) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:327:internal fun ChangeTracker.trackBatchUpdate(dataType: DataType, entities: List<Triple<String, Any?, Any>>) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:333:internal fun ChangeTracker.trackBatchDelete(dataType: DataType, entities: List<Pair<String, Any?>>) {
+core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeTracker.kt:433:private val TAG = ChangeTracker.TAG
+core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1029:        println("  6. ChangeTracker: 实体快照含SHA-256，变更时校验")
+app/src/main/java/com/xianxia/sect/di/AppModule.kt:35:import com.xianxia.sect.data.incremental.ChangeTracker
+app/src/main/java/com/xianxia/sect/di/AppModule.kt:226:    fun provideChangeTracker(): ChangeTracker {
+app/src/main/java/com/xianxia/sect/di/AppModule.kt:227:        return ChangeTracker()

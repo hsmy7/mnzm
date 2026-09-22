@@ -1,0 +1,11 @@
+=== listSlots ===
+=== getBackupInfo/BackupInfo ===
+android/core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:741:            val backup = readBackupInfo(backupFile)
+android/core/data/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt:901:private fun readBackupInfo(backupFile: File): BackupValidation {
+android/core/data/src/main/java/com/xianxia/sect/data/unified/StorageModels.kt:26:data class BackupInfo(
+=== loadHeavyDataForSlot ===
+android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt:184:/** 薄封装：仅返回行，供既有调用点（loadHeavyDataForSlot 等）使用。 */
+=== forceDeleteSlotData ===
+=== hasSaveSuspend/getStorageStats/getStorageHealth/getSlotHealth/getStorageUsageSuspend ===
+android/core/data/src/test/java/com/xianxia/sect/data/StorageSystemBenchmark.kt:1045:        println("  5. [可观测性] 建议为StorageFacade.getStorageStats()补充缓存命中率统计")
+=== progress/currentSlotFlow/FacadeSaveProgress ===

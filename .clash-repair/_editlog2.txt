@@ -1,0 +1,9 @@
+OK(1) AM-imp
+OK(1) AM-prov
+OK(1) AD-b-getBySlot
+OK(1) AD-b-getByTimeRange
+OK(1) AD-b-getCountBySlot
+OK(1) AD-d-getBySlot
+OK(1) AD-d-searchByName
+OK(1) AD-d-getCountBySlot
+OK AEE-ext
