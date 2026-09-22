@@ -121,19 +121,33 @@ object SecureKeyManager {
     
 
 
+    /**
+     * 取（或首次派生）设备主密钥。**返回防御性副本，不是缓存别名。**
+     *
+     * 🔴 契约（2026-09-22 根治，此前直接把 [KeyCache.key] 引用交出去）：
+     * 旧语义下任一调用方就地擦除返回值（`RequestSigner.deriveLocalSigningKey` 与
+     * `SecureHttpClient.decryptResponse` 都写着 `masterKey.fill(0)`，意图是清自己的副本）
+     * 等于把**全零密钥写回进程级缓存**；又因缓存是"命中即续期"的滑动 TTL
+     * （见下方 `copy(lastAccess = now)`），只要还有取键流量，零值可**无限期存活**，
+     * 连带后果：响应解密派生出错误密钥、云档载荷签名（`SavePayloadSigner`）
+     * 用全零 master 派出"语法合法但错误"的密钥、`verifyKeyIntegrity` 误报密钥丢失。
+     *
+     * 现在的语义：内容在 TTL 内稳定、引用不复用、**调用方可安全擦除返回值**
+     * （擦除只影响自己那份副本——这正是那两处 `fill(0)` 想要的密钥卫生）。
+     */
     @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
     fun getOrCreateKey(context: Context): ByteArray {
         synchronized(keyLock) {
             val currentCache = keyCache
             if (currentCache != null && !currentCache.isExpired(KEY_CACHE_TTL)) {
                 keyCache = currentCache.copy(lastAccess = System.currentTimeMillis())
-                return currentCache.key
+                return currentCache.key.copyOf()
             }
-            
+
             return try {
                 val key = getOrCreateDerivedKey(context)
                 keyCache = KeyCache(key, System.currentTimeMillis())
-                key
+                key.copyOf()
             } catch (e: Exception) {
                 keyCache = null
                 Log.e(TAG, "Failed to create derived key", e)
