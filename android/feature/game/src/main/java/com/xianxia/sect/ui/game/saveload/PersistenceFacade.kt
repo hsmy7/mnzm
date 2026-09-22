@@ -25,8 +25,8 @@ import javax.inject.Singleton
  *（restartGameInternal）内完成。
  *
  * LongParameterList：聚合门面即职责本身（把 VM 可接受的构造参数上限保持在 7，
- * 依赖收拢于本类一个注入点）——SR-2 增补云上传收口三依赖（queue/ledger/mode），
- * 与既有先例同口径，非参数失控。
+ * 依赖收拢于本类一个注入点）——SR-2 增补云上传收口三依赖（queue/ledger/mode）、
+ * SR-6 增补落盘段（cloudSaveCacheWriter），与既有先例同口径，非参数失控。
  */
 @Singleton
 @Suppress("LongParameterList")
@@ -43,5 +43,7 @@ class PersistenceFacade @Inject constructor(
     val saveBackendModeProvider: SaveBackendModeProvider,
     // SR-3 云主路径：云槽位下载/列表数据源（接口隔离 IN3，业务面零 SDK 类型）
     val saveBackend: SaveBackend,
+    // SR-6 C4：云档→本地缓存的落盘段（VM 的 boot 前段与迁移侧共用，见该类 KDoc）
+    val cloudSaveCacheWriter: CloudSaveCacheWriter,
     @ApplicationContext val context: Context
 )

@@ -7,19 +7,9 @@ package com.xianxia.sect.ui.game
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.data.cloud.ArbitrationVerdict
-import com.xianxia.sect.data.crypto.SavePayloadIntegrity
-import com.xianxia.sect.data.cloud.CloudSavePayload
-import com.xianxia.sect.data.cloud.SaveBackendError
 import com.xianxia.sect.data.cloud.SaveBackendMode
-import com.xianxia.sect.data.cloud.SaveBackendResult
-import com.xianxia.sect.data.integrity.IntegrityResult
-import com.xianxia.sect.data.integrity.SaveValidator
-import com.xianxia.sect.data.migration.MigrationResult
-import com.xianxia.sect.data.migration.SaveDataVersionMigrator
-import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
-import com.xianxia.sect.data.unified.SaveResult
+import com.xianxia.sect.data.crypto.SavePayloadIntegrity
+import com.xianxia.sect.ui.game.saveload.CloudSaveCacheWriter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -160,22 +150,17 @@ internal suspend fun SaveLoadViewModel.performCloudSlotLoad(slot: Int): CloudSlo
             return CloudSlotLoadOutcome.Completed
         }
 
-        when (val result = persistenceFacade.saveBackend.download(slot)) {
-            is SaveBackendResult.Failure -> {
-                if (result.error == SaveBackendError.CONFLICT) {
-                    // 真冲突（本机脏 × 云端有更新）：conflicts 流已发事件，本链不落盘
-                    // 不覆盖，冲突弹窗二选一接管（禁止静默覆盖，方案 §2/IN2）
-                    Log.w(
-                        SaveLoadViewModelConstants.TAG,
-                        "cloud slot load conflict: slot=$slot — 等待玩家二选一"
-                    )
-                    return CloudSlotLoadOutcome.ConflictPending
-                }
-                cloudSaveOperationStateFlow.value =
-                    CloudSaveOperationState.Error("云存档下载失败：${result.message}")
-                return CloudSlotLoadOutcome.Completed
+        // SR-6 C4：下载 → verdict 分流 → 云档管线 → 落缓存 → 账本收敛，与迁移侧共用
+        // CloudSaveCacheWriter（本入口保留上面的 LEGACY 闸，并在下面接既有 boot 链）
+        return when (
+            val outcome = persistenceFacade.cloudSaveCacheWriter.downloadIntoCache(slot, slot)
+        ) {
+            is CloudSaveCacheWriter.Outcome.ConflictPending -> CloudSlotLoadOutcome.ConflictPending
+            is CloudSaveCacheWriter.Outcome.Rejected -> {
+                cloudSaveOperationStateFlow.value = CloudSaveOperationState.Error(outcome.message)
+                CloudSlotLoadOutcome.Completed
             }
-            is SaveBackendResult.Success -> return handleCloudSlotPayload(slot, result.data)
+            is CloudSaveCacheWriter.Outcome.Written -> bootFromCloudCache(outcome)
         }
     } catch (e: CancellationException) {
         throw e
@@ -197,73 +182,29 @@ internal suspend fun SaveLoadViewModel.performCloudSlotLoad(slot: Int): CloudSlo
 }
 
 /**
- * 下载成功分支：verdict 分流 → 云档管线 → **落缓存** → 账本基线收敛 → 既有 boot 链。
+ * 落缓存成功后的 boot 分支（SR-6 C4：落盘段已移入 `CloudSaveCacheWriter`，本函数只剩 boot）。
  *
- * - verdict = UPLOAD_PENDING（本机有未上传新进度、云端并不更新）→ 拒绝覆盖：
- *   下载会丢本机未上传进度，如实提示等队列自动补传（区分于真冲突，SR-0 S5 语义）；
- * - 落缓存成功才 boot：缓存写入失败 = 如实报错中止，不带病进游戏（IN1 同源纪律）；
- * - 账本收敛 = 采纳云端为基线（非新保存）：W 已知时 `adoptCloudState(slot, W)`
- *   （L=C=W、待传清零，防止下一次仲裁把刚下载的档误判为待上传）；W 未知（存量档
- *   U11）保持账本原状；**不走** `recordLocalSave`（落缓存不是新进度，不制造假脏标志）。
+ * 顺序不变（SR-3 §2.1）：**缓存写入成功才 boot**，缓存失败由 writer 返回 Rejected、
+ * 本入口如实报错中止，不带病进游戏（IN1 同源纪律）。
  */
-@Suppress("ReturnCount") // verdict/管线/落盘多失败守卫，多 return 为守卫风格
-internal suspend fun SaveLoadViewModel.handleCloudSlotPayload(
-    slot: Int,
-    payload: CloudSavePayload
+private suspend fun SaveLoadViewModel.bootFromCloudCache(
+    outcome: CloudSaveCacheWriter.Outcome.Written
 ): CloudSlotLoadOutcome {
-    when (payload.verdict) {
-        // 防御兜底：后端 CONFLICT 走 Failure 短路，Success 不应携带 CONFLICT；此处按冲突待决处理
-        ArbitrationVerdict.CONFLICT -> return CloudSlotLoadOutcome.ConflictPending
-        ArbitrationVerdict.UPLOAD_PENDING -> {
-            cloudSaveOperationStateFlow.value = CloudSaveOperationState.Error(
-                "本机此槽位有未上传的新进度，已停止从云端覆盖：请联网等待自动上传完成后重试"
-            )
-            return CloudSlotLoadOutcome.Completed
-        }
-        ArbitrationVerdict.LOCAL_BEHIND, ArbitrationVerdict.IN_SYNC -> {}
-    }
-
-    val processed = processDownloadedCloudSave(payload.saveData)
-    if (processed == null) {
-        // 管线失败已置操作态（版本异常/数据损坏）
-        return CloudSlotLoadOutcome.Completed
-    }
-
-    // 落缓存（审计 §3/§12-I 修复面核心：云档写入本地缓存槽 N，不再只进内存）
-    val cacheResult = persistenceFacade.storageFacade.save(slot, processed)
-    if (!cacheResult.isSuccess) {
-        val cacheError = (cacheResult as? SaveResult.Failure)?.message ?: "本地缓存写入失败"
-        Log.e(
-            SaveLoadViewModelConstants.TAG,
-            "cloud slot cache write FAILED: slot=$slot error=$cacheError"
-        )
-        cloudSaveOperationStateFlow.value = CloudSaveOperationState.Error(
-            "云存档落盘失败：$cacheError"
-        )
-        return CloudSlotLoadOutcome.Completed
-    }
-
-    payload.saveId?.let { saveId ->
-        persistenceFacade.uploadLedger.adoptCloudState(slot, saveId)
-        Log.i(
-            SaveLoadViewModelConstants.TAG,
-            "cloud slot ledger adopted: slot=$slot W=$saveId（下载即云端基线，非新保存）"
-        )
-    }
-
     // 既有 boot 链（pendingSlot 参数化后回显目标槽 N）
-    val bootResult = applyCloudSaveToEngine(processed, slot, pendingSlot = slot)
-    if (bootResult.isSuccess) {
+    val bootResult = applyCloudSaveToEngine(
+        outcome.saveData,
+        outcome.targetSlot,
+        pendingSlot = outcome.targetSlot
+    )
+    cloudSaveOperationStateFlow.value = if (bootResult.isSuccess) {
         // SR-5 C7（P4 拍板）：完整性异常降级放行，但必须让玩家看得见，不静默
-        cloudSaveOperationStateFlow.value = CloudSaveOperationState.Success(
-            "云存档加载成功" + payload.integrity.integrityNotice().let {
+        CloudSaveOperationState.Success(
+            "云存档加载成功" + outcome.integrity.integrityNotice().let {
                 if (it.isEmpty()) "" else "（$it）"
             }
         )
     } else {
-        cloudSaveOperationStateFlow.value = CloudSaveOperationState.Error(
-            "读取云存档失败: ${bootResult.exceptionOrNull()?.message}"
-        )
+        CloudSaveOperationState.Error("读取云存档失败: ${bootResult.exceptionOrNull()?.message}")
     }
     return CloudSlotLoadOutcome.Completed
 }
@@ -279,41 +220,4 @@ internal fun SavePayloadIntegrity.integrityNotice(): String = when (this) {
     SavePayloadIntegrity.VERIFIED, SavePayloadIntegrity.UNSIGNED -> ""
     SavePayloadIntegrity.MISMATCH -> "该云存档签名校验不通过，内容可能被改写，请确认进度无误"
     SavePayloadIntegrity.KEY_UNAVAILABLE -> "本机校验密钥暂不可用，未能验证云存档签名"
-}
-
-/**
- * 云档管线（与既有云读档同语义）：版本迁移 → 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建。
- * 失败已置操作态并返回 null。
- *
- * 独立成段而不复用 LEGACY handler——红线隔离：既有云读档路径本批零触碰
- * （约 15 行管线序列有意重复，完成报告如实登记）。
- */
-@Suppress("ReturnCount") // 版本/校验多失败守卫，多 return 为守卫风格
-private fun SaveLoadViewModel.processDownloadedCloudSave(saveData: SaveData): SaveData? {
-    val migration = SaveDataVersionMigrator.migrate(saveData)
-    if (migration is MigrationResult.Rejected) {
-        // saveVersion 越界（负数/伪造高版本）显式拒绝
-        cloudSaveOperationStateFlow.value =
-            CloudSaveOperationState.Error("云存档版本异常：${migration.reason}")
-        return null
-    }
-    var processed = (migration as MigrationResult.Migrated).data
-    val validation = SaveValidator.validate(processed)
-    when (validation) {
-        is IntegrityResult.Corrupted -> {
-            cloudSaveOperationStateFlow.value =
-                CloudSaveOperationState.Error("云存档数据损坏，无法加载")
-            return null
-        }
-        is IntegrityResult.Repaired -> {
-            Log.w(
-                SaveLoadViewModelConstants.TAG,
-                "云存档完整性修复 ${validation.details.size} 项"
-            )
-            processed = validation.data
-        }
-        is IntegrityResult.Passed -> {}
-    }
-    // 旧格式云存档无堆叠数据：从实例重建兜底（与既有云读档同语义）
-    return SaveDataReconciler.reconcileStacks(processed)
 }
