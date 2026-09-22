@@ -120,9 +120,10 @@
 ### 4.3 无需替换（已符合俯视）
 
 `map_grass_1`（无缝草皮）、`road_body / road_edge_v / road_edge_h`（石板路）、
-`map_edge_left_* / map_edge_bottom_* / map_edge_corner_*`（浮空岛崖壁，7 张整块素材；
-**独立纹理不入图集**——单张最大 1180×3552 超出 4096² 容量，
-见 `docs/design/island-cliff-edge-renderer.md`）、`cloud_1..5`。
+`map_rock_base`（底部岩石材质，2026-09 地图边缘 v2：岛屿底部形状由
+Ground Boundary + 深度剖面程序生成，岩石图**只作 REPEAT 材质**不携带轮廓，
+经 `source-mapping.json` 从 `宗门地图/底部.png` 裁方烘焙）、`cloud_1..5`。
+（旧 `map_edge_*` 浮空岛崖壁 7 张已随崖壁拼接系统退役删除。）
 
 ## 5. 替换流程
 

@@ -22,7 +22,8 @@ import com.xianxia.sect.core.nativebridge.GameCoreBridge
  */
 object GroundBoundaryBridge {
 
-    /** 底部岩石带深度（世界像素；用户拍板「中等」档，第一阶段定值） */
+    /** 底部岩石带**最大**深度（世界像素；实际深度 = 该值 × 深度剖面起伏，
+     *  值域 [0.6,1.0]×此值——用户拍板「中等」档，第一阶段定值） */
     const val BOTTOM_DEPTH_PX = 768.0f
 
     /** 复合头部常量与字段下标（跨语言单一口径，见 C++ 头文件） */
@@ -62,6 +63,8 @@ object GroundBoundaryBridge {
     const val BOTTOM_TUCK_PX = GroundBoundaryGenerator.BOTTOM_TUCK_PX
     /** 底部带法线阈值 */
     const val BOTTOM_NORMAL_MIN_Y = GroundBoundaryGenerator.BOTTOM_NORMAL_MIN_Y
+    /** 底部材质平铺周期（世界像素/次纹理重复；Canvas shader 局部矩阵口径） */
+    const val BOTTOM_TEX_REPEAT_PX = GroundBoundaryGenerator.BOTTOM_TEX_REPEAT_PX
 
     /** native 通道可用性缓存（null=未探测；进程级状态） */
     @Volatile

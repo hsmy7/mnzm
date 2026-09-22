@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.render
 
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -29,6 +30,45 @@ object GroundBoundaryGenerator {
     const val BOTTOM_TUCK_PX = 2.0f
     const val BOTTOM_NORMAL_MIN_Y = 0.0f
     const val SAMPLES_PER_SEGMENT = 20
+
+    // ── 底部深度剖面 / 材质常量（与 C++ 一一对应）────────────────
+
+    /** 底部材质平铺周期（世界像素/次纹理重复；GPU UV 与 Canvas shader 同口径） */
+    const val BOTTOM_TEX_REPEAT_PX = 512.0f
+
+    /** 底部 mesh 纵向细分行数（规格 2~5 档） */
+    const val BOTTOM_MESH_ROWS = 4
+
+    /** 深度剖面双谐波参数（固定值域 [MID−HALF, MID+HALF]，详见 C++ 头文件） */
+    const val BOTTOM_DEPTH_MID = 0.80f
+    const val BOTTOM_DEPTH_HALF_SWING = 0.20f
+    const val BOTTOM_DEPTH_HARM1_FREQ = 3.0f
+    const val BOTTOM_DEPTH_HARM1_PHASE = 0.13f
+    const val BOTTOM_DEPTH_HARM2_FREQ = 7.0f
+    const val BOTTOM_DEPTH_HARM2_PHASE = 0.58f
+    const val BOTTOM_DEPTH_HARM2_AMP = 0.55f
+    const val BOTTOM_DEPTH_HARMONIC_MAX = 1.541281f
+
+    /** 深度比例剖面（弧长比例 s ∈ [0,1] → [0.6, 1.0]；式同 C++ groundBottomDepthScale） */
+    fun bottomDepthScale(s: Float): Float {
+        val h = sin(TWO_PI * (BOTTOM_DEPTH_HARM1_FREQ * s + BOTTOM_DEPTH_HARM1_PHASE)) +
+            BOTTOM_DEPTH_HARM2_AMP * sin(TWO_PI * (BOTTOM_DEPTH_HARM2_FREQ * s + BOTTOM_DEPTH_HARM2_PHASE))
+        return BOTTOM_DEPTH_MID + BOTTOM_DEPTH_HALF_SWING * (h / BOTTOM_DEPTH_HARMONIC_MAX)
+    }
+
+    /**
+     * 每折线点列深（世界像素，[0.6,1.0]×maxDepth）——Canvas 岩石带底缘与
+     * GPU bottom mesh 同源消费（Canvas 消费 = [SoftwareGroundBoundary]）。
+     */
+    fun bottomColumnDepths(poly: FloatArray, maxDepth: Float): FloatArray {
+        val n = poly.size / 2
+        if (n < 3 || maxDepth <= 0.0f) return FloatArray(0)
+        val arc = cumulativeArc(poly)
+        val perimeter = arc[0]
+        val out = FloatArray(n)
+        for (i in 0 until n) out[i] = maxDepth * bottomDepthScale(arc[i] / perimeter)
+        return out
+    }
 
     /** 复合输出字段下标（头部段） */
     object Field {
@@ -161,17 +201,18 @@ object GroundBoundaryGenerator {
         return out
     }
 
-    // ── 底部 mesh（外法线朝下段向下挤出；顶边 = 折线 − tuck）──────
+    // ── 底部 mesh（外法线朝下段沿深度剖面挤出；顶边 = 折线 − tuck）──
 
-    fun buildBottomMesh(tileSize: Int, bottomDepth: Float, poly: FloatArray): FloatArray {
+    fun buildBottomMesh(bottomDepth: Float, poly: FloatArray): FloatArray {
         val n = poly.size / 2
         if (n < 3 || bottomDepth <= 0.0f) return FloatArray(0)
         val centroid = polyCentroid(poly)
         val arc = cumulativeArc(poly)
-        val out = ArrayList<Float>(n * 16)
+        val colDepth = bottomColumnDepths(poly, bottomDepth)
+        val out = ArrayList<Float>(n * BOTTOM_MESH_ROWS * 48)
         for (i in 0 until n) {
-            val quad = bandSegmentQuad(tileSize, bottomDepth, centroid.first, centroid.second, arc, poly, i)
-            if (quad != null) out.addAll(quad)
+            val rows = bandSegmentRows(centroid.first, centroid.second, arc, colDepth, poly, i)
+            if (rows != null) out.addAll(rows)
         }
         return out.toFloatArray()
     }
@@ -183,7 +224,7 @@ object GroundBoundaryGenerator {
         val poly = sampleControlPolygon(cols, rows, tileSize)
         val mask = buildTileMask(cols, rows, tileSize, poly)
         val groundMesh = buildGroundMesh(tileSize, poly)
-        val bottomMesh = buildBottomMesh(tileSize, bottomDepth, poly)
+        val bottomMesh = buildBottomMesh(bottomDepth, poly)
 
         val polyCount = poly.size / 2
         var off = HEADER_FLOATS + poly.size
@@ -273,6 +314,9 @@ object GroundBoundaryGenerator {
 
 // ── 文件级几何/三角化原语（零状态纯函数；文件级组织 = 对象只留管线入口）──
 
+/** 2π（深度剖面双谐波求值用；与 C++ kTwoPi 同值） */
+private const val TWO_PI = 6.283185307179586f
+
 /** 折线有向面积二倍（shoelace；屏幕坐标 Y 向下顺时针 ⇒ 正） */
 private fun groundArea2(poly: FloatArray): Float {
     var a = 0.0f
@@ -334,21 +378,21 @@ private fun cumulativeArc(poly: FloatArray): FloatArray {
 }
 
 /**
- * 单边界段 → 底部带 quad（展平 6 顶点 × 8 float）；段退化 / 外法线不朝下返回 null。
- * 外法线（背离质心）y 分量 > 阈值才朝下挤出；UV u = 端点累计弧长/tileSize
- * （相邻 quad 共享端点 ⇒ UV 全等 ⇒ 岩石纹理无缝）；顶边 = 折线 − tuck（藏缝）。
+ * 单边界段 → 底部带 [BOTTOM_MESH_ROWS] 行 quad（展平 6 顶点×8 float/行）；
+ * 段退化 / 外法线不朝下返回 null。外法线（背离质心）y 分量 > 阈值才朝下挤出；
+ * UV u = 端点累计弧长/[BOTTOM_TEX_REPEAT_PX]（相邻 quad 共享端点 ⇒ UV 全等 ⇒
+ * 岩石纹理无缝）、v = 行深/[BOTTOM_TEX_REPEAT_PX]；行 y 按列深线性内插，
+ * 顶边（r=0）= 折线 − tuck（藏缝）。
  */
-private fun bandSegmentQuad(
-    tileSize: Int,
-    bottomDepth: Float,
+private fun bandSegmentRows(
     cx: Float,
     cy: Float,
     arc: FloatArray,
+    colDepth: FloatArray,
     poly: FloatArray,
     i: Int
 ): List<Float>? {
     val n = poly.size / 2
-    val t = tileSize.toFloat()
     val j = (i + 1) % n
     val ax = poly[i * 2]; val ay = poly[i * 2 + 1]
     val bx = poly[j * 2]; val by = poly[j * 2 + 1]
@@ -364,24 +408,34 @@ private fun bandSegmentQuad(
         ny = -ny
     }
     if (ny <= GroundBoundaryGenerator.BOTTOM_NORMAL_MIN_Y) return null
-    val uA = arc[i] / t
-    val uB = arc[j] / t
-    val vTop = 0.0f
-    val vBot = bottomDepth / t
-    val topAy = ay - GroundBoundaryGenerator.BOTTOM_TUCK_PX
-    val topBy = by - GroundBoundaryGenerator.BOTTOM_TUCK_PX
-    val botAy = ay + bottomDepth - GroundBoundaryGenerator.BOTTOM_TUCK_PX
-    val botBy = by + bottomDepth - GroundBoundaryGenerator.BOTTOM_TUCK_PX
-    // 与 SpriteBatcher.add 同手性两三角：(A_top,B_top,A_bot)(B_top,B_bot,A_bot)
-    val verts = listOf(
-        floatArrayOf(ax, topAy, uA, vTop, 1f, 1f, 1f, 1f),
-        floatArrayOf(bx, topBy, uB, vTop, 1f, 1f, 1f, 1f),
-        floatArrayOf(ax, botAy, uA, vBot, 1f, 1f, 1f, 1f),
-        floatArrayOf(bx, topBy, uB, vTop, 1f, 1f, 1f, 1f),
-        floatArrayOf(bx, botBy, uB, vBot, 1f, 1f, 1f, 1f),
-        floatArrayOf(ax, botAy, uA, vBot, 1f, 1f, 1f, 1f)
-    )
-    return verts.flatMap { it.asIterable() }
+    val uA = arc[i] / GroundBoundaryGenerator.BOTTOM_TEX_REPEAT_PX
+    val uB = arc[j] / GroundBoundaryGenerator.BOTTOM_TEX_REPEAT_PX
+    val dA = colDepth[i]
+    val dB = colDepth[j]
+    val tuck = GroundBoundaryGenerator.BOTTOM_TUCK_PX
+    val out = ArrayList<Float>(GroundBoundaryGenerator.BOTTOM_MESH_ROWS * 48)
+    for (r in 0 until GroundBoundaryGenerator.BOTTOM_MESH_ROWS) {
+        val fr0 = r.toFloat() / GroundBoundaryGenerator.BOTTOM_MESH_ROWS
+        val fr1 = (r + 1).toFloat() / GroundBoundaryGenerator.BOTTOM_MESH_ROWS
+        val topAy = ay + dA * fr0 - tuck
+        val topBy = by + dB * fr0 - tuck
+        val botAy = ay + dA * fr1 - tuck
+        val botBy = by + dB * fr1 - tuck
+        val vA0 = dA * fr0 / GroundBoundaryGenerator.BOTTOM_TEX_REPEAT_PX
+        val vB0 = dB * fr0 / GroundBoundaryGenerator.BOTTOM_TEX_REPEAT_PX
+        val vA1 = dA * fr1 / GroundBoundaryGenerator.BOTTOM_TEX_REPEAT_PX
+        val vB1 = dB * fr1 / GroundBoundaryGenerator.BOTTOM_TEX_REPEAT_PX
+        // 与 SpriteBatcher.add 同手性两三角：(A_top,B_top,A_bot)(B_top,B_bot,A_bot)
+        out.addAll(listOf(
+            ax, topAy, uA, vA0, 1f, 1f, 1f, 1f,
+            bx, topBy, uB, vB0, 1f, 1f, 1f, 1f,
+            ax, botAy, uA, vA1, 1f, 1f, 1f, 1f,
+            bx, topBy, uB, vB0, 1f, 1f, 1f, 1f,
+            bx, botBy, uB, vB1, 1f, 1f, 1f, 1f,
+            ax, botAy, uA, vA1, 1f, 1f, 1f, 1f
+        ))
+    }
+    return out
 }
 
 /** 耳切三角化：输出索引三元组（指向折线顶点）。要求简单多边形。 */

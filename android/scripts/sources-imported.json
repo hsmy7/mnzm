@@ -1986,14 +1986,6 @@
       "height": 886
     },
     {
-      "drawable": "ui_menubar",
-      "source": "ui/菜单栏ui.png",
-      "hash": "f071b2acd7ab56a82c463bf20abb9534",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1984,\"height\":320}}",
-      "width": 1984,
-      "height": 320
-    },
-    {
       "drawable": "ui_recruit_once",
       "source": "ui/普通招募一次ui.png",
       "hash": "2aba7ef15fb2ba0d415f9b0bc8542a37",
@@ -2371,11 +2363,19 @@
     },
     {
       "drawable": "map_grass_1",
-      "source": "装饰物/草皮.png",
+      "source": "宗门地图/草皮.png",
       "hash": "c6dd88c0cf862279c69df19dbba41a8d",
       "bakeKey": "{\"bake\":{\"maxDim\":64,\"seamless\":true},\"target\":{\"width\":64,\"height\":64}}",
       "width": 64,
       "height": 64
+    },
+    {
+      "drawable": "map_rock_base",
+      "source": "宗门地图/底部.png",
+      "hash": "5e0032aed20821d150fefe1aba94711c",
+      "bakeKey": "{\"bake\":{\"square\":1024,\"seamless\":true},\"target\":{\"width\":1024,\"height\":1024}}",
+      "width": 1024,
+      "height": 1024
     },
     {
       "drawable": "sect_gate",

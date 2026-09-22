@@ -1211,6 +1211,148 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSpawnFloatingText(
 
 
 
+/**
+ * 每帧绘制（R3.2 新路径唯一帧入口）：相机标量 + 覆盖标志（G3 <200B/帧），
+ * 场景数据从 SceneStore 消费（sceneSet* / sceneUpdate* 变化驱动维护）。
+ *
+ * overlayFlags 位定义（scene::kOverlayBit*，与 Kotlin OVERLAY_FLAG_* 逐位同值）：
+ *   bit0 buildingVisible / bit1 网格线 / bit2 预览精灵 / bit3 占地框 /
+ *   bit4 预览合法性（绿/红）/ bit5 选中高亮 / bit6 拆除高亮。
+ * 位 1–6 为 R3.3 启用：四类叠加层几何在本函数内由 scene_draw.h 生成
+ * （旧路径的每帧逐 rect 跨线由此退役；其数据经 sceneSetSelection /
+ * sceneSetDemolishMarkers / sceneSetPreview 变化驱动导入）。
+ * 层序：天空（drawSkyBackground 帧首）→ 底部岩石 → 地皮 → 地图批
+ * → 叠加层 → **浮字（最上层）**（地图边缘 v2：崖壁层已退役，S6 误删本
+ * 入口后自 5f8794e85 原样恢复，仅订正本注释）。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat camX, jfloat camY, jfloat scale,
+    jint vpW, jint vpH,
+    jint overlayFlags,
+    jfloat fadeAlpha, jfloat frameAlpha) {
+
+    if (!g_renderer) return;
+
+    // 相机段：消毒 + 投影 + 视野边界（与 setCamera 单实现）
+    updateCameraGlobals(camX, camY, scale, vpW, vpH);
+
+    // 浮字时间标量推进（C++ 内自累加——零 ABI 变更，见 g_floatNowSeconds 说明）
+    g_floatNowSeconds += kFloatFrameStepSeconds;
+    if (g_floatNowSeconds >= kFloatTimeWrapSeconds) g_floatNowSeconds = 0.0f;
+    g_floatPool.advance(g_floatNowSeconds);
+
+    const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
+
+    // 淡入 alpha 消毒（NaN 行为：clamp 不拦 NaN）；
+    // 消毒后先写回全局量——崖壁层与地图层共享消费 g_fadeAlpha 单一来源
+    // （必须先于崖壁层——图集未就绪窗口地图层跳过时崖壁淡入仍随帧推进）
+    float fade = fadeAlpha;
+    if (fade < 0.0f) fade = 0.0f;
+    if (fade > 1.0f) fade = 1.0f;
+    g_fadeAlpha.store(fade);
+
+    // 弯曲地皮轮廓层（地图边缘 v2；z 序：天空 → 底部岩石 → 地皮 → 地图批）。
+    // 两层几何同源同一折线（ground_boundary.h 静态 mesh，地图变化才重导）：
+    // 底部顶边上移 kBottomTuckPx 藏进草皮之下，草皮后绘覆盖——零缝隙。
+    // 材质均为独立 REPEAT 纹理（草=map_grass_1、岩=map_rock_base）；id=0
+    // （未上传/后端不支持）时对应层跳过，与图集未就绪守卫同形。
+    scene::GroundBoundaryView boundaryView;
+    const bool hasBoundary =
+        g_scene.hasGroundBoundary() &&
+        scene::groundBoundaryParse(g_scene.groundBoundaryData(),
+                                   g_scene.groundBoundaryFloats(), &boundaryView);
+    if (hasBoundary) {
+        scene::buildBottomRockLayer(boundaryView, g_rockTexId, fade,
+            [](uint32_t texId, const SpriteVertex* verts, int count) {
+                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+            });
+        scene::buildGroundMeshLayer(boundaryView, g_groundTexId, fade,
+            [](uint32_t texId, const SpriteVertex* verts, int count) {
+                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+            });
+    }
+
+    // 地图层（地形已导入 + 图集就绪；buildingVisible = overlayFlags bit0）
+    if (g_scene.hasTerrain() && g_sceneAtlasTexId != 0) {
+        scene::MapLayerParams p;
+        p.viewLeft = g_viewLeft;
+        p.viewTop = g_viewTop;
+        p.viewRight = g_viewRight;
+        p.viewBottom = g_viewBottom;
+        p.scale = g_scale;
+        p.fadeAlpha = fade;
+        p.frameAlpha = frameAlpha;
+        p.skipDecor = decorSkipActive(overflowDegrade);
+        p.skipClouds = p.skipDecor;
+        p.buildingShadows = g_buildingShadows.load();
+        p.buildingVisible = (overlayFlags & scene::kOverlayBitBuildingVisible) != 0;
+        p.tiles = g_scene.terrainData();
+        p.tileCount = g_scene.terrainCount();
+        p.cols = g_scene.cols();
+        p.rows = g_scene.rows();
+        p.tileSize = g_scene.tileSize();
+        p.atlasTexId = g_sceneAtlasTexId;
+        p.tileMask = hasBoundary ? boundaryView.mask : nullptr;
+        p.tileUv = scene::kTileUv;
+        p.tileUvCount = scene::kTileUvCount;
+        p.roads = g_scene.roadsData();
+        p.roadCount = g_scene.roadsCount();
+        p.roadUv = scene::kRoadUv;
+        p.roadUvCount = scene::kRoadUvCount;
+        p.buildings = g_scene.buildingsData();
+        p.buildingClaim = g_scene.buildingCount();
+        p.buildingDataFloats = g_scene.buildingCount() * scene::kBuildingStride;
+        p.buildingUv = scene::kBuildingUv;
+        p.buildingUvCount = scene::kBuildingUvCount;
+        p.crops = g_scene.cropsData();
+        p.cropCount = g_scene.cropCount();
+        p.cropUv = scene::kCropUv;
+        p.cropUvCount = scene::kCropUvCount;
+        p.clouds = g_scene.cloudsData();
+        p.cloudCount = g_scene.cloudCount();
+        p.cloudUv = scene::kCloudUv;
+        p.cloudUvCount = scene::kCloudUvCount;
+
+        scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
+        submitMapBatchCommon(overflowDegrade, g_sceneAtlasTexId);
+    }
+
+    // 叠加层（R3.3）：选中高亮 → 拆除高亮 → 预览精灵 → 占地框 → 网格线，
+    // 层序与旧 Kotlin 路径严格一致。地图层/图集未就绪时仍须绘制（旧路径的
+    // 网格线与高亮本就不依赖瓦片层；预览精灵的图集守卫在生成核心内）
+    drawOverlayLayerInternal(overlayFlags, vpW, vpH);
+
+    // 浮字层（R3.8/B13）：**最上层**（叠加层之上）。空池 = 零 draw call；
+    // 图集未就绪整层跳过（与地图层/叠加层预览精灵同守卫语义）。零每帧 JNI。
+    if (g_sceneAtlasTexId != 0) {
+        scene::FloatTextParams fp;
+        fp.instances = &g_floatPool.slot(0);
+        fp.instanceCount = scene::FloatTextPool::capacity();
+        fp.nowSeconds = g_floatNowSeconds;
+        fp.atlasTexId = g_sceneAtlasTexId;
+        fp.uv = scene::kFloatUv;
+        fp.assetCount = scene::kFloatAssetCount;
+        fp.glyphBaseIndex = scene::kFloatGlyphBaseIndex;
+        fp.tileSize = static_cast<float>(g_scene.tileSize());
+        fp.baseWorldHeight = scene::kFloatBaseWorldHeight;
+        fp.viewLeft = g_viewLeft;
+        fp.viewTop = g_viewTop;
+        fp.viewRight = g_viewRight;
+        fp.viewBottom = g_viewBottom;
+        // 提交顺序即 draw call 序：浮字整批一个纹理段（同图集）——
+        // 空池时 buildFloatTextBatch 不 begin/不 submit ⇒ 零 draw call
+        scene::buildFloatTextBatch(g_floatBatcher, g_projMatrix, fp,
+            [](uint32_t texId, const SpriteVertex* verts, int count) {
+                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
+            });
+        if (g_floatBatcher.droppedSprites > 0) {
+            logBatcherOverflowOncePerSecond("float", g_floatBatcher.droppedSprites);
+        }
+    }
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawRect(
     JNIEnv* /*env*/, jobject /*thiz*/,

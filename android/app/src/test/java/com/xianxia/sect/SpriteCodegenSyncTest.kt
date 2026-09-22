@@ -201,8 +201,8 @@ class SpriteCodegenSyncTest {
         assertContains(sprites, SpriteEntry("cloud_1", 0, 2816, 968, 240))
         assertContains(sprites, SpriteEntry("cloud_5", 1048, 3240, 944, 400))
         assertContains(sprites, SpriteEntry("road_body", 2048, 2624, 128, 128))
-        // 浮空岛崖壁**不在图集内**（单张最大 1180×3552 超出 4096² 容量）——
-        // 改走独立纹理，故此处不再断言 ie_* 条目（见 feature/game IslandCliffTextureSet）。
+        // 浮空岛崖壁**不在图集内**（2026-09 地图边缘系统已退役该拼接素材）——
+        // 故此处不再断言 ie_* 条目（底部岩石/草皮走独立 REPEAT 贴图）。
         // 瓦片 index == 精灵索引（渲染器以瓦片值直取 UV 表）：前 10 条按 TileType 序排列
         val tileOrder = listOf(
             "ground_tile", "grass1", "grass2", "grass3", "grass4",

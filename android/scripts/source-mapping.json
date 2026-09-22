@@ -2820,7 +2820,7 @@
         },
         {
           "drawable": "ui_menubar",
-          "source": "ui/菜单栏ui.png",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -3394,13 +3394,24 @@
       "entries": [
         {
           "drawable": "map_grass_1",
-          "source": "装饰物/草皮.png",
+          "source": "宗门地图/草皮.png",
           "modules": [
             "feature/game",
             "app"
           ],
           "bake": {
             "maxDim": 64,
+            "seamless": true
+          }
+        },
+        {
+          "drawable": "map_rock_base",
+          "source": "宗门地图/底部.png",
+          "modules": [
+            "feature/game"
+          ],
+          "bake": {
+            "square": 1024,
             "seamless": true
           }
         },

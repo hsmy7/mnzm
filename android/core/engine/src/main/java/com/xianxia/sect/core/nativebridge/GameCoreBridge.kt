@@ -477,7 +477,8 @@ object GameCoreBridge {
      * Catmull-Rom → 折线/地皮 mesh/底部 mesh/逐格掩码，详见该头文件）。
      * 输出复合布局见 GroundBoundaryBridge.Header（头部 11 float + 段偏移）。
      *
-     * @param bottomDepth 底部岩石带深度（世界像素；GroundBoundaryBridge.BOTTOM_DEPTH_PX）
+     * @param bottomDepth 底部岩石带**最大**深度（世界像素；实际深度 =
+     *   该值 × 深度剖面，GroundBoundaryBridge.BOTTOM_DEPTH_PX）
      * @return 复合 FloatArray；cols/rows/tileSize 非法返回空数组
      */
     external fun nativeComposeGroundBoundary(

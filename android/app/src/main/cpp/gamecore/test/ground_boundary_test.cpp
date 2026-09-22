@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -10,6 +11,11 @@ namespace gamecore {
 namespace {
 
 using gamecore::map::GroundBoundaryConfig;
+using gamecore::map::kBottomDepthMaxScale;
+using gamecore::map::kBottomDepthMinScale;
+using gamecore::map::kBottomMeshRowCount;
+using gamecore::map::kBottomTexRepeatPx;
+using gamecore::map::kBottomTuckPx;
 using gamecore::map::kGateApronX0;
 using gamecore::map::kGateApronX1;
 using gamecore::map::kGateApronY;
@@ -17,11 +23,11 @@ using gamecore::map::kGroundBoundaryHeaderFloats;
 using gamecore::map::kGroundBoundaryVersion;
 using gamecore::map::kGroundMaxInset;
 using gamecore::map::kGroundMaxOutset;
-using gamecore::map::kBottomTuckPx;
 using gamecore::map::buildBottomMesh;
 using gamecore::map::buildGroundMesh;
 using gamecore::map::buildGroundTileMask;
 using gamecore::map::computeGroundBoundary;
+using gamecore::map::groundBottomDepthScale;
 using gamecore::map::groundPointInPolygon;
 using gamecore::map::sampleGroundControlPolygon;
 using gamecore::map::triangulateGroundPolygon;
@@ -31,7 +37,8 @@ using gamecore::map::triangulateGroundPolygon;
 // 覆盖：采样确定性、振幅不变式（±kGroundMaxOutset/Inset 带）、自交零、
 //      可建矩形包含（九处建筑/道路校验零改动的根基）、门楼缓冲带贴边、
 //      三角化有效性（面积守恒 + 顶点界）、地皮 UV 口径、底部 mesh 顶边
-//      与折线共数据 + UV 连续、逐格掩码（可建格恒 bit0=1）、复合布局。
+//      与折线共数据 + 深度剖面值域 + 纵向细分行结构 + UV 连续 + 确定性、
+//      逐格掩码（可建格恒 bit0=1）、复合布局。
 // ============================================================
 
 constexpr int32_t kCols = 128;
@@ -231,42 +238,174 @@ TEST(GroundBoundaryTest, GroundMeshLayoutAndUv) {
     }
 }
 
-// ── 底部 mesh：顶边与折线共数据 / 深度 / UV 连续 ─────────────────
-TEST(GroundBoundaryTest, BottomMeshSharesBoundaryAndUvContinuous) {
+// ── 底部 mesh 辅助：重算朝下段集合（与 buildBottomMesh 同口径）────
+struct DownSeg {
+    size_t i;
+    size_t j;
+};
+
+std::vector<DownSeg> downSegsOf(const std::vector<float>& poly) {
+    const size_t n = poly.size() / 2;
+    float cx = 0.0f, cy = 0.0f;
+    for (size_t i = 0; i < n; ++i) {
+        cx += poly[i * 2];
+        cy += poly[i * 2 + 1];
+    }
+    cx /= static_cast<float>(n);
+    cy /= static_cast<float>(n);
+    std::vector<DownSeg> segs;
+    for (size_t i = 0; i < n; ++i) {
+        const size_t j = (i + 1) % n;
+        const float ax = poly[i * 2], ay = poly[i * 2 + 1];
+        const float bx = poly[j * 2], by = poly[j * 2 + 1];
+        const float dx = bx - ax, dy = by - ay;
+        const float len = std::sqrt(dx * dx + dy * dy);
+        if (len < 1.0e-6f) continue;
+        float nx = dy / len;
+        float ny = -dx / len;
+        const float mx = (ax + bx) * 0.5f - cx;
+        const float my = (ay + by) * 0.5f - cy;
+        if (nx * mx + ny * my < 0.0f) { nx = -nx; ny = -ny; }
+        if (ny > 0.0f) segs.push_back({i, j});
+    }
+    return segs;
+}
+
+/// 折线累计弧长（与 buildBottomMesh 同式；arc[0] = 周长）
+std::vector<float> arcOf(const std::vector<float>& poly) {
+    const size_t n = poly.size() / 2;
+    std::vector<float> arc(n, 0.0f);
+    for (size_t i = 1; i <= n; ++i) {
+        const size_t a = i - 1;
+        const size_t b = i % n;
+        const float dx = poly[b * 2] - poly[a * 2];
+        const float dy = poly[b * 2 + 1] - poly[a * 2 + 1];
+        arc[i % n] = arc[a] + std::sqrt(dx * dx + dy * dy);
+    }
+    return arc;
+}
+
+// ── 底部 mesh：顶边与折线共数据 / 行结构 / 深度剖面 / UV 连续 ────
+TEST(GroundBoundaryTest, BottomMeshSharesBoundaryRowsAndUvContinuous) {
     const auto cfg = stdCfg();
     const auto poly = stdPoly();
+    const size_t n = poly.size() / 2;
+    const auto arc = arcOf(poly);
+    const float perimeter = arc[0];
+    std::vector<float> colDepth(n);
+    for (size_t i = 0; i < n; ++i) {
+        colDepth[i] = cfg.bottomDepth * groundBottomDepthScale(arc[i] / perimeter);
+        // 剖面值域：[0.6, 1.0]×最大深度（用户拍板「中等」档）
+        ASSERT_GE(colDepth[i], kBottomDepthMinScale * cfg.bottomDepth - 0.5f) << "i=" << i;
+        ASSERT_LE(colDepth[i], kBottomDepthMaxScale * cfg.bottomDepth + 0.5f) << "i=" << i;
+    }
+    const auto segs = downSegsOf(poly);
+    ASSERT_GT(segs.size(), 0u);
+
     std::vector<float> mesh;
     buildBottomMesh(cfg, poly, mesh);
     ASSERT_EQ(mesh.size() % 8, 0u);
     ASSERT_GT(mesh.size(), 0u);
     const size_t vertCount = mesh.size() / 8;
-    ASSERT_EQ(vertCount % 6, 0u);  // 整 quad
-    const float t = static_cast<float>(kTile);
-    const size_t n = poly.size() / 2;
-    // 顶边顶点（v==0）必须与某折线点重合（仅 y 方向收进 kBottomTuckPx）；
-    // 底边顶点 = 同一折线点下移 depth（共数据：x 与 u 与对应顶边全等）
-    size_t topVerts = 0;
-    for (size_t v = 0; v < vertCount; ++v) {
-        const float* p = &mesh[v * 8];
-        ASSERT_TRUE(std::isfinite(p[0]) && std::isfinite(p[1]));
-        bool found = false;
-        for (size_t i = 0; i < n && !found; ++i) {
-            const float px = poly[i * 2];
-            const float py = poly[i * 2 + 1];
-            if (p[3] == 0.0f) {
-                found = std::fabs(p[0] - px) < 0.5f &&
-                        std::fabs(p[1] - (py - kBottomTuckPx)) < 0.5f;
-            } else {
-                found = std::fabs(p[0] - px) < 0.5f &&
-                        std::fabs(p[1] - (py + cfg.bottomDepth - kBottomTuckPx)) < 0.5f;
+    // 行结构：朝下段 × kBottomMeshRowCount 行 × 6 顶点（整 quad 三角对）
+    ASSERT_EQ(vertCount, segs.size() * static_cast<size_t>(kBottomMeshRowCount) * 6u);
+    ASSERT_EQ(vertCount % 6, 0u);
+
+    // 按构造序逐 quad 逐顶点对照：quad 序 = 朝下段序 × 行序；每 quad 6 顶点
+    // [(A_top)(B_top)(A_bot)(B_top)(B_bot)(A_bot)]，y = py + colDepth·fr − tuck，
+    // u = arc[i]/repeat、v = colDepth·fr/repeat（A=段起点 i、B=段终点 j）。
+    const float rowsF = static_cast<float>(kBottomMeshRowCount);
+    size_t topRowVerts = 0;
+    for (size_t k = 0; k < segs.size(); ++k) {
+        const size_t i = segs[k].i;
+        const size_t j = segs[k].j;
+        const float ax = poly[i * 2], ay = poly[i * 2 + 1];
+        const float bx = poly[j * 2], by = poly[j * 2 + 1];
+        const float uA = arc[i] / kBottomTexRepeatPx;
+        const float uB = arc[j] / kBottomTexRepeatPx;
+        const float dA = colDepth[i];
+        const float dB = colDepth[j];
+        for (int32_t r = 0; r < kBottomMeshRowCount; ++r) {
+            const float fr0 = static_cast<float>(r) / rowsF;
+            const float fr1 = static_cast<float>(r + 1) / rowsF;
+            const float exp[6][4] = {
+                { ax, ay + dA * fr0 - kBottomTuckPx, uA, dA * fr0 / kBottomTexRepeatPx },
+                { bx, by + dB * fr0 - kBottomTuckPx, uB, dB * fr0 / kBottomTexRepeatPx },
+                { ax, ay + dA * fr1 - kBottomTuckPx, uA, dA * fr1 / kBottomTexRepeatPx },
+                { bx, by + dB * fr0 - kBottomTuckPx, uB, dB * fr0 / kBottomTexRepeatPx },
+                { bx, by + dB * fr1 - kBottomTuckPx, uB, dB * fr1 / kBottomTexRepeatPx },
+                { ax, ay + dA * fr1 - kBottomTuckPx, uA, dA * fr1 / kBottomTexRepeatPx },
+            };
+            for (int32_t m = 0; m < 6; ++m) {
+                const size_t vIdx = (k * static_cast<size_t>(kBottomMeshRowCount) +
+                                     static_cast<size_t>(r)) * 6 + static_cast<size_t>(m);
+                const float* p = &mesh[vIdx * 8];
+                const float* e = exp[m];
+                ASSERT_TRUE(std::isfinite(p[0]) && std::isfinite(p[1]));
+                EXPECT_FLOAT_EQ(p[0], e[0]) << "seg " << k << " row " << r << " m " << m;
+                EXPECT_FLOAT_EQ(p[1], e[1]) << "seg " << k << " row " << r << " m " << m;
+                EXPECT_NEAR(p[2], e[2], 1.0e-4f) << "seg " << k << " row " << r << " m " << m;
+                EXPECT_NEAR(p[3], e[3], 1.0e-4f) << "seg " << k << " row " << r << " m " << m;
+                if (r == 0 && (m == 0 || m == 1)) ++topRowVerts;
             }
         }
-        ASSERT_TRUE(found) << "vert " << v << " off polyline";
-        if (p[3] == 0.0f) ++topVerts;
-        else EXPECT_FLOAT_EQ(cfg.bottomDepth / t, p[3]);  // v = depth/tileSize
     }
-    ASSERT_GT(topVerts, 0u);
-    ASSERT_EQ(topVerts * 2u, vertCount);  // 每 quad 顶边/底边各半
+    // 顶行（fr=0，与草皮共边藏缝）顶点 = 每朝下段 2 个
+    ASSERT_EQ(topRowVerts, segs.size() * 2u);
+
+    // UV 连续：同位置的共享端点（跨 quad/跨行）UV 全等 ⇒ 岩石纹理无缝
+    std::vector<std::pair<float, float>> uv;
+    std::vector<std::pair<float, float>> pos;
+    for (size_t v = 0; v < vertCount; ++v) {
+        const float* p = &mesh[v * 8];
+        for (size_t k = 0; k < pos.size(); ++k) {
+            if (std::fabs(pos[k].first - p[0]) < 1.0e-3f &&
+                std::fabs(pos[k].second - p[1]) < 1.0e-3f) {
+                EXPECT_FLOAT_EQ(uv[k].first, p[2]) << "vert " << v << " shared u";
+                EXPECT_FLOAT_EQ(uv[k].second, p[3]) << "vert " << v << " shared v";
+                break;
+            }
+        }
+        pos.push_back({p[0], p[1]});
+        uv.push_back({p[2], p[3]});
+    }
+}
+
+// ── 底部 mesh：底缘自然不规则（深度非全等）且确定性逐位一致 ──────
+TEST(GroundBoundaryTest, BottomMeshVariesNaturallyAndDeterministic) {
+    const auto cfg = stdCfg();
+    const auto poly = stdPoly();
+    const size_t n = poly.size() / 2;
+    const auto arc = arcOf(poly);
+    const float perimeter = arc[0];
+    std::vector<float> colDepth(n);
+    for (size_t i = 0; i < n; ++i) {
+        colDepth[i] = cfg.bottomDepth * groundBottomDepthScale(arc[i] / perimeter);
+    }
+    // 非平行带：列深最大差显著（> 48px = 一格），且至少 16 个 1px 量化档
+    float lo = 3.0e38f, hi = -3.0e38f;
+    for (float d : colDepth) {
+        lo = std::fmin(lo, d);
+        hi = std::fmax(hi, d);
+    }
+    EXPECT_GT(hi - lo, 48.0f) << "depth profile flat";
+    std::vector<int32_t> quanta;
+    for (float d : colDepth) {
+        quanta.push_back(static_cast<int32_t>(d));
+    }
+    std::sort(quanta.begin(), quanta.end());
+    quanta.erase(std::unique(quanta.begin(), quanta.end()), quanta.end());
+    EXPECT_GE(static_cast<int32_t>(quanta.size()), 16) << "depth profile not natural";
+
+    // 底缘不得高于顶缘（行深 > 0）——逐 quad 行高校验放在共享测试，此处查底行
+    std::vector<float> meshA;
+    std::vector<float> meshB;
+    buildBottomMesh(cfg, poly, meshA);
+    buildBottomMesh(cfg, poly, meshB);
+    ASSERT_EQ(meshA.size(), meshB.size());
+    for (size_t i = 0; i < meshA.size(); ++i) {
+        ASSERT_FLOAT_EQ(meshA[i], meshB[i]) << "i=" << i;  // 确定性：逐位一致
+    }
 }
 
 // ── 逐格掩码：可建格恒 bit0=1，边界带有 0 有 3 ───────────────────

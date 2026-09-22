@@ -801,8 +801,19 @@ class SoftwareCanvasBackend(
 
     // ── SkyBackground 屏幕空间渐变绘制助手（缓存 Paint，配置/尺寸变化才重建） ──
     private val skyRenderer = SkyCanvasRenderer()
-    /** 本帧天空配置（renderFrame 设置，composeVisibleChunks 读取——避免 LongParameterList） */
+    /** 本帧天空配置（renderFrame 设置，drawSkyBackground 读取——避免 LongParameterList） */
     private var currentSkyConfig: SkyBackgroundConfig = SkyBackgroundConfig.DEFAULT
+
+    /**
+     * 屏幕空间渐变天空背景（最底图层——帧首绘制，先于底部岩石带；纯屏幕/帧缓冲
+     * 坐标，不受相机平移缩放影响；以全帧矩形绘制，无黑边/透明/未覆盖区）。
+     *
+     * 层序契约与 GPU 路径同构：天空 → 底部岩石 → 地皮 chunk。岩石带位于轮廓外，
+     * 若天空在其后绘制（曾内联于 composeVisibleChunks）会被不透明渐变整层盖死。
+     */
+    private fun drawSkyBackground(canvas: Canvas, fbW: Int, fbH: Int) {
+        canvas.drawRect(0f, 0f, fbW.toFloat(), fbH.toFloat(), skyRenderer.paintFor(currentSkyConfig, fbH))
+    }
 
     /** 云层 Paint（独立实例——逐帧改 alpha 不得污染共享 paint，仿 cropPaint 惯例） */
     private val cloudPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
@@ -1002,7 +1013,10 @@ class SoftwareCanvasBackend(
         composeRockBitmap = rockBitmap
 
         // 底部岩石带（z 序：天空 → 底部岩石 → 地皮 chunk——带顶边藏进草皮之下，
-        // 与 GPU 路径的「岩石先绘、草皮后绘覆盖」同构）
+        // 与 GPU 路径的「岩石先绘、草皮后绘覆盖」同构。天空必须先于本层：曾内联在
+        // composeVisibleChunks 里后绘，不透明渐变把整条岩石带盖死——地图边缘 v2
+        // 层序修复，见 drawSkyBackground）
+        drawSkyBackground(canvas, fbW, fbH)
         groundBoundary.drawBand(canvas, frame.camX, frame.camY, drawScale, fadeAlpha,
             composeRockBitmap, TOPDOWN_Y_SCALE)
 
@@ -1290,9 +1304,9 @@ class SoftwareCanvasBackend(
         val lastChunkRow = ((viewBottom / tileSize) / CHUNK_SIZE_TILES).toInt()
             .coerceIn(0, numChunksRow - 1)
 
-        // SkyBackground 屏幕空间渐变背景（最底图层——在 chunk 绘制之前、纯屏幕/帧缓冲
-        // 坐标，不受相机平移缩放影响；以全帧矩形绘制，无黑边/透明/未覆盖区）。
-        canvas.drawRect(0f, 0f, fbW.toFloat(), fbH.toFloat(), skyRenderer.paintFor(currentSkyConfig, fbH))
+        // SkyBackground 已上移至 renderFrame 帧首（drawSkyBackground）：它必须先于
+        // 底部岩石带绘制（岩石带在轮廓外、天空后绘会整层盖死）；本函数只负责
+        // chunk 及其后的世界层。
         paint.alpha = (fadeAlpha.coerceIn(0f, 1f) * 255).toInt()
         val reuseRect = Rect()
         val firstChunkWorldX = (firstChunkCol * CHUNK_SIZE_TILES * tileSize).toFloat()

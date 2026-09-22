@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 /**
- * build-rock-texture.mjs — 弯曲地皮轮廓系统的「纯岩石」无缝材质生成器。
+ * build-rock-texture.mjs — ⛔ 已退役（2026-09-23，底部 Mesh 重构）。
+ *
+ * map_rock_base 改由美术管线供给：`scripts/source-mapping.json` 登记
+ * `宗门地图/底部.png`（bake = square 1024 + seamless）→
+ * `node scripts/import-art-assets.mjs` 烘焙 1024² 可平铺 WebP。
+ * 本脚本保留作程序化备胎参考——**勿再直接运行覆盖**美术产物。
+ *
+ * ——以下为历史说明——
+ *
+ * 弯曲地皮轮廓系统的「纯岩石」无缝材质生成器。
  *
  * 地图边缘 v2：岩石材质只负责表现、不携带岛屿轮廓（底部形状由
  * ground_boundary.h 程序生成）。本脚本确定性生成 128×128 可平铺 RGBA PNG

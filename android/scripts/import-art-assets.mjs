@@ -8,6 +8,8 @@
  * 烘焙规则（mapping 每条 bake）：
  * - { preserve: true }           保留源分辨率（大图：立绘/建筑/UI/背景/妖兽等）
  * - { maxDim: N }                等比缩放到最长边 = N（小物件：丹药/材料/装备/种子/储物袋/功法）
+ * - { square: N }                中心裁方到 min(短边, N) 再 cover 缩放（REPEAT 地面纹理
+ *                                须 POT——如底部岩石材质；N 传 2 的幂值）
  * - { canvas: {w,h} }            等比缩放并透明延展到 w×h 画布（contain，天枢殿专用）
  * - { roundUp4: true }           宽高各自向上取整到 4 的倍数（contain 同比例画布，不拉伸）
  *                                —— ASTC 4×4 压缩纹理的硬性尺寸要求（非 4 倍数被 KtxLoader 拒绝），
@@ -109,10 +111,11 @@ function loadMapping() {
 /**
  * 按 bake 规则生成输出尺寸（含 MAX_BAKE_DIM 硬上限）。
  *
- * 同时给出缩放方式 [fit]：'contain'（同比例画布，不拉伸——canvas/roundUp4 用）
+ * 同时给出缩放方式 [fit]：'contain'（同比例画布，不拉伸——canvas/roundUp4 用）、
+ * 'cover'（中心裁方到正方形——square 用，裁切不拉伸）
  * 或 'fill'（等比目标框，1px 内尺寸差直接拉伸）。
  *
- * @returns {Promise<{width:number,height:number,fit:'contain'|'fill'}>} 目标尺寸 + 缩放方式
+ * @returns {Promise<{width:number,height:number,fit:'contain'|'cover'|'fill'}>} 目标尺寸 + 缩放方式
  */
 async function computeTarget(meta, bake) {
   let w = meta.width, h = meta.height;
@@ -127,6 +130,12 @@ async function computeTarget(meta, bake) {
     }
     w = cw; h = ch;
     fit = 'contain';
+  } else if (bake?.square) {
+    // 中心裁方（REPEAT 地面纹理须 POT——GLES POT 守卫 / Vulkan REPEAT 采样器）：
+    // 裁方到 min(短边, square) 再 cover 缩放——内容裁切、不失真；square 传 2 的幂值
+    const side = Math.min(Math.min(w, h), bake.square);
+    w = side; h = side;
+    fit = 'cover';
   } else if (bake?.maxDim) {
     const longest = Math.max(w, h);
     if (longest > bake.maxDim) {
@@ -190,6 +199,9 @@ async function main() {
       if (target.fit === 'contain') {
         // 同比例画布：内容 1:1 落位 + 透明边（canvas 专用 / roundUp4 的 4 倍数取整）
         encode.resize(target.width, target.height, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
+      } else if (target.fit === 'cover') {
+        // 中心裁方：内容裁切到正方形（square 规则），不拉伸
+        encode.resize(target.width, target.height, { fit: 'cover', position: 'centre', kernel: sharp.kernel.lanczos3 });
       } else if (target.width !== meta.width || target.height !== meta.height) {
         encode.resize(target.width, target.height, { fit: 'fill', kernel: sharp.kernel.lanczos3 });
       }

@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Shader
 import com.xianxia.sect.core.render.GroundBoundaryBridge
+import com.xianxia.sect.core.render.GroundBoundaryGenerator
 import com.xianxia.sect.core.render.NativeRenderConfig
 
 /**
@@ -68,7 +69,8 @@ internal class SoftwareGroundBoundary(private val config: NativeRenderConfig) {
 
     /**
      * 底部岩石带绘制（世界变换下填充 bandPath；岩石 BitmapShader REPEAT，
-     * 局部矩阵 scale = 纹理宽/格宽——每格一贴，与 GPU 路径 UV=世界/格边长同口径）。
+     * 局部矩阵 scale = 纹理宽/平铺周期——每 [GroundBoundaryBridge.BOTTOM_TEX_REPEAT_PX]
+     * 世界像素一贴，与 GPU 路径 UV=世界/周期同口径）。
      * rock=null 或无边界 = 整层跳过（降级而非黑屏）。
      */
     fun drawBand(
@@ -85,7 +87,7 @@ internal class SoftwareGroundBoundary(private val config: NativeRenderConfig) {
         if (bitmap !== bandShaderSource) {
             bandShaderSource = bitmap
             val shader = BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-            val scale = bitmap.width.toFloat() / config.tileSize
+            val scale = bitmap.width.toFloat() / GroundBoundaryBridge.BOTTOM_TEX_REPEAT_PX
             shader.setLocalMatrix(Matrix().apply { setScale(scale, scale) })
             bandPaint.shader = shader
         }
@@ -158,65 +160,92 @@ internal class SoftwareGroundBoundary(private val config: NativeRenderConfig) {
         return path to band
     }
 
-    /** 底部带 Path：连续「朝下」段为一条子路径（顶边前进 + 底边折返），规则同 C++ */
+    /**
+     * 底部带 Path：连续「朝下」段为一条子路径（顶边前进 + 底边折返）。
+     * 每折线点列深 = [GroundBoundaryGenerator.bottomColumnDepths]（与 GPU
+     * bottom mesh 同源的确定性深度剖面）——底缘自然不规则，非平行带。
+     */
     private fun buildBottomBandPath(src: FloatArray, header: Int, polyCount: Int, bottomDepth: Float): Path {
         val band = Path()
         if (bottomDepth <= 0f) return band
         val tuck = GroundBoundaryBridge.BOTTOM_TUCK_PX
+        val poly = FloatArray(polyCount * 2)
+        for (i in 0 until polyCount) {
+            poly[i * 2] = src[header + i * 2]
+            poly[i * 2 + 1] = src[header + i * 2 + 1]
+        }
+        val colDepth = GroundBoundaryGenerator.bottomColumnDepths(poly, bottomDepth)
+        if (colDepth.isEmpty()) return band
+        val cx: Float
+        val cy: Float
+        centroidOf(poly).let { cx = it.first; cy = it.second }
+        val run = ArrayList<Int>(8)
+        for (i in 0 until polyCount) {
+            if (segmentFacesDown(poly, i, cx, cy)) {
+                // 连续段共享端点只收一次（run.last()==i 时段 i−1 已收过该点）
+                if (run.isEmpty() || run.last() != i) run.add(i)
+                run.add((i + 1) % polyCount)
+            } else {
+                flushRun(band, poly, run, colDepth, tuck)
+            }
+        }
+        flushRun(band, poly, run, colDepth, tuck)
+        return band
+    }
+
+    /** 折线质心（底部带外法线朝向判定基准，与 C++/Generator 同式） */
+    private fun centroidOf(poly: FloatArray): Pair<Float, Float> {
+        val n = poly.size / 2
         var cx = 0f
         var cy = 0f
-        for (i in 0 until polyCount) {
-            cx += src[header + i * 2]
-            cy += src[header + i * 2 + 1]
+        for (i in 0 until n) {
+            cx += poly[i * 2]
+            cy += poly[i * 2 + 1]
         }
-        cx /= polyCount
-        cy /= polyCount
-        val run = ArrayList<Float>(8)
-        fun flushRun() {
-            if (run.isEmpty()) return
-            band.moveTo(run[0], run[1] - tuck)
-            var i = 2
-            while (i < run.size) {
-                band.lineTo(run[i], run[i + 1] - tuck)
-                i += 2
-            }
-            i = run.size - 2
-            while (i >= 0) {
-                band.lineTo(run[i], run[i + 1] + bottomDepth - tuck)
-                i -= 2
-            }
-            band.close()
-            run.clear()
+        return cx / n to cy / n
+    }
+
+    /** 段 i 的外法线（背离质心）y 分量是否朝屏幕下方（与 C++ buildBottomMesh 同式） */
+    private fun segmentFacesDown(poly: FloatArray, i: Int, cx: Float, cy: Float): Boolean {
+        val n = poly.size / 2
+        val j = (i + 1) % n
+        val ax = poly[i * 2]
+        val ay = poly[i * 2 + 1]
+        val bx = poly[j * 2]
+        val by = poly[j * 2 + 1]
+        val dx = bx - ax
+        val dy = by - ay
+        val len = kotlin.math.sqrt(dx * dx + dy * dy)
+        if (len < 1.0e-6f) return false
+        var nx = dy / len
+        var ny = -dx / len
+        val mx = (ax + bx) * 0.5f - cx
+        val my = (ay + by) * 0.5f - cy
+        if (nx * mx + ny * my < 0f) {
+            nx = -nx
+            ny = -ny
         }
-        for (i in 0 until polyCount) {
-            val j = (i + 1) % polyCount
-            val ax = src[header + i * 2]
-            val ay = src[header + i * 2 + 1]
-            val bx = src[header + j * 2]
-            val by = src[header + j * 2 + 1]
-            val dx = bx - ax
-            val dy = by - ay
-            val len = kotlin.math.sqrt(dx * dx + dy * dy)
-            if (len < 1.0e-6f) continue
-            var nx = dy / len
-            var ny = -dx / len
-            val mx = (ax + bx) * 0.5f - cx
-            val my = (ay + by) * 0.5f - cy
-            if (nx * mx + ny * my < 0f) {
-                nx = -nx
-                ny = -ny
-            }
-            if (ny > GroundBoundaryBridge.BOTTOM_NORMAL_MIN_Y) {
-                run.add(ax)
-                run.add(ay)
-                run.add(bx)
-                run.add(by)
-            } else {
-                flushRun()
-            }
+        return ny > GroundBoundaryBridge.BOTTOM_NORMAL_MIN_Y
+    }
+
+    /** 收笔一条连续朝下段子路径：顶边前进（−tuck 藏缝）+ 锯齿底边折返 + 闭合 */
+    private fun flushRun(
+        band: Path,
+        poly: FloatArray,
+        run: MutableList<Int>,
+        colDepth: FloatArray,
+        tuck: Float
+    ) {
+        if (run.isEmpty()) return
+        band.moveTo(poly[run[0] * 2], poly[run[0] * 2 + 1] - tuck)
+        for (k in 1 until run.size) {
+            band.lineTo(poly[run[k] * 2], poly[run[k] * 2 + 1] - tuck)
         }
-        flushRun()
-        return band
+        for (k in run.size - 1 downTo 0) {
+            band.lineTo(poly[run[k] * 2], poly[run[k] * 2 + 1] + colDepth[run[k]] - tuck)
+        }
+        band.close()
+        run.clear()
     }
 
     companion object {

@@ -100,11 +100,12 @@ class SpriteSourceMappingGuardTest {
                 e.modules.isNotEmpty() && e.modules.all { it == "feature/game" || it == "app" })
             // source 合法：要么 null(待补)，要么非空路径
             if (e.source != null) assertTrue("$drawable source 非空", e.source!!.isNotBlank())
-            // bake 合法：preserve 或 maxDim 或 canvas
+            // bake 合法：preserve 或 maxDim 或 canvas 或 square（square = REPEAT POT 裁方）
             val hasPreserve = e.bake["preserve"]?.jsonPrimitive?.content == "true"
             val hasMaxDim = e.bake["maxDim"] != null
             val hasCanvas = e.bake["canvas"] != null
-            assertTrue("$drawable bake 非法: ${e.bake}", hasPreserve || hasMaxDim || hasCanvas)
+            val hasSquare = e.bake["square"] != null
+            assertTrue("$drawable bake 非法: ${e.bake}", hasPreserve || hasMaxDim || hasCanvas || hasSquare)
         }
     }
 

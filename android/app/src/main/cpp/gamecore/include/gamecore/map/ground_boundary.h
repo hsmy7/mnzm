@@ -13,9 +13,11 @@
 //   固定控制点（第一阶段）→ 闭合 Catmull-Rom → 定步长采样折线（闭多边形）
 //     → ① ground mesh：多边形耳切三角化，UV = 世界坐标/tileSize
 //        （独立 map_grass_1 纹理 REPEAT，每格一贴，与旧逐格底图对齐）
-//     → ② bottom mesh：外法线朝下的边界段向下挤出 bottomDepth 三角带，
-//        顶边与折线**同一套数据**（仅向上收进 kBottomTuck 藏缝）→ 草皮与
-//        底部零缝隙/零错位，岩石材质只负责表现、不携带任何岛屿轮廓
+//     → ② bottom mesh：外法线朝下的边界段沿**确定性深度剖面**向下挤出的
+//        纵向细分网格带（kBottomMeshRowCount 行）——深度随弧长比例做双谐波
+//        起伏（固定参数，值域 [0.6,1.0]×bottomDepth），顶边与折线**同一套
+//        数据**（仅向上收进 kBottomTuck 藏缝）→ 草皮与底部零缝隙/零错位，
+//        岩石材质只负责表现、不携带任何岛屿轮廓
 //     → ③ 逐格掩码：bit0 = 格矩形四角全在轮廓内（地面变体/平铺装饰可画）、
 //        bit1 = 树锚点（格底边中点）在轮廓内（立体装饰可画）
 //
@@ -45,7 +47,7 @@
 //
 // ## 输出复合布局（GroundBoundaryBridge 与 SceneStore 共同消费）
 //   [0]=version [1]=polyCount [2]=cols [3]=rows [4]=tileSize
-//   [5]=bottomDepth [6]=maskOffset [7]=groundMeshOffset
+//   [5]=bottomDepth（最大深度） [6]=maskOffset [7]=groundMeshOffset
 //   [8]=groundMeshFloatCount [9]=bottomMeshOffset [10]=bottomMeshFloatCount
 //   之后依次：折线 N×2、掩码 cols×rows、地皮 mesh（顶点×8 float，
 //   SpriteVertex 布局 px,py,u,v,r,g,b,a）、底部 mesh（同布局）。
@@ -69,6 +71,40 @@ inline constexpr float kBottomTuckPx = 2.0f;
 /// 底部带产出的法线阈值：外法线 y 分量 > 0（朝屏幕下方）才挤出底部。
 inline constexpr float kBottomNormalMinY = 0.0f;
 
+/// 底部材质平铺周期（世界像素/次纹理重复）：GPU UV 与 Canvas BitmapShader
+/// 局部矩阵共用同一常量（独立 REPEAT 贴图，1024² 岩石材质）。
+inline constexpr float kBottomTexRepeatPx = 512.0f;
+/// 底部 mesh 纵向细分行数（规格 2~5 档；4 = 顶点预算与纹理拉伸的折中）
+inline constexpr int32_t kBottomMeshRowCount = 4;
+
+// ── 底部深度剖面（确定性自然起伏，固定参数——纪律同控制点表）──────
+// 深度比例 scale(s) = mid + half·h(s)/hMax，s = 折线点累计弧长/周长，
+// h(s) = sin(2π(f₁s+φ₁)) + 0.55·sin(2π(f₂s+φ₂))；f₁/f₂ 互质 ⇒ 剖面非对称、
+// 无周期感。hMax = |h| 峰值（f 均为奇数 ⇒ h 严格中心对称，离线细采样标定）
+// ⇒ scale 值域恰为 [mid−half, mid+half] = [0.6, 1.0]（461~768px @768，
+// 用户拍板「中等」档）。跨端一致性：双端各用自家 sin（ulp 级差异），
+// DiffGroundBoundaryTest 容差 0.05px 覆盖；每次进入地图形状完全相同。
+inline constexpr float kBottomDepthMid = 0.80f;
+inline constexpr float kBottomDepthHalfSwing = 0.20f;
+inline constexpr float kBottomDepthMinScale = kBottomDepthMid - kBottomDepthHalfSwing;
+inline constexpr float kBottomDepthMaxScale = kBottomDepthMid + kBottomDepthHalfSwing;
+inline constexpr float kBottomDepthHarm1Freq = 3.0f;
+inline constexpr float kBottomDepthHarm1Phase = 0.13f;
+inline constexpr float kBottomDepthHarm2Freq = 7.0f;
+inline constexpr float kBottomDepthHarm2Phase = 0.58f;
+inline constexpr float kBottomDepthHarm2Amp = 0.55f;
+/// |h| 峰值 = 1.541281（离线 4M 点采样标定，固定值；两端同时可达）
+inline constexpr float kBottomDepthHarmonicMax = 1.541281f;
+inline constexpr float kTwoPi = 6.283185307179586f;
+
+/// 深度比例剖面（弧长比例 s∈[0,1] → [kBottomDepthMinScale, kBottomDepthMaxScale]）
+inline float groundBottomDepthScale(float s) {
+    const float h =
+        std::sin(kTwoPi * (kBottomDepthHarm1Freq * s + kBottomDepthHarm1Phase)) +
+        kBottomDepthHarm2Amp * std::sin(kTwoPi * (kBottomDepthHarm2Freq * s + kBottomDepthHarm2Phase));
+    return kBottomDepthMid + kBottomDepthHalfSwing * (h / kBottomDepthHarmonicMax);
+}
+
 /// 每段等分采样数（26 点 × 20 = 520 折线点，弦步长 ≈ 21px < 0.5 格）
 inline constexpr int32_t kGroundSamplesPerSegment = 20;
 
@@ -82,7 +118,8 @@ struct GroundBoundaryConfig {
     int32_t cols = 0;          ///< 地图列数（格）
     int32_t rows = 0;          ///< 地图行数（格）
     int32_t tileSize = 48;     ///< 单格像素
-    float bottomDepth = 768.0f;  ///< 底部岩石带深度（世界像素，第一阶段定值）
+    float bottomDepth = 768.0f;  ///< 底部岩石带**最大**深度（世界像素；实际深度 =
+                                 ///< 该值 × 深度剖面，见 groundBottomDepthScale）
 };
 
 // ── 第一阶段固定控制点（归一化，屏幕 Y 向下顺时针）──────────────────
@@ -357,16 +394,19 @@ inline void buildGroundMesh(const GroundBoundaryConfig& cfg,
 }
 
 // ── 底部 mesh（与地皮共用同一折线）──────────────────────────────
-// 逐段判定：外法线（背离质心）y 分量 > kBottomNormalMinY 才挤出三角带。
-// 顶边 = 折线点上移 kBottomTuckPx（藏进草皮之下）；UV u = 该端点累计弧长
-// /tileSize（相邻 quad 共享端点 ⇒ UV 全等 ⇒ 岩石纹理无缝）、v = 深度归一。
+// 逐段判定：外法线（背离质心）y 分量 > kBottomNormalMinY 才挤出网格带。
+// 顶边 = 折线点上移 kBottomTuckPx（藏进草皮之下）。每折线端点独立列深 =
+// bottomDepth × groundBottomDepthScale(arc[i]/周长)（确定性深度剖面）；
+// 纵向 kBottomMeshRowCount 行细分，行 y 与 UV v 均按列深线性内插——岩石
+// 材质随行渐进展开、不一次性拉伸，底缘自然不规则（非平行带）。
+// UV u = 端点累计弧长/kBottomTexRepeatPx（相邻 quad 共享端点 ⇒ UV 全等 ⇒
+// 岩石纹理无缝）、v = 行深/kBottomTexRepeatPx。
 inline void buildBottomMesh(const GroundBoundaryConfig& cfg,
                             const std::vector<float>& poly,
                             std::vector<float>& out) {
     out.clear();
     const size_t n = poly.size() / 2;
     if (n < 3) return;
-    const float t = static_cast<float>(cfg.tileSize);
     const float depth = cfg.bottomDepth;
     if (depth <= 0.0f) return;
     float cx = 0.0f, cy = 0.0f;
@@ -385,7 +425,13 @@ inline void buildBottomMesh(const GroundBoundaryConfig& cfg,
         arc[i % n] = arc[a] + std::sqrt(dx * dx + dy * dy);
     }
     const float perimeter = arc[0];  // 闭合：末段回到起点
-    out.reserve(static_cast<size_t>(n) * 2 * 8);
+    // 每折线点列深（世界像素；[0.6,1.0]×bottomDepth，底缘自然不规则）
+    std::vector<float> colDepth(static_cast<size_t>(n), 0.0f);
+    for (size_t i = 0; i < n; ++i) {
+        colDepth[i] = depth * groundBottomDepthScale(arc[i] / perimeter);
+    }
+    const float rowsF = static_cast<float>(kBottomMeshRowCount);
+    out.reserve(static_cast<size_t>(n) * static_cast<size_t>(kBottomMeshRowCount) * 6 * 8);
     for (size_t i = 0; i < n; ++i) {
         const size_t j = (i + 1) % n;
         const float ax = poly[i * 2], ay = poly[i * 2 + 1];
@@ -400,27 +446,32 @@ inline void buildBottomMesh(const GroundBoundaryConfig& cfg,
         const float my = (ay + by) * 0.5f - cy;
         if (nx * mx + ny * my < 0.0f) { nx = -nx; ny = -ny; }
         if (ny <= kBottomNormalMinY) continue;
-        const float topAy = ay - kBottomTuckPx;
-        const float topBy = by - kBottomTuckPx;
-        const float uA = arc[i] / t;
-        const float uB = arc[j] / t;
-        const float vTop = 0.0f;
-        const float vBot = depth / t;
-        const float botAy = ay + depth - kBottomTuckPx;
-        const float botBy = by + depth - kBottomTuckPx;
-        // 与 SpriteBatcher.add 同手性两三角：(A_top, B_top, A_bot)(B_top, B_bot, A_bot)
-        const float quad[6][8] = {
-            { ax, topAy, uA, vTop, 1, 1, 1, 1 },
-            { bx, topBy, uB, vTop, 1, 1, 1, 1 },
-            { ax, botAy, uA, vBot, 1, 1, 1, 1 },
-            { bx, topBy, uB, vTop, 1, 1, 1, 1 },
-            { bx, botBy, uB, vBot, 1, 1, 1, 1 },
-            { ax, botAy, uA, vBot, 1, 1, 1, 1 },
-        };
-        for (auto& v : quad) {
-            for (float f : v) out.push_back(f);
+        const float uA = arc[i] / kBottomTexRepeatPx;
+        const float uB = arc[j] / kBottomTexRepeatPx;
+        for (int32_t r = 0; r < kBottomMeshRowCount; ++r) {
+            const float fr0 = static_cast<float>(r) / rowsF;
+            const float fr1 = static_cast<float>(r + 1) / rowsF;
+            const float topAy = ay + colDepth[i] * fr0 - kBottomTuckPx;
+            const float topBy = by + colDepth[j] * fr0 - kBottomTuckPx;
+            const float botAy = ay + colDepth[i] * fr1 - kBottomTuckPx;
+            const float botBy = by + colDepth[j] * fr1 - kBottomTuckPx;
+            const float vA0 = colDepth[i] * fr0 / kBottomTexRepeatPx;
+            const float vB0 = colDepth[j] * fr0 / kBottomTexRepeatPx;
+            const float vA1 = colDepth[i] * fr1 / kBottomTexRepeatPx;
+            const float vB1 = colDepth[j] * fr1 / kBottomTexRepeatPx;
+            // 与 SpriteBatcher.add 同手性两三角：(A_top, B_top, A_bot)(B_top, B_bot, A_bot)
+            const float quad[6][8] = {
+                { ax, topAy, uA, vA0, 1, 1, 1, 1 },
+                { bx, topBy, uB, vB0, 1, 1, 1, 1 },
+                { ax, botAy, uA, vA1, 1, 1, 1, 1 },
+                { bx, topBy, uB, vB0, 1, 1, 1, 1 },
+                { bx, botBy, uB, vB1, 1, 1, 1, 1 },
+                { ax, botAy, uA, vA1, 1, 1, 1, 1 },
+            };
+            for (auto& v : quad) {
+                for (float f : v) out.push_back(f);
+            }
         }
-        (void)perimeter;
     }
 }
 

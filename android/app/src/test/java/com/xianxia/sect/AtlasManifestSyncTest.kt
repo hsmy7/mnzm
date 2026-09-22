@@ -191,9 +191,9 @@ class AtlasManifestSyncTest {
         for ((name, r) in SpriteAtlasDef.ROAD_RECTS) {
             list += SpriteEntry(name, r.x, r.y, r.w, r.h)
         }
-        // 浮空岛崖壁**不在图集内**（2026-09 地图边缘系统）：单张最大 1180×3552
-        // 超出 4096² 容量，改走独立纹理（scripts/build-edge-ktx.mjs +
-        // feature/game IslandCliffTextureSet），故此处不再追加边缘段。
+        // 浮空岛崖壁**不在图集内**（2026-09 地图边缘系统已退役该拼接素材）；
+        // 底部岩石/草皮走独立 REPEAT 贴图（source-mapping 美术管线），故此处
+        // 不再追加边缘段。
         return list
     }
 
