@@ -115,11 +115,21 @@ class WallClockReflowGuardTest {
     private fun countRawWallClock(dir: File): Int = dir.walkTopDown()
         .filter { it.isFile && it.extension == "kt" }
         .sumOf { file ->
-            val relative = file.relativeTo(repoRoot).path
+            val relative = relativePath(file)
             // 收敛清单按判据 1 必须为 0；抽象本体是仓内唯一被许可的取时钟点
             if (relative in CONVERGED_FILES || relative in ABSTRACTION_FILES) 0
             else stripComments(file.readLines()).count { RAW_WALL_CLOCK.containsMatchIn(it) }
         }
+
+    /**
+     * 归一化相对路径（`File.separatorChar` → `/`）。
+     *
+     * 🔴 必须归一：Windows 上 `File.relativeTo(...).path` 用反斜杠，与清单里的
+     * `/` 路径永不相等 ⇒ 排除清单**静默失效**、债务计数被抽象本体的合法裸读污染
+     * （首轮组合门即因此判红，实测取证于 report-SR5 §6）。
+     */
+    private fun relativePath(file: File): String =
+        file.relativeTo(repoRoot).path.replace(File.separatorChar, '/')
 
     /**
      * 剔除注释（行注释 + 块注释，含 KDoc），保留行号。
@@ -190,7 +200,7 @@ class WallClockReflowGuardTest {
          * `docs/parallel-batches-w5/report-SR5-completion-2026-09-22.md` §5。
          */
         val REGISTERED_RAW_COUNTS = mapOf(
-            "core:engine" to 42,
+            "core:engine" to 40,
             "core:data" to 68,
             "core:domain" to 9,
             "core:ui" to 0,
