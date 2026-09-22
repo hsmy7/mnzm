@@ -85,6 +85,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
 
+- **2026-09-23 07:38 监控轮（MR-2 进行态）**：P2.1 面落盘——新目录 `cpp/gpu/`（GpuAllocator）+ `cpp/third_party/`（VMA）现身，恰为批次预期落点；尚无既有文件改动与提交。下轮盯 VulkanBackend 6 站点收口展开。
+
 - **2026-09-23 06:48 监控轮（MR-1 收官在即）**：完成报告 `docs/report-MR1-completion-2026-09-23.md` 落盘（未提交）+ 方案 checkbox 勾选中 + atlas-rgba-manifest.json 副产物已还原剔除（留言区纪律生效）。就差收官笔落库——下轮核交付三要素并备 MR-2 派发。
 
 - **2026-09-23 06:28 监控轮（MR-1 进行态）**：**双 changelog 出现**（CHANGELOG.md + changelog_entries.json）= 收官材料准备期，门禁自检大概率已过/接近过（全局约束 13 每次合入即写，P1.1/P1.3 玩家可感知）；工作树 31 改 + 6 新增；atlas-rgba-manifest.json 副产物仍在待剔除。下轮预期切分提交连发 + 完成报告。
