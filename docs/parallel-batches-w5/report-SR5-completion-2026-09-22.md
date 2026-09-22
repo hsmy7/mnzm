@@ -258,11 +258,23 @@ detekt compileReleaseKotlin lintRelease`（桥 `.so` mtime 2026-09-21 21:40：�
    `core/domain` 7 处模型字段默认值、`SpiritStoneTransaction:21`、`WarehouseModels:55/87`、
    `LeaderboardManager:60`（日桶）。根因是 `WallClock` 在 `core:engine`，`core:data`
    不能反向依赖 ⇒ **需要一次落点决策**（上移到 `core:domain` 或按 MailDao 先例继续传形参）。
-2. `RequestSigner.deriveLocalSigningKey` 对 `SecureKeyManager.getOrCreateKey` 返回的
-   **缓存数组引用**做 `masterKey.fill(0)`（`RequestSigner.kt:186` 一带）。
-   `getOrCreateKey` 在 TTL 内直接返回同一引用，清零会让同进程后续取键全为 0
-   （网络签名时间戳/签名值随之失真，直到缓存过期或重启）。**疑为真缺陷**，
-   但属网络签名链、与 SR-5 无因果 ⇒ 建议单独立项核实（本批只在自己的派生里避开该写法）。
+2. ✅ **主密钥缓存别名缺陷已根治**（收官后用户指示"根治解决"，`04ae099f6` + `1039591e3`）：
+   `SecureKeyManager.getOrCreateKey` 命中缓存时曾返回 `KeyCache.key` 的**引用**，而
+   `RequestSigner.kt:184` 与 `SecureHttpClient.kt:425` 都按"清自己副本"的意图写着
+   `masterKey.fill(0)` ⇒ 全零密钥被写回进程级缓存，且缓存是"命中即续期"的滑动 TTL
+   （`copy(lastAccess = now)`），只要有取键流量就可**无限期存活**（不是 ≤5 分钟自愈）。
+   三层后果：响应解密派生错误密钥 / 本批 `SavePayloadSigner` 用全零 master 派出恒定密钥并
+   钉死整进程 / `verifyKeyIntegrity` 哈希必不匹配 ⇒ **误报"密钥丢失"并触发恢复预警**。
+   根治只一处（两条返回路径各 `copyOf()`），因此那两句 `fill(0)` **保持不动**——它们从此
+   就是本来想做的"擦除私有副本"，无需跨模块改网络链。配套契约测试
+   `SecureKeyManagerKeyAliasTest` 3 例：修复前**临时退回旧语义实测 3 例全红**
+   （其中"两次取键引用不同"必须预热缓存才有判别力，已写进测试注释），修复后全绿；
+   `:core:data` 810 用例/0 失败/15 既有跳过、`:app` 1005/0/2 全绿。
+   SR-5 侧另收口两处（`1039591e3`）：签名器不再永久缓存密钥（主密钥轮换后不用陈旧密钥）、
+   全零 master 拒绝派生并归口降级为"不签名/KEY_UNAVAILABLE"而非误判篡改。
+   🔴 **待办转交**：本根治动了 `core:data/crypto`，**尚未跑六模块整轮**（只在
+   `:core:data`+`:app` 全量与 `:core:data` crypto 定向取证）⇒ 需要一条覆盖当前 HEAD 的
+   整轮门禁补证（与 §8 条 6 的裁定的同一件事）。
 3. `RedeemCodeManager.validateCodeWithServerAuth` + `remoteValidator` 注册链实测**零调用者**
    （IN6 议题，本批只透传 `nowMs` 不改语义、不删）。
 4. `RedeemCodeRateLimitOps.verifySignature` 是"SHA-256 + 静态后缀"的**无密钥哈希**，
