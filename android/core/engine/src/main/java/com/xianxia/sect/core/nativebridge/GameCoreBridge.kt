@@ -504,6 +504,24 @@ object GameCoreBridge {
     ): IntArray
 
     /**
+     * 弯曲地皮轮廓合成（地图边缘系统 v2；纯函数，kAnyThread——与
+     * [nativeRoadCompose] 同语义，不依赖引擎实例，仅需库已加载）。
+     *
+     * 合成单一权威 = `gamecore/map/ground_boundary.h`（固定控制点 → 闭合
+     * Catmull-Rom → 折线/地皮 mesh/底部 mesh/逐格掩码，详见该头文件）。
+     * 输出复合布局见 GroundBoundaryBridge.Header（头部 11 float + 段偏移）。
+     *
+     * @param bottomDepth 底部岩石带深度（世界像素；GroundBoundaryBridge.BOTTOM_DEPTH_PX）
+     * @return 复合 FloatArray；cols/rows/tileSize 非法返回空数组
+     */
+    external fun nativeComposeGroundBoundary(
+        cols: Int,
+        rows: Int,
+        tileSize: Int,
+        bottomDepth: Float
+    ): FloatArray
+
+    /**
      * FP 确定性对拍探针（R0.2 真机腿）：运行自包含确定性场景（弟子创建 +
      * 40 旬结算 + 战斗全链 + RNG 序列），返回 FNV-1a 摘要十六进制字符串。
      *

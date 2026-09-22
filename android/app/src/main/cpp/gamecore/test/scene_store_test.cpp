@@ -164,6 +164,26 @@ TEST(SceneStoreTest, CliffLayoutRoundTripsTenFloatStride) {
 
     store.setCliffLayout(nullptr, 2);
     EXPECT_FALSE(store.hasCliffs());
+    EXPECT_FALSE(store.hasGroundBoundary());
+}
+
+// 弯曲地皮轮廓（地图边缘系统 v2）：复合数据整存整取 + 非法清层
+TEST(SceneStoreTest, GroundBoundaryRoundTripsComposite) {
+    scene::SceneStore store;
+    // 最小合法头：11 float 头部 + 3 个折线点（= kGroundBoundaryMinFloats）
+    std::vector<float> data = {1, 3, 128, 128, 48, 768, 17, 23, 0, 23, 0,
+                               0, 0, 100, 0, 200, 50};
+    store.setGroundBoundary(data.data(), static_cast<int>(data.size()));
+    ASSERT_TRUE(store.hasGroundBoundary());
+    ASSERT_EQ(static_cast<int>(data.size()), store.groundBoundaryFloats());
+    for (size_t i = 0; i < data.size(); i++) {
+        EXPECT_EQ(data[i], store.groundBoundaryData()[i]);
+    }
+    // nullptr / 低于最小长度 → 整层清除（防御语义同其他层）
+    store.setGroundBoundary(nullptr, 5);
+    EXPECT_FALSE(store.hasGroundBoundary());
+    store.setGroundBoundary(data.data(), scene::kGroundBoundaryMinFloats - 1);
+    EXPECT_FALSE(store.hasGroundBoundary());
 }
 
 TEST(SceneStoreTest, OverlaySelectionAndMarkersRoundTrip) {
@@ -246,6 +266,9 @@ TEST(SceneStoreTest, ResetClearsAllLayersForSurfaceEpoch) {
     store.updateCrops(crops, 1);
     store.updateClouds(clouds, 1);
     store.setCliffLayout(cliffs, 1);
+    const float boundary[scene::kGroundBoundaryMinFloats] = {1, 3, 128, 128, 48,
+        768, 17, 23, 0, 23, 0, 0, 0, 100, 0, 200, 50};
+    store.setGroundBoundary(boundary, scene::kGroundBoundaryMinFloats);
     store.setSelection(0);
     store.setDemolishMarkers(markers, 1);
     store.setPreview(preview);

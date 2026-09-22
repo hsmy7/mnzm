@@ -26,6 +26,7 @@
 #include "gamecore/map/road_system.h"
 #include "gamecore/map/road_compositor.h"
 #include "gamecore/map/terrain.h"
+#include "gamecore/map/ground_boundary.h"
 #include "gamecore/rng/fdlibm.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/rng/rng_manager.h"
@@ -1806,6 +1807,36 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeSectSmoothNoise(
     return gamecore::map::terrain::smoothNoise(
         static_cast<int32_t>(x), static_cast<int32_t>(y),
         static_cast<int32_t>(scale), static_cast<int32_t>(seed));
+}
+
+// ============================================================
+// 弯曲地皮轮廓合成（与 Android GameCoreBridge.nativeComposeGroundBoundary
+// 同签名同语义；DiffGroundBoundaryTest 双端对拍用。地图边缘系统 v2——
+// ground_boundary.h 替代 island_cliff 崖壁拼接的合成权威）
+// ============================================================
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeComposeGroundBoundary(
+    JNIEnv* env, jobject /*thiz*/,
+    jint cols, jint rows, jint tileSize, jfloat bottomDepth) {
+
+    gamecore::map::GroundBoundaryConfig cfg;
+    cfg.cols = static_cast<int32_t>(cols);
+    cfg.rows = static_cast<int32_t>(rows);
+    cfg.tileSize = static_cast<int32_t>(tileSize);
+    cfg.bottomDepth = static_cast<float>(bottomDepth);
+    if (cfg.cols <= 0 || cfg.rows <= 0 || cfg.tileSize <= 0) {
+        return env->NewFloatArray(0);
+    }
+
+    std::vector<float> out;
+    gamecore::map::computeGroundBoundary(cfg, out);
+    jfloatArray arr = env->NewFloatArray(static_cast<jsize>(out.size()));
+    if (arr == nullptr) return nullptr;
+    if (!out.empty()) {
+        env->SetFloatArrayRegion(arr, 0, static_cast<jsize>(out.size()), out.data());
+    }
+    return arr;
 }
 
 // ============================================================

@@ -53,6 +53,10 @@ inline constexpr int kCloudStride = 6;
 /// 与 IslandCliffBridge.PIECE_STRIDE / 旧 cliffData 协议同形）
 inline constexpr int kCliffStride = 10;
 
+/// 弯曲地皮轮廓复合数据最小 float 数（地图边缘系统 v2）：头部 11 + 至少
+/// 3 个折线点 6 float——低于此即非法数据（防御；正常量级 ≈ 7 万）。
+inline constexpr int kGroundBoundaryMinFloats = 17;
+
 /// 叠加层预览数据单条步长（R3.3）：
 /// [boxX, boxY, boxW, boxH, spriteX, spriteY, spriteW, spriteH,
 ///  u0, v0, u1, v1, r, g, b, a]
@@ -194,6 +198,24 @@ public:
     int cliffPieceCount() const { return cliffPieceCount_; }
     bool hasCliffs() const { return cliffPieceCount_ > 0; }
 
+    // ── 弯曲地皮轮廓（地图边缘系统 v2）──────────────────────────
+
+    /// 导入轮廓复合数据（头部+折线+掩码+地皮 mesh+底部 mesh，整存整取；
+    /// 一次性预计算的稳定快照——地图尺寸变化时重导）。
+    void setGroundBoundary(const float* data, int floatCount) {
+        if (data == nullptr || floatCount < kGroundBoundaryMinFloats) {
+            groundBoundary_.clear();
+            groundBoundaryFloats_ = 0;
+            return;
+        }
+        groundBoundary_.assign(data, data + floatCount);
+        groundBoundaryFloats_ = floatCount;
+    }
+
+    const float* groundBoundaryData() const { return groundBoundary_.data(); }
+    int groundBoundaryFloats() const { return groundBoundaryFloats_; }
+    bool hasGroundBoundary() const { return groundBoundaryFloats_ > 0; }
+
     // ── 叠加层状态（R3.3：选中索引 / 拆除标记 / 预览几何） ─────────
     //
     // 三类数据均**变化驱动**导入（Kotlin 侧值比较后才触 JNI），几何生成
@@ -258,6 +280,8 @@ public:
         cloudCount_ = 0;
         cliffs_.clear();
         cliffPieceCount_ = 0;
+        groundBoundary_.clear();
+        groundBoundaryFloats_ = 0;
         selectionIndex_ = -1;
         markers_.clear();
         preview_ = PreviewState{};
@@ -289,6 +313,9 @@ private:
 
     std::vector<float> cliffs_;
     int cliffPieceCount_ = 0;
+
+    std::vector<float> groundBoundary_;
+    int groundBoundaryFloats_ = 0;
 
     int32_t selectionIndex_ = -1;
     std::vector<uint8_t> markers_;

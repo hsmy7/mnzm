@@ -1110,6 +1110,39 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeIslandCliffCompose(
 }
 
 // ============================================================
+// 弯曲地皮轮廓合成通道（地图边缘系统 v2，替代崖壁拼接）
+// 无状态纯函数——不依赖引擎实例（同 nativeRoadCompose：kAnyThread）。
+// 合成单一权威 = gamecore/map/ground_boundary.h（固定控制点 → 闭合
+// Catmull-Rom → 折线/地皮 mesh/底部 mesh/逐格掩码）；本函数仅做 JNI 装配。
+// 输出复合布局见 GroundBoundaryBridge.Header（头部 11 float + 段偏移）。
+// 对拍守护：DiffGroundBoundaryTest（桌面 JNI 同签名导出，容差对拍）。
+// ============================================================
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeComposeGroundBoundary(
+    JNIEnv* env, jobject /*thiz*/,
+    jint cols, jint rows, jint tileSize, jfloat bottomDepth) {
+
+    gamecore::map::GroundBoundaryConfig cfg;
+    cfg.cols = static_cast<int32_t>(cols);
+    cfg.rows = static_cast<int32_t>(rows);
+    cfg.tileSize = static_cast<int32_t>(tileSize);
+    cfg.bottomDepth = static_cast<float>(bottomDepth);
+    if (cfg.cols <= 0 || cfg.rows <= 0 || cfg.tileSize <= 0) {
+        return env->NewFloatArray(0);
+    }
+
+    std::vector<float> out;
+    gamecore::map::computeGroundBoundary(cfg, out);
+    static_assert(sizeof(jfloat) == sizeof(float), "JNI float 宽度假设");
+    jfloatArray arr = env->NewFloatArray(static_cast<jsize>(out.size()));
+    if (arr == nullptr) return nullptr;
+    if (!out.empty()) {
+        env->SetFloatArrayRegion(arr, 0, static_cast<jsize>(out.size()), out.data());
+    }
+    return arr;
+}
+
+// ============================================================
 // 宗门地图地形生成通道
 // 无状态纯函数——不依赖引擎实例（同 nativeRoadCompose：kAnyThread）。
 // 地形生成单一权威 = gamecore/map/terrain.h（Kotlin SectMapTileGenerator

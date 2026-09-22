@@ -325,6 +325,14 @@ object NativeBridge {
     external fun sceneSetCliffLayout(cliffData: FloatArray?, pieceCount: Int)
 
     /**
+     * 弯曲地皮轮廓复合数据导入（地图边缘系统 v2；GroundBoundaryBridge
+     * 一次性预计算的稳定数据，地图尺寸变化时重导）。
+     * 布局 = 头部 11 float + 折线 + 掩码 + 地皮 mesh + 底部 mesh
+     * （见 GroundBoundaryBridge.Header / gamecore/map/ground_boundary.h）。
+     */
+    external fun sceneSetGroundBoundary(data: FloatArray?)
+
+    /**
      * 图集纹理 ID 注入（上传完成时；0 = 未就绪——C++ 侧跳过地图层，
      * 崖壁层不受影响，与旧路径 atlasTextureId==0 守卫语义一致）。
      */

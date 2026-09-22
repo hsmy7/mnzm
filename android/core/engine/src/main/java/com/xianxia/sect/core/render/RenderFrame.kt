@@ -102,6 +102,19 @@ data class RenderFrame(
      */
     val islandCliffData: FloatArray? = null,
 
+    /**
+     * 弯曲地皮轮廓复合数据（地图边缘系统 v2，替代崖壁的地皮边界定义）：
+     * 头部 11 float + 折线 N×2 + 逐格掩码 cols×rows + 地皮 mesh + 底部 mesh
+     * （布局见 GroundBoundaryBridge.Header / gamecore/map/ground_boundary.h）。
+     *
+     * 由 [com.xianxia.sect.core.render.GroundBoundaryBridge.compose] 一次性
+     * 预计算（地图尺寸变化时重建；Camera 平移/缩放不重建——本引用稳定）。
+     * 双后端（Vulkan/Canvas）据同一份数据绘制：GPU 走 SceneStore 通道，
+     * Canvas 直接消费折线（Path）+ 掩码 + mesh。z 序：天空 → 底部岩石 → 地皮。
+     * null = 未接线（原生崖壁管线仍工作的过渡态）；S6 移除崖壁后恒非 null。
+     */
+    val groundBoundaryData: FloatArray? = null,
+
     /** 建筑数据 [gx, gy, w, h, nameIdx] × N（可选，无建筑时为 null） */
     val buildingData: FloatArray? = null,
     val buildingCount: Int = 0,

@@ -222,5 +222,13 @@ object DiffRngBridge {
     /** 位级对拍探针：C++ terrain smoothNoise（Kotlin smoothNoise 对照） */
     external fun nativeSectSmoothNoise(x: Int, y: Int, scale: Int, seed: Int): Float
 
+    // ── 弯曲地皮轮廓合成通道（桌面 JNI 同签名——与生产
+    //    GameCoreBridge.nativeComposeGroundBoundary 等价，DiffGroundBoundaryTest
+    //    双端对拍用。地图边缘系统 v2）──
+    /** 复合 FloatArray（布局见 GroundBoundaryBridge.Header）；非法尺寸返回空数组 */
+    external fun nativeComposeGroundBoundary(
+        cols: Int, rows: Int, tileSize: Int, bottomDepth: Float
+    ): FloatArray
+
     external fun nativeDestroy()
 }

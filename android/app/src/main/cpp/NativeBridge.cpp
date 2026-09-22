@@ -1149,6 +1149,27 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetCliffLayout(
     g_scene.setCliffLayout(data.data(), capped);
 }
 
+// 弯曲地皮轮廓复合数据导入（地图边缘系统 v2；布局见
+// GroundBoundaryBridge.Header / gamecore/map/ground_boundary.h：头部 11 float
+// + 折线 + 掩码 + 地皮 mesh + 底部 mesh）。数据为一次性预计算的稳定快照，
+// Kotlin 侧值比较后才触线（引用变化驱动），C++ 侧整存整取不解析。
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetGroundBoundary(
+    JNIEnv* env, jobject /*thiz*/, jfloatArray data) {
+    if (data == nullptr) {
+        g_scene.setGroundBoundary(nullptr, 0);
+        return;
+    }
+    const jsize floats = env->GetArrayLength(data);
+    if (floats < scene::kGroundBoundaryMinFloats) {
+        g_scene.setGroundBoundary(nullptr, 0);
+        return;
+    }
+    std::vector<float> copy(static_cast<size_t>(floats));
+    env->GetFloatArrayRegion(data, 0, floats, copy.data());
+    g_scene.setGroundBoundary(copy.data(), floats);
+}
+
 /** 图集纹理 ID 注入（上传完成时；0 = 未就绪——地图层跳过，崖壁层不受影响） */
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetAtlasTexture(
