@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.cloud
 
+import com.xianxia.sect.data.crypto.SavePayloadIntegrity
 import com.xianxia.sect.data.model.SaveData
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -88,12 +89,14 @@ enum class SaveBackendError {
 data class UploadReceipt(val confirmedSaveId: Long)
 
 /**
- * 下载载荷：存档数据 + 云端实际保存序号（W，null=存量档未知）+ 本端脏标志仲裁 verdict。
+ * 下载载荷：存档数据 + 云端实际保存序号（W，null=存量档未知）+ 本端脏标志仲裁 verdict
+ * + 载荷完整性判据（SR-5：HMAC 验签结果，默认 UNSIGNED = 云档无签名）。
  */
 data class CloudSavePayload(
     val saveData: SaveData,
     val saveId: Long?,
-    val verdict: ArbitrationVerdict
+    val verdict: ArbitrationVerdict,
+    val integrity: SavePayloadIntegrity = SavePayloadIntegrity.UNSIGNED
 )
 
 /** 云端存档条目（槽位列表/删除定位；摘要供 SR-3 选档 UI 渲染） */

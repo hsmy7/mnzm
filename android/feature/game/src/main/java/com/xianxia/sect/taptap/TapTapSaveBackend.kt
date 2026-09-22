@@ -4,6 +4,7 @@ import android.content.Context
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.StorageConstants
+import com.xianxia.sect.core.engine.system.CalibratedWallClock
 import com.xianxia.sect.data.cloud.ArbitrationVerdict
 import com.xianxia.sect.data.cloud.CloudSaveEntry
 import com.xianxia.sect.data.cloud.CloudSavePayload
@@ -15,6 +16,8 @@ import com.xianxia.sect.data.cloud.SaveConflictEvent
 import com.xianxia.sect.data.cloud.CloudSaveSummary
 import com.xianxia.sect.data.cloud.UploadLedger
 import com.xianxia.sect.data.cloud.UploadReceipt
+import com.xianxia.sect.data.crypto.SavePayloadIntegrity
+import com.xianxia.sect.data.crypto.SavePayloadSigner
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -51,7 +54,17 @@ import javax.inject.Singleton
 class TapTapSaveBackend @Inject constructor(
     @ApplicationContext private val context: Context,
     private val serializationModule: SerializationModule,
-    private val uploadLedger: UploadLedger
+    private val uploadLedger: UploadLedger,
+    /**
+     * 云档载荷 HMAC 签名器（SR-5）：上传时签压缩后的载荷字节、下载时验，
+     * 结果作 [CloudSavePayload.integrity] 判据上抛（P4：异常降级放行 + 显式留痕）。
+     */
+    private val payloadSigner: SavePayloadSigner,
+    /**
+     * 云校正墙钟（SR-5 C8/P3）：上传成功后读回服务端 mtime 作漂移样本，
+     * 进程内至多接受一次。零新增**启动**往返——采样只挂在写成功之后。
+     */
+    private val wallClock: CalibratedWallClock
 ) : SaveBackend {
 
     private val opMutex = Mutex()
@@ -91,7 +104,9 @@ class TapTapSaveBackend @Inject constructor(
             try {
                 tempFile.parentFile?.mkdirs()
                 tempFile.writeBytes(bytes)
-                val (summary, extra) = buildSummaryAndExtra(saveData, saveId)
+                // SR-5：签名字节域 = 即将上传的载荷本体；密钥不可得 ⇒ 不签（不阻断存档）
+                val signature = payloadSigner.sign(bytes)
+                val (summary, extra) = buildSummaryAndExtra(saveData, saveId, signature)
                 api.createOrUpdateArchive(
                     archiveName = archiveName,
                     summary = summary,
@@ -100,6 +115,7 @@ class TapTapSaveBackend @Inject constructor(
                     extra = extra
                 )
                 DomainLog.i(TAG, "backend upload success: slot=$slot saveId=$saveId")
+                sampleCloudClockDrift(api, archiveName)
                 SaveBackendResult.Success(UploadReceipt(confirmedSaveId = saveId))
             } catch (e: CancellationException) {
                 throw e // 取消穿透：cloudOp 语义与 manager 一致
@@ -127,17 +143,63 @@ class TapTapSaveBackend @Inject constructor(
             is SaveBackendResult.Success -> fetched.data
             is SaveBackendResult.Failure -> return@withLock fetched
         }
+        // SR-5 验签：字节域 = 云端返回的载荷本体；签名取自上面同一次元数据查询
+        // （零新增往返）。判据异常时按 P4 降级放行——载荷已反序列化成功这一点
+        // 如实登记：验签发生在解析之后，本批不承诺"未验签不解析"。
+        val integrity = payloadSigner.verify(payload.bytes, arbitration.signature)
+        if (integrity != SavePayloadIntegrity.VERIFIED && integrity != SavePayloadIntegrity.UNSIGNED) {
+            DomainLog.w(
+                TAG,
+                "cloud payload integrity=$integrity slot=$slot expectedSigVer=" +
+                    SavePayloadSigner.SIGNATURE_VERSION +
+                    " —— 按 P4 降级放行并显式留痕（不阻断玩家用档）"
+            )
+        }
         DomainLog.i(TAG, "backend download success: slot=$slot W=${arbitration.cloudSaveId} " +
-            "verdict=${arbitration.verdict}")
-        SaveBackendResult.Success(CloudSavePayload(payload, arbitration.cloudSaveId, arbitration.verdict))
+            "verdict=${arbitration.verdict} integrity=$integrity")
+        SaveBackendResult.Success(
+            CloudSavePayload(payload.saveData, arbitration.cloudSaveId, arbitration.verdict, integrity)
+        )
     }
 
-    /** 云端仲裁结果：W + verdict +（真冲突时的）类型化 CONFLICT 结果 */
+    /**
+     * SR-5 C8：上传成功后读回服务端 mtime，作为本地墙钟漂移样本（P3 拍板：
+     * 零新增启动往返，只在"本端刚写完"这一 mtime 才等价于"现在"的时刻采样）。
+     *
+     * 约束：进程内至多接受一次（[CalibratedWallClock.isCalibrated]）；量级不可信的
+     * 样本由 [CalibratedWallClock.applyDriftSample] 丢弃。
+     * 🔴 本函数**必须不抛**——它位于上传成功路径内，异常外溢会被外层 catch 翻译成
+     * Failure，把"已成功的存档"误报成失败（IN1：后置步骤只降级，不回滚已提交结果）。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 观测性读回异常源跨 IO/SDK 不可枚举, 一律降级为不校正
+    private suspend fun sampleCloudClockDrift(api: CloudSaveApi, archiveName: String) {
+        if (wallClock.isCalibrated) return
+        try {
+            val serverMtimeMs = api.queryArchiveInfo(archiveName)?.lastModifiedTime ?: return
+            val drift = wallClock.applyDriftSample(serverMtimeMs, wallClock.uncalibratedNowMs())
+            DomainLog.i(
+                TAG,
+                if (drift == null) "wall clock drift sample discarded: archive=$archiveName " +
+                    "serverMtime=$serverMtimeMs（已校正过 / 量级超阈值 / 参数非法）"
+                else "wall clock calibrated from fresh upload: archive=$archiveName drift=$drift ms"
+            )
+        } catch (e: CancellationException) {
+            throw e // 取消穿透：调用方 withLock 的取消语义不变
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "wall clock drift sample skipped: ${e.message}")
+        }
+    }
+
+    /** 云端仲裁结果：W + verdict + 载荷签名 +（真冲突时的）类型化 CONFLICT 结果 */
     private data class CloudArbitration(
         val cloudSaveId: Long?,
         val verdict: ArbitrationVerdict,
-        val conflict: SaveBackendResult.Failure?
+        val conflict: SaveBackendResult.Failure?,
+        val signature: String?
     )
+
+    /** 下载到的载荷字节与其反序列化结果（验签必须在字节域做） */
+    private data class FetchedPayload(val bytes: ByteArray, val saveData: SaveData)
 
     /** 云端元数据查询 + 脏标志仲裁（IN2 零时钟）；真冲突时发事件并携带 CONFLICT 结果 */
     private suspend fun arbitrateAgainstCloud(
@@ -150,18 +212,21 @@ class TapTapSaveBackend @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return CloudArbitration(null, ArbitrationVerdict.IN_SYNC, SaveBackendResult.Failure(
-                classify(e), e.message ?: "查询失败", e
-            ))
+            return CloudArbitration(
+                null, ArbitrationVerdict.IN_SYNC,
+                SaveBackendResult.Failure(classify(e), e.message ?: "查询失败", e),
+                null
+            )
         }
         val cloudSaveId = rawInfo?.extra?.let { parseSaveId(it) }
+        val signature = parseSignature(rawInfo?.extra)
         val verdict = SaveArbiter.arbitrate(
             lastLocalSaveId = uploadLedger.lastLocalSaveId(slot),
             lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(slot),
             cloudSaveId = cloudSaveId
         )
         if (verdict != ArbitrationVerdict.CONFLICT) {
-            return CloudArbitration(cloudSaveId, verdict, null)
+            return CloudArbitration(cloudSaveId, verdict, null, signature)
         }
         val conflict = SaveConflictEvent(
             slot = slot,
@@ -178,7 +243,8 @@ class TapTapSaveBackend @Inject constructor(
             SaveBackendResult.Failure(
                 SaveBackendError.CONFLICT,
                 "本地与云端均有新进度，需要选择保留哪一份"
-            )
+            ),
+            signature
         )
     }
 
@@ -187,7 +253,7 @@ class TapTapSaveBackend @Inject constructor(
         api: CloudSaveApi,
         slot: Int,
         archiveName: String
-    ): SaveBackendResult<SaveData> {
+    ): SaveBackendResult<FetchedPayload> {
         val bytes = try {
             api.downloadArchive(archiveName)
         } catch (e: CancellationException) {
@@ -202,7 +268,7 @@ class TapTapSaveBackend @Inject constructor(
             return SaveBackendResult.Failure(SaveBackendError.SIZE_LIMIT, "云存档过大：${bytes.size}B")
         }
         return try {
-            SaveBackendResult.Success(serializationModule.deserializeSaveData(bytes))
+            SaveBackendResult.Success(FetchedPayload(bytes, serializationModule.deserializeSaveData(bytes)))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -270,8 +336,16 @@ class TapTapSaveBackend @Inject constructor(
     // ── 槽位/extra/错误映射（internal 供同模块单测） ──
 
     companion object {
-        /** 上传摘要 + extra JSON（现役协议 + saveId）；无实例状态依赖 */
-        internal fun buildSummaryAndExtra(saveData: SaveData, saveId: Long): Pair<String, String> {
+        /**
+         * 上传摘要 + extra JSON（现役协议 + saveId + SR-5 签名）。
+         * [signature] = null 时**不写** `sig`/`sigVer` 两键（存量格式向后兼容：
+         * 老客户端与老云档都按"无签名"处理，验签侧退化为 UNSIGNED）。
+         */
+        internal fun buildSummaryAndExtra(
+            saveData: SaveData,
+            saveId: Long,
+            signature: String? = null
+        ): Pair<String, String> {
             val gd = saveData.gameData
             val summary = "第${gd.gameYear}年${gd.gameMonth}月 ${gd.sectName}"
             val extra = JSONObject().apply {
@@ -282,6 +356,10 @@ class TapTapSaveBackend @Inject constructor(
                 put("stones", gd.spiritStones)
                 put("version", GameConfig.Game.VERSION)
                 put(EXTRA_KEY_SAVE_ID, saveId) // W 回带源（SR-0 §4.1 状态模型）
+                if (signature != null) {
+                    put(EXTRA_KEY_SIGNATURE, signature)
+                    put(EXTRA_KEY_SIGNATURE_VERSION, SavePayloadSigner.SIGNATURE_VERSION)
+                }
             }.toString()
             return summary to extra
         }
@@ -289,6 +367,8 @@ class TapTapSaveBackend @Inject constructor(
         private const val MAX_CLOUD_SAVE_SIZE_BYTES = 10L * 1024 * 1024
         private const val MAX_DOWNLOAD_SIZE_BYTES = 50L * 1024 * 1024
         private const val EXTRA_KEY_SAVE_ID = "saveId"
+        private const val EXTRA_KEY_SIGNATURE = "sig"
+        private const val EXTRA_KEY_SIGNATURE_VERSION = "sigVer"
 
         /** 存量单档名（与 TapCloudSaveManager.CLOUD_SAVE_ARCHIVE_NAME 一致；slot 0 = 云会话槽） */
         internal const val LEGACY_ARCHIVE_NAME = "mnzm_cloud_save"
@@ -312,6 +392,18 @@ class TapTapSaveBackend @Inject constructor(
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         internal fun parseSaveId(extra: String): Long? = try {
             JSONObject(extra).optLong(EXTRA_KEY_SAVE_ID, 0L).takeIf { it > 0L }
+        } catch (e: Exception) {
+            null
+        }
+
+        /**
+         * extra JSON → 载荷签名（SR-5）。null = 存量档无签名 / 解析失败（同 [parseSaveId]
+         * 的保守降级方向：元数据面异常不判玩家篡改，交验签侧退化为 UNSIGNED）。
+         */
+        // 防御兜底: extra 内容跨服务端版本不可枚举, 解析失败降级 null, 非静默吞噬
+        @Suppress("TooGenericExceptionCaught", "SwallowedException")
+        internal fun parseSignature(extra: String?): String? = try {
+            extra?.let { JSONObject(it).optString(EXTRA_KEY_SIGNATURE, "").takeIf { s -> s.isNotBlank() } }
         } catch (e: Exception) {
             null
         }

@@ -17,6 +17,16 @@ import org.junit.Test
 @RunWith(RobolectricTestRunner::class)
 class TapTapSaveBackendTest {
 
+    /** extra 构造用的最小存档（year/month/sect/stones 四字段驱动摘要与 JSON） */
+    private fun sampleSaveData() = SaveData(
+        gameData = GameData(gameYear = 12, gameMonth = 7, sectName = "青云宗", spiritStones = 1234L),
+        disciples = emptyList(),
+        pills = emptyList(),
+        materials = emptyList(),
+        herbs = emptyList(),
+        seeds = emptyList()
+    )
+
     // ── 槽位 ↔ 云端命名（SR-0 §3.4：slot_N + 存量单档）──
 
     @Test
@@ -69,6 +79,35 @@ class TapTapSaveBackendTest {
             assertEquals(9L, json.getLong("saveId"))
             assertEquals(true, json.has("version"))
         }
+    }
+
+    // ── SR-5 C7：载荷签名写读 extra（向后兼容方向 = 无签名不写键，存量档不报错）──
+
+    @Test
+    fun `buildSummaryAndExtra - 有签名才写 sig 与 sigVer 两键`() {
+        val saveData = sampleSaveData()
+
+        val withSig = org.json.JSONObject(
+            TapTapSaveBackend.buildSummaryAndExtra(saveData, saveId = 9L, signature = "ab12").second
+        )
+        assertEquals("ab12", withSig.getString("sig"))
+        assertEquals("hmac-sha256-v1", withSig.getString("sigVer"))
+        assertEquals("saveId 判据零变化", 9L, withSig.getLong("saveId"))
+
+        val withoutSig = org.json.JSONObject(
+            TapTapSaveBackend.buildSummaryAndExtra(saveData, saveId = 9L, signature = null).second
+        )
+        org.junit.Assert.assertFalse("密钥不可得时不得写空签名键", withoutSig.has("sig"))
+        org.junit.Assert.assertFalse(withoutSig.has("sigVer"))
+    }
+
+    @Test
+    fun `parseSignature - 有值回带 无键与非法 JSON 均 null`() {
+        assertEquals("ab12", TapTapSaveBackend.parseSignature("""{"saveId":9,"sig":"ab12"}"""))
+        assertNull(TapTapSaveBackend.parseSignature("""{"saveId":9}""")) // 存量档无签名
+        assertNull(TapTapSaveBackend.parseSignature("""{"sig":""}""")) // 空串视为无
+        assertNull(TapTapSaveBackend.parseSignature("not json"))
+        assertNull(TapTapSaveBackend.parseSignature(null))
     }
 
     // ── extra JSON 摘要解析（SR-3 槽位列表选档 UI；缺字段降级 null 非错误）──

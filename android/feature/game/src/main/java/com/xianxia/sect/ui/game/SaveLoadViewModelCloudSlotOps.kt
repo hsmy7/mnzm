@@ -8,6 +8,7 @@ package com.xianxia.sect.ui.game
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.data.cloud.ArbitrationVerdict
+import com.xianxia.sect.data.crypto.SavePayloadIntegrity
 import com.xianxia.sect.data.cloud.CloudSavePayload
 import com.xianxia.sect.data.cloud.SaveBackendError
 import com.xianxia.sect.data.cloud.SaveBackendMode
@@ -253,13 +254,31 @@ internal suspend fun SaveLoadViewModel.handleCloudSlotPayload(
     // 既有 boot 链（pendingSlot 参数化后回显目标槽 N）
     val bootResult = applyCloudSaveToEngine(processed, slot, pendingSlot = slot)
     if (bootResult.isSuccess) {
-        cloudSaveOperationStateFlow.value = CloudSaveOperationState.Success("云存档加载成功")
+        // SR-5 C7（P4 拍板）：完整性异常降级放行，但必须让玩家看得见，不静默
+        cloudSaveOperationStateFlow.value = CloudSaveOperationState.Success(
+            "云存档加载成功" + payload.integrity.integrityNotice().let {
+                if (it.isEmpty()) "" else "（$it）"
+            }
+        )
     } else {
         cloudSaveOperationStateFlow.value = CloudSaveOperationState.Error(
             "读取云存档失败: ${bootResult.exceptionOrNull()?.message}"
         )
     }
     return CloudSlotLoadOutcome.Completed
+}
+
+/**
+ * 载荷完整性判据 → 玩家可见提示（SR-5）。
+ *
+ * VERIFIED / UNSIGNED 无提示：无签名是 SR-2/SR-3 期间存量云档的常态（方案 §4 SR-5
+ * 明列向后兼容方向），提示它只会制造噪音。异常态必须非空——判据没有"算了但没人看"
+ * 的中间态（IN6）。
+ */
+internal fun SavePayloadIntegrity.integrityNotice(): String = when (this) {
+    SavePayloadIntegrity.VERIFIED, SavePayloadIntegrity.UNSIGNED -> ""
+    SavePayloadIntegrity.MISMATCH -> "该云存档签名校验不通过，内容可能被改写，请确认进度无误"
+    SavePayloadIntegrity.KEY_UNAVAILABLE -> "本机校验密钥暂不可用，未能验证云存档签名"
 }
 
 /**

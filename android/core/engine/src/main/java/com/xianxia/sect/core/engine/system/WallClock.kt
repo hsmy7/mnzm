@@ -67,6 +67,12 @@ class CalibratedWallClock @Inject constructor() : WallClock {
     val isCalibrated: Boolean get() = calibrated
 
     /**
+     * **未校正**系统读数——仅供漂移观测方取样（IN2 相关：不能用已校正的钟去
+     * 测自己的校正量，那是自指）。游戏语义判据一律走 [currentTimeMillis]。
+     */
+    fun uncalibratedNowMs(): Long = System.currentTimeMillis()
+
+    /**
      * 用"刚写完云档后读回的服务端 mtime"校正本地钟。
      *
      * @param serverMtimeMs 服务端返回的归档 mtime（**必须**来自本次写入之后的读回）
