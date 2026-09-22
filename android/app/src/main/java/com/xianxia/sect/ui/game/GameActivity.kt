@@ -859,11 +859,13 @@ class GameActivity : ComponentActivity() {
     }
 
     /**
-     * 退到后台时的保存触发（审计 §16 #6 方案 A）。
+     * 退到后台时的保存触发（审计 §16 #6 方案 A + SR-4/D6 打开旗标）。
      *
-     * 旗标 `SaveTriggerFlag.saveOnBackground` **默认关** ⇒ 本方法在第一行短路返回，
-     * 与历史行为逐行等价（零副作用）。开启后：有有效槽位且引擎已加载才落一次盘。
-     * 保存链自身非阻塞（内部派发），失败走既有提示通道（后台不可见）。
+     * `SaveTriggerFlag.saveOnBackground` 默认开（D6 拍板："自动存档 = 游戏月月变钩子 +
+     * onStop"）；关闭态 = 回滚臂，第一行短路返回后与历史行为逐行等价（零副作用）。
+     * 开启后经 [SaveLoadViewModel.saveOnBackground] 走 SR-4 编排点：不等合并窗立即落
+     * 本地事务（viewModelScope 在 onStop 不取消，但进程随时可能被杀），非 LEGACY 下
+     * 再追加一次上传队列排空尝试；成功静默、失败仍投递告警通道（后台不可见是既有登记）。
      */
     private fun triggerBackgroundSaveIfEnabled() {
         if (!com.xianxia.sect.data.SaveTriggerFlag.saveOnBackground) return

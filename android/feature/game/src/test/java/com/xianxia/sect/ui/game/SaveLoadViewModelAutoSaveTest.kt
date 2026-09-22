@@ -26,9 +26,11 @@ import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -202,6 +204,32 @@ class SaveLoadViewModelAutoSaveTest {
         coVerify(exactly = 1) { storageFacade.save(1, any()) }
         coVerify(exactly = 0) { uploadQueue.enqueue(any(), any(), any()) }
     }
+
+    @Test
+    fun `onStop in legacy mode never touches the upload queue - SR-2 hard red line`() =
+        runTest(testDispatcher) {
+            SaveTriggerFlag.saveOnBackground = true
+            every { saveBackendModeProvider.current() } returns SaveBackendMode.LEGACY
+
+            viewModel.saveOnBackground()
+            advanceUntilIdle()
+
+            verify(exactly = 0) { uploadQueue.requestDrain() }
+        }
+
+    @Test
+    fun `onStop outside legacy requests one queue drain after the local commit`() =
+        runTest(testDispatcher) {
+            SaveTriggerFlag.saveOnBackground = true
+            every { saveBackendModeProvider.current() } returns SaveBackendMode.CLOUD_TRANSITION
+
+            viewModel.saveOnBackground()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { storageFacade.save(1, any()) }
+            coVerify(exactly = 1) { uploadQueue.enqueue(eq(1), any(), any()) }
+            verify(exactly = 1) { uploadQueue.requestDrain() }
+        }
 
     @Test
     fun `reportSaveSuccess routes each feedback to its own channel`() {

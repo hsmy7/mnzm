@@ -9,6 +9,23 @@ import kotlinx.coroutines.CancellationException
 // 独立成文件避免 SaveOps/CloudOps 函数数触阈（detekt TooManyFunctions 上两批教训）。
 
 /**
+ * `onStop` 排空尝试（SR-4，方案 §2 触发矩阵"本地事务 + 队列尝试排空"）：
+ * 本地已提交、进程可能随时被杀 ⇒ 请队列对下一条待传**跳过合并窗早点试传**。
+ *
+ * 边界：不改队列语义（冲突仲裁/共享冷却/退避/熔断照旧，排空是"早点试"不是"强行传"）；
+ * **LEGACY 短路 = SR-2 硬红线**（不置位、不唤醒 ⇒ 默认模式队列零活动、零协程）。
+ */
+internal fun SaveLoadViewModel.requestCloudUploadDrain() {
+    val mode = persistenceFacade.saveBackendModeProvider.current()
+    if (!shouldEnqueueCloudUpload(mode)) {
+        Log.d(SaveLoadViewModelConstants.TAG, "cloud upload drain skipped: mode=LEGACY")
+        return
+    }
+    persistenceFacade.uploadQueue.requestDrain()
+    Log.i(SaveLoadViewModelConstants.TAG, "cloud upload drain requested: mode=$mode")
+}
+
+/**
  * 本地保存成功后的云上传投递（D3：第一步本地事务已必成，此为第二步异步部分——
  * IN1：上传失败只降级，不回滚本地）。
  *

@@ -90,6 +90,8 @@ class UploadQueue(
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var workerJob: Job? = null
     private var consecutiveFailures = 0
+    /** 排空请求（SR-4 onStop）：置位后下一次处理跳过合并窗，消费即清 */
+    private val drainRequested = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private val _events = MutableSharedFlow<Event>(
         extraBufferCapacity = 64,
@@ -138,6 +140,22 @@ class UploadQueue(
     /** 测试/运维观测面：挂起中的冲突条目槽位 */
     suspend fun heldConflictSlots(): Set<Int> = mutex.withLock { heldConflicts.keys.toSet() }
 
+    /**
+     * 排空尝试（SR-4 `onStop`：本地事务已提交，进程可能随时被杀 ⇒ 尽力把待传推出去）。
+     *
+     * 只做两件事：置"下一次处理跳过合并窗"标记 + 唤醒空闲 worker。**不**绕过任何安全闸
+     * （冲突仲裁/限频共享冷却/退避/熔断照旧生效——排空是"早点试"，不是"强行传"），
+     * 也**不**拉起 worker（LEGACY 零活动红线：worker 惰性启动语义不变，调用侧模式门控）。
+     *
+     * 非挂起、任意线程可调。
+     */
+    fun requestDrain() {
+        drainRequested.set(true)
+        wake.trySend(Unit)
+    }
+
+    private fun consumeDrainRequest(): Boolean = drainRequested.getAndSet(false)
+
     private fun ensureWorker() {
         if (workerJob?.isActive == true) return
         workerJob = scope.launch { runLoop() }
@@ -168,7 +186,8 @@ class UploadQueue(
 
     /** 单条处理：合并窗 → 冲突仲裁 → 上传 → 结果分类（确认/退避/熔断/挂起） */
     private suspend fun process(entry: PendingEntry) {
-        delay(config.debounceMs) // Q7/Q8：窗口内合并——多次入队只剩本 slot 最新条目
+        // Q7/Q8：窗口内合并——多次入队只剩本 slot 最新条目；SR-4 排空请求跳窗立即试传
+        if (!consumeDrainRequest()) delay(config.debounceMs)
         val current = mutex.withLock { pending[entry.slot] } ?: return
         if (conflictGate(current)) return
         executeUpload(current)

@@ -306,6 +306,9 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
         // shouldEnqueueCloudUpload 短路——零新增行为（硬红线，守卫测试锚定）
         maybeEnqueueCloudUploadAfterLocalSave(slot, saveData)
 
+        // SR-4：onStop 口径在入队后追加一次排空尝试（D3 第二步"尽力完成"，进程可能随时被杀）
+        if (feedback == SaveFeedback.Silent) requestCloudUploadDrain()
+
         Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame SUCCESS === " +
             "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +
             "month=${snapshot.gameData.gameMonth}, phase=${snapshot.gameData.gamePhase}, " +

@@ -242,6 +242,49 @@ class UploadQueueTest {
         assertEquals(id5, ledger.lastConfirmedCloudId(1))
     }
 
+    // ── Q11/Q12（SR-4）：requestDrain 排空尝试 ──
+
+    @Test
+    fun `Q11 - 排空请求跳过合并窗立即试传`() = queueTest {
+        val queue = newQueue()
+        val id4 = ledger.recordLocalSave(1)
+        backend.nextResponses.add(SaveBackendResult.Success(UploadReceipt(id4)))
+        queue.enqueue(1, saveData, id4)
+        queue.requestDrain()
+        // 远小于 debounceMs 的时间片即应完成上传（不排空时此刻仍卡在窗内）
+        advanceTimeBy(config.debounceMs / 10)
+        advanceUntilIdle()
+
+        assertEquals(1, backend.uploadCount)
+        assertEquals(listOf(id4), backend.uploadSaveIds)
+        assertEquals(id4, ledger.lastConfirmedCloudId(1))
+    }
+
+    @Test
+    fun `Q11b - 不排空时同窗内尚未上传（对照组）`() = queueTest {
+        val queue = newQueue()
+        val id4 = ledger.recordLocalSave(1)
+        backend.nextResponses.add(SaveBackendResult.Success(UploadReceipt(id4)))
+        queue.enqueue(1, saveData, id4)
+
+        advanceTimeBy(config.debounceMs / 10)
+
+        assertEquals("窗未到期不得上传", 0, backend.uploadCount)
+    }
+
+    @Test
+    fun `Q12 - 空队列排空尝试零上传零账本变化`() = queueTest {
+        val queue = newQueue()
+        queue.requestDrain()
+
+        advanceTimeBy(config.debounceMs * 5)
+        advanceUntilIdle()
+
+        assertEquals(0, backend.uploadCount)
+        assertEquals(0L, ledger.lastLocalSaveId(1))
+        assertEquals(0L, ledger.lastConfirmedCloudId(1))
+    }
+
     // ── Q9：连续失败达上限 → 熔断（如实告警）+ 静默后半开 ──
 
     @Test
