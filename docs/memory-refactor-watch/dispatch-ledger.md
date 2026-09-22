@@ -83,6 +83,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 
 （追加式，最新在上；降噪纪律：无实质变化不记）
 
+- **2026-09-23 05:48 监控轮（MR-1 进行态）**：工作树扩至 17 改 + 2 新目录（`app/.../core/memory/`、`core/domain/.../memory/`——Bridge 与 MemoryTrimLevel 落点），**P1.3 收敛面现身**（XianxiaApplication/CacheLayer/GameDataCacheMemoryPressure/GameDataCacheMaintenance/GameMonitorManager 在改 = 既有消费者正被吸收），P1.6/P1.4 JNI 面（NativeBridge.cpp/.kt + GameCoreBridge.cpp/.kt）同轮展开；无越界文件，尚未提交。下轮盯首笔切分提交（七任务面多，切分纯度重点核 P1.3 与 P1.1 不混笔）。
+
 - **2026-09-23 05:38 监控轮（MR-1 进行态）**：代码面展开，8 文件在写全在预期面——C++ P1.1（`column_dirty.h` 几何扩容 + `disciple_store.h/.cpp` reserve）+ P1.5（`game_core.h/.cpp` 账本 cap/tick 挂点）；Kotlin P1.2（`SectMapController.kt` + `SceneUpdateChannel.kt`）+ P1.7 面（`VulkanRenderBackend.kt`）。无越界文件、无副产物混入；P1.3（TrimMemoryBridge.kt）与 P1.4/P1.6 面未现，尚未提交。下轮盯切分提交纯度与 P1.3 收敛面。
 
 - **2026-09-23 05:28 监控轮（MR-1 进行态）**：派发后 16 分钟零文件产物 → GUI 直读判活 = 深度勘察期非停滞：P1.3/P1.5 接口关系已清（正设计 `CacheLayer.onMemoryTrimBridge(level)` 收敛入口）、核对 memory-audit B-6 原文（账本增长在 Kotlin 侧，C++ cap 仅 import 生效——找 GameCore 每旬结算入口作 tick 边界挂点）、P1.2 面清楚，正补 SectMapController 全文/ctest 测试样式/GLES 挂点最后几个探查点。下轮预期立卡笔+代码面展开。
