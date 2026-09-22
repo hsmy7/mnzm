@@ -59,7 +59,11 @@
   GATE_EXIT=0 / 339 任务全 executed**，**8,014 用例 / 0 失败 / 0 错误 / 17 既有跳过**
   （SR-4 基线 7,986 + 本批 28 例新测试；XML 时间戳 05:50–05:57 UTC 单窗实证非 UP-TO-DATE）+
   **`Diff*` 50 类 273 用例 0 skip（IN8）** + detekt/compileReleaseKotlin/lintRelease 全绿
-  （本批零 detekt 修复笔）。真机六项 = pending-device（报告 §7），本批未声称达标。
+  （此口径仅指第三轮；收官后追加四轮见报告 §6A：第四轮 `:core:data:detekt` 因本批新代码
+  一条 `UseCheckOrError` 判红，独立笔 `f3af824b6` 自纠；第五轮五模块测试 + 六模块 detekt
+  + 六模块 compile 绿，`:app` 测试与 `lintRelease` 被外部 `gradlew --stop` 打断，
+  故**根治笔之后 `lintRelease` 尚未取证**，是本批唯一未闭环门禁项）。
+  真机六项 = pending-device（报告 §7），本批未声称达标。
   ⚠ **证据边界如实登记**（报告 §6.9）：该整轮绿灯测的是 13:31–14:09 的树；同一分支上另有
   并发 SR-6 会话在绿灯之后又提交 10 笔，故**整轮绿灯不覆盖当前 HEAD**——SR-5 的验收以
   "逐子项定向实跑 + 逐笔独立提交"为凭，纳管笔 `2d5e9fa16` 另做过守卫与 `:feature:game`
