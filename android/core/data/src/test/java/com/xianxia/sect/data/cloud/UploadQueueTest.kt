@@ -285,6 +285,33 @@ class UploadQueueTest {
         assertEquals(0L, ledger.lastConfirmedCloudId(1))
     }
 
+    /**
+     * Q13（SR-6）：稳态上传节奏 —— **本批打开生产上传的前提证据**。
+     *
+     * SR-4 把"月月必存"落地为每 6 秒一次保存（等比缩小 = 每 60ms 入队，远快于冷却），
+     * SR-4 §8 因此建议"把合并窗提到与冷却同量级"。实测该加法**不需要**：worker 的
+     * 单飞循环是 `窗 → 上传 → 成功后 delay(冷却)`，故两次成功上传的间隔恒
+     * `≥ debounce + uploadTime + sharedUploadCooldown`，本用例配置下 ≈ 1.1s（生产 = 62s），
+     * 已经贴住 TapTap 1 次/分钟。把窗再放宽到 60s 只会让快照更旧、每分钟上传次数更少，
+     * 不减少任何请求 ⇒ 参数保持原值，本用例把这条节奏钉住，防后续批凭直觉再调。
+     */
+    @Test
+    fun `Q13 - 入队节奏远高于限频时两次成功上传仍被冷却拉开`() = queueTest {
+        val queue = newQueue()
+        collectEvents(queue)
+        repeat(4) { backend.nextResponses.add(SaveBackendResult.Success(UploadReceipt(it + 1L))) }
+
+        repeat(6) { i ->
+            queue.enqueue(1, saveData, saveId = (i + 1).toLong())
+            advanceTimeBy(60) // 模拟月月必存的密集入队（等比缩小）
+        }
+        assertEquals("冷却未到期不得出现第二次上传", 1, backend.uploadCount)
+
+        advanceTimeBy(config.sharedUploadCooldownMs + config.debounceMs + 100)
+        advanceUntilIdle()
+        assertTrue("冷却到期后应继续把最新快照推出去", backend.uploadCount >= 2)
+    }
+
     // ── Q9：连续失败达上限 → 熔断（如实告警）+ 静默后半开 ──
 
     @Test
