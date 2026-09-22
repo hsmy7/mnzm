@@ -11,7 +11,8 @@
 
 （最新在上）
 
-- **2026-09-23 05:1x MR-0 交付核验通过 + MR-1 派发中（看护锁 05:1x，GUI 六步进行中）**：交付三要素齐 = 收官笔 `f80e9fdb8`（功能+报告+checkbox 全勾，6 文件 +286/-24，明确文件名 add）+ 完成报告 `docs/report-MR0-completion-2026-09-23.md`（门禁实证：compileReleaseKotlin+detekt 绿 3m21s、旗标守卫 2/2、check-agent-instructions 过；诚实登记 pending-device/lint 未跑理由/api.properties 自修复）+ 工作树回净（构建副产物已还原）。**accepted 留用户**。核验口径 = 提交+报告双全（§7，不跑验收门）。**携带事实**：① 三旗标（mirrorProtobufTransport/gameViewProjection/dirtyColumnExport）已随 B18 退役且守卫禁回流——P4.2「与 dirtyColumnExport 共存」表述届时须按现状校准；② 工作树 api.properties 已补（gitignored）。MR-1 派发文本 = batch-MR1.md + 《前批交付事实》附录（5 条原文摘录）。
+- **2026-09-23 05:12 MR-1 已派发（GUI 六步全过，锁解除）**：新 ZCode 子会话《【MR-1 内存管理根治 · Phase 1 止血+压力闭环批（P1.1–P1.7 七任务全做）】》开跑实证「工作中 14 秒」，首动作读台账 dispatch-ledger.md（留言区纪律生效）。派发文本 = batch-MR1.md + 《前批交付事实》附录 5 条（5001 字符剪贴板粘贴，尾部逐字核验）。下轮起【C 监控】MR-1：预期先勘察 trim 消费者全清单（P1.3 最大面），首笔提交预计为施工卡/立卡笔；交付核验口径同 §7。**硬截止 08:50≥（等于也停）不变。**
+- **2026-09-23 05:1x MR-0 交付核验通过**：交付三要素齐 = 收官笔 `f80e9fdb8`（功能+报告+checkbox 全勾，6 文件 +286/-24，明确文件名 add）+ 完成报告 `docs/report-MR0-completion-2026-09-23.md`（门禁实证：compileReleaseKotlin+detekt 绿 3m21s、旗标守卫 2/2、check-agent-instructions 过；诚实登记 pending-device/lint 未跑理由/api.properties 自修复）+ 工作树回净（构建副产物已还原）。**accepted 留用户**。核验口径 = 提交+报告双全（§7，不跑验收门）。**携带事实**：① 三旗标（mirrorProtobufTransport/gameViewProjection/dirtyColumnExport）已随 B18 退役且守卫禁回流——P4.2「与 dirtyColumnExport 共存」表述届时须按现状校准；② 工作树 api.properties 已补（gitignored）。MR-1 派发文本 = batch-MR1.md + 《前批交付事实》附录（5 条原文摘录）。
 - **2026-09-23 04:3x 看护建立**：三件套就绪（工作树 + 本台账 + 批次文件 batch-MR0..MR4）；看护自动化 id = `automation-4e1892f4-0b67-4431-b8f6-e7bcaebbb964`（*/10）。用户口径「按批次实施 0 至 5」= 方案**全部批次**（Phase 0–4 共五批，编号 MR0–MR4；方案无 Phase 5，已向用户说明，如有异议以用户追加指示为准）+ 全部交付后总收官。
 - **2026-09-23 04:40 MR-0 已派发（GUI 六步全过，锁解除）**：新 ZCode 子会话《【MR-0 内存管理根治 · Phase 0 开关与基线批】》开跑实证「工作中 11 秒」，首动作 `cd C:\Mnzm\XianxiaSectNative\.worktrees\memory-refactor && git status && git log` 正确落工作树，自述先读台账留言区+方案再逐条实施 P0.0–P0.2。派发文本 = batch-MR0.md 全文（2091 字符剪贴板粘贴，尾部逐字核验）。下轮起【C 监控】MR-0：CLI 三信号（git -C 工作树 log/status/新报告文件），交付核验口径 = 收官笔（完成报告 `docs/report-MR0-completion-2026-09-23.md` 入库 + Phase 0 checkbox 全勾 + 工作树回净），核验通过即派 MR-1（Phase 1 止血+压力闭环，指令 = batch-MR1.md + MR0 交付事实附录）。**硬截止 08:50≥（等于也停）不变。**
 - 批次映射：MR0=Phase 0（开关与基线）→ MR1=Phase 1（止血+压力闭环）→ MR2=Phase 2（GPU 子系统）→ MR3=Phase 3（纹理缓存）→ MR4=Phase 4（基线+GLES+收口）。依赖链见方案第四部分依赖摘要（P2.1→P2.2→P3→P4.1；P1.3→P2.3）。
@@ -65,7 +66,7 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 | 批 | Phase / 任务 | 状态 | 派发时刻 | 交付提交 | 核验 | accepted |
 |---|---|---|---|---|---|---|
 | MR0 | Phase 0（P0.0 线程契约登记 / P0.1 memorySubsystem 旗标 / P0.2 基线采集清单） | **delivered · 核验通过 05:1x** | 04:40 GUI 六步 | `f80e9fdb8` | ✅ 看护（提交+报告双全，§7） | 留用户 |
-| MR1 | Phase 1（P1.1–P1.7 止血+压力闭环） | **dispatched（派发中，锁 05:1x）** | 05:1x | — | — | — |
+| MR1 | Phase 1（P1.1–P1.7 止血+压力闭环） | **dispatched 05:12** | 05:12 GUI 六步 | — | — | — |
 | MR2 | Phase 2（P2.1–P2.3 GPU 子系统 VMA/GpuAllocator） | queued | — | — | — | — |
 | MR3 | Phase 3（P3.1–P3.3 纹理缓存） | queued | — | — | — | — |
 | MR4 | Phase 4（P4.1–P4.6 基线+GLES+收口） | queued | — | — | — | — |
