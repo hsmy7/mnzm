@@ -2,7 +2,7 @@
 
 > 对标 Godot 官方 [Thread-safe APIs](https://docs.godotengine.org/en/4.0/tutorials/performance/thread_safe_apis.html) 文档。
 > 本文档是本项目"哪些 API 从哪条线程可调"的**唯一成文权威**，审查清单 13.3 引用本文。
-> 更新日期：2026-08-13。代码事实基线：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
+> 更新日期：2026-09-23——**新增内存子系统四通道预登记**（`nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道，表一/表二/表三/表四标注「内存子系统」的条目；实现随 [memory-refactor 实施方案](memory-refactor-implementation-plan-2026-09-23.md) MR1–MR3，**登记先于实现**）。既有代码事实基线（2026-08-13）：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
 
 ---
 
@@ -10,9 +10,9 @@
 
 | 线程 | 调度器/来源 | 优先级 | 职责 |
 |------|------------|--------|------|
-| UI 主线程 | Android Main | — | Compose 重组、ViewModel、对话框、SurfaceView 触控、AudioEngine 调用（现状） |
-| GameEngine-Thread | `GameDispatcher` 单线程 | MAX (-19) | 帧循环 `gameLoopMainLoop`、`stateStore.update` 事务（**唯一合法状态写入口**）、惰性结算全部系统 |
-| RenderThread | `NativeSurfaceView` 手写线程 | — | `RenderBackend` 调用（setCamera/renderFrame/release）、VsyncGate 节拍、EWMA、图集上传 |
+| UI 主线程 | Android Main | — | Compose 重组、ViewModel、对话框、SurfaceView 触控、AudioEngine 调用（现状）；**内存子系统**：Android trim 回调接收（`onTrimMemory`/`onLowMemory` → Bridge 投递，只投递命令）+ 纹理上传编排 acquire/release 命令投递（现状 `AtlasAsyncPipeline` 上传段在主线程） |
+| GameEngine-Thread | `GameDispatcher` 单线程 | MAX (-19) | 帧循环 `gameLoopMainLoop`、`stateStore.update` 事务（**唯一合法状态写入口**）、惰性结算全部系统；**内存子系统**：tick 边界 gamecore 容器收缩钩子（由 trim 水位驱动，禁止进入 JobSystem 并行段或结算中途） |
+| RenderThread | `NativeSurfaceView` 手写线程 | — | `RenderBackend` 调用（setCamera/renderFrame/release）、VsyncGate 节拍、EWMA、图集上传；**内存子系统 GPU 面独占**：`TextureCache` 表、`GpuAllocator`、`nativeMemoryTrim`/`textureAcquire`/`textureRelease` 命令消费执行（帧边界） |
 | backgroundDispatcher | 2 线程 | MIN+1 | 存档 IO（StorageEngine）、后台 Job、邮件 |
 | Watchdog 线程 | 1 线程 | NORM | GameTimeProgressMonitor 采样、`emergencyRestartGameLoop` |
 | assembleDispatcher | 专用单线程 | — | 锁外弟子组装 `dispatchAssemble`（增量组装防交错丢弟子） |
@@ -33,6 +33,8 @@
 | `DomainLog` | 可注入日志抽象 | `core/domain` |
 | `AudioEngine` | 全部调用限定主线程（现状）；SoundPool/MediaPlayer 内部线程安全 | `core/audio/AudioEngine.kt` |
 | `GameRngManager.getRng` 快照读取 | 分区状态仅引擎线程推进，读快照安全 | `util/GameRngManager.kt` |
+| **内存子系统**命令投递（`textureAcquire` / `textureRelease` / `nativeMemoryTrim` JNI） | 任意 Kotlin 线程投递命令即合法；cache 表变更与真实 GPU 操作仅渲染线程在帧边界执行 | 本文档表四（2026-09-23 登记，实现随 memory-refactor MR1–MR3） |
+| **内存子系统**MemoryStats 快照读 | 渲染线程发布的不可变快照（原子引用替换），任意线程只读；禁止同步回读渲染后端（表三） | 本文档表四（2026-09-23 登记） |
 
 ## 三、线程安全禁止区（不安全）
 
@@ -46,6 +48,9 @@
 | 引擎线程执行挂起 IO/网络 | 全链路非挂起原则（ReentrantLock 挂起不释放，会冻结世界） | EngineContextDispatcher |
 | 绕过 COW 原地修改 `_discipleTables` | 原地修改绕过 set 不触发列私有化，污染共享存储破坏快照隔离 | knowledge-base Component Table 注意事项 |
 | 向渲染后端请求数据回读 | 对标 Godot"回读会 stall 渲染线程"——渲染是单向推数据 | RenderBackend 接口无读接口 |
+| **内存子系统**Kotlin 侧直触 `TextureCache` 表 / `GpuAllocator` / 直接调 GL·VK 分配释放 | cache 表与 GPU 面渲染线程独占（memory-refactor 全局约束 6）；Kotlin 只投递命令 | 本文档表四（2026-09-23 登记）；守卫随 MR2/MR3 落地 |
+| **内存子系统**trim 回调线程做 GPU 操作或纹理重传 | trim 回调在主线程，重操作卡 UI 且与渲染线程竞争 cache 表 | memory-refactor D3 设计（收敛单入口 + 帧边界消费） |
+| **内存子系统**gamecore 容器收缩进入 JobSystem 并行段或结算中途 | 破坏结算确定性与并行段数据安全；收缩仅限引擎线程 tick 边界 | memory-refactor 全局约束 6（tick 边界唯一） |
 
 ## 四、跨线程通信通道（全部合法通道）
 
@@ -56,6 +61,10 @@
 | `RenderCommandBus` | UI/引擎 → RenderThread | 单槽覆盖式（建筑数据最新值胜） |
 | RenderFrame / 相机 @Volatile | Compose → RenderThread | 帧快照原子替换 |
 | `StateFlow` 订阅 | GameStateStore → UI | UI 只读，写回必须经 GameEngine |
+| **内存子系统**`nativeMemoryTrim(level)` | UI 主线程（Android trim 回调，经 Bridge 收敛单入口 + 双发去抖）→ JNI 投递 → RenderThread 帧边界消费；引擎线程 tick 边界读 trim 水位 | 命令投递式：Kotlin 侧只传档位枚举，回调线程禁止任何 GPU/纹理操作与重上传；C++ 渲染线程出队消费 GPU/CPU 资源面（`TextureCache.trim` / `trimHostPool`）；gamecore 容器收缩仅引擎线程 tick 边界（2026-09-23 登记，实现随 MR1/MR2） |
+| **内存子系统**`textureAcquire(key, payload)` | Kotlin 上传编排线程（现状主线程）→ JNI 投递 → RenderThread 独占执行 | 命令投递式：miss → upload → insert 全在渲染线程完成，同 key 幂等（refCount++）；Kotlin 上传峰值后即时断开字节缓冲引用（2026-09-23 登记，实现随 MR3） |
+| **内存子系统**`textureRelease(key)` | 同 `textureAcquire` | refCount--；==0 且非 pinned 入退役队列，帧边界物理销毁（沿 `m_retiredTextures` 延迟释放）；物理销毁完成前同 key 再 acquire 按 miss 重传（`pendingDestroy` 不命中）（2026-09-23 登记，实现随 MR3） |
+| **内存子系统**MemoryStats 读通道（`GpuAllocator.stats` / cache 条目数） | RenderThread 帧边界发布 → 任意线程只读 | 渲染线程发布不可变快照（原子引用替换）；读方（Debug UI / 引擎线程 / gamecore）只读快照，禁止同步回读渲染后端（表三红线不变）、禁止持活引用跨帧（2026-09-23 登记，实现随 MR2/MR4） |
 
 ## 五、新增代码的必查项
 

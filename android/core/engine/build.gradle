@@ -70,6 +70,9 @@ android {
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
+        // 内存子系统总开关默认值（memory-refactor 全局约束 8）：入库缺省 false（预发期），
+        // 根治验收（方案附录 A + P4.5 门禁全绿）后改此处翻 true；api.properties 可本地覆盖。
+        buildConfigField "boolean", "MEMORY_SUBSYSTEM_DEFAULT", apiProperties.getProperty('MEMORY_SUBSYSTEM_DEFAULT', 'false')
         buildConfigField "int", "VERSION_CODE",
             versionProps.getProperty('versionCode', '1')
     }

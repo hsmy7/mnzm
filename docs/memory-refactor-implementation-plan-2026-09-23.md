@@ -346,9 +346,9 @@ void     clearEpoch();                    // surface 纪元死亡：整表失效
 
 ### Phase 0 — 开关与基线（0.5d 量级，先合）
 
-- [ ] **P0.0** 在 `docs/threading-contract.md` 登记 `nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道与线程归属（渲染线程独占 cache/allocator；Kotlin 只投递） — acceptance: 契约表可审；实现分支引用该登记 (covers: 全局约束 6/7)
-- [ ] **P0.1** 增加 `NativeEngineFlag.memorySubsystem`（并入既有旗标族，不另造开关体系）BuildConfig/本地 + 运行时读取入口；OFF 时 P2–P4 新路径 no-op（**P1.* 止血不受控**） — acceptance: 开关存在且默认值经评审（建议先 `false` 预发、根治验收后 `true`）(covers: 全局约束 8)
-- [ ] **P0.2** 落真机/模拟器内存基线采集脚本或清单命令（`dumpsys meminfo`、`dumpsys meminfo` Native Heap 分项、heapprofd 抽样、VMA stats 将来对照）写入本方案附录 A — acceptance: 清单可复制执行 (covers: 验收)
+- [x] **P0.0** 在 `docs/threading-contract.md` 登记 `nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道与线程归属（渲染线程独占 cache/allocator；Kotlin 只投递） — acceptance: 契约表可审；实现分支引用该登记 (covers: 全局约束 6/7)
+- [x] **P0.1** 增加 `NativeEngineFlag.memorySubsystem`（并入既有旗标族，不另造开关体系）BuildConfig/本地 + 运行时读取入口；OFF 时 P2–P4 新路径 no-op（**P1.* 止血不受控**） — acceptance: 开关存在且默认值经评审（建议先 `false` 预发、根治验收后 `true`）(covers: 全局约束 8)
+- [x] **P0.2** 落真机/模拟器内存基线采集脚本或清单命令（`dumpsys meminfo`、`dumpsys meminfo` Native Heap 分项、heapprofd 抽样、VMA stats 将来对照）写入本方案附录 A — acceptance: 清单可复制执行 (covers: 验收)
 
 ### Phase 1 — 止血 + 压力闭环（可先交付）
 
@@ -478,26 +478,97 @@ void     clearEpoch();                    // surface 纪元死亡：整表失效
 
 ---
 
-## 附录 A — 真机验收清单（命令级）
+## 附录 A — 真机/模拟器内存基线采集清单（命令级，可复制执行；P0.2 落成）
 
+> **用法**：P0.2 基线采集与 MR2–MR4 根治验收复测用**同一清单**，对照 A.6 记录表分栏填写。
+> 包名固定 `com.xianxia.sect`；每个采样点连续执行 3 次取中位数，采样前稳态等待 ≥5s；
+> 输出统一落仓库外 `~/memrefactor-baseline/`（**不入库**——保持工作区回净，跑完自行留存）。
+> 环境事实（2026-09-23 核实）：applicationId `com.xianxia.sect`，launcher `com.xianxia.sect.ui.MainActivity`，
+> 游戏页 `com.xianxia.sect.ui.game.GameActivity`；manifest 未声明 `profileable`——heapprofd 需 userdebug/eng 设备。
+
+### A.0 环境准备（每次采集会话先跑一次）
+
+```bash
+PKG=com.xianxia.sect
+OUT=~/memrefactor-baseline && mkdir -p "$OUT"
+adb devices                                            # 确认设备在线；多设备时下述命令加 -s <serial>
+adb shell getprop ro.product.model                     # 机型
+adb shell getprop ro.hardware                          # SoC
+adb shell getprop ro.build.version.release             # Android 版本
+adb shell dumpsys package $PKG | grep -m1 versionName  # 被测版本
+adb shell pidof $PKG                                   # 记 PID；应用重启后重取
 ```
-# 进入宗门前/后、CRITICAL trim 后各采一次
-adb shell dumpsys meminfo <pkg> | sed -n '1,40p'
-# 关注：Native Heap / Graphics / TOTAL PSS；前后台与 trim 后 Graphics 应可回落
 
-# Native 堆泄漏取证（dumpsys 不够时）
-adb shell dumpsys meminfo <pkg>   # 详表 Native Heap Alloc/Freed
-# heapprofd（需 userdebug/eng 或 profileable）：
-#   python -m perfetto.heapprofd --serial <device> -n com.xianxia.sect -d 10000
-# 对照 P0.2 基线：切宗门×50 前后 Native Heap 差值应接近 0
+### A.1 总水位 `dumpsys meminfo`（P0.2 基线主项）
 
-# 游戏内 Debug 页（P4.4）：GpuStats.used / budget；TextureCache 条目与 pinned 数
+三个采样时机：**①冷启动未进宗门 ②进宗门稳态 5 分钟 ③CRITICAL trim 后（A.5 触发）**。
 
-# 场景：切宗门 ×50 → sectMapCache 条目 ≤ 上限
-# 存档：5000 弟子 load → 无 ANR；ColumnResize 断言已在单测
-# 重试：强制 ASTC 失败回退 → GPU 纹理计数不双倍
-# 纪元：反复前后台/surface 重建 ×20 → TextureCache 条目不跨纪元累积
+```bash
+# 全量快照（头 60 行含总表：Native Heap / Graphics / Java Heap / TOTAL PSS）
+adb shell dumpsys meminfo $PKG | sed -n '1,60p' > "$OUT/meminfo-<场景>.txt"
+
+# 关键行快速对照（总 PSS 与各分项）
+adb shell dumpsys meminfo $PKG -d | grep -E "Native Heap|Graphics|GL mtrack|EGL mtrack|Java Heap|TOTAL"
 ```
+
+### A.2 Native Heap 分项与分配取证
+
+```bash
+# 详表（-d：Native Heap Alloc/Freed、Objects、SQL 分项全量）
+adb shell dumpsys meminfo $PKG -d > "$OUT/meminfo-detail-<场景>.txt"
+
+# 进程级驻留水位（VmHWM 峰值是泄漏哨兵；切宗门 ×50 前后对比）
+PID=$(adb shell pidof $PKG) && adb shell cat /proc/$PID/status | grep -E "VmRSS|VmHWM"
+
+# heapprofd 原生堆分配采样（10s 窗口，配合场景操作；需 userdebug/eng 或 profileable——
+# 当前 manifest 未声明 profileable，user 版设备本项跳过并如实登记）
+# 工具 = perfetto 仓库 tools/heap_profile（P0.2 核实更正：`python -m perfetto.heapprofd` 模块不存在）
+git clone --depth 1 https://github.com/google/perfetto.git   # 一次性
+python3 perfetto/tools/heap_profile -n $PKG -d 10000 -o "$OUT/heapprof-<场景>"
+# 产出 *.pb.gz + 调用栈文本；重点关注 gamecore/renderer 符号的**常驻**分配（多次采样不归还者）
+```
+
+### A.3 图形内存分项
+
+```bash
+adb shell dumpsys meminfo $PKG | grep -iE "graphics|egl|gl mtrack"   # GL/VK mtrack 行
+# 高通 KGSL 页级明细（可选；部分设备需 root/eng，读不到如实登记）
+PID=$(adb shell pidof $PKG) && adb shell cat /d/kgsl/proc/$PID/mem 2>/dev/null | head -20
+```
+
+### A.4 VMA/GpuAllocator stats 将来对照位（P2 落地后启用；P0.2 阶段仅占位）
+
+- Debug 页（P4.4 接线后）：`GpuStats.budget / usedBytes / blockCount`、`TextureCache` 条目数与 pinned 数——采集时抄录进 A.6 表；
+- logcat 对照：`adb logcat -d -s <GpuAllocatorTag>`（tag 随 P2 实现定死后补全本行）；
+- **P0.2 采集时本节无输出可采**——保留占位是为 MR2 复测时有零起点对照位，禁止凭空填数。
+
+### A.5 压力与场景触发（可复制）
+
+```bash
+# CRITICAL trim（等价 onLowMemory；debuggable 构建可用）→ 随即采 A.1 时机③
+adb shell am send-trim-memory $PKG COMPLETE
+
+# 前后台往返 ×20（纹理纪元/恢复路径；MR3 后加采 TextureCache 条目数）
+for i in $(seq 1 20); do
+  adb shell input keyevent KEYCODE_HOME; sleep 2
+  adb shell am start -n com.xianxia.sect/.ui.MainActivity; sleep 2
+done
+
+# 手动场景（无自动化口，操作时配合 A.2 heapprofd 窗口）：
+#   切宗门 ×50 → A.1 前后 Native Heap 差值应≈0；VmHWM 无阶梯抬升
+#   5000 弟子档 load → 无 ANR（adb shell dumpsys dropbox --print data_app_anr 查证）
+```
+
+### A.6 基线记录表（采集时填写；MR 复测同表对照）
+
+| # | 指标 | 命令来源 | 时机/场景 | 基线值（2026-09-23） | 复测值 | 判据 |
+|---|------|----------|-----------|---------------------|--------|------|
+| 1 | TOTAL PSS | A.1 | 进宗门稳态 | ____ MB | ____ | 根治后不升（约束 15） |
+| 2 | Native Heap | A.1 总表 | 进宗门稳态 | ____ MB | ____ | 切宗门 ×50 差值≈0 |
+| 3 | Graphics | A.1/A.3 | 进宗门稳态 | ____ MB | ____ | CRITICAL trim 后回落 |
+| 4 | VmHWM | A.2 | 切宗门 ×50 后 | ____ kB | ____ | 无阶梯抬升 |
+| 5 | heapprofd 常驻栈 | A.2 | 切宗门窗口 | （留痕文件） | （对照） | 泄漏栈消失 |
+| 6 | GpuAllocator stats | A.4 | P2 后启用 | （无基线） | ____ | used ≤ budget |
 
 ## 附录 B — 关键常量（实施时落入代码）
 
