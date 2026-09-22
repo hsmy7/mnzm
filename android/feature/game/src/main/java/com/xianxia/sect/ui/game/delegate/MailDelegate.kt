@@ -4,6 +4,8 @@ import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.MailService
+import com.xianxia.sect.core.engine.system.SystemWallClock
+import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.RewardCardItem
 import kotlinx.coroutines.CancellationException
@@ -21,12 +23,17 @@ import com.xianxia.sect.core.engine.service.deleteAllReadAndClaimed
 class MailDelegate(
     private val gameEngine: GameEngine,
     private val mailService: MailService,
-    private val onShowError: (String) -> Unit = {}
+    private val onShowError: (String) -> Unit = {},
+    /** 游戏语义墙钟（SR-5）：与 VM/引擎判据同一实例，UI 侧不裸读系统钟 */
+    private val wallClock: WallClock = SystemWallClock
 ) {
 
     companion object {
         private const val TAG = "MailDelegate"
     }
+
+    /** 邮件过期文案的取时点（SR-5）：一次采样喂整张列表，避免逐卡片读数漂移。 */
+    fun displayNowMs(): Long = wallClock.currentTimeMillis()
 
     private val currentSlotId: Int get() = gameEngine.gameData.value?.slotId ?: 0
 
