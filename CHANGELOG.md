@@ -1,5 +1,50 @@
 ## [4.01.15] - 2026-09-17
 
+### SR-6 批（2026-09-22）——存量迁移引导：首启检测矩阵 + 上云完成度记账 + 玩家确认式启用云存档（⚠️ 玩家可见新增面）
+
+> 方案 = [docs/save-system-refactor-plan-2026-09-21.md](docs/save-system-refactor-plan-2026-09-21.md)
+> §4 SR-6（§2 模式开关收口 + §0 D1/D2/D3）；施工卡 [batch-SR6.md](docs/parallel-batches-w5/batch-SR6.md)；
+> 完成报告 [report-SR6-completion-2026-09-22.md](docs/parallel-batches-w5/report-SR6-completion-2026-09-22.md)。
+> 分支 `w5/sr6-cloud-migration`（SR 系列首个非 main 施工批）。`android/` 面
+> **21 文件 / +2,703 / −129**，**零 C++、零 wire/proto、零 Room schema、零迁移链触及**；
+> 新增 **69 例**用例。**10 笔 commit，每子项独立**（同一分支树内另含 SR-5 尾巴 7 笔，
+> 归属与影响见完成报告"证据污染声明"节）。
+
+- **首启检测矩阵落地**：新 `SaveMigrationPlanner`（`core:data/cloud` 纯函数，零时钟零 IO）
+  按六步短路判出逐槽动作，覆盖方案四格（本地有×云无 ⇒ 引导上传｜本地有×云有 ⇒ 仲裁+二选一｜
+  本地无×云有 ⇒ 直接云档｜双无 ⇒ 新游戏）+ 损坏槽阻断 + 续传态。22 例方案门单测全组合锚定。
+- **迁移完成度记账**：新 `SaveMigrationLedger`（MMKV `cloud_migration_slotN_state`，四态，
+  未写入/非法值一律回落 `NONE` 的失败封闭）+ `canPromoteToCloudOnly` 门槛三条件——
+  方案 SR-6 硬红线"未完成迁移的设备不推 CLOUD_ONLY"自此有可判定的门，SR-7 消费。
+- 🔴 **顺带修掉三处 SR-2/SR-3 遗留的真实缺口**（勘察实证，非推测）：
+  ① `UploadLedger.pendingSaveId` **生产零消费者**——SR-2 KDoc 声称的"重启按待传指针同 id
+  重入队"配方没有任何调用者，进程在入队后、确认前被杀即留下永久脏标志，本批成为那个缺失的
+  调用者（只在非 LEGACY 自动执行）；② `StorageFacade.load` **不返回邮件快照**（邮件由保存编排
+  从表注入），迁移若直接 load→upload 会产出**空邮件字段的云档**，而云恢复是整对象替换回表 ⇒
+  换设备丢邮件，本批上传面与保存编排同源补 `getMailsForSlot` 且**读邮件失败即中止该槽上传**；
+  ③ `SaveArbiter` U11（W 未知按 W==C 保守重算）在迁移语境下会把"云端有无 `saveId` 的历史档"
+  判成 `UPLOAD_PENDING` 而**静默覆盖他端进度**——迁移矩阵在 planner 层前置升级为玩家裁决，
+  `SaveArbiter` 本体零改动。
+- **SR-3 登记的重复收敛**：云档→本地缓存的"下载→迁移/校验→落缓存→账本收敛"抽为
+  `CloudSaveCacheWriter`（可跨槽、不 boot），兜底方式 = SR-3 的 13 例改持**真实组件**跑原断言。
+  跨槽迁移刻意不把源槽序号抄进目标槽（`UploadLedger` 序号按槽独立）。
+- **玩家可见面**：主菜单选档页新增**常驻迁移卡**（逐槽状态/失败原因/二选一/旧版单档落到哪个空槽/
+  启用云存档），只在读档模式出现；不弹窗（6 槽 × TapTap 1 次/分钟 ⇒ ≥6 分钟，弹窗看不见进度）。
+- **模式总闸第一次被真正写入**：`SaveBackendModeProvider.set` 在 SR-2 就绪后的第一个生产调用者
+  = 迁移卡「启用云存档」，**玩家确认式**且须全员收口；`CLOUD_ONLY` 仍生产零写入，并由新
+  `SaveMigrationGuardTest` 钉住"写入点唯一 + 只写 CLOUD_TRANSITION + 迁移判定族零时钟"。
+- **完成率指标**：新事件 `#save_migration_result`（`migrated_total/(migrated_total+pending_total)`），
+  埋点字典四处同步；**TapDB 后台「事件管理」录入待运营**（不录则属性被静默丢弃、指标恒 0）。
+- **一处建议被实测回绝**：SR-4 §8 建议"把上传合并窗提到与冷却同量级"——单飞循环本就是
+  "窗 → 上传 → 成功后 delay(冷却)"，稳态节奏已 ≈62s/次贴住 1 次/分钟；加宽窗只会让快照更旧。
+  参数**一字未改**，新 Q13 用例把这条节奏性质钉住。
+- **LEGACY 硬红线**：默认模式扫描**零云请求**（纯 Room+MMKV）、零自动云动作、不写模式；
+  既有 slot 0 云会话链逐行零触碰；`loadCloudSlot` 的 LEGACY 拒绝闸保留在 VM 入口不下沉；
+  手动/自动保存链零改动（38+10 例回归）。唯一新增可见面即本批主题，且网络动作全部由玩家点击触发。
+- **pending-device 8 项**（报告 §7）：双设备迁移剧本 / 逐槽真实耗时与 400001 表现 /
+  迁移卡 Compose 目视 / 存量单档往返 / 二选一后果端到端 / 升档后月月必存的真实代价 /
+  中断续传 / TapDB 事件注册后属性是否放行。**本批第一次把"云上传"交到玩家手里，真机门不是形式项。**
+
 ### SR-5 批（2026-09-22）——时间与签名面收敛：游戏语义取时全部走注入墙钟 + 云档载荷 HMAC 预埋
 
 > 方案 = [docs/save-system-refactor-plan-2026-09-21.md](docs/save-system-refactor-plan-2026-09-21.md)
