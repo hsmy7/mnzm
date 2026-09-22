@@ -1,9 +1,9 @@
 {
-  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。增长须同 PR 显式改本文件并附豁免理由；收缩建议随 PR 同步下调。基线口径 = W5 收官实数（B16 后）：GameCoreBridge 42（含 nativeSetGameData）+ NativeBridge 49（含 sceneSpawnFloatingText）= 91；B18-臂1 删 nativeSetDirtyExportProtobuf 后 GameCoreBridge 41 → total 90；B18-臂3 删 nativeSetDirtyExportColumn 后 GameCoreBridge 40 → total 89（列级导出恒开，无异构锁存以外开关）；B18-臂β 删 drawAllTiles + setFadeAlpha 后 NativeBridge 47 → total 87（场景绘制单入口 drawFrame，17 参数全量数组通道退役）。 地图边缘重构（w5/ground-boundary-refactor S2）：+2 豁免——GameCoreBridge.nativeComposeGroundBoundary（弯曲地皮轮廓合成，替代崖壁合成的权威通道）+ NativeBridge.sceneSetGroundBoundary（SceneStore 轮廓导入端口）；S6 删除崖壁面（nativeIslandCliffCompose/drawIslandCliffs/setIslandCliffTextures/uploadIslandCliffKtx/uploadIslandCliffMipChain/sceneSetCliffLayout）后净收缩 -6，届时同步下调。",
+  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。增长须同 PR 显式改本文件并附豁免理由；收缩建议随 PR 同步下调。基线口径 = W5 收官实数（B16 后）：GameCoreBridge 42（含 nativeSetGameData）+ NativeBridge 49（含 sceneSpawnFloatingText）= 91；B18-臂1 删 nativeSetDirtyExportProtobuf 后 GameCoreBridge 41 → total 90；B18-臂3 删 nativeSetDirtyExportColumn 后 GameCoreBridge 40 → total 89（列级导出恒开，无异构锁存以外开关）；B18-臂β 删 drawAllTiles + setFadeAlpha 后 NativeBridge 47 → total 87（场景绘制单入口 drawFrame，17 参数全量数组通道退役）。 地图边缘重构（w5/ground-boundary-refactor S2）：+2 豁免——GameCoreBridge.nativeComposeGroundBoundary（弯曲地皮轮廓合成，替代崖壁合成的权威通道）+ NativeBridge.sceneSetGroundBoundary（SceneStore 轮廓导入端口）；S6 删除崖壁面（nativeIslandCliffCompose/drawIslandCliffs/setIslandCliffTextures/uploadIslandCliffKtx/uploadIslandCliffMipChain/sceneSetCliffLayout）后净收缩 -6，届时同步下调。 S6（地图边缘 v2 收口）：删除崖壁面 7 口——GameCoreBridge.nativeIslandCliffCompose；NativeBridge.sceneSetCliffLayout/drawIslandCliffs/setIslandCliffTextures/uploadIslandCliffKtx/uploadIslandCliffMipChain/isAstcSupported（唯一消费者=崖壁加载器，图集 ASTC 判定走 renderFlag+上传回退，不经此探测）。89→82。",
   "perFile": {
-    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 41,
-    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\NativeBridge.kt": 48
+    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 40,
+    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\NativeBridge.kt": 42
   },
-  "total": 89,
+  "total": 82,
   "updatedAt": "2026-09-22"
 }

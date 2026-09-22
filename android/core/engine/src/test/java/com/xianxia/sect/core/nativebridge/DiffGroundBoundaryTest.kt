@@ -46,12 +46,13 @@ class DiffGroundBoundaryTest {
             assertEquals("header[$i]", cpp[i], kt[i], 0.0f)
         }
         // 折线点数与段偏移（float 下标）跨端逐位一致
-        assertEquals(cpp[GroundBoundaryBridge.Header.Field.POLY_COUNT], kt[GroundBoundaryBridge.Header.Field.POLY_COUNT], 0.0f)
-        assertEquals(cpp[GroundBoundaryBridge.Header.Field.MASK_OFFSET], kt[GroundBoundaryBridge.Header.Field.MASK_OFFSET], 0.0f)
-        assertEquals(cpp[GroundBoundaryBridge.Header.Field.GROUND_MESH_OFFSET], kt[GroundBoundaryBridge.Header.Field.GROUND_MESH_OFFSET], 0.0f)
-        assertEquals(cpp[GroundBoundaryBridge.Header.Field.GROUND_MESH_COUNT], kt[GroundBoundaryBridge.Header.Field.GROUND_MESH_COUNT], 0.0f)
-        assertEquals(cpp[GroundBoundaryBridge.Header.Field.BOTTOM_MESH_OFFSET], kt[GroundBoundaryBridge.Header.Field.BOTTOM_MESH_OFFSET], 0.0f)
-        assertEquals(cpp[GroundBoundaryBridge.Header.Field.BOTTOM_MESH_COUNT], kt[GroundBoundaryBridge.Header.Field.BOTTOM_MESH_COUNT], 0.0f)
+        val f = GroundBoundaryBridge.Header.Field
+        assertEquals(cpp[f.POLY_COUNT], kt[f.POLY_COUNT], 0.0f)
+        assertEquals(cpp[f.MASK_OFFSET], kt[f.MASK_OFFSET], 0.0f)
+        assertEquals(cpp[f.GROUND_MESH_OFFSET], kt[f.GROUND_MESH_OFFSET], 0.0f)
+        assertEquals(cpp[f.GROUND_MESH_COUNT], kt[f.GROUND_MESH_COUNT], 0.0f)
+        assertEquals(cpp[f.BOTTOM_MESH_OFFSET], kt[f.BOTTOM_MESH_OFFSET], 0.0f)
+        assertEquals(cpp[f.BOTTOM_MESH_COUNT], kt[f.BOTTOM_MESH_COUNT], 0.0f)
     }
 
     // ── 折线（世界像素几何，0.05px 容差）─────────────────────────
@@ -64,7 +65,8 @@ class DiffGroundBoundaryTest {
             val kt = kotlinCompose(size, size, 48, GroundBoundaryBridge.BOTTOM_DEPTH_PX)
             val header = GroundBoundaryBridge.Header.FLOATS
             val polyFloats = cpp[GroundBoundaryBridge.Header.Field.MASK_OFFSET].toInt() - header
-            assertEquals("size=$size polyline float count", polyFloats, kt[GroundBoundaryBridge.Header.Field.MASK_OFFSET].toInt() - header)
+            val ktPolyFloats = kt[GroundBoundaryBridge.Header.Field.MASK_OFFSET].toInt() - header
+            assertEquals("size=$size polyline float count", polyFloats, ktPolyFloats)
             for (i in 0 until polyFloats) {
                 val d = abs(cpp[header + i] - kt[header + i])
                 assertTrue("size=$size poly[$i] Δ=$d", d <= 0.05f)
@@ -89,7 +91,12 @@ class DiffGroundBoundaryTest {
         }
         // 可建区抽样：bit0 恒置位（两端同一不变式）
         val ring = GameConfig.SectMap.BORDER_TREE_RING
-        for (cell in intArrayOf(ring * cols + ring, rows / 2 * cols + cols / 2, (rows - ring - 1) * cols + (cols - ring - 1))) {
+        val probeCells = intArrayOf(
+            ring * cols + ring,
+            rows / 2 * cols + cols / 2,
+            (rows - ring - 1) * cols + (cols - ring - 1)
+        )
+        for (cell in probeCells) {
             assertEquals(1f, cpp[maskOffset + cell] % 2f, 0.0f)
             assertEquals(1f, kt[maskOffset + cell] % 2f, 0.0f)
         }

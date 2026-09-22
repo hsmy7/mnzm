@@ -380,13 +380,6 @@ for (let i = 1; i <= 5; i++) {
 // 才能从源图重烘焙（草皮无缝平铺 / 装饰变体 / 门楼均在此表登记烘焙规则）。
 // bake 约定：装饰 preserve（槽位由图集按显示尺寸收敛）；草皮 64² 无缝平铺（seamless）。
 //
-// 浮空岛崖壁（map_edge_*，2026-09 地图边缘系统）：**独立纹理**不经图集
-// （单张 1178×3552 超出 4096² 图集容量），烘焙用 preserve + roundUp4——
-// 源分辨率 1:1 且宽高取整到 4 的倍数（ASTC 4×4 压缩纹理的硬性尺寸要求，
-// 见 import-art-assets.mjs 的 roundUp4 规则与 build-edge-ktx.mjs）。
-// 素材语义：边缘1..3 = 左侧崖壁三变体（岩左草右，右缘贴地图左边界，沿 y 拼接）；
-//          边缘4/5 = 下侧崖壁两变体（草上岩下，顶边贴地图下边界，沿 x 拼接）；
-//          边缘6/7 = 左下/右下转角。
 const MAP_KNOWN = [
   { drawable: 'map_grass_1', source: '装饰物/草皮.png', bake: { maxDim: 64, seamless: true } },
   { drawable: 'sect_gate', source: '建筑/宗门门楼.png', bake: { preserve: true } },
@@ -399,14 +392,6 @@ const MAP_KNOWN = [
   { drawable: 'decoration_stone3', source: '装饰物/石头3.png', bake: { preserve: true } },
   { drawable: 'decoration_tree1', source: '装饰物/树木1.png', bake: { preserve: true } },
   { drawable: 'decoration_tree2', source: '装饰物/树木2.png', bake: { preserve: true } },
-  // ── 浮空岛崖壁（独立纹理，不进图集）──
-  { drawable: 'map_edge_left_1', source: '宗门地图边缘/边缘1.png', bake: { preserve: true, roundUp4: true } },
-  { drawable: 'map_edge_left_2', source: '宗门地图边缘/边缘2.png', bake: { preserve: true, roundUp4: true } },
-  { drawable: 'map_edge_left_3', source: '宗门地图边缘/边缘3.png', bake: { preserve: true, roundUp4: true } },
-  { drawable: 'map_edge_bottom_1', source: '宗门地图边缘/边缘4.png', bake: { preserve: true, roundUp4: true } },
-  { drawable: 'map_edge_bottom_2', source: '宗门地图边缘/边缘5.png', bake: { preserve: true, roundUp4: true } },
-  { drawable: 'map_edge_corner_bl', source: '宗门地图边缘/边缘6.png', bake: { preserve: true, roundUp4: true } },
-  { drawable: 'map_edge_corner_br', source: '宗门地图边缘/边缘7.png', bake: { preserve: true, roundUp4: true } },
 ];
 for (const m of MAP_KNOWN) {
   const source = fileExists(m.source) ? m.source : null;

@@ -327,7 +327,7 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
                 NativeSurfaceView.LOG_TAG,
                 "buildAtlas: ASTC compressed atlas uploaded (id=$id)"
             )
-            uploadGroundTexture(context, payload)
+            uploadStandaloneRepeatTextures(context, payload)
         }
         return id
     }
@@ -345,7 +345,7 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
     /** RGBA 上传分支：mip 链多级上传，native 拒绝时单级回退 */
     private fun uploadRgbaAtlas(context: android.content.Context, payload: AtlasPayload): Int {
         val texId = uploadMipChainOrFallback(payload)
-        uploadGroundTexture(context, payload)
+        uploadStandaloneRepeatTextures(context, payload)
         // 不调 recycle()：避免国产 ROM NativeAllocationRegistry CleanerThunk
         //   double-free SIGABRT。Vulkan/GLES 模式下 atlasBitmap 不
         //   会被软渲染路径读取，置 null 让 GC 回收即可。
@@ -383,63 +383,47 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
     }
 
     /**
-     * 上传宗门地图单一无缝地面纹理（REPEAT 采样，整图铺）。
-     * 独立于图集（KTX/RGBA 两路径共用），从 map_grass_1 解码 64×64 上传。
+     * 上传宗门地图独立 REPEAT 纹理（地皮草 map_grass_1 + 底部岩石 map_rock_base，
+     * 地图边缘 v2 材质通道）。
+     * 独立于图集（KTX/RGBA 两路径共用），后台已解码编码（payload 携带像素），
+     * 此处各剩一次 native 调用；后台解码失败回退主线程现场解码兜底。
+     * 解码失败模式无稳定异常契约（资源损坏/ROM 差异），全捕获按非关键路径处理
+     * ——失败仅缺对应层（降级而非黑屏）。
      * 调用线程：主线程（内部经 [NativeBridge] 触碰无锁的 C++ g_renderer）。
-     * 解码/编码已在 [prepareAtlas] 后台完成（payload
-     *   携带 groundPixels），此处仅剩一次 native 调用；后台解码失败时回退
-     *   主线程现场解码兜底。
-     * 解码失败模式无稳定异常契约（资源损坏/ROM 差异），全捕获按非关键路径处理。
      */
     @Suppress("TooGenericExceptionCaught")
-    private fun uploadGroundTexture(context: android.content.Context, payload: AtlasPayload) {
-        try {
-            val pixels = payload.groundPixels
-            if (pixels != null && payload.groundWidth > 0 && payload.groundHeight > 0) {
-                publishGroundTextureId(
-                    NativeBridge.uploadGroundTextureDirect(
-                        pixels, payload.groundWidth, payload.groundHeight
-                    )
-                )
-                return
+    private fun uploadStandaloneRepeatTextures(
+        context: android.content.Context,
+        payload: AtlasPayload
+    ) {
+        fun upload(
+            drawableRes: Int,
+            pixels: java.nio.ByteBuffer?,
+            width: Int,
+            height: Int,
+            tag: String,
+            publish: (java.nio.ByteBuffer, Int, Int) -> Unit
+        ) {
+            try {
+                if (pixels != null && width > 0 && height > 0) {
+                    publish(pixels, width, height)
+                    return
+                }
+                val opts = android.graphics.BitmapFactory.Options().apply { inScaled = false }
+                val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, drawableRes, opts)
+                    ?: return
+                publish(encodeBitmapToRgbaBuffer(bmp), bmp.width, bmp.height)
+            } catch (t: Throwable) {
+                android.util.Log.e(NativeSurfaceView.LOG_TAG, "upload $tag failed", t)
             }
-            val opts = android.graphics.BitmapFactory.Options().apply { inScaled = false }
-            val bmp = android.graphics.BitmapFactory.decodeResource(
-                context.resources, com.xianxia.sect.feature.game.R.drawable.map_grass_1, opts
-            ) ?: return
-            publishGroundTextureId(
-                NativeBridge.uploadGroundTextureDirect(
-                    encodeBitmapToRgbaBuffer(bmp), bmp.width, bmp.height
-                )
-            )
-        } catch (t: Throwable) {
-            android.util.Log.e(NativeSurfaceView.LOG_TAG, "uploadGroundTexture failed", t)
         }
-        uploadRockTexture(context, payload)
-    }
-
-    /**
-     * 上传底部岩石无缝纹理（REPEAT 采样；地图边缘 v2 底部材质通道）。
-     * 与 [uploadGroundTexture] 同纪律：主线程一次 native 调用，后台解码
-     * 失败回退现场解码；失败仅缺底部岩石层（降级而非黑屏）。
-     */
-    @Suppress("TooGenericExceptionCaught")
-    private fun uploadRockTexture(context: android.content.Context, payload: AtlasPayload) {
-        try {
-            val pixels = payload.rockPixels
-            if (pixels != null && payload.rockWidth > 0 && payload.rockHeight > 0) {
-                NativeBridge.uploadRockTextureDirect(pixels, payload.rockWidth, payload.rockHeight)
-                return
-            }
-            val opts = android.graphics.BitmapFactory.Options().apply { inScaled = false }
-            val bmp = android.graphics.BitmapFactory.decodeResource(
-                context.resources, com.xianxia.sect.feature.game.R.drawable.map_rock_base, opts
-            ) ?: return
-            NativeBridge.uploadRockTextureDirect(
-                encodeBitmapToRgbaBuffer(bmp), bmp.width, bmp.height
-            )
-        } catch (t: Throwable) {
-            android.util.Log.e(NativeSurfaceView.LOG_TAG, "uploadRockTexture failed", t)
+        val grass = com.xianxia.sect.feature.game.R.drawable.map_grass_1
+        val rock = com.xianxia.sect.feature.game.R.drawable.map_rock_base
+        upload(grass, payload.groundPixels, payload.groundWidth, payload.groundHeight, "groundTexture") { px, w, h ->
+            publishGroundTextureId(NativeBridge.uploadGroundTextureDirect(px, w, h))
+        }
+        upload(rock, payload.rockPixels, payload.rockWidth, payload.rockHeight, "rockTexture") { px, w, h ->
+            NativeBridge.uploadRockTextureDirect(px, w, h)
         }
     }
 

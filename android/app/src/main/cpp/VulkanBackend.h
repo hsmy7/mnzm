@@ -68,15 +68,6 @@ public:
     uint32_t uploadCompressedTexture(const uint8_t* data, size_t dataSize,
                                      int width, int height, int mipCount);
 
-    /**
-     * 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 时探测并记录）。
-     *
-     * 消费端（Kotlin IslandCliffTextureLoader）据此决定**崖壁独立纹理**是否
-     * 走 KTX/ASTC 上传路径（不支持则回退 RGBA mip 链 → 单级）。
-     *
-     * @return true = 支持 textureCompressionASTC_LDR
-     */
-    bool isAstcSupported() const { return m_astcSupported; }
 
     /**
      * 上传 REPEAT 采样地面纹理（宗门地图单一无缝地面整图铺）。

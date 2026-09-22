@@ -108,9 +108,6 @@ private fun createSectMapSurfaceView(
     //   仍为 0，渲染线程按既有守卫跳过瓦片层（地图淡入遮蔽）。
     view.onRendererReady = {
         view.buildAtlasAsync(ctx) { texId -> view.atlasTextureId = texId }
-        // 崖壁独立纹理（超出图集容量）：与图集同纪律——重活在后台、上传在主线程，
-        // 掩码写入后 Compose 层据以重建崖壁布局（部分降级由掩码表达）
-        view.loadIslandCliffTextures()
     }
 
     // Vulkan 初始化生命周期监听（由 GameActivity 驱动 CrashRecoveryEngine）
@@ -270,6 +267,10 @@ private fun computeMapPreview(
 /** 边界复合数据空实例（data class 数组字段按引用比较——默认值必须共享单例） */
 private val EMPTY_GROUND_BOUNDARY = FloatArray(0)
 
+// LongParameterList：帧装配为 RenderFrame 构造的平铺直传（相机快照 3 标量 +
+// 建筑快照 3 项 + 预览 + alpha）——重组参数对象只会多一层拷贝，声明性豁免
+// （同 MainGameScreen 既有 remember 族同款豁免惯例）
+@Suppress("LongParameterList")
 private fun buildSectRenderFrame(
     params: SectMapViewportParams,
     snapCamX: Float,
@@ -376,9 +377,9 @@ internal data class SectMapViewportParams(
     /** 石板道路每格位掩码（展平；null=无道路，双后端跳过道路层） */
     val roadData: IntArray? = null,
     /**
-     * 浮空岛边缘布局数据 [sprite, x, y, w, h] × N（世界像素；由 IslandCliffBridge
-     * 一次性预计算，地图尺寸/种子变化才重建；null=无边缘层，双后端跳过）。
-     * 稳定引用——Camera 平移/缩放不触发重建（与 flatTileData 同生命周期模式）。
+     * 弯曲地皮轮廓复合数据（地图边缘 v2；由 GroundBoundaryBridge 一次性预计算，
+     * 地图尺寸变化才重建）。稳定引用——Camera 平移/缩放不触发重建
+     * （与 flatTileData 同生命周期模式）。
      */
     val groundBoundaryData: FloatArray = EMPTY_GROUND_BOUNDARY,
     /** 放置/移动模式全视口网格线开关（true=双后端画视口内网格线） */

@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game.sect
 
 import com.xianxia.sect.core.nativebridge.NativeBridge
-import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
 
@@ -22,7 +21,6 @@ import com.xianxia.sect.core.render.RenderMetrics
  * | 灵田作物进度 | [Sink.updateCrops] | 数组引用变化 | 每旬级 |
  * | 石板道路掩码 | [Sink.updateRoads] | 数组引用变化（生产者内容等价早退） | 铺路 |
  * | 云实例快照 | [Sink.updateClouds] | 数组引用变化（脏帧才刷新） | 云运动帧 |
- * | 崖壁布局 | [Sink.setCliffLayout] | 数组引用变化（一次性预计算） | 地图/掩码变化 |
  * | 图集纹理 ID | [Sink.setAtlasTexture] | 值变化 | 上传完成时 |
  * | 选中建筑索引 | [Sink.setSelection] | 值变化 | 点选时 |
  * | 拆除标记 | [Sink.setDemolishMarkers] | 数组引用变化 | 拆除模式/勾选 |
@@ -39,7 +37,7 @@ import com.xianxia.sect.core.render.RenderMetrics
  * 十路数据的生产者全部产出**稳定引用**（同名引用 ⇒ 同内容）：
  * `RenderCommandBus.postBuildingData` 每次 post 做 `copyOf`；
  * `RoadMaskTracker.syncTo` 内容等价时早退返回旧引用；`CloudLayerAnimator.snapshot`
- * 脏帧才刷新；`spiritCropData`/`demolishHighlightData`/`islandCliffData`/
+ * 脏帧才刷新；`spiritCropData`/`demolishHighlightData`/`groundBoundaryData`/
  * `flatTileData` 走 `remember`/`derivedStateOf` 重算才产新数组；预览与选中索引是
  * 值类型。故"引用变了"⇔"内容变了"，无需每帧逐元素比对（零每帧分配）。
  * 预览几何是触控驱动的连续值（每拖拽帧都变），因此按**值**比较而非引用。
@@ -65,7 +63,6 @@ class SceneUpdateChannel(private val sink: Sink) {
     private var pushedCrops: FloatArray? = null
     private var pushedRoads: IntArray? = null
     private var pushedClouds: FloatArray? = null
-    private var pushedCliffs: FloatArray? = null
     private var pushedGroundBoundary: FloatArray? = null
     private var pushedAtlasTexId = -1
     private var pushedSelection = SENTINEL_NO_SELECTION
@@ -80,8 +77,8 @@ class SceneUpdateChannel(private val sink: Sink) {
     /**
      * 推本帧的场景/叠加层变化。
      *
-     * 推送序固定为「地形 → 建筑 → 作物 → 道路 → 云 → 崖壁 → 地皮轮廓 →
-     * 图集 → 选中 → 拆除标记 → 预览」（崖壁为过渡期双推，S6 移除），与 drawFrame 之前的同帧装配时序一致
+     * 推送序固定为「地形 → 建筑 → 作物 → 道路 → 云 → 地皮轮廓 →
+     * 图集 → 选中 → 拆除标记 → 预览」，与 drawFrame 之前的同帧装配时序一致
      * （建筑先于其叠加层状态，保证 C++ 侧读到的建筑数与标记序不成对错位）。
      *
      * @return 本帧实际触线（JNI）次数——遥测与守卫观测面
@@ -93,7 +90,6 @@ class SceneUpdateChannel(private val sink: Sink) {
         calls += pushCrops(inputs.frame)
         calls += pushRoads(inputs.frame)
         calls += pushClouds(inputs)
-        calls += pushCliffs(inputs.frame)
         calls += pushGroundBoundary(inputs.frame)
         calls += pushAtlas(inputs.atlasTextureId)
         calls += pushSelection(inputs.frame.selectedBuildingIndex)
@@ -149,17 +145,6 @@ class SceneUpdateChannel(private val sink: Sink) {
         if (inputs.cloudData === pushedClouds) return 0
         sink.updateClouds(inputs.cloudData, entriesOf(inputs.cloudData, CLOUD_DATA_STRIDE))
         pushedClouds = inputs.cloudData
-        return 1
-    }
-
-    /** 崖壁布局（IslandCliffBridge 一次性预计算的稳定引用） */
-    private fun pushCliffs(frame: RenderFrame): Int {
-        if (frame.islandCliffData === pushedCliffs) return 0
-        sink.setCliffLayout(
-            frame.islandCliffData,
-            entriesOf(frame.islandCliffData, IslandCliffBridge.PIECE_STRIDE)
-        )
-        pushedCliffs = frame.islandCliffData
         return 1
     }
 
@@ -273,10 +258,7 @@ class SceneUpdateChannel(private val sink: Sink) {
         /** 云实例快照更新（[x, y, w, h, spriteIndex, alpha] × count） */
         fun updateClouds(data: FloatArray?, count: Int)
 
-        /** 崖壁布局导入（[texIdx,x,y,w,h,u0,v0,u1,v1,flags] × pieceCount） */
-        fun setCliffLayout(data: FloatArray?, pieceCount: Int)
-
-        /** 弯曲地皮轮廓复合数据导入（布局见 GroundBoundaryBridge.Header；null = 无轮廓） */
+        /** 弯曲地皮轮廓复合数据导入（布局见 GroundBoundaryBridge.Header；空数组 = 无轮廓） */
         fun setGroundBoundary(data: FloatArray?)
 
         /** 图集纹理 ID（0 = 未就绪，C++ 侧跳过地图层） */
@@ -342,10 +324,6 @@ internal val nativeSceneUpdateSink = object : SceneUpdateChannel.Sink {
 
     override fun updateClouds(data: FloatArray?, count: Int) {
         NativeBridge.sceneUpdateClouds(data, count)
-    }
-
-    override fun setCliffLayout(data: FloatArray?, pieceCount: Int) {
-        NativeBridge.sceneSetCliffLayout(data, pieceCount)
     }
 
     override fun setGroundBoundary(data: FloatArray?) {

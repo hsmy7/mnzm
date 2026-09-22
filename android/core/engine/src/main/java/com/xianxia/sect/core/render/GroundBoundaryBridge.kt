@@ -5,8 +5,7 @@ import com.xianxia.sect.core.nativebridge.GameCoreBridge
 /**
  * GroundBoundaryBridge — 弯曲地皮轮廓合成器 Kotlin 消费通道（地图边缘系统 v2）。
  *
- * 合成单一权威 = C++ `gamecore/map/island_cliff.h` 的替代者
- * `gamecore/map/ground_boundary.h`：固定控制点 → 闭合 Catmull-Rom 采样折线
+ * 合成单一权威 = C++ `gamecore/map/ground_boundary.h`：固定控制点 → 闭合 Catmull-Rom 采样折线
  * → 地皮三角 mesh + 底部挤出 mesh + 逐格掩码。本对象仅做通道装配：
  * native 优先，[GroundBoundaryGenerator]（位级移植）降级。
  *

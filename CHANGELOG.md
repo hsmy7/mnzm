@@ -1,4 +1,102 @@
+## [4.01.16] - 2026-09-22
+
+### 地图边缘系统重构（2026-09-22）——IslandCliff 崖壁拼接整体退役 → 弯曲地皮轮廓（Ground Boundary）
+
+> 分支 `w5/ground-boundary-refactor`（基线 = SR-7 WIP `029d827bd`）。S1–S7 分步提交：
+> `b9d574cc8`(S1) `f8f0750f7`(S2) `5f8794e85`(S3) `caf03b51e`(S4) `ffe00e393`(S5) + 本笔(S6/S7)。
+> 设计约束：地图世界坐标/建筑·NPC·道路·农田九处矩形校验/存档格式**零改动**——轮廓振幅
+> 钳在 3 格禁建树环带内（内缩 ≤2.5 格、外扩 ≤2 格）+ 门楼缓冲带钉边，gtest 锁定
+> 「可建矩形 ⊆ 轮廓」不变式。**第一阶段固定控制点**（26 点，全宗门同形），曲线/随机化为后续阶段。
+
+- 🟢 **旧系统彻底清除（S6，运行时符号 grep 零残留）**：
+  - C++：`island_cliff.h`/`island_cliff_test.cpp` 删除；`GameCoreBridge.cpp`/`NativeBridge.cpp`
+    崖壁 JNI 七口（nativeIslandCliffCompose/sceneSetCliffLayout/drawIslandCliffs/
+    setIslandCliffTextures/uploadIslandCliffKtx/uploadIslandCliffMipChain/isAstcSupported——
+    末者唯一消费者即崖壁加载器）+ `drawCliffLayerInternal`/`g_cliffTexIds`/`applyCliffTextures`/
+    `g_edgeBatcher`；`scene_store.h` 崖壁字段与 `scene_draw.h` CliffLayerParams/buildCliffLayer。
+  - Kotlin：`IslandCliffBridge/TextureSet/TextureLoader/TextureHolder` 四文件、
+    `FarViewGroundPolicy`+测试、`RenderDeviceKey`、`NativeEngineFlag.farViewGroundQuad`、
+    `NativeSurfaceView` 崖壁纹理族、`VulkanRenderBackend` 死链 drawIslandCliffs、
+    `SoftwareCanvasBackend` 崖壁绘制段、`SceneUpdateChannel` pushCliffs 端口、
+    `RenderFrame.islandCliffData`；JNI 基线 89→82。
+  - 资源/构建：`assets/atlas/edge/` 7 张 KTX、app+feature 双份 `map_edge_*.webp`（14 文件）、
+    `build-edge-ktx.mjs` + `generateEdgeKtx` 任务、`EdgeKtxSyncTest`/`IslandCliffBridgeTest`、
+    `docs/design/island-cliff-edge-renderer.md`；source-mapping/sources-imported 台账剪除
+    （sprite-uid-map 按「UID 永不复用」规则保留历史条目）；资源清单重生成（695 条）。
+- 🟢 **新系统**：`ground_boundary.h`（C++ 单一权威：26 固定控制点 → 闭合 Catmull-Rom →
+  520 点折线 → 地皮耳切三角 mesh（UV=世界/格，独立草纹理 REPEAT）+ 底部岩石带
+  （外法线朝下段下挤 768px，顶边与折线同数据、2px 藏缝）+ 逐格掩码）；
+  Kotlin `GroundBoundaryGenerator` 镜像（native 缺席降级）+ `GroundBoundaryBridge`
+  + `DiffGroundBoundaryTest` 双端对拍。双渲染路径：GPU 走 SceneStore→
+  buildBottomRockLayer/buildGroundMeshLayer（层序：天空→岩石→地皮→地图批）；Canvas 走
+  `SoftwareGroundBoundary`（岩石带 Path+REPEAT shader、chunk 合成期轮廓 clipPath、
+  烘焙装饰按掩码门控）。静态几何：地图尺寸变化才重导/重烘，每帧仅两次低顶数 draw。
+- 🟢 **配套换代**：`FarViewGroundPolicy` 矩形整图地面 quad 路径整体退役（逐格底图由
+  地皮 mesh 承担，GRASS1..4 变体改掩码叠加；GLES 后端首次真实支持 REPEAT 纹理——POT
+  守卫）；相机外扩 `ISLAND_CLIFF_VISIBLE_OUTSET(2500)` → `GROUND_BOUNDARY_VISIBLE_OUTSET(1100)`；
+  新素材 `map_rock_base.png`（128² 确定性程序化无缝岩石，`build-rock-texture.mjs` 生成）。
+- **门禁**：桌面 gtest 1554/1554（golden 按新层序重生成）；:core:engine/:feature:game/:app
+  JVM 全量绿；六模块 detekt 双触碰模块零违规；JNI 计数 82/82 在册。
+
 ## [4.01.15] - 2026-09-17
+
+### SR-7 批（2026-09-22）——存档 schema 第二刀 + 文件层退役代码就位（⚠️ 未切换：全量设备仍 LEGACY，玩家零可见变化）
+
+> 方案 = [docs/save-system-refactor-plan-2026-09-21.md](docs/save-system-refactor-plan-2026-09-21.md)
+> §4 SR-7（§0 D1/D2/D5/D7 + §3 IN1–IN8 + §5 门 1–6）；施工卡 [batch-SR7.md](docs/parallel-batches-w5/batch-SR7.md)；
+> 完成报告 [report-SR7-completion-2026-09-22.md](docs/parallel-batches-w5/report-SR7-completion-2026-09-22.md)。
+> 分支 `w5/sr7-file-layer-retirement`（基线 = SR-6 头 `38a987537`）。**零 proto/wire 改动、零 C++ 改动**；
+> 每子项独立 commit。**⚠ 排序说明**：本节插在 SR-5 之上，但 **SR-6 小节尚未入库**——其文字仍在
+> SR-6 会话自己的 worktree（`C:/Mnzm/XianxiaSectNative-sr6`）里未提交，本会话不代提交他批内容，
+> 故 CHANGELOG 暂呈 SR-5 → SR-7 的缺档，待 SR-6 收官笔补齐。
+
+- 🔴 **Room v52→v53（schema 第二刀）**：删除 6 张**零读者镜像表**
+  （`disciples_core`/`disciples_combat`/`disciples_equipment`/`disciples_extended`/
+  `disciples_attributes`/`disciple_compact`）。取证：六个 DAO 的 SELECT 方法全仓零调用者、
+  C++ 侧 6 个表名 0 命中、唯一生产者逐行走 `X.fromDisciple(d)` ⇒ 纯冗余副本，**玩家数据零丢失**。
+  生成的 `53.json` 与 `52.json` 表集差集**恰为该 6 张、零其它漂移**；迁移链历史基线（v2…v52）一字未改。
+- **实测纠正方案字面**："删 6 表"**不等于**删 6 个类——`DiscipleAggregate`（`GameStateStoreImpl`/
+  `XianxiaApplication` statsProvider 在消费）与 `DiscipleStatCalculator属性Ops3.kt:125/137` 实测在读
+  这些类型 ⇒ 5 个类保留、只去 Room 注解；仅连内存侧都零读者的 `DiscipleCompact` 与 Room `@Embedded`
+  关系类 `DiscipleAggregateWithRelations` 按 IN6 删类。`DiscipleDaos` 分组随之解散，
+  `GameStateRepository` 改直注 `DiscipleDao`，`AppModule` 清掉 7 个 provider。
+- **文件层退役 = 代码就位，不是已发生**：新纯函数 `shouldWriteLocalSaveFile(mode)`（仅 CLOUD_ONLY 停写）
+  门控 `.sav` 镜像 / `.bak` 轮转 / tombstone 新建 / `FunctionalWAL` 开启与扫描；
+  `readWithFallback(readOnly=true)` 让旧 `.sav` 成为字面意义的**只读应急源**（跳过 `.bak→.sav` 修复写回）。
+  组件本体（`SaveFileManager`/`SaveFileFormat`/`FunctionalWAL`）**未物理删除**：今天全量设备模式恒
+  LEGACY，而 D5 声明轮转备份"随文件层一起退役"，此刻删除 = 抽掉唯一还在生效的兜底。
+  删档路径的 `deleteSlot`/`clearSlotDeleted` 与 `wal.shutdown`、过期文件清理**刻意不门控**——
+  遗留 `.sav` 不删会在 DB 损坏时被当应急源复活成"删掉的档又回来"。
+- **crypto 第二刀收尾**：实测该"链"只剩两个死壳（`SaveCryptoKeyCache` 除启动期 `initialize` 外零消费者；
+  `StorageConfig` 的 `cache_derived_key`/`key_cache_duration_ms` 唯一消费者是那死壳）⇒ 删除；
+  真正的存档载荷加密码早在 `5a421f3d6` 切走。`.secure_key` 网络签名链（含 SR-5 云档 HMAC）一环未动，
+  新立 `SecureKeyChainGuardTest` 三面锁死（其首跑即抓到本批漏删的 `setCacheDerivedKey`）。
+- **归档任务判归（C6）**：实测 `archived_battle_logs`/`archived_disciples` 的 DAO 全文零 SELECT、
+  归档内容不进云档 payload、`restoreBattleLogs`/`getArchiveStats`/`getTotalArchiveSize` 零调用者、
+  无任何 UI 入口 ⇒ 判"随文件层一起退役"；本地修剪三项（`change_log` 7d / 迁移前备份保留 2 /
+  `snapshots/`）与"谁是存档真相"无关 ⇒ 保留。零代码改动 + 一条 `ArchiveWriteOnlyGuardTest` 证据锁。
+  ⚠ 顺带暴露真缺陷：`cleanSaveDataWithArchive` 在落盘**前**把溢出战斗日志裁进零读者归档 ⇒
+  长玩家的历史在云档里无从还原（与 D2 冲突）；属产品决策，本批只登记不处置。
+- **守卫全家桶补口（C7）**：IN5 云档红线新增生产常量 `CLOUD_PAYLOAD_RED_LINE_BYTES = 2_000_000`
+  并逐档断言（此前只断言 ` < TapTap 10MB` 平台硬上限 ⇒ payload 涨到 30 倍仍判绿，等于没有门）；
+  IN8 新 `DiffBridgeGateTest`——50 个 `Diff*Test` 文件里 45 个以 `assumeTrue(JNI 可用)` 打头，
+  缺 `-Dgamecore.jni.path` 时全部静默 skip 而 Gradle 视 skip 为成功 ⇒ 改为判红；
+  IN1 新 `CacheWriteAtomicityGuardTest` 锁生产代码形状（既有 `RoomNestedTransactionSemanticsTest`
+  测的是 Room 库语义，拆掉外层事务它照样绿）。**如实登记未补的缺口**：IN7 boot 只读不写至今无有效
+  守卫（能写的浅层断言是同义反复）、IN4 唯一性扫描面漏 `BattleResultUIData.kt` 与
+  `OldSerializableSaveData.kt`、IN1"后置失败不回滚本地"半边、IN6 无通用零调用者扫描。
+- **自纠既有缺陷一笔**：`StorageEngineWriteOps.writeCoreEntities` 内 `syncSlotMetadata` 连续调用两次
+  （`git log -L` 追到 `c13d65157` 2026-09-12 即已如此）；SR-4 落地"月月必存"（实测游戏月 = 6 秒）后
+  这条冗余写每 6 秒一次，删除。
+- **判别力自证**：schema 守卫初版让期望值共用生产常量，把迁移改成"少删一张表"后实测
+  **5 例只 3 例判红**——Room 的 schema 校验对"库里多出未声明表"只告警不判错 ⇒ 期望面改为
+  测试侧独立字面清单 + `migrationListMatchesIndependentExpectation` 漂移守卫。
+- **门禁**：见完成报告 §5（`:core:data` 827/0/0/15 既有跳过、`:core:engine` **3415 例 0 skip**
+  含 `Diff*` 274/0 skip、`:core:domain` 1743/0/0/0、六模块组合门与 ctest 实测数字同节）。
+  响应 SR-5 守卫：删死壳后 `core:data` 裸墙钟实测 66 < 登记 68，按"只缩不增"显式下调。
+- ⚠ **前置门未满足，本批不声称已切换**：SR-3 真机 8 项 / SR-4 六项 / SR-5 六项 / SR-6 八项
+  pending-device 全部未跑；SR-6 完成率指标缺分子分母（TapDB 事件录入待运营）。
+  **真机升级路径实测（v52 真档 → v53）是方案 §5.5 硬门，本批 6 项 pending-device 见报告 §7。**
 
 ### SR-5 批（2026-09-22）——时间与签名面收敛：游戏语义取时全部走注入墙钟 + 云档载荷 HMAC 预埋
 

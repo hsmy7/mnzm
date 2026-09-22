@@ -7,7 +7,6 @@
 namespace {
 
 using scene::kBuildingStride;
-using scene::kCliffStride;
 using scene::kCloudStride;
 using scene::kCropStride;
 using scene::SceneStore;
@@ -149,25 +148,6 @@ TEST(SceneStoreTest, CloudsKeepSixFloatStride) {
     EXPECT_FALSE(store.hasClouds());
 }
 
-TEST(SceneStoreTest, CliffLayoutRoundTripsTenFloatStride) {
-    SceneStore store;
-    // 2 个布局条目（texIdx 为 int 语义，存储面与 Kotlin 侧 FloatArray 同形）
-    const float data[] = {
-        0.0f, 0.0f, 100.0f, 48.0f, 96.0f, 0.0f, 0.0f, 0.5f, 0.25f, 0.0f,
-        3.0f, 48.0f, 100.0f, 48.0f, 192.0f, 0.5f, 0.0f, 1.0f, 0.25f, 1.0f,
-    };
-    store.setCliffLayout(data, 2);
-    ASSERT_EQ(2, store.cliffPieceCount());
-    for (int i = 0; i < 2 * kCliffStride; i++) {
-        EXPECT_EQ(data[i], store.cliffsData()[i]);
-    }
-
-    store.setCliffLayout(nullptr, 2);
-    EXPECT_FALSE(store.hasCliffs());
-    EXPECT_FALSE(store.hasGroundBoundary());
-}
-
-// 弯曲地皮轮廓（地图边缘系统 v2）：复合数据整存整取 + 非法清层
 TEST(SceneStoreTest, GroundBoundaryRoundTripsComposite) {
     scene::SceneStore store;
     // 最小合法头：11 float 头部 + 3 个折线点（= kGroundBoundaryMinFloats）
@@ -255,7 +235,6 @@ TEST(SceneStoreTest, ResetClearsAllLayersForSurfaceEpoch) {
     const float buildings[5] = {0, 0, 1, 1, 0};
     const float crops[3] = {0, 0, 0.5f};
     const float clouds[6] = {0, 0, 1, 1, 0, 1};
-    const float cliffs[10] = {0, 0, 0, 1, 1, 0, 0, 1, 1, 0};
     const float preview[scene::kPreviewStride] = {
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
     };
@@ -265,7 +244,6 @@ TEST(SceneStoreTest, ResetClearsAllLayersForSurfaceEpoch) {
     store.updateBuildings(buildings, 1);
     store.updateCrops(crops, 1);
     store.updateClouds(clouds, 1);
-    store.setCliffLayout(cliffs, 1);
     const float boundary[scene::kGroundBoundaryMinFloats] = {1, 3, 128, 128, 48,
         768, 17, 23, 0, 23, 0, 0, 0, 100, 0, 200, 50};
     store.setGroundBoundary(boundary, scene::kGroundBoundaryMinFloats);
@@ -279,7 +257,6 @@ TEST(SceneStoreTest, ResetClearsAllLayersForSurfaceEpoch) {
     EXPECT_FALSE(store.hasBuildings());
     EXPECT_FALSE(store.hasCrops());
     EXPECT_FALSE(store.hasClouds());
-    EXPECT_FALSE(store.hasCliffs());
     EXPECT_EQ(0, store.cols());
     EXPECT_EQ(0, store.rows());
     EXPECT_EQ(0, store.tileSize());
@@ -294,7 +271,6 @@ TEST(SceneStoreTest, ProtocolStridesMatchLegacyJniFace) {
     EXPECT_EQ(5, kBuildingStride);
     EXPECT_EQ(3, kCropStride);
     EXPECT_EQ(6, kCloudStride);
-    EXPECT_EQ(10, kCliffStride);
     EXPECT_EQ(16, scene::kPreviewStride);
 }
 

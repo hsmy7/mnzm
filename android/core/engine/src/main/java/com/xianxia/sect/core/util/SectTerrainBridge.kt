@@ -8,7 +8,7 @@ import com.xianxia.sect.core.nativebridge.GameCoreBridge
  *
  * 地形生成的**单一权威**在 C++ `gamecore/map/terrain.h`（Kotlin
  * [SectMapTileGenerator] 的位级等价移植）；本对象做通道收敛：native 优先、
- * 异常回退 Kotlin 生成器（双实现并行契约，与 IslandCliffBridge/RoadCompositorBridge
+ * 异常回退 Kotlin 生成器（双实现并行契约，与 GroundBoundaryBridge/RoadCompositorBridge
  * 降级模式同族）。对拍守护：`DiffSectTerrainTest`（桌面 JNI，双端全数组逐位一致）。
  *
  * 返回**行主序展平**瓦片数组（index = row*worldWidthCells+col）——地图数据

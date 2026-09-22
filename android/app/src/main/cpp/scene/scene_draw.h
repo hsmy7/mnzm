@@ -119,20 +119,6 @@ struct MapLayerParams {
     int cloudUvCount = 0;
 };
 
-/// 崖壁层绘制输入（布局条目 + 纹理 ID 表）
-struct CliffLayerParams {
-    const float* data = nullptr;   // [texIdx,x,y,w,h,u0,v0,u1,v1,flags] × N
-    int pieceCount = 0;
-    const uint32_t* texIds = nullptr;
-    int texCount = 0;
-    float viewLeft = 0.0f;
-    float viewTop = 0.0f;
-    float viewRight = 0.0f;
-    float viewBottom = 0.0f;
-    float scale = 1.0f;
-    float fadeAlpha = 1.0f;
-};
-
 // ============================================================
 // 叠加层（overlay）——R3.3/B11：几何全部 C++ 生成，每帧零逐 rect 跨线
 // ============================================================
@@ -732,75 +718,6 @@ inline void buildGroundMeshLayer(const GroundBoundaryView& v, uint32_t groundTex
                            [&](const SpriteVertex* verts, int count) {
                                submit(groundTexId, verts, count);
                            });
-}
-
-/// 崖壁层构建 + 逐纹理连续段提交（z 序：天空 → 崖壁 → 地面）。
-///
-/// submit(texId, vertices, count) 在每个纹理连续段边界被调（生产 =
-/// renderer->draw；测试 = 顶点流记录器）。独立纹理 UV 不加 UV_EPSILON
-/// （独立纹理无图集邻居，加偏移会在地图边界露 0.5 纹素透明缝）；
-/// 镜像条目 u0>u1 取 min/max 归一（批只接受 u0 ≤ u1 矩形语义）。
-template <typename Submit>
-inline void buildCliffLayer(SpriteBatcher& batcher, const float projMatrix[16],
-                            const CliffLayerParams& p, Submit&& submit) {
-    if (p.data == nullptr || p.pieceCount <= 0 || p.texIds == nullptr || p.texCount <= 0) return;
-
-    const float fadeAlpha = p.fadeAlpha;
-    const float gapEpsilon = sceneGapEpsilon(p.scale);
-    constexpr int kStride = kCliffStride;
-
-    batcher.begin(projMatrix);
-
-    uint32_t batchTexId = 0;
-    bool haveBatch = false;
-
-    for (int i = 0; i < p.pieceCount; i++) {
-        const int base = i * kStride;
-        const int32_t texIdx = static_cast<int32_t>(p.data[base]);
-        const float sx = p.data[base + 1];
-        const float sy = p.data[base + 2];
-        const float sw = p.data[base + 3];
-        const float sh = p.data[base + 4];
-        float u0 = p.data[base + 5];
-        float v0 = p.data[base + 6];
-        float u1 = p.data[base + 7];
-        float v1 = p.data[base + 8];
-
-        // 纹理缺失降级（上传失败/越界）→ 跳过该条目，不画白、不崩溃
-        if (texIdx < 0 || texIdx >= p.texCount) continue;
-        const uint32_t texId = p.texIds[texIdx];
-        if (texId == 0) continue;
-
-        // NaN/非法值防御 + 镜像/裁剪归一 + UV 范围守卫（与旧实现同式）
-        const bool badFloat = (sx != sx) || (sy != sy) || (sw != sw) || (sh != sh) ||
-                              (u0 != u0) || (v0 != v0) || (u1 != u1) || (v1 != v1);
-        if (badFloat) continue;
-        if (sw <= 0.0f || sh <= 0.0f) continue;
-        if (!sceneRectVisible(sx, sy, sw, sh,
-                              p.viewLeft, p.viewTop, p.viewRight, p.viewBottom)) continue;
-        if (u0 > u1) { const float t = u0; u0 = u1; u1 = t; }
-        if (v0 > v1) { const float t = v0; v0 = v1; v1 = t; }
-        if (u0 < 0.0f || v0 < 0.0f || u1 > 1.0f || v1 > 1.0f) continue;
-
-        if (!haveBatch || texId != batchTexId) {
-            if (haveBatch && batcher.vertexCount > 0) {
-                submit(batchTexId, batcher.vertices, batcher.vertexCount);
-            }
-            batcher.begin(projMatrix);
-            batchTexId = texId;
-            haveBatch = true;
-        }
-
-        batcher.add(texId,
-            sx - gapEpsilon, sy - gapEpsilon,
-            sw + 2.0f * gapEpsilon, sh + 2.0f * gapEpsilon,
-            u0, v0, u1, v1,
-            1.0f, 1.0f, 1.0f, fadeAlpha);
-    }
-
-    if (haveBatch && batcher.vertexCount > 0) {
-        submit(batchTexId, batcher.vertices, batcher.vertexCount);
-    }
 }
 
 /// 叠加层占地尺寸（高亮层口径）——与旧 Kotlin

@@ -603,7 +603,7 @@ SceneStore makeFullSceneStore() {
 //
 // 三层的**提交语义不同**，测试侧必须逐层对齐（本批修复的真实缺陷：初版把
 // submit 回调一律误当"主批出口"，导致地图层零 draw call）：
-//   - `buildCliffLayer` / `buildOverlayLayers`  → **`void`**，生成核心内部
+//   - `buildBottomRockLayer`/`buildGroundMeshLayer`/`buildOverlayLayers` → **`void`**，生成核心内部
 //     按纹理段切批并**逐段调用 submit 回调**（回调即出口）；
 //   - `buildMapBatch`                          → **返回顶点数**，生成核心
 //     **只填充 batcher**，主批须由**调用方**提交（地图边缘 v2 后本批不再含

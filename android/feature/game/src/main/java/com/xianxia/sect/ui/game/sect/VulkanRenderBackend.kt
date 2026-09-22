@@ -1,8 +1,6 @@
 package com.xianxia.sect.ui.game.sect
 
 import com.xianxia.sect.core.nativebridge.NativeBridge
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
-import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
@@ -219,36 +217,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         host.lastPushedSkyConfig = config
     }
 
-    /**
-     * 浮空岛崖壁层绘制（世界空间；z 序：天空 → 崖壁 → 地面）。
-     * 只消费 [RenderFrame.islandCliffData] 布局引用（一次性预计算，稳定）——
-     * 可见性剔除与按纹理分批在 C++ 侧 NativeBridge.drawIslandCliffs 完成。
-     *
-     * 崖壁走**独立纹理**（超出图集容量），纹理 ID 由宿主经
-     * [NativeBridge.setIslandCliffTextures] 一次性注入；此处只判「是否已有任一张
-     * 可用」——全不可用则整层跳过（C++ 侧亦会逐条目跳过不可用纹理）。
-     * 观测锚点（保留级，进程内一次）：确认渲染端消费到布局数据。
-     */
-    private fun drawIslandCliffs(frame: RenderFrame) {
-        val layout = frame.islandCliffData ?: return
-        if (!host.hasAnyCliffTexture) return
-        if (!islandCliffDrawnLogged) {
-            islandCliffDrawnLogged = true
-            android.util.Log.d(
-                ISLAND_CLIFF_LOG_TAG,
-                "drawIslandCliffs ${layout.size / IslandCliffBridge.PIECE_STRIDE} pieces " +
-                    "(cliffTextures=${host.cliffTextureCount})"
-            )
-        }
-        NativeBridge.drawIslandCliffs(cliffData = layout)
-    }
 
     companion object {
-        /** 浮空岛边缘观测日志标签（渲染端消费锚点） */
-        private const val ISLAND_CLIFF_LOG_TAG = "IslandCliff"
-
-        /** 首次绘制日志标志（进程内一次——避免每帧日志） */
-        private var islandCliffDrawnLogged = false
 
         /** 装饰层跳过阈值（qualityFactor < 0.6 时装饰降级——与 Canvas 帧缓冲 RGB_565 阈值同常量） */
         private const val DECOR_QUALITY_THRESHOLD = 0.6f

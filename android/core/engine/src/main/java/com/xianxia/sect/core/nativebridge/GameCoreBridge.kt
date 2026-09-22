@@ -441,40 +441,6 @@ object GameCoreBridge {
      */
     external fun nativeRoadCompose(mask: Int, tileSize: Int): IntArray
 
-    /**
-     * 浮空岛崖壁布局合成（纯函数，kAnyThread——与 [nativeRoadCompose] 同语义，
-     * 不依赖引擎实例；仅需库已加载）。
-     *
-     * 布局合成单一权威 = `gamecore/map/island_cliff.h`。崖壁走**独立纹理**，故输出
-     * 携带纹理下标 + 逐条目 UV + 镜像位，不依赖图集精灵索引与全局 UV 表。
-     *
-     * @param textureSizes 纹理尺寸表 [w, h] × N（序 = IslandCliffTextureSet 下标序）
-     * @param poolBase 每池在 [poolFlat] 中的起始偏移（[IslandCliffBridge.POOL_COUNT] 个）
-     * @param poolCount 每池数量（[IslandCliffBridge.POOL_COUNT] 个）
-     * @param poolFlat 池平铺表（元素 = 纹理下标）
-     * @param topInset 岛面顶线内缩（像素；0 = 素材顶边贴地图边）
-     * @param bottomStartRatio 下环起点（占左下角纹理宽的比例，自其内缘向内）
-     * @param bottomEndRatio 下环终点（占右下角纹理宽的比例）
-     * @param textureMask 纹理上传位掩码（bit i = 纹理 i 可用；不可用则不产出该条目）
-     * @return 扁平浮点数组 [texIdx, x, y, w, h, u0, v0, u1, v1, flags] × N
-     */
-    // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组破坏 JNI 映射）——
-    // LongParameterList 抑制为声明性豁免（同 drawAllTiles 惯例）
-    @Suppress("LongParameterList")
-    external fun nativeIslandCliffCompose(
-        cols: Int,
-        rows: Int,
-        tileSize: Int,
-        seed: Int,
-        textureSizes: FloatArray,
-        poolBase: IntArray,
-        poolCount: IntArray,
-        poolFlat: IntArray,
-        topInset: Float,
-        bottomStartRatio: Float,
-        bottomEndRatio: Float,
-        textureMask: Int
-    ): FloatArray
 
     /**
      * 宗门地图地形生成（地形生成单一权威 = gamecore/map/terrain.h，

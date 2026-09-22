@@ -627,51 +627,6 @@ tasks.register('generateAstcAtlas') {
     }
 }
 
-// ============================================================
-// 浮空岛崖壁独立纹理 KTX 生成任务（地图边缘系统）
-// 权威源：feature/game drawable-nodpi/map_edge_*.webp（import-art-assets.mjs 按
-//   bake{preserve,roundUp4} 烘焙，宽高已是 4 的倍数——ASTC 4×4 硬性要求）
-// 产物：assets/atlas/edge/map_edge_*.ktx（7 张，KTX1 + ASTC 4×4 + mip 链）
-// 消费端三级降级：ASTC KTX（Vulkan）→ RGBA mip 链 → RGBA 单级（GLES/Canvas
-//   用 WebP），故产物缺失不致命；但权威源变更后必须重新生成，否则 Vulkan 路径
-//   会落到低清回退——astcenc 缺失时直接构建失败，不允许静默跳过。
-// 守卫：EdgeKtxSyncTest 锁住 KTX ↔ WebP 逐张尺寸一致（防两路径布局漂移）。
-// ============================================================
-tasks.register('generateEdgeKtx') {
-    group = 'build'
-    description = '从 map_edge_*.webp 生成崖壁独立纹理 KTX（ASTC 4×4 + mip 链）'
-    mustRunAfter 'generateResourceManifest'
-    // 声明 inputs 获得 Gradle up-to-date 判定（源未变则跳过 astcenc 压缩开销）；
-    // mjs 内部另有内容 hash 为第二道防线
-    inputs.files(fileTree("${rootProject.projectDir}/feature/game/src/main/res/drawable-nodpi") {
-        include 'map_edge_*.webp'
-    })
-    inputs.file("${rootProject.projectDir}/scripts/build-edge-ktx.mjs")
-    inputs.file("${rootProject.projectDir}/scripts/lib/ktx1.mjs")
-    outputs.dir("${projectDir}/src/main/assets/atlas/edge")
-    // 配置缓存约束——路径在配置期捕获（doLast 内禁止脚本对象）
-    def androidRoot = rootProject.projectDir
-    def astcencDir = file("${androidRoot}/scripts/tools/astcenc/bin")
-    def astcencCandidates = ['astcenc-avx2.exe', 'astcenc-sse4.1.exe', 'astcenc-sse2.exe']
-        .collect { file("${astcencDir}/${it}") }
-    def scriptDir = androidRoot
-    doLast {
-        def hasAstcenc = astcencDir.exists() && astcencCandidates.any { it.exists() }
-        if (!hasAstcenc) {
-            throw new GradleException(
-                "generateEdgeKtx: astcenc 未找到（${astcencDir}）——崖壁独立纹理需 ASTC 压缩，" +
-                "请从 https://github.com/ARM-software/astc-encoder/releases 下载 windows-x64 版本放至 scripts/tools/astcenc/bin/。"
-            )
-        }
-        def proc = ['node', 'scripts/build-edge-ktx.mjs'].execute(null, scriptDir)
-        proc.consumeProcessOutput(System.out, System.err)
-        def exit = proc.waitFor()
-        if (exit != 0) {
-            throw new GradleException("generateEdgeKtx: build-edge-ktx.mjs 退出码 ${exit}")
-        }
-        logger.lifecycle('generateEdgeKtx: 完成')
-    }
-}
 
 // ============================================================
 // 图集离线 RGBA 降采样产物生成任务（B15 / R6.1 图集离线化）

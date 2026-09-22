@@ -14,10 +14,14 @@
 
 namespace {
 
-using scene::buildCliffLayer;
+using gamecore::map::computeGroundBoundary;
+using gamecore::map::GroundBoundaryConfig;
+using scene::buildBottomRockLayer;
+using scene::buildGroundMeshLayer;
+using scene::GroundBoundaryView;
+using scene::groundBoundaryParse;
 using scene::buildMapBatch;
 using scene::buildOverlayLayers;
-using scene::CliffLayerParams;
 using scene::CropSmoothingState;
 using scene::kBuildingStride;
 using scene::kPreviewStride;
@@ -813,30 +817,23 @@ TEST_F(SceneOverlayEquivalenceTest, PlacementModeFullFrameDrawCallBudget) {
         rec.draw(mapBatcher.vertices, mapBatcher.vertexCount, kAtlasTexId);
     }
 
-    // 崖壁层：8 张纹理交替 = 最坏切段
-    const int pieceCount = 8;
-    std::vector<float> cliffPieces;
-    for (int i = 0; i < pieceCount; i++) {
-        const float piece[scene::kCliffStride] = {
-            static_cast<float>(i), 0.0f, 7000.0f + static_cast<float>(i * 48), 48.0f, 96.0f,
-            0.0f, 0.0f, 0.5f, 0.5f, 0.0f
-        };
-        cliffPieces.insert(cliffPieces.end(), piece, piece + scene::kCliffStride);
-    }
-    const uint32_t cliffTexIds[8] = {11, 12, 13, 14, 15, 16, 17, 18};
-    CliffLayerParams cp;
-    cp.data = cliffPieces.data();
-    cp.pieceCount = pieceCount;
-    cp.texIds = cliffTexIds;
-    cp.texCount = 8;
-    cp.viewLeft = mp.viewLeft;
-    cp.viewTop = 7000.0f;
-    cp.viewRight = mp.viewRight;
-    cp.viewBottom = mp.viewBottom + 800.0f;
-    cp.scale = view.scale;
-    cp.fadeAlpha = 1.0f;
-    SpriteBatcher cliffBatcher;
-    buildCliffLayer(cliffBatcher, proj, cp,
+    // 弯曲地皮轮廓两层（地图边缘 v2）：真实合成器产出（生产同参 128²×48），
+    // 岩石带与地皮 mesh 各自单纹理一次提交
+    GroundBoundaryConfig bcfg;
+    bcfg.cols = 128;
+    bcfg.rows = 128;
+    bcfg.tileSize = 48;
+    bcfg.bottomDepth = 768.0f;
+    std::vector<float> boundary;
+    computeGroundBoundary(bcfg, boundary);
+    GroundBoundaryView bv;
+    ASSERT_TRUE(groundBoundaryParse(boundary.data(),
+                                    static_cast<int>(boundary.size()), &bv));
+    buildBottomRockLayer(bv, 18, 1.0f,
+        [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
+            rec.draw(verts, count, texId);
+        });
+    buildGroundMeshLayer(bv, 18, 1.0f,
         [&rec](uint32_t texId, const SpriteVertex* verts, int count) {
             rec.draw(verts, count, texId);
         });
@@ -849,10 +846,10 @@ TEST_F(SceneOverlayEquivalenceTest, PlacementModeFullFrameDrawCallBudget) {
         });
 
     const size_t worldCalls = rec.calls.size();
-    std::printf("[G4 整帧] 放置模式最坏帧世界内容 draw call = %zu（地图 1 + 崖壁最坏 %d 段 + 叠加层 3）"
+    std::printf("[G4 整帧] 放置模式最坏帧世界内容 draw call = %zu（地图 1 + 底部岩石 1 + 地皮 1 + 叠加层 3）"
                 "，另加天空 1 = %zu，目标 < 15\n",
-        worldCalls, pieceCount, worldCalls + 1);
-    EXPECT_EQ(12u, worldCalls);
+        worldCalls, worldCalls + 1);
+    EXPECT_EQ(6u, worldCalls);
     EXPECT_LT(worldCalls + 1, 15u) << "G4 vkCmdDraw 目标";
 }
 

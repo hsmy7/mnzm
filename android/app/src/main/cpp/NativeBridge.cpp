@@ -91,30 +91,7 @@ static uint32_t g_rockTexId = 0;  // 底部岩石 REPEAT 纹理（地图边缘 v
 // 浮空岛崖壁独立纹理表（地图边缘系统）
 //
 // 崖壁素材单张最大 1180×3552，**超出 4096² 图集容量**，故不走图集：
-// 每个变体一张独立纹理，drawIslandCliffs 按布局条目的 textureIdx 取 ID。
-// 纹理下标序由 Kotlin IslandCliffTextureSet 定义（LEFT_1..3 / BOTTOM_1..2 /
-// CORNER_BL / CORNER_BR = 0..6），布局 UV 由 Kotlin 侧预计算后逐条目传入。
-//
-// 上传顺序 = 下标序（setIslandCliffTextures 一次性接收整表）；
-// 单张上传失败用 0 占位，绘制端跳过引用它的条目（部分降级，非整层消失）。
-// ============================================================
-static constexpr int32_t kMaxCliffTextures = 16;
-static uint32_t g_cliffTexIds[kMaxCliffTextures] = {};
-static int32_t g_cliffTexCount = 0;
 
-/**
- * 应用崖壁纹理 ID 表（主线程；渲染线程随后只读）。
- *
- * @param ids 长度 = 纹理数（下标序与 Kotlin IslandCliffTextureSet 一致）
- * @param count 纹理数（≤ kMaxCliffTextures；超出截断）
- */
-static void applyCliffTextures(const uint32_t* ids, int32_t count) {
-    if (count < 0) count = 0;
-    if (count > kMaxCliffTextures) count = kMaxCliffTextures;
-    for (int32_t i = 0; i < count; i++) g_cliffTexIds[i] = ids[i];
-    for (int32_t i = count; i < kMaxCliffTextures; i++) g_cliffTexIds[i] = 0;
-    g_cliffTexCount = count;
-}
 
 // 视口世界坐标范围（由 setCamera/drawFrame 更新，用于瓦片/崖壁层可见性检测）
 static float g_viewLeft   = 0.0f;
@@ -180,13 +157,12 @@ static std::atomic<float> g_fadeAlpha{1.0f};
 // 地图层绘制消费该平滑状态（绘制核心的配套单例）
 
 // ── 帧批量构建器（跨帧复用）──
-// 渲染线程单消费者：drawFrame/drawIslandCliffs 仅由 RenderThread
+// 渲染线程单消费者：drawFrame 仅由 RenderThread
 // 经 JNI 调用，无并发；grow 一次后堆缓冲跨帧复用，根除每帧 5 次 new/memcpy/
 // delete ×2 的分配链。清理策略与 g_cropSmooth 同纪律（文件级状态须在
 // shutdownRenderer 说明）：batcher 无 native 句柄，无需清理，仅容量驻留
 // ≤2×16384×32B=1MB 堆。
 static SpriteBatcher g_mapBatcher;
-static SpriteBatcher g_edgeBatcher;
 
 // ============================================================
 // SceneStore 场景真相（重构方案 2026-09-17 R3.1/R3.2）
@@ -918,42 +894,6 @@ static void submitMapBatchCommon(bool overflowDegrade, uint32_t atlasTexId) {
     }
 }
 
-/** 崖壁层构建 + 逐纹理连续段提交（drawFrame 路径与独立 drawIslandCliffs 端口共用；
- *  观测锚点日志进程内一次，两路等价消费布局数据） */
-static void drawCliffLayerInternal(const jfloat* data, int pieceCount) {
-    // 观测锚点（进程内一次）：确认 C++ 侧消费到布局数据（真机排查按此过滤）
-    static bool s_islandCliffLogged = false;
-    if (!s_islandCliffLogged) {
-        s_islandCliffLogged = true;
-        LOGI("drawIslandCliffs: %d pieces (textures=%d)", pieceCount, (int)g_cliffTexCount);
-    }
-
-    scene::CliffLayerParams p;
-    p.data = data;
-    p.pieceCount = pieceCount;
-    p.texIds = g_cliffTexIds;
-    p.texCount = g_cliffTexCount;
-    p.viewLeft = g_viewLeft;
-    p.viewTop = g_viewTop;
-    p.viewRight = g_viewRight;
-    p.viewBottom = g_viewBottom;
-    p.scale = g_scale;
-    p.fadeAlpha = g_fadeAlpha.load();
-
-    // 跨帧复用构建器：崖壁层与地图层各用独立 static，互不串批
-    Renderer2D* renderer = g_renderer;
-    scene::buildCliffLayer(
-        g_edgeBatcher, g_projMatrix, p,
-        [renderer](uint32_t texId, const SpriteVertex* verts, int count) {
-            if (renderer) renderer->draw(verts, count, texId);
-        });
-
-    if (g_edgeBatcher.droppedSprites > 0) {
-        logBatcherOverflowOncePerSecond("cliff", g_edgeBatcher.droppedSprites);
-    }
-    // 崖壁层溢出只登记（下帧降级由地图层装饰跳过承接，崖壁为结构层不可跳）
-    noteBatcherOverflow(g_edgeBatcher.droppedSprites);
-}
 
 /**
  * 叠加层绘制（R3.3/B11，仅新路径）：网格线 / 占地预览框 + 预览精灵 / 选中高亮 /
@@ -1132,30 +1072,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneUpdateClouds(
     g_scene.updateClouds(data.data(), capped);
 }
 
-/** 崖壁布局导入（IslandCliffBridge 一次性预计算的稳定布局；null = 清空整层） */
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSetCliffLayout(
-    JNIEnv* env, jobject /*thiz*/,
-    jfloatArray cliffData, jint pieceCount) {
-    if (cliffData == nullptr || pieceCount <= 0) {
-        g_scene.setCliffLayout(nullptr, 0);
-        return;
-    }
-    const jsize floats = env->GetArrayLength(cliffData);
-    if (floats < scene::kCliffStride) {
-        g_scene.setCliffLayout(nullptr, 0);
-        return;
-    }
-    const jsize capped = static_cast<jsize>(
-        std::min<int64_t>(pieceCount, floats / scene::kCliffStride));
-    if (capped <= 0) {
-        g_scene.setCliffLayout(nullptr, 0);
-        return;
-    }
-    std::vector<float> data(static_cast<size_t>(capped) * scene::kCliffStride);
-    env->GetFloatArrayRegion(cliffData, 0, static_cast<jsize>(data.size()), data.data());
-    g_scene.setCliffLayout(data.data(), capped);
-}
 
 // 弯曲地皮轮廓复合数据导入（地图边缘系统 v2；布局见
 // GroundBoundaryBridge.Header / gamecore/map/ground_boundary.h：头部 11 float
@@ -1292,286 +1208,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_sceneSpawnFloatingText(
         v[5], v[6], v[7] != 0.0f);
 }
 
-/**
- * 每帧绘制（R3.2 新路径唯一帧入口）：相机标量 + 覆盖标志（G3 <200B/帧），
- * 场景数据从 SceneStore 消费（sceneSet* / sceneUpdate* 变化驱动维护）。
- *
- * overlayFlags 位定义（scene::kOverlayBit*，与 Kotlin OVERLAY_FLAG_* 逐位同值）：
- *   bit0 buildingVisible / bit1 网格线 / bit2 预览精灵 / bit3 占地框 /
- *   bit4 预览合法性（绿/红）/ bit5 选中高亮 / bit6 拆除高亮。
- * 位 1–6 为 R3.3 启用：四类叠加层几何在本函数内由 scene_draw.h 生成
- * （旧路径的每帧逐 rect 跨线由此退役；其数据经 sceneSetSelection /
- * sceneSetDemolishMarkers / sceneSetPreview 变化驱动导入）。
- * 层序（R3.8）：天空 → 崖壁 → 地图 → 叠加层 → **浮字（最上层）**。
- */
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawFrame(
-    JNIEnv* /*env*/, jobject /*thiz*/,
-    jfloat camX, jfloat camY, jfloat scale,
-    jint vpW, jint vpH,
-    jint overlayFlags,
-    jfloat fadeAlpha, jfloat frameAlpha) {
 
-    if (!g_renderer) return;
 
-    // 相机段：消毒 + 投影 + 视野边界（与 setCamera 单实现）
-    updateCameraGlobals(camX, camY, scale, vpW, vpH);
-
-    // 浮字时间标量推进（C++ 内自累加——零 ABI 变更，见 g_floatNowSeconds 说明）
-    g_floatNowSeconds += kFloatFrameStepSeconds;
-    if (g_floatNowSeconds >= kFloatTimeWrapSeconds) g_floatNowSeconds = 0.0f;
-    g_floatPool.advance(g_floatNowSeconds);
-
-    const bool overflowDegrade = s_overflowDegradeActive.load(std::memory_order_relaxed);
-
-    // 淡入 alpha 消毒（NaN 行为：clamp 不拦 NaN）；
-    // 消毒后先写回全局量——崖壁层与地图层共享消费 g_fadeAlpha 单一来源
-    // （必须先于崖壁层——图集未就绪窗口地图层跳过时崖壁淡入仍随帧推进）
-    float fade = fadeAlpha;
-    if (fade < 0.0f) fade = 0.0f;
-    if (fade > 1.0f) fade = 1.0f;
-    g_fadeAlpha.store(fade);
-
-    // 弯曲地皮轮廓层（地图边缘 v2；z 序：天空 → 底部岩石 → 地皮 → 地图批）。
-    // 两层几何同源同一折线（ground_boundary.h 静态 mesh，地图变化才重导）：
-    // 底部顶边上移 kBottomTuckPx 藏进草皮之下，草皮后绘覆盖——零缝隙。
-    // 材质均为独立 REPEAT 纹理（草=map_grass_1、岩=map_rock_base）；id=0
-    // （未上传/后端不支持）时对应层跳过，与图集未就绪守卫同形。
-    scene::GroundBoundaryView boundaryView;
-    const bool hasBoundary =
-        g_scene.hasGroundBoundary() &&
-        scene::groundBoundaryParse(g_scene.groundBoundaryData(),
-                                   g_scene.groundBoundaryFloats(), &boundaryView);
-    if (hasBoundary) {
-        scene::buildBottomRockLayer(boundaryView, g_rockTexId, fade,
-            [](uint32_t texId, const SpriteVertex* verts, int count) {
-                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
-            });
-        scene::buildGroundMeshLayer(boundaryView, g_groundTexId, fade,
-            [](uint32_t texId, const SpriteVertex* verts, int count) {
-                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
-            });
-    }
-
-    // 地图层（地形已导入 + 图集就绪；buildingVisible = overlayFlags bit0）
-    if (g_scene.hasTerrain() && g_sceneAtlasTexId != 0) {
-        scene::MapLayerParams p;
-        p.viewLeft = g_viewLeft;
-        p.viewTop = g_viewTop;
-        p.viewRight = g_viewRight;
-        p.viewBottom = g_viewBottom;
-        p.scale = g_scale;
-        p.fadeAlpha = fade;
-        p.frameAlpha = frameAlpha;
-        p.skipDecor = decorSkipActive(overflowDegrade);
-        p.skipClouds = p.skipDecor;
-        p.buildingShadows = g_buildingShadows.load();
-        p.buildingVisible = (overlayFlags & scene::kOverlayBitBuildingVisible) != 0;
-        p.tiles = g_scene.terrainData();
-        p.tileCount = g_scene.terrainCount();
-        p.cols = g_scene.cols();
-        p.rows = g_scene.rows();
-        p.tileSize = g_scene.tileSize();
-        p.atlasTexId = g_sceneAtlasTexId;
-        p.tileMask = hasBoundary ? boundaryView.mask : nullptr;
-        p.tileUv = scene::kTileUv;
-        p.tileUvCount = scene::kTileUvCount;
-        p.roads = g_scene.roadsData();
-        p.roadCount = g_scene.roadsCount();
-        p.roadUv = scene::kRoadUv;
-        p.roadUvCount = scene::kRoadUvCount;
-        p.buildings = g_scene.buildingsData();
-        p.buildingClaim = g_scene.buildingCount();
-        p.buildingDataFloats = g_scene.buildingCount() * scene::kBuildingStride;
-        p.buildingUv = scene::kBuildingUv;
-        p.buildingUvCount = scene::kBuildingUvCount;
-        p.crops = g_scene.cropsData();
-        p.cropCount = g_scene.cropCount();
-        p.cropUv = scene::kCropUv;
-        p.cropUvCount = scene::kCropUvCount;
-        p.clouds = g_scene.cloudsData();
-        p.cloudCount = g_scene.cloudCount();
-        p.cloudUv = scene::kCloudUv;
-        p.cloudUvCount = scene::kCloudUvCount;
-
-        scene::buildMapBatch(g_mapBatcher, p, g_projMatrix, g_cropSmooth);
-        submitMapBatchCommon(overflowDegrade, g_sceneAtlasTexId);
-    }
-
-    // 叠加层（R3.3）：选中高亮 → 拆除高亮 → 预览精灵 → 占地框 → 网格线，
-    // 层序与旧 Kotlin 路径严格一致。地图层/图集未就绪时仍须绘制（旧路径的
-    // 网格线与高亮本就不依赖瓦片层；预览精灵的图集守卫在生成核心内）
-    drawOverlayLayerInternal(overlayFlags, vpW, vpH);
-
-    // 浮字层（R3.8/B13）：**最上层**（叠加层之上）。空池 = 零 draw call；
-    // 图集未就绪整层跳过（与地图层/叠加层预览精灵同守卫语义）。零每帧 JNI。
-    if (g_sceneAtlasTexId != 0) {
-        scene::FloatTextParams fp;
-        fp.instances = &g_floatPool.slot(0);
-        fp.instanceCount = scene::FloatTextPool::capacity();
-        fp.nowSeconds = g_floatNowSeconds;
-        fp.atlasTexId = g_sceneAtlasTexId;
-        fp.uv = scene::kFloatUv;
-        fp.assetCount = scene::kFloatAssetCount;
-        fp.glyphBaseIndex = scene::kFloatGlyphBaseIndex;
-        fp.tileSize = static_cast<float>(g_scene.tileSize());
-        fp.baseWorldHeight = scene::kFloatBaseWorldHeight;
-        fp.viewLeft = g_viewLeft;
-        fp.viewTop = g_viewTop;
-        fp.viewRight = g_viewRight;
-        fp.viewBottom = g_viewBottom;
-        // 提交顺序即 draw call 序：浮字整批一个纹理段（同图集）——
-        // 空池时 buildFloatTextBatch 不 begin/不 submit ⇒ 零 draw call
-        scene::buildFloatTextBatch(g_floatBatcher, g_projMatrix, fp,
-            [](uint32_t texId, const SpriteVertex* verts, int count) {
-                if (g_renderer != nullptr) g_renderer->draw(verts, count, texId);
-            });
-        if (g_floatBatcher.droppedSprites > 0) {
-            logBatcherOverflowOncePerSecond("float", g_floatBatcher.droppedSprites);
-        }
-    }
-}
-
-// ============================================================
-// 浮空岛崖壁层（z 序：天空 → 崖壁 → 地面）
-//
-// 世界空间静态合成：布局数据 [texIdx, x, y, w, h, u0, v0, u1, v1, flags] × N
-// 由 Kotlin IslandCliffBridge（C++ gamecore::map::island_cliff.h 单一权威）
-// 一次性预计算（地图尺寸/种子变化时重建，Camera 平移/缩放不重建）；本函数只
-// 消费——可见性剔除 + 逐纹理 SpriteBatcher 批处理。淡入 alpha 与瓦片层同源
-// （g_fadeAlpha）；GAP_EPSILON 同式（防接缝）。
-//
-// 与瓦片层的差异（独立纹理）：
-//   - UV 逐条目携带，**不再**加 UV 收缩偏移——该常量按 4096 图集纹素推导
-//     （0.5/4096），用于防图集邻居渗色；独立纹理各自归一化且无邻居，
-//     加该偏移会在地图边界处露出 0.5 纹素的透明缝（UV 张成问题）。
-//   - 每张纹理一次 g_renderer->draw（submitFrame 亦按 DrawBatch.textureId
-//     分组重绑），故逐条目累积的批按纹理切换自然切分。
-//   - 镜像条目（flags bit0）的 u0 > u1，取 min/max 归一后再送批
-//     （SpriteBatcher 只接受 u0 ≤ u1 的矩形语义）。
-// ============================================================
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawIslandCliffs(
-    JNIEnv* env, jobject /*thiz*/,
-    jfloatArray cliffData) {
-
-    if (!g_renderer || !cliffData) return;
-    const jsize pieceCount = env->GetArrayLength(cliffData) / scene::kCliffStride;
-    if (pieceCount <= 0 || g_cliffTexCount <= 0) return;
-
-    jfloat* data = env->GetFloatArrayElements(cliffData, nullptr);
-    if (data == nullptr) return;
-
-    drawCliffLayerInternal(data, pieceCount);
-
-    env->ReleaseFloatArrayElements(cliffData, data, JNI_ABORT);
-}
-
-// ============================================================
-// 崖壁纹理通道（独立纹理，非图集）
-// ============================================================
-
-/**
- * 接收崖壁纹理 ID 表（主线程；下标序与 Kotlin IslandCliffTextureSet 一致）。
- * 0 表示该张上传失败——绘制端跳过引用它的条目（部分降级）。
- */
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_setIslandCliffTextures(
-    JNIEnv* env, jobject /*thiz*/, jintArray textureIds) {
-
-    if (textureIds == nullptr) {
-        applyCliffTextures(nullptr, 0);
-        return;
-    }
-    const jsize n = env->GetArrayLength(textureIds);
-    if (n <= 0) {
-        applyCliffTextures(nullptr, 0);
-        return;
-    }
-    const jsize capped = n > kMaxCliffTextures ? kMaxCliffTextures : n;
-    std::vector<jint> ids(static_cast<size_t>(capped));
-    env->GetIntArrayRegion(textureIds, 0, capped, ids.data());
-    std::vector<uint32_t> uids(static_cast<size_t>(capped));
-    for (jsize i = 0; i < capped; i++) {
-        uids[static_cast<size_t>(i)] = static_cast<uint32_t>(ids[static_cast<size_t>(i)]);
-    }
-    applyCliffTextures(uids.data(), static_cast<int32_t>(capped));
-}
-
-/**
- * 上传单张崖壁压缩纹理（KTX1 封装 ASTC 4×4；仅 Vulkan 支持）。
- *
- * 与图集上传（uploadCompressedAtlas）的差异：本函数把纹理 ID 交给调用方自行
- * 保管（返回给 Kotlin 收集成表），不写入任何固定槽位。
- *
- * @return 纹理 ID；0 = 非 Vulkan 后端 / KTX 校验失败 / 设备不支持 ASTC →
- *         调用方回退 RGBA 路径（mip 链 → 单级）
- */
-extern "C" JNIEXPORT jint JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadIslandCliffKtx(
-    JNIEnv* env, jobject /*thiz*/, jbyteArray ktxData) {
-
-    if (!g_renderer || !ktxData) return 0;
-    // 动态转换（图集路径同纪律）：g_renderer 非 VulkanBackend（GLES 等）→ 返回 0 走回退
-    auto* vk = dynamic_cast<VulkanBackend*>(g_renderer);
-    if (vk == nullptr) return 0;
-
-    const jsize len = env->GetArrayLength(ktxData);
-    if (len <= 0) return 0;
-    std::vector<uint8_t> bytes(static_cast<size_t>(len));
-    env->GetByteArrayRegion(ktxData, 0, len, reinterpret_cast<jbyte*>(bytes.data()));
-
-    KtxInfo info{};
-    if (!loadKtx1(bytes.data(), bytes.size(), info)) {
-        LOGW("uploadIslandCliffKtx: KTX 校验失败，回退 RGBA 崖壁纹理");
-        return 0;
-    }
-    const uint32_t id = vk->uploadCompressedTexture(
-        info.data, info.dataSize, static_cast<int>(info.width),
-        static_cast<int>(info.height), static_cast<int>(info.mipCount));
-    if (id == 0) {
-        LOGW("uploadIslandCliffKtx: 上传失败（设备不支持 ASTC？），回退 RGBA 崖壁纹理");
-    }
-    return static_cast<jint>(id);
-}
-
-/**
- * 上传单张崖壁 RGBA mip 链纹理（仅 Vulkan 支持；GLES 返回 0 走单级回退）。
- *
- * @param pixelData level-major 紧凑 RGBA8 direct 缓冲区（首级 = width×height）
- * @return 纹理 ID；0 = 非 Vulkan 后端 / 校验失败 / direct 缓冲区非法
- */
-extern "C" JNIEXPORT jint JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadIslandCliffMipChain(
-    JNIEnv* env, jobject /*thiz*/,
-    jobject pixelData, jint width, jint height, jint mipCount) {
-
-    if (!g_renderer || !pixelData) return 0;
-    auto* vk = dynamic_cast<VulkanBackend*>(g_renderer);
-    if (vk == nullptr) return 0;
-    if (width <= 0 || height <= 0 || mipCount <= 0) return 0;
-
-    const void* pixels = lockDirectPixels(env, pixelData, width, height, "uploadIslandCliffMipChain");
-    if (pixels == nullptr) return 0;
-    const uint32_t id = vk->uploadMipChainTexture(
-        pixels, static_cast<int>(width), static_cast<int>(height), static_cast<int>(mipCount));
-    return static_cast<jint>(id);
-}
-
-/**
- * 查询设备是否支持 ASTC 4×4 纹理压缩（决定 Kotlin 侧是否走 KTX 上传路径）。
- *
- * @return JNI_TRUE = Vulkan 后端且启用 textureCompressionASTC_LDR
- */
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_isAstcSupported(
-    JNIEnv* /*env*/, jobject /*thiz*/) {
-
-    if (!g_renderer) return JNI_FALSE;
-    auto* vk = dynamic_cast<VulkanBackend*>(g_renderer);
-    if (vk == nullptr) return JNI_FALSE;
-    return vk->isAstcSupported() ? JNI_TRUE : JNI_FALSE;
-}
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawRect(

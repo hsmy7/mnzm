@@ -2456,62 +2456,6 @@
       "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2079,\"height\":2176}}",
       "width": 2079,
       "height": 2176
-    },
-    {
-      "drawable": "map_edge_left_1",
-      "source": "宗门地图边缘/边缘1.png",
-      "hash": "5d697c9baa44225e25b6c0ea697d2721",
-      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1176,\"height\":3552}}",
-      "width": 1176,
-      "height": 3552
-    },
-    {
-      "drawable": "map_edge_left_2",
-      "source": "宗门地图边缘/边缘2.png",
-      "hash": "33c1ca91a698682c6511ded755f29fd2",
-      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1120,\"height\":3368}}",
-      "width": 1120,
-      "height": 3368
-    },
-    {
-      "drawable": "map_edge_left_3",
-      "source": "宗门地图边缘/边缘3.png",
-      "hash": "2601ad6843e246aef39f16a1213f3fc5",
-      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1180,\"height\":3552}}",
-      "width": 1180,
-      "height": 3552
-    },
-    {
-      "drawable": "map_edge_bottom_1",
-      "source": "宗门地图边缘/边缘4.png",
-      "hash": "1f710d39a9055fd59b8049939cddc8ea",
-      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":2560,\"height\":1696}}",
-      "width": 2560,
-      "height": 1696
-    },
-    {
-      "drawable": "map_edge_bottom_2",
-      "source": "宗门地图边缘/边缘5.png",
-      "hash": "3b4ce62e2bb42b5a10edf3f6691e7d35",
-      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":2304,\"height\":1888}}",
-      "width": 2304,
-      "height": 1888
-    },
-    {
-      "drawable": "map_edge_corner_bl",
-      "source": "宗门地图边缘/边缘6.png",
-      "hash": "69fef73b5bdbfa2b31f43c8576a0a3ac",
-      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1832,\"height\":2400}}",
-      "width": 1832,
-      "height": 2400
-    },
-    {
-      "drawable": "map_edge_corner_br",
-      "source": "宗门地图边缘/边缘7.png",
-      "hash": "fa818b6e57b057e5d6b396c8ce708541",
-      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1828,\"height\":2396}}",
-      "width": 1828,
-      "height": 2396
     }
   ]
 }

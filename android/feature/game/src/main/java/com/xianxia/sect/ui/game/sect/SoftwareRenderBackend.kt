@@ -117,9 +117,6 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
                 cloudData = cloudData,
                 // 天空渐变配置（渲染侧单一真相源；天气/时间系统改此即可切换天际）
                 skyConfig = host.skyConfig,
-                // 崖壁独立纹理位图集（软渲染路径专用；Vulkan/GLES 走 GPU 纹理）。
-                // null（未加载/全失败）→ 崖壁层整层跳过，不画白
-                cliffTextures = host.islandCliffTextures.bitmaps.value,
                 // 底部岩石位图（地图边缘 v2 软渲染材质；惰性解码一次）
                 rockBitmap = host.softwareRockBitmap
             )

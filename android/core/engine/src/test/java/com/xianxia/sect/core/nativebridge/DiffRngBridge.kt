@@ -141,8 +141,8 @@ object DiffRngBridge {
     external fun nativeRoadOp(opJson: ByteArray): ByteArray
 
     // 浮空岛崖壁布局（地图边缘系统）无桌面对拍通道：合成器为纯头文件
-    // gamecore/map/island_cliff.h，由桌面 GTest island_cliff_test 直接覆盖
-    // （比 JNI 往返更直接）；JNI 装配层（GameCoreBridge.nativeIslandCliffCompose）
+    // gamecore/map/ground_boundary.h，由桌面 GTest ground_boundary_test 直接覆盖
+    // （比 JNI 往返更直接）；JNI 装配层（GameCoreBridge.nativeComposeGroundBoundary）
     // 仅做参数搬运，无算法分支。
 
     // ── 引擎循环 + 看门狗通道（对拍用） ──────

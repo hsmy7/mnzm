@@ -92,7 +92,6 @@ add_executable(game-core-tests
     draw_order_test.cpp
     road_tx_test.cpp
     building_tx_test.cpp
-    island_cliff_test.cpp
     # 地图边缘 v2：弯曲地皮轮廓合成器（ground_boundary.h）——振幅不变式/
     # 可建矩形包含/门楼贴边/三角化/底部共边/掩码/复合布局
     ground_boundary_test.cpp

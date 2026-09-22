@@ -123,7 +123,7 @@ class ResourcePreloader @Inject constructor(
             }
             // ── native-game-core .so 预载 ──
             // 在数据阶段并行 dlopen（早于游戏循环首 tick 的串行关键路径）；
-            // IslandCliff/RoadCompositor 渲染链首次触达也会各自守卫加载，
+            // GroundBoundary/RoadCompositor 渲染链首次触达也会各自守卫加载，
             // ensureLoaded 幂等（后续调用零开销）。
             val nativeLibInit = async(ioDispatcher.dispatcher) {
                 runCatching { com.xianxia.sect.core.nativebridge.GameCoreBridge.ensureLoaded() }

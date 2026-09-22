@@ -29,7 +29,7 @@ const OUT = join(
   'android/feature/game/src/main/res/drawable-nodpi/map_rock_base.png',
 );
 
-// ── 确定性哈希（splitmix32 风格；与引擎 islandCliffHash 无关，纯素材本地）──
+// ── 确定性哈希（splitmix32 风格；素材本地使用，不与引擎 RNG 分区共享）──
 function hash2(x, y, seed) {
   let h = (x * 374761393 + y * 668265263 + seed * 974634211) >>> 0;
   h = (h ^ (h >>> 13)) >>> 0;

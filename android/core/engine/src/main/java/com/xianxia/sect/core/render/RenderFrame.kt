@@ -89,30 +89,6 @@ data class RenderFrame(
      */
     val roadData: IntArray? = null,
 
-    /**
-     * 浮空岛崖壁布局数据 `[texIdx, x, y, w, h, u0, v0, u1, v1, flags] × N`
-     * （世界像素；texIdx = [IslandCliffBridge.TextureIndex] 的纹理下标）。
-     *
-     * 由 [com.xianxia.sect.core.render.IslandCliffBridge.compose] 一次性预计算
-     * （地图尺寸/种子变化时重建；Camera 平移/缩放不重建——本引用稳定）。
-     * 双后端（Vulkan/Canvas）据同一份数据绘制，z 序：天空 → 崖壁 → 地面。
-     * 崖壁走**独立纹理**（单张最大 1180×3552，超出 4096² 图集容量），纹理 ID
-     * 由渲染宿主单独注入（非本帧数据）。
-     * null = 无崖壁（native 通道不可用降级 / 地图尺寸为 0），两端跳过整层。
-     */
-    val islandCliffData: FloatArray? = null,
-
-    /**
-     * 弯曲地皮轮廓复合数据（地图边缘系统 v2，替代崖壁的地皮边界定义）：
-     * 头部 11 float + 折线 N×2 + 逐格掩码 cols×rows + 地皮 mesh + 底部 mesh
-     * （布局见 GroundBoundaryBridge.Header / gamecore/map/ground_boundary.h）。
-     *
-     * 由 [com.xianxia.sect.core.render.GroundBoundaryBridge.compose] 一次性
-     * 预计算（地图尺寸变化时重建；Camera 平移/缩放不重建——本引用稳定）。
-     * 双后端（Vulkan/Canvas）据同一份数据绘制：GPU 走 SceneStore 通道，
-     * Canvas 直接消费折线（Path）+ 掩码 + mesh。z 序：天空 → 底部岩石 → 地皮。
-     * null = 未接线（原生崖壁管线仍工作的过渡态）；S6 移除崖壁后恒非 null。
-     */
     val groundBoundaryData: FloatArray? = null,
 
     /** 建筑数据 [gx, gy, w, h, nameIdx] × N（可选，无建筑时为 null） */

@@ -19,9 +19,8 @@
 //     地面变体 0），由导入方保证同值。
 //   - road mask / 建筑集 / 作物集 / 云实例：Kotlin 侧变更驱动推送
 //     （RenderFrame/RenderCommandBus 既有生产者的引用变化即推送）。
-//   - 崖壁布局：IslandCliffBridge（C++ gamecore::map::island_cliff.h 单一权威
-//     合成器）一次性预计算的稳定布局导入；纹理 ID 表仍走
-//     setIslandCliffTextures 既有端口。
+//   - 弯曲地皮轮廓：GroundBoundaryBridge（C++ gamecore::map/ground_boundary.h
+//     单一权威合成器）一次性预计算的复合数据导入（整存整取）。
 //   - 叠加层状态（R3.3/B11）：选中索引 / 逐建筑拆除标记 / 预览几何（占地框 +
 //     预览精灵），同样变化驱动导入——叠加层的**几何生成**不在本模块，
 //     由 scene_draw.h 按这些状态 + 相机算出（Kotlin 每帧逐 rect 跨线的替代）。
@@ -48,10 +47,6 @@ inline constexpr int kCropStride = 3;
 /// 云实例数据单条步长（[x, y, w, h, spriteIndex, alpha]，
 /// 与 CloudLayerAnimator.CLOUD_DATA_STRIDE / 旧 cloudData 协议同形）
 inline constexpr int kCloudStride = 6;
-
-/// 崖壁布局单条步长（[texIdx, x, y, w, h, u0, v0, u1, v1, flags]，
-/// 与 IslandCliffBridge.PIECE_STRIDE / 旧 cliffData 协议同形）
-inline constexpr int kCliffStride = 10;
 
 /// 弯曲地皮轮廓复合数据最小 float 数（地图边缘系统 v2）：头部 11 + 至少
 /// 3 个折线点 6 float——低于此即非法数据（防御；正常量级 ≈ 7 万）。
@@ -180,24 +175,6 @@ public:
     int cloudCount() const { return cloudCount_; }
     bool hasClouds() const { return cloudCount_ > 0; }
 
-    // ── 崖壁布局 ───────────────────────────────────────────────
-
-    /// 导入崖壁布局（[texIdx,x,y,w,h,u0,v0,u1,v1,flags]×pieceCount，世界像素）。
-    /// 布局为一次性预计算的稳定数据（地图尺寸/种子/纹理掩码变化时重建）。
-    void setCliffLayout(const float* pieces, int pieceCount) {
-        if (pieces == nullptr || pieceCount <= 0) {
-            cliffs_.clear();
-            cliffPieceCount_ = 0;
-            return;
-        }
-        cliffs_.assign(pieces, pieces + static_cast<int64_t>(pieceCount) * kCliffStride);
-        cliffPieceCount_ = pieceCount;
-    }
-
-    const float* cliffsData() const { return cliffs_.data(); }
-    int cliffPieceCount() const { return cliffPieceCount_; }
-    bool hasCliffs() const { return cliffPieceCount_ > 0; }
-
     // ── 弯曲地皮轮廓（地图边缘系统 v2）──────────────────────────
 
     /// 导入轮廓复合数据（头部+折线+掩码+地皮 mesh+底部 mesh，整存整取；
@@ -278,8 +255,6 @@ public:
         cropCount_ = 0;
         clouds_.clear();
         cloudCount_ = 0;
-        cliffs_.clear();
-        cliffPieceCount_ = 0;
         groundBoundary_.clear();
         groundBoundaryFloats_ = 0;
         selectionIndex_ = -1;
@@ -311,8 +286,6 @@ private:
     std::vector<float> clouds_;
     int cloudCount_ = 0;
 
-    std::vector<float> cliffs_;
-    int cliffPieceCount_ = 0;
 
     std::vector<float> groundBoundary_;
     int groundBoundaryFloats_ = 0;

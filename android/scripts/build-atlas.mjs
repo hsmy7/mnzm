@@ -631,9 +631,6 @@ function buildMapSprites() {
   for (const s of LAYOUT.structures) sprites.push({ name: s.key, rect: s.rect });
   for (const c of LAYOUT.clouds) sprites.push({ name: c.name, rect: c.rect });
   for (const r of LAYOUT.roads) sprites.push({ name: r.name, rect: r.rect });
-  // 浮空岛崖壁**不入图集**（2026-09 地图边缘系统）：单张最大 1180×3552 超出
-  // 4096² 容量，走独立纹理——见 scripts/build-edge-ktx.mjs 与
-  // feature/game IslandCliffTextureSet（本文件不再登记任何崖壁精灵）。
   // 瓦片 index 必须等于其精灵索引（渲染器以瓦片值直取 UV 表）——缺 cppName 的占位瓦片
   //（TILE_BUILDING）不在图集内，其 index 由 TILE_UV_MAP 自身覆盖，不参与本断言
   for (const t of LAYOUT.tiles) {

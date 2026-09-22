@@ -325,13 +325,6 @@ object NativeBridge {
     external fun sceneUpdateClouds(cloudData: FloatArray?, cloudCount: Int)
 
     /**
-     * 崖壁布局导入（IslandCliffBridge 一次性预计算的稳定布局；
-     * 地图尺寸/种子/纹理掩码变化时重导）。纹理 ID 表仍走
-     * [setIslandCliffTextures] 既有端口。
-     */
-    external fun sceneSetCliffLayout(cliffData: FloatArray?, pieceCount: Int)
-
-    /**
      * 弯曲地皮轮廓复合数据导入（地图边缘系统 v2；GroundBoundaryBridge
      * 一次性预计算的稳定数据，地图尺寸变化时重导）。
      * 布局 = 头部 11 float + 折线 + 掩码 + 地皮 mesh + 底部 mesh
@@ -456,60 +449,6 @@ object NativeBridge {
         fadeAlpha: Float,
         frameAlpha: Float
     )
-
-    /**
-     * 浮空岛崖壁层绘制（地图边缘系统；z 序：天空 → 崖壁 → 地面）。
-     *
-     * 布局数据 [texIdx, x, y, w, h, u0, v0, u1, v1, flags] × N（世界像素）由
-     * [com.xianxia.sect.core.render.IslandCliffBridge] 一次性预计算
-     * （C++ `gamecore::map::island_cliff.h` 单一权威）；本调用每帧消费同一
-     * 稳定引用——仅做可见性剔除 + 按纹理分批，无逐帧布局重建/分配。
-     *
-     * 崖壁走**独立纹理**（单张最大 1180×3552，超出 4096² 图集容量），纹理 ID
-     * 由 [setIslandCliffTextures] 一次性注入；引用未上传纹理的条目由 C++ 侧跳过
-     * （单张失败降级，非整层消失）。
-     */
-    external fun drawIslandCliffs(cliffData: FloatArray)
-
-    /**
-     * 注入崖壁纹理 ID 表（下标序与
-     * [com.xianxia.sect.core.render.IslandCliffBridge] 的池表一致）。
-     *
-     * 0 = 该张上传失败 → 绘制端跳过引用它的条目。主线程调用（渲染线程随后只读）。
-     */
-    external fun setIslandCliffTextures(textureIds: IntArray)
-
-    /**
-     * 上传单张崖壁压缩纹理（KTX1 封装 ASTC 4×4；**仅 Vulkan**）。
-     *
-     * 三级降级的第一级：本调用返回 0（非 Vulkan / KTX 校验失败 / 设备不支持
-     * ASTC）时调用方回退 [uploadIslandCliffMipChain]，再回退 [uploadTextureDirect]。
-     *
-     * @return 纹理 ID；0 = 失败（调用方回退）
-     */
-    external fun uploadIslandCliffKtx(ktxData: ByteArray): Int
-
-    /**
-     * 上传单张崖壁 RGBA **mip 链**纹理（**仅 Vulkan**；GLES 返回 0）。
-     *
-     * 三级降级的第二级——无 ASTC 支持但后端为 Vulkan 时保留 mip 缩采样质量。
-     *
-     * @param pixelData level-major 紧凑 RGBA8 direct 缓冲区（首级 = width×height）
-     * @return 纹理 ID；0 = 非 Vulkan 后端 / direct 缓冲区非法（调用方回退单级）
-     */
-    external fun uploadIslandCliffMipChain(
-        pixelData: java.nio.ByteBuffer,
-        width: Int,
-        height: Int,
-        mipCount: Int
-    ): Int
-
-    /**
-     * 设备是否支持 ASTC 4×4 压缩纹理（决定崖壁纹理是否走 KTX 上传路径）。
-     *
-     * @return true = Vulkan 后端且启用 textureCompressionASTC_LDR
-     */
-    external fun isAstcSupported(): Boolean
 
     /** 绘制纯色矩形（网格线/放置预览） */
     // LongParameterList 豁免：签名由 NativeBridge.cpp JNI 绑定逐位固定（顶点格式 ABI），

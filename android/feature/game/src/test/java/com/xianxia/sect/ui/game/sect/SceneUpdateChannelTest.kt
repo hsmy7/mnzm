@@ -53,10 +53,6 @@ class SceneUpdateChannelTest {
             calls += "clouds"
         }
 
-        override fun setCliffLayout(data: FloatArray?, pieceCount: Int) {
-            calls += "cliffs"
-        }
-
         override fun setGroundBoundary(data: FloatArray?) {
             calls += "boundary"
         }
@@ -94,8 +90,6 @@ class SceneUpdateChannelTest {
     private lateinit var altRoadArr: IntArray
     private lateinit var cloudArr: FloatArray
     private lateinit var altCloudArr: FloatArray
-    private lateinit var cliffArr: FloatArray
-    private lateinit var altCliffArr: FloatArray
     private lateinit var boundaryArr: FloatArray
     private lateinit var altBoundaryArr: FloatArray
     private lateinit var markerArr: ByteArray
@@ -116,8 +110,6 @@ class SceneUpdateChannelTest {
         altRoadArr = IntArray(16)
         cloudArr = floatArrayOf(10f, 20f, 30f, 40f, 0f, 0.8f)
         altCloudArr = floatArrayOf(11f, 20f, 30f, 40f, 0f, 0.8f)
-        cliffArr = FloatArray(10)
-        altCliffArr = FloatArray(10) { 1f }
         boundaryArr = FloatArray(32)
         altBoundaryArr = FloatArray(32) { 1f }
         markerArr = byteArrayOf(DemolishHighlightMark.GREEN.toByte())
@@ -132,7 +124,6 @@ class SceneUpdateChannelTest {
         tiles: IntArray = tileData,
         crops: FloatArray? = cropArr,
         roads: IntArray? = roadArr,
-        cliffs: FloatArray? = cliffArr,
         groundBoundary: FloatArray? = boundaryArr,
         markers: ByteArray? = markerArr,
         selection: Int = -1,
@@ -143,7 +134,6 @@ class SceneUpdateChannelTest {
         cols = 4,
         rows = 4,
         roadData = roads,
-        islandCliffData = cliffs,
         groundBoundaryData = groundBoundary,
         buildingData = buildingData,
         buildingCount = if (buildingData == null) 0 else 2,
@@ -174,15 +164,15 @@ class SceneUpdateChannelTest {
     fun `first frame - every populated channel is imported once in protocol order`() {
         val calls = channel.push(inputs())
 
-        assertEquals(11, calls)
+        assertEquals(10, calls)
         assertEquals(
             listOf(
-                "terrain", "buildings", "crops", "roads", "clouds", "cliffs",
+                "terrain", "buildings", "crops", "roads", "clouds",
                 "boundary", "atlas", "selection", "markers", "preview"
             ),
             sink.calls
         )
-        assertEquals("遥测计数与实际触线一致", 11L, RenderMetrics.sceneUpdatePushes.get())
+        assertEquals("遥测计数与实际触线一致", 10L, RenderMetrics.sceneUpdatePushes.get())
     }
 
     @Test
@@ -195,7 +185,7 @@ class SceneUpdateChannelTest {
         assertEquals(0, channel.push(inputs()))
         assertEquals("重复构造的同值输入同样零跨线", 0, channel.push(inputs()))
         assertTrue(sink.calls.isEmpty())
-        assertEquals(11L, RenderMetrics.sceneUpdatePushes.get())
+        assertEquals(10L, RenderMetrics.sceneUpdatePushes.get())
     }
 
     @Test
@@ -218,14 +208,13 @@ class SceneUpdateChannelTest {
             "crops" to inputs(f = frame(crops = altCropArr)),
             "roads" to inputs(f = frame(roads = altRoadArr)),
             "clouds" to inputs(cloudData = altCloudArr),
-            "cliffs" to inputs(f = frame(cliffs = altCliffArr)),
             "boundary" to inputs(f = frame(groundBoundary = altBoundaryArr)),
             "atlas" to inputs(atlasTextureId = 43),
             "selection" to inputs(f = frame(selection = 1)),
             "markers" to inputs(f = frame(markers = altMarkerArr)),
             "preview" to inputs(f = frame(previewBoxX = 300f))
         )
-        assertEquals("用例表须覆盖十一路", 11, changes.size)
+        assertEquals("用例表须覆盖十路", 10, changes.size)
         for ((port, next) in changes) {
             // 每例独立通道：先建立全量基线，再只改一路——避免用例间基线串扰
             val localSink = CountingSink()
@@ -238,7 +227,7 @@ class SceneUpdateChannelTest {
             assertEquals("$port 变化后同帧零跨线", 0, localChannel.push(next))
         }
         assertTrue(
-            "遥测计数随十一路触线累加",
+            "遥测计数随十路触线累加",
             RenderMetrics.sceneUpdatePushes.get() >= 10L
         )
     }
@@ -272,7 +261,7 @@ class SceneUpdateChannelTest {
     @Test
     fun `empty channels do not re-push every frame`() {
         val emptyFrame = frame(
-            crops = null, roads = null, cliffs = null, groundBoundary = null,
+            crops = null, roads = null, groundBoundary = null,
             markers = null, buildingData = null
         )
         val first = channel.push(
@@ -323,7 +312,7 @@ class SceneUpdateChannelTest {
      * 当前路径 = 帧固定端口（beginFrame + drawSky + drawFrame + submitFrame）
      * + [SceneUpdateChannel.push] 返回值（本测试实测）；
      * 旧路径（B18 已删除的回滚臂，此处保留为**冻结对照基线**）= 帧固定端口
-     * + setFadeAlpha + drawIslandCliffs + drawAllTiles + drawSprite
+     * + setFadeAlpha + 旧崖壁层 + drawAllTiles + drawSprite（崖壁层随地图边缘 v2 退役）
      * + 逐 rect（占地框 5 + 选中 5 + 拆除逐建筑 + 网格线根数）。
      * 网格线根数按真实地图（128×128 格）+ 1080×1920 视口 + 整岛缩放档
      * = (128+1)×2 = 258（与方案 §1 病灶计数同口径）。
@@ -348,7 +337,7 @@ class SceneUpdateChannelTest {
         val gridLines = (WORLD_CELLS + 1) * 2
         val demolishRects = 5 + 1 + 1  // 一栋红（填充+四边）+ 两栋绿填充
         // 旧路径（B18 已删除）固定端口 = beginFrame/drawSky/submitFrame +
-        // setFadeAlpha/drawIslandCliffs/drawAllTiles（无 drawFrame——旧路径逐层各自跨线）
+        // setFadeAlpha/旧崖壁层/drawAllTiles（无 drawFrame——旧路径逐层各自跨线）
         val legacyFrame = LEGACY_FIXED_PORTS_FROZEN + 1 +
             PREVIEW_BOX_RECTS + SELECTION_RECTS + demolishRects + gridLines
         assertTrue("旧路径同帧应处于数百量级（实测口径=$legacyFrame）", legacyFrame > 250)
@@ -366,7 +355,7 @@ class SceneUpdateChannelTest {
         const val FIXED_PATH_PORTS = 4
 
         /** B18 前旧路径每帧固定端口：beginFrame / drawSky / submitFrame +
-         *  setFadeAlpha / drawIslandCliffs / drawAllTiles（回滚臂已删除，
+         *  setFadeAlpha / 旧崖壁层 / drawAllTiles（回滚臂已删除，
          *  此值作为对照基线冻结——使"当前路径 < 目标"与"旧路径数百量级"
          *  两个陈述可同帧比较） */
         const val LEGACY_FIXED_PORTS_FROZEN = 6
