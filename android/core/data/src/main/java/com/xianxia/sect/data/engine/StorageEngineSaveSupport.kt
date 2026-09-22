@@ -160,7 +160,7 @@ internal suspend fun StorageEngine.handleSaveResult(
     } else {
         Log.e(TAG, "保存失败（${storageConfig.maxRetryCount}次重试），尝试恢复 slot=$slot")
         try {
-            val rr = saveFileManager.readWithFallback(slot)
+            val rr = saveFileManager.readWithFallback(slot, readOnly = !writesLocalSaveFiles)
             if (rr.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
                 rr.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
                 Log.w(TAG, "从备份恢复数据成功 slot=$slot")
@@ -189,6 +189,10 @@ internal suspend fun StorageEngine.handleSaveResult(
 @Suppress("TooGenericExceptionCaught", "ReturnCount") // 三种降级各自 early-return 原因串，为守卫风格
 private suspend fun StorageEngine.writeFileMirrorAndBackup(slot: Int, data: SaveData): String? {
     if (!storageConfig.autoBackupOnSave) return null
+    // SR-7 文件层退役：CLOUD_ONLY 下本地不再有玩家可见存档（D2），Room 是可丢弃会话缓存
+    //（D1）⇒ .sav 镜像与 .bak 轮转整体停写。返回 null = 无降级（不是失败），
+    // 因为该模式下"没写文件"就是正确终态，不得经 postSaveWarning 报成保存异常。
+    if (!writesLocalSaveFiles) return null
     _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
     return try {
         val br = saveFileManager.atomicWrite(slot, data)

@@ -214,9 +214,13 @@ class SaveFileManager @Inject constructor(
      * 3. .sav 损坏 → 试 .bak → CRC32C 校验
      * 4. .bak 有效 → 返回 RECOVERED
      * 5. 都损坏 → 返回 CORRUPTED
+     *
+     * @param readOnly SR-7 文件层退役判据：`CLOUD_ONLY` 下旧 `.sav` 只是**只读应急源**，
+     *   置 true 时跳过"用 `.bak` 覆盖 `.sav`"的修复性写回（本方法内唯一的写点），
+     *   其余读/校验/回退语义逐字不变。
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun readWithFallback(slot: Int): BackupReadResult {
+    fun readWithFallback(slot: Int, readOnly: Boolean = false): BackupReadResult {
         ensureInitialized()
         if (!isValidSlot(slot)) {
             return BackupReadResult(BackupStatus.CORRUPTED, null, "none")
@@ -241,12 +245,15 @@ class SaveFileManager @Inject constructor(
                 // 恢复后修复 .sav（用 .bak 覆盖 .sav）
                 // 修复 .sav 失败必须如实反映：.sav 保持损坏时读取将持续回退 .bak，
                 // 调用方需通过 repairFailed 感知
+                // readOnly（CLOUD_ONLY 应急源）⇒ 不写回：数据照旧返回，文件保持原样
                 var repairFailed = false
-                try {
-                    bakFile.copyTo(savFile, overwrite = true)
-                } catch (e: Exception) {
-                    repairFailed = true
-                    Log.e(TAG, "修复 .sav 失败 slot=$slot——将持续回退 .bak 直至下次成功保存", e)
+                if (!readOnly) {
+                    try {
+                        bakFile.copyTo(savFile, overwrite = true)
+                    } catch (e: Exception) {
+                        repairFailed = true
+                        Log.e(TAG, "修复 .sav 失败 slot=$slot——将持续回退 .bak 直至下次成功保存", e)
+                    }
                 }
                 return BackupReadResult(BackupStatus.RECOVERED, bakPayload, "bak", repairFailed)
             }

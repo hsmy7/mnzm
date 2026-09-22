@@ -51,3 +51,16 @@ class SaveBackendModeProvider @Inject constructor(private val store: KeyValueSto
  * （参照 shouldAutoSave 先例（SR-4 更名，月变与 onStop 共用））。LEGACY 短路 = 默认全链零新增行为。
  */
 fun shouldEnqueueCloudUpload(mode: SaveBackendMode): Boolean = mode != SaveBackendMode.LEGACY
+
+/**
+ * 本地存档文件层（`.sav` / `.bak` / `.tmp` / tombstone）是否仍写入——SR-7 的文件层退役判据。
+ *
+ * 纯函数（零依赖、JVM 可直测，同 [shouldEnqueueCloudUpload] 先例）。三态语义：
+ * - `LEGACY` / `CLOUD_TRANSITION` ⇒ **true**：D5 明令轮转备份"在过渡期继续保护玩家"，
+ *   今天全部设备的模式恒为 LEGACY ⇒ 本批零行为变化；
+ * - `CLOUD_ONLY` ⇒ **false**：云档是唯一玩家可见存档（D2），本地 Room 是可丢弃会话缓存（D1），
+ *   旧 `.sav` 降级为**只读应急源**（读侧不受本判据限制，但不得再被修复性写回）。
+ *
+ * 判据只关"写"，不关"读"与"清理"：应急读与过期文件清理（N 版保留）在 CLOUD_ONLY 下继续有效。
+ */
+fun shouldWriteLocalSaveFile(mode: SaveBackendMode): Boolean = mode != SaveBackendMode.CLOUD_ONLY

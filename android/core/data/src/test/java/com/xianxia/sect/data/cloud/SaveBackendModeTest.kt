@@ -49,6 +49,20 @@ class SaveBackendModeTest {
     }
 
     @Test
+    fun `文件层写侧门控纯函数——仅 CLOUD_ONLY 停写（SR-7 硬红线）`() {
+        // LEGACY / CLOUD_TRANSITION 必须恒 true：今天全部设备跑 LEGACY，而 D5 明令
+        // .bak 轮转"在过渡期继续保护玩家"⇒ 任一模式判 false 都是当场抽掉兜底
+        assertTrue(shouldWriteLocalSaveFile(SaveBackendMode.LEGACY))
+        assertTrue(shouldWriteLocalSaveFile(SaveBackendMode.CLOUD_TRANSITION))
+        assertFalse(shouldWriteLocalSaveFile(SaveBackendMode.CLOUD_ONLY))
+        // 三态穷尽（新增第四态时本断言变红，逼作者显式表态文件层归属）
+        assertEquals(
+            2,
+            SaveBackendMode.values().count { shouldWriteLocalSaveFile(it) }
+        )
+    }
+
+    @Test
     fun `IN3 - core data 测试 classpath 无 TapTap SDK 类型（存储层结构性隔离守卫）`() {
         // core:data 的 build 依赖不含 tap-cloudsave/xdsdk——若未来有人把 SDK 依赖
         // 引入存储层，此处 Class.forName 将成功并立即红灯（IN3 静态守卫第二层，

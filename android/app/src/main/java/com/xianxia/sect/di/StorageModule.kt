@@ -102,6 +102,7 @@ object StorageModule {
         infra: StorageInfraFacade,
         maintenanceFacade: StorageMaintenanceFacade,
         saveFileManager: com.xianxia.sect.data.backup.SaveFileManager,
+        saveBackendModeProvider: com.xianxia.sect.data.cloud.SaveBackendModeProvider,
         serializationModule: com.xianxia.sect.data.serialization.unified.SerializationModule,
         storageConfig: com.xianxia.sect.data.config.StorageConfig
     ): StorageEngine {
@@ -112,6 +113,7 @@ object StorageModule {
             infra = infra,
             maintenanceFacade = maintenanceFacade,
             saveFileManager = saveFileManager,
+            saveBackendModeProvider = saveBackendModeProvider,
             serializationModule = serializationModule,
             storageConfig = storageConfig
         )

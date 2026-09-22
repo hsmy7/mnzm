@@ -6,6 +6,8 @@ import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.archive.DataArchiver
 import com.xianxia.sect.data.backup.SaveFileManager
+import com.xianxia.sect.data.cloud.SaveBackendModeProvider
+import com.xianxia.sect.data.cloud.shouldWriteLocalSaveFile
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.data.migration.SaveDataVersionMigrator
@@ -76,6 +78,7 @@ class StorageEngine @Inject constructor(
     internal val infra: StorageInfraFacade,
     internal val maintenanceFacade: StorageMaintenanceFacade,
     internal val saveFileManager: SaveFileManager,
+    internal val saveBackendModeProvider: SaveBackendModeProvider,
     internal val serializationModule: SerializationModule,
     internal val storageConfig: StorageConfig
 ) {
@@ -114,6 +117,16 @@ class StorageEngine @Inject constructor(
     }
 
     internal val scope get() = infra.scopeProvider.ioScope
+
+    /**
+     * SR-7 文件层退役判据在当前模式下的读数：`CLOUD_ONLY` ⇒ false（本地 `.sav`/`.bak`/
+     * tombstone 停写，旧 `.sav` 只剩**只读应急源**一职）。
+     *
+     * 每次现读不缓存：模式由玩家在迁移卡上确认后升档（SR-6），缓存会把"已升档但本会话
+     * 仍写文件"或反之变成静默不一致。LEGACY / CLOUD_TRANSITION 恒 true ⇒ 默认零行为变化。
+     */
+    internal val writesLocalSaveFiles: Boolean
+        get() = shouldWriteLocalSaveFile(saveBackendModeProvider.current())
 
     // progress 发布通道(StorageEngineSaveSupport/LoadOps 跨文件推进)
     @Suppress("VariableNaming")
@@ -336,8 +349,10 @@ class StorageEngine @Inject constructor(
                 return null
             }
             // readWithFallback 必须在 try 内：SaveFileManager 未初始化时抛
-            // IllegalStateException，未初始化应降级为"无数据"而非上抛成 LOAD_FAILED
-            val readResult = saveFileManager.readWithFallback(slot)
+            // IllegalStateException，未初始化应降级为"无数据"而非上抛成 LOAD_FAILED。
+            // SR-7：CLOUD_ONLY 下旧 .sav 只是**只读**应急源 ⇒ 传 readOnly，
+            // 跳过"用 .bak 覆盖 .sav"的修复性写回（读到的数据与恢复流程逐字不变）。
+            val readResult = saveFileManager.readWithFallback(slot, readOnly = !writesLocalSaveFiles)
             if (readResult.status != com.xianxia.sect.data.backup.BackupStatus.SUCCESS &&
                 readResult.status != com.xianxia.sect.data.backup.BackupStatus.RECOVERED
             ) {
@@ -418,8 +433,12 @@ class StorageEngine @Inject constructor(
                 clearCacheForSlot(slot)
 
                 // 先写删除 tombstone——DB 事务与文件删除之间崩溃时，
-                // load 见 tombstone 即返回空档，不会从残留 .sav 复活已删存档
-                saveFileManager.markSlotDeleted(slot)
+                // load 见 tombstone 即返回空档，不会从残留 .sav 复活已删存档。
+                // SR-7 门控：CLOUD_ONLY 下不再**新建** tombstone（它是文件层的写），
+                // 但下面的 deleteSlot / clearSlotDeleted 仍照常执行——它们是删除动作，
+                // 目的是清掉升档前遗留的 .sav/.bak/.deleted；遗留文件不删会在日后
+                // DB 损坏时被 restoreFromBackup 当应急源复活，等于"删掉的档又回来"。
+                if (writesLocalSaveFiles) saveFileManager.markSlotDeleted(slot)
 
                 // 全表清理与 tombstone 路径**共用同一实现**（审计 §12-K：两处清单漂移
                 // 会让 tombstone 路径残留 27 表行）

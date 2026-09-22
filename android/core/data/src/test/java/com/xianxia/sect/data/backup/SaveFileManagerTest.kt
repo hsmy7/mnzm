@@ -83,6 +83,48 @@ class SaveFileManagerTest {
         assertEquals("来源为 bak", "bak", result.source)
     }
 
+    /**
+     * SR-7 文件层退役：`CLOUD_ONLY` 下旧 `.sav` 是**只读**应急源——
+     * `readOnly = true` 必须跳过"用 `.bak` 覆盖 `.sav`"的修复性写回，
+     * 且读到的数据与非只读路径逐字节一致（退役只关写、不关读）。
+     *
+     * 尾段是**对照面**：同一路径在默认（非只读）下必须真的写回，
+     * 否则"未写回"断言可能在空转（先例纪律：守卫须能自证判别力）。
+     */
+    @Test
+    fun `readOnly bak recovery leaves sav untouched`() {
+        val slot = 6
+        val payload = "primary-data".encodeToByteArray()
+        val bakPayload = "backup-data".encodeToByteArray()
+        writeValidSavFile(slot, payload)
+        writeValidBakFile(slot, bakPayload)
+        val savFile = getSavFile(slot)
+        val corrupted = savFile.readBytes()
+        corrupted[16] = (corrupted[16].toInt() xor 0xFF).toByte()
+        savFile.writeBytes(corrupted)
+        val savBytesBefore = savFile.readBytes()
+
+        val result = manager.readWithFallback(slot, readOnly = true)
+        assertEquals("RECOVERED 状态", BackupStatus.RECOVERED, result.status)
+        assertArrayEquals("只读路径仍返回 bak 数据", bakPayload, result.payload)
+        assertFalse("只读不得把未尝试的写回报成修复失败", result.repairFailed)
+        assertArrayEquals(
+            "CLOUD_ONLY 下 .sav 必须逐字节原样（应急源只读，不被 .bak 写回）",
+            savBytesBefore,
+            savFile.readBytes()
+        )
+
+        // 对照面：默认非只读 ⇒ 必须写回（同夹具同破坏，唯一差异是 readOnly）
+        val writable = manager.readWithFallback(slot)
+        assertEquals("对照：非只读同样 RECOVERED", BackupStatus.RECOVERED, writable.status)
+        assertFalse("对照：非只读的写回成功", writable.repairFailed)
+        assertFalse(
+            "对照面失效——非只读也没写回，则上面的只读断言是空转",
+            savBytesBefore.contentEquals(savFile.readBytes())
+        )
+        assertEquals("对照：写回后 .sav 自身即合法档", BackupStatus.SUCCESS, manager.readWithFallback(slot).status)
+    }
+
     @Test
     fun `both files corrupted returns CORRUPTED`() {
         val slot = 3
