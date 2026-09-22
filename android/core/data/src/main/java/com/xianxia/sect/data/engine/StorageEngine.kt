@@ -557,19 +557,23 @@ class StorageEngine @Inject constructor(
     fun startMaintenance() {
         maintenanceFacade.startMaintenance()
         // ── WAL 恢复：扫描未完成事务（崩溃残留），仅记录日志供监控 ──
-        scope.launch {
-            try {
-                val result = core.wal.recover()
-                if (result.failedSlots.isNotEmpty()) {
-                    Log.w(TAG, "WAL recovery: failedSlots=${result.failedSlots}, errors=${result.errors}")
-                } else if (result.recoveredSlots.isNotEmpty()) {
-                    Log.i(TAG, "WAL recovery: recoveredSlots=${result.recoveredSlots}")
-                } else {
-                    Log.i(TAG, "WAL recovery: clean (no incomplete transactions)")
+        // SR-7：CLOUD_ONLY 下不开 WAL ⇒ 无残留可扫，扫描本身会创建 wal_v4 目录（文件层写），
+        // 故一并门控。shutdown 不门控：拆除路径必须无条件跑，覆盖"会话中途升档"的残留句柄。
+        if (writesLocalSaveFiles) {
+            scope.launch {
+                try {
+                    val result = core.wal.recover()
+                    if (result.failedSlots.isNotEmpty()) {
+                        Log.w(TAG, "WAL recovery: failedSlots=${result.failedSlots}, errors=${result.errors}")
+                    } else if (result.recoveredSlots.isNotEmpty()) {
+                        Log.i(TAG, "WAL recovery: recoveredSlots=${result.recoveredSlots}")
+                    } else {
+                        Log.i(TAG, "WAL recovery: clean (no incomplete transactions)")
+                    }
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    Log.e(TAG, "WAL recovery failed", e)
                 }
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                Log.e(TAG, "WAL recovery failed", e)
             }
         }
         Log.i(TAG, "Storage maintenance started")
@@ -600,15 +604,20 @@ class StorageEngine @Inject constructor(
             return StorageResult.failure(StorageError.OUT_OF_MEMORY, "内存不足（${availableMemoryMB()}MB），保存被拒绝")
         }
 
-        // ── WAL 事务开始 ──
+        // ── WAL 事务开始（SR-7 文件层退役判据：CLOUD_ONLY 下不开文件型事务日志）──
+        // 门控只关"开事务"这一入口：txnId 保持 null ⇒ 既有 commit/abort 路径的
+        // null 守卫自动把后续全部变成 no-op（abortWalQuietly / abortWalSyncQuietly /
+        // if (txnId != null) commit），无需在四处各加一次判断。
         var txnId: Long? = null
-        try {
-            val result = core.wal.beginTransaction(slot, com.xianxia.sect.data.wal.WALEntryType.DATA)
-            if (result.isSuccess) txnId = result.getOrNull()
-        } catch (e: CancellationException) {
-            throw e // 取消穿透: 取消时不再进入后续 DB 事务, WAL 无事务需回滚
-        } catch (e: Exception) {
-            Log.w(TAG, "WAL beginTransaction 失败（非阻断）", e)
+        if (writesLocalSaveFiles) {
+            try {
+                val result = core.wal.beginTransaction(slot, com.xianxia.sect.data.wal.WALEntryType.DATA)
+                if (result.isSuccess) txnId = result.getOrNull()
+            } catch (e: CancellationException) {
+                throw e // 取消穿透: 取消时不再进入后续 DB 事务, WAL 无事务需回滚
+            } catch (e: Exception) {
+                Log.w(TAG, "WAL beginTransaction 失败（非阻断）", e)
+            }
         }
 
         try {
