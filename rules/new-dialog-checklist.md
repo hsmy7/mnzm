@@ -45,7 +45,7 @@ is DialogType.MyNewDialog -> {
 - [ ] 使用了 `UnifiedGameDialog(mode = Half/Full/Auto)` 容器（自带 `DialogSystemBarGuard` + `DialogSoftInputGuard` + 60% 遮罩）
 - [ ] 聊天/对话类使用了 `UnifiedGameDialog(mode = Full)`（chat-dialog-design.md）
 - [ ] 精灵图已在 SpriteResRegistry 注册
-- [ ] 实时数据：焦点域已移除（CLAUDE.md 6.5），需要实时数据的界面在 ViewModel 中订阅 engine StateFlow 派生，不注册任何焦点域
+- [ ] 实时数据：焦点域已移除（AGENTS.md 6.5），需要实时数据的界面在 ViewModel 中订阅 engine StateFlow 派生，不注册任何焦点域
 - [ ] 点击屏幕外可关闭：`onDismissRequest` 已设置，非阻塞交互不得阻止点外关闭
 
 ## 活动/排行/社交类界面分组（2026-08-04 起，扩展预留）
@@ -72,7 +72,7 @@ is DialogType.MyNewDialog -> {
 
 ### 通用（含网络数据的界面）
 
-- [ ] 数据走 ViewModel StateFlow + 错误走 `BaseViewModel.showError()`（CLAUDE.md 8.3）
+- [ ] 数据走 ViewModel StateFlow + 错误走 `BaseViewModel.showError()`（AGENTS.md 8.3）
 - [ ] **禁止在 Composable 内直接发网络请求**（网络层在 UseCase/Facade，UI 只订阅状态）
 
 ## 原理

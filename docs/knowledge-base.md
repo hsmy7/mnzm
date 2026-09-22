@@ -1,7 +1,7 @@
 # 项目知识库
 
 > 本文档包含了项目的技术栈、关键类说明、核心子系统的设计参考。
-> 架构设计详见 [architecture.md](architecture.md)，编码规范详见 [CLAUDE.md](../CLAUDE.md)。
+> 架构设计详见 [architecture.md](architecture.md)，编码规范与任务路由表详见 [AGENTS.md](../AGENTS.md)。
 
 ---
 
@@ -41,7 +41,7 @@
 | `RenderCommandBus` 双通道 | `feature/game/.../sect/` | 帧数据覆盖槽 + RenderCommand 命令 FIFO（SPSC 无锁环形缓冲）；`RenderCommand`/`ResourceHandle` 契约在 `core/engine/.../core/render/` |
 | `JitterSmoother` | `core/engine/.../loop/` | 插值因子 EWMA 平滑（对标 Godot physics_jitter_fix；仅渲染契约，确定性守卫锁定） |
 | `GameSystemRegistry` / `GameSystemRegistryDefaults` | `core/engine/.../registry/` | @GameService 静态注册中心（39 系统；守卫测试锚） |
-| 资源管线 codegen | `android/scripts/resource-manifest.mjs` + `build-atlas.mjs` | 扫描 drawable-nodpi → atlas-manifest.json + 三产物（SpriteRegistryData/SpriteAtlasDef/TextureAtlas.h）+ `sprite-uid-map.json` 持久 UID；生成物 build/generated 不入库 |
+| 资源管线 codegen | `android/scripts/resource-manifest.mjs` + `build-atlas.mjs` | 扫描 drawable-nodpi → atlas-manifest.json + 三产物（SpriteRegistryData/SpriteAtlasDef/TextureAtlas.h）+ `android/scripts/sprite-uid-map.json` 持久 UID；生成物 build/generated 不入库 |
 
 ## C++ 引擎同步通道关键类（计划 v2 阶段 1-3，2026-08-26）
 
@@ -119,7 +119,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 **分配流程：** `releaseDiscipleFromAllSlotsAtomic(discipleId)` → `stateStore.update{}` → `gate.confirmAssign(discipleId, slotRef)`
 
-> **编码注意事项：** 新增 `SlotCategory` 枚举值后需更新 4 处（`SlotCategoryCoverageTest` 会失败并列出具体指引）：`scanAndRegister` + `DiscipleSlotCleanup.clearAllSlots` + 分配入口 `releaseDiscipleFromAllSlotsAtomic` + `confirmAssign`。
+> **编码注意事项：** 新增 `SlotCategory` 枚举值后需更新 **8 处**（权威清单见 `SlotCategoryCoverageTest` 类注释，守卫测试会失败并列出具体指引）：`scanAndRegister` + `DiscipleSlotCleanup.clearAllSlots` + 分配入口（事务内 `clearAllSlotsDataOnly` + 事务外 `releaseDiscipleFromAllSlotsAtomic`/`confirmAssign` + 旧 occupant release/sync）+ 守卫测试检查集合与 `entriesRequiringCleanup` + `DiscipleStatusService.buildSlotFlagsFor`/`SlotFlags` + `clearSlotsForReset` + `GameEngineSelfHealOps` 自愈扫描/重写 + `intentionalExcluded` 声明。详见 `docs/disciple-assignment-architecture.md`。
 
 ---
 

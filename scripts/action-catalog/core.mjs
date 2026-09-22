@@ -256,7 +256,7 @@ export const CATALOG = [
   // ── 政策开关事务（batch-18b——追加 government.h；政策置位/首月扣费/
   //    激活计数/修炼速率 checkpoint，零 RNG；生产类政策（丹道激励/锻造激励/
   //    灵药培育/灵泉灌溉）经回执标记由 Kotlin 臂触发 checkpointAllProduction
-  //    ——CLAUDE.md 6.4/13.3 红线，生产槽位真源在 Kotlin 侧）──
+  //    ——AGENTS.md 6.4/13.3 红线，生产槽位真源在 Kotlin 侧）──
   { id: 1680, name: 'GOV_POLICY_TOGGLE_TX', desc: '政策开关（可负担校验+首月扣费+置位+激活计数+修炼 checkpoint，零 RNG）' },
   { id: 1681, name: 'GOV_OPEN_RECRUITMENT_TOGGLE_TX', desc: '广纳门徒开关（固定费用+付费月戳+激活计数，零 RNG）' },
   { id: 1682, name: 'GOV_SPIRIT_MINE_BOOST_TOGGLE_TX', desc: '灵矿增产开关（免费+激活计数+灵矿结算月戳，零 RNG）' },

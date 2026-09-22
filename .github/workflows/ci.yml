@@ -113,6 +113,23 @@ jobs:
       - name: JNI count gate
         run: node scripts/check-jni-count.mjs
 
+  # ── 规范分发架构门禁 ──────────────────────────────────────────────
+  # 保证「agent 能读到规范」这条链路不腐化：① 根 AGENTS.md 不超 Codex 的
+  # project_doc_max_bytes 上限（超限即静默截断，尾部规范失效）；② 规范不出现第二份
+  # 副本（CLAUDE.md 若被重新引入必须只是指针）；③ 路由闭包内的引用不扑空；
+  # ④ 每个模块级 AGENTS.md 都在根路由表登记。
+  # 设计说明见根 AGENTS.md 头部与 scripts/check-agent-instructions.mjs。
+  agent-instructions-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Agent instruction architecture gate
+        run: node scripts/check-agent-instructions.mjs
+
   build:
     runs-on: ubuntu-latest
     defaults:

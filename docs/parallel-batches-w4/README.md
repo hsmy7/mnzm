@@ -201,7 +201,7 @@
 | 7 | **worktree 建立/清理脚本** | 新增 `scripts/w4/setup-worktrees.ps1`（幂等：三分支 + 三工作树 + `core.quotepath false` + 复制 `android/local.properties`）与 `scripts/w4/remove-worktrees.ps1` | 🔴 清理脚本**先探测 reparse point**，junction/符号链接一律 `cmd /c rmdir`——**禁止 `Remove-Item -Recurse`** | ✅ **已完成** |
 | 8 | **协议面租约表** | 新增 `docs/parallel-batches-w4/protocol-lease.md` | 登记 `models.h` / `json_codec.cpp` / `game_core.{h,cpp}` / `GameData.kt` / `GameDatabase.kt` / `GameEngine.kt` 的默认所有者与租约顺序（§5.4） | ✅ **已完成** |
 | 9 | **文档小节预分配** | 本 README §4.6 + handover §2.61/§2.62/§2.63/§2.64/§2.65 | 三批只在**自己的**预分配小节内追加；§3 表 / §4.1 / §5 / §6 / `ui-read-surface` / 双 CHANGELOG = **收口人独占** | ✅ **已完成**（§2.61 已落） |
-| 10 | **基线打点与备份** | `git tag w4-base` + `git bundle create`（落盘到仓库外 `C:\Mnzm\backups\`） | 🔴 本仓 `.git` 对象库**曾两次被破坏且历史不可恢复** ⇒ 每批每个里程碑必须 tag + bundle | ✅ **已完成**（`w4-base` → `d4cad20`；bundle 346MB，`verify` = "records a complete history / is okay"）。⚠️ **连带发现并已根治**：仓库原处**半打包损坏态**（3 个悬空 `archive/*` tag / 孤儿 pack 索引 / 截断临时 pack / 坏 reflog / 4590 个松散对象且 `packs: 0`）⇒ 已由 **[§2.66 仓库对象库整理批](../../cpp-migration-handover-m0.md)** 清偿：`git fsck` **6 error + 2 warning → 0 + 0**，松散对象 **4590 → 70**（保留悬空对象）、`in-pack 4520`、`packs 1`、`garbage 0`，且 **`git bundle create --all` 恢复可用** |
+| 10 | **基线打点与备份** | `git tag w4-base` + `git bundle create`（落盘到仓库外 `C:\Mnzm\backups\`） | 🔴 本仓 `.git` 对象库**曾两次被破坏且历史不可恢复** ⇒ 每批每个里程碑必须 tag + bundle | ✅ **已完成**（`w4-base` → `d4cad20`；bundle 346MB，`verify` = "records a complete history / is okay"）。⚠️ **连带发现并已根治**：仓库原处**半打包损坏态**（3 个悬空 `archive/*` tag / 孤儿 pack 索引 / 截断临时 pack / 坏 reflog / 4590 个松散对象且 `packs: 0`）⇒ 已由 **[§2.66 仓库对象库整理批](../cpp-migration-handover-m0.md)** 清偿：`git fsck` **6 error + 2 warning → 0 + 0**，松散对象 **4590 → 70**（保留悬空对象）、`in-pack 4520`、`packs 1`、`garbage 0`，且 **`git bundle create --all` 恢复可用** |
 | 11 | **分派覆盖守卫测试** | 生成器在 `action_ids.h` 追加升序枚举数组 `action::kAllActionIds` + `kAllActionIdsCount`；新增 `test/dispatch_guard_test.cpp`（4 用例）：清单非空 / 升序且唯一 / **每个已注册动作号分派可达且落到本域 handler** / 未注册号仍返回 `NOT_IMPLEMENTED` | 首跑即抓出 **2 处真实死导出**（见下）——正是"区间写法吞动作号"缺陷类 | ✅ **已完成（首跑抓出 2 处死导出并根因修复）** |
 
 > **项 11 首跑战绩（本前置批的直接产出）**：`INV_ADD_EQUIPMENT_INSTANCE(1011)` 与
@@ -587,7 +587,7 @@ pwsh -File ../scripts/build-desktop-jni.ps1
 | `rules/economy-design.md` | W4-B 触及玉符/行商/邮件附件 | 已在 W4-B §3.3 列"源与汇"分析；**本波不改数值** |
 | `rules/commercialization.md` / `social-system.md` / `data-analytics.md` | 本波不新增付费点位/社交/埋点 | 不适用 |
 | `rules/expansion-playbook.md` | 本波不新增玩法系统（WS-5b 是协议/生命周期改造） | 不适用；但 WS-5b 的"存档格式变更"已按 Migration 规则处置 |
-| `rules/renderer-feature-checklist.md` | WS-5b 只改**数据**不改**渲染特性**（地形绘制路径不变，`island_cliff` 双路径不受影响） | 不适用；已在 W4-C §2.3.1 核实"崖壁换代不涉瓦片数据" |
+| `android/docs/renderer-feature-checklist.md` | WS-5b 只改**数据**不改**渲染特性**（地形绘制路径不变，`island_cliff` 双路径不受影响） | 不适用；已在 W4-C §2.3.1 核实"崖壁换代不涉瓦片数据" |
 | `CLAUDE.md` 13.3 PR 审查清单 | 各批逐项核对（`!!`/异常/死亡标记/物品统一入口/溢出语义类别/玉符收敛/精灵注册等） | 已分散写入三个批次文档的 §4 红线与 §5.4 对抗性审查要点 |
 
 ---

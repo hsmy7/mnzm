@@ -4,7 +4,7 @@
 
 ## 第一步：判断是否真的需要新系统
 
-新玩法需求先回答三个问题（参照 RimWorld 功能删减三问 / CLAUDE.md 设计方案原则 2）：
+新玩法需求先回答三个问题（参照 RimWorld 功能删减三问 / rules/design-plan-review.md 第零节 原则 2）：
 1. 能否通过扩展既有系统实现？（新生产类型 → 扩展 `ProductionProcessor`；新活动 → 历战卡片注册；新随机事件 → 事件库扩展）
 2. 去掉这个功能能否发布？（砍掉所有发行不需要的东西）
 3. 新增系统是否形成独立可测试、可开关的模块？（禁止硬编码嵌入既有类形成面条式代码）
@@ -13,16 +13,16 @@
 
 ## 接入检查清单（🔴 10 项硬性约束，全部必须完成）
 
-- [ ] **1. 引擎注册**：接入 GameSystem 生命周期（BootPhase 单向推进注册点）+ `@GameService(name = "...")` 注解（CLAUDE.md 5.5）
+- [ ] **1. 引擎注册**：接入 GameSystem 生命周期（BootPhase 单向推进注册点）+ `@GameService(name = "...")` 注解（AGENTS.md 5.5）
 - [ ] **2. 惰性结算层级选择**：新结算逻辑必须落入既有四层（L0 时间推进 / L1 每旬 / L3 月变 / L4 年变），**禁止另起结算循环或新线程 tick**
-- [ ] **3. EventBus 事务边界**：事件 emit 在 `stateStore.update` 事务外（参照 `flushPendingEvents` 模式，CLAUDE.md 13.3 已有条目）
+- [ ] **3. EventBus 事务边界**：事件 emit 在 `stateStore.update` 事务外（参照 `flushPendingEvents` 模式，rules/pr-review-checklist.md 已有条目）
 - [ ] **4. 确定性 RNG**：一律 `GameRngManager.getRng(RngPartition.xxx)`，禁止 `kotlin.random.Random`；新增分区需论证独立性（世界事件/活动掉宝不可与战斗共用分区）
 - [ ] **5. UI 入口注册**：走 `DialogType` 注册 + `GameOverlayHost` when 穷举分支，或 MainTab 注册；有入口的活动走历战卡片轮转注册（`LizhanDialog` 卡片列表 + 图标 + 描述）
 - [ ] **6. 存储与存档**：新表/新字段走完整 Migration（rules/database-migration.md 建表规范）+ 存档向前兼容 + SaveValidator 规则注册（`SaveValidationRuleRegistry.registerDefaults()`）
 - [ ] **7. 进度锚定游戏时间**：新系统进度必须锚定游戏时间（年/月/旬），**禁止以现实时间为准**（游戏流速 6 现实秒 = 1 游戏月，差异巨大；参照秘境"50 年一现"模式）
 - [ ] **8. 新手引导接入**：新玩法接入 GuideTask 注册（`GuideCounterKeys` 常量 + 计数器接入点），首屏 90 秒内呈现钩子（FTUE——行业数据：D1 中位数留存 22%、超 50% 用户首日流失）
-- [ ] **9. 配置化启停开关**：功能模块可配置开关启停（CLAUDE.md 设计方案原则 2 落地；未来 RemoteConfig 下发——见 rules/commercialization.md）
-- [ ] **10. 守卫测试**：新增枚举/注册表项必须配守卫测试（CLAUDE.md 9.5 三要素），测试失败信息直接指出需同步的 N 处
+- [ ] **9. 配置化启停开关**：功能模块可配置开关启停（rules/design-plan-review.md 第零节 原则 2 落地；未来 RemoteConfig 下发——见 rules/commercialization.md）
+- [ ] **10. 守卫测试**：新增枚举/注册表项必须配守卫测试（AGENTS.md 9.5 三要素），测试失败信息直接指出需同步的 N 处
 - [ ] **11. UI 组件复用优先**：新玩法 UI 必须优先复用现有组件（见下文"UI 组件复用优先"清单），禁止自建重复组件
 
 ## UI 组件复用优先（🔴 2026-08-04 起）
@@ -31,7 +31,7 @@
 
 | 组件 | 用途 |
 |------|------|
-| `GameButton` | 统一按钮（尺寸用 `ButtonSizes`：72dp × 38dp，CLAUDE.md 11.1） |
+| `GameButton` | 统一按钮（尺寸用 `ButtonSizes`：72dp × 38dp，AGENTS.md 11.1） |
 | `UnifiedGameDialog` | 半屏/全屏对话框容器（自带 60% 遮罩 + DialogSystemBarGuard + DialogSoftInputGuard） |
 | `StandardPromptDialog` / `InlineStandardPromptDialog` | 标准提示框 / 内联提示框（含输入框容器） |
 | `SmallScreenDialog` | 小屏对话框 |

@@ -1,7 +1,7 @@
 # 测试规范（Testing Rules）
 
 > 2026-08 建立（源自 docs/architecture.md 待办 D-27）。本文档固化测试 mock 与 stub 的统一约定，
-> 是 CLAUDE.md 第 9 节测试规范在"依赖注入与 mock 风格"维度的补充。
+> 是 AGENTS.md 第 9 节测试规范在"依赖注入与 mock 风格"维度的补充。
 
 ---
 

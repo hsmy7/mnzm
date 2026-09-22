@@ -1,7 +1,7 @@
 # 项目架构文档
 
-> 本文档描述了 XianxiaSectNative 的核心架构设计。对应 CLAUDE.md 中的「架构」相关章节。
-> 编码规范、设计方案规则等见 [CLAUDE.md](../CLAUDE.md)。
+> 本文档描述了 XianxiaSectNative 的核心架构设计，是根 [AGENTS.md](../AGENTS.md) §3「项目定位与架构入口」的展开。
+> 编码规范、设计方案规则与任务路由表见 [AGENTS.md](../AGENTS.md)。
 
 ---
 

@@ -135,16 +135,21 @@ gate.release(id)   // 统一清理注册表
 
 ## 新增槽位系统的必改清单
 
-当新增 `SlotCategory` 枚举值时，需要同步更新以下 4 处：
+当新增 `SlotCategory` 枚举值时，需要同步更新以下 **8 处**（权威清单见 `SlotCategoryCoverageTest`
+的类注释，守卫测试会在遗漏时失败并列出具体指引）：
 
 1. **`DiscipleAssignmentGate.scanAndRegister`** — 在 `scanElderSlots()` / `scanListSlots()` / `scanProductionSlots()` 中添加扫描逻辑，确保读档时重建注册表
-2. **`DiscipleSlotCleanup.clearAllSlots`** — 死亡/释放时清理新系统的槽位数据
-3. **分配入口** — 调用 `releaseDiscipleFromAllSlotsAtomic` + `confirmAssign`
-4. **`SlotCategoryCoverageTest`** — 将新值加入对应的检查集合
+2. **`DiscipleSlotCleanup.clearAllSlots`** — 死亡/释放/换岗时清理新系统的槽位数据（住所为条件清理，仅 `includeResidence=true` 时清理）
+3. **分配入口** — 事务内 `clearAllSlotsDataOnly`（防双槽位）+ 事务外 `releaseDiscipleFromAllSlotsAtomic` / `confirmAssign` + 旧 occupant release/sync（参照 `assignPatrolAtomic` 的 `pendingReleases` 模式；清单式守卫检查新入口文件）
+4. **`SlotCategoryCoverageTest`** — 将新值加入对应检查集合；若分配入口在新文件，加入 `entriesRequiringCleanup`
+5. **`DiscipleStatusService.buildSlotFlagsFor` + `SlotFlags`** — 若槽位影响弟子状态推导，加标志并排入 `deriveDiscipleStatus` 优先级
+6. **`DiscipleStatusService.clearSlotsForReset`** — 重置所有弟子时清理（若槽位持久化在 `GameData`）
+7. **`GameEngineSelfHealOps`** — 读档双槽位自愈的 `collectSlotWinners` 扫描 + `rewriteWinnerInGameData` 按赢家重写
+8. **`intentionalExcluded` 显式声明** — 若新槽位与工作共存（住所式被动不互斥），在守卫测试中显式声明并注释理由
 
 ### 守卫测试
 
-`SlotCategoryCoverageTest` 自动守卫上述 1、2 两项。测试失败时提示：
+`SlotCategoryCoverageTest` 自动守卫第 1、2 项与分配入口清单。测试失败时提示：
 
 ```
 新增 SlotCategory 未在 scanAndRegister 中覆盖！

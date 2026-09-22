@@ -136,7 +136,7 @@ android/.kotlin/sessions/
 android/app/agconnect-services.json
 .claude/worktrees/
 
-# SDD ¹¤×÷Çø£¨¼ò±¨/±¨¸æ/²¹¶¡£¬²»Èë¿â£©
+# SDD ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â£©
 .superpowers/
 
 /.memsearch/
@@ -149,3 +149,6 @@ android/app/agconnect-services.json
 /Testing/
 
 Testing/
+
+# DSH skill æ¥å…¥ï¼šæŒ‡å‘ .claude/skills çš„ç›®å½•è”æ¥ï¼ˆæœ¬æœºäº§ç‰©ï¼Œä¸å…¥åº“ï¼›æ¢æœºåæŒ‰ docs/AGENTS.md é‡å»ºï¼‰
+.agents/

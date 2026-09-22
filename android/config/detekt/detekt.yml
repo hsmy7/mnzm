@@ -66,7 +66,7 @@ complexity:
                                     # 负担远低于阈值（overlay 槽位）
   LongMethod:
     active: true
-    threshold: 60            # 单函数体最大 60 行（CLAUDE.md 3.3）
+    threshold: 60            # 单函数体最大 60 行（AGENTS.md 3.3）
     # 现有违规冻结在 detekt-baseline.xml（实测 245 条：app 14/data 16/domain 12/engine 58/ui 6/game 139），
     # 作为超长函数拆分任务队列（docs/code-quality-task-queue.md），拆分一个摘除一条（baseline 只缩不增）
   CyclomaticComplexMethod:
@@ -99,7 +99,7 @@ game-engine:
 code-quality:
   FileLength:
     active: true
-    threshold: 2000          # 单文件最大 2000 行（CLAUDE.md 3.1）
+    threshold: 2000          # 单文件最大 2000 行（AGENTS.md 3.1）
     # 主工作树当前零违规；.worktrees/ui-layout-unification 分支
     # 4 个超限文件（CultivationService 4227 行等）合回时被此规则拦截
 

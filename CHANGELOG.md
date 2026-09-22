@@ -1,5 +1,39 @@
 ## [4.01.16] - 2026-09-22
 
+### 规范分发架构根治（2026-09-23）——让任何 agent 都读得到项目规范
+- 🔴 **根因**：项目规范集中在 `CLAUDE.md`（54 KB / 657 行），但 Codex CLI 的合并项目指令上限是
+  `project_doc_max_bytes`（默认 **32768 字节**），**超限即静默截断**——尾部的「设计方案规则」「版本发布」
+  对 Codex 从来读不到；且项目根原先**没有** `AGENTS.md`，按该标准工作的工具进仓库读到的是零。
+  此外 `rules/` 与 `docs/` 的 20+ 篇专题规范**从不自动加载**，全靠 agent 自觉去读。
+- ✅ **根治（单一真源 + 路由表 + 按需加载 + 门禁）**：
+  1. 新建根 `AGENTS.md` 作为**唯一规范真源**（31.9 KB），含「任务 → 必读文档」路由表；
+     `CLAUDE.md` 已按用户指令**删除**（规范只此一份，彻底消除双份维护与双份指令预算占用）
+  2. 新增 6 个模块级 `AGENTS.md`（`android/`、`android/core/engine/`、`android/core/data/`、
+     `android/feature/game/`、`android/app/src/main/cpp/gamecore/`、`docs/`）——DSH 在读到该目录下文件时
+     **按需注入**，零 baseline 预算占用；Codex 侧由根路由表兜底
+  3. 新增 `scripts/check-agent-instructions.mjs` 门禁（五条不变式：字节预算闸 / 单一真源防回归 /
+     路由闭包引用无死链 / 路由表完整 / 子目录启动链路告警），接入 CI 的 `agent-instructions-gate` job
+  4. 删除 `CLAUDE.md` 后同步清理其引用：`rules/` 15 篇的交叉引用批量改指 `AGENTS.md` 与
+     `rules/pr-review-checklist.md`（残留 0）、`README.md` / `docs/architecture.md` /
+     `docs/knowledge-base.md` / `CODE_WIKI.md` 4 处死链、`detekt.yml` 与 `action-catalog` 的注释
+  5. 建立 `.agents/skills` → `.claude/skills` 目录联接，使项目积累的 61 个 Android/Compose 专项
+     skill 在 DSH 侧可被发现（此前只存在于 Claude Code 的目录下，DSH 搜索路径覆盖不到）
+- 📦 **内容搬移（零丢失）**：`CLAUDE.md` 13.3 审查清单整表 → `rules/pr-review-checklist.md`；
+  设计方案 6 原则与影响范围清单规格 → `rules/design-plan-review.md` 第零节；
+  行业对标硬性指标与来源等级表 → `rules/industry-benchmark.md`；9 个 BAD/GOOD 代码示例 → `rules/code-quality.md` §1.6
+- 🔧 **修正三处规范与事实矛盾**：① 反向通道状态——原文写「未完成（长期主轴）：删除反向同步通道」，
+  实际 w3-13 批已交付（2026-09-15，守卫 `MirrorReadOnlyGuardTest` 即"符号必须不存在"断言）；
+  ② `rules/dialog-soft-input-guard.md` 已换代（文本输入统一 `TextInputDialog` + 游戏窗口 `adjustNothing` +
+  数字输入自绘 `NumberInputPanel`），而旧审查条目仍是「避让二选一」的旧框架；
+  ③ 死亡标记红线在旧表两处指向不同 API（已合并统一为 `discipleTables.markDead`）
+- 🔧 **修正两处现存知识错误**：`docs/knowledge-base.md` 与 `docs/disciple-assignment-architecture.md`
+  把 `SlotCategory` 同步点写成 4 处，实际契约是 8 处（权威见 `SlotCategoryCoverageTest` 类注释——
+  漏掉了状态推导 / 重置清理 / 读档自愈 / 故意排除项声明四项）
+- 🔧 **修 4 处引用死链 + 20 处路径写法缺陷**：渲染特性检查清单的引用缺 `android/` 前缀、
+  `CODE_WIKI.md` 引用越界且指向从未创建的 ADR、`render-thread-crash-strategy.md` 指向仓库外 AI 工作目录、
+  `rules/static-resources.md` 多处 `scripts/` 缺 `android/` 前缀
+- 📋 纯规范 / 文档 / CI 变更，不涉及玩家可见内容，**不递增 `version.properties`**、不更新游戏内更新日志
+
 ### 地图边缘系统重构（2026-09-22）——IslandCliff 崖壁拼接整体退役 → 弯曲地皮轮廓（Ground Boundary）
 - 🟢 **边缘草地禁建 + 红色预览（2026-09-22 增补）**：`GridSystem` 增可选
   `buildableMask`（轮廓逐格掩码，bit0=格在曲线内）——占地格任一格在轮廓外即

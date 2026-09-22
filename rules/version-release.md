@@ -35,11 +35,11 @@
    ```
    两者版本号必须一致；外部日志内容可比游戏内详细（给开发者看），游戏内条目遵循下述**玩家视角规范**。
 
-   > ⚠️ **注意**：`core/data/.../ChangelogData.kt` 是**解析器**（读取 `assets/changelog_entries.json`），不是编辑对象。禁止直接修改解析器中的 `entries` 列表——游戏内更新日志的编辑对象只有 `changelog_entries.json`。
+   > ⚠️ **注意**：`core/data/.../ChangelogData.kt` 是**解析器**（读取 `android/app/src/main/assets/changelog_entries.json`），不是编辑对象。禁止直接修改解析器中的 `entries` 列表——游戏内更新日志的编辑对象只有 `android/app/src/main/assets/changelog_entries.json`。
 
    ### 游戏内更新日志规范（给玩家看的）
 
-   游戏内 `changelog_entries.json` 的 `changes` 条目面向玩家展示，必须满足：
+   游戏内 `android/app/src/main/assets/changelog_entries.json` 的 `changes` 条目面向玩家展示，必须满足：
 
    - **通俗易懂、无专业术语** — 不出现"迁移""Entity""PRNG""存档协议"等技术词，玩家不理解的词一律换说法（如"修复了部分设备上游戏时间停止不动的问题"）
    - **不泄露数值细节** — 不写具体概率/数值/倍率/消耗（"突破概率提升 2%"❌ → "突破更容易成功了"✅；"每日签到奖励翻倍"✅ 可写）
@@ -63,7 +63,7 @@
 
 4. **确认推送成功**：`git log --oneline -3` 验证提交已推送
 
-> **纯规范/文档变更**（仅改 `rules/`、`docs/`、`CLAUDE.md`，不改代码与资源）：**不递增 version.properties**，但必须完成文档一致性检查（三方交叉引用 `CLAUDE.md ↔ rules/ ↔ docs/` 无死链、无过期路径、无矛盾事实）。若变更涉及玩家可见内容（如更新日志文案），仍按第 2 步同步双 changelog。
+> **纯规范/文档变更**（仅改 `rules/`、`docs/`、`AGENTS.md`，不改代码与资源）：**不递增 version.properties**，但必须完成文档一致性检查（三方交叉引用 `AGENTS.md ↔ rules/ ↔ docs/` 无死链、无过期路径、无矛盾事实）。若变更涉及玩家可见内容（如更新日志文案），仍按第 2 步同步双 changelog。
 
 ## 关键文件索引
 

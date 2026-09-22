@@ -129,4 +129,4 @@ feature/game    → 保留 Android
 
 ## 参考来源
 
-详见 [memory/android-renderthread-crash-research.md](../../../.claude/projects/C--Mnzm-XianxiaSectNative/memory/android-renderthread-crash-research.md)
+详见本地 AI 工作目录下的崩溃调研记录（`.claude/projects` 下的 memory 目录，未纳入版本库）；本文件的根因分析与三层防御即该调研的结论汇总。

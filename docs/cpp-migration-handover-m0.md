@@ -401,7 +401,7 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 新增 API: `PresentationRandom.asKotlinRandom()`（供 `:core:domain` 中仍以 `kotlin.random.Random` 为形参的表现类 API 消费——**有当前生产消费者**，非 YAGNI）
 验收: `RngSourceGuardTest` 登记上限**只缩不增**——`core/domain` ② `7→5`、`feature/game` ② `2→1`、`feature/game` ④ `1→0`（守卫测试内以表格登记每条下调的处置依据）
 ### 2.58.5 🟡 阶段 0 CI 红线：以守卫测试为闸门（**不用 grep**）
-批次: 本批主体 | 硬规格: `ci.yml` 的 `cpp-diff-jni-test` job 新增 step **`RNG source red-line (four entry classes)`**，显式点名跑 `RngSourceGuardTest` + `RngEngineIsolationGuardTest`；step 注释写明**为何不写 grep**（ADR §1 三条失效守卫：`.random()` 是 stdlib 扩展、`GameRandom` 是自建 object，**两者都不带 `import kotlin.random.Random`，永远匹配不到**；该 grep 断言事实上已从 CI 消失；正则无法区分注释引用与真实调用）
+批次: 本批主体 | 硬规格: `.github/workflows/ci.yml` 的 `cpp-diff-jni-test` job 新增 step **`RNG source red-line (four entry classes)`**，显式点名跑 `RngSourceGuardTest` + `RngEngineIsolationGuardTest`；step 注释写明**为何不写 grep**（ADR §1 三条失效守卫：`.random()` 是 stdlib 扩展、`GameRandom` 是自建 object，**两者都不带 `import kotlin.random.Random`，永远匹配不到**；该 grep 断言事实上已从 CI 消失；正则无法区分注释引用与真实调用）
 ### 2.58.6 🟡 阶段 4 收口：10k 抽取 JNI 成本基准（阶段 3 开工前置）
 批次: 本批主体 | 硬规格: `NativeBenchmarkTest` 新增 `rng partition draw 10k`——Kotlin 本地 PCG vs native JNI 标量往返（预热 5 + 采样 5 取最小值，同文件既有正确方法论；不设阈值断言）
 **实测结论（桌面 JVM，BATTLE 分区，10k×10 轮）**: `kotlin(local PCG)=14ns/op` / `native(JNI scalar roundtrip)=11ns/op` / **ratio=0.8**
@@ -445,7 +445,7 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 
 ## 2.60 拍板记录（2026-09-14）：待拍板两项裁决——② 不采纳 + ③ 完整冻结（业界完整版）
-依据：业界实践对照（Paradox 模拟序契约 / 暴雪 replay 跨补丁作废先例 / Factorio·Minecraft·Terraria 生成即持久化模式），决策记录同步 `non-parallel-work.md` P2/P3。
+依据：业界实践对照（Paradox 模拟序契约 / 暴雪 replay 跨补丁作废先例 / Factorio·Minecraft·Terraria 生成即持久化模式），决策记录同步 `docs/parallel-batches-w2/non-parallel-work.md` P2/P3。
 
 ### 2.60.1 ✅ 拍板②：P1-5 月结配对结构级优化——**不采纳（终局）**
 
@@ -690,7 +690,7 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 - **口径**：生成即数据、**存的地形恒优先**——`terrainTiles` 非空即采用（跨版本冻结不重算）；仅无段按 `mapSeed` + `MAP_GEN_VERSION=1` 生成回填，新档与老档**同一条路径**。生成器演进 ⇒ 递增版本戳，老档老地图永久冻结，无需发版。
 - **C++ 协议面（租约第一顺位，protocol-lease.md 登记）**：`models.h` GameData 增 `mapGenVersion`+`terrainTiles`（flat 单一表示，§2.19 红线不破）；`json_codec` 双向编解码（"非空/非零才导出键"先例）；`game_core.{h,cpp}` `ensureTerrainGenerated` 落 `importStateInternal` **归一化族**（先于 `resetBaseline` ⇒ 生成段计入导入基线，前向/反向镜像零载荷，稳态每旬零增量）；生成参数由 Kotlin `GameConfig.SectMap` 经 `nativeInit` 传值（单一数据源不落 C++）；未配置地形（桌面测试面）/`mapSeed==0` 防御跳过。
-- **Kotlin 侧**：`GameData` 增 `mapGenVersion(@ProtoNumber 1000)`+`terrainTiles(@ProtoNumber 1001)`；Room `DATABASE_VERSION 50→51` + `MIGRATION_50_51`（ADD COLUMN ×2 带 DEFAULT）+ `51.json`；`SectMap` 提 `MAP_GEN_VERSION`/`DECORATION_DENSITY` 常量。
+- **Kotlin 侧**：`GameData` 增 `mapGenVersion(@ProtoNumber 1000)`+`terrainTiles(@ProtoNumber 1001)`；Room `DATABASE_VERSION 50→51` + `MIGRATION_50_51`（ADD COLUMN ×2 带 DEFAULT）+ 51.json；`SectMap` 提 `MAP_GEN_VERSION`/`DECORATION_DENSITY` 常量。
 - **实施定界修正（3 处，与批次方案的差异已登记）**：① R5"改 `SectTerrainBridge` 读权威态"→ 桥保持纯生成通道（native 优先 + Kotlin 位级降级臂不破），读权威态落在调用面（BootSequence 权威段优先/无段回填、SectMapController 主宗图读权威段、`GameEngineSaveOps.ensureSectTerrainBackfilled` 幂等回填）；② R7"登记 CLOSED"→ **登记在册保留（照常传输）**：boot 回填是合法一次性 Kotlin 写者，CLOSED 会触发 `detectClosedFieldWrites` 误报（gate#7 红）；代价 = 回填一次 ≈64KB 一次性信封，C++ 同源生成幂等覆盖，不承载地形存续（符合 R7 实质）；③ 域归属 SAVE_LOAD 族（mapSeed 同族），域级证据留 W4-B 文件（聚合 `toMap` 后写会静默覆盖 W4-B 结论）。
 - **RLE 顺延（债务登记）**：Room `List<Int>` 转换器注册位已被 `intList` 占用，独立转换器需值类/`IntArray` 类型（data-class equals 与 proto codegen 破坏性风险）。现存储 = base64 proto（≈34KB TEXT 一次性读）+ 云路径 LZ4/ZSTD 已压缩。触发条件 = 存档体积实测超预算。
 - **测试**：新增 `terrain_freeze_test.cpp` 6 用例（生成即数据+确定性+零 RNG 差分/存的地形恒优先/回填幂等/段存在性协议/无种子跳过/ensure 与 generateTileData 位级一致）；`RoomMigrationV50To51Test` 2 用例（真实 schema 校验 + 旧行默认值与数据零丢失）；`SaveDataTerrainFreezeTest` 3 用例（云档 proto 往返不丢地形，含 128² 规模逐位）——R9 已同步扩充 `rules/database-migration.md`。
@@ -787,13 +787,13 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 **背景**: §2.61 W4-00 收尾时发现 `origin`（github.com/hsmy7/mnzm）的 `main` 与本地 `main` **属不同血缘**，用户要求查清关系。
 
 **核查结论一：`hsmy7/mnzm` 是本项目自己的远端仓库，且确实推送过。**
-- **不是网页仓**：网页仓是另一个 `hsmy7/index.html`（本地 `C:\Mnzm\index.html-repo` 即其克隆），其末次提交（2026-04-17）写着"**将隐私政策重定向到新地址 mnzm 仓库**"——所以政策页搬进了 `mnzm`。
+- **不是网页仓**：网页仓是另一个 `docs/index.html`（本地 `C:\Mnzm\index.html-repo` 即其克隆），其末次提交（2026-04-17）写着"**将隐私政策重定向到新地址 mnzm 仓库**"——所以政策页搬进了 `mnzm`。
 - 远端元数据：`language=Kotlin`、`size=901MB`、`has_pages=true`、`default_branch=master`。
 - **两条互不相关的分支**：① `master`（默认 + Pages 源）= 旧 **1.4.x 线**，作者 `Backup <backup@xianxia.com>` / `hsmy7`，内容停 **2026-06-28**（末次提交是"恢复被误删的隐私政策页面 docs/index.html"）；② `main` = **本项目线**，tip `ad6ff6c9`（2026-09-04 18:45Z「feat(render): 程序化天空渐变背景系统」，提交信息为本项目批级中文风格、含"compileReleaseKotlin + lintRelease 通过"），`version.properties` = **4.01.12**，`android/` 结构（`app`/`core`/`feature`/`build-logic`/`detekt-rules`/`detekt-baseline-count.guard`/`stability_config.conf`）与本地**同构**。
 - **推送证据**：远端 `pushed_at = 2026-09-04T18:49:45Z`，比该 tip 提交的 author 时间（18:45:17Z）晚 4 分钟 ⇒ 就是这次 push。
 
 **核查结论二：内容连续，但提交血缘断裂——且必然如此。**
-- **内容连续（内容级对撞，非时间戳推断）**：远端 `main` 的 `docs/index.html` blob = `566e84fa…`，与本地 `HEAD:docs/index.html` **完全相同**；远端 `main` tip 那批"程序化天空"的 7 个文件（`SkyBackground.cpp/.h`、`sky.vert/frag(+.spv)`、`SkyBackgroundConfig.kt`）本地**全部在位**；抽检 10 个文件做 blob 对撞（git blob 是内容寻址）——**5 个完全一致**（`API_DOCUMENTATION.md` / `clean_release.bat` / `gradlew.bat` / `keystore.properties.example` / `stability_config.conf`），另 5 个为本地后续演进过的（`build.gradle` / `gradle.properties` / `settings.gradle` / `detekt-baseline-count.guard` / `api.properties.example`）。
+- **内容连续（内容级对撞，非时间戳推断）**：远端 `main` 的 `docs/index.html` blob = `566e84fa…`，与本地 `HEAD:docs/index.html` **完全相同**；远端 `main` tip 那批"程序化天空"的 7 个文件（`SkyBackground.cpp/.h`、`sky.vert/frag(+.spv)`、`SkyBackgroundConfig.kt`）本地**全部在位**；抽检 10 个文件做 blob 对撞（git blob 是内容寻址）——**5 个完全一致**（`android/API_DOCUMENTATION.md` / `clean_release.bat` / `gradlew.bat` / `keystore.properties.example` / `stability_config.conf`），另 5 个为本地后续演进过的（`build.gradle` / `gradle.properties` / `settings.gradle` / `detekt-baseline-count.guard` / `api.properties.example`）。
 - **血缘断裂**：本地 26 个提交**全部**为 2026-09-12～09-14、作者统一 `mnzm-dev <dev@local.mnzm>`（最早 `c13d651` "第二轮集成收口"）；远端 main/master 的提交 sha 在本地对象库中**一个都不存在**；本地 `.git` **无 `refs/remotes`、无 `logs/refs/remotes`**，`FETCH_HEAD` 为 **0 字节**（曾于 09-07 创建过、09-12 被截断）。
 - **`origin` 不是从当前这份副本推的**：本地提交身份（`mnzm-dev`）与远端提交身份（`hsmy7` / `Backup`）不同 ⇒ **09-04 那次 push 来自另一份（已被销毁的）工作副本或另一台机器**。与 §2.40 记录的".git 两次被毁 → 以工作区文件为唯一事实源重建单一可编译树"完全吻合。
 - **⇒ 两侧无共同祖先**，`merge` / `fast-forward` 都不可能；**2026-09-04 之后（M0–M3 + W4-00 共 26 个提交）的内容只存在于本地，远端一个都没有**。
@@ -817,13 +817,13 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
   4. `git push origin ba69918:refs/heads/main` —— **fast-forward**（第一父即原远端 main），只上传 929 个对象；远端**不丢任何对象**；
   5. 本地 `git reset --hard ba69918`（树相同 ⇒ 工作区零变化）+ 设置 upstream，本地与远端对齐。
   - **为什么不做 rebase**：两条线**无共同祖先**，把 26 个"全树快照"式提交 rebase 到 1834 提交之上会产生数千处无意义冲突且不增加信息量；双亲合并是唯一「零损失 + 零强推」的统一方式。
-- **② 隐私政策（根因修复）**：`PUT /repos/hsmy7/mnzm/pages` 把 Pages 发布源由 `master/docs` **切到 `main/docs`** —— `main` 上该文件与本地逐字节相同（blob `566e84fa…`）⇒ **零内容变更即生效**，且**从根上消除"政策更新写在 main、发布源在 master"的脱节**（`CLAUDE.md` 设计方案规则第 5 条要求政策双入口同步，源指向 main 后即自动同步）。**线上实测**：https://hsmy7.github.io/mnzm/ 现为「更新日期：2026年8月13日」、26256 字节，穿山甲/优量汇/爱奇艺/百青藤/TapADN/TapDB **均已声明** ✓
+- **② 隐私政策（根因修复）**：`PUT /repos/hsmy7/mnzm/pages` 把 Pages 发布源由 `master/docs` **切到 `main/docs`** —— `main` 上该文件与本地逐字节相同（blob `566e84fa…`）⇒ **零内容变更即生效**，且**从根上消除"政策更新写在 main、发布源在 master"的脱节**（CLAUDE.md 设计方案规则第 5 条要求政策双入口同步，源指向 main 后即自动同步）。**线上实测**：https://hsmy7.github.io/mnzm/ 现为「更新日期：2026年8月13日」、26256 字节，穿山甲/优量汇/爱奇艺/百青藤/TapADN/TapDB **均已声明** ✓
 - **③ 仓库门面与设置**：补 `README.md`（项目介绍 / 技术栈 / 架构要点 / 目录结构 / 构建测试命令 / 文档索引 / 分支说明）；`PATCH /repos/hsmy7/mnzm` 设 `default_branch = main`（原为 `master`）、补 `description` 与 `homepage`；`PUT /topics` 设 12 个主题标签。
 - **④ 工具**：`scripts/publish-privacy-policy.ps1` 保留（三项前置校验 + `-DryRun` 默认开 + 两种模式 + 手工兜底），作为**将来政策再更新时的发布器**；由于 Pages 源已切到 `main`，日常只需把政策改动推到 `main` 即自动发布，`-Mode SourceBranch` 仅在需要回写历史分支时使用。
 
 **途中发现（小项）**: `C:\Mnzm\XianxiaSectNative-b11` 与 `-w2-14` 目录下的 `.git` **是文件**（worktree 指针），指向 `C:/Mnzm/XianxiaSectNative/.git/worktrees/<name>`，但 `.git/worktrees` 目录**已不存在**（§2.40 记录的"worktrees 被删除"残留）⇒ 这两个目录的 `.git` 是**失效残留**，`git worktree list` 也不列它们。清理它们用 `cmd /c rmdir`（若含 node_modules junction）或直接删除该 `.git` 文件；**本次未动**（非本次任务范围，登记备查）。
 
-**顺手更正（文档漂移）**: `CLAUDE.md`「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
+**顺手更正（文档漂移）**: CLAUDE.md「知识库」章原写"**4 分区 PRNG**（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）"，实测 `RngPartition.kt` 已有 **10 个取值**（上述 4 个 + `ENEMY_GEN(4)` / `MAIL(5)` / `AI_SECT(6)` / `SECRET_REALM(7)` / `MISSION(8)` 入快照 + `AI_SECT_MIRROR(9, inSnapshot=false)` 通道型镜像键不入快照）⇒ 已就地更正为 10 分区并写明快照口径。
 
 ## 2.68 W4 三批次集成验收（2026-09-15，收口批）：独立复验抓出 3 处真实缺陷并根因修复
 
@@ -835,7 +835,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 |---|---|---|---|---|
 | W4-A | `w4/a-disciple-building`（`w4a/01`–`w4a/05`） | 5 | 39 | 无 |
 | W4-B | `w4/b-court-economy`（`w4b/01`–`w4b/05`） | 5 | 30 | 仅两份**生成物**（按方案 §4.3 重生成解决，未手工解冲突） |
-| W4-C | `w4/c-battle-world`（`w4c/01`–`w4c/08`） | 8 | 64 | 生成物 + `handover`（§2.62/63/64 各自小节，顺序无损）+ `protocol-lease.md`（终态行）；`GameEngine.kt` 自动合并 |
+| W4-C | `w4/c-battle-world`（`w4c/01`–`w4c/08`） | 8 | 64 | 生成物 + `handover`（§2.62/63/64 各自小节，顺序无损）+ `docs/parallel-batches-w4/protocol-lease.md`（终态行）；`GameEngine.kt` 自动合并 |
 
 - **三批同源于当前 `main`**（`git merge-base --is-ancestor` 逐批核验）；合入前逐批 `git merge-tree --write-tree main <branch>` 均为 exit 0（相对 main 无冲突）；生成物在合并后的树上重生成 ⇒ **195 动作 / maxId=1843**（批内增量：A 12 / B 9 / C 5），生成器幂等、`git diff --exit-code` 空。
 - **冻结纪律机器判据零违规**：硬冻结 6 项（`execute_dispatch.cpp` / `gamecore/CMakeLists.txt` / `test/CMakeLists.txt` / `gen-action-ids.mjs` / `action-catalog/core.mjs` / `ReverseChannelPolicy.kt`）+ 跨批共引宿主 6 项（§2.3 冻结给 W4-D 的文件族）**三批 diff 中一处未现**。
@@ -1266,7 +1266,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 **B. 本批删除（逐条带证据；`生产` = 主源引用数，`测试` = 测试源引用数）**:
 | # | 死链 | 生产 | 测试 |
 |---|---|---|---|
-| B1 | `maxDisciples` 误导性死配置：`GameConfigData.DiscipleSection.maxDisciples` + `StorageConfig.maxDisciples` 属性与 `DEFAULT_MAX_DISCIPLES` 常量 + `game_config.json` 键（引擎零消费，"性能规划以实际规模为输入"纪律见 §2.68） | 0 | `ConfigLoaderTest:47` 断言（同步删） |
+| B1 | `maxDisciples` 误导性死配置：`GameConfigData.DiscipleSection.maxDisciples` + `StorageConfig.maxDisciples` 属性与 `DEFAULT_MAX_DISCIPLES` 常量 + `android/app/src/main/assets/config/game_config.json` 键（引擎零消费，"性能规划以实际规模为输入"纪律见 §2.68） | 0 | `ConfigLoaderTest:47` 断言（同步删） |
 | B2 | `GameSettingsData` 孤儿模型（`GameDataMerchant.kt:29`，已拍板"按清理执行"）+ `EnumConverters` 悬空 TypeConverter 对 + `AudioConfig.updateFromSettings` | 0 | `GameDataTest` 默认构造用例（同步删） |
 | B3 | `GameData` 六个死辅助函数：`totalSpiritStonesSellValue`/`withOrganization`/`withExploration`（真零引用）+ `withWorldMap`/`withBuildings`/`withEconomy`（仅测试引用） | 0 | `GameDataTest` 三个 `with*` 用例（同步删） |
 | B4 | `assignManual`/`removeManual` 复制链三层：`DiscipleFacade:45/46` + `DiscipleFacadeImpl:216/220`（仅委托 `learnManual`/`forgetManual`）+ `GameEngineDiscipleItemOps:26/27` GameEngine 扩展（UI 实际走 `DiscipleDelegate.learnManual/forgetManual` 直达 GameEngine，与链无关） | 0 | 0 |
@@ -1289,7 +1289,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 
 ### §2.84 W4-D/D6——文档与版本收口（W4 波可派工项收官）（2026-09-17，tag `w4-rem/14`）
 
-批次: [W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md) §0 序 D6（最小串行链末项）| 性质: **纯文档批——零代码、零协议面、零 ActionId 变更、零玩家可见变更**（游戏内 `changelog_entries.json` 未追加；`version.properties` 未递增，**由用户决定**）。
+批次: [W4 剩余工作实施文档](parallel-batches-w4/remaining-work-implementation.md) §0 序 D6（最小串行链末项）| 性质: **纯文档批——零代码、零协议面、零 ActionId 变更、零玩家可见变更**（游戏内 `android/app/src/main/assets/changelog_entries.json` 未追加；`version.properties` 未递增，**由用户决定**）。
 
 **① 口径对齐面（全文档口径与实测一致）**:
 - **handover**：§4.1 已清偿项索引补齐 §2.69–§2.84（原止于 §2.65 预留行）；§5③ 汇流波改"已全部实施（D1–D6）"、§5④ 死代码滚动清零标记 ✅（§2.83 新基准）、批次文档索引更新（w3/w4 均已全部交付）；§6 主轴"接手必读"行门禁数值从 §2.58 时点（3281/1322）刷新为 §2.83 后现值（引擎 3288 / domain 1743 / data 716 / 桌面 1417）+ 守卫面 13→6、4→1 收口，阶段 3 状态改"弟子侧/战斗侧已交付 + 余量登记"。
@@ -1298,7 +1298,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 - **[CODE_WIKI.md](../CODE_WIKI.md)**："更新入口"表补 `updateMirror` 镜像投影行 + AUTHORITATIVE 镜像只读契约块（§2.82 起的长期不变量：`update` = Kotlin 游戏写入 / `updateMirror` = C++ 真相源投影；防复发 = `MirrorReadOnlyGuardTest` + `nonMirrorWriteCount == 0` 硬断言）。
 - **[ui-read-surface.md](ui-read-surface.md)**：§4.3 加终局标注（关闭机制随 §2.82 通道删除消亡）；§4.4 域级结论表前补两处 w3 README 传播链误引勘误（`RoadFacadeImpl.kt` 真值 `:67`/`:85`；`SecretRealmNativeOps.kt` 不存在 → `GameEngineSecretRealmNativeOps.kt:100/:263`）。
 - **[rng-source-inventory.md](rng-source-inventory.md)**：新增 §8——core/domain ② 上限 13→6 清偿销账（8 处显形存量中 7 处随 §2.83 B6–B10 删除、1 处存活归阶段 3）+ §6.2 表内死链接销账（`CaveExplorationRewardOps.kt` 已随 §2.63.B4 整文件删除）+ 阶段 3 已交付子项指针。[rng-remediation-status.md](rng-remediation-status.md) 头部追记 §2.59 清偿与阶段 3 进展。
-- **双更新日志**：`CHANGELOG.md` 追加本条目（`[4.01.14]` 同版本条目末批）；游戏内 `changelog_entries.json` 未追加（零玩家可见变更，D1–D5 同口径）。
+- **双更新日志**：`CHANGELOG.md` 追加本条目（`[4.01.14]` 同版本条目末批）；游戏内 `android/app/src/main/assets/changelog_entries.json` 未追加（零玩家可见变更，D1–D5 同口径）。
 
 **② 门禁**: 纯文档批 ⇒ 桌面 C++ / NDK / lint / 全量测试**豁免**；`node scripts/gen-action-ids.mjs && git diff --exit-code` 空（生成物零漂移自证）。
 
@@ -1399,7 +1399,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | **`Jade` 凭据持久化环境缺陷** | **✅ 已清偿（2026-09-15，§2.63.B0 W4-B）**——契约考古推翻 §2.50 的 batch-19 归因，环境缺陷随凭据持久化契约修正一并消除 |
 | **`TimeSystem.onPhaseTick` / `GameSettingsData.autoSave` 删除** | **`autoSave` ✅ 已按"清理执行"（§2.83 D5）**——孤儿模型 + 悬空 TypeConverter + `AudioConfig.updateFromSettings` 一并删除；**`onPhaseTick` 已按 §2.C 实施迁入测试源集（2026-09-15，§2.69）**——`TimeAdvanceBaseline.advancePhaseBaseline` 冻结基准 + 6 测试改调用 + 反向验证过；`PhaseSettlementExecutor` 同类项登记 D5 复议 |
 | **线上隐私政策落后于实际集成**（§2.67） | **✅ 已修复（2026-09-15）**——Pages 发布源由 `master/docs` **切到 `main/docs`**（根因修复：政策更新写在 main，源指向 main 即自动同步），线上实测已是「2026年8月13日」版并声明全部聚合广告 SDK 与 TapDB |
-| **远端 `hsmy7/mnzm` 与本地的关系**（§2.67） | **已查清**：它是**本项目自己的远端仓库**（非网页仓——网页仓是另一个 `hsmy7/index.html`，其末次提交写着"将隐私政策重定向到新地址 mnzm 仓库"）。内含两条分支：`master`（默认 + Pages 源，旧 1.4.x 线，内容停 2026-06-28）与 `main`（**本项目线**，tip `ad6ff6c9` = 2026-09-04「程序化天空」批，`version.properties=4.01.12`）。**本地与远端内容连续但提交血缘断裂**：本地 26 个提交全为 2026-09-12～09-14、作者 `mnzm-dev`，远端提交在本地对象库中**零命中**，本地 `.git` 无任何 remote-tracking ref（从未 fetch）⇒ **2026-09-04 之后（M0–M3 + W4-00）的内容只存在于本地，远端一个都没有**；历史重建见 §2.40 |
+| **远端 `hsmy7/mnzm` 与本地的关系**（§2.67） | **已查清**：它是**本项目自己的远端仓库**（非网页仓——网页仓是另一个 `docs/index.html`，其末次提交写着"将隐私政策重定向到新地址 mnzm 仓库"）。内含两条分支：`master`（默认 + Pages 源，旧 1.4.x 线，内容停 2026-06-28）与 `main`（**本项目线**，tip `ad6ff6c9` = 2026-09-04「程序化天空」批，`version.properties=4.01.12`）。**本地与远端内容连续但提交血缘断裂**：本地 26 个提交全为 2026-09-12～09-14、作者 `mnzm-dev`，远端提交在本地对象库中**零命中**，本地 `.git` 无任何 remote-tracking ref（从未 fetch）⇒ **2026-09-04 之后（M0–M3 + W4-00）的内容只存在于本地，远端一个都没有**；历史重建见 §2.40 |
 
 **已清偿项索引**（只列批号与结论，明细见 §2 对应小节）：
 `§2.5/§2.6` M0 追加·收尾批（P0-3 / P1-4 / WS-6 / RNG 方案②）｜`§2.7` P1-4 守卫分类勘误｜`§2.8`–`§2.10` M1 三批（S1-S3 / WS-1 降本 / E1+WS-7，M1 全清）｜`§2.11`–`§2.18` M2 八批（S4 / S5 / S8 / E2+E3 / P1-5 / E2 残留 / S6 / S7）｜`§2.19` WS-5 地图真源入 C++｜`§2.20`–`§2.29` M3 收敛（死代码族 / 反向通道审计 / 机械族 / RoomMigration+异常族 / 判定族 / 边界族 / 参数跳转族 / 复杂度族 / TMF 第一轮 / 拆分队列首轮）｜`§2.30`–`§2.32` 拆分队列收尾（core:engine 34→0 / game 8→0 / domain 2→0，**六模块 baseline 全 0**）｜`§2.33` 协程取消传播专项（61 处）｜`§2.34` dirty 记账摘除｜`§2.35`–`§2.51b` UI 操作面逐域下沉（建筑 / 道路 / 外交 / 弟子三子批 / 库存 / 巡逻住所 / 探索 / 生产灵田 / 月年边界 / 玉符宗门 / 秘境平台段 / 攻宗）｜`§2.40`/`§2.52` 两次集成收口｜`§2.55`/`§2.56` 残余域 + 弟子管理残差｜`§2.58`/`§2.59` 随机源治理收口 + 收敛清偿（引擎全量 0 失败）｜`§2.23.1` RoomMigration 8 例预存失败｜`§2.60.1` P1-5 配对优化**不采纳（终局）**｜`§2.39` 真机替代验证口径（模拟器）已交付主体项｜`§2.61` W4-00 并行前置批｜`§2.62`/`§2.63`/`§2.64` **W4-A / W4-B / W4-C 三批次并行交付**｜`§2.66` 仓库对象库整理｜`§2.67` 远端关系核查 + 隐私政策根因修复｜`§2.68` **W4 三批次集成收口**｜`§2.65` **预留 W4-D 汇流波（未使用）**｜`§2.69` W4 ②③ 双项（PresentationRandom 场景派生 + onPhaseTick 迁测试源集）｜`§2.70` 邮件系统清理｜`§2.71` 天枢殿迁移下线 + 死代码清偿｜`§2.72`–`§2.83` **W4-D 汇流波 D1–D5**（埋点 / 引导领奖下沉 / harness 对齐 / 反向通道删除终局 / 死代码清零+守卫收口）｜`§2.84` **W4-D/D6 文档与版本收口——W4 波可派工项全部收官**
@@ -1459,7 +1459,7 @@ A→B→C→D 合并序执行、`ui-read-surface.md` §4.4 残余清单判定（
 | 实测规模（**2026-09-14 阶段 2 收口后**） | **五类入口，四类未受治理**：`getRng(RngPartition.*)`（✅ 唯一合法，不在下表）/ ②`.random()`·`Random.Default`·`Math.random` / ③`GameRandom` / ④对象自持 RNG（挂钟种子）/ ⑤**默认值陷阱**（形参默认回落 `Random.Default`——ADR §5 认定的真正入口）。**注释剔除后逐规则命中**：② **21**（阶段 0 为 24；阶段 2 迁 3 处）/ ③ **0（已摘除）** / ④ **2**（阶段 0 为 3；`CloudLayerAnimator` 摘默认值）/ ⑤ **27**。逐模块（②/③/④/⑤）：core:domain 5/0/0/19、core:engine 14/0/2/7、core:data 1/0/0/0、feature:game 1/0/0/1、core:ui 与 app 全 0。**权威计数以 `RngSourceGuardTest` 的登记上限为准**（该守卫自己报数，见 `docs/rng-source-inventory.md`） |
 | 旧口径说明（勿再引用） | ADR/本文旧写的「`Random.Default` **114 处**」与「`GameRandom` **8 处**」两个数字**都不准确**：前者统计**含注释里的字面量**（注释剔除口径后为 24 处 ②类）；后者 8 处中 **6 处是死代码**（全仓零调用），**真实生产调用 4 处**，已随阶段 1③ 全部处置 |
 | 最大发现 | `GameRandom` 种子 = **挂钟时间**、`setSeed()` 生产零调用、`@ThreadLocal` 每线程独立流；被误用于 **`mapSeed` 生成**等决策路径。其 KDoc 自称"确定性存档"——**未实现，死抽象**。**已物理删除**（残留调用变编译期报错） |
-| 实施（**进度已更新 2026-09-14，§2.58**） | **阶段 0 ✅**（分类表 + `RngSourceGuardTest` + **CI 红线 step 已落 `ci.yml`**）→ **阶段 1 ✅（① 开袋 ② AI RNG 归一 + **播种态混种修复** ③ `GameRandom` 摘除）** → **阶段 2 ✅（可归表现类者全迁）**：外交文案 / 天劫立绘 / `SectResponseTexts` / `LoadingTips` / `CloudLayerAnimator` 已迁；**`BattleDescriptionGenerator` 12 + `DiscipleChatDialog` 3 判为决策类**（文本入 `battle_logs` 实体 / 写弟子 skills+cultivation）⇒ 归阶段 3 → **阶段 3（决策类按域分批下沉，未开工；10k JNI 基准 ratio 0.8 已排除成本障碍）** → **阶段 4 ✅**（R2/R4 断言 + **CI 红线 step** + **10k JNI 基准**） |
+| 实施（**进度已更新 2026-09-14，§2.58**） | **阶段 0 ✅**（分类表 + `RngSourceGuardTest` + **CI 红线 step 已落 `.github/workflows/ci.yml`**）→ **阶段 1 ✅（① 开袋 ② AI RNG 归一 + **播种态混种修复** ③ `GameRandom` 摘除）** → **阶段 2 ✅（可归表现类者全迁）**：外交文案 / 天劫立绘 / `SectResponseTexts` / `LoadingTips` / `CloudLayerAnimator` 已迁；**`BattleDescriptionGenerator` 12 + `DiscipleChatDialog` 3 判为决策类**（文本入 `battle_logs` 实体 / 写弟子 skills+cultivation）⇒ 归阶段 3 → **阶段 3（决策类按域分批下沉，未开工；10k JNI 基准 ratio 0.8 已排除成本障碍）** → **阶段 4 ✅**（R2/R4 断言 + **CI 红线 step** + **10k JNI 基准**） |
 | **当前状态（接手必读）** | 阶段 0/1/2/4 全部交付；**原记的失败项均已清偿**（`DiffYearSettlementTest` 见 §2.59.1——夹具快照 9 号键垃圾值；`:feature:game` 两族见 §2.59.2——可见性对齐 + 相机契约回归）。**现门禁（2026-09-17，§2.83 D5 后，§2.84 刷新）**：引擎全量 **3288 / 0 失败 / 0 错误 / 0 跳过**（47 `Diff*` 全绿）、`:core:domain` **1743/0**、`:core:data` **716/0/15 既有**、桌面 C++ **1417/1417**、六模块 detekt 全绿 baseline 全 0。**守卫面（§2.83 收口）**：`RngSourceGuardTest` core/domain ② 上限 **13→6**（8 处显形存量 7 处随死代码删除，余 1 处存活归阶段 3）；`RngEngineIsolationGuardTest` 白名单 **4→1** + **白名单条目数计数断言落地**（新增豁免从此机器可拦）。两道守卫（`DiffAiRngSeedingTest` / `RngEngineIsolationGuardTest`）已把"播种态跨语言等价"与"禁止 object 全局随机上下文"落成可执行断言 |
 | **与 batch-21 的关系** | **勘误（2026-09-15，§2.53）**：ADR 阶段 1 只是**任务侧前置**；反向通道真正的关闭前置是"**各域稳态写者归 C++**"，经 288 站点穷尽审计实测**不成立**（14 域无一可整体关闭）⇒ **batch-21 的"直接关闭"路线作废**，改由 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md) 承接（UI 操作面收尾 → 通道删除） |
 

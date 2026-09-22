@@ -57,7 +57,7 @@
 
 **数据流**：`UI → ViewModel → GameEngine → Service → GameStateStore.update() → StateFlow → Compose`
 
-**核心类**：参见 CLAUDE.md「Key Classes」章节。
+**核心类**：参见 [docs/knowledge-base.md](docs/knowledge-base.md) 的「关键类说明」章节。
 
 ---
 
@@ -710,7 +710,7 @@ tickInternal()
 
 ### 待执行：统一批量结算模式（ADR）
 
-> 详见 [docs/adr/unified-batch-settlement.md](../../docs/adr/unified-batch-settlement.md)
+> ADR 待撰写 —— 本节的方案描述即当前唯一记录地。
 
 **目标**：移除活跃/空闲双模式，统一为"实时轨（随游戏时钟推进，phasesToSettle=1）+ 批量轨（动态5-15s R12节律，phasesToSettle=N）"的单一模式。
 

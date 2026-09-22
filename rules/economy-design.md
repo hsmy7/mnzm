@@ -19,7 +19,7 @@
 
 1. **存储变更**：新货币字段走完整 Migration（rules/database-migration.md 经济/货币字段变更流程）
 2. **来源字典注册**：发放/消耗入口必须包裹 `withTrackingSource("来源名")`（来源名加入 `OverflowMailSender.SOURCE_DISPLAY_NAMES` 映射），年度报告与经济基线表可审计
-3. **溢出语义类别判定**：凭据类（玩家可重试的领取——签到/兑换码/邮件）包 `withOverflowMailSuppressed`；发放类（自动入库——战斗/生产/交易）不包裹自动转邮件——选错类别导致货币重复发放或丢失（CLAUDE.md 13.3）
+3. **溢出语义类别判定**：凭据类（玩家可重试的领取——签到/兑换码/邮件）包 `withOverflowMailSuppressed`；发放类（自动入库——战斗/生产/交易）不包裹自动转邮件——选错类别导致货币重复发放或丢失（rules/pr-review-checklist.md）
 4. **发放入口统一**：走 `InventorySystem.addXxx` 统一入口 + `StackableItemStore` 合并（守卫测试 `InventoryAddPathGuardTest` 拦截手写合并）
 
 ## 3. 奖励投放准则（🟡）

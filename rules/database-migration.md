@@ -114,8 +114,8 @@ CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_co
 云存档/备份使用 ProtoBuf 序列化（`SaveData`），字段编号管理规则：
 
 1. **新字段从预留段编号**：预留段（如 1000+）优先，避免与历史字段冲突；编号一旦发布**禁止复用**（删除的字段用 `reserved` 声明，防止旧存档字段编号错位）
-2. **非零默认值必须 `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`**：字段默认值不是该类型零值（`0`/`""`/`false`/`emptyList()`）时，`encodeDefaults = false` 下该字段不会被写入二进制，导致存档数据丢失（CLAUDE.md 13.3 已有条目，此处为设计期用法）
-3. **ProtoBuf 仅 `List`，禁止 `Set`/`Map`**（CLAUDE.md 7.3）：需要去重语义在业务层 `.toSet()` 转换，忽略会导致序列化静默失败、存档变空
+2. **非零默认值必须 `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`**：字段默认值不是该类型零值（`0`/`""`/`false`/`emptyList()`）时，`encodeDefaults = false` 下该字段不会被写入二进制，导致存档数据丢失（rules/pr-review-checklist.md 已有条目，此处为设计期用法）
+3. **ProtoBuf 仅 `List`，禁止 `Set`/`Map`**（AGENTS.md 7.3）：需要去重语义在业务层 `.toSet()` 转换，忽略会导致序列化静默失败、存档变空
 4. **新增持久化字段先评估双路径**：Room 列 + ProtoBuf 字段必须同步变更（Room 表与 `SaveData` 是两套存储，遗漏任一侧会导致云存档与本地存档数据不一致——参照 2026-08-01 堆叠字段 `@Transient` 导致备份/云恢复清空仓库的教训）
 
 ## 经济/货币字段变更流程（2026-08-04 起）
@@ -125,7 +125,7 @@ CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_co
 1. **货币字段变更同走完整 Migration**（本文件全部规则适用），禁止"先改代码后补迁移"
 2. **新货币上线前必须过 `rules/economy-design.md` 审计**：持有上限 + 源汇闭环 + 通胀防控（本规则只约束存储层，经济设计审计见 economy-design.md）
 3. **发放/消耗入口必须注册进"来源字典"**：新增灵石/货币发放或消耗代码必须包裹 `withTrackingSource("来源名")`（来源名加入 `OverflowMailSender.SOURCE_DISPLAY_NAMES` 映射），确保年度报告（`YearlyReport`）与经济基线表（`docs/knowledge-base.md` 扩展性现状盘点）可审计
-4. **溢出语义类别判定**：凭据类（可重试领取）包 `withOverflowMailSuppressed`，发放类（自动入库）自动转邮件——选错类别会导致货币重复发放或丢失（CLAUDE.md 13.3 已有条目，此处为设计期流程）
+4. **溢出语义类别判定**：凭据类（可重试领取）包 `withOverflowMailSuppressed`，发放类（自动入库）自动转邮件——选错类别会导致货币重复发放或丢失（rules/pr-review-checklist.md 已有条目，此处为设计期流程）
 
 ## 协议版本戳字段迁移判定（2026-09-15 起，WS-5b 地图冻结批新增）
 

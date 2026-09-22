@@ -87,7 +87,7 @@ pwsh -File ../scripts/build-desktop-jni.ps1
 
 | 文档 | 内容 |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | 协作公约、编码规范、设计方案规则、PR 审查清单 |
+| [`AGENTS.md`](AGENTS.md) | 唯一规范入口：协作公约、编码规范、任务路由表（专题规则见 `rules/`） |
 | [`docs/architecture.md`](docs/architecture.md) | 整体架构设计 |
 | [`docs/knowledge-base.md`](docs/knowledge-base.md) | 技术栈、关键类、各系统现状 |
 | [`docs/adr/`](docs/adr) | 架构决策记录（13 篇，含 C++ 引擎迁移总方案、反向通道根治、随机源治理） |

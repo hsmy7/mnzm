@@ -18,11 +18,11 @@
 **素材源目录（唯一权威源）：`D:\模拟宗门美术素材`**
 
 所有游戏美术的 PNG 源文件一律放在该目录，仓库内只存 WebP 产物（PNG 不提交）。
-今后任何素材改动流程：**新素材/改素材放入源目录 → 在 `scripts/source-mapping.json` 登记映射 → 运行导入脚本 → 构建验证**。
+今后任何素材改动流程：**新素材/改素材放入源目录 → 在 `android/scripts/source-mapping.json` 登记映射 → 运行导入脚本 → 构建验证**。
 
-source↔drawable 的**权威映射**在 `scripts/source-mapping.json`（由 `scripts/scaffold-source-mapping.mjs` 扫描 `scripts/resource-registry.json` + 源目录生成/维护）。每条含：`drawable`（产物名）、`source`（相对源目录路径）、`modules`、`bake`（`preserve` 保留源分辨率 / `maxDim:N` 等比缩放到最长边 / `canvas:{w,h}` contain 画布）。
+source↔drawable 的**权威映射**在 `android/scripts/source-mapping.json`（由 `scripts/scaffold-source-mapping.mjs` 扫描 `android/scripts/resource-registry.json` + 源目录生成/维护）。每条含：`drawable`（产物名）、`source`（相对源目录路径）、`modules`、`bake`（`preserve` 保留源分辨率 / `maxDim:N` 等比缩放到最长边 / `canvas:{w,h}` contain 画布）。
 
-新增素材只需在该文件登记一行（或运行时脚手架自动盖上），随后运行导入脚本重烘焙。**禁止手改生成物**（`source-mapping.json` 由脚手架生成，改动应改脚手架规则或直接编辑后由守卫校验）。
+新增素材只需在该文件登记一行（或运行时脚手架自动盖上），随后运行导入脚本重烘焙。**禁止手改生成物**（`android/scripts/source-mapping.json` 由脚手架生成，改动应改脚手架规则或直接编辑后由守卫校验）。
 
 有现成的 Node.js 脚本：
 
@@ -66,7 +66,7 @@ androidResources {
 
 ### 2.1 注册清单
 
-所有精灵图通过 `SpriteResRegistry` 统一注册。注册代码由 **codegen 管线自动生成**（见第 5 节）：新增精灵图只需放入 `drawable-nodpi/` 并登记到 `scripts/resource-registry.json` 的分类，构建时自动生成注册映射，预加载系统自动发现。
+所有精灵图通过 `SpriteResRegistry` 统一注册。注册代码由 **codegen 管线自动生成**（见第 5 节）：新增精灵图只需放入 `drawable-nodpi/` 并登记到 `android/scripts/resource-registry.json` 的分类，构建时自动生成注册映射，预加载系统自动发现。
 
 | 资源类型 | 注册分类 | 预加载优先级 | 说明 |
 |----------|---------|-------------|------|
@@ -85,11 +85,11 @@ androidResources {
 | **妖兽精灵图** | `SpriteCategory.BEAST` | L2 (priority=2) | `tiger`、`wolf`、`snake` 等 8 种 |
 | **洞穴精灵图** | `SpriteCategory.CAVE` | L2 (priority=2) | `cave_1`、`cave_2`、`cave_3` |
 | **天劫试炼精灵图** | `SpriteCategory.HEAVENLY_TRIAL` | L2 (priority=2) | 岛屿、挑战背景、战斗场景等 |
-| **地图资源** | `SpriteCategory` 无关（图集直取）| 图集 | 地面/装饰/道路/岛边缘/云层经 `source-mapping.json` 的 `MAP`/`BACKGROUND` 分类烘焙（`node scripts/import-art-assets.mjs`），再由 `node scripts/build-atlas.mjs` 编入图集 |
+| **地图资源** | `SpriteCategory` 无关（图集直取）| 图集 | 地面/装饰/道路/岛边缘/云层经 `android/scripts/source-mapping.json` 的 `MAP`/`BACKGROUND` 分类烘焙（`node scripts/import-art-assets.mjs`），再由 `node scripts/build-atlas.mjs` 编入图集 |
 
 ### 2.2 新增精灵图全流程（source-mapping + import 权威管线，2026-09-02）
 
-> 权威源：美术源图（`D:\模拟宗门美术素材`）→ `scripts/source-mapping.json`（source↔drawable 映射）→ `scripts/import-art-assets.mjs`（烘焙 WebP 到双模块）。仓库内 WebP 是**映射产物**，PNG 源不提交。
+> 权威源：美术源图（`D:\模拟宗门美术素材`）→ `android/scripts/source-mapping.json`（source↔drawable 映射）→ `scripts/import-art-assets.mjs`（烘焙 WebP 到双模块）。仓库内 WebP 是**映射产物**，PNG 源不提交。
 
 **通用 UI/物品精灵图：**
 
@@ -130,7 +130,7 @@ androidResources {
 ```
 
 **地图图集精灵（瓦片/建筑/装饰/云层/道路/岛边缘）：** 走同一权威管线 + 图集构建两步 ——
-源图放入 `D:\模拟宗门美术素材`（装饰在 `装饰物/`、建筑在 `建筑/`）→ `source-mapping.json`
+源图放入 `D:\模拟宗门美术素材`（装饰在 `装饰物/`、建筑在 `建筑/`）→ `android/scripts/source-mapping.json`
 的 `MAP`/`BUILDING`/`BACKGROUND` 分类登记（脚手架 `MAP_KNOWN` 表维护）→
 `node scripts/import-art-assets.mjs` 烘焙无损 WebP 到双模块 → `node scripts/build-atlas.mjs`
 重建图集。**新增装饰变体（草/石/树）= LAYOUT.tiles 加一行 + TILE_DRAWABLE 加映射 +
@@ -138,9 +138,9 @@ androidResources {
 codegen 常量驱动）。图集布局细节见 `docs/map-rendering-architecture.md`。
 
 **关键注意：**
-- **必须跑 scaffold**（步骤 3）：新增 res 若不进 `source-mapping.json`，`SpriteSourceMappingGuardTest` 的"registry 全覆盖"会失败。
+- **必须跑 scaffold**（步骤 3）：新增 res 若不进 `android/scripts/source-mapping.json`，`SpriteSourceMappingGuardTest` 的"registry 全覆盖"会失败。
 - **必须跑 import**（步骤 5）：否则 WebP 未生成/未双模块放置，清单完整性与运行时显示均出问题。
-- `source-mapping.json` 是**权威映射数据**（可为"待补条目"手填 source），但 drawable 全局唯一 + 结构合法由守卫锁定。
+- `android/scripts/source-mapping.json` 是**权威映射数据**（可为"待补条目"手填 source），但 drawable 全局唯一 + 结构合法由守卫锁定。
 - **首屏可见**的资源必须在 `priority=0/1` 的分类注册（见 2.4）。
 
 ### 2.3 统一精灵图 API
@@ -201,9 +201,9 @@ backgroundRes("bg_horizontal")  // → Int?
 新增静态资源时，确认以下全部完成：
 
 - [ ] 源 PNG 已放入 `D:\模拟宗门美术素材\<分类>\<中文名>.png`
-- [ ] 已在 `scripts/resource-registry.json` 对应分类登记（新增分类时补充 `SpriteCategory` 枚举定义）；
+- [ ] 已在 `android/scripts/resource-registry.json` 对应分类登记（新增分类时补充 `SpriteCategory` 枚举定义）；
       地图装饰/地面等**不经注册表**的精灵在 `scaffold-source-mapping.mjs` 的 `MAP_KNOWN` 表登记
-- [ ] 已运行 `node scripts/scaffold-source-mapping.mjs` 生成/更新 `source-mapping.json`（未自动命中的待补条目已手填 source + bake）
+- [ ] 已运行 `node scripts/scaffold-source-mapping.mjs` 生成/更新 `android/scripts/source-mapping.json`（未自动命中的待补条目已手填 source + bake）
 - [ ] 已运行 `node scripts/import-art-assets.mjs` 烘焙无损 WebP 到 feature/game 与 app 双模块（含 hash 增量 + fail-fast）
 - [ ] 地图图集类资源已运行 `node scripts/build-atlas.mjs` 重建 KTX 与图集清单（新增瓦片还需 LAYOUT.tiles/TILE_DRAWABLE 登记）
 - [ ] 图片为**无损 WebP**（`lossless: true, effort: 6`），源 PNG 已删除（不提交到仓库）
@@ -222,7 +222,7 @@ backgroundRes("bg_horizontal")  // → Int?
 
 | 自动化步骤 | 机制 | 开发者操作 |
 |-----------|------|-----------|
-| **注册映射生成** | codegen 从 `resource-registry.json` + manifest 生成 `SpriteRegistryData.kt`（R 引用自动解析，app 有副本用 app R，否则 feature/game R） | ❌ 无需手写 `register()` 调用 |
+| **注册映射生成** | codegen 从 `android/scripts/resource-registry.json` + manifest 生成 `SpriteRegistryData.kt`（R 引用自动解析，app 有副本用 app R，否则 feature/game R） | ❌ 无需手写 `register()` 调用 |
 | **生成物增量更新** | 内容 hash（源数据/模板变化才重生成，非 mtime） | ❌ 无需手动运行生成脚本（preBuild 自动触发） |
 | **预加载** | `ResourcePreloader` 通过 `SpriteResRegistry.categoryResIds()` 自动发现所有注册的精灵图 | ❌ 无需手动维护预加载列表 |
 | **缓存查找** | `SpriteImage` composable 自动检查 `LocalItemSpriteCache`，命中则用预加载位图 | ❌ 无需手动写缓存逻辑 |
@@ -284,9 +284,9 @@ Gradle 接线：`preBuild` 依赖 `:core:engine:generateSpriteAtlasDef` → `gen
 只改 `scripts/build-atlas.mjs` 的 `LAYOUT` 常量，运行两个 codegen 命令（或直接构建），Kotlin / C++ / 图集三端自动同步。守卫测试期望值（`SpriteAtlasDefGeneratedTest` / `SpriteCodegenSyncTest`）在布局变更时变红——**同步更新测试内期望值**并同步更新 `TextureAtlas.h` 消费方（C++ `NativeBridge.cpp` 等）。
 
 **显示尺寸口径（2026-09 起，改素材/改尺寸必读）**：立体素材（立绘建筑、草石树）按"屏上不变形"取值——
-建筑精灵尺寸在 `app/src/main/assets/config/buildings.json` 的 `spriteWidth/spriteHeight`（`core/engine/.../config/Defaults.kt` 兜底镜像），
+建筑精灵尺寸在 `android/app/src/main/assets/config/buildings.json` 的 `spriteWidth/spriteHeight`（`core/engine/.../config/Defaults.kt` 兜底镜像），
 取值 `精灵宽 = 占地宽`、`精灵高 = round(宽 × 素材高 ÷ (0.75 × 素材宽))`；装饰显示尺寸在 `LAYOUT.tiles[].sprite`（小数格）。
 **两个 codegen 路径（`--atlas-def-only` / `--codegen`）与完整图集构建都会执行 `validateDisplaySizing`**：
 按素材实测纵横比校验每栋建筑/每个装饰（容差 7%），不符即**构建失败**并打印"应为 W×H"。测试期孪生守卫 = `SpriteSizingFidelityTest`
-（按 `atlas-manifest.json` 新增的 `srcW/srcH` 复核），结构关系 = `BuildingSpriteFootprintGuardTest` / `BuildingSpriteFootprintJsonGuardTest`。
-装修/建筑占地变更须同步：`LAYOUT.footprints` → `config/buildings.json` → `Defaults.kt` → `BuildingFeatureBoot.kt` → 测试期望（`FootprintTableSyncTest` 会逐栋比对）。
+（按 `android/app/src/main/assets/atlas/atlas-manifest.json` 新增的 `srcW/srcH` 复核），结构关系 = `BuildingSpriteFootprintGuardTest` / `BuildingSpriteFootprintJsonGuardTest`。
+装修/建筑占地变更须同步：`LAYOUT.footprints` → `android/app/src/main/assets/config/buildings.json` → `Defaults.kt` → `BuildingFeatureBoot.kt` → 测试期望（`FootprintTableSyncTest` 会逐栋比对）。
