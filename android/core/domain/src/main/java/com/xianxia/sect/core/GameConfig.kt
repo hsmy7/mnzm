@@ -197,6 +197,47 @@ object GameConfig {
         )
     }
 
+    /**
+     * 角色卡池（G01）。色表 Q31 单源——结果页/徽章/公示强制读本表；
+     * 与旧 [Rarity] 色不一致时以本表为准（产品方案 §4.4 Q31）。
+     */
+    object Gacha {
+        const val HISTORY_RING_SIZE = 50
+        const val FRAGMENTS_PER_STAR = 100
+        const val MAX_STAR = 5
+        const val PITY_PULL_THRESHOLD = 10
+        const val PITY_FRAGMENT_COUNT = 5
+        const val PRICE_PER_PULL = 5000
+        const val START_SPIRIT_STONES = 50000
+        const val STAR_BATTLE_PCT_PER_STAR = 0.08
+        const val STAR_CULT_PCT_PER_STAR = 0.05
+        const val INJURY_HEAL_PCT_PER_PHASE = 0.2
+        const val BREAKTHROUGH_COMP_BONUS = 0.02
+
+        /** 物品品阶色（六金五红四紫三蓝二绿一灰）— Q31 */
+        val RARITY_COLORS: Map<Int, String> = mapOf(
+            1 to "#b8b8b8",
+            2 to "#4caf50",
+            3 to "#2196f3",
+            4 to "#9c27b0",
+            5 to "#f44336",
+            6 to "#ffd700",
+        )
+
+        /** 灵根数徽章色（单金双红三紫四蓝五灰）— Q31 */
+        val SPIRIT_ROOT_COUNT_COLORS: Map<Int, String> = mapOf(
+            1 to "#ffd700",
+            2 to "#f44336",
+            3 to "#9c27b0",
+            4 to "#2196f3",
+            5 to "#b8b8b8",
+        )
+
+        fun rarityColor(rarity: Int): String = RARITY_COLORS[rarity] ?: RARITY_COLORS.getValue(1)
+        fun spiritRootCountColor(rootCount: Int): String =
+            SPIRIT_ROOT_COUNT_COLORS[rootCount] ?: SPIRIT_ROOT_COUNT_COLORS.getValue(5)
+    }
+
     object Production {
 
         val SPIRIT_MINE_BASE_OUTPUT_PER_MINER: Int

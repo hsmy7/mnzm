@@ -255,6 +255,9 @@ message DiscipleRow {
   /// 路径上静默丢失（B18-P1-A2 实测：`auto_gear.h:936` /
   /// `month_settlement.h:1698` 均可在袋被扣空后标脏该列）。
   optional bool storageBagItemsPresent = 111;
+
+  /// 角色模板 id（Q32 只读；G01）——空串 = 存量旧弟子
+  optional string templateId = 112;
 }
 
 /// 装备孕育数据（EquipmentNurtureData 的视图投影）

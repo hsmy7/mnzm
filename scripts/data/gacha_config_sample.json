@@ -1,0 +1,130 @@
+{
+  "note": "角色卡池 G00/G01 中性源 — 由 scripts/gen-game-data.mjs 聚合进 assets/data/game-data.json；禁止手改产物",
+  "gachaPools": [
+    {
+      "poolId": "standard",
+      "enabled": true,
+      "pricePerPull": 5000,
+      "categories": [
+        {
+          "kind": "character_single",
+          "weightPct": 11,
+          "templateIds": ["zhouming", "suqing"]
+        },
+        {
+          "kind": "character_double",
+          "weightPct": 10,
+          "templateIds": ["linxuetang", "xuhe", "xieche", "zhaoyan"]
+        },
+        {
+          "kind": "beast_material",
+          "weightPct": 26,
+          "itemSource": "beastMaterials",
+          "maxRarity": 4
+        },
+        {
+          "kind": "herb",
+          "weightPct": 26,
+          "itemSource": "herbs",
+          "maxRarity": 4
+        },
+        {
+          "kind": "seed",
+          "weightPct": 27,
+          "itemSource": "seeds",
+          "maxRarity": 4
+        }
+      ],
+      "itemRarityWeights": [
+        { "rarity": 4, "weightPct": 12 },
+        { "rarity": 3, "weightPct": 33 },
+        { "rarity": 2, "weightPct": 33 },
+        { "rarity": 1, "weightPct": 22 }
+      ],
+      "pity": {
+        "pullThreshold": 10,
+        "fragmentCount": 5,
+        "pickMode": "random"
+      },
+      "fragmentsPerStar": 100,
+      "maxStar": 5
+    }
+  ],
+  "characterTemplates": [
+    {
+      "id": "zhouming",
+      "name": "周明",
+      "gender": "M",
+      "spiritRoots": ["metal"],
+      "avatarKey": "avatar_zhouming",
+      "portraitKey": "portrait_zhouming"
+    },
+    {
+      "id": "suqing",
+      "name": "苏晴",
+      "gender": "F",
+      "spiritRoots": ["water"],
+      "avatarKey": "avatar_suqing",
+      "portraitKey": "portrait_suqing"
+    },
+    {
+      "id": "linxuetang",
+      "name": "林雪棠",
+      "gender": "F",
+      "spiritRoots": ["wood", "water"],
+      "avatarKey": "avatar_linxuetang",
+      "portraitKey": "portrait_linxuetang"
+    },
+    {
+      "id": "xuhe",
+      "name": "许荷",
+      "gender": "F",
+      "spiritRoots": ["wood", "earth"],
+      "avatarKey": "avatar_xuhe",
+      "portraitKey": "portrait_xuhe"
+    },
+    {
+      "id": "xieche",
+      "name": "谢澈",
+      "gender": "M",
+      "spiritRoots": ["metal", "water"],
+      "avatarKey": "avatar_xieche",
+      "portraitKey": "portrait_xieche"
+    },
+    {
+      "id": "zhaoyan",
+      "name": "赵言",
+      "gender": "M",
+      "spiritRoots": ["fire", "earth"],
+      "avatarKey": "avatar_zhaoyan",
+      "portraitKey": "portrait_zhaoyan"
+    }
+  ],
+  "gachaDefaults": {
+    "startSpiritStones": 50000,
+    "startBonusFragments": 0,
+    "startupTemplateId": "zhouming",
+    "starBattlePctPerStar": 0.08,
+    "starCultPctPerStar": 0.05,
+    "historyRingSize": 50,
+    "injuryHealPctPerPhase": 0.2,
+    "breakthroughCompBonus": 0.02
+  },
+  "gachaColors": {
+    "rarity": {
+      "1": "#b8b8b8",
+      "2": "#4caf50",
+      "3": "#2196f3",
+      "4": "#9c27b0",
+      "5": "#f44336",
+      "6": "#ffd700"
+    },
+    "spiritRootCount": {
+      "1": "#ffd700",
+      "2": "#f44336",
+      "3": "#9c27b0",
+      "4": "#2196f3",
+      "5": "#b8b8b8"
+    }
+  }
+}

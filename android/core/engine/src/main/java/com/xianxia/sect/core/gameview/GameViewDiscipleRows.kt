@@ -163,7 +163,8 @@ internal object GameViewDiscipleRows {
         "forgePromotionCount" to DiscipleRow::hasForgePromotionCount,
         "recruitedMonth" to DiscipleRow::hasRecruitedMonth,
         "hasReviveEffect" to DiscipleRow::hasHasReviveEffect,
-        "hasClearAllEffect" to DiscipleRow::hasHasClearAllEffect
+        "hasClearAllEffect" to DiscipleRow::hasHasClearAllEffect,
+        "templateId" to DiscipleRow::hasTemplateId
     )
 
     /** 本行缺失的必在标量字段名（守卫用；空集 = 投影契约成立） */
@@ -197,6 +198,7 @@ internal object GameViewDiscipleRows {
             isAlive = row.isAlive,
             gender = row.gender,
             portraitRes = row.portraitRes,
+            templateId = row.templateId,
             manualIds = row.manualIdsList,
             talentIds = row.talentIdsList,
             physiqueIds = row.physiqueIdsList,
@@ -527,6 +529,7 @@ internal object GameViewDiscipleRows {
         // deathYear：协议随行字段，域模型无对应列——两臂同语义丢弃
         if (row.hasGender()) genders[id] = row.gender
         if (row.hasPortraitRes()) portraitRes[id] = row.portraitRes
+        if (row.hasTemplateId()) templateIds[id] = row.templateId
         if (row.manualIdsCount > 0) manualIds[id] = row.manualIdsList
         if (row.talentIdsCount > 0) talentIds[id] = row.talentIdsList
         if (row.physiqueIdsCount > 0) physiqueIds[id] = row.physiqueIdsList
@@ -765,6 +768,7 @@ internal object GameViewDiscipleRows {
         b.deathYear = 0
         b.gender = d.gender
         b.portraitRes = d.portraitRes
+        b.templateId = d.templateId
         b.addAllManualIds(d.manualIds)
         b.addAllTalentIds(d.talentIds)
         b.addAllPhysiqueIds(d.physiqueIds)

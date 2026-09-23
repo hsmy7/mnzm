@@ -150,6 +150,7 @@ enum class DiscipleColumn : uint16_t {
     RecruitedMonth,
     HasReviveEffect,
     HasClearAllEffect,
+    TemplateId,
     kCount,
 };
 
@@ -170,6 +171,7 @@ public:
     std::vector<std::string> surnames;
     std::vector<std::string> genders;
     std::vector<std::string> portraitRes;
+    std::vector<std::string> templateIds;
     std::vector<std::string> discipleTypes;
     std::vector<std::string> spiritRootTypes;
     // ── 境界与修为 ──

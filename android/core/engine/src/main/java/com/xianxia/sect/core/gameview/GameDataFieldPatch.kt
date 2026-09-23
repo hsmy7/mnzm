@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.ExploredSectInfo
+import com.xianxia.sect.core.model.GachaHistoryEntry
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventRecord
 import com.xianxia.sect.core.model.GridBuildingData
@@ -364,5 +365,17 @@ internal object GameDataFieldPatch {
         }),
         f("mapGenVersion", { gd, el, j -> gd.mapGenVersion = j.decodeFromJsonElement<Int>(el) }),
         f("terrainTiles", { gd, el, j -> gd.terrainTiles = j.decodeFromJsonElement<List<Int>>(el) }),
+        f("gachaFragmentCounts", { gd, el, j ->
+            gd.gachaFragmentCounts = j.decodeFromJsonElement<Map<String, Int>>(el)
+        }),
+        f("gachaStarMap", { gd, el, j ->
+            gd.gachaStarMap = j.decodeFromJsonElement<Map<String, Int>>(el)
+        }),
+        f("gachaPityCounters", { gd, el, j ->
+            gd.gachaPityCounters = j.decodeFromJsonElement<Map<String, Int>>(el)
+        }),
+        f("gachaHistory", { gd, el, j ->
+            gd.gachaHistory = j.decodeFromJsonElement<List<GachaHistoryEntry>>(el)
+        }),
     )
 }

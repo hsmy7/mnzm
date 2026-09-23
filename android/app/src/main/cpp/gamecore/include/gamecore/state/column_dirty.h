@@ -189,6 +189,7 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::RecruitedMonth: return "recruitedMonth";
         case DiscipleColumn::HasReviveEffect: return "hasReviveEffect";
         case DiscipleColumn::HasClearAllEffect: return "hasClearAllEffect";
+        case DiscipleColumn::TemplateId: return "templateId";
         case DiscipleColumn::kCount: break;
     }
     return nullptr;
@@ -405,6 +406,7 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::HasClearAllEffect:
             row["hasClearAllEffect"] = (ds.hasClearAllEffects[r] != 0);
             break;
+        case DiscipleColumn::TemplateId: row["templateId"] = ds.templateIds[r]; break;
         case DiscipleColumn::kCount: break;
     }
 }

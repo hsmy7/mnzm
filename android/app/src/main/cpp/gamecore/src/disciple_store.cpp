@@ -28,6 +28,7 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.surname = surnames[row];
     d.gender = genders[row];
     d.portraitRes = portraitRes[row];
+    d.templateId = templateIds[row];
     d.discipleType = discipleTypes[row];
     d.spiritRootType = spiritRootTypes[row];
 
@@ -166,6 +167,7 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     surnames.push_back(d.surname);
     genders.push_back(d.gender);
     portraitRes.push_back(d.portraitRes);
+    templateIds.push_back(d.templateId);
     discipleTypes.push_back(d.discipleType);
     spiritRootTypes.push_back(d.spiritRootType);
 
@@ -301,6 +303,7 @@ void DiscipleStore::reserveRows(std::size_t n) {
     surnames.reserve(n);
     genders.reserve(n);
     portraitRes.reserve(n);
+    templateIds.reserve(n);
     discipleTypes.reserve(n);
     spiritRootTypes.reserve(n);
     realms.reserve(n);
@@ -468,6 +471,7 @@ void DiscipleStore::clear() {
     surnames.clear();
     genders.clear();
     portraitRes.clear();
+    templateIds.clear();
     discipleTypes.clear();
     spiritRootTypes.clear();
     realms.clear();
@@ -586,6 +590,7 @@ void DiscipleStore::eraseAt(std::size_t row) {
     surnames.erase(surnames.begin() + static_cast<std::ptrdiff_t>(row));
     genders.erase(genders.begin() + static_cast<std::ptrdiff_t>(row));
     portraitRes.erase(portraitRes.begin() + static_cast<std::ptrdiff_t>(row));
+    templateIds.erase(templateIds.begin() + static_cast<std::ptrdiff_t>(row));
     discipleTypes.erase(discipleTypes.begin() + static_cast<std::ptrdiff_t>(row));
     spiritRootTypes.erase(spiritRootTypes.begin() + static_cast<std::ptrdiff_t>(row));
     realms.erase(realms.begin() + static_cast<std::ptrdiff_t>(row));
@@ -722,6 +727,7 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(surnames[a], surnames[b]);
     swap(genders[a], genders[b]);
     swap(portraitRes[a], portraitRes[b]);
+    swap(templateIds[a], templateIds[b]);
     swap(discipleTypes[a], discipleTypes[b]);
     swap(spiritRootTypes[a], spiritRootTypes[b]);
     swap(realms[a], realms[b]);

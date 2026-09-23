@@ -53,6 +53,7 @@ import { CATALOG as W4A_CATALOG } from './action-catalog/w4a.mjs';
 import { CATALOG as W4B_CATALOG } from './action-catalog/w4b.mjs';
 import { CATALOG as W4C_CATALOG } from './action-catalog/w4c.mjs';
 import { CATALOG as W4D_CATALOG } from './action-catalog/w4d.mjs';
+import { CATALOG as GACHA_CATALOG } from './action-catalog/gacha.mjs';
 
 /** 分段清单的顺序拼接（顺序即产物顺序；新增分段只在此处追加一行）。 */
 const ACTION_CATALOG = [
@@ -61,6 +62,7 @@ const ACTION_CATALOG = [
   ...W4B_CATALOG,
   ...W4C_CATALOG,
   ...W4D_CATALOG,
+  ...GACHA_CATALOG,
 ];
 
 // ── 清单自检（W4-00 新增；任一条不成立即生成失败，不写出半成品产物）───────────
@@ -81,6 +83,7 @@ const BATCH_SEGMENTS = [
   { batch: 'W4-B', file: 'action-catalog/w4b.mjs', ranges: [[1760, 1765], [1766, 1769], [1770, 1779], [1840, 1849]] },
   { batch: 'W4-C', file: 'action-catalog/w4c.mjs', ranges: [[1780, 1789], [1790, 1799], [1800, 1809], [1855, 1859]] },
   { batch: 'W4-D', file: 'action-catalog/w4d.mjs', ranges: [[1830, 1839], [1860, 1869]] },
+  { batch: 'GACHA', file: 'action-catalog/gacha.mjs', ranges: [[1870, 1889]] },
 ];
 const flatRanges = [];
 for (const seg of BATCH_SEGMENTS) {
@@ -115,6 +118,7 @@ checkOwnership(W4A_CATALOG, 'W4-A', 'action-catalog/w4a.mjs');
 checkOwnership(W4B_CATALOG, 'W4-B', 'action-catalog/w4b.mjs');
 checkOwnership(W4C_CATALOG, 'W4-C', 'action-catalog/w4c.mjs');
 checkOwnership(W4D_CATALOG, 'W4-D', 'action-catalog/w4d.mjs');
+checkOwnership(GACHA_CATALOG, 'GACHA', 'action-catalog/gacha.mjs');
 
 // 4) 既有条目不得落进任何批次段（core.mjs 只到 1734，天然成立；防将来误改）
 for (const a of CORE_CATALOG) {

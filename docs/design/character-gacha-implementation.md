@@ -1,6 +1,6 @@
 # 角色卡池重构 · 实施计划（G 批）
 
-> 性质：**可执行实施计划**（产品方案权威见 [character-gacha-redesign-2026-09-23.md](character-gacha-redesign-2026-09-23.md) v1.4，下称「产品方案」；架构约束 = 产品方案 §15 + [architecture.md](architecture.md) + [CODE_WIKI.md](../CODE_WIKI.md)）。
+> 性质：**可执行实施计划**（产品方案权威见 [character-gacha-redesign-2026-09-23.md](character-gacha-redesign-2026-09-23.md) **v1.5**，下称「产品方案」；架构约束 = 产品方案 §15 + [architecture.md](architecture.md) + [CODE_WIKI.md](../CODE_WIKI.md)）。
 > 日期：2026-09-23
 > 结构对齐 CLAUDE.md「设计方案规则」+ 仓库 `docs/parallel-batches-w*` 分批协议。
 > **总批次数：15（M0×1 案头 + M1×11 代码 + M2×3 代码）。M3 不在本计划。**
@@ -15,14 +15,14 @@
 
 ## [S1] Problem
 
-旧「弟子群体模拟」无角色定义层、无卡池；免费招募链与寿命/忠诚等机制交织，无法承载米哈游式具名角色收集体验。产品方案 v1.4 已拍板 Q1–Q31（碎片制混池、删招募/逐出/洗炼/改名、不可战死、开局周明+5 万、结果页 Q30/Q31 等），缺一份**可按批合入、可独立验收**的实施拆解。
+旧「弟子群体模拟」无角色定义层、无卡池；免费招募链与寿命/忠诚等机制交织，无法承载米哈游式具名角色收集体验。产品方案 v1.5 已拍板 Q1–Q48（碎片制混池、**保底=第 10 抽必出 ×5**、**每星 100 碎片**、**物品最高四阶**、删招募/逐出/洗炼/改名/**天赋体质词条/血炼/战斗随机成长/职位特质**、不可战死、开局周明 star=1、结果页 Q30/Q31 等），缺一份**可按批合入、可独立验收**的实施拆解。
 
 **成功标准（总验收）**：
 
 1. 全量 GTest 绿（基线 + 删除后 RNG 对拍重录）；`:core:engine` / 六模块 detekt / lintRelease 绿。
 2. 旧档读档零报错；`recruitList` 迁移后恒空；proto 新字段 slot 隔离正确。
-3. 寻访 → 碎片 → 解锁/升星 → `finalStats` 双端一致；概率守卫与公示页同源。
-4. 招募/逐出/洗炼/改名/玩家侧 `markDead` 生产路径 grep 清零（UI 死链同步）。
+3. 寻访 → 碎片 → 解锁/升星 → `finalStats`/战力双端一致（含星级）；概率守卫与公示页同源。
+4. 招募/逐出/洗炼/改名/**特质三表/血炼/战斗随机成长/职位特质**/玩家侧 `markDead` 生产路径 grep 清零（UI 死链 + 死文案同步）。
 5. `MirrorReadOnly`：抽卡无新增 Kotlin→C++ 反向写；ActionId 经 `gen-action-ids.mjs` 五件套同批提交。
 6. 双 changelog + `CODE_WIKI.md` + 必要 architecture 段回写完成。
 
@@ -83,7 +83,7 @@ G00 ─────────────────────────�
 - 🔴 落位：`domain/gacha/GachaFacade` + `GachaDelegate` + `system/gacha_tx.h`；禁止塞进 `DiscipleFacade` 滚雪球。
 - 🔴 数据结构：碎片/星 = `map<templateId,…>`（或平行数组+守卫）；保底 = `map<poolId,pity>`；**禁止 6×int、禁止全局单保底**。
 - 🔴 物品掉落：`InventorySystem.addXxx` + `withTrackingSource("仙缘寻访")` + 来源名登记 + 发放类溢出邮件。
-- 🔴 星级/资质删除后的修炼与战斗：命名 Zone，双端 `finalStats` 对拍；禁魔法数字。
+- 🔴 星级/资质/特质/血炼删除后的修炼与战斗：命名 Zone，双端 `finalStats`+战力对拍（含星级）；禁魔法数字。
 - 🔴 UI 不直写 Store；不进 `GameSystem` 月/年回调；不新开反向通道。
 - 🔴 测试必须 `--max-workers=1`；detekt baseline 只缩不增。
 - 🔴 每批触达功能面则同步评估 changelog（最终 G14 保证双 changelog 必齐；M1 中途可只记技术 CHANGELOG 草稿，**G14 为硬门**）。
@@ -94,20 +94,20 @@ G00 ─────────────────────────�
 
 **交付**：`docs/design/gacha-batches/m0-economic-whitepaper.md`
 
-- 开局 50,000 耗尽后的收入曲线；第二角色时刻；0.71 碎片/抽复核。
+- 开局 50,000 耗尽后的收入曲线；第二角色时刻；**0.69 碎片/抽**复核（Q33：保底=第 10 抽 ×5）。
 - 杠杆逐项拍板建议：碎片门槛 / 保底量 / 保底自选 / 类别概率 / 开局送 99 碎片（默认不送）。
-- 资质乘区删除后的修炼速度重校准表（单根 vs 双根）。
-- 星级 +8%/+5% 终值（或维持 strawman 的书面确认）。
+- **资质/特质/血炼乘区删除后**修炼速度重校准表（单根 vs 双根 × 星级）。
+- 星级 +8%/+5% 终值；**战力纳入星级后的战力表**。
 - 重伤旬结回血参数；突破补偿（寿元增益删除后）。
-- 广纳门徒 sink 删除后的经济表修订。
+- 广纳门徒/**血炼池** sink 删除后的经济表修订；**物品池最高四阶**后的材料注入期望。
 - **输出配置键名清单** → G09/G13 直接消费。
 
 **验收**：白皮书入 docs；杠杆表有「采纳/不采纳」列可勾选。
 
 #### G01 · 脚手架
 
-- `game-data.json`（及中立源+生成器，若静态走 codegen）：`gachaPools[]`（poolId=standard、类别权重、品阶表、保底、单价 5000）、`characterTemplates[]`（6 角色：id/姓名/灵根配置/特质预设/立绘键）。
-- GameData/GameState：碎片 map、星 map、pity map、历史环缓冲 50 —— **协议字段先落**（`@ProtoNumber` 只增），GC_FROM 默认空。
+- `game-data.json`（及中立源+生成器）：`gachaPools[]`（poolId=standard、类别权重、**品阶表 1–4 阶 12/33/33/22**、每星 100、保底=第 10 抽 ×5、单价 5000、**无转化比例**）、`characterTemplates[]`（6 角色：id/姓名/性别/灵根元素/头像键/立绘键）；**删除 `talents/physiques/affixes` 三表配置源**。
+- GameData/GameState：碎片进度 map（x/100）、星 map、pity map、历史环缓冲 50 —— **协议字段先落**（`@ProtoNumber` 只增），GC_FROM 默认空；弟子行 **`templateId`** 一并进列协议。
 - `domain/gacha/` 空 Facade + Impl + `GachaService` 骨架；`GachaDelegate` 空壳。
 - ActionId 目录预分配 gacha 段（具体号段以 gen 脚本实跑为准，禁止手填过期值）。
 - 色表 Q31 单源常量/中立 JSON + 单测断言六阶/五灵根色值。
@@ -127,11 +127,16 @@ G00 ─────────────────────────�
 
 **验收**：`parentId`/`child_birth` 生产零引用；旧档亲缘 GC 清空幂等。
 
-#### G04 · 删洗炼+资质+悟性
+#### G04 · 删洗炼+资质+悟性+**天赋/体质/词条+血炼+职位特质+战斗随机成长**（v1.5 扩容）
 
-§6.6 / §6.6.1：`SPIRIT_ROOT_WASH_TX`、`appointment_tx` 洗炼分支、资质/悟性字段与 `(1+aptitude)` 乘区、属性丹目标、UI；**特质数据表只读保留**；职位特质若走随机重 roll 则删该路径。
+产品方案 §6.6 / §6.11–6.13（R18–R21，Q43/Q46–Q48）：
+- `SPIRIT_ROOT_WASH_TX`、`appointment_tx` 洗炼分支、资质/悟性字段与 `(1+aptitude)` 乘区、属性丹目标、UI；
+- **`talentIds/physiques/affixIds` 三端字段 + `talents/physiques/affixes` 三表 + `trait_db.h` 整删**；
+- **血炼字段/乘区/血炼池建筑**全删；
+- **职位特质授予**删除（任命仅槽位职责）；
+- **`winBattleRandomAttrPlus` 战斗随机成长整段删除**。
 
-**验收**：修炼公式无 aptitude；`CultivationSpeedZones` 字段与双端测试更新；洗炼 UI/grep 零。
+**验收**：修炼公式仅 `base÷灵根数×星级×资源等`；`CultivationSpeedZones`/`finalStats`/战力字段更新；洗炼/特质/血炼/随机成长 grep 零。
 
 #### G05 · 删招募链
 
@@ -149,23 +154,35 @@ G00 ─────────────────────────�
 
 #### G07 · 重伤
 
-§6.9：玩家侧 `markDead` 调用点改重伤（HP=1、isAlive 不变）；旬结回血（若无现成则补，参数配置）；AI/妖兽可死不动；`hasReviveEffect` 玩家侧停读写；UI 重伤文案（最小：HP=1 派生）。
+§6.9 + Q41：玩家侧 **全量** `markDead` 调用点改重伤（HP=1、isAlive 不变；**先出调用点清单，禁止只改三处**）；旬结回血（若无则补）；AI/妖兽可死不动；`hasReviveEffect` 玩家侧停读写；UI **HP=1 派生「重伤」**（不新增枚举）。
 
-**验收**：宗门战/探索败北不出现玩家尸体行；GTest death_handler 玩家语义更新；回血单测。
+**验收**：玩家侧任何败北不出现尸体行；death_handler 玩家语义更新；回血单测；markDead 点清单入 report。
 
 #### G08 · 模板层与开局
 
-§4.3/4.5/6.10：`DiscipleCreationSeed.templateId`；主工厂/Kotlin 臂/兑换码收敛单点；**兑换码不直造弟子**；6 模板特质/灵根/立绘；开局：新档实例化周明（碎片账本 100 等效）+ 灵石 50,000；禁改名已在 G06。
+§4.3/4.5/6.10 + Q32/Q34/Q36：`DiscipleCreationSeed.templateId` + **实例写入只读 templateId**；`portraitRes` 模板强制覆盖；主工厂/Kotlin 臂/兑换码收敛单点；**兑换码不直造弟子**；6 模板=姓名/性别/灵根元素/头像/立绘（**无特质、无初始功法、炼气一层**）；开局：新档实例化周明（**star=1，碎片进度 0/100**）+ 灵石 50,000。
 
-**验收**：新档名册仅 6 模板可能 + 存量旧档保留；周明限持；兑换码发角色=碎片入账。
+**验收**：新档名册仅 6 模板可能 + 存量旧档保留且 `templateId=""`；周明限持；兑换码发角色=碎片入账。
 
 #### G09 · 抽卡核心
 
-§4.1–4.2 + §8 + §15：`gacha_tx` 单抽/十连语义（先 roll 后 pity++，满 10 发保底×5 再清零）；两级物品 roll；`InventorySystem` 入库；碎片入账 `addFragment` 单函数；跨星自动升星；解锁触发模板实例化（限持 1）；灵石扣费与不足拒绝；结果 DTO 供 UI。
+§4.1–4.2 + §8 + §15 + **Q33/Q35**：
+```
+pull(pool):
+  pity[pool] += 1
+  if pity[pool] == 10:
+    结果 = addFragment(随机 templateId, 5)   // 本抽即保底，不 roll 类别
+    pity[pool] = 0
+  else:
+    结果 = 类别 roll（角色碎片×1 或 物品两级 roll 且 rarity≤4）
+升星：碎片进度 += n，while 进度≥100 && star<5: 进度-=100, star+=1
+```
+- `InventorySystem` 入库；`addFragment` 单函数；解锁触发模板实例化（限持 1）；灵石扣费与不足拒绝；结果 DTO 供 UI。
+- 十连 = **一笔 `GACHA_PULL_TEN` 内原子循环 10 次**上述语义；失败整笔回滚。
 
-**ActionId**：`GACHA_PULL_ONCE` / `GACHA_PULL_TEN` /（开局注入可并入新档导入路径而非 ActionId）。
+**ActionId**：`GACHA_PULL_ONCE` / `GACHA_PULL_TEN`。
 
-**验收**：GTest 概率结构守卫 + 保底边界（count 8 十连两次保底等）+ 入库 guard + 镜像只读；**不**依赖 UI。
+**验收**：GTest 权重和、品阶和≤4 阶、**第 10 抽必为碎片×5 且无类别 roll**、每星 100 归零、入库 guard、镜像只读；**不**依赖 UI。
 
 #### G10 · 对拍基线与回归收口
 
@@ -178,7 +195,7 @@ G00 ─────────────────────────�
 
 #### G11 · 最简寻访 UI
 
-§4.4 Q30/Q31 + §9：招募按钮 → 寻访主界面（池信息、一次/十次、x/10、灵石不足禁用）；结果页（2×5、流光色表、右下白字数量、单抽居中、点外关闭、双按钮连抽）；图鉴 6 格最小（进度+星级）；升星全屏层；`GachaDelegate` 接 Facade；DialogType + 系统栏 guard。
+§4.4 Q30/Q31 + Q39/Q40 + §9：招募按钮 → 寻访主界面（池信息、一次/十次、x/10、灵石不足禁用）；结果页（2×5、流光色表、右下白字数量、单抽居中、点外关闭、**框不可点详情**、双按钮连抽）；图鉴 6 格最小（**x/100 + 星级**）；升星全屏层；历史**按抽**；`GachaDelegate`；DialogType + 系统栏 guard。
 
 **素材**：头像精灵注册 `SpriteResRegistry` 双模块 WebP；禁 PNG。
 
@@ -186,7 +203,7 @@ G00 ─────────────────────────�
 
 #### G12 · 体验完成
 
-历史 50 条、概率公示同源页、图鉴完整态、流光低端降级、引导「打开寻访」、重伤/逐出移除后文案扫尾、结果页连抽体验打磨。
+历史 50 条（按抽+保底标注）、概率公示同源页（**只含 1–4 阶**）、图鉴完整态、流光低端降级、引导「打开寻访」、**死机制文案全库 grep 清零**（寿命/忠诚/生育/洗炼/特质/血炼/逐出/改名/战死/随机历练等）、结果页连抽体验打磨。
 
 **验收**：产品方案 M2 验收「抽卡→解锁→养成全链真机走通」。
 
@@ -202,7 +219,7 @@ G00 终值写入配置；突破补偿；回血参数；经济复测（广纳门�
 - `CODE_WIKI.md`：Facade 列表 +8、Delegate、ActionId 段、删除域。
 - `docs/architecture.md`：若修炼 Zones/结算列表表述过期则改。
 - 本实施文档 Report 回填；`report-G14-completion.md`。
-- 死代码与文档引用一致性扫尾。
+- 死代码与**死文案** grep 清零表（Q45）；文档引用一致性扫尾。
 
 **验收**：双 changelog 有条目；CODE_WIKI 与代码一致；AGENTS 文档门禁（引用可解析）。
 
@@ -212,7 +229,7 @@ G00 终值写入配置；突破补偿；回血参数；经济复测（广纳门�
 
 - M3：轮换池实体、UP、第 7 角色、元素克制、皮肤池、通胀治理、付费点、远程埋点实现、RemoteConfig 绑定、广告送抽。
 - 图鉴收集奖励、具名改名回退、差额抽卡、语音/Live2D/抽卡动画。
-- 修复 `manualMasteries` 双真相、`DiscipleCompact` 寿命列（登记债，不随本计划偿还——G14 可链到 §14.5）。
+- 修复 `manualMasteries` 双真相、`DiscipleCompact` 寿命/年龄/特质残列（登记债——G14 可链产品方案 §14.5）。
 - 与 SR/地图批次的合流改造（仅对表协调，不并批）。
 - 自动存档（产品已禁）；AI 宗抽卡化。
 
@@ -260,13 +277,13 @@ G00 终值写入配置；突破补偿；回血参数；经济复测（广纳门�
 
 | 类型 | 内容 |
 |---|---|
-| 单元 | 保底边界、权重和、品阶和、addFragment、升星阈值、开局注入、回血、禁改名/逐出 NotFound |
-| 守卫 | InventoryAddPath（寻访源）、MirrorReadOnly、概率公示同源、Q31 色值、碎片 key⊆模板、pity key⊆pool、Slot/模板扩展类按 rules 9.5 |
-| 对拍 | G10 重录 Diff*；`finalStats` 星级/无资质双端 |
+| 单元 | **第 10 抽=碎片×5 且不 roll 类别**、每星 100 归零升星、权重和、品阶和=100% 且 max=4、addFragment、开局 star=1 进度 0、回血、禁改名/逐出 NotFound |
+| 守卫 | InventoryAddPath（寻访源）、MirrorReadOnly、概率公示同源、Q31 色值、碎片 key⊆模板、pity key⊆pool、**templateId 非空⇒星 map 可反查**、Slot/模板扩展类按 rules 9.5 |
+| 对拍 | G10 重录 Diff*；`finalStats`+**战力**星级/无资质无特质无血炼双端 |
 | Migration | 亲缘清空、recruitList 清空、新字段默认值 |
 | UI | DialogType/系统栏；结果页点击热区（框/钮不关闭） |
 | 门禁 | 每批：`compileReleaseKotlin` + 相关模块 test `--max-workers=1` + detekt；G10/G14：全量 + lint + 双 changelog 检查 |
-| 对抗审查要点 | 反向通道符号；共享五件套半提交；十连跨 pity 边界；满仓溢出邮件；限持双实例；兑换码直造弟子；宗门改名误删 |
+| 对抗审查要点 | 反向通道符号；共享五件套半提交；**十连跨 pity 边界且保底格正确**；满仓溢出邮件；限持双实例；兑换码直造弟子；宗门改名误删；**templateId 丢失导致星级不生效**；特质/血炼/随机成长残留读写 |
 
 ---
 
@@ -310,7 +327,7 @@ G00 终值写入配置；突破补偿；回血参数；经济复测（广纳门�
 1. **G05 按钮占位** 若实现期嫌丑，允许 G05 只改路由到「施工中」Dialog，但 **G11 前不得删除按钮**——已在范围写明。  
 2. **G07 与 G02 顺序**：若寿命删除牵动死亡测试夹具，允许 G07 并入 G02 commit 组，**不减少总批数统计中的工作项**，但 Report 须合并叙述（批次 ID 仍按 15 计则允许 G07 与 G02 同 PR 两 commit）。  
 3. **解锁入宗是否计年报** 产品方案倾向「计入」，G08 须落一种并在 G05 预留的计数点接线——已写入 G05/G08。  
-4. **十连 UI 一次事务 vs 十次单抽事务**：推荐 **一笔 `GACHA_PULL_TEN` 内循环十次单抽语义**（1 个 ActionId、1 次镜像回读）；若实现拆十次 native 调用，须保证 pity 中途态原子性（事务内不可被存档打断）。**此点建议 G09 开工时在 batch 内用一段注释钉死，不另开拍板。**  
+4. **十连事务（已钉死）**：**一笔 `GACHA_PULL_TEN` 内原子循环 10 次单抽语义**（Q33 下其中至多 1 次为保底格）；失败整笔回滚；pity 中途态不可被存档打断。  
 5. **头像精灵是否已有**：G11 前素材盘点——若无头像切图，允许用立绘缩放占位并开美术债，**不阻塞 G11 逻辑验收**。  
 6. **实施期发现与产品方案冲突**：停在封锁点，改产品方案 §12 再继续（不静默改行为）。
 

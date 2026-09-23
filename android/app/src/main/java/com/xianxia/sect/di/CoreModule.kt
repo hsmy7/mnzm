@@ -148,6 +148,11 @@ object CoreModule {
 
     @Provides
     @Singleton
+    fun provideGachaFacade(impl: com.xianxia.sect.core.engine.domain.gacha.GachaFacadeImpl): com.xianxia
+        .sect.core.engine.domain.gacha.GachaFacade = impl
+
+    @Provides
+    @Singleton
     fun provideGameStateStore(impl: com.xianxia.sect.core.state.GameStateStoreImpl): com.xianxia.sect.core.state
         .GameStateStore = impl
 

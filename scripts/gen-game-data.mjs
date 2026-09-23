@@ -125,6 +125,17 @@ function loadBeastMaterial() {
     'beastMaterial');
 }
 
+function loadGacha() {
+  const j = readJson('gacha_config_sample.json');
+  return {
+    gachaPools: dedupe(requireArray(j, 'gachaPools', 'gacha_config_sample.json'), 'gachaPool'),
+    characterTemplates: dedupe(
+      requireArray(j, 'characterTemplates', 'gacha_config_sample.json'), 'characterTemplate'),
+    gachaDefaults: j.gachaDefaults ?? {},
+    gachaColors: j.gachaColors ?? {},
+  };
+}
+
 // beast_config 的 realm 表 / 技能表 / 类型表为**派生型数值**
 // （realm 表按 realm 索引复制；技能表按 8 类 beast 展开）——其真相源为
 // C++ 侧既有结构，本批登记为"结构性数值，仍在 C++ 侧生成"（见批次残余登记），
@@ -138,6 +149,7 @@ const manual = loadManual();
 const recipe = loadRecipe();
 const trait = loadTrait();
 const beastMaterial = loadBeastMaterial();
+const gacha = loadGacha();
 
 const doc = {
   schemaVersion: SCHEMA_VERSION,
@@ -154,7 +166,11 @@ const doc = {
     physiques: trait.physiques,
     affixes: trait.affixes,
     beastMaterials: beastMaterial,
+    gachaPools: gacha.gachaPools,
+    characterTemplates: gacha.characterTemplates,
   },
+  gachaDefaults: gacha.gachaDefaults,
+  gachaColors: gacha.gachaColors,
 };
 
 function counts() {
@@ -170,6 +186,8 @@ function counts() {
     ['physiques', d.physiques.length],
     ['affixes', d.affixes.length],
     ['beastMaterials', d.beastMaterials.length],
+    ['gachaPools', d.gachaPools.length],
+    ['characterTemplates', d.characterTemplates.length],
   ];
 }
 

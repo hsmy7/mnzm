@@ -49,6 +49,7 @@ class DiffDiscipleFactoryTest {
 
     private fun assertCombat(tag: String, d: Disciple, c: JsonObject) {
         assertStr(tag, "portraitRes", d.portraitRes, c)
+        assertStr(tag, "templateId", d.templateId, c)
         assertInt(tag, "hpVariance", d.combat.hpVariance, c)
         assertInt(tag, "mpVariance", d.combat.mpVariance, c)
         assertInt(tag, "physicalAttackVariance", d.combat.physicalAttackVariance, c)

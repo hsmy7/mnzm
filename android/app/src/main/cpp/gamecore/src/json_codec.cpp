@@ -241,6 +241,7 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, cultivationCheckpointGameMonth);
     GC_TO(v, j, spiritRootType); GC_TO(v, j, age); GC_TO(v, j, lifespan);
     GC_TO(v, j, isAlive); GC_TO(v, j, deathYear); GC_TO(v, j, gender); GC_TO(v, j, portraitRes);
+    GC_TO(v, j, templateId);
     GC_TO(v, j, manualIds); GC_TO(v, j, talentIds); GC_TO(v, j, physiqueIds);
     GC_TO(v, j, affixIds); GC_TO(v, j, manualMasteries);
     GC_TO(v, j, status); GC_TO(v, j, statusData);
@@ -304,6 +305,7 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, cultivationCheckpoint); GC_FROM(j, v, cultivationCheckpointGameMonth);
     GC_FROM(j, v, spiritRootType); GC_FROM(j, v, age); GC_FROM(j, v, lifespan);
     GC_FROM(j, v, isAlive); GC_FROM(j, v, deathYear); GC_FROM(j, v, gender); GC_FROM(j, v, portraitRes);
+    GC_FROM(j, v, templateId);
     GC_FROM(j, v, manualIds); GC_FROM(j, v, talentIds); GC_FROM(j, v, physiqueIds);
     GC_FROM(j, v, affixIds); GC_FROM(j, v, manualMasteries);
     GC_FROM(j, v, status); GC_FROM(j, v, statusData);
@@ -900,6 +902,18 @@ void from_json(const nlohmann::json& j, PendingTraitAdd& v) {
     GC_FROM(j, v, discipleId); GC_FROM(j, v, type); GC_FROM(j, v, traitId);
 }
 
+void to_json(nlohmann::json& j, const GachaHistoryEntry& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, poolId); GC_TO(v, j, category); GC_TO(v, j, templateId);
+    GC_TO(v, j, itemId); GC_TO(v, j, rarity); GC_TO(v, j, count);
+    GC_TO(v, j, isPity); GC_TO(v, j, gameMonthIndex);
+}
+void from_json(const nlohmann::json& j, GachaHistoryEntry& v) {
+    GC_FROM(j, v, poolId); GC_FROM(j, v, category); GC_FROM(j, v, templateId);
+    GC_FROM(j, v, itemId); GC_FROM(j, v, rarity); GC_FROM(j, v, count);
+    GC_FROM(j, v, isPity); GC_FROM(j, v, gameMonthIndex);
+}
+
 // ── 低频嵌套类型 ──────────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const BloodRefinementProgress& v) {
@@ -1310,6 +1324,8 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, mailRecords); GC_TO(v, j, sectLevelClaimRecords);
     GC_TO(v, j, bloodRefinements);
     GC_TO(v, j, yearlyReports); GC_TO(v, j, pendingTraitAdds);
+    GC_TO(v, j, gachaFragmentCounts); GC_TO(v, j, gachaStarMap);
+    GC_TO(v, j, gachaPityCounters); GC_TO(v, j, gachaHistory);
     // 低频嵌套类型字段
     GC_TO(v, j, manualProficiencies); GC_TO(v, j, spiritMineSlots);
     GC_TO(v, j, bloodRefinementBonusTotals); GC_TO(v, j, bloodRefinementPctTotals);
@@ -1399,6 +1415,8 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, mailRecords); GC_FROM(j, v, sectLevelClaimRecords);
     GC_FROM(j, v, bloodRefinements);
     GC_FROM(j, v, yearlyReports); GC_FROM(j, v, pendingTraitAdds);
+    GC_FROM(j, v, gachaFragmentCounts); GC_FROM(j, v, gachaStarMap);
+    GC_FROM(j, v, gachaPityCounters); GC_FROM(j, v, gachaHistory);
     // 低频嵌套类型字段
     GC_FROM(j, v, manualProficiencies); GC_FROM(j, v, spiritMineSlots);
     GC_FROM(j, v, bloodRefinementBonusTotals); GC_FROM(j, v, bloodRefinementPctTotals);

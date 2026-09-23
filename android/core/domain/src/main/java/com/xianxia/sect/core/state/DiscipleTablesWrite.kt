@@ -84,6 +84,7 @@ internal fun DiscipleTables.writeBasicFields(id: Int, disciple: Disciple) {
     // 基础信息
     names[id] = disciple.name; surnames[id] = disciple.surname
     genders[id] = disciple.gender; portraitRes[id] = disciple.portraitRes
+    templateIds[id] = disciple.templateId
     discipleTypes[id] = disciple.discipleType
     spiritRootTypes[id] = disciple.spiritRootType; slotIds[id] = disciple.slotId
 

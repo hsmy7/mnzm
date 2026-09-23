@@ -240,6 +240,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
     const auto d = gamecore::system::createDisciple(seed, *g_rng);
     nlohmann::json out;
     out["portraitRes"] = d.portraitRes;
+    out["templateId"] = d.templateId;
     out["hpVariance"] = d.hpVariance;
     out["mpVariance"] = d.mpVariance;
     out["physicalAttackVariance"] = d.physicalAttackVariance;

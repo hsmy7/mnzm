@@ -21,6 +21,7 @@ import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ExploredSectInfo
+import com.xianxia.sect.core.model.GachaHistoryEntry
 import com.xianxia.sect.core.model.GameEventRecord
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
@@ -609,6 +610,18 @@ object CollectionConverters {
     @JvmStatic
     fun toPendingTraitAddList(value: String): List<PendingTraitAdd> =
         ProtobufConverters.decodeFromBase64(ListSerializer(PendingTraitAdd.serializer()), value) { emptyList() }
+
+    // ==================== 角色卡池寻访历史（G01） ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromGachaHistoryEntryList(value: List<GachaHistoryEntry>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(GachaHistoryEntry.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toGachaHistoryEntryList(value: String): List<GachaHistoryEntry> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(GachaHistoryEntry.serializer()), value) { emptyList() }
 
     // ==================== 宗门等级领取记录转换器 ====================
 

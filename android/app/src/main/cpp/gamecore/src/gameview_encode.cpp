@@ -228,6 +228,7 @@ constexpr RowField kDiscipleRowFields[] = {
     {"recruitedMonth", 107, RowKind::kInt32},
     {"hasReviveEffect", 108, RowKind::kBool},
     {"hasClearAllEffect", 109, RowKind::kBool},
+    {"templateId", 112, RowKind::kString},
 };
 
 // ── 值级编码辅助 ────────────────────────────────────────────────────

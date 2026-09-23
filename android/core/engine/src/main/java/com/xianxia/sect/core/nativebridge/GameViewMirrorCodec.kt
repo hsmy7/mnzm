@@ -442,6 +442,7 @@ internal object GameViewMirrorCodec {
         i32("deathYear", { it.hasDeathYear() }, { it.deathYear }),
         str("gender", { it.hasGender() }, { it.gender }),
         str("portraitRes", { it.hasPortraitRes() }, { it.portraitRes }),
+        str("templateId", { it.hasTemplateId() }, { it.templateId }),
         sl("manualIds", { it.manualIdsList }),
         sl("talentIds", { it.talentIdsList }),
         sl("physiqueIds", { it.physiqueIdsList }),

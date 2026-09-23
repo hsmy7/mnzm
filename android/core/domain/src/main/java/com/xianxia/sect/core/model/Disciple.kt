@@ -87,6 +87,10 @@ data class Disciple(
 
     var portraitRes: String = "",
 
+    /** 角色模板 id（Q32 只读）；存量旧弟子空串、星级加成 0 */
+    @ColumnInfo(name = "templateId", defaultValue = "")
+    var templateId: String = "",
+
     var manualIds: List<String> = emptyList(),
     var talentIds: List<String> = emptyList(),
     var physiqueIds: List<String> = emptyList(),

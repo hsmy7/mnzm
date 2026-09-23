@@ -106,6 +106,7 @@ class DiscipleTables {
     val surnames = ComponentTable<String>()       // id → surname
     val genders = ComponentTable<String>()        // id → "male"/"female"
     val portraitRes = ComponentTable<String>()    // id → 头像资源
+    val templateIds = ComponentTable<String>()    // id → 角色模板 id（空=存量旧弟子）
     val discipleTypes = ComponentTable<String>()  // id → "outer"/"inner"/"elder"
     val spiritRootTypes = ComponentTable<String>()// id → "metal"/"fire"/...
     val slotIds = IntComponentTable()             // id → slot_id (持久化用)

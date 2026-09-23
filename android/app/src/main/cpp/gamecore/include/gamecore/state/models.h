@@ -316,6 +316,8 @@ struct Disciple {
     int32_t deathYear = 0;
     std::string gender = "male";
     std::string portraitRes;
+    /// 角色模板 id（Q32 只读）；存量旧弟子空串、星级加成 0
+    std::string templateId;
     std::vector<std::string> manualIds;
     std::vector<std::string> talentIds;
     std::vector<std::string> physiqueIds;
@@ -1164,6 +1166,18 @@ struct PendingTraitAdd {
     std::string traitId;
 };
 
+/// GachaHistoryEntry（寻访历史单条，按抽记；Kotlin GachaHistoryEntry）
+struct GachaHistoryEntry {
+    std::string poolId = "standard";
+    std::string category;
+    std::string templateId;
+    std::string itemId;
+    int32_t rarity = 0;
+    int32_t count = 1;
+    bool isPity = false;
+    int32_t gameMonthIndex = 0;
+};
+
 // ── 低频嵌套类型（与 Kotlin @Serializable 字段名一致） ──
 
 /// BloodRefinementProgress（血炼进行中）
@@ -1382,6 +1396,11 @@ struct GameData {
     std::map<std::string, int32_t> annualEquipmentBySource;
     std::map<std::string, int32_t> annualPillBySource;
     std::map<std::string, int32_t> annualHerbBySource;
+    // ── 角色卡池（G01 协议字段；旧档默认空）──
+    std::map<std::string, int32_t> gachaFragmentCounts;
+    std::map<std::string, int32_t> gachaStarMap;
+    std::map<std::string, int32_t> gachaPityCounters;
+    std::vector<GachaHistoryEntry> gachaHistory;
     // ── 嵌套对象字段 ──
     std::vector<WorldSect> worldMapSects;
     std::vector<MerchantItem> travelingMerchantItems;

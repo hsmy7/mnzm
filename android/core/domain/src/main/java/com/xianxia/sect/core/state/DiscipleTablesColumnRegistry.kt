@@ -95,6 +95,7 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     RefTableRef(surnames, DiscipleTables::surnames, "surnames"),
     RefTableRef(genders, DiscipleTables::genders, "genders"),
     RefTableRef(portraitRes, DiscipleTables::portraitRes, "portraitRes"),
+    RefTableRef(templateIds, DiscipleTables::templateIds, "templateIds"),
     RefTableRef(discipleTypes, DiscipleTables::discipleTypes, "discipleTypes"),
     RefTableRef(spiritRootTypes, DiscipleTables::spiritRootTypes, "spiritRootTypes"),
     RefTableRef(activePillCategories, DiscipleTables::activePillCategories, "activePillCategories"),

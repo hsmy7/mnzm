@@ -102,6 +102,8 @@ void to_json(nlohmann::json& j, const YearlyReport& v);
 void from_json(const nlohmann::json& j, YearlyReport& v);
 void to_json(nlohmann::json& j, const PendingTraitAdd& v);
 void from_json(const nlohmann::json& j, PendingTraitAdd& v);
+void to_json(nlohmann::json& j, const GachaHistoryEntry& v);
+void from_json(const nlohmann::json& j, GachaHistoryEntry& v);
 
 void to_json(nlohmann::json& j, const BloodRefinementProgress& v);
 void from_json(const nlohmann::json& j, BloodRefinementProgress& v);

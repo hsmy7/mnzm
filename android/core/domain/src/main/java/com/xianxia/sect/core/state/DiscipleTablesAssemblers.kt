@@ -67,6 +67,7 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         isAlive = isAlive.getOrDefault(id, 1) == 1,
         gender = genders.getOrDefault(id, "male"),
         portraitRes = portraitRes.getOrDefault(id, ""),
+        templateId = templateIds.getOrDefault(id, ""),
         manualIds = manualIds.getOrDefault(id, emptyList()),
         talentIds = talentIds.getOrDefault(id, emptyList()),
         physiqueIds = physiqueIds.getOrDefault(id, emptyList()),

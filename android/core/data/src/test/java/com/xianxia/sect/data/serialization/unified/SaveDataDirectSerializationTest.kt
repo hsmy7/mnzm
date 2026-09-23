@@ -34,6 +34,52 @@ class SaveDataDirectSerializationTest {
         assertEquals(original.gameData.gameYear, restored.gameData.gameYear)
         assertEquals(original.gameData.gameMonth, restored.gameData.gameMonth)
         assertEquals(original.disciples.size, restored.disciples.size)
+        // G01 空档新字段默认值往返（旧档/新档无 gacha 段时必须仍可解码）
+        assertEquals(emptyMap<String, Int>(), restored.gameData.gachaFragmentCounts)
+        assertEquals(emptyMap<String, Int>(), restored.gameData.gachaStarMap)
+        assertEquals(emptyMap<String, Int>(), restored.gameData.gachaPityCounters)
+        assertEquals(emptyList<com.xianxia.sect.core.model.GachaHistoryEntry>(), restored.gameData.gachaHistory)
+    }
+
+    @Test
+    fun `gacha fields and templateId round-trip`() {
+        // G01：碎片/星级/保底/历史 + 弟子 templateId 写读往返（协议字段先落验收）
+        val historyEntry = com.xianxia.sect.core.model.GachaHistoryEntry(
+            poolId = "standard",
+            category = "pity",
+            templateId = "zhouming",
+            count = 5,
+            isPity = true,
+            gameMonthIndex = 14,
+        )
+        val original = SaveData(
+            gameData = com.xianxia.sect.core.model.GameData(
+                gachaFragmentCounts = mapOf("zhouming" to 7, "suqing" to 0),
+                gachaStarMap = mapOf("zhouming" to 1),
+                gachaPityCounters = mapOf("standard" to 9),
+                gachaHistory = listOf(historyEntry),
+            ),
+            disciples = listOf(
+                com.xianxia.sect.core.model.Disciple(
+                    id = "1",
+                    name = "周明",
+                    templateId = "zhouming",
+                ),
+            ),
+            pills = emptyList(),
+            materials = emptyList(),
+            herbs = emptyList(),
+            seeds = emptyList(),
+        )
+
+        val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
+        val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
+
+        assertEquals(original.gameData.gachaFragmentCounts, restored.gameData.gachaFragmentCounts)
+        assertEquals(original.gameData.gachaStarMap, restored.gameData.gachaStarMap)
+        assertEquals(original.gameData.gachaPityCounters, restored.gameData.gachaPityCounters)
+        assertEquals(listOf(historyEntry), restored.gameData.gachaHistory)
+        assertEquals("zhouming", restored.disciples.single().templateId)
     }
 
     @Test

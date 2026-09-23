@@ -894,6 +894,31 @@ data class GameData(
     @ColumnInfo(name = "terrain_tiles", defaultValue = "")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var terrainTiles: List<Int> = emptyList(),
+
+    // ── 角色卡池（G01 协议字段；GC_FROM/旧档默认空）──
+    // 碎片进度：templateId → x（相对下一星，0..fragmentsPerStar-1）
+    @ProtoNumber(164)
+    @ColumnInfo(name = "gacha_fragment_counts", defaultValue = "{}")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var gachaFragmentCounts: Map<String, Int> = emptyMap(),
+
+    // 星级：templateId → star（1..maxStar；未解锁无键）
+    @ProtoNumber(165)
+    @ColumnInfo(name = "gacha_star_map", defaultValue = "{}")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var gachaStarMap: Map<String, Int> = emptyMap(),
+
+    // 保底计数：poolId → 已抽次数（0..pityThreshold-1）
+    @ProtoNumber(166)
+    @ColumnInfo(name = "gacha_pity_counters", defaultValue = "{}")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var gachaPityCounters: Map<String, Int> = emptyMap(),
+
+    // 寻访历史环缓冲（按抽记条，新在前）
+    @ProtoNumber(167)
+    @ColumnInfo(name = "gacha_history", defaultValue = "[]")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var gachaHistory: List<GachaHistoryEntry> = emptyList(),
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 
