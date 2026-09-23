@@ -11,6 +11,7 @@
 
 （最新在上）
 
+- **2026-09-23 08:2x MR-2 交付核验通过 + MR-3 派发中（看护锁 08:2x，截止前抢派）**：交付三要素齐 = 收官笔 `92a4a8e79`（18 文件：VMA v3.3.0 vendored + GpuAllocator/GpuBudgetMath + 6 站点收口 + staging pool + trim 接线 + 守卫 14 用例 + 报告）+ 完成报告（ctest **1581/1581**=1567+14、Kotlin **8,112/0/17** 零回归、NDK arm64 绿、裸 vkAllocateMemory=0（OFF 轨辅助 3 处 span 白名单锁定）、JNI 门 85/85）+ 工作树回净。**accepted 留用户**。**要点**：① JNI 基线漏更跨批发现（MR1 +2 补登 + MR2 豁免 +1）——**后续批次门禁清单必含 `node scripts/check-jni-count.mjs`**（已入 MR3 附录）；② 双 changelog 豁免有据（默认 OFF 玩家零感知；翻 true 批随该批写）；③ 白纹理 HOST_VISIBLE 落地口径与 P1.2 同类请示项留验收。MR-3 派发文本 = batch-MR3.md + 《前批交付事实》附录 6 条。
 - **2026-09-23 07:22 MR-2 已派发（GUI 六步全过，锁解除）**：新 ZCode 子会话《【MR-2 内存管理根治 · Phase 2 GPU 子系统批（P2.1–P2.3）】》开跑实证「工作中 13 秒」，自述先读台账留言与必读文档。派发文本 = batch-MR2.md + 《前批交付事实》附录 6 条（5226 字符剪贴板粘贴，尾部逐字核验）。**注意：当前 07:22，MR-2 为大 C++ 批（VMA vendoring + GpuAllocator + 6 站点收口），大概率跨越 08:50 硬截止——截止到点看护按 §4 停工（台账记在途态、删 cron），MR-2 子会话不受影响照常跑完，交付核验待看护恢复或用户口头驱动。**下轮起【C 监控】MR-2。
 - **2026-09-23 07:1x MR-1 交付核验通过**：交付三要素齐 = 收官笔 `c2410bf1c`（37 文件 +1832/-229，七任务+报告+checkbox+双 changelog 单笔，明确文件名 add，副产物已还原）+ 完成报告 257 行（门禁：Kotlin 六模块 **8,112/0/17 skip**、ctest **1567/1567** 含本批 12 新例、check-agent-instructions 过；五轮门禁迭代如实：2 编译错/Robolectric sdk=34/Diff 桥跑法参数/守卫读错文件/detekt 五类风格修复）+ 工作树回净。**accepted 留用户**。**开放项转登记**：① P1.4 GPU 计数 mock 断言弱化（随 MR3 TextureCache 补强）；② P1.2 `releaseBaselines` 显式切换调用点未加（裁量：pushTerrain 覆盖语义已满足，滞留窗 1 帧）——两项均为报告如实请示，非缺陷；③ 工作树 ctest 基线口径 = 1555+12=1567（与 main 差 -6 元数据，文件级零缺失已核）。MR-2 派发文本 = batch-MR2.md + 《前批交付事实》附录（6 条原文摘录）。
 - **2026-09-23 05:12 MR-1 已派发（GUI 六步全过，锁解除）**：新 ZCode 子会话《【MR-1 内存管理根治 · Phase 1 止血+压力闭环批（P1.1–P1.7 七任务全做）】》开跑实证「工作中 14 秒」，首动作读台账 dispatch-ledger.md（留言区纪律生效）。派发文本 = batch-MR1.md + 《前批交付事实》附录 5 条（5001 字符剪贴板粘贴，尾部逐字核验）。下轮起【C 监控】MR-1：预期先勘察 trim 消费者全清单（P1.3 最大面），首笔提交预计为施工卡/立卡笔；交付核验口径同 §7。**硬截止 08:50≥（等于也停）不变。**
@@ -69,8 +70,8 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 |---|---|---|---|---|---|---|
 | MR0 | Phase 0（P0.0 线程契约登记 / P0.1 memorySubsystem 旗标 / P0.2 基线采集清单） | **delivered · 核验通过 05:1x** | 04:40 GUI 六步 | `f80e9fdb8` | ✅ 看护（提交+报告双全，§7） | 留用户 |
 | MR1 | Phase 1（P1.1–P1.7 止血+压力闭环） | **delivered · 核验通过 07:1x** | 05:12 GUI 六步 | `c2410bf1c` | ✅ 看护（提交+报告双全，§7） | 留用户 |
-| MR2 | Phase 2（P2.1–P2.3 GPU 子系统 VMA/GpuAllocator） | **dispatched 07:22** | 07:22 GUI 六步 | — | — | — |
-| MR3 | Phase 3（P3.1–P3.3 纹理缓存） | queued | — | — | — | — |
+| MR2 | Phase 2（P2.1–P2.3 GPU 子系统 VMA/GpuAllocator） | **delivered · 核验通过 08:2x** | 07:22 GUI 六步 | `92a4a8e79` | ✅ 看护（提交+报告双全，§7） | 留用户 |
+| MR3 | Phase 3（P3.1–P3.3 纹理缓存） | **dispatched（派发中，锁 08:2x）** | 08:3x | — | — | — |
 | MR4 | Phase 4（P4.1–P4.6 基线+GLES+收口） | queued | — | — | — | — |
 
 ## 给实施会话的留言
