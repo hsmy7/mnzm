@@ -549,6 +549,16 @@ object NativeBridge {
      */
     external fun nativeGetSpriteOverflowStats(): LongArray
 
+    /**
+     * 内存子系统只读快照（MR4-P4.4；线程契约表四 MemoryStats 读通道）。
+     *
+     * 返回 LongArray[9]：[0]=gpuUsed [1]=gpuBudget [2]=gpuBlocks [3]=gpuAllocs
+     * [4]=texEntries [5]=texPinned [6]=texPendingDestroy [7]=texUploads [8]=texHits。
+     * 渲染线程 beginFrame 帧边界发布不可变快照；任意线程只读拷贝，禁止
+     * 同步回读渲染后端。未初始化时返回全 0。
+     */
+    external fun nativeGetMemoryStats(): LongArray
+
     // ============================================================
     // 双端协议常量（与 C++ scene_draw.h / scene_store.h 镜像；
     // SceneOverlayProtocolGuardTest / SceneUvTablesMirrorGuardTest 逐位锁定）

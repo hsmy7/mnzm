@@ -631,62 +631,79 @@ bool GameCore::importStateJsonNoRng(const std::string& json) {
 bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
     if (!initialized_) return false;
     try {
-        const auto j = nlohmann::json::parse(json);
-        state_ = j.get<state::GameState>();
-        // AI 宗门独立 RNG 读档重播——Kotlin loadData 调
-        // AISectDiscipleManager.initForSlot(mapSeed)（mapSeed = 存档
-        // GameData.mapSeed），C++ 同源播种保证 AI 招募/演化可复现
-        aiRng_ = rng::DeterministicRng::fromSeed(
-            state_.gameData.mapSeed + static_cast<int64_t>(6) * 31337LL);
-        // 读档后必须复位结算引擎累积——
-        // 否则旧会话残留的墙钟累积会在下一 tick 多推进旬数
-        settlement_.reset();
-        // 读档后从 GameData.rngStates 恢复 RNG 分区
-        // 状态——C++ 真相源语义下，"存档→读档→推进"必须与不中断逐位一致。
-        // AUTHORITATIVE 每旬回导走 restoreRng=false
-        // 分支——委托模式下 Kotlin 残留执行器的抽取已直接推进 native 分区，
-        // 镜像 rngStates 可能滞后，恢复会造成分区回卷与跨语言漂移。
-        if (restoreRng) {
-            rng_.restoreStates(state_.gameData.rngStates);
-            // AI 流归档续接：存档含键 9（新档格式）→ 以其覆盖上面的 mapSeed 重播，
-            // 使"存档→读档→推进"的 AI 演化与不中断逐位一致；旧档无键 9 →
-            // 保持 mapSeed + 6×31337 播种（与引入镜像前的行为逐位一致，零回归）
-            // 0 显式排除：PCG-XSH-RR 的 state = (seed<<1)|1 后经一轮混合，
-            // **数学上不可能为 0**，故 0 只可能是"旧档无该键时的缺省填充"，
-            // 不能据此覆盖 aiRng_（否则会把合法的 mapSeed 播种态回卷掉）
-            const auto aiIt = state_.gameData.rngStates.find(
-                static_cast<int32_t>(rng::RngPartition::kAiSectMirror));
-            if (aiIt != state_.gameData.rngStates.end() && aiIt->second != 0) {
-                aiRng_.restore(aiIt->second);
+        // P4.1/D5 导入峰值顺序：解析到独立临时对象 → 用完释放 JSON 树 →
+        // 校验/归一前先切换 state_ 指针并保留旧树回滚 → 再走归一化族。
+        // 解析树与新旧两棵 GameState **不同时常驻**（原实现 state_ 赋值后
+        // 仍持有 j 直到函数尾，峰值 = 解析树 + 旧态 + 新态）。
+        state::GameState next;
+        {
+            const auto j = nlohmann::json::parse(json);
+            next = j.get<state::GameState>();
+            // 导入即 reseed：id 计数器生命周期与存档对齐——
+            // 计数器推到存档已见最大后缀 +1 之后，重启读档后新分配的 id 不可能
+            // 与存档既有 id 撞号。只推高不回退：重复导入幂等（R3：源头错位修复）。
+            // 必须在释放解析树之前完成（依赖 JSON 字符串扫描）。
+            reseedItemIdAllocatorsFromJson(j);
+        }  // 解析树在此释放——此后仅 next + 旧 state_ 两棵业务态
+        // 切换真相源指针（旧树保留作回滚）；归一化失败整段回滚到旧树
+        state::GameState prev = std::move(state_);
+        state_ = std::move(next);
+        try {
+            // AI 宗门独立 RNG 读档重播——Kotlin loadData 调
+            // AISectDiscipleManager.initForSlot(mapSeed)（mapSeed = 存档
+            // GameData.mapSeed），C++ 同源播种保证 AI 招募/演化可复现
+            aiRng_ = rng::DeterministicRng::fromSeed(
+                state_.gameData.mapSeed + static_cast<int64_t>(6) * 31337LL);
+            // 读档后必须复位结算引擎累积——
+            // 否则旧会话残留的墙钟累积会在下一 tick 多推进旬数
+            settlement_.reset();
+            // 读档后从 GameData.rngStates 恢复 RNG 分区
+            // 状态——C++ 真相源语义下，"存档→读档→推进"必须与不中断逐位一致。
+            // AUTHORITATIVE 每旬回导走 restoreRng=false
+            // 分支——委托模式下 Kotlin 残留执行器的抽取已直接推进 native 分区，
+            // 镜像 rngStates 可能滞后，恢复会造成分区回卷与跨语言漂移。
+            if (restoreRng) {
+                rng_.restoreStates(state_.gameData.rngStates);
+                // AI 流归档续接：存档含键 9（新档格式）→ 以其覆盖上面的 mapSeed 重播，
+                // 使"存档→读档→推进"的 AI 演化与不中断逐位一致；旧档无键 9 →
+                // 保持 mapSeed + 6×31337 播种（与引入镜像前的行为逐位一致，零回归）
+                // 0 显式排除：PCG-XSH-RR 的 state = (seed<<1)|1 后经一轮混合，
+                // **数学上不可能为 0**，故 0 只可能是"旧档无该键时的缺省填充"，
+                // 不能据此覆盖 aiRng_（否则会把合法的 mapSeed 播种态回卷掉）
+                const auto aiIt = state_.gameData.rngStates.find(
+                    static_cast<int32_t>(rng::RngPartition::kAiSectMirror));
+                if (aiIt != state_.gameData.rngStates.end() && aiIt->second != 0) {
+                    aiRng_.restore(aiIt->second);
+                }
             }
+            // 导出侧一致性：无论是否续接，键 9 都必须等于 aiRng_ 真态
+            // （restoreRng=false 的每旬回导分支同样需要——否则下次导出的键 9 会是陈旧值）
+            mirrorAiRng();
+            // 导入侧 AI 尸体归一+幂等压缩：老档首次读入
+            // 即回缩（死亡超保留窗口条目移除、缺 deathYear 补导入年）——
+            // 必须先于 resetBaseline（导入后的首次导出以净化后的状态为基线）
+            system::detail::normalizeAICorpseEntries(state_);
+            // 导入侧账本族归一：mailRecords/战史/事件栏
+            // 按保留窗口回缩——先于 resetBaseline，导入后首次导出以净化态为基线
+            normalizeLedgers(state_.gameData);
+            // 地图冻结（WS-5b）"生成即数据"：老档无段 ⇒ 按 mapSeed 生成 + 落为
+            // 权威数据；新档与老档**同一条路径**（归一化族口径）。有段恒优先
+            // （跨版本冻结，不重算）。先于 resetBaseline ⇒ 生成段计入导入基线，
+            // 前向/反向镜像零载荷（稳态每旬零增量）。
+            ensureTerrainGenerated();
+            dirtyTracker_.resetBaseline(state_);
+            // R2.4/B09：导入整体替换 state_ ⇒ 新 DiscipleStore 的写屏障指针随
+            // 对象归零，必须重挂；列级基线（位图/非弟子域块）同点重置，
+            // 收割游标推到导入态最大（防旧档记录重放）
+            state_.disciples.attachColumnDirtyTracker(&columnTracker_);
+            columnTracker_.resetBaseline(state_);
+            breakthroughHarvestedSequence_ = maxGameEventSequence_(state_);
+            pendingViewEvents_.clear();
+        } catch (...) {
+            // 回滚到旧树（D5：失败不留下半程新态）
+            state_ = std::move(prev);
+            throw;
         }
-        // 导出侧一致性：无论是否续接，键 9 都必须等于 aiRng_ 真态
-        // （restoreRng=false 的每旬回导分支同样需要——否则下次导出的键 9 会是陈旧值）
-        mirrorAiRng();
-        // 导入即 reseed：id 计数器生命周期与存档对齐——
-        // 计数器推到存档已见最大后缀 +1 之后，重启读档后新分配的 id 不可能
-        // 与存档既有 id 撞号。只推高不回退：重复导入幂等（R3：源头错位修复）。
-        reseedItemIdAllocatorsFromJson(j);
-        // 导入侧 AI 尸体归一+幂等压缩：老档首次读入
-        // 即回缩（死亡超保留窗口条目移除、缺 deathYear 补导入年）——
-        // 必须先于 resetBaseline（导入后的首次导出以净化后的状态为基线）
-        system::detail::normalizeAICorpseEntries(state_);
-        // 导入侧账本族归一：mailRecords/战史/事件栏
-        // 按保留窗口回缩——先于 resetBaseline，导入后首次导出以净化态为基线
-        normalizeLedgers(state_.gameData);
-        // 地图冻结（WS-5b）"生成即数据"：老档无段 ⇒ 按 mapSeed 生成 + 落为
-        // 权威数据；新档与老档**同一条路径**（归一化族口径）。有段恒优先
-        // （跨版本冻结，不重算）。先于 resetBaseline ⇒ 生成段计入导入基线，
-        // 前向/反向镜像零载荷（稳态每旬零增量）。
-        ensureTerrainGenerated();
-        dirtyTracker_.resetBaseline(state_);
-        // R2.4/B09：导入整体替换 state_ ⇒ 新 DiscipleStore 的写屏障指针随
-        // 对象归零，必须重挂；列级基线（位图/非弟子域树）同点重置，
-        // 收割游标推到导入态最大（防旧档记录重放）
-        state_.disciples.attachColumnDirtyTracker(&columnTracker_);
-        columnTracker_.resetBaseline(state_);
-        breakthroughHarvestedSequence_ = maxGameEventSequence_(state_);
-        pendingViewEvents_.clear();
         return true;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",

@@ -1,5 +1,13 @@
 ## [4.01.16] - 2026-09-22
 
+### 内存管理根治 Phase 4：状态基线 + GLES + 可观测（2026-09-23，MR4 批）— `feat(memory)`/`perf(memory)`
+- **P4.1 状态基线去全量 DOM（D5）**：`StateBaseline` 块级形态（gameData 字段 + 实体 id 块），`DirtyTracker`/`ColumnDirtyTracker` 不再持嵌套全量业务树；`importStateInternal` 峰值顺序=解析临时态→reseed→释放 JSON→切换 state_（失败回滚）→归一化。验收：`BaselineMemoryTest` + `BaselineFieldCoverageGuardTest` + 对拍绿。
+- **P4.2 rest 导出减载**：块级基线比对，信封仍只携带 changed/（与 `dirtyColumnExport` 正交）；Diff tick 绿。
+- **P4.3 GLES D7**：VBO 按 `MAX_VERTICES` 预分配 + 稳态 `glBufferSubData` 已用范围；`draw()` clamp；PendingUpload 像素池；软渲 Bitmap trim 走 TrimMemoryBridge 收敛面。
+- **P4.4 MemoryBudgetView**：`nativeGetMemoryStats` 帧边界发布只读快照；设置页 Debug 显示 GPU/纹理分类 MB。
+- **门禁**：桌面 ctest 1603/1603；Kotlin compile+test+detekt；NDK arm64；JNI 89/89；check-agent-instructions 过。
+
+
 ### 内存管理根治 Phase 1：止血 + 压力闭环（2026-09-23，MR1 批）——`feat(memory)`/`perf(memory)`
 - **P1.1 位图几何扩容（D4/M-P0-5 根因）**：`column_dirty.h` 的 `ensureRowCapacity` 从精确步进改为
   几何增长（`kGrowthFactor=2`、按需路径起步 `kMinRowsSmall=16`，命名常量）——原实现加载 N 弟子

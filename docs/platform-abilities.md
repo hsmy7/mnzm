@@ -11,7 +11,7 @@
 | 能力 | 现状实现 | Android 耦合点 | iOS 对等方案 | 接口抽象状态 |
 |------|---------|---------------|-------------|-------------|
 | 时间源 | `TimeSource` 接口（可注入时钟） | 无（纯 JVM） | 直接复用 | ✅ 已抽象 |
-| 游戏渲染 | `RenderBackend` 接口 + RenderFrame 契约（零 Android 依赖） | Vulkan C++（JNI）/ SoftwareCanvasBackend | Metal 实现 RenderBackend / 软件渲染直接复用 | ✅ 已抽象（Metal 实现未建） |
+| 游戏渲染 | `RenderBackend` 接口 + RenderFrame 契约（零 Android 依赖）；GPU 内存 `GpuAllocator`（C++，iOS 后续 MTLHeap 对等） | Vulkan C++（JNI）/ SoftwareCanvasBackend | Metal 实现 RenderBackend + MTLHeap 实现 GpuAllocator 接口 / 软件渲染直接复用 | ✅ 已抽象（Metal 实现未建） |
 | 触控手势 | `SectMapTouchEngine` 纯 Kotlin 状态机（core/engine/touch/） | `SurfaceView.onTouchEvent` 适配（TouchData 转换） | UITouch → TouchData 转换 | ✅ 已抽象 |
 | 相机数学 | BaseCameraState/SectCameraState/WorldCameraState | 无（纯 JVM） | 直接复用 | ✅ 已抽象 |
 | 动画时钟 | TimeSource + FadeTransition 纯函数 | 无（纯 JVM） | 直接复用（EngineTween 批次 1b 落地后统一） | ✅ 已抽象 |

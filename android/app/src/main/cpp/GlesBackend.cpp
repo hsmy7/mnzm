@@ -9,6 +9,9 @@
 #define GLES_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, GLES_TAG, __VA_ARGS__)
 #define GLES_LOGW(...) __android_log_print(ANDROID_LOG_WARN, GLES_TAG, __VA_ARGS__)
 
+/// 像素缓冲池上限（P4.3/D7：覆盖「上一轮图集 + 本轮」双缓冲，防无界增长）
+static constexpr std::size_t kPixelPoolCap = 4;
+
 // GLSL ES 1.00 着色器（GLES2.0 最大兼容）。单纹理 sampler + 顶点色调制。
 // 说明：不做 UV 翻转——图集以 RGBA 经 glTexImage2D 上传，GLES 将 data[0] 置于
 // v=0（图像顶行），与上层"v=0=精灵顶部"语义一致；仅投影在 setProjection 做 Y 翻转
@@ -282,6 +285,16 @@ bool GlesBackend::initPipeline() {
     }
 
     glGenBuffers(1, &m_vbo);
+    // P4.3/D7：初始化一次按 MAX_VERTICES 预分配（null 数据）；每帧只 SubData
+    // 已用范围——稳态帧不再走 glBufferData 重分配路径（超容量回退见 submitFrame）。
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+        const GLsizeiptr capacityBytes =
+            static_cast<GLsizeiptr>(MAX_VERTICES) * static_cast<GLsizeiptr>(sizeof(SpriteVertex));
+        glBufferData(GL_ARRAY_BUFFER, capacityBytes, nullptr, GL_DYNAMIC_DRAW);
+        m_vboCapacityVerts = MAX_VERTICES;
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
 
     // 1×1 白色纹理（id=0，纯色矩形）——先注册，供 glFor(0) 命中
     const uint8_t white[4] = { 255, 255, 255, 255 };
@@ -426,6 +439,11 @@ void GlesBackend::drainUploads() {
         m_textures.push_back({ tex, up.id });
         GLES_LOGI("drainUploads: texture id=%u %dx%d uploaded (gl=%u)",
                   up.id, up.width, up.height, tex);
+        // P4.3/D7：像素缓冲回池（clear 保 capacity，供下轮借用避免反复 alloc）
+        if (m_pixelPool.size() < kPixelPoolCap) {
+            up.pixels.clear();
+            m_pixelPool.push_back(std::move(up.pixels));
+        }
     }
 }
 
@@ -440,11 +458,17 @@ uint32_t GlesBackend::uploadTexture(const void* pixels, int width, int height) {
     up.width = width;
     up.height = height;
     const size_t bytes = static_cast<size_t>(width) * height * 4;
-    up.pixels.resize(bytes);
-    memcpy(up.pixels.data(), pixels, bytes);
     uint32_t id = 0;
     {
+        // P4.3/D7：锁内从像素池借 buffer（复用 capacity，避免反复 alloc 22MB 级）
         std::lock_guard<std::mutex> lock(m_stateMutex);
+        if (!m_pixelPool.empty()) {
+            up.pixels = std::move(m_pixelPool.back());
+            m_pixelPool.pop_back();
+        }
+        up.pixels.resize(bytes);
+        // 像素拷贝：池 buffer 可能仍持旧数据，必须整段覆盖
+        memcpy(up.pixels.data(), pixels, bytes);
         id = m_nextTexId++;
         up.id = id;
         m_pendingUploads.push_back(std::move(up));
@@ -497,6 +521,10 @@ void GlesBackend::setProjection(const float mat[16]) {
 
 void GlesBackend::draw(const SpriteVertex* vertices, int count, uint32_t textureId) {
     if (!vertices || count <= 0) return;
+    // P4.3/D7：clamp 到 MAX_VERTICES（与 Vulkan 溢出守卫对齐——超界丢弃尾部批次）
+    const int remaining = MAX_VERTICES - static_cast<int>(m_vertexBuffer.size());
+    if (remaining <= 0) return;
+    if (count > remaining) count = remaining;
     const int offset = static_cast<int>(m_vertexBuffer.size());
     m_vertexBuffer.insert(m_vertexBuffer.end(), vertices, vertices + count);
     m_pendingDraws.push_back({ offset, count, textureId });
@@ -539,9 +567,22 @@ void GlesBackend::submitFrame() {
 
     if (!m_vertexBuffer.empty()) {
         glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-        glBufferData(GL_ARRAY_BUFFER,
-                     static_cast<GLsizeiptr>(m_vertexBuffer.size() * sizeof(SpriteVertex)),
-                     m_vertexBuffer.data(), GL_DYNAMIC_DRAW);
+        const int usedVerts = static_cast<int>(m_vertexBuffer.size());
+        const GLsizeiptr usedBytes =
+            static_cast<GLsizeiptr>(usedVerts) * static_cast<GLsizeiptr>(sizeof(SpriteVertex));
+        if (m_vboCapacityVerts >= usedVerts) {
+            // P4.3/D7 稳态路径：预分配容量内只 SubData 已用范围（无 BufferData 重分配）
+            glBufferSubData(GL_ARRAY_BUFFER, 0, usedBytes, m_vertexBuffer.data());
+            m_lastUploadedVerts = usedVerts;
+        } else {
+            // 能力不足/瞬时超预分配：回退整批 BufferData（记 metric）
+            glBufferData(GL_ARRAY_BUFFER, usedBytes, m_vertexBuffer.data(), GL_DYNAMIC_DRAW);
+            m_vboCapacityVerts = usedVerts;
+            m_lastUploadedVerts = usedVerts;
+            ++m_fullBufferDataFrames;
+            GLES_LOGI("submitFrame: vertex overflow fallback glBufferData verts=%d",
+                      usedVerts);
+        }
 
         // SpriteVertex = { float px,py,u,v,r,g,b,a } → 8 floats = 32 字节
         const GLsizei stride = 8 * sizeof(float);

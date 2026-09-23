@@ -1139,6 +1139,8 @@ class GameActivity : ComponentActivity() {
                 // 已被上传路径消费时为空操作；未消费时丢弃后由 surface 期重新读取
                 com.xianxia.sect.ui.game.sect.SectAtlasPrefetch.clear()
             }
+            // P4.3/D7：软渲位图缓存可重建面（SOFT+ chunk/地面源；AGGRESSIVE+ frameBuffer）
+            com.xianxia.sect.ui.game.sect.SoftwareCanvasBackend.dispatchSystemTrim(level.ordinal)
         }
     }
 

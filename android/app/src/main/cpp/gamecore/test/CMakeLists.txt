@@ -56,6 +56,9 @@ add_executable(game-core-tests
     json_codec_test.cpp
     dirty_tracker_test.cpp
     dirty_tracker_bench_test.cpp
+    # MR4-P4.1（内存管理根治基线批）：稳态无双全量树——块级 StateBaseline
+    # 形态 + 双追踪器导出循环后增量仍空（holdsNestedFullStateDom 恒 false）
+    baseline_memory_test.cpp
     # R1.4 列级写屏障（重构方案 2026-09-17 B03 批）：列枚举双射/挂点标脏/
     # 列级导出/与全量树 diff 等价性守卫
     column_dirty_test.cpp

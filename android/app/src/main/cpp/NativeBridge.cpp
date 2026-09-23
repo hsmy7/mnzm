@@ -67,6 +67,14 @@ static std::atomic<int> g_pendingResizeH{0};
 //    TextureCache.trim）随 MR2/MR3 在本消费点接入，仍渲染线程独占。 ──
 static std::atomic<int> g_pendingRenderTrim{0};   // TrimMemoryBridge.MemoryTrimLevel 序数
 
+// ── 内存 stats 发布快照（MR4-P4.4/D3；表四 MemoryStats 读通道）——
+//    渲染线程 beginFrame 写入（不可变拷贝）；任意线程 nativeGetMemoryStats 只读。
+//    布局：[gpuUsed, gpuBudget, gpuBlocks, gpuAllocs, texEntries, texPinned,
+//           texPending, texUploads, texHits] ──
+static std::mutex g_memStatsMutex;
+static jlong g_memStats[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+static bool g_memStatsValid = false;
+
 /** Harvest the last init error from a renderer about to be discarded (or inline value). */
 static void harvestInitError(RenderInitError err) {
     g_lastInitError.store(static_cast<int>(err), std::memory_order_release);
@@ -897,7 +905,44 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_beginFrame(
         LOGI("memory trim consumed at frame boundary: level=%d", trimLevel);
         if (g_renderer) g_renderer->onMemoryTrim(trimLevel);
     }
+    // MR4-P4.4：渲染线程帧边界发布内存 stats 不可变快照（表四 MemoryStats 读通道）——
+    // 任意线程 JNI 只读本快照，禁止同步回读渲染后端/GpuAllocator
+    {
+        const GpuStats gs = GpuAllocator::get().stats();
+        const auto ts = TextureCache::get().stats();
+        std::lock_guard<std::mutex> lock(g_memStatsMutex);
+        g_memStats[0] = static_cast<jlong>(gs.usedBytes);
+        g_memStats[1] = static_cast<jlong>(gs.budget);
+        g_memStats[2] = static_cast<jlong>(gs.blockCount);
+        g_memStats[3] = static_cast<jlong>(gs.allocCount);
+        g_memStats[4] = static_cast<jlong>(ts.entries);
+        g_memStats[5] = static_cast<jlong>(ts.pinned);
+        g_memStats[6] = static_cast<jlong>(ts.pendingDestroy);
+        g_memStats[7] = static_cast<jlong>(ts.uploads);
+        g_memStats[8] = static_cast<jlong>(ts.hits);
+        g_memStatsValid = true;
+    }
     if (g_renderer) g_renderer->beginFrame();
+}
+
+/** 内存子系统只读 stats 快照（MR4-P4.4/D3；表四 MemoryStats 读通道）。
+ *  返回 LongArray[9]：gpuUsed/gpuBudget/gpuBlocks/gpuAllocs/
+ *  texEntries/texPinned/texPending/texUploads/texHits。
+ *  渲染线程 beginFrame 发布；任意线程只读拷贝。未发布过返回全 0。 */
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_nativeGetMemoryStats(
+    JNIEnv* env, jobject /*thiz*/) {
+    jlong out[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    {
+        std::lock_guard<std::mutex> lock(g_memStatsMutex);
+        if (g_memStatsValid) {
+            for (int i = 0; i < 9; ++i) out[i] = g_memStats[i];
+        }
+    }
+    jlongArray arr = env->NewLongArray(9);
+    if (arr == nullptr) return nullptr;
+    env->SetLongArrayRegion(arr, 0, 9, out);
+    return arr;
 }
 
 /**

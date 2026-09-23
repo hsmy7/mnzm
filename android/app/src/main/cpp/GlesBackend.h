@@ -90,6 +90,9 @@ private:
     GLuint m_program = 0;
     GLint m_projLoc = -1;
     GLuint m_vbo = 0;
+    /** VBO 预分配容量（顶点数；P4.3/D7：init 一次 glBufferData(MAX_VERTICES)，
+     *  每帧 glBufferSubData 写已用范围——稳态帧无整批 glBufferData 重分配） */
+    int m_vboCapacityVerts = 0;
     GLuint m_whiteTex = 0;
     /** SkyBackground 屏幕空间渐变程序（sky.vert 复用 + kSkyFragSrc 解析渐变+抖动；0 = 回退主管线） */
     GLuint m_skyProgram = 0;
@@ -123,6 +126,10 @@ private:
         bool repeat = false;  ///< true = GL_REPEAT 寻址（无缝材质；入队侧守卫 POT）
     };
     std::vector<PendingUpload> m_pendingUploads;   // GUARDED_BY(m_stateMutex)
+    /** 像素缓冲池（P4.3/D7：drainUploads 后回收 vector capacity，避免 16.7MB
+     * 级图集像素每轮反复 alloc/dealloc；仅渲染线程消费，入队侧从池借用）
+     *  GUARDED_BY(m_stateMutex) */
+    std::vector<std::vector<uint8_t>> m_pixelPool;
     /** 待删纹理队列（destroyTexture 任意线程入队；渲染线程 drainUploads 持上下文删除——
      *  无 EGL 上下文的线程上直接调 GL 会静默无效） */
     std::vector<uint32_t> m_pendingDestroys;       // GUARDED_BY(m_stateMutex)
@@ -131,6 +138,11 @@ private:
     struct DrawCommand { int vertexOffset; int count; uint32_t textureId; };
     std::vector<DrawCommand> m_pendingDraws;
     std::vector<SpriteVertex> m_vertexBuffer;
+    /** 上一帧写入 VBO 的顶点数（0=未写；用于整批 SubData 计数 metric——
+     *  能力不足/超容量回退 glBufferData 时递增 m_fullBufferDataFrames） */
+    int m_lastUploadedVerts = 0;
+    /** 稳态整批 glBufferData 回退帧数（P4.3 验收 metric：能力允许时应为 0） */
+    uint64_t m_fullBufferDataFrames = 0;
 
     // 配置 / 投影 / 视口
     RenderConfig m_config{};

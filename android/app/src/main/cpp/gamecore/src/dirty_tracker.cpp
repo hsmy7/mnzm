@@ -29,12 +29,6 @@ constexpr const char* kEntityCollections[] = {
     "storageBags",
 };
 
-/// 把状态转为 JSON 树（复用快照编解码，字段名与 kotlinx 一致）
-json stateToJson(const GameState& s) {
-    json j = s;
-    return j;
-}
-
 /// 实体数组 → id→下标有序映射（重复 id 以末次出现为准）
 std::map<std::string, std::size_t> indexById(const json& arr) {
     std::map<std::string, std::size_t> idx;
@@ -48,11 +42,64 @@ std::map<std::string, std::size_t> indexById(const json& arr) {
     return idx;
 }
 
+/// 数组 → id→实体块（末次出现覆盖；供 StateBaseline 捕获/推进）
+void arrayToBlocks(const json& arr, std::map<std::string, json>& out) {
+    out.clear();
+    if (!arr.is_array()) return;
+    for (const json& e : arr) {
+        if (e.is_object() && e.contains("id") && e.at("id").is_string()) {
+            out[e.at("id").get<std::string>()] = e;
+        }
+    }
+}
+
+/// 当前集合序列化（与 stateWithoutDisciplesToJson 同一编码面）
+json collectionArray(const GameState& s, const char* name) {
+    if (std::string(name) == "disciples") {
+        json arr = json::array();
+        for (std::size_t i = 0; i < s.disciples.size(); ++i) {
+            arr.push_back(s.disciples.materialize(i));
+        }
+        return arr;
+    }
+    if (std::string(name) == "equipmentStacks") return json(s.equipmentStacks);
+    if (std::string(name) == "equipmentInstances") return json(s.equipmentInstances);
+    if (std::string(name) == "manualStacks") return json(s.manualStacks);
+    if (std::string(name) == "manualInstances") return json(s.manualInstances);
+    if (std::string(name) == "pills") return json(s.pills);
+    if (std::string(name) == "materials") return json(s.materials);
+    if (std::string(name) == "herbs") return json(s.herbs);
+    if (std::string(name) == "seeds") return json(s.seeds);
+    if (std::string(name) == "storageBags") return json(s.storageBags);
+    return json::array();
+}
+
+std::vector<const char*> activeCollections(bool includeDisciples) {
+    if (includeDisciples) {
+        return std::vector<const char*>(std::begin(kEntityCollections),
+                                        std::end(kEntityCollections));
+    }
+    return kNonDiscipleCollections;
+}
+
 }  // namespace
 
 /// 非 disciples 集合名清单（列级导出共享段；顺序 = kEntityCollections 去
 /// disciples，保证输出遍历序稳定）
 const std::vector<const char*> kNonDiscipleCollections = {
+    "equipmentStacks",
+    "equipmentInstances",
+    "manualStacks",
+    "manualInstances",
+    "pills",
+    "materials",
+    "herbs",
+    "seeds",
+    "storageBags",
+};
+
+const std::vector<const char*> kAllEntityCollections = {
+    "disciples",
     "equipmentStacks",
     "equipmentInstances",
     "manualStacks",
@@ -129,12 +176,81 @@ json stateWithoutDisciplesToJson(const GameState& s) {
     return j;
 }
 
+void StateBaseline::captureCollection(const char* name, const json& arr) {
+    std::map<std::string, json> blocks;
+    arrayToBlocks(arr, blocks);
+    collections_[name] = std::move(blocks);
+}
+
+void StateBaseline::reset(const GameState& s) {
+    gameData_ = json(s.gameData);
+    collections_.clear();
+    for (const char* name : activeCollections(includeDisciples_)) {
+        captureCollection(name, collectionArray(s, name));
+    }
+}
+
+void StateBaseline::diffAdvance(const GameState& current, json& changed,
+                                json& removed) {
+    // ── gameData 字段级（与 diffTreeSegments 的 gameData 段同语义）──
+    json curGd = json(current.gameData);
+    for (auto it = curGd.begin(); it != curGd.end(); ++it) {
+        auto baseIt = gameData_.find(it.key());
+        if (baseIt == gameData_.end() || *baseIt != it.value()) {
+            changed["gameData." + it.key()] = it.value();
+        }
+    }
+    gameData_ = std::move(curGd);  // 导出即消费：gameData 基线推进
+
+    // ── 集合块级 upsert/remove（upsert 遍历当前数组序；removed 遍历基线 id 序）──
+    for (const char* name : activeCollections(includeDisciples_)) {
+        const json curArr = collectionArray(current, name);
+        std::map<std::string, json> curBlocks;
+        arrayToBlocks(curArr, curBlocks);
+
+        auto baseIt = collections_.find(name);
+        const std::map<std::string, json>* baseBlocks =
+            (baseIt == collections_.end()) ? nullptr : &baseIt->second;
+
+        json upserts = json::array();
+        std::map<std::string, bool> curIds;
+        for (const json& e : curArr) {
+            if (!e.is_object() || !e.contains("id") || !e.at("id").is_string()) continue;
+            const std::string id = e.at("id").get<std::string>();
+            curIds[id] = true;
+            if (baseBlocks == nullptr) {
+                upserts.push_back(e);
+                continue;
+            }
+            auto bIt = baseBlocks->find(id);
+            if (bIt == baseBlocks->end() || bIt->second != e) {
+                upserts.push_back(e);
+            }
+        }
+
+        json removedIds = json::array();
+        if (baseBlocks != nullptr) {
+            for (const auto& [id, ignored] : *baseBlocks) {
+                static_cast<void>(ignored);
+                if (curIds.find(id) == curIds.end()) {
+                    removedIds.push_back(id);
+                }
+            }
+        }
+
+        if (!upserts.empty()) changed[name] = std::move(upserts);
+        if (!removedIds.empty()) removed[name] = std::move(removedIds);
+
+        collections_[name] = std::move(curBlocks);
+    }
+}
+
 void DirtyTracker::resetBaseline(const GameState& s) {
-    baselineJson_ = stateToJson(s);
+    baseline_.reset(s);
 }
 
 void DirtyTracker::syncBaselineToCurrent(const GameState& current) {
-    baselineJson_ = stateToJson(current);
+    baseline_.reset(current);
 }
 
 std::string DirtyTracker::diffToJson(const GameState& current) {
@@ -144,19 +260,9 @@ std::string DirtyTracker::diffToJson(const GameState& current) {
 nlohmann::json DirtyTracker::diffToTree(const GameState& current) {
     ++version_;
 
-    // WS-1.3：仅当前状态一次全量序列化；基线用缓存树（resetBaseline/
-    // syncBaselineToCurrent/上次 diff 消费时已重建），比较后移入缓存。
-    const json& base = baselineJson_;
-    json cur = stateToJson(current);
-
     json changed = json::object();
     json removed = json::object();
-
-    // gameData 字段级 + 全部实体集合按 id diff（与列级导出共享同一比对段）
-    diffTreeSegments(base, cur,
-                     std::vector<const char*>(std::begin(kEntityCollections),
-                                              std::end(kEntityCollections)),
-                     changed, removed);
+    baseline_.diffAdvance(current, changed, removed);
 
     json out;
     out["version"] = version_;
@@ -167,8 +273,6 @@ nlohmann::json DirtyTracker::diffToTree(const GameState& current) {
     // protobuf 信封（R2.2 encodeGameView）消费同一棵规范化后的树，
     // 保证双传输格式逐值等价
     normalizeIntegralFloats(out);
-
-    baselineJson_ = std::move(cur);  // 导出即消费：基线推进到当前状态
     return out;
 }
 
