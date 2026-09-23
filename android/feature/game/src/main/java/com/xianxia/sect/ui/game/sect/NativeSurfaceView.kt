@@ -809,6 +809,7 @@ class NativeSurfaceView(
         stopRenderThread()
         renderThread = null
         activeBackend = null
+        softwareBackend?.release()
         softwareBackend = null
         // surface 销毁后必须清纹理引用——重建后 buildAtlas 若失败（OOM/资产损坏）
         // 残留旧 GPU 纹理 ID 会提交已销毁纹理（C++ 查表未命中回退白纹 → 地图全白）；
@@ -955,7 +956,9 @@ class NativeSurfaceView(
                     // 先设置渲染模式和软件后端，再通知上层上传纹理
                     // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
                     // 必须在 onRendererReady 之前设置，否则图集 Bitmap 被误回收
-                    softwareBackend = createSoftwareBackend()
+                    softwareBackend = createSoftwareBackend().also {
+                        SoftwareCanvasBackend.markActive(it)
+                    }
                     activeBackend = SoftwareRenderBackend(this@NativeSurfaceView)
                     renderMode = RenderMode.SOFTWARE
                     // 软件路径确定后重算渲染缩放（pathFactor 0.8 生效）

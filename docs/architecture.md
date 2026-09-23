@@ -279,6 +279,19 @@ RunState（运行时状态 — 可循环回退）
 
 ---
 
+## 内存管理子系统（memory-refactor D1–D7）
+
+横跨 RHI / gamecore / 资产 / 平台的内存面（方案 `docs/memory-refactor-implementation-plan-2026-09-23.md`）：
+
+- **GPU**：`GpuAllocator` + VMA 单一分配入口（`NativeEngineFlag.memorySubsystem` 双轨，默认 false）
+- **纹理**：`TextureCache` 键控 refCount + `clearEpoch` 纪元失效
+- **状态基线**：`StateBaseline` 块级形态（gameData 字段 + 实体 id→块），稳态无双全量 nlohmann 业务树
+- **压力**：`TrimMemoryBridge` 唯一收敛面；渲染线程 beginFrame 消费
+- **可观测**：`MemoryBudgetView` / `nativeGetMemoryStats`（表四只读快照）
+- **GLES**：VBO 预分配 + SubData；软渲 Bitmap trim 并入 Bridge
+
+镜像只读 / 存档格式 / RNG / 降级链不变。
+
 ## Key Source Directories
 
 **Core:** `core/engine/`(game loop/services/systems), `core/engine/domain/`(per-domain services), `core/engine/system/`(ECS systems), `core/domain/`(data classes), `core/state/`(GameStateStore), `core/registry/`(static game data), `core/config/`(JSON config)

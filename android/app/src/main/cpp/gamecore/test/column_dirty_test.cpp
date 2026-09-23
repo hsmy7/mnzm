@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <set>
 #include <string>
 #include <vector>
@@ -340,6 +341,88 @@ TEST(ColumnDirtyTest, ScriptedMutationSequenceMatchesTreeDiff) {
                 << "弟子 " << id << " 字段 " << it.key() << " 值与全量导出不一致";
         }
     }
+}
+
+// ============================================================
+// MR1-P1.1/D4：位图几何扩容 + 加载 reserve（ColumnResizeGrowthTest）
+//
+// 守护目标（memory-refactor 方案 D4）：原 ensureRowCapacity 精确步进 =
+// 加载 N 弟子 O(N²) memcpy 根因。改几何增长后：
+//   1. N 次 append 的位图分配次数 ≤ 2*ceil(log2(N/kMinRowsSmall)) + O(1)
+//      （分配次数 = capacityRows() 变化次数——每次变化恰一次 growTo）；
+//   2. reserve(rows) 加载路径一次到位 + 抬 kMinRows 大表下限；
+//   3. 小集合按需路径不抬 kMinRows（起步 kMinRowsSmall，禁全局浪费）；
+//   4. loadFromVector（存档加载入口）内部走 reserve。
+// ============================================================
+
+TEST(ColumnDirtyGrowthTest, AppendAllocationCountIsLogarithmic) {
+    AttachedStore s;
+    int reallocations = 0;
+    std::size_t prevCapacity = s.tracker.capacityRows();
+    constexpr std::size_t kAppendCount = 5000;
+    for (std::size_t i = 0; i < kAppendCount; ++i) {
+        s.store.appendDisciple(makeDisciple(std::to_string(i), "甲"));
+        const std::size_t cap = s.tracker.capacityRows();
+        if (cap != prevCapacity) {
+            ++reallocations;
+            prevCapacity = cap;
+        }
+    }
+    // 几何增长上界：2*ceil(log2(N/kMinRowsSmall)) + O(1)（kMinRowsSmall=16、
+    // kGrowthFactor=2 → 5000 弟子约 9 次倍增；余量计入 kMinRowsSmall 起步对齐）
+    const std::size_t logTerms =
+        static_cast<std::size_t>(std::ceil(std::log2(
+            static_cast<double>(kAppendCount) / 16.0)));
+    EXPECT_LE(reallocations, 2 * logTerms + 4)
+        << "位图分配次数超几何增长上界——精确步进 O(N²) 回潮？";
+    EXPECT_EQ(s.store.size(), kAppendCount);
+}
+
+TEST(ColumnDirtyGrowthTest, ReserveLoadsInOneShotAndRaisesBigTableFloor) {
+    AttachedStore s;
+    // 加载路径：reserve(5000) 一次到位（精确 rows，且 ≥ kMinRows=1024 下限）
+    s.tracker.reserve(5000);
+    EXPECT_EQ(s.tracker.capacityRows(), 5000u);
+
+    // 一次到位后再 append：零新分配（容量不再变化）
+    const std::size_t capBefore = s.tracker.capacityRows();
+    for (std::size_t i = 0; i < 5000; ++i) {
+        s.store.appendDisciple(makeDisciple(std::to_string(i), "乙"));
+    }
+    EXPECT_EQ(s.tracker.capacityRows(), capBefore);
+
+    // 小 rows 请求仍抬大表下限（kMinRows=1024）
+    AttachedStore small;
+    small.tracker.reserve(3);
+    EXPECT_EQ(small.tracker.capacityRows(), 1024u);
+}
+
+TEST(ColumnDirtyGrowthTest, SmallCollectionsGrowOnDemandWithoutBigTableFloor) {
+    AttachedStore s;
+    // 写屏障按需路径：少量 append 起步 kMinRowsSmall=16，禁全局抬 kMinRows=1024
+    for (int i = 0; i < 3; ++i) {
+        s.store.appendDisciple(makeDisciple(std::to_string(i), "丙"));
+    }
+    EXPECT_EQ(s.tracker.capacityRows(), 16u)
+        << "小集合容量被抬到大表下限——kMinRows 泄漏到按需路径（全局浪费）";
+}
+
+TEST(ColumnDirtyGrowthTest, LoadFromVectorReservesBeforeAppend) {
+    std::vector<Disciple> batch;
+    for (int i = 0; i < 3000; ++i) {
+        batch.push_back(makeDisciple(std::to_string(i), "丁"));
+    }
+    AttachedStore s;
+    s.store.loadFromVector(batch);
+    EXPECT_EQ(s.store.size(), batch.size());
+    // 一次到位：3000 行加载后位图容量应精确落在一次 growTo 的目标
+    //（≥3000 且与 3000 同倍增档——若逐行精确扩容则容量==3000 亦成立，
+    // 故用「分配语义」由前两条用例锁定，此处锁结果正确性：行数与脏位全行）
+    EXPECT_GE(s.tracker.capacityRows(), batch.size());
+    // 结果正确性：每行整行标脏可被导出（既有挂点语义不回归）
+    const json out = json::parse(s.tracker.exportDirtyJson(s.store, s.gameData));
+    ASSERT_TRUE(out.at("changed").contains("disciples"));
+    EXPECT_EQ(out.at("changed").at("disciples").size(), batch.size());
 }
 
 }  // namespace

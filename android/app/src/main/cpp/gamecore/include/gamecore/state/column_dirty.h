@@ -440,6 +440,21 @@ public:
         markRowsShiftedFrom(0, rowCount);
     }
 
+    // ── 容量预留（MR1-P1.1/D4：位图几何扩容 + 加载 reserve）──────
+    /// 一次到位预留（加载/批量导入路径：先 reserve 再逐行 append，消灭
+    /// O(N²) 逐行重分配搬运——5000 弟子档加载面）。预期大表（DiscipleStore
+    /// 列）同时抬 [kMinRows] 行下限；小集合勿调本入口（走写屏障按需
+    /// 几何增长，不抬大表下限防浪费）。
+    void reserve(std::size_t rows) {
+        const std::size_t needWords = std::max(rows, kMinRows) * kWordsPerRow;
+        if (rowBitsSize_ >= needWords) return;
+        growTo(needWords);
+    }
+
+    /// 当前位图容量（行数；ColumnResizeGrowthTest 据容量变化次数断言分配次数
+    /// ——每次容量变化恰对应一次 growTo 分配，零生产测试钩子）
+    std::size_t capacityRows() const { return rowBitsSize_ / kWordsPerRow; }
+
     /// 集合 tombstone（按 id 删除；任意实体集合名，通用 API）
     void tombstone(const std::string& collection, const std::string& id) {
         tombstones_[collection].insert(id);
@@ -488,12 +503,17 @@ public:
         gameDataFields_.clear();
     }
 
-    /// 基线重置并重捕非弟子域基线树（B09：初始化/导入/全量导出后与
+    /// 基线重置并重捕非弟子域块级基线（P4.1/D5：初始化/导入/全量导出后与
     /// DirtyTracker::resetBaseline 同点调用——gameData/集合域的列级 diff
-    /// 基线自此与全量 diff 基线同源同步）
+    /// 基线与全量 diff 基线同源同步；**块级**形态，不持嵌套全量业务树）
     void resetBaseline(const GameState& s) {
         resetBaseline();
-        restBaseline_ = stateWithoutDisciplesToJson(s);
+        restBaseline_.reset(s);
+    }
+
+    /// 测试面：稳态不持嵌套全量业务树（恒 false——块级基线）
+    bool holdsNestedFullStateDom() const {
+        return restBaseline_.holdsNestedFullStateDom();
     }
 
     /// 仅复位行位图（DiscipleStore::clear 用：行已全部删除、每 id 经
@@ -577,12 +597,12 @@ public:
     // ── 整树列级导出（B09 R2 生产接线）────────────────────────────
     /// 列级导出**树**（{"version","changed","removed"}，已过
     /// normalizeIntegralFloats）：
-    ///   - gameData + 九个实体集合：经 [diffTreeSegments] 与全量 diff 共享
-    ///     同一比对段（基线 = [resetBaseline(const GameState&)] 捕获的非弟子
-    ///     域树）——语义与全量导出由构造保证等价；
+    ///   - gameData + 九个实体集合：**块级基线** [StateBaseline] 字段/实体
+    ///     比对（与全量 diff 同语义循环体——upsert 遍历当前数组序、removed
+    ///     遍历基线 id 序）；稳态不持嵌套全量 rest 业务树（P4.1/D5）；
     ///   - disciples：行主序脏位图通道（仅脏行 × 脏列 + 恒携带 id 键；
     ///     tombstone 撤销规则同 [exportDirtyJson]）；
-    ///   - 导出即消费：位图/tombstone 清空、非弟子域基线推进到当前。
+    ///   - 导出即消费：位图/tombstone 清空、非弟子域块级基线推进到当前。
     nlohmann::json exportDirtyTree(const GameState& s) {
         ++version_;
         const DiscipleStore& ds = s.disciples;
@@ -592,10 +612,8 @@ public:
         json changed = json::object();
         json removed = json::object();
 
-        // gameData + 集合域：与全量 diff 共享比对段（基线推进到当前）
-        json cur = stateWithoutDisciplesToJson(s);
-        diffTreeSegments(restBaseline_, cur, kNonDiscipleCollections, changed, removed);
-        restBaseline_ = std::move(cur);
+        // gameData + 集合域：块级基线推进（不构造嵌套 rest 全量树）
+        restBaseline_.diffAdvance(s, changed, removed);
 
         // tombstone 消费（弟子集合复活撤销规则，与旧导出同语义）
         for (const auto& [collection, ids] : tombstones_) {
@@ -654,21 +672,42 @@ private:
     static constexpr std::size_t kWordsPerRow =
         (static_cast<std::size_t>(kDiscipleColumnCount) + 63) / 64;
 
+    // ── 几何扩容常量（MR1-P1.1/D4；原精确步进 = 加载 N 弟子 O(N²) memcpy 根因）──
+    /// 写屏障按需路径容量倍增因子
+    static constexpr std::size_t kGrowthFactor = 2;
+    /// 预期大表最小行容量（仅 reserve() 加载路径生效——DiscipleStore 列、
+    /// 5000 弟子档量级；写屏障按需路径禁止抬到此值防小集合浪费）
+    static constexpr std::size_t kMinRows = 1024;
+    /// 小集合起步行容量（写屏障按需路径下限）
+    static constexpr std::size_t kMinRowsSmall = 16;
+
     void ensureRowCapacity(std::size_t rows) {
-        const std::size_t need = rows * kWordsPerRow;
-        if (rowBitsSize_ >= need) return;
-        // 扩容仅在行结构变更路径（串行段）发生；新字 value-init 清零，
-        // 旧字逐字搬运（relaxed——扩容与并行置位不同时发生）
+        const std::size_t needWords = rows * kWordsPerRow;
+        if (rowBitsSize_ >= needWords) return;
+        // 几何增长（MR1-P1.1/D4）：max(need, 容量×kGrowthFactor, kMinRowsSmall)
+        // ——写屏障按需路径不抬 kMinRows（大表下限仅在 reserve() 生效），
+        // 小集合从 kMinRowsSmall 起步按 need 倍增，append 分配次数 =
+        // O(log) 而非逐行 O(N)（验收 ColumnResizeGrowthTest）。
+        const std::size_t grownWords = std::max({
+            needWords,
+            rowBitsSize_ * kGrowthFactor,
+            kMinRowsSmall * kWordsPerRow});
+        growTo(grownWords);
+    }
+
+    /// 扩容到 words 字（新字 value-init 清零，旧字逐字搬运；仅串行段调用，
+    /// 见 resetBaseline 的容量保留注释）
+    void growTo(std::size_t words) {
         std::unique_ptr<std::atomic<uint64_t>[]> grown(
-            new std::atomic<uint64_t>[need]);
-        for (std::size_t i = 0; i < need; ++i) {
+            new std::atomic<uint64_t>[words]);
+        for (std::size_t i = 0; i < words; ++i) {
             grown[i].store(i < rowBitsSize_
                                ? rowBits_[i].load(std::memory_order_relaxed)
                                : 0,
                            std::memory_order_relaxed);
         }
         rowBits_ = std::move(grown);
-        rowBitsSize_ = need;
+        rowBitsSize_ = words;
     }
 
     void setBit(std::size_t row, DiscipleColumn col) {
@@ -695,9 +734,9 @@ private:
     std::size_t rowBitsSize_ = 0;   // rowBits_ 字数（= 容量行数 × kWordsPerRow）
     std::map<std::string, std::set<std::string>> tombstones_;  // 集合 → 被删 id（有序）
     std::set<std::string> gameDataFields_;          // gameData 标脏顶层域（有序）
-    /// 非弟子域（gameData + 九集合）基线树（resetBaseline(const GameState&)
-    /// 捕获、exportDirtyTree 消费推进——与 DirtyTracker 基线同语义）
-    nlohmann::json restBaseline_ = nlohmann::json::object();
+    /// 非弟子域（gameData + 九集合）**块级**基线（resetBaseline(const GameState&)
+    /// 捕获、exportDirtyTree 消费推进——字段 map + id→实体块，非嵌套全量树）
+    StateBaseline restBaseline_{/*includeDisciples=*/false};
     uint64_t version_ = 0;
 };
 

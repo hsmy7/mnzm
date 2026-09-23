@@ -50,7 +50,17 @@ import com.xianxia.sect.core.render.RenderMetrics
  *
  * @param sink 端口汇——生产 = [nativeSceneUpdateSink]，测试 = 计数替身
  */
-class SceneUpdateChannel(private val sink: Sink) {
+class SceneUpdateChannel(
+    private val sink: Sink,
+    /**
+     * pinned 迁移动作（MR3-P3.2/D2.4）：场景/宗门切换或 trim 释放基线时把
+     * TextureCache 全部 pinned 降 evictable——防漏 unpin 致 trim 永远腾不掉。
+     * 新场景上传成功后经 upload 的 `acquire(pinned=true)` 重提升。
+     * 生产注入 `NativeBridge::textureUnpinAll`；单测可注入计数替身/空实现
+     *（默认 no-op—— JVM 单测无 native 库）。
+     */
+    private val onPinnedMigrate: () -> Unit = {}
+) {
 
     // ── 已推送基线（引用/值比较用；null 与 0/-1 等"无数据"态也参与比较，
     //    故"上游恒无某路数据"时该路零跨线）──
@@ -97,6 +107,48 @@ class SceneUpdateChannel(private val sink: Sink) {
         calls += pushPreview(inputs.frame)
         if (calls > 0) RenderMetrics.sceneUpdatePushes.addAndGet(calls.toLong())
         return calls
+    }
+
+    /**
+     * 释放全部已推送基线引用（MR1-P1.2/D6：`pushedTerrain` 等基线在场景/宗门
+     * 切换或内存压力时显式置空）——旧宗门的大数组（地形瓦片整表等）不再被本
+     * 通道滞留，GC 可即时回收；下一帧全部端口按「无基线」判脏整体重推当前
+     * 场景（重推 = 当前数据，语义无损，仅一次额外触线）。
+     *
+     * **MR3-P3.2/D2.4**：同步执行 [onPinnedMigrate]（TextureCache pinned 降
+     * evictable）——切宗门/surface 的 pinned 迁移挂在本切换路径；新场景上传
+     * 成功后经 acquire(pinned=true) 重提升。
+     *
+     * 调用面：内存 trim（Bridge → 渲染宿主）与场景切换；渲染线程或主线程
+     * 调用皆可（基线字段无并发读者——与 push 同线程纪律）。
+     *
+     * @return 被释放的基线引用数（观测面）
+     */
+    fun releaseBaselines(): Int {
+        var released = 0
+        if (pushedTerrain != null) released++
+        pushedTerrain = null
+        pushedTerrainCols = 0
+        pushedTerrainRows = 0
+        pushedTerrainTileSize = 0
+        if (pushedBuildings != null) released++
+        pushedBuildings = null
+        pushedBuildingCount = -1
+        if (pushedCrops != null) released++
+        pushedCrops = null
+        if (pushedRoads != null) released++
+        pushedRoads = null
+        if (pushedClouds != null) released++
+        pushedClouds = null
+        if (pushedGroundBoundary != null) released++
+        pushedGroundBoundary = null
+        pushedAtlasTexId = -1
+        pushedSelection = SENTINEL_NO_SELECTION
+        if (pushedMarkers != null) released++
+        pushedMarkers = null
+        // MR3-P3.2：pinned 迁移（D2.4）——旧场景 pinned 降 evictable
+        onPinnedMigrate()
+        return released
     }
 
     /** 地形（引用 + 网格尺寸/格像素协议字段任一变化才重导整表） */

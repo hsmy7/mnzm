@@ -39,12 +39,26 @@ add_executable(game-core-tests
     result_test.cpp
     item_id_reseed_test.cpp
     ai_corpse_budget_test.cpp
+    memory_trim_test.cpp
+    # MR2-P2.1/P2.2/P2.3（内存管理根治 GPU 子系统批）：GpuBudgetMath 纯逻辑
+    # 单测（预算估算兜底 + 大图 dedicated 阈值——零 Vulkan 依赖桌面可测）+
+    # GpuAllocatorGuard 源码守卫（裸 vkAllocate/vkFree 收口 OFF 轨辅助体/
+    # VMA_IMPLEMENTATION 唯一 TU/trim 帧边界消费点/vendoring 钉死）
+    gpu_budget_math_test.cpp
+    gpu_allocator_guard_test.cpp
+    # MR3-P3.1（内存管理根治纹理缓存批）：TextureCache 键控 refCount 单测——
+    # 位段 schema/refCount/pin/trim 档位/纪元失效/竞态二选一（pendingDestroy
+    # 重传替换）/trim 不重传风暴（零图形 API 依赖桌面可测）
+    texture_cache_test.cpp
     disciple_derived_maps_test.cpp
     storage_bag_capacity_test.cpp
     game_core_test.cpp
     json_codec_test.cpp
     dirty_tracker_test.cpp
     dirty_tracker_bench_test.cpp
+    # MR4-P4.1（内存管理根治基线批）：稳态无双全量树——块级 StateBaseline
+    # 形态 + 双追踪器导出循环后增量仍空（holdsNestedFullStateDom 恒 false）
+    baseline_memory_test.cpp
     # R1.4 列级写屏障（重构方案 2026-09-17 B03 批）：列枚举双射/挂点标脏/
     # 列级导出/与全量树 diff 等价性守卫
     column_dirty_test.cpp
@@ -171,8 +185,15 @@ target_compile_features(game-core-tests PRIVATE cxx_std_20)
 target_include_directories(game-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
 )
+# MR1-P1.6/P1.7 结构守卫：源码文本断言的仓库 cpp 根（GameCoreBridge.cpp /
+# VulkanBackend.cpp / gamecore/jni/GameCoreJni.cpp 相对定位）
+target_compile_definitions(game-core-tests PRIVATE
+    MR1_CPP_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../.."
+)
 target_sources(game-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../SpriteBatcher.cpp
+    # MR3-P3.1 TextureCache（cpp 根；零图形 API 依赖——被测实现本体）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../TextureCache.cpp
 )
 
 include(GoogleTest)

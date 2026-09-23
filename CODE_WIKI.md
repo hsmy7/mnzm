@@ -824,6 +824,15 @@ tickInternal()
 | HIGH | 6-12GB | 384-512MB | ARGB_8888 (36MB/层) |
 | ULTRA | 12GB+ | > 512MB | ARGB_8888 全开 |
 
+### 内存子系统（memory-refactor D1–D7）
+
+- **TrimMemoryBridge**：系统 trim/onLowMemory 唯一收敛入口（SOFT/AGGRESSIVE/CRITICAL + 去抖）
+- **GpuAllocator + VMA**：GPU 单一分配入口（`NativeEngineFlag.memorySubsystem` 双轨，默认 false）
+- **TextureCache**：键控纹理 refCount/pinned/纪元失效
+- **StateBaseline**：块级状态基线（gameData 字段 + 实体 id 块）——稳态无双全量 nlohmann 业务树
+- **MemoryBudgetView**：`nativeGetMemoryStats` 帧边界发布不可变快照（表四）
+- **GLES D7**：VBO 预分配 + SubData；软渲 Bitmap trim 并入 Bridge
+
 ### FrameMetricsMonitor
 
 ```kotlin

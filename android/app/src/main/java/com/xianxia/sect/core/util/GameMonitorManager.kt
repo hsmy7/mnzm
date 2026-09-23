@@ -2,7 +2,6 @@ package com.xianxia.sect.core.util
 
 import android.content.Context
 import android.util.Log
-import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.performance.MetricCategory
 import com.xianxia.sect.core.performance.MetricDefinition
 import com.xianxia.sect.core.performance.MetricsListener
@@ -11,11 +10,6 @@ import com.xianxia.sect.core.performance.OptimizationLevel
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import javax.inject.Inject
 import javax.inject.Singleton
-
-private class GameMemoryPressureListener : XianxiaApplication.MemoryPressureListener {
-    override fun onMemoryPressure(level: Int) { /* handled by manager */ }
-    override fun onLowMemory() { /* handled by manager */ }
-}
 
 @Singleton
 class GameMonitorManager @Inject constructor(
@@ -30,9 +24,6 @@ class GameMonitorManager @Inject constructor(
     }
 
     private var isInitialized = false
-    private var application: XianxiaApplication? = null
-
-    private val memoryPressureListener = GameMemoryPressureListener()
 
     fun initialize(context: Context) {
         if (isInitialized) {
@@ -45,10 +36,9 @@ class GameMonitorManager @Inject constructor(
 
         registerDefaultMetrics()
 
-        if (context.applicationContext is XianxiaApplication) {
-            application = context.applicationContext as XianxiaApplication
-            application?.registerMemoryPressureListener(memoryPressureListener)
-        }
+        // 原 MemoryPressureListener 空壳注册随 MR1-P1.3 trim 收敛删除
+        //（动作面统一走 TrimMemoryBridge；本管理器的压力轴走
+        // DynamicMemoryManager 监听 + 周期采样，与系统 trim 通道无关）
 
         isInitialized = true
         Log.i(TAG, "GameMonitorManager initialized successfully")
@@ -206,7 +196,6 @@ class GameMonitorManager @Inject constructor(
     )
 
     fun cleanup() {
-        application?.unregisterMemoryPressureListener(memoryPressureListener)
         stopMonitoring()
         memoryMonitor.cleanup()
         gcOptimizer.cleanup()

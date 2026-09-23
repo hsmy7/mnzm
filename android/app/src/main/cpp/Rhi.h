@@ -105,6 +105,23 @@ public:
      *  失败路径对象随即被上层 delete——上层须在 delete 前收割（NativeBridge.g_lastInitError）。 */
     virtual RenderInitError lastInitError() const = 0;
 
+    // === 内存压力 trim（memory-refactor D3；线程契约表四 nativeMemoryTrim） ===
+    // 渲染线程帧边界（NativeBridge.beginFrame 帧首）消费的 trim 档位。
+    // 档位值 = Kotlin MemoryTrimLevel 序数（0=NONE/1=SOFT/2=AGGRESSIVE/3=CRITICAL，
+    // JNI 线协议禁重排——Kotlin 侧由 TrimDispatchTest 序数守卫锁定）。
+    // 命令投递式：trim 回调线程只投档位，任何 GPU 操作/纹理重上传只允许
+    // 在渲染线程本调用内执行。Vulkan 后端：AGGRESSIVE+ 收缩 staging host
+    // pool（GpuAllocator::trimHostPool）；GLES/软件后端动作面随 P4.3 接入。
+    enum RenderTrimLevel : int {
+        kTrimNone = 0, kTrimSoft = 1, kTrimAggressive = 2, kTrimCritical = 3,
+    };
+
+    /**
+     * 消费内存 trim 档位（渲染线程帧边界调用；默认无动作）。
+     * @param level Renderer2D::RenderTrimLevel / Kotlin MemoryTrimLevel 序数
+     */
+    virtual void onMemoryTrim(int /*level*/) {}
+
     // === 帧控制 ===
     virtual void beginFrame() = 0;
     virtual void endFrame() = 0;

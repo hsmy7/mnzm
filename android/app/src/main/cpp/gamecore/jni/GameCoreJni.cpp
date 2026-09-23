@@ -70,15 +70,37 @@ gamecore::FixedClock g_coreClock;
 gamecore::FixedMonotonicClock g_coreMono;  // 引擎循环单调时钟（对拍脚本驱动）
 gamecore::ConsoleLogger g_coreLogger;   // 对拍调试期输出异常到 stderr
 
-/// jbyteArray → std::string
+/// JNI 大缓冲 Get/Release RAII 配对（MR1-P1.6/M-P2-8；与 GameCoreBridge.cpp
+/// 同构——两桥独立 so/TU，各自持有一份轻量 guard）
+class ScopedByteArrayElements {
+public:
+    ScopedByteArrayElements(JNIEnv* env, jbyteArray array)
+        : env_(env), array_(array),
+          bytes_(array ? env->GetByteArrayElements(array, nullptr) : nullptr) {}
+    ~ScopedByteArrayElements() {
+        if (bytes_) env_->ReleaseByteArrayElements(array_, bytes_, JNI_ABORT);
+    }
+    ScopedByteArrayElements(const ScopedByteArrayElements&) = delete;
+    ScopedByteArrayElements& operator=(const ScopedByteArrayElements&) = delete;
+
+    const jbyte* get() const { return bytes_; }
+    explicit operator bool() const { return bytes_ != nullptr; }
+
+private:
+    JNIEnv* env_;
+    jbyteArray array_;
+    jbyte* bytes_;
+};
+
+/// jbyteArray → std::string（M-P2-7/R42：null bytes 检查 + RAII Release 配对）
 std::string jbytesToString(JNIEnv* env, jbyteArray array) {
     if (!array) return {};
     const jsize len = env->GetArrayLength(array);
     if (len <= 0) return {};
-    jbyte* bytes = env->GetByteArrayElements(array, nullptr);
-    std::string out(reinterpret_cast<const char*>(bytes), static_cast<size_t>(len));
-    env->ReleaseByteArrayElements(array, bytes, JNI_ABORT);
-    return out;
+    ScopedByteArrayElements scoped(env, array);
+    if (!scoped) return {};
+    return std::string(reinterpret_cast<const char*>(scoped.get()),
+                       static_cast<size_t>(len));
 }
 
 /// jstring → std::string（UTF-8；对拍通道）

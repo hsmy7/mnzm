@@ -137,6 +137,16 @@ object GameCoreBridge {
     external fun nativeResetAutoRecruitIdle()
 
     /**
+     * 内存 trim 档位投递（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道
+     * gamecore 面）。命令投递式：任意 Kotlin 线程可投（C++ 侧只写原子水位），
+     * 消费在引擎线程结算边界（旬/月/年末尾——账本 cap 归一，CRITICAL 追加
+     * shrink_to_fit）。
+     *
+     * @param level TrimMemoryBridge.MemoryTrimLevel 序数
+     */
+    external fun nativeMemoryTrim(level: Int)
+
+    /**
      * 单年推进（年变真相源切换）：C++ 完整年变结算（T1 已下沉面 +
      * T2 已下沉面 + 年报快照 + 年俸），返回 JSON 信封（当前为空对象——年变
      * 残留执行器为 Kotlin 侧纯状态 + 平台效应，无 C++ 草稿回传）。引擎未

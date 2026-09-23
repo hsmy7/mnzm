@@ -240,15 +240,39 @@ jlongArray packLoopFramePlan(JNIEnv* env, const gamecore::system::LoopFramePlan&
     return out;
 }
 
+/// JNI 大缓冲 Get/Release RAII 配对（MR1-P1.6/M-P2-8：中间路径异常展开时
+/// 析构保证释放，消灭裸大缓冲泄漏窗口；拷贝/赋值禁用——独占式所有权）
+class ScopedByteArrayElements {
+public:
+    ScopedByteArrayElements(JNIEnv* env, jbyteArray array)
+        : env_(env), array_(array),
+          bytes_(array ? env->GetByteArrayElements(array, nullptr) : nullptr) {}
+    ~ScopedByteArrayElements() {
+        if (bytes_) env_->ReleaseByteArrayElements(array_, bytes_, JNI_ABORT);
+    }
+    ScopedByteArrayElements(const ScopedByteArrayElements&) = delete;
+    ScopedByteArrayElements& operator=(const ScopedByteArrayElements&) = delete;
+
+    const jbyte* get() const { return bytes_; }
+    explicit operator bool() const { return bytes_ != nullptr; }
+
+private:
+    JNIEnv* env_;
+    jbyteArray array_;
+    jbyte* bytes_;
+};
+
 /// JNI jbyteArray → std::string（copy；execute 参数/结果用）
 std::string jbytesToString(JNIEnv* env, jbyteArray array) {
     if (!array) return {};
     const jsize len = env->GetArrayLength(array);
     if (len <= 0) return {};
-    jbyte* bytes = env->GetByteArrayElements(array, nullptr);
-    std::string out(reinterpret_cast<const char*>(bytes), static_cast<size_t>(len));
-    env->ReleaseByteArrayElements(array, bytes, JNI_ABORT);
-    return out;
+    // M-P2-7/R42：GetByteArrayElements 失败（OOM）返回 null——未检即构造
+    // std::string 是 UB。RAII guard 同时保证 Release 配对（M-P2-8）。
+    ScopedByteArrayElements scoped(env, array);
+    if (!scoped) return {};
+    return std::string(reinterpret_cast<const char*>(scoped.get()),
+                       static_cast<size_t>(len));
 }
 
 /// std::string → jbyteArray
@@ -395,6 +419,18 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeResetAutoRecruitIdl
     jniRequireEngineThread("nativeResetAutoRecruitIdle");
     if (!g_gameCore) return;
     g_gameCore->resetAutoRecruitIdle();
+}
+
+/** 内存 trim 档位投递（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道
+ *  gamecore 面）。命令投递式：任意 Kotlin 线程可投（只写原子水位，不走
+ *  jniRequireEngineThread）；消费在引擎线程结算边界（GameCore 内部，
+ *  settleOnePhase/settleMonth/settleYear 末尾）。level = TrimMemoryBridge.
+ *  MemoryTrimLevel 序数（0=NONE/1=SOFT/2=AGGRESSIVE/3=CRITICAL）。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeMemoryTrim(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint level) {
+    if (!g_gameCore) return;
+    g_gameCore->postMemoryTrim(static_cast<int>(level));
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL

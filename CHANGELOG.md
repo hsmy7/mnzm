@@ -1,5 +1,66 @@
 ## [4.01.16] - 2026-09-22
 
+### 内存管理根治 Phase 4：状态基线 + GLES + 可观测（2026-09-23，MR4 批）— `feat(memory)`/`perf(memory)`
+- **P4.1 状态基线去全量 DOM（D5）**：`StateBaseline` 块级形态（gameData 字段 + 实体 id 块），`DirtyTracker`/`ColumnDirtyTracker` 不再持嵌套全量业务树；`importStateInternal` 峰值顺序=解析临时态→reseed→释放 JSON→切换 state_（失败回滚）→归一化。验收：`BaselineMemoryTest` + `BaselineFieldCoverageGuardTest` + 对拍绿。
+- **P4.2 rest 导出减载**：块级基线比对，信封仍只携带 changed/（与 `dirtyColumnExport` 正交）；Diff tick 绿。
+- **P4.3 GLES D7**：VBO 按 `MAX_VERTICES` 预分配 + 稳态 `glBufferSubData` 已用范围；`draw()` clamp；PendingUpload 像素池；软渲 Bitmap trim 走 TrimMemoryBridge 收敛面。
+- **P4.4 MemoryBudgetView**：`nativeGetMemoryStats` 帧边界发布只读快照；设置页 Debug 显示 GPU/纹理分类 MB。
+- **门禁**：桌面 ctest 1603/1603；Kotlin compile+test+detekt；NDK arm64；JNI 89/89；check-agent-instructions 过。
+
+
+### 内存管理根治 Phase 1：止血 + 压力闭环（2026-09-23，MR1 批）——`feat(memory)`/`perf(memory)`
+- **P1.1 位图几何扩容（D4/M-P0-5 根因）**：`column_dirty.h` 的 `ensureRowCapacity` 从精确步进改为
+  几何增长（`kGrowthFactor=2`、按需路径起步 `kMinRowsSmall=16`，命名常量）——原实现加载 N 弟子
+  触发 O(N²) 逐行重分配搬运；新增 `ColumnDirtyTracker::reserve(rows)` 加载路径一次到位
+  （大表下限 `kMinRows=1024` 仅在此生效，禁小集合浪费）；`DiscipleStore::reserveRows(n)` 全
+  112 列 + 写屏障位图统一预留并接入 `loadFromVector`（5000 弟子档存档加载根因修复）。
+  验收：`ColumnDirtyGrowthTest` 4 用例（分配次数 ≤ 2·⌈log₂(N/16)⌉+4、一次到位、小集合不抬
+  下限、加载结果正确性）。
+- **P1.2 场景缓存有界驱逐（D6 上半/M-P1-1）**：`SectMapController.sectMapCache` 由无界
+  `ConcurrentHashMap` 改 `LinkedHashMap(accessOrder=true)` + `removeEldestEntry` 上限
+  `SECT_MAP_CACHE_MAX_ENTRIES=8`（synchronizedMap 保跨线程；原实现随切宗次数线性增长，
+  每张 128² IntArray ≈64KB）；新增 `evictNonCurrent()`（D3 SOFT 动作面，仅留当前宗门——
+  可重建资源，零进度语义）；`SceneUpdateChannel` 新增 `releaseBaselines()` 显式基线释放
+  （`pushedTerrain` 等大数组引用不再滞留，VulkanRenderBackend 暴露 `releaseSceneBaselines`）。
+  验收：`SectMapCacheBoundTest` 5 用例 + `SceneUpdateChannelTest` 增 2 用例。
+- **P1.3 TrimMemoryBridge 统一压力协议（D3/M-P1-2/M-P1-3 根因；本批最大面）**：
+  - **收敛**既有四路并行 trim 消费者（`XianxiaApplication.notifyMemoryPressure` 广播机制、
+    `CacheLayer`/GameDataCacheManager 自注册 `ComponentCallbacks2`、`GameActivity.onTrimMemory`
+    分支、`GameLoopDelegate.onMemoryPressure` 死入口 + GameMonitorManager 空壳监听器一并清理）——
+    迁移后生产 `onTrimMemory`/`onLowMemory` 的游戏内存消费者 = **1（Bridge）**，
+    `TrimConsumerCountGuardTest`（core:engine 源码扫描守卫）锁死防复发；
+  - 档位枚举 `MemoryTrimLevel{NONE,SOFT,AGGRESSIVE,CRITICAL}` 落 `:core:domain`（全仓单一档位面，
+    序数即 JNI 线协议值），归一映射唯一落点 = `TrimMemoryBridge.normalize`（D3 映射表）；
+  - 双发去抖：同档位 1s 窗合并（`TRIM_DEBOUNCE_WINDOW_MS`）、升级立即穿透、窗口外放行；
+  - JNI 通道：`NativeBridge.nativeMemoryTrim(level)`（渲染库——渲染线程 beginFrame 帧边界消费）
+    + `GameCoreBridge.nativeMemoryTrim(level)`（gamecore 库——引擎线程结算边界消费），
+    命令投递式（trim 回调线程零 GPU 操作），对应 `docs/threading-contract.md` 表四 MR0 预登记；
+  - gamecore 消费动作：`GameCore::postMemoryTrim`（原子水位只升不降）+
+    `consumePendingMemoryTrim`（settleOnePhase/settleMonth/settleYear 末尾调用）。
+    验收：`TrimDispatchTest`（Robolectric 10 用例：归一/去抖/CRITICAL 全动作面/序数协议）。
+- **P1.5 账本 cap 与 import 同源（D6 下半/M-P1-4/B-6 根因）**：`normalizeLedgers`
+  （`MAIL_RECORD_RETENTION=500` / `BATTLE_RECORD_WINDOW_YEARS=3` / `GAME_EVENT_RECORDS_LIMIT=200`
+  单一常量源）从仅 import 生效扩展为**旬/月/年结算边界同样执行**；CRITICAL 消费追加
+  账本 `shrink_to_fit`（仅 trim 水位驱动的压力路径，禁常规帧/tick 热路径）。
+  验收：`memory_trim_test.cpp`（import/tick 双路径 cap、CRITICAL shrink 生效、SOFT 不 shrink、
+  水位单调升级、越界档位防御）+ `observeLedgers()` 只读观测面。
+- **P1.6 JNI 空指针 + RAII（M-P2-7/8）**：两处 `jbytesToString`（GameCoreBridge.cpp /
+  GameCoreJni.cpp）补 `GetByteArrayElements` 返回 null（OOM）检查——原实现未检即构造
+  `std::string` 为 UB；22.37MB 级压缩图集上传缓冲等 3 处 Get/Release 手写配对收口为
+  `ScopedByteArrayElements` RAII guard（异常展开时析构保证释放）。验收：结构守卫
+  （ctest 源码断言，桌面无 JNIEnv 行为面不可直测）。
+- **P1.7 帧路径收窄（M-P2-3/4 轻量半边）**：`m_pendingDraws` 构造期
+  `reserve(kPendingDrawsReserveHint=512)`（帧路径唯一堆增长面，高峰帧免多次几何重分配）；
+  `m_textures` 查表加「版本号 + 单槽缓存」收窄——`m_descSetCacheVersion` 在
+  `updateTextureDescriptor`/表清空点递增，submitFrame 渲染线程命中槽缓存时免锁免
+  O(n) 扫描（A/B 纹理交错切换模式；version 未变 ⇒ 槽内 descSet 与锁内重查逐位一致，
+  语义零漂移）。验收：结构守卫 + 既有场景等价测试不回退。
+- **P1.4 图集重跑纹理泄漏过渡修复（M-P0-1 过渡臂）**：`AtlasAsyncPipeline` 记录每轮成功
+  上传的纹理 id（图集/地面/岩石——岩石 id 原先直接丢弃无人持有），同纪元重跑
+  （降级链重试/ASTC→RGBA 回退）开始前过渡直调既有 JNI `destroyTexture` 释放上一轮
+  id（MR3 TextureCache 接管后替换）。验收：`NativeSurfaceViewTest` 既有纪元守卫不回退，
+  结构性登记（GPU 纹理计数不增的 mock 断言随 MR3 cache 面补强）。
+
 ### 规范分发架构根治（2026-09-23）——让任何 agent 都读得到项目规范
 - 🔴 **根因**：项目规范集中在 `CLAUDE.md`（54 KB / 657 行），但 Codex CLI 的合并项目指令上限是
   `project_doc_max_bytes`（默认 **32768 字节**），**超限即静默截断**——尾部的「设计方案规则」「版本发布」

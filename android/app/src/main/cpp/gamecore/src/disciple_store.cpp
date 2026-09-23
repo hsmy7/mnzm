@@ -290,8 +290,131 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     if (columnDirty_) columnDirty_->markRowAllColumns(row);
 }
 
+void DiscipleStore::reserveRows(std::size_t n) {
+    // MR1-P1.1/D4：全列一次 reserve(n)，与 appendDisciple 的 push_back 清单
+    // 一一对应（新列须同步补 reserve，漏补仅损性能不影响正确性）。
+    // 非协议派生列（numericIds/hasNumericIds 等）同样按行追加，一并预留。
+    ids.reserve(n);
+    numericIds.reserve(n);
+    hasNumericIds.reserve(n);
+    names.reserve(n);
+    surnames.reserve(n);
+    genders.reserve(n);
+    portraitRes.reserve(n);
+    discipleTypes.reserve(n);
+    spiritRootTypes.reserve(n);
+    realms.reserve(n);
+    realmLayers.reserve(n);
+    cultivations.reserve(n);
+    cultivationCheckpoints.reserve(n);
+    cultivationCheckpointGameMonths.reserve(n);
+    ages.reserve(n);
+    lifespans.reserve(n);
+    isAlive.reserve(n);
+    deathYears.reserve(n);
+    lastTheftJudgementYears.reserve(n);
+    soulPowers.reserve(n);
+    cultivationSpeedBonuses.reserve(n);
+    cultivationSpeedDurations.reserve(n);
+    manualIds.reserve(n);
+    talentIds.reserve(n);
+    physiqueIds.reserve(n);
+    affixIds.reserve(n);
+    manualMasteries.reserve(n);
+    statuses.reserve(n);
+    statusData.reserve(n);
+    cultivationCompletionMonths.reserve(n);
+    cultivationCompletionPhases.reserve(n);
+    manualCompletionMonths.reserve(n);
+    manualCompletionPhases.reserve(n);
+    equipmentNurturingCompletionMonths.reserve(n);
+    equipmentNurturingCompletionPhases.reserve(n);
+    baseHps.reserve(n);
+    baseMps.reserve(n);
+    basePhysicalAttacks.reserve(n);
+    baseMagicAttacks.reserve(n);
+    basePhysicalDefenses.reserve(n);
+    baseMagicDefenses.reserve(n);
+    baseSpeeds.reserve(n);
+    hpVariances.reserve(n);
+    mpVariances.reserve(n);
+    physicalAttackVariances.reserve(n);
+    magicAttackVariances.reserve(n);
+    physicalDefenseVariances.reserve(n);
+    magicDefenseVariances.reserve(n);
+    speedVariances.reserve(n);
+    totalCultivations.reserve(n);
+    breakthroughCounts.reserve(n);
+    breakthroughFailCounts.reserve(n);
+    currentHps.reserve(n);
+    currentMps.reserve(n);
+    pillPhysicalAttackBonuses.reserve(n);
+    pillMagicAttackBonuses.reserve(n);
+    pillPhysicalDefenseBonuses.reserve(n);
+    pillMagicDefenseBonuses.reserve(n);
+    pillHpBonuses.reserve(n);
+    pillMpBonuses.reserve(n);
+    pillSpeedBonuses.reserve(n);
+    pillCritRateBonuses.reserve(n);
+    pillCritEffectBonuses.reserve(n);
+    pillCultivationSpeedBonuses.reserve(n);
+    pillSkillExpSpeedBonuses.reserve(n);
+    pillNurtureSpeedBonuses.reserve(n);
+    pillEffectDurations.reserve(n);
+    activePillTypes.reserve(n);
+    activePillCategories.reserve(n);
+    weaponIds.reserve(n);
+    armorIds.reserve(n);
+    bootsIds.reserve(n);
+    accessoryIds.reserve(n);
+    weaponNurtures.reserve(n);
+    armorNurtures.reserve(n);
+    bootsNurtures.reserve(n);
+    accessoryNurtures.reserve(n);
+    storageBagItems.reserve(n);
+    storageBagSpiritStones.reserve(n);
+    spiritStones.reserve(n);
+    partnerIds.reserve(n);
+    partnerSectIds.reserve(n);
+    parentId1s.reserve(n);
+    parentId2s.reserve(n);
+    lastChildYears.reserve(n);
+    childBirthMonths.reserve(n);
+    griefEndYears.reserve(n);
+    masterIds.reserve(n);
+    intelligences.reserve(n);
+    charms.reserve(n);
+    loyalties.reserve(n);
+    comprehensions.reserve(n);
+    artifactRefinings.reserve(n);
+    pillRefinings.reserve(n);
+    spiritPlantings.reserve(n);
+    minings.reserve(n);
+    teachings.reserve(n);
+    moralities.reserve(n);
+    aptitudes.reserve(n);
+    salaryPaidCounts.reserve(n);
+    salaryMissedCounts.reserve(n);
+    alchemyLevels.reserve(n);
+    alchemyPromotionCounts.reserve(n);
+    forgeLevels.reserve(n);
+    forgePromotionCounts.reserve(n);
+    usedPermanentPillKeys.reserve(n);
+    usedExtendLifePillTypes.reserve(n);
+    usedFunctionalPillTypes.reserve(n);
+    usedExtendLifePillIds.reserve(n);
+    recruitedMonths.reserve(n);
+    hasReviveEffects.reserve(n);
+    hasClearAllEffects.reserve(n);
+    // 列级写屏障位图同点一次到位（加载路径抬 kMinRows 大表下限）
+    if (columnDirty_) columnDirty_->reserve(n);
+}
+
 void DiscipleStore::loadFromVector(const std::vector<Disciple>& disciples) {
     clear();
+    // MR1-P1.1/D4：加载路径先一次到位 reserve，消灭逐行 append 的
+    // O(N²) 重分配/搬运（5000 弟子档存档加载根因修复）
+    reserveRows(disciples.size());
     for (const Disciple& d : disciples) {
         appendDisciple(d);
     }

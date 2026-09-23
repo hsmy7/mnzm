@@ -1321,6 +1321,9 @@ void to_json(nlohmann::json& j, const GameData& v) {
     // 进行中任务完整模型导出（C++ 为 activeMissions 真相源，导出值
     // 参与镜像覆盖；op 参数仍用 ActiveMissionLite 精简协议）
     GC_TO(v, j, activeMissions);
+    // 槽位清理补充字段（与 from_json 对称——基线字段表/存档往返双射 P4.1）
+    GC_TO(v, j, battleTeams); GC_TO(v, j, warehouseGarrisons);
+    GC_TO(v, j, caveExplorationTeams);
 }
 void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
@@ -1505,7 +1508,20 @@ void normalizeIntegralFloats(nlohmann::json& j) {
 std::string dumpStateJson(const GameState& v) {
     nlohmann::json j = v;
     normalizeIntegralFloats(j);
-    return j.dump();
+    // D5.3：thread_local 缓冲 + serializer 直写，避免连续导出叠加临时巨型
+    // string（公开 dump() 内部 result 从空串几何扩容多次 realloc）。返回时
+    // 拷贝给调用方，缓冲保留 capacity 供下次 clear+写入。
+    static thread_local std::string dumpBuf;
+    dumpBuf.clear();
+    // 粗估起步容量：档位典型 0.5–4MB 快照；1MiB 起步，溢出由 string 自扩
+    if (dumpBuf.capacity() < (1u << 20)) {
+        dumpBuf.reserve(1u << 20);
+    }
+    nlohmann::detail::serializer<nlohmann::json> s(
+        nlohmann::detail::output_adapter<char, std::string>(dumpBuf), ' ',
+        nlohmann::detail::error_handler_t::strict);
+    s.dump(j, false, false, 0);
+    return dumpBuf;
 }
 
 }  // namespace gamecore::state

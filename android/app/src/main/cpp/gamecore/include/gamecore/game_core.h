@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -128,6 +129,31 @@ public:
     /// 改筛选/生育/净化——经 JNI 通知 C++ 复位 autoRecruitIdle，防月变真相源
     /// 切换后 C++ 侧 autoRecruit 永久惰性）。未初始化忽略。
     void resetAutoRecruitIdle();
+
+    // ── 内存压力 trim（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道）──
+    /// trim 档位（与 Kotlin TrimMemoryBridge.MemoryTrimLevel 序数逐位对齐，
+    /// 禁第二处枚举面）
+    static constexpr int kTrimNone = 0;
+    static constexpr int kTrimSoft = 1;
+    static constexpr int kTrimAggressive = 2;
+    static constexpr int kTrimCritical = 3;
+
+    /// 投递内存 trim 档位（**命令投递式**：任意线程原子写水位，本调用不做
+    /// 任何状态操作；UI 主线程 JNI 面经 GameCoreBridge）。消费点 = 引擎线程
+    /// 结算边界（settleOnePhase/settleMonth/settleYear 末尾——禁入 JobSystem
+    /// 并行段/结算中途，表三红线）；渲染面水位由桥层独立投递与消费。
+    /// 只升不降：低档投递不回退已登记的更高水位。
+    void postMemoryTrim(int level);
+
+    /// 账本族只读观测（MR1-P1.5：CRITICAL shrink 生效性断言面 / 观测视图；
+    /// 只读零写入——写面仍唯一经结算/导入）。capacity 用于验证 shrink
+    /// （CRITICAL）与仅裁剪（SOFT/AGGRESSIVE）的容量差异。
+    struct LedgerObservation {
+        std::size_t mailCount = 0, mailCapacity = 0;
+        std::size_t battleCount = 0, battleCapacity = 0;
+        std::size_t eventCount = 0, eventCapacity = 0;
+    };
+    LedgerObservation observeLedgers() const;
 
     /// 单年推进（年变真相源切换）：直接执行完整年变结算
     /// （runYearSettlement——T1 已下沉面 + T2 已下沉面 + 年报 + 年俸），返回
@@ -270,6 +296,12 @@ private:
     Clock* clock_ = nullptr;    // 注入（不持有）
     Logger* logger_ = nullptr;  // 注入（不持有）
     bool initialized_ = false;
+    // 待消费 trim 档位（MR1-P1.3：投递任意线程原子写，消费仅引擎线程结算边界）
+    std::atomic<int> pendingTrimLevel_{kTrimNone};
+    /// 结算边界消费：exchange 取走档位 → 账本 cap 归一（与 import 同源
+    /// normalizeLedgers，MR1-P1.5/B-6）→ CRITICAL 追加账本 shrink_to_fit
+    /// （仅 trim 水位驱动的压力路径，禁帧/tick 热路径）
+    void consumePendingMemoryTrim();
     rng::RngManager rng_;
     rng::DeterministicRng aiRng_;      // AI 宗门独立 RNG（独立播种）
     // AI 热控分批内存态（computeAIBatch 状态机 + Kotlin 推送的热档上界；

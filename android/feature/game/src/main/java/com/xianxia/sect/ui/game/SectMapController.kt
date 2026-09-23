@@ -17,7 +17,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
+import java.util.LinkedHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -25,7 +26,9 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * 职责：
  * - [sectMapData]：随 activeSectId 惰性生成每宗底图（主宗=mapSeed，被占宗门=派生种子），
- *   按种子缓存；[SectMapState.sectId] 携带对应宗门，杜绝切换瞬间读到旧宗门图（stale value）。
+ *   按种子缓存（LRU 有界，[SECT_MAP_CACHE_MAX_ENTRIES] 上限，MR1-P1.2/D6——
+ *   无界缓存随切宗次数线性增长，每张 128² IntArray ≈ 64KB 级）；[SectMapState.sectId]
+ *   携带对应宗门，杜绝切换瞬间读到旧宗门图（stale value）。
  * - [sectTransitionActive] + [beginSectTransition]：进入宗门转场状态机——开启后等目标
  *   宗门地图就绪且至少播放 1 秒再关闭（不依赖视频播完；5s 超时兜底；代数计数防并发误关）。
  */
@@ -33,7 +36,14 @@ class SectMapController(
     private val gameData: StateFlow<GameData>,
     private val scope: CoroutineScope
 ) {
-    private val sectMapCache = ConcurrentHashMap<Int, MapPreloadData>()
+    /** LRU 上限（宗门图条数；与机型预算联动留待 MemoryBudgetView，见 D6）。
+     *  internal = 模块内上限/驱逐单测断言面（不外泄 API） */
+    internal val sectMapCache: MutableMap<Int, MapPreloadData> = Collections.synchronizedMap(
+        object : LinkedHashMap<Int, MapPreloadData>(INITIAL_CAPACITY, LOAD_FACTOR, ACCESS_ORDER) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, MapPreloadData>): Boolean =
+                size > SECT_MAP_CACHE_MAX_ENTRIES
+        }
+    )
 
     val sectMapData: StateFlow<SectMapState?> = gameData
         // mapSeed==0 = 默认未加载态（真实游戏加载/新建时 mapSeed 随机非 0）
@@ -72,6 +82,36 @@ class SectMapController(
             if (elapsedMs < 800L) delay(800L - elapsedMs)
             if (sectTransitionGen.get() == gen) _sectTransitionActive.value = false
         }
+    }
+
+    /**
+     * 内存压力驱逐（MR1-P1.2/D6 下半 + D3 SOFT 动作面「sectMapCache 非当前」）：
+     * 仅保留当前宗门底图，其余条目整条移除。旧宗门图按种子确定性重建（<10ms 级）
+     * ——可重建资源，驱逐不触碰任何进度语义（全局约束 5）。
+     */
+    fun evictNonCurrent() {
+        val gd = gameData.value
+        if (gd.mapSeed == 0) {
+            // 未加载态（boot/新档前）：全部条目皆非「当前」，整体可驱逐
+            sectMapCache.clear()
+            return
+        }
+        val currentSeed = deriveSectSeed(gd.mapSeed, gd.activeSectId)
+        synchronized(sectMapCache) { sectMapCache.keys.retainAll { it == currentSeed } }
+    }
+
+    private companion object {
+        /** LRU 条目上限（宗门图张数；MR1-P1.2/D6 附录 B 建议值，机型预算联动留待 MemoryBudgetView） */
+        const val SECT_MAP_CACHE_MAX_ENTRIES = 8
+
+        /** LinkedHashMap 初始容量（条目；与上限同量级，防早期扩容） */
+        const val INITIAL_CAPACITY = 8
+
+        /** LinkedHashMap 负载因子（默认值，命名化以满足禁魔法数字纪律） */
+        const val LOAD_FACTOR = 0.75f
+
+        /** LinkedHashMap 访问序（getOrPut 命中即重排，真 LRU 语义） */
+        const val ACCESS_ORDER = true
     }
 }
 

@@ -1,6 +1,5 @@
 package com.xianxia.sect.data.cache
 
-import android.app.Application
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -152,13 +151,7 @@ internal fun GameDataCacheManager.warmupCache(keys: List<CacheKey>, loader: susp
 internal fun GameDataCacheManager.shutdown() {
     Log.i(GameDataCacheManager.TAG, "Shutting down GameDataCacheManager...")
 
-    // 1. Unregister ComponentCallbacks2
-    try {
-        (context.applicationContext as Application).unregisterComponentCallbacks(this)
-        Log.d(GameDataCacheManager.TAG, "ComponentCallbacks2 unregistered")
-    } catch (e: Exception) {
-        Log.w(GameDataCacheManager.TAG, "Failed to unregister ComponentCallbacks2: ${e.message}")
-    }
+    // 1.（MR1-P1.3）原 ComponentCallbacks2 反注册随自注册收敛一并删除
 
     // 2. Cancel background tasks
     cleanupJob?.cancel()

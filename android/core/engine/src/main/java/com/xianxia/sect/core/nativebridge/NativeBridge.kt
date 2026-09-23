@@ -18,6 +18,11 @@ object NativeBridge {
         if (!loaded) {
             System.loadLibrary("native-renderer")
             loaded = true
+            // MR2-P2.1：内存子系统双轨开关投递（NativeEngineFlag.memorySubsystem
+            // 的 native 生效面）——库加载后立即同步，保证任何 prewarm/initRenderer
+            // 消费者都先看到开关值。进程生命周期内恒定（BuildConfig 注入默认，
+            // 无运行时写者）；预发默认 false = native 走旧裸分配路径。
+            nativeSetMemorySubsystem(NativeEngineFlag.memorySubsystem)
         }
     }
 
@@ -34,6 +39,17 @@ object NativeBridge {
      * 0=Vulkan（默认）、1=GPU GLES；Kotlin 侧 NativeSurfaceView 依渲染策略选择。
      */
     external fun setRenderBackend(backend: Int)
+
+    /**
+     * 内存子系统双轨开关（MR2-P2.1；NativeEngineFlag.memorySubsystem 的 native
+     * 生效面）。由 [ensureLoaded] 在库加载后自动投递，**业务代码禁止直调**——
+     * 单一投递点保证 prewarm/initRenderer 前开关就位（JNI 计数门禁在册 +1 豁免，
+     * 见 scripts/jni-count.baseline.json）。
+     *
+     * true = 渲染 C++ 分配收口 GpuAllocator/VMA（GPU 单一分配入口）；
+     * false = 旧裸分配路径（预发默认，双轨回退保留至债表删除窗口）。
+     */
+    external fun nativeSetMemorySubsystem(enabled: Boolean)
 
     // ============================================================
     // 两阶段初始化预加载（Phase 1）
@@ -135,9 +151,48 @@ object NativeBridge {
     /**
      * 删除纹理（Rhi 契约——GLES 入待删队列由渲染线程持上下文删除；
      * Vulkan 延迟释放在途帧采样结束后销毁）。id=0（白纹理）/无渲染器时无操作。
-     * Kotlin 暂无调用方——图集重建路径未来接入时免坑。
+     * 业务释放走 [textureRelease] 键控路径；本方法保留给测试注入与非键控场景。
      */
     external fun destroyTexture(id: Int)
+
+    /**
+     * 键控纹理再引用（MR3-P3.2；线程契约表四 textureAcquire）。
+     *
+     * 命中：refCount++，可升 pinned（`pinned=true` 时）。miss：返回 0 且不插表
+     *（不触发上传——生产上传走 [uploadTextureDirect] 等，其内部已带 acquire）。
+     * 用于 SceneUpdateChannel pinned 重提升等免重传再引用场景。
+     *
+     * @param packedKey [RendererTextureKeys] pack 结果（位段 schema 同 C++ TextureKey）
+     * @param pinned true = 当前 surface 必需资产（trim 不驱逐）
+     * @return 已缓存 handle；0 = miss/键非法
+     */
+    external fun textureAcquire(packedKey: Long, pinned: Boolean): Int
+
+    /**
+     * 键控纹理释放（MR3-P3.2；线程契约表四 textureRelease）。
+     *
+     * refCount--；减到 0 且非 pinned → RHI 退役队列（帧边界物理销毁）。
+     * 替代 MR1-P1.4 过渡直调 [destroyTexture]。键非法/未知键为 no-op。
+     *
+     * @param packedKey [RendererTextureKeys] pack 结果
+     */
+    external fun textureRelease(packedKey: Long)
+
+    /**
+     * 全部 pinned 条目降 evictable（MR3-P3.2/D2.4 pinned 迁移）。
+     * SceneUpdateChannel 切换路径调用：旧场景降级，新场景上传成功后经
+     * acquire(pinned=true) 重提升——防漏 unpin 致 trim 永远腾不掉。
+     */
+    external fun textureUnpinAll()
+
+    /**
+     * 内存 trim 档位投递（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道
+     * 渲染面）。命令投递式：任意 Kotlin 线程可投；渲染线程 beginFrame 帧边界
+     * 取走消费（trim 回调线程禁止 GPU 操作/纹理重上传）。
+     *
+     * @param level TrimMemoryBridge.MemoryTrimLevel 序数
+     */
+    external fun nativeMemoryTrim(level: Int)
 
     /**
      * 上传 RGBA **mip 链**纹理（2.3：RGBA 回退路径真 mip），返回纹理 ID；0 = 失败。
@@ -493,6 +548,16 @@ object NativeBridge {
      * 渲染器未初始化时返回全 0。
      */
     external fun nativeGetSpriteOverflowStats(): LongArray
+
+    /**
+     * 内存子系统只读快照（MR4-P4.4；线程契约表四 MemoryStats 读通道）。
+     *
+     * 返回 LongArray[9]：[0]=gpuUsed [1]=gpuBudget [2]=gpuBlocks [3]=gpuAllocs
+     * [4]=texEntries [5]=texPinned [6]=texPendingDestroy [7]=texUploads [8]=texHits。
+     * 渲染线程 beginFrame 帧边界发布不可变快照；任意线程只读拷贝，禁止
+     * 同步回读渲染后端。未初始化时返回全 0。
+     */
+    external fun nativeGetMemoryStats(): LongArray
 
     // ============================================================
     // 双端协议常量（与 C++ scene_draw.h / scene_store.h 镜像；

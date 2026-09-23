@@ -134,7 +134,7 @@ class GameViewModel @Inject constructor(
     )
     val mail = MailDelegate(gameEngine, delegateServices.mailService, ::showError, wallClock)
     val gameLoop = GameLoopDelegate(
-        gameEngine, coreServices.gameEngineCore, coreServices.systemManager, viewModelScope, ::showError
+        coreServices.gameEngineCore, coreServices.systemManager, viewModelScope, ::showError
     )
     val settings = SettingsDelegate(gameEngine, delegateServices.discipleFacade, audioServices.audioConfig)
 
@@ -645,6 +645,13 @@ class GameViewModel @Inject constructor(
         sectMapController.beginSectTransition(sectId)
         gameEngine.launchOnEngine { gameEngine.enterSect(sectId) }
     }
+
+    /**
+     * 内存压力驱逐非当前宗门图缓存（MR1-P1.2/D6 + D3 SOFT 动作面；由
+     * TrimMemoryBridge 的 UI 资源动作面经 GameActivity 转发）。
+     * 属性形态：本类函数数已贴 detekt TooManyFunctions 阈值，不再加 fun。
+     */
+    val sectMapEvictAction: () -> Unit = { sectMapController.evictNonCurrent() }
 
     val isGameOver: StateFlow<Boolean> = gameEngine.gameData
         .map { it.isGameOver }.distinctUntilChanged()

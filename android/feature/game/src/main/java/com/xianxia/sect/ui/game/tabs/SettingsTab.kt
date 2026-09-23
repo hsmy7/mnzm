@@ -55,6 +55,8 @@ import java.util.Locale
 import com.xianxia.sect.ui.game.cancelSaveLoad
 import com.xianxia.sect.ui.game.checkCloudSave
 import com.xianxia.sect.ui.game.saveGame
+import com.xianxia.sect.core.engine.BuildConfig
+import com.xianxia.sect.core.memory.MemoryBudgetView
 
 @Composable
 internal fun RedeemCodeDialog(
@@ -395,6 +397,27 @@ private fun OtherSettingsDialog(
                 personalizedAdsEnabled = personalizedAdsEnabled,
                 onToggle = { viewModel.ads.setPersonalizedAdsEnabled(!personalizedAdsEnabled) }
             )
+
+            // P4.4/D3：Debug 构建内存分类可观测（GPU/纹理只读快照，Release 不引用）
+            if (BuildConfig.DEBUG) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "内存 Debug",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val memLines = remember { MemoryBudgetView.formatDebugLines() }
+                memLines.forEach { line ->
+                    Text(
+                        text = line,
+                        fontSize = 10.sp,
+                        color = Color.Black,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
         }

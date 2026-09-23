@@ -1,8 +1,8 @@
 package com.xianxia.sect.data.cache
 
-import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.core.domain.memory.MemoryTrimLevel
 import com.xianxia.sect.data.memory.MemoryPressureLevel
 import com.xianxia.sect.data.memory.MemorySnapshot
 import kotlinx.coroutines.launch
@@ -32,16 +32,16 @@ internal fun GameDataCacheManager.emergencyPurge() {
 }
 
 /**
- * Smoothed sigmoid curve mapping trimLevel to reduction ratio
+ * Smoothed sigmoid curve mapping trim level to reduction ratio
+ * （MR1-P1.3：入参由 Android 原始级别改为统一档位——归一表唯一落点在
+ * TrimMemoryBridge.normalize，本层不再解释 Android 常量）
  */
-@Suppress("DEPRECATION")
-internal fun GameDataCacheManager.smoothPressureCurve(trimLevel: Int): Float {
+internal fun GameDataCacheManager.smoothPressureCurve(trimLevel: MemoryTrimLevel): Float {
     val normalizedLevel = when (trimLevel) {
-        ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> 0.15f
-        ComponentCallbacks2.TRIM_MEMORY_MODERATE -> 0.35f
-        ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> 0.55f
-        ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> 0.85f
-        else -> 0.0f
+        MemoryTrimLevel.SOFT -> 0.15f
+        MemoryTrimLevel.AGGRESSIVE -> 0.55f
+        MemoryTrimLevel.CRITICAL -> 0.85f
+        MemoryTrimLevel.NONE -> 0.0f
     }
     return (1.0f / (1.0f + kotlin.math.exp(8.0 * (normalizedLevel - 0.5)).toFloat()))
         .coerceIn(0.1f, 1.0f)

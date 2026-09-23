@@ -130,6 +130,18 @@ class SoftwareCanvasBackend(
         /** 放置/移动模式网格线色（与旧 Compose GridOverlay 同色 #E4DDD0） */
         private val GRID_OVERLAY_COLOR = android.graphics.Color.argb(0xFF, 0xE4, 0xDD, 0xD0)
 
+        /** 当前活跃软渲实例（主线程 trim 回调经此转到渲染线程缓存字段——置 null 无 GL 调用） */
+        @Volatile
+        private var activeInstance: SoftwareCanvasBackend? = null
+
+        fun markActive(backend: SoftwareCanvasBackend) {
+            activeInstance = backend
+        }
+
+        /** TrimMemoryBridge UI 动作面调用点（任意线程；只做 JVM 引用置空） */
+        fun dispatchSystemTrim(level: Int) {
+            activeInstance?.onMemoryTrim(level)
+        }
     }
 
     // ── 渲染质量控制（由 ThermalController 驱动） ──
@@ -1752,8 +1764,32 @@ class SoftwareCanvasBackend(
         frameCanvas = null
         // 分帧预算门控复位：release 后重建的 backend 从首帧构建语义重新开始
         hasEverComposedFrame = false
+        activeInstance = null
     }
 
+    /**
+     * P4.3/D7：内存压力下释放**可重建**位图缓存（不触进度语义）。
+     * SOFT+：chunk 位图与地面源缓存置空（下一帧按需重建）；
+     * AGGRESSIVE/CRITICAL：追加整帧 frameBuffer 释放。
+     * 经 [TrimMemoryBridge][com.xianxia.sect.core.memory.TrimMemoryBridge] 收敛面调用，
+     * 不另开第四条 trim 监听。
+     */
+    fun onMemoryTrim(level: Int) {
+        // level 序数：0=NONE 1=SOFT 2=AGGRESSIVE 3=CRITICAL（MemoryTrimLevel）
+        if (level < 1) return
+        chunkCaches.forEach { col ->
+            col.forEach { it.bitmap = null; it.isValid = false }
+        }
+        groundSourceBitmap = null
+        groundSourceAtlas = null
+        composeAtlas = null
+        composeRockBitmap = null
+        if (level >= 2) {
+            frameBuffer = null
+            frameCanvas = null
+            hasEverComposedFrame = false
+        }
+    }
 }
 
 // ── 放置/移动模式占地框（预览框）颜色 & 线宽、云层几何 ──

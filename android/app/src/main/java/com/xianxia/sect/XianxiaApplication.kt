@@ -17,6 +17,7 @@ import android.os.Build
 import com.xianxia.sect.core.engine.OemPowerProfileProvider
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+import com.xianxia.sect.core.engine.releaseMemory
 import com.xianxia.sect.ui.game.building.registerDefaults
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
 import com.xianxia.sect.data.ChangelogData
@@ -26,6 +27,7 @@ import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.core.CrashRecoveryEngine
 import com.xianxia.sect.core.TapTapCrashGuard
 import com.xianxia.sect.core.VulkanPolicy
+import com.xianxia.sect.core.memory.TrimMemoryBridge
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.umeng.UmengManager
 
@@ -33,7 +35,6 @@ import com.tencent.mmkv.MMKV
 import com.getkeepsafe.relinker.ReLinker
 import com.xianxia.sect.core.platform.CrashReporter
 import dagger.hilt.android.HiltAndroidApp
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import javax.inject.Inject
@@ -76,24 +77,35 @@ class XianxiaApplication : Application() {
     @Inject
     lateinit var crashHandler: com.xianxia.sect.core.CrashHandler
 
-    private val memoryPressureListeners = CopyOnWriteArrayList<MemoryPressureListener>()
+    @Inject
+    lateinit var gameEngine: com.xianxia.sect.core.engine.GameEngine
+
+    @Inject
+    lateinit var gameDataCacheManager: com.xianxia.sect.data.cache.GameDataCacheManager
 
     /** AppStartup-Init 后台初始化执行器（Bugly/MMKV 一次性任务），onTerminate 时幂等 shutdown */
     private var appStartupExecutor: ExecutorService? = null
 
-    interface MemoryPressureListener {
-        fun onMemoryPressure(level: Int)
-        fun onLowMemory()
-    }
-
-    fun registerMemoryPressureListener(listener: MemoryPressureListener) {
-        if (!memoryPressureListeners.contains(listener)) {
-            memoryPressureListeners.add(listener)
+    /**
+     * 装配 TrimMemoryBridge 的引擎/缓存动作面（MR1-P1.3 收敛装配点——UI 资源面
+     * 由 GameActivity 在其生命周期内注册）。原 `MemoryPressureListener` 广播机制
+     * 随 trim 收敛删除（唯一注册者 GameMonitorManager 为空壳实现）。
+     */
+    private fun assembleTrimBridgeActions() {
+        TrimMemoryBridge.engineTrimAction = TrimMemoryBridge.EngineTrimAction { level ->
+            // GameEngine.releaseMemory 保留 Android 级别入参（引擎既有归一层）：
+            // SOFT → 轻裁剪（战斗日志），AGGRESSIVE/CRITICAL → + 重列表裁剪
+            val androidLevel = when (level) {
+                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.CRITICAL,
+                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.AGGRESSIVE ->
+                    ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
+                else -> ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW
+            }
+            gameEngine.releaseMemory(androidLevel)
         }
-    }
-
-    fun unregisterMemoryPressureListener(listener: MemoryPressureListener) {
-        memoryPressureListeners.remove(listener)
+        TrimMemoryBridge.cacheTrimAction = TrimMemoryBridge.CacheTrimAction { level ->
+            gameDataCacheManager.onMemoryTrimBridge(level)
+        }
     }
 
     override fun onCreate() {
@@ -121,6 +133,8 @@ class XianxiaApplication : Application() {
         OemPowerProfileProvider.injectPlatformManufacturer(Build.MANUFACTURER, Build.BRAND)
 
         injectDomainDependencies()
+        // TrimMemoryBridge 动作面装配（MR1-P1.3 收敛装配点；注入字段此时已可用）
+        assembleTrimBridgeActions()
         initCrashProtection()
         initBuglyAndMmkv()
 
@@ -401,61 +415,21 @@ class XianxiaApplication : Application() {
         }
     }
 
+    /**
+     * 系统 trim 唯一消费入口（MR1-P1.3/D3 收敛）：只转发 TrimMemoryBridge
+     * （归一 + 去抖 + 分发），Application 自身不留任何游戏内存动作。
+     */
     @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        when (level) {
-            ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
-                Log.d(TAG, "内存优化: UI已隐藏，可释放UI相关资源")
-            }
-            ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
-                Log.w(TAG, "内存警告: 系统内存适中压力，建议释放部分资源")
-                notifyMemoryPressure(level)
-            }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
-                Log.e(TAG, "内存严重警告: 系统内存严重不足，需立即释放非关键资源")
-                notifyMemoryPressure(level)
-            }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
-                Log.w(TAG, "内存警告: 系统内存较低，建议释放可重建资源")
-                notifyMemoryPressure(level)
-            }
-            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
-                Log.e(TAG, "内存紧急: 系统即将杀死后台进程，释放所有可释放资源")
-                notifyMemoryPressure(level)
-            }
-            else -> {
-                Log.d(TAG, "内存优化: 收到内存裁剪级别 $level")
-            }
-        }
+        Log.d(TAG, "onTrimMemory($level) -> TrimMemoryBridge")
+        TrimMemoryBridge.onSystemTrim(level)
     }
 
     override fun onLowMemory() {
         super.onLowMemory()
-        Log.e(TAG, "内存严重不足: 系统请求释放资源")
-        notifyLowMemory()
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    private fun notifyMemoryPressure(level: Int) {
-        memoryPressureListeners.forEach { listener ->
-            try {
-                listener.onMemoryPressure(level)
-            } catch (e: Exception) {
-                Log.e(TAG, "通知内存压力监听器失败: ${e.message}", e)
-            }
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    private fun notifyLowMemory() {
-        memoryPressureListeners.forEach { listener ->
-            try {
-                listener.onLowMemory()
-            } catch (e: Exception) {
-                Log.e(TAG, "通知低内存监听器失败: ${e.message}", e)
-            }
-        }
+        Log.e(TAG, "onLowMemory -> TrimMemoryBridge(CRITICAL)")
+        TrimMemoryBridge.onSystemLowMemory()
     }
     
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
@@ -467,12 +441,7 @@ class XianxiaApplication : Application() {
             Log.e(TAG, "Error shutting down storage subsystems", e)
         }
 
-        try {
-            memoryPressureListeners.clear()
-            Log.i(TAG, "Memory pressure listeners cleared")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error clearing memory pressure listeners", e)
-        }
+        // （MR1-P1.3）原 memoryPressureListeners 清理块随广播机制删除
 
         try {
             applicationScopeProvider.close()
