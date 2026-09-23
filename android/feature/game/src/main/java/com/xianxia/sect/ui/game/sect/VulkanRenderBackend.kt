@@ -47,7 +47,12 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     // 渲染线程单消费者，与 C++ 导入端口同线程顺序执行；surface 重建 = 新后端
     // 实例 = 新通道实例 ⇒ 基线随实例复位，首帧重推全部场景（C++ 侧
     // shutdownRenderer 已同步清空 SceneStore）。
-    private val sceneUpdates = SceneUpdateChannel(nativeSceneUpdateSink)
+    private val sceneUpdates = SceneUpdateChannel(
+        nativeSceneUpdateSink,
+        // MR3-P3.2/D2.4：切场景/trim 时 pinned 迁移——TextureCache 全部 pinned
+        // 降 evictable（新场景上传经 acquire(pinned=true) 重提升）
+        onPinnedMigrate = { NativeBridge.textureUnpinAll() }
+    )
 
     /**
      * 释放场景脏更新基线引用（MR1-P1.2/D6：内存 trim 面——旧宗门地形整表等

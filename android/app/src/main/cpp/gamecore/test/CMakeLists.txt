@@ -46,6 +46,10 @@ add_executable(game-core-tests
     # VMA_IMPLEMENTATION 唯一 TU/trim 帧边界消费点/vendoring 钉死）
     gpu_budget_math_test.cpp
     gpu_allocator_guard_test.cpp
+    # MR3-P3.1（内存管理根治纹理缓存批）：TextureCache 键控 refCount 单测——
+    # 位段 schema/refCount/pin/trim 档位/纪元失效/竞态二选一（pendingDestroy
+    # 重传替换）/trim 不重传风暴（零图形 API 依赖桌面可测）
+    texture_cache_test.cpp
     disciple_derived_maps_test.cpp
     storage_bag_capacity_test.cpp
     game_core_test.cpp
@@ -185,6 +189,8 @@ target_compile_definitions(game-core-tests PRIVATE
 )
 target_sources(game-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../SpriteBatcher.cpp
+    # MR3-P3.1 TextureCache（cpp 根；零图形 API 依赖——被测实现本体）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../TextureCache.cpp
 )
 
 include(GoogleTest)

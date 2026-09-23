@@ -213,6 +213,23 @@ class SceneUpdateChannelTest {
     }
 
     @Test
+    fun `releaseBaselines - 触发 pinned 迁移回调 MR3 D2-4`() {
+        var migrateCalls = 0
+        val migrateChannel = SceneUpdateChannel(sink, onPinnedMigrate = { migrateCalls++ })
+        migrateChannel.push(inputs())
+        assertEquals("首释放触发一次 pinned 迁移", 0, migrateCalls)
+        migrateChannel.releaseBaselines()
+        assertEquals(
+            "releaseBaselines 必须执行 onPinnedMigrate（防漏 unpin 致 trim 腾不掉）",
+            1,
+            migrateCalls
+        )
+        // 空基线再释放仍应触发（切换路径幂等语义——unpinAll 幂等）
+        migrateChannel.releaseBaselines()
+        assertEquals(2, migrateCalls)
+    }
+
+    @Test
     fun `camera-only change costs no scene import call`() {
         val first = inputs()
         channel.push(first)

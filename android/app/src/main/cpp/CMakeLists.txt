@@ -35,6 +35,7 @@ add_library(native-renderer SHARED
     KtxLoader.cpp
     SkyBackground.cpp
     gpu/GpuAllocator.cpp
+    TextureCache.cpp
     NativeBridge.cpp
 )
 

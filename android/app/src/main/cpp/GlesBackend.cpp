@@ -1,4 +1,5 @@
 #include "GlesBackend.h"
+#include "TextureCache.h"
 #include <android/log.h>
 #include <cstring>
 #include <string>
@@ -302,6 +303,11 @@ bool GlesBackend::initPipeline() {
 
 void GlesBackend::shutdown() {
     m_ready.store(false);
+    // MR3-P3.1/D2.2：先 cache 后资源销毁——纪元失效（纯键控解除，不调
+    // destroyFn；物理销毁由下方 destroyPipeline 既有 GL 删除承担）。与
+    // VulkanBackend.destroySurfaceGeneration 挂点同序；幂等（Vulkan 纪元
+    // 已清时再调为无害 no-op）。
+    TextureCache::get().clearEpoch();
     // 清理 GL 资源须持有上下文。shutdown 由主线程
     //   调用（surfaceDestroyed 时渲染线程已停止——上下文空闲可接管）
     const bool ctxOk = ensureContextCurrent();
@@ -468,6 +474,15 @@ void GlesBackend::destroyTexture(uint32_t id) {
     //（无上下文线程上直接 glDeleteTextures 为静默无效调用）
     std::lock_guard<std::mutex> lock(m_stateMutex);
     m_pendingDestroys.push_back(id);
+}
+
+void GlesBackend::onMemoryTrim(int level) {
+    // MR3-P3.1/D3：AGGRESSIVE+ 驱逐空闲 evictable 纹理（destroyTexture 入
+    // 待删队列，渲染线程 drainUploads 持上下文删除）。SOFT 无动作。
+    if (level < Renderer2D::kTrimAggressive) return;
+    TextureCache::get().trim(level, [this](uint32_t handle) {
+        this->destroyTexture(handle);
+    });
 }
 
 void GlesBackend::setProjection(const float mat[16]) {

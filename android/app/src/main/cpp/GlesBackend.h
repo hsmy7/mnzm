@@ -53,6 +53,8 @@ public:
     // REPEAT 寻址要求 2 的幂尺寸——非 POT 返回 0（调用方降级）。
     uint32_t uploadRepeatTexture(const void* pixels, int width, int height) override;
     void destroyTexture(uint32_t id) override;
+    /** MR3-P3.1：TextureCache.trim 档位消费（与 VulkanBackend 同点；GLES 无 host pool） */
+    void onMemoryTrim(int level) override;
     // Rhi.h 接口实现（drawBackground 见下）
     void setProjection(const float mat[16]) override;
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;

@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.sect
 
 import android.graphics.Bitmap
 import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.core.nativebridge.RendererTextureKeys
 import com.xianxia.sect.core.render.RenderMetrics
 import java.nio.ByteBuffer
 
@@ -39,6 +40,13 @@ private const val RGBA_BYTES_PER_PIXEL = 4
  * 三条支路。B15 起三条支路统一改为消费 `build-atlas.mjs` 同源产出的**离线产物**
  * （`assets/atlas/atlas-rgba-raw.bin` / `atlas-rgba-mips.bin`）：
  * **零 Canvas、零逐精灵循环、零运行时降采样**。ASTC 直传路径不变。
+ *
+ * ## MR3-P3.2：键控 TextureCache 接管
+ *
+ * 上传 JNI（ASTC/RGBA mip/单级/地面/岩石）在 C++ 侧已走 `TextureCache.acquire`
+ *（miss→upload→insert；同 key 零重传）。本类改记 **packed key** 而非 GPU id，
+ * 下一轮 [start] 经 [NativeBridge.textureRelease] 释放旧引用（替代 MR1-P1.4
+ * 过渡直调 `destroyTexture`）。ASTC 失败回退 RGBA = 不同 format 键（互不命中）。
  */
 internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
 
@@ -50,25 +58,22 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
     private var buildThread: Thread? = null
 
     /**
-     * 上一轮成功上传的 GPU 纹理 id（图集/地面/岩石；MR1-P1.4——M-P0-1 过渡）。
-     * 同纪元重跑（降级链重试/ASTC→RGBA 回退）会创建**新**纹理，旧 id 若不显式
-     * 释放即 GPU 纹理泄漏（`atlasTextureId` 覆盖写，旧 id 无人持有）。仅主线程
-     * 访问（[start]/[uploadAtlas] 均经 mainHandler.post 回主线程）。
-     * MR3 起 TextureCache 键控缓存接手后，本过渡直调面整体替换。
+     * 上一轮成功 acquire 的纹理键（packed key；MR3-P3.2 替代 MR1-P1.4 的 id 列表）。
+     * 同纪元重跑经 [NativeBridge.textureRelease] 释放——C++ 侧未知键 no-op。
+     * 仅主线程访问（[start]/[uploadAtlas] 均经 mainHandler.post 回主线程）。
      */
-    private val previousRoundTextureIds = ArrayList<Int>()
+    private val previousRoundKeys = ArrayList<Long>()
 
-    /** 记录本轮成功上传的纹理 id（主线程；供下一轮 start 前释放） */
-    private fun trackUploadedTexture(id: Int) {
-        if (id > 0) previousRoundTextureIds.add(id)
+    /** 登记本轮成功 acquire 的键（主线程；供下一轮 start 前 release） */
+    private fun trackAcquiredKey(key: Long) {
+        if (key != 0L && key !in previousRoundKeys) previousRoundKeys.add(key)
     }
 
     /**
      * 启动一轮流水线：后台拼装 → 主线程上传。
      *
-     * 同纪元重跑（降级链重试/ASTC→RGBA 回退轮）入口先释放上一轮纹理 id
-     * （过渡直调 [NativeBridge.destroyTexture]；MR3 起由 TextureCache 替换；
-     * C++ 侧查找失败为 no-op，surface 纪元已清空时无害）。
+     * 同纪元重跑（降级链重试/ASTC→RGBA 回退轮）入口先键控释放上一轮引用
+     *（[NativeBridge.textureRelease]；未知键 no-op，纪元已 clearEpoch 时无害）。
      *
      * @param context 资源上下文
      * @param gen 发起时的 surface 纪元（stale 守卫；发起线程读取后传入）
@@ -83,14 +88,18 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         allowCompressed: Boolean,
         onReady: (Int) -> Unit
     ) {
-        for (id in previousRoundTextureIds) NativeBridge.destroyTexture(id)
-        if (previousRoundTextureIds.isNotEmpty()) {
+        for (key in previousRoundKeys) NativeBridge.textureRelease(key)
+        if (previousRoundKeys.isNotEmpty()) {
             android.util.Log.i(
                 NativeSurfaceView.LOG_TAG,
-                "buildAtlas: released ${previousRoundTextureIds.size} stale texture id(s) from previous round"
+                "buildAtlas: released ${previousRoundKeys.size} texture key(s) from previous round"
             )
+            // MR3/D2.4：弃置旧臂键（如 ASTC→RGBA 换臂后旧 ASTC 键 ref=0 仍 pinned）
+            // 降 evictable，供 trim 回收——防漏 unpin 致 trim 永远腾不掉。
+            // 在用条目（refCount>0）不受 trim 触碰；本轮上传 acquire(pinned=true) 重提升。
+            NativeBridge.textureUnpinAll()
         }
-        previousRoundTextureIds.clear()
+        previousRoundKeys.clear()
         buildThread = kotlin.concurrent.thread(name = "AtlasBuild", isDaemon = true) {
             val payload = prepareAtlas(context, software, allowCompressed)
             if (gen != view.surfaceProvider.generation) return@thread
@@ -100,7 +109,8 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
                 buildThread = null
                 val texId = uploadAtlas(context, payload)
                 // ASTC 上传失败 → 强制 RGBA 重跑一轮（第二轮 allowCompressed=false，
-                // 不会再递归——其产物 ktx 恒为 null）
+                // 不会再递归——其产物 ktx 恒为 null）。失败路径 C++ 不插表，无 ASTC
+                // 键残留；RGBA 臂走不同键 acquire（format 位段区分）。
                 if (texId == 0 && payload.ktx != null) {
                     android.util.Log.i(
                         NativeSurfaceView.LOG_TAG,
@@ -112,18 +122,21 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
                 // 图集真正可用才开始淡入（异步拼装耗时期间保持纯黑，
                 //   避免"地图未就绪却已淡入完成"的空白窗口）
                 if (!payload.failed) view.fadeIn()
+                // MR3-P3.3：上传完成即断开宿主字节缓冲引用（ByteArray/direct
+                // ByteBuffer 不再被 payload 持有，GC 可回收；staging 走 host pool）
+                payload.releaseHostBuffers()
                 onReady(texId)
             }
         }
     }
 
     /** 打断在飞的拼装并清引用（surface 销毁路径）。不 join——拼装是 CPU 密集循环，主线程 join 会退化成"换了个地方阻塞"。
-     *  纹理登记同步清空：surface 纪元死亡时 C++ 侧已整表销毁（destroySurfaceGeneration），
-     *  保留旧 id 会在新纪元误触发无害但无意义的 destroy 查找。 */
+     *  键控登记同步清空：surface 纪元死亡时 C++ 侧已 clearEpoch 整表失效，
+     *  保留旧键会在新纪元误触发无意义的 release 查找。 */
     fun cancel() {
         buildThread?.interrupt()
         buildThread = null
-        previousRoundTextureIds.clear()
+        previousRoundKeys.clear()
     }
 
     /**
@@ -356,7 +369,7 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
                 NativeSurfaceView.LOG_TAG,
                 "buildAtlas: ASTC compressed atlas uploaded (id=$id)"
             )
-            trackUploadedTexture(id)
+            trackAcquiredKey(RendererTextureKeys.KEY_ATLAS_ASTC)
             uploadStandaloneRepeatTextures(context, payload)
         }
         return id
@@ -374,8 +387,14 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
 
     /** RGBA 上传分支：mip 链多级上传，native 拒绝时单级回退 */
     private fun uploadRgbaAtlas(context: android.content.Context, payload: AtlasPayload): Int {
-        val texId = tryMipChainUpload(payload) ?: fallbackSingleLevelUpload(payload)
-        if (texId != 0) trackUploadedTexture(texId)
+        val mipId = tryMipChainUpload(payload)
+        val texId = mipId ?: fallbackSingleLevelUpload(payload)
+        if (texId != 0) {
+            trackAcquiredKey(
+                if (mipId != null) RendererTextureKeys.KEY_ATLAS_RGBA_MIP
+                else RendererTextureKeys.KEY_ATLAS_RGBA_SINGLE
+            )
+        }
         uploadStandaloneRepeatTextures(context, payload)
         // 不调 recycle()：避免国产 ROM NativeAllocationRegistry CleanerThunk
         //   double-free SIGABRT。Vulkan/GLES 模式下 atlasBitmap 不
@@ -444,12 +463,14 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
         val rock = com.xianxia.sect.feature.game.R.drawable.map_rock_base
         upload(grass, payload.groundPixels, payload.groundWidth, payload.groundHeight, "groundTexture") { px, w, h ->
             val groundId = NativeBridge.uploadGroundTextureDirect(px, w, h)
-            trackUploadedTexture(groundId)
+            if (groundId != 0) trackAcquiredKey(RendererTextureKeys.KEY_GROUND)
             publishGroundTextureId(groundId)
         }
         upload(rock, payload.rockPixels, payload.rockWidth, payload.rockHeight, "rockTexture") { px, w, h ->
-            // 岩石纹理 id 原先直接丢弃（无人持有）——同纪元重跑即泄漏，纳入登记
-            trackUploadedTexture(NativeBridge.uploadRockTextureDirect(px, w, h))
+            // 岩石纹理同纪元重跑须键控 release——纳入登记
+            if (NativeBridge.uploadRockTextureDirect(px, w, h) != 0) {
+                trackAcquiredKey(RendererTextureKeys.KEY_ROCK)
+            }
         }
     }
 
@@ -472,19 +493,19 @@ internal class AtlasAsyncPipeline(private val view: NativeSurfaceView) {
  * - [failed]：拼装失败（跳过上传，指标已记）
  */
 internal class AtlasPayload(
-    /** ASTC KTX 资产字节（压缩路径；与其余互斥） */
-    val ktx: ByteArray? = null,
-    /** RGBA mip 链 direct 缓冲区（level-major 紧凑；2.3） */
-    val rgbaMipPixels: ByteBuffer? = null,
+    /** ASTC KTX 资产字节（压缩路径；与其余互斥）。上传后经 [releaseHostBuffers] 置空 */
+    var ktx: ByteArray? = null,
+    /** RGBA mip 链 direct 缓冲区（level-major 紧凑；2.3）。上传后经 [releaseHostBuffers] 置空 */
+    var rgbaMipPixels: ByteBuffer? = null,
     /** [rgbaMipPixels] mip 层级数（含首级完整图集） */
     val mipCount: Int = 0,
-    /** 单级 RGBA direct 缓冲区（免 ByteArray 中转；回退路径） */
-    val rgbaPixels: ByteBuffer? = null,
+    /** 单级 RGBA direct 缓冲区（免 ByteArray 中转；回退路径）。上传后经 [releaseHostBuffers] 置空 */
+    var rgbaPixels: ByteBuffer? = null,
     /** 图集宽（像素；mip 链首级/单级缓冲共用） */
     val width: Int = 0,
     /** 图集高（像素） */
     val height: Int = 0,
-    /** 软渲染路径位图（不上传 GPU；与其余互斥） */
+    /** 软渲染路径位图（不上传 GPU；与其余互斥）。不随 [releaseHostBuffers] 清除（Canvas 仍需） */
     val softwareBitmap: Bitmap? = null,
     /** 拼装是否失败（true = 跳过上传，指标已记） */
     val failed: Boolean = false
@@ -506,6 +527,31 @@ internal class AtlasPayload(
     var rockWidth: Int = 0
     /** 岩石纹理高（像素） */
     var rockHeight: Int = 0
+
+    /**
+     * MR3-P3.3：上传/消费完成后立刻断开宿主字节缓冲引用。
+     *
+     * - `ktx`（ByteArray，ASTC 路径 ~22MB）：JNI `ScopedByteArrayElements`
+     *   在 acquire 的 uploadFn 返回后即 Release；Kotlin 侧再置 null 防 payload
+     *   滞留第二份引用。
+     * - direct `ByteBuffer`（mip 链/单级/地面/岩石）：上传走 `GetDirectBufferAddress`
+     *   零拷贝 + staging host pool；置 null 后无 Kotlin 强引用，GC 可回收
+     *   （`AllocateDirect` 句柄不长期持有）。
+     * - `softwareBitmap` 不清（Canvas 后端仍需）。
+     *
+     * 幂等；[AtlasAsyncPipeline.start] 在 onReady 前调用一次。
+     */
+    fun releaseHostBuffers() {
+        ktx = null
+        rgbaMipPixels = null
+        rgbaPixels = null
+        groundPixels = null
+        rockPixels = null
+        groundWidth = 0
+        groundHeight = 0
+        rockWidth = 0
+        rockHeight = 0
+    }
 }
 
 /**

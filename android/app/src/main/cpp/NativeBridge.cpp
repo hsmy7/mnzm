@@ -17,6 +17,7 @@
 #include "SpriteBatcher.h"
 #include "KtxLoader.h"
 #include "SkyBackground.h"
+#include "TextureCache.h"
 // SceneStore 场景真相 + 场景绘制核心（重构方案 2026-09-17 R3.1/R3.2）——
 // 地图/崖壁/叠加层/浮字各层共用同一构建逻辑（scene_draw.h）。
 // 顶点流等价性：B18-臂β 后生产路径唯一（旧 drawAllTiles 回滚臂与
@@ -633,6 +634,40 @@ private:
 };
 }  // namespace
 
+/// 纹理退役闭包：把 handle 交给 RHI 延迟释放通道（Vulkan m_retiredTextures
+/// 帧边界 / GLES 待删队列）。TextureCache::release/trim 共用。
+static TextureCache::DestroyFn makeTextureDestroyFn() {
+    return [](uint32_t handle) {
+        if (g_renderer && handle != 0) g_renderer->destroyTexture(handle);
+    };
+}
+
+/// 主图集 ASTC 臂键（KTX mip 链；与 Kotlin RendererTextureKeys.KEY_ATLAS_ASTC 同值）
+static TextureKey atlasAstcKey() {
+    return {texture_key::kAssetAtlas, texture_key::kFormatAstc4x4,
+            texture_key::kVariantMipChain};
+}
+/// 主图集 RGBA 单级臂键（mip 失败回退；KEY_ATLAS_RGBA_SINGLE）
+static TextureKey atlasRgbaSingleKey() {
+    return {texture_key::kAssetAtlas, texture_key::kFormatRgba8,
+            texture_key::kVariantSingleLevel};
+}
+/// 主图集 RGBA mip 链臂键（KEY_ATLAS_RGBA_MIP）
+static TextureKey atlasRgbaMipKey() {
+    return {texture_key::kAssetAtlas, texture_key::kFormatRgba8,
+            texture_key::kVariantMipChain};
+}
+/// 地皮草 REPEAT 键（KEY_GROUND；当前 surface 必需 = pinned）
+static TextureKey groundKey() {
+    return {texture_key::kAssetGroundGrass, texture_key::kFormatRgba8,
+            texture_key::kVariantRepeat};
+}
+/// 底部岩石 REPEAT 键（KEY_ROCK；当前 surface 边缘材质 = pinned）
+static TextureKey rockKey() {
+    return {texture_key::kAssetRockBase, texture_key::kFormatRgba8,
+            texture_key::kVariantRepeat};
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadTextureDirect(
     JNIEnv* env, jobject /*thiz*/,
@@ -641,17 +676,54 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadTextureDirect(
     if (!g_renderer) return 0;
     const void* pixels = lockDirectPixels(env, pixelData, width, height, "uploadTextureDirect");
     if (!pixels) return 0;
-    return static_cast<jint>(g_renderer->uploadTexture(pixels, width, height));
+    // MR3-P3.2：生产上传必经 TextureCache（miss→upload→insert；同 key 零重传）。
+    // 单级臂 = 主图集回退路径（生产唯一调用点 AtlasAsyncPipeline.fallbackSingleLevelUpload）。
+    const uint32_t handle = TextureCache::get().acquire(
+        atlasRgbaSingleKey(), /*pinned=*/true,
+        [&]() { return g_renderer->uploadTexture(pixels, width, height); });
+    return static_cast<jint>(handle);
 }
 
-/** 纹理删除出口（MR1-P1.4 起有 Kotlin 调用方：AtlasAsyncPipeline 同纪元重跑
- *  的过渡释放——MR3 起由 TextureCache release 接管。GLES 入待删队列由渲染线程
- *  删除；Vulkan 延迟释放在途帧后） */
+/** RHI 纹理删除（低层；业务释放走 textureRelease 键控路径——本导出保留给
+ *  测试注入/非键控场景。MR1-P1.4 过渡直调已由 AtlasAsyncPipeline 改键控 release） */
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_destroyTexture(
     JNIEnv* /*env*/, jobject /*thiz*/, jint id) {
     if (!g_renderer || id <= 0) return;
     g_renderer->destroyTexture(static_cast<uint32_t>(id));
+}
+
+// ============================================================
+// MR3-P3.2：键控 acquire/release（线程契约表四 textureAcquire/textureRelease）
+// textureAcquire：命中 ref++/可升 pin；miss 时 uploadFn 返回 0 不插表（调用方
+// 再走 upload* 上传——upload* 内部已带 acquire）。用于 SceneUpdateChannel
+// pinned 重提升等「免重传再引用」场景。
+// textureRelease：--ref；==0 && !pinned 入 RHI 退役队列。
+// ============================================================
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_textureAcquire(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong packedKey, jboolean pinned) {
+    const TextureKey key = TextureKey::unpack(static_cast<uint64_t>(packedKey));
+    // miss 探针：uploadFn 恒 0 → 不执行真实上传、不插表；命中仅 ref++/升 pin
+    const uint32_t handle = TextureCache::get().acquire(
+        key, pinned == JNI_TRUE, []() -> uint32_t { return 0u; });
+    return static_cast<jint>(handle);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_textureRelease(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong packedKey) {
+    const TextureKey key = TextureKey::unpack(static_cast<uint64_t>(packedKey));
+    TextureCache::get().release(key, makeTextureDestroyFn());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_textureUnpinAll(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    // SceneUpdateChannel 切换路径 pinned 迁移（D2.4）：旧场景 pinned 降 evictable；
+    // 新场景上传成功后经 upload* 的 acquire(pinned=true) 重提升
+    TextureCache::get().unpinAll();
 }
 
 // ============================================================
@@ -674,12 +746,16 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadTextureMipChainDirect
         LOGE("uploadTextureMipChainDirect: mipCount 非法 %d", static_cast<int>(mipCount));
         return 0;
     }
-    uint32_t id = 0;
-    if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
-        id = vk->uploadMipChainTexture(pixels, width, height, static_cast<int>(mipCount));
-    } else {
-        LOGE("uploadTextureMipChainDirect: 后端不支持（非 VulkanBackend），走单级回退");
-    }
+    // MR3-P3.2：经 TextureCache（同 key 双 acquire 零重传）
+    const uint32_t id = TextureCache::get().acquire(
+        atlasRgbaMipKey(), /*pinned=*/true, [&]() -> uint32_t {
+            if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
+                return vk->uploadMipChainTexture(pixels, width, height,
+                                                 static_cast<int>(mipCount));
+            }
+            LOGE("uploadTextureMipChainDirect: 后端不支持（非 VulkanBackend），走单级回退");
+            return 0u;
+        });
     return static_cast<jint>(id);
 }
 
@@ -696,8 +772,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadGroundTextureDirect(
     const void* pixels = lockDirectPixels(env, pixelData, width, height, "uploadGroundTextureDirect");
     if (!pixels) return 0;
 
-    // RHI 虚端口（Vulkan/GLES 均实现 REPEAT；GLES 侧 POT 守卫在实现内）
-    const uint32_t id = g_renderer->uploadRepeatTexture(pixels, width, height);
+    // MR3-P3.2：经 TextureCache；当前 surface 必需地面 = pinned
+    const uint32_t id = TextureCache::get().acquire(
+        groundKey(), /*pinned=*/true,
+        [&]() { return g_renderer->uploadRepeatTexture(pixels, width, height); });
     if (id != 0) g_groundTexId = id;
     return static_cast<jint>(id);
 }
@@ -715,7 +793,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadRockTextureDirect(
     const void* pixels = lockDirectPixels(env, pixelData, width, height, "uploadRockTextureDirect");
     if (!pixels) return 0;
 
-    const uint32_t id = g_renderer->uploadRepeatTexture(pixels, width, height);
+    // MR3-P3.2：经 TextureCache；当前 surface 边缘材质 = pinned
+    const uint32_t id = TextureCache::get().acquire(
+        rockKey(), /*pinned=*/true,
+        [&]() { return g_renderer->uploadRepeatTexture(pixels, width, height); });
     if (id != 0) g_rockTexId = id;
     return static_cast<jint>(id);
 }
@@ -736,27 +817,32 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadCompressedAtlas(
     const jsize len = env->GetArrayLength(ktxData);
     if (len <= 0) return 0;
 
-    // 22MB 级大缓冲（M-P2-8/MR1-P1.6）：RAII 配对 Get/Release——中间路径
-    // 异常展开时析构保证释放；GetByteArrayElements 失败返回 null 时跳过
-    //（与既有 null 检查同语义，统一走 guard）。
-    ScopedByteArrayElements scoped(env, ktxData);
-    if (!scoped) return 0;
+    // MR3-P3.2/P3.3：经 TextureCache acquire——miss 时才 GetByteArrayElements
+    //（命中零拷贝零 22MB pin；失败 0 不插表，RGBA 回退走不同键）。
+    const uint32_t id = TextureCache::get().acquire(
+        atlasAstcKey(), /*pinned=*/true, [&]() -> uint32_t {
+            // 22MB 级大缓冲（M-P2-8/MR1-P1.6）：RAII 配对 Get/Release——中间路径
+            // 异常展开时析构保证释放；GetByteArrayElements 失败返回 null 时跳过。
+            ScopedByteArrayElements scoped(env, ktxData);
+            if (!scoped) return 0u;
 
-    KtxInfo info;
-    uint32_t id = 0;
-    if (loadKtx1(reinterpret_cast<const uint8_t*>(scoped.get()), static_cast<size_t>(len), info)) {
-        if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
-            id = vk->uploadCompressedTexture(
-                info.data, info.dataSize,
-                static_cast<int>(info.width), static_cast<int>(info.height),
-                static_cast<int>(info.mipCount));
-        } else {
-            LOGE("uploadCompressedAtlas: 后端不支持压缩上传（非 VulkanBackend），回退 RGBA");
-        }
-    } else {
-        LOGW("uploadCompressedAtlas: KTX 校验失败，回退 RGBA 图集");
-    }
-
+            KtxInfo info;
+            uint32_t uploaded = 0;
+            if (loadKtx1(reinterpret_cast<const uint8_t*>(scoped.get()),
+                         static_cast<size_t>(len), info)) {
+                if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
+                    uploaded = vk->uploadCompressedTexture(
+                        info.data, info.dataSize,
+                        static_cast<int>(info.width), static_cast<int>(info.height),
+                        static_cast<int>(info.mipCount));
+                } else {
+                    LOGE("uploadCompressedAtlas: 后端不支持压缩上传（非 VulkanBackend），回退 RGBA");
+                }
+            } else {
+                LOGW("uploadCompressedAtlas: KTX 校验失败，回退 RGBA 图集");
+            }
+            return uploaded;
+        });
     return static_cast<jint>(id);
 }
 
@@ -804,9 +890,8 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_beginFrame(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     // MR1-P1.3：渲染线程帧边界消费 trim 水位（trim 回调线程禁止 GPU 操作/
-    // 纹理重上传）；MR2-P2.3：真实 GPU 收缩面在此消费点接入——AGGRESSIVE+
-    // 经 Rhi::onMemoryTrim 收缩 GpuAllocator staging host pool
-    //（TextureCache.trim 随 MR3 同点接入）
+    // 纹理重上传）；MR2-P2.3：staging host pool 收缩；MR3-P3.1：TextureCache.trim
+    // 经 Rhi::onMemoryTrim 同点接入（Vulkan/GLES 双后端各自消费）
     const int trimLevel = g_pendingRenderTrim.exchange(0, std::memory_order_relaxed);
     if (trimLevel > 0) {
         LOGI("memory trim consumed at frame boundary: level=%d", trimLevel);

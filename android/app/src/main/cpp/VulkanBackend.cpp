@@ -1,5 +1,6 @@
 #include "VulkanBackend.h"
 #include "KtxLoader.h"
+#include "TextureCache.h"
 #include <android/native_window_jni.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
@@ -364,8 +365,11 @@ void VulkanBackend::destroySurfaceGeneration() {
     destroySwapchain();         // framebuffers/views/swapchain（不含 VkSurfaceKHR——surface 由本函数唯一销毁）
 
     // 清理白色纹理（每个 vkDestroy* 后立即置空，防止二次调用时双重释放）
-    // MR2-P2.2：按创建轨销毁（vmaAlloc 判轨）；MR3 TextureCache.clearEpoch
-    // 将挂在本函数「纹理表清空」这一步（方案 D2.2 顺序：先 cache 后 allocator）
+    // MR2-P2.2：按创建轨销毁（vmaAlloc 判轨）。
+    // MR3-P3.1/D2.2：先 cache 后资源销毁——clearEpoch 整表失效（纯键控解除，
+    // 不调 destroyFn；物理销毁由下方既有逐条销毁承担），纪元后 acquire 禁
+    // 命中旧 handle。GpuAllocator 终局销毁在 shutdown()（跨纪元存活）。
+    TextureCache::get().clearEpoch();
     if (m_whiteTexture.view) { vkDestroyImageView(m_device, m_whiteTexture.view, nullptr); m_whiteTexture.view = VK_NULL_HANDLE; }
     destroyImageWithMemory(&m_whiteTexture.image, &m_whiteTexture.memory, &m_whiteTexture.vmaAlloc);
     if (m_whiteTexture.sampler) { vkDestroySampler(m_device, m_whiteTexture.sampler, nullptr); m_whiteTexture.sampler = VK_NULL_HANDLE; }
@@ -1739,6 +1743,12 @@ bool VulkanBackend::savePipelineCache() {
 void VulkanBackend::onMemoryTrim(int level) {
     // 档位 < AGGRESSIVE 无 GPU 面动作（SOFT 面为 Kotlin cache/驱逐域）
     if (level < Renderer2D::kTrimAggressive) return;
+    // MR3-P3.1：TextureCache.trim 同点接入（先 cache——驱逐入队 destroyTexture
+    // 需本对象存活；后 allocator host pool）。destroyTexture 内部自取 m_gpuMutex，
+    // 故本调用不得持锁（否则与 destroyTexture 的 lock_guard 死锁）。
+    TextureCache::get().trim(level, [this](uint32_t handle) {
+        this->destroyTexture(handle);
+    });
     if (!GpuAllocator::get().isGateEnabled()) return;  // OFF 轨：旧单缓冲路径无 pool 可收
     // m_gpuMutex 临界区（非 g_rendererLifecycleMutex——帧路径持锁红线不涉）：
     // staging 分配的全部生存在上传临界区（本锁）内，同锁串行 ⇒ trim 时
