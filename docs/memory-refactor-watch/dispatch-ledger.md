@@ -11,6 +11,7 @@
 
 （最新在上）
 
+- **🔴 2026-09-23 08:58 硬截止到（≥08:50，等于也停）→ 看护停工（status: stopped）**。**交接快照**：① **MR-0（`f80e9fdb8`）/ MR-1（`c2410bf1c`）/ MR-2（`92a4a8e79`）三批交付核验通过**（口径 §7：收官笔+完成报告+树净；门禁实证见各报告；**accepted 全部留用户**）；② **MR-3 在途**（08:32 派发，停工时 26 分钟）：`TextureCache.h/.cpp`（P3.1）+ `texture_cache_test.cpp` + `VulkanBackend.cpp` 接线 + test CMakeLists 已落盘，无提交，子会话健康活跃**不受影响照常跑完**；③ **MR-4（末批 Phase 4）未派发**，派发文本 = `batch-MR4.md` + MR3 报告《关键实施事实》附录（组装法 §5）。**恢复路径**：用户说「继续」→ 按 §6 重建 cron；或直接口头驱动：核验 MR-3 交付三要素（收官笔 + `docs/report-MR3-completion-2026-09-23.md` + 树净）→ 组装派发 MR-4 → 全部核验后总收官。pending-device 累计：MR0 附录 A 真机采集、MR1 三项、MR2 四项（各报告 §五）。
 - **2026-09-23 08:32 MR-3 已派发（GUI 六步全过，锁解除）**：新 ZCode 子会话《【MR-3 内存管理根治 · Phase 3 纹理缓存批（P3.1–P3.3；依赖 MR2 已交的 GpuAllocator）】》开跑实证「工作中 16 秒」，自述先读台账留言区与必读文档。派发文本 = batch-MR3.md + 《前批交付事实》附录 6 条（6161 字符剪贴板粘贴，尾部逐字核验）。**⚠️ 截止交接态**：当前 08:32，MR-3 必然跨越 08:50 硬截止——看护下轮（08:38）为末轮监控，≥08:50 轮次执行 §4 停工（本行即最新在途态：MR-0/MR-1/MR-2 已核验通过 accepted 留用户；MR-3 在途、子会话照常跑完、预期交付 = 收官笔 + `docs/report-MR3-completion-2026-09-23.md` + 树净）；删 cron 后恢复 = 用户说「继续」按 §6 重建，或直接口头驱动核验 MR-3 与派 MR-4（batch-MR4.md + MR3 报告事实附录）。
 - **2026-09-23 08:2x MR-2 交付核验通过**：交付三要素齐 = 收官笔 `92a4a8e79`（18 文件：VMA v3.3.0 vendored + GpuAllocator/GpuBudgetMath + 6 站点收口 + staging pool + trim 接线 + 守卫 14 用例 + 报告）+ 完成报告（ctest **1581/1581**=1567+14、Kotlin **8,112/0/17** 零回归、NDK arm64 绿、裸 vkAllocateMemory=0（OFF 轨辅助 3 处 span 白名单锁定）、JNI 门 85/85）+ 工作树回净。**accepted 留用户**。**要点**：① JNI 基线漏更跨批发现（MR1 +2 补登 + MR2 豁免 +1）——**后续批次门禁清单必含 `node scripts/check-jni-count.mjs`**（已入 MR3 附录）；② 双 changelog 豁免有据（默认 OFF 玩家零感知；翻 true 批随该批写）；③ 白纹理 HOST_VISIBLE 落地口径与 P1.2 同类请示项留验收。MR-3 派发文本 = batch-MR3.md + 《前批交付事实》附录 6 条。
 - **2026-09-23 07:22 MR-2 已派发（GUI 六步全过，锁解除）**：新 ZCode 子会话《【MR-2 内存管理根治 · Phase 2 GPU 子系统批（P2.1–P2.3）】》开跑实证「工作中 13 秒」，自述先读台账留言与必读文档。派发文本 = batch-MR2.md + 《前批交付事实》附录 6 条（5226 字符剪贴板粘贴，尾部逐字核验）。**注意：当前 07:22，MR-2 为大 C++ 批（VMA vendoring + GpuAllocator + 6 站点收口），大概率跨越 08:50 硬截止——截止到点看护按 §4 停工（台账记在途态、删 cron），MR-2 子会话不受影响照常跑完，交付核验待看护恢复或用户口头驱动。**下轮起【C 监控】MR-2。
@@ -72,7 +73,7 @@ CLI 三信号 = `git -C <工作树> log --oneline` / `status --short` / 新报�
 | MR0 | Phase 0（P0.0 线程契约登记 / P0.1 memorySubsystem 旗标 / P0.2 基线采集清单） | **delivered · 核验通过 05:1x** | 04:40 GUI 六步 | `f80e9fdb8` | ✅ 看护（提交+报告双全，§7） | 留用户 |
 | MR1 | Phase 1（P1.1–P1.7 止血+压力闭环） | **delivered · 核验通过 07:1x** | 05:12 GUI 六步 | `c2410bf1c` | ✅ 看护（提交+报告双全，§7） | 留用户 |
 | MR2 | Phase 2（P2.1–P2.3 GPU 子系统 VMA/GpuAllocator） | **delivered · 核验通过 08:2x** | 07:22 GUI 六步 | `92a4a8e79` | ✅ 看护（提交+报告双全，§7） | 留用户 |
-| MR3 | Phase 3（P3.1–P3.3 纹理缓存） | **dispatched 08:32** | 08:32 GUI 六步 | — | — | — |
+| MR3 | Phase 3（P3.1–P3.3 纹理缓存） | **in-flight（08:58 停工时在途，子会话照常跑）** | 08:32 GUI 六步 | — | — | — |
 | MR4 | Phase 4（P4.1–P4.6 基线+GLES+收口） | queued | — | — | — | — |
 
 ## 给实施会话的留言
