@@ -362,9 +362,9 @@ void     clearEpoch();                    // surface 纪元死亡：整表失效
 
 ### Phase 2 — GPU 子系统（D1 + staging trim）
 
-- [ ] **P2.1** Vendoring VMA + `GpuAllocator` + CMake — acceptance: 编译过；stats 单测 (covers: D1)
-- [ ] **P2.2** 收口 6 站点 `vkAllocateMemory`；持久映射 VBO；删除假 memory type 回退；大图 dedicated — acceptance: 裸调用点=0；`GpuAllocatorGuard` 绿 (covers: D1; depends: P2.1)
-- [ ] **P2.3** staging host pool + `trimHostPool` 接 D3 CRITICAL — acceptance: trim 后高水位可降（单测+真机清单项） (covers: D1+D3; depends: P2.1, P1.3)
+- [x] **P2.1** Vendoring VMA + `GpuAllocator` + CMake — acceptance: 编译过；stats 单测 (covers: D1)
+- [x] **P2.2** 收口 6 站点 `vkAllocateMemory`；持久映射 VBO；删除假 memory type 回退；大图 dedicated — acceptance: 裸调用点=0；`GpuAllocatorGuard` 绿 (covers: D1; depends: P2.1)
+- [x] **P2.3** staging host pool + `trimHostPool` 接 D3 CRITICAL — acceptance: trim 后高水位可降（单测+真机清单项） (covers: D1+D3; depends: P2.1, P1.3)
 
 ### Phase 3 — 纹理缓存（D2）
 

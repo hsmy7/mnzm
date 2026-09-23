@@ -790,14 +790,27 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_nativeMemoryTrim(
     g_pendingRenderTrim.store(static_cast<int>(level), std::memory_order_relaxed);
 }
 
+/** 内存子系统双轨开关投递（MR2-P2.1/D1；NativeEngineFlag.memorySubsystem 的
+ *  native 生效面）。Kotlin 侧在 NativeBridge.ensureLoaded() 库加载后立即投递
+ *  BuildConfig 注入值——进程生命周期内恒定，无运行时写者。任意线程可调；
+ *  值为分配路径分支依据（OFF = 旧裸分配路径，预发默认）。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_nativeSetMemorySubsystem(
+    JNIEnv* /*env*/, jobject /*thiz*/, jboolean enabled) {
+    GpuAllocator::setGateEnabled(enabled == JNI_TRUE);
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_beginFrame(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     // MR1-P1.3：渲染线程帧边界消费 trim 水位（trim 回调线程禁止 GPU 操作/
-    // 纹理重上传——真实收缩面随 MR2 trimHostPool / MR3 TextureCache.trim 接入）
+    // 纹理重上传）；MR2-P2.3：真实 GPU 收缩面在此消费点接入——AGGRESSIVE+
+    // 经 Rhi::onMemoryTrim 收缩 GpuAllocator staging host pool
+    //（TextureCache.trim 随 MR3 同点接入）
     const int trimLevel = g_pendingRenderTrim.exchange(0, std::memory_order_relaxed);
     if (trimLevel > 0) {
         LOGI("memory trim consumed at frame boundary: level=%d", trimLevel);
+        if (g_renderer) g_renderer->onMemoryTrim(trimLevel);
     }
     if (g_renderer) g_renderer->beginFrame();
 }

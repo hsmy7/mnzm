@@ -18,6 +18,11 @@ object NativeBridge {
         if (!loaded) {
             System.loadLibrary("native-renderer")
             loaded = true
+            // MR2-P2.1：内存子系统双轨开关投递（NativeEngineFlag.memorySubsystem
+            // 的 native 生效面）——库加载后立即同步，保证任何 prewarm/initRenderer
+            // 消费者都先看到开关值。进程生命周期内恒定（BuildConfig 注入默认，
+            // 无运行时写者）；预发默认 false = native 走旧裸分配路径。
+            nativeSetMemorySubsystem(NativeEngineFlag.memorySubsystem)
         }
     }
 
@@ -34,6 +39,17 @@ object NativeBridge {
      * 0=Vulkan（默认）、1=GPU GLES；Kotlin 侧 NativeSurfaceView 依渲染策略选择。
      */
     external fun setRenderBackend(backend: Int)
+
+    /**
+     * 内存子系统双轨开关（MR2-P2.1；NativeEngineFlag.memorySubsystem 的 native
+     * 生效面）。由 [ensureLoaded] 在库加载后自动投递，**业务代码禁止直调**——
+     * 单一投递点保证 prewarm/initRenderer 前开关就位（JNI 计数门禁在册 +1 豁免，
+     * 见 scripts/jni-count.baseline.json）。
+     *
+     * true = 渲染 C++ 分配收口 GpuAllocator/VMA（GPU 单一分配入口）；
+     * false = 旧裸分配路径（预发默认，双轨回退保留至债表删除窗口）。
+     */
+    external fun nativeSetMemorySubsystem(enabled: Boolean)
 
     // ============================================================
     // 两阶段初始化预加载（Phase 1）

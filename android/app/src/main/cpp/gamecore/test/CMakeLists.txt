@@ -40,6 +40,12 @@ add_executable(game-core-tests
     item_id_reseed_test.cpp
     ai_corpse_budget_test.cpp
     memory_trim_test.cpp
+    # MR2-P2.1/P2.2/P2.3（内存管理根治 GPU 子系统批）：GpuBudgetMath 纯逻辑
+    # 单测（预算估算兜底 + 大图 dedicated 阈值——零 Vulkan 依赖桌面可测）+
+    # GpuAllocatorGuard 源码守卫（裸 vkAllocate/vkFree 收口 OFF 轨辅助体/
+    # VMA_IMPLEMENTATION 唯一 TU/trim 帧边界消费点/vendoring 钉死）
+    gpu_budget_math_test.cpp
+    gpu_allocator_guard_test.cpp
     disciple_derived_maps_test.cpp
     storage_bag_capacity_test.cpp
     game_core_test.cpp

@@ -6,6 +6,7 @@
 #endif
 
 #include "Rhi.h"
+#include "gpu/GpuAllocator.h"
 #include <vulkan/vulkan.h>
 #include <android/native_window.h>
 #include <atomic>
@@ -105,6 +106,10 @@ public:
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;
     void drawBackground(const SpriteVertex* vertices, int count, const SkyGradientParams& params) override;
     void submitFrame() override;
+    /** 内存 trim 档位消费（D3/P2.3；渲染线程帧边界——AGGRESSIVE+ 收缩 staging
+     *  host pool。m_gpuMutex 临界区：staging 分配生存在上传临界区内，同锁串行
+     *  保证 trim 时池内零存活分配，销毁重建不悬垂） */
+    void onMemoryTrim(int level) override;
 
     // === 两阶段初始化（主流游戏做法） ===
 
@@ -133,6 +138,8 @@ private:
     bool createInstance();
     bool selectPhysicalDevice();
     bool createLogicalDevice();
+    /** 设备扩展是否被物理设备支持（createLogicalDevice 判 VK_EXT_memory_budget 用） */
+    bool deviceExtensionSupported(const char* extensionName) const;
     /** 创建 VkSurfaceKHR（m_surface 已存在则直接复用——resize/清晰度切换不重建
      *  surface，destroySurfaceGeneration 持有 surface 的唯一销毁权） */
     bool ensureSurface();
@@ -156,6 +163,56 @@ private:
     static constexpr const char* PIPELINE_CACHE_FILENAME = "vulkan_pipeline_cache.bin";
     bool loadPipelineCache();
     bool savePipelineCache();
+
+    // === 双轨资源分配辅助（MR2-P2.2/D1 收口） ===
+    // ON 轨（GpuAllocator::isGateEnabled()）= VMA 子分配（本仓唯一分配入口）；
+    // OFF 轨 = 旧裸分配路径（NativeEngineFlag.memorySubsystem 预发默认，双轨
+    // 回退保留至债表删除窗口）。每一资源对象创建时定轨，句柄（vmaAlloc）随
+    // 对象存储——销毁按句柄判轨，不重读全局开关，跨纪元/跨轨释放安全。
+    /**
+     * 创建 image 并分配绑定内存（双轨）。
+     * @param decodedBytes 解码像素量（大图 dedicated 阈值判定；RGBA8=w*h*4*mips）
+     * @param hostVisibleWrite true = 需 CPU 直写映射（白纹理 LINEAR 图像）——
+     *        ON 轨走持久映射回 pMappedData，OFF 轨由调用方 vkMapMemory
+     * @param outMapped hostVisibleWrite 时回传映射指针；否则置 null
+     */
+    bool createImageWithMemory(const VkImageCreateInfo& info, const char* tag,
+                               uint64_t decodedBytes,
+                               VkMemoryPropertyFlags preferredFlags,
+                               VkMemoryPropertyFlags requiredFlags,
+                               bool hostVisibleWrite,
+                               VkImage* outImage, VkDeviceMemory* outLegacyMemory,
+                               VmaAllocation* outAlloc, void** outMapped);
+    /** 按创建轨销毁 image+内存（out 参数全部就地置空，幂等） */
+    void destroyImageWithMemory(VkImage* image, VkDeviceMemory* legacyMemory,
+                                VmaAllocation* alloc);
+    /**
+     * 创建 buffer 并分配绑定内存（双轨）。persistentMap = 持久映射（VBO）——
+     * ON 轨 VMA MAPPED 位回 pMappedData；OFF 轨调用方须再 vkMapMemory。
+     */
+    bool createBufferWithMemory(const VkBufferCreateInfo& info, const char* tag,
+                                bool persistentMap,
+                                VkMemoryPropertyFlags preferredFlags,
+                                VkMemoryPropertyFlags requiredFlags,
+                                VkBuffer* outBuffer, VkDeviceMemory* outLegacyMemory,
+                                VmaAllocation* outAlloc, void** outMapped);
+    /** 按创建轨销毁 buffer+内存（out 参数全部就地置空，幂等） */
+    void destroyBufferWithMemory(VkBuffer* buffer, VkDeviceMemory* legacyMemory,
+                                 VmaAllocation* alloc, void** mapped);
+
+    // === 上传 staging（双轨封装） ===
+    /** 每次上传的 staging 句柄三元组（ON=staging pool 子分配；OFF=旧单缓冲棘轮） */
+    struct UploadStaging {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceMemory legacyMemory = VK_NULL_HANDLE;
+        VmaAllocation vmaAlloc = nullptr;
+        void* mapped = nullptr;
+    };
+    /** 获取 ≥requiredSize 的可映射上传缓冲（P2.3：ON 轨自建自毁走专用
+     *  host pool——消除旧棘轮不可收缩；OFF 轨维持旧单缓冲行为逐字不变） */
+    bool acquireUploadStaging(size_t requiredSize, UploadStaging& out);
+    /** 归还（ON=毁还池可被 trim 整块回收；OFF=unmap 且保留旧单缓冲） */
+    void releaseUploadStaging(UploadStaging& staging);
 
     // === 资源管理 ===
     /**
@@ -208,6 +265,8 @@ private:
     //   → 顶点数据撕裂 → 放置模式高频渲染时画面随机白屏
     VkBuffer m_vertexBuffers[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
     VkDeviceMemory m_vertexMemories[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    /** VMA 分配句柄（MR2-P2.2）：非空 = ON 轨创建（销毁走 allocator），空 = OFF 轨 */
+    VmaAllocation m_vertexAllocs[MAX_FRAMES_IN_FLIGHT] = { nullptr, nullptr, nullptr };
     void* m_vertexMapped[MAX_FRAMES_IN_FLIGHT] = { nullptr, nullptr, nullptr };
     VkDeviceSize m_vertexBufferSize = MAX_VERTICES * sizeof(SpriteVertex) * 2;
 
@@ -224,6 +283,8 @@ private:
         VkImage image = VK_NULL_HANDLE;
         VkImageView view = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
+        /** VMA 分配句柄（MR2-P2.2）：非空 = ON 轨创建（销毁走 allocator），空 = OFF 轨 */
+        VmaAllocation vmaAlloc = nullptr;
         VkSampler sampler = VK_NULL_HANDLE;
         int width = 0, height = 0;
         uint32_t id = 1;  // 纹理 ID（1+ 为上传纹理，0 为白色纹理）
@@ -326,6 +387,17 @@ private:
     /** 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 记录） */
     bool m_astcSupported = false;
 
+    // === MR2-P2.1/P2.2：GPU 单一分配入口（GpuAllocator+VMA） ===
+    /** VK_EXT_memory_budget 是否已启用（createLogicalDevice 按设备支持决定；
+     *  传入 GpuAllocator::init 决定 stats 预算口径） */
+    bool m_budgetExtEnabled = false;
+
+    /**
+     * 计算一次 createImage 的解码像素量（大图 dedicated 阈值判定输入）：
+     * RGBA8 = 逐级 w*h*4；ASTC 4x4 = 逐级 ⌈w/4⌉*⌈h/4⌉*16（与上传数据量同口径）。
+     */
+    static uint64_t decodedImageBytes(int width, int height, bool astc, int mipLevels);
+
     // === B.1 纹理采样质量（mipmap + 各向异性；setTextureQuality 运行时更新） ===
     bool m_anisoSupported = false;   // 设备是否支持采样器各向异性（createLogicalDevice 记录）
     float m_anisotropyMax = 2.0f;    // 最大各向异性倍率（0 = 关闭；ClarityMode 默认中 X2）
@@ -365,6 +437,8 @@ private:
     int m_vboOffset = 0;                            // 当前帧 VBO 写入位置（字节偏移）
 
     // Staging buffer（用于 OPTIMAL tiling 纹理上传）
+    // OFF 轨：单缓冲棘轮（跨纪元保留，只增不缩）；ON 轨：本字段不再使用，
+    // 每次上传自建自毁 staging 走 GpuAllocator staging 专用 host pool（P2.3）
     VkBuffer m_stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_stagingMemory = VK_NULL_HANDLE;
     size_t m_stagingBufferSize = 0;
@@ -388,5 +462,7 @@ private:
     VkImage m_offscreenImages[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
     VkImageView m_offscreenViews[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
     VkDeviceMemory m_offscreenMemories[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    /** VMA 分配句柄（MR2-P2.2）：非空 = ON 轨创建，空 = OFF 轨 */
+    VmaAllocation m_offscreenAllocs[MAX_FRAMES_IN_FLIGHT] = { nullptr, nullptr, nullptr };
     VkFramebuffer m_offscreenFramebuffers[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
 };

@@ -102,46 +102,34 @@ bool VulkanBackend::createWhiteTexture() {
     imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (vkCreateImage(m_device, &imgInfo, nullptr, &outTex.image) != VK_SUCCESS) {
-        LOGE("Failed to create white texture image");
+    // MR2-P2.2：白纹理改走 GpuAllocator 双轨入口（原 :131 站点，建图+分配+绑定
+    // 三合一）。LINEAR tiling + HOST_VISIBLE CPU 直写语义保留（1×1 纯色写入面），
+    // preferredFlags=HOST_VISIBLE|COHERENT——UMA 设备该 4KB 分配落位无差，
+    // 正确性（可映射）由 requiredFlags 保证。
+    void* mappedForWrite = nullptr;
+    if (!createImageWithMemory(imgInfo, "white-texture",
+                               decodedImageBytes(w, h, /*astc=*/false, 1),
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                               /*hostVisibleWrite=*/true,
+                               &outTex.image, &outTex.memory, &outTex.vmaAlloc,
+                               &mappedForWrite)) {
+        LOGE("Failed to create white texture (allocator)");
         return false;
     }
 
-    VkMemoryRequirements memReq;
-    vkGetImageMemoryRequirements(m_device, outTex.image, &memReq);
-
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
-
-    uint32_t memType = UINT32_MAX;
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-        if ((memReq.memoryTypeBits & (1u << i)) &&
-            (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
-            memType = i;
-            break;
+    {
+        VkSubresourceLayout layout;
+        VkImageSubresource sub{};
+        sub.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        vkGetImageSubresourceLayout(m_device, outTex.image, &sub, &layout);
+        memcpy((char*)mappedForWrite + layout.offset, whitePixel, 4);
+        // ON 轨：MAPPED 常驻无需 unmap；OFF 轨：解映射（旧路径行为）
+        if (!outTex.vmaAlloc && outTex.memory) {
+            vkUnmapMemory(m_device, outTex.memory);
         }
     }
-    if (memType == UINT32_MAX) { LOGE("No mem type for white texture"); return false; }
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReq.size;
-    allocInfo.memoryTypeIndex = memType;
-
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &outTex.memory) != VK_SUCCESS) {
-        LOGE("Failed to alloc white tex memory");
-        return false;
-    }
-    vkBindImageMemory(m_device, outTex.image, outTex.memory, 0);
-
-    void* mapped;
-    vkMapMemory(m_device, outTex.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
-    VkSubresourceLayout layout;
-    VkImageSubresource sub{};
-    sub.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    vkGetImageSubresourceLayout(m_device, outTex.image, &sub, &layout);
-    memcpy((char*)mapped + layout.offset, whitePixel, 4);
-    vkUnmapMemory(m_device, outTex.memory);
 
     // Layout transition: UNDEFINED → SHADER_READ_ONLY_OPTIMAL
     VkCommandBufferAllocateInfo cmdAlloc{};
@@ -250,6 +238,19 @@ bool VulkanBackend::initDevice(const char* cacheDir, int worldW, int worldH, int
     if (!createLogicalDevice()) { LOGE("initDevice: createLogicalDevice failed"); return false; }
     if (!loadShaders()) { LOGE("initDevice: loadShaders failed"); return false; }
     if (!loadPipelineCache()) { /* 无缓存文件正常，非致命 */ }
+
+    // MR2-P2.1：VMA allocator 创建（initDevice 成功后——生命周期契约，
+    // GpuAllocator.h 头注释；destroySurfaceGeneration/shutdown 销毁）。
+    // VK_EXT_memory_budget 已由 createLogicalDevice 按设备支持决定并启用。
+    // 失败兜底（方案风险表首行「VMA 不兼容」）：关断双轨门回旧裸分配路径，
+    // 渲染器继续工作——native 生效真值以 GpuAllocator::isGateEnabled 为准。
+    if (GpuAllocator::get().isGateEnabled() &&
+        !GpuAllocator::get().init(m_device, m_physDevice, VK_API_VERSION_1_1,
+                                  m_budgetExtEnabled)) {
+        GpuAllocator::get().setGateEnabled(false);
+        LOGE("initDevice: GpuAllocator init failed — memorySubsystem gate off, "
+             "falling back to legacy allocation paths");
+    }
 
     m_deviceReady = true;
     LOGI("Vulkan device+shaders initialized successfully");
@@ -363,16 +364,16 @@ void VulkanBackend::destroySurfaceGeneration() {
     destroySwapchain();         // framebuffers/views/swapchain（不含 VkSurfaceKHR——surface 由本函数唯一销毁）
 
     // 清理白色纹理（每个 vkDestroy* 后立即置空，防止二次调用时双重释放）
+    // MR2-P2.2：按创建轨销毁（vmaAlloc 判轨）；MR3 TextureCache.clearEpoch
+    // 将挂在本函数「纹理表清空」这一步（方案 D2.2 顺序：先 cache 后 allocator）
     if (m_whiteTexture.view) { vkDestroyImageView(m_device, m_whiteTexture.view, nullptr); m_whiteTexture.view = VK_NULL_HANDLE; }
-    if (m_whiteTexture.image) { vkDestroyImage(m_device, m_whiteTexture.image, nullptr); m_whiteTexture.image = VK_NULL_HANDLE; }
-    if (m_whiteTexture.memory) { vkFreeMemory(m_device, m_whiteTexture.memory, nullptr); m_whiteTexture.memory = VK_NULL_HANDLE; }
+    destroyImageWithMemory(&m_whiteTexture.image, &m_whiteTexture.memory, &m_whiteTexture.vmaAlloc);
     if (m_whiteTexture.sampler) { vkDestroySampler(m_device, m_whiteTexture.sampler, nullptr); m_whiteTexture.sampler = VK_NULL_HANDLE; }
     m_whiteTexture = {};
 
     for (auto& tex : m_textures) {
         if (tex.view) { vkDestroyImageView(m_device, tex.view, nullptr); tex.view = VK_NULL_HANDLE; }
-        if (tex.image) { vkDestroyImage(m_device, tex.image, nullptr); tex.image = VK_NULL_HANDLE; }
-        if (tex.memory) { vkFreeMemory(m_device, tex.memory, nullptr); tex.memory = VK_NULL_HANDLE; }
+        destroyImageWithMemory(&tex.image, &tex.memory, &tex.vmaAlloc);
         if (tex.sampler) { vkDestroySampler(m_device, tex.sampler, nullptr); tex.sampler = VK_NULL_HANDLE; }
     }
     m_textures.clear();
@@ -381,14 +382,10 @@ void VulkanBackend::destroySurfaceGeneration() {
     // 退役队列一并清空（纹理资源已由上方循环/白纹清理释放；waitIdle 后无在途采样）
     m_retiredTextures.clear();
 
-    // 清理三缓冲 VBO
+    // 清理三缓冲 VBO（MR2-P2.2：按创建轨销毁；OFF 轨先 unmap 由辅助处理）
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (m_vertexMapped[i]) {
-            vkUnmapMemory(m_device, m_vertexMemories[i]);
-            m_vertexMapped[i] = nullptr;
-        }
-        if (m_vertexBuffers[i]) { vkDestroyBuffer(m_device, m_vertexBuffers[i], nullptr); m_vertexBuffers[i] = VK_NULL_HANDLE; }
-        if (m_vertexMemories[i]) { vkFreeMemory(m_device, m_vertexMemories[i], nullptr); m_vertexMemories[i] = VK_NULL_HANDLE; }
+        destroyBufferWithMemory(&m_vertexBuffers[i], &m_vertexMemories[i],
+                                &m_vertexAllocs[i], &m_vertexMapped[i]);
     }
 
     for (auto& sem : m_imageAvailable) { if (sem) { vkDestroySemaphore(m_device, sem, nullptr); sem = VK_NULL_HANDLE; } }
@@ -438,9 +435,15 @@ void VulkanBackend::shutdown() {
     // device 级资源：ShaderModule + staging buffer + device/instance
     destroyShaderModules();
 
-    // 清理 staging buffer（device 级，跨 Surface 纪元保留——此处最终释放）
+    // 清理 staging buffer（device 级，跨 Surface 纪元保留——此处最终释放；
+    // 仅 OFF 轨存在——ON 轨 staging 为池内短命分配，随 allocator 销毁）
     if (m_stagingBuffer) { vkDestroyBuffer(m_device, m_stagingBuffer, nullptr); m_stagingBuffer = VK_NULL_HANDLE; }
     if (m_stagingMemory) { vkFreeMemory(m_device, m_stagingMemory, nullptr); m_stagingMemory = VK_NULL_HANDLE; }
+
+    // MR2-P2.1：VMA allocator 终局销毁——必须先于 vkDestroyDevice。
+    // 顺序契约（方案 D2.2）：TextureCache（MR3，挂 destroySurfaceGeneration
+    // 纹理表清空步）→ 本处 GpuAllocator.destroy() → VkDevice
+    GpuAllocator::get().destroy();
 
     // 主句柄置空 —— 确保二次 shutdown() 调用幂等安全
     if (m_device) { vkDestroyDevice(m_device, nullptr); m_device = VK_NULL_HANDLE; }
@@ -581,6 +584,24 @@ bool VulkanBackend::selectPhysicalDevice() {
     return false;
 }
 
+/** 设备扩展支持探测（MR2-P2.1：枚举物理设备扩展列表线性查——init 期单次调用，
+ *  非 per-frame 路径；枚举失败按不支持处理 = 保守回退） */
+bool VulkanBackend::deviceExtensionSupported(const char* extensionName) const {
+    uint32_t count = 0;
+    if (vkEnumerateDeviceExtensionProperties(m_physDevice, nullptr, &count, nullptr) != VK_SUCCESS ||
+        count == 0) {
+        return false;
+    }
+    std::vector<VkExtensionProperties> props(count);
+    if (vkEnumerateDeviceExtensionProperties(m_physDevice, nullptr, &count, props.data()) != VK_SUCCESS) {
+        return false;
+    }
+    for (const auto& p : props) {
+        if (strcmp(p.extensionName, extensionName) == 0) return true;
+    }
+    return false;
+}
+
 bool VulkanBackend::createLogicalDevice() {
     float queuePriority = 1.0f;
     VkDeviceQueueCreateInfo queueInfo{};
@@ -589,9 +610,17 @@ bool VulkanBackend::createLogicalDevice() {
     queueInfo.queueCount = 1;
     queueInfo.pQueuePriorities = &queuePriority;
 
+    // MR2-P2.1：VK_EXT_memory_budget 按设备支持条件启用（GpuAllocator.stats
+    // 预算口径；VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT 需要此设备扩展）。
+    // 不支持 = stats 走堆容量估算兜底（GpuBudgetMath，桌面单测锁定）。
+    const bool budgetExt = deviceExtensionSupported(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+    m_budgetExtEnabled = budgetExt;
+
     const char* extensions[] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
     };
+    const uint32_t extensionCount = budgetExt ? 2u : 1u;
 
     // 只启用 GPU 实际支持的功能（部分 Adreno 驱动在请求不支持的功能时 SIGSEGV）
     VkPhysicalDeviceFeatures supportedFeatures;
@@ -614,7 +643,7 @@ bool VulkanBackend::createLogicalDevice() {
     devInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     devInfo.queueCreateInfoCount = 1;
     devInfo.pQueueCreateInfos = &queueInfo;
-    devInfo.enabledExtensionCount = 1;
+    devInfo.enabledExtensionCount = extensionCount;
     devInfo.ppEnabledExtensionNames = extensions;
     devInfo.pEnabledFeatures = &features;
 
@@ -851,10 +880,9 @@ void VulkanBackend::destroyOffscreenTargets() {
         m_offscreenFramebuffers[i] = VK_NULL_HANDLE;
         if (m_offscreenViews[i]) vkDestroyImageView(m_device, m_offscreenViews[i], nullptr);
         m_offscreenViews[i] = VK_NULL_HANDLE;
-        if (m_offscreenImages[i]) vkDestroyImage(m_device, m_offscreenImages[i], nullptr);
-        m_offscreenImages[i] = VK_NULL_HANDLE;
-        if (m_offscreenMemories[i]) vkFreeMemory(m_device, m_offscreenMemories[i], nullptr);
-        m_offscreenMemories[i] = VK_NULL_HANDLE;
+        // MR2-P2.2：按创建轨销毁 image+内存（原 :856 手写 vkFreeMemory 站点）
+        destroyImageWithMemory(&m_offscreenImages[i], &m_offscreenMemories[i],
+                               &m_offscreenAllocs[i]);
     }
     m_offscreenExtent = {};
     m_usingOffscreen = false;
@@ -873,9 +901,6 @@ bool VulkanBackend::createOffscreenTargets() {
     uint32_t offH = (uint32_t)std::max(1, (int)llround(m_swapchainExtent.height * m_renderScale));
     m_offscreenExtent = { offW, offH };
 
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
-
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         VkImageCreateInfo imgInfo{};
         imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -890,43 +915,20 @@ bool VulkanBackend::createOffscreenTargets() {
         imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-        if (vkCreateImage(m_device, &imgInfo, nullptr, &m_offscreenImages[i]) != VK_SUCCESS) {
-            LOGE("createOffscreenTargets: vkCreateImage[%d] failed (%ux%u)", i, offW, offH);
+        // MR2-P2.2：离屏目标改走双轨入口（原 :921 站点）。usage=AUTO，
+        // preferredFlags=DEVICE_LOCAL（渲染目标 GPU 常驻；无 CPU 访问面）
+        if (!createImageWithMemory(imgInfo, "offscreen-color",
+                                   decodedImageBytes((int)offW, (int)offH,
+                                                     /*astc=*/false, 1),
+                                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                   0, /*hostVisibleWrite=*/false,
+                                   &m_offscreenImages[i], &m_offscreenMemories[i],
+                                   &m_offscreenAllocs[i], nullptr)) {
+            LOGE("createOffscreenTargets: image+memory[%d] failed (%ux%u)", i, offW, offH);
             destroyOffscreenTargets();
             m_renderScale = 1.0f;  // 回退直渲
             return true;
         }
-
-        VkMemoryRequirements memReq;
-        vkGetImageMemoryRequirements(m_device, m_offscreenImages[i], &memReq);
-
-        uint32_t memType = UINT32_MAX;
-        for (uint32_t j = 0; j < memProps.memoryTypeCount; j++) {
-            if ((memReq.memoryTypeBits & (1u << j)) &&
-                (memProps.memoryTypes[j].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
-                memType = j;
-                break;
-            }
-        }
-        if (memType == UINT32_MAX) {
-            LOGE("createOffscreenTargets: no DEVICE_LOCAL memory type for offscreen image");
-            destroyOffscreenTargets();
-            m_renderScale = 1.0f;
-            return true;
-        }
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memReq.size;
-        allocInfo.memoryTypeIndex = memType;
-
-        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_offscreenMemories[i]) != VK_SUCCESS) {
-            LOGE("createOffscreenTargets: vkAllocateMemory[%d] failed", i);
-            destroyOffscreenTargets();
-            m_renderScale = 1.0f;
-            return true;
-        }
-        vkBindImageMemory(m_device, m_offscreenImages[i], m_offscreenMemories[i], 0);
 
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1731,6 +1733,239 @@ bool VulkanBackend::savePipelineCache() {
 }
 
 // ============================================================
+// 内存 trim（MR2-P2.3/D3；Rhi 虚接口，渲染线程帧边界经 NativeBridge.beginFrame 消费）
+// ============================================================
+
+void VulkanBackend::onMemoryTrim(int level) {
+    // 档位 < AGGRESSIVE 无 GPU 面动作（SOFT 面为 Kotlin cache/驱逐域）
+    if (level < Renderer2D::kTrimAggressive) return;
+    if (!GpuAllocator::get().isGateEnabled()) return;  // OFF 轨：旧单缓冲路径无 pool 可收
+    // m_gpuMutex 临界区（非 g_rendererLifecycleMutex——帧路径持锁红线不涉）：
+    // staging 分配的全部生存在上传临界区（本锁）内，同锁串行 ⇒ trim 时
+    // staging 池必然零存活分配，整池销毁重建不悬垂。本锁即 submitFrame
+    // 每帧同款的既有互斥域，非新增锁纪律。
+    std::lock_guard<std::mutex> gpuLock(m_gpuMutex);
+    GpuAllocator::get().trimHostPool();
+}
+
+// ============================================================
+// 双轨资源分配辅助（MR2-P2.2/D1 收口：6 站点 vkAllocateMemory 归零）
+// ============================================================
+
+uint64_t VulkanBackend::decodedImageBytes(int width, int height, bool astc, int mipLevels) {
+    uint64_t total = 0;
+    for (int k = 0; k < mipLevels; k++) {
+        const uint32_t lw = (uint32_t)std::max(1, width >> k);
+        const uint32_t lh = (uint32_t)std::max(1, height >> k);
+        total += astc
+            ? (uint64_t)((lw + 3) / 4) * ((lh + 3) / 4) * 16   // ASTC 4x4 块 16B
+            : (uint64_t)lw * lh * 4;                            // RGBA8
+    }
+    return total;
+}
+
+bool VulkanBackend::createImageWithMemory(const VkImageCreateInfo& info, const char* tag,
+                                          uint64_t decodedBytes,
+                                          VkMemoryPropertyFlags preferredFlags,
+                                          VkMemoryPropertyFlags requiredFlags,
+                                          bool hostVisibleWrite,
+                                          VkImage* outImage, VkDeviceMemory* outLegacyMemory,
+                                          VmaAllocation* outAlloc, void** outMapped) {
+    *outImage = VK_NULL_HANDLE;
+    *outLegacyMemory = VK_NULL_HANDLE;
+    *outAlloc = nullptr;
+    *outMapped = nullptr;
+
+    if (hostVisibleWrite) {
+        // CPU 直写面（白纹理 LINEAR 图像）：HOST_VISIBLE 为必需性质
+        requiredFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    }
+
+    if (GpuAllocator::get().isGateEnabled()) {
+        // ON 轨：VMA 唯一分配入口（usage=AUTO + 显式 preferred/requiredFlags，
+        // ≥ 大图阈值 dedicated——杜绝旧「不查 property flag 的假回退」）
+        if (!GpuAllocator::get().createImage(info, tag, decodedBytes,
+                                             preferredFlags, requiredFlags,
+                                             outImage, outAlloc, outMapped)) {
+            return false;
+        }
+        return true;
+    }
+
+    // OFF 轨：旧裸分配路径（预发默认；行为与收口前逐字等价，含 bind 时序）
+    if (vkCreateImage(m_device, &info, nullptr, outImage) != VK_SUCCESS) {
+        LOGE("Failed to create image (%s)", tag ? tag : "untagged");
+        return false;
+    }
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(m_device, *outImage, &memReq);
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+    // 显式性质判定（替代旧假回退——旧循环不查 property flag 直接取首个兼容
+    // 类型）：pass 0 = preferred 全满足；pass 1 = 仅 required（首选性质不可得
+    // 时的**显式**降级，与 VMA AUTO 语义一致——UMA 设备 GPU 资源落 host 侧合法）
+    uint32_t memType = UINT32_MAX;
+    for (uint32_t pass = 0; pass < 2 && memType == UINT32_MAX; pass++) {
+        const VkMemoryPropertyFlags must =
+            (pass == 0) ? (requiredFlags | preferredFlags) : requiredFlags;
+        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+            if ((memReq.memoryTypeBits & (1u << i)) &&
+                (memProps.memoryTypes[i].propertyFlags & must) == must) {
+                memType = i;
+                break;
+            }
+        }
+    }
+    if (memType == UINT32_MAX) {
+        LOGE("No memory type for image (%s)", tag ? tag : "untagged");
+        return false;
+    }
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = memType;
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, outLegacyMemory) != VK_SUCCESS) {
+        LOGE("Failed to allocate image memory (%s)", tag ? tag : "untagged");
+        return false;
+    }
+    vkBindImageMemory(m_device, *outImage, *outLegacyMemory, 0);
+    if (hostVisibleWrite) {
+        vkMapMemory(m_device, *outLegacyMemory, 0, VK_WHOLE_SIZE, 0, outMapped);
+    }
+    return true;
+}
+
+void VulkanBackend::destroyImageWithMemory(VkImage* image, VkDeviceMemory* legacyMemory,
+                                           VmaAllocation* alloc) {
+    // 按创建轨销毁（句柄判轨，不读全局开关）。OFF 轨顺序：先毁 image 再
+    // free memory（VUID：绑定了 memory 的 image 未销毁前不得 free——与旧
+    // 代码顺序一致）；ON 轨由 vmaDestroyImage 一并处理绑定与分配。
+    if (*alloc) {
+        GpuAllocator::get().destroyImage(image, alloc);
+    } else {
+        if (*image) { vkDestroyImage(m_device, *image, nullptr); *image = VK_NULL_HANDLE; }
+        if (*legacyMemory) { vkFreeMemory(m_device, *legacyMemory, nullptr); *legacyMemory = VK_NULL_HANDLE; }
+    }
+}
+
+bool VulkanBackend::createBufferWithMemory(const VkBufferCreateInfo& info, const char* tag,
+                                           bool persistentMap,
+                                           VkMemoryPropertyFlags preferredFlags,
+                                           VkMemoryPropertyFlags requiredFlags,
+                                           VkBuffer* outBuffer, VkDeviceMemory* outLegacyMemory,
+                                           VmaAllocation* outAlloc, void** outMapped) {
+    *outBuffer = VK_NULL_HANDLE;
+    *outLegacyMemory = VK_NULL_HANDLE;
+    *outAlloc = nullptr;
+    *outMapped = nullptr;
+
+    if (GpuAllocator::get().isGateEnabled()) {
+        if (!GpuAllocator::get().createBuffer(info, tag, persistentMap,
+                                              preferredFlags, requiredFlags,
+                                              outBuffer, outAlloc, outMapped)) {
+            return false;
+        }
+        return true;
+    }
+
+    // OFF 轨：旧裸分配路径
+    if (vkCreateBuffer(m_device, &info, nullptr, outBuffer) != VK_SUCCESS) {
+        LOGE("Failed to create buffer (%s)", tag ? tag : "untagged");
+        return false;
+    }
+    VkMemoryRequirements memReq;
+    vkGetBufferMemoryRequirements(m_device, *outBuffer, &memReq);
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+    uint32_t memType = UINT32_MAX;
+    for (uint32_t pass = 0; pass < 2 && memType == UINT32_MAX; pass++) {
+        const VkMemoryPropertyFlags must =
+            (pass == 0) ? (requiredFlags | preferredFlags) : requiredFlags;
+        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+            if ((memReq.memoryTypeBits & (1u << i)) &&
+                (memProps.memoryTypes[i].propertyFlags & must) == must) {
+                memType = i;
+                break;
+            }
+        }
+    }
+    if (memType == UINT32_MAX) {
+        LOGE("No memory type for buffer (%s)", tag ? tag : "untagged");
+        return false;
+    }
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = memType;
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, outLegacyMemory) != VK_SUCCESS) {
+        LOGE("Failed to allocate buffer memory (%s)", tag ? tag : "untagged");
+        return false;
+    }
+    vkBindBufferMemory(m_device, *outBuffer, *outLegacyMemory, 0);
+    if (persistentMap) {
+        vkMapMemory(m_device, *outLegacyMemory, 0, VK_WHOLE_SIZE, 0, outMapped);
+    }
+    return true;
+}
+
+void VulkanBackend::destroyBufferWithMemory(VkBuffer* buffer, VkDeviceMemory* legacyMemory,
+                                            VmaAllocation* alloc, void** mapped) {
+    // 按创建轨销毁（句柄判轨）。OFF 轨顺序：先解映射 → 毁 buffer → free memory
+    //（VUID：绑定 memory 的 buffer 未销毁前不得 free——与旧代码顺序一致）。
+    // ON 轨：vmaDestroyBuffer 一并处理绑定与映射。
+    if (*alloc) {
+        GpuAllocator::get().destroyBuffer(buffer, alloc);
+        if (mapped) *mapped = nullptr;
+        return;
+    }
+    if (mapped && *mapped) { vkUnmapMemory(m_device, *legacyMemory); *mapped = nullptr; }
+    if (*buffer) { vkDestroyBuffer(m_device, *buffer, nullptr); *buffer = VK_NULL_HANDLE; }
+    if (*legacyMemory) { vkFreeMemory(m_device, *legacyMemory, nullptr); *legacyMemory = VK_NULL_HANDLE; }
+}
+
+// ============================================================
+// 上传 staging 双轨封装（P2.3）
+// ============================================================
+
+bool VulkanBackend::acquireUploadStaging(size_t requiredSize, UploadStaging& out) {
+    out = {};
+    if (GpuAllocator::get().isGateEnabled()) {
+        // ON 轨：每次上传自建（池内子分配），fence 后自毁——高水位可被
+        // trimHostPool 整池回收（旧棘轮只增不缩的结构根因在此消除）
+        return GpuAllocator::get().createStagingBuffer(
+            (VkDeviceSize)requiredSize, "staging-upload",
+            &out.buffer, &out.vmaAlloc, &out.mapped);
+    }
+    // OFF 轨：旧单缓冲棘轮逐字保留
+    if (!ensureStagingBuffer(requiredSize)) return false;
+    void* mapped = nullptr;
+    if (vkMapMemory(m_device, m_stagingMemory, 0, requiredSize, 0, &mapped) != VK_SUCCESS ||
+        !mapped) {
+        // 映射失败 → memcpy 到空指针 SIGSEGV（device lost 等罕见路径）
+        LOGE("staging map failed");
+        return false;
+    }
+    out.buffer = m_stagingBuffer;
+    out.legacyMemory = m_stagingMemory;
+    out.mapped = mapped;
+    return true;
+}
+
+void VulkanBackend::releaseUploadStaging(UploadStaging& staging) {
+    if (staging.vmaAlloc) {
+        // ON 轨：毁还池（块整空即归驱动——trim 可见水位下降）
+        GpuAllocator::get().destroyBuffer(&staging.buffer, &staging.vmaAlloc);
+        staging.mapped = nullptr;
+        return;
+    }
+    // OFF 轨：unmap 且保留旧单缓冲（棘轮行为保留）
+    if (staging.legacyMemory && staging.mapped) {
+        vkUnmapMemory(m_device, staging.legacyMemory);
+    }
+    staging = {};
+}
+
+// ============================================================
 // 缓冲区
 // ============================================================
 
@@ -1743,50 +1978,19 @@ bool VulkanBackend::createVertexBuffer() {
     bufInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
-
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateBuffer(m_device, &bufInfo, nullptr, &m_vertexBuffers[i]) != VK_SUCCESS) {
+        // MR2-P2.2：VBO 改走双轨入口（原 :1777 站点）。HOST_VISIBLE|COHERENT
+        // 必需 + 持久映射（ON 轨 = VMA MAPPED 位 pMappedData；OFF 轨 =
+        // vkMapMemory）——每帧 memcpy 写入面，语义与收口前一致
+        if (!createBufferWithMemory(bufInfo, "vbo", /*persistentMap=*/true,
+                                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                    &m_vertexBuffers[i], &m_vertexMemories[i],
+                                    &m_vertexAllocs[i], &m_vertexMapped[i])) {
             m_lastInitError = RenderInitError::VK_DEVICE_MEMORY;
             LOGE("Failed to create vertex buffer %d", i);
             return false;
         }
-
-        VkMemoryRequirements memReq;
-        vkGetBufferMemoryRequirements(m_device, m_vertexBuffers[i], &memReq);
-
-        uint32_t memType = UINT32_MAX;
-        for (uint32_t j = 0; j < memProps.memoryTypeCount; j++) {
-            if ((memReq.memoryTypeBits & (1 << j)) &&
-                (memProps.memoryTypes[j].propertyFlags &
-                 (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
-                memType = j;
-                break;
-            }
-        }
-
-        if (memType == UINT32_MAX) {
-            m_lastInitError = RenderInitError::VK_DEVICE_MEMORY;
-            LOGE("No suitable memory type for VBO %d", i); return false;
-        }
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memReq.size;
-        allocInfo.memoryTypeIndex = memType;
-
-        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexMemories[i]) != VK_SUCCESS) {
-            m_lastInitError = RenderInitError::VK_DEVICE_MEMORY;
-            LOGE("Failed to allocate vertex memory %d", i);
-            return false;
-        }
-
-        vkBindBufferMemory(m_device, m_vertexBuffers[i], m_vertexMemories[i], 0);
-        vkMapMemory(m_device, m_vertexMemories[i], 0, VK_WHOLE_SIZE, 0, &m_vertexMapped[i]);
 
         LOGI("Vertex buffer %d: %llu bytes (mapped)", i, (unsigned long long)bufInfo.size);
     }
@@ -1856,7 +2060,8 @@ bool VulkanBackend::createSynchronization() {
 
 static uint32_t s_nextTextureId = 1;
 
-/** 确保 staging buffer 有足够空间，不足则重新分配 */
+/** 确保 staging buffer 有足够空间，不足则重新分配（OFF 轨专用——ON 轨走
+ *  GpuAllocator staging 专用 host pool，见 acquireUploadStaging） */
 bool VulkanBackend::ensureStagingBuffer(size_t requiredSize) {
     if (m_stagingBufferSize >= requiredSize) return true;
 
@@ -1884,16 +2089,19 @@ bool VulkanBackend::ensureStagingBuffer(size_t requiredSize) {
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
 
+    // 显式性质判定（MR2-P2.2：取代旧手抄循环；语义同旧 required 双位检查，
+    // pass 0 = HOST_VISIBLE|COHERENT 全满足，pass 1 = 仅 HOST_VISIBLE 显式降级）
     uint32_t memType = UINT32_MAX;
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-        if ((memReq.memoryTypeBits & (1 << i)) &&
-            (memProps.memoryTypes[i].propertyFlags &
-             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-            (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
-            memType = i;
-            break;
+    for (uint32_t pass = 0; pass < 2 && memType == UINT32_MAX; pass++) {
+        const VkMemoryPropertyFlags must = (pass == 0)
+            ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+            : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+            if ((memReq.memoryTypeBits & (1u << i)) &&
+                (memProps.memoryTypes[i].propertyFlags & must) == must) {
+                memType = i;
+                break;
+            }
         }
     }
 
@@ -1985,6 +2193,8 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
     // 记录地址模式——setTextureQuality 重建采样器须按原模式（地面 REPEAT 不可变
     // CLAMP，否则整图铺 UV>1 被钳制为边缘单色 → 地面全黑）
     tex.addressMode = addressMode;
+    // staging 句柄（先于任何 goto 声明——fail 标签统一归还，零值安全 no-op）
+    UploadStaging staging;
 
     // 逐级几何（2.3 RGBA mip 链）：level k 尺寸 = max(1, base>>k)；
     // level-major 紧凑布局总字节 = Σ levelSize（mipLevels=1 时即 w*h*4，即单级情形）
@@ -1995,10 +2205,9 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         totalBytes += (uint64_t)lw * lh * 4;
     }
 
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
-
-    // ---- Step 1: 创建 OPTIMAL tiling 图像 ----
+    // ---- Step 1: 创建 OPTIMAL tiling 图像 + 分配绑定内存（双轨入口，
+    //      MR2-P2.2 收口原 :2046 站点。preferredFlags=DEVICE_LOCAL；无 CPU
+    //      访问面（required=0）——UMA 无纯 DEVICE_LOCAL 可选时**显式**降级）----
     VkImageCreateInfo imgInfo{};
     imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imgInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -2013,60 +2222,27 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
     imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (vkCreateImage(m_device, &imgInfo, nullptr, &tex.image) != VK_SUCCESS) {
-        LOGE("Failed to create OPTIMAL texture image");
+    if (!createImageWithMemory(imgInfo, "texture-rgba",
+                               decodedImageBytes(width, height, /*astc=*/false, mipLevels),
+                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                               /*requiredFlags=*/0, /*hostVisibleWrite=*/false,
+                               &tex.image, &tex.memory, &tex.vmaAlloc, nullptr)) {
+        LOGE("Failed to create OPTIMAL texture (image+memory)");
         tex.image = VK_NULL_HANDLE;
         goto fail;
     }
 
-    // 分配 DEVICE_LOCAL 内存
+    // ---- Step 2: staging 上传像素数据（level-major 紧凑，一次 memcpy）。
+    //      双轨：ON = staging pool 子分配（fence 后毁还池）；OFF = 旧单缓冲。
+    //      旧路径在 memcpy 后立即 unmap——两轨统一改为 fence 等待后归还
+    //      （unmap 只解除 CPU 映射，不影响已写入内容与设备可见性；迟归还
+    //      = 同一上传临界区内，无行为差异）----
     {
-        VkMemoryRequirements memReq;
-        vkGetImageMemoryRequirements(m_device, tex.image, &memReq);
-
-        uint32_t memType = UINT32_MAX;
-        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-            if ((memReq.memoryTypeBits & (1 << i)) &&
-                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
-                memType = i;
-                break;
-            }
-        }
-        if (memType == UINT32_MAX) {
-            // 回退到 HOST_VISIBLE（部分 Mali GPU 无纯 DEVICE_LOCAL 可选）
-            for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-                if (memReq.memoryTypeBits & (1 << i)) {
-                    memType = i;
-                    break;
-                }
-            }
-        }
-        if (memType == UINT32_MAX) { LOGE("No memory type for texture image"); goto fail; }
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memReq.size;
-        allocInfo.memoryTypeIndex = memType;
-
-        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory) != VK_SUCCESS) {
-            LOGE("Failed to allocate texture memory"); goto fail;
-        }
-        vkBindImageMemory(m_device, tex.image, tex.memory, 0);
-    }
-
-    // ---- Step 2: 通过 staging buffer 上传像素数据（level-major 紧凑，一次 memcpy） ----
-    {
-        if (!ensureStagingBuffer((size_t)totalBytes)) goto fail;
-
-        void* mapped = nullptr;
-        if (vkMapMemory(m_device, m_stagingMemory, 0, totalBytes, 0, &mapped) != VK_SUCCESS ||
-            !mapped) {
-            // 映射失败 → memcpy 到空指针 SIGSEGV（device lost 等罕见路径）
-            LOGE("uploadTexture: staging map failed");
+        if (!acquireUploadStaging((size_t)totalBytes, staging)) {
+            LOGE("uploadTexture: staging acquire failed");
             goto fail;
         }
-        memcpy(mapped, pixels, (size_t)totalBytes);
-        vkUnmapMemory(m_device, m_stagingMemory);
+        memcpy(staging.mapped, pixels, (size_t)totalBytes);
     }
 
     // ---- Step 3: 提交 vkCmdCopyBufferToImage + Layout Transition ----
@@ -2122,7 +2298,7 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
             regions.push_back(r);
             offset += (uint64_t)r.imageExtent.width * r.imageExtent.height * 4;
         }
-        vkCmdCopyBufferToImage(cmd, m_stagingBuffer, tex.image,
+        vkCmdCopyBufferToImage(cmd, staging.buffer, tex.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                (uint32_t)regions.size(), regions.data());
 
@@ -2148,6 +2324,8 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
             noteUploadResult(false);   // 熔断计数
             goto fail;
         }
+        // fence 已确认拷贝完成——现在才归还 staging（ON 轨毁还池的时点）
+        releaseUploadStaging(staging);
         noteUploadResult(true);
     }
 
@@ -2184,10 +2362,10 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
     }
 
 fail:
-    // 失败时清理已创建的资源
+    // 失败时清理已创建的资源（staging 归还两轨各自安全：零值/未获取 = no-op）
+    releaseUploadStaging(staging);
     if (tex.view) vkDestroyImageView(m_device, tex.view, nullptr);
-    if (tex.image) vkDestroyImage(m_device, tex.image, nullptr);
-    if (tex.memory) vkFreeMemory(m_device, tex.memory, nullptr);
+    destroyImageWithMemory(&tex.image, &tex.memory, &tex.vmaAlloc);
     if (tex.sampler) vkDestroySampler(m_device, tex.sampler, nullptr);
     tex = {};
     return 0;
@@ -2344,11 +2522,12 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
     Texture tex;
     tex.width = width;
     tex.height = height;
+    // staging 句柄（先于任何 goto 声明——fail 标签统一归还，零值安全 no-op）
+    UploadStaging staging;
 
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
-
-    // ---- Step 1: 创建 OPTIMAL tiling 压缩图像（多 mip，B.1） ----
+    // ---- Step 1: 创建 OPTIMAL tiling 压缩图像 + 分配绑定内存（多 mip，B.1；
+    //      双轨入口，MR2-P2.2 收口原 :2396 站点。preferredFlags=DEVICE_LOCAL，
+    //      required=0 显式降级——与 RGBA 纹理同一入口） ----
     VkImageCreateInfo imgInfo{};
     imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imgInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -2363,56 +2542,21 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
     imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (vkCreateImage(m_device, &imgInfo, nullptr, &tex.image) != VK_SUCCESS) {
-        LOGE("Failed to create ASTC texture image");
+    if (!createImageWithMemory(imgInfo, "texture-astc",
+                               decodedImageBytes(width, height, /*astc=*/true, mipCount),
+                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                               /*requiredFlags=*/0, /*hostVisibleWrite=*/false,
+                               &tex.image, &tex.memory, &tex.vmaAlloc, nullptr)) {
+        LOGE("Failed to create ASTC texture (image+memory)");
         tex.image = VK_NULL_HANDLE;
         goto fail;
     }
 
-    // 分配 DEVICE_LOCAL 内存
+    // ---- Step 2: staging 上传全部 mip 数据区（双轨，fence 后归还——同
+    //      uploadTextureImpl 注）----
     {
-        VkMemoryRequirements memReq;
-        vkGetImageMemoryRequirements(m_device, tex.image, &memReq);
-
-        uint32_t memType = UINT32_MAX;
-        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-            if ((memReq.memoryTypeBits & (1 << i)) &&
-                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
-                memType = i;
-                break;
-            }
-        }
-        if (memType == UINT32_MAX) {
-            // 回退到 HOST_VISIBLE（部分 Mali GPU 无纯 DEVICE_LOCAL 可选）
-            for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-                if (memReq.memoryTypeBits & (1 << i)) {
-                    memType = i;
-                    break;
-                }
-            }
-        }
-        if (memType == UINT32_MAX) { LOGE("No memory type for ASTC texture"); goto fail; }
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memReq.size;
-        allocInfo.memoryTypeIndex = memType;
-
-        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory) != VK_SUCCESS) {
-            LOGE("Failed to allocate ASTC texture memory"); goto fail;
-        }
-        vkBindImageMemory(m_device, tex.image, tex.memory, 0);
-    }
-
-    // ---- Step 2: 通过 staging buffer 上传全部 mip 数据区 ----
-    {
-        if (!ensureStagingBuffer(dataSize)) goto fail;
-
-        void* mapped = nullptr;
-        if (vkMapMemory(m_device, m_stagingMemory, 0, dataSize, 0, &mapped) != VK_SUCCESS ||
-            !mapped) {
-            // 映射失败 → memcpy 到空指针 SIGSEGV
-            LOGE("uploadCompressedTexture: staging map failed");
+        if (!acquireUploadStaging(dataSize, staging)) {
+            LOGE("uploadCompressedTexture: staging acquire failed");
             goto fail;
         }
         // 数据布局约束：逐级跳过 KTX [size4]
@@ -2429,12 +2573,11 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
             const size_t levelSize =
                 (size_t)(lw / ktx1::ASTC_BLOCK) * (size_t)(lh / ktx1::ASTC_BLOCK) *
                 ktx1::ASTC_BLOCK_BYTES;
-            memcpy((char*)mapped + dstOffset,
+            memcpy((char*)staging.mapped + dstOffset,
                    data + srcCursor + ktx1::DATA_SIZE_FIELD, levelSize);
             dstOffset += levelSize;
             srcCursor += ktx1::DATA_SIZE_FIELD + levelSize;
         }
-        vkUnmapMemory(m_device, m_stagingMemory);
     }
 
     // ---- Step 3: 提交 vkCmdCopyBufferToImage（逐级 mip）+ Layout Transition ----
@@ -2493,7 +2636,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
             regions.push_back(r);
             cursor += levelSize;
         }
-        vkCmdCopyBufferToImage(cmd, m_stagingBuffer, tex.image,
+        vkCmdCopyBufferToImage(cmd, staging.buffer, tex.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                (uint32_t)regions.size(), regions.data());
 
@@ -2519,6 +2662,8 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
             noteUploadResult(false);   // 熔断计数
             goto fail;
         }
+        // fence 已确认拷贝完成——现在才归还 staging（ON 轨毁还池的时点）
+        releaseUploadStaging(staging);
         noteUploadResult(true);
     }
 
@@ -2555,10 +2700,10 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
     }
 
 fail:
-    // 失败时清理已创建的资源
+    // 失败时清理已创建的资源（staging 归还两轨各自安全：零值/未获取 = no-op）
+    releaseUploadStaging(staging);
     if (tex.view) vkDestroyImageView(m_device, tex.view, nullptr);
-    if (tex.image) vkDestroyImage(m_device, tex.image, nullptr);
-    if (tex.memory) vkFreeMemory(m_device, tex.memory, nullptr);
+    destroyImageWithMemory(&tex.image, &tex.memory, &tex.vmaAlloc);
     if (tex.sampler) vkDestroySampler(m_device, tex.sampler, nullptr);
     tex = {};
     return 0;
@@ -2583,8 +2728,7 @@ void VulkanBackend::freeTextureResources(uint32_t id) {
     for (auto it = m_textures.begin(); it != m_textures.end(); ++it) {
         if (it->id != id) continue;
         if (it->view) vkDestroyImageView(m_device, it->view, nullptr);
-        if (it->image) vkDestroyImage(m_device, it->image, nullptr);
-        if (it->memory) vkFreeMemory(m_device, it->memory, nullptr);
+        destroyImageWithMemory(&it->image, &it->memory, &it->vmaAlloc);
         if (it->sampler) vkDestroySampler(m_device, it->sampler, nullptr);
         m_textures.erase(it);
         return;
