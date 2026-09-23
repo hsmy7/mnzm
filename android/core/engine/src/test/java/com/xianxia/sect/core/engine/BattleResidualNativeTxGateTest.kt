@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.CombatService
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
@@ -9,7 +10,7 @@ import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.engine.system.InventorySystem
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import kotlinx.coroutines.test.runTest
 import org.mockito.Mockito
@@ -22,14 +23,13 @@ import javax.inject.Provider
  * BattleResidualNativeTxGateTest — 战斗域残差 native 臂门控降级守卫
  * （W4-C/C1 · w3-06 伤亡残差 1780）。
  *
- * 守护契约（双实现并行契约 + handover findings 13）：
- * - **降级等价**：flag OFF 与 AUTHORITATIVE（镜像服务缺失 / Provider 缺失）下
- *   `processBattleCasualties` 均回退 Kotlin 原实现，终态一致（标死三列 +
- *   道侣悲痛 + 年死亡计数）
- * - **镜像缺失不 NPE**：`Provider<GameEngineCore>` 惰性边在 `stateSyncServiceRef`
- *   未 stub（null）时可空判空降级（findings 13 在新注入面上的回归网）
- * - **事件面**：宗门外阵亡的 DeathEvent 广播在降级臂照常发射；阶段 3 的 Room
- *   生产槽残差照常执行
+ * 守护契约（G07 后口径）：
+ * - **玩家侧败北 = 重伤**：`processBattleCasualties` 只把败者气血钳到
+ *   [com.xianxia.sect.core.GameConfig.Disciple.INJURED_HP] 并保持 `isAlive=1`
+ *   ——不物化行囊、不清袋、不写悲痛期、不计年报死亡、不广播 DeathEvent、
+ *   不清 Room 生产槽（重伤期间无任何限制）。
+ * - **三臂降级等价**：flag OFF / AUTHORITATIVE+镜像缺失 / AUTHORITATIVE+无 Provider
+ *   终态一致（`Provider<GameEngineCore>` 惰性边未 stub 时可空判空降级，findings 13 回归网）。
  *
  * C++ 侧判定序/零写入/抽取集语义由 GTest `battle_residual_tx_test.cpp` 与
  * `secret_realm_residual_tx_test.cpp` 逐位守护；1781/1782/1800/1801 为
@@ -118,22 +118,19 @@ class BattleResidualNativeTxGateTest {
             "auth-no-provider" to authNoProviderStore
         )) {
             val tables = store.discipleTables
-            // 标死经 [InventorySystem.materializeDiscipleBagAndMarkDead]（本测试 mock）；
-            // 悲痛期为 Kotlin 路径自算写面——三臂一致
-            assertEquals("$label 道侣新入悲痛（year+1）", 6, tables.griefEndYears[102])
-            // 丧亲日志：Kotlin 回退臂由 applyGriefUpdatesToTables 直写一条
-            assertEquals("$label 丧亲日志一条", 1, tables.lifeEvents[102]?.size ?: 0)
+            // G07 重伤不变量：HP=1 且保持存活；不写死亡三元组、不计年报死亡
+            assertEquals("$label 重伤 HP", GameConfig.Disciple.INJURED_HP, tables.currentHps[101])
+            assertEquals("$label 保持存活", 1, tables.isAlive[101])
+            assertFalse("$label 不写 deathYear", tables.deathYears.contains(101))
+            // 重伤不传悲痛：道侣不进入哀悼期、无丧亲日志
+            assertFalse("$label 道侣不进悲痛", tables.griefEndYears.contains(102))
+            assertEquals("$label 无丧亲日志", 0, tables.lifeEvents.getOrNull(102)?.size ?: 0)
+            assertEquals("$label 不计年报死亡", 0, store.gameData.value.annualDeceasedDisciples)
         }
-        // 标死统一入口：三臂各调用一次（phase 2 B 段——Kotlin 路径语义）
-        verify(inventorySystem, times(3)).materializeDiscipleBagAndMarkDead(
-            org.mockito.kotlin.any(),
-            org.mockito.kotlin.eq(101),
-            org.mockito.kotlin.eq(5),
-            org.mockito.kotlin.eq("battle"))
-        // 死亡事件广播：三臂各一次（阶段 1 平台面保留 Kotlin）
-        verify(eventBus, times(3)).emitSync(DeathEvent("101", "阵亡者", "战斗阵亡"))
-        // 阶段 3 Room 残差照常执行
-        verify(productionSlotRepository, times(3)).getSlots()
-        assertTrue(true)
+        // 不物化行囊 / 不清 Room 生产槽 / 不广播死亡事件（三臂全零）
+        verify(inventorySystem, times(0)).materializeDiscipleBagAndMarkDead(
+            org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.any())
+        verify(productionSlotRepository, times(0)).getSlots()
+        verify(eventBus, times(0)).emitSync(DeathEvent("101", "阵亡者", "战斗阵亡"))
     }
 }

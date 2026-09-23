@@ -100,9 +100,10 @@ TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsGriefAndSlots) {
     const std::size_t partner = addDisciple("102");
     const std::size_t survivor = addDisciple("103");
     ds.partnerIds[partner] = "101";
+    ds.currentHps[doomed] = 100;
     ds.currentHps[survivor] = 100;
     ds.currentMps[survivor] = 100;
-    // 槽位与熟练度（清理面）
+    // 槽位与熟练度（G07 重伤路径不清槽/不清熟练度）
     gd.elderSlots.lawEnforcementElder = "101";
     gd.manualProficiencies["101"] = {};
     gd.spiritMineSlots.push_back({1, "101", "弟子101"});
@@ -118,32 +119,27 @@ TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsGriefAndSlots) {
     const json& data = reply["data"];
     ASSERT_EQ(data["markedDeadIds"], json::array({"101"}));
 
-    // 标死三列 + 年死亡计数
-    EXPECT_EQ(ds.isAlive[doomed], 0);
-    EXPECT_EQ(ds.statuses[doomed], "DEAD");
-    EXPECT_EQ(ds.deathYears[doomed], yearBefore);
-    EXPECT_EQ(gd.annualDeceasedDisciples, 1);
-    // 悲痛：道侣新入悲痛（year+1）+ 一条丧亲草稿（关系文本"道侣"）
-    EXPECT_EQ(ds.griefEndYears[partner], yearBefore + 1);
-    ASSERT_EQ(data["lifeEventDrafts"].size(), 1u);
-    EXPECT_EQ(data["lifeEventDrafts"][0]["id"], 102);
-    const std::string line =
-        data["lifeEventDrafts"][0]["line"].get<std::string>();
-    EXPECT_NE(line.find("道侣"), std::string::npos);
-    EXPECT_NE(line.find("离世陷入悲痛"), std::string::npos);
+    // G07 重伤：HP=1 存活，不写死亡三元组、不计年报死亡
+    EXPECT_EQ(ds.currentHps[doomed], 1);
+    EXPECT_EQ(ds.isAlive[doomed], 1);
+    EXPECT_NE(ds.statuses[doomed], "DEAD");
+    EXPECT_EQ(gd.annualDeceasedDisciples, 0);
+    // 不触发悲痛（非死亡）：griefEndYears 保持 -1 哨兵
+    EXPECT_EQ(ds.griefEndYears[partner], -1);
+    ASSERT_TRUE(data["lifeEventDrafts"].empty());
     // 幸存者 HP/MP 回写
     EXPECT_EQ(ds.currentHps[survivor], 50);
-    // 槽位与熟练度清理
-    EXPECT_TRUE(gd.elderSlots.lawEnforcementElder.empty());
-    EXPECT_TRUE(gd.spiritMineSlots[0].discipleId.empty());
-    EXPECT_EQ(gd.manualProficiencies.count("101"), 0u);
-    // 宗门外死亡：装备/功法实例不回收（Kotlin isOutsideSect 分支同口径）
+    // G07 重伤保留槽位与熟练度
+    EXPECT_EQ(gd.elderSlots.lawEnforcementElder, "101");
+    EXPECT_EQ(gd.spiritMineSlots[0].discipleId, "101");
+    EXPECT_EQ(gd.manualProficiencies.count("101"), 1u);
     EXPECT_TRUE(data["overflowDrafts"].empty());
 }
 
 TEST_F(BattleResidualTxFixture, CasualtySettleReentryDoesNotDoubleCount) {
     auto& ds = core_->state().disciples;
     const std::size_t doomed = addDisciple("111");
+    ds.currentHps[doomed] = 100;
     const json params = {
         {"deadIds", json::array({"111"})},
         {"survivorHp", json::object()},
@@ -151,13 +147,15 @@ TEST_F(BattleResidualTxFixture, CasualtySettleReentryDoesNotDoubleCount) {
         {"isOutsideSect", true},
     };
     ASSERT_EQ(exec(action::BATTLE_CASUALTY_SETTLE_TX, params)["status"], "success");
-    EXPECT_EQ(core_->state().gameData.annualDeceasedDisciples, 1);
+    EXPECT_EQ(core_->state().gameData.annualDeceasedDisciples, 0);
+    EXPECT_EQ(ds.currentHps[doomed], 1);
 
-    // 重入（1570 已标死场景）：wasAlive=false → 三列幂等重写、不重复计数
+    // 重入：仍为重伤语义（HP=1、存活、不计年报死亡）
     const json reply = exec(action::BATTLE_CASUALTY_SETTLE_TX, params);
     ASSERT_EQ(reply["status"], "success");
-    EXPECT_EQ(ds.isAlive[doomed], 0);
-    EXPECT_EQ(core_->state().gameData.annualDeceasedDisciples, 1);
+    EXPECT_EQ(ds.isAlive[doomed], 1);
+    EXPECT_EQ(ds.currentHps[doomed], 1);
+    EXPECT_EQ(core_->state().gameData.annualDeceasedDisciples, 0);
 }
 
 TEST_F(BattleResidualTxFixture, CasualtySettleConsumesZeroRng) {
@@ -197,12 +195,12 @@ TEST_F(BattleResidualTxFixture, VictoryTxGrantsSoulPowersAndWinAttrWithoutDefeat
     });
     ASSERT_EQ(reply["status"], "success");
     EXPECT_EQ(reply["data"]["applied"], true);
-    EXPECT_EQ(reply["data"]["soulPowerCount"], 2);   // 203 已亡 → 跳过
-    EXPECT_EQ(reply["data"]["winAttrCount"], 1);     // 仅 201 有天赋
-    EXPECT_EQ(ds.soulPowers[winner], 1);
-    EXPECT_EQ(ds.soulPowers[plain], 1);
-    // 527 ≡ 0 (mod 17) ⇒ r 恒 14 → basePhysicalDefenses+1（与 Kotlin 同式同常量）
-    EXPECT_EQ(ds.basePhysicalDefenses[winner], 11);
+    // G02/G04：神魂+1 与 winBattleRandomAttrPlus 战斗随机成长已删除
+    EXPECT_EQ(reply["data"]["soulPowerCount"], 0);
+    EXPECT_EQ(reply["data"]["winAttrCount"], 0);
+    EXPECT_EQ(ds.soulPowers[winner], 0);
+    EXPECT_EQ(ds.soulPowers[plain], 0);
+    EXPECT_EQ(ds.basePhysicalDefenses[winner], 10);
     // 🔴 C++ 不写 defeated（batch-13 TOCTOU 口径——残差留 Kotlin 臂）
     EXPECT_FALSE(gd.worldLevels[0].defeated);
     EXPECT_EQ(ds.isAlive[dead], 0);

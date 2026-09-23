@@ -142,6 +142,8 @@ fun HpMpBars(
     val rawCurrentMp = disciple.currentMp
     val currentHpDisplay = if (rawCurrentHp < 0) maxHp else rawCurrentHp
     val currentMpDisplay = if (rawCurrentMp < 0) maxMp else rawCurrentMp
+    // 重伤派生（Q20/Q41）：存活且气血=1，不新增状态枚举
+    val isInjured = disciple.isAlive && currentHpDisplay == GameConfig.Disciple.INJURED_HP
     val hpFraction = if (maxHp > 0) (currentHpDisplay.toFloat() / maxHp).coerceIn(0f, 1f) else 1f
     val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
 
@@ -160,11 +162,11 @@ fun HpMpBars(
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         HpMpBarColumn(
-            label = "气血",
+            label = if (isInjured) "重伤" else "气血",
             currentDisplay = currentHpDisplay,
             maxValue = maxHp,
             animatedProgress = animatedHpProgress,
-            barColor = GameColors.HpBar
+            barColor = if (isInjured) GameColors.Error else GameColors.HpBar
         )
         HpMpBarColumn(
             label = "灵力",

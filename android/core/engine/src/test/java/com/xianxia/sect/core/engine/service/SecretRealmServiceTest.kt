@@ -401,7 +401,7 @@ class SecretRealmServiceTest {
     }
 
     @Test
-    fun `chooseOption - 濒死弟子再次阵亡则永久死亡`() {
+    fun `chooseOption - 濒死弟子再次阵亡则重伤（G07 不再战死）`() {
         val state = createState()
         val ids = setupActiveSession(state)
         // 将 2~4 号弟子标记为濒死（首次阵亡后的状态），随后打一场败仗
@@ -418,10 +418,11 @@ class SecretRealmServiceTest {
         assertTrue(result.isSuccess)
         val members = state.gameData.secretRealmSession.members
         assertEquals(3, members.count { it.isDead })
-        // 永久死亡已 markDead（isAlive 置 0）
-        assertTrue(tables.isAlive[2] == 0)
-        assertTrue(tables.isAlive[3] == 0)
-        assertTrue(tables.isAlive[4] == 0)
+        // G07：玩家侧不可战死——再次阵亡仍为重伤（气血钳 1 且保持存活），名册不产生尸体行
+        for (deadId in listOf(2, 3, 4)) {
+            assertEquals(GameConfig.Disciple.INJURED_HP, tables.currentHps[deadId])
+            assertEquals(1, tables.isAlive[deadId])
+        }
         // 1 号幸存者未标记死亡
         assertTrue(tables.isAlive[1] == 1)
     }
@@ -512,7 +513,7 @@ class SecretRealmServiceTest {
     fun `chooseOption - 队伍全灭自动结束并返回释放成员`() {
         val state = createState()
         val ids = setupActiveSession(state)
-        // 全部成员标记濒死（保命机制已用尽），再打一场败仗 → 全员永久死亡
+        // 全部成员标记濒死（保命机制已用尽），再打一场败仗 → 全员会话内失能
         state.gameData = state.gameData.copy(
             secretRealmSession = state.gameData.secretRealmSession.copy(
                 members = state.gameData.secretRealmSession.members.map { m ->
@@ -527,8 +528,9 @@ class SecretRealmServiceTest {
         val success = result as SecretRealmChoiceResult.Success
         assertEquals(ids.toSet(), success.releasedMemberIds)
         assertEquals(4, success.deadIds.size)
-        // 全员已 markDead
-        assertTrue((1..4).all { tables.isAlive[it] == 0 })
+        // G07：全员重伤（气血=1 且保持存活）——名册不产生尸体行，仅会话侧标记失能
+        assertTrue((1..4).all { tables.currentHps[it] == GameConfig.Disciple.INJURED_HP })
+        assertTrue((1..4).all { tables.isAlive[it] == 1 })
         // 秘境已消失（WIPEOUT 结束）
         assertFalse(state.gameData.secretRealmState.exists)
     }

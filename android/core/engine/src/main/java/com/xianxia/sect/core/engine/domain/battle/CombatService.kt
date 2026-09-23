@@ -78,78 +78,103 @@ class CombatService @Inject constructor(
         survivorMpMap: Map<String, Int> = emptyMap(),
         isOutsideSect: Boolean = true
     ) {
-        // ── Native 臂（1780 BATTLE_CASUALTY_SETTLE_TX）：阶段 2 状态段
-        // （悲痛/标死袋物化/物品/槽位/幸存者 HP-MP，零 RNG）归 C++；阶段 1 的
-        // DeathEvent 广播、阶段 3 的 Room 生产槽清理与丧亲日志（lifeEvents 为
-        // Kotlin 类体属性列）经信封回写。flag 关/镜像不可用/失败信封 → false
-        // 回退 Kotlin 原路径（双实现并行契约）。
+        // G07 玩家侧败北 → 重伤（HP=1 存活）：不清槽/不解绑/不清装/不物化行囊。
+        // isOutsideSect=false 仍走完整死亡链（寿元等非战斗路径，G02 收口）。
+        if (isOutsideSect && deadMemberIds.isNotEmpty()) {
+            stateStore.update {
+                applyBattleInjuries(this, deadMemberIds, survivorHpMap, survivorMpMap)
+            }
+            return
+        }
+        // ── Native 臂（1780）：仅非战斗路径仍可用（G07 后战斗恒走上方重伤支）──
         if (deadMemberIds.isNotEmpty() &&
             tryNativeCasualtySettle(deadMemberIds, survivorHpMap, survivorMpMap, isOutsideSect)
         ) {
-            // ── 阶段 3：跨 Repository 写入（无法纳入镜像事务，Kotlin 残差）──
             clearDeadFromProductionRepository(deadMemberIds)
             return
         }
-        // ── 阶段 1：只读收集（事务外） ──
-        // 收集死亡弟子信息、装备/功法ID、槽位更新、幸存者HP/MP
-        val collected = collectCasualtyData(deadMemberIds, isOutsideSect)
-        val griefUpdates = collected.griefUpdates
-        val proficiencyRemoveIds = collected.proficiencyRemoveIds
-        val equipIdsToUnequip = collected.equipIdsToUnequip
-        val manualIdsToUnlearn = collected.manualIdsToUnlearn
-        val disciplesToKill = collected.disciplesToKill
-        // slot/HP/年份更新已移入 stateStore.update 内部（锁内读取最新状态）
-
-        // ── 阶段 2：单事务原子写入 ──
-        val deadDisciples = collected.deadDisciples
-        val hasCasualtyEffects = griefUpdates.isNotEmpty() || deadMemberIds.isNotEmpty() ||
-            proficiencyRemoveIds.isNotEmpty() || equipIdsToUnequip.isNotEmpty() ||
-            manualIdsToUnlearn.isNotEmpty()
-        if (hasCasualtyEffects) {
-            stateStore.update {
-                val battleCurrentYear = gameData.gameYear
-                val liveElderSlots = computeElderSlotUpdates(gameData, deadMemberIds)
-                val liveSpiritMineSlots = gameData.spiritMineSlots.map { slot ->
-                    if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-                }
-                val liveLibrarySlots = gameData.librarySlots.map { slot ->
-                    if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-                }
-                val liveSurvivorUpdates = computeSurvivorUpdates(
-                    state = this, survivorHpMap = survivorHpMap,
-                    survivorMpMap = survivorMpMap, deadMemberIds = deadMemberIds
-                )
-                // A. 悲痛期
-                applyGriefUpdatesToTables(state = this, griefUpdates = griefUpdates, deadDisciples = deadDisciples)
-                // B. 标记死亡（统一入口——袋物品物化回仓库 + 清袋 + markDead）
-                markCasualtiesDead(
-                    state = this, disciplesToKill = disciplesToKill,
-                    battleCurrentYear = battleCurrentYear
-                )
-                // C. 装备/功法/熟练度
-                removeCasualtyItems(
-                    state = this, proficiencyRemoveIds = proficiencyRemoveIds,
-                    equipIdsToUnequip = equipIdsToUnequip, manualIdsToUnlearn = manualIdsToUnlearn
-                )
-                // D. 槽位清理
-                gameData = gameData.copy(
-                    elderSlots = liveElderSlots,
-                    spiritMineSlots = liveSpiritMineSlots,
-                    librarySlots = liveLibrarySlots,
-                    // 生产槽镜像清理（镜像残留会让死弟子在读档重建/自愈时重新挂回生产界面）
-                    productionSlots = gameData.productionSlots.map {
-                        if (it.assignedDiscipleId in deadMemberIds)
-                            it.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                        else it
-                    }
-                )
-                // E. 幸存者HP/MP
-                applySurvivorHpMpUpdates(state = this, liveSurvivorUpdates = liveSurvivorUpdates)
-            }
-        }
-
-        // ── 阶段 3：跨 Repository 写入（无法纳入 stateStore 事务） ──
+        applyLegacyCasualtyChain(deadMemberIds, survivorHpMap, survivorMpMap, isOutsideSect)
         clearDeadFromProductionRepository(deadMemberIds)
+    }
+
+    /**
+     * G07 玩家侧败北 → **重伤**：气血钳到
+     * [com.xianxia.sect.core.GameConfig.Disciple.INJURED_HP] 且保持存活；幸存者照常回写
+     * HP/MP。不清槽、不解绑、不清装、不物化行囊、不计年报死亡。回血走既有每旬回血机制。
+     */
+    private fun applyBattleInjuries(
+        state: MutableGameState,
+        deadMemberIds: Set<String>,
+        survivorHpMap: Map<String, Int>,
+        survivorMpMap: Map<String, Int>
+    ) {
+        val injuredIds = deadMemberIds.mapNotNull { it.toIntOrNull() }
+            .filter { state.discipleTables.ids.contains(it) }
+        for (id in injuredIds) {
+            state.discipleTables.markDead(id, currentYear = state.gameData.gameYear, cause = "battle")
+        }
+        val survivorUpdates = computeSurvivorUpdates(
+            state = state, survivorHpMap = survivorHpMap,
+            survivorMpMap = survivorMpMap, deadMemberIds = deadMemberIds
+        )
+        applySurvivorHpMpUpdates(state = state, liveSurvivorUpdates = survivorUpdates)
+    }
+
+    /**
+     * 非战斗路径（`isOutsideSect=false`）的完整死亡链：只读收集 → 单事务原子写入。
+     * G07 后生产无调用方（所有生产调用点传 `isOutsideSect=true`），待 G02 删除寿元链后一并退役。
+     */
+    private suspend fun applyLegacyCasualtyChain(
+        deadMemberIds: Set<String>,
+        survivorHpMap: Map<String, Int>,
+        survivorMpMap: Map<String, Int>,
+        isOutsideSect: Boolean
+    ) {
+        val collected = collectCasualtyData(deadMemberIds, isOutsideSect)
+        val hasCasualtyEffects = collected.griefUpdates.isNotEmpty() ||
+            deadMemberIds.isNotEmpty() ||
+            collected.proficiencyRemoveIds.isNotEmpty() ||
+            collected.equipIdsToUnequip.isNotEmpty() ||
+            collected.manualIdsToUnlearn.isNotEmpty()
+        if (!hasCasualtyEffects) return
+        stateStore.update {
+            val battleCurrentYear = gameData.gameYear
+            val liveElderSlots = computeElderSlotUpdates(gameData, deadMemberIds)
+            val liveSpiritMineSlots = gameData.spiritMineSlots.map { slot ->
+                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
+            }
+            val liveLibrarySlots = gameData.librarySlots.map { slot ->
+                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
+            }
+            val liveSurvivorUpdates = computeSurvivorUpdates(
+                state = this, survivorHpMap = survivorHpMap,
+                survivorMpMap = survivorMpMap, deadMemberIds = deadMemberIds
+            )
+            applyGriefUpdatesToTables(
+                state = this, griefUpdates = collected.griefUpdates,
+                deadDisciples = collected.deadDisciples
+            )
+            markCasualtiesDead(
+                state = this, disciplesToKill = collected.disciplesToKill,
+                battleCurrentYear = battleCurrentYear
+            )
+            removeCasualtyItems(
+                state = this, proficiencyRemoveIds = collected.proficiencyRemoveIds,
+                equipIdsToUnequip = collected.equipIdsToUnequip,
+                manualIdsToUnlearn = collected.manualIdsToUnlearn
+            )
+            gameData = gameData.copy(
+                elderSlots = liveElderSlots,
+                spiritMineSlots = liveSpiritMineSlots,
+                librarySlots = liveLibrarySlots,
+                productionSlots = gameData.productionSlots.map {
+                    if (it.assignedDiscipleId in deadMemberIds)
+                        it.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    else it
+                }
+            )
+            applySurvivorHpMpUpdates(state = this, liveSurvivorUpdates = liveSurvivorUpdates)
+        }
     }
 
     /**

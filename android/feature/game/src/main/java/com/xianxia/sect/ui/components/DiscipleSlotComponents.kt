@@ -72,7 +72,7 @@ internal fun SlotContent(
                 modifier = Modifier.width(40.dp).height(48.dp)
             )
         } else {
-            // 阵亡：仅覆盖精灵图区域，名称和境界保持显示
+            // G07：!isAlive 显示死亡；玩家重伤路径 isAlive=1 不进此分支
             Box(
                 modifier = Modifier.width(40.dp).height(48.dp),
                 contentAlignment = Alignment.Center

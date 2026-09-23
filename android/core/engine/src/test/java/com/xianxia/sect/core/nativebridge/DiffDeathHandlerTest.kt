@@ -2,7 +2,6 @@ package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.DiscipleTables
@@ -101,15 +100,15 @@ class DiffDeathHandlerTest {
             Disciple(id = "1", name = "张三"),
             Disciple(id = "2", name = "李四"),
         )
-        // Kotlin 基准：markDead(1, 10) → 三字段 + 计数 +1
+        // Kotlin 基准：markDead(1, 10) → 重伤（HP=1 存活，不计年报死亡）
         val tables = kotlinTables(disciples)
         val state = kotlinState(tables, annualDeceased = 5)
         DiscipleDeathHandler().markDead(state, 1, 10)
-        assertEquals(0, tables.isAlive[1])
-        assertEquals(DiscipleStatus.DEAD, tables.statuses[1])
-        assertEquals(10, tables.deathYears[1])
-        assertEquals(6, state.gameData.annualDeceasedDisciples)
-        assertEquals(1, tables.isAlive[2])  // 其他弟子不受影响
+        assertEquals(1, tables.currentHps[1])
+        assertEquals(1, tables.isAlive[1])
+        assertFalse(tables.deathYears.contains(1))
+        assertEquals(5, state.gameData.annualDeceasedDisciples)
+        assertEquals(1, tables.isAlive[2])
 
         // C++：同种子无关（无 RNG），直接导入同一状态执行
         importState(disciples, annualDeceased = 5)
@@ -119,10 +118,9 @@ class DiffDeathHandlerTest {
         assertSuccess(r)
         val data = r["data"]!!.jsonObject
         assertEquals("marked", true, data["marked"]!!.jsonPrimitive.content.toBoolean())
-        assertEquals("isAlive", 0, data["isAlive"]!!.jsonPrimitive.content.toInt())
-        assertEquals("status", "DEAD", data["status"]!!.jsonPrimitive.content)
-        assertEquals("deathYears", 10, data["deathYears"]!!.jsonPrimitive.content.toInt())
-        assertEquals("annualDeceasedDisciples", 6,
+        assertEquals("isAlive", 1, data["isAlive"]!!.jsonPrimitive.content.toInt())
+        assertEquals("currentHp", 1, data["currentHp"]!!.jsonPrimitive.content.toInt())
+        assertEquals("annualDeceasedDisciples", 5,
             data["annualDeceasedDisciples"]!!.jsonPrimitive.content.toInt())
         assertEquals("hadEquipment", false, data["hadEquipment"]!!.jsonPrimitive.content.toBoolean())
     }
@@ -134,16 +132,13 @@ class DiffDeathHandlerTest {
         val disciples = listOf(
             Disciple(id = "1", name = "张三").apply { weaponId = "w-1" },
         )
-        // Kotlin 基准：装备断言仅记日志（DomainLog.w），三字段与计数仍写入
         val tables = kotlinTables(disciples)
         val state = kotlinState(tables, annualDeceased = 0)
         DiscipleDeathHandler().markDead(state, 1, 3)
-        assertEquals(0, tables.isAlive[1])
-        assertEquals(DiscipleStatus.DEAD, tables.statuses[1])
-        assertEquals(3, tables.deathYears[1])
-        assertEquals(1, state.gameData.annualDeceasedDisciples)
+        assertEquals(1, tables.currentHps[1])
+        assertEquals(1, tables.isAlive[1])
+        assertEquals(0, state.gameData.annualDeceasedDisciples)
 
-        // C++：hadEquipment=true（Kotlin 仅记日志，断言标志由 C++ 显式返回）
         importState(disciples, annualDeceased = 0)
         val r = cppExec(ActionIds.DISCIPLE_MARK_DEAD, buildJsonObject {
             put("discipleId", "1"); put("deathYear", 3)
@@ -152,9 +147,8 @@ class DiffDeathHandlerTest {
         val data = r["data"]!!.jsonObject
         assertEquals("marked", true, data["marked"]!!.jsonPrimitive.content.toBoolean())
         assertEquals("hadEquipment", true, data["hadEquipment"]!!.jsonPrimitive.content.toBoolean())
-        assertEquals("isAlive", 0, data["isAlive"]!!.jsonPrimitive.content.toInt())
-        assertEquals("status", "DEAD", data["status"]!!.jsonPrimitive.content)
-        assertEquals("deathYears", 3, data["deathYears"]!!.jsonPrimitive.content.toInt())
+        assertEquals("isAlive", 1, data["isAlive"]!!.jsonPrimitive.content.toInt())
+        assertEquals("currentHp", 1, data["currentHp"]!!.jsonPrimitive.content.toInt())
     }
 
     @Test
@@ -179,26 +173,24 @@ class DiffDeathHandlerTest {
     fun `backfill death years matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
+        // G07 后玩家侧不再新增死亡行：deathYears 只服务「存量旧档已故行」的读档补缺。
+        // 该列不进 Disciple JSON 协议（纯内存列）⇒ 两端基线同为
+        // 「缺失 → 补写 → 二次调用幂等（已有记录不覆盖）」。
         val disciples = listOf(
             Disciple(id = "1", name = "亡者甲", isAlive = false),
             Disciple(id = "2", name = "亡者乙", isAlive = false),
             Disciple(id = "3", name = "存活丙", isAlive = true),
         )
-        // Kotlin 基准："2" 已有 deathYears=5（先标记），"1" 缺失 → 补写 10；
-        // "3" 存活跳过；已有记录不覆盖
         val tables = kotlinTables(disciples)
-        val state = kotlinState(tables, annualDeceased = 1)
-        DiscipleDeathHandler().markDead(state, 2, 5)
         DiscipleDeathHandler().backfillDeathYears(tables, disciples, 10)
         assertEquals(10, tables.deathYears[1])
-        assertEquals(5, tables.deathYears[2])
-        assertFalse(tables.deathYears.contains(3))
+        assertEquals(10, tables.deathYears[2])
+        assertFalse("存活弟子不补写", tables.deathYears.contains(3))
+        DiscipleDeathHandler().backfillDeathYears(tables, disciples, 99)
+        assertEquals("已有记录不覆盖", 10, tables.deathYears[1])
 
-        // C++：先标记 "2"（year=5），再 backfill 同一列表
+        // C++：同一输入（无预置 deathYears）→ 同值补写
         importState(disciples, annualDeceased = 1)
-        assertSuccess(cppExec(ActionIds.DISCIPLE_MARK_DEAD, buildJsonObject {
-            put("discipleId", "2"); put("deathYear", 5)
-        }))
         val r = cppExec(ActionIds.DISCIPLE_BACKFILL_DEATH_YEARS, buildJsonObject {
             put("deathYear", 10)
             put("disciples", buildJsonArray {
@@ -211,13 +203,33 @@ class DiffDeathHandlerTest {
         })
         assertSuccess(r)
         val data = r["data"]!!.jsonObject
-        assertEquals("backfilled", 1, data["backfilled"]!!.jsonPrimitive.content.toInt())
+        assertEquals("backfilled", 2, data["backfilled"]!!.jsonPrimitive.content.toInt())
         val byId = data["entries"]!!.jsonArray.associate { e ->
             val o = e.jsonObject
             o["id"]!!.jsonPrimitive.content to o["deathYears"]!!.jsonPrimitive.content.toInt()
         }
         assertEquals("补写", 10, byId["1"])
-        assertEquals("已有记录不覆盖", 5, byId["2"])
+        assertEquals("补写", 10, byId["2"])
         assertFalse("存活弟子无条目", byId.containsKey("3"))
+
+        // 二次调用幂等：已有记录不覆盖（补写数 0、值不变）
+        val r2 = cppExec(ActionIds.DISCIPLE_BACKFILL_DEATH_YEARS, buildJsonObject {
+            put("deathYear", 99)
+            put("disciples", buildJsonArray {
+                for (d in disciples) {
+                    add(buildJsonObject {
+                        put("id", d.id); put("name", d.name); put("isAlive", d.isAlive)
+                    })
+                }
+            })
+        })
+        assertSuccess(r2)
+        val data2 = r2["data"]!!.jsonObject
+        assertEquals("二次调用零补写", 0, data2["backfilled"]!!.jsonPrimitive.content.toInt())
+        val byId2 = data2["entries"]!!.jsonArray.associate { e ->
+            val o = e.jsonObject
+            o["id"]!!.jsonPrimitive.content to o["deathYears"]!!.jsonPrimitive.content.toInt()
+        }
+        assertEquals("已有记录不覆盖", 10, byId2["1"])
     }
 }

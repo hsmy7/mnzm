@@ -140,12 +140,15 @@ class DiscipleTablesCowTest {
     fun `markDead on copy does not affect source snapshot`() {
         val tables = DiscipleTables()
         tables.insert(createTestDisciple(id = "1", name = "张三"))
+        tables.currentHps[1] = 100
 
         val copy = tables.deepCopy()
         copy.markDead(1, currentYear = 10, cause = "age")
 
+        assertEquals(100, tables.currentHps[1])
+        assertEquals(1, copy.currentHps[1])
         assertEquals(1, tables.isAlive[1])
-        assertEquals(0, copy.isAlive[1])
+        assertEquals(1, copy.isAlive[1])
     }
 
     @Test

@@ -211,17 +211,14 @@ TEST(SectDefenseBattleTest, ExpiredWarningExecutesDefenseBattleFullChain) {
     }
     EXPECT_TRUE(eventFound);
 
-    // 双侧伤亡守恒：玩家阵亡数 + AI 阵亡数 = 参战 20 人中实际死亡数；
-    // 玩家阵亡走 markDead 统一入口（isAlive/status/deathYears/年报计数）
-    int32_t playerDeaths = 0;
+    // G07：玩家侧败北不再产生尸体行——守方全员存活（isAlive 恒 1），
+    // 不写 DEAD/deathYear、不计年报死亡；AI 攻方照旧可死（对手侧不变）
     for (std::size_t row = 0; row < s.disciples.size(); ++row) {
-        if (s.disciples.isAlive[row] == 0) {
-            ++playerDeaths;
-            EXPECT_EQ(s.disciples.statuses[row], "DEAD");
-            EXPECT_EQ(s.disciples.deathYears[row], s.gameData.gameYear);
-        }
+        EXPECT_EQ(s.disciples.isAlive[row], 1);
+        EXPECT_EQ(s.disciples.deathYears[row], 0);
+        EXPECT_NE(s.disciples.statuses[row], "DEAD");
     }
-    EXPECT_EQ(playerDeaths, s.gameData.annualDeceasedDisciples);
+    EXPECT_EQ(s.gameData.annualDeceasedDisciples, 0);
 
     const auto& pool = s.aiSectDisciples["atk"];
     int32_t aiDeaths = 0;
@@ -232,38 +229,93 @@ TEST(SectDefenseBattleTest, ExpiredWarningExecutesDefenseBattleFullChain) {
             EXPECT_EQ(d.status, "DEAD");
         }
     }
-    // 攻方至少存活 1 人或守方至少存活 1 人（战斗必有非平局倾向；
-    // 平局时双侧存活——只断言计数一致性与上限）
-    EXPECT_LE(playerDeaths + aiDeaths, 20);
+    // 参战 20 人，AI 侧阵亡不超过其参战规模（守方不再计入阵亡）
+    EXPECT_LE(aiDeaths, 10);
     // 冷却已写 → 同月决策不重复生成预警（hasWarning/cooldown 双闸）
     EXPECT_FALSE(hasWarningFor(s, "atk"));
 }
 
-TEST(SectDefenseBattleTest, DefenseLossLootsWarehouseAndDropsFavor) {
-    // 攻方 realm 0 压制守方 realm 9 → 守方全灭为压倒性倾向（种子扫描下
-    // 断言战斗后玩家侧出现阵亡即视为攻方胜路径被覆盖；仓库掠夺只在
-    // 攻方胜时发生——构造 10 局扫描至少一局攻方胜）
-    bool looted = false;
-    bool favorDropped = false;
-    for (int32_t seed = 1; seed <= 60 && !looted; ++seed) {
-        GameState s = makeBattleState();
-        state::SectDetail detail;
-        detail.sectId = "p1";
-        detail.warehouse.spiritStones = 1000;
-        state::WarehouseItem item;
-        item.itemId = "mat_1";
-        item.itemName = "铁精";
-        item.itemType = "MATERIAL";
-        item.rarity = 2;
-        item.quantity = 10;
-        detail.warehouse.items.push_back(item);
-        state::SectRelation relation;
-        relation.sectId1 = "atk";
-        relation.sectId2 = "p1";
-        relation.favor = 50;
-        s.gameData.sectRelations.push_back(relation);
-        s.gameData.sectDetails["p1"] = detail;
+TEST(SectDefenseBattleTest, AttackerWinLootsWarehouseInjuresDefenders) {
+    // G07：攻方胜的仓库掠夺与好感惩罚不变；**守方败北改为重伤**——
+    // HP=1 且 isAlive 恒 1、不写 DEAD/deathYear、不计年报死亡、不清槽。
+    // 胜负由战斗引擎给出（G07 后不再能由"尸体数"反推），故直驱战果应用。
+    GameState s = makeBattleState();
+    state::SectDetail detail;
+    detail.sectId = "p1";
+    detail.warehouse.spiritStones = 1000;
+    state::WarehouseItem item;
+    item.itemId = "mat_1";
+    item.itemName = "铁精";
+    item.itemType = "MATERIAL";
+    item.rarity = 2;
+    item.quantity = 10;
+    detail.warehouse.items.push_back(item);
+    state::SectRelation relation;
+    relation.sectId1 = "atk";
+    relation.sectId2 = "p1";
+    relation.favor = 50;
+    s.gameData.sectRelations.push_back(relation);
+    s.gameData.sectDetails["p1"] = detail;
 
+    const int32_t now = nowMonthOf(s);
+    const AttackWarning warning = makeWarning("atk", "青岚宗", now, now - 1);
+    s.gameData.activeAttackWarnings.push_back(warning);
+
+    // 槽位/生产占用（断言点：重伤不清槽、不解绑）
+    s.gameData.elderSlots.alchemyElder = "1";
+    state::ProductionSlot slot;
+    slot.id = "ps1";
+    slot.assignedDiscipleId = std::string("2");
+    slot.assignedDiscipleName = "弟子2";
+    s.gameData.productionSlots.push_back(slot);
+
+    defense_battle::DefenseBattleOutcome outcome;
+    outcome.winner = gamecore::battle::AiBattleWinner::kAttacker;
+    for (int32_t i = 0; i < 10; ++i) {
+        outcome.deadDefenderIds.push_back(std::to_string(i + 1));
+    }
+    const std::vector<std::string> injuredIds = outcome.deadDefenderIds;
+
+    defense_battle::applyDefenseBattleResult(
+        s, warning, outcome, std::vector<gamecore::battle::Combatant>{},
+        defense_battle::PlayerLoadoutMaps{});
+
+    // ① 攻方胜 → 仓库 40% 掠夺（灵石 1000→600、物品 10→6）
+    const auto& wh = s.gameData.sectDetails["p1"].warehouse;
+    EXPECT_EQ(wh.spiritStones, 600);
+    ASSERT_FALSE(wh.items.empty());
+    EXPECT_EQ(wh.items.front().quantity, 6);
+
+    // ② 好感 -15（0..100 夹取）
+    ASSERT_FALSE(s.gameData.sectRelations.empty());
+    EXPECT_EQ(s.gameData.sectRelations.front().favor, 35);
+
+    // ③ 重伤三元断言：HP=1 / isAlive=1 / 无死亡记录
+    for (const auto& id : injuredIds) {
+        const auto rowOpt = s.disciples.rowOf(id);
+        ASSERT_TRUE(rowOpt.has_value());
+        const std::size_t row = *rowOpt;
+        EXPECT_EQ(s.disciples.currentHps[row], 1);
+        EXPECT_EQ(s.disciples.isAlive[row], 1);
+        EXPECT_EQ(s.disciples.deathYears[row], 0);
+        EXPECT_NE(s.disciples.statuses[row], "DEAD");
+        EXPECT_EQ(s.disciples.griefEndYears[row],
+                  defense_battle::kGriefEndYearNone);   // 无丧亲哀悼
+    }
+    EXPECT_EQ(s.gameData.annualDeceasedDisciples, 0);
+
+    // ④ 槽位保留（重伤期间可出战/任命/生产，无任何限制）
+    EXPECT_EQ(s.gameData.elderSlots.alchemyElder, "1");
+    ASSERT_EQ(s.gameData.productionSlots.size(), 1u);
+    EXPECT_EQ(s.gameData.productionSlots.front().assignedDiscipleId.value_or(""),
+              "2");
+}
+
+TEST(SectDefenseBattleTest, PlayerDefendersNeverDieAcrossSeeds) {
+    // G07 不变量：任意种子下防守战都不产生玩家侧尸体行，且确有战斗发生
+    bool anyInjured = false;
+    for (int32_t seed = 1; seed <= 60; ++seed) {
+        GameState s = makeBattleState();
         const int32_t now = nowMonthOf(s);
         s.gameData.activeAttackWarnings.push_back(
             makeWarning("atk", "青岚宗", now, now - 1));
@@ -271,29 +323,13 @@ TEST(SectDefenseBattleTest, DefenseLossLootsWarehouseAndDropsFavor) {
         rng.initSystemSeed(seed);
         detail::processAiPlayerDefenseSubEvent(s, rng);
 
-        // 好感 -15（0..100 夹取）——无论胜负
-        ASSERT_FALSE(s.gameData.sectRelations.empty());
-        EXPECT_LE(s.gameData.sectRelations.front().favor, 35);
-        favorDropped = favorDropped ||
-                       s.gameData.sectRelations.front().favor < 50;
-
-        // 攻方胜路径：仓库 40% 掠夺（灵石 1000→600、物品 10→6）
-        const int32_t playerDeaths = static_cast<int32_t>(std::count_if(
-            s.disciples.isAlive.begin(),
-            s.disciples.isAlive.begin() + static_cast<std::ptrdiff_t>(
-                                             s.disciples.size()),
-            [](int8_t alive) { return alive == 0; }));
-        if (playerDeaths == 10) {   // 守方全灭 = 攻方胜（Kotlin canOccupy 口径）
-            const auto& wh = s.gameData.sectDetails["p1"].warehouse;
-            EXPECT_EQ(wh.spiritStones, 600);
-            ASSERT_FALSE(wh.items.empty());
-            EXPECT_EQ(wh.items.front().quantity, 6);
-            looted = true;
+        for (std::size_t row = 0; row < s.disciples.size(); ++row) {
+            ASSERT_EQ(s.disciples.isAlive[row], 1) << "seed=" << seed;
+            if (s.disciples.currentHps[row] == 1) anyInjured = true;
         }
+        EXPECT_EQ(s.gameData.annualDeceasedDisciples, 0) << "seed=" << seed;
     }
-    // 压倒性战力差下攻方至少一胜（否则战斗引擎语义漂移，须人工核查）
-    EXPECT_TRUE(looted);
-    EXPECT_TRUE(favorDropped);
+    EXPECT_TRUE(anyInjured);
 }
 
 TEST(SectDefenseBattleTest, TooFewAttackersKeepsExpiredWarning) {

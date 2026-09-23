@@ -206,14 +206,15 @@ TEST(SectConquestTest, PlayerOccupiedRetakeEmitsSeizureDraft) {
         if (!pocRetaken) continue;
 
         EXPECT_FALSE(s.gameData.sectDetails["poc"].isOwned);
-        // 驻军玩家弟子阵亡 → markDead 统一入口（年报计数一致）
-        int32_t garrisonDead = 0;
+        // G07：驻军玩家弟子失守 → 重伤（HP=1 且存活），不产生尸体行、不计年报死亡
         for (int32_t i = 0; i < 10; ++i) {
             const auto row = s.disciples.rowOf("g" + std::to_string(i));
             ASSERT_TRUE(row.has_value());
-            if (s.disciples.isAlive[*row] == 0) ++garrisonDead;
+            EXPECT_EQ(s.disciples.isAlive[*row], 1);
+            EXPECT_EQ(s.disciples.deathYears[*row], 0);
+            EXPECT_NE(s.disciples.statuses[*row], "DEAD");
         }
-        EXPECT_EQ(garrisonDead, s.gameData.annualDeceasedDisciples);
+        EXPECT_EQ(s.gameData.annualDeceasedDisciples, 0);
         // 没收草稿
         if (!seizedIds.empty()) {
             ASSERT_EQ(seizedIds.size(), 1u);

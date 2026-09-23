@@ -122,7 +122,8 @@ class GameStateStoreAggregationCacheTest {
         }
 
         store.update {
-            discipleTables.markDead(2, currentYear = 10, cause = "battle")
+            // 存量旧档已故行（G07 后玩家侧不再新增死亡，死亡标记仅由旧档遗留）
+            discipleTables.isAlive[2] = 0
         }
         TestPolling.awaitCondition(
             "死亡弟子聚合生效",

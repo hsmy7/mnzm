@@ -260,7 +260,27 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
+    /**
+     * G07 玩家侧战斗败北 → **重伤**：只把气血钳到
+     * [com.xianxia.sect.core.GameConfig.Disciple.INJURED_HP] 且保持存活；
+     * 不清槽、不解绑、不清装、不物化行囊、不计年报死亡、不广播死亡事件
+     * （UI 由「存活且气血=1」派生「重伤」）。回血走既有每旬回血机制。
+     */
+    private fun applyCombatInjury(disciple: Disciple) {
+        val idInt = disciple.id.toIntOrNull() ?: return
+        stateStore.update {
+            deathHandler.markDead(this, idInt, gameData.gameYear)
+        }
+    }
+
     fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
+        // G07 玩家侧战斗败北 → 重伤：只写 HP=1 且保持存活，不触发任何死亡副作用
+        if (isOutsideSect) {
+            applyCombatInjury(disciple)
+            return
+        }
+
+        // 寿元等非战斗路径仍走完整死亡链（G02 收口前保留）
         clearDiscipleFromAllSlots(disciple.id)
 
         // 从组件表读取，不依赖 Flow（同 processDiscipleAging 修复模式，防止 Flow 缺失数据被 replaceAll 永久覆盖）
@@ -276,17 +296,17 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
         // 单事务写入：弟子表 + 血炼清理 + 装备/功法清除 + 袋物化回仓库
         stateStore.update {
-            val idInt = disciple.id.toInt()
+            val id = disciple.id.toInt()
             // 袋物品物化回仓库（玩家保留，溢出自动转邮件）。
             // 事务内重读组件表袋状态——幂等：重复死亡处理时袋已空 → 不重复物化（防复制）
-            val currentBag = discipleTables.storageBagItems.getOrNull(idInt) ?: emptyList()
+            val currentBag = discipleTables.storageBagItems.getOrNull(id) ?: emptyList()
             if (currentBag.isNotEmpty()) {
                 inventorySystem.withTrackingSource("disciple_death") {
                     inventorySystem.materializeBagItemsToWarehouse(currentBag)
                 }
             }
             // 幂等清袋：无条件执行（袋空无害）
-            discipleTables.storageBagItems[idInt] = emptyList()
+            discipleTables.storageBagItems[id] = emptyList()
 
             /** 丧亲事件草稿（lifeEvents 瞬态列写入） */
             // 列直写：哀悼批量写 + 解绑 + 丧亲事件 + 死亡年份
@@ -303,10 +323,14 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 discipleTables.lifeEvents[grievingId] =
                     discipleTables.lifeEvents.getOrDefault(grievingId, emptyList()) + event
             }
-            // 统一死亡入口：markDead 写 isAlive=0 + status=DEAD + deathYear
-            //（对所有调用点统一生效，对已补偿路径幂等无害）
-            // 年报死亡计数由 markDead 统一递增，本函数不再自行计数
-            deathHandler.markDead(this, idInt, currentYear)
+            // 寿元死亡仍写死亡三元组（非战斗）
+            discipleTables.markDead(id, currentYear, cause = "age")
+            discipleTables.isAlive[id] = 0
+            discipleTables.statuses[id] = DiscipleStatus.DEAD
+            discipleTables.deathYears[id] = currentYear
+            gameData = gameData.copy(
+                annualDeceasedDisciples = gameData.annualDeceasedDisciples + 1
+            )
 
             // 审计 P2-7/P3-4：统一收口（原漏 PctTotals 与 manualProficiencies）
             eraseDiscipleDerivedMaps(disciple.id)
@@ -314,17 +338,15 @@ class DiscipleLifecycleProcessor @Inject constructor(
             manualInstances = manualInstances.filter { it.id !in deleteManualIds }
             recordGameEvent(
                 GameEventCategory.SECT, GameEventType.DEATH,
-                "${disciple.name}陨落（${if (isOutsideSect) "战斗" else "寿元耗尽"}）",
+                "${disciple.name}陨落（寿元耗尽）",
                 disciple.id, disciple.name
             )
         }
 
-        if (isOutsideSect) removeProficiencies(disciple.id)
-
         eventBus.emitSync(DeathEvent(
             discipleId = disciple.id,
             discipleName = disciple.name,
-            cause = if (isOutsideSect) "combat" else "age",
+            cause = "age",
             deathYear = currentYear
         ))
     }
@@ -391,17 +413,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
         for (discipleId in discipleTables.ids) {
             if (discipleTables.masterIds.getOrNull(discipleId) == deadId) {
                 discipleTables.masterIds[discipleId] = null
-            }
-        }
-    }
-
-    private fun removeProficiencies(discipleId: String) {
-        val data = stateStore.gameData.value
-        val updated = data.manualProficiencies.toMutableMap()
-        updated.remove(discipleId)
-        if (updated != data.manualProficiencies) {
-            stateStore.update {
-                gameData = gameData.copy(manualProficiencies = updated)
             }
         }
     }

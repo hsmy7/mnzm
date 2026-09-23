@@ -277,7 +277,8 @@ class GameEngineTraitAddTest {
     fun `rollTraitAdd - 死亡弟子拒绝刷新且不扣玉符`() = runBlocking {
         seedStandardDisciple()
         seedJade(5)
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡）
+        store.update { discipleTables.isAlive[1] = 0 }
 
         for (type in addTypes) {
             val result = engine.rollTraitAdd("1", type)
@@ -394,7 +395,8 @@ class GameEngineTraitAddTest {
     @Test
     fun `confirmTraitAdd - 死亡弟子拒绝且字段不变`() = runBlocking {
         seedStandardDisciple()
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡）
+        store.update { discipleTables.isAlive[1] = 0 }
         val before = assembleDisciple()
 
         val result = engine.confirmTraitAdd("1", TraitWashType.TALENT, realTraitIds(TraitWashType.TALENT, 3).last())

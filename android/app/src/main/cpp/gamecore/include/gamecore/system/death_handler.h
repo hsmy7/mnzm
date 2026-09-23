@@ -7,33 +7,28 @@
 #include "gamecore/state/models.h"
 
 // ============================================================
-// 弟子死亡处理器
+// 弟子败北处理器（G07：玩家侧不可战死 → 重伤）
 //
 // 等价移植 Kotlin DiscipleDeathHandler 的**纯逻辑核心**：
-//   - markDead：三字段写入（isAlive=0 + status=DEAD + deathYears）
-//     + 年死亡计数（annualDeceasedDisciples +1）+ 装备断言守卫
-//   - markAllDead：批量标记（String ID 集合）
+//   - markDead：**重伤**写入（currentHp=1，isAlive 保持 1）
+//     + 不写 status=DEAD / deathYears + 年死亡计数不递增
+//   - markAllDead：批量重伤（String ID 集合）
 //   - backfillDeathYears：列表 copy 模式补写 deathYears
-//     （"assembleAll → map 标记 → replaceAll → 补 deathYears"流水线中，
-//      replaceAll 会清空列写入，此函数在 replaceAll 之后统一恢复）
-//   - hasEquipmentHeld：装备断言（Kotlin 仅记日志，不阻断标记）
+//     （仅历史已死亡行；重伤弟子无 deathYears）
+//   - hasEquipmentHeld：装备断言（重伤不清装，仅诊断日志面）
 //
 // 与 Kotlin 语义对齐要点：
-//   - deathYears 是 Kotlin DiscipleTables 稀疏组件列（仅已故弟子有条目、
-//     存活弟子 0 或无条目），**不进 Disciple JSON 序列化协议**（writeAllFields
-//     不写此表）——C++ 侧同为纯内存列，不参与 to_json/from_json。
-//   - Kotlin markDead(Int) 不检查弟子存在（对不存在的 id 会插入幽灵列条目，
-//     稠密 SoA 无法模拟）——C++ 侧对不存在的 id 静默跳过（marked=false），
-//     等价 Kotlin markDead(String) 的 toIntOrNull 失败跳过语义；实际调用方
-//     （战斗/洞府/驻防阵亡）均保证弟子存在。
-//   - 年死亡计数**无条件 +1**（禁止 isAlive 守卫）：洞府探索路径先经
-//     processBattleCasualties.replaceAll 预标记（isAlive=0）再走本入口，
-//     加守卫会导致洞府阵亡漏计（Kotlin ⚠ 注释同源）。
-//   - status 写入 DiscipleStatus.name（"DEAD"）。
+//   - 重伤 = HP=1 存活（Q20/Q41：UI 由 HP 派生，不新增枚举）；
+//     回血走既有每旬 kPhaseHpMpRecoveryRate。
+//   - C++ 对不存在的 id 静默跳过（marked=false）。
+//   - AI/妖兽死亡路径不走本文件（各自死亡链）。
 // ============================================================
 namespace gamecore::system {
 
-/// 死亡状态枚举名（DiscipleStatus.DEAD.name）
+/// 重伤恒定 HP（Q20）
+inline constexpr int32_t kInjuredHp = 1;
+
+/// 死亡状态枚举名（保留兼容；玩家侧不再写入）
 inline constexpr const char* kDeadStatusName = "DEAD";
 
 /// deathYears 无条目哨兵（0 = 无记录；游戏年份从 1 起，0 安全）
@@ -41,37 +36,32 @@ inline constexpr int32_t kDeathYearNone = 0;
 
 /// markDead 结果
 struct MarkDeadResult {
-    bool marked = false;         // 弟子存在且已标记（不存在 → false，静默跳过）
-    bool hadEquipment = false;   // 标记时四装备位任一非空（Kotlin 记日志用）
+    bool marked = false;         // 弟子存在且已重伤（不存在 → false，静默跳过）
+    bool hadEquipment = false;   // 标记时四装备位任一非空（诊断用；重伤不清装）
 };
 
-/// 装备断言守卫：四装备位任一非空 → true（Kotlin assertNoEquipmentHeld）
+/// 装备断言守卫：四装备位任一非空 → true
 inline bool hasEquipmentHeld(const state::DiscipleStore& store, std::size_t row) {
     return !store.weaponIds[row].empty() || !store.armorIds[row].empty() ||
            !store.bootsIds[row].empty() || !store.accessoryIds[row].empty();
 }
 
-/// 标记单个弟子死亡（Kotlin DiscipleDeathHandler.markDead(Int)）。
-/// 写入 isAlive=0 + status=DEAD + deathYears，年死亡计数 +1，并执行装备断言。
-/// 弟子不存在 → marked=false，不写列不计数。
+/// 标记单个弟子重伤（G07；原 markDead 名保留兼容调用点）。
+/// 写入 currentHp=1，isAlive 保持 1，不写 status/deathYears，不递增年死亡计数。
 inline MarkDeadResult markDead(state::DiscipleStore& store, const std::string& id,
-                               int32_t deathYear, int32_t& annualDeceasedDisciples) {
+                               int32_t /*deathYear*/, int32_t& /*annualDeceasedDisciples*/) {
     MarkDeadResult r;
     const auto rowOpt = store.rowOf(id);
-    if (!rowOpt.has_value()) return r;  // 不存在 → 静默跳过（String 版 toIntOrNull 失败同义）
+    if (!rowOpt.has_value()) return r;
     const std::size_t row = *rowOpt;
-    store.isAlive[row] = 0;
-    store.statuses[row] = kDeadStatusName;
-    store.deathYears[row] = deathYear;
+    store.currentHps[row] = kInjuredHp;
+    if (store.isAlive[row] == 0) store.isAlive[row] = 1;  // 预标记路径恢复存活
     r.hadEquipment = hasEquipmentHeld(store, row);
-    annualDeceasedDisciples += 1;  // 无条件计数（洞府预标记路径不漏计）
     r.marked = true;
     return r;
 }
 
-/// 批量标记阵亡弟子（Kotlin DiscipleDeathHandler.markAllDead）。
-/// 无法解析/不存在的 ID 静默跳过；返回实际标记数。
-/// 注意：Kotlin 用 Set<String> 遍历（无 RNG、逐 id 独立写列，顺序不影响结果）。
+/// 批量标记重伤（原 markAllDead 名保留）。
 inline int32_t markAllDead(state::DiscipleStore& store,
                            const std::vector<std::string>& ids,
                            int32_t deathYear, int32_t& annualDeceasedDisciples) {

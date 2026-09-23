@@ -508,119 +508,15 @@ inline bool reconstructStackedItem(const state::StorageBagItem& item,
     return false;
 }
 
-/// 弟子死亡袋物化 + markDead（Kotlin InventorySystem.
-/// materializeDiscipleBagAndMarkDead 等价）：袋条目 → 实例物化（实例表删除防
-/// 双持有）/ 堆叠模板重建 → 入仓（溢出自动转邮件——items 不丢）→ 清袋 → 死亡
-/// 三字段 + 年度计数。弟子不存在 → 静默跳过。
+/// 玩家败北 → 重伤（G07）：HP=1 存活，不清袋、不计年报死亡。
+/// 方法名保留旧称兼容调用点（秘境/探索战斗）。
 inline void materializeDiscipleBagAndMarkDead(
     GameState& state, const std::string& discipleId, int32_t deathYear,
-    gamecore::system::OverflowMailCollector& overflowMail) {
+    gamecore::system::OverflowMailCollector& /*overflowMail*/) {
     DiscipleStore& ds = state.disciples;
-    const auto rowOpt = ds.rowOf(discipleId);
-    if (!rowOpt.has_value()) return;
-    const std::size_t row = *rowOpt;
-    const bool wasAlive = ds.isAlive[row] == 1;
-    if (!ds.storageBagItems[row].empty()) {
-        std::vector<state::StorageBagItem> remaining;
-        for (auto& item : ds.storageBagItems[row]) {
-            bool materialized = false;
-            if (item.equipmentInstance.has_value()) {
-                const auto stack = equipmentInstanceToStack(*item.equipmentInstance);
-                const auto r = gamecore::system::addEquipmentStack(
-                    state, stack, overflowMail, "disciple_death",
-                    /*overflowMailSuppressed=*/false);
-                // Success/Partial 入仓完成；Failure(Full) 时 handleOverflow 已把
-                // 物品转邮件——实例删除防双持有语义一致
-                const bool completed =
-                    r.status != gamecore::system::InventoryStatus::kFailure ||
-                    r.overflow >= 1;
-                if (completed) {
-                    auto& eq = state.equipmentInstances;
-                    eq.erase(std::remove_if(eq.begin(), eq.end(),
-                                            [&](const state::EquipmentInstance& e) {
-                                                return e.id ==
-                                                       item.equipmentInstance->id;
-                                            }),
-                             eq.end());
-                    materialized = true;
-                }
-            } else if (item.manualInstance.has_value()) {
-                const auto stack = manualInstanceToStack(*item.manualInstance);
-                const auto r = gamecore::system::addManualStack(
-                    state, stack, overflowMail, "disciple_death",
-                    /*overflowMailSuppressed=*/false);
-                const bool completed =
-                    r.status != gamecore::system::InventoryStatus::kFailure ||
-                    r.overflow >= 1;
-                if (completed) {
-                    auto& mn = state.manualInstances;
-                    mn.erase(std::remove_if(mn.begin(), mn.end(),
-                                            [&](const state::ManualInstance& m) {
-                                                return m.id ==
-                                                       item.manualInstance->id;
-                                            }),
-                             mn.end());
-                    materialized = true;
-                }
-            } else if (item.stackedData.has_value()) {
-                state::EquipmentStack eqs;
-                state::ManualStack mns;
-                state::Pill ps;
-                state::Herb hs;
-                state::Seed ss;
-                state::Material ms;
-                if (reconstructStackedItem(item, &eqs, &mns, &ps, &hs, &ss, &ms)) {
-                    const std::string t = [&] {
-                        std::string v = item.itemType;
-                        std::transform(v.begin(), v.end(), v.begin(),
-                                       [](unsigned char c) {
-                                           return static_cast<char>(std::tolower(c));
-                                       });
-                        return v;
-                    }();
-                    if (t == "equipment" || t == "equipment_stack") {
-                        const auto r = gamecore::system::addEquipmentStack(
-                            state, eqs, overflowMail, "disciple_death", false);
-                        materialized =
-                            r.status != gamecore::system::InventoryStatus::kFailure;
-                    } else if (t == "manual" || t == "manual_stack") {
-                        const auto r = gamecore::system::addManualStack(
-                            state, mns, overflowMail, "disciple_death", false);
-                        materialized =
-                            r.status != gamecore::system::InventoryStatus::kFailure;
-                    } else if (t == "pill") {
-                        const auto r = gamecore::system::addPill(
-                            state, ps, overflowMail, "disciple_death", false);
-                        materialized =
-                            r.status != gamecore::system::InventoryStatus::kFailure;
-                    } else if (t == "herb") {
-                        const auto r = gamecore::system::addHerb(
-                            state, hs, overflowMail, "disciple_death", false);
-                        materialized =
-                            r.status != gamecore::system::InventoryStatus::kFailure;
-                    } else if (t == "seed") {
-                        const auto r = gamecore::system::addSeed(
-                            state, ss, overflowMail, "disciple_death", false);
-                        materialized =
-                            r.status != gamecore::system::InventoryStatus::kFailure;
-                    } else if (t == "material") {
-                        const auto r = gamecore::system::addMaterial(
-                            state, ms, overflowMail, "disciple_death", false);
-                        materialized =
-                            r.status != gamecore::system::InventoryStatus::kFailure;
-                    }
-                }
-            }
-            // 未物化条目（payload 空）或物化失败：随弟子删除（Kotlin 同义——
-            // 失败保留实例属实例轨道；堆叠轨道幂等清袋不重试）
-            (void)materialized;
-        }
-        ds.storageBagItems[row].clear();
-    }
-    gamecore::system::markDead(ds, discipleId, deathYear,
-                               state.gameData.annualDeceasedDisciples);
-    (void)wasAlive;  // C++ markDead 无条件计数——战斗死亡路径 wasAlive 恒真，
-                     // 与 Kotlin wasAlive 显式 +1 等价（见文件头）
+    int32_t unusedCount = 0;
+    gamecore::system::markDead(ds, discipleId, deathYear, unusedCount);
+    (void)unusedCount;
 }
 
 }  // namespace detail

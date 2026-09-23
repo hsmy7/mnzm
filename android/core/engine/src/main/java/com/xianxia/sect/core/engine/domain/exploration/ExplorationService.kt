@@ -229,7 +229,7 @@ class ExplorationService @Inject constructor(
 
         val result = createBeastBattle(defenders, level)
         val (processedDisciples, survivorIds) = processBeastCasualties(
-            result, targetSect, disciples
+            result, disciples
         )
         disciples = processedDisciples
 

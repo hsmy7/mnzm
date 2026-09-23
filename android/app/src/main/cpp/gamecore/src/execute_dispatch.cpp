@@ -2029,6 +2029,7 @@ nlohmann::json handleDeathHandler(GameCore* core, int32_t actionId,
             if (r.marked) {
                 const std::size_t row = *store.rowOf(id);
                 data["isAlive"] = store.isAlive[row];
+                data["currentHp"] = store.currentHps[row];
                 data["status"] = store.statuses[row];
                 data["deathYears"] = store.deathYears[row];
             }

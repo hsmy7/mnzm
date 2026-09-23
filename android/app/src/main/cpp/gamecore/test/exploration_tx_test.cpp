@@ -262,18 +262,18 @@ TEST(ExplorationTxTest, AttackBeastPreGenVictoryWritesSurvivors) {
 
 TEST(ExplorationTxTest, AttackBeastWipeMaterializesBagAndMarksDead) {
     // 弱档弟子（境界 9 裸装）vs 仙人境界压制妖兽 → 必败全灭
+    // G07：玩家败北 → 重伤（HP=1 存活），行囊保留、不计年报死亡
     auto st = emptyState();
     st.gameData.worldLevels.push_back(overkillBeastLevel());
     st.disciples.appendDisciple(weakDisciple("1"));
     st.disciples.appendDisciple(weakDisciple("2"));
-    // 弟子 1 袋中带 1 条堆叠材料 → 阵亡物化回仓
     auto row = *st.disciples.rowOf("1");
     gamecore::state::StorageBagItem bagItem;
     bagItem.itemType = "material";
     bagItem.name = "袋中材料";
     bagItem.rarity = 2;
     bagItem.quantity = 2;
-    bagItem.stackedData = gamecore::state::BagStackedData{};   // 堆叠载荷（空载荷按 Kotlin 语义丢弃）
+    bagItem.stackedData = gamecore::state::BagStackedData{};
     st.disciples.storageBagItems[row].push_back(bagItem);
     const size_t warehouseBefore = st.materials.size();
 
@@ -288,15 +288,15 @@ TEST(ExplorationTxTest, AttackBeastWipeMaterializesBagAndMarksDead) {
     EXPECT_TRUE(r.survivorIds.empty());
     for (const auto& id : r.deadIds) {
         const auto deadRow = *st.disciples.rowOf(id);
-        EXPECT_EQ(0, st.disciples.isAlive[deadRow]);
-        EXPECT_EQ(gamecore::system::kDeadStatusName, st.disciples.statuses[deadRow]);
-        EXPECT_EQ(1, st.disciples.deathYears[deadRow]);
+        EXPECT_EQ(1, st.disciples.currentHps[deadRow]);
+        EXPECT_EQ(1, st.disciples.isAlive[deadRow]);
+        EXPECT_NE(gamecore::system::kDeadStatusName, st.disciples.statuses[deadRow]);
+        EXPECT_EQ(0, st.disciples.deathYears[deadRow]);
     }
-    EXPECT_EQ(2, st.gameData.annualDeceasedDisciples);
-    // 袋物化：材料回仓（条目并入堆叠或新增——总量 > before 即物化成功）
-    EXPECT_GT(st.materials.size(), warehouseBefore);
-    // 清袋幂等（Kotlin processBattleCasualties 事务外重跑安全）
-    EXPECT_TRUE(st.disciples.storageBagItems[*st.disciples.rowOf("1")].empty());
+    EXPECT_EQ(0, st.gameData.annualDeceasedDisciples);
+    // 重伤保留行囊
+    EXPECT_EQ(1u, st.disciples.storageBagItems[*st.disciples.rowOf("1")].size());
+    EXPECT_EQ(warehouseBefore, st.materials.size());
 }
 
 TEST(ExplorationTxTest, AttackDoubleRunBitIdentical) {

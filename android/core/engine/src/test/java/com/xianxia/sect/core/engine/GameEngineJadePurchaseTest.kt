@@ -223,7 +223,8 @@ class GameEngineJadePurchaseTest {
     fun `purchaseBreakthroughBonus - 死亡弟子返回Error且不扣玉符`() = runBlocking {
         seedDisciple()
         seedJade(5)
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡；isAlive 由旧档遗留）
+        store.update { discipleTables.isAlive[1] = 0 }
 
         val result = engine.purchaseBreakthroughBonus("1")
 

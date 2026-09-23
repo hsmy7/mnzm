@@ -1,19 +1,16 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.exploration.BeastAttackDetector
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.GarrisonSlot
-import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.domain.disciple.battleWritebackMaxHpMp
-import com.xianxia.sect.core.engine.domain.disciple.applyGriefToRelatives
 
 /**
  * 单用户定向补偿邮件（MailService 扩展，独立文件）。
@@ -128,28 +125,20 @@ internal fun MutableGameState.markBeastDefeated(
 // ── 无守卫处理 ─────────────────────────────────────────────────────────
 
 internal fun MutableGameState.processBeastCasualties(
-    result: BattleSystemResult, targetSect: WorldSect,
+    result: BattleSystemResult,
     disciples: List<Disciple>
 ): Pair<List<Disciple>, Set<String>> {
-    val garrisonIds = targetSect.garrisonSlots
-        .filter { it.discipleId.isNotEmpty() }
-        .map { it.discipleId }.toSet()
-
     val hpMap = result.battle.team.associate {
         it.id to (it.hp to it.mp)
     }
     val survivorIds = result.battle.team.filter { !it.isDead }
         .map { it.id }.toSet()
-    val deadDefenders = disciples.filter {
-        it.id in garrisonIds && it.id !in survivorIds
-    }
 
-    var processed = disciples.map { d ->
+    val processed = disciples.map { d ->
         val (hp, mp) = hpMap[d.id] ?: return@map d
         if (d.id !in survivorIds) {
-            d.copy(
-                isAlive = false, status = DiscipleStatus.DEAD
-            )
+            // G07 玩家驻守败北 → 重伤（HP=1 存活）：不清驻防槽、不传悲痛、不计年报死亡
+            d.copy(combat = d.combat.copy(currentHp = GameConfig.Disciple.INJURED_HP))
         } else {
             val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(this, d)
             d.copy(combat = d.combat.copy(
@@ -157,32 +146,6 @@ internal fun MutableGameState.processBeastCasualties(
                 currentMp = mp.coerceIn(0, finalMaxMp)
             ))
         }
-    }
-
-    if (deadDefenders.isNotEmpty()) {
-        processed = DiscipleStatCalculator.applyGriefToRelatives(
-            processed, deadDefenders, gameData.gameYear
-        )
-    }
-
-    /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
-    val deadIds = processed.filter { !it.isAlive }
-        .map { it.id }.toSet()
-    if (deadIds.isNotEmpty()) {
-        gameData = gameData.copy(
-            worldMapSects = gameData.worldMapSects.map { sect ->
-                if (sect.id == targetSect.id) {
-                    sect.copy(
-                        garrisonSlots =
-                            sect.garrisonSlots.map { slot ->
-                                if (slot.discipleId in deadIds) {
-                                    GarrisonSlot(index = slot.index)
-                                } else slot
-                            }
-                    )
-                } else sect
-            }
-        )
     }
 
     return processed to survivorIds

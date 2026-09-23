@@ -433,6 +433,34 @@ class CultivationCoreTest {
     }
 
     @Test
+    fun `recoverHpMpSingle - G07 重伤弟子走既有每旬回血回升至满`() {
+        // G07：玩家侧败北只把气血钳到 INJURED_HP 且 isAlive 保持 1 ⇒ 能通过旬结
+        // 存活过滤，由**既有**每旬回血机制（PHASE_HP_MP_RECOVERY_RATE）自然回升，
+        // 不新增任何回血机制、不新增配置项。
+        val disciple = createDisciple(
+            id = "1",
+            currentHp = GameConfig.Disciple.INJURED_HP,
+            currentMp = GameConfig.Disciple.INJURED_HP
+        )
+        val state = createMutableGameState(listOf(disciple))
+        assertEquals("重伤弟子必须保持存活（G07）", 1, state.discipleTables.isAlive[1])
+
+        core.recoverHpMpSingle(state, 1)
+
+        val afterOnePhase = state.discipleTables.currentHps[1]
+        assertTrue(
+            "重伤弟子应被既有每旬回血回升（实际 $afterOnePhase）",
+            afterOnePhase > GameConfig.Disciple.INJURED_HP
+        )
+
+        val maxHp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxHp
+        // 每旬 20% ⇒ 最多 5 旬回满；给 10 旬余量以覆盖取整与至少 1 点规则
+        val phasesToFull = 10
+        core.recoverHpMpSingle(state, 1, phasesToSettle = phasesToFull)
+        assertEquals("重伤弟子应在有限旬数内回满", maxHp, state.discipleTables.currentHps[1])
+    }
+
+    @Test
     fun `recoverHpMpSingle - 恢复量至少为1`() {
         // 使用极低 maxHp 的弟子验证恢复量至少为 1
         val disciple = createDisciple(id = "1", currentHp = 0, currentMp = 0)

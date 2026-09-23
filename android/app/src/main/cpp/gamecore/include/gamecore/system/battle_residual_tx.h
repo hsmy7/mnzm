@@ -252,11 +252,20 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
                              std::min(std::max(mp, 0), finalMaxMp)});
     }
 
+    // A/B. 玩家战斗败北 → 重伤（G07）：HP=1 存活；不清悲痛/槽位/装备/行囊
+    if (isOutsideSect) {
+        for (const auto& id : deadIds) {
+            int32_t unused = 0;
+            gamecore::system::markDead(ds, id, battleCurrentYear, unused);
+            (void)unused;
+            out.markedDeadIds.push_back(id);
+        }
+        // 幸存者 HP/MP 回写仍执行（下方 E 段）
+    } else {
     // A. 悲痛期（先于标死——Kotlin applyGriefUpdatesToTables 同序）
     casualty_detail::applyGriefToRelativesBattle(ds, deadRows, battleCurrentYear, out.lifeEvents);
 
-    // B. 标死统一入口（Kotlin materializeDiscipleBagAndMarkDead：袋物化 +
-    //    清袋 + markDead 三列 + wasAlive 守卫年死亡计数——见文件头边界注）
+    // B. 标死统一入口（非战斗路径仍走死亡语义——G02 收口）
     for (const auto& id : deadIds) {
         const auto rowOpt = ds.rowOf(id);
         if (!rowOpt.has_value()) continue;
@@ -265,16 +274,16 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
             gamecore::system::sr_session::detail::materializeDiscipleBagAndMarkDead(
                 state, id, battleCurrentYear, overflowMail);
         } else {
-            // 重入（1570/侦察臂已标死）：三列幂等重写，不重复计数（该态下
-            // 袋必已空——各战斗臂首达路径均已物化，文件头边界注）
             ds.isAlive[*rowOpt] = 0;
             ds.statuses[*rowOpt] = gamecore::system::kDeadStatusName;
             ds.deathYears[*rowOpt] = battleCurrentYear;
         }
         out.markedDeadIds.push_back(id);
     }
+    }
 
-    // C. 装备/功法/熟练度清理（Kotlin removeCasualtyItems）
+    if (!isOutsideSect) {
+    // C. 装备/功法/熟练度清理（仅非战斗完整死亡链）
     if (!proficiencyRemoveIds.empty()) {
         for (const auto& pid : proficiencyRemoveIds) gd.manualProficiencies.erase(pid);
     }
@@ -295,8 +304,7 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
             state.manualInstances.end());
     }
 
-    // D. 槽位清理（Kotlin computeElderSlotUpdates + spiritMine/library +
-    //    productionSlots 镜像清理——战斗路径不含住所/巡逻/驻军等其余槽族）
+    // D. 槽位清理（仅非战斗完整死亡链）
     for (const auto& id : deadSet) {
         gd.elderSlots = gamecore::system::clearElderSlotsCpp(gd.elderSlots, id);
     }
@@ -318,6 +326,7 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
             slot.assignedDiscipleId.reset();
             slot.assignedDiscipleName.clear();
         }
+    }
     }
 
     // E. 幸存者 HP/MP 回写（computeSurvivorUpdates 结果；顺序无关，逐 id 独立）
@@ -412,17 +421,8 @@ inline WorldVictoryOutcome worldLevelVictoryTx(
     for (std::size_t row = 0; row < ds.size(); ++row) {
         if (survivors.count(ds.ids[row]) == 0) continue;
         if (ds.isAlive[row] != 1) continue;
-        ds.soulPowers[row] = ds.soulPowers[row] + 1;
-        ++out.soulPowerCount;
-        // winBattleRandomAttrPlus：**仅查天赋**（Kotlin talentIds.any——
-        // 词条不参与；talentEffectsFor 合并映射 containsKey 同义）
-        const auto talentEffects = gamecore::stats::talentEffectsFor(ds.talentIds[row]);
-        if (talentEffects.count("winBattleRandomAttrPlus") > 0) {
-            const auto idOpt = ds.numericIdAt(row);
-            if (idOpt.has_value()) {
-                applyDeterministicWinAttr(state, row, *idOpt, currentMonth, rngSystem, world, out);
-            }
-        }
+        // G02/G04：神魂 +1 与 winBattleRandomAttrPlus 战斗随机成长已删除
+        (void)currentMonth; (void)rngSystem; (void)world;
     }
     out.applied = true;
     return out;

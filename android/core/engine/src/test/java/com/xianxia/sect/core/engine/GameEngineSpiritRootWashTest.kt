@@ -209,7 +209,8 @@ class GameEngineSpiritRootWashTest {
     fun `washSpiritRoot - 死亡弟子拒绝洗炼且不扣玉符`() = runBlocking {
         seedDisciple()
         seedJade(5)
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡）
+        store.update { discipleTables.isAlive[1] = 0 }
 
         val result = engine.washSpiritRoot("1", 0)
 
@@ -264,7 +265,8 @@ class GameEngineSpiritRootWashTest {
     @Test
     fun `confirmSpiritRootWash - 死亡弟子拒绝替换且灵根不变`() = runBlocking {
         seedDisciple()
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡）
+        store.update { discipleTables.isAlive[1] = 0 }
 
         val result = engine.confirmSpiritRootWash("1", "metal,water")
 

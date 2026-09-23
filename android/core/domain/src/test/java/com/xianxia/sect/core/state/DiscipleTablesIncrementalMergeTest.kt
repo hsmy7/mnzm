@@ -73,7 +73,8 @@ class DiscipleTablesIncrementalMergeTest {
         val incremental = tables.assembleAllIncremental(prev, changed)
         val full = tables.assembleAll()
         assertEquivalent(incremental, full)
-        assertEquals("死亡弟子 isAlive 应为 false", false, incremental.first { it.id == "1" }.isAlive)
+        assertEquals("重伤弟子 isAlive 应保持 true", true, incremental.first { it.id == "1" }.isAlive)
+        assertEquals("重伤 HP=1", 1, incremental.first { it.id == "1" }.combat.currentHp)
     }
 
     @Test

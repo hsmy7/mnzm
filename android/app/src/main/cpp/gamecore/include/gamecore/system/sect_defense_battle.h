@@ -383,16 +383,8 @@ inline void applyDefenseBattleResult(GameState& state,
     // 2. 冷却写入（写点②：战斗结算——P2-18 核实结论：原链全仓无写点）
     gd.sectAttackCooldowns[attackerSectId] = nowMonth + kAiAttackCooldownMonths;
 
-    // 3. 悲痛传播（先于标死——Kotlin 快照序：双亡亲属互入哀悼）
-    for (const auto& deadId : outcome.deadDefenderIds) {
-        const auto rowOpt = ds.rowOf(deadId);
-        if (rowOpt.has_value()) {
-            propagateGriefToRelatives(ds, *rowOpt, gd.gameYear);
-        }
-    }
-
-    // 4. 玩家侧伤亡（markDead 统一入口：isAlive/status/deathYears +
-    //    annualDeceasedDisciples 计数）
+    // 3./4. 玩家侧败北 → 重伤（G07）：HP=1 且保持存活；不传悲痛、不计年报
+    //       死亡、不清槽/不解绑/不清装/不清行囊（Q20/Q41——重伤期间无限制）。
     markAllDead(ds, outcome.deadDefenderIds, gd.gameYear,
                 gd.annualDeceasedDisciples);
 
@@ -418,38 +410,8 @@ inline void applyDefenseBattleResult(GameState& state,
         ds.currentMps[row] = std::min(std::max(c.mp, 0), stats.maxMp);
     }
 
-    // 6. 阵亡弟子 11 类槽位清理（Kotlin clearAllSlotsState
-    //    includeResidence=true——含玩家宗门 garrisonSlots 死者槽清空；
-    //    DiscipleAssignmentGate release 保留 Kotlin 平台侧）
-    for (const auto& deadId : outcome.deadDefenderIds) {
-        SlotCleanupInput in;
-        in.spiritMineSlots = gd.spiritMineSlots;
-        in.librarySlots = gd.librarySlots;
-        in.elderSlots = gd.elderSlots;
-        in.residenceSlots = gd.residenceSlots;
-        in.activeBloodRefinements = gd.activeBloodRefinements;
-        in.patrolSlots = gd.patrolSlots;
-        in.warehouseGarrisons = gd.warehouseGarrisons;
-        in.battleTeams = gd.battleTeams;
-        in.worldMapSects = gd.worldMapSects;
-        in.productionSlots = gd.productionSlots;
-        in.caveExplorationTeams = gd.caveExplorationTeams;
-        in.activeMissions = toMissionLiteList(gd.activeMissions);
-        const auto out = clearAllSlotsDataOnly(in, deadId, /*includeResidence=*/true);
-        gd.spiritMineSlots = out.spiritMineSlots;
-        gd.librarySlots = out.librarySlots;
-        gd.elderSlots = out.elderSlots;
-        gd.residenceSlots = out.residenceSlots;
-        gd.activeBloodRefinements = out.activeBloodRefinements;
-        gd.patrolSlots = out.patrolSlots;
-        gd.warehouseGarrisons = out.warehouseGarrisons;
-        gd.battleTeams = out.battleTeams;
-        gd.worldMapSects = out.worldMapSects;
-        gd.productionSlots = out.productionSlots;
-        gd.caveExplorationTeams = out.caveExplorationTeams;
-        gd.activeMissions =
-            mergeMissionLiteList(gd.activeMissions, out.activeMissions);
-    }
+    // 6. 重伤弟子槽位保留（G07：重伤期间可出战/任命/生产，无任何限制——
+    //    原 11 类槽位清理随玩家侧战死一并退役）
 
     // 7. AI 攻方伤亡（aiMarkSideDead 标死——P1-7 口径；非 Kotlin 的整行
     //    移除，见文件头差异登记）

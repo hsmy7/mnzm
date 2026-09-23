@@ -271,7 +271,8 @@ class GameEngineTraitWashTest {
     fun `washTraitSlot - 死亡弟子拒绝洗炼且不扣玉符`() = runBlocking {
         seedStandardDisciple()
         seedJade(5)
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡）
+        store.update { discipleTables.isAlive[1] = 0 }
 
         for (type in washTypes) {
             val result = engine.washTraitSlot("1", type, targetIdOf(type), 0)
@@ -521,7 +522,8 @@ class GameEngineTraitWashTest {
     @Test
     fun `confirmTraitWash - 死亡弟子拒绝替换且字段不变`() = runBlocking {
         seedStandardDisciple()
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡）
+        store.update { discipleTables.isAlive[1] = 0 }
         val before = assembleDisciple()
         val newId = realTraitIds(TraitWashType.TALENT, 3).last()
 
@@ -596,7 +598,8 @@ class GameEngineTraitWashTest {
     @Test
     fun `confirmTraitWash - 死亡弟子返回已死亡文案`() = runBlocking {
         seedStandardDisciple()
-        store.update { discipleTables.markDead(1, 1) }
+        // 存量旧档已故行（G07 后玩家侧不再新增死亡）
+        store.update { discipleTables.isAlive[1] = 0 }
         val before = assembleDisciple()
 
         val result = engine.confirmTraitWash(

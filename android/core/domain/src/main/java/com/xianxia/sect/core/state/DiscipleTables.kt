@@ -872,27 +872,22 @@ class DiscipleTables {
     }
 
     /**
-     * 集中标记弟子死亡 —— 设置 isAlive/status/deathYears（审计 P2-4：DeathRecord 已删除）。
-     * 所有死亡路径必须调用此方法（或通过 handleDiscipleDeath），禁止手动写三个字段。
-     * [cause] 取值："age" / "battle" / "scout" / "exploration" / "cave" / "unknown"
-     * 使用方式：
-     *   discipleTables.markDead(id, currentYear, "battle")
+     * 集中标记弟子败北 → **重伤**（G07：玩家侧不可战死）。
+     *
+     * 写入 `currentHp=1`，**不**改 `isAlive`/`status`/`deathYears`（Q20/Q41：
+     * UI 由 HP=1 派生「重伤」，不新增枚举）。[cause] 取值同旧死亡原因串。
+     * 使用：`discipleTables.markDead(id, currentYear, "battle")`（名字保留兼容调用点）。
      *
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
-    fun markDead(id: Int, currentYear: Int, cause: String = "unknown") {
+    fun markDead(id: Int, @Suppress("UNUSED_PARAMETER") currentYear: Int, cause: String = "unknown") {
         require(cause in VALID_DEATH_CAUSES) { "Invalid death cause: $cause. Valid: $VALID_DEATH_CAUSES" }
         requireWriteAccess()
         synchronized(_ids) {
             if (!_ids.contains(id)) return@synchronized
-            // 审计 P2-4：DeathRecord 已删除（零消费者纯开销）——死亡信息
-            // 由 isAlive/status/deathYears 列承载
-            isAlive[id] = 0
-            statuses[id] = DiscipleStatus.DEAD
-            deathYears[id] = currentYear
-            // 记录 changedId：markDead 修改了弟子数据，若本事务还包含其他
-            // update/insert（产生 changedIds），增量组装必须重排本弟子，
-            // 否则快照会保留其"存活"旧数据（陈尸）。
+            // G07 重伤：HP=1 且保持存活；死亡三元组不写
+            currentHps[id] = 1
+            if (isAlive.getOrNull(id) == 0) isAlive[id] = 1
             recordChangedId(id)
         }
     }

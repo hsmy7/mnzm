@@ -902,7 +902,8 @@ class SecretRealmService @Inject constructor(
 
     /**
      * 战斗写回：幸存者 HP 写表（clamp 上限用战斗最终 maxHp，含装备/功法/丹药加成）；
-     * 首次阵亡 → 重伤濒死（保命）；濒死再阵亡 → 永久死亡（统一入口）。
+     * 首次阵亡 → 重伤濒死（保命）；濒死再阵亡 → 会话内失能（Q20/Q41：玩家侧弟子
+     * 永不死亡，统一入口只把气血钳到 1 并保持存活）。
      */
     private fun writeBackBattleMembers(
         state: MutableGameState,
@@ -913,7 +914,7 @@ class SecretRealmService @Inject constructor(
         val tables = state.discipleTables
         val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
         val hpMap = result.battle.team.associate { it.id to (it.hp to it.maxHp) }
-        /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
+        /** 本场失能弟子 ID（会话侧释放用；玩家侧不死亡，行内恒为重伤） */
         val deadIds = mutableSetOf<String>()
         val newMembers = session.members.map { ms ->
             if (ms.isDead) return@map ms

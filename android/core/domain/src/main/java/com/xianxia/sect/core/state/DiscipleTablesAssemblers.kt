@@ -10,6 +10,13 @@ import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.UsageTracking
 
+/**
+ * 气血/灵力「满值」哨兵：缺列时装配出的值必须与三端默认一致
+ * （Kotlin `DiscipleCombatStats.currentHp` / ProtoBuf / C++ `models.h` 同为 -1）。
+ * 用 0 会让缺列弟子被误判为「未满血」并参与每旬回血。
+ */
+private const val FULL_HP_SENTINEL = -1
+
 /** 辅助：dirtyGroups 位图是否包含指定组。 */
 private fun Int.hasGroup(group: AssembleGroup): Boolean = (this and (1 shl group.ordinal)) != 0
 
@@ -115,7 +122,8 @@ internal fun DiscipleTables.assembleCombat(id: Int) = CombatAttributes(
     totalCultivation = totalCultivations.getOrNull(id) ?: 0L,
     breakthroughCount = breakthroughCounts.getOrDefault(id, 0),
     breakthroughFailCount = breakthroughFailCounts.getOrDefault(id, 0),
-    currentHp = currentHps.getOrDefault(id, 0), currentMp = currentMps.getOrDefault(id, 0)
+    currentHp = currentHps.getOrDefault(id, FULL_HP_SENTINEL),
+    currentMp = currentMps.getOrDefault(id, FULL_HP_SENTINEL)
 )
 
 internal fun DiscipleTables.assemblePillEffects(id: Int) = PillEffects(

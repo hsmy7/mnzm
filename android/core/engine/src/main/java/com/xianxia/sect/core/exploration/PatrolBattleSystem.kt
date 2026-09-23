@@ -48,7 +48,6 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.engine.domain.disciple.battleWritebackMaxHpMp
-import com.xianxia.sect.core.engine.domain.disciple.applyGriefToRelatives
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 数据类
@@ -436,9 +435,9 @@ class PatrolBattleSystem @Inject constructor(
             recordBattleLogAndPopup(result, updatedGd, state, allRewards)
         }
 
-        // 悲痛期 + 清理 + 写回
+        // 重伤写回（G07：不清槽/不传悲痛）
         finalizeBattleOutcome(
-            allDeadIds, disciples, updatedDisciples, updatedGd, state
+            allDeadIds, updatedDisciples, updatedGd, state
         )
     }
 
@@ -454,7 +453,8 @@ class PatrolBattleSystem @Inject constructor(
         val updated = disciples.map { d ->
             val (hp, mp) = hpMap[d.id] ?: return@map d
             if (d.id !in result.survivors) {
-                d.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                // G07 重伤：HP=1 存活，不写 DEAD
+                d.copy(combat = d.combat.copy(currentHp = 1))
             } else {
                 // clamp 上限用含血炼口径，防削血
                 val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(state, d)
@@ -487,35 +487,19 @@ class PatrolBattleSystem @Inject constructor(
         }
     }
 
-    /** 悲痛期处理 + 槽位清理 + 状态写回 */
+    /**
+     * 败北写回（G07）：玩家侧弟子只受**重伤**（气血钳到
+     * [com.xianxia.sect.core.GameConfig.Disciple.INJURED_HP] 且保持存活）——
+     * 不清巡逻槽、不写悲痛期、不计年报死亡。回血走既有每旬回血机制。
+     */
     private fun finalizeBattleOutcome(
         allDeadIds: Set<String>,
-        originalDisciples: List<Disciple>,
         updatedDisciples: List<Disciple>,
         updatedGd: GameData,
         state: MutableGameState
     ) {
-        val deadList = originalDisciples.filter { it.id in allDeadIds }
-        val finalDisciples = if (deadList.isNotEmpty()) {
-            DiscipleStatCalculator.applyGriefToRelatives(
-                updatedDisciples, deadList, updatedGd.gameYear
-            )
-        } else {
-            updatedDisciples
-        }
-        val finalGd = if (allDeadIds.isNotEmpty()) {
-            updatedGd.copy(
-                patrolSlots = updatedGd.patrolSlots.map { slot ->
-                    if (slot.discipleId in allDeadIds) {
-                        PatrolSlot(index = slot.index)
-                    } else slot
-                }
-            )
-        } else {
-            updatedGd
-        }
-        state.gameData = finalGd
-        state.discipleTables.replaceAll(finalDisciples)
+        state.gameData = updatedGd
+        state.discipleTables.replaceAll(updatedDisciples)
         deathHandler.markAllDead(
             state, allDeadIds, updatedGd.gameYear
         )

@@ -130,6 +130,12 @@ object GameConfig {
         const val PROTECTION_MONTHS = 12
         /** 基础技能属性上限（资质/悟性/智力等 10 项；忠诚单独用 MAX_LOYALTY=100） */
         const val SKILL_MAX = 200
+        /**
+         * 重伤恒定气血（Q20/Q41）：玩家侧弟子败北不死亡，只把气血钳到该值，
+         * `isAlive` 保持 1；UI 由 `isAlive && currentHp == INJURED_HP` 派生「重伤」文案，
+         * 不新增状态枚举。回血走既有每旬回血机制。
+         */
+        const val INJURED_HP = 1
     }
 
     object Elder {
