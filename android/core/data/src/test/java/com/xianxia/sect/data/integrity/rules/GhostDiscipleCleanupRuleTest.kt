@@ -53,7 +53,7 @@ class GhostDiscipleCleanupRuleTest {
 
     private fun makeDisciple(id: String, name: String) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true, equipment = EquipmentSet()
+        isAlive = true, equipment = EquipmentSet()
     )
     private fun saveData(d: List<Disciple>) = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),

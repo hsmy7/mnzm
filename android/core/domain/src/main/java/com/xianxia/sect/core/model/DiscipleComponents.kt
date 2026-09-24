@@ -149,7 +149,6 @@ data class SkillStats(
     // 技能属性值
     var intelligence: Int = 50,
     var charm: Int = 50,
-    var loyalty: Int = 50,
     var comprehension: Int = 50,
     var artifactRefining: Int = 50,
     var pillRefining: Int = 50,
@@ -183,12 +182,8 @@ data class UsageTracking(
     // 永久属性丹已服用的去重 key："tier#effectField"
     @Ignore
     var usedPermanentPillKeys: Set<String> = emptySet(),
-    // 寿命丹按 pillType 去重（所有品阶共享）
-    @Ignore
-    var usedExtendLifePillTypes: Set<String> = emptySet(),
     // 旧字段，仅用于旧存档反序列化和迁移
     var usedFunctionalPillTypes: List<String> = emptyList(),
-    var usedExtendLifePillIds: List<String> = emptyList(),
     var recruitedMonth: Int = 0,
     var hasReviveEffect: Boolean = false,
     var hasClearAllEffect: Boolean = false,

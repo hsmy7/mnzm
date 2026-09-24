@@ -50,7 +50,6 @@ import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.VassalContract
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.YearlyReport
@@ -286,16 +285,6 @@ object CollectionConverters {
     @JvmStatic
     fun toSpiritFieldPlantList(value: String): List<SpiritFieldPlant> =
         ProtobufConverters.decodeFromBase64(ListSerializer(SpiritFieldPlant.serializer()), value) { emptyList() }
-
-    @TypeConverter
-    @JvmStatic
-    fun fromWarehouseGarrisonSlotList(value: List<WarehouseGarrisonSlot>): String =
-        ProtobufConverters.encodeToBase64(ListSerializer(WarehouseGarrisonSlot.serializer()), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toWarehouseGarrisonSlotList(value: String): List<WarehouseGarrisonSlot> =
-        ProtobufConverters.decodeFromBase64(ListSerializer(WarehouseGarrisonSlot.serializer()), value) { emptyList() }
 
     @TypeConverter
     @JvmStatic

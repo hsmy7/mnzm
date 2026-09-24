@@ -37,7 +37,6 @@ import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationFacade
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.SecretRealmService
 import com.xianxia.sect.core.repository.GameHeavyDataPort
 import com.xianxia.sect.core.repository.HeavyDataDecoder
@@ -146,7 +145,6 @@ class GameEngine @Inject constructor(
     internal val productionFacade: ProductionFacade get() = cultivationFacade.productionFacade
     internal val saveFacade: SaveFacade get() = economyFacade.saveFacade
     internal val spiritStoneWallet: SpiritStoneWallet get() = economyFacade.spiritStoneWallet
-    internal val lawEnforcementProcessor: LawEnforcementProcessor get() = cultivationFacade.lawEnforcementProcessor
     /** 玉符（氪金货币）在线时长结算服务 */
     internal val jadeSymbolService: JadeSymbolService get() = gameEngineCore.jadeSymbolServiceRef
 

@@ -817,7 +817,6 @@ data class Pill(
     val extendLife: Int get() = effects.extendLife
     val intelligenceAdd: Int get() = effects.intelligenceAdd
     val charmAdd: Int get() = effects.charmAdd
-    val loyaltyAdd: Int get() = effects.loyaltyAdd
     val comprehensionAdd: Int get() = effects.comprehensionAdd
     val artifactRefiningAdd: Int get() = effects.artifactRefiningAdd
     val pillRefiningAdd: Int get() = effects.pillRefiningAdd
@@ -909,7 +908,7 @@ data class PillEffect(
     @ProtoNumber(21) val extendLife: Int = 0,
     @ProtoNumber(22) val intelligenceAdd: Int = 0,
     @ProtoNumber(23) val charmAdd: Int = 0,
-    @ProtoNumber(24) val loyaltyAdd: Int = 0,
+    // reserved 24;（loyaltyAdd 字段号已退役，禁止复用）
     @ProtoNumber(25) val comprehensionAdd: Int = 0,
     @ProtoNumber(26) val artifactRefiningAdd: Int = 0,
     @ProtoNumber(27) val pillRefiningAdd: Int = 0,

@@ -49,13 +49,11 @@ class GameEngineRecruitTest {
 
     private fun createRecruit(
         name: String = "测试弟子",
-        age: Int = 20,
         realm: Int = 9,
         id: String = UUID.randomUUID().toString()
     ): Disciple = Disciple(
         id = id,
         name = name,
-        age = age,
         realm = realm,
         spiritRootType = "金"
     )
@@ -108,9 +106,9 @@ class GameEngineRecruitTest {
         val validId = UUID.randomUUID().toString()
         val state = createState(recruitList = listOf(
             createRecruit(name = "有效弟子", id = validId),
-            createRecruit(name = "", age = 20, realm = 9),           // blank name
-            createRecruit(name = "零岁", age = 0, realm = 9),        // age 0
-            createRecruit(name = "仙人", age = 20, realm = 0),       // realm 0 仙人合法
+            createRecruit(name = "", realm = 9),                     // blank name
+            createRecruit(name = "越界", realm = -1),                // realm 越界
+            createRecruit(name = "仙人", realm = 0),                 // realm 0 仙人合法
         ))
 
         val count = executeRecruitAll(state)
@@ -124,7 +122,7 @@ class GameEngineRecruitTest {
     fun `recruit all - all corrupted returns 0`() {
         val state = createState(recruitList = listOf(
             createRecruit(name = "", id = UUID.randomUUID().toString()),  // 全部损坏
-            createRecruit(name = "x", age = 0, id = UUID.randomUUID().toString()),
+            createRecruit(name = "x", realm = -1, id = UUID.randomUUID().toString()),
         ))
 
         val count = executeRecruitAll(state)
@@ -185,8 +183,8 @@ class GameEngineRecruitTest {
     @Test
     fun `recruit all - twin content different ids recruit once`() {
         val state = createState(recruitList = listOf(
-            createRecruit(name = "张三", age = 20),
-            createRecruit(name = "张三", age = 20)
+            createRecruit(name = "张三"),
+            createRecruit(name = "张三")
         ))
 
         val count = executeRecruitAll(state)

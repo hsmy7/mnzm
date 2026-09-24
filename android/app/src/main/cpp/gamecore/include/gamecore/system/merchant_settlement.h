@@ -289,7 +289,6 @@ inline Pill toPill(const MerchantItem& item) {
         p.effects.cultivationAdd = tpl->cultivationAdd;
         p.effects.skillExpAdd = tpl->skillExpAdd;
         p.effects.nurtureAdd = tpl->nurtureAdd;
-        p.effects.extendLife = tpl->extendLife;
         p.effects.physicalAttackAdd = tpl->physicalAttackAdd;
         p.effects.magicAttackAdd = tpl->magicAttackAdd;
         p.effects.physicalDefenseAdd = tpl->physicalDefenseAdd;
@@ -301,7 +300,6 @@ inline Pill toPill(const MerchantItem& item) {
         p.effects.critEffectAdd = tpl->critEffectAdd;
         p.effects.intelligenceAdd = tpl->intelligenceAdd;
         p.effects.charmAdd = tpl->charmAdd;
-        p.effects.loyaltyAdd = tpl->loyaltyAdd;
         p.effects.comprehensionAdd = tpl->comprehensionAdd;
         p.effects.artifactRefiningAdd = tpl->artifactRefiningAdd;
         p.effects.pillRefiningAdd = tpl->pillRefiningAdd;
@@ -329,7 +327,6 @@ inline Pill toPill(const MerchantItem& item) {
     p.effects.cultivationAdd = chosen.cultivationAdd;
     p.effects.skillExpAdd = chosen.skillExpAdd;
     p.effects.nurtureAdd = chosen.nurtureAdd;
-    p.effects.extendLife = chosen.extendLife;
     p.effects.physicalAttackAdd = chosen.physicalAttackAdd;
     p.effects.magicAttackAdd = chosen.magicAttackAdd;
     p.effects.physicalDefenseAdd = chosen.physicalDefenseAdd;
@@ -341,7 +338,6 @@ inline Pill toPill(const MerchantItem& item) {
     p.effects.critEffectAdd = chosen.critEffectAdd;
     p.effects.intelligenceAdd = chosen.intelligenceAdd;
     p.effects.charmAdd = chosen.charmAdd;
-    p.effects.loyaltyAdd = chosen.loyaltyAdd;
     p.effects.comprehensionAdd = chosen.comprehensionAdd;
     p.effects.artifactRefiningAdd = chosen.artifactRefiningAdd;
     p.effects.pillRefiningAdd = chosen.pillRefiningAdd;

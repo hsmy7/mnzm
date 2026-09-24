@@ -57,8 +57,6 @@ Disciple baseDisciple(const std::string& id, int32_t realm = 9, int32_t layer = 
     d.realmLayer = layer;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 20;
-    d.lifespan = 80;
     d.status = "ON_MISSION";
     return d;
 }
@@ -261,14 +259,13 @@ TEST(MissionCompletionTest, CombatRequiredBeastVictoryGolden) {
     EXPECT_EQ(core->rng().getRng(rng::RngPartition::kEnemyGen).snapshot(), enemyBefore);
     EXPECT_NE(core->rng().getRng(rng::RngPartition::kBattle).snapshot(), battleBefore);
 
-    // 任务消费 + 灵石 + 成员回 IDLE + 幸存者魂力 +1
+    // 任务消费 + 灵石 + 成员回 IDLE
     EXPECT_TRUE(st.gameData.activeMissions.empty());
     EXPECT_EQ(st.gameData.spiritStones, stonesBefore + 100);
     for (const auto& id : {"1", "2"}) {
         const auto row = st.disciples.rowOf(id);
         ASSERT_TRUE(row.has_value());
         EXPECT_EQ(st.disciples.statuses[*row], "IDLE");
-        EXPECT_EQ(st.disciples.soulPowers[*row], 1);  // 仙人队全存活
     }
 }
 
@@ -297,7 +294,6 @@ TEST(MissionCompletionTest, CombatRequiredDefeatConsumedWithEmptyReward) {
     const auto row = st.disciples.rowOf("1");
     ASSERT_TRUE(row.has_value());
     EXPECT_EQ(st.disciples.statuses[*row], "IDLE");
-    EXPECT_EQ(st.disciples.soulPowers[*row], 0);
 }
 
 // ── COMBAT_RANDOM：触发门 ───────────────────────────────────────────
@@ -370,11 +366,6 @@ TEST(MissionCompletionTest, CombatRandomTriggeredFullArm) {
     EXPECT_NE(core->rng().getRng(rng::RngPartition::kBattle).snapshot(), battleBefore);  // 战斗发生
     EXPECT_EQ(st.gameData.spiritStones, stonesBefore + 150000);
     EXPECT_TRUE(st.gameData.activeMissions.empty());
-    for (const auto& id : {"1", "2"}) {
-        const auto row = st.disciples.rowOf(id);
-        ASSERT_TRUE(row.has_value());
-        EXPECT_EQ(st.disciples.soulPowers[*row], 1);
-    }
 }
 
 // ── 边界：无存活弟子 / 非数字 id ────────────────────────────────────

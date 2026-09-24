@@ -66,9 +66,6 @@ internal fun MutableGameState.collectSlotWinners(
     data.librarySlots.forEachIndexed { i, slot ->
         register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.LIBRARY_SLOT, "library", i))
     }
-    data.warehouseGarrisons.forEach { slot ->
-        register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.WAREHOUSE_GARRISON, slot.buildingInstanceId))
-    }
     data.patrolSlots.forEachIndexed { i, slot ->
         register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.PATROL_SLOT, "patrol", i))
     }

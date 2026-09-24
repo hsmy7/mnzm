@@ -58,8 +58,8 @@ class DiscipleLifecycleEventsTest {
 
     // ==================== 辅助方法 ====================
 
-    private fun insertDisciple(id: Int, name: String = "弟子$id", age: Int = 20) {
-        tables.insert(Disciple(id = id.toString(), name = name, age = age))
+    private fun insertDisciple(id: Int, name: String = "弟子$id") {
+        tables.insert(Disciple(id = id.toString(), name = name))
     }
 
     private fun setGameTime(year: Int, month: Int) {
@@ -72,7 +72,7 @@ class DiscipleLifecycleEventsTest {
 
     @Test
     fun `initializeLifeEvents - no recruit master partner writes nothing`() {
-        insertDisciple(1, age = 25)
+        insertDisciple(1)
 
         lifecycleManager.initializeLifeEvents("1")
 
@@ -81,25 +81,25 @@ class DiscipleLifecycleEventsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 加入宗门事件 — 招募年龄 = age - (当前月份 - 招募月份) / 12
+    // 加入宗门事件 — recruitedMonth 早于当前月才生成
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `initializeLifeEvents - generates joined sect event with recruited age`() {
-        insertDisciple(1, age = 25)
+    fun `initializeLifeEvents - generates joined sect event`() {
+        insertDisciple(1)
         setGameTime(year = 2, month = 1) // currentAbsoluteMonth = 25
-        tables.recruitedMonths[1] = 13   // 第1年1月加入 → monthsSince = 12 → recruitedAge = 25 - 1 = 24
+        tables.recruitedMonths[1] = 13   // 第1年1月加入 → 早于当月
 
         lifecycleManager.initializeLifeEvents("1")
 
         val events = tables.lifeEvents.getOrNull(1)
         assertNotNull("events should be generated", events)
-        assertTrue("joined event missing: $events", events!!.contains("24岁：加入宗门"))
+        assertTrue("joined event missing: $events", events!!.contains("加入宗门"))
     }
 
     @Test
     fun `initializeLifeEvents - joined sect event when recruited this month is skipped`() {
-        insertDisciple(1, age = 25)
+        insertDisciple(1)
         setGameTime(year = 1, month = 1) // currentAbsoluteMonth = 13
         tables.recruitedMonths[1] = 13   // 当月加入 → currentAbsoluteMonth > recruitedMonth 不成立
 
@@ -115,7 +115,7 @@ class DiscipleLifecycleEventsTest {
 
     @Test
     fun `initializeLifeEvents - generates master event with master name`() {
-        insertDisciple(1, age = 25)
+        insertDisciple(1)
         insertDisciple(2, name = "玄机真人")
         tables.masterIds[1] = "2"
 
@@ -123,7 +123,7 @@ class DiscipleLifecycleEventsTest {
 
         val events = tables.lifeEvents.getOrNull(1)
         assertNotNull("events should be generated", events)
-        assertTrue("master event missing: $events", events!!.contains("25岁：拜玄机真人为师"))
+        assertTrue("master event missing: $events", events!!.contains("拜玄机真人为师"))
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -132,7 +132,7 @@ class DiscipleLifecycleEventsTest {
 
     @Test
     fun `initializeLifeEvents - generates partner event with partner name`() {
-        insertDisciple(1, age = 25)
+        insertDisciple(1)
         insertDisciple(3, name = "林婉清")
         tables.partnerIds[1] = "3"
 
@@ -140,7 +140,7 @@ class DiscipleLifecycleEventsTest {
 
         val events = tables.lifeEvents.getOrNull(1)
         assertNotNull("events should be generated", events)
-        assertTrue("partner event missing: $events", events!!.contains("25岁：与林婉清结为道侣"))
+        assertTrue("partner event missing: $events", events!!.contains("与林婉清结为道侣"))
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -149,13 +149,13 @@ class DiscipleLifecycleEventsTest {
 
     @Test
     fun `initializeLifeEvents - does not overwrite existing events`() {
-        insertDisciple(1, age = 25)
-        tables.lifeEvents[1] = listOf("20岁：加入宗门")
+        insertDisciple(1)
+        tables.lifeEvents[1] = listOf("加入宗门")
 
         lifecycleManager.initializeLifeEvents("1")
 
         val events = tables.lifeEvents.getOrNull(1)
-        assertEquals("existing events preserved", listOf("20岁：加入宗门"), events)
+        assertEquals("existing events preserved", listOf("加入宗门"), events)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -164,7 +164,7 @@ class DiscipleLifecycleEventsTest {
 
     @Test
     fun `initializeLifeEvents - invalid id ignored`() {
-        insertDisciple(1, age = 25)
+        insertDisciple(1)
 
         lifecycleManager.initializeLifeEvents("abc") // 非数字
         lifecycleManager.initializeLifeEvents("999") // 不存在
@@ -179,7 +179,7 @@ class DiscipleLifecycleEventsTest {
 
     @Test
     fun `initializeLifeEvents - generates all events in order`() {
-        insertDisciple(1, age = 25)
+        insertDisciple(1)
         insertDisciple(2, name = "玄机真人")
         insertDisciple(3, name = "林婉清")
         setGameTime(year = 2, month = 1)
@@ -191,7 +191,7 @@ class DiscipleLifecycleEventsTest {
 
         val events = tables.lifeEvents.getOrNull(1)
         assertEquals(
-            listOf("24岁：加入宗门", "25岁：拜玄机真人为师", "25岁：与林婉清结为道侣"),
+            listOf("加入宗门", "拜玄机真人为师", "与林婉清结为道侣"),
             events
         )
     }

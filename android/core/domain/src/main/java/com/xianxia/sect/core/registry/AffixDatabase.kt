@@ -16,7 +16,6 @@ import kotlin.random.Random
  * - 职务加成（PositionBonus）
  * - 战斗伤害特殊加成（独立乘算因子，通过 effects map 传递）
  * - 修炼速度加成
- * - 寿命加成
  * - 功法槽加成
  * - 战斗成长加成
  *
@@ -71,7 +70,6 @@ object AffixDatabase {
     private data class BaseFlatCfg(val rarity: Int, val value: Int)
     private data class BatPctCfg(val rarity: Int, val value: Double)
     private data class CultSpeedCfg(val rarity: Int, val value: Double)
-    private data class LifespanCfg(val rarity: Int, val value: Double)
     private data class DmgAmpCfg(val rarity: Int, val value: Double)
     private data class DmgReduceCfg(val rarity: Int, val value: Double)
     private data class CritDmgCfg(val rarity: Int, val value: Double)
@@ -93,11 +91,6 @@ object AffixDatabase {
     /** 修炼速度：1阶 5% / 2阶 11% / 3阶 20% */
     private val cultSpeedConfigs = listOf(
         CultSpeedCfg(1, 0.05), CultSpeedCfg(2, 0.11), CultSpeedCfg(3, 0.20)
-    )
-
-    /** 寿命：1阶 8% / 2阶 16% / 3阶 28% */
-    private val lifespanConfigs = listOf(
-        LifespanCfg(1, 0.08), LifespanCfg(2, 0.16), LifespanCfg(3, 0.28)
     )
 
     /** 伤害加成（独立乘算）：1阶 3% / 2阶 7% / 3阶 13% */
@@ -137,18 +130,6 @@ object AffixDatabase {
                 isNegative = false,
                 type = AffixType.BASE_FLAT,
                 template = "aff_base_int"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(AffixData(
-                id = "r${cfg.rarity}_aff_base_comp",
-                name = "灵慧",
-                description = "悟性+${cfg.value}",
-                rarity = cfg.rarity,
-                effects = mapOf("comprehensionFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = AffixType.BASE_FLAT,
-                template = "aff_base_comp"
             ))
         }
         baseFlatConfigs.forEach { cfg ->
@@ -213,20 +194,6 @@ object AffixDatabase {
                 isNegative = false,
                 type = AffixType.CULT_SPEED,
                 template = "aff_cult_speed"
-            ))
-        }
-
-        // 寿命词条
-        lifespanConfigs.forEach { cfg ->
-            add(AffixData(
-                id = "r${cfg.rarity}_aff_lifespan",
-                name = "延年",
-                description = "寿命+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
-                effects = mapOf("lifespan" to cfg.value),
-                isNegative = false,
-                type = AffixType.LIFESPAN,
-                template = "aff_lifespan"
             ))
         }
 
@@ -322,7 +289,6 @@ object AffixDatabase {
             Triple("forge", "器道", ElderSlotType.FORGE) to "炼器成功率加成",
             Triple("outer_elder", "外门", ElderSlotType.OUTER_ELDER) to "外门弟子突破指导加成",
             Triple("preaching", "传道", ElderSlotType.PREACHING) to "外门弟子传道修炼速度加成",
-            Triple("law_enforcement", "执法", ElderSlotType.LAW_ENFORCEMENT) to "叛逃/偷盗捕获率加成",
             Triple("inner_elder", "内门", ElderSlotType.INNER_ELDER) to "内门弟子突破指导加成",
             Triple("recruiting", "招贤", ElderSlotType.RECRUITING) to "招募弟子数上限加成",
             Triple("cloud_preaching", "青云", ElderSlotType.CLOUD_PREACHING) to "内门弟子传道修炼速度加成"
@@ -373,16 +339,6 @@ object AffixDatabase {
             isNegative = true,
             type = AffixType.BAT_PCT,
             template = "neg_aff_battle"
-        ),
-        AffixData(
-            id = "neg_aff_lifespan",
-            name = "夭折",
-            description = "寿命-15%",
-            rarity = 0,
-            effects = mapOf("lifespan" to -0.15),
-            isNegative = true,
-            type = AffixType.LIFESPAN,
-            template = "neg_aff_lifespan"
         )
     )
 

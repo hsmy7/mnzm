@@ -62,8 +62,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = true;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = "IDLE";
         core_->state().disciples.appendDisciple(d);
         return *core_->state().disciples.rowOf(id);

@@ -35,8 +35,7 @@ import org.robolectric.RobolectricTestRunner
  * 写回存储（statuses 组件表底层是 android.util.SparseArray）——纯 JVM 环境
  * mockable android.jar 的 SparseArray 是 stub（put 无操作/get 恒 null/
  * indexOfKey 恒 0），写入读回全失效，删除本注解会让测试 4 假死（NPE 于
- * deriveDiscipleStatus 的 currentStatus 参数）。见 DiscipleReflectionReleaseTest
- * 同款环境要求。
+ * deriveDiscipleStatus 的 currentStatus 参数）。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)

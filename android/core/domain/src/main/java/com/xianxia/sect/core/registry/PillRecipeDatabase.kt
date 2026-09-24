@@ -41,10 +41,8 @@ object PillRecipeDatabase {
         val speedAdd: Int = 0,
         val critRateAdd: Double = 0.0,
         val critEffectAdd: Double = 0.0,
-        val extendLife: Int = 0,
         val intelligenceAdd: Int = 0,
         val charmAdd: Int = 0,
-        val loyaltyAdd: Int = 0,
         val comprehensionAdd: Int = 0,
         val artifactRefiningAdd: Int = 0,
         val pillRefiningAdd: Int = 0,
@@ -311,11 +309,16 @@ object PillRecipeDatabase {
         val successRate = TIER_SUCCESS_RATE.getValue(tier)
         val rarity = tier
         val herbs = TIER_HERB_IDS.getValue(tier)
-        val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining",
-            "pillRefining", "spiritPlanting", "teaching", "morality", "mining")
+        val singleTypes = listOf("intelligence", "charm", "artifactRefining", "pillRefining", "spiritPlanting",
+            "teaching", "morality", "mining")
+        val herbPatterns = listOf(
+            listOf(1, 7), listOf(2, 8), listOf(5, 2), listOf(6, 3),
+            listOf(7, 4), listOf(8, 5), listOf(0, 6), listOf(1, 7)
+        )
 
         for ((idx, pillType) in singleTypes.withIndex()) {
-            val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 6) % herbs.size] to 2)
+            val materials = mapOf(
+                herbs[herbPatterns[idx][0]] to 2, herbs[herbPatterns[idx][1]] to 2)
             for (grade in PillGrade.entries) {
                 val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
                 recipes.add(PillRecipe(
@@ -330,10 +333,8 @@ object PillRecipeDatabase {
                     materials = materials,
                     duration = duration,
                     successRate = successRate,
-                    extendLife = template.extendLife,
                     intelligenceAdd = template.intelligenceAdd,
                     charmAdd = template.charmAdd,
-                    loyaltyAdd = template.loyaltyAdd,
                     comprehensionAdd = template.comprehensionAdd,
                     artifactRefiningAdd = template.artifactRefiningAdd,
                     pillRefiningAdd = template.pillRefiningAdd,
@@ -352,11 +353,15 @@ object PillRecipeDatabase {
         val successRate = TIER_SUCCESS_RATE.getValue(tier)
         val rarity = tier
         val herbs = TIER_HERB_IDS.getValue(tier)
-        val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining",
+        val dualTypes = listOf("intelligenceComprehension", "pillRefiningArtifactRefining",
             "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")
+        val herbPatterns = listOf(
+            listOf(0, 2), listOf(2, 4), listOf(3, 5), listOf(4, 6), listOf(5, 7)
+        )
 
         for ((idx, pillType) in dualTypes.withIndex()) {
-            val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 2) % herbs.size] to 2)
+            val materials = mapOf(
+                herbs[herbPatterns[idx][0]] to 2, herbs[herbPatterns[idx][1]] to 2)
             for (grade in PillGrade.entries) {
                 val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
                 recipes.add(PillRecipe(
@@ -373,7 +378,6 @@ object PillRecipeDatabase {
                     successRate = successRate,
                     intelligenceAdd = template.intelligenceAdd,
                     charmAdd = template.charmAdd,
-                    loyaltyAdd = template.loyaltyAdd,
                     comprehensionAdd = template.comprehensionAdd,
                     artifactRefiningAdd = template.artifactRefiningAdd,
                     pillRefiningAdd = template.pillRefiningAdd,

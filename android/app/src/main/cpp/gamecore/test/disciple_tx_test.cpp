@@ -65,8 +65,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = true;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = "IDLE";
         d.currentHp = 100;
         d.currentMp = 50;
@@ -140,8 +138,8 @@ TEST_F(DiscipleTxFixture, EquipFromStackMintsInstance) {
     EXPECT_EQ(inst.ownerId, "1");
     EXPECT_EQ(inst.slot, "WEAPON");
     EXPECT_EQ(core_->state().disciples.weaponIds[row], inst.id);
-    // 日志草稿（20岁：装备了X）
-    EXPECT_EQ(r.logLine, "20岁：装备了铁剑w1");
+    // 日志草稿（装备了X）
+    EXPECT_EQ(r.logLine, "装备了铁剑w1");
 }
 
 TEST_F(DiscipleTxFixture, EquipLastStackConsumesIt) {
@@ -164,7 +162,7 @@ TEST_F(DiscipleTxFixture, EquipInstanceTrackMarksEquipped) {
     ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
     EXPECT_TRUE(core_->state().equipmentInstances[0].isEquipped);
     EXPECT_EQ(core_->state().disciples.weaponIds[row], "i1");
-    EXPECT_EQ(r.logLine, "20岁：装备了宝剑i1");
+    EXPECT_EQ(r.logLine, "装备了宝剑i1");
 }
 
 TEST_F(DiscipleTxFixture, EquipReplacesOldIntoBag) {
@@ -188,7 +186,7 @@ TEST_F(DiscipleTxFixture, EquipReplacesOldIntoBag) {
     EXPECT_EQ(core_->state().equipmentInstances[0].id, "new");
     EXPECT_EQ(core_->state().disciples.weaponIds[row], "new");
     // 日志为替换式（oldName 在卸下后查表 → Kotlin 活路径同款"旧装备"兜底）
-    EXPECT_EQ(r.logLine, "20岁：将旧装备替换为宝剑new");
+    EXPECT_EQ(r.logLine, "将旧装备替换为宝剑new");
 }
 
 TEST_F(DiscipleTxFixture, EquipFailureArmsAreZeroWrite) {
@@ -534,7 +532,7 @@ TEST_F(DiscipleTxFixture, DispatchEquipEnvelope) {
                         {{"discipleId", "1"}, {"equipmentId", "w1"}});
     ASSERT_EQ(r.at("status"), "success");
     EXPECT_EQ(r.at("data").at("equipped"), true);
-    EXPECT_EQ(r.at("data").at("logLine"), "20岁：装备了铁剑w1");
+    EXPECT_EQ(r.at("data").at("logLine"), "装备了铁剑w1");
     EXPECT_EQ(core_->state().equipmentStacks[0].quantity, 1);
 }
 

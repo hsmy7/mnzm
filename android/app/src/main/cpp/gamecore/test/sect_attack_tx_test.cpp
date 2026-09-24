@@ -1,11 +1,9 @@
 // ============================================================
 // sect_attack_tx_test — 攻宗确定性写回事务守护（batch-20b）
 //
-// 守护目标：sect_attack_tx.h 两事务与 Kotlin 源语义逐位一致——
+// 守护目标：sect_attack_tx.h 事务与 Kotlin 源语义逐位一致——
 //   - removeDeadDefendersTx：**仅目标池**过滤阵亡者（其余池原样）+
 //     **仅目标宗门**驻军槽清空（保留 index、展示字段全清）+ 空阵亡集无操作
-//   - grantWarSoulPowersTx：id 集 ∧ 存活 双重过滤 + 逐行 +1 +
-//     非存活/不在表静默跳过 + 空集无操作
 //   - **零 RNG 全分区快照差分** + **双运行全状态逐位一致**
 //   - 信封级：execute 通道 status/data 面 + 失败/未知动作信封
 // ============================================================
@@ -66,8 +64,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = alive;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = "IDLE";
         core_->state().disciples.appendDisciple(d);
         return *core_->state().disciples.rowOf(id);
@@ -185,39 +181,6 @@ TEST_F(SectAttackTxFixture, RemoveDeadDefendersMissingPoolAndSectTolerant) {
     EXPECT_EQ(r.clearedGarrisonSlots, 0);
 }
 
-// ── 魂魄发放 ────────────────────────────────────────────────────────────
-
-TEST_F(SectAttackTxFixture, GrantSoulPowersFiltersAliveAndUnknown) {
-    const std::size_t r1 = addDisciple("1");
-    addDisciple("2", 9, /*alive=*/false);
-    const std::size_t r3 = addDisciple("3");
-
-    const auto r = sect_attack_tx::grantWarSoulPowersTx(core_->state(),
-                                                        {"1", "2", "404"});
-    EXPECT_TRUE(r.base.ok);
-    EXPECT_EQ(r.granted, 1);  // 仅存活且在表者
-
-    auto& ds = core_->state().disciples;
-    EXPECT_EQ(ds.soulPowers[r1], 1);
-    EXPECT_EQ(ds.soulPowers[ds.rowOf("2").value()], 0);  // 已故不自增
-    EXPECT_EQ(ds.soulPowers[r3], 0);                     // 未在集合内
-}
-
-TEST_F(SectAttackTxFixture, GrantSoulPowersAccumulatesAndEmptySetIsNoop) {
-    const std::size_t row = addDisciple("1");
-    auto& ds = core_->state().disciples;
-    ds.soulPowers[row] = 5;
-
-    ASSERT_TRUE(sect_attack_tx::grantWarSoulPowersTx(core_->state(), {"1"}).base.ok);
-    EXPECT_EQ(ds.soulPowers[row], 6);
-
-    const auto before = core_->exportStateJson();
-    const auto empty = sect_attack_tx::grantWarSoulPowersTx(core_->state(), {});
-    EXPECT_TRUE(empty.base.ok);
-    EXPECT_EQ(empty.granted, 0);
-    EXPECT_EQ(core_->exportStateJson(), before);
-}
-
 // ── RNG 红线 ────────────────────────────────────────────────────────────
 
 TEST_F(SectAttackTxFixture, ZeroRngFamilyLeavesRngStatesUntouched) {
@@ -230,7 +193,6 @@ TEST_F(SectAttackTxFixture, ZeroRngFamilyLeavesRngStatesUntouched) {
 
     ASSERT_TRUE(sect_attack_tx::removeDeadDefendersTx(core_->state(), "sect_a",
                                                       "ai_1", {"d1"}).base.ok);
-    ASSERT_TRUE(sect_attack_tx::grantWarSoulPowersTx(core_->state(), {"1"}).base.ok);
 
     EXPECT_EQ(rngSnapshot(), baseline);
 }
@@ -246,7 +208,6 @@ TEST_F(SectAttackTxFixture, DoubleRunBitwiseIdentical) {
         addSect("sect_b", true, {{0, "1"}});
         sect_attack_tx::removeDeadDefendersTx(core_->state(), "sect_a", "ai_1",
                                               {"d1", "d3"});
-        sect_attack_tx::grantWarSoulPowersTx(core_->state(), {"1"});
         return core_->exportStateJson();
     };
 
@@ -272,11 +233,6 @@ TEST_F(SectAttackTxFixture, DispatchEnvelopeSuccess) {
     EXPECT_EQ(env.at("data").at("removedFromPool").get<int32_t>(), 1);
     EXPECT_EQ(env.at("data").at("clearedGarrisonSlots").get<int32_t>(), 1);
     EXPECT_TRUE(pool("ai_1").empty());
-
-    env = exec(action::SECT_ATTACK_GRANT_SOUL_POWERS_TX,
-               {{"sectSurvivorIds", {"1"}}});
-    EXPECT_EQ(env.at("status").get<std::string>(), "success") << env.dump();
-    EXPECT_EQ(env.at("data").at("granted").get<int32_t>(), 1);
 }
 
 TEST_F(SectAttackTxFixture, DispatchEnvelopeUnknownActionFails) {

@@ -24,7 +24,6 @@ import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.core.model.SecretRealmState
 import com.xianxia.sect.core.model.SpiritMineSlot
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -215,15 +214,6 @@ class ProductionSlotDualWriteGuardTest {
             data.copy(librarySlots = listOf(LibrarySlot(discipleId = DISCIPLE_A)))
         }
         assertNull("藏经阁槽占用弟子不得被重复分配到灵田槽", herbSlot?.assignedDiscipleId)
-    }
-
-    @Test
-    fun `processAutoAssign - 仓库驻守槽占用的 IDLE 弟子不被排班`() = runTest {
-        val processor = newProcessorWithHerbSlot()
-        val herbSlot = runOccupiedScenario(processor) { data ->
-            data.copy(warehouseGarrisons = listOf(WarehouseGarrisonSlot(discipleId = DISCIPLE_A)))
-        }
-        assertNull("仓库驻守槽占用弟子不得被重复分配到灵田槽", herbSlot?.assignedDiscipleId)
     }
 
     @Test

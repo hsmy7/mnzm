@@ -58,7 +58,7 @@ internal object GameViewMirrorCodec {
         val removed: JsonObject,
         /**
          * 弟子行 typed 投影（R2.3 第二波，[GameViewDiscipleRows]）：非空时
-         * `changed["disciples"]` 恒缺——每行 109 个 JsonElement 节点的造树成本
+         * `changed["disciples"]` 恒缺——每行逐字段 JsonElement 造树成本
          * 整段退场；空表 = 本封走第一波形态（`changed["disciples"]` 承载 JSON 数组）。
          */
         val discipleProjections: List<Disciple> = emptyList(),
@@ -269,8 +269,7 @@ internal object GameViewMirrorCodec {
             BereavementDraft(
                 grievingId = gid,
                 relationship = o.string("relationship") ?: "亲属",
-                deceasedName = o.string("deceasedName") ?: "",
-                grievingAge = o.int("grievingAge") ?: 0,
+                deceasedName = o.string("deceasedName") ?: ""
             )
         } ?: emptyList(),
     )
@@ -280,7 +279,6 @@ internal object GameViewMirrorCodec {
         return GameViewStreamEvent.Payload.Purchase(
             discipleId = id,
             itemName = root.string("itemName") ?: "",
-            age = root.int("age") ?: 0,
         )
     }
 
@@ -291,11 +289,10 @@ internal object GameViewMirrorCodec {
                 discipleId = id,
                 name = root.string("name") ?: "",
                 surname = root.string("surname") ?: "",
-                age = root.int("age") ?: 0,
                 realm = root.int("realm") ?: 9,
                 realmLayer = root.int("realmLayer") ?: 1,
                 deathYear = root.int("deathYear") ?: 0,
-                cause = root.string("cause") ?: "age",
+                cause = root.string("cause") ?: "unknown",
                 storageBagItems = root["storageBagItems"]?.jsonArray?.mapNotNull { item ->
                     runCatching {
                         json.decodeFromJsonElement<StorageBagItem>(item)
@@ -436,8 +433,6 @@ internal object GameViewMirrorCodec {
             { it.cultivationCheckpointGameMonth },
         ),
         str("spiritRootType", { it.hasSpiritRootType() }, { it.spiritRootType }),
-        i32("age", { it.hasAge() }, { it.age }),
-        i32("lifespan", { it.hasLifespan() }, { it.lifespan }),
         bl("isAlive", { it.hasIsAlive() }, { it.isAlive }),
         i32("deathYear", { it.hasDeathYear() }, { it.deathYear }),
         str("gender", { it.hasGender() }, { it.gender }),
@@ -453,7 +448,6 @@ internal object GameViewMirrorCodec {
         dbl("cultivationSpeedBonus", { it.hasCultivationSpeedBonus() }, { it.cultivationSpeedBonus }),
         i32("cultivationSpeedDuration", { it.hasCultivationSpeedDuration() }, { it.cultivationSpeedDuration }),
         str("discipleType", { it.hasDiscipleType() }, { it.discipleType }),
-        i32("soulPower", { it.hasSoulPower() }, { it.soulPower }),
         i32(
             "cultivationCompletionMonth", { it.hasCultivationCompletionMonth() },
             { it.cultivationCompletionMonth },
@@ -548,7 +542,6 @@ internal object GameViewMirrorCodec {
         str("masterId", { it.hasMasterId() }, { it.masterId }),
         i32("intelligence", { it.hasIntelligence() }, { it.intelligence }),
         i32("charm", { it.hasCharm() }, { it.charm }),
-        i32("loyalty", { it.hasLoyalty() }, { it.loyalty }),
         i32("comprehension", { it.hasComprehension() }, { it.comprehension }),
         i32("artifactRefining", { it.hasArtifactRefining() }, { it.artifactRefining }),
         i32("pillRefining", { it.hasPillRefining() }, { it.pillRefining }),
@@ -567,9 +560,7 @@ internal object GameViewMirrorCodec {
         i32("forgeLevel", { it.hasForgeLevel() }, { it.forgeLevel }),
         i32("forgePromotionCount", { it.hasForgePromotionCount() }, { it.forgePromotionCount }),
         sl("usedPermanentPillKeys", { it.usedPermanentPillKeysList }),
-        sl("usedExtendLifePillTypes", { it.usedExtendLifePillTypesList }),
         sl("usedFunctionalPillTypes", { it.usedFunctionalPillTypesList }),
-        sl("usedExtendLifePillIds", { it.usedExtendLifePillIdsList }),
         i32("recruitedMonth", { it.hasRecruitedMonth() }, { it.recruitedMonth }),
         bl("hasReviveEffect", { it.hasHasReviveEffect() }, { it.hasReviveEffect }),
         bl("hasClearAllEffect", { it.hasHasClearAllEffect() }, { it.hasClearAllEffect }),

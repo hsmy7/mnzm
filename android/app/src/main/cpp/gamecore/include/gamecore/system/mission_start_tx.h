@@ -102,7 +102,6 @@ inline MissionStartResult startMissionTx(state::GameState& state,
     in.residenceSlots = gd.residenceSlots;
     in.activeBloodRefinements = gd.activeBloodRefinements;
     in.patrolSlots = gd.patrolSlots;
-    in.warehouseGarrisons = gd.warehouseGarrisons;
     in.battleTeams = gd.battleTeams;
     in.worldMapSects = gd.worldMapSects;
     in.productionSlots = gd.productionSlots;
@@ -116,7 +115,7 @@ inline MissionStartResult startMissionTx(state::GameState& state,
         const auto out = clearAllSlotsDataOnly(in, did, /*includeResidence=*/false);
         in = SlotCleanupInput{
             out.spiritMineSlots, out.librarySlots, out.elderSlots, out.residenceSlots,
-            out.activeBloodRefinements, out.patrolSlots, out.warehouseGarrisons,
+            out.activeBloodRefinements, out.patrolSlots,
             out.battleTeams, out.worldMapSects, out.productionSlots,
             out.caveExplorationTeams, out.activeMissions};
         resetDiscipleStatusForDispatch(store, *row);
@@ -129,7 +128,6 @@ inline MissionStartResult startMissionTx(state::GameState& state,
     gd.residenceSlots = in.residenceSlots;
     gd.activeBloodRefinements = in.activeBloodRefinements;
     gd.patrolSlots = in.patrolSlots;
-    gd.warehouseGarrisons = in.warehouseGarrisons;
     gd.battleTeams = in.battleTeams;
     gd.worldMapSects = in.worldMapSects;
     gd.productionSlots = in.productionSlots;

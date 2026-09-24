@@ -25,7 +25,7 @@ import org.robolectric.RobolectricTestRunner
  * 语义由 GTest `chat_effect_tx_test.cpp` 逐位守护 + 桌面 JNI + 引擎全量门禁）：
  * - **降级等价**：flag OFF 与 AUTHORITATIVE（镜像服务未 stub → null 降级）均走
  *   Kotlin 回退臂，终态逐位一致；
- * - **回退臂语义逐位**：修为 max(0,+x)、道德/忠诚/悟性 (原值+增量) clamp
+ * - **回退臂语义逐位**：修为 max(0,+x)、道德/悟性 (原值+增量) clamp
  *   [1,100]、`lastChatYear` 冷却标记恒写（与增量是否为零无关）；
  * - **弟子不存在 = 成功静默无操作**（return@update 同语义，不抛不写）。
  */
@@ -69,7 +69,7 @@ class DiscipleChatEffectNativeTxGateTest {
             whenever(it.productionCoordinator).thenReturn(mockPC)
         }
 
-    /** 播种弟子"201"：修为 100.5 / 道德 98 / 忠诚 3 / 悟性 70（clamp 边界可观测）。 */
+    /** 播种弟子"201"：修为 100.5 / 道德 98 / 悟性 70（clamp 边界可观测）。 */
     private fun seedDisciple() {
         store.update {
             discipleTables.insert(
@@ -77,7 +77,7 @@ class DiscipleChatEffectNativeTxGateTest {
                     id = "201",
                     name = "交谈弟子",
                     cultivation = 100.5,
-                    skills = SkillStats(morality = 98, loyalty = 3, intelligence = 70),
+                    skills = SkillStats(morality = 98, intelligence = 70),
                     statusData = mapOf("lastChatYear" to "1")
                 )
             )
@@ -88,7 +88,7 @@ class DiscipleChatEffectNativeTxGateTest {
 
     private suspend fun apply(year: Int = 3) = engine.applyConversationEffectAtomic(
         discipleId = "201", currentYear = year,
-        moralityDelta = 5, loyaltyDelta = -5,
+        moralityDelta = 5,
         cultivationDelta = 0.25, intelligenceDelta = 2
     )
 
@@ -99,7 +99,6 @@ class DiscipleChatEffectNativeTxGateTest {
         val d = assembled()
         assertEquals(100.75, d.cultivation, 1e-9)
         assertEquals("98+5=103 clamp 上界 100", 100, d.skills.morality)
-        assertEquals("3-5=-2 clamp 下界 1", 1, d.skills.loyalty)
         assertEquals(72, d.skills.intelligence)
         assertEquals("3", d.statusData["lastChatYear"])
     }
@@ -110,7 +109,7 @@ class DiscipleChatEffectNativeTxGateTest {
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             engine.applyConversationEffectAtomic(
                 discipleId = "201", currentYear = 4,
-                moralityDelta = 0, loyaltyDelta = 0,
+                moralityDelta = 0,
                 cultivationDelta = -500.0, intelligenceDelta = 0
             )
             assertEquals("修为下限 0.0", 0.0, assembled().cultivation, 1e-9)
@@ -119,7 +118,7 @@ class DiscipleChatEffectNativeTxGateTest {
             // 弟子不存在 = 成功无操作（Kotlin return@update 同语义，不抛不写）
             engine.applyConversationEffectAtomic(
                 discipleId = "999", currentYear = 4,
-                moralityDelta = 1, loyaltyDelta = 1,
+                moralityDelta = 1,
                 cultivationDelta = 1.0, intelligenceDelta = 1
             )
             assertTrue("弟子 999 不存在", store.disciplesSnapshot.none { it.id == "999" })
@@ -139,7 +138,7 @@ class DiscipleChatEffectNativeTxGateTest {
             discipleTables.insert(
                 Disciple(
                     id = "201", name = "交谈弟子", cultivation = 100.5,
-                    skills = SkillStats(morality = 98, loyalty = 3, intelligence = 70),
+                    skills = SkillStats(morality = 98, intelligence = 70),
                     statusData = mapOf("lastChatYear" to "1")
                 )
             )

@@ -272,10 +272,8 @@ open class FakeGameStateStore : GameStateStore {
     override val gameData: StateFlow<GameData> get() = MutableStateFlow(gameDataValue)
     override val disciples: StateFlow<List<Disciple>> get() = MutableStateFlow(disciplesValue)
     // 对齐生产 GameStateStoreImpl 共享语义——生产 discipleTables 为
-    // 事务内共享可变实例（钩子标记/状态变更对同事务后序读取可见；
-    // 每次访问重建副本会丢失事务内前序写入，如教化之道钩子
-    // 的 lastTheftJudgementYears 标记 → 子事件 3 兜底误判 hasCandidate 重复
-    // 判定，与 C++ 当前态行为漂移）。事务内返回 activeTransaction 共享表，
+    // 事务内共享可变实例（状态变更对同事务后序读取可见；
+    // 每次访问重建副本会丢失事务内前序写入）。事务内返回 activeTransaction 共享表，
     // 事务外仍返回 committed 副本（只读桩语义）。
     override val discipleTables: DiscipleTables
         get() = activeTransaction?.discipleTables ?: DiscipleTables().also {

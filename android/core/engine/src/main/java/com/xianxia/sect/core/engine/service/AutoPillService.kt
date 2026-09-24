@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
@@ -23,8 +22,7 @@ import javax.inject.Singleton
 @Singleton
 @GameService("AutoPillService")
 class AutoPillService @Inject constructor(
-    private val pillManager: DisciplePillManager,
-    private val lawEnforcementProcessor: LawEnforcementProcessor
+    private val pillManager: DisciplePillManager
 ) {
 
     /**
@@ -59,7 +57,7 @@ class AutoPillService @Inject constructor(
                 nurtureEffect = { amount -> applyNurtureAddToEquipped(state, id, amount) }
             )
             if (result.disciple != disciple) {
-                writePillResultToTables(id, result.disciple, tables, state)
+                writePillResultToTables(id, result.disciple, tables)
                 // Checkpoint：丹药可能改变修炼速率（持续加速/瞬间增长），同步检查点
                 tables.checkpointDisciple(id, currentMonth)
             }
@@ -109,7 +107,6 @@ class AutoPillService @Inject constructor(
      *   由 canUsePill 兜底精确判定（性能近似、行为等价，与 C++ 指纹
      *   结构一致——C++ 侧因已物化弟子可做完整判定）
      * - 已服用过的永久属性丹：通过 [DiscipleTables.usedPermanentPillKeys] 查重
-     * - 已服用过的延寿丹：通过 [DiscipleTables.usedExtendLifePillTypes] 查重
      *
      * @return true 表示有至少一颗可自动服用的丹药
      */
@@ -120,8 +117,6 @@ class AutoPillService @Inject constructor(
         val items = tables.storageBagItems.getOrNull(id) ?: return false
         val usedPermanentKeys =
             tables.usedPermanentPillKeys.getOrNull(id).orEmpty()
-        val usedExtendLifeTypes =
-            tables.usedExtendLifePillTypes.getOrNull(id).orEmpty()
 
         return items.any { item ->
             if (item.itemType != "pill") return@any false
@@ -135,8 +130,7 @@ class AutoPillService @Inject constructor(
                     )
                     keys.none { it in usedPermanentKeys }
                 }
-                PillRule.PERMANENT_LIFE ->
-                    effect.pillType !in usedExtendLifeTypes
+                PillRule.PERMANENT_LIFE -> true
                 else -> {
                     // C1：满血/满蓝治疗丹指纹排除（与 canUsePill 同源口径）
                     if (isHealPillBlockedByFingerprint(id, tables, effect)) {
@@ -181,8 +175,7 @@ class AutoPillService @Inject constructor(
     private fun writePillResultToTables(
         id: Int,
         d: com.xianxia.sect.core.model.Disciple,
-        tables: DiscipleTables,
-        state: MutableGameState
+        tables: DiscipleTables
     ) {
         tables.storageBagItems[id] = d.equipment.storageBagItems
         tables.cultivations[id] = d.cultivation
@@ -192,21 +185,15 @@ class AutoPillService @Inject constructor(
         // 防止旧档残留加成继续影响速率
         tables.cultivationSpeedBonuses[id] = 0.0
         tables.cultivationSpeedDurations[id] = 0
-        tables.lifespans[id] = d.lifespan
         // 技能字段（永久属性丹）
         tables.intelligences[id] = d.skills.intelligence
         tables.charms[id] = d.skills.charm
-        tables.loyalties[id] = d.skills.loyalty
         tables.comprehensions[id] = d.skills.comprehension
         tables.artifactRefinings[id] = d.skills.artifactRefining
         tables.pillRefinings[id] = d.skills.pillRefining
         tables.spiritPlantings[id] = d.skills.spiritPlanting
         tables.teachings[id] = d.skills.teaching
         tables.moralities[id] = d.skills.morality
-        // 道德变化后即时触发偷盗判定（事务内版本）
-        if (d.skills.morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
-            lawEnforcementProcessor.processSingleDiscipleTheft(id, state)
-        }
         tables.minings[id] = d.skills.mining
         // PillEffects 字段
         tables.pillPhysicalAttackBonuses[id] =
@@ -236,8 +223,6 @@ class AutoPillService @Inject constructor(
         // 使用追踪
         tables.usedPermanentPillKeys[id] =
             d.usage.usedPermanentPillKeys
-        tables.usedExtendLifePillTypes[id] =
-            d.usage.usedExtendLifePillTypes
         // HP/MP（治疗丹）
         tables.currentHps[id] = d.combat.currentHp
         tables.currentMps[id] = d.combat.currentMp

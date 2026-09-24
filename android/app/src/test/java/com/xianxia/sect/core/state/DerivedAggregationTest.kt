@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,8 +119,7 @@ class DerivedAggregationTest {
         id = id.toString(),
         name = "弟子$id",
         realm = 9,
-        cultivation = 100.0 * id,
-        skills = SkillStats(loyalty = 50)
+        cultivation = 100.0 * id
     ).copy(isAlive = alive)
 
     /**

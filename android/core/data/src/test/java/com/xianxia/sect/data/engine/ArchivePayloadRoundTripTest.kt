@@ -55,8 +55,6 @@ class ArchivePayloadRoundTripTest {
         cultivationCheckpoint = 6789.0,
         cultivationCheckpointGameMonth = 240,
         spiritRootType = "ice",
-        age = 210,
-        lifespan = 300,
         isAlive = false,
         gender = "female",
         portraitRes = "portrait_42",
@@ -69,8 +67,7 @@ class ArchivePayloadRoundTripTest {
         statusData = mapOf("cause" to "battle", "killer" to "enemy_9"),
         cultivationSpeedBonus = 0.25,
         cultivationSpeedDuration = 12,
-        discipleType = "inner",
-        soulPower = 33
+        discipleType = "inner"
     ).withRichExtras()
 
     /** 装备/技能/战斗/使用记录的富化块（与 [richDisciple] 拆开以满足 detekt 单函数 60 行阈值） */
@@ -87,7 +84,6 @@ class ArchivePayloadRoundTripTest {
         skills = SkillStats(
             intelligence = 66,
             charm = 55,
-            loyalty = 88,
             comprehension = 71,
             aptitude = 92,
             alchemyLevel = 4,
@@ -108,7 +104,6 @@ class ArchivePayloadRoundTripTest {
         usage = UsageTracking(
             recruitedMonth = 120,
             usedFunctionalPillTypes = listOf("pill_atk"),
-            usedExtendLifePillIds = listOf("pill_life_1"),
             hasReviveEffect = true
         )
     )

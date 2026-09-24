@@ -78,22 +78,20 @@ nlohmann::json handleChatEffectTx(GameCore& core, const nlohmann::json& p) {
     const auto yearIt = p.find("currentYear");
     const auto cultIt = p.find("cultivationDelta");
     const auto morIt = p.find("moralityDelta");
-    const auto loyIt = p.find("loyaltyDelta");
     const auto intIt = p.find("intelligenceDelta");
     if (idIt == p.end() || !idIt->is_number_integer() ||
         yearIt == p.end() || !yearIt->is_number_integer() ||
         cultIt == p.end() || !cultIt->is_number() ||
         morIt == p.end() || !morIt->is_number_integer() ||
-        loyIt == p.end() || !loyIt->is_number_integer() ||
         intIt == p.end() || !intIt->is_number_integer()) {
         return invalidParams(
             "chat effect requires discipleId/currentYear(int), "
-            "cultivationDelta(number), morality/loyalty/intelligenceDelta(int)");
+            "cultivationDelta(number), morality/intelligenceDelta(int)");
     }
     const auto r = gamecore::system::chat_tx::applyChatEffectTx(
         core.state(), idIt->get<int32_t>(), yearIt->get<int32_t>(),
         cultIt->get<double>(), morIt->get<int32_t>(),
-        loyIt->get<int32_t>(), intIt->get<int32_t>());
+        intIt->get<int32_t>());
     // 弟子不存在 = 成功无操作（Kotlin `return@update` 同语义，非失败信封）
     return ok({{"applied", true}, {"found", r.found}});
 }

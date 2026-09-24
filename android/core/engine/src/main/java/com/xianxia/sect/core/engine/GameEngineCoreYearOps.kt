@@ -30,7 +30,6 @@ internal data class AgedDeathDraft(
     val discipleId: String,
     val name: String,
     val surname: String,
-    val age: Int,
     val realm: Int,
     val realmLayer: Int,
     val deathYear: Int,
@@ -41,8 +40,7 @@ internal data class AgedDeathDraft(
 internal data class BereavementDraft(
     val grievingId: Int,
     val relationship: String,
-    val deceasedName: String,
-    val grievingAge: Int
+    val deceasedName: String
 )
 
 /**
@@ -91,11 +89,10 @@ internal fun parseYearSettlementEnvelope(envJson: String): YearSettlementEnvelop
             discipleId = discipleId,
             name = obj["name"]?.jsonPrimitive?.contentOrNull ?: "",
             surname = obj["surname"]?.jsonPrimitive?.contentOrNull ?: "",
-            age = obj["age"]?.jsonPrimitive?.intOrNull ?: 0,
             realm = obj["realm"]?.jsonPrimitive?.intOrNull ?: 9,
             realmLayer = obj["realmLayer"]?.jsonPrimitive?.intOrNull ?: 1,
             deathYear = obj["deathYear"]?.jsonPrimitive?.intOrNull ?: 0,
-            cause = obj["cause"]?.jsonPrimitive?.contentOrNull ?: "age",
+            cause = obj["cause"]?.jsonPrimitive?.contentOrNull ?: "unknown",
             storageBagItems = runCatching {
                 (obj["storageBagItems"]?.jsonArray ?: emptyList()).mapNotNull { item ->
                     runCatching {
@@ -113,8 +110,7 @@ internal fun parseYearSettlementEnvelope(envJson: String): YearSettlementEnvelop
         BereavementDraft(
             grievingId = grievingId,
             relationship = obj["relationship"]?.jsonPrimitive?.contentOrNull ?: "亲属",
-            deceasedName = obj["deceasedName"]?.jsonPrimitive?.contentOrNull ?: "",
-            grievingAge = obj["grievingAge"]?.jsonPrimitive?.intOrNull ?: 0
+            deceasedName = obj["deceasedName"]?.jsonPrimitive?.contentOrNull ?: ""
         )
     } ?: emptyList()
 

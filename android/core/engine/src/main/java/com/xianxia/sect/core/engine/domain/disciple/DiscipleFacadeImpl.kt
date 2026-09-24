@@ -8,7 +8,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.service.CultivationService
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
@@ -45,9 +44,6 @@ class DiscipleFacadeImpl @Inject constructor(
     internal val pillManager: DisciplePillManager,
     private val assignmentGate: DiscipleAssignmentGate,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
-    // internal（原 private）：W4-A·w3-01 偷盗判定钩子残差需在 native 分支
-    // （DiscipleFacadeImpl战斗Ops2 扩展）以镜像刷新后的状态原序执行
-    internal val lawEnforcementProcessor: LawEnforcementProcessor,
     private val productionCoordinator: ProductionCoordinator,
 ) : DiscipleFacade {
 
@@ -126,18 +122,16 @@ class DiscipleFacadeImpl @Inject constructor(
     }
 
     override fun releaseReflectionDisciple(discipleId: String) {
-        // AUTHORITATIVE：native 臂（batch-14）——null=未转发/失败信封 → 回退原路径
-        val nativeWritten = tryNativeReleaseReflection(discipleId)
-        if (nativeWritten == null) {
-            stateStore.update {
-                val id = discipleId.toIntOrNull() ?: return@update
-                if (!discipleTables.ids.contains(id)) return@update
-                if (discipleTables.isAlive[id] != 1) return@update
-                val existingData = discipleTables.statusData[id]
-                discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
-                // 清除受保护状态标记，使 deriveDiscipleStatus 可以重新推导（否则 REFLECTING 受保护检查会锁定状态）
-                discipleTables.statuses[id] = DiscipleStatus.IDLE
-            }
+        // 旧档 REFLECTING 归一化（思过系统已下线、1593 留洞不复用）：
+        // 清 statusData 思过双键 → 状态回 IDLE，交 syncSingleDiscipleStatus 重推导
+        stateStore.update {
+            val id = discipleId.toIntOrNull() ?: return@update
+            if (!discipleTables.ids.contains(id)) return@update
+            if (discipleTables.isAlive[id] != 1) return@update
+            val existingData = discipleTables.statusData[id]
+            discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
+            // 清除受保护状态标记，使 deriveDiscipleStatus 可以重新推导（否则 REFLECTING 受保护检查会锁定状态）
+            discipleTables.statuses[id] = DiscipleStatus.IDLE
         }
         discipleService.syncSingleDiscipleStatus(discipleId)
     }
@@ -269,10 +263,6 @@ class DiscipleFacadeImpl @Inject constructor(
             applySkillExpEffect(id = id, effect = effect)
         }
 
-        if (effect.extendLife > 0) {
-            applyExtendLifeEffect(id = id, effect = effect, pill = pill)
-        }
-
         if (DisciplePillManager.hasAnyBaseAttrAdd(
                 pillManager.pillToItemEffect(pill)
             )
@@ -299,12 +289,10 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    /** 永久基础属性丹效果：技能属性 + 道德触发偷盗判定 + 记录使用 */
+    /** 永久基础属性丹效果：技能属性 + 记录使用 */
     internal fun MutableGameState.applyBaseAttrEffects(id: Int, effect: PillEffect, pill: Pill) {
         discipleTables.intelligences[id] = discipleTables.intelligences[id].boundedAdd(effect.intelligenceAdd)
         discipleTables.charms[id] = discipleTables.charms[id].boundedAdd(effect.charmAdd)
-        discipleTables.loyalties[id] =
-            discipleTables.loyalties[id].boundedAdd(effect.loyaltyAdd, GameConfig.Disciple.MAX_LOYALTY)
         discipleTables.comprehensions[id] = discipleTables.comprehensions[id].boundedAdd(effect.comprehensionAdd)
         discipleTables.artifactRefinings[id] =
             discipleTables.artifactRefinings[id].boundedAdd(effect.artifactRefiningAdd)
@@ -312,11 +300,6 @@ class DiscipleFacadeImpl @Inject constructor(
         discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id].boundedAdd(effect.spiritPlantingAdd)
         discipleTables.teachings[id] = discipleTables.teachings[id].boundedAdd(effect.teachingAdd)
         discipleTables.moralities[id] = discipleTables.moralities[id].boundedAdd(effect.moralityAdd)
-        // 道德降低后即时触发偷盗判定（事务内版本，避免重入写覆盖）
-        val newMoral = discipleTables.moralities[id]
-        if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
-            lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
-        }
         discipleTables.minings[id] =
             (discipleTables.minings[id] + effect.miningAdd)
                 .coerceIn(0, GameConfig.Disciple.SKILL_MAX)
@@ -525,10 +508,9 @@ internal fun MutableGameState.applyLearnedManualToTables(id: Int, stack: ManualS
         discipleTables.currentMps[id] = newMp
 
         // 记录学习功法日志
-        val learnAge = discipleTables.ages[id]
         val learnEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
         discipleTables.lifeEvents[id] = learnEvents +
-            "${learnAge}岁：学习了${stack.name}"
+            "学习了${stack.name}"
     }
 }
 
@@ -560,8 +542,7 @@ private fun clearDirectDiscipleSlot(slots: ElderSlots, elderSlotType: String, sl
     }
 
 /**
- * 有界累加：`this + add` 后钳制到 [0, max]（属性上限 200 / 忠诚 100 统一入口）。
+ * 属性值有界累加：`this + add` 后钳制到 [0, max]（技能属性上限统一入口）。
  * 列直写场景的行宽受限（120 字符），抽为扩展函数保持调用点单行可读。
  */
-/** 属性值有界累加：默认钳到技能上限（忠诚等特殊上限显式传参覆盖）。 */
 private fun Int.boundedAdd(add: Int, max: Int = GameConfig.Disciple.SKILL_MAX): Int = (this + add).coerceIn(0, max)

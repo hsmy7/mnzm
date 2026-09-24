@@ -23,8 +23,6 @@ data class DiscipleAggregate(
         DiscipleStatus.valueOf(core.status) 
     }.getOrElse { DiscipleStatus.IDLE }
     val discipleType: String get() = core.discipleType
-    val age: Int get() = core.age
-    val lifespan: Int get() = core.lifespan
     val gender: String get() = core.gender
     val portraitRes: String get() = core.portraitRes
     val spiritRootType: String get() = core.spiritRootType
@@ -34,7 +32,7 @@ data class DiscipleAggregate(
     val spiritRoot: SpiritRoot get() = SpiritRoot(spiritRootType)
     val spiritRootName: String get() = spiritRoot.name
     val realmName: String get() {
-        if (age < 5 || realmLayer == 0) return "无境界"
+        if (realmLayer == 0) return "无境界"
         // 仙人境界不显示层数
         if (realm == 0) return com.xianxia.sect.core.GameConfig.Realm.getName(realm)
         return "${com.xianxia.sect.core.GameConfig.Realm.getName(realm)}${realmLayer}层"
@@ -92,7 +90,6 @@ data class DiscipleAggregate(
     val storageBagItems: List<StorageBagItem> get() = equipment?.storageBagItems ?: emptyList()
     val storageBagSpiritStones: Long get() = equipment?.storageBagSpiritStones ?: 0
     val spiritStones: Int get() = equipment?.spiritStones ?: 0
-    val soulPower: Int get() = equipment?.soulPower ?: 0
 
     val manualIds: List<String> get() = extended?.manualIds ?: emptyList()
     val talentIds: List<String> get() = extended?.talentIds ?: emptyList()
@@ -121,17 +118,14 @@ data class DiscipleAggregate(
     val griefEndYear: Int? get() = extended?.griefEndYear
     val masterId: String? get() = extended?.masterId
     val usedFunctionalPillTypes: List<String> get() = extended?.usedFunctionalPillTypes ?: emptyList()
-    val usedExtendLifePillIds: List<String> get() = extended?.usedExtendLifePillIds ?: emptyList()
-    // usedPermanentPillKeys / usedExtendLifePillTypes 为 @Ignore 字段，
+    // usedPermanentPillKeys 为 @Ignore 字段，
     // 不在 DiscipleExtended Room 实体中。需要时请通过 Disciple StateFlow 获取。
     val usedPermanentPillKeys: Set<String> get() = emptySet()
-    val usedExtendLifePillTypes: Set<String> get() = emptySet()
     val hasReviveEffect: Boolean get() = extended?.hasReviveEffect ?: false
     val hasClearAllEffect: Boolean get() = extended?.hasClearAllEffect ?: false
 
     val intelligence: Int get() = attributes?.intelligence ?: DEFAULT_SKILL
     val charm: Int get() = attributes?.charm ?: DEFAULT_SKILL
-    val loyalty: Int get() = attributes?.loyalty ?: DEFAULT_SKILL
     val comprehension: Int get() = attributes?.comprehension ?: DEFAULT_SKILL
     val aptitude: Int get() = attributes?.aptitude ?: DEFAULT_SKILL
     val artifactRefining: Int get() = attributes?.artifactRefining ?: DEFAULT_SKILL
@@ -232,8 +226,6 @@ data class DiscipleAggregate(
             realmLayer = realmLayer,
             cultivation = cultivation,
             spiritRootType = spiritRootType,
-            age = age,
-            lifespan = lifespan,
             isAlive = isAlive,
             gender = gender,
             portraitRes = portraitRes,
@@ -247,7 +239,6 @@ data class DiscipleAggregate(
             cultivationSpeedBonus = cultivationSpeedBonus,
             cultivationSpeedDuration = cultivationSpeedDuration,
             discipleType = discipleType,
-            soulPower = soulPower,
             combat = toCombatAttributes(),
             pillEffects = toPillEffects(),
             usage = toUsageTracking(),
@@ -302,9 +293,7 @@ data class DiscipleAggregate(
     /** 使用追踪构建 */
     private fun toUsageTracking(): UsageTracking = UsageTracking(
         usedFunctionalPillTypes = usedFunctionalPillTypes,
-        usedExtendLifePillIds = usedExtendLifePillIds,
         usedPermanentPillKeys = usedPermanentPillKeys,
-        usedExtendLifePillTypes = usedExtendLifePillTypes,
         recruitedMonth = recruitedMonth,
         hasReviveEffect = hasReviveEffect,
         hasClearAllEffect = hasClearAllEffect
@@ -340,7 +329,6 @@ data class DiscipleAggregate(
     private fun toSkillStats(): SkillStats = SkillStats(
         intelligence = intelligence,
         charm = charm,
-        loyalty = loyalty,
         comprehension = comprehension,
         artifactRefining = artifactRefining,
         pillRefining = pillRefining,

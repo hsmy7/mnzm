@@ -39,7 +39,7 @@ class DiscipleTablesChangedIdTest {
     @Test
     fun `Int 列级写入记录弟子 id`() {
         val id = insertDisciple(1)
-        tables.loyalties[id] = 66
+        tables.moralities[id] = 66
         val changed = tables.changedIdTracker.consumeChangedIds()
         assertTrue("Int 列写入应记录 id=$id，实际=$changed", id in changed)
     }
@@ -71,7 +71,7 @@ class DiscipleTablesChangedIdTest {
     @Test
     fun `update 操作记录弟子 id`() {
         val id = insertDisciple(5)
-        tables.loyalties.update(id) { it + 10 }
+        tables.moralities.update(id) { it + 10 }
         val changed = tables.changedIdTracker.consumeChangedIds()
         assertTrue("update 应记录 id=$id，实际=$changed", id in changed)
     }
@@ -79,11 +79,11 @@ class DiscipleTablesChangedIdTest {
     @Test
     fun `同值写入不记录 changedId（短路）`() {
         val id = insertDisciple(6)
-        tables.loyalties[id] = 66
+        tables.moralities[id] = 66
         tables.changedIdTracker.consumeChangedIds()
 
         // 同值重写：短路跳过，不产生 changedId
-        tables.loyalties[id] = 66
+        tables.moralities[id] = 66
         val changed = tables.changedIdTracker.consumeChangedIds()
         assertTrue("同值重写不应记录 changedId，实际=$changed", changed.isEmpty())
     }
@@ -102,10 +102,10 @@ class DiscipleTablesChangedIdTest {
     @Test
     fun `不同值写入记录 changedId`() {
         val id = insertDisciple(8)
-        tables.loyalties[id] = 66
+        tables.moralities[id] = 66
         tables.changedIdTracker.consumeChangedIds()
 
-        tables.loyalties[id] = 60  // 不同值
+        tables.moralities[id] = 60  // 不同值
         val changed = tables.changedIdTracker.consumeChangedIds()
         assertTrue("不同值写入应记录 id=$id，实际=$changed", id in changed)
     }
@@ -113,8 +113,8 @@ class DiscipleTablesChangedIdTest {
     @Test
     fun `同一 id 多次写入仅记录一次`() {
         val id = insertDisciple(9)
-        tables.loyalties[id] = 10
-        tables.loyalties[id] = 20
+        tables.moralities[id] = 10
+        tables.moralities[id] = 20
         tables.cultivations[id] = 1.0
         val changed = tables.changedIdTracker.consumeChangedIds()
         assertEquals("同 id 多次写入应去重为 1 条", 1, changed.size)
@@ -126,8 +126,8 @@ class DiscipleTablesChangedIdTest {
         insertDisciple(10)
         insertDisciple(11)
         insertDisciple(12)
-        tables.loyalties[10] = 1
-        tables.loyalties[12] = 2
+        tables.moralities[10] = 1
+        tables.moralities[12] = 2
         tables.cultivations[11] = 3.0
         val changed = tables.changedIdTracker.consumeChangedIds()
         assertEquals(setOf(10, 11, 12), changed)

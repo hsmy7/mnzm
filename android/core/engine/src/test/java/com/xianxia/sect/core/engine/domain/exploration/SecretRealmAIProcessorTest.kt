@@ -39,8 +39,6 @@ class SecretRealmAIProcessorTest {
         name = "AI弟子$id",
         realm = realm,
         realmLayer = 1,
-        age = 30,
-        lifespan = 90,
         skills = SkillStats(comprehension = 100),
         statusData = emptyMap(),
         combat = CombatAttributes(currentHp = -1)

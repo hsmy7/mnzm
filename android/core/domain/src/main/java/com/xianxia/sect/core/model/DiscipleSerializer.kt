@@ -13,7 +13,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
  *
  * ## 为什么需要自定义序列化器
  * Disciple 域类型使用 Room @Embedded 将字段分散在 6 个子类中，但 Protobuf 要求
- * 所有 102 个字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
+ * 所有 96 个字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
  * @Embedded 子类上加 @ProtoNumber 会导致 Protobuf 产生嵌套消息，破坏向后兼容。
  *
  * ## 实现方式
@@ -51,8 +51,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             cultivationCheckpoint = value.cultivationCheckpoint.toLong(),
             cultivationCheckpointGameMonth = value.cultivationCheckpointGameMonth,
             spiritRootType = value.spiritRootType,
-            age = value.age,
-            lifespan = value.lifespan,
             isAlive = value.isAlive,
             gender = value.gender,
             portraitRes = value.portraitRes,
@@ -67,7 +65,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             cultivationSpeedBonus = value.cultivationSpeedBonus,
             cultivationSpeedDuration = value.cultivationSpeedDuration,
             discipleType = value.discipleType,
-            soulPower = value.soulPower,
             cultivationCompletionMonth = value.cultivationCompletionMonth,
             cultivationCompletionPhase = value.cultivationCompletionPhase,
             manualCompletionMonth = value.manualCompletionMonth,
@@ -151,9 +148,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
 
             // ===== UsageTracking @Embedded =====
             usedFunctionalPillTypes = value.usage.usedFunctionalPillTypes,
-            usedExtendLifePillIds = value.usage.usedExtendLifePillIds,
             usedPermanentPillKeys = value.usage.usedPermanentPillKeys.toList(),
-            usedExtendLifePillTypes = value.usage.usedExtendLifePillTypes.toList(),
             recruitedMonth = value.usage.recruitedMonth,
             hasReviveEffect = value.usage.hasReviveEffect,
             hasClearAllEffect = value.usage.hasClearAllEffect
@@ -165,7 +160,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             // ===== SkillStats @Embedded =====
             intelligence = value.skills.intelligence,
             charm = value.skills.charm,
-            loyalty = value.skills.loyalty,
             comprehension = value.skills.comprehension,
             artifactRefining = value.skills.artifactRefining,
             pillRefining = value.skills.pillRefining,
@@ -201,8 +195,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             cultivationCheckpoint = surrogate.cultivationCheckpoint.toDouble(),
             cultivationCheckpointGameMonth = surrogate.cultivationCheckpointGameMonth,
             spiritRootType = surrogate.spiritRootType,
-            age = surrogate.age,
-            lifespan = surrogate.lifespan,
             isAlive = surrogate.isAlive,
             gender = surrogate.gender,
             portraitRes = surrogate.portraitRes,
@@ -217,7 +209,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             cultivationSpeedBonus = surrogate.cultivationSpeedBonus,
             cultivationSpeedDuration = surrogate.cultivationSpeedDuration,
             discipleType = surrogate.discipleType,
-            soulPower = surrogate.soulPower,
             cultivationCompletionMonth = surrogate.cultivationCompletionMonth,
             cultivationCompletionPhase = surrogate.cultivationCompletionPhase,
             manualCompletionMonth = surrogate.manualCompletionMonth,
@@ -302,9 +293,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             ),
             usage = UsageTracking(
                 usedFunctionalPillTypes = surrogate.usedFunctionalPillTypes,
-                usedExtendLifePillIds = surrogate.usedExtendLifePillIds,
                 usedPermanentPillKeys = surrogate.usedPermanentPillKeys.toSet(),
-                usedExtendLifePillTypes = surrogate.usedExtendLifePillTypes.toSet(),
                 recruitedMonth = surrogate.recruitedMonth,
                 hasReviveEffect = surrogate.hasReviveEffect,
                 hasClearAllEffect = surrogate.hasClearAllEffect
@@ -317,7 +306,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             skills = SkillStats(
                 intelligence = surrogate.intelligence,
                 charm = surrogate.charm,
-                loyalty = surrogate.loyalty,
                 comprehension = surrogate.comprehension,
                 artifactRefining = surrogate.artifactRefining,
                 pillRefining = surrogate.pillRefining,
@@ -357,8 +345,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(101) val cultivationCheckpoint: Long = 0L,        // 域模型为 Double，序列化为 Long
         @ProtoNumber(91) val cultivationCheckpointGameMonth: Int = 0,
         @ProtoNumber(6) val spiritRootType: String = "metal",
-        @ProtoNumber(7) val age: Int = 16,
-        @ProtoNumber(8) val lifespan: Int = 80,
+        // reserved 7,8,29,50,76,88;（age/lifespan/soulPower/loyalty/usedExtendLifePillIds/
+        // usedExtendLifePillTypes 字段号已退役，禁止复用）
         @ProtoNumber(9) val isAlive: Boolean = true,
         @ProtoNumber(10) val gender: String = "male",
         @ProtoNumber(90) val portraitRes: String = "",
@@ -373,7 +361,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(34) val cultivationSpeedBonus: Double = 0.0,
         @ProtoNumber(35) val cultivationSpeedDuration: Int = 0,
         @ProtoNumber(74) val discipleType: String = "outer",
-        @ProtoNumber(29) val soulPower: Int = 0,
         @ProtoNumber(94) val cultivationCompletionMonth: Int = 0,
         @ProtoNumber(95) val cultivationCompletionPhase: Int = 1,
         @ProtoNumber(96) val manualCompletionMonth: Int = 0,
@@ -445,7 +432,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
         // ===== SkillStats @Embedded =====
         @ProtoNumber(84) val intelligence: Int = 50,
         @ProtoNumber(85) val charm: Int = 50,
-        @ProtoNumber(50) val loyalty: Int = 50,
         @ProtoNumber(51) val comprehension: Int = 50,
         @ProtoNumber(52) val artifactRefining: Int = 50,
         @ProtoNumber(53) val pillRefining: Int = 50,
@@ -465,9 +451,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
 
         // ===== UsageTracking @Embedded =====
         @ProtoNumber(75) val usedFunctionalPillTypes: List<String> = emptyList(),
-        @ProtoNumber(76) val usedExtendLifePillIds: List<String> = emptyList(),
         @ProtoNumber(87) val usedPermanentPillKeys: List<String> = emptyList(),
-        @ProtoNumber(88) val usedExtendLifePillTypes: List<String> = emptyList(),
         @ProtoNumber(59) val recruitedMonth: Int = 0,
         @ProtoNumber(77) val hasReviveEffect: Boolean = false,
         @ProtoNumber(78) val hasClearAllEffect: Boolean = false,

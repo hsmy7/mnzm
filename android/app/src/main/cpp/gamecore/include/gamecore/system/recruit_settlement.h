@@ -49,7 +49,6 @@ using gamecore::state::ManualProficiencyData;
 namespace settle_util = gamecore::system::settle_util;
 
 // ── 常量（Kotlin RecruitService / DiscipleTables / GameConfig / ManualProficiencySystem） ──
-constexpr int32_t kMaxReasonableAge = 10000;      // RecruitIntegrity.MAX_REASONABLE_AGE
 constexpr int32_t kRecruitMonthlyLimit = 30;      // GameConfig.RECRUIT_MONTHLY_LIMIT
 constexpr int32_t kDefaultAptitude = 50;          // DiscipleTables.DEFAULT_APTITUDE
 constexpr int64_t kAptitudeHashMultiplier = 527L; // DiscipleTables.APTITUDE_HASH_MULTIPLIER
@@ -99,12 +98,10 @@ inline std::string kotlinDoubleString(double v) {
 }
 
 // ── RecruitIntegrity 移植 ─────────────────────────────────────────
-
 /// 招募条目合法性（Kotlin RecruitIntegrity.isValidRecruit：
-/// name 非空白 && age in 1..10000 && realm in 0..9 && 灵根各段非空白）
+/// name 非空白 && realm in 0..9 && 灵根各段非空白）
 inline bool isValidRecruit(const Disciple& d) {
     if (isBlank(d.name)) return false;
-    if (d.age < 1 || d.age > kMaxReasonableAge) return false;
     if (d.realm < 0 || d.realm > 9) return false;   // VALID_REALM_RANGE = CONFIGS 键域 0..9
     // spiritRootType.split(",").all { isNotBlank }（空串 → [""] → false）
     if (d.spiritRootType.empty()) return false;
@@ -134,15 +131,9 @@ inline std::string samePersonSignature(const Disciple& d) {
            talents;
 }
 
-/// 跨表同人判定（Kotlin RecruitIntegrity.isSamePerson：签名相等 +
-/// 存活对称容差 2 / 已故非对称容差 2）
+/// 跨表同人判定（Kotlin RecruitIntegrity.isSamePerson：同人稳定签名相等）
 inline bool isSamePerson(const Disciple& a, const Disciple& b) {
-    if (samePersonSignature(a) != samePersonSignature(b)) return false;
-    if (b.isAlive) {
-        const int32_t diff = a.age > b.age ? a.age - b.age : b.age - a.age;
-        return diff <= 2;
-    }
-    return a.age >= b.age - 2;
+    return samePersonSignature(a) == samePersonSignature(b);
 }
 
 /// 内容去重判定（Kotlin `copy(id="same", slotId=0)` data class 全字段相等
@@ -153,8 +144,8 @@ inline bool discipleContentEquals(const Disciple& a, const Disciple& b) {
     if (a.cultivation != b.cultivation ||
         a.cultivationCheckpoint != b.cultivationCheckpoint ||
         a.cultivationCheckpointGameMonth != b.cultivationCheckpointGameMonth) return false;
-    if (a.spiritRootType != b.spiritRootType || a.age != b.age ||
-        a.lifespan != b.lifespan || a.isAlive != b.isAlive ||
+    if (a.spiritRootType != b.spiritRootType ||
+        a.isAlive != b.isAlive ||
         a.gender != b.gender || a.portraitRes != b.portraitRes) return false;
     if (a.manualIds != b.manualIds || a.talentIds != b.talentIds ||
         a.physiqueIds != b.physiqueIds || a.affixIds != b.affixIds) return false;
@@ -162,7 +153,7 @@ inline bool discipleContentEquals(const Disciple& a, const Disciple& b) {
     if (a.status != b.status || a.statusData != b.statusData) return false;
     if (a.cultivationSpeedBonus != b.cultivationSpeedBonus ||
         a.cultivationSpeedDuration != b.cultivationSpeedDuration) return false;
-    if (a.discipleType != b.discipleType || a.soulPower != b.soulPower) return false;
+    if (a.discipleType != b.discipleType) return false;
     if (a.cultivationCompletionMonth != b.cultivationCompletionMonth ||
         a.cultivationCompletionPhase != b.cultivationCompletionPhase ||
         a.manualCompletionMonth != b.manualCompletionMonth ||
@@ -251,7 +242,6 @@ inline bool discipleContentEquals(const Disciple& a, const Disciple& b) {
               x.effect->critEffectAdd == y.effect->critEffectAdd &&
               x.effect->intelligenceAdd == y.effect->intelligenceAdd &&
               x.effect->charmAdd == y.effect->charmAdd &&
-              x.effect->loyaltyAdd == y.effect->loyaltyAdd &&
               x.effect->comprehensionAdd == y.effect->comprehensionAdd &&
               x.effect->artifactRefiningAdd == y.effect->artifactRefiningAdd &&
               x.effect->pillRefiningAdd == y.effect->pillRefiningAdd &&
@@ -286,7 +276,7 @@ inline bool discipleContentEquals(const Disciple& a, const Disciple& b) {
         a.griefEndYear != b.griefEndYear ||
         a.masterId != b.masterId) return false;
     if (a.intelligence != b.intelligence || a.charm != b.charm ||
-        a.loyalty != b.loyalty || a.comprehension != b.comprehension ||
+        a.comprehension != b.comprehension ||
         a.artifactRefining != b.artifactRefining ||
         a.pillRefining != b.pillRefining ||
         a.spiritPlanting != b.spiritPlanting ||
@@ -299,9 +289,7 @@ inline bool discipleContentEquals(const Disciple& a, const Disciple& b) {
         a.forgeLevel != b.forgeLevel ||
         a.forgePromotionCount != b.forgePromotionCount) return false;
     if (a.usedPermanentPillKeys != b.usedPermanentPillKeys ||
-        a.usedExtendLifePillTypes != b.usedExtendLifePillTypes ||
-        a.usedFunctionalPillTypes != b.usedFunctionalPillTypes ||
-        a.usedExtendLifePillIds != b.usedExtendLifePillIds) return false;
+        a.usedFunctionalPillTypes != b.usedFunctionalPillTypes) return false;
     if (a.recruitedMonth != b.recruitedMonth ||
         a.hasReviveEffect != b.hasReviveEffect ||
         a.hasClearAllEffect != b.hasClearAllEffect) return false;
@@ -747,31 +735,12 @@ inline const char* manualRecruitReasonName(ManualRecruitReason r) {
 }
 
 /// 手动招募单招结果（reason=CORRUPTED 时 name 有效——供 Kotlin 组装
-/// "「name」数据异常" 提示；成功时 age 有效——供镜像补写 lifeEvents）
+/// "「name」数据异常" 提示）
 struct ManualRecruitResult {
     std::string newId;
     std::string name;
-    int32_t age = 0;
     ManualRecruitReason reason = ManualRecruitReason::kNotFound;
 };
-
-/// 各境界最小合理年龄（Kotlin GameConfig.Realm.REALM_MIN_REASONABLE_AGE；
-/// 未知境界回退炼气标准 10——软校验仅日志，不阻断招募）
-inline int32_t minReasonableAge(int32_t realm) {
-    switch (realm) {
-        case 9: return 10;
-        case 8: return 30;
-        case 7: return 60;
-        case 6: return 100;
-        case 5: return 200;
-        case 4: return 300;
-        case 3: return 500;
-        case 2: return 800;
-        case 1: return 1200;
-        case 0: return 2000;
-        default: return 10;
-    }
-}
 
 /// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 逐位等价：
 /// 上限检查 → 按 id 查找 → 完整性校验（损坏同事务移除）→ allocateAndInsert
@@ -796,17 +765,11 @@ inline ManualRecruitResult manualRecruitFromList(GameState& state, const std::st
     }
     const Disciple disciple = *it;
     result.name = disciple.name;
-    result.age = disciple.age;
     // 完整性校验：损坏条目同事务移除（幽灵立即消失，不再永久残留）
     if (!isValidRecruit(disciple)) {
         gd.recruitList.erase(it);
         result.reason = ManualRecruitReason::kCorrupted;
         return result;
-    }
-    // 年龄-境界合理性软校验（不阻断：俘虏玩法允许年轻高境界；日志级——C++
-    // 侧无日志通道接入点，与 Kotlin 行为差异仅为少一条 debug 日志）
-    if (disciple.age < minReasonableAge(disciple.realm)) {
-        // 软警告，保持游戏行为一致；不写日志（无 logger 引用）
     }
     const int32_t currentMonthIndex = gd.gameYear * 12 + gd.gameMonth;
     // 原子分配 ID + 写入组件表（allocateAndInsert 内置 recruitedMonth 设置，

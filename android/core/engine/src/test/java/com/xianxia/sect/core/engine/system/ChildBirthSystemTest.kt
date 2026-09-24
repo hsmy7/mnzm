@@ -62,7 +62,6 @@ class ChildBirthSystemTest {
             name = "父亲",
             surname = "赵",
             gender = "male",
-            age = 28,
             isAlive = fatherAlive,
             status = DiscipleStatus.IDLE,
             spiritRootType = fatherRoot,
@@ -74,7 +73,6 @@ class ChildBirthSystemTest {
             name = "母亲",
             surname = "王",
             gender = "female",
-            age = 25,
             isAlive = true,
             status = DiscipleStatus.IDLE,
             spiritRootType = motherRoot,
@@ -128,7 +126,8 @@ class ChildBirthSystemTest {
         val baby = requireNotNull(state.gameData.recruitList.singleOrNull()) {
             "新生儿应追加到 recruitList"
         }
-        assertEquals("新生儿 1 岁", 1, baby.age)
+        assertTrue("新生儿应有名字", baby.name.isNotBlank())
+        assertTrue("新生儿应存活", baby.isAlive)
         val motherAfter = state.discipleTables.assemble(1)
         assertNull("母亲 childBirthMonth 应重置", motherAfter.social.childBirthMonth)
         assertEquals("母亲 lastChildYear 应为当前年", 3, motherAfter.social.lastChildYear)

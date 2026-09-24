@@ -344,7 +344,7 @@ class GameEngineCoordinationTest {
             gameYear = 1, gameMonth = 1,
             recruitList = listOf(
                 com.xianxia.sect.core.model.Disciple(
-                    id = "r1", name = "候选招募", age = 16, realm = 9,
+                    id = "r1", name = "候选招募", realm = 9,
                     spiritRootType = "metal"
                 )
             )

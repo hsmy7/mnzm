@@ -387,7 +387,6 @@ class GuideTaskTest {
         assertEquals("autoPlantActivated", GuideCounterKeys.AUTO_PLANT_ACTIVATED)
         assertEquals("autoProductionActivated", GuideCounterKeys.AUTO_PRODUCTION_ACTIVATED)
         assertEquals("breakthroughs", GuideCounterKeys.BREAKTHROUGHS)
-        assertEquals("discipleImprisoned", GuideCounterKeys.DISCIPLE_IMPRISONED)
     }
 
     // ==================== GuideCondition.DiscipleReachRealm ====================

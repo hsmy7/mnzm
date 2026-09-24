@@ -128,7 +128,7 @@ class AISectDiscipleManagerTest {
     // ── 初始弟子按宗门等级分布境界；招募弟子固定炼气一层 ──
 
     @Test
-    fun `fillDisciplesToTarget - 新增弟子按宗门等级分布境界且年龄匹配`() {
+    fun `fillDisciplesToTarget - 新增弟子按宗门等级分布境界`() {
         AISectDiscipleManager.initForSlot(42L)
         // 大型宗门（level 2）：境界范围 4..9（炼虚~炼气）
         val maxRealm = SectLevel.maxRealmForLevel(2)
@@ -144,21 +144,16 @@ class AISectDiscipleManagerTest {
                 "境界 ${d.realm} 应在宗门等级允许范围 ${maxRealm + 1}..9",
                 d.realm in (maxRealm + 1)..9
             )
-            assertTrue(
-                "境界 ${d.realm} 弟子年龄 ${d.age} 应不低于最小合理年龄",
-                d.age >= GameConfig.Realm.minReasonableAge(d.realm)
-            )
         }
         // 分布应包含高境界弟子（非全炼气）
         assertTrue("大型宗门分布应含炼虚/化神等高境界弟子", result.any { it.realm < 9 })
     }
 
     @Test
-    fun `fillDisciplesToTarget - 存量高境界弟子 年龄不低于境界最小年龄`() {
-        // 存量老档高境界弟子保留原境界（只补装备/功法），年龄合理性守卫保留
+    fun `fillDisciplesToTarget - 存量高境界弟子保留原境界`() {
+        // 存量老档高境界弟子保留原境界（只补装备/功法）
         AISectDiscipleManager.initForSlot(7L)
-        val old = makeGearDisciple(realm = 4, realmLayer = 5, cultivation = 1000.0, lifespan = 800)
-            .copy(age = 12) // 非法年龄：炼虚最小合理年龄之下
+        val old = makeGearDisciple(realm = 4, realmLayer = 5, cultivation = 1000.0)
         val result = AISectDiscipleManager.fillDisciplesToTarget(
             sectName = "测试宗",
             existingDisciples = listOf(old),
@@ -178,7 +173,7 @@ class AISectDiscipleManagerTest {
     }
 
     @Test
-    fun `initializeSectDisciples - 境界按宗门等级分布且年龄匹配`() {
+    fun `initializeSectDisciples - 境界按宗门等级分布`() {
         AISectDiscipleManager.initForSlot(99L)
         for (level in intArrayOf(SectLevel.SMALL, SectLevel.MEDIUM, SectLevel.LARGE, SectLevel.TOP)) {
             val (disciples, maxRealm) = AISectDiscipleManager.initializeSectDisciples(
@@ -192,10 +187,6 @@ class AISectDiscipleManagerTest {
                 assertTrue(
                     "宗门等级 $level 弟子境界 ${d.realm} 应在 $allowedRange",
                     d.realm in allowedRange
-                )
-                assertTrue(
-                    "境界 ${d.realm} 弟子年龄 ${d.age} 应不低于最小合理年龄",
-                    d.age >= GameConfig.Realm.minReasonableAge(d.realm)
                 )
             }
             // 大型/顶级宗门应有高境界弟子（非全炼气）
@@ -359,7 +350,7 @@ class AISectDiscipleManagerTest {
         ManualDatabase.initializeWithManuals(testManuals())
         // realm 6 满修为弟子（大境界突破后 realm 5，装备品阶应升至 4）
         val disciple = AISectDiscipleManager.applyGearToDisciple(
-            makeGearDisciple(realm = 6, realmLayer = 3, cultivation = 9999999.0, lifespan = 300),
+            makeGearDisciple(realm = 6, realmLayer = 3, cultivation = 9999999.0),
             SectLevel.MEDIUM
         )
         val result = AISectDiscipleManager.processMonthlyCultivation(listOf(disciple), 1, SectLevel.MEDIUM)
@@ -383,7 +374,7 @@ class AISectDiscipleManagerTest {
     fun `processMonthlyCultivation - 突破失败HP和MP打一折`() {
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
-        val disciple = makeGearDisciple(realm = 6, realmLayer = 3, cultivation = 9999999.0, lifespan = 300)
+        val disciple = makeGearDisciple(realm = 6, realmLayer = 3, cultivation = 9999999.0)
             .copy(combat = CombatAttributes(
                 baseHp = 120, baseMp = 80,
                 currentHp = 120, currentMp = 80
@@ -683,7 +674,6 @@ class AISectDiscipleManagerTest {
         realm: Int = 9,
         realmLayer: Int = 1,
         cultivation: Double = 0.0,
-        lifespan: Int = 200,
         comprehension: Int = 50
     ): Disciple = Disciple(
         id = "gear_$realm",
@@ -691,7 +681,6 @@ class AISectDiscipleManagerTest {
         realm = realm,
         realmLayer = realmLayer,
         cultivation = cultivation,
-        lifespan = lifespan,
         isAlive = true,
         // 占位标签：ensureDiscipleGear 只查空补全，非空即视为已具备
         talentIds = listOf("t1"),

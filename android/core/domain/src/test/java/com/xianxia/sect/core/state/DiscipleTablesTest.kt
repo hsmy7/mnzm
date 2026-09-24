@@ -2,7 +2,6 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.loyalty
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -20,15 +19,13 @@ class DiscipleTablesTest {
         id: String = "1",
         name: String = "张三",
         realm: Int = 9,
-        cultivation: Double = 100.0,
-        loyalty: Int = 50
+        cultivation: Double = 100.0
     ): Disciple {
         return Disciple(
             id = id,
             name = name,
             realm = realm,
-            cultivation = cultivation,
-            skills = SkillStats(loyalty = loyalty)
+            cultivation = cultivation
         )
     }
 
@@ -45,12 +42,12 @@ class DiscipleTablesTest {
     }
 
     @Test
-    fun `update loyalty directly`() {
+    fun `update morality directly`() {
         val tables = DiscipleTables()
-        tables.insert(createTestDisciple(id = "1", loyalty = 50))
+        tables.insert(createTestDisciple(id = "1"))
 
-        tables.loyalties[1] = 90
-        assertEquals(90, tables.loyalties[1])
+        tables.moralities[1] = 90
+        assertEquals(90, tables.moralities[1])
     }
 
     @Test
@@ -65,7 +62,8 @@ class DiscipleTablesTest {
     @Test
     fun `assemble full Disciple from tables`() {
         val tables = DiscipleTables()
-        val original = createTestDisciple(id = "1", name = "李四", realm = 8, cultivation = 500.0, loyalty = 75)
+        val original = createTestDisciple(id = "1", name = "李四", realm = 8, cultivation = 500.0)
+            .copy(skills = SkillStats(morality = 75))
         tables.insert(original)
 
         val assembled = tables.assemble(1)
@@ -73,7 +71,7 @@ class DiscipleTablesTest {
         assertEquals("李四", assembled.name)
         assertEquals(8, assembled.realm)
         assertEquals(500.0, assembled.cultivation, 0.001)
-        assertEquals(75, assembled.skills.loyalty)
+        assertEquals(75, assembled.skills.morality)
     }
 
     @Test
@@ -163,18 +161,18 @@ class DiscipleTablesTest {
     @Test
     fun `deepCopy creates independent snapshot`() {
         val tables = DiscipleTables()
-        tables.insert(createTestDisciple(id = "1", cultivation = 100.0, loyalty = 50))
+        tables.insert(createTestDisciple(id = "1", cultivation = 100.0))
 
         val copy = tables.deepCopy()
         copy.cultivations[1] = 200.0
-        copy.loyalties[1] = 90
+        copy.moralities[1] = 90
 
         // Original unchanged
         assertEquals(100.0, tables.cultivations[1], 0.001)
-        assertEquals(50, tables.loyalties[1])
+        assertEquals(50, tables.moralities[1])
         // Copy has new values
         assertEquals(200.0, copy.cultivations[1], 0.001)
-        assertEquals(90, copy.loyalties[1])
+        assertEquals(90, copy.moralities[1])
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -452,7 +450,7 @@ class DiscipleTablesTest {
         val replacement = listOf(
             createTestDisciple(id = "2").copy(
                 physiqueIds = listOf("r1_phy_dmg_amp"),
-                affixIds = listOf("r1_aff_lifespan")
+                affixIds = listOf("r1_aff_base_int")
             ),
             createTestDisciple(id = "3").copy(
                 physiqueIds = emptyList(),
@@ -462,7 +460,7 @@ class DiscipleTablesTest {
         tables.replaceAll(replacement)
 
         assertEquals(listOf("r1_phy_dmg_amp"), tables.physiqueIds[2])
-        assertEquals(listOf("r1_aff_lifespan"), tables.affixIds[2])
+        assertEquals(listOf("r1_aff_base_int"), tables.affixIds[2])
         assertEquals(emptyList<String>(), tables.physiqueIds[3])
         assertEquals(listOf("r3_aff_manual_slot"), tables.affixIds[3])
         assertFalse("旧 ID 1 的 physiqueIds 应被清除", tables.physiqueIds.contains(1))

@@ -65,14 +65,6 @@ object DiscipleAttrDefaults {
     val FontSize = 11.sp
 }
 
-/**
- * 格式化弟子年龄显示文本。
- *
- * @param age 弟子年龄
- * @return 用于 UI 显示的年龄文本，如 "18岁"
- */
-fun formatDiscipleAge(age: Int): String = "${age}岁"
-
 @Composable
 fun DiscipleAttrText(
     name: String,
@@ -115,7 +107,7 @@ fun FollowedTag(
  * 统一的弟子卡片，左侧半身像 + 右侧多行信息。
  * 用于所有弟子列表和选择界面。
  * actions: 替换第一行右侧（状态/选中标记）
- * customAttributes: 替换第三行（悟性/忠诚）
+ * customAttributes: 替换第三行（悟性）
  * extraAttributes: 追加在第三行后面
  */
 @Composable
@@ -202,7 +194,7 @@ private fun PortraitDisciplePortraitColumn(disciple: DiscipleAggregate) {
     }
 }
 
-/** 弟子卡信息区第一行：性别/年龄/状态/选中标记/操作槽位 */
+/** 弟子卡信息区第一行：性别/状态/选中标记/操作槽位 */
 @Composable
 private fun PortraitDiscipleTopRow(
     disciple: DiscipleAggregate,
@@ -222,12 +214,7 @@ private fun PortraitDiscipleTopRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = disciple.genderName, fontSize = 12.sp, color = Color.Black)
-            Text(
-                text = formatDiscipleAge(disciple.age),
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-            // 当有自定义 actions 时，状态文字移至年龄右侧（避免与按钮挤在同一侧）
+            // 当有自定义 actions 时，状态文字前置显示（避免与按钮挤在同一侧）
             if (actions != null && showStatus) {
                 Text(text = statusText, fontSize = 12.sp, color = Color.Black, maxLines = 1)
             }
@@ -293,7 +280,7 @@ private fun PortraitDiscipleRealmRow(disciple: DiscipleAggregate) {
     }
 }
 
-/** 弟子卡信息区第三行：悟性/忠诚/自定义属性/附加属性 */
+/** 弟子卡信息区第三行：悟性/自定义属性/附加属性 */
 @Composable
 private fun PortraitDiscipleAttrsRow(
     disciple: DiscipleAggregate,
@@ -308,7 +295,6 @@ private fun PortraitDiscipleAttrsRow(
             customAttributes()
         } else {
             DiscipleAttrText(name = "悟性", value = disciple.comprehension)
-            DiscipleAttrText(name = "忠诚", value = disciple.loyalty)
         }
         extraAttributes.forEach { (name, value) ->
             DiscipleAttrText(name = name, value = value)

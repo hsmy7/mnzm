@@ -255,10 +255,8 @@ inline void from_json(const nlohmann::json& j, PillRecipeTemplate& v) {
     jread(j, "speedAdd", v.speedAdd);
     jread(j, "critRateAdd", v.critRateAdd);
     jread(j, "critEffectAdd", v.critEffectAdd);
-    jread(j, "extendLife", v.extendLife);
     jread(j, "intelligenceAdd", v.intelligenceAdd);
     jread(j, "charmAdd", v.charmAdd);
-    jread(j, "loyaltyAdd", v.loyaltyAdd);
     jread(j, "comprehensionAdd", v.comprehensionAdd);
     jread(j, "artifactRefiningAdd", v.artifactRefiningAdd);
     jread(j, "pillRefiningAdd", v.pillRefiningAdd);
@@ -296,10 +294,8 @@ inline void to_json(nlohmann::json& j, const PillRecipeTemplate& v) {
                        {"speedAdd", v.speedAdd},
                        {"critRateAdd", v.critRateAdd},
                        {"critEffectAdd", v.critEffectAdd},
-                       {"extendLife", v.extendLife},
                        {"intelligenceAdd", v.intelligenceAdd},
                        {"charmAdd", v.charmAdd},
-                       {"loyaltyAdd", v.loyaltyAdd},
                        {"comprehensionAdd", v.comprehensionAdd},
                        {"artifactRefiningAdd", v.artifactRefiningAdd},
                        {"pillRefiningAdd", v.pillRefiningAdd},

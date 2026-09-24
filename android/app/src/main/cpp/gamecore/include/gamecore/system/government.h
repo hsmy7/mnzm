@@ -21,8 +21,8 @@
 //   - 时间缩减/加速（calculateReducedDuration/calculateAcceleratedTime）
 //   - 政策月度成本（processPolicyCosts：固定/按弟子数/周期性三模式）
 //   - 灵矿月度产出（SpiritMineZones.calculateMonthly：时间戳差分结算）
-//   - 年度年俸（processAnnualSalary 核心：开源节流 -30%、忠诚 ±1）
-//   - 政策月度忠诚/道德效果（processPolicyMonthlyEffects）
+//   - 年度年俸（processAnnualSalary 核心：开源节流 -30%）
+//   - 政策月度道德效果（processPolicyMonthlyEffects）
 //
 // 与 Kotlin 语义对齐要点：
 //   - roundToLong = std::round（Kotlin roundToLong 四舍五入）
@@ -52,15 +52,9 @@ constexpr int64_t kBenevolentGovernancePerDisciple = 100;  // 全弟子
 // 周期性消耗
 constexpr int64_t kOpenRecruitmentCost = 50000;            // 每 3 年
 constexpr int32_t kOpenRecruitmentCooldownMonths = 36;
-// 月度忠诚/道德效果
+// 月度道德效果
 constexpr int32_t kMoralEducationPerMonth = 1;             // 道德 +1
-constexpr int32_t kBenevolentLoyaltyPerMonth = 1;          // 忠诚 +1
-constexpr int32_t kRelaxedMgmtLoyaltyPerMonth = 2;         // 忠诚 +2
-constexpr int32_t kStrictTrainingLoyaltyPerMonth = -1;     // 忠诚 -1
-constexpr int32_t kEnhancedSecurityLoyaltyPerMonth = -1;   // 忠诚 -1
-constexpr int32_t kCurfewLoyaltyPerMonth = -1;             // 忠诚 -1
 constexpr int32_t kMoralEducationMax = 70;                 // 道德上限
-constexpr int32_t kMaxLoyalty = 100;                       // 忠诚上限
 // 开源节流年俸削减
 constexpr double kFrugalitySalaryReduction = 0.30;         // -30%
 
@@ -205,20 +199,13 @@ inline PolicyCostResult processPolicyCosts(
     return out;
 }
 
-// ── 政策月度忠诚/道德效果（Kotlin processPolicyMonthlyEffects）───
+// ── 政策月度道德效果（Kotlin processPolicyMonthlyEffects）───────
 
-/// 单弟子月度忠诚/道德净变化
-/// @return (loyaltyDelta, moralityDelta)（调用方应用 clamp）
-inline std::pair<int32_t, int32_t> policyMonthlyDeltas(
+/// 单弟子月度道德净变化
+/// @return moralityDelta（调用方应用 clamp）
+inline int32_t policyMonthlyMoralityDelta(
     const state::SectPolicies& policies) {
-    int32_t loyaltyDelta = 0;
-    if (policies.benevolentGovernance) loyaltyDelta += kBenevolentLoyaltyPerMonth;
-    if (policies.relaxedMgmt) loyaltyDelta += kRelaxedMgmtLoyaltyPerMonth;
-    if (policies.strictTraining) loyaltyDelta += kStrictTrainingLoyaltyPerMonth;
-    if (policies.enhancedSecurity) loyaltyDelta += kEnhancedSecurityLoyaltyPerMonth;
-    if (policies.curfew) loyaltyDelta += kCurfewLoyaltyPerMonth;
-    const int32_t moralityDelta = policies.moralEducation ? kMoralEducationPerMonth : 0;
-    return {loyaltyDelta, moralityDelta};
+    return policies.moralEducation ? kMoralEducationPerMonth : 0;
 }
 
 // ── 灵矿产出（Kotlin SpiritMineZones）──────────────────────────
@@ -337,13 +324,13 @@ inline SalaryPlan calculateSalaryPlan(
     return plan;
 }
 
-/// 年俸发放（Kotlin processAnnualSalary 核心）：开源节流 -30%、忠诚 +1
+/// 年俸发放（Kotlin processAnnualSalary 核心）：开源节流 -30%
 /// @param frugality 是否开源节流政策
 /// @return 实际发放的年俸（灵石不足返回 0 表示未发放）
 inline int64_t payAnnualSalary(state::GameData& gd, const SalaryPlan& plan,
                                bool frugality) {
     if (plan.totalRequired <= 0) return 0;
-    // 灵石不足 → 不发俸禄（调用方负责忠诚 -1）
+    // 灵石不足 → 不发俸禄
     if (gd.spiritStones < plan.totalRequired) return 0;
     const double salaryMultiplier =
         frugality ? (1.0 - kFrugalitySalaryReduction) : 1.0;
@@ -351,7 +338,7 @@ inline int64_t payAnnualSalary(state::GameData& gd, const SalaryPlan& plan,
                                              SpiritStoneGrade::LOW, "Salary",
                                              "Salary", true);
     if (r.status != DeductStatus::kSuccess) return 0;
-    // 逐弟子发放（忠诚发放由调用方处理——本函数只计算实际金额）
+    // 逐弟子发放（本函数只计算实际金额）
     return static_cast<int64_t>(
         std::round(plan.totalRequired * salaryMultiplier));
 }

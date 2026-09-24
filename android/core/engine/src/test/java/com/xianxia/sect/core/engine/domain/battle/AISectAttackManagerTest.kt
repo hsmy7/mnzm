@@ -14,7 +14,6 @@ import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.util.GameRngManager
@@ -377,12 +376,10 @@ class AISectAttackManagerTest {
         try {
             val healer = Disciple(
                 id = "healer", name = "healer", realm = 7, realmLayer = 1, isAlive = true,
-                skills = SkillStats(loyalty = 50),
                 manualIds = listOf("manual_heal")
             )
             val attacker = Disciple(
-                id = "att", name = "att", realm = 7, realmLayer = 1, isAlive = true,
-                skills = SkillStats(loyalty = 50)
+                id = "att", name = "att", realm = 7, realmLayer = 1, isAlive = true
             )
             val defenderSect = WorldSect(id = "s_def")
             val result = AISectAttackManager.executeSectBattle(
@@ -412,7 +409,6 @@ class AISectAttackManagerTest {
         // 旧 attackSect 用 convertToCombatant 处理玩家弟子 → 裸装无技能 → 高境界打低境界也必败。
         val player = Disciple(
             id = "player-1", name = "玩家元婴", realm = 3, realmLayer = 3, isAlive = true,
-            skills = SkillStats(loyalty = 50),
             manualIds = listOf("inst-manual-uuid-1"),
             equipment = EquipmentSet(weaponId = "inst-weapon-uuid-1")
         )
@@ -431,7 +427,6 @@ class AISectAttackManagerTest {
         // 玩家高境界弟子（realm=3 元婴）：装备/功法字段为实例 id（玩家侧存储语义）
         val player = Disciple(
             id = "player-1", name = "玩家元婴", realm = 3, realmLayer = 3, isAlive = true,
-            skills = SkillStats(loyalty = 50),
             manualIds = listOf("inst-manual-uuid-1"),
             equipment = EquipmentSet(
                 weaponId = "inst-weapon-uuid-1",
@@ -473,8 +468,7 @@ class AISectAttackManagerTest {
 
         // AI 低境界守军（realm=7 金丹，无装备功法 → 白板）
         val aiDefender = Disciple(
-            id = "ai-1", name = "AI金丹", realm = 7, realmLayer = 1, isAlive = true,
-            skills = SkillStats(loyalty = 50)
+            id = "ai-1", name = "AI金丹", realm = 7, realmLayer = 1, isAlive = true
         )
         val result = AISectAttackManager.executeSectBattleWithCombatantAttackers(
             combatAttackers = listOf(playerCombatant),

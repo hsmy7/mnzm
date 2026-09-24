@@ -30,8 +30,6 @@ constexpr double kLayerMultiplier = 0.1;         // LAYER_MULTIPLIER
 constexpr double kBaseCritRate = 0.05;           // BASE_CRIT_RATE
 constexpr double kMinCultivationPerPhase = 1.0;  // MIN_CULTIVATION_PER_PHASE
 constexpr int32_t kBaseManualSlots = 6;          // BASE_MANUAL_SLOTS
-constexpr int32_t kSoulPowerDivisor = 20;        // SOUL_POWER_DIVISOR
-constexpr int32_t kSoulPowerMaxSteps = 5;        // SOUL_POWER_MAX_STEPS
 
 constexpr double kAptitudeBaseline = 80.0;       // APTITUDE_BASELINE
 constexpr double kAptitudeBonusPerPoint = 0.01;  // APTITUDE_BONUS_PER_POINT
@@ -41,10 +39,6 @@ constexpr double kGriefCultivationPenalty = 0.50;    // GRIEF_CULTIVATION_SPEED_
 constexpr double kGriefBreakthroughPenalty = 0.20;   // GRIEF_BREAKTHROUGH_CHANCE_PENALTY
 constexpr double kMasterCultBonusPerGap = 0.05;      // MASTER_DISCIPLE_CULTIVATION_BONUS_PER_GAP
 constexpr double kMasterBreakBonusPerGap = 0.03;     // MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP
-
-constexpr double kLifespanPenaltyThreshold = 0.20;         // LIFESPAN_PENALTY_THRESHOLD
-constexpr double kLifespanCultPenaltyPerPct = 0.05;        // LIFESPAN_CULTIVATION_PENALTY_PER_PCT
-constexpr double kLifespanBreakPenaltyPerPct = 0.02;       // LIFESPAN_BREAKTHROUGH_PENALTY_PER_PCT
 
 constexpr double kMaxBloodRefinementPct = 10.0;  // MAX_BLOOD_REFINEMENT_PCT
 
@@ -169,7 +163,6 @@ struct BaseStatsInput {
     // 技能（skill 属性）
     int32_t intelligence = 0;
     int32_t charm = 0;
-    int32_t loyalty = 0;
     int32_t comprehension = 0;
     int32_t aptitude = 50;
     int32_t teaching = 0;
@@ -203,7 +196,6 @@ struct DiscipleStats {
     double critRate = kBaseCritRate;
     int32_t intelligence = 0;
     int32_t charm = 0;
-    int32_t loyalty = 0;
     int32_t comprehension = 0;
     int32_t aptitude = 0;
     int32_t teaching = 0;
@@ -266,7 +258,6 @@ inline DiscipleStats computeBaseStats(const BaseStatsInput& in) {
     s.critRate = kBaseCritRate + critBonus;
     s.intelligence = in.intelligence + static_cast<int32_t>(effectValue(in.talentEffects, "intelligenceFlat"));
     s.charm = in.charm + static_cast<int32_t>(effectValue(in.talentEffects, "charmFlat"));
-    s.loyalty = in.loyalty + static_cast<int32_t>(effectValue(in.talentEffects, "loyaltyFlat"));
     s.comprehension = in.comprehension + static_cast<int32_t>(effectValue(in.talentEffects, "comprehensionFlat"));
     s.aptitude = in.aptitude;
     s.teaching = in.teaching + static_cast<int32_t>(effectValue(in.talentEffects, "teachingFlat"));
@@ -314,12 +305,6 @@ struct BreakthroughZones {
     double adFlatBonus = 0.0;
 };
 
-/// 魂力突破加成（Kotlin getSoulPowerBreakthroughBonus）
-inline double soulPowerBreakthroughBonus(int32_t soulPower) {
-    return static_cast<double>(std::min(soulPower / kSoulPowerDivisor,
-                                        kSoulPowerMaxSteps)) / 100.0;
-}
-
 /// 最终突破概率（Kotlin calculateBreakthroughChance 等价）
 inline double calculateBreakthroughChance(const BreakthroughZones& zones) {
     const double positiveMult = 1.0 + zones.elderGuidance + zones.selfBonus;
@@ -344,30 +329,7 @@ inline double getBreakthroughChance(int32_t realm, int32_t rootCount,
     return std::round(rawProb * 100.0) / 100.0;
 }
 
-// ── 寿命/魂力/师徒/父母/丧亲 ────────────────────────────────────
-
-/// 剩余寿命百分比（0.0~1.0；lifespan<=0 返回 1.0 无惩罚）
-inline double calculateLifespanRemainingPercent(int32_t age, int32_t lifespan) {
-    if (lifespan <= 0) return 1.0;
-    return static_cast<double>(std::max(lifespan - age, 0)) /
-           static_cast<double>(lifespan);
-}
-
-/// 寿命将尽对修炼速度的惩罚（剩余 <20% 时每百分点 -5%）
-inline double calculateLifespanCultivationPenalty(int32_t age, int32_t lifespan) {
-    const double remaining = calculateLifespanRemainingPercent(age, lifespan);
-    if (remaining >= kLifespanPenaltyThreshold) return 0.0;
-    const double deficitPercent = (kLifespanPenaltyThreshold - remaining) * 100.0;
-    return deficitPercent * kLifespanCultPenaltyPerPct;
-}
-
-/// 寿命将尽对突破率的惩罚（剩余 <20% 时每百分点 -2%）
-inline double calculateLifespanBreakthroughPenalty(int32_t age, int32_t lifespan) {
-    const double remaining = calculateLifespanRemainingPercent(age, lifespan);
-    if (remaining >= kLifespanPenaltyThreshold) return 0.0;
-    const double deficitPercent = (kLifespanPenaltyThreshold - remaining) * 100.0;
-    return deficitPercent * kLifespanBreakPenaltyPerPct;
-}
+// ── 师徒/父母/丧亲 ──────────────────────────────────────────────
 
 /// 师徒大境界差（"隔整境界才算"：gap = disciple - master - 1，下限 0）
 inline int32_t getMasterDiscipleRealmGap(int32_t discipleRealm, int32_t masterRealm) {
@@ -403,24 +365,6 @@ inline double getParentSpiritRootBonus(int32_t spiritRootCount) {
 /// 是否处于丧亲悲痛期（griefEndYear 非空且 currentYear < griefEndYear）
 inline bool isGrieving(int32_t griefEndYear, bool hasGrief, int32_t currentYear) {
     return hasGrief && currentYear < griefEndYear;
-}
-
-/// 境界寿命增益（Kotlin lifespanGainForRealm：realm 0→10000 … 8→40）
-/// 按境界占用率校准：各境界 9 层理想修炼耗时 ≈ 进入该境时剩余寿命的 80%
-/// （筑基层受 maxAge 120 死亡下限钳制，最高只能到 ~53%；炼气段由凡人 80 寿锚定 ~25%）
-inline int32_t lifespanGainForRealm(int32_t realm) {
-    switch (realm) {
-        case 8: return 40;
-        case 7: return 95;
-        case 6: return 255;
-        case 5: return 500;
-        case 4: return 825;
-        case 3: return 1650;
-        case 2: return 3350;
-        case 1: return 6640;
-        case 0: return 10000;
-        default: return 0;
-    }
 }
 
 }  // namespace gamecore::disciple

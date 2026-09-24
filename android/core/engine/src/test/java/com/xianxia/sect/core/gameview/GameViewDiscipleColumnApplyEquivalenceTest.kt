@@ -31,7 +31,7 @@ import org.robolectric.RobolectricTestRunner
  * 每场景 = 同一基线表两份 → 老臂/新臂各应用同一补丁 → 断言：
  * ① 组装弟子逐字段全等（覆盖 ~百列经域模型的读取面）；
  * ② 协议外/稀疏列净效果全等（lifeEvents 瞬态清空、slotIds 恒 0 回写、
- *    deathYears/lastTheftJudgementYears 稀疏列零触碰——assemble 覆盖不到的面）；
+ *    deathYears 稀疏列零触碰——assemble 覆盖不到的面）；
  * ③ changedIdTracker 净效果全等（增量组装基建依赖）。
  *
  * 场景覆盖：热路径标量、全行 emit-always、repeated 整列替换、映射列、社交
@@ -72,13 +72,10 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
             name = "改名的玄真"
             portraitRes = "d999"
             discipleType = "elder"
-            soulPower = 42
             cultivationSpeedBonus = 2.5
             cultivationSpeedDuration = 12
             realm = 4
             realmLayer = 2
-            age = 22
-            lifespan = 180
             aptitude = 88
         }
     }
@@ -160,10 +157,8 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
     fun `usage 集合与布尔列直写等价`() {
         assertEquivalence("usage 列") {
             addAllUsedFunctionalPillTypes(listOf("hp", "mp"))
-            addAllUsedExtendLifePillIds(listOf("pill-9"))
             addUsedPermanentPillKeys("k1")
             addUsedPermanentPillKeys("k2")
-            addUsedExtendLifePillTypes("extend")
             recruitedMonth = 13
             hasReviveEffect = true
             hasClearAllEffect = false
@@ -275,11 +270,6 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
             inPlaceArm.deathYears[BASE_ID],
         )
         assertEquals(
-            "$label: 稀疏列 lastTheftJudgementYears 零触碰",
-            fullRowArm.lastTheftJudgementYears[BASE_ID],
-            inPlaceArm.lastTheftJudgementYears[BASE_ID],
-        )
-        assertEquals(
             "$label: changedIdTracker 净效果",
             fullRowArm.changedIdTracker.consumeChangedIds(),
             inPlaceArm.changedIdTracker.consumeChangedIds(),
@@ -295,7 +285,6 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
         it.lifeEvents[BASE_ID] = listOf("21岁：加入宗门", "22岁：试炼")
         it.slotIds[BASE_ID] = 7
         it.deathYears[BASE_ID] = 0
-        it.lastTheftJudgementYears[BASE_ID] = 33
     }
 
     private fun baseDisciple(): Disciple = MirrorProtoFeedFixture.richDisciple()

@@ -203,7 +203,6 @@ private fun BasicInfoBreakthroughRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,

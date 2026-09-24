@@ -72,7 +72,7 @@ class DiffDiplomacyTxTest {
 
     private fun baseDisciple(id: String, realm: Int) = Disciple(
         id = id, name = "弟子$id", realm = realm, realmLayer = 1,
-        isAlive = true, spiritRootType = "metal", age = 20, lifespan = 80
+        isAlive = true, spiritRootType = "metal"
     )
 
     private fun diplomacyGameData(systemRngState: Long?): GameData = GameData().apply {

@@ -15,7 +15,7 @@ class GameRouteDialogTypeMappingTest {
     fun `every sealed subclass maps to a dialog type`() {
         val routes = GameRoute::class.sealedSubclasses.map { it.objectInstance }
             .filterNotNull()
-        assertEquals("路由总数漂移请同步本测试语义", 28, routes.size)
+        assertEquals("路由总数漂移请同步本测试语义", 27, routes.size)
         routes.forEach { route ->
             val dialogType = route.toDialogType("building-1")
             // DialogType 与路由同类同名（唯一例外：BattleResult 归 None）

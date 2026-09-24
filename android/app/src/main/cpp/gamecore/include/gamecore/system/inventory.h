@@ -588,11 +588,11 @@ inline std::string nextItemId(const char* prefix) {
 }
 
 // ── 弟子储物袋统一入袋入口（审计 P2-8 / 方案 D3 改动 6）─────────────
-// 「只进不出」治理：入袋三路径（auto_gear 卸装/忘功法、disciple_purchase
-// 购买、month_settlement 偷盗）统一经 addToDiscipleBag——同 kind 合并堆叠
+// 「只进不出」治理：入袋两路径（auto_gear 卸装/忘功法、disciple_purchase
+// 购买）统一经 addToDiscipleBag——同 kind 合并堆叠
 // + 条目容量门。满袋返回 false，调用方转化为「跳过拾取/中止换装」，
 // 绝不销毁已有物品。Kotlin 侧 StorageBagUtils 为 itemId 合并 + 有意无上限
-// （有守卫锁「不截断」）——本门仅作用于 C++ AUTHORITATIVE 三入袋路径
+// （有守卫锁「不截断」）——本门仅作用于 C++ AUTHORITATIVE 入袋路径
 // （审计对象），Kotlin 残留路径语义不动。
 
 /// 储物袋条目容量上限（审计 P2-8，堆叠合并后计；方案推荐值）

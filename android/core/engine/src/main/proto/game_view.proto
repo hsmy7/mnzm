@@ -102,6 +102,9 @@ message DiscipleListDelta {
 /// 解码侧 hasXxx()==false 仅出现在 schema 演进（老 native 不认识新字段）
 /// 场景，此时按 Kotlin 域模型默认值补位）
 message DiscipleRow {
+  /// 10(age)/11(lifespan)/26(soulPower)/88(loyalty)/104/106(usedExtendLife*)
+  /// 字段号已退役，禁止复用
+  reserved 10, 11, 26, 88, 104, 106;
   // ── 直接字段（Disciple 顶层）────────────────────────────
   optional string id = 1;
   optional string name = 2;
@@ -113,8 +116,6 @@ message DiscipleRow {
   optional int64 cultivationCheckpoint = 7;
   optional int32 cultivationCheckpointGameMonth = 8;
   optional string spiritRootType = 9;
-  optional int32 age = 10;
-  optional int32 lifespan = 11;
   optional bool isAlive = 12;
   /// 协议字段但 Kotlin 弟子域模型无对应（死亡年份在 DiscipleTables.deathYears
   /// 列）——解码侧忽略；为契约完整性随行携带
@@ -134,7 +135,6 @@ message DiscipleRow {
   optional double cultivationSpeedBonus = 23;
   optional int32 cultivationSpeedDuration = 24;
   optional string discipleType = 25;
-  optional int32 soulPower = 26;
   optional int32 cultivationCompletionMonth = 27;
   optional int32 cultivationCompletionPhase = 28;
   optional int32 manualCompletionMonth = 29;
@@ -212,7 +212,6 @@ message DiscipleRow {
   // ── SkillStats ─────────────────────────────────────────
   optional int32 intelligence = 86;
   optional int32 charm = 87;
-  optional int32 loyalty = 88;
   optional int32 comprehension = 89;
   optional int32 artifactRefining = 90;
   optional int32 pillRefining = 91;
@@ -230,9 +229,7 @@ message DiscipleRow {
 
   // ── UsageTracking ──────────────────────────────────────
   repeated string usedPermanentPillKeys = 103;
-  repeated string usedExtendLifePillTypes = 104;
   repeated string usedFunctionalPillTypes = 105;
-  repeated string usedExtendLifePillIds = 106;
   optional int32 recruitedMonth = 107;
   optional bool hasReviveEffect = 108;
   optional bool hasClearAllEffect = 109;

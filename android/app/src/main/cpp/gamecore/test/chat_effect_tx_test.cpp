@@ -4,7 +4,7 @@
 //
 // 守护目标：chat_effect_tx.h 与 Kotlin 写者（DiscipleDelegate
 // applyConversationEffects → updateDisciple lambda）语义逐位一致——
-//   - 成功路径：修为 max(0,+x)、道德/忠诚/悟性 (原值+增量) clamp [1,100]、
+//   - 成功路径：修为 max(0,+x)、道德/悟性 (原值+增量) clamp [1,100]、
 //     statusData["lastChatYear"] 冷却标记
 //   - 边界 clamp：上界 100 / 下界 1 / 修为下限 0.0
 //   - 弟子不存在 = 成功无操作（found=false，零写入——Kotlin return@update）
@@ -54,14 +54,12 @@ protected:
     std::size_t addDisciple(const std::string& id,
                             double cultivation,
                             int32_t morality,
-                            int32_t loyalty,
                             int32_t intelligence) {
         Disciple d;
         d.id = id;
         d.name = "弟子" + id;
         d.cultivation = cultivation;
         d.morality = morality;
-        d.loyalty = loyalty;
         d.intelligence = intelligence;
         d.isAlive = true;
         d.status = "IDLE";
@@ -84,42 +82,40 @@ protected:
 };
 
 TEST_F(ChatEffectTxFixture, AppliesDeltasAndCooldownMarkVerbatim) {
-    const std::size_t row = addDisciple("1", /*cult*/ 100.5, /*mor*/ 50, /*loy*/ 60, /*int*/ 70);
+    const std::size_t row = addDisciple("1", /*cult*/ 100.5, /*mor*/ 50, /*int*/ 70);
     const auto r = system::chat_tx::applyChatEffectTx(
         core_->state(), 1, /*year*/ 3,
-        /*cultivationDelta*/ 0.25, /*moralityDelta*/ 5, /*loyaltyDelta*/ 3,
+        /*cultivationDelta*/ 0.25, /*moralityDelta*/ 5,
         /*intelligenceDelta*/ 2);
     ASSERT_TRUE(r.found);
     auto& store = core_->state().disciples;
     EXPECT_DOUBLE_EQ(store.cultivations[row], 100.75);
     EXPECT_EQ(store.moralities[row], 55);
-    EXPECT_EQ(store.loyalties[row], 63);
     EXPECT_EQ(store.intelligences[row], 72);
     ASSERT_NE(store.statusData[row].find("lastChatYear"), store.statusData[row].end());
     EXPECT_EQ(store.statusData[row].at("lastChatYear"), "3");
 }
 
 TEST_F(ChatEffectTxFixture, ClampsSkillsToRangeAndCultivationToZeroFloor) {
-    const std::size_t row = addDisciple("2", /*cult*/ 0.5, /*mor*/ 98, /*loy*/ 3, /*int*/ 1);
+    const std::size_t row = addDisciple("2", /*cult*/ 0.5, /*mor*/ 98, /*int*/ 1);
     system::chat_tx::applyChatEffectTx(
         core_->state(), 2, /*year*/ 5,
-        /*cultivationDelta*/ -1.0, /*moralityDelta*/ 10, /*loyaltyDelta*/ -5,
+        /*cultivationDelta*/ -1.0, /*moralityDelta*/ 10,
         /*intelligenceDelta*/ -10);
     auto& store = core_->state().disciples;
     // Kotlin maxOf(0.0, 0.5 + (-1.0)) = 0.0
     EXPECT_DOUBLE_EQ(store.cultivations[row], 0.0);
-    // Kotlin coerceIn(1, 100)：98+10 → 100；3-5 → 1；1-10 → 1
+    // Kotlin coerceIn(1, 100)：98+10 → 100；1-10 → 1
     EXPECT_EQ(store.moralities[row], 100);
-    EXPECT_EQ(store.loyalties[row], 1);
     EXPECT_EQ(store.intelligences[row], 1);
 }
 
 TEST_F(ChatEffectTxFixture, MissingDiscipleIsSuccessfulNoOpWithZeroWrites) {
-    addDisciple("3", 10.0, 50, 50, 50);
+    addDisciple("3", 10.0, 50, 50);
     auto& store = core_->state().disciples;
     const double cultBefore = store.cultivations[*store.rowOf("3")];
     const auto r = system::chat_tx::applyChatEffectTx(
-        core_->state(), /*missing*/ 999, 3, 1.0, 5, 5, 5);
+        core_->state(), /*missing*/ 999, 3, 1.0, 5, 5);
     // Kotlin `id !in discipleTables.ids → return@update` 同语义：成功无操作
     EXPECT_FALSE(r.found);
     EXPECT_DOUBLE_EQ(store.cultivations[*store.rowOf("3")], cultBefore);
@@ -127,9 +123,9 @@ TEST_F(ChatEffectTxFixture, MissingDiscipleIsSuccessfulNoOpWithZeroWrites) {
 }
 
 TEST_F(ChatEffectTxFixture, ZeroDeltasStillWriteCooldownMark) {
-    const std::size_t row = addDisciple("4", 10.0, 50, 50, 50);
+    const std::size_t row = addDisciple("4", 10.0, 50, 50);
     system::chat_tx::applyChatEffectTx(
-        core_->state(), 4, /*year*/ 7, 0.0, 0, 0, 0);
+        core_->state(), 4, /*year*/ 7, 0.0, 0, 0);
     // Kotlin lambda 恒写 statusData（与增量是否为零无关）
     ASSERT_NE(core_->state().disciples.statusData[row].find("lastChatYear"),
               core_->state().disciples.statusData[row].end());
@@ -138,29 +134,29 @@ TEST_F(ChatEffectTxFixture, ZeroDeltasStillWriteCooldownMark) {
 }
 
 TEST_F(ChatEffectTxFixture, DeadDiscipleRowIsAppliedLikeKotlinFallback) {
-    const std::size_t row = addDisciple("5", 10.0, 50, 50, 50);
+    const std::size_t row = addDisciple("5", 10.0, 50, 50);
     core_->state().disciples.isAlive[row] = 0;
     // Kotlin updateDisciple 无存活检查——同语义照常应用
     const auto r = system::chat_tx::applyChatEffectTx(
-        core_->state(), 5, 4, 0.1, 1, 1, 1);
+        core_->state(), 5, 4, 0.1, 1, 1);
     EXPECT_TRUE(r.found);
     EXPECT_DOUBLE_EQ(core_->state().disciples.cultivations[row], 10.1);
 }
 
 TEST_F(ChatEffectTxFixture, TransactionConsumesNoRngExtraction) {
-    addDisciple("6", 10.0, 50, 50, 50);
+    addDisciple("6", 10.0, 50, 50);
     const auto before = rngSnapshot();
-    system::chat_tx::applyChatEffectTx(core_->state(), 6, 3, 0.2, 2, 2, 2);
+    system::chat_tx::applyChatEffectTx(core_->state(), 6, 3, 0.2, 2, 2);
     // 红线 1：事务零抽取——全分区 rngStates 快照差分恒零
     EXPECT_EQ(rngSnapshot(), before);
 }
 
 TEST_F(ChatEffectTxFixture, DispatchReturnsSuccessEnvelopeViaW4DPort) {
-    addDisciple("7", 10.0, 50, 50, 50);
+    addDisciple("7", 10.0, 50, 50);
     const nlohmann::json resp = exec(action::DISCIPLE_CHAT_EFFECT_TX, {
         {"discipleId", 7}, {"currentYear", 3},
         {"cultivationDelta", 0.25}, {"moralityDelta", 5},
-        {"loyaltyDelta", 3}, {"intelligenceDelta", 2},
+        {"intelligenceDelta", 2},
     });
     EXPECT_EQ(resp["status"], "success");
     EXPECT_EQ(resp["data"]["applied"], true);

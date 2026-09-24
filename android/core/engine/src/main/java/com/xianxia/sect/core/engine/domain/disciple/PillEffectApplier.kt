@@ -11,7 +11,6 @@ import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.pillCritEffectBonus
@@ -67,7 +66,6 @@ class PillEffectApplier @Inject constructor() {
 
         var updated = disciple
         updated = applyCultivationEffect(updated, effect)
-        updated = applyLifeExtend(updated, effect)
         updated = applyPermanentBaseAttr(updated, effect)
         updated = applyUsageTracking(updated, effect, rule)
         updated = applyBattleAttrAndTemp(updated, effect, rule)
@@ -99,27 +97,6 @@ class PillEffectApplier @Inject constructor() {
         return updated
     }
 
-    /** 延寿效果 */
-    private fun applyLifeExtend(
-        disciple: Disciple, effect: ItemEffect
-    ): Disciple {
-        if (effect.extendLife <= 0) return disciple
-        var updated = disciple.copy(
-            lifespan = disciple.lifespan + effect.extendLife
-        )
-        if (effect.pillType.isNotEmpty() &&
-            effect.pillType !in updated.usage.usedExtendLifePillTypes
-        ) {
-            updated = updated.copy(
-                usage = updated.usage.copy(
-                    usedExtendLifePillTypes =
-                        updated.usage.usedExtendLifePillTypes + effect.pillType
-                )
-            )
-        }
-        return updated
-    }
-
     /** 永久基础属性加成 */
     private fun applyPermanentBaseAttr(
         disciple: Disciple, effect: ItemEffect
@@ -131,8 +108,6 @@ class PillEffectApplier @Inject constructor() {
                     .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
                 charm = (disciple.skills.charm + effect.charmAdd)
                     .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
-                loyalty = (disciple.skills.loyalty + effect.loyaltyAdd)
-                    .coerceIn(0, GameConfig.Disciple.MAX_LOYALTY),
                 comprehension = (disciple.skills.comprehension + effect.comprehensionAdd)
                     .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
                 artifactRefining = (disciple.skills.artifactRefining +

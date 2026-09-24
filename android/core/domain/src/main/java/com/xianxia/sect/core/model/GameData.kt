@@ -404,11 +404,7 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var residenceSlots: List<ResidenceSlot> = emptyList(),
 
-    // 仓库驻守槽位
-    @ProtoNumber(146)
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var warehouseGarrisons: List<WarehouseGarrisonSlot> = emptyList(),
-
+    // reserved 146;（warehouseGarrisons 字段号已退役，禁止复用）
     // 巡视楼
     @ProtoNumber(142)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
@@ -810,15 +806,7 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var annualDesertedDisciples: Int = 0,
 
-    @ProtoNumber(133)
-    @ColumnInfo(name = "annual_theft_count")
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var annualTheftCount: Int = 0,
-
-    @ProtoNumber(134)
-    @ColumnInfo(name = "theft_judgements_this_month", defaultValue = "0")
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var theftJudgementsThisMonth: Int = 0,
+    // reserved 133,134;（annualTheftCount/theftJudgementsThisMonth 字段号已退役，禁止复用）
 
     // 年内装备获取按来源+品阶（key: "forge:3"等）
     @ProtoNumber(135)

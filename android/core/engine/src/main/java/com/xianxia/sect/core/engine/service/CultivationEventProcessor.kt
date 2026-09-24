@@ -62,7 +62,6 @@ class CultivationEventProcessor @Inject constructor(
     internal val vassalService: VassalService,
     internal val disciplePurchaseService: DisciplePurchaseService,
     internal val aiSectBeastAttackProcessor: AISectBeastAttackProcessor,
-    internal val lawEnforcementProcessor: LawEnforcementProcessor,
     internal val rngManager: GameRngManager,
     internal val secretRealmService: SecretRealmService,
     internal val secretRealmAIProcessor: SecretRealmAIProcessor,
@@ -238,14 +237,14 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    /** 弟子状态段：状态重置 IDLE + 幸存者神魂 +1 */
+    /** 弟子状态段：状态重置 IDLE */
     internal fun MutableGameState.applyMissionDiscipleState(reward: MissionReward) {
         for (did in reward.discipleIds) {
             val dTables = discipleTables
             val tableIds = dTables.ids
             // S5 顺手修复（对齐 C++ rowOf 语义）：原守卫 `tid >= tableIds.size`
             // 假定 0-based 稠密 id——id 从 1 起（DiscipleTables.insert 生成
-            // max+1）时恒排除 id==size 的弟子（任务完成无魂力/状态重置）。
+            // max+1）时恒排除 id==size 的弟子（任务完成无状态重置）。
             // 存在性改 id contains 探测。
             val tid = did.toIntOrNull()
             if (tid == null || tid !in tableIds || dTables.isAlive[tid] != 1) continue
@@ -253,9 +252,6 @@ class CultivationEventProcessor @Inject constructor(
             // （否则任务已从 activeMissions 移除但弟子永远卡在 ON_MISSION）；
             // 随后 syncAllDiscipleStatuses() 看到 IDLE 状态后推导正确，不会触发 ON_MISSION 保护守卫。
             dTables.statuses[tid] = DiscipleStatus.IDLE
-            if (did in reward.survivors) {
-                dTables.soulPowers[tid] = dTables.soulPowers.getOrDefault(tid, 0) + 1
-            }
         }
     }
 

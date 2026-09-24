@@ -72,7 +72,7 @@ object BagItemReconstructor {
             speed = template.speed, hp = template.hp, mp = template.mp,
             description = template.description,
             // minRealm 用条目 stackedData 保真；0（空 BagStackedData() 默认值）视为
-            // "未记录"回退 rarity 推导——偷盗等路径写空 stackedData 时
+            // "未记录"回退 rarity 推导——写入方未记录 stackedData 时
             // 0 非 null 不触发回退，重建后成为"最高境界门槛"装备
             minRealm = item.stackedData?.minRealm?.takeIf { it > 0 }
                 ?: GameConfig.Realm.getMinRealmForRarity(template.rarity),

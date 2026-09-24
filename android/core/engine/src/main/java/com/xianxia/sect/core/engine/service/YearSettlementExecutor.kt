@@ -12,7 +12,7 @@ import com.xianxia.sect.core.engine.annotation.GameService
  * 1. processYearlyEvents —— L3b 分帧（T1 立即组单事务 + T2 延迟组入队由引擎
  *    tick 预算 drain）；C++ 侧执行年报快照段（garrisonAndReport 年报部分，
  *    驻军轮换恒等路径），其余子项为 Kotlin 侧编排
- * 2. gameMonth==1 时年俸（calculateSalaryPlan + 发放/忠诚惩罚）
+ * 2. gameMonth==1 时年俸（calculateSalaryPlan + 发放）
  *
  * 行为契约：与提取前的 yearChanged 分支逐行等价，生产行为零变化。
  * 注意本执行器与 Phase/Month 不同——内部方法各自开启独立事务

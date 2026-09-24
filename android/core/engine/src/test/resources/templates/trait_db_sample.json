@@ -1,7 +1,7 @@
 {
- "talentCount": 109,
+ "talentCount": 94,
  "physiqueCount": 24,
- "affixCount": 71,
+ "affixCount": 61,
  "talents": [
   {
    "id": "r1_cult_speed",
@@ -157,84 +157,6 @@
    "isNegative": false,
    "type": "BREAK_CHANCE",
    "template": "break_chance",
-   "positionBonus": null
-  },
-  {
-   "id": "r1_lifespan",
-   "name": "寿元绵长",
-   "description": "寿命+10%",
-   "rarity": 1,
-   "effects": {
-    "lifespan": 0.1
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "lifespan",
-   "positionBonus": null
-  },
-  {
-   "id": "r2_lifespan",
-   "name": "寿元绵长",
-   "description": "寿命+16%",
-   "rarity": 1,
-   "effects": {
-    "lifespan": 0.16
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "lifespan",
-   "positionBonus": null
-  },
-  {
-   "id": "r3_lifespan",
-   "name": "寿元绵长",
-   "description": "寿命+25%",
-   "rarity": 2,
-   "effects": {
-    "lifespan": 0.25
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "lifespan",
-   "positionBonus": null
-  },
-  {
-   "id": "r4_lifespan",
-   "name": "寿元绵长",
-   "description": "寿命+35%",
-   "rarity": 2,
-   "effects": {
-    "lifespan": 0.35
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "lifespan",
-   "positionBonus": null
-  },
-  {
-   "id": "r5_lifespan",
-   "name": "寿元绵长",
-   "description": "寿命+45%",
-   "rarity": 3,
-   "effects": {
-    "lifespan": 0.45
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "lifespan",
-   "positionBonus": null
-  },
-  {
-   "id": "r6_lifespan",
-   "name": "寿元绵长",
-   "description": "寿命+60%",
-   "rarity": 3,
-   "effects": {
-    "lifespan": 0.6
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "lifespan",
    "positionBonus": null
   },
   {
@@ -651,84 +573,6 @@
    "isNegative": false,
    "type": "BASE_CHARM",
    "template": "base_charm",
-   "positionBonus": null
-  },
-  {
-   "id": "r1_base_loyal",
-   "name": "赤诚",
-   "description": "忠诚+4",
-   "rarity": 1,
-   "effects": {
-    "loyaltyFlat": 4
-   },
-   "isNegative": false,
-   "type": "BASE_LOYAL",
-   "template": "base_loyal",
-   "positionBonus": null
-  },
-  {
-   "id": "r2_base_loyal",
-   "name": "赤诚",
-   "description": "忠诚+10",
-   "rarity": 2,
-   "effects": {
-    "loyaltyFlat": 10
-   },
-   "isNegative": false,
-   "type": "BASE_LOYAL",
-   "template": "base_loyal",
-   "positionBonus": null
-  },
-  {
-   "id": "r3_base_loyal",
-   "name": "赤诚",
-   "description": "忠诚+18",
-   "rarity": 3,
-   "effects": {
-    "loyaltyFlat": 18
-   },
-   "isNegative": false,
-   "type": "BASE_LOYAL",
-   "template": "base_loyal",
-   "positionBonus": null
-  },
-  {
-   "id": "r1_base_comp",
-   "name": "顿悟",
-   "description": "悟性+4",
-   "rarity": 1,
-   "effects": {
-    "comprehensionFlat": 4
-   },
-   "isNegative": false,
-   "type": "BASE_COMP",
-   "template": "base_comp",
-   "positionBonus": null
-  },
-  {
-   "id": "r2_base_comp",
-   "name": "顿悟",
-   "description": "悟性+10",
-   "rarity": 2,
-   "effects": {
-    "comprehensionFlat": 10
-   },
-   "isNegative": false,
-   "type": "BASE_COMP",
-   "template": "base_comp",
-   "positionBonus": null
-  },
-  {
-   "id": "r3_base_comp",
-   "name": "顿悟",
-   "description": "悟性+18",
-   "rarity": 3,
-   "effects": {
-    "comprehensionFlat": 18
-   },
-   "isNegative": false,
-   "type": "BASE_COMP",
-   "template": "base_comp",
    "positionBonus": null
   },
   {
@@ -1218,48 +1062,6 @@
    }
   },
   {
-   "id": "r1_pos_law_enforcement",
-   "name": "执法金刚",
-   "description": "叛逃/偷盗捕获率加成+7%",
-   "rarity": 1,
-   "effects": {},
-   "isNegative": false,
-   "type": "POSITION_LAW_ENFORCEMENT",
-   "template": "pos_law_enforcement",
-   "positionBonus": {
-    "slotType": "LAW_ENFORCEMENT",
-    "effectBonus": 0.07
-   }
-  },
-  {
-   "id": "r2_pos_law_enforcement",
-   "name": "执法金刚",
-   "description": "叛逃/偷盗捕获率加成+14%",
-   "rarity": 2,
-   "effects": {},
-   "isNegative": false,
-   "type": "POSITION_LAW_ENFORCEMENT",
-   "template": "pos_law_enforcement",
-   "positionBonus": {
-    "slotType": "LAW_ENFORCEMENT",
-    "effectBonus": 0.14
-   }
-  },
-  {
-   "id": "r3_pos_law_enforcement",
-   "name": "执法金刚",
-   "description": "叛逃/偷盗捕获率加成+22%",
-   "rarity": 3,
-   "effects": {},
-   "isNegative": false,
-   "type": "POSITION_LAW_ENFORCEMENT",
-   "template": "pos_law_enforcement",
-   "positionBonus": {
-    "slotType": "LAW_ENFORCEMENT",
-    "effectBonus": 0.22
-   }
-  },
-  {
    "id": "r1_pos_inner_elder",
    "name": "内门柱石",
    "description": "内门弟子突破指导加成+7%",
@@ -1418,11 +1220,10 @@
   {
    "id": "neg_base_social",
    "name": "心性偏执",
-   "description": "魅力/忠诚/道德 -6",
+   "description": "魅力/道德 -6",
    "rarity": 0,
    "effects": {
     "charmFlat": -6,
-    "loyaltyFlat": -6,
     "moralityFlat": -6
    },
    "isNegative": true,
@@ -1842,45 +1643,6 @@
    "positionBonus": null
   },
   {
-   "id": "r1_aff_base_comp",
-   "name": "灵慧",
-   "description": "悟性+3",
-   "rarity": 1,
-   "effects": {
-    "comprehensionFlat": 3
-   },
-   "isNegative": false,
-   "type": "BASE_FLAT",
-   "template": "aff_base_comp",
-   "positionBonus": null
-  },
-  {
-   "id": "r2_aff_base_comp",
-   "name": "灵慧",
-   "description": "悟性+7",
-   "rarity": 2,
-   "effects": {
-    "comprehensionFlat": 7
-   },
-   "isNegative": false,
-   "type": "BASE_FLAT",
-   "template": "aff_base_comp",
-   "positionBonus": null
-  },
-  {
-   "id": "r3_aff_base_comp",
-   "name": "灵慧",
-   "description": "悟性+12",
-   "rarity": 3,
-   "effects": {
-    "comprehensionFlat": 12
-   },
-   "isNegative": false,
-   "type": "BASE_FLAT",
-   "template": "aff_base_comp",
-   "positionBonus": null
-  },
-  {
    "id": "r1_aff_base_charm",
    "name": "风采",
    "description": "魅力+3",
@@ -2076,45 +1838,6 @@
    "isNegative": false,
    "type": "CULT_SPEED",
    "template": "aff_cult_speed",
-   "positionBonus": null
-  },
-  {
-   "id": "r1_aff_lifespan",
-   "name": "延年",
-   "description": "寿命+8%",
-   "rarity": 1,
-   "effects": {
-    "lifespan": 0.08
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "aff_lifespan",
-   "positionBonus": null
-  },
-  {
-   "id": "r2_aff_lifespan",
-   "name": "延年",
-   "description": "寿命+16%",
-   "rarity": 2,
-   "effects": {
-    "lifespan": 0.16
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "aff_lifespan",
-   "positionBonus": null
-  },
-  {
-   "id": "r3_aff_lifespan",
-   "name": "延年",
-   "description": "寿命+28%",
-   "rarity": 3,
-   "effects": {
-    "lifespan": 0.28
-   },
-   "isNegative": false,
-   "type": "LIFESPAN",
-   "template": "aff_lifespan",
    "positionBonus": null
   },
   {
@@ -2552,48 +2275,6 @@
    }
   },
   {
-   "id": "r1_aff_pos_law_enforcement",
-   "name": "执法之印",
-   "description": "叛逃/偷盗捕获率加成+6%",
-   "rarity": 1,
-   "effects": {},
-   "isNegative": false,
-   "type": "POSITION",
-   "template": "aff_pos_law_enforcement",
-   "positionBonus": {
-    "slotType": "LAW_ENFORCEMENT",
-    "effectBonus": 0.06
-   }
-  },
-  {
-   "id": "r2_aff_pos_law_enforcement",
-   "name": "执法之印",
-   "description": "叛逃/偷盗捕获率加成+12%",
-   "rarity": 2,
-   "effects": {},
-   "isNegative": false,
-   "type": "POSITION",
-   "template": "aff_pos_law_enforcement",
-   "positionBonus": {
-    "slotType": "LAW_ENFORCEMENT",
-    "effectBonus": 0.12
-   }
-  },
-  {
-   "id": "r3_aff_pos_law_enforcement",
-   "name": "执法之印",
-   "description": "叛逃/偷盗捕获率加成+20%",
-   "rarity": 3,
-   "effects": {},
-   "isNegative": false,
-   "type": "POSITION",
-   "template": "aff_pos_law_enforcement",
-   "positionBonus": {
-    "slotType": "LAW_ENFORCEMENT",
-    "effectBonus": 0.2
-   }
-  },
-  {
    "id": "r1_aff_pos_inner_elder",
    "name": "内门之印",
    "description": "内门弟子突破指导加成+6%",
@@ -2747,19 +2428,6 @@
    "isNegative": true,
    "type": "BAT_PCT",
    "template": "neg_aff_battle",
-   "positionBonus": null
-  },
-  {
-   "id": "neg_aff_lifespan",
-   "name": "夭折",
-   "description": "寿命-15%",
-   "rarity": 0,
-   "effects": {
-    "lifespan": -0.15
-   },
-   "isNegative": true,
-   "type": "LIFESPAN",
-   "template": "neg_aff_lifespan",
    "positionBonus": null
   }
  ]

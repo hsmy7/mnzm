@@ -73,7 +73,6 @@ class DiscipleFacadeRewardTest {
             pillManager = pillManager,
             assignmentGate = mockSmart(),
             discipleSlotCleanup = mockSmart(),
-            lawEnforcementProcessor = mockSmart(),
             productionCoordinator = mockSmart<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>(),
         )
     }

@@ -17,14 +17,14 @@
 // 的**纯逻辑**部分：
 //   - PillRule 分类与优先级排序
 //   - canUsePill 资格检查（境界要求 / 永久丹去重 / 同类型生效中）
-//   - applyToDisciple 效果应用（修为/延寿/永久属性/使用追踪/战斗临时/治疗/清空）
+//   - applyToDisciple 效果应用（修为/永久属性/使用追踪/战斗临时/治疗/清空）
 //   - decreaseItemQuantity 储物袋扣减
 //
 // 与 Kotlin 语义对齐要点：
 //   - classify 按 pillType 字符串分派，兜底分支顺序固定
 //   - 排序：priority 降序 + rarity 降序的稳定排序（Kotlin sortedWith 稳定）
 //   - cultivationAdd clamp 到当前 maxCultivation；skillExpAdd clamp 10000
-//   - 属性 clamp：SKILL_MAX=200、MAX_LOYALTY=100
+//   - 属性 clamp：SKILL_MAX=200
 //   - 治疗口径 maxHp/maxMp = getBaseStats()（基础属性，无装备段）
 //   - maxOf(duration, pillEffectDuration) 语义保留
 // ============================================================
@@ -35,7 +35,6 @@ using gamecore::state::ItemEffect;
 using gamecore::state::StorageBagItem;
 
 constexpr int32_t kSkillCap = 200;    // GameConfig.Disciple.SKILL_MAX
-constexpr int32_t kLoyaltyCap = 100;  // GameConfig.Disciple.MAX_LOYALTY
 
 /// 丹药分类规则（Kotlin PillRule；priority 越大越先服用）
 enum class PillRule : int32_t {
@@ -64,7 +63,7 @@ inline int32_t rulePriority(PillRule rule) {
 // ── 分类谓词（DisciplePillManager companion） ────────────────────────
 
 inline bool hasAnyBaseAttrAdd(const ItemEffect& e) {
-    return e.intelligenceAdd > 0 || e.charmAdd > 0 || e.loyaltyAdd > 0 ||
+    return e.intelligenceAdd > 0 || e.charmAdd > 0 ||
            e.comprehensionAdd > 0 || e.artifactRefiningAdd > 0 ||
            e.pillRefiningAdd > 0 || e.spiritPlantingAdd > 0 ||
            e.teachingAdd > 0 || e.moralityAdd > 0 || e.miningAdd > 0;
@@ -104,7 +103,6 @@ inline std::vector<std::string> buildUsedKeys(const ItemEffect& e, int32_t tier)
     std::vector<std::string> fields;
     if (e.intelligenceAdd > 0) fields.push_back("intelligence");
     if (e.charmAdd > 0) fields.push_back("charm");
-    if (e.loyaltyAdd > 0) fields.push_back("loyalty");
     if (e.comprehensionAdd > 0) fields.push_back("comprehension");
     if (e.artifactRefiningAdd > 0) fields.push_back("artifactRefining");
     if (e.pillRefiningAdd > 0) fields.push_back("pillRefining");
@@ -167,7 +165,7 @@ inline bool canUsePill(const Disciple& d, const ItemEffect& effect) {
             return true;
         }
         case PillRule::kPermanentLife:
-            return !contains(d.usedExtendLifePillTypes, effect.pillType);
+            return true;   // 延寿丹注册表列不入协议（去重登记点已下线）
         case PillRule::kSustainedSpeed:
         case PillRule::kTemporaryBattle:
             return !contains(d.activePillTypes, effect.pillType);
@@ -210,15 +208,6 @@ inline void applyCultivationEffect(Disciple& d, const ItemEffect& e) {
     }
 }
 
-/// 延寿效果（applyLifeExtend）
-inline void applyLifeExtend(Disciple& d, const ItemEffect& e) {
-    if (e.extendLife <= 0) return;
-    d.lifespan += e.extendLife;
-    if (!e.pillType.empty() && !contains(d.usedExtendLifePillTypes, e.pillType)) {
-        d.usedExtendLifePillTypes.push_back(e.pillType);
-    }
-}
-
 /// 永久基础属性加成（applyPermanentBaseAttr；clamp 与 Kotlin 一致）
 inline void applyPermanentBaseAttr(Disciple& d, const ItemEffect& e) {
     if (!hasAnyBaseAttrAdd(e)) return;
@@ -227,7 +216,6 @@ inline void applyPermanentBaseAttr(Disciple& d, const ItemEffect& e) {
     };
     d.intelligence = clampSkill(d.intelligence + e.intelligenceAdd);
     d.charm = clampSkill(d.charm + e.charmAdd);
-    d.loyalty = std::clamp(d.loyalty + e.loyaltyAdd, 0, static_cast<int32_t>(kLoyaltyCap));
     d.comprehension = clampSkill(d.comprehension + e.comprehensionAdd);
     d.artifactRefining = clampSkill(d.artifactRefining + e.artifactRefiningAdd);
     d.pillRefining = clampSkill(d.pillRefining + e.pillRefiningAdd);
@@ -329,7 +317,6 @@ inline void applyToDisciple(Disciple& d, const StorageBagItem& item) {
     const ItemEffect& e = *item.effect;
     const PillRule rule = classify(e);
     detail::applyCultivationEffect(d, e);
-    detail::applyLifeExtend(d, e);
     detail::applyPermanentBaseAttr(d, e);
     detail::applyUsageTracking(d, e, rule);
     detail::applyBattleAttrAndTemp(d, e, rule);

@@ -26,7 +26,7 @@ export const CATALOG = [
   { id: 1741, name: 'DISCIPLE_OP_CHANGE_TYPE', desc: '弟子类型直改事务（discipleTypes行写；状态推导由Kotlin调用方原序执行）' },
   { id: 1742, name: 'DISCIPLE_OP_TOGGLE_FOLLOW', desc: '弟子关注切换事务（statusData["followed"]翻转；返回followedAfter）' },
   { id: 1743, name: 'DISCIPLE_OP_REWARD_ITEM', desc: '赏赐物品事务（pill/material/herb/seed四路合一：扣仓库+生效或入袋同一事务；pill走facade丹药链）' },
-  { id: 1744, name: 'DISCIPLE_OP_USE_PILL', desc: '服药事务（canUsePill资格链+扣仓库+facade丹药链+服药日志草稿；moralityAfter回传供偷盗钩子判定）' },
+  { id: 1744, name: 'DISCIPLE_OP_USE_PILL', desc: '服药事务（canUsePill资格链+扣仓库+facade丹药链+服药日志草稿；moralityAfter回传施效后道德终值）' },
   { id: 1745, name: 'DISCIPLE_OP_REPLACE_MANUAL', desc: '功法替换事务（七链校验+堆叠扣减+实例铸造+熟练度清理+旧实例入袋+替换日志草稿）' },
   { id: 1746, name: 'DISCIPLE_OP_START_BLOOD_REFINEMENT', desc: '血炼启动原子事务（灵石/材料/排他校验链+11类槽位清理+进度写入+REFINING状态）' },
   { id: 1747, name: 'DISCIPLE_OP_SYNC_STATUS', desc: '单弟子状态派生同步事务（14 flag推导+positionName定向写删——派生列唯一计算方）' },

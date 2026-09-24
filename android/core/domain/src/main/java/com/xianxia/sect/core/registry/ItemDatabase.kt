@@ -43,10 +43,8 @@ object ItemDatabase {
         val speedAdd: Int = 0,
         val critRateAdd: Double = 0.0,
         val critEffectAdd: Double = 0.0,
-        val extendLife: Int = 0,
         val intelligenceAdd: Int = 0,
         val charmAdd: Int = 0,
-        val loyaltyAdd: Int = 0,
         val comprehensionAdd: Int = 0,
         val artifactRefiningAdd: Int = 0,
         val pillRefiningAdd: Int = 0,
@@ -85,7 +83,6 @@ object ItemDatabase {
     private val SPEED_PERCENT_MEDIUM = mapOf(1 to 0.30, 2 to 0.35, 3 to 0.40, 4 to 0.50, 5 to 0.60, 6 to 0.80)
     private val CRIT_RATE_MEDIUM = mapOf(1 to 0.03, 2 to 0.05, 3 to 0.07, 4 to 0.10, 5 to 0.13, 6 to 0.16)
     private val CRIT_EFFECT_MEDIUM = mapOf(1 to 0.10, 2 to 0.15, 3 to 0.20, 4 to 0.25, 5 to 0.30, 6 to 0.40)
-    private val EXTEND_LIFE_MEDIUM = mapOf(1 to 5, 2 to 10, 3 to 20, 4 to 35, 5 to 50, 6 to 80)
     private val BASE_ATTR_MEDIUM = mapOf(1 to 3, 2 to 5, 3 to 8, 4 to 12, 5 to 16, 6 to 20)
 
     private fun applyGrade(value: Int, grade: PillGrade): Int = (value * grade.multiplier).roundToInt()
@@ -490,37 +487,9 @@ object ItemDatabase {
 
     private fun generateFunctionalPills(): List<PillTemplate> {
         val pills = mutableListOf<PillTemplate>()
-        addExtendLifePills(pills = pills)
         addSingleBaseAttrPills(pills = pills)
         addDualBaseAttrPills(pills = pills)
         return pills
-    }
-
-    /** 延寿类功能丹药 */
-    private fun addExtendLifePills(pills: MutableList<PillTemplate>) {
-        val extendLifeNames = mapOf(1 to "延寿丹", 2 to "续命丹", 3 to "长生丹", 4 to "不老丹", 5 to "万寿丹", 6 to "永生丹")
-        for (tier in 1..6) {
-            val rarity = TIER_RARITY.getValue(tier)
-            for (grade in PillGrade.entries) {
-                val lifeVal = applyGrade(EXTEND_LIFE_MEDIUM.getValue(tier), grade)
-                val tierName = TIER_NAMES.getValue(tier)
-                val g = grade.displayName
-                pills.add(PillTemplate(
-                    id = "extendLife_${tier}_${grade.name.lowercase()}",
-                    name = extendLifeNames.getValue(tier),
-                    category = PillCategory.FUNCTIONAL,
-                    grade = grade,
-                    rarity = rarity,
-                    pillType = "extendLife",
-                    description = "${tierName}${g}延寿丹，增加${lifeVal}年寿元",
-                    price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
-                    extendLife = lifeVal,
-                    duration = 0,
-                    cannotStack = false,
-                    minRealm = tierMinRealm(tier)
-                ))
-            }
-        }
     }
 
     /** 单基础属性功能丹药配置 */
@@ -530,17 +499,13 @@ object ItemDatabase {
         val names: Map<Int, String>
     )
 
-    /** 单基础属性功能丹药：智力/魅力/忠诚/悟性等 */
+    /** 单基础属性功能丹药：智力/魅力/炼器等 */
     private fun addSingleBaseAttrPills(pills: MutableList<PillTemplate>) {
         val baseAttrConfigs = listOf(
             BaseAttrConfig("intelligence", "智力", mapOf(1 to "慧根丹", 2 to "灵慧丹", 3 to "明慧丹", 4 to "玄慧丹", 5 to "地慧丹",
                 6 to "天慧丹")),
             BaseAttrConfig("charm", "魅力", mapOf(1 to "仙姿丹", 2 to "灵姿丹", 3 to "玉姿丹", 4 to "玄姿丹", 5 to "地姿丹",
                 6 to "天姿丹")),
-            BaseAttrConfig("loyalty", "忠诚", mapOf(1 to "忠心丹", 2 to "赤诚丹", 3 to "铁心丹", 4 to "玄心丹", 5 to "地心丹",
-                6 to "天心丹")),
-            BaseAttrConfig("comprehension", "悟性", mapOf(1 to "悟道丹", 2 to "明悟丹", 3 to "通悟丹", 4 to "玄悟丹", 5 to "地悟丹",
-                6 to "天悟丹")),
             BaseAttrConfig("artifactRefining", "炼器", mapOf(1 to "铸魂丹", 2 to "灵铸丹", 3 to "宝铸丹", 4 to "玄铸丹", 5 to "地铸丹",
                 6 to "天铸丹")),
             BaseAttrConfig("pillRefining", "炼丹", mapOf(1 to "丹心丹", 2 to "灵丹丹", 3 to "宝丹丹", 4 to "玄丹丹", 5 to "地丹丹",
@@ -573,8 +538,6 @@ object ItemDatabase {
                         price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                         intelligenceAdd = if (config.pillType == "intelligence") val_ else 0,
                         charmAdd = if (config.pillType == "charm") val_ else 0,
-                        loyaltyAdd = if (config.pillType == "loyalty") val_ else 0,
-                        comprehensionAdd = if (config.pillType == "comprehension") val_ else 0,
                         artifactRefiningAdd = if (config.pillType == "artifactRefining") val_ else 0,
                         pillRefiningAdd = if (config.pillType == "pillRefining") val_ else 0,
                         spiritPlantingAdd = if (config.pillType == "spiritPlanting") val_ else 0,
@@ -599,14 +562,12 @@ object ItemDatabase {
         val names: Map<Int, String>
     )
 
-    /** 双基础属性功能丹药：智悟/魅忠/双炼/师农等 */
+    /** 双基础属性功能丹药：智悟/双炼/师农等 */
     @Suppress("NestedBlockDepth")
     private fun addDualBaseAttrPills(pills: MutableList<PillTemplate>) {
         val dualBaseConfigs = listOf(
             DualBaseAttrConfig("intelligenceComprehension", "intelligence", "comprehension", "智悟",
                 mapOf(1 to "智悟丹", 2 to "灵悟丹", 3 to "明悟丹", 4 to "玄悟丹", 5 to "地悟丹", 6 to "天悟丹")),
-            DualBaseAttrConfig("charmLoyalty", "charm", "loyalty", "魅忠",
-                mapOf(1 to "忠媚丹", 2 to "灵忠丹", 3 to "宝忠丹", 4 to "玄忠丹", 5 to "地忠丹", 6 to "天忠丹")),
             DualBaseAttrConfig("pillRefiningArtifactRefining", "pillRefining", "artifactRefining", "炼丹炼器",
                 mapOf(1 to "双炼丹", 2 to "灵炼丹", 3 to "宝炼丹", 4 to "玄炼丹", 5 to "地炼丹", 6 to "天炼丹")),
             DualBaseAttrConfig("spiritPlantingTeaching", "spiritPlanting", "teaching", "种植教学",
@@ -643,7 +604,6 @@ object ItemDatabase {
                         price = (tierPrice(tier) * 1.2 * grade.priceMultiplier).roundToInt(),
                         intelligenceAdd = attrVal("intelligence"),
                         charmAdd = attrVal("charm"),
-                        loyaltyAdd = attrVal("loyalty"),
                         comprehensionAdd = attrVal("comprehension"),
                         artifactRefiningAdd = attrVal("artifactRefining"),
                         pillRefiningAdd = attrVal("pillRefining"),
@@ -735,10 +695,8 @@ object ItemDatabase {
                 speedAdd = template.speedAdd,
                 critRateAdd = template.critRateAdd,
                 critEffectAdd = template.critEffectAdd,
-                extendLife = template.extendLife,
                 intelligenceAdd = template.intelligenceAdd,
                 charmAdd = template.charmAdd,
-                loyaltyAdd = template.loyaltyAdd,
                 comprehensionAdd = template.comprehensionAdd,
                 artifactRefiningAdd = template.artifactRefiningAdd,
                 pillRefiningAdd = template.pillRefiningAdd,

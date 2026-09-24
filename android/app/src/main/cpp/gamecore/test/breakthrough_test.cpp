@@ -22,12 +22,10 @@ TEST(BreakthroughSuccessTest, LayerIncrementWithinRealm) {
     d.realm = 9;
     d.realmLayer = 1;
     d.cultivation = 490.0;
-    d.lifespan = 80;
-    const auto result = applyBreakthroughSuccess(d, 50);
+    const auto result = applyBreakthroughSuccess(d);
     EXPECT_EQ(result.realm, 9);
     EXPECT_EQ(result.realmLayer, 2);
     EXPECT_DOUBLE_EQ(result.cultivation, 0.0);
-    EXPECT_EQ(result.lifespan, 80);  // 同境界层数变化不加寿命
 }
 
 TEST(BreakthroughSuccessTest, RealmUpgradeAtMaxLayer) {
@@ -35,11 +33,9 @@ TEST(BreakthroughSuccessTest, RealmUpgradeAtMaxLayer) {
     d.realm = 9;
     d.realmLayer = 9;  // 满层
     d.cultivation = 490.0;
-    d.lifespan = 80;
-    const auto result = applyBreakthroughSuccess(d, 50);
+    const auto result = applyBreakthroughSuccess(d);
     EXPECT_EQ(result.realm, 8);
     EXPECT_EQ(result.realmLayer, 1);
-    EXPECT_EQ(result.lifespan, 130);  // 80 + 50（大境界变化加寿命）
 }
 
 TEST(BreakthroughSuccessTest, ImmortalStays) {
@@ -47,7 +43,7 @@ TEST(BreakthroughSuccessTest, ImmortalStays) {
     d.realm = 0;
     d.realmLayer = 1;
     d.cultivation = 100.0;
-    const auto result = applyBreakthroughSuccess(d, 0);
+    const auto result = applyBreakthroughSuccess(d);
     // 仙人无更高境界：realm 0 时层数递增（maxLayers=9）
     EXPECT_EQ(result.realm, 0);
     EXPECT_EQ(result.realmLayer, 2);
@@ -63,8 +59,7 @@ TEST(PerformBreakthroughTest, NotFullNoAttempt) {
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
-        d, [](const Disciple&) { return 1.0; },
-        [](const Disciple&) { return 0; }, rng, 100);
+        d, [](const Disciple&) { return 1.0; }, rng, 100);
     EXPECT_EQ(out.breakthroughCount, 0);
     EXPECT_EQ(out.failCount, 0);
     EXPECT_DOUBLE_EQ(out.disciple.cultivation, 50.0);
@@ -78,8 +73,7 @@ TEST(PerformBreakthroughTest, SuccessPath) {
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
-        d, [](const Disciple&) { return 1.0; },   // 100% 成功
-        [](const Disciple&) { return 50; }, rng, 100);
+        d, [](const Disciple&) { return 1.0; }, rng, 100);  // 100% 成功
     EXPECT_EQ(out.breakthroughCount, 1);
     EXPECT_EQ(out.failCount, 0);
     EXPECT_EQ(out.disciple.realmLayer, 2);
@@ -96,8 +90,7 @@ TEST(PerformBreakthroughTest, ContinuousBreakthrough) {
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
-        d, [](const Disciple&) { return 1.0; },   // 100% 成功
-        [](const Disciple&) { return 50; }, rng, 100);
+        d, [](const Disciple&) { return 1.0; }, rng, 100);  // 100% 成功
     // 满修为 → 突破到筑基 1 层（修为清零），不再满足修为满 → 停止
     EXPECT_EQ(out.breakthroughCount, 1);
     EXPECT_EQ(out.disciple.realm, 8);
@@ -112,8 +105,7 @@ TEST(PerformBreakthroughTest, FailurePathStopsLoop) {
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
-        d, [](const Disciple&) { return 0.0; },   // 0% 成功 → 必失败
-        [](const Disciple&) { return 50; }, rng, 100);
+        d, [](const Disciple&) { return 0.0; }, rng, 100);  // 0% 成功 → 必失败
     EXPECT_EQ(out.breakthroughCount, 0);
     EXPECT_EQ(out.failCount, 1);
     EXPECT_DOUBLE_EQ(out.disciple.cultivation, 0.0);
@@ -131,8 +123,7 @@ TEST(PerformBreakthroughTest, IterationGuard) {
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
-        d, [](const Disciple&) { return 1.0; },
-        [](const Disciple&) { return 0; }, rng, 100, 4);
+        d, [](const Disciple&) { return 1.0; }, rng, 100, 4);
     // 突破到 realm 0 后循环停止（realm > 0 条件）
     EXPECT_EQ(out.disciple.realm, 0);
     EXPECT_LE(out.breakthroughCount, 4);
@@ -192,8 +183,7 @@ TEST(PerformBreakthroughTest, NotFullHpMpNoAttempt) {
     RngManager rng;
     rng.initSystemSeed(42);
     const auto out = performBreakthrough(
-        d, [](const Disciple&) { return 1.0; },
-        [](const Disciple&) { return 50; }, rng, 100);
+        d, [](const Disciple&) { return 1.0; }, rng, 100);
     EXPECT_EQ(out.breakthroughCount, 0);
     EXPECT_EQ(out.failCount, 0);
     EXPECT_DOUBLE_EQ(out.disciple.cultivation, 490.0);

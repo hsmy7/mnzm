@@ -84,7 +84,7 @@ class InventoryFacadeConfiscateTest {
     /** 插入存活弟子并设置储物袋条目 */
     private fun insertDiscipleWithBag(id: Int, items: List<StorageBagItem>) {
         val tables = store.persistentDiscipleTables
-        tables.insert(Disciple(id = id.toString(), name = "弟子$id", age = 20))
+        tables.insert(Disciple(id = id.toString(), name = "弟子$id"))
         tables.isAlive[id] = 1
         tables.storageBagItems[id] = items
     }

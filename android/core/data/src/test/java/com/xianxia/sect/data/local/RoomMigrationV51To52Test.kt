@@ -25,8 +25,9 @@ import java.io.File
  *    `onValidateSchema`（列/索引/主键全等比较）——若迁移残留实体已删列即在此红；
  * 2. **删列 + 存档回归逐字段等价**：v51 种子行（含**非空**单数 `battleTeam`）迁移后，
  *    除两死列外**所有列值逐字段全等**；
- * 3. **全链回归**：v39 旧档（单数 `battleTeam` 活跃期最后一版）经 40→52 全链迁移，
- *    被删列集**精确等于** `{autoSaveIntervalMonths, battleTeam, aiBattleTeams}`，
+ * 3. **全链回归**：v39 旧档（单数 `battleTeam` 活跃期最后一版）经 40→当前版本全链迁移，
+ *    被删列集**精确等于** `{autoSaveIntervalMonths, battleTeam, aiBattleTeams}` ∪
+ *    G02 v55 的 `game_data` 三列（`V55_GAME_DATA_DROPPED_COLUMNS` 同源），
  *    其余交集列逐字段全等；
  * 4. **结构守卫（防回流）**：`52.json` 的 `game_data` 不含两死列、`51.json` 含
  *    （对照面非空转）+ 列数恰少 2。
@@ -110,13 +111,13 @@ class RoomMigrationV51To52Test {
         }
     }
 
-    // ==================== 3. 全链回归（v39 旧档 → v52） ====================
+    // ==================== 3. 全链回归（v39 旧档 → 当前版本） ====================
 
     @Test
-    fun `V39 legacy save migrates to v52 with exact dropped set and zero field drift`() {
+    fun `V39 legacy save migrates through full chain with exact dropped set and zero field drift`() {
         withSeededV39Db("m_39_52_full_chain") { db ->
             val before = readAllRows(db)
-            // 全链 40→52（迁移链取自单点登记表）
+            // 全链 40→当前版本（迁移链取自单点登记表 ALL_MIGRATIONS，随版本号动态延伸）
             RoomMigrationSupport.applyMigrationsSequentially(
                 db, ALL_MIGRATIONS.filter { it.startVersion >= 39 }
             )
@@ -282,7 +283,8 @@ class RoomMigrationV51To52Test {
     }
 
     /**
-     * 全链被删列集精确等于三列（v50 删 autoSaveIntervalMonths + v52 删两死列），
+     * 全链被删列集精确等于历史三列（v50 删 autoSaveIntervalMonths + v52 删两死列）
+     * ∪ G02 v55 三列（`V55_GAME_DATA_DROPPED_COLUMNS` 同源），
      * 返回该集合供逐字段等价断言复用。
      */
     private fun assertExactDroppedSetAcrossChain(
@@ -292,8 +294,9 @@ class RoomMigrationV51To52Test {
         assertEquals("全链迁移后行数不变", before.size, after.size)
         val dropped = before.first().keys - after.first().keys
         assertEquals(
-            "全链被删列集必须精确等于 {autoSaveIntervalMonths, battleTeam, aiBattleTeams}",
-            setOf("autoSaveIntervalMonths", DROPPED_BY_V52, DROPPED_AI_BY_V52),
+            "全链被删列集必须精确等于 {autoSaveIntervalMonths, battleTeam, aiBattleTeams} ∪ G02 v55 三列",
+            setOf("autoSaveIntervalMonths", DROPPED_BY_V52, DROPPED_AI_BY_V52) +
+                V55_GAME_DATA_DROPPED_COLUMNS.toSet(),
             dropped
         )
         return dropped

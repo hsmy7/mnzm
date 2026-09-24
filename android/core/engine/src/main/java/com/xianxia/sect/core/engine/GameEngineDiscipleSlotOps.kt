@@ -148,7 +148,7 @@ fun GameEngine.removeDiscipleFromLibrarySlot(slotIndex: Int) {
  * 用于"显示所有可用弟子"功能中选中非空闲弟子时的自动释放。
  *
  * 状态特殊处理：
- * - REFLECTING（思过中）：清除 reflection 字段，不加道德/忠诚（视为手动释放）
+ * - REFLECTING（思过中）：清除 reflection 字段，不加道德加成（视为手动释放）
  * - REFINING（血炼中）：clearAllSlots 会清除 activeBloodRefinements，
  *   额外清理 statusData 中的 buildingId（视为血炼失败，不返还材料）
  */

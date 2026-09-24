@@ -1,5 +1,54 @@
 ## [4.01.16] - 2026-09-22
 
+### 角色卡池重构 G02 批（2026-09-23）——删寿命/年龄/忠诚/叛逃/偷盗/神魂 + 仓库驻守下线 — `feat(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/recon-G02-G03.md`（G02 落点）+ `report-G02.md`（本批完整报告）；
+> 执行协议 `docs/design/gacha-batches/EXECUTION-PROTOCOL.md`。
+
+- **行级字段链六项退役（三端同步单 commit）**：`Disciple.age / lifespan / soulPower / SkillStats.loyalty /
+  UsageTracking.usedExtendLifePillTypes / usedExtendLifePillIds` + 非协议稀疏列 `lastTheftJudgementYears`。
+  链路：`models.h` → `DiscipleColumn`（109→103 列）→ `disciple_store.{h,cpp}` → `column_dirty.h` →
+  `json_codec.cpp` → `gameview_encode.cpp` → `game_view.proto`（`reserved 10,11,26,88,104,106`）→
+  Kotlin `Disciple/Components/Serializer(surrogate 102→96 字段)/Tables×7 列/ColumnRegistry（余序与 C++ 对齐）/
+  MirrorCodec/GameViewDiscipleRows`；ProtoBuf `SerializableDisciple` 与 `OldSerializableSaveData` 双侧
+  `reserved 7,8,29,50,76,88`；`ItemEffect.loyaltyAdd(23)` / `PillEffect.loyaltyAdd(24)` 双侧 reserved。
+- **玩法系统删除**：月度叛逃/偷盗/执法堂链（`month_settlement.h` **-759 行**，子事件 16→14）、教化之道偷盗钩子、
+  住所忠诚/矿工忠诚/年俸忠诚/政策忠诚（`government.h` 只余道德常量）、老死链（`year_settlement.h` **-402 行**：
+  `processDiscipleAgingStep`/`processSectDisciplesAging`/`processReflectionRelease`/招募老化段）、
+  `lifecycle.h` 整文件、思过释放事务（1593）、魂力授予（1712）、关卡胜利 `applyDeterministicWinAttr`、
+  战斗残差 `isOutsideSect=false` 完整死亡链与悲痛战斗支（§9.1/9.3 收口，`settleBattleCasualtiesTx` 收敛为
+  「重伤写 + 幸存者回写」）、Kotlin `LawEnforcementProcessor/TheftTxOps/HallDialog/DiscipleAgePolicy/AgeLifespanRule`
+  等 6 整文件删 + 约 85 文件收敛（`CombatService` legacy 链 9 成员、stat calculator 魂力/忠诚分支、
+  突破寿元增益、UI 忠诚/神魂/年龄行、Tianshu 5 忠诚政策开关、聊天 loyalty 段）。
+- **仓库驻守子系统整链下线**：`WarehouseGarrisonSlot` 模型 + `GameData.warehouseGarrisons(Room 列/proto 146)` +
+  `SlotCleanupInput/Result` 成员与 10 处接线 + `warehouseGarrisonAssignTx`（1612 留洞删实现）+
+  `SlotGroupKind::Warehouse` + Kotlin `GameEngineWarehouseOps.kt` 整文件删 + 14→13 状态 flag；
+  `DiscipleStatus.WAREHOUSE_GARRISON` 枚举与 `REFLECTING` 状态**保留**（旧档反序列化兼容，只删生产写入方）。
+- **配置源与静态数据**：`game_config.json` 删 `lawEnforcement` 段与 `minLoyalty/maxLoyalty`；
+  下架丹方 pillType ×4（extendLife/loyalty/comprehension/charmLoyalty，模板与配方 732→660）、
+  天赋 109→94、词条 71→61（`gen-recipe-db`/`gen-trait-db`/`gen-game-data` 重跑，6 组中性源↔测试快照逐字节一致）；
+  `neg_base_social` 剥 `loyaltyFlat` 键。`loyaltyAdd/loyaltyFlat/soulPower/theft/law*配置` 生产面 grep 归零。
+- **Room v54→v55**：新建 `MIGRATION_54_55`（`rebuildTableDroppingColumns` create-copy-drop-rename，幂等）——
+  **三表共 9 列**：`disciples` 删 5 列（age/lifespan/soulPower/loyalty/usage_usedExtendLifePillIds，5 索引重建，
+  `index_disciples_loyalty/age` 随列退役）、`game_data` 删 3 列（annual_theft_count/theft_judgements_this_month/
+  warehouseGarrisons，5 索引重建）、`pills` 删 1 列（`loyaltyAdd`——忠诚丹效果字段，5 索引重建；
+  漏删会被真 Room `onValidateSchema` 抓获，由 JUnit 门禁抓获后以 54↔55 schema 全量列差集补正）；
+  `DATABASE_VERSION` 54→55 + `ALL_MIGRATIONS` 单点追加；删除面全部是「下线玩法自身的内部运行状态」，
+  玩家可感知数据逐列 `INSERT SELECT` 原样复制（结构性论证见迁移 KDoc）。
+- **ActionId 只增不复用**：1103/1106/1593/1612/1712 标注「已退役，编号禁复用」（保留常量与编号）；
+  1301 回执收敛为 `moralityDelta` 单字段、1744/1743 回执 `theftCandidate`→`baseAttrApplied`、
+  1780 签名去 `isOutsideSect`、1781 收敛为 `(state, levelId)` 且回执仅 `applied`、1860 参数去 `loyaltyDelta`、
+  1615/1632/1733 描述收敛；`gen-action-ids` 重生成（198 动作/maxId=1861）；`nativeSetGameConfig` JNI 16→2 参。
+- **引导防卡死**：任务 23（仓库）与任务 25（监牢）的条件生产方已随玩法下线删除 → C++/Kotlin 双端改为
+  仅按建筑计数（C++ `guide_reward_tx.h` + Kotlin `GuideTask.kt` 同步），`DISCIPLE_IMPRISONED` 计数器退役。
+- **保留登记（详见 report-G02.md「保留项登记」）**：`annualDesertedDisciples`（与 G06 逐出共用）、
+  执法长老槽位链（职责已失，后续收口）、`REDEEM_RESOLVE_AGE_LIFESPAN`(1436) 与 `RealmConfig.maxAge`
+  （留洞至 G08 兑换码改道）、`extendLife` 协议字段（旧存袋条目兼容，生产者已下线）、
+  `YearSettlementDraft` 恒空信封（G03 整体退役）、TalentType/AffixType 旧枚举值（旧档解析）。
+
+- **门禁（实测）**：桌面 `game-core` 编译 EXIT=0；桌面 ctest **1532/1536**（A 类断言漂移 10/10 修复清零，余 4=B 类黄金平移登记 G10 重录）；`compileReleaseKotlin` BUILD SUCCESSFUL；detekt 六模块 EXIT=0；JUnit 六模块 **7893/7893 全绿**（含 `-Dgamecore.jni.path` 桥接的 Diff 跨语言对拍 51 套件 271 测试全真跑、零 skip）；JNI 计数 89/89；`gen-action-ids`（198 动作/maxId=1861）与 `gen-game-data --check` 双绿；`check-agent-instructions` EXIT=0。
+- **门禁抓获并根因修复的六问题（零补丁）**：① `MIGRATION_54_55` 漏删 `pills.loyaltyAdd`（真机升 v55 炸库级）→ 以 54↔55 schema 全量列差集定权威三表 9 列补删；② `handleDiscipleDeath` 丢失 `statuses=DEAD` 写入（A 批混删）→ 恢复死亡三元组；③ 裸墙钟债务 40→39（守卫处方，只缩不增）；④ Kotlin 战斗天赋块序违中性源权威（`hp,mp,speed`→归位 `speed,hp,mp`，基线潜伏跨语言分歧，池收缩暴露）；⑤ `GameRouteDialogTypeMappingTest` 计数 28→27（A 删 LawEnforcementHall 连带）；⑥ 聊天终局效果守卫按现状改写（8 处 loyalty-only 预设下线后为纯文案结局，生产 `isZero` 完备处理）。
+
 ### 内存管理根治 Phase 4：状态基线 + GLES + 可观测（2026-09-23，MR4 批）— `feat(memory)`/`perf(memory)`
 - **P4.1 状态基线去全量 DOM（D5）**：`StateBaseline` 块级形态（gameData 字段 + 实体 id 块），`DirtyTracker`/`ColumnDirtyTracker` 不再持嵌套全量业务树；`importStateInternal` 峰值顺序=解析临时态→reseed→释放 JSON→切换 state_（失败回滚）→归一化。验收：`BaselineMemoryTest` + `BaselineFieldCoverageGuardTest` + 对拍绿。
 - **P4.2 rest 导出减载**：块级基线比对，信封仍只携带 changed/（与 `dirtyColumnExport` 正交）；Diff tick 绿。

@@ -90,7 +90,7 @@ inline constexpr int32_t DISCIPLE_CULTIVATION_PER_PHASE = 1101;
 /// 突破概率（乘区法）
 inline constexpr int32_t DISCIPLE_BREAKTHROUGH_CHANCE = 1102;
 
-/// 弟子最大寿元
+/// 【已退役，编号禁复用】弟子最大寿元
 inline constexpr int32_t DISCIPLE_MAX_AGE = 1103;
 
 /// 修炼检查点同步
@@ -99,7 +99,7 @@ inline constexpr int32_t DISCIPLE_CHECKPOINT = 1104;
 /// 每旬修炼累积（钳制上限）
 inline constexpr int32_t DISCIPLE_ACCUMULATE_CULTIVATION = 1105;
 
-/// 弟子老化（年龄+1/5岁回正/寿元判定）
+/// 【已退役，编号禁复用】弟子老化（年龄+1/5岁回正/寿元判定）
 inline constexpr int32_t DISCIPLE_AGE = 1106;
 
 /// 突破执行（连续突破循环）
@@ -132,7 +132,7 @@ inline constexpr int32_t BATTLE_COOLDOWN_UPDATE = 1206;
 /// 政策月度成本（三模式扣除）
 inline constexpr int32_t GOV_POLICY_COSTS = 1300;
 
-/// 政策月度忠诚/道德效果
+/// 政策月度道德效果
 inline constexpr int32_t GOV_POLICY_MONTHLY_EFFECTS = 1301;
 
 /// 灵矿月度产出（时间戳差分）
@@ -372,7 +372,7 @@ inline constexpr int32_t DISCIPLE_LIFECYCLE_APPRENTICE = 1591;
 /// 婚姻批准事务（已有道侣防御+partnerIds双向绑定+MARRIAGE事件直写；提议移除留Kotlin）
 inline constexpr int32_t DISCIPLE_LIFECYCLE_MARRY_APPROVE = 1592;
 
-/// 释放思过事务（statusData思过双键定向移除+状态回IDLE；静默no-op同义）
+/// 【已退役，编号禁复用】释放思过事务
 inline constexpr int32_t DISCIPLE_LIFECYCLE_RELEASE_REFLECTION = 1593;
 
 /// 境界年俸开关事务（yearlySalaryEnabled[realm]覆写，无校验）
@@ -384,7 +384,7 @@ inline constexpr int32_t ELDER_APPOINT_TX = 1610;
 /// 长老单值槽卸任（槽位字段清空+亲传列表清空，回传被卸任者）
 inline constexpr int32_t ELDER_DISMISS_TX = 1611;
 
-/// 仓库驻守分配（存在/存活校验+旧occupant捕获+全槽清理+条目替换）
+/// 【已退役，编号禁复用】仓库驻守分配
 inline constexpr int32_t WAREHOUSE_GARRISON_TX = 1612;
 
 /// 洗炼灵根（先扣玉符后抽取：保底/双灵根判定+元素洗牌，SYSTEM 分区）
@@ -393,7 +393,7 @@ inline constexpr int32_t SPIRIT_ROOT_WASH_TX = 1613;
 /// 新增特质刷新（上限/候选预检+扣玉符+品阶抽取+pending 落盘，SYSTEM 分区）
 inline constexpr int32_t TRAIT_ADD_ROLL_TX = 1614;
 
-/// 新增特质确认（上限/合法性校验+追加+lifespan 同步+checkpoint+清 pending，零 RNG）
+/// 新增特质确认（上限/合法性校验+追加+checkpoint+清 pending，零 RNG）
 inline constexpr int32_t TRAIT_ADD_CONFIRM_TX = 1615;
 
 /// 特质单槽洗炼（目标校验+排除集+扣玉符+保底/品阶抽取，SYSTEM 分区）
@@ -405,7 +405,7 @@ inline constexpr int32_t RECRUIT_REMOVE_TX = 1630;
 /// 年度招募列表刷新（差值门+宗门等级/长老魅力加成+广纳门徒+候选生成，SYSTEM 分区）
 inline constexpr int32_t RECRUIT_REFRESH_TX = 1631;
 
-/// 招募列表老化+净化（age+1/超寿元移除/损坏过滤/三级去重/跨表残留，零 RNG）
+/// 招募列表净化（损坏过滤/三级去重/跨表残留移除，零 RNG）
 inline constexpr int32_t RECRUIT_AGE_TX = 1632;
 
 /// 生产槽弟子任命（槽位存在校验+全槽位清理+目标槽写+他槽清空，零 RNG）
@@ -498,7 +498,7 @@ inline constexpr int32_t PATROL_UPDATE_YEARLY_SALARY = 1559;
 /// AI 阵亡守军清理（目标池过滤 + 目标宗门驻军槽清空保留索引，零 RNG）
 inline constexpr int32_t SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX = 1711;
 
-/// 胜方存活玩家弟子魂魄 +1（行序 + 存活性过滤，零 RNG）
+/// 【已退役，编号禁复用】胜方存活玩家弟子魂魄 +1
 inline constexpr int32_t SECT_ATTACK_GRANT_SOUL_POWERS_TX = 1712;
 
 /// 妖兽视图锁定/解锁（Set 语义幂等 + 保序剔除 + lockedCount 回执，零 RNG）
@@ -510,7 +510,7 @@ inline constexpr int32_t SETTINGS_PATCH_TX = 1731;
 /// 洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符）
 inline constexpr int32_t SPIRIT_ROOT_WASH_CONFIRM_TX = 1732;
 
-/// 特质单槽确认替换（三态判定 → 替换 + lifespan 同步 + checkpoint，零 RNG/零玉符）
+/// 特质单槽确认替换（三态判定 → 替换 + checkpoint，零 RNG/零玉符）
 inline constexpr int32_t TRAIT_WASH_CONFIRM_TX = 1733;
 
 /// 开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin）
@@ -528,7 +528,7 @@ inline constexpr int32_t DISCIPLE_OP_TOGGLE_FOLLOW = 1742;
 /// 赏赐物品事务（pill/material/herb/seed四路合一：扣仓库+生效或入袋同一事务；pill走facade丹药链）
 inline constexpr int32_t DISCIPLE_OP_REWARD_ITEM = 1743;
 
-/// 服药事务（canUsePill资格链+扣仓库+facade丹药链+服药日志草稿；moralityAfter回传供偷盗钩子判定）
+/// 服药事务（canUsePill资格链+扣仓库+facade丹药链+服药日志草稿；moralityAfter回传施效后道德终值）
 inline constexpr int32_t DISCIPLE_OP_USE_PILL = 1744;
 
 /// 功法替换事务（七链校验+堆叠扣减+实例铸造+熟练度清理+旧实例入袋+替换日志草稿）
@@ -579,10 +579,10 @@ inline constexpr int32_t MERCHANT_MANUAL_REFRESH_TX = 1773;
 /// 预警阶段标记（shownWarningStageIds 追加，不去重）
 inline constexpr int32_t DIPLOMACY_WARNING_STAGE_TX = 1843;
 
-/// 战斗伤亡残差事务（悲痛/标死袋物化/物品清理/槽位清理/幸存者回写，零 RNG）
+/// 战斗伤亡残差事务（重伤标记/幸存者回写，零 RNG）
 inline constexpr int32_t BATTLE_CASUALTY_SETTLE_TX = 1780;
 
-/// 世界关卡胜利事务（TOCTOU 重查 + 魂力 + 确定性 winAttr + 道德偷盗钩子；不写 defeated）
+/// 世界关卡胜利事务（TOCTOU 重查；不写 defeated）
 inline constexpr int32_t WORLD_VICTORY_REWARDS_TX = 1781;
 
 /// 战前突破结算（实时突破管线限定队伍 id 集；BREAKTHROUGH/SYSTEM 分区同序）
@@ -597,7 +597,7 @@ inline constexpr int32_t SECRET_REALM_EXPIRY_GUARD_TX = 1801;
 /// 引导领奖事务（任务校验链 + 储物袋发放 + 已领标记，凭据类溢出抑制）
 inline constexpr int32_t GUIDE_REWARD_CLAIM_TX = 1830;
 
-/// 弟子交谈效果事务（修炼/道德/忠诚/悟性参数化应用 + lastChatYear 冷却标记，零 RNG）
+/// 弟子交谈效果事务（修炼/道德/悟性参数化应用 + lastChatYear 冷却标记，零 RNG）
 inline constexpr int32_t DISCIPLE_CHAT_EFFECT_TX = 1860;
 
 /// 任务派遣事务（模板快照 + 全槽位清理含住所保留 + 状态重置 IDLE，零 RNG）

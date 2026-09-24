@@ -76,8 +76,6 @@ void to_json(nlohmann::json& j, const BattleTeamSlot& v);
 void from_json(const nlohmann::json& j, BattleTeamSlot& v);
 void to_json(nlohmann::json& j, const BattleTeam& v);
 void from_json(const nlohmann::json& j, BattleTeam& v);
-void to_json(nlohmann::json& j, const WarehouseGarrisonSlot& v);
-void from_json(const nlohmann::json& j, WarehouseGarrisonSlot& v);
 void to_json(nlohmann::json& j, const CaveExplorationTeam& v);
 void from_json(const nlohmann::json& j, CaveExplorationTeam& v);
 void to_json(nlohmann::json& j, const ActiveMissionLite& v);

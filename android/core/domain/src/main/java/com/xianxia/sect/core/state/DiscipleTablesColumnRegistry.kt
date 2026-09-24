@@ -6,11 +6,8 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     IntTableRef(slotIds, DiscipleTables::slotIds, "slotIds"),
     IntTableRef(realms, DiscipleTables::realms, "realms"),
     IntTableRef(realmLayers, DiscipleTables::realmLayers, "realmLayers"),
-    IntTableRef(ages, DiscipleTables::ages, "ages"),
-    IntTableRef(lifespans, DiscipleTables::lifespans, "lifespans"),
     IntTableRef(isAlive, DiscipleTables::isAlive, "isAlive"),
     IntTableRef(deathYears, DiscipleTables::deathYears, "deathYears"),
-    IntTableRef(soulPowers, DiscipleTables::soulPowers, "soulPowers"),
     IntTableRef(cultivationSpeedDurations, DiscipleTables::cultivationSpeedDurations, "cultivationSpeedDurations"),
     IntTableRef(baseHps, DiscipleTables::baseHps, "baseHps"),
     IntTableRef(baseMps, DiscipleTables::baseMps, "baseMps"),
@@ -53,7 +50,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     IntTableRef(lastChildYears, DiscipleTables::lastChildYears, "lastChildYears"),
     IntTableRef(intelligences, DiscipleTables::intelligences, "intelligences"),
     IntTableRef(charms, DiscipleTables::charms, "charms"),
-    IntTableRef(loyalties, DiscipleTables::loyalties, "loyalties"),
     IntTableRef(comprehensions, DiscipleTables::comprehensions, "comprehensions"),
     IntTableRef(artifactRefinings, DiscipleTables::artifactRefinings, "artifactRefinings"),
     IntTableRef(pillRefinings, DiscipleTables::pillRefinings, "pillRefinings"),
@@ -69,7 +65,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     IntTableRef(forgeLevels, DiscipleTables::forgeLevels, "forgeLevels"),
     IntTableRef(forgePromotionCounts, DiscipleTables::forgePromotionCounts, "forgePromotionCounts"),
     IntTableRef(recruitedMonths, DiscipleTables::recruitedMonths, "recruitedMonths"),
-    IntTableRef(lastTheftJudgementYears, DiscipleTables::lastTheftJudgementYears, "lastTheftJudgementYears"),
     IntTableRef(hasReviveEffects, DiscipleTables::hasReviveEffects, "hasReviveEffects"),
     IntTableRef(hasClearAllEffects, DiscipleTables::hasClearAllEffects, "hasClearAllEffects"),
 
@@ -108,8 +103,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     MutableTableRef(activePillTypes, DiscipleTables::activePillTypes, "activePillTypes") { it.toSet() },
     MutableTableRef(usedPermanentPillKeys, DiscipleTables::usedPermanentPillKeys,
         "usedPermanentPillKeys") { it.toSet() },
-    MutableTableRef(usedExtendLifePillTypes, DiscipleTables::usedExtendLifePillTypes,
-        "usedExtendLifePillTypes") { it.toSet() },
 
     // ── List 表（需深拷贝 toList） ──
     MutableTableRef(manualIds, DiscipleTables::manualIds, "manualIds") { it.toList() },
@@ -120,8 +113,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     MutableTableRef(storageBagItems, DiscipleTables::storageBagItems, "storageBagItems") { it.toList() },
     MutableTableRef(usedFunctionalPillTypes, DiscipleTables::usedFunctionalPillTypes,
         "usedFunctionalPillTypes") { it.toList() },
-    MutableTableRef(usedExtendLifePillIds, DiscipleTables::usedExtendLifePillIds,
-        "usedExtendLifePillIds") { it.toList() },
 
     // ── Map 表（需深拷贝 toMap） ──
     MutableTableRef(manualMasteries, DiscipleTables::manualMasteries, "manualMasteries") { it.toMap() },

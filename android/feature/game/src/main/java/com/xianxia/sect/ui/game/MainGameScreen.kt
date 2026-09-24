@@ -416,7 +416,6 @@ private fun buildMainGameScreenBuildingList(
             "wen_dao_peak" -> { _ -> viewModel.navigateToDialog(DialogType.WenDaoPeak) }
             "qingyun_peak" -> { _ -> viewModel.navigateToDialog(DialogType.QingyunPeak) }
             "tianshu_hall" -> { _ -> viewModel.navigateToDialog(DialogType.TianshuHall) }
-            "law_enforcement_hall" -> { _ -> viewModel.navigateToDialog(DialogType.LawEnforcementHall) }
             "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogType.MissionHall) }
             "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
             "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType

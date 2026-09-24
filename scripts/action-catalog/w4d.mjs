@@ -37,7 +37,7 @@ export const CATALOG = [
   // updateDisciple（弟子通道最后一个协议列数据丢失风险写者，W4-A·A5 登记
   // "写入面留待 W4-D"）。增量数值由引擎侧 CHAT 分区签发后参数传入——
   // 事务零 RNG，双臂抽取增量恒 0。
-  { id: 1860, name: 'DISCIPLE_CHAT_EFFECT_TX', desc: '弟子交谈效果事务（修炼/道德/忠诚/悟性参数化应用 + lastChatYear 冷却标记，零 RNG）' },
+  { id: 1860, name: 'DISCIPLE_CHAT_EFFECT_TX', desc: '弟子交谈效果事务（修炼/道德/悟性参数化应用 + lastChatYear 冷却标记，零 RNG）' },
   // D4 续批·任务域收口（2026-09-15）：任务派遣事务下沉（mission_start_tx.h）。
   // 承接 Kotlin 写者 = GameEngineMissionOps.startMission（activeMissions 追加 +
   // 逐队员槽位清理/状态重置——弟子通道关闭的协议列阻断写者）。ActiveMission.id

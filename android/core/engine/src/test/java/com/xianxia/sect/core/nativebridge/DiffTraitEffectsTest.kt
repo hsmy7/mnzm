@@ -17,12 +17,12 @@ import org.junit.Test
  * DiffTraitEffectsTest — 天赋/词条/体质三注册表效果聚合跨语言对拍
  * （AUTHORITATIVE 硬前置验收）。
  *
- * 守护目标：C++ disciple_stats.h 三聚合函数（trait_db.h 204 条）对任意
+ * 守护目标：C++ disciple_stats.h 三聚合函数（trait_db.h 179 条）对任意
  * id 组合与 Kotlin 权威实现（TalentDatabase.calculateTalentEffects 等）
  * 逐键逐位一致——真实存档天赋弟子的修炼速率/属性在 AUTHORITATIVE 模式下
  * 不漂移的前提。
  *
- * 覆盖：① 全量单条目遍历（109+71+24）；② 同 key 相加合并；③ comprehension
+ * 覆盖：① 全量单条目遍历（94+61+24）；② 同 key 相加合并；③ comprehension
  * 词条 flat 合并分叉回归（t2-1-review:77）；④ 未知 id/空输入边界。
  *
  * 前置：桌面 JNI 已构建并注入 -Dgamecore.jni.path；未注入时跳过。
@@ -116,9 +116,9 @@ class DiffTraitEffectsTest {
     fun `merged talent plus affix effects match Kotlin union semantics`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        // 含同名 key（comprehensionFlat）与独有 key 的组合
-        val talentIds = listOf("r1_bat_hp", "r3_base_comp")
-        val affixIds = listOf("r1_aff_bat_atk", "r2_aff_base_comp")
+        // 含同名 key（intelligenceFlat）与独有 key 的组合
+        val talentIds = listOf("r1_bat_hp", "r1_base_int")
+        val affixIds = listOf("r1_aff_bat_atk", "r1_aff_base_int")
         val expected = kotlinMergedEffects(talentIds, affixIds)
         val params = "{\"op\":\"mergedTraitEffects\",\"talentIds\":[" +
             talentIds.joinToString(",") { "\"$it\"" } +
@@ -144,8 +144,8 @@ class DiffTraitEffectsTest {
     }
 
     private companion object {
-        /** 注册表条目数下限（守卫测试已证 204；此处防枚举 API 静默变空） */
-        const val TALENT_ENTRY_COUNT_FLOOR = 100
+        /** 注册表条目数下限（守卫测试已证 94/61/24；此处防枚举 API 静默变空） */
+        const val TALENT_ENTRY_COUNT_FLOOR = 90
         const val AFFIX_ENTRY_COUNT_FLOOR = 60
         const val PHYSIQUE_ENTRY_COUNT_FLOOR = 20
     }

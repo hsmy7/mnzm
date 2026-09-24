@@ -110,7 +110,7 @@ sealed interface GuideCondition {
         }
     }
 
-    /** 槽位填充数量（librarySlots / residenceSlots / patrolSlots / warehouseGarrisons / spiritMineSlots） */
+    /** 槽位填充数量（librarySlots / residenceSlots / patrolSlots / spiritMineSlots） */
     data class SlotFilledCount(
         val slotListField: String,
         override val targetValue: Long,
@@ -125,7 +125,6 @@ sealed interface GuideCondition {
             "librarySlots" -> gameData.librarySlots.count { it.discipleId.isNotEmpty() }.toLong()
             "residenceSlots" -> gameData.residenceSlots.count { it.discipleId.isNotEmpty() }.toLong()
             "patrolSlots" -> gameData.patrolSlots.count { it.discipleId.isNotEmpty() }.toLong()
-            "warehouseGarrisons" -> gameData.warehouseGarrisons.count { it.discipleId.isNotEmpty() }.toLong()
             "spiritMineSlots" -> gameData.spiritMineSlots.count { it.discipleId.isNotEmpty() }.toLong()
             else -> 0
         }
@@ -357,7 +356,7 @@ object GuideTaskRegistry {
         ),
         GuideTask(
             id = 13, name = "宗门律法",
-            description = "执法堂：处理弟子偷盗、叛逃等违规行为。执法长老智力越高抓捕率越高。",
+            description = "执法堂：宗门律法与秩序的执掌之所。",
             conditions = listOf(
                 GuideCondition.BuildingCount("执法堂", 1),
                 GuideCondition.ElderAppointed("lawEnforcementElder", "执法长老")
@@ -365,7 +364,7 @@ object GuideTaskRegistry {
         ),
         GuideTask(
             id = 14, name = "执法亲传",
-            description = "执法亲传弟子：协助执法长老执行宗门律法，处理违规弟子事务。",
+            description = "执法亲传弟子：协助执法长老处理宗门事务。",
             conditions = listOf(
                 GuideCondition.BuildingCount("执法堂", 1),
                 GuideCondition.DirectDiscipleActive("lawEnforcementDisciples", "执法亲传弟子")
@@ -437,10 +436,9 @@ object GuideTaskRegistry {
         ),
         GuideTask(
             id = 23, name = "仓库管理",
-            description = "仓库：每座+75格容量。派遣弟子驻守可防范偷盗。",
+            description = "仓库：每座+75格容量。",
             conditions = listOf(
-                GuideCondition.BuildingCount("仓库", 3),
-                GuideCondition.SlotFilledCount("warehouseGarrisons", 1, "驻守仓库")
+                GuideCondition.BuildingCount("仓库", 3)
             )
         ),
         GuideTask(
@@ -453,10 +451,9 @@ object GuideTaskRegistry {
         ),
         GuideTask(
             id = 25, name = "监牢惩戒",
-            description = "监牢：关押违反门规的弟子。入狱弟子思过期间无法参与任何宗门活动，期满后释放。",
+            description = "监牢：宗门拘押之所。",
             conditions = listOf(
-                GuideCondition.BuildingCount("监牢", 1),
-                GuideCondition.CumulativeCounter(GuideCounterKeys.DISCIPLE_IMPRISONED, 1, "弟子入狱")
+                GuideCondition.BuildingCount("监牢", 1)
             )
         )
     )

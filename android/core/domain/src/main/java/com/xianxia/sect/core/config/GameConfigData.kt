@@ -30,7 +30,6 @@ data class GameConfigData(
     val logs: LogsSection = LogsSection(),
     val battle: BattleSection = BattleSection(),
     val policyConfig: PolicyConfigSection = PolicyConfigSection(),
-    val lawEnforcement: LawEnforcementSection = LawEnforcementSection(),
     val ai: AISection = AISection(),
     val sectMap: SectMapSection = SectMapSection(),
     val worldMap: WorldMapSection = WorldMapSection(),
@@ -47,8 +46,6 @@ data class GameConfigData(
 
     @Serializable
     data class DiscipleSection(
-        val minLoyalty: Int = 0,
-        val maxLoyalty: Int = 100,
         val minAge: Int = 5,
         val maxAge: Int = 100,
         val protectionMonths: Int = 12
@@ -195,31 +192,6 @@ data class GameConfigData(
         val herbGardenDiscipleSpiritBase: Int = 50,
         val herbGardenDiscipleSpiritStep: Int = 5,
         val herbGardenDiscipleMax: Double = 0.2
-    )
-
-    @Serializable
-    data class LawEnforcementSection(
-        val loyaltyThreshold: Int = 30,
-        val moralityThreshold: Int = 30,
-        val herdLoyaltyThreshold: Int = 50,
-        val probPerPoint: Double = 0.01,
-        val maxProb: Double = 0.9,
-        val baseCaptureRate: Double = 0.0,
-        val intelligenceBase: Int = 50,
-        val elderBonusPerPoint: Double = 0.01,
-        val discipleIntelligenceStep: Int = 5,
-        val discipleBonusPerStep: Double = 0.01,
-        val reflectionYears: Int = 5,
-        val newDiscipleProtectionMonths: Int = 12,
-        // 境界基准偷盗量相关
-        val theftRealmBaseMin: Long = 500L,
-        val theftRealmBaseMax: Long = 32_000_000L,
-        val theftSpeedBonusPerPoint: Double = 0.005,
-        val theftSpeedBase: Int = 50,
-        val theftIntelligenceBonusPerPoint: Double = 0.003,
-        val theftIntelligenceBase: Int = 50,
-        val theftMinAmount: Long = 100L,
-        val theftRealmPerceptionBonus: Int = 10
     )
 
     @Serializable

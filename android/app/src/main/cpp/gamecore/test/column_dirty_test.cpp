@@ -246,7 +246,7 @@ TEST(ColumnDirtyTest, ExportConsumesMarksAndVersionIsMonotonic) {
     s.tracker.resetBaseline();
     ASSERT_EQ(0u, s.tracker.version());
 
-    s.tracker.markColumn(DiscipleColumn::Age, 0);
+    s.tracker.markColumn(DiscipleColumn::Name, 0);
     static_cast<void>(s.tracker.exportDirtyJson(s.store, s.gameData));
     EXPECT_EQ(1u, s.tracker.version());
 
@@ -266,7 +266,6 @@ TEST(ColumnDirtyTest, ScriptedMutationSequenceMatchesTreeDiff) {
     DirtyTracker treeTracker;
 
     Disciple a = makeDisciple("1", "甲");
-    a.age = 20;
     Disciple b = makeDisciple("2", "乙");
     b.cultivation = 30.0;
     state.disciples.appendDisciple(a);

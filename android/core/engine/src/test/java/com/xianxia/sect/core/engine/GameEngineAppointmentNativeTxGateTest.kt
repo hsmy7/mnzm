@@ -15,7 +15,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleCore
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlotType
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DeterministicRng
@@ -71,7 +70,6 @@ class GameEngineAppointmentNativeTxGateTest {
 
     private val discipleA = "1"
     private val discipleB = "2"
-    private val buildingId = "warehouse_b1"
 
     @Before
     fun setUp() {
@@ -191,10 +189,9 @@ class GameEngineAppointmentNativeTxGateTest {
     // ── native 臂门控（桥未加载恒降级） ──────────────────────────
 
     @Test
-    fun `native 臂 - AUTHORITATIVE 且桥未加载七臂均降级`() {
+    fun `native 臂 - AUTHORITATIVE 且桥未加载六臂均降级`() {
         assertNull(engine.tryAppointElderNative("VICE_SECT_MASTER", discipleA))
         assertNull(engine.tryDismissElderNative("VICE_SECT_MASTER"))
-        assertNull(engine.tryAssignWarehouseGarrisonNative(buildingId, discipleA, "n", "s"))
         assertNull(engine.tryWashSpiritRootNative(discipleA, 0, 1))
         assertNull(engine.tryRollTraitAddNative(discipleA, "TALENT", 1))
         assertFalse(engine.tryConfirmTraitAddNative(discipleA, "TALENT", "t1"))
@@ -202,11 +199,10 @@ class GameEngineAppointmentNativeTxGateTest {
     }
 
     @Test
-    fun `native 臂 - flag OFF 七臂均降级`() {
+    fun `native 臂 - flag OFF 六臂均降级`() {
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             assertNull(engine.tryAppointElderNative("VICE_SECT_MASTER", discipleA))
             assertNull(engine.tryDismissElderNative("VICE_SECT_MASTER"))
-            assertNull(engine.tryAssignWarehouseGarrisonNative(buildingId, discipleA, "n", "s"))
             assertNull(engine.tryWashSpiritRootNative(discipleA, 0, 1))
             assertNull(engine.tryRollTraitAddNative(discipleA, "TALENT", 1))
             assertFalse(engine.tryConfirmTraitAddNative(discipleA, "TALENT", "t1"))
@@ -240,31 +236,6 @@ class GameEngineAppointmentNativeTxGateTest {
         assertTrue("应为 Success", result is ElderManagementUseCase.ElderResult.Success)
         assertEquals("", store.latestGameData.elderSlots.viceSectMaster)
         assertFalse("被卸任者 gate 释放", gate.isAssigned(discipleA))
-    }
-
-    // ── 仓库驻守回退臂 ──────────────────────────────────────────
-
-    @Test
-    fun `assignWarehouseGarrisonAtomic - 桥未加载走回退臂且残差照常`() {
-        store.update {
-            gameData = gameData.copy(
-                warehouseGarrisons = listOf(
-                    WarehouseGarrisonSlot(
-                        buildingInstanceId = buildingId,
-                        discipleId = discipleB,
-                        discipleName = "弟子B"
-                    )
-                )
-            )
-        }
-        engine.assignWarehouseGarrisonAtomic(buildingId, discipleA, "弟子A", "sectA")
-
-        val garrisons = store.latestGameData.warehouseGarrisons
-        assertEquals("条目替换无重复", 1, garrisons.size)
-        assertEquals(discipleA, garrisons[0].discipleId)
-        assertEquals("sectA", garrisons[0].sectId)
-        assertTrue("新驻守登记", gate.isAssigned(discipleA))
-        assertFalse("旧 occupant 释放", gate.isAssigned(discipleB))
     }
 
     // ── 洗炼族回退臂（降级下原有扣减/三态语义不变） ──────────────

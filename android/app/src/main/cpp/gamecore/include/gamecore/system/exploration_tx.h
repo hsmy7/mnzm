@@ -40,14 +40,14 @@
 //   - 遭遇分支：aiBeastEncounterTargets 为 @Transient Kotlin 域字段（不入
 //     镜像协议）——Kotlin 臂先行判定并整臂接管
 //   - forceSettleDisciplesBeforeBattle（修炼结算域，Kotlin 原样前置执行）
-//   - 胜利事务原子块（soulPowers/winBattleRandomAttrPlus/defeated TOCTOU
-//     重查；talent effects + lawEnforcement 偷盗判定耦合）——C++ 不写
-//     defeated，Kotlin applyWorldLevelVictoryTransaction 原函数执行
+//   - 世界关卡胜利事务（defeated TOCTOU 重查——C++ 不写
+//     defeated，Kotlin applyWorldLevelVictoryTransaction 原函数执行）
 //   - 奖励生成（妖兽材料 BeastMaterialDatabase.getRandomMaterialByBeastType
 //     硬编码 Random.nextDouble + 洞府三库 generateRandom Random.Default +
 //     UUID id——非分区非存档确定性随机域，双臂同形不改抽取集）
-//   - processBattleCasualties（悲痛期/卸装/槽位清理编排，C++ 无统一入口；
-//     袋已清空幂等 + wasAlive 双计防线，S6 同款事务外重跑）
+//   - processBattleCasualties 阶段 1（DeathEvent 事件广播）/阶段 3（Room
+//     生产槽 Repository）——Kotlin 平台域，经信封 markedDeadIds 由 Kotlin
+//     native 臂补执行）
 //   - 战报重建/奖励卡片/gate/Room 生产仓/状态同步（平台效应）
 //
 // RNG 契约（对拍命门）：
@@ -485,7 +485,6 @@ inline GarrisonAssignOutcome assignGarrisonTx(GameState& state,
     in.residenceSlots = gd.residenceSlots;
     in.activeBloodRefinements = gd.activeBloodRefinements;
     in.patrolSlots = gd.patrolSlots;
-    in.warehouseGarrisons = gd.warehouseGarrisons;
     in.battleTeams = gd.battleTeams;
     in.worldMapSects = gd.worldMapSects;
     in.productionSlots = gd.productionSlots;
@@ -499,7 +498,6 @@ inline GarrisonAssignOutcome assignGarrisonTx(GameState& state,
     gd.residenceSlots = std::move(cleaned.residenceSlots);
     gd.activeBloodRefinements = std::move(cleaned.activeBloodRefinements);
     gd.patrolSlots = std::move(cleaned.patrolSlots);
-    gd.warehouseGarrisons = std::move(cleaned.warehouseGarrisons);
     gd.battleTeams = std::move(cleaned.battleTeams);
     gd.productionSlots = std::move(cleaned.productionSlots);
     gd.caveExplorationTeams = std::move(cleaned.caveExplorationTeams);

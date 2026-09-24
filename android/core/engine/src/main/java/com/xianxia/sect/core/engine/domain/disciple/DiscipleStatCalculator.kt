@@ -13,8 +13,6 @@ object DiscipleStatCalculator {
     internal const val MIN_CULTIVATION_PER_PHASE = 1.0
     internal const val BASE_MANUAL_SLOTS = 6
     internal const val ELDER_BONUS_PER_STEP = 0.01
-    internal const val SOUL_POWER_DIVISOR = 20
-    internal const val SOUL_POWER_MAX_STEPS = 5
     internal const val ELDER_TEACHING_BASELINE = 80
     internal const val MASTER_TEACHING_BASELINE = 60
     internal const val ELDER_TEACHING_RATE = 0.0025
@@ -57,7 +55,6 @@ object DiscipleStatCalculator {
     internal data class SkillInputs(
         val intelligence: Int,
         val charm: Int,
-        val loyalty: Int,
         val comprehension: Int,
         val aptitude: Int,
         val teaching: Int,
@@ -106,7 +103,7 @@ object DiscipleStatCalculator {
         val aptitudeBonus: Double = 0.0,    // 资质乘区：天赋
         val resourceBonus: Double = 0.0,    // 资源乘区：功法+丹药+建筑
         val socialBonus: Double = 0.0,      // 社交乘区：师徒+传道+父母
-        val statusBonus: Double = 0.0,      // 状态乘区：丧亲+寿命+政策
+        val statusBonus: Double = 0.0,      // 状态乘区：丧亲+政策
         val temporaryBonus: Double = 0.0,   // 临时乘区：丹药临时加速
     )
 
@@ -129,8 +126,6 @@ object DiscipleStatCalculator {
         val masterDiscipleBonus: Double,
         val cultivationSubsidyBonus: Double,
         val griefCultivationSpeedPenalty: Double,
-        val age: Int,
-        val lifespan: Int,
         val temporaryBonus: Double,
         val aptitude: Int = DEFAULT_COLUMN_APTITUDE
     )
@@ -148,8 +143,6 @@ object DiscipleStatCalculator {
         val physiqueIds: List<String>,
         val affixIds: List<String>,
         val manualIds: List<String>,
-        val age: Int,
-        val lifespan: Int,
         val pillEffectDuration: Int,
         val pillCultivationSpeedBonus: Double,
         val aptitude: Int = DEFAULT_COLUMN_APTITUDE
@@ -166,8 +159,8 @@ object DiscipleStatCalculator {
     data class BreakthroughZones(
         val baseZone: Double = 0.0,        // 基础概率（境界+灵根+层数）
         val elderGuidance: Double = 0.0,   // 长老指导乘区：内门+外门
-        val selfBonus: Double = 0.0,       // 自身加成乘区：天赋+魂力+丹药+师徒
-        val statusPenalty: Double = 0.0,   // 状态惩罚乘区：丧亲+寿命（正值 = 惩罚幅度）
+        val selfBonus: Double = 0.0,       // 自身加成乘区：丹药+师徒+悟性
+        val statusPenalty: Double = 0.0,   // 状态惩罚乘区：丧亲（正值 = 惩罚幅度）
         val adFlatBonus: Double = 0.0,     // 广告扁平加成（不经过乘区缩放，直接加在最终值上）
     )
 
@@ -190,14 +183,12 @@ object DiscipleStatCalculator {
         val outerElderBonus: Double,
         /** @deprecated 突破加成已从天赋系统移除，此字段仅供旧存档显示，不参与计算 */
         val talentBonus: Double,
-        val soulPowerBonus: Double,
         val pillBonus: Double,
         val adBonus: Double,
         val masterDiscipleBonus: Double,
         /** 弟子自身悟性突破率加成（悟性80基准每4点+1%，最多+10%） */
         val selfComprehensionBonus: Double,
         val griefPenalty: Double,
-        val lifespanPenalty: Double,
         val total: Double
     )
 
@@ -221,16 +212,4 @@ object DiscipleStatCalculator {
 
     /** 师徒大境界差每级提供的突破率加成：3% */
     const val MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP = 0.03
-
-    /** 寿命惩罚阈值：剩余寿命低于此比例时触发 */
-    internal const val LIFESPAN_PENALTY_THRESHOLD = 0.20
-    /** 每低于阈值1个百分点降低5%修炼速度 */
-    internal const val LIFESPAN_CULTIVATION_PENALTY_PER_PCT = 0.05
-    /** 每低于阈值1个百分点降低2%突破率 */
-    internal const val LIFESPAN_BREAKTHROUGH_PENALTY_PER_PCT = 0.02
-
-    /**
-     * 计算剩余寿命百分比（0.0~1.0）
-     * lifespan <= 0 时返回 1.0（无惩罚，避免除零）
-     */
 }

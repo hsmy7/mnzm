@@ -19,8 +19,7 @@ data class DiscipleEquipment(
     var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
-    var spiritStones: Int = 0,
-    var soulPower: Int = 0
+    var spiritStones: Int = 0
 ) {
     val hasEquippedItems: Boolean get() = listOf(weaponId, armorId, bootsId, accessoryId).any { it.isNotEmpty() }
 
@@ -40,8 +39,7 @@ data class DiscipleEquipment(
                 accessoryNurture = disciple.equipment.accessoryNurture,
                 storageBagItems = disciple.equipment.storageBagItems,
                 storageBagSpiritStones = disciple.equipment.storageBagSpiritStones,
-                spiritStones = disciple.equipment.spiritStones,
-                soulPower = disciple.soulPower
+                spiritStones = disciple.equipment.spiritStones
             )
         }
     }

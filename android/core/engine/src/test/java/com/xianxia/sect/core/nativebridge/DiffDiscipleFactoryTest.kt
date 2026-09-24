@@ -64,7 +64,6 @@ class DiffDiscipleFactoryTest {
         assertInt(tag, "basePhysicalDefense", d.combat.basePhysicalDefense, c)
         assertInt(tag, "baseMagicDefense", d.combat.baseMagicDefense, c)
         assertInt(tag, "baseSpeed", d.combat.baseSpeed, c)
-        assertInt(tag, "lifespan", d.lifespan, c)
     }
 
     private fun assertSkills(tag: String, d: Disciple, c: JsonObject) {
@@ -72,7 +71,6 @@ class DiffDiscipleFactoryTest {
         assertInt(tag, "aptitude", d.skills.aptitude, c)
         assertInt(tag, "intelligence", d.skills.intelligence, c)
         assertInt(tag, "charm", d.skills.charm, c)
-        assertInt(tag, "loyalty", d.skills.loyalty, c)
         assertInt(tag, "morality", d.skills.morality, c)
         assertInt(tag, "artifactRefining", d.skills.artifactRefining, c)
         assertInt(tag, "pillRefining", d.skills.pillRefining, c)
@@ -94,7 +92,6 @@ class DiffDiscipleFactoryTest {
         fullName: String,
         surname: String,
         spiritRootType: String,
-        age: Int = 18,
         realm: Int = 9,
         realmLayer: Int = 1
     ) {
@@ -107,7 +104,6 @@ class DiffDiscipleFactoryTest {
                 gender = gender,
                 nameResult = NameService.NameResult(fullName, surname),
                 spiritRootType = spiritRootType,
-                age = age,
                 realm = realm,
                 realmLayer = realmLayer,
                 social = SocialData(),
@@ -119,7 +115,7 @@ class DiffDiscipleFactoryTest {
         val seedJson = """
             {"id":"$id","gender":"$gender","fullName":"$fullName",
              "surname":"$surname","spiritRootType":"$spiritRootType",
-             "age":$age,"realm":$realm,"realmLayer":$realmLayer}
+             "realm":$realm,"realmLayer":$realmLayer}
         """.trimIndent()
         val c = json.parseToJsonElement(
             DiffRngBridge.nativeCreateDisciple(seedJson)
@@ -155,20 +151,19 @@ class DiffDiscipleFactoryTest {
     }
 
     @Test
-    fun `createDisciple matches Kotlin with non-default realm and age`() {
+    fun `createDisciple matches Kotlin with non-default realm`() {
         assumeTrue(DiffRngBridge.isAvailable())
-        // realm 5（化神，maxAge 500）+ 年龄 24：覆盖 lifespan 不同基准
+        // realm 5（化神）+ 小层 3：覆盖非默认境界/层数分支
         runDiff(
             seed = 777, id = "realm5", gender = "male",
             fullName = "玄真子", surname = "玄",
-            spiritRootType = "火,水,木", age = 24, realm = 5, realmLayer = 3
+            spiritRootType = "火,水,木", realm = 5, realmLayer = 3
         )
-        // realm 7（金丹，maxAge 200）：与 GTest RealmMaxAgeMattersForLifespan
-        // 同种子同参数（male/单灵根火），锚定其 lifespan 黄金值
+        // realm 7（金丹）：与 GTest 同种子同参数（male/单灵根火）
         runDiff(
             seed = 20260901, id = "realm7", gender = "male",
             fullName = "李逍遥", surname = "李",
-            spiritRootType = "火", age = 18, realm = 7, realmLayer = 1
+            spiritRootType = "火", realm = 7, realmLayer = 1
         )
     }
 

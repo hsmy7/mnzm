@@ -28,13 +28,13 @@ export const CATALOG = [
   // ── 1780–1789 · w3-06 战斗/探索残差 ──
   // C1 实施口径（2026-09-15）：三事务下沉（battle_residual_tx.h）。
   // 伤亡残差（CombatService.processBattleCasualties 阶段 2 写面）与关卡胜利
-  // 事务（soulPowers/winAttr/偷盗钩子——C++ 不写 defeated，batch-13 TOCTOU
+  // 事务（C++ 不写 defeated，batch-13 TOCTOU
   // 口径；defeated + battleLogs 残差留 Kotlin）与战前突破结算
   // （forceSettleDisciplesBeforeBattle——限定队伍 id 集，行序 == Kotlin
   // discipleTables.ids 序，BREAKTHROUGH/SYSTEM 分区抽取序逐位不变）。
   // 失败事务 :288 判定为 battleLogs 显示域 + UI 通道，无状态可下沉（登记）。
-  { id: 1780, name: 'BATTLE_CASUALTY_SETTLE_TX', desc: '战斗伤亡残差事务（悲痛/标死袋物化/物品清理/槽位清理/幸存者回写，零 RNG）' },
-  { id: 1781, name: 'WORLD_VICTORY_REWARDS_TX', desc: '世界关卡胜利事务（TOCTOU 重查 + 魂力 + 确定性 winAttr + 道德偷盗钩子；不写 defeated）' },
+  { id: 1780, name: 'BATTLE_CASUALTY_SETTLE_TX', desc: '战斗伤亡残差事务（重伤标记/幸存者回写，零 RNG）' },
+  { id: 1781, name: 'WORLD_VICTORY_REWARDS_TX', desc: '世界关卡胜利事务（TOCTOU 重查；不写 defeated）' },
   { id: 1782, name: 'BATTLE_PRESETTLE_TX', desc: '战前突破结算（实时突破管线限定队伍 id 集；BREAKTHROUGH/SYSTEM 分区同序）' },
 
   // ── 1790–1799 · w3-07 宗门战战后段 ──

@@ -264,12 +264,11 @@ class DisciplePurchaseService @Inject constructor(
             state.gameData = state.gameData.copy(spiritStones = state.gameData.spiritStones + item.price)
 
             // 记录购买日志
-            val purchaseAge = state.discipleTables.ages[dId]
             val currentEvents = state.discipleTables.lifeEvents.getOrDefault(
                 dId, emptyList()
             )
             state.discipleTables.lifeEvents[dId] = currentEvents +
-                "${purchaseAge}岁：购买了${item.name}"
+                "购买了${item.name}"
 
             // 不修改 listing 数量，不自动删除 listing
             // 仓库库存是唯一的购买门控，补货后自动可购
@@ -459,7 +458,6 @@ class DisciplePurchaseService @Inject constructor(
         mpRecoverMaxMpPercent = pill.effects.mpRecoverMaxMpPercent,
         hpAdd = pill.effects.hpAdd,
         mpAdd = pill.effects.mpAdd,
-        extendLife = pill.effects.extendLife,
         physicalAttackAdd = pill.effects.physicalAttackAdd,
         magicAttackAdd = pill.effects.magicAttackAdd,
         physicalDefenseAdd = pill.effects.physicalDefenseAdd,
@@ -469,7 +467,6 @@ class DisciplePurchaseService @Inject constructor(
         critEffectAdd = pill.effects.critEffectAdd,
         intelligenceAdd = pill.effects.intelligenceAdd,
         charmAdd = pill.effects.charmAdd,
-        loyaltyAdd = pill.effects.loyaltyAdd,
         comprehensionAdd = pill.effects.comprehensionAdd,
         artifactRefiningAdd = pill.effects.artifactRefiningAdd,
         pillRefiningAdd = pill.effects.pillRefiningAdd,

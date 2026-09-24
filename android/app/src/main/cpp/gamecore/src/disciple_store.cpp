@@ -37,10 +37,7 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.cultivation = cultivations[row];
     d.cultivationCheckpoint = cultivationCheckpoints[row];
     d.cultivationCheckpointGameMonth = cultivationCheckpointGameMonths[row];
-    d.age = ages[row];
-    d.lifespan = lifespans[row];
     d.isAlive = isAlive[row] != 0;
-    d.soulPower = soulPowers[row];
 
     d.cultivationSpeedBonus = cultivationSpeedBonuses[row];
     d.cultivationSpeedDuration = cultivationSpeedDurations[row];
@@ -124,7 +121,6 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     // SkillStats
     d.intelligence = intelligences[row];
     d.charm = charms[row];
-    d.loyalty = loyalties[row];
     d.comprehension = comprehensions[row];
     d.artifactRefining = artifactRefinings[row];
     d.pillRefining = pillRefinings[row];
@@ -142,9 +138,7 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
 
     // UsageTracking
     d.usedPermanentPillKeys = usedPermanentPillKeys[row];
-    d.usedExtendLifePillTypes = usedExtendLifePillTypes[row];
     d.usedFunctionalPillTypes = usedFunctionalPillTypes[row];
-    d.usedExtendLifePillIds = usedExtendLifePillIds[row];
     d.recruitedMonth = recruitedMonths[row];
     d.hasReviveEffect = hasReviveEffects[row] != 0;
     d.hasClearAllEffect = hasClearAllEffects[row] != 0;
@@ -176,12 +170,8 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     cultivations.push_back(d.cultivation);
     cultivationCheckpoints.push_back(d.cultivationCheckpoint);
     cultivationCheckpointGameMonths.push_back(d.cultivationCheckpointGameMonth);
-    ages.push_back(d.age);
-    lifespans.push_back(d.lifespan);
     isAlive.push_back(d.isAlive ? 1 : 0);
     deathYears.push_back(0);  // 新弟子无死亡年份（Kotlin 稀疏表无条目语义）
-    lastTheftJudgementYears.push_back(0);  // 新弟子从未判定（Kotlin 稀疏表无条目语义）
-    soulPowers.push_back(d.soulPower);
 
     cultivationSpeedBonuses.push_back(d.cultivationSpeedBonus);
     cultivationSpeedDurations.push_back(d.cultivationSpeedDuration);
@@ -260,7 +250,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
 
     intelligences.push_back(d.intelligence);
     charms.push_back(d.charm);
-    loyalties.push_back(d.loyalty);
     comprehensions.push_back(d.comprehension);
     artifactRefinings.push_back(d.artifactRefining);
     pillRefinings.push_back(d.pillRefining);
@@ -277,9 +266,7 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     forgePromotionCounts.push_back(d.forgePromotionCount);
 
     usedPermanentPillKeys.push_back(d.usedPermanentPillKeys);
-    usedExtendLifePillTypes.push_back(d.usedExtendLifePillTypes);
     usedFunctionalPillTypes.push_back(d.usedFunctionalPillTypes);
-    usedExtendLifePillIds.push_back(d.usedExtendLifePillIds);
     recruitedMonths.push_back(d.recruitedMonth);
     hasReviveEffects.push_back(d.hasReviveEffect ? 1 : 0);
     hasClearAllEffects.push_back(d.hasClearAllEffect ? 1 : 0);
@@ -311,12 +298,8 @@ void DiscipleStore::reserveRows(std::size_t n) {
     cultivations.reserve(n);
     cultivationCheckpoints.reserve(n);
     cultivationCheckpointGameMonths.reserve(n);
-    ages.reserve(n);
-    lifespans.reserve(n);
     isAlive.reserve(n);
     deathYears.reserve(n);
-    lastTheftJudgementYears.reserve(n);
-    soulPowers.reserve(n);
     cultivationSpeedBonuses.reserve(n);
     cultivationSpeedDurations.reserve(n);
     manualIds.reserve(n);
@@ -387,7 +370,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     masterIds.reserve(n);
     intelligences.reserve(n);
     charms.reserve(n);
-    loyalties.reserve(n);
     comprehensions.reserve(n);
     artifactRefinings.reserve(n);
     pillRefinings.reserve(n);
@@ -403,9 +385,7 @@ void DiscipleStore::reserveRows(std::size_t n) {
     forgeLevels.reserve(n);
     forgePromotionCounts.reserve(n);
     usedPermanentPillKeys.reserve(n);
-    usedExtendLifePillTypes.reserve(n);
     usedFunctionalPillTypes.reserve(n);
-    usedExtendLifePillIds.reserve(n);
     recruitedMonths.reserve(n);
     hasReviveEffects.reserve(n);
     hasClearAllEffects.reserve(n);
@@ -437,16 +417,12 @@ void DiscipleStore::upsertDisciple(const Disciple& d) {
     //   "assembleAll → map 标记 → replaceAll → 补 deathYears" 流水线依赖
     //   replaceAll 保留已写 deathYears；appendDisciple 新行默认 0，需旋转后写回）
     const int32_t savedDeathYear = deathYears[row];
-    // ★ 同法保存 lastTheftJudgementYears（Kotlin tables.update 不触碰稀疏表——
-    //   偷盗年判定标记跨列写存活）
-    const int32_t savedTheftJudgementYear = lastTheftJudgementYears[row];
     eraseAt(row);
     appendDisciple(d);
     for (std::size_t i = ids.size() - 1; i > row; --i) {
         swapRows(i, i - 1);
     }
     deathYears[row] = savedDeathYear;
-    lastTheftJudgementYears[row] = savedTheftJudgementYear;
 }
 
 void DiscipleStore::removeById(const std::string& id) {
@@ -479,12 +455,8 @@ void DiscipleStore::clear() {
     cultivations.clear();
     cultivationCheckpoints.clear();
     cultivationCheckpointGameMonths.clear();
-    ages.clear();
-    lifespans.clear();
     isAlive.clear();
     deathYears.clear();
-    lastTheftJudgementYears.clear();
-    soulPowers.clear();
     cultivationSpeedBonuses.clear();
     cultivationSpeedDurations.clear();
     manualIds.clear();
@@ -555,7 +527,6 @@ void DiscipleStore::clear() {
     masterIds.clear();
     intelligences.clear();
     charms.clear();
-    loyalties.clear();
     comprehensions.clear();
     artifactRefinings.clear();
     pillRefinings.clear();
@@ -571,9 +542,7 @@ void DiscipleStore::clear() {
     forgeLevels.clear();
     forgePromotionCounts.clear();
     usedPermanentPillKeys.clear();
-    usedExtendLifePillTypes.clear();
     usedFunctionalPillTypes.clear();
-    usedExtendLifePillIds.clear();
     recruitedMonths.clear();
     hasReviveEffects.clear();
     hasClearAllEffects.clear();
@@ -598,12 +567,8 @@ void DiscipleStore::eraseAt(std::size_t row) {
     cultivations.erase(cultivations.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationCheckpoints.erase(cultivationCheckpoints.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationCheckpointGameMonths.erase(cultivationCheckpointGameMonths.begin() + static_cast<std::ptrdiff_t>(row));
-    ages.erase(ages.begin() + static_cast<std::ptrdiff_t>(row));
-    lifespans.erase(lifespans.begin() + static_cast<std::ptrdiff_t>(row));
     isAlive.erase(isAlive.begin() + static_cast<std::ptrdiff_t>(row));
     deathYears.erase(deathYears.begin() + static_cast<std::ptrdiff_t>(row));
-    lastTheftJudgementYears.erase(lastTheftJudgementYears.begin() + static_cast<std::ptrdiff_t>(row));
-    soulPowers.erase(soulPowers.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationSpeedBonuses.erase(cultivationSpeedBonuses.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationSpeedDurations.erase(cultivationSpeedDurations.begin() + static_cast<std::ptrdiff_t>(row));
     manualIds.erase(manualIds.begin() + static_cast<std::ptrdiff_t>(row));
@@ -674,7 +639,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     masterIds.erase(masterIds.begin() + static_cast<std::ptrdiff_t>(row));
     intelligences.erase(intelligences.begin() + static_cast<std::ptrdiff_t>(row));
     charms.erase(charms.begin() + static_cast<std::ptrdiff_t>(row));
-    loyalties.erase(loyalties.begin() + static_cast<std::ptrdiff_t>(row));
     comprehensions.erase(comprehensions.begin() + static_cast<std::ptrdiff_t>(row));
     artifactRefinings.erase(artifactRefinings.begin() + static_cast<std::ptrdiff_t>(row));
     pillRefinings.erase(pillRefinings.begin() + static_cast<std::ptrdiff_t>(row));
@@ -690,9 +654,7 @@ void DiscipleStore::eraseAt(std::size_t row) {
     forgeLevels.erase(forgeLevels.begin() + static_cast<std::ptrdiff_t>(row));
     forgePromotionCounts.erase(forgePromotionCounts.begin() + static_cast<std::ptrdiff_t>(row));
     usedPermanentPillKeys.erase(usedPermanentPillKeys.begin() + static_cast<std::ptrdiff_t>(row));
-    usedExtendLifePillTypes.erase(usedExtendLifePillTypes.begin() + static_cast<std::ptrdiff_t>(row));
     usedFunctionalPillTypes.erase(usedFunctionalPillTypes.begin() + static_cast<std::ptrdiff_t>(row));
-    usedExtendLifePillIds.erase(usedExtendLifePillIds.begin() + static_cast<std::ptrdiff_t>(row));
     recruitedMonths.erase(recruitedMonths.begin() + static_cast<std::ptrdiff_t>(row));
     hasReviveEffects.erase(hasReviveEffects.begin() + static_cast<std::ptrdiff_t>(row));
     hasClearAllEffects.erase(hasClearAllEffects.begin() + static_cast<std::ptrdiff_t>(row));
@@ -735,12 +697,8 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(cultivations[a], cultivations[b]);
     swap(cultivationCheckpoints[a], cultivationCheckpoints[b]);
     swap(cultivationCheckpointGameMonths[a], cultivationCheckpointGameMonths[b]);
-    swap(ages[a], ages[b]);
-    swap(lifespans[a], lifespans[b]);
     swap(isAlive[a], isAlive[b]);
     swap(deathYears[a], deathYears[b]);
-    swap(lastTheftJudgementYears[a], lastTheftJudgementYears[b]);
-    swap(soulPowers[a], soulPowers[b]);
     swap(cultivationSpeedBonuses[a], cultivationSpeedBonuses[b]);
     swap(cultivationSpeedDurations[a], cultivationSpeedDurations[b]);
     swap(manualIds[a], manualIds[b]);
@@ -811,7 +769,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(masterIds[a], masterIds[b]);
     swap(intelligences[a], intelligences[b]);
     swap(charms[a], charms[b]);
-    swap(loyalties[a], loyalties[b]);
     swap(comprehensions[a], comprehensions[b]);
     swap(artifactRefinings[a], artifactRefinings[b]);
     swap(pillRefinings[a], pillRefinings[b]);
@@ -827,9 +784,7 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(forgeLevels[a], forgeLevels[b]);
     swap(forgePromotionCounts[a], forgePromotionCounts[b]);
     swap(usedPermanentPillKeys[a], usedPermanentPillKeys[b]);
-    swap(usedExtendLifePillTypes[a], usedExtendLifePillTypes[b]);
     swap(usedFunctionalPillTypes[a], usedFunctionalPillTypes[b]);
-    swap(usedExtendLifePillIds[a], usedExtendLifePillIds[b]);
     swap(recruitedMonths[a], recruitedMonths[b]);
     swap(hasReviveEffects[a], hasReviveEffects[b]);
     swap(hasClearAllEffects[a], hasClearAllEffects[b]);

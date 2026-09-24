@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -23,8 +22,7 @@ class DiscipleLoadNormalizerTest {
             name = name,
             realm = 9,
             isAlive = true,
-            discipleType = "outer",
-            skills = SkillStats(loyalty = 50)
+            discipleType = "outer"
         )
     }
 

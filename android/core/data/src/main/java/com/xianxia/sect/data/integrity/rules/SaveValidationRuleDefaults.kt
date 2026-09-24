@@ -10,11 +10,9 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             DiscipleIdBoundsRule,      // order=1（C3-b：大 id 弟子扩容 OOM 前置拦截）
             SectNameRule,              // order=1
             GameDateRule,              // order=2
-            DiscipleAgePositiveRule,   // order=3
             GamePhaseRangeRule,        // order=4
             CultivationCapRule,        // order=5
             EquipmentRefRule,          // order=6
-            AgeLifespanRule,           // order=7
             BuildingRefRule,           // order=8
             DuplicateDiscipleIdRule,   // order=9
             GhostDiscipleCleanupRule,  // order=10

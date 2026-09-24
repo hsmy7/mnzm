@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -35,7 +34,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 /**
  * 守卫测试：事务失败回滚时 RNG 同步回滚，读档重放逐位一致。
  *
- * 背景：结算事务（突破/叛逃/生育/生产判定）在 stateStore.update 内消费分区 RNG。
+ * 背景：结算事务（突破/生育/生产判定）在 stateStore.update 内消费分区 RNG。
  * 事务中途异常时 COW 缓冲丢弃（状态回滚）但 RNG 已前进——游戏循环捕获异常后
  * 继续运行，状态与随机序列永久分叉，读档重放不可复现。
  *
@@ -315,7 +314,7 @@ class TransactionRngRollbackTest {
             discipleTables.insert(
                 Disciple(
                     id = "1", name = "测试弟子", realm = 1,
-                    cultivation = 100.0, skills = SkillStats(loyalty = 50)
+                    cultivation = 100.0
                 )
             )
         }

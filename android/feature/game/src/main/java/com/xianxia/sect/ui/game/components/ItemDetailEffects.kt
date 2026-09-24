@@ -32,7 +32,6 @@ private val STAT_DISPLAY_NAMES: Map<String, String> = mapOf(
     "critEffect" to "暴击效果",
     "intelligence" to "悟性",
     "charm" to "魅力",
-    "loyalty" to "忠诚",
     "comprehension" to "领悟",
     "artifactRefining" to "炼器",
     "pillRefining" to "炼丹",

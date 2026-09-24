@@ -28,7 +28,6 @@ import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
 import com.xianxia.sect.core.engine.service.CultivationSettlement
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -83,7 +82,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
  * 场景边界（未随本批下沉的跨系统钩子不触发，见 t2-1-report.md）：
  * - 自动仓库装备/学习开关全关（processAutoFromWarehouse 纯早退）；
  * - 弟子无任何亲属关系（亲属赠送零 SYSTEM RNG）；
- * - 丹药不含道德减益（无偷盗判定钩子）。
+ * - 丹药不含道德减益（场景聚焦修为丹写回）。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */
@@ -170,7 +169,7 @@ class DiffPhaseSettlementTest {
         )
     }
 
-    /** 直接修为丹（INSTANT_CULTIVATION 规则；无道德减益 → 不触发偷盗钩子） */
+    /** 直接修为丹（INSTANT_CULTIVATION 规则；无道德减益） */
     private fun cultivationPill() = StorageBagItem(
         itemId = "pill-1", itemType = "pill", name = "聚气丹", rarity = 2,
         quantity = 2, obtainedYear = 1, obtainedMonth = 1,
@@ -192,32 +191,10 @@ class DiffPhaseSettlementTest {
 
     // ── Kotlin 基准侧 ──────────────────────────────────────────────
 
-    /**
-     * 执法处理器构造（偷盗钩子场景用真实实现，其余场景 mock）。
-     * 必须与基准侧共用同一 [gameRng]（SYSTEM 抽取落同一分区真相）。
-     */
-    private fun buildLawProcessor(
-        store: FakeGameStateStore,
-        gameRng: GameRngManager,
-        real: Boolean
-    ): LawEnforcementProcessor =
-        if (real) {
-            com.xianxia.sect.core.engine.service.LawEnforcementProcessor(
-                stateStore = store,
-                rngManager = gameRng,
-                discipleLifecycleProcessor =
-                    mockSmart<com.xianxia.sect.core.engine.service.DiscipleLifecycleProcessor>(),
-                lootCalculator = com.xianxia.sect.core.exploration.LootCalculator(gameRng)
-            )
-        } else {
-            mockSmart()
-        }
-
     /** 构造真实服务的 CultivationService（mock 仅为本路径不触达的依赖）；返回服务与其 RNG 管理器 */
     private fun buildService(
         store: FakeGameStateStore,
-        rngStates: Map<Int, Long>,
-        realLawEnforcement: Boolean = false
+        rngStates: Map<Int, Long>
     ): Pair<CultivationService, GameRngManager> {
         // 晚绑定属性计算器（生产由 App 启动装配；纯 JUnit 需手动绑定——
         // 突破失败折算/长老悟性等路径经 disciple.maxHp/getBaseStats 消费它）
@@ -280,12 +257,10 @@ class DiffPhaseSettlementTest {
         // RNG 与 C++ 同源：restore 到导入快照的分区状态（C++ importStateJson
         // 的等价步骤）；突破/亲属赠送/伴侣配对共用同一管理器（生产装配同构）
         val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
-        val lawProcessor = buildLawProcessor(store, gameRng, realLawEnforcement)
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(
-                DisciplePillManager(PillEffectApplier()),
-                lawProcessor
+                DisciplePillManager(PillEffectApplier())
             ),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
@@ -312,8 +287,6 @@ class DiffPhaseSettlementTest {
             stateStore = store,
             scopeProvider = scopeProvider,
             spiritStoneWallet = wallet,
-            lawEnforcementProcessor = mockSmart(),   // 惰性实例：S2 教化之道
-            // 偷盗钩子场景规避后零触达（等价性论证见 t2-2-report.md §A）
             gameConfigProvider = configProvider
         )
         val eventProcessor = buildEventProcessor(
@@ -348,7 +321,6 @@ class DiffPhaseSettlementTest {
         scopeProvider: CoroutineScopeProvider
     ): CultivationEventProcessor {
         val aiProcessor = mockSmart<AISectBeastAttackProcessor>()
-        val lawEnforcement = mockSmart<LawEnforcementProcessor>()
         return CultivationEventProcessor(
             stateStore = store,
             spiritStoneWallet = SpiritStoneWallet(
@@ -374,7 +346,6 @@ class DiffPhaseSettlementTest {
             vassalService = mockSmart(),
             disciplePurchaseService = mockSmart(),
             aiSectBeastAttackProcessor = aiProcessor,
-            lawEnforcementProcessor = lawEnforcement,
             rngManager = gameRng,
             secretRealmService = mockSmart(),
             secretRealmAIProcessor = mockSmart(),
@@ -590,25 +561,15 @@ class DiffPhaseSettlementTest {
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
 
-    // ── 自动装备/亲属赠送/偷盗钩子场景 ─────────────────────────
-    // 覆盖上文场景边界规避的三条路径：自动装备开启 / 突破后亲属赠送
-    // （SYSTEM RNG）/ 丹药写回偷盗判定钩子（SYSTEM RNG）。
+    // ── 自动装备/亲属赠送场景 ─────────────────────────
+    // 覆盖上文场景边界规避的两条路径：自动装备开启 / 突破后亲属赠送
+    // （SYSTEM RNG）。
 
     /** 探测指定分区在 3 次预热抽取后的首个 nextDouble 值 */
     private fun probeFirstDouble(seed: Long, partition: RngPartition): Double {
         val probe = DeterministicRng.fromSeed(seed + partition.id)
         repeat(3) { probe.nextInt() }
         return probe.nextDouble()
-    }
-
-    private fun findSeed(
-        partition: RngPartition,
-        predicate: (Double) -> Boolean
-    ): Long {
-        for (s in 1L..100_000L) {
-            if (predicate(probeFirstDouble(s, partition))) return s
-        }
-        error("未找到满足条件的种子（分区 ${partition.id}）")
     }
 
     private fun herb(itemId: String, rarity: Int, quantity: Int) = StorageBagItem(
@@ -619,7 +580,6 @@ class DiffPhaseSettlementTest {
     /** 双端同构推进：Kotlin 基准（advancePhaseBaseline + execute + 月变）vs C++ advancePhases */
     private fun runDiffPhases(
         snapshot: NativeGameState,
-        realLawEnforcement: Boolean = false,
         phases: Int = PHASES
     ): Pair<NativeGameState, NativeGameState> {
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
@@ -632,7 +592,7 @@ class DiffPhaseSettlementTest {
             it.manualStacksValue = snapshot.manualStacks
             it.pillsValue = snapshot.pills
         }
-        val serviceAndRng = buildService(store, snapshot.gameData.rngStates, realLawEnforcement)
+        val serviceAndRng = buildService(store, snapshot.gameData.rngStates)
         val executor = PhaseSettlementExecutor(serviceAndRng.first)
         val monthExecutor = buildMonthExecutor(serviceAndRng.first, serviceAndRng.second)
         store.update {
@@ -759,52 +719,6 @@ class DiffPhaseSettlementTest {
         val (expected, actual) = runDiffPhases(snapshot)
         // 场景有效性前置：突破确实发生（层数 1→2）
         assertEquals(2, expected.disciples.first().realmLayer)
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
-                                json.encodeToJsonElement(actual))
-    }
-
-    /**
-     * 偷盗判定钩子（S2）：道德减益丹服用后道德 < 30 → 即时偷盗判定
-     * （SYSTEM RNG 全链：尝试→捕获→金额→偷后叛逃）。种子探测 SYSTEM 首抽
-     * < 0.30（道德归零后偷盗概率 30×0.01）；忠诚 35 → 平均忠诚 < 50 门控
-     * 通过、偷后叛逃概率 clamp 0（不触发清理路径）。
-     */
-    @Test
-    fun `pill morality debuff triggers theft chain bit-for-bit`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-
-        val seed = findSeed(RngPartition.SYSTEM) { it < 0.30 }
-        val gameData = GameData(
-            gameYear = 1, gameMonth = 1, gamePhase = 0,
-            spiritStones = 10000
-        ).apply { rngStates = initialRngStates(seed) }
-        val debuffPill = StorageBagItem(
-            itemId = "pill-1", itemType = "pill", name = "迷心丹",
-            rarity = 2, quantity = 1, obtainedYear = 1, obtainedMonth = 1,
-            effect = ItemEffect(
-                pillType = "intel", intelligenceAdd = 5,
-                moralityAdd = -100, minRealm = 9
-            )
-        )
-        val snapshot = NativeGameState(
-            gameData = gameData,
-            disciples = listOf(
-                Disciple(
-                    id = "1", name = "青一", realm = 9, realmLayer = 1,
-                    cultivation = 10.0, spiritRootType = "metal",
-                    combat = CombatAttributes(currentHp = -1, currentMp = -1),
-                    skills = com.xianxia.sect.core.model.SkillStats(loyalty = 35),
-                    equipment = EquipmentSet(storageBagItems = listOf(debuffPill))
-                )
-            )
-        )
-        val (expected, actual) = runDiffPhases(snapshot, realLawEnforcement = true, phases = 2)
-        // 场景有效性前置：偷盗判定确已发生（标记先于抽取，未遂同计数）。
-        // 注：不跨月界（2 旬）——月度重置（theftJudgementsThisMonth 归零）
-        // 在 Kotlin 基准侧位于被 mock 的 processTheftIfNeeded（口径差
-        // 登记族），月度重置语义由 C++ month_settlement_test 黄金用例守护。
-        assertEquals(1, expected.gameData.theftJudgementsThisMonth)
         assertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }

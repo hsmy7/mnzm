@@ -554,7 +554,6 @@ inline ItemEffect pillToItemEffect(const Pill& pill) {
     out.critEffectAdd = e.critEffectAdd;
     out.intelligenceAdd = e.intelligenceAdd;
     out.charmAdd = e.charmAdd;
-    out.loyaltyAdd = e.loyaltyAdd;
     out.comprehensionAdd = e.comprehensionAdd;
     out.artifactRefiningAdd = e.artifactRefiningAdd;
     out.pillRefiningAdd = e.pillRefiningAdd;
@@ -692,13 +691,12 @@ inline bool addToWarehouseAndBag(GameState& state, const MerchantItem& item,
 
 /// 弟子智能购买日志草稿（Kotlin DiscipleTables.lifeEvents 为类体属性
 /// @Ignore 非协议字段——C++ 无该列，购买发生时记录草稿，Kotlin 侧写瞬态列；
-/// 日志格式 "${age}岁：购买了${itemName}"，与 Kotlin applyPurchaseDecisions
+/// 日志格式 "购买了${itemName}"，与 Kotlin applyPurchaseDecisions
 /// 购买点逐条对齐）。定义于本属主文件（applyPurchaseDecisions 内部填充），
 /// month_settlement.h 的 MonthSettlementResult 引用它。
 struct PurchaseLogDraft {
     std::string discipleId;                // Kotlin Disciple.id（String）
     std::string itemName;
-    int32_t age = 0;                       // 购买时年龄
 };
 
 inline void applyPurchaseDecisions(GameState& state,
@@ -717,12 +715,11 @@ inline void applyPurchaseDecisions(GameState& state,
         // 弟子支付的灵石计入宗门仓库
         state.gameData.spiritStones += item.price;
         // 购买日志草稿（Kotlin lifeEvents 瞬态列——C++ 无该列，
-        // 记录草稿由 Kotlin 残留执行器写回；格式 "${age}岁：购买了${name}"）
+        // 记录草稿由 Kotlin 残留执行器写回；格式 "购买了${name}"）
         if (purchaseLogs != nullptr) {
             PurchaseLogDraft log;
             log.discipleId = state.disciples.ids[dRow];
             log.itemName = item.name;
-            log.age = state.disciples.ages[dRow];
             purchaseLogs->push_back(std::move(log));
         }
     }

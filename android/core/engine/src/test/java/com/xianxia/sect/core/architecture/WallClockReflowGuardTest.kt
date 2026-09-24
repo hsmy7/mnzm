@@ -200,7 +200,7 @@ class WallClockReflowGuardTest {
          * `docs/parallel-batches-w5/report-SR5-completion-2026-09-22.md` §5。
          */
         val REGISTERED_RAW_COUNTS = mapOf(
-            "core:engine" to 40,
+            "core:engine" to 39,
             // 68 → 66：SR-7 C3 删除存档密钥缓存死壳（SaveCryptoKeyCache 两处裸取时）
             // 后的实测值，按本守卫"只缩不增"纪律下调。
             "core:data" to 66,

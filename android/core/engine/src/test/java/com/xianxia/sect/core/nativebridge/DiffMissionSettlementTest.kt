@@ -34,7 +34,7 @@ import org.junit.Test
  * 组装战斗体（Kotlin DiscipleStatCalculator.getFinalStats + skills）并本地执行
  * （桌面 JVM 无生产 bridge → BattleExecutionRouter 回退本地）；Side A 在 C++
  * runMonthSettlement 内组装+执行。两臂自同一 rngStates 播种，任一装配/执行
- * 分歧即存活者/魂力/rngStates 结构分歧（全量对拍兜底）。
+ * 分歧即存活者/rngStates 结构分歧（全量对拍兜底）。
  *
  * 场景（buildMissionSceneSnapshot 族；任务 start (1,1) duration 1 → (1,2)
  * 月界完成）：
@@ -42,7 +42,7 @@ import org.junit.Test
  *    （rarity 1..1）——MISSION 分区 roll 序双端一致（装备/功法 chance 0 规避
  *    模板抽取分歧面——该面由 C++ GTest 黄金锁定）
  *  - COMBAT_REQUIRED（SIMPLE/BEAST，仙人九层双弟子 + 高攻功法 → 必胜）：
- *    幸存者=全员、魂力 +1、状态回 IDLE、BATTLE 分区消耗
+ *    幸存者=全员、状态回 IDLE、BATTLE 分区消耗
  *  - COMBAT_RANDOM（triggerChance 0.0 → 恒不触发）：base 灵石 200、零战斗
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
@@ -78,7 +78,7 @@ class DiffMissionSettlementTest {
     private fun strongDisciple(id: String, name: String) = Disciple(
         id = id, name = name, realm = 0, realmLayer = 9,
         cultivation = 10.0, spiritRootType = "metal",
-        age = 20, gender = "male",
+        gender = "male",
         manualIds = listOf("man-$id"),
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
@@ -209,8 +209,6 @@ class DiffMissionSettlementTest {
         assertEquals("灵石入账", 10100L, gd.spiritStones)
         val a = actual.disciples.first { it.id == memberA }
         val b = actual.disciples.first { it.id == memberB }
-        assertEquals("甲一幸存魂力 +1", 1, a.soulPower)
-        assertEquals("乙二幸存魂力 +1", 1, b.soulPower)
         assertEquals("甲一回 IDLE", "IDLE", a.status.name)
         assertEquals("乙二回 IDLE", "IDLE", b.status.name)
 
@@ -241,8 +239,6 @@ class DiffMissionSettlementTest {
         val gd = actual.gameData
         assertEquals("任务消费", 0, gd.activeMissions.size)
         assertEquals("base 灵石入账", 10200L, gd.spiritStones)
-        assertEquals("无战斗（魂力不变）", 0,
-            actual.disciples.first { it.id == memberA }.soulPower)
 
         diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                     json.encodeToJsonElement(actual))

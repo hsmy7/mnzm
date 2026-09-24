@@ -31,16 +31,6 @@ class GameAndDiscipleConfigTest {
     // ============================================================
 
     @Test
-    fun `忠诚度最小值应为0`() {
-        assertEquals(0, GameConfig.Disciple.MIN_LOYALTY)
-    }
-
-    @Test
-    fun `忠诚度最大值应为100`() {
-        assertEquals(100, GameConfig.Disciple.MAX_LOYALTY)
-    }
-
-    @Test
     fun `年龄最小值应为5`() {
         assertEquals(5, GameConfig.Disciple.MIN_AGE)
     }

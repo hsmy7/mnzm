@@ -132,7 +132,7 @@ private fun patchEntry(field: String, value: SettingPatchValue): JsonElement =
 
 /** 洗炼 confirm native 臂结果三态 */
 internal sealed interface ConfirmNativeOutcome {
-    /** native 成功：C++ 已落盘（含 checkpoint 与 lifespan 同步） */
+    /** native 成功：C++ 已落盘（含 checkpoint） */
     data object Applied : ConfirmNativeOutcome
 
     /** native 业务拒绝：携带 C++ errorType 与文案（调用方直接映射为用户可见错误） */

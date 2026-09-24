@@ -389,7 +389,7 @@ private fun oneClickAppoint(
     disciples: List<DiscipleAggregate>
 ) {
     val idleDisciples = disciples.filter {
-        it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5
+        it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0
     }.sortedWith(
         compareBy<DiscipleAggregate> { it.realm }
             .thenByDescending { it.realmLayer }
@@ -549,7 +549,7 @@ private fun LevelSelectionDialogUi(
     }
     val idleDisciples = remember(source.disciples, source.alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
         source.disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
-            d.realmLayer > 0 && d.age >= 5 && d.id !in source.alreadySelectedIds
+            d.realmLayer > 0 && d.id !in source.alreadySelectedIds
         })
     }
     val realmCounts = remember(idleDisciples) {

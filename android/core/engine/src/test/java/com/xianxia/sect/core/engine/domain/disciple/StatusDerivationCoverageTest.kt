@@ -29,12 +29,14 @@ class StatusDerivationCoverageTest {
      * - REFLECTING：受保护状态，直接写入
      * - ON_MISSION：受保护状态，直接写入
      * - REFINING：受保护状态，直接写入
+     * - WAREHOUSE_GARRISON：旧档兼容保留值，无生产写入方（仓库驻守玩法已下线）
      */
     private val nonDerivedStatuses = setOf(
         DiscipleStatus.DEAD,
         DiscipleStatus.REFLECTING,
         DiscipleStatus.ON_MISSION,
-        DiscipleStatus.REFINING
+        DiscipleStatus.REFINING,
+        DiscipleStatus.WAREHOUSE_GARRISON
     )
 
     /**
@@ -44,7 +46,6 @@ class StatusDerivationCoverageTest {
     private val statusToSlotFlag: Map<DiscipleStatus, String> = mapOf(
         DiscipleStatus.IDLE to "",  // IDLE 是 else 分支，无对应 flag
         DiscipleStatus.GARRISONING to "inGarrison",
-        DiscipleStatus.WAREHOUSE_GARRISON to "inWarehouseGarrison",
         DiscipleStatus.IN_TEAM to "inTeam",
         DiscipleStatus.SECRET_REALM to "inSecretRealm",
         DiscipleStatus.LAW_ENFORCING to "lawEnforcing",

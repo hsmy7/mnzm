@@ -76,7 +76,7 @@ class DiffPrecomputeTargetsTest {
     private fun aiDisciple(id: String) = Disciple(
         id = id, name = "AI弟子$id", realm = 9, realmLayer = 1,
         cultivation = 10.0, spiritRootType = "metal",
-        age = 20, gender = "male",
+        gender = "male",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
 

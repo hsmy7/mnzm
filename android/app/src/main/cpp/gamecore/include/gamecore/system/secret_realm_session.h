@@ -230,10 +230,8 @@ inline state::SecretRealmBackpack instantiateRewards(
             p.effects.speedAdd = tpl->speedAdd;
             p.effects.critRateAdd = tpl->critRateAdd;
             p.effects.critEffectAdd = tpl->critEffectAdd;
-            p.effects.extendLife = tpl->extendLife;
             p.effects.intelligenceAdd = tpl->intelligenceAdd;
             p.effects.charmAdd = tpl->charmAdd;
-            p.effects.loyaltyAdd = tpl->loyaltyAdd;
             p.effects.comprehensionAdd = tpl->comprehensionAdd;
             p.effects.artifactRefiningAdd = tpl->artifactRefiningAdd;
             p.effects.pillRefiningAdd = tpl->pillRefiningAdd;
@@ -440,10 +438,8 @@ inline bool reconstructStackedItem(const state::StorageBagItem& item,
         p.effects.speedAdd = tpl->speedAdd;
         p.effects.critRateAdd = tpl->critRateAdd;
         p.effects.critEffectAdd = tpl->critEffectAdd;
-        p.effects.extendLife = tpl->extendLife;
         p.effects.intelligenceAdd = tpl->intelligenceAdd;
         p.effects.charmAdd = tpl->charmAdd;
-        p.effects.loyaltyAdd = tpl->loyaltyAdd;
         p.effects.comprehensionAdd = tpl->comprehensionAdd;
         p.effects.artifactRefiningAdd = tpl->artifactRefiningAdd;
         p.effects.pillRefiningAdd = tpl->pillRefiningAdd;
@@ -1113,7 +1109,7 @@ inline SecretRealmChoiceResolution ruinsResolution(
 
 /// 弟子境界显示名（Kotlin Disciple.realmName 计算属性）
 inline std::string discipleRealmName(const Disciple& d) {
-    if (d.age < 5 || d.realmLayer == 0) return "无境界";
+    if (d.realmLayer == 0) return "无境界";
     if (d.realm == 0) return realmName(d.realm);
     return realmName(d.realm) + std::to_string(d.realmLayer) + "层";
 }

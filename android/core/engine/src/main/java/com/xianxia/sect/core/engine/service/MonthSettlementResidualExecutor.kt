@@ -17,7 +17,7 @@ import com.xianxia.sect.core.engine.annotation.GameService
  * 与旬结算残留执行器同模式：
  * C++ 侧 `runMonthSettlement` 执行八步编排中已下沉面（政策扣除/月效/AI 预计算/
  * 炼丹锻造完成结算+自动排班/任务完成/灵田/生育/关卡/
- * 伴侣/血炼/排班忠诚/月衰减 + 十六子事件已下沉 14 件），本执行器承接未下沉
+ * 伴侣/血炼/排班/月衰减 + 十四子事件已下沉 12 件），本执行器承接未下沉
  * 扇出（相对序保持原 Kotlin 月变编排）：
  * （子事件 5 任务完成、子事件 6 洞天 AI、子事件 9 AI 兽战余量均在 C++ 侧执行——
  *   AI 独立 RNG 突破/补全与兽战组装入 C++，
@@ -27,7 +27,7 @@ import com.xianxia.sect.core.engine.annotation.GameService
  * - 秘境到期关闭草稿：C++ 状态段已清场，本处重建关闭邮件
  *   （[SecretRealmService.applyExpiryCloseDraft]——背包快照附件 + gate release）
  * - 弟子购买日志草稿：写 [com.xianxia.sect.core.state.DiscipleTables.lifeEvents]
- *   瞬态列（"${age}岁：购买了${itemName}"，与原 Kotlin executePurchase 日志一致）
+ *   瞬态列（"购买了${itemName}"，与原 Kotlin executePurchase 日志一致）
  *
  * （4a/4b 炼丹/锻造与子事件 5 任务完成均在 C++ 侧执行——Kotlin 残留行不存在。
  * 任务完成消费 MISSION/BATTLE/ENEMY_GEN 分区，抽取序
@@ -75,12 +75,12 @@ internal class MonthSettlementResidualExecutor(
         }
     }
 
-    /** S-20：购买日志追加（"${age}岁：购买了${itemName}"，与 Kotlin 原路径一致）。 */
+    /** S-20：购买日志追加（"购买了${itemName}"，与 Kotlin 原路径一致）。 */
     private fun appendPurchaseLog(state: MutableGameState, log: MonthPurchaseLog) {
         val discipleId = log.discipleId.toIntOrNull() ?: return
         if (state.discipleTables.ids.contains(discipleId)) {
             val current = state.discipleTables.lifeEvents.getOrDefault(discipleId, emptyList())
-            state.discipleTables.lifeEvents[discipleId] = current + "${log.age}岁：购买了${log.itemName}"
+            state.discipleTables.lifeEvents[discipleId] = current + "购买了${log.itemName}"
         }
     }
 }

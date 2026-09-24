@@ -29,8 +29,8 @@ class GameViewEventEnvelopeAssemblyTest {
              "secretRealmClose":{"closed":true,
                                  "memberIds":["3","9"],
                                  "backpack":{"spiritStones":77}},
-             "purchaseLogs":[{"discipleId":"5","itemName":"聚气丹","age":21},
-                             {"discipleId":"7","itemName":"青锋剑","age":33}],
+             "purchaseLogs":[{"discipleId":"5","itemName":"聚气丹"},
+                             {"discipleId":"7","itemName":"青锋剑"}],
              "seizedSectBuildings":["w2","w8"]}
         """.trimIndent()
         val legacy = parseMonthSettlementEnvelope(detail)
@@ -38,7 +38,7 @@ class GameViewEventEnvelopeAssemblyTest {
         val events = listOf(
             GameViewStreamEvent(
                 GameViewStreamEvent.Kind.PURCHASE, 12, 4,
-                GameViewStreamEvent.Payload.Purchase("5", "聚气丹", 21),
+                GameViewStreamEvent.Payload.Purchase("5", "聚气丹"),
             ),
             GameViewStreamEvent(
                 GameViewStreamEvent.Kind.MONTH_SETTLED, 12, 4,
@@ -55,7 +55,7 @@ class GameViewEventEnvelopeAssemblyTest {
             ),
             GameViewStreamEvent(
                 GameViewStreamEvent.Kind.PURCHASE, 12, 4,
-                GameViewStreamEvent.Payload.Purchase("7", "青锋剑", 33),
+                GameViewStreamEvent.Payload.Purchase("7", "青锋剑"),
             ),
         )
 
@@ -65,12 +65,12 @@ class GameViewEventEnvelopeAssemblyTest {
     @Test
     fun `year envelope from events equals legacy json parse`() {
         val detail = """
-            {"agedDeaths":[{"discipleId":"12","name":"无名","surname":"玄","age":88,
+            {"agedDeaths":[{"discipleId":"12","name":"无名","surname":"玄",
                             "realm":4,"realmLayer":2,"deathYear":9,"cause":"age",
                             "storageBagItems":[{"itemId":"i1","itemType":"material",
                                                 "name":"兽皮","rarity":1,"quantity":2}]}],
              "bereavements":[{"grievingId":6,"relationship":"道侣",
-                              "deceasedName":"玄无名","grievingAge":71}]}
+                              "deceasedName":"玄无名"}]}
         """.trimIndent()
         val legacy = parseYearSettlementEnvelope(detail)
 
@@ -96,7 +96,7 @@ class GameViewEventEnvelopeAssemblyTest {
                 listOf(
                     GameViewStreamEvent(
                         GameViewStreamEvent.Kind.PURCHASE, 12, 4,
-                        GameViewStreamEvent.Payload.Purchase("5", "聚气丹", 21),
+                        GameViewStreamEvent.Payload.Purchase("5", "聚气丹"),
                     ),
                 )
             )

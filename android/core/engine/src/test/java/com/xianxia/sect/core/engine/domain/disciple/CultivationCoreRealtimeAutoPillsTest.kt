@@ -11,7 +11,6 @@ import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.pillCritEffectBonus
@@ -451,8 +450,6 @@ private object PillsRealtime {
         val items = tables.storageBagItems.getOrNull(id) ?: return false
         val usedPermanentKeys =
             tables.usedPermanentPillKeys.getOrNull(id).orEmpty()
-        val usedExtendLifeTypes =
-            tables.usedExtendLifePillTypes.getOrNull(id).orEmpty()
         return items.any { item ->
             if (item.itemType != "pill") return@any false
             val effect = item.effect ?: return@any false
@@ -464,8 +461,7 @@ private object PillsRealtime {
                     )
                     keys.none { it in usedPermanentKeys }
                 }
-                PillRule.PERMANENT_LIFE ->
-                    effect.pillType !in usedExtendLifeTypes
+                PillRule.PERMANENT_LIFE -> true
                 else -> true
             }
         }
@@ -485,10 +481,8 @@ private object PillsRealtime {
         // 旧 cultivationSpeedBonus 组件列清零（丹药加成收敛于 pillEffects 体系）
         tables.cultivationSpeedBonuses[id] = 0.0
         tables.cultivationSpeedDurations[id] = 0
-        tables.lifespans[id] = d.lifespan
         tables.intelligences[id] = d.skills.intelligence
         tables.charms[id] = d.skills.charm
-        tables.loyalties[id] = d.skills.loyalty
         tables.comprehensions[id] = d.skills.comprehension
         tables.artifactRefinings[id] = d.skills.artifactRefining
         tables.pillRefinings[id] = d.skills.pillRefining
@@ -511,7 +505,6 @@ private object PillsRealtime {
         tables.pillEffectDurations[id] = d.pillEffects.pillEffectDuration
         tables.activePillTypes[id] = d.pillEffects.activePillTypes
         tables.usedPermanentPillKeys[id] = d.usage.usedPermanentPillKeys
-        tables.usedExtendLifePillTypes[id] = d.usage.usedExtendLifePillTypes
         tables.currentHps[id] = d.combat.currentHp
         tables.currentMps[id] = d.combat.currentMp
     }

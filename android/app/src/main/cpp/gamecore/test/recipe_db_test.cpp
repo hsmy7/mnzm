@@ -12,7 +12,7 @@ namespace {
 // 锻造/炼丹配方静态表守卫测试
 //
 // 守护目标：C++ 表（recipe_db.h）与 Kotlin ForgeRecipeDatabase /
-// PillRecipeDatabase 的生成结果一致（72 锻造 + 732 丹药配方）。
+// PillRecipeDatabase 的生成结果一致（72 锻造 + 660 丹药配方）。
 // 数量断言对照 Kotlin 源码计数；代表性条目断言名称/品阶/时长/成功率/
 // 材料/描述/效果字段。Kotlin 侧守卫见 TemplateRegistryGuardTest 模式
 // （快照 recipe_db_sample.json ↔ Kotlin Registry，快照由
@@ -48,9 +48,9 @@ TEST(RecipeDbTest, ForgeRecipeCount) {
 }
 
 TEST(RecipeDbTest, PillRecipeCount) {
-    // Kotlin PillRecipeDatabase：修炼 138 + 战斗 288 + 功能 306 = 732
+    // Kotlin PillRecipeDatabase：修炼 138 + 战斗 288 + 功能 234 = 660
     const auto& recipes = pillRecipes();
-    EXPECT_EQ(732u, recipes.size());
+    EXPECT_EQ(660u, recipes.size());
 
     int cultivation = 0, battle = 0, functional = 0;
     for (const auto& r : recipes) {
@@ -60,11 +60,11 @@ TEST(RecipeDbTest, PillRecipeCount) {
     }
     EXPECT_EQ(138, cultivation);
     EXPECT_EQ(288, battle);
-    EXPECT_EQ(306, functional);
+    EXPECT_EQ(234, functional);
 
     // 每 tier 配方数（突破丹无 tier4 目标）
-    // tier1:120 tier2:126 tier3:123 tier4:117 tier5:120 tier6:126
-    const int expectedPerTier[7] = {0, 120, 126, 123, 117, 120, 126};
+    // tier1:108 tier2:114 tier3:111 tier4:105 tier5:108 tier6:114
+    const int expectedPerTier[7] = {0, 108, 114, 111, 105, 108, 114};
     for (int tier = 1; tier <= 6; ++tier) {
         int count = 0;
         for (const auto& r : recipes) {
@@ -247,20 +247,6 @@ TEST(RecipeDbTest, PillRecipeBattleSample) {
 }
 
 TEST(RecipeDbTest, PillRecipeFunctionalSample) {
-    // 延寿丹上品（20×2.0=40）
-    const auto f1 = pillRecipeById("extendLife_3_high");
-    ASSERT_TRUE(f1.has_value());
-    EXPECT_EQ("长生丹", f1->name);
-    EXPECT_EQ(3, f1->tier);
-    EXPECT_EQ("FUNCTIONAL", f1->category);
-    EXPECT_EQ("宝品上品延寿丹，增加40年寿元", f1->description);
-    EXPECT_EQ(40, f1->extendLife);
-    EXPECT_EQ(12, f1->duration);
-    EXPECT_DOUBLE_EQ(0.60, f1->successRate);
-    ASSERT_EQ(2u, f1->materials.size());
-    EXPECT_EQ(2, f1->materials.at("spiritGrass7"));
-    EXPECT_EQ(2, f1->materials.at("spiritFruit7"));
-
     // 双基础属性：智悟上品（20×0.6=12 → 12×2.0=24；描述英文键）
     const auto f2 = pillRecipeById("intelligenceComprehension_6_high");
     ASSERT_TRUE(f2.has_value());

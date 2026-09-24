@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.GameConfig.TraitAdd
 import com.xianxia.sect.core.GameConfig.TraitWashType
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
@@ -37,7 +36,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
  * 覆盖：刷新扣减与 gameData/runtimeState 同步、刷新即持久化 pending（同弟子同类型覆盖、
  * 其他条目保留）、玉符不足（余额不变 + 不写 pending + 不消耗随机序列）、非法参数/弟子不存在/
  * 死亡拒绝、上限 5 拒绝（刷新与确认双路径）、确认新增追加到列表末尾 + 清除 pending、
- * 非法产物/重复/template 冲突拒绝、lifespan 同步、Flat 加成即时生效、以及最高风险回归——
+ * 非法产物/重复/template 冲突拒绝、Flat 加成即时生效、以及最高风险回归——
  * 扣减后 [JadeSymbolService.checkpointNow] 玉符不回涨。
  *
  * 注意：必须 Robolectric 运行——DiscipleTables 的 String 列基于
@@ -416,27 +415,6 @@ class GameEngineTraitAddTest {
         assertTrue("已达上限应被拒绝，实际 $result", result is TraitAddConfirmResult.Error)
         assertEquals("失败原因要写明", "该弟子天赋已满", (result as TraitAddConfirmResult.Error).message)
         assertEquals("已达上限时弟子不变", before.talentIds, assembleDisciple().talentIds)
-    }
-
-    // ── lifespan 同步（对齐洗炼：新增特质后寿命必须与新特质一致） ──
-
-    @Test
-    fun `confirmTraitAdd - 新增延年词条后 lifespan 按境界基准上调`() = runBlocking {
-        val lifespanAffix = AffixDatabase.affixes.values.firstOrNull {
-            it.effects.containsKey("lifespan") && !it.isNegative
-        } ?: error("测试前提：需要正向 lifespan 词条")
-        val otherAffix = AffixDatabase.getPositiveAffixes().firstOrNull {
-            it.id != lifespanAffix.id && !it.effects.containsKey("lifespan")
-        } ?: error("测试前提：需要无 lifespan 正向词条")
-        seedDisciple(affixIds = listOf(otherAffix.id))
-        val before = assembleDisciple().lifespan
-        val bonus = lifespanAffix.effects["lifespan"] ?: 0.0
-
-        val result = engine.confirmTraitAdd("1", TraitWashType.AFFIX, lifespanAffix.id)
-
-        assertTrue("期望 Success，实际 $result", result is TraitAddConfirmResult.Success)
-        val expected = before + (GameConfig.Realm.get(9).maxAge * bonus).toInt()
-        assertEquals("新增延年应上调 lifespan（按境界基准折算）", expected, assembleDisciple().lifespan)
     }
 
     // ── 端到端：确认新增后 getBaseStats 立即反映 Flat 加成（与洗炼一致） ──

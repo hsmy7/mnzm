@@ -100,6 +100,15 @@ TEST(DispatchGuardCatalog, ActionIdListIsStrictlyAscendingAndUnique) {
 // ── 核心守卫：每个已注册动作号都必须分派可达 ────────────────────────
 
 TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) {
+    // 退役动作号（catalog 保留 + desc 标注废弃 + 删 dispatch case——
+    // ActionId 只增不复用）：分派不可达是退役的预期形态，单列断言。
+    const std::set<int32_t> retired = {
+        action::DISCIPLE_MAX_AGE,          //1103 老死链删除
+        action::DISCIPLE_AGE,              //1106 老化链删除
+        action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,  //1593 思过释放无实现
+        action::WAREHOUSE_GARRISON_TX,     //1612 仓库驻守无实现
+        action::SECT_ATTACK_GRANT_SOUL_POWERS_TX,       //1712 魂力授予无实现
+    };
     std::vector<std::string> gaps;
     for (int i = 0; i < action::kAllActionIdsCount; ++i) {
         const int32_t id = action::kAllActionIds[i];
@@ -110,6 +119,11 @@ TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) 
             continue;
         }
         const std::string code = r.value("code", std::string{});
+        if (retired.count(id) != 0) {
+            EXPECT_TRUE(isDispatchGap(code))
+                << "退役动作号 " << id << " 仍被分派认领——退役口径要求删 dispatch case";
+            continue;
+        }
         if (isDispatchGap(code)) {
             gaps.push_back("id=" + std::to_string(id) + " code=" + code +
                            " message=" + r.value("message", std::string{}));

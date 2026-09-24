@@ -17,7 +17,6 @@ import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.GameEngineCore
-import com.xianxia.sect.core.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -69,10 +68,6 @@ class RecruitService @Inject constructor(
          * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
          */
         private const val TAG = "RecruitService"
-
-        /** 招募弟子基础年龄范围 */
-        private const val RECRUIT_AGE_MIN = 16
-        private const val RECRUIT_AGE_RANGE = 14
 
         /** 纳徒长老魅力加成公式参数 */
         private const val RECRUIT_CHARM_BASELINE = 80
@@ -204,7 +199,7 @@ class RecruitService @Inject constructor(
                 }
                 val newId = state.discipleTables.allocateAndInsert(
                     disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonthIndex))
-                        .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") }
+                        .also { it.lifeEvents = listOf("加入宗门") }
                 )
                 if (newId.isNotEmpty()) {
                     // 俘虏自带装备/功法落库为玩家实例（幂等）
@@ -242,19 +237,13 @@ class RecruitService @Inject constructor(
         }
 
         /**
-         * 对招募列表中的弟子进行老化+死亡检测。
+         * 招募列表年度处理入口：列表条目原样写回
+         * （年度净化由 [sanitizeRecruitList] 单独执行）。
          * 必须在 [GameStateStore.update] 事务内调用（接收 [MutableGameState]）。
          */
         fun processRecruitAging(state: MutableGameState) {
-            val agedRecruits = state.gameData.recruitList.map { it.copy(age = it.age + 1) }
-            val (dead, alive) = agedRecruits.partition { it.age >= it.computeMaxAge() }
-            if (dead.isNotEmpty()) {
-                DomainLog.i(TAG, "processRecruitAging: ${dead.size} recruits died of old age")
-                dead.forEach { d ->
-                    DomainLog.d(TAG, "processRecruitAging: recruit ${d.name} died at age ${d.age}")
-                }
-            }
-            state.gameData = state.gameData.copy(recruitList = alive)
+            val agedRecruits = state.gameData.recruitList
+            state.gameData = state.gameData.copy(recruitList = agedRecruits)
         }
 
         /**
@@ -284,7 +273,7 @@ class RecruitService @Inject constructor(
                         .count { it.isNotBlank() } in validFilter
                 }
 
-            // 损坏数据守卫：跳过空白名字/无效年龄/无效境界的条目
+            // 损坏数据守卫：跳过空白名字/无效境界的条目
             val (validRejected, corruptedRejected) = rejected.partition {
                 RecruitIntegrity.isValidRecruit(it)
             }
@@ -433,7 +422,6 @@ class RecruitService @Inject constructor(
                         gender = gender,
                         nameResult = nameResult,
                         spiritRootType = SpiritRootGenerator.generate(kotlinRng),
-                        age = RECRUIT_AGE_MIN + rng.nextInt(RECRUIT_AGE_RANGE),
                         realm = 9,
                         realmLayer = 1,
                         social = SocialData(),
@@ -510,12 +498,10 @@ class RecruitService @Inject constructor(
         return sync
     }
 
-    // ── 招募列表老化 ──────────────────────────────────────────────────
+    // ── 招募列表净化 ──────────────────────────────────────────────────
 
     /**
-     * 每年对所有待招募弟子年龄 +1（超龄者死亡移除）后净化招募列表
-     * （异常条目清理）。先老化后净化：老化产生的越界年龄（如 10000→10001）
-     * 由净化即时清除，不留存至次年。
+     * 每年净化招募列表（损坏过滤/三级去重/跨表残留移除）。
      * 在 [CultivationEventProcessor.processYearlyEvents] 中调用。
      */
     fun ageRecruitList(year: Int) {
@@ -529,10 +515,10 @@ class RecruitService @Inject constructor(
     }
 
     /**
-     * batch-16 native 臂：招募列表老化+净化直调点经 RECRUIT_AGE_TX 复用
-     * C++ year_settlement 老化净化链（零 RNG：age+1/超寿元移除/损坏过滤/
+     * batch-16 native 臂：招募列表净化直调点经 RECRUIT_AGE_TX 复用
+     * C++ year_settlement 净化链（零 RNG：损坏过滤/
      * 三级去重/跨表残留）。AUTHORITATIVE 年结由 C++ runYearSettlement
-     * 权威执行、不达本入口；Kotlin 老化（processRecruitAging）与净化
+     * 权威执行、不达本入口；Kotlin 刷新（processRecruitAging）与净化
      * （sanitizeRecruitList）两段与 C++ 单函数同序合并等价。native 未就绪
      * /失败信封 → Kotlin 原路径（双实现并行契约）。
      */

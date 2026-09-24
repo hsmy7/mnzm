@@ -229,7 +229,6 @@ class DiscipleDelegate(
         discipleId: String,
         currentYear: Int,
         moralityDelta: Int,
-        loyaltyDelta: Int,
         cultivationDelta: Double,
         intelligenceDelta: Int
     ) {
@@ -242,7 +241,6 @@ class DiscipleDelegate(
                     discipleId = discipleId,
                     currentYear = currentYear,
                     moralityDelta = moralityDelta,
-                    loyaltyDelta = loyaltyDelta,
                     cultivationDelta = cultivationDelta,
                     intelligenceDelta = intelligenceDelta
                 )

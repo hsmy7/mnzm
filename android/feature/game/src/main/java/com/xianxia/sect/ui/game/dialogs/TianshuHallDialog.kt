@@ -45,32 +45,23 @@ import com.xianxia.sect.ui.game.removeViceSectMaster
 import com.xianxia.sect.ui.game.setViceSectMaster
 import com.xianxia.sect.ui.game.toggleAlchemyIncentive
 import com.xianxia.sect.ui.game.toggleAsceticTraining
-import com.xianxia.sect.ui.game.toggleBenevolentGovernance
 import com.xianxia.sect.ui.game.toggleCultivationSubsidy
-import com.xianxia.sect.ui.game.toggleCurfew
-import com.xianxia.sect.ui.game.toggleEnhancedSecurity
 import com.xianxia.sect.ui.game.toggleForgeIncentive
 import com.xianxia.sect.ui.game.toggleFrugality
 import com.xianxia.sect.ui.game.toggleHerbCultivation
 import com.xianxia.sect.ui.game.toggleManualResearch
 import com.xianxia.sect.ui.game.toggleMoralEducation
 import com.xianxia.sect.ui.game.toggleOpenRecruitment
-import com.xianxia.sect.ui.game.toggleRelaxedMgmt
 import com.xianxia.sect.ui.game.toggleRewardPunish
 import com.xianxia.sect.ui.game.toggleSpiritMineBoost
 import com.xianxia.sect.ui.game.toggleSpiritSpring
-import com.xianxia.sect.ui.game.toggleStrictTraining
 import com.xianxia.sect.core.usecase.toggleAlchemyIncentive
-import com.xianxia.sect.core.usecase.toggleCurfew
-import com.xianxia.sect.core.usecase.toggleEnhancedSecurity
 import com.xianxia.sect.core.usecase.toggleForgeIncentive
 import com.xianxia.sect.core.usecase.toggleFrugality
 import com.xianxia.sect.core.usecase.toggleHerbCultivation
 import com.xianxia.sect.core.usecase.toggleManualResearch
-import com.xianxia.sect.core.usecase.toggleRelaxedMgmt
 import com.xianxia.sect.core.usecase.toggleRewardPunish
 import com.xianxia.sect.core.usecase.toggleSpiritSpring
-import com.xianxia.sect.core.usecase.toggleStrictTraining
 
 @Composable
 fun TianshuHallDialog(
@@ -638,7 +629,6 @@ private fun ColumnScope.SectPoliciesContent(
         )
         SectPoliciesSecurityList(
             sectPolicies = sectPolicies,
-            viceBonusText = viceBonusText,
             productionViewModel = productionViewModel
         )
         SectPoliciesManagementList(
@@ -660,7 +650,7 @@ private fun SectPoliciesProductionList(
     PolicyItem(
         title = "灵矿增产",
         effect = "灵石产出+20%$viceBonusText",
-        cost = "采矿弟子忠诚-1/月",
+        cost = "",
         checked = sectPolicies?.spiritMineBoost ?: false,
         onCheckedChange = { productionViewModel.toggleSpiritMineBoost() }
     )
@@ -700,7 +690,7 @@ private fun SectPoliciesProductionList(
     PolicyItem(
         title = "开源节流",
         effect = "所有弟子年俸-30%",
-        cost = "年俸发放不加忠诚",
+        cost = "",
         checked = sectPolicies?.frugality ?: false,
         onCheckedChange = { productionViewModel.toggleFrugality() }
     )
@@ -743,26 +733,9 @@ private fun SectPoliciesCultivationList(
 @Composable
 private fun SectPoliciesSecurityList(
     sectPolicies: SectPolicies?,
-    viceBonusText: String,
     productionViewModel: ProductionViewModel
 ) {
     // ═══ 治安类 ═══
-    PolicyItem(
-        title = "增强治安",
-        effect = "执法堂抓捕率+20%$viceBonusText",
-        cost = "弟子忠诚-1/月，月耗3000灵石",
-        checked = sectPolicies?.enhancedSecurity ?: false,
-        onCheckedChange = { productionViewModel.toggleEnhancedSecurity() }
-    )
-
-    PolicyItem(
-        title = "宵禁",
-        effect = "治安事件-30%，叛逃-20%",
-        cost = "弟子忠诚-1/月，月耗1000灵石",
-        checked = sectPolicies?.curfew ?: false,
-        onCheckedChange = { productionViewModel.toggleCurfew() }
-    )
-
     PolicyItem(
         title = "赏善罚恶",
         effect = "执法效率+30%",
@@ -790,35 +763,11 @@ private fun SectPoliciesManagementList(
     )
 
     PolicyItem(
-        title = "严苛训练",
-        effect = "战斗伤害+5%",
-        cost = "弟子忠诚-1/月，月耗2万灵石",
-        checked = sectPolicies?.strictTraining ?: false,
-        onCheckedChange = { productionViewModel.toggleStrictTraining() }
-    )
-
-    PolicyItem(
-        title = "松弛管理",
-        effect = "弟子忠诚+2/月",
-        cost = "弟子修炼速度-10%，月耗3000灵石",
-        checked = sectPolicies?.relaxedMgmt ?: false,
-        onCheckedChange = { productionViewModel.toggleRelaxedMgmt() }
-    )
-
-    PolicyItem(
         title = "教化之道",
         effect = "每月所有弟子道德+1（上限70）",
         cost = "100灵石/弟子/月",
         checked = sectPolicies?.moralEducation ?: false,
         onCheckedChange = { productionViewModel.toggleMoralEducation() }
-    )
-
-    PolicyItem(
-        title = "仁政爱徒",
-        effect = "每月所有弟子忠诚+1（上限100）",
-        cost = "100灵石/弟子/月",
-        checked = sectPolicies?.benevolentGovernance ?: false,
-        onCheckedChange = { productionViewModel.toggleBenevolentGovernance() }
     )
 }
 

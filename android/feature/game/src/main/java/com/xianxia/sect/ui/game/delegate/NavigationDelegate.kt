@@ -54,10 +54,6 @@ class NavigationDelegate(
         onNavigate(GameRoute.TianshuHall)
     }
 
-    fun openLawEnforcementHallDialog() {
-        onNavigate(GameRoute.LawEnforcementHall)
-    }
-
     fun openMissionHallDialog() {
         onNavigate(GameRoute.MissionHall)
     }

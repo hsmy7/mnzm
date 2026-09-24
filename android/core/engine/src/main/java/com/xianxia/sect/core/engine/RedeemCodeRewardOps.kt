@@ -7,8 +7,6 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.registry.AffixDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleRewardConfig
@@ -28,7 +26,6 @@ import com.xianxia.sect.core.model.charm
 import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.magicAttackVariance
 import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
@@ -135,8 +132,7 @@ internal fun RedeemCodeManager.addStarterPackRewards(
     repeat(5) {
         val singleRootDisciple = generateDisciple(
             DiscipleRewardConfig(
-                spiritRootCount = 1,
-                loyalty = 80
+                spiritRootCount = 1
             ),
             starterUsedNames,
             random = random
@@ -231,20 +227,12 @@ internal fun RedeemCodeManager.buildRedeemDisciple(
     context: DiscipleBuildContext,
     random: kotlin.random.Random
 ): Disciple {
-    val talents = TalentDatabase.getTalentsByIds(context.idBundle.talentIds)
-    // 寿命加成口径并入词条（同出生/突破口径对齐）——
-    // 只算天赋会使带"延年"词条兑换弟子 lifespan 低于特质加成水平
-    val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 } +
-        (AffixDatabase.calculateAffixEffects(context.idBundle.affixIds)["lifespan"] ?: 0.0)
-
     return Disciple(
         name = context.nameResult.fullName,
         surname = context.nameResult.surname,
         realm = cfg.realm,
         realmLayer = cfg.realmLayer,
         spiritRootType = context.spiritRootType,
-        age = context.age,
-        lifespan = (context.lifespan * (1.0 + lifespanBonus)).toInt(),
         gender = context.gender,
         portraitRes = PortraitPool.getRandomPortrait(context.gender) { random.nextInt(it) },
         discipleType = "outer",
@@ -293,7 +281,6 @@ internal fun RedeemCodeManager.buildRedeemSkills(
             random = random
         ),
         charm = cfg.charm ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        loyalty = cfg.loyalty ?: 1 + random.nextInt(GameConfig.Disciple.MAX_LOYALTY),
         artifactRefining = cfg.artifactRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
         pillRefining = cfg.pillRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
         spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),

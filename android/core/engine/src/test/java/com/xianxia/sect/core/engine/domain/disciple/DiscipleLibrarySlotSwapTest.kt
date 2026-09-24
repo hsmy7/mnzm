@@ -37,7 +37,7 @@ import org.robolectric.RobolectricTestRunner
  * 旧弟子必须 release gate + 同步状态（否则 gate 注册残留 + 状态残留
  * STUDYING，弟子从选择弹窗消失）。
  *
- * 使用 delegate mock store（同 DiscipleReflectionReleaseTest）+ 真实
+ * 使用 delegate mock store（延迟类加载防 mock 拦截顺序 flaky）+ 真实
  * DiscipleStatusService/DiscipleAssignmentGate + stubLaunchInScope，
  * 端到端验证换人后旧弟子状态正确回归。
  */
@@ -166,7 +166,6 @@ class DiscipleLibrarySlotSwapTest {
             pillManager = mockSmart(),
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),
-            lawEnforcementProcessor = mockSmart(),
             productionCoordinator = mockSmart<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>(),
         )
     }
@@ -180,7 +179,7 @@ class DiscipleLibrarySlotSwapTest {
     }
 
     private fun insertDisciple(id: Int, name: String) {
-        tables.insert(Disciple(id = id.toString(), name = name, age = 25))
+        tables.insert(Disciple(id = id.toString(), name = name))
         tables.isAlive[id] = 1
         tables.statuses[id] = DiscipleStatus.IDLE
     }

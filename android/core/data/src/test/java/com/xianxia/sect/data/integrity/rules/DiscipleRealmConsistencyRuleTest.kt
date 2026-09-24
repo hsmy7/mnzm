@@ -52,7 +52,7 @@ class DiscipleRealmConsistencyRuleTest {
 
     private fun disciple(realm: Int = 9, layer: Int = 1) = Disciple(
         id = "d-1", name = "甲", realm = realm, realmLayer = layer, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true, equipment = EquipmentSet()
+        isAlive = true, equipment = EquipmentSet()
     )
     private fun saveData(d: List<Disciple>) = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),

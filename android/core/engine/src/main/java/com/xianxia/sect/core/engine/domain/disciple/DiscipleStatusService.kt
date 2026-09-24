@@ -60,7 +60,7 @@ class DiscipleStatusService @Inject constructor(
          *
          * 优先级顺序（匹配 syncAllDiscipleStatuses 的 when 链）：
          * 死亡 → 活跃任务（ON_MISSION 从 activeMissions 推导，非无条件保护）
-         * → 受保护状态（REFLECTING/REFINING）→ 远古秘境 → 仓库驻守 → 据点驻守 →
+         * → 受保护状态（REFLECTING/REFINING）→ 远古秘境 → 据点驻守 →
          * 队伍 → 执法 → 传道 → 执事 → 管理 → 学习 → 采矿 → 巡视 → 炼丹 → 锻造 →
          * 灵植 → 空闲
          *
@@ -93,7 +93,6 @@ class DiscipleStatusService @Inject constructor(
          */
         private val SLOT_FLAG_STATUS_RULES: List<Pair<(SlotFlags) -> Boolean, DiscipleStatus>> = listOf(
             { flags: SlotFlags -> flags.inSecretRealm } to DiscipleStatus.SECRET_REALM,
-            { flags: SlotFlags -> flags.inWarehouseGarrison } to DiscipleStatus.WAREHOUSE_GARRISON,
             { flags: SlotFlags -> flags.inGarrison } to DiscipleStatus.GARRISONING,
             { flags: SlotFlags -> flags.inTeam } to DiscipleStatus.IN_TEAM,
             { flags: SlotFlags -> flags.lawEnforcing } to DiscipleStatus.LAW_ENFORCING,
@@ -124,7 +123,6 @@ class DiscipleStatusService @Inject constructor(
             val production = buildProductionFlags(data, discipleId)
             return SlotFlags(
                 inGarrison = team.inGarrison,
-                inWarehouseGarrison = team.inWarehouseGarrison,
                 inTeam = team.inTeam,
                 inSecretRealm = team.inSecretRealm,
                 lawEnforcing = officer.lawEnforcing,
@@ -152,7 +150,6 @@ class DiscipleStatusService @Inject constructor(
             val studyingIds: Set<String>,
             val miningIds: Set<String>,
             val garrisonIds: Set<String>,
-            val warehouseGarrisonIds: Set<String>,
             val inTeamIds: Set<String>,
             val secretRealmIds: Set<String>,
             val patrollingIds: Set<String>,
@@ -169,7 +166,6 @@ class DiscipleStatusService @Inject constructor(
      */
     data class SlotFlags(
         val inGarrison: Boolean = false,
-        val inWarehouseGarrison: Boolean = false,
         val inTeam: Boolean = false,
         val inSecretRealm: Boolean = false,
         val lawEnforcing: Boolean = false,
@@ -247,13 +243,6 @@ class DiscipleStatusService @Inject constructor(
             ?.forEach { ids.add(it.discipleId) }
         return ids
     }
-
-    /** 仓库驻守弟子 ID 集合（WAREHOUSE_GARRISON 数据源，与 buildSlotFlagsFor 的 inWarehouseGarrison 对称） */
-    private fun buildWarehouseGarrisonIds(data: GameData): Set<String> =
-        data.warehouseGarrisons
-            .filter { it.discipleId.isNotEmpty() }
-            .map { it.discipleId }
-            .toSet()
 
     /** 远古秘境成员 ID 集合（SECRET_REALM 数据源，与 buildSlotFlagsFor 的 inSecretRealm 对称——
      * 状态推导必须计入秘境成员，否则 syncAllDiscipleStatuses 会将其误推导为 IDLE） */
@@ -345,7 +334,6 @@ class DiscipleStatusService @Inject constructor(
                 .mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }.toSet(),
             miningIds = buildMiningIds(data, tables),
             garrisonIds = buildGarrisonIds(data),
-            warehouseGarrisonIds = buildWarehouseGarrisonIds(data),
             inTeamIds = buildInTeamIds(data),
             secretRealmIds = buildSecretRealmIds(data),
             patrollingIds = data.patrolSlots
@@ -372,7 +360,6 @@ class DiscipleStatusService @Inject constructor(
             currentStatus = status,
             slotFlags = SlotFlags(
                 inGarrison = index.garrisonIds.contains(discipleId),
-                inWarehouseGarrison = index.warehouseGarrisonIds.contains(discipleId),
                 inTeam = index.inTeamIds.contains(discipleId),
                 inSecretRealm = index.secretRealmIds.contains(discipleId),
                 lawEnforcing = index.lawEnforcerIds.contains(discipleId),
@@ -499,10 +486,9 @@ class DiscipleStatusService @Inject constructor(
             worldMapSects = clearGarrisonSects(ids = ids),
             caveExplorationTeams = clearCaveTeams(ids = ids),
             activeMissions = clearActiveMissions(ids = ids),
-            // 回归：重置漏清巡逻/仓库驻守/战斗队伍/生产槽，重置后派生状态把残留弟子
+            // 回归：重置漏清巡逻/战斗队伍/生产槽，重置后派生状态把残留弟子
             // 重新推导回非 IDLE，与"重置为 IDLE"语义冲突（与 DiscipleSlotCleanup 对齐）
             patrolSlots = clearPatrolSlots(ids = ids),
-            warehouseGarrisons = clearWarehouseGarrisons(ids = ids),
             battleTeams = clearBattleTeams(ids = ids),
             productionSlots = clearProductionSlots(ids = ids)
         )
@@ -575,12 +561,6 @@ class DiscipleStatusService @Inject constructor(
             it.copy(discipleId = "", discipleName = "") else it
     }
 
-    /** 仓库驻守槽位清理 */
-    private fun MutableGameState.clearWarehouseGarrisons(ids: Set<String>) = gameData.warehouseGarrisons.map {
-        if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
-            it.copy(discipleId = "", discipleName = "") else it
-    }
-
     /** 战斗队伍槽位清理 */
     private fun MutableGameState.clearBattleTeams(ids: Set<String>) = gameData.battleTeams.map { team ->
         team.copy(slots = team.slots.map { slot ->
@@ -639,7 +619,6 @@ class DiscipleStatusService @Inject constructor(
 /** 队伍/秘境/驻守类 flag（与 [buildSlotFlagsFor] 拆分的复杂度隔离） */
 private data class TeamFlags(
     val inGarrison: Boolean,
-    val inWarehouseGarrison: Boolean,
     val inTeam: Boolean,
     val inSecretRealm: Boolean
 )
@@ -672,14 +651,10 @@ private fun buildTeamFlags(data: GameData, discipleId: String): TeamFlags {
     val inGarrison =
         data.worldMapSects.find { it.isPlayerSect }
             ?.garrisonSlots?.any { it.discipleId == discipleId } == true
-    // 仓库驻守单独标记（WAREHOUSE_GARRISON），不再并入 inGarrison——
-    // 文案需区分"驻守中"（据点驻军）与"仓库驻守中"
-    val inWarehouseGarrison =
-        data.warehouseGarrisons.any { it.discipleId == discipleId }
     val inTeam = data.battleTeams
         .any { t -> t.slots.any { it.discipleId == discipleId } }
         || inCaveExploration
-    return TeamFlags(inGarrison, inWarehouseGarrison, inTeam, inSecretRealm)
+    return TeamFlags(inGarrison, inTeam, inSecretRealm)
 }
 
 private fun buildOfficerFlags(elderSlots: ElderSlots, discipleId: String): OfficerFlags {

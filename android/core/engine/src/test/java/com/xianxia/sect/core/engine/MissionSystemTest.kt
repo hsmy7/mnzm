@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.MissionDifficulty
 import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.MissionType
 import com.xianxia.sect.core.model.EnemyType
-import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Before
@@ -39,8 +38,7 @@ class MissionSystemTest {
             name = name,
             realm = realm,
             isAlive = isAlive,
-            discipleType = discipleType,
-            skills = SkillStats(loyalty = 50)
+            discipleType = discipleType
         )
     }
 

@@ -27,7 +27,6 @@ data class DiscipleExtended(
     var griefEndYear: Int? = null,
     var masterId: String? = null,
     var usedFunctionalPillTypes: List<String> = emptyList(),
-    var usedExtendLifePillIds: List<String> = emptyList(),
     var hasReviveEffect: Boolean = false,
     var hasClearAllEffect: Boolean = false
 ) {
@@ -55,7 +54,6 @@ data class DiscipleExtended(
                 griefEndYear = disciple.social.griefEndYear,
                 masterId = disciple.social.masterId,
                 usedFunctionalPillTypes = disciple.usage.usedFunctionalPillTypes,
-                usedExtendLifePillIds = disciple.usage.usedExtendLifePillIds,
                 hasReviveEffect = disciple.usage.hasReviveEffect,
                 hasClearAllEffect = disciple.usage.hasClearAllEffect
             )

@@ -228,20 +228,6 @@ private fun ElderBonusInfoFormulaBox(formula: String) {
  * 属性而非函数暴露。
  */
 object ElderBonusInfoProvider {
-    val lawEnforcementElderInfo: ElderBonusInfo = ElderBonusInfo(
-        title = "执法长老",
-        requiredAttribute = "智力",
-        effectDescription = "提升执法堂抓捕偷盗弟子的概率",
-        bonusFormula = "智力以50为基准，每多1点增加1%抓捕概率。\n智力低于50时无加成效果。\n抓捕概率影响偷盗和叛逃的截获率。"
-    )
-
-    val lawEnforcementDiscipleInfo: ElderBonusInfo = ElderBonusInfo(
-        title = "执法弟子",
-        requiredAttribute = "智力",
-        effectDescription = "提升执法堂抓捕偷盗弟子的概率",
-        bonusFormula = "智力以50为基准，每多5点增加1%抓捕概率。\n智力低于50时无加成效果。\n多名执法弟子加成可叠加。"
-    )
-
     val alchemyElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "炼丹长老",
         requiredAttribute = "炼丹",
@@ -338,12 +324,5 @@ object ElderBonusInfoProvider {
         requiredAttribute = "魅力",
         effectDescription = "提升每年待招募弟子的刷新数量上限",
         bonusFormula = "魅力以80为基准，每高4点增加1名弟子刷新上限。\n魅力低于80时无加成效果。\n增加的是刷新上限，不直接增加弟子数量。"
-    )
-
-    val warehouseGarrisonInfo: ElderBonusInfo = ElderBonusInfo(
-        title = "驻守弟子",
-        requiredAttribute = "战斗",
-        effectDescription = "驻守仓库防止弟子偷盗",
-        bonusFormula = "低道德弟子触发偷盗时，需与驻守弟子进行1v1战斗。\n贼胜则偷盗成功，贼败则被捕。\n无驻守弟子时偷盗直接成功。"
     )
 }

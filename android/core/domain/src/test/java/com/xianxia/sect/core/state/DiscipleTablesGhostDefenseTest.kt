@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -34,8 +33,7 @@ class DiscipleTablesGhostDefenseTest {
             id = id.toString(),
             name = name,
             realm = 5,
-            cultivation = 100.0 * id,
-            skills = SkillStats(loyalty = 50)
+            cultivation = 100.0 * id
         )
 
     /** 构造 5 个弟子：A/B/C 为半幽灵（单表缺失），D 为空名（三表齐全），normal 正常 */

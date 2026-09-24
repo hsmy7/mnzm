@@ -87,7 +87,7 @@ object GameConfig {
 
     /**
      * 使用 [GameConfigData] 初始化运行时配置。
-     * 此后 [Production]、[Warehouse]、[Battle.RealmGap]、[LawEnforcementConfig] 中的
+     * 此后 [Production]、[Warehouse]、[Battle.RealmGap] 中的
      * 对应字段将返回 GameConfigData 中的值而非编译期常量。
      * 不调用此方法时，仍使用原有的 [const val] 默认值，保证向后兼容。
      *
@@ -123,12 +123,10 @@ object GameConfig {
     }
     
     object Disciple {
-        const val MIN_LOYALTY = 0
-        const val MAX_LOYALTY = 100
         const val MIN_AGE = 5
         const val MAX_AGE = 100
         const val PROTECTION_MONTHS = 12
-        /** 基础技能属性上限（资质/悟性/智力等 10 项；忠诚单独用 MAX_LOYALTY=100） */
+        /** 基础技能属性上限（资质/悟性/智力等 10 项） */
         const val SKILL_MAX = 200
         /**
          * 重伤恒定气血（Q20/Q41）：玩家侧弟子败北不死亡，只把气血钳到该值，
@@ -916,31 +914,6 @@ object GameConfig {
     }
 
     object LawEnforcementConfig {
-        val LOYALTY_THRESHOLD: Int
-            get() = config()?.lawEnforcement?.loyaltyThreshold ?: 30
-        val MORALITY_THRESHOLD: Int
-            get() = config()?.lawEnforcement?.moralityThreshold ?: 30
-        val PROB_PER_POINT: Double
-            get() = config()?.lawEnforcement?.probPerPoint ?: 0.01
-        val MAX_PROB: Double
-            get() = config()?.lawEnforcement?.maxProb ?: 0.90
-        val BASE_CAPTURE_RATE: Double
-            get() = config()?.lawEnforcement?.baseCaptureRate ?: 0.0
-        val INTELLIGENCE_BASE: Int
-            get() = config()?.lawEnforcement?.intelligenceBase ?: 50
-        val ELDER_BONUS_PER_POINT: Double
-            get() = config()?.lawEnforcement?.elderBonusPerPoint ?: 0.01
-        val DISCIPLE_INTELLIGENCE_STEP: Int
-            get() = config()?.lawEnforcement?.discipleIntelligenceStep ?: 5
-        val DISCIPLE_BONUS_PER_STEP: Double
-            get() = config()?.lawEnforcement?.discipleBonusPerStep ?: 0.01
-        val REFLECTION_YEARS: Int
-            get() = config()?.lawEnforcement?.reflectionYears ?: 5
-        val NEW_DISCIPLE_PROTECTION_MONTHS: Int
-            get() = config()?.lawEnforcement?.newDiscipleProtectionMonths ?: 12
-        val HERD_LOYALTY_THRESHOLD: Int
-            get() = config()?.lawEnforcement?.herdLoyaltyThreshold ?: 50
-
         // ── 境界基准偷盗量（等比数列 ×4，1=炼气 … 9=渡劫） ──
         val THEFT_REALM_BASE_AMOUNTS: Map<Int, Long> = mapOf(
             1 to 500L,

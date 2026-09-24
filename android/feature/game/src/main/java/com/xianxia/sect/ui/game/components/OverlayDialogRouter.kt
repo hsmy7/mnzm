@@ -11,7 +11,7 @@ import com.xianxia.sect.ui.game.components.dialog.renderProductionRoutes
 import com.xianxia.sect.ui.game.components.dialog.renderSystemRoutes
 
 /**
- * DialogType 34 分支路由（E1 拆分：分支体按域提取至 components/dialog/ 5 个组文件，
+ * DialogType 分支路由（E1 拆分：分支体按域提取至 components/dialog/ 5 个组文件，
  * 本文件保留单处穷尽分派，when 无 else 分支）。
  *
  * 仅在 Dialog 可见时由 GameOverlayHost 调用（key(currentDialogType) 外包裹）。
@@ -44,9 +44,9 @@ internal fun OverlayDialogRoute(
         is DialogType.Residence, is DialogType.WarehouseBuilding -> {
             type.renderProductionRoutes(vms, gameData, onDismiss)
         }
-        // 功能性建筑（Library/WenDaoPeak/QingyunPeak/TianshuHall/LawEnforcementHall/MissionHall/ReflectionCliff）
+        // 功能性建筑（Library/WenDaoPeak/QingyunPeak/TianshuHall/MissionHall/ReflectionCliff）
         is DialogType.Library, is DialogType.WenDaoPeak, is DialogType.QingyunPeak,
-        is DialogType.TianshuHall, is DialogType.LawEnforcementHall,
+        is DialogType.TianshuHall,
         is DialogType.MissionHall, is DialogType.ReflectionCliff -> {
             type.renderFunctionalBuildingRoutes(vms, gameData, onDismiss)
         }

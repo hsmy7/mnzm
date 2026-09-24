@@ -505,7 +505,7 @@ class PatrolBattleSystem @Inject constructor(
         )
     }
 
-    // ── 胜利奖励：击败标记 + 神魂/属性 + 材料 + 灵石 ──────────────────────
+    // ── 胜利奖励：击败标记 + 属性 + 材料 + 灵石 ──────────────────────
 
     /** 应用胜利后的 GameData 变更：击败妖兽标记 + 灵石入账（单写者——经 updatedGd 链终局落值） */
     private fun applyVictoryGdChanges(
@@ -522,7 +522,7 @@ class PatrolBattleSystem @Inject constructor(
         )
     }
 
-    /** 应用胜利奖励：神魂/属性 + 妖兽材料 + 灵石 */
+    /** 应用胜利奖励：属性 + 妖兽材料 + 灵石 */
     private fun applyVictoryRewards(
         target: WorldLevel,
         survivors: Set<String>,
@@ -533,18 +533,18 @@ class PatrolBattleSystem @Inject constructor(
         /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
         val rng = rngManager.getRng(RngPartition.EXPLORATION)
 
-        val soulUpdated = applySurvivorSoulAndAttribute(
+        val attrUpdated = applySurvivorAttribute(
             target, survivors, disciples, rng
         )
         generateBeastMaterialRewards(target, rng, allRewards)
         applySpiritStoneReward(battleResult, allRewards)
 
-        return soulUpdated
+        return attrUpdated
     }
 
-    /** 幸存弟子：神魂 +1，有天赋者随机属性 +1 */
+    /** 幸存弟子：有天赋者随机属性 +1 */
     @Suppress("UnusedParameter") // target: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
-    private fun applySurvivorSoulAndAttribute(
+    private fun applySurvivorAttribute(
         target: WorldLevel,
         survivors: Set<String>,
         disciples: List<Disciple>,
@@ -552,7 +552,7 @@ class PatrolBattleSystem @Inject constructor(
     ): List<Disciple> {
         return disciples.map { d ->
             if (d.id in survivors && d.isAlive) {
-                var m = d.copy(soulPower = d.soulPower + 1)
+                val m = d
                 if (m.talentIds.any { id ->
                     TalentDatabase.getById(id)?.effects
                         ?.containsKey("winBattleRandomAttrPlus") == true
@@ -568,7 +568,7 @@ class PatrolBattleSystem @Inject constructor(
     /** 随机属性 +1：技能属性 clamp，战斗属性直接递增 */
     private fun applyRandomAttrIncrement(disciple: Disciple, attr: Int) {
         val s = disciple.skills; val c = disciple.combat
-        // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
+        // 技能属性（0-9）clamp 到基础属性上限；战斗属性（10-16）不 clamp
         if (attr <= 9) {
             applySkillAttrIncrement(s, attr)
         } else {
@@ -858,13 +858,12 @@ private fun resolveTowerBattleResult(
     )
 }
 
-/** 技能属性 +1（clamp 到 SKILL_MAX，忠诚例外 MAX_LOYALTY） */
+/** 技能属性 +1（clamp 到 SKILL_MAX） */
 private fun applySkillAttrIncrement(s: SkillStats, attr: Int) {
     when (attr) {
         0 -> s.intelligence = minOf(s.intelligence + 1, GameConfig.Disciple.SKILL_MAX)
         1 -> s.comprehension = minOf(s.comprehension + 1, GameConfig.Disciple.SKILL_MAX)
         2 -> s.charm = minOf(s.charm + 1, GameConfig.Disciple.SKILL_MAX)
-        3 -> s.loyalty = minOf(s.loyalty + 1, GameConfig.Disciple.MAX_LOYALTY)
         4 -> s.artifactRefining = minOf(s.artifactRefining + 1, GameConfig.Disciple.SKILL_MAX)
         5 -> s.pillRefining = minOf(s.pillRefining + 1, GameConfig.Disciple.SKILL_MAX)
         6 -> s.spiritPlanting = minOf(s.spiritPlanting + 1, GameConfig.Disciple.SKILL_MAX)

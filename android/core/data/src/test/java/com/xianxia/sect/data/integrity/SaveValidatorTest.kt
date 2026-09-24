@@ -50,8 +50,6 @@ class SaveValidatorTest {
         realm: Int = 9,
         realmLayer: Int = 1,
         cultivation: Double = 10.0,
-        age: Int = 20,
-        lifespan: Int = 80,
         isAlive: Boolean = true,
         weaponId: String = "",
         armorId: String = "",
@@ -64,8 +62,6 @@ class SaveValidatorTest {
             realm = realm,
             realmLayer = realmLayer,
             cultivation = cultivation,
-            age = age,
-            lifespan = lifespan,
             isAlive = isAlive,
             equipment = EquipmentSet(
                 weaponId = weaponId,
@@ -111,14 +107,6 @@ class SaveValidatorTest {
             equipmentStacks = listOf(stack),
             disciples = listOf(disciple)
         )
-        val result = SaveValidator.validate(data)
-        assertTrue("预期 Passed，实际得到 $result", result is IntegrityResult.Passed)
-    }
-
-    @Test
-    fun `validate - alive disciple age within lifespan - returns Passed`() {
-        val disciple = makeDisciple(age = 50, lifespan = 120)
-        val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Passed，实际得到 $result", result is IntegrityResult.Passed)
     }
@@ -352,33 +340,6 @@ class SaveValidatorTest {
         assertTrue("预期 Passed，实际得到 $result", result is IntegrityResult.Passed)
     }
 
-    // ── 7. Age vs Lifespan ────────────────────────────────────
-
-    @Test
-    fun `validate - alive disciple age exceeds lifespan - clamps`() {
-        val disciple = makeDisciple(age = 100, lifespan = 80, isAlive = true)
-        val data = minimalValidSaveData().copy(disciples = listOf(disciple))
-        val result = SaveValidator.validate(data)
-        assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
-        assertEquals(80, (result as IntegrityResult.Repaired).data.disciples.first().age)
-    }
-
-    @Test
-    fun `validate - dead disciple age exceeds lifespan - no change`() {
-        val disciple = makeDisciple(age = 200, lifespan = 80, isAlive = false)
-        val data = minimalValidSaveData().copy(disciples = listOf(disciple))
-        val result = SaveValidator.validate(data)
-        assertTrue("预期 Passed（已死亡不处理），实际得到 $result", result is IntegrityResult.Passed)
-    }
-
-    @Test
-    fun `validate - age exactly equals lifespan - passes`() {
-        val disciple = makeDisciple(age = 80, lifespan = 80, isAlive = true)
-        val data = minimalValidSaveData().copy(disciples = listOf(disciple))
-        val result = SaveValidator.validate(data)
-        assertTrue("预期 Passed，实际得到 $result", result is IntegrityResult.Passed)
-    }
-
     // ── 8. Edge cases ─────────────────────────────────────────
 
     @Test
@@ -399,24 +360,21 @@ class SaveValidatorTest {
     @Test
     fun `validate - multiple disciples multiple issues - all repaired`() {
         val d1 = makeDisciple("d-1", "甲", realm = 9, realmLayer = 1, cultivation = 999.0,
-            weaponId = "ghost-sword", age = 90, lifespan = 80)
+            weaponId = "ghost-sword")
         val d2 = makeDisciple("d-2", "乙", realm = 8, realmLayer = 5, cultivation = 1e6,
-            armorId = "ghost-armor", age = 200, lifespan = 100)
+            armorId = "ghost-armor")
         val data = minimalValidSaveData().copy(disciples = listOf(d1, d2))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
         val disciples = repaired.data.disciples
-        // d1: cultivation capped to 490, weapon cleared, age clamped to 80
+        // d1: cultivation capped to 490, weapon cleared
         assertEquals(490.0, disciples[0].cultivation, 0.001)
         assertEquals("", disciples[0].equipment.weaponId)
-        assertEquals(80, disciples[0].age)
-        // d2: cultivation capped, armor cleared, age clamped to computeMaxAge
-        // （realm 8 寿元上限 120 > lifespan 100，年龄截断目标为 computeMaxAge）
+        // d2: cultivation capped, armor cleared
         val expectedMaxD2 = 1950.0 + 4.0 * (7800.0 - 1950.0) / 9.0
         assertEquals(expectedMaxD2, disciples[1].cultivation, 0.001)
         assertEquals("", disciples[1].equipment.armorId)
-        assertEquals(120, disciples[1].age)
     }
 
     @Test

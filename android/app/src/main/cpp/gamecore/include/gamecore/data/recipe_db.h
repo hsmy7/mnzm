@@ -6,12 +6,12 @@
 //      Kotlin ForgeRecipeDatabase.kt 的 tier1~tier6 六个列表
 //      （ForgeRecipe("id", "name", EquipmentSlot.X, tier, rarity, "desc",
 //        mapOf(...), duration, successRate)）。
-//   2. 丹药配方（pillRecipes，732 条）——**程序化生成**，C++ 侧等价复刻
+//   2. 丹药配方（pillRecipes，660 条）——**程序化生成**，C++ 侧等价复刻
 //      Kotlin PillRecipeDatabase.kt 的生成循环（TIER_DURATION /
 //      TIER_SUCCESS_RATE / TIER_HERB_IDS / herbMat / PillGrade 循环）。
 //      配方依赖 ItemDatabase.getPillById 的丹药模板（id/name/description/
 //      效果字段），故本头文件同时在 detail 命名空间复刻了 ItemDatabase.kt
-//      的 PillTemplate 生成逻辑（732 个模板，修炼 138 + 战斗 288 + 功能 306），
+//      的 PillTemplate 生成逻辑（660 个模板，修炼 138 + 战斗 288 + 功能 234），
 //      与 Kotlin 依赖链一致。
 //
 // 对拍目标（后续守卫测试逐字段比对）：
@@ -108,10 +108,8 @@ struct PillRecipeTemplate {
     int32_t speedAdd = 0;
     double critRateAdd = 0.0;
     double critEffectAdd = 0.0;
-    int32_t extendLife = 0;
     int32_t intelligenceAdd = 0;
     int32_t charmAdd = 0;
-    int32_t loyaltyAdd = 0;
     int32_t comprehensionAdd = 0;
     int32_t artifactRefiningAdd = 0;
     int32_t pillRefiningAdd = 0;
@@ -169,10 +167,8 @@ struct PillTemplateSpec {
     int32_t speedAdd = 0;
     double critRateAdd = 0.0;
     double critEffectAdd = 0.0;
-    int32_t extendLife = 0;
     int32_t intelligenceAdd = 0;
     int32_t charmAdd = 0;
-    int32_t loyaltyAdd = 0;
     int32_t comprehensionAdd = 0;
     int32_t artifactRefiningAdd = 0;
     int32_t pillRefiningAdd = 0;
@@ -221,11 +217,10 @@ static constexpr int32_t kBaseSpd[7] = {0, 15, 97, 255, 675, 1650, 8700};
 static constexpr int32_t kCultBase[7] = {0, 600, 8000, 20000, 50000, 100000, 300000};
 
 /// SPEED_PERCENT_MEDIUM / CRIT_RATE_MEDIUM / CRIT_EFFECT_MEDIUM /
-/// EXTEND_LIFE_MEDIUM / BASE_ATTR_MEDIUM
+/// BASE_ATTR_MEDIUM
 static constexpr double kSpeedPct[7] = {0.0, 0.30, 0.35, 0.40, 0.50, 0.60, 0.80};
 static constexpr double kCritRate[7] = {0.0, 0.03, 0.05, 0.07, 0.10, 0.13, 0.16};
 static constexpr double kCritEffect[7] = {0.0, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40};
-static constexpr int32_t kExtendLife[7] = {0, 5, 10, 20, 35, 50, 80};
 static constexpr int32_t kBaseAttr[7] = {0, 3, 5, 8, 12, 16, 20};
 /// 孕养度丹基础值（listOf(50,100,200,400,800,1600)[tier-1]）
 static constexpr int32_t kNurtureBase[6] = {50, 100, 200, 400, 800, 1600};
@@ -238,7 +233,6 @@ static constexpr const char* kNurtureSpeedNames[7] = {"", "养器丹", "灵养�
 static constexpr const char* kCultAddNames[7] = {"", "增元丹", "培元丹", "固元丹", "真元丹", "玄元丹", "仙元丹"};
 static constexpr const char* kSkillAddNames[7] = {"", "悟道丹", "明心丹", "通玄丹", "慧灵丹", "道悟丹", "天机丹"};
 static constexpr const char* kNurtureAddNames[7] = {"", "蕴器丹", "灵蕴丹", "宝蕴丹", "玄蕴丹", "地蕴丹", "天蕴丹"};
-static constexpr const char* kExtendLifeNames[7] = {"", "延寿丹", "续命丹", "长生丹", "不老丹", "万寿丹", "永生丹"};
 
 /// 单属性战斗丹配置（pillType / attrName / 各 tier 名称）
 struct SingleAttrSpec {
@@ -291,8 +285,6 @@ static constexpr const char* kCritEffectNames[7] = {"", "烈击丹", "猛击丹"
 static constexpr SingleAttrSpec kSingleBaseAttrSpecs[] = {
     {"intelligence", "智力", {"", "慧根丹", "灵慧丹", "明慧丹", "玄慧丹", "地慧丹", "天慧丹"}},
     {"charm", "魅力", {"", "仙姿丹", "灵姿丹", "玉姿丹", "玄姿丹", "地姿丹", "天姿丹"}},
-    {"loyalty", "忠诚", {"", "忠心丹", "赤诚丹", "铁心丹", "玄心丹", "地心丹", "天心丹"}},
-    {"comprehension", "悟性", {"", "悟道丹", "明悟丹", "通悟丹", "玄悟丹", "地悟丹", "天悟丹"}},
     {"artifactRefining", "炼器", {"", "铸魂丹", "灵铸丹", "宝铸丹", "玄铸丹", "地铸丹", "天铸丹"}},
     {"pillRefining", "炼丹", {"", "丹心丹", "灵丹丹", "宝丹丹", "玄丹丹", "地丹丹", "天丹丹"}},
     {"spiritPlanting", "种植", {"", "灵植丹", "灵耘丹", "宝耘丹", "玄耘丹", "地耘丹", "天耘丹"}},
@@ -305,8 +297,6 @@ static constexpr SingleAttrSpec kSingleBaseAttrSpecs[] = {
 static constexpr DualAttrSpec kDualBaseAttrSpecs[] = {
     {"intelligenceComprehension", "intelligence", "comprehension", "智悟",
      {"", "智悟丹", "灵悟丹", "明悟丹", "玄悟丹", "地悟丹", "天悟丹"}},
-    {"charmLoyalty", "charm", "loyalty", "魅忠",
-     {"", "忠媚丹", "灵忠丹", "宝忠丹", "玄忠丹", "地忠丹", "天忠丹"}},
     {"pillRefiningArtifactRefining", "pillRefining", "artifactRefining", "炼丹炼器",
      {"", "双炼丹", "灵炼丹", "宝炼丹", "玄炼丹", "地炼丹", "天炼丹"}},
     {"spiritPlantingTeaching", "spiritPlanting", "teaching", "种植教学",
@@ -389,19 +379,19 @@ inline void buildCultivationSpeedPills(std::vector<PillTemplateSpec>& out) {
                 kSpeedNames[tier],
                 tierName + gradeName + "修炼速度丹，提升境界修炼速度" + pctStr + "%，持续9旬",
                 0.0, 0, speedPct * mult, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
             out.push_back(PillTemplateSpec{
                 "skillExpSpeed_" + std::to_string(tier) + "_" + gradeLower,
                 kSkillSpeedNames[tier],
                 tierName + gradeName + "功法速度丹，提升功法熟练度修炼速度" + pctStr + "%，持续9旬",
                 0.0, 0, 0.0, speedPct * mult, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
             out.push_back(PillTemplateSpec{
                 "nurtureSpeed_" + std::to_string(tier) + "_" + gradeLower,
                 kNurtureSpeedNames[tier],
                 tierName + gradeName + "孕养速度丹，提升装备孕养等级修炼速度" + pctStr + "%，持续9旬",
                 0.0, 0, 0.0, 0.0, speedPct * mult, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
         }
     }
 }
@@ -428,19 +418,19 @@ inline void buildCultivationValuePills(std::vector<PillTemplateSpec>& out) {
                 kCultAddNames[tier],
                 tierName + gradeName + "境界修为丹，立即增加" + std::to_string(cultAddVal) + "点境界修为",
                 0.0, 0, 0.0, 0.0, 0.0, cultAddVal, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
             out.push_back(PillTemplateSpec{
                 "skillExpAdd_" + std::to_string(tier) + "_" + gradeLower,
                 kSkillAddNames[tier],
                 tierName + gradeName + "功法熟练丹，立即增加" + std::to_string(skillAddVal) + "点功法熟练度",
                 0.0, 0, 0.0, 0.0, 0.0, 0, skillAddVal, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
             out.push_back(PillTemplateSpec{
                 "nurtureAdd_" + std::to_string(tier) + "_" + gradeLower,
                 kNurtureAddNames[tier],
                 tierName + gradeName + "孕养度丹，立即增加" + std::to_string(nurtureAddVal) + "点装备孕养度",
                 0.0, 0, 0.0, 0.0, 0.0, 0, 0, nurtureAddVal, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
         }
     }
 }
@@ -460,7 +450,7 @@ inline void buildBreakthroughPills(std::vector<PillTemplateSpec>& out) {
                     std::string("增加") + realmName(targetRealm) + "期突破成功率" +
                         std::to_string(pct) + "%",
                     chance, targetRealm, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                    0, 0, 0, 0, 0, 0, 0, 0, 0});
             }
         }
     }
@@ -500,7 +490,7 @@ inline void buildSingleAttrBattlePills(std::vector<PillTemplateSpec>& out) {
                     std::string(cfg.pillType) == "hp" ? val : 0,
                     std::string(cfg.pillType) == "mp" ? val : 0,
                     std::string(cfg.pillType) == "speed" ? val : 0,
-                    0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                    0.0, 0.0, 0, 0, 0, 0, 0, 0, 0});
             }
         }
     }
@@ -555,7 +545,7 @@ inline void buildDualAttrBattlePills(std::vector<PillTemplateSpec>& out) {
                     attrVal("physicalAttack"), attrVal("magicAttack"),
                     attrVal("physicalDefense"), attrVal("magicDefense"),
                     attrVal("hp"), attrVal("mp"), attrVal("speed"),
-                    0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                    0.0, 0.0, 0, 0, 0, 0, 0, 0, 0});
             }
         }
     }
@@ -577,7 +567,7 @@ inline void buildCritBattlePills(std::vector<PillTemplateSpec>& out) {
                 tierName + gradeName + "暴击率丹，增加" + std::to_string(roundToInt(cr * 100.0)) +
                     "%暴击率，持续9旬",
                 0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, cr, 0.0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
 
             const double ce = kCritEffect[tier] * mult;
             out.push_back(PillTemplateSpec{
@@ -586,24 +576,7 @@ inline void buildCritBattlePills(std::vector<PillTemplateSpec>& out) {
                 tierName + gradeName + "暴击效果丹，增加" + std::to_string(roundToInt(ce * 100.0)) +
                     "%暴击效果，持续9旬",
                 0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, ce,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-        }
-    }
-}
-
-/// 延寿丹
-inline void buildExtendLifePills(std::vector<PillTemplateSpec>& out) {
-    for (int tier = 1; tier <= 6; ++tier) {
-        const std::string tierName = kTierNames[tier];
-        for (int g = 0; g < 3; ++g) {
-            const double mult = kGradeMultiplier[g];
-            const int lifeVal = roundToInt(kExtendLife[tier] * mult);
-            out.push_back(PillTemplateSpec{
-                "extendLife_" + std::to_string(tier) + "_" + kGradeLower[g],
-                kExtendLifeNames[tier],
-                tierName + kGradeDisplay[g] + "延寿丹，增加" + std::to_string(lifeVal) + "年寿元",
-                0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                lifeVal, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+                0, 0, 0, 0, 0, 0, 0, 0, 0});
         }
     }
 }
@@ -622,11 +595,9 @@ inline void buildSingleBaseAttrPills(std::vector<PillTemplateSpec>& out) {
                     std::string(cfg.pillType) + "_" + std::to_string(tier) + "_" + kGradeLower[g],
                     cfg.names[tier], desc,
                     0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                    0,
                     std::string(cfg.pillType) == "intelligence" ? val : 0,
                     std::string(cfg.pillType) == "charm" ? val : 0,
-                    std::string(cfg.pillType) == "loyalty" ? val : 0,
-                    std::string(cfg.pillType) == "comprehension" ? val : 0,
+                    0,
                     std::string(cfg.pillType) == "artifactRefining" ? val : 0,
                     std::string(cfg.pillType) == "pillRefining" ? val : 0,
                     std::string(cfg.pillType) == "spiritPlanting" ? val : 0,
@@ -661,8 +632,7 @@ inline void buildDualBaseAttrPills(std::vector<PillTemplateSpec>& out) {
                     std::string(cfg.pillType) + "_" + std::to_string(tier) + "_" + kGradeLower[g],
                     cfg.names[tier], desc,
                     0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
-                    0,
-                    attrVal("intelligence"), attrVal("charm"), attrVal("loyalty"),
+                    attrVal("intelligence"), attrVal("charm"),
                     attrVal("comprehension"), attrVal("artifactRefining"),
                     attrVal("pillRefining"), attrVal("spiritPlanting"),
                     attrVal("teaching"), attrVal("morality"), 0});
@@ -748,8 +718,8 @@ inline void finalizePillSpecOut(std::vector<PillTemplateSpec>& specs) {
             //（与 ItemDatabase 各战斗丹生成器逐行一致，任务奖励 battle 丹同此规则）
             s.minRealm = tierRarityMinRealm(seg);
         } else {
-            // 功能丹全集（extendLife + 单/双基础属性）——Kotlin 统一
-            // FUNCTIONAL / duration 0 / cannotStack false / tierMinRealm
+            // 功能丹全集（单/双基础属性）——Kotlin 统一 FUNCTIONAL / duration 0 /
+            // cannotStack false / tierMinRealm
             s.category = "FUNCTIONAL";
             s.rarity = seg;
             s.duration = 0;
@@ -759,7 +729,7 @@ inline void finalizePillSpecOut(std::vector<PillTemplateSpec>& specs) {
     }
 }
 
-/// 全部丹药模板（732 = 修炼 138 + 战斗 288 + 功能 306，与 Kotlin allPills 同构）
+/// 全部丹药模板（660 = 修炼 138 + 战斗 288 + 功能 234，与 Kotlin allPills 同构）
 inline std::vector<PillTemplateSpec> buildPillTemplates() {
     std::vector<PillTemplateSpec> out;
     buildCultivationSpeedPills(out);
@@ -768,7 +738,6 @@ inline std::vector<PillTemplateSpec> buildPillTemplates() {
     buildSingleAttrBattlePills(out);
     buildDualAttrBattlePills(out);
     buildCritBattlePills(out);
-    buildExtendLifePills(out);
     buildSingleBaseAttrPills(out);
     buildDualBaseAttrPills(out);
     finalizePillSpecOut(out);
@@ -831,10 +800,8 @@ inline ::gamecore::state::Pill pillFromSpec(const PillTemplateSpec& tpl,
     e.speedAdd = tpl.speedAdd;
     e.critRateAdd = tpl.critRateAdd;
     e.critEffectAdd = tpl.critEffectAdd;
-    e.extendLife = tpl.extendLife;
     e.intelligenceAdd = tpl.intelligenceAdd;
     e.charmAdd = tpl.charmAdd;
-    e.loyaltyAdd = tpl.loyaltyAdd;
     e.comprehensionAdd = tpl.comprehensionAdd;
     e.artifactRefiningAdd = tpl.artifactRefiningAdd;
     e.pillRefiningAdd = tpl.pillRefiningAdd;
@@ -1099,10 +1066,8 @@ inline PillRecipeTemplate recipeFromTemplate(const PillTemplateSpec& t, int tier
     r.speedAdd = t.speedAdd;
     r.critRateAdd = t.critRateAdd;
     r.critEffectAdd = t.critEffectAdd;
-    r.extendLife = t.extendLife;
     r.intelligenceAdd = t.intelligenceAdd;
     r.charmAdd = t.charmAdd;
-    r.loyaltyAdd = t.loyaltyAdd;
     r.comprehensionAdd = t.comprehensionAdd;
     r.artifactRefiningAdd = t.artifactRefiningAdd;
     r.pillRefiningAdd = t.pillRefiningAdd;
@@ -1240,32 +1205,19 @@ inline void buildBattleCritRecipes(std::vector<PillRecipeTemplate>& out, int tie
     }
 }
 
-/// 单基础属性功能配方（对应 Kotlin addFunctionalSingleRecipes；
-/// Kotlin singleTypes 首项为 extendLife，共 11 项，此处先单独处理 extendLife）
+/// 单基础属性功能配方（对应 Kotlin addFunctionalSingleRecipes）
 inline void buildFunctionalSingleRecipes(std::vector<PillRecipeTemplate>& out, int tier) {
     const int duration = kTierDuration[tier];
     const double successRate = kTierSuccessRate[tier];
-    // Kotlin idx=0：extendLife（mapOf(herbs[0] to 2, herbs[6] to 2)）
-    {
-        const std::map<std::string, int32_t> materials = {
-            {kTierHerbs[tier][0], 2}, {kTierHerbs[tier][6], 2}};
-        for (int g = 0; g < 3; ++g) {
-            const std::string id = "extendLife_" + std::to_string(tier) + "_" + kGradeLower[g];
-            const auto tpl = pillTemplateById(id);
-            if (!tpl) continue;
-            out.push_back(recipeFromTemplate(*tpl, tier, tier, "FUNCTIONAL", kGradeLower[g],
-                                             "extendLife", materials, duration, successRate,
-                                             0.0, 0));
-        }
-    }
-    // Kotlin idx=1..10：基础属性（对应 kSingleBaseAttrSpecs 下标 i = idx-1）
+    // herbPatterns：与 Kotlin herbPatterns 一致（灵草槽位固定）
+    static constexpr int kSingleBaseFuncPatterns[8][2] = {
+        {1, 7}, {2, 8}, {5, 2}, {6, 3}, {7, 4}, {8, 5}, {0, 6}, {1, 7}};
     const int singleCount =
         static_cast<int>(sizeof(kSingleBaseAttrSpecs) / sizeof(kSingleBaseAttrSpecs[0]));
     for (int i = 0; i < singleCount; ++i) {
         const auto& cfg = kSingleBaseAttrSpecs[i];
-        // mapOf(herbs[(i+1) % 9] to 2, herbs[(i+7) % 9] to 2)
-        const std::map<std::string, int32_t> materials = {
-            {kTierHerbs[tier][(i + 1) % 9], 2}, {kTierHerbs[tier][(i + 7) % 9], 2}};
+        const std::map<std::string, int32_t> materials =
+            herbMat(tier, {kSingleBaseFuncPatterns[i][0], kSingleBaseFuncPatterns[i][1]});
         for (int g = 0; g < 3; ++g) {
             const std::string id = std::string(cfg.pillType) + "_" + std::to_string(tier) + "_" +
                 kGradeLower[g];
@@ -1282,13 +1234,15 @@ inline void buildFunctionalSingleRecipes(std::vector<PillRecipeTemplate>& out, i
 inline void buildFunctionalDualRecipes(std::vector<PillRecipeTemplate>& out, int tier) {
     const int duration = kTierDuration[tier];
     const double successRate = kTierSuccessRate[tier];
+    // herbPatterns：与 Kotlin herbPatterns 一致（灵草槽位固定）
+    static constexpr int kDualBaseFuncPatterns[5][2] = {
+        {0, 2}, {2, 4}, {3, 5}, {4, 6}, {5, 7}};
     const int dualCount =
         static_cast<int>(sizeof(kDualBaseAttrSpecs) / sizeof(kDualBaseAttrSpecs[0]));
     for (int idx = 0; idx < dualCount; ++idx) {
         const auto& cfg = kDualBaseAttrSpecs[idx];
-        // mapOf(herbs[idx % 9] to 2, herbs[(idx + 2) % 9] to 2)
-        const std::map<std::string, int32_t> materials = {
-            {kTierHerbs[tier][idx % 9], 2}, {kTierHerbs[tier][(idx + 2) % 9], 2}};
+        const std::map<std::string, int32_t> materials =
+            herbMat(tier, {kDualBaseFuncPatterns[idx][0], kDualBaseFuncPatterns[idx][1]});
         for (int g = 0; g < 3; ++g) {
             const std::string id = std::string(cfg.pillType) + "_" + std::to_string(tier) + "_" +
                 kGradeLower[g];
@@ -1345,7 +1299,7 @@ inline const std::vector<ForgeRecipeTemplate>& forgeRecipes() {
     return forgeRecipesMutable();
 }
 
-/// 全部丹药配方（修炼 138 + 战斗 288 + 功能 306 = 732 条）
+/// 全部丹药配方（修炼 138 + 战斗 288 + 功能 234 = 660 条）
 ///
 /// B16/R6.2：同 forgeRecipesMutable——兜底与 `db.pillRecipes` 段同源。
 /// 注：条目的 `price` 是派生字段（数据文件不含该键），注入后由

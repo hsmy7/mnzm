@@ -71,7 +71,7 @@ internal fun CultivationEventProcessor.processAutoFromWarehouse(
             .thenByDescending { updatedDisciples[it].realmLayer })
     for (idx in sortedIndices) {
         val step = processSingleDiscipleAuto(
-            updatedDisciples[idx], year, month, tables,
+            updatedDisciples[idx], year, month,
             equipFocused, equipRootCounts, learnFocused, learnRootCounts,
             eqStacks, mnStacks, eqInstancesById, mnInstancesById,
             newEqInstances, attachedEqInstances, replacedEqInstances,
@@ -97,7 +97,6 @@ internal fun CultivationEventProcessor.processAutoFromWarehouse(
 internal fun CultivationEventProcessor.processSingleDiscipleAuto(
     disciple: Disciple,
     year: Int, month: Int,
-    tables: DiscipleTables,
     equipFocused: Boolean, equipRootCounts: Set<Int>,
     learnFocused: Boolean, learnRootCounts: Set<Int>,
     eqStacks: List<EquipmentStack>, mnStacks: List<ManualStack>,
@@ -115,7 +114,7 @@ internal fun CultivationEventProcessor.processSingleDiscipleAuto(
     var mns = mnStacks
     if (qualifiesForSectAutoPublic(d, equipFocused, equipRootCounts)) {
         val result = processSingleAutoEquip(
-            d, year, month, tables, eqs, eqInstancesById,
+            d, year, month, eqs, eqInstancesById,
             newEqInstances, attachedEqInstances, replacedEqInstances
         )
         d = result.first
@@ -123,7 +122,7 @@ internal fun CultivationEventProcessor.processSingleDiscipleAuto(
     }
     if (qualifiesForSectAutoPublic(d, learnFocused, learnRootCounts)) {
         val result = processSingleAutoLearn(
-            d, year, month, tables, mns, mnInstancesById,
+            d, year, month, mns, mnInstancesById,
             newMnInstances, attachedMnInstances, replacedMnInstances
         )
         d = result.first
@@ -171,7 +170,7 @@ internal fun CultivationEventProcessor.qualifiesByColumns(
 
 @Suppress("LongParameterList") // 类级同名单注解留在源类（27 服务 DI 注入口径），随拆分迁至函数级
 internal fun CultivationEventProcessor.processSingleAutoEquip(
-    d: Disciple, year: Int, month: Int, tables: DiscipleTables,
+    d: Disciple, year: Int, month: Int,
     eqStacks: List<EquipmentStack>, eqInstancesById: Map<String, EquipmentInstance>,
     newEqInstances: MutableList<EquipmentInstance>,
     attachedEqInstances: MutableList<EquipmentInstance>,
@@ -193,7 +192,7 @@ internal fun CultivationEventProcessor.processSingleAutoEquip(
     replacedEqInstances.addAll(result.replacedInstances)
     val equipName = (result.newInstances.firstOrNull() ?: result.attachedInstances.firstOrNull())?.name ?: ""
     if (equipName.isNotEmpty()) {
-        discipleService.addLifeEvent(d.id, "${tables.ages[d.id.toInt()]}岁：自动装备了${equipName}")
+        discipleService.addLifeEvent(d.id, "自动装备了${equipName}")
     }
     for (update in result.stackUpdates) {
         stacks = if (update.isDeletion) stacks.filter { it.id != update.stackId }
@@ -209,7 +208,7 @@ internal fun CultivationEventProcessor.processSingleAutoEquip(
 
 @Suppress("LongParameterList") // 类级同名单注解留在源类（27 服务 DI 注入口径），随拆分迁至函数级
 internal fun CultivationEventProcessor.processSingleAutoLearn(
-    d: Disciple, year: Int, month: Int, tables: DiscipleTables,
+    d: Disciple, year: Int, month: Int,
     mnStacks: List<ManualStack>, mnInstancesById: Map<String, ManualInstance>,
     newMnInstances: MutableList<ManualInstance>,
     attachedMnInstances: MutableList<ManualInstance>,
@@ -231,7 +230,7 @@ internal fun CultivationEventProcessor.processSingleAutoLearn(
     result.replacedInstance?.let { replacedMnInstances.add(it) }
     val manualName = (result.newInstance ?: result.attachedInstance)?.name ?: ""
     if (manualName.isNotEmpty()) {
-        discipleService.addLifeEvent(d.id, "${tables.ages[d.id.toInt()]}岁：自动学习了${manualName}")
+        discipleService.addLifeEvent(d.id, "自动学习了${manualName}")
     }
     result.stackUpdate?.let { update ->
         stacks = if (update.isDeletion) stacks.filter { it.id != update.stackId }

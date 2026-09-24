@@ -55,9 +55,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
         Index(value = ["realm", "realmLayer"]),
         Index(value = ["isAlive", "realm"]),
         Index(value = ["isAlive", "status"]),
-        Index(value = ["discipleType"]),
-        Index(value = ["loyalty"]),
-        Index(value = ["age"])
+        Index(value = ["discipleType"])
     ]
 )
 @Immutable
@@ -79,8 +77,6 @@ data class Disciple(
 
     val spiritRootType: String = "metal",
 
-    var age: Int = 16,
-    var lifespan: Int = 80,
     var isAlive: Boolean = true,
 
     var gender: String = "male",
@@ -106,8 +102,6 @@ data class Disciple(
 
     var discipleType: String = "outer",
 
-    var soulPower: Int = 0,
-
     @ColumnInfo(defaultValue = "0")
     var cultivationCompletionMonth: Int = 0,
     @ColumnInfo(defaultValue = "1")
@@ -122,7 +116,7 @@ data class Disciple(
     var equipmentNurturingCompletionPhase: Int = 1,
 
     // ========== @Embedded 组件 ==========
-    // 委托扩展属性见 DiscipleDelegates.kt（66个） + 本文件（monthlyUsedPillIds）
+    // 委托扩展属性见 DiscipleDelegates.kt + 本文件（monthlyUsedPillIds）
     @Embedded
     var combat: CombatAttributes = CombatAttributes(),
 
@@ -155,9 +149,9 @@ data class Disciple(
 
     // ==================== 计算属性 ====================
 
-    val canCultivate: Boolean get() = age >= 5
+    val canCultivate: Boolean get() = realmLayer != 0
     val realmName: String get() {
-        if (age < 5 || realmLayer == 0) return "无境界"
+        if (realmLayer == 0) return "无境界"
         // 仙人境界不显示层数
         if (realm == 0) return GameConfig.Realm.getName(realm)
         return "${GameConfig.Realm.getName(realm)}${realmLayer}层"
@@ -271,7 +265,9 @@ data class Disciple(
 enum class DiscipleStatus {
     IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM,
         PATROLLING, REFINING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD,
-    SECRET_REALM, WAREHOUSE_GARRISON;
+    SECRET_REALM,
+    /** 旧档兼容保留：仓库驻守玩法已下线，存量存档可能仍写入该状态 */
+    WAREHOUSE_GARRISON;
 
     val displayName: String get() = when (this) {
         IDLE -> "空闲中"
@@ -436,7 +432,6 @@ data class DiscipleStats(
     val critRate: Double = 0.0,
     val intelligence: Int = 0,
     val charm: Int = 0,
-    val loyalty: Int = 0,
     val comprehension: Int = 0,
     val teaching: Int = 0,
     val morality: Int = 0,
@@ -460,7 +455,6 @@ data class DiscipleStats(
             critRate = critRate + other.critRate,
             intelligence = intelligence + other.intelligence,
             charm = charm + other.charm,
-            loyalty = loyalty + other.loyalty,
             comprehension = comprehension + other.comprehension,
             teaching = teaching + other.teaching,
             morality = morality + other.morality,
@@ -560,7 +554,7 @@ data class ItemEffect(
     @ProtoNumber(20) val critEffectAdd: Double = 0.0,
     @ProtoNumber(21) val intelligenceAdd: Int = 0,
     @ProtoNumber(22) val charmAdd: Int = 0,
-    @ProtoNumber(23) val loyaltyAdd: Int = 0,
+    // reserved 23;（loyaltyAdd 字段号已退役，禁止复用）
     @ProtoNumber(24) val comprehensionAdd: Int = 0,
     @ProtoNumber(25) val artifactRefiningAdd: Int = 0,
     @ProtoNumber(26) val pillRefiningAdd: Int = 0,

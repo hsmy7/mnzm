@@ -43,7 +43,6 @@ fun AttributesSection(disciple: DiscipleAggregate) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             DiscipleAttrText("魅力", baseStats.charm, Modifier.weight(1f))
-            DiscipleAttrText("忠诚", baseStats.loyalty, Modifier.weight(1f))
             DiscipleAttrText("炼器", baseStats.artifactRefining, Modifier.weight(1f))
         }
 
@@ -128,7 +127,7 @@ fun CombatStatsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             StatItem("速度", finalStats.speed, Modifier.weight(1f))
-            StatItem("神魂", disciple.soulPower, Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
         }
     }
 }

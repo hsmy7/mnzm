@@ -20,7 +20,6 @@ import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.StorageBag
-import com.xianxia.sect.core.model.usedExtendLifePillIds
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
@@ -177,7 +176,7 @@ private suspend fun GameEngine.prepareLoadedGameData(
     )
 }
 
-/** 丹药追踪字段迁移：旧 functionalTypes/ExtendLifeIds/ActiveCategory 字段回填新表 */
+/** 丹药追踪字段迁移：旧 functionalTypes/ActiveCategory 字段回填新表 */
 private suspend fun GameEngine.migratePillTrackingFieldsAfterLoad() {
     // 丹药追踪字段迁移（必须在 stateStore.update 内执行，确保字段守卫通过）
     stateStore.update {
@@ -189,11 +188,6 @@ private suspend fun GameEngine.migratePillTrackingFieldsAfterLoad() {
                 tables.usedPermanentPillKeys[id] = oldFunctionalTypes.flatMap { pillType ->
                     (1..6).map { tier -> "$tier#$pillType" }
                 }.toSet()
-            }
-            val oldExtendLifeIds = tables.usedExtendLifePillIds.getOrNull(id) ?: emptyList()
-            val currentExtendLifeTypes = tables.usedExtendLifePillTypes.getOrNull(id) ?: emptySet()
-            if (currentExtendLifeTypes.isEmpty() && oldExtendLifeIds.isNotEmpty()) {
-                tables.usedExtendLifePillTypes[id] = oldExtendLifeIds.toSet()
             }
             val oldActiveCategory = tables.activePillCategories.getOrNull(id) ?: ""
             val currentActiveTypes = tables.activePillTypes.getOrNull(id) ?: emptySet()
@@ -296,7 +290,6 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
                 // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
                 productionSlots = emptyList(),
                 residenceSlots = emptyList(),
-                warehouseGarrisons = emptyList(),
                 patrolSlots = emptyList(),
                 patrolConfig = PatrolConfig(),
                 patrolConfigs = emptyList(),
@@ -364,7 +357,6 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                 // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
                     productionSlots = emptyList(),
                     residenceSlots = emptyList(),
-                    warehouseGarrisons = emptyList(),
                     patrolSlots = emptyList(),
                     patrolConfig = PatrolConfig(),
                     patrolConfigs = emptyList(),

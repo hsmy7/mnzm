@@ -20,7 +20,6 @@ import com.xianxia.sect.core.engine.service.DiscipleLifecycleProcessor
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
 import com.xianxia.sect.core.engine.service.MerchantAndRecruitService
 import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
@@ -233,9 +232,9 @@ class DiffAuthoritativeTickTest {
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
 
-    /** 可招募候选（标准：16 岁单灵根炼气一层，资质缺省 50 触发入宗散列补算） */
+    /** 可招募候选（标准：单灵根炼气一层，资质缺省 50 触发入宗散列补算） */
     private fun recruitDisciple(id: String): Disciple = Disciple(
-        id = id, name = "候选招募", age = 16, realm = 9, realmLayer = 1,
+        id = id, name = "候选招募", realm = 9, realmLayer = 1,
         cultivation = 1.0, spiritRootType = "metal",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
@@ -383,7 +382,7 @@ class DiffAuthoritativeTickTest {
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(
-                DisciplePillManager(PillEffectApplier()), mockSmart()
+                DisciplePillManager(PillEffectApplier())
             ),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
@@ -399,24 +398,21 @@ class DiffAuthoritativeTickTest {
         val configProvider = GameConfigProvider(ConfigLoader({ null }))
         val settlement = CultivationSettlement(
             stateStore = store, scopeProvider = scopeProvider,
-            spiritStoneWallet = wallet, lawEnforcementProcessor = mockSmart(),
+            spiritStoneWallet = wallet,
             gameConfigProvider = configProvider
         )
-        // 死亡链下沉（对齐 DiffYearSettlementTest 同款装配）：换装真实
-        // DiscipleLifecycleProcessor——C++ runYearSettlement 已执行年变死亡链
-        // （老化 age+1/死亡处理），Kotlin 基准臂必须真实老化（mock 零行为 →
-        // age 失配，D3 harness 对齐生产时实测暴露：第 9 旬 disciples[0].age
-        // 16 vs 17）。场景弟子 age 低不死亡 → 槽位/哀悼/DAO 平台效应零触发
-        //（discipleSlotCleanup/productionCoordinator/inventorySystem/deathHandler
-        // mock 无害）；discipleStatusService mock（syncAllDiscipleStatuses 为
-        // 派生态同步，本场景无状态迁移面）
+        // 死亡链平台效应（对齐 DiffYearSettlementTest 同款装配）：换装真实
+        // DiscipleLifecycleProcessor——年变死亡链的 Kotlin 平台效应
+        // （DAO 清理/DeathEvent）须真实执行；场景无死亡 → 槽位/哀悼/DAO
+        // 平台效应零触发（discipleSlotCleanup/productionCoordinator/
+        // inventorySystem/deathHandler mock 无害）；discipleStatusService
+        // mock（syncAllDiscipleStatuses 为派生态同步，本场景无状态迁移面）
         val lifecycle = DiscipleLifecycleProcessor(
             stateStore = store,
             scopeProvider = scopeProvider,
             productionCoordinator = mockSmart(),
             eventBus = EventBus(scopeProvider),
             discipleSlotCleanup = mockSmart(),
-            lawEnforcementProcessor = mockSmart(),
             discipleStatusService = mockSmart(),
             ioDispatcher = IoDispatcher(),
             inventorySystem = mockSmart(),
@@ -451,7 +447,6 @@ class DiffAuthoritativeTickTest {
             autoBuyService = mockSmart(), vassalService = mockSmart(),
             disciplePurchaseService = mockSmart(),
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
-            lawEnforcementProcessor = mockSmart<LawEnforcementProcessor>(),
             rngManager = gameRng, secretRealmService = mockSmart(),
             secretRealmAIProcessor = mockSmart(), deathHandler = mockSmart(),
             gameConfigProvider = configProvider
@@ -655,8 +650,7 @@ class DiffAuthoritativeTickTest {
                 if (newId.isNotEmpty()) {
                     val intId = newId.toIntOrNull()
                     if (intId != null) {
-                        val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-                        discipleTables.lifeEvents[intId] = events + "${recruit.age}岁：加入宗门"
+                        discipleTables.lifeEvents[intId] = listOf("加入宗门")
                     }
                 }
                 gameData = gameData.copy(

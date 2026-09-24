@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.model.SpiritMineSlot
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.BuildingNames
@@ -292,25 +291,6 @@ class BuildingRemovalSlotCleanupTest {
         assertEquals(setOf("50", "51", "52", "53"), ids)
     }
 
-    // ── collectDiscipleIdsForBuildingRemoval：仓库 ────────────────────
-
-    @Test
-    fun `collectDiscipleIdsForBuildingRemoval - 仓库按 buildingInstanceId 精确收集弟子ID`() {
-        val targetInstanceId = "warehouse-A"
-        val gameData = GameData().copy(
-            warehouseGarrisons = listOf(
-                WarehouseGarrisonSlot(buildingInstanceId = targetInstanceId, discipleId = "60"),
-                WarehouseGarrisonSlot(buildingInstanceId = "warehouse-B", discipleId = "61")
-            )
-        )
-
-        val ids = collectDiscipleIdsForTest(
-            displayName = "仓库", instanceId = targetInstanceId, gameData = gameData
-        )
-
-        assertEquals(setOf("60"), ids)
-    }
-
     // ── collectDiscipleIdsForBuildingRemoval：血炼池 ────────────────────
 
     @Test
@@ -580,26 +560,6 @@ class BuildingRemovalSlotCleanupTest {
 
         assertEquals("应仅保留 multi-B 的1个槽位", 1, result.residenceSlots.size)
         assertEquals("multi-B", result.residenceSlots[0].buildingInstanceId)
-    }
-
-    // ── filterBuildingSlots：仓库 ────────────────────
-
-    @Test
-    fun `filterBuildingSlots - 仓库按 buildingInstanceId 精确过滤`() {
-        val targetInstanceId = "wh-A"
-        val gameData = GameData().copy(
-            warehouseGarrisons = listOf(
-                WarehouseGarrisonSlot(buildingInstanceId = targetInstanceId, discipleId = "1"),
-                WarehouseGarrisonSlot(buildingInstanceId = "wh-B", discipleId = "2")
-            )
-        )
-
-        val result = filterBuildingSlotsForTest(
-            displayName = "仓库", instanceId = targetInstanceId, gameData = gameData
-        )
-
-        assertEquals(1, result.warehouseGarrisons.size)
-        assertEquals("wh-B", result.warehouseGarrisons[0].buildingInstanceId)
     }
 
     // ── filterBuildingSlots：炼丹炉 ────────────────────

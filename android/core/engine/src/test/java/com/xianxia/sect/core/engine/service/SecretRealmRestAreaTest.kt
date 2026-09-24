@@ -153,8 +153,6 @@ class SecretRealmRestAreaTest {
             name = "弟子$id",
             realm = realm,
             realmLayer = 1,
-            age = 25,
-            lifespan = 90,
             skills = SkillStats(comprehension = 100),
             combat = CombatAttributes(currentHp = hp)
         )

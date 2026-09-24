@@ -104,7 +104,7 @@ class CaveExplorationProcessor @Inject constructor(
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
             AISectDiscipleManager.processAging(disciples)
         }
-        // 年度老化仅修改年龄，不改变境界，无需同步宗门等级。
+        // AI 弟子年度处理不改变境界，无需同步宗门等级。
         // 基于事务 buffer 写回，保留同事务前序事件对 aiSectDisciples 的修改
         // （禁止读已提交快照覆盖，招募列表不刷新 MNG 修复）。
         state.gameData = state.gameData.copy(aiSectDisciples = updatedAiDisciples)

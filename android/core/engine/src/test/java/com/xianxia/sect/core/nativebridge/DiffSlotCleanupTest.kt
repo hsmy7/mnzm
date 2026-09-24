@@ -16,7 +16,6 @@ import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SpiritMineSlot
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldSect
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -35,7 +34,7 @@ import org.junit.Test
 /**
  * DiffSlotCleanupTest — 弟子槽位清理跨语言差分对拍。
  *
- * 守护目标：C++ gamecore::system::slot_cleanup（11 类槽位纯数据变换）与
+ * 守护目标：C++ gamecore::system::slot_cleanup（槽位纯数据变换）与
  * Kotlin DiscipleSlotCleanup.clearAllSlotsDataOnly 语义逐位一致。
  *
  * Kotlin 基准：真实 DiscipleSlotCleanup（注入真实 Gate/Registry，
@@ -88,7 +87,6 @@ class DiffSlotCleanupTest {
         residenceSlots = listOf(ResidenceSlot(discipleId = "1", discipleName = "张三")),
         activeBloodRefinements = mapOf("br-1" to BloodRefinementProgress(discipleId = "1")),
         patrolSlots = listOf(PatrolSlot(discipleId = "1")),
-        warehouseGarrisons = listOf(WarehouseGarrisonSlot(discipleId = "1", discipleName = "张三")),
         battleTeams = listOf(
             BattleTeam(slots = listOf(
                 BattleTeamSlot(index = 0, discipleId = "1", discipleName = "张三"),
@@ -112,7 +110,7 @@ class DiffSlotCleanupTest {
         activeMissions = emptyList(),
     )
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod")  // 对拍参数构造：12 类槽位 JSON 单函数承载
+    @Suppress("LongMethod", "CyclomaticComplexMethod")  // 对拍参数构造：多类槽位 JSON 单函数承载
     private fun cppParams(data: GameData, includeResidence: Boolean): JsonObject = buildJsonObject {
         put("discipleId", "1")
         put("includeResidence", includeResidence)
@@ -158,13 +156,6 @@ class DiffSlotCleanupTest {
         put("patrolSlots", buildJsonArray {
             for (s in data.patrolSlots) {
                 add(buildJsonObject { put("discipleId", s.discipleId) })
-            }
-        })
-        put("warehouseGarrisons", buildJsonArray {
-            for (s in data.warehouseGarrisons) {
-                add(buildJsonObject {
-                    put("discipleId", s.discipleId); put("discipleName", s.discipleName)
-                })
             }
         })
         put("battleTeams", buildJsonArray {
@@ -218,7 +209,7 @@ class DiffSlotCleanupTest {
         put("activeMissions", buildJsonArray { })
     }
 
-    @Suppress("LongMethod")  // 对拍断言：12 类槽位逐字段比较单函数承载
+    @Suppress("LongMethod")  // 对拍断言：多类槽位逐字段比较单函数承载
     @Test
     fun `clear all slots matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())

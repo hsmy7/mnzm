@@ -38,7 +38,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
  * CultivationCore 直接单元测试。
  *
  * 覆盖范围：
- * - [CultivationCore.getLifespanGainForRealm]：不同境界寿命增益
  * - [CultivationCore.isDiscipleFullHpMp]：满 HP/MP 判定（Disciple 与 Tables 两个重载）
  * - [CultivationCore.recoverHpMpSingle]：HP/MP 恢复逻辑（每旬 20%）
  * - [CultivationCore.calculateDiscipleCultivationPerPhase]：修炼计算（含建筑加成间接验证）
@@ -146,7 +145,7 @@ class CultivationCoreTest {
 
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
-            autoPillService = AutoPillService(mockPillManager, mockSmart()),
+            autoPillService = AutoPillService(mockPillManager),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore)
@@ -201,72 +200,6 @@ class CultivationCoreTest {
             isLoading = false,
             isSaving = false
         )
-    }
-
-    // ==================== getLifespanGainForRealm ====================
-
-    @Test
-    fun `getLifespanGainForRealm - 仙人 realm0 寿命增益10000`() {
-        assertEquals(10000, core.getLifespanGainForRealm(0))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 渡劫 realm1 寿命增益6640`() {
-        assertEquals(6640, core.getLifespanGainForRealm(1))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 大乘 realm2 寿命增益3350`() {
-        assertEquals(3350, core.getLifespanGainForRealm(2))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 合体 realm3 寿命增益1650`() {
-        assertEquals(1650, core.getLifespanGainForRealm(3))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 炼虚 realm4 寿命增益825`() {
-        assertEquals(825, core.getLifespanGainForRealm(4))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 化神 realm5 寿命增益500`() {
-        assertEquals(500, core.getLifespanGainForRealm(5))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 元婴 realm6 寿命增益255`() {
-        assertEquals(255, core.getLifespanGainForRealm(6))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 金丹 realm7 寿命增益95`() {
-        assertEquals(95, core.getLifespanGainForRealm(7))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 筑基 realm8 寿命增益40`() {
-        assertEquals(40, core.getLifespanGainForRealm(8))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 炼气 realm9 未知境界返回0`() {
-        assertEquals(0, core.getLifespanGainForRealm(9))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 负数境界返回0`() {
-        assertEquals(0, core.getLifespanGainForRealm(-1))
-    }
-
-    @Test
-    fun `getLifespanGainForRealm - 境界越低寿命增益越大`() {
-        val gain0 = core.getLifespanGainForRealm(0)
-        val gain4 = core.getLifespanGainForRealm(4)
-        val gain8 = core.getLifespanGainForRealm(8)
-        assertTrue("仙人增益应大于炼虚", gain0 > gain4)
-        assertTrue("炼虚增益应大于筑基", gain4 > gain8)
     }
 
     // ==================== isDiscipleFullHpMp(disciple) ====================

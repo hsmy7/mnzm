@@ -8,7 +8,6 @@ import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.OverlayViewModels
-import com.xianxia.sect.ui.game.dialogs.LawEnforcementHallDialog
 import com.xianxia.sect.ui.game.dialogs.LibraryDialog
 import com.xianxia.sect.ui.game.dialogs.MissionHallDialog
 import com.xianxia.sect.ui.game.dialogs.QingyunPeakDialog
@@ -18,7 +17,7 @@ import com.xianxia.sect.ui.game.dialogs.WenDaoPeakDialog
 
 /**
  * 功能性建筑对话框路由（E1 拆分：Library/WenDaoPeak/QingyunPeak/TianshuHall/
- * LawEnforcementHall/MissionHall/ReflectionCliff）。分支体行为与拆分前逐字节一致。
+ * MissionHall/ReflectionCliff）。分支体行为与拆分前逐字节一致。
  */
 @Composable
 internal fun DialogType.renderFunctionalBuildingRoutes(
@@ -32,7 +31,6 @@ internal fun DialogType.renderFunctionalBuildingRoutes(
         DialogType.WenDaoPeak -> renderWenDaoPeak(viewModel, gameData, vms, onDismiss)
         DialogType.QingyunPeak -> renderQingyunPeak(viewModel, gameData, vms, onDismiss)
         DialogType.TianshuHall -> renderTianshuHall(viewModel, gameData, vms, onDismiss)
-        DialogType.LawEnforcementHall -> renderLawEnforcementHall(viewModel, gameData, vms, onDismiss)
         DialogType.MissionHall -> renderMissionHall(viewModel, gameData, onDismiss)
         DialogType.ReflectionCliff -> renderReflectionCliff(viewModel, gameData, onDismiss)
         else -> Unit
@@ -110,25 +108,6 @@ private fun renderTianshuHall(
         TianshuHallDialog(
             gameData = gameData,
             disciples = aliveDisciples,
-            viewModel = viewModel,
-            productionViewModel = vms.production,
-            onDismiss = onDismiss
-        )
-    }
-}
-
-@Composable
-private fun renderLawEnforcementHall(
-    viewModel: GameViewModel,
-    gameData: GameData,
-    vms: OverlayViewModels,
-    onDismiss: () -> Unit
-) {
-    val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
-    DeferredContent {
-        LawEnforcementHallDialog(
-            disciples = aliveDisciples,
-            gameData = gameData,
             viewModel = viewModel,
             productionViewModel = vms.production,
             onDismiss = onDismiss

@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.EquipmentDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentNurtureData
@@ -94,18 +93,11 @@ internal fun AISectDiscipleManager.generateRealmDistribution(total: Int, maxReal
 internal fun AISectDiscipleManager.adjustDiscipleRealm(disciple: Disciple, targetRealm: Int): Disciple {
     if (targetRealm == 9) return disciple
 
-    val baseLifespan = GameConfig.Realm.get(targetRealm).maxAge
-    val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-    val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-    val newLifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
     val maxLayer = GameConfig.Realm.get(targetRealm).maxLayers
 
     return disciple.copy(
         realm = targetRealm,
         realmLayer = 1 + rng.nextInt(maxLayer),
-        cultivation = rng.nextDouble() * 0.8 * GameConfig.Realm.get(targetRealm).cultivationBase,
-        lifespan = newLifespan,
-        // 高境界配合理年龄（防"38岁炼虚"类数据；炼气 realm=9 不调整）
-        age = maxOf(disciple.age, GameConfig.Realm.minReasonableAge(targetRealm))
+        cultivation = rng.nextDouble() * 0.8 * GameConfig.Realm.get(targetRealm).cultivationBase
     )
 }

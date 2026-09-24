@@ -9,7 +9,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -45,8 +44,7 @@ internal data class MonthSecretRealmClose(
 
 internal data class MonthPurchaseLog(
     val discipleId: String,
-    val itemName: String,
-    val age: Int
+    val itemName: String
 )
 
 /**
@@ -69,7 +67,7 @@ internal fun buildMonthEnvelopeFromEvents(
         ?: GameViewStreamEvent.Payload.MonthSettled(emptyList(), emptyList())
     val purchases = events.mapNotNull { event ->
         (event.payload as? GameViewStreamEvent.Payload.Purchase)?.let {
-            MonthPurchaseLog(discipleId = it.discipleId, itemName = it.itemName, age = it.age)
+            MonthPurchaseLog(discipleId = it.discipleId, itemName = it.itemName)
         }
     }
     val secretRealmClose = events.lastOrNull {
@@ -209,8 +207,7 @@ internal fun parseMonthSettlementEnvelope(envJson: String): MonthSettlementEnvel
         val discipleId = obj["discipleId"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
         MonthPurchaseLog(
             discipleId = discipleId,
-            itemName = obj["itemName"]?.jsonPrimitive?.contentOrNull ?: "",
-            age = obj["age"]?.jsonPrimitive?.intOrNull ?: 0
+            itemName = obj["itemName"]?.jsonPrimitive?.contentOrNull ?: ""
         )
     } ?: emptyList()
 

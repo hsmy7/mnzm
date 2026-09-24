@@ -42,8 +42,6 @@ static Disciple baseDisciple(const std::string& id) {
     d.realmLayer = 1;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 16;
-    d.lifespan = 80;
     return d;
 }
 
@@ -51,7 +49,6 @@ static Disciple baseDisciple(const std::string& id) {
 static Disciple recruitCandidate(const std::string& id, const char* roots) {
     Disciple d = baseDisciple(id);
     d.name = "候选" + id;
-    d.age = 16;
     d.gender = "male";
     d.spiritRootType = roots;
     d.currentHp = -1;
@@ -149,8 +146,7 @@ TEST(ManualRecruit, SinglePurgesSamePersonTwin) {
     auto core = makeCore(20260901);
     auto& st = core->state();
     Disciple twin = recruitCandidate("twin", "metal");
-    twin.name = "候选r1";                       // 同签名（name/灵根/性别一致）
-    twin.age = 17;                              // 年龄差 1（容差 2 内）→ 同人
+    twin.name = "候选r1";                       // 同签名（name/姓氏/性别/灵根/天赋一致）
     st.gameData.recruitList = {
         recruitCandidate("r1", "metal"),
         twin
@@ -199,15 +195,13 @@ TEST(ManualRecruit, AllSuccessWithSanitize) {
 TEST(ManualRecruit, AllRemovesInSectResidual) {
     auto core = makeCore(20260901);
     auto& st = core->state();
-    // 残留条目：与宗内弟子同签名 + 年龄容差 2 内（招募成功但未从列表移除）
+    // 残留条目：与宗内弟子同签名（招募成功但未从列表移除）
     Disciple inSect = baseDisciple("7");
     inSect.name = "候选x";
-    inSect.age = 20;
     inSect.gender = "female";
     st.disciples.appendDisciple(inSect);
     Disciple residual = baseDisciple("r9");
     residual.name = "候选x";
-    residual.age = 21;                          // 差 1（容差 2 内）
     residual.gender = "female";
     st.gameData.recruitList = { residual, recruitCandidate("r2", "metal") };
 
@@ -285,7 +279,6 @@ TEST(ManualRecruit, GameCoreEnvelopeSuccess) {
 
     EXPECT_TRUE(j.at("ok").get<bool>());
     EXPECT_EQ("1", j.at("newId").get<std::string>());
-    EXPECT_EQ(16, j.at("age").get<int32_t>());
     EXPECT_EQ("候选r1", j.at("name").get<std::string>());
     EXPECT_EQ("SUCCESS", j.at("reason").get<std::string>());
     EXPECT_EQ(27, st.disciples.materialize(0).recruitedMonth);   // 2*12+3

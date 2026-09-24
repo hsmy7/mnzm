@@ -7,7 +7,6 @@ import com.xianxia.sect.core.engine.domain.road.RoadFacade
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.service.FormulaService
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 
 /**
@@ -19,7 +18,6 @@ interface CultivationFacade {
     val discipleService: DiscipleService
     val productionCoordinator: ProductionCoordinator
     val formulaService: FormulaService
-    val lawEnforcementProcessor: LawEnforcementProcessor
     val discipleFacade: DiscipleFacade
     val productionFacade: ProductionFacade
     val buildingFacade: BuildingFacade

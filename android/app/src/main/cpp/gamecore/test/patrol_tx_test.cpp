@@ -76,8 +76,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = true;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = "IDLE";
         d.currentHp = 100;
         d.currentMp = 50;
@@ -90,7 +88,7 @@ protected:
         core_->state().disciples.isAlive[*core_->state().disciples.rowOf(id)] = 0;
     }
 
-    /// 全部 12 类槽位各挂一条含该弟子的条目（穷尽性断言用）
+    /// 全部 11 类槽位各挂一条含该弟子的条目（穷尽性断言用）
     void seedAllSlotFamilies(const std::string& discipleId) {
         auto& gd = core_->state().gameData;
 
@@ -129,12 +127,6 @@ protected:
         patrol.discipleId = discipleId;
         patrol.discipleName = "巡逻";
         gd.patrolSlots.push_back(patrol);
-
-        gamecore::state::WarehouseGarrisonSlot garrison;
-        garrison.slotIndex = 0;
-        garrison.discipleId = discipleId;
-        garrison.discipleName = "驻守";
-        gd.warehouseGarrisons.push_back(garrison);
 
         gamecore::state::BattleTeam team;
         gamecore::state::BattleTeamSlot teamSlot;
@@ -414,7 +406,7 @@ TEST_F(PatrolTxFixture, AssignPatrolClearsDiscipleOtherSlotsExhaustively) {
     EXPECT_TRUE(r.base.ok);
     const auto& gd = core_->state().gameData;
 
-    // 12 类槽位穷尽性：除目标巡逻槽 slot 1 外，该弟子全部槽位引用清空
+    // 11 类槽位穷尽性：除目标巡逻槽 slot 1 外，该弟子全部槽位引用清空
     EXPECT_TRUE(gd.spiritMineSlots[0].discipleId.empty());
     EXPECT_TRUE(gd.librarySlots[0].discipleId.empty());
     EXPECT_TRUE(gd.elderSlots.herbGardenDisciples[0].discipleId.empty());
@@ -422,7 +414,6 @@ TEST_F(PatrolTxFixture, AssignPatrolClearsDiscipleOtherSlotsExhaustively) {
     // 住所与工作共存（includeResidence=false）——住所槽位**保留**
     EXPECT_EQ(gd.residenceSlots[0].discipleId, "1");
     EXPECT_TRUE(gd.activeBloodRefinements.empty());
-    EXPECT_TRUE(gd.warehouseGarrisons[0].discipleId.empty());
     EXPECT_TRUE(gd.battleTeams[0].slots[0].discipleId.empty());
     EXPECT_TRUE(gd.worldMapSects[0].garrisonSlots[0].discipleId.empty());
     EXPECT_FALSE(gd.productionSlots[0].assignedDiscipleId.has_value());

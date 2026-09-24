@@ -10,23 +10,11 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleResult
-import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.ElderSlots
-import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.griefEndYear
-import com.xianxia.sect.core.model.storageBagItems
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.InventoryNativeForward
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.battleWritebackMaxHpMp
-import com.xianxia.sect.core.engine.domain.disciple.areRelatives
-import com.xianxia.sect.core.engine.domain.disciple.applyGriefToRelatives
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.nativebridge.ActionIds
@@ -35,7 +23,6 @@ import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.repository.ProductionSlotRepository
-import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
@@ -49,7 +36,7 @@ class CombatService @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventBus: EventBusPort,
-    // 死亡统一入口（袋物品物化回仓库 + markDead）
+    // 溢出邮件投递载体（InventoryNativeForward.deliverDraft 消费）
     private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
     // Native 臂（1780 伤亡残差事务）经 Provider<GameEngineCore>? 注入——
     // Dagger 破环（GameEngineCore 构造链持有本服务）；null = 既有测试直构
@@ -69,7 +56,9 @@ class CombatService @Inject constructor(
     /**
      * Process battle casualties - update disciples status and handle deaths.
      *
-     * 所有状态写入（弟子标记、装备、槽位、HP/MP）在单次 [stateStore.update] 事务中完成，
+     * ① 重伤写：玩家侧败北 → HP=1 存活；② native 尝试：非战斗路径伤亡残差事务；
+     * ③ 幸存者回血：native 未接管时的 HP/MP 兜底回写。
+     * 所有状态写入（弟子标记、HP/MP）在单次 [stateStore.update] 事务中完成，
      * 避免中途失败导致数据不一致。
      */
     suspend fun processBattleCasualties(
@@ -78,23 +67,30 @@ class CombatService @Inject constructor(
         survivorMpMap: Map<String, Int> = emptyMap(),
         isOutsideSect: Boolean = true
     ) {
-        // G07 玩家侧败北 → 重伤（HP=1 存活）：不清槽/不解绑/不清装/不物化行囊。
-        // isOutsideSect=false 仍走完整死亡链（寿元等非战斗路径，G02 收口）。
+        // ① 重伤（HP=1 存活）：不清槽/不解绑/不清装/不物化行囊。
         if (isOutsideSect && deadMemberIds.isNotEmpty()) {
             stateStore.update {
                 applyBattleInjuries(this, deadMemberIds, survivorHpMap, survivorMpMap)
             }
             return
         }
-        // ── Native 臂（1780）：仅非战斗路径仍可用（G07 后战斗恒走上方重伤支）──
+        // ② native 尝试（非战斗路径伤亡残差事务）
         if (deadMemberIds.isNotEmpty() &&
             tryNativeCasualtySettle(deadMemberIds, survivorHpMap, survivorMpMap, isOutsideSect)
         ) {
             clearDeadFromProductionRepository(deadMemberIds)
             return
         }
-        applyLegacyCasualtyChain(deadMemberIds, survivorHpMap, survivorMpMap, isOutsideSect)
-        clearDeadFromProductionRepository(deadMemberIds)
+        // ③ 幸存者回血兜底（native 未接管时）
+        stateStore.update {
+            applySurvivorHpMpUpdates(
+                state = this,
+                liveSurvivorUpdates = computeSurvivorUpdates(
+                    state = this, survivorHpMap = survivorHpMap,
+                    survivorMpMap = survivorMpMap, deadMemberIds = deadMemberIds
+                )
+            )
+        }
     }
 
     /**
@@ -118,63 +114,6 @@ class CombatService @Inject constructor(
             survivorMpMap = survivorMpMap, deadMemberIds = deadMemberIds
         )
         applySurvivorHpMpUpdates(state = state, liveSurvivorUpdates = survivorUpdates)
-    }
-
-    /**
-     * 非战斗路径（`isOutsideSect=false`）的完整死亡链：只读收集 → 单事务原子写入。
-     * G07 后生产无调用方（所有生产调用点传 `isOutsideSect=true`），待 G02 删除寿元链后一并退役。
-     */
-    private suspend fun applyLegacyCasualtyChain(
-        deadMemberIds: Set<String>,
-        survivorHpMap: Map<String, Int>,
-        survivorMpMap: Map<String, Int>,
-        isOutsideSect: Boolean
-    ) {
-        val collected = collectCasualtyData(deadMemberIds, isOutsideSect)
-        val hasCasualtyEffects = collected.griefUpdates.isNotEmpty() ||
-            deadMemberIds.isNotEmpty() ||
-            collected.proficiencyRemoveIds.isNotEmpty() ||
-            collected.equipIdsToUnequip.isNotEmpty() ||
-            collected.manualIdsToUnlearn.isNotEmpty()
-        if (!hasCasualtyEffects) return
-        stateStore.update {
-            val battleCurrentYear = gameData.gameYear
-            val liveElderSlots = computeElderSlotUpdates(gameData, deadMemberIds)
-            val liveSpiritMineSlots = gameData.spiritMineSlots.map { slot ->
-                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-            }
-            val liveLibrarySlots = gameData.librarySlots.map { slot ->
-                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-            }
-            val liveSurvivorUpdates = computeSurvivorUpdates(
-                state = this, survivorHpMap = survivorHpMap,
-                survivorMpMap = survivorMpMap, deadMemberIds = deadMemberIds
-            )
-            applyGriefUpdatesToTables(
-                state = this, griefUpdates = collected.griefUpdates,
-                deadDisciples = collected.deadDisciples
-            )
-            markCasualtiesDead(
-                state = this, disciplesToKill = collected.disciplesToKill,
-                battleCurrentYear = battleCurrentYear
-            )
-            removeCasualtyItems(
-                state = this, proficiencyRemoveIds = collected.proficiencyRemoveIds,
-                equipIdsToUnequip = collected.equipIdsToUnequip,
-                manualIdsToUnlearn = collected.manualIdsToUnlearn
-            )
-            gameData = gameData.copy(
-                elderSlots = liveElderSlots,
-                spiritMineSlots = liveSpiritMineSlots,
-                librarySlots = liveLibrarySlots,
-                productionSlots = gameData.productionSlots.map {
-                    if (it.assignedDiscipleId in deadMemberIds)
-                        it.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                    else it
-                }
-            )
-            applySurvivorHpMpUpdates(state = this, liveSurvivorUpdates = liveSurvivorUpdates)
-        }
     }
 
     /**
@@ -209,7 +148,7 @@ class CombatService @Inject constructor(
         // ① 丧亲日志草稿回写（lifeEvents 为 Kotlin 类体属性，C++ 无该列——
         //    disciple_lifecycle_tx logLine 机制同族）
         applyNativeLifeEventDrafts(reply)
-        // ② 死亡事件广播（阶段 1 平台面——原 collectCasualtyData 事务外发射）
+        // ② 死亡事件广播（平台面）
         if (isOutsideSect) emitNativeDeathEvents(deadMemberIds)
         // ③ 袋物化溢出邮件投递（W2-a/S6 同通道）
         deliverNativeOverflowDrafts(reply)
@@ -232,7 +171,7 @@ class CombatService @Inject constructor(
         }
     }
 
-    /** 死亡事件广播（DeathEvent 参数面 = 原 collectCasualtyData 同构）。 */
+    /** 死亡事件广播（DeathEvent：memberId + 姓名 + 死因）。 */
     private fun emitNativeDeathEvents(deadMemberIds: Set<String>) {
         for (memberId in deadMemberIds) {
             val id = memberId.toIntOrNull()
@@ -272,85 +211,6 @@ class CombatService @Inject constructor(
         }
     }
 
-    /** 悲痛期写入：GriefEndYear + 丧亲日志 */
-    @Suppress("NestedBlockDepth")
-    private fun applyGriefUpdatesToTables(
-        state: MutableGameState,
-        griefUpdates: List<Pair<Int, Int>>,
-        deadDisciples: List<Disciple>
-    ) {
-        // A. 悲痛期
-        for ((id, griefEndYear) in griefUpdates) {
-            if (id in state.discipleTables.ids) {
-                val wasGrieving = state.discipleTables.griefEndYears
-                    .getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL) > 0
-                state.discipleTables.griefEndYears[id] = griefEndYear
-                // 记录丧亲日志（仅新陷入悲痛时）
-                if (!wasGrieving) {
-                    val grievingAge = state.discipleTables.ages[id]
-                    // 查找致悲的死亡弟子
-                    val deadDisciple = deadDisciples.firstOrNull { dead ->
-                        if (dead.id.toIntOrNull() == null) return@firstOrNull false
-                        val grievingDisciple = state.discipleTables.assemble(id)
-                        DiscipleStatCalculator.areRelatives(
-                            grievingDisciple, dead
-                        )
-                    }
-                    if (deadDisciple != null) {
-                        val relationship = when {
-                            state.discipleTables.partnerIds.getOrNull(id) == deadDisciple.id -> "道侣"
-                            deadDisciple.id == state.discipleTables.partnerIds.getOrNull(id) -> "道侣"
-                            listOfNotNull(
-                                state.discipleTables.parentId1s.getOrNull(id),
-                                state.discipleTables.parentId2s.getOrNull(id)
-                            ).contains(deadDisciple.id) -> "父/母"
-                            deadDisciple.id == state.discipleTables.parentId1s.getOrNull(id) ||
-                            deadDisciple.id == state.discipleTables.parentId2s.getOrNull(id) -> "子女"
-                            else -> "亲属"
-                        }
-                        val currentEvents = state.discipleTables.lifeEvents
-                            .getOrDefault(id, emptyList())
-                        state.discipleTables.lifeEvents[id] = currentEvents +
-                            "${grievingAge}岁：因${relationship}${deadDisciple.name}离世陷入悲痛，修炼速度降低50%"
-                    }
-                }
-            }
-        }
-    }
-
-    /** 阵亡标记：统一入口（袋物品物化回仓库 + 清袋 + markDead） */
-    private fun markCasualtiesDead(
-        state: MutableGameState,
-        disciplesToKill: Map<Int, Disciple>,
-        battleCurrentYear: Int
-    ) {
-        // B. 标记死亡（统一入口——袋物品物化回仓库 + 清袋 + markDead）
-        for ((id, _) in disciplesToKill) {
-            inventorySystem.materializeDiscipleBagAndMarkDead(state, id, battleCurrentYear, "battle")
-        }
-    }
-
-    /** 阵亡装备/功法/熟练度清理 */
-    private fun removeCasualtyItems(
-        state: MutableGameState,
-        proficiencyRemoveIds: Set<String>,
-        equipIdsToUnequip: Set<String>,
-        manualIdsToUnlearn: Set<String>
-    ) {
-        // C. 装备/功法/熟练度
-        if (proficiencyRemoveIds.isNotEmpty()) {
-            val mutable = state.gameData.manualProficiencies.toMutableMap()
-            proficiencyRemoveIds.forEach { mutable.remove(it) }
-            state.gameData = state.gameData.copy(manualProficiencies = mutable)
-        }
-        if (equipIdsToUnequip.isNotEmpty()) {
-            state.equipmentInstances = state.equipmentInstances.filter { it.id !in equipIdsToUnequip }
-        }
-        if (manualIdsToUnlearn.isNotEmpty()) {
-            state.manualInstances = state.manualInstances.filter { it.id !in manualIdsToUnlearn }
-        }
-    }
-
     /** 幸存者 HP/MP 回写 */
     private fun applySurvivorHpMpUpdates(
         state: MutableGameState,
@@ -379,84 +239,8 @@ class CombatService @Inject constructor(
         }
     }
 
-    /** 伤亡结算的只读收集结果（阶段 1） */
-    private data class CasualtyData(
-        val deadDisciples: List<Disciple>,
-        val griefUpdates: List<Pair<Int, Int>>,
-        val proficiencyRemoveIds: Set<String>,
-        val equipIdsToUnequip: Set<String>,
-        val manualIdsToUnlearn: Set<String>,
-        val disciplesToKill: Map<Int, Disciple>
-    )
-
-    /**
-     * 阶段 1 — 只读收集（事务外）：悲痛期、死亡弟子装备/功法 ID、死亡事件广播。
-     */
-    private fun collectCasualtyData(
-        deadMemberIds: Set<String>,
-        isOutsideSect: Boolean
-    ): CasualtyData {
-        val deadDisciples = stateStore.discipleTables.ids
-            .filter { it.toString() in deadMemberIds }
-            .map { stateStore.discipleTables.assemble(it) }
-        val griefUpdates = collectGriefUpdates(stateStore, deadDisciples)
-
-        val proficiencyRemoveIds = mutableSetOf<String>()
-        val equipIdsToUnequip = mutableSetOf<String>()
-        val manualIdsToUnlearn = mutableSetOf<String>()
-        val disciplesToKill = mutableMapOf<Int, Disciple>()
-
-        deadMemberIds.forEach { memberId ->
-            val id = memberId.toIntOrNull() ?: return@forEach
-            if (!stateStore.discipleTables.ids.contains(id)) return@forEach
-            val disciple = stateStore.discipleTables.assemble(id)
-            disciplesToKill[id] = disciple
-
-            if (isOutsideSect) {
-                eventBus.emitSync(DeathEvent(disciple.id, disciple.name, "战斗阵亡"))
-                proficiencyRemoveIds.add(disciple.id)
-            } else {
-                collectInSectItemLoss(disciple, equipIdsToUnequip, manualIdsToUnlearn)
-                proficiencyRemoveIds.add(disciple.id)
-            }
-        }
-        return CasualtyData(
-            deadDisciples, griefUpdates, proficiencyRemoveIds, equipIdsToUnequip, manualIdsToUnlearn, disciplesToKill
-        )
-    }
-
     // 幸存者HP/MP更新数据
     private data class SurvivorUpdate(val id: Int, val hp: Int, val mp: Int, val newStatus: DiscipleStatus)
-
-    // 计算阵亡弟子相关的 Elder 槽位更新
-    private fun computeElderSlotUpdates(
-        data: GameData,
-        deadMemberIds: Set<String>
-    ): ElderSlots {
-        var updated = data.elderSlots
-        if (updated.lawEnforcementElder in deadMemberIds)
-            updated = updated.copy(lawEnforcementElder = "")
-        updated = updated.copy(
-            lawEnforcementDisciples = clearDeadDirectSlots(updated.lawEnforcementDisciples, deadMemberIds)
-        )
-        if (updated.viceSectMaster in deadMemberIds) updated = updated.copy(viceSectMaster = "")
-        if (updated.innerElder in deadMemberIds) updated = updated.copy(innerElder = "")
-        if (updated.outerElder in deadMemberIds) updated = updated.copy(outerElder = "")
-        if (updated.preachingElder in deadMemberIds) updated = updated.copy(preachingElder = "")
-        if (updated.herbGardenElder in deadMemberIds) updated = updated.copy(herbGardenElder = "")
-        if (updated.alchemyElder in deadMemberIds) updated = updated.copy(alchemyElder = "")
-        if (updated.forgeElder in deadMemberIds) updated = updated.copy(forgeElder = "")
-        if (updated.qingyunPreachingElder in deadMemberIds) updated = updated.copy(qingyunPreachingElder = "")
-        updated = updated.copy(
-            preachingMasters = clearDeadDirectSlots(updated.preachingMasters, deadMemberIds),
-            qingyunPreachingMasters = clearDeadDirectSlots(updated.qingyunPreachingMasters, deadMemberIds),
-            herbGardenDisciples = clearDeadDirectSlots(updated.herbGardenDisciples, deadMemberIds),
-            alchemyDisciples = clearDeadDirectSlots(updated.alchemyDisciples, deadMemberIds),
-            forgeDisciples = clearDeadDirectSlots(updated.forgeDisciples, deadMemberIds),
-            spiritMineDeaconDisciples = clearDeadDirectSlots(updated.spiritMineDeaconDisciples, deadMemberIds)
-        )
-        return updated
-    }
 
     // ==================== 统计查询 ====================
 
@@ -486,50 +270,3 @@ class CombatService @Inject constructor(
     }
 }
 
-/** 悲痛期更新收集：亲属悲痛年份映射（仅存活在册弟子） */
-private fun collectGriefUpdates(
-    stateStore: GameStateStore,
-    deadDisciples: List<Disciple>
-): List<Pair<Int, Int>> {
-    if (deadDisciples.isEmpty()) return emptyList()
-    val currentDiscipleList = stateStore.discipleTables.assembleAll()
-    val updatedList = DiscipleStatCalculator.applyGriefToRelatives(
-        currentDiscipleList, deadDisciples, stateStore.gameData.value.gameYear
-    )
-    return updatedList.mapNotNull { d ->
-        val id = d.id.toInt()
-        val griefYear = d.social.griefEndYear ?: return@mapNotNull null
-        if (stateStore.discipleTables.ids.contains(id))
-            id to griefYear
-        else null
-    }
-}
-
-/** 宗门内阵亡的装备/功法回收收集：四槽装备 + 储物袋装备/功法 */
-private fun collectInSectItemLoss(
-    disciple: Disciple,
-    equipIdsToUnequip: MutableSet<String>,
-    manualIdsToUnlearn: MutableSet<String>
-) {
-    val returnEquipIds = mutableListOf<String>()
-    disciple.equipment.weaponId?.let { returnEquipIds.add(it) }
-    disciple.equipment.armorId?.let { returnEquipIds.add(it) }
-    disciple.equipment.bootsId?.let { returnEquipIds.add(it) }
-    disciple.equipment.accessoryId?.let { returnEquipIds.add(it) }
-    disciple.equipment.storageBagItems
-        .filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }
-        .forEach { returnEquipIds.add(it.itemId) }
-    equipIdsToUnequip.addAll(returnEquipIds)
-    manualIdsToUnlearn.addAll(disciple.manualIds)
-    disciple.equipment.storageBagItems
-        .filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }
-        .forEach { manualIdsToUnlearn.add(it.itemId) }
-}
-
-/** 直接弟子槽位清空：阵亡弟子槽位重置为空槽 */
-private fun clearDeadDirectSlots(
-    slots: List<DirectDiscipleSlot>,
-    deadMemberIds: Set<String>
-): List<DirectDiscipleSlot> = slots.mapNotNull { slot ->
-    if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-}

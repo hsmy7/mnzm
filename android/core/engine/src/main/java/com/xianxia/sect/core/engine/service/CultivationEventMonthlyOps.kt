@@ -56,8 +56,6 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
         state.safelyRunInState("autoRecruit") {
             RecruitService.processAutoRecruit(state)
         }
-        state.safelyRunInState("theft") { lawEnforcementProcessor.processTheftIfNeeded() }
-        state.safelyRunInState("lawEnforcement") { lawEnforcementProcessor.processLawEnforcementMonthly() }
         state.safelyRunInState("completedMissions") { processCompletedMissionsLazy(year, month) }
         state.safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month,
             state) }
@@ -89,8 +87,6 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
             safelyRunInState("autoRecruit") {
                 RecruitService.processAutoRecruit(this)
             }
-            safelyRunInState("theft") { lawEnforcementProcessor.processTheftIfNeeded() }
-            safelyRunInState("lawEnforcement") { lawEnforcementProcessor.processLawEnforcementMonthly() }
             safelyRunInState("completedMissions") { processCompletedMissionsLazy(year, month) }
             safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month,
                 this) }
@@ -120,7 +116,7 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
         // 分组依据见 docs/architecture.md 惰性结算章节；T2 全部有差值判据自愈
         // （下年补跑）或延迟无感语义，且存档前 flush 保证"快照 ⇒ 队列已空"。
         stateStore.update {
-            // T1 立即组（11 项）：年龄不变量（#3/#8/#9）必须当月立即、招募三件套
+            // T1 立即组（11 项）：状态重推导必须当月立即、招募三件套
             //（#5/#6/#9）同事务保序、garrisonAndReport（#20）与纳贡同事务（buffer 依赖）
             safelyRunInState("yearlyTribute") { vassalService.processYearlyTribute() }
             safelyRunInState("yearlyVassalTribute") { vassalService.processYearlyVassalTribute(year) }
@@ -247,7 +243,6 @@ internal fun CultivationEventProcessor.runGarrisonAndReport(year: Int, state: Mu
             annualHerbCount = 0,
             annualNewDisciples = 0,
             annualDeceasedDisciples = 0,
-            annualDesertedDisciples = 0,
-            annualTheftCount = 0
+            annualDesertedDisciples = 0
         )
     }

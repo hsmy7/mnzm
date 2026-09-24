@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -26,15 +25,13 @@ class DiscipleTablesCowTest {
         id: String = "1",
         name: String = "张三",
         realm: Int = 9,
-        cultivation: Double = 100.0,
-        loyalty: Int = 50
+        cultivation: Double = 100.0
     ): Disciple {
         return Disciple(
             id = id,
             name = name,
             realm = realm,
-            cultivation = cultivation,
-            skills = SkillStats(loyalty = loyalty)
+            cultivation = cultivation
         )
     }
 
@@ -59,23 +56,23 @@ class DiscipleTablesCowTest {
     @Test
     fun `multi-generation snapshots are isolated`() {
         val t0 = DiscipleTables()
-        t0.insert(createTestDisciple(id = "1", cultivation = 100.0, loyalty = 50))
+        t0.insert(createTestDisciple(id = "1", cultivation = 100.0))
 
         val s0 = t0.deepCopy()
         s0.cultivations[1] = 100.0          // s0 私有化 cultivations 列
-        s0.loyalties[1] = 60
+        s0.moralities[1] = 60
 
         val s1 = s0.deepCopy()
         s1.cultivations[1] = 200.0          // s1 私有化自己的 cultivations 列
-        s1.loyalties[1] = 70
+        s1.moralities[1] = 70
 
         // 各代快照读数互不干扰
         assertEquals(100.0, t0.cultivations[1], 0.001)
-        assertEquals(50, t0.loyalties[1])
+        assertEquals(50, t0.moralities[1])
         assertEquals(100.0, s0.cultivations[1], 0.001)
-        assertEquals(60, s0.loyalties[1])
+        assertEquals(60, s0.moralities[1])
         assertEquals(200.0, s1.cultivations[1], 0.001)
-        assertEquals(70, s1.loyalties[1])
+        assertEquals(70, s1.moralities[1])
     }
 
     @Test
@@ -185,7 +182,7 @@ class DiscipleTablesCowTest {
     @Test
     fun `forceFullCopy fallback path is semantically equivalent`() {
         val tables = DiscipleTables()
-        tables.insert(createTestDisciple(id = "1", cultivation = 100.0, loyalty = 50))
+        tables.insert(createTestDisciple(id = "1", cultivation = 100.0))
 
         val fullCopy = try {
             DiscipleTables.forceFullCopy = true

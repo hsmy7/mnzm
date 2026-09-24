@@ -191,9 +191,8 @@ inline double aiCultivationRate(
         resourceBonus += static_cast<double>(speedPct) * masteryBonus / 100.0;
     }
 
-    // 状态乘区：政策津贴 0 - 丧亲 0（对象版调用方传 0） - 寿命惩罚
-    const double statusBonus =
-        -gamecore::disciple::calculateLifespanCultivationPenalty(d.age, d.lifespan);
+    // 状态乘区：政策津贴 0 - 丧亲 0（对象版调用方传 0）
+    const double statusBonus = 0.0;
 
     // 临时乘区：丹药持续加速
     double temporaryBonus = 0.0;
@@ -209,20 +208,14 @@ inline double aiCultivationRate(
                     gamecore::disciple::kMinCultivationPerPhase);
 }
 
-/// 突破成功（applyBreakthroughSuccess：修为清零、层数+1 或大境界+1 +
-/// 大境界寿命增益）
+/// 突破成功（applyBreakthroughSuccess：修为清零、层数+1 或大境界+1）
 inline void aiApplyBreakthroughSuccess(Disciple& d) {
     d.cultivation = 0.0;
-    const int32_t oldRealm = d.realm;
     if (d.realmLayer < gamecore::disciple::realmConfig(d.realm).maxLayers) {
         d.realmLayer += 1;
     } else {
         d.realm -= 1;
         d.realmLayer = 1;
-    }
-    if (d.realm != oldRealm) {
-        d.lifespan += gamecore::stats::calculateBreakthroughLifespanGain(
-            d.realm, d.talentIds, d.affixIds);
     }
 }
 

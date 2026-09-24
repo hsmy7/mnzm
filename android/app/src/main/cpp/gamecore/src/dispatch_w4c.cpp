@@ -120,10 +120,9 @@ nlohmann::json handleBattleResidualTx(GameCore& core, int32_t actionId,
                 return invalidParams(
                     "casualty settle requires deadIds/survivorHp/survivorMp");
             }
-            const bool isOutsideSect = p.value("isOutsideSect", true);
             gamecore::system::OverflowMailCollector overflowMail;
             const auto r = settleBattleCasualtiesTx(
-                state, deadIds, survivorHp, survivorMp, isOutsideSect, overflowMail);
+                state, deadIds, survivorHp, survivorMp, overflowMail);
             (void)r.ok;   // 无失败臂；恒成功
             return ok({{"markedDeadIds", idArrayJson(r.markedDeadIds)},
                        {"lifeEventDrafts", lifeEventDraftsJson(r.lifeEvents)},
@@ -136,12 +135,8 @@ nlohmann::json handleBattleResidualTx(GameCore& core, int32_t actionId,
                 !getStringArray(p, "survivorIds", &survivorIds)) {
                 return invalidParams("victory requires levelId/survivorIds");
             }
-            const auto r = worldLevelVictoryTx(state, core.rng(), core.ecsWorld(),
-                                               levelIt->get<std::string>(),
-                                               survivorIds);
-            return ok({{"applied", r.applied},
-                       {"soulPowerCount", r.soulPowerCount},
-                       {"winAttrCount", r.winAttrCount}});
+            const auto r = worldLevelVictoryTx(state, levelIt->get<std::string>());
+            return ok({{"applied", r.applied}});
         }
         case action::BATTLE_PRESETTLE_TX: {
             std::vector<std::string> discipleIds;

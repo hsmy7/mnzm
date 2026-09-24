@@ -1,14 +1,13 @@
 // ============================================================
-// appointment_tx_test — 弟子管理三事务守护（batch-15：长老任命/仓库驻守/
+// appointment_tx_test — 弟子管理三事务守护（batch-15：长老任命/
 // 洗炼消耗族）
 //
 // 守护目标：appointment_tx.h 七事务与 Kotlin 源语义逐位一致——
 //   - 长老单值槽任命/卸任（10 字段 + 6 类亲传列表清空 + 全槽清理数据段，
 //     被顶替者捕获序 = Kotlin collectReplacedIds：旧长老在前列表成员在后）
-//   - 仓库驻守（旧 occupant 捕获 + 条目替换 + 全槽清理；原样字符串语义）
 //   - 洗炼三族（先扣后抽：失败臂零抽取零写入；SYSTEM 分区抽取序双运行
 //     逐位一致 + 终态 rngStates 锁定；保底路径/普通路径分流；特质确认
-//     零 RNG + lifespan 同步 + checkpoint 重记账）
+//     零 RNG + checkpoint 重记账）
 //   - 玉符承扣（余额检查 + 扣减同事务原子；jadeAfter 回传——Kotlin 运行时
 //     totalCount 同步残差锚点）
 // ============================================================
@@ -41,7 +40,6 @@ using gamecore::rng::RngPartition;
 using gamecore::state::DirectDiscipleSlot;
 using gamecore::state::Disciple;
 using gamecore::state::PatrolSlot;
-using gamecore::state::WarehouseGarrisonSlot;
 
 class AppointmentTxFixture : public ::testing::Test {
 protected:
@@ -80,8 +78,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = true;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = "IDLE";
         d.currentHp = 100;
         d.currentMp = 50;
@@ -212,17 +208,10 @@ TEST_F(AppointmentTxFixture, AppointClearsAppointeeOtherSlots) {
     patrol.index = 0;
     patrol.discipleId = "1";
     gd.patrolSlots = {patrol};
-    WarehouseGarrisonSlot garrison;
-    garrison.buildingInstanceId = "wh1";
-    garrison.discipleId = "1";
-    gd.warehouseGarrisons = {garrison};
 
     const auto r = appointment_tx::elderAppointTx(core_->state(), "OUTER_ELDER", "1");
     ASSERT_TRUE(r.base.ok);
     EXPECT_TRUE(gd.patrolSlots[0].discipleId.empty());
-    // 仓库驻守清理语义 = 清空 discipleId（条目保留——slot_cleanup 口径）
-    ASSERT_EQ(gd.warehouseGarrisons.size(), 1u);
-    EXPECT_TRUE(gd.warehouseGarrisons[0].discipleId.empty());
     EXPECT_EQ(gd.elderSlots.outerElder, "1");
 }
 
@@ -276,72 +265,6 @@ TEST_F(AppointmentTxFixture, DismissUnknownSlotTypeFails) {
     const auto r = appointment_tx::elderDismissTx(core_->state(), "NO_SUCH_SLOT");
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ(r.base.errorType, "UnknownSlotType");
-}
-
-// ── 仓库驻守 ─────────────────────────────────────────────────────────
-
-TEST_F(AppointmentTxFixture, WarehouseGarrisonHappyReplacesEntry) {
-    addDisciple("1");
-    addDisciple("2");
-    auto& gd = core_->state().gameData;
-    WarehouseGarrisonSlot old;
-    old.buildingInstanceId = "wh1";
-    old.discipleId = "2";
-    old.discipleName = "旧驻守";
-    WarehouseGarrisonSlot other;
-    other.buildingInstanceId = "wh2";
-    other.discipleId = "2";
-    gd.warehouseGarrisons = {old, other};
-
-    const auto r = appointment_tx::warehouseGarrisonAssignTx(
-        core_->state(), "wh1", "1", "新驻守", "sectA");
-    ASSERT_TRUE(r.base.ok);
-    EXPECT_EQ(r.oldOccupantId, "2");
-    ASSERT_EQ(gd.warehouseGarrisons.size(), 2u);
-    // wh1 条目被替换（无重复）；wh2 保留
-    EXPECT_EQ(gd.warehouseGarrisons[0].buildingInstanceId, "wh2");
-    EXPECT_EQ(gd.warehouseGarrisons[1].buildingInstanceId, "wh1");
-    EXPECT_EQ(gd.warehouseGarrisons[1].discipleId, "1");
-    EXPECT_EQ(gd.warehouseGarrisons[1].discipleName, "新驻守");
-    EXPECT_EQ(gd.warehouseGarrisons[1].sectId, "sectA");
-}
-
-TEST_F(AppointmentTxFixture, WarehouseGarrisonClearsAppointeeOtherSlots) {
-    addDisciple("1");
-    auto& gd = core_->state().gameData;
-    PatrolSlot patrol;
-    patrol.index = 0;
-    patrol.discipleId = "1";
-    gd.patrolSlots = {patrol};
-
-    const auto r = appointment_tx::warehouseGarrisonAssignTx(
-        core_->state(), "wh1", "1", "n", "s");
-    ASSERT_TRUE(r.base.ok);
-    EXPECT_TRUE(gd.patrolSlots[0].discipleId.empty());
-    ASSERT_EQ(gd.warehouseGarrisons.size(), 1u);
-    EXPECT_EQ(gd.warehouseGarrisons[0].discipleId, "1");
-}
-
-TEST_F(AppointmentTxFixture, WarehouseGarrisonGuardsFailWithZeroWrite) {
-    addDisciple("1");
-    addDisciple("2");
-    killDisciple("2");
-    auto& gd = core_->state().gameData;
-    WarehouseGarrisonSlot old;
-    old.buildingInstanceId = "wh1";
-    old.discipleId = "9";
-    gd.warehouseGarrisons = {old};
-
-    auto r = appointment_tx::warehouseGarrisonAssignTx(
-        core_->state(), "wh1", "404", "n", "s");
-    EXPECT_FALSE(r.base.ok);
-    EXPECT_EQ(r.base.errorType, "NotFound");
-    r = appointment_tx::warehouseGarrisonAssignTx(core_->state(), "wh1", "2", "n", "s");
-    EXPECT_FALSE(r.base.ok);
-    EXPECT_EQ(r.base.errorType, "NotAlive");
-    // 失败臂零写入
-    EXPECT_EQ(gd.warehouseGarrisons.size(), 1u);
-    EXPECT_EQ(gd.warehouseGarrisons[0].discipleId, "9");
 }
 
 // ── 洗炼灵根 ─────────────────────────────────────────────────────────
@@ -539,37 +462,19 @@ TEST_F(AppointmentTxFixture, TraitAddRollDoubleRunBitwise) {
     EXPECT_EQ(rngSnapshot(), firstStates);
 }
 
-TEST_F(AppointmentTxFixture, TraitAddConfirmAppendsWithLifespanSync) {
-    // 产物选 LIFESPAN 型天赋（退役类型仍可被 confirm 校验接受——confirm
-    // 不滤退役）；lifespan 增量 = (int)(realmMaxAge × bonus)
+TEST_F(AppointmentTxFixture, TraitAddConfirmAppendsAndCheckpoints) {
+    // confirm 不滤退役类型；产物追加 + checkpoint 重记账
     addDisciple("1", 9);
-    const auto& templates = gamecore::data::talentTemplates();
-    std::string lifespanTalentId;
-    double lifespanBonus = 0.0;
-    for (const auto& t : templates) {
-        const auto it = t.effects.find("lifespan");
-        if (it != t.effects.end() && it->second > 0.0) {
-            lifespanTalentId = t.id;
-            lifespanBonus = it->second;
-            break;
-        }
-    }
-    ASSERT_FALSE(lifespanTalentId.empty());
+    const std::string newTalentId =
+        gamecore::data::talentTemplates().front().id;
 
     const std::size_t row = *core_->state().disciples.rowOf("1");
-    const int32_t lifespanBefore = core_->state().disciples.lifespans[row];
     const auto r = appointment_tx::traitAddConfirmTx(
-        core_->state(), "1", "TALENT", lifespanTalentId);
+        core_->state(), "1", "TALENT", newTalentId);
     ASSERT_TRUE(r.ok) << r.message;
     // 追加到列表末尾
     ASSERT_EQ(core_->state().disciples.talentIds[row].size(), 1u);
-    EXPECT_EQ(core_->state().disciples.talentIds[row][0], lifespanTalentId);
-    // lifespan 同步（realm 9 → maxAge 80）
-    const int32_t expectedDelta =
-        static_cast<int32_t>(static_cast<double>(gamecore::system::realmMaxAge(9)) *
-                             lifespanBonus);
-    EXPECT_EQ(core_->state().disciples.lifespans[row],
-              lifespanBefore + expectedDelta);
+    EXPECT_EQ(core_->state().disciples.talentIds[row][0], newTalentId);
     // checkpoint 重记账
     EXPECT_EQ(core_->state().disciples.cultivationCheckpoints[row],
               core_->state().disciples.cultivations[row]);
@@ -979,43 +884,6 @@ TEST_F(AppointmentTxFixture, TraitWashConfirmRejectsInvalidArms) {
     EXPECT_EQ(core_->state().disciples.talentIds[row], idsBefore);
 }
 
-TEST_F(AppointmentTxFixture, TraitWashConfirmSyncsLifespanBothDirections) {
-    // 选两条 lifespan 加成不同的天赋（差值为正/负两臂）
-    const auto& all = gamecore::data::talentTemplates();
-    std::string highId;
-    std::string lowId;
-    double highBonus = -1e9;
-    double lowBonus = 1e9;
-    for (const auto& t : all) {
-        const auto it = t.effects.find("lifespan");
-        if (it == t.effects.end()) continue;
-        if (it->second > highBonus) { highBonus = it->second; highId = t.id; }
-        if (it->second < lowBonus) { lowBonus = it->second; lowId = t.id; }
-    }
-    if (highId.empty() || lowId.empty() || highId == lowId || highBonus == lowBonus) {
-        GTEST_SKIP() << "天赋表无 lifespan 加成差异（跳过 lifespan 双向用例）";
-    }
-
-    addDisciple("1");
-    const std::size_t row = *core_->state().disciples.rowOf("1");
-    core_->state().disciples.talentIds[row] = {highId};
-    core_->state().disciples.lifespans[row] = 100;
-
-    // 高加成 → 低加成：寿命下调
-    const auto down = appointment_tx::traitWashConfirmTx(
-        core_->state(), "1", "TALENT", highId, lowId);
-    ASSERT_TRUE(down.ok) << down.message;
-    const int32_t afterDown = core_->state().disciples.lifespans[row];
-    EXPECT_LT(afterDown, 100);
-
-    // 低加成 → 高加成：寿命上调
-    const auto up = appointment_tx::traitWashConfirmTx(
-        core_->state(), "1", "TALENT", lowId, highId);
-    ASSERT_TRUE(up.ok) << up.message;
-    const int32_t afterUp = core_->state().disciples.lifespans[row];
-    EXPECT_GT(afterUp, afterDown);
-}
-
 TEST_F(AppointmentTxFixture, ConfirmFamilyIsZeroRngAndEnveloped) {
     // 零 RNG：两 confirm 全程不触任何分区（签名级 + 快照差分）
     addDisciple("1");
@@ -1065,15 +933,13 @@ TEST_F(AppointmentTxFixture, ConfirmDoubleRunProducesBitIdenticalState) {
 // ── 零 RNG 族审计 + 信封级双保险 ─────────────────────────────────────
 
 TEST_F(AppointmentTxFixture, ZeroRngFamilyLeavesRngStatesUntouched) {
-    // 任命/卸任/驻守/确认四事务全程零抽取——签名级（API 不接受 rng）+
+    // 任命/卸任/确认三事务全程零抽取——签名级（API 不接受 rng）+
     // 快照差分双证据
     addDisciple("1");
     const auto baseline = rngSnapshot();
 
     ASSERT_TRUE(appointment_tx::elderAppointTx(core_->state(), "INNER_ELDER", "1").base.ok);
     ASSERT_TRUE(appointment_tx::elderDismissTx(core_->state(), "INNER_ELDER").base.ok);
-    ASSERT_TRUE(appointment_tx::warehouseGarrisonAssignTx(core_->state(), "wh", "1", "n", "s")
-                    .base.ok);
     ASSERT_TRUE(appointment_tx::traitAddConfirmTx(core_->state(), "1", "TALENT",
                                                   gamecore::data::talentTemplates()
                                                       .front().id)

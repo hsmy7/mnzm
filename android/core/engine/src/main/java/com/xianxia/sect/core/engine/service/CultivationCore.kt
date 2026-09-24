@@ -49,8 +49,6 @@ class CultivationCore @Inject constructor(
         id, data, tables, residenceByDiscipleId, buildingByInstanceId
     )
 
-    fun getLifespanGainForRealm(realm: Int): Int = cultivationRateCalculator.getLifespanGainForRealm(realm)
-
     fun isDiscipleFullHpMp(disciple: Disciple, state: MutableGameState): Boolean =
         hpMpRecoveryService.isDiscipleFullHpMp(disciple, state)
 

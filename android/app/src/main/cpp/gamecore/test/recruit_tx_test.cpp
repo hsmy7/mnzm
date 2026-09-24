@@ -1,11 +1,10 @@
 // ============================================================
 // recruit_tx_test — 招募/派遣/俘虏残余族事务守护（batch-16：
-// 招募列表移除 / 年度刷新直调 / 老化净化直调）
+// 招募列表移除 / 年度刷新直调 / 净化直调）
 //
 // 守护目标：recruit_tx.h 三事务与 Kotlin 源语义逐位一致——
 //   - removeRecruitTx：按 id 全量过滤幂等（同 id 多条全移），零 RNG
-//   - ageRecruitTx：age+1 / 超寿元移除 / 损坏过滤 / 三级去重 / 跨表残留，
-//     零 RNG
+//   - ageRecruitTx：损坏过滤 / 三级去重 / 跨表残留，零 RNG
 //   - refreshRecruitTx：差值门零抽取零写入；玩家宗门/兜底/政策加成数量面；
 //     自动招募计数口径（generated = 列表净增 + autoRecruited）；
 //     双运行逐位一致 + 终态 rngStates 锁定（SYSTEM 分区，复用
@@ -63,24 +62,20 @@ protected:
     }
 
     /// 招募列表条目构造（其余字段 = 模型默认）
-    static Disciple recruit(const std::string& id, const std::string& name,
-                            int32_t age, int32_t lifespan = 80) {
+    static Disciple recruit(const std::string& id, const std::string& name) {
         Disciple d;
         d.id = id;
         d.name = name;
         d.spiritRootType = "metal";
-        d.age = age;
         d.realm = 9;
         d.realmLayer = 1;
         d.isAlive = true;
-        d.lifespan = lifespan;
         return d;
     }
 
     /// 宗门侧最小存活弟子（跨表残留用：与 recruit 同签名字段面）
-    std::size_t addSectDisciple(const std::string& id, const std::string& name,
-                                int32_t age) {
-        Disciple d = recruit(id, name, age);
+    std::size_t addSectDisciple(const std::string& id, const std::string& name) {
+        Disciple d = recruit(id, name);
         d.status = "IDLE";
         d.currentHp = 100;
         d.currentMp = 50;
@@ -109,9 +104,9 @@ protected:
 
 TEST_F(RecruitTxFixture, RemoveTxRemovesAllMatchingIds) {
     auto& list = core_->state().gameData.recruitList;
-    list.push_back(recruit("a", "甲一", 20));
-    list.push_back(recruit("a", "甲一", 21));  // 同 id 第二条（全量过滤）
-    list.push_back(recruit("b", "乙二", 22));
+    list.push_back(recruit("a", "甲一"));
+    list.push_back(recruit("a", "甲一"));  // 同 id 第二条（全量过滤）
+    list.push_back(recruit("b", "乙二"));
 
     const auto r = recruit_tx::removeRecruitTx(core_->state(), "a");
 
@@ -124,7 +119,7 @@ TEST_F(RecruitTxFixture, RemoveTxRemovesAllMatchingIds) {
 
 TEST_F(RecruitTxFixture, RemoveTxMissingIdIsIdempotentSuccess) {
     auto& list = core_->state().gameData.recruitList;
-    list.push_back(recruit("a", "甲一", 20));
+    list.push_back(recruit("a", "甲一"));
 
     const auto r = recruit_tx::removeRecruitTx(core_->state(), "missing");
 
@@ -135,7 +130,7 @@ TEST_F(RecruitTxFixture, RemoveTxMissingIdIsIdempotentSuccess) {
 }
 
 TEST_F(RecruitTxFixture, RemoveTxLeavesRngStatesUntouched) {
-    core_->state().gameData.recruitList.push_back(recruit("a", "甲一", 20));
+    core_->state().gameData.recruitList.push_back(recruit("a", "甲一"));
     const auto before = rngSnapshot();
 
     (void)recruit_tx::removeRecruitTx(core_->state(), "a");
@@ -143,33 +138,31 @@ TEST_F(RecruitTxFixture, RemoveTxLeavesRngStatesUntouched) {
     EXPECT_EQ(before, rngSnapshot()) << "移除为零 RNG 纯事务";
 }
 
-// ── RECRUIT_AGE_TX：老化 + 净化一体（零 RNG） ─────────────────────────────
+// ── RECRUIT_AGE_TX：净化一体（零 RNG） ─────────────────────────────────
 
-TEST_F(RecruitTxFixture, AgeTxAgesSurvivorAndRemovesDeadCorruptedDupesResidual) {
+TEST_F(RecruitTxFixture, AgeTxRemovesCorruptedDupesResidual) {
     // 宗门侧弟子（与条目 e 同签名 → 跨表残留移除）
-    addSectDisciple("1", "同签名", 20);
+    addSectDisciple("1", "同签名");
     auto& list = core_->state().gameData.recruitList;
-    list.push_back(recruit("y", "幸存者", 20));            // 存活：age 20→21
-    list.push_back(recruit("d", "寿终", 99, /*lifespan=*/80));  // 超寿元移除
-    list.push_back(recruit("c", "", 20));                  // 损坏（名空）移除
-    list.push_back(recruit("u", "重复", 20));
-    list.push_back(recruit("u", "重复", 20));              // 同 id 去重保首
-    list.push_back(recruit("e", "同签名", 20));            // 已入宗门残留移除
+    list.push_back(recruit("y", "幸存者"));               // 存活：保留
+    list.push_back(recruit("c", ""));                     // 损坏（名空）移除
+    list.push_back(recruit("u", "重复"));
+    list.push_back(recruit("u", "重复"));                 // 同 id 去重保首
+    list.push_back(recruit("e", "同签名"));               // 已入宗门残留移除
 
     const auto r = recruit_tx::ageRecruitTx(core_->state(), core_->ecsWorld());
 
     ASSERT_TRUE(r.base.ok);
-    // 移除：寿终 + 损坏 + 同 id 副本（首条保留）+ 跨表残留 = 4；剩幸存者 + 去重保留首条
-    EXPECT_EQ(4, r.removed);
+    // 移除：损坏 + 同 id 副本（首条保留）+ 跨表残留 = 3；剩幸存者 + 去重保留首条
+    EXPECT_EQ(3, r.removed);
     EXPECT_EQ(2, r.remaining);
     ASSERT_EQ(2u, list.size());
     EXPECT_EQ("y", list[0].id);
-    EXPECT_EQ(21, list[0].age) << "幸存条目 age+1";
     EXPECT_EQ("u", list[1].id) << "同 id 去重保首";
 }
 
 TEST_F(RecruitTxFixture, AgeTxLeavesRngStatesUntouched) {
-    core_->state().gameData.recruitList.push_back(recruit("a", "甲一", 20));
+    core_->state().gameData.recruitList.push_back(recruit("a", "甲一"));
     const auto before = rngSnapshot();
 
     (void)recruit_tx::ageRecruitTx(core_->state(), core_->ecsWorld());
@@ -183,7 +176,7 @@ TEST_F(RecruitTxFixture, RefreshTxIntervalGateZeroDrawZeroWrite) {
     auto& gd = core_->state().gameData;
     gd.gameYear = 4;
     gd.lastRecruitYear = 2;  // 差值 2 < 3
-    gd.recruitList.push_back(recruit("keep", "原有", 20));
+    gd.recruitList.push_back(recruit("keep", "原有"));
     const auto before = rngSnapshot();
 
     const auto r = recruit_tx::refreshRecruitTx(core_->state(), /*year=*/4,
@@ -215,8 +208,6 @@ TEST_F(RecruitTxFixture, RefreshTxGeneratesWithPlayerSect) {
     EXPECT_EQ(r.generated, r.remaining) << "空列表起步 remaining = generated";
     for (const auto& cand : gd.recruitList) {
         EXPECT_FALSE(cand.name.empty());
-        EXPECT_GE(cand.age, 16);
-        EXPECT_LE(cand.age, 29);
         EXPECT_EQ(9, cand.realm);
     }
 }
@@ -291,7 +282,7 @@ TEST_F(RecruitTxFixture, RefreshTxDualRunBitwiseIdentical) {
 
 TEST_F(RecruitTxFixture, DispatchEnvelopeHappyPaths) {
     auto& gd = core_->state().gameData;
-    gd.recruitList.push_back(recruit("a", "甲一", 20));
+    gd.recruitList.push_back(recruit("a", "甲一"));
 
     const auto rm = exec(action::RECRUIT_REMOVE_TX, {{"discipleId", "a"}});
     EXPECT_EQ(rm["status"], "success");

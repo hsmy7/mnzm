@@ -70,7 +70,7 @@ class BagItemReconstructorTest {
 
     @Test
     fun `empty stackedData minRealm zero falls back to rarity-derived`() {
-        // 偷盗等路径写空 BagStackedData()（minRealm 默认 0）——
+        // 堆叠条目缺补充字段时以空 BagStackedData() 承载（minRealm 默认 0）——
         // 0 视为缺省，回退按 rarity 推导门槛（不落为"最高境界门槛"装备）
         val item = StorageBagItem(
             itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 1,

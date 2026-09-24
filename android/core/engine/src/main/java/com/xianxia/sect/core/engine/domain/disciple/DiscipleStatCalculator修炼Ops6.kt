@@ -189,18 +189,3 @@ fun DiscipleStatCalculator.getMasterDiscipleCultivationBonus(discipleRealm: Int,
 
 fun DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(discipleRealm: Int, masterRealm: Int): Double =
     getMasterDiscipleRealmGap(discipleRealm, masterRealm) * MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP
-
-// ==================== 寿命将尽惩罚 ====================
-
-/** 寿命惩罚阈值：剩余寿命低于此比例时触发 */
-
-fun DiscipleStatCalculator.calculateLifespanRemainingPercent(age: Int, lifespan: Int): Double {
-    if (lifespan <= 0) return 1.0
-    return ((lifespan - age).coerceAtLeast(0)).toDouble() / lifespan
-}
-
-/**
- * 计算寿命将尽对修炼速度的惩罚值
- * 剩余寿命低于20%时，每少1个百分点降低5%修炼速度
- * @return 惩罚值（非负数），可直接从 totalBonus 中扣除
- */

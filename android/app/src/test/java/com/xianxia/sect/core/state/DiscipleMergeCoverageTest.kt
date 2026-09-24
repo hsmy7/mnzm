@@ -29,7 +29,6 @@ class DiscipleMergeCoverageTest {
     private val settlementModified = setOf(
         "cultivation",
         "realm", "realmLayer",
-        "lifespan",
         "equipment",
         "combat",
         "manualIds",
@@ -55,7 +54,6 @@ class DiscipleMergeCoverageTest {
         "id", "slotId",
         "name", "surname",
         "spiritRootType",
-        "age",
         "gender",
         "cultivationCheckpoint",        // 修炼投影检查点，未启用前由 copy() 保留
         "cultivationCheckpointGameMonth",
@@ -63,7 +61,6 @@ class DiscipleMergeCoverageTest {
         "templateId",
         "talentIds", "physiqueIds", "affixIds",
         "manualMasteries",
-        "soulPower",
         "cultivationCompletionMonth", "cultivationCompletionPhase",
         "manualCompletionMonth", "manualCompletionPhase",
         "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
@@ -94,11 +91,11 @@ class DiscipleMergeCoverageTest {
         "storageBagItems", "storageBagSpiritStones", "spiritStones",
         "partnerId", "partnerSectId", "parentId1", "parentId2",
         "lastChildYear", "childBirthMonth", "griefEndYear",
-        "intelligence", "charm", "loyalty", "comprehension",
+        "intelligence", "charm", "comprehension",
         "artifactRefining", "pillRefining", "spiritPlanting",
         "mining", "teaching", "morality",
         "salaryPaidCount", "salaryMissedCount",
-        "monthlyUsedPillIds", "usedExtendLifePillIds",
+        "monthlyUsedPillIds",
         "recruitedMonth", "hasReviveEffect", "hasClearAllEffect",
         // --- 计算属性 ---
         "canCultivate", "realmName", "realmNameOnly", "maxCultivation",

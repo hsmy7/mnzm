@@ -75,7 +75,7 @@ struct ProbeResult {
     bool matchesGolden() const { return digest == kGoldenDigest; }
 };
 
-/// 逐弟子转录（SoA 列采样：身份/境界/年龄/存活 + double 位模式）
+/// 逐弟子转录（SoA 列采样：身份/境界/存活 + double 位模式）
 inline void hashDiscipleColumns(Fnv1a64& h, const state::DiscipleStore& store) {
     h.u64(store.size());
     for (std::size_t i = 0; i < store.size(); ++i) {
@@ -84,8 +84,6 @@ inline void hashDiscipleColumns(Fnv1a64& h, const state::DiscipleStore& store) {
         h.i32(store.realmLayers[i]);
         h.f64(store.cultivations[i]);
         h.f64(store.cultivationCheckpoints[i]);
-        h.i32(store.ages[i]);
-        h.i32(store.lifespans[i]);
         h.u8(static_cast<uint8_t>(store.isAlive[i]));
     }
 }
@@ -179,7 +177,6 @@ inline ProbeResult runDeterminismProbe() {
         seed.fullName = "Probe" + std::to_string(i);
         seed.surname = "Probe";
         seed.spiritRootType = kRoots[i];
-        seed.age = 16;
         seed.realm = 3;
         seed.realmLayer = 1;
         auto d = system::createDisciple(seed, systemRng);

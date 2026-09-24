@@ -27,7 +27,7 @@ object GhostDiscipleCleanupRule : SaveValidationRule {
             .map { ghost ->
                 // 向 context 写入，供 GhostRefCleanupRule 使用
                 context.removedDiscipleIds.add(ghost.id)
-                "幽灵弟子 id=${ghost.id}（name=空, age=${ghost.age}, realm=${ghost.realm}）已从存档中清理"
+                "幽灵弟子 id=${ghost.id}（name=空, realm=${ghost.realm}）已从存档中清理"
             }
 
         val cleanedDisciples = data.disciples.filter { it.id !in ghostDiscipleIds }

@@ -43,7 +43,6 @@ class SlotCategoryCoverageTest {
             SlotCategory.PRODUCTION_SLOT,     // scanProductionSlots()
             SlotCategory.SPIRIT_MINE,         // scanListSlots()
             SlotCategory.LIBRARY_SLOT,        // scanListSlots()
-            SlotCategory.WAREHOUSE_GARRISON,  // scanListSlots()
             SlotCategory.PATROL_SLOT,         // scanListSlots()
             SlotCategory.BLOOD_REFINEMENT,    // scanListSlots()
             SlotCategory.GARRISON_SLOT,       // scanListSlots()
@@ -85,7 +84,6 @@ class SlotCategoryCoverageTest {
             SlotCategory.LIBRARY_SLOT,        // librarySlots.map
             SlotCategory.RESIDENCE_SLOT,      // residenceSlots.map（条件性：仅 includeResidence=true 时清理）
             SlotCategory.PATROL_SLOT,         // patrolSlots.map
-            SlotCategory.WAREHOUSE_GARRISON,  // warehouseGarrisons.map
             SlotCategory.BATTLE_TEAM,         // battleTeams.map
             SlotCategory.GARRISON_SLOT,       // worldMapSects.map
             SlotCategory.BLOOD_REFINEMENT,    // activeBloodRefinements
@@ -153,7 +151,6 @@ class SlotCategoryCoverageTest {
             "com/xianxia/sect/core/engine/GameEngineBloodRefinementOps.kt",     // 血炼（M3 第九批自 Coordination 拆出）
             "com/xianxia/sect/core/engine/GameEngineSecretRealmOps.kt",  // 秘境出发
             "com/xianxia/sect/core/engine/GameEngineGarrisonOps.kt",              // 世界驻守（M3 第九批自 BattleOps 拆出）
-            "com/xianxia/sect/core/engine/GameEngineWarehouseOps.kt",    // 仓库驻守
             "com/xianxia/sect/core/engine/domain/disciple/DiscipleFacadeImpl.kt", // 亲传/藏经阁
             "com/xianxia/sect/core/engine/domain/building/BuildingFacadeImpl.kt", // 生产槽新 API
             "com/xianxia/sect/core/engine/domain/building/BuildingService.kt"     // 生产槽旧 API

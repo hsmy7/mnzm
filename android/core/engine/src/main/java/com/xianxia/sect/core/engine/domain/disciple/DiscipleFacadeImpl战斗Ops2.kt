@@ -14,7 +14,6 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.model.BagStackedData
 import com.xianxia.sect.core.nativebridge.ActionIds
-import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.long
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.str
 import kotlinx.serialization.json.put
 
@@ -103,11 +102,6 @@ internal fun DiscipleFacadeImpl.rewardPill(discipleId: String, item: RewardSelec
         put("quantity", quantity)
     }
     if (native != null) {
-        applyTheftHookResidual(
-            discipleId = discipleId,
-            theftCandidate = native.str("theftCandidate") == "true",
-            moralityAfter = native.long("moralityAfter")?.toInt() ?: 0,
-        )
         return
     }
     stateStore.update {
@@ -298,17 +292,11 @@ internal fun DiscipleFacadeImpl.usePill(discipleId: String, pillId: String) {
         put("pillId", pillId)
     }
     if (native != null) {
-        // 残差：服药日志草稿回写 + 偷盗判定钩子（moralityAdd 落表后即时判定，
-        // C++ 不下沉执法域；以镜像刷新后的状态原序执行）
+        // 残差：服药日志草稿回写
         val logLine = native.str("logLine")
         stateStore.update {
             appendOpsLifeEventDraft(discipleId, logLine)
         }
-        applyTheftHookResidual(
-            discipleId = discipleId,
-            theftCandidate = native.str("theftCandidate") == "true",
-            moralityAfter = native.long("moralityAfter")?.toInt() ?: 0,
-        )
         return
     }
     gameEngineCore.launchInScope {
@@ -337,10 +325,9 @@ internal fun DiscipleFacadeImpl.usePill(discipleId: String, pillId: String) {
             applyPillEffectsToDisciple(id, pill)
 
             // 记录服药日志
-            val pillAge = discipleTables.ages[id]
             val currentLifeEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
             discipleTables.lifeEvents[id] = currentLifeEvents +
-                "${pillAge}岁：服用了${pill.name}"
+                "服用了${pill.name}"
         }
     }
 }

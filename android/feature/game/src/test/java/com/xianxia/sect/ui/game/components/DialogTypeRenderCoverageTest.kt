@@ -49,7 +49,6 @@ class DialogTypeRenderCoverageTest {
         DialogType.WenDaoPeak,
         DialogType.QingyunPeak,
         DialogType.TianshuHall,
-        DialogType.LawEnforcementHall,
         DialogType.MissionHall,
         DialogType.ReflectionCliff,
         DialogType.Guide,

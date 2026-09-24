@@ -56,8 +56,6 @@ Disciple baseDisciple(const std::string& id) {
     d.realmLayer = 1;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 20;
-    d.lifespan = 80;
     d.status = "IDLE";
     return d;
 }
@@ -213,11 +211,6 @@ TEST(ProductionUiTxTest, AssignClearsAllSlotFamiliesButKeepsResidence) {
     patrol.index = 0;
     patrol.discipleId = d;
     st.gameData.patrolSlots.push_back(patrol);
-    // 仓库驻守
-    gamecore::state::WarehouseGarrisonSlot wh;
-    wh.slotIndex = 0;
-    wh.discipleId = d;
-    st.gameData.warehouseGarrisons.push_back(wh);
 
     const auto r = prod::assignProductionSlotTx(st, "ALCHEMY", 0, d, "弟子1");
 
@@ -237,7 +230,6 @@ TEST(ProductionUiTxTest, AssignClearsAllSlotFamiliesButKeepsResidence) {
     EXPECT_TRUE(st.gameData.battleTeams[0].slots[0].isAlive);  // 清空时复位存活
     EXPECT_TRUE(st.gameData.worldMapSects[0].garrisonSlots[0].discipleId.empty());
     EXPECT_TRUE(st.gameData.patrolSlots[0].discipleId.empty());
-    EXPECT_TRUE(st.gameData.warehouseGarrisons[0].discipleId.empty());
     // 住所保留（includeResidence=false）
     EXPECT_EQ(d, st.gameData.residenceSlots[0].discipleId);
 }

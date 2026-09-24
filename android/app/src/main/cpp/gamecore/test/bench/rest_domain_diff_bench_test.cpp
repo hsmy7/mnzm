@@ -135,8 +135,6 @@ GameState makeRestDomainState() {
         d.cultivation = 10.0;
         d.isAlive = true;
         d.spiritRootType = "metal";
-        d.age = 16;
-        d.lifespan = 80;
         state.disciples.appendDisciple(d);
     }
     populateRestCollections(state);

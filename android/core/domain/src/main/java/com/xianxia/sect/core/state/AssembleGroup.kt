@@ -77,7 +77,6 @@ internal fun discipleColumnGroupByName(): Map<String, AssembleGroup> = mapOf(
             // assembleSkills 读取列
             "intelligences" to AssembleGroup.SKILLS,
             "charms" to AssembleGroup.SKILLS,
-            "loyalties" to AssembleGroup.SKILLS,
             "comprehensions" to AssembleGroup.SKILLS,
             "artifactRefinings" to AssembleGroup.SKILLS,
             "pillRefinings" to AssembleGroup.SKILLS,
@@ -94,9 +93,7 @@ internal fun discipleColumnGroupByName(): Map<String, AssembleGroup> = mapOf(
             "forgePromotionCounts" to AssembleGroup.SKILLS,
             // assembleUsage 读取列
             "usedFunctionalPillTypes" to AssembleGroup.USAGE,
-            "usedExtendLifePillIds" to AssembleGroup.USAGE,
             "usedPermanentPillKeys" to AssembleGroup.USAGE,
-            "usedExtendLifePillTypes" to AssembleGroup.USAGE,
             "recruitedMonths" to AssembleGroup.USAGE,
             "hasReviveEffects" to AssembleGroup.USAGE,
             "hasClearAllEffects" to AssembleGroup.USAGE,

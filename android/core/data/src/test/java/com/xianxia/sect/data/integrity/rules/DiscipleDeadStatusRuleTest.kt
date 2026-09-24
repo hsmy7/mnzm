@@ -25,7 +25,7 @@ class DiscipleDeadStatusRuleTest {
 
     @Test fun `alive disciple with equipment passes`() {
         val d = Disciple(id = "d-1", name = "甲", realm = 9, realmLayer = 1, cultivation = 10.0,
-            age = 20, lifespan = 80, isAlive = true,
+            isAlive = true,
             equipment = EquipmentSet(weaponId = "sword-1"))
         val data = saveData(listOf(d))
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
@@ -33,7 +33,7 @@ class DiscipleDeadStatusRuleTest {
 
     @Test fun `dead disciple equipment cleared`() {
         val d = Disciple(id = "d-1", name = "死者", realm = 9, realmLayer = 1, cultivation = 10.0,
-            age = 80, lifespan = 80, isAlive = false,
+            isAlive = false,
             equipment = EquipmentSet(weaponId = "sword-1", armorId = "armor-1"))
         val data = saveData(listOf(d))
         val resultr = SaveValidator.validate(data)
@@ -46,7 +46,7 @@ class DiscipleDeadStatusRuleTest {
 
     @Test fun `dead disciple without equipment passes`() {
         val d = Disciple(id = "d-1", name = "死者", realm = 9, realmLayer = 1, cultivation = 10.0,
-            age = 80, lifespan = 80, isAlive = false, equipment = EquipmentSet())
+            isAlive = false, equipment = EquipmentSet())
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(saveData(listOf(d))))
     }
 

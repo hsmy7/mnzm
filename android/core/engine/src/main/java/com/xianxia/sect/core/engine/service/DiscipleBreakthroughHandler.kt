@@ -29,7 +29,6 @@ import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.StorageBagUtils
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.xianxia.sect.core.engine.domain.disciple.calculateBreakthroughLifespanGain
 import com.xianxia.sect.core.engine.domain.disciple.isGrieving
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
@@ -155,19 +154,10 @@ class DiscipleBreakthroughHandler @Inject constructor(
     /** 突破成功：修为清零、层数+1 或大境界+1（对齐玩家 applyBreakthroughSuccess）。 */
     private fun applyBreakthroughSuccess(d: Disciple): Disciple {
         var disciple = d.copy(cultivation = 0.0)
-        val oldRealm = disciple.realm
         if (disciple.realmLayer < GameConfig.Realm.get(disciple.realm).maxLayers) {
             disciple = disciple.copy(realmLayer = disciple.realmLayer + 1)
         } else {
             disciple = disciple.copy(realm = disciple.realm - 1, realmLayer = 1)
-        }
-        if (disciple.realm != oldRealm) {
-            disciple = disciple.copy(
-                lifespan = disciple.lifespan +
-                    DiscipleStatCalculator.calculateBreakthroughLifespanGain(
-                        disciple.realm, disciple.talentIds, disciple.affixIds
-                    )
-            )
         }
         return disciple
     }
@@ -262,7 +252,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
             tables.cultivations[id] = d.cultivation
             tables.realms[id] = d.realm
             tables.realmLayers[id] = d.realmLayer
-            tables.lifespans[id] = d.lifespan
             tables.currentHps[id] = d.combat.currentHp
             tables.currentMps[id] = d.combat.currentMp
             // 突破后的装备存储物品变更
@@ -291,9 +280,8 @@ class DiscipleBreakthroughHandler @Inject constructor(
 
             // 记录突破日志（仅大境界变化）
             if (candidate.realm != newRealm) {
-                val discipleAge = tables.ages[id]
                 val newRealmName = GameConfig.Realm.getName(newRealm)
-                val event = "${discipleAge}岁：突破至${newRealmName}"
+                val event = "突破至${newRealmName}"
                 val currentEvents = tables.lifeEvents.getOrDefault(id, emptyList())
                 tables.lifeEvents[id] = currentEvents + event
                 // 消息栏事件

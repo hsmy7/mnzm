@@ -130,7 +130,6 @@ inline state::Disciple createChild(const state::Disciple& mother,
     seed.fullName = nameResult.fullName;
     seed.surname = nameResult.surname;
     seed.spiritRootType = spiritRootType;
-    seed.age = 1;
     seed.realmLayer = 0;
     state::Disciple child = createDisciple(seed, rng);
     child.parentId1 = mother.id;

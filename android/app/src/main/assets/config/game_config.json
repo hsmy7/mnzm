@@ -6,8 +6,6 @@
     "maxSaveSlots": 5
   },
   "disciple": {
-    "minLoyalty": 0,
-    "maxLoyalty": 100,
     "minAge": 5,
     "maxAge": 100,
     "protectionMonths": 12
@@ -124,22 +122,6 @@
     "herbGardenDiscipleSpiritBase": 50,
     "herbGardenDiscipleSpiritStep": 5,
     "herbGardenDiscipleMax": 0.2
-  },
-  "lawEnforcement": {
-    "loyaltyThreshold": 30,
-    "moralityThreshold": 30,
-    "herdLoyaltyThreshold": 50,
-    "probPerPoint": 0.01,
-    "maxProb": 0.9,
-    "theftMinRatio": 0.01,
-    "theftMaxRatio": 0.05,
-    "baseCaptureRate": 0.0,
-    "intelligenceBase": 50,
-    "elderBonusPerPoint": 0.01,
-    "discipleIntelligenceStep": 5,
-    "discipleBonusPerStep": 0.01,
-    "reflectionYears": 5,
-    "newDiscipleProtectionMonths": 12
   },
   "ai": {
     "minDisciplesForAttack": 10,

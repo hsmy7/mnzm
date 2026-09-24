@@ -50,7 +50,7 @@ class InventorySystemDeathMaterializeTest {
 
     private fun insertDiscipleWithBag(id: Int, items: List<StorageBagItem>) {
         val tables = store.persistentDiscipleTables
-        tables.insert(Disciple(id = id.toString(), name = "弟子$id", age = 20))
+        tables.insert(Disciple(id = id.toString(), name = "弟子$id"))
         tables.isAlive[id] = 1
         tables.currentHps[id] = 100
         tables.storageBagItems[id] = items
@@ -93,7 +93,7 @@ class InventorySystemDeathMaterializeTest {
     @Test
     fun `empty bag still marks injured`() = runTest {
         val tables = store.persistentDiscipleTables
-        tables.insert(Disciple(id = "1", name = "弟子1", age = 20))
+        tables.insert(Disciple(id = "1", name = "弟子1"))
         tables.isAlive[1] = 1
 
         store.update {

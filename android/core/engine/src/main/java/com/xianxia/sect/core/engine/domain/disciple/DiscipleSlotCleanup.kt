@@ -77,10 +77,6 @@ class DiscipleSlotCleanup @Inject constructor(
             if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
         }
 
-        val updatedWarehouseGarrisons = data.warehouseGarrisons.map {
-            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-        }
-
         val updatedBattleTeams = data.battleTeams.map { team ->
             team.copy(slots = team.slots.map { slot ->
                 if (slot.discipleId == discipleId)
@@ -97,7 +93,7 @@ class DiscipleSlotCleanup @Inject constructor(
             } else sect
         }
 
-        // 生产槽位（炼丹/锻造/灵植工人）——与槽位清理统一覆盖，防止弟子卸任/死亡/叛逃后槽位残留
+        // 生产槽位（炼丹/锻造/灵植工人）——与槽位清理统一覆盖，防止弟子卸任/死亡后槽位残留
         val updatedProductionSlots = data.productionSlots.map {
             if (it.assignedDiscipleId == discipleId)
                 it.copy(assignedDiscipleId = null, assignedDiscipleName = "")
@@ -116,7 +112,6 @@ class DiscipleSlotCleanup @Inject constructor(
             residenceSlots = updatedResidenceSlots,
             activeBloodRefinements = updatedActiveBloodRefinements,
             patrolSlots = updatedPatrolSlots,
-            warehouseGarrisons = updatedWarehouseGarrisons,
             battleTeams = updatedBattleTeams,
             worldMapSects = updatedWorldMapSects,
             productionSlots = updatedProductionSlots,

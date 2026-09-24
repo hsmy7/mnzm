@@ -170,18 +170,6 @@ data class ResidenceSlot(
 
 @Keep
 @Serializable
-data class WarehouseGarrisonSlot(
-    @ProtoNumber(1) val buildingInstanceId: String = "",
-    @ProtoNumber(2) val discipleId: String = "",
-    @ProtoNumber(3) val discipleName: String = "",
-    @ProtoNumber(4) val sectId: String = "",
-    @ProtoNumber(5) val slotIndex: Int = 0               // 字段置于末尾，兼容旧存档的位置参数调用
-) {
-    val isActive: Boolean get() = discipleId.isNotEmpty()
-}
-
-@Keep
-@Serializable
 data class LibrarySlot(
     @ProtoNumber(1) val index: Int = 0,
     @ProtoNumber(4) val buildingInstanceId: String = "",   // 默认值 "" 兼容旧存档

@@ -176,11 +176,7 @@ class DisciplePillManager @Inject constructor(
                     PillUseCheck(false, "已服用过同类属性丹药")
                 else PillUseCheck(true)
             }
-            PillRule.PERMANENT_LIFE -> {
-                if (effect.pillType in disciple.usage.usedExtendLifePillTypes)
-                    PillUseCheck(false, "已服用过同类延寿丹药")
-                else PillUseCheck(true)
-            }
+            PillRule.PERMANENT_LIFE -> PillUseCheck(true)
             PillRule.SUSTAINED_SPEED, PillRule.TEMPORARY_BATTLE -> {
                 if (effect.pillType in disciple.pillEffects.activePillTypes)
                     PillUseCheck(false, "同类型丹药效果生效中")
@@ -232,7 +228,6 @@ class DisciplePillManager @Inject constructor(
             mpRecoverMaxMpPercent = pill.effects.mpRecoverMaxMpPercent,
             hpAdd = pill.effects.hpAdd,
             mpAdd = pill.effects.mpAdd,
-            extendLife = pill.effects.extendLife,
             physicalAttackAdd = pill.effects.physicalAttackAdd,
             magicAttackAdd = pill.effects.magicAttackAdd,
             physicalDefenseAdd = pill.effects.physicalDefenseAdd,
@@ -242,7 +237,6 @@ class DisciplePillManager @Inject constructor(
             critEffectAdd = pill.effects.critEffectAdd,
             intelligenceAdd = pill.effects.intelligenceAdd,
             charmAdd = pill.effects.charmAdd,
-            loyaltyAdd = pill.effects.loyaltyAdd,
             comprehensionAdd = pill.effects.comprehensionAdd,
             artifactRefiningAdd = pill.effects.artifactRefiningAdd,
             pillRefiningAdd = pill.effects.pillRefiningAdd,
@@ -298,7 +292,7 @@ class DisciplePillManager @Inject constructor(
          */
         fun hasAnyBaseAttrAdd(effect: ItemEffect): Boolean {
             return effect.intelligenceAdd > 0 || effect.charmAdd > 0 ||
-                effect.loyaltyAdd > 0 || effect.comprehensionAdd > 0 ||
+                effect.comprehensionAdd > 0 ||
                 effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
                 effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 ||
                 effect.moralityAdd > 0 || effect.miningAdd > 0
@@ -331,7 +325,6 @@ class DisciplePillManager @Inject constructor(
             val fields = mutableListOf<String>()
             if (effect.intelligenceAdd > 0) fields += "intelligence"
             if (effect.charmAdd > 0) fields += "charm"
-            if (effect.loyaltyAdd > 0) fields += "loyalty"
             if (effect.comprehensionAdd > 0) fields += "comprehension"
             if (effect.artifactRefiningAdd > 0) fields += "artifactRefining"
             if (effect.pillRefiningAdd > 0) fields += "pillRefining"

@@ -136,8 +136,6 @@ class SecretRealmContinueNativeTxGateTest {
             Disciple(
                 id = id,
                 name = "弟子$id",
-                age = 25,
-                lifespan = 90,
                 skills = SkillStats(comprehension = 100),
                 combat = CombatAttributes(currentHp = -1)
             )

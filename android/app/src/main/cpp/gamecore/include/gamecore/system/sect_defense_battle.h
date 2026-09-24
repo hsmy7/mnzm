@@ -47,7 +47,6 @@
 #include "gamecore/state/models.h"
 #include "gamecore/system/settlement_detail.h"   // recordGameEvent
 #include "gamecore/system/death_handler.h"       // markAllDead（死亡统一入口）
-#include "gamecore/system/slot_cleanup.h"        // clearAllSlotsDataOnly
 #include "gamecore/system/sect_battle.h"         // executeAiBattle（第三战斗引擎）
 #include "gamecore/system/ai_sect_ops.h"         // aiPrepareDisciplesForBattle / aiMarkSideDead
 #include "gamecore/system/sect_attack_decision.h"  // decidePlayerAttack / aliveDisciplesOf

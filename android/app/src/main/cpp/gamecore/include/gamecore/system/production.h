@@ -331,10 +331,8 @@ inline bool producePill(GameState& state, const ProductionSlot& slot,
     pill.effects.speedAdd = tpl->speedAdd;
     pill.effects.critRateAdd = tpl->critRateAdd;
     pill.effects.critEffectAdd = tpl->critEffectAdd;
-    pill.effects.extendLife = tpl->extendLife;
     pill.effects.intelligenceAdd = tpl->intelligenceAdd;
     pill.effects.charmAdd = tpl->charmAdd;
-    pill.effects.loyaltyAdd = tpl->loyaltyAdd;
     pill.effects.comprehensionAdd = tpl->comprehensionAdd;
     pill.effects.artifactRefiningAdd = tpl->artifactRefiningAdd;
     pill.effects.pillRefiningAdd = tpl->pillRefiningAdd;
@@ -1165,7 +1163,6 @@ inline ProductionUiOutcome assignProductionSlotTx(
     in.residenceSlots = gd.residenceSlots;
     in.activeBloodRefinements = gd.activeBloodRefinements;
     in.patrolSlots = gd.patrolSlots;
-    in.warehouseGarrisons = gd.warehouseGarrisons;
     in.battleTeams = gd.battleTeams;
     in.worldMapSects = gd.worldMapSects;
     in.productionSlots = gd.productionSlots;
@@ -1179,7 +1176,6 @@ inline ProductionUiOutcome assignProductionSlotTx(
     gd.residenceSlots = cleaned.residenceSlots;
     gd.activeBloodRefinements = cleaned.activeBloodRefinements;
     gd.patrolSlots = cleaned.patrolSlots;
-    gd.warehouseGarrisons = cleaned.warehouseGarrisons;
     gd.battleTeams = cleaned.battleTeams;
     gd.worldMapSects = cleaned.worldMapSects;
     gd.productionSlots = cleaned.productionSlots;

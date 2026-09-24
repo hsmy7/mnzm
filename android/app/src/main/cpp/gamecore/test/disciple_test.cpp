@@ -191,34 +191,7 @@ TEST(BreakthroughTest, ChanceAdFlatAddsAfterClamp) {
     EXPECT_DOUBLE_EQ(calculateBreakthroughChance(zones), 1.0);  // clamp 上限
 }
 
-TEST(BreakthroughTest, SoulPowerBonus) {
-    EXPECT_DOUBLE_EQ(soulPowerBreakthroughBonus(0), 0.0);
-    EXPECT_DOUBLE_EQ(soulPowerBreakthroughBonus(20), 0.01);
-    EXPECT_DOUBLE_EQ(soulPowerBreakthroughBonus(100), 0.05);  // 上限
-    EXPECT_DOUBLE_EQ(soulPowerBreakthroughBonus(500), 0.05);
-}
-
-// ── 寿命/师徒/父母/丧亲 ─────────────────────────────────────────
-
-TEST(LifespanTest, RemainingPercent) {
-    EXPECT_DOUBLE_EQ(calculateLifespanRemainingPercent(80, 80), 0.0);
-    EXPECT_DOUBLE_EQ(calculateLifespanRemainingPercent(40, 80), 0.5);
-    EXPECT_DOUBLE_EQ(calculateLifespanRemainingPercent(100, 80), 0.0);  // 已超寿
-    EXPECT_DOUBLE_EQ(calculateLifespanRemainingPercent(50, 0), 1.0);    // 防除零
-}
-
-TEST(LifespanTest, CultivationPenalty) {
-    // 剩余 50% ≥ 20% → 无惩罚
-    EXPECT_DOUBLE_EQ(calculateLifespanCultivationPenalty(40, 80), 0.0);
-    // 剩余 10% → deficit = 10 → 惩罚 0.50
-    EXPECT_DOUBLE_EQ(calculateLifespanCultivationPenalty(72, 80), 0.50);
-}
-
-TEST(LifespanTest, BreakthroughPenalty) {
-    EXPECT_DOUBLE_EQ(calculateLifespanBreakthroughPenalty(40, 80), 0.0);
-    // 剩余 10% → deficit = 10 → 惩罚 0.20
-    EXPECT_DOUBLE_EQ(calculateLifespanBreakthroughPenalty(72, 80), 0.20);
-}
+// ── 师徒/父母/丧亲 ─────────────────────────────────────────
 
 TEST(MasterDiscipleTest, RealmGap) {
     EXPECT_EQ(getMasterDiscipleRealmGap(9, 7), 1);   // 炼气徒 + 金丹师
@@ -243,12 +216,6 @@ TEST(GriefTest, IsGrieving) {
     EXPECT_FALSE(isGrieving(5, true, 5));
     EXPECT_FALSE(isGrieving(5, true, 6));
     EXPECT_FALSE(isGrieving(5, false, 4));
-}
-
-TEST(LifespanGainTest, RealmGain) {
-    EXPECT_EQ(lifespanGainForRealm(8), 40);
-    EXPECT_EQ(lifespanGainForRealm(0), 10000);
-    EXPECT_EQ(lifespanGainForRealm(99), 0);
 }
 
 }  // namespace

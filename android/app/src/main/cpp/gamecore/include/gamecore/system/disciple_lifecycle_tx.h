@@ -1,6 +1,6 @@
 // ============================================================
 // disciple_lifecycle_tx.h — 弟子生命周期 UI 操作事务（逐出/拜师/
-// 婚姻批准/释放思过/年俸开关）
+// 婚姻批准/年俸开关）
 //
 // batch-14（ui-read-surface §4.1 弟子管理族"最大残余域"第二批下沉）。
 // 等价移植（语义权威 = 各 Kotlin 源文件，判定序逐相复刻）：
@@ -11,12 +11,10 @@
 //    存在性×2 → 同一性/存活×2 → 已有师父/名额<5（仅存活徒弟））
 //  - GameEngine.approveMarriageProposal 的配对写段（防御检查：
 //    任一方已有道侣 → 跳过配对仅清提议）
-//  - DiscipleFacadeImpl.releaseReflectionDisciple（思过标记清除 +
-//    状态回 IDLE；解析失败/不存在/已死亡为静默 no-op）
 //  - DiscipleLifecycleManager.updateYearlySalaryEnabled（境界年俸
 //    开关覆写，无校验）
 //
-// RNG 契约（对拍命门）——**全族五事务零 RNG**：校验链与写路径均无
+// RNG 契约（对拍命门）——**全族四事务零 RNG**：校验链与写路径均无
 // rng 抽取；GTest 以 rngStates 快照差分守护。
 //
 // 失败臂零写入：校验链先行完成后再落写，任一校验失败不触碰状态；
@@ -70,10 +68,6 @@ inline constexpr int32_t kMaxApprenticesPerMaster = 5;
 inline constexpr const char* kRefiningStatusName = "REFINING";
 inline constexpr const char* kIdleStatusName = "IDLE";
 
-/// 思过标记 statusData key（DiscipleStatusData 单一来源同名键）
-inline constexpr const char* kReflectionStartYearKey = "reflectionStartYear";
-inline constexpr const char* kReflectionEndYearKey = "reflectionEndYear";
-
 /// 12 类槽位清理（clearAllSlotsDataOnly 的 GameState 打包/回写壳；
 /// includeResidence=true——死亡/逐出清住所语义，DiscipleSlotManager
 /// .clearDiscipleFromAllSlots 默认参一致。disciple_tx.h 同款壳为其
@@ -87,7 +81,6 @@ inline void clearAllDiscipleSlotsForRemoval(GameState& state,
     in.residenceSlots = state.gameData.residenceSlots;
     in.activeBloodRefinements = state.gameData.activeBloodRefinements;
     in.patrolSlots = state.gameData.patrolSlots;
-    in.warehouseGarrisons = state.gameData.warehouseGarrisons;
     in.battleTeams = state.gameData.battleTeams;
     in.worldMapSects = state.gameData.worldMapSects;
     in.productionSlots = state.gameData.productionSlots;
@@ -103,7 +96,6 @@ inline void clearAllDiscipleSlotsForRemoval(GameState& state,
     state.gameData.residenceSlots = out.residenceSlots;
     state.gameData.activeBloodRefinements = out.activeBloodRefinements;
     state.gameData.patrolSlots = out.patrolSlots;
-    state.gameData.warehouseGarrisons = out.warehouseGarrisons;
     state.gameData.battleTeams = out.battleTeams;
     state.gameData.worldMapSects = out.worldMapSects;
     state.gameData.productionSlots = out.productionSlots;
@@ -202,15 +194,6 @@ struct MarriageApproveResult {
     std::string errorType;
     std::string message;
     bool paired = false;
-};
-
-/// 释放思过结果：written=false 表示静默 no-op（解析失败/不存在/已死亡——
-/// Kotlin 原路径同分支）；true 已清标记，Kotlin 照原序 syncSingle
-struct ReleaseReflectionResult {
-    bool ok = false;
-    std::string errorType;
-    std::string message;
-    bool written = false;
 };
 
 // ── 事务 1：逐出弟子（DiscipleService.expelDisciple 等价）────────────────
@@ -339,8 +322,8 @@ inline ApprenticeResult apprenticeTransaction(GameState& state,
         ds.names[mRow].empty() ? "未知" : ds.names[mRow];
     const std::string discipleName =
         ds.names[dRow].empty() ? "未知" : ds.names[dRow];
-    out.apprenticeLogLine = std::to_string(ds.ages[dRow]) + "岁：拜" + masterName + "为师";
-    out.masterLogLine = std::to_string(ds.ages[mRow]) + "岁：收" + discipleName + "为徒";
+    out.apprenticeLogLine = "拜" + masterName + "为师";
+    out.masterLogLine = "收" + discipleName + "为徒";
     out.ok = true;
     return out;
 }
@@ -412,41 +395,6 @@ inline LifecycleTxResult rejectMarriageTransaction(GameState& state,
         "弟子" + maleName + "拒绝与弟子" + femaleName + "结为道侣",
         maleId, maleName);
     out.ok = true;
-    return out;
-}
-
-// ── 事务 4：释放思过（DiscipleFacadeImpl.releaseReflectionDisciple 等价）──
-//
-// 静默 no-op 分支（解析失败/不存在/已死亡）与 Kotlin 早退同义（written=
-// false）；写段：statusData 思过双键定向移除（保留血炼 buildingId 等
-// 其余 key）+ 状态回 IDLE（使 deriveDiscipleStatus 重新推导）。
-// syncSingleDiscipleStatus 状态推导为 Kotlin 运行态域，事务后照原序执行。
-inline ReleaseReflectionResult releaseReflectionTransaction(GameState& state,
-                                                            const std::string& discipleId) {
-    ReleaseReflectionResult out;
-    DiscipleStore& ds = state.disciples;
-
-    const auto intId = settle_util::toIntOrNull(discipleId);
-    if (!intId.has_value() || !ds.contains(discipleId)) {
-        out.ok = true;  // Kotlin 解析失败/不存在 → 静默 return（非失败）
-        return out;
-    }
-    const std::size_t row = *ds.rowOf(discipleId);
-    if (ds.isAlive[row] != 1) {
-        out.ok = true;  // Kotlin 已死亡 → 静默 return
-        return out;
-    }
-
-    // 定向移除思过双键（Kotlin `- key` 语义——禁止整体覆盖 statusData）
-    auto& statusData = ds.statusData[row];
-    statusData.erase(detail::kReflectionStartYearKey);
-    statusData.erase(detail::kReflectionEndYearKey);
-    // 清除受保护状态标记，使 deriveDiscipleStatus 可以重新推导
-    //（否则 REFLECTING 受保护检查会锁定状态）
-    ds.statuses[row] = detail::kIdleStatusName;
-
-    out.ok = true;
-    out.written = true;
     return out;
 }
 

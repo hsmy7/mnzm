@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.test.runTest
@@ -121,8 +120,7 @@ class GameStateStoreRollbackTest {
         id = id.toString(),
         name = "弟子$id",
         realm = 9,
-        cultivation = cultivation,
-        skills = SkillStats(loyalty = 50)
+        cultivation = cultivation
     )
 
     private fun snapshotArgs(

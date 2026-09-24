@@ -11,7 +11,6 @@ import com.xianxia.sect.core.model.LibrarySlot
 import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SpiritMineSlot
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.CaveExplorationStatus
@@ -46,7 +45,6 @@ class DiscipleSlotCleanupTest {
         val spiritMineSlot = SpiritMineSlot(index = 0, discipleId = discipleId, discipleName = "Test")
         val librarySlot = LibrarySlot(index = 0, discipleId = discipleId, discipleName = "Test")
         val residenceSlot = ResidenceSlot(discipleId = discipleId, discipleName = "Test")
-        val warehouseGarrison = WarehouseGarrisonSlot(discipleId = discipleId, discipleName = "Test")
         val patrolSlot = PatrolSlot(index = 0, discipleId = discipleId, discipleName = "Test")
         val garrisonSlot = GarrisonSlot(index = 0, discipleId = discipleId, discipleName = "Test")
         val battleTeamSlot = BattleTeamSlot(index = 0, discipleId = discipleId, discipleName = "Test")
@@ -93,7 +91,6 @@ class DiscipleSlotCleanupTest {
             residenceSlots = listOf(residenceSlot),
             activeBloodRefinements = mapOf("br1" to bloodRefinement),
             patrolSlots = listOf(patrolSlot),
-            warehouseGarrisons = listOf(warehouseGarrison),
             battleTeams = listOf(battleTeam),
             worldMapSects = listOf(playerSect)
         )
@@ -142,15 +139,6 @@ class DiscipleSlotCleanupTest {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
         val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (slot in result.patrolSlots) {
-            assertNotEquals(testDiscipleId, slot.discipleId)
-        }
-    }
-
-    @Test
-    fun clearAllSlots_clearsWarehouseGarrisons() {
-        val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = cleanup.clearAllSlots(data, testDiscipleId)
-        for (slot in result.warehouseGarrisons) {
             assertNotEquals(testDiscipleId, slot.discipleId)
         }
     }

@@ -85,7 +85,6 @@ inline SecretRealmStartReleaseOutcome secretRealmStartReleaseTx(
         in.residenceSlots = gd.residenceSlots;
         in.activeBloodRefinements = gd.activeBloodRefinements;
         in.patrolSlots = gd.patrolSlots;
-        in.warehouseGarrisons = gd.warehouseGarrisons;
         in.battleTeams = gd.battleTeams;
         in.worldMapSects = gd.worldMapSects;
         in.productionSlots = gd.productionSlots;
@@ -99,7 +98,6 @@ inline SecretRealmStartReleaseOutcome secretRealmStartReleaseTx(
         gd.residenceSlots = std::move(cleaned.residenceSlots);
         gd.activeBloodRefinements = std::move(cleaned.activeBloodRefinements);
         gd.patrolSlots = std::move(cleaned.patrolSlots);
-        gd.warehouseGarrisons = std::move(cleaned.warehouseGarrisons);
         gd.battleTeams = std::move(cleaned.battleTeams);
         gd.productionSlots = std::move(cleaned.productionSlots);
         gd.caveExplorationTeams = std::move(cleaned.caveExplorationTeams);

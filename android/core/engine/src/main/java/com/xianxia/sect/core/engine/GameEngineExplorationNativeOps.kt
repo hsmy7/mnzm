@@ -143,7 +143,7 @@ internal fun GameEngine.forceSettleDisciplesBeforeBattleNative(
     return true
 }
 
-/** 胜利事务 native 臂（1781）：C++ 授予魂力/winAttr（🔴 不写 defeated——
+/** 胜利事务 native 臂（1781）：C++ TOCTOU 重查存活后回执 applied（🔴 不写 defeated——
  *  残差由 applyWorldLevelVictoryTransaction(skipNativeDomainWrites = true) 落）。 */
 internal fun GameEngine.tryNativeWorldVictoryRewards(
     levelId: String,
@@ -218,8 +218,8 @@ internal suspend fun GameEngine.attackWorldLevelNative(
     val (log, teamMembers) = buildWorldLevelBattleLogFromNative(snapshot, level, battleObj, survivorIds)
     val updatedLogs = (stateStore.battleLogsSnapshot + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
     if (victory) {
-        // 胜利事务：1781 native 臂授予魂力/winAttr（含 TOCTOU 重查）→ Kotlin
-        // 残差段（重查 + defeated + 战报）；native 降级 → 原全量 Kotlin 事务
+        // 胜利事务：1781 native 臂 TOCTOU 重查（回执 applied）→ Kotlin
+        // 残差段（defeated + 战报）；native 降级 → 原全量 Kotlin 事务
         val nativeGranted = tryNativeWorldVictoryRewards(level.id, survivorIds)
         applyWorldLevelVictoryTransaction(level.id, survivorIds, updatedLogs,
             skipNativeDomainWrites = nativeGranted)

@@ -121,7 +121,7 @@ object GameCoreBridge {
      * 十六子事件已下沉面），返回 JSON 信封字节——`policyCosts.disabledPolicies`
      * （事务外 checkpointAllProduction 决策）+ `secretRealmClose`（秘境
      * 到期关闭草稿：memberIds/backpack/slotId，Kotlin 发关闭邮件 + 释放 gate）
-     * + `purchaseLogs`（弟子购买日志草稿：discipleId/itemName/age，
+     * + `purchaseLogs`（弟子购买日志草稿：discipleId/itemName，
      * Kotlin 写 lifeEvents 瞬态列）。引擎未初始化返回 "{}"。
      */
     /** S8：AI 热控批量上界推送（Kotlin ThermalMonitor 平台决策——12/6/3） */
@@ -270,13 +270,12 @@ object GameCoreBridge {
      * 下一 tick 前向 diff 推送镜像，消除"Kotlin 镜像修改 vs C++ 权威结算"窗口。
      *
      * 返回 JSON 信封字节：
-     * `{"ok":bool, "newId":string, "age":int, "name":string,
+     * `{"ok":bool, "newId":string, "name":string,
      *   "reason":"SUCCESS|MONTHLY_LIMIT|NOT_FOUND|CORRUPTED|UNKNOWN"}`
      * - ok=false + reason=MONTHLY_LIMIT：本月招募已达上限（弹上限通知）
      * - ok=false + reason=NOT_FOUND：该弟子已不在招募列表
      * - ok=false + reason=CORRUPTED：数据损坏（C++ 已同事务移除，name 有效）
      * - ok=false + reason=UNKNOWN：异常兜底（调用方回退 Kotlin 实现）
-     * - age 供 Kotlin 镜像补写 lifeEvents（Kotlin 类体属性，不进协议）
      * 引擎未初始化返回 ok=false + reason=UNKNOWN。
      *
      * @param discipleId 待招募弟子在 recruitList 中的 id（UI 层 DiscipleAggregate.id）
@@ -385,28 +384,13 @@ object GameCoreBridge {
 
     /**
      * 运行时游戏配置注入（Kotlin GameConfigProvider →
-     * C++ 全局 GameConfig，消除库存容量/执法堂配置双端漂移）。
+     * C++ 全局 GameConfig，消除库存容量双端漂移）。
      * 引擎初始化后调用（引擎线程串行）；参数与 Kotlin
-     * GameConfigData.WarehouseSection / LawEnforcementSection 字段一一对应。
+     * GameConfigData.WarehouseSection 字段一一对应。
      */
-    @Suppress("LongParameterList")  // JNI 标量通道：16 个配置字段与 C++ GameConfig 一一对应
     external fun nativeSetGameConfig(
         warehouseBaseCapacity: Int,
-        warehouseCapacityPerBuilding: Int,
-        lawLoyaltyThreshold: Int,
-        lawMoralityThreshold: Int,
-        lawHerdLoyaltyThreshold: Int,
-        lawProbPerPoint: Double,
-        lawMaxProb: Double,
-        lawBaseCaptureRate: Double,
-        lawIntelligenceBase: Int,
-        lawElderBonusPerPoint: Double,
-        lawDiscipleIntelligenceStep: Int,
-        lawDiscipleBonusPerStep: Double,
-        lawReflectionYears: Int,
-        lawNewDiscipleProtectionMonths: Int,
-        lawMaxTheftPerYear: Int,
-        lawMaxTheftJudgementsPerMonth: Int
+        warehouseCapacityPerBuilding: Int
     )
 
     // ============================================================
@@ -417,10 +401,10 @@ object GameCoreBridge {
      * 静态数据表注入（Kotlin assets → C++ `gamecore::data` 各 DB 容器）。
      *
      * **豁免登记（沿 `nativeSetGameConfig` 先例）**：为何无法沿用既有通道——
-     *  1. `nativeSetGameConfig` 是**定长标量**通道（16 个 jint/jdouble 参数），
-     *     而本批要注入的是 7 个 DB 的**变长条目集**（合计约 2,325 条、字段
-     *     40+），标量端口在 JNI 签名层面无法表达（要么逐条目跨线违反
-     *     「零每条目多次跨线」红线，要么退化成 2,325×40 个参数）。
+     *  1. `nativeSetGameConfig` 是**定长标量**通道，而本批要注入的是 7 个 DB 的
+     *     **变长条目集**（合计约 2,325 条、字段 40+），标量端口在 JNI 签名层面
+     *     无法表达（要么逐条目跨线违反「零每条目多次跨线」红线，要么退化成
+     *     2,325×40 个参数）。
      *  2. 既有 `nativeSetXxxJson` 类端口均为**事务/tick 级**（每事务一次），
      *     语义与「初始化期单次注入」不同；复用会让静态数据面被误读为可变状态。
      *  ⇒ 新增 1 个端口，**单次调用批量注入全文**（本条端口即"单端口批量注入"）。

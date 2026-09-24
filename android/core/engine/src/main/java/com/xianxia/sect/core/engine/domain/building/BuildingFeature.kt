@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.model.SpiritMineSlot
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 
@@ -193,26 +192,12 @@ sealed interface SlotGroup {
             )
     }
 
-    /** 仓库：驻守槽位 */
-    data class Warehouse(override val slotsPerInstance: Int = 1) : SlotGroup {
-        override fun filterFromGameData(data: GameData, instanceId: String, feature: BuildingFeature?) =
-            data.copy(warehouseGarrisons = data.warehouseGarrisons.filterNot { it.buildingInstanceId == instanceId })
+    /** 仓库：无驻守槽位（仓库仅提供容量，不产生槽位实例） */
+    data class Warehouse(override val slotsPerInstance: Int = 0) : SlotGroup {
+        override fun filterFromGameData(data: GameData, instanceId: String, feature: BuildingFeature?) = data
 
         override fun collectDiscipleIds(data: GameData, instanceId: String, feature: BuildingFeature?) =
-            data.warehouseGarrisons.filter { it.buildingInstanceId == instanceId && it.discipleId.isNotEmpty() }
-                .map { it.discipleId }.toSet()
-
-        override fun createSlots(instanceId: String, existingData: GameData, activeId: String, feature: BuildingFeature,
-            startIndex: Int): SlotCreationResult {
-            val existingCount = existingData.warehouseGarrisons.count { it.buildingInstanceId == instanceId }
-            val slots = (0 until slotsPerInstance).map { offset ->
-                WarehouseGarrisonSlot(
-                    buildingInstanceId = instanceId, slotIndex = existingCount + offset,
-                    sectId = activeId
-                )
-            }
-            return SlotCreationResult(warehouseGarrisons = slots)
-        }
+            emptySet<String>()
     }
 
     /** 血炼池：炼化进度槽位 */
@@ -397,7 +382,6 @@ data class SlotCreationResult(
     val residenceSlots: List<ResidenceSlot> = emptyList(),
     val spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
     val productionSlots: List<ProductionSlot> = emptyList(),
-    val warehouseGarrisons: List<WarehouseGarrisonSlot> = emptyList(),
     val librarySlots: List<LibrarySlot> = emptyList()
 )
 

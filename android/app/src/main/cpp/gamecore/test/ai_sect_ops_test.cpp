@@ -51,8 +51,6 @@ Disciple aiDisciple(const std::string& id, int32_t realm = 9, int32_t layer = 1)
     d.cultivation = 0.0;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 20;
-    d.lifespan = 80;
     d.status = "IDLE";
     d.aptitude = 50;
     return d;

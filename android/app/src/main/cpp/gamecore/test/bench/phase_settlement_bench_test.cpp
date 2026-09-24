@@ -9,6 +9,7 @@
 #include "gamecore/ecs/world.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
+#include "gamecore/system/settlement.h"      // kMsPerPhase1x（phase_settlement 依赖）
 #include "gamecore/system/phase_settlement.h"
 
 // ============================================================
@@ -88,8 +89,6 @@ Disciple makeBenchDisciple(int32_t n) {
     d.cultivation = 10.0;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 16;
-    d.lifespan = 80;
     return d;
 }
 

@@ -74,7 +74,7 @@ struct Condition {
 struct Task {
     int32_t id;
     std::vector<Condition> conditions;
-    int32_t rewardQuantity;  /// Kotlin GuideTask.rewardItemQuantity（现有 25 任务全为默认 2）
+    int32_t rewardQuantity;  /// Kotlin GuideTask.rewardItemQuantity（25 任务中 23 个为默认 2，任务 23/25 为 1）
 };
 
 /// 任务注册表（Kotlin GuideTaskRegistry.ALL_TASKS 逐条复刻——25 任务）。
@@ -124,12 +124,10 @@ inline const std::vector<Task>& registry() {
               {ConditionKind::kSlotFilledCount, "residenceSlots", 5}}, 2},
         {22, {{ConditionKind::kBuildingCount, "初级多人住所", 3},
               {ConditionKind::kSlotFilledCount, "residenceSlots", 12}}, 2},
-        {23, {{ConditionKind::kBuildingCount, "仓库", 3},
-              {ConditionKind::kSlotFilledCount, "warehouseGarrisons", 1}}, 2},
+        {23, {{ConditionKind::kBuildingCount, "仓库", 3}}, 1},
         {24, {{ConditionKind::kBuildingCount, "血炼池", 1},
               {ConditionKind::kBloodRefinementCompleted, "", 1}}, 2},
-        {25, {{ConditionKind::kBuildingCount, "监牢", 1},
-              {ConditionKind::kCumulativeCounter, "discipleImprisoned", 1}}, 2},
+        {25, {{ConditionKind::kBuildingCount, "监牢", 1}}, 1},
     };
     return kRegistry;
 }
@@ -191,11 +189,6 @@ inline int64_t slotFilledCount(const state::GameState& state,
     if (field == "patrolSlots") {
         int64_t n = 0;
         for (const auto& s : gd.patrolSlots) if (!s.discipleId.empty()) ++n;
-        return n;
-    }
-    if (field == "warehouseGarrisons") {
-        int64_t n = 0;
-        for (const auto& s : gd.warehouseGarrisons) if (!s.discipleId.empty()) ++n;
         return n;
     }
     if (field == "spiritMineSlots") {

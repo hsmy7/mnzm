@@ -41,6 +41,7 @@ class DiscipleLifecycleProcessorTest {
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
     private lateinit var mockStore: GameStateStore
+    private lateinit var statusService: DiscipleStatusService
     private lateinit var processor: DiscipleLifecycleProcessor
 
     @Before
@@ -52,6 +53,7 @@ class DiscipleLifecycleProcessorTest {
 
         // 对所有非 GameStateStore 的依赖使用 mockSmart（RETURNS_SMART_NULLS）。
         // 这些 mock 在测试方法中不会被 verify，只用作哑对象。
+        statusService = mockSmart(DiscipleStatusService::class.java)
         processor = DiscipleLifecycleProcessor(
             stateStore = mockStore,
             scopeProvider = mockSmart(CoroutineScopeProvider::class.java),
@@ -62,10 +64,7 @@ class DiscipleLifecycleProcessorTest {
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
-            lawEnforcementProcessor = object : javax.inject.Provider<LawEnforcementProcessor> {
-                override fun get(): LawEnforcementProcessor = mockSmart(LawEnforcementProcessor::class.java)
-            },
-            discipleStatusService = mockSmart(DiscipleStatusService::class.java),
+            discipleStatusService = statusService,
             ioDispatcher = IoDispatcher(),
             inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
                 stateStore = mockStore,
@@ -85,13 +84,10 @@ class DiscipleLifecycleProcessorTest {
         name: String = "弟子$id",
         realm: Int = 9,
         realmLayer: Int = 3,
-        age: Int = 20,
-        lifespan: Int = 80,
         status: DiscipleStatus = DiscipleStatus.IDLE,
         statusData: Map<String, String> = emptyMap(),
         social: SocialData = SocialData(),
         skills: SkillStats = SkillStats(),
-        affixIds: List<String> = emptyList(),
         skipTablesIsAlive: Boolean = false
     ) {
         val disciple = Disciple(
@@ -99,13 +95,10 @@ class DiscipleLifecycleProcessorTest {
             name = name,
             realm = realm,
             realmLayer = realmLayer,
-            age = age,
-            lifespan = lifespan,
             status = status,
             statusData = statusData,
             social = social,
-            skills = skills,
-            affixIds = affixIds
+            skills = skills
         )
         tables.insert(disciple)
         if (!skipTablesIsAlive) {
@@ -153,76 +146,10 @@ class DiscipleLifecycleProcessorTest {
     // ══════════════════════════════════════
 
     @Test
-    fun `processDiscipleAging - age increases by 1 for living disciples`() = runTest {
-        insertDisciple(1, age = 25)
-
+    fun `processDiscipleAging - delegates to disciple status sync`() = runTest {
         processor.processDiscipleAging(currentYear = 10)
 
-        assertEquals("age should be 26 after aging", 26, tables.ages[1])
-    }
-
-    @Test
-    fun `processDiscipleAging - 5-year-old with realmLayer 0 gets fixed`() = runTest {
-        insertDisciple(1, age = 4, realmLayer = 0)
-
-        processor.processDiscipleAging(currentYear = 10)
-
-        val updated = tables.assemble(1)
-        assertEquals("age should be 5", 5, updated.age)
-        assertEquals("realmLayer should be 1 after fix", 1, updated.realmLayer)
-        assertEquals("status should be IDLE after fix", DiscipleStatus.IDLE, updated.status)
-    }
-
-    @Test
-    fun `processDiscipleAging - disciple with age beyond maxAge triggers death`() = runTest {
-        insertDisciple(1, age = 79, lifespan = 80)
-
-        processor.processDiscipleAging(currentYear = 10)
-
-        // dead disciple should be removed
-        val idPresent = tables.ids.contains(1)
-        val namePresent = tables.names.getOrNull(1) != null
-        assertFalse("dead disciple should be removed from tables", idPresent || namePresent)
-    }
-
-    // ══════════════════════════════════════
-    // 延年词条寿元上限 E2E（AgeLifespanRule 回滚循环防御）
-    // 炼气（realm=9）maxAge=80；r3_aff_lifespan +28% → computeMaxAge = 80×1.28 = 102
-    // ══════════════════════════════════════
-
-    @Test
-    fun `processDiscipleAging - 延年词条弟子寿元上限内不死亡`() = runTest {
-        // age=99 → 老化后 100 < 102（computeMaxAge）→ 存活
-        insertDisciple(1, age = 99, lifespan = 80, affixIds = listOf("r3_aff_lifespan"))
-
-        processor.processDiscipleAging(currentYear = 10)
-
-        assertTrue("延年弟子在 lifespan 之上 computeMaxAge 之下应存活",
-            tables.ids.contains(1))
-        assertEquals("年龄应正常 +1 而非被回滚", 100, tables.ages[1])
-        assertEquals("活弟子不应被标记死亡", 1, tables.isAlive[1])
-    }
-
-    @Test
-    fun `processDiscipleAging - 延年词条弟子到 computeMaxAge 才死亡`() = runTest {
-        // age=101 → 老化后 102 >= 102（computeMaxAge）→ 死亡，死亡年龄 102
-        insertDisciple(1, age = 101, lifespan = 80, affixIds = listOf("r3_aff_lifespan"))
-
-        processor.processDiscipleAging(currentYear = 10)
-
-        val idPresent = tables.ids.contains(1)
-        assertFalse("延年弟子在 computeMaxAge 时死亡", idPresent)
-        assertEquals("死亡年份已记录", 10, tables.deathYears.getOrDefault(1, -1))
-    }
-
-    @Test
-    fun `processDiscipleAging - 无词条弟子 lifespan 即上限照常死亡`() = runTest {
-        // 对照：无词条 age=80 → 老化后 81 >= 80 → 死亡（对照组验证修复未改变无词条行为）
-        insertDisciple(1, age = 80, lifespan = 80)
-
-        processor.processDiscipleAging(currentYear = 10)
-
-        assertFalse("无词条弟子照常死亡", tables.ids.contains(1))
+        org.mockito.Mockito.verify(statusService).syncAllDiscipleStatuses()
     }
 
     // ══════════════════════════════════════
@@ -235,7 +162,7 @@ class DiscipleLifecycleProcessorTest {
             1,
             status = DiscipleStatus.REFLECTING,
             statusData = mapOf("reflectionStartYear" to "8", "reflectionEndYear" to "10"),
-            skills = SkillStats(morality = 50, loyalty = 50)
+            skills = SkillStats(morality = 50)
         )
 
         processor.processReflectionRelease(year = 10)
@@ -244,8 +171,6 @@ class DiscipleLifecycleProcessorTest {
         assertEquals(DiscipleStatus.IDLE, updated.status)
         assertEquals("morality should be 55 after reflection release",
             55, updated.skills.morality)
-        assertEquals("loyalty should be 55 after reflection release",
-            55, updated.skills.loyalty)
         assertFalse("reflectionEndYear should be removed",
             updated.statusData.containsKey("reflectionEndYear"))
     }
@@ -279,7 +204,7 @@ class DiscipleLifecycleProcessorTest {
 
     @Test
     fun `processYearlyAging - no dead disciples does nothing`() = runTest {
-        insertDisciple(1, age = 70)
+        insertDisciple(1)
         processor.processYearlyAging(currentYear = 10)
         assertTrue("disciple should remain when no one is dead",
             tables.ids.contains(1))
@@ -287,7 +212,7 @@ class DiscipleLifecycleProcessorTest {
 
     @Test
     fun `processYearlyAging - recent dead disciples are not culled`() = runTest {
-        insertDisciple(1, age = 70)
+        insertDisciple(1)
         tables.deathYears[1] = 10
         processor.processYearlyAging(currentYear = 10)
         assertTrue("recently dead disciple should not be culled",
@@ -300,7 +225,7 @@ class DiscipleLifecycleProcessorTest {
 
     @Test
     fun `handleDiscipleDeath - death year is written`() = runTest {
-        insertDisciple(1, age = 80)
+        insertDisciple(1)
         val deadDisciple = tables.assemble(1)
 
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
@@ -311,7 +236,7 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `handleDiscipleDeath - 统一入口写 isAlive=0 status=DEAD`() = runTest {
         // markDead 统一死亡标记（isAlive + status + deathYear 三字段）
-        insertDisciple(1, age = 80)
+        insertDisciple(1)
         val deadDisciple = tables.assemble(1)
 
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
@@ -324,7 +249,7 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `handleDiscipleDeath - bag materialized and cleared - repeated death idempotent`() = runTest {
         // 死亡物化袋物品（玩家保留）+ 清空袋条目（幂等防复制）
-        insertDisciple(1, age = 80)
+        insertDisciple(1)
         tables.storageBagItems[1] = listOf(
             StorageBagItem(
                 itemId = "i1", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
@@ -351,8 +276,8 @@ class DiscipleLifecycleProcessorTest {
 
     @Test
     fun `handleDiscipleDeath - partner relationship is unbound`() = runTest {
-        insertDisciple(1, age = 80, social = SocialData(partnerId = "2"))
-        insertDisciple(2, age = 75, social = SocialData(partnerId = "1"))
+        insertDisciple(1, social = SocialData(partnerId = "2"))
+        insertDisciple(2, social = SocialData(partnerId = "1"))
         val deadDisciple = tables.assemble(1)
 
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
@@ -363,8 +288,8 @@ class DiscipleLifecycleProcessorTest {
 
     @Test
     fun `handleDiscipleDeath - master relationship unbound for apprentice`() = runTest {
-        insertDisciple(1, age = 80)
-        insertDisciple(2, age = 30)
+        insertDisciple(1)
+        insertDisciple(2)
         tables.masterIds[2] = "1"
         val deadDisciple = tables.assemble(1)
 
@@ -372,20 +297,5 @@ class DiscipleLifecycleProcessorTest {
 
         assertNull("apprentice's masterId should be null",
             tables.masterIds.getOrNull(2))
-    }
-
-    // ══════════════════════════════════════
-    // processDiscipleAging — dead skipped
-    // ══════════════════════════════════════
-
-    @Test
-    fun `processDiscipleAging - dead disciples are not aged`() = runTest {
-        insertDisciple(1, age = 50)
-        tables.isAlive[1] = 0
-
-        processor.processDiscipleAging(currentYear = 10)
-
-        assertTrue("dead disciple should still be in tables", tables.ids.contains(1))
-        assertEquals("dead disciple age should not change", 50, tables.ages[1])
     }
 }

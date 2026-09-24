@@ -83,8 +83,6 @@ sealed interface DialogType {
 
     data object TianshuHall : DialogType
 
-    data object LawEnforcementHall : DialogType
-
     data object MissionHall : DialogType
 
     data object ReflectionCliff : DialogType

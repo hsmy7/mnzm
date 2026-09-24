@@ -106,14 +106,6 @@ class ConfigLoaderTest {
     }
 
     @Test
-    fun lawEnforcementSection_defaultsAreCorrect() {
-        val config = newLoader().load()
-        assertEquals(30, config.lawEnforcement.loyaltyThreshold)
-        assertEquals(0.01, config.lawEnforcement.probPerPoint, 0.001)
-        assertEquals(12, config.lawEnforcement.newDiscipleProtectionMonths)
-    }
-
-    @Test
     fun load_cachesResult() {
         val loader = newLoader()
         val first = loader.load()

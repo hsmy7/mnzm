@@ -229,7 +229,6 @@ class DiffMirrorArmConvergenceTest {
             realm = realm,
             realmLayer = 1,
             cultivation = 10.0,
-            soulPower = 100,
             status = DiscipleStatus.IDLE,
         ).apply {
             combat = CombatAttributes(currentHp = -1, currentMp = -1)

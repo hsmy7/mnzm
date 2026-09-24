@@ -126,10 +126,10 @@ class CultivationCapRuleTest {
     private fun makeDisciple(
         id: String = "d-1", name: String = "甲", realm: Int = 9,
         realmLayer: Int = 1, cultivation: Double = 10.0,
-        age: Int = 20, lifespan: Int = 80, isAlive: Boolean = true
+        isAlive: Boolean = true
     ) = Disciple(
         id = id, name = name, realm = realm, realmLayer = realmLayer,
-        cultivation = cultivation, age = age, lifespan = lifespan, isAlive = isAlive,
+        cultivation = cultivation, isAlive = isAlive,
         equipment = EquipmentSet(weaponId = "", armorId = "", bootsId = "", accessoryId = "")
     )
 

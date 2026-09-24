@@ -170,8 +170,6 @@ class BuildingBatchRemovalTest {
             name = "弟子$id",
             realm = 1,
             realmLayer = 1,
-            age = 20,
-            lifespan = 80,
             skills = SkillStats(comprehension = 100),
             statusData = statusData,
             combat = CombatAttributes(currentHp = 100, currentMp = 100)

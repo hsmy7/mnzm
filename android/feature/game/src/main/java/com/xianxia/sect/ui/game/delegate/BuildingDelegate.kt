@@ -117,7 +117,6 @@ class BuildingDelegate(
                 patrolConfigs = data.patrolConfigs + results.flatMap { it.patrolConfigs },
                 residenceSlots = data.residenceSlots + results.flatMap { it.residenceSlots },
                 productionSlots = data.productionSlots + newProductionSlots,
-                warehouseGarrisons = data.warehouseGarrisons + results.flatMap { it.warehouseGarrisons },
                 librarySlots = data.librarySlots + results.flatMap { it.librarySlots },
                 guideCounters = data.guideCounters +
                     (counterKey to ((data.guideCounters[counterKey] ?: 0L) + 1))
@@ -177,7 +176,6 @@ class BuildingDelegate(
                 patrolConfigs = data.patrolConfigs + results.flatMap { it.patrolConfigs },
                 residenceSlots = data.residenceSlots + results.flatMap { it.residenceSlots },
                 productionSlots = data.productionSlots + newProductionSlots,
-                warehouseGarrisons = data.warehouseGarrisons + results.flatMap { it.warehouseGarrisons },
                 librarySlots = data.librarySlots + results.flatMap { it.librarySlots }
             )
         }

@@ -151,4 +151,3 @@ internal fun MutableGameState.processBeastCasualties(
     return processed to survivorIds
 }
 
-// ── 胜利奖励：神魂+随机属性 ──────────────────────────────────────────

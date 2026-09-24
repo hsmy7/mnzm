@@ -68,7 +68,6 @@ class RelativeGiftHandler @Inject constructor(
         if (relatives.isEmpty()) return
 
         val receiverRealm = tables.realms.getOrDefault(discipleId, 9)
-        val receiverAge = tables.ages[discipleId]
 
         for (giverId in relatives) {
             val relationship = classifyRelationship(giverId, discipleId, tables)
@@ -83,7 +82,7 @@ class RelativeGiftHandler @Inject constructor(
                     discipleId, emptyList()
                 )
                 tables.lifeEvents[discipleId] = currentEvents +
-                    "${receiverAge}岁：从${giverName}处获得${result.giftItemName}"
+                    "从${giverName}处获得${result.giftItemName}"
             }
         }
     }

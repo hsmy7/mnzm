@@ -103,24 +103,12 @@ TEST(PolicyCostTest, OpenRecruitmentCooldown) {
     EXPECT_EQ(gd.openRecruitmentLastPaidMonth, 61);
 }
 
-// ── 政策月度忠诚/道德 ──────────────────────────────────────────
-
-TEST(PolicyMonthlyTest, LoyaltyDeltas) {
-    SectPolicies p;
-    p.benevolentGovernance = true;
-    p.relaxedMgmt = true;
-    p.strictTraining = true;
-    p.curfew = true;
-    const auto d = policyMonthlyDeltas(p);
-    EXPECT_EQ(d.first, 1 + 2 - 1 - 1);  // +1
-    EXPECT_EQ(d.second, 0);
-}
+// ── 政策月度道德 ──────────────────────────────────────────────
 
 TEST(PolicyMonthlyTest, MoralityDelta) {
     SectPolicies p;
     p.moralEducation = true;
-    const auto d = policyMonthlyDeltas(p);
-    EXPECT_EQ(d.second, 1);
+    EXPECT_EQ(policyMonthlyMoralityDelta(p), 1);
 }
 
 // ── 灵矿产出 ───────────────────────────────────────────────────

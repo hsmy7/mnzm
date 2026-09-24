@@ -11,7 +11,7 @@
  * W4-A·A5 证据明记"写入面留待弟子通道关闭决策（W4-D）"）：
  *   ① 弟子不存在（id 不在表内）⇒ 静默无操作（Kotlin `return@update` 同语义）；
  *   ② `cultivation = max(0.0, cultivation + cultivationDelta)`；
- *   ③ `skills.morality/loyalty/intelligence = (原值 + delta).coerceIn(1, 100)`；
+ *   ③ `skills.morality/intelligence = (原值 + delta).coerceIn(1, 100)`；
  *   ④ `statusData["lastChatYear"] = currentYear.toString()`（交谈冷却标记，
  *      与增量是否为零无关——Kotlin lambda 恒写）。
  *
@@ -55,7 +55,6 @@ struct ChatEffectResult {
  * @param currentYear 游戏年（lastChatYear 冷却标记值）
  * @param cultivationDelta 修为增量（可负；结果下限 0.0）
  * @param moralityDelta 道德增量（和 clamp 到 [1,100]）
- * @param loyaltyDelta 忠诚增量（同上）
  * @param intelligenceDelta 悟性增量（同上）
  */
 inline ChatEffectResult applyChatEffectTx(state::GameState& state,
@@ -63,7 +62,6 @@ inline ChatEffectResult applyChatEffectTx(state::GameState& state,
                                           int32_t currentYear,
                                           double cultivationDelta,
                                           int32_t moralityDelta,
-                                          int32_t loyaltyDelta,
                                           int32_t intelligenceDelta) {
     const std::string id = std::to_string(discipleId);
     state::DiscipleStore& store = state.disciples;
@@ -81,7 +79,6 @@ inline ChatEffectResult applyChatEffectTx(state::GameState& state,
         return summed < 1 ? 1 : (summed > 100 ? 100 : summed);
     };
     store.moralities[r] = clampSkill(store.moralities[r], moralityDelta);
-    store.loyalties[r] = clampSkill(store.loyalties[r], loyaltyDelta);
     store.intelligences[r] = clampSkill(store.intelligences[r], intelligenceDelta);
     store.statusData[r][std::string("lastChatYear")] = std::to_string(currentYear);
     return {true};

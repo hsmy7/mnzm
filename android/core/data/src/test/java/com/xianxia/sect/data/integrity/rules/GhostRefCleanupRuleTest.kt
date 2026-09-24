@@ -73,6 +73,6 @@ class GhostRefCleanupRuleTest {
 
     private fun makeDisciple(id: String, name: String) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true, equipment = EquipmentSet()
+        isAlive = true, equipment = EquipmentSet()
     )
 }

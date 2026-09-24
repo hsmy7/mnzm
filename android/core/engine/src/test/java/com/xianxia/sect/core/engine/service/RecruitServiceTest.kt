@@ -112,13 +112,11 @@ class RecruitServiceTest {
     private fun makeRecruit(
         id: String = "test_${UUID.randomUUID()}",
         name: String = "测试弟子",
-        age: Int = 20,
         realm: Int = 9,
         spiritRootType: String = "金,木,水"
     ): Disciple = Disciple(
         id = id,
         name = name,
-        age = age,
         realm = realm,
         spiritRootType = spiritRootType
     )
@@ -254,16 +252,6 @@ class RecruitServiceTest {
     }
 
     @Test
-    fun `processAutoRecruit skips corrupted disciples with age zero`() {
-        val state = createAutoRecruitState(
-            recruitList = listOf(makeRecruit(age = 0)),
-            filter = setOf(3)
-        )
-        assertEquals(0, RecruitService.processAutoRecruit(state))
-        assertTrue(state.discipleTables.ids.isEmpty())
-    }
-
-    @Test
     fun `processAutoRecruit skips corrupted disciples with realm out of range`() {
         val state = createAutoRecruitState(
             recruitList = listOf(makeRecruit(realm = -1)),
@@ -277,16 +265,6 @@ class RecruitServiceTest {
     fun `processAutoRecruit with empty recruitList returns 0`() {
         val state = createAutoRecruitState(emptyList(), filter = setOf(1, 2, 3))
         assertEquals(0, RecruitService.processAutoRecruit(state))
-    }
-
-    @Test
-    fun `processAutoRecruit recruits newborn age 1 disciple`() {
-        val state = createAutoRecruitState(
-            recruitList = listOf(makeRecruit(age = 1, spiritRootType = "金")),
-            filter = setOf(1)
-        )
-        assertEquals(1, RecruitService.processAutoRecruit(state))
-        assertTrue("新生儿应被自动招募", state.discipleTables.ids.isNotEmpty())
     }
 
     @Test
@@ -383,36 +361,15 @@ class RecruitServiceTest {
     // ==================== processRecruitAging ====================
 
     @Test
-    fun `processRecruitAging removes recruit past max age`() {
-        // lifespan=80, realm=9 → computeMaxAge=80, age=80 老化后 81 >= 80 → 死亡
-        val dead = makeRecruit("id1", "将死弟子", age = 80, realm = 9)
-        val state = createAutoRecruitState(recruitList = listOf(dead))
-
-        RecruitService.processRecruitAging(state)
-
-        assertTrue("超龄弟子应从列表移除", state.gameData.recruitList.isEmpty())
-    }
-
-    @Test
-    fun `processRecruitAging keeps recruit under max age`() {
-        val young = makeRecruit("id1", "年轻弟子", age = 50, realm = 9)
-        val state = createAutoRecruitState(recruitList = listOf(young))
+    fun `processRecruitAging - 列表条目原样写回`() {
+        // 年度入口不做老化增减：条目原样保留（年度净化由 sanitizeRecruitList 单独执行）
+        val recruit = makeRecruit("id1", "年轻弟子", realm = 9)
+        val state = createAutoRecruitState(recruitList = listOf(recruit))
 
         RecruitService.processRecruitAging(state)
 
         assertEquals(1, state.gameData.recruitList.size)
-        assertEquals("年龄应 +1", 51, state.gameData.recruitList.first().age)
-    }
-
-    @Test
-    fun `processRecruitAging keeps recruit at boundary age`() {
-        // age=79 老化后 80 == computeMaxAge=80 → 死亡
-        val boundary = makeRecruit("id1", "边界弟子", age = 79, realm = 9)
-        val state = createAutoRecruitState(recruitList = listOf(boundary))
-
-        RecruitService.processRecruitAging(state)
-
-        assertTrue("age=79 的弟子老化到 80 ≥ maxAge(80) 应死亡", state.gameData.recruitList.isEmpty())
+        assertEquals("id1", state.gameData.recruitList.first().id)
     }
 
     // ==================== Lazy mechanism ====================
@@ -511,10 +468,10 @@ class RecruitServiceTest {
     @Test
     fun `sanitizeRecruitList - 已入宗门残留 移除`() {
         val state = createAutoRecruitState(
-            recruitList = listOf(makeRecruit(name = "张三", age = 20))
+            recruitList = listOf(makeRecruit(name = "张三"))
         )
         // 模拟同内容弟子已在宗门（跨表比对）
-        val inSect = makeRecruit(name = "张三", age = 20)
+        val inSect = makeRecruit(name = "张三")
         state.discipleTables.writeAllowed = true
         state.discipleTables.allocateAndInsert(inSect)
 
@@ -525,9 +482,9 @@ class RecruitServiceTest {
     }
 
     @Test
-    fun `sanitizeRecruitList - 38岁炼虚 保留`() {
+    fun `sanitizeRecruitList - 高境界炼虚 保留`() {
         val state = createAutoRecruitState(
-            recruitList = listOf(makeRecruit(name = "天才", age = 38, realm = 4))
+            recruitList = listOf(makeRecruit(name = "天才", realm = 4))
         )
 
         val removed = RecruitService.sanitizeRecruitList(state)

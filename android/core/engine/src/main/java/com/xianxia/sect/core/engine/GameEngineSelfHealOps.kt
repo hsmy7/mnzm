@@ -73,7 +73,7 @@ private suspend fun GameEngine.healDuplicateSlotAssignmentsInScope() {
                     .clearAllSlotsDataOnly(gameData, discipleId)
                 gameData = rewriteWinnerInGameData(gameData, winner, bloodProgress)
                 // 血炼一致性修正（根因修复）：血炼在 scanAndRegister 中优先级低于
-                // 长老/灵矿/藏经阁/仓库/巡逻，双槽位弟子若血炼非赢家（或赢家进度
+                // 长老/灵矿/藏经阁/巡逻，双槽位弟子若血炼非赢家（或赢家进度
                 // 丢失），清理后进度已删但 REFINING 受保护状态永不回退——须显式
                 // 重置为 IDLE，否则弟子永久卡"血炼池中"无法重新分配
                 resetStaleRefiningStatus(discipleId)
@@ -148,7 +148,7 @@ private suspend fun GameEngine.syncProductionRepositoryForDuplicates(
 }
 
 /** 按赢家记录重写回 GameData（槽位数据已在调用前清空）。 */
-@Suppress("CyclomaticComplexMethod") // 13 类别确定性分发表（与 SlotCategory 一一对应，分支均为单行委托）
+@Suppress("CyclomaticComplexMethod") // 10 类别确定性分发表（与 SlotCategory 一一对应，分支均为单行委托）
 private fun MutableGameState.rewriteWinnerInGameData(
     data: GameData,
     winner: SlotWinner,
@@ -171,7 +171,6 @@ private fun MutableGameState.rewriteWinnerInGameData(
                 } else slot
             }
         )
-        SlotCategory.WAREHOUSE_GARRISON -> rewriteWarehouseWinner(data, winner, name)
         SlotCategory.PATROL_SLOT -> data.copy(
             patrolSlots = data.patrolSlots.mapIndexed { i, slot ->
                 if (i == winner.slotIndex) {
@@ -190,16 +189,6 @@ private fun MutableGameState.rewriteWinnerInGameData(
         SlotCategory.RESIDENCE_SLOT, SlotCategory.EXPLORATION_TEAM -> data // 住所/探索不参与自愈
     }
 }
-
-/** 仓库驻守：按 buildingInstanceId（slotType）定位。 */
-private fun rewriteWarehouseWinner(data: GameData, winner: SlotWinner, name: String): GameData =
-    data.copy(
-        warehouseGarrisons = data.warehouseGarrisons.map { slot ->
-            if (slot.buildingInstanceId == winner.slotType) {
-                slot.copy(discipleId = winner.discipleId, discipleName = name)
-            } else slot
-        }
-    )
 
 /** 世界地图驻守：按 sectId（slotType）+ index 定位。 */
 private fun rewriteGarrisonWinner(data: GameData, winner: SlotWinner, name: String): GameData =

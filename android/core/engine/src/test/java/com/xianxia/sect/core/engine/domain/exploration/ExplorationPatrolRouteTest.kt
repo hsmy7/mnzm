@@ -107,7 +107,6 @@ class ExplorationPatrolRouteTest {
         tables.insert(
             Disciple(
                 id = id.toString(), name = "弟子$id", realm = realm, realmLayer = 1,
-                age = 25, lifespan = 90,
                 skills = SkillStats(comprehension = 100),
                 combat = CombatAttributes(currentHp = -1)
             )
@@ -355,7 +354,6 @@ class ExplorationPatrolRouteTest {
             val (system, battleSystem) = buildPatrolSystem()
             val aiDisciple = Disciple(
                 id = "ai1", name = "剑尘", realm = 5, realmLayer = 1,
-                age = 30, lifespan = 90,
                 skills = SkillStats(comprehension = 100),
                 combat = CombatAttributes(currentHp = -1)
             ).copy(isAlive = true)

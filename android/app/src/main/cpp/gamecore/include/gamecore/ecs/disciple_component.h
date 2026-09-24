@@ -28,7 +28,7 @@
 //      禁止（含"dense 序必然 == 行序"的裸推断——校验外的信任即漂移入口）。
 //   4. 消耗 RNG 的系统（丹药/突破/亲属赠送等）必须在行序迭代中处理弟子
 //      （抽取序 == Kotlin ids 序）；同步完成后 View 序已保证 == 行序。
-//   5. 迭代回调内禁止增删实体（View 约定）；结构变更（招募/死亡/叛逃）
+//   5. 迭代回调内禁止增删实体（View 约定）；结构变更（招募/行删除）
 //      留给下一旬 sync 重建——本旬内行结构不变是结算系统的既有契约。
 // ============================================================
 namespace gamecore::ecs {
@@ -85,7 +85,7 @@ inline void destroyDiscipleEntity(World& world, std::size_t row) {
 ///   (a) 实体数 == rowCount，且
 ///   (b) 迭代序上 DiscipleRef.row 严格升序 0..N-1（position i 处 ref.row==i）。
 /// 成立 → 原样返回按行序的实体表（entityByRow[i] 的 ref.row == i，零重建）；
-/// 被破坏（招募/死亡/叛逃后实体集漂移）→ buildDiscipleEntities 全量重建。
+/// 被破坏（招募/行删除后实体集漂移）→ buildDiscipleEntities 全量重建。
 ///
 /// 返回值即行序迭代域：position == 行号，组件字段为权威行地址。O(N) 一次
 /// 线性校验，相对每旬核心批次成本可忽略；稳态（无弟子增删）零分配直通。

@@ -6,8 +6,6 @@
 //      选品优先级 / 袋转移合并）
 //   2. 旬结算集成：突破（层变即可）触发亲属赠送（SYSTEM RNG 逐亲属一次
 //      概率抽取，先于选品；跨亲属累计序 = 插序）
-//   3. 旬结算集成：丹药写回道德 < 阈值 → 偷盗判定钩子（标记先于抽取，
-//      theftJudgementsThisMonth/lastTheftJudgementYears 可观察断言）
 //
 // RNG 审计方法：与 phase_settlement_test 同源——RngManager.initSystemSeed
 // 按 fromSeed(seed + partitionId) 播种（kSystem=3 / kBreakthrough=1），
@@ -55,8 +53,6 @@ Disciple baseDisciple(const std::string& id) {
     d.realmLayer = 1;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 16;
-    d.lifespan = 80;
     d.status = "IDLE";
     return d;
 }
@@ -384,72 +380,6 @@ TEST(PhaseSettlementGiftTest, NoBreakthroughNoGiftNoSystemDraw) {
     // SYSTEM 分区快照与"零抽取"一致（月/年边界未跨，SYSTEM 无其他消耗点）
     EXPECT_EQ(st.gameData.rngStates[static_cast<int>(rng::RngPartition::kSystem)],
               probe.getRng(rng::RngPartition::kSystem).snapshot());
-}
-
-// ── 旬结算集成：丹药写回道德 < 阈值 → 偷盗判定钩子（S2） ─────────────
-
-TEST(PhaseSettlementTheftTest, MoralityDebuffPillTriggersTheftJudgement) {
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.disciples.appendDisciple(baseDisciple("1"));
-    // 门控：灵石 > 0 + 平均忠诚 < 50 + IDLE + 保护期已过 + 本年未判定
-    st.gameData.spiritStones = 10000;
-    st.disciples.loyalties[0] = 0;
-    st.disciples.moralities[0] = 25;
-    // 储物袋丹药：智力+5（过 hasAnyBaseAttrAdd 门）+ 道德-100 → 服用后 0 < 30
-    StorageBagItem debuffPill;
-    debuffPill.itemId = "pill-1";
-    debuffPill.itemType = "pill";
-    debuffPill.name = "迷心丹";
-    debuffPill.rarity = 2;
-    debuffPill.quantity = 1;
-    debuffPill.obtainedYear = 1;
-    debuffPill.obtainedMonth = 1;
-    debuffPill.effect = gamecore::state::ItemEffect{};
-    debuffPill.effect->pillType = "intel";
-    debuffPill.effect->intelligenceAdd = 5;
-    debuffPill.effect->moralityAdd = -100;
-    debuffPill.effect->minRealm = 9;
-    st.disciples.storageBagItems[0] = {debuffPill};
-
-    core->advancePhases(1);
-
-    // 服用成功 → 道德归 0
-    EXPECT_EQ(st.disciples.moralities[0], 0);
-    // 标记判定先于概率抽取（未遂同计数）：月度判定数 +1、年判定登记
-    EXPECT_EQ(st.gameData.theftJudgementsThisMonth, 1);
-    EXPECT_EQ(st.disciples.lastTheftJudgementYears[0], 1);
-    // 袋扣减（服用成功）
-    EXPECT_TRUE(st.disciples.storageBagItems[0].empty());
-}
-
-TEST(PhaseSettlementTheftTest, HighMoralityPillNoTheftJudgement) {
-    // 道德 ≥ 阈值 → 不触发钩子、零标记
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.disciples.appendDisciple(baseDisciple("1"));
-    st.gameData.spiritStones = 10000;
-    st.disciples.moralities[0] = 50;
-    StorageBagItem buffPill;
-    buffPill.itemId = "pill-1";
-    buffPill.itemType = "pill";
-    buffPill.name = "明心丹";
-    buffPill.rarity = 2;
-    buffPill.quantity = 1;
-    buffPill.obtainedYear = 1;
-    buffPill.obtainedMonth = 1;
-    buffPill.effect = gamecore::state::ItemEffect{};
-    buffPill.effect->pillType = "intel";
-    buffPill.effect->intelligenceAdd = 5;
-    buffPill.effect->moralityAdd = 5;
-    buffPill.effect->minRealm = 9;
-    st.disciples.storageBagItems[0] = {buffPill};
-
-    core->advancePhases(1);
-
-    EXPECT_EQ(st.disciples.moralities[0], 55);
-    EXPECT_EQ(st.gameData.theftJudgementsThisMonth, 0);
-    EXPECT_EQ(st.disciples.lastTheftJudgementYears[0], 0);
 }
 
 }  // namespace

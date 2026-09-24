@@ -14,7 +14,6 @@ import com.xianxia.sect.core.engine.domain.disciple.calculateQingyunPeakCultivat
 import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
-import com.xianxia.sect.core.engine.domain.disciple.getSoulPowerBreakthroughBonus
 
 class DiscipleStatCalculatorTest {
 
@@ -30,7 +29,6 @@ class DiscipleStatCalculatorTest {
         baseSpeed: Int = 30,
         intelligence: Int = 50,
         charm: Int = 50,
-        loyalty: Int = 50,
         comprehension: Int = 50,
         aptitude: Int = 50,
         teaching: Int = 50,
@@ -83,7 +81,6 @@ class DiscipleStatCalculatorTest {
             skills = SkillStats(
                 intelligence = intelligence,
                 charm = charm,
-                loyalty = loyalty,
                 comprehension = comprehension,
                 aptitude = aptitude,
                 teaching = teaching,
@@ -276,34 +273,6 @@ class DiscipleStatCalculatorTest {
         val lowChance = DiscipleStatCalculator.getBreakthroughChance(lowRealm)
         val highChance = DiscipleStatCalculator.getBreakthroughChance(highRealm)
         assertTrue("高境界突破应更难", lowChance > highChance)
-    }
-
-    @Test
-    fun `getSoulPowerBreakthroughBonus - 0神魂无加成`() {
-        assertEquals(0.0, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(0), 0.001)
-    }
-
-    @Test
-    fun `getSoulPowerBreakthroughBonus - 每20点加1%`() {
-        assertEquals(0.01, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(20), 0.001)
-        assertEquals(0.02, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(50), 0.001)
-        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(100), 0.001)
-    }
-
-    @Test
-    fun `getSoulPowerBreakthroughBonus - 超过100后上限5%`() {
-        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(150), 0.001)
-        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(999), 0.001)
-    }
-
-    @Test
-    fun `getBreakthroughChance - 神魂加成增加突破率`() {
-        // 神魂加成公式：每20点神魂+1%，最高5%
-        assertEquals(0.0, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(0), 0.001)
-        assertEquals(0.01, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(20), 0.001)
-        assertEquals(0.02, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(50), 0.001)
-        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(100), 0.001)
-        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(200), 0.001)
     }
 
     @Test

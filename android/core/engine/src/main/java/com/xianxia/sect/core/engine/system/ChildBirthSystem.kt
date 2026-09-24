@@ -159,7 +159,6 @@ class ChildBirthSystem @Inject constructor(
                 gender = gender,
                 nameResult = nameResult,
                 spiritRootType = spiritRootType,
-                age = 1,
                 realmLayer = 0,
                 social = SocialData(
                     parentId1 = mother.id,

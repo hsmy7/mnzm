@@ -18,7 +18,6 @@ import com.xianxia.sect.core.model.charm
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.recruitedMonth
 import org.junit.Assert.*
 import org.junit.Rule
@@ -63,10 +62,10 @@ class DiscipleTablesRecruitTest {
     @Test
     fun `allocateAndInsert - preserves all fields`() {
         val tables = DiscipleTables()
-        val d = createRecruit("赵六", age = 22, realm = 8, realmLayer = 3,
+        val d = createRecruit("赵六", realm = 8, realmLayer = 3,
             cultivation = 150.0, gender = "female", spiritRootType = "fire,water",
             discipleType = "inner",
-            skills = SkillStats(loyalty = 90, intelligence = 80, charm = 70),
+            skills = SkillStats(intelligence = 80, charm = 70),
             combat = CombatAttributes(baseHp = 500, baseMp = 200,
                 basePhysicalAttack = 50, baseMagicAttack = 60,
                 basePhysicalDefense = 40, baseMagicDefense = 30, baseSpeed = 25,
@@ -74,11 +73,10 @@ class DiscipleTablesRecruitTest {
         val id = tables.allocateAndInsert(d).toInt()
         val a = tables.assemble(id)
         assertEquals("赵六", a.name)
-        assertEquals(22, a.age)
         assertEquals(8, a.realm)
         assertEquals("female", a.gender)
         assertEquals("fire,water", a.spiritRootType)
-        assertEquals(90, a.skills.loyalty)
+        assertEquals(80, a.skills.intelligence)
         assertEquals(500, a.combat.baseHp)
         assertEquals(450, a.combat.currentHp)
     }
@@ -173,28 +171,21 @@ class DiscipleTablesRecruitTest {
     fun `integrity - blank name`() {
         val list = listOf(createRecruit("", id = "x"))
         val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
-        assertTrue(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
-    }
-
-    @Test
-    fun `integrity - age zero`() {
-        val list = listOf(createRecruit("x", age = 0, id = "x"))
-        val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
-        assertTrue(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
+        assertTrue(d.name.isBlank() || d.realm <= 0)
     }
 
     @Test
     fun `integrity - realm zero`() {
         val list = listOf(createRecruit("x", realm = 0, id = "x"))
         val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
-        assertTrue(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
+        assertTrue(d.name.isBlank() || d.realm <= 0)
     }
 
     @Test
     fun `integrity - valid data passes`() {
-        val list = listOf(createRecruit("正常", age = 20, realm = 9, id = "x"))
+        val list = listOf(createRecruit("正常", realm = 9, id = "x"))
         val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
-        assertFalse(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
+        assertFalse(d.name.isBlank() || d.realm <= 0)
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -205,7 +196,7 @@ class DiscipleTablesRecruitTest {
     fun `full recruit flow - happy path`() {
         val tables = DiscipleTables()
         val recruitId = UUID.randomUUID().toString()
-        val recruit = createRecruit("新弟子", id = recruitId, age = 20, realm = 9)
+        val recruit = createRecruit("新弟子", id = recruitId, realm = 9)
         var gameData = GameData(recruitList = listOf(recruit))
 
         val found = requireNotNull(gameData.recruitList.find { it.id == recruitId }) {
@@ -237,11 +228,11 @@ class DiscipleTablesRecruitTest {
     fun `full recruit flow - corrupted data does nothing`() {
         val tables = DiscipleTables()
         val recruitId = UUID.randomUUID().toString()
-        var gameData = GameData(recruitList = listOf(createRecruit("张三", age = 0, id = recruitId)))
+        var gameData = GameData(recruitList = listOf(createRecruit("张三", realm = 0, id = recruitId)))
         val found = requireNotNull(gameData.recruitList.find { it.id == recruitId }) {
             "fixture 必须包含 id=$recruitId 的招募条目"
         }
-        val shouldSkip = found.name.isBlank() || found.age <= 0 || found.realm <= 0
+        val shouldSkip = found.name.isBlank() || found.realm <= 0
         assertTrue("损坏数据应跳过", shouldSkip)
         assertEquals("不应招募", 0, tables.count)
     }
@@ -251,7 +242,7 @@ class DiscipleTablesRecruitTest {
         val tables = DiscipleTables()
         tables.allocateAndInsert(createRecruit("在册弟子"))
         val recruitId = UUID.randomUUID().toString()
-        val recruit = createRecruit("新弟子", id = recruitId, age = 20, realm = 9)
+        val recruit = createRecruit("新弟子", id = recruitId, realm = 9)
         var gameData = GameData(recruitList = listOf(recruit))
 
         val found = requireNotNull(gameData.recruitList.find { it.id == recruitId }) {
@@ -273,16 +264,16 @@ class DiscipleTablesRecruitTest {
     private fun createRecruit(
         name: String,
         id: String = UUID.randomUUID().toString(),
-        age: Int = 18, realm: Int = 9, realmLayer: Int = 1,
+        realm: Int = 9, realmLayer: Int = 1,
         cultivation: Double = 0.0, gender: String = "male",
         spiritRootType: String = "metal", discipleType: String = "outer",
         skills: SkillStats = SkillStats(),
         combat: CombatAttributes = CombatAttributes()
     ) = Disciple(
-        id = id, name = name, age = age, realm = realm, realmLayer = realmLayer,
+        id = id, name = name, realm = realm, realmLayer = realmLayer,
         cultivation = cultivation, isAlive = true, status = DiscipleStatus.IDLE,
         discipleType = discipleType, spiritRootType = spiritRootType, gender = gender,
         portraitRes = "default", skills = skills, combat = combat,
-        lifespan = 80, social = SocialData(), usage = UsageTracking()
+        social = SocialData(), usage = UsageTracking()
     )
 }

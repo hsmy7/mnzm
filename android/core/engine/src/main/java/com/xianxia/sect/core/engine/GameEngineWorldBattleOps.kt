@@ -16,7 +16,6 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.state.BattleResultUIData
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
@@ -44,7 +43,7 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
         // 门判源 aiBeastEncounterTargets 全仓零插入者 ⇒ 恒空 ⇒ 恒 false）
         // ── Native 臂（AUTHORITATIVE）：关卡校验链/战斗执行（BATTLE 分区同序）/
         // 伤亡写回经 C++；奖励生成（Random.Default 非镜像随机域）/胜利事务
-        // （soulPowers/winAttr/defeated TOCTOU 原子块）/战报留 Kotlin（S5/S6 口径）。
+        // （winAttr/defeated TOCTOU 原子块）/战报留 Kotlin（S5/S6 口径）。
         // flag 关/镜像不可用/失败信封 → false 回退 Kotlin 原路径（双实现并行契约）
         if (attackWorldLevelNative(level, validIds)) {
             // w3-13 通道关闭配套（§2.80）：胜利奖励写面（钱包/年度账/集合/worldLevels
@@ -187,10 +186,10 @@ private fun GameEngine.buildWorldLevelBattleLog(
     return log to teamMembers
 }
 
-/** 胜利原子事务（attackWorldLevel 提取）：入口重复 defeated 检查 + 魂魄/属性增长 + defeated 标记。
+/** 胜利原子事务（attackWorldLevel 提取）：入口重复 defeated 检查 + 属性增长 + defeated 标记。
  *
  * [skipNativeDomainWrites]：native 臂（1781 WORLD_VICTORY_REWARDS_TX）已由 C++
- * 授予魂力/winAttr（battle_residual_tx.h ②，含 TOCTOU 重查与偷盗钩子）时传
+ * 授予 winAttr（battle_residual_tx.h ②，含 TOCTOU 重查）时传
  * true——本函数只执行残差段（重查 + defeated 标记 + 战报落库）。Kotlin 回退臂
  * 传 false 保持原全量行为。🔴 defeated 两臂均由 Kotlin 写（batch-13 TOCTOU
  * 口径：C++ 不写 defeated）。
@@ -209,10 +208,9 @@ internal fun GameEngine.applyWorldLevelVictoryTransaction(
             for (id in discipleTables.ids) {
                 val idStr = id.toString()
                 if (idStr in survivorIds && discipleTables.isAlive[id] == 1) {
-                    discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1
                     if (discipleTables.talentIds[id].any { tid -> TalentDatabase
                         .getById(tid)?.effects?.containsKey("winBattleRandomAttrPlus") == true }) {
-                        applyDeterministicWinAttr(id, this)
+                        applyDeterministicWinAttr(id)
                     }
                 }
             }
@@ -228,10 +226,10 @@ internal fun GameEngine.applyWorldLevelVictoryTransaction(
 
 /** 确定性随机属性增长（applyWorldLevelVictoryTransaction 提取；须在 update 事务内调用） */
 @Suppress("CyclomaticComplexMethod") // 17 分支确定性分发表（0-16 可穷举，数据驱动会引入反射/映射样板）
-private fun GameEngine.applyDeterministicWinAttr(id: Int, state: MutableGameState) {
+private fun GameEngine.applyDeterministicWinAttr(id: Int) {
     // 确定性随机：用弟子 ID 散列代替 kotlin.random.Random 确保读档一致性
     val r = ((id * 527 + 31) % 17).let { if (it < 0) -it else it }
-    // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
+    // 技能属性（0-9）clamp 到基础属性上限；战斗属性（10-16）不 clamp
     when (r) {
         0 -> discipleTables.intelligences[id] =
             minOf(discipleTables.intelligences[id] + 1, GameConfig.Disciple.SKILL_MAX)
@@ -239,8 +237,6 @@ private fun GameEngine.applyDeterministicWinAttr(id: Int, state: MutableGameStat
             minOf(discipleTables.comprehensions[id] + 1, GameConfig.Disciple.SKILL_MAX)
         2 -> discipleTables.charms[id] =
             minOf(discipleTables.charms[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        3 -> discipleTables.loyalties[id] =
-            minOf(discipleTables.loyalties[id] + 1, GameConfig.Disciple.MAX_LOYALTY)
         4 -> discipleTables.artifactRefinings[id] =
             minOf(discipleTables.artifactRefinings[id] + 1, GameConfig.Disciple.SKILL_MAX)
         5 -> discipleTables.pillRefinings[id] =
@@ -251,16 +247,8 @@ private fun GameEngine.applyDeterministicWinAttr(id: Int, state: MutableGameStat
             minOf(discipleTables.minings[id] + 1, GameConfig.Disciple.SKILL_MAX)
         8 -> discipleTables.teachings[id] =
             minOf(discipleTables.teachings[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        9 -> {
-            val newMoral = minOf(
-                discipleTables.moralities[id] + 1, GameConfig.Disciple.SKILL_MAX
-            )
-            discipleTables.moralities[id] = newMoral
-            // 道德变化后即时触发偷盗判定（事务内版本）
-            if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
-                lawEnforcementProcessor.processSingleDiscipleTheft(id, state)
-            }
-        }
+        9 -> discipleTables.moralities[id] =
+            minOf(discipleTables.moralities[id] + 1, GameConfig.Disciple.SKILL_MAX)
         10 -> discipleTables.baseHps[id] = discipleTables.baseHps[id] + 1
         11 -> discipleTables.baseMps[id] = discipleTables.baseMps[id] + 1
         12 -> discipleTables.basePhysicalAttacks[id] = discipleTables.basePhysicalAttacks[id] + 1

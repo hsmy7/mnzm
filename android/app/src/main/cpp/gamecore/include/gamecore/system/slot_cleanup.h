@@ -12,7 +12,7 @@
 //
 // 等价移植 Kotlin DiscipleSlotCleanup.clearAllSlotsDataOnly 的**纯数据变换**
 // （11 类槽位统一清理，无 RNG、无状态）：
-//   - spiritMineSlots / librarySlots / patrolSlots / warehouseGarrisons：
+//   - spiritMineSlots / librarySlots / patrolSlots：
 //     匹配弟子 → 清空 discipleId/discipleName
 //   - elderSlots：10 个长老单值字段 + 7 个 DirectDiscipleSlot 列表
 //     （匹配槽位降级为 DirectDiscipleSlot(index)，保留槽位索引）
@@ -38,7 +38,6 @@ struct SlotCleanupInput {
     std::vector<state::ResidenceSlot> residenceSlots;
     std::map<std::string, state::BloodRefinementProgress> activeBloodRefinements;
     std::vector<state::PatrolSlot> patrolSlots;
-    std::vector<state::WarehouseGarrisonSlot> warehouseGarrisons;
     std::vector<state::BattleTeam> battleTeams;
     std::vector<state::WorldSect> worldMapSects;
     std::vector<state::ProductionSlot> productionSlots;
@@ -54,7 +53,6 @@ struct SlotCleanupResult {
     std::vector<state::ResidenceSlot> residenceSlots;
     std::map<std::string, state::BloodRefinementProgress> activeBloodRefinements;
     std::vector<state::PatrolSlot> patrolSlots;
-    std::vector<state::WarehouseGarrisonSlot> warehouseGarrisons;
     std::vector<state::BattleTeam> battleTeams;
     std::vector<state::WorldSect> worldMapSects;
     std::vector<state::ProductionSlot> productionSlots;
@@ -224,14 +222,6 @@ inline SlotCleanupResult clearAllSlotsDataOnly(const SlotCleanupInput& in,
             slot.discipleName.clear();
         }
         out.patrolSlots.push_back(std::move(slot));
-    }
-    for (const auto& s : in.warehouseGarrisons) {
-        state::WarehouseGarrisonSlot slot = s;
-        if (slot.discipleId == discipleId) {
-            slot.discipleId.clear();
-            slot.discipleName.clear();
-        }
-        out.warehouseGarrisons.push_back(std::move(slot));
     }
     // 2. 长老槽位
     out.elderSlots = clearElderSlotsCpp(in.elderSlots, discipleId);

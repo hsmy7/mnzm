@@ -60,9 +60,8 @@ constexpr int32_t kAiEquipmentCountByLevel[4] = {1, 2, 4, 4};
 constexpr int32_t kAiManualCountByLevel[4] = {1, 3, 6, 6};
 // 宗门招募间隔（CultivationEventProcessor.AI_SECT_RECRUIT_INTERVAL_YEARS）
 constexpr int32_t kAiSectRecruitIntervalYears = 3;
-// 弟子创建各技能上限（GameConfig.Disciple.SKILL_MAX / MAX_LOYALTY）
+// 弟子创建各技能上限（GameConfig.Disciple.SKILL_MAX）
 constexpr int32_t kAiSkillMax = 200;
-constexpr int32_t kAiMaxLoyalty = 100;
 // 境界 → 装备/功法最高品阶（GameConfig.Realm.getMaxRarity：9,8→1 等）
 inline int32_t aiRealmMaxRarity(int32_t realm) {
     switch (realm) {
@@ -156,14 +155,11 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
         (d.gender == "male") ? malePortraits() : femalePortraits();
     d.portraitRes = portraits[static_cast<std::size_t>(
         rng.nextInt(static_cast<int32_t>(portraits.size())))];
-    // 7. 年龄（16 + 1×nextInt(14)——Kotlin 构造参数求值序在技能前）
-    d.age = 16 + rng.nextInt(14);
-    // 8. 技能（9×nextGaussian = 18×nextDouble + 悟性/资质直填）
+    // 7. 技能（8×nextGaussian = 16×nextDouble + 悟性/资质直填）
     constexpr double kSkillMean = 50.5;
     constexpr double kSkillSigma = 16.5;
     d.intelligence = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
     d.charm = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
-    d.loyalty = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiMaxLoyalty);
     d.comprehension = comprehension;
     d.morality = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
     d.artifactRefining = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
@@ -184,8 +180,6 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
         rolls.speedVariance = d.speedVariance;
         applyBaseStats(d, rolls);
     }
-    // 10. 寿命（realm 9 基础 80 × (1 + 天赋/词条 lifespan)）
-    d.lifespan = computeLifespan(d.talentIds, d.affixIds, /*realm=*/9);
     d.realm = 9;
     d.realmLayer = 1;
     d.cultivation = 0.0;

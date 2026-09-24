@@ -18,12 +18,11 @@ using gamecore::state::PatrolSlot;
 using gamecore::state::ProductionSlot;
 using gamecore::state::ResidenceSlot;
 using gamecore::state::SpiritMineSlot;
-using gamecore::state::WarehouseGarrisonSlot;
 using gamecore::state::WorldSect;
 
 SlotCleanupInput sampleInput() {
     SlotCleanupInput in;
-    // 灵矿/藏经阁/巡逻/仓库驻防
+    // 灵矿/藏经阁/巡逻
     SpiritMineSlot mine;
     mine.discipleId = "1";
     mine.discipleName = "张三";
@@ -39,10 +38,6 @@ SlotCleanupInput sampleInput() {
     PatrolSlot patrol;
     patrol.discipleId = "1";
     in.patrolSlots.push_back(patrol);
-    WarehouseGarrisonSlot warehouse;
-    warehouse.discipleId = "1";
-    warehouse.discipleName = "张三";
-    in.warehouseGarrisons.push_back(warehouse);
     // 长老槽位
     ElderSlots elder;
     elder.viceSectMaster = "1";
@@ -113,7 +108,6 @@ TEST(SlotCleanupTest, ClearsSimpleSlots) {
     EXPECT_EQ(out.spiritMineSlots[1].discipleId, "2");  // 其他弟子不受影响
     EXPECT_TRUE(out.librarySlots[0].discipleId.empty());
     EXPECT_TRUE(out.patrolSlots[0].discipleId.empty());
-    EXPECT_TRUE(out.warehouseGarrisons[0].discipleId.empty());
 }
 
 TEST(SlotCleanupTest, ClearsElderSlotsAndLists) {

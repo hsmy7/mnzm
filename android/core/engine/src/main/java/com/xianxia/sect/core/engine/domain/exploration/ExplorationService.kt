@@ -40,7 +40,6 @@ import com.xianxia.sect.core.model.baseSpeed
 import com.xianxia.sect.core.model.charm
 import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.pillRefining
@@ -332,14 +331,14 @@ class ExplorationService @Inject constructor(
     ): List<Disciple> {
         return disciples.map { d ->
             if (d.isAlive) {
-                var m = d.copy(soulPower = d.soulPower + 1)
+                val m = d
                 if (m.talentIds.any { id ->
                     TalentDatabase.getById(id)?.effects
                         ?.containsKey("winBattleRandomAttrPlus") == true
                 }) {
                     val r = rngManager.getRng(RngPartition.BATTLE)
                         .nextInt(17)
-                    // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
+                    // 技能属性（0-9）clamp 到基础属性上限；战斗属性（10-16）不 clamp
                     if (r <= 9) applyWinSkillAttrGrowth(m, r) else applyWinCombatAttrGrowth(m, r)
                 }
                 m
@@ -535,7 +534,7 @@ class ExplorationSubSystems @Inject constructor(
     val deathHandler: DiscipleDeathHandler
 )
 
-/** 胜战技能属性 +1：clamp 到基础属性上限（忠诚 100 例外） */
+/** 胜战技能属性 +1：clamp 到基础属性上限 */
 private fun applyWinSkillAttrGrowth(disciple: Disciple, r: Int) {
     val sk = disciple.skills
     when (r) {
@@ -544,8 +543,6 @@ private fun applyWinSkillAttrGrowth(disciple: Disciple, r: Int) {
         1 -> sk.comprehension =
             minOf(sk.comprehension + 1, GameConfig.Disciple.SKILL_MAX)
         2 -> sk.charm = minOf(sk.charm + 1, GameConfig.Disciple.SKILL_MAX)
-        3 -> sk.loyalty =
-            minOf(sk.loyalty + 1, GameConfig.Disciple.MAX_LOYALTY)
         4 -> sk.artifactRefining =
             minOf(sk.artifactRefining + 1, GameConfig.Disciple.SKILL_MAX)
         5 -> sk.pillRefining =

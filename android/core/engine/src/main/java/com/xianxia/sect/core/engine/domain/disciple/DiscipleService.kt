@@ -73,7 +73,7 @@ class DiscipleService @Inject constructor(
 
     /**
      * 为指定弟子追加一条日志事件。
-     * 事件格式："xx岁：事件描述"。
+     * 事件格式：动作描述文本。
      */
     fun addLifeEvent(discipleId: String, event: String) = discipleLifecycleManager.addLifeEvent(discipleId, event)
 
@@ -130,7 +130,7 @@ class DiscipleService @Inject constructor(
             .map { it.name }.toSet()
         // 名字随机源分区化（batch-14b 拍板落地，AISectDiscipleManager/RecruitService
         // 同款先例）——原默认 Random.Default 非确定性、不入 rngStates，同 mapSeed
-        // 新档初始弟子名字不可复现；传 SYSTEM 分区适配器后与性别/灵根/年龄/factory
+        // 新档初始弟子名字不可复现；传 SYSTEM 分区适配器后与性别/灵根/factory
         // 同流（与 C++ name_service.h generateName 分区语义同源），
         // 名字序列存档可重放。活跃调用方仅新档创建播种（createNewGame/restartGame）。
         val nameResult = NameService.generateName(
@@ -143,7 +143,6 @@ class DiscipleService @Inject constructor(
                 gender = gender,
                 nameResult = nameResult,
                 spiritRootType = SpiritRootGenerator.generate(rng.asKotlinRandom()),
-                age = 16 + rng.nextInt(14),
                 realm = realm,
                 realmLayer = 1,
                 social = com.xianxia.sect.core.model.SocialData(),
@@ -163,7 +162,7 @@ class DiscipleService @Inject constructor(
             val intId = id.toIntOrNull()
             if (intId != null) {
                 val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-                discipleTables.lifeEvents[intId] = events + "${rawDisciple.age}岁：加入宗门"
+                discipleTables.lifeEvents[intId] = events + "加入宗门"
             }
             // 引导系统：累计招募弟子
             val prevCount = gameData.guideCounters[GuideCounterKeys.DISCIPLES_RECRUITED] ?: 0L

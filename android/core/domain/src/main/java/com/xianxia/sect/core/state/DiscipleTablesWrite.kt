@@ -29,7 +29,6 @@ import com.xianxia.sect.core.model.hasReviveEffect
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.intelligence
 import com.xianxia.sect.core.model.lastChildYear
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.magicAttackVariance
 import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
@@ -65,7 +64,6 @@ import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.storageBagSpiritStones
 import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.model.totalCultivation
-import com.xianxia.sect.core.model.usedExtendLifePillIds
 import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.model.weaponNurture
 
@@ -93,8 +91,7 @@ internal fun DiscipleTables.writeBasicFields(id: Int, disciple: Disciple) {
     cultivations[id] = disciple.cultivation
     cultivationCheckpoints[id] = disciple.cultivationCheckpoint
     cultivationCheckpointGameMonths[id] = disciple.cultivationCheckpointGameMonth
-    ages[id] = disciple.age; lifespans[id] = disciple.lifespan
-    isAlive[id] = if (disciple.isAlive) 1 else 0; soulPowers[id] = disciple.soulPower
+    isAlive[id] = if (disciple.isAlive) 1 else 0
 
     // 修炼加速
     cultivationSpeedBonuses[id] = disciple.cultivationSpeedBonus
@@ -177,7 +174,7 @@ internal fun DiscipleTables.writeSkillFields(id: Int, disciple: Disciple) {
     // 技能
     val sk = disciple.skills
     intelligences[id] = sk.intelligence; charms[id] = sk.charm
-    loyalties[id] = sk.loyalty; comprehensions[id] = sk.comprehension
+    comprehensions[id] = sk.comprehension
     artifactRefinings[id] = sk.artifactRefining; pillRefinings[id] = sk.pillRefining
     spiritPlantings[id] = sk.spiritPlanting; minings[id] = sk.mining
     teachings[id] = sk.teaching; moralities[id] = sk.morality
@@ -191,9 +188,7 @@ internal fun DiscipleTables.writeUsageFields(id: Int, disciple: Disciple) {
     // 使用追踪
     val u = disciple.usage
     usedFunctionalPillTypes[id] = u.usedFunctionalPillTypes
-    usedExtendLifePillIds[id] = u.usedExtendLifePillIds
     usedPermanentPillKeys[id] = u.usedPermanentPillKeys
-    usedExtendLifePillTypes[id] = u.usedExtendLifePillTypes
     recruitedMonths[id] = u.recruitedMonth
     hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
     hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0

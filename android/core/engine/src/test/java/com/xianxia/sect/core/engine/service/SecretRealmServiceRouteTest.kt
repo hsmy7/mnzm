@@ -99,8 +99,6 @@ class SecretRealmServiceRouteTest {
             name = "弟子$id",
             realm = realm,
             realmLayer = 1,
-            age = 25,
-            lifespan = 90,
             skills = SkillStats(comprehension = 100),
             combat = CombatAttributes(currentHp = -1)
         )
@@ -140,7 +138,6 @@ class SecretRealmServiceRouteTest {
                 "sect1" to listOf(
                     Disciple(
                         id = "a1", name = "剑尘", realm = 1, realmLayer = 1,
-                        age = 30, lifespan = 90,
                         skills = SkillStats(comprehension = 100),
                         combat = CombatAttributes(currentHp = -1)
                     ).copy(isAlive = true)

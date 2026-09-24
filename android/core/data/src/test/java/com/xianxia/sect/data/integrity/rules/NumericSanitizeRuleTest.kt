@@ -282,7 +282,7 @@ class NumericSanitizeRuleTest {
         id = id, name = name, realm = 9, realmLayer = 1,
         cultivation = cultivation, cultivationCheckpoint = checkpoint,
         cultivationSpeedBonus = speedBonus, pillEffects = pill,
-        age = 20, lifespan = 80, isAlive = true,
+        isAlive = true,
         equipment = EquipmentSet(weaponId = "", armorId = "", bootsId = "", accessoryId = "")
     )
 

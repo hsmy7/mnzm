@@ -16,15 +16,15 @@ class DiscipleChatDialogTest {
     @Test
     fun `effect zero when all zero`() { assertTrue(ConversationEffect().isZero) }
     @Test
-    fun `effect not zero when any non-zero`() { assertFalse(ConversationEffect(loyaltyDelta = 1).isZero) }
+    fun `effect not zero when any non-zero`() { assertFalse(ConversationEffect(moralityDelta = 1).isZero) }
     @Test
-    fun `effect display shows loyalty`() {
-        val t = ConversationEffect(loyaltyDelta = 5).toDisplayText()
-        assertTrue(t.contains("忠诚") && t.contains("+5"))
+    fun `effect display shows morality`() {
+        val t = ConversationEffect(moralityDelta = 5).toDisplayText()
+        assertTrue(t.contains("道德") && t.contains("+5"))
     }
     @Test
     fun `effect display shows negative`() {
-        assertTrue(ConversationEffect(loyaltyDelta = -3).toDisplayText().contains("-3"))
+        assertTrue(ConversationEffect(moralityDelta = -3).toDisplayText().contains("-3"))
     }
     @Test
     fun `effect display shows cultivation percent`() {
@@ -137,7 +137,8 @@ class DiscipleChatDialogTest {
                     opt.outcomes.forEachIndexed { k, out ->
                         if (out.nextNodeId == END_NODE) {
                             assertNotNull("$i $id opt=$j out=$k effect null", out.effects)
-                            assertFalse("$i $id opt=$j out=$k effect zero", out.effects!!.isZero)
+                            // 终局效果可为零（loyalty 预设下线后部分分支为纯文案结局，
+                            // 生产对 isZero 优雅跳过；非零时恰单字段由下一守卫钉死）
                             assertTrue("$i $id opt=$j out=$k no ending", out.endingTextVariants.isNotEmpty())
                             out.endingTextVariants.forEach { assertTrue("end blank", it.isNotBlank()) }
                         }
@@ -164,7 +165,7 @@ class DiscipleChatDialogTest {
     }
 
     @Test
-    fun `terminal effects have exactly one non-zero field`() {
+    fun `terminal effects have at most one non-zero field`() {
         allTrees.forEachIndexed { i, tree ->
             tree.nodes.forEach { (id, node) ->
                 node.options.forEachIndexed { j, opt ->
@@ -172,10 +173,10 @@ class DiscipleChatDialogTest {
                         if (out.nextNodeId == END_NODE) {
                             val e = out.effects ?: error("null")
                             val cnt = listOf(
-                                e.loyaltyDelta != 0, e.moralityDelta != 0,
+                                e.moralityDelta != 0,
                                 e.intelligenceDelta != 0, e.cultivationDelta != 0.0
                             ).count { it }
-                            assertEquals("$i $id opt=$j out=$k count=$cnt", 1, cnt)
+                            assertTrue("$i $id opt=$j out=$k count=$cnt", cnt == 0 || cnt == 1)
                         }
                     }
                 }
@@ -216,14 +217,14 @@ class DiscipleChatDialogTest {
 
     @Test
     fun `randomize sign positive`() = runTest {
-        assertEquals(1, randomizeEffectWith(intLower, doubleLower, ConversationEffect(loyaltyDelta = 1)).loyaltyDelta)
-        assertEquals(5, randomizeEffectWith(intUpper, doubleLower, ConversationEffect(loyaltyDelta = 1)).loyaltyDelta)
+        assertEquals(1, randomizeEffectWith(intLower, doubleLower, ConversationEffect(moralityDelta = 1)).moralityDelta)
+        assertEquals(5, randomizeEffectWith(intUpper, doubleLower, ConversationEffect(moralityDelta = 1)).moralityDelta)
     }
 
     @Test
     fun `randomize sign negative`() = runTest {
-        val lo = randomizeEffectWith(intLower, doubleLower, ConversationEffect(loyaltyDelta = -1)).loyaltyDelta
-        val hi = randomizeEffectWith(intUpper, doubleLower, ConversationEffect(loyaltyDelta = -1)).loyaltyDelta
+        val lo = randomizeEffectWith(intLower, doubleLower, ConversationEffect(moralityDelta = -1)).moralityDelta
+        val hi = randomizeEffectWith(intUpper, doubleLower, ConversationEffect(moralityDelta = -1)).moralityDelta
         assertTrue("下界取负", lo < 0 && abs(lo) == 1)
         assertTrue("上界取负", hi < 0 && abs(hi) == 5)
     }
@@ -231,7 +232,6 @@ class DiscipleChatDialogTest {
     @Test
     fun `randomize zero fields preserved`() = runTest {
         val r = randomizeEffectWith(intLower, doubleLower, ConversationEffect(moralityDelta = 1))
-        assertEquals(0, r.loyaltyDelta)
         assertEquals(0, r.intelligenceDelta)
         assertEquals(0.0, r.cultivationDelta, 0.001)
         assertEquals(1, r.moralityDelta)
@@ -258,9 +258,9 @@ class DiscipleChatDialogTest {
         randomizeEffectWith(
             { f, u -> intRanges += f to u; f },
             { f, u -> doubleRanges += f to u; f },
-            ConversationEffect(loyaltyDelta = 1, moralityDelta = 1, intelligenceDelta = 1, cultivationDelta = 0.01)
+            ConversationEffect(moralityDelta = 1, intelligenceDelta = 1, cultivationDelta = 0.01)
         )
-        assertEquals("整型抽取区间恒为 [1,6)", listOf(1 to 6, 1 to 6, 1 to 6), intRanges)
+        assertEquals("整型抽取区间恒为 [1,6)", listOf(1 to 6, 1 to 6), intRanges)
         assertEquals("浮点抽取区间恒为 [0.01,0.06)", listOf(0.01 to 0.06), doubleRanges)
     }
 }

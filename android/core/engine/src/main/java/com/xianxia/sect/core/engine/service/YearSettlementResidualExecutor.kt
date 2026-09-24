@@ -93,7 +93,7 @@ internal class YearSettlementResidualExecutor(
         bereavement: com.xianxia.sect.core.engine.BereavementDraft
     ) {
         if (!state.discipleTables.ids.contains(bereavement.grievingId)) return
-        val event = "${bereavement.grievingAge}岁：因${bereavement.relationship}" +
+        val event = "因${bereavement.relationship}" +
             "${bereavement.deceasedName}离世陷入悲痛，修炼速度降低50%"
         /** 当前设备的电源管理配置 */
         val current = state.discipleTables.lifeEvents.getOrDefault(

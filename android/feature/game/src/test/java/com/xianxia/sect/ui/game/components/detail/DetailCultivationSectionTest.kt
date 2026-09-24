@@ -124,7 +124,6 @@ class DetailCultivationSectionTest {
         val core = DiscipleCore(
             id = "test-disciple-1",
             name = "测试弟子",
-            age = 18,
             realm = 5
         )
         val combat = DiscipleCombatStats(

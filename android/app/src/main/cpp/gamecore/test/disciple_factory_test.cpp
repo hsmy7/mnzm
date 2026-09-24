@@ -33,7 +33,6 @@ DiscipleCreationSeed kSeed() {
     s.fullName = "李逍遥";
     s.surname = "李";
     s.spiritRootType = "火";
-    s.age = 18;
     s.realm = 9;
     s.realmLayer = 1;
     return s;
@@ -56,7 +55,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed42) {
     EXPECT_EQ(95, d.aptitude);
     EXPECT_EQ(45, d.intelligence);
     EXPECT_EQ(32, d.charm);
-    EXPECT_EQ(43, d.loyalty);
     EXPECT_EQ(48, d.morality);
     EXPECT_EQ(43, d.artifactRefining);
     EXPECT_EQ(33, d.pillRefining);
@@ -70,7 +68,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed42) {
     EXPECT_EQ(10, d.basePhysicalDefense);
     EXPECT_EQ(8, d.baseMagicDefense);
     EXPECT_EQ(16, d.baseSpeed);
-    EXPECT_EQ(80, d.lifespan);
     EXPECT_TRUE(d.talentIds.empty());
     EXPECT_EQ(std::vector<std::string>({"neg_phys_defense", "r1_phys_cult_speed"}),
               d.physiqueIds);
@@ -101,7 +98,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     EXPECT_EQ(5, d.aptitude);
     EXPECT_EQ(36, d.intelligence);
     EXPECT_EQ(58, d.charm);
-    EXPECT_EQ(77, d.loyalty);
     EXPECT_EQ(59, d.morality);
     EXPECT_EQ(31, d.artifactRefining);
     EXPECT_EQ(54, d.pillRefining);
@@ -115,7 +111,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     EXPECT_EQ(7, d.basePhysicalDefense);
     EXPECT_EQ(7, d.baseMagicDefense);
     EXPECT_EQ(15, d.baseSpeed);
-    EXPECT_EQ(80, d.lifespan);
     EXPECT_TRUE(d.talentIds.empty());
     EXPECT_EQ(std::vector<std::string>({"r2_phys_defense", "neg_phys_cult"}),
               d.physiqueIds);
@@ -140,15 +135,14 @@ TEST(DiscipleFactory, DeterministicAcrossInstances) {
     EXPECT_EQ(a.teaching, b.teaching);
     EXPECT_EQ(a.baseHp, b.baseHp);
     EXPECT_EQ(a.baseSpeed, b.baseSpeed);
-    EXPECT_EQ(a.lifespan, b.lifespan);
     EXPECT_EQ(a.talentIds, b.talentIds);
     EXPECT_EQ(a.physiqueIds, b.physiqueIds);
     EXPECT_EQ(a.affixIds, b.affixIds);
 }
 
 TEST(DiscipleFactory, DistributionInvariants) {
-    // 统计不变式：数量 0-5、技能 1-200（忠诚 ≤100）、方差 -50..50、
-    // 资质避开哨兵 50、悟性/资质 1-200、lifespan ≥ 1
+    // 统计不变式：数量 0-5、技能 1-200、方差 -50..50、
+    // 资质避开哨兵 50、悟性/资质 1-200
     std::set<int32_t> counts;
     std::set<int32_t> aptitudes;
     std::set<int32_t> comprehensions;
@@ -165,9 +159,6 @@ TEST(DiscipleFactory, DistributionInvariants) {
         EXPECT_LE(d.intelligence, 200);
         EXPECT_GE(d.charm, 1);
         EXPECT_LE(d.charm, 200);
-        EXPECT_GE(d.loyalty, 1);
-        EXPECT_LE(d.loyalty, 100);
-        EXPECT_GE(d.lifespan, 1);
         EXPECT_GE(d.hpVariance, -50);
         EXPECT_LE(d.hpVariance, 50);
         EXPECT_GE(d.speedVariance, -50);
@@ -201,16 +192,6 @@ TEST(DiscipleFactory, DistributionInvariants) {
         EXPECT_GE(d.comprehension, 80);
         EXPECT_LE(d.comprehension, 100);
     }
-}
-
-TEST(DiscipleFactory, RealmMaxAgeMattersForLifespan) {
-    // 境界基准寿命参与计算：金丹（realm 7, maxAge 200）且无加成 ⇒ 200
-    auto rng = DeterministicRng::fromSeed(20260901);
-    DiscipleCreationSeed s = kSeed();
-    s.id = "realm7";
-    s.realm = 7;
-    const auto d = createDisciple(s, rng);
-    EXPECT_EQ(200, d.lifespan);
 }
 
 }  // namespace

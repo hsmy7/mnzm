@@ -95,7 +95,7 @@ class CultivationServiceIntegrationTest {
 
         cultivationCore = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
-            autoPillService = AutoPillService(mockSmart(), mockSmart()),
+            autoPillService = AutoPillService(mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore)

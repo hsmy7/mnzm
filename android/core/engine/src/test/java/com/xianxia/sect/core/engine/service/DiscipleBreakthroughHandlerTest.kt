@@ -65,9 +65,6 @@ class DiscipleBreakthroughHandlerTest {
             any<Disciple>(),
             any<MutableGameState>()
         )).thenReturn(true)
-        Mockito.`when`(cultivationCore.getLifespanGainForRealm(
-            any<Int>()
-        )).thenReturn(100)
         Mockito.`when`(cultivationCore.calculateDiscipleCultivationPerPhase(
             any<Disciple>(),
             any<GameData>(),
@@ -106,8 +103,6 @@ class DiscipleBreakthroughHandlerTest {
             realm = realm,
             realmLayer = realmLayer,
             spiritRootType = spiritRootType,
-            age = 20,
-            lifespan = 80,
             skills = SkillStats(comprehension = comprehension),
             statusData = statusData,
             combat = CombatAttributes(

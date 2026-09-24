@@ -8,8 +8,7 @@ import org.junit.Test
 /**
  * 验证 DiscipleFactory 统一构造 — 三处构造站点（recruitDisciple /
  * refreshRecruitList / createChild）通过不同 DiscipleSeed 得到一致的
- * 六段逻辑（variance / comprehension / skills / baseStats / lifespan /
- * talentIds）。
+ * 五段逻辑（variance / comprehension / skills / baseStats / talentIds）。
  */
 class DiscipleFactoryTest {
 
@@ -21,7 +20,6 @@ class DiscipleFactoryTest {
         id: String = "test-001",
         gender: String = "男",
         spiritRootType: String = "火",
-        age: Int = 18,
         realmLayer: Int = 1,
         random: kotlin.random.Random = kotlin.random.Random(42)
     ): DiscipleFactory.DiscipleSeed {
@@ -30,7 +28,6 @@ class DiscipleFactoryTest {
             gender = gender,
             nameResult = NameService.NameResult("测试", "弟子"),
             spiritRootType = spiritRootType,
-            age = age,
             realmLayer = realmLayer,
             social = SocialData(),
             nextInt = { from, _ -> from }, // 确定性：总是取最小值
@@ -58,10 +55,9 @@ class DiscipleFactoryTest {
         val d = factory.create(newSeed())
         // 同 gaussianInt 逻辑：u1=0.0001, u2=0.0, z≈4.291
         // skill = round(4.291*16.5 + 50.5) = round(121.3) = 121
-        // 属性上限 200 → 121 保留；loyalty 上限 100 → 截断为 100
+        // 属性上限 200 → 121 保留
         assertEquals(121, d.skills.intelligence)
         assertEquals(121, d.skills.charm)
-        assertEquals(100, d.skills.loyalty)
         assertEquals(121, d.skills.morality)
         assertEquals(121, d.skills.artifactRefining)
         assertEquals(121, d.skills.pillRefining)
@@ -149,14 +145,6 @@ class DiscipleFactoryTest {
         assertTrue("baseSpeed should be > 0", d.combat.baseSpeed > 0)
     }
 
-    // ---- 寿命 ----
-
-    @Test
-    fun `create - lifespan is positive`() {
-        val d = factory.create(newSeed())
-        assertTrue("lifespan should be > 0", d.lifespan > 0)
-    }
-
     // ---- 天赋 ----
 
     @Test
@@ -164,7 +152,6 @@ class DiscipleFactoryTest {
         val d = factory.create(newSeed())
         assertTrue("id should not be blank", d.id.isNotBlank())
         assertEquals("男", d.gender)
-        assertEquals(18, d.age)
     }
 
     // ---- 三站一致性 ----
@@ -176,7 +163,6 @@ class DiscipleFactoryTest {
         val d2 = factory.create(seed)
         // nextInt 确定性字段
         assertEquals(d1.gender, d2.gender)
-        assertEquals(d1.age, d2.age)
         assertEquals(d1.realm, d2.realm)
         assertEquals(d1.realmLayer, d2.realmLayer)
         assertEquals(d1.spiritRootType, d2.spiritRootType)
@@ -211,12 +197,6 @@ class DiscipleFactoryTest {
     }
 
     @Test
-    fun `create - age is preserved`() {
-        val d = factory.create(newSeed(age = 25))
-        assertEquals(25, d.age)
-    }
-
-    @Test
     fun `create - realmLayer is preserved`() {
         val d = factory.create(newSeed(realmLayer = 3))
         assertEquals(3, d.realmLayer)
@@ -234,7 +214,6 @@ class DiscipleFactoryTest {
                 gender = "男",
                 nameResult = NameService.NameResult("测试", "弟子"),
                 spiritRootType = "火",
-                age = 18,
                 realmLayer = 1,
                 social = SocialData(),
                 nextInt = { from, until -> from + kotlinRng.nextInt(until - from) },

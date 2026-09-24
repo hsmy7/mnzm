@@ -70,9 +70,9 @@ class GameEngineRenameTest {
     @Test
     fun `renameDisciple - 清除同人残留且保留无关条目`() = runBlocking {
         val env = RenameEnv()
-        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名", age = 20))
-        val twin = createDisciple(id = "recruit-1", name = "旧名", age = 21)
-        val other = createDisciple(id = "recruit-2", name = "无关弟子", age = 30)
+        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名"))
+        val twin = createDisciple(id = "recruit-1", name = "旧名")
+        val other = createDisciple(id = "recruit-2", name = "无关弟子")
         env.store.gameDataValue = GameData(recruitList = listOf(twin, other))
 
         env.engine.renameDisciple("1", "新名")
@@ -86,8 +86,8 @@ class GameEngineRenameTest {
     @Test
     fun `renameDisciple - 无同人残留时列表不变`() = runBlocking {
         val env = RenameEnv()
-        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名", age = 20))
-        val other = createDisciple(id = "recruit-2", name = "无关弟子", age = 30)
+        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名"))
+        val other = createDisciple(id = "recruit-2", name = "无关弟子")
         env.store.gameDataValue = GameData(recruitList = listOf(other))
 
         env.engine.renameDisciple("1", "新名")
@@ -97,28 +97,28 @@ class GameEngineRenameTest {
     }
 
     @Test
-    fun `renameDisciple - 已死亡弟子非对称容差命中清除、低龄条目保留`() = runBlocking {
+    fun `renameDisciple - 已死亡弟子同签名残留命中清除、不同签名条目保留`() = runBlocking {
         val env = RenameEnv()
         env.store.tables.allocateAndInsert(
-            createDisciple(id = "1", name = "死者", age = 18, isAlive = false)
+            createDisciple(id = "1", name = "死者", isAlive = false)
         )
-        // 同源拷贝残留：年龄冻结在死者年龄之上 → 非对称容差命中
-        val clone = createDisciple(id = "recruit-1", name = "死者", age = 20)
-        // 合法同名新条目：年龄远小于死者冻结年龄 → 不误删
-        val fresh = createDisciple(id = "recruit-2", name = "死者", age = 10)
+        // 同源拷贝残留：与死者同人签名（纯签名相等）→ 命中清除
+        val clone = createDisciple(id = "recruit-1", name = "死者")
+        // 合法同名新条目：签名字段（灵根）不同 → 不误删
+        val fresh = createDisciple(id = "recruit-2", name = "死者").copy(spiritRootType = "fire")
         env.store.gameDataValue = GameData(recruitList = listOf(clone, fresh))
 
         env.engine.renameDisciple("1", "新名")
 
         val kept = env.store.gameDataValue.recruitList
-        assertEquals("同源拷贝清除、低龄合法条目保留", 1, kept.size)
+        assertEquals("同源拷贝清除、不同签名合法条目保留", 1, kept.size)
         assertEquals("recruit-2", kept[0].id)
     }
 
     @Test
     fun `renameDisciple - 不存在的 id 无副作用`() = runBlocking {
         val env = RenameEnv()
-        val other = createDisciple(id = "recruit-2", name = "无关弟子", age = 30)
+        val other = createDisciple(id = "recruit-2", name = "无关弟子")
         env.store.gameDataValue = GameData(recruitList = listOf(other))
 
         env.engine.renameDisciple("999", "新名")
@@ -129,7 +129,7 @@ class GameEngineRenameTest {
     @Test
     fun `renameDisciple - 空招募列表正常改名`() = runBlocking {
         val env = RenameEnv()
-        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名", age = 20))
+        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名"))
 
         env.engine.renameDisciple("1", "新名")
 
@@ -330,12 +330,11 @@ private class RenameStore : GameStateStore {
 private fun createDisciple(
     id: String,
     name: String,
-    age: Int = 18,
     isAlive: Boolean = true
 ) = Disciple(
-    id = id, name = name, age = age, realm = 9, realmLayer = 1,
+    id = id, name = name, realm = 9, realmLayer = 1,
     cultivation = 0.0, isAlive = isAlive, status = DiscipleStatus.IDLE,
     discipleType = "outer", spiritRootType = "metal", gender = "male",
     portraitRes = "default", skills = SkillStats(), combat = CombatAttributes(),
-    lifespan = 80, social = SocialData(), usage = UsageTracking()
+    social = SocialData(), usage = UsageTracking()
 )

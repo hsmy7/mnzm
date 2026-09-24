@@ -7,7 +7,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RecruitIntegrity
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
@@ -60,19 +59,19 @@ internal fun DiscipleFacadeImpl.tryNativeManualRecruit(discipleId: String): Stri
     // 下方 lifeEvents 补写必因"镜像尚无该 id"跳过（lifeEvents 为 Kotlin
     // 类体属性不进协议，只能落镜像；Kotlin 原路径在事务内补写同生命周期）
     runCatching { gameEngineCore.stateSyncServiceRef.applyDirtyFromNative() }
-    mirrorAppendJoinSectLifeEvent(envelope.newId, envelope.age)
+    mirrorAppendJoinSectLifeEvent(envelope.newId)
     DomainLog.i(TAG, "recruitDiscipleFromList: native recruited $discipleId → id=${envelope.newId}")
     return envelope.newId
 }
 
 /** 镜像补写"加入宗门"日志（native 成功后；镜像滞后窗口（罕见）跳过——登记边界） */
 
-internal fun DiscipleFacadeImpl.mirrorAppendJoinSectLifeEvent(newId: String, age: Int) {
+internal fun DiscipleFacadeImpl.mirrorAppendJoinSectLifeEvent(newId: String) {
     val intId = newId.toIntOrNull() ?: return
     stateStore.update {
         if (intId !in discipleTables.ids) return@update
         val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-        discipleTables.lifeEvents[intId] = events + "${age}岁：加入宗门"
+        discipleTables.lifeEvents[intId] = events + "加入宗门"
     }
 }
 
@@ -100,7 +99,7 @@ internal fun DiscipleFacadeImpl.recruitDiscipleFromListLegacy(discipleId: String
         // ── 完整性校验：损坏条目同事务移除（幽灵立即消失，不再永久残留）──
         if (!RecruitIntegrity.isValidRecruit(disciple)) {
             DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId: " +
-                "name='${disciple.name}' age=${disciple.age} realm=${disciple.realm}")
+                "name='${disciple.name}' realm=${disciple.realm}")
             purgeCorruptedRecruit(discipleId, disciple.name)
             return@update
         }
@@ -108,18 +107,13 @@ internal fun DiscipleFacadeImpl.recruitDiscipleFromListLegacy(discipleId: String
         val recruitedDisciple = disciple.copy(
             usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
         )
-        // 年龄-境界合理性软校验（不阻断：俘虏玩法允许年轻高境界）
-        if (disciple.age < GameConfig.Realm.minReasonableAge(disciple.realm)) {
-            DomainLog.w(TAG, "recruitDiscipleFromList: recruit ${disciple.name} age=${disciple.age} " +
-                "realm=${disciple.realm} 低于境界最小合理年龄")
-        }
         // 原子分配 ID + 写入组件表 + 加入宗门日志（消灭悬空窗口）
         newId = discipleTables.allocateAndInsert(recruitedDisciple)
         if (newId.isNotEmpty()) {
             val intId = newId.toIntOrNull()
             if (intId != null) {
                 val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-                discipleTables.lifeEvents[intId] = events + "${disciple.age}岁：加入宗门"
+                discipleTables.lifeEvents[intId] = events + "加入宗门"
             }
             // 俘虏自带装备/功法落库为玩家实例（幂等；普通招募弟子无装备/功法字段，直接跳过）
             materializeCaptiveGear(recruitedDisciple, newId)
@@ -324,14 +318,3 @@ internal fun MutableGameState.applySkillExpEffect(id: Int, effect: PillEffect) {
     }
 }
 
-/** 延寿丹药效果 */
-
-internal fun MutableGameState.applyExtendLifeEffect(id: Int, effect: PillEffect, pill: Pill) {
-    discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife
-    val usedExtendLife = discipleTables.usedExtendLifePillTypes[id]
-    if (pill.pillType !in usedExtendLife) {
-        discipleTables.usedExtendLifePillTypes[id] = usedExtendLife + pill.pillType
-    }
-}
-
-/** 永久基础属性丹效果：技能属性 + 道德触发偷盗判定 + 记录使用 */

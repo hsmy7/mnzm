@@ -144,8 +144,6 @@ class DiffStateTest {
         annualHerbCount = 10
         annualNewDisciples = 2
         annualDeceasedDisciples = 1
-        annualTheftCount = 0
-        theftJudgementsThisMonth = 0
         annualEquipmentBySource = mapOf("forge:3" to 2)
         annualPillBySource = mapOf("alchemy:HIGH" to 1)
         annualHerbBySource = mapOf("spirit_field" to 8)
@@ -289,8 +287,6 @@ class DiffStateTest {
             cultivation = 12345.6
             cultivationCheckpoint = 12000.0
             cultivationCheckpointGameMonth = 20
-            age = 24
-            lifespan = 90
             isAlive = true
             gender = "male"
             portraitRes = "portrait_1"
@@ -304,7 +300,6 @@ class DiffStateTest {
             cultivationSpeedBonus = 0.25
             cultivationSpeedDuration = 10
             discipleType = "inner"
-            soulPower = 3
         },
         Disciple().apply { id = "d-2"; name = "李四"; isAlive = false }
     )

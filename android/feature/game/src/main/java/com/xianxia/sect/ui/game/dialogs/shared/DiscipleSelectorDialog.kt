@@ -187,7 +187,7 @@ data class DiscipleSelectorConfig(
     val defaultSortAttribute: String? = null,
     val currentId: String? = null,
     val extraAttributesProvider: ((DiscipleAggregate) -> List<Pair<String, Int>>)? = null,
-    /** 状态过滤之外的附加条件（如 realmLayer/age/已选 ID 排除） */
+    /** 状态过滤之外的附加条件（如 realmLayer/已选 ID 排除） */
     val additionalCheck: ((DiscipleAggregate) -> Boolean)? = null,
     /** 当前已分配弟子强制包含在筛选中（无论状态过滤结果） */
     val alwaysIncludeCurrentId: Boolean = false

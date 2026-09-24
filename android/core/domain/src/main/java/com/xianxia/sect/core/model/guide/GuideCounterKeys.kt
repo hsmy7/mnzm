@@ -18,7 +18,6 @@ object GuideCounterKeys {
     const val AUTO_PLANT_ACTIVATED = "autoPlantActivated"
     const val AUTO_PRODUCTION_ACTIVATED = "autoProductionActivated"
     const val BREAKTHROUGHS = "breakthroughs"
-    const val DISCIPLE_IMPRISONED = "discipleImprisoned"
     const val CULTIVATION_YEARS = "cultivationYears"
 
     /**

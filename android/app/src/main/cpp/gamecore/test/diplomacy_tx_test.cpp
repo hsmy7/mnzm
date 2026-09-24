@@ -70,8 +70,6 @@ state::Disciple powerDisciple(const std::string& id, int32_t realm) {
     d.realmLayer = 1;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 20;
-    d.lifespan = 80;
     return d;
 }
 

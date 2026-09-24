@@ -1,10 +1,7 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -13,7 +10,7 @@ import org.junit.Test
  * 覆盖：
  * - 死亡 → DEAD
  * - 三种受保护状态（REFLECTING / ON_MISSION / REFINING）不被覆盖
- * - 所有 14 种槽位类型按优先级推导
+ * - 所有 13 种槽位类型按优先级推导
  * - 无分配 → IDLE
  * - 多槽位同时占用时按优先级取第一个
  */
@@ -147,68 +144,6 @@ class DiscipleStatusServiceTest {
         )
     }
 
-    // ==================== 仓库驻守推导（inWarehouseGarrison 独立标记） ====================
-
-    @Test
-    fun `buildSlotFlagsFor - warehouse garrison disciple inWarehouseGarrison is true`() {
-        val flags = DiscipleStatusService.buildSlotFlagsFor(
-            discipleId = "1",
-            data = GameData(
-                warehouseGarrisons = listOf(
-                    WarehouseGarrisonSlot("wh1", "1", "弟子A", "sect")
-                )
-            )
-        )
-        assertTrue("仓库驻守弟子应推导 inWarehouseGarrison=true", flags.inWarehouseGarrison)
-        assertTrue("仓库驻守弟子不应占用 inGarrison（据点驻军语义）", !flags.inGarrison)
-    }
-
-    @Test
-    fun `buildSlotFlagsFor - warehouse garrison derives WAREHOUSE_GARRISON`() {
-        val flags = DiscipleStatusService.buildSlotFlagsFor(
-            discipleId = "1",
-            data = GameData(
-                warehouseGarrisons = listOf(
-                    WarehouseGarrisonSlot("wh1", "1", "弟子A", "sect")
-                )
-            )
-        )
-        assertEquals(
-            DiscipleStatus.WAREHOUSE_GARRISON,
-            DiscipleStatusService.deriveDiscipleStatus(
-                isAlive = true,
-                currentStatus = DiscipleStatus.IDLE,
-                slotFlags = flags
-            )
-        )
-    }
-
-    @Test
-    fun `deriveDiscipleStatus - inWarehouseGarrison returns WAREHOUSE_GARRISON`() {
-        assertEquals(
-            DiscipleStatus.WAREHOUSE_GARRISON,
-            DiscipleStatusService.deriveDiscipleStatus(
-                isAlive = true,
-                currentStatus = DiscipleStatus.IDLE,
-                slotFlags = DiscipleStatusService.SlotFlags(inWarehouseGarrison = true)
-            )
-        )
-    }
-
-    @Test
-    fun `deriveDiscipleStatus - inWarehouseGarrison has priority over inGarrison`() {
-        assertEquals(
-            DiscipleStatus.WAREHOUSE_GARRISON,
-            DiscipleStatusService.deriveDiscipleStatus(
-                isAlive = true,
-                currentStatus = DiscipleStatus.IDLE,
-                slotFlags = DiscipleStatusService.SlotFlags(
-                    inWarehouseGarrison = true, inGarrison = true
-                )
-            )
-        )
-    }
-
     // ==================== 远古秘境推导（inSecretRealm 独立标记） ====================
 
     @Test
@@ -224,14 +159,14 @@ class DiscipleStatusServiceTest {
     }
 
     @Test
-    fun `deriveDiscipleStatus - inSecretRealm has priority over inTeam and warehouse`() {
+    fun `deriveDiscipleStatus - inSecretRealm has priority over inTeam`() {
         assertEquals(
             DiscipleStatus.SECRET_REALM,
             DiscipleStatusService.deriveDiscipleStatus(
                 isAlive = true,
                 currentStatus = DiscipleStatus.IDLE,
                 slotFlags = DiscipleStatusService.SlotFlags(
-                    inSecretRealm = true, inTeam = true, inWarehouseGarrison = true
+                    inSecretRealm = true, inTeam = true
                 )
             )
         )
@@ -535,7 +470,7 @@ class DiscipleStatusServiceTest {
     @Test
     fun `deriveDiscipleStatus - all true with alive returns SECRET_REALM (highest priority)`() {
         val allTrue = DiscipleStatusService.SlotFlags(
-            inGarrison = true, inWarehouseGarrison = true,
+            inGarrison = true,
             inTeam = true, inSecretRealm = true,
             lawEnforcing = true, preaching = true, deaconing = true,
             managing = true, studying = true, mining = true,

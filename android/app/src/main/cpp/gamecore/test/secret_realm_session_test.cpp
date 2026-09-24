@@ -45,8 +45,6 @@ Disciple baseDisciple(const std::string& id) {
     d.realmLayer = 1;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 20;
-    d.lifespan = 80;
     d.portraitRes = "p" + id;
     return d;
 }

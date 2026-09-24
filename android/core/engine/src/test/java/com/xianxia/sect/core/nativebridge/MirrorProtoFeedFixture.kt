@@ -73,8 +73,6 @@ internal object MirrorProtoFeedFixture {
         cultivationCheckpoint = 99.0,
         cultivationCheckpointGameMonth = 42,
         spiritRootType = "metal,wood",
-        age = 21,
-        lifespan = 200,
         isAlive = true,
         gender = "male",
         portraitRes = "d101",
@@ -87,7 +85,6 @@ internal object MirrorProtoFeedFixture {
         cultivationSpeedBonus = 1.25,
         cultivationSpeedDuration = 6,
         discipleType = "inner",
-        soulPower = 17,
         cultivationCompletionMonth = 3,
         cultivationCompletionPhase = 2,
         manualCompletionMonth = 4,
@@ -144,7 +141,7 @@ internal object MirrorProtoFeedFixture {
     )
 
     private fun richSkills(): SkillStats = SkillStats(
-        intelligence = 61, charm = 62, loyalty = 63, comprehension = 64,
+        intelligence = 61, charm = 62, comprehension = 64,
         artifactRefining = 65, pillRefining = 66, spiritPlanting = 67, mining = 68,
         teaching = 69, morality = 70, aptitude = 71, salaryPaidCount = 3,
         salaryMissedCount = 1, alchemyLevel = 2, alchemyPromotionCount = 5,
@@ -153,9 +150,7 @@ internal object MirrorProtoFeedFixture {
 
     private fun richUsage(): UsageTracking = UsageTracking(
         usedPermanentPillKeys = setOf("3#hpAdd"),
-        usedExtendLifePillTypes = setOf("life1"),
         usedFunctionalPillTypes = listOf("k1"),
-        usedExtendLifePillIds = listOf("e1"),
         recruitedMonth = 120, hasReviveEffect = false, hasClearAllEffect = true,
     )
 }

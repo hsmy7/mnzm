@@ -74,9 +74,8 @@ inline state::BloodRefinementPctTotal addPctToTotal(
 }
 
 // ── 弟子强化派生 map 统一收口（审计 P2-7 + P3-4 / 方案 D3 改动 4）──────
-// 「死亡不删除」容器族的幽灵键治理：死亡（year_settlement）/叛逃（
-// month_settlement desertDiscipleCleanup）/逐出（Kotlin DiscipleService
-// .expelDisciple，镜像同步）三条生命周期链统一经本函数清键——
+// 「死亡不删除」容器族的幽灵键治理：逐出（Kotlin DiscipleService
+// .expelDisciple，镜像同步）等弟子行移除链统一经本函数清键——
 // 新增按弟子 id 键控的派生 map 必须在此登记清理（CLAUDE.md 13.3 守卫条目，
 // R2：唯一收口点，后续新链不再各自漏项）。
 inline void eraseDiscipleDerivedMaps(state::GameData& gd,

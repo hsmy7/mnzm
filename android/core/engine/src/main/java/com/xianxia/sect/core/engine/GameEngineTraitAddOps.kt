@@ -157,9 +157,7 @@ private fun GameEngine.rollTraitAddInner(
  *
  * 体质（cultivationSpeedBonus）与词条（CULT_SPEED）影响修炼速率——新增瞬间必须
  * checkpointDisciple 重新记账，否则 getEffectiveCultivation 投影（checkpoint +
- * rate×Δmonth）会用旧 checkpoint 混算新速率导致跳变（与洗炼确认替换同理）。天赋/词条的
- * lifespan 加成经
- * [syncLifespanForTraitChange] 同步（新增"延年"类特质寿命相应上调）。
+ * rate×Δmonth）会用旧 checkpoint 混算新速率导致跳变（与洗炼确认替换同理）。
  *
  * 本地信任模型：不校验产物是否由本会话刷新产生（任何合法 id 均可新增），
  * 单机游戏本地数据可被玩家自行修改；联网化需会话令牌绑定产物。
@@ -178,7 +176,7 @@ suspend fun GameEngine.confirmTraitAdd(
         return@withEngineContext TraitAddConfirmResult.Error("非法弟子ID")
     }
     try {
-        // native 臂（batch-15）：零 RNG 纯数据事务（校验 + 追加 + lifespan 同步 +
+        // native 臂（batch-15）：零 RNG 纯数据事务（校验 + 追加 +
         // checkpoint + 清 pending）；降级/失败信封 → Kotlin 原事务路径重执行
         // 校验链产出玩家可读文案
         if (tryConfirmTraitAddNative(discipleId, type.name, newId)) {
@@ -202,7 +200,7 @@ suspend fun GameEngine.confirmTraitAdd(
 
 /**
  * 确认新增事务内逻辑（单 update 原子完成）：存在/存活/上限/合法性校验 → 追加 +
- * lifespan 同步 + checkpoint + 清 pending，四态区分失败原因
+ * checkpoint + 清 pending，四态区分失败原因
  * （NOT_FOUND/DEAD/FULL/INVALID——对齐洗炼确认的三态先例，死亡弟子确认替换
  * 也须可区分于"弟子不存在"）。
  */
@@ -234,7 +232,7 @@ private fun GameEngine.confirmTraitAddInner(
     }
     val updated = type.appendId(current, newId)
     discipleTables.remove(id)
-    discipleTables.insert(syncLifespanForTraitChange(current, updated))
+    discipleTables.insert(updated)
     // 体质/词条影响修炼速率——新增瞬间重新记账（速率投影基于 checkpoint + 新速率推导）
     discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
     // 清除 pending（产物已落盘到弟子）

@@ -92,7 +92,6 @@ private fun buildingOpenAction(viewModel: GameViewModel, key: String): () -> Uni
         "wen_dao_peak" -> viewModel.navigation.openWenDaoPeakDialog()
         "qingyun_peak" -> viewModel.navigation.openQingyunPeakDialog()
         "tianshu_hall" -> viewModel.navigation.openTianshuHallDialog()
-        "law_enforcement_hall" -> viewModel.navigation.openLawEnforcementHallDialog()
         "mission_hall" -> viewModel.navigation.openMissionHallDialog()
         "reflection_cliff" -> viewModel.navigation.openReflectionCliffDialog()
         "patrol_tower" -> viewModel.navigation.openPatrolTowerDialog()

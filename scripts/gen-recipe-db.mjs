@@ -8,7 +8,7 @@
  *
  * 数据来源：
  *   1. 锻造配方（72 条）：ForgeRecipeDatabase.kt 的静态字面量（逐字转录）。
- *   2. 丹药配方（732 条）：复刻 PillRecipeDatabase.kt 生成循环，其依赖的
+ *   2. 丹药配方（660 条）：复刻 PillRecipeDatabase.kt 生成循环，其依赖的
  *      ItemDatabase.getPillById 模板（id/name/description/效果字段）同样在
  *      本脚本内复刻（660 个 PillTemplate）。
  *
@@ -54,7 +54,6 @@ const CULT_BASE = { 1: 600, 2: 8000, 3: 20000, 4: 50000, 5: 100000, 6: 300000 };
 const SPEED_PCT = { 1: 0.30, 2: 0.35, 3: 0.40, 4: 0.50, 5: 0.60, 6: 0.80 };
 const CRIT_RATE = { 1: 0.03, 2: 0.05, 3: 0.07, 4: 0.10, 5: 0.13, 6: 0.16 };
 const CRIT_EFFECT = { 1: 0.10, 2: 0.15, 3: 0.20, 4: 0.25, 5: 0.30, 6: 0.40 };
-const EXTEND_LIFE = { 1: 5, 2: 10, 3: 20, 4: 35, 5: 50, 6: 80 };
 const BASE_ATTR = { 1: 3, 2: 5, 3: 8, 4: 12, 5: 16, 6: 20 };
 const NURTURE_BASE = [50, 100, 200, 400, 800, 1600];      // [tier-1]
 
@@ -66,7 +65,6 @@ const NAMES = {
   cultAdd: { 1: '增元丹', 2: '培元丹', 3: '固元丹', 4: '真元丹', 5: '玄元丹', 6: '仙元丹' },
   skillAdd: { 1: '悟道丹', 2: '明心丹', 3: '通玄丹', 4: '慧灵丹', 5: '道悟丹', 6: '天机丹' },
   nurtureAdd: { 1: '蕴器丹', 2: '灵蕴丹', 3: '宝蕴丹', 4: '玄蕴丹', 5: '地蕴丹', 6: '天蕴丹' },
-  extendLife: { 1: '延寿丹', 2: '续命丹', 3: '长生丹', 4: '不老丹', 5: '万寿丹', 6: '永生丹' },
   // 单属性战斗
   physicalAttack: { 1: '虎力丹', 2: '熊力丹', 3: '龙力丹', 4: '神力丹', 5: '霸力丹', 6: '天力丹' },
   magicAttack: { 1: '灵火丹', 2: '真火丹', 3: '三昧丹', 4: '玄火丹', 5: '地火丹', 6: '天火丹' },
@@ -89,8 +87,6 @@ const NAMES = {
   // 单基础属性功能
   intelligence: { 1: '慧根丹', 2: '灵慧丹', 3: '明慧丹', 4: '玄慧丹', 5: '地慧丹', 6: '天慧丹' },
   charm: { 1: '仙姿丹', 2: '灵姿丹', 3: '玉姿丹', 4: '玄姿丹', 5: '地姿丹', 6: '天姿丹' },
-  loyalty: { 1: '忠心丹', 2: '赤诚丹', 3: '铁心丹', 4: '玄心丹', 5: '地心丹', 6: '天心丹' },
-  comprehension: { 1: '悟道丹', 2: '明悟丹', 3: '通悟丹', 4: '玄悟丹', 5: '地悟丹', 6: '天悟丹' },
   artifactRefining: { 1: '铸魂丹', 2: '灵铸丹', 3: '宝铸丹', 4: '玄铸丹', 5: '地铸丹', 6: '天铸丹' },
   pillRefining: { 1: '丹心丹', 2: '灵丹丹', 3: '宝丹丹', 4: '玄丹丹', 5: '地丹丹', 6: '天丹丹' },
   spiritPlanting: { 1: '灵植丹', 2: '灵耘丹', 3: '宝耘丹', 4: '玄耘丹', 5: '地耘丹', 6: '天耘丹' },
@@ -99,7 +95,6 @@ const NAMES = {
   mining: { 1: '探矿丹', 2: '灵石丹', 3: '宝矿丹', 4: '玄矿丹', 5: '地矿丹', 6: '天矿丹' },
   // 双基础属性功能
   intelligenceComprehension: { 1: '智悟丹', 2: '灵悟丹', 3: '明悟丹', 4: '玄悟丹', 5: '地悟丹', 6: '天悟丹' },
-  charmLoyalty: { 1: '忠媚丹', 2: '灵忠丹', 3: '宝忠丹', 4: '玄忠丹', 5: '地忠丹', 6: '天忠丹' },
   pillRefiningArtifactRefining: { 1: '双炼丹', 2: '灵炼丹', 3: '宝炼丹', 4: '玄炼丹', 5: '地炼丹', 6: '天炼丹' },
   spiritPlantingTeaching: { 1: '师农丹', 2: '灵师丹', 3: '宝师丹', 4: '玄师丹', 5: '地师丹', 6: '天师丹' },
   intelligenceCharm: { 1: '智魅丹', 2: '灵魅丹', 3: '明魅丹', 4: '玄魅丹', 5: '地魅丹', 6: '天魅丹' },
@@ -110,7 +105,7 @@ const NAMES = {
 const ATTR_CN = {
   physicalAttack: '物攻', magicAttack: '法攻', physicalDefense: '物防', magicDefense: '法防',
   hp: '生命', mp: '灵力', speed: '速度',
-  intelligence: '智力', charm: '魅力', loyalty: '忠诚', comprehension: '悟性',
+  intelligence: '智力', charm: '魅力',
   artifactRefining: '炼器', pillRefining: '炼丹', spiritPlanting: '种植',
   teaching: '教学', morality: '道德', mining: '采矿',
 };
@@ -127,7 +122,6 @@ const DUAL_CFG = {
 };
 const DUAL_BASE_CFG = {
   intelligenceComprehension: ['intelligence', 'comprehension', '智悟'],
-  charmLoyalty: ['charm', 'loyalty', '魅忠'],
   pillRefiningArtifactRefining: ['pillRefining', 'artifactRefining', '炼丹炼器'],
   spiritPlantingTeaching: ['spiritPlanting', 'teaching', '种植教学'],
   intelligenceCharm: ['intelligence', 'charm', '智魅'],
@@ -171,10 +165,8 @@ const mkPill = (id, name, description, fields) => {
     speedAdd: fields.speedAdd ?? 0,
     critRateAdd: fields.critRateAdd ?? 0.0,
     critEffectAdd: fields.critEffectAdd ?? 0.0,
-    extendLife: fields.extendLife ?? 0,
     intelligenceAdd: fields.intelligenceAdd ?? 0,
     charmAdd: fields.charmAdd ?? 0,
-    loyaltyAdd: fields.loyaltyAdd ?? 0,
     comprehensionAdd: fields.comprehensionAdd ?? 0,
     artifactRefiningAdd: fields.artifactRefiningAdd ?? 0,
     pillRefiningAdd: fields.pillRefiningAdd ?? 0,
@@ -294,16 +286,6 @@ for (let tier = 1; tier <= 6; tier++) {
       { critEffectAdd: ce });
   }
 }
-// 延寿丹
-for (let tier = 1; tier <= 6; tier++) {
-  const tierName = TIER_NAMES[tier];
-  for (let g = 0; g < 3; g++) {
-    const lifeVal = rint(EXTEND_LIFE[tier] * GRADE_MULT[g]);
-    mkPill(`extendLife_${tier}_${GRADE_LOWER[g]}`, NAMES.extendLife[tier],
-      `${tierName}${GRADE_DISPLAY[g]}延寿丹，增加${lifeVal}年寿元`,
-      { extendLife: lifeVal });
-  }
-}
 // 单基础属性功能
 for (const [pillType, attrName] of Object.entries(ATTR_CN)) {
   if (['physicalAttack', 'magicAttack', 'physicalDefense', 'magicDefense', 'hp', 'mp', 'speed'].includes(pillType)) continue;
@@ -329,7 +311,7 @@ for (const [pillType, [attr1, attr2, descName]] of Object.entries(DUAL_BASE_CFG)
       const v2 = v1;
       const attrVal = (a) => (a === attr1 ? v1 : a === attr2 ? v2 : 0);
       const fields = {};
-      for (const a of ['intelligence', 'charm', 'loyalty', 'comprehension', 'artifactRefining', 'pillRefining', 'spiritPlanting', 'teaching', 'morality']) {
+      for (const a of ['intelligence', 'charm', 'comprehension', 'artifactRefining', 'pillRefining', 'spiritPlanting', 'teaching', 'morality']) {
         fields[`${a}Add`] = attrVal(a);
       }
       mkPill(`${pillType}_${tier}_${GRADE_LOWER[g]}`, NAMES[pillType][tier],
@@ -456,7 +438,7 @@ const recipeFields = () => ({
   cultivationAdd: 0, skillExpAdd: 0, nurtureAdd: 0,
   physicalAttackAdd: 0, magicAttackAdd: 0, physicalDefenseAdd: 0, magicDefenseAdd: 0,
   hpAdd: 0, mpAdd: 0, speedAdd: 0, critRateAdd: 0.0, critEffectAdd: 0.0,
-  extendLife: 0, intelligenceAdd: 0, charmAdd: 0, loyaltyAdd: 0, comprehensionAdd: 0,
+  intelligenceAdd: 0, charmAdd: 0, comprehensionAdd: 0,
   artifactRefiningAdd: 0, pillRefiningAdd: 0, spiritPlantingAdd: 0, teachingAdd: 0,
   moralityAdd: 0, miningAdd: 0,
 });
@@ -472,8 +454,8 @@ const mkRecipe = (tpl, tier, category, pillType, materials, breakthroughChance =
     physicalAttackAdd: tpl.physicalAttackAdd, magicAttackAdd: tpl.magicAttackAdd,
     physicalDefenseAdd: tpl.physicalDefenseAdd, magicDefenseAdd: tpl.magicDefenseAdd,
     hpAdd: tpl.hpAdd, mpAdd: tpl.mpAdd, speedAdd: tpl.speedAdd,
-    critRateAdd: tpl.critRateAdd, critEffectAdd: tpl.critEffectAdd, extendLife: tpl.extendLife,
-    intelligenceAdd: tpl.intelligenceAdd, charmAdd: tpl.charmAdd, loyaltyAdd: tpl.loyaltyAdd,
+    critRateAdd: tpl.critRateAdd, critEffectAdd: tpl.critEffectAdd,
+    intelligenceAdd: tpl.intelligenceAdd, charmAdd: tpl.charmAdd,
     comprehensionAdd: tpl.comprehensionAdd, artifactRefiningAdd: tpl.artifactRefiningAdd,
     pillRefiningAdd: tpl.pillRefiningAdd, spiritPlantingAdd: tpl.spiritPlantingAdd,
     teachingAdd: tpl.teachingAdd, moralityAdd: tpl.moralityAdd, miningAdd: tpl.miningAdd,
@@ -543,11 +525,15 @@ for (let tier = 1; tier <= 6; tier++) {
   }
 }
 // 功能类
-const SINGLE_FUNC_TYPES = ['extendLife', 'intelligence', 'charm', 'loyalty', 'comprehension', 'artifactRefining', 'pillRefining', 'spiritPlanting', 'teaching', 'morality', 'mining'];
+const SINGLE_FUNC_TYPES = ['intelligence', 'charm', 'artifactRefining', 'pillRefining', 'spiritPlanting', 'teaching', 'morality', 'mining'];
+// herbPatterns：与 Kotlin herbPatterns 逐项一致（灵草槽位固定，单/双功能配方各一份）
+const SINGLE_FUNC_HERB_PATTERNS = [[1, 7], [2, 8], [5, 2], [6, 3], [7, 4], [8, 5], [0, 6], [1, 7]];
+const DUAL_BASE_HERB_PATTERNS = [[0, 2], [2, 4], [3, 5], [4, 6], [5, 7]];
 for (let tier = 1; tier <= 6; tier++) {
   const herbs = TIER_HERB_IDS[tier];
   for (let idx = 0; idx < SINGLE_FUNC_TYPES.length; idx++) {
-    const materials = { [herbs[idx % herbs.length]]: 2, [herbs[(idx + 6) % herbs.length]]: 2 };
+    const [p1, p2] = SINGLE_FUNC_HERB_PATTERNS[idx];
+    const materials = { [herbs[p1]]: 2, [herbs[p2]]: 2 };
     for (const grade of GRADE_LOWER) {
       const tpl = pillById.get(`${SINGLE_FUNC_TYPES[idx]}_${tier}_${grade}`);
       if (!tpl) continue;
@@ -556,7 +542,8 @@ for (let tier = 1; tier <= 6; tier++) {
   }
   for (let idx = 0; idx < Object.keys(DUAL_BASE_CFG).length; idx++) {
     const pillType = Object.keys(DUAL_BASE_CFG)[idx];
-    const materials = { [herbs[idx % herbs.length]]: 2, [herbs[(idx + 2) % herbs.length]]: 2 };
+    const [p1, p2] = DUAL_BASE_HERB_PATTERNS[idx];
+    const materials = { [herbs[p1]]: 2, [herbs[p2]]: 2 };
     for (const grade of GRADE_LOWER) {
       const tpl = pillById.get(`${pillType}_${tier}_${grade}`);
       if (!tpl) continue;

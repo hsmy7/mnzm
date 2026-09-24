@@ -47,7 +47,6 @@ class GameDataTest {
         assertTrue(data.placedBuildings.isEmpty())
         assertTrue(data.spiritFieldPlants.isEmpty())
         assertTrue(data.residenceSlots.isEmpty())
-        assertTrue(data.warehouseGarrisons.isEmpty())
         assertTrue(data.patrolSlots.isEmpty())
         assertTrue(data.alliances.isEmpty())
         assertTrue(data.sectRelations.isEmpty())
@@ -513,14 +512,6 @@ class GameDataTest {
     fun residenceSlot_isActive() {
         assertTrue(ResidenceSlot(discipleId = "d1").isActive)
         assertFalse(ResidenceSlot(discipleId = "").isActive)
-    }
-
-    // ==================== WarehouseGarrisonSlot ====================
-
-    @Test
-    fun warehouseGarrisonSlot_isActive() {
-        assertTrue(WarehouseGarrisonSlot(discipleId = "d1").isActive)
-        assertFalse(WarehouseGarrisonSlot(discipleId = "").isActive)
     }
 
     // ==================== Alliance ====================

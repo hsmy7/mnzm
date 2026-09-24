@@ -50,7 +50,6 @@ internal fun isPillInstant(item: Pill): Boolean = item.category == PillCategory.
     item.clearAll ||
     item.intelligenceAdd > 0 ||
     item.charmAdd > 0 ||
-    item.loyaltyAdd > 0 ||
     item.comprehensionAdd > 0 ||
     item.artifactRefiningAdd > 0 ||
     item.pillRefiningAdd > 0 ||
@@ -74,7 +73,6 @@ internal fun MutableList<String>.addFunctionalPillEffects(item: Pill) {
     if (item.extendLife > 0) add("  延寿 +${item.extendLife}年")
     if (item.intelligenceAdd > 0) add("  悟性 +${item.intelligenceAdd}")
     if (item.charmAdd > 0) add("  魅力 +${item.charmAdd}")
-    if (item.loyaltyAdd > 0) add("  忠诚 +${item.loyaltyAdd}")
     if (item.comprehensionAdd > 0) add("  领悟 +${item.comprehensionAdd}")
     if (item.artifactRefiningAdd > 0) add("  炼器 +${item.artifactRefiningAdd}")
     if (item.pillRefiningAdd > 0) add("  炼丹 +${item.pillRefiningAdd}")

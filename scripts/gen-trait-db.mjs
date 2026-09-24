@@ -42,10 +42,6 @@ const breakChanceConfigs = [
   { rarity: 1, value: 0.01 }, { rarity: 2, value: 0.015 }, { rarity: 3, value: 0.03 },
   { rarity: 4, value: 0.04 }, { rarity: 5, value: 0.05 }, { rarity: 6, value: 0.07 },
 ];
-const lifespanConfigs = [
-  { rarity: 1, value: 0.10 }, { rarity: 2, value: 0.16 }, { rarity: 3, value: 0.25 },
-  { rarity: 4, value: 0.35 }, { rarity: 5, value: 0.45 }, { rarity: 6, value: 0.60 },
-];
 const batAtkDefSpeedConfigs = [
   { rarity: 1, value: 0.06 }, { rarity: 2, value: 0.13 }, { rarity: 3, value: 0.22 },
 ];
@@ -76,7 +72,6 @@ const tPositions = [
   ['forge', '器道宗师', 'FORGE', '炼器成功率加成', 'POSITION_FORGE'],
   ['outer_elder', '外门栋梁', 'OUTER_ELDER', '外门弟子突破指导加成', 'POSITION_OUTER_ELDER'],
   ['preaching', '传道大师', 'PREACHING', '外门弟子传道修炼速度加成', 'POSITION_PREACHING'],
-  ['law_enforcement', '执法金刚', 'LAW_ENFORCEMENT', '叛逃/偷盗捕获率加成', 'POSITION_LAW_ENFORCEMENT'],
   ['inner_elder', '内门柱石', 'INNER_ELDER', '内门弟子突破指导加成', 'POSITION_INNER_ELDER'],
   ['recruiting', '招贤伯乐', 'RECRUITING', '招募弟子数上限加成', 'POSITION_RECRUITING'],
   ['cloud_preaching', '青云传道', 'CLOUD_PREACHING', '内门弟子传道修炼速度加成', 'POSITION_CLOUD_PREACHING'],
@@ -84,8 +79,6 @@ const tPositions = [
 const baseTalents = [
   ['base_int', '天慧', '智力', 'intelligenceFlat', 'BASE_INT'],
   ['base_charm', '仙姿', '魅力', 'charmFlat', 'BASE_CHARM'],
-  ['base_loyal', '赤诚', '忠诚', 'loyaltyFlat', 'BASE_LOYAL'],
-  ['base_comp', '顿悟', '悟性', 'comprehensionFlat', 'BASE_COMP'],
   ['base_arti', '天工', '炼器', 'artifactRefiningFlat', 'BASE_ARTI'],
   ['base_pill', '天丹', '炼丹', 'pillRefiningFlat', 'BASE_PILL'],
   ['base_plant', '青帝', '灵植', 'spiritPlantingFlat', 'BASE_PLANT'],
@@ -106,9 +99,6 @@ function buildTalents() {
   for (const c of breakChanceConfigs)
     mk(`r${c.rarity}_break_chance`, '悟道通玄', `突破概率+${pct(c.value, 1)}%`, talentGrade(c.rarity),
        { breakthroughChance: c.value }, false, 'BREAK_CHANCE', 'break_chance', null);
-  for (const c of lifespanConfigs)
-    mk(`r${c.rarity}_lifespan`, '寿元绵长', `寿命+${pct(c.value, 0)}%`, talentGrade(c.rarity),
-       { lifespan: c.value }, false, 'LIFESPAN', 'lifespan', null);
   mk('r6_manual_slot', '天衍道藏', '功法槽位+1', 3, { manualSlot: 1.0 }, false, 'MANUAL_SLOT', 'manual_slot', null);
   mk('r6_win_growth', '百战通神', '每胜利一场战斗后，随机一个属性+1（无上限）', 3,
      { winBattleRandomAttrPlus: 1.0 }, false, 'WIN_GROWTH', 'win_growth', null);
@@ -156,8 +146,8 @@ function buildTalents() {
      { comprehensionFlat: -8, intelligenceFlat: -8, teachingFlat: -8 }, true, 'BASE_COMP', 'neg_base_comprehension', null);
   mk('neg_base_craft', '百艺生疏', '炼器/炼丹/种植 -6', 0,
      { artifactRefiningFlat: -6, pillRefiningFlat: -6, spiritPlantingFlat: -6 }, true, 'BASE_ARTI', 'neg_base_craft', null);
-  mk('neg_base_social', '心性偏执', '魅力/忠诚/道德 -6', 0,
-     { charmFlat: -6, loyaltyFlat: -6, moralityFlat: -6 }, true, 'BASE_CHARM', 'neg_base_social', null);
+  mk('neg_base_social', '心性偏执', '魅力/道德 -6', 0,
+     { charmFlat: -6, moralityFlat: -6 }, true, 'BASE_CHARM', 'neg_base_social', null);
   mk('neg_battle_offense', '怯战失锋', '物攻/法攻/暴击下降', 0,
      { physicalAttack: -0.10, magicAttack: -0.10, critRate: -0.02 }, true, 'BAT_PHY_ATK', 'neg_battle_offense', null);
   mk('neg_battle_survival', '体魄亏空', '生存属性下降', 0,
@@ -210,7 +200,6 @@ const aPositions = [
   ['forge', '器道', 'FORGE', '炼器成功率加成'],
   ['outer_elder', '外门', 'OUTER_ELDER', '外门弟子突破指导加成'],
   ['preaching', '传道', 'PREACHING', '外门弟子传道修炼速度加成'],
-  ['law_enforcement', '执法', 'LAW_ENFORCEMENT', '叛逃/偷盗捕获率加成'],
   ['inner_elder', '内门', 'INNER_ELDER', '内门弟子突破指导加成'],
   ['recruiting', '招贤', 'RECRUITING', '招募弟子数上限加成'],
   ['cloud_preaching', '青云', 'CLOUD_PREACHING', '内门弟子传道修炼速度加成'],
@@ -218,7 +207,6 @@ const aPositions = [
 const affBaseFlatConfigs = [{ rarity: 1, value: 3 }, { rarity: 2, value: 7 }, { rarity: 3, value: 12 }];
 const affBatPctConfigs = [{ rarity: 1, value: 0.04 }, { rarity: 2, value: 0.09 }, { rarity: 3, value: 0.16 }];
 const affCultSpeedConfigs = [{ rarity: 1, value: 0.05 }, { rarity: 2, value: 0.11 }, { rarity: 3, value: 0.20 }];
-const affLifespanConfigs = [{ rarity: 1, value: 0.08 }, { rarity: 2, value: 0.16 }, { rarity: 3, value: 0.28 }];
 const affDmgAmpConfigs = [{ rarity: 1, value: 0.03 }, { rarity: 2, value: 0.07 }, { rarity: 3, value: 0.13 }];
 const affDmgReduceConfigs = [{ rarity: 1, value: 0.03 }, { rarity: 2, value: 0.06 }, { rarity: 3, value: 0.11 }];
 const affCritDmgConfigs = [{ rarity: 1, value: 0.06 }, { rarity: 2, value: 0.14 }, { rarity: 3, value: 0.24 }];
@@ -232,7 +220,6 @@ function buildAffixes() {
 
   const affBase = [
     ['aff_base_int', '聪慧', '智力', 'intelligenceFlat'],
-    ['aff_base_comp', '灵慧', '悟性', 'comprehensionFlat'],
     ['aff_base_charm', '风采', '魅力', 'charmFlat'],
   ];
   for (const [tmpl, name, prefix, key] of affBase)
@@ -251,9 +238,6 @@ function buildAffixes() {
   for (const c of affCultSpeedConfigs)
     mk(`r${c.rarity}_aff_cult_speed`, '悟道', `修炼速度+${pct(c.value, 0)}%`, c.rarity,
        { cultivationSpeed: c.value }, false, 'CULT_SPEED', 'aff_cult_speed', null);
-  for (const c of affLifespanConfigs)
-    mk(`r${c.rarity}_aff_lifespan`, '延年', `寿命+${pct(c.value, 0)}%`, c.rarity,
-       { lifespan: c.value }, false, 'LIFESPAN', 'aff_lifespan', null);
   mk('r3_aff_manual_slot', '道藏', '功法槽位+1', 3, { manualSlot: 1.0 }, false, 'MANUAL_SLOT', 'aff_manual_slot', null);
   mk('r3_aff_win_growth', '战悟', '每胜利一场战斗后，随机一个属性+1（无上限）', 3,
      { winBattleRandomAttrPlus: 1.0 }, false, 'WIN_GROWTH', 'aff_win_growth', null);
@@ -279,7 +263,6 @@ function buildAffixes() {
      { intelligenceFlat: -5, comprehensionFlat: -5, charmFlat: -5 }, true, 'BASE_FLAT', 'neg_aff_base', null);
   mk('neg_aff_battle', '虚弱', '物攻/法攻/气血 -8%', 0,
      { physicalAttack: -0.08, magicAttack: -0.08, maxHp: -0.08 }, true, 'BAT_PCT', 'neg_aff_battle', null);
-  mk('neg_aff_lifespan', '夭折', '寿命-15%', 0, { lifespan: -0.15 }, true, 'LIFESPAN', 'neg_aff_lifespan', null);
   return out;
 }
 

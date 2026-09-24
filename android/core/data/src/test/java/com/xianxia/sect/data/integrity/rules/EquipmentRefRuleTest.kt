@@ -84,7 +84,7 @@ class EquipmentRefRuleTest {
         weaponId: String = "", armorId: String = "", bootsId: String = "", accessoryId: String = ""
     ) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true,
+        isAlive = true,
         equipment = EquipmentSet(weaponId = weaponId, armorId = armorId,
             bootsId = bootsId, accessoryId = accessoryId)
     )

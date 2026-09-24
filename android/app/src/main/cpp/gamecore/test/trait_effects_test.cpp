@@ -16,7 +16,7 @@ namespace {
 // affixEffectsFor / physiqueCultivationBonusFor）+ comprehension
 // 词条合并分叉修复回归。
 //
-// 全量遍历 204 条注册表条目验证聚合管道逐字段一致；数值锚点与
+// 全量遍历 179 条注册表条目验证聚合管道逐字段一致；数值锚点与
 // Kotlin TalentDatabase/AffixDatabase/PhysiqueDatabase 配置梯度一致。
 // ============================================================
 
@@ -33,18 +33,9 @@ constexpr double kMagicAtkAffR1 = 0.04;          // r1_aff_bat_atk 锐利 1 阶
 constexpr double kPhysCultSpeedR1 = 0.08;        // r1_phys_cult_speed
 constexpr double kHybridOffR3Amp = 0.12;         // r3_phys_hybrid_off 伤害加成
 constexpr double kHybridOffR3Crit = 0.24;        // r3_phys_hybrid_off 暴伤
-constexpr double kCompFlatR1Talent = 4.0;        // r1_base_comp 悟性+4
-constexpr double kCompFlatR2Talent = 10.0;       // r2_base_comp 悟性+10
-constexpr double kCompFlatR3Talent = 18.0;       // r3_base_comp 悟性+18
-constexpr double kCompFlatR1Aff = 3.0;           // r1_aff_base_comp 词条悟性+3
-constexpr double kCompFlatR2Aff = 7.0;           // r2_aff_base_comp 词条悟性+7
 constexpr double kCompFlatNegTalent = -8.0;      // neg_base_comprehension
 constexpr double kCompFlatNegAff = -5.0;         // neg_aff_base 词条愚钝
-constexpr double kLifespanR6 = 0.60;             // r6_lifespan 寿元绵长
-constexpr double kLifespanAffR3 = 0.28;          // r3_aff_lifespan 延年
-constexpr double kLifespanAffNeg = -0.15;        // neg_aff_lifespan 夭折
 constexpr int32_t kDefaultComprehension = 50;    // Disciple 默认悟性
-constexpr int32_t kRealm8Gain = 40;              // lifespanGainForRealm(8)
 const char* const kUnknownId = "definitely_not_registered";
 
 /// 单 id 聚合结果 == 该条目自身 effects map（全量遍历共用）
@@ -161,16 +152,16 @@ TEST(TraitEffectsTest, PhysiqueSpotValuesAndBoundaries) {
 // ── mergeEffects 合并 ───────────────────────────────────────────────
 
 TEST(TraitEffectsTest, MergeEffectsUnionsAndSumsKeys) {
-    const auto talents = talentEffectsFor({"r1_bat_hp", "r1_base_comp"});
+    const auto talents = talentEffectsFor({"r1_bat_hp", "neg_base_comprehension"});
     const auto affixes =
-        affixEffectsFor({"r1_aff_bat_atk", "r1_aff_base_comp"});
+        affixEffectsFor({"r1_aff_bat_atk", "neg_aff_base"});
     const auto merged = mergeEffects(talents, affixes);
     // 天赋独有 key 保留
     EXPECT_DOUBLE_EQ(kMaxHpR1Talent, effectValue(merged, "maxHp"));
     // 词条独有 key 并入（r1_aff_bat_atk 1 阶 0.04）
     EXPECT_DOUBLE_EQ(kMagicAtkAffR1, effectValue(merged, "magicAttack"));
-    // 同名 key（comprehensionFlat：天赋+4 / 词条+3）相加
-    EXPECT_DOUBLE_EQ(kCompFlatR1Talent + kCompFlatR1Aff,
+    // 同名 key（comprehensionFlat：天赋-8 / 词条-5）相加
+    EXPECT_DOUBLE_EQ(kCompFlatNegTalent + kCompFlatNegAff,
                      effectValue(merged, "comprehensionFlat"));
 }
 
@@ -178,19 +169,9 @@ TEST(TraitEffectsTest, MergeEffectsUnionsAndSumsKeys) {
 
 TEST(TraitEffectsTest, BaseComprehensionIncludesTalentFlatOnly) {
     gamecore::state::Disciple d;   // 默认悟性 50
-    d.talentIds = {"r3_base_comp"};
+    d.talentIds = {"neg_base_comprehension"};
     EXPECT_EQ(kDefaultComprehension +
-                  static_cast<int32_t>(kCompFlatR3Talent),
-              baseComprehension(d));
-}
-
-TEST(TraitEffectsTest, BaseComprehensionMergesAffixFlatRegression) {
-    gamecore::state::Disciple d;
-    d.talentIds = {"r3_base_comp"};
-    d.affixIds = {"r2_aff_base_comp"};
-    // 天赋与词条 flat 效果必须合并累加（不得只取其一）
-    EXPECT_EQ(kDefaultComprehension +
-                  static_cast<int32_t>(kCompFlatR3Talent + kCompFlatR2Aff),
+                  static_cast<int32_t>(kCompFlatNegTalent),
               baseComprehension(d));
 }
 
@@ -208,33 +189,6 @@ TEST(TraitEffectsTest, BaseComprehensionIgnoresUnknownIds) {
     d.talentIds = {kUnknownId};
     d.affixIds = {kUnknownId};
     EXPECT_EQ(kDefaultComprehension, baseComprehension(d));
-}
-
-// ── 突破寿命增益（天赋+词条 lifespan 合并） ──────────────────────────
-
-TEST(TraitEffectsTest, BreakthroughLifespanGainMergesTalentsAndAffixes) {
-    // r6_lifespan(+0.60) + r3_aff_lifespan(+0.28) = +0.88 → 40 + trunc(35.2)
-    const int32_t boosted = calculateBreakthroughLifespanGain(
-        8, {"r6_lifespan"}, {"r3_aff_lifespan"});
-    EXPECT_EQ(kRealm8Gain +
-                  static_cast<int32_t>(kRealm8Gain *
-                                       (kLifespanR6 + kLifespanAffR3)),
-              boosted);
-}
-
-TEST(TraitEffectsTest, BreakthroughLifespanGainNegativeAffixReduces) {
-    // 仅负面词条 -0.15 → 40 + trunc(-6.0)（向零截断）= 34
-    const int32_t reduced =
-        calculateBreakthroughLifespanGain(8, {}, {"neg_aff_lifespan"});
-    EXPECT_EQ(kRealm8Gain + static_cast<int32_t>(kRealm8Gain * kLifespanAffNeg),
-              reduced);
-}
-
-TEST(TraitEffectsTest, BreakthroughLifespanGainZeroBonusReturnsBase) {
-    EXPECT_EQ(kRealm8Gain, calculateBreakthroughLifespanGain(8, {}, {}));
-    // 未知 id 同样走零加成路径
-    EXPECT_EQ(kRealm8Gain,
-              calculateBreakthroughLifespanGain(8, {kUnknownId}, {kUnknownId}));
 }
 
 }  // namespace

@@ -67,11 +67,11 @@ class DiffProductionSettlementTest {
         return states
     }
 
-    /** 最小弟子（male/成年/默认属性——生产场景零配对零偷盗） */
+    /** 最小弟子（male/默认属性——生产场景零配对） */
     private fun prodDisciple(id: String, name: String) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1,
         cultivation = 10.0, spiritRootType = "metal",
-        age = 20, gender = "male",
+        gender = "male",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
 

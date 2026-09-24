@@ -44,8 +44,10 @@ class DiscipleDeathHandler @Inject constructor() {
     }
 
     /**
-     * 列表 copy 模式补写 deathYears——玩家侧重伤无 deathYear，保留空实现
-     * 以维持 replaceAll 流水线调用点兼容（G07）。
+     * 列表 copy 模式补写 deathYears——玩家侧无新 `isAlive=false` 写入方，
+     * 本函数仅服务旧档（历史已死亡行缺 deathYears）与 AI 侧死亡行的补缺，
+     * 玩家侧重伤路径不写 deathYear。
+     * 保留空参数以维持 replaceAll 流水线调用点兼容。
      */
     fun backfillDeathYears(
         tables: DiscipleTables,

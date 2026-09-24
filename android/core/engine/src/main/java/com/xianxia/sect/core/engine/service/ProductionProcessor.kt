@@ -137,7 +137,7 @@ internal fun shouldResetSlotForCompletion(
  * 全槽位占用弟子 ID 收集（月度自动排班互斥防线）。
  *
  * 扫描全部工作槽位：长老全槽位（含纳徒长老 recruitingElder）、生产镜像槽、
- * 灵矿/藏经阁/仓库驻守/巡视/玩家宗门驻守、战斗队伍、活跃任务、远古秘境
+ * 灵矿/藏经阁/巡视/玩家宗门驻守、战斗队伍、活跃任务、远古秘境
  * 探索成员（secretRealmState.exists 时）、洞穴探索队伍（仅活跃状态，
  * 与 [DiscipleStatusService.buildInTeamIds] 同状态条件）、血炼进度。
  *
@@ -152,7 +152,6 @@ internal fun buildOccupiedSlotDiscipleIds(data: GameData): Set<String> = buildSe
     addAll(collectElderSlotDiscipleIds(data.elderSlots))
     data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
     data.librarySlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
-    data.warehouseGarrisons.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
     data.patrolSlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
     data.worldMapSects.find { it.isPlayerSect }?.garrisonSlots
         ?.filter { it.discipleId.isNotEmpty() }?.forEach { add(it.discipleId) }

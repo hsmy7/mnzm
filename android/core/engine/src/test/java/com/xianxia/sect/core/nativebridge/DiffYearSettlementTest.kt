@@ -45,7 +45,6 @@ import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.ManualDatabase.ManualTemplate
 import com.xianxia.sect.core.model.ManualType
@@ -90,9 +89,9 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
  *
  * 场景覆盖：
  * ① 年报快照：yearlyReports 追加 YearlyReport(year-1, annual* 快照值) +
- *    annual* 十二项清零（含 annualTheftCount）
+ *    annual* 各项清零
  * ② 年俸发放：yearlySalary[9]=500 enabled × 2 弟子 → spiritStones -1000、
- *    每人袋 +500、paidCount+1、loyalty 50→51（非开源节流）
+ *    每人袋 +500、paidCount+1（非开源节流）
  * ③ RNG 审计：商人收购每年消费 SYSTEM 分区
  *    （数量/品阶/选池/库存/grade/价格）——SYSTEM 终态由全量对拍逐位守护；
  *    BREAKTHROUGH/EXPLORATION 保持播种预抽后初值
@@ -100,7 +99,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
  * 规避清单落实（t2-3-semantics.md §4）：worldMapSects 空（驻军轮换恒等 +
  * gameOverCheck 不判定）/ lastRecruitYear=1 差值判据不满足 / recruitList 空 /
  * vassalContracts·scoutInfo·autoBuyEntries 空 / frugality=false /
- * morality≥阈值（执法堂沿用月变对拍规避）/ timestamp 对拍排除。
+ * timestamp 对拍排除。
  *
  * 商人收购：Kotlin 臂换装真实 MerchantAndRecruitService（收购流
  * 对拍主体——C++ runYearSettlement 每年执行收购）+ ManualDatabase 从静态
@@ -121,9 +120,6 @@ class DiffYearSettlementTest {
 
         /** realm=9 年俸额 */
         const val SALARY_REALM9 = 500L
-
-        /** 初始忠诚缺省 */
-        const val BASE_LOYALTY = 50
 
         /** 弟子数 */
         const val DISCIPLE_COUNT = 2
@@ -289,8 +285,7 @@ class DiffYearSettlementTest {
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(
-                DisciplePillManager(PillEffectApplier()),
-                mockSmart()
+                DisciplePillManager(PillEffectApplier())
             ),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
@@ -322,7 +317,6 @@ class DiffYearSettlementTest {
             stateStore = store,
             scopeProvider = scopeProvider,
             spiritStoneWallet = wallet,
-            lawEnforcementProcessor = mockSmart(),
             gameConfigProvider = configProvider
         )
         // AI 招募：真实 AI 宗门处理器——构造环断环：
@@ -382,9 +376,9 @@ class DiffYearSettlementTest {
             store, SpiritStoneLedger(), EventBus(scopeProvider)
         )
         // 死亡链下沉：换装真实 DiscipleLifecycleProcessor——C++
-        // runYearSettlement 已执行死亡链（老化 age+1/死亡处理），Kotlin 臂必须
-        // 真实老化（mock 零行为 → age 失配）；场景弟子 age 低不死亡 → 槽位/
-        // 哀悼/DAO 平台效应零触发（discipleSlotCleanup/productionCoordinator/
+        // 年变死亡链的平台效应（DAO 清理/DeathEvent）由真实
+        // DiscipleLifecycleProcessor 承担；场景无死亡 → 槽位/哀悼/DAO
+        // 平台效应零触发（discipleSlotCleanup/productionCoordinator/
         // inventorySystem/deathHandler mock 无害）
         val lifecycle = DiscipleLifecycleProcessor(
             stateStore = store,
@@ -392,7 +386,6 @@ class DiffYearSettlementTest {
             productionCoordinator = mockSmart(),
             eventBus = EventBus(scopeProvider),
             discipleSlotCleanup = mockSmart(),
-            lawEnforcementProcessor = mockSmart(),
             discipleStatusService = mockSmart(),
             ioDispatcher = IoDispatcher(),
             inventorySystem = mockSmart(),
@@ -441,7 +434,6 @@ class DiffYearSettlementTest {
             vassalService = VassalService(store, wallet, gameRng),
             disciplePurchaseService = mockSmart(),
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
-            lawEnforcementProcessor = mockSmart<LawEnforcementProcessor>(),
             rngManager = gameRng,
             secretRealmService = mockSmart(),
             secretRealmAIProcessor = mockSmart(),
@@ -503,7 +495,7 @@ class DiffYearSettlementTest {
             id = "ai-a1", name = "青云长老", surname = "青",
             gender = "male", realm = 7, realmLayer = 1,
             cultivation = 100.0, spiritRootType = "metal",
-            age = 100, isAlive = true,
+            isAlive = true,
             combat = CombatAttributes(baseHp = 500, currentHp = -1, currentMp = -1)
         )
         return NativeGameState(
@@ -799,7 +791,7 @@ class DiffYearSettlementTest {
         assertEquals(0L, actualGd.annualTotalIncome)
         assertEquals(0, actualGd.annualAlchemyCount)
 
-        // ② 年俸发放：spiritStones -Σ原额(1000)；每人袋 +500/paid+1/loyalty 51
+        // ② 年俸发放：spiritStones -Σ原额(1000)；每人袋 +500/paid+1
         assertEquals(
             "年俸扣减额不符",
             10000L - SALARY_REALM9 * DISCIPLE_COUNT,
@@ -815,11 +807,6 @@ class DiffYearSettlementTest {
                 "弟子 ${d.id} paidCount 不符",
                 1,
                 d.skills.salaryPaidCount
-            )
-            assertEquals(
-                "弟子 ${d.id} 忠诚未 +1",
-                BASE_LOYALTY + 1,
-                d.skills.loyalty
             )
         }
 

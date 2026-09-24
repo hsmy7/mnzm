@@ -30,14 +30,13 @@
 // gameData 顶层域，免去每次导出的全量序列化与树比较。
 //
 // ## 范围（B09 R2 生产接线：写屏障挂载 + 混合导出）
-//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，109 列——与
+//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，103 列——与
 //     Disciple to_json 字段一一对应；非协议派生列 numericIds/hasNumericIds/
-//     deathYears/lastTheftJudgementYears 不在册，协议字段 deathYear 无列
-//     支撑亦不在册）+ 集合 tombstone（通用实体集合名）+ gameData
+//     deathYears 不在册，协议字段 deathYear 无列支撑亦不在册）+ 集合 tombstone（通用实体集合名）+ gameData
 //     顶层域名集合。
 //   - 写屏障挂点（B09 起）= DiscipleStore 协议边界变更原语（append/upsert
 //     旋转/eraseAt 行位移/swapRows/clear）+ **结算热路径写点**（phase 路径
-//     修炼/恢复/丹药写回/突破/自动装备/亲属赠送/偷盗链，逐写点 markColumn
+//     修炼/恢复/丹药写回/突破/自动装备/亲属赠送，逐写点 markColumn
 //     精确标脏；月/年路径为 GameCore 边界按审计列集粗粒度标脏）。生产
 //     exportDirtyProto 在列级模式开启时走本层整树导出（[exportDirtyTree]），
 //     gameData/集合域与全量 diff 共享同一比对段（构造等价）；对拍显式依赖
@@ -90,8 +89,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::CultivationCheckpoint: return "cultivationCheckpoint";
         case DiscipleColumn::CultivationCheckpointGameMonth: return "cultivationCheckpointGameMonth";
         case DiscipleColumn::SpiritRootType: return "spiritRootType";
-        case DiscipleColumn::Age: return "age";
-        case DiscipleColumn::Lifespan: return "lifespan";
         case DiscipleColumn::IsAlive: return "isAlive";
         case DiscipleColumn::Gender: return "gender";
         case DiscipleColumn::PortraitRes: return "portraitRes";
@@ -105,7 +102,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::CultivationSpeedBonus: return "cultivationSpeedBonus";
         case DiscipleColumn::CultivationSpeedDuration: return "cultivationSpeedDuration";
         case DiscipleColumn::DiscipleType: return "discipleType";
-        case DiscipleColumn::SoulPower: return "soulPower";
         case DiscipleColumn::CultivationCompletionMonth: return "cultivationCompletionMonth";
         case DiscipleColumn::CultivationCompletionPhase: return "cultivationCompletionPhase";
         case DiscipleColumn::ManualCompletionMonth: return "manualCompletionMonth";
@@ -167,7 +163,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::MasterId: return "masterId";
         case DiscipleColumn::Intelligence: return "intelligence";
         case DiscipleColumn::Charm: return "charm";
-        case DiscipleColumn::Loyalty: return "loyalty";
         case DiscipleColumn::Comprehension: return "comprehension";
         case DiscipleColumn::ArtifactRefining: return "artifactRefining";
         case DiscipleColumn::PillRefining: return "pillRefining";
@@ -183,9 +178,7 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::ForgeLevel: return "forgeLevel";
         case DiscipleColumn::ForgePromotionCount: return "forgePromotionCount";
         case DiscipleColumn::UsedPermanentPillKeys: return "usedPermanentPillKeys";
-        case DiscipleColumn::UsedExtendLifePillTypes: return "usedExtendLifePillTypes";
         case DiscipleColumn::UsedFunctionalPillTypes: return "usedFunctionalPillTypes";
-        case DiscipleColumn::UsedExtendLifePillIds: return "usedExtendLifePillIds";
         case DiscipleColumn::RecruitedMonth: return "recruitedMonth";
         case DiscipleColumn::HasReviveEffect: return "hasReviveEffect";
         case DiscipleColumn::HasClearAllEffect: return "hasClearAllEffect";
@@ -217,8 +210,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             row["cultivationCheckpointGameMonth"] = ds.cultivationCheckpointGameMonths[r];
             break;
         case DiscipleColumn::SpiritRootType: row["spiritRootType"] = ds.spiritRootTypes[r]; break;
-        case DiscipleColumn::Age: row["age"] = ds.ages[r]; break;
-        case DiscipleColumn::Lifespan: row["lifespan"] = ds.lifespans[r]; break;
         case DiscipleColumn::IsAlive: row["isAlive"] = (ds.isAlive[r] != 0); break;
         case DiscipleColumn::Gender: row["gender"] = ds.genders[r]; break;
         case DiscipleColumn::PortraitRes: row["portraitRes"] = ds.portraitRes[r]; break;
@@ -236,7 +227,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             row["cultivationSpeedDuration"] = ds.cultivationSpeedDurations[r];
             break;
         case DiscipleColumn::DiscipleType: row["discipleType"] = ds.discipleTypes[r]; break;
-        case DiscipleColumn::SoulPower: row["soulPower"] = ds.soulPowers[r]; break;
         case DiscipleColumn::CultivationCompletionMonth:
             row["cultivationCompletionMonth"] = ds.cultivationCompletionMonths[r];
             break;
@@ -360,7 +350,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::MasterId: row["masterId"] = ds.masterIds[r]; break;
         case DiscipleColumn::Intelligence: row["intelligence"] = ds.intelligences[r]; break;
         case DiscipleColumn::Charm: row["charm"] = ds.charms[r]; break;
-        case DiscipleColumn::Loyalty: row["loyalty"] = ds.loyalties[r]; break;
         case DiscipleColumn::Comprehension: row["comprehension"] = ds.comprehensions[r]; break;
         case DiscipleColumn::ArtifactRefining:
             row["artifactRefining"] = ds.artifactRefinings[r];
@@ -390,14 +379,8 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::UsedPermanentPillKeys:
             row["usedPermanentPillKeys"] = ds.usedPermanentPillKeys[r];
             break;
-        case DiscipleColumn::UsedExtendLifePillTypes:
-            row["usedExtendLifePillTypes"] = ds.usedExtendLifePillTypes[r];
-            break;
         case DiscipleColumn::UsedFunctionalPillTypes:
             row["usedFunctionalPillTypes"] = ds.usedFunctionalPillTypes[r];
-            break;
-        case DiscipleColumn::UsedExtendLifePillIds:
-            row["usedExtendLifePillIds"] = ds.usedExtendLifePillIds[r];
             break;
         case DiscipleColumn::RecruitedMonth: row["recruitedMonth"] = ds.recruitedMonths[r]; break;
         case DiscipleColumn::HasReviveEffect:

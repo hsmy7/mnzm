@@ -7,7 +7,6 @@ import com.xianxia.sect.core.registry.AffixCombatEffects
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.engine.service.lifespanGainForRealm
 import com.xianxia.sect.core.state.MutableGameState
 
 // ── DiscipleStatCalculator 拆分域 1/7（行为零变更） ──
@@ -49,37 +48,6 @@ fun DiscipleStatCalculator.battleWritebackMaxHpMp(
         state.gameData.bloodRefinementPctTotals[disciple.id]
     )
     return Pair(stats.maxHp, stats.maxMp)
-}
-
-/**
- * 突破大境界成功后的寿命增益（对齐玩家 DiscipleBreakthroughHandler 算法）。
- *
- * 境界基准增益 + （天赋 + 词条）寿命加成（加成的整数部分），供玩家与 AI 突破共用。
- *
- * 增益口径含词条：出生（DiscipleFactory）与突破两口径一致，均含词条加成；
- * 漏词条会使带"延年"词条弟子突破后 lifespan 恒低于特质加成水平，
- * 被 AgeLifespanRule 截断死循环导致永生。
- *
- * @param newRealm 突破后的新境界
- * @param talentIds 弟子天赋 ID 列表
- * @param affixIds 弟子词条 ID 列表
- * @return 寿命增益值
- */
-
-fun DiscipleStatCalculator.calculateBreakthroughLifespanGain(
-    newRealm: Int,
-    talentIds: List<String>,
-    affixIds: List<String>
-): Int {
-    val baseGain = lifespanGainForRealm(newRealm)
-    val lifespanTalentBonus =
-        (TalentDatabase.calculateTalentEffects(talentIds)["lifespan"] ?: 0.0) +
-            (AffixDatabase.calculateAffixEffects(affixIds)["lifespan"] ?: 0.0)
-    return if (lifespanTalentBonus != 0.0) {
-        baseGain + (baseGain * lifespanTalentBonus).toInt()
-    } else {
-        baseGain
-    }
 }
 
 // ==================== 天赋效果 ====================

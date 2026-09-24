@@ -14,7 +14,6 @@ class DiscipleModelsTest {
         assertEquals(0, attrs.slotId)
         assertEquals(50, attrs.intelligence)
         assertEquals(50, attrs.charm)
-        assertEquals(50, attrs.loyalty)
         assertEquals(50, attrs.comprehension)
         assertEquals(50, attrs.artifactRefining)
         assertEquals(50, attrs.pillRefining)
@@ -45,11 +44,11 @@ class DiscipleModelsTest {
             discipleId = "d1",
             slotId = 1,
             intelligence = 80,
-            loyalty = 90
+            morality = 90
         )
         assertEquals("d1", attrs.discipleId)
         assertEquals(80, attrs.intelligence)
-        assertEquals(90, attrs.loyalty)
+        assertEquals(90, attrs.morality)
     }
 
     @Test
@@ -248,7 +247,6 @@ class DiscipleModelsTest {
         val stats = SkillStats()
         assertEquals(50, stats.intelligence)
         assertEquals(50, stats.charm)
-        assertEquals(50, stats.loyalty)
         assertEquals(50, stats.comprehension)
         assertEquals(50, stats.artifactRefining)
         assertEquals(50, stats.pillRefining)
@@ -278,7 +276,6 @@ class DiscipleModelsTest {
     fun usageTracking_defaultConstruction() {
         val tracking = UsageTracking()
         assertEquals(emptyList<String>(), tracking.usedFunctionalPillTypes)
-        assertEquals(emptyList<String>(), tracking.usedExtendLifePillIds)
         assertEquals(0, tracking.recruitedMonth)
         assertFalse(tracking.hasReviveEffect)
         assertFalse(tracking.hasClearAllEffect)
@@ -299,8 +296,6 @@ class DiscipleModelsTest {
         assertTrue(core.isAlive)
         assertEquals(DiscipleStatus.IDLE.name, core.status)
         assertEquals("outer", core.discipleType)
-        assertEquals(16, core.age)
-        assertEquals(80, core.lifespan)
         assertEquals("male", core.gender)
         assertEquals("", core.portraitRes)
         assertEquals("metal", core.spiritRootType)
@@ -308,14 +303,14 @@ class DiscipleModelsTest {
     }
 
     @Test
-    fun discipleCore_canCultivate_atAge5() {
-        val core = DiscipleCore(age = 5)
+    fun discipleCore_canCultivate_withRealmLayer() {
+        val core = DiscipleCore(realmLayer = 1)
         assertTrue(core.canCultivate)
     }
 
     @Test
-    fun discipleCore_canCultivate_belowAge5() {
-        val core = DiscipleCore(age = 4)
+    fun discipleCore_canCultivate_realmLayerZero() {
+        val core = DiscipleCore(realmLayer = 0)
         assertFalse(core.canCultivate)
     }
 
@@ -363,7 +358,6 @@ class DiscipleModelsTest {
         assertEquals(emptyList<StorageBagItem>(), equip.storageBagItems)
         assertEquals(0L, equip.storageBagSpiritStones)
         assertEquals(0, equip.spiritStones)
-        assertEquals(0, equip.soulPower)
     }
 
     @Test
@@ -412,7 +406,6 @@ class DiscipleModelsTest {
         assertEquals(0, ext.lastChildYear)
         assertNull(ext.griefEndYear)
         assertEquals(emptyList<String>(), ext.usedFunctionalPillTypes)
-        assertEquals(emptyList<String>(), ext.usedExtendLifePillIds)
         assertFalse(ext.hasReviveEffect)
         assertFalse(ext.hasClearAllEffect)
     }

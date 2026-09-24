@@ -44,7 +44,6 @@ import com.xianxia.sect.core.model.SignInState
 import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.VassalContract
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.YearlyReport
@@ -67,7 +66,7 @@ internal typealias GameDataFieldWriter = (GameData, JsonElement, Json) -> Unit
  * ## 退场的形状
  * 第一波（B06/B07）及之前，每旬镜像对 gameData 的应用是
  * `encodeToJsonElement(整份 GameData) → 覆盖变更键 → decodeFromJsonElement(整份)`
- * ——只为改 3~5 个标量，却要按 137 个序列化字段（含 gameEventRecords /
+ * ——只为改 3~5 个标量，却要按 134 个序列化字段（含 gameEventRecords /
  * recruitList / worldMapSects 等巨型容器）整树序列化 + 反序列化各一次，
  * 即"每旬级全量重建"。本对象把该形状换成**一次浅拷贝 + 变更字段逐个解码**：
  * 成本与"本封变了什么"成比例，与"状态有多大"无关。
@@ -126,7 +125,7 @@ internal object GameDataFieldPatch {
         return null
     }
 
-    // 表体 = GameData 构造器序列化字段全集（137 项，@Transient 9 项除外）。
+    // 表体 = GameData 构造器序列化字段全集（134 项，@Transient 除外）。
     // 逐字段用与整份解码同一个 Json 实例 + 同一 serializer ⇒ 逐值等价。
     @Suppress("LargeClass")
     private val WRITERS: Map<String, GameDataFieldWriter> = mapOf(
@@ -206,9 +205,6 @@ internal object GameDataFieldPatch {
         }),
         f("activeSectId", { gd, el, j -> gd.activeSectId = j.decodeFromJsonElement<String>(el) }),
         f("residenceSlots", { gd, el, j -> gd.residenceSlots = j.decodeFromJsonElement<List<ResidenceSlot>>(el) }),
-        f("warehouseGarrisons", { gd, el, j ->
-            gd.warehouseGarrisons = j.decodeFromJsonElement<List<WarehouseGarrisonSlot>>(el)
-        }),
         f("patrolSlots", { gd, el, j -> gd.patrolSlots = j.decodeFromJsonElement<List<PatrolSlot>>(el) }),
         f("patrolConfig", { gd, el, j -> gd.patrolConfig = j.decodeFromJsonElement<PatrolConfig>(el) }),
         f("patrolConfigs", { gd, el, j -> gd.patrolConfigs = j.decodeFromJsonElement<List<PatrolConfig>>(el) }),
@@ -350,8 +346,6 @@ internal object GameDataFieldPatch {
         f("annualNewDisciples", { gd, el, j -> gd.annualNewDisciples = j.decodeFromJsonElement<Int>(el) }),
         f("annualDeceasedDisciples", { gd, el, j -> gd.annualDeceasedDisciples = j.decodeFromJsonElement<Int>(el) }),
         f("annualDesertedDisciples", { gd, el, j -> gd.annualDesertedDisciples = j.decodeFromJsonElement<Int>(el) }),
-        f("annualTheftCount", { gd, el, j -> gd.annualTheftCount = j.decodeFromJsonElement<Int>(el) }),
-        f("theftJudgementsThisMonth", { gd, el, j -> gd.theftJudgementsThisMonth = j.decodeFromJsonElement<Int>(el) }),
         f("annualEquipmentBySource", { gd, el, j ->
             gd.annualEquipmentBySource = j.decodeFromJsonElement<Map<String, Int>>(el)
         }),

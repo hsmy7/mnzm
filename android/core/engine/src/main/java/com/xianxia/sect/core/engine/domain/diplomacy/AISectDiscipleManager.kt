@@ -27,7 +27,6 @@ import com.xianxia.sect.core.model.charm
 import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.magicAttackVariance
 import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
@@ -39,7 +38,6 @@ import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.speedVariance
 import com.xianxia.sect.core.model.spiritPlanting
 import com.xianxia.sect.core.model.teaching
-import com.xianxia.sect.core.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.DeterministicRng
@@ -247,14 +245,6 @@ object AISectDiscipleManager {
         val physiqueIds = PhysiqueDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
         val affixIds = AffixDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
 
-        // 寿命含天赋 + 词条加成（对齐 DiscipleFactory.create 的 lifespan 计算）
-        val talentEffects = TalentDatabase.calculateTalentEffects(talents)
-        val affixEffects = AffixDatabase.calculateAffixEffects(affixIds)
-        val lifespanBonus =
-            (talentEffects["lifespan"] ?: 0.0) + (affixEffects["lifespan"] ?: 0.0)
-        val baseLifespan = GameConfig.Realm.get(9).maxAge
-        val lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-
         return Disciple(
             id = java.util.UUID.randomUUID().toString(),
             name = nameResult.fullName,
@@ -265,8 +255,6 @@ object AISectDiscipleManager {
             realmLayer = 1,
             cultivation = 0.0,
             spiritRootType = spiritRoot,
-            age = 16 + rng.nextInt(14),
-            lifespan = lifespan,
             isAlive = true,
             discipleType = "outer",
             talentIds = talents,
@@ -287,7 +275,6 @@ object AISectDiscipleManager {
             skills = SkillStats(
                 intelligence = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
                 charm = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
-                loyalty = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.MAX_LOYALTY),
                 comprehension = comprehension,
                 morality = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
                 artifactRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
@@ -399,16 +386,7 @@ object AISectDiscipleManager {
     }
 
     fun processAging(disciples: List<Disciple>): List<Disciple> {
-        return disciples.map { disciple ->
-            val newAge = disciple.age + 1
-            val maxAge = disciple.computeMaxAge()
-            val isAlive = newAge <= maxAge
-
-            disciple.copy(
-                age = newAge,
-                isAlive = isAlive
-            )
-        }.filter { it.isAlive }
+        return disciples
     }
 
     fun initializeSectDisciples(sectName: String, sectLevel: Int): Pair<List<Disciple>, Int> {

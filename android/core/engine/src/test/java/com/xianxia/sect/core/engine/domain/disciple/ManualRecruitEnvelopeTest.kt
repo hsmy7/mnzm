@@ -16,7 +16,7 @@ class ManualRecruitEnvelopeTest {
 
     @Test
     fun `parse - 成功信封全字段映射`() {
-        val raw = """{"ok":true,"newId":"34","age":16,"name":"候选招募","reason":"SUCCESS"}"""
+        val raw = """{"ok":true,"newId":"34","name":"候选招募","reason":"SUCCESS"}"""
             .encodeToByteArray()
 
         val envelope = parseManualRecruitEnvelope(raw)
@@ -24,7 +24,6 @@ class ManualRecruitEnvelopeTest {
         assertTrue(envelope != null)
         assertEquals(true, envelope!!.ok)
         assertEquals("34", envelope.newId)
-        assertEquals(16, envelope.age)
         assertEquals("候选招募", envelope.name)
         assertEquals("SUCCESS", envelope.reason)
     }
@@ -41,7 +40,7 @@ class ManualRecruitEnvelopeTest {
 
     @Test
     fun `parse - 未知字段宽松忽略（防 C++ 协议扩展破坏）`() {
-        val raw = """{"ok":true,"newId":"34","age":16,"name":"x","reason":"SUCCESS","extra":1}"""
+        val raw = """{"ok":true,"newId":"34","name":"x","reason":"SUCCESS","extra":1}"""
             .encodeToByteArray()
 
         val envelope = parseManualRecruitEnvelope(raw)

@@ -16,7 +16,6 @@ import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.model.SectRelation
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.RngPartition
@@ -37,16 +36,11 @@ import org.junit.Test
  *
  * 场景覆盖（对照 t2-2-semantics.md §3 九条规避约束）：
  * ① 灵矿 lastSettledMonth 无条件推进（矿空 rate=0 仍推进——差分保护语义）
- * ② 伴侣配对 SYSTEM 流：两男两女适格（age≥18 / 无道侣 / 无血亲 /
- *    bannedRootCounts 空），males 外层 × females 内层每组合恰 1 次 nextDouble，
+ * ② 伴侣配对 SYSTEM 流：两男两女适格（无道侣 / 无血亲 /
+ *    bannedRootCounts 空），每组合恰 1 次 nextDouble，
  *    以 RNG 分区终态锁定抽取次数与顺序（0.006 概率下预期全不命中 → partnerId 全空）
- * ③ 政策忠诚：仁政爱徒 loyalty delta=+1（50→51 coerceIn(0,100)）+
- *    S1 政策月费 100×4 弟子经真实钱包扣除
+ * ③ 政策月费：仁政爱徒 100×全体弟子数经真实钱包扣除
  *
- * ⑥偷盗兜底：弟子 16 道德 10（候选）但入伍月 13 保护期未满
- * （绝对月差 14-13=1 < 12，双端口径均 < 12）→ 候选排除，零抽取零标记——
- * 任何虚假 SYSTEM 抽取都会移位叛逃候选抽取序列而对拍失败；门控通过
- * （平均忠诚 42 < 50）与 hasCandidate 路径（道德 < 30）仍被真实覆盖。
  * ⑦附庸脱离：玩家宗门 p1 + 附属 ai-3（至交 100，战力比 ≥5x
  * → 概率 0.0）恰抽 1 次 SYSTEM 必不脱离——契约保留零事件；玩家宗门在场
  * 使 gameOverCheck 走"本宗未被占领 → 不触发"路径。
@@ -54,8 +48,7 @@ import org.junit.Test
  * 俘虏落库 no-op 规避 UUID 分叉）+ 1 名不匹配；autoRecruitSpiritRootFilter
  * {1} → 弟子 17 入宗（id=max+1、资质 50→82 散列补算、recruitedMonth=14、
  * annualNewDisciples+1），r2 保留在列表；零 RNG 抽取（SYSTEM 抽取序零扰动）。
- * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/ 除弟子 16 外
- * morality≥阈值（reactive 偷盗钩子零触发）/ consentRequired=false /
+ * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/ consentRequired=false /
  * worldLevels 空（precomputeTargets 纯早退）/ spiritFieldPlants 空 /
  * activeBloodRefinements 空 / 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
  *
@@ -76,23 +69,17 @@ class DiffMonthSettlementTest {
         /** 仁政爱徒月费（PolicyConfig：100 × 全体弟子数） */
         const val BENEVOLENT_MONTHLY_COST_PER_DISCIPLE = 100L
 
-        /** 初始忠诚缺省（DiscipleTables.loyalties getOrDefault 50） */
-        const val BASE_LOYALTY = 50
-
-        /** 仁政爱徒月度忠诚增量（kBenevolentLoyaltyPerMonth） */
-        const val BENEVOLENT_LOYALTY_DELTA = 1
-
-        /** 弟子数（2 男 2 女 + 1 叛逃候选 + 1 偷盗保护期候选） */
+        /** 场景弟子数（2 男 2 女 + 2 名扩展夹具弟子） */
         const val DISCIPLE_COUNT = 6
 
-        /** 批 10-3 偷盗保护期候选 id（道德 10 但入伍月 13 → 候选排除） */
-        const val PROTECTED_THIEF_ID = "16"
+        /** 扩展夹具弟子 B 入伍绝对月（年 1 月 1 = 13；覆盖入伍月字段面） */
+        const val FIXTURE_EXTRA_B_RECRUITED_MONTH = 13
 
-        /** 偷盗保护期候选入伍绝对月（年 1 月 1 = 13；月变时绝对月 14，差 1 < 12） */
-        const val PROTECTED_THIEF_RECRUITED_MONTH = 13
+        /** 扩展夹具弟子 A id（保持弟子 id 上限——自动招募新弟子 id=17 金黄锚点） */
+        const val FIXTURE_EXTRA_A_ID = "15"
 
-        /** 叛逃候选 id（忠诚 0 → 概率 (30-1)×0.01=0.29，月结 step8 判定） */
-        const val DESERTER_ID = "15"
+        /** 扩展夹具弟子 B id（道德 10 + 入伍月 13 字段面覆盖） */
+        const val FIXTURE_EXTRA_B_ID = "16"
 
         /** 自动招募匹配候选 id（recruitList 侧；入宗后分配新 id=max+1=17） */
         const val RECRUIT_MATCH_ID = "r1"
@@ -170,20 +157,15 @@ class DiffMonthSettlementTest {
                 pairingDisciple("12", "甲二", "male"),
                 pairingDisciple("13", "乙一", "female"),
                 pairingDisciple("14", "乙二", "female"),
-                // 场景⑤：叛逃候选——忠诚 0（政策 +1 后 1 < 30）、
-                // 未成年（16 岁不参与伴侣配对，避免额外 SYSTEM 抽取改变既有
-                // 4 组合序列）、IDLE、recruitedMonth 0（保护期 25-0 ≥ 12）
-                pairingDisciple(DESERTER_ID, "丙一", "male").copy(
-                    age = 16,
-                    skills = SkillStats(loyalty = 0)
-                ),
-                // 场景⑥：偷盗候选（道德 10）但入伍月 13 → 保护期
-                // （12 月）未满 → 候选排除零抽取；未成年（16 岁）不参与配对、
-                // 忠诚 50 非叛逃候选（不扰动既有 SYSTEM 抽取序列）
-                pairingDisciple(PROTECTED_THIEF_ID, "丁一", "male").copy(
-                    age = 16,
+                // 扩展夹具弟子 A：保持弟子 id 上限（自动招募新弟子 id=17 金黄锚点）；
+                // 预置道侣 → 不入配对候选（SYSTEM 抽取数保持 4 组合口径）
+                pairingDisciple(FIXTURE_EXTRA_A_ID, "丙一", "male")
+                    .copy(social = SocialData(partnerId = "99")),
+                // 扩展夹具弟子 B：道德 10 + 入伍月 13（道德/入伍月字段面覆盖）
+                pairingDisciple(FIXTURE_EXTRA_B_ID, "丁一", "male").copy(
                     skills = SkillStats(morality = 10),
-                    usage = UsageTracking(recruitedMonth = PROTECTED_THIEF_RECRUITED_MONTH)
+                    usage = UsageTracking(recruitedMonth = FIXTURE_EXTRA_B_RECRUITED_MONTH),
+                    social = SocialData(partnerId = "99")
                 )
             )
         )
@@ -210,8 +192,8 @@ class DiffMonthSettlementTest {
      * 场景⑦：附庸脱离——玩家宗门在场（gameOverCheck 判"本宗未被
      * 占领" → 不触发）；附属 ai-3 至交好感 100 + 战力比 ≥5x（powerScore 0）
      * → 脱离概率 0.0，恰抽 1 次 SYSTEM 必不脱离；契约保留 + 零事件。AI 弟子
-     * 与玩家弟子同规格（realm 9 无天赋）→ 战力比 = 存活弟子数（5 或 6，由
-     * 叛逃结果决定）≥ 5 精确成立。
+     * 与玩家弟子同规格（realm 9 无天赋）→ 战力比 = 存活弟子数（6 或 7，
+     * 无叛逃路径）≥ 5 精确成立。
      */
     private fun GameData.applyVassalBreakawayScene() {
         vassalContracts = listOf(
@@ -225,7 +207,7 @@ class DiffMonthSettlementTest {
                 Disciple(
                     id = "90", name = "玄一", realm = 9, realmLayer = 1,
                     cultivation = 10.0, spiritRootType = "metal",
-                    age = 20, gender = "male",
+                    gender = "male",
                     combat = CombatAttributes(currentHp = -1, currentMp = -1)
                 )
             )
@@ -238,12 +220,12 @@ class DiffMonthSettlementTest {
         )
     }
 
-    /** 配对适格弟子：成年 / 无道侣 / 无血亲 / 低修为（不触发突破）/ 满血哨兵 */
+    /** 配对适格弟子：无道侣 / 无血亲 / 低修为（不触发突破）/ 满血哨兵 */
     private fun pairingDisciple(id: String, name: String, gender: String) =
         Disciple(
             id = id, name = name, realm = 9, realmLayer = 1,
             cultivation = 10.0, spiritRootType = "metal",
-            age = 20, gender = gender,
+            gender = gender,
             combat = CombatAttributes(currentHp = -1, currentMp = -1)
         )
 
@@ -283,7 +265,6 @@ class DiffMonthSettlementTest {
                     Disciple(
                         id = "90", name = "玄一", realm = 9, realmLayer = 1,
                         cultivation = 10.0, spiritRootType = "metal",
-                        age = 20, gender = "male",
                         combat = CombatAttributes(currentHp = -1, currentMp = -1)
                     )
                 )
@@ -329,7 +310,6 @@ class DiffMonthSettlementTest {
                     Disciple(
                         id = "90", name = "玄一", realm = 9, realmLayer = 1,
                         cultivation = 10.0, spiritRootType = "metal",
-                        age = 20, gender = "male",
                         combat = CombatAttributes(currentHp = -1, currentMp = -1)
                     )
                 )
@@ -380,48 +360,6 @@ class DiffMonthSettlementTest {
     )
 
     /**
-     * 场景⑬：教化之道偷盗判定钩子——moralEducation 开启 +
-     * 1 名道德 28 忠诚 40 弟子（从众门控通过），(1,1) 起 3 旬跨 1→2 月界。
-     * 月结步骤 2 钩子：道德 28→29（仍 < 30 阈值）→ 单弟子偷盗判定——
-     * 偷盗概率 prob=(30-29)×0.01=0.01 种子不中 → 标记（theftJudgements
-     * ThisMonth+1 + lastTheftJudgementYears）+ SYSTEM 恰抽 1 次；子事件 3
-     * 月度兜底：theftJudgementsThisMonth 首行无条件归零 + 已判定（年标记）
-     * 排除 → 零抽取。终态：道德 29 + 计数归零 + SYSTEM 共 1 抽。
-     */
-    private fun buildMoralEducationSnapshot(): NativeGameState {
-        val gameData = GameData(
-            gameYear = 1, gameMonth = 1, gamePhase = 0,
-            spiritStones = 10000L
-        ).apply {
-            rngStates = initialRngStates(SEED)
-            // 预置刷新月（13）→ 不刷新（场景⑬ 专注教化之道钩子）
-            worldLevelLastRefreshMonth = 1 * 12 + 1
-            sectPolicies = sectPolicies.copy(moralEducation = true)
-            // 非空 AI 弟子池（规避空表 null vs {} 协议不对称——同款；
-            // worldLevels 空 → precomputeTargets 纯早退，零影响）
-            aiSectDisciples = mapOf(
-                "ai-1" to listOf(
-                    Disciple(
-                        id = "90", name = "玄一", realm = 9, realmLayer = 1,
-                        cultivation = 10.0, spiritRootType = "metal",
-                        age = 20, gender = "male",
-                        combat = CombatAttributes(currentHp = -1, currentMp = -1)
-                    )
-                )
-            )
-        }
-        return NativeGameState(
-            gameData = gameData,
-            aiSectDisciples = gameData.aiSectDisciples,
-            disciples = listOf(
-                pairingDisciple("11", "甲一", "male").copy(
-                    skills = SkillStats(morality = 28, loyalty = 40)
-                )
-            )
-        )
-    }
-
-    /**
      * 场景⑭：世界关卡刷新生成——玩家宗门 p1 + worldLevels 空 +
      * lastRefreshMonth=0（默认应刷新）+ 1 名 realm 9 弟子（playerAvgRealm=9），
      * (1,1) 起 3 旬跨 1→2 月界。月结步骤 4e：shouldRefresh（0==0）→ p1 存在 →
@@ -445,7 +383,6 @@ class DiffMonthSettlementTest {
                     Disciple(
                         id = "90", name = "玄一", realm = 9, realmLayer = 1,
                         cultivation = 10.0, spiritRootType = "metal",
-                        age = 20, gender = "male",
                         combat = CombatAttributes(currentHp = -1, currentMp = -1)
                     )
                 )
@@ -488,7 +425,6 @@ class DiffMonthSettlementTest {
                     Disciple(
                         id = "90", name = "玄一", realm = 9, realmLayer = 1,
                         cultivation = 10.0, spiritRootType = "metal",
-                        age = 20, gender = "male",
                         combat = CombatAttributes(currentHp = -1, currentMp = -1)
                     )
                 )
@@ -577,40 +513,6 @@ class DiffMonthSettlementTest {
     }
 
     @Test
-    fun `moral education hook triggers theft judgement matching Kotlin bit-for-bit`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
-
-        val snapshot = buildMoralEducationSnapshot()
-        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
-
-        val expected = advanceKotlinMonthSide(snapshot, PHASES)
-
-        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
-            encoded.encodeToByteArray()))
-        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
-        val actual = json.decodeFromString(
-            NativeGameState.serializer(),
-            DiffRngBridge.nativeCoreExportState().decodeToString()
-        )
-
-        // 场景⑬ 显式断言：道德 28→29（教化之道 +1）、钩子触发标记后被子事件 3
-        // 兜底归零、SYSTEM 恰 1 抽（偷盗概率 prob=0.01 不中——已判定年标记
-        // 排除兜底重复判定）
-        val disciple = actual.disciples.first { it.id == "11" }
-        assertEquals("道德应提升至 29（教化之道 +1）", 29, disciple.skills.morality)
-        assertEquals("钩子标记后月度兜底无条件归零", 0,
-            actual.gameData.theftJudgementsThisMonth)
-        assertEquals("SYSTEM 分区终态不一致（钩子 1 抽 + 兜底 0 抽）",
-            expected.gameData.rngStates[RngPartition.SYSTEM.id],
-            actual.gameData.rngStates[RngPartition.SYSTEM.id])
-
-        diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
-                                json.encodeToJsonElement(actual))
-    }
-
-    @Test
     fun `world level refresh generates levels matching Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
@@ -670,13 +572,13 @@ class DiffMonthSettlementTest {
                                 json.encodeToJsonElement(actual))
     }
 
-    /** 招募候选：未成年（16 岁不参与伴侣配对）/ 资质缺省 50（触发散列补算）/
+    /** 招募候选：资质缺省 50（触发散列补算）/
      *  无装备功法（俘虏落库 no-op 规避 UUID 分叉）/ 满血哨兵 */
     private fun recruitCandidate(id: String, name: String, roots: String) =
         Disciple(
             id = id, name = name, realm = 9, realmLayer = 1,
             cultivation = 10.0, spiritRootType = roots,
-            age = 16, gender = "male",
+            gender = "male",
             combat = CombatAttributes(currentHp = -1, currentMp = -1)
         )
 
@@ -722,20 +624,6 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * ⑥偷盗保护期候选零效果断言：候选被保护期排除后不得产生任何
-     * 偷盗副作用——无失窃灵石入袋、无入袋物品、无年度偷盗计数。
-     */
-    private fun assertTheftProtectedCandidateZeroEffect(actual: NativeGameState) {
-        actual.disciples.firstOrNull { it.id == PROTECTED_THIEF_ID }?.let {
-            assertEquals("保护期候选不应有失窃灵石入袋", 0L,
-                it.equipment.storageBagSpiritStones)
-            assertTrue("保护期候选不应入袋物品", it.equipment.storageBagItems.isEmpty())
-        }
-        assertEquals("偷盗兜底不应产生年度偷盗计数",
-            0, actual.gameData.annualTheftCount)
-    }
-
-    /**
      * ⑦附庸脱离零效果断言：至交好感 + 战力比 ≥5x → 概率 0.0，
      * 恰抽 1 次 SYSTEM 必不脱离——契约保留、零脱离事件。
      */
@@ -759,8 +647,8 @@ class DiffMonthSettlementTest {
             (1 * 12 + 2).toLong(),
             actualGd.spiritMineLastSettledMonth.toLong()
         )
-        // ③ 政策忠诚 + ⑤叛逃/偷盗 + ② 伴侣配对
-        assertLoyaltyAndLawEnforcementEffects(actual, actualGd)
+        // ② 伴侣配对 + 扩展夹具
+        assertPairingAndFixtureEffects(actual, actualGd)
         // ⑧自动招募 + ⑨秘境 AI 队伍派遣
         assertAutoRecruitEffects(actual, actualGd)
         assertSecretRealmAiTeams(actualGd)
@@ -820,7 +708,6 @@ class DiffMonthSettlementTest {
                     Disciple(
                         id = "90", name = "玄一", realm = 9, realmLayer = 1,
                         cultivation = 10.0, spiritRootType = "metal",
-                        age = 20, gender = "male",
                         combat = CombatAttributes(currentHp = -1, currentMp = -1)
                     )
                 )
@@ -866,7 +753,6 @@ class DiffMonthSettlementTest {
         // 生育断言：新生儿入 recruitList（恰 1 名）+ 母亲状态更新
         assertEquals("应生育 1 名新生儿", 1, expected.gameData.recruitList.size)
         val child = expected.gameData.recruitList.single()
-        assertEquals("新生儿应为 1 岁", 1, child.age)
         assertEquals("新生儿父亲应匹配", FATHER_ID, child.social.parentId2)
         // 与 GTest 黄金序列（child_birth_test.cpp 同种子同消费序）闭环锚定
         assertEquals("新生儿名字应与 GTest 黄金一致", "父丹青", child.name)
@@ -888,41 +774,30 @@ class DiffMonthSettlementTest {
         )
     }
 
-    /** ③ 政策忠诚 + ⑤叛逃/偷盗 + ② 伴侣配对 组合断言 */
-    private fun assertLoyaltyAndLawEnforcementEffects(
+    /** ② 伴侣配对 + 扩展夹具 组合断言 */
+    private fun assertPairingAndFixtureEffects(
         actual: NativeGameState,
         actualGd: GameData
     ) {
-        // ③ 政策忠诚：仁政爱徒 +1（50 → 51，coerceIn(0,100)）；原四弟子全部生效
-        // （自动招募新弟子在 step8 入宗——晚于 step2 政策效果，忠诚保持 50）
-        for (d in actual.disciples) {
-            if (d.id == DESERTER_ID || d.id == NEW_RECRUIT_ID.toString()) continue
-            assertEquals(
-                "弟子 ${d.id} 忠诚未按仁政爱徒 +1",
-                (BASE_LOYALTY + BENEVOLENT_LOYALTY_DELTA),
-                d.skills.loyalty
-            )
-        }
-        // ⑤ 叛逃候选：忠诚 0 + 政策 +1 = 1（若未叛逃离场）；偷盗兜底只归零
-        // theftJudgementsThisMonth（其余弟子道德 50 ≥ 30 非候选；弟子 16 保护期
-        // 排除 → 无标记递增，零抽取）
-        assertEquals(0, actualGd.theftJudgementsThisMonth)
-        assertTheftProtectedCandidateZeroEffect(actual)
-        actual.disciples.firstOrNull { it.id == DESERTER_ID }?.let {
-            assertEquals("叛逃候选忠诚应为 0+1", 1, it.skills.loyalty)
-        }
-        assertTrue(
-            "叛逃判定后弟子数应为 6 或 7（偷盗保护期候选恒在场；叛逃候选由 SYSTEM 抽取序列决定去留；自动招募 +1 固定）",
-            actual.disciples.size == 6 || actual.disciples.size == 7
+        // 场景弟子数：6 名基础弟子 + 自动招募 1 名（无叛逃/逐出路径）
+        assertEquals(
+            "场景弟子数应为 7（6 基础 + 1 自动招募）",
+            7, actual.disciples.size
         )
-        assertTrue(
-            "annualDesertedDisciples 应为 0 或 1",
-            actualGd.annualDesertedDisciples == 0 || actualGd.annualDesertedDisciples == 1
+        // 叛逃系统下线后年报逐出计数保持 0（本场景无玩家逐出）
+        assertEquals(
+            "annualDesertedDisciples 应保持 0",
+            0, actualGd.annualDesertedDisciples
         )
         // ② 伴侣配对：0.006 概率下预期无命中（partnerId 保持 null）；SYSTEM
-        // 分区终态已含 4 组合各一次 nextDouble 的状态推进（全量对拍兜底）
+        // 分区终态已含全部组合各一次 nextDouble 的状态推进（全量对拍兜底）。
+        // 扩展夹具弟子预置道侣（不入候选），4 组合抽取口径与原场景一致。
         for (d in actual.disciples) {
-            assertEquals("弟子 ${d.id} 意外配对", null, d.social.partnerId)
+            if (d.id == FIXTURE_EXTRA_A_ID || d.id == FIXTURE_EXTRA_B_ID) {
+                assertEquals("扩展夹具弟子不应入配对候选", "99", d.social.partnerId)
+            } else {
+                assertEquals("弟子 ${d.id} 意外配对", null, d.social.partnerId)
+            }
         }
     }
 
@@ -934,8 +809,6 @@ class DiffMonthSettlementTest {
         newRecruit?.let {
             assertEquals("自动招募新弟子资质散列补算错误", NEW_RECRUIT_APTITUDE, it.skills.aptitude)
             assertEquals("自动招募新弟子 recruitedMonth 应为 14", 14, it.usage.recruitedMonth)
-            // step8 入宗晚于 step2 政策忠诚效果 → 忠诚保持初始 50
-            assertEquals("自动招募新弟子忠诚应为初始 50", 50, it.skills.loyalty)
         }
         assertEquals("不匹配候选应保留在 recruitList", listOf(RECRUIT_KEEP_ID),
             actualGd.recruitList.map { d -> d.id })

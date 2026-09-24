@@ -170,7 +170,7 @@ private fun shouldShowPromotionCount(status: PromotionProgressStatus): Boolean =
 
 /**
  * 炼丹/锻造职业等级"详情"按钮 — 20dp 圆形按钮，点击弹出职业等级与晋升要求弹窗。
- * 样式对齐 ElderBonusInfoButton（执法长老等职务详情按钮）。
+ * 样式对齐 ElderBonusInfoButton（长老职务详情按钮）。
  *
  * @param isAlchemy true=炼丹职业（弹窗标题"炼丹等级"），false=锻造职业（"锻造等级"）
  * @param detailButtonRes 详情图标资源

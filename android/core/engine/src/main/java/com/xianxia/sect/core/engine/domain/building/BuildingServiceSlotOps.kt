@@ -214,7 +214,7 @@ internal suspend fun BuildingService.getDiscipleNameIfAvailable(discipleId: Stri
         if (!disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
             return@update
         }
-        if (disciple.age < 5) {
+        if (disciple.realmLayer == 0) {
             return@update
         }
         discipleName = disciple.name

@@ -39,7 +39,6 @@ internal fun DiscipleStatCalculator.computeBaseStats(
     val critBonus = talentBonus(talentEffects, "critRate")
     val intelligenceFlat = talentFlat(talentEffects, "intelligenceFlat")
     val charmFlat = talentFlat(talentEffects, "charmFlat")
-    val loyaltyFlat = talentFlat(talentEffects, "loyaltyFlat")
     val comprehensionFlat = talentFlat(talentEffects, "comprehensionFlat")
     val teachingFlat = talentFlat(talentEffects, "teachingFlat")
     val moralityFlat = talentFlat(talentEffects, "moralityFlat")
@@ -72,7 +71,6 @@ internal fun DiscipleStatCalculator.computeBaseStats(
         critRate = BASE_CRIT_RATE + critBonus,
         intelligence = skills.intelligence + intelligenceFlat,
         charm = skills.charm + charmFlat,
-        loyalty = skills.loyalty + loyaltyFlat,
         comprehension = skills.comprehension + comprehensionFlat,
         aptitude = skills.aptitude,
         teaching = skills.teaching + teachingFlat,
@@ -107,7 +105,6 @@ fun DiscipleStatCalculator.getBaseStats(
         skills = SkillInputs(
             intelligence = s.intelligence,
             charm = s.charm,
-            loyalty = s.loyalty,
             comprehension = s.comprehension,
             aptitude = s.aptitude,
             teaching = s.teaching,
@@ -137,7 +134,6 @@ internal fun DiscipleStatCalculator.varianceInputsOf(cs: DiscipleCombatStats?): 
 internal fun DiscipleStatCalculator.skillInputsOf(attr: DiscipleAttributes?): SkillInputs = SkillInputs(
     intelligence = attr?.intelligence ?: 50,
     charm = attr?.charm ?: 50,
-    loyalty = attr?.loyalty ?: 50,
     comprehension = attr?.comprehension ?: 50,
     aptitude = attr?.aptitude ?: 50,
     teaching = attr?.teaching ?: 50,

@@ -45,8 +45,6 @@ enum class DiscipleColumn : uint16_t {
     CultivationCheckpoint,
     CultivationCheckpointGameMonth,
     SpiritRootType,
-    Age,
-    Lifespan,
     IsAlive,
     Gender,
     PortraitRes,
@@ -60,7 +58,6 @@ enum class DiscipleColumn : uint16_t {
     CultivationSpeedBonus,
     CultivationSpeedDuration,
     DiscipleType,
-    SoulPower,
     CultivationCompletionMonth,
     CultivationCompletionPhase,
     ManualCompletionMonth,
@@ -127,7 +124,6 @@ enum class DiscipleColumn : uint16_t {
     // SkillStats
     Intelligence,
     Charm,
-    Loyalty,
     Comprehension,
     ArtifactRefining,
     PillRefining,
@@ -144,9 +140,7 @@ enum class DiscipleColumn : uint16_t {
     ForgePromotionCount,
     // UsageTracking
     UsedPermanentPillKeys,
-    UsedExtendLifePillTypes,
     UsedFunctionalPillTypes,
-    UsedExtendLifePillIds,
     RecruitedMonth,
     HasReviveEffect,
     HasClearAllEffect,
@@ -180,14 +174,8 @@ public:
     std::vector<double> cultivations;
     std::vector<double> cultivationCheckpoints;
     std::vector<int32_t> cultivationCheckpointGameMonths;
-    std::vector<int32_t> ages;
-    std::vector<int32_t> lifespans;
     std::vector<int8_t> isAlive;                 // 0/1（Int 语义避免 bool 填充）
     std::vector<int32_t> deathYears;             // 0 = 无条目（Kotlin 稀疏组件表语义：仅已故弟子有值；不进 JSON 协议）
-    // 0 = 从未判定（Kotlin DiscipleTables.lastTheftJudgementYears 稀疏表语义；
-    // 不进 JSON 协议，读档即归零——与 Kotlin 会话级组件表一致）
-    std::vector<int32_t> lastTheftJudgementYears;
-    std::vector<int32_t> soulPowers;
     // ── 修炼加速 ──
     std::vector<double> cultivationSpeedBonuses;
     std::vector<int32_t> cultivationSpeedDurations;
@@ -271,7 +259,6 @@ public:
     // ── SkillStats 列 ──
     std::vector<int32_t> intelligences;
     std::vector<int32_t> charms;
-    std::vector<int32_t> loyalties;
     std::vector<int32_t> comprehensions;
     std::vector<int32_t> artifactRefinings;
     std::vector<int32_t> pillRefinings;
@@ -289,9 +276,7 @@ public:
 
     // ── UsageTracking 列 ──
     std::vector<std::vector<std::string>> usedPermanentPillKeys;
-    std::vector<std::vector<std::string>> usedExtendLifePillTypes;
     std::vector<std::vector<std::string>> usedFunctionalPillTypes;
-    std::vector<std::vector<std::string>> usedExtendLifePillIds;
     std::vector<int32_t> recruitedMonths;
     std::vector<int8_t> hasReviveEffects;        // 0/1
     std::vector<int8_t> hasClearAllEffects;      // 0/1
@@ -378,7 +363,7 @@ public:
     /// 边界变更原语（append/upsert 旋转/eraseAt 行位移/swapRows/clear）
     /// 向追踪器标记脏行/列 + tombstone，供列级增量导出消费。
     /// **范围口径（B09 起）**：结算热路径写点经 [markCol] 逐点标脏（修炼/
-    /// 恢复/丹药写回/突破/自动装备/亲属赠送/偷盗链），行结构变更路径由
+    /// 恢复/丹药写回/突破/自动装备/亲属赠送），行结构变更路径由
     /// 变更原语整行标脏；生产 exportDirtyProto 列级模式消费本层导出，
     /// 全量模式开关保留（对拍零漂移）。
     void attachColumnDirtyTracker(ColumnDirtyTracker* tracker) {

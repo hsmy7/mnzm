@@ -932,35 +932,11 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopSetBatteryStatu
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetGameConfig(
     JNIEnv* env, jobject /*thiz*/,
-    jint warehouseBaseCapacity, jint warehouseCapacityPerBuilding,
-    jint lawLoyaltyThreshold, jint lawMoralityThreshold,
-    jint lawHerdLoyaltyThreshold, jdouble lawProbPerPoint, jdouble lawMaxProb,
-    jdouble lawBaseCaptureRate, jint lawIntelligenceBase,
-    jdouble lawElderBonusPerPoint, jint lawDiscipleIntelligenceStep,
-    jdouble lawDiscipleBonusPerStep, jint lawReflectionYears,
-    jint lawNewDiscipleProtectionMonths, jint lawMaxTheftPerYear,
-    jint lawMaxTheftJudgementsPerMonth) {
+    jint warehouseBaseCapacity, jint warehouseCapacityPerBuilding) {
     gamecore::GameConfig cfg;
     cfg.warehouseBaseCapacity = static_cast<int32_t>(warehouseBaseCapacity);
     cfg.warehouseCapacityPerBuilding =
         static_cast<int32_t>(warehouseCapacityPerBuilding);
-    cfg.lawLoyaltyThreshold = static_cast<int32_t>(lawLoyaltyThreshold);
-    cfg.lawMoralityThreshold = static_cast<int32_t>(lawMoralityThreshold);
-    cfg.lawHerdLoyaltyThreshold = static_cast<int32_t>(lawHerdLoyaltyThreshold);
-    cfg.lawProbPerPoint = static_cast<double>(lawProbPerPoint);
-    cfg.lawMaxProb = static_cast<double>(lawMaxProb);
-    cfg.lawBaseCaptureRate = static_cast<double>(lawBaseCaptureRate);
-    cfg.lawIntelligenceBase = static_cast<int32_t>(lawIntelligenceBase);
-    cfg.lawElderBonusPerPoint = static_cast<double>(lawElderBonusPerPoint);
-    cfg.lawDiscipleIntelligenceStep =
-        static_cast<int32_t>(lawDiscipleIntelligenceStep);
-    cfg.lawDiscipleBonusPerStep = static_cast<double>(lawDiscipleBonusPerStep);
-    cfg.lawReflectionYears = static_cast<int32_t>(lawReflectionYears);
-    cfg.lawNewDiscipleProtectionMonths =
-        static_cast<int32_t>(lawNewDiscipleProtectionMonths);
-    cfg.lawMaxTheftPerYear = static_cast<int32_t>(lawMaxTheftPerYear);
-    cfg.lawMaxTheftJudgementsPerMonth =
-        static_cast<int32_t>(lawMaxTheftJudgementsPerMonth);
     gamecore::setGameConfig(cfg);
     (void)env;
 }

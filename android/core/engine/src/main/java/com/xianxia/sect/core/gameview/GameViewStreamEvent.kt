@@ -64,7 +64,6 @@ internal data class GameViewStreamEvent(
         internal data class Purchase(
             val discipleId: String,
             val itemName: String,
-            val age: Int,
         ) : Payload()
 
         /** 秘境到期关闭：关闭邮件附件 + gate release 消费面 */

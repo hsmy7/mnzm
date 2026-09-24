@@ -56,7 +56,7 @@ class DiscipleLifecycleNativeTxGateTest {
     private fun buildFacade(): DiscipleFacadeImpl {
         val mockStore = store
         // ProductionSlotRepository 是 final 类：mock 拦截依赖类加载时机（顺序敏感 flaky），
-        // 用真实实例 + mockSmart 端口（DiscipleReflectionReleaseTest 同款脚手架）
+        // 用真实实例 + mockSmart 端口（延迟类加载，避免依赖 mock 拦截顺序）
         val productionRepo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
@@ -99,16 +99,15 @@ class DiscipleLifecycleNativeTxGateTest {
             pillManager = mockSmart(),
             assignmentGate = mockSmart(),
             discipleSlotCleanup = mockSmart(),
-            lawEnforcementProcessor = mockSmart(),
             productionCoordinator = mockSmart<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>(),
         )
     }
 
     /** 种子：存活弟子 1/2 + 弟子 1 在灵矿槽位 */
     private fun seedDisciples() {
-        tables.insert(Disciple(id = "1", name = "弟子1", age = 20))
+        tables.insert(Disciple(id = "1", name = "弟子1"))
         tables.isAlive[1] = 1
-        tables.insert(Disciple(id = "2", name = "弟子2", age = 30))
+        tables.insert(Disciple(id = "2", name = "弟子2"))
         tables.isAlive[2] = 1
         store.update {
             gameData = gameData.copy(
@@ -120,21 +119,19 @@ class DiscipleLifecycleNativeTxGateTest {
     // ── 转发臂门控（桥未加载恒降级 null） ───────────────────────
 
     @Test
-    fun `native 转发 - AUTHORITATIVE 且桥未加载五入口均返回 null`() {
+    fun `native 转发 - AUTHORITATIVE 且桥未加载三入口均返回 null`() {
         seedDisciples()
         assertNull(facade.tryNativeExpelDisciple("1"))
         assertNull(facade.tryNativeApprenticeToMaster("1", "2"))
-        assertNull(facade.tryNativeReleaseReflection("1"))
         assertNull(facade.tryNativeSalaryToggle(3, true))
     }
 
     @Test
-    fun `native 转发 - flag OFF 四入口均返回 null`() {
+    fun `native 转发 - flag OFF 三入口均返回 null`() {
         seedDisciples()
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             assertNull(facade.tryNativeExpelDisciple("1"))
             assertNull(facade.tryNativeApprenticeToMaster("1", "2"))
-            assertNull(facade.tryNativeReleaseReflection("1"))
             assertNull(facade.tryNativeSalaryToggle(3, true))
         }
     }

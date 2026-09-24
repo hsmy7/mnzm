@@ -561,7 +561,7 @@ private fun WarehouseGridCard(
     )
 }
 
-/** 仓库物品详情弹窗：内联出售覆盖层 + 操作行 + 赏赐弹窗 */
+/** 仓库物品详情弹窗：内联出售覆盖层 + 操作行 */
 @Composable
 private fun WarehouseItemDetailSection(
     state: WarehouseState,
@@ -575,7 +575,6 @@ private fun WarehouseItemDetailSection(
         return
     }
     val detail = warehouseDetailItem(item = item, state = state)
-    var showDiscipleSelectDialog by remember { mutableStateOf(false) }
     var showSellDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     ItemDetailDialog(
@@ -610,22 +609,11 @@ private fun WarehouseItemDetailSection(
                     detail = detail,
                     scope = scope,
                     viewModel = viewModel,
-                    onSellClick = { showSellDialog = true },
-                    onGiftClick = { showDiscipleSelectDialog = true }
+                    onSellClick = { showSellDialog = true }
                 )
             }
         }
     )
-    if (showDiscipleSelectDialog) {
-        DiscipleSelectForRewardDialog(
-            itemName = detail.itemName,
-            itemId = detail.itemId,
-            itemType = detail.itemType,
-            itemRarity = detail.itemRarity,
-            viewModel = viewModel,
-            onDismiss = { showDiscipleSelectDialog = false }
-        )
-    }
 }
 
 /** 仓库选中物品解析：灵石卡片/物品索引派生 */
@@ -710,15 +698,14 @@ private fun WarehouseSellOverlay(
     )
 }
 
-/** 物品详情操作行：全部开启/售卖/锁定/赏赐 */
+/** 物品详情操作行：全部开启/售卖/锁定 */
 @Composable
 private fun WarehouseDetailActionRow(
     item: Any,
     detail: WarehouseDetailItem,
     scope: CoroutineScope,
     viewModel: GameViewModel,
-    onSellClick: () -> Unit,
-    onGiftClick: () -> Unit
+    onSellClick: () -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
@@ -751,10 +738,6 @@ private fun WarehouseDetailActionRow(
                 GameButton(
                     text = if (detail.isLocked) "已锁定" else "锁定",
                     onClick = { viewModel.inventory.toggleItemLock(detail.itemId, detail.itemType) }
-                )
-                GameButton(
-                    text = "赏赐",
-                    onClick = onGiftClick
                 )
             }
         }

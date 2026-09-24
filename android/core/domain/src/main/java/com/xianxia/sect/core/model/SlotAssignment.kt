@@ -23,9 +23,6 @@ enum class SlotCategory {
     /** 巡视楼 */
     PATROL_SLOT,
 
-    /** 仓库驻守 */
-    WAREHOUSE_GARRISON,
-
     /** 战斗队伍 */
     BATTLE_TEAM,
 

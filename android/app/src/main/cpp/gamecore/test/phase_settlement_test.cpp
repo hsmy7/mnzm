@@ -54,8 +54,6 @@ Disciple baseDisciple(const std::string& id) {
     d.realmLayer = 1;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 16;
-    d.lifespan = 80;
     return d;
 }
 
@@ -232,9 +230,8 @@ TEST(PhaseSettlementTest, BreakthroughBothBranchesAndRngAudit) {
         EXPECT_EQ(1L, st.gameData.guideCounters["breakthroughs"]);
         EXPECT_EQ(1, after.breakthroughCount);
         EXPECT_EQ(0, after.breakthroughFailCount);
-        // 大境界未变 → 无消息栏事件；寿命不变
+        // 大境界未变 → 无消息栏事件
         EXPECT_TRUE(st.gameData.gameEventRecords.empty());
-        EXPECT_EQ(80, after.lifespan);
     } else {
         // 失败：修为清零，HP/MP = (基础口径 max × 0.1).toInt() 至少 1
         EXPECT_EQ(1, after.realmLayer);
@@ -257,7 +254,7 @@ TEST(PhaseSettlementTest, BreakthroughBothBranchesAndRngAudit) {
 }
 
 TEST(PhaseSettlementTest, MajorRealmBreakthroughRecordsEvent) {
-    // 满层大境界突破（炼气九层 → 筑基）：记录消息栏事件 + 寿命增益。
+    // 满层大境界突破（炼气九层 → 筑基）：记录消息栏事件。
     // 层9满修为 = 490 + 8×(1950-490)/9 ≈ 1787.8（非 490）；
     // seed=7 首抽 0.5313 < 0.80（层9 chance=表(8,1)）→ 成功分支
     const int64_t seed = 7;
@@ -275,8 +272,6 @@ TEST(PhaseSettlementTest, MajorRealmBreakthroughRecordsEvent) {
     EXPECT_EQ(8, after.realm);      // 大境界推进：炼气 → 筑基
     EXPECT_EQ(1, after.realmLayer);
     EXPECT_DOUBLE_EQ(0.0, after.cultivation);
-    // 寿命增益 = lifespanGainForRealm(8) = 40（无天赋词条加成）
-    EXPECT_EQ(120, after.lifespan);
     ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
     const auto& ev = st.gameData.gameEventRecords[0];
     EXPECT_EQ("breakthrough", ev.eventType);

@@ -23,13 +23,13 @@ import kotlinx.serialization.json.putJsonArray
 // **批次口径（写者审计结论，见 handover §2.51b）**：攻宗的战斗执行覆盖面
 // 已在 C++（executeAiBattle / computeCanOccupy / nativeCheckAttackConditions /
 // discipleToCombatant 实例语义组装），本批只下沉 UI 触发面仍 Kotlin 独占的
-// **零 RNG 写段**——阵亡守军清理（aiSectDisciples 段 + 驻军槽）与魂魄发放。
+// **零 RNG 写段**——阵亡守军清理（aiSectDisciples 段 + 驻军槽）。
 // **登记不下沉**：战利品生成族（模板抽取走 `Random.Default` 非分区随机域，
 // 无法逐位复刻）；occupy/crush 奖励入账（与奖励段同一原子事务）；
 // recordSectBattleRecord（与 Kotlin 显示域 battleLogs 同事务，不入 C++ 状态）。
 
 /**
- * 攻宗域 native 转发器（AUTHORITATIVE 稳态下两段确定性写归 C++）。
+ * 攻宗域 native 转发器（AUTHORITATIVE 稳态下确定性写归 C++）。
  *
  * 降级契约：flag 非 AUTHORITATIVE / 镜像服务缺失 / native 失败信封 → null，
  * 调用方回退 Kotlin 原实现。
@@ -79,16 +79,3 @@ internal fun GameEngine.removeDeadDefendersNative(
     return reply?.field("removedFromPool") != null
 }
 
-/**
- * 胜方存活弟子魂魄 +1 native 臂：成功返回 true，降级或空集返回 false
- * 走 Kotlin 原实现。
- */
-internal fun GameEngine.grantWarSoulPowersNative(sectSurvivorIds: Set<String>): Boolean {
-    if (sectSurvivorIds.isEmpty()) return false
-    val reply = SectAttackNativeForward.tryForward(
-        this, ActionIds.SECT_ATTACK_GRANT_SOUL_POWERS_TX
-    ) {
-        putJsonArray("sectSurvivorIds") { sectSurvivorIds.forEach { add(it) } }
-    }
-    return reply?.field("granted") != null
-}

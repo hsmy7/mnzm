@@ -178,13 +178,11 @@ class MerchantAndRecruitServiceTest {
     private fun makeRecruit(
         id: String = "test_${UUID.randomUUID()}",
         name: String = "测试弟子",
-        age: Int = 20,
         realm: Int = 9,
         spiritRootType: String = "金,木,水"
     ): Disciple = Disciple(
         id = id,
         name = name,
-        age = age,
         realm = realm,
         spiritRootType = spiritRootType
     )
@@ -267,20 +265,6 @@ class MerchantAndRecruitServiceTest {
     }
 
     @Test
-    fun `processAutoRecruit skips corrupted disciples with age zero`() {
-        val corrupted = makeRecruit(age = 0)
-        val state = createAutoRecruitState(
-            recruitList = listOf(corrupted),
-            filter = setOf(3)
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(0, count)
-        assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
-    }
-
-    @Test
     fun `processAutoRecruit skips corrupted disciples with realm out of range`() {
         val corrupted = makeRecruit(realm = -1)
         val state = createAutoRecruitState(
@@ -305,20 +289,5 @@ class MerchantAndRecruitServiceTest {
 
         assertEquals(0, count)
         assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
-    }
-
-    @Test
-    fun `processAutoRecruit recruits newborn age 1 disciple matching filter`() {
-        // 新生儿年龄=1 应通过年龄验证（age > 0）
-        val baby = makeRecruit(age = 1, spiritRootType = "金")
-        val state = createAutoRecruitState(
-            recruitList = listOf(baby),
-            filter = setOf(1)
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(1, count)
-        assertTrue("新生儿应被自动招募", state.discipleTables.ids.isNotEmpty())
     }
 }

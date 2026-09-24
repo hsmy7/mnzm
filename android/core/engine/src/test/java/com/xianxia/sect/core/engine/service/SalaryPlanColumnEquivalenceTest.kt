@@ -50,7 +50,6 @@ class SalaryPlanColumnEquivalenceTest {
             stateStore = mockStore,
             scopeProvider = mockSmart(CoroutineScopeProvider::class.java),
             spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
-            lawEnforcementProcessor = mockSmart(LawEnforcementProcessor::class.java),
             gameConfigProvider = mockSmart(GameConfigProvider::class.java)
         )
     }

@@ -137,7 +137,7 @@ private fun LibraryDiscipleSelector(
                 title = "选择弟子",
                 emptyMessage = "暂无可用弟子",
                 currentId = currentDiscipleId,
-                additionalCheck = { it.realmLayer > 0 && it.age >= 5 },
+                additionalCheck = { it.realmLayer > 0 },
                 alwaysIncludeCurrentId = true
             ),
             disciples = disciples,

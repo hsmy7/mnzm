@@ -66,7 +66,7 @@ class AssemblePatchEquivalenceTest {
         tables.insert(Disciple(id = "101", name = "新弟子", realm = 5, realmLayer = 1))
         val prev = tables.assembleAll()
 
-        // 每旬典型：修为累积 + HP/MP 恢复 + 熟练度 + 忠诚等高频列
+        // 每旬典型：修为累积 + HP/MP 恢复 + 熟练度 + 技能类高频列
         for (i in 1..60) {
             tables.cultivations[i] = tables.cultivations.getOrDefault(i, 0.0) + 100.0
             tables.currentHps[i] = tables.currentHps.getOrDefault(i, 500) - 50
@@ -115,7 +115,7 @@ class AssemblePatchEquivalenceTest {
             tables.pillHpBonuses[i] = 2
             tables.weaponNurtures[i] = EquipmentNurtureData(equipmentId = "w$i", rarity = 4)
             tables.partnerIds[i] = "x$i"
-            tables.loyalties[i] = 50
+            tables.moralities[i] = 60
             tables.recruitedMonths[i] = 3
             tables.lifeEvents[i] = listOf("e$i")
             tables.cultivations[i] = 999.0
@@ -124,7 +124,7 @@ class AssemblePatchEquivalenceTest {
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
             "currentHps", "pillHpBonuses", "weaponNurtures", "partnerIds",
-            "loyalties", "recruitedMonths", "lifeEvents", "cultivations"
+            "moralities", "recruitedMonths", "lifeEvents", "cultivations"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)
         val full = tables.assembleAll()

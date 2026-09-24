@@ -118,12 +118,10 @@ class DiscipleMasterApprenticeService @Inject constructor(
         // 记录拜师日志（徒弟视角）
         val masterName = discipleTables.names[mid] ?: "未知"
         val discipleName = discipleTables.names[did] ?: "未知"
-        val discipleAge = discipleTables.ages[did]
-        val masterAge = discipleTables.ages[mid]
         val currentEvents = discipleTables.lifeEvents.getOrDefault(did, emptyList())
-        discipleTables.lifeEvents[did] = currentEvents + "${discipleAge}岁：拜${masterName}为师"
+        discipleTables.lifeEvents[did] = currentEvents + "拜${masterName}为师"
         // 记录收徒日志（师父视角）
         val masterEvents = discipleTables.lifeEvents.getOrDefault(mid, emptyList())
-        discipleTables.lifeEvents[mid] = masterEvents + "${masterAge}岁：收${discipleName}为徒"
+        discipleTables.lifeEvents[mid] = masterEvents + "收${discipleName}为徒"
     }
 }

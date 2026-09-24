@@ -48,7 +48,7 @@ class DuplicateDiscipleIdRuleTest {
     }
 
     private fun d(id: String) = Disciple(id = id, name = "甲", realm = 9, realmLayer = 1,
-        cultivation = 10.0, age = 20, lifespan = 80, isAlive = true, equipment = EquipmentSet())
+        cultivation = 10.0, isAlive = true, equipment = EquipmentSet())
     private fun saveData(dd: List<Disciple>) = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),
         disciples = dd, pills = emptyList(), materials = emptyList(),

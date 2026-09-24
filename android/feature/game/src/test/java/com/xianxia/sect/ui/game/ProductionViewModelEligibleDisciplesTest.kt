@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleCore
@@ -23,7 +22,7 @@ import org.robolectric.RobolectricTestRunner
  * 而对话框层 [filterByDiscipleStatus]（showAll 模式）拿到的候选已被截断、勾选失效。
  *
  * 状态过滤（空闲/显示所有）统一委托对话框层 [filterByDiscipleStatus]，
- * 本测试守卫数据源只做硬性条件过滤（存活/最小年龄/已入修炼），
+ * 本测试守卫数据源只做硬性条件过滤（存活/已入修炼），
  * 若有人重新加入 IDLE 预过滤，本测试立即失败。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -33,14 +32,12 @@ class ProductionViewModelEligibleDisciplesTest {
         id: String,
         status: DiscipleStatus = DiscipleStatus.IDLE,
         isAlive: Boolean = true,
-        age: Int = 20,
         realmLayer: Int = 1
     ): DiscipleAggregate {
         return DiscipleAggregate(
             core = DiscipleCore(
                 id = id,
                 name = id,
-                age = age,
                 isAlive = isAlive,
                 status = status.name,
                 realmLayer = realmLayer
@@ -105,12 +102,12 @@ class ProductionViewModelEligibleDisciplesTest {
     }
 
     @Test
-    fun `6 个候选数据源排除死者、未成年、无境界弟子`() {
+    fun `6 个候选数据源排除死者、无境界弟子`() {
+        // 硬性条件 = 存活 + 已入修炼（realmLayer > 0），年龄不参与准入
         val disciples = listOf(
-            createAggregate("ok", age = 20, realmLayer = 3),
-            createAggregate("dead", age = 20, realmLayer = 3, isAlive = false),
-            createAggregate("young", age = GameConfig.Disciple.MIN_AGE - 1, realmLayer = 3),
-            createAggregate("noRealm", age = 20, realmLayer = 0)
+            createAggregate("ok", realmLayer = 3),
+            createAggregate("dead", realmLayer = 3, isAlive = false),
+            createAggregate("noRealm", realmLayer = 0)
         )
         val viewModel = buildViewModel(disciples)
 

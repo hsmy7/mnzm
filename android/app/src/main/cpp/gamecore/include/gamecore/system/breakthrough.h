@@ -18,7 +18,7 @@
 // 等价移植 Kotlin DiscipleBreakthroughHandler 的**纯逻辑**部分：
 //   - 突破前置判定：修为满 + HP/MP 满 + realm > 0
 //   - 突破概率判定：BREAKTHROUGH 分区 RNG nextDouble() < chance
-//   - 成功应用：修为清零、层数+1 或大境界+1（寿命增益）、检查点同步
+//   - 成功应用：修为清零、层数+1 或大境界+1、检查点同步
 //   - 失败应用：修为清零、HP/MP × 10%（至少 1）
 //   - 循环突破（满修为可连续突破，realm==0 停止）
 //   - 突破计数写入 + 广告加成清除 + 完成时间预估
@@ -66,10 +66,7 @@ inline bool tryBreakthrough(const state::Disciple& disciple, double chance,
 }
 
 /// 突破成功应用（Kotlin applyBreakthroughSuccess）
-/// @param lifespanGain 突破寿命增益（由调用方计算：calculateBreakthroughLifespanGain）
-inline state::Disciple applyBreakthroughSuccess(state::Disciple d,
-                                                int32_t lifespanGain) {
-    const int32_t oldRealm = d.realm;
+inline state::Disciple applyBreakthroughSuccess(state::Disciple d) {
     d.cultivation = 0.0;
     const auto& rc = gamecore::disciple::realmConfig(d.realm);
     if (d.realmLayer < rc.maxLayers) {
@@ -77,9 +74,6 @@ inline state::Disciple applyBreakthroughSuccess(state::Disciple d,
     } else {
         d.realm -= 1;
         d.realmLayer = 1;
-    }
-    if (d.realm != oldRealm) {
-        d.lifespan += lifespanGain;
     }
     return d;
 }
@@ -109,12 +103,10 @@ inline state::Disciple applyBreakthroughFailure(state::Disciple d) {
 
 /// 连续突破循环（Kotlin performBreakthrough 核心）
 /// @param chanceProvider 概率计算函数（返回 [0,1]；由调用方组装乘区）
-/// @param lifespanGainProvider 寿命增益函数（大境界变化时调用）
 /// @param maxIterations 循环保护上限（防数据损坏死循环）
 inline BreakthroughOutcome performBreakthrough(
     state::Disciple d,
     const std::function<double(const state::Disciple&)>& chanceProvider,
-    const std::function<int32_t(const state::Disciple&)>& lifespanGainProvider,
     rng::RngManager& rng,
     int32_t currentMonth, int32_t maxIterations = 16) {
     BreakthroughOutcome out;
@@ -132,8 +124,7 @@ inline BreakthroughOutcome performBreakthrough(
         const double chance = chanceProvider(out.disciple);
         if (tryBreakthrough(out.disciple, chance, rng)) {
             out.breakthroughCount++;
-            const int32_t gain = lifespanGainProvider(out.disciple);
-            out.disciple = applyBreakthroughSuccess(out.disciple, gain);
+            out.disciple = applyBreakthroughSuccess(out.disciple);
         } else {
             out.failCount++;
             out.disciple = applyBreakthroughFailure(out.disciple);

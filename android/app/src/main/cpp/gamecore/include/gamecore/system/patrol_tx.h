@@ -140,12 +140,11 @@ inline SlotDisplayFields displayFieldsOf(const gamecore::state::DiscipleStore& d
     const std::size_t i = *row;
     if (i < ds.names.size()) out.name = ds.names[i];
     if (i < ds.portraitRes.size()) out.portraitRes = ds.portraitRes[i];
-    // Disciple.realmName 计算属性（含 age<5 / realmLayer==0 → "无境界" 特例）
-    if (i < ds.realms.size() && i < ds.realmLayers.size() && i < ds.ages.size()) {
+    // Disciple.realmName 计算属性（realmLayer==0 → "无境界" 特例）
+    if (i < ds.realms.size() && i < ds.realmLayers.size()) {
         const int32_t realm = ds.realms[i];
         const int32_t layer = ds.realmLayers[i];
-        const int32_t age = ds.ages[i];
-        if (age < 5 || layer == 0) {
+        if (layer == 0) {
             out.realmName = "无境界";
         } else if (realm == 0) {
             out.realmName = disciple::realmConfig(0).name;
@@ -168,7 +167,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     in.residenceSlots = state.gameData.residenceSlots;
     in.activeBloodRefinements = state.gameData.activeBloodRefinements;
     in.patrolSlots = state.gameData.patrolSlots;
-    in.warehouseGarrisons = state.gameData.warehouseGarrisons;
     in.battleTeams = state.gameData.battleTeams;
     in.worldMapSects = state.gameData.worldMapSects;
     in.productionSlots = state.gameData.productionSlots;
@@ -182,7 +180,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     state.gameData.residenceSlots = out.residenceSlots;
     state.gameData.activeBloodRefinements = out.activeBloodRefinements;
     state.gameData.patrolSlots = out.patrolSlots;
-    state.gameData.warehouseGarrisons = out.warehouseGarrisons;
     state.gameData.battleTeams = out.battleTeams;
     state.gameData.worldMapSects = out.worldMapSects;
     state.gameData.productionSlots = out.productionSlots;

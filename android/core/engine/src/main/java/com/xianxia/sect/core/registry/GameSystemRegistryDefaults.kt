@@ -31,7 +31,6 @@ object GameSystemRegistryDefaults {
         register("engine.service", "EquipmentNurtureService")
         register("engine.service", "FormulaService")
         register("engine.service", "HpMpRecoveryService")
-        register("engine.service", "LawEnforcementProcessor")
         register("engine.service", "MailService")
         register("engine.service", "ManualProficiencyService")
         register("engine.service", "MerchantAndRecruitService")

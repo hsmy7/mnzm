@@ -56,10 +56,10 @@ export const CATALOG = [
   { id: 1100, name: 'DISCIPLE_BASE_STATS', desc: '弟子基础属性乘区法计算' },
   { id: 1101, name: 'DISCIPLE_CULTIVATION_PER_PHASE', desc: '每旬修炼速度（乘区法）' },
   { id: 1102, name: 'DISCIPLE_BREAKTHROUGH_CHANCE', desc: '突破概率（乘区法）' },
-  { id: 1103, name: 'DISCIPLE_MAX_AGE', desc: '弟子最大寿元' },
+  { id: 1103, name: 'DISCIPLE_MAX_AGE', desc: '【已退役，编号禁复用】弟子最大寿元' },
   { id: 1104, name: 'DISCIPLE_CHECKPOINT', desc: '修炼检查点同步' },
   { id: 1105, name: 'DISCIPLE_ACCUMULATE_CULTIVATION', desc: '每旬修炼累积（钳制上限）' },
-  { id: 1106, name: 'DISCIPLE_AGE', desc: '弟子老化（年龄+1/5岁回正/寿元判定）' },
+  { id: 1106, name: 'DISCIPLE_AGE', desc: '【已退役，编号禁复用】弟子老化（年龄+1/5岁回正/寿元判定）' },
   { id: 1107, name: 'DISCIPLE_BREAKTHROUGH', desc: '突破执行（连续突破循环）' },
   { id: 1108, name: 'DISCIPLE_ESTIMATE_BREAKTHROUGH_MONTH', desc: '突破完成月份预估' },
 
@@ -74,7 +74,7 @@ export const CATALOG = [
 
   // ── 内政 ──
   { id: 1300, name: 'GOV_POLICY_COSTS', desc: '政策月度成本（三模式扣除）' },
-  { id: 1301, name: 'GOV_POLICY_MONTHLY_EFFECTS', desc: '政策月度忠诚/道德效果' },
+  { id: 1301, name: 'GOV_POLICY_MONTHLY_EFFECTS', desc: '政策月度道德效果' },
   { id: 1302, name: 'GOV_SPIRIT_MINE_MONTHLY', desc: '灵矿月度产出（时间戳差分）' },
   { id: 1303, name: 'GOV_ANNUAL_SALARY', desc: '年度年俸发放' },
   { id: 1304, name: 'GOV_ZONE_CALCULATE', desc: '乘区法通用计算' },
@@ -202,23 +202,23 @@ export const CATALOG = [
   { id: 1573, name: 'EXPLORE_TX_REMOVE_GARRISON', desc: '分舵驻守移除（occupant 捕获+槽位清空保留索引，零 RNG）' },
 
   // ── 弟子管理二：生命周期族（batch-14——disciple_lifecycle_tx.h；
-  //    逐出/拜师/婚姻批准/释放思过/年俸开关五事务；逐出含 12 类槽位清理
+  //    逐出/拜师/婚姻批准/年俸开关四事务；逐出含 12 类槽位清理
   //    与实例销毁，袋物品经信封回传 Kotlin 物化；失败零写入 Kotlin 回退）──
   { id: 1590, name: 'DISCIPLE_LIFECYCLE_EXPEL', desc: '逐出事务（存在/存活/非血炼校验+12类槽位清理含住所+实例销毁+派生map收口+行删除；袋物品信封回传Kotlin物化）' },
   { id: 1591, name: 'DISCIPLE_LIFECYCLE_APPRENTICE', desc: '拜师事务（三相校验+masterIds落表；双侧日志草稿回写lifeEvents）' },
   { id: 1592, name: 'DISCIPLE_LIFECYCLE_MARRY_APPROVE', desc: '婚姻批准事务（已有道侣防御+partnerIds双向绑定+MARRIAGE事件直写；提议移除留Kotlin）' },
-  { id: 1593, name: 'DISCIPLE_LIFECYCLE_RELEASE_REFLECTION', desc: '释放思过事务（statusData思过双键定向移除+状态回IDLE；静默no-op同义）' },
+  { id: 1593, name: 'DISCIPLE_LIFECYCLE_RELEASE_REFLECTION', desc: '【已退役，编号禁复用】释放思过事务' },
   { id: 1594, name: 'DISCIPLE_LIFECYCLE_SALARY_TOGGLE', desc: '境界年俸开关事务（yearlySalaryEnabled[realm]覆写，无校验）' },
 
-  // ── 弟子管理三：任命/驻守/洗炼消耗族（batch-15——appointment_tx.h；
-  //    长老单值槽与仓库驻守零 RNG 纯事务，洗炼三族含玉符消耗（C++ 承扣）
+  // ── 弟子管理三：任命/洗炼消耗族（batch-15——appointment_tx.h；
+  //    长老单值槽零 RNG 纯事务，洗炼三族含玉符消耗（C++ 承扣）
   //    与 SYSTEM 分区抽取，失败臂零写入零抽取，Kotlin 回退原路径）──
   { id: 1610, name: 'ELDER_APPOINT_TX', desc: '长老单值槽任命（存在/存活校验+全槽清理+槽位字段写+亲传列表清空，回传被顶替者）' },
   { id: 1611, name: 'ELDER_DISMISS_TX', desc: '长老单值槽卸任（槽位字段清空+亲传列表清空，回传被卸任者）' },
-  { id: 1612, name: 'WAREHOUSE_GARRISON_TX', desc: '仓库驻守分配（存在/存活校验+旧occupant捕获+全槽清理+条目替换）' },
+  { id: 1612, name: 'WAREHOUSE_GARRISON_TX', desc: '【已退役，编号禁复用】仓库驻守分配' },
   { id: 1613, name: 'SPIRIT_ROOT_WASH_TX', desc: '洗炼灵根（先扣玉符后抽取：保底/双灵根判定+元素洗牌，SYSTEM 分区）' },
   { id: 1614, name: 'TRAIT_ADD_ROLL_TX', desc: '新增特质刷新（上限/候选预检+扣玉符+品阶抽取+pending 落盘，SYSTEM 分区）' },
-  { id: 1615, name: 'TRAIT_ADD_CONFIRM_TX', desc: '新增特质确认（上限/合法性校验+追加+lifespan 同步+checkpoint+清 pending，零 RNG）' },
+  { id: 1615, name: 'TRAIT_ADD_CONFIRM_TX', desc: '新增特质确认（上限/合法性校验+追加+checkpoint+清 pending，零 RNG）' },
   { id: 1616, name: 'TRAIT_WASH_SLOT_TX', desc: '特质单槽洗炼（目标校验+排除集+扣玉符+保底/品阶抽取，SYSTEM 分区）' },
 
   // ── 招募/派遣/俘虏残余族（batch-16——recruit_tx.h；招募列表 UI 直调点
@@ -228,7 +228,7 @@ export const CATALOG = [
   //    recruit_settlement.h / 专用 JNI，不在本段）──
   { id: 1630, name: 'RECRUIT_REMOVE_TX', desc: '招募列表移除条目（按 id 过滤幂等，零 RNG）' },
   { id: 1631, name: 'RECRUIT_REFRESH_TX', desc: '年度招募列表刷新（差值门+宗门等级/长老魅力加成+广纳门徒+候选生成，SYSTEM 分区）' },
-  { id: 1632, name: 'RECRUIT_AGE_TX', desc: '招募列表老化+净化（age+1/超寿元移除/损坏过滤/三级去重/跨表残留，零 RNG）' },
+  { id: 1632, name: 'RECRUIT_AGE_TX', desc: '招募列表净化（损坏过滤/三级去重/跨表残留移除，零 RNG）' },
 
   // ── 生产 UI 面 + 灵田种植族（batch-17——production.h / spirit_field.h
   //    追加；生产槽任命/卸任/自动续炼开关/惰性建槽与灵田种植/移除全族
@@ -312,7 +312,7 @@ export const CATALOG = [
   //    （同一原子事务含奖励段）/ recordSectBattleRecord（与 Kotlin 显示域
   //    battleLogs 同事务，battleLogs 不入 C++ 状态））──
   { id: 1711, name: 'SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX', desc: 'AI 阵亡守军清理（目标池过滤 + 目标宗门驻军槽清空保留索引，零 RNG）' },
-  { id: 1712, name: 'SECT_ATTACK_GRANT_SOUL_POWERS_TX', desc: '胜方存活玩家弟子魂魄 +1（行序 + 存活性过滤，零 RNG）' },
+  { id: 1712, name: 'SECT_ATTACK_GRANT_SOUL_POWERS_TX', desc: '【已退役，编号禁复用】胜方存活玩家弟子魂魄 +1' },
 
   // ── 残余域补齐（batch-23——lock_beast_tx.h；ui-read-surface §4.1
   //    两处 **AUTHORITATIVE 稳态 Kotlin 直改写者**下沉（写者审计实测
@@ -341,7 +341,7 @@ export const CATALOG = [
   //    confirm 只做数据落地）。失败零写入 → Kotlin 回退臂重执行校验链
   //    （用户可见文案由 Kotlin 臂产出：弟子不存在/已死亡/该特质已不存在））──
   { id: 1732, name: 'SPIRIT_ROOT_WASH_CONFIRM_TX', desc: '洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符）' },
-  { id: 1733, name: 'TRAIT_WASH_CONFIRM_TX', desc: '特质单槽确认替换（三态判定 → 替换 + lifespan 同步 + checkpoint，零 RNG/零玉符）' },
+  { id: 1733, name: 'TRAIT_WASH_CONFIRM_TX', desc: '特质单槽确认替换（三态判定 → 替换 + checkpoint，零 RNG/零玉符）' },
 
   // ── 开袋抽签事务（ADR rng-determinism-remediation 阶段 1①——
   //    ui-read-surface §4.3 残余域「库存开袋」收口）──

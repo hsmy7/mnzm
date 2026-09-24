@@ -47,11 +47,11 @@ class SaveValidatorIntegrationTest {
     fun `multiple issues across rules all fixed`() {
         val d1 = Disciple(
             id = "d-1", name = "甲", realm = 9, realmLayer = 1, cultivation = 999.0,
-            age = 90, lifespan = 80, isAlive = true,
+            isAlive = true,
             equipment = EquipmentSet(weaponId = "ghost-sword"))
         val d2 = Disciple(
             id = "d-1", name = "乙", realm = 9, realmLayer = 1, cultivation = 10.0,
-            age = 30, lifespan = 80, isAlive = false,
+            isAlive = false,
             equipment = EquipmentSet(armorId = "ghost-armor"))
 
         val data = SaveData(
@@ -78,6 +78,6 @@ class SaveValidatorIntegrationTest {
 
     private fun makeDisciple(id: String = "d-1", name: String = "弟子") = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true, equipment = EquipmentSet()
+        isAlive = true, equipment = EquipmentSet()
     )
 }

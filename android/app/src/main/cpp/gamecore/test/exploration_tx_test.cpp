@@ -44,7 +44,6 @@ Disciple baseDisciple(const std::string& id) {
     d.name = "弟子" + id;
     d.realm = 1;
     d.realmLayer = 9;
-    d.age = 20;
     d.spiritRootType = "metal";
     d.baseHp = 1000000;
     d.baseMp = 100000;
@@ -64,7 +63,6 @@ Disciple weakDisciple(const std::string& id) {
     d.name = "弟子" + id;
     d.realm = 9;
     d.realmLayer = 1;
-    d.age = 20;
     d.spiritRootType = "metal";
     d.portraitRes = "p" + id;
     return d;
@@ -147,7 +145,6 @@ GameState scoutState() {
         ai.name = "青弟子" + std::to_string(i);
         ai.realm = i == 0 ? 6 : 7 + (i % 3);
         ai.realmLayer = 1;
-        ai.age = 20;
         ai.isAlive = i != 9;   // 最后一名死亡（被滤）
         ai.portraitRes = "ai" + std::to_string(i);
         st.aiSectDisciples["sect_ai"].push_back(ai);

@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.assignDirectDisciple
 import com.xianxia.sect.core.engine.cancelBloodRefinement
@@ -16,7 +15,6 @@ import com.xianxia.sect.core.engine.updateDiscipleStatus
 import com.xianxia.sect.core.engine.updateSpiritMineSlots
 import com.xianxia.sect.core.engine.validateAndFixSpiritMineData
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SlotCategory
@@ -46,7 +44,7 @@ class SpiritMineViewModel @Inject constructor(
 
         return gameEngine.discipleAggregatesSnapshot
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
-                it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
+                it.realmLayer > 0
             })
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
@@ -105,7 +103,7 @@ class SpiritMineViewModel @Inject constructor(
         return gameEngine.discipleAggregatesSnapshot
             .let { if (excludeAssigned) it.filter { d -> !gameEngine.isDiscipleAssigned(d.id) } else it }
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
-                it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
+                it.realmLayer > 0
             })
             .sortedWith(compareByDescending<DiscipleAggregate> { it.mining }
                 .thenBy { it.realm }

@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.nativebridge.ActionIds
@@ -36,30 +34,6 @@ internal fun MutableGameState.appendOpsLifeEventDraft(discipleId: String, logLin
     if (intId !in discipleTables.ids) return
     val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
     discipleTables.lifeEvents[intId] = events + logLine
-}
-
-/**
- * 偷盗判定钩子残差（执法域不下沉——phase_settlement.h 同边界）：
- * facade 丹药链在 moralityAdd 落表后即时判定（morality < MORALITY_THRESHOLD
- * 即触发）；C++ 事务回传 theftCandidate + moralityAfter，本分支以镜像刷新后的
- * 状态按同一判定序原序执行（事务内版本 processSingleDiscipleTheft(id, state)）。
- */
-internal fun DiscipleFacadeImpl.applyTheftHookResidual(
-    discipleId: String,
-    theftCandidate: Boolean,
-    moralityAfter: Int
-) {
-    if (!theftCandidate) return
-    val id = discipleId.toIntOrNull() ?: return
-    if (moralityAfter >= GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) return
-    // 捕获豁免（updateMirror，§2.79）：执法域写面覆盖弟子协议列（lastTheftJudgementYears/
-    // statuses，通道已关闭 §2.77）+ 集合（偷盗取走）+ 执法堂字段（在册保留）——
-    // 捕获通道已关闭会使判定标记/偷盗所得永不到达 C++（前向镜像覆盖 = 数据丢失）；
-    // 非捕获写入 + 尾部基线重建把整个执法域写面原样推入 C++ 真相源
-    stateStore.updateMirror {
-        lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
-    }
-    gameEngineCore.rebaselineNativeMirror("偷盗判定钩子")
 }
 
 /** w3-01 赏赐/服药事务转发（AUTHORITATIVE 门控；失败信封/降级返回 null）。 */

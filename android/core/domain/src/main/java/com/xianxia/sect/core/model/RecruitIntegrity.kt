@@ -6,25 +6,19 @@ import com.xianxia.sect.core.GameConfig
  * 招募列表数据完整性工具。
  *
  * 负责招募列表（[GameData.recruitList]）的损坏条目校验与净化：
- * - 移除损坏条目（name 空 / 年龄越界 / 境界越界 / 灵根空）
+ * - 移除损坏条目（name 空 / 境界越界 / 灵根空）
  * - 按 id 去重
  * - 按内容去重（历史 Bug 产生的同内容双胞胎）
- * - 按"同人"签名去重（年龄容差内的克隆，如跨年漂移）
+ * - 按"同人"签名去重（稳定字段签名一致的克隆）
  * - 移除已入宗门的残留条目（招募成功但未从列表移除）
  *
- * 净化绝不删除"年龄-境界不匹配"的条目（如年轻的炼虚俘虏，属合法数据）。
+ * 净化按稳定字段签名判定同人，不涉及年龄。
  */
 object RecruitIntegrity {
-
-    /** 招募弟子最大合理年龄（超过此值视为数据损坏） */
-    const val MAX_REASONABLE_AGE = 10000
 
     /** 合法境界范围 0..9（0=仙人 最高，9=炼气 最低） */
     val VALID_REALM_RANGE: IntRange =
         GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
-
-    /** 跨表"同人"匹配的年龄容差（双方均每年 +1，允许相位差） */
-    private const val CROSS_REF_AGE_TOLERANCE = 2
 
     /** 内容去重的归一化 id（丢弃 id 后比较全字段） */
     private const val NORMALIZED_ID = "same"
@@ -41,39 +35,24 @@ object RecruitIntegrity {
 
     /**
      * 校验招募条目是否完好（招募守卫统一谓词）。
-     * 仅做范围检查，不校验年龄-境界匹配（俘虏玩法允许年轻高境界）。
+     * 仅做范围检查，不校验境界与其它字段的交叉匹配。
      */
     fun isValidRecruit(d: Disciple): Boolean =
-        d.name.isNotBlank() && d.age in 1..MAX_REASONABLE_AGE &&
+        d.name.isNotBlank() &&
             d.realm in VALID_REALM_RANGE &&
             d.spiritRootType.split(",").all { it.isNotBlank() }
 
     /**
-     * 跨表"同人"判定：稳定字段签名 + 年龄关系。
+     * 跨表同人判定：稳定字段签名相等即同人（年龄容差随年龄字段下线）。
      * 入宗门后 cultivation/realm/status 等会分化，但姓名/性别/灵根/
-     * 天赋永不变，且两侧年龄每年同步 +1。
-     *
-     * 宗门侧已死亡时使用非对称容差：死者年龄永久冻结，残留条目
-     * （同源拷贝）年龄必然 ≥ 死者冻结年龄——残留必然满足
-     * `a.age >= b.age - 容差`；而合法同名新条目（16-29 岁）年龄
-     * 通常远小于死者冻结年龄，不会误判。
-     *
-     * 已知边界：若宗门弟子死于极年轻（<18 岁，如探索早逝）且冻结
-     * 年龄与合法新条目年龄区间重叠，5 字段签名一致时可能误判——
-     * 概率极低（同名生成受 usedNames 机制约束），接受该风险。
+     * 天赋永不变。
      *
      * @param a 候选条目（招募列表侧）
      * @param b 已入宗门弟子（可能已死亡）
      * @return 是否判定为同一个人
      */
-    fun isSamePerson(a: Disciple, b: Disciple): Boolean {
-        if (samePersonSignature(a) != samePersonSignature(b)) return false
-        return if (b.isAlive) {
-            kotlin.math.abs(a.age - b.age) <= CROSS_REF_AGE_TOLERANCE
-        } else {
-            a.age >= b.age - CROSS_REF_AGE_TOLERANCE
-        }
-    }
+    fun isSamePerson(a: Disciple, b: Disciple): Boolean =
+        samePersonSignature(a) == samePersonSignature(b)
 
     /**
      * 列表内去重：按 id → 全字段（归一化 slotId）→ "同人"签名三级去重，
@@ -97,7 +76,7 @@ object RecruitIntegrity {
             val normalized = d.copy(id = NORMALIZED_ID, slotId = 0)
             if (contentSeen.add(normalized)) contentDeduped.add(d)
         }
-        // 按"同人"签名去重（年龄容差内的克隆，如跨年漂移的双胞胎）。
+        // 按"同人"签名去重（稳定字段签名一致的克隆）。
         // O(R²)→O(N)：isSamePerson 先比签名（不同签名必 false），旧算法的
         // "kept 内 none 判定"只可能命中同签名者 ⇒ 按签名分组、组内保序去重，
         // 最后按原始位置全局排序恢复全局保序（组间交错时组内后续保留元素
@@ -122,12 +101,7 @@ object RecruitIntegrity {
      * 1. 移除损坏条目（必须先于去重——否则损坏条目与正常条目同 id 且
      *    损坏者在前时，按 id 去重会保留损坏条目、误删正常条目）
      * 2. [dedupeRecruits] 三级去重（id / 内容 / 同人签名）
-     * 3. 移除已入宗门的残留条目（[isSamePerson] 跨表匹配，
-     *    死亡弟子用非对称年龄容差）
-     *
-     * 已知残留：年龄相位差 > 2 年的克隆（历史 Bug 从旧存档拷贝产生）
-     * 无法被三级去重捕获，可被分次招募——设计权衡（容差过大会误删
-     * 合法条目），接受该残留。
+     * 3. 移除已入宗门的残留条目（[isSamePerson] 跨表匹配）
      *
      * @param recruits 待净化的招募列表
      * @param sectDisciples 正式弟子表数据（用于跨表残留判定）
@@ -146,7 +120,7 @@ object RecruitIntegrity {
         val valid = recruits.filter { isValidRecruit(it) }
         val invalidCount = recruits.size - valid.size
         if (invalidCount > 0) {
-            details.add("移除损坏条目 $invalidCount 条（name空/年龄越界/境界越界/灵根空）")
+            details.add("移除损坏条目 $invalidCount 条（name空/境界越界/灵根空）")
         }
 
         // 2. 三级去重（id / 内容 / 同人签名）
@@ -164,7 +138,7 @@ object RecruitIntegrity {
             val matches = sectBySignature[signature].orEmpty()
             val alreadyInSect = matches.any { isSamePerson(d, it) }
             if (alreadyInSect) {
-                details.add("移除已入宗门残留条目（name=${d.name}, age=${d.age}）")
+                details.add("移除已入宗门残留条目（name=${d.name}）")
             } else {
                 result.add(d)
             }
@@ -181,7 +155,7 @@ object RecruitIntegrity {
      * [DiscipleSerializer] 序列化时这些字段可能缺失（读档后列表侧
      * 恒空或失真；旧存档的 physiqueIds/affixIds 缺失），
      * 参与签名会使跨表残留匹配永久失效；而
-     * 同名+同灵根+同天赋+年龄容差的多重巧合误判概率可忽略
+     * 同名+同灵根+同天赋的多重巧合误判概率可忽略
      * （约 1e-11 量级）。
      *
      * talentIds 排序后拼接，消除顺序不稳定。

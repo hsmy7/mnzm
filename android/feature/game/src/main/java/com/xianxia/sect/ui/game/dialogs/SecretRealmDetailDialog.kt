@@ -324,7 +324,7 @@ private fun SecretRealmDiscipleSelector(
             title = "选择弟子",
             emptyMessage = "暂无空闲弟子",
             additionalCheck = { d ->
-                d.realmLayer > 0 && d.age >= 5 && d.id !in alreadySelectedIds
+                d.realmLayer > 0 && d.id !in alreadySelectedIds
             }
         ),
         disciples = disciples,

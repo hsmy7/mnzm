@@ -59,7 +59,7 @@ class InventorySystem @Inject constructor(
          *  此值仅防止极端情况下堆叠无限增长（6 种稀有度各若干堆）。 */
         internal const val STORAGE_BAG_SLOT_BUDGET = 64
 
-        /** 死亡物化年度报告来源（materializeDiscipleBagAndMarkDead 用） */
+        /** 死亡/重伤袋物化年度报告来源（materializeDiscipleBagAndMarkDead 等入口用） */
         const val SOURCE_DISCIPLE_DEATH = "disciple_death"
     }
 

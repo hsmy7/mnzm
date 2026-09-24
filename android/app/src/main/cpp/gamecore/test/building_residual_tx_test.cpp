@@ -45,7 +45,7 @@ protected:
         core_->initialize(config);
     }
 
-    /// 挂一个最小弟子（存活、指定状态、20 岁）
+    /// 挂一个最小弟子（存活、指定状态）
     void addDisciple(const std::string& id, const std::string& status = "IDLE") {
         Disciple d;
         d.id = id;
@@ -54,8 +54,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = 1;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = status;
         d.currentHp = 100;
         d.currentMp = 50;
@@ -103,10 +101,6 @@ protected:
         gamecore::state::SpiritFieldPlant plant;
         plant.buildingInstanceId = instanceId;
         gd.spiritFieldPlants.push_back(plant);
-        gamecore::state::WarehouseGarrisonSlot garrison;
-        garrison.buildingInstanceId = instanceId;
-        garrison.discipleId = discipleId;
-        gd.warehouseGarrisons.push_back(garrison);
         gamecore::state::LibrarySlot lib;
         lib.index = 0;
         lib.buildingInstanceId = instanceId;
@@ -130,7 +124,7 @@ protected:
 
 // ── 1810 清扫 ────────────────────────────────────────────────
 
-TEST_F(BuildingResidualTxFixture, ClearResidual_十类槽位逐组清除与状态破除) {
+TEST_F(BuildingResidualTxFixture, ClearResidual_槽位逐组清除与状态破除) {
     addDisciple("1");
     addDisciple("2");  // 对照弟子：不涉清扫
     seedSlotsFor("inst-1", "1");
@@ -142,7 +136,7 @@ TEST_F(BuildingResidualTxFixture, ClearResidual_十类槽位逐组清除与状�
     target.groups = {
         residual_tx::SlotGroupKind::SpiritMine,   residual_tx::SlotGroupKind::PatrolTower,
         residual_tx::SlotGroupKind::Residence,    residual_tx::SlotGroupKind::SpiritField,
-        residual_tx::SlotGroupKind::Warehouse,    residual_tx::SlotGroupKind::Library,
+        residual_tx::SlotGroupKind::Library,
         residual_tx::SlotGroupKind::BloodRefining,
     };
     target.discipleIds = {"1"};
@@ -157,7 +151,6 @@ TEST_F(BuildingResidualTxFixture, ClearResidual_十类槽位逐组清除与状�
     EXPECT_EQ(gd.productionSlots.size(), 1u);
     EXPECT_TRUE(gd.residenceSlots.empty());
     EXPECT_TRUE(gd.spiritFieldPlants.empty());
-    EXPECT_TRUE(gd.warehouseGarrisons.empty());
     EXPECT_TRUE(gd.librarySlots.empty());
     EXPECT_TRUE(gd.activeBloodRefinements.empty());
     // patrolConfigs 不清（两臂 towerIdx=-1 bug-for-bug 兼容）
@@ -220,7 +213,7 @@ TEST_F(BuildingResidualTxFixture, ClearResidual_长老殿末座判定与监牢�
 
 // ── 1811 放置 ────────────────────────────────────────────────
 
-TEST_F(BuildingResidualTxFixture, PlaceSlots_七组建槽基数逐位对齐) {
+TEST_F(BuildingResidualTxFixture, PlaceSlots_六组建槽基数逐位对齐) {
     auto& gd = core_->state().gameData;
     const auto before = rngSnapshot();
 
@@ -232,7 +225,6 @@ TEST_F(BuildingResidualTxFixture, PlaceSlots_七组建槽基数逐位对齐) {
         {residual_tx::SlotGroupKind::PatrolTower, 8},
         {residual_tx::SlotGroupKind::Residence, 2},
         {residual_tx::SlotGroupKind::SpiritField, 1},
-        {residual_tx::SlotGroupKind::Warehouse, 1},
         {residual_tx::SlotGroupKind::Library, 3},
         {residual_tx::SlotGroupKind::BloodRefining, 0},  // 建造不产槽
     };
@@ -251,13 +243,11 @@ TEST_F(BuildingResidualTxFixture, PlaceSlots_七组建槽基数逐位对齐) {
     EXPECT_EQ(gd.patrolSlots[7].index, 7);
     EXPECT_EQ(gd.patrolConfigs.size(), 1u);
 
-    // 住所 ×2（slotIndex=offset）、灵田 ×1（sectId）、仓库 ×1、藏经阁 ×3
+    // 住所 ×2（slotIndex=offset）、灵田 ×1（sectId）、藏经阁 ×3
     EXPECT_EQ(gd.residenceSlots.size(), 2u);
     EXPECT_EQ(gd.residenceSlots[1].slotIndex, 1);
     EXPECT_EQ(gd.spiritFieldPlants.size(), 1u);
     EXPECT_EQ(gd.spiritFieldPlants[0].sectId, "sect-player");
-    EXPECT_EQ(gd.warehouseGarrisons.size(), 1u);
-    EXPECT_EQ(gd.warehouseGarrisons[0].slotIndex, 0);
     EXPECT_EQ(gd.librarySlots.size(), 3u);
     EXPECT_EQ(gd.librarySlots[2].index, 2);
     // 生产/长老组留 Kotlin（偏差登记）——C++ 侧零行

@@ -17,7 +17,6 @@ import com.xianxia.sect.core.engine.service.CultivationSharedState
 import com.xianxia.sect.core.engine.service.DiscipleBreakthroughHandler
 import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
 import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
@@ -35,7 +34,6 @@ import com.xianxia.sect.core.engine.system.ChildBirthSystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
-import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.exploration.WorldLevelManager
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
@@ -85,18 +83,6 @@ internal fun buildBeastAttackProcessor(
 ): AISectBeastAttackProcessor = AISectBeastAttackProcessor(
     battleSystem = mockSmart(),
     rngManager = gameRng,
-)
-
-/** 真实 LawEnforcementProcessor（教化之道偷盗判定钩子对拍主体；
- *  lifecycle 用 mock——捕获思过/叛逃清理在钩子场景中不触达或恒等） */
-internal fun buildLawEnforcement(
-    store: FakeGameStateStore,
-    gameRng: GameRngManager
-): LawEnforcementProcessor = LawEnforcementProcessor(
-    stateStore = store,
-    rngManager = gameRng,
-    discipleLifecycleProcessor = mockSmart(),
-    lootCalculator = LootCalculator(gameRng)
 )
 
 /** 真实 ProductionProcessor（月变步骤 6 自动排班对拍主体） */
@@ -293,8 +279,7 @@ internal fun buildMonthDiffHarness(
     val core = CultivationCore(
         hpMpRecoveryService = HpMpRecoveryService(),
         autoPillService = AutoPillService(
-            DisciplePillManager(PillEffectApplier()),
-            mockSmart()
+            DisciplePillManager(PillEffectApplier())
         ),
         equipmentNurtureService = EquipmentNurtureService(),
         manualProficiencyService = ManualProficiencyService(),
@@ -322,15 +307,10 @@ internal fun buildMonthDiffHarness(
         store, SpiritStoneLedger(), EventBus(scopeProvider)
     )
     val configProvider = GameConfigProvider(ConfigLoader({ null }))
-    // 教化之道偷盗判定钩子对拍主体——CultivationSettlement
-    // 换装真实 LawEnforcementProcessor（与 eventProcessor 同实例；
-    // lifecycle 用 mock——捕获思过/叛逃清理在场景中不触达或恒等）
-    val lawEnforcement = buildLawEnforcement(store, gameRng)
     val settlement = CultivationSettlement(
         stateStore = store,
         scopeProvider = scopeProvider,
         spiritStoneWallet = wallet,
-        lawEnforcementProcessor = lawEnforcement,
         gameConfigProvider = configProvider
     )
     val eventProcessor = buildMonthDiffEventProcessor(
@@ -429,9 +409,6 @@ internal fun buildMonthDiffEventProcessor(
             rngManager = gameRng
         ),
         aiSectBeastAttackProcessor = aiBeastAttackProcessor,
-        // 真实执法堂处理器（叛逃流对拍主体）——lifecycle 用 mock：
-        // 逃脱路径的 11 槽清理在场景中恒等（叛逃候选无任何槽位引用）
-        lawEnforcementProcessor = buildLawEnforcement(store, gameRng),
         rngManager = gameRng,
         secretRealmService = mockSmart(),
         // 真实秘境 AI 派遣处理器（纯数据变换零 RNG——秘境存在 +

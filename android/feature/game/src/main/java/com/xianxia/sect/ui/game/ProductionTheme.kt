@@ -19,9 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.artifactRefining
@@ -397,7 +395,7 @@ fun ProductionElderSelectionDialog(
 
     val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
         disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds,
-            additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
+            additionalCheck = { it.realmLayer > 0 })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -464,7 +462,7 @@ fun ProductionDirectDiscipleSelectionDialog(
 
     val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
         disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds,
-            additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
+            additionalCheck = { it.realmLayer > 0 })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {

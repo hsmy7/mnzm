@@ -64,8 +64,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = alive;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = status;
         d.currentHp = 100;
         d.currentMp = 50;
@@ -73,7 +71,7 @@ protected:
         return *core_->state().disciples.rowOf(id);
     }
 
-    /// 为指定弟子布满 12 类槽位（逐出清理穷尽性断言基准）
+    /// 为指定弟子布满 11 类槽位（逐出清理穷尽性断言基准）
     void seedAllSlots(const std::string& id) {
         auto& gd = core_->state().gameData;
         gd.spiritMineSlots = {{gamecore::state::SpiritMineSlot()}};
@@ -104,11 +102,6 @@ protected:
         gd.patrolSlots = {{gamecore::state::PatrolSlot()}};
         gd.patrolSlots[0].index = 0;
         gd.patrolSlots[0].discipleId = id;
-
-        gamecore::state::WarehouseGarrisonSlot warehouse;
-        warehouse.buildingInstanceId = "wh-1";
-        warehouse.discipleId = id;
-        gd.warehouseGarrisons = {warehouse};
 
         gamecore::state::BattleTeam team;
         team.id = "team-1";
@@ -210,7 +203,7 @@ protected:
 
 // ── 逐出 ─────────────────────────────────────────────────────
 
-TEST_F(DiscipleLifecycleTxFixture, ExpelTx_Happy_12类槽位逐类清理与行删除) {
+TEST_F(DiscipleLifecycleTxFixture, ExpelTx_Happy_11类槽位逐类清理与行删除) {
     addDisciple("1");
     addDisciple("2");  // 对照行：不受逐出波及
     seedAllSlots("1");
@@ -239,7 +232,7 @@ TEST_F(DiscipleLifecycleTxFixture, ExpelTx_Happy_12类槽位逐类清理与行�
     EXPECT_TRUE(ds.contains("2"));  // 对照行保留
     EXPECT_EQ(gd.annualDeceasedDisciples, 0);
 
-    // 12 类槽位逐类清理
+    // 11 类槽位逐类清理
     EXPECT_TRUE(gd.spiritMineSlots[0].discipleId.empty());
     EXPECT_TRUE(gd.librarySlots[0].discipleId.empty());
     EXPECT_TRUE(gd.elderSlots.viceSectMaster.empty());
@@ -247,7 +240,6 @@ TEST_F(DiscipleLifecycleTxFixture, ExpelTx_Happy_12类槽位逐类清理与行�
     EXPECT_TRUE(gd.residenceSlots[0].discipleId.empty());  // includeResidence=true
     EXPECT_TRUE(gd.activeBloodRefinements.empty());
     EXPECT_TRUE(gd.patrolSlots[0].discipleId.empty());
-    EXPECT_TRUE(gd.warehouseGarrisons[0].discipleId.empty());
     EXPECT_TRUE(gd.battleTeams[0].slots[0].discipleId.empty());
     EXPECT_TRUE(gd.battleTeams[0].slots[0].isAlive);
     ASSERT_TRUE(gd.worldMapSects[0].isPlayerSect);
@@ -326,8 +318,8 @@ TEST_F(DiscipleLifecycleTxFixture, ApprenticeTx_Happy_落表与双侧日志草�
                         {{"discipleId", "1"}, {"masterId", "2"}});
     ASSERT_EQ(r["status"], "success");
     ASSERT_TRUE(r["data"]["apprenticed"].get<bool>());
-    EXPECT_EQ(r["data"]["apprenticeLogLine"], "20岁：拜弟子2为师");
-    EXPECT_EQ(r["data"]["masterLogLine"], "20岁：收弟子1为徒");
+    EXPECT_EQ(r["data"]["apprenticeLogLine"], "拜弟子2为师");
+    EXPECT_EQ(r["data"]["masterLogLine"], "收弟子1为徒");
 
     const auto row = *core_->state().disciples.rowOf("1");
     EXPECT_EQ(core_->state().disciples.masterIds[row], "2");
@@ -519,51 +511,6 @@ TEST_F(DiscipleLifecycleTxFixture, MarryRejectTx_无失败臂_零幽灵列) {
     ASSERT_EQ(records.size(), 1u);
     EXPECT_EQ(records[0].summary, "弟子张三拒绝与弟子李四结为道侣");
     EXPECT_TRUE(core_->state().disciples.ids.empty());
-}
-
-// ── 释放思过 ─────────────────────────────────────────────────
-
-TEST_F(DiscipleLifecycleTxFixture, ReleaseReflectionTx_Happy_定向移除与状态回IDLE) {
-    addDisciple("1", /*alive=*/true, /*status=*/"REFLECTING");
-    const auto row = *core_->state().disciples.rowOf("1");
-    core_->state().disciples.statusData[row] = {
-        {"reflectionStartYear", "3"},
-        {"reflectionEndYear", "4"},
-        {"bloodRefineBuildingId", "alchemy-1"},  // 既有 key 必须保留
-    };
-    const auto before = rngSnapshot();
-
-    const auto r = exec(action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,
-                        {{"discipleId", "1"}});
-    ASSERT_EQ(r["status"], "success");
-    ASSERT_TRUE(r["data"]["written"].get<bool>());
-
-    const auto& statusData = core_->state().disciples.statusData[row];
-    EXPECT_EQ(statusData.count("reflectionStartYear"), 0u);
-    EXPECT_EQ(statusData.count("reflectionEndYear"), 0u);
-    EXPECT_EQ(statusData.at("bloodRefineBuildingId"), "alchemy-1");
-    EXPECT_EQ(core_->state().disciples.statuses[row], "IDLE");
-    EXPECT_EQ(rngSnapshot(), before);
-}
-
-TEST_F(DiscipleLifecycleTxFixture, ReleaseReflectionTx_SilentArms_静默NoOp同义) {
-    addDisciple("1");
-    addDisciple("2", /*alive=*/false, /*status=*/"REFLECTING");
-    const auto before = rngSnapshot();
-
-    // 臂：不存在
-    auto r1 = exec(action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,
-                   {{"discipleId", "999"}});
-    ASSERT_EQ(r1["status"], "success");
-    EXPECT_FALSE(r1["data"]["written"].get<bool>());
-
-    // 臂：已死亡
-    auto r2 = exec(action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,
-                   {{"discipleId", "2"}});
-    ASSERT_EQ(r2["status"], "success");
-    EXPECT_FALSE(r2["data"]["written"].get<bool>());
-
-    EXPECT_EQ(rngSnapshot(), before);
 }
 
 // ── 年俸开关 ─────────────────────────────────────────────────

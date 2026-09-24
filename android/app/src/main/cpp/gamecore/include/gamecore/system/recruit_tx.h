@@ -66,7 +66,7 @@ struct RecruitRefreshOutcome {
     int32_t remaining = 0;
 };
 
-/// 老化净化结果：removed = 超寿元死亡 + 损坏/重复/已入宗门残留移除总数
+/// 老化净化结果：removed = 损坏/重复/已入宗门残留移除总数
 struct RecruitAgeOutcome {
     TxResult base;
     int32_t removed = 0;
@@ -119,12 +119,11 @@ inline RecruitRefreshOutcome refreshRecruitTx(gamecore::state::GameState& state,
     return out;
 }
 
-// ── 事务 3：招募列表老化+净化（RecruitService.ageRecruitList 直调段）───────
+// ── 事务 3：招募列表净化（RecruitService.sanitizeRecruitList 直调段）───────
 //
-// 复用 year_settlement 权威链（detail::processRecruitAging）：全员 age+1 →
-// 超寿元移除 → 损坏过滤 + 三级去重 + 跨表 isSamePerson 残留移除。零 RNG。
-// Kotlin 老化（processRecruitAging）与净化（sanitizeRecruitList）两段
-// 与 C++ 单函数同序合并等价。
+// 复用 year_settlement 权威链（detail::processRecruitAging）：损坏过滤 +
+// 三级去重 + 跨表 isSamePerson 残留移除。零 RNG。
+// Kotlin sanitizeRecruitList 与 C++ 单函数同序合并等价。
 inline RecruitAgeOutcome ageRecruitTx(gamecore::state::GameState& state,
                                       ecs::World& world) {
     RecruitAgeOutcome out;

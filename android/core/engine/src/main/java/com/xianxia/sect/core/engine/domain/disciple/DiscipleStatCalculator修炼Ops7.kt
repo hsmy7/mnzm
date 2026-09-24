@@ -3,26 +3,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.model.Disciple
 
 // ── DiscipleStatCalculator 拆分域 7/7（行为零变更） ──
-fun DiscipleStatCalculator.calculateLifespanCultivationPenalty(age: Int, lifespan: Int): Double {
-    val remaining = calculateLifespanRemainingPercent(age, lifespan)
-    if (remaining >= LIFESPAN_PENALTY_THRESHOLD) return 0.0
-    val deficitPercent = (LIFESPAN_PENALTY_THRESHOLD - remaining) * 100
-    return deficitPercent * LIFESPAN_CULTIVATION_PENALTY_PER_PCT
-}
-
-/**
- * 计算寿命将尽对突破率的惩罚值
- * 剩余寿命低于20%时，每少1个百分点降低2%突破率
- * @return 惩罚值（非负数），可直接从 totalBonus 中扣除
- */
-
-fun DiscipleStatCalculator.calculateLifespanBreakthroughPenalty(age: Int, lifespan: Int): Double {
-    val remaining = calculateLifespanRemainingPercent(age, lifespan)
-    if (remaining >= LIFESPAN_PENALTY_THRESHOLD) return 0.0
-    val deficitPercent = (LIFESPAN_PENALTY_THRESHOLD - remaining) * 100
-    return deficitPercent * LIFESPAN_BREAKTHROUGH_PENALTY_PER_PCT
-}
-
 /**
  * 判断弟子是否处于丧亲悲痛期
  * @param griefEndYear 悲痛结束年份，null表示未处于悲痛期

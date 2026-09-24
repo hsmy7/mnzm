@@ -43,7 +43,7 @@
 //
 // 八步事务序（语义权威 = 各被调方法源码）：
 //   1. 政策月度灵石扣除        ← government.h::processPolicyCosts（原语接线）
-//   2. 政策月度忠诚/道德效果     ← CultivationSettlement.processPolicyMonthlyEffects
+//   2. 政策月度道德效果           ← CultivationSettlement.processPolicyMonthlyEffects
 //   3. AI 兽袭目标预计算        ← precomputeTargets（EXPLORATION；
 //      消费方巡视楼/子事件 9 保留 Kotlin）
 //   4. systemManager.onMonthlyEvent 七系统扇出（@SystemPriority 升序）：
@@ -51,17 +51,14 @@
 //      Exploration(240) → Partner(240，稳定排序居后)
 //      （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
 //   5. 血炼完成检测            ← blood_refinement 原语 + 本文件结算段
-//   6. 月度自动排班 + 住所忠诚   ← processResidenceLoyalty（排班未下沉）
+//   6. 月度自动排班              ← processAutoAssign（排班未下沉）
 //   7. 丹药持续效果月度衰减      ← HpMpRecoveryService.applyMonthlyDurationDecay
-//   8. processMonthlyEventsOnState 十六子事件（全部入 C++，相对序与 Kotlin 一致）
+//   8. processMonthlyEventsOnState 十四子事件（全部入 C++，相对序与 Kotlin 一致）
 //
 // RNG 消耗点核对表（分区 / 触发条件 / 抽取次数——对拍命门，逐点核对自源码）：
 //   - EXPLORATION：妖兽移动 moveBeasts，每活跃妖兽 2 次 nextDouble（角度+距离）
 //   - SYSTEM：灵田收获种子 roll nextInt(5)，每收获地块 1 次
 //   - SYSTEM：伴侣配对 nextDouble，每通过过滤的 (男,女) 组合 1 次
-//   - SYSTEM：偷盗兜底每判定候选：概率 1 次 + 捕获 1 次 +
-//     仓库选取 nextInt(仓库数)（仓库非空时）+ 金额波动 1 次 +
-//     物品 nextInt(池大小) 0..N 次 + 偷盗后叛逃 1 次（无条件抽取）
 //   - BATTLE：子事件 6b 征伐环（P2-18 Stage 2）checkAttackConditions
 //     门通过恰抽 1 次 nextDouble + executeAiBattle 全回合抽取；
 //     子事件 6c 防守环（P2-18 Stage 1）decidePlayerAttack 六道闸通过者
@@ -70,8 +67,7 @@
 //   已知未下沉扇出的抽取点（场景规避 + 边界登记）：
 //   AI 兽袭 EXPLORATION（precomputeTargets 已入本钩子）、关卡刷新生成
 //   （LevelGenerator 接线）、生产完成 SYSTEM（炼丹/锻造同步段）、
-//   生育/招募/购买/附庸/商人等 SYSTEM 子事件、执法堂月度偷盗兜底、
-//   教化之道道德增量后的反应式偷盗判定钩子均已入 C++。
+//   生育/招募/购买/附庸/商人等 SYSTEM 子事件均已入 C++。
 //
 // 已知范围边界：
 //   - precomputeTargets：aiSectBeastDirectTargets/aiSectBeastSkipCooldowns/
@@ -86,22 +82,18 @@
 //   - 自动排班：11 槽占用扫描 + 住所分配 + 四类生产候选 + 原子写入
 //     （住所建筑表静态数据 + 双端守卫）
 //   - 子事件：recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
-//     scoutExpiry / 月度叛逃检测 / 月度偷盗兜底 / 附庸脱离检查 /
+//     scoutExpiry / 附庸脱离检查 /
 //     autoRecruit / 秘境到期关闭+AI 队伍派遣 / 12 月自动购买 /
 //     弟子智能购买 / 任务刷新均已入 C++
-//   - 教化之道道德增量后的偷盗判定钩子：道德提升后仍 < 偷盗阈值 →
-//     单弟子偷盗判定 judgeSingleTheftCandidate，SYSTEM 抽取内嵌弟子循环序
 // ============================================================
 namespace gamecore::system {
 
 /// 伴侣配对基础概率（Kotlin PartnerSystem.PAIRING_PROBABILITY）
 constexpr double kPairingProbability = 0.006;
-/// 配对资格年龄下限（Kotlin PartnerSystem 过滤 age >= 18）
-constexpr int32_t kPairingMinAge = 18;
 /// 丹药月度衰减旬数（每月 3 旬；HpMpRecoveryService.applyMonthlyDurationDecay）
 constexpr int32_t kMonthlyDecayPhases = 3;
-// 忠诚/道德上限与月度增量常量单一定义于 government.h
-//（kMaxLoyalty/kMoralEducationMax/kMoralEducationPerMonth 及各政策忠诚增量）
+// 道德上限与月度增量常量单一定义于 government.h
+//（kMoralEducationMax/kMoralEducationPerMonth）
 
 namespace detail {
 
@@ -124,76 +116,26 @@ using settle_util::toIntOrNull;
 /// 消息栏事件记录（settle_util 共享实现——完整守卫见 settlement_detail.h）
 using settle_util::recordGameEvent;
 
-// ── 步骤 2：政策月度忠诚/道德效果 ──────────────────────────────────
-// （CultivationSettlement.processPolicyMonthlyEffects：单次遍历合并净变化；
-//   教化之道道德提升后仍低于偷盗阈值的判定钩子——
-//   Kotlin 事务内版 processSingleDiscipleTheft(id, state) 等价）
+// ── 步骤 2：政策月度道德效果 ──────────────────────────────────────
+// （CultivationSettlement.processPolicyMonthlyEffects：单次遍历合并净变化）
 
-// 前置声明（定义在偷盗链区域——judgeSingleTheftCandidate 依赖的辅助
-// 函数均定义于文件后部 detail:: 命名空间；单翻译单元内声明后定义合法）
-inline int32_t lawMoralityThreshold();
-inline void judgeSingleTheftCandidate(GameState& state, int32_t id,
-                                      int32_t currentMonth,
-                                      rng::DeterministicRng& rngSystem,
-                                      ecs::World& world);
-
-inline void processPolicyMonthlyEffects(GameState& state, rng::RngManager& rng,
-                                        ecs::World& world) {
+inline void processPolicyMonthlyEffects(GameState& state, ecs::World& world) {
     const GameData& gd = state.gameData;
     const auto& policies = gd.sectPolicies;
-
-    // 忠诚净变化（各政策月度增减汇总，与 Kotlin 合并口径一致）
-    int32_t loyaltyDelta = 0;
-    if (policies.benevolentGovernance) loyaltyDelta += kBenevolentLoyaltyPerMonth;
-    if (policies.relaxedMgmt) loyaltyDelta += kRelaxedMgmtLoyaltyPerMonth;
-    if (policies.strictTraining) loyaltyDelta += kStrictTrainingLoyaltyPerMonth;
-    if (policies.enhancedSecurity) loyaltyDelta += kEnhancedSecurityLoyaltyPerMonth;
-    if (policies.curfew) loyaltyDelta += kCurfewLoyaltyPerMonth;
-
-    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
-    const int32_t currentMonth = gd.gameYear * 12 + gd.gameMonth;
-    // 迭代域 = 入口 id 快照（sync + View
-    // 行序）+ 逐 id rowOf 现查。教化之道偷盗钩子可能移行（被捕原位改写/
-    // 偷盗后叛逃 remove），快照序 == 行序 == Kotlin tables.ids 序（Kotlin
-    // 同域为活表迭代，移行即 CME——生产不触发；快照即其安全等价）。
+    if (!policies.moralEducation) return;
     DiscipleStore& ds = state.disciples;
+    // 迭代域经 sync + View 行序（行序 == Kotlin tables.ids 序）
     ecs::syncDiscipleEntities(world, ds.size());
-    std::vector<std::pair<std::string, int32_t>> idSnapshot;  // (id 串, int id 或 -1)
-    {
-        ecs::View<ecs::DiscipleRef> view(world.registry());
-        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-            const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-            if (ds.isAlive[row] == 0) return;
-            idSnapshot.emplace_back(
-                ds.ids[row], toIntOrNull(ds.ids[row]).value_or(-1));
-        });
-    }
-    for (const auto& [idStr, idInt] : idSnapshot) {
-        // 前序偷盗钩子可能移行——行存在性重解析（id 寻址等价）
-        const auto rowOpt = ds.rowOf(idStr);
-        if (!rowOpt.has_value()) continue;
-        const std::size_t row = *rowOpt;
-        if (ds.isAlive[row] == 0) continue;
-        // 忠诚：delta != 0 时 clamp 写回（getOrDefault 缺省 50 —— C++ 字段恒存在）
-        if (loyaltyDelta != 0) {
-            ds.loyalties[row] = std::max(
-                0, std::min(kMaxLoyalty, ds.loyalties[row] + loyaltyDelta));
-        }
-        // 道德（教化之道）：仅当前低于上限时 +1 并 clamp；
-        // 新道德仍低于偷盗阈值 → 单弟子偷盗判定（Kotlin 事务内版
-        // 钩子——SYSTEM 抽取内嵌于弟子循环序，与 Kotlin 逐位一致）
-        if (policies.moralEducation && ds.moralities[row] < kMoralEducationMax) {
-            ds.moralities[row] = std::max(
-                0, std::min(kMoralEducationMax,
-                            ds.moralities[row] + kMoralEducationPerMonth));
-            if (ds.moralities[row] < lawMoralityThreshold()) {
-                if (idInt >= 0) {
-                    judgeSingleTheftCandidate(state, idInt, currentMonth,
-                                              rngSystem, world);
-                }
-            }
-        }
-    }
+    ecs::View<ecs::DiscipleRef> view(world.registry());
+    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+        if (ds.isAlive[row] == 0) return;
+        // 道德（教化之道）：仅当前低于上限时 +1 并 clamp
+        if (ds.moralities[row] >= kMoralEducationMax) return;
+        ds.moralities[row] = std::max(
+            0, std::min(kMoralEducationMax,
+                        ds.moralities[row] + kMoralEducationPerMonth));
+    });
 }
 
 // ── 步骤 4c：灵田收获（spirit_field.h 原语接线） ───────────────────
@@ -265,7 +207,7 @@ inline void processPartnerMatching(GameState& state, rng::RngManager& rng,
     std::vector<const Disciple*> eligibleMales;
     std::vector<const Disciple*> eligibleFemales;
     for (const auto& d : snapshot) {
-        if (!d.isAlive || d.age < kPairingMinAge) continue;
+        if (!d.isAlive) continue;
         if (!d.partnerId.empty() || isBannedRoot(d)) continue;
         if (d.gender == "male") eligibleMales.push_back(&d);
         else if (d.gender == "female") eligibleFemales.push_back(&d);
@@ -457,9 +399,6 @@ inline std::set<std::string> buildOccupiedSlotDiscipleIds(
         if (!s.discipleId.empty()) out.insert(s.discipleId);
     }
     for (const auto& s : gd.librarySlots) {
-        if (!s.discipleId.empty()) out.insert(s.discipleId);
-    }
-    for (const auto& s : gd.warehouseGarrisons) {
         if (!s.discipleId.empty()) out.insert(s.discipleId);
     }
     for (const auto& s : gd.patrolSlots) {
@@ -795,27 +734,6 @@ inline void processAutoAssign(GameState& state, ecs::World& world) {
     }
 }
 
-// ── 步骤 6b：住所忠诚度（processResidenceLoyalty） ─────────────────
-
-inline void processResidenceLoyalty(GameState& state, ecs::World& world) {
-    std::set<std::string> residentIds;
-    for (const auto& slot : state.gameData.residenceSlots) {
-        // Kotlin isActive 为计算属性 == discipleId.isNotEmpty()
-        if (!slot.discipleId.empty()) residentIds.insert(slot.discipleId);
-    }
-    // 迭代域经 sync + View<DiscipleRef> 行序
-    DiscipleStore& ds = state.disciples;
-    ecs::syncDiscipleEntities(world, ds.size());
-    ecs::View<ecs::DiscipleRef> view(world.registry());
-    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-        // Kotlin: id.toString() in residentIds && loyalties[id] < max
-        if (residentIds.count(ds.ids[row]) && ds.loyalties[row] < kMaxLoyalty) {
-            ds.loyalties[row] = std::min(ds.loyalties[row] + 1, kMaxLoyalty);
-        }
-    });
-}
-
 // ── 步骤 7：丹药持续效果月度衰减（applyMonthlyDurationDecayAll） ───
 
 /// 单弟子月衰减（HpMpRecoveryService.applyMonthlyDurationDecay，
@@ -938,34 +856,8 @@ inline SpiritMineZones buildMonthSpiritMineZones(const GameState& state,
     return zones;
 }
 
-/// 矿工忠诚衰减（applyMinerLoyaltyDecay：连续挖矿满 3 月 -1 忠诚并归零计数；
-/// 无效/空槽位计数归零；弟子查无此人仅按 ids.contains 判定——死亡也衰减）
-inline void applyMinerLoyaltyDecay(GameState& state,
-                                   const std::map<int32_t, std::size_t>& idx) {
-    for (auto& slot : state.gameData.spiritMineSlots) {
-        if (slot.discipleId.empty()) {
-            slot.consecutiveMiningMonths = 0;
-            continue;
-        }
-        const auto id = detail::toIntOrNull(slot.discipleId);
-        if (!id.has_value() || idx.find(*id) == idx.end()) {
-            slot.consecutiveMiningMonths = 0;
-            continue;
-        }
-        const int32_t newMonths = slot.consecutiveMiningMonths + 1;
-        if (newMonths >= 3) {
-            DiscipleStore& ds = state.disciples;
-            const std::size_t row = idx.at(*id);
-            ds.loyalties[row] = std::max(ds.loyalties[row] - 1, 0);
-            slot.consecutiveMiningMonths = 0;
-        } else {
-            slot.consecutiveMiningMonths = newMonths;
-        }
-    }
-}
-
 /// 灵矿月产结算主体：乘区构建 → 差分产出入账（钱包 Mine 来源）→
-/// 引导计数 → lastSettledMonth 推进 → 矿工忠诚衰减
+/// 引导计数 → lastSettledMonth 推进
 inline void processSpiritMineProductionMonthly(
         GameState& state, const std::map<int32_t, std::size_t>& idx) {
     GameData& gd = state.gameData;
@@ -981,7 +873,6 @@ inline void processSpiritMineProductionMonthly(
         counter += totalOutput;
     }
     gd.spiritMineLastSettledMonth = currentMonth;
-    applyMinerLoyaltyDecay(state, idx);
 }
 
 // ── 步骤 8e：游戏结束检查（checkGameOverCondition） ────────────────
@@ -1011,11 +902,11 @@ inline void checkGameOverCondition(GameState& state) {
 }
 
 // ── 步骤 8：processMonthlyEventsOnState 可下沉子集 ────────────────
-// Kotlin 十六子事件全序：recruitReset → autoRecruit → theft → lawEnforcement →
+// Kotlin 十四子事件全序：recruitReset → autoRecruit →
 // completedMissions → aiSectOperations → gameOverCheck → scoutExpiry →
 // aiBeastRemaining → [12月 autoBuy] → spiritMine → disciplePurchase →
 // vassalBreakaway → missionRefresh → secretRealmExpiry → secretRealmAiTeams。
-// 十六件子事件均已入 C++（详见 processMonthlyEvents 分发段）；相对序与 Kotlin 一致。
+// 十四件子事件均已入 C++（详见 processMonthlyEvents 分发段）；相对序与 Kotlin 一致。
 
 // 草稿结构 SecretRealmCloseDraft 定义于 secret_realm_settlement.h
 //（属主文件——closeSecretRealmByExpiry 内部填充）；
@@ -1092,765 +983,6 @@ inline void applyScoutInfoExpiry(GameState& state, int32_t year, int32_t month) 
     gd.scoutInfo = std::move(updated);
     gd.sectDetails = std::move(updatedDetails);
 }
-
-// ── 子事件 4：月度叛逃检测（Kotlin LawEnforcementProcessor.
-//    processLawEnforcementMonthly 等价移植）──────────────────────────
-//
-// 配置读取（远程配置注入 gameConfig()，默认值与
-// game_config.json 一致；const val 类常量保持编译期）。
-// RNG 契约（对拍命门）：按 at-risk 行序，每名弟子先 SYSTEM 抽 1 次
-// nextDouble 与叛逃概率比较（≥ 概率跳过）；判定通过再抽第 2 次与捕获率
-// 比较（< 捕获率 → 捕获思过；否则逃脱清理）。捕获/逃脱路径零额外抽取。
-
-// 执法堂配置（可远程覆盖段——Kotlin GameConfig.LawEnforcementConfig 默认值）
-inline int32_t lawLoyaltyThreshold() {
-    return gamecore::gameConfig().lawLoyaltyThreshold;       // 30
-}
-inline double lawDesertionProbPerPoint() {
-    return gamecore::gameConfig().lawProbPerPoint;           // 0.01
-}
-inline double lawDesertionMaxProb() {
-    return gamecore::gameConfig().lawMaxProb;                // 0.90
-}
-inline double lawBaseCaptureRate() {
-    return gamecore::gameConfig().lawBaseCaptureRate;        // 0.0
-}
-inline int32_t lawIntelligenceBase() {
-    return gamecore::gameConfig().lawIntelligenceBase;       // 50
-}
-inline double lawElderBonusPerPoint() {
-    return gamecore::gameConfig().lawElderBonusPerPoint;     // 0.01
-}
-inline int32_t lawDiscipleIntelligenceStep() {
-    return gamecore::gameConfig().lawDiscipleIntelligenceStep;  // 5
-}
-inline double lawDiscipleBonusPerStep() {
-    return gamecore::gameConfig().lawDiscipleBonusPerStep;   // 0.01
-}
-inline int32_t lawReflectionYears() {
-    return gamecore::gameConfig().lawReflectionYears;        // 5
-}
-inline int32_t lawNewDiscipleProtectionMonths() {
-    return gamecore::gameConfig().lawNewDiscipleProtectionMonths;  // 12
-}
-inline int32_t lawHerdLoyaltyThreshold() {
-    return gamecore::gameConfig().lawHerdLoyaltyThreshold;   // 50
-}
-// 政策加成（GameConfig.PolicyConfig；const val 类）
-constexpr double kEnhancedSecurityEffect = 0.20;
-constexpr double kRewardPunishEffect = 0.30;
-
-/// 叛逃免疫状态（Kotlin DESERTION_IMMUNE_STATUSES；WAREHOUSE_GARRISON 不免疫）
-inline bool isDesertionImmuneStatus(const std::string& status) {
-    return status == "ON_MISSION" || status == "REFLECTING" ||
-           status == "REFINING" || status == "IN_TEAM" ||
-           status == "SECRET_REALM";
-}
-
-/// 从众门控：存活弟子平均忠诚（整数除法截断）< 阈值；无存活弟子 → false。
-/// 迭代域经 sync + View<DiscipleRef> 行序
-///（求和归约与序无关，切换收益 = 每入口复用同一不变量校验）。
-inline bool isAverageLoyaltyLowEnough(const state::DiscipleStore& ds,
-                                      ecs::World& world) {
-    int32_t count = 0;
-    int64_t sum = 0;
-    ecs::syncDiscipleEntities(world, ds.size());
-    ecs::View<ecs::DiscipleRef> view(world.registry());
-    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-        if (ds.isAlive[row] != 1) return;
-        ++count;
-        sum += ds.loyalties[row];
-    });
-    if (count == 0) return false;
-    return (sum / count) < lawHerdLoyaltyThreshold();
-}
-
-/// 捕获率 = 基础 + 长老智力加成（× 职务乘算因子）+ 执法弟子阶梯加成 + 政策，
-/// clamp [0,1]。Kotlin 无存活/境界校验——按 id 命中即计（无则跳过该贡献项）。
-inline double calculateCaptureRate(GameState& state,
-                                   const std::map<int32_t, std::size_t>& idx) {
-    const auto& gd = state.gameData;
-    const auto& ds = state.disciples;
-    double captureRate = lawBaseCaptureRate();
-    const auto& elderId = gd.elderSlots.lawEnforcementElder;
-    if (!elderId.empty()) {
-        if (const auto eid = toIntOrNull(elderId)) {
-            const auto it = idx.find(*eid);
-            if (it != idx.end()) {
-                const int32_t intel = stats::baseIntelligence(ds, it->second);
-                const int32_t above = intel > lawIntelligenceBase()
-                                          ? intel - lawIntelligenceBase() : 0;
-                const double posBonus = stats::positionEffectBonus(
-                    ds, it->second, "LAW_ENFORCEMENT");
-                captureRate += above * lawElderBonusPerPoint() * (1.0 + posBonus);
-            }
-        }
-    }
-    for (const auto& slot : gd.elderSlots.lawEnforcementDisciples) {
-        if (slot.discipleId.empty()) continue;
-        if (const auto did = toIntOrNull(slot.discipleId)) {
-            const auto it = idx.find(*did);
-            if (it == idx.end()) continue;
-            const int32_t intel = stats::baseIntelligence(ds, it->second);
-            const int32_t above = intel > lawIntelligenceBase()
-                                      ? intel - lawIntelligenceBase() : 0;
-            captureRate += (static_cast<double>(above) /
-                            lawDiscipleIntelligenceStep()) *
-                           lawDiscipleBonusPerStep();
-        }
-    }
-    if (gd.sectPolicies.enhancedSecurity) captureRate += kEnhancedSecurityEffect;
-    if (gd.sectPolicies.rewardPunish) captureRate += kRewardPunishEffect;
-    if (captureRate < 0.0) captureRate = 0.0;
-    if (captureRate > 1.0) captureRate = 1.0;
-    return captureRate;
-}
-
-/// 叛逃概率 = (阈值 − 忠诚) × 每点概率，clamp [0, 0.90]
-inline double calcDesertionProbability(int32_t loyal) {
-    double p = (lawLoyaltyThreshold() - loyal) * lawDesertionProbPerPoint();
-    if (p < 0.0) p = 0.0;
-    if (p > lawDesertionMaxProb()) p = lawDesertionMaxProb();
-    return p;
-}
-
-/// 捕获思过：remove + 末尾重插（REFLECTING + 思过年限 statusData）+ 引导计数
-/// + 事件（Kotlin captureDiscipleForReflection）
-inline void captureDiscipleForReflection(GameState& state, int32_t id,
-                                         int32_t currentYear,
-                                         const std::map<int32_t, std::size_t>& idx) {
-    const auto it = idx.find(id);
-    if (it == idx.end()) return;   // 已移除 → 跳过（Kotlin assemble null 早退）
-    state::Disciple d = state.disciples.materialize(it->second);
-    state.disciples.removeById(d.id);
-    d.status = "REFLECTING";
-    d.statusData["reflectionStartYear"] = std::to_string(currentYear);
-    d.statusData["reflectionEndYear"] =
-        std::to_string(currentYear + lawReflectionYears());
-    state.disciples.appendDisciple(d);
-    state.gameData.guideCounters["discipleImprisoned"] += 1;
-    recordGameEvent(state, "SECT", "desertion_caught",
-                    d.name + "企图叛逃，被执法堂捕获思过", d.id, d.name);
-}
-
-/// 逃脱清理：11 类槽位清空（含住所）→ 移除装备/功法实例与熟练度 → 移除弟子
-/// + 年度计数 + 事件（Kotlin desertDiscipleCleanup / processTheftDesertionCleanup
-/// 共体；忠诚复核对齐。月度叛逃路径 = "desertion"/"脱离宗门"，
-/// 偷盗后叛逃路径 = "theft_desertion"/"偷盗后叛逃"）
-inline void desertDiscipleCleanup(GameState& state, int32_t id, int32_t threshold,
-                                  const std::map<int32_t, std::size_t>& idx,
-                                  const std::string& eventType = "desertion",
-                                  const std::string& summarySuffix = "脱离宗门") {
-    const auto it = idx.find(id);
-    if (it == idx.end()) return;
-    const std::size_t row = it->second;
-    // 储物袋条目随弟子存储独立删除，不收集袋条目 itemId（防误删仓库堆叠）
-    if (state.disciples.loyalties[row] >= threshold) return;
-    const state::Disciple snapshot = state.disciples.materialize(row);
-    std::vector<std::string> desertEquipIds;
-    for (const std::string* equipId :
-         {&snapshot.weaponId, &snapshot.armorId,
-          &snapshot.bootsId, &snapshot.accessoryId}) {
-        if (!equipId->empty()) desertEquipIds.push_back(*equipId);
-    }
-
-    // 11 类槽位清理（Kotlin clearAllSlotsState → clearAllSlotsDataOnly 纯数据
-    // 变换；includeResidence=true；生产 Repository 同步为 Kotlin 侧 Room 域，
-    // 不在游戏状态内）
-    {
-        SlotCleanupInput in;
-        in.spiritMineSlots = state.gameData.spiritMineSlots;
-        in.librarySlots = state.gameData.librarySlots;
-        in.elderSlots = state.gameData.elderSlots;
-        in.residenceSlots = state.gameData.residenceSlots;
-        in.activeBloodRefinements = state.gameData.activeBloodRefinements;
-        in.patrolSlots = state.gameData.patrolSlots;
-        in.warehouseGarrisons = state.gameData.warehouseGarrisons;
-        in.battleTeams = state.gameData.battleTeams;
-        in.worldMapSects = state.gameData.worldMapSects;
-        in.productionSlots = state.gameData.productionSlots;
-        in.caveExplorationTeams = state.gameData.caveExplorationTeams;
-        // S5：gameData.activeMissions 升级为完整模型——清理 op 协议仍为
-        // Lite（成员过滤仅需 id/两列表），toMissionLiteList/mergeMissionLiteList
-        // 共享转换（slot_cleanup.h；语义与 Kotlin clearActiveMissions 全字段
-        // copy 等价）
-        in.activeMissions = toMissionLiteList(state.gameData.activeMissions);
-        const auto out = clearAllSlotsDataOnly(in, snapshot.id, /*includeResidence=*/true);
-        state.gameData.spiritMineSlots = out.spiritMineSlots;
-        state.gameData.librarySlots = out.librarySlots;
-        state.gameData.elderSlots = out.elderSlots;
-        state.gameData.residenceSlots = out.residenceSlots;
-        state.gameData.activeBloodRefinements = out.activeBloodRefinements;
-        state.gameData.patrolSlots = out.patrolSlots;
-        state.gameData.warehouseGarrisons = out.warehouseGarrisons;
-        state.gameData.battleTeams = out.battleTeams;
-        state.gameData.worldMapSects = out.worldMapSects;
-        state.gameData.productionSlots = out.productionSlots;
-        state.gameData.caveExplorationTeams = out.caveExplorationTeams;
-        state.gameData.activeMissions =
-            mergeMissionLiteList(state.gameData.activeMissions, out.activeMissions);
-    }
-
-    // 装备实例移除（叛逃带走装备）
-    if (!desertEquipIds.empty()) {
-        auto& eq = state.equipmentInstances;
-        eq.erase(std::remove_if(eq.begin(), eq.end(),
-                                [&](const state::EquipmentInstance& e) {
-                                    return std::find(desertEquipIds.begin(),
-                                                     desertEquipIds.end(),
-                                                     e.id) != desertEquipIds.end();
-                                }),
-                 eq.end());
-    }
-    // 功法实例移除
-    if (!snapshot.manualIds.empty()) {
-        auto& mn = state.manualInstances;
-        mn.erase(std::remove_if(mn.begin(), mn.end(),
-                                [&](const state::ManualInstance& m) {
-                                    return std::find(snapshot.manualIds.begin(),
-                                                     snapshot.manualIds.end(),
-                                                     m.id) != snapshot.manualIds.end();
-                                }),
-                 mn.end());
-    }
-    // 弟子强化派生 map 统一收口（审计 P2-7/P3-4：原仅清 manualProficiencies，
-    // 漏血炼三 map——叛逃弟子血炼加成随之残留）
-    eraseDiscipleDerivedMaps(state.gameData, snapshot.id);
-
-    state.disciples.removeById(snapshot.id);
-    state.gameData.annualDesertedDisciples += 1;
-    recordGameEvent(state, "SECT", eventType, snapshot.name + summarySuffix,
-                    snapshot.id, snapshot.name);
-}
-
-/// 月度叛逃检测主流程（Kotlin processLawEnforcementMonthly）
-/// WS-3 E2 迭代域：at-risk id 快照（sync + View
-/// 行序，== Kotlin findAtRiskDiscipleIds 的入口快照序）+ 逐 id rowOf 现查。
-/// Kotlin 侧即快照迭代（每名风险弟子恰检一次）；捕获路径 remove+末尾重插、
-/// 逃脱路径 remove 均不扰动后续 id 的判定（行存在性重解析兜底）。
-inline void processLawEnforcementMonthly(GameState& state,
-                                         rng::RngManager& rng,
-                                         ecs::World& world) {
-    auto& ds = state.disciples;
-    if (!isAverageLoyaltyLowEnough(ds, world)) return;
-    const int32_t currentMonthValue =
-        state.gameData.gameYear * 12 + state.gameData.gameMonth;
-    const double captureRate = calculateCaptureRate(state, indexById(ds));
-    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
-    std::vector<int32_t> atRiskIds;
-    {
-        ecs::syncDiscipleEntities(world, ds.size());
-        ecs::View<ecs::DiscipleRef> view(world.registry());
-        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-            const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-            if (ds.isAlive[row] != 1) return;
-            if (isDesertionImmuneStatus(ds.statuses[row])) return;
-            if (ds.loyalties[row] >= lawLoyaltyThreshold()) return;
-            if (currentMonthValue - ds.recruitedMonths[row] <
-                lawNewDiscipleProtectionMonths()) {
-                return;
-            }
-            const int32_t id = toIntOrNull(ds.ids[row]).value_or(-1);
-            if (id < 0) return;
-            atRiskIds.push_back(id);
-        });
-    }
-    for (const int32_t id : atRiskIds) {
-        // 前序捕获（remove+重插）/逃脱（remove）移行——行存在性重解析
-        // （B18-P2：本轮索引一次构建，同一轮内复用传参——见下方等价性论证）
-        const auto freshIdx = indexById(ds);
-        const auto rit = freshIdx.find(id);
-        if (rit == freshIdx.end()) continue;
-        const std::size_t row = rit->second;
-        const double prob = calcDesertionProbability(ds.loyalties[row]);
-        if (rngSystem.nextDouble() >= prob) continue;
-        // 第二次抽取：捕获 vs 逃脱
-        if (rngSystem.nextDouble() < captureRate) {
-            // B18-P2：复用本轮索引（构建与调用之间无 ds 变更——变异发生在被调
-            // 函数内部，只影响下一迭代的重解析需求）
-            captureDiscipleForReflection(state, id, state.gameData.gameYear, freshIdx);
-        } else {
-            desertDiscipleCleanup(state, id, lawLoyaltyThreshold(), freshIdx);
-        }
-    }
-}
-
-// ── 子事件 3：月度偷盗兜底（Kotlin LawEnforcementProcessor.
-//    processTheftIfNeeded → processTheftMonthly → processSingleDiscipleTheft
-//    非事务版 → executeFullTheftCheck 全链等价移植）────────────────────
-//
-// 配置常量取 Kotlin GameConfig.LawEnforcementConfig / PolicyConfig 默认值
-// （config() 远程配置可空覆盖）。
-//
-// RNG 契约（对拍命门，SYSTEM 分区，每候选按序）：
-//   ① 偷盗概率抽取 1 次（< 有效概率 → 继续；≥ → 本候选终止，仅 1 抽）
-//   ② 执法堂捕获抽取 1 次（< 捕获率 → 捕获思过，共 2 抽）
-//   ③ 仓库选取 nextInt(仓库数) 1 次（仅仓库非空时；守卫失守 → 落入 ④）
-//   ④ 偷盗金额随机波动 1 次（固定在 0.8 + 0.4×nextDouble）
-//   ⑤ 物品抽取 nextInt(池大小) 0..N 次（池非空才抽；每次移除已选条目）
-//   ⑥ 偷盗后叛逃概率抽取 1 次（无条件抽取，与概率值无关）
-//
-// 读取口径（对拍基线 = FakeGameStateStore 顺序语义）：嵌套 update 立即
-// 持久化——theftJudgementsThisMonth 归零/递增、annualTheftCount 递增对
-// 后续判定全部实时可见；生产真实 store 的 committed 快照读与此存在口径差
-//（月变真相源切换时消除）。
-
-// 偷盗配置（可远程覆盖段——Kotlin GameConfig.LawEnforcementConfig；
-// PROB_PER_POINT/MAX_PROB 复用叛逃 getter）
-inline int32_t lawMoralityThreshold() {
-    return gamecore::gameConfig().lawMoralityThreshold;    // 30
-}
-inline int32_t lawMaxTheftPerYear() {
-    return gamecore::gameConfig().lawMaxTheftPerYear;      // 3
-}
-inline int32_t lawMaxTheftJudgementsPerMonth() {
-    return gamecore::gameConfig().lawMaxTheftJudgementsPerMonth;  // 3
-}
-// 政策：宵禁偷盗概率减免（GameConfig.PolicyConfig.CURFEW_EVENT_REDUCTION；
-// const val 类）
-constexpr double kCurfewEventReduction = 0.30;
-// 境界基准偷盗量（等比 ×4，下标 = 弟子 realm 1..9；const val 类）
-constexpr int64_t kTheftRealmBaseAmounts[10] = {0, 500, 2'000, 8'000, 32'000,
-                                                128'000, 512'000, 2'000'000,
-                                                8'000'000, 32'000'000};
-constexpr double kTheftSpeedBonusPerPoint = 0.005;
-constexpr int32_t kTheftSpeedBase = 50;
-constexpr double kTheftIntelligenceBonusPerPoint = 0.003;
-constexpr int32_t kTheftIntelligenceBase = 50;
-constexpr double kTheftMaxRatioOfTotal = 0.10;
-constexpr int64_t kTheftMinAmount = 100;
-constexpr int64_t kTheftItemBaseDivisor = 20'000;
-constexpr int32_t kTheftItemGuardReduction = 2;
-constexpr int32_t kTheftItemUnitSpeedFactor = 3;
-constexpr int32_t kTheftItemUnitIntelFactor = 3;
-
-/// 偷盗物品临时记录（Kotlin LawEnforcementProcessor.LootedItemEntry）
-struct LootedItemEntry {
-    std::string id;
-    std::string name;
-    std::string type;
-    int32_t rarity = 0;
-    int32_t count = 0;
-};
-
-/// 偷盗尝试有效概率（Kotlin shouldAttemptTheft 公式段：道德差 × 每点概率
-/// clamp [0, 0.90]，宵禁 ×(1−0.30)）
-inline double theftAttemptProbability(int32_t morality, bool curfew) {
-    double p = (lawMoralityThreshold() - morality) * lawDesertionProbPerPoint();
-    if (p < 0.0) p = 0.0;
-    if (p > lawDesertionMaxProb()) p = lawDesertionMaxProb();
-    if (curfew) p *= (1.0 - kCurfewEventReduction);
-    return p;
-}
-
-/// 偷盗被捕（Kotlin handleLawEnforcementCapture——原位状态改写：不 remove/
-/// 重插、无引导计数；非数字 id 整块跳过含事件，对齐 Kotlin toIntOrNull 早退）
-inline void captureDiscipleForTheft(GameState& state,
-                                    const state::Disciple& disciple) {
-    if (!toIntOrNull(disciple.id).has_value()) return;
-    auto& ds = state.disciples;
-    const auto it = ds.idToRow.find(disciple.id);
-    if (it == ds.idToRow.end()) return;   // ids.contains false → 跳过
-    const std::size_t row = it->second;
-    if (ds.isAlive[row] != 1) return;
-    ds.statuses[row] = "REFLECTING";
-    ds.markCol(DiscipleColumn::Status, row);   // R2 列级写屏障（偷盗链写点）
-    auto& sd = ds.statusData[row];
-    sd["reflectionStartYear"] = std::to_string(state.gameData.gameYear);
-    sd["reflectionEndYear"] =
-        std::to_string(state.gameData.gameYear + lawReflectionYears());
-    ds.markCol(DiscipleColumn::StatusData, row);
-    recordGameEvent(state, "SECT", "theft_caught", disciple.name + "偷盗被捕",
-                    disciple.id, disciple.name);
-}
-
-/// 仓库守卫判定（Kotlin handleWarehouseGarrisonCheck 非事务版：随机选仓库 →
-/// 活跃驻守 → 守卫智力比对；thiefIntel > guardIntel → 守卫失守返回 false，
-/// 否则抓捕返回 true。守卫缺失 → 守卫失守）
-inline bool warehouseGarrisonCheck(
-    GameState& state, const state::Disciple& thief, int32_t thiefIntel,
-    const std::vector<state::GridBuildingData>& warehouses,
-    const std::vector<state::WarehouseGarrisonSlot>& garrisons,
-    rng::DeterministicRng& rngSystem) {
-    if (warehouses.empty()) return false;
-    const state::GridBuildingData& wh = warehouses[static_cast<std::size_t>(
-        rngSystem.nextInt(static_cast<int32_t>(warehouses.size())))];
-    const auto git = std::find_if(
-        garrisons.begin(), garrisons.end(),
-        [&](const state::WarehouseGarrisonSlot& g) {
-            return g.buildingInstanceId == wh.instanceId &&
-                   !g.discipleId.empty();   // Kotlin isActive 计算属性
-        });
-    if (git == garrisons.end()) return false;
-    const auto& ds = state.disciples;
-    const auto rit = ds.idToRow.find(git->discipleId);
-    if (rit == ds.idToRow.end()) return false;   // 守卫不存在 → 失守
-    const int32_t guardIntel = stats::baseIntelligence(ds, rit->second);
-    if (thiefIntel > guardIntel) return false;
-    captureDiscipleForTheft(state, thief);
-    return true;
-}
-
-/// 偷盗灵石金额（Kotlin calcTheftAmount 新公式：境界基准 ×(1+身法/智力加成)
-/// ×随机波动(±20%)，clamp [100, 宗门灵石×10%]。Kotlin Long.coerceIn 在
-/// max<min 时抛 IllegalArgumentException → safelyRunInState 吞掉中止本
-/// 子事件——以异常等价模拟）
-inline int64_t calcTheftAmount(const state::Disciple& thief,
-                               int64_t totalSpiritStones,
-                               rng::DeterministicRng& rngSystem) {
-    if (totalSpiritStones <= 0) return 0;
-    const int32_t realmLevel =
-        std::min(std::max(thief.realm, 1), 9);
-    const int64_t baseAmount = kTheftRealmBaseAmounts[realmLevel];
-    const auto st = stats::baseStats(thief);
-    const double speedBonus =
-        std::max(st.speed - kTheftSpeedBase, 0) * kTheftSpeedBonusPerPoint;
-    const double intelBonus = std::max(st.intelligence - kTheftIntelligenceBase,
-                                       0) * kTheftIntelligenceBonusPerPoint;
-    const double rawAmount =
-        static_cast<double>(baseAmount) * (1.0 + speedBonus + intelBonus);
-    const double randomFactor = 0.8 + rngSystem.nextDouble() * 0.4;
-    const int64_t maxAmount = static_cast<int64_t>(
-        static_cast<double>(totalSpiritStones) * kTheftMaxRatioOfTotal);
-    const int64_t stolen = static_cast<int64_t>(rawAmount * randomFactor);
-    if (maxAmount < kTheftMinAmount) {
-        throw std::runtime_error("coerceIn violated: maxAmount < THEFT_MIN_AMOUNT");
-    }
-    int64_t result = stolen;
-    if (result < kTheftMinAmount) result = kTheftMinAmount;
-    if (result > maxAmount) result = maxAmount;
-    return result;
-}
-
-/// 加权物品选取（Kotlin performWeightedItemSelection：偷盗能力 = 境界基准 +
-/// 身法/智力加成换算物品单位；守卫减员每活跃守卫 −2；六类堆叠轨道按数量
-/// 展开等概率池，均匀抽取（抽取即移除），按 (id,type) 保首现序分组计数）
-inline std::vector<LootedItemEntry> selectTheftItems(
-    const state::Disciple& thief, int64_t sectSpiritStones,
-    const std::vector<state::GridBuildingData>& warehouses,
-    const std::vector<state::WarehouseGarrisonSlot>& garrisons,
-    const std::vector<state::EquipmentStack>& equipmentStacks,
-    const std::vector<state::ManualStack>& manualStacks,
-    const std::vector<state::Pill>& pills,
-    const std::vector<state::Material>& materials,
-    const std::vector<state::Herb>& herbs,
-    const std::vector<state::Seed>& seeds,
-    rng::DeterministicRng& rngSystem) {
-    if (sectSpiritStones <= 0) return {};
-    const int32_t realmLevel = std::min(std::max(thief.realm, 1), 9);
-    const int64_t baseAmount = kTheftRealmBaseAmounts[realmLevel];
-    const auto st = stats::baseStats(thief);
-    const int32_t speedUnits = static_cast<int32_t>(
-        std::max(st.speed - kTheftSpeedBase, 0) * kTheftSpeedBonusPerPoint *
-        kTheftItemUnitSpeedFactor);
-    const int32_t intelUnits = static_cast<int32_t>(
-        std::max(st.intelligence - kTheftIntelligenceBase, 0) *
-        kTheftIntelligenceBonusPerPoint * kTheftItemUnitIntelFactor);
-    int32_t activeGuardCount = 0;
-    for (const auto& w : warehouses) {
-        for (const auto& g : garrisons) {
-            if (g.buildingInstanceId == w.instanceId &&
-                !g.discipleId.empty()) {
-                ++activeGuardCount;
-                break;
-            }
-        }
-    }
-    const int32_t capacity = static_cast<int32_t>(
-                                 baseAmount / kTheftItemBaseDivisor) +
-                             speedUnits + intelUnits;
-    const int32_t finalCount = std::max(
-        capacity - activeGuardCount * kTheftItemGuardReduction, 1);
-
-    struct PoolEntry {
-        std::string type;
-        std::string id;
-        std::string name;
-        int32_t rarity;
-    };
-    std::vector<PoolEntry> pool;
-    const auto expand = [&pool](const std::string& type, const std::string& id,
-                                const std::string& name, int32_t rarity,
-                                int32_t quantity) {
-        const int32_t q = std::max(quantity, 0);
-        for (int32_t k = 0; k < q; ++k) {
-            pool.push_back(PoolEntry{type, id, name, rarity});
-        }
-    };
-    // 池展开顺序对齐 Kotlin add() 调用序：材料 → 丹药 → 灵草 → 种子 →
-    // 装备 → 功法（RNG 消费序红线）
-    for (const auto& it : materials) expand("material", it.id, it.name, it.rarity, it.quantity);
-    for (const auto& it : pills) expand("pill", it.id, it.name, it.rarity, it.quantity);
-    for (const auto& it : herbs) expand("herb", it.id, it.name, it.rarity, it.quantity);
-    for (const auto& it : seeds) expand("seed", it.id, it.name, it.rarity, it.quantity);
-    for (const auto& it : equipmentStacks) expand("equipment", it.id, it.name, it.rarity, it.quantity);
-    for (const auto& it : manualStacks) expand("manual", it.id, it.name, it.rarity, it.quantity);
-    if (pool.empty()) return {};
-
-    const int32_t draws =
-        std::min(finalCount, static_cast<int32_t>(pool.size()));
-    std::vector<PoolEntry> picked;
-    picked.reserve(static_cast<std::size_t>(draws));
-    for (int32_t k = 0; k < draws; ++k) {
-        const int32_t idx =
-            rngSystem.nextInt(static_cast<int32_t>(pool.size()));
-        picked.push_back(pool[static_cast<std::size_t>(idx)]);
-        pool.erase(pool.begin() + idx);
-    }
-    // 按 (id,type) 分组，保持首现顺序（Kotlin groupBy LinkedHashMap 语义）
-    std::vector<LootedItemEntry> out;
-    for (const auto& p : picked) {
-        bool merged = false;
-        for (auto& e : out) {
-            if (e.id == p.id && e.type == p.type) {
-                e.count += 1;
-                merged = true;
-                break;
-            }
-        }
-        if (!merged) {
-            out.push_back(LootedItemEntry{p.id, p.name, p.type, p.rarity, 1});
-        }
-    }
-    return out;
-}
-
-/// 被盗物品从六类堆叠轨道扣除（Kotlin LootCalculator.applyLoot 的
-/// stolenItems 段——偷盗路径 stolenSpiritStones/stolenBagCount 恒 0）：
-/// 按 id 扣减 quantity（下限 0 不删除），末尾统一过滤 0 数量条目
-inline void applyStolenItemsToStores(GameState& state,
-                                     const std::vector<LootedItemEntry>& items) {
-    const auto decrement = [](auto& store, const std::string& id,
-                              int32_t count) {
-        for (auto& it : store) {
-            if (it.id == id) {
-                it.quantity = std::max(it.quantity - count, 0);
-                break;   // Kotlin EntityStore.update(id) 单条命中
-            }
-        }
-    };
-    for (const auto& it : items) {
-        if (it.type == "material") decrement(state.materials, it.id, it.count);
-        else if (it.type == "pill") decrement(state.pills, it.id, it.count);
-        else if (it.type == "herb") decrement(state.herbs, it.id, it.count);
-        else if (it.type == "seed") decrement(state.seeds, it.id, it.count);
-        else if (it.type == "equipment") decrement(state.equipmentStacks, it.id, it.count);
-        else if (it.type == "manual") decrement(state.manualStacks, it.id, it.count);
-    }
-    const auto dropEmpty = [](auto& store) {
-        store.erase(std::remove_if(store.begin(), store.end(),
-                                   [](const auto& it) {
-                                       return it.quantity <= 0;
-                                   }),
-                    store.end());
-    };
-    dropEmpty(state.materials);
-    dropEmpty(state.pills);
-    dropEmpty(state.herbs);
-    dropEmpty(state.seeds);
-    dropEmpty(state.equipmentStacks);
-    dropEmpty(state.manualStacks);
-}
-
-/// 成功偷窃（Kotlin executeSuccessfulTheft 月变路径：扣宗门灵石（下限 0）→
-/// 物品抽取与仓库扣除 → 弟子储物袋入账 → 事件 → 年度计数递增）
-inline void executeSuccessfulTheft(
-    GameState& state, const state::Disciple& thief,
-    const std::vector<state::GridBuildingData>& warehouses,
-    const std::vector<state::WarehouseGarrisonSlot>& garrisons,
-    rng::DeterministicRng& rngSystem) {
-    auto& gd = state.gameData;
-    const int64_t stolenAmount = calcTheftAmount(thief, gd.spiritStones, rngSystem);
-    if (stolenAmount <= 0 && gd.spiritStones <= 0) return;
-    // 物品抽取门控取扣减前灵石（Kotlin gd = currentData 快照语义的结构位置：
-    // 门控先于本次扣减生效；与基线读存在残余口径差）
-    const int64_t stonesBeforeDeduction = gd.spiritStones;
-    if (stolenAmount > 0) {
-        gd.spiritStones = std::max(gd.spiritStones - stolenAmount, static_cast<int64_t>(0));
-    }
-    const std::vector<LootedItemEntry> stolenItems = selectTheftItems(
-        thief, stonesBeforeDeduction, warehouses, garrisons, state.equipmentStacks,
-        state.manualStacks, state.pills, state.materials, state.herbs,
-        state.seeds, rngSystem);
-    if (!stolenItems.empty()) applyStolenItemsToStores(state, stolenItems);
-    // 弟子储物袋（容量无上限；条目 stackedData 缺省 = 未物化语义）
-    auto& ds = state.disciples;
-    const auto it = ds.idToRow.find(thief.id);
-    if (it == ds.idToRow.end()) return;   // Kotlin firstOrNull null → return
-    const std::size_t row = it->second;
-    ds.storageBagSpiritStones[row] += stolenAmount;
-    ds.markCol(DiscipleColumn::StorageBagSpiritStones, row);  // R2 列级写屏障
-    for (const auto& item : stolenItems) {
-        state::StorageBagItem entry;
-        entry.itemId = item.id;
-        entry.itemType = item.type;
-        entry.name = item.name;
-        entry.rarity = item.rarity;
-        entry.quantity = item.count;
-        entry.obtainedYear = gd.gameYear;
-        entry.obtainedMonth = gd.gameMonth;
-        // 审计 P2-8：统一入袋入口——满袋「不再拾取」（跳过剩余赃物，
-        // 不销毁已有物品；灵石仍入袋不受条目容量影响）
-        if (!addToDiscipleBagList(ds.storageBagItems[row], std::move(entry))) {
-            break;
-        }
-    }
-    ds.markCol(DiscipleColumn::StorageBagItems, row);   // R2 列级写屏障
-    std::string itemSummary;
-    if (!stolenItems.empty()) {
-        itemSummary = "（含" + std::to_string(stolenItems.size()) + "种物品）";
-    }
-    recordGameEvent(state, "SECT", "warehouse_theft",
-                    "宗门仓库被盗，损失" + std::to_string(stolenAmount) +
-                        "灵石" + itemSummary);
-    gd.annualTheftCount += 1;
-}
-
-/// 单弟子偷盗判定入口（提取自 Kotlin processSingleDiscipleTheft(id,
-/// state) 事务内版——灵石检查 → canDiscipleAttemptTheft 复检（当前态）→
-/// 标记判定（lastTheftJudgementYears + theftJudgementsThisMonth+1，先于概率
-/// 抽取——未遂同计数）→ executeFullTheftCheck 完整链（偷盗概率 → 捕获 →
-/// 仓库守卫 → 成功偷窃 → 偷后叛逃）。RNG 抽取序同月度兜底单候选（SYSTEM
-/// 分区，①②③④⑤⑥）；行解析按 id 当前态重做（前序判定可能移除/改态）。
-/// 供月度兜底（子事件 3）与教化之道钩子（步骤 2）共用。
-inline void judgeSingleTheftCandidate(GameState& state, int32_t id,
-                                      int32_t currentMonth,
-                                      rng::DeterministicRng& rngSystem,
-                                      ecs::World& world) {
-    auto& gd = state.gameData;
-    auto& ds = state.disciples;
-    // 前置链（Kotlin canDiscipleAttemptTheft 顺序：从众门控 → 存活 → IDLE
-    // → 保护期 → 年判定 → 月上限 → 年上限；灵石检查为 processSingleDisciple
-    // Theft 首行）
-    if (gd.spiritStones <= 0) return;
-    if (!isAverageLoyaltyLowEnough(ds, world)) return;
-    const auto freshIdx = indexById(ds);
-    const auto rit = freshIdx.find(id);
-    if (rit == freshIdx.end()) return;   // assemble null → 静默
-    const std::size_t row = rit->second;
-    if (ds.isAlive[row] != 1) return;
-    if (ds.statuses[row] != "IDLE") return;
-    if (currentMonth - ds.recruitedMonths[row] <
-        lawNewDiscipleProtectionMonths()) {
-        return;
-    }
-    if (ds.lastTheftJudgementYears[row] == gd.gameYear) return;
-    if (gd.theftJudgementsThisMonth >= lawMaxTheftJudgementsPerMonth()) return;
-    if (gd.annualTheftCount >= lawMaxTheftPerYear()) return;
-    // 标记判定（先于概率抽取——尝试失败同样计数）
-    gd.theftJudgementsThisMonth += 1;
-    ds.lastTheftJudgementYears[row] = gd.gameYear;
-    // executeFullTheftCheck（完整链，RNG 抽取序与 Kotlin 逐位一致）
-    const state::Disciple thief = ds.materialize(row);
-    const auto st = stats::baseStats(thief);
-    const double captureRate = calculateCaptureRate(state, freshIdx);
-    std::vector<state::GridBuildingData> warehouses;
-    for (const auto& b : gd.placedBuildings) {
-        if (b.displayName == "仓库") warehouses.push_back(b);
-    }
-    // Step 1: 偷盗概率判定
-    const double effectiveTheftProb =
-        theftAttemptProbability(st.morality, gd.sectPolicies.curfew);
-    if (rngSystem.nextDouble() >= effectiveTheftProb) return;
-    // Step 2: 执法堂判定——直接以抓捕率判定
-    if (rngSystem.nextDouble() < captureRate) {
-        captureDiscipleForTheft(state, thief);
-        return;
-    }
-    // Step 3: 仓库驻守判定——纯智力比拼
-    if (warehouseGarrisonCheck(state, thief, st.intelligence,
-                               warehouses, gd.warehouseGarrisons,
-                               rngSystem)) {
-        return;
-    }
-    // 偷窃成功 → 执行（灵石 + 物品）
-    executeSuccessfulTheft(state, thief, warehouses,
-                           gd.warehouseGarrisons, rngSystem);
-    // Step 4: 偷盗后叛逃判定（仅看忠诚；抽取无条件）
-    const double desertionProb = calcDesertionProbability(st.loyalty);
-    if (rngSystem.nextDouble() < desertionProb) {
-        desertDiscipleCleanup(state, id, lawLoyaltyThreshold(),
-                              indexById(ds), "theft_desertion",
-                              "偷盗后叛逃");
-    }
-}
-
-/// 月度偷盗兜底主流程（Kotlin processTheftIfNeeded → processTheftMonthly →
-/// processSingleDiscipleTheft 非事务版全链；safelyRunInState("theft") 语义 =
-/// 异常吞掉中止本子事件、保留已写入状态；单候选判定委托
-/// [judgeSingleTheftCandidate]（语义零变更））
-inline void processTheftMonthlyFallback(
-    GameState& state, rng::RngManager& rng,
-    const std::map<int32_t, std::size_t>& idx, ecs::World& world) {
-    try {
-        auto& gd = state.gameData;
-        auto& ds = state.disciples;
-        // ① 月度判定计数器归零（Kotlin 首行无条件 update）
-        gd.theftJudgementsThisMonth = 0;
-        if (gd.spiritStones <= 0) return;
-        if (gd.annualTheftCount >= lawMaxTheftPerYear()) return;
-        if (!isAverageLoyaltyLowEnough(ds, world)) return;
-        // hasCandidate 门控（Kotlin 无保护期检查——与候选收集 deliberate 差异
-        // 保留）。迭代域经 sync + View 行序。
-        const int32_t currentYear = gd.gameYear;
-        bool hasCandidate = false;
-        {
-            ecs::syncDiscipleEntities(world, ds.size());
-            ecs::View<ecs::DiscipleRef> view(world.registry());
-            view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-                if (hasCandidate) return;
-                const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-                if (ds.isAlive[row] != 1) return;
-                if (ds.statuses[row] != "IDLE") return;
-                if (ds.moralities[row] >= lawMoralityThreshold()) return;
-                if (ds.lastTheftJudgementYears[row] == currentYear) return;
-                hasCandidate = true;
-            });
-        }
-        if (!hasCandidate) return;
-        // processTheftMonthly：候选收集（门控/灵石复检——Kotlin 结构性重复保留）
-        if (gd.spiritStones <= 0) return;
-        if (!isAverageLoyaltyLowEnough(ds, world)) return;
-        const int32_t currentMonth = gd.gameYear * 12 + gd.gameMonth;
-        std::vector<int32_t> candidateIds;   // Kotlin tables.ids（Int）行序
-        {
-            ecs::syncDiscipleEntities(world, ds.size());
-            ecs::View<ecs::DiscipleRef> view(world.registry());
-            view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-                const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-                if (ds.isAlive[row] != 1) return;
-                if (ds.statuses[row] != "IDLE") return;
-                if (ds.moralities[row] >= lawMoralityThreshold()) return;
-                if (currentMonth - ds.recruitedMonths[row] <
-                    lawNewDiscipleProtectionMonths()) {
-                    return;
-                }
-                if (ds.lastTheftJudgementYears[row] == currentYear) return;
-                const int32_t id = toIntOrNull(ds.ids[row]).value_or(-1);
-                if (id < 0) return;
-                candidateIds.push_back(id);
-            });
-        }
-        auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
-        // 候选 take(3)：无论判定成败均消耗候选名额
-        const std::size_t judgeCount =
-            std::min(candidateIds.size(),
-                     static_cast<std::size_t>(lawMaxTheftJudgementsPerMonth()));
-        for (std::size_t k = 0; k < judgeCount; ++k) {
-            const int32_t id = candidateIds[k];
-            // 前一候选叛逃会移除行——行存在性重解析（id 寻址等价）。
-            // B18-P2：索引**一次构建**供同一表达式复用（原写法同一表达式内
-            // 两次 indexById 重建，纯成本零语义）
-            const auto idx = indexById(ds);
-            if (idx.find(id) == idx.end()) continue;
-            judgeSingleTheftCandidate(state, id, currentMonth, rngSystem, world);
-        }
-    } catch (const std::exception&) {
-        // Kotlin safelyRunInState：异常吞掉，中止偷盗子事件、保留已写入状态
-    }
-}
-
 // ── 子事件 12：附庸脱离检查（Kotlin VassalService.
 //    processMonthlyBreakawayCheck 等价移植）──────────────────────────
 //
@@ -2029,11 +1161,6 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     // 子事件 2：自动招募（RecruitService.processAutoRecruit 等价移植；
     // 零 RNG——不扰动后续子事件的 SYSTEM 抽取序）
     recruit_settle::processAutoRecruit(state);
-    // 子事件 3：月度偷盗兜底（Kotlin processTheftIfNeeded 全链，
-    // 首行无条件归零 theftJudgementsThisMonth 已随行移植）
-    detail::processTheftMonthlyFallback(state, rng, idx, world);
-    // 子事件 4：月度叛逃检测
-    detail::processLawEnforcementMonthly(state, rng, world);
     // 子事件 5：任务完成（MissionSystem.processMissionCompletion +
     //   CultivationEventMissionOps.processCompletedMissionsLazy 等价移植——
     //   MISSION/BATTLE/ENEMY_GEN 三分区；战斗组装
@@ -2324,9 +1451,8 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
                                              huashenBelowCount);
     }
 
-    // 步骤 2：政策月度忠诚/道德效果（教化之道低道德偷盗判定钩子——
-    // SYSTEM 抽取内嵌弟子循环序，与 Kotlin 逐位一致）
-    detail::processPolicyMonthlyEffects(state, rng, world);
+    // 步骤 2：政策月度道德效果（教化之道 +1 clamp；零 RNG）
+    detail::processPolicyMonthlyEffects(state, world);
 
     // 步骤 3：AI 兽袭目标预计算（precomputeTargets 等价移植；
     // 写入 aiSectBeastDirectTargets——巡视楼/子事件 9 消费方保留 Kotlin）
@@ -2430,14 +1556,13 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     detail::processBloodRefinementCompletions(state, idx);
 
     // 步骤 6：月度自动排班（processAutoAssign 等价移植——零 RNG
-    // 纯数据变换，政策全关纯早退）+ 住所忠诚
+    // 纯数据变换，政策全关纯早退）
     detail::processAutoAssign(state, world);
-    detail::processResidenceLoyalty(state, world);
 
     // 步骤 7：丹药持续效果月度衰减
     detail::applyMonthlyDurationDecayAll(state, world);
 
-    // 步骤 8：月度事件（十六子事件 + 草稿收集）
+    // 步骤 8：月度事件（十四子事件 + 草稿收集）
     detail::processMonthlyEvents(state, rng, aiRng, aiBatch, idx, out, world);
 
     // 步骤 9：自动排班（autoRestart 续炼启动；Kotlin processAutoAlchemy/

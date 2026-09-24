@@ -15,7 +15,7 @@ class RecruitIntegrityTest {
 
     @Test
     fun `isValidRecruit - 正常弟子 true`() {
-        assertTrue(RecruitIntegrity.isValidRecruit(createRecruit(name = "张三", age = 20)))
+        assertTrue(RecruitIntegrity.isValidRecruit(createRecruit(name = "张三")))
     }
 
     @Test
@@ -27,26 +27,6 @@ class RecruitIntegrityTest {
     fun `isValidRecruit - 空白名 false`() {
         assertFalse(RecruitIntegrity.isValidRecruit(createRecruit(name = "  ")))
         assertFalse(RecruitIntegrity.isValidRecruit(createRecruit(name = "　")))
-    }
-
-    @Test
-    fun `isValidRecruit - 新生儿年龄1 true`() {
-        assertTrue(RecruitIntegrity.isValidRecruit(createRecruit(age = 1)))
-    }
-
-    @Test
-    fun `isValidRecruit - 年龄10000 true`() {
-        assertTrue(RecruitIntegrity.isValidRecruit(createRecruit(age = 10000)))
-    }
-
-    @Test
-    fun `isValidRecruit - 年龄10001 false`() {
-        assertFalse(RecruitIntegrity.isValidRecruit(createRecruit(age = 10001)))
-    }
-
-    @Test
-    fun `isValidRecruit - 年龄0 false`() {
-        assertFalse(RecruitIntegrity.isValidRecruit(createRecruit(age = 0)))
     }
 
     @Test
@@ -73,7 +53,7 @@ class RecruitIntegrityTest {
 
     @Test
     fun `sanitizeRecruitList - 损坏条目 移除并返回明细`() {
-        val bad = createRecruit(name = "", age = 0)
+        val bad = createRecruit(name = "")
         val good = createRecruit(name = "张三")
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(bad, good), emptyList())
@@ -86,8 +66,8 @@ class RecruitIntegrityTest {
     @Test
     fun `sanitizeRecruitList - 损坏同id在前 保留后续正常条目`() {
         val id = "same-id"
-        val bad = createRecruit(id = id, name = "", age = 0)
-        val good = createRecruit(id = id, name = "张三", age = 20)
+        val bad = createRecruit(id = id, name = "")
+        val good = createRecruit(id = id, name = "张三")
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(bad, good), emptyList())
 
@@ -108,8 +88,8 @@ class RecruitIntegrityTest {
 
     @Test
     fun `sanitizeRecruitList - 同内容不同id 保留首个`() {
-        val first = createRecruit(name = "张三", age = 20)
-        val twin = createRecruit(name = "张三", age = 20)
+        val first = createRecruit(name = "张三")
+        val twin = createRecruit(name = "张三")
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(first, twin), emptyList())
 
@@ -119,8 +99,8 @@ class RecruitIntegrityTest {
 
     @Test
     fun `sanitizeRecruitList - 同名不同内容 两条均保留`() {
-        val a = createRecruit(name = "张三", age = 20, spiritRoot = "金")
-        val b = createRecruit(name = "张三", age = 30, spiritRoot = "火")
+        val a = createRecruit(name = "张三", spiritRoot = "金")
+        val b = createRecruit(name = "张三", spiritRoot = "火")
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(a, b), emptyList())
 
@@ -130,8 +110,8 @@ class RecruitIntegrityTest {
 
     @Test
     fun `sanitizeRecruitList - 内容已入宗门 移除残留`() {
-        val recruit = createRecruit(name = "张三", age = 20, portrait = "p1")
-        val inSect = createRecruit(name = "张三", age = 20, portrait = "p1", id = "999")
+        val recruit = createRecruit(name = "张三", portrait = "p1")
+        val inSect = createRecruit(name = "张三", portrait = "p1", id = "999")
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(recruit), listOf(inSect))
 
@@ -141,9 +121,9 @@ class RecruitIntegrityTest {
 
     @Test
     fun `sanitizeRecruitList - 同名俘虏与宗门弟子 不误删`() {
-        // 宗门已有同名"王五"但灵根/肖像不同，recruitList 的"王五"是另一人
-        val recruit = createRecruit(name = "王五", age = 25, spiritRoot = "金")
-        val inSect = createRecruit(name = "王五", age = 25, spiritRoot = "火")
+        // 宗门已有同名"王五"但灵根不同，recruitList 的"王五"是另一人
+        val recruit = createRecruit(name = "王五", spiritRoot = "金")
+        val inSect = createRecruit(name = "王五", spiritRoot = "火")
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(recruit), listOf(inSect))
 
@@ -152,8 +132,8 @@ class RecruitIntegrityTest {
     }
 
     @Test
-    fun `sanitizeRecruitList - 38岁炼虚 保留`() {
-        val lianxu = createRecruit(name = "天才", age = 38, realm = 4)
+    fun `sanitizeRecruitList - 炼虚高境界 保留`() {
+        val lianxu = createRecruit(name = "天才", realm = 4)
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(lianxu), emptyList())
 
@@ -170,23 +150,22 @@ class RecruitIntegrityTest {
     }
 
     @Test
-    fun `sanitizeRecruitList - 已入宗门残留但年龄差超容差 保留`() {
-        // 残留候选 20 岁、宗门弟子 30 岁（跨表比对年龄差 10 年，非同人）
-        val recruit = createRecruit(name = "张三", age = 20)
-        val inSect = createRecruit(name = "张三", age = 30)
+    fun `sanitizeRecruitList - 已入宗门同签名 移除残留`() {
+        // 同人签名 = 纯签名相等（无年龄参与）：签名一致即判定已入宗门
+        val recruit = createRecruit(name = "张三")
+        val inSect = createRecruit(name = "张三", id = "999")
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(recruit), listOf(inSect))
 
-        assertEquals(0, report.removedCount)
-        assertEquals(1, report.cleaned.size)
+        assertEquals(1, report.removedCount)
+        assertTrue(report.cleaned.isEmpty())
     }
 
     @Test
-    fun `sanitizeRecruitList - 宗门侧已死亡且幽灵超过容差 仍移除`() {
-        // 死者年龄冻结在 30 岁，幽灵条目继续老化到 33 岁（差 3 年）——
-        // 死者侧非对称容差：幽灵年龄必然 ≥ 死者冻结年龄，应移除
-        val ghost = createRecruit(name = "张三", age = 33)
-        val deadInSect = createRecruit(name = "张三", age = 30).copy(isAlive = false)
+    fun `sanitizeRecruitList - 宗门侧已死亡 同签名仍移除`() {
+        // 残留判定不要求存活：已死亡宗门侧同签名条目同样命中
+        val ghost = createRecruit(name = "张三")
+        val deadInSect = createRecruit(name = "张三", id = "999").copy(isAlive = false)
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(ghost), listOf(deadInSect))
 
@@ -195,10 +174,10 @@ class RecruitIntegrityTest {
     }
 
     @Test
-    fun `sanitizeRecruitList - 死亡弟子不误删合法新条目`() {
-        // 死者 30 岁冻结，合法同名新候选 20 岁——年龄小于死者冻结年龄，保留
-        val recruit = createRecruit(name = "张三", age = 20)
-        val deadInSect = createRecruit(name = "张三", age = 30).copy(isAlive = false)
+    fun `sanitizeRecruitList - 不同签名新条目不因死亡弟子误删`() {
+        // 签名字段（灵根）不同 → 非同人 → 合法新候选保留
+        val recruit = createRecruit(name = "张三", spiritRoot = "火")
+        val deadInSect = createRecruit(name = "张三", spiritRoot = "金").copy(isAlive = false)
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(recruit), listOf(deadInSect))
 
@@ -210,8 +189,8 @@ class RecruitIntegrityTest {
     fun `sanitizeRecruitList - 列表侧无体质词条 宗门侧有 仍匹配残留`() {
         // 模拟真实序列化不对称：recruitList 条目经 DiscipleSerializer
         // 后 physiqueIds/affixIds 恒空，宗门侧有真实值——签名不含这两字段
-        val recruit = createRecruit(name = "张三", age = 20, portrait = "")
-        val inSect = createRecruit(name = "张三", age = 20, portrait = "male_disciple_5")
+        val recruit = createRecruit(name = "张三", portrait = "")
+        val inSect = createRecruit(name = "张三", portrait = "male_disciple_5")
             .copy(physiqueIds = listOf("p1"), affixIds = listOf("a1"))
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(recruit), listOf(inSect))
@@ -221,10 +200,10 @@ class RecruitIntegrityTest {
     }
 
     @Test
-    fun `sanitizeRecruitList - 列表内年龄差1的双胞胎 去重`() {
-        // 内容去重要求全字段相等（含 age），年龄差 1 的双胞胎由同人签名兜底
-        val first = createRecruit(name = "张三", age = 20)
-        val twin = createRecruit(name = "张三", age = 21)
+    fun `sanitizeRecruitList - 同签名仅非签名字段分化的克隆 去重`() {
+        // 内容去重要求全字段相等；仅非签名字段（修为）分化的克隆由同人签名兜底
+        val first = createRecruit(name = "张三")
+        val twin = first.copy(cultivation = 999.0)
 
         val report = RecruitIntegrity.sanitizeRecruitList(listOf(first, twin), emptyList())
 
@@ -235,25 +214,25 @@ class RecruitIntegrityTest {
     // ==================== isSamePerson ====================
 
     @Test
-    fun `isSamePerson - 同人 true`() {
-        val a = createRecruit(name = "张三", age = 20, portrait = "p1")
-        val b = createRecruit(name = "张三", age = 21, portrait = "p1")
+    fun `isSamePerson - 签名相等即同人（肖像分化不敏感）`() {
+        val a = createRecruit(name = "张三", portrait = "p1")
+        val b = createRecruit(name = "张三", portrait = "p2")
 
         assertTrue(RecruitIntegrity.isSamePerson(a, b))
     }
 
     @Test
-    fun `isSamePerson - 年龄差2年 仍判同人（容差边界）`() {
-        val a = createRecruit(name = "张三", age = 20)
-        val b = createRecruit(name = "张三", age = 22)
+    fun `isSamePerson - 灵根不同 false`() {
+        val a = createRecruit(name = "张三", spiritRoot = "金")
+        val b = createRecruit(name = "张三", spiritRoot = "火")
 
-        assertTrue(RecruitIntegrity.isSamePerson(a, b))
+        assertFalse(RecruitIntegrity.isSamePerson(a, b))
     }
 
     @Test
-    fun `isSamePerson - 年龄差3年 false`() {
-        val a = createRecruit(name = "张三", age = 20)
-        val b = createRecruit(name = "张三", age = 23)
+    fun `isSamePerson - 性别不同 false`() {
+        val a = createRecruit(name = "张三")
+        val b = createRecruit(name = "张三").copy(gender = "female")
 
         assertFalse(RecruitIntegrity.isSamePerson(a, b))
     }
@@ -289,9 +268,9 @@ class RecruitIntegrityTest {
     }
 
     @Test
-    fun `dedupeRecruits - 年龄差1的双胞胎 保留首个`() {
-        val first = createRecruit(name = "张三", age = 20)
-        val twin = createRecruit(name = "张三", age = 21)
+    fun `dedupeRecruits - 同签名非签名字段分化克隆 保留首个`() {
+        val first = createRecruit(name = "张三")
+        val twin = first.copy(cultivation = 999.0)
 
         val result = RecruitIntegrity.dedupeRecruits(listOf(first, twin))
 
@@ -312,7 +291,6 @@ class RecruitIntegrityTest {
 
     private fun createRecruit(
         name: String = "弟子",
-        age: Int = 20,
         realm: Int = 9,
         id: String = UUID.randomUUID().toString(),
         spiritRoot: String = "金",
@@ -320,7 +298,6 @@ class RecruitIntegrityTest {
     ): Disciple = Disciple(
         id = id,
         name = name,
-        age = age,
         realm = realm,
         spiritRootType = spiritRoot,
         portraitRes = portrait

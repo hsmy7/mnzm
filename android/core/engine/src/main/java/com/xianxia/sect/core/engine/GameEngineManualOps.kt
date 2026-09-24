@@ -207,10 +207,9 @@ private suspend fun GameEngine.replaceManualFallback(
             manualInstances = manualInstances.filter { it.id != oldInstanceId }
 
             // 记录功法替换日志
-            val replaceAge = discipleTables.ages[id]
             val replaceEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
             discipleTables.lifeEvents[id] = replaceEvents +
-                "${replaceAge}岁：将功法${oldInstance.name}替换为${newStack.name}"
+                "将功法${oldInstance.name}替换为${newStack.name}"
 
             gameData = gameData.copy(manualProficiencies = updatedProficiencies)
         }

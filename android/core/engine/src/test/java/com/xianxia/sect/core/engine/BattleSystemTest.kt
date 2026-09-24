@@ -23,7 +23,6 @@ import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Before
@@ -312,8 +311,7 @@ class BattleSystemTest {
             name = name,
             realm = realm,
             realmLayer = realmLayer,
-            isAlive = isAlive,
-            skills = SkillStats(loyalty = 50)
+            isAlive = isAlive
         )
     }
 
@@ -636,7 +634,6 @@ class BattleSystemTest {
         // 小层境界压制判定失效）、未带武器名；统一走本入口后全部生效。
         val disciple = Disciple(
             id = "p1", name = "玩家弟子", realm = 3, realmLayer = 5, isAlive = true,
-            skills = SkillStats(loyalty = 50),
             manualIds = listOf("inst-m-1"),
             equipment = EquipmentSet(weaponId = "inst-w-1", armorId = "inst-a-1")
         )

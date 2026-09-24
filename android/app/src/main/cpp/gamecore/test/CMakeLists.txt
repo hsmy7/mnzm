@@ -128,7 +128,6 @@ add_executable(game-core-tests
     mission_completion_test.cpp
     ai_sect_ops_test.cpp
     child_birth_test.cpp
-    lifecycle_test.cpp
     battle_test.cpp
     battle_calculator_test.cpp
     battle_ai_test.cpp

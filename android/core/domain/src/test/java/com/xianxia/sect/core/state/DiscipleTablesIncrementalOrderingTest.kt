@@ -40,7 +40,7 @@ class DiscipleTablesIncrementalOrderingTest {
         tables.changedIdTracker.consumeChangedIds()
 
         // 变更弟子 1
-        tables.loyalties[1] = 66
+        tables.moralities[1] = 66
         val changed = tables.changedIdTracker.consumeChangedIds()
         assertEquals(setOf(1), changed)
 
@@ -58,7 +58,7 @@ class DiscipleTablesIncrementalOrderingTest {
         tables.insert(disciple(3))
         tables.changedIdTracker.consumeChangedIds()
 
-        tables.loyalties[2] = 66
+        tables.moralities[2] = 66
         val changed = tables.changedIdTracker.consumeChangedIds()
 
         val result = tables.assembleAllIncremental(prev, changed)

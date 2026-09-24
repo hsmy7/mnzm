@@ -263,7 +263,6 @@ suspend fun GameEngine.applyBuildingMigrationOnEngine(
                     residenceSlots = gd.residenceSlots.filter { it.buildingInstanceId !in removedIds },
                     spiritMineSlots = gd.spiritMineSlots.filter { it.buildingInstanceId !in removedIds },
                     patrolSlots = gd.patrolSlots.filter { it.buildingInstanceId !in removedIds },
-                    warehouseGarrisons = gd.warehouseGarrisons.filter { it.buildingInstanceId !in removedIds },
                     activeBloodRefinements = gd.activeBloodRefinements.filterKeys { it !in removedIds }
                 )
             }

@@ -7,7 +7,7 @@ import kotlinx.serialization.json.Json
 /**
  * 手动招募 native 信封协议（[com.xianxia.sect.core.nativebridge.GameCoreBridge.nativeManualRecruitFromList]）。
  *
- * C++ 侧返回：`{"ok":bool, "newId":string, "age":int, "name":string,
+ * C++ 侧返回：`{"ok":bool, "newId":string, "name":string,
  *   "reason":"SUCCESS|MONTHLY_LIMIT|NOT_FOUND|CORRUPTED|UNKNOWN"}`。
  * 独立文件承载（internal 可见性）供单元测试直接验证解析/文案映射，
  * 不依赖 native 库加载（JVM 测试环境 GameCoreBridge.isLoaded=false 走 Kotlin 回退）。
@@ -19,7 +19,6 @@ internal const val MANUAL_RECRUIT_MAX_NAME_DISPLAY_LEN = 30
 internal data class ManualRecruitEnvelope(
     val ok: Boolean = false,
     val newId: String = "",
-    val age: Int = 0,
     val name: String = "",
     val reason: String = "UNKNOWN"
 )

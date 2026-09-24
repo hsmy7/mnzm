@@ -16,7 +16,7 @@ import org.junit.Test
  * DiffGovernmentTest — 内政系统跨语言差分对拍。
  *
  * 守护目标：C++ gamecore::system::government（乘区法/概率乘区/时间缩减加速/
- * 政策月度忠诚道德/灵矿产出）与 Kotlin ZoneCalculator 公式**逐位一致**。
+ * 政策月度道德/灵矿产出）与 Kotlin ZoneCalculator 公式**逐位一致**。
  *
  * Kotlin 基准：真实 ZoneCalculator（生产代码同一实现）。
  *
@@ -125,13 +125,13 @@ class DiffGovernmentTest {
         }
     }
 
-    // ── 政策月度忠诚/道德 ───────────────────────────────────────────
+    // ── 政策月度道德 ───────────────────────────────────────────
 
     @Test
     fun `policy monthly deltas match Kotlin config`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        // Kotlin：BENEVOLENT +1, RELAXED +2, STRICT -1, ENHANCED -1, CURFEW -1
+        // Kotlin：MORAL_EDUCATION +1（仅道德；回执只有 moralityDelta）
         val op = buildJsonObject {
             put("op", "policyMonthlyDeltas")
             put("benevolentGovernance", true)
@@ -142,8 +142,6 @@ class DiffGovernmentTest {
             put("moralEducation", true)
         }
         val cpp = cppOp(op)
-        val expectedLoyalty = 1 + 2 - 1 - 1 - 1
-        assertEquals(expectedLoyalty, cpp["loyaltyDelta"]!!.toString().toInt())
         assertEquals(1, cpp["moralityDelta"]!!.toString().toInt())
     }
 

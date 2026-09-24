@@ -36,7 +36,7 @@ class StorageBagMaterializerTest {
 
     private fun discipleWith(items: List<StorageBagItem>) = Disciple(
         id = "d-1", name = "甲", realm = 9, realmLayer = 1, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true,
+        isAlive = true,
         equipment = EquipmentSet(storageBagItems = items)
     )
 

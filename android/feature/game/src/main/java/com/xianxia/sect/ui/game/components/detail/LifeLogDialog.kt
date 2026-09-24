@@ -21,7 +21,7 @@ import com.xianxia.sect.ui.theme.GameColors
  * 以半屏对话框展示弟子生平事件，按时间顺序排列。
  *
  * @param discipleName 弟子名称（用于标题）
- * @param events 日志事件列表，每个元素格式为 "xx岁：事件描述"
+ * @param events 日志事件列表，每个元素为事件描述文本
  * @param onDismiss 关闭对话框回调
  */
 @Composable

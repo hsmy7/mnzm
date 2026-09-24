@@ -53,8 +53,7 @@ class DiscipleFacadeImplRecruitTest {
         if (newId.isNotEmpty()) {
             val intId = newId.toIntOrNull()
             if (intId != null) {
-                val events = state.discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-                state.discipleTables.lifeEvents[intId] = events + "${disciple.age}岁：加入宗门"
+                state.discipleTables.lifeEvents[intId] = listOf("加入宗门")
             }
         }
         state.gameData = state.gameData.copy(
@@ -69,13 +68,11 @@ class DiscipleFacadeImplRecruitTest {
 
     private fun createRecruitDisciple(
         name: String = "新弟子",
-        age: Int = 20,
         realm: Int = 9,
         id: String = UUID.randomUUID().toString()
     ): Disciple = Disciple(
         id = id,
         name = name,
-        age = age,
         realm = realm,
         spiritRootType = "金"
     )
@@ -142,9 +139,9 @@ class DiscipleFacadeImplRecruitTest {
     }
 
     @Test
-    fun `recruit from list - corrupted data (age 0) returns empty`() {
+    fun `recruit from list - corrupted data (realm out of range) returns empty`() {
         val recruitId = UUID.randomUUID().toString()
-        val state = createState(recruitList = listOf(createRecruitDisciple(age = 0, id = recruitId)))
+        val state = createState(recruitList = listOf(createRecruitDisciple(realm = -1, id = recruitId)))
 
         val newId = executeRecruitFlow(recruitId, state)
 
@@ -180,8 +177,8 @@ class DiscipleFacadeImplRecruitTest {
         val recruitId = UUID.randomUUID().toString()
         val twinId = UUID.randomUUID().toString()
         val state = createState(recruitList = listOf(
-            createRecruitDisciple(name = "张三", age = 20, id = recruitId),
-            createRecruitDisciple(name = "张三", age = 20, id = twinId)
+            createRecruitDisciple(name = "张三", id = recruitId),
+            createRecruitDisciple(name = "张三", id = twinId)
         ))
 
         val newId = executeRecruitFlow(recruitId, state)
@@ -194,7 +191,7 @@ class DiscipleFacadeImplRecruitTest {
     @Test
     fun `recruit from list - life event is written inside transaction`() {
         val recruitId = UUID.randomUUID().toString()
-        val disciple = createRecruitDisciple(name = "张三", age = 22, id = recruitId)
+        val disciple = createRecruitDisciple(name = "张三", id = recruitId)
         val state = createState(recruitList = listOf(disciple))
 
         val newId = executeRecruitFlow(recruitId, state)
@@ -202,7 +199,7 @@ class DiscipleFacadeImplRecruitTest {
         val intId = newId.toInt()
         val events = state.discipleTables.lifeEvents[intId]
         assertNotNull("lifeEvents 应在事务内写入", events)
-        assertTrue("事件包含年龄和加入宗门", events?.any { it.contains("22岁：加入宗门") } ?: false)
+        assertTrue("事件包含加入宗门", events?.any { it.contains("加入宗门") } ?: false)
     }
 
     @Test

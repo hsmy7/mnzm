@@ -93,7 +93,7 @@ class DiscipleLifecycleManager @Inject constructor(
 
     /**
      * 为指定弟子追加一条日志事件。
-     * 事件格式："xx岁：事件描述"。
+     * 事件格式：动作描述文本。
      */
     fun addLifeEvent(discipleId: String, event: String) {
         val id = discipleId.toIntOrNull() ?: return
@@ -123,15 +123,12 @@ class DiscipleLifecycleManager @Inject constructor(
             if (discipleTables.lifeEvents.getOrNull(id)?.isNotEmpty() == true) return@update
 
             val events = mutableListOf<String>()
-            val age = discipleTables.ages[id]
             val currentAbsoluteMonth = gameData.gameYear * 12 + gameData.gameMonth
             val recruitedMonth = discipleTables.recruitedMonths.getOrDefault(id, 0)
 
             // 加入宗门
             if (recruitedMonth > 0 && currentAbsoluteMonth > recruitedMonth) {
-                val monthsSince = currentAbsoluteMonth - recruitedMonth
-                val recruitedAge = (age - monthsSince / 12).coerceAtLeast(1)
-                events.add("${recruitedAge}岁：加入宗门")
+                events.add("加入宗门")
             }
 
             // 拜师
@@ -139,7 +136,7 @@ class DiscipleLifecycleManager @Inject constructor(
             if (masterId != null) {
                 val masterIdInt = masterId.toIntOrNull()
                 val masterName = if (masterIdInt != null) discipleTables.names.getOrNull(masterIdInt) ?: "未知" else "未知"
-                events.add("${age}岁：拜${masterName}为师")
+                events.add("拜${masterName}为师")
             }
 
             // 道侣
@@ -148,7 +145,7 @@ class DiscipleLifecycleManager @Inject constructor(
                 val partnerIdInt = partnerId.toIntOrNull()
                 val partnerName = if (partnerIdInt != null) discipleTables.names
                     .getOrNull(partnerIdInt) ?: "未知" else "未知"
-                events.add("${age}岁：与${partnerName}结为道侣")
+                events.add("与${partnerName}结为道侣")
             }
 
             if (events.isNotEmpty()) {

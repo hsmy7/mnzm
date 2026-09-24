@@ -22,35 +22,10 @@ import com.xianxia.sect.core.engine.domain.disciple.getParentSpiritRootBonus
 import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
 
 /**
- * 境界寿命增益映射（顶层共享函数，供 [CultivationRateCalculator.getLifespanGainForRealm]
- * 与 [DiscipleStatCalculator.calculateBreakthroughLifespanGain] 复用，禁止双份公式）。
- *
- * 境界越高寿命增益越大（realm 8 筑基 -> 40 … realm 0 仙人 -> 10000）；
- * 校准目标：各境界 9 层理想修炼耗时 ≈ 进入该境时剩余寿命的 80%。
- * 未知境界返回 0。
- *
- * @param realm 境界等级（0-8）
- * @return 该境界对应的寿命增益值；未知境界返回 0
- */
-internal fun lifespanGainForRealm(realm: Int): Int = when (realm) {
-    8 -> 40
-    7 -> 95
-    6 -> 255
-    5 -> 500
-    4 -> 825
-    3 -> 1650
-    2 -> 3350
-    1 -> 6640
-    0 -> 10000
-    else -> 0
-}
-
-/**
  * 修炼速率计算器。
  *
  * 职责：
  * - 计算弟子每旬修炼速度（乘区法）
- * - 境界寿命增益查询
  * - 修炼相关加成计算（住所、讲道、师徒、父母灵根、丧期惩罚）
  *
  * 缓存说明：
@@ -231,9 +206,6 @@ class CultivationRateCalculator @Inject constructor(
             physiqueIds = tables.physiqueIds.getOrDefault(id, emptyList()),
             affixIds = tables.affixIds.getOrDefault(id, emptyList()),
             manualIds = tables.manualIds.getOrDefault(id, emptyList()),
-            // 默认值与 assemble 路径一致（:723-724），防半幽灵数据两入口分歧
-            age = tables.ages.getOrDefault(id, 16),
-            lifespan = tables.lifespans.getOrDefault(id, 80),
             // 丹药修炼速度加成统一收敛于 pillEffects 体系（旧
             // 旧 cultivationSpeedBonus 组件列不再读取，防双写双倍生效）
             pillEffectDuration = tables.pillEffectDurations.getOrDefault(id, 0),
@@ -287,16 +259,6 @@ class CultivationRateCalculator @Inject constructor(
         }
         return total
     }
-
-    /**
-     * 根据境界等级返回对应的寿命增益。
-     *
-     * 委托共享顶层函数 [lifespanGainForRealm]，供突破结算等场景复用。
-     *
-     * @param realm 境界等级（0-8）
-     * @return 该境界对应的寿命增益值；未知境界返回 0
-     */
-    fun getLifespanGainForRealm(realm: Int): Int = lifespanGainForRealm(realm)
 
     // ── 私有辅助方法 ──────────────────────────────────
 

@@ -82,13 +82,6 @@ class GameConfigConsistencyTest {
         )
     }
 
-    // ── LawEnforcement ──
-    @Test
-    fun `probPerPoint 两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.PROB_PER_POINT, data.probPerPoint, 0.001)
-    }
-
     // ── HerbGarden ──
     @Test
     fun `auraRadiusTiles 两源一致`() {
@@ -117,18 +110,6 @@ class GameConfigConsistencyTest {
     }
 
     // ── Disciple ──
-    @Test
-    fun `最小忠诚度两源一致`() {
-        val data = GameConfigData().disciple
-        assertEquals(GameConfig.Disciple.MIN_LOYALTY, data.minLoyalty)
-    }
-
-    @Test
-    fun `最大忠诚度两源一致`() {
-        val data = GameConfigData().disciple
-        assertEquals(GameConfig.Disciple.MAX_LOYALTY, data.maxLoyalty)
-    }
-
     @Test
     fun `年龄最小值两源一致`() {
         val data = GameConfigData().disciple
@@ -239,73 +220,6 @@ class GameConfigConsistencyTest {
     fun `每旬HPMP恢复率两源一致`() {
         val data = GameConfigData().cultivation
         assertEquals(GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE, data.dailyHpMpRecoveryRate, 0.001)
-    }
-
-    // ── LawEnforcement (更多字段) ──
-    @Test
-    fun `执法忠诚阈值两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD, data.loyaltyThreshold)
-    }
-
-    @Test
-    fun `执法道德阈值两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD, data.moralityThreshold)
-    }
-
-    @Test
-    fun `最大执法概率两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.MAX_PROB, data.maxProb, 0.001)
-    }
-
-    @Test
-    fun `基础抓捕率两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.BASE_CAPTURE_RATE, data.baseCaptureRate, 0.001)
-    }
-
-    @Test
-    fun `执法智力基准两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.INTELLIGENCE_BASE, data.intelligenceBase)
-    }
-
-    @Test
-    fun `长老每点加成两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.ELDER_BONUS_PER_POINT, data.elderBonusPerPoint, 0.001)
-    }
-
-    @Test
-    fun `执弟子智力步长两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.DISCIPLE_INTELLIGENCE_STEP, data.discipleIntelligenceStep)
-    }
-
-    @Test
-    fun `弟子每步加成两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.DISCIPLE_BONUS_PER_STEP, data.discipleBonusPerStep, 0.001)
-    }
-
-    @Test
-    fun `反省年限两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.REFLECTION_YEARS, data.reflectionYears)
-    }
-
-    @Test
-    fun `新弟子保护月数两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS, data.newDiscipleProtectionMonths)
-    }
-
-    @Test
-    fun `从众忠诚阈值两源一致`() {
-        val data = GameConfigData().lawEnforcement
-        assertEquals(GameConfig.LawEnforcementConfig.HERD_LOYALTY_THRESHOLD, data.herdLoyaltyThreshold)
     }
 
     // ── Rarity ──

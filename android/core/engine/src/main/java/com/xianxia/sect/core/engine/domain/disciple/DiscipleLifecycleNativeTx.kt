@@ -30,7 +30,7 @@ private val envelopeJson = Json { ignoreUnknownKeys = true }
  * 弟子生命周期域 native 事务转发臂（batch-14 写者下沉；InventoryNativeTx/
  * tryNativeManualRecruit 同构）。
  *
- * AUTHORITATIVE 门控下把生命周期族五事务（disciple_lifecycle_tx.h——校验链
+ * AUTHORITATIVE 门控下把生命周期族三事务（disciple_lifecycle_tx.h——校验链
  * 先行失败零写入）经 nativeExecute 转发；tryExecuteNative 成功内含
  * applyDirtyFromNative 镜像回读；失败信封/降级返回 null（调用方回退 Kotlin
  * 原路径重执行校验链——双实现并行契约，用户可见文案由 Kotlin 臂产出）。
@@ -100,8 +100,8 @@ internal fun DiscipleFacadeImpl.tryNativeExpelDisciple(discipleId: String): Doma
             }
         }
         // w3-13 通道关闭配套（§2.80/§2.81）：物化写面（9 类集合/钱包/年度账均已关闭）
-        // 发生后全量重建 native 基线回导 C++（§2.79 偷盗钩子同口径——捕获通道
-        // 已关闭，物化所得必须经基线重建到达 C++ 真相源）
+        // 发生后全量重建 native 基线回导 C++（物化所得必须经基线重建到达
+        // C++ 真相源）
         gameEngineCore.rebaselineNativeMirror("逐出袋物化")
     }
     DomainLog.i(TAG, "expelDisciple: native expelled $discipleId (bag=${bagItems.size})")
@@ -155,28 +155,9 @@ private fun MutableGameState.appendLifeEventDraft(discipleId: String, logLine: S
     discipleTables.lifeEvents[intId] = events + logLine
 }
 
-// ── 事务 4：释放思过（1593） ────────────────────────────────────
-
-/**
- * 释放思过 native 臂。
- *
- * C++ 事务：statusData 思过双键定向移除 + 状态回 IDLE；静默 no-op 分支
- * （解析失败/不存在/已死亡）与 Kotlin 早退同义。状态推导
- * （syncSingleDiscipleStatus）为 Kotlin 运行态域，调用方照原序执行。
- *
- * @return true=已清标记；false=静默 no-op（Kotlin 照原序继续 sync）；
- *         null=未转发/失败信封（调用方回退 Kotlin 原路径）
- */
-internal fun DiscipleFacadeImpl.tryNativeReleaseReflection(discipleId: String): Boolean? {
-    val data = lifecycleTx(ActionIds.DISCIPLE_LIFECYCLE_RELEASE_REFLECTION) {
-        put("discipleId", discipleId)
-    } ?: return null
-    val written = data.str("written") == "true"
-    if (written) {
-        DomainLog.i(TAG, "releaseReflectionDisciple: native released $discipleId")
-    }
-    return written
-}
+// ── 事务 4：释放思过（1593 已退役，编号禁复用）────────────────────
+// C++ 侧实现与派发已随思过系统下线删除；调用方（DiscipleFacadeImpl.releaseReflectionDisciple）
+// 直走 Kotlin 原路径（旧档 REFLECTING 归一化），不再转发。
 
 // ── 事务 5：年俸开关（1594） ────────────────────────────────────
 

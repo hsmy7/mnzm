@@ -3,8 +3,6 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.GameConfig.TraitWashType
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.registry.AffixDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.RngPartition
 import kotlin.coroutines.cancellation.CancellationException
@@ -185,7 +183,7 @@ suspend fun GameEngine.confirmTraitWash(
         return@withEngineContext TraitWashConfirmResult.Error("非法弟子ID")
     }
     // native 臂（batch-24）：AUTHORITATIVE 稳态写者归 C++（三态判定 + 替换 +
-    // lifespan 同步 + checkpoint 同事务）；业务拒绝文案由 C++ 信封回传
+    // checkpoint 同事务）；业务拒绝文案由 C++ 信封回传
     // （与 Kotlin 回退臂逐字一致）；不可用 → 走下方 Kotlin 原事务体。
     when (val outcome = confirmTraitWashNative(discipleId, type.name, targetId, newId)) {
         is ConfirmNativeOutcome.Applied -> return@withEngineContext TraitWashConfirmResult.Success
@@ -220,7 +218,7 @@ suspend fun GameEngine.confirmTraitWash(
             }
             val updated = type.replaceSlot(current, targetId, newId)
             discipleTables.remove(id)
-            discipleTables.insert(syncLifespanForTraitChange(current, updated))
+            discipleTables.insert(updated)
             // 体质/词条影响修炼速率——替换瞬间重新记账（速率投影基于 checkpoint + 新速率推导）
             discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
             ConfirmOutcome.REPLACED
@@ -263,27 +261,3 @@ private fun isValidSlotWash(
 
 /** confirm 事务内结果三态（对外映射为明确中文文案，见 [GameEngine.confirmTraitWash]） */
 private enum class ConfirmOutcome { NOT_FOUND, DEAD, INVALID, REPLACED }
-
-/**
- * 特质变更（洗炼替换/新增）后同步 lifespan 到新特质加成水平。
- *
- * 背景：lifespan 出生时按 `baseLifespan * (1 + 天赋lifespan加成 + 词条lifespan加成)` 固化，
- * 突破累加只含天赋加成——天赋/词条被洗炼替换或新增后，lifespan 携带旧加成残留（洗入"延年"不加、
- * 洗掉"延年"不减），与弟子实际特质脱节。
- *
- * 处理：按当前境界基准寿命（[GameConfig.Realm.get] maxAge）把加成差折算为年数增量。
- * 新加成高 → 寿命上调；新加成低 → 寿命下调。境界基准 maxAge 为当前寿命主分量，
- * 折算后仍由 computeMaxAge 的 max(lifespan, realmMaxAge) 兜底，不会低于境界下限。
- */
-internal fun syncLifespanForTraitChange(current: Disciple, updated: Disciple): Disciple {
-    // PHYSIQUE 变更不改 talent/affix → delta 恒为 0，天然走跳过分支，无需特判
-    val base = GameConfig.Realm.get(current.realm).maxAge
-    val delta = (base * (lifespanBonusOf(updated) - lifespanBonusOf(current))).toInt()
-    if (delta == 0) return updated
-    return updated.copy(lifespan = (updated.lifespan + delta).coerceAtLeast(1))
-}
-
-/** 天赋 + 词条的 lifespan 效果合计（与 DiscipleFactory 出生固化公式同口径） */
-private fun lifespanBonusOf(disciple: Disciple): Double =
-    (TalentDatabase.calculateTalentEffects(disciple.talentIds)["lifespan"] ?: 0.0) +
-        (AffixDatabase.calculateAffixEffects(disciple.affixIds)["lifespan"] ?: 0.0)

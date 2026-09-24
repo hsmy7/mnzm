@@ -220,7 +220,9 @@ TEST_F(GuideRewardTxFixture, RegistryShapeAnchor) {
         const auto* task = gamecore::system::guide_tx::findTask(id);
         ASSERT_NE(task, nullptr) << "task " << id << " missing";
         EXPECT_FALSE(task->conditions.empty());
-        EXPECT_EQ(task->rewardQuantity, 2);
+        // 单条件任务（23 仓库 /25 监牢）奖励数量1，双条件任务2
+        EXPECT_EQ(task->rewardQuantity, (id == 23 || id == 25) ? 1 : 2)
+            << "task " << id;
     }
     EXPECT_EQ(gamecore::system::guide_tx::findTask(26), nullptr);
 }

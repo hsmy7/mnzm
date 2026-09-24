@@ -204,9 +204,8 @@ internal fun DiscipleStatCalculator.computeCultivationZones(
     val socialBonus = input.preachingElderBonus + input.preachingMastersBonus +
         input.parentCultivationBonus + input.masterDiscipleBonus
 
-    // ── 状态乘区：政策津贴 - 丧亲 - 寿命 ──
-    val lifespanPenalty = calculateLifespanCultivationPenalty(input.age, input.lifespan)
-    val statusBonus = input.cultivationSubsidyBonus - input.griefCultivationSpeedPenalty - lifespanPenalty
+    // ── 状态乘区：政策津贴 - 丧亲 ──
+    val statusBonus = input.cultivationSubsidyBonus - input.griefCultivationSpeedPenalty
 
     return CultivationSpeedZones(
         aptitudeBonus = aptitudeBonus,
@@ -253,8 +252,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
-            age = disciple.age,
-            lifespan = disciple.lifespan,
             temporaryBonus = temporaryBonus,
             aptitude = disciple.skills.aptitude
         )
@@ -298,8 +295,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
-            age = aggregate.age,
-            lifespan = aggregate.lifespan,
             temporaryBonus = temporaryBonus,
             aptitude = aggregate.aptitude
         )
@@ -351,8 +346,6 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
-            age = input.age,
-            lifespan = input.lifespan,
             temporaryBonus = temporaryBonus,
             aptitude = input.aptitude
         )
@@ -417,9 +410,6 @@ internal fun DiscipleStatCalculator.computeBreakthroughZones(
     realm: Int,
     realmLayer: Int,
     spiritRootCount: Int,
-    soulPower: Int,
-    age: Int,
-    lifespan: Int,
     bonuses: BreakthroughZoneBonusInput
 ): BreakthroughZones {
     val baseZone = GameConfig.Realm.getBreakthroughChance(realm, spiritRootCount, realmLayer)
@@ -428,16 +418,14 @@ internal fun DiscipleStatCalculator.computeBreakthroughZones(
         (1.0 + bonuses.innerElderPositionBonus)
     val outerElderBonus = comprehensionBreakthroughBonus(bonuses.outerElderComprehension) *
         (1.0 + bonuses.outerElderPositionBonus)
-    val soulPowerBonus = getSoulPowerBreakthroughBonus(soulPower)
-    val lifespanPenalty = calculateLifespanBreakthroughPenalty(age, lifespan)
 
     // 突破加成已从天赋系统中移除：selfBonus 不再包含 talentBreakthroughBonus
     return BreakthroughZones(
         baseZone = baseZone,
         elderGuidance = innerElderBonus + outerElderBonus,
-        selfBonus = bonuses.pillBonus + soulPowerBonus + bonuses.masterDiscipleBonus +
+        selfBonus = bonuses.pillBonus + bonuses.masterDiscipleBonus +
             comprehensionBreakthroughBonus(bonuses.selfComprehension),
-        statusPenalty = bonuses.griefBreakthroughPenalty + lifespanPenalty,
+        statusPenalty = bonuses.griefBreakthroughPenalty,
         adFlatBonus = bonuses.adBonus
     )
 }
@@ -460,9 +448,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     realm = disciple.realm,
     realmLayer = disciple.realmLayer,
     spiritRootCount = disciple.spiritRoot.types.size,
-    soulPower = disciple.soulPower,
-    age = disciple.age,
-    lifespan = disciple.lifespan,
     bonuses = BreakthroughZoneBonusInput(
         innerElderComprehension = innerElderComprehension,
         outerElderComprehension = outerElderComprehension,
@@ -494,9 +479,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     realm = aggregate.realm,
     realmLayer = aggregate.realmLayer,
     spiritRootCount = aggregate.spiritRoot.types.size,
-    soulPower = aggregate.soulPower,
-    age = aggregate.age,
-    lifespan = aggregate.lifespan,
     bonuses = BreakthroughZoneBonusInput(
         innerElderComprehension = innerElderComprehension,
         outerElderComprehension = outerElderComprehension,

@@ -3,11 +3,11 @@ package com.xianxia.sect.data.integrity.rules
 import com.xianxia.sect.data.model.SaveData
 
 /**
- * 检测生产/巡逻/灵矿/藏经阁/住所/仓库槽位引用不存在的弟子。
+ * 检测生产/巡逻/灵矿/藏经阁/住所槽位引用不存在的弟子。
  *
  * 遍历 [SaveData.productionSlots]、[SaveData.gameData.spiritMineSlots]、
  * [SaveData.gameData.patrolSlots]、[SaveData.gameData.librarySlots]、
- * [SaveData.gameData.residenceSlots]、[SaveData.gameData.warehouseGarrisons]，
+ * [SaveData.gameData.residenceSlots]，
  * 检查 assignedDiscipleId/discipleId 在弟子 ID 集合中是否存在。
  * 对引用不存在弟子的槽位，清除该引用。
  */
@@ -61,22 +61,13 @@ object SlotRefRule : SaveValidationRule {
             } else slot
         }
 
-        // ── 6. warehouseGarrisons ──
-        val fixedGarrisonSlots = gd.warehouseGarrisons.map { slot ->
-            if (slot.discipleId.isNotEmpty() && slot.discipleId !in allDiscipleIds) {
-                repairs.add("仓库守卫槽位[${slot.slotIndex}] 引用不存在的弟子 id=${slot.discipleId}，已清除")
-                slot.copy(discipleId = "", discipleName = "")
-            } else slot
-        }
-
         if (repairs.isEmpty()) return RuleOutcome.Passed
 
         gd = gd.copy(
             spiritMineSlots = fixedMineSlots,
             patrolSlots = fixedPatrolSlots,
             librarySlots = fixedLibrarySlots,
-            residenceSlots = fixedResidenceSlots,
-            warehouseGarrisons = fixedGarrisonSlots
+            residenceSlots = fixedResidenceSlots
         )
         return RuleOutcome.Repaired(
             data.copy(productionSlots = fixedProductionSlots, gameData = gd),

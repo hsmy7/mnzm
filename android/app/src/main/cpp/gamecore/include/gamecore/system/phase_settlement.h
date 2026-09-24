@@ -20,10 +20,10 @@
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/disciple_stats.h"
-#include "gamecore/system/month_settlement.h"  // judgeSingleTheftCandidate（S2 偷盗钩子复用；无回环依赖）
 #include "gamecore/system/pill_system.h"
 #include "gamecore/system/nurture_constants.h"  // 熟练度/孕养常量（detail 域）
 #include "gamecore/system/relative_gift.h"     // 亲属智能赠送（S1 突破下沉批）
+#include "gamecore/system/settlement.h"        // kMsPerPhase1x（熟练度/孕养时间换算）
 #include "gamecore/system/settlement_detail.h"
 
 // ============================================================
@@ -50,9 +50,6 @@
 // 已知范围边界：
 //   - 循环首步 processAutoFromWarehouseRealtime（自动装备/学习）：
 //     仓库 + 储物袋候选 + 更高品阶替换（auto_gear.h）；
-//   - 丹药写回中的偷盗判定钩子（道德<阈值 → 执法堂 SYSTEM RNG）：
-//     复用 month_settlement.h 偷盗链 judgeSingleTheftCandidate（Kotlin
-//     事务内版等价）；
 //   - 突破后的亲属赠送（SYSTEM RNG）：relative_gift.h（Kotlin
 //     RelativeGiftHandler 等价移植；lifeEvents 日志为 Kotlin 运行态字段，
 //     C++ 显式丢弃）。
@@ -569,9 +566,7 @@ inline bool hasUsablePills(const Disciple& d) {
                 continue;
             }
             case pill::PillRule::kPermanentLife:
-                if (!containsString(d.usedExtendLifePillTypes,
-                                    item.effect->pillType)) return true;
-                continue;
+                return true;   // 延寿丹注册表列不入协议（去重登记点已下线）
             default: {
                 // C1：满血/满蓝治疗丹指纹排除（与 canUsePill 同源口径）
                 if (pill::healGatingBlocked(d, *item.effect)) continue;
@@ -637,8 +632,7 @@ inline bool autoUsePills(Disciple& d, state::GameState& state) {
     return used;
 }
 
-/// 丹药结果字段级写回（writePillResultToTables 的精确字段面；
-/// 偷盗判定钩子属执法系统未下沉——见文件头范围边界注释）
+/// 丹药结果字段级写回（writePillResultToTables 的精确字段面）
 inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.storageBagItems = r.storageBagItems;
     d.cultivation = r.cultivation;
@@ -647,11 +641,9 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     // 写回时清零旧 cultivationSpeedBonus 组件列（残留数据自愈）
     d.cultivationSpeedBonus = 0.0;
     d.cultivationSpeedDuration = 0;
-    d.lifespan = r.lifespan;
     // 技能字段（永久属性丹）
     d.intelligence = r.intelligence;
     d.charm = r.charm;
-    d.loyalty = r.loyalty;
     d.comprehension = r.comprehension;
     d.artifactRefining = r.artifactRefining;
     d.pillRefining = r.pillRefining;
@@ -676,7 +668,6 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.activePillTypes = r.activePillTypes;
     // 使用追踪
     d.usedPermanentPillKeys = r.usedPermanentPillKeys;
-    d.usedExtendLifePillTypes = r.usedExtendLifePillTypes;
     // HP/MP（治疗丹）
     d.currentHp = r.currentHp;
     d.currentMp = r.currentMp;
@@ -689,46 +680,32 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
 
 /// 步骤 6 主流程：遍历存活非秘境弟子，自动补服储物袋丹药。
 /// DiscipleStore SoA 版：逐弟子物化工作副本 → 服用 → 原位写回
-///（仅实际服用时写回）。丹药写回含偷盗钩子——
-/// 服用后道德 < 阈值 → judgeSingleTheftCandidate（SYSTEM RNG，与 Kotlin
-/// writePillResultToTables 道德变化后即时触发逐位一致）。
-/// 迭代序：id 快照序（== Kotlin tables.ids）——偷盗后叛逃可能按 id 移除
-/// 行（原位 erase 使行号漂移），每弟子经 rowOf 现查行号。
-/// id 快照经 syncDiscipleEntities + View<DiscipleRef>
-/// 行序构建（快照序 == 行序 == Kotlin ids 序，语义逐位不变；快照后行移除
-/// 仍由 rowOf 现查兜底）。
+///（仅实际服用时写回）。零 RNG。
+/// 迭代序：入口行快照（sync + View<DiscipleRef> 行序 == Kotlin ids 序）；
+/// 写回经 upsertDisciple 原位保序，行号全程稳定。
 inline void processAutoPills(GameState& state,
                              const std::set<int32_t>& secretIds,
-                             rng::RngManager& rng, ecs::World& world) {
+                             ecs::World& world) {
     DiscipleStore& ds = state.disciples;
-    const int32_t currentMonth =
-        state.gameData.gameYear * 12 + state.gameData.gameMonth;
-    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
     ecs::syncDiscipleEntities(world, ds.size());
-    std::vector<int32_t> idSnapshot;
-    ecs::View<ecs::DiscipleRef> view(world.registry());
-    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-        if (ds.isAlive[row] == 0) return;
-        const auto id = ds.numericIdAt(row);
-        if (!id.has_value() || secretIds.count(*id)) return;
-        idSnapshot.push_back(*id);
-    });
-    for (const int32_t id : idSnapshot) {
-        const auto rowOpt = ds.rowOfNumber(id);
-        if (!rowOpt.has_value()) continue;   // 前序钩子已移除（叛逃）
-        const std::size_t row = *rowOpt;
-
+    std::vector<std::size_t> rowSnapshot;
+    {
+        ecs::View<ecs::DiscipleRef> view(world.registry());
+        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+            const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+            if (ds.isAlive[row] == 0) return;
+            const auto id = ds.numericIdAt(row);
+            if (!id.has_value() || secretIds.count(*id)) return;
+            rowSnapshot.push_back(row);
+        });
+    }
+    for (const std::size_t row : rowSnapshot) {
         Disciple d = ds.materialize(row);
         if (!hasUsablePills(d)) continue;
         Disciple working = d;
         if (!autoUsePills(working, state)) continue;   // result.disciple == disciple → 跳过
         writePillResult(d, working, state.gameData);
         ds.upsertDisciple(d);                   // 原位写回（保序）
-        // 偷盗判定钩子（写回后道德判定；Kotlin 事务内版全链等价）
-        if (ds.moralities[row] < lawMoralityThreshold()) {
-            judgeSingleTheftCandidate(state, id, currentMonth, rngSystem, world);
-        }
     }
 }
 
@@ -745,8 +722,7 @@ inline void processAutoPills(GameState& state,
 ///   与原 emplace 首写语义一致）；
 /// - 值 = 入口时点 comprehensions/talentIds/affixIds 列的 baseComprehension
 ///   （与物化快照同列同序计算，逐位一致）；
-/// - 结算步骤间 elderSlots 无重指派（任命属 UI 事务不入结算；偷盗后叛逃
-///   仅**清空**叛逃长老槽位——消费点读空 id 提前返回，不入本表查询），
+/// - 结算步骤间 elderSlots 无重指派（任命属 UI 事务不入结算），
 ///   步骤 7 读到的非空长老 id 与入口一致；
 /// - 入口后新出现/非数值 id 的长老 → 不入表，消费点回退 live 列
 ///   （与原快照缺失路径一致，idx 于步骤 7 现查）。
@@ -773,7 +749,7 @@ inline std::map<int32_t, int32_t> committedElderComprehensionOf(
 /// @param committedElderComprehension 结算入口长老悟性 committed 视图
 ///        （id → 入口时点基础悟性——对齐 Kotlin tryBreakthrough:282 经
 ///        stateStore.disciples.value（事务前已提交视图，按 id 关联）读取
-///        长老悟性；id 键控使偷盗叛逃等行移除后仍正确关联；视图缺失
+///        长老悟性；id 键控使行移除（逐出等）后仍正确关联；视图缺失
 ///        （入口后新出现）回退 live 列）；存活/境界条件判断仍用 live 状态
 inline stats::BreakthroughChanceInput breakthroughChanceInput(
         const Disciple& d, const GameState& state,
@@ -886,21 +862,15 @@ inline void recordGameEvent(GameState& state, const Disciple& after,
     }
 }
 
-/// 突破成功应用（applyBreakthroughSuccess：修为清零 + 层数/大境界推进 +
-/// 大境界寿命增益）
+/// 突破成功应用（applyBreakthroughSuccess：修为清零 + 层数/大境界推进）
 inline void applyBreakthroughSuccess(Disciple& d) {
     d.cultivation = 0.0;
-    const int32_t oldRealm = d.realm;
     const auto& rc = gamecore::disciple::realmConfig(d.realm);
     if (d.realmLayer < rc.maxLayers) {
         d.realmLayer += 1;
     } else {
         d.realm -= 1;
         d.realmLayer = 1;
-    }
-    if (d.realm != oldRealm) {
-        d.lifespan += stats::calculateBreakthroughLifespanGain(
-            d.realm, d.talentIds, d.affixIds);
     }
 }
 
@@ -1100,7 +1070,6 @@ inline void performBreakthrough(
     live.cultivation = d.cultivation;
     live.realm = d.realm;
     live.realmLayer = d.realmLayer;
-    live.lifespan = d.lifespan;
     live.currentHp = d.currentHp;
     live.currentMp = d.currentMp;
     live.storageBagItems = d.storageBagItems;
@@ -1376,7 +1345,7 @@ inline void runPhaseSettlement(state::GameState& state,
     // R1.2 去物化：快照唯一消费点 = 步骤 7 长老悟性读取（内/外门长老位
     // ≤2 名弟子），不再逐行物化全量 D 弟子（每旬 D 次深拷贝 → 0 次），
     // 直接按 SoA 列捕获入口时点值；**数值 id 键控**（Kotlin allDisciples
-    // 按 id 关联）——S2 起偷盗后叛逃可在突破前移除行（行号漂移），行索引
+    // 按 id 关联）——行删除（逐出等）可在突破前移除行（行号漂移），行索引
     // 快照会错位关联，id 键控不受影响。
     const auto committedElderComprehension =
         detail::committedElderComprehensionOf(state);
@@ -1390,14 +1359,13 @@ inline void runPhaseSettlement(state::GameState& state,
 
     runPhaseCoreBatch(state, world);
 
-    // 6) 自动丹药补服（含写回后偷盗判定钩子）
-    detail::processAutoPills(state, secretIds, rng, world);
+    // 6) 自动丹药补服（零 RNG）
+    detail::processAutoPills(state, secretIds, world);
 
     // 7) 突破检测（唯一 RNG 消耗点：BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM）
     //    数值 id 索引直用 store 的免重建缓存（同 runPhaseCoreBatch——R1.3
-    //    dense 索引收尾，免每旬 O(D) map 重建）。步骤 6 偷盗叛逃的行移除
-    //    已经 eraseAt 同点维护进该索引（== 原入口快照重建的时点语义）；
-    //    步骤 7 内无行结构变更（突破/亲属赠送不移除行）⇒ 引用 == 快照。
+    //    dense 索引收尾，免每旬 O(D) map 重建）；步骤 6/7 内无行结构变更
+    //    ⇒ 引用 == 快照。
     const std::map<int32_t, std::size_t>& idx =
         state.disciples.numericIdToRow;
     detail::processBreakthroughs(state, rng, idx, committedElderComprehension,
@@ -1407,11 +1375,11 @@ inline void runPhaseSettlement(state::GameState& state,
 /// AUTHORITATIVE core 模式每旬结算（生产每旬不再需要 Kotlin
 /// executeResidual 回写）。
 /// 步骤序与完整版 [runPhaseSettlement] **完全一致**（0 自动装备 → 1-5 核心
-/// 批次 → 6 丹药(+偷盗钩子) → 7 突破(+亲属赠送)），唯一差异 = 核心批次由
+/// 批次 → 6 丹药 → 7 突破(+亲属赠送)），唯一差异 = 核心批次由
 /// 调用方注入的并行实现（ECS PhaseCoreBatchSystem + JobSystem）驱动——
 /// 串行/并行逐位一致由 PhaseSettlementTest.CoreBatchParallelMatchesSerial
 /// 守护。保留核心批次外的步骤为串行：丹药/突破携带 RNG 与跨弟子状态依赖
-/// （亲属赠送读全店关系列、偷盗链有月度/年度计数门控），不可分块并行。
+/// （亲属赠送读全店关系列），不可分块并行。
 /// @param runCoreBatch 核心批次实现（game_core.cpp 注入 ecsScheduler_.runAll）
 inline void runPhaseSettlementCore(state::GameState& state,
                                    rng::RngManager& rng,
@@ -1429,8 +1397,8 @@ inline void runPhaseSettlementCore(state::GameState& state,
 
     runCoreBatch();
 
-    // 6) 自动丹药补服（含写回后偷盗判定钩子）
-    detail::processAutoPills(state, secretIds, rng, world);
+    // 6) 自动丹药补服（零 RNG）
+    detail::processAutoPills(state, secretIds, world);
 
     // 7) 突破检测（BREAKTHROUGH 分区）+ 亲属赠送（SYSTEM 分区）
     //    数值 id 索引直用 store 的免重建缓存（同 runPhaseSettlement——

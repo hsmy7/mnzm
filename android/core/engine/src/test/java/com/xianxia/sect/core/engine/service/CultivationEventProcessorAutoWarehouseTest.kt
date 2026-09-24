@@ -79,7 +79,6 @@ class CultivationEventProcessorAutoWarehouseTest {
             vassalService = mock(),
             disciplePurchaseService = mock(),
             aiSectBeastAttackProcessor = mock(),
-            lawEnforcementProcessor = mock(),
             rngManager = mock(),
             secretRealmService = mock(),
             secretRealmAIProcessor = mock(),

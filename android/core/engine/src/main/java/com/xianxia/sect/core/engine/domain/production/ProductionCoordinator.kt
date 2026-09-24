@@ -478,7 +478,7 @@ class ProductionCoordinator @Inject constructor(
         repository.getFinishedSlots(currentYear, currentMonth)
 
     /**
-     * 清理弟子在 Room 生产槽 Repository 中的占用（同步挂起版，供死亡/叛逃等
+     * 清理弟子在 Room 生产槽 Repository 中的占用（同步挂起版，供死亡等
      * 必须立即生效的关键路径使用，在 IO 线程执行）。
      *
      * GameData.productionSlots 只是镜像——存档序列化/生产结算/gate 重建均以 Repository

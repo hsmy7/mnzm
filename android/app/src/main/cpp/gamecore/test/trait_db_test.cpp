@@ -26,15 +26,15 @@ inline const double* effectOf(const std::map<std::string, double>& effects,
 }
 
 TEST(TraitDbTest, TalentCount) {
-    // Kotlin TalentDatabase：正面 104 + 负面 5 = 109
+    // Kotlin TalentDatabase：正面 89 + 负面 5 = 94
     const auto& tpls = talentTemplates();
-    EXPECT_EQ(109u, tpls.size());
+    EXPECT_EQ(94u, tpls.size());
 
     int positive = 0, negative = 0;
     for (const auto& t : tpls) {
         if (t.isNegative) ++negative; else ++positive;
     }
-    EXPECT_EQ(104, positive);
+    EXPECT_EQ(89, positive);
     EXPECT_EQ(5, negative);
 }
 
@@ -144,16 +144,16 @@ TEST(TraitDbTest, PhysiqueSample) {
 }
 
 TEST(TraitDbTest, AffixCount) {
-    // Kotlin AffixDatabase：正面 68 + 负面 3 = 71
+    // Kotlin AffixDatabase：正面 59 + 负面 2 = 61
     const auto& tpls = affixTemplates();
-    EXPECT_EQ(71u, tpls.size());
+    EXPECT_EQ(61u, tpls.size());
 
     int positive = 0, negative = 0;
     for (const auto& a : tpls) {
         if (a.isNegative) ++negative; else ++positive;
     }
-    EXPECT_EQ(68, positive);
-    EXPECT_EQ(3, negative);
+    EXPECT_EQ(59, positive);
+    EXPECT_EQ(2, negative);
 }
 
 TEST(TraitDbTest, AffixSample) {

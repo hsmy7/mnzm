@@ -201,15 +201,14 @@ class DiscipleEquipmentService @Inject constructor(
         oldEquipId: String,
         equipName: String
     ) {
-        val equipAge = discipleTables.ages[id]
         val equipEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
         if (oldEquipId.isNotEmpty()) {
             val oldName = equipmentInstances.get(oldEquipId)?.name ?: "旧装备"
             discipleTables.lifeEvents[id] = equipEvents +
-                "${equipAge}岁：将${oldName}替换为${equipName}"
+                "将${oldName}替换为${equipName}"
         } else {
             discipleTables.lifeEvents[id] = equipEvents +
-                "${equipAge}岁：装备了${equipName}"
+                "装备了${equipName}"
         }
     }
 

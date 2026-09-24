@@ -18,13 +18,13 @@ import kotlinx.serialization.json.long
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-// GameEngineAppointmentNativeOps.kt — 弟子管理三（任命/驻守/洗炼消耗族）
+// GameEngineAppointmentNativeOps.kt — 弟子管理（任命/洗炼消耗族）
 // native 事务转发（batch-15）。
 //
-// 七入口 AUTHORITATIVE 稳态写者下沉 appointment_tx.h（C++ 事务成功 =
+// AUTHORITATIVE 稳态写者下沉 appointment_tx.h（C++ 事务成功 =
 // GameData 写段已完成且经 StateSyncService 镜像回读），Kotlin 分支**仅执行
 // 事务外残差**：
-//  - 长老任命/卸任/仓库驻守：Gate 注册表 release/confirmAssign、Room 生产槽
+//  - 长老任命/卸任：Gate 注册表 release/confirmAssign、Room 生产槽
 //    Repository 清理、弟子状态同步（PatrolNativeOps 同族机制）；
 //  - 洗炼三族：**玉符运行时 totalCount 同步**（[syncJadeRuntimeAfterNative]
 //    ——C++ 承扣后运行时未同步会让 checkpointNow 以旧绝对值覆盖写导致玉符
@@ -63,9 +63,6 @@ internal data class ElderAppointReceipt(val replacedIds: List<String>)
 
 /** 长老卸任 native 回执（removedId 空串 = 槽原本无人）。 */
 internal data class ElderDismissReceipt(val removedId: String)
-
-/** 仓库驻守 native 回执（oldOccupantId 空串 = 无）。 */
-internal data class WarehouseGarrisonReceipt(val oldOccupantId: String)
 
 /** 洗炼灵根 native 回执（jadeAfter = C++ 承扣后余额，运行时同步锚点）。 */
 internal data class SpiritRootWashReceipt(
@@ -114,24 +111,6 @@ internal fun GameEngine.tryDismissElderNative(slotType: String): ElderDismissRec
         put("slotType", slotType)
     } ?: return null
     return ElderDismissReceipt(removedId = data.str("removedId") ?: "")
-}
-
-// ── 仓库驻守 ────────────────────────────────────────────────────────
-
-/** 仓库驻守 native 臂（C++ 校验 + 旧 occupant 捕获 + 全槽清理 + 条目替换）。 */
-internal fun GameEngine.tryAssignWarehouseGarrisonNative(
-    buildingInstanceId: String,
-    discipleId: String,
-    discipleName: String,
-    sectId: String
-): WarehouseGarrisonReceipt? {
-    val data = AppointmentNativeForward.tryForward(this, ActionIds.WAREHOUSE_GARRISON_TX) {
-        put("buildingInstanceId", buildingInstanceId)
-        put("discipleId", discipleId)
-        put("discipleName", discipleName)
-        put("sectId", sectId)
-    } ?: return null
-    return WarehouseGarrisonReceipt(oldOccupantId = data.str("oldOccupantId") ?: "")
 }
 
 // ── 洗炼消耗族 ──────────────────────────────────────────────────────

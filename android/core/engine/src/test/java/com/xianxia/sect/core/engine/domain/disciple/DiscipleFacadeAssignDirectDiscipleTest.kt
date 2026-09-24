@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
@@ -94,7 +93,6 @@ class DiscipleFacadeAssignDirectDiscipleTest {
             pillManager = mock(),
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),
-            lawEnforcementProcessor = mock<LawEnforcementProcessor>(),
             productionCoordinator = mock<ProductionCoordinator>()
         )
     }

@@ -202,7 +202,6 @@ class CultivationEventMonthlyOpsTest {
             vassalService = vassalService,
             disciplePurchaseService = mockSmart(),
             aiSectBeastAttackProcessor = mockSmart(),
-            lawEnforcementProcessor = mockSmart(),
             rngManager = mockSmart(),
             secretRealmService = secretRealmService,
             secretRealmAIProcessor = mockSmart(),

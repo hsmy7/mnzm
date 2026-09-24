@@ -7,10 +7,9 @@ import com.xianxia.sect.core.util.DomainLog
  * GameConfigNativeBridge — Kotlin 运行时配置 → C++ 全局 GameConfig 注入桥。
  *
  * 读取 [GameConfigProvider]（assets/config/game_config.json，支持远程热更新）的
- * 仓库容量 / 执法堂配置，注入 C++ `gamecore::setGameConfig`（经
+ * 仓库容量，注入 C++ `gamecore::setGameConfig`（经
  * [GameCoreBridge.nativeSetGameConfig]）——消除 C++ 硬编码默认值与 Kotlin 配置
- * 读取的双端漂移（inventory.h 仓库容量常量、month_settlement.h 执法堂
- * 常量）。
+ * 读取的双端漂移（inventory.h 仓库容量常量）。
  *
  * 注入时机（双点幂等，任一点先到先注）：
  *   1. [CultivationEventProcessor]（@Singleton 月变/任务编排入口）构造 init——
@@ -46,30 +45,14 @@ object GameConfigNativeBridge {
         if (injected || !GameCoreBridge.isLoaded) return
         try {
             val w = provider.warehouse
-            val le = provider.lawEnforcement
             GameCoreBridge.nativeSetGameConfig(
                 warehouseBaseCapacity = w.baseCapacity,
-                warehouseCapacityPerBuilding = w.capacityPerBuilding,
-                lawLoyaltyThreshold = le.loyaltyThreshold,
-                lawMoralityThreshold = le.moralityThreshold,
-                lawHerdLoyaltyThreshold = le.herdLoyaltyThreshold,
-                lawProbPerPoint = le.probPerPoint,
-                lawMaxProb = le.maxProb,
-                lawBaseCaptureRate = le.baseCaptureRate,
-                lawIntelligenceBase = le.intelligenceBase,
-                lawElderBonusPerPoint = le.elderBonusPerPoint,
-                lawDiscipleIntelligenceStep = le.discipleIntelligenceStep,
-                lawDiscipleBonusPerStep = le.discipleBonusPerStep,
-                lawReflectionYears = le.reflectionYears,
-                lawNewDiscipleProtectionMonths = le.newDiscipleProtectionMonths,
-                lawMaxTheftPerYear = 3,
-                lawMaxTheftJudgementsPerMonth = 3
+                warehouseCapacityPerBuilding = w.capacityPerBuilding
             )
             injected = true
             DomainLog.i(
                 TAG,
-                "GameConfig 注入 C++（warehouse=${w.baseCapacity}+${w.capacityPerBuilding}, " +
-                    "law=${le.loyaltyThreshold}）"
+                "GameConfig 注入 C++（warehouse=${w.baseCapacity}+${w.capacityPerBuilding}）"
             )
         } catch (e: Exception) {
             // 注入失败不阻断引擎启动——C++ 侧默认值兜底（与 game_config.json 一致）

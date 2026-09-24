@@ -105,11 +105,11 @@ class RecruitNativeTxGateTest {
             gameData = gameData.copy(
                 recruitList = listOf(
                     Disciple(
-                        id = RECRUIT_A, name = "甲一", age = 20,
+                        id = RECRUIT_A, name = "甲一",
                         realm = 9, spiritRootType = "金"
                     ),
                     Disciple(
-                        id = RECRUIT_B, name = "乙二", age = 22,
+                        id = RECRUIT_B, name = "乙二",
                         realm = 9, spiritRootType = "水"
                     )
                 )
@@ -209,17 +209,17 @@ class RecruitNativeTxGateTest {
 
     @Test
     fun `ageRecruitList falls back to kotlin arm and keeps semantics`() = runTest {
-        // 老化 + 净化回退臂语义：age+1、超寿元移除（age 10000 → 10001 ≥ 上限）
+        // 回退臂语义：条目原样写回（不做老化增减）+ 净化（损坏过滤/三级去重/跨表残留）
         store.update {
             gameData = gameData.copy(
                 recruitList = listOf(
                     Disciple(
-                        id = "young", name = "幸存者", age = 20,
-                        realm = 9, spiritRootType = "金", lifespan = 80
+                        id = "young", name = "幸存者",
+                        realm = 9, spiritRootType = "金"
                     ),
                     Disciple(
-                        id = "old", name = "寿终", age = 10000,
-                        realm = 9, spiritRootType = "水", lifespan = 80
+                        id = "corrupt", name = "",
+                        realm = 9, spiritRootType = "水"
                     )
                 )
             )
@@ -228,7 +228,6 @@ class RecruitNativeTxGateTest {
             recruitService(provider = Provider { mockCore }).ageRecruitList(/*year=*/5)
         }
         val list = store.gameDataSnapshot.recruitList
-        assertEquals(listOf("young"), list.map { it.id })
-        assertEquals(21, list[0].age)
+        assertEquals("损坏条目净化移除、有效条目原样保留", listOf("young"), list.map { it.id })
     }
 }

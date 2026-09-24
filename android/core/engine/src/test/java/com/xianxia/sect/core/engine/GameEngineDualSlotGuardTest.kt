@@ -27,7 +27,6 @@ import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.core.model.SecretRealmState
 import com.xianxia.sect.core.model.SlotCategory
 import com.xianxia.sect.core.model.SlotRef
-import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.repository.ProductionSlotRepository
@@ -411,44 +410,6 @@ class GameEngineDualSlotGuardTest {
         assertEquals("自愈后弟子状态应回 IDLE（进度已删不得卡 REFINING）",
             DiscipleStatus.IDLE, store.discipleTables.statuses[1])
         assertEquals("自愈后巡逻槽应保留赢家 A", DISCIPLE_A, patrolDiscipleAt(0))
-    }
-
-    // ── 仓库驻守 ──
-
-    @Test
-    fun `已在巡逻槽位的弟子驻守仓库后旧槽位被清空且 gate 注册仓库`() = runTest {
-        placeInPatrol(DISCIPLE_A)
-
-        engine.assignWarehouseGarrisonAtomic(
-            buildingInstanceId = "wh1", discipleId = DISCIPLE_A,
-            discipleName = "弟子A", sectId = SECT_ID
-        )
-
-        assertEquals("巡逻槽位应清空", "", patrolDiscipleAt(0))
-        val warehouse = store.latestGameData.warehouseGarrisons
-        assertEquals("仓库驻守应为 A", DISCIPLE_A, warehouse.find { it.buildingInstanceId == "wh1" }?.discipleId)
-        val assignment = gate.getAssignment(DISCIPLE_A)
-        assertEquals("gate 应唯一登记仓库", SlotCategory.WAREHOUSE_GARRISON, assignment?.slotRef?.category)
-    }
-
-    @Test
-    fun `仓库驻守顶替旧驻守时旧驻守 gate 被释放`() = runTest {
-        store.update {
-            gameData = gameData.copy(
-                warehouseGarrisons = listOf(
-                    WarehouseGarrisonSlot("wh1", DISCIPLE_B, "弟子B", SECT_ID)
-                )
-            )
-        }
-        gate.confirmAssign(DISCIPLE_B, SlotRef(SlotCategory.WAREHOUSE_GARRISON, "wh1", "warehouse_wh1"))
-
-        engine.assignWarehouseGarrisonAtomic(
-            buildingInstanceId = "wh1", discipleId = DISCIPLE_A,
-            discipleName = "弟子A", sectId = SECT_ID
-        )
-
-        assertFalse("旧驻守 B 的 gate 应释放", gate.isAssigned(DISCIPLE_B))
-        verify(discipleFacade).syncSingleDiscipleStatus(DISCIPLE_B)
     }
 
     // ── 读档自愈 ──

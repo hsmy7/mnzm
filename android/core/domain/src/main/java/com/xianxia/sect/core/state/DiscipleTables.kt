@@ -16,7 +16,7 @@ import com.xianxia.sect.core.model.StorageBagItem
  *
  * 使用方式：
  *   val name = tables.names[id]
- *   tables.loyalties[id] = 90
+ *   tables.intelligences[id] = 90
  *   tables.cultivations.update(id) { it + rate * delta }
  *   for (id in tables.ids) { ... }
  */
@@ -115,11 +115,8 @@ class DiscipleTables {
     val realms = IntComponentTable()              // id → realm (9=练气 ... 0=仙人)
     val realmLayers = IntComponentTable()         // id → layer (1-9)
     val cultivations = DoubleComponentTable()     // id → cultivation progress
-    val ages = IntComponentTable()                // id → age
-    val lifespans = IntComponentTable()           // id → lifespan
     val deathYears = IntComponentTable()          // id → deathYear（存活弟子该值为 0 或无条目）
     val isAlive = IntComponentTable()             // id → 0/1 (用 Int 避免 Boolean 装箱)
-    val soulPowers = IntComponentTable()          // id → soulPower
 
     // === 修炼加速 ===
     val cultivationSpeedBonuses = DoubleComponentTable()
@@ -132,7 +129,7 @@ class DiscipleTables {
     val talentIds = ComponentTable<List<String>>()        // id → [talentId1, ...]
     val physiqueIds = ComponentTable<List<String>>()      // id → [physiqueId1, ...]
     val affixIds = ComponentTable<List<String>>()         // id → [affixId1, ...]
-    val lifeEvents = ComponentTable<List<String>>()       // id → ["11岁：加入宗门", ...]
+    val lifeEvents = ComponentTable<List<String>>()       // id → ["加入宗门", ...]
     val manualMasteries = ComponentTable<Map<String, Int>>()
 
     // === 状态 ===
@@ -209,7 +206,6 @@ class DiscipleTables {
     // === 技能属性 ===
     val intelligences = IntComponentTable()
     val charms = IntComponentTable()
-    val loyalties = IntComponentTable()
     val comprehensions = IntComponentTable()
     val artifactRefinings = IntComponentTable()
     val pillRefinings = IntComponentTable()
@@ -227,11 +223,8 @@ class DiscipleTables {
 
     // === 使用追踪 ===
     val usedFunctionalPillTypes = ComponentTable<List<String>>()
-    val usedExtendLifePillIds = ComponentTable<List<String>>()
     val usedPermanentPillKeys = ComponentTable<Set<String>>()
-    val usedExtendLifePillTypes = ComponentTable<Set<String>>()
     val recruitedMonths = IntComponentTable()
-    val lastTheftJudgementYears = IntComponentTable()  // id → 上次偷盗判定年份（0=从未判定）
     val hasReviveEffects = IntComponentTable()    // 0/1
     val hasClearAllEffects = IntComponentTable()  // 0/1
 
@@ -701,7 +694,7 @@ class DiscipleTables {
                 // 空名防御仅在本处 assembleAll 执行——两处组合保证 UI 永不见空名/半幽灵。
                 if (d.name.isBlank()) {
                     Log.w(TAG, "GHOST DISCIPLE (skipped): id=${d.id}, " +
-                        "age=${d.age}, realm=${d.realm}/${d.realmLayer}, " +
+                        "realm=${d.realm}/${d.realmLayer}, " +
                         "cultivation=${d.cultivation}")
                     null
                 } else d
@@ -1045,7 +1038,7 @@ class DiscipleTables {
                 _allCopyableRefs.forEach { ref ->
                     // deathYears 是稀疏表——仅已故弟子有条目，存活弟子无写入。
                     // 与 markDead() 的生命周期合约一致，不在此检查范围内。
-                    if (ref.debugName == "deathYears" || ref.debugName == "lastTheftJudgementYears") return@forEach
+                    if (ref.debugName == "deathYears") return@forEach
                     check(ref.contains(id)) {
                         "GHOST DISCIPLE: id=$id missing in ${ref.debugName}. " +
                         "Insert/remove/replaceAll did not write to all component tables."

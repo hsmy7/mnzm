@@ -89,7 +89,7 @@ class DiscipleIdBoundsRuleTest {
 
     private fun disciple(id: String, name: String = "弟子") = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true
+        isAlive = true
     )
 
     private fun saveData(disciples: List<Disciple>) = SaveData(

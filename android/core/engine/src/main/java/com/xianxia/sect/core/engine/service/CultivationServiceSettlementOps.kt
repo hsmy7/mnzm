@@ -12,14 +12,9 @@ suspend fun CultivationService.processAnnualSalary(year: Int) {
         cultivationSettlement.processAnnualSalary(year)
 }
 
-fun CultivationService.processResidenceLoyalty(state: MutableGameState) {
-        cultivationSettlement.processResidenceLoyalty(state)
-}
-
-/** 月度自动排班 + 住所忠诚度，在事务 A 内由 [GameEngineCore.processMonthYearChange] 调用。 */
+/** 月度自动排班，在事务 A 内由 [GameEngineCore.processMonthYearChange] 调用。 */
 fun CultivationService.processMonthlyAutoAssignments(state: MutableGameState) {
         productionProcessor.processAutoAssign(state)
-        cultivationSettlement.processResidenceLoyalty(state)
 }
 
 internal fun CultivationService.processPolicyCosts(state: MutableGameState): PolicyCostResult {

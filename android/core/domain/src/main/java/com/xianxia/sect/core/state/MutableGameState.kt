@@ -100,7 +100,7 @@ fun MutableGameState.recordPlayerBattle(
 
 /**
  * 游戏事件记录写入辅助。
- * 所有游戏事件（弟子死亡、突破、叛逃、偷盗、AI宗门事件等）
+ * 所有游戏事件（弟子死亡、突破、AI宗门事件等）
  * 都应通过此函数写入 gameEventRecords，统一管理持久化和裁剪。
  *
  * @param category 事件分类（SECT=玩家宗门, WORLD=世界/AI宗门）

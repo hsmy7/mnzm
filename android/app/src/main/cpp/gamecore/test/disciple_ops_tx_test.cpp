@@ -69,8 +69,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = true;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = "IDLE";
         d.currentHp = 50;   // 未满血（治疗丹可用的前提）
         d.currentMp = 20;
@@ -132,7 +130,6 @@ TEST_F(DiscipleOpsTxFixture, RenameWritesNameAndPurifiesRecruitList) {
         c.surname = "张";
         c.gender = "male";      // 与 Disciple 默认性别同值（签名面）
         c.spiritRootType = "metal";
-        c.age = 21;             // 年龄容差 2 内
         c.isAlive = true;
         return c;
     }());
@@ -143,7 +140,6 @@ TEST_F(DiscipleOpsTxFixture, RenameWritesNameAndPurifiesRecruitList) {
         c.surname = "李";
         c.gender = "male";
         c.spiritRootType = "wood";
-        c.age = 30;
         c.isAlive = true;
         return c;
     }());
@@ -154,7 +150,7 @@ TEST_F(DiscipleOpsTxFixture, RenameWritesNameAndPurifiesRecruitList) {
     EXPECT_TRUE(r["data"]["renamed"].get<bool>());
     auto& ds = core_->state().disciples;
     EXPECT_EQ(ds.names[row], "新名");
-    // 同人残留净化（签名 + 年龄容差命中 cand-1）、外人保留
+    // 同人残留净化（按改名前身份签名命中 cand-1）、外人保留
     ASSERT_EQ(core_->state().gameData.recruitList.size(), 1u);
     EXPECT_EQ(core_->state().gameData.recruitList[0].id, "cand-2");
 }
@@ -275,7 +271,7 @@ TEST_F(DiscipleOpsTxFixture, UsePillDeductsAppliesAndReturnsLogDraft) {
                         {{"discipleId", "1"}, {"pillId", "p1"}});
     ASSERT_EQ(r["status"], "success");
     EXPECT_TRUE(r["data"]["used"].get<bool>());
-    EXPECT_EQ(r["data"]["logLine"].get<std::string>(), "20岁：服用了聚气丹");
+    EXPECT_EQ(r["data"]["logLine"].get<std::string>(), "服用了聚气丹");
     EXPECT_EQ(core_->state().pills[0].quantity, 2);
     EXPECT_DOUBLE_EQ(core_->state().disciples.cultivations[row], cultBefore + 100.0);
 }
@@ -335,7 +331,7 @@ TEST_F(DiscipleOpsTxFixture, ReplaceManualSwapsInstanceAndBagsOld) {
     // 堆叠整摞消耗
     EXPECT_TRUE(core_->state().manualStacks.empty());
     // 日志草稿
-    EXPECT_EQ(r["data"]["logLine"].get<std::string>(), "20岁：将功法青元功替换为赤炎诀");
+    EXPECT_EQ(r["data"]["logLine"].get<std::string>(), "将功法青元功替换为赤炎诀");
 }
 
 TEST_F(DiscipleOpsTxFixture, ReplaceManualMindConflictFailsWithoutWrite) {

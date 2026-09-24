@@ -5,10 +5,8 @@
 //   - settleBattleCasualtiesTx（1780）：标死三列 + wasAlive 守卫年死亡计数
 //     （重入不双计）+ 悲痛列与日志草稿（道侣关系文本）+ 槽位/熟练度清理 +
 //     幸存者 HP/MP 钳制回写 + 零 RNG
-//   - worldLevelVictoryTx（1781）：TOCTOU 重查零写入 + 魂力 +1 +
-//     winBattleRandomAttrPlus 确定性属性表（527 恒 ≡ 0 mod 17 ⇒ r 恒 14 →
-//     basePhysicalAttacks+1——Kotlin 同式同常量，分支收敛为实证行为）+
-//     🔴 defeated 不写（batch-13 口径）+ 偷盗钩子仅分支 9 可达
+//   - worldLevelVictoryTx（1781）：TOCTOU 重查零写入 + applied 回执 +
+//     🔴 defeated 不写（batch-13 口径）
 //   - battlePresettleTx（1782）：候选 = 传入队伍 id 集（非队伍满修为弟子
 //     **零抽取**——抽取集不变红线）+ 空集零写入 + 突破字段写回
 //   - 信封级：execute 通道 status/data 面 + 段内未实裁号 NOT_IMPLEMENTED
@@ -68,8 +66,6 @@ protected:
         d.realmLayer = 1;
         d.isAlive = alive;
         d.spiritRootType = "metal";
-        d.age = 20;
-        d.lifespan = 80;
         d.status = "IDLE";
         core_->state().disciples.appendDisciple(d);
         return *core_->state().disciples.rowOf(id);
@@ -113,7 +109,6 @@ TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsGriefAndSlots) {
         {"deadIds", json::array({"101"})},
         {"survivorHp", json{{"103", 50}}},
         {"survivorMp", json::object()},
-        {"isOutsideSect", true},
     });
     ASSERT_EQ(reply["status"], "success");
     const json& data = reply["data"];
@@ -144,7 +139,6 @@ TEST_F(BattleResidualTxFixture, CasualtySettleReentryDoesNotDoubleCount) {
         {"deadIds", json::array({"111"})},
         {"survivorHp", json::object()},
         {"survivorMp", json::object()},
-        {"isOutsideSect", true},
     };
     ASSERT_EQ(exec(action::BATTLE_CASUALTY_SETTLE_TX, params)["status"], "success");
     EXPECT_EQ(core_->state().gameData.annualDeceasedDisciples, 0);
@@ -165,23 +159,18 @@ TEST_F(BattleResidualTxFixture, CasualtySettleConsumesZeroRng) {
         {"deadIds", json::array({"121"})},
         {"survivorHp", json::object()},
         {"survivorMp", json::object()},
-        {"isOutsideSect", true},
     });
     EXPECT_EQ(rngSnapshot(), before);
 }
 
 // ── 1781 关卡胜利事务 ────────────────────────────────────────────────
 
-TEST_F(BattleResidualTxFixture, VictoryTxGrantsSoulPowersAndWinAttrWithoutDefeated) {
+TEST_F(BattleResidualTxFixture, VictoryTxAppliesWithoutDefeated) {
     auto& ds = core_->state().disciples;
     auto& gd = core_->state().gameData;
-    const std::size_t winner = addDisciple("201");
-    const std::size_t plain = addDisciple("202");
+    addDisciple("201");
+    addDisciple("202");
     const std::size_t dead = addDisciple("203", 5, false);
-    ds.talentIds[winner] = {"r6_win_growth"};   // winBattleRandomAttrPlus 天赋
-    ds.basePhysicalDefenses[winner] = 10;
-    ds.soulPowers[winner] = 0;
-    ds.soulPowers[plain] = 0;
 
     WorldLevel level;
     level.id = "L1";
@@ -195,22 +184,14 @@ TEST_F(BattleResidualTxFixture, VictoryTxGrantsSoulPowersAndWinAttrWithoutDefeat
     });
     ASSERT_EQ(reply["status"], "success");
     EXPECT_EQ(reply["data"]["applied"], true);
-    // G02/G04：神魂+1 与 winBattleRandomAttrPlus 战斗随机成长已删除
-    EXPECT_EQ(reply["data"]["soulPowerCount"], 0);
-    EXPECT_EQ(reply["data"]["winAttrCount"], 0);
-    EXPECT_EQ(ds.soulPowers[winner], 0);
-    EXPECT_EQ(ds.soulPowers[plain], 0);
-    EXPECT_EQ(ds.basePhysicalDefenses[winner], 10);
     // 🔴 C++ 不写 defeated（batch-13 TOCTOU 口径——残差留 Kotlin 臂）
     EXPECT_FALSE(gd.worldLevels[0].defeated);
     EXPECT_EQ(ds.isAlive[dead], 0);
 }
 
 TEST_F(BattleResidualTxFixture, VictoryTxRecheckSkipsAlreadyDefeatedLevel) {
-    auto& ds = core_->state().disciples;
     auto& gd = core_->state().gameData;
-    const std::size_t winner = addDisciple("211");
-    ds.soulPowers[winner] = 0;
+    addDisciple("211");
     WorldLevel level;
     level.id = "L2";
     level.defeated = true;   // TOCTOU：已击败
@@ -223,19 +204,16 @@ TEST_F(BattleResidualTxFixture, VictoryTxRecheckSkipsAlreadyDefeatedLevel) {
     });
     ASSERT_EQ(reply["status"], "success");
     EXPECT_EQ(reply["data"]["applied"], false);
-    EXPECT_EQ(ds.soulPowers[winner], 0);   // 成功零写入（Kotlin return@update）
     EXPECT_EQ(rngSnapshot(), rngBefore);   // 零抽取
 }
 
 TEST_F(BattleResidualTxFixture, VictoryTxUnknownLevelIsSuccessZeroWrite) {
-    const std::size_t row = addDisciple("221");
     const json reply = exec(action::WORLD_VICTORY_REWARDS_TX, {
         {"levelId", "NOPE"},
         {"survivorIds", json::array({"221"})},
     });
     ASSERT_EQ(reply["status"], "success");
     EXPECT_EQ(reply["data"]["applied"], false);
-    EXPECT_EQ(core_->state().disciples.soulPowers[row], 0);
 }
 
 // ── 1782 战前突破结算 ────────────────────────────────────────────────
@@ -249,8 +227,6 @@ void makeCandidate(GameCore& core, const std::string& id) {
     d.realmLayer = 1;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.age = 20;
-    d.lifespan = 80;
     d.status = "IDLE";
     d.cultivation = 1.0e7;   // 远超该境界满修为
     d.currentHp = -1;

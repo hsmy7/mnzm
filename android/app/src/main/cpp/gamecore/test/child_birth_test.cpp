@@ -36,7 +36,6 @@ Disciple baseDisciple(const std::string& id, const std::string& name,
     d.id = id;
     d.name = name;
     d.gender = gender;
-    d.age = 20;
     d.realm = 9;
     d.realmLayer = 1;
     d.spiritRootType = "metal";
@@ -77,7 +76,6 @@ TEST(ChildBirth, GoldenSequenceSingleBirth) {
     EXPECT_EQ("父丹青", child.name);
     EXPECT_EQ("父", child.surname);
     EXPECT_EQ("male", child.gender);
-    EXPECT_EQ(1, child.age);
     EXPECT_EQ(0, child.realmLayer);
     EXPECT_EQ("metal", child.spiritRootType);
     EXPECT_EQ("20", child.parentId1);
@@ -94,14 +92,12 @@ TEST(ChildBirth, GoldenSequenceSingleBirth) {
     EXPECT_EQ(80, child.aptitude);
     EXPECT_EQ(82, child.intelligence);
     EXPECT_EQ(59, child.charm);
-    EXPECT_EQ(50, child.loyalty);
     EXPECT_EQ(43, child.morality);
     EXPECT_EQ(73, child.artifactRefining);
     EXPECT_EQ(28, child.pillRefining);
     EXPECT_EQ(77, child.spiritPlanting);
     EXPECT_EQ(62, child.mining);
     EXPECT_EQ(70, child.teaching);
-    EXPECT_EQ(80, child.lifespan);
     EXPECT_TRUE(child.talentIds.empty());
     EXPECT_EQ(std::vector<std::string>({"r2_phys_hybrid_off", "neg_phys_offense"}),
               child.physiqueIds);

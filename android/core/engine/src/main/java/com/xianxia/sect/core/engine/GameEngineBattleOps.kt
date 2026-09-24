@@ -99,8 +99,6 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
 
         if (battleResult.winner == AIBattleWinner.ATTACKER) {
             val rewards = requireNotNull(warRewards) { "warRewards must be set when ATTACKER wins" }
-            val sectSurvivorIds = attackers.filter { it.id !in deadPlayerIds }.map { it.id }.toSet()
-            grantWarSoulPowers(sectSurvivorIds)
             if (battleResult.canOccupy) {
                 occupySectRewards(sectId, data, attackers, deadPlayerIds, rewards)
             } else {
@@ -304,15 +302,6 @@ private fun GameEngine.recordSectBattleRecord(battleType: SectBattleType, update
 /** 战史消费窗口（年）：与 C++ countRecentBattleRecords（sect_attack_decision.h）
  *  的 year >= gameYear - 3 同源常量（审计 P2-6，改值须双端同步） */
 private const val BATTLE_RECORD_WINDOW_YEARS = 3
-
-/** 胜方存活弟子魂魄+1（attackSect 提取） */
-private fun GameEngine.grantWarSoulPowers(sectSurvivorIds: Set<String>) {
-    // native 臂（batch-20b）：C++ 承 rowOf 行序 + 存活性过滤 + 逐行自增（零 RNG）；
-    // 成功即完成，失败/降级走下方 Kotlin 原实现。
-    if (grantWarSoulPowersNative(sectSurvivorIds)) return
-    stateStore.update { discipleTables.ids.filter { it.toString() in sectSurvivorIds && discipleTables
-        .isAlive[it] == 1 }.forEach { id -> discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1 } }
-}
 
 /**
  * 占领奖励（attackSect 提取）：驻军槽位 + 俘虏过滤 + 单事务入账 + 占领事件。

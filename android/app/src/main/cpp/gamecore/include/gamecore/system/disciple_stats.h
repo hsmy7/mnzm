@@ -19,8 +19,7 @@
 // 等价移植 Kotlin DiscipleStatCalculator 的每旬结算路径**纯公式**部分：
 //   - computeBaseHpMp / getMaxHpMpColumn（HP/MP 恢复上限）
 //   - calculateCultivationPerPhaseColumn（修炼速率 5 乘区）
-//   - getBreakthroughChance（突破概率乘区，含长老悟性/魂力/丹药/师徒）
-//   - calculateBreakthroughLifespanGain（大境界寿命增益）
+//   - getBreakthroughChance（突破概率乘区，含长老悟性/丹药/师徒）
 //   - EquipmentInstance.getFinalStats（孕养乘区后的装备面板）
 //
 // 与 Kotlin 语义对齐要点：
@@ -56,7 +55,6 @@ constexpr int32_t kElderBonusDivisor = 4;            // PolicyConfig.ELDER_BONUS
 constexpr int32_t kElderBreakthroughMaxSteps = 10;   // PolicyConfig.ELDER_BREAKTHROUGH_MAX_STEPS
 constexpr double kElderBonusPerStep = 0.01;          // ELDER_BONUS_PER_STEP
 constexpr int32_t kSkillMax = 200;                   // Disciple.SKILL_MAX
-constexpr int32_t kMaxLoyalty = 100;                 // Disciple.MAX_LOYALTY
 constexpr int64_t kMaxEventLogs = 200;               // Logs.MAX_EVENT_LOGS
 
 /// 住所建筑修炼加成系数（Cultivation.BUILDING_BONUSES，按 displayName 查表）
@@ -426,7 +424,7 @@ inline void getMaxHpMp(
 /// 基础悟性 = skills.comprehension + 合并（天赋+词条）comprehensionFlat 截断。
 /// Kotlin 权威口径：getBaseStats().comprehension 经 getMergedEffects
 /// （天赋+词条同 key 相加后取 "comprehensionFlat" toInt()）——词条表含
-/// comprehensionFlat 键（r1-r3_aff_base_comp / neg_aff_base），必须并入；
+/// comprehensionFlat 键（负面悟性词条 / neg_aff_base），必须并入；
 /// 修复 t2-1-review:77 潜伏分叉（原 C++ 只聚合天赋 flat）。
 inline int32_t baseComprehension(const Disciple& d) {
     const auto effects = mergeEffects(
@@ -466,8 +464,7 @@ inline int32_t baseIntelligence(const state::DiscipleStore& ds,
 }
 
 /// 完整基础属性（Kotlin DiscipleStatCalculator.getBaseStats(disciple)——
-/// 血炼百分比参数缺省 null，乘区全零）。偷盗域消费
-/// morality/speed/intelligence/loyalty 四字段。
+/// 血炼百分比参数缺省 null，乘区全零）。
 inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
     ::gamecore::disciple::BaseStatsInput in;
     in.realm = d.realm;
@@ -481,7 +478,6 @@ inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
     in.speedVariance = d.speedVariance;
     in.intelligence = d.intelligence;
     in.charm = d.charm;
-    in.loyalty = d.loyalty;
     in.comprehension = d.comprehension;
     in.aptitude = d.aptitude;
     in.teaching = d.teaching;
@@ -513,7 +509,6 @@ inline ::gamecore::disciple::DiscipleStats baseStatsWithBr(
     in.speedVariance = d.speedVariance;
     in.intelligence = d.intelligence;
     in.charm = d.charm;
-    in.loyalty = d.loyalty;
     in.comprehension = d.comprehension;
     in.aptitude = d.aptitude;
     in.teaching = d.teaching;
@@ -739,16 +734,13 @@ inline double calculateCultivationPerPhaseColumn(
         extra.preachingMastersBonus + extra.parentCultivationBonus +
         extra.masterDiscipleBonus;
 
-    // ── 状态乘区：政策 - 丧亲 - 寿命 ──
+    // ── 状态乘区：政策 - 丧亲 ──
     const bool hasGrief = d.griefEndYear >= 0;
     const double griefPenalty = hasGrief &&
         gd.gameYear < d.griefEndYear
         ? gamecore::disciple::kGriefCultivationPenalty : 0.0;
-    const double lifespanPenalty =
-        gamecore::disciple::calculateLifespanCultivationPenalty(d.age, d.lifespan);
     const double statusBonus =
-        policyCultivationBonus(d.realm, gd.sectPolicies) -
-        griefPenalty - lifespanPenalty;
+        policyCultivationBonus(d.realm, gd.sectPolicies) - griefPenalty;
 
     // ── 临时乘区：丹药持续加速（pillEffects 体系） ──
     double temporaryBonus = 0.0;
@@ -799,18 +791,14 @@ inline double calculateCultivationPerPhaseColumn(
         extra.preachingMastersBonus + extra.parentCultivationBonus +
         extra.masterDiscipleBonus;
 
-    // ── 状态乘区：政策 - 丧亲 - 寿命 ──
+    // ── 状态乘区：政策 - 丧亲 ──
     const int32_t griefEndYear = ds.griefEndYears[row];
     const double griefPenalty = griefEndYear >= 0 &&
         gd.gameYear < griefEndYear
         ? gamecore::disciple::kGriefCultivationPenalty : 0.0;
-    const double lifespanPenalty =
-        gamecore::disciple::calculateLifespanCultivationPenalty(
-            ds.ages[row], ds.lifespans[row]);
 
     const double statusBonus =
-        policyCultivationBonus(ds.realms[row], gd.sectPolicies) -
-        griefPenalty - lifespanPenalty;
+        policyCultivationBonus(ds.realms[row], gd.sectPolicies) - griefPenalty;
 
     // ── 临时乘区：丹药持续加速（pillEffects 体系） ──
     double temporaryBonus = 0.0;
@@ -866,35 +854,16 @@ inline double calculateBreakthroughChance(const Disciple& d,
         (1.0 + in.innerElderPositionBonus);
     const double outerBonus = comprehensionBreakthroughBonus(in.outerElderComprehension) *
         (1.0 + in.outerElderPositionBonus);
-    const double soulPowerBonus =
-        gamecore::disciple::soulPowerBreakthroughBonus(d.soulPower);
-    const double lifespanPenalty =
-        gamecore::disciple::calculateLifespanBreakthroughPenalty(d.age, d.lifespan);
     const double elderGuidance = innerBonus + outerBonus;
-    const double selfBonus = in.pillBonus + soulPowerBonus +
+    const double selfBonus = in.pillBonus +
         in.masterDiscipleBonus +
         comprehensionBreakthroughBonus(baseComprehension(d));
     const double positiveMult = 1.0 + elderGuidance + selfBonus;
     const double penaltyMult =
-        std::max(1.0 - (in.griefBreakthroughPenalty + lifespanPenalty), 0.0);
+        std::max(1.0 - in.griefBreakthroughPenalty, 0.0);
     const double base = baseZone * positiveMult * penaltyMult;
     const double result = base + in.adBonus;
     return gamecore::disciple::coerceIn(result, 0.0, 1.0);
-}
-
-/// 大境界突破寿命增益（境界基准 + (天赋+词条) 寿命百分比 × 基准 截断）
-inline int32_t calculateBreakthroughLifespanGain(
-        int32_t newRealm,
-        const std::vector<std::string>& talentIds,
-        const std::vector<std::string>& affixIds) {
-    const int32_t baseGain = gamecore::disciple::lifespanGainForRealm(newRealm);
-    const double lifespanTalentBonus =
-        effectValue(talentEffectsFor(talentIds), "lifespan") +
-        effectValue(affixEffectsFor(affixIds), "lifespan");
-    if (lifespanTalentBonus != 0.0) {
-        return baseGain + static_cast<int32_t>(baseGain * lifespanTalentBonus);
-    }
-    return baseGain;
 }
 
 }  // namespace gamecore::stats

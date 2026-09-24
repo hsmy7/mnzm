@@ -95,7 +95,7 @@ private suspend fun GameEngine.recruitAllFromListLegacy(): Int {
             recruited = toRecruit.count { disciple ->
                 val newId = discipleTables.allocateAndInsert(disciple.copy(
                     usage = disciple.usage.copy(recruitedMonth = currentMonth))
-                    .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") })
+                    .also { it.lifeEvents = listOf("加入宗门") })
                 // 俘虏自带装备/功法落库为玩家实例（幂等）
                 if (newId.isNotEmpty()) materializeCaptiveGear(disciple, newId)
                 newId.isNotEmpty()

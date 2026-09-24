@@ -77,14 +77,13 @@ inline constexpr const char* kBuildingIdKey = "buildingId";
 inline constexpr const char* kReflectionStartYearKey = "reflectionStartYear";
 inline constexpr const char* kReflectionEndYearKey = "reflectionEndYear";
 
-/// 槽组种类（本事务清扫范围 = 实例键控七集合 + 血炼；生产/长老组
+/// 槽组种类（本事务清扫范围 = 实例键控六集合 + 血炼；生产/长老组
 /// 留 Kotlin——头注释偏差登记；枚举仅列 C++ 可清扫的组）
 enum class SlotGroupKind {
     SpiritMine,
     PatrolTower,
     Residence,
     SpiritField,
-    Warehouse,
     BloodRefining,
     Library,
 };
@@ -96,7 +95,6 @@ inline bool parseSlotGroupKind(const std::string& name, SlotGroupKind& out) {
     if (name == "PATROL_TOWER") { out = SlotGroupKind::PatrolTower; return true; }
     if (name == "RESIDENCE") { out = SlotGroupKind::Residence; return true; }
     if (name == "SPIRIT_FIELD") { out = SlotGroupKind::SpiritField; return true; }
-    if (name == "WAREHOUSE") { out = SlotGroupKind::Warehouse; return true; }
     if (name == "BLOOD_REFINING") { out = SlotGroupKind::BloodRefining; return true; }
     if (name == "LIBRARY") { out = SlotGroupKind::Library; return true; }
     return false;
@@ -168,14 +166,6 @@ inline ClearResidualResult clearResidualTransaction(GameState& state,
                                            return s.buildingInstanceId == instanceId;
                                        }),
                         gd.spiritFieldPlants.end());
-                    break;
-                case SlotGroupKind::Warehouse:
-                    gd.warehouseGarrisons.erase(
-                        std::remove_if(gd.warehouseGarrisons.begin(), gd.warehouseGarrisons.end(),
-                                       [&](const gamecore::state::WarehouseGarrisonSlot& s) {
-                                           return s.buildingInstanceId == instanceId;
-                                       }),
-                        gd.warehouseGarrisons.end());
                     break;
                 case SlotGroupKind::Library:
                     gd.librarySlots.erase(
@@ -304,21 +294,6 @@ inline PlaceSlotsResult placeSlotsTransaction(GameState& state,
                 plant.sectId = params.activeSectId;
                 gd.spiritFieldPlants.push_back(plant);
                 ++out.createdSlots;
-                break;
-            }
-            case SlotGroupKind::Warehouse: {
-                int32_t existing = 0;
-                for (const auto& row : gd.warehouseGarrisons) {
-                    if (row.buildingInstanceId == params.instanceId) ++existing;
-                }
-                for (int32_t offset = 0; offset < perInstance; ++offset) {
-                    gamecore::state::WarehouseGarrisonSlot slot;
-                    slot.buildingInstanceId = params.instanceId;
-                    slot.slotIndex = existing + offset;
-                    slot.sectId = params.activeSectId;
-                    gd.warehouseGarrisons.push_back(slot);
-                    ++out.createdSlots;
-                }
                 break;
             }
             case SlotGroupKind::Library: {

@@ -117,8 +117,7 @@ data class SerializableGameData(
     @ProtoNumber(130) val annualNewDisciples: Int = 0,
     @ProtoNumber(131) val annualDeceasedDisciples: Int = 0,
     @ProtoNumber(132) val annualDesertedDisciples: Int = 0,
-    @ProtoNumber(133) val annualTheftCount: Int = 0,
-    @ProtoNumber(134) val theftJudgementsThisMonth: Int = 0,
+    // reserved 133,134;（annualTheftCount/theftJudgementsThisMonth 字段号已退役，禁止复用）
     @ProtoNumber(135) val annualEquipmentBySource: Map<String, Int> = emptyMap(),
     @ProtoNumber(136) val annualPillBySource: Map<String, Int> = emptyMap(),
     @ProtoNumber(137) val annualHerbBySource: Map<String, Int> = emptyMap(),
@@ -130,7 +129,7 @@ data class SerializableGameData(
     @ProtoNumber(143) val patrolConfig: SerializablePatrolConfig? = null,
     @ProtoNumber(144) val patrolConfigs: List<SerializablePatrolConfig> = emptyList(),
     @ProtoNumber(145) val pendingPatrolBattleResults: List<SerializableBattleResultUIData> = emptyList(),
-    @ProtoNumber(146) val warehouseGarrisons: List<SerializableWarehouseGarrisonSlot> = emptyList(),
+    // reserved 146;（warehouseGarrisons 字段号已退役，禁止复用）
     @ProtoNumber(147) val vassalContracts: List<SerializableVassalContract> = emptyList(),
     @ProtoNumber(148) val mailRecords: List<SerializableMailClaimRecord> = emptyList(),
     @ProtoNumber(149) val sectLevelClaimRecords: List<SerializableSectLevelClaimRecord> = emptyList(),
@@ -175,8 +174,8 @@ data class SerializableDisciple(
     @ProtoNumber(4) val realmLayer: Int,
     @ProtoNumber(5) val cultivation: Double,
     @ProtoNumber(6) val spiritRootType: String,
-    @ProtoNumber(7) val age: Int,
-    @ProtoNumber(8) val lifespan: Int,
+    // reserved 7,8,29,50,76,88;（age/lifespan/soulPower/loyalty/usedExtendLifePillIds/
+    // usedExtendLifePillTypes 字段号已退役，禁止复用）
     @ProtoNumber(9) val isAlive: Boolean,
     @ProtoNumber(10) val gender: String,
     @ProtoNumber(11) val partnerId: String = "",
@@ -201,7 +200,6 @@ data class SerializableDisciple(
     @ProtoNumber(27) val accessoryNurture: SerializableEquipmentNurtureData =
         SerializableEquipmentNurtureData(equipmentId="", rarity=0),
     @ProtoNumber(28) val spiritStones: Int,
-    @ProtoNumber(29) val soulPower: Int,
     @ProtoNumber(30) val storageBagItems: List<SerializableStorageBagItem> = emptyList(),
     @ProtoNumber(31) val storageBagSpiritStones: Long,
     @ProtoNumber(32) val status: String,
@@ -227,7 +225,6 @@ data class SerializableDisciple(
     @ProtoNumber(83) val breakthroughFailCount: Int,
     @ProtoNumber(84) val intelligence: Int,
     @ProtoNumber(85) val charm: Int,
-    @ProtoNumber(50) val loyalty: Int,
     @ProtoNumber(51) val comprehension: Int,
     @ProtoNumber(52) val artifactRefining: Int,
     @ProtoNumber(53) val pillRefining: Int,
@@ -254,10 +251,8 @@ data class SerializableDisciple(
     @ProtoNumber(73) val baseSpeed: Int,
     @ProtoNumber(74) val discipleType: String,
     @ProtoNumber(75) val usedFunctionalPillTypes: List<String> = emptyList(),
-    @ProtoNumber(76) val usedExtendLifePillIds: List<String> = emptyList(),
     // 丹药服用追踪 — 防重复服用（从 DiscipleComponents @Ignore Set 转换）
     @ProtoNumber(87) val usedPermanentPillKeys: List<String> = emptyList(),
-    @ProtoNumber(88) val usedExtendLifePillTypes: List<String> = emptyList(),
     @ProtoNumber(89) val activePillTypes: List<String> = emptyList(),
     @ProtoNumber(77) val hasReviveEffect: Boolean,
     @ProtoNumber(78) val hasClearAllEffect: Boolean,
@@ -360,7 +355,7 @@ data class SerializablePillEffect(
     @ProtoNumber(21) val extendLife: Int = 0,
     @ProtoNumber(22) val intelligenceAdd: Int = 0,
     @ProtoNumber(23) val charmAdd: Int = 0,
-    @ProtoNumber(24) val loyaltyAdd: Int = 0,
+    // reserved 24;（loyaltyAdd 字段号已退役，禁止复用）
     @ProtoNumber(25) val comprehensionAdd: Int = 0,
     @ProtoNumber(26) val artifactRefiningAdd: Int = 0,
     @ProtoNumber(27) val pillRefiningAdd: Int = 0,
@@ -537,7 +532,7 @@ data class SerializableItemEffect(
     @ProtoNumber(20) val critEffectAdd: Double = 0.0,
     @ProtoNumber(21) val intelligenceAdd: Int = 0,
     @ProtoNumber(22) val charmAdd: Int = 0,
-    @ProtoNumber(23) val loyaltyAdd: Int = 0,
+    // reserved 23;（loyaltyAdd 字段号已退役，禁止复用）
     @ProtoNumber(24) val comprehensionAdd: Int = 0,
     @ProtoNumber(25) val artifactRefiningAdd: Int = 0,
     @ProtoNumber(26) val pillRefiningAdd: Int = 0,
@@ -1188,15 +1183,6 @@ data class SerializablePatrolConfig(
     @ProtoPacked @ProtoNumber(1) val targetRealms: List<Int> = emptyList(),
     @ProtoNumber(2) val maxBeastCount: Int = 1,
     @ProtoNumber(3) val requireFullStatus: Boolean = true
-)
-
-@Serializable
-data class SerializableWarehouseGarrisonSlot(
-    @ProtoNumber(1) val buildingInstanceId: String = "",
-    @ProtoNumber(2) val discipleId: String = "",
-    @ProtoNumber(3) val discipleName: String = "",
-    @ProtoNumber(4) val sectId: String = "",
-    @ProtoNumber(5) val slotIndex: Int = 0
 )
 
 @Serializable

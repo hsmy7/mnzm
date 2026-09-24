@@ -112,13 +112,6 @@ TEST_F(GameCoreFixture, SpiritFieldHarvest) {
 
 // ── 弟子动作 ───────────────────────────────────────────────────
 
-TEST_F(GameCoreFixture, DiscipleMaxAge) {
-    const auto r = exec(action::DISCIPLE_MAX_AGE,
-                        {{"lifespan", 100}, {"realmMaxAge", 80}, {"lifespanBonus", 0.5}});
-    ASSERT_EQ(r.at("status"), "success");
-    EXPECT_EQ(r.at("data").at("value").get<int32_t>(), 120);
-}
-
 TEST_F(GameCoreFixture, DiscipleEstimateBreakthroughMonth) {
     const auto r = exec(action::DISCIPLE_ESTIMATE_BREAKTHROUGH_MONTH,
                         {{"remaining", 60.0}, {"rate", 10.0}});

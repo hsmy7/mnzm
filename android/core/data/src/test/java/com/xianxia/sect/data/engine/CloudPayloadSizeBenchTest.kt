@@ -212,8 +212,6 @@ class CloudPayloadSizeBenchTest {
         cultivationCheckpoint = 90.0 + idx,
         cultivationCheckpointGameMonth = idx % 1200,
         spiritRootType = SPIRIT_ROOTS[idx % SPIRIT_ROOTS.size],
-        age = 16 + idx % 200,
-        lifespan = 300,
         isAlive = true,
         gender = if (idx % 2 == 0) "male" else "female",
         portraitRes = "portrait_${idx % 64}",
@@ -226,8 +224,7 @@ class CloudPayloadSizeBenchTest {
         statusData = mapOf("sect" to sectName),
         cultivationSpeedBonus = 0.1,
         cultivationSpeedDuration = 12,
-        discipleType = if (idx % 3 == 0) "inner" else "outer",
-        soulPower = idx % 100
+        discipleType = if (idx % 3 == 0) "inner" else "outer"
     ).copy(
         equipment = EquipmentSet(
             weaponId = "weapon_${idx % 200}",
@@ -240,7 +237,7 @@ class CloudPayloadSizeBenchTest {
             spiritStones = 100 + idx
         ),
         skills = SkillStats(
-            intelligence = idx % 100, charm = idx % 90, loyalty = idx % 100, comprehension = idx % 100,
+            intelligence = idx % 100, charm = idx % 90, comprehension = idx % 100,
             aptitude = idx % 100, alchemyLevel = idx % 9, alchemyPromotionCount = idx % 5, forgeLevel = idx % 7
         ),
         combat = CombatAttributes(
@@ -251,7 +248,6 @@ class CloudPayloadSizeBenchTest {
         usage = UsageTracking(
             recruitedMonth = idx % 600,
             usedFunctionalPillTypes = listOf("pill_atk", "pill_def"),
-            usedExtendLifePillIds = listOf("pill_life_${idx % 5}"),
             hasReviveEffect = idx % 7 == 0
         )
     )

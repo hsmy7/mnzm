@@ -7,9 +7,6 @@
 //    （usecase 编排域——batch-08 登记留 W3 的长老单值槽任命；本头只承
 //     elderSlots 数据写段 + 全槽清理数据段，Gate/checkpoint/状态同步残差
 //     留 Kotlin）
-//  - GameEngineWarehouseOps.assignWarehouseGarrisonAtomic
-//    （仓库驻守 gameData.warehouseGarrisons 写段——与 worldMapSects[]
-//     分舵驻守（batch-13 域）无关）
 //  - GameEngineSpiritRootOps.washSpiritRoot（洗炼灵根：先扣后抽 + sealed
 //     三态语义）
 //  - GameEngineTraitAddOps.rollTraitAdd/confirmTraitAdd（新增 Roll/Confirm
@@ -64,8 +61,7 @@
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/state/disciple_store.h"
 #include "gamecore/state/models.h"
-#include "gamecore/system/disciple_factory.h"    // realmMaxAge
-#include "gamecore/system/disciple_stats.h"      // talent/affix effects（lifespan 同步）
+#include "gamecore/system/disciple_stats.h"      // talent/affix effects
 #include "gamecore/system/settlement_detail.h"   // settle_util::toIntOrNull
 #include "gamecore/system/slot_cleanup.h"        // clearAllSlotsDataOnly
 
@@ -160,7 +156,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     in.residenceSlots = state.gameData.residenceSlots;
     in.activeBloodRefinements = state.gameData.activeBloodRefinements;
     in.patrolSlots = state.gameData.patrolSlots;
-    in.warehouseGarrisons = state.gameData.warehouseGarrisons;
     in.battleTeams = state.gameData.battleTeams;
     in.worldMapSects = state.gameData.worldMapSects;
     in.productionSlots = state.gameData.productionSlots;
@@ -175,7 +170,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     state.gameData.residenceSlots = out.residenceSlots;
     state.gameData.activeBloodRefinements = out.activeBloodRefinements;
     state.gameData.patrolSlots = out.patrolSlots;
-    state.gameData.warehouseGarrisons = out.warehouseGarrisons;
     state.gameData.battleTeams = out.battleTeams;
     state.gameData.worldMapSects = out.worldMapSects;
     state.gameData.productionSlots = out.productionSlots;
@@ -385,17 +379,6 @@ inline std::optional<TraitEntry> pickPositiveWash(
     return randomOf(fallback, rng);
 }
 
-/// 天赋 + 词条 lifespan 效果合计（GameEngineTraitWashOps.lifespanBonusOf 同源：
-/// calculateTalentEffects/calculateAffixEffects 的 "lifespan" 键和，缺失 0.0）
-inline double lifespanBonusOf(const std::vector<std::string>& talentIds,
-                              const std::vector<std::string>& affixIds) {
-    using gamecore::stats::affixEffectsFor;
-    using gamecore::stats::effectValue;
-    using gamecore::stats::talentEffectsFor;
-    return effectValue(talentEffectsFor(talentIds), "lifespan") +
-           effectValue(affixEffectsFor(affixIds), "lifespan");
-}
-
 }  // namespace detail
 
 // ── 结果信封（失败零写入；failure → Kotlin 回退原路径重执行校验链）────────
@@ -418,12 +401,6 @@ struct ElderAppointOutcome {
 struct ElderDismissOutcome {
     TxResult base;
     std::string removedId;
-};
-
-/// 仓库驻守结果：附覆写前旧 occupant（空串 = 无）
-struct WarehouseAssignOutcome {
-    TxResult base;
-    std::string oldOccupantId;
 };
 
 /// 洗炼灵根结果（Kotlin SpiritRootWashResult.Success 字段面）
@@ -526,61 +503,6 @@ inline ElderDismissOutcome elderDismissTx(gamecore::state::GameState& state,
             detail::elderClearedListOf(gd.elderSlots, slotType)) {
         cleared->clear();
     }
-    out.base.ok = true;
-    return out;
-}
-
-// ── 事务 3：仓库驻守分配（GameEngineWarehouseOps.assignWarehouseGarrison
-// Atomic 事务段）────────────────────────────────────────────────────────────
-//
-// 判定序（Kotlin 原序）：弟子存在 → 存活 → 旧 occupant 捕获（覆写前）→
-// 全槽清理（防多槽位）→ 移除同建筑实例条目 + 追加新条目。
-// **原样字符串语义**：清理与写入用 Kotlin 原参 discipleId（校验行解析用
-// canonical——patrol_tx.h 双轨同款口径）。
-inline WarehouseAssignOutcome warehouseGarrisonAssignTx(
-    gamecore::state::GameState& state, const std::string& buildingInstanceId,
-    const std::string& discipleId, const std::string& discipleName,
-    const std::string& sectId) {
-    WarehouseAssignOutcome out;
-    auto& ds = state.disciples;
-    auto& gd = state.gameData;
-
-    // 1. 校验链（Kotlin require 同序：id 整数合法且在弟子集合 + 存活）
-    const auto resolved = detail::resolveDiscipleRow(ds, discipleId);
-    if (!resolved.has_value()) {
-        out.base.errorType = "NotFound";
-        out.base.message = "弟子不存在: " + discipleId;
-        return out;
-    }
-    if (ds.isAlive[resolved->second] == 0) {
-        out.base.errorType = "NotAlive";
-        out.base.message = "弟子已死亡: " + discipleId;
-        return out;
-    }
-    // 2. 旧 occupant 捕获（覆写前——Kotlin 事务内读取防快照竞态同序）
-    for (const auto& garrison : gd.warehouseGarrisons) {
-        if (garrison.buildingInstanceId == buildingInstanceId) {
-            out.oldOccupantId = garrison.discipleId;
-            break;
-        }
-    }
-    // 3. 全槽清理（含原样字符串匹配——clearAllSlotsDataOnly 语义同 Kotlin）
-    detail::clearAllDiscipleSlots(state, discipleId);
-    // 4. 移除同建筑条目 + 追加（filter + append 等价；slotIndex 缺省 0）
-    std::vector<gamecore::state::WarehouseGarrisonSlot> kept;
-    kept.reserve(gd.warehouseGarrisons.size());
-    for (auto& garrison : gd.warehouseGarrisons) {
-        if (garrison.buildingInstanceId != buildingInstanceId) {
-            kept.push_back(std::move(garrison));
-        }
-    }
-    gd.warehouseGarrisons = std::move(kept);
-    gamecore::state::WarehouseGarrisonSlot slot;
-    slot.buildingInstanceId = buildingInstanceId;
-    slot.discipleId = discipleId;
-    slot.discipleName = discipleName;
-    slot.sectId = sectId;
-    gd.warehouseGarrisons.push_back(std::move(slot));
     out.base.ok = true;
     return out;
 }
@@ -748,7 +670,7 @@ inline TraitRollOutcome traitAddRollTx(gamecore::state::GameState& state,
 // ── 事务 6：新增特质确认（GameEngineTraitAddOps.confirmTraitAdd 事务段）───
 //
 // 判定序：存在 → 存活 → 上限 → 合法性（产物可解析 + 不在列表 + template
-// 不重复）→ 追加 + lifespan 同步 + checkpoint + 清 pending。
+// 不重复）→ 追加 + checkpoint + 清 pending。
 // **零抽取**（纯数据写事务——API 不接受 rng 参数）。
 inline TxResult traitAddConfirmTx(gamecore::state::GameState& state,
                                   const std::string& discipleId,
@@ -800,21 +722,8 @@ inline TxResult traitAddConfirmTx(gamecore::state::GameState& state,
         out.message = "该特质已无法新增";
         return out;
     }
-    // lifespan 同步（syncLifespanForTraitChange：新加成差 × 境界基准寿命折算，
-    // toInt 截断；delta==0 跳过；lifespan 下限 1）——旧列表先捕获再追加
-    const std::vector<std::string> oldTalentIds = ds.talentIds[row];
-    const std::vector<std::string> oldAffixIds = ds.affixIds[row];
+    // 追加（currentIds 为 store 列引用，push_back 即落盘）
     currentIds.push_back(newId);
-    const double bonusDiff =
-        detail::lifespanBonusOf(ds.talentIds[row], ds.affixIds[row]) -
-        detail::lifespanBonusOf(oldTalentIds, oldAffixIds);
-    const int32_t delta =
-        static_cast<int32_t>(static_cast<double>(realmMaxAge(ds.realms[row])) *
-                             bonusDiff);
-    if (delta != 0) {
-        const int32_t updated = ds.lifespans[row] + delta;
-        ds.lifespans[row] = updated > 1 ? updated : 1;
-    }
     // checkpoint 重记账（体质/词条影响修炼速率——追加瞬间重新投影基准）
     ds.cultivationCheckpoints[row] = ds.cultivations[row];
     ds.cultivationCheckpointGameMonths[row] = gd.gameYear * 12 + gd.gameMonth;
@@ -973,9 +882,7 @@ inline TxResult spiritRootWashConfirmTx(GameState& state,
 //   1) discipleId.toIntOrNull()（非法 → 拒绝）
 //   2) 事务内三态：不存在 → NOT_FOUND；已死亡 → DEAD；
 //      替换校验失败（isValidSlotWash）→ INVALID
-//   3) 通过：replaceSlot（目标槽位替换）→ syncLifespanForTraitChange
-//      （天赋/词条 lifespan 加成差 × 境界基准寿命折算，toInt 截断，
-//        delta==0 跳过，lifespan 下限 1）→ checkpointDisciple
+//   3) 通过：replaceSlot（目标槽位替换）→ checkpointDisciple
 //
 // isValidSlotWash 逐字等价（GameEngineTraitWashOps.kt:237）：
 //   targetId ∈ currentIds ∧ newId 非空白 ∧ resolveOne(newId) 可解析
@@ -1039,20 +946,9 @@ inline TxResult traitWashConfirmTx(GameState& state,
         templates.insert(entry->tmpl);
     }
 
-    // ── 写段：替换 + lifespan 同步 + checkpoint ─────────────────────
-    const std::vector<std::string> oldTalentIds = ds.talentIds[row];
-    const std::vector<std::string> oldAffixIds = ds.affixIds[row];
+    // ── 写段：替换 + checkpoint ────────────────────────────
     for (std::string& currentId : currentIds) {
         if (currentId == targetId) currentId = newId;  // Kotlin map { if (it == target) new else it }
-    }
-    const double bonusDiff =
-        detail::lifespanBonusOf(ds.talentIds[row], ds.affixIds[row]) -
-        detail::lifespanBonusOf(oldTalentIds, oldAffixIds);
-    const int32_t delta = static_cast<int32_t>(
-        static_cast<double>(realmMaxAge(ds.realms[row])) * bonusDiff);
-    if (delta != 0) {
-        const int32_t updated = ds.lifespans[row] + delta;
-        ds.lifespans[row] = updated > 1 ? updated : 1;
     }
     ds.cultivationCheckpoints[row] = ds.cultivations[row];
     ds.cultivationCheckpointGameMonths[row] = gd.gameYear * 12 + gd.gameMonth;

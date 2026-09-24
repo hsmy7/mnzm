@@ -80,8 +80,6 @@ class CultivationRateEquivalenceTest {
         talentIds: List<String> = emptyList(),
         physiqueIds: List<String> = emptyList(),
         affixIds: List<String> = emptyList(),
-        age: Int = 30,
-        lifespan: Int = 80,
         cultivation: Double = 100.0,
         skills: SkillStats = SkillStats()
     ): Disciple = Disciple(
@@ -91,7 +89,7 @@ class CultivationRateEquivalenceTest {
         cultivationSpeedDuration = cultivationSpeedDuration,
         pillEffects = pillEffects, manualIds = manualIds,
         talentIds = talentIds, physiqueIds = physiqueIds, affixIds = affixIds,
-        age = age, lifespan = lifespan, skills = skills
+        skills = skills
     )
 
     /** 20+ 固定 fixtures：覆盖全部速率乘区组合 */

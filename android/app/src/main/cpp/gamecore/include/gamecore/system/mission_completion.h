@@ -1106,16 +1106,11 @@ inline void applyMissionRewards(
                 state.gameData, reward.spiritStones,
                 gamecore::system::SpiritStoneGrade::LOW, "Quest");
         }
-        // 弟子状态 + 幸存者魂力（Kotlin applyMissionRewards 尾段——id 非数字
-        // 跳过、死亡跳过；survivors 命中 soulPower += 1）
+        // 弟子状态（Kotlin applyMissionRewards 尾段——id 非数字跳过、死亡跳过）
         for (const auto& did : reward.discipleIdsConsumed) {
             const auto row = ds.rowOf(did);
             if (row.has_value() && ds.isAlive[*row] == 1) {
                 ds.statuses[*row] = "IDLE";
-                if (std::find(reward.survivors.begin(), reward.survivors.end(), did) !=
-                    reward.survivors.end()) {
-                    ds.soulPowers[*row] = ds.soulPowers[*row] + 1;
-                }
             }
         }
     }

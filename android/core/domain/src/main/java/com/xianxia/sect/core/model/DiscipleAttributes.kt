@@ -11,7 +11,6 @@ data class DiscipleAttributes(
 
     var intelligence: Int = 50,
     var charm: Int = 50,
-    var loyalty: Int = 50,
     var comprehension: Int = 50,
     var artifactRefining: Int = 50,
     var pillRefining: Int = 50,
@@ -33,7 +32,6 @@ data class DiscipleAttributes(
                 discipleId = disciple.id,
                 intelligence = disciple.skills.intelligence,
                 charm = disciple.skills.charm,
-                loyalty = disciple.skills.loyalty,
                 comprehension = disciple.skills.comprehension,
                 artifactRefining = disciple.skills.artifactRefining,
                 pillRefining = disciple.skills.pillRefining,

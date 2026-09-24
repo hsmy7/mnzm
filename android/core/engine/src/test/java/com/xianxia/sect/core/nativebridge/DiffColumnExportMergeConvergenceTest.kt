@@ -170,7 +170,6 @@ class DiffColumnExportMergeConvergenceTest {
             realm = realm,
             realmLayer = 1,
             cultivation = cultivation,
-            soulPower = 100,
             status = DiscipleStatus.IDLE,
         ).apply {
             combat = CombatAttributes(currentHp = 500, currentMp = 300)

@@ -85,17 +85,13 @@ class DiscipleServiceCrudTest {
         id: Int,
         name: String = "弟子$id",
         realm: Int = 9,
-        realmLayer: Int = 3,
-        age: Int = 20,
-        lifespan: Int = 80
+        realmLayer: Int = 3
     ) {
         val disciple = Disciple(
             id = id.toString(),
             name = name,
             realm = realm,
-            realmLayer = realmLayer,
-            age = age,
-            lifespan = lifespan
+            realmLayer = realmLayer
         )
         tables.insert(disciple)
         tables.isAlive[id] = 1

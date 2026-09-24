@@ -74,7 +74,7 @@ class GameViewDiscipleProjectionTest {
         // 稀疏行 = 只有三键的旧 JSON 臂形状（生产 C++ 恒 emit-always，此形状即协议漂移）
         val sparse = DiscipleRow.newBuilder().setId("1").setName("稀疏").setIsAlive(true).build()
         val missing = GameViewDiscipleRows.missingRequiredFields(sparse)
-        assertTrue("稀疏行应报出缺失标量字段（仅带 id/name/isAlive）：$missing", missing.size > 80)
+        assertTrue("稀疏行应报出缺失标量字段（仅带 id/name/isAlive）：$missing", missing.size > 70)
         val error = assertThrows(IllegalArgumentException::class.java) {
             GameViewDiscipleRows.toDisciple(sparse, json)
         }
@@ -85,7 +85,6 @@ class GameViewDiscipleProjectionTest {
         // 对照面：同一行在第一波形态下静默产出默认值域对象（正是红线要拦的形状）
         val lenient = jsonViaTree(sparse)
         assertEquals("JSON 臂静默补默认（回归对照，非期望行为）", 9, lenient.realm)
-        assertEquals("JSON 臂静默补默认（回归对照，非期望行为）", 16, lenient.age)
     }
 
     @Test

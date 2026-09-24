@@ -78,13 +78,13 @@ class PartnerSystem @Inject constructor(
         return partnerIds.getOrNull(p.femaleId.toIntOrNull() ?: return false) == null
     }
 
-    /** 配对资格判定：成年未婚未禁灵根 */
+    /** 配对资格判定：未婚未禁灵根 */
     private fun isPairingEligible(
         disciple: Disciple,
         bannedRootCounts: Set<Int>,
         gender: String
     ): Boolean {
-        return disciple.isAlive && disciple.age >= 18 && disciple.social.partnerId == null &&
+        return disciple.isAlive && disciple.social.partnerId == null &&
             disciple.gender == gender &&
             !bannedRootCounts.contains(disciple.spiritRootType.split(",").size)
     }

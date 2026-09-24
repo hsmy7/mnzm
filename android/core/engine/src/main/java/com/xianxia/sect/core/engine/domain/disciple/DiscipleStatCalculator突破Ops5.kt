@@ -81,10 +81,6 @@ fun DiscipleStatCalculator.getBreakthroughChance(
     return calculateBreakthroughChance(zones)
 }
 
-fun DiscipleStatCalculator.getSoulPowerBreakthroughBonus(soulPower: Int): Double {
-    return ((soulPower / SOUL_POWER_DIVISOR).coerceAtMost(SOUL_POWER_MAX_STEPS)) / 100.0
-}
-
 fun DiscipleStatCalculator.getBreakthroughBonusDetail(
     aggregate: DiscipleAggregate,
     innerElderComprehension: Int = 0,
@@ -96,7 +92,7 @@ fun DiscipleStatCalculator.getBreakthroughBonusDetail(
 ): BreakthroughBonusDetail {
     if (aggregate.realm < 0) return BreakthroughBonusDetail(
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        0.0, 0.0, 0.0, 0.0
     )
     val zones = buildBreakthroughZones(
         aggregate, innerElderComprehension, outerElderComprehension,
@@ -109,13 +105,11 @@ fun DiscipleStatCalculator.getBreakthroughBonusDetail(
         outerElderBonus = comprehensionBreakthroughBonus(outerElderComprehension),
         // 旧存档弟子可能有 breakthroughChance 天赋，仅供显示，不参与 total 计算
         talentBonus = getTalentEffects(aggregate)["breakthroughChance"] ?: 0.0,
-        soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower),
         pillBonus = pillBonus,
         adBonus = adBonus,
         masterDiscipleBonus = masterDiscipleBonus,
         selfComprehensionBonus = comprehensionBreakthroughBonus(aggregate.getBaseStats().comprehension),
         griefPenalty = griefBreakthroughPenalty,
-        lifespanPenalty = calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan),
         total = total
     )
 }

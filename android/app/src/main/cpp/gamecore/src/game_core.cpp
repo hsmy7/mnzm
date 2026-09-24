@@ -168,7 +168,7 @@ bool GameCore::initialize(const GameCoreConfig& config) {
         harvestBreakthroughEvents();
     };
     // 月变结算钩子——八步事务编排（政策/月效/七系统
-    // 扇出/血炼/排班忠诚/月衰减/月度事件），RNG 消耗 EXPLORATION（妖兽移动）
+    // 扇出/血炼/排班/月衰减/月度事件），RNG 消耗 EXPLORATION（妖兽移动）
     // 与 SYSTEM（收获 roll/伴侣配对），抽取顺序与 Kotlin processMonthYearChange
     // 的 monthChanged 分支逐位一致（未下沉扇出见 month_settlement.h 文件头）
     settlement_.onMonthChange = [this](state::GameState& s, state::GameData&) {
@@ -189,7 +189,7 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     if (config.authoritativeTickMode) {
         // AUTHORITATIVE 模式——core 模式每旬
         // 走完整七步结算（runPhaseSettlementCore：0 自动装备 → 1-5 核心
-        // 批次 → 6 丹药+偷盗钩子 → 7 突破+亲属赠送；Kotlin executeResidual
+        // 批次 → 6 丹药 → 7 突破+亲属赠送；Kotlin executeResidual
         // 生产路径已删除）。
         // 月/年边界仍由 Kotlin 按 settleOnePhase 标志编排（未下沉扇出）。
         // 核心批次经 ECS System 调度（PhaseCoreBatchSystem）+
@@ -262,17 +262,14 @@ void GameCore::markMonthYearBoundaryColumns() {
     // sect_defense_battle/recruit_settlement 俘虏装备与月度衰减/晋升/购买/
     // 任务/政策/防守战/死亡链——宁多标不漏标；行序 = 店行序）
     static constexpr state::DiscipleColumn kBoundaryColumns[] = {
-        state::DiscipleColumn::Loyalty,
         state::DiscipleColumn::Morality,
         state::DiscipleColumn::PartnerId,
         state::DiscipleColumn::MasterId,
         state::DiscipleColumn::Status,
         state::DiscipleColumn::StatusData,
         state::DiscipleColumn::GriefEndYear,
-        state::DiscipleColumn::Age,
         state::DiscipleColumn::RealmLayer,
         state::DiscipleColumn::IsAlive,
-        state::DiscipleColumn::SoulPower,
         state::DiscipleColumn::CurrentHp,
         state::DiscipleColumn::CurrentMp,
         state::DiscipleColumn::ManualIds,
@@ -358,8 +355,7 @@ std::string GameCore::settleMonth() {
     }
     for (const auto& log : result.purchaseLogs) {
         nlohmann::json detail = {{"discipleId", log.discipleId},
-                                 {"itemName", log.itemName},
-                                 {"age", log.age}};
+                                 {"itemName", log.itemName}};
         queueViewEvent(state::ViewEventType::kPurchase, detail.dump());
     }
     if (result.secretRealmClose.has_value() && result.secretRealmClose.value().closed) {
@@ -389,8 +385,7 @@ std::string GameCore::settleMonth() {
     nlohmann::json logs = nlohmann::json::array();
     for (const auto& log : result.purchaseLogs) {
         logs.push_back({{"discipleId", log.discipleId},
-                        {"itemName", log.itemName},
-                        {"age", log.age}});
+                        {"itemName", log.itemName}});
     }
     env["purchaseLogs"] = std::move(logs);
     // 子事件 6b 征伐环平台效应草稿：玩家占领宗门被夺回 → 建筑没收 sectId 集
@@ -427,7 +422,6 @@ std::string GameCore::settleYear() {
         nlohmann::json detail = {{"discipleId", d.discipleId},
                                  {"name", d.name},
                                  {"surname", d.surname},
-                                 {"age", d.age},
                                  {"realm", d.realm},
                                  {"realmLayer", d.realmLayer},
                                  {"deathYear", d.deathYear},
@@ -440,8 +434,7 @@ std::string GameCore::settleYear() {
         for (const auto& b : draft.bereavements) {
             bereavements.push_back({{"grievingId", b.grievingId},
                                     {"relationship", b.relationship},
-                                    {"deceasedName", b.deceasedName},
-                                    {"grievingAge", b.grievingAge}});
+                                    {"deceasedName", b.deceasedName}});
         }
         nlohmann::json detail;
         detail["bereavements"] = std::move(bereavements);
@@ -457,7 +450,6 @@ std::string GameCore::settleYear() {
         nlohmann::json j = {{"discipleId", d.discipleId},
                             {"name", d.name},
                             {"surname", d.surname},
-                            {"age", d.age},
                             {"realm", d.realm},
                             {"realmLayer", d.realmLayer},
                             {"deathYear", d.deathYear},
@@ -476,8 +468,7 @@ std::string GameCore::settleYear() {
     for (const auto& b : draft.bereavements) {
         bereavements.push_back({{"grievingId", b.grievingId},
                                 {"relationship", b.relationship},
-                                {"deceasedName", b.deceasedName},
-                                {"grievingAge", b.grievingAge}});
+                                {"deceasedName", b.deceasedName}});
     }
     env["bereavements"] = std::move(bereavements);
     // MR1-P1.5/P1.3：年结边界账本 cap + trim 水位消费（同 settleOnePhase）
@@ -820,7 +811,7 @@ void GameCore::syncRngStates() {
 std::string GameCore::manualRecruitFromList(const std::string& discipleId) {
     noteNonSettlementMutation();   // R2/B09：非结算写入路径锁存回退全量导出
     if (!initialized_) {
-        return R"({"ok":false,"newId":"","age":0,"name":"","reason":"UNKNOWN"})";
+        return R"({"ok":false,"newId":"","name":"","reason":"UNKNOWN"})";
     }
     try {
         const auto result = system::recruit_settle::manualRecruitFromList(
@@ -828,14 +819,13 @@ std::string GameCore::manualRecruitFromList(const std::string& discipleId) {
         nlohmann::json j;
         j["ok"] = result.reason == system::recruit_settle::ManualRecruitReason::kSuccess;
         j["newId"] = result.newId;
-        j["age"] = result.age;
         j["name"] = result.name;
         j["reason"] = system::recruit_settle::manualRecruitReasonName(result.reason);
         return j.dump();
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
                      std::string("manualRecruitFromList failed: ") + e.what());
-        return R"({"ok":false,"newId":"","age":0,"name":"","reason":"UNKNOWN"})";
+        return R"({"ok":false,"newId":"","name":"","reason":"UNKNOWN"})";
     }
 }
 

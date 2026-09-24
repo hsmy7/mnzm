@@ -21,17 +21,15 @@ data class DiscipleCore(
     var isAlive: Boolean = true,
     var status: String = DiscipleStatus.IDLE.name,
     var discipleType: String = "outer",
-    var age: Int = 16,
-    var lifespan: Int = 80,
     var gender: String = "male",
     var portraitRes: String = "",
     var spiritRootType: String = "metal",
     var recruitedMonth: Int = 0,
     var updatedAt: Long = System.currentTimeMillis()
 ) {
-    val canCultivate: Boolean get() = age >= 5
+    val canCultivate: Boolean get() = realmLayer != 0
     val realmName: String get() {
-        if (age < 5 || realmLayer == 0) return "无境界"
+        if (realmLayer == 0) return "无境界"
         if (realm == 0) return GameConfig.Realm.getName(realm)
         return "${GameConfig.Realm.getName(realm)}${realmLayer}层"
     }
@@ -63,8 +61,6 @@ data class DiscipleCore(
                 isAlive = disciple.isAlive,
                 status = disciple.status.name,
                 discipleType = disciple.discipleType,
-                age = disciple.age,
-                lifespan = disciple.lifespan,
                 gender = disciple.gender,
                 portraitRes = disciple.portraitRes,
                 spiritRootType = disciple.spiritRootType,

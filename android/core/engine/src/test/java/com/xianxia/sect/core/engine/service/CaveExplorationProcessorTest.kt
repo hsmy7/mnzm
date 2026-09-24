@@ -259,10 +259,10 @@ class CaveExplorationProcessorTest {
     }
 
     @Test
-    fun `processSectDisciplesAging - AI 宗门弟子老化结果写入 buffer`() {
+    fun `processSectDisciplesAging - AI 宗门弟子列表原样写回`() {
         val state = createState(
             aiSectDisciples = mapOf(
-                "ai1" to listOf(makeDisciple(id = "ai_d1", realm = 9).copy(age = 30))
+                "ai1" to listOf(makeDisciple(id = "ai_d1", realm = 9))
             ),
             worldMapSects = listOf(
                 WorldSect(id = "player", isPlayerSect = true),
@@ -272,7 +272,7 @@ class CaveExplorationProcessorTest {
         processor.processSectDisciplesAging(5, state)
         val aged = state.gameData.aiSectDisciples["ai1"]
         assertEquals(1, aged?.size)
-        assertEquals(31, aged?.singleOrNull()?.age)
+        assertEquals("ai_d1", aged?.singleOrNull()?.id)
     }
 
     // ── 辅助方法 ──

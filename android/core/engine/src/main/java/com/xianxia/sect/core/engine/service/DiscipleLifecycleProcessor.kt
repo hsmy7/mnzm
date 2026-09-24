@@ -11,7 +11,6 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
-import com.xianxia.sect.core.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -45,7 +44,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
     private val productionCoordinator: ProductionCoordinator,
     private val eventBus: EventBusPort,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
-    private val lawEnforcementProcessor: javax.inject.Provider<LawEnforcementProcessor>,
     private val discipleStatusService: DiscipleStatusService,
     private val ioDispatcher: IoDispatcher,
     private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
@@ -65,7 +63,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
         private const val TAG = "DiscipleLifecycle"
         private const val CULL_DEAD_AFTER_YEARS = 1
         private const val REFLECTION_RELEASE_MORALITY_BONUS = 5
-        private const val REFLECTION_RELEASE_LOYALTY_BONUS = 5
     }
 
     // ── 弟子老化/死亡 ──────────────────────────────────────────────────
@@ -82,182 +79,9 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
+    @Suppress("UnusedParameter") // currentYear: 语义时点形参：标注年变触发编排的可读契约，函数体当前不消费
     fun processDiscipleAging(currentYear: Int) {
-        // 从组件表读取，不依赖 Flow（防止 Flow 缺失数据被 replaceAll 永久覆盖）
-        val currentList = stateStore.discipleTables.assembleAll()
-        val (deadThisYear, deadDiscipleData) = computeAgedDeathData(currentList)
-
-        if (deadThisYear.isEmpty()) {
-            // 无死亡，仅更新活弟子字段（单事务）
-            stateStore.update {
-                applyAliveUpdates(currentList, emptySet())
-            }
-            discipleStatusService.syncAllDiscipleStatuses()
-            return
-        }
-
-        // 第二阶段+第三阶段合并：单事务内完成死亡处理+活弟子字段更新
-        // 消除原两阶段间的 TOCTOU 窗口（handleDiscipleDeath 的事务与 Phase3 事务之间）
-        stateStore.update {
-            for ((id, agedDisciple) in deadDiscipleData) {
-                applyAgedDeath(currentList, agedDisciple, currentYear)
-            }
-            // ── 活弟子字段更新 ──
-            applyAliveUpdates(currentList, deadThisYear)
-        }
-
         discipleStatusService.syncAllDiscipleStatuses()
-
-        // ── 双存储同步清理 + 事件分发（非状态事务；注意：本方法在年变 T1
-        //（processYearlyEvents 外层 update）内被调用，此处实际仍持 transactionLock，
-        // 仅在 T1 外层的"内层事务"之外——DAO 批量清理毫秒级，DeathEvent 无消费方，
-        // 实害为零；非 1 月路径（单独调用）则为真事务外）──
-        // 镜像清理已在 applyAgedDeath 事务内完成（幂等）；此处仅清 Room 生产槽 Repository
-        //（只清锻造槽会使炼丹/灵田槽残留，死亡弟子继续显示在
-        // 生产界面——双槽分叉根因）。
-        // L3 批处理：N 次 runBlocking + N×M 次 dao.update → 1 次 runBlocking + 1 次
-        // dao.updateAll。保留同步语义（TOCTOU/竞态为刻意设计——必须立即生效，注释见
-        // clearDiscipleFromAllSlots）。
-        kotlinx.coroutines.runBlocking(ioDispatcher.dispatcher) {
-            productionCoordinator.clearDisciplesFromRepository(
-                deadDiscipleData.keys.map { it.toString() }
-            )
-        }
-        for ((id, agedDisciple) in deadDiscipleData) {
-            eventBus.emitSync(DeathEvent(
-                discipleId = agedDisciple.id,
-                discipleName = agedDisciple.name,
-                cause = "age",
-                deathYear = currentYear
-            ))
-        }
-    }
-
-    /** 老化判断结果：寿元耗尽弟子（id → 老化后快照） */
-    private data class AgedDeathData(
-        val deadThisYear: Set<Int>,
-        val deadDiscipleData: Map<Int, Disciple>
-    )
-
-    /** 第一阶段：判断生死、标记回生（5 岁境界层回正） */
-    private fun computeAgedDeathData(currentList: List<Disciple>): AgedDeathData {
-        val deadThisYear = mutableSetOf<Int>()
-        val deadDiscipleData = mutableMapOf<Int, Disciple>() // id → aged disciple snapshot
-
-        for (disciple in currentList) {
-            if (!disciple.isAlive) continue
-
-            var agedDisciple = disciple.copy(age = disciple.age + 1)
-
-            if (agedDisciple.age == 5 && agedDisciple.realmLayer == 0) {
-                agedDisciple = agedDisciple.copy(realmLayer = 1, status = DiscipleStatus.IDLE)
-            }
-
-            val maxAge = agedDisciple.computeMaxAge()
-            // 到寿上限登记死亡；id 非数字（损坏行）同样跳过登记
-            val intId = disciple.id.toIntOrNull()
-            if (agedDisciple.age >= maxAge && intId != null) {
-                deadThisYear.add(intId)
-                deadDiscipleData[intId] = agedDisciple
-            }
-        }
-        return AgedDeathData(deadThisYear, deadDiscipleData)
-    }
-
-    /**
-     * 单死者老化死亡事务处理：槽位清理、哀悼传播、伴侣/师徒解绑、
-     * 血炼清理、装备/功法清除、死亡记录。
-     * 在调用方 stateStore.update 事务内执行。
-     */
-    private fun MutableGameState.applyAgedDeath(
-        currentList: List<Disciple>,
-        agedDisciple: Disciple,
-        currentYear: Int
-    ) {
-        val id = agedDisciple.id.toIntOrNull() ?: return
-        // ── 槽位清理（事务内版本，替换 handleDiscipleDeath 的独立 update）──
-        // state 级：Gate + GameData 槽位一次清完（世界地图探索队已下线移除）
-        discipleSlotCleanup.clearAllSlotsState(this, agedDisciple.id, includeResidence = true)
-
-        // ── 哀悼期批量写（列直写）──
-        // computeBereavementRecords 必须在写列之前列读（事件判定需要传播前的 griefEndYears 列值）
-        val griefMap = DiscipleStatCalculator.computeGriefEndYearMap(
-            currentList, listOf(agedDisciple), currentYear
-        )
-        /** 丧亲事件草稿（lifeEvents 瞬态列写入） */
-        val bereavements = computeBereavementRecords(griefMap, agedDisciple)
-        for ((grievingId, endYear) in griefMap) {
-            discipleTables.griefEndYears[grievingId] = endYear
-        }
-
-        // ── 伴侣/师徒解绑（列直写，替代 griefUpdated 列表改动）──
-        unbindPartnerColumns(agedDisciple)
-        unbindMasterColumns(agedDisciple.id)
-
-        // ── 丧亲生命事件（列直读判定，替代 originalList.find O(D)/人）──
-        bereavements.forEach { (grievingId, record) ->
-            val event = buildBereavementEvent(record, agedDisciple)
-            discipleTables.lifeEvents[grievingId] =
-                discipleTables.lifeEvents.getOrDefault(grievingId, emptyList()) + event
-        }
-
-        // ── 血炼清理（审计 P2-7/P3-4：统一收口——原漏 PctTotals 与
-        // manualProficiencies 两键）──
-        eraseDiscipleDerivedMaps(agedDisciple.id)
-
-        // ── D-03：袋物品物化回仓库（玩家保留，溢出自动转邮件）──
-        val agedBagItems = agedDisciple.equipment.storageBagItems
-        if (agedBagItems.isNotEmpty()) {
-            inventorySystem.withTrackingSource("disciple_death") {
-                inventorySystem.materializeBagItemsToWarehouse(agedBagItems)
-            }
-        }
-
-        // ── 装备/功法清除 ──
-        val deleteEquipIds = mutableSetOf<String>()
-        agedDisciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
-        agedDisciple.equipment.armorId?.let { deleteEquipIds.add(it) }
-        agedDisciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
-        agedDisciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
-        val deleteManualIds = agedDisciple.manualIds.toSet()
-
-        equipmentInstances = equipmentInstances.filter { it.id !in deleteEquipIds }
-        manualInstances = manualInstances.filter { it.id !in deleteManualIds }
-
-        // 审计 P2-4：DeathRecord 已删除（零消费者纯开销）——死亡信息由
-        // isAlive/status/deathYears 列承载
-        discipleTables.remove(id)
-        // remove 会清空 deathYears，重新写入以保留记录
-        discipleTables.deathYears[id] = currentYear
-
-        recordGameEvent(
-            GameEventCategory.SECT, GameEventType.DEATH,
-            "${agedDisciple.name}陨落（寿元耗尽）",
-            agedDisciple.id, agedDisciple.name
-        )
-        // 年报死亡计数：本路径绕过 DiscipleDeathHandler.markDead（自定义
-        // remove + deathYears 重写），计数保留在本地；
-        // 勿迁入 markDead——洞窟预标记路径依赖其无条件计数，迁入会破坏覆盖
-        gameData = gameData.copy(
-            annualDeceasedDisciples = gameData.annualDeceasedDisciples + 1
-        )
-    }
-
-    /** 活弟子老化字段更新（年龄 +1、5 岁境界层回正），跳过死亡弟子 */
-    private fun MutableGameState.applyAliveUpdates(
-        currentList: List<Disciple>,
-        deadThisYear: Set<Int>
-    ) {
-        for (disciple in currentList) {
-            // id 非数字/本年死亡/已死亡弟子跳过
-            val id = disciple.id.toIntOrNull()
-            if (id == null || id in deadThisYear || !disciple.isAlive) continue
-            val agedAge = disciple.age + 1
-            discipleTables.ages[id] = agedAge
-            if (agedAge == 5 && disciple.realmLayer == 0) {
-                discipleTables.realmLayers[id] = 1
-            }
-        }
     }
 
     /**
@@ -280,7 +104,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
             return
         }
 
-        // 寿元等非战斗路径仍走完整死亡链（G02 收口前保留）
+        // 非战斗路径完整死亡链（旧档/存量路径）
         clearDiscipleFromAllSlots(disciple.id)
 
         // 从组件表读取，不依赖 Flow（同 processDiscipleAging 修复模式，防止 Flow 缺失数据被 replaceAll 永久覆盖）
@@ -323,8 +147,9 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 discipleTables.lifeEvents[grievingId] =
                     discipleTables.lifeEvents.getOrDefault(grievingId, emptyList()) + event
             }
-            // 寿元死亡仍写死亡三元组（非战斗）
-            discipleTables.markDead(id, currentYear, cause = "age")
+            // 非战斗死亡写入死亡三元组（存活标记 / DEAD 状态 / 死亡年份——同步原子，
+            // 派生推导（deriveDiscipleStatus）与列投影在下一次 sync 前即可见死）
+            discipleTables.markDead(id, currentYear)
             discipleTables.isAlive[id] = 0
             discipleTables.statuses[id] = DiscipleStatus.DEAD
             discipleTables.deathYears[id] = currentYear
@@ -338,7 +163,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
             manualInstances = manualInstances.filter { it.id !in deleteManualIds }
             recordGameEvent(
                 GameEventCategory.SECT, GameEventType.DEATH,
-                "${disciple.name}陨落（寿元耗尽）",
+                "${disciple.name}陨落",
                 disciple.id, disciple.name
             )
         }
@@ -346,7 +171,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         eventBus.emitSync(DeathEvent(
             discipleId = disciple.id,
             discipleName = disciple.name,
-            cause = "age",
+            cause = "unknown",
             deathYear = currentYear
         ))
     }
@@ -365,8 +190,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     // ── 列直写辅助 ──
 
-    /** 丧亲事件记录：关系文本 + 事件年龄（列直读判定结果） */
-    private data class BereavementRecord(val relationship: String, val age: Int)
+    /** 丧亲事件记录：关系文本（列直读判定结果） */
+    private data class BereavementRecord(val relationship: String)
 
     /**
      * 列直读判定丧亲事件（O(D) 列访问）：
@@ -392,13 +217,13 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 discipleTables.parentId2s.getOrNull(grievingId) == deadId -> "父/母"
                 else -> "亲属"
             }
-            records[grievingId] = BereavementRecord(relationship, discipleTables.ages[grievingId])
+            records[grievingId] = BereavementRecord(relationship)
         }
         return records
     }
 
     private fun buildBereavementEvent(record: BereavementRecord, deceased: Disciple): String =
-        "${record.age}岁：因${record.relationship}${deceased.name}离世陷入悲痛，修炼速度降低50%"
+        "因${record.relationship}${deceased.name}离世陷入悲痛，修炼速度降低50%"
 
     /** 道侣解绑（列直写）：仅清空死者侧记录指向的伴侣行 */
     private fun MutableGameState.unbindPartnerColumns(deceased: Disciple) {
@@ -468,9 +293,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
                     statusData = disciple.statusData - "reflectionStartYear" - "reflectionEndYear",
                     skills = disciple.skills.copy(
                         morality = (disciple.skills.morality + REFLECTION_RELEASE_MORALITY_BONUS)
-                            .coerceAtMost(GameConfig.Disciple.SKILL_MAX),
-                        loyalty = (disciple.skills.loyalty + REFLECTION_RELEASE_LOYALTY_BONUS)
-                            .coerceAtMost(GameConfig.Disciple.MAX_LOYALTY)
+                            .coerceAtMost(GameConfig.Disciple.SKILL_MAX)
                     )
                 )
             }
@@ -483,11 +306,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 discipleTables.statuses[id] = d.status
                 discipleTables.statusData[id] = d.statusData
                 discipleTables.moralities[id] = d.skills.morality
-                discipleTables.loyalties[id] = d.skills.loyalty
-                // 道德降低后即时触发偷盗判定（事务内版本）
-                if (d.skills.morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
-                    lawEnforcementProcessor.get().processSingleDiscipleTheft(id, this)
-                }
             }
         }
     }

@@ -159,7 +159,6 @@ struct ItemEffect {
     double critEffectAdd = 0.0;
     int32_t intelligenceAdd = 0;
     int32_t charmAdd = 0;
-    int32_t loyaltyAdd = 0;
     int32_t comprehensionAdd = 0;
     int32_t artifactRefiningAdd = 0;
     int32_t pillRefiningAdd = 0;
@@ -221,7 +220,6 @@ struct PillEffect {
     int32_t extendLife = 0;
     int32_t intelligenceAdd = 0;
     int32_t charmAdd = 0;
-    int32_t loyaltyAdd = 0;
     int32_t comprehensionAdd = 0;
     int32_t artifactRefiningAdd = 0;
     int32_t pillRefiningAdd = 0;
@@ -307,8 +305,6 @@ struct Disciple {
     double cultivationCheckpoint = 0.0;
     int32_t cultivationCheckpointGameMonth = 0;
     std::string spiritRootType = "metal";
-    int32_t age = 16;
-    int32_t lifespan = 80;
     bool isAlive = true;
     /// 死亡年份（AI 尸体新陈代谢的保留窗口基准）。
     /// 旧档缺省 0 = 导入时补「导入年」——json_codec 宽松缺省兼容，
@@ -328,7 +324,6 @@ struct Disciple {
     double cultivationSpeedBonus = 0.0;
     int32_t cultivationSpeedDuration = 0;
     std::string discipleType = "outer";
-    int32_t soulPower = 0;
     int32_t cultivationCompletionMonth = 0;
     int32_t cultivationCompletionPhase = 1;
     int32_t manualCompletionMonth = 0;
@@ -400,7 +395,6 @@ struct Disciple {
     // ── SkillStats（@Embedded 平铺） ──
     int32_t intelligence = 50;
     int32_t charm = 50;
-    int32_t loyalty = 50;
     int32_t comprehension = 50;
     int32_t artifactRefining = 50;
     int32_t pillRefining = 50;            // 炼丹技能（SkillStats.pillRefining）
@@ -418,9 +412,7 @@ struct Disciple {
 
     // ── UsageTracking（@Embedded 平铺） ──
     std::vector<std::string> usedPermanentPillKeys;    // "tier#field" 去重 key
-    std::vector<std::string> usedExtendLifePillTypes;  // 延寿丹按 pillType 去重
     std::vector<std::string> usedFunctionalPillTypes;  // 旧字段，兼容保留
-    std::vector<std::string> usedExtendLifePillIds;    // 旧字段，兼容保留
     int32_t recruitedMonth = 0;
     bool hasReviveEffect = false;
     bool hasClearAllEffect = false;
@@ -470,15 +462,6 @@ struct BattleTeam {
     bool isOccupying = false;
     std::string occupiedSectId;
     bool isReturning = false;
-};
-
-/// WarehouseGarrisonSlot（仓库驻守槽位；Kotlin WarehouseGarrisonSlot）
-struct WarehouseGarrisonSlot {
-    std::string buildingInstanceId;
-    std::string discipleId;
-    std::string discipleName;
-    std::string sectId;
-    int32_t slotIndex = 0;
 };
 
 /// CaveExplorationTeam（洞府探索队；Kotlin CaveExplorationTeam；
@@ -1391,8 +1374,6 @@ struct GameData {
     int32_t annualNewDisciples = 0;
     int32_t annualDeceasedDisciples = 0;
     int32_t annualDesertedDisciples = 0;
-    int32_t annualTheftCount = 0;
-    int32_t theftJudgementsThisMonth = 0;
     std::map<std::string, int32_t> annualEquipmentBySource;
     std::map<std::string, int32_t> annualPillBySource;
     std::map<std::string, int32_t> annualHerbBySource;
@@ -1445,7 +1426,6 @@ struct GameData {
     std::vector<GameEventRecord> gameEventRecords;     // 消息栏事件（突破记录）
     // ── 槽位清理补充模型（宽松 from_json 默认空，旧档兼容） ──
     std::vector<BattleTeam> battleTeams;
-    std::vector<WarehouseGarrisonSlot> warehouseGarrisons;
     std::vector<CaveExplorationTeam> caveExplorationTeams;
     // ── S5：进行中任务升级为完整 ActiveMission（任务完成结算下沉；
     //     曾为 ActiveMissionLite 精简协议——op 参数仍用 Lite） ──

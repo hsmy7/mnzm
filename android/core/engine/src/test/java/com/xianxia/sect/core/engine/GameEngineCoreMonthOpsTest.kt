@@ -16,7 +16,7 @@ import org.junit.Test
  * - 缺键/非法 JSON → 宽松默认（空列表 + null 草稿），不抛异常（旧 .so 兼容）
  * - disabledPolicies 解析为政策名列表（事务外 checkpointAllProduction 决策）
  * - secretRealmClose.closed=true 才产生草稿（memberIds + backpack 快照）
- * - purchaseLogs 逐条解析（discipleId/itemName/age）
+ * - purchaseLogs 逐条解析（discipleId/itemName）
  */
 class GameEngineCoreMonthOpsTest {
 
@@ -92,17 +92,15 @@ class GameEngineCoreMonthOpsTest {
     fun `parse envelope - purchaseLogs extracted in order`() {
         val env = parseMonthSettlementEnvelope(
             """{"purchaseLogs":[
-                {"discipleId":"11","itemName":"聚气丹","age":23},
-                {"discipleId":"12","itemName":"青锋剑","age":31}
+                {"discipleId":"11","itemName":"聚气丹"},
+                {"discipleId":"12","itemName":"青锋剑"}
               ]}"""
         )
         assertEquals(2, env.purchaseLogs.size)
         assertEquals("11", env.purchaseLogs[0].discipleId)
         assertEquals("聚气丹", env.purchaseLogs[0].itemName)
-        assertEquals(23, env.purchaseLogs[0].age)
         assertEquals("12", env.purchaseLogs[1].discipleId)
         assertEquals("青锋剑", env.purchaseLogs[1].itemName)
-        assertEquals(31, env.purchaseLogs[1].age)
     }
 
     @Test
@@ -127,7 +125,7 @@ class GameEngineCoreMonthOpsTest {
             """{
               "policyCosts":{"disabledPolicies":["relaxedMgmt"]},
               "secretRealmClose":{"closed":true,"memberIds":["7"],"backpack":{}},
-              "purchaseLogs":[{"discipleId":"9","itemName":"回元丹","age":40}]
+              "purchaseLogs":[{"discipleId":"9","itemName":"回元丹"}]
             }"""
         )
         assertEquals(listOf("relaxedMgmt"), env.disabledPolicies)

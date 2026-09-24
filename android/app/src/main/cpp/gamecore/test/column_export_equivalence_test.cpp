@@ -111,8 +111,6 @@ protected:
         d.cultivation = 100.0 + seed;
         d.isAlive = true;
         d.spiritRootType = "metal";
-        d.age = 16 + seed % 40;
-        d.lifespan = 80 + seed % 40;
         d.gender = seed % 2 == 0 ? "male" : "female";
         d.discipleType = "outer";
         d.status = "IDLE";

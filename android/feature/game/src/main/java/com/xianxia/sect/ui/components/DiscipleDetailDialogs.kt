@@ -34,7 +34,6 @@ internal val EFFECT_KEY_NAMES: Map<String, String> = mapOf(
     "herbYield" to "草药产量",
     "rareDropRate" to "稀有掉落率",
     "manualLearnSpeed" to "功法学习速度",
-    "lifespan" to "寿命",
     "partnerChance" to "结侣概率",
     "manualSlot" to "功法槽位",
     "comprehensionFlat" to "悟性",
@@ -44,7 +43,6 @@ internal val EFFECT_KEY_NAMES: Map<String, String> = mapOf(
     "pillRefiningFlat" to "炼丹",
     "spiritPlantingFlat" to "种植",
     "charmFlat" to "魅力",
-    "loyaltyFlat" to "忠诚",
     "moralityFlat" to "道德",
     "miningFlat" to "采矿",
     "winBattleRandomAttrPlus" to "胜利后随机属性成长（无上限）",
@@ -156,7 +154,6 @@ fun formatTalentEffectText(key: String, value: Any): String {
         "pillRefiningFlat",
         "spiritPlantingFlat",
         "charmFlat",
-        "loyaltyFlat",
         "moralityFlat",
         "miningFlat"
     )
@@ -311,7 +308,6 @@ internal fun DetailEffectRow(name: String, value: Double, key: String? = null) {
         "pillRefiningFlat",
         "spiritPlantingFlat",
         "charmFlat",
-        "loyaltyFlat",
         "moralityFlat",
         "miningFlat"
     )

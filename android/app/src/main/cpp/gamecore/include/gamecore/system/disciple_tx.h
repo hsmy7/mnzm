@@ -309,7 +309,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     in.residenceSlots = state.gameData.residenceSlots;
     in.activeBloodRefinements = state.gameData.activeBloodRefinements;
     in.patrolSlots = state.gameData.patrolSlots;
-    in.warehouseGarrisons = state.gameData.warehouseGarrisons;
     in.battleTeams = state.gameData.battleTeams;
     in.worldMapSects = state.gameData.worldMapSects;
     in.productionSlots = state.gameData.productionSlots;
@@ -325,7 +324,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     state.gameData.residenceSlots = out.residenceSlots;
     state.gameData.activeBloodRefinements = out.activeBloodRefinements;
     state.gameData.patrolSlots = out.patrolSlots;
-    state.gameData.warehouseGarrisons = out.warehouseGarrisons;
     state.gameData.battleTeams = out.battleTeams;
     state.gameData.worldMapSects = out.worldMapSects;
     state.gameData.productionSlots = out.productionSlots;
@@ -383,8 +381,8 @@ struct DiscipleTxResult {
     bool ok = false;
     std::string errorType;
     std::string message;
-    // 偷盗判定钩子回执（仅 facade 丹药链生效路径填装；执法域不下沉）
-    bool theftCandidate = false;
+    // 永久基础属性生效回执（仅 facade 丹药链生效路径填装）
+    bool baseAttrApplied = false;
     int32_t moralityAfter = 0;
 };
 
@@ -392,7 +390,7 @@ struct DiscipleTxResult {
 /// 空串 = 无日志——与 Kotlin recordEquipLog 写点对齐，成功必有日志）
 struct EquipResult {
     DiscipleTxResult base;
-    std::string logLine;   // "${age}岁：装备了X / 将旧装备替换为X"
+    std::string logLine;   // "装备了X / 将旧装备替换为X"
 };
 
 /// 任命结果：附事务前目标槽 occupant（Kotlin clearAllSlots 后捕获语义——
@@ -500,15 +498,14 @@ inline EquipResult equipTransaction(GameState& state, const std::string& discipl
 
     // 7. 装备日志草稿（recordEquipLog 等价——oldName 在卸下/穿戴**之后**查
     //    实例表，Kotlin 活路径恒落"旧装备"兜底；Kotlin native 分支回写瞬态列）
-    const int32_t age = ds.ages[row];
     const EquipmentInstance* oldAfter = oldEquipIdCopy.empty()
         ? nullptr
         : detail::findEquipmentInstance(state, oldEquipIdCopy);
     const std::string oldName = oldAfter != nullptr ? oldAfter->name : "旧装备";
     out.base.ok = true;
     out.logLine = oldEquipIdCopy.empty()
-        ? std::to_string(age) + "岁：装备了" + equipName
-        : std::to_string(age) + "岁：将" + oldName + "替换为" + equipName;
+        ? std::string("装备了") + equipName
+        : std::string("将") + oldName + "替换为" + equipName;
     return out;
 }
 
@@ -811,8 +808,7 @@ inline UnassignSlotResult unassignSlotTransaction(GameState& state, SlotFamily f
 //      ② 治疗 maxHp 取 **baseHps 基列**（facade applyHealEffect），
 //         mpRecover 不适用（facade 链无此分支）；
 //      ③ 战斗/速率生效时清零旧 cultivationSpeedBonus 组件列 + checkpoint；
-//      ④ 道德触发偷盗判定钩子**不下沉**（执法系统域，phase_settlement.h
-//         同边界）——信封回传 moralityAfter，由 Kotlin native 分支原序判定）
+//      ④ 道德终值经信封回传 moralityAfter（Kotlin 侧读取））
 //  - GameEngineManualOps.replaceManual（2026-09-15 核查新增稳态写者）
 //  - GameEngineBloodRefinementOps.startBloodRefinementAtomic（血炼启动）
 //  - DiscipleStatusService.syncAll/syncSingle（派生列唯一计算方 = C++）
@@ -853,7 +849,6 @@ inline gamecore::state::ItemEffect facadeItemEffect(const Pill& pill) {
     e.critEffectAdd = f.critEffectAdd;
     e.intelligenceAdd = f.intelligenceAdd;
     e.charmAdd = f.charmAdd;
-    e.loyaltyAdd = f.loyaltyAdd;
     e.comprehensionAdd = f.comprehensionAdd;
     e.artifactRefiningAdd = f.artifactRefiningAdd;
     e.pillRefiningAdd = f.pillRefiningAdd;
@@ -908,12 +903,10 @@ inline T* findStackById(std::vector<T>& store, const std::string& id) {
     return nullptr;
 }
 
-/// 偷盗判定钩子回执（执法域不下沉——阈值 MORALITY_THRESHOLD 是 config 值，
-/// C++ 不持有）：Kotlin native 分支在 theftCandidate 且 moralityAfter 低于
-/// 阈值时原序执行 processSingleDiscipleTheft（facade 事务内判定等价回执驱动）
+/// 永久基础属性生效回执（moralityAfter = 施效后道德终值，Kotlin 侧读取）
 struct FacadePillOutcome {
     int32_t moralityAfter = 0;
-    bool baseAttrApplied = false;  // 偷盗判定钩子的前置分支（applyBaseAttrEffects）
+    bool baseAttrApplied = false;  // 永久基础属性分支是否生效（applyBaseAttrEffects）
 };
 
 /// facade 丹药链（applyPillEffectsToDisciple 逐分支等价；列级直写，
@@ -935,16 +928,7 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         }
     }
 
-    // ③ 延寿（lifespan += + pillType 去重登记）
-    if (effect.extendLife > 0) {
-        ds.lifespans[row] += effect.extendLife;
-        if (!pill.pillType.empty() &&
-            !containsValue(ds.usedExtendLifePillTypes[row], pill.pillType)) {
-            ds.usedExtendLifePillTypes[row].push_back(pill.pillType);
-        }
-    }
-
-    // ④ 永久基础属性（boundedAdd 0..200 / loyalty 0..100；mining 0..200）
+    // ③ 永久基础属性（boundedAdd 0..200；mining 0..200）
     const auto boundedAdd = [](int32_t v, int32_t add, int32_t max) {
         return std::clamp(v + add, 0, max);
     };
@@ -952,17 +936,15 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
     if (gamecore::pill::hasAnyBaseAttrAdd(ie)) {
         outcome.baseAttrApplied = true;
         constexpr int32_t kSkillCap = 200;      // GameConfig.Disciple.SKILL_MAX
-        constexpr int32_t kLoyaltyCap = 100;    // GameConfig.Disciple.MAX_LOYALTY
         ds.intelligences[row] = boundedAdd(ds.intelligences[row], effect.intelligenceAdd, kSkillCap);
         ds.charms[row] = boundedAdd(ds.charms[row], effect.charmAdd, kSkillCap);
-        ds.loyalties[row] = boundedAdd(ds.loyalties[row], effect.loyaltyAdd, kLoyaltyCap);
         ds.comprehensions[row] = boundedAdd(ds.comprehensions[row], effect.comprehensionAdd, kSkillCap);
         ds.artifactRefinings[row] = boundedAdd(ds.artifactRefinings[row], effect.artifactRefiningAdd, kSkillCap);
         ds.pillRefinings[row] = boundedAdd(ds.pillRefinings[row], effect.pillRefiningAdd, kSkillCap);
         ds.spiritPlantings[row] = boundedAdd(ds.spiritPlantings[row], effect.spiritPlantingAdd, kSkillCap);
         ds.teachings[row] = boundedAdd(ds.teachings[row], effect.teachingAdd, kSkillCap);
         ds.moralities[row] = boundedAdd(ds.moralities[row], effect.moralityAdd, kSkillCap);
-        // 偷盗判定钩子不下沉（见节首注释④）：moralityAfter 经信封回传
+        // moralityAfter 经信封回传（Kotlin 侧读取道德终值）
         ds.minings[row] = boundedAdd(ds.minings[row], effect.miningAdd, kSkillCap);
         // 使用登记（canUsePill 已保证无既有 key ⇒ 去重追加与 Kotlin usedKeys+keys 等价）
         for (const auto& k : gamecore::pill::buildUsedKeys(ie, ie.tier)) {
@@ -1065,7 +1047,6 @@ inline StorageBagItem pillBagItem(const Pill& pill, int32_t quantity) {
 /// 槽位归属标志（SlotFlags 等价）
 struct SlotFlags {
     bool inGarrison = false;
-    bool inWarehouseGarrison = false;
     bool inTeam = false;
     bool inSecretRealm = false;
     bool lawEnforcing = false;
@@ -1089,7 +1070,7 @@ constexpr const char* kStatusRefining = "REFINING";
 
 /// deriveDiscipleStatus（优先级序与 Kotlin 表逐项一致——状态推导契约，
 /// 顺序不可变）：死亡 → 活跃任务 → 受保护（REFLECTING/REFINING）→
-/// 秘境 → 仓库驻守 → 据点驻守 → 队伍 → 执法 → 传道 → 执事 → 管理 →
+/// 秘境 → 据点驻守 → 队伍 → 执法 → 传道 → 执事 → 管理 →
 /// 学习 → 采矿 → 巡视 → 炼丹 → 锻造 → 灵植 → 空闲
 inline const char* deriveDiscipleStatus(bool isAlive, const std::string& currentStatus,
                                         const SlotFlags& f, bool hasActiveMission) {
@@ -1098,7 +1079,6 @@ inline const char* deriveDiscipleStatus(bool isAlive, const std::string& current
     if (currentStatus == kStatusReflecting) return kStatusReflecting;
     if (currentStatus == kStatusRefining) return kStatusRefining;
     if (f.inSecretRealm) return "SECRET_REALM";
-    if (f.inWarehouseGarrison) return "WAREHOUSE_GARRISON";
     if (f.inGarrison) return "GARRISONING";
     if (f.inTeam) return "IN_TEAM";
     if (f.lawEnforcing) return "LAW_ENFORCING";
@@ -1133,9 +1113,6 @@ inline SlotFlags buildSlotFlags(const gamecore::state::GameData& gd,
         for (const auto& slot : sect.garrisonSlots) {
             if (slot.discipleId == discipleId) f.inGarrison = true;
         }
-    }
-    for (const auto& g : gd.warehouseGarrisons) {
-        if (g.discipleId == discipleId) f.inWarehouseGarrison = true;
     }
     for (const auto& t : gd.battleTeams) {
         for (const auto& s : t.slots) {
@@ -1404,7 +1381,7 @@ inline DiscipleTxResult rewardItemTx(GameState& state, const std::string& discip
         if (canUse) {
             const auto outcome = detail::applyFacadePillEffects(state, row, *pill);
             out.moralityAfter = outcome.moralityAfter;
-            out.theftCandidate = outcome.baseAttrApplied;
+            out.baseAttrApplied = outcome.baseAttrApplied;
         } else {
             StorageBagItem entry = detail::pillBagItem(*pill, quantity);
             entry.obtainedYear = state.gameData.gameYear;
@@ -1461,8 +1438,8 @@ inline DiscipleTxResult rewardItemTx(GameState& state, const std::string& discip
 // 不写（Kotlin silent return）。写段：扣仓库 + facade 丹药链 + 服药日志草稿。
 struct UsePillResult {
     DiscipleTxResult base;
-    std::string logLine;     // "X岁：服用了Y"（Kotlin lifeEvents 瞬态列回写）
-    int32_t moralityAfter = 0;  // 偷盗判定钩子判定输入（Kotlin 按阈值原序判定）
+    std::string logLine;     // "服用了Y"（Kotlin lifeEvents 瞬态列回写）
+    int32_t moralityAfter = 0;  // 施效后道德终值（Kotlin 侧读取）
 };
 inline UsePillResult usePillTx(GameState& state, const std::string& discipleId,
                                const std::string& pillId) {
@@ -1490,8 +1467,8 @@ inline UsePillResult usePillTx(GameState& state, const std::string& discipleId,
     detail::deductStackById(state.pills, pillId, 1);
     const auto outcome = detail::applyFacadePillEffects(state, row, *pill);
     out.moralityAfter = outcome.moralityAfter;
-    out.base.theftCandidate = outcome.baseAttrApplied;
-    out.logLine = std::to_string(ds.ages[row]) + "岁：服用了" + pill->name;
+    out.base.baseAttrApplied = outcome.baseAttrApplied;
+    out.logLine = std::string("服用了") + pill->name;
     out.base.ok = true;
     return out;
 }
@@ -1609,7 +1586,7 @@ inline ReplaceManualResult replaceManualTx(GameState& state,
                                    return x.id == oldIdCopy;
                                }),
                 minst.end());
-    out.logLine = std::to_string(ds.ages[row]) + "岁：将功法" + oldCopy.name +
+    out.logLine = std::string("将功法") + oldCopy.name +
                   "替换为" + stackCopy.name;
     out.base.ok = true;
     return out;

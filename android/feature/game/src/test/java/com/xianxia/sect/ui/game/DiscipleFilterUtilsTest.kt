@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleAttributes
 import com.xianxia.sect.core.model.DiscipleCore
@@ -20,7 +19,6 @@ class DiscipleFilterUtilsTest {
         realmLayer: Int = 1,
         status: DiscipleStatus = DiscipleStatus.IDLE,
         isAlive: Boolean = true,
-        age: Int = 20,
         isFollowed: Boolean = false,
         spiritRootType: String = "metal",
         comprehension: Int = 50,
@@ -36,8 +34,7 @@ class DiscipleFilterUtilsTest {
                 realmLayer = realmLayer,
                 spiritRootType = spiritRootType,
                 status = status.name,
-                isAlive = isAlive,
-                age = age
+                isAlive = isAlive
             ),
             combatStats = null,
             equipment = null,
@@ -346,13 +343,13 @@ class DiscipleFilterUtilsTest {
     }
 
     @Test
-    fun eligibleElderCandidates_excludesDeadUnderageAndNoRealm() {
-        val normal = createAggregate(id = "ok", age = 20, realmLayer = 1)
-        val dead = createAggregate(id = "dead", age = 20, realmLayer = 1, isAlive = false)
-        val underage = createAggregate(id = "young", age = GameConfig.Disciple.MIN_AGE - 1, realmLayer = 1)
-        val noRealm = createAggregate(id = "noRealm", age = 20, realmLayer = 0)
+    fun eligibleElderCandidates_excludesDeadAndNoRealm() {
+        // 准入 = 存活 + 已入修炼（realmLayer > 0），年龄不参与准入
+        val normal = createAggregate(id = "ok", realmLayer = 1)
+        val dead = createAggregate(id = "dead", realmLayer = 1, isAlive = false)
+        val noRealm = createAggregate(id = "noRealm", realmLayer = 0)
 
-        val result = listOf(normal, dead, underage, noRealm).eligibleElderCandidates()
+        val result = listOf(normal, dead, noRealm).eligibleElderCandidates()
 
         val ids = result.map { it.id }.toSet()
         assertEquals(1, result.size)

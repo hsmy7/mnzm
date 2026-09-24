@@ -49,7 +49,7 @@ internal class PhaseSettlementExecutor(
      * 自动装备/学习 → 核心批次（1-5）→ 丹药补服 + 突破检测。
      *
      * 本方法为纯对拍基准：生产 AUTHORITATIVE
-     * 每旬走 C++ runPhaseSettlementCore 完整七步（自动装备/丹药+偷盗钩子/
+     * 每旬走 C++ runPhaseSettlementCore 完整七步（自动装备/丹药/
      * 突破+亲属赠送在 C++ 侧执行）；
      * 完整版 Kotlin 实现保留为 DiffPhaseSettlementTest /
      * DiffAuthoritativeTickTest 的独立对拍基准。

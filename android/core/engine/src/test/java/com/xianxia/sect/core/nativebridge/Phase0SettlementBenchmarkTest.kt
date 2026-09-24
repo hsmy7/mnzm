@@ -120,7 +120,7 @@ class Phase0SettlementBenchmarkTest {
         // 按 CultivationServiceIntegrationTest 同款模式构造真实 CultivationCore + Service
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
-            autoPillService = AutoPillService(mockSmart(), mockSmart()),
+            autoPillService = AutoPillService(mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(store)

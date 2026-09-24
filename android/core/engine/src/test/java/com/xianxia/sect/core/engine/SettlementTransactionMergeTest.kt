@@ -29,14 +29,14 @@ class SettlementTransactionMergeTest {
         }
     }
 
-    /** 模拟一旬结算：时间推进 + 修炼累积 + 年龄增长（纯 state 函数，同 processTickPhases 形态） */
+    /** 模拟一旬结算：时间推进 + 修炼累积 + HP 变化（纯 state 函数，同 processTickPhases 形态） */
     private fun MutableGameState.settlePhase() {
         advancePhaseBaseline(1)
         val id = 1
         val cultivations = discipleTables.cultivations.getOrDefault(id, 0.0)
         discipleTables.cultivations[id] = cultivations + 10.0
-        val age = discipleTables.ages.getOrDefault(id, 0)
-        discipleTables.ages[id] = age + 1
+        val hp = discipleTables.currentHps.getOrDefault(id, -1)
+        discipleTables.currentHps[id] = hp + 1
     }
 
     @Test
@@ -65,7 +65,7 @@ class SettlementTransactionMergeTest {
             storeB.discipleTables.cultivations[1],
             0.001
         )
-        assertEquals("年龄", storeA.discipleTables.ages[1], storeB.discipleTables.ages[1])
+        assertEquals("HP", storeA.discipleTables.currentHps[1], storeB.discipleTables.currentHps[1])
     }
 
     @Test

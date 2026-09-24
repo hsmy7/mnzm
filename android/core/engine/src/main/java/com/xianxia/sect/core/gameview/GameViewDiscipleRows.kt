@@ -38,9 +38,9 @@ import kotlinx.serialization.json.longOrNull
  * ## 退场的形状
  * 第一波（B06/B07）弟子行的消费链是
  * `DiscipleRow →（逐字段）JsonObject → kotlinx JSON 解码 → Disciple`：
- * 每行先按 109 个协议字段搭一棵 JSON 元素树（JsonPrimitive/JsonArray/JsonObject
+ * 每行先按逐协议字段搭一棵 JSON 元素树（JsonPrimitive/JsonArray/JsonObject
  * 节点各一），再被 kotlinx 逐键解析回同一份域对象——同一批数据在 Kotlin 侧
- * 被"造出来又拆掉"。每旬全脏（5000 弟子修炼推进）时这就是 5000 × 109 个
+ * 被"造出来又拆掉"。每旬全脏（5000 弟子修炼推进）时这就是每行全字段 × 5000 的
  * JsonElement 分配 + 5000 次 JSON 结构解码，即 mirror 段"每旬级全量重建"的
  * 弟子侧形状。本对象按 proto typed getter 直读，节点数 0。
  *
@@ -80,8 +80,6 @@ internal object GameViewDiscipleRows {
         "cultivationCheckpoint" to DiscipleRow::hasCultivationCheckpoint,
         "cultivationCheckpointGameMonth" to DiscipleRow::hasCultivationCheckpointGameMonth,
         "spiritRootType" to DiscipleRow::hasSpiritRootType,
-        "age" to DiscipleRow::hasAge,
-        "lifespan" to DiscipleRow::hasLifespan,
         "isAlive" to DiscipleRow::hasIsAlive,
         "deathYear" to DiscipleRow::hasDeathYear,
         "gender" to DiscipleRow::hasGender,
@@ -90,7 +88,6 @@ internal object GameViewDiscipleRows {
         "cultivationSpeedBonus" to DiscipleRow::hasCultivationSpeedBonus,
         "cultivationSpeedDuration" to DiscipleRow::hasCultivationSpeedDuration,
         "discipleType" to DiscipleRow::hasDiscipleType,
-        "soulPower" to DiscipleRow::hasSoulPower,
         "cultivationCompletionMonth" to DiscipleRow::hasCultivationCompletionMonth,
         "cultivationCompletionPhase" to DiscipleRow::hasCultivationCompletionPhase,
         "manualCompletionMonth" to DiscipleRow::hasManualCompletionMonth,
@@ -146,7 +143,6 @@ internal object GameViewDiscipleRows {
         "masterId" to DiscipleRow::hasMasterId,
         "intelligence" to DiscipleRow::hasIntelligence,
         "charm" to DiscipleRow::hasCharm,
-        "loyalty" to DiscipleRow::hasLoyalty,
         "comprehension" to DiscipleRow::hasComprehension,
         "artifactRefining" to DiscipleRow::hasArtifactRefining,
         "pillRefining" to DiscipleRow::hasPillRefining,
@@ -193,8 +189,6 @@ internal object GameViewDiscipleRows {
             cultivationCheckpoint = row.cultivationCheckpoint.toDouble(),
             cultivationCheckpointGameMonth = row.cultivationCheckpointGameMonth,
             spiritRootType = row.spiritRootType,
-            age = row.age,
-            lifespan = row.lifespan,
             isAlive = row.isAlive,
             gender = row.gender,
             portraitRes = row.portraitRes,
@@ -209,7 +203,6 @@ internal object GameViewDiscipleRows {
             cultivationSpeedBonus = row.cultivationSpeedBonus,
             cultivationSpeedDuration = row.cultivationSpeedDuration,
             discipleType = row.discipleType,
-            soulPower = row.soulPower,
             cultivationCompletionMonth = row.cultivationCompletionMonth,
             cultivationCompletionPhase = row.cultivationCompletionPhase,
             manualCompletionMonth = row.manualCompletionMonth,
@@ -299,7 +292,6 @@ internal object GameViewDiscipleRows {
     private fun skillsOf(row: DiscipleRow) = SkillStats(
                 intelligence = row.intelligence,
                 charm = row.charm,
-                loyalty = row.loyalty,
                 comprehension = row.comprehension,
                 artifactRefining = row.artifactRefining,
                 pillRefining = row.pillRefining,
@@ -318,9 +310,7 @@ internal object GameViewDiscipleRows {
 
     private fun usageOf(row: DiscipleRow) = UsageTracking(
                 usedFunctionalPillTypes = row.usedFunctionalPillTypesList,
-                usedExtendLifePillIds = row.usedExtendLifePillIdsList,
                 usedPermanentPillKeys = row.usedPermanentPillKeysList.toSet(),
-                usedExtendLifePillTypes = row.usedExtendLifePillTypesList.toSet(),
                 recruitedMonth = row.recruitedMonth,
                 hasReviveEffect = row.hasReviveEffect,
                 hasClearAllEffect = row.hasClearAllEffect
@@ -437,14 +427,8 @@ internal object GameViewDiscipleRows {
         RepeatedClearer("usedPermanentPillKeys", { it.usedPermanentPillKeysCount > 0 }) {
             it.clearUsedPermanentPillKeys()
         },
-        RepeatedClearer("usedExtendLifePillTypes", { it.usedExtendLifePillTypesCount > 0 }) {
-            it.clearUsedExtendLifePillTypes()
-        },
         RepeatedClearer("usedFunctionalPillTypes", { it.usedFunctionalPillTypesCount > 0 }) {
             it.clearUsedFunctionalPillTypes()
-        },
-        RepeatedClearer("usedExtendLifePillIds", { it.usedExtendLifePillIdsCount > 0 }) {
-            it.clearUsedExtendLifePillIds()
         },
         // B18-P1-A2：storageBagItems 由 75 号**标量**（presence 天然可表达"空袋"）
         // 换轨到 110 号 repeated —— 列级合并须整体替换（repeated mergeFrom 是追加），
@@ -523,8 +507,6 @@ internal object GameViewDiscipleRows {
             cultivationCheckpointGameMonths[id] = row.cultivationCheckpointGameMonth
         }
         if (row.hasSpiritRootType()) spiritRootTypes[id] = row.spiritRootType
-        if (row.hasAge()) ages[id] = row.age
-        if (row.hasLifespan()) lifespans[id] = row.lifespan
         if (row.hasIsAlive()) isAlive[id] = if (row.isAlive) 1 else 0
         // deathYear：协议随行字段，域模型无对应列——两臂同语义丢弃
         if (row.hasGender()) genders[id] = row.gender
@@ -546,7 +528,6 @@ internal object GameViewDiscipleRows {
             cultivationSpeedDurations[id] = row.cultivationSpeedDuration
         }
         if (row.hasDiscipleType()) discipleTypes[id] = row.discipleType
-        if (row.hasSoulPower()) soulPowers[id] = row.soulPower
         if (row.hasCultivationCompletionMonth()) {
             cultivationCompletionMonths[id] = row.cultivationCompletionMonth
         }
@@ -685,7 +666,6 @@ internal object GameViewDiscipleRows {
     private fun DiscipleTables.applySkillPatchColumns(id: Int, row: DiscipleRow) {
         if (row.hasIntelligence()) intelligences[id] = row.intelligence
         if (row.hasCharm()) charms[id] = row.charm
-        if (row.hasLoyalty()) loyalties[id] = row.loyalty
         if (row.hasComprehension()) comprehensions[id] = row.comprehension
         if (row.hasArtifactRefining()) artifactRefinings[id] = row.artifactRefining
         if (row.hasPillRefining()) pillRefinings[id] = row.pillRefining
@@ -707,14 +687,8 @@ internal object GameViewDiscipleRows {
         if (row.usedFunctionalPillTypesCount > 0) {
             usedFunctionalPillTypes[id] = row.usedFunctionalPillTypesList
         }
-        if (row.usedExtendLifePillIdsCount > 0) {
-            usedExtendLifePillIds[id] = row.usedExtendLifePillIdsList
-        }
         if (row.usedPermanentPillKeysCount > 0) {
             usedPermanentPillKeys[id] = row.usedPermanentPillKeysList.toSet()
-        }
-        if (row.usedExtendLifePillTypesCount > 0) {
-            usedExtendLifePillTypes[id] = row.usedExtendLifePillTypesList.toSet()
         }
         if (row.hasRecruitedMonth()) recruitedMonths[id] = row.recruitedMonth
         if (row.hasHasReviveEffect()) hasReviveEffects[id] = if (row.hasReviveEffect) 1 else 0
@@ -761,8 +735,6 @@ internal object GameViewDiscipleRows {
         b.cultivationCheckpoint = d.cultivationCheckpoint.toLong()
         b.cultivationCheckpointGameMonth = d.cultivationCheckpointGameMonth
         b.spiritRootType = d.spiritRootType
-        b.age = d.age
-        b.lifespan = d.lifespan
         b.isAlive = d.isAlive
         // deathYear：协议随行字段，Kotlin 域模型无对应（两臂同语义丢弃）
         b.deathYear = 0
@@ -783,7 +755,6 @@ internal object GameViewDiscipleRows {
         b.cultivationSpeedBonus = d.cultivationSpeedBonus
         b.cultivationSpeedDuration = d.cultivationSpeedDuration
         b.discipleType = d.discipleType
-        b.soulPower = d.soulPower
         b.cultivationCompletionMonth = d.cultivationCompletionMonth
         b.cultivationCompletionPhase = d.cultivationCompletionPhase
         b.manualCompletionMonth = d.manualCompletionMonth
@@ -867,7 +838,6 @@ internal object GameViewDiscipleRows {
     private fun fillSkillUsageRowFields(b: DiscipleRow.Builder, d: Disciple) {
         b.intelligence = d.skills.intelligence
         b.charm = d.skills.charm
-        b.loyalty = d.skills.loyalty
         b.comprehension = d.skills.comprehension
         b.artifactRefining = d.skills.artifactRefining
         b.pillRefining = d.skills.pillRefining
@@ -883,9 +853,7 @@ internal object GameViewDiscipleRows {
         b.forgeLevel = d.skills.forgeLevel
         b.forgePromotionCount = d.skills.forgePromotionCount
         b.addAllUsedPermanentPillKeys(d.usage.usedPermanentPillKeys.toList())
-        b.addAllUsedExtendLifePillTypes(d.usage.usedExtendLifePillTypes.toList())
         b.addAllUsedFunctionalPillTypes(d.usage.usedFunctionalPillTypes)
-        b.addAllUsedExtendLifePillIds(d.usage.usedExtendLifePillIds)
         b.recruitedMonth = d.usage.recruitedMonth
         b.hasReviveEffect = d.usage.hasReviveEffect
         b.hasClearAllEffect = d.usage.hasClearAllEffect

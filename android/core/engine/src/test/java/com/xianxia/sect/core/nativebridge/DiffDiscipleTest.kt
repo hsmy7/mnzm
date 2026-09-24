@@ -12,19 +12,15 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import com.xianxia.sect.core.engine.domain.disciple.calculateBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
-import com.xianxia.sect.core.engine.domain.disciple.calculateLifespanBreakthroughPenalty
-import com.xianxia.sect.core.engine.domain.disciple.calculateLifespanCultivationPenalty
-import com.xianxia.sect.core.engine.domain.disciple.calculateLifespanRemainingPercent
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleRealmGap
 import com.xianxia.sect.core.engine.domain.disciple.getParentSpiritRootBonus
-import com.xianxia.sect.core.engine.domain.disciple.getSoulPowerBreakthroughBonus
 
 /**
  * DiffDiscipleTest — 弟子属性计算跨语言差分对拍。
  *
- * 守护目标：C++ gamecore::disciple（基础属性乘区法/修炼乘区/突破乘区/寿命惩罚/
+ * 守护目标：C++ gamecore::disciple（基础属性乘区法/修炼乘区/突破乘区/
  * 师徒/父母加成）与 Kotlin DiscipleStatCalculator 公式**逐位一致**。
  *
  * Kotlin 基准：真实 DiscipleStatCalculator（生产代码同一实现）。
@@ -193,36 +189,7 @@ class DiffDiscipleTest {
         )
     }
 
-    // ── 寿命/师徒/父母/魂力/资质 ───────────────────────────────────
-
-    @Test
-    fun `lifespan penalties match Kotlin`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-        for (age in listOf(40, 60, 72, 76, 80)) {
-            val remaining = cppOp(buildJsonObject {
-                put("op", "lifespanRemainingPercent"); put("age", age); put("lifespan", 80)
-            })
-            assertEquals(
-                DiscipleStatCalculator.calculateLifespanRemainingPercent(age, 80),
-                remaining["value"]!!.toString().toDouble(), 1e-12
-            )
-            val cultPenalty = cppOp(buildJsonObject {
-                put("op", "lifespanCultivationPenalty"); put("age", age); put("lifespan", 80)
-            })
-            assertEquals(
-                DiscipleStatCalculator.calculateLifespanCultivationPenalty(age, 80),
-                cultPenalty["value"]!!.toString().toDouble(), 1e-12
-            )
-            val breakPenalty = cppOp(buildJsonObject {
-                put("op", "lifespanBreakthroughPenalty"); put("age", age); put("lifespan", 80)
-            })
-            assertEquals(
-                DiscipleStatCalculator.calculateLifespanBreakthroughPenalty(age, 80),
-                breakPenalty["value"]!!.toString().toDouble(), 1e-12
-            )
-        }
-    }
+    // ── 师徒/父母/资质 ───────────────────────────────────────────
 
     @Test
     fun `master disciple bonuses match Kotlin`() {
@@ -260,22 +227,6 @@ class DiffDiscipleTest {
             val cpp = cppOp(op)
             assertEquals(
                 DiscipleStatCalculator.getParentSpiritRootBonus(rootCount),
-                cpp["value"]!!.toString().toDouble(), 1e-12
-            )
-        }
-    }
-
-    @Test
-    fun `soul power bonus matches Kotlin`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-        for (soulPower in listOf(0, 20, 40, 100, 500)) {
-            val op = buildJsonObject {
-                put("op", "soulPowerBreakthroughBonus"); put("soulPower", soulPower)
-            }
-            val cpp = cppOp(op)
-            assertEquals(
-                DiscipleStatCalculator.getSoulPowerBreakthroughBonus(soulPower),
                 cpp["value"]!!.toString().toDouble(), 1e-12
             )
         }

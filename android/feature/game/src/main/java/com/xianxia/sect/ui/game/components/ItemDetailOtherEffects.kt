@@ -224,14 +224,12 @@ private fun merchantPillIsInstant(pill: ItemDatabase.PillTemplate): Boolean =
     pill.cultivationAdd > 0 ||
     pill.skillExpAdd > 0 ||
     pill.nurtureAdd > 0 ||
-    pill.extendLife > 0 ||
     pill.healMaxHpPercent > 0 ||
     pill.mpRecoverMaxMpPercent > 0 ||
     pill.revive ||
     pill.clearAll ||
     pill.intelligenceAdd > 0 ||
     pill.charmAdd > 0 ||
-    pill.loyaltyAdd > 0 ||
     pill.comprehensionAdd > 0 ||
     pill.artifactRefiningAdd > 0 ||
     pill.pillRefiningAdd > 0 ||
@@ -246,10 +244,8 @@ private fun MutableList<String>.addFunctionalPillTemplateEffects(pill: ItemDatab
     if (pill.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(pill.breakthroughChance)}")
     if (pill.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(pill.targetRealm)}")
     if (pill.isAscension) add("  可用于渡劫")
-    if (pill.extendLife > 0) add("  延寿 +${pill.extendLife}年")
     if (pill.intelligenceAdd > 0) add("  悟性 +${pill.intelligenceAdd}")
     if (pill.charmAdd > 0) add("  魅力 +${pill.charmAdd}")
-    if (pill.loyaltyAdd > 0) add("  忠诚 +${pill.loyaltyAdd}")
     if (pill.comprehensionAdd > 0) add("  领悟 +${pill.comprehensionAdd}")
     if (pill.artifactRefiningAdd > 0) add("  炼器 +${pill.artifactRefiningAdd}")
     if (pill.pillRefiningAdd > 0) add("  炼丹 +${pill.pillRefiningAdd}")
@@ -551,7 +547,6 @@ private fun storageBagPillIsInstant(effect: ItemEffect): Boolean =
     effect.clearAll ||
     effect.intelligenceAdd > 0 ||
     effect.charmAdd > 0 ||
-    effect.loyaltyAdd > 0 ||
     effect.comprehensionAdd > 0 ||
     effect.artifactRefiningAdd > 0 ||
     effect.pillRefiningAdd > 0 ||
@@ -569,7 +564,6 @@ private fun MutableList<String>.addStorageBagFunctionalPillEffects(effect: ItemE
     if (effect.extendLife > 0) add("  延寿 +${effect.extendLife}年")
     if (effect.intelligenceAdd > 0) add("  悟性 +${effect.intelligenceAdd}")
     if (effect.charmAdd > 0) add("  魅力 +${effect.charmAdd}")
-    if (effect.loyaltyAdd > 0) add("  忠诚 +${effect.loyaltyAdd}")
     if (effect.comprehensionAdd > 0) add("  领悟 +${effect.comprehensionAdd}")
     if (effect.artifactRefiningAdd > 0) add("  炼器 +${effect.artifactRefiningAdd}")
     if (effect.pillRefiningAdd > 0) add("  炼丹 +${effect.pillRefiningAdd}")

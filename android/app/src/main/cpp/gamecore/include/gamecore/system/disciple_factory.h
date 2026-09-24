@@ -125,22 +125,6 @@ inline int32_t avoidSentinel50(int32_t roll) {
     return roll == 50 ? 51 : roll;
 }
 
-/// 境界 → 基础寿命（Kotlin GameConfig.Realm.get(realm).maxAge）
-inline int32_t realmMaxAge(int32_t realm) {
-    switch (realm) {
-        case 0: return 9999;
-        case 1: return 4000;
-        case 2: return 2500;
-        case 3: return 1500;
-        case 4: return 800;
-        case 5: return 500;
-        case 6: return 300;
-        case 7: return 200;
-        case 8: return 120;
-        default: return 80;  // realm 9 炼气（含非法索引兜底）
-    }
-}
-
 // ============================================================
 // WeightedRoll（Kotlin WeightedRoll.kt 同构；每次调用恰好 1 次 nextDouble）
 // ============================================================
@@ -283,7 +267,6 @@ struct DiscipleRolls {
     int32_t aptitude = 50;       // 同上（create 后经 avoidSentinel50）
     int32_t intelligence = 50;
     int32_t charm = 50;
-    int32_t loyalty = 50;
     int32_t morality = 50;
     int32_t artifactRefining = 50;
     int32_t pillRefining = 50;
@@ -327,20 +310,18 @@ inline int32_t rollAptitude(rng::DeterministicRng& rng, int32_t spiritRootCount)
     }
 }
 
-/// 技能（Kotlin rollSkills）：9 × gaussianInt(50.5, 16.5) + 悟性/资质直填；
-/// RNG 消费序与 Kotlin SkillStats 构造参数序一致（忠诚上限 100 单独处理）
+/// 技能（Kotlin rollSkills）：8 × gaussianInt(50.5, 16.5) + 悟性/资质直填；
+/// RNG 消费序与 Kotlin SkillStats 构造参数序一致
 inline DiscipleRolls rollSkills(rng::DeterministicRng& rng, int32_t comprehension,
                                 int32_t aptitude) {
     constexpr double kSkillMean = 50.5;
     constexpr double kSkillSigma = 16.5;
     constexpr int32_t kSkillMax = 200;    // GameConfig.Disciple.SKILL_MAX
-    constexpr int32_t kMaxLoyalty = 100;  // GameConfig.Disciple.MAX_LOYALTY
     DiscipleRolls out;
     out.comprehension = comprehension;
     out.aptitude = aptitude;
     out.intelligence = gaussianInt(rng, kSkillMean, kSkillSigma, 1, kSkillMax);
     out.charm = gaussianInt(rng, kSkillMean, kSkillSigma, 1, kSkillMax);
-    out.loyalty = gaussianInt(rng, kSkillMean, kSkillSigma, 1, kMaxLoyalty);
     out.morality = gaussianInt(rng, kSkillMean, kSkillSigma, 1, kSkillMax);
     out.artifactRefining = gaussianInt(rng, kSkillMean, kSkillSigma, 1, kSkillMax);
     out.pillRefining = gaussianInt(rng, kSkillMean, kSkillSigma, 1, kSkillMax);
@@ -367,29 +348,6 @@ inline void applyBaseStats(state::Disciple& d, const DiscipleRolls& rolls) {
     d.baseSpeed = static_cast<int32_t>(15.0 * (1.0 + rolls.speedVariance / 100.0));
 }
 
-/// 寿命（Kotlin computeLifespan）：天赋 + 词条 effects["lifespan"] 之和，
-/// baseLifespan × (1 + bonus) 截断，至少 1
-inline int32_t computeLifespan(const std::vector<std::string>& talentIds,
-                               const std::vector<std::string>& affixIds,
-                               int32_t realm) {
-    double bonus = 0.0;
-    for (const auto& id : talentIds) {
-        if (auto t = data::talentById(id)) {
-            const auto it = t->effects.find("lifespan");
-            if (it != t->effects.end()) bonus += it->second;
-        }
-    }
-    for (const auto& id : affixIds) {
-        if (auto a = data::affixById(id)) {
-            const auto it = a->effects.find("lifespan");
-            if (it != a->effects.end()) bonus += it->second;
-        }
-    }
-    const double baseLifespan = static_cast<double>(realmMaxAge(realm));
-    const int32_t lifespan = static_cast<int32_t>(baseLifespan * (1.0 + bonus));
-    return std::max(1, lifespan);
-}
-
 // ============================================================
 // createDisciple 主入口（Kotlin DiscipleFactory.create 同构）
 // ============================================================
@@ -402,7 +360,6 @@ struct DiscipleCreationSeed {
     std::string fullName;
     std::string surname;
     std::string spiritRootType;
-    int32_t age = 16;
     int32_t realm = 9;
     int32_t realmLayer = 1;
 };
@@ -415,7 +372,6 @@ inline state::Disciple createDisciple(const DiscipleCreationSeed& seed,
     d.name = seed.fullName;
     d.surname = seed.surname;
     d.gender = seed.gender;
-    d.age = seed.age;
     d.realm = seed.realm;
     d.realmLayer = seed.realmLayer;
     d.spiritRootType = seed.spiritRootType;
@@ -460,7 +416,6 @@ inline state::Disciple createDisciple(const DiscipleCreationSeed& seed,
     const DiscipleRolls skills = rollSkills(rng, comprehension, aptitude);
     d.intelligence = skills.intelligence;
     d.charm = skills.charm;
-    d.loyalty = skills.loyalty;
     d.comprehension = skills.comprehension;
     d.morality = skills.morality;
     d.artifactRefining = skills.artifactRefining;
@@ -472,9 +427,6 @@ inline state::Disciple createDisciple(const DiscipleCreationSeed& seed,
 
     // 6. 基础属性（创建期基准，无 realm 乘区）
     applyBaseStats(d, rolls);
-
-    // 7. 寿命（天赋旧加成 + 词条加成）
-    d.lifespan = computeLifespan(d.talentIds, d.affixIds, d.realm);
 
     return d;
 }

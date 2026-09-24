@@ -2,7 +2,7 @@
 // sect_attack_tx.h — 攻宗 UI 操作面确定性写回事务（batch-20b）
 //
 // ui-read-surface §4.1「aiSectDisciples 段」+「战斗域」写者下沉。
-// 语义权威 = GameEngineBattleOps.kt（removeDeadDefenders / grantWarSoulPowers）。
+// 语义权威 = GameEngineBattleOps.kt（removeDeadDefenders）。
 //
 // **写者审计结论（batch-20b 第 1 步，见 handover §2.51b）**：
 // `attackSect` 的**战斗执行覆盖面已在 C++**——`tryExecuteUnifiedNative`
@@ -13,7 +13,6 @@
 // 同源先例）。本头只承 **UI 触发面仍 Kotlin 独占的零 RNG 写段**：
 //   - removeDeadDefendersTx（1711）：AI 阵亡守军清理（aiSectDisciples 段 +
 //     目标宗门驻军槽清空保留索引）
-//   - grantWarSoulPowersTx（1712）：胜方存活玩家弟子魂魄 +1
 //
 // **登记不下沉（RNG 红线 / 协议形状，见 §2.51b）**：
 //   - **战利品生成族**（`generateWarRewards` + 六类 `addWar*`）：模板抽取走
@@ -63,12 +62,6 @@ struct DefenderCleanupOutcome {
     TxResult base;
     int32_t removedFromPool = 0;
     int32_t clearedGarrisonSlots = 0;
-};
-
-/// 魂魄发放结果：granted 为实际 +1 的弟子数
-struct SoulPowerOutcome {
-    TxResult base;
-    int32_t granted = 0;
 };
 
 // ── 事务 1：AI 阵亡守军清理（GameEngine.removeDeadDefenders）────────────
@@ -127,34 +120,6 @@ inline DefenderCleanupOutcome removeDeadDefendersTx(
             slot = std::move(cleared);
             ++out.clearedGarrisonSlots;
         }
-    }
-    return out;
-}
-
-// ── 事务 2：胜方存活弟子魂魄 +1（GameEngine.grantWarSoulPowers）─────────
-//
-// Kotlin 语义（GameEngineBattleOps.kt:292）：
-//   discipleTables.ids.filter { it.toString() in sectSurvivorIds && isAlive[it] == 1 }
-//       .forEach { id -> soulPowers[id] = soulPowers[id] + 1 }
-//
-// **行序遍历 + 存活性过滤**（行序与结果无关：逐行独立自增，无跨行依赖、
-// 无 RNG、无早退），`sectSurvivorIds` 为 id 字符串集。**非存活弟子不自增**；
-// 不在弟子表的 id 静默跳过（Kotlin `ids.filter` 同义）。
-inline SoulPowerOutcome grantWarSoulPowersTx(
-    GameState& state, const std::vector<std::string>& sectSurvivorIds) {
-    SoulPowerOutcome out;
-    out.base.ok = true;
-    if (sectSurvivorIds.empty()) return out;
-
-    const std::unordered_set<std::string> survivors(sectSurvivorIds.begin(),
-                                                    sectSurvivorIds.end());
-    auto& ds = state.disciples;
-    for (std::size_t row = 0; row < ds.ids.size(); ++row) {
-        if (survivors.count(ds.ids[row]) == 0) continue;
-        if (row >= ds.isAlive.size() || ds.isAlive[row] == 0) continue;
-        if (row >= ds.soulPowers.size()) continue;
-        ds.soulPowers[row] += 1;
-        ++out.granted;
     }
     return out;
 }

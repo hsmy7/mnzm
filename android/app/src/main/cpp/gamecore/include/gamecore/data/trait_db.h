@@ -145,7 +145,6 @@ inline int talentGrade(int indexRarity) {
 
 struct CultSpeedConfig { int rarity; double value; };
 struct BreakChanceConfig { int rarity; double value; };
-struct LifespanConfig { int rarity; double value; };
 struct BattlePctConfig { int rarity; double value; };
 struct BaseFlatConfig { int rarity; int value; };
 struct PositionBonusConfig { int rarity; double value; };
@@ -154,8 +153,6 @@ static constexpr CultSpeedConfig kCultSpeedConfigs[] = {
     {1, 0.06}, {2, 0.10}, {3, 0.15}, {4, 0.22}, {5, 0.25}, {6, 0.32}};
 static constexpr BreakChanceConfig kBreakChanceConfigs[] = {
     {1, 0.01}, {2, 0.015}, {3, 0.03}, {4, 0.04}, {5, 0.05}, {6, 0.07}};
-static constexpr LifespanConfig kLifespanConfigs[] = {
-    {1, 0.10}, {2, 0.16}, {3, 0.25}, {4, 0.35}, {5, 0.45}, {6, 0.60}};
 
 static constexpr BattlePctConfig kBatAtkDefSpeedConfigs[] = {
     {1, 0.06}, {2, 0.13}, {3, 0.22}};
@@ -192,7 +189,6 @@ static constexpr PositionTplSpec kTalentPositionSpecs[] = {
     {"forge", "器道宗师", "FORGE", "炼器成功率加成", "POSITION_FORGE"},
     {"outer_elder", "外门栋梁", "OUTER_ELDER", "外门弟子突破指导加成", "POSITION_OUTER_ELDER"},
     {"preaching", "传道大师", "PREACHING", "外门弟子传道修炼速度加成", "POSITION_PREACHING"},
-    {"law_enforcement", "执法金刚", "LAW_ENFORCEMENT", "叛逃/偷盗捕获率加成", "POSITION_LAW_ENFORCEMENT"},
     {"inner_elder", "内门柱石", "INNER_ELDER", "内门弟子突破指导加成", "POSITION_INNER_ELDER"},
     {"recruiting", "招贤伯乐", "RECRUITING", "招募弟子数上限加成", "POSITION_RECRUITING"},
     {"cloud_preaching", "青云传道", "CLOUD_PREACHING", "内门弟子传道修炼速度加成", "POSITION_CLOUD_PREACHING"},
@@ -213,7 +209,6 @@ static constexpr AffixPositionSpec kAffixPositionSpecs[] = {
     {"forge", "器道", "FORGE", "炼器成功率加成"},
     {"outer_elder", "外门", "OUTER_ELDER", "外门弟子突破指导加成"},
     {"preaching", "传道", "PREACHING", "外门弟子传道修炼速度加成"},
-    {"law_enforcement", "执法", "LAW_ENFORCEMENT", "叛逃/偷盗捕获率加成"},
     {"inner_elder", "内门", "INNER_ELDER", "内门弟子突破指导加成"},
     {"recruiting", "招贤", "RECRUITING", "招募弟子数上限加成"},
     {"cloud_preaching", "青云", "CLOUD_PREACHING", "内门弟子传道修炼速度加成"},
@@ -259,16 +254,6 @@ inline void buildOldBreakChance(std::vector<TalentTemplate>& out) {
                    "突破概率+" + formatPercent(cfg.value, 1) + "%",
                    talentGrade(cfg.rarity), {{"breakthroughChance", cfg.value}},
                    false, "BREAK_CHANCE", "break_chance", std::nullopt);
-    }
-}
-
-/// 旧天赋：寿命（6 阶）
-inline void buildOldLifespan(std::vector<TalentTemplate>& out) {
-    for (const auto& cfg : kLifespanConfigs) {
-        pushTalent(out, prefixedId("_lifespan", cfg.rarity), "寿元绵长",
-                   "寿命+" + formatPercent(cfg.value, 0) + "%",
-                   talentGrade(cfg.rarity), {{"lifespan", cfg.value}},
-                   false, "LIFESPAN", "lifespan", std::nullopt);
     }
 }
 
@@ -337,14 +322,12 @@ inline void buildNewBattleCrit(std::vector<TalentTemplate>& out) {
     }
 }
 
-/// 新天赋：基础属性扁平加成（10 类 × 3 阶）
+/// 新天赋：基础属性扁平加成（8 类 × 3 阶）
 inline void buildBaseFlat(std::vector<TalentTemplate>& out) {
     struct AttrSpec { const char* tmpl; const char* name; const char* descPrefix; const char* effectKey; const char* type; };
     static constexpr AttrSpec kAttrs[] = {
         {"base_int", "天慧", "智力", "intelligenceFlat", "BASE_INT"},
         {"base_charm", "仙姿", "魅力", "charmFlat", "BASE_CHARM"},
-        {"base_loyal", "赤诚", "忠诚", "loyaltyFlat", "BASE_LOYAL"},
-        {"base_comp", "顿悟", "悟性", "comprehensionFlat", "BASE_COMP"},
         {"base_arti", "天工", "炼器", "artifactRefiningFlat", "BASE_ARTI"},
         {"base_pill", "天丹", "炼丹", "pillRefiningFlat", "BASE_PILL"},
         {"base_plant", "青帝", "灵植", "spiritPlantingFlat", "BASE_PLANT"},
@@ -383,8 +366,8 @@ inline void buildNegativeTalents(std::vector<TalentTemplate>& out) {
     pushTalent(out, "neg_base_craft", "百艺生疏", "炼器/炼丹/种植 -6", 0,
                {{"artifactRefiningFlat", -6.0}, {"pillRefiningFlat", -6.0}, {"spiritPlantingFlat", -6.0}},
                true, "BASE_ARTI", "neg_base_craft", std::nullopt);
-    pushTalent(out, "neg_base_social", "心性偏执", "魅力/忠诚/道德 -6", 0,
-               {{"charmFlat", -6.0}, {"loyaltyFlat", -6.0}, {"moralityFlat", -6.0}},
+    pushTalent(out, "neg_base_social", "心性偏执", "魅力/道德 -6", 0,
+               {{"charmFlat", -6.0}, {"moralityFlat", -6.0}},
                true, "BASE_CHARM", "neg_base_social", std::nullopt);
     pushTalent(out, "neg_battle_offense", "怯战失锋", "物攻/法攻/暴击下降", 0,
                {{"physicalAttack", -0.10}, {"magicAttack", -0.10}, {"critRate", -0.02}},
@@ -400,7 +383,6 @@ inline std::vector<TalentTemplate> buildTalentTemplates() {
     // 正面（旧天赋 → 新天赋 → 职务）
     buildOldCultSpeed(out);
     buildOldBreakChance(out);
-    buildOldLifespan(out);
     buildOldSpecial(out);
     buildNewBattlePct(out);
     buildNewBattleHp(out);
@@ -544,7 +526,6 @@ inline std::vector<PhysiqueTemplate> buildPhysiqueTemplates() {
 struct BaseFlatCfg { int rarity; int value; };
 struct BatPctCfg { int rarity; double value; };
 struct CultSpeedCfg2 { int rarity; double value; };
-struct LifespanCfg2 { int rarity; double value; };
 struct DmgAmpCfg2 { int rarity; double value; };
 struct DmgReduceCfg2 { int rarity; double value; };
 struct CritDmgCfg2 { int rarity; double value; };
@@ -554,7 +535,6 @@ struct PositionCfg2 { int rarity; double value; };
 static constexpr BaseFlatCfg kAffBaseFlatConfigs[] = {{1, 3}, {2, 7}, {3, 12}};
 static constexpr BatPctCfg kAffBatPctConfigs[] = {{1, 0.04}, {2, 0.09}, {3, 0.16}};
 static constexpr CultSpeedCfg2 kAffCultSpeedConfigs[] = {{1, 0.05}, {2, 0.11}, {3, 0.20}};
-static constexpr LifespanCfg2 kAffLifespanConfigs[] = {{1, 0.08}, {2, 0.16}, {3, 0.28}};
 static constexpr DmgAmpCfg2 kAffDmgAmpConfigs[] = {{1, 0.03}, {2, 0.07}, {3, 0.13}};
 static constexpr DmgReduceCfg2 kAffDmgReduceConfigs[] = {{1, 0.03}, {2, 0.06}, {3, 0.11}};
 static constexpr CritDmgCfg2 kAffCritDmgConfigs[] = {{1, 0.06}, {2, 0.14}, {3, 0.24}};
@@ -571,12 +551,11 @@ inline void pushAffix(std::vector<AffixTemplate>& out,
                                 isNegative, type, tmpl, std::move(positionBonus)});
 }
 
-/// 词条：基础属性扁平加成（智力/悟性/魅力）
+/// 词条：基础属性扁平加成（智力/魅力）
 inline void buildAffixBaseFlat(std::vector<AffixTemplate>& out) {
     struct AttrSpec { const char* tmpl; const char* name; const char* descPrefix; const char* effectKey; };
     static constexpr AttrSpec kAttrs[] = {
         {"aff_base_int", "聪慧", "智力", "intelligenceFlat"},
-        {"aff_base_comp", "灵慧", "悟性", "comprehensionFlat"},
         {"aff_base_charm", "风采", "魅力", "charmFlat"},
     };
     for (const auto& attr : kAttrs) {
@@ -615,15 +594,6 @@ inline void buildAffixCultSpeed(std::vector<AffixTemplate>& out) {
         pushAffix(out, prefixedId("_aff_cult_speed", cfg.rarity), "悟道",
                   "修炼速度+" + formatPercent(cfg.value, 0) + "%", cfg.rarity,
                   {{"cultivationSpeed", cfg.value}}, false, "CULT_SPEED", "aff_cult_speed", std::nullopt);
-    }
-}
-
-/// 词条：寿命
-inline void buildAffixLifespan(std::vector<AffixTemplate>& out) {
-    for (const auto& cfg : kAffLifespanConfigs) {
-        pushAffix(out, prefixedId("_aff_lifespan", cfg.rarity), "延年",
-                  "寿命+" + formatPercent(cfg.value, 0) + "%", cfg.rarity,
-                  {{"lifespan", cfg.value}}, false, "LIFESPAN", "aff_lifespan", std::nullopt);
     }
 }
 
@@ -674,7 +644,7 @@ inline void buildAffixPosition(std::vector<AffixTemplate>& out) {
     }
 }
 
-/// 负面词条（固定 3 条）
+/// 负面词条（固定 2 条）
 inline void buildNegativeAffixes(std::vector<AffixTemplate>& out) {
     pushAffix(out, "neg_aff_base", "愚钝", "智力/悟性/魅力 -5", 0,
               {{"intelligenceFlat", -5.0}, {"comprehensionFlat", -5.0}, {"charmFlat", -5.0}},
@@ -682,8 +652,6 @@ inline void buildNegativeAffixes(std::vector<AffixTemplate>& out) {
     pushAffix(out, "neg_aff_battle", "虚弱", "物攻/法攻/气血 -8%", 0,
               {{"physicalAttack", -0.08}, {"magicAttack", -0.08}, {"maxHp", -0.08}},
               true, "BAT_PCT", "neg_aff_battle", std::nullopt);
-    pushAffix(out, "neg_aff_lifespan", "夭折", "寿命-15%", 0,
-              {{"lifespan", -0.15}}, true, "LIFESPAN", "neg_aff_lifespan", std::nullopt);
 }
 
 inline std::vector<AffixTemplate> buildAffixTemplates() {
@@ -691,7 +659,6 @@ inline std::vector<AffixTemplate> buildAffixTemplates() {
     buildAffixBaseFlat(out);
     buildAffixBatPct(out);
     buildAffixCultSpeed(out);
-    buildAffixLifespan(out);
     buildAffixSpecial(out);
     buildAffixCombat(out);
     buildAffixPosition(out);
@@ -705,7 +672,7 @@ inline std::vector<AffixTemplate> buildAffixTemplates() {
 // 公开访问接口（静态表 + 按 id 查询）
 // ============================================================
 
-/// 全部天赋模板（正面 104 + 负面 5 = 109；生成顺序与 Kotlin buildList 一致）
+/// 全部天赋模板（正面 89 + 负面 5 = 94；生成顺序与 Kotlin buildList 一致）
 ///
 /// B16/R6.2 数值外置：本表为**内联默认值兜底**（= detail::buildTalentTemplates()
 /// 产出），与数据文件 `assets/data/game-data.json` 的 `db.talents` 段同源
@@ -735,7 +702,7 @@ inline const std::vector<PhysiqueTemplate>& physiqueTemplates() {
     return physiqueTemplatesMutable();
 }
 
-/// 全部词条模板（正面 68 + 负面 3 = 71）
+/// 全部词条模板（正面 59 + 负面 2 = 61）
 ///
 /// B16/R6.2：同 talentTemplatesMutable——兜底与 `db.affixes` 段同源。
 inline std::vector<AffixTemplate>& affixTemplatesMutable() {

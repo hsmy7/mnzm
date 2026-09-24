@@ -27,7 +27,6 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
-import com.xianxia.sect.core.engine.domain.disciple.calculateBreakthroughLifespanGain
 
 /**
  * 为缺失的体质/词条/天赋分类生成随机标签（0-3 个），并写入已尝试标记。
@@ -201,22 +200,12 @@ internal fun AISectDiscipleManager.settleMonthlyCultivation(disciple: Disciple, 
 
 internal fun AISectDiscipleManager.applyBreakthroughSuccess(d: Disciple): Disciple {
     var working = d.copy(cultivation = 0.0)
-    val oldRealm = working.realm
     working = if (working.realmLayer < GameConfig.Realm.get(working.realm).maxLayers) {
         working.copy(realmLayer = working.realmLayer + 1)
     } else {
         working.copy(realm = working.realm - 1, realmLayer = 1)
     }
-    return if (working.realm != oldRealm) {
-        working.copy(
-            lifespan = working.lifespan +
-                DiscipleStatCalculator.calculateBreakthroughLifespanGain(
-                    working.realm, working.talentIds, working.affixIds
-                )
-        )
-    } else {
-        working
-    }
+    return working
 }
 
 /**

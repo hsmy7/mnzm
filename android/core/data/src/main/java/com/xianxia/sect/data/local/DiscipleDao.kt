@@ -52,13 +52,6 @@ interface DiscipleDao {
         "ASC")
     fun getByDiscipleType(slotId: Int, type: String): Flow<List<Disciple>>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND loyalty < :threshold ORDER BY " +
-        "loyalty ASC")
-    fun getLowLoyalty(slotId: Int, threshold: Int = 30): Flow<List<Disciple>>
-
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND age >= :minAge ORDER BY age DESC")
-    fun getByMinAge(slotId: Int, minAge: Int): Flow<List<Disciple>>
-
     @Query("SELECT COUNT(*) FROM disciples WHERE slot_id = :slotId AND isAlive = 1")
     fun getAliveCount(slotId: Int): Flow<Int>
 

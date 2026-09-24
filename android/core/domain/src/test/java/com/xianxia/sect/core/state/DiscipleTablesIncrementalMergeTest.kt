@@ -51,9 +51,9 @@ class DiscipleTablesIncrementalMergeTest {
         val prev = tables.assembleAll()
 
         // 混合列级写入
-        tables.loyalties[1] = 90
+        tables.moralities[1] = 90
         tables.cultivations[2] = 500.0
-        tables.loyalties[3] = 10
+        tables.moralities[3] = 10
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val incremental = tables.assembleAllIncremental(prev, changed)
@@ -111,7 +111,7 @@ class DiscipleTablesIncrementalMergeTest {
         tables.insert(disciple(2))
         val prev = tables.assembleAll()
 
-        tables.loyalties[1] = 70
+        tables.moralities[1] = 70
         tables.insert(disciple(3))
         tables.cultivations[2] = 100.0
 
@@ -127,7 +127,7 @@ class DiscipleTablesIncrementalMergeTest {
         val prev = tables.assembleAll()
 
         // 随机混合操作（确定性序列）
-        for (i in 1..50 step 3) tables.loyalties[i] = i * 7
+        for (i in 1..50 step 3) tables.moralities[i] = i * 7
         for (i in 2..50 step 5) tables.cultivations[i] = i * 13.5
         tables.markDead(10, currentYear = 10, cause = "age")
         tables.markDead(25, currentYear = 10, cause = "battle")
@@ -154,8 +154,8 @@ class DiscipleTablesIncrementalMergeTest {
         tables.insert(disciple(2))
         val prev = tables.assembleAll()
 
-        tables.loyalties[1] = 100
-        tables.loyalties[2] = 200
+        tables.moralities[1] = 100
+        tables.moralities[2] = 200
         val changed = tables.changedIdTracker.consumeChangedIds()
         val incremental = tables.assembleAllIncremental(prev, changed)
         val full = tables.assembleAll()

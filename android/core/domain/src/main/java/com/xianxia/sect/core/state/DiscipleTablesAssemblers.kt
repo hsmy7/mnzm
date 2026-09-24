@@ -69,8 +69,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         cultivationCheckpoint = cultivationCheckpoints.getOrDefault(id, 0.0),
         cultivationCheckpointGameMonth = cultivationCheckpointGameMonths.getOrDefault(id, 0),
         spiritRootType = spiritRootTypes.getOrDefault(id, "metal"),
-        age = ages.getOrDefault(id, 16),
-        lifespan = lifespans.getOrDefault(id, 80),
         isAlive = isAlive.getOrDefault(id, 1) == 1,
         gender = genders.getOrDefault(id, "male"),
         portraitRes = portraitRes.getOrDefault(id, ""),
@@ -85,7 +83,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         cultivationSpeedBonus = cultivationSpeedBonuses.getOrDefault(id, 0.0),
         cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
         discipleType = discipleTypes.getOrDefault(id, "outer"),
-        soulPower = soulPowers.getOrDefault(id, 0),
         cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
         cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
         manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
@@ -171,7 +168,7 @@ internal fun DiscipleTables.assembleSocial(id: Int) = SocialData(
 
 internal fun DiscipleTables.assembleSkills(id: Int) = SkillStats(
     intelligence = intelligences.getOrDefault(id, 0), charm = charms.getOrDefault(id, 0),
-    loyalty = loyalties.getOrDefault(id, 0), comprehension = comprehensions.getOrDefault(id, 0),
+    comprehension = comprehensions.getOrDefault(id, 0),
     artifactRefining = artifactRefinings.getOrDefault(id, 0),
     pillRefining = pillRefinings.getOrDefault(id, 0),
     spiritPlanting = spiritPlantings.getOrDefault(id, 0),
@@ -189,9 +186,7 @@ internal fun DiscipleTables.assembleSkills(id: Int) = SkillStats(
 
 internal fun DiscipleTables.assembleUsage(id: Int) = UsageTracking(
     usedFunctionalPillTypes = usedFunctionalPillTypes.getOrNull(id) ?: emptyList(),
-    usedExtendLifePillIds = usedExtendLifePillIds.getOrNull(id) ?: emptyList(),
     usedPermanentPillKeys = usedPermanentPillKeys.getOrNull(id) ?: emptySet(),
-    usedExtendLifePillTypes = usedExtendLifePillTypes.getOrNull(id) ?: emptySet(),
     recruitedMonth = recruitedMonths.getOrDefault(id, 0),
     hasReviveEffect = hasReviveEffects.getOrDefault(id, 0) == 1,
     hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,

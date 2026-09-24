@@ -357,13 +357,13 @@ class GameEngineDiscipleOpsNativeTxGateTest {
         whenever(it.mailService).thenReturn(mock())
     }
 
-    /** 招募列表同人候选播种（与弟子 A 签名命中——name/surname/gender/root + 年龄容差）。 */
+    /** 招募列表同人候选播种（与弟子 A 签名命中——name/surname/gender/root）。 */
     private fun seedRecruitCandidate() {
         store.update {
             // 与 seedDisciples 装配面同签名（DiscipleTablesAssemblers 默认：
-            // gender="male" / spiritRootType="metal"），age=20 与弟子 A 同龄
+            // gender="male" / spiritRootType="metal"）
             val candidate = com.xianxia.sect.core.model.Disciple(
-                id = "cand-1", name = "弟子A", surname = "张", age = 20
+                id = "cand-1", name = "弟子A", surname = "张"
             ).copy(isAlive = true)
             gameData = gameData.copy(recruitList = listOf(candidate))
         }
@@ -382,8 +382,6 @@ class GameEngineDiscipleOpsNativeTxGateTest {
             discipleTables.isAlive[a] = 1
             discipleTables.realms[a] = 9
             discipleTables.realmLayers[a] = 1
-            discipleTables.ages[a] = 20
-            discipleTables.lifespans[a] = 80
             discipleTables.storageBagItems[a] = emptyList()
             discipleTables.writeAllowed = false
         }

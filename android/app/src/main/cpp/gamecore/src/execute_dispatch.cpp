@@ -23,7 +23,6 @@
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/inventory_tx.h"
 #include "gamecore/system/jade_tx.h"
-#include "gamecore/system/lifecycle.h"
 #include "gamecore/system/level_generator.h"
 #include "gamecore/system/lock_beast_tx.h"
 #include "gamecore/system/rarity_progression.h"
@@ -394,7 +393,6 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             in.speedVariance = params.value("speedVariance", 0);
             in.intelligence = params.value("intelligence", 0);
             in.charm = params.value("charm", 0);
-            in.loyalty = params.value("loyalty", 0);
             in.comprehension = params.value("comprehension", 0);
             in.aptitude = params.value("aptitude", 50);
             in.teaching = params.value("teaching", 0);
@@ -435,10 +433,6 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             zones.adFlatBonus = params.value("adFlatBonus", 0.0);
             return ok({{"value", gamecore::disciple::calculateBreakthroughChance(zones)}});
         }
-        case action::DISCIPLE_MAX_AGE:
-            return ok({{"value", gamecore::system::computeMaxAge(
-                           params.value("lifespan", 0), params.value("realmMaxAge", 0),
-                           params.value("lifespanBonus", 0.0))}});
         case action::DISCIPLE_CHECKPOINT: {
             auto& ds = core->state().disciples;
             const std::string id = params.at("id").get<std::string>();
@@ -473,26 +467,18 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             }
             return ok({{"cultivation", cultivation}});
         }
-        case action::DISCIPLE_AGE: {
-            const auto out = gamecore::system::ageDisciple(
-                params.value("age", 0), params.value("realmLayer", 1),
-                params.value("maxAge", 80));
-            return ok({{"age", out.age}, {"realmLayer", out.realmLayer}, {"dead", out.dead}});
-        }
         case action::DISCIPLE_BREAKTHROUGH: {
             gamecore::state::Disciple d;
             d.id = params.value("id", "");
             d.realm = params.value("realm", 9);
             d.realmLayer = params.value("realmLayer", 1);
             d.cultivation = params.value("cultivation", 0.0);
-            d.lifespan = params.value("lifespan", 80);
             d.isAlive = params.value("alive", true);
             const double chance = params.value("chance", 0.0);
-            const int32_t gain = params.value("lifespanGain", 0);
             const int32_t currentMonth = params.value("currentMonth", 0);
             // 单次突破尝试（连续循环由 Kotlin 层编排——保持 execute 语义精简）
             if (gamecore::system::tryBreakthrough(d, chance, core->rng())) {
-                d = gamecore::system::applyBreakthroughSuccess(d, gain);
+                d = gamecore::system::applyBreakthroughSuccess(d);
                 return ok({{"success", true}, {"realm", d.realm},
                            {"realmLayer", d.realmLayer}, {"cultivation", d.cultivation}});
             }
@@ -594,8 +580,9 @@ nlohmann::json handleGovernment(GameCore* core, int32_t actionId,
                        {"deducted", r.deducted}});
         }
         case action::GOV_POLICY_MONTHLY_EFFECTS: {
-            const auto d = gamecore::system::policyMonthlyDeltas(gd.sectPolicies);
-            return ok({{"loyaltyDelta", d.first}, {"moralityDelta", d.second}});
+            const int32_t d =
+                gamecore::system::policyMonthlyMoralityDelta(gd.sectPolicies);
+            return ok({{"moralityDelta", d}});
         }
         case action::GOV_SPIRIT_MINE_MONTHLY: {
             std::vector<int32_t> miningSkills;
@@ -854,11 +841,6 @@ nlohmann::json handleSlotCleanup(GameCore* core, const nlohmann::json& params) {
             in.patrolSlots.push_back(e.get<gamecore::state::PatrolSlot>());
         }
     }
-    if (p.contains("warehouseGarrisons")) {
-        for (const auto& e : p.at("warehouseGarrisons")) {
-            in.warehouseGarrisons.push_back(e.get<gamecore::state::WarehouseGarrisonSlot>());
-        }
-    }
     if (p.contains("battleTeams")) {
         for (const auto& e : p.at("battleTeams")) {
             in.battleTeams.push_back(e.get<gamecore::state::BattleTeam>());
@@ -894,7 +876,6 @@ nlohmann::json handleSlotCleanup(GameCore* core, const nlohmann::json& params) {
         {"residenceSlots", out.residenceSlots},
         {"activeBloodRefinements", out.activeBloodRefinements},
         {"patrolSlots", out.patrolSlots},
-        {"warehouseGarrisons", out.warehouseGarrisons},
         {"battleTeams", out.battleTeams},
         {"worldMapSects", out.worldMapSects},
         {"productionSlots", out.productionSlots},
@@ -1384,15 +1365,6 @@ nlohmann::json handleSectAttackTx(GameCore* core, int32_t actionId,
             if (!r.base.ok) return toFailure(r.base);
             return ok({{"removedFromPool", r.removedFromPool},
                        {"clearedGarrisonSlots", r.clearedGarrisonSlots}});
-        }
-        case action::SECT_ATTACK_GRANT_SOUL_POWERS_TX: {
-            std::vector<std::string> survivorIds;
-            for (const auto& e : params.at("sectSurvivorIds")) {
-                survivorIds.push_back(e.get<std::string>());
-            }
-            const auto r = sat::grantWarSoulPowersTx(state, survivorIds);
-            if (!r.base.ok) return toFailure(r.base);
-            return ok({{"granted", r.granted}});
         }
         default:
             return fail("NOT_IMPLEMENTED",
@@ -2185,7 +2157,7 @@ nlohmann::json handleInventoryTx(GameCore* core, int32_t actionId,
 }
 
 /// 弟子管理三事务（ActionIds.ELDER_APPOINT_TX / ELDER_DISMISS_TX /
-/// WAREHOUSE_GARRISON_TX / SPIRIT_ROOT_WASH_TX / TRAIT_ADD_ROLL_TX /
+/// SPIRIT_ROOT_WASH_TX / TRAIT_ADD_ROLL_TX /
 /// TRAIT_ADD_CONFIRM_TX / TRAIT_WASH_SLOT_TX——batch-15 任命/驻守/洗炼
 /// 消耗族写者下沉；任命/驻守/特质确认零 RNG 纯事务，洗炼三族含玉符消耗
 /// （C++ 承扣，余额检查+扣减与抽取同事务原子）与 SYSTEM 分区抽取。校验
@@ -2211,15 +2183,6 @@ nlohmann::json handleAppointmentTx(GameCore* core, int32_t actionId,
                 state, params.at("slotType").get<std::string>());
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"dismissed", true}, {"removedId", r.removedId}});
-        }
-        case action::WAREHOUSE_GARRISON_TX: {
-            const auto r = appointment_tx::warehouseGarrisonAssignTx(
-                state, params.at("buildingInstanceId").get<std::string>(),
-                params.at("discipleId").get<std::string>(),
-                params.value("discipleName", ""),
-                params.value("sectId", ""));
-            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"assigned", true}, {"oldOccupantId", r.oldOccupantId}});
         }
         case action::SPIRIT_ROOT_WASH_TX: {
             const auto r = appointment_tx::spiritRootWashTx(
@@ -2283,7 +2246,7 @@ nlohmann::json handleAppointmentTx(GameCore* core, int32_t actionId,
 }
 
 /// 招募域 UI 操作事务（ActionIds.RECRUIT_REMOVE_TX / RECRUIT_REFRESH_TX /
-/// RECRUIT_AGE_TX——batch-16 招募列表维护族写者下沉：移除/老化净化零 RNG
+/// RECRUIT_AGE_TX——batch-16 招募列表维护族写者下沉：移除/净化零 RNG
 /// 纯事务，刷新复用 year_settlement 候选生成链（SYSTEM 分区，与 Kotlin 臂
 /// 逐位同源；差值门内置于 C++ 链）。失败信封 → Kotlin 回退原路径重执行
 /// 校验链。命名独立于既有招募专用 JNI（nativeRecruitAllFromList），中央
@@ -2307,8 +2270,7 @@ nlohmann::json handleRecruitTx(GameCore* core, int32_t actionId,
                        {"autoRecruited", r.autoRecruited},
                        {"remaining", r.remaining}});
         }
-        case action::RECRUIT_AGE_TX: {
-            const auto r = recruit_tx::ageRecruitTx(state, core->ecsWorld());
+        case action::RECRUIT_AGE_TX: {            const auto r = recruit_tx::ageRecruitTx(state, core->ecsWorld());
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"removed", r.removed}, {"remaining", r.remaining}});
         }
@@ -2585,7 +2547,7 @@ nlohmann::json handlePolicyTx(GameCore* core, int32_t actionId,
 }
 
 /// 弟子生命周期 UI 操作事务（ActionIds.DISCIPLE_LIFECYCLE_EXPEL /
-/// APPRENTICE / MARRY_APPROVE / RELEASE_REFLECTION / SALARY_TOGGLE
+/// APPRENTICE / MARRY_APPROVE / SALARY_TOGGLE
 /// ——batch-14 生命周期族写者下沉；全族零 RNG 纯确定性事务，校验链
 /// 先行失败零写入，失败信封 → Kotlin 回退原路径重执行校验链。
 /// 逐出信封附 bagItems 草稿（Kotlin 物化回仓库+溢出转邮件）；
@@ -2624,12 +2586,6 @@ nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
                 params.value("femaleName", ""));
             if (!r.ok) return fail(r.errorType, r.message);
             return ok({{"paired", r.paired}});
-        }
-        case action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION: {
-            const auto r = lifecycle_tx::releaseReflectionTransaction(
-                state, params.at("discipleId").get<std::string>());
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"released", true}, {"written", r.written}});
         }
         case action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE: {
             const auto r = lifecycle_tx::salaryToggleTransaction(
@@ -2726,7 +2682,7 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
                    actionId <= action::PATROL_UPDATE_YEARLY_SALARY) {
             result = handlePatrolTx(this, actionId, params);
         } else if (actionId >= action::SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX &&
-                   actionId <= action::SECT_ATTACK_GRANT_SOUL_POWERS_TX) {
+                   actionId <= action::SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX) {
             result = handleSectAttackTx(this, actionId, params);
         } else if (actionId >= action::BEAST_VIEW_LOCK_TX &&
                    actionId <= action::SETTINGS_PATCH_TX) {

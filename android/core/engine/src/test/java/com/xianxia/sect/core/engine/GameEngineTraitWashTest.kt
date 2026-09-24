@@ -136,31 +136,7 @@ class GameEngineTraitWashTest {
         }
     }
 
-    private fun seedDisciple(
-        id: Int = 1,
-        talentIds: List<String> = emptyList(),
-        physiqueIds: List<String> = emptyList(),
-        affixIds: List<String> = emptyList()
-    ) {
-        store.update {
-            discipleTables.insert(
-                Disciple(
-                    id = id.toString(),
-                    name = "测试弟子$id",
-                    realm = 9,
-                    cultivation = 100.0,
-                    spiritRootType = "fire",
-                    talentIds = talentIds,
-                    physiqueIds = physiqueIds,
-                    affixIds = affixIds,
-                    combat = CombatAttributes(hpVariance = 0, mpVariance = 0)
-                )
-            )
-        }
-    }
-
-    /** 目标槽位 id（标准弟子第 1 个特质） */
-    private fun targetIdOf(type: TraitWashType): String = realTraitIds(type, 1).first()
+    /** 目标槽位 id（标准弟子第 1 个特质） */    private fun targetIdOf(type: TraitWashType): String = realTraitIds(type, 1).first()
 
     /** 播种玉符余额并从快照恢复运行时 totalCount（对齐生产 onLoopStart 语义）。 */
     private fun seedJade(count: Int) {
@@ -533,8 +509,6 @@ class GameEngineTraitWashTest {
         assertEquals("死亡弟子天赋不得被替换", before.talentIds, assembleDisciple().talentIds)
     }
 
-    // ── lifespan 同步：洗炼前后寿命必须与新特质一致 ──
-
     // ── 端到端：确认洗炼产物后 getBaseStats 立即反映 Flat 加成 ──
     // 洗出"青帝(灵植+18)"等生产 Flat 天赋后属性页灵植立即增加
 
@@ -555,44 +529,6 @@ class GameEngineTraitWashTest {
         assertEquals("确认青帝后灵植 = 原始 + 18",
             before.skills.spiritPlanting + 18, stats.spiritPlanting)
         assertEquals("其余类型不得被触碰", before.physiqueIds, after.physiqueIds)
-    }
-
-    @Test
-    fun `confirmTraitWash - 洗入延年词条后 lifespan 按境界基准上调`() = runBlocking {
-        val lifespanAffix = AffixDatabase.affixes.values.firstOrNull {
-            it.effects.containsKey("lifespan") && !it.isNegative
-        } ?: error("测试前提：需要正向 lifespan 词条")
-        val otherAffix = AffixDatabase.getPositiveAffixes().firstOrNull {
-            it.id != lifespanAffix.id && !it.effects.containsKey("lifespan")
-        } ?: error("测试前提：需要无 lifespan 正向词条")
-        seedDisciple(affixIds = listOf(otherAffix.id))
-        val before = assembleDisciple().lifespan
-        val bonus = lifespanAffix.effects["lifespan"] ?: 0.0
-
-        val result = engine.confirmTraitWash("1", TraitWashType.AFFIX, otherAffix.id, lifespanAffix.id)
-
-        assertTrue("期望 Success，实际 $result", result is TraitWashConfirmResult.Success)
-        val expected = before + (GameConfig.Realm.get(9).maxAge * bonus).toInt()
-        assertEquals("洗入延年应上调 lifespan（按境界基准折算）", expected, assembleDisciple().lifespan)
-    }
-
-    @Test
-    fun `confirmTraitWash - 洗掉延年词条后 lifespan 按境界基准下调`() = runBlocking {
-        val lifespanAffix = AffixDatabase.affixes.values.firstOrNull {
-            it.effects.containsKey("lifespan") && !it.isNegative
-        } ?: error("测试前提：需要正向 lifespan 词条")
-        val otherAffix = AffixDatabase.getPositiveAffixes().firstOrNull {
-            it.id != lifespanAffix.id && !it.effects.containsKey("lifespan")
-        } ?: error("测试前提：需要无 lifespan 正向词条")
-        seedDisciple(affixIds = listOf(lifespanAffix.id))
-        val before = assembleDisciple().lifespan
-        val bonus = lifespanAffix.effects["lifespan"] ?: 0.0
-
-        val result = engine.confirmTraitWash("1", TraitWashType.AFFIX, lifespanAffix.id, otherAffix.id)
-
-        assertTrue("期望 Success，实际 $result", result is TraitWashConfirmResult.Success)
-        val expected = (before + (GameConfig.Realm.get(9).maxAge * -bonus).toInt()).coerceAtLeast(1)
-        assertEquals("洗掉延年应下调 lifespan（按境界基准折算）", expected, assembleDisciple().lifespan)
     }
 
     @Test

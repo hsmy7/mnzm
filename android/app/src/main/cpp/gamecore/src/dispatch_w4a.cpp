@@ -90,7 +90,7 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
                 params.value("itemRarity", 0));
             if (!r.ok) return fail(r.errorType, r.message);
             return ok({{"rewarded", true},
-                       {"theftCandidate", r.theftCandidate},
+                       {"baseAttrApplied", r.baseAttrApplied},
                        {"moralityAfter", r.moralityAfter}});
         }
         case action::DISCIPLE_OP_USE_PILL: {
@@ -100,7 +100,7 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"used", true},
                        {"logLine", r.logLine},
-                       {"theftCandidate", r.base.theftCandidate},
+                       {"baseAttrApplied", r.base.baseAttrApplied},
                        {"moralityAfter", r.moralityAfter}});
         }
         case action::DISCIPLE_OP_REPLACE_MANUAL: {

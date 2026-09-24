@@ -7,10 +7,7 @@ import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.ResidenceSlot
-import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.griefEndYear
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.salaryPaidCount
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.state.GameStateStore
@@ -78,7 +75,6 @@ class CultivationSettlementConcurrencyTest {
             stateStore,
             scopeProvider,
             spiritStoneWallet,
-            mock(),
             mock()
         )
         lifecycleProcessor = DiscipleLifecycleProcessor(
@@ -87,10 +83,6 @@ class CultivationSettlementConcurrencyTest {
             mock(com.xianxia.sect.core.engine.domain.production.ProductionCoordinator::class.java),
             mock(com.xianxia.sect.core.event.EventBusPort::class.java),
             mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup::class.java),
-            object : javax.inject.Provider<com.xianxia.sect.core.engine.service.LawEnforcementProcessor> {
-                override fun get(): com.xianxia.sect.core.engine.service.LawEnforcementProcessor =
-                    mock(com.xianxia.sect.core.engine.service.LawEnforcementProcessor::class.java)
-            },
             mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService::class.java),
             com.xianxia.sect.core.engine.di.IoDispatcher(),
             com.xianxia.sect.core.engine.system.InventorySystem(
@@ -116,22 +108,21 @@ class CultivationSettlementConcurrencyTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `processAnnualSalary_灵石充足_全员发放忠诚加一`() = runTest {
+    fun `processAnnualSalary_灵石充足_全员发放且计数落账`() = runTest {
         insertDisciples(5)
         val before = getDisciples()
         assertEquals(5, before.size)
-        assertEquals(50, before[0].skills.loyalty)
+        assertEquals(0, before[0].skills.salaryPaidCount)
 
         cultivationSettlement.processAnnualSalary(2)
 
         val after = getDisciples()
         assertEquals("弟子数量必须不变", 5, after.size)
-        assertEquals("忠诚度应 +1", 51, after[0].skills.loyalty)
         assertEquals("俸禄次数应 +1", 1, after[0].skills.salaryPaidCount)
     }
 
     @Test
-    fun `processAnnualSalary_灵石不足_全员忠诚减一`() = runTest {
+    fun `processAnnualSalary_灵石不足_不发俸禄不改计数`() = runTest {
         insertDisciples(3)
         stateStore.update {
             gameData = gameData.copy(spiritStones = 0L)
@@ -142,7 +133,6 @@ class CultivationSettlementConcurrencyTest {
 
         val after = getDisciples()
         assertEquals("弟子数量不变", 3, after.size)
-        assertEquals("忠诚度应 -1", before[0].skills.loyalty - 1, after[0].skills.loyalty)
         assertEquals("俸禄次数不变", before[0].skills.salaryPaidCount, after[0].skills.salaryPaidCount)
     }
 
@@ -150,34 +140,6 @@ class CultivationSettlementConcurrencyTest {
     fun `processAnnualSalary_空弟子列表_不崩溃`() = runTest {
         cultivationSettlement.processAnnualSalary(2)
         assertEquals(0, getDisciples().size)
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // processResidenceLoyalty
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    fun `processResidenceLoyalty_居所弟子_忠诚度提升且弟子数量不变`() = runTest {
-        insertDisciples(4)
-        stateStore.update {
-            gameData = gameData.copy(
-                residenceSlots = listOf(
-                    ResidenceSlot(buildingInstanceId = "b1", slotIndex = 0, discipleId = "1"),
-                    ResidenceSlot(buildingInstanceId = "b1", slotIndex = 1, discipleId = "2")
-                )
-            )
-        }
-
-        stateStore.update {
-            cultivationSettlement.processResidenceLoyalty(this)
-        }
-
-        val after = getDisciples()
-        assertEquals("弟子数量必须不变", 4, after.size)
-        val d1 = after.find { it.id == "1" }!!
-        val d3 = after.find { it.id == "3" }!!
-        assertTrue("居所弟子忠诚度应提升", d1.skills.loyalty > 50)
-        assertEquals("非居所弟子忠诚度不变", 50, d3.skills.loyalty)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -242,7 +204,7 @@ class CultivationSettlementConcurrencyTest {
         // clear+insert 未触发 _disciplesFlow 刷新（引用未变，mutationVersion
         // 在 reentrantBuffer 提交路径中可能被跳过）。
         // 直接读 stateStore 的 _discipleTables 确认写入已生效。
-        assertTrue("忠诚度应提升, actual=" + d1.skills.loyalty, d1.skills.loyalty > 50)
+        assertTrue("道德度应提升, actual=" + d1.skills.morality, d1.skills.morality > 50)
     }
 
     @Test
@@ -284,7 +246,7 @@ class CultivationSettlementConcurrencyTest {
         val after = getDisciples()
         assertEquals("弟子数量必须不变", 3, after.size)
         val d1 = after.find { it.id == "1" }!!
-        assertTrue("突破弟子忠诚度应提升", d1.skills.loyalty > 50)
+        assertEquals("俸禄次数应 +1", 1, d1.skills.salaryPaidCount)
     }
 
     @Test
@@ -309,10 +271,7 @@ class CultivationSettlementConcurrencyTest {
                         realmLayer = 1,
                         cultivation = 0.0,
                         isAlive = true,
-                        discipleType = "inner",
-                        lifespan = 80,
-                        age = 20,
-                        skills = SkillStats(loyalty = 50)
+                        discipleType = "inner"
                     )
                 )
             }

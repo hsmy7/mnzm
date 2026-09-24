@@ -160,8 +160,6 @@ var Disciple.griefEndYear: kotlin.Int? get() = social.griefEndYear; set(value) {
 var Disciple.intelligence: kotlin.Int get() = skills.intelligence; set(value) { skills.intelligence = value }
 /** @deprecated 请改用 [skills.charm] */
 var Disciple.charm: kotlin.Int get() = skills.charm; set(value) { skills.charm = value }
-/** @deprecated 请改用 [skills.loyalty] */
-var Disciple.loyalty: kotlin.Int get() = skills.loyalty; set(value) { skills.loyalty = value }
 /** @deprecated 请改用 [skills.comprehension] */
 var Disciple.comprehension: kotlin.Int get() = skills.comprehension; set(value) { skills.comprehension = value }
 /** @deprecated 请改用 [skills.artifactRefining] */
@@ -185,9 +183,6 @@ var Disciple.salaryMissedCount: kotlin.Int get() = skills.salaryMissedCount; set
 
 // ── UsageTracking ──
 
-/** @deprecated 请改用 [usage.usedExtendLifePillIds] */
-var Disciple.usedExtendLifePillIds: kotlin.collections.List<String> get() = usage
-    .usedExtendLifePillIds; set(value) { usage.usedExtendLifePillIds = value }
 /** @deprecated 请改用 [usage.recruitedMonth] */
 var Disciple.recruitedMonth: kotlin.Int get() = usage.recruitedMonth; set(value) { usage.recruitedMonth = value }
 /** @deprecated 请改用 [usage.hasReviveEffect] */

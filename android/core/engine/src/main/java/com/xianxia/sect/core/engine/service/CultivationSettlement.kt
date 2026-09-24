@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.SpiritMineSlot
@@ -58,7 +57,6 @@ class CultivationSettlement @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
-    private val lawEnforcementProcessor: LawEnforcementProcessor,
     private val gameConfigProvider: GameConfigProvider
 ) {
     /** 后台协程作用域 — 使用 [DeviceCapabilityProfiler.backgroundDispatcher] */
@@ -71,22 +69,14 @@ class CultivationSettlement @Inject constructor(
     /**
      * 年度年俸发放 — 每年 1 月在年度结算路径执行。
      *
-     * 受开源节流政策影响：
-     * - 年俸金额-30%
-     * - 不发忠诚度
+     * 受开源节流政策影响：年俸金额-30%。
      */
     @Suppress("UnusedParameter") // year: 语义时点形参：标注年变/月变触发编排的可读契约，函数体当前不消费
     fun processAnnualSalary(year: Int) {
-        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         val plan = calculateSalaryPlan() ?: return
 
-        // 灵石不足 → 应得俸禄的弟子忠诚 -1，不发俸禄
-        if (!spiritStoneWallet.canAfford(plan.totalRequired)) {
-            stateStore.update {
-                applyUnpaidLoyaltyPenalty(discipleTables, plan)
-            }
-            return
-        }
+        // 灵石不足 → 不发俸禄
+        if (!spiritStoneWallet.canAfford(plan.totalRequired)) return
 
         stateStore.update {
             val data = gameData
@@ -99,7 +89,7 @@ class CultivationSettlement @Inject constructor(
 
             // 列直写：直接读写目标列，避免全量 assemble
             for ((idStr, salary) in plan.eligibleSalaries) {
-                payAnnualSalaryToDisciple(discipleTables, idStr, salary, salaryMultiplier, isFrugality, maxLoyalty)
+                payAnnualSalaryToDisciple(discipleTables, idStr, salary, salaryMultiplier)
             }
         }
     }
@@ -151,12 +141,10 @@ class CultivationSettlement @Inject constructor(
     /**
      * 突破时补发当年年俸 — 仅发当年 1 年份，不累年。
      * 灵石不足则不发（自动售卖由 [SpiritStoneWallet] 统一处理）。
-     * 受开源节流政策影响：金额-30% 且不发忠诚。
+     * 受开源节流政策影响：金额-30%。
      */
     @Suppress("UnusedParameter") // currentYear: 语义时点形参：标注年变/月变触发编排的可读契约，函数体当前不消费
     fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
-        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-
         stateStore.update {
             val tables = discipleTables
             val data = gameData
@@ -180,23 +168,6 @@ class CultivationSettlement @Inject constructor(
             tables.storageBagSpiritStones[discipleIntId] = currentStones + actualSalary
             tables.salaryPaidCounts[discipleIntId] =
                 tables.salaryPaidCounts.getOrDefault(discipleIntId, 0) + 1
-            // 开源节流政策下不发忠诚
-            if (!isFrugality) {
-                tables.loyalties[discipleIntId] =
-                    (tables.loyalties.getOrDefault(discipleIntId, 0) + 1).coerceAtMost(maxLoyalty)
-            }
-        }
-    }
-
-    fun processResidenceLoyalty(state: MutableGameState) {
-        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        val residentIds = state.gameData.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
-        // 列直写：直接读写目标列，避免全量 assemble
-        for (id in state.discipleTables.ids) {
-            if (id.toString() in residentIds && state.discipleTables.loyalties[id] < maxLoyalty) {
-                state.discipleTables.loyalties[id] =
-                    (state.discipleTables.loyalties[id] + 1).coerceAtMost(maxLoyalty)
-            }
         }
     }
 
@@ -307,52 +278,26 @@ class CultivationSettlement @Inject constructor(
      * 政策月度非消耗类效果。
      * 在月度 tick 中 processPolicyCosts 之后调用。
      * - 教化之道：所有弟子道德+1（上限70）
-     * - 仁政爱徒：所有弟子忠诚+1（上限100）
-     * - 严苛训练：所有弟子忠诚-1（下限0）
-     * - 增强治安：所有弟子忠诚-1（下限0）
-     * - 宵禁：所有弟子忠诚-1（下限0）
-     * - 松弛管理：所有弟子忠诚+2（上限100）
      */
     fun processPolicyMonthlyEffects(state: MutableGameState) {
         val data = state.gameData
         val tables = state.discipleTables
-        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
 
         var moralCount = 0
-        var loyaltyDeltaSum = 0
-        // 单次遍历所有活弟子，合并所有政策的忠诚/道德效果
+        // 单次遍历所有活弟子，合并所有政策的道德效果
         for (id in tables.ids) {
             if (tables.isAlive.getOrDefault(id, 0) != 1) continue
-
-            // 忠诚净变化（各政策月度忠诚增减汇总）
-            var loyaltyDelta = 0
-            if (data.sectPolicies.benevolentGovernance) loyaltyDelta += GameConfig.PolicyConfig
-                .BENEVOLENT_LOYALTY_PER_MONTH
-            if (data.sectPolicies.relaxedMgmt) loyaltyDelta += GameConfig.PolicyConfig.RELAXED_MGMT_LOYALTY_PER_MONTH
-            if (data.sectPolicies.strictTraining) loyaltyDelta += GameConfig.PolicyConfig
-                .STRICT_TRAINING_LOYALTY_PER_MONTH
-            if (data.sectPolicies.enhancedSecurity) loyaltyDelta += GameConfig.PolicyConfig
-                .ENHANCED_SECURITY_LOYALTY_PER_MONTH
-            if (data.sectPolicies.curfew) loyaltyDelta += GameConfig.PolicyConfig.CURFEW_LOYALTY_PER_MONTH
-            if (loyaltyDelta != 0) {
-                /** 当前设备的电源管理配置 */
-                val current = tables.loyalties.getOrDefault(id, 50)
-                tables.loyalties[id] = (current + loyaltyDelta).coerceIn(0, maxLoyalty)
-                loyaltyDeltaSum += loyaltyDelta
-            }
 
             // 道德变化（教化之道）
             if (applyMoralEducationForDisciple(state, tables, id)) moralCount++
         }
-        if (data.sectPolicies.moralEducation || loyaltyDeltaSum != 0) {
-            DomainLog.d(TAG, "processPolicyMonthlyEffects: moralEducation↑${moralCount}人, " +
-                "loyalty净变化=${if (loyaltyDeltaSum > 0) "+" else ""}$loyaltyDeltaSum")
+        if (data.sectPolicies.moralEducation) {
+            DomainLog.d(TAG, "processPolicyMonthlyEffects: moralEducation↑${moralCount}人")
         }
     }
 
     /**
-     * 教化之道单弟子效果：道德低于上限才提升；
-     * 提升后若仍低于偷盗阈值则触发偷盗判定（事务内版本）。
+     * 教化之道单弟子效果：道德低于上限才提升。
      *
      * @return 是否发生了道德提升（用于 moralCount 计数）
      */
@@ -368,10 +313,6 @@ class CultivationSettlement @Inject constructor(
         if (current >= maxMoral) return false
         val newMoral = (current + GameConfig.PolicyConfig.MORAL_EDUCATION_PER_MONTH).coerceIn(0, maxMoral)
         tables.moralities[id] = newMoral
-        // 教化之道提升道德，但若仍低于阈值则触发偷盗判定（事务内版本）
-        if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
-            lawEnforcementProcessor.processSingleDiscipleTheft(id, state)
-        }
         return true
     }
 
@@ -483,37 +424,6 @@ class CultivationSettlement @Inject constructor(
             )
         }
         state.gameData = state.gameData.copy(spiritMineLastSettledMonth = currentMonth)
-        applyMinerLoyaltyDecay(state)
-    }
-
-    /**
-     * 矿工忠诚度扣减：每连续挖矿 3 月扣 1 点。
-     * 在 [stateStore.update] 块内调用。
-     */
-    private fun applyMinerLoyaltyDecay(state: MutableGameState) {
-        val data = state.gameData
-        val tables = state.discipleTables
-        val updatedSlots = data.spiritMineSlots.map { slot ->
-            if (slot.discipleId.isNotEmpty()) {
-                val idInt = slot.discipleId.toIntOrNull()
-                if (idInt != null && tables.ids.contains(idInt)) {
-                    val newMonths = slot.consecutiveMiningMonths + 1
-                    if (newMonths >= 3) {
-                        /** 当前设备的电源管理配置 */
-                        val current = tables.loyalties[idInt] ?: 0
-                        tables.loyalties[idInt] = (current - 1).coerceAtLeast(0)
-                        slot.copy(consecutiveMiningMonths = 0)
-                    } else {
-                        slot.copy(consecutiveMiningMonths = newMonths)
-                    }
-                } else {
-                    slot.copy(consecutiveMiningMonths = 0)
-                }
-            } else {
-                slot.copy(consecutiveMiningMonths = 0)
-            }
-        }
-        state.gameData = data.copy(spiritMineSlots = updatedSlots)
     }
 
     companion object {
@@ -530,25 +440,12 @@ class CultivationSettlement @Inject constructor(
     }
 }
 
-/** 灵石不足时年俸弟子的忠诚 -1：仅存活在册弟子生效 */
-private fun applyUnpaidLoyaltyPenalty(tables: DiscipleTables, plan: CultivationSettlement.SalaryPlan) {
-    for ((idStr, _) in plan.eligibleSalaries) {
-        val id = idStr.toIntOrNull()
-        if (id == null || id !in tables.ids || tables.isAlive[id] != 1) continue
-        /** 当前设备的电源管理配置 */
-        val current = tables.loyalties.getOrDefault(id, 50)
-        tables.loyalties[id] = (current - 1).coerceAtLeast(GameConfig.Disciple.MIN_LOYALTY)
-    }
-}
-
-/** 单弟子年俸发放：列直写俸禄/已发计数，非节流政策下忠诚 +1 */
+/** 单弟子年俸发放：列直写俸禄/已发计数 */
 private fun payAnnualSalaryToDisciple(
     tables: DiscipleTables,
     idStr: String,
     salary: Long,
-    salaryMultiplier: Double,
-    isFrugality: Boolean,
-    maxLoyalty: Int
+    salaryMultiplier: Double
 ) {
     val id = idStr.toIntOrNull()
     if (id == null || id !in tables.ids || tables.isAlive[id] != 1) return
@@ -557,11 +454,5 @@ private fun payAnnualSalaryToDisciple(
     tables.storageBagSpiritStones[id] = currentStones + actualSalary
     tables.salaryPaidCounts[id] =
         tables.salaryPaidCounts.getOrDefault(id, 0) + 1
-    // 开源节流政策下不发忠诚
-    if (!isFrugality) {
-        /** 当前设备的电源管理配置 */
-        val current = tables.loyalties.getOrDefault(id, 50)
-        tables.loyalties[id] = (current + 1).coerceAtMost(maxLoyalty)
-    }
 }
- 
+

@@ -157,7 +157,7 @@ class EntityCountBoundsRuleTest {
         manualIds: List<String> = emptyList()
     ) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
-        age = 20, lifespan = 80, isAlive = true,
+        isAlive = true,
         equipment = equipment, manualIds = manualIds
     )
 

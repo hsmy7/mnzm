@@ -81,10 +81,10 @@ private fun avoidSentinel50(roll: Int): Int =
  *
  * 将三处构造站点（recruitDisciple / refreshRecruitList / createChild）
  * 中字符级一致的六段逻辑收敛至此：variance / comprehension / skills /
- * baseStats / lifespan / talentIds。
+ * baseStats / talentIds。
  *
  * 调用方只需提供差异化的 [DiscipleSeed]（id / gender / name / spiritRoot /
- * age / realmLayer / social / nextInt），其余由 [create] 统一完成。
+ * realmLayer / social / nextInt），其余由 [create] 统一完成。
  *
  * [nextInt] 为 `(from, until) -> value` 函数，同时兼容
  * [kotlin.random.Random.nextInt] 与 [GameRandom.nextInt]。
@@ -103,7 +103,6 @@ class DiscipleFactory @Inject constructor() {
         val gender: String,
         val nameResult: NameService.NameResult,
         val spiritRootType: String,
-        val age: Int,
         val realm: Int = 9,
         /** 小层境界（1~9），默认 0 表示未知（按初层 1 回退）；Combatant 版实现为 realmLayer */
         val realmLayer: Int,
@@ -141,7 +140,6 @@ class DiscipleFactory @Inject constructor() {
             portraitRes = PortraitPool.getRandomPortrait(seed.gender) { bound ->
                 r(0, bound)
             },
-            age = seed.age,
             realm = seed.realm,
             realmLayer = seed.realmLayer,
             spiritRootType = seed.spiritRootType,
@@ -164,8 +162,6 @@ class DiscipleFactory @Inject constructor() {
         ).apply {
             // 4. 基础属性
             applyBaseStats(variances = variances)
-            // 5. 寿命（天赋 + 词条加成）
-            lifespan = computeLifespan(talentIds = talentIds, affixIds = affixIds, realm = realm)
         }
 
         return disciple
@@ -220,7 +216,6 @@ private fun rollSkills(
 ): SkillStats = SkillStats(
     intelligence = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
     charm = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-    loyalty = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.MAX_LOYALTY),
     comprehension = comprehension,
     morality = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
     artifactRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
@@ -246,17 +241,4 @@ private fun Disciple.applyBaseStats(variances: DiscipleVariances) {
     combat.basePhysicalDefense = baseStats.basePhysicalDefense
     combat.baseMagicDefense = baseStats.baseMagicDefense
     combat.baseSpeed = baseStats.baseSpeed
-}
-
-/** 寿命计算：天赋旧加成 + 词条加成 */
-private fun computeLifespan(talentIds: List<String>, affixIds: List<String>, realm: Int): Int {
-    val talentEffects =
-        TalentDatabase.calculateTalentEffects(talentIds)
-    val affixEffects =
-        AffixDatabase.calculateAffixEffects(affixIds)
-    val lifespanBonus =
-        (talentEffects["lifespan"] ?: 0.0) + (affixEffects["lifespan"] ?: 0.0)
-    val baseLifespan = GameConfig.Realm.get(realm).maxAge
-    return (baseLifespan * (1.0 + lifespanBonus)).toInt()
-        .coerceAtLeast(1)
 }

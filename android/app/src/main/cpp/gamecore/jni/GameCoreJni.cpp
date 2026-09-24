@@ -46,7 +46,6 @@
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/government.h"
 #include "gamecore/system/inventory.h"
-#include "gamecore/system/lifecycle.h"
 #include "gamecore/system/month_settlement.h"
 #include "gamecore/system/sect_attack_decision.h"
 #include "gamecore/system/name_service.h"
@@ -231,7 +230,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
         seed.fullName = obj.value("fullName", "");
         seed.surname = obj.value("surname", "");
         seed.spiritRootType = obj.value("spiritRootType", "metal");
-        seed.age = obj.value("age", 16);
         seed.realm = obj.value("realm", 9);
         seed.realmLayer = obj.value("realmLayer", 1);
     } catch (const std::exception&) {
@@ -252,7 +250,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
     out["aptitude"] = d.aptitude;
     out["intelligence"] = d.intelligence;
     out["charm"] = d.charm;
-    out["loyalty"] = d.loyalty;
     out["morality"] = d.morality;
     out["artifactRefining"] = d.artifactRefining;
     out["pillRefining"] = d.pillRefining;
@@ -266,7 +263,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
     out["basePhysicalDefense"] = d.basePhysicalDefense;
     out["baseMagicDefense"] = d.baseMagicDefense;
     out["baseSpeed"] = d.baseSpeed;
-    out["lifespan"] = d.lifespan;
     out["talentIds"] = d.talentIds;
     out["physiqueIds"] = d.physiqueIds;
     out["affixIds"] = d.affixIds;
@@ -634,12 +630,8 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
 //   {"op":"breakthroughChance", "realm":9, "rootCount":1, "realmLayer":1}
 //   {"op":"breakthroughChanceZones", "baseZone":0.5, "elderGuidance":0.1,
 //    "selfBonus":0.05, "statusPenalty":0.1, "adFlatBonus":0.0}
-//   {"op":"lifespanRemainingPercent", "age":40, "lifespan":80}
-//   {"op":"lifespanCultivationPenalty", "age":72, "lifespan":80}
-//   {"op":"lifespanBreakthroughPenalty", "age":72, "lifespan":80}
 //   {"op":"masterDiscipleBonus", "discipleRealm":9, "masterRealm":7}
 //   {"op":"parentSpiritRootBonus", "rootCount":1}
-//   {"op":"soulPowerBreakthroughBonus", "soulPower":40}
 //   {"op":"aptitudeCultivationBonus", "aptitude":90}
 //
 // 天赋/词条/体质注册表通道（trait_db → 聚合函数，对拍用）：
@@ -653,8 +645,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
 //       → {"effects":{...}}（getMergedEffects 合并语义对拍）
 //   {"op":"baseComprehension", "comprehension":50, "talentIds":[...], "affixIds":[...]}
 //       → {"value":N}（baseComprehension：合并 flat 截断，含词条分叉修复对拍）
-//   {"op":"breakthroughLifespanGain", "newRealm":8, "talentIds":[...], "affixIds":[...]}
-//       → {"value":N}（calculateBreakthroughLifespanGain 对拍）
 //   {"op":"baseHpMpFromTraits", "realm":9, "realmLayer":1, "hpVariance":0,
 //    "mpVariance":0, "talentIds":[...], "affixIds":[...]}
 //       → {"maxHp":N,"maxMp":N}（getMaxHpMpColumn 无装备/功法/丹药段对拍）
@@ -721,11 +711,6 @@ nlohmann::json execTraitEffectsOp(const nlohmann::json& op,
         d.talentIds = stringListFromJson(op, "talentIds");
         d.affixIds = stringListFromJson(op, "affixIds");
         result["value"] = stats::baseComprehension(d);
-    } else if (opName == "breakthroughLifespanGain") {
-        result["value"] = stats::calculateBreakthroughLifespanGain(
-            op.value("newRealm", 8),
-            stringListFromJson(op, "talentIds"),
-            stringListFromJson(op, "affixIds"));
     } else if (opName == "baseHpMpFromTraits") {
         const auto effects = stats::mergeEffects(
             stats::talentEffectsFor(stringListFromJson(op, "talentIds")),
@@ -747,8 +732,6 @@ nlohmann::json execTraitEffectsOp(const nlohmann::json& op,
             if (i > 0) d.spiritRootType += ",";
             d.spiritRootType += "metal";
         }
-        d.age = op.value("age", 16);
-        d.lifespan = op.value("lifespan", 80);
         d.aptitude = op.value("aptitude", 50);
         d.talentIds = stringListFromJson(op, "talentIds");
         d.physiqueIds = stringListFromJson(op, "physiqueIds");
@@ -784,7 +767,6 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
         in.speedVariance = op.value("speedVariance", 0);
         in.intelligence = op.value("intelligence", 0);
         in.charm = op.value("charm", 0);
-        in.loyalty = op.value("loyalty", 0);
         in.comprehension = op.value("comprehension", 0);
         in.aptitude = op.value("aptitude", 50);
         in.teaching = op.value("teaching", 0);
@@ -807,7 +789,7 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
             {"physicalDefense", s.physicalDefense}, {"magicDefense", s.magicDefense},
             {"speed", s.speed}, {"critRate", s.critRate},
             {"intelligence", s.intelligence}, {"charm", s.charm},
-            {"loyalty", s.loyalty}, {"comprehension", s.comprehension},
+            {"comprehension", s.comprehension},
             {"aptitude", s.aptitude}, {"teaching", s.teaching},
             {"morality", s.morality}, {"mining", s.mining},
             {"spiritPlanting", s.spiritPlanting}, {"artifactRefining", s.artifactRefining},
@@ -837,14 +819,11 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
         zones.adFlatBonus = op.value("adFlatBonus", 0.0);
         result["value"] = gamecore::disciple::calculateBreakthroughChance(zones);
     } else if (opName == "lifespanRemainingPercent") {
-        result["value"] = gamecore::disciple::calculateLifespanRemainingPercent(
-            op.value("age", 0), op.value("lifespan", 80));
+        result["error"] = "retired op: lifespanRemainingPercent";
     } else if (opName == "lifespanCultivationPenalty") {
-        result["value"] = gamecore::disciple::calculateLifespanCultivationPenalty(
-            op.value("age", 0), op.value("lifespan", 80));
+        result["error"] = "retired op: lifespanCultivationPenalty";
     } else if (opName == "lifespanBreakthroughPenalty") {
-        result["value"] = gamecore::disciple::calculateLifespanBreakthroughPenalty(
-            op.value("age", 0), op.value("lifespan", 80));
+        result["error"] = "retired op: lifespanBreakthroughPenalty";
     } else if (opName == "masterDiscipleBonus") {
         result["gap"] = gamecore::disciple::getMasterDiscipleRealmGap(
             op.value("discipleRealm", 9), op.value("masterRealm", 9));
@@ -855,9 +834,6 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
     } else if (opName == "parentSpiritRootBonus") {
         result["value"] = gamecore::disciple::getParentSpiritRootBonus(
             op.value("rootCount", 3));
-    } else if (opName == "soulPowerBreakthroughBonus") {
-        result["value"] = gamecore::disciple::soulPowerBreakthroughBonus(
-            op.value("soulPower", 0));
     } else if (opName == "aptitudeCultivationBonus") {
         result["value"] = gamecore::disciple::aptitudeCultivationBonus(
             op.value("aptitude", 80));
@@ -930,40 +906,21 @@ nlohmann::json execCultivationOp(const nlohmann::json& op) {
         d.realm = op.value("realm", 9);
         d.realmLayer = op.value("realmLayer", 1);
         d.cultivation = op.value("cultivation", 0.0);
-        d.lifespan = op.value("lifespan", 80);
-        const auto out = gamecore::system::applyBreakthroughSuccess(
-            d, op.value("lifespanGain", 0));
+        const auto out = gamecore::system::applyBreakthroughSuccess(d);
         result = {
             {"realm", out.realm}, {"realmLayer", out.realmLayer},
-            {"cultivation", out.cultivation}, {"lifespan", out.lifespan},
+            {"cultivation", out.cultivation},
         };
     } else if (opName == "breakthroughFailure") {
         gamecore::state::Disciple d;
         d.realm = op.value("realm", 9);
         d.realmLayer = op.value("realmLayer", 1);
         d.cultivation = op.value("cultivation", 0.0);
-        d.lifespan = op.value("lifespan", 80);
         const auto out = gamecore::system::applyBreakthroughFailure(d);
         result = {
             {"realm", out.realm}, {"realmLayer", out.realmLayer},
-            {"cultivation", out.cultivation}, {"lifespan", out.lifespan},
+            {"cultivation", out.cultivation},
         };
-    } else if (opName == "computeMaxAge") {
-        result["value"] = gamecore::system::computeMaxAge(
-            op.value("lifespan", 0), op.value("realmMaxAge", 0),
-            op.value("lifespanBonus", 0.0));
-    } else if (opName == "ageDisciple") {
-        const auto out = gamecore::system::ageDisciple(
-            op.value("age", 0), op.value("realmLayer", 1),
-            op.value("maxAge", 80));
-        result = {
-            {"age", out.age}, {"realmLayer", out.realmLayer}, {"dead", out.dead},
-        };
-    } else if (opName == "ageAlive") {
-        int32_t layer = op.value("realmLayer", 1);
-        const int32_t age = gamecore::system::ageAliveDisciple(
-            op.value("age", 0), layer, layer);
-        result = {{"age", age}, {"realmLayer", layer}};
     } else {
         result["error"] = "unknown op: " + opName;
     }
@@ -991,7 +948,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreCultivationOp(
 // 操作 JSON 格式（纯计算，可操作状态）：
 //   {"op":"zoneCalculate", "base":100.0, "zones":[0.2,0.5,-0.1]}
 //   {"op":"calculateProbability", "baseProb":0.5, "positiveSum":0.1, "penaltySum":0.2}
-//   {"op":"policyMonthlyDeltas", "benevolentGovernance":true, ...}
+//   {"op":"policyMonthlyDeltas", "moralEducation":true}
 //   {"op":"spiritMineMonthly", "minerCount":3, "basePerMiner":170.0, "zones":{...}}
 // ============================================================
 
@@ -1027,14 +984,9 @@ nlohmann::json execGovernmentOp(const nlohmann::json& op) {
             op.value("baseTime", 0), bonuses);
     } else if (opName == "policyMonthlyDeltas") {
         gamecore::state::SectPolicies p;
-        p.benevolentGovernance = op.value("benevolentGovernance", false);
-        p.relaxedMgmt = op.value("relaxedMgmt", false);
-        p.strictTraining = op.value("strictTraining", false);
-        p.enhancedSecurity = op.value("enhancedSecurity", false);
-        p.curfew = op.value("curfew", false);
         p.moralEducation = op.value("moralEducation", false);
-        const auto d = gamecore::system::policyMonthlyDeltas(p);
-        result = {{"loyaltyDelta", d.first}, {"moralityDelta", d.second}};
+        result = {{"moralityDelta",
+                   gamecore::system::policyMonthlyMoralityDelta(p)}};
     } else if (opName == "spiritMineMonthly") {
         gamecore::system::SpiritMineZones zones;
         zones.minerCount = op.value("minerCount", 0);

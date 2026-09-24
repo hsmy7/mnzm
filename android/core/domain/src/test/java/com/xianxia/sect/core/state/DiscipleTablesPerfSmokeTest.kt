@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -24,15 +23,13 @@ class DiscipleTablesPerfSmokeTest {
         id: String = "1",
         name: String = "张三",
         realm: Int = 9,
-        cultivation: Double = 100.0,
-        loyalty: Int = 50
+        cultivation: Double = 100.0
     ): Disciple {
         return Disciple(
             id = id,
             name = name,
             realm = realm,
-            cultivation = cultivation,
-            skills = SkillStats(loyalty = loyalty)
+            cultivation = cultivation
         )
     }
 
@@ -50,9 +47,9 @@ class DiscipleTablesPerfSmokeTest {
         val startNs = System.nanoTime()
         repeat(iterations) {
             val copy = tables.deepCopy()
-            // 模拟每旬热点写：修为 + 忠诚 + 当前 HP
+            // 模拟每旬热点写：修为 + 道德 + 当前 HP
             copy.cultivations[1] = 100.0
-            copy.loyalties[1] = 50
+            copy.moralities[1] = 50
             copy.currentHps[1] = 100
         }
         val elapsedNs = System.nanoTime() - startNs

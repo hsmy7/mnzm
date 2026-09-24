@@ -38,14 +38,12 @@ class PartnerSystemTest {
         id: String,
         name: String,
         gender: String = "male",
-        age: Int = 20,
         spiritRootType: String = "metal"
     ): Disciple = Disciple(
         id = id,
         name = name,
         surname = "张",
         gender = gender,
-        age = age,
         isAlive = true,
         status = DiscipleStatus.IDLE,
         portraitRes = "portrait_default",
@@ -104,16 +102,6 @@ class PartnerSystemTest {
         // 验证 processPartnerMatching 运行不抛异常（配对由 RNG 控制，概率 0.6%）
         val state = runMatching(seed = 42, consentRequired = false, disciples = *arrayOf(male, female))
         assertNotNull("runMatching should succeed without exception", state)
-    }
-
-    @Test
-    fun `auto mode - no pairing for underage disciples`() {
-        val male = makeEligibleDisciple("1", "男A", "male", age = 16)
-        val female = makeEligibleDisciple("2", "女A", "female", age = 17)
-        val state = createState(male, female)
-        system.processPartnerMatching(state)
-        assertNull("未成年男性不应被配对", state.discipleTables.partnerIds.getOrNull(1))
-        assertNull("未成年女性不应被配对", state.discipleTables.partnerIds.getOrNull(2))
     }
 
     @Test

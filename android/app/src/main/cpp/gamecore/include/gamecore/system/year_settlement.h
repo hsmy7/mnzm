@@ -26,7 +26,6 @@
 #include "gamecore/system/economy.h"
 #include "gamecore/system/government.h"
 #include "gamecore/system/level_generator.h"
-#include "gamecore/system/lifecycle.h"
 #include "gamecore/system/month_settlement.h"
 #include "gamecore/system/name_service.h"
 #include "gamecore/system/rarity_progression.h"
@@ -82,9 +81,6 @@ constexpr int32_t kCullDeadAfterYears = 1;
 constexpr int32_t kGriefYearNullSentinel = -1;
 
 // ── 招募刷新常量（RecruitService companion 逐值对齐）──
-// 招募弟子基础年龄范围
-constexpr int32_t kRecruitAgeMin = 16;
-constexpr int32_t kRecruitAgeRange = 14;
 // 纳徒长老魅力加成公式参数（RECRUIT_CHARM_BASELINE/DIVISOR/MAX）
 constexpr int32_t kRecruitCharmBaseline = 80;
 constexpr int32_t kRecruitCharmDivisor = 4;
@@ -102,8 +98,7 @@ constexpr int32_t kSectTradeRefreshIntervalYears = 3;
 // 交易物品数量（generateSectTradeItems itemCount）/ 最大尝试次数（×3）
 constexpr int32_t kSectTradeItemCount = 20;
 constexpr int32_t kSectTradeMaxAttempts = kSectTradeItemCount * 3;
-// 灵草/种子基准价（Kotlin GameConfig.Rarity.herbPrice/seedPrice——派生
-// getter：price = Rarity.get(rarity).herbPrice/seedPrice；下标 0 未用）
+// 灵草/种子基准价（Kotlin GameConfig.Rarity.herbPrice/seedPrice——派生// getter：price = Rarity.get(rarity).herbPrice/seedPrice；下标 0 未用）
 constexpr int32_t kHerbBasePrice[7] = {0, 400, 1600, 8000, 48000, 336000, 2688000};
 constexpr int32_t kSeedBasePrice[7] = {0, 80, 320, 1600, 9600, 67200, 537600};
 // 材料基准价（Kotlin GameConfig.Rarity.materialBasePrice——收购池 priceMap
@@ -126,11 +121,10 @@ struct AgedDeathDraft {
     std::string discipleId;
     std::string name;
     std::string surname;
-    int32_t age = 0;
     int32_t realm = 9;
     int32_t realmLayer = 1;
     int32_t deathYear = 0;
-    std::string cause = "age";
+    std::string cause = "unknown";
     std::vector<state::StorageBagItem> storageBagItems;  // 袋物品（物化回仓库）
 };
 
@@ -139,7 +133,6 @@ struct BereavementDraft {
     int32_t grievingId = 0;
     std::string relationship;   // 道侣/父/母/亲属
     std::string deceasedName;
-    int32_t grievingAge = 0;
 };
 
 /// 年变平台效应草稿集合（runYearSettlement 可选 out + nativeSettleYear 信封）
@@ -192,7 +185,7 @@ inline void runYearlyReportSnapshot(GameState& state) {
                 static_cast<std::ptrdiff_t>(kMaxYearlyReports));
     }
     // annual* 快照后清零（新年计数从零开始；与 Kotlin runGarrisonAndReport
-    // copy 字段面逐一对应，annualTheftCount 同步归零）
+    // copy 字段面逐一对应）
     gd.annualIncomeBySource.clear();
     gd.annualExpenditureByReason.clear();
     gd.annualTotalIncome = 0;
@@ -206,7 +199,6 @@ inline void runYearlyReportSnapshot(GameState& state) {
     gd.annualNewDisciples = 0;
     gd.annualDeceasedDisciples = 0;
     gd.annualDesertedDisciples = 0;
-    gd.annualTheftCount = 0;
 }
 
 /// 年俸计划构建（calculateSalaryPlan 列直读版 + 幽灵防御：
@@ -269,10 +261,6 @@ inline void paySalariesToDisciples(GameState& state, const SalaryPlan& plan,
             std::round(static_cast<double>(salary) * multiplier));
         ds.storageBagSpiritStones[it] += actualSalary;
         ds.salaryPaidCounts[it] += 1;
-        // 开源节流政策下不发忠诚
-        if (!frugality) {
-            ds.loyalties[it] = std::min(ds.loyalties[it] + 1, kMaxLoyalty);
-        }
     }
 }
 
@@ -281,31 +269,6 @@ inline void paySalariesToDisciples(GameState& state, const SalaryPlan& plan,
 // processYearlyEvents / enqueueYearlyOps 源码，供 runYearSettlement
 // 编排接线 + 对拍基准。
 // ════════════════════════════════════════════════════════════════
-
-/// 弟子最大寿元（Kotlin Disciple.computeMaxAge 等价——寿元计算唯一来源，
-/// 口径与 DiscipleAgePolicy.kt 一致：lifespan / realmMaxAge /
-/// realmMaxAge×(1+天赋+词条 lifespan 加成) 三者取 max，上限 20000）
-inline int32_t discipleAgeMax(const state::Disciple& d) {
-    double bonus = 0.0;
-    for (const auto& id : d.talentIds) {
-        if (auto t = gamecore::data::talentById(id)) {
-            const auto it = t->effects.find("lifespan");
-            if (it != t->effects.end()) bonus += it->second;
-        }
-    }
-    for (const auto& id : d.affixIds) {
-        if (auto a = gamecore::data::affixById(id)) {
-            const auto it = a->effects.find("lifespan");
-            if (it != a->effects.end()) bonus += it->second;
-        }
-    }
-    const int32_t realmMax = realmMaxAge(d.realm);
-    const int32_t traitLifespan =
-        std::max(static_cast<int32_t>(realmMax * (1.0 + bonus)), 1);
-    // 嵌套 max 替代 initializer_list 重载（NDK libc++ 可移植性）
-    const int32_t raw = std::max(std::max(d.lifespan, realmMax), traitLifespan);
-    return std::min(raw, kAbsoluteMaxAgeCeiling);
-}
 
 /// 好感度查询（与 month_settlement.h breakawayFavor 同源——Kotlin
 /// FavorDomain.findRelation：双向匹配首条，缺失默认 50）
@@ -476,27 +439,18 @@ inline void processYearlyAging(GameState& state, int32_t currentYear,
     }
 }
 
-/// 招募列表老化 + 净化（Kotlin RecruitService.ageRecruitList）：
-/// ① 全员 age+1，age >= computeMaxAge 视为寿元耗尽移除；
-/// ② sanitizeRecruitList 等价——损坏过滤（isValidRecruit）+ 三级去重
+/// 招募列表净化（Kotlin RecruitService.sanitizeRecruitList）：
+/// 损坏过滤（isValidRecruit）+ 三级去重
 /// （id/内容/同人签名——保留首个）+ 已入宗门残留移除（isSamePerson 跨表）。
 /// 零 RNG。
 inline void processRecruitAging(GameState& state, ecs::World& world) {
     auto& gd = state.gameData;
-    // ① 老化 + 超寿元移除
-    std::vector<state::Disciple> alive;
-    for (const auto& d : gd.recruitList) {
-        state::Disciple aged = d;
-        aged.age = d.age + 1;
-        const int32_t maxAge = discipleAgeMax(aged);
-        if (aged.age < maxAge) alive.push_back(std::move(aged));
-    }
-    // ② 净化：损坏过滤 + 三级去重 + 已入宗门残留
+    // ① 净化：损坏过滤 + 三级去重 + 已入宗门残留
     std::vector<state::Disciple> valid;
-    for (const auto& d : alive) {
+    for (const auto& d : gd.recruitList) {
         if (recruit_settle::isValidRecruit(d)) valid.push_back(d);
     }
-    // 二级去重（id / 内容）+ 同人签名去重（保留首个；isSamePerson 年龄容差）
+    // 二级去重（id / 内容）+ 同人签名去重（保留首个）
     std::vector<state::Disciple> deduped;
     std::set<std::string> idSeen;
     for (const auto& d : valid) {
@@ -514,7 +468,7 @@ inline void processRecruitAging(GameState& state, ecs::World& world) {
             contentSeen.push_back(d);
         }
     }
-    // 已入宗门残留（跨表 isSamePerson——签名 + 年龄容差）。
+    // 已入宗门残留（跨表 isSamePerson——签名比对）。
     // 宗门弟子物化经 sync + View 行序
     //（isSamePerson 比对集与序无关，切换保持同构）。
     std::vector<state::Disciple> sectDisciples;
@@ -535,36 +489,6 @@ inline void processRecruitAging(GameState& state, ecs::World& world) {
         if (!inSect) result.push_back(d);
     }
     gd.recruitList = std::move(result);
-}
-
-/// AI 宗门弟子老化（Kotlin CaveExplorationProcessor.
-/// processSectDisciplesAging → AISectDiscipleManager.processAging）：
-/// 非玩家宗门 aiSectDisciples 全员 age+1，超寿元（> computeMaxAge）置
-/// isAlive=false 后过滤移除。aiSectDisciples 为 std::map 键升序（Kotlin
-/// LinkedHashMap 插入序——顺序归一化，对拍以键升序构造）。
-/// 零 RNG（AI 独立分区在生成期，不在本件）。
-inline void processSectDisciplesAging(GameState& state) {
-    std::map<std::string, std::vector<state::Disciple>> updated;
-    for (const auto& kv : state.aiSectDisciples) {
-        const std::string& sectId = kv.first;
-        bool isPlayer = false;
-        for (const auto& sect : state.gameData.worldMapSects) {
-            if (sect.id == sectId && sect.isPlayerSect) { isPlayer = true; break; }
-        }
-        if (isPlayer) {
-            updated[sectId] = kv.second;
-            continue;
-        }
-        std::vector<state::Disciple> aged;
-        for (const auto& d : kv.second) {
-            state::Disciple a = d;
-            a.age = d.age + 1;
-            a.isAlive = a.age <= discipleAgeMax(a);
-            if (a.isAlive) aged.push_back(std::move(a));
-        }
-        updated[sectId] = std::move(aged);
-    }
-    state.aiSectDisciples = std::move(updated);
 }
 
 /// AI 尸体新陈代谢：死亡超
@@ -1220,13 +1144,9 @@ inline void processGriefExpiry(GameState& state, int32_t currentYear,
 }
 
 // ════════════════════════════════════════════════════════════════
-// 年变中件下沉（思过释放条件 SYSTEM 钩子 + 驻军轮换）
+// 年变中件下沉（驻军轮换）
 // ════════════════════════════════════════════════════════════════
 
-/// 思过释放道德增量（DiscipleLifecycleProcessor.REFLECTION_RELEASE_MORALITY_BONUS）
-constexpr int32_t kReflectionReleaseMoralityBonus = 5;
-/// 思过释放忠诚增量（DiscipleLifecycleProcessor.REFLECTION_RELEASE_LOYALTY_BONUS）
-constexpr int32_t kReflectionReleaseLoyaltyBonus = 5;
 /// 驻军槽位数量（AISectGarrisonManager.GARRISON_SLOT_COUNT）
 constexpr int32_t kGarrisonSlotCount = 10;
 /// 驻军留守名额（AISectGarrisonManager：占领者最强 10 名留守宗门）
@@ -1245,63 +1165,6 @@ inline std::string spiritRootCountColor(const std::string& spiritRootType) {
         case 3: return "#9B59B6";
         case 4: return "#27AE60";
         default: return "#95A5A6";
-    }
-}
-
-/// 思过到期释放（Kotlin DiscipleLifecycleProcessor.
-/// processReflectionRelease）：到期（statusData.reflectionEndYear <= year）
-/// 思过弟子释放为 IDLE + 清思过字段 + 道德/忠诚 +5（cap 200/100）；
-/// 释放后道德 < 偷盗阈值 → 单弟子偷盗判定（SYSTEM 钩子——judgeSingleTheftCandidate
-/// 与月变教化之道钩子同源，抽取序逐位一致）。RNG：条件性 SYSTEM（仅道德<阈值
-/// 弟子触发，每名 1..6 次判定抽取）。
-/// 迭代域：到期 id 快照（sync + View 行序）
-/// + 逐 id rowOf 现查。Kotlin 同域为 assembleAll 快照 map 迭代（每名释放
-/// 弟子恰处理一次，偷盗钩子可能移行）——快照序 == 行序 == Kotlin updatedDisciples
-/// 序，释放+钩子交织语义逐位一致。
-inline void processReflectionRelease(GameState& state, int32_t year,
-                                     rng::RngManager& rng, ecs::World& world) {
-    auto& gd = state.gameData;
-    auto& ds = state.disciples;
-    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
-    const int32_t currentMonth = gd.gameYear * 12 + gd.gameMonth;
-    std::vector<std::string> dueIds;
-    {
-        ecs::syncDiscipleEntities(world, ds.size());
-        ecs::View<ecs::DiscipleRef> view(world.registry());
-        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-            const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-            if (ds.isAlive[row] != 1) return;
-            if (ds.statuses[row] != "REFLECTING") return;
-            const auto endIt = ds.statusData[row].find("reflectionEndYear");
-            if (endIt == ds.statusData[row].end()) return;
-            const auto endYearOpt = settle_util::toIntOrNull(endIt->second);
-            if (!endYearOpt.has_value() || year < *endYearOpt) return;
-            dueIds.push_back(ds.ids[row]);
-        });
-    }
-    for (const auto& idStr : dueIds) {
-        // 前序偷盗钩子可能移行——行存在性重解析（id 寻址等价）
-        const auto rowOpt = ds.rowOf(idStr);
-        if (!rowOpt.has_value()) continue;
-        const std::size_t row = *rowOpt;
-        // 释放：IDLE + 清思过字段 + 道德/忠诚 +5（cap）
-        ds.statuses[row] = "IDLE";
-        ds.statusData[row].erase("reflectionStartYear");
-        ds.statusData[row].erase("reflectionEndYear");
-        ds.moralities[row] =
-            std::min(ds.moralities[row] + kReflectionReleaseMoralityBonus,
-                     stats::kSkillMax);
-        ds.loyalties[row] =
-            std::min(ds.loyalties[row] + kReflectionReleaseLoyaltyBonus,
-                     kMaxLoyalty);
-        // 道德 < 阈值 → 单弟子偷盗判定（与 Kotlin 事务内版一致）
-        if (ds.moralities[row] < lawMoralityThreshold()) {
-            const auto idOpt = settle_util::toIntOrNull(ds.ids[row]);
-            if (idOpt.has_value()) {
-                judgeSingleTheftCandidate(state, *idOpt, currentMonth,
-                                          rngSystem, world);
-            }
-        }
     }
 }
 
@@ -1424,8 +1287,8 @@ inline int32_t recruitBonusCap(int32_t charm) {
 /// 加成乘算）→ SYSTEM 数量抽取；无玩家宗门兜底 nextInt(7) coerceAtLeast 1；
 /// 广纳门徒政策 +50%（roundToInt）；逐弟子生成（SYSTEM 分区串行：性别 1×
 /// nextInt(2) → 名字 generateName（FULL 姓氏 nextInt + 给定名 nextDouble+
-/// nextInt）→ 灵根 SpiritRootGenerator（nextDouble+洗牌）→ 年龄
-/// 16+nextInt(14) → DiscipleFactory.create 固定序）→ recruitList 追加 +
+/// nextInt）→ 灵根 SpiritRootGenerator（nextDouble+洗牌）→
+/// DiscipleFactory.create 固定序）→ recruitList 追加 +
 /// lastRecruitYear + 惰性门重置 + processAutoRecruit。id 为镜像生成字段
 ///（Kotlin UUID，C++ 空串占位，diff 排除）。RNG 消费序逐位对齐 Kotlin。
 inline void processRefreshRecruitList(GameState& state, int32_t year,
@@ -1500,14 +1363,12 @@ inline void processRefreshRecruitList(GameState& state, int32_t year,
         const auto nameResult = generateName(gender, NameStyle::kFull,
                                              usedNames, rngSystem);
         const std::string spiritRoot = child_birth::generateSpiritRoot(rngSystem);
-        const int32_t age = kRecruitAgeMin + rngSystem.nextInt(kRecruitAgeRange);
         DiscipleCreationSeed seed;
         seed.id = "";   // 镜像生成字段（Kotlin UUID）
         seed.gender = gender;
         seed.fullName = nameResult.fullName;
         seed.surname = nameResult.surname;
         seed.spiritRootType = spiritRoot;
-        seed.age = age;
         seed.realm = 9;
         seed.realmLayer = 1;
         state::Disciple d = createDisciple(seed, rngSystem);
@@ -1524,242 +1385,10 @@ inline void processRefreshRecruitList(GameState& state, int32_t year,
     recruit_settle::processAutoRecruit(state);
 }
 
-// ════════════════════════════════════════════════════════════════
-// 弟子老化死亡链：C++ 状态面 + 平台效应草稿
-// Kotlin DiscipleLifecycleProcessor.processDiscipleAging 等价移植——
-// 老化判定（age+1、5 岁境界层回正、computeMaxAge 寿元耗尽）→ 逐死者
-// 状态面（11 槽清理/哀悼传播/道侣师徒解绑/血炼清理/袋物品草稿/装备功法
-// 清除/死亡记录/事件/年死亡计数）→ 统一移除 + 活弟子老化。
-// 平台效应（袋物品物化回仓库含溢出邮件/DAO 清理/DeathEvent/死亡记录档案/
-// lifeEvents 丧亲事件）经 YearSettlementDraft 草稿回传 Kotlin 残留执行器。
-// ════════════════════════════════════════════════════════════════
-
-/// 亲属判定（Kotlin DiscipleStatCalculator.areRelatives：道侣/父母/子女/兄弟姐妹）
-inline bool isRelatives(const state::DiscipleStore& ds, std::size_t a, std::size_t b) {
-    // 道侣
-    if (!ds.partnerIds[a].empty() && ds.partnerIds[a] == ds.ids[b]) return true;
-    if (!ds.partnerIds[b].empty() && ds.partnerIds[b] == ds.ids[a]) return true;
-    // 父母-子女
-    if (!ds.parentId1s[a].empty() && ds.parentId1s[a] == ds.ids[b]) return true;
-    if (!ds.parentId2s[a].empty() && ds.parentId2s[a] == ds.ids[b]) return true;
-    if (!ds.parentId1s[b].empty() && ds.parentId1s[b] == ds.ids[a]) return true;
-    if (!ds.parentId2s[b].empty() && ds.parentId2s[b] == ds.ids[a]) return true;
-    // 兄弟姐妹（共同父母；Kotlin 单亲也支持）
-    const std::string& a1 = ds.parentId1s[a];
-    const std::string& a2 = ds.parentId2s[a];
-    if (a1.empty() && a2.empty()) return false;
-    return (!a1.empty() && (a1 == ds.parentId1s[b] || a1 == ds.parentId2s[b])) ||
-           (!a2.empty() && (a2 == ds.parentId1s[b] || a2 == ds.parentId2s[b]));
-}
-
-/// 哀悼期传播 + 丧亲草稿（Kotlin computeGriefEndYearMap +
-/// computeBereavementRecords——列行版：对死者行，存活且非本人且 isRelatives →
-/// griefEndYear = max(既有, currentYear+1) 列写；新进入哀悼者（原列哨兵 -1）
-/// 生成丧亲记录草稿——关系文本按列直读（道侣/父/母/亲属，第 4 分支"子女"
-/// 因对称不可达输出"亲属"——对齐 Kotlin 注释））
-inline void applyGriefToRelativesStep(state::DiscipleStore& ds,
-                                      std::size_t deadRow,
-                                      int32_t currentYear,
-                                      YearSettlementDraft* draft) {
-    const int32_t griefEndYear = currentYear + 1;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (row == deadRow) continue;
-        if (ds.isAlive[row] != 1) continue;
-        if (!isRelatives(ds, row, deadRow)) continue;
-        const int32_t existing = ds.griefEndYears[row];
-        const int32_t newEnd =
-            (existing != kGriefYearNullSentinel && existing > griefEndYear)
-                ? existing
-                : griefEndYear;
-        ds.griefEndYears[row] = newEnd;
-        // 新进入哀悼者（原哨兵）→ 丧亲草稿（Kotlin computeBereavementRecords）
-        if (existing == kGriefYearNullSentinel && draft != nullptr) {
-            BereavementDraft bd;
-            const std::string& deadId = ds.ids[deadRow];
-            const std::string relationship =
-                (!ds.partnerIds[row].empty() && ds.partnerIds[row] == deadId) ? "道侣"
-                : (!ds.parentId1s[row].empty() && ds.parentId1s[row] == deadId) ? "父/母"
-                : (!ds.parentId2s[row].empty() && ds.parentId2s[row] == deadId) ? "父/母"
-                : "亲属";
-            const auto gid = settle_util::toIntOrNull(ds.ids[row]);
-            if (gid.has_value()) {
-                bd.grievingId = *gid;
-                bd.relationship = relationship;
-                bd.deceasedName = ds.names[deadRow];
-                bd.grievingAge = ds.ages[row];
-                draft->bereavements.push_back(std::move(bd));
-            }
-        }
-    }
-}
-
-/// 道侣解绑（Kotlin unbindPartnerColumns——列行版：清空死者伴侣行指向）
-inline void unbindPartnerColumnsStep(state::DiscipleStore& ds,
-                                     std::size_t deadRow) {
-    const auto partnerInt = settle_util::toIntOrNull(ds.partnerIds[deadRow]);
-    if (!partnerInt.has_value()) return;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (settle_util::toIntOrNull(ds.ids[row]) == partnerInt) {
-            ds.partnerIds[row].clear();
-            return;
-        }
-    }
-}
-
-/// 师徒解绑（Kotlin unbindMasterColumns：扫描 masterIds 列清空指向死者的徒弟行）
-inline void unbindMasterColumnsStep(state::DiscipleStore& ds,
-                                    const std::string& deadId) {
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.masterIds[row] == deadId) ds.masterIds[row].clear();
-    }
-}
-
-/// 11 槽位清理（Kotlin clearAllSlotsState——SlotCleanupInput 构造 + 应用；
-/// slot_cleanup.h 的 SlotCleanupInput/Result 定义于 gamecore::system 直接）
-inline void applySlotCleanupStep(GameState& state, const std::string& discipleId) {
-    auto& gd = state.gameData;
-    SlotCleanupInput in;
-    in.spiritMineSlots = gd.spiritMineSlots;
-    in.librarySlots = gd.librarySlots;
-    in.elderSlots = gd.elderSlots;
-    in.residenceSlots = gd.residenceSlots;
-    in.activeBloodRefinements = gd.activeBloodRefinements;
-    in.patrolSlots = gd.patrolSlots;
-    in.warehouseGarrisons = gd.warehouseGarrisons;
-    in.battleTeams = gd.battleTeams;
-    in.worldMapSects = gd.worldMapSects;
-    in.productionSlots = gd.productionSlots;
-    in.caveExplorationTeams = gd.caveExplorationTeams;
-    // S5：完整任务模型 → Lite 清理协议（slot_cleanup.h 共享转换）
-    in.activeMissions = toMissionLiteList(gd.activeMissions);
-    const SlotCleanupResult out =
-        clearAllSlotsDataOnly(in, discipleId, /*includeResidence=*/true);
-    gd.spiritMineSlots = out.spiritMineSlots;
-    gd.librarySlots = out.librarySlots;
-    gd.elderSlots = out.elderSlots;
-    gd.residenceSlots = out.residenceSlots;
-    gd.activeBloodRefinements = out.activeBloodRefinements;
-    gd.patrolSlots = out.patrolSlots;
-    gd.warehouseGarrisons = out.warehouseGarrisons;
-    gd.battleTeams = out.battleTeams;
-    gd.worldMapSects = out.worldMapSects;
-    gd.productionSlots = out.productionSlots;
-    gd.caveExplorationTeams = out.caveExplorationTeams;
-    // S5：Lite 结果按 id 合并回完整任务模型（slot_cleanup.h 共享转换）
-    gd.activeMissions = mergeMissionLiteList(gd.activeMissions, out.activeMissions);
-}
-
-/// 装备/功法清除（Kotlin：四槽装备 id + 功法 id 从实例集合过滤）
-inline void clearEquipmentAndManuals(GameState& state, std::size_t deadRow) {
-    auto& ds = state.disciples;
-    std::set<std::string> deleteEquipIds;
-    if (!ds.weaponIds[deadRow].empty()) deleteEquipIds.insert(ds.weaponIds[deadRow]);
-    if (!ds.armorIds[deadRow].empty()) deleteEquipIds.insert(ds.armorIds[deadRow]);
-    if (!ds.bootsIds[deadRow].empty()) deleteEquipIds.insert(ds.bootsIds[deadRow]);
-    if (!ds.accessoryIds[deadRow].empty()) deleteEquipIds.insert(ds.accessoryIds[deadRow]);
-    const std::set<std::string> deleteManualIds(
-        ds.manualIds[deadRow].begin(), ds.manualIds[deadRow].end());
-    auto& eq = state.equipmentInstances;
-    eq.erase(std::remove_if(eq.begin(), eq.end(),
-                            [&](const state::EquipmentInstance& e) {
-                                return deleteEquipIds.count(e.id) != 0;
-                            }),
-             eq.end());
-    auto& mn = state.manualInstances;
-    mn.erase(std::remove_if(mn.begin(), mn.end(),
-                            [&](const state::ManualInstance& m) {
-                                return deleteManualIds.count(m.id) != 0;
-                            }),
-             mn.end());
-}
-
-/// 弟子老化死亡链主入口（Kotlin DiscipleLifecycleProcessor.
-/// processDiscipleAging 等价——状态面 + 平台效应草稿）。
-/// 零 RNG。多死者顺序：逐死者状态面（列操作，remove 前列号有效）→
-/// 统一 removeById（旋转同步索引）→ 活弟子老化。
-inline void processDiscipleAgingStep(GameState& state, int32_t currentYear,
-                                     YearSettlementDraft* draft) {
-    auto& ds = state.disciples;
-    auto& gd = state.gameData;
-
-    // 1. 老化判定（物化快照：age+1、5 岁境界层回正 + status=IDLE、computeMaxAge）
-    std::vector<std::size_t> deadRows;
-    std::vector<state::Disciple> agedSnapshots;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.isAlive[row] != 1) continue;
-        state::Disciple aged = ds.materialize(row);
-        aged.age += 1;
-        if (aged.age == 5 && aged.realmLayer == 0) {
-            aged.realmLayer = 1;
-            aged.status = "IDLE";
-        }
-        if (aged.age >= discipleAgeMax(aged)) {
-            deadRows.push_back(row);
-            agedSnapshots.push_back(std::move(aged));
-        }
-    }
-
-    // 2. 逐死者状态面（列操作，行号有效）
-    for (std::size_t i = 0; i < deadRows.size(); ++i) {
-        const std::size_t deadRow = deadRows[i];
-        const std::string& id = ds.ids[deadRow];
-        // 槽位清理（11 类）
-        applySlotCleanupStep(state, id);
-        // 哀悼期传播 + 丧亲草稿
-        applyGriefToRelativesStep(ds, deadRow, currentYear, draft);
-        // 道侣/师徒解绑
-        unbindPartnerColumnsStep(ds, deadRow);
-        unbindMasterColumnsStep(ds, id);
-        // 血炼清理（审计 P2-7/P3-4：统一收口——原漏 PctTotals 与
-        // manualProficiencies 两键，随收口一并闭合）
-        eraseDiscipleDerivedMaps(gd, id);
-        // 装备/功法清除
-        clearEquipmentAndManuals(state, deadRow);
-        // 死亡草稿（平台效应：袋物品物化/DAO/DeathEvent/死亡记录）
-        if (draft != nullptr) {
-            AgedDeathDraft ad;
-            const auto& aged = agedSnapshots[i];
-            ad.discipleId = id;
-            ad.name = aged.name;
-            ad.surname = aged.surname;
-            ad.age = aged.age;
-            ad.realm = aged.realm;
-            ad.realmLayer = aged.realmLayer;
-            ad.deathYear = currentYear;
-            ad.cause = "age";
-            ad.storageBagItems = aged.storageBagItems;
-            draft->agedDeaths.push_back(std::move(ad));
-        }
-        // 死亡记录（列：deathYears = currentYear；remove 前写）
-        ds.deathYears[deadRow] = currentYear;
-        gd.annualDeceasedDisciples += 1;
-        settle_util::recordGameEvent(state, "SECT", "death",
-                                     ds.names[deadRow] + "陨落（寿元耗尽）",
-                                     id, ds.names[deadRow]);
-    }
-
-    // 3. 统一移除死亡弟子（removeById——旋转同步索引）
-    for (const auto& aged : agedSnapshots) {
-        ds.removeById(aged.id);
-    }
-
-    // 4. 活弟子老化（age+1 + 5 岁境界层回正——跳过死亡）
-    std::set<std::string> deadIds;
-    for (const auto& aged : agedSnapshots) deadIds.insert(aged.id);
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (ds.isAlive[row] != 1) continue;
-        if (deadIds.count(ds.ids[row]) != 0) continue;
-        const int32_t agedAge = ds.ages[row] + 1;
-        ds.ages[row] = agedAge;
-        if (agedAge == 5 && ds.realmLayers[row] == 0) {
-            ds.realmLayers[row] = 1;
-        }
-    }
-}
 
 }  // namespace detail
 
-/// 年俸结算主体（processAnnualSalary：计划 → canAfford → 发放/忠诚惩罚）。
+/// 年俸结算主体（processAnnualSalary：计划 → canAfford → 发放）。
 /// canAfford 采用 LOW 品纯 spiritStones 比较——autoSell 中/高品兑换开关开启时
 /// Kotlin 会折算中高品余额，对拍场景锁定两开关 false（默认值）。
 inline void processAnnualSalary(state::GameState& state, ecs::World& world) {
@@ -1769,14 +1398,7 @@ inline void processAnnualSalary(state::GameState& state, ecs::World& world) {
     const bool frugality = state.gameData.sectPolicies.frugality;
     // canAfford：LOW 品口径（场景锁定 autoSell 开关 false → 纯 spiritStones）
     if (state.gameData.spiritStones < plan.totalRequired) {
-        // 灵石不足 → 应得弟子 loyalty -1（coerceAtLeast MIN_LOYALTY=0），不发俸禄
-        state::DiscipleStore& ds = state.disciples;
-        for (const auto& [id, salary] : plan.eligibleSalaries) {
-            const auto i = detail::idx_find(state, id);
-            if (i == ds.size()) continue;
-            if (ds.isAlive[i] == 0) continue;
-            ds.loyalties[i] = std::max(ds.loyalties[i] - 1, 0);
-        }
+        // 灵石不足 → 不发俸禄
         return;
     }
 
@@ -1796,9 +1418,8 @@ using detail::YearSettlementDraft;
 /// @param rng   RNG 分区管理器（商人收购 SYSTEM / 秘境 SECRET_REALM）
 /// @param aiRng AI 宗门独立分区 RNG（AI 招募；种子
 ///   systemSeed + AI_SECT.id(6)×31337——GameCore::aiRng()）
-/// @param draft 年变平台效应草稿（死亡链：可为 null——承载
-///   死亡弟子（袋物品物化/DAO 清理/DeathEvent/死亡记录）与丧亲事件
-///   （lifeEvents）供 Kotlin 残留执行器消费；null 时仅状态面）
+/// @param draft 年变平台效应草稿信封（当前无填充点——恒空数组；
+///   信封结构供 nativeSettleYear 回传 Kotlin 残留执行器）
 /// @param world ECS 实体集（年结域全部弟子迭代
 ///   经 syncDiscipleEntities 行序桥接——持久实体集由 GameCore 承载，测试
 ///   传临时 World 同构）
@@ -1808,17 +1429,14 @@ inline void runYearSettlement(state::GameState& state,
                               ecs::World& world,
                               YearSettlementDraft* draft = nullptr) {
     (void)rng;   // 显式占位——rng 由下方招募刷新/商人收购子项实际消费
+    (void)draft;   // 信封参数保留传输契约（当前无填充点）
 
     // ── processYearlyEvents(year)：T1 立即组（Kotlin 严格相对序
-    // #1→#2→#3→#4→#5→#6→#7→#8→#9→#10→#11）──
+    // #1→#2→#4→#5→#6→#7→#8→#10→#11）──
     // #1 附庸年贡
     detail::processYearlyTribute(state);
     // #2 附属宗门年贡
     detail::processYearlyVassalTribute(state, state.gameData.gameYear);
-    // #3 弟子老化死亡链（老化判定 + 逐死者状态面（11 槽/哀悼/
-    // 解绑/血炼/装备清/死亡记录/事件）+ 平台效应草稿（袋物品物化/DAO/
-    // DeathEvent/死亡记录档案/丧亲 lifeEvents））
-    detail::processDiscipleAgingStep(state, state.gameData.gameYear, draft);
     // #4 招募列表刷新（SYSTEM 生成链——数量/性别/名字/灵根/
     // 弟子工厂 + 长老加成 + 广纳门徒政策；差值判据内部）
     detail::processRefreshRecruitList(state, state.gameData.gameYear, rng);
@@ -1828,10 +1446,8 @@ inline void runYearSettlement(state::GameState& state,
     detail::processMerchantRefreshChance(state, state.gameData.gameYear);
     // #7 年度老化清理（死亡弟子列清理）
     detail::processYearlyAging(state, state.gameData.gameYear, world);
-    // #8 招募老化+净化
+    // #8 招募净化
     detail::processRecruitAging(state, world);
-    // #9 思过释放（释放 + 条件性 SYSTEM 偷盗钩子）
-    detail::processReflectionRelease(state, state.gameData.gameYear, rng, world);
     // #10 garrisonAndReport：驻军轮换 + 年报快照 + annual* 清零
     detail::processGarrisonRotation(state);
     detail::runYearlyReportSnapshot(state);
@@ -1841,9 +1457,8 @@ inline void runYearSettlement(state::GameState& state,
 
     // ── T2 延迟组（Kotlin yearlyOpsQueue 分帧 drain；C++ 无分帧——
     //    子项按原相对序同步执行）──
-    // #4 AI 弟子老化 + 尸体新陈代谢（年结统一压缩，
+    // #4 AI 尸体新陈代谢（年结统一压缩，
     // 死亡超保留窗口的条目整行移除）
-    detail::processSectDisciplesAging(state);
     detail::cullAICorpseEntries(state, state.gameData.gameYear);
     // #10 AI 宗门周期性招募（AI 独立分区 RNG——差值判据
     // 每 3 年；占领路由 + 尾部自动招募）

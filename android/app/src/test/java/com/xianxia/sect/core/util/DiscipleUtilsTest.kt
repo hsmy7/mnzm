@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.charm
 import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.pillRefining
@@ -31,7 +30,6 @@ class DiscipleUtilsTest {
         comprehension: Int = 50,
         intelligence: Int = 50,
         charm: Int = 50,
-        loyalty: Int = 50,
         artifactRefining: Int = 50,
         pillRefining: Int = 50,
         spiritPlanting: Int = 50,
@@ -53,7 +51,6 @@ class DiscipleUtilsTest {
                 comprehension = comprehension,
                 intelligence = intelligence,
                 charm = charm,
-                loyalty = loyalty,
                 artifactRefining = artifactRefining,
                 pillRefining = pillRefining,
                 spiritPlanting = spiritPlanting,
@@ -159,15 +156,6 @@ class DiscipleUtilsTest {
         val high = createAggregate(id = "d1", charm = 95)
         val low = createAggregate(id = "d2", charm = 20)
         val result = listOf(high, low).sortedByFollowAttributeAndRealm("charm")
-        assertEquals("d1", result[0].id)
-        assertEquals("d2", result[1].id)
-    }
-
-    @Test
-    fun sortedByFollowAttributeAndRealm_loyaltyAttribute() {
-        val high = createAggregate(id = "d1", loyalty = 88)
-        val low = createAggregate(id = "d2", loyalty = 22)
-        val result = listOf(high, low).sortedByFollowAttributeAndRealm("loyalty")
         assertEquals("d1", result[0].id)
         assertEquals("d2", result[1].id)
     }

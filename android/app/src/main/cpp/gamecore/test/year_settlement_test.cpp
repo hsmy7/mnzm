@@ -55,7 +55,6 @@ TEST(YearSettlementTest, YearlyReportSnapshotAndAnnualReset) {
     st.gameData.annualIncomeBySource["Mine"] = 5000L;
     st.gameData.annualAlchemyCount = 3;
     st.gameData.annualNewDisciples = 2;
-    st.gameData.annualTheftCount = 1;
 
     const auto r = core->advancePhases(1);
     EXPECT_TRUE(r.yearChanged);
@@ -77,12 +76,11 @@ TEST(YearSettlementTest, YearlyReportSnapshotAndAnnualReset) {
     EXPECT_TRUE(st.gameData.annualIncomeBySource.empty());
     EXPECT_EQ(0, st.gameData.annualAlchemyCount);
     EXPECT_EQ(0, st.gameData.annualNewDisciples);
-    EXPECT_EQ(0L, st.gameData.annualTheftCount);
 }
 
-TEST(YearSettlementTest, AnnualSalaryPaidWithLoyaltyAndLedger) {
+TEST(YearSettlementTest, AnnualSalaryPaidWithLedger) {
     // realm=9 年俸 500（enabled）× 2 弟子；灵石充足；非开源节流
-    // → spiritStones -1000、每人袋 +500、paidCount+1、loyalty 50→51
+    // → spiritStones -1000、每人袋 +500、paidCount+1
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.gameYear = 1;
@@ -108,39 +106,11 @@ TEST(YearSettlementTest, AnnualSalaryPaidWithLoyaltyAndLedger) {
         const auto d = st.disciples.materialize(i);
         EXPECT_EQ(500L, d.storageBagSpiritStones) << d.id;   // round(500×1.0)
         EXPECT_EQ(1, d.salaryPaidCount) << d.id;
-        EXPECT_EQ(51, d.loyalty) << d.id;                     // 50+1 cap100
     }
 }
 
-TEST(YearSettlementTest, AnnualSalaryInsufficientFundsDropsLoyalty) {
-    // 灵石不足 → 不发俸禄，应得弟子 loyalty -1（coerceAtLeast 0）
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.gameData.gameYear = 1;
-    st.gameData.gameMonth = 12;
-    st.gameData.gamePhase = 2;
-    st.gameData.spiritStones = 100L;              // < totalRequired 1000
-    st.gameData.yearlySalary[9] = 500;
-    st.gameData.yearlySalaryEnabled[9] = true;
-
-    Disciple poor;
-    poor.id = "1";
-    poor.name = "贫";
-    poor.realm = 9;
-    poor.isAlive = true;
-    poor.loyalty = 5;                              // 触底保护可观察
-    st.disciples.appendDisciple(poor);
-
-    core->advancePhases(1);
-
-    EXPECT_EQ(100L, st.gameData.spiritStones);     // 未扣减
-    EXPECT_EQ(4, st.disciples.materialize(0).loyalty);          // 5-1=4 ≥ MIN_LOYALTY 0
-    EXPECT_EQ(0L, st.disciples.materialize(0).storageBagSpiritStones);
-    EXPECT_EQ(0, st.disciples.materialize(0).salaryPaidCount);
-}
-
-TEST(YearSettlementTest, AnnualSalaryFrugalityReducesPayNoLoyalty) {
-    // 开源节流：发放额 ×0.7 且不发忠诚
+TEST(YearSettlementTest, AnnualSalaryFrugalityReducesPay) {
+    // 开源节流：发放额 ×0.7
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.gameYear = 1;
@@ -156,7 +126,6 @@ TEST(YearSettlementTest, AnnualSalaryFrugalityReducesPayNoLoyalty) {
     d.name = "节";
     d.realm = 9;
     d.isAlive = true;
-    d.loyalty = 50;
     st.disciples.appendDisciple(d);
 
     core->advancePhases(1);
@@ -165,7 +134,6 @@ TEST(YearSettlementTest, AnnualSalaryFrugalityReducesPayNoLoyalty) {
     EXPECT_EQ(9500L, st.gameData.spiritStones);
     EXPECT_EQ(350L, st.disciples.materialize(0).storageBagSpiritStones);
     EXPECT_EQ(1, st.disciples.materialize(0).salaryPaidCount);
-    EXPECT_EQ(50, st.disciples.materialize(0).loyalty);         // 开源节流不发忠诚
 }
 
 TEST(YearSettlementTest, AnnualSalaryDisabledRealmSkipped) {
@@ -190,7 +158,6 @@ TEST(YearSettlementTest, AnnualSalaryDisabledRealmSkipped) {
 
     EXPECT_EQ(10000L, st.gameData.spiritStones);
     EXPECT_EQ(0L, st.disciples.materialize(0).storageBagSpiritStones);
-    EXPECT_EQ(50, st.disciples.materialize(0).loyalty);
 }
 
 TEST(YearSettlementTest, GhostBlankNameDiscipleSkipped) {
@@ -431,33 +398,23 @@ TEST(YearSettlementTest, Y1T1YearlyAgingCullsDeadPastThreshold) {
     EXPECT_EQ("3", st.disciples.materialize(1).id);
 }
 
-TEST(YearSettlementTest, Y1T1RecruitAgingAgesAndSanitizes) {
+TEST(YearSettlementTest, Y1T1RecruitAgingSanitizes) {
     ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
-    // 招募老化：age+1；超寿元移除；净化（损坏移除）
+    // 招募列表净化：损坏条目移除，健康条目保留
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.recruitList.clear();
 
-    state::Disciple young;
-    young.id = "r1";
-    young.name = "少年";
-    young.age = 16;
-    young.realm = 9;
-    young.spiritRootType = "metal";
-    st.gameData.recruitList.push_back(young);
-
-    state::Disciple elder;
-    elder.id = "r2";
-    elder.name = "将死";
-    elder.age = 19999;          // 老化后 20000 ≥ 上限 → 移除
-    elder.realm = 9;
-    elder.spiritRootType = "wood";
-    st.gameData.recruitList.push_back(elder);
+    state::Disciple healthy;
+    healthy.id = "r1";
+    healthy.name = "常人";
+    healthy.realm = 9;
+    healthy.spiritRootType = "metal";
+    st.gameData.recruitList.push_back(healthy);
 
     state::Disciple corrupt;
     corrupt.id = "r3";
     corrupt.name = "";          // 损坏 → 净化移除
-    corrupt.age = 16;
     corrupt.realm = 9;
     corrupt.spiritRootType = "fire";
     st.gameData.recruitList.push_back(corrupt);
@@ -466,45 +423,6 @@ TEST(YearSettlementTest, Y1T1RecruitAgingAgesAndSanitizes) {
 
     ASSERT_EQ(1u, st.gameData.recruitList.size());
     EXPECT_EQ("r1", st.gameData.recruitList[0].id);
-    EXPECT_EQ(17, st.gameData.recruitList[0].age);
-}
-
-TEST(YearSettlementTest, Y1T2SectDisciplesAgingFiltersOverMaxAge) {
-    // AI 弟子老化：非玩家宗门 age+1 + 超寿元过滤；玩家宗门不动
-    auto core = makeCore(42);
-    auto& st = core->state();
-    state::WorldSect aiSect;
-    aiSect.id = "ai-1";
-    aiSect.isPlayerSect = false;
-    st.gameData.worldMapSects.push_back(aiSect);
-    state::WorldSect playerSect;
-    playerSect.id = "p1";
-    playerSect.isPlayerSect = true;
-    st.gameData.worldMapSects.push_back(playerSect);
-
-    state::Disciple a1;
-    a1.id = "a1";
-    a1.age = 30;
-    a1.isAlive = true;
-    st.aiSectDisciples["ai-1"].push_back(a1);
-    state::Disciple a2;
-    a2.id = "a2";
-    a2.age = 19999;
-    a2.isAlive = true;
-    st.aiSectDisciples["ai-1"].push_back(a2);
-    state::Disciple p1;
-    p1.id = "p1";
-    p1.age = 30;
-    p1.isAlive = true;
-    st.aiSectDisciples["p1"].push_back(p1);
-
-    system::detail::processSectDisciplesAging(st);
-
-    ASSERT_EQ(1u, st.aiSectDisciples["ai-1"].size());
-    EXPECT_EQ("a1", st.aiSectDisciples["ai-1"][0].id);
-    EXPECT_EQ(31, st.aiSectDisciples["ai-1"][0].age);
-    ASSERT_EQ(1u, st.aiSectDisciples["p1"].size());
-    EXPECT_EQ(30, st.aiSectDisciples["p1"][0].age);   // 玩家宗门不老化
 }
 
 TEST(YearSettlementTest, Y1T2AllianceExpiryDissolvesAndClearsSects) {
@@ -660,115 +578,8 @@ TEST(YearSettlementTest, Y1T2GriefExpiryClearsExpiredSentinel) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 年变中件黄金序列（思过释放 + 驻军轮换）
+// 年变中件黄金序列（驻军轮换）
 // ════════════════════════════════════════════════════════════════
-
-TEST(YearSettlementTest, Y2T1ReflectionReleaseFreesAndBonuses) {
-    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
-    // 思过到期释放：IDLE + 道德/忠诚 +5（cap 200/100）+ 清思过字段；
-    // 未到期弟子保留 REFLECTING。到期弟子道德 50 ≥ 阈值 → 零 SYSTEM 抽取。
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.gameData.gameYear = 2;
-    st.gameData.gameMonth = 1;
-    st.gameData.spiritStones = 1000L;
-
-    Disciple due;
-    due.id = "1";
-    due.name = "思一";
-    due.isAlive = true;
-    due.status = "REFLECTING";
-    due.statusData["reflectionStartYear"] = "1";
-    due.statusData["reflectionEndYear"] = "2";
-    due.morality = 50;
-    due.loyalty = 50;
-    st.disciples.appendDisciple(due);
-
-    Disciple pending;
-    pending.id = "2";
-    pending.name = "思二";
-    pending.isAlive = true;
-    pending.status = "REFLECTING";
-    pending.statusData["reflectionEndYear"] = "5";
-    st.disciples.appendDisciple(pending);
-
-    system::detail::processReflectionRelease(st, /*year=*/2, core->rng(), world);
-
-    const auto r1 = st.disciples.materialize(0);
-    EXPECT_EQ("IDLE", r1.status);
-    EXPECT_EQ(55, r1.morality);                    // 50 + 5
-    EXPECT_EQ(55, r1.loyalty);                     // 50 + 5
-    EXPECT_EQ(r1.statusData.end(), r1.statusData.find("reflectionEndYear"));
-    EXPECT_EQ(r1.statusData.end(), r1.statusData.find("reflectionStartYear"));
-    const auto r2 = st.disciples.materialize(1);
-    EXPECT_EQ("REFLECTING", r2.status);            // 未到期保留
-}
-
-TEST(YearSettlementTest, Y2T1ReflectionReleaseMoralityCap) {
-    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
-    // 道德 198 → +5 cap 200；忠诚 198 → cap 100
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.gameData.gameYear = 2;
-    st.gameData.gameMonth = 1;
-
-    Disciple due;
-    due.id = "1";
-    due.name = "巅峰";
-    due.isAlive = true;
-    due.status = "REFLECTING";
-    due.statusData["reflectionEndYear"] = "2";
-    due.morality = 198;
-    due.loyalty = 198;
-    st.disciples.appendDisciple(due);
-
-    system::detail::processReflectionRelease(st, /*year=*/2, core->rng(), world);
-
-    const auto r = st.disciples.materialize(0);
-    EXPECT_EQ(200, r.morality);                    // min(203, 200)
-    EXPECT_EQ(100, r.loyalty);                     // min(203, 100)
-}
-
-TEST(YearSettlementTest, Y2T1ReflectionReleaseLowMoralityTriggersTheft) {
-    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
-    // 释放后道德 < 阈值（30）→ 单弟子偷盗判定触发——SYSTEM 分区快照变化
-    //（偷盗链至少 1 次 nextDouble）；前置链构造：灵石 >0、平均忠诚 <50、
-    // IDLE、保护期外（recruitedMonths 默认 0）、年/月/年上限未满。
-    const int64_t seed = 2026;
-    auto core = makeCore(seed);
-    auto& st = core->state();
-    st.gameData.gameYear = 2;
-    st.gameData.gameMonth = 1;
-    st.gameData.spiritStones = 1000L;
-
-    Disciple thief;
-    thief.id = "1";
-    thief.name = "恶思";
-    thief.isAlive = true;
-    thief.status = "REFLECTING";
-    thief.statusData["reflectionEndYear"] = "2";
-    thief.morality = 10;        // 释放后 15 < 阈值 30 → 判定
-    thief.loyalty = 40;
-    st.disciples.appendDisciple(thief);
-
-    Disciple peer;
-    peer.id = "2";
-    peer.name = "同门";
-    peer.isAlive = true;
-    peer.loyalty = 40;          // 平均忠诚 40 < 50 → 从众门控通过
-    st.disciples.appendDisciple(peer);
-
-    const int64_t before = core->rng()
-        .getRng(rng::RngPartition::kSystem)
-        .snapshot();
-    system::detail::processReflectionRelease(st, /*year=*/2, core->rng(), world);
-    const int64_t after = core->rng()
-        .getRng(rng::RngPartition::kSystem)
-        .snapshot();
-
-    EXPECT_NE(before, after) << "低道德思过释放必须触发 SYSTEM 偷盗判定抽取";
-    EXPECT_EQ("IDLE", st.disciples.materialize(0).status);
-}
 
 TEST(YearSettlementTest, Y2T1GarrisonRotationFillsOccupiedSlots) {
     // 驻军轮换：玩家宗门 + AI 占领宗门（occupier ai-1）+ 12 存活弟子
@@ -937,7 +748,7 @@ TEST(YearSettlementTest, Y3T1RefreshRecruitListSkipsWhenIntervalNotMet) {
 
 TEST(YearSettlementTest, Y3T1RefreshRecruitListGeneratesRecruits) {
     // 玩家宗门（大 1..10）+ lastRecruitYear 差值 3 → 刷新：recruitList 追加、
-    // lastRecruitYear 更新、弟子字段合法（名字非空/年龄 16..29/realm 9）
+    // lastRecruitYear 更新、弟子字段合法（名字非空/realm 9）
     auto core = makeCore(2026);
     auto& st = core->state();
     st.gameData.gameYear = 5;
@@ -955,8 +766,6 @@ TEST(YearSettlementTest, Y3T1RefreshRecruitListGeneratesRecruits) {
     EXPECT_LE(st.gameData.recruitList.size(), 10u);
     for (const auto& r : st.gameData.recruitList) {
         EXPECT_FALSE(r.name.empty()) << "名字非空";
-        EXPECT_GE(r.age, 16);
-        EXPECT_LE(r.age, 29);          // 16 + nextInt(14) → 16..29
         EXPECT_EQ(9, r.realm);
     }
 }
@@ -994,127 +803,6 @@ TEST(YearSettlementTest, Y3T1RefreshRecruitListNoPlayerFallback) {
     EXPECT_EQ(8, st.gameData.lastRecruitYear);
     ASSERT_FALSE(st.gameData.recruitList.empty());
     EXPECT_GE(st.gameData.recruitList.size(), 1u);
-}
-
-// ════════════════════════════════════════════════════════════════
-// 弟子老化死亡链黄金序列
-// ════════════════════════════════════════════════════════════════
-
-TEST(YearSettlementTest, Y3T1AgingAliveDisciplesWithoutDeath) {
-    // 无死亡：活弟子 age+1；5 岁境界层回正
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple d1;
-    d1.id = "1";
-    d1.name = "少年";
-    d1.age = 4;
-    d1.realmLayer = 0;   // 老化后 5 岁 → 回正 1
-    d1.isAlive = true;
-    st.disciples.appendDisciple(d1);
-    Disciple d2;
-    d2.id = "2";
-    d2.name = "青年";
-    d2.age = 30;
-    d2.isAlive = true;
-    st.disciples.appendDisciple(d2);
-
-    system::YearSettlementDraft draft;
-    system::detail::processDiscipleAgingStep(st, /*currentYear=*/2, &draft);
-
-    ASSERT_EQ(2u, st.disciples.size());
-    EXPECT_EQ(5, st.disciples.materialize(0).age);
-    EXPECT_EQ(1, st.disciples.materialize(0).realmLayer);   // 5 岁回正
-    EXPECT_EQ(31, st.disciples.materialize(1).age);
-    EXPECT_TRUE(draft.agedDeaths.empty());
-}
-
-TEST(YearSettlementTest, Y3T1AgingDeathRemovesAndDrafts) {
-    // 寿元耗尽死亡：age 79（lifespan 80）老化后 80 >= maxAge 80 → 死亡——
-    // store 移除 + annualDeceasedDisciples+1 + 死亡事件 + 草稿（agedDeaths）
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.gameData.annualDeceasedDisciples = 0;
-    Disciple elder;
-    elder.id = "1";
-    elder.name = "老寿";
-    elder.age = 79;
-    elder.lifespan = 80;
-    elder.realm = 9;
-    elder.isAlive = true;
-    st.disciples.appendDisciple(elder);
-    Disciple young;
-    young.id = "2";
-    young.name = "后辈";
-    young.age = 30;
-    young.isAlive = true;
-    st.disciples.appendDisciple(young);
-
-    system::YearSettlementDraft draft;
-    system::detail::processDiscipleAgingStep(st, /*currentYear=*/3, &draft);
-
-    ASSERT_EQ(1u, st.disciples.size());                     // 老者移除
-    EXPECT_EQ("2", st.disciples.materialize(0).id);
-    EXPECT_EQ(31, st.disciples.materialize(0).age);         // 活者老化
-    EXPECT_EQ(1, st.gameData.annualDeceasedDisciples);
-    ASSERT_EQ(1u, draft.agedDeaths.size());
-    EXPECT_EQ("1", draft.agedDeaths[0].discipleId);
-    EXPECT_EQ("老寿", draft.agedDeaths[0].name);
-    EXPECT_EQ(80, draft.agedDeaths[0].age);
-    EXPECT_EQ(3, draft.agedDeaths[0].deathYear);
-}
-
-TEST(YearSettlementTest, Y3T1AgingGriefPropagationAndUnbind) {
-    // 哀悼传播 + 解绑：夫妻互指 partnerIds，夫死 → 妻 griefEndYears=year+1 +
-    // partnerIds 清空 + 丧亲草稿（道侣）
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple husband;
-    husband.id = "1";
-    husband.name = "夫君";
-    husband.age = 79;
-    husband.lifespan = 80;
-    husband.isAlive = true;
-    husband.partnerId = "2";
-    st.disciples.appendDisciple(husband);
-    Disciple wife;
-    wife.id = "2";
-    wife.name = "妻子";
-    wife.age = 30;
-    wife.isAlive = true;
-    wife.partnerId = "1";
-    st.disciples.appendDisciple(wife);
-
-    system::YearSettlementDraft draft;
-    system::detail::processDiscipleAgingStep(st, /*currentYear=*/5, &draft);
-
-    ASSERT_EQ(1u, st.disciples.size());
-    const auto w = st.disciples.materialize(0);
-    EXPECT_EQ(6, w.griefEndYear);                     // currentYear+1
-    EXPECT_TRUE(w.partnerId.empty());                 // 解绑
-    ASSERT_EQ(1u, draft.bereavements.size());
-    EXPECT_EQ(2, draft.bereavements[0].grievingId);
-    EXPECT_EQ("道侣", draft.bereavements[0].relationship);
-    EXPECT_EQ("夫君", draft.bereavements[0].deceasedName);
-}
-
-TEST(YearSettlementTest, Y3T1AgingSlotCleanupClearsElder) {
-    // 槽位清理：死亡弟子在纳徒长老槽 → 槽清空（elderSlots.recruitingElder）
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple elder;
-    elder.id = "1";
-    elder.name = "长老";
-    elder.age = 79;
-    elder.lifespan = 80;
-    elder.isAlive = true;
-    st.disciples.appendDisciple(elder);
-    st.gameData.elderSlots.recruitingElder = "1";
-
-    system::YearSettlementDraft draft;
-    system::detail::processDiscipleAgingStep(st, /*currentYear=*/3, &draft);
-
-    EXPECT_EQ(0u, st.disciples.size());
-    EXPECT_TRUE(st.gameData.elderSlots.recruitingElder.empty());
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1453,7 +1141,6 @@ state::Disciple makeAiDisciple(const std::string& id, const std::string& name) {
     d.realm = 9;
     d.realmLayer = 1;
     d.isAlive = true;
-    d.age = 30;
     return d;
 }
 
@@ -1466,17 +1153,11 @@ void expectAiRecruitValid(const state::Disciple& d, int32_t sectLevel) {
     EXPECT_EQ(0.0, d.cultivation);
     EXPECT_TRUE(d.isAlive);
     EXPECT_EQ("outer", d.discipleType);
-    EXPECT_GE(d.age, 16);
-    EXPECT_LE(d.age, 29);
-    EXPECT_GE(d.lifespan, 1);
-    EXPECT_LE(d.lifespan, 80);
     // 灵根（英文 key 逗号串 1..5）
     EXPECT_FALSE(d.spiritRootType.empty());
-    // 技能/方差在界内（GameConfig.Disciple.SKILL_MAX=200 / MAX_LOYALTY=100）
+    // 技能在界内（GameConfig.Disciple.SKILL_MAX=200）
     EXPECT_GE(d.intelligence, 1);
     EXPECT_LE(d.intelligence, 200);
-    EXPECT_GE(d.loyalty, 1);
-    EXPECT_LE(d.loyalty, 100);
     // 装备/功法数量按宗门等级（炼气凡品池非空——应有满配）
     const int32_t equipCount =
         static_cast<int32_t>(!d.weaponId.empty()) + (!d.armorId.empty()) +
@@ -1601,11 +1282,8 @@ TEST(YearSettlementTest, Y4cT2AiDiscipleGenerationDeterministic) {
         EXPECT_EQ(a.surname, b.surname) << "idx " << i;
         EXPECT_EQ(a.gender, b.gender) << "idx " << i;
         EXPECT_EQ(a.spiritRootType, b.spiritRootType) << "idx " << i;
-        EXPECT_EQ(a.age, b.age) << "idx " << i;
-        EXPECT_EQ(a.lifespan, b.lifespan) << "idx " << i;
         EXPECT_EQ(a.hpVariance, b.hpVariance) << "idx " << i;
         EXPECT_EQ(a.intelligence, b.intelligence) << "idx " << i;
-        EXPECT_EQ(a.loyalty, b.loyalty) << "idx " << i;
         EXPECT_EQ(a.aptitude, b.aptitude) << "idx " << i;
         EXPECT_EQ(a.talentIds, b.talentIds) << "idx " << i;
         EXPECT_EQ(a.physiqueIds, b.physiqueIds) << "idx " << i;

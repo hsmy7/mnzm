@@ -44,20 +44,18 @@ private val RED = Color(0xFFFF4444)
 
 data class ConversationEffect(
     val moralityDelta: Int = 0,
-    val loyaltyDelta: Int = 0,
     val cultivationDelta: Double = 0.0,
     val intelligenceDelta: Int = 0
 ) {
     val isZero: Boolean
-        get() = moralityDelta == 0 && loyaltyDelta == 0 && cultivationDelta == 0.0 && intelligenceDelta == 0
+        get() = moralityDelta == 0 && cultivationDelta == 0.0 && intelligenceDelta == 0
 
-    val isPositive: Boolean get() = loyaltyDelta > 0 || moralityDelta > 0 || intelligenceDelta > 0 || cultivationDelta >
+    val isPositive: Boolean get() = moralityDelta > 0 || intelligenceDelta > 0 || cultivationDelta >
         0.0
-    val isNegative: Boolean get() = loyaltyDelta < 0 || moralityDelta < 0 || intelligenceDelta < 0 || cultivationDelta <
+    val isNegative: Boolean get() = moralityDelta < 0 || intelligenceDelta < 0 || cultivationDelta <
         0.0
 
     fun toDisplayText(): String = buildString {
-        if (loyaltyDelta != 0) append("忠诚 ${if (loyaltyDelta > 0) "+" else ""}$loyaltyDelta  ")
         if (moralityDelta != 0) append("道德 ${if (moralityDelta > 0) "+" else ""}$moralityDelta  ")
         if (intelligenceDelta != 0) append("智力 ${if (intelligenceDelta > 0) "+" else ""}$intelligenceDelta  ")
         if (cultivationDelta != 0.0) {
@@ -105,14 +103,14 @@ private val TREE_A = ConversationTree(
             ConversationOption("——去吧，若还有疑惑随时来问", outcomes = listOf(
                 Outcome(replyVariants = listOf("多谢宗主关怀！"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子铭记宗主恩情！", "宗主待弟子恩重如山！"),
-                    effects = ConversationEffect(loyaltyDelta = 1)),
+                    effects = ConversationEffect()),
                 Outcome(replyVariants = listOf("弟子知道了。"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子这便去了。"),
                     effects = ConversationEffect(moralityDelta = 1)))),
             ConversationOption("——修行之事不可假手于人，自己去悟", outcomes = listOf(
                 Outcome(replyVariants = listOf("是，弟子明白了。"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子告退。", "弟子去了。"),
-                    effects = ConversationEffect(loyaltyDelta = -1)),
+                    effects = ConversationEffect()),
                 Outcome(replyVariants = listOf("宗主说得对，弟子受教了。"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子定当努力参悟。"),
                     effects = ConversationEffect(intelligenceDelta = 1)))),
@@ -145,7 +143,7 @@ private val TREE_B = ConversationTree(
         "B_3" to ConversationNode(id = "B_3", options = listOf(
             ConversationOption("——为师信你，不必在意他人之言", outcomes = listOf(
                 Outcome(replyVariants = listOf("多谢宗主信任！"), nextNodeId = END_NODE,
-                    endingTextVariants = listOf("宗主之恩铭记于心！"), effects = ConversationEffect(loyaltyDelta = 1)),
+                    endingTextVariants = listOf("宗主之恩铭记于心！"), effects = ConversationEffect()),
                 Outcome(replyVariants = listOf("弟子知道了。"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子告退。"), effects = ConversationEffect(moralityDelta = 1)))),
             ConversationOption("——先反思自己有无过错", outcomes = listOf(
@@ -153,10 +151,10 @@ private val TREE_B = ConversationTree(
                     endingTextVariants = listOf("弟子明白了，这便去反省。", "弟子定当改过。"),
                     effects = ConversationEffect(moralityDelta = 1)),
                 Outcome(replyVariants = listOf("弟子确实也有不对之处。"), nextNodeId = END_NODE,
-                    endingTextVariants = listOf("多谢宗主指点。"), effects = ConversationEffect(loyaltyDelta = -1)))),
+                    endingTextVariants = listOf("多谢宗主指点。"), effects = ConversationEffect()))),
             ConversationOption("——为师去为你调解", outcomes = listOf(
                 Outcome(replyVariants = listOf("怎敢劳烦宗主……"), nextNodeId = END_NODE,
-                    endingTextVariants = listOf("宗主厚爱，弟子无以为报！"), effects = ConversationEffect(loyaltyDelta = 1)),
+                    endingTextVariants = listOf("宗主厚爱，弟子无以为报！"), effects = ConversationEffect()),
                 Outcome(replyVariants = listOf("多谢宗主！"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子感激不尽。"), effects = ConversationEffect(intelligenceDelta = 1))))
         ))
@@ -181,13 +179,13 @@ private val TREE_C = ConversationTree(
         "C_3" to ConversationNode(id = "C_3", options = listOf(
             ConversationOption("——如今宗门便是你的家", outcomes = listOf(
                 Outcome(replyVariants = listOf("宗主如此关怀，弟子……"), nextNodeId = END_NODE,
-                    endingTextVariants = listOf("宗主恩情，弟子此生不负宗门！"), effects = ConversationEffect(loyaltyDelta = 1)),
+                    endingTextVariants = listOf("宗主恩情，弟子此生不负宗门！"), effects = ConversationEffect()),
                 Outcome(replyVariants = listOf("弟子感激不尽。"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子愿为宗门效劳。"), effects = ConversationEffect(moralityDelta = 1)))),
             ConversationOption("——过去的苦难要化为前进的动力", outcomes = listOf(
                 Outcome(replyVariants = listOf("宗主说得对！"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子这便去修炼！", "定不负宗主期望！"),
-                    effects = ConversationEffect(loyaltyDelta = -1)),
+                    effects = ConversationEffect()),
                 Outcome(replyVariants = listOf("弟子明白了！"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("苦难皆为修行，弟子谨记。"),
                     effects = ConversationEffect(cultivationDelta = 0.01)))),
@@ -195,10 +193,9 @@ private val TREE_C = ConversationTree(
                 Outcome(replyVariants = listOf("是！弟子这便去整理。"), nextNodeId = END_NODE,
                     endingTextVariants = listOf("弟子从命！"), effects = ConversationEffect(intelligenceDelta = 1)),
                 Outcome(replyVariants = listOf("宗主英明。"), nextNodeId = END_NODE,
-                    endingTextVariants = listOf("弟子这便将所知整理成册。"), effects = ConversationEffect(loyaltyDelta = 1))))
+                    endingTextVariants = listOf("弟子这便将所知整理成册。"), effects = ConversationEffect()))))
         ))
     )
-)
 
 private val ALL_TREES = listOf(TREE_A, TREE_B, TREE_C)
 internal fun getAllConversationTrees(): List<ConversationTree> = ALL_TREES
@@ -230,7 +227,6 @@ internal suspend fun randomizeEffectWith(
     else if (this < 0) -drawInt(1, 6) else 0
     return ConversationEffect(
         moralityDelta = effect.moralityDelta.signRandom(),
-        loyaltyDelta = effect.loyaltyDelta.signRandom(),
         intelligenceDelta = effect.intelligenceDelta.signRandom(),
         cultivationDelta = if (effect.cultivationDelta > 0.0) drawDouble(0.01,
             0.06) else if (effect.cultivationDelta < 0.0) -drawDouble(0.01, 0.06) else 0.0
@@ -267,10 +263,6 @@ private fun capEffectBySkills(
 ): Pair<ConversationEffect, List<String>> {
     val blocked = mutableListOf<String>()
     val capped = effect.copy(
-        loyaltyDelta = capDelta(
-            blocked, effect.loyaltyDelta, skills?.loyalty,
-            "弟子忠诚超群无法再提升", "弟子忠诚已至谷底无法再降低"
-        ),
         moralityDelta = capDelta(
             blocked, effect.moralityDelta, skills?.morality,
             "弟子道德超群无法再提升", "弟子道德已至谷底无法再降低"
@@ -357,7 +349,7 @@ fun DiscipleChatDialog(
 
                 if (!e.isZero) viewModel?.disciple?.applyConversationEffects(
                     discipleId = disciple.id, currentYear = gameYear,
-                    moralityDelta = e.moralityDelta, loyaltyDelta = e.loyaltyDelta,
+                    moralityDelta = e.moralityDelta,
                     cultivationDelta = e.cultivationDelta, intelligenceDelta = e.intelligenceDelta
                 )
                 val ending = outcome.endingTextVariants.ifEmpty { listOf("多谢宗主。") }.randomOne(presentationRandom)
