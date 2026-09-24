@@ -171,8 +171,6 @@ internal object GameDataFieldPatch {
         }),
         f("autoBuyList", { gd, el, j -> gd.autoBuyList = j.decodeFromJsonElement<List<AutoBuyEntry>>(el) }),
         f("recruitList", { gd, el, j -> gd.recruitList = j.decodeFromJsonElement<List<Disciple>>(el) }),
-        f("lastRecruitYear", { gd, el, j -> gd.lastRecruitYear = j.decodeFromJsonElement<Int>(el) }),
-        f("lastAiSectRecruitYear", { gd, el, j -> gd.lastAiSectRecruitYear = j.decodeFromJsonElement<Int>(el) }),
         f("jadeSymbols", { gd, el, j -> gd.jadeSymbols = j.decodeFromJsonElement<Int>(el) }),
         f("jadeSymbolsToday", { gd, el, j -> gd.jadeSymbolsToday = j.decodeFromJsonElement<Int>(el) }),
         f("jadeDayAnchorMs", { gd, el, j -> gd.jadeDayAnchorMs = j.decodeFromJsonElement<Long>(el) }),
@@ -216,9 +214,6 @@ internal object GameDataFieldPatch {
         f("sectRelations", { gd, el, j -> gd.sectRelations = j.decodeFromJsonElement<List<SectRelation>>(el) }),
         f("playerAllianceSlots", { gd, el, j -> gd.playerAllianceSlots = j.decodeFromJsonElement<Int>(el) }),
         f("sectPolicies", { gd, el, j -> gd.sectPolicies = j.decodeFromJsonElement<SectPolicies>(el) }),
-        f("openRecruitmentLastPaidMonth", { gd, el, j ->
-            gd.openRecruitmentLastPaidMonth = j.decodeFromJsonElement<Int>(el)
-        }),
         f("battleTeams", { gd, el, j -> gd.battleTeams = j.decodeFromJsonElement<List<BattleTeam>>(el) }),
         f("usedTeamNumbers", { gd, el, j -> gd.usedTeamNumbers = j.decodeFromJsonElement<List<Int>>(el) }),
         f("battleTeamsInitialized", { gd, el, j -> gd.battleTeamsInitialized = j.decodeFromJsonElement<Boolean>(el) }),
@@ -237,16 +232,10 @@ internal object GameDataFieldPatch {
         f("playerHasAttackedAI", { gd, el, j -> gd.playerHasAttackedAI = j.decodeFromJsonElement<Boolean>(el) }),
         f("activeMissions", { gd, el, j -> gd.activeMissions = j.decodeFromJsonElement<List<ActiveMission>>(el) }),
         f("availableMissions", { gd, el, j -> gd.availableMissions = j.decodeFromJsonElement<List<Mission>>(el) }),
-        f("autoRecruitSpiritRootFilter", { gd, el, j ->
-            gd.autoRecruitSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el)
-        }),
         f("prisonerSpiritRootFilter", { gd, el, j ->
             gd.prisonerSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el)
         }),
         f("recruitCountThisMonth", { gd, el, j -> gd.recruitCountThisMonth = j.decodeFromJsonElement<Int>(el) }),
-        f("autoRejectSpiritRootFilter", { gd, el, j ->
-            gd.autoRejectSpiritRootFilter = j.decodeFromJsonElement<Set<Int>>(el)
-        }),
         f("watchedItemIds", { gd, el, j -> gd.watchedItemIds = j.decodeFromJsonElement<List<String>>(el) }),
         f("secretRealmState", { gd, el, j -> gd.secretRealmState = j.decodeFromJsonElement<SecretRealmState>(el) }),
         f("secretRealmCooldownYear", { gd, el, j -> gd.secretRealmCooldownYear = j.decodeFromJsonElement<Int>(el) }),

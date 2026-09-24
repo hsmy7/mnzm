@@ -81,9 +81,6 @@ suspend fun GameEngine.loadData(
         // 若不清除会作用于新档（跨存档污染——旧年 op 改新档数据）。
         // 存档时已 flush（"快照 ⇒ 队列已空"），此残留只可能是进程内未保存的脏 op。
         cultivationService.clearYearlyOpsQueue()
-        // 重置招募惰性状态（纯运行时，不持久化）
-        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
-        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
         // 迁移 + null 槽净化 + 幽灵过滤 + id 归一化 + 快照装载
         prepareLoadedGameData(
             gameData = gameData, disciples = disciples,
@@ -94,8 +91,7 @@ suspend fun GameEngine.loadData(
         )
         // 丹药追踪字段迁移（必须在 stateStore.update 内执行，确保字段守卫通过）
         migratePillTrackingFieldsAfterLoad()
-        // 读档自愈（第二道防线）：cache 命中路径绕过 SaveValidator，此处兜底
-        // 净化 recruitList 的损坏/重复/已入宗门残留条目（幽灵弟子根治）
+        // 招募链下线：读档恒清空 recruitList（cache 命中路径绕过 SaveValidator，此处兜底）
         sanitizeRecruitListAfterLoad()
         val restoredRecruitCount = stateStore.gameDataSnapshot.recruitList.size
         DomainLog.d(
@@ -198,16 +194,10 @@ private suspend fun GameEngine.migratePillTrackingFieldsAfterLoad() {
     }
 }
 
-/** 读档 recruitList 自愈：净化损坏/重复/已入宗门残留条目 */
+/** 招募链下线：读档恒清空 */
 private suspend fun GameEngine.sanitizeRecruitListAfterLoad() {
-    // 读档自愈（第二道防线）：cache 命中路径绕过 SaveValidator，此处兜底
-    // 净化 recruitList 的损坏/重复/已入宗门残留条目（幽灵弟子根治）
     stateStore.update {
-        val removed = com.xianxia.sect.core.engine.service.RecruitService
-            .sanitizeRecruitList(this)
-        if (removed > 0) {
-            DomainLog.w("GameEngine", "loadData: 净化 recruitList $removed 条异常条目")
-        }
+        gameData = gameData.copy(recruitList = emptyList())
     }
 }
 
@@ -246,9 +236,6 @@ private suspend fun GameEngine.initSpiritMineLastSettledMonth() {
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     return engineContextDispatcher.withEngineContext {
-        // 重置招募惰性状态（纯运行时，新游戏开始时清理）
-        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
-        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
         stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
         // 地图种子须在生成世界前产生；AI 分区 RNG 的播种由随后的
         // gameRngManager.initSystemSeed 统一完成（Kotlin 全分区 + C++ aiRng_ 同式
@@ -397,7 +384,6 @@ private suspend fun GameEngine.initializeWorldAndServices(sectName: String, curr
         val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
         productionCoordinator.repository.initializeAllSlots(currentSlot)
         cultivationService.refreshTravelingMerchant(1, 1)
-        cultivationService.refreshRecruitList(1)
         cultivationService.refreshMerchantAcquisition(1, 1)
 
         // 为每个 AI 宗门分配唯一弟子头像

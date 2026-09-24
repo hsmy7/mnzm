@@ -107,6 +107,10 @@ TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) 
         action::DISCIPLE_AGE,              //1106 老化链删除
         action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,  //1593 思过释放无实现
         action::WAREHOUSE_GARRISON_TX,     //1612 仓库驻守无实现
+        action::RECRUIT_REMOVE_TX,         //1630 招募链下线（G05）
+        action::RECRUIT_REFRESH_TX,        //1631 招募链下线（G05）
+        action::RECRUIT_AGE_TX,            //1632 招募链下线（G05）
+        action::GOV_OPEN_RECRUITMENT_TOGGLE_TX,  //1681 广纳门徒下线（G05）
         action::SECT_ATTACK_GRANT_SOUL_POWERS_TX,       //1712 魂力授予无实现
     };
     std::vector<std::string> gaps;

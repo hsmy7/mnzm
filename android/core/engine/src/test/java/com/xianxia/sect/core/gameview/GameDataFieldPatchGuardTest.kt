@@ -79,7 +79,7 @@ class GameDataFieldPatchGuardTest {
             "标量-Double" to listOf(change("sectCultivation", 1234.5678)),
             "标量-Boolean" to listOf(change("playerProtectionEnabled", false)),
             "容器-ListString" to listOf(change("unlockedRecipes", listOf("recipe_a", "recipe_b"))),
-            "容器-SetInt" to listOf(change("autoRecruitSpiritRootFilter", setOf(1, 3, 5))),
+            "容器-SetInt" to listOf(change("prisonerSpiritRootFilter", setOf(1, 3, 5))),
             "容器-MapIntInt" to listOf(change("yearlySalary", mapOf(9 to 100, 0 to 900))),
             "容器-MapIntBoolean" to listOf(change("yearlySalaryEnabled", mapOf(9 to false))),
             "容器-MapStringLong" to listOf(change("guideCounters", mapOf("kill" to 7L))),
@@ -251,7 +251,7 @@ class GameDataFieldPatchGuardTest {
         yearlySalaryEnabled = mapOf(9 to true)
         unlockedRecipes = listOf("r1")
         unlockedManuals = listOf("m1", "m2")
-        autoRecruitSpiritRootFilter = setOf(1, 2)
+        prisonerSpiritRootFilter = setOf(1, 2)
         guideCounters = mapOf("c1" to 5L)
         elderSlots = ElderSlots(viceSectMaster = "11", herbGardenElder = "12")
         sectPolicies = SectPolicies(spiritMineBoost = true)

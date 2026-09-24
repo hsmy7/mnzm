@@ -44,7 +44,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.RecruitIntegrity
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag as NativeEngineFlagX
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
@@ -119,9 +118,6 @@ class DiffAuthoritativeTickTest {
 
         /** 初始灵石（充足，政策不降级） */
         const val INITIAL_STONES = 50_000L
-
-        /** 手动招募对拍场景的招募候选 id（buildRecruitSnapshot） */
-        const val RECRUIT_ID = "r1"
 
         /** 场景 mapSeed（非零 = 真实存档前置——boot 地形回填/C++ AI 流播种同款输入） */
         const val MAP_SEED = 987_654_321
@@ -199,14 +195,6 @@ class DiffAuthoritativeTickTest {
             ).apply {
                 mapSeed = MAP_SEED
                 rngStates = initialRngStates()
-                // 招募刷新差值门置满（对齐 DiffYearSettlementTest 规避清单同款）：
-                // 本场景 worldMapSects 为空（无玩家宗门）⇒ 刷新落入"空世界兜底
-                // 分支"（nextInt(7) 兜底 + 无容量约束的自动招募）——生产 boot 后
-                // worldMapSects 恒非空，该分支不可达；空世界下双臂（C++ vs Kotlin
-                // 回退臂）自动招募/净化输出差异已在 D3 对齐时实测（4 vs 1），登记
-                // 为空世界观测、不在本 harness 展开。年变招募刷新的跨语言对拍由
-                // 读档自愈 native 臂（RECRUIT_REFRESH_TX）+ 后续带宗门场景承担
-                lastRecruitYear = 4
                 merchantLastRefreshChanceGrantYear = 1
                 // 年报可观察输入
                 annualTotalIncome = 1200L
@@ -231,36 +219,6 @@ class DiffAuthoritativeTickTest {
         cultivation = 10.0, spiritRootType = "metal",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
-
-    /** 可招募候选（标准：单灵根炼气一层，资质缺省 50 触发入宗散列补算） */
-    private fun recruitDisciple(id: String): Disciple = Disciple(
-        id = id, name = "候选招募", realm = 9, realmLayer = 1,
-        cultivation = 1.0, spiritRootType = "metal",
-        combat = CombatAttributes(currentHp = -1, currentMp = -1)
-    )
-
-    /** 手动招募对拍初始状态（3 宗门弟子 + 1 招募候选；时间与主场景同相位） */
-    private fun buildRecruitSnapshot(): NativeGameState {
-        val gameData = backfillTerrainOnBoot(
-            GameData(
-                gameYear = 1, gameMonth = 10, gamePhase = 0,
-                spiritStones = INITIAL_STONES
-            ).apply {
-                mapSeed = MAP_SEED
-                rngStates = initialRngStates()
-                lastRecruitYear = 1
-                recruitList = listOf(recruitDisciple(RECRUIT_ID))
-            }
-        )
-        return NativeGameState(
-            gameData = gameData,
-            disciples = listOf(
-                settlerDisciple("31", "甲"),
-                settlerDisciple("32", "乙"),
-                settlerDisciple("33", "丙")
-            )
-        )
-    }
 
     /**
      * 地图冻结（WS-5b）boot 回填——生产同款（GameEngineSaveOps.
@@ -425,12 +383,6 @@ class DiffAuthoritativeTickTest {
             discipleService = mockSmart(),
             cultivationCore = core, breakthroughHandler = handler,
             cultivationSettlement = settlement, battleSystem = mockSmart(),
-            // 招募：真实服务（年变 T1 #5 刷新差值判据 3 年到期 ⇒ 真实刷新 +
-            // lastRecruitYear 落账——C++ runYearSettlement 同序执行，mock 零行为
-            // → lastRecruitYear 失配，D3 对齐时实测暴露：第 84 旬 1 vs 4）
-            recruitService = com.xianxia.sect.core.engine.service.RecruitService(
-                store, com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory(), gameRng
-            ),
             // 商人收购：真实商人服务（年变 T1 商人刷新机会 + T2 #12 收购刷新
             // 由 flushYearlyOpsQueue 触发——C++ runYearSettlement 同序执行，
             // mock 零行为 → merchantAcquisitionItems 失配，D3 对齐时实测暴露）
@@ -454,7 +406,7 @@ class DiffAuthoritativeTickTest {
         val service = CultivationService(
             stateStore = store, cultivationCore = core, breakthroughHandler = handler,
             cultivationSettlement = settlement, eventProcessor = eventProcessor,
-            productionProcessor = mockSmart(), recruitService = mockSmart(),
+            productionProcessor = mockSmart(),
             merchantAndRecruitService = mockSmart(), caveExplorationProcessor = mockSmart(),
             sharedState = CultivationSharedState()
         )
@@ -610,117 +562,6 @@ class DiffAuthoritativeTickTest {
                 "该写入将被前向镜像覆盖 = 数据丢失）",
             0, storeA.nonMirrorWriteCount
         )
-    }
-
-
-    /**
-     * 手动招募下沉对拍：C++ nativeCoreManualRecruitFromList（AUTHORITATIVE
-     * 单真相源）执行一次手动招募 → 前向增量镜像 → 再推进一旬（含边界编排 + 反向回导）
-     * 后，C++ 导出真相源与 Kotlin 基准（DiscipleFacadeImpl 同语义）逐字段一致。
-     *
-     * 守卫目标：手动招募与自动招募同侧（C++ 权威），Kotlin 侧不再修改镜像——
-     * 防"C++ 结算重写 recruitList → 前向镜像覆盖手动招募"回归（自动招募正常而
-     * 手动招募失效的根因域）。
-     */
-    @Test
-    @Suppress("LongMethod")  // 双臂对拍流程：单函数承载（与主场景同构）
-    fun `native manual recruit matches legacy kotlin over one phase`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInitMode(true)
-
-        val snapshot = buildRecruitSnapshot()
-        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
-
-        // ── Side B：纯 Kotlin 基准（DiscipleFacadeImpl.recruitDiscipleFromList 同语义） ──
-        val storeB = FakeGameStateStore().also {
-            it.gameDataValue = snapshot.gameData
-            it.disciplesValue = snapshot.disciples
-        }
-        val (_, rngB, exB) = buildHarness(storeB, snapshot.gameData.rngStates, delegating = false)
-        runTest {
-            // Side B 全段 = flag-OFF 基准臂语义（w3-13 捕获侧检测门控不计数）
-            NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.OFF) {
-            storeB.update {
-                val recruit = gameData.recruitList.toList().find { it.id == RECRUIT_ID }
-                val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
-                val recruited = requireNotNull(recruit).copy(
-                    usage = recruit.usage.copy(recruitedMonth = currentMonth)
-                )
-                val newId = discipleTables.allocateAndInsert(recruited)
-                if (newId.isNotEmpty()) {
-                    val intId = newId.toIntOrNull()
-                    if (intId != null) {
-                        discipleTables.lifeEvents[intId] = listOf("加入宗门")
-                    }
-                }
-                gameData = gameData.copy(
-                    recruitList = gameData.recruitList.filter {
-                        it.id != RECRUIT_ID && !RecruitIntegrity.isSamePerson(it, recruited)
-                    },
-                    recruitCountThisMonth = gameData.recruitCountThisMonth + 1,
-                    annualNewDisciples = gameData.annualNewDisciples + 1
-                )
-            }
-            // Side B 推进一旬（与 Side A 同步）
-            var yearChangedB = false
-            var monthChangedB = false
-            storeB.update {
-                val prevYear = gameData.gameYear
-                val prevMonth = gameData.gameMonth
-                advancePhaseBaseline(1)
-                exB.phase.execute(this)
-                yearChangedB = gameData.gameYear != prevYear
-                monthChangedB = gameData.gameMonth != prevMonth
-            }
-            runBoundary(exB, storeB, yearChangedB, monthChangedB)
-            }
-
-            // ── Side A：AUTHORITATIVE 管线（C++ 核心 + 委托 RNG） ──
-            NativeEngineFlagX.withMode(NativeEngineFlagX.Mode.AUTHORITATIVE) {
-            assertTrue("导入失败", DiffRngBridge.nativeCoreImportState(encoded.encodeToByteArray()))
-            val storeA = FakeGameStateStore().also {
-                it.gameDataValue = snapshot.gameData
-                it.disciplesValue = snapshot.disciples
-            }
-            val syncA = StateSyncService(storeA)
-            val (_, _, exA) = buildHarness(storeA, snapshot.gameData.rngStates, delegating = true)
-            // native 手动招募（C++ 权威直接入宗）
-            val envelope = json.parseToJsonElement(
-                DiffRngBridge.nativeCoreManualRecruitFromList(RECRUIT_ID).decodeToString()
-            ).jsonObject
-            assertTrue(
-                "native 手动招募失败: $envelope",
-                envelope["ok"]?.jsonPrimitive?.booleanOrNull == true
-            )
-            // 镜像（生产 tick ③ 前向增量）
-            val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
-            assertTrue("镜像失败", syncA.applyDirty(dirty) != null)
-            // Side A 推进一旬（与 Side B 同步）——验证招募后旬结算仍同步
-            val flags = DiffRngBridge.nativeCoreSettlePhase()
-            val dirty2 = DiffRngBridge.nativeCoreExportDirty().decodeToString()
-            assertTrue("镜像失败", syncA.applyDirty(dirty2) != null)
-            if (flags != 0) {
-                runNativeBoundary(storeA, syncA, exA, flags)
-            }
-
-            // ── 对拍：C++ 导出（真相源）vs Kotlin 基准 ──
-            val actual = json.parseToJsonElement(
-                DiffRngBridge.nativeCoreExportState().decodeToString()
-            )
-            val expectedEl = json.encodeToJsonElement(NativeGameState.serializer(), NativeGameState(
-                gameData = storeB.gameDataValue.copy(
-                    rngStates = rngB.exportStates().toMutableMap()
-                ),
-                disciples = storeB.disciplesValue
-            ))
-            assertNodeMatches(expectedEl, actual, "$")
-            // 显式不变量：招募入宗 id = max(31/32/33)+1 = 34
-            assertTrue("新弟子 34 未入宗", storeA.disciplesValue.any { it.id == "34" })
-            assertTrue("招募列表未清空", storeA.gameDataValue.recruitList.isEmpty())
-            assertEquals(1, storeA.gameDataValue.recruitCountThisMonth)
-            assertEquals(1, storeA.gameDataValue.annualNewDisciples)
-            }
-        }
     }
 
     /** 年先于月变的边界编排（对拍基准侧 B = 生产 flag-OFF 回退臂同序契约） */

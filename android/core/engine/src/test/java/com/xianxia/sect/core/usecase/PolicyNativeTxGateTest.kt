@@ -55,8 +55,8 @@ import kotlin.coroutines.EmptyCoroutineContext
  * 守护契约（双实现并行契约）：
  * - 降级契约：`NativeEngineFlag` OFF / AUTHORITATIVE 但 JVM 无生产 .so
  *   （`GameCoreBridge` 未加载）→ `GOV_POLICY_TOGGLE_TX` /
- *   `GOV_OPEN_RECRUITMENT_TOGGLE_TX` / `GOV_SPIRIT_MINE_BOOST_TOGGLE_TX`
- *   三臂均回退 Kotlin 原实现，**回退臂语义与下沉前逐字一致**（政策置位、
+ *   `GOV_SPIRIT_MINE_BOOST_TOGGLE_TX`
+ *   两臂均回退 Kotlin 原实现，**回退臂语义与下沉前逐字一致**（政策置位、
  *   首月扣费、激活计数、失败文案）。
  * - 失败零写入：灵石不足 → `ToggleResult.Error` 且政策位/计数/余额三者
  *   均不变（判定先于扣费）。
@@ -65,7 +65,7 @@ import kotlin.coroutines.EmptyCoroutineContext
  *   可观测点断言）；非生产类政策不得触发。
  *
  * 镜像服务 null 降级（`stateSyncService` 可空局部守卫，handover findings 13）
- * 与本文件同模块的 `RecruitNativeTxGateTest` / `BuildingNativeTxGateTest`
+ * 与本文件同模块的 `BuildingNativeTxGateTest`
  * 同款结构（本用例用真实 `GameEngineCore` 以走通 `withEngineContext`，
  * 故 sync 恒非空——该守卫由同族测试与代码结构共同守护）。
  *
@@ -257,41 +257,6 @@ class PolicyNativeTxGateTest {
             gd.spiritStones
         )
         assertEquals(1L, counter())
-    }
-
-    // ── 广纳门徒（GOV_OPEN_RECRUITMENT_TOGGLE_TX）─────────────────────
-
-    @Test
-    fun `open recruitment enable deducts fixed cost and records paid month`() = runTest {
-        val cost = GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST
-        setStones(cost)
-        store.update { gameData = gameData.copy(gameYear = 2, gameMonth = 5) }
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            assertEquals(SectPolicyToggleUseCase.ToggleResult.Success, useCase.toggleOpenRecruitment())
-        }
-        val gd = store.gameDataSnapshot
-        assertTrue(gd.sectPolicies.openRecruitment)
-        assertEquals(0L, gd.spiritStones)
-        assertEquals("付费月 = 绝对月（年*12+月）", 2 * 12 + 5, gd.openRecruitmentLastPaidMonth)
-        assertEquals(1L, counter())
-    }
-
-    @Test
-    fun `open recruitment insufficient stones errors and writes nothing`() = runTest {
-        val cost = GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST
-        setStones(cost - 1L)
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            val result = useCase.toggleOpenRecruitment()
-            assertTrue(result is SectPolicyToggleUseCase.ToggleResult.Error)
-            assertEquals(
-                "灵石不足${cost}，无法开启广纳门徒",
-                (result as SectPolicyToggleUseCase.ToggleResult.Error).message
-            )
-        }
-        val gd = store.gameDataSnapshot
-        assertFalse(gd.sectPolicies.openRecruitment)
-        assertEquals(cost - 1L, gd.spiritStones)
-        assertEquals(-1L, counter())
     }
 
     // ── 灵矿增产（GOV_SPIRIT_MINE_BOOST_TOGGLE_TX，免费）──────────────

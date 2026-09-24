@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "nlohmann/json.hpp"
+
 #include "gamecore/state/models.h"
 
 // ============================================================
@@ -19,6 +21,26 @@
 // ============================================================
 namespace gamecore::system {
 namespace settle_util {
+
+/// 品阶最低境界（GameConfig.Realm.getMinRealmForRarity——装备/功法实例
+/// minRealm 字段单一来源）
+inline int32_t minRealmForRarity(int32_t rarity) {
+    switch (rarity) {
+        case 1: return 9;
+        case 2: return 7;
+        case 3: return 6;
+        case 4: return 5;
+        case 5: return 4;
+        case 6: return 2;
+        default: return 9;
+    }
+}
+
+/// Kotlin 双精度最短往返字符串（经 nlohmann 数值序列化对齐 Kotlin
+/// Double.toString：整数值带 ".0"；0.2 → "0.2"）
+inline std::string kotlinDoubleString(double v) {
+    return nlohmann::json(v).dump();
+}
 
 /// Kotlin String.toIntOrNull 等价：全串严格校验的整数解析
 inline std::optional<int32_t> toIntOrNull(const std::string& s) {

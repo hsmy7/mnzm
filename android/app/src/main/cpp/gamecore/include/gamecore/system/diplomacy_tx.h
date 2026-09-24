@@ -402,7 +402,7 @@ struct AllianceOutcome {
 /// 结盟请求事务（Kotlin DiplomacyService.requestAllianceSimple 等价——
 /// 资格门控/四因素概率/SYSTEM 1×nextDouble/相识+盟约+双方宗门关联写入
 /// 逐条对齐；alliance.id 为 Kotlin UUID 镜像生成字段，确定性自增占位——
-/// 仅保证唯一，不参与业务逻辑（recruit_settlement.h 先例））。
+/// 仅保证唯一，不参与业务逻辑（inventory.h nextInstanceId 先例））。
 /// 返回 TxRejection = 校验失败/aiPower 非法（零抽取零写入——Kotlin 同位置
 /// return false 不掷骰）。
 inline AllianceOutcome requestAllianceTransaction(state::GameState& state,

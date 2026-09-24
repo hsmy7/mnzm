@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.PillEffect
 
-import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -24,8 +23,6 @@ import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.nativebridge.GameCoreBridge
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
@@ -56,7 +53,6 @@ class DiscipleFacadeImpl @Inject constructor(
          * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
          */
         internal const val TAG = "DiscipleFacadeImpl"
-        private const val MAX_NAME_DISPLAY_LEN = 30
         /** native 信封 reason：意外异常兜底（调用方回退 Kotlin 原实现） */
         internal const val REASON_UNKNOWN = "UNKNOWN"
     }
@@ -205,33 +201,6 @@ class DiscipleFacadeImpl @Inject constructor(
         when (itemType) {
             ITEM_TYPE_PILL -> usePill(discipleId, itemId)
         }
-    }
-
-    @Suppress("ReturnCount")  // 分发链：空校验/native 转发/回退——逐级早退（与库存转发 tryForward 同构）
-    override fun recruitDiscipleFromList(discipleId: String): String {
-        if (discipleId.isBlank()) {
-            DomainLog.w(TAG, "recruitDiscipleFromList: empty discipleId")
-            return ""
-        }
-        // AUTHORITATIVE：手动招募下沉 C++ 单真相源（与自动招募同侧）——C++ 直接
-        // 招募入宗、下一 tick 前向 diff 推送镜像，消除"Kotlin 镜像修改 vs C++
-        // 权威结算"竞态与反向回导失败窗口（自动招募正常而手动招募失效的根因域）。
-        // native 不可用/信封 UNKNOWN（异常兜底）时回退 Kotlin 原实现（双实现并行契约）。
-        if (NativeEngineFlag.authoritative && GameCoreBridge.isLoaded) {
-            val nativeResult = tryNativeManualRecruit(discipleId)
-            if (nativeResult != null) return nativeResult
-        }
-        return recruitDiscipleFromListLegacy(discipleId)
-    }
-
-    /** 完整性校验失败时同事务移除损坏条目并通知（防幽灵残留；扩展保持 update 事务作用域） */
-    internal fun MutableGameState.purgeCorruptedRecruit(discipleId: String, name: String) {
-        gameData = gameData.copy(
-            recruitList = gameData.recruitList.filter { it.id != discipleId }
-        )
-        pendingNotification = GameNotification.RecruitFailed(
-            "招募失败：「${name.take(MAX_NAME_DISPLAY_LEN)}」数据异常"
-        )
     }
 
     override fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit> {

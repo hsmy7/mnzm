@@ -26,7 +26,6 @@
 #include "gamecore/system/mission_completion.h"
 #include "gamecore/system/ai_sect_ops.h"
 #include "gamecore/system/production.h"
-#include "gamecore/system/recruit_settlement.h"
 #include "gamecore/system/sect_decision.h"
 #include "gamecore/system/secret_realm_settlement.h"
 #include "gamecore/system/sect_power.h"
@@ -67,7 +66,7 @@
 //   已知未下沉扇出的抽取点（场景规避 + 边界登记）：
 //   AI 兽袭 EXPLORATION（precomputeTargets 已入本钩子）、关卡刷新生成
 //   （LevelGenerator 接线）、生产完成 SYSTEM（炼丹/锻造同步段）、
-//   生育/招募/购买/附庸/商人等 SYSTEM 子事件均已入 C++。
+//   生育/购买/附庸/商人等 SYSTEM 子事件均已入 C++。
 //
 // 已知范围边界：
 //   - precomputeTargets：aiSectBeastDirectTargets/aiSectBeastSkipCooldowns/
@@ -83,7 +82,7 @@
 //     （住所建筑表静态数据 + 双端守卫）
 //   - 子事件：recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
 //     scoutExpiry / 附庸脱离检查 /
-//     autoRecruit / 秘境到期关闭+AI 队伍派遣 / 12 月自动购买 /
+//     秘境到期关闭+AI 队伍派遣 / 12 月自动购买 /
 //     弟子智能购买 / 任务刷新均已入 C++
 // ============================================================
 namespace gamecore::system {
@@ -1158,9 +1157,6 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
                                  ecs::World& world) {
     // 子事件 1：招募月度计数归零
     state.gameData.recruitCountThisMonth = 0;
-    // 子事件 2：自动招募（RecruitService.processAutoRecruit 等价移植；
-    // 零 RNG——不扰动后续子事件的 SYSTEM 抽取序）
-    recruit_settle::processAutoRecruit(state);
     // 子事件 5：任务完成（MissionSystem.processMissionCompletion +
     //   CultivationEventMissionOps.processCompletedMissionsLazy 等价移植——
     //   MISSION/BATTLE/ENEMY_GEN 三分区；战斗组装
@@ -1469,8 +1465,8 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 4c Planting(214)：灵田成熟收获 + 续种（SYSTEM 种子 roll）
     detail::processSpiritFieldHarvestStep(state, rng);
     // 4d ChildBirth(235)：生育（processMonthlyBirth 等价移植——
-    //   child_birth.h；到期母亲逐人生育 + 新生儿入 recruitList + 自动招募
-    //   惰性重置 + processAutoRecruit；SYSTEM 分区消费序逐位对齐）
+    //   child_birth.h；到期母亲逐人生育 + 新生儿入 recruitList；
+    //   SYSTEM 分区消费序逐位对齐）
     detail::processChildBirthStep(state, rng, world);
     // 4e Exploration(240)：世界关卡惰性管理（清理 + 刷新生成 + 移动；
     //   LevelGenerator 接线——shouldRefresh 判定 + 玩家

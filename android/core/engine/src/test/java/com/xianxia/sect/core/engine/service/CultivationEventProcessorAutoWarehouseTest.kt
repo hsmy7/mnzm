@@ -67,7 +67,6 @@ class CultivationEventProcessorAutoWarehouseTest {
             breakthroughHandler = mock(),
             cultivationSettlement = mock(),
             battleSystem = mock(),
-            recruitService = mock(),
             merchantAndRecruitService = mock(),
             caveExplorationProcessor = mock(),
             discipleLifecycleProcessor = mock(),

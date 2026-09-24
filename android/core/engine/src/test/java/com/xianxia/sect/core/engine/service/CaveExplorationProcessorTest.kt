@@ -157,10 +157,6 @@ class CaveExplorationProcessorTest {
         assertTrue(enemies.isEmpty())
     }
 
-    // ── 年变单事务内快照覆写回归测试 ──
-    // 年变事件单事务内必须基于事务 buffer 读写（禁止读已提交快照覆盖 buffer），
-    // 否则 refreshRecruitList 追加的新弟子丢失（招募列表每3年不刷新）。
-
     private val processor: CaveExplorationProcessor by lazy { createProcessor() }
 
     private fun createProcessor(): CaveExplorationProcessor {
@@ -175,7 +171,6 @@ class CaveExplorationProcessorTest {
     }
 
     private fun createState(
-        recruitList: List<Disciple> = emptyList(),
         aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
         worldMapSects: List<WorldSect> = emptyList()
     ): MutableGameState {
@@ -183,7 +178,6 @@ class CaveExplorationProcessorTest {
         tables.writeAllowed = true
         return MutableGameState(
             gameData = GameData(
-                recruitList = recruitList,
                 aiSectDisciples = aiSectDisciples,
                 worldMapSects = worldMapSects
             ),
@@ -202,60 +196,6 @@ class CaveExplorationProcessorTest {
             isLoading = false,
             isSaving = false
         )
-    }
-
-    @Test
-    fun `processSectDisciplesYearlyRecruitment - 同事务内 refreshRecruitList 追加的弟子不被覆盖`() {
-        val initialRecruit = makeDisciple(id = "recruit_old", realm = 9)
-        val freshRecruits = listOf(
-            makeDisciple(id = "recruit_fresh_1", realm = 9),
-            makeDisciple(id = "recruit_fresh_2", realm = 9)
-        )
-        val state = createState(
-            recruitList = listOf(initialRecruit),
-            aiSectDisciples = mapOf(
-                "ai1" to listOf(makeDisciple(id = "ai_d1", realm = 9))
-            ),
-            worldMapSects = listOf(
-                WorldSect(id = "player", isPlayerSect = true),
-                WorldSect(id = "ai1", isPlayerOccupied = true)
-            )
-        )
-        // 模拟年变单事务内 refreshRecruitList 的追加（buffer 操作）
-        state.gameData = state.gameData.copy(
-            recruitList = state.gameData.recruitList + freshRecruits
-        )
-        // 随后调用被修复函数：必须基于同一 buffer 读写，不得用已提交快照覆盖
-        processor.processSectDisciplesYearlyRecruitment(4, state)
-        val finalIds = state.gameData.recruitList.map { it.id }
-        assertTrue(
-            "refreshRecruitList 追加的弟子被覆盖丢失: $finalIds",
-            finalIds.containsAll(freshRecruits.map { it.id })
-        )
-        assertTrue("初始弟子丢失: $finalIds", finalIds.contains("recruit_old"))
-    }
-
-    @Test
-    fun `processSectDisciplesYearlyRecruitment - 无占领宗门时保留现有招募列表`() {
-        val initialRecruit = makeDisciple(id = "recruit_old", realm = 9)
-        val freshRecruits = listOf(makeDisciple(id = "recruit_fresh_1", realm = 9))
-        val state = createState(
-            recruitList = listOf(initialRecruit),
-            aiSectDisciples = mapOf(
-                "ai1" to listOf(makeDisciple(id = "ai_d1", realm = 9))
-            ),
-            worldMapSects = listOf(
-                WorldSect(id = "player", isPlayerSect = true),
-                WorldSect(id = "ai1")
-            )
-        )
-        state.gameData = state.gameData.copy(
-            recruitList = state.gameData.recruitList + freshRecruits
-        )
-        processor.processSectDisciplesYearlyRecruitment(4, state)
-        val finalIds = state.gameData.recruitList.map { it.id }
-        // 未被占领的 AI 宗门不产生招募俘虏，列表必须保留 refreshRecruitList 的追加
-        assertEquals(setOf("recruit_old", "recruit_fresh_1"), finalIds.toSet())
     }
 
     @Test

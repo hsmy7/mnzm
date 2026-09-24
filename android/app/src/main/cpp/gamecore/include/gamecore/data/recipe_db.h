@@ -642,7 +642,7 @@ inline void buildDualBaseAttrPills(std::vector<PillTemplateSpec>& out) {
 }
 
 /// 品阶最低境界（Kotlin GameConfig.Realm.getMinRealmForRarity——本表内自持，
-/// 避免数据层反向依赖 system 层 recruit_settlement）
+/// 避免数据层反向依赖 system 层结算头）
 inline int32_t tierRarityMinRealm(int32_t tier) {
     switch (tier) {
         case 2: return 7;

@@ -20,16 +20,14 @@
 //       breakthroughAutoPill{Focused,RootCounts} /
 //       autoEquipFromWarehouse{Focused,RootCounts} /
 //       autoLearnFromWarehouse{Focused,RootCounts} / prisonerSpiritRootFilter
-//     · InventoryDelegate :157/:177 —— autoRecruitSpiritRootFilter /
-//       autoRejectSpiritRootFilter
-//     全部 17 字段均为 gameData 序列化面内标量/Int 集（已核对 models.h +
+//     全部 15 字段均为 gameData 序列化面内标量/Int 集（已核对 models.h +
 //     json_codec.cpp 双侧在位），**无 RNG、无 checkpoint 副效应**——
 //     证据：AutoAssignDelegate 的自动分配策略族（sectPolicies）走独立入口
 //     `batchUpdateAutoAssignAndGuide`（batch-18 已下沉 boundary_tx.h），
 //     属 policy 域而非 settings 域，本头不重复承接。
 //
-// **设置项域采"字段名 → 值"通用补丁**（单 ActionId 覆盖全 17 字段）：
-// 逐字段扩 ActionId 会为单次赋值耗掉一个操作码并制造 17 个近似动作；
+// **设置项域采"字段名 → 值"通用补丁**（单 ActionId 覆盖全 15 字段）：
+// 逐字段扩 ActionId 会为单次赋值耗掉一个操作码并制造 15 个近似动作；
 // 通用补丁以**未知字段名 → UnknownSettingField 失败信封**守住边界
 // （失败零写入 → Kotlin 回退臂重执行原路径，双实现并行契约）。
 //
@@ -137,8 +135,8 @@ inline SettingPatch normalizePatch(const SettingPatch& patch) {
 ///
 /// 字段清单 = 设置项域稳态写者穷尽审计结果（见文件头）；新增 UI 设置入口时
 /// 必须同步扩本表，否则该入口 native 臂收到失败信封并回退 Kotlin 原路径
-/// （行为正确但失去下沉收益——守卫测试 `SettingsPatchFieldCoverageTest`
-/// 以 Kotlin 侧字段清单为锚点断言两表一致）。
+/// （行为正确但失去下沉收益——Kotlin 侧 `updateSettingsNative` 发射的字段名
+/// 须与本表逐字一致，新增入口时两端同批核对）。
 inline bool applySetting(GameData& data, const std::string& field,
                          const SettingValue& value) {
     const bool* asBool = std::get_if<bool>(&value);
@@ -176,15 +174,9 @@ inline bool applySetting(GameData& data, const std::string& field,
         return false;
     }
 
-    // ── Int 集字段（7：灵根数白名单/过滤器）──────────────────────────
+    // ── Int 集字段（5：灵根数白名单/过滤器）──────────────────────────
     if (asInts != nullptr) {
         const std::vector<int32_t>& v = *asInts;
-        if (field == "autoRecruitSpiritRootFilter") {
-            data.autoRecruitSpiritRootFilter = v; return true;
-        }
-        if (field == "autoRejectSpiritRootFilter") {
-            data.autoRejectSpiritRootFilter = v; return true;
-        }
         if (field == "prisonerSpiritRootFilter") {
             data.prisonerSpiritRootFilter = v; return true;
         }
@@ -208,7 +200,7 @@ inline bool applySetting(GameData& data, const std::string& field,
 /// 字段名 + 值类型是否被本事务支持（**纯探测，零写入**）。
 ///
 /// 与 [applySetting] / [isSettingUnchanged] 共用同一字段清单——三处必须同步
-/// （守卫测试 `SettingsPatchFieldCoverageTest` 以 Kotlin 侧清单为锚点断言）。
+/// （Kotlin 侧 `updateSettingsNative` 字段名与三处逐字一致，新增入口两端同批核对）。
 inline bool isKnownSettingField(const std::string& field,
                                 const SettingValue& value) {
     if (std::holds_alternative<bool>(value)) {
@@ -223,9 +215,7 @@ inline bool isKnownSettingField(const std::string& field,
                field == "autoLearnFromWarehouseFocused";
     }
     if (std::holds_alternative<std::vector<int32_t>>(value)) {
-        return field == "autoRecruitSpiritRootFilter" ||
-               field == "autoRejectSpiritRootFilter" ||
-               field == "prisonerSpiritRootFilter" ||
+        return field == "prisonerSpiritRootFilter" ||
                field == "breakthroughAutoPillRootCounts" ||
                field == "autoEquipFromWarehouseRootCounts" ||
                field == "autoLearnFromWarehouseRootCounts" ||
@@ -267,12 +257,6 @@ inline bool isSettingUnchanged(const GameData& data, const std::string& field,
     }
     const std::vector<int32_t>* asInts = std::get_if<std::vector<int32_t>>(&value);
     if (asInts != nullptr) {
-        if (field == "autoRecruitSpiritRootFilter") {
-            return sameIntSet(data.autoRecruitSpiritRootFilter, *asInts);
-        }
-        if (field == "autoRejectSpiritRootFilter") {
-            return sameIntSet(data.autoRejectSpiritRootFilter, *asInts);
-        }
         if (field == "prisonerSpiritRootFilter") {
             return sameIntSet(data.prisonerSpiritRootFilter, *asInts);
         }

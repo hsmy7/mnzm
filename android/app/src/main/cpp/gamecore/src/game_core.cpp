@@ -259,7 +259,7 @@ void GameCore::queueViewEvent(state::ViewEventType type, const std::string& deta
 void GameCore::markMonthYearBoundaryColumns() {
     // 月/年结算路径审计写列并集（month_settlement/year_settlement/
     // profession/disciple_purchase/mission_completion/government/production/
-    // sect_defense_battle/recruit_settlement 俘虏装备与月度衰减/晋升/购买/
+    // sect_defense_battle 俘虏装备与月度衰减/晋升/购买/
     // 任务/政策/防守战/死亡链——宁多标不漏标；行序 = 店行序）
     static constexpr state::DiscipleColumn kBoundaryColumns[] = {
         state::DiscipleColumn::Morality,
@@ -397,11 +397,6 @@ std::string GameCore::settleMonth() {
     // MR1-P1.5/P1.3：月结边界账本 cap + trim 水位消费（同 settleOnePhase）
     consumePendingMemoryTrim();
     return env.dump();
-}
-
-void GameCore::resetAutoRecruitIdle() {
-    if (!initialized_) return;
-    state_.autoRecruitIdle = false;
 }
 
 std::string GameCore::settleYear() {
@@ -793,8 +788,8 @@ std::string GameCore::exportDirtyColumnJson() {
 }
 
 void GameCore::syncRngStates() {
-    // 导出前刷新 AI 镜像分区（键 9 = aiRng_ 真态）——AI 演进发生在月结/年结/
-    // 招募等任意路径，若不在此刷新，导出的键 9 会停留在上次镜像时的陈旧值，
+    // 导出前刷新 AI 镜像分区（键 9 = aiRng_ 真态）——AI 演进发生在月结/年结
+    // 等任意路径，若不在此刷新，导出的键 9 会停留在上次镜像时的陈旧值，
     // 读档续接即回卷（与"每旬回导"同族的漂移缺陷）
     mirrorAiRng();
     state_.gameData.rngStates = rng_.exportStates();
@@ -806,48 +801,6 @@ void GameCore::syncRngStates() {
     // 读档兼容不受影响：restoreStates 对未知/缺键按键集遍历，旧档的 6 号
     // 仍会被恢复进 kAiSect 分区（该分区无生产消费者，恢复与否无行为差异）。
     state_.gameData.rngStates.erase(static_cast<int32_t>(rng::RngPartition::kAiSect));
-}
-
-std::string GameCore::manualRecruitFromList(const std::string& discipleId) {
-    noteNonSettlementMutation();   // R2/B09：非结算写入路径锁存回退全量导出
-    if (!initialized_) {
-        return R"({"ok":false,"newId":"","name":"","reason":"UNKNOWN"})";
-    }
-    try {
-        const auto result = system::recruit_settle::manualRecruitFromList(
-            state_, discipleId);
-        nlohmann::json j;
-        j["ok"] = result.reason == system::recruit_settle::ManualRecruitReason::kSuccess;
-        j["newId"] = result.newId;
-        j["name"] = result.name;
-        j["reason"] = system::recruit_settle::manualRecruitReasonName(result.reason);
-        return j.dump();
-    } catch (const std::exception& e) {
-        logger_->log(LogLevel::kError, "GameCore",
-                     std::string("manualRecruitFromList failed: ") + e.what());
-        return R"({"ok":false,"newId":"","name":"","reason":"UNKNOWN"})";
-    }
-}
-
-std::string GameCore::manualRecruitAll() {
-    noteNonSettlementMutation();   // R2/B09：非结算写入路径锁存回退全量导出
-    if (!initialized_) {
-        return R"({"ok":false,"count":0,"reason":"UNKNOWN"})";
-    }
-    try {
-        system::recruit_settle::ManualRecruitReason reason =
-            system::recruit_settle::ManualRecruitReason::kSuccess;
-        const int32_t count = system::recruit_settle::manualRecruitAll(state_, reason);
-        nlohmann::json j;
-        j["ok"] = reason == system::recruit_settle::ManualRecruitReason::kSuccess;
-        j["count"] = count;
-        j["reason"] = system::recruit_settle::manualRecruitReasonName(reason);
-        return j.dump();
-    } catch (const std::exception& e) {
-        logger_->log(LogLevel::kError, "GameCore",
-                     std::string("manualRecruitAll failed: ") + e.what());
-        return R"({"ok":false,"count":0,"reason":"UNKNOWN"})";
-    }
 }
 
 }  // namespace gamecore

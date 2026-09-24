@@ -32,7 +32,7 @@ class SaveValidatorIntegrationTest {
     }
 
     @Test
-    fun `valid minimal data returns Passed`() {
+    fun `valid minimal data returns only recruit list repair`() {
         val data = SaveData(
             gameData = GameData(sectName = "测试宗", gameYear = 5, gameMonth = 6),
             disciples = listOf(makeDisciple()),
@@ -40,7 +40,11 @@ class SaveValidatorIntegrationTest {
             seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
-        assertTrue("预期 Passed，实际得到 $result", result is IntegrityResult.Passed)
+        // 恒空契约：默认注册表下合法存档也恒 Repaired，且仅此一条修复
+        assertTrue("预期仅恒空修复的 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
+        val r = result as IntegrityResult.Repaired
+        assertEquals(listOf("招募链已下线，招募列表清空"), r.details)
+        assertTrue(r.data.gameData.recruitList.isEmpty())
     }
 
     @Test

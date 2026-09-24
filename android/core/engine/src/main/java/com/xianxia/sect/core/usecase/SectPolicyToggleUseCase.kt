@@ -284,46 +284,6 @@ class SectPolicyToggleUseCase @Inject constructor(
     fun isBenevolentGovernanceEnabled(): Boolean =
         gameEngine.gameData.value?.sectPolicies?.benevolentGovernance ?: false
 
-    // ── 周期性消耗 ──
-    suspend fun toggleOpenRecruitment(): ToggleResult = gameEngine.gameEngineCore.withEngineContext {
-        val gd = gameEngine.gameData.value ?: return@withEngineContext ToggleResult.Error("游戏数据不可用")
-        val wasEnabled = gd.sectPolicies.openRecruitment
-        // native 臂（batch-18b）：固定费用扣款 + 置位 + 激活计数 + 付费月记录。
-        // 失败信封（含灵石不足）/降级 → Kotlin 原路径重执行（含 canAfford 判定与
-        // 用户可见文案）。非生产类：招募月消耗不涉及生产槽位时长（13.3 清单外）。
-        if (gameEngine.tryNativePolicyTx(ActionIds.GOV_OPEN_RECRUITMENT_TOGGLE_TX)) {
-            return@withEngineContext ToggleResult.Success
-        }
-        if (!wasEnabled) {
-            val cost = GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST
-            if (!spiritStoneWallet.canAfford(cost)) {
-                return@withEngineContext ToggleResult.Error("灵石不足${cost}，无法开启广纳门徒")
-            }
-            val currentMonth = gd.gameYear * 12 + gd.gameMonth
-            gameEngine.stateStore.update {
-                // 快照在 deduct 之后取（同 applyPolicyToggleFallback：先取会
-                // 覆盖丢失扣费，batch-18 gate 对拍暴露；对齐 C++ 原子语义）
-                val result = spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW,
-                    SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal, true)
-                if (result !is DeductResult.Success) return@update
-                val data = gameData
-                gameData = data.copy(
-                    sectPolicies = data.sectPolicies.copy(openRecruitment = true),
-                    guideCounters = data.guideCounters + (GuideCounterKeys.POLICY_ACTIVATED to
-                        ((data.guideCounters[GuideCounterKeys.POLICY_ACTIVATED] ?: 0L) + 1)),
-                    openRecruitmentLastPaidMonth = currentMonth
-                )
-            }
-        } else {
-            gameEngine.stateStore.update {
-                gameData = gameData.copy(sectPolicies = gameData.sectPolicies.copy(openRecruitment = false))
-            }
-        }
-        ToggleResult.Success
-    }
-    fun isOpenRecruitmentEnabled(): Boolean =
-        gameEngine.gameData.value?.sectPolicies?.openRecruitment ?: false
-
     // ── 副宗主智力加成（保留，非政策特有） ──
     fun getViceSectMasterIntelligenceBonus(viceSectMasterIntelligence: Int): Double {
         val baseIntelligence = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_BASE

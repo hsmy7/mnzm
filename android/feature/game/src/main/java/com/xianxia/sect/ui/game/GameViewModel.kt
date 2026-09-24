@@ -143,9 +143,7 @@ class GameViewModel @Inject constructor(
     val planting = PlantingDelegate(gameEngine)
     val disciple = DiscipleDelegate(
         gameEngine,
-        dispatcher = delegateServices.ioDispatcher.dispatcher,
-        // 招募被拦截时可见化（防抖/重复点击等不再静默；与招募失败弹窗同语义）
-        onRecruitBlocked = { reason -> showError(reason) }
+        dispatcher = delegateServices.ioDispatcher.dispatcher
     )
     val navigation = NavigationDelegate(
         gameEngine, coreServices.gameEngineCore,
@@ -479,8 +477,7 @@ class GameViewModel @Inject constructor(
                 yearlySalary = it.yearlySalary,
                 yearlySalaryEnabled = it.yearlySalaryEnabled,
                 elderSlots = it.elderSlots,
-                placedBuildings = it.placedBuildings,
-                autoRecruitSpiritRootFilter = it.autoRecruitSpiritRootFilter
+                placedBuildings = it.placedBuildings
             )
         }
         .distinctUntilChanged()

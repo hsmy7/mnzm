@@ -33,7 +33,6 @@ class StateEntitiesTest {
         val state = SectPolicyState()
         assertEquals(1, state.slotId)
         assertEquals(SectPolicies(), state.sectPolicies)
-        assertEquals(emptySet<Int>(), state.autoRecruitSpiritRootFilter)
         assertEquals(emptySet<Int>(), state.daoCompanionBannedRootCounts)
         assertFalse(state.daoCompanionConsentRequired)
         assertFalse(state.breakthroughAutoPillFocused)
@@ -188,7 +187,6 @@ class StateEntitiesTest {
     fun explorationState_defaultConstruction() {
         val state = ExplorationState()
         assertEquals(emptyList<Disciple>(), state.recruitList)
-        assertEquals(0, state.lastRecruitYear)
         assertEquals(emptyList<CultivatorCave>(), state.cultivatorCaves)
         assertEquals(emptyList<CaveExplorationTeam>(), state.caveExplorationTeams)
         assertEquals(emptyList<AICaveTeam>(), state.aiCaveTeams)
@@ -201,8 +199,8 @@ class StateEntitiesTest {
     @Test
     fun explorationState_copy() {
         val original = ExplorationState()
-        val copied = original.copy(lastRecruitYear = 5)
-        assertEquals(5, copied.lastRecruitYear)
+        val copied = original.copy(unlockedRecipes = listOf("pill:聚气丹"))
+        assertEquals(listOf("pill:聚气丹"), copied.unlockedRecipes)
     }
 
     // ---- PatrolSlot ----

@@ -29,7 +29,6 @@ import com.xianxia.sect.core.engine.domain.battle.WarRewards
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DeterministicRng
-import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.model.Rarity
 
@@ -304,7 +303,7 @@ private fun GameEngine.recordSectBattleRecord(battleType: SectBattleType, update
 private const val BATTLE_RECORD_WINDOW_YEARS = 3
 
 /**
- * 占领奖励（attackSect 提取）：驻军槽位 + 俘虏过滤 + 单事务入账 + 占领事件。
+ * 占领奖励（attackSect 提取）：驻军槽位 + 单事务入账 + 占领事件。
  * 事务内调用 grantWarRewardsInside，保持原子性。
  */
 private fun GameEngine.occupySectRewards(
@@ -322,23 +321,7 @@ private fun GameEngine.occupySectRewards(
             discipleName = d.name, discipleRealm = d.realmName, discipleSpiritRootColor = d.spiritRoot.countColor,
                 portraitRes = d.portraitRes) } else GarrisonSlot(index = index)
     }
-    val capturedDisciples = data.aiSectDisciples[sectId]?.filter { it.isAlive } ?: emptyList()
-    // 按俘虏灵根过滤规则分流
-    val rawFilter = data.prisonerSpiritRootFilter
-    // 守卫：只接受 1-5（有效灵根数量），剔除入库不合理值/负值
-    val prisonerFilter = rawFilter.filter { it in 1..5 }.toSet()
-    val acceptedCaptives = if (prisonerFilter.isNotEmpty()) {
-        capturedDisciples.filter { d ->
-            d.spiritRootType.split(",").count { it.isNotBlank() } in prisonerFilter
-        }
-    } else {
-        capturedDisciples // 无过滤规则或全部被守卫过滤时全部接收
-    }
-    if (acceptedCaptives.size < capturedDisciples.size) {
-        DomainLog.i("GameEngine",
-            "俘虏管理: 接收${acceptedCaptives.size}人, " +
-            "丢弃${capturedDisciples.size - acceptedCaptives.size}人")
-    }
+    // 战役俘虏收编随招募链下线：占领不再向招募列表写入俘虏
     // 捕获豁免（updateMirror，§2.81）：事务内 grantWarRewardsInside 写 9 类实体集合
     // （第三段已关闭回导，值等值收敛不适用于集合通道的引用比较检测）——写入经尾部
     // 基线重建回导 C++
@@ -347,7 +330,6 @@ private fun GameEngine.occupySectRewards(
             worldMapSects = gameData.worldMapSects.toList().map { sect -> if (sect.id == sectId) sect
                 .copy(isPlayerOccupied = true, occupierSectId = playerSect?.id ?: "",
                     garrisonSlots = garrisonSlots) else sect },
-            recruitList = gameData.recruitList.toList() + acceptedCaptives,
             aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply { this[sectId] = emptyList() },
             // 宗门被占领后与其相关的所有附属关系一并清除
             vassalContracts = gameData.vassalContracts.filter { it.vassalSectId != sectId },

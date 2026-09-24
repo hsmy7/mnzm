@@ -52,6 +52,12 @@ inline uint64_t nextItemIdCounter(const std::string& prefix) {
     return ++itemIdCounterRegistry()[prefix];
 }
 
+/// 装备/功法等实例 id 生成（确定性自增——Kotlin 用 UUID，语义等价：仅保证
+/// 唯一，id 不参与业务逻辑；存档恢复时以 Kotlin 镜像为准，同 inventory 注册表）
+inline std::string nextInstanceId() {
+    return "gc-inst-" + std::to_string(nextItemIdCounter("gc-inst"));
+}
+
 /// reseed 观察点：id 呈 "gc-<prefix>-<纯数字>" 形态时把对应注册表计数器推到
 /// max(current, N)（只推高不回退——重复导入幂等）。其他形态（Kotlin UUID、
 /// 非纯数字后缀）跳过——UUID 空间与计数器空间不相交（审计运行时验证点 3）。

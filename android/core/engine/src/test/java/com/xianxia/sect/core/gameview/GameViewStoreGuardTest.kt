@@ -222,7 +222,6 @@ internal object GameViewStoreTestExpectations {
         yearlySalary = gd.yearlySalary,
         yearlySalaryEnabled = gd.yearlySalaryEnabled,
         elderSlots = gd.elderSlots,
-        placedBuildings = gd.placedBuildings,
-        autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter
+        placedBuildings = gd.placedBuildings
     )
 }

@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.bool
 import kotlinx.serialization.json.put
-import com.xianxia.sect.core.engine.service.refreshTravelingMerchantManual
 
 
 

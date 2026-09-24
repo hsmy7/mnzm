@@ -35,7 +35,5 @@ suspend fun GameEngine.apprenticeToMaster(discipleId: String,
     masterId: String): DomainResult<Unit> = discipleFacade.apprenticeToMaster(discipleId, masterId)
 suspend fun GameEngine.releaseReflectionDisciple(discipleId: String) = discipleFacade
     .releaseReflectionDisciple(discipleId)
-suspend fun GameEngine.recruitDiscipleFromList(discipleId: String): String = discipleFacade
-    .recruitDiscipleFromList(discipleId)
 suspend fun GameEngine.updateDiscipleStatus(discipleId: String,
     status: DiscipleStatus) = discipleFacade.updateDiscipleStatus(discipleId, status)

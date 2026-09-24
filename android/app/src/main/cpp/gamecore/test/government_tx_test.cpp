@@ -1,8 +1,8 @@
 // ============================================================
 // government_tx_test — 政策开关事务守护（batch-18b：通用政策开关 /
-// 广纳门徒 / 灵矿增产，追加于 government.h）
+// 灵矿增产，追加于 government.h）
 //
-// 守护目标：三事务与 Kotlin SectPolicyToggleUseCase 判定序逐位一致——
+// 守护目标：两事务与 Kotlin SectPolicyToggleUseCase 判定序逐位一致——
 //   - 关闭态 → canAfford 预检（不足 → 失败信封零写入）→ deduct(autoConvert)
 //     → 置位 → policyActivated 计数 +1
 //   - 开启态 → 仅置位 false（不退款、不计数）
@@ -37,9 +37,6 @@ namespace gov = gamecore::system;
 
 using gamecore::state::Disciple;
 using gamecore::state::GameState;
-
-/// 广纳门徒固定费用（Kotlin GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST）
-constexpr int64_t kOpenRecruitmentCost = 50000;
 
 class PolicyTxFixture : public ::testing::Test {
 protected:
@@ -235,55 +232,6 @@ TEST_F(PolicyTxFixture, SpiritMineBoostIsNotProductionClassFlag) {
         << "灵矿速率变化由 spiritMineLastSettledMonth 差分承扣，无 duration 重算";
 }
 
-// ── 广纳门徒（固定费用 + 付费月戳） ──────────────────────────────────────
-
-TEST_F(PolicyTxFixture, OpenRecruitmentEnablePaysAndStampsMonth) {
-    auto& gd = state().gameData;
-    gd.spiritStones = 100000;
-    gd.gameYear = 2;
-    gd.gameMonth = 7;
-
-    const auto r = gov::openRecruitmentToggleTx(state());
-
-    ASSERT_TRUE(r.ok);
-    EXPECT_TRUE(r.enabled);
-    EXPECT_EQ(kOpenRecruitmentCost, r.costPaid);
-    EXPECT_EQ(100000 - kOpenRecruitmentCost, gd.spiritStones);
-    EXPECT_TRUE(gd.sectPolicies.openRecruitment);
-    EXPECT_EQ(2 * 12 + 7, gd.openRecruitmentLastPaidMonth);
-    EXPECT_EQ(1, counter(state(), gov::kPolicyActivatedCounterKey));
-}
-
-TEST_F(PolicyTxFixture, OpenRecruitmentDisableKeepsPaidMonth) {
-    auto& gd = state().gameData;
-    gd.spiritStones = 100000;
-    gd.sectPolicies.openRecruitment = true;
-    gd.openRecruitmentLastPaidMonth = 36;
-
-    const auto r = gov::openRecruitmentToggleTx(state());
-
-    ASSERT_TRUE(r.ok);
-    EXPECT_FALSE(r.enabled);
-    EXPECT_EQ(0, r.costPaid);
-    EXPECT_EQ(100000, gd.spiritStones);
-    EXPECT_FALSE(gd.sectPolicies.openRecruitment);
-    EXPECT_EQ(36, gd.openRecruitmentLastPaidMonth) << "关闭不回退付费月戳";
-    EXPECT_EQ(-1, counter(state(), gov::kPolicyActivatedCounterKey));
-}
-
-TEST_F(PolicyTxFixture, OpenRecruitmentInsufficientIsFailureWithZeroWrite) {
-    auto& gd = state().gameData;
-    gd.spiritStones = 100;
-
-    const auto r = gov::openRecruitmentToggleTx(state());
-
-    EXPECT_FALSE(r.ok);
-    EXPECT_EQ("INSUFFICIENT_STONES", r.errorType);
-    EXPECT_EQ(100, gd.spiritStones);
-    EXPECT_FALSE(gd.sectPolicies.openRecruitment);
-    EXPECT_EQ(0, gd.openRecruitmentLastPaidMonth);
-}
-
 // ── 灵矿增产（免费 + 结算月戳推前） ──────────────────────────────────────
 
 TEST_F(PolicyTxFixture, SpiritMineBoostEnableIsFreeAndStampsSettleMonth) {
@@ -329,7 +277,6 @@ TEST_F(PolicyTxFixture, PolicyTogglesLeaveRngStatesUntouched) {
 
     (void)gov::policyToggleTx(state(), "alchemyIncentive", 3000, true);
     (void)gov::policyToggleTx(state(), "alchemyIncentive", 3000, true);
-    (void)gov::openRecruitmentToggleTx(state());
     (void)gov::spiritMineBoostToggleTx(state());
 
     EXPECT_EQ(before, rngSnapshot()) << "政策开关族为零 RNG 纯事务";
@@ -354,11 +301,6 @@ TEST_F(PolicyTxFixture, DispatchEnvelopeHappyPaths) {
     EXPECT_EQ(prod["status"], "success");
     EXPECT_EQ(prod["data"]["productionCheckpointNeeded"], true);
 
-    const auto open = exec(action::GOV_OPEN_RECRUITMENT_TOGGLE_TX,
-                           nlohmann::json::object());
-    EXPECT_EQ(open["status"], "success");
-    EXPECT_EQ(open["data"]["costPaid"], kOpenRecruitmentCost);
-
     const auto boost = exec(action::GOV_SPIRIT_MINE_BOOST_TOGGLE_TX,
                             nlohmann::json::object());
     EXPECT_EQ(boost["status"], "success");
@@ -377,10 +319,6 @@ TEST_F(PolicyTxFixture, DispatchEnvelopeFailurePaths) {
                            {{"field", "enhancedSecurity"}, {"monthlyCost", 3000}});
     EXPECT_EQ(poor["status"], "failure");
     EXPECT_EQ(poor["code"], "INSUFFICIENT_STONES");
-
-    const auto openPoor = exec(action::GOV_OPEN_RECRUITMENT_TOGGLE_TX,
-                               nlohmann::json::object());
-    EXPECT_EQ(openPoor["status"], "failure");
 }
 
 }  // namespace

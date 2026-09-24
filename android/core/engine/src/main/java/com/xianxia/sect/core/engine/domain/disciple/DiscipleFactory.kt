@@ -79,7 +79,7 @@ private fun avoidSentinel50(roll: Int): Int =
 /**
  * 统一弟子构造工厂。
  *
- * 将三处构造站点（recruitDisciple / refreshRecruitList / createChild）
+ * 将构造站点（recruitDisciple / createChild）
  * 中字符级一致的六段逻辑收敛至此：variance / comprehension / skills /
  * baseStats / talentIds。
  *

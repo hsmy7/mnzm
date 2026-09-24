@@ -75,7 +75,6 @@ class GameDataTest {
         assertEquals(0, data.spiritMineExpansions)
         assertEquals(0, data.merchantLastRefreshYear)
         assertEquals(0, data.merchantRefreshCount)
-        assertEquals(0, data.lastRecruitYear)
         assertEquals(3, data.playerAllianceSlots)
         assertEquals(1, data.playerProtectionStartYear)
     }

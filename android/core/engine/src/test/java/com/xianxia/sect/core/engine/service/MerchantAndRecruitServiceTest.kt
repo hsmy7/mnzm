@@ -2,68 +2,16 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.mockSmart
-import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
-import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.model.SpiritStoneExchange
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
-import java.util.UUID
 
 class MerchantAndRecruitServiceTest {
-
-    @Before
-    fun setUp() {
-        // 重置惰性状态，防止跨测试污染
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
-        RecruitService.RecruitLazyState.autoRejectIdle = false
-    }
-
-    // ==================== calcRecruitBonusCap ====================
-
-    @Test
-    fun calcRecruitBonusCap_charmBelow80_returnsZero() {
-        assertEquals(0, RecruitService.calcRecruitBonusCap(50))
-        assertEquals(0, RecruitService.calcRecruitBonusCap(79))
-    }
-
-    @Test
-    fun calcRecruitBonusCap_charmAt80_returnsZero() {
-        assertEquals(0, RecruitService.calcRecruitBonusCap(80))
-    }
-
-    @Test
-    fun calcRecruitBonusCap_charm84_returnsOne() {
-        assertEquals(1, RecruitService.calcRecruitBonusCap(84))
-    }
-
-    @Test
-    fun calcRecruitBonusCap_charm88_returnsTwo() {
-        assertEquals(2, RecruitService.calcRecruitBonusCap(88))
-    }
-
-    @Test
-    fun calcRecruitBonusCap_charm100_returnsFive() {
-        assertEquals(5, RecruitService.calcRecruitBonusCap(100))
-    }
-
-    @Test
-    fun calcRecruitBonusCap_boundaryRounding() {
-        // (83-80)/4 = 0.75 → floor = 0
-        assertEquals(0, RecruitService.calcRecruitBonusCap(83))
-        // (84-80)/4 = 1.0 → 1
-        assertEquals(1, RecruitService.calcRecruitBonusCap(84))
-        // (87-80)/4 = 1.75 → 1
-        assertEquals(1, RecruitService.calcRecruitBonusCap(87))
-    }
 
     // ==================== buildMerchantItemPools ====================
 
@@ -141,153 +89,5 @@ class MerchantAndRecruitServiceTest {
         val items = mutableListOf<MerchantItem>()
         service.addGuaranteedTopRarityItem(items, emptyPools, 60, 1, 10)
         assertTrue(items.isEmpty())
-    }
-
-    // ==================== processAutoRecruit ====================
-
-    /** 创建测试用 MutableGameState，含空的 DiscipleTables 并开放写权限。 */
-    private fun createAutoRecruitState(
-        recruitList: List<Disciple>,
-        filter: Set<Int> = emptySet()
-    ): MutableGameState {
-        val tables = DiscipleTables()
-        tables.writeAllowed = true
-        return MutableGameState(
-            gameData = GameData(
-                recruitList = recruitList,
-                autoRecruitSpiritRootFilter = filter
-            ),
-            discipleTables = tables,
-            equipmentStacks = EntityStore(),
-            equipmentInstances = EntityStore(),
-            manualStacks = EntityStore(),
-            manualInstances = EntityStore(),
-            pills = EntityStore(),
-            materials = EntityStore(),
-            herbs = EntityStore(),
-            seeds = EntityStore(),
-            storageBags = EntityStore(),
-                        battleLogs = emptyList(),
-            isPaused = false,
-            isLoading = false,
-            isSaving = false
-        )
-    }
-
-    /** 创建测试用弟子（默认三灵根 "金,木,水"，realm=9 练气期一层） */
-    private fun makeRecruit(
-        id: String = "test_${UUID.randomUUID()}",
-        name: String = "测试弟子",
-        realm: Int = 9,
-        spiritRootType: String = "金,木,水"
-    ): Disciple = Disciple(
-        id = id,
-        name = name,
-        realm = realm,
-        spiritRootType = spiritRootType
-    )
-
-    @Test
-    fun `processAutoRecruit with matching filter recruits matching disciples`() {
-        val disciple = makeRecruit(spiritRootType = "金,木,水")  // 3 roots
-        val state = createAutoRecruitState(
-            recruitList = listOf(disciple),
-            filter = setOf(3)  // 三灵根
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(1, count)
-        assertTrue("自动招募后 recruitList 应为空", state.gameData.recruitList.isEmpty())
-        assertEquals("弟子应已加入 discipleTables", 1, state.discipleTables.ids.size)
-        val recruitedId = state.discipleTables.ids.first()
-        assertEquals("弟子境界应匹配", disciple.realm, state.discipleTables.realms[recruitedId])
-    }
-
-    @Test
-    fun `processAutoRecruit with empty filter recruits nothing and keeps list`() {
-        val disciple = makeRecruit(spiritRootType = "金,木,水")
-        val state = createAutoRecruitState(
-            recruitList = listOf(disciple),
-            filter = emptySet()
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(0, count)
-        assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
-        assertEquals("recruitList 应保持不变", 1, state.gameData.recruitList.size)
-    }
-
-    @Test
-    fun `processAutoRecruit filters non-matching root counts`() {
-        val disciple = makeRecruit(spiritRootType = "金,木,水", id = "id1")  // 3 roots
-        val state = createAutoRecruitState(
-            recruitList = listOf(disciple),
-            filter = setOf(1, 5)  // 只收单灵根/五灵根
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(0, count)
-        assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
-        assertEquals("弟子应留在 recruitList", 1, state.gameData.recruitList.size)
-    }
-
-    @Test
-    fun `processAutoRecruit handles mixed matches and non-matches`() {
-        val match = makeRecruit("id1", "单灵根弟子", spiritRootType = "金")           // 1 root
-        val noMatch = makeRecruit("id2", "三灵根弟子", spiritRootType = "金,木,水")     // 3 roots
-        val state = createAutoRecruitState(
-            recruitList = listOf(match, noMatch),
-            filter = setOf(1)
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(1, count)
-        assertTrue("recruitList 应只剩 1 人", state.gameData.recruitList.size == 1)
-        assertEquals("剩下的是不匹配的弟子", "三灵根弟子", state.gameData.recruitList.first().name)
-    }
-
-    @Test
-    fun `processAutoRecruit skips corrupted disciples with blank name`() {
-        val corrupted = makeRecruit(name = "")
-        val state = createAutoRecruitState(
-            recruitList = listOf(corrupted),
-            filter = setOf(3)
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(0, count)
-        assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
-    }
-
-    @Test
-    fun `processAutoRecruit skips corrupted disciples with realm out of range`() {
-        val corrupted = makeRecruit(realm = -1)
-        val state = createAutoRecruitState(
-            recruitList = listOf(corrupted),
-            filter = setOf(3)
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(0, count)
-        assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
-    }
-
-    @Test
-    fun `processAutoRecruit with empty recruitList returns 0`() {
-        val state = createAutoRecruitState(
-            recruitList = emptyList(),
-            filter = setOf(1, 2, 3)
-        )
-
-        val count = RecruitService.processAutoRecruit(state)
-
-        assertEquals(0, count)
-        assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
     }
 }

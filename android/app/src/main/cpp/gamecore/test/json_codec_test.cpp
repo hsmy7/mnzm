@@ -22,7 +22,6 @@ TEST(JsonCodecTest, GameDataRoundTrip) {
     d.rngStates = {{0, 123456789LL}, {3, -987654321LL}};
     d.yearlySalary = {{9, 240}, {8, 720}};
     d.unlockedRecipes = {"pill:聚气丹"};
-    d.autoRecruitSpiritRootFilter = {1, 2, 3};
     d.guideCounters = {{"build_first", 1LL}};
     d.mapSeed = 42;
     d.soundEnabled = false;
@@ -38,7 +37,6 @@ TEST(JsonCodecTest, GameDataRoundTrip) {
     EXPECT_EQ(d.rngStates, decoded.rngStates);
     EXPECT_EQ(d.yearlySalary, decoded.yearlySalary);
     EXPECT_EQ(d.unlockedRecipes, decoded.unlockedRecipes);
-    EXPECT_EQ(d.autoRecruitSpiritRootFilter, decoded.autoRecruitSpiritRootFilter);
     EXPECT_EQ(d.guideCounters, decoded.guideCounters);
     EXPECT_EQ(d.mapSeed, decoded.mapSeed);
     EXPECT_FALSE(decoded.soundEnabled);
@@ -183,7 +181,6 @@ TEST(JsonCodecTest, NestedTypesRoundTrip) {
     GameData d;
     // 政策
     d.sectPolicies.spiritMineBoost = true;
-    d.sectPolicies.openRecruitment = true;
     d.sectPolicies.autoMineRootCounts = {1, 2};
     d.sectPolicies.autoMineThreshold = 3;
     // 长老

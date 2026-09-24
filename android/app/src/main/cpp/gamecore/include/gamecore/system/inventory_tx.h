@@ -59,7 +59,7 @@
 //（路线 B，登记 batch-23 待拍板）。
 //
 // 上架条目 id 为确定性自增占位（Kotlin UUID.randomUUID 属非协议随机域；
-// recruit_settlement.h / diplomacy_tx.h 同先例）——id 不参与任何业务判定，
+// inventory.h nextInstanceId / diplomacy_tx.h 同先例）——id 不参与任何业务判定，
 // 对拍面忽略新增条目 id。
 //
 // 取价口径（Kotlin GameConfig.Rarity / ItemDatabase）：

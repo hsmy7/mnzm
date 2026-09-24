@@ -14,7 +14,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ExplorationState(
     val recruitList: List<Disciple> = emptyList(),
-    val lastRecruitYear: Int = 0,
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
     val caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
     val aiCaveTeams: List<AICaveTeam> = emptyList(),

@@ -833,9 +833,6 @@ object GameConfig {
         const val ASCETIC_TRAINING_PER_DISCIPLE = 800L      // 全弟子
         const val MORAL_EDUCATION_PER_DISCIPLE = 100L       // 全弟子
         const val BENEVOLENT_GOVERNANCE_PER_DISCIPLE = 100L // 全弟子
-        // 周期性消耗
-        const val OPEN_RECRUITMENT_COST = 50000L            // 每3年
-        const val OPEN_RECRUITMENT_COOLDOWN_MONTHS = 36
 
         // ═══════════════════════════════════════════════════
         // 政策名称
@@ -847,7 +844,6 @@ object GameConfig {
         const val HERB_CULTIVATION_NAME = "灵药培育"
         const val CULTIVATION_SUBSIDY_NAME = "修行津贴"
         const val MANUAL_RESEARCH_NAME = "功法研习"
-        const val OPEN_RECRUITMENT_NAME = "广纳门徒"
         const val ASCETIC_TRAINING_NAME = "苦修令"
         const val CURFEW_NAME = "宵禁"
         const val REWARD_PUNISH_NAME = "赏善罚恶"
@@ -874,7 +870,6 @@ object GameConfig {
         const val CURFEW_EVENT_REDUCTION = 0.30              // 治安事件-30%
         const val CURFEW_DESERTION_REDUCTION = 0.20          // 叛逃-20%
         const val REWARD_PUNISH_EFFECT = 0.30                // 执法效率+30%
-        const val OPEN_RECRUITMENT_POOL_BONUS = 0.50         // 招募上限+50%
         const val STRICT_TRAINING_DAMAGE = 0.05              // 战斗伤害+5%
         const val RELAXED_MGMT_CULTIVATION_PENALTY = 0.10    // 修炼速度-10%
         const val SPIRIT_SPRING_YIELD = 0.15                 // 灵草生长速度+15%（与灵药培育同属加速乘区，非产量）

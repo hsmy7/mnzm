@@ -2,139 +2,17 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.model.PillEffect
-import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.model.RecruitIntegrity
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.model.recruitedMonth
-import com.xianxia.sect.core.model.spiritStones
-import com.xianxia.sect.core.model.storageBagItems
-import com.xianxia.sect.core.model.storageBagSpiritStones
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.state.materializeCaptiveGear
-import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.model.BagStackedData
 
-/**
- * 单用户定向补偿邮件（MailService 扩展，独立文件）。
- *
- * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
- * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
- * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
- */
 // ── DiscipleFacadeImpl 拆分域 1/2（行为零变更） ──
-
-private val TAG = DiscipleFacadeImpl.TAG
-/** native 信封 reason：意外异常兜底（调用方回退 Kotlin 原实现） */
-private val REASON_UNKNOWN = DiscipleFacadeImpl.REASON_UNKNOWN
-/**
- * 手动招募的 native 执行（AUTHORITATIVE 单真相源）。
- *
- * @return native 已处理时的最终结果串（成功=newId；业务失败="" 且已弹提示）；
- *         null 表示 native 不可用/信封不可信，调用方回退 Kotlin 原实现
- */
-@Suppress("ReturnCount")  // 信封校验链：调用/解析/业务失败/成功——逐级早退（与 ensureAuthoritativeNative 同款早退模式）
-internal fun DiscipleFacadeImpl.tryNativeManualRecruit(discipleId: String): String? {
-    val raw = runCatching { GameCoreBridge.nativeManualRecruitFromList(discipleId) }
-        .getOrNull() ?: return null
-    val envelope = parseManualRecruitEnvelope(raw) ?: return null
-    if (!envelope.ok && envelope.reason != REASON_UNKNOWN) {
-        // 业务失败：native 已按权威状态处理（上限/不存在/损坏条目已移除）
-        // ——用户可见提示（与 Kotlin 原路径文案逐字一致）
-        stateStore.update {
-            pendingNotification = GameNotification.RecruitFailed(envelope.failureMessage())
-        }
-        DomainLog.w(TAG, "recruitDiscipleFromList: native ${envelope.reason} for $discipleId")
-        return ""
-    }
-    if (!envelope.ok) return null  // REASON_UNKNOWN → 回退 Kotlin 原实现
-    // 成功：先消费一次 C++ 前向增量（生产 tick ③ 的前置消费，幂等——C++
-    // dirty 基线推进后 tick ③ 零变更），使镜像立即持有新弟子行——否则
-    // 下方 lifeEvents 补写必因"镜像尚无该 id"跳过（lifeEvents 为 Kotlin
-    // 类体属性不进协议，只能落镜像；Kotlin 原路径在事务内补写同生命周期）
-    runCatching { gameEngineCore.stateSyncServiceRef.applyDirtyFromNative() }
-    mirrorAppendJoinSectLifeEvent(envelope.newId)
-    DomainLog.i(TAG, "recruitDiscipleFromList: native recruited $discipleId → id=${envelope.newId}")
-    return envelope.newId
-}
-
-/** 镜像补写"加入宗门"日志（native 成功后；镜像滞后窗口（罕见）跳过——登记边界） */
-
-internal fun DiscipleFacadeImpl.mirrorAppendJoinSectLifeEvent(newId: String) {
-    val intId = newId.toIntOrNull() ?: return
-    stateStore.update {
-        if (intId !in discipleTables.ids) return@update
-        val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-        discipleTables.lifeEvents[intId] = events + "加入宗门"
-    }
-}
-
-/** Kotlin 侧手动招募原实现（native 不可用/UNKNOWN 时的双实现并行契约回退） */
-
-internal fun DiscipleFacadeImpl.recruitDiscipleFromListLegacy(discipleId: String): String {
-    var newId: String = ""
-    stateStore.update {
-        // 事务内检查招募上限（消除事务外读取的 TOCTOU 窗口）
-        if (gameData.recruitCountThisMonth.coerceAtLeast(0) >= GameConfig.RECRUIT_MONTHLY_LIMIT) {
-            DomainLog.w(TAG, "recruitDiscipleFromList: monthly limit reached " +
-                "(${gameData.recruitCountThisMonth}/${GameConfig.RECRUIT_MONTHLY_LIMIT})")
-            pendingNotification = GameNotification.RecruitFailed(
-                "本月招募已达上限（${GameConfig.RECRUIT_MONTHLY_LIMIT}人）"
-            )
-            return@update
-        }
-        val disciple = gameData.recruitList.toList().find { it.id == discipleId }
-        if (disciple == null) {
-            DomainLog.w(TAG, "recruitDiscipleFromList: disciple $discipleId not in recruitList, " +
-                "size=${gameData.recruitList.size}")
-            pendingNotification = GameNotification.RecruitFailed("招募失败：该弟子已不在招募列表中")
-            return@update
-        }
-        // ── 完整性校验：损坏条目同事务移除（幽灵立即消失，不再永久残留）──
-        if (!RecruitIntegrity.isValidRecruit(disciple)) {
-            DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId: " +
-                "name='${disciple.name}' realm=${disciple.realm}")
-            purgeCorruptedRecruit(discipleId, disciple.name)
-            return@update
-        }
-        val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-        val recruitedDisciple = disciple.copy(
-            usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
-        )
-        // 原子分配 ID + 写入组件表 + 加入宗门日志（消灭悬空窗口）
-        newId = discipleTables.allocateAndInsert(recruitedDisciple)
-        if (newId.isNotEmpty()) {
-            val intId = newId.toIntOrNull()
-            if (intId != null) {
-                val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-                discipleTables.lifeEvents[intId] = events + "加入宗门"
-            }
-            // 俘虏自带装备/功法落库为玩家实例（幂等；普通招募弟子无装备/功法字段，直接跳过）
-            materializeCaptiveGear(recruitedDisciple, newId)
-        }
-        DomainLog.i(TAG, "recruitDiscipleFromList: recruited $discipleId → id=$newId")
-        // 招募成功后同步移除同内容双胞胎（防"完全相同弟子"重复招募）
-        gameData = gameData.copy(
-            recruitList = gameData.recruitList.filter {
-                it.id != discipleId && !RecruitIntegrity.isSamePerson(it, recruitedDisciple)
-            },
-            recruitCountThisMonth = gameData.recruitCountThisMonth + 1,
-            // 年报新增弟子计数
-            annualNewDisciples = gameData.annualNewDisciples + 1
-        )
-    }
-    if (newId.isEmpty()) {
-        DomainLog.w(TAG, "recruitDiscipleFromList: FAILED for $discipleId")
-    }
-    return newId
-}
-
 
 internal fun DiscipleFacadeImpl.rewardEquipment(discipleId: String, item: RewardSelectedItem) {
     var wrote = false

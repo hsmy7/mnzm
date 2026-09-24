@@ -49,8 +49,7 @@
 #include "gamecore/state/models.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/profession.h"
-#include "gamecore/system/recruit_settlement.h"  // minRealmForRarity
-#include "gamecore/system/settlement_detail.h"   // recordGameEvent/indexById
+#include "gamecore/system/settlement_detail.h"   // recordGameEvent/indexById/minRealmForRarity
 #include "gamecore/system/disciple_stats.h"      // talentEffectsFor/baseStats
 #include "gamecore/system/slot_cleanup.h"        // batch-17 任命事务全槽位清理
 
@@ -378,7 +377,7 @@ inline bool produceForgeEquipment(GameState& state, const ProductionSlot& slot,
         eq.hp = tpl->hp;
         eq.mp = tpl->mp;
         eq.description = tpl->description;
-        eq.minRealm = gamecore::system::recruit_settle::minRealmForRarity(recipe->rarity);
+        eq.minRealm = settle_util::minRealmForRarity(recipe->rarity);
     } else {
         // Kotlin fallback generateRandom(rarity, rarity) 用全局 Random（非分区
         // RNG，双端不确定）——C++ 确定性回退取首个同 rarity 模板；配方名与
@@ -398,7 +397,7 @@ inline bool produceForgeEquipment(GameState& state, const ProductionSlot& slot,
                 eq.mp = t.mp;
                 eq.description = t.description;
                 eq.critChance = t.critChance;
-                eq.minRealm = gamecore::system::recruit_settle::minRealmForRarity(t.rarity);
+                eq.minRealm = settle_util::minRealmForRarity(t.rarity);
                 break;
             }
         }

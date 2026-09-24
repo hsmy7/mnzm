@@ -3,8 +3,8 @@
 //
 // 等价复刻 Kotlin `ChildBirthSystem.processMonthlyBirth`（core/engine/
 // system/ChildBirthSystem.kt）——月变扇出中 @SystemPriority(235) 的生育
-// 子事件：到期母亲（childBirthMonth == 当前月）逐人生育，新生儿入
-// recruitList 并触发自动招募惰性重置 + processAutoRecruit。
+// 子事件：到期母亲（childBirthMonth == 当前月）逐人生育——新生儿
+// 产物不落存储（recruitList 恒空）。
 //
 // 确定性要点（与 Kotlin 逐位对齐，供 GTest 黄金序列 + Diff 对拍验证）：
 //   - SYSTEM 分区 RNG 消费序（每正常分支母亲，与 Kotlin createChild 同序）：
@@ -17,13 +17,13 @@
 //        三分类生成 + 1 次肖像 + 18 次技能）
 //   - 父亲死亡分支零 RNG（清 childBirthMonth + partnerId 增量 update）
 //   - 快照语义与 Kotlin 一致：母亲列表与 discipleMap 取 processMonthlyBirth
-//     入口快照；createChild 内 existingNames 取**当前态**（recruitList 已含
-//     前序新生儿——Kotlin 每轮重新组装）
+//     入口快照；createChild 内 existingNames 取**当前态**（全部弟子 +
+//     recruitList——Kotlin 每轮重新组装）
 //   - 新生儿 id 为镜像生成字段（Kotlin UUID.randomUUID 非确定性）——C++
 //     侧空串占位，对拍 diff 面排除（同 worldLevels id 契约）；其余字段
 //     （名字/性别/灵根/属性/双亲）逐位一致参与对拍
-//   - autoRejectIdle（Kotlin RecruitLazyState 瞬态）C++ 侧无对应字段——
-//     C++ processAutoRecruit 不消费，对拍 diff 面不承载
+//   - 招募惰性门（Kotlin RecruitLazyState 瞬态）C++ 侧无对应字段——
+//     对拍 diff 面不承载
 // ============================================================
 #pragma once
 
@@ -39,7 +39,6 @@
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple_factory.h"
 #include "gamecore/system/name_service.h"
-#include "gamecore/system/recruit_settlement.h"
 
 namespace gamecore::system::child_birth {
 
@@ -95,8 +94,7 @@ inline std::string generateSpiritRoot(rng::DeterministicRng& rng) {
 
 /// 生育单个新生儿（Kotlin createChild——SYSTEM 分区消费序见文件头注释）。
 /// [mother]/[father] 为 processMonthlyBirth 入口快照；[existingNames] 取
-/// 当前态（含前序新生儿）——调用方（本文件 processMonthlyBirth）负责
-/// 每轮重建。
+/// 当前态——调用方（本文件 processMonthlyBirth）负责每轮重建。
 inline state::Disciple createChild(const state::Disciple& mother,
                                    const state::Disciple& father,
                                    int32_t /*currentYear*/,
@@ -143,8 +141,8 @@ inline state::Disciple createChild(const state::Disciple& mother,
 
 /// 月度生育（Kotlin onMonthlyEvent → processMonthlyBirth 等价）：
 /// 到期母亲（isAlive && childBirthMonth == 当前月）逐人生育——父亲死亡清
-/// 孕期状态；正常生育新生儿入 recruitList + autoRecruitIdle 重置 +
-/// processAutoRecruit + 母亲 lastChildYear/childBirthMonth 增量更新。
+/// 孕期状态；正常生育完成新生儿生成链（产物不落存储）+ 母亲
+/// lastChildYear/childBirthMonth 增量更新。
 /// 母亲列表与 discipleMap 取入口快照（Kotlin assembleAll 一次）。
 /// 入口快照/existingNames 扫描经 sync + View
 /// 行序（快照序 == 行序 == Kotlin assembleAll 序，母亲 RNG 消费序不变）。
@@ -195,9 +193,8 @@ inline void processMonthlyBirth(state::GameState& state,
             continue;
         }
 
-        // 当前态 existingNames：全部弟子（当前列）+ recruitList（含前序
-        // 新生儿——Kotlin createChild 内每轮重新组装，父死分支不计算）。
-        // processAutoRecruit 可能已追加行（实体集漂移）——sync 检测即重建。
+        // 当前态 existingNames：全部弟子（当前列）+ recruitList——
+        // Kotlin createChild 内每轮重新组装，父死分支不计算。
         std::set<std::string> existingNames;
         {
             state::DiscipleStore& ds = state.disciples;
@@ -211,15 +208,11 @@ inline void processMonthlyBirth(state::GameState& state,
             existingNames.insert(d.name);
         }
 
-        const auto child = createChild(mother, fatherIt->second, currentYear,
-                                       existingNames, rng);
-        state.gameData.recruitList.push_back(child);
-        // 新生儿产生后立即执行自动招募检查 + 重置惰性（Kotlin 同语义；
-        // autoRejectIdle 为 Kotlin 瞬态，C++ 无对应字段）
-        state.autoRecruitIdle = false;
-        recruit_settle::processAutoRecruit(state);
+        // 新生儿产物不落存储（recruitList 恒空——生育面归 G03 处置）
+        createChild(mother, fatherIt->second, currentYear,
+                    existingNames, rng);
 
-        // 母亲增量更新（保序，避免覆盖 processAutoRecruit 已插入的弟子）
+        // 母亲增量更新（保序）
         state::Disciple m = mother;
         m.lastChildYear = currentYear;
         m.childBirthMonth = 0;

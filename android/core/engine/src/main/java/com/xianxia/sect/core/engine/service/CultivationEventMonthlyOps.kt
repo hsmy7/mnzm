@@ -31,31 +31,12 @@ internal fun MutableGameState.safelyRunInState(name: String, block: MutableGameS
     }
 
     /**
-     * AI 宗门弟子周期性招募（每 [CultivationEventProcessor.AI_SECT_RECRUIT_INTERVAL_YEARS] 年）。
-     *
-     * 差值判据（非模运算）：老存档/跨版本相位漂移自愈；招募失败时 lastAiSectRecruitYear
-     * 不更新，次年自动重试（与 refreshRecruitList 同款语义，见 RecruitService.refreshRecruitList）。
-     *
-     * 基于事务 buffer 写回：先执行 [recruitment]（其内部会写 aiSectDisciples/recruitList），
-     * 后写 lastAiSectRecruitYear，保留同事务前序事件对 buffer 的修改，无覆盖。
-     */
-    internal fun MutableGameState.runSectRecruitmentIfDue(year: Int, recruitment: MutableGameState.() -> Unit) {
-        if (year - gameData.lastAiSectRecruitYear >= CultivationEventProcessor.AI_SECT_RECRUIT_INTERVAL_YEARS) {
-            recruitment()
-            gameData = gameData.copy(lastAiSectRecruitYear = year)
-        }
-    }
-
-    /**
      * 带状态版本的月度事件处理 — 在已存在的事务内使用。
      * 与 [processMonthlyEvents] 功能相同，但操作在传入的 state 上，
      * 而非打开新的 [stateStore.update]。
      */
 internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: Int, state: MutableGameState) {
         state.gameData = state.gameData.copy(recruitCountThisMonth = 0)
-        state.safelyRunInState("autoRecruit") {
-            RecruitService.processAutoRecruit(state)
-        }
         state.safelyRunInState("completedMissions") { processCompletedMissionsLazy(year, month) }
         state.safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month,
             state) }
@@ -82,11 +63,8 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
 internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: Int) {
         // 单事务：所有月度事件原子提交
         stateStore.update {
-            // 每月开始时重置招募月度计数，使当月招募享有完整上限配额
+            // 每月开始时重置招募月度计数
             gameData = gameData.copy(recruitCountThisMonth = 0)
-            safelyRunInState("autoRecruit") {
-                RecruitService.processAutoRecruit(this)
-            }
             safelyRunInState("completedMissions") { processCompletedMissionsLazy(year, month) }
             safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month,
                 this) }
@@ -111,35 +89,23 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
     }
 internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
         // L3b 年变分帧：拆为 T1 立即组（单事务，保原相对序）+ T2 延迟组（入队，
-        // 由 tick 预算 drain 逐 tick 分摊）。重活（AI 老化/招募/外交/秘境）移出
+        // 由 tick 预算 drain 逐 tick 分摊）。重活（AI 老化/外交/秘境）移出
         // 1 月单事务，消除"1 月卡死数秒"（工作随存档规模无界增长）。
         // 分组依据见 docs/architecture.md 惰性结算章节；T2 全部有差值判据自愈
         // （下年补跑）或延迟无感语义，且存档前 flush 保证"快照 ⇒ 队列已空"。
         stateStore.update {
-            // T1 立即组（11 项）：状态重推导必须当月立即、招募三件套
-            //（#5/#6/#9）同事务保序、garrisonAndReport（#20）与纳贡同事务（buffer 依赖）
+            // T1 立即组（8 项）：状态重推导必须当月立即、
+            // garrisonAndReport（#20）与纳贡同事务（buffer 依赖）
             safelyRunInState("yearlyTribute") { vassalService.processYearlyTribute() }
             safelyRunInState("yearlyVassalTribute") { vassalService.processYearlyVassalTribute(year) }
             safelyRunInState("discipleAging") {
                 discipleLifecycleProcessor.processDiscipleAging(year)
-            }
-            safelyRunInState("refreshRecruitList") {
-                // 差值判据（非模运算）：老档相位漂移自愈；失败时 lastRecruitYear 不更新，次年自动重试
-                if (year - gameData.lastRecruitYear >= CultivationEventProcessor.RECRUIT_REFRESH_INTERVAL_YEARS) {
-                    recruitService.refreshRecruitList(year)
-                }
-            }
-            safelyRunInState("autoReject") {
-                RecruitService.processAutoReject(this)
             }
             safelyRunInState("merchantRefreshChance") {
                 merchantAndRecruitService.giveMerchantRefreshChanceIfDue(year)
             }
             safelyRunInState("yearlyAging") {
                 discipleLifecycleProcessor.processYearlyAging(year)
-            }
-            safelyRunInState("recruitAging") {
-                recruitService.ageRecruitList(year)
             }
             safelyRunInState("reflectionRelease") {
                 discipleLifecycleProcessor.processReflectionRelease(year)
@@ -150,7 +116,7 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
             // 新年年报——与年俸 processAnnualSalary 快照后执行的归属一致；
             // 12 月 autoBuy 不受影响，本就属旧年）
             safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, 1) }
-            // T2 延迟组（11 项）入队：FIFO = 年变原相对序（#4→#10→#12→#13→#14→#15→#16→#17→#19→#21→#22）
+            // T2 延迟组（10 项）入队：FIFO = 年变原相对序（#4→#12→#13→#14→#15→#16→#17→#19→#21→#22）
             // 必须与 T1 同事务提交：若在事务外入队，存档线程 flush 可能在
             // "T1 提交 → 入队"之间排空队列并取快照，快照缺失全部 T2（竞态窗口）。
             // 入队仅写内存队列（无状态修改），事务内执行无副作用。
@@ -159,9 +125,9 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
     }
 
     /**
-     * L3b：年变延迟组入队（T2 11 项）。
+     * L3b：年变延迟组入队（T2 10 项）。
      *
-     * 全部有自愈/延迟无感语义：差值判据（lastAiSectRecruitYear/lastTradeYear 等）
+     * 全部有自愈/延迟无感语义：差值判据（lastTradeYear 等）
      * 跳过次年自动补跑；AI 老化/外交/秘境晚 1 tick 无感。
      * 防御：入口先 clear —— 年变双触发时丢弃旧批次防重复执行（差值判据兜底自愈）。
      */
@@ -170,11 +136,6 @@ internal fun CultivationEventProcessor.enqueueYearlyOps(year: Int) {
         val ops: List<Pair<String, MutableGameState.() -> Unit>> = listOf(
             // #4 AI 弟子老化
             "sectDisciplesAging" to { caveExplorationProcessor.get().processSectDisciplesAging(year, this) },
-            // #10 AI 宗门周期性招募（差值判据每 3 年）
-            "sectYearlyRecruitment" to {
-                val processor = caveExplorationProcessor.get()
-                runSectRecruitmentIfDue(year) { processor.processSectDisciplesYearlyRecruitment(year, this) }
-            },
             // #12 商人收购刷新
             "refreshAcquisition" to { merchantAndRecruitService.refreshMerchantAcquisition(year, 1) },
             // #13 AI 宗门交易列表刷新（每 3 年强制，差值判据与懒刷新统一）

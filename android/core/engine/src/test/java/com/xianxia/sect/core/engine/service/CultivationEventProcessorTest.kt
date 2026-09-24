@@ -97,7 +97,6 @@ class CultivationEventProcessorTest {
             breakthroughHandler = mockSmart(),
             cultivationSettlement = mockSmart(),
             battleSystem = mockSmart(),
-            recruitService = mockSmart(),
             merchantAndRecruitService = mockSmart(),
             caveExplorationProcessor = mockSmart(),
             discipleLifecycleProcessor = mockSmart(),

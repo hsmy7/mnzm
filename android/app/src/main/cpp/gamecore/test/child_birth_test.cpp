@@ -2,8 +2,9 @@
 // child_birth_test.cpp — 月变步骤 4d 生育黄金序列
 //
 // 守护目标：固定种子 + 固定状态 → child_birth::processMonthlyBirth →
-// 断言新生儿（recruitList）与母亲状态（lastChildYear/childBirthMonth）
-// 逐字段黄金值。黄金值来源：Kotlin ChildBirthSystem.processMonthlyBirth
+// 断言生育消费序与母亲状态（lastChildYear/childBirthMonth）；新生儿
+// 逐字段黄金值经同种子直调 createChild 复现（新生儿产物不落存储）。
+// 黄金值来源：Kotlin ChildBirthSystem.processMonthlyBirth
 // 经 DiffMonthSettlementTest 场景⑯（同种子同消费序跨语言逐位一致）确认
 // 后固化——本文件防 C++ 侧回归漂移。
 //
@@ -13,6 +14,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -63,16 +65,31 @@ GameState makeBirthState() {
 TEST(ChildBirth, GoldenSequenceSingleBirth) {
     gamecore::ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
     // SYSTEM 分区种子对齐对拍场景⑯（fromSeed(seed + partitionId) +
-    // 3 次 nextInt 预热——Kotlin initialRngStates 同式）——黄金值即 Kotlin
-    // ChildBirthSystem 同消费序输出（DiffMonthSettlementTest 场景⑯ 对拍确认）
+    // 3 次 nextInt 预热——Kotlin initialRngStates 同式）
     auto rng = DeterministicRng::fromSeed(20260901 + 3);
     for (int i = 0; i < 3; ++i) rng.nextInt();
     auto state = makeBirthState();
     gamecore::system::child_birth::processMonthlyBirth(state, rng, world);
 
-    ASSERT_EQ(1u, state.gameData.recruitList.size());
-    const auto& child = state.gameData.recruitList.front();
-    // 黄金值（Kotlin 同种子同消费序输出；id 为镜像生成字段——C++ 空串占位不断言）
+    // 新生儿产物不落存储（recruitList 恒空）
+    EXPECT_TRUE(state.gameData.recruitList.empty());
+
+    // 母亲状态更新：lastChildYear=当前年、childBirthMonth 清空、partnerId 保留
+    const auto mother = state.disciples.materialize(0);
+    EXPECT_EQ(1, mother.lastChildYear);
+    EXPECT_EQ(0, mother.childBirthMonth);
+    EXPECT_EQ("21", mother.partnerId);
+
+    // 黄金值（Kotlin 同种子同消费序输出；id 为镜像生成字段——C++ 空串占位
+    // 不断言）：同种子直调 createChild 复现单母亲分支的逐字段黄金值
+    auto rng2 = DeterministicRng::fromSeed(20260901 + 3);
+    for (int i = 0; i < 3; ++i) rng2.nextInt();
+    const auto state2 = makeBirthState();
+    const auto motherSnapshot = state2.disciples.materialize(0);
+    const auto fatherSnapshot = state2.disciples.materialize(1);
+    const std::set<std::string> existingNames = {"母一", "父一", "闲一"};
+    const auto child = gamecore::system::child_birth::createChild(
+        motherSnapshot, fatherSnapshot, /*currentYear=*/1, existingNames, rng2);
     EXPECT_EQ("父丹青", child.name);
     EXPECT_EQ("父", child.surname);
     EXPECT_EQ("male", child.gender);
@@ -103,12 +120,6 @@ TEST(ChildBirth, GoldenSequenceSingleBirth) {
               child.physiqueIds);
     EXPECT_EQ(std::vector<std::string>({"r2_aff_dmg_amp", "r1_aff_pos_alchemy"}),
               child.affixIds);
-
-    // 母亲状态更新：lastChildYear=当前年、childBirthMonth 清空、partnerId 保留
-    const auto mother = state.disciples.materialize(0);
-    EXPECT_EQ(1, mother.lastChildYear);
-    EXPECT_EQ(0, mother.childBirthMonth);
-    EXPECT_EQ("21", mother.partnerId);
 }
 
 TEST(ChildBirth, FatherDeadClearsPregnancy) {
@@ -163,12 +174,10 @@ TEST(ChildBirth, MultipleMothersBirthInOrder) {
     state.disciples.appendDisciple(father2);
     gamecore::system::child_birth::processMonthlyBirth(state, rng, world);
 
-    ASSERT_EQ(2u, state.gameData.recruitList.size());
-    // 新生儿 1 的名字规避集合含新生儿 2 的名字（Kotlin 每轮重建 existingNames）
-    const auto& first = state.gameData.recruitList[0];
-    const auto& second = state.gameData.recruitList[1];
-    EXPECT_NE(first.name, second.name);
-    // 两位母亲均推进（行 0 = 母亲 20、行 3 = 母亲2 23）
+    // 新生儿产物不落存储（recruitList 恒空）
+    EXPECT_TRUE(state.gameData.recruitList.empty());
+    // 两位母亲均推进（行 0 = 母亲 20、行 3 = 母亲2 23；行序 = 追加序，
+    // RNG 消费序红线）
     EXPECT_EQ(1, state.disciples.materialize(0).lastChildYear);
     EXPECT_EQ(1, state.disciples.materialize(3).lastChildYear);
     EXPECT_EQ(0, state.disciples.materialize(3).childBirthMonth);

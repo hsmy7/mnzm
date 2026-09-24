@@ -19,7 +19,7 @@
 //   - 乘区法通用公式（calculate：base × Π(1 + zone)）
 //   - 概率乘区（calculateProbability：base × (1+positive) × (1-penalty)，clamp [0,1]）
 //   - 时间缩减/加速（calculateReducedDuration/calculateAcceleratedTime）
-//   - 政策月度成本（processPolicyCosts：固定/按弟子数/周期性三模式）
+//   - 政策月度成本（processPolicyCosts：固定/按弟子数两模式）
 //   - 灵矿月度产出（SpiritMineZones.calculateMonthly：时间戳差分结算）
 //   - 年度年俸（processAnnualSalary 核心：开源节流 -30%）
 //   - 政策月度道德效果（processPolicyMonthlyEffects）
@@ -49,9 +49,6 @@ constexpr int64_t kCultivationSubsidyPerDisciple = 300;    // 化神下弟子
 constexpr int64_t kAsceticTrainingPerDisciple = 800;       // 全弟子
 constexpr int64_t kMoralEducationPerDisciple = 100;        // 全弟子
 constexpr int64_t kBenevolentGovernancePerDisciple = 100;  // 全弟子
-// 周期性消耗
-constexpr int64_t kOpenRecruitmentCost = 50000;            // 每 3 年
-constexpr int32_t kOpenRecruitmentCooldownMonths = 36;
 // 月度道德效果
 constexpr int32_t kMoralEducationPerMonth = 1;             // 道德 +1
 constexpr int32_t kMoralEducationMax = 70;                 // 道德上限
@@ -178,23 +175,6 @@ inline PolicyCostResult processPolicyCosts(
         const int64_t cost = kBenevolentGovernancePerDisciple * discipleCount;
         tryDeduct(cost, "仁政爱徒", true,
                   [](state::SectPolicies& p) { p.benevolentGovernance = false; });
-    }
-
-    // 周期性消耗：广纳门徒每 3 年扣一次（冷却期内不扣）
-    if (policies.openRecruitment) {
-        const int32_t currentMonth = toAbsoluteMonth(gd.gameYear, gd.gameMonth);
-        if (currentMonth - gd.openRecruitmentLastPaidMonth >=
-            kOpenRecruitmentCooldownMonths) {
-            tryDeduct(kOpenRecruitmentCost, "广纳门徒", true,
-                      [](state::SectPolicies& p) { p.openRecruitment = false; });
-            // 记录本次付费月份
-            for (const auto& d : out.deducted) {
-                if (d.first == "广纳门徒") {
-                    gd.openRecruitmentLastPaidMonth = currentMonth;
-                    break;
-                }
-            }
-        }
     }
     return out;
 }
@@ -346,8 +326,8 @@ inline int64_t payAnnualSalary(state::GameData& gd, const SalaryPlan& plan,
 // ══════════════════════════════════════════════════════════════════
 // 政策开关事务（batch-18b）
 //
-// 语义权威 = Kotlin `SectPolicyToggleUseCase` 三个直调点（通用 `toggle`
-// 入口 / `toggleOpenRecruitment` / `toggleSpiritMineBoost`），判定序逐字对齐：
+// 语义权威 = Kotlin `SectPolicyToggleUseCase` 两个直调点（通用 `toggle`
+// 入口 / `toggleSpiritMineBoost`），判定序逐字对齐：
 //   关闭态 → 需要扣费时先 canAfford（不足 → 失败信封；Kotlin 回退臂产出
 //   用户可见文案）→ 事务内 deduct(autoConvert=true) → 置位 → 激活计数 +1
 //   开启态 → 仅置位 false（不退款、不计数）
@@ -393,7 +373,6 @@ inline bool* sectPolicyField(state::SectPolicies& p, const std::string& field) {
     if (field == "herbCultivation") return &p.herbCultivation;
     if (field == "cultivationSubsidy") return &p.cultivationSubsidy;
     if (field == "manualResearch") return &p.manualResearch;
-    if (field == "openRecruitment") return &p.openRecruitment;
     if (field == "asceticTraining") return &p.asceticTraining;
     if (field == "curfew") return &p.curfew;
     if (field == "rewardPunish") return &p.rewardPunish;
@@ -492,41 +471,6 @@ inline PolicyToggleOutcome policyToggleTx(state::GameState& state,
         out.checkpointMonth = toAbsoluteMonth(gd.gameYear, gd.gameMonth);
         checkpointAllDisciplesColumns(state, out.checkpointMonth);
         out.cultivationCheckpoint = true;
-    }
-    out.ok = true;
-    return out;
-}
-
-/// 广纳门徒开关（Kotlin SectPolicyToggleUseCase.toggleOpenRecruitment）：
-/// 开启时扣固定费用并记录付费月；关闭仅置位。
-inline PolicyToggleOutcome openRecruitmentToggleTx(state::GameState& state) {
-    PolicyToggleOutcome out;
-    auto& gd = state.gameData;
-    out.wasEnabled = gd.sectPolicies.openRecruitment;
-    if (!out.wasEnabled) {
-        if (!canAffordLowGrade(gd, kOpenRecruitmentCost)) {
-            out.errorType = "INSUFFICIENT_STONES";
-            out.message = "灵石不足" + std::to_string(kOpenRecruitmentCost) +
-                          "，无法开启广纳门徒";
-            return out;
-        }
-        const int32_t currentMonth = toAbsoluteMonth(gd.gameYear, gd.gameMonth);
-        const auto r = SpiritStoneWallet::deduct(
-            gd, kOpenRecruitmentCost, SpiritStoneGrade::LOW, "PolicyCost", "Internal", true);
-        if (r.status != DeductStatus::kSuccess) {
-            out.errorType = "INSUFFICIENT_STONES";
-            out.message = "灵石不足" + std::to_string(kOpenRecruitmentCost) +
-                          "，无法开启广纳门徒";
-            return out;
-        }
-        out.costPaid = kOpenRecruitmentCost;
-        gd.sectPolicies.openRecruitment = true;
-        out.enabled = true;
-        ++gd.guideCounters[kPolicyActivatedCounterKey];
-        gd.openRecruitmentLastPaidMonth = currentMonth;
-    } else {
-        gd.sectPolicies.openRecruitment = false;
-        out.enabled = false;
     }
     out.ok = true;
     return out;

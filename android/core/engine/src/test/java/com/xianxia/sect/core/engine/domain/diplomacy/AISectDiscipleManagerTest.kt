@@ -599,26 +599,6 @@ class AISectDiscipleManagerTest {
         assertEquals("应返回原弟子列表", listOf(disciple), r1.disciples)
     }
 
-    // ── 周期性招募：数量范围 + 灵根分布 ──
-
-    @Test
-    fun `generateYearlyRecruits - 每周期招募1到5名`() {
-        // AI 宗门弟子周期招募：每 3 年 1~5 名
-        AISectDiscipleManager.initForSlot(20260806L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        val existing = listOf(makeGearDisciple())
-        repeat(200) { i ->
-            val recruits = AISectDiscipleManager.generateYearlyRecruits("测试宗$i", existing, SectLevel.SMALL)
-            assertTrue(
-                "第 $i 次招募数 ${recruits.size} 应在 1..5",
-                recruits.size in 1..5
-            )
-            recruits.forEach { recruit ->
-                assertTrue("招募弟子 ${recruit.name} 应默认炼气境界", recruit.realm == 9)
-            }
-        }
-    }
-
     @Test
     fun `generateRandomDisciple - AI弟子灵根根数分布与COUNT_WEIGHTS一致`() {
         // 守卫测试：AI 宗门弟子灵根生成与玩家宗门共用 SpiritRootGenerator + COUNT_WEIGHTS 概率表。

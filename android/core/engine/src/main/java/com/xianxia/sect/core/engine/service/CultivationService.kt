@@ -25,8 +25,8 @@ data class HighFrequencyData(
 
 @GameService("CultivationService")
 @Singleton
-    // LongParameterList 豁免：修炼域聚合 Facade 的 10 个协作域均为独立注入面（结算/
-    // 突破/事件/生产/招募/商人/洞府惰性/共享缓存）——人为聚合只为降参数计数，
+    // LongParameterList 豁免：修炼域聚合 Facade 的 9 个协作域均为独立注入面（结算/
+    // 突破/事件/生产/商人/洞府惰性/共享缓存）——人为聚合只为降参数计数，
     // 不改善内聚且劣化 DI 可读性，按 §2.24 惯例附理由压制
     @Suppress("LongParameterList")
 class CultivationService @Inject constructor(
@@ -36,7 +36,6 @@ class CultivationService @Inject constructor(
     internal val cultivationSettlement: CultivationSettlement,
     internal val eventProcessor: CultivationEventProcessor,
     internal val productionProcessor: ProductionProcessor,
-    internal val recruitService: RecruitService,
     internal val merchantAndRecruitService: MerchantAndRecruitService,
     internal val caveExplorationProcessor: Provider<CaveExplorationProcessor>,
     private val sharedState: CultivationSharedState,
@@ -167,8 +166,8 @@ class CultivationService @Inject constructor(
         merchantAndRecruitService.refreshTravelingMerchant(year, month)
     }
 
-    internal suspend fun refreshRecruitList(year: Int) {
-        recruitService.refreshRecruitList(year)
+    internal fun refreshTravelingMerchantManual(): Boolean {
+        return merchantAndRecruitService.refreshTravelingMerchantManual()
     }
 
     internal suspend fun refreshMerchantAcquisition(year: Int, month: Int) {
@@ -207,7 +206,7 @@ class CultivationService @Inject constructor(
     }
 
     /**
-     * 处理年度事件（招募刷新、商人刷新、俸禄、弟子成长、外交等）。
+     * 处理年度事件（商人刷新、俸禄、弟子成长、外交等）。
      * 必须在 shadow transaction 外部调用，因为内部方法使用
      * [GameStateStore.update] 不可在 shadow 期间调用。
      */

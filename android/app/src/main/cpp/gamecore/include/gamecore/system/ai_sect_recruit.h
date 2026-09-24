@@ -1,12 +1,10 @@
 #pragma once
 
 // ============================================================
-// ai_sect_recruit.h — AI 宗门周期性招募（年变下沉）
+// ai_sect_recruit.h — AI 宗门弟子生成与装配
 //
-// Kotlin AISectDiscipleManager（generateYearlyRecruits/generateRandomDisciple/
-// applyGearToDisciple/truncateToLimit）+ CaveExplorationProcessor.
-// processSectDisciplesYearlyRecruitment + runSectRecruitmentIfDue 差值判据
-// 等价移植。
+// Kotlin AISectDiscipleManager（generateRandomDisciple /
+// applyGearToDisciple/truncateToLimit）等价移植。
 //
 // RNG 契约：**AI 独立分区 RNG**（Kotlin AISectDiscipleManager._rng——
 // 种子 systemSeed + AI_SECT.id(6) × 31337，initForSlot 播种；不入
@@ -22,7 +20,7 @@
 // JavaRandomCompat 复刻——redeem_code.h），模板选取 1×nextInt/零消费。
 //
 // 已知边界（对拍排除）：Disciple.id 为 Kotlin UUID 镜像生成字段——
-// C++ 用确定性自增 id 占位（同 worldLevels/recruitList 契约）。
+// C++ 用确定性自增 id 占位（同 worldLevels 契约）。
 // ============================================================
 
 #include <algorithm>
@@ -49,17 +47,12 @@ namespace gamecore::system {
 namespace detail {
 
 // ── 常量（Kotlin AISectDiscipleManager companion 逐值对齐）──
-// 周期性招募每周期人数范围（SECT_RECRUIT_MIN_COUNT/MAX_COUNT）
-constexpr int32_t kAiSectRecruitMinCount = 1;
-constexpr int32_t kAiSectRecruitMaxCount = 5;
 // AI 宗门弟子池硬上限（PlantSlotData.MAX_AI_DISCIPLES_PER_SECT）
 constexpr int32_t kAiDisciplesPerSectLimit = 1000;
 // 装备/功法数量按宗门等级（EQUIPMENT_COUNT_BY_SECT_LEVEL /
 // MANUAL_COUNT_BY_SECT_LEVEL：小型/中型/大型/顶级）
 constexpr int32_t kAiEquipmentCountByLevel[4] = {1, 2, 4, 4};
 constexpr int32_t kAiManualCountByLevel[4] = {1, 3, 6, 6};
-// 宗门招募间隔（CultivationEventProcessor.AI_SECT_RECRUIT_INTERVAL_YEARS）
-constexpr int32_t kAiSectRecruitIntervalYears = 3;
 // 弟子创建各技能上限（GameConfig.Disciple.SKILL_MAX）
 constexpr int32_t kAiSkillMax = 200;
 // 境界 → 装备/功法最高品阶（GameConfig.Realm.getMaxRarity：9,8→1 等）
@@ -331,81 +324,6 @@ inline std::vector<state::Disciple> truncateToAiLimit(
                      });
     disciples.resize(static_cast<std::size_t>(kAiDisciplesPerSectLimit));
     return disciples;
-}
-
-/// 生成一批周期性招募新弟子（Kotlin generateYearlyRecruits：
-/// count = 1 + 1×nextInt(5)；炼气弟子（applyGearToAiDisciple 前置））
-inline std::vector<state::Disciple> generateYearlyAiRecruits(
-    rng::DeterministicRng& rng, const std::string& /*sectName*/,
-    const std::vector<state::Disciple>& existingDisciples, int32_t sectLevel) {
-    std::set<std::string> usedNames;
-    for (const auto& d : existingDisciples) usedNames.insert(d.name);
-    const int32_t count =
-        kAiSectRecruitMinCount + rng.nextInt(kAiSectRecruitMaxCount);
-    std::vector<state::Disciple> newRecruits;
-    for (int32_t i = 0; i < count; ++i) {
-        state::Disciple d = generateRandomAiDisciple(rng, usedNames);
-        usedNames.insert(d.name);
-        applyGearToAiDisciple(rng, d, sectLevel);
-        newRecruits.push_back(std::move(d));
-    }
-    return newRecruits;
-}
-
-// ── 年变招募路由（Kotlin processSectDisciplesYearlyRecruitment）──
-
-/// AI 宗门弟子周期性招募（Kotlin CaveExplorationProcessor.
-/// processSectDisciplesYearlyRecruitment + runSectRecruitmentIfDue 差值判据）：
-/// year - lastAiSectRecruitYear >= 3 才执行（不满足零效果零消费——惰性门）。
-/// 每非玩家宗门生成新弟子并按占领路由分发（玩家占领 → recruitList；
-/// 其他宗门占领 → 占领者池；否则自身池——均 truncateToLimit 1000）；
-/// 尾部重置招募惰性门 + 自动招募（recruit_settle::processAutoRecruit——
-/// 零 RNG，与 Kotlin RecruitService.processAutoRecruit 同源）。
-/// [aiRng] AI 独立分区 RNG（调用方 GameCore::aiRng()）。
-inline void runSectRecruitmentIfDue(state::GameState& state,
-                                    rng::DeterministicRng& aiRng,
-                                    int32_t year) {
-    auto& gd = state.gameData;
-    if (year - gd.lastAiSectRecruitYear < kAiSectRecruitIntervalYears) return;
-
-    std::map<std::string, std::vector<state::Disciple>> updatedAi = state.aiSectDisciples;
-    std::vector<state::Disciple> updatedRecruitList = gd.recruitList;
-
-    for (const auto& kv : state.aiSectDisciples) {
-        const std::string& sectId = kv.first;
-        const state::WorldSect* sect = nullptr;
-        for (const auto& s : gd.worldMapSects) {
-            if (s.id == sectId) { sect = &s; break; }
-        }
-        if (sect == nullptr) continue;
-        if (sect->isPlayerSect) continue;
-
-        const auto newRecruits =
-            generateYearlyAiRecruits(aiRng, sect->name, kv.second, sect->level);
-        if (sect->isPlayerOccupied) {
-            updatedRecruitList.insert(updatedRecruitList.end(),
-                                      newRecruits.begin(), newRecruits.end());
-        } else if (!sect->occupierSectId.empty()) {
-            std::vector<state::Disciple> merged =
-                updatedAi.count(sect->occupierSectId) != 0
-                    ? updatedAi.at(sect->occupierSectId) : std::vector<state::Disciple>{};
-            merged.insert(merged.end(), newRecruits.begin(), newRecruits.end());
-            updatedAi[sect->occupierSectId] = truncateToAiLimit(std::move(merged));
-        } else {
-            std::vector<state::Disciple> merged = kv.second;
-            merged.insert(merged.end(), newRecruits.begin(), newRecruits.end());
-            updatedAi[sectId] = truncateToAiLimit(std::move(merged));
-        }
-    }
-    state.aiSectDisciples = std::move(updatedAi);
-    gd.recruitList = std::move(updatedRecruitList);
-    gd.lastAiSectRecruitYear = year;
-    // 被占领 AI 宗门产生新弟子后立即执行自动招募检查 + 重置惰性
-    //（Kotlin RecruitService.resetAutoRecruitIdle + autoRejectIdle=false +
-    // processAutoRecruit——C++ 侧瞬态门直接复位）
-    state.autoRecruitIdle = false;
-    state.autoRejectIdle = false;
-    recruit_settle::processAutoRecruit(state);
 }
 
 }  // namespace detail

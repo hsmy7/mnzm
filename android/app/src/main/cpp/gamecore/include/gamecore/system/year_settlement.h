@@ -29,7 +29,6 @@
 #include "gamecore/system/month_settlement.h"
 #include "gamecore/system/name_service.h"
 #include "gamecore/system/rarity_progression.h"
-#include "gamecore/system/recruit_settlement.h"
 #include "gamecore/system/sect_trade.h"
 #include "gamecore/system/secret_realm.h"
 #include "gamecore/system/settlement_detail.h"
@@ -49,8 +48,7 @@
 // 捕获 ≡ no-op）。
 //
 // RNG：T1 全程零随机抽取；T2 仅个别子项消费（收购 SYSTEM / 秘境
-// SECRET_REALM / AI 招募独立分区）——场景规避后
-// （lastRecruitYear 差值判据不满足、recruitList 空、AI/外交/秘境域数据空）
+// SECRET_REALM）——场景数据空（外交/秘境域数据空）
 // 年变其余路径零消耗，RNG 对拍退化为"分区状态不变"断言。
 // ============================================================
 namespace gamecore::system {
@@ -79,18 +77,6 @@ constexpr int32_t kAllianceDurationYears = 5;
 constexpr int32_t kCullDeadAfterYears = 1;
 // 哀悼期哨兵（DiscipleTables.GRIEF_YEAR_NULL_SENTINEL = -1：无丧亲期）
 constexpr int32_t kGriefYearNullSentinel = -1;
-
-// ── 招募刷新常量（RecruitService companion 逐值对齐）──
-// 纳徒长老魅力加成公式参数（RECRUIT_CHARM_BASELINE/DIVISOR/MAX）
-constexpr int32_t kRecruitCharmBaseline = 80;
-constexpr int32_t kRecruitCharmDivisor = 4;
-constexpr int32_t kMaxRecruitBonusCap = 20;
-// 招募数量兜底（FALLBACK_RECRUIT_COUNT——无玩家宗门时）
-constexpr int32_t kFallbackRecruitCount = 7;
-// 广纳门徒政策招募加成（GameConfig.PolicyConfig.OPEN_RECRUITMENT_POOL_BONUS）
-constexpr double kOpenRecruitmentPoolBonus = 0.50;
-// 招募列表刷新间隔（CultivationEventProcessor.RECRUIT_REFRESH_INTERVAL_YEARS）
-constexpr int32_t kRecruitRefreshIntervalYears = 3;
 
 // ── 交易刷新常量（DiplomacyService companion 逐值对齐）──
 // AI 宗门交易刷新间隔（SECT_TRADE_REFRESH_INTERVAL_YEARS）
@@ -358,45 +344,6 @@ inline void processYearlyVassalTribute(GameState& state, int32_t year) {
     }
 }
 
-/// 自动拒绝（Kotlin RecruitService.processAutoReject）：
-/// 惰性门 autoRejectIdle → 0；筛选空/无有效灵根数 → 0；recruitList 按
-/// 灵根数 ∈ filter 分区（distinctBy id 等价——列表 id 唯一性由净化维护）；
-/// 损坏条目（isValidRecruit 失败）不拒绝保留；validRejected 空 → 置惰性。
-/// 零 RNG。
-inline int32_t processAutoReject(GameState& state) {
-    auto& gd = state.gameData;
-    if (state.autoRejectIdle) return 0;
-    if (gd.autoRejectSpiritRootFilter.empty()) return 0;
-    std::set<int32_t> validFilter;
-    for (int32_t v : gd.autoRejectSpiritRootFilter) {
-        if (v >= 1 && v <= 5) validFilter.insert(v);
-    }
-    if (validFilter.empty()) return 0;
-
-    std::vector<state::Disciple> kept;
-    std::vector<state::Disciple> rejected;
-    std::vector<state::Disciple> corruptedRejected;
-    for (const auto& d : gd.recruitList) {
-        const int32_t rootCount = recruit_settle::nonBlankRootCount(d.spiritRootType);
-        if (validFilter.count(rootCount) != 0) {
-            if (recruit_settle::isValidRecruit(d)) {
-                rejected.push_back(d);
-            } else {
-                corruptedRejected.push_back(d);
-            }
-        } else {
-            kept.push_back(d);
-        }
-    }
-    if (rejected.empty()) {
-        state.autoRejectIdle = true;
-        return 0;
-    }
-    kept.insert(kept.end(), corruptedRejected.begin(), corruptedRejected.end());
-    gd.recruitList = std::move(kept);
-    return static_cast<int32_t>(rejected.size());
-}
-
 /// 商人手动刷新机会（Kotlin MerchantAndRecruitService.
 /// giveMerchantRefreshChanceIfDue）：year<=0 防御；已达上限（999）跳过；
 /// lastGrant==0 首次或差值 ≥30 年 → +1（coerceAtMost 999）+ 更新授予年。
@@ -437,58 +384,6 @@ inline void processYearlyAging(GameState& state, int32_t currentYear,
     for (const auto& id : toRemove) {
         ds.removeById(id);
     }
-}
-
-/// 招募列表净化（Kotlin RecruitService.sanitizeRecruitList）：
-/// 损坏过滤（isValidRecruit）+ 三级去重
-/// （id/内容/同人签名——保留首个）+ 已入宗门残留移除（isSamePerson 跨表）。
-/// 零 RNG。
-inline void processRecruitAging(GameState& state, ecs::World& world) {
-    auto& gd = state.gameData;
-    // ① 净化：损坏过滤 + 三级去重 + 已入宗门残留
-    std::vector<state::Disciple> valid;
-    for (const auto& d : gd.recruitList) {
-        if (recruit_settle::isValidRecruit(d)) valid.push_back(d);
-    }
-    // 二级去重（id / 内容）+ 同人签名去重（保留首个）
-    std::vector<state::Disciple> deduped;
-    std::set<std::string> idSeen;
-    for (const auto& d : valid) {
-        if (idSeen.insert(d.id).second) deduped.push_back(d);
-    }
-    std::vector<state::Disciple> contentDeduped;
-    std::vector<state::Disciple> contentSeen;
-    for (const auto& d : deduped) {
-        bool dup = false;
-        for (const auto& prev : contentSeen) {
-            if (recruit_settle::discipleContentEquals(prev, d)) { dup = true; break; }
-        }
-        if (!dup) {
-            contentDeduped.push_back(d);
-            contentSeen.push_back(d);
-        }
-    }
-    // 已入宗门残留（跨表 isSamePerson——签名比对）。
-    // 宗门弟子物化经 sync + View 行序
-    //（isSamePerson 比对集与序无关，切换保持同构）。
-    std::vector<state::Disciple> sectDisciples;
-    {
-        state::DiscipleStore& ds = state.disciples;
-        ecs::syncDiscipleEntities(world, ds.size());
-        ecs::View<ecs::DiscipleRef> view(world.registry());
-        view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-            sectDisciples.push_back(ds.materialize(ref.row));   // 行地址取自组件（桥接规范 3）
-        });
-    }
-    std::vector<state::Disciple> result;
-    for (const auto& d : contentDeduped) {
-        bool inSect = false;
-        for (const auto& s : sectDisciples) {
-            if (recruit_settle::isSamePerson(d, s)) { inSect = true; break; }
-        }
-        if (!inSect) result.push_back(d);
-    }
-    gd.recruitList = std::move(result);
 }
 
 /// AI 尸体新陈代谢：死亡超
@@ -1275,117 +1170,6 @@ inline void processAncientSecretRealmSpawn(GameState& state, int32_t year,
         "远古秘境现世！传说中上古大能陨落之地，藏有无数机缘与凶险");
 }
 
-/// 纳徒长老魅力加成（Kotlin RecruitService.calcRecruitBonusCap：
-/// max(0, (charm-80)/4) 整数除法截断，coerceAtMost 20）
-inline int32_t recruitBonusCap(int32_t charm) {
-    const int32_t raw = std::max(0, (charm - kRecruitCharmBaseline) / kRecruitCharmDivisor);
-    return std::min(raw, kMaxRecruitBonusCap);
-}
-
-/// 年度招募列表刷新（Kotlin RecruitService.refreshRecruitList）：
-/// 玩家宗门等级招募范围（1..4/1..6/1..10/1..15）+ 纳徒长老魅力加成（含职务
-/// 加成乘算）→ SYSTEM 数量抽取；无玩家宗门兜底 nextInt(7) coerceAtLeast 1；
-/// 广纳门徒政策 +50%（roundToInt）；逐弟子生成（SYSTEM 分区串行：性别 1×
-/// nextInt(2) → 名字 generateName（FULL 姓氏 nextInt + 给定名 nextDouble+
-/// nextInt）→ 灵根 SpiritRootGenerator（nextDouble+洗牌）→
-/// DiscipleFactory.create 固定序）→ recruitList 追加 +
-/// lastRecruitYear + 惰性门重置 + processAutoRecruit。id 为镜像生成字段
-///（Kotlin UUID，C++ 空串占位，diff 排除）。RNG 消费序逐位对齐 Kotlin。
-inline void processRefreshRecruitList(GameState& state, int32_t year,
-                                      rng::RngManager& rng) {
-    auto& gd = state.gameData;
-    auto& ds = state.disciples;
-    // 差值判据（Kotlin CultivationEventProcessor.RECRUIT_REFRESH_INTERVAL_YEARS=3：
-    // 老档相位漂移自愈；失败时 lastRecruitYear 不更新，次年自动重试）
-    if (year - gd.lastRecruitYear < kRecruitRefreshIntervalYears) return;
-    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
-
-    // 招募数量（玩家宗门等级 range + 长老加成；无玩家宗门兜底）
-    int32_t recruitCount = 0;
-    bool hasPlayerSect = false;
-    for (const auto& sect : gd.worldMapSects) {
-        if (!sect.isPlayerSect) continue;
-        hasPlayerSect = true;
-        int32_t rangeFirst = 1;
-        int32_t rangeLast = 4;
-        switch (sect.level) {
-            case 1: rangeFirst = 1; rangeLast = 6; break;   // MEDIUM
-            case 2: rangeFirst = 1; rangeLast = 10; break;  // LARGE
-            case 3: rangeFirst = 1; rangeLast = 15; break;  // TOP
-            default: rangeFirst = 1; rangeLast = 4; break;  // SMALL/兜底
-        }
-        // 纳徒长老魅力加成（魅力 + 职务加成乘算）
-        int32_t bonusCap = 0;
-        const std::string& elderId = gd.elderSlots.recruitingElder;
-        if (!elderId.empty()) {
-            const auto intId = settle_util::toIntOrNull(elderId);
-            if (intId.has_value()) {
-                for (std::size_t row = 0; row < ds.size(); ++row) {
-                    if (settle_util::toIntOrNull(ds.ids[row]) == intId) {
-                        const int32_t charm = ds.charms[row];
-                        const double posBonus =
-                            stats::positionEffectBonus(ds, row, "RECRUITING");
-                        bonusCap = static_cast<int32_t>(
-                            static_cast<double>(recruitBonusCap(charm)) *
-                            (1.0 + posBonus));
-                        break;
-                    }
-                }
-            }
-        }
-        const int32_t until = rangeLast + 1 + bonusCap;
-        recruitCount = (until <= rangeFirst)
-            ? rangeFirst
-            : rangeFirst + rngSystem.nextInt(until - rangeFirst);
-        break;
-    }
-    if (!hasPlayerSect) {
-        // 兜底：nextInt(7) → 0..6 coerceAtLeast 1
-        recruitCount = std::max(rngSystem.nextInt(kFallbackRecruitCount), 1);
-    }
-    // 广纳门徒政策：招募数 +50%（roundToInt）
-    if (recruitCount > 0 && gd.sectPolicies.openRecruitment) {
-        recruitCount = static_cast<int32_t>(
-            std::round(static_cast<double>(recruitCount) *
-                       (1.0 + kOpenRecruitmentPoolBonus)));
-    }
-
-    // 逐弟子生成（SYSTEM 分区串行，消费序与 Kotlin 逐位一致）
-    std::vector<state::Disciple> newRecruits;
-    newRecruits.reserve(static_cast<std::size_t>(recruitCount));
-    std::set<std::string> usedNames;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        usedNames.insert(ds.names[row]);
-    }
-    for (const auto& r : gd.recruitList) usedNames.insert(r.name);
-    for (int32_t i = 0; i < recruitCount; ++i) {
-        const std::string gender = (rngSystem.nextInt(2) == 0) ? "male" : "female";
-        const auto nameResult = generateName(gender, NameStyle::kFull,
-                                             usedNames, rngSystem);
-        const std::string spiritRoot = child_birth::generateSpiritRoot(rngSystem);
-        DiscipleCreationSeed seed;
-        seed.id = "";   // 镜像生成字段（Kotlin UUID）
-        seed.gender = gender;
-        seed.fullName = nameResult.fullName;
-        seed.surname = nameResult.surname;
-        seed.spiritRootType = spiritRoot;
-        seed.realm = 9;
-        seed.realmLayer = 1;
-        state::Disciple d = createDisciple(seed, rngSystem);
-        usedNames.insert(d.name);
-        newRecruits.push_back(std::move(d));
-    }
-    gd.recruitList.insert(gd.recruitList.end(),
-                          std::make_move_iterator(newRecruits.begin()),
-                          std::make_move_iterator(newRecruits.end()));
-    gd.lastRecruitYear = year;
-    // 新增弟子 → 重置惰性（autoRecruitIdle/autoRejectIdle）+ 自动招募
-    state.autoRecruitIdle = false;
-    state.autoRejectIdle = false;
-    recruit_settle::processAutoRecruit(state);
-}
-
-
 }  // namespace detail
 
 /// 年俸结算主体（processAnnualSalary：计划 → canAfford → 发放）。
@@ -1416,8 +1200,7 @@ using detail::YearSettlementDraft;
 /// 年变编排主入口（注册进 SettlementEngine::onYearChange）。
 /// @param state 完整游戏状态（就地修改）
 /// @param rng   RNG 分区管理器（商人收购 SYSTEM / 秘境 SECRET_REALM）
-/// @param aiRng AI 宗门独立分区 RNG（AI 招募；种子
-///   systemSeed + AI_SECT.id(6)×31337——GameCore::aiRng()）
+/// @param aiRng AI 宗门独立分区 RNG（保留传输契约——年变无消费点）
 /// @param draft 年变平台效应草稿信封（当前无填充点——恒空数组；
 ///   信封结构供 nativeSettleYear 回传 Kotlin 残留执行器）
 /// @param world ECS 实体集（年结域全部弟子迭代
@@ -1428,8 +1211,9 @@ inline void runYearSettlement(state::GameState& state,
                               rng::DeterministicRng& aiRng,
                               ecs::World& world,
                               YearSettlementDraft* draft = nullptr) {
-    (void)rng;   // 显式占位——rng 由下方招募刷新/商人收购子项实际消费
+    (void)rng;   // 显式占位——rng 由下方商人收购/秘境子项实际消费
     (void)draft;   // 信封参数保留传输契约（当前无填充点）
+    (void)aiRng;   // AI 独立分区流保留传输契约（年变无消费点）
 
     // ── processYearlyEvents(year)：T1 立即组（Kotlin 严格相对序
     // #1→#2→#4→#5→#6→#7→#8→#10→#11）──
@@ -1437,17 +1221,10 @@ inline void runYearSettlement(state::GameState& state,
     detail::processYearlyTribute(state);
     // #2 附属宗门年贡
     detail::processYearlyVassalTribute(state, state.gameData.gameYear);
-    // #4 招募列表刷新（SYSTEM 生成链——数量/性别/名字/灵根/
-    // 弟子工厂 + 长老加成 + 广纳门徒政策；差值判据内部）
-    detail::processRefreshRecruitList(state, state.gameData.gameYear, rng);
-    // #5 自动拒绝
-    detail::processAutoReject(state);
     // #6 商人赠予（手动刷新机会）
     detail::processMerchantRefreshChance(state, state.gameData.gameYear);
     // #7 年度老化清理（死亡弟子列清理）
     detail::processYearlyAging(state, state.gameData.gameYear, world);
-    // #8 招募净化
-    detail::processRecruitAging(state, world);
     // #10 garrisonAndReport：驻军轮换 + 年报快照 + annual* 清零
     detail::processGarrisonRotation(state);
     detail::runYearlyReportSnapshot(state);
@@ -1460,9 +1237,6 @@ inline void runYearSettlement(state::GameState& state,
     // #4 AI 尸体新陈代谢（年结统一压缩，
     // 死亡超保留窗口的条目整行移除）
     detail::cullAICorpseEntries(state, state.gameData.gameYear);
-    // #10 AI 宗门周期性招募（AI 独立分区 RNG——差值判据
-    // 每 3 年；占领路由 + 尾部自动招募）
-    detail::runSectRecruitmentIfDue(state, aiRng, state.gameData.gameYear);
     // #12 商人收购刷新（SYSTEM 分区——数量 1×nextInt(9) +
     // 每 item 品阶 1×nextDouble + 选池 1×nextInt + 库存/grade/价格波动）
     detail::refreshMerchantAcquisition(state, rng.getRng(rng::RngPartition::kSystem),

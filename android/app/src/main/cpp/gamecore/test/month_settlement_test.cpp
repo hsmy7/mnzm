@@ -47,10 +47,6 @@ using gamecore::state::WorldLevel;
 constexpr double kPairingProbability = 0.006;
 /// 教化之道道德上限（GameConfig.PolicyConfig.MORAL_EDUCATION_MAX）
 constexpr int32_t kMoralEducationMax = 70;
-/// 广纳门徒冷却月数（GameConfig.PolicyConfig.OPEN_RECRUITMENT_COOLDOWN_MONTHS）
-constexpr int32_t kOpenRecruitmentCooldownMonths = 36;
-/// 广纳门徒费用（GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST）
-constexpr int64_t kOpenRecruitmentCost = 50000;
 /// 丹道激励月耗 / 功法研习月耗（GameConfig.PolicyConfig）
 constexpr int64_t kAlchemyIncentiveMonthly = 3000;
 constexpr int64_t kManualResearchMonthly = 4000;
@@ -141,27 +137,6 @@ TEST(MonthSettlementTest, PolicyCostsAllPaidWhenBalanceSufficient) {
     EXPECT_TRUE(result.policyCosts.disabledPolicies.empty());
     EXPECT_EQ(100000 - kAlchemyIncentiveMonthly - kManualResearchMonthly,
               st.gameData.spiritStones);
-}
-
-TEST(MonthSettlementTest, OpenRecruitmentCooldownGolden) {
-    // 冷却期内不扣；满 36 个月扣费并记录本次付费月份（绝对月口径）
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.gameData.spiritStones = 60000;
-    st.gameData.sectPolicies.openRecruitment = true;
-    st.gameData.openRecruitmentLastPaidMonth = 1 * 12 + 1 - 35;   // 差值 35 < 36
-
-    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
-    EXPECT_EQ(60000, st.gameData.spiritStones);              // 冷却期内未扣
-    EXPECT_EQ(1 * 12 + 1 - 35, st.gameData.openRecruitmentLastPaidMonth);
-
-    // 差值恰好 36 → 扣费 + lastPaidMonth 推进到当前绝对月
-    st.gameData.sectPolicies.openRecruitment = true;
-    st.gameData.openRecruitmentLastPaidMonth = 1 * 12 + 1 - kOpenRecruitmentCooldownMonths;
-    const auto result = system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
-    EXPECT_TRUE(result.policyCosts.allPaid);
-    EXPECT_EQ(60000 - kOpenRecruitmentCost, st.gameData.spiritStones);
-    EXPECT_EQ(1 * 12 + 1, st.gameData.openRecruitmentLastPaidMonth);
 }
 
 // ── 步骤 2：政策月度道德效果 ──────────────────────────────────────
@@ -980,161 +955,6 @@ TEST(VassalProbe, JsonImportThenMonthlyDrawCount) {
     auto states = core2->rng().exportStates();
     EXPECT_EQ(sys.snapshot(),
               states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
-}
-
-// ── 子事件 2：自动招募 ─────────────────────────────────
-
-using gamecore::system::recruit_settle::processAutoRecruit;
-
-/// 招募候选弟子（无装备/功法——俘虏落库 no-op；资质缺省 50 触发散列补算）
-Disciple recruitCandidate(const std::string& id, const char* roots) {
-    Disciple d = baseDisciple(id);
-    d.name = "候选" + id;
-    d.gender = "male";
-    d.spiritRootType = roots;
-    d.currentHp = -1;
-    d.currentMp = -1;
-    return d;
-}
-
-TEST(RecruitAutoRecruit, MonthlyAutoRecruitGolden) {
-    auto core = makeCore(20260901);
-    auto& st = core->state();
-    st.gameData.gameYear = 1;
-    st.gameData.gameMonth = 2;   // 月变后（与 Diff 对拍场景同相位）
-    st.gameData.autoRecruitSpiritRootFilter = {1};
-    st.gameData.recruitList = {
-        recruitCandidate("r1", "metal"),          // 1 根 → 匹配
-        recruitCandidate("r2", "metal,fire")      // 2 根 → 不匹配保留
-    };
-    st.disciples.appendDisciple(adultDisciple("11", "male"));
-    st.disciples.appendDisciple(adultDisciple("12", "female"));
-
-    processAutoRecruit(st);
-
-    // 匹配候选入宗：id = max+1 = 13；资质 50 → 80 + floorMod(13*527+31, 21)
-    ASSERT_EQ(3u, st.disciples.size());
-    const auto& d = st.disciples.materialize(2);
-    EXPECT_EQ("13", d.id);
-    const int64_t roll = gamecore::system::recruit_settle::floorMod(
-        13LL * 527 + 31, 21);
-    EXPECT_EQ(80 + static_cast<int32_t>(roll), d.aptitude);
-    EXPECT_EQ(14, d.recruitedMonth);   // 1*12 + 2
-    // 不匹配候选保留；recruitCountThisMonth / annualNewDisciples 各 +1
-    ASSERT_EQ(1u, st.gameData.recruitList.size());
-    EXPECT_EQ("r2", st.gameData.recruitList[0].id);
-    EXPECT_EQ(1, st.gameData.recruitCountThisMonth);
-    EXPECT_EQ(1, st.gameData.annualNewDisciples);
-    EXPECT_FALSE(st.autoRecruitIdle);
-    // 零 RNG 抽取（SYSTEM 分区状态不变——不扰动后续子事件抽取序）
-    const auto sys0 = gamecore::rng::DeterministicRng::fromSeed(20260901 + 3);
-    EXPECT_EQ(sys0.snapshot(), core->rng().exportStates()[
-        static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
-}
-
-TEST(RecruitAutoRecruit, LazyGateSkipsAfterNoCandidates) {
-    auto core = makeCore(20260901);
-    auto& st = core->state();
-    st.gameData.gameYear = 1;
-    st.gameData.gameMonth = 2;
-    st.gameData.autoRecruitSpiritRootFilter = {1};
-    st.gameData.recruitList = {recruitCandidate("r1", "metal,fire")};  // 无匹配
-
-    processAutoRecruit(st);
-    EXPECT_TRUE(st.autoRecruitIdle);      // 无候选 → 惰性置位
-    EXPECT_EQ(0, st.gameData.recruitCountThisMonth);
-    EXPECT_EQ(1u, st.gameData.recruitList.size());
-
-    // 惰性门：后续调用直接跳过（列表不变时与 Kotlin 语义一致）
-    const auto before = st.gameData.recruitList;
-    processAutoRecruit(st);
-    EXPECT_EQ(0, st.gameData.recruitCountThisMonth);
-    EXPECT_EQ(before.size(), st.gameData.recruitList.size());
-}
-
-TEST(RecruitAutoRecruit, MonthlyLimitBlocksRecruit) {
-    auto core = makeCore(20260901);
-    auto& st = core->state();
-    st.gameData.gameYear = 1;
-    st.gameData.gameMonth = 2;
-    st.gameData.autoRecruitSpiritRootFilter = {1};
-    st.gameData.recruitCountThisMonth = 30;   // GameConfig.RECRUIT_MONTHLY_LIMIT
-    st.gameData.recruitList = {recruitCandidate("r1", "metal")};
-
-    processAutoRecruit(st);
-    EXPECT_EQ(0u, st.disciples.size());
-    EXPECT_EQ(30, st.gameData.recruitCountThisMonth);
-    EXPECT_FALSE(st.autoRecruitIdle);   // 上限早退不置惰性（与 Kotlin 一致）
-}
-
-TEST(RecruitAutoRecruit, CaptiveGearMaterializedToInstances) {
-    auto core = makeCore(20260901);
-    auto& st = core->state();
-    st.gameData.gameYear = 1;
-    st.gameData.gameMonth = 2;
-    st.gameData.autoRecruitSpiritRootFilter = {1};
-    Disciple captive = recruitCandidate("r1", "metal");
-    captive.weaponId = "ironSword";                 // 装备模板（equipment_db 存在）
-    captive.manualIds = {"common_phys_single_1"};   // 功法模板（manual_db 存在）
-    captive.manualMasteries = {{"common_phys_single_1", 5000}};
-    st.gameData.recruitList = {captive};
-    st.disciples.appendDisciple(adultDisciple("11", "male"));
-    st.disciples.appendDisciple(adultDisciple("12", "female"));
-
-    // 实例 id 确定性自增 = 进程级计数器（W4-A 起测试 TU 注册序跨工具链不可靠，
-    // 先行者会合法消耗计数器）⇒ 断言「执行前计数 +1」而非字面 gc-inst-1
-    //（孤立运行时两者等价；语义不变）
-    const auto gcInstBefore = gamecore::system::itemIdCounterRegistry()["gc-inst"];
-    processAutoRecruit(st);
-
-    // 装备实例落库 + 槽位列回写（实例 id 确定性自增）
-    ASSERT_EQ(1u, st.equipmentInstances.size());
-    EXPECT_EQ("精铁剑", st.equipmentInstances[0].name);   // ironSword 模板显示名
-    EXPECT_EQ("gc-inst-" + std::to_string(gcInstBefore + 1),
-              st.equipmentInstances[0].id);
-    EXPECT_EQ(true, st.equipmentInstances[0].isEquipped);
-    ASSERT_EQ(3u, st.disciples.size());
-    const auto& d = st.disciples.materialize(2);
-    EXPECT_EQ(st.equipmentInstances[0].id, d.weaponId);
-    // 功法实例 + 熟练度注册 + HP/MP 增量（common_phys_single_1 无 hp/mp 增益）
-    ASSERT_EQ(1u, st.manualInstances.size());
-    EXPECT_EQ("青冥剑诀", st.manualInstances[0].name);
-    EXPECT_EQ(true, st.manualInstances[0].isLearned);
-    EXPECT_EQ(st.manualInstances[0].id, d.manualIds[0]);
-    ASSERT_EQ(1u, st.gameData.manualProficiencies.size());
-    const auto& prof = st.gameData.manualProficiencies.at("13")[0];
-    EXPECT_EQ(5000.0, prof.proficiency);
-    EXPECT_EQ(1, prof.masteryLevel);   // 5000 ∈ [1000, 10000) → SMALL_SUCCESS
-    EXPECT_EQ(st.manualInstances[0].id, prof.manualId);
-    EXPECT_EQ(5000, d.manualMasteries.at(st.manualInstances[0].id));  // 值保持，键重映射
-}
-
-TEST(RecruitAutoRecruit, DedupeCorruptedRecruitsBeforeFilter) {
-    auto core = makeCore(20260901);
-    auto& st = core->state();
-    st.gameData.gameYear = 1;
-    st.gameData.gameMonth = 2;
-    st.gameData.autoRecruitSpiritRootFilter = {1};
-    // 损坏条目（空名）先于正常条目且同 id——净化必须丢弃损坏者而非正常者
-    Disciple corrupted = recruitCandidate("r1", "metal");
-    corrupted.name = "   ";
-    st.gameData.recruitList = {
-        corrupted,
-        recruitCandidate("r1", "metal"),           // 同 id 正常条目
-        recruitCandidate("r1", "metal,fire"),      // 同 id 不同内容（id 去重保留首个）
-        recruitCandidate("r2", "metal,fire")       // 不匹配保留
-    };
-    st.disciples.appendDisciple(adultDisciple("11", "male"));
-    st.disciples.appendDisciple(adultDisciple("12", "female"));
-
-    processAutoRecruit(st);
-
-    // 损坏条目随列表重建移除；r1 正常条目入宗；r2 保留
-    ASSERT_EQ(1u, st.gameData.recruitList.size());
-    EXPECT_EQ("r2", st.gameData.recruitList[0].id);
-    ASSERT_EQ(3u, st.disciples.size());
-    EXPECT_EQ("13", st.disciples.idAt(2));
-    EXPECT_EQ(1, st.gameData.recruitCountThisMonth);
 }
 
 // ── 子事件 15/16：秘境到期关闭 + AI 队伍派遣 ─────────────

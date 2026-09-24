@@ -51,8 +51,7 @@ data class SectPolicies(
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(28) val autoMultiResidenceThreshold: Int = 1,
 
-    // 新增10项政策
-    @ProtoNumber(29) val openRecruitment: Boolean = false,           // 广纳门徒
+    // 政策开关
     @ProtoNumber(30) val asceticTraining: Boolean = false,            // 苦修令
     @ProtoNumber(31) val curfew: Boolean = false,                     // 宵禁
     @ProtoNumber(32) val rewardPunish: Boolean = false,               // 赏善罚恶

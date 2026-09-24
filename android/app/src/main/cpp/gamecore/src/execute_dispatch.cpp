@@ -40,9 +40,6 @@
 #include "gamecore/system/storage_bag_tx.h"
 #include "gamecore/system/patrol_tx.h"
 #include "gamecore/system/sect_attack_tx.h"
-// recruit_tx.h（batch-16 招募列表 UI 直调事务）传递引入 year_settlement.h →
-// month_settlement.h using 声明——按 README §3.3 置于包含块末尾、diplomacy_tx.h 之前
-#include "gamecore/system/recruit_tx.h"
 // diplomacy_tx.h 置于包含块末尾：其 month_settlement.h 传递引入的
 // using 声明会改变后续头文件（disciple_tx.h）的非限定名解析
 //（include-order 依赖，batch-09 登记项）
@@ -2245,41 +2242,6 @@ nlohmann::json handleAppointmentTx(GameCore* core, int32_t actionId,
     }
 }
 
-/// 招募域 UI 操作事务（ActionIds.RECRUIT_REMOVE_TX / RECRUIT_REFRESH_TX /
-/// RECRUIT_AGE_TX——batch-16 招募列表维护族写者下沉：移除/净化零 RNG
-/// 纯事务，刷新复用 year_settlement 候选生成链（SYSTEM 分区，与 Kotlin 臂
-/// 逐位同源；差值门内置于 C++ 链）。失败信封 → Kotlin 回退原路径重执行
-/// 校验链。命名独立于既有招募专用 JNI（nativeRecruitAllFromList），中央
-/// switch 范围分支不重叠）
-nlohmann::json handleRecruitTx(GameCore* core, int32_t actionId,
-                               const nlohmann::json& params) {
-    namespace recruit_tx = gamecore::system::recruit_tx;
-    auto& state = core->state();
-    switch (actionId) {
-        case action::RECRUIT_REMOVE_TX: {
-            const auto r = recruit_tx::removeRecruitTx(
-                state, params.at("discipleId").get<std::string>());
-            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"removed", r.removed}, {"remaining", r.remaining}});
-        }
-        case action::RECRUIT_REFRESH_TX: {
-            const auto r = recruit_tx::refreshRecruitTx(
-                state, params.value("year", 1), core->rng());
-            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"generated", r.generated},
-                       {"autoRecruited", r.autoRecruited},
-                       {"remaining", r.remaining}});
-        }
-        case action::RECRUIT_AGE_TX: {            const auto r = recruit_tx::ageRecruitTx(state, core->ecsWorld());
-            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"removed", r.removed}, {"remaining", r.remaining}});
-        }
-        default:
-            return fail("UNKNOWN_ACTION",
-                        "recruit tx action " + std::to_string(actionId));
-    }
-}
-
 /// 探索域 UI 操作事务（ActionIds.EXPLORE_TX_*——batch-13：世界关卡/侦察
 /// 战斗执行（BATTLE 分区）+ 伤亡写回（袋物化）+ 分舵驻守零 RNG 事务；
 /// 命名独立于既有 handleExploration（月结/关卡域），中央 switch 范围分支
@@ -2503,7 +2465,7 @@ nlohmann::json handleBoundaryTx(GameCore* core, int32_t actionId,
     }
 }
 
-/// 政策开关事务（ActionIds.GOV_POLICY_TOGGLE_TX / GOV_OPEN_RECRUITMENT_TOGGLE_TX /
+/// 政策开关事务（ActionIds.GOV_POLICY_TOGGLE_TX /
 /// GOV_SPIRIT_MINE_BOOST_TOGGLE_TX——batch-18b：政策置位 + 首月扣费 + 激活计数 +
 /// 修炼全量 checkpoint，零 RNG）。失败信封 → Kotlin 回退臂重执行判定链并产出
 /// 用户可见文案。`productionCheckpointNeeded` 回执由 Kotlin 臂消费以触发
@@ -2527,11 +2489,6 @@ nlohmann::json handlePolicyTx(GameCore* core, int32_t actionId,
                 state, params.at("field").get<std::string>(),
                 params.value("monthlyCost", static_cast<int64_t>(0)),
                 params.value("affectsCultivationRate", false));
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok(payload(r));
-        }
-        case action::GOV_OPEN_RECRUITMENT_TOGGLE_TX: {
-            const auto r = sys::openRecruitmentToggleTx(state);
             if (!r.ok) return fail(r.errorType, r.message);
             return ok(payload(r));
         }
@@ -2699,9 +2656,6 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::SPIRIT_ROOT_WASH_CONFIRM_TX &&
                    actionId <= action::TRAIT_WASH_CONFIRM_TX) {
             result = handleAppointmentTx(this, actionId, params);
-        } else if (actionId >= action::RECRUIT_REMOVE_TX &&
-                   actionId <= action::RECRUIT_AGE_TX) {
-            result = handleRecruitTx(this, actionId, params);
         } else if (actionId >= action::BOUNDARY_GUIDE_COUNTER_INCREMENT_TX &&
                    actionId <= action::BOUNDARY_BUILDING_GUIDE_BACKFILL_TX) {
             result = handleBoundaryTx(this, actionId, params);

@@ -48,11 +48,6 @@ import kotlin.math.roundToInt
 
 
 
-/** AI 宗门周期性招募每周期人数下限（含） */
-private const val SECT_RECRUIT_MIN_COUNT = 1
-/** AI 宗门周期性招募每周期人数上限（含） */
-private const val SECT_RECRUIT_MAX_COUNT = 5
-
 /**
  * AI 流种子步长：`aiSeed = seed + AI_SECT.id(6) × 31337`。
  *
@@ -62,7 +57,7 @@ private const val SECT_RECRUIT_MAX_COUNT = 5
  */
 private const val AI_SECT_SEED_STRIDE = 31337L
 
-@Suppress("LargeClass") // AI 弟子域聚合（生成/装备/修炼/突破/招募/养成，先例 GameData.kt）
+@Suppress("LargeClass") // AI 弟子域聚合（生成/装备/修炼/突破/养成，先例 GameData.kt）
 object AISectDiscipleManager {
     /**
      * AI 随机源解析器（**非自持流**——R5 禁止自建随机源，本字段只做"接入真源"）。
@@ -329,40 +324,6 @@ object AISectDiscipleManager {
         return AIPreparedBattle(disciples, equipmentMapByDisciple, manualMap, proficiencies)
     }
 
-    fun recruitYearlyDisciples(
-        sectName: String,
-        existingDisciples: List<Disciple>,
-        sectLevel: Int = SectLevel.SMALL
-    ): List<Disciple> {
-        val newDisciples = generateYearlyRecruits(sectName, existingDisciples, sectLevel)
-        return truncateToLimit(existingDisciples + newDisciples)
-    }
-
-    // 注：recruitYearlyDisciples 当前无调用方（预留）。周期性招募由年变事件经
-    // runSectRecruitmentIfDue 差值判据每 3 年触发一次，本函数自动继承同一数量范围。
-
-    /**
-     * 仅生成周期性招募新弟子列表（不合并现有弟子），供占领路由使用。
-     * 由年变事件每 3 年（AI_SECT_RECRUIT_INTERVAL_YEARS，差值判据）触发一次，
-     * 每批 [SECT_RECRUIT_MIN_COUNT]~[SECT_RECRUIT_MAX_COUNT] 名炼气弟子。
-     *
-     * @param sectLevel 宗门等级（决定新弟子装备/功法数量）
-     */
-    fun generateYearlyRecruits(
-        sectName: String,
-        existingDisciples: List<Disciple>,
-        sectLevel: Int = SectLevel.SMALL
-    ): List<Disciple> {
-        val newDisciples = mutableListOf<Disciple>()
-        val usedNames = existingDisciples.map { it.name }.toMutableSet()
-        repeat(SECT_RECRUIT_MIN_COUNT + rng.nextInt(SECT_RECRUIT_MAX_COUNT)) {
-            val disciple = generateQiRefiningDisciple(sectName, usedNames, sectLevel)
-            newDisciples.add(disciple)
-            usedNames.add(disciple.name)
-        }
-        return newDisciples
-    }
-
     fun processMonthlyCultivation(
         disciples: List<Disciple>,
         batchMonths: Int = 1,
@@ -391,8 +352,7 @@ object AISectDiscipleManager {
 
     fun initializeSectDisciples(sectName: String, sectLevel: Int): Pair<List<Disciple>, Int> {
         // 初始 50 名弟子按宗门等级分布境界（小型最高元婴/中型化神/大型合体/顶级仙人，
-        // 权重 炼气3/筑基2/金丹2/其余1）；后续周期性招募的新弟子固定炼气一层
-        // （见 generateQiRefiningDisciple）。
+        // 权重 炼气3/筑基2/金丹2/其余1）。
         val config = SectLevelConfig.forLevel(sectLevel)
 
         val disciples = mutableListOf<Disciple>()
@@ -451,8 +411,7 @@ object AISectDiscipleManager {
 
     /**
      * 旧存档兼容：将 AI 宗门弟子补充至目标数量。
-     * 新增弟子境界在宗门等级允许范围内按权重随机分配（与初始分布同规则）；
-     * 周期性招募的新弟子固定炼气一层（generateQiRefiningDisciple）。
+     * 新增弟子境界在宗门等级允许范围内按权重随机分配（与初始分布同规则）。
      *
      * @param sectName 宗门名称
      * @param existingDisciples 现有弟子列表

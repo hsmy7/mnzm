@@ -413,14 +413,6 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSettleMonth(
     return stringToJbytes(env, g_gameCore->settleMonth());
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeResetAutoRecruitIdle(
-    JNIEnv* /*env*/, jobject /*thiz*/) {
-    jniRequireEngineThread("nativeResetAutoRecruitIdle");
-    if (!g_gameCore) return;
-    g_gameCore->resetAutoRecruitIdle();
-}
-
 /** 内存 trim 档位投递（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道
  *  gamecore 面）。命令投递式：任意 Kotlin 线程可投（只写原子水位，不走
  *  jniRequireEngineThread）；消费在引擎线程结算边界（GameCore 内部，
@@ -535,33 +527,6 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeImportStateNoRng(
     return g_gameCore->importStateJsonNoRng(jbytesToString(env, stateJson))
                ? JNI_TRUE
                : JNI_FALSE;
-}
-
-// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉：
-// AUTHORITATIVE 单真相源——C++ 直接招募入宗，状态变化经下一 tick 前向 diff
-// 推送镜像。信封见 GameCore::manualRecruitFromList KDoc）。
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeManualRecruitFromList(
-    JNIEnv* env, jobject /*thiz*/, jstring discipleId) {
-    jniRequireEngineThread("nativeManualRecruitFromList");
-    if (!g_gameCore) {
-        return stringToJbytes(env,
-            R"({"ok":false,"newId":"","age":0,"name":"","reason":"UNKNOWN"})");
-    }
-    return stringToJbytes(env, g_gameCore->manualRecruitFromList(
-        jstringToStd(env, discipleId)));
-}
-
-// 一键招募全部（Kotlin GameEngine.recruitAllFromList 等价下沉；信封见
-// GameCore::manualRecruitAll KDoc）。
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRecruitAllFromList(
-    JNIEnv* env, jobject /*thiz*/) {
-    jniRequireEngineThread("nativeRecruitAllFromList");
-    if (!g_gameCore) {
-        return stringToJbytes(env, R"({"ok":false,"count":0,"reason":"UNKNOWN"})");
-    }
-    return stringToJbytes(env, g_gameCore->manualRecruitAll());
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL

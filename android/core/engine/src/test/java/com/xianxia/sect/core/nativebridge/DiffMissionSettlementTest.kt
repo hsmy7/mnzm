@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EnemyType
@@ -131,7 +130,6 @@ class DiffMissionSettlementTest {
 
     /** 双臂推进：返回 (Kotlin 期望面, C++ 实际面) */
     private fun runMissionDiff(snapshot: NativeGameState): Pair<NativeGameState, NativeGameState> {
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
         val expected = advanceKotlinMonthSide(buildMonthDiffHarness(storeOf(snapshot),
             snapshot.gameData.rngStates), PHASES)

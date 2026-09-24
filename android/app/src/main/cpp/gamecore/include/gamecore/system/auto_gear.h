@@ -12,11 +12,10 @@
 #include "gamecore/ecs/disciple_component.h"  // E2：syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
-#include "gamecore/system/inventory.h"  // addToDiscipleBag（审计 P2-8）
+#include "gamecore/system/inventory.h"  // addToDiscipleBag（审计 P2-8）/ nextInstanceId
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/pill_system.h"   // decreaseItemQuantity（袋内堆叠扣减）
-#include "gamecore/system/recruit_settlement.h"  // nextInstanceId / minRealmForRarity
-#include "gamecore/system/settlement_detail.h"
+#include "gamecore/system/settlement_detail.h"  // settle_util::minRealmForRarity / kotlinDoubleString
 
 // ============================================================
 // 自动装备/学习
@@ -173,7 +172,7 @@ inline std::optional<EquipCandidate> equipCandidateFromBag(
         c.rarity = tpl->rarity;
         c.minRealm = item.stackedData->minRealm > 0
             ? item.stackedData->minRealm
-            : gamecore::system::recruit_settle::minRealmForRarity(tpl->rarity);
+            : settle_util::minRealmForRarity(tpl->rarity);
         c.hasPhysical = tpl->physicalAttack > 0;
         c.hasMagic = tpl->magicAttack > 0;
         c.bagQuantity = item.quantity;
@@ -253,7 +252,7 @@ inline std::optional<ManualCandidate> manualCandidateFromBag(
         c.rarity = tpl->rarity;
         c.minRealm = item.stackedData->minRealm > 0
             ? item.stackedData->minRealm
-            : gamecore::system::recruit_settle::minRealmForRarity(tpl->rarity);
+            : settle_util::minRealmForRarity(tpl->rarity);
         c.hasPhysical = tpl->skillDamageType == "physical";
         c.hasMagic = tpl->skillDamageType == "magic";
         c.bagQuantity = item.quantity;
@@ -286,7 +285,7 @@ inline void setEquipSlot(Disciple& d, const std::string& slot,
 inline EquipmentInstance instanceFromStack(const EquipmentStack& s,
                                            const std::string& ownerId) {
     EquipmentInstance inst;
-    inst.id = gamecore::system::recruit_settle::nextInstanceId();
+    inst.id = nextInstanceId();
     inst.name = s.name;
     inst.rarity = s.rarity;
     inst.description = s.description;
@@ -444,7 +443,7 @@ inline bool autoEquipSlot(Disciple& d, GameState& state,
         // 袋内堆叠：模板重建完整实例（equipCandidateFromBag 已保证模板存在）
         const auto* tpl = equipmentTemplateByName(actionBagName);
         EquipmentInstance inst;
-        inst.id = gamecore::system::recruit_settle::nextInstanceId();
+        inst.id = nextInstanceId();
         inst.name = tpl->name;
         inst.rarity = tpl->rarity;
         inst.description = tpl->description;
@@ -474,7 +473,7 @@ inline bool autoEquipSlot(Disciple& d, GameState& state,
 inline ManualInstance manualInstanceFromStack(const ManualStack& s,
                                               const std::string& ownerId) {
     ManualInstance inst;
-    inst.id = gamecore::system::recruit_settle::nextInstanceId();
+    inst.id = nextInstanceId();
     inst.name = s.name;
     inst.rarity = s.rarity;
     inst.description = s.description;
@@ -529,7 +528,7 @@ inline std::string buffsJsonOf(const gamecore::data::ManualTemplate& tpl) {
     for (std::size_t i = 0; i < tpl.skillBuffs.size(); ++i) {
         if (i > 0) out += "|";
         out += tpl.skillBuffs[i].type + "," +
-               gamecore::system::recruit_settle::kotlinDoubleString(
+               settle_util::kotlinDoubleString(
                    tpl.skillBuffs[i].value) + "," +
                std::to_string(tpl.skillBuffs[i].duration);
     }
@@ -575,7 +574,7 @@ inline ManualInstance manualInstanceFromBagTemplate(
         inst.type = item.stackedData && !item.stackedData->manualType.empty()
             ? item.stackedData->manualType : "MIND";
     }
-    inst.id = gamecore::system::recruit_settle::nextInstanceId();
+    inst.id = nextInstanceId();
     inst.minRealm = minRealm;
     inst.ownerId = ownerId;
     inst.isLearned = true;

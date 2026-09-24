@@ -130,13 +130,6 @@ object GameCoreBridge {
     external fun nativeSettleMonth(): ByteArray
 
     /**
-     * 重置自动招募惰性门：Kotlin 侧重置点（年度招募刷新/玩家改
-     * 筛选/生育/净化）调用，通知 C++ 复位 autoRecruitIdle——月变真相源切换后
-     * autoRecruit 在 C++ 侧执行，重置点仍分布在 Kotlin，必须经此通道同步。
-     */
-    external fun nativeResetAutoRecruitIdle()
-
-    /**
      * 内存 trim 档位投递（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道
      * gamecore 面）。命令投递式：任意 Kotlin 线程可投（C++ 侧只写原子水位），
      * 消费在引擎线程结算边界（旬/月/年末尾——账本 cap 归一，CRITICAL 追加
@@ -263,35 +256,6 @@ object GameCoreBridge {
      * 分区回卷与跨语言漂移）
      */
     external fun nativeImportStateNoRng(stateJson: ByteArray): Boolean
-
-    /**
-     * 手动招募单招（Kotlin [com.xianxia.sect.core.domain.disciple.DiscipleFacadeImpl]
-     * 手动招募等价下沉——AUTHORITATIVE 单真相源：C++ 直接招募入宗，状态变化经
-     * 下一 tick 前向 diff 推送镜像，消除"Kotlin 镜像修改 vs C++ 权威结算"窗口。
-     *
-     * 返回 JSON 信封字节：
-     * `{"ok":bool, "newId":string, "name":string,
-     *   "reason":"SUCCESS|MONTHLY_LIMIT|NOT_FOUND|CORRUPTED|UNKNOWN"}`
-     * - ok=false + reason=MONTHLY_LIMIT：本月招募已达上限（弹上限通知）
-     * - ok=false + reason=NOT_FOUND：该弟子已不在招募列表
-     * - ok=false + reason=CORRUPTED：数据损坏（C++ 已同事务移除，name 有效）
-     * - ok=false + reason=UNKNOWN：异常兜底（调用方回退 Kotlin 实现）
-     * 引擎未初始化返回 ok=false + reason=UNKNOWN。
-     *
-     * @param discipleId 待招募弟子在 recruitList 中的 id（UI 层 DiscipleAggregate.id）
-     */
-    external fun nativeManualRecruitFromList(discipleId: String): ByteArray
-
-    /**
-     * 一键招募全部（Kotlin [com.xianxia.sect.core.GameEngine].recruitAllFromList
-     * 等价下沉）。返回 JSON 信封字节：
-     * `{"ok":bool, "count":int, "reason":"SUCCESS|MONTHLY_LIMIT|UNKNOWN"}`。
-     * - ok=true + count=0：净化后无候选（不弹提示，与 Kotlin 现状一致）
-     * - ok=false + reason=MONTHLY_LIMIT：本月招募已达上限（弹上限通知）
-     * - ok=false + reason=UNKNOWN：异常兜底（调用方回退 Kotlin 实现）
-     * 引擎未初始化返回 ok=false + reason=UNKNOWN。
-     */
-    external fun nativeRecruitAllFromList(): ByteArray
 
     /**
      * 导出自上次导出以来的变更集（UI 镜像增量同步）。恒产出 GameView

@@ -411,7 +411,7 @@ void to_json(nlohmann::json& j, const SectPolicies& v) {
     GC_TO(v, j, autoForgeFocused); GC_TO(v, j, autoForgeRootCounts); GC_TO(v, j, autoForgeThreshold);
     GC_TO(v, j, autoSingleResidenceFocused); GC_TO(v, j, autoSingleResidenceRootCounts); GC_TO(v, j, autoSingleResidenceThreshold);
     GC_TO(v, j, autoMultiResidenceFocused); GC_TO(v, j, autoMultiResidenceRootCounts); GC_TO(v, j, autoMultiResidenceThreshold);
-    GC_TO(v, j, openRecruitment); GC_TO(v, j, asceticTraining); GC_TO(v, j, curfew);
+    GC_TO(v, j, asceticTraining); GC_TO(v, j, curfew);
     GC_TO(v, j, rewardPunish); GC_TO(v, j, strictTraining); GC_TO(v, j, relaxedMgmt);
     GC_TO(v, j, spiritSpring); GC_TO(v, j, frugality); GC_TO(v, j, moralEducation);
     GC_TO(v, j, benevolentGovernance);
@@ -428,7 +428,7 @@ void from_json(const nlohmann::json& j, SectPolicies& v) {
     GC_FROM(j, v, autoForgeFocused); GC_FROM(j, v, autoForgeRootCounts); GC_FROM(j, v, autoForgeThreshold);
     GC_FROM(j, v, autoSingleResidenceFocused); GC_FROM(j, v, autoSingleResidenceRootCounts); GC_FROM(j, v, autoSingleResidenceThreshold);
     GC_FROM(j, v, autoMultiResidenceFocused); GC_FROM(j, v, autoMultiResidenceRootCounts); GC_FROM(j, v, autoMultiResidenceThreshold);
-    GC_FROM(j, v, openRecruitment); GC_FROM(j, v, asceticTraining); GC_FROM(j, v, curfew);
+    GC_FROM(j, v, asceticTraining); GC_FROM(j, v, curfew);
     GC_FROM(j, v, rewardPunish); GC_FROM(j, v, strictTraining); GC_FROM(j, v, relaxedMgmt);
     GC_FROM(j, v, spiritSpring); GC_FROM(j, v, frugality); GC_FROM(j, v, moralEducation);
     GC_FROM(j, v, benevolentGovernance);
@@ -1246,7 +1246,6 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, activeSectId);
     GC_TO(v, j, merchantLastRefreshYear); GC_TO(v, j, merchantRefreshCount);
     GC_TO(v, j, merchantRefreshChances); GC_TO(v, j, merchantLastRefreshChanceGrantYear);
-    GC_TO(v, j, lastRecruitYear); GC_TO(v, j, lastAiSectRecruitYear);
     GC_TO(v, j, recruitCountThisMonth);
     GC_TO(v, j, jadeSymbols); GC_TO(v, j, jadeSymbolsToday);
     GC_TO(v, j, jadeDayAnchorMs); GC_TO(v, j, jadeAccumMs);
@@ -1258,9 +1257,8 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, lastSaveTime); GC_TO(v, j, saveVersion);
     GC_TO(v, j, playerProtectionEnabled); GC_TO(v, j, playerProtectionStartYear);
     GC_TO(v, j, playerHasAttackedAI);
-    GC_TO(v, j, playerAllianceSlots); GC_TO(v, j, openRecruitmentLastPaidMonth);
-    GC_TO(v, j, autoRecruitSpiritRootFilter); GC_TO(v, j, prisonerSpiritRootFilter);
-    GC_TO(v, j, autoRejectSpiritRootFilter);
+    GC_TO(v, j, playerAllianceSlots);
+    GC_TO(v, j, prisonerSpiritRootFilter);
     GC_TO(v, j, breakthroughAutoPillRootCounts);
     GC_TO(v, j, autoEquipFromWarehouseRootCounts);
     GC_TO(v, j, autoLearnFromWarehouseRootCounts);
@@ -1341,7 +1339,6 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, activeSectId);
     GC_FROM(j, v, merchantLastRefreshYear); GC_FROM(j, v, merchantRefreshCount);
     GC_FROM(j, v, merchantRefreshChances); GC_FROM(j, v, merchantLastRefreshChanceGrantYear);
-    GC_FROM(j, v, lastRecruitYear); GC_FROM(j, v, lastAiSectRecruitYear);
     GC_FROM(j, v, recruitCountThisMonth);
     GC_FROM(j, v, jadeSymbols); GC_FROM(j, v, jadeSymbolsToday);
     GC_FROM(j, v, jadeDayAnchorMs); GC_FROM(j, v, jadeAccumMs);
@@ -1353,9 +1350,8 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, lastSaveTime); GC_FROM(j, v, saveVersion);
     GC_FROM(j, v, playerProtectionEnabled); GC_FROM(j, v, playerProtectionStartYear);
     GC_FROM(j, v, playerHasAttackedAI);
-    GC_FROM(j, v, playerAllianceSlots); GC_FROM(j, v, openRecruitmentLastPaidMonth);
-    GC_FROM(j, v, autoRecruitSpiritRootFilter); GC_FROM(j, v, prisonerSpiritRootFilter);
-    GC_FROM(j, v, autoRejectSpiritRootFilter);
+    GC_FROM(j, v, playerAllianceSlots);
+    GC_FROM(j, v, prisonerSpiritRootFilter);
     GC_FROM(j, v, breakthroughAutoPillRootCounts);
     GC_FROM(j, v, autoEquipFromWarehouseRootCounts);
     GC_FROM(j, v, autoLearnFromWarehouseRootCounts);

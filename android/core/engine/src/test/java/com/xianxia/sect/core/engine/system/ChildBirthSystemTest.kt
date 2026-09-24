@@ -117,17 +117,14 @@ class ChildBirthSystemTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `monthly birth - 到月母亲分娩追加新生儿并重置状态`() {
+    fun `monthly birth - 到月母亲分娩并重置状态`() {
         val (father, mother) = createParents()
         val state = createState(father, mother)
 
         system.onMonthlyEvent(state)
 
-        val baby = requireNotNull(state.gameData.recruitList.singleOrNull()) {
-            "新生儿应追加到 recruitList"
-        }
-        assertTrue("新生儿应有名字", baby.name.isNotBlank())
-        assertTrue("新生儿应存活", baby.isAlive)
+        // 招募链下线：新生儿不再写入 recruitList（恒空）
+        assertTrue("recruitList 恒空", state.gameData.recruitList.isEmpty())
         val motherAfter = state.discipleTables.assemble(1)
         assertNull("母亲 childBirthMonth 应重置", motherAfter.social.childBirthMonth)
         assertEquals("母亲 lastChildYear 应为当前年", 3, motherAfter.social.lastChildYear)
@@ -144,38 +141,6 @@ class ChildBirthSystemTest {
         val motherAfter = state.discipleTables.assemble(1)
         assertNull("母亲 childBirthMonth 应清除", motherAfter.social.childBirthMonth)
         assertNull("母亲 partnerId 应清除", motherAfter.social.partnerId)
-    }
-
-    @Test
-    fun `monthly birth - 新生儿姓氏继承父亲`() {
-        val (father, mother) = createParents()
-        val state = createState(father, mother)
-
-        system.onMonthlyEvent(state)
-
-        val baby = state.gameData.recruitList.single()
-        assertEquals("新生儿应继承父亲姓氏", "赵", baby.surname)
-    }
-
-    @Test
-    fun `monthly birth - 多种子下性别与灵根继承分布正确`() {
-        val genders = mutableSetOf<String>()
-        val inheritedRoots = mutableSetOf<String>()
-        for (seed in 1L..200L) {
-            val rng = GameRngManager()
-            rng.initSystemSeed(seed)
-            val sys = createSystem(rng)
-            val (father, mother) = createParents()
-            val state = createState(father, mother)
-            sys.onMonthlyEvent(state)
-            val baby = state.gameData.recruitList.firstOrNull() ?: continue
-            genders += baby.gender
-            if (baby.spiritRootType in setOf("metal", "wood")) {
-                inheritedRoots += baby.spiritRootType
-            }
-        }
-        assertTrue("多种子下应出现男女两性", genders.containsAll(setOf("male", "female")))
-        assertTrue("新生儿应能继承父/母灵根", inheritedRoots.isNotEmpty())
     }
 
     // ═══════════════════════════════════════════════════════════════

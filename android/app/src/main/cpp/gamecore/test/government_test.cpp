@@ -85,24 +85,6 @@ TEST(PolicyCostTest, PerDisciplePolicies) {
     EXPECT_EQ(gd.spiritStones, 100000 - 1400);
 }
 
-TEST(PolicyCostTest, OpenRecruitmentCooldown) {
-    GameData gd;
-    gd.spiritStones = 100000;
-    gd.sectPolicies.openRecruitment = true;
-    gd.gameYear = 2;
-    gd.gameMonth = 1;   // 绝对 25
-    gd.openRecruitmentLastPaidMonth = 25;  // 冷却期内
-    const auto result = processPolicyCosts(gd, 5, 3);
-    EXPECT_TRUE(result.allPaid);
-    EXPECT_EQ(gd.spiritStones, 100000);  // 未扣
-    // 超过 36 个月后扣
-    gd.gameYear = 5;
-    gd.gameMonth = 1;   // 绝对 61，61-25=36 ≥ 36 → 扣
-    const auto result2 = processPolicyCosts(gd, 5, 3);
-    EXPECT_EQ(gd.spiritStones, 100000 - 50000);
-    EXPECT_EQ(gd.openRecruitmentLastPaidMonth, 61);
-}
-
 // ── 政策月度道德 ──────────────────────────────────────────────
 
 TEST(PolicyMonthlyTest, MoralityDelta) {

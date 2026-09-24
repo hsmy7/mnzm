@@ -93,8 +93,6 @@ class DiffStateTest {
         merchantRefreshCount = 3
         merchantRefreshChances = 1
         merchantLastRefreshChanceGrantYear = 4
-        lastRecruitYear = 3
-        lastAiSectRecruitYear = 2
         recruitCountThisMonth = 1
         jadeSymbols = 7
         jadeSymbolsToday = 2
@@ -118,8 +116,6 @@ class DiffStateTest {
     /** 标量字段（第 2 组）：playerAllianceSlots → yearlySalaryEnabled。 */
     private fun GameData.applyGameDataScalarsPart2(): GameData = apply {
         playerAllianceSlots = 3
-        openRecruitmentLastPaidMonth = 0
-        autoRecruitSpiritRootFilter = setOf(1, 2, 3)
         prisonerSpiritRootFilter = emptySet()
         daoCompanionBannedRootCounts = setOf(5)
         guideClaimedRewardIds = setOf(1, 2)
@@ -156,7 +152,7 @@ class DiffStateTest {
         sectPolicies = com.xianxia.sect.core.model.SectPolicies(
             spiritMineBoost = true, enhancedSecurity = true,
             autoMineRootCounts = listOf(1, 2), autoMineThreshold = 3,
-            openRecruitment = true, frugality = true
+            frugality = true
         )
         elderSlots = com.xianxia.sect.core.model.ElderSlots(
             viceSectMaster = "d-1", herbGardenElder = "d-2",

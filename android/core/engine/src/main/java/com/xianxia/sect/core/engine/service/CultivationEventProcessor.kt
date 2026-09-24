@@ -50,7 +50,6 @@ class CultivationEventProcessor @Inject constructor(
     internal val breakthroughHandler: DiscipleBreakthroughHandler,
     internal val cultivationSettlement: CultivationSettlement,
     internal val battleSystem: BattleSystem,
-    internal val recruitService: RecruitService,
     internal val merchantAndRecruitService: MerchantAndRecruitService,
     internal val caveExplorationProcessor: javax.inject.Provider<CaveExplorationProcessor>,
     internal val discipleLifecycleProcessor: DiscipleLifecycleProcessor,
@@ -85,12 +84,6 @@ class CultivationEventProcessor @Inject constructor(
          * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
          */
         internal const val TAG = "CultivationEventProc"
-
-        /** 招募列表刷新间隔（年）— 与启动补刷路径（checkAndRepairMerchantAndRecruit）共用差值判据 */
-        internal const val RECRUIT_REFRESH_INTERVAL_YEARS = 3
-
-        /** AI 宗门弟子周期性招募间隔（年）— 差值判据，老档相位漂移自愈/失败次年重试 */
-        internal const val AI_SECT_RECRUIT_INTERVAL_YEARS = 3
 
         /** L3a 年变延迟队列 drain 时间预算（ms）：逐 tick 分摊延迟组的最大耗时 */
         internal const val YEARLY_OPS_DRAIN_BUDGET_MS = 30L

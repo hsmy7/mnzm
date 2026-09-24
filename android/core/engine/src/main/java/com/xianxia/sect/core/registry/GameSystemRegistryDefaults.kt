@@ -36,7 +36,6 @@ object GameSystemRegistryDefaults {
         register("engine.service", "MerchantAndRecruitService")
         register("engine.service", "OverflowMailSender")
         register("engine.service", "ProductionProcessor")
-        register("engine.service", "RecruitService")
         register("engine.service", "RedeemCodeService")
         register("engine.service", "RelativeGiftHandler")
         // AI 宗门/玉符/秘境等引擎侧服务（原 core/engine/service 组） ──

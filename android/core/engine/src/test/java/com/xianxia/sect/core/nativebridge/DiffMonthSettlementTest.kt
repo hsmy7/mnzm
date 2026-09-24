@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.AutoBuyEntry
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -44,10 +43,8 @@ import org.junit.Test
  * ⑦附庸脱离：玩家宗门 p1 + 附属 ai-3（至交 100，战力比 ≥5x
  * → 概率 0.0）恰抽 1 次 SYSTEM 必不脱离——契约保留零事件；玩家宗门在场
  * 使 gameOverCheck 走"本宗未被占领 → 不触发"路径。
- * ⑧自动招募：recruitList 含 1 名匹配（灵根 1 根，无装备/功法——
- * 俘虏落库 no-op 规避 UUID 分叉）+ 1 名不匹配；autoRecruitSpiritRootFilter
- * {1} → 弟子 17 入宗（id=max+1、资质 50→82 散列补算、recruitedMonth=14、
- * annualNewDisciples+1），r2 保留在列表；零 RNG 抽取（SYSTEM 抽取序零扰动）。
+ * ⑨秘境 AI 队伍派遣——秘境存在（spawnYear=1 未到期，规避子事件 15 关闭）
+ * + ai-3 有存活弟子 → 子事件 16 派遣 1 队。
  * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/ consentRequired=false /
  * worldLevels 空（precomputeTargets 纯早退）/ spiritFieldPlants 空 /
  * activeBloodRefinements 空 / 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
@@ -75,23 +72,11 @@ class DiffMonthSettlementTest {
         /** 扩展夹具弟子 B 入伍绝对月（年 1 月 1 = 13；覆盖入伍月字段面） */
         const val FIXTURE_EXTRA_B_RECRUITED_MONTH = 13
 
-        /** 扩展夹具弟子 A id（保持弟子 id 上限——自动招募新弟子 id=17 金黄锚点） */
+        /** 扩展夹具弟子 A id（预置道侣——保持配对抽取 4 组合口径） */
         const val FIXTURE_EXTRA_A_ID = "15"
 
         /** 扩展夹具弟子 B id（道德 10 + 入伍月 13 字段面覆盖） */
         const val FIXTURE_EXTRA_B_ID = "16"
-
-        /** 自动招募匹配候选 id（recruitList 侧；入宗后分配新 id=max+1=17） */
-        const val RECRUIT_MATCH_ID = "r1"
-
-        /** 自动招募不匹配候选 id（2 灵根 ∉ filter{1}，保留在列表） */
-        const val RECRUIT_KEEP_ID = "r2"
-
-        /** 自动招募入宗新弟子 id（现有弟子 11..16 → max=16 → 17） */
-        const val NEW_RECRUIT_ID = 17
-
-        /** 新弟子资质散列补算期望（id=17，1 灵根 → 80 + floorMod(8990,21)=2） */
-        const val NEW_RECRUIT_APTITUDE = 82
 
 
         /** 场景⑯：母亲 id（到期生育；DiscipleTables 列式存储要求
@@ -144,8 +129,8 @@ class DiffMonthSettlementTest {
             )
             // 场景⑦：附庸脱离场景（玩家宗门 + 至交附属 + AI 弟子）
             applyVassalBreakawayScene()
-            // 场景⑧⑨：自动招募 + 秘境 AI 队伍派遣
-            applyAutoRecruitAndRealmScene()
+            // 场景⑨：秘境 AI 队伍派遣
+            applySecretRealmScene()
         }
         return NativeGameState(
             gameData = gameData,
@@ -157,8 +142,8 @@ class DiffMonthSettlementTest {
                 pairingDisciple("12", "甲二", "male"),
                 pairingDisciple("13", "乙一", "female"),
                 pairingDisciple("14", "乙二", "female"),
-                // 扩展夹具弟子 A：保持弟子 id 上限（自动招募新弟子 id=17 金黄锚点）；
-                // 预置道侣 → 不入配对候选（SYSTEM 抽取数保持 4 组合口径）
+                // 扩展夹具弟子 A：预置道侣 → 不入配对候选
+                //（SYSTEM 抽取数保持 4 组合口径）
                 pairingDisciple(FIXTURE_EXTRA_A_ID, "丙一", "male")
                     .copy(social = SocialData(partnerId = "99")),
                 // 扩展夹具弟子 B：道德 10 + 入伍月 13（道德/入伍月字段面覆盖）
@@ -172,17 +157,10 @@ class DiffMonthSettlementTest {
     }
 
     /**
-     * 场景⑧⑨：自动招募——1 根灵根匹配 filter{1}（无装备/功法，
-     * 俘虏落库 no-op 规避 UUID 分叉）+ 2 根灵根不匹配保留列表；秘境 AI 队伍
-     * 派遣——秘境存在（spawnYear=1 未到期，规避子事件 15 关闭）+ ai-3 有存活
-     * 弟子 → 子事件 16 派遣 1 队。
+     * 场景⑨：秘境 AI 队伍派遣——秘境存在（spawnYear=1 未到期，规避子事件 15
+     * 关闭）+ ai-3 有存活弟子 → 子事件 16 派遣 1 队。
      */
-    private fun GameData.applyAutoRecruitAndRealmScene() {
-        autoRecruitSpiritRootFilter = setOf(1)
-        recruitList = listOf(
-            recruitCandidate(RECRUIT_MATCH_ID, "戊一", "metal"),
-            recruitCandidate(RECRUIT_KEEP_ID, "己一", "metal,fire")
-        )
+    private fun GameData.applySecretRealmScene() {
         secretRealmState = com.xianxia.sect.core.model.SecretRealmState(
             id = "sr1", name = "远古秘境", x = 100f, y = 100f, spawnYear = 1
         )
@@ -192,7 +170,7 @@ class DiffMonthSettlementTest {
      * 场景⑦：附庸脱离——玩家宗门在场（gameOverCheck 判"本宗未被
      * 占领" → 不触发）；附属 ai-3 至交好感 100 + 战力比 ≥5x（powerScore 0）
      * → 脱离概率 0.0，恰抽 1 次 SYSTEM 必不脱离；契约保留 + 零事件。AI 弟子
-     * 与玩家弟子同规格（realm 9 无天赋）→ 战力比 = 存活弟子数（6 或 7，
+     * 与玩家弟子同规格（realm 9 无天赋）→ 战力比 = 存活弟子数（6，
      * 无叛逃路径）≥ 5 精确成立。
      */
     private fun GameData.applyVassalBreakawayScene() {
@@ -448,7 +426,6 @@ class DiffMonthSettlementTest {
     fun `purchase settlement matches Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
 
         val snapshot = buildPurchaseSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
@@ -483,7 +460,6 @@ class DiffMonthSettlementTest {
     fun `december settlement triggers autoBuy matching Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
 
         val snapshot = buildDecemberSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
@@ -516,7 +492,6 @@ class DiffMonthSettlementTest {
     fun `world level refresh generates levels matching Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
 
         val snapshot = buildWorldLevelRefreshSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
@@ -547,7 +522,6 @@ class DiffMonthSettlementTest {
     fun `auto assign mine matches Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
 
         val snapshot = buildAutoAssignSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
@@ -572,16 +546,6 @@ class DiffMonthSettlementTest {
                                 json.encodeToJsonElement(actual))
     }
 
-    /** 招募候选：资质缺省 50（触发散列补算）/
-     *  无装备功法（俘虏落库 no-op 规避 UUID 分叉）/ 满血哨兵 */
-    private fun recruitCandidate(id: String, name: String, roots: String) =
-        Disciple(
-            id = id, name = name, realm = 9, realmLayer = 1,
-            cultivation = 10.0, spiritRootType = roots,
-            gender = "male",
-            combat = CombatAttributes(currentHp = -1, currentMp = -1)
-        )
-
     /** 初始 RNG 分区状态：seed+partitionId 播种后各抽取 3 次（非平凡状态） */
     private fun initialRngStates(seed: Long): MutableMap<Int, Long> {
         val states = mutableMapOf<Int, Long>()
@@ -599,10 +563,6 @@ class DiffMonthSettlementTest {
     fun `month settlement matches Kotlin bit-for-bit across one boundary`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-
-        // 场景⑧：自动招募惰性门复位——Kotlin 侧为 JVM 单例
-        //（跨用例共享，其他测试可能已置 true）；C++ 侧瞬态字段读档默认 false
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
 
         val snapshot = buildSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
@@ -649,8 +609,7 @@ class DiffMonthSettlementTest {
         )
         // ② 伴侣配对 + 扩展夹具
         assertPairingAndFixtureEffects(actual, actualGd)
-        // ⑧自动招募 + ⑨秘境 AI 队伍派遣
-        assertAutoRecruitEffects(actual, actualGd)
+        // ⑨秘境 AI 队伍派遣
         assertSecretRealmAiTeams(actualGd)
         // ③ S1 政策月费经真实钱包扣除：100 × 全体弟子数（DISCIPLE_COUNT）
         assertEquals(
@@ -688,8 +647,7 @@ class DiffMonthSettlementTest {
 
     /**
      * 场景⑯：生育——母亲到期（childBirthMonth = 月变时当前月 2，
-     * 自 (1,1) 推进 3 旬跨 1→2 月界）+ partner 互指；无自动招募 filter
-     * （processAutoRecruit 纯早退，聚焦生育）。配偶系统排除已有伴侣者
+     * 自 (1,1) 推进 3 旬跨 1→2 月界）+ partner 互指。配偶系统排除已有伴侣者
      * （母亲/父亲不参与配对；x1 单男 → eligibleFemales 空早退零抽取）。
      */
     private fun buildChildBirthSnapshot(): NativeGameState {
@@ -735,7 +693,6 @@ class DiffMonthSettlementTest {
     fun `child birth matches Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
 
         val snapshot = buildChildBirthSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
@@ -750,24 +707,12 @@ class DiffMonthSettlementTest {
             DiffRngBridge.nativeCoreExportState().decodeToString()
         )
 
-        // 生育断言：新生儿入 recruitList（恰 1 名）+ 母亲状态更新
-        assertEquals("应生育 1 名新生儿", 1, expected.gameData.recruitList.size)
-        val child = expected.gameData.recruitList.single()
-        assertEquals("新生儿父亲应匹配", FATHER_ID, child.social.parentId2)
-        // 与 GTest 黄金序列（child_birth_test.cpp 同种子同消费序）闭环锚定
-        assertEquals("新生儿名字应与 GTest 黄金一致", "父丹青", child.name)
-        assertEquals("新生儿性别应与 GTest 黄金一致", "male", child.gender)
-        assertEquals("新生儿灵根应与 GTest 黄金一致", "metal", child.spiritRootType)
-        assertEquals("新生儿资质应与 GTest 黄金一致", 80, child.skills.aptitude)
-        assertEquals("新生儿肖像应与 GTest 黄金一致", "male_disciple_1", child.portraitRes)
-        assertEquals("新生儿体质应与 GTest 黄金一致",
-            listOf("r2_phys_hybrid_off", "neg_phys_offense"), child.physiqueIds)
+        // 生育断言：母亲状态更新；recruitList 恒空（新生儿不再入招募列表）
+        assertEquals("recruitList 应恒空", 0, expected.gameData.recruitList.size)
         val mother = expected.disciples.single { it.id == MOTHER_ID }
         assertEquals("母亲 lastChildYear 应推进", 1, mother.social.lastChildYear)
         assertEquals("母亲 childBirthMonth 应清空", null, mother.social.childBirthMonth)
 
-        // recruitList 新生儿 id 为镜像生成字段（Kotlin UUID vs C++ 空串）——
-        // diff 排除；名字/性别/灵根/属性/双亲逐字段一致
         diffAssertCppSurfaceMatches(
             json.encodeToJsonElement(expected),
             json.encodeToJsonElement(actual)
@@ -779,10 +724,10 @@ class DiffMonthSettlementTest {
         actual: NativeGameState,
         actualGd: GameData
     ) {
-        // 场景弟子数：6 名基础弟子 + 自动招募 1 名（无叛逃/逐出路径）
+        // 场景弟子数：6 名基础弟子（无叛逃/逐出路径）
         assertEquals(
-            "场景弟子数应为 7（6 基础 + 1 自动招募）",
-            7, actual.disciples.size
+            "场景弟子数应为 6",
+            6, actual.disciples.size
         )
         // 叛逃系统下线后年报逐出计数保持 0（本场景无玩家逐出）
         assertEquals(
@@ -799,21 +744,6 @@ class DiffMonthSettlementTest {
                 assertEquals("弟子 ${d.id} 意外配对", null, d.social.partnerId)
             }
         }
-    }
-
-    /** ⑧自动招募效果断言：匹配候选入宗（id 17/资质 82/recruitedMonth
-     *  14/annualNewDisciples+1），不匹配候选保留列表 */
-    private fun assertAutoRecruitEffects(actual: NativeGameState, actualGd: GameData) {
-        val newRecruit = actual.disciples.firstOrNull { it.id == NEW_RECRUIT_ID.toString() }
-        assertTrue("自动招募候选未入宗（缺 id 17）", newRecruit != null)
-        newRecruit?.let {
-            assertEquals("自动招募新弟子资质散列补算错误", NEW_RECRUIT_APTITUDE, it.skills.aptitude)
-            assertEquals("自动招募新弟子 recruitedMonth 应为 14", 14, it.usage.recruitedMonth)
-        }
-        assertEquals("不匹配候选应保留在 recruitList", listOf(RECRUIT_KEEP_ID),
-            actualGd.recruitList.map { d -> d.id })
-        assertEquals("自动招募应计入 annualNewDisciples", 1, actualGd.annualNewDisciples)
-        assertEquals("自动招募后本月招募计数应为 1", 1, actualGd.recruitCountThisMonth)
     }
 
     /** ⑨秘境 AI 队伍派遣断言：ai-3 有存活弟子 → 恰 1 队（幂等去重，

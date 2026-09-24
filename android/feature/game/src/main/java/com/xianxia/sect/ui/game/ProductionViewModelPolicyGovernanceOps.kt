@@ -12,17 +12,8 @@ import com.xianxia.sect.core.usecase.toggleRelaxedMgmt
 import com.xianxia.sect.core.usecase.toggleRewardPunish
 import com.xianxia.sect.core.usecase.toggleStrictTraining
 
-// ── 治理类（纳新/苦修/宵禁/赏罚/严训/宽管）政策开关扩展（自 ProductionViewModel 拆出，行为零变更）──────────────
+// ── 治理类（苦修/宵禁/赏罚/严训/宽管）政策开关扩展（自 ProductionViewModel 拆出，行为零变更）──────────────
 // batch-02 TooManyFunctions 收敛（类内 ≤19）外移为同包扩展，调用点语法不变。
-fun ProductionViewModel.toggleOpenRecruitment(): Boolean {
-    viewModelScope.launch {
-        val result = sectPolicyToggle.toggleOpenRecruitment()
-        if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
-    }
-    return true
-}
-
-fun ProductionViewModel.isOpenRecruitmentEnabled(): Boolean = sectPolicyToggle.isOpenRecruitmentEnabled()
 fun ProductionViewModel.toggleAsceticTraining(): Boolean {
     viewModelScope.launch {
         val result = sectPolicyToggle.toggleAsceticTraining()

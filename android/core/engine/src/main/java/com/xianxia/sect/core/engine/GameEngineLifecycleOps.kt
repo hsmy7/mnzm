@@ -197,8 +197,7 @@ private suspend fun GameEngine.checkAndRepairMerchantAndRecruit() {
     // 审计 §12-G #15 修正：原判据只看"列表为空" ⇒ 玩家把商品**买光**后读档会被白送一次
     // 刷新（绕过 merchantLastRefreshYear 的节奏，等于免费补货）。改为只在
     // "从未生成过商人"（merchantLastRefreshYear == 0，新档/损坏档）时才做修复性刷新；
-    // 非 0 的空列表属"已买光"，交由正常节奏刷新——与下方 recruitList 的
-    // `gameYear - lastRecruitYear >= 3` 判据同族。
+    // 非 0 的空列表属"已买光"，交由正常节奏刷新。
     if (shouldRepairMerchantInventory(gd.travelingMerchantItems.isEmpty(), gd.merchantLastRefreshYear)) {
         DomainLog.w("ensureGameDataIntegrity", "travelingMerchantItems 为空且商人从未生成，刷新")
         cultivationService.refreshTravelingMerchant(gd.gameYear, gd.gameMonth)
@@ -214,11 +213,7 @@ private suspend fun GameEngine.checkAndRepairMerchantAndRecruit() {
             )
         }
     }
-    if (gd.recruitList.isEmpty() && gd.gameYear - gd.lastRecruitYear >= 3) {
-        DomainLog.w("ensureGameDataIntegrity", "recruitList 为空，刷新")
-        cultivationService.refreshRecruitList(gd.gameYear)
-    }
-    // w3-13 通道关闭配套：本函数的修复写面（aiSectDisciples 池/商人/招募列表）在
+    // w3-13 通道关闭配套：本函数的修复写面（aiSectDisciples 池/商人）在
     // AUTHORITATIVE 中途路径（upgradeSectLevel 修复重试）不再经反向通道回导——
     // 发生过修复即重建 native 基线（boot 路径 native 未就绪时为静默跳过，
     // 基线由首旬 ensureAuthoritativeNative 的全量导入吸收）

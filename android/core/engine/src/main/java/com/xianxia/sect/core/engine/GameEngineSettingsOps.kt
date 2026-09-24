@@ -5,7 +5,7 @@ package com.xianxia.sect.core.engine
  *
  * 写者审计（handover §2.55）：设置项域的 AUTHORITATIVE 稳态写者曾分散于
  * 三个 Delegate（SettingsDelegate / AutoAssignDelegate / DiscipleDelegate）
- * 各自调 `gameEngine.updateGameData { it.copy(field = value) }`——共 17 个
+ * 各自调 `gameEngine.updateGameData { it.copy(field = value) }`——多个
  * gameData 标量/Int 集字段。本文件（及同域拆分文件
  * `GameEngineSettingsAssignOps.kt`）把该域收敛为**带 native 臂的域入口**：
  * C++ 事务 `updateSettingsTx`（字段名 → 值通用补丁）为 AUTHORITATIVE 稳态
@@ -19,9 +19,8 @@ package com.xianxia.sect.core.engine
  * 运行态，不入 C++ 状态）由 [setDaoCompanionConsentRequired] 在 native 成功
  * 后照原序执行。
  *
- * 文件拆分：本域入口共 19 个（超 detekt TooManyFunctions 文件阈值 15）——
- * 按"通用/音频"与"自动分配策略"两族拆分，两文件共用同一 native 转发面
- * （`ResidualNativeForward` + `updateSettingsNative`）。
+ * 文件拆分：本域按"通用/音频"与"自动分配策略"两族拆分，两文件共用同一
+ * native 转发面（`ResidualNativeForward` + `updateSettingsNative`）。
  */
 
 // ── 音频设置（SettingsDelegate setSoundEnabled / setMusicEnabled）──────
@@ -90,24 +89,12 @@ fun GameEngine.setDaoCompanionBannedRootCounts(counts: Set<Int>) =
         it.copy(daoCompanionBannedRootCounts = counts)
     }
 
-// ── 灵根过滤器（俘虏 / 自动招募 / 自动拒绝）────────────────────────────
+// ── 灵根过滤器（俘虏）──────────────────────────────────────────────
 
 /** 俘虏灵根过滤（勾选/取消即保存）。 */
 fun GameEngine.setPrisonerSpiritRootFilter(filter: Set<Int>) =
     updateSettingsOrFallback("prisonerSpiritRootFilter" to intSetValue(filter)) {
         it.copy(prisonerSpiritRootFilter = filter)
-    }
-
-/** 自动招募灵根过滤。 */
-fun GameEngine.setAutoRecruitSpiritRootFilter(filter: Set<Int>) =
-    updateSettingsOrFallback("autoRecruitSpiritRootFilter" to intSetValue(filter)) {
-        it.copy(autoRecruitSpiritRootFilter = filter)
-    }
-
-/** 自动拒绝灵根过滤。 */
-fun GameEngine.setAutoRejectSpiritRootFilter(filter: Set<Int>) =
-    updateSettingsOrFallback("autoRejectSpiritRootFilter" to intSetValue(filter)) {
-        it.copy(autoRejectSpiritRootFilter = filter)
     }
 
 // ── Private helpers ───────────────────────────────────────────────────

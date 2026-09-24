@@ -7,15 +7,21 @@ import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.model.SaveData
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.UUID
 
 /**
- * 招募列表净化规则测试 — 覆盖 [RecruitListCleanupRule]。
+ * 招募列表恒空规则测试 — 覆盖 [RecruitListCleanupRule] 的恒空契约：
+ * 招募链已下线，规则**恒**返回 `Repaired(recruitList = emptyList(), 恒空文案)`——
+ * 无论输入列表是否为空（恒 Repaired 以触发落盘清空），且注册表默认仍含
+ * `id = recruit_list_cleanup`。
  */
 class RecruitListCleanupRuleTest {
+
+    private val emptyNotice = "招募链已下线，招募列表清空"
 
     @Before
     fun setup() {
@@ -29,148 +35,80 @@ class RecruitListCleanupRuleTest {
     }
 
     @Test
-    fun `validate - 损坏招募条目 Repaired并净化`() {
+    fun `validate - 非空招募列表 恒 Repaired 且整表清空`() {
         val gd = GameData(
             sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(createRecruit(name = ""))
+            recruitList = listOf(
+                createRecruit(name = "张三"),
+                createRecruit(name = "")
+            )
         )
         val result = SaveValidator.validate(saveData(gd))
 
-        assertTrue(result is IntegrityResult.Repaired)
+        assertTrue("非空输入必须 Repaired", result is IntegrityResult.Repaired)
         result as IntegrityResult.Repaired
-        assertTrue(result.data.gameData.recruitList.isEmpty())
-        assertTrue(result.details.isNotEmpty())
+        assertTrue("recruitList 必须整表清空", result.data.gameData.recruitList.isEmpty())
+        assertEquals(listOf(emptyNotice), result.details)
     }
 
     @Test
-    fun `validate - 同id重复招募 Repaired去重`() {
+    fun `validate - 空招募列表 仍 Repaired（恒空触发落盘）`() {
+        val gd = GameData(
+            sectName = "宗", gameYear = 1, gameMonth = 1,
+            recruitList = emptyList()
+        )
+        val result = SaveValidator.validate(saveData(gd))
+
+        assertTrue("空输入同样必须 Repaired（恒空语义，触发落盘）", result is IntegrityResult.Repaired)
+        result as IntegrityResult.Repaired
+        assertTrue(result.data.gameData.recruitList.isEmpty())
+        assertEquals(listOf(emptyNotice), result.details)
+    }
+
+    @Test
+    fun `validate - 同id重复与已入宗残留 输入一律清空`() {
         val gd = GameData(
             sectName = "宗", gameYear = 1, gameMonth = 1,
             recruitList = listOf(
                 createRecruit(id = "dup", name = "张三"),
-                createRecruit(id = "dup", name = "李四")
+                createRecruit(id = "dup", name = "李四"),
+                createRecruit(name = "王五", realm = -1)
             )
         )
         val result = SaveValidator.validate(saveData(gd))
 
         assertTrue(result is IntegrityResult.Repaired)
         result as IntegrityResult.Repaired
-        assertEquals(1, result.data.gameData.recruitList.size)
+        assertTrue("任何形态的输入都不得保留条目", result.data.gameData.recruitList.isEmpty())
+        assertEquals(listOf(emptyNotice), result.details)
     }
 
     @Test
-    fun `validate - 已入宗门残留招募 Repaired移除`() {
-        val recruit = createRecruit(name = "张三")
-        val inSect = createRecruit(name = "张三", id = "999")
-        val gd = GameData(
-            sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(recruit)
-        )
-        val result = SaveValidator.validate(saveData(gd, disciples = listOf(inSect)))
-
-        assertTrue(result is IntegrityResult.Repaired)
-        result as IntegrityResult.Repaired
-        assertTrue(result.data.gameData.recruitList.isEmpty())
-    }
-
-    @Test
-    fun `validate - 宗门侧已死亡残留 仍移除`() {
-        // 残留判定按同人签名（与存活无关）：同签名即移除
-        val ghost = createRecruit(name = "张三")
-        val deadInSect = createRecruit(name = "张三", id = "999")
-            .copy(isAlive = false)
-        val gd = GameData(
-            sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(ghost)
-        )
-        val result = SaveValidator.validate(saveData(gd, disciples = listOf(deadInSect)))
-
-        assertTrue(result is IntegrityResult.Repaired)
-        result as IntegrityResult.Repaired
-        assertTrue(result.data.gameData.recruitList.isEmpty())
-    }
-
-    @Test
-    fun `validate - 死亡弟子不误删不同签名新条目`() {
-        // 签名字段（灵根）不同 → 非同人 → 不误删
-        val recruit = createRecruit(name = "张三").copy(spiritRootType = "火")
-        val deadInSect = createRecruit(name = "张三", id = "999")
-            .copy(isAlive = false)
-        val gd = GameData(
-            sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(recruit)
-        )
-        val result = SaveValidator.validate(saveData(gd, disciples = listOf(deadInSect)))
-
-        assertEquals(IntegrityResult.Passed, result)
-    }
-
-    @Test
-    fun `validate - 序列化不对称 仍匹配残留（列表侧无体质）`() {
-        // 模拟真实数据：recruitList 条目经 DiscipleSerializer 后体质/词条恒空，
-        // 宗门弟子侧有真实值——签名不应包含这两字段
-        val recruit = createRecruit(name = "张三")
-        val inSect = createRecruit(name = "张三", id = "999")
-            .copy(physiqueIds = listOf("p1"), affixIds = listOf("a1"))
-        val gd = GameData(
-            sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(recruit)
-        )
-        val result = SaveValidator.validate(saveData(gd, disciples = listOf(inSect)))
-
-        assertTrue(result is IntegrityResult.Repaired)
-        result as IntegrityResult.Repaired
-        assertTrue(result.data.gameData.recruitList.isEmpty())
-    }
-
-    @Test
-    fun `validate - 正常招募列表 Passed`() {
+    fun `validate - 二次校验仍 Repaired（恒空非幂等 Passed）`() {
         val gd = GameData(
             sectName = "宗", gameYear = 1, gameMonth = 1,
             recruitList = listOf(createRecruit(name = "张三"))
-        )
-        assertEquals(IntegrityResult.Passed, SaveValidator.validate(saveData(gd)))
-    }
-
-    @Test
-    fun `validate - 怪异极端数据 不抛异常不Corrupted`() {
-        // 防阻断读档：异常数据必须可净化而非报损坏
-        val gd = GameData(
-            sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(
-                createRecruit(name = "", realm = -1),
-                createRecruit(name = "x", realm = 42)
-            )
-        )
-        val result = SaveValidator.validate(saveData(gd))
-
-        assertTrue("不应判定 Corrupted", result !is IntegrityResult.Corrupted)
-        assertTrue(result is IntegrityResult.Repaired)
-    }
-
-    @Test
-    fun `validate - 幂等 二次校验Passed`() {
-        val gd = GameData(
-            sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(
-                createRecruit(name = ""),
-                createRecruit(name = "张三")
-            )
         )
         val first = SaveValidator.validate(saveData(gd))
         assertTrue(first is IntegrityResult.Repaired)
         val cleaned = (first as IntegrityResult.Repaired).data
 
-        assertEquals(IntegrityResult.Passed, SaveValidator.validate(cleaned))
+        val second = SaveValidator.validate(cleaned)
+        assertTrue("清空后的存档再次校验仍应 Repaired（恒空语义）", second is IntegrityResult.Repaired)
+        second as IntegrityResult.Repaired
+        assertTrue(second.data.gameData.recruitList.isEmpty())
+        assertEquals(listOf(emptyNotice), second.details)
     }
 
     @Test
-    fun `validate - 高境界炼虚 保留`() {
-        val gd = GameData(
-            sectName = "宗", gameYear = 1, gameMonth = 1,
-            recruitList = listOf(createRecruit(name = "天才", realm = 4))
-        )
-        assertEquals(IntegrityResult.Passed, SaveValidator.validate(saveData(gd)))
+    fun `registry - 默认注册表仍含 recruit_list_cleanup`() {
+        SaveValidationRuleRegistry.clear()
+        SaveValidationRuleRegistry.registerDefaults()
+
+        val rule = SaveValidationRuleRegistry.findById("recruit_list_cleanup")
+        assertNotNull("registerDefaults 必须包含 id=recruit_list_cleanup", rule)
+        assertEquals(20, rule!!.order)
+        assertTrue(rule === RecruitListCleanupRule)
     }
 
     private fun saveData(

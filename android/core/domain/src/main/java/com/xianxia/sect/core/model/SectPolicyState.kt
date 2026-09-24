@@ -18,7 +18,6 @@ data class SectPolicyState(
     @ColumnInfo(name = "slot_id")
     var slotId: Int = 1,
     var sectPolicies: SectPolicies = SectPolicies(),
-    var autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
     var daoCompanionBannedRootCounts: Set<Int> = emptySet(),
     var daoCompanionConsentRequired: Boolean = false,
     var breakthroughAutoPillFocused: Boolean = false,

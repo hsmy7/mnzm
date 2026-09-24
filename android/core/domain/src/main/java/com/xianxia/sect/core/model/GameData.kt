@@ -268,18 +268,10 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoBuyList: List<AutoBuyEntry> = emptyList(),
 
-    // 弟子招募（存储完整弟子对象，仅包含可招募但未正式招募的弟子）
+    // 弟子招募列表（招募链下线：恒空语义，字段保留兼容存档三端链）
     @ProtoNumber(24)
     @SettlementStrategy(Strategy.THREE_WAY_ID)
     var recruitList: List<Disciple> = emptyList(),
-    @ProtoNumber(25)
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    var lastRecruitYear: Int = 0,
-    // AI 宗门弟子周期性招募上次触发年份（差值判据；0=从未触发，老档升级后自愈）
-    @ProtoNumber(219)
-    @ColumnInfo(name = "last_ai_sect_recruit_year", defaultValue = "0")
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    var lastAiSectRecruitYear: Int = 0,
 
     // ── 玉符（氪金货币）──
     // 墙钟货币：按真实前台游玩时长发放（GameConfig.Jade），不占仓库、无品阶、不走 InventorySystem，
@@ -478,11 +470,6 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var sectPolicies: SectPolicies = SectPolicies(),
 
-    // 广纳门徒上次付费月份（绝对月数 = year*12 + month，用于3年冷却判断）
-    @ProtoNumber(93)
-    @ColumnInfo(name = "open_recruitment_last_paid_month")
-    var openRecruitmentLastPaidMonth: Int = 0,
-
     // 战斗队伍（支持多队伍）
     // B19：单数 battleTeam（Room 死列）已随 v51→v52 迁移删除——全仓零写入者/零读取者，
     // 且 @Transient 不进 .sav/proto；旧档队伍语义由 battleTeams + battleTeamsInitialized 承担。
@@ -556,11 +543,6 @@ data class GameData(
 
     // 秘境智能战斗：遭遇妖兽时由世界等级系统决定是否战斗，无独立存档字段
 
-    // 自动招募灵根筛选（始终运行，1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
-    @ProtoPacked @ProtoNumber(101)
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
-
     // 俘虏灵根筛选（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     @ProtoPacked @ProtoNumber(162)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
@@ -571,10 +553,7 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var recruitCountThisMonth: Int = 0,
 
-    // 自动拒绝灵根筛选（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
-    @ProtoPacked @ProtoNumber(210)
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var autoRejectSpiritRootFilter: Set<Int> = emptySet(),
+    // reserved 210;（自动拒绝灵根筛字段号已退役，禁止复用）
 
     // 物品关注列表（键 = "type:name"，如 "pill:聚气丹"）。纯玩家偏好，无结算参与。
     @ProtoNumber(211)
@@ -981,7 +960,6 @@ data class GameData(
     /** 探索与弟子管理状态聚合 */
     val exploration: ExplorationState get() = ExplorationState(
         recruitList = recruitList,
-        lastRecruitYear = lastRecruitYear,
         cultivatorCaves = cultivatorCaves,
         caveExplorationTeams = caveExplorationTeams,
         aiCaveTeams = aiCaveTeams,

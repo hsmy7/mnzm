@@ -51,10 +51,7 @@ import org.robolectric.RobolectricTestRunner
 
 
 /**
- * GameEngine.renameDisciple 原子改名 + 招募列表同人残留净化的单元测试。
- *
- * 背景：改名会破坏 RecruitIntegrity.isSamePerson 的 5 字段签名匹配，
- * 若不同时净化 recruitList，残留双胞胎将永久逃脱三层净化、可被重复招募。
+ * GameEngine.renameDisciple 原子改名的单元测试。
  *
  * ★ Robolectric 必需：DiscipleTables 的 Ref 列（names 等）基于
  * android.util.SparseArray——无 Robolectric 时 SparseArray 未 mock
@@ -68,62 +65,13 @@ class GameEngineRenameTest {
     @get:Rule val writeGuardRule = WriteGuardRule()
 
     @Test
-    fun `renameDisciple - 清除同人残留且保留无关条目`() = runBlocking {
+    fun `renameDisciple - 改名写入弟子表`() = runBlocking {
         val env = RenameEnv()
         env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名"))
-        val twin = createDisciple(id = "recruit-1", name = "旧名")
-        val other = createDisciple(id = "recruit-2", name = "无关弟子")
-        env.store.gameDataValue = GameData(recruitList = listOf(twin, other))
 
         env.engine.renameDisciple("1", "新名")
 
         assertEquals("弟子表应已改名", "新名", env.store.tables.assemble(1).name)
-        val kept = env.store.gameDataValue.recruitList
-        assertEquals("同人残留应被清除，无关条目保留", 1, kept.size)
-        assertEquals("recruit-2", kept[0].id)
-    }
-
-    @Test
-    fun `renameDisciple - 无同人残留时列表不变`() = runBlocking {
-        val env = RenameEnv()
-        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名"))
-        val other = createDisciple(id = "recruit-2", name = "无关弟子")
-        env.store.gameDataValue = GameData(recruitList = listOf(other))
-
-        env.engine.renameDisciple("1", "新名")
-
-        assertEquals("新名", env.store.tables.assemble(1).name)
-        assertEquals("无同人残留时列表不变", 1, env.store.gameDataValue.recruitList.size)
-    }
-
-    @Test
-    fun `renameDisciple - 已死亡弟子同签名残留命中清除、不同签名条目保留`() = runBlocking {
-        val env = RenameEnv()
-        env.store.tables.allocateAndInsert(
-            createDisciple(id = "1", name = "死者", isAlive = false)
-        )
-        // 同源拷贝残留：与死者同人签名（纯签名相等）→ 命中清除
-        val clone = createDisciple(id = "recruit-1", name = "死者")
-        // 合法同名新条目：签名字段（灵根）不同 → 不误删
-        val fresh = createDisciple(id = "recruit-2", name = "死者").copy(spiritRootType = "fire")
-        env.store.gameDataValue = GameData(recruitList = listOf(clone, fresh))
-
-        env.engine.renameDisciple("1", "新名")
-
-        val kept = env.store.gameDataValue.recruitList
-        assertEquals("同源拷贝清除、不同签名合法条目保留", 1, kept.size)
-        assertEquals("recruit-2", kept[0].id)
-    }
-
-    @Test
-    fun `renameDisciple - 不存在的 id 无副作用`() = runBlocking {
-        val env = RenameEnv()
-        val other = createDisciple(id = "recruit-2", name = "无关弟子")
-        env.store.gameDataValue = GameData(recruitList = listOf(other))
-
-        env.engine.renameDisciple("999", "新名")
-
-        assertEquals("招募列表不变", 1, env.store.gameDataValue.recruitList.size)
     }
 
     @Test

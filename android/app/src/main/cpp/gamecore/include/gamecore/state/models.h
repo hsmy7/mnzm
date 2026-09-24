@@ -567,7 +567,6 @@ struct SectPolicies {
     bool autoMultiResidenceFocused = false;
     std::vector<int32_t> autoMultiResidenceRootCounts;
     int32_t autoMultiResidenceThreshold = 1;
-    bool openRecruitment = false;
     bool asceticTraining = false;
     bool curfew = false;
     bool rewardPunish = false;
@@ -1277,8 +1276,6 @@ struct GameData {
     int32_t merchantRefreshChances = 1;
     int32_t merchantLastRefreshChanceGrantYear = 0;
     // 招募
-    int32_t lastRecruitYear = 0;
-    int32_t lastAiSectRecruitYear = 0;
     int32_t recruitCountThisMonth = 0;
     // 玉符（墙钟货币）
     int32_t jadeSymbols = 0;
@@ -1306,11 +1303,8 @@ struct GameData {
     bool playerHasAttackedAI = false;
     // 宗门
     int32_t playerAllianceSlots = 3;
-    int32_t openRecruitmentLastPaidMonth = 0;
     // 滤网（Set<Int> → JSON 数组）
-    std::vector<int32_t> autoRecruitSpiritRootFilter;
     std::vector<int32_t> prisonerSpiritRootFilter;
-    std::vector<int32_t> autoRejectSpiritRootFilter;
     std::vector<int32_t> breakthroughAutoPillRootCounts;
     std::vector<int32_t> autoEquipFromWarehouseRootCounts;
     std::vector<int32_t> autoLearnFromWarehouseRootCounts;
@@ -1446,17 +1440,6 @@ namespace gamecore::state {
 struct GameState {
     GameData gameData;
     DiscipleStore disciples;                    // SoA 列式存储
-    // 招募惰性门（Kotlin RecruitService.RecruitLazyState.autoRecruitIdle 等价）：
-    // 纯内存运行态，不进 JSON 协议（json_codec 不导出/导入），读档即 false；
-    // 重置点（年度招募列表刷新/玩家改筛选/生育/净化）在 Kotlin 侧（月变真相源
-    // 切换前），C++ 侧仅月结子事件内部置 true——跨层同步随月变真相源切换批接线
-    // Diff 对拍须双侧显式复位。
-    bool autoRecruitIdle = false;
-    // 自动拒绝惰性门（Kotlin RecruitService.RecruitLazyState.autoRejectIdle 等价；
-    // processAutoReject 下沉新增）：纯内存运行态，不进 JSON
-    // 协议，读档即 false；重置点（年度刷新/净化/玩家改筛选）在 Kotlin 侧与
-    // autoRecruitIdle 同族（RecruitService.resetAutoRejectIdle 同步入口）。
-    bool autoRejectIdle = false;
     // AI 宗门弟子池（Kotlin GameData.aiSectDisciples 为 @Transient
     // 重型数据——不进存档序列化，故快照协议置于顶层，与 Kotlin
     // NativeGameState.aiSectDisciples 一一对应；DirtyTracker 仅跟踪 gameData

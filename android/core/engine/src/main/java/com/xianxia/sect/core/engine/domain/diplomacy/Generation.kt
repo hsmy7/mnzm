@@ -42,14 +42,6 @@ internal fun AISectDiscipleManager.generateInitialNurture(equipmentId: String): 
     )
 }
 
-internal fun AISectDiscipleManager.generateQiRefiningDisciple(
-    sectName: String,
-    existingNames: Set<String>,
-    sectLevel: Int
-): Disciple {
-    return applyGearToDisciple(generateRandomDisciple(sectName, existingNames), sectLevel)
-}
-
 /** 按权重分配境界分布（炼气3/筑基2/金丹2/其余1），余数从高权重境界逐个补足。 */
 internal fun AISectDiscipleManager.generateRealmDistribution(total: Int, maxRealm: Int): Map<Int, Int> {
     val distribution = mutableMapOf<Int, Int>()

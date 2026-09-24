@@ -128,7 +128,7 @@ class DiscipleService @Inject constructor(
         val existingNames = (stateStore.discipleTables.assembleAll()
             + stateStore.gameData.value.recruitList)
             .map { it.name }.toSet()
-        // 名字随机源分区化（batch-14b 拍板落地，AISectDiscipleManager/RecruitService
+        // 名字随机源分区化（batch-14b 拍板落地，AISectDiscipleManager
         // 同款先例）——原默认 Random.Default 非确定性、不入 rngStates，同 mapSeed
         // 新档初始弟子名字不可复现；传 SYSTEM 分区适配器后与性别/灵根/factory
         // 同流（与 C++ name_service.h generateName 分区语义同源），

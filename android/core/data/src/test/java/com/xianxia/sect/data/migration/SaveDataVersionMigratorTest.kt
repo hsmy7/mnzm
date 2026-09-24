@@ -36,9 +36,6 @@ class SaveDataVersionMigratorTest {
             // 真旧档：v4.0.13 发布前保存过 → 需 ÷10 缩放
             lastSaveTime = SaveDataVersionMigrator.V4_0_13_RELEASE_EPOCH_MS - 1,
             sectCultivation = 100.0,
-            recruitList = listOf(
-                Disciple(cultivation = 200.0, combat = CombatAttributes(totalCultivation = 201L))
-            ),
             aiSectDisciples = mapOf(
                 "sect1" to listOf(
                     Disciple(cultivation = 300.0, combat = CombatAttributes(totalCultivation = 301L))
@@ -58,8 +55,6 @@ class SaveDataVersionMigratorTest {
         assertEquals("宗门修炼值缩放 1/10", 10.0, migrated.gameData.sectCultivation, 0.001)
         assertEquals("弟子修炼值缩放 1/10", 40.0, migrated.disciples[0].cultivation, 0.001)
         assertEquals("弟子战力向上取整", ceil(401.0 / 10).toLong(), migrated.disciples[0].combat.totalCultivation)
-        assertEquals("招募列表修炼值缩放", 20.0, migrated.gameData.recruitList[0].cultivation, 0.001)
-        assertEquals("招募列表战力向上取整", ceil(201.0 / 10).toLong(), migrated.gameData.recruitList[0].combat.totalCultivation)
         assertEquals("AI 弟子修炼值缩放", 30.0, migrated.gameData.aiSectDisciples["sect1"]!![0].cultivation, 0.001)
         assertEquals("sectRelations 升级为 acquainted", true, migrated.gameData.sectRelations[0].acquainted)
     }
@@ -73,9 +68,6 @@ class SaveDataVersionMigratorTest {
             saveVersion = 0,
             lastSaveTime = SaveDataVersionMigrator.V4_0_13_RELEASE_EPOCH_MS + 86400000L,
             sectCultivation = 100.0,
-            recruitList = listOf(
-                Disciple(cultivation = 200.0, combat = CombatAttributes(totalCultivation = 201L))
-            ),
             sectRelations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", acquainted = false))
         )
         val disciples = listOf(
@@ -90,7 +82,6 @@ class SaveDataVersionMigratorTest {
         assertEquals("误标新档不缩放宗门修炼值", 100.0, migrated.gameData.sectCultivation, 0.001)
         assertEquals("误标新档不缩放弟子修炼值", 400.0, migrated.disciples[0].cultivation, 0.001)
         assertEquals("误标新档不改战力", 401L, migrated.disciples[0].combat.totalCultivation)
-        assertEquals("误标新档不缩放招募列表", 200.0, migrated.gameData.recruitList[0].cultivation, 0.001)
         assertEquals("sectRelations 仍升级为 acquainted", true, migrated.gameData.sectRelations[0].acquainted)
     }
 

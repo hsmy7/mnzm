@@ -43,7 +43,7 @@ data class SerializableGameData(
     @ProtoNumber(19) val merchantRefreshCount: Int = 0,
     @ProtoNumber(20) val playerListedItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(24) val recruitList: List<SerializableDisciple> = emptyList(),
-    @ProtoNumber(25) val lastRecruitYear: Int = 0,
+    // reserved 25;（招募链年份戳字段号已退役，禁止复用）
     @ProtoNumber(26) val cultivatorCaves: List<SerializableCultivatorCave> = emptyList(),
     @ProtoNumber(27) val caveExplorationTeams: List<SerializableCaveExplorationTeam> = emptyList(),
     @ProtoNumber(28) val aiCaveTeams: List<SerializableAICaveTeam> = emptyList(),
@@ -76,7 +76,7 @@ data class SerializableGameData(
     @ProtoNumber(90) val merchantRefreshChances: Int = 1,
     @ProtoNumber(92) val merchantLastRefreshChanceGrantYear: Int = 0,
     @ProtoNumber(91) val gameEventRecords: List<SerializableGameEventRecord> = emptyList(),
-    @ProtoNumber(93) val openRecruitmentLastPaidMonth: Int = 0,
+    // reserved 93;（广纳门徒付费月字段号已退役，禁止复用）
     // ==================== 新增字段（ProtoNumber 94+）====================
     @ProtoNumber(94) val midGradeSpiritStones: Long = 0L,
     @ProtoNumber(95) val highGradeSpiritStones: Long = 0L,
@@ -85,7 +85,7 @@ data class SerializableGameData(
     @ProtoNumber(98) val rngStates: Map<Int, Long> = emptyMap(),
     @ProtoNumber(99) val activeSectId: String = "",
     @ProtoNumber(100) val saveVersion: Int = 0,
-    @ProtoPacked @ProtoNumber(101) val autoRecruitSpiritRootFilter: List<Int> = emptyList(),
+    // reserved 101;（自动招募灵根筛字段号已退役，禁止复用）
     @ProtoPacked @ProtoNumber(102) val daoCompanionBannedRootCounts: List<Int> = emptyList(),
     @ProtoNumber(103) val daoCompanionConsentRequired: Boolean = false,
     @ProtoNumber(104) val patrolBattleResultPopup: Boolean = false,
@@ -972,8 +972,7 @@ data class SerializableSectPolicies(
     @ProtoPacked
     @ProtoNumber(27) val autoMultiResidenceRootCounts: List<Int> = emptyList(),
     @ProtoNumber(28) val autoMultiResidenceThreshold: Int = 1,
-    // 新增10项政策（v4.0.66+）
-    @ProtoNumber(29) val openRecruitment: Boolean = false,
+    // 政策开关（v4.0.66+；reserved 29——广纳门徒字段号已退役，禁止复用）
     @ProtoNumber(30) val asceticTraining: Boolean = false,
     @ProtoNumber(31) val curfew: Boolean = false,
     @ProtoNumber(32) val rewardPunish: Boolean = false,

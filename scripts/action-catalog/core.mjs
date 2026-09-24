@@ -224,11 +224,12 @@ export const CATALOG = [
   // ── 招募/派遣/俘虏残余族（batch-16——recruit_tx.h；招募列表 UI 直调点
   //    入 C++：移除/老化净化零 RNG 纯事务，刷新复用 year_settlement 候选
   //    生成链（SYSTEM 分区与 Kotlin 臂逐位同源）。失败零写入，Kotlin 回退
-  //    原路径重执行校验链。手动/一键/自动招募与俘虏物化已在
-  //    recruit_settlement.h / 专用 JNI，不在本段）──
-  { id: 1630, name: 'RECRUIT_REMOVE_TX', desc: '招募列表移除条目（按 id 过滤幂等，零 RNG）' },
-  { id: 1631, name: 'RECRUIT_REFRESH_TX', desc: '年度招募列表刷新（差值门+宗门等级/长老魅力加成+广纳门徒+候选生成，SYSTEM 分区）' },
-  { id: 1632, name: 'RECRUIT_AGE_TX', desc: '招募列表净化（损坏过滤/三级去重/跨表残留移除，零 RNG）' },
+  //    原路径重执行校验链。G05 招募链整体下线：recruit_tx.h/
+  //    recruit_settlement.h 与三号对应的 dispatch case 均已移除——
+  //    catalog 保号禁复用）──
+  { id: 1630, name: 'RECRUIT_REMOVE_TX', desc: '【已退役，编号禁复用】招募列表移除条目（按 id 过滤幂等，零 RNG）' },
+  { id: 1631, name: 'RECRUIT_REFRESH_TX', desc: '【已退役，编号禁复用】年度招募列表刷新（差值门+宗门等级/长老魅力加成+广纳门徒+候选生成，SYSTEM 分区）' },
+  { id: 1632, name: 'RECRUIT_AGE_TX', desc: '【已退役，编号禁复用】招募列表净化（损坏过滤/三级去重/跨表残留移除，零 RNG）' },
 
   // ── 生产 UI 面 + 灵田种植族（batch-17——production.h / spirit_field.h
   //    追加；生产槽任命/卸任/自动续炼开关/惰性建槽与灵田种植/移除全族
@@ -258,7 +259,7 @@ export const CATALOG = [
   //    灵药培育/灵泉灌溉）经回执标记由 Kotlin 臂触发 checkpointAllProduction
   //    ——AGENTS.md 6.4/13.3 红线，生产槽位真源在 Kotlin 侧）──
   { id: 1680, name: 'GOV_POLICY_TOGGLE_TX', desc: '政策开关（可负担校验+首月扣费+置位+激活计数+修炼 checkpoint，零 RNG）' },
-  { id: 1681, name: 'GOV_OPEN_RECRUITMENT_TOGGLE_TX', desc: '广纳门徒开关（固定费用+付费月戳+激活计数，零 RNG）' },
+  { id: 1681, name: 'GOV_OPEN_RECRUITMENT_TOGGLE_TX', desc: '【已退役，编号禁复用】广纳门徒开关（固定费用+付费月戳+激活计数，零 RNG）' },
   { id: 1682, name: 'GOV_SPIRIT_MINE_BOOST_TOGGLE_TX', desc: '灵矿增产开关（免费+激活计数+灵矿结算月戳，零 RNG）' },
 
   // ── 玉符/宗门升级落账事务族（batch-19——jade_tx.h；运营商城/兑换/升级/

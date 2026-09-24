@@ -18,8 +18,8 @@
 //    堆叠 -1/移除、实例铸造/入袋）均无 rng 抽取。
 //  - 铸造实例 id：Kotlin UUID.randomUUID() 为非协议随机域（不消费
 //    RngManager 分区流），C++ 以确定性自增 nextInstanceId（"gc-inst-N"，
-//    recruit_settlement.h 注册表）占位——auto_gear.h/recruit_settlement.h
-//    同先例（镜像生成字段，对拍面忽略新增条目 id）。
+//    inventory.h 注册表）占位——auto_gear.h 同先例（镜像生成字段，对拍面
+//    忽略新增条目 id）。
 //  - 失败臂零写入：校验链先行完成后再落写，两段（弟子行 + 背包/仓库段）
 //    单事务内要么都成要么都不动（"扣了背包却穿不上"中间态构造上不可能）。
 //
@@ -47,7 +47,7 @@
 #include "gamecore/system/disciple_stats.h"      // talent/affix effects（名额公式）
 #include "gamecore/system/inventory.h"           // 库存原语同源（bag 语义参照）
 #include "gamecore/system/pill_system.h"         // classify/canUsePill/buildUsedKeys
-#include "gamecore/system/recruit_settlement.h"  // nextInstanceId（确定性实例 id）
+#include "gamecore/system/inventory.h"           // nextInstanceId（确定性实例 id）
 #include "gamecore/system/settlement_detail.h"   // settle_util::toIntOrNull
 #include "gamecore/system/slot_cleanup.h"        // clearAllSlotsDataOnly
 
@@ -156,7 +156,7 @@ inline bool isEquipSlotName(const std::string& slot) {
 inline EquipmentInstance equipmentInstanceFromStack(const EquipmentStack& s,
                                                     const std::string& ownerId) {
     EquipmentInstance inst;
-    inst.id = gamecore::system::recruit_settle::nextInstanceId();
+    inst.id = nextInstanceId();
     inst.name = s.name;
     inst.rarity = s.rarity;
     inst.description = s.description;
@@ -178,7 +178,7 @@ inline EquipmentInstance equipmentInstanceFromStack(const EquipmentStack& s,
 inline ManualInstance manualInstanceFromStack(const ManualStack& s,
                                               const std::string& ownerId) {
     ManualInstance inst;
-    inst.id = gamecore::system::recruit_settle::nextInstanceId();
+    inst.id = nextInstanceId();
     inst.name = s.name;
     inst.rarity = s.rarity;
     inst.description = s.description;
@@ -1257,6 +1257,38 @@ inline void fixInvalidMiningSlots(GameState& state) {
 
 }  // namespace detail
 
+namespace detail {
+
+// ── 同人签名（Kotlin RecruitIntegrity.isSamePerson 移植面）──────────────────
+// 唯一消费者 = 下方 renameDiscipleTx（G06 改名批经 disciple_tx.h 引用：
+// 改名破坏 name/surname/gender/spiritRootType/talentIds 五字段签名匹配，
+// 须按改名前身份过滤招募列表残留双胞胎）。
+
+/// 同人签名分隔符（Kotlin SIGNATURE_SEPARATOR："\x01"）
+inline constexpr char kSignatureSeparator = '\x01';
+
+/// 同人稳定签名（Kotlin samePersonSignature：name+surname+gender+
+/// spiritRootType+sorted(talentIds).join(",")，"\x01" 分隔）
+inline std::string samePersonSignature(const Disciple& d) {
+    std::vector<std::string> sortedTalents = d.talentIds;
+    std::sort(sortedTalents.begin(), sortedTalents.end());
+    std::string talents;
+    for (std::size_t i = 0; i < sortedTalents.size(); ++i) {
+        if (i > 0) talents += ",";
+        talents += sortedTalents[i];
+    }
+    return d.name + kSignatureSeparator + d.surname + kSignatureSeparator +
+           d.gender + kSignatureSeparator + d.spiritRootType + kSignatureSeparator +
+           talents;
+}
+
+/// 跨表同人判定（Kotlin RecruitIntegrity.isSamePerson：同人稳定签名相等）
+inline bool isSamePerson(const Disciple& a, const Disciple& b) {
+    return samePersonSignature(a) == samePersonSignature(b);
+}
+
+}  // namespace detail
+
 // ── 事务 7：改名（GameEngineCoordination.renameDisciple 等价，1740）────────
 //
 // 写段：names 行写 + 招募列表同人净化（按**改名前**身份 isSamePerson 过滤——
@@ -1279,8 +1311,8 @@ inline DiscipleTxResult renameDiscipleTx(GameState& state,
     std::vector<Disciple> kept;
     kept.reserve(recruitList.size());
     for (const auto& candidate : recruitList) {
-        // recruit_settle::isSamePerson = Kotlin RecruitIntegrity.isSamePerson
-        if (!gamecore::system::recruit_settle::isSamePerson(candidate, before)) {
+        // detail::isSamePerson = Kotlin RecruitIntegrity.isSamePerson
+        if (!detail::isSamePerson(candidate, before)) {
             kept.push_back(candidate);
         }
     }

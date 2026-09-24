@@ -58,11 +58,6 @@ object DiffRngBridge {
     /** 导入但不恢复 RNG 分区（AUTHORITATIVE 每旬回导对拍用） */
     external fun nativeCoreImportStateNoRng(stateJson: ByteArray): Boolean
 
-    /** 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价
-     *  下沉对拍用：C++ 直接招募入宗，返回信封 JSON 字节——协议与生产
-     *  GameCoreBridge.nativeManualRecruitFromList 一致） */
-    external fun nativeCoreManualRecruitFromList(discipleId: String): ByteArray
-
     /** 按模式（重）创建引擎（AUTHORITATIVE 对拍用；模式一致时复用单例） */
     external fun nativeCoreInitMode(authoritativeTickMode: Boolean)
 

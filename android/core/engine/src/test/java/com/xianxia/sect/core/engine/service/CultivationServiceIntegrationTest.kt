@@ -108,7 +108,6 @@ class CultivationServiceIntegrationTest {
             cultivationSettlement = mockSmart(),
             eventProcessor = mockSmart(),
             productionProcessor = mockSmart(),
-            recruitService = mockSmart(),
             merchantAndRecruitService = mockSmart(),
             caveExplorationProcessor = mockSmart(),
             sharedState = CultivationSharedState(),

@@ -51,7 +51,6 @@ import com.xianxia.sect.ui.game.toggleFrugality
 import com.xianxia.sect.ui.game.toggleHerbCultivation
 import com.xianxia.sect.ui.game.toggleManualResearch
 import com.xianxia.sect.ui.game.toggleMoralEducation
-import com.xianxia.sect.ui.game.toggleOpenRecruitment
 import com.xianxia.sect.ui.game.toggleRewardPunish
 import com.xianxia.sect.ui.game.toggleSpiritMineBoost
 import com.xianxia.sect.ui.game.toggleSpiritSpring
@@ -754,14 +753,6 @@ private fun SectPoliciesManagementList(
     productionViewModel: ProductionViewModel
 ) {
     // ═══ 管理类 ═══
-    PolicyItem(
-        title = "广纳门徒",
-        effect = "招募弟子数上限+50%",
-        cost = "5万灵石/3年",
-        checked = sectPolicies?.openRecruitment ?: false,
-        onCheckedChange = { productionViewModel.toggleOpenRecruitment() }
-    )
-
     PolicyItem(
         title = "教化之道",
         effect = "每月所有弟子道德+1（上限70）",

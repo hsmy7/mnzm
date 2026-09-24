@@ -125,11 +125,6 @@ public:
     /// lifeEvents 日志）。未初始化返回空对象。
     std::string settleMonth();
 
-    /// 重置自动招募惰性门（Kotlin 侧重置点——年度招募刷新/玩家
-    /// 改筛选/生育/净化——经 JNI 通知 C++ 复位 autoRecruitIdle，防月变真相源
-    /// 切换后 C++ 侧 autoRecruit 永久惰性）。未初始化忽略。
-    void resetAutoRecruitIdle();
-
     // ── 内存压力 trim（MR1-P1.3/D3；线程契约表四 nativeMemoryTrim 通道）──
     /// trim 档位（与 Kotlin TrimMemoryBridge.MemoryTrimLevel 序数逐位对齐，
     /// 禁第二处枚举面）
@@ -236,20 +231,6 @@ public:
     /// 对照"（先列级后全量，两封分别消费各自追踪器；全量封恒携带自上次
     /// 全量导出以来的全部变更，列级封只携写屏障标脏面）。
     std::string exportDirtyColumnJson();
-
-    /// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉
-    /// ——AUTHORITATIVE 单真相源，与自动招募同侧；循环外任意时刻调用，状态
-    /// 变化经下一 tick 前向 diff 推送镜像）。返回 JSON 信封：
-    /// `{"ok":bool,"newId":string,"age":int,"reason":"SUCCESS|MONTHLY_LIMIT|
-    ///   NOT_FOUND|CORRUPTED|UNKNOWN"}`——reason 供 Kotlin 组装用户提示，
-    /// age 供镜像补写 lifeEvents（Kotlin 类体属性，不进协议）。
-    /// 未初始化/异常返回 ok=false + reason=UNKNOWN。
-    std::string manualRecruitFromList(const std::string& discipleId);
-    /// 一键招募全部（Kotlin GameEngine.recruitAllFromList 等价下沉）。返回
-    /// `{"ok":bool,"count":int,"reason":...}`——count 为成功招募数；reason=SUCCESS
-    /// 时可能 count=0（净化后无候选，Kotlin 现状不弹提示）；
-    /// reason=MONTHLY_LIMIT 时 Kotlin 弹上限通知。
-    std::string manualRecruitAll();
 
     // ── 状态访问（供系统实现使用；单线程契约） ────────────────────
     state::GameState& state() { return state_; }

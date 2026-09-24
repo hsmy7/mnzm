@@ -216,8 +216,8 @@ class CultivationSettlement @Inject constructor(
         tryDeduct(GameConfig.PolicyConfig.SPIRIT_SPRING_MONTHLY, "灵泉灌溉",
             data.sectPolicies.spiritSpring) { it.copy(spiritSpring = false) }
 
-        // ── 按弟子数计费 + 周期性消耗 ──（data 为进入本函数时的快照，与逐项禁用顺序语义一致）
-        processVariablePolicyCosts(state, data, deductedPolicies, ::tryDeduct)
+        // ── 按弟子数计费 ──（data 为进入本函数时的快照，与逐项禁用顺序语义一致）
+        processVariablePolicyCosts(state, data, ::tryDeduct)
 
         return if (disabledPolicies.isNotEmpty()) {
             PolicyCostResult.SomeDisabled(disabledPolicies, deductedPolicies)
@@ -226,11 +226,10 @@ class CultivationSettlement @Inject constructor(
         }
     }
 
-    /** 按弟子数计费政策（修行津贴/苦修令/教化之道/仁政爱徒）与周期性消耗（广纳门徒）。 */
+    /** 按弟子数计费政策（修行津贴/苦修令/教化之道/仁政爱徒）。 */
     private fun processVariablePolicyCosts(
         state: MutableGameState,
         data: GameData,
-        deductedPolicies: List<Pair<String, Long>>,
         tryDeduct: (Long, String, Boolean, (SectPolicies) -> SectPolicies) -> Unit
     ) {
         val totalDisciples = state.discipleTables.ids.count { id ->
@@ -256,21 +255,6 @@ class CultivationSettlement @Inject constructor(
         if (data.sectPolicies.benevolentGovernance) {
             val cost = GameConfig.PolicyConfig.BENEVOLENT_GOVERNANCE_PER_DISCIPLE * totalDisciples
             tryDeduct(cost, "仁政爱徒", true) { it.copy(benevolentGovernance = false) }
-        }
-
-        // ── 周期性消耗 ──
-        // 广纳门徒：每3年扣一次（冷却期内不扣）
-        if (data.sectPolicies.openRecruitment) {
-            val currentMonth = data.gameYear * 12 + data.gameMonth
-            if (currentMonth - data.openRecruitmentLastPaidMonth >= GameConfig.PolicyConfig
-                .OPEN_RECRUITMENT_COOLDOWN_MONTHS) {
-                tryDeduct(GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST, "广纳门徒",
-                    true) { it.copy(openRecruitment = false) }
-                // 记录本次付费月份
-                if (deductedPolicies.any { it.first == "广纳门徒" }) {
-                    state.gameData = state.gameData.copy(openRecruitmentLastPaidMonth = currentMonth)
-                }
-            }
         }
     }
 

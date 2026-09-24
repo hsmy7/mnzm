@@ -29,8 +29,7 @@ data class ConfigEchoView(
     val yearlySalary: Map<Int, Int>,
     val yearlySalaryEnabled: Map<Int, Boolean>,
     val elderSlots: ElderSlots,
-    val placedBuildings: List<GridBuildingData>,
-    val autoRecruitSpiritRootFilter: Set<Int>
+    val placedBuildings: List<GridBuildingData>
 )
 
 /** 块③：事件流当前载体（消息栏；proto 块④ `eventFeed` 为平台效应事件流，二者并行不互换） */
@@ -52,7 +51,7 @@ data class EventLogView(val records: List<GameEventRecord>)
  * | 块 | 视图 | 消费字段 | UI 面 |
  * |---|---|---|---|
  * | ① 资源头部 | [ResourcesHeaderView] | 三阶灵石 + 年/月/旬 | HUD、仓库页灵石卡 |
- * | ② 配置回声 | [ConfigEchoView] | 政策 / 年俸(+开关) / 长老槽 / 已放置建筑 / 自动招募灵根 | ConfigState 消费面 |
+ * | ② 配置回声 | [ConfigEchoView] | 政策 / 年俸(+开关) / 长老槽 / 已放置建筑 | ConfigState 消费面 |
  * | ③ 事件流（当前载体） | [EventLogView] | gameEventRecords | 消息栏 |
  * | ④ proto `eventFeed`（R2.4/B09 转正） | [GameViewStreamEvent] 待消费缓冲 |
  *   月/年结算信封 + 突破/死亡/购买/秘境关闭事件 | 残留执行器与
@@ -232,7 +231,7 @@ class GameViewStore @Inject constructor() {
         /** 块②消费面字段清单 */
         val CONFIG_FIELDS: Set<String> = setOf(
             "sectPolicies", "yearlySalary", "yearlySalaryEnabled", "elderSlots",
-            "placedBuildings", "autoRecruitSpiritRootFilter"
+            "placedBuildings"
         )
 
         /** 块③消费面字段清单 */
@@ -267,8 +266,7 @@ class GameViewStore @Inject constructor() {
                 yearlySalary = gd.yearlySalary,
                 yearlySalaryEnabled = gd.yearlySalaryEnabled,
                 elderSlots = gd.elderSlots,
-                placedBuildings = gd.placedBuildings,
-                autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter
+                placedBuildings = gd.placedBuildings
             )
         }
 
@@ -281,8 +279,7 @@ class GameViewStore @Inject constructor() {
             yearlySalary = emptyMap(),
             yearlySalaryEnabled = emptyMap(),
             elderSlots = ElderSlots(),
-            placedBuildings = emptyList(),
-            autoRecruitSpiritRootFilter = emptySet()
+            placedBuildings = emptyList()
         )
 
         /** gameData 镜像协议面（kotlinx 序列化描述符；@Transient 天然不在其中） */

@@ -333,33 +333,6 @@ class GameEngineCoordinationTest {
         field.isAccessible = true
         field.setBoolean(com.xianxia.sect.core.nativebridge.GameCoreBridge, loaded)
     }
-
-    @Test
-    fun `recruitAllFromList - native 不可用时回退 Kotlin 原实现（双实现并行契约）`() = runBlocking {
-        val env = EngineTestEnv()
-        // SimpleStore 的 DiscipleTables 默认 writeAllowed=false——招募入库须开启
-        //（生产 GameStateStoreImpl 由事务框架统一授予，SimpleStore 无该层）
-        env.store.discipleTables.writeAllowed = true
-        env.store.gameDataValue = GameData().copy(
-            gameYear = 1, gameMonth = 1,
-            recruitList = listOf(
-                com.xianxia.sect.core.model.Disciple(
-                    id = "r1", name = "候选招募", realm = 9,
-                    spiritRootType = "metal"
-                )
-            )
-        )
-        // GameCoreBridge.loaded 默认 false（.so 未加载）：转发短路 → 回退 Kotlin 实现
-        setGameCoreLoaded(false)
-
-        val count = env.engine.recruitAllFromList()
-
-        assertEquals("应招募 1 人", 1, count)
-        assertEquals("招募列表清空", 0, env.store.gameDataValue.recruitList.size)
-        assertEquals("月度计数 +1", 1, env.store.gameDataValue.recruitCountThisMonth)
-        assertEquals("年报新增 +1", 1, env.store.gameDataValue.annualNewDisciples)
-        assertTrue("新弟子入宗", env.store.discipleTables.ids.isNotEmpty())
-    }
 }
 
 // ── 测试用 GameEngine + GameStateStore 的最小化环境 ──

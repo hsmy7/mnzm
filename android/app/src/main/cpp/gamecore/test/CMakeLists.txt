@@ -81,7 +81,6 @@ add_executable(game-core-tests
     scene_pixel_regression_test.cpp
     # R2.1 GameView protobuf 信封编码器 wire format 锁定（重构方案 2026-09-17 B06 批）
     gameview_encode_test.cpp
-    manual_recruit_test.cpp
     disciple_store_test.cpp
     disciple_store_bench_test.cpp
     disciple_tx_test.cpp
@@ -154,7 +153,6 @@ add_executable(game-core-tests
     sect_attack_decision_test.cpp
     sect_defense_battle_test.cpp
     sect_conquest_test.cpp
-    recruit_tx_test.cpp
     boundary_tx_test.cpp
     government_tx_test.cpp
     jade_tx_test.cpp

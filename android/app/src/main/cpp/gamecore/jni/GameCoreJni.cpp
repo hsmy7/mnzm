@@ -333,19 +333,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreImportStateNoRng
     return g_core->importStateJsonNoRng(jbytesToString(env, stateJson)) ? JNI_TRUE : JNI_FALSE;
 }
 
-// 手动招募单招（Kotlin DiscipleFacadeImpl.recruitDiscipleFromList 等价下沉
-// 对拍用：协议与生产 GameCoreBridge.nativeManualRecruitFromList 一致）
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreManualRecruitFromList(
-    JNIEnv* env, jobject /*thiz*/, jstring discipleId) {
-    if (!g_core) {
-        return stringToJbytes(env,
-            R"({"ok":false,"newId":"","age":0,"name":"","reason":"UNKNOWN"})");
-    }
-    return stringToJbytes(
-        env, g_core->manualRecruitFromList(jstringToString(env, discipleId)));
-}
-
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportState(
     JNIEnv* env, jobject /*thiz*/) {

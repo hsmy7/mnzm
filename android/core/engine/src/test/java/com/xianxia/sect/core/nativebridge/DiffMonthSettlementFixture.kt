@@ -328,7 +328,6 @@ internal fun buildMonthDiffHarness(
         cultivationSettlement = settlement,
         eventProcessor = eventProcessor,
         productionProcessor = productionProcessor,
-        recruitService = mockSmart(),
         merchantAndRecruitService = mockSmart(),
         caveExplorationProcessor = mockSmart(),
         sharedState = CultivationSharedState(),
@@ -382,7 +381,6 @@ internal fun buildMonthDiffEventProcessor(
         // 真实战斗系统（任务完成 COMBAT_REQUIRED/COMBAT_RANDOM 场景
         // 消费——战斗组装+执行双端对拍；既有场景无任务不触达，零行为变化）
         battleSystem = com.xianxia.sect.core.engine.domain.battle.BattleSystem(gameRng),
-        recruitService = mockSmart(),
         merchantAndRecruitService = mockSmart(),
         caveExplorationProcessor = mockSmart(),
         discipleLifecycleProcessor = mockSmart(),

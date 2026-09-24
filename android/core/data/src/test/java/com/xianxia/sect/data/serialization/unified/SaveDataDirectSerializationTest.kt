@@ -84,20 +84,18 @@ class SaveDataDirectSerializationTest {
 
     @Test
     fun `disciple round-trip preserves physique and affix ids`() {
-        // 守卫：DiscipleSerializer 必须序列化体质/词条（recruitList/AI 弟子
-        // 读档后丢失会导致玩家招募到无体质词条弟子）
+        // 守卫：DiscipleSerializer 必须序列化体质/词条（弟子读档后丢失
+        // 体质/词条会破坏养成数据完整性）
         val original = SaveData(
-            gameData = com.xianxia.sect.core.model.GameData(
-                recruitList = listOf(
-                    com.xianxia.sect.core.model.Disciple(
-                        id = "recruit-1",
-                        name = "张三",
-                        physiqueIds = listOf("physique_a", "physique_b"),
-                        affixIds = listOf("affix_c")
-                    )
+            gameData = com.xianxia.sect.core.model.GameData(),
+            disciples = listOf(
+                com.xianxia.sect.core.model.Disciple(
+                    id = "d-1",
+                    name = "张三",
+                    physiqueIds = listOf("physique_a", "physique_b"),
+                    affixIds = listOf("affix_c")
                 )
             ),
-            disciples = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -107,9 +105,9 @@ class SaveDataDirectSerializationTest {
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
 
-        val recruit = restored.gameData.recruitList.first()
-        assertEquals(listOf("physique_a", "physique_b"), recruit.physiqueIds)
-        assertEquals(listOf("affix_c"), recruit.affixIds)
+        val disciple = restored.disciples.first()
+        assertEquals(listOf("physique_a", "physique_b"), disciple.physiqueIds)
+        assertEquals(listOf("affix_c"), disciple.affixIds)
     }
 
     @Test

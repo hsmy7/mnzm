@@ -97,9 +97,8 @@ import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
  *    BREAKTHROUGH/EXPLORATION 保持播种预抽后初值
  *
  * 规避清单落实（t2-3-semantics.md §4）：worldMapSects 空（驻军轮换恒等 +
- * gameOverCheck 不判定）/ lastRecruitYear=1 差值判据不满足 / recruitList 空 /
- * vassalContracts·scoutInfo·autoBuyEntries 空 / frugality=false /
- * timestamp 对拍排除。
+ * gameOverCheck 不判定）/ vassalContracts·scoutInfo·autoBuyEntries 空 /
+ * frugality=false / timestamp 对拍排除。
  *
  * 商人收购：Kotlin 臂换装真实 MerchantAndRecruitService（收购流
  * 对拍主体——C++ runYearSettlement 每年执行收购）+ ManualDatabase 从静态
@@ -184,8 +183,6 @@ class DiffYearSettlementTest {
             // 场景②：年俸配置（realm9 启用 500；字段为只读 Map 接口，整体替换赋值）
             yearlySalary = mapOf(9 to SALARY_REALM9.toInt())
             yearlySalaryEnabled = mapOf(9 to true)
-            // 规避清单：招募刷新差值判据不满足（year-last ≥ 3 才刷新）
-            lastRecruitYear = 1
             // 场景规避：商人刷新机会首次授予（Kotlin 臂 mock 的
             // merchantAndRecruitService 零行为，C++ 侧 lastGrant==0 会授予 →
             // 置 lastGrant=当前年使 C++ 侧差值不满足 → 双端零效果）
@@ -319,7 +316,7 @@ class DiffYearSettlementTest {
             spiritStoneWallet = wallet,
             gameConfigProvider = configProvider
         )
-        // AI 招募：真实 AI 宗门处理器——构造环断环：
+        // AI 宗门处理器：构造环断环：
         // CaveExplorationProcessor 直接依赖 eventProcessor，而 eventProcessor
         // 经 Provider<CaveExplorationProcessor> 延迟解析——先构造 eventProcessor
         //（Provider 指向晚绑定的 caveProc），再构造 caveProc 回填
@@ -335,7 +332,6 @@ class DiffYearSettlementTest {
             cultivationSettlement = settlement,
             eventProcessor = eventProcessor,
             productionProcessor = mockSmart(),
-            recruitService = mockSmart(),
             // 商人收购：真实商人服务——C++ runYearSettlement 每年执行
             // 收购（SYSTEM 分区），Kotlin 臂必须真实执行（mock 零行为失配）
             merchantAndRecruitService = MerchantAndRecruitService(store, gameRng),
@@ -346,9 +342,8 @@ class DiffYearSettlementTest {
     }
 
     /**
-     * 真实 AI 宗门处理器装配（招募路由对拍主体）——
-     * processSectDisciplesYearlyRecruitment 走 state 参数 + 静态依赖
-     *（AISectDiscipleManager/RecruitService），其余构造依赖惰性 mock。
+     * 真实 AI 宗门处理器装配（AI 弟子年变对拍主体——
+     * processSectDisciplesAging 走 state 参数），其余构造依赖惰性 mock。
      */
     private fun buildCaveExplorationProcessor(
         store: FakeGameStateStore,
@@ -402,13 +397,11 @@ class DiffYearSettlementTest {
             breakthroughHandler = handler,
             cultivationSettlement = settlement,
             battleSystem = mockSmart(),
-            recruitService = mockSmart(),
             // 商人收购：真实商人服务（收购流对拍主体——由
             // flushYearlyOpsQueue 触发；功法表经 @Before 快照注入与 C++ 对齐）
             merchantAndRecruitService = MerchantAndRecruitService(store, gameRng),
-            // AI 招募：真实 AI 宗门处理器（Provider 延迟解析——
-            // caveProc 在 buildService 中构造后回填，processSectDisciplesYearlyRecruitment
-            // 走 state 参数，其余依赖惰性）
+            // AI 宗门年变：真实处理器（Provider 延迟解析——
+            // caveProc 在 buildService 中构造后回填，其余依赖惰性）
             caveExplorationProcessor = javax.inject.Provider { caveExplorationProvider() },
             discipleLifecycleProcessor = lifecycle,
             // 批收尾（外交簇换装真实）：年变 T2 #13 交易刷新（refreshAllSectTrades
@@ -462,62 +455,6 @@ class DiffYearSettlementTest {
     // ── 验收测试 ───────────────────────────────────────────────────
 
     /**
-     * AI 招募对拍场景快照：AI 宗门 ai-1（中型 level 1——
-     * 装备 2/功法 3）+ 1 名现有弟子 + lastAiSectRecruitYear=0；
-     * gameYear=3 跨年到 4 → 差值 4-0>=3 触发招募（1..5 名炼气新弟子）。
-     * 规避清单：lastRecruitYear/merchantLastRefreshChanceGrantYear 置 3
-     *（招募/商人刷新差值不满足）；recruitList 空；sectDetails/联盟/附庸/秘境
-     * 空（其余年变步骤零效果）；mapSeed=0（AI RNG = fromSeed(0+6*31337)，
-     * 与 @Before initForSlot(0) 同源）。
-     */
-    private fun buildAiSectSnapshot(): NativeGameState {
-        val gameData = GameData(
-            gameYear = 3, gameMonth = 12, gamePhase = 2,
-            spiritStones = 10000L
-        ).apply {
-            // 键 6（AI_SECT）已在协议面**退役**（阶段 1②：AI 流权威态由宿主侧
-            // `aiRng_` 承载，随 9 号通道键落盘）——快照里带 6 号会让 C++ 导入时
-            // 按该值覆写 aiRng_，与 Kotlin 侧 `mapSeed + 6×31337` 播种态分叉。
-            // 键 9（AI_SECT_MIRROR）**必须一并摘除**：C++ importStateInternal
-            // 的"存档续接"语义是"快照带非 0 键 9 → 以其覆盖 mapSeed 重播态"
-            //（game_core.cpp importStateInternal）——initialRngStates 盲扫写入的
-            // 9 号值是 fromSeed(SEED+9) 预抽 3 次的无关状态，续接后 AI 流首抽
-            // 即分叉（实测首名新招募弟子名字即不同）。本场景刻意走 mapSeed
-            // 播种路径（Kotlin 臂 initForSlot(0) 同源 fromSeed(0+6×31337)），
-            // 故两侧 AI 流种子只经 mapSeed 公式对齐，快照不带任何 AI 通道键。
-            rngStates = (initialRngStates(SEED) -
-                RngPartition.AI_SECT.id -
-                RngPartition.AI_SECT_MIRROR.id).toMutableMap()
-            lastRecruitYear = 3          // 招募刷新差值 4-3<3 不刷新
-            merchantLastRefreshChanceGrantYear = 3   // 商人刷新机会差值 <30 不授予
-        }
-        val aiDisciple = Disciple(
-            id = "ai-a1", name = "青云长老", surname = "青",
-            gender = "male", realm = 7, realmLayer = 1,
-            cultivation = 100.0, spiritRootType = "metal",
-            isAlive = true,
-            combat = CombatAttributes(baseHp = 500, currentHp = -1, currentMp = -1)
-        )
-        return NativeGameState(
-            gameData = gameData,
-            aiSectDisciples = mapOf(
-                "ai-1" to listOf(aiDisciple)
-            ),
-            disciples = emptyList()
-        )
-    }
-
-    /** 玩家宗门（aiSect 场景的 worldMapSects 构造辅助）。 */
-    private fun buildAiSectWorld(): List<WorldSect> {
-        return listOf(
-            WorldSect(
-                id = "ai-1", name = "青云宗", level = 1,
-                x = 100f, y = 100f, isPlayerSect = false
-            )
-        )
-    }
-
-    /**
      * 批收尾（外交簇换装对拍）场景快照：玩家宗门 p1 + AI 宗门 ai-1/ai-2，
      * 触发年变 T2 外交三路径真实执行：
      * - #13 交易刷新（refreshAllSectTrades）：sectDetails{ai-1} 空交易 →
@@ -528,8 +465,7 @@ class DiffYearSettlementTest {
      *   startYear=6 未到期 + 关系 favor 75 < 80 → 解散
      * - #19 好感衰减（processFavorDecay）：rel(ai-1) favor 85 且距上次
      *   交互 2 年 → 84 + noGiftYears+1；rel(ai-2) favor 75 不衰减
-     * 规避清单：lastRecruitYear/merchantLastRefreshChanceGrantYear/
-     * lastAiSectRecruitYear 置 6（差值判据不满足）；弟子/招募/附庸/秘境空。
+     * 规避清单：merchantLastRefreshChanceGrantYear 置 6；弟子/招募/附庸/秘境空。
      * 玩家宗门 id 用 "player" 哨兵（联盟 sectIds 同哨兵，C++/Kotlin 双侧一致）。
      */
     private fun buildDiplomacySnapshot(): NativeGameState {
@@ -538,9 +474,7 @@ class DiffYearSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            lastRecruitYear = 6
             merchantLastRefreshChanceGrantYear = 6
-            lastAiSectRecruitYear = 6
             // 月变步骤 4e（关卡刷新生成）规避：玩家宗门在场会触发 C++ 侧
             // 关卡生成（Kotlin 臂 SystemManager 未装 WorldLevelSystem 零生成
             // 失配）——lastRefreshMonth 置远未来哨兵使 shouldRefresh 恒 false
@@ -641,50 +575,6 @@ class DiffYearSettlementTest {
     }
 
     @Test
-    fun `ai sect yearly recruitment matches Kotlin bit-for-bit`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-
-        val snapshot = buildAiSectSnapshot()
-        // Kotlin 臂场景快照需含 worldMapSects（招募路由遍历 aiSectDisciples
-        // 时 find sect——无 worldMapSects 则 continue 不生成）
-        val kotlinSnapshot = snapshot.copy(
-            gameData = snapshot.gameData.copy(
-                worldMapSects = buildAiSectWorld()
-            )
-        )
-        // C++ 臂同输入（GameState.worldMapSects 在 gameData 内）
-        val encoded = json.encodeToString(NativeGameState.serializer(), kotlinSnapshot)
-
-        val expected = advanceKotlinSide(kotlinSnapshot)
-
-        // ── C++ 被测侧 ──
-        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
-            encoded.encodeToByteArray()))
-        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
-        val actual = json.decodeFromString(
-            NativeGameState.serializer(),
-            DiffRngBridge.nativeCoreExportState().decodeToString()
-        )
-
-        // 显式断言：招募触发 + 路由 + 年份推进
-        val actualGd = actual.gameData
-        assertEquals(4, actualGd.gameYear)
-        assertEquals(4, actualGd.lastAiSectRecruitYear)
-        val sectDisciples = actual.aiSectDisciples?.get("ai-1").orEmpty()
-        assertTrue(
-            "AI 宗门应新增弟子（原 1 + 新增 1..5），实际 ${sectDisciples.size}",
-            sectDisciples.size in 2..6
-        )
-        for (d in sectDisciples.drop(1)) {
-            assertEquals("新招募弟子应炼气一层", 9, d.realm)
-        }
-        // 全量结构对拍（aiSectDisciples 弟子全字段逐位一致——id 镜像排除）
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
-                                json.encodeToJsonElement(actual))
-    }
-
-    @Test
     fun `year settlement matches Kotlin bit-for-bit across one boundary`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
@@ -715,9 +605,9 @@ class DiffYearSettlementTest {
     private fun advanceKotlinSide(snapshot: NativeGameState): NativeGameState {
         val store = FakeGameStateStore().also {
             it.gameDataValue = snapshot.gameData.apply {
-                // AI 招募：GameData.aiSectDisciples @Transient 内存字段
+                // AI 弟子池为 GameData.aiSectDisciples @Transient 内存字段
                 //（不入 gameData JSON）——从 NativeGameState 顶层快照回填，
-                // Kotlin 臂招募路由才能读到 AI 宗门弟子池
+                // Kotlin 臂年变（AI 弟子老化等）才能读到 AI 宗门弟子池
                 aiSectDisciples = snapshot.aiSectDisciples ?: emptyMap()
             }
             it.disciplesValue = snapshot.disciples

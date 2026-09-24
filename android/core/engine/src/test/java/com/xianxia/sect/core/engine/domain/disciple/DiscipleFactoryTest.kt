@@ -6,8 +6,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * 验证 DiscipleFactory 统一构造 — 三处构造站点（recruitDisciple /
- * refreshRecruitList / createChild）通过不同 DiscipleSeed 得到一致的
+ * 验证 DiscipleFactory 统一构造 — 各构造站点（recruitDisciple / createChild）
+ * 通过不同 DiscipleSeed 得到一致的
  * 五段逻辑（variance / comprehension / skills / baseStats / talentIds）。
  */
 class DiscipleFactoryTest {

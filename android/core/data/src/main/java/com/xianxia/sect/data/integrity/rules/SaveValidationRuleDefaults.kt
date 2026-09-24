@@ -25,7 +25,7 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             BloodRefinementRefRule,    // order=17
             ItemRefConsistencyRule,    // order=18
             EntityCountBoundsRule,     // order=19
-            RecruitListCleanupRule,    // order=20
+            RecruitListCleanupRule,    // order=20（招募链下线：恒空清表）
             BattleLogRefRule,          // order=21（battleLogs 条目结构校验）
             ManualTalentRefRule,       // order=22（manualIds/talentIds 悬空引用清理）
             JadeSymbolNonNegativeRule, // order=23（玉符字段负值/超限钳制）

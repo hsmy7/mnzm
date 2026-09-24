@@ -212,16 +212,6 @@ class GameEngineResidualNativeTxGateTest {
     }
 
     @Test
-    fun `recruit filters fall back to kotlin arm when flag OFF and keep 1to5 validation`() = runTest {
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            engine.setAutoRecruitFilterValidated(setOf(1, 3, 7))
-            engine.setAutoRejectFilterValidated(setOf(2, 9))
-        }
-        assertEquals(setOf(1, 3), store.gameDataSnapshot.autoRecruitSpiritRootFilter)
-        assertEquals(setOf(2), store.gameDataSnapshot.autoRejectSpiritRootFilter)
-    }
-
-    @Test
     fun `dao companion consent off clears pending proposals after write`() = runTest {
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             engine.setDaoCompanionConsentRequired(true)

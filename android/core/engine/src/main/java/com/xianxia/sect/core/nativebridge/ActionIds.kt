@@ -395,13 +395,13 @@ object ActionIds {
     /** 特质单槽洗炼（目标校验+排除集+扣玉符+保底/品阶抽取，SYSTEM 分区） */
     const val TRAIT_WASH_SLOT_TX: Int = 1616
 
-    /** 招募列表移除条目（按 id 过滤幂等，零 RNG） */
+    /** 【已退役，编号禁复用】招募列表移除条目（按 id 过滤幂等，零 RNG） */
     const val RECRUIT_REMOVE_TX: Int = 1630
 
-    /** 年度招募列表刷新（差值门+宗门等级/长老魅力加成+广纳门徒+候选生成，SYSTEM 分区） */
+    /** 【已退役，编号禁复用】年度招募列表刷新（差值门+宗门等级/长老魅力加成+广纳门徒+候选生成，SYSTEM 分区） */
     const val RECRUIT_REFRESH_TX: Int = 1631
 
-    /** 招募列表净化（损坏过滤/三级去重/跨表残留移除，零 RNG） */
+    /** 【已退役，编号禁复用】招募列表净化（损坏过滤/三级去重/跨表残留移除，零 RNG） */
     const val RECRUIT_AGE_TX: Int = 1632
 
     /** 生产槽弟子任命（槽位存在校验+全槽位清理+目标槽写+他槽清空，零 RNG） */
@@ -440,7 +440,7 @@ object ActionIds {
     /** 政策开关（可负担校验+首月扣费+置位+激活计数+修炼 checkpoint，零 RNG） */
     const val GOV_POLICY_TOGGLE_TX: Int = 1680
 
-    /** 广纳门徒开关（固定费用+付费月戳+激活计数，零 RNG） */
+    /** 【已退役，编号禁复用】广纳门徒开关（固定费用+付费月戳+激活计数，零 RNG） */
     const val GOV_OPEN_RECRUITMENT_TOGGLE_TX: Int = 1681
 
     /** 灵矿增产开关（免费+激活计数+灵矿结算月戳，零 RNG） */

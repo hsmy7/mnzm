@@ -195,12 +195,10 @@ TEST_F(LockBeastTxFixture, SettingsPatchWritesAllAutoAssignFields) {
                                                           {"daoCompanionBannedRootCounts", ints({1})},
                                                           {"prisonerSpiritRootFilter", ints({2, 3})},
                                                           {"autoSellMidGradeForPurchase", flag(true)},
-                                                          {"autoSellHighGradeForPurchase", flag(true)},
-                                                          {"autoRecruitSpiritRootFilter", ints({1})},
-                                                          {"autoRejectSpiritRootFilter", ints({4})}}));
+                                                          {"autoSellHighGradeForPurchase", flag(true)}}));
     EXPECT_TRUE(r.base.ok);
     EXPECT_TRUE(r.changed);
-    EXPECT_EQ(r.appliedFields, 13);
+    EXPECT_EQ(r.appliedFields, 11);
     const auto& gd = core_->state().gameData;
     EXPECT_TRUE(gd.breakthroughAutoPillFocused);
     EXPECT_EQ(gd.breakthroughAutoPillRootCounts, (std::vector<int32_t>{1, 2}));
@@ -211,8 +209,6 @@ TEST_F(LockBeastTxFixture, SettingsPatchWritesAllAutoAssignFields) {
     EXPECT_EQ(gd.prisonerSpiritRootFilter, (std::vector<int32_t>{2, 3}));
     EXPECT_TRUE(gd.autoSellMidGradeForPurchase);
     EXPECT_TRUE(gd.autoSellHighGradeForPurchase);
-    EXPECT_EQ(gd.autoRecruitSpiritRootFilter, (std::vector<int32_t>{1}));
-    EXPECT_EQ(gd.autoRejectSpiritRootFilter, (std::vector<int32_t>{4}));
 }
 
 TEST_F(LockBeastTxFixture, SettingsPatchUnknownFieldFailsWithZeroWrite) {

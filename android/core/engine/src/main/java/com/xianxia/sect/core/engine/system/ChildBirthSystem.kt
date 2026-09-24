@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.parentId1
 import com.xianxia.sect.core.model.parentId2
 import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.RngPartition
@@ -114,16 +113,10 @@ class ChildBirthSystem @Inject constructor(
                 continue
             }
 
-            val child = createChild(mother, father, currentYear, state)
-            state.gameData = state.gameData.copy(
-                recruitList = state.gameData.recruitList.toList() + child
-            )
-            // 新生儿产生后立即执行自动招募检查 + 重置惰性（同步 C++ 惰性门）
-            RecruitService.resetAutoRecruitIdle()
-            RecruitService.RecruitLazyState.autoRejectIdle = false
-            RecruitService.processAutoRecruit(state)
+            // 招募链下线：新生儿不写入招募列表（恒空语义）
+            createChild(mother, father, currentYear, state)
 
-            // 增量更新母亲状态，避免 replaceAll 覆盖 processAutoRecruit 已插入的弟子
+            // 增量更新母亲状态，避免覆盖当月已写入的弟子变更
             state.discipleTables.update(mother.copy(
                 social = mother.social.copy(
                     lastChildYear = currentYear,

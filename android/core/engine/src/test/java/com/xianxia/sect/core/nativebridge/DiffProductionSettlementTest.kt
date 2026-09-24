@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
@@ -131,7 +130,6 @@ class DiffProductionSettlementTest {
     fun `production completion matches Kotlin bit-for-bit across one boundary`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
 
         val (snapshot, port) = buildProductionSceneSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)

@@ -46,7 +46,7 @@ import org.robolectric.RobolectricTestRunner
  *
  * JVM 单测环境 GameCoreBridge 恒未加载：断言 AUTHORITATIVE 稳态与 flag OFF
  * 两模式下九 native 臂均降级（null/false）、入口走 Kotlin 回退臂且语义不变
- * （改名净化/类型直改/关注翻转/功法替换/血炼启动/状态派生）；native 事务
+ * （改名/类型直改/关注翻转/功法替换/血炼启动/状态派生）；native 事务
  * 本身的校验链/字段面由桌面 C++ disciple_ops_tx_test.cpp 黄金用例守护，
  * 真机转发臂由真机验证批覆盖。
  *
@@ -118,23 +118,18 @@ class GameEngineDiscipleOpsNativeTxGateTest {
         NativeEngineFlag.mode = NativeEngineFlag.Mode.AUTHORITATIVE
     }
 
-    // ── 1. 改名：两模式均走回退臂（name 行写 + 招募同人净化）────────────
+    // ── 1. 改名：两模式均走回退臂（name 行写）────────────
 
     @Test
     fun renameDiscipleDegradesToKotlinFallbackInBothModes() = runTest {
-        seedRecruitCandidate()
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
             runBlocking { engine.renameDisciple(discipleA, "新名甲") }
         }
         var name = ""
-        var recruitSize = -1
         store.update {
             name = discipleTables.names[1]
-            recruitSize = gameData.recruitList.size
         }
         assertEquals("新名甲", name)
-        // 同人残留净化（签名命中）
-        assertEquals(0, recruitSize)
 
         // flag OFF 同语义
         store.update {
@@ -355,18 +350,6 @@ class GameEngineDiscipleOpsNativeTxGateTest {
         whenever(mockInventoryFacade.inventorySystem).thenReturn(mock())
         whenever(it.inventoryFacade).thenReturn(mockInventoryFacade)
         whenever(it.mailService).thenReturn(mock())
-    }
-
-    /** 招募列表同人候选播种（与弟子 A 签名命中——name/surname/gender/root）。 */
-    private fun seedRecruitCandidate() {
-        store.update {
-            // 与 seedDisciples 装配面同签名（DiscipleTablesAssemblers 默认：
-            // gender="male" / spiritRootType="metal"）
-            val candidate = com.xianxia.sect.core.model.Disciple(
-                id = "cand-1", name = "弟子A", surname = "张"
-            ).copy(isAlive = true)
-            gameData = gameData.copy(recruitList = listOf(candidate))
-        }
     }
 
     /** 测试弟子 A 播种（事务内初始化 DiscipleTables）。 */

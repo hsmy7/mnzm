@@ -6,7 +6,6 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.RecruitIntegrity
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.nativebridge.ActionIds
@@ -160,16 +159,14 @@ suspend fun GameEngine.applyConversationEffectAtomic(
 }
 
 /**
- * 原子重命名宗门弟子，并在同一事务内清除招募列表中与"旧身份"同人的残留条目。
- * 改名会破坏 [RecruitIntegrity.isSamePerson] 的 5 字段签名匹配，
- * 若不在此净化，残留双胞胎将永久逃脱净化、可被重复招募。
+ * 原子重命名宗门弟子。
  *
  * @param discipleId 宗门弟子 ID
  * @param newName 新姓名
  */
 suspend fun GameEngine.renameDisciple(discipleId: String, newName: String) {
-    // C++ 真相先行（W4-A·w3-01：names 行写 + 招募列表 isSamePerson 同人净化
-    // 在 C++；失败信封/降级 null → Kotlin 原路径回退臂——双实现并行契约）
+    // C++ 真相先行（W4-A·w3-01：names 行写在 C++；失败信封/降级 null →
+    // Kotlin 原路径回退臂——双实现并行契约）
     if (tryDiscipleOpNative(ActionIds.DISCIPLE_OP_RENAME) {
             put("discipleId", discipleId)
             put("newName", newName)
@@ -184,11 +181,6 @@ suspend fun GameEngine.renameDisciple(discipleId: String, newName: String) {
             val updated = current.copy(name = newName)
             discipleTables.remove(id)
             discipleTables.insert(updated)
-            // 按改名前的旧身份过滤：签名命中的同人残留一并清除
-            val kept = gameData.recruitList.filter { !RecruitIntegrity.isSamePerson(it, current) }
-            if (kept.size != gameData.recruitList.size) {
-                gameData = gameData.copy(recruitList = kept)
-            }
         }
     }
 }

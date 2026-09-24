@@ -23,7 +23,6 @@
 #include "gamecore/system/ai_sect_recruit.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/merchant_settlement.h"
-#include "gamecore/system/recruit_settlement.h"
 #include "gamecore/system/secret_realm_settlement.h"
 #include "gamecore/system/year_settlement.h"
 
@@ -151,7 +150,7 @@ TEST_F(ItemIdReseedGuardTest, AllGeneratorsRouteThroughRegistry) {
     const std::vector<std::pair<std::string, std::string>> generators = {
         {"gc-stack", StackableItemStore<state::Pill>::generateNewId()},
         {"gc-merch", merchant_settle::nextItemId()},
-        {"gc-inst", recruit_settle::nextInstanceId()},
+        {"gc-inst", nextInstanceId()},
         {"gc-ai-d", detail::nextAiDiscipleId()},
         {"gc-sr-team", secret_realm_settle::nextTeamId()},
         {"gc-trade", detail::nextTradeItemId()},

@@ -28,6 +28,7 @@ import java.io.File
  * 3. **全链回归**：v39 旧档（单数 `battleTeam` 活跃期最后一版）经 40→当前版本全链迁移，
  *    被删列集**精确等于** `{autoSaveIntervalMonths, battleTeam, aiBattleTeams}` ∪
  *    G02 v55 的 `game_data` 三列（`V55_GAME_DATA_DROPPED_COLUMNS` 同源），
+ *    以及 G05 v56 的 `game_data` 五列（`V56_GAME_DATA_DROPPED_COLUMNS` 同源），
  *    其余交集列逐字段全等；
  * 4. **结构守卫（防回流）**：`52.json` 的 `game_data` 不含两死列、`51.json` 含
  *    （对照面非空转）+ 列数恰少 2。
@@ -283,8 +284,10 @@ class RoomMigrationV51To52Test {
     }
 
     /**
-     * 全链被删列集精确等于历史三列（v50 删 autoSaveIntervalMonths + v52 删两死列）
-     * ∪ G02 v55 三列（`V55_GAME_DATA_DROPPED_COLUMNS` 同源），
+     * 全链被删列集 = 注册的删列常量集（历史三列 v50/v52 ∪ G02 v55 三列 ∪ G05 v56 五列）
+     * **与 v39 起点既有列的交集**——链内生灭列（如 v41 新增、v56 删除的
+     * last_ai_sect_recruit_year）在 before 快照中不存在，不入 before−after 差集；
+     * 交集语义仍精确：起点在场的注册删列必须逐一消失，且不得有任何未注册列被删。
      * 返回该集合供逐字段等价断言复用。
      */
     private fun assertExactDroppedSetAcrossChain(
@@ -293,10 +296,13 @@ class RoomMigrationV51To52Test {
     ): Set<String> {
         assertEquals("全链迁移后行数不变", before.size, after.size)
         val dropped = before.first().keys - after.first().keys
+        val expectedRegistered = setOf("autoSaveIntervalMonths", DROPPED_BY_V52, DROPPED_AI_BY_V52) +
+            V55_GAME_DATA_DROPPED_COLUMNS.toSet() +
+            V56_GAME_DATA_DROPPED_COLUMNS.toSet()
         assertEquals(
-            "全链被删列集必须精确等于 {autoSaveIntervalMonths, battleTeam, aiBattleTeams} ∪ G02 v55 三列",
-            setOf("autoSaveIntervalMonths", DROPPED_BY_V52, DROPPED_AI_BY_V52) +
-                V55_GAME_DATA_DROPPED_COLUMNS.toSet(),
+            "全链被删列集必须精确等于注册删列集（{autoSaveIntervalMonths, battleTeam, aiBattleTeams}" +
+                " ∪ G02 v55 三列 ∪ G05 v56 五列）∩ v39 起点既有列",
+            expectedRegistered.intersect(before.first().keys),
             dropped
         )
         return dropped

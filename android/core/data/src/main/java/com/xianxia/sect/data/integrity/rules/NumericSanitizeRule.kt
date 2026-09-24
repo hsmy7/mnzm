@@ -38,19 +38,15 @@ object NumericSanitizeRule : SaveValidationRule {
         val repairs = mutableListOf<String>()
         val fixedDisciples = data.disciples.map { sanitizeDisciple(it, repairs) }
 
-        // ── gameData 域：sectCultivation + 招募列表 + AI 宗门弟子 ──
+        // ── gameData 域：sectCultivation + AI 宗门弟子 ──
         var sectCultivation = data.gameData.sectCultivation
         val sanitizedSectCultivation = sectCultivation.sanitize(MAX_CULTIVATION)
         if (sanitizedSectCultivation != sectCultivation) {
             repairs.add("宗门修为 sectCultivation=$sectCultivation 非法（非有限/负值/超上限），已重置为 $sanitizedSectCultivation")
             sectCultivation = sanitizedSectCultivation
         }
-        // 对抗性审查（2026-08-05）：招募列表/AI 宗门弟子必须**全字段**消毒——
-        // 原实现只查 cultivation，NaN checkpoint/pill 经招募全字段拷贝进入组件表
-        var fixedRecruit: List<Disciple>? = null
-        if (data.gameData.recruitList.any { it.hasInvalidNumericFields() }) {
-            fixedRecruit = data.gameData.recruitList.map { sanitizeDisciple(it, repairs, "招募列表 ") }
-        }
+        // 对抗性审查（2026-08-05）：AI 宗门弟子必须**全字段**消毒——
+        // 原实现只查 cultivation，NaN checkpoint/pill 经全字段拷贝进入组件表
         var fixedAiSects: Map<String, List<Disciple>>? = null
         if (data.gameData.aiSectDisciples.values.any { list ->
                 list.any { it.hasInvalidNumericFields() }
@@ -61,11 +57,10 @@ object NumericSanitizeRule : SaveValidationRule {
         }
 
         val gd = data.gameData
-        val gdChanged = sectCultivation != gd.sectCultivation || fixedRecruit != null || fixedAiSects != null
+        val gdChanged = sectCultivation != gd.sectCultivation || fixedAiSects != null
         val fixedGd = if (gdChanged) {
             gd.copy(
                 sectCultivation = sectCultivation,
-                recruitList = fixedRecruit ?: gd.recruitList,
                 aiSectDisciples = fixedAiSects ?: gd.aiSectDisciples
             )
         } else {
@@ -82,7 +77,7 @@ object NumericSanitizeRule : SaveValidationRule {
         }
     }
 
-    /** 弟子三维修炼值 + 丹药 5 项 Double 加成消毒（scope 用于区分招募/AI 宗门来源） */
+    /** 弟子三维修炼值 + 丹药 5 项 Double 加成消毒（scope 用于区分 AI 宗门来源） */
     private fun sanitizeDisciple(d: Disciple, repairs: MutableList<String>, scope: String = ""): Disciple {
         val label = "${scope}弟子[${d.name.ifBlank { "ID=${d.id}" }}]"
         var modified = false
