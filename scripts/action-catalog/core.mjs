@@ -202,9 +202,9 @@ export const CATALOG = [
   { id: 1573, name: 'EXPLORE_TX_REMOVE_GARRISON', desc: '分舵驻守移除（occupant 捕获+槽位清空保留索引，零 RNG）' },
 
   // ── 弟子管理二：生命周期族（batch-14——disciple_lifecycle_tx.h；
-  //    逐出/拜师/婚姻批准/年俸开关四事务；逐出含 12 类槽位清理
-  //    与实例销毁，袋物品经信封回传 Kotlin 物化；失败零写入 Kotlin 回退）──
-  { id: 1590, name: 'DISCIPLE_LIFECYCLE_EXPEL', desc: '逐出事务（存在/存活/非血炼校验+12类槽位清理含住所+实例销毁+派生map收口+行删除；袋物品信封回传Kotlin物化）' },
+  //    拜师/婚姻批准/年俸开关三事务；失败零写入 Kotlin 回退；
+  //    1590 逐出已退役，编号保留在册禁复用）──
+  { id: 1590, name: 'DISCIPLE_LIFECYCLE_EXPEL', desc: '【已退役，编号禁复用】逐出事务（存在/存活/非血炼校验+12类槽位清理含住所+实例销毁+派生map收口+行删除；袋物品信封回传Kotlin物化）' },
   { id: 1591, name: 'DISCIPLE_LIFECYCLE_APPRENTICE', desc: '拜师事务（三相校验+masterIds落表；双侧日志草稿回写lifeEvents）' },
   { id: 1592, name: 'DISCIPLE_LIFECYCLE_MARRY_APPROVE', desc: '婚姻批准事务（已有道侣防御+partnerIds双向绑定+MARRIAGE事件直写；提议移除留Kotlin）' },
   { id: 1593, name: 'DISCIPLE_LIFECYCLE_RELEASE_REFLECTION', desc: '【已退役，编号禁复用】释放思过事务' },

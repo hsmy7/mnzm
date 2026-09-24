@@ -9,7 +9,7 @@ import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.ui.components.TextInputDialog
 
 /**
- * 共享改名弹窗：RenameSectDialog/RenameDiscipleDialog 同构合并。
+ * 共享改名弹窗容器（[RenameSectDialog] 配置于本容器之上）。
  * 统一为 [TextInputDialog]（独立平台 Dialog 窗口）——文本输入不再
  * 与游戏渲染 Surface 共窗（键盘窗口 resize/焦点抖动不再传导到游戏窗口），
  * 且获得输入会话状态机（open/close 幂等）与 per-API softInputMode 兜底。
@@ -76,27 +76,7 @@ fun RenameSectDialog(
     )
 }
 
-/** 弟子改名弹窗（配置固定） */
-@Composable
-fun RenameDiscipleDialog(
-    currentName: String,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    RenameDialog(
-        config = RenameDialogConfig(
-            title = "修改弟子名称",
-            placeholder = "张三",
-            maxLength = InputValidator.MAX_DISCIPLE_NAME_LENGTH,
-            validate = InputValidator::validateDiscipleName
-        ),
-        currentName = currentName,
-        onConfirm = onConfirm,
-        onDismiss = onDismiss
-    )
-}
-
-/** 改名弹窗配置（宗门/弟子共用，差异：标题/占位符/长度/校验器；声明置于 [RenameDialog] 之后） */
+/** 改名弹窗配置（标题/占位符/长度/校验器；声明置于 [RenameDialog] 之后） */
 data class RenameDialogConfig(
     val title: String,
     val placeholder: String,

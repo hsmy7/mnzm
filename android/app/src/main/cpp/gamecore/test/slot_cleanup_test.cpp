@@ -124,7 +124,7 @@ TEST(SlotCleanupTest, ResidenceRespectsIncludeFlag) {
     const auto without = clearAllSlotsDataOnly(sampleInput(), "1", false);
     EXPECT_EQ(without.residenceSlots[0].discipleId, "1");  // 工作分配保留住所
     const auto with = clearAllSlotsDataOnly(sampleInput(), "1", true);
-    EXPECT_TRUE(with.residenceSlots[0].discipleId.empty());  // 死亡/逐出清住所
+    EXPECT_TRUE(with.residenceSlots[0].discipleId.empty());  // includeResidence=true 清住所
 }
 
 TEST(SlotCleanupTest, ClearsBloodRefinementsAndBattleTeams) {

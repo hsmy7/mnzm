@@ -359,7 +359,7 @@ object ActionIds {
     /** 分舵驻守移除（occupant 捕获+槽位清空保留索引，零 RNG） */
     const val EXPLORE_TX_REMOVE_GARRISON: Int = 1573
 
-    /** 逐出事务（存在/存活/非血炼校验+12类槽位清理含住所+实例销毁+派生map收口+行删除；袋物品信封回传Kotlin物化） */
+    /** 【已退役，编号禁复用】逐出事务（存在/存活/非血炼校验+12类槽位清理含住所+实例销毁+派生map收口+行删除；袋物品信封回传Kotlin物化） */
     const val DISCIPLE_LIFECYCLE_EXPEL: Int = 1590
 
     /** 拜师事务（三相校验+masterIds落表；双侧日志草稿回写lifeEvents） */
@@ -512,7 +512,7 @@ object ActionIds {
     /** 开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin） */
     const val STORAGE_BAG_OPEN_TX: Int = 1734
 
-    /** 弟子改名事务（names行写+招募列表isSamePerson同人净化——按改名前身份） */
+    /** 【已退役，编号禁复用】弟子改名事务（names行写+招募列表isSamePerson同人净化——按改名前身份） */
     const val DISCIPLE_OP_RENAME: Int = 1740
 
     /** 弟子类型直改事务（discipleTypes行写；状态推导由Kotlin调用方原序执行） */

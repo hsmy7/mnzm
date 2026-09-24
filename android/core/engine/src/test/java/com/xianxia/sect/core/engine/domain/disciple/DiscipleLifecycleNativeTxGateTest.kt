@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.DiscipleTables
@@ -28,7 +27,7 @@ import org.robolectric.RobolectricTestRunner
  * 同族三级降级契约守护）。
  *
  * JVM 单测环境 GameCoreBridge 恒未加载：断言 AUTHORITATIVE 稳态与 flag OFF 两
- * 模式下五入口均走 Kotlin 回退臂且状态变更语义不变（native 臂零激活、零异常
+ * 模式下四入口均走 Kotlin 回退臂且状态变更语义不变（native 臂零激活、零异常
  * 泄漏）；native 事务本身的校验链/槽位清理语义由桌面 C++
  * disciple_lifecycle_tx_test.cpp 黄金用例守护，真机转发臂由真机验证批覆盖。
  */
@@ -119,38 +118,22 @@ class DiscipleLifecycleNativeTxGateTest {
     // ── 转发臂门控（桥未加载恒降级 null） ───────────────────────
 
     @Test
-    fun `native 转发 - AUTHORITATIVE 且桥未加载三入口均返回 null`() {
+    fun `native 转发 - AUTHORITATIVE 且桥未加载两入口均返回 null`() {
         seedDisciples()
-        assertNull(facade.tryNativeExpelDisciple("1"))
         assertNull(facade.tryNativeApprenticeToMaster("1", "2"))
         assertNull(facade.tryNativeSalaryToggle(3, true))
     }
 
     @Test
-    fun `native 转发 - flag OFF 三入口均返回 null`() {
+    fun `native 转发 - flag OFF 两入口均返回 null`() {
         seedDisciples()
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            assertNull(facade.tryNativeExpelDisciple("1"))
             assertNull(facade.tryNativeApprenticeToMaster("1", "2"))
             assertNull(facade.tryNativeSalaryToggle(3, true))
         }
     }
 
     // ── 回退臂语义不变（桥未加载 = Kotlin 原路径全量生效） ──────
-
-    @Test
-    fun `回退臂 - 逐出走 Kotlin 原路径删行清槽计数`() {
-        seedDisciples()
-        tables.statuses[1] = DiscipleStatus.MINING
-
-        val result = facade.expelDisciple("1")
-
-        assertTrue(result is com.xianxia.sect.core.util.DomainResult.Success)
-        assertTrue("row must be removed", 1 !in tables.ids)
-        assertEquals("annual deserted counter incremented", 1, store.gameData.value.annualDesertedDisciples)
-        assertEquals("slot cleared", "", store.gameData.value.spiritMineSlots[0].discipleId)
-        assertTrue("control disciple intact", 2 in tables.ids)
-    }
 
     @Test
     fun `回退臂 - 拜师 masterIds 落表与双侧 lifeEvents`() {

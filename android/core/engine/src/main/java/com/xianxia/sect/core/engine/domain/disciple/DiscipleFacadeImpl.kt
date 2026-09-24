@@ -31,7 +31,7 @@ import javax.inject.Singleton
 
 
 @Singleton
-@Suppress("TooManyFunctions")  // 37 个 override 镜像 DiscipleFacade 接口契约下界 + 深耦合成员扩展——TMF 余量为契约骨架，可移动函数已拆出功法/战斗域文件
+@Suppress("TooManyFunctions")  // 弟子域门面实现：override 镜像 DiscipleFacade 接口契约下界 + 深耦合成员扩展——TMF 余量为契约骨架，可移动函数已拆出功法/战斗域文件
 class DiscipleFacadeImpl @Inject constructor(
     // 放宽为 internal 供 DiscipleLifecycleNativeTx 扩展读取（stateStore/mailRepo 同款三重防护）
     internal val discipleService: DiscipleService,
@@ -97,17 +97,6 @@ class DiscipleFacadeImpl @Inject constructor(
     override suspend fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
 
     override fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
-
-    /**
-     * Expel disciple from sect
-     */
-    @Suppress("ReturnCount")  // native 转发/回退双臂逐级早退（tryNativeManualRecruit 同构）
-    override fun expelDisciple(discipleId: String): DomainResult<Unit> {
-        // AUTHORITATIVE：逐出下沉 C++ 单真相源（batch-14）——C++ 校验链先行
-        // 失败零写入，失败信封/降级回退 Kotlin 原实现（双实现并行契约）
-        tryNativeExpelDisciple(discipleId)?.let { return it }
-        return discipleService.expelDisciple(discipleId)
-    }
 
     override fun apprenticeToMaster(discipleId: String,
         masterId: String): DomainResult<Unit> {
@@ -175,10 +164,6 @@ class DiscipleFacadeImpl @Inject constructor(
             }
         }
         discipleService.syncSingleDiscipleStatus(discipleId)
-    }
-
-    override fun dismissDisciple(discipleId: String) {
-        expelDisciple(discipleId)
     }
 
     override fun addLifeEvent(discipleId: String, event: String) =

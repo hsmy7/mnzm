@@ -19,7 +19,7 @@
 //  - checkGameOverCondition(state)：月变残留链**事务内步骤**（外层已持
 //    stateStore.update），C++ 权威已存在（month_settlement.h 步骤 8e）；
 //    无参重载零调用者——包成独立事务会与月变单事务边界冲突。
-//  - updateGameData / updateDisciple / renameDisciple / changeDiscipleTypeAtomic /
+//  - updateGameData / updateDisciple / changeDiscipleTypeAtomic /
 //    toggleWatchItem（GameEngineCoordination）：**通用写入口**，按批文 §2.2 保守
 //    路线只审计登记，不为它们造事务（随消费方下沉自然收敛）。
 //  - claimGuideReward：条件判定 `GuideTask.conditions.isMet(gd)` 在 Kotlin 引导

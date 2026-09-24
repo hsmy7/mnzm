@@ -91,7 +91,6 @@ import com.xianxia.sect.ui.game.dialogs.SpiritRootWashDialog
 import com.xianxia.sect.ui.game.dialogs.TraitAddDialog
 import com.xianxia.sect.ui.game.dialogs.TraitWashDialog
 import com.xianxia.sect.ui.game.dialogs.WashSessionControl
-import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.delegate.equipItem
 import com.xianxia.sect.ui.game.delegate.forgetManual
@@ -112,7 +111,6 @@ private class DiscipleDetailDialogState {
     var showEquipmentDetailDialog by mutableStateOf<EquipmentInstance?>(null)
     var showRelationsDialog by mutableStateOf(false)
     var showStorageBagDialog by mutableStateOf(false)
-    var showExpelConfirmDialog by mutableStateOf(false)
     var showApprenticeSelectDialog by mutableStateOf(false)
     var showLifeLogDialog by mutableStateOf(false)
     var showChatDialog by mutableStateOf(false)
@@ -127,7 +125,6 @@ private class DiscipleDetailDialogState {
     var selectedTalent by mutableStateOf<Talent?>(null)
     var selectedPhysique by mutableStateOf<Physique?>(null)
     var selectedAffix by mutableStateOf<Affix?>(null)
-    var showRenameDialog by mutableStateOf(false)
     var showBreakthroughJadeDialog by mutableStateOf(false)
     var showTraitAddType by mutableStateOf<TraitWashType?>(null)
     var showDiscipleTypeDropdown by mutableStateOf(false)
@@ -159,10 +156,8 @@ private class DiscipleDetailDialogState {
     ): DetailActionCallbacks = DetailActionCallbacks(
         onShowRelations = { showRelationsDialog = true },
         onShowStorageBag = { showStorageBagDialog = true },
-        onShowExpelConfirm = { showExpelConfirmDialog = true },
         onShowLifeLog = { showLifeLogDialog = true },
         onShowApprentice = { showApprenticeSelectDialog = true },
-        onRenameDisciple = { showRenameDialog = true },
         onShowChat = { showChatDialog = true },
         onShowResignConfirm = {
             when (val result = evaluateResignGate(disciple.status, disciple.isAlive)) {
@@ -228,7 +223,7 @@ fun DiscipleDetailDialog(
         disciple = disciple, allDisciples = allDisciples, viewModel = viewModel,
         allEquipment = allEquipment, allManuals = allManuals,
         manualStacks = manualStacks, equipmentStacks = equipmentStacks,
-        manualProficiencies = manualProficiencies, state = state, onDismiss = onDismiss
+        manualProficiencies = manualProficiencies, state = state
     )
 }
 
@@ -297,7 +292,7 @@ private fun DiscipleDetailBody(
                         )
                         // Close button at top-right
                         CloseButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
-                        // 改名/洗炼弹窗（内联覆盖层）必须渲染在根 Box 内、CloseButton 之后——渲染在
+                        // 洗炼弹窗（内联覆盖层）必须渲染在根 Box 内、CloseButton 之后——渲染在
                         // UnifiedGameDialog 内容 lambda 之外会被平台 Dialog 窗口遮挡而不可见（4.00.92 事故同源）
                         DiscipleDetailInlineOverlays(disciple = disciple, viewModel = viewModel,
                             gameData = gameData, state = state)
@@ -512,7 +507,7 @@ private fun DiscipleDetailInfoTab(
     )
 }
 
-/** 内联覆盖层：改名/洗炼/突破率玉符/新增特质（渲染在根 Box 最末，z 序最高） */
+/** 内联覆盖层：洗炼/突破率玉符/新增特质（渲染在根 Box 最末，z 序最高） */
 @Composable
 private fun DiscipleDetailInlineOverlays(
     disciple: DiscipleAggregate,
@@ -523,16 +518,6 @@ private fun DiscipleDetailInlineOverlays(
     // 洗炼保底计数（连续未出单灵根次数）：详情层常驻——弹窗关闭再打开不重置，
     // 保证"连续 3 次保底"语义跨洗炼会话成立（弹窗会话持有的计数在关闭时丢失）
     var washPityCount by remember { mutableIntStateOf(0) }
-    if (state.showRenameDialog) {
-        RenameDiscipleDialog(
-            currentName = disciple.name,
-            onConfirm = { newName ->
-                viewModel?.disciple?.renameDisciple(disciple.id, newName)
-                state.showRenameDialog = false
-            },
-            onDismiss = { state.showRenameDialog = false }
-        )
-    }
     if (state.showWashDialog) {
         SpiritRootWashDialog(
             disciple = disciple,
@@ -591,8 +576,7 @@ private fun DiscipleDetailSecondaryDialogs(
     manualStacks: List<ManualStack>,
     equipmentStacks: List<EquipmentStack>,
     manualProficiencies: Map<String, List<ManualProficiencyData>>,
-    state: DiscipleDetailDialogState,
-    onDismiss: () -> Unit
+    state: DiscipleDetailDialogState
 ) {
     val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
     val gameYear = gameData?.gameYear ?: 1
@@ -618,8 +602,7 @@ private fun DiscipleDetailSecondaryDialogs(
     }
 
     DiscipleDetailStandardDialogs(
-        disciple = disciple, allDisciples = allDisciples, viewModel = viewModel,
-        state = state, onDismiss = onDismiss
+        disciple = disciple, allDisciples = allDisciples, viewModel = viewModel, state = state
     )
     DiscipleDetailSelectionDialogs(
         disciple = disciple, viewModel = viewModel, allEquipment = allEquipment,
@@ -636,25 +619,14 @@ private fun DiscipleDetailSecondaryDialogs(
     )
 }
 
-/** 确认/拜师类对话框：驱逐确认 + 卸任确认/阻塞提示 + 拜师选择/确认 */
+/** 确认/拜师类对话框：卸任确认/阻塞提示 + 拜师选择/确认 */
 @Composable
 private fun DiscipleDetailStandardDialogs(
     disciple: DiscipleAggregate,
     allDisciples: List<DiscipleAggregate>,
     viewModel: GameViewModel?,
-    state: DiscipleDetailDialogState,
-    onDismiss: () -> Unit
+    state: DiscipleDetailDialogState
 ) {
-    if (state.showExpelConfirmDialog) {
-        StandardPromptDialog(onDismissRequest = { state.showExpelConfirmDialog = false },
-            title = "确认驱逐",
-            text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
-            confirmLabel = "确认",
-            onConfirm = { viewModel?.disciple?.expelDisciple(disciple.id); state.showExpelConfirmDialog = false;
-                onDismiss() },
-            dismissLabel = "取消", onDismiss = { state.showExpelConfirmDialog = false })
-    }
-
     if (state.showResignConfirmDialog) {
         StandardPromptDialog(onDismissRequest = { state.showResignConfirmDialog = false },
             title = "卸任确认",

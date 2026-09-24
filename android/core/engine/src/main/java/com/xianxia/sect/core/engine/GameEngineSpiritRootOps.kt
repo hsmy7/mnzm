@@ -124,7 +124,7 @@ suspend fun GameEngine.washSpiritRoot(
 }
 
 /**
- * 确认替换：把弟子灵根替换为洗炼产物（同事务 remove + insert，仿 renameDisciple 形态）。
+ * 确认替换：把弟子灵根替换为洗炼产物（同事务 remove + insert 的行原子替换形态）。
  *
  * 灵根加成（修炼速度/突破率/父母灵根加成）读取时现场推导、无缓存字段；
  * 但速率投影基于"checkpoint 值 + 新速率推导"，替换瞬间必须 checkpointDisciple

@@ -2503,11 +2503,10 @@ nlohmann::json handlePolicyTx(GameCore* core, int32_t actionId,
     }
 }
 
-/// 弟子生命周期 UI 操作事务（ActionIds.DISCIPLE_LIFECYCLE_EXPEL /
-/// APPRENTICE / MARRY_APPROVE / SALARY_TOGGLE
+/// 弟子生命周期 UI 操作事务（ActionIds.DISCIPLE_LIFECYCLE_APPRENTICE /
+/// MARRY_APPROVE / SALARY_TOGGLE
 /// ——batch-14 生命周期族写者下沉；全族零 RNG 纯确定性事务，校验链
 /// 先行失败零写入，失败信封 → Kotlin 回退原路径重执行校验链。
-/// 逐出信封附 bagItems 草稿（Kotlin 物化回仓库+溢出转邮件）；
 /// 拜师信封附双侧 lifeEvents 日志草稿（Kotlin 瞬态列回写）；
 /// 婚姻批准 paired=false = 防御检查命中（Kotlin 仅移除提议不记事件））
 nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
@@ -2515,17 +2514,6 @@ nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
     namespace lifecycle_tx = gamecore::system::disciple_lifecycle_tx;
     auto& state = core->state();
     switch (actionId) {
-        case action::DISCIPLE_LIFECYCLE_EXPEL: {
-            const auto r = lifecycle_tx::expelTransaction(
-                state, params.at("discipleId").get<std::string>());
-            if (!r.ok) return fail(r.errorType, r.message);
-            nlohmann::json bagItems = nlohmann::json::array();
-            for (const auto& item : r.bagItems) {
-                nlohmann::json j = item;
-                bagItems.push_back(std::move(j));
-            }
-            return ok({{"expelled", true}, {"bagItems", std::move(bagItems)}});
-        }
         case action::DISCIPLE_LIFECYCLE_APPRENTICE: {
             const auto r = lifecycle_tx::apprenticeTransaction(
                 state, params.at("discipleId").get<std::string>(),
@@ -2644,7 +2632,7 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::BEAST_VIEW_LOCK_TX &&
                    actionId <= action::SETTINGS_PATCH_TX) {
             result = handleLockBeastTx(this, actionId, params);
-        } else if (actionId >= action::DISCIPLE_LIFECYCLE_EXPEL &&
+        } else if (actionId >= action::DISCIPLE_LIFECYCLE_APPRENTICE &&
                    actionId <= action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE) {
             result = handleDiscipleLifecycleTx(this, actionId, params);
         } else if (actionId >= action::EXPLORE_TX_ATTACK_WORLD_LEVEL &&

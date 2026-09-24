@@ -1,8 +1,7 @@
 // ============================================================
 // disciple_ops_tx_test — w3-01 弟子操作面事务守护（W4-A 第一子批）
 //
-// 守护目标：disciple_tx.h W4-A 段九事务与 Kotlin 源语义逐位一致——
-//   - 改名（names 行写 + 招募列表 isSamePerson 同人净化）
+// 守护目标：disciple_tx.h W4-A 段八事务与 Kotlin 源语义逐位一致——
 //   - 类型直改 / 关注切换（statusData["followed"] 翻转）
 //   - 赏赐（pill facade 丹药链生效/入袋分流 + material/herb/seed 扣仓入袋；
 //     先校验弟子存在再扣仓库——无效 id 物品不消失）
@@ -11,7 +10,7 @@
 //   - 血炼启动（灵石/材料/排他校验链 + 槽位清理 + REFINING + 进度写入）
 //   - 状态派生（14 flag 优先级序 + positionName 定向写删 + 灵矿自愈）
 //   - 失败臂零写入（校验链先行，任一臂失败不触碰状态）
-//   - RNG 零消费审计（九事务全程 rngStates 不动——对拍命门）
+//   - RNG 零消费审计（八事务全程 rngStates 不动——对拍命门）
 // ============================================================
 
 #include "gtest/gtest.h"
@@ -118,54 +117,6 @@ protected:
     gamecore::FixedClock clock_;
     gamecore::ConsoleLogger logger_;
 };
-
-// ── 改名 ────────────────────────────────────────────────────────────
-
-TEST_F(DiscipleOpsTxFixture, RenameWritesNameAndPurifiesRecruitList) {
-    const std::size_t row = addDisciple("1");
-    core_->state().gameData.recruitList.push_back([] {
-        Disciple c;
-        c.id = "cand-1";
-        c.name = "弟子1";       // 与弟子1 同名同姓（签名命中）
-        c.surname = "张";
-        c.gender = "male";      // 与 Disciple 默认性别同值（签名面）
-        c.spiritRootType = "metal";
-        c.isAlive = true;
-        return c;
-    }());
-    core_->state().gameData.recruitList.push_back([] {
-        Disciple c;
-        c.id = "cand-2";
-        c.name = "外人";
-        c.surname = "李";
-        c.gender = "male";
-        c.spiritRootType = "wood";
-        c.isAlive = true;
-        return c;
-    }());
-
-    const auto r = exec(action::DISCIPLE_OP_RENAME,
-                        {{"discipleId", "1"}, {"newName", "新名"}});
-    ASSERT_EQ(r["status"], "success");
-    EXPECT_TRUE(r["data"]["renamed"].get<bool>());
-    auto& ds = core_->state().disciples;
-    EXPECT_EQ(ds.names[row], "新名");
-    // 同人残留净化（按改名前身份签名命中 cand-1）、外人保留
-    ASSERT_EQ(core_->state().gameData.recruitList.size(), 1u);
-    EXPECT_EQ(core_->state().gameData.recruitList[0].id, "cand-2");
-}
-
-TEST_F(DiscipleOpsTxFixture, RenameMissingDiscipleFailsWithoutWrite) {
-    addDisciple("1");
-    const auto before = rngSnapshot();
-    const auto r = exec(action::DISCIPLE_OP_RENAME,
-                        {{"discipleId", "404"}, {"newName", "X"}});
-    EXPECT_EQ(r["status"], "failure");
-    // 失败臂零写入：既有弟子行不被触碰
-    EXPECT_EQ(core_->state().disciples.names[*core_->state().disciples.rowOf("1")],
-              "弟子1");
-    EXPECT_EQ(rngSnapshot(), before);
-}
 
 // ── 类型直改 / 关注切换 ─────────────────────────────────────────────
 
@@ -506,7 +457,6 @@ TEST_F(DiscipleOpsTxFixture, AllOpsConsumeZeroRng) {
 
     const auto before = rngSnapshot();
     (void)row;
-    (void)exec(action::DISCIPLE_OP_RENAME, {{"discipleId", "1"}, {"newName", "X"}});
     (void)exec(action::DISCIPLE_OP_CHANGE_TYPE, {{"discipleId", "1"}, {"newType", "OUTER"}});
     (void)exec(action::DISCIPLE_OP_TOGGLE_FOLLOW, {{"discipleId", "1"}});
     (void)exec(action::DISCIPLE_OP_REWARD_ITEM,

@@ -2,13 +2,11 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.mockSmart
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -29,13 +27,11 @@ class DiscipleServiceCrudTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
-    private lateinit var mockStore: GameStateStore
     private lateinit var service: DiscipleService
 
     @Before
     fun setUp() {
         val store = FakeAtomicStateStore()
-        mockStore = store
         tables = store.discipleTables
         service = buildTestService(store = store)
     }
@@ -204,39 +200,4 @@ class DiscipleServiceCrudTest {
         assertNull("should return null for non-existent disciple", result)
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // expelDisciple — 逐出
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    fun `expelDisciple - removes alive disciple`() = runTest {
-        insertAliveDisciple(1, name = "将被逐出")
-
-        val result = service.expelDisciple("1")
-
-        assertTrue("expel should return Success", result is DomainResult.Success)
-        // Disciple should be removed from tables
-        assertFalse("expelled disciple should be removed", tables.ids.contains(1))
-        // 年报脱离弟子计数（玩家逐出计入）
-        assertEquals("逐出计入年报脱离", 1, (mockStore as FakeAtomicStateStore).gameData.value.annualDesertedDisciples)
-    }
-
-    @Test
-    fun `expelDisciple - dead disciple returns NotAlive`() = runTest {
-        insertAliveDisciple(1)
-        tables.isAlive[1] = 0  // mark dead
-
-        val result = service.expelDisciple("1")
-
-        assertTrue("expel dead disciple should return Failure", result is DomainResult.Failure)
-        assertEquals("失败路径不计数", 0, (mockStore as FakeAtomicStateStore).gameData.value.annualDesertedDisciples)
-    }
-
-    @Test
-    fun `expelDisciple - non-existent disciple returns NotFound`() = runTest {
-        val result = service.expelDisciple("999")
-
-        assertTrue("expel non-existent should return Failure", result is DomainResult.Failure)
-        assertEquals("失败路径不计数", 0, (mockStore as FakeAtomicStateStore).gameData.value.annualDesertedDisciples)
-    }
 }

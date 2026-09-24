@@ -41,12 +41,12 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * w3-01 弟子操作面九事务 native 臂门控单测（W4-A 第一子批——
+ * w3-01 弟子操作面八事务 native 臂门控单测（W4-A 第一子批——
  * GameEngineAppointmentNativeTxGateTest 同族三级降级契约守护）。
  *
  * JVM 单测环境 GameCoreBridge 恒未加载：断言 AUTHORITATIVE 稳态与 flag OFF
- * 两模式下九 native 臂均降级（null/false）、入口走 Kotlin 回退臂且语义不变
- * （改名/类型直改/关注翻转/功法替换/血炼启动/状态派生）；native 事务
+ * 两模式下八 native 臂均降级（null/false）、入口走 Kotlin 回退臂且语义不变
+ * （类型直改/关注翻转/功法替换/血炼启动/状态派生）；native 事务
  * 本身的校验链/字段面由桌面 C++ disciple_ops_tx_test.cpp 黄金用例守护，
  * 真机转发臂由真机验证批覆盖。
  *
@@ -116,32 +116,6 @@ class GameEngineDiscipleOpsNativeTxGateTest {
     @After
     fun restoreFlag() {
         NativeEngineFlag.mode = NativeEngineFlag.Mode.AUTHORITATIVE
-    }
-
-    // ── 1. 改名：两模式均走回退臂（name 行写）────────────
-
-    @Test
-    fun renameDiscipleDegradesToKotlinFallbackInBothModes() = runTest {
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
-            runBlocking { engine.renameDisciple(discipleA, "新名甲") }
-        }
-        var name = ""
-        store.update {
-            name = discipleTables.names[1]
-        }
-        assertEquals("新名甲", name)
-
-        // flag OFF 同语义
-        store.update {
-            discipleTables.writeAllowed = true
-            discipleTables.names[1] = "弟子A"
-            discipleTables.writeAllowed = false
-        }
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            runBlocking { engine.renameDisciple(discipleA, "新名乙") }
-        }
-        store.update { name = discipleTables.names[1] }
-        assertEquals("新名乙", name)
     }
 
     // ── 2. 类型直改：两模式回退臂列写 ──────────────────────────────────

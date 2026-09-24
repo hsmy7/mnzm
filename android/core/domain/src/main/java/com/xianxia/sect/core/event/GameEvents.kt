@@ -179,13 +179,6 @@ data class DiscipleRecruitedEvent(
     override val type: String = "disciple_recruited"
 ) : DomainEvent
 
-data class DiscipleExpelledEvent(
-    val discipleId: String,
-    val discipleName: String = "",
-    val reason: String = "",
-    override val type: String = "disciple_expelled"
-) : DomainEvent
-
 data class ProductionCompletedEvent(
     val buildingType: String,
     val slotIndex: Int,

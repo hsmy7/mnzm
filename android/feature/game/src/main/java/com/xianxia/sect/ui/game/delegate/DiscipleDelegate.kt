@@ -7,10 +7,8 @@ import com.xianxia.sect.core.engine.applyConversationEffectAtomic
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
 import com.xianxia.sect.core.engine.changeDiscipleTypeAtomic
 import com.xianxia.sect.core.engine.confiscateStorageBagItem
-import com.xianxia.sect.core.engine.expelDisciple
 import com.xianxia.sect.core.engine.getDiscipleAggregate
 import com.xianxia.sect.core.engine.releaseReflectionDisciple
-import com.xianxia.sect.core.engine.renameDisciple
 import com.xianxia.sect.core.engine.rewardItemsToDisciple
 import com.xianxia.sect.core.engine.toggleFollowDisciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -26,10 +24,6 @@ class DiscipleDelegate(
     internal val gameEngine: GameEngine,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    fun expelDisciple(discipleId: String) {
-        gameEngine.launchOnEngine { gameEngine.expelDisciple(discipleId) }
-    }
-
     /** 拜师：将 discipleId 设为 masterId 的徒弟 */
     fun apprenticeToMaster(discipleId: String, masterId: String) {
         gameEngine.launchOnEngine { gameEngine.apprenticeToMaster(discipleId, masterId) }
@@ -73,20 +67,6 @@ class DiscipleDelegate(
         gameEngine.launchOnEngine {
             try {
                 gameEngine.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
-    fun renameDisciple(discipleId: String, newName: String) {
-        gameEngine.launchOnEngine {
-            try {
-                // 引擎层原子改名（C++ 真相先行，失败回退 Kotlin 同事务写）
-                gameEngine.renameDisciple(discipleId, newName)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

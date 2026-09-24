@@ -795,10 +795,10 @@ inline UnassignSlotResult unassignSlotTransaction(GameState& state, SlotFamily f
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// W4-A·w3-01 弟子操作面事务（ActionId 1740–1748）
+// W4-A·w3-01 弟子操作面事务（ActionId 1741–1748）
 //
 // 语义权威 = 各 Kotlin 源文件（等价移植，逐字对齐）：
-//  - GameEngineCoordination.renameDisciple / changeDiscipleTypeAtomic
+//  - GameEngineCoordination.changeDiscipleTypeAtomic
 //  - DiscipleDelegate.toggleFollowDisciple（statusData["followed"] 段）
 //  - DiscipleFacadeImpl战斗Ops2.rewardPill/rewardMaterial/rewardHerb/
 //    rewardSeed/usePill + DiscipleFacadeImpl.applyPillEffectsToDisciple
@@ -1256,70 +1256,6 @@ inline void fixInvalidMiningSlots(GameState& state) {
 }
 
 }  // namespace detail
-
-namespace detail {
-
-// ── 同人签名（Kotlin RecruitIntegrity.isSamePerson 移植面）──────────────────
-// 唯一消费者 = 下方 renameDiscipleTx（G06 改名批经 disciple_tx.h 引用：
-// 改名破坏 name/surname/gender/spiritRootType/talentIds 五字段签名匹配，
-// 须按改名前身份过滤招募列表残留双胞胎）。
-
-/// 同人签名分隔符（Kotlin SIGNATURE_SEPARATOR："\x01"）
-inline constexpr char kSignatureSeparator = '\x01';
-
-/// 同人稳定签名（Kotlin samePersonSignature：name+surname+gender+
-/// spiritRootType+sorted(talentIds).join(",")，"\x01" 分隔）
-inline std::string samePersonSignature(const Disciple& d) {
-    std::vector<std::string> sortedTalents = d.talentIds;
-    std::sort(sortedTalents.begin(), sortedTalents.end());
-    std::string talents;
-    for (std::size_t i = 0; i < sortedTalents.size(); ++i) {
-        if (i > 0) talents += ",";
-        talents += sortedTalents[i];
-    }
-    return d.name + kSignatureSeparator + d.surname + kSignatureSeparator +
-           d.gender + kSignatureSeparator + d.spiritRootType + kSignatureSeparator +
-           talents;
-}
-
-/// 跨表同人判定（Kotlin RecruitIntegrity.isSamePerson：同人稳定签名相等）
-inline bool isSamePerson(const Disciple& a, const Disciple& b) {
-    return samePersonSignature(a) == samePersonSignature(b);
-}
-
-}  // namespace detail
-
-// ── 事务 7：改名（GameEngineCoordination.renameDisciple 等价，1740）────────
-//
-// 写段：names 行写 + 招募列表同人净化（按**改名前**身份 isSamePerson 过滤——
-// 改名破坏 5 字段签名匹配，不净化则残留双胞胎可被重复招募）。
-inline DiscipleTxResult renameDiscipleTx(GameState& state,
-                                         const std::string& discipleId,
-                                         const std::string& newName) {
-    DiscipleTxResult out;
-    DiscipleStore& ds = state.disciples;
-    const auto intId = settle_util::toIntOrNull(discipleId);
-    if (!intId.has_value() || !ds.contains(discipleId)) {
-        out.errorType = "NotFound";
-        out.message = "弟子不存在 " + discipleId;
-        return out;
-    }
-    const std::size_t row = *ds.rowOf(discipleId);
-    const Disciple before = ds.materialize(row);
-    ds.names[row] = newName;
-    auto& recruitList = state.gameData.recruitList;
-    std::vector<Disciple> kept;
-    kept.reserve(recruitList.size());
-    for (const auto& candidate : recruitList) {
-        // detail::isSamePerson = Kotlin RecruitIntegrity.isSamePerson
-        if (!detail::isSamePerson(candidate, before)) {
-            kept.push_back(candidate);
-        }
-    }
-    if (kept.size() != recruitList.size()) recruitList = std::move(kept);
-    out.ok = true;
-    return out;
-}
 
 // ── 事务 8：类型直改（changeDiscipleTypeAtomic 数据段，1741）──────────────
 //

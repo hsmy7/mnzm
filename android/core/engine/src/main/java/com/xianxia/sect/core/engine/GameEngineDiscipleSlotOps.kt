@@ -23,7 +23,6 @@ suspend fun GameEngine.updateYearlySalaryEnabled(realm: Int,
     enabled: Boolean) = discipleFacade.updateYearlySalaryEnabled(realm, enabled)
 fun GameEngine.getAliveDisciplesCount(): Int = discipleFacade.getAliveDisciplesCount()
 fun GameEngine.getIdleDisciples(): List<Disciple> = discipleFacade.getIdleDisciples()
-suspend fun GameEngine.dismissDisciple(discipleId: String) = discipleFacade.dismissDisciple(discipleId)
 
 // ── 任命/卸任事务 native 转发（batch-08：亲传槽/藏经阁槽）─────────────
 //

@@ -27,10 +27,6 @@ suspend fun GameEngine.resetAllDisciplesStatus() {
     rebaselineNativeMirror("弟子状态重置")
 }
 fun GameEngine.recruitDisciple(): Disciple = discipleFacade.recruitDisciple()
-/**
- * Expel disciple from sect
- */
-suspend fun GameEngine.expelDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelDisciple(discipleId)
 suspend fun GameEngine.apprenticeToMaster(discipleId: String,
     masterId: String): DomainResult<Unit> = discipleFacade.apprenticeToMaster(discipleId, masterId)
 suspend fun GameEngine.releaseReflectionDisciple(discipleId: String) = discipleFacade

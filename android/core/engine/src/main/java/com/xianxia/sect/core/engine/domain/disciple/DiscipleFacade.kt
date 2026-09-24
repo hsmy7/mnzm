@@ -28,7 +28,6 @@ interface DiscipleFacade {
     fun syncSingleDiscipleStatus(discipleId: String)
     suspend fun resetAllDisciplesStatus()
     fun recruitDisciple(): Disciple
-    fun expelDisciple(discipleId: String): DomainResult<Unit>
     fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit>
     fun releaseReflectionDisciple(discipleId: String)
     fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
@@ -40,7 +39,6 @@ interface DiscipleFacade {
     fun getDiscipleAggregate(discipleId: String): DiscipleAggregate?
     fun getAllDiscipleAggregates(): List<DiscipleAggregate>
     fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus)
-    fun dismissDisciple(discipleId: String)
     fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String)
     fun addLifeEvent(discipleId: String, event: String)
     fun getLifeEvents(discipleId: String): List<String>

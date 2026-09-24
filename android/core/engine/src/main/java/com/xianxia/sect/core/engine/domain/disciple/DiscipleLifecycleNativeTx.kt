@@ -1,8 +1,5 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.engine.rebaselineNativeMirror
-import com.xianxia.sect.core.engine.system.materializeBagItemsToWarehouse
-import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
@@ -12,33 +9,22 @@ import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.put
 
 private val TAG = DiscipleFacadeImpl.TAG
 
-/** 逐出袋物品物化的年报归因口径（与 Kotlin 原路径逐字一致） */
-private const val EXPEL_TRACKING_SOURCE = "disciple_expel"
-
-/** 信封 bagItems 草稿反序列化（快照协议同源字段，未知字段忽略——宽松对齐 from_json） */
-private val envelopeJson = Json { ignoreUnknownKeys = true }
-
 /**
  * 弟子生命周期域 native 事务转发臂（batch-14 写者下沉；InventoryNativeTx/
  * tryNativeManualRecruit 同构）。
  *
- * AUTHORITATIVE 门控下把生命周期族三事务（disciple_lifecycle_tx.h——校验链
+ * AUTHORITATIVE 门控下把生命周期族事务（disciple_lifecycle_tx.h——校验链
  * 先行失败零写入）经 nativeExecute 转发；tryExecuteNative 成功内含
  * applyDirtyFromNative 镜像回读；失败信封/降级返回 null（调用方回退 Kotlin
  * 原路径重执行校验链——双实现并行契约，用户可见文案由 Kotlin 臂产出）。
  *
- * 残差边界（ disciple_lifecycle_tx.h 头注释同口径）：
- * - Gate 释放 + Room 生产槽同步：Kotlin 分支在 native 成功后执行（幂等，
- *   数据段在已刷新镜像上为零写入）
- * - 袋物品物化（开袋族，归 batch-11）：信封 bagItems 草稿 → Kotlin 原序物化
+ * 残差边界（disciple_lifecycle_tx.h 头注释同口径）：
  * - lifeEvents 瞬态列：拜师双侧日志草稿 → Kotlin 回写
  */
 // ── 内部转发 helper ─────────────────────────────────────────────
@@ -64,60 +50,6 @@ private fun DiscipleFacadeImpl.lifecycleTx(
             )
         }
     }
-
-// ── 事务 1：逐出（1590） ────────────────────────────────────────
-
-/**
- * 逐出 native 臂。
- *
- * C++ 事务：校验链（存在/存活/非血炼）+ 12 类槽位清理（含住所）+ 实例销毁
- * + 派生 map 收口 + 行删除 + 年报脱离计数。Kotlin 残差（native 成功后原序）：
- * Gate 释放 + Room 生产槽同步、袋物品物化回仓库（溢出转邮件，归因
- * "disciple_expel"）。
- *
- * @return native 已处理时返回 Success；未转发/失败信封返回 null
- *         （调用方回退 Kotlin 原路径）
- */
-internal fun DiscipleFacadeImpl.tryNativeExpelDisciple(discipleId: String): DomainResult<Unit>? {
-    val data = lifecycleTx(ActionIds.DISCIPLE_LIFECYCLE_EXPEL) {
-        put("discipleId", discipleId)
-    } ?: return null
-
-    // ① Gate 释放 + Room 生产槽同步（clearAllSlotsState 数据段在已刷新
-    //    镜像上零命中——幂等 no-op；Gate/Room 为 Kotlin 运行态域）
-    discipleService.clearDiscipleFromAllSlots(discipleId)
-
-    // ② 袋物品物化（信封草稿 → Kotlin 物化回仓库；与 Kotlin 原路径同口径：
-    //    withTrackingSource 归因 + 溢出自动转邮件）。
-    //    捕获豁免（updateMirror，§2.81）：物化经统一入口 addXxx 写 9 类实体集合
-    //    （已关闭回导，引用比较检测不适用值等值收敛）——写入经下方基线重建回导 C++
-    val bagItems = parseBagItemDrafts(data)
-    if (bagItems.isNotEmpty()) {
-        val inventorySystem = discipleService.inventorySystem
-        stateStore.updateMirror {
-            inventorySystem.withTrackingSource(EXPEL_TRACKING_SOURCE) {
-                inventorySystem.materializeBagItemsToWarehouse(bagItems)
-            }
-        }
-        // w3-13 通道关闭配套（§2.80/§2.81）：物化写面（9 类集合/钱包/年度账均已关闭）
-        // 发生后全量重建 native 基线回导 C++（物化所得必须经基线重建到达
-        // C++ 真相源）
-        gameEngineCore.rebaselineNativeMirror("逐出袋物化")
-    }
-    DomainLog.i(TAG, "expelDisciple: native expelled $discipleId (bag=${bagItems.size})")
-    return DomainResult.Success(Unit)
-}
-
-/** 信封 bagItems 草稿解析（缺字段/非数组按空列表）。 */
-private fun parseBagItemDrafts(data: JsonElement): List<StorageBagItem> {
-    val element = (data as? kotlinx.serialization.json.JsonObject)?.get("bagItems")
-        ?: return emptyList()
-    return runCatching {
-        envelopeJson.decodeFromJsonElement(
-            ListSerializer(StorageBagItem.serializer()), element
-        )
-    }.getOrDefault(emptyList())
-}
 
 // ── 事务 2：拜师（1591） ────────────────────────────────────────
 

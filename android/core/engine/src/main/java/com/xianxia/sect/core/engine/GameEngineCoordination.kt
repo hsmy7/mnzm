@@ -158,33 +158,6 @@ suspend fun GameEngine.applyConversationEffectAtomic(
     }
 }
 
-/**
- * 原子重命名宗门弟子。
- *
- * @param discipleId 宗门弟子 ID
- * @param newName 新姓名
- */
-suspend fun GameEngine.renameDisciple(discipleId: String, newName: String) {
-    // C++ 真相先行（W4-A·w3-01：names 行写在 C++；失败信封/降级 null →
-    // Kotlin 原路径回退臂——双实现并行契约）
-    if (tryDiscipleOpNative(ActionIds.DISCIPLE_OP_RENAME) {
-            put("discipleId", discipleId)
-            put("newName", newName)
-        } != null) {
-        return
-    }
-    return engineContextDispatcher.withEngineContext {
-        stateStore.update {
-            val id = discipleId.toInt()
-            if (id !in discipleTables.ids) return@update
-            val current = discipleTables.assemble(id)
-            val updated = current.copy(name = newName)
-            discipleTables.remove(id)
-            discipleTables.insert(updated)
-        }
-    }
-}
-
 suspend fun GameEngine.changeDiscipleTypeAtomic(discipleId: String, newType: String) {
     // C++ 真相先行（discipleTypes 行写；状态推导 syncSingleDiscipleStatus
     // 由下方调用方照原序执行——与 Kotlin 事务序一致）

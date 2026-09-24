@@ -1,18 +1,12 @@
 // ============================================================
 // disciple_lifecycle_tx_test — 弟子生命周期 UI 操作事务守护（batch-14）
 //
-// 守护目标：disciple_lifecycle_tx.h 五事务与 Kotlin 源语义逐位一致——
-//   - 逐出（校验链判定序 / 12 类槽位逐类清理含住所 / 实例销毁 /
-//     派生 map 收口 / 行删除 / 年报计数 / bagItems 信封回传）
+// 守护目标：disciple_lifecycle_tx.h 四事务与 Kotlin 源语义逐位一致——
 //   - 拜师（三相校验判定序 / masterIds 落表 / 双侧日志草稿）
 //   - 婚姻批准（已有道侣防御零写入 / partnerIds 双向绑定 / MARRIAGE 事件）
 //   - 婚姻拒绝（W4-A·w3-02 1750：拒绝事件直写 / 零弟子表写入 / 无失败臂）
-//   - 释放思过（静默 no-op 同义 / statusData 定向移除保留其余 key /
-//     状态回 IDLE）
 //   - 年俸开关（盲写覆写）
 //   - 失败臂零写入（校验链先行，任一臂失败不触碰状态）
-//   - 死亡标记红线（CLAUDE.md 13.3）：逐出为行删除而非死亡标记——
-//     断言行移除且 annualDeceasedDisciples 不变（markDead 路径不经本事务）
 //   - RNG 零消费审计（全族 rngStates 快照差分——对拍命门）
 // ============================================================
 
@@ -36,7 +30,6 @@ namespace {
 namespace lifecycle_tx = gamecore::system::disciple_lifecycle_tx;
 
 using gamecore::state::Disciple;
-using gamecore::state::StorageBagItem;
 
 class DiscipleLifecycleTxFixture : public ::testing::Test {
 protected:
@@ -71,126 +64,6 @@ protected:
         return *core_->state().disciples.rowOf(id);
     }
 
-    /// 为指定弟子布满 11 类槽位（逐出清理穷尽性断言基准）
-    void seedAllSlots(const std::string& id) {
-        auto& gd = core_->state().gameData;
-        gd.spiritMineSlots = {{gamecore::state::SpiritMineSlot()}};
-        gd.spiritMineSlots[0].index = 0;
-        gd.spiritMineSlots[0].discipleId = id;
-        gd.spiritMineSlots[0].discipleName = "N" + id;
-
-        gd.librarySlots = {{gamecore::state::LibrarySlot()}};
-        gd.librarySlots[0].index = 0;
-        gd.librarySlots[0].discipleId = id;
-
-        gd.elderSlots.viceSectMaster = id;
-        gamecore::state::DirectDiscipleSlot direct;
-        direct.index = 0;
-        direct.discipleId = id;
-        gd.elderSlots.herbGardenDisciples = {direct};
-
-        gamecore::state::ResidenceSlot residence;
-        residence.buildingInstanceId = "res-1";
-        residence.slotIndex = 0;
-        residence.discipleId = id;
-        gd.residenceSlots = {residence};
-
-        gamecore::state::BloodRefinementProgress refine;
-        refine.discipleId = id;
-        gd.activeBloodRefinements = {{"refine-1", refine}};
-
-        gd.patrolSlots = {{gamecore::state::PatrolSlot()}};
-        gd.patrolSlots[0].index = 0;
-        gd.patrolSlots[0].discipleId = id;
-
-        gamecore::state::BattleTeam team;
-        team.id = "team-1";
-        gamecore::state::BattleTeamSlot slot;
-        slot.index = 0;
-        slot.discipleId = id;
-        team.slots = {slot};
-        gd.battleTeams = {team};
-
-        gamecore::state::WorldSect sect;
-        sect.id = "sect-1";
-        sect.name = "玩家宗门";
-        sect.isPlayerSect = true;
-        gamecore::state::GarrisonSlot garrison;
-        garrison.index = 0;
-        garrison.discipleId = id;
-        sect.garrisonSlots = {garrison};
-        gd.worldMapSects = {sect};
-
-        gamecore::state::ProductionSlot production;
-        production.id = "prod-1";
-        production.buildingId = "alchemy-1";
-        production.assignedDiscipleId = id;
-        gd.productionSlots = {production};
-
-        gamecore::state::CaveExplorationTeam cave;
-        cave.id = "cave-1";
-        cave.memberIds = {id};
-        cave.memberNames = {"N" + id};
-        cave.status = "EXPLORING";
-        gd.caveExplorationTeams = {cave};
-
-        gamecore::state::ActiveMission mission;
-        mission.id = "mission-1";
-        mission.discipleIds = {id};
-        mission.discipleNames = {"N" + id};
-        gd.activeMissions = {mission};
-    }
-
-    /// 派生 map 播种（血炼三 map + 功法熟练度——收口断言基准）
-    void seedDerivedMaps(const std::string& id) {
-        auto& gd = core_->state().gameData;
-        gamecore::state::BloodRefinementBonusTotal bonusTotal;
-        bonusTotal.hpBonus = 5;
-        gd.bloodRefinementBonusTotals = {{id, bonusTotal}};
-        gamecore::state::BloodRefinementPctTotal pctTotal;
-        pctTotal.hpBonusPct = 0.5;
-        gd.bloodRefinementPctTotals = {{id, pctTotal}};
-        gd.bloodRefinements = {{id, {std::string("rec-1")}}};
-        gd.manualProficiencies = {{id, {gamecore::state::ManualProficiencyData()}}};
-    }
-
-    /// 穿戴装备 + 功法实例播种（实例销毁断言基准）
-    void seedWornInstances(const std::string& discipleId) {
-        auto& state = core_->state();
-        auto row = *state.disciples.rowOf(discipleId);
-        gamecore::state::EquipmentInstance eq;
-        eq.id = "eq-" + discipleId;
-        eq.name = "铁剑";
-        eq.ownerId = discipleId;
-        eq.isEquipped = true;
-        state.equipmentInstances.push_back(eq);
-        state.disciples.weaponIds[row] = eq.id;
-
-        gamecore::state::ManualInstance mn;
-        mn.id = "mn-" + discipleId;
-        mn.name = "长拳";
-        mn.ownerId = discipleId;
-        mn.isLearned = true;
-        state.manualInstances.push_back(mn);
-        state.disciples.manualIds[row] = {mn.id};
-    }
-
-    /// 袋内两条物品播种（信封回传断言基准）
-    void seedBagItems(const std::string& discipleId) {
-        auto row = *core_->state().disciples.rowOf(discipleId);
-        StorageBagItem a;
-        a.itemId = "bag-1";
-        a.itemType = "material";
-        a.name = "兽皮";
-        a.quantity = 2;
-        StorageBagItem b;
-        b.itemId = "bag-2";
-        b.itemType = "herb";
-        b.name = "灵草";
-        a.quantity = 1;
-        core_->state().disciples.storageBagItems[row] = {a, b};
-    }
-
     /// rngStates 快照（零消费审计基准）
     std::map<int32_t, int64_t> rngSnapshot() const {
         return core_->state().gameData.rngStates;
@@ -200,112 +73,6 @@ protected:
     ConsoleLogger logger_;
     std::unique_ptr<GameCore> core_;
 };
-
-// ── 逐出 ─────────────────────────────────────────────────────
-
-TEST_F(DiscipleLifecycleTxFixture, ExpelTx_Happy_11类槽位逐类清理与行删除) {
-    addDisciple("1");
-    addDisciple("2");  // 对照行：不受逐出波及
-    seedAllSlots("1");
-    seedWornInstances("1");
-    seedDerivedMaps("1");
-    seedBagItems("1");
-
-    const auto before = rngSnapshot();
-    const auto r = exec(action::DISCIPLE_LIFECYCLE_EXPEL,
-                        {{"discipleId", "1"}});
-    ASSERT_EQ(r["status"], "success");
-    ASSERT_TRUE(r["data"]["expelled"].get<bool>());
-
-    // 信封回传袋物品（Kotlin 物化回仓库）
-    const auto& bag = r["data"]["bagItems"];
-    ASSERT_TRUE(bag.is_array());
-    ASSERT_EQ(bag.size(), 2u);
-    ASSERT_EQ(bag[0]["itemId"], "bag-1");
-    ASSERT_EQ(bag[1]["itemId"], "bag-2");
-
-    auto& gd = core_->state().gameData;
-    auto& ds = core_->state().disciples;
-
-    // 行删除（非死亡标记——死亡红线：isAlive/status=DEAD 写入不经本事务）
-    EXPECT_FALSE(ds.contains("1"));
-    EXPECT_TRUE(ds.contains("2"));  // 对照行保留
-    EXPECT_EQ(gd.annualDeceasedDisciples, 0);
-
-    // 11 类槽位逐类清理
-    EXPECT_TRUE(gd.spiritMineSlots[0].discipleId.empty());
-    EXPECT_TRUE(gd.librarySlots[0].discipleId.empty());
-    EXPECT_TRUE(gd.elderSlots.viceSectMaster.empty());
-    EXPECT_TRUE(gd.elderSlots.herbGardenDisciples[0].discipleId.empty());
-    EXPECT_TRUE(gd.residenceSlots[0].discipleId.empty());  // includeResidence=true
-    EXPECT_TRUE(gd.activeBloodRefinements.empty());
-    EXPECT_TRUE(gd.patrolSlots[0].discipleId.empty());
-    EXPECT_TRUE(gd.battleTeams[0].slots[0].discipleId.empty());
-    EXPECT_TRUE(gd.battleTeams[0].slots[0].isAlive);
-    ASSERT_TRUE(gd.worldMapSects[0].isPlayerSect);
-    EXPECT_TRUE(gd.worldMapSects[0].garrisonSlots[0].discipleId.empty());
-    EXPECT_FALSE(gd.productionSlots[0].assignedDiscipleId.has_value());
-    EXPECT_TRUE(gd.caveExplorationTeams[0].memberIds.empty());
-    EXPECT_EQ(gd.caveExplorationTeams[0].status, "COMPLETED");  // 整队仅剩死者
-    EXPECT_TRUE(gd.activeMissions[0].discipleIds.empty());
-
-    // 实例销毁（不返还仓库）
-    bool eqLeft = false;
-    for (const auto& e : core_->state().equipmentInstances) {
-        if (e.id == "eq-1") eqLeft = true;
-    }
-    EXPECT_FALSE(eqLeft);
-    bool mnLeft = false;
-    for (const auto& m : core_->state().manualInstances) {
-        if (m.id == "mn-1") mnLeft = true;
-    }
-    EXPECT_FALSE(mnLeft);
-
-    // 派生 map 收口（血炼三 map + 功法熟练度）
-    EXPECT_EQ(gd.bloodRefinementBonusTotals.count("1"), 0u);
-    EXPECT_EQ(gd.bloodRefinementPctTotals.count("1"), 0u);
-    EXPECT_EQ(gd.bloodRefinements.count("1"), 0u);
-    EXPECT_EQ(gd.manualProficiencies.count("1"), 0u);
-
-    // 年报脱离弟子计数
-    EXPECT_EQ(gd.annualDesertedDisciples, 1);
-
-    // 零 RNG
-    EXPECT_EQ(rngSnapshot(), before);
-}
-
-TEST_F(DiscipleLifecycleTxFixture, ExpelTx_FailureArms_校验链全臂零写入) {
-    addDisciple("1");
-    seedAllSlots("1");
-    const auto before = rngSnapshot();
-    auto& gd = core_->state().gameData;
-
-    // 臂 1：弟子不存在
-    auto r1 = exec(action::DISCIPLE_LIFECYCLE_EXPEL, {{"discipleId", "999"}});
-    EXPECT_EQ(r1["status"], "failure");
-    EXPECT_EQ(r1["code"], "NotFound");
-
-    // 臂 2：已死亡（NotAlive）
-    addDisciple("3", /*alive=*/false);
-    auto r2 = exec(action::DISCIPLE_LIFECYCLE_EXPEL, {{"discipleId", "3"}});
-    EXPECT_EQ(r2["status"], "failure");
-    EXPECT_EQ(r2["code"], "NotAlive");
-
-    // 臂 3：血炼中（SlotInvalid）
-    addDisciple("4", /*alive=*/true, /*status=*/"REFINING");
-    auto r3 = exec(action::DISCIPLE_LIFECYCLE_EXPEL, {{"discipleId", "4"}});
-    EXPECT_EQ(r3["status"], "failure");
-    EXPECT_EQ(r3["code"], "SlotInvalid");
-
-    // 零写入：行仍在、槽位未清、计数未动
-    EXPECT_TRUE(core_->state().disciples.contains("1"));
-    EXPECT_TRUE(core_->state().disciples.contains("3"));
-    EXPECT_TRUE(core_->state().disciples.contains("4"));
-    EXPECT_FALSE(gd.spiritMineSlots[0].discipleId.empty());
-    EXPECT_EQ(gd.annualDesertedDisciples, 0);
-    EXPECT_TRUE(gd.worldMapSects[0].garrisonSlots[0].discipleId == "1");
-    EXPECT_EQ(rngSnapshot(), before);
-}
 
 // ── 拜师 ─────────────────────────────────────────────────────
 

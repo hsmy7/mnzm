@@ -6,20 +6,17 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.recruitedMonth
-import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.SpiritRootGenerator
-import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
-import com.xianxia.sect.core.engine.system.materializeBagItemsToWarehouse
 
 
 @GameService("DiscipleService")
@@ -34,7 +31,7 @@ class DiscipleService @Inject constructor(
     private val discipleMasterApprenticeService: DiscipleMasterApprenticeService,
     private val discipleSlotManager: DiscipleSlotManager,
     private val discipleStatusService: DiscipleStatusService,
-    // 放宽为 internal 供 DiscipleLifecycleNativeTx 逐出臂袋物品物化读取（三重防护惯例）
+    // 放宽为 internal 供同域扩展按需读取（stateStore 同款三重防护惯例）
     internal val inventorySystem: InventorySystem
 ) {
     /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
@@ -174,68 +171,6 @@ class DiscipleService @Inject constructor(
         }
 
         return rawDisciple.copy(id = realId)
-    }
-
-    /**
-     * Expel disciple from sect
-     */
-    fun expelDisciple(discipleId: String): DomainResult<Unit> {
-        var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
-        stateStore.update {
-            val id = discipleId.toIntOrNull()
-            if (id == null || !discipleTables.ids.contains(id)) {
-                error = AppError.Domain.Disciple.NotFound(discipleId)
-                return@update
-            }
-
-            val isAlive = discipleTables.isAlive[id] == 1
-            if (!isAlive) {
-                error = AppError.Domain.Disciple.NotAlive(discipleId)
-                return@update
-            }
-
-            if (discipleTables.statuses[id] == DiscipleStatus.REFINING) {
-                error = AppError.Domain.Disciple.SlotInvalid("弟子正在血炼中，无法驱逐")
-                return@update
-            }
-
-            clearDiscipleFromAllSlots(discipleId)
-
-            // 逐出前袋物品物化回仓库（玩家保留，溢出自动转邮件）——
-            // 独立存储后袋条目持有数据且随弟子删除，不物化即物品消失
-            val expelBagItems = discipleTables.storageBagItems[id]
-            if (expelBagItems.isNotEmpty()) {
-                inventorySystem.withTrackingSource("disciple_expel") {
-                    inventorySystem.materializeBagItemsToWarehouse(expelBagItems)
-                }
-            }
-
-            // 仅清除穿着的装备/功法所有权，不返还仓库（实例销毁）
-            val expelEquipIds = mutableListOf<String>()
-            discipleTables.weaponIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.armorIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.bootsIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.accessoryIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            val expelManualIds = discipleTables.manualIds[id].toSet()
-
-            equipmentInstances = equipmentInstances.filter { it.id !in expelEquipIds }
-            manualInstances = manualInstances.filter { it.id !in expelManualIds }
-
-            // 弟子强化派生 map 统一收口（审计 P2-7/P3-4：原仅清
-            // manualProficiencies，漏血炼三 map——逐出弟子血炼加成随之残留）
-            eraseDiscipleDerivedMaps(discipleId)
-
-            discipleTables.remove(id)
-
-            // 年报脱离弟子计数
-            gameData = gameData.copy(
-                annualDesertedDisciples = gameData.annualDesertedDisciples + 1
-            )
-
-            error = null
-        }
-        val finalError = error
-        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
     }
 
     /**

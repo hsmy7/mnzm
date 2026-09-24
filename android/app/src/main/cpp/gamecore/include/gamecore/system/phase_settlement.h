@@ -749,7 +749,7 @@ inline std::map<int32_t, int32_t> committedElderComprehensionOf(
 /// @param committedElderComprehension 结算入口长老悟性 committed 视图
 ///        （id → 入口时点基础悟性——对齐 Kotlin tryBreakthrough:282 经
 ///        stateStore.disciples.value（事务前已提交视图，按 id 关联）读取
-///        长老悟性；id 键控使行移除（逐出等）后仍正确关联；视图缺失
+///        长老悟性；id 键控使行移除后仍正确关联；视图缺失
 ///        （入口后新出现）回退 live 列）；存活/境界条件判断仍用 live 状态
 inline stats::BreakthroughChanceInput breakthroughChanceInput(
         const Disciple& d, const GameState& state,
@@ -1345,7 +1345,7 @@ inline void runPhaseSettlement(state::GameState& state,
     // R1.2 去物化：快照唯一消费点 = 步骤 7 长老悟性读取（内/外门长老位
     // ≤2 名弟子），不再逐行物化全量 D 弟子（每旬 D 次深拷贝 → 0 次），
     // 直接按 SoA 列捕获入口时点值；**数值 id 键控**（Kotlin allDisciples
-    // 按 id 关联）——行删除（逐出等）可在突破前移除行（行号漂移），行索引
+    // 按 id 关联）——行删除可在突破前移除行（行号漂移），行索引
     // 快照会错位关联，id 键控不受影响。
     const auto committedElderComprehension =
         detail::committedElderComprehensionOf(state);

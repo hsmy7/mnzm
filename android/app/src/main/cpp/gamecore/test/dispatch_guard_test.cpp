@@ -105,6 +105,7 @@ TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) 
     const std::set<int32_t> retired = {
         action::DISCIPLE_MAX_AGE,          //1103 老死链删除
         action::DISCIPLE_AGE,              //1106 老化链删除
+        action::DISCIPLE_LIFECYCLE_EXPEL,  //1590 逐出事务下线（G06）
         action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,  //1593 思过释放无实现
         action::WAREHOUSE_GARRISON_TX,     //1612 仓库驻守无实现
         action::RECRUIT_REMOVE_TX,         //1630 招募链下线（G05）
@@ -112,6 +113,7 @@ TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) 
         action::RECRUIT_AGE_TX,            //1632 招募链下线（G05）
         action::GOV_OPEN_RECRUITMENT_TOGGLE_TX,  //1681 广纳门徒下线（G05）
         action::SECT_ATTACK_GRANT_SOUL_POWERS_TX,       //1712 魂力授予无实现
+        action::DISCIPLE_OP_RENAME,        //1740 弟子改名下线（G06）
     };
     std::vector<std::string> gaps;
     for (int i = 0; i < action::kAllActionIdsCount; ++i) {

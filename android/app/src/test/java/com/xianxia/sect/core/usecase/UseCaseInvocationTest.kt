@@ -74,34 +74,6 @@ class UseCaseInvocationTest {
         verify(discipleFacade).updateDiscipleStatus("disciple-2", DiscipleStatus.MINING)
     }
 
-    // ==================== 3. ExpelDiscipleUseCase ====================
-
-    @Test
-    fun `ExpelDiscipleUseCase - success path`() = runTest {
-        val discipleFacade = mock<DiscipleFacade>()
-        whenever(discipleFacade.expelDisciple("disciple-1"))
-            .thenReturn(DomainResult.Success(Unit))
-        val useCase = ExpelDiscipleUseCase(discipleFacade)
-
-        val result = useCase("disciple-1")
-
-        assertTrue(result.isSuccess)
-        assertEquals(DomainResult.Success(Unit), result.getOrNull())
-        verify(discipleFacade).expelDisciple("disciple-1")
-    }
-
-    @Test
-    fun `ExpelDiscipleUseCase - failure when facade throws`() = runTest {
-        val discipleFacade = mock<DiscipleFacade>()
-        whenever(discipleFacade.expelDisciple("disciple-1"))
-            .thenThrow(RuntimeException("驱逐失败"))
-        val useCase = ExpelDiscipleUseCase(discipleFacade)
-
-        val result = useCase("disciple-1")
-
-        assertTrue(result.isFailure)
-    }
-
     // ==================== 4. GetBattleLogsUseCase ====================
 
     @Test

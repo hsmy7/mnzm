@@ -12,7 +12,7 @@
  * `{"status":"failure","code":...,"message":...}`）；不认领 ⇒ `std::nullopt`。
  * 端口不抛异常；只处理本批预分配段内的 actionId。
  *
- * ## w3-01 事务族（1740–1748，disciple_tx.h）
+ * ## w3-01 事务族（1741–1748，disciple_tx.h）
  * 失败信封语义：静默守卫（Kotlin silent return）与业务失败均以 failure 信封
  * 回传 ⇒ Kotlin 回退臂重执行同义校验链（双实现并行契约，production.h 同模式）。
  *
@@ -58,14 +58,7 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
     // ── W4-A 分派区（本区仅 W4-A 可写；预分配段 1740–1749 / 1750–1759 /
     //    1810–1819 / 1820–1829 / 1850–1854）────────────────────────────────
     switch (actionId) {
-        // ── w3-01 弟子操作面（1740–1748） ──
-        case action::DISCIPLE_OP_RENAME: {
-            const auto r = disciple_tx::renameDiscipleTx(
-                state, params.at("discipleId").get<std::string>(),
-                params.at("newName").get<std::string>());
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"renamed", true}});
-        }
+        // ── w3-01 弟子操作面（1741–1748） ──
         case action::DISCIPLE_OP_CHANGE_TYPE: {
             const auto r = disciple_tx::changeDiscipleTypeTx(
                 state, params.at("discipleId").get<std::string>(),

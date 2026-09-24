@@ -19,10 +19,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.morality
-import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.theme.ButtonSizes
-import com.xianxia.sect.ui.components.UnifiedGameDialog
-import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
@@ -34,11 +30,9 @@ fun ReflectionCliffDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     onDismiss: () -> Unit,
-    onExpelDisciple: (String) -> Unit = {},
     onReleaseDisciple: (String) -> Unit = {}
 ) {
     val reflectingDisciples = disciples.filter { it.status == DiscipleStatus.REFLECTING }
-    var showExpelConfirmDialog by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     ScrollableInfoDialog(
         title = "监牢",
@@ -47,19 +41,7 @@ fun ReflectionCliffDialog(
         ReflectionCliffContent(
             reflectingDisciples = reflectingDisciples,
             gameData = gameData,
-            onReleaseDisciple = onReleaseDisciple,
-            onExpel = { showExpelConfirmDialog = it }
-        )
-    }
-
-    showExpelConfirmDialog?.let { disciple ->
-        ReflectionExpelConfirmDialog(
-            disciple = disciple,
-            onExpel = {
-                onExpelDisciple(disciple.id)
-                showExpelConfirmDialog = null
-            },
-            onDismiss = { showExpelConfirmDialog = null }
+            onReleaseDisciple = onReleaseDisciple
         )
     }
 }
@@ -69,8 +51,7 @@ fun ReflectionCliffDialog(
 private fun ReflectionCliffContent(
     reflectingDisciples: List<DiscipleAggregate>,
     gameData: GameData?,
-    onReleaseDisciple: (String) -> Unit,
-    onExpel: (DiscipleAggregate) -> Unit
+    onReleaseDisciple: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -94,8 +75,7 @@ private fun ReflectionCliffContent(
             ReflectionDiscipleGrid(
                 reflectingDisciples = reflectingDisciples,
                 gameData = gameData,
-                onReleaseDisciple = onReleaseDisciple,
-                onExpel = onExpel
+                onReleaseDisciple = onReleaseDisciple
             )
         }
     }
@@ -128,13 +108,12 @@ private fun ReflectionEmptyState() {
     }
 }
 
-/** 思过弟子网格：卡片 + 释放/驱逐操作 */
+/** 思过弟子网格：卡片 + 释放操作 */
 @Composable
 private fun ReflectionDiscipleGrid(
     reflectingDisciples: List<DiscipleAggregate>,
     gameData: GameData?,
-    onReleaseDisciple: (String) -> Unit,
-    onExpel: (DiscipleAggregate) -> Unit
+    onReleaseDisciple: (String) -> Unit
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -162,55 +141,10 @@ private fun ReflectionDiscipleGrid(
                         ) {
                             Text(text = "释放", fontSize = 10.sp, color = Color.White)
                         }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFE74C3C))
-                                .clickable { onExpel(disciple) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(text = "驱逐", fontSize = 10.sp, color = Color.White)
-                        }
                     }
                 },
                 onClick = {}
             )
-        }
-    }
-}
-
-/** 驱逐确认弹窗 */
-@Composable
-private fun ReflectionExpelConfirmDialog(
-    disciple: DiscipleAggregate,
-    onExpel: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "确认驱逐",
-        mode = DialogMode.Half
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-                GameButton(
-                    text = "确认",
-                    onClick = onExpel,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-            }
         }
     }
 }

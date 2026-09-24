@@ -72,10 +72,7 @@ fun DetailRightPanel(
             } else null,
             onNextClick = if (hasNext && navTo != null) {
                 { dismissDropdown(); navTo(allDisciples[currentIndex + 1]) }
-            } else null,
-            onNameClick = actions.onRenameDisciple?.let { rename ->
-                { dismissDropdown(); rename() }
-            }
+            } else null
         )
         Text(disciple.realmName, fontSize = 14.sp, color = Color.Black)
         Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
@@ -131,8 +128,7 @@ private fun DetailNameRow(
     hasPrev: Boolean,
     hasNext: Boolean,
     onPrevClick: (() -> Unit)?,
-    onNextClick: (() -> Unit)?,
-    onNameClick: (() -> Unit)?
+    onNextClick: (() -> Unit)?
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -152,11 +148,7 @@ private fun DetailNameRow(
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
-            modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .clickableWithSound(enabled = onNameClick != null) {
-                    onNameClick?.invoke()
-                }
+            modifier = Modifier.padding(horizontal = 8.dp)
         )
         if (hasNext && onNextClick != null) {
             Box(
@@ -218,7 +210,7 @@ private fun DetailTypeDropdown(
     }
 }
 
-/** 弟子操作按钮区：关系/储物袋/关注/驱逐/交谈/日志/拜师/卸任 */
+/** 弟子操作按钮区：关系/储物袋/关注/交谈/日志/拜师/卸任 */
 @Composable
 private fun DetailActionButtonsRow(
     disciple: DiscipleAggregate,
@@ -240,11 +232,6 @@ private fun DetailActionButtonsRow(
         text = if (disciple.isFollowed) "已关注" else "关注",
         color = if (disciple.isFollowed) GameColors.Gold else Color.Black,
         onClick = { dismissDropdown(); viewModel?.disciple?.toggleFollowDisciple(disciple.id) }
-    )
-    DetailActionButton(
-        text = "驱逐",
-        color = Color(0xFFE74C3C),
-        onClick = { dismissDropdown(); actions.onShowExpelConfirm() }
     )
     DetailActionButton(
         text = "交谈",
@@ -298,10 +285,8 @@ private fun DetailActionButton(
 data class DetailActionCallbacks(
     val onShowRelations: () -> Unit,
     val onShowStorageBag: () -> Unit,
-    val onShowExpelConfirm: () -> Unit,
     val onShowLifeLog: () -> Unit,
     val onShowApprentice: () -> Unit,
-    val onRenameDisciple: (() -> Unit)? = null,
     val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
     val onShowChat: () -> Unit = {},  // 交谈
     val onShowResignConfirm: () -> Unit = {},  // 卸任（分流逻辑在 DiscipleDetailScreen）

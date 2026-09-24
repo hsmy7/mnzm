@@ -169,12 +169,6 @@ class GameEventsTest {
     }
 
     @Test
-    fun discipleExpelledEvent_type() {
-        val event = DiscipleExpelledEvent(discipleId = "d1")
-        assertEquals("disciple_expelled", event.type)
-    }
-
-    @Test
     fun productionCompletedEvent_type() {
         val event = ProductionCompletedEvent(buildingType = "ALCHEMY", slotIndex = 0)
         assertEquals("production_completed", event.type)
@@ -298,13 +292,6 @@ class GameEventsTest {
     @Test
     fun spiritStonesChangedEvent_defaults() {
         val event = SpiritStonesChangedEvent(delta = 100L, newTotal = 1000L)
-        assertEquals("", event.reason)
-    }
-
-    @Test
-    fun discipleExpelledEvent_defaults() {
-        val event = DiscipleExpelledEvent(discipleId = "d1")
-        assertEquals("", event.discipleName)
         assertEquals("", event.reason)
     }
 

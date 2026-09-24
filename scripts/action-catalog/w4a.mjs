@@ -22,7 +22,7 @@
  */
 export const CATALOG = [
   // ── 1740–1749 · w3-01 弟子操作面 ──
-  { id: 1740, name: 'DISCIPLE_OP_RENAME', desc: '弟子改名事务（names行写+招募列表isSamePerson同人净化——按改名前身份）' },
+  { id: 1740, name: 'DISCIPLE_OP_RENAME', desc: '【已退役，编号禁复用】弟子改名事务（names行写+招募列表isSamePerson同人净化——按改名前身份）' },
   { id: 1741, name: 'DISCIPLE_OP_CHANGE_TYPE', desc: '弟子类型直改事务（discipleTypes行写；状态推导由Kotlin调用方原序执行）' },
   { id: 1742, name: 'DISCIPLE_OP_TOGGLE_FOLLOW', desc: '弟子关注切换事务（statusData["followed"]翻转；返回followedAfter）' },
   { id: 1743, name: 'DISCIPLE_OP_REWARD_ITEM', desc: '赏赐物品事务（pill/material/herb/seed四路合一：扣仓库+生效或入袋同一事务；pill走facade丹药链）' },
