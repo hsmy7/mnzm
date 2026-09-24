@@ -80,17 +80,17 @@ class CultivationServiceIntegrationTest {
                 p: Map<String, ManualProficiencyData>, bloodRefinementPct: BloodRefinementPctTotal?
             ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, bloodRefinementPct)
             override fun calculateCultivationSpeed(d: Disciple, manuals: Map<String, ManualInstance>, mps: Map<String,
-                ManualProficiencyData>, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double, pcb: Double,
-                    gcp: Double, mdb: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(d, manuals, mps, bb,
-                        peb, pmb, csb, pcb, gcp)
+                ManualProficiencyData>, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double,
+                    mdb: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(d, manuals, mps, bb,
+                        peb, pmb, csb, mdb)
             override fun calculateCultivationSpeed(a: DiscipleAggregate, manuals: Map<String, ManualInstance>,
-                mps: Map<String, ManualProficiencyData>, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double,
-                    pcb: Double, gcp: Double, mdb: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(a,
-                        manuals, mps, bb, peb, pmb, csb, pcb, gcp)
-            override fun getBreakthroughChance(d: Disciple, iec: Int, oec: Int, pb: Double, ab: Double, gcp: Double,
-                mdb: Double) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+                mps: Map<String, ManualProficiencyData>, bb: Double, ab: Double, peb: Double, pmb: Double,
+                csb: Double, mdb: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(a,
+                        manuals, mps, bb, peb, pmb, csb, mdb)
+            override fun getBreakthroughChance(d: Disciple, iec: Int, oec: Int, pb: Double, ab: Double,
+                mdb: Double) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
             override fun getBreakthroughChance(a: DiscipleAggregate, iec: Int, oec: Int, pb: Double, ab: Double,
-                gcp: Double, mdb: Double) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+                mdb: Double) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
         }
 
         cultivationCore = CultivationCore(

@@ -41,7 +41,6 @@ data class MutableGameState(
     var isLoading: Boolean,
     var isSaving: Boolean,
     var pendingNotification: GameNotification? = null,
-    var pendingMarriageProposals: List<PendingMarriageProposal> = emptyList(),
     var productionSlots: List<ProductionSlot> = emptyList()
 )
 

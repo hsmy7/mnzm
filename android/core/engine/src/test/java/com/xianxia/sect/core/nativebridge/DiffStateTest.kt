@@ -117,7 +117,6 @@ class DiffStateTest {
     private fun GameData.applyGameDataScalarsPart2(): GameData = apply {
         playerAllianceSlots = 3
         prisonerSpiritRootFilter = emptySet()
-        daoCompanionBannedRootCounts = setOf(5)
         guideClaimedRewardIds = setOf(1, 2)
         isGameOver = false
         soundEnabled = true

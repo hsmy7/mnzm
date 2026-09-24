@@ -263,11 +263,9 @@ void GameCore::markMonthYearBoundaryColumns() {
     // 任务/政策/防守战/死亡链——宁多标不漏标；行序 = 店行序）
     static constexpr state::DiscipleColumn kBoundaryColumns[] = {
         state::DiscipleColumn::Morality,
-        state::DiscipleColumn::PartnerId,
         state::DiscipleColumn::MasterId,
         state::DiscipleColumn::Status,
         state::DiscipleColumn::StatusData,
-        state::DiscipleColumn::GriefEndYear,
         state::DiscipleColumn::RealmLayer,
         state::DiscipleColumn::IsAlive,
         state::DiscipleColumn::CurrentHp,
@@ -282,8 +280,6 @@ void GameCore::markMonthYearBoundaryColumns() {
         state::DiscipleColumn::StorageBagSpiritStones,
         state::DiscipleColumn::SpiritStones,
         state::DiscipleColumn::SalaryPaidCount,
-        state::DiscipleColumn::ChildBirthMonth,
-        state::DiscipleColumn::LastChildYear,
         state::DiscipleColumn::PillPhysicalAttackBonus,
         state::DiscipleColumn::PillMagicAttackBonus,
         state::DiscipleColumn::PillPhysicalDefenseBonus,
@@ -424,21 +420,12 @@ std::string GameCore::settleYear() {
                                  {"storageBagItems", std::move(bags)}};
         queueViewEvent(state::ViewEventType::kDeath, detail.dump());
     }
-    {
-        nlohmann::json bereavements = nlohmann::json::array();
-        for (const auto& b : draft.bereavements) {
-            bereavements.push_back({{"grievingId", b.grievingId},
-                                    {"relationship", b.relationship},
-                                    {"deceasedName", b.deceasedName}});
-        }
-        nlohmann::json detail;
-        detail["bereavements"] = std::move(bereavements);
-        queueViewEvent(state::ViewEventType::kYearSettled, detail.dump());
-    }
+    // 年结在场证明：镜像 codec 把 Kind.YEAR_SETTLED 的载荷判为 null，
+    // 本事件的唯一语义是「本年事件流已结算」的在场标记。
+    queueViewEvent(state::ViewEventType::kYearSettled, "{}");
 
     // 信封 JSON（nativeSettleYear 回传 Kotlin 残留执行器的平台效应输入：
-    // agedDeaths → 袋物品物化/DAO 清理/DeathEvent/死亡记录档案；
-    // bereavements → lifeEvents 丧亲事件）
+    // agedDeaths → 袋物品物化/DAO 清理/DeathEvent/死亡记录档案）
     nlohmann::json env = nlohmann::json::object();
     nlohmann::json deaths = nlohmann::json::array();
     for (const auto& d : draft.agedDeaths) {
@@ -459,13 +446,6 @@ std::string GameCore::settleYear() {
         deaths.push_back(std::move(j));
     }
     env["agedDeaths"] = std::move(deaths);
-    nlohmann::json bereavements = nlohmann::json::array();
-    for (const auto& b : draft.bereavements) {
-        bereavements.push_back({{"grievingId", b.grievingId},
-                                {"relationship", b.relationship},
-                                {"deceasedName", b.deceasedName}});
-    }
-    env["bereavements"] = std::move(bereavements);
     // MR1-P1.5/P1.3：年结边界账本 cap + trim 水位消费（同 settleOnePhase）
     consumePendingMemoryTrim();
     return env.dump();

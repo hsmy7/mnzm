@@ -191,7 +191,7 @@ TEST(BreakthroughTest, ChanceAdFlatAddsAfterClamp) {
     EXPECT_DOUBLE_EQ(calculateBreakthroughChance(zones), 1.0);  // clamp 上限
 }
 
-// ── 师徒/父母/丧亲 ─────────────────────────────────────────
+// ── 师徒 ─────────────────────────────────────────────────
 
 TEST(MasterDiscipleTest, RealmGap) {
     EXPECT_EQ(getMasterDiscipleRealmGap(9, 7), 1);   // 炼气徒 + 金丹师
@@ -203,19 +203,6 @@ TEST(MasterDiscipleTest, RealmGap) {
 TEST(MasterDiscipleTest, CultivationBonus) {
     EXPECT_DOUBLE_EQ(getMasterDiscipleCultivationBonus(9, 7), 0.05);
     EXPECT_DOUBLE_EQ(getMasterDiscipleCultivationBonus(9, 0), 0.40);
-}
-
-TEST(ParentBonusTest, SpiritRootCount) {
-    EXPECT_DOUBLE_EQ(getParentSpiritRootBonus(1), 0.10);
-    EXPECT_DOUBLE_EQ(getParentSpiritRootBonus(3), 0.0);
-    EXPECT_DOUBLE_EQ(getParentSpiritRootBonus(5), -0.10);
-}
-
-TEST(GriefTest, IsGrieving) {
-    EXPECT_TRUE(isGrieving(5, true, 4));
-    EXPECT_FALSE(isGrieving(5, true, 5));
-    EXPECT_FALSE(isGrieving(5, true, 6));
-    EXPECT_FALSE(isGrieving(5, false, 4));
 }
 
 }  // namespace

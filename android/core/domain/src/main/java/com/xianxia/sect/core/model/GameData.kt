@@ -584,15 +584,8 @@ data class GameData(
     @ColumnInfo(name = "secret_realm_ai_teams", defaultValue = "")
     var secretRealmAITeams: List<SecretRealmAITeam> = emptyList(),
 
-    // 道侣管理：禁止结婚的灵根数量（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
-    @ProtoPacked @ProtoNumber(102)
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var daoCompanionBannedRootCounts: Set<Int> = emptySet(),
-
-    // 道侣管理：结婚需玩家同意
-    @ProtoNumber(103)
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var daoCompanionConsentRequired: Boolean = false,
+    // reserved 102,103;（daoCompanionBannedRootCounts/daoCompanionConsentRequired
+    // 字段号已退役，禁止复用）
 
     // 巡视楼战斗后展示结算弹窗
     @ProtoNumber(104)

@@ -23,7 +23,7 @@
 //      getByRarity 语义——模板表同源生成，顺序一致即 RNG 选取一致）。
 //   ⑤ 死亡 aftermath：本文件袋物化（materializeDiscipleBagAndMarkDead 等价——
 //      实例/堆叠重建入仓 + 实例表删除 + markDead）+ 溢出邮件草稿收集；
-//      gate 释放/邮件发送/丧亲哀伤等平台效应保留 Kotlin（信封回传
+//      gate 释放/邮件发送等平台效应保留 Kotlin（信封回传
 //      releasedMemberIds/deadIds/溢出草稿）。
 //
 // RNG 契约（对拍命门，SECRET_REALM 分区）：

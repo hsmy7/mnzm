@@ -15,7 +15,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.xianxia.sect.core.nativebridge.MirrorDiscipleRowFixture as rowFixture
@@ -193,9 +192,7 @@ class MirrorProtoFeedEquivalenceTest {
         assertEquals(1, actual.equipment.storageBagItems.size)
         assertEquals("s1", actual.equipment.storageBagItems.first().itemId)
         assertEquals(55L, actual.equipment.storageBagSpiritStones)
-        assertEquals("p2", actual.social.partnerId)
-        assertEquals(20, actual.social.griefEndYear)
-        assertNull(actual.social.parentId1)
+        assertEquals("ms1", actual.social.masterId)
         assertEquals(setOf("3#hpAdd"), actual.usage.usedPermanentPillKeys)
         assertTrue(actual.usage.hasClearAllEffect)
     }

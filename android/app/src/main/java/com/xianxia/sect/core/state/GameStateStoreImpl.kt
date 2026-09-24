@@ -236,8 +236,6 @@ class GameStateStoreImpl @Inject constructor(
     internal val _pendingBattleRewardCardsFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _rewardCardQueueFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _pendingBeastAttacksFlow = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
-    private val _pendingMarriageProposalsFlow =
-        MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
 
     private val _isPaused = MutableStateFlow(true)
     private val _isLoading = MutableStateFlow(false)
@@ -359,8 +357,6 @@ class GameStateStoreImpl @Inject constructor(
     override val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> = _pendingBattleRewardCardsFlow.asStateFlow()
     override val rewardCardQueue: StateFlow<List<RewardCardItem>> = _rewardCardQueueFlow.asStateFlow()
     override val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> = _pendingBeastAttacksFlow.asStateFlow()
-    override val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>> =
-        _pendingMarriageProposalsFlow.asStateFlow()
 
     // === 三层 StateFlow 架构 ===
     // HighFreq: 高频变化字段，sample 降频
@@ -681,8 +677,7 @@ class GameStateStoreImpl @Inject constructor(
         isPaused = true,
         isLoading = false,
         isSaving = false,
-        pendingNotification = null,
-        pendingMarriageProposals = emptyList()
+        pendingNotification = null
     )
 
     override fun setPausedDirect(paused: Boolean) {
@@ -754,11 +749,6 @@ class GameStateStoreImpl @Inject constructor(
         _updateVersion.value++
     }
 
-    override fun clearPendingMarriageProposals() {
-        _pendingMarriageProposalsFlow.value = emptyList()
-        _updateVersion.value++
-    }
-
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {
         _pendingBattleRewardCardsFlow.value = cards
     }
@@ -799,17 +789,15 @@ class GameStateStoreImpl @Inject constructor(
         val isPaused: Boolean,
         val isLoading: Boolean,
         val isSaving: Boolean,
-        val pendingNotification: GameNotification?,
-        val pendingMarriageProposals: List<PendingMarriageProposal>
+        val pendingNotification: GameNotification?
     )
 
-    /** 提交阶段标志：final 状态三连 + block 内通知/婚姻变更检测结果 */
+    /** 提交阶段标志：final 状态三连 + block 内通知变更检测结果 */
     private data class CommitFlags(
         val finalPaused: Boolean,
         val finalLoading: Boolean,
         val finalSaving: Boolean,
-        val notificationChanged: Boolean,
-        val proposalsChanged: Boolean
+        val notificationChanged: Boolean
     )
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
@@ -907,14 +895,12 @@ class GameStateStoreImpl @Inject constructor(
                     val baseline = captureBaseline()
                     initReusableState(baseline)
                     val notificationBeforeBlock = reusableMutableState.pendingNotification
-                    val proposalsBeforeBlock = reusableMutableState.pendingMarriageProposals
                     executeBlockWithRngGuard(block)
                     // 冻结 EntityStore 快照，确保 items 引用正确反映变化
                     freezeStores()
                     val flags = resolveCommitFlags(
                         baseline = baseline,
-                        notificationChanged = reusableMutableState.pendingNotification !== notificationBeforeBlock,
-                        proposalsChanged = reusableMutableState.pendingMarriageProposals !== proposalsBeforeBlock
+                        notificationChanged = reusableMutableState.pendingNotification !== notificationBeforeBlock
                     )
                     // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
                     emitStateFlows(baseline = baseline, flags = flags)
@@ -1053,8 +1039,7 @@ class GameStateStoreImpl @Inject constructor(
         isPaused = _isPaused.value,
         isLoading = _isLoading.value,
         isSaving = _isSaving.value,
-        pendingNotification = _pendingNotificationFlow.value,
-        pendingMarriageProposals = _pendingMarriageProposalsFlow.value
+        pendingNotification = _pendingNotificationFlow.value
     )
 
     /** 用基线快照初始化 reusableMutableState（COW deepCopy 每列 O(1) 共享存储）。 */
@@ -1079,7 +1064,6 @@ class GameStateStoreImpl @Inject constructor(
             isLoading = baseline.isLoading
             isSaving = baseline.isSaving
             pendingNotification = baseline.pendingNotification
-            pendingMarriageProposals = baseline.pendingMarriageProposals
         }
     }
 
@@ -1099,8 +1083,7 @@ class GameStateStoreImpl @Inject constructor(
     /** 计算 final 状态三连 + 提交标志（isSaving/isLoading 以锁外最新值为准）。 */
     private fun resolveCommitFlags(
         baseline: UpdateBaseline,
-        notificationChanged: Boolean,
-        proposalsChanged: Boolean
+        notificationChanged: Boolean
     ): CommitFlags {
         val finalPaused = if (_isPaused.value != baseline.isPaused)
             _isPaused.value else reusableMutableState.isPaused
@@ -1111,11 +1094,11 @@ class GameStateStoreImpl @Inject constructor(
         _isPaused.value = finalPaused
         _isLoading.value = finalLoading
         _isSaving.value = finalSaving
-        return CommitFlags(finalPaused, finalLoading, finalSaving, notificationChanged, proposalsChanged)
+        return CommitFlags(finalPaused, finalLoading, finalSaving, notificationChanged)
     }
 
     /** 个体 StateFlow 发射（引用比较防止无意义发射）。 */
-    @Suppress("CyclomaticComplexMethod")  // 14 路引用比较分发，逻辑不可简化（原 update 内联时同复杂度）
+    @Suppress("CyclomaticComplexMethod")  // 13 路引用比较分发，逻辑不可简化（原 update 内联时同复杂度）
     private fun emitStateFlows(baseline: UpdateBaseline, flags: CommitFlags) {
         if (reusableMutableState.gameData !== baseline.gameData)
             _gameDataFlow.value = reusableMutableState.gameData
@@ -1141,12 +1124,10 @@ class GameStateStoreImpl @Inject constructor(
             _battleLogsFlow.value = reusableMutableState.battleLogs
         if (flags.notificationChanged)
             _pendingNotificationFlow.value = reusableMutableState.pendingNotification
-        if (flags.proposalsChanged)
-            _pendingMarriageProposalsFlow.value = reusableMutableState.pendingMarriageProposals
     }
 
     /** 事务内是否有字段变化（决定是否递增版本号触发 unifiedState 重建）。 */
-    @Suppress("CyclomaticComplexMethod")  // 17 路字段比较，逻辑不可简化（原 update 内联时同复杂度）
+    @Suppress("CyclomaticComplexMethod")  // 16 路字段比较，逻辑不可简化（原 update 内联时同复杂度）
     private fun detectFieldChanges(
         baseline: UpdateBaseline,
         disciplesNeedReassemble: Boolean,
@@ -1167,7 +1148,6 @@ class GameStateStoreImpl @Inject constructor(
         || flags.finalLoading != baseline.isLoading
         || flags.finalSaving != baseline.isSaving
         || flags.notificationChanged
-        || flags.proposalsChanged
 
     /**
      * 锁外增量组装（减少 transactionMutex 持有时间）。
@@ -1423,7 +1403,6 @@ class GameStateStoreImpl @Inject constructor(
      */
     private fun clearTransientQueues() {
         _pendingBeastAttacksFlow.value = emptyList()
-        _pendingMarriageProposalsFlow.value = emptyList()  // §0 补充发现：reset 原也漏清
         _pendingBattleResultFlow.value = null
         _pendingBattleRewardCardsFlow.value = emptyList()
         _rewardCardQueueFlow.value = emptyList()

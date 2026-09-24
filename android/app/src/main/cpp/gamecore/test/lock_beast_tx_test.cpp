@@ -183,7 +183,7 @@ TEST_F(LockBeastTxFixture, SettingsPatchWritesBoolFields) {
 }
 
 TEST_F(LockBeastTxFixture, SettingsPatchWritesAllAutoAssignFields) {
-    // AutoAssignDelegate 全域（自动装备/学习/突破丹药 + 道侣 + 俘虏过滤）
+    // AutoAssignDelegate 全域（自动装备/学习/突破丹药 + 俘虏过滤）
     const auto r = lock_beast_tx::updateSettingsTx(core_->state(),
                                                    patch({{"breakthroughAutoPillFocused", flag(true)},
                                                           {"breakthroughAutoPillRootCounts", ints({1, 2})},
@@ -191,21 +191,17 @@ TEST_F(LockBeastTxFixture, SettingsPatchWritesAllAutoAssignFields) {
                                                           {"autoEquipFromWarehouseRootCounts", ints({3})},
                                                           {"autoLearnFromWarehouseFocused", flag(true)},
                                                           {"autoLearnFromWarehouseRootCounts", ints({2})},
-                                                          {"daoCompanionConsentRequired", flag(true)},
-                                                          {"daoCompanionBannedRootCounts", ints({1})},
                                                           {"prisonerSpiritRootFilter", ints({2, 3})},
                                                           {"autoSellMidGradeForPurchase", flag(true)},
                                                           {"autoSellHighGradeForPurchase", flag(true)}}));
     EXPECT_TRUE(r.base.ok);
     EXPECT_TRUE(r.changed);
-    EXPECT_EQ(r.appliedFields, 11);
+    EXPECT_EQ(r.appliedFields, 9);
     const auto& gd = core_->state().gameData;
     EXPECT_TRUE(gd.breakthroughAutoPillFocused);
     EXPECT_EQ(gd.breakthroughAutoPillRootCounts, (std::vector<int32_t>{1, 2}));
     EXPECT_TRUE(gd.autoEquipFromWarehouseFocused);
     EXPECT_TRUE(gd.autoLearnFromWarehouseFocused);
-    EXPECT_TRUE(gd.daoCompanionConsentRequired);
-    EXPECT_EQ(gd.daoCompanionBannedRootCounts, (std::vector<int32_t>{1}));
     EXPECT_EQ(gd.prisonerSpiritRootFilter, (std::vector<int32_t>{2, 3}));
     EXPECT_TRUE(gd.autoSellMidGradeForPurchase);
     EXPECT_TRUE(gd.autoSellHighGradeForPurchase);

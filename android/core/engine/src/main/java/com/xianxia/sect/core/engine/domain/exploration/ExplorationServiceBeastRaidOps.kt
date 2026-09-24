@@ -137,7 +137,7 @@ internal fun MutableGameState.processBeastCasualties(
     val processed = disciples.map { d ->
         val (hp, mp) = hpMap[d.id] ?: return@map d
         if (d.id !in survivorIds) {
-            // G07 玩家驻守败北 → 重伤（HP=1 存活）：不清驻防槽、不传悲痛、不计年报死亡
+            // G07 玩家驻守败北 → 重伤（HP=1 存活）：不清驻防槽、不计年报死亡
             d.copy(combat = d.combat.copy(currentHp = GameConfig.Disciple.INJURED_HP))
         } else {
             val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(this, d)

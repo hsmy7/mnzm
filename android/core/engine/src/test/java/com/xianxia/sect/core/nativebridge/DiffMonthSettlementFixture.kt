@@ -26,12 +26,9 @@ import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmAIProcessor
 import com.xianxia.sect.core.engine.service.DisciplePurchaseService
-import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.ExplorationTickSystem
 import com.xianxia.sect.core.engine.system.advancePhaseBaseline
-import com.xianxia.sect.core.engine.system.ChildBirthSystem
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.exploration.WorldLevelManager
@@ -254,27 +251,27 @@ internal fun buildMonthDiffHarness(
             manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
             mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
             bb: Double, ab: Double, peb: Double, pmb: Double,
-            csb: Double, pcb: Double, gcp: Double, mdb: Double
+            csb: Double, mdb: Double
         ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-            d, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+            d, manuals, mps, bb, peb, pmb, csb, mdb
         )
         override fun calculateCultivationSpeed(
             a: DiscipleAggregate,
             manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
             mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
             bb: Double, ab: Double, peb: Double, pmb: Double,
-            csb: Double, pcb: Double, gcp: Double, mdb: Double
+            csb: Double, mdb: Double
         ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-            a, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+            a, manuals, mps, bb, peb, pmb, csb, mdb
         )
         override fun getBreakthroughChance(
             d: Disciple, iec: Int, oec: Int, pb: Double,
-            ab: Double, gcp: Double, mdb: Double
-        ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+            ab: Double, mdb: Double
+        ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
         override fun getBreakthroughChance(
             a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-            ab: Double, gcp: Double, mdb: Double
-        ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+            ab: Double, mdb: Double
+        ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
     }
     val core = CultivationCore(
         hpMpRecoveryService = HpMpRecoveryService(),
@@ -468,13 +465,7 @@ internal fun buildMonthDiffExecutor(
                 com.xianxia.sect.core.engine.system.building.ForgeSystem(
                     service, scopeProvider
                 ),
-                PartnerSystem(gameRng),
-                explorationSystem,
-                // 真实 ChildBirthSystem（月变步骤 4d 生育对拍主体）
-                ChildBirthSystem(
-                    discipleFactory = DiscipleFactory(),
-                    rngManager = gameRng
-                )
+                explorationSystem
             )
         )
     )

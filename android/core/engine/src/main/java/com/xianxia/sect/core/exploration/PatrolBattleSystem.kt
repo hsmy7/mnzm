@@ -435,7 +435,7 @@ class PatrolBattleSystem @Inject constructor(
             recordBattleLogAndPopup(result, updatedGd, state, allRewards)
         }
 
-        // 重伤写回（G07：不清槽/不传悲痛）
+        // 重伤写回（G07：不清槽）
         finalizeBattleOutcome(
             allDeadIds, updatedDisciples, updatedGd, state
         )
@@ -490,7 +490,7 @@ class PatrolBattleSystem @Inject constructor(
     /**
      * 败北写回（G07）：玩家侧弟子只受**重伤**（气血钳到
      * [com.xianxia.sect.core.GameConfig.Disciple.INJURED_HP] 且保持存活）——
-     * 不清巡逻槽、不写悲痛期、不计年报死亡。回血走既有每旬回血机制。
+     * 不清巡逻槽、不计年报死亡。回血走既有每旬回血机制。
      */
     private fun finalizeBattleOutcome(
         allDeadIds: Set<String>,

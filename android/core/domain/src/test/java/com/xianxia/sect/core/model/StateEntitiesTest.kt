@@ -33,8 +33,6 @@ class StateEntitiesTest {
         val state = SectPolicyState()
         assertEquals(1, state.slotId)
         assertEquals(SectPolicies(), state.sectPolicies)
-        assertEquals(emptySet<Int>(), state.daoCompanionBannedRootCounts)
-        assertFalse(state.daoCompanionConsentRequired)
         assertFalse(state.breakthroughAutoPillFocused)
         assertEquals(emptySet<Int>(), state.breakthroughAutoPillRootCounts)
         assertFalse(state.autoEquipFromWarehouseFocused)

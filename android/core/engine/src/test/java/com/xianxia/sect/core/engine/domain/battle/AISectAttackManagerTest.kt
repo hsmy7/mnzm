@@ -67,41 +67,37 @@ class AISectAttackManagerTest {
                 disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
                 additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 disciple, manuals, manualProficiencies, buildingBonus,
                 preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                parentCultivationBonus, griefCultivationSpeedPenalty
+                masterDiscipleBonus
             )
             override fun calculateCultivationSpeed(
                 aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
                 additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 aggregate, manuals, manualProficiencies, buildingBonus,
                 preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                parentCultivationBonus, griefCultivationSpeedPenalty
+                masterDiscipleBonus
             )
             override fun getBreakthroughChance(
                 disciple: Disciple, innerElderComprehension: Int,
                 outerElderComprehension: Int, pillBonus: Double,
-                adBonus: Double, griefBreakthroughPenalty: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 disciple, innerElderComprehension, outerElderComprehension,
-                pillBonus, adBonus, griefBreakthroughPenalty
+                pillBonus, adBonus, masterDiscipleBonus
             )
             override fun getBreakthroughChance(
                 aggregate: DiscipleAggregate, innerElderComprehension: Int,
                 outerElderComprehension: Int, pillBonus: Double,
-                adBonus: Double, griefBreakthroughPenalty: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 aggregate, innerElderComprehension, outerElderComprehension,
-                pillBonus, adBonus, griefBreakthroughPenalty
+                pillBonus, adBonus, masterDiscipleBonus
             )
         }
         // rngManager 由类属性持有（W4-C 随机源收敛后经形参传入）

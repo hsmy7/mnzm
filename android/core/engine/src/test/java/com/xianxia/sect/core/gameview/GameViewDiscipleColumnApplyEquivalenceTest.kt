@@ -34,8 +34,8 @@ import org.robolectric.RobolectricTestRunner
  *    deathYears 稀疏列零触碰——assemble 覆盖不到的面）；
  * ③ changedIdTracker 净效果全等（增量组装基建依赖）。
  *
- * 场景覆盖：热路径标量、全行 emit-always、repeated 整列替换、映射列、社交
- * 线路哨兵（""/0/-1 → null）、孕养嵌套消息 overlay（含部分子字段）、储物袋
+ * 场景覆盖：热路径标量、全行 emit-always、repeated 整列替换、映射列、师徒
+ * 线路哨兵（"" → null）、孕养嵌套消息 overlay（含部分子字段）、储物袋
  * 三表达（typed 携带 / present 清空 / 75-only 的 typed 优先怪语义）、usage
  * 集合与布尔、空补丁、新行/幽灵行回退契约。
  */
@@ -92,15 +92,12 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
     }
 
     @Test
-    fun `社交线路哨兵直写等价（空串与零与负一归 null）`() {
-        assertEquivalence("社交哨兵") {
-            partnerId = ""          // null 化（基线为 "p1"）
-            partnerSectId = "sect9" // 赋值
-            parentId1 = ""
-            griefEndYear = -1       // null 哨兵透传
-            childBirthMonth = 0     // null 化
-            masterId = ""
-            lastChildYear = 7
+    fun `师徒线路哨兵直写等价（空串归 null 与非空赋值）`() {
+        assertEquivalence("师徒空串") {
+            masterId = ""          // null 化（基线为 "ms1"）
+        }
+        assertEquivalence("师徒赋值") {
+            masterId = "ms9"
         }
     }
 

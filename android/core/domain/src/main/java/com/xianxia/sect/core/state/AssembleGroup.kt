@@ -66,13 +66,6 @@ internal fun discipleColumnGroupByName(): Map<String, AssembleGroup> = mapOf(
             "storageBagSpiritStones" to AssembleGroup.EQUIPMENT,
             "discipleSpiritStones" to AssembleGroup.EQUIPMENT,
             // assembleSocial 读取列
-            "partnerIds" to AssembleGroup.SOCIAL,
-            "partnerSectIds" to AssembleGroup.SOCIAL,
-            "parentId1s" to AssembleGroup.SOCIAL,
-            "parentId2s" to AssembleGroup.SOCIAL,
-            "lastChildYears" to AssembleGroup.SOCIAL,
-            "childBirthMonths" to AssembleGroup.SOCIAL,
-            "griefEndYears" to AssembleGroup.SOCIAL,
             "masterIds" to AssembleGroup.SOCIAL,
             // assembleSkills 读取列
             "intelligences" to AssembleGroup.SKILLS,

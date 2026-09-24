@@ -132,7 +132,7 @@ object BuiltinMailConfig {
         BuiltinMail(
             id = "mail_qixi_2026",
             title = "七夕快乐",
-            content = "道友安好！\n\n金风玉露一相逢，便胜却人间无数。\n\n值此七夕佳节，天道意志特奉薄礼一份，愿道友仙缘美满、道侣情深，修仙路上不孤单。\n\n——天道意志",
+            content = "道友安好！\n\n金风玉露一相逢，便胜却人间无数。\n\n值此七夕佳节，天道意志特奉薄礼一份，愿道友仙缘美满、道心相通，修仙路上不孤单。\n\n——天道意志",
             mailType = "reward",
             minVersion = 4013,
             startMs = 1787097600000L, // 2026-08-19 00:00 UTC (农历七月初七)
@@ -277,7 +277,7 @@ object BuiltinMailConfig {
         BuiltinMail(
             id = "mail_qixi_2027",
             title = "七夕快乐",
-            content = "道友安好！\n\n金风玉露一相逢，便胜却人间无数。\n\n值此七夕佳节，天道意志特奉薄礼一份，愿道友仙缘美满、道侣情深，修仙路上不孤单。\n\n——天道意志",
+            content = "道友安好！\n\n金风玉露一相逢，便胜却人间无数。\n\n值此七夕佳节，天道意志特奉薄礼一份，愿道友仙缘美满、道心相通，修仙路上不孤单。\n\n——天道意志",
             mailType = "reward",
             minVersion = 4013,
             startMs = 1817683200000L, // 2027-08-08 00:00 UTC (农历七月初七)

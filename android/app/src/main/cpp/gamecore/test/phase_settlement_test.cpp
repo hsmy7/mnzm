@@ -781,7 +781,7 @@ TEST(PhaseSettlementTest, AutoGearSecretRealmMemberSkipped) {
 //
 // runPhaseCoreBatchParallel（JobSystem 分块并行）必须与串行
 // runPhaseCoreBatch **逐位一致**——零 RNG、逐弟子独立写、读静态列，
-// 并行不改变任何抽取/写入序。本测试构造多弟子（含长老加成/父灵根/功法
+// 并行不改变任何抽取/写入序。本测试构造多弟子（含长老加成/功法
 // 熟练度/装备孕养/藏经阁加成/死亡跳过）场景，串行与并行各跑一遍，
 // 全状态 JSON 逐字节比对。
 // ============================================================
@@ -798,13 +798,12 @@ GameState makePhaseCoreState() {
     d1.teaching = 90;
     d1.manualIds = {"m1", "m2"};
     d1.weaponId = "e1";
-    // 弟子 2：外门，父为弟子 1（父灵根加成），修功法 m1
+    // 弟子 2：外门，修功法 m1
     Disciple d2 = baseDisciple("2");
     d2.cultivation = 40.0;
     d2.currentHp = 80;
     d2.currentMp = 40;
     d2.manualIds = {"m1"};
-    d2.parentId1 = "1";
     // 弟子 3：外门，藏经阁藏（熟练度加成）
     Disciple d3 = baseDisciple("3");
     d3.cultivation = 30.0;

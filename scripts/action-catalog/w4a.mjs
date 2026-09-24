@@ -33,8 +33,7 @@ export const CATALOG = [
   { id: 1748, name: 'DISCIPLE_OP_SYNC_ALL_STATUSES', desc: '全量弟子状态派生同步事务（含fixInvalidMiningSlots前置自愈）' },
 
   // ── 1750–1759 · w3-02 弟子生命周期第二波 ──
-  { id: 1750, name: 'DISCIPLE_LIFECYCLE_MARRY_REJECT', desc: '婚姻拒绝事务（MARRIAGE拒绝事件直写；零弟子表写入/零RNG/无失败臂；提议移除留Kotlin运行态）' },
-  // （婚姻批准接线走 batch-14 就绪地基 1592，不占新号）
+  { id: 1750, name: 'DISCIPLE_LIFECYCLE_MARRY_REJECT', desc: '【已退役，编号禁复用】婚姻拒绝事务（道侣配对链下线）' },
 
   // ── 1810–1819 · w3-09 建筑/道路残差 ──
   { id: 1810, name: 'BUILDING_RESIDUAL_CLEAR', desc: '建筑拆除/没收槽位清扫事务（十类槽位按槽组清除+长老殿末座判定+监牢/任务阁特例+REFINING破除；槽组知识由Kotlin组装传入）' },

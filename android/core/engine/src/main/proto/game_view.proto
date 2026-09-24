@@ -105,6 +105,10 @@ message DiscipleRow {
   /// 10(age)/11(lifespan)/26(soulPower)/88(loyalty)/104/106(usedExtendLife*)
   /// 字段号已退役，禁止复用
   reserved 10, 11, 26, 88, 104, 106;
+  /// 78(partnerId)/79(partnerSectId)/80(parentId1)/81(parentId2)/
+  /// 82(lastChildYear)/83(childBirthMonth)/84(griefEndYear) 字段号已退役，
+  /// 禁止复用
+  reserved 78, 79, 80, 81, 82, 83, 84;
   // ── 直接字段（Disciple 顶层）────────────────────────────
   optional string id = 1;
   optional string name = 2;
@@ -198,15 +202,8 @@ message DiscipleRow {
   /// 弟子随身灵石（int32；注意与宗门灵石 gameData.spiritStones int64 区分）
   optional int32 spiritStones = 77;
 
-  // ── SocialData（C++/JSON 协议为扁平标量；"" / 0 / -1 为 null 哨兵，
-  //    与 JSON 路径 DiscipleSerializer 重建语义一致）─────────────────
-  optional string partnerId = 78;
-  optional string partnerSectId = 79;
-  optional string parentId1 = 80;
-  optional string parentId2 = 81;
-  optional int32 lastChildYear = 82;
-  optional int32 childBirthMonth = 83;
-  optional int32 griefEndYear = 84;
+  // ── SocialData（C++/JSON 协议为扁平标量；"" 为 null 哨兵，与 JSON 路径
+  //    DiscipleSerializer 重建语义一致）─────────────────────────────────
   optional string masterId = 85;
 
   // ── SkillStats ─────────────────────────────────────────

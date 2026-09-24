@@ -280,10 +280,7 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, storageBagItems); GC_TO(v, j, storageBagSpiritStones);
     GC_TO(v, j, spiritStones);
     // SocialData
-    GC_TO(v, j, partnerId); GC_TO(v, j, partnerSectId);
-    GC_TO(v, j, parentId1); GC_TO(v, j, parentId2);
-    GC_TO(v, j, lastChildYear); GC_TO(v, j, childBirthMonth);
-    GC_TO(v, j, griefEndYear); GC_TO(v, j, masterId);
+    GC_TO(v, j, masterId);
     // SkillStats
     GC_TO(v, j, intelligence); GC_TO(v, j, charm);
     GC_TO(v, j, comprehension); GC_TO(v, j, artifactRefining);
@@ -344,10 +341,7 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, storageBagItems); GC_FROM(j, v, storageBagSpiritStones);
     GC_FROM(j, v, spiritStones);
     // SocialData
-    GC_FROM(j, v, partnerId); GC_FROM(j, v, partnerSectId);
-    GC_FROM(j, v, parentId1); GC_FROM(j, v, parentId2);
-    GC_FROM(j, v, lastChildYear); GC_FROM(j, v, childBirthMonth);
-    GC_FROM(j, v, griefEndYear); GC_FROM(j, v, masterId);
+    GC_FROM(j, v, masterId);
     // SkillStats
     GC_FROM(j, v, intelligence); GC_FROM(j, v, charm);
     GC_FROM(j, v, comprehension); GC_FROM(j, v, artifactRefining);
@@ -1262,8 +1256,8 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, breakthroughAutoPillRootCounts);
     GC_TO(v, j, autoEquipFromWarehouseRootCounts);
     GC_TO(v, j, autoLearnFromWarehouseRootCounts);
-    GC_TO(v, j, daoCompanionBannedRootCounts); GC_TO(v, j, guideClaimedRewardIds);
-    GC_TO(v, j, daoCompanionConsentRequired); GC_TO(v, j, patrolBattleResultPopup);
+    GC_TO(v, j, guideClaimedRewardIds);
+    GC_TO(v, j, patrolBattleResultPopup);
     GC_TO(v, j, autoSellMidGradeForPurchase); GC_TO(v, j, autoSellHighGradeForPurchase);
     GC_TO(v, j, showAllAvailableDisciples);
     GC_TO(v, j, breakthroughAutoPillFocused);
@@ -1355,8 +1349,8 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, breakthroughAutoPillRootCounts);
     GC_FROM(j, v, autoEquipFromWarehouseRootCounts);
     GC_FROM(j, v, autoLearnFromWarehouseRootCounts);
-    GC_FROM(j, v, daoCompanionBannedRootCounts); GC_FROM(j, v, guideClaimedRewardIds);
-    GC_FROM(j, v, daoCompanionConsentRequired); GC_FROM(j, v, patrolBattleResultPopup);
+    GC_FROM(j, v, guideClaimedRewardIds);
+    GC_FROM(j, v, patrolBattleResultPopup);
     GC_FROM(j, v, autoSellMidGradeForPurchase); GC_FROM(j, v, autoSellHighGradeForPurchase);
     GC_FROM(j, v, showAllAvailableDisciples);
     GC_FROM(j, v, breakthroughAutoPillFocused);

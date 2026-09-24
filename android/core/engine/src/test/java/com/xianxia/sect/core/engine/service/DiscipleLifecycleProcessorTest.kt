@@ -107,41 +107,6 @@ class DiscipleLifecycleProcessorTest {
     }
 
     // ══════════════════════════════════════
-    // processGriefExpiry
-    // ══════════════════════════════════════
-
-    @Test
-    fun `processGriefExpiry - griefEndYear less than currentYear clears grief`() = runTest {
-        insertDisciple(1, social = SocialData(griefEndYear = 8))
-
-        processor.processGriefExpiry(currentYear = 10)
-
-        assertEquals("griefEndYear should be -1 (sentinel) after expiry",
-            -1, tables.griefEndYears.getOrDefault(1, -1))
-    }
-
-    @Test
-    fun `processGriefExpiry - griefEndYear equals currentYear clears grief`() = runTest {
-        insertDisciple(1, social = SocialData(griefEndYear = 10))
-
-        processor.processGriefExpiry(currentYear = 10)
-
-        assertEquals("griefEndYear should be -1 (sentinel) after expiry",
-            -1, tables.griefEndYears.getOrDefault(1, -1))
-    }
-
-    @Test
-    fun `processGriefExpiry - griefEndYear greater than currentYear keeps grief`() = runTest {
-        insertDisciple(1, social = SocialData(griefEndYear = 15))
-
-        processor.processGriefExpiry(currentYear = 10)
-
-        // IntComponentTable 使用 -1 哨兵表示"无哀悼期"，getOrNull 返回 null 仅当 key 缺失
-        assertEquals("griefEndYear should persist when not yet expired",
-            15, tables.griefEndYears.getOrDefault(1, -1))
-    }
-
-    // ══════════════════════════════════════
     // processDiscipleAging
     // ══════════════════════════════════════
 
@@ -272,18 +237,6 @@ class DiscipleLifecycleProcessorTest {
         assertEquals("实例表已移除防双持有", 0, mockStore.equipmentInstances.value.count { it.id == "i1" })
         // 袋清空（幂等）
         assertTrue("袋条目已清空", tables.storageBagItems[1].isNullOrEmpty())
-    }
-
-    @Test
-    fun `handleDiscipleDeath - partner relationship is unbound`() = runTest {
-        insertDisciple(1, social = SocialData(partnerId = "2"))
-        insertDisciple(2, social = SocialData(partnerId = "1"))
-        val deadDisciple = tables.assemble(1)
-
-        processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
-
-        assertNull("partner's partnerId should be null",
-            tables.partnerIds.getOrNull(2))
     }
 
     @Test

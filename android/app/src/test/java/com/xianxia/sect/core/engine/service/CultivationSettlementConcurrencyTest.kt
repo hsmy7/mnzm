@@ -7,7 +7,6 @@ import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.griefEndYear
 import com.xianxia.sect.core.model.salaryPaidCount
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.state.GameStateStore
@@ -22,7 +21,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -140,42 +138,6 @@ class CultivationSettlementConcurrencyTest {
     fun `processAnnualSalary_空弟子列表_不崩溃`() = runTest {
         cultivationSettlement.processAnnualSalary(2)
         assertEquals(0, getDisciples().size)
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // processGriefExpiry
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    fun `processGriefExpiry_悲伤过期_清除griefEndYear且弟子数量不变`() = runTest {
-        insertDisciples(3)
-        stateStore.update {
-            val d = discipleTables.assemble(1)
-            discipleTables.remove(1)
-            discipleTables.insert(d.copy(social = d.social.copy(griefEndYear = 2)))
-        }
-
-        lifecycleProcessor.processGriefExpiry(2)
-
-        val after = getDisciples()
-        assertEquals("弟子数量必须不变", 3, after.size)
-        assertNull("griefEndYear 应被清除", after.find { it.id == "1" }!!.social.griefEndYear)
-    }
-
-    @Test
-    fun `processGriefExpiry_悲伤未过期_保留griefEndYear`() = runTest {
-        insertDisciples(2)
-        stateStore.update {
-            val d = discipleTables.assemble(1)
-            discipleTables.remove(1)
-            discipleTables.insert(d.copy(social = d.social.copy(griefEndYear = 5)))
-        }
-
-        lifecycleProcessor.processGriefExpiry(2)
-
-        val after = getDisciples()
-        assertEquals(2, after.size)
-        assertEquals(5, after.find { it.id == "1" }!!.social.griefEndYear)
     }
 
     // ═══════════════════════════════════════════════════════════════

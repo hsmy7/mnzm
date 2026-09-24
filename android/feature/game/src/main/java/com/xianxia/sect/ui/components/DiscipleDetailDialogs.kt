@@ -34,7 +34,6 @@ internal val EFFECT_KEY_NAMES: Map<String, String> = mapOf(
     "herbYield" to "草药产量",
     "rareDropRate" to "稀有掉落率",
     "manualLearnSpeed" to "功法学习速度",
-    "partnerChance" to "结侣概率",
     "manualSlot" to "功法槽位",
     "comprehensionFlat" to "悟性",
     "intelligenceFlat" to "智力",

@@ -38,7 +38,7 @@ class AssemblePatchEquivalenceTest {
             tables.currentHps[i] = 500
             tables.weaponIds[i] = "w$i"
             tables.weaponNurtures[i] = EquipmentNurtureData(equipmentId = "w$i", rarity = 3)
-            tables.partnerIds[i] = "p$i"
+            tables.masterIds[i] = "m$i"
             tables.usedPermanentPillKeys[i] = setOf("pk$i")
             tables.storageBagItems[i] = listOf(
                 StorageBagItem(itemId = "bag$i", itemType = "pill", name = "丹", rarity = 2)
@@ -89,7 +89,7 @@ class AssemblePatchEquivalenceTest {
         tables.intelligences[1] = 88
         tables.pillHpBonuses[2] = 100
         tables.armorNurtures[3] = EquipmentNurtureData(equipmentId = "a3", rarity = 5)
-        tables.griefEndYears[4] = 1
+        tables.masterIds[4] = "4"
         tables.salaryMissedCounts[5] = 3
         tables.hasReviveEffects[6] = 1
         tables.lifeEvents[7] = listOf("事件")
@@ -97,7 +97,7 @@ class AssemblePatchEquivalenceTest {
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
-            "intelligences", "pillHpBonuses", "armorNurtures", "griefEndYears",
+            "intelligences", "pillHpBonuses", "armorNurtures", "masterIds",
             "salaryMissedCounts", "hasReviveEffects", "lifeEvents", "names"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)
@@ -114,7 +114,7 @@ class AssemblePatchEquivalenceTest {
             tables.currentHps[i] = 1
             tables.pillHpBonuses[i] = 2
             tables.weaponNurtures[i] = EquipmentNurtureData(equipmentId = "w$i", rarity = 4)
-            tables.partnerIds[i] = "x$i"
+            tables.masterIds[i] = "x$i"
             tables.moralities[i] = 60
             tables.recruitedMonths[i] = 3
             tables.lifeEvents[i] = listOf("e$i")
@@ -123,7 +123,7 @@ class AssemblePatchEquivalenceTest {
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
-            "currentHps", "pillHpBonuses", "weaponNurtures", "partnerIds",
+            "currentHps", "pillHpBonuses", "weaponNurtures", "masterIds",
             "moralities", "recruitedMonths", "lifeEvents", "cultivations"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)

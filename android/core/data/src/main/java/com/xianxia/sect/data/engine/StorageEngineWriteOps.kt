@@ -257,8 +257,6 @@ internal suspend fun StorageEngine.writeDomainEntities(slot: Int, data: SaveData
     core.database.sectPolicyStateDao().upsert(SectPolicyState(
         slotId = slot,
         sectPolicies = gd.sectPolicies,
-        daoCompanionBannedRootCounts = gd.daoCompanionBannedRootCounts,
-        daoCompanionConsentRequired = gd.daoCompanionConsentRequired,
         breakthroughAutoPillFocused = gd.breakthroughAutoPillFocused,
         breakthroughAutoPillRootCounts = gd.breakthroughAutoPillRootCounts,
         autoEquipFromWarehouseFocused = gd.autoEquipFromWarehouseFocused,

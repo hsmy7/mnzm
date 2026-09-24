@@ -299,7 +299,6 @@ private fun breakthroughDetailItems(
     if (detail.adBonus > 0) add("玉符加成" to detail.adBonus)
     if (detail.masterDiscipleBonus > 0) add("师徒加成" to detail.masterDiscipleBonus)
     if (detail.selfComprehensionBonus > 0) add("悟性加成" to detail.selfComprehensionBonus)
-    if (detail.griefPenalty > 0) add("丧亲减益" to -detail.griefPenalty)
 }
 
 /** 突破率详情标题行 */
@@ -371,19 +370,14 @@ private fun BreakthroughSummary(detail: DiscipleStatCalculator.BreakthroughBonus
     val positiveSum = detail.innerElderBonus + detail.outerElderBonus +
         detail.talentBonus +
         detail.pillBonus + detail.masterDiscipleBonus
-    val penaltySum = detail.griefPenalty
     val basePct = GameUtils.formatPercent(detail.baseChance)
     val posPct = GameUtils.formatPercent(positiveSum)
-    val penPct = GameUtils.formatPercent(penaltySum)
     val adPct = GameUtils.formatPercent(detail.adBonus)
     val totalPct = GameUtils.formatPercent(detail.total)
     val formulaParts = buildString {
         append(basePct)
-        if (positiveSum > 0.0 || penaltySum > 0.0) {
+        if (positiveSum > 0.0) {
             append(" × (1 + ${posPct})")
-        }
-        if (penaltySum > 0.0) {
-            append(" × (1 - ${penPct})")
         }
         if (detail.adBonus > 0.0) {
             append(" + ${adPct}")

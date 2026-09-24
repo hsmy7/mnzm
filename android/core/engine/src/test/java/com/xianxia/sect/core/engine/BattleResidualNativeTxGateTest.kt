@@ -26,7 +26,7 @@ import javax.inject.Provider
  * 守护契约（G07 后口径）：
  * - **玩家侧败北 = 重伤**：`processBattleCasualties` 只把败者气血钳到
  *   [com.xianxia.sect.core.GameConfig.Disciple.INJURED_HP] 并保持 `isAlive=1`
- *   ——不物化行囊、不清袋、不写悲痛期、不计年报死亡、不广播 DeathEvent、
+ *   ——不物化行囊、不清袋、不写生命日志、不计年报死亡、不广播 DeathEvent、
  *   不清 Room 生产槽（重伤期间无任何限制）。
  * - **三臂降级等价**：flag OFF / AUTHORITATIVE+镜像缺失 / AUTHORITATIVE+无 Provider
  *   终态一致（`Provider<GameEngineCore>` 惰性边未 stub 时可空判空降级，findings 13 回归网）。
@@ -65,7 +65,7 @@ class BattleResidualNativeTxGateTest {
         )
     }
 
-    /** 播种：宗门内最小弟子面（101 阵亡者 + 102 道侣），gameYear = 5 */
+    /** 播种：宗门内最小弟子面（101 败北者 + 102 同队弟子），gameYear = 5 */
     private fun seed(store: FakeAtomicStateStore) {
         store.update {
             gameData = gameData.copy(gameYear = 5)
@@ -79,8 +79,7 @@ class BattleResidualNativeTxGateTest {
             discipleTables.statuses[101] = DiscipleStatus.IDLE
             discipleTables.statuses[102] = DiscipleStatus.IDLE
             discipleTables.names[101] = "阵亡者"
-            discipleTables.names[102] = "未亡人"
-            discipleTables.partnerIds[102] = "101"
+            discipleTables.names[102] = "同门"
         }
     }
 
@@ -122,9 +121,8 @@ class BattleResidualNativeTxGateTest {
             assertEquals("$label 重伤 HP", GameConfig.Disciple.INJURED_HP, tables.currentHps[101])
             assertEquals("$label 保持存活", 1, tables.isAlive[101])
             assertFalse("$label 不写 deathYear", tables.deathYears.contains(101))
-            // 重伤不传悲痛：道侣不进入哀悼期、无丧亲日志
-            assertFalse("$label 道侣不进悲痛", tables.griefEndYears.contains(102))
-            assertEquals("$label 无丧亲日志", 0, tables.lifeEvents.getOrNull(102)?.size ?: 0)
+            // 重伤不写生命日志：同队弟子日志面保持为空
+            assertEquals("$label 同队弟子无生命日志", 0, tables.lifeEvents.getOrNull(102)?.size ?: 0)
             assertEquals("$label 不计年报死亡", 0, store.gameData.value.annualDeceasedDisciples)
         }
         // 不物化行囊 / 不清 Room 生产槽 / 不广播死亡事件（三臂全零）

@@ -15,19 +15,17 @@
 //     · SettingsDelegate :21/:25/:29/:33/:73/:83 —— patrolBattleResultPopup /
 //       autoSellMidGradeForPurchase / autoSellHighGradeForPurchase /
 //       showAllAvailableDisciples / soundEnabled / musicEnabled
-//     · AutoAssignDelegate :18/:25/:83/:92/:101/:109/:118 ——
-//       daoCompanionBannedRootCounts / daoCompanionConsentRequired /
-//       breakthroughAutoPill{Focused,RootCounts} /
+//     · AutoAssignDelegate —— breakthroughAutoPill{Focused,RootCounts} /
 //       autoEquipFromWarehouse{Focused,RootCounts} /
 //       autoLearnFromWarehouse{Focused,RootCounts} / prisonerSpiritRootFilter
-//     全部 15 字段均为 gameData 序列化面内标量/Int 集（已核对 models.h +
+//     全部 13 字段均为 gameData 序列化面内标量/Int 集（已核对 models.h +
 //     json_codec.cpp 双侧在位），**无 RNG、无 checkpoint 副效应**——
 //     证据：AutoAssignDelegate 的自动分配策略族（sectPolicies）走独立入口
 //     `batchUpdateAutoAssignAndGuide`（batch-18 已下沉 boundary_tx.h），
 //     属 policy 域而非 settings 域，本头不重复承接。
 //
-// **设置项域采"字段名 → 值"通用补丁**（单 ActionId 覆盖全 15 字段）：
-// 逐字段扩 ActionId 会为单次赋值耗掉一个操作码并制造 15 个近似动作；
+// **设置项域采"字段名 → 值"通用补丁**（单 ActionId 覆盖全 13 字段）：
+// 逐字段扩 ActionId 会为单次赋值耗掉一个操作码并制造 13 个近似动作；
 // 通用补丁以**未知字段名 → UnknownSettingField 失败信封**守住边界
 // （失败零写入 → Kotlin 回退臂重执行原路径，双实现并行契约）。
 //
@@ -142,7 +140,7 @@ inline bool applySetting(GameData& data, const std::string& field,
     const bool* asBool = std::get_if<bool>(&value);
     const std::vector<int32_t>* asInts = std::get_if<std::vector<int32_t>>(&value);
 
-    // ── 布尔开关字段（11）────────────────────────────────────────────
+    // ── 布尔开关字段（10）────────────────────────────────────────────
     if (asBool != nullptr) {
         const bool v = *asBool;
         if (field == "soundEnabled") { data.soundEnabled = v; return true; }
@@ -159,9 +157,6 @@ inline bool applySetting(GameData& data, const std::string& field,
         if (field == "showAllAvailableDisciples") {
             data.showAllAvailableDisciples = v; return true;
         }
-        if (field == "daoCompanionConsentRequired") {
-            data.daoCompanionConsentRequired = v; return true;
-        }
         if (field == "breakthroughAutoPillFocused") {
             data.breakthroughAutoPillFocused = v; return true;
         }
@@ -174,7 +169,7 @@ inline bool applySetting(GameData& data, const std::string& field,
         return false;
     }
 
-    // ── Int 集字段（5：灵根数白名单/过滤器）──────────────────────────
+    // ── Int 集字段（4：灵根数白名单/过滤器）──────────────────────────
     if (asInts != nullptr) {
         const std::vector<int32_t>& v = *asInts;
         if (field == "prisonerSpiritRootFilter") {
@@ -188,9 +183,6 @@ inline bool applySetting(GameData& data, const std::string& field,
         }
         if (field == "autoLearnFromWarehouseRootCounts") {
             data.autoLearnFromWarehouseRootCounts = v; return true;
-        }
-        if (field == "daoCompanionBannedRootCounts") {
-            data.daoCompanionBannedRootCounts = v; return true;
         }
         return false;
     }
@@ -209,7 +201,6 @@ inline bool isKnownSettingField(const std::string& field,
                field == "autoSellMidGradeForPurchase" ||
                field == "autoSellHighGradeForPurchase" ||
                field == "showAllAvailableDisciples" ||
-               field == "daoCompanionConsentRequired" ||
                field == "breakthroughAutoPillFocused" ||
                field == "autoEquipFromWarehouseFocused" ||
                field == "autoLearnFromWarehouseFocused";
@@ -218,8 +209,7 @@ inline bool isKnownSettingField(const std::string& field,
         return field == "prisonerSpiritRootFilter" ||
                field == "breakthroughAutoPillRootCounts" ||
                field == "autoEquipFromWarehouseRootCounts" ||
-               field == "autoLearnFromWarehouseRootCounts" ||
-               field == "daoCompanionBannedRootCounts";
+               field == "autoLearnFromWarehouseRootCounts";
     }
     return false;
 }
@@ -240,9 +230,6 @@ inline bool isSettingUnchanged(const GameData& data, const std::string& field,
         }
         if (field == "showAllAvailableDisciples") {
             return data.showAllAvailableDisciples == v;
-        }
-        if (field == "daoCompanionConsentRequired") {
-            return data.daoCompanionConsentRequired == v;
         }
         if (field == "breakthroughAutoPillFocused") {
             return data.breakthroughAutoPillFocused == v;
@@ -268,9 +255,6 @@ inline bool isSettingUnchanged(const GameData& data, const std::string& field,
         }
         if (field == "autoLearnFromWarehouseRootCounts") {
             return sameIntSet(data.autoLearnFromWarehouseRootCounts, *asInts);
-        }
-        if (field == "daoCompanionBannedRootCounts") {
-            return sameIntSet(data.daoCompanionBannedRootCounts, *asInts);
         }
         return false;
     }
@@ -334,11 +318,6 @@ inline BeastLockOutcome lockBeastViewTx(GameState& state,
 // ② 全量解析阶段逐字段判"已知？类型匹配？"——任一未知/类型不符即
 //    UnknownSettingField/TypeMismatch 失败且**不触碰任何字段**；
 // ③ 全部通过后进入写段。
-//
-// 注：`daoCompanionConsentRequired=false` 在 Kotlin 侧另触发
-// `clearPendingMarriageProposals()`（pendingMarriageProposals 为 Kotlin
-// 运行态，不入 C++ 状态）——该段由 Kotlin 调用方在 native 成功后照原序执行
-// （事务外残差，与巡逻/住所族的 gate 残差同口径）。
 inline SettingsOutcome updateSettingsTx(GameState& state,
                                         const SettingPatch& patch) {
     SettingsOutcome out;

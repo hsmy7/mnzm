@@ -122,21 +122,13 @@ data class EquipmentSet(
 
 /**
  * 社交关系组件
- * 包含伴侣、父母、子女、师徒等关系数据，共7个字段
+ * 仅承载师徒关系
  */
 @Serializable
 data class SocialData(
-    var partnerId: String? = null,
-    var partnerSectId: String? = null,
-    var parentId1: String? = null,
-    var parentId2: String? = null,
-    var lastChildYear: Int = 0,
-    var childBirthMonth: Int? = null,
-    var griefEndYear: Int? = null,
     /** 师父弟子ID（师徒关系永久绑定，仅一方死亡方可解绑；弟子最多1名师父） */
     var masterId: String? = null
 ) {
-    val hasPartner: Boolean get() = partnerId != null
     val hasMaster: Boolean get() = masterId != null
 }
 

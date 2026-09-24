@@ -19,25 +19,18 @@ import com.xianxia.sect.core.model.bootsNurture
 import com.xianxia.sect.core.model.breakthroughCount
 import com.xianxia.sect.core.model.breakthroughFailCount
 import com.xianxia.sect.core.model.charm
-import com.xianxia.sect.core.model.childBirthMonth
 import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
-import com.xianxia.sect.core.model.griefEndYear
 import com.xianxia.sect.core.model.hasClearAllEffect
 import com.xianxia.sect.core.model.hasReviveEffect
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.lastChildYear
 import com.xianxia.sect.core.model.magicAttackVariance
 import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.mpVariance
-import com.xianxia.sect.core.model.parentId1
-import com.xianxia.sect.core.model.parentId2
-import com.xianxia.sect.core.model.partnerId
-import com.xianxia.sect.core.model.partnerSectId
 import com.xianxia.sect.core.model.physicalAttackVariance
 import com.xianxia.sect.core.model.physicalDefenseVariance
 import com.xianxia.sect.core.model.pillCritEffectBonus
@@ -162,11 +155,6 @@ internal fun DiscipleTables.writeEquipmentFields(id: Int, disciple: Disciple) {
 internal fun DiscipleTables.writeSocialFields(id: Int, disciple: Disciple) {
     // 社交
     val s = disciple.social
-    partnerIds[id] = s.partnerId; partnerSectIds[id] = s.partnerSectId
-    parentId1s[id] = s.parentId1; parentId2s[id] = s.parentId2
-    lastChildYears[id] = s.lastChildYear
-    childBirthMonths[id] = s.childBirthMonth
-    griefEndYears[id] = s.griefEndYear ?: DiscipleTables.GRIEF_YEAR_NULL_SENTINEL
     masterIds[id] = s.masterId
 }
 

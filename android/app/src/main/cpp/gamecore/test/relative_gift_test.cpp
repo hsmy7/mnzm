@@ -1,11 +1,11 @@
 // ============================================================
-// relative_gift_test — 亲属智能赠送单测 + 旬结算集成
+// relative_gift_test — 师徒智能赠送单测 + 旬结算集成
 //
 // 守护目标：
-//   1. relative_gift.h 纯函数语义（亲属查找插序 / 关系分类优先级 /
+//   1. relative_gift.h 纯函数语义（师徒查找插序 / 关系分类 /
 //      选品优先级 / 袋转移合并）
-//   2. 旬结算集成：突破（层变即可）触发亲属赠送（SYSTEM RNG 逐亲属一次
-//      概率抽取，先于选品；跨亲属累计序 = 插序）
+//   2. 旬结算集成：突破（层变即可）触发师徒赠送（SYSTEM RNG 逐师徒一次
+//      概率抽取，先于选品；跨师徒累计序 = 插序）
 //
 // RNG 审计方法：与 phase_settlement_test 同源——RngManager.initSystemSeed
 // 按 fromSeed(seed + partitionId) 播种（kSystem=3 / kBreakthrough=1），
@@ -44,7 +44,7 @@ std::unique_ptr<GameCore> makeCore(int64_t seed) {
     return core;
 }
 
-/// 最小存活弟子（炼气一层，IDLE，无亲属）
+/// 最小存活弟子（炼气一层，IDLE，无师徒关系）
 Disciple baseDisciple(const std::string& id) {
     Disciple d;
     d.id = id;
@@ -70,30 +70,26 @@ StorageBagItem herbItem(const std::string& itemId, int32_t rarity,
     return item;
 }
 
-// ── 亲属查找（插序 = 抽取序） ──────────────────────────────────────
+// ── 师徒查找（插序 = 抽取序） ──────────────────────────────────────
 
 TEST(RelativeGiftFindTest, ForwardThenReverseInsertionOrder) {
     auto core = makeCore(42);
     auto& st = core->state();
-    // 行序 0..6：1(本人) 2(道侣) 3(师父) 4(父) 5(同父兄弟) 6(徒弟) 7(子嗣)
-    for (const char* id : {"1", "2", "3", "4", "5", "6", "7"}) {
+    // 行序 0..4：1(本人) 2(师父) 3(徒弟) 4(同门) 5(徒弟)
+    for (const char* id : {"1", "2", "3", "4", "5"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    st.disciples.partnerIds[0] = "2";     // 1 的道侣 = 2
-    st.disciples.masterIds[0] = "3";      // 1 的师父 = 3
-    st.disciples.parentId1s[0] = "4";     // 1 的父 = 4
-    st.disciples.partnerIds[1] = "1";     // 2 的道侣 = 1（互为，不重复加入）
-    st.disciples.parentId1s[4] = "4";     // 5 的父 = 4（与 1 同父 → 兄弟）
-    st.disciples.masterIds[5] = "1";      // 6 的师父 = 1 → 徒弟
-    st.disciples.parentId1s[6] = "1";     // 7 的父 = 1 → 子嗣
+    st.disciples.masterIds[0] = "2";      // 1 的师父 = 2
+    st.disciples.masterIds[2] = "1";      // 3 的师父 = 1 → 徒弟
+    st.disciples.masterIds[3] = "2";      // 4 的师父 = 2 → 同门，非本人师徒
+    st.disciples.masterIds[4] = "1";      // 5 的师父 = 1 → 徒弟
 
     const auto idx = system::relative_gift::detail::rowIndex(st.disciples);
     const auto relatives = system::relative_gift::findRelatives(
         st.disciples, 1, idx);
-    // 正向：道侣(2) → 师父(3) → 父母(4)；反向一次遍历按行序补：
-    // 5（共同父母兄弟）、6（徒弟）、7（子嗣）
-    ASSERT_EQ(relatives.size(), std::size_t{6});
-    const int32_t expected[] = {2, 3, 4, 5, 6, 7};
+    // 正向：师父(2)；反向一次遍历按行序补徒弟：3、5（同门 4 不入集合）
+    ASSERT_EQ(relatives.size(), std::size_t{3});
+    const int32_t expected[] = {2, 3, 5};
     for (std::size_t i = 0; i < relatives.size(); ++i) {
         EXPECT_EQ(relatives[i], expected[i]) << "index " << i;
     }
@@ -105,48 +101,60 @@ TEST(RelativeGiftFindTest, DeadAndSelfExcluded) {
     for (const char* id : {"1", "2"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    st.disciples.partnerIds[0] = "2";
-    st.disciples.isAlive[1] = 0;          // 道侣死亡 → 排除
+    st.disciples.masterIds[0] = "2";
+    st.disciples.isAlive[1] = 0;          // 师父死亡 → 排除
     const auto idx = system::relative_gift::detail::rowIndex(st.disciples);
     const auto relatives = system::relative_gift::findRelatives(
         st.disciples, 1, idx);
     EXPECT_TRUE(relatives.empty());
 }
 
-// ── 关系分类（优先级） ────────────────────────────────────────────
-
-TEST(RelativeGiftClassifyTest, PartnerBeatsParent) {
+TEST(RelativeGiftFindTest, DeadApprenticeExcluded) {
     auto core = makeCore(42);
     auto& st = core->state();
     for (const char* id : {"1", "2"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    // giver 2 既是 1 的道侣又是 1 的父母（数据异常组合）→ 道侣优先
-    st.disciples.partnerIds[0] = "2";
-    st.disciples.parentId1s[0] = "2";
+    st.disciples.masterIds[1] = "1";      // 2 的师父 = 1 → 徒弟
+    st.disciples.isAlive[1] = 0;          // 徒弟死亡 → 反向遍历排除
+    const auto idx = system::relative_gift::detail::rowIndex(st.disciples);
+    EXPECT_TRUE(system::relative_gift::findRelatives(
+        st.disciples, 1, idx).empty());
+}
+
+// ── 关系分类（师父 / 徒弟） ────────────────────────────────────────
+
+TEST(RelativeGiftClassifyTest, MasterClassifiedByReceiverMasterId) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    for (const char* id : {"1", "2"}) {
+        st.disciples.appendDisciple(baseDisciple(id));
+    }
+    st.disciples.masterIds[0] = "2";      // 1 的师父 = 2 → giver 2 是师父
     const auto idx = system::relative_gift::detail::rowIndex(st.disciples);
     EXPECT_EQ(system::relative_gift::classifyRelationship(st.disciples, 2, 1,
                                                           idx),
-              system::relative_gift::GiftRelationshipType::kPartner);
+              system::relative_gift::GiftRelationshipType::kMaster);
 }
 
-TEST(RelativeGiftClassifyTest, ReversePartnerAndApprenticeAndChild) {
+TEST(RelativeGiftClassifyTest, ApprenticeClassifiedByGiverMasterId) {
     auto core = makeCore(42);
     auto& st = core->state();
-    for (const char* id : {"1", "6", "7", "8"}) {
+    for (const char* id : {"1", "2"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    st.disciples.partnerIds[1] = "1";     // 6 的道侣列指向 1（反向道侣）
-    st.disciples.masterIds[2] = "1";      // 7 的师父 = 1 → 徒弟
-    st.disciples.parentId1s[3] = "1";     // 8 的父 = 1 → 子嗣
+    st.disciples.masterIds[1] = "1";      // 2 的师父 = 1 → giver 2 是徒弟
     using R = system::relative_gift::GiftRelationshipType;
     const auto idx = system::relative_gift::detail::rowIndex(st.disciples);
-    EXPECT_EQ(system::relative_gift::classifyRelationship(st.disciples, 6, 1,
-                                                          idx), R::kPartner);
-    EXPECT_EQ(system::relative_gift::classifyRelationship(st.disciples, 7, 1,
+    EXPECT_EQ(system::relative_gift::classifyRelationship(st.disciples, 2, 1,
                                                           idx), R::kApprentice);
-    EXPECT_EQ(system::relative_gift::classifyRelationship(st.disciples, 8, 1,
-                                                          idx), R::kChild);
+}
+
+TEST(RelativeGiftClassifyTest, ProbabilityMatchesRelationship) {
+    using R = system::relative_gift::GiftRelationshipType;
+    EXPECT_DOUBLE_EQ(system::relative_gift::giftProbability(R::kMaster), 0.40);
+    EXPECT_DOUBLE_EQ(system::relative_gift::giftProbability(R::kApprentice),
+                     0.30);
 }
 
 // ── 选品优先级 ────────────────────────────────────────────────────
@@ -266,14 +274,14 @@ TEST(RelativeGiftGiveTest, BagTooSmallAndBagEmpty) {
               system::relative_gift::GiftResult::kBagEmpty);
 }
 
-// ── 主入口：概率抽取门控（每亲属恰一次 SYSTEM nextDouble） ──────────
+// ── 主入口：概率抽取门控（每师徒恰一次 SYSTEM nextDouble） ──────────
 
 TEST(RelativeGiftProcessTest, DrawConsumedRegardlessOfOutcome) {
-    // 探测种子：first SYSTEM draw ≥ 0.45（道侣概率）→ 不赠送但抽取已消耗
+    // 探测种子：first SYSTEM draw ≥ 0.40（师父概率）→ 不赠送但抽取已消耗
     const int64_t seed = []() {
         for (int64_t s = 1;; ++s) {
             auto probe = DeterministicRng::fromSeed(s + kSystemPartition);
-            if (probe.nextDouble() >= 0.45) return s;
+            if (probe.nextDouble() >= 0.40) return s;
         }
     }();
     auto core = makeCore(seed);
@@ -281,7 +289,7 @@ TEST(RelativeGiftProcessTest, DrawConsumedRegardlessOfOutcome) {
     for (const char* id : {"1", "2"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    st.disciples.partnerIds[0] = "2";
+    st.disciples.masterIds[0] = "2";      // 2 是 1 的师父
     st.disciples.storageBagItems[1] = {herbItem("h-1", 4, 3),
                                        herbItem("h-2", 1, 1)};
 
@@ -297,11 +305,11 @@ TEST(RelativeGiftProcessTest, DrawConsumedRegardlessOfOutcome) {
 }
 
 TEST(RelativeGiftProcessTest, SuccessTransfersGift) {
-    // 探测种子：first SYSTEM draw < 0.45 → 赠送成功
+    // 探测种子：first SYSTEM draw < 0.40 → 赠送成功
     const int64_t seed = []() {
         for (int64_t s = 1;; ++s) {
             auto probe = DeterministicRng::fromSeed(s + kSystemPartition);
-            if (probe.nextDouble() < 0.45) return s;
+            if (probe.nextDouble() < 0.40) return s;
         }
     }();
     auto core = makeCore(seed);
@@ -309,7 +317,7 @@ TEST(RelativeGiftProcessTest, SuccessTransfersGift) {
     for (const char* id : {"1", "2"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    st.disciples.partnerIds[0] = "2";
+    st.disciples.masterIds[0] = "2";      // 2 是 1 的师父
     st.disciples.storageBagItems[1] = {herbItem("h-1", 4, 3),
                                        herbItem("h-2", 1, 1)};
 
@@ -323,24 +331,24 @@ TEST(RelativeGiftProcessTest, SuccessTransfersGift) {
     EXPECT_EQ(st.disciples.storageBagItems[1][0].quantity, 2);   // 3-1
 }
 
-// ── 旬结算集成：突破（层变即可）触发亲属赠送 ────────────────────────
+// ── 旬结算集成：突破（层变即可）触发师徒赠送 ────────────────────────
 
-TEST(PhaseSettlementGiftTest, LayerBreakthroughTriggersGiftFromPartner) {
+TEST(PhaseSettlementGiftTest, LayerBreakthroughTriggersGiftFromMaster) {
     // 双探测：BREAKTHROUGH 首抽 < 0.90（炼气一层基础概率）→ 突破成功（层+1）；
-    // SYSTEM 首抽 < 0.45（道侣概率）→ 道侣赠送灵草。
+    // SYSTEM 首抽 < 0.40（师父概率）→ 师父赠送灵草。
     int64_t seed = 1;
     for (;; ++seed) {
         auto b = DeterministicRng::fromSeed(seed + kBreakthroughPartition);
         if (b.nextDouble() >= 0.90) continue;
         auto s = DeterministicRng::fromSeed(seed + kSystemPartition);
-        if (s.nextDouble() < 0.45) break;
+        if (s.nextDouble() < 0.40) break;
     }
     auto core = makeCore(seed);
     auto& st = core->state();
     for (const char* id : {"1", "2"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    st.disciples.partnerIds[0] = "2";
+    st.disciples.masterIds[0] = "2";      // 2 是 1 的师父
     st.disciples.storageBagItems[1] = {herbItem("h-1", 4, 2),
                                        herbItem("h-2", 1, 1)};
     st.disciples.cultivations[0] = 490.0;  // 满（maxCult(9,1)=490）
@@ -351,7 +359,7 @@ TEST(PhaseSettlementGiftTest, LayerBreakthroughTriggersGiftFromPartner) {
 
     // 突破成功：层数 1→2（层变即触发赠送；大境界日志仅 realm 变化才记）
     EXPECT_EQ(st.disciples.realmLayers[0], 2);
-    // 道侣袋 h-1 -1、接收者袋 h-1 +1
+    // 师父袋 h-1 -1、接收者袋 h-1 +1
     ASSERT_EQ(st.disciples.storageBagItems[1].size(), std::size_t{2});
     EXPECT_EQ(st.disciples.storageBagItems[1][0].quantity, 1);
     ASSERT_EQ(st.disciples.storageBagItems[0].size(), std::size_t{1});
@@ -366,7 +374,7 @@ TEST(PhaseSettlementGiftTest, NoBreakthroughNoGiftNoSystemDraw) {
     for (const char* id : {"1", "2"}) {
         st.disciples.appendDisciple(baseDisciple(id));
     }
-    st.disciples.partnerIds[0] = "2";
+    st.disciples.masterIds[0] = "2";      // 2 是 1 的师父
     st.disciples.storageBagItems[1] = {herbItem("h-1", 4, 2)};
 
     RngManager probe;

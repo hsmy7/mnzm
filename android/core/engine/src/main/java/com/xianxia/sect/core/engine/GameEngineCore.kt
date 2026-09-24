@@ -691,7 +691,7 @@ class GameEngineCore @Inject constructor(
 
     /**
      * 年变真相源切换残留执行器：nativeSettleYear（C++ 完整年变）之后的
-     * Kotlin 未下沉扇出（死亡链物化/丧亲/死亡档案——招募生成/AI 招募/
+     * Kotlin 未下沉扇出（死亡链物化/死亡档案——招募生成/AI 招募/
      * 商人收购/交易刷新均已下沉 C++）。手动构造；依赖经
      * cultivationService.eventProcessor 访问事件域服务。
      */

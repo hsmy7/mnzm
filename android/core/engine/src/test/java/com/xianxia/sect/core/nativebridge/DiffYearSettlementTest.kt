@@ -29,7 +29,6 @@ import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.YearSettlementExecutor
-import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.event.EventBus
@@ -257,27 +256,27 @@ class DiffYearSettlementTest {
                 manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                 mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
+                csb: Double, mdb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                d, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                d, manuals, mps, bb, peb, pmb, csb, mdb
             )
             override fun calculateCultivationSpeed(
                 a: DiscipleAggregate,
                 manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                 mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
+                csb: Double, mdb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                a, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                a, manuals, mps, bb, peb, pmb, csb, mdb
             )
             override fun getBreakthroughChance(
                 d: Disciple, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+                ab: Double, mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+                ab: Double, mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
         }
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
@@ -372,7 +371,7 @@ class DiffYearSettlementTest {
         )
         // 死亡链下沉：换装真实 DiscipleLifecycleProcessor——C++
         // 年变死亡链的平台效应（DAO 清理/DeathEvent）由真实
-        // DiscipleLifecycleProcessor 承担；场景无死亡 → 槽位/哀悼/DAO
+        // DiscipleLifecycleProcessor 承担；场景无死亡 → 槽位/DAO
         // 平台效应零触发（discipleSlotCleanup/productionCoordinator/
         // inventorySystem/deathHandler mock 无害）
         val lifecycle = DiscipleLifecycleProcessor(
@@ -435,14 +434,13 @@ class DiffYearSettlementTest {
         )
     }
 
-    /** 月变编排器（SystemManager 仅装 PartnerSystem——缺席 ≡ 场景恒零） */
+    /** 月变编排器（SystemManager 无月变扇出系统——缺席 ≡ 场景恒零） */
     private fun buildMonthExecutor(
-        service: CultivationService,
-        gameRng: GameRngManager
+        service: CultivationService
     ): MonthSettlementExecutor = MonthSettlementExecutor(
         cultivationService = service,
         aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
-        systemManager = SystemManager(setOf(PartnerSystem(gameRng)))
+        systemManager = SystemManager(emptySet())
     )
 
     private class UnconfinedCoroutineScopeProvider : CoroutineScopeProvider {
@@ -617,7 +615,7 @@ class DiffYearSettlementTest {
         val gameRng = serviceAndRng.second
         val phaseExecutor = PhaseSettlementExecutor(service)
         val yearExecutor = YearSettlementExecutor(service)
-        val monthExecutor = buildMonthExecutor(service, gameRng)
+        val monthExecutor = buildMonthExecutor(service)
         runTest {
             repeat(PHASES) {
                 var yearChanged = false

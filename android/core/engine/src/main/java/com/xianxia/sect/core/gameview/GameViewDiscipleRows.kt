@@ -46,9 +46,9 @@ import kotlinx.serialization.json.longOrNull
  *
  * ## 逐值等价（守卫锁定）
  * 映射表以 [Disciple] 的 JSON 协议面（C++ `kDiscipleRowFields` ↔
- * `DiscipleSerializer` 平铺代理）为唯一口径，含四处协议↔域模型的既有口径：
- * `cultivationCheckpoint` 按 Long 承载回填 Double、`griefEndYear` 的 -1 空值
- * 哨兵、`status` 字符串的宽松枚举回退 IDLE、Set 型字段以 List 承载。
+ * `DiscipleSerializer` 平铺代理）为唯一口径，含三处协议↔域模型的既有口径：
+ * `cultivationCheckpoint` 按 Long 承载回填 Double、`status` 字符串的宽松枚举回退 IDLE、
+ * Set 型字段以 List 承载。
  * `DiscipleRowTypedProjectionTest` 对同一行做两路对照（typed vs JSON 树重建）
  * 逐字段全等，并在真实 C++ 结算信封上核对字段覆盖。
  *
@@ -133,13 +133,6 @@ internal object GameViewDiscipleRows {
         "accessoryId" to DiscipleRow::hasAccessoryId,
         "storageBagSpiritStones" to DiscipleRow::hasStorageBagSpiritStones,
         "spiritStones" to DiscipleRow::hasSpiritStones,
-        "partnerId" to DiscipleRow::hasPartnerId,
-        "partnerSectId" to DiscipleRow::hasPartnerSectId,
-        "parentId1" to DiscipleRow::hasParentId1,
-        "parentId2" to DiscipleRow::hasParentId2,
-        "lastChildYear" to DiscipleRow::hasLastChildYear,
-        "childBirthMonth" to DiscipleRow::hasChildBirthMonth,
-        "griefEndYear" to DiscipleRow::hasGriefEndYear,
         "masterId" to DiscipleRow::hasMasterId,
         "intelligence" to DiscipleRow::hasIntelligence,
         "charm" to DiscipleRow::hasCharm,
@@ -279,13 +272,6 @@ internal object GameViewDiscipleRows {
         )
 
     private fun socialOf(row: DiscipleRow) = SocialData(
-                partnerId = row.partnerId.ifEmpty { null },
-                partnerSectId = row.partnerSectId.ifEmpty { null },
-                parentId1 = row.parentId1.ifEmpty { null },
-                parentId2 = row.parentId2.ifEmpty { null },
-                lastChildYear = row.lastChildYear,
-                childBirthMonth = row.childBirthMonth.takeIf { it != 0 },
-                griefEndYear = row.griefEndYear.takeIf { it != NULL_INT_SENTINEL },
                 masterId = row.masterId.ifEmpty { null }
         )
 
@@ -348,8 +334,6 @@ internal object GameViewDiscipleRows {
             storageBagItemsJson.isEmpty -> emptyList()
             else -> json.decodeFromString(serializer, storageBagItemsJson.toStringUtf8())
         }
-
-    private const val NULL_INT_SENTINEL = -1
 
     // ============================================================
     // R2.4/B09：列级导出的部分行合并面
@@ -646,16 +630,6 @@ internal object GameViewDiscipleRows {
 
     /** 社交段 presence 列直写（映射表 = [socialOf] ↔ `writeAllFields` 社交面，线路哨兵同口径）。 */
     private fun DiscipleTables.applySocialPatchColumns(id: Int, row: DiscipleRow) {
-        if (row.hasPartnerId()) partnerIds[id] = row.partnerId.ifEmpty { null }
-        if (row.hasPartnerSectId()) partnerSectIds[id] = row.partnerSectId.ifEmpty { null }
-        if (row.hasParentId1()) parentId1s[id] = row.parentId1.ifEmpty { null }
-        if (row.hasParentId2()) parentId2s[id] = row.parentId2.ifEmpty { null }
-        if (row.hasLastChildYear()) lastChildYears[id] = row.lastChildYear
-        if (row.hasChildBirthMonth()) {
-            childBirthMonths[id] = row.childBirthMonth.takeIf { it != 0 }
-        }
-        // -1 = 域 null 的线路哨兵：merged 臂 -1 → null → 回写哨兵，直写透传同值
-        if (row.hasGriefEndYear()) griefEndYears[id] = row.griefEndYear
         if (row.hasMasterId()) masterIds[id] = row.masterId.ifEmpty { null }
     }
 
@@ -824,14 +798,7 @@ internal object GameViewDiscipleRows {
         b.storageBagItemsPresent = true
         b.storageBagSpiritStones = d.equipment.storageBagSpiritStones
         b.spiritStones = d.equipment.spiritStones
-        // 社交可空字段的线路哨兵（"" / 0 / -1 = null）与 DiscipleSerializer 同口径
-        b.partnerId = d.social.partnerId ?: ""
-        b.partnerSectId = d.social.partnerSectId ?: ""
-        b.parentId1 = d.social.parentId1 ?: ""
-        b.parentId2 = d.social.parentId2 ?: ""
-        b.lastChildYear = d.social.lastChildYear
-        b.childBirthMonth = d.social.childBirthMonth ?: 0
-        b.griefEndYear = d.social.griefEndYear ?: NULL_INT_SENTINEL
+        // 社交可空字段的线路哨兵（"" = null）与 DiscipleSerializer 同口径
         b.masterId = d.social.masterId ?: ""
     }
 

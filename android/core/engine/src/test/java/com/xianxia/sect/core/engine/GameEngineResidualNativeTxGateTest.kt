@@ -39,7 +39,7 @@ import org.robolectric.RobolectricTestRunner
  *   回退臂语义与下沉前逐字一致（双实现并行契约）
  * - 镜像守卫：测试 mock（未 stub stateSyncServiceRef）返回 null sync → 先赋可空
  *   局部再判空（handover findings 13），不得 NPE
- * - 回退臂语义：妖兽视图锁定/解锁（含空 id 早退）；设置项 17 字段（bool 开关
+ * - 回退臂语义：妖兽视图锁定/解锁（含空 id 早退）；设置项 13 字段（bool 开关
  *   与 Int 集过滤）经域入口写入——下沉前后状态面逐项不变
  *
  * C++ 事务语义（AUTHORITATIVE + 生产桥）由 GTest lock_beast_tx_test.cpp（17 用例）
@@ -197,7 +197,6 @@ class GameEngineResidualNativeTxGateTest {
             engine.setBreakthroughAutoPillSettings(true, setOf(1, 2))
             engine.setAutoEquipSettings(true, setOf(3))
             engine.setAutoLearnSettings(true, setOf(2))
-            engine.setDaoCompanionBannedRootCounts(setOf(1))
             engine.setPrisonerSpiritRootFilter(setOf(2, 3))
         }
         val gd = store.gameDataSnapshot
@@ -207,20 +206,7 @@ class GameEngineResidualNativeTxGateTest {
         assertEquals(setOf(3), gd.autoEquipFromWarehouseRootCounts)
         assertTrue(gd.autoLearnFromWarehouseFocused)
         assertEquals(setOf(2), gd.autoLearnFromWarehouseRootCounts)
-        assertEquals(setOf(1), gd.daoCompanionBannedRootCounts)
         assertEquals(setOf(2, 3), gd.prisonerSpiritRootFilter)
-    }
-
-    @Test
-    fun `dao companion consent off clears pending proposals after write`() = runTest {
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            engine.setDaoCompanionConsentRequired(true)
-            assertTrue(store.gameDataSnapshot.daoCompanionConsentRequired)
-            engine.setDaoCompanionConsentRequired(false)
-        }
-        // 平台残差：关闭同意模式后待处理提议清空（Kotlin 运行态，不入 C++ 状态）
-        assertFalse(store.gameDataSnapshot.daoCompanionConsentRequired)
-        assertTrue(store.pendingMarriageProposals.value.isEmpty())
     }
 
     // ── 补丁数组构造（协议面形状守卫）────────────────────────────

@@ -28,7 +28,6 @@ import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -208,7 +207,6 @@ private class WatchSimpleStore : GameStateStore {
     override val pendingBattleResult = MutableStateFlow<BattleResultUIData?>(null)
     override val rewardCardQueue = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
-    override val pendingMarriageProposals = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
     override val pendingBattleRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val sectCombatPower = MutableStateFlow(0L)
     override val aiSectCombatPowers = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -243,7 +241,6 @@ private class WatchSimpleStore : GameStateStore {
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit
     override fun clearPendingBeastAttacks() = Unit
     override fun removePendingBeastAttack(beastLevelId: String) = Unit
-    override fun clearPendingMarriageProposals() = Unit
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) = Unit
     override fun clearPendingBattleRewardCards() = Unit
     override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit

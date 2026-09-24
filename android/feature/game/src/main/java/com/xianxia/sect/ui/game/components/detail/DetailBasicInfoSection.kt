@@ -36,7 +36,6 @@ import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.accessoryId
 import com.xianxia.sect.core.model.armorId
 import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.griefEndYear
 import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.feature.game.R
@@ -60,14 +59,12 @@ fun BasicInfoSection(
     sectPolicies: SectPolicies? = null,
     residenceSlots: List<ResidenceSlot> = emptyList(),
     placedBuildings: List<GridBuildingData> = emptyList(),
-    gameYear: Int = 1,
     gameSpeed: Int = 1,
     bloodRefinementPct: BloodRefinementPctTotal? = null,
     onWashSpiritRootClick: (() -> Unit)? = null,
     onBreakthroughJadeClick: (() -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
-    val griefBreakthroughPenalty = discipleGriefPenalty(disciple, gameYear)
     val masterDiscipleBonus = discipleMasterBonus(disciple, discipleMap)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -84,7 +81,6 @@ fun BasicInfoSection(
             discipleMap = discipleMap,
             elderSlots = elderSlots,
             masterDiscipleBonus = masterDiscipleBonus,
-            griefBreakthroughPenalty = griefBreakthroughPenalty,
             onBreakthroughJadeClick = onBreakthroughJadeClick
         )
 
@@ -183,7 +179,6 @@ private fun BasicInfoBreakthroughRow(
     discipleMap: Map<String, DiscipleAggregate>,
     elderSlots: ElderSlots?,
     masterDiscipleBonus: Double,
-    griefBreakthroughPenalty: Double,
     onBreakthroughJadeClick: (() -> Unit)?
 ) {
     val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
@@ -195,8 +190,7 @@ private fun BasicInfoBreakthroughRow(
             disciple, "outer", elderSlots?.outerElder, discipleMap
         ),
         adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0,
-        masterDiscipleBonus = masterDiscipleBonus,
-        griefBreakthroughPenalty = griefBreakthroughPenalty
+        masterDiscipleBonus = masterDiscipleBonus
     )
     val adBonusValue = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
     Row(
@@ -392,13 +386,6 @@ private fun CultivationProgressRow(
 }
 
 // ── BasicInfoSection 纯计算辅助 ──
-
-private fun discipleGriefPenalty(disciple: DiscipleAggregate, gameYear: Int): Double =
-    if ((disciple.griefEndYear ?: 0) > gameYear) {
-        DiscipleStatCalculator.GRIEF_BREAKTHROUGH_CHANCE_PENALTY
-    } else {
-        0.0
-    }
 
 private fun discipleMasterBonus(
     disciple: DiscipleAggregate,

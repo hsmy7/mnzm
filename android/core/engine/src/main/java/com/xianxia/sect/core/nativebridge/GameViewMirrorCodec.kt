@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.engine.AgedDeathDraft
-import com.xianxia.sect.core.engine.BereavementDraft
 import com.xianxia.sect.core.gameview.GameViewDiscipleRows
 import com.xianxia.sect.core.gameview.GameViewStreamEvent
 import com.xianxia.sect.core.gameview.toJsonElement
@@ -241,7 +240,8 @@ internal object GameViewMirrorCodec {
         root: JsonObject,
     ): GameViewStreamEvent.Payload? = when (kind) {
         GameViewStreamEvent.Kind.MONTH_SETTLED -> parseMonthDetail(root)
-        GameViewStreamEvent.Kind.YEAR_SETTLED -> parseYearDetail(root)
+        // 年结事件仅作本年事件流的在场证明（Kind 判定），无 typed 载荷
+        GameViewStreamEvent.Kind.YEAR_SETTLED -> null
         GameViewStreamEvent.Kind.BREAKTHROUGH -> GameViewStreamEvent.Payload.Breakthrough(
             discipleId = root.string("discipleId") ?: "",
             summary = root.string("summary") ?: "",
@@ -260,18 +260,6 @@ internal object GameViewMirrorCodec {
     private fun parseMonthDetail(root: JsonObject) = GameViewStreamEvent.Payload.MonthSettled(
         disabledPolicies = root.stringList("disabledPolicies"),
         seizedSectBuildings = root.stringList("seizedSectBuildings"),
-    )
-
-    private fun parseYearDetail(root: JsonObject) = GameViewStreamEvent.Payload.YearSettled(
-        bereavements = root["bereavements"]?.jsonArray?.mapNotNull { el ->
-            val o = el.jsonObject
-            val gid = o.int("grievingId") ?: return@mapNotNull null
-            BereavementDraft(
-                grievingId = gid,
-                relationship = o.string("relationship") ?: "亲属",
-                deceasedName = o.string("deceasedName") ?: ""
-            )
-        } ?: emptyList(),
     )
 
     private fun parsePurchaseDetail(root: JsonObject): GameViewStreamEvent.Payload.Purchase? {
@@ -532,13 +520,6 @@ internal object GameViewMirrorCodec {
         ),
         i64("storageBagSpiritStones", { it.hasStorageBagSpiritStones() }, { it.storageBagSpiritStones }),
         i32("spiritStones", { it.hasSpiritStones() }, { it.spiritStones }),
-        str("partnerId", { it.hasPartnerId() }, { it.partnerId }),
-        str("partnerSectId", { it.hasPartnerSectId() }, { it.partnerSectId }),
-        str("parentId1", { it.hasParentId1() }, { it.parentId1 }),
-        str("parentId2", { it.hasParentId2() }, { it.parentId2 }),
-        i32("lastChildYear", { it.hasLastChildYear() }, { it.lastChildYear }),
-        i32("childBirthMonth", { it.hasChildBirthMonth() }, { it.childBirthMonth }),
-        i32("griefEndYear", { it.hasGriefEndYear() }, { it.griefEndYear }),
         str("masterId", { it.hasMasterId() }, { it.masterId }),
         i32("intelligence", { it.hasIntelligence() }, { it.intelligence }),
         i32("charm", { it.hasCharm() }, { it.charm }),

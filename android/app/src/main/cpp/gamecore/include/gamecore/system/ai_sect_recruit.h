@@ -38,7 +38,6 @@
 #include "gamecore/data/trait_db.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/state/models.h"
-#include "gamecore/system/child_birth.h"
 #include "gamecore/system/disciple_factory.h"
 #include "gamecore/system/name_service.h"
 #include "gamecore/system/redeem_code.h"
@@ -114,8 +113,9 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
     const auto nameResult = generateName(d.gender, NameStyle::kXianxia, usedNames, rng);
     d.name = nameResult.fullName;
     d.surname = nameResult.surname;
-    // 2. 灵根（SpiritRootGenerator：1×nextDouble 定根数 + Fisher-Yates）
-    d.spiritRootType = child_birth::generateSpiritRoot(rng);
+    // 2. 灵根（SpiritRootGenerator 等价实现 spiritRootGenerate，定义于
+    // redeem_code.h：1×nextDouble 定根数 + Fisher-Yates 4×nextInt）
+    d.spiritRootType = gamecore::system::spiritRootGenerate(rng);
     const int32_t rootCount = 1 + static_cast<int32_t>(
         std::count(d.spiritRootType.begin(), d.spiritRootType.end(), ','));
     // 3. 悟性/资质（各 1×nextInt；资质避开哨兵 50——自愈判定收敛）

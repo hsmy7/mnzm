@@ -219,25 +219,20 @@ class DiscipleModelsTest {
         assertEquals(EquipmentNurtureData("", 0), set.accessoryNurture)
     }
 
-    // ---- SocialData ----
+    // ---- SocialData（仅承载师徒关系）----
 
     @Test
     fun socialData_defaultConstruction() {
         val social = SocialData()
-        assertNull(social.partnerId)
-        assertNull(social.partnerSectId)
-        assertNull(social.parentId1)
-        assertNull(social.parentId2)
-        assertEquals(0, social.lastChildYear)
-        assertNull(social.childBirthMonth)
-        assertNull(social.griefEndYear)
-        assertFalse(social.hasPartner)
+        assertNull(social.masterId)
+        assertFalse(social.hasMaster)
     }
 
     @Test
-    fun socialData_hasPartner_whenSet() {
-        val social = SocialData(partnerId = "p1")
-        assertTrue(social.hasPartner)
+    fun socialData_hasMaster_whenSet() {
+        val social = SocialData(masterId = "m1")
+        assertEquals("m1", social.masterId)
+        assertTrue(social.hasMaster)
     }
 
     // ---- SkillStats ----
@@ -399,27 +394,16 @@ class DiscipleModelsTest {
         assertEquals(emptyMap<String, String>(), ext.statusData)
         assertEquals(0.0, ext.cultivationSpeedBonus, 0.001)
         assertEquals(0, ext.cultivationSpeedDuration)
-        assertNull(ext.partnerId)
-        assertNull(ext.partnerSectId)
-        assertNull(ext.parentId1)
-        assertNull(ext.parentId2)
-        assertEquals(0, ext.lastChildYear)
-        assertNull(ext.griefEndYear)
+        assertNull(ext.masterId)
         assertEquals(emptyList<String>(), ext.usedFunctionalPillTypes)
         assertFalse(ext.hasReviveEffect)
         assertFalse(ext.hasClearAllEffect)
     }
 
     @Test
-    fun discipleExtended_hasPartner_whenSet() {
-        val ext = DiscipleExtended(partnerId = "p1")
-        assertTrue(ext.hasPartner)
-    }
-
-    @Test
-    fun discipleExtended_hasPartner_whenNull() {
-        val ext = DiscipleExtended()
-        assertFalse(ext.hasPartner)
+    fun discipleExtended_masterId_whenSet() {
+        val ext = DiscipleExtended(masterId = "m1")
+        assertEquals("m1", ext.masterId)
     }
 
     @Test

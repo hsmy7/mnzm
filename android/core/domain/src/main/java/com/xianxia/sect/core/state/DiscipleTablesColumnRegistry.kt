@@ -47,7 +47,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
         "equipmentNurturingCompletionMonths"),
     IntTableRef(equipmentNurturingCompletionPhases, DiscipleTables::equipmentNurturingCompletionPhases,
         "equipmentNurturingCompletionPhases"),
-    IntTableRef(lastChildYears, DiscipleTables::lastChildYears, "lastChildYears"),
     IntTableRef(intelligences, DiscipleTables::intelligences, "intelligences"),
     IntTableRef(charms, DiscipleTables::charms, "charms"),
     IntTableRef(comprehensions, DiscipleTables::comprehensions, "comprehensions"),
@@ -126,11 +125,5 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     RefTableRef(accessoryNurtures, DiscipleTables::accessoryNurtures, "accessoryNurtures"),
 
     // ── Nullable 值表（值不可变，浅拷贝安全） ──
-    RefTableRef(partnerIds, DiscipleTables::partnerIds, "partnerIds"),
-    RefTableRef(partnerSectIds, DiscipleTables::partnerSectIds, "partnerSectIds"),
-    RefTableRef(parentId1s, DiscipleTables::parentId1s, "parentId1s"),
-    RefTableRef(parentId2s, DiscipleTables::parentId2s, "parentId2s"),
-    IntTableRef(griefEndYears, DiscipleTables::griefEndYears, "griefEndYears"),
-    RefTableRef(childBirthMonths, DiscipleTables::childBirthMonths, "childBirthMonths"),
     RefTableRef(masterIds, DiscipleTables::masterIds, "masterIds")
 )

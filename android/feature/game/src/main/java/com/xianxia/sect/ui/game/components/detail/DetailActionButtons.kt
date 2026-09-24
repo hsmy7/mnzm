@@ -281,33 +281,6 @@ fun RelationsDialog(
     onDismiss: () -> Unit
 ) {
     val discipleMap = remember(allDisciples) { allDisciples.associateBy { it.id } }
-    val partner = remember(disciple.partnerId, allDisciples) {
-        disciple.partnerId?.let { id -> discipleMap[id] }
-    }
-
-    val parent1 = remember(disciple.parentId1, allDisciples) {
-        disciple.parentId1?.let { id -> discipleMap[id] }
-    }
-
-    val parent2 = remember(disciple.parentId2, allDisciples) {
-        disciple.parentId2?.let { id -> discipleMap[id] }
-    }
-
-    val children = remember(disciple.id, allDisciples) {
-        allDisciples.filter { it.parentId1 == disciple.id || it.parentId2 == disciple.id }
-    }
-
-    val siblings = remember(disciple.parentId1, disciple.parentId2, allDisciples) {
-        if (disciple.parentId1 == null && disciple.parentId2 == null) {
-            emptyList()
-        } else {
-            allDisciples.filter {
-                it.id != disciple.id &&
-                (it.parentId1 == disciple.parentId1 || it.parentId2 == disciple.parentId2 ||
-                 it.parentId1 == disciple.parentId2 || it.parentId2 == disciple.parentId1)
-            }
-        }
-    }
 
     val master = remember(disciple.masterId, allDisciples) {
         disciple.masterId?.let { id -> discipleMap[id] }
@@ -325,36 +298,17 @@ fun RelationsDialog(
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Spacer(modifier = Modifier.height(12.dp))
-            RelationsContent(
-                data = RelationsData(
-                    parent1 = parent1,
-                    parent2 = parent2,
-                    partner = partner,
-                    children = children,
-                    siblings = siblings,
-                    master = master,
-                    apprentices = apprentices
-                )
-            )
+            RelationsContent(master = master, apprentices = apprentices)
         }
     }
 }
 
-/** 关系数据打包（RelationsDialog 拆分，参数 >6 规避 LongParameterList） */
-private data class RelationsData(
-    val parent1: DiscipleAggregate?,
-    val parent2: DiscipleAggregate?,
-    val partner: DiscipleAggregate?,
-    val children: List<DiscipleAggregate>,
-    val siblings: List<DiscipleAggregate>,
-    val master: DiscipleAggregate?,
-    val apprentices: List<DiscipleAggregate>
-)
-
-/** 关系列表内容：各亲属类别 + 无关系空态 */
-@Suppress("CyclomaticComplexMethod")
+/** 关系列表内容：师徒类别 + 无关系空态 */
 @Composable
-private fun RelationsContent(data: RelationsData) {
+private fun RelationsContent(
+    master: DiscipleAggregate?,
+    apprentices: List<DiscipleAggregate>
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -362,54 +316,21 @@ private fun RelationsContent(data: RelationsData) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (data.parent1 != null || data.parent2 != null) {
-            RelationCategory("父母") {
-                data.parent1?.let { RelationItem("父亲", it) }
-                data.parent2?.let { RelationItem("母亲", it) }
-            }
-        }
-
-        if (data.partner != null) {
-            RelationCategory("道侣") {
-                RelationItem("道侣", data.partner)
-            }
-        }
-
-        if (data.children.isNotEmpty()) {
-            RelationCategory("子嗣") {
-                data.children.forEach { child ->
-                    val relation = if (child.gender == "male") "子" else "女"
-                    RelationItem(relation, child)
-                }
-            }
-        }
-
-        if (data.siblings.isNotEmpty()) {
-            RelationCategory("兄弟姐妹") {
-                data.siblings.forEach { sibling ->
-                    val relation = if (sibling.gender == "male") "兄弟" else "姐妹"
-                    RelationItem(relation, sibling)
-                }
-            }
-        }
-
-        if (data.master != null) {
+        if (master != null) {
             RelationCategory("师父") {
-                RelationItem("师父", data.master)
+                RelationItem("师父", master)
             }
         }
 
-        if (data.apprentices.isNotEmpty()) {
+        if (apprentices.isNotEmpty()) {
             RelationCategory("徒弟") {
-                data.apprentices.forEach { apprentice ->
+                apprentices.forEach { apprentice ->
                     RelationItem("徒弟", apprentice)
                 }
             }
         }
 
-        val hasNoRelations = data.parent1 == null && data.parent2 == null && data.partner == null &&
-            data.children.isEmpty() && data.siblings.isEmpty() && data.master == null && data.apprentices.isEmpty()
-        if (hasNoRelations) {
+        if (master == null && apprentices.isEmpty()) {
             Text(
                 text = "无关系",
                 fontSize = 12.sp,

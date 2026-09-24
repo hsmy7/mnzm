@@ -20,7 +20,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.Culti
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.CultivationZoneInput
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.HpMpColumnInput
 
-// ── DiscipleStatCalculator 拆分域 4/7（行为零变更） ──
+// ── DiscipleStatCalculator 拆分域 4/6（行为零变更） ──
 fun DiscipleStatCalculator.getFinalStats(
     disciple: Disciple,
     equipments: Map<String, EquipmentInstance>,
@@ -200,12 +200,11 @@ internal fun DiscipleStatCalculator.computeCultivationZones(
         }
     }
 
-    // ── 社交乘区：师徒 + 传道长老/师兄 + 父母 ──
-    val socialBonus = input.preachingElderBonus + input.preachingMastersBonus +
-        input.parentCultivationBonus + input.masterDiscipleBonus
+    // ── 社交乘区：师徒 + 传道长老/师兄 ──
+    val socialBonus = input.preachingElderBonus + input.preachingMastersBonus + input.masterDiscipleBonus
 
-    // ── 状态乘区：政策津贴 - 丧亲 ──
-    val statusBonus = input.cultivationSubsidyBonus - input.griefCultivationSpeedPenalty
+    // ── 状态乘区：政策 ──
+    val statusBonus = input.cultivationSubsidyBonus
 
     return CultivationSpeedZones(
         aptitudeBonus = aptitudeBonus,
@@ -228,8 +227,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
     cultivationSubsidyBonus: Double = 0.0,
-    parentCultivationBonus: Double = 0.0,
-    griefCultivationSpeedPenalty: Double = 0.0,
     masterDiscipleBonus: Double = 0.0
 ): CultivationSpeedZones {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（旧
@@ -248,10 +245,8 @@ fun DiscipleStatCalculator.buildCultivationZones(
             buildingBonus = buildingBonus,
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
-            parentCultivationBonus = parentCultivationBonus,
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
             temporaryBonus = temporaryBonus,
             aptitude = disciple.skills.aptitude
         )
@@ -270,8 +265,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
     cultivationSubsidyBonus: Double = 0.0,
-    parentCultivationBonus: Double = 0.0,
-    griefCultivationSpeedPenalty: Double = 0.0,
     masterDiscipleBonus: Double = 0.0
 ): CultivationSpeedZones {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
@@ -291,10 +284,8 @@ fun DiscipleStatCalculator.buildCultivationZones(
             buildingBonus = buildingBonus,
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
-            parentCultivationBonus = parentCultivationBonus,
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
             temporaryBonus = temporaryBonus,
             aptitude = aggregate.aptitude
         )
@@ -319,8 +310,6 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
     cultivationSubsidyBonus: Double = 0.0,
-    parentCultivationBonus: Double = 0.0,
-    griefCultivationSpeedPenalty: Double = 0.0,
     masterDiscipleBonus: Double = 0.0
 ): Double {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
@@ -342,10 +331,8 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
             buildingBonus = buildingBonus,
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
-            parentCultivationBonus = parentCultivationBonus,
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
             temporaryBonus = temporaryBonus,
             aptitude = input.aptitude
         )
@@ -365,15 +352,12 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
     cultivationSubsidyBonus: Double = 0.0,
-    parentCultivationBonus: Double = 0.0,
-    griefCultivationSpeedPenalty: Double = 0.0,
     masterDiscipleBonus: Double = 0.0
 ): Double {
     val zones = buildCultivationZones(
         disciple, manuals, manualProficiencies,
         buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus, parentCultivationBonus,
-        griefCultivationSpeedPenalty, masterDiscipleBonus
+        cultivationSubsidyBonus, masterDiscipleBonus
     )
     return calculateCultivationPerPhase(disciple.realm, disciple.spiritRoot.types.size, zones)
 }
@@ -390,15 +374,12 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
     cultivationSubsidyBonus: Double = 0.0,
-    parentCultivationBonus: Double = 0.0,
-    griefCultivationSpeedPenalty: Double = 0.0,
     masterDiscipleBonus: Double = 0.0
 ): Double {
     val zones = buildCultivationZones(
         aggregate, manuals, manualProficiencies,
         buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus, parentCultivationBonus,
-        griefCultivationSpeedPenalty, masterDiscipleBonus
+        cultivationSubsidyBonus, masterDiscipleBonus
     )
     return calculateCultivationPerPhase(aggregate.realm, aggregate.spiritRoot.types.size, zones)
 }
@@ -425,7 +406,6 @@ internal fun DiscipleStatCalculator.computeBreakthroughZones(
         elderGuidance = innerElderBonus + outerElderBonus,
         selfBonus = bonuses.pillBonus + bonuses.masterDiscipleBonus +
             comprehensionBreakthroughBonus(bonuses.selfComprehension),
-        statusPenalty = bonuses.griefBreakthroughPenalty,
         adFlatBonus = bonuses.adBonus
     )
 }
@@ -440,7 +420,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
     adBonus: Double = 0.0,
-    griefBreakthroughPenalty: Double = 0.0,
     masterDiscipleBonus: Double = 0.0,
     innerElderPositionBonus: Double = 0.0,
     outerElderPositionBonus: Double = 0.0
@@ -454,7 +433,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
         selfComprehension = disciple.getBaseStats().comprehension,
         pillBonus = pillBonus,
         adBonus = adBonus,
-        griefBreakthroughPenalty = griefBreakthroughPenalty,
         masterDiscipleBonus = masterDiscipleBonus,
         innerElderPositionBonus = innerElderPositionBonus,
         outerElderPositionBonus = outerElderPositionBonus
@@ -471,7 +449,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
     adBonus: Double = 0.0,
-    griefBreakthroughPenalty: Double = 0.0,
     masterDiscipleBonus: Double = 0.0,
     innerElderPositionBonus: Double = 0.0,
     outerElderPositionBonus: Double = 0.0
@@ -485,7 +462,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
         selfComprehension = aggregate.getBaseStats().comprehension,
         pillBonus = pillBonus,
         adBonus = adBonus,
-        griefBreakthroughPenalty = griefBreakthroughPenalty,
         masterDiscipleBonus = masterDiscipleBonus,
         innerElderPositionBonus = innerElderPositionBonus,
         outerElderPositionBonus = outerElderPositionBonus
@@ -495,6 +471,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
 /**
  * 使用乘区法计算最终突破概率。
  *
- * 公式：baseZone × (1 + elderGuidance + selfBonus) × (1 - statusPenalty)
+ * 公式：baseZone × (1 + elderGuidance + selfBonus) + adFlatBonus
  * 结果 clamp 到 [0, 1]。
  */

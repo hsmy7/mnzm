@@ -6,22 +6,8 @@ import com.xianxia.sect.core.engine.releaseDiscipleAssignment
 import com.xianxia.sect.core.engine.releaseDiscipleFromAllSlotsAtomic
 
 // ── 弟子生命周期操作族扩展（自 DiscipleDelegate/GameViewModel 拆出，行为零变更）──
-// 婚姻提议审批 + 释放弟子换岗：batch-02 TooManyFunctions 收敛（类内 ≤19）
+// 释放弟子换岗：batch-02 TooManyFunctions 收敛（类内 ≤19）
 // 外移为同包扩展，调用点语法不变（GameViewModel 侧调用方改为直连 disciple）。
-
-/**
- * 批准婚姻提议：通知引擎执行配对并移除待处理提议。
- */
-fun DiscipleDelegate.approveMarriage(maleId: String, femaleId: String) {
-    gameEngine.launchOnEngine { gameEngine.approveMarriageProposal(maleId, femaleId) }
-}
-
-/**
- * 拒绝婚姻提议：通知引擎移除待处理提议，不执行配对。
- */
-fun DiscipleDelegate.rejectMarriage(maleId: String, femaleId: String) {
-    gameEngine.launchOnEngine { gameEngine.rejectMarriageProposal(maleId, femaleId) }
-}
 
 fun DiscipleDelegate.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
     gameEngine.launchOnEngine { gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId) }

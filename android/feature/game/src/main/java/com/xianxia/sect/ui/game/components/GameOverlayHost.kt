@@ -13,13 +13,11 @@ import androidx.compose.ui.graphics.Color
 
 import com.xianxia.sect.core.model.AttackWarning
 import com.xianxia.sect.core.model.BattleLog
-import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
@@ -39,16 +37,13 @@ import com.xianxia.sect.ui.game.dialogs.AttackWarningDialogs
 import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
 import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
 import com.xianxia.sect.ui.game.dialogs.BeastAttackWarningDialog
-import com.xianxia.sect.ui.game.dialogs.MarriageApprovalDialog
 import com.xianxia.sect.ui.components.LocalDialogScrimHosted
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.engine.domain.battle.shownStageKey
-import com.xianxia.sect.ui.game.delegate.approveMarriage
 import com.xianxia.sect.ui.game.delegate.dismissBattleResult
-import com.xianxia.sect.ui.game.delegate.rejectMarriage
 
 /** GameOverlayHost 所需的所有 ViewModel（聚合减少参数数量） */
 data class OverlayViewModels(
@@ -103,13 +98,6 @@ fun GameOverlayHost(
         shownWarningStageIds = data.shownWarningStageIds
     )
 
-    MarriageProposalSection(
-        currentProposal = data.currentProposal,
-        disciples = data.disciples,
-        dialogRenderable = data.dialogRenderable,
-        viewModel = viewModel
-    )
-
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }
 
     GameOverlayDialogs(
@@ -139,8 +127,6 @@ private class GameOverlayDialogState {
 private data class GameOverlayDialogData(
     val currentDialogType: DialogType,
     val pendingNotification: GameNotification?,
-    val currentProposal: PendingMarriageProposal?,
-    val disciples: List<DiscipleAggregate>,
     val dialogRenderable: Boolean,
     val currentAttack: PendingBeastAttack?,
     val beastStillAlive: Boolean,
@@ -214,8 +200,6 @@ private fun rememberGameOverlayDialogData(
 ): GameOverlayDialogData {
     val currentDialogType by viewModel.currentDialogType.collectAsStateWithLifecycle()
     val pendingNotification by viewModel.pendingNotification.collectAsStateWithLifecycle()
-    val pendingMarriageProposals by viewModel.pendingMarriageProposals.collectAsStateWithLifecycle()
-    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
     // 引擎事件弹窗生命周期门控（Bugly #3098）：Activity 销毁窗口期禁止新 Dialog 进入组合，
     // 只门控渲染不早退（收集器保持运行，返回前台仅显示最新一条）；用户主动打开的对话框不门控
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
@@ -243,7 +227,6 @@ private fun rememberGameOverlayDialogData(
         }
     }
     // 单例遮罩层：无论开几个界面，永远只画一层遮罩
-    val marriageProposalVisible = pendingMarriageProposals.firstOrNull() != null
     val attackWarnings by viewModel.attackWarnings.collectAsStateWithLifecycle()
     val shownWarningStageIds by viewModel.shownWarningStageIds.collectAsStateWithLifecycle()
     val attackWarningVisible = attackWarnings.any { warning ->
@@ -255,13 +238,11 @@ private fun rememberGameOverlayDialogData(
         capacityWarningMessage = state.capacityWarningMessage,
         pendingNotification = pendingNotification,
         currentAttack = currentAttack,
-        marriageProposalVisible = marriageProposalVisible,
         attackWarningVisible = attackWarningVisible,
         overlayOrderNonEmpty = viewModel.overlayOrder.isNotEmpty()
     )
     return GameOverlayDialogData(
         currentDialogType = currentDialogType, pendingNotification = pendingNotification,
-        currentProposal = pendingMarriageProposals.firstOrNull(), disciples = disciples,
         dialogRenderable = dialogRenderable, currentAttack = currentAttack,
         beastStillAlive = beastStillAlive, attackWarnings = attackWarnings,
         shownWarningStageIds = shownWarningStageIds, anyDialogVisible = anyDialogVisible
@@ -283,7 +264,6 @@ private fun anyGameOverlayVisible(
     capacityWarningMessage: String?,
     pendingNotification: GameNotification?,
     currentAttack: PendingBeastAttack?,
-    marriageProposalVisible: Boolean,
     attackWarningVisible: Boolean,
     overlayOrderNonEmpty: Boolean
 ): Boolean = currentDialogType != DialogType.None ||
@@ -291,7 +271,6 @@ private fun anyGameOverlayVisible(
     capacityWarningMessage != null ||
     pendingNotification != null ||
     currentAttack != null ||
-    marriageProposalVisible ||
     attackWarningVisible ||
     overlayOrderNonEmpty
 
@@ -337,29 +316,6 @@ private fun GameOverlayAttackSections(
                 viewModel.warnings.markWarningStageShown(warning.shownStageKey())
             }
         )
-    }
-}
-
-/** 婚姻提议弹窗 */
-@Composable
-private fun MarriageProposalSection(
-    currentProposal: PendingMarriageProposal?,
-    disciples: List<DiscipleAggregate>,
-    dialogRenderable: Boolean,
-    viewModel: GameViewModel
-) {
-    if (dialogRenderable && currentProposal != null) {
-        val maleDisciple = disciples.find { it.id == currentProposal.maleId }
-        val femaleDisciple = disciples.find { it.id == currentProposal.femaleId }
-        if (maleDisciple != null && femaleDisciple != null) {
-            MarriageApprovalDialog(
-                maleDisciple = maleDisciple,
-                femaleDisciple = femaleDisciple,
-                onApprove = { viewModel.disciple.approveMarriage(currentProposal.maleId, currentProposal.femaleId) },
-                onReject = { viewModel.disciple.rejectMarriage(currentProposal.maleId, currentProposal.femaleId) },
-                scrimEnabled = false
-            )
-        }
     }
 }
 

@@ -158,8 +158,8 @@ inline std::map<std::string, ManualProficiencyData> buildProficiencyDataFromMast
 }
 
 /// AI 每旬修炼速率（Kotlin calculateCultivationPerPhase 对象路径——
-/// manuals=emptyMap → 功法走静态模板兜底查询；政策/丧亲不参与（对象版
-/// 无 sectPolicies 入参、grief 由调用方传 0）；寿命惩罚参与）
+/// manuals=emptyMap → 功法走静态模板兜底查询；状态乘区恒 0：对象版无
+/// sectPolicies 入参，无政策津贴可取）
 inline double aiCultivationRate(
         const Disciple& d,
         const std::map<std::string, ManualProficiencyData>& proficiencies) {
@@ -191,7 +191,7 @@ inline double aiCultivationRate(
         resourceBonus += static_cast<double>(speedPct) * masteryBonus / 100.0;
     }
 
-    // 状态乘区：政策津贴 0 - 丧亲 0（对象版调用方传 0）
+    // 状态乘区：对象版无 sectPolicies 入参 → 恒 0
     const double statusBonus = 0.0;
 
     // 临时乘区：丹药持续加速

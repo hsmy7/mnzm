@@ -89,8 +89,6 @@ class DiscipleMergeCoverageTest {
         "weaponId", "armorId", "bootsId", "accessoryId",
         "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture",
         "storageBagItems", "storageBagSpiritStones", "spiritStones",
-        "partnerId", "partnerSectId", "parentId1", "parentId2",
-        "lastChildYear", "childBirthMonth", "griefEndYear",
         "intelligence", "charm", "comprehension",
         "artifactRefining", "pillRefining", "spiritPlanting",
         "mining", "teaching", "morality",
@@ -103,7 +101,7 @@ class DiscipleMergeCoverageTest {
         "physicalAttack", "physicalDefense", "magicAttack", "magicDefense",
         "speed", "maxHp", "maxMp", "hpPercent", "mpPercent",
         "equippedItems", "learnedManuals",
-        "genderName", "genderSymbol", "hasPartner",
+        "genderName", "genderSymbol",
         "aptitude",
         // @Ignore 字段（不参与 Room 持久化，需单独登记核对）
         "lifeEvents"

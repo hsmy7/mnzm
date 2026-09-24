@@ -24,7 +24,7 @@
  * 交谈写面下沉后，AUTHORITATIVE 稳态下本写者不再依赖反向通道回导；
  * `DISCIPLE_CHANNEL` 的**整体关闭**仍被以下写者阻断（handover §2.75④ 完成路径
  * 已登记，属后续批）：任务派遣 `startMission`（`releaseDiscipleToIdleInside`
- * 写槽位/状态列）+ 月/年残留执行器的 lifeEvents 瞬态列投影（购买日志/丧亲
+ * 写槽位/状态列）+ 月/年残留执行器的 lifeEvents 瞬态列投影（购买日志
  * ——协议外列，通道关闭后需随"检测 AUTHORITATIVE 门控"一并裁决）。
  *
  * ## 零 Android 依赖 / 失败信封契约

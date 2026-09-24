@@ -17,7 +17,6 @@ import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag as NativeEngineFlagX
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -308,8 +307,6 @@ open class FakeGameStateStore : GameStateStore {
         get() = MutableStateFlow(emptyList())
     override val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>>
         get() = MutableStateFlow(emptyList())
-    override val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>>
-        get() = MutableStateFlow(emptyList())
     override val highFreqState: StateFlow<GameStateStore.HighFreqState>
         get() = MutableStateFlow(GameStateStore.HighFreqState())
     override val entityState: StateFlow<GameStateStore.EntityState>
@@ -350,7 +347,6 @@ open class FakeGameStateStore : GameStateStore {
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {}
     override fun clearPendingBeastAttacks() {}
     override fun removePendingBeastAttack(beastLevelId: String) {}
-    override fun clearPendingMarriageProposals() {}
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {}
     override fun clearPendingBattleRewardCards() {}
     override fun enqueueRewardCards(items: List<RewardCardItem>) {}

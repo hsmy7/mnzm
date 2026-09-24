@@ -105,26 +105,23 @@ class SecretRealmRestAreaTest {
                 manualProficiencies: Map<String, ManualProficiencyData>,
                 buildingBonus: Double, additionalBonus: Double,
                 preachingElderBonus: Double, preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double, masterDiscipleBonus: Double
             ): Double = 0.0
             override fun calculateCultivationSpeed(
                 aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>,
                 buildingBonus: Double, additionalBonus: Double,
                 preachingElderBonus: Double, preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double, masterDiscipleBonus: Double
             ): Double = 0.0
             override fun getBreakthroughChance(
                 disciple: Disciple, innerElderComprehension: Int, outerElderComprehension: Int,
-                pillBonus: Double, adBonus: Double,
-                griefBreakthroughPenalty: Double, masterDiscipleBonus: Double
+                pillBonus: Double, adBonus: Double, masterDiscipleBonus: Double
             ): Double = 0.0
             override fun getBreakthroughChance(
                 aggregate: DiscipleAggregate, innerElderComprehension: Int,
                 outerElderComprehension: Int, pillBonus: Double, adBonus: Double,
-                griefBreakthroughPenalty: Double, masterDiscipleBonus: Double
+                masterDiscipleBonus: Double
             ): Double = 0.0
         }
     }

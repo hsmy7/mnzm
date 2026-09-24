@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.gameview
 
+import com.xianxia.sect.core.engine.YearSettlementEnvelope
 import com.xianxia.sect.core.engine.buildMonthEnvelopeFromEvents
 import com.xianxia.sect.core.engine.buildYearEnvelopeFromEvents
 import com.xianxia.sect.core.engine.parseMonthSettlementEnvelope
@@ -68,24 +69,27 @@ class GameViewEventEnvelopeAssemblyTest {
             {"agedDeaths":[{"discipleId":"12","name":"无名","surname":"玄",
                             "realm":4,"realmLayer":2,"deathYear":9,"cause":"age",
                             "storageBagItems":[{"itemId":"i1","itemType":"material",
-                                                "name":"兽皮","rarity":1,"quantity":2}]}],
-             "bereavements":[{"grievingId":6,"relationship":"道侣",
-                              "deceasedName":"玄无名"}]}
+                                                "name":"兽皮","rarity":1,"quantity":2}]}]}
         """.trimIndent()
         val legacy = parseYearSettlementEnvelope(detail)
 
+        val yearSettled = GameViewStreamEvent(
+            GameViewStreamEvent.Kind.YEAR_SETTLED, 9, 1,
+            // 年结事件只作「本年已结算」在场标记，草稿全部由 DEATH 事件承载
+            null,
+        )
         val events = listOf(
             GameViewStreamEvent(
                 GameViewStreamEvent.Kind.DEATH, 9, 1,
                 GameViewStreamEvent.Payload.Death(legacy.agedDeaths.single()),
             ),
-            GameViewStreamEvent(
-                GameViewStreamEvent.Kind.YEAR_SETTLED, 9, 1,
-                GameViewStreamEvent.Payload.YearSettled(legacy.bereavements),
-            ),
+            yearSettled,
         )
 
+        assertNull("YEAR_SETTLED 载荷为 null", yearSettled.payload)
         assertEquals(legacy, buildYearEnvelopeFromEvents(events))
+        // 仅有在场标记（无死亡草稿）→ 空信封，区别于「无标记」的 null 回退
+        assertEquals(YearSettlementEnvelope(emptyList()), buildYearEnvelopeFromEvents(listOf(yearSettled)))
     }
 
     @Test

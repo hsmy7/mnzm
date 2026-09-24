@@ -365,7 +365,7 @@ object ActionIds {
     /** 拜师事务（三相校验+masterIds落表；双侧日志草稿回写lifeEvents） */
     const val DISCIPLE_LIFECYCLE_APPRENTICE: Int = 1591
 
-    /** 婚姻批准事务（已有道侣防御+partnerIds双向绑定+MARRIAGE事件直写；提议移除留Kotlin） */
+    /** 【已退役，编号禁复用】婚姻批准事务（道侣配对链下线） */
     const val DISCIPLE_LIFECYCLE_MARRY_APPROVE: Int = 1592
 
     /** 【已退役，编号禁复用】释放思过事务 */
@@ -539,7 +539,7 @@ object ActionIds {
     /** 全量弟子状态派生同步事务（含fixInvalidMiningSlots前置自愈） */
     const val DISCIPLE_OP_SYNC_ALL_STATUSES: Int = 1748
 
-    /** 婚姻拒绝事务（MARRIAGE拒绝事件直写；零弟子表写入/零RNG/无失败臂；提议移除留Kotlin运行态） */
+    /** 【已退役，编号禁复用】婚姻拒绝事务（道侣配对链下线） */
     const val DISCIPLE_LIFECYCLE_MARRY_REJECT: Int = 1750
 
     /** 建筑拆除/没收槽位清扫事务（十类槽位按槽组清除+长老殿末座判定+监牢/任务阁特例+REFINING破除；槽组知识由Kotlin组装传入） */

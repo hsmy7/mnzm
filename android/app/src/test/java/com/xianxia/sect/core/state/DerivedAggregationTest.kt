@@ -84,28 +84,28 @@ class DerivedAggregationTest {
             override fun calculateCultivationSpeed(
                 d: Disciple, manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>, bb: Double, ab: Double,
-                peb: Double, pmb: Double, csb: Double, pcb: Double, gcp: Double, mdb: Double
+                peb: Double, pmb: Double, csb: Double, mdb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                d, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                d, manuals, mps, bb, peb, pmb, csb, mdb
             )
 
             override fun calculateCultivationSpeed(
                 a: DiscipleAggregate, manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>, bb: Double, ab: Double,
-                peb: Double, pmb: Double, csb: Double, pcb: Double, gcp: Double, mdb: Double
+                peb: Double, pmb: Double, csb: Double, mdb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                a, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                a, manuals, mps, bb, peb, pmb, csb, mdb
             )
 
             override fun getBreakthroughChance(
                 d: Disciple, iec: Int, oec: Int, pb: Double, ab: Double,
-                gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+                mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
 
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double, ab: Double,
-                gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+                mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
         }
 
         stateStore = GameStateStoreImpl(
@@ -197,9 +197,8 @@ class DerivedAggregationTest {
         val aggregatesBefore = stateStore.discipleAggregates.value
         val powerBefore = stateStore.sectCombatPower.value
 
-        // 纯 UI 事务：仅改 pendingMarriageProposals（新空列表实例保证引用变化），
-        // 无弟子数据变更
-        stateStore.update { pendingMarriageProposals = emptyList() }
+        // 纯 UI 事务：仅改 isLoading 运行态旗标（提交新状态实例），无弟子数据变更
+        stateStore.update { isLoading = true }
 
         Thread.sleep(300)  // 超过 sample(100) 合并窗口
 

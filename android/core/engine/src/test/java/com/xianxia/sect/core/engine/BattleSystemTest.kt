@@ -79,41 +79,37 @@ class BattleSystemTest {
                 disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
                 additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 disciple, manuals, manualProficiencies, buildingBonus,
                 preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                parentCultivationBonus, griefCultivationSpeedPenalty
+                masterDiscipleBonus
             )
             override fun calculateCultivationSpeed(
                 aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
                 additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 aggregate, manuals, manualProficiencies, buildingBonus,
                 preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                parentCultivationBonus, griefCultivationSpeedPenalty
+                masterDiscipleBonus
             )
             override fun getBreakthroughChance(
                 disciple: Disciple, innerElderComprehension: Int,
                 outerElderComprehension: Int, pillBonus: Double,
-                adBonus: Double, griefBreakthroughPenalty: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 disciple, innerElderComprehension, outerElderComprehension,
-                pillBonus, adBonus, griefBreakthroughPenalty
+                pillBonus, adBonus, masterDiscipleBonus
             )
             override fun getBreakthroughChance(
                 aggregate: DiscipleAggregate, innerElderComprehension: Int,
                 outerElderComprehension: Int, pillBonus: Double,
-                adBonus: Double, griefBreakthroughPenalty: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 aggregate, innerElderComprehension, outerElderComprehension,
-                pillBonus, adBonus, griefBreakthroughPenalty
+                pillBonus, adBonus, masterDiscipleBonus
             )
         }
         // 真实 GameRngManager（mock 的 getRng 返回 null 无实际意义；确定性测试依赖真实 PRNG）

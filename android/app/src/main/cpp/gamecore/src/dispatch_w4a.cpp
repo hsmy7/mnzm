@@ -15,10 +15,6 @@
  * ## w3-01 事务族（1741–1748，disciple_tx.h）
  * 失败信封语义：静默守卫（Kotlin silent return）与业务失败均以 failure 信封
  * 回传 ⇒ Kotlin 回退臂重执行同义校验链（双实现并行契约，production.h 同模式）。
- *
- * ## w3-02 事务族（1750–1759，disciple_lifecycle_tx.h）
- * 婚姻拒绝（1750）为 C++ 事件直写事务（零弟子表写入/零 RNG/无失败臂）；
- * 婚姻批准走 batch-14 就绪地基 1592（handler 在 execute_dispatch，非本端口）。
  */
 
 #include "gamecore/dispatch_w4.h"
@@ -30,7 +26,6 @@
 #include "gamecore/action_ids.h"
 #include "gamecore/game_core.h"
 #include "gamecore/system/building_residual_tx.h"
-#include "gamecore/system/disciple_lifecycle_tx.h"
 #include "gamecore/system/disciple_tx.h"
 
 namespace gamecore {
@@ -52,7 +47,6 @@ nlohmann::json fail(const std::string& code, const std::string& message) {
 std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
                                           const nlohmann::json& params) {
     namespace disciple_tx = gamecore::system::disciple_tx;
-    namespace disciple_lifecycle_tx = gamecore::system::disciple_lifecycle_tx;
     auto& state = core.state();
 
     // ── W4-A 分派区（本区仅 W4-A 可写；预分配段 1740–1749 / 1750–1759 /
@@ -133,19 +127,6 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
             return ok({{"synced", true}, {"count", r.syncedCount}});
         }
 
-        // ── w3-02 弟子生命周期第二波（1750–1759） ──
-        // 婚姻批准（1592）的 C++ 事务与 handler 为 batch-14 就绪地基
-        //（execute_dispatch::handleDiscipleLifecycleTx），本批只做 Kotlin 接线。
-        case action::DISCIPLE_LIFECYCLE_MARRY_REJECT: {
-            const auto r = disciple_lifecycle_tx::rejectMarriageTransaction(
-                state, params.at("maleId").get<std::string>(),
-                params.at("femaleId").get<std::string>(),
-                params.value("maleName", ""),
-                params.value("femaleName", ""));
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"rejected", true}});
-        }
-
         // ── w3-09 建筑/道路残差（1810–1819，building_residual_tx.h） ──
         // 槽组种类/特例标志/生产槽 id 由 Kotlin 门面组装（单一事实源留
         // Kotlin 注册表）；未知组名静默跳过（清扫臂——与 Kotlin "无该槽组
@@ -197,7 +178,7 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
         default:
             break;
     }
-    // 骨架段余量（1751–1759 / 1812–1819 / 1820–1829 / 1850–1854）：
+    // 骨架段余量（1750–1759 / 1812–1819 / 1820–1829 / 1850–1854）：
     // 本批尚未产出事务 ⇒ 不认领，交由后续端口或 NOT_IMPLEMENTED 兜底。
     return std::nullopt;
 }

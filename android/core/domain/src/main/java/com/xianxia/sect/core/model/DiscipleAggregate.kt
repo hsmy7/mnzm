@@ -110,12 +110,6 @@ data class DiscipleAggregate(
         }
     val cultivationSpeedBonus: Double get() = extended?.cultivationSpeedBonus ?: 0.0
     val cultivationSpeedDuration: Int get() = extended?.cultivationSpeedDuration ?: 0
-    val partnerId: String? get() = extended?.partnerId
-    val partnerSectId: String? get() = extended?.partnerSectId
-    val parentId1: String? get() = extended?.parentId1
-    val parentId2: String? get() = extended?.parentId2
-    val lastChildYear: Int get() = extended?.lastChildYear ?: 0
-    val griefEndYear: Int? get() = extended?.griefEndYear
     val masterId: String? get() = extended?.masterId
     val usedFunctionalPillTypes: List<String> get() = extended?.usedFunctionalPillTypes ?: emptyList()
     // usedPermanentPillKeys 为 @Ignore 字段，
@@ -172,9 +166,6 @@ data class DiscipleAggregate(
 /** 当前生命百分比 */
     val hpPercent: Float get() = if (maxHp > 0) currentHp.toFloat() / maxHp else 0f
     val mpPercent: Float get() = if (maxMp > 0) currentMp.toFloat() / maxMp else 0f
-    
-    /** 是否有道侣 */
-    val hasPartner: Boolean get() = partnerId != null
 
     // 已装备的物品映射（简化版，返回空map）
     val equippedItems: Map<EquipmentSlot, EquipmentInstance?> get() = emptyMap()
@@ -199,11 +190,9 @@ data class DiscipleAggregate(
     fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String,
         ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0,
             preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0,
-                cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0,
-                    griefCultivationSpeedPenalty: Double = 0.0): Double = statsProvider.calculateCultivationSpeed(this,
-                        manuals, manualProficiencies, buildingBonus, additionalBonus, preachingElderBonus,
-                            preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus,
-                                griefCultivationSpeedPenalty)
+                cultivationSubsidyBonus: Double = 0.0): Double = statsProvider.calculateCultivationSpeed(this,
+                    manuals, manualProficiencies, buildingBonus, additionalBonus, preachingElderBonus,
+                        preachingMastersBonus, cultivationSubsidyBonus)
     
     /** 判断弟子是否可以突破 */
     fun canBreakthrough(): Boolean = core.canBreakthrough()
@@ -212,10 +201,9 @@ data class DiscipleAggregate(
      * 计算突破成功率
      */
     fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0,
-        pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0,
+        pillBonus: Double = 0.0, adBonus: Double = 0.0,
             masterDiscipleBonus: Double = 0.0): Double = statsProvider.getBreakthroughChance(this,
-                innerElderComprehension, outerElderComprehension, pillBonus, adBonus, griefBreakthroughPenalty,
-                    masterDiscipleBonus)
+                innerElderComprehension, outerElderComprehension, pillBonus, adBonus, masterDiscipleBonus)
     
     fun toDisciple(): Disciple {
         return Disciple(
@@ -316,12 +304,6 @@ data class DiscipleAggregate(
 
     /** 社交数据构建 */
     private fun toSocialData(): SocialData = SocialData(
-        partnerId = partnerId,
-        partnerSectId = partnerSectId,
-        parentId1 = parentId1,
-        parentId2 = parentId2,
-        lastChildYear = lastChildYear,
-        griefEndYear = griefEndYear,
         masterId = masterId
     )
 
@@ -384,19 +366,17 @@ data class DiscipleAggregate(
             ) = DiscipleStats()
             override fun calculateCultivationSpeed(disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double,
-                    preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double,
-                        parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double,
-                            masterDiscipleBonus: Double) = 0.0
+                    preachingElderBonus: Double, preachingMastersBonus: Double,
+                        cultivationSubsidyBonus: Double, masterDiscipleBonus: Double) = 0.0
             override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double,
-                    preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double,
-                        parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double,
-                            masterDiscipleBonus: Double) = 0.0
+                    preachingElderBonus: Double, preachingMastersBonus: Double,
+                        cultivationSubsidyBonus: Double, masterDiscipleBonus: Double) = 0.0
             override fun getBreakthroughChance(disciple: Disciple, innerElderComprehension: Int,
-                outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double,
+                outerElderComprehension: Int, pillBonus: Double, adBonus: Double,
                     masterDiscipleBonus: Double) = 0.0
             override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int,
-                outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double,
+                outerElderComprehension: Int, pillBonus: Double, adBonus: Double,
                     masterDiscipleBonus: Double) = 0.0
         }
 

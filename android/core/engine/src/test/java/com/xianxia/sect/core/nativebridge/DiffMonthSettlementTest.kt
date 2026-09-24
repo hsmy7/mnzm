@@ -9,13 +9,11 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.model.SectRelation
-import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.RngPartition
 import kotlinx.serialization.json.Json
@@ -35,9 +33,8 @@ import org.junit.Test
  *
  * 场景覆盖（对照 t2-2-semantics.md §3 九条规避约束）：
  * ① 灵矿 lastSettledMonth 无条件推进（矿空 rate=0 仍推进——差分保护语义）
- * ② 伴侣配对 SYSTEM 流：两男两女适格（无道侣 / 无血亲 /
- *    bannedRootCounts 空），每组合恰 1 次 nextDouble，
- *    以 RNG 分区终态锁定抽取次数与顺序（0.006 概率下预期全不命中 → partnerId 全空）
+ * ② 月变 SYSTEM 流：场景 6 名弟子（男/女混合 + 扩展夹具两行）作为
+ *    各 SYSTEM 子事件的输入面，以 RNG 分区终态锁定抽取次数与顺序
  * ③ 政策月费：仁政爱徒 100×全体弟子数经真实钱包扣除
  *
  * ⑦附庸脱离：玩家宗门 p1 + 附属 ai-3（至交 100，战力比 ≥5x
@@ -45,7 +42,7 @@ import org.junit.Test
  * 使 gameOverCheck 走"本宗未被占领 → 不触发"路径。
  * ⑨秘境 AI 队伍派遣——秘境存在（spawnYear=1 未到期，规避子事件 15 关闭）
  * + ai-3 有存活弟子 → 子事件 16 派遣 1 队。
- * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/ consentRequired=false /
+ * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/
  * worldLevels 空（precomputeTargets 纯早退）/ spiritFieldPlants 空 /
  * activeBloodRefinements 空 / 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
  *
@@ -72,24 +69,16 @@ class DiffMonthSettlementTest {
         /** 扩展夹具弟子 B 入伍绝对月（年 1 月 1 = 13；覆盖入伍月字段面） */
         const val FIXTURE_EXTRA_B_RECRUITED_MONTH = 13
 
-        /** 扩展夹具弟子 A id（预置道侣——保持配对抽取 4 组合口径） */
+        /** 扩展夹具弟子 A id（第 5 行输入面覆盖） */
         const val FIXTURE_EXTRA_A_ID = "15"
 
         /** 扩展夹具弟子 B id（道德 10 + 入伍月 13 字段面覆盖） */
         const val FIXTURE_EXTRA_B_ID = "16"
-
-
-        /** 场景⑯：母亲 id（到期生育；DiscipleTables 列式存储要求
-         *  id 为数字字符串） */
-        const val MOTHER_ID = "20"
-
-        /** 场景⑯：父亲 id（partner 互指） */
-        const val FATHER_ID = "21"
     }
 
     // ── 场景构建 ────────────────────────────────────────────────────
 
-    /** 两男两女适格弟子（配对流断言核心）+ 仁政爱徒开启 + 灵石充足 */
+    /** 场景弟子 6 行（男/女混合 + 扩展夹具两行）+ 仁政爱徒开启 + 灵石充足 */
     private fun buildSnapshot(): NativeGameState {
         val gameData = GameData(
             gameYear = 1, gameMonth = 1, gamePhase = 0,
@@ -99,10 +88,8 @@ class DiffMonthSettlementTest {
             // 预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
             //（既有场景专注政策/执法域；世界关卡刷新对拍由场景⑭独立覆盖）
             worldLevelLastRefreshMonth = 1 * 12 + 1
-            // 场景③：仁政爱徒（S1 按弟子数计费 100×N + S2 忠诚 +1）
+            // 场景③：仁政爱徒（按弟子数计费 100×N）
             sectPolicies = sectPolicies.copy(benevolentGovernance = true)
-            // 场景②前提：自动配对模式（提案分支不在协议）
-            daoCompanionConsentRequired = false
             // 场景④：侦察过期清理——ai-1 过期(1,1)、ai-2 未过期(2,2)；
             // worldLevels 空（precomputeTargets 纯早退）
             scoutInfo = mapOf(
@@ -138,19 +125,16 @@ class DiffMonthSettlementTest {
             // gameData 序列化——快照协议顶层键，C++ GameState.aiSectDisciples）
             aiSectDisciples = gameData.aiSectDisciples,
             disciples = listOf(
-                pairingDisciple("11", "甲一", "male"),
-                pairingDisciple("12", "甲二", "male"),
-                pairingDisciple("13", "乙一", "female"),
-                pairingDisciple("14", "乙二", "female"),
-                // 扩展夹具弟子 A：预置道侣 → 不入配对候选
-                //（SYSTEM 抽取数保持 4 组合口径）
-                pairingDisciple(FIXTURE_EXTRA_A_ID, "丙一", "male")
-                    .copy(social = SocialData(partnerId = "99")),
+                sceneDisciple("11", "甲一", "male"),
+                sceneDisciple("12", "甲二", "male"),
+                sceneDisciple("13", "乙一", "female"),
+                sceneDisciple("14", "乙二", "female"),
+                // 扩展夹具弟子 A：第 5 行输入面
+                sceneDisciple(FIXTURE_EXTRA_A_ID, "丙一", "male"),
                 // 扩展夹具弟子 B：道德 10 + 入伍月 13（道德/入伍月字段面覆盖）
-                pairingDisciple(FIXTURE_EXTRA_B_ID, "丁一", "male").copy(
+                sceneDisciple(FIXTURE_EXTRA_B_ID, "丁一", "male").copy(
                     skills = SkillStats(morality = 10),
-                    usage = UsageTracking(recruitedMonth = FIXTURE_EXTRA_B_RECRUITED_MONTH),
-                    social = SocialData(partnerId = "99")
+                    usage = UsageTracking(recruitedMonth = FIXTURE_EXTRA_B_RECRUITED_MONTH)
                 )
             )
         )
@@ -198,8 +182,8 @@ class DiffMonthSettlementTest {
         )
     }
 
-    /** 配对适格弟子：无道侣 / 无血亲 / 低修为（不触发突破）/ 满血哨兵 */
-    private fun pairingDisciple(id: String, name: String, gender: String) =
+    /** 场景弟子：低修为（不触发突破）/ 满血哨兵 */
+    private fun sceneDisciple(id: String, name: String, gender: String) =
         Disciple(
             id = id, name = name, realm = 9, realmLayer = 1,
             cultivation = 10.0, spiritRootType = "metal",
@@ -251,7 +235,7 @@ class DiffMonthSettlementTest {
         return NativeGameState(
             gameData = gameData,
             aiSectDisciples = gameData.aiSectDisciples,
-            disciples = listOf(pairingDisciple("11", "甲一", "male"))
+            disciples = listOf(sceneDisciple("11", "甲一", "male"))
         )
     }
 
@@ -325,13 +309,13 @@ class DiffMonthSettlementTest {
 
     /** 购买场景弟子：2 名成年练气弟子，随身/储物袋灵石充足 */
     private fun purchaseDisciples(): List<Disciple> = listOf(
-        pairingDisciple("11", "甲一", "male").copy(
-            equipment = pairingDisciple("11", "甲一", "male").equipment.copy(
+        sceneDisciple("11", "甲一", "male").copy(
+            equipment = sceneDisciple("11", "甲一", "male").equipment.copy(
                 spiritStones = 1000
             )
         ),
-        pairingDisciple("12", "甲二", "male").copy(
-            equipment = pairingDisciple("12", "甲二", "male").equipment.copy(
+        sceneDisciple("12", "甲二", "male").copy(
+            equipment = sceneDisciple("12", "甲二", "male").equipment.copy(
                 storageBagSpiritStones = 600
             )
         )
@@ -369,7 +353,7 @@ class DiffMonthSettlementTest {
         return NativeGameState(
             gameData = gameData,
             aiSectDisciples = gameData.aiSectDisciples,
-            disciples = listOf(pairingDisciple("11", "甲一", "male"))
+            disciples = listOf(sceneDisciple("11", "甲一", "male"))
         )
     }
 
@@ -412,10 +396,10 @@ class DiffMonthSettlementTest {
             gameData = gameData,
             aiSectDisciples = gameData.aiSectDisciples,
             disciples = listOf(
-                pairingDisciple("11", "甲一", "male").copy(
+                sceneDisciple("11", "甲一", "male").copy(
                     skills = SkillStats(mining = 60)
                 ),
-                pairingDisciple("12", "甲二", "male").copy(
+                sceneDisciple("12", "甲二", "male").copy(
                     skills = SkillStats(mining = 40)
                 )
             )
@@ -607,8 +591,8 @@ class DiffMonthSettlementTest {
             (1 * 12 + 2).toLong(),
             actualGd.spiritMineLastSettledMonth.toLong()
         )
-        // ② 伴侣配对 + 扩展夹具
-        assertPairingAndFixtureEffects(actual, actualGd)
+        // ② 场景弟子面 + 扩展夹具
+        assertFixtureDiscipleSurface(actual, actualGd)
         // ⑨秘境 AI 队伍派遣
         assertSecretRealmAiTeams(actualGd)
         // ③ S1 政策月费经真实钱包扣除：100 × 全体弟子数（DISCIPLE_COUNT）
@@ -645,82 +629,8 @@ class DiffMonthSettlementTest {
         assertEquals("ai-2 isKnown 应保持", true, sectById["ai-2"]?.isKnown)
     }
 
-    /**
-     * 场景⑯：生育——母亲到期（childBirthMonth = 月变时当前月 2，
-     * 自 (1,1) 推进 3 旬跨 1→2 月界）+ partner 互指。配偶系统排除已有伴侣者
-     * （母亲/父亲不参与配对；x1 单男 → eligibleFemales 空早退零抽取）。
-     */
-    private fun buildChildBirthSnapshot(): NativeGameState {
-        val gameData = GameData(
-            gameYear = 1, gameMonth = 1, gamePhase = 0,
-            spiritStones = 10000L
-        ).apply {
-            rngStates = initialRngStates(SEED)
-            // 预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
-            worldLevelLastRefreshMonth = 1 * 12 + 1
-            // 自动配对模式（提案分支不在协议）
-            daoCompanionConsentRequired = false
-            // 非空 AI 弟子池（规避空表协议不对称）
-            aiSectDisciples = mapOf(
-                "ai-1" to listOf(
-                    Disciple(
-                        id = "90", name = "玄一", realm = 9, realmLayer = 1,
-                        cultivation = 10.0, spiritRootType = "metal",
-                        combat = CombatAttributes(currentHp = -1, currentMp = -1)
-                    )
-                )
-            )
-        }
-        return NativeGameState(
-            gameData = gameData,
-            aiSectDisciples = gameData.aiSectDisciples,
-            disciples = listOf(
-                // 母亲：到期（月变时 gameMonth=2）+ partner 互指
-                pairingDisciple(MOTHER_ID, "母一", "female").copy(
-                    social = SocialData(partnerId = FATHER_ID, childBirthMonth = 2)
-                ),
-                // 父亲：partner 互指（不参与配对——已有伴侣者排除）
-                pairingDisciple(FATHER_ID, "父一", "male").copy(
-                    social = SocialData(partnerId = MOTHER_ID)
-                ),
-                // 额外弟子：名字集合非空 + 弟子表非空（单男无女 → 配对早退）
-                pairingDisciple("22", "闲一", "male")
-            )
-        )
-    }
-
-    @Test
-    fun `child birth matches Kotlin bit-for-bit`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-
-        val snapshot = buildChildBirthSnapshot()
-        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
-
-        val expected = advanceKotlinMonthSide(snapshot, PHASES)
-
-        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
-            encoded.encodeToByteArray()))
-        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
-        val actual = json.decodeFromString(
-            NativeGameState.serializer(),
-            DiffRngBridge.nativeCoreExportState().decodeToString()
-        )
-
-        // 生育断言：母亲状态更新；recruitList 恒空（新生儿不再入招募列表）
-        assertEquals("recruitList 应恒空", 0, expected.gameData.recruitList.size)
-        val mother = expected.disciples.single { it.id == MOTHER_ID }
-        assertEquals("母亲 lastChildYear 应推进", 1, mother.social.lastChildYear)
-        assertEquals("母亲 childBirthMonth 应清空", null, mother.social.childBirthMonth)
-
-        diffAssertCppSurfaceMatches(
-            json.encodeToJsonElement(expected),
-            json.encodeToJsonElement(actual)
-        )
-    }
-
-    /** ② 伴侣配对 + 扩展夹具 组合断言 */
-    private fun assertPairingAndFixtureEffects(
+    /** ② 场景弟子面 + 扩展夹具 组合断言 */
+    private fun assertFixtureDiscipleSurface(
         actual: NativeGameState,
         actualGd: GameData
     ) {
@@ -734,16 +644,6 @@ class DiffMonthSettlementTest {
             "annualDesertedDisciples 应保持 0",
             0, actualGd.annualDesertedDisciples
         )
-        // ② 伴侣配对：0.006 概率下预期无命中（partnerId 保持 null）；SYSTEM
-        // 分区终态已含全部组合各一次 nextDouble 的状态推进（全量对拍兜底）。
-        // 扩展夹具弟子预置道侣（不入候选），4 组合抽取口径与原场景一致。
-        for (d in actual.disciples) {
-            if (d.id == FIXTURE_EXTRA_A_ID || d.id == FIXTURE_EXTRA_B_ID) {
-                assertEquals("扩展夹具弟子不应入配对候选", "99", d.social.partnerId)
-            } else {
-                assertEquals("弟子 ${d.id} 意外配对", null, d.social.partnerId)
-            }
-        }
     }
 
     /** ⑨秘境 AI 队伍派遣断言：ai-3 有存活弟子 → 恰 1 队（幂等去重，

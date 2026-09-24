@@ -1,10 +1,8 @@
 package com.xianxia.sect.di
 
 import android.content.Context
-import com.xianxia.sect.core.engine.system.ChildBirthSystem
 import com.xianxia.sect.core.engine.system.ExplorationTickSystem
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.building.AlchemySystem
@@ -72,8 +70,6 @@ object CoreModule {
         timeSystem: TimeSystem,
         inventorySystem: InventorySystem,
         explorationTickSystem: ExplorationTickSystem,
-        partnerSystem: PartnerSystem,
-        childBirthSystem: ChildBirthSystem,
         // 建筑生产系统（月变时触发收获/完成检测所需）
         plantingSystem: PlantingSystem,
         alchemySystem: AlchemySystem,
@@ -83,8 +79,6 @@ object CoreModule {
             timeSystem,
             inventorySystem,
             explorationTickSystem,
-            partnerSystem,
-            childBirthSystem,
             plantingSystem,
             alchemySystem,
             forgeSystem

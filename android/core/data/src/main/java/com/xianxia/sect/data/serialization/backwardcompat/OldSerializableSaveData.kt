@@ -85,9 +85,8 @@ data class SerializableGameData(
     @ProtoNumber(98) val rngStates: Map<Int, Long> = emptyMap(),
     @ProtoNumber(99) val activeSectId: String = "",
     @ProtoNumber(100) val saveVersion: Int = 0,
-    // reserved 101;（自动招募灵根筛字段号已退役，禁止复用）
-    @ProtoPacked @ProtoNumber(102) val daoCompanionBannedRootCounts: List<Int> = emptyList(),
-    @ProtoNumber(103) val daoCompanionConsentRequired: Boolean = false,
+    // reserved 101,102,103;（自动招募灵根筛 / daoCompanionBannedRootCounts /
+    // daoCompanionConsentRequired 字段号已退役，禁止复用）
     @ProtoNumber(104) val patrolBattleResultPopup: Boolean = false,
     @ProtoNumber(105) val autoSellMidGradeForPurchase: Boolean = false,
     @ProtoNumber(106) val autoSellHighGradeForPurchase: Boolean = false,
@@ -176,14 +175,10 @@ data class SerializableDisciple(
     @ProtoNumber(6) val spiritRootType: String,
     // reserved 7,8,29,50,76,88;（age/lifespan/soulPower/loyalty/usedExtendLifePillIds/
     // usedExtendLifePillTypes 字段号已退役，禁止复用）
+    // reserved 11,12,13,14,15,16,102;（partnerId/partnerSectId/parentId1/parentId2/
+    // lastChildYear/griefEndYear/childBirthMonth 字段号已退役，禁止复用）
     @ProtoNumber(9) val isAlive: Boolean,
     @ProtoNumber(10) val gender: String,
-    @ProtoNumber(11) val partnerId: String = "",
-    @ProtoNumber(12) val partnerSectId: String = "",
-    @ProtoNumber(13) val parentId1: String = "",
-    @ProtoNumber(14) val parentId2: String = "",
-    @ProtoNumber(15) val lastChildYear: Int,
-    @ProtoNumber(16) val griefEndYear: Int = -1,
     @ProtoNumber(17) val weaponId: String = "",
     @ProtoNumber(18) val armorId: String = "",
     @ProtoNumber(19) val bootsId: String = "",
@@ -269,7 +264,6 @@ data class SerializableDisciple(
     @ProtoNumber(97) val manualCompletionPhase: Int = 0,
     @ProtoNumber(98) val equipmentNurturingCompletionMonth: Int = 0,
     @ProtoNumber(99) val equipmentNurturingCompletionPhase: Int = 0,
-    @ProtoNumber(102) val childBirthMonth: Int = 0,
 )
 
 @Serializable

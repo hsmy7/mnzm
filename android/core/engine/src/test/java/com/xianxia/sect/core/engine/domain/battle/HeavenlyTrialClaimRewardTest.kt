@@ -31,7 +31,6 @@ import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -373,7 +372,6 @@ private class TrialTestStore : GameStateStore {
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit
     override fun clearPendingBeastAttacks() = Unit
     override fun removePendingBeastAttack(beastLevelId: String) = Unit
-    override fun clearPendingMarriageProposals() = Unit
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) = Unit
     override fun clearPendingBattleRewardCards() = Unit
     override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
@@ -382,7 +380,6 @@ private class TrialTestStore : GameStateStore {
     override val pendingNotification = MutableStateFlow<GameNotification?>(null)
     override val rewardCardQueue = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
-    override val pendingMarriageProposals = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
     override val pendingBattleRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val battleLogs = MutableStateFlow<List<BattleLog>>(emptyList())
     override val isPaused = MutableStateFlow(false)

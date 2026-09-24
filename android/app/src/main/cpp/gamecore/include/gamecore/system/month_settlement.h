@@ -13,7 +13,6 @@
 #include "gamecore/ecs/disciple_component.h"  // syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
 #include "gamecore/system/blood_refinement.h"
-#include "gamecore/system/child_birth.h"
 #include "gamecore/system/disciple_purchase.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
@@ -45,9 +44,8 @@
 //   2. 政策月度道德效果           ← CultivationSettlement.processPolicyMonthlyEffects
 //   3. AI 兽袭目标预计算        ← precomputeTargets（EXPLORATION；
 //      消费方巡视楼/子事件 9 保留 Kotlin）
-//   4. systemManager.onMonthlyEvent 七系统扇出（@SystemPriority 升序）：
-//      Alchemy(210) → Forge(211) → Planting(214) → ChildBirth(235) →
-//      Exploration(240) → Partner(240，稳定排序居后)
+//   4. systemManager.onMonthlyEvent 四系统扇出（@SystemPriority 升序）：
+//      Alchemy(210) → Forge(211) → Planting(214) → Exploration(240)
 //      （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
 //   5. 血炼完成检测            ← blood_refinement 原语 + 本文件结算段
 //   6. 月度自动排班              ← processAutoAssign（排班未下沉）
@@ -57,7 +55,6 @@
 // RNG 消耗点核对表（分区 / 触发条件 / 抽取次数——对拍命门，逐点核对自源码）：
 //   - EXPLORATION：妖兽移动 moveBeasts，每活跃妖兽 2 次 nextDouble（角度+距离）
 //   - SYSTEM：灵田收获种子 roll nextInt(5)，每收获地块 1 次
-//   - SYSTEM：伴侣配对 nextDouble，每通过过滤的 (男,女) 组合 1 次
 //   - BATTLE：子事件 6b 征伐环（P2-18 Stage 2）checkAttackConditions
 //     门通过恰抽 1 次 nextDouble + executeAiBattle 全回合抽取；
 //     子事件 6c 防守环（P2-18 Stage 1）decidePlayerAttack 六道闸通过者
@@ -66,7 +63,7 @@
 //   已知未下沉扇出的抽取点（场景规避 + 边界登记）：
 //   AI 兽袭 EXPLORATION（precomputeTargets 已入本钩子）、关卡刷新生成
 //   （LevelGenerator 接线）、生产完成 SYSTEM（炼丹/锻造同步段）、
-//   生育/购买/附庸/商人等 SYSTEM 子事件均已入 C++。
+//   购买/附庸/商人等 SYSTEM 子事件均已入 C++。
 //
 // 已知范围边界：
 //   - precomputeTargets：aiSectBeastDirectTargets/aiSectBeastSkipCooldowns/
@@ -75,7 +72,6 @@
 //   - 关卡刷新生成：LevelGenerator 生成 + playerAvgRealm 兜底 +
 //     lastRefreshMonth 推进；巡视楼战斗/妖兽攻击检测仍战斗域 Kotlin，
 //     场景 patrolSlots 为空 + 无玩家宗门 → 检测/巡视纯早退
-//   - 生育：场景 childBirthMonth 全空 → 双端零效果
 //   - 炼丹/锻造自动排班与完成结算（Room 仓储/物品数据库域）：
 //     场景无到期槽位且自动政策全关；ForgeSystem 为异步 launch（事务内零效果）
 //   - 自动排班：11 槽占用扫描 + 住所分配 + 四类生产候选 + 原子写入
@@ -87,8 +83,6 @@
 // ============================================================
 namespace gamecore::system {
 
-/// 伴侣配对基础概率（Kotlin PartnerSystem.PAIRING_PROBABILITY）
-constexpr double kPairingProbability = 0.006;
 /// 丹药月度衰减旬数（每月 3 旬；HpMpRecoveryService.applyMonthlyDurationDecay）
 constexpr int32_t kMonthlyDecayPhases = 3;
 // 道德上限与月度增量常量单一定义于 government.h
@@ -147,105 +141,6 @@ inline void processSpiritFieldHarvestStep(GameState& state, rng::RngManager& rng
     processSpiritFieldHarvest(state, rng, overflowMail);
     // overflowMail 内容即 Kotlin sendOverflowMail 的邮件草稿——C++ 无邮件协议，
     // 显式弃用（邮件域不在 C++ 状态/协议范围）
-}
-
-// ── 步骤 4d：生育（child_birth.h 等价移植） ─────────────────────────
-// Kotlin ChildBirthSystem.processMonthlyBirth——SYSTEM 分区消费序逐位对齐
-//（性别/名字/灵根继承或 SpiritRootGenerator/弟子生成六段；父死分支零消费）
-
-inline void processChildBirthStep(GameState& state, rng::RngManager& rng,
-                                  ecs::World& world) {
-    child_birth::processMonthlyBirth(
-        state, rng.getRng(rng::RngPartition::kSystem), world);
-}
-
-// ── 步骤 4f：伴侣配对（PartnerSystem.processPartnerMatching 完整移植） ──
-// RNG 契约：每对通过过滤的 (male, female) 组合恰好一次 SYSTEM nextDouble；
-// 遍历序 = eligibleMales 外层 × eligibleFemales 内层（assembleAll 快照序 ==
-// C++ disciples 向量序）；pairedFemale 位图跳过不改写快照。
-
-inline bool hasBloodRelation(const Disciple& a, const Disciple& b) {
-    const auto& aP1 = a.parentId1;
-    const auto& aP2 = a.parentId2;
-    const auto& bP1 = b.parentId1;
-    const auto& bP2 = b.parentId2;
-    return a.id == bP1 || a.id == bP2 ||
-           b.id == aP1 || b.id == aP2 ||
-           (!aP1.empty() && aP1 == bP1) ||
-           (!aP1.empty() && aP1 == bP2) ||
-           (!aP2.empty() && aP2 == bP1) ||
-           (!aP2.empty() && aP2 == bP2);
-}
-
-inline void processPartnerMatching(GameState& state, rng::RngManager& rng,
-                                   const std::map<int32_t, std::size_t>& idx,
-                                   ecs::World& world) {
-    // assembleAll 快照等价：循环期间只写 live 列，资格判定全部读入口快照副本
-    //（DiscipleStore 版：逐行物化快照列表，语义 == 旧整向量拷贝）。
-    // 快照构建经 sync + View<DiscipleRef> 行序
-    //（快照序 == 行序 == Kotlin assembleAll 序，M×F 配对 RNG 消费序不变）。
-    DiscipleStore& ds = state.disciples;
-    ecs::syncDiscipleEntities(world, ds.size());
-    std::vector<Disciple> snapshot;
-    snapshot.reserve(ds.size());
-    ecs::View<ecs::DiscipleRef> view(world.registry());
-    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-        snapshot.push_back(ds.materialize(ref.row));   // 行地址取自组件（桥接规范 3）
-    });
-
-    // 失效提议清理：pendingMarriageProposals 不在 C++ 快照协议（同意模式
-    // 提案列表属 UI 域），本步为空操作——对拍场景以 consentRequired=false
-    // （自动配对模式）保证双端一致（见文件头范围边界）
-
-    const auto& bannedRootCounts = state.gameData.daoCompanionBannedRootCounts;
-    const auto isBannedRoot = [&](const Disciple& d) {
-        return std::find(bannedRootCounts.begin(), bannedRootCounts.end(),
-                         spiritRootCount(d)) != bannedRootCounts.end();
-    };
-
-    std::vector<const Disciple*> eligibleMales;
-    std::vector<const Disciple*> eligibleFemales;
-    for (const auto& d : snapshot) {
-        if (!d.isAlive) continue;
-        if (!d.partnerId.empty() || isBannedRoot(d)) continue;
-        if (d.gender == "male") eligibleMales.push_back(&d);
-        else if (d.gender == "female") eligibleFemales.push_back(&d);
-    }
-
-    if (eligibleMales.empty() || eligibleFemales.empty()) return;
-
-    // 实现约束：SYSTEM RNG 引用提升到循环外（不逐 roll 重取分区）；
-    // 已配对女性经 vector<bool> 位图按候选下标 O(1) 判定。
-    // **循环形状不变**——M×F 配对
-    // 迭代序 = RNG 消费序（Kotlin 逐位对拍红线），结构级降复杂度需双端
-    // 同步改算法（行为基线变化）。
-    auto& pairingRng = rng.getRng(rng::RngPartition::kSystem);
-    std::vector<char> pairedFemale(eligibleFemales.size(), 0);
-    for (const Disciple* male : eligibleMales) {
-        for (std::size_t fi = 0; fi < eligibleFemales.size(); ++fi) {
-            const Disciple* female = eligibleFemales[fi];
-            if (pairedFemale[fi]) continue;
-            if (hasBloodRelation(*male, *female)) continue;
-
-            if (pairingRng.nextDouble() < kPairingProbability) {
-                // 同意模式提案分支未下沉（提案列表不在协议）——场景固定关闭；
-                // 此处直接走自动配对分支（consentRequired=false 的 Kotlin 行为）
-                const auto maleId = toIntOrNull(male->id);
-                const auto femaleId = toIntOrNull(female->id);
-                if (!maleId.has_value() || !femaleId.has_value()) continue;
-                const auto mit = idx.find(*maleId);
-                const auto fit = idx.find(*femaleId);
-                if (mit == idx.end() || fit == idx.end()) continue;
-                state.disciples.partnerIds[mit->second] = female->id;
-                state.disciples.partnerIds[fit->second] = male->id;
-                pairedFemale[fi] = 1;
-                recordGameEvent(state, "SECT", "marriage",
-                                "弟子" + male->name + "与弟子" + female->name +
-                                    "结为道侣",
-                                male->id, male->name);
-            }
-        }
-    }
 }
 
 // ── 步骤 5：血炼完成检测（processBloodRefinementCompletions） ──────
@@ -1416,7 +1311,7 @@ using detail::MonthSettlementResult;
 
 /// 执行一次月变结算（时间推进与月界检测由 SettlementEngine 负责）。
 /// @param state   完整状态（就地修改）
-/// @param rng     RNG 分区管理器（EXPLORATION：妖兽移动；SYSTEM：收获 roll/伴侣配对）
+/// @param rng     RNG 分区管理器（EXPLORATION：妖兽移动；SYSTEM：收获 roll）
 /// @param aiRng   AI 独立 RNG（systemSeed + 6×31337 播种；子事件 6/9 消费）
 /// @param aiBatch AI 热控分批内存态（批量上界由 Kotlin 推送平台热档）
 /// @param world   ECS 实体集（月结域全部弟子迭代
@@ -1454,8 +1349,7 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 写入 aiSectBeastDirectTargets——巡视楼/子事件 9 消费方保留 Kotlin）
     detail::precomputeTargets(state, rng);
 
-    // 步骤 4：七系统扇出（@SystemPriority 升序；稳定排序 Exploration(240)
-    // 先于 Partner(240)，对齐 Dagger Set 注入序的现行生产行为）
+    // 步骤 4：四系统扇出（@SystemPriority 升序）
     // 4a Alchemy(210) / 4b Forge(211)：炼丹/锻造完成结算（production.h——
     //   完成判定/成功率 roll（SYSTEM）/产出入库/职业
     //   晋升/槽位重置；RNG 抽取序 = forge 槽位序 → alchemy 槽位序，对齐
@@ -1464,11 +1358,7 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     production::processBuildingProductionStep(state, rng);
     // 4c Planting(214)：灵田成熟收获 + 续种（SYSTEM 种子 roll）
     detail::processSpiritFieldHarvestStep(state, rng);
-    // 4d ChildBirth(235)：生育（processMonthlyBirth 等价移植——
-    //   child_birth.h；到期母亲逐人生育 + 新生儿入 recruitList；
-    //   SYSTEM 分区消费序逐位对齐）
-    detail::processChildBirthStep(state, rng, world);
-    // 4e Exploration(240)：世界关卡惰性管理（清理 + 刷新生成 + 移动；
+    // 4d Exploration(240)：世界关卡惰性管理（清理 + 刷新生成 + 移动；
     //   LevelGenerator 接线——shouldRefresh 判定 + 玩家
     //   宗门门控 + playerAvgRealm 安全兜底 + 生成 + lastRefreshMonth 推进）
     {
@@ -1546,8 +1436,6 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     }
     // 巡视楼战斗 / 妖兽攻击检测：战斗域未下沉；场景 patrolSlots 为空 +
     // 无玩家宗门 → 双端纯早退零抽取
-    // 4f Partner(240)：道侣配对（SYSTEM 配对概率抽卡）
-    detail::processPartnerMatching(state, rng, idx, world);
     // 步骤 5：血炼完成检测
     detail::processBloodRefinementCompletions(state, idx);
 

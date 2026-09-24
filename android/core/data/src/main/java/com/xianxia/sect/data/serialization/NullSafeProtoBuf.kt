@@ -27,11 +27,11 @@ import kotlinx.serialization.protobuf.ProtoBuf
  * ```kotlin
  * // 序列化方向：nullable -> non-null (用于写入 ProtoBuf)
  * val serializableId = NullSafeProtoBuf.stringToProto(disciple.id)
- * val serializableGriefEndYear = NullSafeProtoBuf.intToProto(disciple.griefEndYear, sentinel = -1)
+ * val serializableMasterId = NullSafeProtoBuf.relationIdToProto(disciple.social.masterId)
  *
  * // 反序列化方向：non-null -> nullable (用于从 ProtoBuf 读取)
  * val discipleId = NullSafeProtoBuf.stringFromProto(serializableId)
- * val griefEndYear = NullSafeProtoBuf.intFromProto(serializableGriefEndYear, sentinel = -1)
+ * val masterId = NullSafeProtoBuf.relationIdFromProto(serializableMasterId)
  * ```
  */
 @OptIn(ExperimentalSerializationApi::class)
@@ -360,15 +360,6 @@ object NullSafeProtoBuf {
     // ==================== 特定业务类型的便捷方法 ====================
 
     /**
-     * 转换 griefEndYear 字段（Int?，哨兵值 -1）
-     *
-     * 业务含义：-1 表示无悲伤期结束年份（即未设置）
-     */
-    fun griefEndYearToProto(value: Int?): Int = intToProto(value, GRIEF_END_YEAR_SENTINEL)
-
-    fun griefEndYearFromProto(value: Int): Int? = intFromProto(value, GRIEF_END_YEAR_SENTINEL)
-
-    /**
      * 转换装备 ID 字段（String?，空字符串表示 null）
      *
      * 适用字段：weaponId, armorId, bootsId, accessoryId
@@ -380,7 +371,7 @@ object NullSafeProtoBuf {
     /**
      * 转换关系 ID 字段（String?，空字符串表示 null）
      *
-     * 适用字段：partnerId, partnerSectId, parentId1, parentId2
+     * 适用字段：masterId
      */
     fun relationIdToProto(value: String?): String = stringToProto(value)
 
@@ -396,7 +387,4 @@ object NullSafeProtoBuf {
 
     /** Double 类型的默认哨兵值（表示 null） */
     const val DEFAULT_DOUBLE_SENTINEL: Double = -1.0
-
-    /** griefEndYear 字段的专用哨兵值 */
-    const val GRIEF_END_YEAR_SENTINEL: Int = -1
 }

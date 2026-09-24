@@ -1,18 +1,17 @@
 // ============================================================
-// disciple_lifecycle_tx.h — 弟子生命周期 UI 操作事务（拜师/婚姻批准/
-// 婚姻拒绝/年俸开关）
+// disciple_lifecycle_tx.h — 弟子生命周期 UI 操作事务（拜师/年俸开关）
 //
 // batch-14（ui-read-surface §4.1 弟子管理族"最大残余域"第二批下沉）。
 // 等价移植（语义权威 = 各 Kotlin 源文件，判定序逐相复刻）：
 //  - DiscipleMasterApprenticeService.apprenticeToMaster（三相校验：
 //    存在性×2 → 同一性/存活×2 → 已有师父/名额<5（仅存活徒弟））
-//  - GameEngine.approveMarriageProposal 的配对写段（防御检查：
-//    任一方已有道侣 → 跳过配对仅清提议）
-//  - GameEngine.rejectMarriageProposal 的拒绝事件直写段（零弟子表写入）
 //  - DiscipleLifecycleManager.updateYearlySalaryEnabled（境界年俸
 //    开关覆写，无校验）
 //
-// RNG 契约（对拍命门）——**全族四事务零 RNG**：校验链与写路径均无
+// ActionId 1590（逐出）/1592（婚姻批准）/1740（改名）/1750（婚姻拒绝）
+// 已退役——编号禁复用，dispatch 侧不再认领。
+//
+// RNG 契约（对拍命门）——**全族两事务零 RNG**：校验链与写路径均无
 // rng 抽取；GTest 以 rngStates 快照差分守护。
 //
 // 失败臂零写入：校验链先行完成后再落写，任一校验失败不触碰状态；
@@ -26,12 +25,6 @@
 //    Kotlin native 分支回写瞬态列（disciple_tx.h logLine 机制同族）。
 //  - DiscipleAssignmentGate.release、Room 生产槽 Repository 同步为
 //    Kotlin 分支职责（clearAllSlotsState 残差，幂等可重放）。
-//  - 婚姻提议列表 pendingMarriageProposals 为 GameStateStore 层字段
-//    （非快照协议），提议移除留 Kotlin；批准/拒绝的 MARRIAGE 消息栏
-//    事件经 settle_util::recordGameEvent C++ 直写（ai_beast_hunt 先例）。
-//  - 婚姻批准对已不存在弟子（提议残留 + 弟子已亡边界）Kotlin 原路径
-//    写幽灵列条目，SoA 行式存储无法表达 → 本事务 NotFound 信封回退
-//    Kotlin 原路径（行为零变更）。
 //  - 复用 slot_cleanup.h（12 类槽位纯数据变换）—— 不重写。
 // ============================================================
 #pragma once
@@ -40,7 +33,7 @@
 #include <string>
 
 #include "gamecore/state/models.h"
-#include "gamecore/system/settlement_detail.h"  // settle_util::toIntOrNull / recordGameEvent
+#include "gamecore/system/settlement_detail.h"  // settle_util::toIntOrNull
 #include "gamecore/system/slot_cleanup.h"       // clearAllSlotsDataOnly（12 类槽位）
 
 namespace gamecore::system::disciple_lifecycle_tx {
@@ -130,17 +123,7 @@ struct ApprenticeResult {
     std::string masterLogLine;      // "${age}岁：收${discipleName}为徒"
 };
 
-/// 婚姻批准结果：paired=false 表示防御检查命中（任一方已有道侣）——
-/// 零写入，Kotlin 仅移除提议不记事件；paired=true 已双向绑定，
-/// Kotlin 移除提议（MARRIAGE 事件已由 C++ 直写消息栏）
-struct MarriageApproveResult {
-    bool ok = false;
-    std::string errorType;
-    std::string message;
-    bool paired = false;
-};
-
-// ── 事务 2：拜师（DiscipleMasterApprenticeService.apprenticeToMaster 等价）──
+// ── 事务 1：拜师（DiscipleMasterApprenticeService.apprenticeToMaster 等价）──
 //
 // 三相校验（判定序逐相复刻）：① 存在性（徒弟 → 师父）② 同一性/存活
 //（不可自拜 → 徒弟存活 → 师父存活）③ 名额（弟子无既有师父 → 师父存活
@@ -213,77 +196,7 @@ inline ApprenticeResult apprenticeTransaction(GameState& state,
     return out;
 }
 
-// ── 事务 3：婚姻批准配对写段（GameEngine.approveMarriageProposal 等价）────
-//
-// 防御检查（逐字对齐）：任一方已有道侣 → paired=false 零写入（Kotlin 仅
-// 移除提议不记事件）。写段：partnerIds 双向绑定 + MARRIAGE 消息栏事件
-//（settle_util::recordGameEvent——守卫/序号/裁剪完整对齐）。
-// 提议存在性为 Kotlin 侧前置（pendingMarriageProposals 非协议字段）；
-// 双方 id 无法解析或弟子行不存在（提议残留边界）→ 失败信封回退 Kotlin。
-inline MarriageApproveResult approveMarriageTransaction(GameState& state,
-                                                        const std::string& maleId,
-                                                        const std::string& femaleId,
-                                                        const std::string& maleName,
-                                                        const std::string& femaleName) {
-    MarriageApproveResult out;
-    DiscipleStore& ds = state.disciples;
-
-    // 解析 + 行存在（Kotlin 原路径对不存在行写幽灵列条目，SoA 无法表达
-    // ——失败信封回退 Kotlin 原路径保行为）
-    const auto maleInt = settle_util::toIntOrNull(maleId);
-    const auto femaleInt = settle_util::toIntOrNull(femaleId);
-    if (!maleInt.has_value() || !femaleInt.has_value() ||
-        !ds.contains(maleId) || !ds.contains(femaleId)) {
-        out.errorType = "NotFound";
-        out.message = "婚姻提议弟子不存在 " + maleId + "/" + femaleId;
-        return out;
-    }
-    const std::size_t maleRow = *ds.rowOf(maleId);
-    const std::size_t femaleRow = *ds.rowOf(femaleId);
-
-    // 防御检查：任一方已有道侣 → 跳过配对（零写入，仅清提议）
-    if (!ds.partnerIds[maleRow].empty() || !ds.partnerIds[femaleRow].empty()) {
-        out.ok = true;
-        out.paired = false;
-        return out;
-    }
-
-    // 写段：双向绑定
-    ds.partnerIds[maleRow] = femaleId;
-    ds.partnerIds[femaleRow] = maleId;
-
-    // 消息栏事件（recordGameEvent 完整守卫对齐：长度上限/序号/裁剪）
-    settle_util::recordGameEvent(
-        state, "SECT", "MARRIAGE",
-        "弟子" + maleName + "与弟子" + femaleName + "结为道侣",
-        maleId, maleName);
-
-    out.ok = true;
-    out.paired = true;
-    return out;
-}
-
-// ── 事务 3'：婚姻拒绝（GameEngine.rejectMarriageProposal 等价）────────────
-//
-// 拒绝 = 仅消息栏 MARRIAGE 事件直写（"拒绝与…结为道侣"），零弟子表写入、
-// 零 RNG；提议移除留 Kotlin（pendingMarriageProposals 运行态字段）。
-// 提议存在性为 Kotlin 侧前置（同事务 3）；事件直写无失败臂——信封恒成功，
-// Kotlin native 分支照原序移除提议。
-inline LifecycleTxResult rejectMarriageTransaction(GameState& state,
-                                                   const std::string& maleId,
-                                                   const std::string& femaleId,
-                                                   const std::string& maleName,
-                                                   const std::string& femaleName) {
-    LifecycleTxResult out;
-    settle_util::recordGameEvent(
-        state, "SECT", "MARRIAGE",
-        "弟子" + maleName + "拒绝与弟子" + femaleName + "结为道侣",
-        maleId, maleName);
-    out.ok = true;
-    return out;
-}
-
-// ── 事务 5：境界年俸开关（DiscipleLifecycleManager.updateYearlySalaryEnabled
+// ── 事务 2：境界年俸开关（DiscipleLifecycleManager.updateYearlySalaryEnabled
 //    等价）——覆写 yearlySalaryEnabled[realm]，无校验（Kotlin 原路径盲写）──
 inline LifecycleTxResult salaryToggleTransaction(GameState& state, int32_t realm,
                                                  bool enabled) {

@@ -113,13 +113,6 @@ enum class DiscipleColumn : uint16_t {
     StorageBagSpiritStones,
     SpiritStones,
     // SocialData
-    PartnerId,
-    PartnerSectId,
-    ParentId1,
-    ParentId2,
-    LastChildYear,
-    ChildBirthMonth,
-    GriefEndYear,
     MasterId,
     // SkillStats
     Intelligence,
@@ -247,13 +240,6 @@ public:
     std::vector<int32_t> spiritStones;
 
     // ── SocialData 列（""=null 哨兵，与序列化协议一致） ──
-    std::vector<std::string> partnerIds;
-    std::vector<std::string> partnerSectIds;
-    std::vector<std::string> parentId1s;
-    std::vector<std::string> parentId2s;
-    std::vector<int32_t> lastChildYears;
-    std::vector<int32_t> childBirthMonths;       // 0 = null 哨兵
-    std::vector<int32_t> griefEndYears;          // -1 = null 哨兵
     std::vector<std::string> masterIds;
 
     // ── SkillStats 列 ──

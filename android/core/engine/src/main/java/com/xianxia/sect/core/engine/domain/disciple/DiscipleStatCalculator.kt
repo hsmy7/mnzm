@@ -96,21 +96,21 @@ object DiscipleStatCalculator {
     /**
      * 修炼速度乘区分组。
      *
-     * 遵循"同类加算、异类乘算"原则，将 14 种加成归入 5 个独立乘区。
+     * 遵循"同类加算、异类乘算"原则，将各来源加成归入 5 个独立乘区。
      * 每个乘区内部为加算，乘区之间为乘算。
      */
     data class CultivationSpeedZones(
         val aptitudeBonus: Double = 0.0,    // 资质乘区：天赋
         val resourceBonus: Double = 0.0,    // 资源乘区：功法+丹药+建筑
-        val socialBonus: Double = 0.0,      // 社交乘区：师徒+传道+父母
-        val statusBonus: Double = 0.0,      // 状态乘区：丧亲+政策
+        val socialBonus: Double = 0.0,      // 社交乘区：师徒+传道
+        val statusBonus: Double = 0.0,      // 状态乘区：政策
         val temporaryBonus: Double = 0.0,   // 临时乘区：丹药临时加速
     )
 
     /**
      * 修炼乘区计算的输入字段。
      *
-     * 16 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
+     * 12 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
      * 由 [buildCultivationZones] / [calculateCultivationPerPhaseColumn] 提取组装。
      */
     data class CultivationZoneInput(
@@ -122,10 +122,8 @@ object DiscipleStatCalculator {
         val buildingBonus: Double,
         val preachingElderBonus: Double,
         val preachingMastersBonus: Double,
-        val parentCultivationBonus: Double,
         val masterDiscipleBonus: Double,
         val cultivationSubsidyBonus: Double,
-        val griefCultivationSpeedPenalty: Double,
         val temporaryBonus: Double,
         val aptitude: Int = DEFAULT_COLUMN_APTITUDE
     )
@@ -154,13 +152,12 @@ object DiscipleStatCalculator {
      * 遵循"乘区内加算、乘区间乘算"原则。
      * 基础概率作为 baseZone（本身就是概率值 0~1），其他乘区以 (1 + bonus) 形式乘算。
      *
-     * 公式：baseZone × (1 + elderGuidance + selfBonus) × (1 - penalty) + adFlatBonus
+     * 公式：baseZone × (1 + elderGuidance + selfBonus) + adFlatBonus
      */
     data class BreakthroughZones(
         val baseZone: Double = 0.0,        // 基础概率（境界+灵根+层数）
         val elderGuidance: Double = 0.0,   // 长老指导乘区：内门+外门
         val selfBonus: Double = 0.0,       // 自身加成乘区：丹药+师徒+悟性
-        val statusPenalty: Double = 0.0,   // 状态惩罚乘区：丧亲（正值 = 惩罚幅度）
         val adFlatBonus: Double = 0.0,     // 广告扁平加成（不经过乘区缩放，直接加在最终值上）
     )
 
@@ -171,7 +168,6 @@ object DiscipleStatCalculator {
         val selfComprehension: Int = 0,
         val pillBonus: Double = 0.0,
         val adBonus: Double = 0.0,
-        val griefBreakthroughPenalty: Double = 0.0,
         val masterDiscipleBonus: Double = 0.0,
         val innerElderPositionBonus: Double = 0.0,
         val outerElderPositionBonus: Double = 0.0
@@ -188,19 +184,8 @@ object DiscipleStatCalculator {
         val masterDiscipleBonus: Double,
         /** 弟子自身悟性突破率加成（悟性80基准每4点+1%，最多+10%） */
         val selfComprehensionBonus: Double,
-        val griefPenalty: Double,
         val total: Double
     )
-
-    /**
-     * 亲人逝世对修炼速度的惩罚比例：降低50%
-     */
-    const val GRIEF_CULTIVATION_SPEED_PENALTY = 0.50
-
-    /**
-     * 亲人逝世对突破率的惩罚比例：降低20%
-     */
-    const val GRIEF_BREAKTHROUGH_CHANCE_PENALTY = 0.20
 
     // ==================== 师徒加成 ====================
 

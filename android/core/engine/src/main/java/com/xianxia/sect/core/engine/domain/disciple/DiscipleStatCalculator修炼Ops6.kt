@@ -5,7 +5,7 @@ import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 
-// ── DiscipleStatCalculator 拆分域 6/7（行为零变更） ──
+// ── DiscipleStatCalculator 拆分域 6/6（行为零变更） ──
 @Suppress("UnusedParameter") // innerElder: 重载签名对称：与姊妹重载保持一致形参面
 fun DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
     aggregate: DiscipleAggregate,
@@ -113,65 +113,9 @@ fun DiscipleStatCalculator.getStatDisplayName(statKey: String): String = when (s
     else -> statKey
 }
 
-// ==================== 父母灵根对子嗣修炼速度的影响 ====================
+// ==================== 师徒加成 ====================
 
-/**
- * 根据灵根数量计算父母对子嗣修炼速度的加成比例
- * 单灵根 +10%, 双灵根 +5%, 三灵根 0%, 四灵根 -5%, 五灵根 -10%
- */
-
-fun DiscipleStatCalculator.getParentSpiritRootBonus(spiritRootCount: Int): Double {
-    return when (spiritRootCount) {
-        1 -> 0.10
-        2 -> 0.05
-        3 -> 0.0
-        4 -> -0.05
-        5 -> -0.10
-        else -> 0.0
-    }
-}
-
-/**
- * 计算父母灵根对子嗣修炼速度的总加成
- * 仅存活父母影响，父母各自独立计算
- * @param parent1 父亲（或父母之一），null表示不存在或已故
- * @param parent2 母亲（或父母之一），null表示不存在或已故
- * @return 总加成比例（如 0.20 表示 +20%）
- */
-
-fun DiscipleStatCalculator.calculateParentCultivationBonus(parent1: Disciple?, parent2: Disciple?): Double {
-    var bonus = 0.0
-    if (parent1 != null && parent1.isAlive) {
-        bonus += getParentSpiritRootBonus(parent1.spiritRoot.types.size)
-    }
-    if (parent2 != null && parent2.isAlive) {
-        bonus += getParentSpiritRootBonus(parent2.spiritRoot.types.size)
-    }
-    return bonus
-}
-
-/**
- * 计算父母灵根对子嗣修炼速度的总加成（DiscipleAggregate版本）
- */
-
-fun DiscipleStatCalculator.calculateParentCultivationBonusForAggregate(
-    parent1: DiscipleAggregate?, parent2: DiscipleAggregate?
-): Double {
-    var bonus = 0.0
-    if (parent1 != null && parent1.isAlive) {
-        bonus += getParentSpiritRootBonus(parent1.spiritRoot.types.size)
-    }
-    if (parent2 != null && parent2.isAlive) {
-        bonus += getParentSpiritRootBonus(parent2.spiritRoot.types.size)
-    }
-    return bonus
-}
-
-// ==================== 亲人逝世影响 ====================
-
-/**
- * 亲人逝世对修炼速度的惩罚比例：降低50%
- */
+/** 徒弟与师父的大境界差（负差按 0 计） */
 
 fun DiscipleStatCalculator.getMasterDiscipleRealmGap(discipleRealm: Int, masterRealm: Int): Int =
     (discipleRealm - masterRealm - 1).coerceAtLeast(0)

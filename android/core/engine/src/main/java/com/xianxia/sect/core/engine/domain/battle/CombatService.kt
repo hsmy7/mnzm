@@ -118,7 +118,7 @@ class CombatService @Inject constructor(
 
     /**
      * Native 臂（1780）：C++ 执行伤亡残差状态段（battle_residual_tx.h ①），
-     * Kotlin 补平台面：丧亲日志草稿回写（lifeEvents 类体属性列）+ 死亡事件
+     * Kotlin 补平台面：生命日志草稿回写（lifeEvents 类体属性列）+ 死亡事件
      * 广播 + 溢出邮件投递。接管成功返回 true；降级/失败信封返回 false。
      */
     @Suppress("TooGenericExceptionCaught")
@@ -145,8 +145,8 @@ class CombatService @Inject constructor(
             }
         ) as? JsonObject ?: return false
 
-        // ① 丧亲日志草稿回写（lifeEvents 为 Kotlin 类体属性，C++ 无该列——
-        //    disciple_lifecycle_tx logLine 机制同族）
+        // ① 生命日志草稿回写（lifeEvents 为 Kotlin 类体属性，C++ 无该列——
+        //    disciple_lifecycle_tx logLine 机制同族；本事务信封无填充点时为空）
         applyNativeLifeEventDrafts(reply)
         // ② 死亡事件广播（平台面）
         if (isOutsideSect) emitNativeDeathEvents(deadMemberIds)

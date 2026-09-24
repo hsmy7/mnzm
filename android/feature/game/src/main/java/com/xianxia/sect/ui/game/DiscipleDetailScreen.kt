@@ -250,7 +250,6 @@ private fun DiscipleDetailBody(
     val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?:
         remember { mutableStateOf(emptyList<GridBuildingData>()) }
     val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
-    val gameYear = gameData?.gameYear ?: 1
     var localDiscipleType by remember(disciple.id) { mutableStateOf(disciple.discipleType) }
 
     UnifiedGameDialog(
@@ -285,7 +284,7 @@ private fun DiscipleDetailBody(
                             allEquipment = allEquipment, allManuals = allManuals,
                             manualProficiencies = manualProficiencies, elderSlots = elderSlots,
                             sectPolicies = sectPolicies, vmResidenceSlots = vmResidenceSlots,
-                            vmPlacedBuildings = vmPlacedBuildings, gameYear = gameYear,
+                            vmPlacedBuildings = vmPlacedBuildings,
                             gameData = gameData, localDiscipleType = localDiscipleType,
                             onLocalDiscipleTypeChange = { localDiscipleType = it },
                             onNavigateToDisciple = onNavigateToDisciple, state = state
@@ -317,7 +316,6 @@ private fun DiscipleDetailTabLayout(
     sectPolicies: SectPolicies?,
     vmResidenceSlots: List<ResidenceSlot>,
     vmPlacedBuildings: List<GridBuildingData>,
-    gameYear: Int,
     gameData: GameData?,
     localDiscipleType: String,
     onLocalDiscipleTypeChange: (String) -> Unit,
@@ -359,7 +357,7 @@ private fun DiscipleDetailTabLayout(
                     viewModel = viewModel, allEquipment = allEquipment, allManuals = allManuals,
                     manualProficiencies = manualProficiencies, elderSlots = elderSlots,
                     sectPolicies = sectPolicies, vmResidenceSlots = vmResidenceSlots,
-                    vmPlacedBuildings = vmPlacedBuildings, gameYear = gameYear,
+                    vmPlacedBuildings = vmPlacedBuildings,
                     gameData = gameData, state = state
                 )
             }
@@ -397,7 +395,6 @@ private fun DiscipleDetailTabContent(
     sectPolicies: SectPolicies?,
     vmResidenceSlots: List<ResidenceSlot>,
     vmPlacedBuildings: List<GridBuildingData>,
-    gameYear: Int,
     gameData: GameData?,
     state: DiscipleDetailDialogState
 ) {
@@ -422,7 +419,7 @@ private fun DiscipleDetailTabContent(
             allManuals = allManuals, manualProficiencies = manualProficiencies,
             elderSlots = elderSlots, sectPolicies = sectPolicies,
             residenceSlots = vmResidenceSlots, placedBuildings = vmPlacedBuildings,
-            gameYear = gameYear, gameData = gameData, state = state
+            gameData = gameData, state = state
         )
         1 -> {
             AttributesSection(disciple)
@@ -463,7 +460,6 @@ private fun DiscipleDetailInfoTab(
     sectPolicies: SectPolicies?,
     residenceSlots: List<ResidenceSlot>,
     placedBuildings: List<GridBuildingData>,
-    gameYear: Int,
     gameData: GameData?,
     state: DiscipleDetailDialogState
 ) {
@@ -480,7 +476,6 @@ private fun DiscipleDetailInfoTab(
         sectPolicies = sectPolicies,
         residenceSlots = residenceSlots,
         placedBuildings = placedBuildings,
-        gameYear = gameYear,
         gameSpeed = 1,
         bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id),
         onWashSpiritRootClick = state::openSpiritRootWash,

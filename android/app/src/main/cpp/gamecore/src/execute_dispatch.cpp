@@ -2504,11 +2504,10 @@ nlohmann::json handlePolicyTx(GameCore* core, int32_t actionId,
 }
 
 /// 弟子生命周期 UI 操作事务（ActionIds.DISCIPLE_LIFECYCLE_APPRENTICE /
-/// MARRY_APPROVE / SALARY_TOGGLE
+/// SALARY_TOGGLE
 /// ——batch-14 生命周期族写者下沉；全族零 RNG 纯确定性事务，校验链
 /// 先行失败零写入，失败信封 → Kotlin 回退原路径重执行校验链。
-/// 拜师信封附双侧 lifeEvents 日志草稿（Kotlin 瞬态列回写）；
-/// 婚姻批准 paired=false = 防御检查命中（Kotlin 仅移除提议不记事件））
+/// 拜师信封附双侧 lifeEvents 日志草稿（Kotlin 瞬态列回写））
 nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
                                          const nlohmann::json& params) {
     namespace lifecycle_tx = gamecore::system::disciple_lifecycle_tx;
@@ -2522,15 +2521,6 @@ nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
             return ok({{"apprenticed", true},
                        {"apprenticeLogLine", r.apprenticeLogLine},
                        {"masterLogLine", r.masterLogLine}});
-        }
-        case action::DISCIPLE_LIFECYCLE_MARRY_APPROVE: {
-            const auto r = lifecycle_tx::approveMarriageTransaction(
-                state, params.at("maleId").get<std::string>(),
-                params.at("femaleId").get<std::string>(),
-                params.value("maleName", ""),
-                params.value("femaleName", ""));
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"paired", r.paired}});
         }
         case action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE: {
             const auto r = lifecycle_tx::salaryToggleTransaction(

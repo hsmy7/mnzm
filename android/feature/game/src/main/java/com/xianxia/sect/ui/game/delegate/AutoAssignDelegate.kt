@@ -5,16 +5,14 @@ import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
 import com.xianxia.sect.core.engine.setAutoEquipSettings
 import com.xianxia.sect.core.engine.setAutoLearnSettings
 import com.xianxia.sect.core.engine.setBreakthroughAutoPillSettings
-import com.xianxia.sect.core.engine.setDaoCompanionBannedRootCounts
-import com.xianxia.sect.core.engine.setDaoCompanionConsentRequired
 import com.xianxia.sect.core.engine.setPrisonerSpiritRootFilter
 
 /**
  * 自动分配/委派策略设置委托。
  *
- * 职责：弟子自动分配策略、自动装备/学习/丹药/道侣等设置。
+ * 职责：弟子自动分配策略、自动装备/学习/丹药等设置。
  *
- * 设置项字段（自动装备/学习/突破丹药/道侣/俘虏过滤）经
+ * 设置项字段（自动装备/学习/突破丹药/俘虏过滤）经
  * `GameEngineSettingsOps` 域入口写入——AUTHORITATIVE 稳态写者为 C++
  * `settings_patch` 事务，Kotlin 原路径为降级回退臂（batch-23 残余域下沉）。
  * 自动分配策略族（sectPolicies）走独立入口 `batchUpdateAutoAssignAndGuide`
@@ -23,16 +21,6 @@ import com.xianxia.sect.core.engine.setPrisonerSpiritRootFilter
 class AutoAssignDelegate(
     private val gameEngine: GameEngine
 ) {
-    /** 设置禁止结为道侣的灵根数集合。 */
-    fun setDaoCompanionBannedRootCounts(counts: Set<Int>) {
-        gameEngine.launchOnEngine { gameEngine.setDaoCompanionBannedRootCounts(counts) }
-    }
-
-    /** 设置道侣结成是否需要玩家同意。 */
-    fun setDaoCompanionConsentRequired(required: Boolean) {
-        gameEngine.launchOnEngine { gameEngine.setDaoCompanionConsentRequired(required) }
-    }
-
     /** 批量设置所有自动分配策略（一次写入，原子更新）。 */
     fun setAutoAssignSettings(
         mine: AutoAssignSpec,

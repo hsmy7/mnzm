@@ -61,7 +61,6 @@ class GameDataTest {
         val data = GameData()
         assertTrue(data.playerProtectionEnabled)
         assertFalse(data.playerHasAttackedAI)
-        assertFalse(data.daoCompanionConsentRequired)
         assertFalse(data.patrolBattleResultPopup)
         assertFalse(data.breakthroughAutoPillFocused)
         assertFalse(data.autoEquipFromWarehouseFocused)

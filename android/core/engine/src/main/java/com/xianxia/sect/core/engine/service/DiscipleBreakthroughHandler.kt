@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.GameEventType
 import com.xianxia.sect.core.model.breakthroughCount
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
-import com.xianxia.sect.core.model.griefEndYear
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.DiscipleTables
@@ -29,7 +28,6 @@ import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.StorageBagUtils
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.xianxia.sect.core.engine.domain.disciple.isGrieving
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
@@ -241,7 +239,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
         // 精准字段写回，不再全量 clear+insert
         writeBackBreakthroughFields(tables, updatedDisciples)
 
-        // 亲属智能赠送：突破（realm 或 realmLayer 变化）后触发
+        // 师徒智能赠送：突破（realm 或 realmLayer 变化）后触发
         notifyBreakthroughChanges(candidates, tables, state)
     }
 
@@ -264,7 +262,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
         }
     }
 
-    /** 突破后亲属赠送与突破日志：大境界变化记录事件 */
+    /** 突破后师徒赠送与突破日志：大境界变化记录事件 */
     private fun notifyBreakthroughChanges(
         candidates: List<Disciple>,
         tables: DiscipleTables,
@@ -320,10 +318,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
 
         val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
 
-        val griefPenalty = DiscipleStatCalculator.GRIEF_BREAKTHROUGH_CHANCE_PENALTY
-        val griefBreakthroughPenalty =
-            if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) griefPenalty else 0.0
-
         // 师徒加成：徒弟有师父且师父存活时，按大境界差提供突破率加成
         val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
             val midInt = mid.toIntOrNull() ?: return@let 0.0
@@ -339,7 +333,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
             outerElderComprehension = outerElderComprehension,
             pillBonus = pillBonus,
             adBonus = adBonus,
-            griefBreakthroughPenalty = griefBreakthroughPenalty,
             masterDiscipleBonus = masterDiscipleBonus,
             innerElderPositionBonus = innerElderPositionBonus,
             outerElderPositionBonus = outerElderPositionBonus

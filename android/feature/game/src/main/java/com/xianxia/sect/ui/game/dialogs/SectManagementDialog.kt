@@ -34,7 +34,6 @@ fun SectManagementDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    var showDaoCompanionManagement by remember { mutableStateOf(false) }
     var showDiscipleManagement by remember { mutableStateOf(false) }
     var showAutoManagement by remember { mutableStateOf(false) }
 
@@ -56,7 +55,6 @@ fun SectManagementDialog(
             )
 
             SectManagementButtonArea(
-                onDaoCompanion = { showDaoCompanionManagement = true },
                 onDiscipleManagement = { showDiscipleManagement = true },
                 onAutoManagement = { showAutoManagement = true }
             )
@@ -64,13 +62,6 @@ fun SectManagementDialog(
     }
 
     // 子对话框
-    if (showDaoCompanionManagement) {
-        DaoCompanionManagementDialog(
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { showDaoCompanionManagement = false }
-        )
-    }
     if (showDiscipleManagement) {
         DiscipleManagementDialog(
             gameData = gameData,
@@ -149,10 +140,9 @@ private fun SectManagementCheckboxRow(
     }
 }
 
-/** 管理按钮区：道侣/弟子/自动管理（FlowRow 响应式换行） */
+/** 管理按钮区：弟子/自动管理（FlowRow 响应式换行） */
 @Composable
 private fun SectManagementButtonArea(
-    onDaoCompanion: () -> Unit,
     onDiscipleManagement: () -> Unit,
     onAutoManagement: () -> Unit
 ) {
@@ -161,7 +151,6 @@ private fun SectManagementButtonArea(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        GameButton(text = "道侣管理", onClick = onDaoCompanion, modifier = Modifier.width(ButtonSizes.StandardWidth))
         GameButton(text = "弟子管理", onClick = onDiscipleManagement, modifier = Modifier.width(ButtonSizes.StandardWidth))
         GameButton(text = "自动管理", onClick = onAutoManagement, modifier = Modifier.width(ButtonSizes.StandardWidth))
     }

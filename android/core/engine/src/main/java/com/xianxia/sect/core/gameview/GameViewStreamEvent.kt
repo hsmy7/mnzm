@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.gameview
 
 import com.xianxia.sect.core.engine.AgedDeathDraft
-import com.xianxia.sect.core.engine.BereavementDraft
 import com.xianxia.sect.core.model.SecretRealmBackpack
 
 /**
@@ -42,11 +41,6 @@ internal data class GameViewStreamEvent(
         internal data class MonthSettled(
             val disabledPolicies: List<String>,
             val seizedSectBuildings: List<String>,
-        ) : Payload()
-
-        /** 年结完成：丧亲事件草稿（lifeEvents 瞬态列写入面） */
-        internal data class YearSettled(
-            val bereavements: List<BereavementDraft>,
         ) : Payload()
 
         /** 突破事件（消息栏已有 gameEventRecords 载体；本流为 UI/未来消费者的观测面） */

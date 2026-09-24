@@ -32,7 +32,7 @@
 | **G05** | 删招募链 + `recruitList` 迁移恒空 + 按钮占位 | G01 | [`recon-G05-G06-G08-G09.md`](recon-G05-G06-G08-G09.md) `G05` | **2** |
 | **G06** | 删逐出弟子 + 弟子改名 | G01 | 同上 `G06` | **3** |
 | **G03** | 删生育/道侣/亲缘（parentId 全链） | G01 | [`recon-G02-G03.md`](recon-G02-G03.md) `## G03` | **4** |
-| **G04** | 删洗炼/资质/悟性/天赋体质词条/血炼/职位特质/战斗随机成长 | G01 | [`recon-G04.md`](recon-G04.md)（含 `§11` 产品缺口） | **5** |
+| **G04** | 删洗炼 / 资质 / 天赋体质词条 / 血炼 / 职位特质 / 战斗随机成长（**悟性保留**，见 §4 口径 15） | G01 | [`recon-G04.md`](recon-G04.md)（含 `§11` 预案，已随口径 15 失效） | **5** |
 | **G08** | 角色模板层 + `templateId` 实例化 + 开局周明/5 万 + 兑换码改道 | G01；**建议在 G05 后**（招募是 `createDisciple` 最大调用方） | [`recon-G05-G06-G08-G09.md`](recon-G05-G06-G08-G09.md) `G08` | **6** |
 | **G09** | 抽卡核心 `gacha_tx`（roll/保底/碎片/升星/解锁/入库） | G08（解锁依赖模板读取层） | 同上 `G09` | **7** |
 | **G11** | 最简寻访 UI：主界面 + 结果页 Q30/Q31 + 图鉴最小 + `GachaDelegate` | G09；**素材注册为硬阻塞** | 同上 `§G11` | **8** |
@@ -72,6 +72,7 @@
 | 12 | **C++ AUTHORITATIVE**：抽卡/保底/碎片/升星/开局注入/重伤写入全部下沉 C++（`gacha_tx`），Kotlin 只读展示；`MirrorReadOnlyGuardTest` 必须零命中 | 实施计划 S2.3 |
 | 13 | **G11 结果页色表强制 Q31**（`GameConfig.Gacha` 单源），**禁止复用 `ItemCard.getRarityColor` 旧色表**；灵根徽章同用 Q31 | 产品方案 §4.4 颜色总表 |
 | 14 | **UI 不驱动系统 tick**；界面实时数据订阅 `GameEngine` StateFlow 派生 | 根 `AGENTS.md` §6.5 |
+| 15 | ✅ **悟性（`comprehension`）系统整体保留，G04 不删**（2026-09-24 用户拍板）：`disciples.comprehension` 列、`SkillStats.comprehension`、`PillEffect.comprehensionAdd`、`comprehensionBreakthroughBonus` 本体与 `ELDER_SKILL_BASELINE`/`ELDER_BONUS_DIVISOR`/`ELDER_BREAKTHROUGH_MAX_STEPS`/`ELDER_BONUS_PER_STEP` 常数、长老有效悟性提取与突破率「悟性加成」展示行**全部存续**。G04 的删除面收窄为「洗炼 / 资质（`aptitude`）/ 天赋 / 体质 / 词条 / 血炼 / 职位特质 / 战斗随机成长」八项，**悟性不在其中**。§5#1 的突破率公式缺口随此口径**自动消解**：突破率保留 `compBonus(内门长老悟性)×(1+innerPos) + compBonus(外门长老悟性)×(1+outerPos) + compBonus(自身悟性)` 三个乘区项，其中 `innerPos/outerPos`（职位特质 `PositionBonus`）随天赋/词条整表删除而**数值归零但形参与公式结构保留**（恒 `×(1+0)`，不删形参、不收窄 `BreakthroughZoneBonusInput`/`BreakthroughChanceInput`） | 用户 2026-09-24 指令「保留悟性系统不做删除了」；落点见 `recon-G04.md` §1.2/§2/§11.1 |
 
 ---
 
@@ -79,7 +80,7 @@
 
 | # | 项 | 影响批次 | 现状与证据 | 建议 |
 |---|---|---|---|---|
-| 1 | 🔴 **悟性删除后突破率公式无定义**：`comprehensionBreakthroughBonus`（C++ `disciple_stats.h` 本体 + 3 个消费点）与「长老有效悟性」（`DetailBasicInfoSection.kt`）在悟性删除后归零，产品方案 §6.6 **只定义了修炼速度新秩序、未定义突破率** | **G04** | [`recon-G04.md`](recon-G04.md) `§11`（三口径逐条落点 + 对拍影响） | 三口径：①随悟性一并删除（**唯一无新协议可独立完成**，推荐）；②权重转移到星级/境界（**跨 G12/M0，C++ `gameData` 无 `gachaStarMap` 协议字段，本批不可独立完成**）；③长老改纯槽位加成（数值源是天赋 PositionBonus，天赋删后也归零，须先定新数值源） |
+| 1 | ✅ **已拍板关闭（2026-09-24）：悟性系统整体保留，不删** → 突破率公式缺口自动消解，详见 §4 口径 15 | ~~G04~~ 不阻塞 | [`recon-G04.md`](recon-G04.md) `§11`（三口径逐条落点 + 对拍影响）仍有效，作为**「若将来要删悟性」的预案**保留 | 原三口径僵局随「保留悟性」口径失效。G04 施工时的连带约束：① `comprehension` 列与 `SkillStats.comprehension` 不入删列清单（Room 版本链不因此增加 `disciples` 悟性列）；② `ELDER_SKILL_BASELINE` 的双重身份问题（§9#11）自然解除——它继续被突破率与教学两处引用，**原样保留**；③ UI 5 处把 `intelligenceAdd` 标为「悟性」的预存文案 bug（§9#7）**仍不修**，与本批无关，另开条目 |
 | 2 | 🟠 **G05「招贤伯乐」与 G04「特质三表整删」职责重叠** | G05 / G04 | `recon-G05-G06-G08-G09.md` X-2 #12 | G05 只删「招募数值效果」（`year_settlement.h` 的 +50%、`positionEffectBonus("RECRUITING")` 调用），特质条目交 G04 |
 | 3 | 🟠 **`annualDesertedDisciples` 语义拆分**：玩家逐出计数（2 处，随 G06 删）与执法/叛逃计数（4 处，G02 后仍在）**共用同一字段**；G06 与 G02 先后顺序会影响该字段残留 | G02 / G06 | `recon-G05-G06-G08-G09.md` `G06-2` | 保留字段（只删玩家逐出写入点）；报告里显式登记剩余 4 个写入点的语义 |
 | 4 | 🔴 **G11 素材硬阻塞**：`avatar_zhouming` / `portrait_zhouming` 等 12 个键**全部未注册**（仅存在于 `game-data.json`），`resource-registry.json` 无、`sprite-uid-map.json` 无、双模块 `drawable-nodpi` 无文件 | **G11** | `recon-G05-G06-G08-G09.md` `§G11-4`（含 `rules/static-resources.md` 七步逐条映射） | G11 前先做素材批：无损 WebP + 双模块 + `SpriteResRegistry.register` + `ResourcePreloader` 同步点；素材源在 `模拟宗门美术素材\<角色名>\{头像,全身像}.png` |

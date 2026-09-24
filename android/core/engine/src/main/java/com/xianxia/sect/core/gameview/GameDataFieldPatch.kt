@@ -245,12 +245,6 @@ internal object GameDataFieldPatch {
         f("secretRealmAITeams", { gd, el, j ->
             gd.secretRealmAITeams = j.decodeFromJsonElement<List<SecretRealmAITeam>>(el)
         }),
-        f("daoCompanionBannedRootCounts", { gd, el, j ->
-            gd.daoCompanionBannedRootCounts = j.decodeFromJsonElement<Set<Int>>(el)
-        }),
-        f("daoCompanionConsentRequired", { gd, el, j ->
-            gd.daoCompanionConsentRequired = j.decodeFromJsonElement<Boolean>(el)
-        }),
         f("patrolBattleResultPopup", { gd, el, j ->
             gd.patrolBattleResultPopup = j.decodeFromJsonElement<Boolean>(el)
         }),

@@ -415,40 +415,6 @@ class NullSafeProtoBufTest {
     }
 
     @Test
-    fun `griefEndYearToProto - null returns sentinel -1`() {
-        assertEquals(-1, NullSafeProtoBuf.griefEndYearToProto(null))
-    }
-
-    @Test
-    fun `griefEndYearToProto - non-null returns same value`() {
-        assertEquals(30, NullSafeProtoBuf.griefEndYearToProto(30))
-    }
-
-    @Test
-    fun `griefEndYearFromProto - sentinel -1 returns null`() {
-        assertNull(NullSafeProtoBuf.griefEndYearFromProto(-1))
-    }
-
-    @Test
-    fun `griefEndYearFromProto - non-sentinel returns same value`() {
-        assertEquals(30, NullSafeProtoBuf.griefEndYearFromProto(30))
-    }
-
-    @Test
-    fun `griefEndYear roundtrip - null preserves null`() {
-        val toProto = NullSafeProtoBuf.griefEndYearToProto(null)
-        val fromProto = NullSafeProtoBuf.griefEndYearFromProto(toProto)
-        assertNull(fromProto)
-    }
-
-    @Test
-    fun `griefEndYear roundtrip - non-null preserves value`() {
-        val toProto = NullSafeProtoBuf.griefEndYearToProto(50)
-        val fromProto = NullSafeProtoBuf.griefEndYearFromProto(toProto)
-        assertEquals(50, fromProto)
-    }
-
-    @Test
     fun `protoBuf instance - is not null`() {
         assertNotNull(NullSafeProtoBuf.protoBuf)
     }
@@ -466,11 +432,6 @@ class NullSafeProtoBufTest {
     @Test
     fun `DEFAULT_DOUBLE_SENTINEL is -1_0`() {
         assertEquals(-1.0, NullSafeProtoBuf.DEFAULT_DOUBLE_SENTINEL, 0.001)
-    }
-
-    @Test
-    fun `GRIEF_END_YEAR_SENTINEL is -1`() {
-        assertEquals(-1, NullSafeProtoBuf.GRIEF_END_YEAR_SENTINEL)
     }
 
     @Test

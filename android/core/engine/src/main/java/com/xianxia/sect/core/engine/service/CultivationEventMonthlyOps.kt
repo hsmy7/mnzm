@@ -116,7 +116,7 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
             // 新年年报——与年俸 processAnnualSalary 快照后执行的归属一致；
             // 12 月 autoBuy 不受影响，本就属旧年）
             safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, 1) }
-            // T2 延迟组（10 项）入队：FIFO = 年变原相对序（#4→#12→#13→#14→#15→#16→#17→#19→#21→#22）
+            // T2 延迟组（8 项）入队：FIFO = 年变原相对序（#4→#12→#13→#15→#16→#17→#19→#22）
             // 必须与 T1 同事务提交：若在事务外入队，存档线程 flush 可能在
             // "T1 提交 → 入队"之间排空队列并取快照，快照缺失全部 T2（竞态窗口）。
             // 入队仅写内存队列（无状态修改），事务内执行无副作用。
@@ -125,7 +125,7 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
     }
 
     /**
-     * L3b：年变延迟组入队（T2 10 项）。
+     * L3b：年变延迟组入队（T2 8 项）。
      *
      * 全部有自愈/延迟无感语义：差值判据（lastTradeYear 等）
      * 跳过次年自动补跑；AI 老化/外交/秘境晚 1 tick 无感。
@@ -140,8 +140,6 @@ internal fun CultivationEventProcessor.enqueueYearlyOps(year: Int) {
             "refreshAcquisition" to { merchantAndRecruitService.refreshMerchantAcquisition(year, 1) },
             // #13 AI 宗门交易列表刷新（每 3 年强制，差值判据与懒刷新统一）
             "sectTradeRefresh" to { diplomacyService.refreshAllSectTrades(year) },
-            // #14 跨宗门道侣匹配
-            "partnerMatching" to { diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1) },
             // #15 联盟到期
             "allianceExpiry" to { diplomacyEventProcessor.checkAllianceExpiry(year) },
             // #16 联盟好感衰减检查
@@ -150,8 +148,6 @@ internal fun CultivationEventProcessor.enqueueYearlyOps(year: Int) {
             "aiAlliances" to { diplomacyEventProcessor.processAIAlliances(year) },
             // #19 好感衰减
             "favorDecay" to { diplomacyEventProcessor.processFavorDecay(year) },
-            // #21 哀悼期到期（列直写 O(D)，玩家侧数百人）
-            "griefExpiry" to { discipleLifecycleProcessor.processGriefExpiry(year) },
             // #22 远古秘境刷新
             "ancientSecretRealmSpawn" to { secretRealmService.processYearlySpawn(year, this) }
         )

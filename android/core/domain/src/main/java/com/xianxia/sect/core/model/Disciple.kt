@@ -22,7 +22,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * **战斗属性** → `disciple.combat.baseHp`, `disciple.combat.basePhysicalAttack` 等
  * **丹药效果** → `disciple.pillEffects.pillHpBonus`, `disciple.pillEffects.pillEffectDuration` 等
  * **装备数据** → `disciple.equipment.weaponId`, `disciple.equipment.spiritStones` 等
- * **社交关系** → `disciple.social.partnerId`, `disciple.social.parentId1` 等
+ * **社交关系** → `disciple.social.masterId`
  * **技能属性** → `disciple.skills.intelligence`, `disciple.skills.comprehension` 等
  * **使用追踪** → `disciple.usage.usedFunctionalPillTypes`, `disciple.usage.recruitedMonth` 等
  *
@@ -187,7 +187,6 @@ data class Disciple(
 
     val genderName: String get() = if (gender == "male") "男" else "女"
     val genderSymbol: String get() = if (gender == "male") "\u2642" else "\u2640"
-    val hasPartner: Boolean get() = social.hasPartner
 
     val aptitude: Int get() = skills.aptitude
 
@@ -232,19 +231,17 @@ data class Disciple(
     fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String,
         ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0,
             preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0,
-                cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0,
-                    griefCultivationSpeedPenalty: Double = 0.0): Double = DiscipleAggregate.statsProvider
-                        .calculateCultivationSpeed(this, manuals, manualProficiencies, buildingBonus, additionalBonus,
-                            preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus,
-                                griefCultivationSpeedPenalty)
+                cultivationSubsidyBonus: Double = 0.0): Double = DiscipleAggregate.statsProvider
+                    .calculateCultivationSpeed(this, manuals, manualProficiencies, buildingBonus, additionalBonus,
+                        preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus)
 
     /** 判断弟子是否可以突破 */
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation
 
     fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0, pillBonus: Double =
-        0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double =
+        0.0, adBonus: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double =
         DiscipleAggregate.statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehension,
-            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
+            pillBonus, adBonus, masterDiscipleBonus)
 
     // ==================== 转换方法（Disciple → DiscipleAggregate）====================
 

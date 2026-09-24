@@ -20,7 +20,6 @@ import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
 import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.system.SystemManager
-import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.config.ConfigLoader
@@ -232,30 +231,30 @@ class DiffPhaseSettlementTest {
                 manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
+                csb: Double, mdb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                d, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                d, manuals, mps, bb, peb, pmb, csb, mdb
             )
             override fun calculateCultivationSpeed(
                 a: DiscipleAggregate,
                 manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
+                csb: Double, mdb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                a, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                a, manuals, mps, bb, peb, pmb, csb, mdb
             )
             override fun getBreakthroughChance(
                 d: Disciple, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+                ab: Double, mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+                ab: Double, mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
         }
         // RNG 与 C++ 同源：restore 到导入快照的分区状态（C++ importStateJson
-        // 的等价步骤）；突破/亲属赠送/伴侣配对共用同一管理器（生产装配同构）
+        // 的等价步骤）；突破/亲属赠送共用同一管理器（生产装配同构）
         val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
@@ -352,15 +351,14 @@ class DiffPhaseSettlementTest {
         )
     }
 
-    /** 月变编排器（SystemManager 仅装 PartnerSystem——其余六系统在场景输入下
-     *  恒零输出，缺席 ≡ 恒零；Partner 为配对 RNG 断言核心必须真实） */
+    /** 月变编排器（SystemManager 无月变扇出系统——其余系统在场景输入下
+     *  恒零输出，缺席 ≡ 恒零） */
     private fun buildMonthExecutor(
-        service: CultivationService,
-        gameRng: GameRngManager
+        service: CultivationService
     ): MonthSettlementExecutor = MonthSettlementExecutor(
         cultivationService = service,
         aiSectBeastAttackProcessor = mockSmart(),
-        systemManager = SystemManager(setOf(PartnerSystem(gameRng)))
+        systemManager = SystemManager(emptySet())
     )
 
     /** Unconfined 协程域替身（async launch 在当前协程直接执行，无后台线程） */
@@ -392,7 +390,7 @@ class DiffPhaseSettlementTest {
         val service = serviceAndRng.first
         val gameRng = serviceAndRng.second
         val executor = PhaseSettlementExecutor(service)
-        val monthExecutor = buildMonthExecutor(service, gameRng)
+        val monthExecutor = buildMonthExecutor(service)
         store.update {
             repeat(PHASES) {
                 // 组合管线同构 C++ SettlementEngine.advanceOnePhase：
@@ -465,7 +463,7 @@ class DiffPhaseSettlementTest {
         }
         val serviceAndRng = buildService(store, snapshot.gameData.rngStates)
         val executor = PhaseSettlementExecutor(serviceAndRng.first)
-        val monthExecutor = buildMonthExecutor(serviceAndRng.first, serviceAndRng.second)
+        val monthExecutor = buildMonthExecutor(serviceAndRng.first)
         store.update {
             repeat(PHASES) {
                 // 组合管线：时间推进 → 旬结算 → （跨界时）月变（同 C++ 钩子序）
@@ -592,7 +590,7 @@ class DiffPhaseSettlementTest {
         }
         val serviceAndRng = buildService(store, snapshot.gameData.rngStates)
         val executor = PhaseSettlementExecutor(serviceAndRng.first)
-        val monthExecutor = buildMonthExecutor(serviceAndRng.first, serviceAndRng.second)
+        val monthExecutor = buildMonthExecutor(serviceAndRng.first)
         store.update {
             repeat(phases) {
                 val prevMonth = gameData.gameMonth
@@ -674,9 +672,9 @@ class DiffPhaseSettlementTest {
     }
 
     /**
-     * 亲属赠送（S1）：突破成功（层变即可）触发道侣赠送（SYSTEM RNG，
-     * 概率 0.45）。种子双探测：BREAKTHROUGH 首抽 < 0.90（突破成功）+
-     * SYSTEM 首抽 < 0.45（赠送触发）。
+     * 亲属赠送（S1）：突破成功（层变即可）触发师父赠送（SYSTEM RNG，
+     * 概率 0.40）。种子双探测：BREAKTHROUGH 首抽 < 0.90（突破成功）+
+     * SYSTEM 首抽 < 0.40（赠送触发）。
      */
     @Test
     fun `relative gifts after breakthrough matches bit-for-bit`() {
@@ -684,11 +682,11 @@ class DiffPhaseSettlementTest {
         DiffRngBridge.nativeCoreInit()
 
         // 种子双探测：BREAKTHROUGH 首抽 < 0.90（炼气一层突破成功）+
-        // SYSTEM 首抽 < 0.45（道侣赠送概率 0.45）
+        // SYSTEM 首抽 < 0.40（师父赠送概率 0.40）
         val jointSeed = generateSequence(1L) { it + 1 }
             .first { s ->
                 probeFirstDouble(s, RngPartition.BREAKTHROUGH) < 0.90 &&
-                    probeFirstDouble(s, RngPartition.SYSTEM) < 0.45
+                    probeFirstDouble(s, RngPartition.SYSTEM) < 0.40
             }
 
         val gameData = GameData(
@@ -702,9 +700,9 @@ class DiffPhaseSettlementTest {
                     id = "1", name = "青一", realm = 9, realmLayer = 1,
                     cultivation = 490.0, spiritRootType = "metal",
                     combat = CombatAttributes(currentHp = -1, currentMp = -1),
-                    social = com.xianxia.sect.core.model.SocialData(partnerId = "2")
+                    social = com.xianxia.sect.core.model.SocialData(masterId = "2")
                 ),
-                Disciple(   // 道侣：袋内 ≥2 条目（Kotlin MIN_BAG_ITEMS_TO_KEEP=1 按条目数守卫）
+                Disciple(   // 师父：袋内 ≥2 条目（Kotlin MIN_BAG_ITEMS_TO_KEEP=1 按条目数守卫）
                     id = "2", name = "青二", realm = 9, realmLayer = 1,
                     cultivation = 0.0, spiritRootType = "metal",
                     combat = CombatAttributes(currentHp = -1, currentMp = -1),

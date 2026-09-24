@@ -100,27 +100,27 @@ class CultivationCoreRealtimeAutoPillsTest {
                     manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                     mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                     bb: Double, ab: Double, peb: Double, pmb: Double,
-                    csb: Double, pcb: Double, gcp: Double, mdb: Double
+                    csb: Double, mdb: Double
                 ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                    d, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                    d, manuals, mps, bb, peb, pmb, csb, mdb
                 )
                 override fun calculateCultivationSpeed(
                     a: com.xianxia.sect.core.model.DiscipleAggregate,
                     manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                     mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                     bb: Double, ab: Double, peb: Double, pmb: Double,
-                    csb: Double, pcb: Double, gcp: Double, mdb: Double
+                    csb: Double, mdb: Double
                 ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                    a, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                    a, manuals, mps, bb, peb, pmb, csb, mdb
                 )
                 override fun getBreakthroughChance(
                     d: com.xianxia.sect.core.model.Disciple, iec: Int, oec: Int, pb: Double,
-                    ab: Double, gcp: Double, mdb: Double
-                ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+                    ab: Double, mdb: Double
+                ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
                 override fun getBreakthroughChance(
                     a: com.xianxia.sect.core.model.DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                    ab: Double, gcp: Double, mdb: Double
-                ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+                    ab: Double, mdb: Double
+                ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
             }
     }
 

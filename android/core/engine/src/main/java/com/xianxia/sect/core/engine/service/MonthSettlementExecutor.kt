@@ -18,8 +18,8 @@ import com.xianxia.sect.core.state.MutableGameState
  * 1. 政策月度灵石扣除（不足自动关闭政策，结果返回给调用方做事务外决策）
  * 2. 政策月度道德效果
  * 3. AI 兽袭进攻目标预计算（写入 aiSectBeastDirectTargets，EXPLORATION 分区）
- * 4. systemManager 七系统月变扇出（@SystemPriority 升序：
- *    Alchemy→Forge→Planting→ChildBirth→Exploration→Partner→Mail）
+ * 4. systemManager 六系统月变扇出（@SystemPriority 升序：
+ *    Time→Inventory→Alchemy→Forge→Planting→Exploration）
  * 5. 血炼完成检测（到期逐条结算，零 RNG）
  * 6. 月度自动排班（P0.2 合入同一事务）
  * 7. 丹药持续效果全量月衰减（每月 3 旬口径）

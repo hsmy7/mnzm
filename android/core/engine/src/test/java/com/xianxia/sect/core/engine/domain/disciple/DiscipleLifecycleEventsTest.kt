@@ -19,7 +19,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 验证 [DiscipleLifecycleManager.initializeLifeEvents] 的合成历史事件生成逻辑。
  *
- * 该功能为旧存档首次查看弟子详情时生成加入宗门/拜师/结为道侣的合成日志，
+ * 该功能为旧存档首次查看弟子详情时生成加入宗门/拜师的合成日志，
  * 仅当尚无日志时写入。使用 delegate mock 模式（同 DiscipleServiceCrudTest）注入 GameStateStore。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
@@ -67,11 +67,11 @@ class DiscipleLifecycleEventsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 无招募/师父/道侣 — 不写入任何事件
+    // 无招募时间/无师父 — 不写入任何事件
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `initializeLifeEvents - no recruit master partner writes nothing`() {
+    fun `initializeLifeEvents - no recruit and no master writes nothing`() {
         insertDisciple(1)
 
         lifecycleManager.initializeLifeEvents("1")
@@ -127,23 +127,6 @@ class DiscipleLifecycleEventsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 道侣事件 — 道侣名从名字表解析
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    fun `initializeLifeEvents - generates partner event with partner name`() {
-        insertDisciple(1)
-        insertDisciple(3, name = "林婉清")
-        tables.partnerIds[1] = "3"
-
-        lifecycleManager.initializeLifeEvents("1")
-
-        val events = tables.lifeEvents.getOrNull(1)
-        assertNotNull("events should be generated", events)
-        assertTrue("partner event missing: $events", events!!.contains("与林婉清结为道侣"))
-    }
-
-    // ═══════════════════════════════════════════════════════════════
     // 幂等 — 已有日志时不覆盖、不重复生成
     // ═══════════════════════════════════════════════════════════════
 
@@ -174,24 +157,22 @@ class DiscipleLifecycleEventsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 综合 — 全部事件按序生成（加入宗门 → 拜师 → 道侣）
+    // 综合 — 全部事件按序生成（加入宗门 → 拜师）
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `initializeLifeEvents - generates all events in order`() {
+    fun `initializeLifeEvents - generates join and master events in order`() {
         insertDisciple(1)
         insertDisciple(2, name = "玄机真人")
-        insertDisciple(3, name = "林婉清")
         setGameTime(year = 2, month = 1)
         tables.recruitedMonths[1] = 13
         tables.masterIds[1] = "2"
-        tables.partnerIds[1] = "3"
 
         lifecycleManager.initializeLifeEvents("1")
 
         val events = tables.lifeEvents.getOrNull(1)
         assertEquals(
-            listOf("加入宗门", "拜玄机真人为师", "与林婉清结为道侣"),
+            listOf("加入宗门", "拜玄机真人为师"),
             events
         )
     }

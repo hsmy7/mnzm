@@ -136,8 +136,7 @@ internal object MirrorProtoFeedFixture {
     )
 
     private fun richSocial(): SocialData = SocialData(
-        partnerId = "p2", partnerSectId = null, parentId1 = null, parentId2 = "pp2",
-        lastChildYear = 12, childBirthMonth = 7, griefEndYear = 20, masterId = "ms1",
+        masterId = "ms1",
     )
 
     private fun richSkills(): SkillStats = SkillStats(

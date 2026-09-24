@@ -194,13 +194,6 @@ class DiscipleTables {
     val equipmentNurturingCompletionPhases = IntComponentTable()
 
     // === 社交 ===
-    val partnerIds = ComponentTable<String?>()       // nullable
-    val partnerSectIds = ComponentTable<String?>()
-    val parentId1s = ComponentTable<String?>()
-    val parentId2s = ComponentTable<String?>()
-    val lastChildYears = IntComponentTable()
-    val childBirthMonths = ComponentTable<Int?>()    // nullable
-    val griefEndYears = IntComponentTable()
     val masterIds = ComponentTable<String?>()        // 师父弟子ID（师徒关系）
 
     // === 技能属性 ===
@@ -238,9 +231,6 @@ class DiscipleTables {
     /** 所有组件表的统一引用列表，用于 [remove]/[clear]/[bindAllOnWrite]/[deepCopy] 的迭代操作 */
     companion object {
         private const val TAG = "DiscipleTables"
-
-        /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
-        const val GRIEF_YEAR_NULL_SENTINEL = -1
 
         /** 资质默认值：=50 表示"未生成"（旧档 Migration/序列化默认），读档自愈 [healDefaultAptitudes] 按灵根补算 */
         const val DEFAULT_APTITUDE = 50

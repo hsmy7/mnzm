@@ -9,7 +9,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.state.MutableGameState
 
-// ── DiscipleStatCalculator 拆分域 1/7（行为零变更） ──
+// ── DiscipleStatCalculator 拆分域 1/6（行为零变更） ──
 internal fun DiscipleStatCalculator.aptitudeCultivationBonus(aptitude: Int): Double =
     ((aptitude - APTITUDE_BASELINE).coerceAtLeast(0) * APTITUDE_BONUS_PER_POINT)
         .coerceAtMost(APTITUDE_MAX_BONUS)

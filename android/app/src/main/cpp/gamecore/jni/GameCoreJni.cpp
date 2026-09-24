@@ -618,7 +618,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
 //   {"op":"breakthroughChanceZones", "baseZone":0.5, "elderGuidance":0.1,
 //    "selfBonus":0.05, "statusPenalty":0.1, "adFlatBonus":0.0}
 //   {"op":"masterDiscipleBonus", "discipleRealm":9, "masterRealm":7}
-//   {"op":"parentSpiritRootBonus", "rootCount":1}
 //   {"op":"aptitudeCultivationBonus", "aptitude":90}
 //
 // 天赋/词条/体质注册表通道（trait_db → 聚合函数，对拍用）：
@@ -818,9 +817,6 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
             op.value("discipleRealm", 9), op.value("masterRealm", 9));
         result["breakthroughBonus"] = gamecore::disciple::getMasterDiscipleBreakthroughBonus(
             op.value("discipleRealm", 9), op.value("masterRealm", 9));
-    } else if (opName == "parentSpiritRootBonus") {
-        result["value"] = gamecore::disciple::getParentSpiritRootBonus(
-            op.value("rootCount", 3));
     } else if (opName == "aptitudeCultivationBonus") {
         result["value"] = gamecore::disciple::aptitudeCultivationBonus(
             op.value("aptitude", 80));

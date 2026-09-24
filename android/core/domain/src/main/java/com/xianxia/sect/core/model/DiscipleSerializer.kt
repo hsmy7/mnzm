@@ -29,8 +29,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * - slotId 不序列化（Room 复合主键，非游戏字段）
  */
 object DiscipleSerializer : KSerializer<Disciple> {
-    // Protobuf 不支持 null，使用 -1 表示 null（哨兵值，与 NULL_INT_SENTINEL 一致）
-    private const val NULL_INT_SENTINEL = -1
     override val descriptor: SerialDescriptor = DiscipleSurrogate.serializer().descriptor
 
     override fun serialize(encoder: Encoder, value: Disciple) {
@@ -137,13 +135,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             spiritStones = value.equipment.spiritStones,
 
             // ===== SocialData @Embedded =====
-            partnerId = value.social.partnerId ?: "",
-            partnerSectId = value.social.partnerSectId ?: "",
-            parentId1 = value.social.parentId1 ?: "",
-            parentId2 = value.social.parentId2 ?: "",
-            lastChildYear = value.social.lastChildYear,
-            childBirthMonth = value.social.childBirthMonth ?: 0,
-            griefEndYear = value.social.griefEndYear ?: NULL_INT_SENTINEL,
             masterId = value.social.masterId ?: "",
 
             // ===== UsageTracking @Embedded =====
@@ -282,13 +273,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 spiritStones = surrogate.spiritStones
             ),
             social = SocialData(
-                partnerId = surrogate.partnerId.ifEmpty { null },
-                partnerSectId = surrogate.partnerSectId.ifEmpty { null },
-                parentId1 = surrogate.parentId1.ifEmpty { null },
-                parentId2 = surrogate.parentId2.ifEmpty { null },
-                lastChildYear = surrogate.lastChildYear,
-                childBirthMonth = surrogate.childBirthMonth.takeIf { it != 0 },
-                griefEndYear = surrogate.griefEndYear.takeIf { it != NULL_INT_SENTINEL },
                 masterId = surrogate.masterId.ifEmpty { null }
             ),
             usage = UsageTracking(
@@ -420,13 +404,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(28) val spiritStones: Int = 0,
 
         // ===== SocialData @Embedded =====
-        @ProtoNumber(11) val partnerId: String = "",
-        @ProtoNumber(12) val partnerSectId: String = "",
-        @ProtoNumber(13) val parentId1: String = "",
-        @ProtoNumber(14) val parentId2: String = "",
-        @ProtoNumber(15) val lastChildYear: Int = 0,
-        @ProtoNumber(102) val childBirthMonth: Int = 0,
-        @ProtoNumber(16) val griefEndYear: Int = NULL_INT_SENTINEL,
+        // reserved 11,12,13,14,15,16,102;（partnerId/partnerSectId/parentId1/parentId2/
+        // lastChildYear/griefEndYear/childBirthMonth 字段号已退役，禁止复用）
         @ProtoNumber(93) val masterId: String = "",
 
         // ===== SkillStats @Embedded =====

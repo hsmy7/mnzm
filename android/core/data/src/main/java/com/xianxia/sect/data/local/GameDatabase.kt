@@ -76,7 +76,7 @@ internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
     MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53,
-    MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56
+    MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57
 )
 
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
@@ -91,7 +91,7 @@ object GameDatabaseConfig {
      * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 56
+    const val DATABASE_VERSION = 57
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -204,6 +204,11 @@ object GameDatabaseConfig {
     // last_ai_sect_recruit_year/open_recruitment_last_paid_month/autoRecruitSpiritRootFilter/
     // autoRejectSpiritRootFilter 五列；sect_policy_state 删除 autoRecruitSpiritRootFilter
     // 一列（招募链/广纳门徒/自动过滤下线，读写面同批清零；recruitList 列保留恒空）。详见该迁移 KDoc
+    // v57: MIGRATION_56_57 字段链删列（G03）——disciples 删除 social_partnerId/
+    // social_partnerSectId/social_parentId1/social_parentId2/social_lastChildYear/
+    // social_childBirthMonth/social_griefEndYear 七列（social_masterId 师徒列保留）；
+    // game_data 与 sect_policy_state 各删除 daoCompanionBannedRootCounts/
+    // daoCompanionConsentRequired 两列（生育/道侣/亲缘玩法下线，读写面同批清零）。详见该迁移 KDoc
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 

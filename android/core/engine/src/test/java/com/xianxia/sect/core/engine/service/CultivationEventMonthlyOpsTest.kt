@@ -52,10 +52,10 @@ class CultivationEventMonthlyOpsTest {
 
     // ═══════════════════════════════════════════════════════════════
     // L3b 年变拆分守卫：T1 立即组（8 项，单事务同步执行）
-    // T2 延迟组（10 项，入队不立即执行，drain 后按原相对序执行）
+    // T2 延迟组（8 项，入队不立即执行，drain 后按原相对序执行）
     // ═══════════════════════════════════════════════════════════════
 
-    // 测试夹具：10 个服务引用聚合（T1/T2 顺序断言各自需要），分组类反而引入中间结构
+    // 测试夹具：9 个服务引用聚合（T1/T2 顺序断言各自需要），分组类反而引入中间结构
     @Suppress("LongParameterList")
     private class ProcessorHarness(
         val processor: CultivationEventProcessor,
@@ -151,12 +151,12 @@ class CultivationEventMonthlyOpsTest {
     }
 
     @Test
-    fun `processYearlyEvents - T2 延迟组 10 项入队 不立即执行 drain 后按原相对序`() {
+    fun `processYearlyEvents - T2 延迟组 8 项入队 不立即执行 drain 后按原相对序`() {
         val h = createHarness()
 
         h.processor.processYearlyEvents(2026)
 
-        assertEquals("T2 延迟组应入队 10 项", 10, h.processor.yearlyOpsQueue.size)
+        assertEquals("T2 延迟组应入队 8 项", 8, h.processor.yearlyOpsQueue.size)
 
         // 入队后未执行（FIFO 队列，等待 tick drain）
         verify(h.caveProcessor, never()).processSectDisciplesAging(any(), any())
@@ -168,17 +168,15 @@ class CultivationEventMonthlyOpsTest {
         assertEquals("drain 后队列清空", 0, h.processor.yearlyOpsQueue.size)
         val inOrder: InOrder = Mockito.inOrder(
             h.caveProcessor, h.merchantAndRecruitService, h.diplomacyService,
-            h.diplomacyEventProcessor, h.discipleLifecycleProcessor, h.secretRealmService
+            h.diplomacyEventProcessor, h.secretRealmService
         )
         inOrder.verify(h.caveProcessor).processSectDisciplesAging(eq(2026), any())
         inOrder.verify(h.merchantAndRecruitService).refreshMerchantAcquisition(2026, 1)
         inOrder.verify(h.diplomacyService).refreshAllSectTrades(2026)
-        inOrder.verify(h.diplomacyEventProcessor).processCrossSectPartnerMatching(2026, 1)
         inOrder.verify(h.diplomacyEventProcessor).checkAllianceExpiry(2026)
         inOrder.verify(h.diplomacyEventProcessor).checkAllianceFavorDrop()
         inOrder.verify(h.diplomacyEventProcessor).processAIAlliances(2026)
         inOrder.verify(h.diplomacyEventProcessor).processFavorDecay(2026)
-        inOrder.verify(h.discipleLifecycleProcessor).processGriefExpiry(2026)
         inOrder.verify(h.secretRealmService).processYearlySpawn(eq(2026), any())
     }
 }

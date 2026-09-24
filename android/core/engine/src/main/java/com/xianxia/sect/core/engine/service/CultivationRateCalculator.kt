@@ -15,10 +15,8 @@ import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
-import com.xianxia.sect.core.engine.domain.disciple.isGrieving
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhaseColumn
-import com.xianxia.sect.core.engine.domain.disciple.getParentSpiritRootBonus
 import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
 
 /**
@@ -26,7 +24,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
  *
  * 职责：
  * - 计算弟子每旬修炼速度（乘区法）
- * - 修炼相关加成计算（住所、讲道、师徒、父母灵根、丧期惩罚）
+ * - 修炼相关加成计算（住所、讲道、师徒、政策）
  *
  * 缓存说明：
  * `manualInstanceMap` 和 `disciplesMap` 在同一个 stateStore.update {} 事务内
@@ -70,10 +68,6 @@ class CultivationRateCalculator @Inject constructor(
         val discipleProficiencies = data.manualProficiencies[disciple.id]
             ?.associateBy { it.manualId } ?: emptyMap()
 
-        val parentCultivationBonus = calculateParentBonusColumn(
-            disciple.social.parentId1, disciple.social.parentId2, tables
-        )
-
         // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
         val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
             val midInt = mid.toIntOrNull() ?: return@let 0.0
@@ -83,12 +77,6 @@ class CultivationRateCalculator @Inject constructor(
             } else 0.0
         } ?: 0.0
 
-        val griefPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
-            DiscipleStatCalculator.GRIEF_CULTIVATION_SPEED_PENALTY
-        } else {
-            0.0
-        }
-
         val perPhase = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple = disciple,
             manuals = manualInstanceMap,
@@ -97,8 +85,6 @@ class CultivationRateCalculator @Inject constructor(
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
             cultivationSubsidyBonus = calculatePolicyCultivationBonus(disciple.realm, data),
-            parentCultivationBonus = parentCultivationBonus,
-            griefCultivationSpeedPenalty = griefPenalty,
             masterDiscipleBonus = masterDiscipleBonus
         ).coerceAtLeast(1.0)
         return perPhase
@@ -134,14 +120,8 @@ class CultivationRateCalculator @Inject constructor(
         val discipleProficiencies = data.manualProficiencies[id.toString()]
             ?.associateBy { it.manualId } ?: emptyMap()
 
-        val parentCultivationBonus = calculateParentBonusColumn(
-            tables.parentId1s.getOrNull(id), tables.parentId2s.getOrNull(id), tables
-        )
         val masterDiscipleBonus = calculateMasterDiscipleBonusColumn(
             realm = realm, id = id, tables = tables
-        )
-        val griefPenalty = calculateGriefPenaltyColumn(
-            id = id, data = data, tables = tables
         )
 
         return DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
@@ -152,8 +132,6 @@ class CultivationRateCalculator @Inject constructor(
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
             cultivationSubsidyBonus = calculatePolicyCultivationBonus(realm, data),
-            parentCultivationBonus = parentCultivationBonus,
-            griefCultivationSpeedPenalty = griefPenalty,
             masterDiscipleBonus = masterDiscipleBonus
         ).coerceAtLeast(1.0)
     }
@@ -172,25 +150,6 @@ class CultivationRateCalculator @Inject constructor(
                 DiscipleStatCalculator.getMasterDiscipleCultivationBonus(realm, masterRealm)
             } else 0.0
         } ?: 0.0
-    }
-
-    /** 列直读版丧期惩罚：显式过滤哨兵值 -1 与 assemble 路径严格一致 */
-    private fun calculateGriefPenaltyColumn(
-        id: Int,
-        data: GameData,
-        tables: DiscipleTables
-    ): Double {
-        // 显式过滤哨兵值 -1（GRIEF_YEAR_NULL_SENTINEL）→ null，
-        // 与 assemble 路径的 takeIf 过滤严格一致（防篡改负年份时两入口分歧）
-        val griefEndYear = tables.griefEndYears.getOrNull(id)
-            ?.takeIf { it != DiscipleTables.GRIEF_YEAR_NULL_SENTINEL }
-        return if (
-            DiscipleStatCalculator.isGrieving(griefEndYear, data.gameYear)
-        ) {
-            DiscipleStatCalculator.GRIEF_CULTIVATION_SPEED_PENALTY
-        } else {
-            0.0
-        }
     }
 
     /** 列直读版乘区输入构建：默认值与 assemble 路径一致，防半幽灵数据两入口分歧 */
@@ -261,20 +220,6 @@ class CultivationRateCalculator @Inject constructor(
     }
 
     // ── 私有辅助方法 ──────────────────────────────────
-
-    /** 列直读版父母灵根加成，无 assemble。对标 calculateParentCultivationBonus。 */
-    private fun calculateParentBonusColumn(
-        parentId1: String?, parentId2: String?, tables: DiscipleTables
-    ): Double {
-        /** 单地块总加速倍率（O(1)，光环判定走预构建索引） */
-        fun bonusFor(pid: String?): Double {
-            val id = pid?.toIntOrNull() ?: return 0.0
-            if (tables.isAlive[id] != 1) return 0.0
-            val rootCount = tables.spiritRootTypes.getOrNull(id)?.split(",")?.size ?: 0
-            return DiscipleStatCalculator.getParentSpiritRootBonus(rootCount)
-        }
-        return bonusFor(parentId1) + bonusFor(parentId2)
-    }
 
     /** 列直读版讲道加成 + 导师加成，无 assemble。对标原 calculatePreachingBonuses。 */
     private fun calculatePreachingBonuses(

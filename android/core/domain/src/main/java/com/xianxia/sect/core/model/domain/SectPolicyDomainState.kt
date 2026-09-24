@@ -13,9 +13,7 @@ import com.xianxia.sect.core.model.SectPolicies
  */
 data class SectPolicyDomainState(
     val sectPolicies: SectPolicies = SectPolicies(),
-    val daoCompanionBannedRootCounts: Set<Int> = emptySet(),
     val prisonerSpiritRootFilter: Set<Int> = emptySet(),
-    val daoCompanionConsentRequired: Boolean = false,
     val breakthroughAutoPillFocused: Boolean = false,
     val breakthroughAutoPillRootCounts: Set<Int> = emptySet(),
     val autoEquipFromWarehouseFocused: Boolean = false,
@@ -35,9 +33,7 @@ data class SectPolicyDomainState(
 /** 从 GameData 提取宗门政策领域状态 */
 fun GameData.extractSectPolicyState(): SectPolicyDomainState = SectPolicyDomainState(
     sectPolicies = sectPolicies,
-    daoCompanionBannedRootCounts = daoCompanionBannedRootCounts,
     prisonerSpiritRootFilter = prisonerSpiritRootFilter,
-    daoCompanionConsentRequired = daoCompanionConsentRequired,
     breakthroughAutoPillFocused = breakthroughAutoPillFocused,
     breakthroughAutoPillRootCounts = breakthroughAutoPillRootCounts,
     autoEquipFromWarehouseFocused = autoEquipFromWarehouseFocused,
@@ -51,9 +47,7 @@ fun GameData.extractSectPolicyState(): SectPolicyDomainState = SectPolicyDomainS
 /** 将宗门政策领域状态合并回 GameData */
 fun GameData.mergeSectPolicyState(state: SectPolicyDomainState): GameData = copy(
     sectPolicies = state.sectPolicies,
-    daoCompanionBannedRootCounts = state.daoCompanionBannedRootCounts,
     prisonerSpiritRootFilter = state.prisonerSpiritRootFilter,
-    daoCompanionConsentRequired = state.daoCompanionConsentRequired,
     breakthroughAutoPillFocused = state.breakthroughAutoPillFocused,
     breakthroughAutoPillRootCounts = state.breakthroughAutoPillRootCounts,
     autoEquipFromWarehouseFocused = state.autoEquipFromWarehouseFocused,

@@ -31,7 +31,6 @@ import com.xianxia.sect.core.engine.service.YearSettlementExecutor
 import com.xianxia.sect.core.engine.service.YearSettlementResidualExecutor
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.engine.parseMonthSettlementEnvelope
@@ -291,23 +290,23 @@ class DiffAuthoritativeTickTest {
                 manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                 mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.calculateCultivationPerPhase(d, manuals, mps, bb, peb, pmb, csb, pcb, gcp)
+                csb: Double, mdb: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(d, manuals, mps, bb, peb, pmb, csb, mdb)
             override fun calculateCultivationSpeed(
                 a: DiscipleAggregate,
                 manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                 mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.calculateCultivationPerPhase(a, manuals, mps, bb, peb, pmb, csb, pcb, gcp)
+                csb: Double, mdb: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(a, manuals, mps, bb, peb, pmb, csb, mdb)
             override fun getBreakthroughChance(
                 d: Disciple, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+                ab: Double, mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+                ab: Double, mdb: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
         }
     }
 
@@ -361,7 +360,7 @@ class DiffAuthoritativeTickTest {
         )
         // 死亡链平台效应（对齐 DiffYearSettlementTest 同款装配）：换装真实
         // DiscipleLifecycleProcessor——年变死亡链的 Kotlin 平台效应
-        // （DAO 清理/DeathEvent）须真实执行；场景无死亡 → 槽位/哀悼/DAO
+        // （DAO 清理/DeathEvent）须真实执行；场景无死亡 → 槽位/DAO
         // 平台效应零触发（discipleSlotCleanup/productionCoordinator/
         // inventorySystem/deathHandler mock 无害）；discipleStatusService
         // mock（syncAllDiscipleStatuses 为派生态同步，本场景无状态迁移面）
@@ -413,7 +412,7 @@ class DiffAuthoritativeTickTest {
         val monthExecutor = MonthSettlementExecutor(
             cultivationService = service,
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
-            systemManager = SystemManager(setOf(PartnerSystem(gameRng)))
+            systemManager = SystemManager(emptySet())
         )
         return Triple(
             service,
@@ -608,7 +607,7 @@ class DiffAuthoritativeTickTest {
             val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
             assertTrue("年变镜像失败", sync.applyDirty(dirty) != null)
             // 非捕获事务（生产 GameEngineCoreYearOps 同款——C++ 事实的 Kotlin 投影）
-            store.updateMirror { ex.yearResidual.execute(this, env) }
+            store.updateMirror { ex.yearResidual.execute(env) }
         }
         if (monthChanged) {
             val env = parseMonthSettlementEnvelope(

@@ -9,9 +9,6 @@ import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SocialData
-import com.xianxia.sect.core.model.griefEndYear
-import com.xianxia.sect.core.model.parentId1
-import com.xianxia.sect.core.model.parentId2
 import com.xianxia.sect.core.model.pillCultivationSpeedBonus
 import com.xianxia.sect.core.model.pillEffectDuration
 import com.xianxia.sect.core.model.teaching
@@ -34,7 +31,7 @@ import org.robolectric.RobolectricTestRunner
  * 与对象式版 [CultivationRateCalculator.calculateDiscipleCultivationPerPhase] 在全部
  * 乘区组合下必须输出一致（1e-9 精度）。
  *
- * 覆盖维度：境界/弟子类型/灵根数量/政策津贴/哀悼/父母/师徒/丹药临时加速/功法熟练度。
+ * 覆盖维度：境界/弟子类型/灵根数量/政策津贴/师徒/丹药临时加速/功法熟练度。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -101,17 +98,13 @@ class CultivationRateEquivalenceTest {
         result.addAll(basicComboFixtures(base = base))
         // 2. 政策津贴：cultivationSubsidy 仅 realm>5 生效
         result.addAll(policySubsidyFixtures(base = base))
-        // 3. 父母灵根加成（父母存活、双灵根）+ 4. 父母死亡（无加成）
-        result.addAll(parentFixtures(base = base))
-        // 5. 师徒加成：师父低境界（弟子 realm >= 师父 realm 且有 teaching）
+        // 3. 师徒加成：师父低境界（弟子 realm >= 师父 realm 且有 teaching）
         result.addAll(masterFixtures(base = base))
-        // 6. 哀悼期：进行中 / 已结束
-        result.addAll(griefFixtures(base = base))
-        // 7. 丹药临时加速
+        // 4. 丹药临时加速
         result.addAll(pillFixtures(base = base))
-        // 9. 功法熟练度（走 ManualDatabase 兜底路径）
+        // 6. 功法熟练度（走 ManualDatabase 兜底路径）
         result.addAll(manualProficiencyFixtures(base = base))
-        // 10-11. 讲道长老加成（含 teachingFlat 跨阈值回归）
+        // 7-8. 讲道长老加成（含 teachingFlat 跨阈值回归）
         result.addAll(preachingElderFixtures(base = base))
 
         return result
@@ -161,28 +154,6 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 父母灵根加成：父母存活 / 死亡 */
-    private fun parentFixtures(base: GameData): List<Fixture> = buildList {
-        val parent1 = makeDisciple(id = "100", name = "父亲", realm = 5, spiritRootType = "metal,fire")
-        val parent2 = makeDisciple(id = "101", name = "母亲", realm = 6, spiritRootType = "metal,wood")
-        add(
-            Fixture(
-                "with living parents",
-                makeDisciple(social = SocialData(parentId1 = "100", parentId2 = "101")),
-                base,
-                listOf(parent1, parent2)
-            )
-        )
-        add(
-            Fixture(
-                "with dead parent",
-                makeDisciple(social = SocialData(parentId1 = "100")),
-                base,
-                listOf(parent1.copy(isAlive = false))
-            )
-        )
-    }
-
     /** 师徒加成：师父存活 / 已死 */
     private fun masterFixtures(base: GameData): List<Fixture> = buildList {
         val master = makeDisciple(
@@ -203,24 +174,6 @@ class CultivationRateEquivalenceTest {
                 makeDisciple(social = SocialData(masterId = "200")),
                 base,
                 listOf(master.copy(isAlive = false))
-            )
-        )
-    }
-
-    /** 哀悼期：进行中 / 已结束 */
-    private fun griefFixtures(base: GameData): List<Fixture> = buildList {
-        add(
-            Fixture(
-                "grieving (currentYear < griefEndYear)",
-                makeDisciple(social = SocialData(griefEndYear = 10)),
-                base.copy(gameYear = 5)
-            )
-        )
-        add(
-            Fixture(
-                "grief over (currentYear >= griefEndYear)",
-                makeDisciple(social = SocialData(griefEndYear = 3)),
-                base.copy(gameYear = 5)
             )
         )
     }
@@ -385,24 +338,6 @@ class CultivationRateEquivalenceTest {
         )
         val columnRate = calculator.calculateCultivationPerPhaseById(1, data, tables)
         assertEquals("列缺失默认50：object=$objectRate column=$columnRate", objectRate, columnRate, 1e-9)
-    }
-
-    @Test
-    fun `grief sentinel -1 with tampered negative year stays equivalent`() {
-        // F2 回归：篡改存档使 gameYear 为负 + griefEndYears 哨兵 -1 时，
-        // 列直读路径必须与 assemble 路径（takeIf 过滤哨兵 → null）严格一致
-        val tables = DiscipleTables()
-        val d = makeDisciple(realm = 9)
-        tables.insert(d)
-        tables.griefEndYears[1] = DiscipleTables.GRIEF_YEAR_NULL_SENTINEL
-
-        val data = GameData(gameYear = -5, gameMonth = 1)
-        val objectRate = calculator.calculateDiscipleCultivationPerPhase(d, data, tables)
-        val columnRate = calculator.calculateCultivationPerPhaseById(1, data, tables)
-        assertEquals(
-            "哨兵 -1 + 负年份：object=$objectRate column=$columnRate",
-            objectRate, columnRate, 1e-9
-        )
     }
 
     @Test

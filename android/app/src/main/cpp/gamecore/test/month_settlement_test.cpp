@@ -6,10 +6,10 @@
 //
 // 覆盖：政策月度扣除（含不足自动关闭 / 广纳门徒 36 月冷却）/ 政策月度忠诚·
 // 道德效果 / 住所忠诚 / 血炼到期结算与未到期保留（含 NaN 防御）/ 丹药持续
-// 效果月衰减 / 道侣配对双分支（SYSTEM RNG 审计）/ 灵田收获种子 roll
+// 效果月衰减 / 灵田收获种子 roll
 // （SYSTEM RNG 审计 + 续种匹配）/ 世界关卡清理与妖兽移动（EXPLORATION
 // RNG 审计 + 边界钳制）/ 灵矿月产差分结算与矿工忠诚衰减 / 游戏结束判定 /
-// 招募计数归零 + SYSTEM 分区抽取顺序锁（收获 roll 先于伴侣配对）。
+// 招募计数归零 + SYSTEM 分区抽取顺序锁（收获 roll 抽取次数与序）。
 //
 // RNG 审计方法（同 phase_settlement_test）：SYSTEM 分区播种规则
 // fromSeed(seed + partitionId)（kSystem=3）、EXPLORATION 为 seed+2——测试用
@@ -43,8 +43,6 @@ using gamecore::state::SpiritFieldPlant;
 using gamecore::state::SpiritMineSlot;
 using gamecore::state::WorldLevel;
 
-/// 道侣配对基础概率（PartnerSystem.PAIRING_PROBABILITY）
-constexpr double kPairingProbability = 0.006;
 /// 教化之道道德上限（GameConfig.PolicyConfig.MORAL_EDUCATION_MAX）
 constexpr int32_t kMoralEducationMax = 70;
 /// 丹道激励月耗 / 功法研习月耗（GameConfig.PolicyConfig）
@@ -79,29 +77,11 @@ Disciple baseDisciple(const std::string& id) {
     return d;
 }
 
-/// 指定性别弟子（道侣配对候选构造）
-Disciple adultDisciple(const std::string& id, const char* gender) {
-    Disciple d = baseDisciple(id);
-    d.gender = gender;
-    return d;
-}
-
 /// 将时间拨到月末下旬并推进一旬 → 触发一次月变钩子（等价生产 tick 跨月路径）
 void crossMonth(std::unique_ptr<GameCore>& core) {
     auto& st = core->state();
     st.gameData.gamePhase = 2;
     core->advancePhases(1);
-}
-
-/// 在指定分区内扫描种子：首个满足 wantPaired（首抽 < 配对概率）的种子
-int64_t findSeedWhereFirstSystemDraw(int64_t begin, bool wantPaired) {
-    for (int64_t s = begin; s < begin + 100000; ++s) {
-        auto probe = gamecore::rng::DeterministicRng::fromSeed(s + 3);
-        const bool hits =
-            probe.nextDouble() < kPairingProbability;
-        if (hits == wantPaired) return s;
-    }
-    return -1;
 }
 
 // ── 步骤 1：政策月度灵石扣除 ────────────────────────────────────────
@@ -263,75 +243,6 @@ TEST(MonthSettlementTest, PillDurationDecayGoldenSequence) {
     EXPECT_DOUBLE_EQ(0.0, st.disciples.materialize(0).pillCritRateBonus);
     EXPECT_DOUBLE_EQ(0.0, st.disciples.materialize(0).pillCultivationSpeedBonus);
     EXPECT_TRUE(st.disciples.materialize(0).activePillTypes.empty());
-}
-
-// ── 步骤 4f：道侣配对（SYSTEM RNG 审计） ───────────────────────────
-
-TEST(MonthSettlementTest, PartnerMatchingPairedWithRngAudit) {
-    // 1 男 × 1 女：恰 1 次 SYSTEM nextDouble；选中配对成功种子 → 双向写
-    // partnerId + 婚姻事件；分区快照 == 预演一次 nextDouble 后快照
-    const int64_t seed = findSeedWhereFirstSystemDraw(1, true);
-    ASSERT_GT(seed, 0);
-    auto core = makeCore(seed);
-    auto& st = core->state();
-    st.disciples.appendDisciple(adultDisciple("1", "male"));
-    st.disciples.appendDisciple(adultDisciple("2", "female"));
-
-    crossMonth(core);
-
-    EXPECT_STREQ("2", st.disciples.materialize(0).partnerId.c_str());
-    EXPECT_STREQ("1", st.disciples.materialize(1).partnerId.c_str());
-    ASSERT_GE(st.gameData.gameEventRecords.size(), 1u);
-    const bool hasMarriageEvent = [&] {
-        for (const auto& e : st.gameData.gameEventRecords) {
-            if (e.eventType == "marriage") return true;
-        }
-        return false;
-    }();
-    EXPECT_TRUE(hasMarriageEvent);
-
-    auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 3);
-    probe.nextDouble();
-    EXPECT_EQ(probe.snapshot(),
-              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
-}
-
-TEST(MonthSettlementTest, PartnerMatchingNotPairedWithRngAudit) {
-    // 配对失败种子：仍消耗恰 1 次抽卡（组合通过过滤即抽），但不写任何字段
-    const int64_t seed = findSeedWhereFirstSystemDraw(1, false);
-    ASSERT_GT(seed, 0);
-    auto core = makeCore(seed);
-    auto& st = core->state();
-    st.disciples.appendDisciple(adultDisciple("1", "male"));
-    st.disciples.appendDisciple(adultDisciple("2", "female"));
-
-    crossMonth(core);
-
-    EXPECT_TRUE(st.disciples.materialize(0).partnerId.empty());
-    EXPECT_TRUE(st.disciples.materialize(1).partnerId.empty());
-    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
-
-    auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 3);
-    probe.nextDouble();
-    EXPECT_EQ(probe.snapshot(),
-              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
-}
-
-TEST(MonthSettlementTest, PartnerMatchingPairedFemaleSkippedZeroDraws) {
-    // 已有道侣的女性不入候选 → 女候选为空 → 早退零抽取
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple boy = adultDisciple("1", "male");
-    Disciple girl = adultDisciple("2", "female");
-    girl.partnerId = "9";                  // 已有道侣：不入女候选
-    st.disciples.appendDisciple(boy);
-    st.disciples.appendDisciple(girl);
-
-    crossMonth(core);
-
-    auto probe = gamecore::rng::DeterministicRng::fromSeed(42 + 3);
-    EXPECT_EQ(probe.snapshot(),              // 早退零抽取
-              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
 }
 
 // ── 步骤 4c：灵田收获（SYSTEM RNG 审计 + 续种） ────────────────────
@@ -554,9 +465,8 @@ TEST(MonthSettlementTest, GameOverNotJudgedWithoutPlayerSect) {
 // ── 步骤 8 子事件序 + SYSTEM 抽取顺序锁 ────────────────────────────
 
 TEST(MonthSettlementTest, RecruitResetAndSystemDrawOrderLock) {
-    // 组合守护：同一月变事务内 SYSTEM 分区抽取顺序 = 灵田收获 roll（先，
-    // Planting@214）→ 伴侣配对（后，Partner@240）；
-    // recruitCountThisMonth 归零子事件同步生效
+    // 组合守护：同一月变事务内 SYSTEM 分区抽取 = 灵田收获 roll
+    //（Planting@214）；recruitCountThisMonth 归零子事件同步生效
     const int64_t seed = 42;
     auto core = makeCore(seed);
     auto& st = core->state();
@@ -565,28 +475,23 @@ TEST(MonthSettlementTest, RecruitResetAndSystemDrawOrderLock) {
     warehouse.instanceId = "wh-1";
     st.gameData.placedBuildings.push_back(warehouse);
     st.gameData.spiritFieldPlants.push_back(maturePlant());
-    st.disciples.appendDisciple(adultDisciple("1", "male"));
-    st.disciples.appendDisciple(adultDisciple("2", "female"));
     st.gameData.recruitCountThisMonth = 7;
 
-    // 预演执行序：nextInt(5)（收获）→ nextDouble（配对，1 男×1 女 = 1 组合）
+    // 预演执行序：nextInt(5)（收获）
     auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 3);
     const int32_t roll = probe.nextInt(5);
-    const double pairDraw = probe.nextDouble();
 
     crossMonth(core);
 
     EXPECT_EQ(0, st.gameData.recruitCountThisMonth);
-    // 顺序锁：若实现交换两步顺序或增减抽取次数，快照必不等
+    // 顺序锁：若实现交换步骤顺序或增减抽取次数，快照必不等
     EXPECT_EQ(probe.snapshot(),
               core->rng().getRng(rng::RngPartition::kSystem).snapshot());
-    // 各步结果与预演序列逐位对应
+    // 结果与预演序列逐位对应
     if (roll > 0) {
         ASSERT_EQ(1u, st.seeds.size());
         EXPECT_EQ(roll, st.seeds[0].quantity);
     }
-    EXPECT_EQ(pairDraw < kPairingProbability,
-              !st.disciples.materialize(0).partnerId.empty());
 }
 
 // ── 回归守护 ───────────────────────────────────────────────────────
@@ -924,7 +829,6 @@ TEST(VassalProbe, JsonImportThenMonthlyDrawCount) {
         st.gameData.gameYear = 1; st.gameData.gameMonth = 1;
         st.gameData.spiritStones = 10000;
         st.gameData.sectPolicies.benevolentGovernance = true;
-        st.gameData.daoCompanionConsentRequired = false;
         setupVassalScene(st, 6);
         state::SectRelation relation;
         relation.sectId1 = "p1"; relation.sectId2 = "ai-9"; relation.favor = 100;
@@ -945,7 +849,7 @@ TEST(VassalProbe, JsonImportThenMonthlyDrawCount) {
     EXPECT_EQ(1u, st2.aiSectDisciples.at("ai-9").size());
     EXPECT_TRUE(st2.gameData.worldMapSects[0].isPlayerSect);
     EXPECT_EQ(1u, st2.aiSectDisciples.count("ai-9"));
-    // 跑月变：场景弟子未指定性别（不入道侣配对候选）→ SYSTEM 恰抽 1 次
+    // 跑月变：场景弟子不触发灵田/生产抽取 → SYSTEM 恰抽 1 次
     // = 附庸脱离判定
     auto sys = gamecore::rng::DeterministicRng::fromSeed(20260901 + 3);
     sys.nextInt(); sys.nextInt(); sys.nextInt();
@@ -1543,8 +1447,8 @@ TEST(MonthSettlementTest, PrecomputeTargetsSameSectTwoBeastsSnapshotSemantics) {
 // （lastRefreshMonth==0 || 差值>=3）→ 玩家宗门门控（无 → 只清理不生成不推进）
 // → LevelGenerator.generateWorldLevels（maxNewLevels=6 → nextInt(6)+1 个）+
 // playerAvgRealm 安全兜底 → lastRefreshMonth 推进 → 妖兽移动。
-// 直接测 runMonthSettlement 步骤 4e 效果（场景无灵田/配对/政策 → 其余步骤
-// 零 RNG；EXPLORATION 消费仅来自 4e——生成 + 移动）。
+// 直接测 runMonthSettlement 步骤 4d 效果（场景无灵田/政策 → 其余步骤
+// 零 RNG；EXPLORATION 消费仅来自 4d——生成 + 移动）。
 
 TEST(MonthSettlementTest, WorldLevelRefreshGeneratesLevelsWithPlayerSect) {
     // 玩家宗门 + lastRefreshMonth=0 → 应刷新：生成 1~6 个新关卡 + 推进刷新月

@@ -13,7 +13,7 @@ import javax.inject.Singleton
  *
  * 好感度相关事件（月度外交事件、好感度衰减、联盟好感度检查）
  * 已委托给 [FavorEventProcessor]。
- * 本类保留联盟到期检查、AI 联盟和跨宗门联姻的扩展点。
+ * 本类保留联盟到期检查与 AI 联盟的扩展点。
  */
 @Singleton
 @GameService("DiplomacyEventProcessor")
@@ -56,13 +56,8 @@ class DiplomacyEventProcessor @Inject constructor(
 
     // ── 扩展点 ───────────────────────────────────────
 
-    @Suppress("UnusedParameter") // year: 扩展点签名：跨宗门联姻/自动结盟系统未实现，保留编排签名位
+    @Suppress("UnusedParameter") // year: 扩展点签名：跨宗门自动结盟系统未实现，保留编排签名位
     fun processAIAlliances(year: Int) {
         // AI宗门自动结盟逻辑尚未实现，保留为扩展点。
-    }
-
-    @Suppress("UnusedParameter") // year/month: 扩展点签名：跨宗门联姻系统未实现，保留编排签名位
-    fun processCrossSectPartnerMatching(year: Int, month: Int) {
-        // 跨宗门联姻系统尚未实现，保留为扩展点。
     }
 }

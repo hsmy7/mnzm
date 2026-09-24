@@ -5,33 +5,36 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GiftRelationshipType
 import com.xianxia.sect.core.model.ItemEffect
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.model.parentId1
-import com.xianxia.sect.core.model.parentId2
 import com.xianxia.sect.core.model.storageBagItems
-import com.xianxia.sect.core.model.GiftRelationshipType
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
+import org.mockito.kotlin.whenever
 import org.junit.runner.RunWith
 import org.junit.Rule
 import org.robolectric.RobolectricTestRunner
 
-
-
 /**
  * RelativeGiftHandler 单元测试。
  *
- * 覆盖：亲属查找、关系分类、物品选择优先级、装备/功法槽位检测、
- * 物品转移安全约束、完整赠送流程。
+ * 覆盖：师徒亲属查找、师徒关系分类与保底概率门、物品选择优先级、
+ * 装备/功法槽位检测、物品转移安全约束、完整赠送流程。
+ *
+ * 关系面为**师徒两类**：师父 `0.40` / 徒弟 `0.30`（与 C++ `relative_gift.h`
+ * `kMasterGiftProb` / `kApprenticeGiftProb` 同源）。
  *
  * 使用 Robolectric 获得真实的 SparseArray 实现
  * （DiscipleTables 底层依赖 android.util.SparseArray）。
@@ -41,13 +44,14 @@ import org.robolectric.RobolectricTestRunner
 class RelativeGiftHandlerTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
+
     private lateinit var handler: RelativeGiftHandler
     private lateinit var tables: DiscipleTables
     private lateinit var state: MutableGameState
 
     @Before
     fun setUp() {
-        handler = RelativeGiftHandler(mock())
+        handler = giftHandlerWith(FIXED_GIFT_PROB)
         tables = DiscipleTables()
         state = MutableGameState(
             gameData = GameData(id = "test", gameYear = 1, gameMonth = 1),
@@ -61,7 +65,7 @@ class RelativeGiftHandlerTest {
             herbs = EntityStore(emptyList()),
             seeds = EntityStore(emptyList()),
             storageBags = EntityStore(emptyList()),
-                        battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false,
             isLoading = false,
             isSaving = false
@@ -69,6 +73,23 @@ class RelativeGiftHandlerTest {
     }
 
     // ==================== 辅助方法 ====================
+
+    /** 装配恒定给出 [probability] 的 SYSTEM 分区 RNG 的处理器。 */
+    private fun giftHandlerWith(probability: Double): RelativeGiftHandler {
+        val rngManager = mock(GameRngManager::class.java)
+        whenever(rngManager.getRng(RngPartition.SYSTEM)).thenReturn(FixedRollRng(probability))
+        return RelativeGiftHandler(rngManager)
+    }
+
+    /**
+     * 恒定产出同一 [nextDouble] 值的 RNG。
+     *
+     * `DeterministicRng.nextDouble()` 的实现是 `(nextInt() and 0x7FFFFFFF) / 2^31`，
+     * 故覆写 open 的 [nextInt] 即可精确控制抽取值，无需依赖种子序列。
+     */
+    private class FixedRollRng(private val probability: Double) : DeterministicRng(0L) {
+        override fun nextInt(): Int = (probability * DOUBLE_SCALE).toLong().toInt()
+    }
 
     private fun insertDisciple(
         id: Int,
@@ -87,18 +108,8 @@ class RelativeGiftHandlerTest {
         tables.insert(d)
     }
 
-    private fun setPartner(a: Int, b: Int) {
-        tables.partnerIds[a] = b.toString()
-        tables.partnerIds[b] = a.toString()
-    }
-
     private fun setMaster(apprenticeId: Int, masterId: Int) {
         tables.masterIds[apprenticeId] = masterId.toString()
-    }
-
-    private fun setParent(childId: Int, parentId1: Int, parentId2: Int? = null) {
-        tables.parentId1s[childId] = parentId1.toString()
-        parentId2?.let { tables.parentId2s[childId] = it.toString() }
     }
 
     private fun addToBag(
@@ -150,115 +161,129 @@ class RelativeGiftHandlerTest {
         )
     }
 
+    /** 让 receiver 储物袋可赠送（两件以上，满足保留 1 件约束）。 */
+    private fun fillGiverBag(giverId: Int) {
+        addToBag(giverId, "pill", "pill_1", rarity = 3)
+        addToBag(giverId, "pill", "pill_2", rarity = 5)
+    }
+
     // ==================== 亲属查找测试 ====================
-
-    @Test
-    fun `findRelatives - 道侣关系正确识别`() {
-        insertDisciple(1); insertDisciple(2)
-        setPartner(1, 2)
-        val relatives = handler.findRelatives(1, tables)
-        assertEquals(listOf(2), relatives)
-    }
-
-    @Test
-    fun `findRelatives - 道侣关系双向识别`() {
-        insertDisciple(1); insertDisciple(2)
-        setPartner(1, 2)
-        val relativesOf2 = handler.findRelatives(2, tables)
-        assertEquals(listOf(1), relativesOf2)
-    }
 
     @Test
     fun `findRelatives - 师父关系正确识别`() {
         insertDisciple(1); insertDisciple(2)
         setMaster(1, 2)
-        val relatives = handler.findRelatives(1, tables)
-        assertTrue(relatives.contains(2))
+        assertEquals(listOf(2), handler.findRelatives(1, tables))
     }
 
     @Test
     fun `findRelatives - 徒弟关系正确识别`() {
         insertDisciple(1); insertDisciple(2)
         setMaster(2, 1)
-        val relatives = handler.findRelatives(1, tables)
-        assertTrue(relatives.contains(2))
+        assertEquals(listOf(2), handler.findRelatives(1, tables))
     }
 
     @Test
-    fun `findRelatives - 父母关系正确识别`() {
-        insertDisciple(1); insertDisciple(2)
-        setParent(1, 2)
-        val relatives = handler.findRelatives(1, tables)
-        assertTrue(relatives.contains(2))
-    }
-
-    @Test
-    fun `findRelatives - 子嗣关系正确识别`() {
-        insertDisciple(1); insertDisciple(2)
-        setParent(2, 1)
-        val relatives = handler.findRelatives(1, tables)
-        assertTrue(relatives.contains(2))
-    }
-
-    @Test
-    fun `findRelatives - 兄弟姐妹关系正确识别`() {
+    fun `findRelatives - 一名师父的多名徒弟全部识别`() {
         insertDisciple(1); insertDisciple(2); insertDisciple(3)
-        setParent(1, 3); setParent(2, 3)
-        val relatives = handler.findRelatives(1, tables)
-        assertTrue(relatives.contains(2))
+        setMaster(2, 1); setMaster(3, 1)
+        assertEquals(listOf(2, 3), handler.findRelatives(1, tables))
     }
 
     @Test
     fun `findRelatives - 排除自身`() {
         insertDisciple(1)
-        val relatives = handler.findRelatives(1, tables)
-        assertFalse(relatives.contains(1))
+        assertFalse(handler.findRelatives(1, tables).contains(1))
     }
 
     @Test
     fun `findRelatives - 排除已故者`() {
         insertDisciple(1); insertDisciple(2, isAlive = false)
-        setPartner(1, 2)
-        val relatives = handler.findRelatives(1, tables)
-        assertFalse(relatives.contains(2))
+        setMaster(1, 2)
+        assertFalse(handler.findRelatives(1, tables).contains(2))
     }
 
     @Test
-    fun `findRelatives - 无亲属返回空列表`() {
+    fun `findRelatives - 无师徒关系返回空列表`() {
         insertDisciple(1); insertDisciple(2)
-        val relatives = handler.findRelatives(1, tables)
-        assertTrue(relatives.isEmpty())
+        assertTrue(handler.findRelatives(1, tables).isEmpty())
     }
 
     // ==================== 关系分类测试 ====================
 
     @Test
-    fun `classifyRelationship - 道侣优先级最高`() {
-        insertDisciple(1); insertDisciple(2)
-        setPartner(1, 2)
-        setParent(1, 3); setParent(2, 3)
-        val type = handler.classifyRelationship(1, 2, tables)
-        assertEquals(GiftRelationshipType.PARTNER, type)
-    }
-
-    @Test
-    fun `classifyRelationship - 师徒关系中师父方向`() {
+    fun `classifyRelationship - 师徒两个方向各自归类`() {
         insertDisciple(1); insertDisciple(2)
         setMaster(1, 2)
-        assertEquals(GiftRelationshipType.APPRENTICE,
-            handler.classifyRelationship(1, 2, tables))
-        assertEquals(GiftRelationshipType.MASTER,
-            handler.classifyRelationship(2, 1, tables))
+        assertEquals(
+            GiftRelationshipType.APPRENTICE,
+            handler.classifyRelationship(1, 2, tables)
+        )
+        assertEquals(
+            GiftRelationshipType.MASTER,
+            handler.classifyRelationship(2, 1, tables)
+        )
+    }
+
+    // ==================== 保底概率门测试 ====================
+
+    @Test
+    fun `processGiftsForBreakthrough - 师父按 040 概率门赠送`() {
+        assertGateFiresAt(
+            roll = MASTER_GIFT_PROB - PROB_EPSILON,
+            giverIs = GiverIs.MASTER
+        )
+        assertGateFiresAt(
+            roll = MASTER_GIFT_PROB + PROB_EPSILON,
+            giverIs = GiverIs.MASTER
+        )
     }
 
     @Test
-    fun `classifyRelationship - 父母子嗣方向`() {
-        insertDisciple(1); insertDisciple(2)
-        setParent(2, 1)
-        assertEquals(GiftRelationshipType.PARENT,
-            handler.classifyRelationship(1, 2, tables))
-        assertEquals(GiftRelationshipType.CHILD,
-            handler.classifyRelationship(2, 1, tables))
+    fun `processGiftsForBreakthrough - 徒弟按 030 概率门赠送`() {
+        assertGateFiresAt(
+            roll = APPRENTICE_GIFT_PROB - PROB_EPSILON,
+            giverIs = GiverIs.APPRENTICE
+        )
+        assertGateFiresAt(
+            roll = APPRENTICE_GIFT_PROB + PROB_EPSILON,
+            giverIs = GiverIs.APPRENTICE
+        )
+    }
+
+    /** 单向关系夹具：[giverIs] 决定谁是师父。 */
+    private enum class GiverIs { MASTER, APPRENTICE }
+
+    /**
+     * 断言 [roll] 落在门内/门外时的赠送结果：
+     * 概率门为 `rng.nextDouble() >= probability ⇒ 跳过`，
+     * 故 [roll] 略低于概率必赠、略高于概率必不赠。
+     */
+    private fun assertGateFiresAt(roll: Double, giverIs: GiverIs) {
+        handler = giftHandlerWith(roll)
+        val giver = 1
+        val receiver = 2
+        insertDisciple(giver); insertDisciple(receiver)
+        when (giverIs) {
+            GiverIs.MASTER -> setMaster(receiver, giver)
+            GiverIs.APPRENTICE -> setMaster(giver, receiver)
+        }
+        fillGiverBag(giver)
+
+        handler.processGiftsForBreakthrough(receiver, tables, state)
+
+        val expectedTransfer = roll < probabilityOf(giverIs)
+        val receiverBagSize = (tables.storageBagItems.getOrNull(receiver) ?: emptyList()).size
+        assertEquals(
+            "roll=$roll giver=$giverIs 预期转移=$expectedTransfer",
+            if (expectedTransfer) 1 else 0,
+            receiverBagSize
+        )
+    }
+
+    private fun probabilityOf(giverIs: GiverIs): Double = when (giverIs) {
+        GiverIs.MASTER -> MASTER_GIFT_PROB
+        GiverIs.APPRENTICE -> APPRENTICE_GIFT_PROB
     }
 
     // ==================== 装备槽位检测 ====================
@@ -376,9 +401,14 @@ class RelativeGiftHandlerTest {
         tables.accessoryIds[1] = "acc_1"
         tables.manualIds[1] = listOf("m1", "m2", "m3", "m4", "m5", "m6")
         val bagItems = listOf(
-            StorageBagItem("pill_bp", "pill", "筑基丹", 5,
-                effect = ItemEffect(pillType = "breakthrough", targetRealm = 9,
-                    breakthroughChance = 0.3)),
+            StorageBagItem(
+                "pill_bp", "pill", "筑基丹", 5,
+                effect = ItemEffect(
+                    pillType = "breakthrough",
+                    targetRealm = 9,
+                    breakthroughChance = 0.3
+                )
+            ),
             StorageBagItem("pill_normal", "pill", "回灵丹", 8)
         )
         val result = handler.selectBestGift(bagItems, 1, 9, tables, state)
@@ -479,9 +509,26 @@ class RelativeGiftHandlerTest {
     // ==================== 完整流程测试 ====================
 
     @Test
-    fun `processGiftsForBreakthrough - 无亲属无操作`() {
+    fun `processGiftsForBreakthrough - 无师徒关系无操作`() {
         insertDisciple(1)
         // 不应抛异常
         handler.processGiftsForBreakthrough(1, tables, state)
+    }
+
+    private companion object {
+        /** 师父保底赠送概率（与 C++ `kMasterGiftProb` 同源） */
+        const val MASTER_GIFT_PROB = 0.40
+
+        /** 徒弟保底赠送概率（与 C++ `kApprenticeGiftProb` 同源） */
+        const val APPRENTICE_GIFT_PROB = 0.30
+
+        /** 概率门探针偏移量：小于任一概率间隙（0.40-0.30）且大于浮点量化误差 */
+        const val PROB_EPSILON = 0.001
+
+        /** `DeterministicRng.nextDouble()` 的量化基数（低 31 位 / 2^31） */
+        const val DOUBLE_SCALE = 2147483648.0
+
+        /** 默认注入概率：高于两类关系门槛，保证非概率门用例必定触发赠送分支 */
+        const val FIXED_GIFT_PROB = 0.99
     }
 }

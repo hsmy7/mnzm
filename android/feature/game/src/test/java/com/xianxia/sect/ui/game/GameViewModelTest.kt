@@ -720,32 +720,6 @@ class GameViewModelTest {
         assertEquals("autoLearnFromWarehouseRootCounts", emptySet<Int>(), result.autoLearnFromWarehouseRootCounts)
     }
 
-    @Test
-    fun `setDaoCompanionBannedRootCounts - 正确写入GameData`() = runTest(testDispatcher) {
-        val lambdaSlot = slot<(GameData) -> GameData>()
-        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
-
-        viewModel.autoAssign.setDaoCompanionBannedRootCounts(setOf(4, 5))
-        runEngineBlocks()
-        advanceUntilIdle()
-
-        val result = lambdaSlot.captured(GameData())
-        assertEquals("daoCompanionBannedRootCounts", setOf(4, 5), result.daoCompanionBannedRootCounts)
-    }
-
-    @Test
-    fun `setDaoCompanionConsentRequired - 正确写入GameData`() = runTest(testDispatcher) {
-        val lambdaSlot = slot<(GameData) -> GameData>()
-        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
-
-        viewModel.autoAssign.setDaoCompanionConsentRequired(required = true)
-        runEngineBlocks()
-        advanceUntilIdle()
-
-        val result = lambdaSlot.captured(GameData())
-        assertTrue("daoCompanionConsentRequired 应为 true", result.daoCompanionConsentRequired)
-    }
-
     // ════════════════════════════════════════════════════════════════
     // 场景 4：宗门改名逻辑（renameSect——§2.79 起写入迁入引擎层
     // GameEngine.renameSect，语义守卫随迁 core:engine GameEngineSectIdentityOpsTest；

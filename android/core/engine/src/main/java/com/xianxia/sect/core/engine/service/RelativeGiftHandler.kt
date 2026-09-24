@@ -13,10 +13,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 亲属智能赠送处理器。
+ * 师徒智能赠送处理器。
  *
- * 当弟子突破境界后，其亲属（道侣/师父/徒弟/父母/子嗣/兄弟姐妹）
- * 有机会从自身储物袋中挑选物品赠送给突破者表示祝贺。
+ * 当弟子突破境界后，其师父或徒弟有机会从自身储物袋中挑选物品赠送给突破者表示祝贺。
  * 赠送优先级：装备空槽 > 功法空槽 > 突破丹药 > 其他丹药 > 材料/草药/种子。
  *
  * 此处理器在 [DiscipleBreakthroughHandler.processRealtimeBreakthroughs]
@@ -42,18 +41,14 @@ class RelativeGiftHandler @Inject constructor(
         private const val DEFAULT_MAX_MANUAL_SLOTS = 6
 
         // 默认赠送概率（与 GameConfigData.RelativeGiftSection 默认值同步）
-        private const val PARTNER_GIFT_PROB = 0.45
         private const val MASTER_GIFT_PROB = 0.40
         private const val APPRENTICE_GIFT_PROB = 0.30
-        private const val PARENT_GIFT_PROB = 0.35
-        private const val CHILD_GIFT_PROB = 0.50
-        private const val SIBLING_GIFT_PROB = 0.25
     }
 
     // ==================== 公开入口 ====================
 
     /**
-     * 为突破弟子处理所有亲属的智能赠送。
+     * 为突破弟子处理师父与徒弟的智能赠送。
      *
      * @param discipleId 突破弟子的 Int ID
      * @param tables 组件表（已写入突破后的最新状态）
@@ -77,7 +72,7 @@ class RelativeGiftHandler @Inject constructor(
             val result = tryGiveGift(giverId, discipleId, receiverRealm, tables, state)
             // 记录赠礼日志
             if (result is GiftResult.Success) {
-                val giverName = tables.names.getOrNull(giverId) ?: "亲属"
+                val giverName = tables.names.getOrNull(giverId) ?: "同门"
                 val currentEvents = tables.lifeEvents.getOrDefault(
                     discipleId, emptyList()
                 )
@@ -87,97 +82,28 @@ class RelativeGiftHandler @Inject constructor(
         }
     }
 
-    // ==================== 亲属查找 ====================
+    // ==================== 师徒关系查找 ====================
 
     /**
-     * 查找指定弟子的所有存活亲属。
-     * 一次遍历 [tables.ids] 覆盖全部 6 种反向关系，
-     * 正向关系（道侣/师父/父母）通过直接查表 O(log n) 获取。
+     * 查找指定弟子的存活师父与全部存活徒弟。
+     * 师父走正向查表 O(log n)，徒弟一次遍历 [tables.ids] 反向匹配。
      */
     internal fun findRelatives(discipleId: Int, tables: DiscipleTables): List<Int> {
         val seen = mutableSetOf<Int>()
         val myIdStr = discipleId.toString()
 
-        // 正向查找：道侣、师父、父母
-        collectForwardRelatives(discipleId, myIdStr, tables, seen)
-
-        // 反向查找：道侣反向、徒弟、子嗣、兄弟姐妹 —— 一次遍历
-        if (seen.size < 6) {
-            collectReverseRelatives(discipleId, myIdStr, tables, seen)
-        }
-
-        return seen.toList()
-    }
-
-    /** 正向查找：直接查表获取道侣/师父/父母（O(log n)） */
-    @Suppress("UnusedParameter") // myIdStr: 亲属图遍历契约形参（正向/反向收集签名对称）
-    private fun collectForwardRelatives(
-        discipleId: Int,
-        myIdStr: String,
-        tables: DiscipleTables,
-        seen: MutableSet<Int>
-    ) {
-        // 道侣
-        tables.partnerIds.getOrNull(discipleId)?.toIntOrNull()?.let { pid ->
-            if (isAlive(pid, discipleId, tables)) seen.add(pid)
-        }
-        // 师父
+        // 正向：师父
         tables.masterIds.getOrNull(discipleId)?.toIntOrNull()?.let { mid ->
             if (isAlive(mid, discipleId, tables)) seen.add(mid)
         }
-        // 父母
-        val p1 = tables.parentId1s.getOrNull(discipleId)
-        val p2 = tables.parentId2s.getOrNull(discipleId)
-        p1?.toIntOrNull()?.let { if (isAlive(it, discipleId, tables)) seen.add(it) }
-        p2?.toIntOrNull()?.let { if (isAlive(it, discipleId, tables)) seen.add(it) }
-    }
 
-    /** 反向查找：一次遍历 tables.ids 覆盖道侣反向/徒弟/子嗣/兄弟姐妹 */
-    private fun collectReverseRelatives(
-        discipleId: Int,
-        myIdStr: String,
-        tables: DiscipleTables,
-        seen: MutableSet<Int>
-    ) {
-        val myParents = if (seen.size >= 6) emptySet()
-            else setOfNotNull(
-                tables.parentId1s.getOrNull(discipleId),
-                tables.parentId2s.getOrNull(discipleId)
-            )
-
+        // 反向：徒弟
         for (id in tables.ids) {
-            // 自身/已死亡/已收集的亲属跳过（isAlive 内含 id != selfId 复检）
             if (id == discipleId || !isAlive(id, discipleId, tables) || id in seen) continue
-            collectIfRelative(id, myIdStr, myParents, tables, seen)
+            if (tables.masterIds.getOrNull(id) == myIdStr) seen.add(id)
         }
-    }
 
-    /** 单弟子亲属归类：道侣反向/徒弟/子嗣/兄弟姐妹 */
-    private fun collectIfRelative(
-        id: Int,
-        myIdStr: String,
-        myParents: Set<String>,
-        tables: DiscipleTables,
-        seen: MutableSet<Int>
-    ) {
-        val partnerId = tables.partnerIds.getOrNull(id)
-        val masterId = tables.masterIds.getOrNull(id)
-        val cp1 = tables.parentId1s.getOrNull(id)
-        val cp2 = tables.parentId2s.getOrNull(id)
-
-        when {
-            partnerId == myIdStr -> seen.add(id)                    // 道侣反向
-            masterId == myIdStr -> seen.add(id)                     // 徒弟
-            cp1 == myIdStr || cp2 == myIdStr -> seen.add(id)        // 子嗣
-            isSiblingOf(myParents, cp1, cp2) -> seen.add(id)        // 兄弟姐妹：有共同父母
-        }
-    }
-
-    /** 兄弟姐妹判定：对方父母已知且与我方父母有交集 */
-    private fun isSiblingOf(myParents: Set<String>, cp1: String?, cp2: String?): Boolean {
-        if (myParents.isEmpty() || cp1 == null) return false
-        val otherParents = setOfNotNull(cp1, cp2)
-        return otherParents.isNotEmpty() && myParents.intersect(otherParents).isNotEmpty()
+        return seen.toList()
     }
 
     private fun isAlive(id: Int, selfId: Int, tables: DiscipleTables): Boolean {
@@ -187,65 +113,29 @@ class RelativeGiftHandler @Inject constructor(
     // ==================== 关系分类 ====================
 
     /**
-     * 判定 giverId 对 receiverId 的亲属关系类型。
-     * 同一对弟子可能满足多种关系，按亲密度优先级返回：
-     * 道侣 > 父母 > 子嗣 > 师父 > 徒弟 > 兄弟姐妹。
+     * 判定 giverId 对 receiverId 的师徒关系类型。
+     *
+     * 前提：调用方传入的 giverId 由 [findRelatives] 筛出，即二者必为师徒之一。
+     * giver 是 receiver 的师父 → [GiftRelationshipType.MASTER]；否则为徒弟。
      */
     internal fun classifyRelationship(
         giverId: Int,
         receiverId: Int,
         tables: DiscipleTables
     ): GiftRelationshipType {
-        return relationshipMatches(tables, giverId, receiverId).first()
-    }
-
-    /**
-     * 关系匹配序列：同一对弟子可能满足多种关系，
-     * 按亲密度优先级排列，取首个命中：
-     * 道侣 > 父母 > 子嗣 > 师父 > 徒弟 > 兄弟姐妹（兜底）。
-     */
-    private fun relationshipMatches(
-        tables: DiscipleTables,
-        giverId: Int,
-        receiverId: Int
-    ): List<GiftRelationshipType> = buildList {
         val gs = giverId.toString()
-        val rs = receiverId.toString()
-
-        // 道侣
-        if (tables.partnerIds.getOrNull(giverId) == rs ||
-            tables.partnerIds.getOrNull(receiverId) == gs
-        ) add(GiftRelationshipType.PARTNER)
-
-        // 父母（giver 是 receiver 的父母）
-        if (tables.parentId1s.getOrNull(receiverId) == gs ||
-            tables.parentId2s.getOrNull(receiverId) == gs
-        ) add(GiftRelationshipType.PARENT)
-
-        // 子嗣（receiver 是 giver 的父母）
-        if (tables.parentId1s.getOrNull(giverId) == rs ||
-            tables.parentId2s.getOrNull(giverId) == rs
-        ) add(GiftRelationshipType.CHILD)
-
-        // 师父（giver 是 receiver 的师父）
-        if (tables.masterIds.getOrNull(receiverId) == gs) add(GiftRelationshipType.MASTER)
-
-        // 徒弟（receiver 是 giver 的师父）
-        if (tables.masterIds.getOrNull(giverId) == rs) add(GiftRelationshipType.APPRENTICE)
-
-        // 兄弟姐妹（兜底）
-        add(GiftRelationshipType.SIBLING)
+        return if (tables.masterIds.getOrNull(receiverId) == gs) {
+            GiftRelationshipType.MASTER
+        } else {
+            GiftRelationshipType.APPRENTICE
+        }
     }
 
     // ==================== 概率配置 ====================
 
     private fun getGiftProbability(type: GiftRelationshipType): Double = when (type) {
-        GiftRelationshipType.PARTNER -> PARTNER_GIFT_PROB
         GiftRelationshipType.MASTER -> MASTER_GIFT_PROB
         GiftRelationshipType.APPRENTICE -> APPRENTICE_GIFT_PROB
-        GiftRelationshipType.PARENT -> PARENT_GIFT_PROB
-        GiftRelationshipType.CHILD -> CHILD_GIFT_PROB
-        GiftRelationshipType.SIBLING -> SIBLING_GIFT_PROB
     }
 
     // ==================== 赠送执行 ====================

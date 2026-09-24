@@ -71,7 +71,6 @@ import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.ui.game.delegate.AdsDelegate
 import com.xianxia.sect.ui.game.delegate.PlantingDelegate
 import com.xianxia.sect.ui.game.delegate.AutoAssignDelegate
@@ -550,7 +549,6 @@ class GameViewModel @Inject constructor(
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = gameEngine.pendingBattleResult
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = gameEngine.pendingBattleRewardCards
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = gameEngine.pendingBeastAttacks
-    val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>> get() = gameEngine.pendingMarriageProposals
 
     val alliances: StateFlow<List<Alliance>> = gameEngine.gameData
         .map { it.alliances }.stateIn(viewModelScope, sharingStarted, emptyList())

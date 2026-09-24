@@ -4,7 +4,6 @@ import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
@@ -137,15 +136,6 @@ class DiscipleLifecycleManager @Inject constructor(
                 val masterIdInt = masterId.toIntOrNull()
                 val masterName = if (masterIdInt != null) discipleTables.names.getOrNull(masterIdInt) ?: "未知" else "未知"
                 events.add("拜${masterName}为师")
-            }
-
-            // 道侣
-            val partnerId = discipleTables.partnerIds.getOrNull(id)
-            if (partnerId != null) {
-                val partnerIdInt = partnerId.toIntOrNull()
-                val partnerName = if (partnerIdInt != null) discipleTables.names
-                    .getOrNull(partnerIdInt) ?: "未知" else "未知"
-                events.add("与${partnerName}结为道侣")
             }
 
             if (events.isNotEmpty()) {

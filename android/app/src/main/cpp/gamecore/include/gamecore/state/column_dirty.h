@@ -30,7 +30,7 @@
 // gameData 顶层域，免去每次导出的全量序列化与树比较。
 //
 // ## 范围（B09 R2 生产接线：写屏障挂载 + 混合导出）
-//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，103 列——与
+//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，96 列——与
 //     Disciple to_json 字段一一对应；非协议派生列 numericIds/hasNumericIds/
 //     deathYears 不在册，协议字段 deathYear 无列支撑亦不在册）+ 集合 tombstone（通用实体集合名）+ gameData
 //     顶层域名集合。
@@ -153,13 +153,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::StorageBagItems: return "storageBagItems";
         case DiscipleColumn::StorageBagSpiritStones: return "storageBagSpiritStones";
         case DiscipleColumn::SpiritStones: return "spiritStones";
-        case DiscipleColumn::PartnerId: return "partnerId";
-        case DiscipleColumn::PartnerSectId: return "partnerSectId";
-        case DiscipleColumn::ParentId1: return "parentId1";
-        case DiscipleColumn::ParentId2: return "parentId2";
-        case DiscipleColumn::LastChildYear: return "lastChildYear";
-        case DiscipleColumn::ChildBirthMonth: return "childBirthMonth";
-        case DiscipleColumn::GriefEndYear: return "griefEndYear";
         case DiscipleColumn::MasterId: return "masterId";
         case DiscipleColumn::Intelligence: return "intelligence";
         case DiscipleColumn::Charm: return "charm";
@@ -338,15 +331,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             row["storageBagSpiritStones"] = ds.storageBagSpiritStones[r];
             break;
         case DiscipleColumn::SpiritStones: row["spiritStones"] = ds.spiritStones[r]; break;
-        case DiscipleColumn::PartnerId: row["partnerId"] = ds.partnerIds[r]; break;
-        case DiscipleColumn::PartnerSectId: row["partnerSectId"] = ds.partnerSectIds[r]; break;
-        case DiscipleColumn::ParentId1: row["parentId1"] = ds.parentId1s[r]; break;
-        case DiscipleColumn::ParentId2: row["parentId2"] = ds.parentId2s[r]; break;
-        case DiscipleColumn::LastChildYear: row["lastChildYear"] = ds.lastChildYears[r]; break;
-        case DiscipleColumn::ChildBirthMonth:
-            row["childBirthMonth"] = ds.childBirthMonths[r];
-            break;
-        case DiscipleColumn::GriefEndYear: row["griefEndYear"] = ds.griefEndYears[r]; break;
         case DiscipleColumn::MasterId: row["masterId"] = ds.masterIds[r]; break;
         case DiscipleColumn::Intelligence: row["intelligence"] = ds.intelligences[r]; break;
         case DiscipleColumn::Charm: row["charm"] = ds.charms[r]; break;

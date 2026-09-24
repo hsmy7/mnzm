@@ -17,7 +17,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.Skill
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.StatAccum
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.VarianceInputs
 
-// ── DiscipleStatCalculator 拆分域 3/7（行为零变更） ──
+// ── DiscipleStatCalculator 拆分域 3/6（行为零变更） ──
 internal fun DiscipleStatCalculator.computeBaseStats(
     realm: Int,
     realmLayer: Int,

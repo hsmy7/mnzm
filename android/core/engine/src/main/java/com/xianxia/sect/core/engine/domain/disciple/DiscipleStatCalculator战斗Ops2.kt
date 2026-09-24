@@ -10,7 +10,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlotType
 import kotlin.math.roundToInt
 
-// ── DiscipleStatCalculator 拆分域 2/7（行为零变更） ──
+// ── DiscipleStatCalculator 拆分域 2/6（行为零变更） ──
 internal fun DiscipleStatCalculator.getAffixCombatEffects(aggregate: DiscipleAggregate): AffixCombatEffects =
     getAffixCombatEffects(aggregate.affixIds)
 

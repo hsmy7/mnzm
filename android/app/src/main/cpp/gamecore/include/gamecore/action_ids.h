@@ -369,7 +369,7 @@ inline constexpr int32_t DISCIPLE_LIFECYCLE_EXPEL = 1590;
 /// 拜师事务（三相校验+masterIds落表；双侧日志草稿回写lifeEvents）
 inline constexpr int32_t DISCIPLE_LIFECYCLE_APPRENTICE = 1591;
 
-/// 婚姻批准事务（已有道侣防御+partnerIds双向绑定+MARRIAGE事件直写；提议移除留Kotlin）
+/// 【已退役，编号禁复用】婚姻批准事务（道侣配对链下线）
 inline constexpr int32_t DISCIPLE_LIFECYCLE_MARRY_APPROVE = 1592;
 
 /// 【已退役，编号禁复用】释放思过事务
@@ -543,7 +543,7 @@ inline constexpr int32_t DISCIPLE_OP_SYNC_STATUS = 1747;
 /// 全量弟子状态派生同步事务（含fixInvalidMiningSlots前置自愈）
 inline constexpr int32_t DISCIPLE_OP_SYNC_ALL_STATUSES = 1748;
 
-/// 婚姻拒绝事务（MARRIAGE拒绝事件直写；零弟子表写入/零RNG/无失败臂；提议移除留Kotlin运行态）
+/// 【已退役，编号禁复用】婚姻拒绝事务（道侣配对链下线）
 inline constexpr int32_t DISCIPLE_LIFECYCLE_MARRY_REJECT = 1750;
 
 /// 建筑拆除/没收槽位清扫事务（十类槽位按槽组清除+长老殿末座判定+监牢/任务阁特例+REFINING破除；槽组知识由Kotlin组装传入）

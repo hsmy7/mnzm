@@ -14,11 +14,6 @@ package com.xianxia.sect.core.engine
  * 语义等价性：逐字段"字段级覆盖写 + 同值不写"；Int 集字段按 `Set<Int>`
  * 集合语义比较（Kotlin data class equals 同源）。
  *
- * 事务外残差：`daoCompanionConsentRequired=false` 触发的
- * `clearPendingMarriageProposals()`（pendingMarriageProposals 为 Kotlin
- * 运行态，不入 C++ 状态）由 [setDaoCompanionConsentRequired] 在 native 成功
- * 后照原序执行。
- *
  * 文件拆分：本域按"通用/音频"与"自动分配策略"两族拆分，两文件共用同一
  * native 转发面（`ResidualNativeForward` + `updateSettingsNative`）。
  */
@@ -66,27 +61,6 @@ fun GameEngine.setAutoSellHighGradeForPurchase(enabled: Boolean) =
 fun GameEngine.setShowAllAvailableDisciples(enabled: Boolean) =
     updateSettingsOrFallback("showAllAvailableDisciples" to flagValue(enabled)) {
         it.copy(showAllAvailableDisciples = enabled)
-    }
-
-// ── 道侣设置（AutoAssignDelegate setDaoCompanion*）─────────────────────
-
-/**
- * 道侣结成是否需要玩家同意。
- *
- * native 成功时**仍执行**事务外残差：关闭同意模式需清理所有待处理提议
- * （pendingMarriageProposals 为 Kotlin 运行态，不入 C++ 状态快照）。
- */
-fun GameEngine.setDaoCompanionConsentRequired(required: Boolean) {
-    updateSettingsOrFallback("daoCompanionConsentRequired" to flagValue(required)) {
-        it.copy(daoCompanionConsentRequired = required)
-    }
-    if (!required) clearPendingMarriageProposals()
-}
-
-/** 禁止结为道侣的灵根数集合。 */
-fun GameEngine.setDaoCompanionBannedRootCounts(counts: Set<Int>) =
-    updateSettingsOrFallback("daoCompanionBannedRootCounts" to intSetValue(counts)) {
-        it.copy(daoCompanionBannedRootCounts = counts)
     }
 
 // ── 灵根过滤器（俘虏）──────────────────────────────────────────────

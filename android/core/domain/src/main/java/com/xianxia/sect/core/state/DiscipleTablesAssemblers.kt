@@ -155,14 +155,6 @@ internal fun DiscipleTables.assembleEquipment(id: Int) = EquipmentSet(
 )
 
 internal fun DiscipleTables.assembleSocial(id: Int) = SocialData(
-    partnerId = partnerIds.getOrNull(id),
-    partnerSectId = partnerSectIds.getOrNull(id),
-    parentId1 = parentId1s.getOrNull(id),
-    parentId2 = parentId2s.getOrNull(id),
-    lastChildYear = lastChildYears.getOrDefault(id, 0),
-    childBirthMonth = childBirthMonths.getOrNull(id),
-    griefEndYear = griefEndYears.getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL)
-        .takeIf { it != DiscipleTables.GRIEF_YEAR_NULL_SENTINEL },
     masterId = masterIds.getOrNull(id)
 )
 

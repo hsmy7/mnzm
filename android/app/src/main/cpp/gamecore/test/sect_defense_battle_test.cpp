@@ -299,8 +299,6 @@ TEST(SectDefenseBattleTest, AttackerWinLootsWarehouseInjuresDefenders) {
         EXPECT_EQ(s.disciples.isAlive[row], 1);
         EXPECT_EQ(s.disciples.deathYears[row], 0);
         EXPECT_NE(s.disciples.statuses[row], "DEAD");
-        EXPECT_EQ(s.disciples.griefEndYears[row],
-                  defense_battle::kGriefEndYearNone);   // 无丧亲哀悼
     }
     EXPECT_EQ(s.gameData.annualDeceasedDisciples, 0);
 

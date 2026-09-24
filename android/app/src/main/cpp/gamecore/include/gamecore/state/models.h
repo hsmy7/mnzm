@@ -382,14 +382,7 @@ struct Disciple {
     int64_t storageBagSpiritStones = 0;
     int32_t spiritStones = 0;             // 弟子随身灵石
 
-    // ── SocialData（@Embedded 平铺；""=null，-1=null 哨兵） ──
-    std::string partnerId;
-    std::string partnerSectId;
-    std::string parentId1;
-    std::string parentId2;
-    int32_t lastChildYear = 0;
-    int32_t childBirthMonth = 0;          // 0 = null 哨兵
-    int32_t griefEndYear = -1;            // -1 = null 哨兵（无丧亲期）
+    // ── SocialData（@Embedded 平铺；""=null） ──
     std::string masterId;
 
     // ── SkillStats（@Embedded 平铺） ──
@@ -1308,10 +1301,8 @@ struct GameData {
     std::vector<int32_t> breakthroughAutoPillRootCounts;
     std::vector<int32_t> autoEquipFromWarehouseRootCounts;
     std::vector<int32_t> autoLearnFromWarehouseRootCounts;
-    std::vector<int32_t> daoCompanionBannedRootCounts;
     std::vector<int32_t> guideClaimedRewardIds;
     // 设置开关
-    bool daoCompanionConsentRequired = false;
     bool patrolBattleResultPopup = false;
     bool autoSellMidGradeForPurchase = false;
     bool autoSellHighGradeForPurchase = false;

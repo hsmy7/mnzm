@@ -75,8 +75,6 @@ constexpr int32_t kMinAllianceFavor = 80;
 constexpr int32_t kAllianceDurationYears = 5;
 // 死亡弟子清理年限（DiscipleLifecycleProcessor.CULL_DEAD_AFTER_YEARS）
 constexpr int32_t kCullDeadAfterYears = 1;
-// 哀悼期哨兵（DiscipleTables.GRIEF_YEAR_NULL_SENTINEL = -1：无丧亲期）
-constexpr int32_t kGriefYearNullSentinel = -1;
 
 // ── 交易刷新常量（DiplomacyService companion 逐值对齐）──
 // AI 宗门交易刷新间隔（SECT_TRADE_REFRESH_INTERVAL_YEARS）
@@ -94,10 +92,10 @@ constexpr int32_t kMaterialBasePrice[7] = {0, 400, 1600, 8000, 48000, 336000, 26
 namespace detail {
 
 // ════════════════════════════════════════════════════════════════
-// 弟子老化死亡链平台效应草稿——C++ 死亡链状态面（老化/槽位/哀悼/
-// 解绑/血炼/装备清/死亡记录）完成后，Kotlin 残留执行器经草稿执行平台效应：
-// 袋物品物化回仓库（含溢出邮件）/DAO 清理/DeathEvent/死亡记录档案/
-// lifeEvents 丧亲事件。与秘境关闭草稿同构（信封回传）。
+// 弟子老化死亡链平台效应草稿——C++ 死亡链状态面（老化/槽位/血炼/
+// 装备清/死亡记录）完成后，Kotlin 残留执行器经草稿执行平台效应：
+// 袋物品物化回仓库（含溢出邮件）/DAO 清理/DeathEvent/死亡记录档案。
+// 与秘境关闭草稿同构（信封回传）。
 // 定义于 detail 前（detail 函数前置依赖），detail 结束后以
 // `using detail::YearSettlementDraft` 导出到 gamecore::system。
 // ════════════════════════════════════════════════════════════════
@@ -114,17 +112,9 @@ struct AgedDeathDraft {
     std::vector<state::StorageBagItem> storageBagItems;  // 袋物品（物化回仓库）
 };
 
-/// 丧亲事件草稿（Kotlin 残留：lifeEvents 瞬态列写入）
-struct BereavementDraft {
-    int32_t grievingId = 0;
-    std::string relationship;   // 道侣/父/母/亲属
-    std::string deceasedName;
-};
-
 /// 年变平台效应草稿集合（runYearSettlement 可选 out + nativeSettleYear 信封）
 struct YearSettlementDraft {
     std::vector<AgedDeathDraft> agedDeaths;
-    std::vector<BereavementDraft> bereavements;
 };
 
 using gamecore::state::Disciple;
@@ -1021,23 +1011,6 @@ inline void processFavorDecay(GameState& state, int32_t currentYear) {
     if (changed) gd.sectRelations = std::move(updated);
 }
 
-/// 哀悼期到期（Kotlin DiscipleLifecycleProcessor.processGriefExpiry）：
-/// griefEndYears 列直写——到期（griefEnd != -1 且 currentYear >= griefEnd）→ 置 -1。
-/// 零 RNG。迭代域经 sync + View<DiscipleRef> 行序。
-inline void processGriefExpiry(GameState& state, int32_t currentYear,
-                               ecs::World& world) {
-    state::DiscipleStore& ds = state.disciples;
-    ecs::syncDiscipleEntities(world, ds.size());
-    ecs::View<ecs::DiscipleRef> view(world.registry());
-    view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
-        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
-        if (ds.griefEndYears[row] != kGriefYearNullSentinel &&
-            currentYear >= ds.griefEndYears[row]) {
-            ds.griefEndYears[row] = kGriefYearNullSentinel;
-        }
-    });
-}
-
 // ════════════════════════════════════════════════════════════════
 // 年变中件下沉（驻军轮换）
 // ════════════════════════════════════════════════════════════════
@@ -1194,7 +1167,6 @@ inline void processAnnualSalary(state::GameState& state, ecs::World& world) {
 
 // 年变平台效应草稿导出到 gamecore::system（runYearSettlement 签名 + nativeSettleYear 信封）
 using detail::AgedDeathDraft;
-using detail::BereavementDraft;
 using detail::YearSettlementDraft;
 
 /// 年变编排主入口（注册进 SettlementEngine::onYearChange）。
@@ -1249,8 +1221,6 @@ inline void runYearSettlement(state::GameState& state,
     detail::processAllianceFavorDrop(state);
     // #9 好感衰减
     detail::processFavorDecay(state, state.gameData.gameYear);
-    // #10 哀悼期到期
-    detail::processGriefExpiry(state, state.gameData.gameYear, world);
     // #22 远古秘境年变刷新（SECRET_REALM 分区——位置 + 变体）
     detail::processAncientSecretRealmSpawn(state, state.gameData.gameYear, rng);
 

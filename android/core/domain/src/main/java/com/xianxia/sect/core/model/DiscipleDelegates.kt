@@ -137,23 +137,6 @@ var Disciple.storageBagSpiritStones: kotlin.Long get() = equipment.storageBagSpi
 /** @deprecated 请改用 [equipment.spiritStones] */
 var Disciple.spiritStones: kotlin.Int get() = equipment.spiritStones; set(value) { equipment.spiritStones = value }
 
-// ── SocialData ──
-
-/** @deprecated 请改用 [social.partnerId] */
-var Disciple.partnerId: kotlin.String? get() = social.partnerId; set(value) { social.partnerId = value }
-/** @deprecated 请改用 [social.partnerSectId] */
-var Disciple.partnerSectId: kotlin.String? get() = social.partnerSectId; set(value) { social.partnerSectId = value }
-/** @deprecated 请改用 [social.parentId1] */
-var Disciple.parentId1: kotlin.String? get() = social.parentId1; set(value) { social.parentId1 = value }
-/** @deprecated 请改用 [social.parentId2] */
-var Disciple.parentId2: kotlin.String? get() = social.parentId2; set(value) { social.parentId2 = value }
-/** @deprecated 请改用 [social.lastChildYear] */
-var Disciple.lastChildYear: kotlin.Int get() = social.lastChildYear; set(value) { social.lastChildYear = value }
-/** @deprecated 请改用 [social.childBirthMonth] */
-var Disciple.childBirthMonth: kotlin.Int? get() = social.childBirthMonth; set(value) { social.childBirthMonth = value }
-/** @deprecated 请改用 [social.griefEndYear] */
-var Disciple.griefEndYear: kotlin.Int? get() = social.griefEndYear; set(value) { social.griefEndYear = value }
-
 // ── SkillStats ──
 
 /** @deprecated 请改用 [skills.intelligence] */

@@ -69,7 +69,7 @@ using gamecore::state::Disciple;
 using gamecore::state::DiscipleStore;
 using gamecore::state::GameState;
 
-/// 悲痛/突破 lifeEvents 草稿（Kotlin 类体属性列的回写载体——Kotlin native
+/// 突破 lifeEvents 草稿（Kotlin 类体属性列的回写载体——Kotlin native
 /// 分支按序 append 到 discipleTables.lifeEvents[id]）
 struct LifeEventDraft {
     int32_t discipleId = 0;
@@ -142,7 +142,7 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
                              std::min(std::max(mp, 0), finalMaxMp)});
     }
 
-    // A. 玩家战斗败北 → 重伤：HP=1 存活；不清悲痛/槽位/装备/行囊
+    // A. 玩家战斗败北 → 重伤：HP=1 存活；不清槽位/装备/行囊
     for (const auto& id : deadIds) {
         int32_t unused = 0;
         gamecore::system::markDead(ds, id, battleCurrentYear, unused);

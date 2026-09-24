@@ -69,10 +69,6 @@ constexpr int32_t kAiAttackCooldownMonths = 12;
 /// 战书阶段名（WarningStage.WAR_DECLARATION.name——协议存 name）
 constexpr const char* kWarDeclarationStage = "WAR_DECLARATION";
 
-/// 哀悼期空哨兵（DiscipleStore.griefEndYears：-1 = 无哀悼；
-/// 与 year_settlement.h kGriefYearNullSentinel 同值——互包不可共享）
-constexpr int32_t kGriefEndYearNone = -1;
-
 /// 防守不可出战状态集（Kotlin selectAndPrepareDefenders 排除集——
 /// DiscipleStatus.name；巡逻 PATROLLING 不排除=可出战且优先）
 inline bool isBattleBusyStatus(const std::string& status) {
@@ -303,44 +299,6 @@ inline PlayerLoadoutMaps buildPlayerLoadoutMaps(const GameState& state) {
     return out;
 }
 
-// ── 悲痛传播（Kotlin DiscipleStatCalculator.applyGriefToRelatives——
-//      year_settlement.h 同式的无草稿版：互包不可共享） ──
-
-/// 双弟子是否亲属（道侣/父母/兄弟姐妹——与 year_settlement.h isRelatives
-/// 同式）
-inline bool isRelativeOf(const state::DiscipleStore& ds, std::size_t a,
-                         std::size_t b) {
-    if (!ds.partnerIds[a].empty() && ds.partnerIds[a] == ds.ids[b]) return true;
-    if (!ds.parentId1s[a].empty() && ds.parentId1s[a] == ds.ids[b]) return true;
-    if (!ds.parentId2s[a].empty() && ds.parentId2s[a] == ds.ids[b]) return true;
-    if (!ds.parentId1s[b].empty() && ds.parentId1s[b] == ds.ids[a]) return true;
-    if (!ds.parentId2s[b].empty() && ds.parentId2s[b] == ds.ids[a]) return true;
-    const std::string& a1 = ds.parentId1s[a];
-    const std::string& a2 = ds.parentId2s[a];
-    if (a1.empty() && a2.empty()) return false;
-    return (!a1.empty() && (a1 == ds.parentId1s[b] || a1 == ds.parentId2s[b])) ||
-           (!a2.empty() && (a2 == ds.parentId1s[b] || a2 == ds.parentId2s[b]));
-}
-
-/// 哀悼传播（griefEndYear = max(既有, 当前年+1) 列写；只存活亲属。
-/// Kotlin 在快照上先跑悲痛再标死——同战双亡的亲属互相进入哀悼，
-/// 故本函数必须在 markAllDead **之前**逐死者调用）
-inline void propagateGriefToRelatives(state::DiscipleStore& ds,
-                                      std::size_t deadRow,
-                                      int32_t currentYear) {
-    const int32_t griefEndYear = currentYear + 1;
-    for (std::size_t row = 0; row < ds.size(); ++row) {
-        if (row == deadRow) continue;
-        if (ds.isAlive[row] != 1) continue;
-        if (!isRelativeOf(ds, row, deadRow)) continue;
-        const int32_t existing = ds.griefEndYears[row];
-        const int32_t newEnd = (existing != kGriefEndYearNone && existing > griefEndYear)
-                                   ? existing
-                                   : griefEndYear;
-        ds.griefEndYears[row] = newEnd;
-    }
-}
-
 // ── 战果应用（Kotlin applyDefenseBattleResult + buildPostBattleGameData） ──
 
 struct DefenseBattleOutcome {
@@ -382,7 +340,7 @@ inline void applyDefenseBattleResult(GameState& state,
     // 2. 冷却写入（写点②：战斗结算——P2-18 核实结论：原链全仓无写点）
     gd.sectAttackCooldowns[attackerSectId] = nowMonth + kAiAttackCooldownMonths;
 
-    // 3./4. 玩家侧败北 → 重伤（G07）：HP=1 且保持存活；不传悲痛、不计年报
+    // 3./4. 玩家侧败北 → 重伤（G07）：HP=1 且保持存活；不计年报
     //       死亡、不清槽/不解绑/不清装/不清行囊（Q20/Q41——重伤期间无限制）。
     markAllDead(ds, outcome.deadDefenderIds, gd.gameYear,
                 gd.annualDeceasedDisciples);

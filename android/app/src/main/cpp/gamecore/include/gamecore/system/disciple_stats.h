@@ -668,7 +668,6 @@ struct CultivationRateInput {
     double buildingBonus = 1.0;              // 住所建筑系数（1.0=无）
     double preachingElderBonus = 0.0;        // 讲道长老加成（外+内合计）
     double preachingMastersBonus = 0.0;      // 讲道师兄加成（外+内合计）
-    double parentCultivationBonus = 0.0;     // 父母灵根加成
     double masterDiscipleBonus = 0.0;        // 师徒加成
 };
 
@@ -729,18 +728,13 @@ inline double calculateCultivationPerPhaseColumn(
     resourceBonus += accumulateManualCultivationSpeed(
         manualBuckets, ownerRow, d.manualIds, proficiencies, d.id);
 
-    // ── 社交乘区：讲道 + 师徒 + 父母 ──
+    // ── 社交乘区：讲道 + 师徒 ──
     const double socialBonus = extra.preachingElderBonus +
-        extra.preachingMastersBonus + extra.parentCultivationBonus +
-        extra.masterDiscipleBonus;
+        extra.preachingMastersBonus + extra.masterDiscipleBonus;
 
-    // ── 状态乘区：政策 - 丧亲 ──
-    const bool hasGrief = d.griefEndYear >= 0;
-    const double griefPenalty = hasGrief &&
-        gd.gameYear < d.griefEndYear
-        ? gamecore::disciple::kGriefCultivationPenalty : 0.0;
+    // ── 状态乘区：政策 ──
     const double statusBonus =
-        policyCultivationBonus(d.realm, gd.sectPolicies) - griefPenalty;
+        policyCultivationBonus(d.realm, gd.sectPolicies);
 
     // ── 临时乘区：丹药持续加速（pillEffects 体系） ──
     double temporaryBonus = 0.0;
@@ -786,19 +780,13 @@ inline double calculateCultivationPerPhaseColumn(
     resourceBonus += accumulateManualCultivationSpeed(
         manualBuckets, row, ds.manualIds[row], proficiencies, ds.ids[row]);
 
-    // ── 社交乘区：讲道 + 师徒 + 父母 ──
+    // ── 社交乘区：讲道 + 师徒 ──
     const double socialBonus = extra.preachingElderBonus +
-        extra.preachingMastersBonus + extra.parentCultivationBonus +
-        extra.masterDiscipleBonus;
+        extra.preachingMastersBonus + extra.masterDiscipleBonus;
 
-    // ── 状态乘区：政策 - 丧亲 ──
-    const int32_t griefEndYear = ds.griefEndYears[row];
-    const double griefPenalty = griefEndYear >= 0 &&
-        gd.gameYear < griefEndYear
-        ? gamecore::disciple::kGriefCultivationPenalty : 0.0;
-
+    // ── 状态乘区：政策 ──
     const double statusBonus =
-        policyCultivationBonus(ds.realms[row], gd.sectPolicies) - griefPenalty;
+        policyCultivationBonus(ds.realms[row], gd.sectPolicies);
 
     // ── 临时乘区：丹药持续加速（pillEffects 体系） ──
     double temporaryBonus = 0.0;
@@ -834,13 +822,12 @@ struct BreakthroughChanceInput {
     int32_t outerElderComprehension = 0;
     double pillBonus = 0.0;                  // 突破丹加成
     double adBonus = 0.0;                    // 广告扁平加成
-    double griefBreakthroughPenalty = 0.0;   // 丧亲惩罚
     double masterDiscipleBonus = 0.0;        // 师徒加成
     double innerElderPositionBonus = 0.0;    // 内门长老职务乘算因子
     double outerElderPositionBonus = 0.0;    // 外门长老职务乘算因子
 };
 
-/// 最终突破概率（baseZone × (1+elder+self) × (1-penalty) + adFlat，clamp [0,1]）
+/// 最终突破概率（baseZone × (1+elder+self) + adFlat，clamp [0,1]）
 inline double calculateBreakthroughChance(const Disciple& d,
                                           const BreakthroughChanceInput& in) {
     if (d.realm < 0) return 0.0;
@@ -859,9 +846,7 @@ inline double calculateBreakthroughChance(const Disciple& d,
         in.masterDiscipleBonus +
         comprehensionBreakthroughBonus(baseComprehension(d));
     const double positiveMult = 1.0 + elderGuidance + selfBonus;
-    const double penaltyMult =
-        std::max(1.0 - in.griefBreakthroughPenalty, 0.0);
-    const double base = baseZone * positiveMult * penaltyMult;
+    const double base = baseZone * positiveMult;
     const double result = base + in.adBonus;
     return gamecore::disciple::coerceIn(result, 0.0, 1.0);
 }

@@ -19,19 +19,12 @@ data class DiscipleExtended(
     var cultivationSpeedDuration: Int = 0,
     var pillCultivationSpeedBonus: Double = 0.0,
     var pillEffectDuration: Int = 0,
-    var partnerId: String? = null,
-    var partnerSectId: String? = null,
-    var parentId1: String? = null,
-    var parentId2: String? = null,
-    var lastChildYear: Int = 0,
-    var griefEndYear: Int? = null,
     var masterId: String? = null,
     var usedFunctionalPillTypes: List<String> = emptyList(),
     var hasReviveEffect: Boolean = false,
     var hasClearAllEffect: Boolean = false
 ) {
-    val hasPartner: Boolean get() = partnerId != null
-    
+
     companion object {
         fun fromDisciple(disciple: Disciple): DiscipleExtended {
             return DiscipleExtended(
@@ -46,12 +39,6 @@ data class DiscipleExtended(
                 cultivationSpeedDuration = disciple.cultivationSpeedDuration,
                 pillCultivationSpeedBonus = disciple.pillEffects.pillCultivationSpeedBonus,
                 pillEffectDuration = disciple.pillEffects.pillEffectDuration,
-                partnerId = disciple.social.partnerId,
-                partnerSectId = disciple.social.partnerSectId,
-                parentId1 = disciple.social.parentId1,
-                parentId2 = disciple.social.parentId2,
-                lastChildYear = disciple.social.lastChildYear,
-                griefEndYear = disciple.social.griefEndYear,
                 masterId = disciple.social.masterId,
                 usedFunctionalPillTypes = disciple.usage.usedFunctionalPillTypes,
                 hasReviveEffect = disciple.usage.hasReviveEffect,

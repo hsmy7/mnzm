@@ -13,8 +13,8 @@
 // 等价移植 Kotlin DiscipleStatCalculator 的**纯公式**部分：
 //   - 基础属性乘区法（computeBaseStats：境界基值 × 方差乘区 × 层数乘区 × (1+天赋%+血炼%)）
 //   - 修炼速度乘区（calculateCultivationPerPhase：5 乘区连乘 + 下限 1.0）
-//   - 突破概率乘区（calculateBreakthroughChance：baseZone × (1+指导+自身) × (1-惩罚) + adFlat）
-//   - 寿命将尽惩罚、魂力加成、师徒加成、父母灵根加成、丧亲判定、亲属关系
+//   - 突破概率乘区（calculateBreakthroughChance：baseZone × (1+指导+自身) + adFlat）
+//   - 寿命将尽惩罚、魂力加成、师徒加成
 //
 // 与 Kotlin 语义对齐要点：
 //   - roundToInt = std::round 后转 int（Kotlin roundToInt 四舍五入）
@@ -35,8 +35,6 @@ constexpr double kAptitudeBaseline = 80.0;       // APTITUDE_BASELINE
 constexpr double kAptitudeBonusPerPoint = 0.01;  // APTITUDE_BONUS_PER_POINT
 constexpr double kAptitudeMaxBonus = 0.40;       // APTITUDE_MAX_BONUS
 
-constexpr double kGriefCultivationPenalty = 0.50;    // GRIEF_CULTIVATION_SPEED_PENALTY
-constexpr double kGriefBreakthroughPenalty = 0.20;   // GRIEF_BREAKTHROUGH_CHANCE_PENALTY
 constexpr double kMasterCultBonusPerGap = 0.05;      // MASTER_DISCIPLE_CULTIVATION_BONUS_PER_GAP
 constexpr double kMasterBreakBonusPerGap = 0.03;     // MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP
 
@@ -329,7 +327,7 @@ inline double getBreakthroughChance(int32_t realm, int32_t rootCount,
     return std::round(rawProb * 100.0) / 100.0;
 }
 
-// ── 师徒/父母/丧亲 ──────────────────────────────────────────────
+// ── 师徒 ────────────────────────────────────────────────────────
 
 /// 师徒大境界差（"隔整境界才算"：gap = disciple - master - 1，下限 0）
 inline int32_t getMasterDiscipleRealmGap(int32_t discipleRealm, int32_t masterRealm) {
@@ -349,22 +347,4 @@ inline double getMasterDiscipleBreakthroughBonus(int32_t discipleRealm,
     return getMasterDiscipleRealmGap(discipleRealm, masterRealm) *
            kMasterBreakBonusPerGap;
 }
-
-/// 父母灵根数量 → 子嗣修炼加成（单 +10% … 五 -10%）
-inline double getParentSpiritRootBonus(int32_t spiritRootCount) {
-    switch (spiritRootCount) {
-        case 1: return 0.10;
-        case 2: return 0.05;
-        case 3: return 0.0;
-        case 4: return -0.05;
-        case 5: return -0.10;
-        default: return 0.0;
-    }
-}
-
-/// 是否处于丧亲悲痛期（griefEndYear 非空且 currentYear < griefEndYear）
-inline bool isGrieving(int32_t griefEndYear, bool hasGrief, int32_t currentYear) {
-    return hasGrief && currentYear < griefEndYear;
-}
-
 }  // namespace gamecore::disciple

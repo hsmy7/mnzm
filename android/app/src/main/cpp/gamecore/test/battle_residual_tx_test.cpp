@@ -3,7 +3,7 @@
 //
 // 守护目标：battle_residual_tx.h 三事务与 Kotlin 源语义逐位一致——
 //   - settleBattleCasualtiesTx（1780）：标死三列 + wasAlive 守卫年死亡计数
-//     （重入不双计）+ 悲痛列与日志草稿（道侣关系文本）+ 槽位/熟练度清理 +
+//     （重入不双计）+ G07 重伤语义（HP=1 存活、不清槽位/熟练度/行囊）+
 //     幸存者 HP/MP 钳制回写 + 零 RNG
 //   - worldLevelVictoryTx（1781）：TOCTOU 重查零写入 + applied 回执 +
 //     🔴 defeated 不写（batch-13 口径）
@@ -89,13 +89,11 @@ protected:
 
 // ── 1780 伤亡残差 ────────────────────────────────────────────────────
 
-TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsGriefAndSlots) {
+TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsAndSlots) {
     auto& ds = core_->state().disciples;
     auto& gd = core_->state().gameData;
     const std::size_t doomed = addDisciple("101");
-    const std::size_t partner = addDisciple("102");
     const std::size_t survivor = addDisciple("103");
-    ds.partnerIds[partner] = "101";
     ds.currentHps[doomed] = 100;
     ds.currentHps[survivor] = 100;
     ds.currentMps[survivor] = 100;
@@ -119,8 +117,6 @@ TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsGriefAndSlots) {
     EXPECT_EQ(ds.isAlive[doomed], 1);
     EXPECT_NE(ds.statuses[doomed], "DEAD");
     EXPECT_EQ(gd.annualDeceasedDisciples, 0);
-    // 不触发悲痛（非死亡）：griefEndYears 保持 -1 哨兵
-    EXPECT_EQ(ds.griefEndYears[partner], -1);
     ASSERT_TRUE(data["lifeEventDrafts"].empty());
     // 幸存者 HP/MP 回写
     EXPECT_EQ(ds.currentHps[survivor], 50);

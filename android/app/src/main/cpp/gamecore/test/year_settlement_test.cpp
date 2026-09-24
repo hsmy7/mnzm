@@ -478,27 +478,6 @@ TEST(YearSettlementTest, Y1T2FavorDecayAppliesOnlyToPlayerRelations) {
     EXPECT_EQ(90, st.gameData.sectRelations[2].favor);
 }
 
-TEST(YearSettlementTest, Y1T2GriefExpiryClearsExpiredSentinel) {
-    ecs::World world;   // E2 残留：临时实体集（首调惰性装配）
-    // 哀悼期到期：griefEndYears 到期（>= currentYear）→ 置 -1
-    auto core = makeCore(42);
-    auto& st = core->state();
-    for (const char* id : {"1", "2"}) {
-        Disciple d;
-        d.id = id;
-        d.name = std::string("哀") + id;
-        d.isAlive = true;
-        st.disciples.appendDisciple(d);
-    }
-    st.disciples.griefEndYears[0] = 2;   // 到期（currentYear=2）
-    st.disciples.griefEndYears[1] = 5;   // 未到期
-
-    system::detail::processGriefExpiry(st, /*currentYear=*/2, world);
-
-    EXPECT_EQ(-1, st.disciples.griefEndYears[0]);
-    EXPECT_EQ(5, st.disciples.griefEndYears[1]);
-}
-
 // ════════════════════════════════════════════════════════════════
 // 年变中件黄金序列（驻军轮换）
 // ════════════════════════════════════════════════════════════════

@@ -22,7 +22,6 @@ import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,7 +89,6 @@ internal class FakeAtomicStateStore : GameStateStore {
     override val pendingNotification = MutableStateFlow<GameNotification?>(null)
     override val rewardCardQueue = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
-    override val pendingMarriageProposals = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
     override val pendingBattleRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val sectCombatPower = MutableStateFlow(0L)
     override val aiSectCombatPowers = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -150,7 +148,6 @@ internal class FakeAtomicStateStore : GameStateStore {
         pendingBeastAttacks.value =
             pendingBeastAttacks.value.filter { it.beastLevel.id != beastLevelId }
     }
-    override fun clearPendingMarriageProposals() { pendingMarriageProposals.value = emptyList() }
     override fun setPendingBattleRewardCards(c: List<RewardCardItem>) { pendingBattleRewardCards.value = c }
     override fun clearPendingBattleRewardCards() { pendingBattleRewardCards.value = emptyList() }
     override fun enqueueRewardCards(items: List<RewardCardItem>) { /* Fake：战斗奖励直接入队，无需队列 */ }

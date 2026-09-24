@@ -24,8 +24,7 @@ import kotlin.reflect.jvm.isAccessible
  * `GameStateStoreImpl.clearTransientQueues`）。reset 与 loadFromSnapshot
  * 两路径共用同一清空函数，故本守卫同时锁定两路径的清空语义。
  *
- * 锁定的不变量：换档后无跨档幽灵弹窗（§0 补充发现：婚配提议队列
- * `_pendingMarriageProposalsFlow` 原在 reset 路径同样漏清）。
+ * 锁定的不变量：换档后无任何跨档幽灵弹窗/队列残留。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -118,8 +117,8 @@ class GameStateStoreTransientQueueGuardTest {
         assertTrue("_pendingBeastAttacksFlow 不在枚举内: $names", "_pendingBeastAttacksFlow" in names)
         assertTrue("_pendingBattleResultFlow 不在枚举内: $names", "_pendingBattleResultFlow" in names)
         assertTrue(
-            "_pendingMarriageProposalsFlow 不在枚举内（§0 补充发现的漏清字段）: $names",
-            "_pendingMarriageProposalsFlow" in names
+            "_pendingBattleRewardCardsFlow 不在枚举内: $names",
+            "_pendingBattleRewardCardsFlow" in names
         )
     }
 
