@@ -23,6 +23,7 @@
 | 新增**含输入框**的界面 | `rules/dialog-soft-input-guard.md`（文本→`TextInputDialog`；数字→`NumberInputPanel`） |
 | 新增聊天/对话类对话框 | `rules/chat-dialog-design.md` |
 | 新增/改精灵图、素材、建筑或装饰显示尺寸 | `rules/static-resources.md` |
+| 找原始美术/音频素材源文件（含角色立绘、音乐） | `rules/media-source-assets.md` |
 | 引擎/战斗/结算/生产/探索/内政/经济/RNG 逻辑 | `rules/cpp-priority.md` → `docs/cpp-engine.md` |
 | 新增随机数逻辑 | §5 编码规范 9.5 红线 + `docs/knowledge-base.md`「确定性 RNG 系统」 |
 | 新增/改跨线程交互、线程、渲染数据通道 | `docs/threading-contract.md`（**先登记再实现**） |

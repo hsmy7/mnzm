@@ -13,9 +13,23 @@
 | 灵根洗炼（wash） | 🔴 **悟性 `comprehension` 全链**（用户 2026-09-24 拍板） |
 | 资质 `aptitude` | `comprehensionBreakthroughBonus` / `baseComprehension` / `ELDER_SKILL_BASELINE` / `ELDER_BONUS_DIVISOR` / `ELDER_BREAKTHROUGH_MAX_STEPS` / `ELDER_BONUS_PER_STEP` |
 | 天赋 / 体质 / 词条 三表（`talentIds`/`physiqueIds`/`affixIds` + 静态数据表本体） | 长老指导乘区结构（`innerElderComprehension` × `(1+innerPos)` 形态保留） |
-| 血炼（四字段族 + 血炼池建筑消费面 + `randomBloodRefineStat`） | `masterId` 师徒链（G03 已锁反向守卫） |
+| 血炼（四字段族 + 血炼池建筑消费面 + `randomBloodRefineStat`） | `masterId` 师徒链 —— **G04 不动，但已判给紧随其后的 G15 整体下线**（`HANDOVER-m1-remaining-3.md` §10） |
 | 职位特质 `PositionBonus` 数值源（随天赋/词条表消失） | `renameSect`/没收/执法/`materializeDiscipleBagAndMarkDead`/`kDeadStatusName` 等前批保留面 |
 | 战斗随机成长 `winBattleRandomAttrPlus` / `applyDeterministicWinAttr` | `blood_refining_pool` 素材名（`build-atlas.mjs`、webp、manifest —— §6.12「素材暂闲置」白名单） |
+
+### 1.0 🔴 血炼池建筑**连建筑一起拆掉**（用户 2026-09-24 拍板，覆盖 recon §6.12「素材暂闲置」的暧昧表述）
+
+不走 G02「建筑保留、只断功能」先例。 ⇒ 除血炼玩法链外，本批**额外承担**：
+
+| 必改面 | 文件（实测 grep 得出） |
+|---|---|
+| 建筑定义 | `android/app/src/main/assets/config/buildings.json`（`blood_refining_pool` 条目） |
+| 默认表 / 名称 / 装配 | `core/engine/.../config/Defaults.kt`、`core/engine/.../util/BuildingNames.kt`、`core/engine/.../domain/building/BuildingFeature.kt`（+ `BuildingFeatureTestRegistration.kt`） |
+| 建造列表 UI 与槽位 | `BuildingsTab.kt`、`model/production/ProductionSlot.kt`（`SlotCategory.BLOOD_REFINEMENT`）、`GameEngineBloodRefinementOps.kt`、`GameEngineSelfHealOps.kt`（血炼自愈） |
+| 🔴 **玩家已建建筑的读档清理** | 必须新增/扩展一条 `SaveValidator` 规则把旧档里的血炼池建筑与对应槽位清空（照 G05 `RecruitListCleanupRule` 恒清空先例），否则旧档会出现指向已删建筑类型的悬垂实例 |
+| 🔴 **引导任务判据** | `core/domain/.../model/guide/GuideTask.kt` 若以血炼池建筑为条件 → 必须改判据，否则**引导卡死**（G02「引导防卡死」先例） |
+| 守卫测试 | `BuildingTypeCoverageTest`、`BuildingBatchRemovalTest`、`BuildingRemovalSlotCleanupTest`、`BuildingSpriteFootprintGuardTest`、`SpriteAtlasDefGeneratedTest`、`GameEngineDualSlotGuardTest`、`BuildingNamesTest` |
+| 素材 | `blood_refining_pool` 的 webp / `android/scripts/build-atlas.mjs` / atlas manifest **仍按 §6.12 白名单保留**（拆建筑不等于删图；图闲置无害，删图会牵动图集重生成） |
 
 ### 1.1 🔴 必须从 `recon-G04.md` §8 grep 清单里划掉的三条（否则会把保留的东西删掉）
 
@@ -23,7 +37,7 @@
 |---|---|---|
 | **#14** | `mergeEffects\|talentEffectsFor\|affixEffectsFor\|physiqueCultivationBonusFor\|hpMpEffectsFor\|positionEffectBonus\|`**`baseComprehension`**`\|`**`comprehensionBreakthroughBonus`** | 前 6 项归零正确；**`baseComprehension` 与 `comprehensionBreakthroughBonus` 必须保留并有命中** —— 悟性保留。该条要拆成 #14a（归零）+ #14b（反向守卫） |
 | **#18** | `comprehension`（排除 `comprehensionAdd` 前先删该键） | **整条作废**。`comprehension` 是保留面 |
-| **#19** | `comprehensionAdd`（属性丹目标分支） | **待定，默认保留**。它是 `PillEffect.comprehensionAdd`（@ProtoNumber(24)）给悟性加成的通道；悟性保留则通道语义成立。⚠️ 但 G02 已下架「悟丹」丹方（`CHANGELOG.md` G02 段 `pillType ×4` 含 `comprehension`）⇒ 该字段现可能**零生产者**。开工第一步：grep 生产者，若确实零生产 → **登记 G10 死字段**，本批不删（删字段要动 Room/proto 链，成本与风险不对等） |
+| **#19** | `comprehensionAdd`（属性丹目标分支） | ✅ **已实测判定：保留，本批不删**。`recipe_db_sample.json` 有 **36 条非零**（智悟丹/悟德丹/灵悟丹/明悟丹…），`pill_system.h:219` `d.comprehension = clampSkill(d.comprehension + e.comprehensionAdd)` 真实生效，且 `pill_system.h:67/106` 把它列入丹效分类 ⇒ **不是死字段**。（G02 下架的是另一组 `pillType=comprehension` 丹方，与本字段无关） |
 
 ### 1.2 ✅ 主线程已实测推翻的侦察断言：**§12 开放项 #9 的 `data_inject.h` 陷阱因果写反**
 
@@ -123,7 +137,7 @@ G03 实测两处「侦察落点表按维度切分导致的漏项」：
 |---|---|
 | M1 进度 | **4 / 9**（G02 `5dbaac1e3`、G05 `8e593a71b`、G06 `e1a69d8e9`、**G03 `cc66d7918`**） |
 | 当前 HEAD | `cc66d7918` |
-| 工作树 | 干净（未跟踪仅 `模拟宗门美术素材/`、`模拟宗门音乐音效/`、`docs/research/`×2 四组，**永不提交**） |
+| 工作树 | 干净；素材两目录已由 `.gitignore` 兜住（`rules/media-source-assets.md`），未跟踪仅剩 `docs/research/`×2 不提交 |
 | 下一批 | **G04**（本文件） |
-| 其后 | G08 → G09 → G11 → G10（依赖链见 HANDOVER §1.2） |
-| 遗留待拍板 | ① 弟子详情「关系」对话框 G03 后只剩师父/徒弟，按钮文案是否改「师徒」（G03 report §八-7）；② `comprehensionAdd` 是否零生产者（本文件 §1.1 #19）；③ G11 的 12 个角色精灵键注册仍是硬阻塞 |
+| 其后 | **G15（师徒下线）→ G16（素材批）→ G08 → G09 → G11 → G10**（顺序与依赖见 `HANDOVER-m1-remaining-3.md` §1.2） |
+| 遗留待拍板 | ~~三项已全部关闭~~（2026-09-24）：① 师徒 → **整体下线**，拆给 **G15**（`HANDOVER-m1-remaining-3.md` §10）；② `comprehensionAdd` → 实测**活字段，保留**（§1.1 #19）；③ 素材 → 单独开 **G16**（§11），且两个素材目录**只登记不入库**（`rules/media-source-assets.md`）。本批新增范围：**血炼池连建筑拆掉**（§1.0） |

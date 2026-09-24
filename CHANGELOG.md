@@ -88,6 +88,15 @@
 - **测试处置**：C++ 净删 13 条 TEST（`child_birth_test.cpp` 整删 4 条 + 月/年结/战斗/弟子/防御战删段 + 赠礼与 guard 改断言 + 列双射五件同步）；Kotlin 51 文件（44 改 / 4 整删 `ChildBirthSystemTest`·`PartnerSystemTest`·`GameEngineMarriageProposalTest`·`GameEngineMarriageNativeTxGateTest` / 1 新增），整例删判据 =「被测函数或列本身已下线、摘完无残留有效断言」，其余一律**只摘几行**（回退臂三臂降级、重伤不计年报、月结年结有效断言全留），并修正 provider 替身 `masterDiscipleBonus` 声明却未转发的**师徒覆盖断链**
 - **G10 登记（详见 report-G03.md §八）**：① 🔴 **侦察结构性缺陷**——§9.x 收口项「归属结论」与 §G02/G03-2 落点表不双向校验，导致 §9.7 判归 G03 的战场哀悼块五份任务书全部漏认领（G04/G08/G09 开工前须逐条回查）② 既有 B 类 3 条 + 1 条随文件删除，Kotlin 侧本批 0 条新锚改动 ③ `ai_sect_ops.h`/`disciple_stats.h` 各一行 `rootCount = 1` 自赋值无效语句 ④ `applyCombatInjury` 仍调 `markDead`（名=死亡/行为=重伤）及测试注释失实、测试弟子 101 命名「阵亡者」与 G07 相悖 ⑤ 两处裸 `mock(GameRngManager)` 违反 `mockSmart` 约定 ⑥ `FakeAtomicStateStore` 未登记进 `rules/testing.md` 共享工厂表 ⑦ 「关系」对话框只剩师徒、按钮是否改名待拍板 ⑧ `prisonerSpiritRootFilter` UI 写入面残留；**本批金黄/baseline 零重录**
 
+### 素材与音频源目录规范化（2026-09-24）——登记项目指定源资产 + 三项产品拍板入库 — `docs`/`chore`
+- **新增 `rules/media-source-assets.md`**：登记 `模拟宗门美术素材/`（572 MB / 384 PNG + 1 mp4）与 `模拟宗门音乐音效/`（1.6 MB / 2 mp3）为**项目指定的美术与音频源文件目录**；明确「源目录 ≠ 包内资源目录」——应用运行时只允许经 `SpriteResRegistry` / `SpriteImage("名称")` / Canvas `drawSprite` 访问 `res/drawable*` 与 `assets/`，源图**永不按路径直读**、不参与 APK 构建；进包必须走 `rules/static-resources.md` 七步（无损 WebP + 双模块 + 注册 + 图集 codegen + 守卫）。
+- 🔴 **两个源目录不入库**：已写入 `.gitignore`（`/模拟宗门美术素材/`、`/模拟宗门音乐音效/`），属仅本机资产 —— 换机器 / 重新 clone 后为**空目录**，需项目外渠道同步（性质同 `.agents/skills` 联接重建）。理由：572 MB 未转化源图 vs 仓库 `.git` 已 1.5 GB。**各批次交接中「未跟踪 4 组永不提交」的人工提醒就此作废，改由 `.gitignore` 强制。**
+- 登记 `模拟宗门美术素材/视频/8月16日.mp4`（16 MB）为**非素材**（一次性录屏），任何批次不得引用、不得进包。
+- 根 `AGENTS.md` §0 路由表新增一行指向该文件（预算闸 32473/32768，余量 295 字节，故细则全部下沉 `rules/`）。
+- **同日三项产品拍板入库**：① 🔴 **师徒系统整体下线** → 新增批次 **G15**（任务书 `HANDOVER-m1-remaining-3.md` §10，含实测文件面 C++ 10 / Kotlin 45 / 测试 26+3；连带效果：**赠礼系统整体消失**、`social_masterId` 列随 Room v59 下线、拜师事务 1591 保号退役）；② **血炼池连建筑一起拆掉**（不走 G02「建筑保留只断功能」先例）→ 并入 **G04** 范围，须同步处理旧档建筑清理与引导判据（`TASKBOOK-G04.md` §1.0）；③ **角色素材单独开批 G16**，插在 G04 之后、G09 之前，解除 G11 硬阻塞。
+- 顺带关闭一项挂起的待拍板：`comprehensionAdd` 经实测为**活字段**（配方 36 条非零 + `pill_system.h:219` 真实写入悟性），随悟性一并保留，不列死代码。
+- 剩余批次顺序更新为 **G04 → G15 → G16 → G08 → G09 → G11 → G10**；M1 进度 4/9（G02/G05/G06/G03 已收官）。
+
 ### 内存管理根治 Phase 4：状态基线 + GLES + 可观测（2026-09-23，MR4 批）— `feat(memory)`/`perf(memory)`
 - **P4.1 状态基线去全量 DOM（D5）**：`StateBaseline` 块级形态（gameData 字段 + 实体 id 块），`DirtyTracker`/`ColumnDirtyTracker` 不再持嵌套全量业务树；`importStateInternal` 峰值顺序=解析临时态→reseed→释放 JSON→切换 state_（失败回滚）→归一化。验收：`BaselineMemoryTest` + `BaselineFieldCoverageGuardTest` + 对拍绿。
 - **P4.2 rest 导出减载**：块级基线比对，信封仍只携带 changed/（与 `dirtyColumnExport` 正交）；Diff tick 绿。

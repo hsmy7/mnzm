@@ -152,3 +152,8 @@ Testing/
 
 # DSH skill 接入：指向 .claude/skills 的目录联接（本机产物，不入库；换机后按 docs/AGENTS.md 重建）
 .agents/
+
+# 项目指定的美术素材 / 音频源文件（572 MB + 1.6 MB，仅本机资产，不入版本库）
+# 位置与使用边界见 rules/media-source-assets.md；换机器需另行同步这两个目录
+/模拟宗门美术素材/
+/模拟宗门音乐音效/
