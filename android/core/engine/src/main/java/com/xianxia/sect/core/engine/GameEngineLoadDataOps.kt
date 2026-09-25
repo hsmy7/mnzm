@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
@@ -24,6 +25,7 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.EngineEntropy
+import com.xianxia.sect.core.util.onFailure
 import java.util.UUID
 
 
@@ -233,6 +235,38 @@ private suspend fun GameEngine.initSpiritMineLastSettledMonth() {
     }
 }
 
+/**
+ * 开局资产口径（新档 / 有名重启 / 无名重启三条臂共用单点，防臂间口径漂移）：
+ * 起始灵石 + 起始星级账本。
+ *
+ * 灵石为**一次性开局注入**：禁止改 [GameData] 的 `spiritStones` 默认值（该值承载
+ * 「未初始化」哨兵语义、被多处测试锁定），也禁止走 `SpiritStoneWallet.add`——钱包
+ * 记账会累加 `annualTotalIncome` 与分渠道年度收入，而开局量不得进入收入曲线。
+ *
+ * 账本只写 `gachaStarMap`（开局模板 1 星实例）；`gachaFragmentCounts` **不含**该键，
+ * 即开局角色碎片进度 0/100（开局不送碎片）。
+ */
+private fun GameData.withStartupLedger(): GameData = copy(
+    spiritStones = GameConfig.Gacha.START_SPIRIT_STONES.toLong(),
+    gachaStarMap = mapOf(
+        CharacterTemplateDb.STARTUP_TEMPLATE_ID to CharacterTemplateDb.STARTER_STAR
+    )
+)
+
+/**
+ * 开局名册：实例化开局模板弟子（[CharacterTemplateDb.STARTUP_TEMPLATE_ID] 一名）。
+ *
+ * 三条开局臂各自与本体 `stateStore.update {}` 同事务调用（本函数在事务内被调用，
+ * `DiscipleService.instantiateTemplate` 的写入经重入事务并入同一提交）。
+ * 新档名册在 `resetForSlot` 之后必为空、开局模板恒在模板表内，失败只可能来自调用序
+ * 错误——按「错误必须传播」记入日志，不静默丢弃。
+ */
+private fun GameEngine.instantiateStartupDisciple(operation: String) {
+    discipleService.instantiateTemplate(CharacterTemplateDb.STARTUP_TEMPLATE_ID).onFailure { error ->
+        DomainLog.e("GameEngine", "$operation: 开局模板弟子实例化失败 code=${error.code}, ${error.message}")
+    }
+}
+
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     return engineContextDispatcher.withEngineContext {
@@ -282,8 +316,8 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
                 patrolConfigs = emptyList(),
                 librarySlots = emptyList(),
                 spiritFieldPlants = emptyList()
-            )
-            repeat(3) { discipleService.recruitDisciple(realm = 9) }
+            ).withStartupLedger()
+            instantiateStartupDisciple("createNewGame")
         }
         addInitialStorageBags()
         // 2. 世界初始化完成后才加载邮件（此时 mailRecords/slotId 等状态已就绪）
@@ -349,8 +383,8 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                     patrolConfigs = emptyList(),
                     librarySlots = emptyList(),
                     spiritFieldPlants = emptyList()
-                )
-                repeat(3) { discipleService.recruitDisciple(realm = 9) }
+                ).withStartupLedger()
+                instantiateStartupDisciple("restartGame")
             }
             addInitialStorageBags()
             // 2. 世界初始化完成后才加载邮件
@@ -364,12 +398,16 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                 DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e)
             }
         } else {
+            // 无名重启臂与有名臂同口径：起始灵石 + 起始星级账本 + 开局模板名册
+            // （三项缺一即「重置后开局不一致」）
             stateStore.update {
                 gameData = GameData().copy(
+                    slotId = currentSlot,
                     currentSlot = currentSlot,
                     mapSeed = mapSeed,
                     saveVersion = SaveVersion.CURRENT
-                )
+                ).withStartupLedger()
+                instantiateStartupDisciple("restartGameBlankSect")
             }
         }
         // 重启新世界状态导入 C++ native 引擎基线（同 loadData，

@@ -13,7 +13,7 @@
 //
 // 未下沉（Kotlin 残差，PR/§2.50 显式登记）：
 //  - **物品随机生成**（EquipmentDatabase/ManualDatabase/ItemDatabase/HerbDatabase
-//    .generateRandom、RedeemCodeManager.generateDisciple）：C++ data 层只有静态
+//    .generateRandom）：C++ data 层只有静态
 //    模板表（equipment_db.h 等）**没有生成器**，下沉即需重写整条 MAIL 分区
 //    抽取链 → RNG 红线（README §7.1）风险，本批不做。兑换码编排、邮件附件
 //    发放因此整体留 Kotlin（其落账与物品发放同事务，拆分即破坏「失败零写入

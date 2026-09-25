@@ -31,9 +31,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.resolvePortraitResId
 import com.xianxia.sect.ui.theme.GameColors
 
 /** 事件区/选择区纯色面板背景（与消息栏展开态/通关奖励面板同色） */
@@ -49,8 +49,8 @@ internal fun SecretRealmPortrait(
     isDead: Boolean = false
 ) {
     val portraitResId = remember(portraitRes) {
-        val id = if (portraitRes.isNotBlank()) PortraitPool.getResourceId(portraitRes) else 0
-        if (id != 0) id else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
+        resolvePortraitResId(portraitRes).takeIf { it != 0 }
+            ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
     }
     val sizeDp = size.dp
     Box(

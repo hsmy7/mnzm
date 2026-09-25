@@ -3,6 +3,15 @@ package com.xianxia.sect.core.model
 import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
+/**
+ * 兑换码奖励类型。
+ *
+ * 兑换码是**资源发放**通道，不是弟子获取通道：角色类奖励一律以 [FRAGMENT] 发放
+ * 角色模板碎片，弟子实例只能由角色模板实例化产生。
+ * 本枚举是编译期产物，不落 Room 表也不进 ProtoBuf（兑换码表在
+ * `RedeemCodeManager.predefinedCodes` 与远端校验结果中，均不持久化），
+ * 因此增删取值不涉及存档迁移。
+ */
 @Keep
 @Serializable
 enum class RedeemRewardType {
@@ -13,32 +22,11 @@ enum class RedeemRewardType {
     MATERIAL,
     HERB,
     SEED,
-    DISCIPLE,
-    STARTER_PACK,
+
+    /** 角色碎片：按 [RedeemCode.templateId] 发放，入账走寻访域碎片门面 */
+    FRAGMENT,
     MANUAL_PACK
 }
-
-@Keep
-@Serializable
-data class DiscipleRewardConfig(
-    val realm: Int = 9,
-    val realmLayer: Int = 1,
-    val spiritRootType: String? = null,
-    val spiritRootCount: Int? = null,
-    val intelligence: Int? = null,
-    val comprehension: Int? = null,
-    val charm: Int? = null,
-    val loyalty: Int? = null,
-    val artifactRefining: Int? = null,
-    val pillRefining: Int? = null,
-    val spiritPlanting: Int? = null,
-    val mining: Int? = null,
-    val teaching: Int? = null,
-    val morality: Int? = null,
-    val minAge: Int = 16,
-    val maxAge: Int = 25,
-    val gender: String = "random"
-)
 
 @Keep
 @Serializable
@@ -52,7 +40,8 @@ data class RedeemCode(
     val expireYear: Int? = null,
     val expireMonth: Int? = null,
     val isEnabled: Boolean = true,
-    val discipleConfig: DiscipleRewardConfig? = null
+    /** [RedeemRewardType.FRAGMENT] 的角色模板 id，取值域见 `CharacterTemplateDb.ids`；其余奖励类型为 null */
+    val templateId: String? = null
 ) {
     val isExhausted: Boolean
         get() = usedCount >= maxUses
@@ -64,8 +53,6 @@ data class RedeemResult(
     val success: Boolean,
     val message: String,
     val rewards: List<RewardSelectedItem> = emptyList(),
-    val disciple: Disciple? = null,
-    val disciples: List<Disciple> = emptyList(),
     /** true=仓库容量不足导致兑换未生效（兑换码未标记已用，清理后可重试）；UI 应弹容量提示框 */
     val capacityInsufficient: Boolean = false
 )

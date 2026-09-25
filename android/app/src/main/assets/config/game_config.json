@@ -45,11 +45,6 @@
   "rarity": {
     "sellPriceMultiplier": 0.8
   },
-  "starting": {
-    "spiritStones": 2000,
-    "reputation": 100,
-    "spiritHerbs": 50
-  },
   "playerProtection": {
     "protectionYears": 100
   },

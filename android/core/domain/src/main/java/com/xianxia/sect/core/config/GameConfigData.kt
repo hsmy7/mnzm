@@ -24,7 +24,6 @@ data class GameConfigData(
     val herbGarden: HerbGardenSection = HerbGardenSection(),
     val warehouse: WarehouseSection = WarehouseSection(),
     val rarity: RaritySection = RaritySection(),
-    val starting: StartingSection = StartingSection(),
     val playerProtection: PlayerProtectionSection = PlayerProtectionSection(),
     val performance: PerformanceSection = PerformanceSection(),
     val logs: LogsSection = LogsSection(),
@@ -98,13 +97,6 @@ data class GameConfigData(
     @Serializable
     data class RaritySection(
         val sellPriceMultiplier: Double = 0.8
-    )
-
-    @Serializable
-    data class StartingSection(
-        val spiritStones: Int = 2000,
-        val reputation: Int = 100,
-        val spiritHerbs: Int = 50
     )
 
     @Serializable

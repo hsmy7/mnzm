@@ -23,12 +23,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.resolvePortraitResId
 import com.xianxia.sect.core.engine.chatDraw
 import com.xianxia.sect.core.engine.chatDrawDouble
 import com.xianxia.sect.core.engine.GameEngine
@@ -390,7 +390,7 @@ fun DiscipleChatDialog(
 private fun ChatLeftPanel(disciple: DiscipleAggregate, modifier: Modifier = Modifier) {
     Column(modifier = modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center) {
-        val resId = PortraitPool.getResourceId(disciple.portraitRes).takeIf { it != 0 }
+        val resId = resolvePortraitResId(disciple.portraitRes).takeIf { it != 0 }
             ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
         // 80dp = 240px@3x ≤ 256px 预载位图质量边界，命中缓存
         PortraitImage(

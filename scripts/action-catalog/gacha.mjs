@@ -17,4 +17,5 @@
  */
 export const CATALOG = [
   // 1870–1889 · 角色卡池（G01 预留空段，G09 实跑分配）
+  { id: 1870, name: 'GACHA_FRAGMENT_GRANT_TX', desc: '角色碎片入账事务（零 RNG；碎片累加+满 100 升星；抽卡/兑换码/邮件/活动共用）' },
 ];

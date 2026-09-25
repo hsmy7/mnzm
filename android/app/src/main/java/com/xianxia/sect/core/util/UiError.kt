@@ -125,6 +125,10 @@ private fun mapDiscipleError(error: AppError.Domain.Disciple): Triple<String, Ui
     is AppError.Domain.Disciple.RealmTooLow -> Triple("弟子境界不足，需${error.need}", UiErrorSeverity.INFO, false)
     is AppError.Domain.Disciple.AlreadyEquipped -> Triple("${error.slot}已装备", UiErrorSeverity.INFO, false)
     is AppError.Domain.Disciple.SlotInvalid -> Triple(error.detail, UiErrorSeverity.INFO, false)
+    is AppError.Domain.Disciple.TemplateAlreadyOwned ->
+        Triple("该角色已在宗门中：${error.templateId}", UiErrorSeverity.INFO, false)
+    is AppError.Domain.Disciple.TemplateUnknown ->
+        Triple("角色模板配置缺失：${error.templateId}", UiErrorSeverity.ERROR, false)
 }
 
 /** 仓库域错误映射 */

@@ -2,20 +2,21 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
+import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.NameService
-import com.xianxia.sect.core.util.SpiritRootGenerator
+import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.core.util.asKotlinRandom
 
 
 @GameService("DiscipleService")
@@ -32,8 +33,15 @@ class DiscipleService @Inject constructor(
     // 放宽为 internal 供同域扩展按需读取（stateStore 同款三重防护惯例）
     internal val inventorySystem: InventorySystem
 ) {
-    /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
+    /** 属性 roll 随机流走 SYSTEM 分区（与伴侣配对同类系统级随机） */
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
+
+    companion object {
+        /** 模板姓名首字即姓氏（[CharacterTemplateDb] 全部模板均为单字姓） */
+        private const val SURNAME_PREFIX_LENGTH = 1
+        /** 弟子日志：入门事件 */
+        private const val LIFE_EVENT_JOINED_SECT = "加入宗门"
+    }
 
     // ==================== StateFlow 暴露 ====================
 
@@ -107,66 +115,86 @@ class DiscipleService @Inject constructor(
      */
     suspend fun resetAllDisciplesStatus() = discipleStatusService.resetAllDisciplesStatus()
 
-    // ==================== 弟子培养 ====================
+    // ==================== 模板弟子构造 ====================
 
     /**
-     * Recruit new disciple
-     * @param realm 境界，默认 9（炼气期），0 为仙人
+     * 角色模板实例化：把一具具名角色模板落为一名在册弟子（弟子构造的唯一生产入口）。
      *
-     * 安全操作（name生成、factory创建）优先执行，不涉及 DiscipleTables。
-     * ID 分配 + 组件表写入使用 [allocateAndInsert] 在最后一步原子完成，
-     * 消灭 allocateNextId → insert 之间的悬空窗口。
+     * 身份字段（姓名 / 性别 / 灵根 / 立绘键 / 模板 id / 初始境界）全部取自
+     * [CharacterTemplateDb]，**不经** [NameService.generateName] 与灵根随机生成；
+     * 六维方差、悟性与技能仍由 [DiscipleFactory] 的既有确定性 roll 链产生。
+     *
+     * 可预期的业务失败以 sealed [DomainResult.Failure] 返回（不抛异常）：
+     * - [AppError.Domain.Disciple.TemplateUnknown]：[templateId] 不在模板表中
+     * - [AppError.Domain.Disciple.TemplateAlreadyOwned]：名册已有同模板弟子（限持 1）
+     *
+     * ID 分配 + 组件表写入 + 入门日志 + 引导计数 + 年度新增弟子计数在**同一次**
+     * [GameStateStore.updateAndReturn] 事务内原子完成。
+     *
+     * @param templateId 角色模板 id
+     * @return 成功时携带已入库的弟子（id 为实际分配值）
      */
-    fun recruitDisciple(realm: Int = 9): Disciple {
-        val gender = if (rng.nextDouble() < 0.5) GENDER_MALE else GENDER_FEMALE
-
-        val existingNames = (stateStore.discipleTables.assembleAll()
-            + stateStore.gameData.value.recruitList)
-            .map { it.name }.toSet()
-        // 名字随机源分区化（batch-14b 拍板落地，AISectDiscipleManager
-        // 同款先例）——原默认 Random.Default 非确定性、不入 rngStates，同 mapSeed
-        // 新档初始弟子名字不可复现；传 SYSTEM 分区适配器后与性别/灵根/factory
-        // 同流（与 C++ name_service.h generateName 分区语义同源），
-        // 名字序列存档可重放。活跃调用方仅新档创建播种（createNewGame/restartGame）。
-        val nameResult = NameService.generateName(
-            gender, NameService.NameStyle.FULL, existingNames, rng.asKotlinRandom()
-        )
+    fun instantiateTemplate(templateId: String): DomainResult<Disciple> {
+        val template = CharacterTemplateDb.byId(templateId)
+            ?: return DomainResult.Failure(AppError.Domain.Disciple.TemplateUnknown(templateId))
+        ownsTemplate(templateId)?.let { ownerId ->
+            return DomainResult.Failure(
+                AppError.Domain.Disciple.TemplateAlreadyOwned(templateId, ownerId)
+            )
+        }
 
         val rawDisciple = discipleFactory.create(
             DiscipleFactory.DiscipleSeed(
                 id = "PENDING",  // 占位 ID，allocateAndInsert 会覆盖
-                gender = gender,
-                nameResult = nameResult,
-                spiritRootType = SpiritRootGenerator.generate(rng.asKotlinRandom()),
-                realm = realm,
-                realmLayer = 1,
-                nextInt = { from, until -> from + rng.nextInt(until - from) }
+                gender = template.gender,
+                nameResult = NameService.NameResult(
+                    surname = template.name.take(SURNAME_PREFIX_LENGTH), fullName = template.name
+                ),
+                spiritRootType = template.spiritRootType,
+                realm = CharacterTemplateDb.STARTUP_REALM,
+                realmLayer = CharacterTemplateDb.STARTUP_REALM_LAYER,
+                nextInt = { from, until -> from + rng.nextInt(until - from) },
+                templateId = template.id,
+                portraitResOverride = template.portraitKey
             )
         )
 
-        // Set recruitment time
+        // 入门时间戳（当前游戏月序号）
         val data = stateStore.gameData.value
-        val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        rawDisciple.usage.recruitedMonth = currentMonthValue
+        rawDisciple.usage.recruitedMonth = data.gameYear * 12 + data.gameMonth
 
-        // 最后一步：原子分配 ID + 写入组件表 + 加入宗门日志（消灭悬空窗口）
-        val realId = stateStore.updateAndReturn {
-            val id = discipleTables.allocateAndInsert(rawDisciple)
-            val intId = id.toIntOrNull()
-            if (intId != null) {
-                val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-                discipleTables.lifeEvents[intId] = events + "加入宗门"
-            }
-            // 引导系统：累计招募弟子
-            val prevCount = gameData.guideCounters[GuideCounterKeys.DISCIPLES_RECRUITED] ?: 0L
-            gameData = gameData.copy(
-                guideCounters = gameData.guideCounters + (GuideCounterKeys.DISCIPLES_RECRUITED to prevCount + 1),
-                annualNewDisciples = gameData.annualNewDisciples + 1
-            )
-            id
+        val realId = stateStore.updateAndReturn { insertTemplateDisciple(rawDisciple) }
+        return DomainResult.Success(rawDisciple.copy(id = realId))
+    }
+
+    /**
+     * 限持判定：名册中已存在该模板的弟子实例时返回其 id，否则 null。
+     * 只读 `templateIds` 列，不装配 Disciple 整对象。
+     */
+    private fun ownsTemplate(templateId: String): String? {
+        val column = stateStore.discipleTables.templateIds
+        val ownerId = column.ids().firstOrNull { column.getOrDefault(it, "") == templateId }
+        return ownerId?.toString()
+    }
+
+    /**
+     * 模板弟子落库（事务内）：原子分配 ID + 写组件表 + 「加入宗门」日志 +
+     * 引导计数器（键名沿用 `disciplesRecruited`：入门即计数，改键会使旧档引导倒退）
+     * + 年度新增弟子。
+     */
+    private fun MutableGameState.insertTemplateDisciple(disciple: Disciple): String {
+        val id = discipleTables.allocateAndInsert(disciple)
+        val intId = id.toIntOrNull()
+        if (intId != null) {
+            val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
+            discipleTables.lifeEvents[intId] = events + LIFE_EVENT_JOINED_SECT
         }
-
-        return rawDisciple.copy(id = realId)
+        val prevCount = gameData.guideCounters[GuideCounterKeys.DISCIPLES_RECRUITED] ?: 0L
+        gameData = gameData.copy(
+            guideCounters = gameData.guideCounters + (GuideCounterKeys.DISCIPLES_RECRUITED to prevCount + 1),
+            annualNewDisciples = gameData.annualNewDisciples + 1
+        )
+        return id
     }
 
     // ==================== 装备管理 ====================
@@ -200,8 +228,4 @@ class DiscipleService @Inject constructor(
      */
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean = discipleSlotManager
         .isDiscipleAssignedToSpiritMine(discipleId)
-
-    /**
-     * Get alive disciples count
-     */
 }

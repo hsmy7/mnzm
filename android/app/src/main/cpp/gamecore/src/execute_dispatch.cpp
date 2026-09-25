@@ -58,6 +58,12 @@
 // ============================================================
 namespace gamecore {
 
+/// 角色卡池分派端口（实现在 src/dispatch_gacha.cpp，认领 1870–1889 段）。
+/// 契约与 `dispatchW4A`（include/gamecore/dispatch_w4.h）一致：
+/// 认领 ⇒ 返回完整结果信封；不认领 ⇒ `std::nullopt`；端口内不抛异常。
+std::optional<nlohmann::json> dispatchGacha(GameCore& core, int32_t actionId,
+                                            const nlohmann::json& params);
+
 namespace {
 
 using gamecore::system::DeductStatus;
@@ -725,15 +731,6 @@ nlohmann::json handleRedeemCode(GameCore* core, int32_t actionId,
             }
             return ok({{"spiritRoot", gamecore::system::resolveSpiritRoot(
                                           sr, typePtr, countPtr)}});
-        }
-        case action::REDEEM_RESOLVE_AGE_LIFESPAN: {
-            const auto r = gamecore::system::resolveAgeAndLifespan(
-                sr, params.at("minAge").get<int32_t>(),
-                params.at("maxAge").get<int32_t>(), params.at("realm").get<int32_t>());
-            return ok({{"age", r.first}, {"lifespan", r.second}});
-        }
-        case action::REDEEM_GENERATE_VARIANCE: {
-            return ok({{"variance", gamecore::system::generateVariance(sr)}});
         }
         case action::MAIL_ATTACHMENT_ENCODE: {
             std::vector<MailAttachment> attachments;
@@ -2527,6 +2524,12 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (auto w4a = dispatchW4A(*this, actionId, params);
                    w4a.has_value()) {
             result = std::move(*w4a);
+        } else if (auto gacha = dispatchGacha(*this, actionId, params);
+                   gacha.has_value()) {
+            // 角色卡池端口（src/dispatch_gacha.cpp，1870–1889 段）——
+            // 🔴 独立端口而非裸 id 区间：并入相邻连续区间会把区间内的其他
+            // 域动作号吞进本 handler（1730 被 1520–1531 吞进库存的事故同类）。
+            result = std::move(*gacha);
         } else if (auto w4b = dispatchW4B(*this, actionId, params);
                    w4b.has_value()) {
             result = std::move(*w4b);

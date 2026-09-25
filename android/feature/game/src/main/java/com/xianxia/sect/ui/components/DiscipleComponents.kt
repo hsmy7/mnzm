@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -173,9 +172,8 @@ private fun PortraitDisciplePortraitColumn(disciple: DiscipleAggregate) {
         modifier = Modifier.width(48.dp)
     ) {
         val resId = remember(disciple.portraitRes) {
-            val preloaded = PortraitPool.getResourceId(disciple.portraitRes)
-            if (preloaded != 0) preloaded
-            else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
+            resolvePortraitResId(disciple.portraitRes).takeIf { it != 0 }
+                ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
         }
         // 44×56dp ≤ 80dp 质量边界，优先命中 L0 预载头像缓存
         PortraitImage(

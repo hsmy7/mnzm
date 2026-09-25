@@ -16,9 +16,6 @@
 // 等价移植 Kotlin RedeemCodeManager / SpiritRootGenerator 的**确定性纯逻辑**：
 //   - validateRedeemInput：兑换码格式校验（trim/空/长度 3..20/字符集
 //     ^[\u4e00-\u9fa5A-Za-z0-9]+$）
-//   - rollBySpiritRootCount：灵根阶梯属性掷点（1 灵根 80+ 逐级降 20）
-//   - generateVariance：属性方差（-50..50）
-//   - resolveAgeAndLifespan：年龄区间 + 境界寿元 ±10% 波动（coerceAtLeast）
 //   - resolveSpiritRoot：灵根类型解析（配置指定 / 数量随机 / 权重随机生成）
 //   - spiritRootGenerate：SpiritRootGenerator.generate（COUNT_WEIGHTS 权重表）
 //   - JavaRandomCompat：java.util.Random 48 位 LCG 复现
@@ -164,41 +161,6 @@ inline std::string validateRedeemInput(const std::string& rawCode) {
         }
     }
     return "";
-}
-
-// ── 灵根阶梯属性掷点（Kotlin rollBySpiritRootCount）──
-// 单灵根 80+ 起逐级降 20；5+ 灵根 1+nextInt(20)。RNG 消费 1×nextInt。
-inline int32_t rollBySpiritRootCount(rng::DeterministicRng& rng, int32_t spiritRootCount) {
-    switch (spiritRootCount) {
-        case 1:
-            return 80 + rng.nextInt(21);
-        case 2:
-            return 60 + rng.nextInt(21);
-        case 3:
-            return 40 + rng.nextInt(21);
-        case 4:
-            return 20 + rng.nextInt(21);
-        default:
-            return 1 + rng.nextInt(20);
-    }
-}
-
-/// 属性方差（Kotlin generateVariance）：-50..50
-inline int32_t generateVariance(rng::DeterministicRng& rng) { return -50 + rng.nextInt(101); }
-
-// ── 年龄与基础寿命解析（Kotlin resolveAgeAndLifespan）──
-// RNG 消费：年龄 1×nextInt + 寿命 1×nextDouble。
-inline std::pair<int32_t, int32_t> resolveAgeAndLifespan(rng::DeterministicRng& rng,
-                                                         int32_t minAge, int32_t maxAge,
-                                                         int32_t realm) {
-    // S13 修复：minAge >= maxAge 时直接取 minAge（防 nextInt 负数崩溃）
-    const int32_t age = (minAge >= maxAge) ? minAge : minAge + rng.nextInt(maxAge - minAge + 1);
-    const int32_t realmMaxAge = disciple::realmConfig(realm).maxAge;
-    // ±10% 波动（下限 coerceAtLeast(realmMaxAge)——出生即不低于境界基准寿元）
-    const int32_t lifespan = std::max(
-        static_cast<int32_t>(static_cast<double>(realmMaxAge) * (1.0 + (-0.1 + rng.nextDouble() * 0.2))),
-        realmMaxAge);
-    return {age, lifespan};
 }
 
 // ── 灵根类型解析（Kotlin resolveSpiritRoot / SpiritRootGenerator）──

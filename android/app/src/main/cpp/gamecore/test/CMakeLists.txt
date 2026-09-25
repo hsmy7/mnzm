@@ -31,6 +31,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/w4b_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/w4c_tests.cmake)
 # W4-D 汇流波（串行收口）第四分片——同一模式的一次性延续。
 include(${CMAKE_CURRENT_SOURCE_DIR}/w4d_tests.cmake)
+# 角色卡池域清单（同一切分模式；见 test/gacha_tests.cmake）
+include(${CMAKE_CURRENT_SOURCE_DIR}/gacha_tests.cmake)
 
 add_executable(game-core-tests
     appointment_tx_test.cpp
@@ -167,6 +169,8 @@ add_executable(game-core-tests
     ${W4B_TEST_SOURCES}
     ${W4C_TEST_SOURCES}
     ${W4D_TEST_SOURCES}
+    # ── 角色卡池域测试源清单（test/gacha_tests.cmake）─────────────────────
+    ${GACHA_TEST_SOURCES}
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

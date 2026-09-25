@@ -2,18 +2,21 @@
 // disciple_factory.h — 弟子创建工厂
 //
 // 等价复刻 Kotlin `DiscipleFactory.create`（core/engine/domain/disciple/
-// DiscipleFactory.kt）——三处构造站点（recruitDisciple / refreshRecruitList /
-// createChild）字符级一致的五段逻辑：方差 / 悟性 / 肖像 / 技能 / 基础属性。
-// 调用方只需提供差异化种子（id / gender / 名字 / 灵根 /
-// age / realm / realmLayer），其余由 createDisciple 统一完成。
+// DiscipleFactory.kt）——字符级一致的五段逻辑：方差 / 悟性 / 肖像 /
+// 技能 / 基础属性。调用方只需提供差异化种子（id / gender / 名字 / 姓氏 /
+// 灵根 / realm / realmLayer / 模板身份），其余由 createDisciple 统一完成。
+//
+// 模板只钉身份（姓名 / 性别 / 灵根 / 境界 / 立绘 / templateId）：六维方差、
+// 悟性与技能一律沿用下述确定性 roll 链，模板分支不改任何数值生成口径。
 //
 // 确定性要点（与 Kotlin 逐位对齐，供 GTest 黄金序列 + Diff 对拍验证）：
 //   - 单个 DeterministicRng 串行消费（Kotlin 侧 seed.nextInt 与 seed.random
 //     是同一底层 PRNG 的两个适配器），消费序：
 //     ① 六维方差 7 × gaussianInt（14 次 nextInt）
 //     ② 悟性 1 次 nextInt（灵根数阶梯）
-//     ③ 肖像 1 次 nextInt(size)
-//     ④ 技能 9 × gaussianInt（18 次 nextInt）
+//     ③ 肖像 1 次 nextInt(size)——seed.portraitResOverride 非空时该次
+//       消费不发生（立绘直接取覆盖值），其后各段消费整体前移一步
+//     ④ 技能 8 × gaussianInt（16 次 nextInt）+ 悟性直填
 //   - gaussianInt 用同族 fdlibm（log/cos）+ std::sqrt + floor(v+0.5)
 //     复刻 Kotlin StrictMath.roundToInt（Math.round 语义，非远离零舍入）
 //   - 基础属性 = Kotlin CombatAttributes.calculateBaseStatsWithVariance
@@ -173,8 +176,8 @@ inline void applyBaseStats(state::Disciple& d, const DiscipleRolls& rolls) {
 // createDisciple 主入口（Kotlin DiscipleFactory.create 同构）
 // ============================================================
 
-/// 弟子创建种子——仅包含三站点间差异化字段（名字由调用方经 NameService
-/// 生成后传入，本函数不消费名字相关 RNG）
+/// 弟子创建种子——仅包含调用方差异化字段（名字由调用方经 NameService
+/// 生成后传入，本函数不消费名字相关 RNG；模板身份由调用方从角色模板表取）
 struct DiscipleCreationSeed {
     std::string id;
     std::string gender;
@@ -183,6 +186,11 @@ struct DiscipleCreationSeed {
     std::string spiritRootType;
     int32_t realm = 9;
     int32_t realmLayer = 1;
+    /// 角色模板 id；空串表示非模板弟子（写入 Disciple.templateId）
+    std::string templateId;
+    /// 立绘资源键；非空即强制采用该键（不消费肖像 nextInt），
+    /// 空则按性别从通用肖像池 roll
+    std::string portraitResOverride;
 };
 
 /// 统一创建入口。同一 [rng] 按 Kotlin 消费序串行驱动（详见文件头注释）。
@@ -196,6 +204,7 @@ inline state::Disciple createDisciple(const DiscipleCreationSeed& seed,
     d.realm = seed.realm;
     d.realmLayer = seed.realmLayer;
     d.spiritRootType = seed.spiritRootType;
+    d.templateId = seed.templateId;
     d.status = "IDLE";       // DiscipleStatus.IDLE
     d.discipleType = "outer";
 
@@ -215,12 +224,17 @@ inline state::Disciple createDisciple(const DiscipleCreationSeed& seed,
                                             seed.spiritRootType.end(), ','));
     const int32_t comprehension = rollComprehension(rng, spiritRootCount);
 
-    // 3. 肖像（1 次 nextInt(size)；未知性别回退女性池，与 Kotlin 一致）
-    const auto& portraits = (seed.gender == "male") ? malePortraits() : femalePortraits();
-    d.portraitRes = portraits[static_cast<size_t>(
-        rng.nextInt(static_cast<int32_t>(portraits.size())))];
+    // 3. 肖像（1 次 nextInt(size)；未知性别回退女性池，与 Kotlin 一致；
+    //    seed.portraitResOverride 非空时直接取该键、不消费这次 nextInt）
+    if (seed.portraitResOverride.empty()) {
+        const auto& portraits = (seed.gender == "male") ? malePortraits() : femalePortraits();
+        d.portraitRes = portraits[static_cast<size_t>(
+            rng.nextInt(static_cast<int32_t>(portraits.size())))];
+    } else {
+        d.portraitRes = seed.portraitResOverride;
+    }
 
-    // 4. 技能（9 × gaussianInt = 18 次 nextInt + 悟性直填）
+    // 4. 技能（8 × gaussianInt = 16 次 nextInt + 悟性直填）
     const DiscipleRolls skills = rollSkills(rng, comprehension);
     d.intelligence = skills.intelligence;
     d.charm = skills.charm;

@@ -240,9 +240,6 @@ internal suspend fun MailService.ensureCapacity(attachments: List<MailAttachment
                     return "仓库空间不足，请清理后再领取"
                 }
             }
-            "disciple" -> {
-                // 弟子数量无上限，不检查容量
-            }
         }
     }
     return null
@@ -292,7 +289,6 @@ internal fun MailService.distributeAttachmentsInline(
                 "beastMaterial" -> distributeBeastMaterialAttachment(attachment)
                 "herb" -> distributeHerbAttachment(attachment, mailRng)
                 "seed" -> distributeSeedAttachment(attachment, mailRng)
-                "disciple" -> distributeDiscipleAttachment(state, attachment, mailRng)
                 "storageBag" -> distributeStorageBagAttachment(attachment)
                 else -> throw IllegalArgumentException(
                     "未知邮件附件类型: type=${attachment.type}, name=${attachment.name}"

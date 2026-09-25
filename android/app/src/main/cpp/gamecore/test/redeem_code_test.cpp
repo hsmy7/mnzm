@@ -61,50 +61,6 @@ TEST(RedeemCodeTest, JavaRandomShuffleDeterministic) {
     EXPECT_EQ(sortedA, sortedIn);
 }
 
-// ── rollBySpiritRootCount / generateVariance ──────────────────
-
-TEST(RedeemCodeTest, RollBySpiritRootCountRanges) {
-    DeterministicRng rng = DeterministicRng::fromSeed(42);
-    for (int32_t i = 0; i < 200; ++i) {
-        EXPECT_GE(rollBySpiritRootCount(rng, 1), 80);
-        EXPECT_LE(rollBySpiritRootCount(rng, 1), 100);
-        EXPECT_GE(rollBySpiritRootCount(rng, 2), 60);
-        EXPECT_LE(rollBySpiritRootCount(rng, 2), 80);
-        EXPECT_GE(rollBySpiritRootCount(rng, 3), 40);
-        EXPECT_GE(rollBySpiritRootCount(rng, 5), 1);
-        EXPECT_LE(rollBySpiritRootCount(rng, 5), 20);
-    }
-}
-
-TEST(RedeemCodeTest, GenerateVarianceRange) {
-    DeterministicRng rng = DeterministicRng::fromSeed(7);
-    for (int32_t i = 0; i < 500; ++i) {
-        const int32_t v = generateVariance(rng);
-        EXPECT_GE(v, -50);
-        EXPECT_LE(v, 50);
-    }
-}
-
-// ── resolveAgeAndLifespan ─────────────────────────────────────
-
-TEST(RedeemCodeTest, ResolveAgeAndLifespan) {
-    DeterministicRng rng = DeterministicRng::fromSeed(42);
-    for (int32_t i = 0; i < 100; ++i) {
-        const auto r = resolveAgeAndLifespan(rng, 10, 20, 9);
-        EXPECT_GE(r.first, 10);
-        EXPECT_LE(r.first, 20);
-        // 炼气 maxAge 基准：寿命 ≥ 基准（±10% 波动下限钳制）
-        EXPECT_GE(r.second, disciple::realmConfig(9).maxAge);
-    }
-}
-
-TEST(RedeemCodeTest, ResolveAgeMinGtMax) {
-    DeterministicRng rng = DeterministicRng::fromSeed(42);
-    // minAge >= maxAge → 直接取 minAge（S13 防崩溃）
-    const auto r = resolveAgeAndLifespan(rng, 30, 10, 9);
-    EXPECT_EQ(r.first, 30);
-}
-
 // ── resolveSpiritRoot / spiritRootGenerate ────────────────────
 
 TEST(RedeemCodeTest, ResolveSpiritRootConfigSpecified) {

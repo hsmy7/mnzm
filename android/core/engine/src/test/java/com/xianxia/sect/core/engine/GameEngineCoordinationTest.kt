@@ -3,11 +3,14 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -23,6 +26,7 @@ import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.DiscipleTables
@@ -32,24 +36,44 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.RunState
+import com.xianxia.sect.core.state.WriteGuardRule
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.experimental.categories.Category
+import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-
-
+import org.robolectric.RobolectricTestRunner
 
 /**
- * GameEngineCoordination 数据完整性守卫的单元测试。
+ * GameEngineCoordination / GameEngineLoadDataOps 数据完整性与开局口径守卫。
+ *
+ * 覆盖两类契约：
+ * 1. 数据完整性（worldMapSects 重生、initialMine 4×4、native 基线重导）；
+ * 2. **开局三臂同构口径**（G08：`createNewGame`、`restartGameInternal` 有名臂、
+ *    `restartGameInternal` else 臂）——起始灵石、星级账本、单名模板弟子、
+ *    年度与引导计数，见 [assertStartupBaseline]。
+ *
+ * 跑在 Robolectric 沙箱：开局名册要经 `DiscipleService.instantiateTemplate` 真实落
+ * `DiscipleTables`，而 `ComponentTable` 底层是 `android.util.SparseArray`——
+ * 纯 JVM 任务（`testJvmRelease`）下 `returnDefaultValues=true` 会让写入静默失效、
+ * 读回只剩默认值，名册断言无从成立。
  */
+@Category(com.xianxia.sect.core.RobolectricTests::class)
+@RunWith(RobolectricTestRunner::class)
 class GameEngineCoordinationTest {
+
+    /** 开局名册要真实写组件表，需绕过 DiscipleTables 的 update{} 外写守卫 */
+    @get:Rule val writeGuardRule = WriteGuardRule()
 
     @Test
     fun `ensureGameDataIntegrity - worldMapSects 空时重生`() = runBlocking {
@@ -193,6 +217,41 @@ class GameEngineCoordinationTest {
         assertEquals("重启后初始灵矿场高度应为 4", 4, mine.height)
     }
 
+    // ── 开局三臂同构口径（G08 验收①②③ + D-15/D-16） ──
+    //
+    // 三条臂：GameEngineLoadDataOps.kt 的 createNewGame、restartGameInternal 有名臂、
+    // restartGameInternal else 臂（sectName.isBlank()）。三臂共用
+    // GameData.withStartupLedger() + instantiateStartupDisciple()，任一处漏接即本组判红。
+
+    @Test
+    fun `createNewGame - 开局口径为单名周明加起始账本`() = runBlocking {
+        val env = EngineTestEnv()
+
+        env.engine.createNewGame("青云宗", 1)
+
+        assertStartupBaseline("createNewGame", env)
+    }
+
+    @Test
+    fun `restartGameSuspend - 有名臂开局口径与 createNewGame 同构`() = runBlocking {
+        val env = EngineTestEnv()
+
+        env.engine.restartGameSuspend("青云宗", 1)
+
+        assertStartupBaseline("restartGameInternal(有名臂)", env)
+    }
+
+    @Test
+    fun `restartGameSuspend - 无名臂开局口径同构且灵石不退回首档哨兵值`() = runBlocking {
+        val env = EngineTestEnv()
+
+        env.engine.restartGameSuspend("", 1)
+
+        // else 臂不生成世界（无 initialMine 是预存口径差异，归 G10），
+        // 但开局账本三件套与名册必须与另两臂逐字同构
+        assertStartupBaseline("restartGameInternal(else 臂)", env)
+    }
+
     @Test
     fun `enterSect - 仅更新 activeSectId 不触碰 placedBuildings`() = runBlocking {
         // 契约守卫：GameViewModel 命令总线重推依赖 enterSect 只改 activeSectId
@@ -334,15 +393,136 @@ class GameEngineCoordinationTest {
     }
 }
 
+// ── 开局口径断言助手（三臂共用；放文件级以免测试类函数数继续膨胀） ──
+
+/**
+ * 开局口径公共断言（三臂共用）：名册、账本、计数、收入曲线四组。
+ *
+ * 数值锚点一律取 `GameConfig` / `CharacterTemplateDb` 常量，只有「产品事实」
+ * （开局是谁、立绘键叫什么）用字面量，以免开局口径被无声改掉。
+ */
+private fun assertStartupBaseline(operation: String, env: EngineTestEnv) {
+    assertStartupRoster(operation, env)
+    assertStartupLedgerAndCounters(operation, env.store.gameDataValue)
+}
+
+/** 验收①：名册恰好一名弟子，身份全部来自开局模板 */
+private fun assertStartupRoster(operation: String, env: EngineTestEnv) {
+    val tables = env.store.discipleTables
+    val template = requireNotNull(
+        CharacterTemplateDb.byId(CharacterTemplateDb.STARTUP_TEMPLATE_ID)
+    ) { "开局模板必须在 CharacterTemplateDb 内（core/domain/.../model/CharacterTemplate.kt）" }
+    val roster = with(tables) { ids.map { assemble(it) } }
+
+    assertEquals(
+        "$operation：开局名册必须恰好 1 名弟子（弟子入册入口只剩模板实例化）",
+        1, roster.size
+    )
+    val startup = roster.single()
+    assertEquals(
+        "$operation：验收①——开局 templateId 必须落模板 id",
+        CharacterTemplateDb.STARTUP_TEMPLATE_ID, startup.templateId
+    )
+    assertEquals(
+        "$operation：验收①——开局弟子立绘必须取模板 portraitKey，不得回落通用像",
+        template.portraitKey, startup.portraitRes
+    )
+    assertEquals("$operation：姓名取自模板", template.name, startup.name)
+    assertEquals("$operation：性别取自模板", template.gender, startup.gender)
+    assertEquals("$operation：灵根取自模板", template.spiritRootType, startup.spiritRootType)
+    assertEquals(
+        "$operation：境界取 STARTUP_REALM", CharacterTemplateDb.STARTUP_REALM, startup.realm
+    )
+    assertEquals(
+        "$operation：层数取 STARTUP_REALM_LAYER",
+        CharacterTemplateDb.STARTUP_REALM_LAYER, startup.realmLayer
+    )
+}
+
+/** 验收②③ + D-3/D-4/D-15/D-16：起始灵石、星级账本、无碎片、入门计数、收入曲线 */
+private fun assertStartupLedgerAndCounters(operation: String, data: GameData) {
+    assertEquals(
+        "开局模板 id 是产品事实（验收①），改 CharacterTemplateDb.STARTUP_TEMPLATE_ID " +
+            "前须先确认产品口径",
+        "zhouming", CharacterTemplateDb.STARTUP_TEMPLATE_ID
+    )
+    assertEquals(
+        "开局立绘键名是素材契约（rules/static-resources.md），改名须同步精灵注册",
+        "portrait_zhouming",
+        requireNotNull(
+            CharacterTemplateDb.byId(CharacterTemplateDb.STARTUP_TEMPLATE_ID)
+        ).portraitKey
+    )
+    assertEquals(
+        "$operation：验收②——新档灵石必须等于 GameConfig.Gacha.START_SPIRIT_STONES" +
+            "（三臂共用 GameData.withStartupLedger，漏接即退回 GameData 哨兵值 1000）",
+        GameConfig.Gacha.START_SPIRIT_STONES.toLong(), data.spiritStones
+    )
+    assertEquals(
+        "$operation：验收③——星级账本必须恰为开局模板 1 星实例（D-4 直写）",
+        mapOf(CharacterTemplateDb.STARTUP_TEMPLATE_ID to CharacterTemplateDb.STARTER_STAR),
+        data.gachaStarMap
+    )
+    assertFalse(
+        "$operation：验收③/Q34——开局不送碎片，gachaFragmentCounts 不得含开局模板键",
+        data.gachaFragmentCounts.containsKey(CharacterTemplateDb.STARTUP_TEMPLATE_ID)
+    )
+    assertEquals(
+        "$operation：Q34——开局碎片账本整表为空", emptyMap<String, Int>(),
+        data.gachaFragmentCounts
+    )
+    assertEquals(
+        "$operation：D-16——开局入宗计入年度新增弟子", 1, data.annualNewDisciples
+    )
+    assertEquals(
+        "$operation：D-15——开局必须继续自增 disciplesRecruited 引导计数器" +
+            "（键名禁改，改则旧档引导倒退）",
+        1L, data.guideCounters[GuideCounterKeys.DISCIPLES_RECRUITED] ?: 0L
+    )
+    assertEquals(
+        "$operation：验收②——开局灵石是一次性注入，不得进入年度收入曲线" +
+            "（走 SpiritStoneWallet.add 即违反）",
+        0L, data.annualTotalIncome
+    )
+    assertTrue(
+        "$operation：验收②——开局灵石不得进入分渠道年度收入",
+        data.annualIncomeBySource.isEmpty()
+    )
+}
+
 // ── 测试用 GameEngine + GameStateStore 的最小化环境 ──
 
 private class EngineTestEnv {
     val store = SimpleStore()
 
+    /**
+     * 引擎与开局服务共用同一 [GameRngManager]：`createNewGame` / `restartGameInternal`
+     * 先 `initSystemSeed` 播种，再在事务内实例化开局模板弟子——两个实例会让
+     * 名册随机流落在播种之外（与生产单例语义不符）。
+     */
+    val gameRngManager = GameRngManager()
+
+    /**
+     * 开局名册走**真实** [DiscipleService]：G08 起新档弟子由
+     * `GameEngine.instantiateStartupDisciple` → `DiscipleService.instantiateTemplate`
+     * 构造并落 `DiscipleTables`。mock 掉本服务等于把「验收① templateId 有生产写入者」
+     * 变成自证，故只 mock 未参与模板实例化的 4 个协作依赖（被调用即 smart-null 可见）。
+     */
+    val discipleService = DiscipleService(
+        stateStore = store,
+        discipleFactory = DiscipleFactory(),
+        rngManager = gameRngManager,
+        discipleEquipmentService = mockSmart(),
+        discipleLifecycleManager = mockSmart(),
+        discipleSlotManager = mockSmart(),
+        discipleStatusService = mockSmart(),
+        inventorySystem = mockSmart()
+    )
+
     // D1：构造时 highFrequencyData/productionSlots 经 Facade 访问器求值——stub 链防 NPE
     private val mockCultivationFacade = mock<CultivationFacade>().also {
         org.mockito.kotlin.whenever(it.cultivationService).thenReturn(mock())
-        org.mockito.kotlin.whenever(it.discipleService).thenReturn(mock())
+        org.mockito.kotlin.whenever(it.discipleService).thenReturn(discipleService)
         val mockProductionFacade = mock<ProductionFacade>()
         org.mockito.kotlin.whenever(mockProductionFacade.productionSlots)
             .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
@@ -372,7 +552,7 @@ private class EngineTestEnv {
         gameEngineCore = mockGameEngineCore,
         engineContextDispatcher = FakeEngineContextDispatcher(),
         stateStore = store,
-        gameRngManager = GameRngManager(),
+        gameRngManager = gameRngManager,
         explorationFacade = mock(),
         cultivationFacade = mockCultivationFacade,
         economyFacade = mockEconomyFacade,
@@ -403,25 +583,46 @@ private class SimpleStore : GameStateStore {
     private val sds = EntityStore<Seed>()
     private val stBags = EntityStore<StorageBag>()
 
+    /**
+     * 重入事务缓冲——与生产 `GameStateStoreImpl.reentrantCount / reentrantBuffer`
+     * 同语义（app/src/main/.../GameStateStoreImpl.kt 的 update 头部）。
+     *
+     * 开局三臂在 `stateStore.update {}` **内部**调用 `DiscipleService.instantiateTemplate`
+     * （其写入走 `updateAndReturn`）。嵌套事务必须并入同一个 [MutableGameState]，
+     * 否则内层写入会被外层最后写回的副本覆盖——起始灵石账本与入门/年度计数互相吞没。
+     */
+    private var reentrantBuffer: MutableGameState? = null
+
+    private fun newMutableState() = MutableGameState(
+        gameData = gameDataValue,
+        discipleTables = _tables,
+        equipmentStacks = eqStacks,
+        equipmentInstances = eqInstances,
+        manualStacks = mnStacks,
+        manualInstances = mnInstances,
+        pills = pils,
+        materials = mats,
+        herbs = hrbs,
+        seeds = sds,
+        storageBags = stBags,
+        battleLogs = emptyList(),
+        isPaused = false,
+        isLoading = false,
+        isSaving = false
+    )
+
     override fun update(block: MutableGameState.() -> Unit) {
-        val mutable = MutableGameState(
-            gameData = gameDataValue,
-            discipleTables = _tables,
-            equipmentStacks = eqStacks,
-            equipmentInstances = eqInstances,
-            manualStacks = mnStacks,
-            manualInstances = mnInstances,
-            pills = pils,
-            materials = mats,
-            herbs = hrbs,
-            seeds = sds,
-            storageBags = stBags,
-                        battleLogs = emptyList(),
-            isPaused = false,
-            isLoading = false,
-            isSaving = false
-        )
-        block(mutable)
+        reentrantBuffer?.let { nested ->
+            nested.block()
+            return
+        }
+        val mutable = newMutableState()
+        reentrantBuffer = mutable
+        try {
+            block(mutable)
+        } finally {
+            reentrantBuffer = null
+        }
         gameDataValue = mutable.gameData
         _gameDataFlow.value = mutable.gameData
     }
@@ -485,18 +686,12 @@ private class SimpleStore : GameStateStore {
     override fun clearPendingBattleRewardCards() = Unit
     override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
     override fun clearRewardCardQueue(count: Int) = Unit
+    @Suppress("UNCHECKED_CAST")
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
-        val m = MutableGameState(
-            gameData = gameDataValue, discipleTables = _tables,
-            equipmentStacks = eqStacks, equipmentInstances = eqInstances,
-            manualStacks = mnStacks, manualInstances = mnInstances,
-            pills = pils, materials = mats, herbs = hrbs,
-            seeds = sds, storageBags = stBags,
-            battleLogs = emptyList(),
-            isPaused = false, isLoading = false, isSaving = false)
-        val r = block(m)
-        gameDataValue = m.gameData
-        return r
+        reentrantBuffer?.let { return block(it) }
+        var result: R? = null
+        update { result = block() }
+        return result as R
     }
     override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
     override fun setPausedDirect(paused: Boolean) = Unit
@@ -511,7 +706,14 @@ private class SimpleStore : GameStateStore {
         battleLogs: List<BattleLog>,
         isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
     ) { this.gameDataValue = gameData }
-    override suspend fun reset() { gameDataValue = GameData() }
+    override suspend fun reset() {
+        gameDataValue = GameData()
+        _gameDataFlow.value = gameDataValue
+        // 生产 resetForSlot 同时清空名册（app/src/main/.../GameStateStoreImpl.kt 的
+        // resetForSlot）：不清则模板「限持 1」判定会把上一档的开局弟子算进来，
+        // 重启臂的开局口径就测不到真实行为
+        _tables.clear()
+    }
     override fun advanceBootPhase() = Unit
     override fun resetBootPhase() = Unit
     override fun setPlaying() = Unit

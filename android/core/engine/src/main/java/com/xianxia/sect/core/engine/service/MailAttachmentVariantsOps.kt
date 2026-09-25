@@ -1,15 +1,11 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.engine.RedeemCodeManager
-import com.xianxia.sect.core.model.DiscipleRewardConfig
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBag
-import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.registry.HerbDatabase
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.addStorageBag
 
 // ── 附件变体发放域（自 MailService 拆出，行为零变更） ────────────────────────
@@ -83,35 +79,6 @@ internal fun MailService.distributeSeedAttachment(attachment: MailAttachment, ma
     handleResult(inventorySystem.addSeed(seed), "种子 ${seed.name}")
 }
 
-/** 弟子附件：直接生成弟子，不走仓库 */
-
-internal fun MailService.distributeDiscipleAttachment(
-    state: MutableGameState,
-    attachment: MailAttachment,
-    mailRng: kotlin.random.Random
-) {
-    val currentMonthValue = state.gameData.gameYear * 12 + state.gameData.gameMonth
-    val usedNames = state.discipleTables.assembleAll().map { it.name }.toMutableSet()
-    // 支持通过 extra 传递境界参数（realm / realmLayer）和灵根数（spiritRootCount）
-    val realm = attachment.extra["realm"]?.toIntOrNull() ?: 9
-    val realmLayer = attachment.extra["realmLayer"]?.toIntOrNull() ?: 1
-    val spiritRootCount = attachment.extra["spiritRootCount"]?.toIntOrNull()
-    val config = if (realm != 9 || realmLayer != 1 || spiritRootCount != null) {
-        DiscipleRewardConfig(
-            realm = realm,
-            realmLayer = realmLayer,
-            spiritRootCount = spiritRootCount
-        )
-    } else null
-    repeat(attachment.quantity.coerceAtLeast(1)) {
-        val disciple = RedeemCodeManager.generateDisciple(config, usedNames, random = mailRng)
-        disciple.id = ((state.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
-        disciple.usage.recruitedMonth = currentMonthValue
-        state.discipleTables.insert(disciple)
-        usedNames.add(disciple.name)
-    }
-}
-
 /** 储物袋附件：委托 addStorageBag 合并（同稀有度合并为一个堆叠） */
 
 internal fun MailService.distributeStorageBagAttachment(attachment: MailAttachment) {
@@ -143,7 +110,6 @@ internal fun MailService.buildRewardCardsFromAttachments(
                     rarity = attachment.rarity.coerceIn(1, 6),
                     quantity = attachment.quantity
                 )
-            attachment.type == "disciple" -> null // 弟子不显示为物品卡片
             attachment.quantity > 0 ->
                 RewardCardItem(
                     itemName = attachment.name,

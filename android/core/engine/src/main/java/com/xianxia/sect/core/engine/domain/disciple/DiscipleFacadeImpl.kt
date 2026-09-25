@@ -96,7 +96,8 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override suspend fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
 
-    override fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
+    override fun instantiateTemplate(templateId: String): DomainResult<Disciple> =
+        discipleService.instantiateTemplate(templateId)
 
     override fun releaseReflectionDisciple(discipleId: String) {
         // 旧档 REFLECTING 归一化（思过系统已下线、1593 留洞不复用）：

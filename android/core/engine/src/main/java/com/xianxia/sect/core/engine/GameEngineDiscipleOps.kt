@@ -26,7 +26,13 @@ suspend fun GameEngine.resetAllDisciplesStatus() {
     // 全量重建 native 基线回导 C++（低频设置动作，O(状态) 一次性成本可接受）
     rebaselineNativeMirror("弟子状态重置")
 }
-fun GameEngine.recruitDisciple(): Disciple = discipleFacade.recruitDisciple()
+/**
+ * 角色模板实例化入册：弟子构造的唯一引擎级入口（开局名册、寻访解锁入册共用）。
+ *
+ * 失败以 sealed [DomainResult.Failure] 返回（模板未知 / 该角色已在册），调用方据分支展示。
+ */
+fun GameEngine.instantiateTemplate(templateId: String): DomainResult<Disciple> =
+    discipleFacade.instantiateTemplate(templateId)
 suspend fun GameEngine.releaseReflectionDisciple(discipleId: String) = discipleFacade
     .releaseReflectionDisciple(discipleId)
 suspend fun GameEngine.updateDiscipleStatus(discipleId: String,

@@ -27,6 +27,12 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             EntityCountBoundsRule,     // order=19
             RecruitListCleanupRule,    // order=20（招募链下线：恒空清表）
             BattleLogRefRule,          // order=21（battleLogs 条目结构校验）
+            // order=22（邮件弟子附件下线：存量附件摘除，恒 Repaired 触发落盘收敛）
+            // 排在结构/引用类校验（EntityCountBounds=19、BattleLogRef=21）之后——
+            // 清洗只改写已判定结构合格的邮件快照，避免对被截断/判损坏的档做无谓改写；
+            // 必须早于任何读取 attachments 的消费方：校验链内当前无规则读该字段，
+            // 链外首个读取点是邮件领取流程，其数据源正是本规则产出的修复后快照
+            MailDiscipleAttachmentCleanupRule,
             JadeSymbolNonNegativeRule, // order=23（玉符字段负值/超限钳制）
         )
     )

@@ -42,6 +42,9 @@ add_library(game-core STATIC
     src/dispatch_w4c.cpp
     # W4-D 汇流波（串行收口）第四端口——同一模式对并行切分结构的一次性延续。
     src/dispatch_w4d.cpp
+    # 角色卡池域（1870–1889）的独立分派端口——域内自洽，不并入
+    # execute_dispatch.cpp 的裸区间分支（见该文件头「端口形态」节）。
+    src/dispatch_gacha.cpp
 )
 
 target_include_directories(game-core PUBLIC

@@ -179,6 +179,9 @@ inline ProbeResult runDeterminismProbe() {
         seed.spiritRootType = kRoots[i];
         seed.realm = 3;
         seed.realmLayer = 1;
+        // 模板身份留空 ⇒ 探针始终覆盖通用肖像 roll 路径（肖像 1 次 nextInt 照常消费）
+        seed.templateId = "";
+        seed.portraitResOverride = "";
         auto d = system::createDisciple(seed, systemRng);
         coreObj.state().disciples.upsertDisciple(d);
     }

@@ -232,6 +232,8 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
         seed.spiritRootType = obj.value("spiritRootType", "metal");
         seed.realm = obj.value("realm", 9);
         seed.realmLayer = obj.value("realmLayer", 1);
+        seed.templateId = obj.value("templateId", "");
+        seed.portraitResOverride = obj.value("portraitRes", "");
     } catch (const std::exception&) {
         return env->NewStringUTF("");
     }

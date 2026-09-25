@@ -21,11 +21,11 @@ import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ResignGateResult
 import com.xianxia.sect.core.model.evaluateResignGate
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.components.clickableWithSound
+import com.xianxia.sect.ui.components.resolvePortraitResId
 import com.xianxia.sect.ui.theme.GameColors
 
 /** 弟子类型编辑交互包（DetailRightPanel 参数分组）：当前编辑值 + 下拉开合与回调 */
@@ -107,7 +107,7 @@ fun DetailRightPanel(
 /** 弟子头像区：头像 + 底部间距 */
 @Composable
 private fun ColumnScope.DetailPortrait(disciple: DiscipleAggregate) {
-    val resId = PortraitPool.getResourceId(disciple.portraitRes)
+    val resId = resolvePortraitResId(disciple.portraitRes)
         .takeIf { it != 0 }
         ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
     if (resId != 0) {

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
+import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.NameService
@@ -18,12 +19,17 @@ import org.junit.Test
  * 守护目标：Kotlin `DiscipleFactory.create`（core/engine/domain/disciple/
  * DiscipleFactory.kt）与 C++ `gamecore::system::createDisciple`
  * （disciple_factory.h）在相同种子下产出**逐字段位级一致**的弟子：
- * 六维方差 / 悟性 / 肖像 / 技能 / 基础属性 / 寿命。
+ * 立绘 / 模板 id / 六维方差 / 悟性 / 技能 / 基础属性。
  *
  * 确定性基础：Kotlin 侧 `seed.nextInt` 是 `DeterministicRng` 的适配器；
  * C++ 侧 `nativeFromSeed(seed)`
- * 独立同种子实例按相同消费序驱动（14 次方差 + 2 次阶梯 +
- * 1 次肖像 + 18 次技能）。
+ * 独立同种子实例按相同消费序驱动：六维方差 14 次 → 悟性 1 次 →
+ * 肖像 0 或 1 次（[DiscipleFactory.DiscipleSeed.portraitResOverride] 非空即 0 次）
+ * → 技能 16 次。
+ *
+ * 模板分支（G08）：seed 携带 `templateId` + `portraitResOverride`（JNI JSON 键名为
+ * `portraitRes`）时，两侧都必须直接采用该立绘键并跳过那次肖像随机数——
+ * 由本类的「模板分支」用例逐模板覆盖。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */
@@ -70,6 +76,15 @@ class DiffDiscipleFactoryTest {
         assertInt(tag, "teaching", d.skills.teaching, c)
     }
 
+    /**
+     * 双臂同种子各造一名弟子并逐字段对拍。
+     *
+     * @param templateId 角色模板 id；空串 = 非模板弟子（两侧同写空串）
+     * @param portraitResOverride 立绘键；非空即模板分支（两侧都不消费肖像随机数）。
+     *   注意 JNI seed JSON 侧的键名是 `portraitRes`（与 C++
+     *   `DiscipleCreationSeed.portraitResOverride` 的映射见 GameCoreJni.cpp）
+     * @return Kotlin 侧弟子，供调用方追加身份字段断言
+     */
     private fun runDiff(
         seed: Long,
         id: String,
@@ -78,8 +93,10 @@ class DiffDiscipleFactoryTest {
         surname: String,
         spiritRootType: String,
         realm: Int = 9,
-        realmLayer: Int = 1
-    ) {
+        realmLayer: Int = 1,
+        templateId: String = "",
+        portraitResOverride: String = ""
+    ): Disciple {
         val kRng = DeterministicRng.fromSeed(seed)
         DiffRngBridge.nativeFromSeed(seed)
 
@@ -87,26 +104,30 @@ class DiffDiscipleFactoryTest {
             DiscipleFactory.DiscipleSeed(
                 id = id,
                 gender = gender,
-                nameResult = NameService.NameResult(fullName, surname),
+                nameResult = NameService.NameResult(surname = surname, fullName = fullName),
                 spiritRootType = spiritRootType,
                 realm = realm,
                 realmLayer = realmLayer,
-                nextInt = { from, until -> from + kRng.nextInt(until - from) }
+                nextInt = { from, until -> from + kRng.nextInt(until - from) },
+                templateId = templateId,
+                portraitResOverride = portraitResOverride
             )
         )
 
         val seedJson = """
             {"id":"$id","gender":"$gender","fullName":"$fullName",
              "surname":"$surname","spiritRootType":"$spiritRootType",
-             "realm":$realm,"realmLayer":$realmLayer}
+             "realm":$realm,"realmLayer":$realmLayer,
+             "templateId":"$templateId","portraitRes":"$portraitResOverride"}
         """.trimIndent()
         val c = json.parseToJsonElement(
             DiffRngBridge.nativeCreateDisciple(seedJson)
         ).jsonObject
 
-        val tag = "seed=$seed id=$id spiritRoot=$spiritRootType"
+        val tag = "seed=$seed id=$id spiritRoot=$spiritRootType template=$templateId"
         assertCombat(tag, kDisciple, c)
         assertSkills(tag, kDisciple, c)
+        return kDisciple
     }
 
     @Test
@@ -164,5 +185,47 @@ class DiffDiscipleFactoryTest {
                 spiritRootType = "金"
             )
         }
+    }
+
+    /**
+     * 模板分支对拍（G08）：逐条走查 `CharacterTemplateDb` 全表。
+     *
+     * 与生产构造口径同构（`DiscipleService.instantiateTemplate`：姓名/性别/灵根取自
+     * 模板、境界取 STARTUP_*、立绘走 portraitResOverride），断言两件事：
+     * 1. 双臂 `portraitRes` / `templateId` 逐字相等（由 assertCombat 覆盖）且等于模板值；
+     * 2. 双臂其余字段（方差/悟性/技能/基础属性）仍逐位相等——**不比对具体数值**，
+     *    因为模板臂比通用臂少消耗 1 次肖像随机数、后续序列整体平移（D-6 预期），
+     *    本批不重录任何黄金基线。
+     */
+    @Test
+    fun `createDisciple matches Kotlin on template branch across all templates`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        CharacterTemplateDb.ALL.forEachIndexed { index, template ->
+            val disciple = runDiff(
+                seed = TEMPLATE_BRANCH_SEED_BASE + index,
+                id = "tpl-${template.id}",
+                gender = template.gender,
+                fullName = template.name,
+                surname = template.name.take(TEMPLATE_SURNAME_PREFIX_LENGTH),
+                spiritRootType = template.spiritRootType,
+                realm = CharacterTemplateDb.STARTUP_REALM,
+                realmLayer = CharacterTemplateDb.STARTUP_REALM_LAYER,
+                templateId = template.id,
+                portraitResOverride = template.portraitKey
+            )
+            // Kotlin 侧身份字段必须完全来自模板（C++ 侧一致性已由 assertCombat 保证）
+            assertEquals("模板立绘键必须原样落 portraitRes", template.portraitKey, disciple.portraitRes)
+            assertEquals("templateId 必须落模板 id", template.id, disciple.templateId)
+            assertEquals("姓名必须取自模板", template.name, disciple.name)
+            assertEquals("境界必须取开局口径", CharacterTemplateDb.STARTUP_REALM, disciple.realm)
+        }
+    }
+
+    private companion object {
+        /** 模板分支对拍种子基（逐模板 +1；数值本身无业务含义，不产生黄金基线） */
+        const val TEMPLATE_BRANCH_SEED_BASE = 20260925L
+
+        /** 模板姓氏前缀长度，与 `DiscipleService` 的 SURNAME_PREFIX_LENGTH 口径一致 */
+        const val TEMPLATE_SURNAME_PREFIX_LENGTH = 1
     }
 }

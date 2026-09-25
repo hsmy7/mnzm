@@ -248,13 +248,13 @@ object ActionIds {
     /** 灵根类型解析（配置/数量随机/权重生成 + java.util.Random 洗牌） */
     const val REDEEM_ROLL_SPIRIT_ROOT: Int = 1435
 
-    /** 年龄区间 + 境界寿元 ±10% 波动 */
+    /** 【已退役，编号禁复用（G08 兑换码改发角色碎片，不再直造弟子）】年龄区间 + 境界寿元 ±10% 波动 */
     const val REDEEM_RESOLVE_AGE_LIFESPAN: Int = 1436
 
     /** 【已退役，编号禁复用（G04 下架资质哨兵生成 op）】灵根阶梯属性掷点 + 避开哨兵 50 */
     const val REDEEM_ROLL_SKILLS: Int = 1437
 
-    /** 属性方差生成（-50..50） */
+    /** 【已退役，编号禁复用（G08 兑换码改发角色碎片，不再直造弟子）】属性方差生成（-50..50） */
     const val REDEEM_GENERATE_VARIANCE: Int = 1438
 
     /** 邮件附件列表 → JSON 字符串（kotlinx 对齐） */
@@ -598,5 +598,8 @@ object ActionIds {
 
     /** 任务派遣事务（模板快照 + 全槽位清理含住所保留 + 状态重置 IDLE，零 RNG） */
     const val MISSION_START_TX: Int = 1861
+
+    /** 角色碎片入账事务（零 RNG；碎片累加+满 100 升星；抽卡/兑换码/邮件/活动共用） */
+    const val GACHA_FRAGMENT_GRANT_TX: Int = 1870
 
 }

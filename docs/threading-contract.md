@@ -64,6 +64,7 @@
 | **内存子系统**`nativeMemoryTrim(level)` | UI 主线程（Android trim 回调，经 Bridge 收敛单入口 + 双发去抖）→ JNI 投递 → RenderThread 帧边界消费；引擎线程 tick 边界读 trim 水位 | 命令投递式：Kotlin 侧只传档位枚举，回调线程禁止任何 GPU/纹理操作与重上传；C++ 渲染线程出队消费 GPU/CPU 资源面（`TextureCache.trim` / `trimHostPool`）；gamecore 容器收缩仅引擎线程 tick 边界（2026-09-23 登记，实现随 MR1/MR2） |
 | **内存子系统**`textureAcquire(key, payload)` | Kotlin 上传编排线程（现状主线程）→ JNI 投递 → RenderThread 独占执行 | 命令投递式：miss → upload → insert 全在渲染线程完成，同 key 幂等（refCount++）；Kotlin 上传峰值后即时断开字节缓冲引用（2026-09-23 登记，实现随 MR3） |
 | **内存子系统**`textureRelease(key)` | 同 `textureAcquire` | refCount--；==0 且非 pinned 入退役队列，帧边界物理销毁（沿 `m_retiredTextures` 延迟释放）；物理销毁完成前同 key 再 acquire 按 miss 重传（`pendingDestroy` 不命中）（2026-09-23 登记，实现随 MR3） |
+| `tryExecuteNative`（ActionId 事务） | 引擎线程 → C++ `GameCore::execute` → 回执脏段 `applyDirtyFromNative` 回镜像 | 唯一稳态写入路径。**2026-09-25 新增在册动作**：`GACHA_FRAGMENT_GRANT_TX = 1870`（角色碎片入账 + 满 100 升星，零 RNG、零校验盲写；落点 `gamecore/src/dispatch_gacha.cpp` → `system/gacha_fragment.h::addFragment`）。Kotlin 侧 `GachaNativeTx` 走 `NativeEngineFlag.authoritative` 门控，门控关闭/桥未加载/信封失败时回退逐字同式的 `GachaFragmentLedger`（双实现契约，由 `DiffGachaFragmentTest` 与 C++ `gacha_fragment_test` 双向看护） |
 | **内存子系统**MemoryStats 读通道（`GpuAllocator.stats` / cache 条目数） | RenderThread 帧边界发布 → 任意线程只读 | 渲染线程发布不可变快照（原子引用替换）；读方（Debug UI / 引擎线程 / gamecore）只读快照，禁止同步回读渲染后端（表三红线不变）、禁止持活引用跨帧（2026-09-23 登记，实现随 MR2/MR4） |
 
 ## 五、新增代码的必查项

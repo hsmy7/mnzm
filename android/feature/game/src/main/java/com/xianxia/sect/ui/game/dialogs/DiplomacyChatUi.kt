@@ -13,10 +13,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.SectRelationLevel
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.resolvePortraitResId
 import com.xianxia.sect.ui.theme.ButtonSizes
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -94,7 +94,8 @@ internal fun AIAvatar(
     sectName: String
 ) {
     if (portraitRes.isNotEmpty()) {
-        val portraitDrawableId = PortraitPool.getResourceId(portraitRes)
+        val portraitDrawableId = resolvePortraitResId(portraitRes).takeIf { it != 0 }
+            ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
         if (portraitDrawableId != 0) {
             Box(
                 modifier = Modifier
@@ -122,7 +123,8 @@ internal fun PlayerAvatar(
     portraitRes: String
 ) {
     if (portraitRes.isNotEmpty()) {
-        val portraitDrawableId = PortraitPool.getResourceId(portraitRes)
+        val portraitDrawableId = resolvePortraitResId(portraitRes).takeIf { it != 0 }
+            ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
         if (portraitDrawableId != 0) {
             Box(
                 modifier = Modifier

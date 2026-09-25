@@ -16,7 +16,9 @@ import androidx.compose.ui.layout.ContentScale
  * （弟子列表头像 40~56dp、聊天头像 80dp）。更大显示尺寸（详情页大立绘等）
  * 必须继续走 painterResource，否则会肉眼可见降质。
  *
- * @param name 肖像名（[com.xianxia.sect.core.util.PortraitPool] 键；缓存键）
+ * @param name 肖像资源键（预载缓存键；取值为 `PortraitPool` 的 37 张通用像名，
+ *   或 `SpriteResRegistry` 已注册精灵名如角色立绘 `portrait_<id>`——后者必然
+ *   cache-miss 并走 [painterResource] 全分辨率解码，属预期行为）
  * @param resId 调用方按既有回退链解析的资源 ID（0 = 不绘制）
  */
 @Composable

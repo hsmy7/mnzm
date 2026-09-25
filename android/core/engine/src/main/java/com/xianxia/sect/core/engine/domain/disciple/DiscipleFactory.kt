@@ -54,12 +54,13 @@ private fun gaussianInt(
 /**
  * 统一弟子构造工厂。
  *
- * 将构造站点（recruitDisciple / createChild）
- * 中字符级一致的多段逻辑收敛至此：variance / comprehension / skills /
- * baseStats。
+ * 弟子身份（姓名 / 性别 / 灵根 / 境界 / 立绘）由调用方经 [DiscipleSeed] 提供，
+ * 本工厂只负责收敛字符级一致的随机属性链：variance / comprehension / skills /
+ * baseStats。生产调用点是 [DiscipleService.instantiateTemplate]（角色模板实例化）。
  *
- * 调用方只需提供差异化的 [DiscipleSeed]（id / gender / name / spiritRoot /
- * realmLayer / nextInt），其余由 [create] 统一完成。
+ * [DiscipleSeed.portraitResOverride] 非空即具名角色立绘键，此时**不消费**肖像
+ * 那一次随机数；为空则按性别从 [PortraitPool] roll 一次。消费序恒为
+ * 六维方差（14 次）→ 悟性（1 次）→ 肖像（0 或 1 次）→ 技能（16 次）。
  *
  * [nextInt] 为 `(from, until) -> value` 函数，同时兼容
  * [kotlin.random.Random.nextInt] 与 [GameRandom.nextInt]。
@@ -69,8 +70,11 @@ private fun gaussianInt(
 class DiscipleFactory @Inject constructor() {
 
     /**
-     * 弟子构造种子——仅包含三站点间的差异化字段。
+     * 弟子构造种子——身份字段由调用方给定，其余属性由 [create] 统一 roll。
      *
+     * @param templateId 角色模板 id；具名角色实例填模板 id，非模板弟子为空串
+     * @param portraitResOverride 立绘资源键；非空即强制采用该键（模板角色），
+     *   空串表示按性别从通用肖像池 roll
      * @param nextInt 随机整数生成函数 `(from, until) -> value`
      */
     data class DiscipleSeed(
@@ -81,7 +85,9 @@ class DiscipleFactory @Inject constructor() {
         val realm: Int = 9,
         /** 小层境界（1~9），默认 0 表示未知（按初层 1 回退）；Combatant 版实现为 realmLayer */
         val realmLayer: Int,
-        val nextInt: (Int, Int) -> Int
+        val nextInt: (Int, Int) -> Int,
+        val templateId: String = "",
+        val portraitResOverride: String = ""
     )
 
     /** 统一构造入口。消除约 300 行重复代码。 */
@@ -95,17 +101,19 @@ class DiscipleFactory @Inject constructor() {
         val spiritRootCount = seed.spiritRootType.split(",").size
         val comprehension = rollComprehension(r = r, spiritRootCount = spiritRootCount)
 
+        // 3. 立绘（模板键优先；空键才消费这一次肖像随机数）
+        val portraitRes = resolvePortraitRes(seed, r)
+
         val disciple = Disciple(
             id = seed.id,
             name = seed.nameResult.fullName,
             surname = seed.nameResult.surname,
             gender = seed.gender,
-            portraitRes = PortraitPool.getRandomPortrait(seed.gender) { bound ->
-                r(0, bound)
-            },
+            portraitRes = portraitRes,
             realm = seed.realm,
             realmLayer = seed.realmLayer,
             spiritRootType = seed.spiritRootType,
+            templateId = seed.templateId,
             status = DiscipleStatus.IDLE,
             discipleType = TYPE_OUTER,
             combat = CombatAttributes(
@@ -119,11 +127,22 @@ class DiscipleFactory @Inject constructor() {
             ),
             skills = rollSkills(r = r, comprehension = comprehension)
         ).apply {
-            // 3. 基础属性
+            // 4. 基础属性
             applyBaseStats(variances = variances)
         }
 
         return disciple
+    }
+
+    /**
+     * 立绘资源键解析：种子带 [DiscipleSeed.portraitResOverride] 时直接取该键，
+     * **不消耗**随机数；空串时按性别从 [PortraitPool] 取一张通用像（消耗 1 次
+     * `nextInt`）。随机数消费位置恒在悟性之后、技能之前。
+     */
+    private fun resolvePortraitRes(seed: DiscipleSeed, r: (Int, Int) -> Int): String {
+        val forcedKey = seed.portraitResOverride
+        if (forcedKey.isNotEmpty()) return forcedKey
+        return PortraitPool.getRandomPortrait(seed.gender) { bound -> r(0, bound) }
     }
 }
 

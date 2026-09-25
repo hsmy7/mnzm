@@ -96,19 +96,6 @@ class GameConfigConsistencyTest {
         assertEquals(GameConfig.PlayerProtection.PROTECTION_YEARS, data.protectionYears)
     }
 
-    // ── Starting ──
-    @Test
-    fun `初始灵石两源一致`() {
-        val data = GameConfigData().starting
-        assertEquals(GameConfig.Starting.RESOURCES.spiritStones, data.spiritStones)
-    }
-
-    @Test
-    fun `初始声望两源一致`() {
-        val data = GameConfigData().starting
-        assertEquals(GameConfig.Starting.RESOURCES.reputation, data.reputation)
-    }
-
     // ── Disciple ──
     @Test
     fun `年龄最小值两源一致`() {

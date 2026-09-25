@@ -128,9 +128,9 @@ export const CATALOG = [
   // ── 兑换码 + 邮件附件（RedeemCodeManager） ──
   { id: 1434, name: 'REDEEM_VALIDATE_INPUT', desc: '兑换码格式校验（trim/长度/字符集）' },
   { id: 1435, name: 'REDEEM_ROLL_SPIRIT_ROOT', desc: '灵根类型解析（配置/数量随机/权重生成 + java.util.Random 洗牌）' },
-  { id: 1436, name: 'REDEEM_RESOLVE_AGE_LIFESPAN', desc: '年龄区间 + 境界寿元 ±10% 波动' },
+  { id: 1436, name: 'REDEEM_RESOLVE_AGE_LIFESPAN', desc: '【已退役，编号禁复用（G08 兑换码改发角色碎片，不再直造弟子）】年龄区间 + 境界寿元 ±10% 波动' },
   { id: 1437, name: 'REDEEM_ROLL_SKILLS', desc: '【已退役，编号禁复用（G04 下架资质哨兵生成 op）】灵根阶梯属性掷点 + 避开哨兵 50' },
-  { id: 1438, name: 'REDEEM_GENERATE_VARIANCE', desc: '属性方差生成（-50..50）' },
+  { id: 1438, name: 'REDEEM_GENERATE_VARIANCE', desc: '【已退役，编号禁复用（G08 兑换码改发角色碎片，不再直造弟子）】属性方差生成（-50..50）' },
   { id: 1439, name: 'MAIL_ATTACHMENT_ENCODE', desc: '邮件附件列表 → JSON 字符串（kotlinx 对齐）' },
 
   // ── 秘境交互会话域（SecretRealmService.startSession/

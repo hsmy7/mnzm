@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 
 
-@Suppress("TooManyFunctions") // 弟子域门面契约：招募/管理/状态/关系全生命周期端口，函数数即门面协议面
+@Suppress("TooManyFunctions") // 弟子域门面契约：模板实例化/管理/状态/关系全生命周期端口，函数数即门面协议面
 interface DiscipleFacade {
     val disciples: StateFlow<List<Disciple>>
     val discipleAggregates: StateFlow<List<DiscipleAggregate>>
@@ -27,7 +27,12 @@ interface DiscipleFacade {
     fun syncAllDiscipleStatuses()
     fun syncSingleDiscipleStatus(discipleId: String)
     suspend fun resetAllDisciplesStatus()
-    fun recruitDisciple(): Disciple
+
+    /**
+     * 角色模板实例化入册（弟子构造的唯一生产端口，签名对齐
+     * [DiscipleService.instantiateTemplate]）。开局名册与寻访解锁入册（G09）共用此入口。
+     */
+    fun instantiateTemplate(templateId: String): DomainResult<Disciple>
     fun releaseReflectionDisciple(discipleId: String)
     fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>

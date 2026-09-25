@@ -105,7 +105,9 @@ TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) 
     const std::set<int32_t> retired = {
         action::DISCIPLE_MAX_AGE,          //1103 老死链删除
         action::DISCIPLE_AGE,              //1106 老化链删除
+        action::REDEEM_RESOLVE_AGE_LIFESPAN,  //1436 年龄/寿元解析退役（兑换码改发角色碎片）
         action::REDEEM_ROLL_SKILLS,        //1437 资质哨兵生成下线（G04）
+        action::REDEEM_GENERATE_VARIANCE,  //1438 属性方差退役（兑换码改发角色碎片）
         action::DISCIPLE_LIFECYCLE_EXPEL,  //1590 逐出事务下线（G06）
         action::DISCIPLE_LIFECYCLE_APPRENTICE,  //1591 师徒玩法下线（G15）
         action::DISCIPLE_LIFECYCLE_MARRY_APPROVE,  //1592 婚姻批准下线（G03）

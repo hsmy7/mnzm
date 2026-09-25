@@ -1,16 +1,19 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.domain.gacha.GachaFacade
 import com.xianxia.sect.core.engine.system.SystemWallClock
 import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
+import com.xianxia.sect.core.engine.REWARD_TYPE_FRAGMENT
 import com.xianxia.sect.core.platform.ApkSigningCertificateSource
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.RedeemCode
@@ -18,7 +21,6 @@ import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.Seed
-import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.RedeemCodeManager
@@ -41,6 +43,9 @@ import javax.inject.Singleton
 
 
 
+/** 服务端遗留的弟子奖励类型字面量：只可能来自旧版服务端下发，客户端不再直造弟子 */
+private const val API_REWARD_TYPE_DISCIPLE = "disciple"
+
 @Serializable
 data class RedeemApiResponse(
     val success: Boolean = false,
@@ -53,7 +58,9 @@ data class RedeemApiReward(
     val type: String = "",
     val name: String = "",
     val quantity: Int = 0,
-    val rarity: Int = 1
+    val rarity: Int = 1,
+    /** [REWARD_TYPE_FRAGMENT] 奖励的角色模板 id（取值域见 [CharacterTemplateDb]）；其余类型为 null */
+    val templateId: String? = null
 )
 
 @GameService("RedeemCodeService")
@@ -66,6 +73,14 @@ class RedeemCodeService @Inject constructor(
     private val signingCertificates: ApkSigningCertificateSource,
     private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
     /**
+     * 寻访域门面：兑换码的角色碎片**唯一**入账口（[GachaFacade.grantFragments]）。
+     *
+     * 本服务不直接读写 `gachaFragmentCounts` / `gachaStarMap`——碎片与升星是寻访域账本，
+     * 抽卡/兑换码/邮件/活动共用同一个入口才能保证升星口径一致。
+     * internal 供 [RedeemCodeFragmentOps]（碎片入账域）读取。
+     */
+    internal val gachaFacade: GachaFacade,
+    /**
      * 游戏语义墙钟（SR-5）：兑换码限流/使用记录的唯一取时点——一次兑换只采样一次，
      * 4 层限流与清理起算共用同一时刻（收敛前分散 5 处裸读 `System.currentTimeMillis`）。
      * 默认 [SystemWallClock] 供测试直构，生产由 Hilt 注入 CalibratedWallClock。
@@ -73,7 +88,8 @@ class RedeemCodeService @Inject constructor(
     private val wallClock: WallClock = SystemWallClock
 ) {
     companion object {
-        private const val TAG = "RedeemCodeService"
+        /** internal 供 [RedeemCodeFragmentOps]（碎片入账域）复用同一日志标签。 */
+        internal const val TAG = "RedeemCodeService"
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     }
 
@@ -131,9 +147,25 @@ class RedeemCodeService @Inject constructor(
             val apiResult = json.decodeFromString<RedeemApiResponse>(body)
 
             if (apiResult.success) {
+                // 模板合法性先于任何写入校验：错配的碎片奖励整单拒发且不消耗兑换码，
+                // 避免"码已核销、碎片未到账"的静默损失（与本地臂 generateReward 同口径）
+                val invalidFragment = apiResult.rewards.firstOrNull {
+                    it.type == REWARD_TYPE_FRAGMENT && !isKnownCharacterTemplate(it.templateId)
+                }
+                if (invalidFragment != null) {
+                    DomainLog.w(
+                        TAG,
+                        "Server fragment reward rejected: unknown templateId=${invalidFragment.templateId}, code=$code"
+                    )
+                    return RedeemResult(
+                        success = false,
+                        message = "兑换码奖励配置异常，本次未扣除兑换码"
+                    )
+                }
                 val allSucceeded = applyApiRewardsAndMarkUsed(code, apiResult.rewards)
-                enqueueRewardCardsFromApiRewards(apiResult.rewards)
-                if (allSucceeded) {
+                val result = if (allSucceeded) {
+                    // 兑换码已在事务内标记已用 → 碎片此刻才入账，失败重试不会双增
+                    grantApiFragmentRewards(apiResult.rewards)
                     RedeemResult(success = true, message = apiResult.message)
                 } else {
                     RedeemResult(
@@ -142,6 +174,8 @@ class RedeemCodeService @Inject constructor(
                         message = "仓库容量不足，兑换码未使用，清理仓库后可重新兑换"
                     )
                 }
+                enqueueRewardCardsFromApiRewards(apiResult.rewards)
+                result
             } else {
                 RedeemResult(success = false, message = apiResult.message)
             }
@@ -153,6 +187,16 @@ class RedeemCodeService @Inject constructor(
         }
     }
 
+    /**
+     * 服务端奖励落地：物品发放 + 灵石 + 标记已用，单事务原子写入。
+     *
+     * 角色碎片条目**不在此处入账**——碎片是寻访域账本，须走
+     * [com.xianxia.sect.core.engine.domain.gacha.GachaFacade.grantFragments]，而本函数运行在
+     * `stateStore.update` 事务内；调用方在事务成功返回后经
+     * [grantApiFragmentRewards] 统一发放。
+     *
+     * @return true=全部成功；false=任一物品发放失败/溢出（兑换码不标记已用，可清理后重试）
+     */
     private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List<RedeemApiReward>): Boolean {
         // 灵石发放须在物品全部成功之后（失败时灵石不入账，
         // 避免"灵石已入账 + 兑换码保留"重试时灵石双发）
@@ -162,8 +206,11 @@ class RedeemCodeService @Inject constructor(
             inventorySystem.withOverflowMailSuppressed {
             inventorySystem.withTrackingSource("redeem") {
                 // 任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
-                // 玩家清理仓库后可重新兑换，奖励不丢失
-                allSucceeded = rewards.filter { it.type != "spiritStones" }.all { reward ->
+                // 玩家清理仓库后可重新兑换，奖励不丢失。
+                // 灵石与角色碎片都不入仓库、都不在本事务内发放（各自有独立账本）
+                allSucceeded = rewards.filter {
+                    it.type != "spiritStones" && it.type != REWARD_TYPE_FRAGMENT
+                }.all { reward ->
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, reward.rarity, mailRng)
                 }
                 if (allSucceeded) {
@@ -208,7 +255,11 @@ class RedeemCodeService @Inject constructor(
      * 单类兑换奖励发放——统一委托 [InventorySystem.addXxx]（走 StackableItemStore 合并），
      * 消除手写"找第一个堆叠 + 追加"导致同种物品分裂为多个堆叠的问题。
      *
-     * @param type 奖励类型（equipment/manual/pill/material/herb/seed/disciple）
+     * 本函数只覆盖**入仓库的物品类**奖励：灵石走钱包、角色碎片走
+     * [GachaFacade.grantFragments]，两者都在本函数之外处理；
+     * 旧版服务端可能下发的弟子类型在此被拒发（见 [API_REWARD_TYPE_DISCIPLE] 分支）。
+     *
+     * @param type 奖励类型（equipment/manual/pill/material/herb/seed）
      * @param name 奖励名称（功法模板查找用）
      * @param quantity 数量
      * @param rarity 稀有度（功法模板查找用，历史取值与 defaultRarity 不同）
@@ -230,7 +281,12 @@ class RedeemCodeService @Inject constructor(
             "material" -> applyMaterialRedeemReward(quantity, defaultRarity, mailRng)
             "herb" -> applyHerbRedeemReward(quantity, defaultRarity, mailRng)
             "seed" -> applySeedRedeemReward(quantity, defaultRarity, mailRng)
-            "disciple" -> applyDiscipleRedeemReward(quantity, mailRng)
+            API_REWARD_TYPE_DISCIPLE -> {
+                // 弟子实例只能由角色模板实例化产生：服务端残留的弟子奖励一律拒发，
+                // 既不直造弟子也不当作仓库失败（否则该码永远兑换不了），留告警供运营改发碎片
+                DomainLog.w(TAG, "Refused server disciple reward: name=$name, quantity=$quantity")
+                true
+            }
             else -> true
         }
     }
@@ -323,24 +379,6 @@ class RedeemCodeService @Inject constructor(
         return handleRedeemResult(inventorySystem.addSeed(seed), "种子 ${seed.name}")
     }
 
-    private fun MutableGameState.applyDiscipleRedeemReward(
-        quantity: Int, mailRng: kotlin.random.Random
-    ): Boolean {
-        val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-        val usedNames = discipleTables.assembleAll().map { it.name }.toMutableSet()
-        repeat(quantity.coerceAtLeast(1)) {
-            val disciple = RedeemCodeManager.generateDisciple(null, usedNames, random = mailRng)
-            disciple.usage.recruitedMonth = currentMonthValue
-            discipleTables.allocateAndInsert(disciple)
-            usedNames.add(disciple.name)
-        }
-        // 年报新增弟子计数（兑换码赠弟子计入）
-        gameData = gameData.copy(
-            annualNewDisciples = gameData.annualNewDisciples + quantity.coerceAtLeast(1)
-        )
-        return true
-    }
-
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun verifyApkSignature(): Boolean {
         if (BuildConfig.APK_SIGNATURE_HASH.isEmpty()) {
@@ -401,10 +439,8 @@ class RedeemCodeService @Inject constructor(
         )
 
         val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
-        val existingNames = stateStore.disciples.value.map { it.name }.toSet()
         val result = RedeemCodeManager.generateReward(
             redeemCodeData,
-            existingNames = existingNames,
             random = mailRng,
             nowMs = nowMs
         )
@@ -425,15 +461,13 @@ class RedeemCodeService @Inject constructor(
             )
         }
 
-        enqueueRewardCardsFromSelectedItems(result.rewards)
-
-        val rewardDescription = result.rewards.joinToString("、") { reward ->
-            when (reward.type) {
-                "spiritStones" -> "${reward.quantity}灵石"
-                "disciple" -> "弟子${reward.name}"
-                else -> "${reward.name}${reward.quantity}"
-            }
+        // 物品全部入账、兑换码已记入 usedRedeemCodes 之后才发碎片：
+        // 仓库失败时码未消耗，玩家重试只补发物品，不会双增碎片
+        if (allSucceeded) {
+            grantFragmentRewards(result.rewards)
         }
+
+        enqueueRewardCardsFromSelectedItems(result.rewards)
 
         if (!allSucceeded) {
             return RedeemResult(
@@ -444,22 +478,31 @@ class RedeemCodeService @Inject constructor(
         }
         return RedeemResult(
             success = true,
-            message = "兑换成功！获得：$rewardDescription",
-            rewards = result.rewards,
-            disciples = result.disciples
+            message = "兑换成功！获得：${buildRewardDescription(result.rewards)}",
+            rewards = result.rewards
         )
     }
 
     /**
-     * 本地兑换奖励落地：物品发放 + 灵石/弟子 + 标记已用，单事务原子写入。
+     * 兑换成功文案：把奖励条目拼成人读的「N灵石、周明碎片60、聚气丹3」清单。
      *
-     * 注意：disciple 类型的 rewards 条目**不在此处发放**——本地兑换的弟子
-     * 已由 [RedeemCodeManager.generateReward] 预生成并放入 [RedeemResult.disciples]，
-     * 下方统一经 `result.disciples` 插入（携带正确境界配置）。若在此循环内再次
-     * 处理 disciple 条目会触发 [applyDiscipleRedeemReward] 用 null 配置重复生成
-     * 弟子（境界错乱 + 数量双倍）。disciple 条目保留在 rewards 中仅用于
-     * 兑换成功文案展示（"弟子XXX"）。API 路径（服务器下发）不走此函数，
-     * 由 [applyApiRewardsAndMarkUsed] 单独处理。
+     * @param rewards 已生成的奖励条目
+     */
+    private fun buildRewardDescription(rewards: List<RewardSelectedItem>): String =
+        rewards.joinToString("、") { reward ->
+            when (reward.type) {
+                "spiritStones" -> "${reward.quantity}灵石"
+                REWARD_TYPE_FRAGMENT -> "${reward.name}碎片${reward.quantity}"
+                else -> "${reward.name}${reward.quantity}"
+            }
+        }
+
+    /**
+     * 本地兑换奖励落地：物品发放 + 灵石 + 标记已用，单事务原子写入。
+     *
+     * 角色碎片条目**不在此处入账**——碎片是寻访域账本，须走 [GachaFacade.grantFragments]，
+     * 而本函数运行在 `stateStore.update` 事务内；调用方在事务成功返回后统一发放。
+     * 碎片条目保留在 `result.rewards` 中，同时用于成功文案与结果卡片。
      *
      * @param state 事务中的 [MutableGameState]（调用方 stateStore.update 块内传入）
      * @return true=全部成功；false=任一物品发放失败/溢出（兑换码不标记已用，可清理后重试）
@@ -472,11 +515,12 @@ class RedeemCodeService @Inject constructor(
         mailRng: kotlin.random.Random
     ): Boolean = state.run {
         // 任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
-        // 玩家清理仓库后可重新兑换，奖励不丢失
+        // 玩家清理仓库后可重新兑换，奖励不丢失。
+        // 灵石与角色碎片各有独立账本，不进仓库发放循环
         val allSucceeded = inventorySystem.withOverflowMailSuppressed {
             inventorySystem.withTrackingSource("redeem") {
                 result.rewards.filter {
-                    it.type != "spiritStones" && it.type != "disciple"
+                    it.type != "spiritStones" && it.type != REWARD_TYPE_FRAGMENT
                 }.all { reward ->
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, defaultRarity, mailRng)
                 }
@@ -485,30 +529,23 @@ class RedeemCodeService @Inject constructor(
 
         if (!allSucceeded) return@run false
 
-        // 物品全部成功后才发放灵石与弟子（
-        // 失败时灵石/弟子不入账，避免"已入账 + 凭据保留"重试时双发）
+        // 物品全部成功后才发放灵石（
+        // 失败时灵石不入账，避免"已入账 + 凭据保留"重试时双发）
         result.rewards.filter { it.type == "spiritStones" }.forEach { reward ->
             spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
-        }
-        result.disciples.forEach { disciple ->
-            val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-            disciple.usage.recruitedMonth = currentMonthValue
-            discipleTables.allocateAndInsert(disciple)
         }
 
         gameData = gameData.copy(
             usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
                 .distinct()
-                .takeLast(GameData.MAX_REDEEM_CODES),
-            // 年报新增弟子计数（本地兑换码赠弟子计入）
-            annualNewDisciples = gameData.annualNewDisciples + result.disciples.size
+                .takeLast(GameData.MAX_REDEEM_CODES)
         )
         true
     }
 
     private fun enqueueRewardCardsFromApiRewards(rewards: List<RedeemApiReward>) {
         val cards = rewards.mapNotNull { reward ->
-            if (reward.type == "disciple") return@mapNotNull null
+            if (reward.type == API_REWARD_TYPE_DISCIPLE) return@mapNotNull null
             RewardCardItem(
                 itemName = reward.name,
                 itemType = reward.type,
@@ -522,8 +559,7 @@ class RedeemCodeService @Inject constructor(
     }
 
     private fun enqueueRewardCardsFromSelectedItems(rewards: List<RewardSelectedItem>) {
-        val cards = rewards.mapNotNull { reward ->
-            if (reward.type == "disciple") return@mapNotNull null
+        val cards = rewards.map { reward ->
             RewardCardItem(
                 itemName = reward.name,
                 itemType = reward.type,

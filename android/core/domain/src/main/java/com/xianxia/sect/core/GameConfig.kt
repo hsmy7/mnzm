@@ -204,14 +204,36 @@ object GameConfig {
     /**
      * 角色卡池（G01）。色表 Q31 单源——结果页/徽章/公示强制读本表；
      * 与旧 [Rarity] 色不一致时以本表为准（产品方案 §4.4 Q31）。
+     *
+     * ## 单源边界
+     *
+     * - **开局常量**（模板 id / 初始境界 / 初始层数 / 初始星级）单源在
+     *   [com.xianxia.sect.core.model.CharacterTemplateDb]，本对象不重复定义；
+     *   本对象只承载经济与概率口径。
+     * - [FRAGMENTS_PER_STAR] 与 [MAX_STAR] 三向一致：配置表 `db.gachaPools[0]`
+     *   （`android/app/src/main/assets/data/game-data.json` 的 `fragmentsPerStar` / `maxStar`）
+     *   ↔ 本对象 ↔ C++
+     *   `android/app/src/main/cpp/gamecore/include/gamecore/system/gacha_fragment.h`
+     *   的 `kFragmentsPerStar` / `kMaxStar`，三向由守卫逐字段比对看护，任一侧漂移即判红。
      */
     object Gacha {
         const val HISTORY_RING_SIZE = 50
+        /** 每升 1 星所需碎片数（三向一致见 [Gacha] 的类注释） */
         const val FRAGMENTS_PER_STAR = 100
+        /** 星级上限（三向一致见 [Gacha] 的类注释） */
         const val MAX_STAR = 5
         const val PITY_PULL_THRESHOLD = 10
         const val PITY_FRAGMENT_COUNT = 5
         const val PRICE_PER_PULL = 5000
+
+        /**
+         * 新档开局灵石的**唯一取值点**：开局三臂（`GameEngine.createNewGame`、
+         * `GameEngine.restartGameInternal` 的两条分支）一律
+         * `gameData.copy(spiritStones = 本常量)` 注入，**不走 `SpiritStoneWallet`**——
+         * wallet 会累加 `annualTotalIncome` / `annualIncomeBySource`，而开局量是一次性注入，
+         * 不属于月度收入曲线。[com.xianxia.sect.core.model.GameData] 的默认值保持哨兵语义，
+         * 开局量不得靠改默认值实现。与配置 `gachaDefaults.startSpiritStones` 同值，由守卫比对。
+         */
         const val START_SPIRIT_STONES = 50000
         const val STAR_BATTLE_PCT_PER_STAR = 0.08
         const val STAR_CULT_PCT_PER_STAR = 0.05
@@ -661,15 +683,6 @@ object GameConfig {
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
     }
 
-    // 敌对弟子统一使用 GameConfig.Realm 基础属性 + DiscipleStatCalculator 公式
-    object Starting {
-        val RESOURCES = StartingResources(
-            spiritStones = 2000,
-            reputation = 100,
-            spiritHerbs = 50
-        )
-    }
-    
     object PlayerProtection {
         const val PROTECTION_YEARS = 100
     }
@@ -904,11 +917,6 @@ object GameConfig {
         val color: String
     )
     
-    data class StartingResources(
-        val spiritStones: Int,
-        val reputation: Int,
-        val spiritHerbs: Int
-    )
     data class BeastTypeConfig(
         val name: String,
         val prefix: String,

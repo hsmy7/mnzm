@@ -56,6 +56,7 @@ object GameSystemRegistryDefaults {
         register("engine.domain", "DiscipleFactory")
         register("engine.domain", "DisciplePillManager")
         register("engine.domain", "DiscipleService")
+        register("engine.domain", "GachaService")
         register("engine.domain", "PillEffectApplier")
         register("engine.domain", "VassalService")
 

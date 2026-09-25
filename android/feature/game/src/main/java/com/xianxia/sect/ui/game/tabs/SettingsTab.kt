@@ -147,7 +147,7 @@ private fun redeemRewardToItem(reward: RewardSelectedItem): RewardItem {
     return RewardItem(
         name = when (reward.type) {
             "spiritStones" -> "${reward.quantity}灵石"
-            "disciple" -> "弟子 ${reward.name}"
+            "fragment" -> "${reward.name}碎片${reward.quantity}"
             else -> "${reward.name} ×${reward.quantity}"
         },
         rarityColor = rarityColor

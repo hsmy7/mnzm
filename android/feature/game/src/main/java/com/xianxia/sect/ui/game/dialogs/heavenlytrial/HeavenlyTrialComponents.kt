@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.beastSpriteRes
+import com.xianxia.sect.ui.components.resolvePortraitResId
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.PresentationRandom
@@ -189,17 +190,18 @@ internal fun CombatantPortrait(combatant: Combatant, random: PresentationRandom,
                 beastSpriteRes(index) ?: beastSpriteRes(0) ?: 0
             }
             combatant.portraitRes.isNotBlank() -> {
-                PortraitPool.getResourceId(combatant.portraitRes).takeIf { it != 0 }
+                resolvePortraitResId(combatant.portraitRes).takeIf { it != 0 }
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }
             else -> {
+                // 无立绘键：从 37 张通用像池按场景键确定性取一张（该键必属 PortraitPool 域）
                 // 场景键含参战者身份：他就是他（键纪律见 PresentationRandom KDoc）
                 val sceneRandom = random.scene("trial.portrait.${combatant.id}")
                 val randomPortrait = PortraitPool.getRandomPortrait(
                     if (sceneRandom.nextBoolean()) "male" else "female",
                     sceneRandom.boundPicker()
                 )
-                PortraitPool.getResourceId(randomPortrait).takeIf { it != 0 }
+                resolvePortraitResId(randomPortrait).takeIf { it != 0 }
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }
         }

@@ -36,6 +36,7 @@ g++ -shared -fPIC -std=c++20 -O2 -ffp-contract=off \
     "$SRC/src/dispatch_w4b.cpp" \
     "$SRC/src/dispatch_w4c.cpp" \
     "$SRC/src/dispatch_w4d.cpp" \
+    "$SRC/src/dispatch_gacha.cpp" \
     "$SRC/src/dirty_tracker.cpp" \
     "$SRC/src/disciple_store.cpp" \
     -o "$OUT"

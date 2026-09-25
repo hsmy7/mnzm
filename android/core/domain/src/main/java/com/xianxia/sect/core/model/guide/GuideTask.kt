@@ -174,7 +174,7 @@ sealed interface GuideCondition {
 
     /** 弟子总人数 */
     data class DiscipleTotalCount(override val targetValue: Long) : GuideCondition {
-        override val label: String get() = "累计招募${targetValue}名弟子"
+        override val label: String get() = "累计入门${targetValue}名弟子"
         override fun isMet(gameData: GameData): Boolean =
             currentValue(gameData) >= targetValue
         override fun progressText(gameData: GameData): String =

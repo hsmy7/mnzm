@@ -102,6 +102,8 @@ inline int32_t aiRollByRootCount(rng::DeterministicRng& rng, int32_t spiritRootC
 /// 随机生成 AI 弟子（Kotlin AISectDiscipleManager.generateRandomDisciple
 /// 等价；消费序见文件头——AI 独立分区 RNG）。
 /// [usedNames] 当前弟子名集合（冲突规避——每次尝试消费完整名字 RNG 序列）。
+/// 角色模板口径：AI 宗弟子不经角色模板构造（不走 `createDisciple`），
+/// `templateId` 恒为空串——玩家名册弟子才由模板实例化并写入该字段。
 inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
                                                 const std::set<std::string>& usedNames) {
     state::Disciple d;

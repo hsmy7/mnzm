@@ -2,20 +2,10 @@ package com.xianxia.sect.core.engine
 
 
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleRewardConfig
 import com.xianxia.sect.core.model.RedeemCode
 import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.core.model.RedeemRewardType
 import com.xianxia.sect.core.model.RewardSelectedItem
-import com.xianxia.sect.core.model.hpVariance
-import com.xianxia.sect.core.model.magicAttackVariance
-import com.xianxia.sect.core.model.magicDefenseVariance
-import com.xianxia.sect.core.model.mpVariance
-import com.xianxia.sect.core.model.physicalAttackVariance
-import com.xianxia.sect.core.model.physicalDefenseVariance
-import com.xianxia.sect.core.model.speedVariance
-import com.xianxia.sect.core.util.NameService
 import kotlinx.coroutines.sync.Mutex
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
@@ -23,13 +13,7 @@ import kotlinx.coroutines.CancellationException
 
 
 object RedeemCodeManager {
-    /**
-     * 单用户定向补偿邮件（MailService 扩展，独立文件）。
-     *
-     * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
-     * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
-     * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
-     */
+    /** 兑换码域日志标签：本 object 与拆出的 `RedeemCode*Ops` 扩展共用。 */
     internal const val TAG = "RedeemCodeManager"
     private const val MIN_CODE_LENGTH = 3
     private const val MAX_CODE_LENGTH = 20
@@ -74,13 +58,10 @@ object RedeemCodeManager {
     internal const val ONE_DAY_MS = 86_400_000L
 
     /**
-     * 已使用兑换码记录的最大容量
+     * 远端兑换码校验器（服务端下发码表与签名时接入）。
      *
-     * 防止长期运行时内存无限增长。
-     * 当记录数达到上限时，自动淘汰最早的条目（FIFO 策略）。
-     * 设置为 10000 条，足以覆盖正常使用场景，同时控制内存占用。
+     * 未注入时 [validateCodeWithServerAuth] 只走本地校验。
      */
-    
     interface RedeemCodeValidator {
         suspend fun validateRemotely(code: String, playerId: String): RemoteValidationResult
     }
@@ -96,16 +77,14 @@ object RedeemCodeManager {
     private var remoteValidator: RedeemCodeValidator? = null
     internal val rateLimitMutex = Mutex()
 
-    private val predefinedCodes = mutableMapOf(
-        "8982" to RedeemCode(
-            code = "8982",
-            rewardType = RedeemRewardType.DISCIPLE,
-            quantity = 10,
-            discipleConfig = DiscipleRewardConfig(
-                spiritRootCount = 1
-            )
-        ),
-    )
+    /**
+     * 已配置的兑换码表（编译期条目）。
+     *
+     * 条目只发放资源/物品/角色碎片（[RedeemRewardType.FRAGMENT] + `templateId`），
+     * 不存在发放弟子实例的码——弟子只能由角色模板实例化产生。
+     * 远端校验通过时，服务端下发的码会写入本表（见 [validateCodeWithServerAuth]）。
+     */
+    private val predefinedCodes = mutableMapOf<String, RedeemCode>()
 
     // ══════════════════════════════════
     // 多层级频率限制数据结构
@@ -348,11 +327,19 @@ object RedeemCodeManager {
         return null
     }
 
+    /**
+     * 生成兑换码奖励条目：按奖励类型分派生成器，产物只进 `RedeemResult.rewards`。
+     *
+     * 角色类奖励（[RedeemRewardType.FRAGMENT]）只产出碎片条目，账本入账由
+     * `RedeemCodeService` 在兑换码消耗后交寻访域碎片门面完成；本函数不写任何
+     * 游戏状态（弟子、碎片、仓库均不触碰）。
+     *
+     * 模板配置异常（角色模板不存在）时返回失败结果且不标记兑换码已用，玩家可重试。
+     */
     fun generateReward(
         redeemCode: RedeemCode,
         playerId: String = "default",
         deviceId: String = "unknown",
-        existingNames: Set<String> = emptySet(),
         random: kotlin.random.Random = kotlin.random.Random,
         /** 兑换成功时刻（SR-5：调用方经注入 WallClock 采样后下传，写入基础冷却与使用记录） */
         nowMs: Long
@@ -364,7 +351,7 @@ object RedeemCodeManager {
         lastRedeemTime = nowMs
         
         val rewards = mutableListOf<RewardSelectedItem>()
-        val disciples = mutableListOf<Disciple>()
+        var rewardRejected = false
 
         when (redeemCode.rewardType) {
             RedeemRewardType.SPIRIT_STONES -> addSpiritStonesReward(
@@ -384,23 +371,24 @@ object RedeemCodeManager {
                 random = random,
                 rewards = rewards
             )
-            RedeemRewardType.DISCIPLE -> addDiscipleRewards(
-                config = redeemCode.discipleConfig,
+            RedeemRewardType.FRAGMENT -> rewardRejected = !addFragmentRewards(
+                templateId = redeemCode.templateId,
                 quantity = redeemCode.quantity,
-                existingNames = existingNames,
-                random = random,
-                disciples = disciples,
-                rewards = rewards
-            )
-            RedeemRewardType.STARTER_PACK -> addStarterPackRewards(
-                existingNames = existingNames,
-                random = random,
-                disciples = disciples,
                 rewards = rewards
             )
             RedeemRewardType.MANUAL_PACK -> addManualPackRewards(
                 random = random,
                 rewards = rewards
+            )
+        }
+
+        // 配置异常（角色模板不存在）时不消耗兑换码：玩家侧无损失，
+        // 运营侧由上面的告警日志定位错配的码条目
+        if (rewardRejected) {
+            DomainLog.w(TAG, "Reward generation rejected for code: ${redeemCode.code}, code not consumed")
+            return RedeemResult(
+                success = false,
+                message = "兑换码奖励配置异常，本次未扣除兑换码"
             )
         }
 
@@ -413,73 +401,9 @@ object RedeemCodeManager {
         return RedeemResult(
             success = true,
             message = "兑换成功！",
-            rewards = rewards,
-            disciple = disciples.firstOrNull(),
-            disciples = disciples
+            rewards = rewards
         )
     }
-
-    fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set<String> = emptySet(),
-        random: kotlin.random.Random = kotlin.random.Random): Disciple {
-        val cfg = config ?: DiscipleRewardConfig()
-
-        val gender = when (cfg.gender) {
-            "male" -> "male"
-            "female" -> "female"
-            else -> if (random.nextInt(2) == 0) "male" else "female"
-        }
-
-        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
-
-        // 灵根/年龄寿命分别提取（RNG 调用序与原逐行一致）
-        val spiritRootType = resolveSpiritRoot(cfg, random)
-        val (age, lifespan) = resolveAgeAndLifespan(cfg, random)
-
-        // 属性方差（7 次 random 调用，顺序与原一致：hp/mp/pa/ma/pd/md/spd）
-        val variance = VarianceBundle(
-            hpVariance = generateVariance(random),
-            mpVariance = generateVariance(random),
-            physicalAttackVariance = generateVariance(random),
-            magicAttackVariance = generateVariance(random),
-            physicalDefenseVariance = generateVariance(random),
-            magicDefenseVariance = generateVariance(random),
-            speedVariance = generateVariance(random)
-        )
-
-        return buildRedeemDisciple(
-            cfg = cfg,
-            context = DiscipleBuildContext(
-                nameResult = nameResult,
-                spiritRootType = spiritRootType,
-                age = age,
-                lifespan = lifespan,
-                gender = gender,
-                variance = variance
-            ),
-            random = random
-        )
-    }
-
-    /** 属性方差束：7 次 random 调用结果，顺序与原一致 */
-    internal data class VarianceBundle(
-        val hpVariance: Int,
-        val mpVariance: Int,
-        val physicalAttackVariance: Int,
-        val magicAttackVariance: Int,
-        val physicalDefenseVariance: Int,
-        val magicDefenseVariance: Int,
-        val speedVariance: Int
-    )
-
-    /** 弟子构建上下文：解析结果统一打包，避免超长参数列表 */
-    internal data class DiscipleBuildContext(
-        val nameResult: NameService.NameResult,
-        val spiritRootType: String,
-        val age: Int,
-        val lifespan: Int,
-        val gender: String,
-        val variance: VarianceBundle
-    )
 
     // ══════════════════════════════════
     // 内存管理：定期清理和容量限制

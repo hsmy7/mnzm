@@ -53,23 +53,4 @@ class BeastAndStartingConfigTest {
         val beast = GameConfig.Beast.getType(99)
         assertEquals("虎妖", beast.name)
     }
-
-    // ============================================================
-    // Starting 对象 - RESOURCES
-    // ============================================================
-
-    @Test
-    fun `初始资源灵石应为2000`() {
-        assertEquals(2000, GameConfig.Starting.RESOURCES.spiritStones)
-    }
-
-    @Test
-    fun `初始资源声望应为100`() {
-        assertEquals(100, GameConfig.Starting.RESOURCES.reputation)
-    }
-
-    @Test
-    fun `初始资源灵草应为50`() {
-        assertEquals(50, GameConfig.Starting.RESOURCES.spiritHerbs)
-    }
 }

@@ -1,11 +1,15 @@
 package com.xianxia.sect
 
+import com.xianxia.sect.ui.components.SpriteCategory
+import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.resolvePortraitResId
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -144,6 +148,61 @@ class GachaCharacterSpriteGuardTest {
         val configured = configuredSpriteKeys().toSet()
         val registered = characterRegistryEntries().keys
         assertEquals("双向差集必须为空（漏角色 / 已下线角色残留）", configured, registered)
+    }
+
+    /**
+     * G08 c340-2 补第 6 例：12 个键必须能经**运行时解析链**取到非 0 资源 ID。
+     *
+     * 前 5 例锁的是「配置 ↔ registry.json ↔ source-mapping ↔ 双模块 WebP」这条**素材链**；
+     * 本例锁的是最后一公里——`build-atlas.mjs --codegen` 生成的
+     * [registerAllSprites]（`XianxiaApplication.onCreate` 的同一入口）真的把
+     * `portrait_<id>` / `avatar_<id>` 注册进了 `SpriteResRegistry`，且 A-6 新建的
+     * `resolvePortraitResId` 的第二跳（`SpriteResRegistry.resolve`）能命中。
+     *
+     * 用生产注册入口而不是自造假 map：否则「生成物漏注册 CHARACTER 分类」
+     * 这类断链会被测试自己补上，判不出红。`SpriteCodegenSyncTest` 只按文本断言生成物
+     * 结构，不看键能否落到 map 里，两者不重叠。
+     *
+     * 判别力自证：把 `scripts/resource-registry.json` 的 CHARACTER 条目改名（或删掉
+     * `portrait_zhouming` 行后重跑 `node scripts/build-atlas.mjs --codegen`），
+     * 本例即红并报「以下键经 resolvePortraitResId 解析为 0」；改回即绿。
+     *
+     * 前提与退路（诚实登记）：`resolvePortraitResId` 在 `:core:ui`，`:app` 测试可达
+     * （`app/build.gradle` 的 `implementation project(':core:ui')`），故按 TASKBOOK 首选口径测它。
+     * 它返回的是生成物 map 里的 `R.drawable.<键>` 常量，本模块 `includeAndroidResources = true`
+     * ⇒ 单测 classpath 上是**真实非零**资源 ID（`R` 常量不触发 Resources 加载，纯 JVM 可跑，
+     * 先例见 `MainGameScreenTest` 对 `BuildingFeatureRegistry` 的注册）。若某环境把 R 打成
+     * 全 0 桩，本例会红并报「解析为 0」，届时按 TASKBOOK 许可的退路改判
+     * `SpriteResRegistry.categoryResId(CHARACTER, key) != null`（第二跳已并列断言）。
+     */
+    @Test
+    fun `配置键运行时可解析 - resolvePortraitResId 对头像与立绘键都非零`() {
+        registerAllSprites()
+        val unresolved = configuredSpriteKeys().filter { key -> resolvePortraitResId(key) == 0 }
+        val unregistered = configuredSpriteKeys().filter { key ->
+            SpriteResRegistry.categoryResId(SpriteCategory.CHARACTER, key) == null
+        }
+        assertTrue(
+            "以下寻访角色键经 resolvePortraitResId 解析为 0（运行时取不到图 → 立绘位空白/" +
+                "回落通用像，违反验收⑤）：\n$unresolved\n" +
+                "解析链：PortraitPool(37 张通用像) → SpriteResRegistry.resolve(15 分类)。\n" +
+                "修复：按 rules/static-resources.md 走七步素材流程补 resource-registry.json 的 " +
+                "CHARACTER 行，再跑 node scripts/build-atlas.mjs --codegen 重生成注册表",
+            unresolved.isEmpty(),
+        )
+        assertTrue(
+            "以下键不在 SpriteResRegistry 的 CHARACTER 分类里（resolver 第二跳落空）：\n$unregistered\n" +
+                "修复同上：注册表生成物 app/build/generated/sprite/SpriteRegistryData.kt 的 " +
+                "SPRITES_CHARACTER 必须含该键",
+            unregistered.isEmpty(),
+        )
+    }
+
+    @After
+    fun tearDownRegistry() {
+        // registerAllSprites() 写的是进程级单例；跑完清空 CHARACTER 分类，
+        // 避免跨测试类污染（EquipmentSpriteTest / GetRewardSpriteTest 同纪律）
+        SpriteResRegistry.register(SpriteCategory.CHARACTER, emptyMap())
     }
 
     private companion object {

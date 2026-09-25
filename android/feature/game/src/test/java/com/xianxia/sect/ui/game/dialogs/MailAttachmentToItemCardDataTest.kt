@@ -39,16 +39,6 @@ class MailAttachmentToItemCardDataTest {
         assertFalse(data.isHerb)
         assertFalse(data.isSeed)
         assertFalse(data.isBag)
-        assertFalse(data.isDisciple)
-    }
-
-    @Test
-    fun `disciple attachment sets isDisciple - 弟子显示通用头像`() {
-        val data = mailAttachmentToItemCardData(
-            attachment(type = "disciple", name = "单灵根弟子", rarity = 0)
-        )
-        assertTrue(data.isDisciple)
-        assertFalse(data.isManual)
     }
 
     @Test
@@ -56,7 +46,6 @@ class MailAttachmentToItemCardDataTest {
         val data = mailAttachmentToItemCardData(attachment(type = "pill", name = "聚气丹"))
         assertTrue(data.isPill)
         assertFalse(data.isManual)
-        assertFalse(data.isDisciple)
     }
 
     @Test
@@ -70,7 +59,6 @@ class MailAttachmentToItemCardDataTest {
         assertFalse(data.isHerb)
         assertFalse(data.isSeed)
         assertFalse(data.isBag)
-        assertFalse(data.isDisciple)
     }
 
     @Test
@@ -124,7 +112,6 @@ class MailAttachmentToItemCardDataTest {
         )
         assertTrue(data.isHerb)
         assertFalse(data.isManual)
-        assertFalse(data.isDisciple)
     }
 
     @Test

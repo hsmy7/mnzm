@@ -383,6 +383,24 @@ sealed class AppError {
                 override val code = "DISCIPLE_005"
                 override val message: String = detail
             }
+
+            data class TemplateUnknown(
+                val templateId: String,
+                override val cause: Throwable? = null
+            ) : Disciple() {
+                override val code = "DISCIPLE_006"
+                override val message: String = "角色模板不存在 templateId=$templateId"
+            }
+
+            /** 同一角色模板在名册中限持一名（星级由图鉴侧派生，不允许双实例） */
+            data class TemplateAlreadyOwned(
+                val templateId: String,
+                val discipleId: String,
+                override val cause: Throwable? = null
+            ) : Disciple() {
+                override val code = "DISCIPLE_007"
+                override val message: String = "该角色已在宗门中（templateId=$templateId）"
+            }
         }
 
         // === 道具/仓库领域错误 ===

@@ -73,6 +73,22 @@ class RngSourceGuardTest {
      * 决策抽取改 `RngPartition.CHAT` 引擎侧签发 + 文本变体走 `PresentationRandom`），
      * 上限 1 不变。⇒ core/domain 上限 5 → **13**（一次性扩面登记；偿还后**必须
      * 同步下调**，登记 `docs/rng-source-inventory.md` §W4-A）。
+     *
+     * ### G08 兑换码改道后的 ⑤ 类下调（2026-09-25，core/engine **7 → 5**）
+     * 派工口径是「删 `generateDisciple` ⇒ 7 → 6」，**复算后实测为 5**，两处差额都有据：
+     * - **−1（本批）**：G08 A-4 删除 `RedeemCodeManager.generateDisciple`，其形参
+     *   `random: kotlin.random.Random = kotlin.random.Random` 随之消失（inventory §3.5 第 4 行）。
+     * - **−1（预存漏账，非本批造成）**：inventory §3.5 第 5 行的
+     *   `RedeemCodeManager.generateRandomTalents(random = Random)` 已随 **G04 天赋系统下线**
+     *   被物理删除，当时只下调了 ② 类、漏调本条 ⇒ 登记值一直虚高 1
+     *   （HEAD `fa853b541` 起主源实测即 6 处，而非登记的 7 处）。
+     *
+     * 现存量 5 处逐条复核（扫 `core/engine/src/main` 的 `random: Random =` 默认实参）：
+     * `registry/ManualDatabase.kt:655/:674`、`RedeemCodeManager.kt:343`（generateReward）、
+     * `RedeemCodeRewardOps.kt:116`（generateRandomEquipment）、
+     * `service/MerchantAndRecruitService.kt:332`（createMerchantItem）。
+     * ⇒ 上限按实测锁为 5；`docs/rng-source-inventory.md` §3.5 的「⑤（7 处）」清单需同步
+     * 核减（文档改动归主线程终树）。
      */
     private val registeredLimits: Map<String, Map<RandomSourceCategory, Int>> = mapOf(
         "core/domain" to mapOf(
@@ -89,7 +105,9 @@ class RngSourceGuardTest {
             RandomSourceCategory.BARE_DRAW to 14,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 2,
-            RandomSourceCategory.DEFAULT_PARAM_TRAP to 7
+            // G08 兑换码改道：删 generateDisciple 默认实参（−1）+ 补记 G04 漏删的
+            // generateRandomTalents（−1，登记值此前虚高）⇒ 7 → 5（详见上方 KDoc）
+            RandomSourceCategory.DEFAULT_PARAM_TRAP to 5
         ),
         "core/data" to mapOf(
             RandomSourceCategory.BARE_DRAW to 1,

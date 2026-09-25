@@ -1,56 +1,27 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.util.ItemNames
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.model.CombatAttributes
-import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleRewardConfig
+import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.RedeemRewardType
 import com.xianxia.sect.core.model.RewardSelectedItem
-import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.artifactRefining
-import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.baseMagicDefense
-import com.xianxia.sect.core.model.baseMp
-import com.xianxia.sect.core.model.basePhysicalAttack
-import com.xianxia.sect.core.model.basePhysicalDefense
-import com.xianxia.sect.core.model.baseSpeed
-import com.xianxia.sect.core.model.charm
-import com.xianxia.sect.core.model.comprehension
-import com.xianxia.sect.core.model.hpVariance
-import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.magicAttackVariance
-import com.xianxia.sect.core.model.magicDefenseVariance
-import com.xianxia.sect.core.model.mining
-import com.xianxia.sect.core.model.morality
-import com.xianxia.sect.core.model.mpVariance
-import com.xianxia.sect.core.model.physicalAttackVariance
-import com.xianxia.sect.core.model.physicalDefenseVariance
-import com.xianxia.sect.core.model.pillRefining
-import com.xianxia.sect.core.model.speedVariance
-import com.xianxia.sect.core.model.spiritPlanting
-import com.xianxia.sect.core.model.teaching
-import com.xianxia.sect.core.util.PortraitPool
-import com.xianxia.sect.core.util.SpiritRootGenerator
-import com.xianxia.sect.core.engine.RedeemCodeManager.DiscipleBuildContext
+
+// ── 兑换码奖励生成域（自 RedeemCodeManager 拆出） ────────────────────────────
 
 /**
- * 单用户定向补偿邮件（MailService 扩展，独立文件）。
+ * 角色碎片奖励的条目类型字面量。
  *
- * 拆分原因：MailService 类主体接近 detekt LargeClass（800 行）阈值，
- * 补偿邮件属独立运营配置，放独立文件保持 MailService 规模稳定；
- * stateStore/mailRepo 已放宽为 internal 供本扩展读取（三重防护）。
+ * 与 [RedeemRewardType.FRAGMENT] 的小写形式同值：奖励条目以字符串携带类型，
+ * 服务侧（`RedeemCodeService`）据此把碎片从物品发放循环中摘出来单独入账。
  */
-// ── 兑换码奖励生成域（自 RedeemCodeManager 拆出，行为零变更） ─────────────────
+internal const val REWARD_TYPE_FRAGMENT = "fragment"
 
 private val TAG = RedeemCodeManager.TAG
+
 /** 物品类奖励生成：EQUIPMENT/MANUAL/PILL/MATERIAL/HERB/SEED 分支 */
 internal fun RedeemCodeManager.addItemRewards(
     type: RedeemRewardType,
@@ -79,76 +50,40 @@ internal fun RedeemCodeManager.addItemRewards(
     )
 }
 
-/** 弟子奖励生成：DISCIPLE 分支 */
-
-internal fun RedeemCodeManager.addDiscipleRewards(
-    config: DiscipleRewardConfig?,
+/**
+ * 角色碎片奖励生成：FRAGMENT 分支。
+ *
+ * 只产出奖励条目，**不产生弟子、不写碎片账本**——碎片的入账由调用方
+ * （`RedeemCodeService`）在兑换码确认消耗之后交寻访域碎片门面完成，
+ * 本文件不触碰 `gachaFragmentCounts`（弟子与碎片的唯一写入方分别在
+ * 模板实例化链与寻访域）。
+ *
+ * @param templateId 角色模板 id，取值域见 [CharacterTemplateDb]；null 或未知均视为配置错误
+ * @param quantity 碎片数量（≤0 时按 1 发放，与物品类奖励的兜底口径一致）
+ * @param rewards 奖励条目累加容器，条目 `id` 即 templateId，供服务侧回查
+ * @return true=条目已生成；false=模板不存在，该条奖励被拒绝（记日志，不抛异常）
+ */
+internal fun RedeemCodeManager.addFragmentRewards(
+    templateId: String?,
     quantity: Int,
-    existingNames: Set<String>,
-    random: kotlin.random.Random,
-    disciples: MutableList<Disciple>,
     rewards: MutableList<RewardSelectedItem>
-) {
-    /** 结构数量（与 [SpriteAtlasDef.STRUCTURES] 同序同量）。 */
-    val count = quantity.coerceAtLeast(1)
-    val usedNames = existingNames.toMutableSet()
-    repeat(count) {
-        val d = generateDisciple(config, usedNames, random = random)
-        disciples.add(d)
-        usedNames.add(d.name)
-        rewards.add(
-            RewardSelectedItem(
-                id = d.id,
-                type = "disciple",
-                name = d.name,
-                rarity = 1,
-                quantity = 1
-            )
-        )
+): Boolean {
+    val template = templateId?.let { CharacterTemplateDb.byId(it) }
+    if (template == null) {
+        DomainLog.w(TAG, "Refused fragment reward: unknown character template, templateId=$templateId")
+        return false
     }
-    DomainLog.d(TAG, "Generated $count disciple(s) with config: $config")
-}
-
-/** 新手包奖励生成：STARTER_PACK 分支 */
-
-internal fun RedeemCodeManager.addStarterPackRewards(
-    existingNames: Set<String>,
-    random: kotlin.random.Random,
-    disciples: MutableList<Disciple>,
-    rewards: MutableList<RewardSelectedItem>
-) {
     rewards.add(
         RewardSelectedItem(
-            id = "spiritStones",
-            type = "spiritStones",
-            name = ItemNames.SPIRIT_STONE,
+            id = template.id,
+            type = REWARD_TYPE_FRAGMENT,
+            name = template.name,
             rarity = 1,
-            quantity = 10000000
+            quantity = quantity.coerceAtLeast(1)
         )
     )
-    DomainLog.d(TAG, "Generated spirit stones reward: 10000000")
-    val starterUsedNames = existingNames.toMutableSet()
-    repeat(5) {
-        val singleRootDisciple = generateDisciple(
-            DiscipleRewardConfig(
-                spiritRootCount = 1
-            ),
-            starterUsedNames,
-            random = random
-        )
-        disciples.add(singleRootDisciple)
-        starterUsedNames.add(singleRootDisciple.name)
-        rewards.add(
-            RewardSelectedItem(
-                id = singleRootDisciple.id,
-                type = "disciple",
-                name = singleRootDisciple.name,
-                rarity = 1,
-                quantity = 1
-            )
-        )
-    }
-    DomainLog.d(TAG, "Generated 5 single spirit root disciples")
+    DomainLog.d(TAG, "Generated fragment reward: template=${template.id}, quantity=$quantity")
+    return true
 }
 
 /** 功法包奖励生成：MANUAL_PACK 分支 */
@@ -219,135 +154,3 @@ internal fun RedeemCodeManager.generateSingleItemReward(
     }
     else -> error("generateSingleItemReward 仅支持物品类奖励，实际: $type")
 }
-
-/** 弟子主体构建：构造 + 基础属性结算 */
-internal fun RedeemCodeManager.buildRedeemDisciple(
-    cfg: DiscipleRewardConfig,
-    context: DiscipleBuildContext,
-    random: kotlin.random.Random
-): Disciple {
-    return Disciple(
-        name = context.nameResult.fullName,
-        surname = context.nameResult.surname,
-        realm = cfg.realm,
-        realmLayer = cfg.realmLayer,
-        spiritRootType = context.spiritRootType,
-        gender = context.gender,
-        portraitRes = PortraitPool.getRandomPortrait(context.gender) { random.nextInt(it) },
-        discipleType = "outer",
-        combat = CombatAttributes(
-            hpVariance = context.variance.hpVariance,
-            mpVariance = context.variance.mpVariance,
-            physicalAttackVariance = context.variance.physicalAttackVariance,
-            magicAttackVariance = context.variance.magicAttackVariance,
-            physicalDefenseVariance = context.variance.physicalDefenseVariance,
-            magicDefenseVariance = context.variance.magicDefenseVariance,
-            speedVariance = context.variance.speedVariance
-        ),
-        skills = buildRedeemSkills(cfg = cfg, spiritRootType = context.spiritRootType, random = random)
-    ).apply {
-        val baseStats = Disciple.calculateBaseStatsWithVariance(
-            context.variance.hpVariance, context.variance.mpVariance,
-            context.variance.physicalAttackVariance, context.variance.magicAttackVariance,
-            context.variance.physicalDefenseVariance, context.variance.magicDefenseVariance,
-            context.variance.speedVariance
-        )
-        combat.baseHp = baseStats.baseHp
-        combat.baseMp = baseStats.baseMp
-        combat.basePhysicalAttack = baseStats.basePhysicalAttack
-        combat.baseMagicAttack = baseStats.baseMagicAttack
-        combat.basePhysicalDefense = baseStats.basePhysicalDefense
-        combat.baseMagicDefense = baseStats.baseMagicDefense
-        combat.baseSpeed = baseStats.baseSpeed
-    }
-}
-
-/** 弟子技能属性生成：SkillStats 构建，RNG 调用序与原一致 */
-
-internal fun RedeemCodeManager.buildRedeemSkills(
-    cfg: DiscipleRewardConfig,
-    spiritRootType: String,
-    random: kotlin.random.Random
-): SkillStats {
-    val spiritRootCount = spiritRootType.split(",").size
-    return SkillStats(
-        intelligence = cfg.intelligence ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        comprehension = cfg.comprehension ?: rollBySpiritRootCount(
-            spiritRootCount = spiritRootCount,
-            random = random
-        ),
-        charm = cfg.charm ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        artifactRefining = cfg.artifactRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        pillRefining = cfg.pillRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        mining = cfg.mining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        teaching = cfg.teaching ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        morality = cfg.morality ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX)
-    )
-}
-
-/** 灵根阶梯属性掷点：单灵根 80+ 起逐级降 20，RNG 调用序与原一致 */
-
-internal fun RedeemCodeManager.rollBySpiritRootCount(
-    spiritRootCount: Int,
-    random: kotlin.random.Random
-): Int = when (spiritRootCount) {
-    1 -> 80 + random.nextInt(21)
-    2 -> 60 + random.nextInt(21)
-    3 -> 40 + random.nextInt(21)
-    4 -> 20 + random.nextInt(21)
-    else -> 1 + random.nextInt(20)
-}
-
-/** 灵根类型解析（配置指定/数量随机/默认生成，RNG 调用序与原一致）。 */
-
-internal fun RedeemCodeManager.resolveSpiritRoot(
-    cfg: DiscipleRewardConfig,
-    random: kotlin.random.Random
-): String {
-    val cfgSpiritRootType = cfg.spiritRootType
-    // spiritRootCount ≤ 0 会产生空灵根字符串 ""
-    // （0 灵根弟子数据错误）；coerceAtLeast(1) 兜底为单灵根
-    val cfgSpiritRootCount = cfg.spiritRootCount?.coerceAtLeast(1)
-    return if (cfgSpiritRootType != null && cfgSpiritRootCount != null) {
-        val types = listOf("metal", "wood", "water", "fire", "earth")
-        val baseType = cfgSpiritRootType
-        if (cfgSpiritRootCount == 1) {
-            baseType
-        } else {
-            val additionalTypes = types.filter { it != baseType }.shuffled(java.util.Random(random.nextInt()
-                .toLong())).take(cfgSpiritRootCount - 1)
-            (listOf(baseType) + additionalTypes).joinToString(",")
-        }
-    } else if (cfgSpiritRootCount != null) {
-        val types = listOf("metal", "wood", "water", "fire", "earth")
-        types.shuffled(java.util.Random(random.nextInt().toLong())).take(cfgSpiritRootCount).joinToString(",")
-    } else {
-        SpiritRootGenerator.generate(random)
-    }
-}
-
-/** 年龄与基础寿命解析（含 ±10% 寿命波动，RNG 调用序与原一致）。 */
-
-internal fun RedeemCodeManager.resolveAgeAndLifespan(
-    cfg: DiscipleRewardConfig,
-    random: kotlin.random.Random
-): Pair<Int, Int> {
-    // minAge > maxAge 时 nextInt(负数) 抛
-    // IllegalArgumentException 崩溃（服务端 config 可注入）；改为 >= 直接取 minAge
-    val age = if (cfg.minAge >= cfg.maxAge) {
-        cfg.minAge
-    } else {
-        cfg.minAge + random.nextInt(cfg.maxAge - cfg.minAge + 1)
-    }
-    val realmConfig = GameConfig.Realm.get(cfg.realm)
-    // ±10% 波动下限侧（×0.9）不得低于境界基准寿元——
-    // 与出生/突破口径（不低于 realmMaxAge）对齐，防 lifespan 恒落后触发截断死循环
-    val lifespan = (realmConfig.maxAge * (1.0 + (-0.1 + random.nextDouble() * 0.2)))
-        .toInt().coerceAtLeast(realmConfig.maxAge)
-    return age to lifespan
-}
-
-/** 属性方差生成（-50..50，替代原逐行重复的 nextInt 表达式）。 */
-
-internal fun RedeemCodeManager.generateVariance(random: kotlin.random.Random): Int = -50 + random.nextInt(101)

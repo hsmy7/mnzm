@@ -29,9 +29,20 @@ import org.junit.Test
  *
  * Kotlin 基准：真实 RedeemCodeManager（object）/ SpiritRootGenerator（object）。
  *
- * 已知边界（private 方法 + 注册表依赖）：resolveSpiritRoot 配置分支 /
- * generateVariance / rollBySpiritRootCount / resolveAgeAndLifespan 由 C++ GTest
- * 独立覆盖；名字生成（NameService）与服务器验证保留 Kotlin。
+ * 覆盖面 = 兑换码域**仍在册**的三个端口：REDEEM_VALIDATE_INPUT /
+ * REDEEM_ROLL_SPIRIT_ROOT（默认权重分支）/ MAIL_ATTACHMENT_ENCODE。
+ *
+ * 已知边界（G08 兑换码改道后的现状，改道前的「弟子生成面对拍」已不存在）：
+ * - C++ `resolveSpiritRoot` 的配置指定 / 数量随机两分支**没有 Kotlin 基准**——
+ *   原基准 `RedeemCodeRewardOps.resolveSpiritRoot` 与 `generateDisciple` /
+ *   `buildRedeemDisciple` 一并在本批删除（兑换码不再直造弟子），两分支由
+ *   `redeem_code_test.cpp` 的 ResolveSpiritRootConfigSpecified /
+ *   ResolveSpiritRootCountOnly 单侧覆盖；活路径 `SpiritRootGenerator.generate`
+ *   （AI 宗弟子旁路仍在用）由本测试的 REDEEM_ROLL_SPIRIT_ROOT 对拍。
+ * - 端口 1436 REDEEM_RESOLVE_AGE_LIFESPAN / 1438 REDEEM_GENERATE_VARIANCE
+ *   **已退役**（编号禁复用），Kotlin 死码与 C++ 实现、对应 GTest 用例同批删除，
+ *   不再是双端对拍面。
+ * - 名字生成保留 Kotlin（[DiffNameServiceTest] 单独对拍），服务器验证保留 Kotlin。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */

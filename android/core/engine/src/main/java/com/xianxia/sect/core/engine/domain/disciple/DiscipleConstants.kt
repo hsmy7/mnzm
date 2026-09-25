@@ -1,9 +1,5 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-// 性别
-const val GENDER_MALE = "male"
-const val GENDER_FEMALE = "female"
-
 // 弟子类型
 const val TYPE_OUTER = "outer"
 const val TYPE_INNER = "inner"

@@ -29,7 +29,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.theme.GameColors
 
 
@@ -61,7 +60,7 @@ internal fun SlotContent(
                     if (index in 0..7) beastSpriteRes(index) ?: 0
                     else if (index > 0) index
                     else 0
-                } else PortraitPool.getResourceId(portraitRes)
+                } else resolvePortraitResId(portraitRes)
                 if (id != 0) id else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
             }
             // 40×48dp ≤ 80dp 质量边界，命中预载头像缓存；
@@ -242,7 +241,7 @@ internal fun ColumnScope.DiscipleSlotPortraitSection(
                     if (index in 0..7) beastSpriteRes(index) ?: 0
                     else if (index > 0) index
                     else 0
-                } else PortraitPool.getResourceId(portraitRes)
+                } else resolvePortraitResId(portraitRes)
                 if (id != 0) id else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
             }
             // 40×48dp ≤ 80dp 质量边界，命中预载头像缓存；

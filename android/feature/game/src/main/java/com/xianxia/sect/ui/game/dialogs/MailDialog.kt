@@ -529,7 +529,6 @@ private fun MailAttachmentItemCard(
  * RewardCardItem.toItemCardData / WarehouseGridCard）：
  * - 功法（manual）→ isManual=true，解析 manual_$rarity 精灵图（缺该标志会
  *   落 equipment 分支查不到 → 显示"敬请期待"）
- * - 弟子（disciple）→ isDisciple=true，解析通用弟子头像 disciple_portrait
  * - 灵石（spiritStones）→ 按名称解析品阶（"上品灵石"→HIGH 等，名称不含品阶
  *   词时默认 LOW），与发放侧 MailService 的品阶解析保持一致，杜绝显示与
  *   到账品阶不一致的错图
@@ -550,8 +549,7 @@ internal fun mailAttachmentToItemCardData(attachment: MailAttachment): ItemCardD
     isSeed = attachment.type == "seed",
     isMaterial = attachment.type in listOf("material", "beastMaterial"),
     isBag = attachment.type == "storageBag",
-    isManual = attachment.type == "manual",
-    isDisciple = attachment.type == "disciple"
+    isManual = attachment.type == "manual"
 )
 
 /** 领取按钮区 */

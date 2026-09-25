@@ -16,12 +16,6 @@ private const val MAX_AI_SECT_DISCIPLES = 50
 
 // ── Game lifecycle ──────────────────────────────────────────────────
 
-suspend fun GameEngine.initializeNewGameSuspend(gameData: GameData) {
-    return engineContextDispatcher.withEngineContext {
-        stateStore.update { this.gameData = gameData }
-    }
-}
-
 suspend fun GameEngine.ensureHeavyDataLoaded() {
     if (heavyDataLoaded) return
     val snapshot = stateStore.gameDataSnapshot
