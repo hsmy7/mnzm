@@ -47,9 +47,9 @@
 
 | 用例文件（`+新增/−删除` 行） | 处置 | 理由 |
 |---|---|---|
-| `redeem_code_test.cpp` (0/−44) | **删 3 例** | 三例断言的是「兑换码直造弟子」的字段随机性，本体已删，保留即锁死复活 |
+| `redeem_code_test.cpp` (0/−44) | **删 4 例** | `RollBySpiritRootCountRanges` / `GenerateVarianceRange` / `ResolveAgeAndLifespan` / `ResolveAgeMinGtMax`——断言对象是本次退役的 `REDEEM_RESOLVE_AGE_LIFESPAN`(1436) 与 `REDEEM_GENERATE_VARIANCE`(1438) 两个 op 的行为（`RollBySpiritRootCountRanges` 是同域随灵根生成的连带例），本体已删，保留即锁死复活 |
 | `dispatch_guard_test.cpp` (+2/−0) | 改登记 | 退役集 +1436/+1438；分派不可达是退役的**预期形态** |
-| `disciple_factory_test.cpp` (+148/−2) | **保留原断言值 + 新增** | `:42/:79/:111` 三条金序列常量一字未改；新增「override 生效」+「空模板序列不变」两例 |
+| `disciple_factory_test.cpp` (+148/−2) | **保留原断言值 + 新增** | `GoldenSequenceSeed42` 与 `GoldenSequenceSeed987654321Female` 两条金序列断言的期望值一字未改（本批只在文件尾部追加，两条用例现位于 `:80` / `:111`）；新增 2 例 `TemplatePortraitOverridePinsPortraitAndSkipsPoolRoll` + `EmptyPortraitOverrideKeepsGenericPoolSequence` |
 | `DiscipleFactoryTest.kt` (+208/−11) | 改断言 + 新增 | 中文性别字面量 `"男"/"女"` → `"male"/"female"`（与 C++ 侧同域）；新增模板强制例 |
 | `DiffDiscipleFactoryTest.kt` (+72/−9) | 改断言 + 新增 | seed JSON 补两 key；`NameResult` 改**命名实参**（原位置实参把 `fullName`/`surname` 传反，此前无任何用例比较二者故为潜伏态） |
 | `RedeemCodeServiceTest.kt` (+288/−82) | 改断言 + 新增 | 弟子发放断言 → 碎片经门面入账断言；补「码未消耗则碎片不双增」的顺序用例 |
@@ -72,7 +72,7 @@
 | 门 | 实测值 |
 |---|---|
 | 桌面 C++ 重编 | `[9/9] Linking CXX executable test\game-core-tests.exe`（exe mtime 22:32）——本批新增 `gacha_fragment.h` / `dispatch_gacha.cpp` 已进构建图 |
-| 桌面 ctest | **1401 总 / 1398 过 / 3 败**，`Total Test time (real) = 58.64 sec`（G16 基线 1394 ⇒ **+7 = 9 碎片例 + 2 工厂例 − 3 兑换码例**）。3 败逐条同名：`DiscipleFactory.GoldenSequenceSeed42`、`DiscipleFactory.GoldenSequenceSeed987654321Female`、`DeterminismProbeTest.DigestMatchesGoldenBaseline` ⇒ **零新增 B 类** |
+| 桌面 ctest | **1401 总 / 1398 过 / 3 败**，`Total Test time (real) = 58.64 sec`（G16 基线 1394 ⇒ **+7 = 新增碎片 9 例 + 工厂 2 例 − 兑换码 4 例**）。3 败逐条同名：`DiscipleFactory.GoldenSequenceSeed42`、`DiscipleFactory.GoldenSequenceSeed987654321Female`、`DeterminismProbeTest.DigestMatchesGoldenBaseline` ⇒ **零新增 B 类** |
 | 🔴 同轮旁证（判别力） | 头文件常量注入 `100→99` 并还原后**重新链接**（`cmake --build` 触发 `[7/9]…[9/9]`）⇒ ctest 仍 1401/1398/3 且同名 ⇒ 还原是行为等价的，不是「没重编所以看不出」 |
 | `SceneEquivalenceTest`（坑 9） | `100% tests passed, 0 tests failed out of 13`（本批不动图集） |
 | `DeterminismProbe` | `actual=0xb4f3c6912207f597 golden=0x490e8dc522e12921`——**与 G15/G16 逐字符相同** ⇒ D-6「空模板路径零平移」成立；同批 `DigestIsStableAcrossRepeatedRuns` **Passed** ⇒ 确定性本身未坏，坏的只是金常量 |
@@ -133,7 +133,7 @@
 
 ## 六、本批新增 B 类清单（交 G10）
 
-**零新增。** 因果链：本批 C++ 改动**不触碰任何 RNG 消费点**——`disciple_factory.h` 是把既有一次肖像掷点包进 `if`（空键路径的调用次数与顺序逐字节不变），`gacha_fragment.h`/`dispatch_gacha.cpp` 是纯账本运算（零 `rng` 引用，`RngSourceGuardTest` 侧同轮复核）。旁证三条：`DeterminismProbe actual=0xb4f3c6912207f597` 与 G16 逐字符相同、金序列两例的实际值仍为 G16 记录的常量、ctest 总数 +7 全部可归因到新增/删除用例数（9+2−3）。⇒ **G10 的 B 类集不因此批增长，仍是自 G04 起未变的那三条。**
+**零新增。** 因果链：本批 C++ 改动**不触碰任何 RNG 消费点**——`disciple_factory.h` 是把既有一次肖像掷点包进 `if`（空键路径的调用次数与顺序逐字节不变），`gacha_fragment.h`/`dispatch_gacha.cpp` 是纯账本运算（零 `rng` 引用，`RngSourceGuardTest` 侧同轮复核）。旁证三条：`DeterminismProbe actual=0xb4f3c6912207f597` 与 G16 逐字符相同、金序列两例的实际值仍为 G16 记录的常量、ctest 总数 +7 全部可归因到新增/删除用例数（9+2−4）。⇒ **G10 的 B 类集不因此批增长，仍是自 G04 起未变的那三条。**
 
 ---
 
@@ -171,10 +171,14 @@
 |---|---|---|
 | 开工 | `fa853b541` | 2 行（仅 `docs/research/`×2，非本批、不提交） |
 | 全部门禁跑完 + 四处注入还原 + 副产物还原 + 临时诊断删除后 | `fa853b541` | **91 行 = 72 修改 + 19 未跟踪**（其中 17 个为本批新文件、2 个为 `docs/research/`）；已暂存 0 行、非未跟踪残留 0 行 |
-| 提交后 | ⏳ | ⏳ |
+| 提交后 | `8b3c10578`（实施单次提交） | 89 行全部入库；残留 = 2 行 `docs/research/`（非本批、不提交） |
 
-**本批文件规模**：⏳（`git show --stat` 的 `N files changed, +A/−D` 在提交后回填）。
-`atlas-rgba-manifest.json` 被 lint 写脏一行 `generatedAt`（`--numstat = 1/1` 判为时间戳脏）已 `git checkout --` 还原；
+**提交规模实测**：`89 files changed, 5386 insertions(+), 1038 deletions(-)`
+= 按 `git show --numstat` 实测分类：**`src/main` Kotlin 43 个 / `src/test` 测试文件 19 个 /
+C++·cmake 17 个 / 脚本·数据·文档 10 个**（含两份 action-catalog、两份桌面 JNI 清单、`action_ids.h`+`ActionIds.kt`
+两生成物按扩展名归 C++ 组、两份 changelog、`docs/threading-contract.md`、`game_config.json`、本任务书与本报告）。
+CRLF 翻转按 `git diff --cached --numstat` 逐文件核对为零（无「双侧 ≈ 全文件行数」形态，最大单文件增量 465 行为新测试文件）。
+`atlas-rgba-manifest.json` 两轮 lint 各写脏一次（`--numstat = 1/1` 时间戳脏）均已 `git checkout --` 还原；
 `sprite-uid-map.json` / `sources-imported.json` 本批**无变化**（无新增 drawable）；
 一次性诊断件 `android/scripts/tmp-g08-junit-tally.mjs`（JUnit 逐模块汇总脚本）**已删除，不入库**。
 
