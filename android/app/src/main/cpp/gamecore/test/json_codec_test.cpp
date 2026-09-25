@@ -223,8 +223,6 @@ TEST(JsonCodecTest, NestedTypesRoundTrip) {
     // 轻量记录
     d.mailRecords.push_back(MailClaimRecord{});
     d.mailRecords[0].mailId = "mail-1";
-    d.pendingTraitAdds.push_back(PendingTraitAdd{});
-    d.pendingTraitAdds[0].traitId = "t-1";
     // 远古秘境状态机
     d.secretRealmState.id = "sr-1";
     d.secretRealmState.name = "远古秘境";
@@ -291,7 +289,6 @@ TEST(JsonCodecTest, NestedTypesRoundTrip) {
     EXPECT_EQ(decoded.patrolConfig.targetRealms, std::vector<int32_t>({5, 6, 7}));
     EXPECT_EQ(decoded.travelingMerchantItems[0].price, 100);
     EXPECT_EQ(decoded.mailRecords[0].mailId, "mail-1");
-    EXPECT_EQ(decoded.pendingTraitAdds[0].traitId, "t-1");
     // 远古秘境状态机
     EXPECT_EQ(decoded.secretRealmState.id, "sr-1");
     EXPECT_FLOAT_EQ(decoded.secretRealmState.x, 12.5f);

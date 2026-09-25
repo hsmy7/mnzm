@@ -86,8 +86,6 @@ add_executable(game-core-tests
     disciple_tx_test.cpp
     equipment_db_test.cpp
     herb_db_test.cpp
-    trait_db_test.cpp
-    trait_effects_test.cpp
     recipe_db_test.cpp
     beast_material_db_test.cpp
     manual_db_test.cpp

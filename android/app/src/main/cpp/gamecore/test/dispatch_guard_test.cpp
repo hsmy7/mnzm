@@ -105,16 +105,24 @@ TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) 
     const std::set<int32_t> retired = {
         action::DISCIPLE_MAX_AGE,          //1103 老死链删除
         action::DISCIPLE_AGE,              //1106 老化链删除
+        action::REDEEM_ROLL_SKILLS,        //1437 资质哨兵生成下线（G04）
         action::DISCIPLE_LIFECYCLE_EXPEL,  //1590 逐出事务下线（G06）
         action::DISCIPLE_LIFECYCLE_MARRY_APPROVE,  //1592 婚姻批准下线（G03）
         action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,  //1593 思过释放无实现
         action::WAREHOUSE_GARRISON_TX,     //1612 仓库驻守无实现
+        action::SPIRIT_ROOT_WASH_TX,       //1613 灵根洗炼下线（G04）
+        action::TRAIT_ADD_ROLL_TX,         //1614 特质新增下线（G04）
+        action::TRAIT_ADD_CONFIRM_TX,      //1615 特质新增下线（G04）
+        action::TRAIT_WASH_SLOT_TX,        //1616 特质洗炼下线（G04）
         action::RECRUIT_REMOVE_TX,         //1630 招募链下线（G05）
         action::RECRUIT_REFRESH_TX,        //1631 招募链下线（G05）
         action::RECRUIT_AGE_TX,            //1632 招募链下线（G05）
         action::GOV_OPEN_RECRUITMENT_TOGGLE_TX,  //1681 广纳门徒下线（G05）
         action::SECT_ATTACK_GRANT_SOUL_POWERS_TX,       //1712 魂力授予无实现
+        action::SPIRIT_ROOT_WASH_CONFIRM_TX,  //1732 灵根洗炼下线（G04）
+        action::TRAIT_WASH_CONFIRM_TX,     //1733 特质洗炼下线（G04）
         action::DISCIPLE_OP_RENAME,        //1740 弟子改名下线（G06）
+        action::DISCIPLE_OP_START_BLOOD_REFINEMENT,  //1746 血炼下线（G04）
         action::DISCIPLE_LIFECYCLE_MARRY_REJECT,  //1750 婚姻拒绝下线（G03）
     };
     std::vector<std::string> gaps;

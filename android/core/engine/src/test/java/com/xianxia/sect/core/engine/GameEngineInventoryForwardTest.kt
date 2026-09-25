@@ -32,7 +32,7 @@ import org.robolectric.RobolectricTestRunner
  * CI DiffInventoryTest 同源系统函数对拍覆盖。
  *
  * 注意：必须 Robolectric 运行——FakeAtomicStateStore 的 DiscipleTables 基于
- * android.util.SparseArray（对齐 GameEngineTraitAddTest）。
+ * android.util.SparseArray（对齐同目录门控测试族）。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -68,7 +68,7 @@ class GameEngineInventoryForwardTest {
         )
     }
 
-    /** 构造期 Facade 访问器 stub 链（防 GameEngine 构造 NPE，对齐 GameEngineTraitAddTest）。 */
+    /** 构造期 Facade 访问器 stub 链（防 GameEngine 构造 NPE，对齐同目录门控测试族）。 */
     private fun mockCultivationFacade(): CultivationFacade = mock<CultivationFacade>().also {
         whenever(it.cultivationService).thenReturn(mock())
         whenever(it.discipleService).thenReturn(mock())

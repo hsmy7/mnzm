@@ -11,7 +11,6 @@ import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.ActiveMission
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
@@ -65,7 +64,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 一键批量拆除（BuildingFacadeImpl.removeBuildings）单元测试。
  *
- * 覆盖：批量事务/灵石返还/单次状态同步、血炼 REFINING 释放、Gate 释放、
+ * 覆盖：批量事务/灵石返还/单次状态同步、Gate 释放、
  * 长老职位清理（最后一座）、监牢 REFLECTING 释放、任务阁清理、
  * Repository 生产槽位删除、未知实例跳过、空列表幂等。
  */
@@ -288,31 +287,6 @@ class BuildingBatchRemovalTest {
 
         assertFalse(gate.isAssigned("1"))
         assertFalse(gate.isAssigned("2"))
-    }
-
-    // ── 血炼 REFINING 释放 ────────────────────────────────────
-
-    @Test
-    fun `批量拆除 - 血炼池拆除释放卡 REFINING 弟子并清 statusData`() = runTest {
-        stubLaunchInScope(this)
-        insertDisciple(5, DiscipleStatus.REFINING, mapOf("buildingId" to "bp1"))
-        state.gameData = GameData(
-            placedBuildings = listOf(building("blood_refining_pool", "血炼池", "bp1")),
-            activeBloodRefinements = mapOf(
-                "bp1" to BloodRefinementProgress(
-                    discipleId = "5", discipleName = "弟子5",
-                    materialId = "mat", materialName = "兽血",
-                    startYear = 1, startMonth = 1, durationMonths = 6,
-                    selectedStat = "hp", bonusPercent = 10.0
-                )
-            )
-        )
-        facade.removeBuildings(mapOf("bp1" to 1L))
-        advanceUntilIdle()
-
-        assertEquals(DiscipleStatus.IDLE, tables.statuses[5])
-        assertTrue(tables.statusData[5]?.containsKey("buildingId") != true)
-        assertTrue(state.gameData.activeBloodRefinements.isEmpty())
     }
 
     // ── 监牢 REFLECTING 释放 ──────────────────────────────────

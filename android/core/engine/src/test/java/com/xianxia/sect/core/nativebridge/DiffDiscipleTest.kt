@@ -44,12 +44,9 @@ class DiffDiscipleTest {
 
     private fun baseStatsOp(
         realm: Int = 9, realmLayer: Int = 1, hpVariance: Int = 0, speedVariance: Int = 0,
-        effects: Map<String, Double> = emptyMap(), bloodHpBonusPct: Double = 0.0,
     ) = buildJsonObject {
         put("op", "baseStats"); put("realm", realm); put("realmLayer", realmLayer)
         put("hpVariance", hpVariance); put("speedVariance", speedVariance)
-        put("effects", buildJsonObject { effects.forEach { (k, v) -> put(k, v) } })
-        put("bloodHpBonusPct", bloodHpBonusPct)
     }
 
     @Test
@@ -66,26 +63,22 @@ class DiffDiscipleTest {
     }
 
     @Test
-    fun `base stats with effects matches Kotlin`() {
+    fun `base stats non-default realm layer matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        val op = baseStatsOp(
-            realm = 7, realmLayer = 3,
-            effects = mapOf("maxHp" to 0.5, "physicalAttack" to 1.0, "critRate" to 0.10),
-            bloodHpBonusPct = 0.3,
-        )
+        val op = baseStatsOp(realm = 7, realmLayer = 3)
         val cpp = cppOp(op)
         val rc = GameConfig.Realm.get(7)
         val layerMult = 1.0 + (3 - 1) * 0.1
         assertEquals(
-            kotlin.math.round(rc.baseHp * layerMult * 1.8).toInt(),
+            kotlin.math.round(rc.baseHp * layerMult).toInt(),
             cpp["maxHp"]!!.toString().toInt()
         )
         assertEquals(
-            kotlin.math.round(rc.basePhysicalAttack * layerMult * 2.0).toInt(),
+            kotlin.math.round(rc.basePhysicalAttack * layerMult).toInt(),
             cpp["physicalAttack"]!!.toString().toInt()
         )
-        assertEquals(0.15, cpp["critRate"]!!.toString().toDouble(), 1e-12)
+        assertEquals(0.05, cpp["critRate"]!!.toString().toDouble(), 1e-12)
     }
 
     @Test
@@ -102,12 +95,12 @@ class DiffDiscipleTest {
     // ── 修炼速度乘区 ───────────────────────────────────────────────
 
     private fun cultOp(
-        realm: Int = 9, rootCount: Int = 1, aptitudeBonus: Double = 0.0,
+        realm: Int = 9, rootCount: Int = 1,
         resourceBonus: Double = 0.0, socialBonus: Double = 0.0,
         statusBonus: Double = 0.0, temporaryBonus: Double = 0.0,
     ) = buildJsonObject {
         put("op", "cultivationPerPhase"); put("realm", realm); put("rootCount", rootCount)
-        put("aptitudeBonus", aptitudeBonus); put("resourceBonus", resourceBonus)
+        put("resourceBonus", resourceBonus)
         put("socialBonus", socialBonus); put("statusBonus", statusBonus)
         put("temporaryBonus", temporaryBonus)
     }
@@ -117,12 +110,12 @@ class DiffDiscipleTest {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
         val op = cultOp(
-            realm = 8, rootCount = 2, aptitudeBonus = 0.2, resourceBonus = 0.5,
+            realm = 8, rootCount = 2, resourceBonus = 0.5,
             socialBonus = 0.1, statusBonus = -0.1, temporaryBonus = 0.3,
         )
         val cpp = cppOp(op)
         val zones = com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.CultivationSpeedZones(
-            aptitudeBonus = 0.2, resourceBonus = 0.5, socialBonus = 0.1,
+            resourceBonus = 0.5, socialBonus = 0.1,
             statusBonus = -0.1, temporaryBonus = 0.3,
         )
         val expected = DiscipleStatCalculator.calculateCultivationPerPhase(8, 2, zones)
@@ -188,7 +181,7 @@ class DiffDiscipleTest {
         )
     }
 
-    // ── 师徒/资质 ────────────────────────────────────────────────
+    // ── 师徒 ─────────────────────────────────────────────────────
 
     @Test
     fun `master disciple bonuses match Kotlin`() {
@@ -212,21 +205,6 @@ class DiffDiscipleTest {
                 DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(pair.first, pair.second),
                 cpp["breakthroughBonus"]!!.toString().toDouble(), 1e-12
             )
-        }
-    }
-
-    @Test
-    fun `aptitude bonus matches Kotlin`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-        for (aptitude in listOf(50, 80, 90, 120, 10000)) {
-            val op = buildJsonObject {
-                put("op", "aptitudeCultivationBonus"); put("aptitude", aptitude)
-            }
-            val cpp = cppOp(op)
-            // aptitudeCultivationBonus 是 private——用公开等价验证：资质 80 基准每点 +1% 上限 40%
-            val expected = ((aptitude - 80).coerceAtLeast(0) * 0.01).coerceAtMost(0.40)
-            assertEquals(expected, cpp["value"]!!.toString().toDouble(), 1e-12)
         }
     }
 }

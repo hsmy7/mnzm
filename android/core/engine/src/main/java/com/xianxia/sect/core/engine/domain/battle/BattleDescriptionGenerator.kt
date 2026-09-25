@@ -15,9 +15,8 @@ import com.xianxia.sect.core.model.CombatSkill
  * 实体（决策类），但 BATTLE 分区的抽取序被跨语言对拍**逐位锁定**
  * （DiffSectBattleTest 等）——措辞抽取既**不得**插入 BATTLE 分区（会平移
  * 后续战斗结果的抽取序），也不得新增分区（`RngSourceGuardTest` 的分区登记面
- * 归 W4-A 独占）。故对齐 `GameEngineWorldBattleOps.applyDeterministicWinAttr`
- * 的既有口径：**以战斗上下文散列代替随机抽取**（攻击者 id / 目标 id / 回合号
- * 混合散列选词）——零抽取、零分区影响，存档→读档→重放措辞逐位可复现。
+ * 归 W4-A 独占）。故**以战斗上下文散列代替随机抽取**（攻击者 id / 目标 id /
+ * 回合号混合散列选词）——零抽取、零分区影响，存档→读档→重放措辞逐位可复现。
  */
 object BattleDescriptionGenerator {
 
@@ -31,7 +30,7 @@ object BattleDescriptionGenerator {
         return h xor (h ushr 15)
     }
 
-    /** 按上下文散列确定性选词（代替原 `.random()`；见类 KDoc） */
+    /** 按上下文散列确定性选词（零 RNG 抽取；见类 KDoc） */
     private fun <T> List<T>.pick(salt: Int): T = this[Math.floorMod(salt, size)]
 
     private val unarmedAttackVerbs = listOf(

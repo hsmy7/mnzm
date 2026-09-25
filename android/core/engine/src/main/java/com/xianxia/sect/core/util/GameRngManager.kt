@@ -16,7 +16,7 @@ import javax.inject.Singleton
  *
  * 委托模式下全部状态读写直达 C++ PCG 分区（非原子裸成员）——**本类所有
  * 方法必须在引擎线程调用**。已知跨线程调用面已全部清偿：UI 抽取派生化/
- * 引擎化（HeavenlyTrial/BloodRefining）、重启播种并入 restartGameInternal、
+ * 引擎化（HeavenlyTrial）、重启播种并入 restartGameInternal、
  * 存档快照经 GameEngineSaveOps.getStateSnapshot 的 withEngineContext 采样、
  * 读档恢复在 loadData 引擎上下文内。debug 构建下 C++ 侧
  * jniRequireEngineThread 断言守卫（P1-4 已正式收口，见 GameCoreBridge.cpp）。

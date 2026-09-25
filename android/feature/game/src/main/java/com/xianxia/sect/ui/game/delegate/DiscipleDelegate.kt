@@ -2,12 +2,14 @@ package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.apprenticeToMaster
 import com.xianxia.sect.core.engine.applyConversationEffectAtomic
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
 import com.xianxia.sect.core.engine.changeDiscipleTypeAtomic
 import com.xianxia.sect.core.engine.confiscateStorageBagItem
 import com.xianxia.sect.core.engine.getDiscipleAggregate
+import com.xianxia.sect.core.engine.purchaseBreakthroughBonus
 import com.xianxia.sect.core.engine.releaseReflectionDisciple
 import com.xianxia.sect.core.engine.rewardItemsToDisciple
 import com.xianxia.sect.core.engine.toggleFollowDisciple
@@ -20,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class DiscipleDelegate(
-    /** internal：同包操作族扩展（WashOps/TraitAddOps/GearOps/LifecycleOps）消费——TMF 收敛外移 */
+    /** internal：同包操作族扩展（GearOps/LifecycleOps）消费——TMF 收敛外移 */
     internal val gameEngine: GameEngine,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -122,3 +124,7 @@ class DiscipleDelegate(
         }
     }
 }
+
+/** 消耗 1 玉符提高弟子突破率（上限 0.30 即最多 2 次；突破尝试后自动清除重置） */
+suspend fun DiscipleDelegate.purchaseBreakthroughBonus(discipleId: String): BreakthroughBonusResult =
+    gameEngine.purchaseBreakthroughBonus(discipleId)

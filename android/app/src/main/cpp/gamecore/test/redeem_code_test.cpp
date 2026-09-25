@@ -61,7 +61,7 @@ TEST(RedeemCodeTest, JavaRandomShuffleDeterministic) {
     EXPECT_EQ(sortedA, sortedIn);
 }
 
-// ── rollBySpiritRootCount / generateVariance / avoidSentinel50 ─
+// ── rollBySpiritRootCount / generateVariance ──────────────────
 
 TEST(RedeemCodeTest, RollBySpiritRootCountRanges) {
     DeterministicRng rng = DeterministicRng::fromSeed(42);
@@ -83,12 +83,6 @@ TEST(RedeemCodeTest, GenerateVarianceRange) {
         EXPECT_GE(v, -50);
         EXPECT_LE(v, 50);
     }
-}
-
-TEST(RedeemCodeTest, AvoidSentinel50) {
-    EXPECT_EQ(avoidSentinel50(50), 51);
-    EXPECT_EQ(avoidSentinel50(49), 49);
-    EXPECT_EQ(avoidSentinel50(51), 51);
 }
 
 // ── resolveAgeAndLifespan ─────────────────────────────────────

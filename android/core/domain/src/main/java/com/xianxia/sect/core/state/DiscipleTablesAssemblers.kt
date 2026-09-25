@@ -74,9 +74,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         portraitRes = portraitRes.getOrDefault(id, ""),
         templateId = templateIds.getOrDefault(id, ""),
         manualIds = manualIds.getOrDefault(id, emptyList()),
-        talentIds = talentIds.getOrDefault(id, emptyList()),
-        physiqueIds = physiqueIds.getOrDefault(id, emptyList()),
-        affixIds = affixIds.getOrDefault(id, emptyList()),
         manualMasteries = manualMasteries.getOrDefault(id, emptyMap()),
         status = statuses.getOrDefault(id, DiscipleStatus.IDLE),
         statusData = statusData.getOrDefault(id, emptyMap()),
@@ -166,8 +163,6 @@ internal fun DiscipleTables.assembleSkills(id: Int) = SkillStats(
     spiritPlanting = spiritPlantings.getOrDefault(id, 0),
     mining = minings.getOrDefault(id, 0), teaching = teachings.getOrDefault(id, 0),
     morality = moralities.getOrDefault(id, 0),
-    // 资质默认值必须为 DEFAULT_APTITUDE(50)（自愈哨兵，与列直读/Migration/序列化统一）
-    aptitude = aptitudes.getOrDefault(id, DiscipleTables.DEFAULT_APTITUDE),
     salaryPaidCount = salaryPaidCounts.getOrDefault(id, 0),
     salaryMissedCount = salaryMissedCounts.getOrDefault(id, 0),
     alchemyLevel = alchemyLevels.getOrDefault(id, 0),

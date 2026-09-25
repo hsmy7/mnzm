@@ -12,11 +12,9 @@ import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DeterministicRng
@@ -41,12 +39,12 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * w3-01 弟子操作面八事务 native 臂门控单测（W4-A 第一子批——
+ * w3-01 弟子操作面事务 native 臂门控单测（W4-A 第一子批——
  * GameEngineAppointmentNativeTxGateTest 同族三级降级契约守护）。
  *
  * JVM 单测环境 GameCoreBridge 恒未加载：断言 AUTHORITATIVE 稳态与 flag OFF
- * 两模式下八 native 臂均降级（null/false）、入口走 Kotlin 回退臂且语义不变
- * （类型直改/关注翻转/功法替换/血炼启动/状态派生）；native 事务
+ * 两模式下各 native 臂均降级（null/false）、入口走 Kotlin 回退臂且语义不变
+ * （类型直改/关注翻转/功法替换/状态派生）；native 事务
  * 本身的校验链/字段面由桌面 C++ disciple_ops_tx_test.cpp 黄金用例守护，
  * 真机转发臂由真机验证批覆盖。
  *
@@ -207,64 +205,7 @@ class GameEngineDiscipleOpsNativeTxGateTest {
         }
     }
 
-    // ── 5. 血炼启动：两模式回退臂（灵石/材料扣减 + 进度 + REFINING）────
-
-    @Test
-    fun startBloodRefinementDegradesToKotlinFallbackInBothModes() = runTest {
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
-            assertBloodRefinementViaFallback()
-        }
-        // 复位
-        resetBloodRefinement()
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            assertBloodRefinementViaFallback()
-        }
-    }
-
-    private fun assertBloodRefinementViaFallback() = runBlocking {
-        store.update {
-            materials.replaceAll(
-                listOf(Material(id = "m1", name = "妖兽血", rarity = 2, quantity = 5))
-            )
-            gameData = gameData.copy(spiritStones = 1000)
-        }
-        val result = engine.startBloodRefinementAtomic(
-            materialName = "妖兽血",
-            materialRarity = 2,
-            materialCount = 3,
-            buildingInstanceId = "pool-1",
-            requiredSpiritStones = 100L,
-            progress = BloodRefinementProgress(
-                discipleId = discipleA,
-                discipleName = "弟子A",
-                materialId = "m1",
-                selectedStat = "hp",
-                bonusPercent = 0.05,
-                durationMonths = 3
-            )
-        )
-        assertTrue(result is BloodRefinementStartResult.Success)
-        store.update {
-            assertEquals(900L, gameData.spiritStones)
-            assertEquals(1, gameData.activeBloodRefinements.size)
-            assertEquals(DiscipleStatus.REFINING, discipleTables.statuses[1])
-            assertEquals(2, materials.get("m1")?.quantity)
-        }
-    }
-
-    private fun resetBloodRefinement() {
-        store.update {
-            gameData = gameData.copy(
-                spiritStones = 1000,
-                activeBloodRefinements = emptyMap()
-            )
-            discipleTables.writeAllowed = true
-            discipleTables.statuses[1] = DiscipleStatus.IDLE
-            discipleTables.writeAllowed = false
-        }
-    }
-
-    // ── 6. 状态派生：mock StateSyncService 未 stub ⇒ 降级不 NPE（红线 8）─
+    // ── 5. 状态派生：mock StateSyncService 未 stub ⇒ 降级不 NPE（红线 8）─
 
     @Test
     fun statusSyncDegradesAndDerivesViaKotlinFallback() {
@@ -284,7 +225,7 @@ class GameEngineDiscipleOpsNativeTxGateTest {
         }
         var status: DiscipleStatus? = null
         store.update { status = discipleTables.statuses[1] }
-        // 藏经阁/长老等槽位为空 ⇒ 推导 IDLE（受保护态 REFLECTING/REFINING 除外）
+        // 藏经阁/长老等槽位为空 ⇒ 推导 IDLE（受保护态 REFLECTING 除外）
         assertEquals(DiscipleStatus.IDLE, status)
     }
 

@@ -12,7 +12,7 @@ import kotlinx.serialization.json.put
 import kotlin.coroutines.cancellation.CancellationException
 
 // GameEngineJadePurchaseOps.kt — 玉符购买玩法
-// （对照 GameEngineSpiritRootOps 的原子消耗 + sealed 结果 + 事务外 publish 模式）
+// （原子消耗 + sealed 结果 + 事务外 publish 模式）
 
 /** 消耗玉符购买突破率加成结果 */
 sealed interface BreakthroughBonusResult {
@@ -51,7 +51,7 @@ sealed interface MerchantRefreshResult {
  * @param discipleId 目标弟子 ID（字符串形式的整数）
  * @return [BreakthroughBonusResult] 三态结果
  */
-@Suppress("TooGenericExceptionCaught") // 兜底转 Error（项目范式，同 GameEngineSpiritRootOps）
+@Suppress("TooGenericExceptionCaught") // 兜底转 Error（项目范式）
 suspend fun GameEngine.purchaseBreakthroughBonus(discipleId: String): BreakthroughBonusResult =
     engineContextDispatcher.withEngineContext {
         val id = discipleId.toIntOrNull()
@@ -87,7 +87,7 @@ suspend fun GameEngine.purchaseBreakthroughBonus(discipleId: String): Breakthrou
                         required = required
                     )
                 }
-                // 同事务写弟子表（assemble/remove/insert，仿 confirmSpiritRootWash 形态）
+                // 同事务写弟子表（assemble/remove/insert 行原子替换）
                 val newBonus = (currentBonus + GameConfig.JadePurchase.BREAKTHROUGH_BONUS_PER_JADE)
                     .coerceAtMost(GameConfig.JadePurchase.BREAKTHROUGH_BONUS_MAX)
                 val current: Disciple = discipleTables.assemble(id)
@@ -116,7 +116,7 @@ suspend fun GameEngine.purchaseBreakthroughBonus(discipleId: String): Breakthrou
  *
  * @return [MerchantRefreshResult] 三态结果
  */
-@Suppress("TooGenericExceptionCaught") // 兜底转 Error（项目范式，同 GameEngineSpiritRootOps）
+@Suppress("TooGenericExceptionCaught") // 兜底转 Error（项目范式）
 suspend fun GameEngine.purchaseMerchantRefresh(): MerchantRefreshResult =
     engineContextDispatcher.withEngineContext {
         try {

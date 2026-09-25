@@ -30,7 +30,7 @@
 // gameData 顶层域，免去每次导出的全量序列化与树比较。
 //
 // ## 范围（B09 R2 生产接线：写屏障挂载 + 混合导出）
-//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，96 列——与
+//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，92 列——与
 //     Disciple to_json 字段一一对应；非协议派生列 numericIds/hasNumericIds/
 //     deathYears 不在册，协议字段 deathYear 无列支撑亦不在册）+ 集合 tombstone（通用实体集合名）+ gameData
 //     顶层域名集合。
@@ -93,9 +93,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::Gender: return "gender";
         case DiscipleColumn::PortraitRes: return "portraitRes";
         case DiscipleColumn::ManualIds: return "manualIds";
-        case DiscipleColumn::TalentIds: return "talentIds";
-        case DiscipleColumn::PhysiqueIds: return "physiqueIds";
-        case DiscipleColumn::AffixIds: return "affixIds";
         case DiscipleColumn::ManualMasteries: return "manualMasteries";
         case DiscipleColumn::Status: return "status";
         case DiscipleColumn::StatusData: return "statusData";
@@ -163,7 +160,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::Mining: return "mining";
         case DiscipleColumn::Teaching: return "teaching";
         case DiscipleColumn::Morality: return "morality";
-        case DiscipleColumn::Aptitude: return "aptitude";
         case DiscipleColumn::SalaryPaidCount: return "salaryPaidCount";
         case DiscipleColumn::SalaryMissedCount: return "salaryMissedCount";
         case DiscipleColumn::AlchemyLevel: return "alchemyLevel";
@@ -207,9 +203,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::Gender: row["gender"] = ds.genders[r]; break;
         case DiscipleColumn::PortraitRes: row["portraitRes"] = ds.portraitRes[r]; break;
         case DiscipleColumn::ManualIds: row["manualIds"] = ds.manualIds[r]; break;
-        case DiscipleColumn::TalentIds: row["talentIds"] = ds.talentIds[r]; break;
-        case DiscipleColumn::PhysiqueIds: row["physiqueIds"] = ds.physiqueIds[r]; break;
-        case DiscipleColumn::AffixIds: row["affixIds"] = ds.affixIds[r]; break;
         case DiscipleColumn::ManualMasteries: row["manualMasteries"] = ds.manualMasteries[r]; break;
         case DiscipleColumn::Status: row["status"] = ds.statuses[r]; break;
         case DiscipleColumn::StatusData: row["statusData"] = ds.statusData[r]; break;
@@ -345,7 +338,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::Mining: row["mining"] = ds.minings[r]; break;
         case DiscipleColumn::Teaching: row["teaching"] = ds.teachings[r]; break;
         case DiscipleColumn::Morality: row["morality"] = ds.moralities[r]; break;
-        case DiscipleColumn::Aptitude: row["aptitude"] = ds.aptitudes[r]; break;
         case DiscipleColumn::SalaryPaidCount:
             row["salaryPaidCount"] = ds.salaryPaidCounts[r];
             break;

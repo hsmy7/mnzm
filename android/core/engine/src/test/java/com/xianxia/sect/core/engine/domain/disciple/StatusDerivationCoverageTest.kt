@@ -18,7 +18,7 @@ import org.junit.Test
  * 3. **[DiscipleStatusService.buildSlotFlagsFor]** — 从游戏数据中设置该标志
  *    （若该状态在批量同步中也有处理，还需更新 [DiscipleStatusService.syncAllDiscipleStatuses] 的槽位收集函数）
  *
- * 受保护状态（[REFLECTING], [ON_MISSION], [REFINING]）和 [DEAD] 不在此列——
+ * 受保护状态（[REFLECTING], [ON_MISSION]）和 [DEAD] 不在此列——
  * 它们不通过推导系统设置。
  */
 class StatusDerivationCoverageTest {
@@ -28,14 +28,12 @@ class StatusDerivationCoverageTest {
      * - DEAD：通过 markDead 设置，非槽位推导
      * - REFLECTING：受保护状态，直接写入
      * - ON_MISSION：受保护状态，直接写入
-     * - REFINING：受保护状态，直接写入
      * - WAREHOUSE_GARRISON：旧档兼容保留值，无生产写入方（仓库驻守玩法已下线）
      */
     private val nonDerivedStatuses = setOf(
         DiscipleStatus.DEAD,
         DiscipleStatus.REFLECTING,
         DiscipleStatus.ON_MISSION,
-        DiscipleStatus.REFINING,
         DiscipleStatus.WAREHOUSE_GARRISON
     )
 

@@ -161,17 +161,6 @@ sealed interface GuideCondition {
             if (gameData.spiritFieldPlants.isNotEmpty()) 1 else 0
     }
 
-    /** 血炼完成次数 */
-    data class BloodRefinementCompleted(override val targetValue: Long = 1) : GuideCondition {
-        override val label: String get() = "完成${targetValue}次血炼"
-        override fun isMet(gameData: GameData): Boolean =
-            currentValue(gameData) >= targetValue
-        override fun progressText(gameData: GameData): String =
-            "(${currentValue(gameData)}/${targetValue})"
-        override fun currentValue(gameData: GameData): Long =
-            if (gameData.bloodRefinements.isNotEmpty()) gameData.bloodRefinements.size.toLong() else 0
-    }
-
     /** 巡查弟子击败妖兽次数 */
     data class PatrolBeastDefeated(override val targetValue: Long = 1) : GuideCondition {
         override val label: String get() = "巡视弟子击败${targetValue}次妖兽"
@@ -439,14 +428,6 @@ object GuideTaskRegistry {
             description = "仓库：每座+75格容量。",
             conditions = listOf(
                 GuideCondition.BuildingCount("仓库", 3)
-            )
-        ),
-        GuideTask(
-            id = 24, name = "血炼强化",
-            description = "血炼池：消耗妖兽精血材料淬炼弟子，可永久提升生命/攻击/防御/速度等基础属性。",
-            conditions = listOf(
-                GuideCondition.BuildingCount("血炼池", 1),
-                GuideCondition.BloodRefinementCompleted(1)
             )
         ),
         GuideTask(

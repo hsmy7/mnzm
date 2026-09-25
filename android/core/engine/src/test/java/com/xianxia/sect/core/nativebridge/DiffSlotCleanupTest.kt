@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.model.BattleTeam
 import com.xianxia.sect.core.model.BattleTeamSlot
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
@@ -85,7 +84,6 @@ class DiffSlotCleanupTest {
             ),
         ),
         residenceSlots = listOf(ResidenceSlot(discipleId = "1", discipleName = "张三")),
-        activeBloodRefinements = mapOf("br-1" to BloodRefinementProgress(discipleId = "1")),
         patrolSlots = listOf(PatrolSlot(discipleId = "1")),
         battleTeams = listOf(
             BattleTeam(slots = listOf(
@@ -146,11 +144,6 @@ class DiffSlotCleanupTest {
                     put("buildingInstanceId", s.buildingInstanceId)
                     put("discipleId", s.discipleId); put("discipleName", s.discipleName)
                 })
-            }
-        })
-        put("activeBloodRefinements", buildJsonObject {
-            for ((key, p) in data.activeBloodRefinements) {
-                put(key, buildJsonObject { put("discipleId", p.discipleId) })
             }
         })
         put("patrolSlots", buildJsonArray {
@@ -253,11 +246,6 @@ class DiffSlotCleanupTest {
             assertEquals("$tag 住所数", kResidence.size, cResidence.size)
             assertEquals("$tag 住所[0]", kResidence[0].discipleId,
                 str(cResidence[0].jsonObject.getValue("discipleId")))
-
-            // 血炼
-            val kBlood = kotlinOut.activeBloodRefinements
-            val cBlood = c.getValue("activeBloodRefinements").jsonObject
-            assertEquals("$tag 血炼数", kBlood.size, cBlood.size)
 
             // 战斗队伍
             val kTeam = kotlinOut.battleTeams[0]

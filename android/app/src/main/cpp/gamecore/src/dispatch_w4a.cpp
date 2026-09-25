@@ -98,24 +98,6 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"replaced", true}, {"logLine", r.logLine}});
         }
-        case action::DISCIPLE_OP_START_BLOOD_REFINEMENT: {
-            disciple_tx::BloodRefinementStartParams p;
-            p.materialName = params.at("materialName").get<std::string>();
-            p.materialRarity = params.value("materialRarity", 0);
-            p.materialCount = params.value("materialCount", 0);
-            p.buildingInstanceId =
-                params.at("buildingInstanceId").get<std::string>();
-            p.requiredSpiritStones = params.at("requiredSpiritStones").get<int64_t>();
-            p.discipleId = params.at("discipleId").get<std::string>();
-            p.discipleName = params.value("discipleName", "");
-            p.materialId = params.value("materialId", "");
-            p.selectedStat = params.value("selectedStat", "");
-            p.bonusPercent = params.value("bonusPercent", 0.0);
-            p.durationMonths = params.value("durationMonths", 0);
-            const auto r = disciple_tx::startBloodRefinementTx(state, p);
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"started", true}});
-        }
         case action::DISCIPLE_OP_SYNC_STATUS: {
             const auto r = disciple_tx::syncDiscipleStatusTx(
                 state, params.at("discipleId").get<std::string>());
@@ -144,11 +126,6 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
                     residual_tx::SlotGroupKind kind;
                     if (residual_tx::parseSlotGroupKind(g.get<std::string>(), kind)) {
                         target.groups.push_back(kind);
-                    }
-                }
-                if (t.contains("discipleIds")) {
-                    for (const auto& d : t.at("discipleIds")) {
-                        target.discipleIds.push_back(d.get<std::string>());
                     }
                 }
                 targets.push_back(std::move(target));

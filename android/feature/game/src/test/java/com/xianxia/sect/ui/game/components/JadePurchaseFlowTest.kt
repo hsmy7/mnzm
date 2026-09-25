@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
  * - 组合即渲染：标题/描述/底部"消耗1玉符"小字/「消耗玉符」按钮全部可见
  * - 点击消耗 → Success → 触发 onDismiss
  * - 点击消耗 → Insufficient → 平台 StandardPromptDialog 显示不足文案
- *   （平台 Dialog 独立 Window 可见性守卫，防嵌套覆盖层裁剪回归——TraitWash 同源）
+ *   （平台 Dialog 独立 Window 可见性守卫，防嵌套覆盖层裁剪回归）
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])

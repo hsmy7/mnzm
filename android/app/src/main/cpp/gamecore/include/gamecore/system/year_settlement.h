@@ -12,7 +12,6 @@
 
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/system/inventory.h"  // nextItemIdCounter（id 注册表）
-#include "gamecore/system/blood_refinement.h"  // eraseDiscipleDerivedMaps（审计 P2-7 收口）
 #include "gamecore/ecs/disciple_component.h"  // syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
 #include "gamecore/data/beast_material_db.h"

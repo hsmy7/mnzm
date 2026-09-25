@@ -315,9 +315,6 @@ struct Disciple {
     /// 角色模板 id（Q32 只读）；存量旧弟子空串、星级加成 0
     std::string templateId;
     std::vector<std::string> manualIds;
-    std::vector<std::string> talentIds;
-    std::vector<std::string> physiqueIds;
-    std::vector<std::string> affixIds;
     std::map<std::string, int32_t> manualMasteries;
     std::string status = "IDLE";          // DiscipleStatus.name
     std::map<std::string, std::string> statusData;
@@ -395,7 +392,6 @@ struct Disciple {
     int32_t mining = 50;
     int32_t teaching = 50;
     int32_t morality = 50;
-    int32_t aptitude = 50;
     int32_t salaryPaidCount = 0;
     int32_t salaryMissedCount = 0;
     int32_t alchemyLevel = 0;
@@ -1134,13 +1130,6 @@ struct YearlyReport {
     int32_t desertedDisciples = 0;
 };
 
-/// PendingTraitAdd（天赋/体质/词条已刷新未确认产物）
-struct PendingTraitAdd {
-    std::string discipleId;
-    std::string type;
-    std::string traitId;
-};
-
 /// GachaHistoryEntry（寻访历史单条，按抽记；Kotlin GachaHistoryEntry）
 struct GachaHistoryEntry {
     std::string poolId = "standard";
@@ -1154,41 +1143,6 @@ struct GachaHistoryEntry {
 };
 
 // ── 低频嵌套类型（与 Kotlin @Serializable 字段名一致） ──
-
-/// BloodRefinementProgress（血炼进行中）
-struct BloodRefinementProgress {
-    std::string discipleId;
-    std::string discipleName;
-    std::string materialId;
-    std::string materialName;
-    int32_t startYear = 0;
-    int32_t startMonth = 0;
-    int32_t durationMonths = 0;
-    std::string selectedStat;
-    double bonusPercent = 0.0;
-};
-
-/// BloodRefinementBonusTotal（血炼累计——单利旧格式，存档兼容）
-struct BloodRefinementBonusTotal {
-    std::string discipleId;
-    int32_t hpBonus = 0;
-    int32_t physicalAttackBonus = 0;
-    int32_t magicAttackBonus = 0;
-    int32_t physicalDefenseBonus = 0;
-    int32_t magicDefenseBonus = 0;
-    int32_t speedBonus = 0;
-};
-
-/// BloodRefinementPctTotal（血炼累计——百分比乘区格式）
-struct BloodRefinementPctTotal {
-    std::string discipleId;
-    double hpBonusPct = 0.0;
-    double physicalAttackBonusPct = 0.0;
-    double magicAttackBonusPct = 0.0;
-    double physicalDefenseBonusPct = 0.0;
-    double magicDefenseBonusPct = 0.0;
-    double speedBonusPct = 0.0;
-};
 
 /// ManualProficiencyData（功法熟练度）
 struct ManualProficiencyData {
@@ -1396,15 +1350,10 @@ struct GameData {
     SectPolicies sectPolicies;
     std::vector<MailClaimRecord> mailRecords;
     std::vector<SectLevelClaimRecord> sectLevelClaimRecords;
-    std::map<std::string, std::vector<std::string>> bloodRefinements;
     std::vector<YearlyReport> yearlyReports;
-    std::vector<PendingTraitAdd> pendingTraitAdds;
     // ── 低频嵌套类型字段 ──
     std::map<std::string, std::vector<ManualProficiencyData>> manualProficiencies;
     std::vector<SpiritMineSlot> spiritMineSlots;
-    std::map<std::string, BloodRefinementBonusTotal> bloodRefinementBonusTotals;
-    std::map<std::string, BloodRefinementPctTotal> bloodRefinementPctTotals;
-    std::map<std::string, BloodRefinementProgress> activeBloodRefinements;
     std::vector<PatrolSlot> patrolSlots;
     // ── 每旬结算依赖字段 ──
     std::vector<LibrarySlot> librarySlots;             // 藏经阁槽位（熟练度加成）

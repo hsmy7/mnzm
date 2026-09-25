@@ -29,21 +29,6 @@ data class MailClaimRecord(
 )
 
 /**
- * 新增天赋/体质/词条的"已刷新未确认"产物记录（discipleId + 类型 → traitId）。
- *
- * 玉符消耗玩法：刷新即扣 1 玉符并**立即持久化**该产物——
- * 玩家不确认直接关闭界面，下次打开仍显示该产物，可直接确认新增（确认不消耗玉符）。
- * [type] 存 [com.xianxia.sect.core.GameConfig.TraitWashType].name（TALENT/PHYSIQUE/AFFIX）。
- */
-@Keep
-@Serializable
-data class PendingTraitAdd(
-    @ProtoNumber(1) val discipleId: String,
-    @ProtoNumber(2) val type: String,
-    @ProtoNumber(3) val traitId: String
-)
-
-/**
  * 宗门等级每周奖励领取记录。
  * 使用现实时间戳判断 7 天间隔。
  */
@@ -633,31 +618,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var isGameOver: Boolean = false,
 
-    // 血炼系统：弟子已完成的材料ID列表（discipleId → materialId list）
-    @ProtoNumber(115)
-    @SettlementStrategy(Strategy.CUSTOM)
-    @ColumnInfo(defaultValue = "{}")
-    var bloodRefinements: Map<String, List<String>> = emptyMap(),
-
-    // 血炼系统：进行中的洗炼（buildingInstanceId → BloodRefinementProgress）
-    @ProtoNumber(150)
-    @SettlementStrategy(Strategy.CUSTOM)
-    @ColumnInfo(defaultValue = "{}")
-    var activeBloodRefinements: Map<String, BloodRefinementProgress> = emptyMap(),
-
-    // 血炼系统：弟子已累计的血炼加成总量（discipleId → BloodRefinementBonusTotal）
-    // 用于单利计算基准，防止复利叠加（#8 修复）
-    @ProtoNumber(151)
-    @SettlementStrategy(Strategy.CUSTOM)
-    @ColumnInfo(defaultValue = "{}")
-    var bloodRefinementBonusTotals: Map<String, BloodRefinementBonusTotal> = emptyMap(),
-
-    // 血炼系统：弟子血炼百分比累计（discipleId → BloodRefinementPctTotal）
-    // 血炼为乘区百分比：每次血炼累计材料百分比，不写入 DiscipleTables.base* 列。
-    @ProtoNumber(152)
-    @SettlementStrategy(Strategy.CUSTOM)
-    @ColumnInfo(defaultValue = "{}")
-    var bloodRefinementPctTotals: Map<String, BloodRefinementPctTotal> = emptyMap(),
+    // reserved 115, 150, 151, 152;（血炼四字段字段号已退役，禁止复用）
 
     // 天道试炼状态
     @ProtoNumber(153)
@@ -816,20 +777,7 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var musicEnabled: Boolean = true,
 
-    // 新增天赋/体质/词条：已刷新未确认的新增产物（discipleId+type → traitId）。
-    // 刷新即扣玉符并立即持久化——关闭界面再打开仍显示该产物，可直接确认新增
-    // （确认不消耗玉符）。空列表经 ProtobufConverters 编码为空字符串。
-    // ⚠️ 审计 §12-E 修正：本字段原用 **162**，与 `prisonerSpiritRootFilter`（:569，同样 162）
-    // 冲突——两者 wire type 均为 length-delimited，同时非空时解码互相抢占/抛错，
-    // 即"云档 / `.sav` 恢复路径必爆"。本字段是 v47 新加，故**让号**到 1002（= 现有最大值 1001 + 1，
-    // 保持字段号升序）；`prisonerSpiritRootFilter` 保留 162 以兼容更老的存档。
-    // 兼容性影响（登记）：v47~v52 期间**同时**写过这两列的旧档，162 号会被解成
-    // `prisonerSpiritRootFilter`（可能含越界值）且 `pendingTraitAdds` 丢失；该形态旧档
-    // 在本修正前本就解码失败，修正后至少可读出其余全部字段。
-    @ProtoNumber(1002)
-    @ColumnInfo(name = "pending_trait_adds", defaultValue = "")
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var pendingTraitAdds: List<PendingTraitAdd> = emptyList(),
+    // reserved 1002;（pendingTraitAdds 字段号已退役，禁止复用）
 
     // ── 地图冻结（WS-5b）：生成即数据 ──
     // 地形生成器版本戳（产生 [terrainTiles] 的生成器版本，取值 =

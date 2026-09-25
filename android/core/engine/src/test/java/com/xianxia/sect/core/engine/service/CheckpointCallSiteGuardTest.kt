@@ -35,18 +35,6 @@ class CheckpointCallSiteGuardTest {
             // batch-01 拆分：丹药效果应用域自 DiscipleFacadeImpl 拆出（同语义归属）
             "engine/domain/disciple/DiscipleFacadeImpl战斗Ops2.kt",
             "discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)"
-        ),
-        // 洗炼灵根确认替换：灵根影响修炼速率，替换瞬间必须重新记账
-        // （GameEngineSpiritRootOps.confirmSpiritRootWash 事务内 remove+insert 后调用）
-        Entry(
-            "engine/GameEngineSpiritRootOps.kt",
-            "discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)"
-        ),
-        // 洗炼天赋/体质/词条确认替换：体质（cultivationSpeedBonus）与词条（CULT_SPEED）
-        // 影响修炼速率，替换瞬间必须重新记账（GameEngineTraitWashOps.confirmTraitWash 事务内）
-        Entry(
-            "engine/GameEngineTraitWashOps.kt",
-            "discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)"
         )
     )
 

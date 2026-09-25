@@ -199,7 +199,6 @@ const BUILDING_DRAWABLE = {
   中级单人住所: 'building_single_residence_upgraded',
   多人住所: 'building_multi_residence',
   中级多人住所: 'building_multi_residence_upgraded',
-  血炼池: 'blood_refining_pool',
 };
 
 /**

@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.model
 
 /**
- * 弟子资质/忠诚等属性族的**内存侧**投影（v53/SR-7 起不再有 `disciples_attributes` 表；
+ * 弟子技能属性族的**内存侧**投影（v53/SR-7 起不再有 `disciples_attributes` 表；
  * [DiscipleStatCalculator] 直接从 [DiscipleAggregate.attributes] 读，真相恒在 `disciples`）。
  */
 data class DiscipleAttributes(
@@ -18,7 +18,6 @@ data class DiscipleAttributes(
     var mining: Int = 50,
     var teaching: Int = 50,
     var morality: Int = 50,
-    var aptitude: Int = 50,
     var salaryPaidCount: Int = 0,
     var salaryMissedCount: Int = 0,
     var alchemyLevel: Int = 0,
@@ -39,7 +38,6 @@ data class DiscipleAttributes(
                 mining = disciple.skills.mining,
                 teaching = disciple.skills.teaching,
                 morality = disciple.skills.morality,
-                aptitude = disciple.skills.aptitude,
                 salaryPaidCount = disciple.skills.salaryPaidCount,
                 salaryMissedCount = disciple.skills.salaryMissedCount,
                 alchemyLevel = disciple.skills.alchemyLevel,

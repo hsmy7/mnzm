@@ -38,7 +38,6 @@ class RedeemCodeTest {
         assertEquals(1, config.realmLayer)
         assertNull(config.spiritRootType)
         assertNull(config.spiritRootCount)
-        assertEquals(emptyList<String>(), config.talentIds)
         assertNull(config.intelligence)
         assertNull(config.comprehension)
         assertNull(config.charm)
@@ -61,7 +60,6 @@ class RedeemCodeTest {
             realmLayer = 3,
             spiritRootType = "fire",
             spiritRootCount = 2,
-            talentIds = listOf("t1", "t2"),
             intelligence = 80,
             minAge = 18,
             maxAge = 30,
@@ -71,7 +69,6 @@ class RedeemCodeTest {
         assertEquals(3, config.realmLayer)
         assertEquals("fire", config.spiritRootType)
         assertEquals(2, config.spiritRootCount)
-        assertEquals(listOf("t1", "t2"), config.talentIds)
         assertEquals(80, config.intelligence)
         assertEquals(18, config.minAge)
         assertEquals(30, config.maxAge)

@@ -8,8 +8,8 @@
 //   - 成功路径：SYSTEM 2×nextLong 造 UUID（Java UUID.toString 复刻锚点）+
 //     凡品储物袋×2（rarity=1）+ 已领取标记
 //   - 条件求值：建造计数 max(累计, 存量) 语义 / 长老单值槽 / 亲传列表 /
-//     集合槽位 / 计数器 / 灵植 / 血炼键数
-//   - 注册表形状锚点（25 任务 / 全部 rewardQuantity=2）
+//     集合槽位 / 计数器 / 灵植
+//   - 注册表形状锚点（24 任务；任务 23/25 rewardQuantity=1，任务 24 编号空缺）
 //   - 信封级：INVALID_PARAMS 参数面 + execute 通道可达
 // ============================================================
 
@@ -215,8 +215,13 @@ TEST_F(GuideRewardTxFixture, ElderAndSlotConditionsGateClaim) {
 
 TEST_F(GuideRewardTxFixture, RegistryShapeAnchor) {
     const auto& reg = gamecore::system::guide_tx::registry();
-    ASSERT_EQ(reg.size(), std::size_t{25});
+    ASSERT_EQ(reg.size(), std::size_t{24});
     for (int32_t id = 1; id <= 25; ++id) {
+        if (id == 24) {
+            // 任务 24 编号空缺不在册（23/25 仍在册，编号不回收）
+            EXPECT_EQ(gamecore::system::guide_tx::findTask(24), nullptr) << "task 24";
+            continue;
+        }
         const auto* task = gamecore::system::guide_tx::findTask(id);
         ASSERT_NE(task, nullptr) << "task " << id << " missing";
         EXPECT_FALSE(task->conditions.empty());

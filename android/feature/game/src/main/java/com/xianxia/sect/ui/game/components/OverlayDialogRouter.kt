@@ -38,9 +38,9 @@ internal fun OverlayDialogRoute(
         is DialogType.Lizhan, is DialogType.Leaderboard, is DialogType.BuildingUpgrade -> {
             type.renderFeatureRoutes(vms, gameData, onDismiss)
         }
-        // 生产建筑（SpiritMine/HerbGarden/Alchemy/Forge/PatrolTower/BloodRefiningPool/Residence/WarehouseBuilding）
+        // 生产建筑（SpiritMine/HerbGarden/Alchemy/Forge/PatrolTower/Residence/WarehouseBuilding）
         is DialogType.SpiritMine, is DialogType.HerbGarden, is DialogType.Alchemy,
-        is DialogType.Forge, is DialogType.PatrolTower, is DialogType.BloodRefiningPool,
+        is DialogType.Forge, is DialogType.PatrolTower,
         is DialogType.Residence, is DialogType.WarehouseBuilding -> {
             type.renderProductionRoutes(vms, gameData, onDismiss)
         }

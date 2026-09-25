@@ -19,8 +19,7 @@ fun BuildingFeatureRegistry.registerDefaults() {
         productionBuildingFeatures(),
         peakBuildingFeatures(),
         hallBuildingFeatures(),
-        residenceBuildingFeatures(),
-        bloodRefiningBuildingFeatures()
+        residenceBuildingFeatures()
     ).flatten().forEach { register(it) }
 }
 
@@ -139,13 +138,4 @@ private fun residenceBuildingFeatures(): List<BuildingFeature> = listOf(
         cost = 80000, gridWidth = 6, gridHeight = 5,
         description = "供多名弟子共同修炼，修炼速度+15%",
         residenceSpeedBonus = "修炼速度+15%")
-)
-
-/** 血炼池 */
-private fun bloodRefiningBuildingFeatures(): List<BuildingFeature> = listOf(
-    BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
-        listOf(SlotGroup.BloodRefining()), unlimitedBuild = true,
-        drawableRes = R.drawable.blood_refining_pool, color = 0xFFB71C1C,
-        cost = 40000, gridWidth = 4, gridHeight = 3,
-        description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性")
 )

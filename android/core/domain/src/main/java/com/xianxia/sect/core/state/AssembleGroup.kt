@@ -77,7 +77,6 @@ internal fun discipleColumnGroupByName(): Map<String, AssembleGroup> = mapOf(
             "minings" to AssembleGroup.SKILLS,
             "teachings" to AssembleGroup.SKILLS,
             "moralities" to AssembleGroup.SKILLS,
-            "aptitudes" to AssembleGroup.SKILLS,
             "salaryPaidCounts" to AssembleGroup.SKILLS,
             "salaryMissedCounts" to AssembleGroup.SKILLS,
             "alchemyLevels" to AssembleGroup.SKILLS,

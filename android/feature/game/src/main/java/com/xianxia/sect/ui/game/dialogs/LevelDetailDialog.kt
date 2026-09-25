@@ -375,8 +375,7 @@ private fun shouldWarnLowHp(
     val team = slots.mapNotNull { it?.let { id -> discipleMap[id] } }
     return hasLowHpDisciple(
         team, equipmentMap, manualMap,
-        gameData?.manualProficiencies ?: emptyMap(),
-        gameData?.bloodRefinementPctTotals ?: emptyMap()
+        gameData?.manualProficiencies ?: emptyMap()
     )
 }
 

@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * 验证 DiscipleFactory 统一构造 — 各构造站点（recruitDisciple / createChild）
  * 通过不同 DiscipleSeed 得到一致的
- * 五段逻辑（variance / comprehension / skills / baseStats / talentIds）。
+ * 四段逻辑（variance / comprehension / skills / baseStats）。
  */
 class DiscipleFactoryTest {
 
@@ -20,8 +20,7 @@ class DiscipleFactoryTest {
         id: String = "test-001",
         gender: String = "男",
         spiritRootType: String = "火",
-        realmLayer: Int = 1,
-        random: kotlin.random.Random = kotlin.random.Random(42)
+        realmLayer: Int = 1
     ): DiscipleFactory.DiscipleSeed {
         return DiscipleFactory.DiscipleSeed(
             id = id,
@@ -30,8 +29,7 @@ class DiscipleFactoryTest {
             spiritRootType = spiritRootType,
             realmLayer = realmLayer,
             social = SocialData(),
-            nextInt = { from, _ -> from }, // 确定性：总是取最小值
-            random = random
+            nextInt = { from, _ -> from } // 确定性：总是取最小值
         )
     }
 
@@ -98,39 +96,6 @@ class DiscipleFactoryTest {
         assertEquals(1, d.skills.comprehension)
     }
 
-    // ---- 资质（固定属性，与悟性同阶梯）----
-
-    @Test
-    fun `create - aptitude ladder mirrors comprehension per root count`() {
-        // nextInt 固定返回 from：1根→80、2根→60、3根→40、4根→20、5根→1（同悟性阶梯）
-        assertEquals(80, factory.create(newSeed(spiritRootType = "火")).skills.aptitude)
-        assertEquals(60, factory.create(newSeed(spiritRootType = "火,水")).skills.aptitude)
-        assertEquals(40, factory.create(newSeed(spiritRootType = "火,水,木")).skills.aptitude)
-        assertEquals(20, factory.create(newSeed(spiritRootType = "火,水,木,金")).skills.aptitude)
-        assertEquals(1, factory.create(newSeed(spiritRootType = "火,水,木,金,土")).skills.aptitude)
-    }
-
-    @Test
-    fun `create - aptitude generation avoids sentinel 50`() {
-        // nextInt 在资质 3 根段（from=40, until=61，区间 [40,60] 含 50）命中哨兵 50
-        // → 生成强制 +1 收敛为 51，否则资质==50 会被读档自愈误判为"未生成"重复重算（资质跳变）。
-        // 其他段（数组索引如 PortraitPool）返回 from 保持安全。
-        val seed = newSeed(spiritRootType = "火,水,木").copy(
-            nextInt = { from, until -> if (from == 40 && until == 61) 50 else from }
-        )
-        assertEquals(51, factory.create(seed).skills.aptitude)
-    }
-
-    @Test
-    fun `create - aptitude range respects SKILL_MAX 200`() {
-        // 全值域抽样：资质（与悟性同区间 [min, 200]）恒 ≤ 200
-        repeat(50) { i ->
-            val d = factory.create(newSeed(id = "range-$i"))
-            assertTrue("资质应 ≤ 200，实际 ${d.skills.aptitude}", d.skills.aptitude <= 200)
-            assertTrue("资质应 ≥ 1，实际 ${d.skills.aptitude}", d.skills.aptitude >= 1)
-        }
-    }
-
     // ---- 基础属性（calculateBaseStatsWithVariance） ----
 
     @Test
@@ -144,8 +109,6 @@ class DiscipleFactoryTest {
         assertTrue("baseMagicDefense should be > 0", d.combat.baseMagicDefense > 0)
         assertTrue("baseSpeed should be > 0", d.combat.baseSpeed > 0)
     }
-
-    // ---- 天赋 ----
 
     @Test
     fun `create - disciple has valid id`() {
@@ -171,13 +134,10 @@ class DiscipleFactoryTest {
     }
 
     @Test
-    fun `create - same seed produces identical disciple including traits`() {
-        // 两个独立构造的相同 seed（各持 Random(42)）→ 序列一致 → 结果完全一致
+    fun `create - same seed produces identical disciple`() {
+        // 两个独立构造的相同 seed → 序列一致 → 结果完全一致
         val d1 = factory.create(newSeed())
         val d2 = factory.create(newSeed())
-        assertEquals(d1.talentIds, d2.talentIds)
-        assertEquals(d1.physiqueIds, d2.physiqueIds)
-        assertEquals(d1.affixIds, d2.affixIds)
         assertEquals(d1.name, d2.name)
     }
 
@@ -216,8 +176,7 @@ class DiscipleFactoryTest {
                 spiritRootType = "火",
                 realmLayer = 1,
                 social = SocialData(),
-                nextInt = { from, until -> from + kotlinRng.nextInt(until - from) },
-                random = kotlinRng
+                nextInt = { from, until -> from + kotlinRng.nextInt(until - from) }
             )
             values.add(factory.create(seed).combat.hpVariance)
         }

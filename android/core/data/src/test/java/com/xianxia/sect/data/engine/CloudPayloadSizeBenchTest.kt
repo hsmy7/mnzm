@@ -216,9 +216,6 @@ class CloudPayloadSizeBenchTest {
         gender = if (idx % 2 == 0) "male" else "female",
         portraitRes = "portrait_${idx % 64}",
         manualIds = listOf("manual_${idx % 50}", "manual_${(idx + 1) % 50}"),
-        talentIds = listOf("talent_${idx % 30}"),
-        physiqueIds = listOf("physique_${idx % 20}"),
-        affixIds = listOf("affix_${idx % 40}"),
         manualMasteries = mapOf("manual_${idx % 50}" to idx % 10),
         status = DiscipleStatus.IDLE,
         statusData = mapOf("sect" to sectName),
@@ -238,7 +235,7 @@ class CloudPayloadSizeBenchTest {
         ),
         skills = SkillStats(
             intelligence = idx % 100, charm = idx % 90, comprehension = idx % 100,
-            aptitude = idx % 100, alchemyLevel = idx % 9, alchemyPromotionCount = idx % 5, forgeLevel = idx % 7
+            alchemyLevel = idx % 9, alchemyPromotionCount = idx % 5, forgeLevel = idx % 7
         ),
         combat = CombatAttributes(
             baseHp = 1000 + idx * 7, baseMp = 500 + idx * 3, basePhysicalAttack = 50 + idx % 300,

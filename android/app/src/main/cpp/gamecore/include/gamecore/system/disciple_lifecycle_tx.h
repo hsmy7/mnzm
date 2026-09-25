@@ -58,7 +58,6 @@ inline void clearAllDiscipleSlotsForRemoval(GameState& state,
     in.librarySlots = state.gameData.librarySlots;
     in.elderSlots = state.gameData.elderSlots;
     in.residenceSlots = state.gameData.residenceSlots;
-    in.activeBloodRefinements = state.gameData.activeBloodRefinements;
     in.patrolSlots = state.gameData.patrolSlots;
     in.battleTeams = state.gameData.battleTeams;
     in.worldMapSects = state.gameData.worldMapSects;
@@ -73,7 +72,6 @@ inline void clearAllDiscipleSlotsForRemoval(GameState& state,
     state.gameData.librarySlots = out.librarySlots;
     state.gameData.elderSlots = out.elderSlots;
     state.gameData.residenceSlots = out.residenceSlots;
-    state.gameData.activeBloodRefinements = out.activeBloodRefinements;
     state.gameData.patrolSlots = out.patrolSlots;
     state.gameData.battleTeams = out.battleTeams;
     state.gameData.worldMapSects = out.worldMapSects;

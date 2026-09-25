@@ -60,10 +60,9 @@ inline constexpr float kBuildingUv[] = {
     0.0f / 4096.0f, 2072.0f / 4096.0f, 512.0f / 4096.0f, 2584.0f / 4096.0f,
     520.0f / 4096.0f, 2072.0f / 4096.0f, 1032.0f / 4096.0f, 2584.0f / 4096.0f,
     1040.0f / 4096.0f, 2072.0f / 4096.0f, 1552.0f / 4096.0f, 2584.0f / 4096.0f,
-    1560.0f / 4096.0f, 2072.0f / 4096.0f, 2072.0f / 4096.0f, 2584.0f / 4096.0f,
     3072.0f / 4096.0f, 512.0f / 4096.0f, 3840.0f / 4096.0f, 768.0f / 4096.0f,
 };
-inline constexpr int kBuildingUvCount = 20;
+inline constexpr int kBuildingUvCount = 19;
 // 灵田作物三阶段 UV（按阶段序直取）
 inline constexpr float kCropUv[] = {
     1384.0f / 4096.0f, 0.0f / 4096.0f, 1512.0f / 4096.0f, 128.0f / 4096.0f,
@@ -175,9 +174,9 @@ inline constexpr int kGroundVariantCount = 1;
 inline constexpr int kGroundVariants[] = {0};
 
 // ── 占地尺寸表（footprint_table.h 同源：建筑按 nameIdx；固定结构单列）──
-inline constexpr int kFootprintW[] = {4, 4, 1, 4, 5, 6, 6, 4, 4, 18, 6, 4, 4, 4, 4, 6, 6, 4, 6};
-inline constexpr int kFootprintH[] = {4, 3, 1, 2, 3, 4, 3, 2, 2, 13, 3, 3, 2, 4, 4, 6, 4, 3, 5};
-inline constexpr int kStructureNameBase = 19;
+inline constexpr int kFootprintW[] = {4, 4, 1, 4, 5, 6, 6, 4, 4, 18, 6, 4, 4, 4, 4, 6, 6, 6};
+inline constexpr int kFootprintH[] = {4, 3, 1, 2, 3, 4, 3, 2, 2, 13, 3, 3, 2, 4, 4, 6, 4, 5};
+inline constexpr int kStructureNameBase = 18;
 inline constexpr int kStructureFpW[] = {6};
 inline constexpr int kStructureFpH[] = {2};
 

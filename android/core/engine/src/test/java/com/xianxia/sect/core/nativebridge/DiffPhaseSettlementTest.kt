@@ -2,7 +2,6 @@ package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.engine.service.AutoPillService
@@ -61,7 +60,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
-import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
  * DiffPhaseSettlementTest — 每旬弟子结算跨语言差分对拍（验收核心）。
@@ -202,10 +200,6 @@ class DiffPhaseSettlementTest {
                 DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) =
                 DiscipleStatCalculator.getBaseStats(aggregate)
-            override fun getTalentEffects(disciple: Disciple) =
-                DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) =
-                DiscipleStatCalculator.getTalentEffects(aggregate)
             override fun getStatsWithEquipment(
                 d: Disciple, e: Map<String, EquipmentInstance>
             ) = DiscipleStatCalculator.getStatsWithEquipment(d, e)
@@ -216,16 +210,14 @@ class DiffPhaseSettlementTest {
                 d: Disciple,
                 e: Map<String, EquipmentInstance>,
                 m: Map<String, ManualInstance>,
-                p: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
-            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p, bloodRefinementPct)
+                p: Map<String, ManualProficiencyData>
+            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p)
             override fun getFinalStats(
                 a: DiscipleAggregate,
                 e: Map<String, EquipmentInstance>,
                 m: Map<String, ManualInstance>,
-                p: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
-            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, bloodRefinementPct)
+                p: Map<String, ManualProficiencyData>
+            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p)
             override fun calculateCultivationSpeed(
                 d: Disciple,
                 manuals: Map<String, ManualInstance>,

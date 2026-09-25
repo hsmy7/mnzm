@@ -35,7 +35,6 @@ internal fun buildingDialogType(displayName: String, instanceId: String): Dialog
         "alchemy" -> DialogType.Alchemy(instanceId)
         "forge" -> DialogType.Forge(instanceId)
         "patrol_tower" -> DialogType.PatrolTower(instanceId)
-        "blood_refining_pool" -> DialogType.BloodRefiningPool(instanceId)
         "warehouse" -> DialogType.WarehouseBuilding(instanceId)
         "single_residence", "single_residence_upgraded",
         "multi_residence", "multi_residence_upgraded" -> DialogType.Residence(instanceId)

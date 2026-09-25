@@ -49,9 +49,6 @@ enum class DiscipleColumn : uint16_t {
     Gender,
     PortraitRes,
     ManualIds,
-    TalentIds,
-    PhysiqueIds,
-    AffixIds,
     ManualMasteries,
     Status,
     StatusData,
@@ -124,7 +121,6 @@ enum class DiscipleColumn : uint16_t {
     Mining,
     Teaching,
     Morality,
-    Aptitude,
     SalaryPaidCount,
     SalaryMissedCount,
     AlchemyLevel,
@@ -174,9 +170,6 @@ public:
     std::vector<int32_t> cultivationSpeedDurations;
     // ── 列表/映射列 ──
     std::vector<std::vector<std::string>> manualIds;
-    std::vector<std::vector<std::string>> talentIds;
-    std::vector<std::vector<std::string>> physiqueIds;
-    std::vector<std::vector<std::string>> affixIds;
     std::vector<std::map<std::string, int32_t>> manualMasteries;
     std::vector<std::string> statuses;           // DiscipleStatus.name
     std::vector<std::map<std::string, std::string>> statusData;
@@ -252,7 +245,6 @@ public:
     std::vector<int32_t> minings;
     std::vector<int32_t> teachings;
     std::vector<int32_t> moralities;
-    std::vector<int32_t> aptitudes;
     std::vector<int32_t> salaryPaidCounts;
     std::vector<int32_t> salaryMissedCounts;
     std::vector<int32_t> alchemyLevels;

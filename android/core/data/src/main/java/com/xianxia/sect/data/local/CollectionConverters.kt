@@ -12,9 +12,6 @@ import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleTeam
-import com.xianxia.sect.core.model.BloodRefinementBonusTotal
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.BuildingSlot
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CultivatorCave
@@ -33,7 +30,6 @@ import com.xianxia.sect.core.model.MineSlot
 import com.xianxia.sect.core.model.Mission
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.PatrolSlot
-import com.xianxia.sect.core.model.PendingTraitAdd
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.RoadData
@@ -490,43 +486,7 @@ object CollectionConverters {
     fun toPatrolConfigList(value: String): List<PatrolConfig> =
         ProtobufConverters.decodeFromBase64(ListSerializer(PatrolConfig.serializer()), value) { emptyList() }
 
-    // ==================== 血炼系统转换器 ====================
-
-    @TypeConverter
-    @JvmStatic
-    fun fromBloodRefinementProgressMap(value: Map<String, BloodRefinementProgress>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()),
-            value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toBloodRefinementProgressMap(value: String): Map<String, BloodRefinementProgress> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()),
-            value) { emptyMap() }
-
-    @TypeConverter
-    @JvmStatic
-    fun fromBloodRefinementBonusTotalMap(value: Map<String, BloodRefinementBonusTotal>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()),
-            value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toBloodRefinementBonusTotalMap(value: String): Map<String, BloodRefinementBonusTotal> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()),
-            value) { emptyMap() }
-
-    @TypeConverter
-    @JvmStatic
-    fun fromBloodRefinementPctTotalMap(value: Map<String, BloodRefinementPctTotal>): String =
-        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()),
-            value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toBloodRefinementPctTotalMap(value: String): Map<String, BloodRefinementPctTotal> =
-        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()),
-            value) { emptyMap() }
+    // ==================== 通用 Map 转换器 ====================
 
     @TypeConverter
     @JvmStatic
@@ -587,18 +547,6 @@ object CollectionConverters {
     @JvmStatic
     fun toMailClaimRecordList(value: String): List<MailClaimRecord> =
         ProtobufConverters.decodeFromBase64(ListSerializer(MailClaimRecord.serializer()), value) { emptyList() }
-
-    // ==================== 新增特质待确认产物转换器（v47） ====================
-
-    @TypeConverter
-    @JvmStatic
-    fun fromPendingTraitAddList(value: List<PendingTraitAdd>): String =
-        ProtobufConverters.encodeToBase64(ListSerializer(PendingTraitAdd.serializer()), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toPendingTraitAddList(value: String): List<PendingTraitAdd> =
-        ProtobufConverters.decodeFromBase64(ListSerializer(PendingTraitAdd.serializer()), value) { emptyList() }
 
     // ==================== 角色卡池寻访历史（G01） ====================
 

@@ -9,7 +9,6 @@
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
-#include "gamecore/system/disciple_factory.h"  // avoidSentinel50（去重——disciple_factory.h 定义权威）
 
 // ============================================================
 // 兑换码与灵根生成
@@ -18,7 +17,7 @@
 //   - validateRedeemInput：兑换码格式校验（trim/空/长度 3..20/字符集
 //     ^[\u4e00-\u9fa5A-Za-z0-9]+$）
 //   - rollBySpiritRootCount：灵根阶梯属性掷点（1 灵根 80+ 逐级降 20）
-//   - generateVariance / avoidSentinel50：属性方差（-50..50）/ 资质避开哨兵 50
+//   - generateVariance：属性方差（-50..50）
 //   - resolveAgeAndLifespan：年龄区间 + 境界寿元 ±10% 波动（coerceAtLeast）
 //   - resolveSpiritRoot：灵根类型解析（配置指定 / 数量随机 / 权重随机生成）
 //   - spiritRootGenerate：SpiritRootGenerator.generate（COUNT_WEIGHTS 权重表）
@@ -186,9 +185,6 @@ inline int32_t rollBySpiritRootCount(rng::DeterministicRng& rng, int32_t spiritR
 
 /// 属性方差（Kotlin generateVariance）：-50..50
 inline int32_t generateVariance(rng::DeterministicRng& rng) { return -50 + rng.nextInt(101); }
-
-// 资质避开哨兵值 50 复用 disciple_factory.h::avoidSentinel50（单一定义，
-// 避免同签名重名在同一翻译单元内重定义冲突）
 
 // ── 年龄与基础寿命解析（Kotlin resolveAgeAndLifespan）──
 // RNG 消费：年龄 1×nextInt + 寿命 1×nextDouble。

@@ -12,7 +12,6 @@
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/ecs/disciple_component.h"  // syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
-#include "gamecore/system/blood_refinement.h"
 #include "gamecore/system/disciple_purchase.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
@@ -39,7 +38,7 @@
 // 单事务编排（Kotlin 侧由 MonthSettlementExecutor 提取同构），注册进
 // SettlementEngine::onMonthChange 钩子。
 //
-// 八步事务序（语义权威 = 各被调方法源码）：
+// 七步事务序（语义权威 = 各被调方法源码）：
 //   1. 政策月度灵石扣除        ← government.h::processPolicyCosts（原语接线）
 //   2. 政策月度道德效果           ← CultivationSettlement.processPolicyMonthlyEffects
 //   3. AI 兽袭目标预计算        ← precomputeTargets（EXPLORATION；
@@ -47,10 +46,9 @@
 //   4. systemManager.onMonthlyEvent 四系统扇出（@SystemPriority 升序）：
 //      Alchemy(210) → Forge(211) → Planting(214) → Exploration(240)
 //      （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
-//   5. 血炼完成检测            ← blood_refinement 原语 + 本文件结算段
-//   6. 月度自动排班              ← processAutoAssign（排班未下沉）
-//   7. 丹药持续效果月度衰减      ← HpMpRecoveryService.applyMonthlyDurationDecay
-//   8. processMonthlyEventsOnState 十四子事件（全部入 C++，相对序与 Kotlin 一致）
+//   5. 月度自动排班              ← processAutoAssign（排班未下沉）
+//   6. 丹药持续效果月度衰减      ← HpMpRecoveryService.applyMonthlyDurationDecay
+//   7. processMonthlyEventsOnState 十四子事件（全部入 C++，相对序与 Kotlin 一致）
 //
 // RNG 消耗点核对表（分区 / 触发条件 / 抽取次数——对拍命门，逐点核对自源码）：
 //   - EXPLORATION：妖兽移动 moveBeasts，每活跃妖兽 2 次 nextDouble（角度+距离）
@@ -143,91 +141,11 @@ inline void processSpiritFieldHarvestStep(GameState& state, rng::RngManager& rng
     // 显式弃用（邮件域不在 C++ 状态/协议范围）
 }
 
-// ── 步骤 5：血炼完成检测（processBloodRefinementCompletions） ──────
-
-/// 单条到期血炼结算（settleSingleRefinement）
-inline void settleSingleRefinement(GameState& state, const std::string& buildingId,
-                                   const state::BloodRefinementProgress& progress,
-                                   const std::map<int32_t, std::size_t>& idx) {
-    (void)buildingId;
-    const auto dId = toIntOrNull(progress.discipleId);
-    if (!dId.has_value() || idx.find(*dId) == idx.end()) return;
-    DiscipleStore& ds = state.disciples;
-    const std::size_t row = idx.at(*dId);
-    if (progress.selectedStat.empty()) {
-        // 数据异常防御：进度被 processBloodRefinementCompletions 移除，但
-        // REFINING 受保护状态须显式打破（与 Kotlin settleSingleRefinement 同步）
-        ds.statusData[row].erase("buildingId");
-        ds.statuses[row] = "IDLE";
-        return;
-    }
-    // 防御：血炼期间弟子可能因其他系统死亡（isAlive[dId] == 0 直接返回）
-    if (ds.isAlive[row] == 0) return;
-
-    // NaN 无法被 coerceAtLeast 拦下——先 isFinite 归零再取非负
-    const double safeBonusPct =
-        std::isfinite(progress.bonusPercent)
-            ? std::max(progress.bonusPercent, 0.0)
-            : 0.0;
-
-    auto& totals = state.gameData.bloodRefinementPctTotals;
-    const auto existing = totals.find(progress.discipleId);
-    state::BloodRefinementPctTotal updatedTotal =
-        addPctToTotal(existing != totals.end()
-                          ? existing->second
-                          : state::BloodRefinementPctTotal{},
-                      progress.selectedStat, safeBonusPct);
-    updatedTotal.discipleId = progress.discipleId;
-    totals[progress.discipleId] = updatedTotal;
-
-    // 材料记录追加（bloodRefinements[id] += materialId）——审计 P2-7：
-    // 纯审计轨迹零消费者，追加处 takeLast 封顶防长会话单调增长
-    auto& refinements = state.gameData.bloodRefinements[progress.discipleId];
-    refinements.push_back(progress.materialId);
-    if (refinements.size() > BLOOD_REFINEMENT_RECORDS_CAP) {
-        refinements.erase(refinements.begin(),
-                          refinements.end() - static_cast<std::ptrdiff_t>(BLOOD_REFINEMENT_RECORDS_CAP));
-    }
-
-    // 清除 statusData["buildingId"] 并重置状态为 IDLE——REFINING 是受保护状态
-    // （Kotlin deriveDiscipleStatus 永不回退），须在结算事务内显式打破；
-    // 与 Kotlin settleSingleRefinement 语义同步（根因修复：血炼完成/取消后
-    // 弟子曾永久卡"血炼池中"）
-    ds.statusData[row].erase("buildingId");
-    ds.statuses[row] = "IDLE";
-
-    recordGameEvent(state, "SECT", "blood_refinement",
-                    progress.discipleName + "的血练已完成！属性「" +
-                        bloodRefinementStatDisplayName(progress.selectedStat) +
-                        "」获得提升。",
-                    "", progress.discipleName);
-}
-
-inline void processBloodRefinementCompletions(
-        GameState& state, const std::map<int32_t, std::size_t>& idx) {
-    auto& active = state.gameData.activeBloodRefinements;
-    if (active.empty()) return;
-    std::map<std::string, state::BloodRefinementProgress> remaining;
-    for (const auto& [buildingId, progress] : active) {
-        const int32_t elapsed = calculateElapsedMonths(
-            progress.startYear, progress.startMonth,
-            state.gameData.gameYear, state.gameData.gameMonth);
-        if (elapsed < progress.durationMonths) {
-            remaining.emplace(buildingId, progress);
-        } else {
-            settleSingleRefinement(state, buildingId, progress, idx);
-        }
-    }
-    if (remaining.size() != active.size()) {
-        active = std::move(remaining);
-    }
-}
-
 // ── 步骤 6a：月度自动排班（Kotlin ProductionProcessor.
 //    processAutoAssign 等价移植；零 RNG 纯数据变换）────────────────────
 // 语义（对齐 Kotlin 源码）：
-//   occupiedIds = 11 槽占用弟子（长老/灵矿/藏经阁/仓库驻守/巡视/宗门驻守/
-//     战斗队伍/活跃任务/秘境/洞穴活跃队伍/血炼/生产槽）
+//   occupiedIds = 10 槽占用弟子（长老/灵矿/藏经阁/仓库驻守/巡视/宗门驻守/
+//     战斗队伍/活跃任务/秘境/洞穴活跃队伍/生产槽）
 //   idleDisciples = 存活 + IDLE + 非 occupied（可变池——候选按行号维护）
 //   住所分配（单人/多人政策 → 建筑识别 → 候选排序 → 逐空槽）
 //   生产候选（灵植/灵矿/炼丹/锻造：政策开关 → 筛选排序 → take(空槽数)，
@@ -284,7 +202,7 @@ inline void collectElderSlotDiscipleIds(const state::ElderSlots& es,
     }
 }
 
-/// 11 槽占用弟子 ID 收集（Kotlin buildOccupiedSlotDiscipleIds）
+/// 10 槽占用弟子 ID 收集（Kotlin buildOccupiedSlotDiscipleIds）
 inline std::set<std::string> buildOccupiedSlotDiscipleIds(
     const state::GameData& gd) {
     std::set<std::string> out;
@@ -321,9 +239,6 @@ inline std::set<std::string> buildOccupiedSlotDiscipleIds(
         if (t.status == "TRAVELING" || t.status == "EXPLORING") {
             for (const auto& id : t.memberIds) out.insert(id);
         }
-    }
-    for (const auto& [k, p] : gd.activeBloodRefinements) {
-        if (!p.discipleId.empty()) out.insert(p.discipleId);
     }
     for (const auto& s : gd.productionSlots) {
         if (s.assignedDiscipleId && !s.assignedDiscipleId->empty()) {
@@ -892,7 +807,7 @@ inline void applyScoutInfoExpiry(GameState& state, int32_t year, int32_t month) 
 // 系早期误植，休眠未暴露）/ SectRelation.acquainted 补齐。
 //
 // 战力口径：SectCombatPowerCalculator.calculateSectPower = 存活弟子
-// getPermanentBaseStats（血炼 null 口径）战力之和——玩家与 AI 同一公式。
+// getPermanentBaseStats 战力之和——玩家与 AI 同一公式。
 
 /// 弟子战力（Kotlin calculateDisciplePower(aggregate, null)——永久基础属性）
 inline int64_t sectPowerOfDisciple(const state::Disciple& d) {
@@ -1436,20 +1351,18 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     }
     // 巡视楼战斗 / 妖兽攻击检测：战斗域未下沉；场景 patrolSlots 为空 +
     // 无玩家宗门 → 双端纯早退零抽取
-    // 步骤 5：血炼完成检测
-    detail::processBloodRefinementCompletions(state, idx);
 
-    // 步骤 6：月度自动排班（processAutoAssign 等价移植——零 RNG
+    // 步骤 5：月度自动排班（processAutoAssign 等价移植——零 RNG
     // 纯数据变换，政策全关纯早退）
     detail::processAutoAssign(state, world);
 
-    // 步骤 7：丹药持续效果月度衰减
+    // 步骤 6：丹药持续效果月度衰减
     detail::applyMonthlyDurationDecayAll(state, world);
 
-    // 步骤 8：月度事件（十四子事件 + 草稿收集）
+    // 步骤 7：月度事件（十四子事件 + 草稿收集）
     detail::processMonthlyEvents(state, rng, aiRng, aiBatch, idx, out, world);
 
-    // 步骤 9：自动排班（autoRestart 续炼启动；Kotlin processAutoAlchemy/
+    // 步骤 8：自动排班（autoRestart 续炼启动；Kotlin processAutoAlchemy/
     // processAutoForge 为月结事务提交后异步独立事务——读取月结最终状态，C++ 置
     // 编排末尾等价对齐；零 RNG 不扰动抽取序）
     production::processAutoProductionStep(state);

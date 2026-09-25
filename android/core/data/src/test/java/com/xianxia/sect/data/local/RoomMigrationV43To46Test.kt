@@ -14,7 +14,9 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * 迁移 43→46 测试（v44 职业 4 列 / v45 探索队表删除 / v46 资质列）。
+ * 迁移 43→46 测试（v44 职业 4 列 / v45 探索队表删除）。
+ * v46 资质列用例已随 G04 资质下线删除（MIGRATION_45_46 本体保留，链覆盖由
+ * 43→44/44→45 真实 Room 校验的全链 43/44→当前版本承载）。
  *
  * 与 [RoomMigrationTest] 共享 createDatabaseFromSchema/columnExists 模式，
  * 独立文件保持内聚。
@@ -32,7 +34,6 @@ class RoomMigrationV43To46Test {
 
         private val M43_44 = MIGRATION_43_44
         private val M44_45 = MIGRATION_44_45
-        private val M45_46 = MIGRATION_45_46
 
         /** v44 新增的弟子职业 4 列（disciples 与 disciples_attributes 两表共用） */
         private val PROFESSION_COLUMNS = listOf(
@@ -341,18 +342,6 @@ class RoomMigrationV43To46Test {
 
                     )
         """.trimIndent()
-
-        /** v45 种子行：v43 基础上补职业 4 列（v44 起 attributes 表职业列 NOT NULL 无默认值） */
-        private val SEED_DISCIPLES_ATTRIBUTES_V45: String = SEED_DISCIPLES_ATTRIBUTES_V43
-            .replace(
-                "salaryPaidCount, salaryMissedCount\n",
-                "salaryPaidCount, salaryMissedCount, alchemyLevel, alchemyPromotionCount,\n" +
-                    "forgeLevel, forgePromotionCount\n"
-            )
-            .replace(
-                "2, 3\n",
-                "2, 3, 0, 0, 0, 0\n"
-            )
     }
 
     // ═══════════════ 43 → 44（职业 4 列）═══════════════
@@ -485,66 +474,6 @@ class RoomMigrationV43To46Test {
             assertEquals("exploration_teams 表应被删除", 0, tableExists)
 
             // 其它数据保留
-            val disciple = db.query("SELECT name, isAlive FROM disciples WHERE id = 'd1'").use { c ->
-                c.moveToFirst(); c.getString(0) to c.getInt(1)
-            }
-            assertEquals("旧弟子数据保留", "测试弟子" to 1, disciple)
-            db.close()
-        } finally {
-            context.deleteDatabase(dbName)
-        }
-    }
-
-    // ═══════════════ 45 → 46（资质列）═══════════════
-
-    /**
-     * 真实 Room 校验：v45 库升级到 v46（两表新增 aptitude 列），触发 onValidateSchema——
-     * 列定义不一致（含 DEFAULT 50 缺失）都会在此崩溃。46.json 由 ksp 自动导出。
-     */
-    @Test
-    fun `MIGRATION_45_TO_46 passes real Room schema validation`() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "m_45_46_room_validate"
-        context.deleteDatabase(dbName)
-        try {
-            createDatabaseFromSchema(context, dbName, 45).close()
-            val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(*ALL_MIGRATIONS)
-                .build()
-            db.openHelper.writableDatabase
-            db.close()
-        } finally {
-            context.deleteDatabase(dbName)
-        }
-    }
-
-    @Test
-    fun `MIGRATION_45_TO_46 adds aptitude columns default 50 keeps other data`() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "m_45_46_columns"
-        context.deleteDatabase(dbName)
-        try {
-            val db = createDatabaseFromSchema(context, dbName, 45)
-            // v45 库（disciples 职业 4 列同 v44），seed 弟子两表
-            db.execSQL(SEED_DISCIPLES_V44)
-            db.execSQL(SEED_DISCIPLES_ATTRIBUTES_V45)
-            listOf(M45_46).forEach { it.migrate(db) }
-
-            // 两表 aptitude 列存在
-            assertTrue(columnExists(db, "disciples", "aptitude"))
-            assertTrue(columnExists(db, "disciples_attributes", "aptitude"))
-
-            // 旧行默认 50（自愈哨兵值，与 DiscipleTables.DEFAULT_APTITUDE 统一）
-            val aptitude = db.query(
-                "SELECT aptitude FROM disciples WHERE id = 'd1'"
-            ).use { c -> c.moveToFirst(); c.getInt(0) }
-            assertEquals("旧弟子 aptitude 默认 50（自愈哨兵）", 50, aptitude)
-            val attrAptitude = db.query(
-                "SELECT aptitude FROM disciples_attributes WHERE discipleId = 'd1'"
-            ).use { c -> c.moveToFirst(); c.getInt(0) }
-            assertEquals("旧属性 aptitude 默认 50", 50, attrAptitude)
-
-            // 旧数据保留
             val disciple = db.query("SELECT name, isAlive FROM disciples WHERE id = 'd1'").use { c ->
                 c.moveToFirst(); c.getString(0) to c.getInt(1)
             }

@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -107,7 +106,6 @@ private fun AttackDialogContent(
     onDismiss: () -> Unit
 ) {
     val profs = data.gameData?.manualProficiencies ?: emptyMap()
-    val pcts = data.gameData?.bloodRefinementPctTotals ?: emptyMap()
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -129,7 +127,7 @@ private fun AttackDialogContent(
                 onAttack = {
                     if (shouldWarnLowHp(
                             slots.toList(), dialog.lowHpAcknowledged, data.equipmentMap, data.manualMap,
-                            profs, pcts
+                            profs
                         )
                     ) {
                         dialog.showLowHpWarning = true
@@ -479,11 +477,10 @@ private fun shouldWarnLowHp(
     lowHpAcknowledged: Boolean,
     equipmentMap: Map<String, EquipmentInstance>,
     manualMap: Map<String, ManualInstance>,
-    manualProficiencies: Map<String, List<ManualProficiencyData>>,
-    bloodRefinementPctTotals: Map<String, BloodRefinementPctTotal>
+    manualProficiencies: Map<String, List<ManualProficiencyData>>
 ): Boolean = !lowHpAcknowledged && hasLowHpDisciple(
     slots.filterNotNull(), equipmentMap, manualMap,
-    manualProficiencies, bloodRefinementPctTotals
+    manualProficiencies
 )
 
 /** 从 10 槽位构建出战队伍（槽位索引 → 弟子），供进攻按钮与确认弹窗共用 */

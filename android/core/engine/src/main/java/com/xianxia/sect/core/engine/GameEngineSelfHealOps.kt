@@ -1,9 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SlotCategory
@@ -62,21 +60,11 @@ private suspend fun GameEngine.healDuplicateSlotAssignmentsInScope() {
             )
             for (discipleId in duplicates) {
                 val winner = winners[discipleId] ?: continue
-                // 血炼赢家：清理前缓存进度（clearAllSlots 会移除
-                // activeBloodRefinements 条目，进度含已消耗灵石/材料，重写时恢复）
-                val bloodProgress = if (winner.category == SlotCategory.BLOOD_REFINEMENT) {
-                    gameData.activeBloodRefinements[winner.slotType]
-                } else null
                 // 住所与工作共存是有意设计：自愈只清工作槽位，保留住所
                 // （回归：includeResidence=true 会静默清掉玩家的住所分配）
                 gameData = DiscipleSlotCleanup(assignmentGate)
                     .clearAllSlotsDataOnly(gameData, discipleId)
-                gameData = rewriteWinnerInGameData(gameData, winner, bloodProgress)
-                // 血炼一致性修正（根因修复）：血炼在 scanAndRegister 中优先级低于
-                // 长老/灵矿/藏经阁/巡逻，双槽位弟子若血炼非赢家（或赢家进度
-                // 丢失），清理后进度已删但 REFINING 受保护状态永不回退——须显式
-                // 重置为 IDLE，否则弟子永久卡"血炼池中"无法重新分配
-                resetStaleRefiningStatus(discipleId)
+                gameData = rewriteWinnerInGameData(gameData, winner)
             }
         }
         // 双存储同步（事务后）：Repository 生产槽同步清理 + 重写赢家，
@@ -107,27 +95,6 @@ private suspend fun GameEngine.readProductionSlotsSafe():
         emptyList()
     }
 
-/**
- * 血炼状态一致性修正（自愈清理后调用）：弟子状态仍为 REFINING 但已无任何
- * 进行中血炼进度时，显式重置为 IDLE 并清 statusData["buildingId"]。
- *
- * REFINING 是受保护状态（deriveDiscipleStatus 永不回退），进度删除后不重置
- * 状态会永久卡"血炼池中"——与 cancelBloodRefinement / settleSingleRefinement
- * 的根因修复同一模式；血炼赢家且进度重写成功时（hasProgress=true）不动。
- */
-private fun MutableGameState.resetStaleRefiningStatus(discipleId: String) {
-    val id = discipleId.toIntOrNull()
-    if (id != null && id in discipleTables.ids) {
-        val hasActiveProgress = gameData.activeBloodRefinements
-            .values.any { it.discipleId == discipleId }
-        if (discipleTables.statuses[id] == DiscipleStatus.REFINING && !hasActiveProgress) {
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
-            discipleTables.statusData[id] =
-                (discipleTables.statusData[id] ?: emptyMap()) - "buildingId"
-        }
-    }
-}
-
 /** 事务后 Repository 同步：清残留占用 + 重写生产槽赢家（防双槽分叉复活）。 */
 private suspend fun GameEngine.syncProductionRepositoryForDuplicates(
     counts: Map<String, Int>,
@@ -148,11 +115,10 @@ private suspend fun GameEngine.syncProductionRepositoryForDuplicates(
 }
 
 /** 按赢家记录重写回 GameData（槽位数据已在调用前清空）。 */
-@Suppress("CyclomaticComplexMethod") // 10 类别确定性分发表（与 SlotCategory 一一对应，分支均为单行委托）
+@Suppress("CyclomaticComplexMethod") // 9 类别确定性分发表（与 SlotCategory 一一对应，分支均为单行委托）
 private fun MutableGameState.rewriteWinnerInGameData(
     data: GameData,
-    winner: SlotWinner,
-    bloodProgress: BloodRefinementProgress? = null
+    winner: SlotWinner
 ): GameData {
     val name = discipleTables.assemble(winner.discipleId.toIntOrNull() ?: -1)?.name ?: ""
     return when (winner.category) {
@@ -178,11 +144,6 @@ private fun MutableGameState.rewriteWinnerInGameData(
                 } else slot
             }
         )
-        SlotCategory.BLOOD_REFINEMENT -> if (bloodProgress != null) {
-            data.copy(
-                activeBloodRefinements = data.activeBloodRefinements + (winner.slotType to bloodProgress)
-            )
-        } else data // 进度已丢失则不强造（换岗语义：血炼视为放弃）
         SlotCategory.GARRISON_SLOT -> rewriteGarrisonWinner(data, winner, name)
         SlotCategory.BATTLE_TEAM -> rewriteBattleTeamWinner(data, winner, name)
         SlotCategory.PRODUCTION_SLOT -> rewriteProductionWinner(data, winner, name)

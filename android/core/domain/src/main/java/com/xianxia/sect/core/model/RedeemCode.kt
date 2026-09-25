@@ -25,7 +25,6 @@ data class DiscipleRewardConfig(
     val realmLayer: Int = 1,
     val spiritRootType: String? = null,
     val spiritRootCount: Int? = null,
-    val talentIds: List<String> = emptyList(),
     val intelligence: Int? = null,
     val comprehension: Int? = null,
     val charm: Int? = null,

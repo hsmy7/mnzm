@@ -63,7 +63,6 @@ internal fun BuildingsTab(
         "mission_hall" to "派遣弟子执行任务",
         "reflection_cliff" to "悔过自新之地",
         "patrol_tower" to "驻守弟子自动巡视攻击妖兽",
-        "blood_refining_pool" to "消耗兽血材料淬炼弟子肉身",
         "warehouse" to "储存宗门物资，每座+75格容量",
     )
 
@@ -95,7 +94,6 @@ private fun buildingOpenAction(viewModel: GameViewModel, key: String): () -> Uni
         "mission_hall" -> viewModel.navigation.openMissionHallDialog()
         "reflection_cliff" -> viewModel.navigation.openReflectionCliffDialog()
         "patrol_tower" -> viewModel.navigation.openPatrolTowerDialog()
-        "blood_refining_pool" -> viewModel.navigation.openBloodRefiningPoolDialog()
     }
 }
 

@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -60,8 +59,6 @@ fun BasicInfoSection(
     residenceSlots: List<ResidenceSlot> = emptyList(),
     placedBuildings: List<GridBuildingData> = emptyList(),
     gameSpeed: Int = 1,
-    bloodRefinementPct: BloodRefinementPctTotal? = null,
-    onWashSpiritRootClick: (() -> Unit)? = null,
     onBreakthroughJadeClick: (() -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
@@ -74,7 +71,7 @@ fun BasicInfoSection(
             color = Color.Black
         )
 
-        BasicInfoIdentityRow(disciple, onWashSpiritRootClick)
+        BasicInfoIdentityRow(disciple)
 
         BasicInfoBreakthroughRow(
             disciple = disciple,
@@ -104,8 +101,8 @@ fun BasicInfoSection(
         val discipleProficiencies = remember(disciple.id, manualProficiencies) {
             manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
         }
-        val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct) {
-            disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct)
+        val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies) {
+            disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
         }
 
         HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp, gameSpeed = gameSpeed)
@@ -116,8 +113,7 @@ fun BasicInfoSection(
 
 @Composable
 private fun BasicInfoIdentityRow(
-    disciple: DiscipleAggregate,
-    onWashSpiritRootClick: (() -> Unit)?
+    disciple: DiscipleAggregate
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -143,33 +139,13 @@ private fun BasicInfoIdentityRow(
                 Color.Black
             }
         }
-        // 灵根与洗炼入口（+ 号）嵌套 Row：spacedBy(4.dp) 保证按钮与灵根间距
-        // 恰好 4dp（外层 Row 的 spacedBy(16.dp) 会对每个相邻子项加间距，
-        // 若平铺会导致 16+4+16=36dp 的实际间距）
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = disciple.spiritRootName,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = spiritRootCountColor,
-                maxLines = 1
-            )
-            // 洗炼灵根入口（+ 号按钮，间距 4dp，大小与突破率右侧按钮一致）
-            if (onWashSpiritRootClick != null) {
-                SpriteImage(
-                    name = "ui_add_button",
-                    contentDescription = "洗炼灵根",
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onWashSpiritRootClick),
-                    contentScale = ContentScale.FillBounds
-                )
-            }
-        }
+        Text(
+            text = disciple.spiritRootName,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = spiritRootCountColor,
+            maxLines = 1
+        )
     }
 }
 
@@ -226,7 +202,7 @@ private fun elderBreakthroughComprehension(
     val elder = elderId?.let { discipleMap[it] }
     if (disciple.discipleType != discipleType) return 0
     return if (elder != null && elder.isAlive && disciple.realm >= elder.realm) {
-        // 有效悟性（含天赋 Flat，如顿悟+18），与突破结算口径一致
+        // 长老悟性本体（与突破结算同源：getBaseStats().comprehension）
         elder.getBaseStats().comprehension
     } else {
         0

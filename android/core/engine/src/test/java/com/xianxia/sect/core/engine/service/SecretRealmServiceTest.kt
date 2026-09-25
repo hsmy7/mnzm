@@ -188,7 +188,7 @@ class SecretRealmServiceTest {
     }
 
     private fun stubBattle(result: BattleSystemResult) {
-        whenever(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        whenever(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(result.battle)
         whenever(battleSystem.executeBattleWithTimeout(any(), any(), any())).thenReturn(result)
     }

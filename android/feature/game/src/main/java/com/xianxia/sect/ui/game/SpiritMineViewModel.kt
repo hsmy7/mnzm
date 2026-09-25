@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.assignDirectDisciple
-import com.xianxia.sect.core.engine.cancelBloodRefinement
 import com.xianxia.sect.core.engine.confirmAssignDisciple
 import com.xianxia.sect.core.engine.getDiscipleAggregate
 import com.xianxia.sect.core.engine.isDiscipleAssigned
@@ -262,7 +261,6 @@ class SpiritMineViewModel @Inject constructor(
     /**
      * 释放弟子为其分配新任务。根据当前状态决定释放方式：
      * - REFLECTING（思过中）→ 释放思过
-     * - REFINING（血炼中）→ 中止血炼（不返还材料）
      * - 其他状态 → releaseDiscipleFromAllSlotsAtomic
      */
     private suspend fun releaseDiscipleForReassignment(discipleId: String) {
@@ -270,20 +268,6 @@ class SpiritMineViewModel @Inject constructor(
         when (status) {
             DiscipleStatus.REFLECTING -> {
                 gameEngine.releaseReflectionDisciple(discipleId)
-            }
-            DiscipleStatus.REFINING -> {
-                val gd = gameEngine.gameDataSnapshot
-                val buildingInstanceId = gd?.activeBloodRefinements?.entries
-                    ?.firstOrNull { it.value.discipleId == discipleId }
-                    ?.key
-                if (buildingInstanceId != null) {
-                    gameEngine.cancelBloodRefinement(buildingInstanceId, discipleId)
-                    // 同步释放 gate 注册（cancelBloodRefinement 不清 gate，
-                    // 与 BloodRefiningViewModel.cancelRefine 的释放语义对齐）
-                    gameEngine.releaseDiscipleAssignment(discipleId)
-                } else {
-                    gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
-                }
             }
             else -> gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
         }

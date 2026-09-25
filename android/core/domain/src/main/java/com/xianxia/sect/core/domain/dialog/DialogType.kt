@@ -67,8 +67,6 @@ sealed interface DialogType {
 
     data class PatrolTower(val buildingInstanceId: String) : DialogType
 
-    data class BloodRefiningPool(val buildingInstanceId: String) : DialogType
-
     data class Residence(val buildingInstanceId: String) : DialogType
 
     data class WarehouseBuilding(val buildingInstanceId: String) : DialogType

@@ -5,8 +5,8 @@
 // xianxia/sect/core/util/BattleCalculator.kt 982 行）的**计算管线**（非
 // AI 决策层——selectSkill/selectTarget 归 battle_ai.h）：
 //   - 战斗域模型：BuffType/CombatBuff/CombatSkill/Combatant（effective*
-//     计算属性）/PhysiqueCombatFactors/AffixCombatEffects
-//   - buildDamageZones（物理/魔法/增伤分桶 + 减伤 + 体质/词条/境界因子）
+//     计算属性）
+//   - buildDamageZones（物理/魔法/增伤分桶 + 减伤 + 境界因子）
 //   - calculateCombatantDamage 全链（斩杀前置 → 闪避 → 暴击 → 波动 →
 //     分桶注入 → 段数钳制；RNG 消费序：闪避 1 + 暴击 1 + 波动 1，与
 //     Kotlin 逐位一致）
@@ -222,22 +222,6 @@ struct CombatSkill {
     double damageLinkPercent = 0.0;
 };
 
-/// 体质战斗乘算因子（Kotlin PhysiqueCombatFactors）
-struct PhysiqueCombatFactors {
-    double damageAmplification = 0.0;
-    double critDamageBonus = 0.0;
-    double damageReduction = 0.0;
-    double defenseBonus = 0.0;
-};
-
-/// 词条战斗乘算因子（Kotlin AffixCombatEffects 战斗四字段）
-struct AffixCombatEffects {
-    double damageAmplification = 0.0;
-    double critDamageBonus = 0.0;
-    double damageReduction = 0.0;
-    double defenseBonus = 0.0;
-};
-
 /// 战斗单位（Kotlin Combatant——含 effective* 计算属性）
 struct Combatant {
     std::string id;
@@ -259,8 +243,6 @@ struct Combatant {
     int32_t realmLayer = 0;
     std::string element;
     bool isBeast = false;
-    PhysiqueCombatFactors physique;
-    AffixCombatEffects affix;
 
     bool isDead() const { return hp <= 0; }
     double hpPercent() const { return maxHp > 0 ? static_cast<double>(hp) / maxHp : 0.0; }
@@ -355,14 +337,6 @@ inline DamageZones buildDamageZones(const Combatant& attacker,
     zones.magicAttackBuffs = magBoost - magReduce;
     zones.damageAmplification = dmgBoost + extraAmplification;
     zones.damageReduction = dmgReduce;
-    zones.physiqueDamageAmplification = attacker.physique.damageAmplification;
-    zones.physiqueCritDamageBonus = attacker.physique.critDamageBonus;
-    zones.physiqueDamageReduction = defender ? defender->physique.damageReduction : 0.0;
-    zones.physiqueDefenseBonus = defender ? defender->physique.defenseBonus : 0.0;
-    zones.affixDamageAmplification = attacker.affix.damageAmplification;
-    zones.affixCritDamageBonus = attacker.affix.critDamageBonus;
-    zones.affixDamageReduction = defender ? defender->affix.damageReduction : 0.0;
-    zones.affixDefenseBonus = defender ? defender->affix.defenseBonus : 0.0;
     if (defender) {
         const auto realmGap = calculateRealmGapFactors(
             attacker.realm, attacker.realmLayer, defender->realm, defender->realmLayer);
@@ -574,31 +548,21 @@ inline int32_t estimateDamage(const Combatant& attacker, const Combatant& defend
         (isPhysical ? baseZones.physicalAttackBuffs : baseZones.magicAttackBuffs);
     baseZones.damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0);
 
-    // 期望暴击：avgCritMult = (1-p) + p × (1+基础暴伤) × (1+体质暴伤) × (1+词条暴伤)
+    // 期望暴击：avgCritMult = (1-p) + p × (1+基础暴伤)
     const double buffCritMult = 1.0 + kCritBaseMultiplier;
-    const double physiqueCritMult = 1.0 + baseZones.physiqueCritDamageBonus;
-    const double affixCritMult = 1.0 + baseZones.affixCritDamageBonus;
     const double critRate = clamp(attacker.effectiveCritRate(), 0.0, 1.0);
     const double avgCritMult =
-        (1.0 - critRate) * 1.0 + critRate * buffCritMult * physiqueCritMult * affixCritMult;
+        (1.0 - critRate) * 1.0 + critRate * buffCritMult;
 
-    const double penFactor =
-        std::max(0.0, 1.0 - baseZones.physiqueDefenseBonus) *
-        std::max(0.0, 1.0 - baseZones.affixDefenseBonus);
-    const double effectiveDef = def * penFactor;
-    const double reduction = effectiveDef / (effectiveDef + kDefenseConstant);
+    const double reduction = def / (def + kDefenseConstant);
 
     const double preCritDmg = static_cast<double>(atk) * (1.0 + baseZones.attackBuffs) *
         skill.damageMultiplier * (1.0 - reduction);
     const double rawDmg = preCritDmg * avgCritMult *
         (1.0 + baseZones.damageAmplification) *
-        (1.0 + baseZones.physiqueDamageAmplification) *
-        (1.0 + baseZones.affixDamageAmplification) *
         (1.0 + baseZones.realmGapDamageAmplification) *
         (1.0 + baseZones.majorRealmDamageAmplification) *
         (1.0 - baseZones.damageReduction) *
-        (1.0 - baseZones.physiqueDamageReduction) *
-        (1.0 - baseZones.affixDamageReduction) *
         (1.0 - baseZones.realmGapDamageReduction) * skill.hits;
     return std::max(kMinDamage, static_cast<int32_t>(rawDmg));
 }

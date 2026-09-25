@@ -152,7 +152,7 @@ class BattleExecutionRouterTest {
             "id", "name", "side", "hp", "maxHp", "mp", "maxMp",
             "physicalAttack", "magicAttack", "physicalDefense", "magicDefense",
             "speed", "critRate", "skills", "buffs", "realm", "realmLayer",
-            "element", "physique", "affix"
+            "element"
         )
         assertTrue("缺少协议键: ${required - keys}", required.all { it in keys })
         // skills/buffs 子键（buffType 为可选键——null 不输出，C++ 解析 contains 检查）

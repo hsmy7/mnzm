@@ -52,7 +52,6 @@ Disciple aiDisciple(const std::string& id, int32_t realm = 9, int32_t layer = 1)
     d.isAlive = true;
     d.spiritRootType = "metal";
     d.status = "IDLE";
-    d.aptitude = 50;
     return d;
 }
 
@@ -197,8 +196,6 @@ TEST(AiSectLevelTest, LevelUpOnQualifyingRealmAndGearTopUp) {
                      (members[0].accessoryId.empty() ? 0 : 1);
     EXPECT_EQ(equipCount, 2);
     EXPECT_EQ(members[0].manualIds.size(), 3u);
-    // 补全标记写入（防读档重复 roll）
-    EXPECT_EQ(members[0].statusData.at("aiGearRolled"), "1");
 }
 
 TEST(AiSectWarehouseTest, NonPlayerSectWarehouseCleared) {

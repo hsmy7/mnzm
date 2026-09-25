@@ -8,8 +8,8 @@
 // ============================================================
 // 数值外置数据存储（B16 / R6.2）
 //
-// 背景：`gamecore/data/*.h` 七个头文件 DB（beast_config / beast_material_db /
-// equipment_db / herb_db / manual_db / recipe_db / trait_db）历史上把**条目数值**
+// 背景：`gamecore/data/*.h` 六个头文件 DB（beast_config / beast_material_db /
+// equipment_db / herb_db / manual_db / recipe_db）历史上把**条目数值**
 // 硬编码为 `static const std::vector<...>` 编译期常量表 ⇒ 改一个数值（如某丹药
 // 的 `cultivationAdd`）要重编译整个 C++ 逻辑。
 //
@@ -25,7 +25,7 @@
 //  1. **注入只发生一次**。`loadFromJson` 仅在 `kUninitialized` 状态接受写入，
 //     稳态（`kLoadedFromFile` / `kFallbackDefault`）再次调用返回 false，
 //     表容器**地址不再变化** ⇒ 满足"注入仅初始化期一次 + 指针稳定性"两条硬约束
-//     （`beastMaterialById` / `manualById` / `talentById` 等返回 `const T*`，
+//     （`beastMaterialById` / `manualById` 等返回 `const T*`，
 //     消费点会持有该指针）。
 //  2. **显式失败，禁止静默空表**。解析失败时保留内联默认并置
 //     `kFallbackDefault`；`stateName()` 可观测；`loadedCount()` 用于守卫断言。

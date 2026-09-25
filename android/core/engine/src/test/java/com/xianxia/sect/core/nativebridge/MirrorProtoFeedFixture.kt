@@ -77,8 +77,6 @@ internal object MirrorProtoFeedFixture {
         gender = "male",
         portraitRes = "d101",
         manualIds = listOf("m1", "m2"),
-        talentIds = listOf("t1"),
-        affixIds = listOf("af1"),
         manualMasteries = mapOf("m1" to 3, "m2" to 7),
         status = DiscipleStatus.ALCHEMY,
         statusData = mapOf("task" to "alchemy", "slot" to "42"),
@@ -142,7 +140,7 @@ internal object MirrorProtoFeedFixture {
     private fun richSkills(): SkillStats = SkillStats(
         intelligence = 61, charm = 62, comprehension = 64,
         artifactRefining = 65, pillRefining = 66, spiritPlanting = 67, mining = 68,
-        teaching = 69, morality = 70, aptitude = 71, salaryPaidCount = 3,
+        teaching = 69, morality = 70, salaryPaidCount = 3,
         salaryMissedCount = 1, alchemyLevel = 2, alchemyPromotionCount = 5,
         forgeLevel = 1, forgePromotionCount = 2,
     )

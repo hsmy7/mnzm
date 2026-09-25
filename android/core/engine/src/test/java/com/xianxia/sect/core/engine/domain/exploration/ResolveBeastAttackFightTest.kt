@@ -57,7 +57,7 @@ class ResolveBeastAttackFightTest {
         val spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java)
         // 本文件用例全为失败路径：not found/defeated 在 deduct 前提前返回
 
-        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
         `when`(battleSystem.executeBattle(any(), any())).thenReturn(
             BattleSystemResult(battle = Battle(team = emptyList(), beasts = emptyList()),
@@ -122,7 +122,7 @@ class ResolveBeastAttackFightTest {
         val allAlive = allDiscipleList.filter { it.isAlive }
         val patrolDefenders = allAlive.filter { it.id in patrolDiscipleIds }
         val excludeStatuses = setOf(DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING,
-            DiscipleStatus.GARRISONING, DiscipleStatus.REFINING)
+            DiscipleStatus.GARRISONING)
         val remainingAlive = allAlive.filter {
             it.id !in patrolDiscipleIds && it.status !in excludeStatuses
         }.sortedByRealmForDefense()
@@ -139,7 +139,7 @@ class ResolveBeastAttackFightTest {
     }
 
     @Test
-    fun `defender selection excludes ON_MISSION IN_TEAM REFLECTING GARRISONING REFINING`() {
+    fun `defender selection excludes ON_MISSION IN_TEAM REFLECTING GARRISONING`() {
         val allDiscipleList = listOf(
             Disciple(id = "1", name = "正常", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.IDLE, isAlive = true),
@@ -151,15 +151,12 @@ class ResolveBeastAttackFightTest {
                 status = DiscipleStatus.REFLECTING, isAlive = true),
             Disciple(id = "5", name = "驻军中", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.GARRISONING, isAlive = true),
-            Disciple(id = "6", name = "血炼中", realm = 5, realmLayer = 50,
-                status = DiscipleStatus.REFINING, isAlive = true),
             Disciple(id = "7", name = "生产中", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.MINING, isAlive = true)
         )
         val excludeStatuses = setOf(
             DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM,
-            DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING,
-            DiscipleStatus.REFINING
+            DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING
         )
         val defenders = allDiscipleList.filter { it.isAlive && it.status !in excludeStatuses }
 

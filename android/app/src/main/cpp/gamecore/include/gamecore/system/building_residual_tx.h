@@ -33,11 +33,6 @@
 //  - 监牢（REFLECTION_CLIFF）无实例归属记录 ⇒ 全量释放 REFLECTING；
 //    任务阁（MISSION_HALL）清空 activeMissions 并释放存活 ON_MISSION。
 //
-// discipleIds（血炼 REFINING 破除）由 Kotlin 收集后传入（含 Room 生产
-// repo 侧来源——平台存储 C++ 不可见，A3 前现状同）；C++ 按 id 直写
-// statuses=IDLE + statusData 定向移除 "buildingId"（releaseBuilding-
-// DiscipleIds 的协议写段；Gate 释放/Kotlin 运行态留 Kotlin）。
-//
 // 🔴 偏差登记（本事务的清扫范围边界）——两类槽组**留 Kotlin 清扫**：
 //  ① productionSlots：C++ ProductionSlot 结构**无 buildingInstanceId 字段**
 //     （Kotlin @ProtoNumber(21) 为 Kotlin 侧协议字段，C++ 行编解码不携带——
@@ -67,24 +62,21 @@ namespace gamecore::system::building_residual_tx {
 
 using gamecore::state::GameState;
 
-inline constexpr const char* kRefiningStatusName = "REFINING";
 inline constexpr const char* kReflectingStatusName = "REFLECTING";
 inline constexpr const char* kOnMissionStatusName = "ON_MISSION";
 inline constexpr const char* kIdleStatusName = "IDLE";
 
 /// statusData 键（DiscipleStatusData 单一来源同名键）
-inline constexpr const char* kBuildingIdKey = "buildingId";
 inline constexpr const char* kReflectionStartYearKey = "reflectionStartYear";
 inline constexpr const char* kReflectionEndYearKey = "reflectionEndYear";
 
-/// 槽组种类（本事务清扫范围 = 实例键控六集合 + 血炼；生产/长老组
+/// 槽组种类（本事务清扫范围 = 实例键控五集合；生产/长老组
 /// 留 Kotlin——头注释偏差登记；枚举仅列 C++ 可清扫的组）
 enum class SlotGroupKind {
     SpiritMine,
     PatrolTower,
     Residence,
     SpiritField,
-    BloodRefining,
     Library,
 };
 
@@ -95,7 +87,6 @@ inline bool parseSlotGroupKind(const std::string& name, SlotGroupKind& out) {
     if (name == "PATROL_TOWER") { out = SlotGroupKind::PatrolTower; return true; }
     if (name == "RESIDENCE") { out = SlotGroupKind::Residence; return true; }
     if (name == "SPIRIT_FIELD") { out = SlotGroupKind::SpiritField; return true; }
-    if (name == "BLOOD_REFINING") { out = SlotGroupKind::BloodRefining; return true; }
     if (name == "LIBRARY") { out = SlotGroupKind::Library; return true; }
     return false;
 }
@@ -115,15 +106,12 @@ struct ResidualTarget {
     std::vector<SlotGroupKind> groups;
     bool isMissionHall = false;
     bool isReflectionCliff = false;
-    /// Kotlin 侧收集的关联弟子 id（含 Room 生产 repo 来源）——REFINING 破除用
-    std::vector<std::string> discipleIds;
 };
 
 /// 事务 1810：拆除/没收槽位清扫（cleanupBuildingSlotsResidual 的协议写段等价）
 ///
 /// 执行序对齐 Kotlin 原路径：槽位过滤（按组）→ 长老殿判定 → 监牢/任务阁
-/// 特例 → REFINING 破除。零 RNG；未知组静默跳过（与 Kotlin "无该槽组即
-/// 无行可清"同义）。
+/// 特例。零 RNG；未知组静默跳过（与 Kotlin "无该槽组即无行可清"同义）。
 inline ClearResidualResult clearResidualTransaction(GameState& state,
                                                     const std::vector<ResidualTarget>& targets) {
     ClearResidualResult out;
@@ -131,7 +119,7 @@ inline ClearResidualResult clearResidualTransaction(GameState& state,
 
     for (const auto& target : targets) {
         const auto& instanceId = target.instanceId;
-        // 1) 槽位过滤（八集合——buildingInstanceId 键控集合逐组清除）
+        // 1) 槽位过滤（buildingInstanceId 键控集合逐组清除）
         for (const auto kind : target.groups) {
             switch (kind) {
                 case SlotGroupKind::SpiritMine:
@@ -175,9 +163,6 @@ inline ClearResidualResult clearResidualTransaction(GameState& state,
                                        }),
                         gd.librarySlots.end());
                     break;
-                case SlotGroupKind::BloodRefining:
-                    gd.activeBloodRefinements.erase(instanceId);
-                    break;
             }
         }
 
@@ -200,16 +185,6 @@ inline ClearResidualResult clearResidualTransaction(GameState& state,
                     state.disciples.statuses[row] = kIdleStatusName;
                 }
             }
-        }
-
-        // 4) REFINING 破除（releaseBuildingDiscipleIds 协议写段；Kotlin 原序：
-        //    id 在表内 + status==REFINING 即破，无 isAlive 过滤）
-        for (const auto& dId : target.discipleIds) {
-            if (!state.disciples.contains(dId)) continue;
-            const std::size_t row = *state.disciples.rowOf(dId);
-            if (state.disciples.statuses[row] != kRefiningStatusName) continue;
-            state.disciples.statuses[row] = kIdleStatusName;
-            state.disciples.statusData[row].erase(kBuildingIdKey);
         }
 
         ++out.clearedTargets;
@@ -310,10 +285,6 @@ inline PlaceSlotsResult placeSlotsTransaction(GameState& state,
                 }
                 break;
             }
-            case SlotGroupKind::BloodRefining:
-                // 建造不产槽（血炼进度按需写入）——Kotlin createSlots
-                // 返回空 SlotCreationResult 同义
-                break;
         }
     }
 

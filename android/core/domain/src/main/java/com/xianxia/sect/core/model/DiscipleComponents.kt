@@ -134,7 +134,7 @@ data class SocialData(
 
 /**
  * 技能属性组件
- * 包含各项技能值、资质和俸禄统计，共12个字段
+ * 包含各项技能值和俸禄统计，共15个字段
  */
 @Serializable
 data class SkillStats(
@@ -148,8 +148,6 @@ data class SkillStats(
     var mining: Int = 50,
     var teaching: Int = 50,
     var morality: Int = 50,
-    // 资质（固定属性，创建时按灵根数生成后不可成长；≥80 每点 +1% 修炼速度，最多 +40%）
-    var aptitude: Int = 50,
 
     // 年俸累计次数
     var salaryPaidCount: Int = 0,

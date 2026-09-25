@@ -177,20 +177,6 @@ private fun MutableGameState.trimHeavyListsForMemoryRelease(levelName: String): 
     return trimmed
 }
 
-// ── 血炼原子操作 ────────────────────────────────────────────────────
-
-/** 血炼启动结果 */
-sealed interface BloodRefinementStartResult {
-    data object Success : BloodRefinementStartResult
-    data class InsufficientStones(
-        val required: Long, val current: Long
-    ) : BloodRefinementStartResult
-    data class InsufficientMaterials(
-        val materialName: String, val missing: Int
-    ) : BloodRefinementStartResult
-    data class Error(val message: String) : BloodRefinementStartResult
-}
-
 // ════════════════════════════════════════════════════════════
 // 生命周期状态引擎线程入口（架构合规）
 //
@@ -262,8 +248,7 @@ suspend fun GameEngine.applyBuildingMigrationOnEngine(
                     productionSlots = gd.productionSlots.filter { it.buildingInstanceId !in removedIds },
                     residenceSlots = gd.residenceSlots.filter { it.buildingInstanceId !in removedIds },
                     spiritMineSlots = gd.spiritMineSlots.filter { it.buildingInstanceId !in removedIds },
-                    patrolSlots = gd.patrolSlots.filter { it.buildingInstanceId !in removedIds },
-                    activeBloodRefinements = gd.activeBloodRefinements.filterKeys { it !in removedIds }
+                    patrolSlots = gd.patrolSlots.filter { it.buildingInstanceId !in removedIds }
                 )
             }
             gameData = gd

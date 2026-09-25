@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.registry.PhysiqueEffects
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleStats
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -20,22 +18,8 @@ object DiscipleStatCalculator {
     internal const val ELDER_TEACHING_MAX_BONUS = 0.10
     internal const val MASTER_TEACHING_MAX_BONUS = 0.05
 
-    // ---- 资质→修炼速度加成（80 基准每点 +1%，最多 +40%，乘区算法） ----
-    internal const val APTITUDE_BASELINE = 80
-    internal const val APTITUDE_BONUS_PER_POINT = 0.01
-    internal const val APTITUDE_MAX_BONUS = 0.40
-    // 列式入口资质默认值：必须与 DiscipleTables.DEFAULT_APTITUDE(50) 统一（CultivationRateEquivalenceTest 守护双入口等价）
-    private const val DEFAULT_COLUMN_APTITUDE = 50
-
     /** 突破失败后气血/法力的剩余比例（修为清零外，HP/MP 打一折，玩家与 AI 共用） */
     const val BREAKTHROUGH_FAILURE_HP_MP_RATIO = 0.1
-
-    /**
-     * 血炼百分比上界（10.0 = 1000%）。防御存档篡改巨大有限值（如 1e9）导致属性
-     * 饱和 Int.MAX 的"改存档即无敌"通道；游戏内单次血炼增量为 0.5%~30% 级，
-     * 1000% 上界远高于合法累计。
-     */
-    internal const val MAX_BLOOD_REFINEMENT_PCT = 10.0
 
     /**
      * 战斗属性方差输入组（computeBaseStats 参数收拢——满足 detekt
@@ -56,7 +40,6 @@ object DiscipleStatCalculator {
         val intelligence: Int,
         val charm: Int,
         val comprehension: Int,
-        val aptitude: Int,
         val teaching: Int,
         val morality: Int,
         val mining: Int,
@@ -71,7 +54,7 @@ object DiscipleStatCalculator {
     /**
      * 列直读输入：每旬 HP/MP 恢复热点的最小列集。
      *
-     * 对应 [DiscipleTables] 的 17 列（相对 assemble 的 ~90 列省 80%），
+     * 对应 [DiscipleTables] 的最小列集，
      * 数学等价于 [getFinalStats] 的 maxHp/maxMp（共用 [computeBaseHpMp] 公式）。
      */
     data class HpMpColumnInput(
@@ -80,8 +63,6 @@ object DiscipleStatCalculator {
         val realmLayer: Int,
         val hpVariance: Int,
         val mpVariance: Int,
-        val talentIds: List<String>,
-        val affixIds: List<String>,
         val weaponId: String?,
         val armorId: String?,
         val bootsId: String?,
@@ -89,18 +70,16 @@ object DiscipleStatCalculator {
         val manualIds: List<String>,
         val pillEffectDuration: Int,
         val pillHpBonus: Int,
-        val pillMpBonus: Int,
-        val bloodRefinementPct: BloodRefinementPctTotal? = null
+        val pillMpBonus: Int
     )
 
     /**
      * 修炼速度乘区分组。
      *
-     * 遵循"同类加算、异类乘算"原则，将各来源加成归入 5 个独立乘区。
+     * 遵循"同类加算、异类乘算"原则，将各来源加成归入 4 个独立乘区。
      * 每个乘区内部为加算，乘区之间为乘算。
      */
     data class CultivationSpeedZones(
-        val aptitudeBonus: Double = 0.0,    // 资质乘区：天赋
         val resourceBonus: Double = 0.0,    // 资源乘区：功法+丹药+建筑
         val socialBonus: Double = 0.0,      // 社交乘区：师徒+传道
         val statusBonus: Double = 0.0,      // 状态乘区：政策
@@ -110,12 +89,10 @@ object DiscipleStatCalculator {
     /**
      * 修炼乘区计算的输入字段。
      *
-     * 12 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
+     * 9 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
      * 由 [buildCultivationZones] / [calculateCultivationPerPhaseColumn] 提取组装。
      */
     data class CultivationZoneInput(
-        val mergedEffects: Map<String, Double>,
-        val physiqueEffects: PhysiqueEffects,
         val manualIds: List<String>,
         val manuals: Map<String, ManualInstance>,
         val manualProficiencies: Map<String, ManualProficiencyData>,
@@ -124,8 +101,7 @@ object DiscipleStatCalculator {
         val preachingMastersBonus: Double,
         val masterDiscipleBonus: Double,
         val cultivationSubsidyBonus: Double,
-        val temporaryBonus: Double,
-        val aptitude: Int = DEFAULT_COLUMN_APTITUDE
+        val temporaryBonus: Double
     )
 
     /**
@@ -137,13 +113,9 @@ object DiscipleStatCalculator {
     data class CultivationRateColumnInput(
         val realm: Int,
         val spiritRootCount: Int,
-        val talentIds: List<String>,
-        val physiqueIds: List<String>,
-        val affixIds: List<String>,
         val manualIds: List<String>,
         val pillEffectDuration: Int,
-        val pillCultivationSpeedBonus: Double,
-        val aptitude: Int = DEFAULT_COLUMN_APTITUDE
+        val pillCultivationSpeedBonus: Double
     )
 
     /**
@@ -177,8 +149,6 @@ object DiscipleStatCalculator {
         val baseChance: Double,
         val innerElderBonus: Double,
         val outerElderBonus: Double,
-        /** @deprecated 突破加成已从天赋系统移除，此字段仅供旧存档显示，不参与计算 */
-        val talentBonus: Double,
         val pillBonus: Double,
         val adBonus: Double,
         val masterDiscipleBonus: Double,

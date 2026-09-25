@@ -30,10 +30,8 @@ class DiscipleStatCalculatorTest {
         intelligence: Int = 50,
         charm: Int = 50,
         comprehension: Int = 50,
-        aptitude: Int = 50,
         teaching: Int = 50,
         morality: Int = 50,
-        talentIds: List<String> = emptyList(),
         manualIds: List<String> = emptyList(),
         weaponId: String = "",
         armorId: String = "",
@@ -54,7 +52,6 @@ class DiscipleStatCalculatorTest {
         return Disciple(
             realm = realm,
             realmLayer = realmLayer,
-            talentIds = talentIds,
             manualIds = manualIds,
             spiritRootType = spiritRootType,
             combat = CombatAttributes(
@@ -82,7 +79,6 @@ class DiscipleStatCalculatorTest {
                 intelligence = intelligence,
                 charm = charm,
                 comprehension = comprehension,
-                aptitude = aptitude,
                 teaching = teaching,
                 morality = morality
             ),
@@ -225,22 +221,35 @@ class DiscipleStatCalculatorTest {
             disciple.realm, disciple.spiritRoot.types.size,
             DiscipleStatCalculator.CultivationSpeedZones()
         )
-        val withAptitude = DiscipleStatCalculator.calculateCultivationPerPhase(
-            disciple.realm, disciple.spiritRoot.types.size,
-            DiscipleStatCalculator.CultivationSpeedZones(aptitudeBonus = 0.5)
-        )
         val withResource = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple.realm, disciple.spiritRoot.types.size,
             DiscipleStatCalculator.CultivationSpeedZones(resourceBonus = 0.5)
         )
-        assertTrue("资质乘区加成应提高修炼速度", withAptitude > base)
-        assertTrue("资源乘区加成应提高修炼速度", withResource > base)
-        // 不同乘区独立乘算，两者同时作用应大于单一乘区
-        val withBoth = DiscipleStatCalculator.calculateCultivationPerPhase(
+        val withSocial = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple.realm, disciple.spiritRoot.types.size,
-            DiscipleStatCalculator.CultivationSpeedZones(aptitudeBonus = 0.5, resourceBonus = 0.5)
+            DiscipleStatCalculator.CultivationSpeedZones(socialBonus = 0.5)
         )
-        assertTrue("两乘区叠加应大于单一乘区", withBoth > withAptitude && withBoth > withResource)
+        val withStatus = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple.realm, disciple.spiritRoot.types.size,
+            DiscipleStatCalculator.CultivationSpeedZones(statusBonus = 0.5)
+        )
+        val withTemporary = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple.realm, disciple.spiritRoot.types.size,
+            DiscipleStatCalculator.CultivationSpeedZones(temporaryBonus = 0.5)
+        )
+        assertTrue("资源乘区加成应提高修炼速度", withResource > base)
+        assertTrue("社交乘区加成应提高修炼速度", withSocial > base)
+        assertTrue("状态乘区加成应提高修炼速度", withStatus > base)
+        assertTrue("临时乘区加成应提高修炼速度", withTemporary > base)
+        // 乘区之间独立乘算：生产公式为 base × Π(1 + 各乘区)，
+        // 四乘区各 0.5 时应恰为 base × 1.5^4
+        val withAll = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple.realm, disciple.spiritRoot.types.size,
+            DiscipleStatCalculator.CultivationSpeedZones(
+                resourceBonus = 0.5, socialBonus = 0.5, statusBonus = 0.5, temporaryBonus = 0.5
+            )
+        )
+        assertEquals("四乘区独立乘算结果", base * 1.5 * 1.5 * 1.5 * 1.5, withAll, 0.001)
     }
 
     @Test

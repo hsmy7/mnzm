@@ -2,9 +2,6 @@ package com.xianxia.sect.core.engine
 
 
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.registry.PhysiqueDatabase
-import com.xianxia.sect.core.registry.AffixDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleRewardConfig
 import com.xianxia.sect.core.model.RedeemCode
@@ -434,13 +431,9 @@ object RedeemCodeManager {
 
         val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
 
-        // 灵根/年龄寿命/天赋分别提取（RNG 调用序与原逐行一致）
+        // 灵根/年龄寿命分别提取（RNG 调用序与原逐行一致）
         val spiritRootType = resolveSpiritRoot(cfg, random)
         val (age, lifespan) = resolveAgeAndLifespan(cfg, random)
-        val talentIds = resolveTalentIds(cfg, random)
-        // 与玩家招募（DiscipleFactory）对齐：兑换码弟子同样生成体质/词条（见 generateRandomTalents 统一口径）
-        val physiqueIds = PhysiqueDatabase.generateForDisciple(random).map { it.id }
-        val affixIds = AffixDatabase.generateForDisciple(random).map { it.id }
 
         // 属性方差（7 次 random 调用，顺序与原一致：hp/mp/pa/ma/pd/md/spd）
         val variance = VarianceBundle(
@@ -461,11 +454,6 @@ object RedeemCodeManager {
                 age = age,
                 lifespan = lifespan,
                 gender = gender,
-                idBundle = DiscipleIdBundle(
-                    talentIds = talentIds,
-                    physiqueIds = physiqueIds,
-                    affixIds = affixIds
-                ),
                 variance = variance
             ),
             random = random
@@ -483,13 +471,6 @@ object RedeemCodeManager {
         val speedVariance: Int
     )
 
-    /** 弟子 ID 束：天赋/体质/词条 ID 列表 */
-    internal data class DiscipleIdBundle(
-        val talentIds: List<String>,
-        val physiqueIds: List<String>,
-        val affixIds: List<String>
-    )
-
     /** 弟子构建上下文：解析结果统一打包，避免超长参数列表 */
     internal data class DiscipleBuildContext(
         val nameResult: NameService.NameResult,
@@ -497,13 +478,8 @@ object RedeemCodeManager {
         val age: Int,
         val lifespan: Int,
         val gender: String,
-        val idBundle: DiscipleIdBundle,
         val variance: VarianceBundle
     )
-
-    /** 生成随机天赋（internal 供测试验证；统一走 TalentDatabase 的弟子分布，与玩家招募一致） */
-    internal fun generateRandomTalents(random: kotlin.random.Random = kotlin.random.Random): List<String> =
-        TalentDatabase.generateTalentsForDisciple(random).map { it.id }
 
     // ══════════════════════════════════
     // 内存管理：定期清理和容量限制

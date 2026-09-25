@@ -247,7 +247,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
     out["magicDefenseVariance"] = d.magicDefenseVariance;
     out["speedVariance"] = d.speedVariance;
     out["comprehension"] = d.comprehension;
-    out["aptitude"] = d.aptitude;
     out["intelligence"] = d.intelligence;
     out["charm"] = d.charm;
     out["morality"] = d.morality;
@@ -263,9 +262,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
     out["basePhysicalDefense"] = d.basePhysicalDefense;
     out["baseMagicDefense"] = d.baseMagicDefense;
     out["baseSpeed"] = d.baseSpeed;
-    out["talentIds"] = d.talentIds;
-    out["physiqueIds"] = d.physiqueIds;
-    out["affixIds"] = d.affixIds;
     return env->NewStringUTF(out.dump().c_str());
 }
 
@@ -609,34 +605,16 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
 // 计算同参数，逐字段对拍。
 //
 // 操作 JSON 格式：
-//   {"op":"baseStats", "realm":9, "realmLayer":1, "hpVariance":0, ...,
-//    "effects":{"maxHp":0.5,...}, "bloodHpBonusPct":0.3, ...}
+//   {"op":"baseStats", "realm":9, "realmLayer":1, "hpVariance":0, ...}
 //   {"op":"cultivationPerPhase", "realm":9, "rootCount":2,
-//    "aptitudeBonus":0.2, "resourceBonus":0.5, "socialBonus":0.1,
+//    "resourceBonus":0.5, "socialBonus":0.1,
 //    "statusBonus":-0.1, "temporaryBonus":0.3}
 //   {"op":"breakthroughChance", "realm":9, "rootCount":1, "realmLayer":1}
 //   {"op":"breakthroughChanceZones", "baseZone":0.5, "elderGuidance":0.1,
 //    "selfBonus":0.05, "statusPenalty":0.1, "adFlatBonus":0.0}
 //   {"op":"masterDiscipleBonus", "discipleRealm":9, "masterRealm":7}
-//   {"op":"aptitudeCultivationBonus", "aptitude":90}
-//
-// 天赋/词条/体质注册表通道（trait_db → 聚合函数，对拍用）：
-//   {"op":"talentEffects", "talentIds":["r1_bat_hp",...]}
-//       → {"effects":{"maxHp":0.1,...}}（TalentDatabase.calculateTalentEffects 对拍）
-//   {"op":"affixEffects", "affixIds":["r1_aff_bat_hp",...]}
-//       → {"effects":{...}}（AffixDatabase.calculateAffixEffects 对拍）
-//   {"op":"physiqueEffects", "physiqueIds":["r1_phys_cult_speed",...]}
-//       → 五分量聚合（PhysiqueDatabase.aggregatePhysiqueEffects 对拍）
-//   {"op":"mergedTraitEffects", "talentIds":[...], "affixIds":[...]}
-//       → {"effects":{...}}（getMergedEffects 合并语义对拍）
-//   {"op":"baseComprehension", "comprehension":50, "talentIds":[...], "affixIds":[...]}
-//       → {"value":N}（baseComprehension：合并 flat 截断，含词条分叉修复对拍）
-//   {"op":"baseHpMpFromTraits", "realm":9, "realmLayer":1, "hpVariance":0,
-//    "mpVariance":0, "talentIds":[...], "affixIds":[...]}
-//       → {"maxHp":N,"maxMp":N}（getMaxHpMpColumn 无装备/功法/丹药段对拍）
-//   {"op":"cultivationRateFromTraits", "realm":9, "rootCount":1, "aptitude":50,
-//    "talentIds":[...], "affixIds":[...], "physiqueIds":[...]}
-//       → {"value":D}（calculateCultivationPerPhaseColumn 无外部加成段对拍）
+//   {"op":"baseComprehension", "comprehension":50}
+//       → {"value":N}（基础悟性 = comprehension 本体）
 // ============================================================
 
 namespace {
@@ -645,100 +623,9 @@ using gamecore::disciple::BaseStatsInput;
 using gamecore::disciple::BreakthroughZones;
 using gamecore::disciple::CultivationSpeedZones;
 
-/// 效果 map 解析（{"key": value} → std::map）
-std::map<std::string, double> effectsFromJson(const nlohmann::json& j) {
-    std::map<std::string, double> out;
-    if (j.is_object()) {
-        for (auto it = j.begin(); it != j.end(); ++it) {
-            out[it.key()] = it.value().get<double>();
-        }
-    }
-    return out;
-}
-
-/// 字符串数组解析（["id1","id2",...] → std::vector；缺省为空）
-std::vector<std::string> stringListFromJson(const nlohmann::json& op,
-                                            const char* key) {
-    std::vector<std::string> out;
-    if (op.contains(key) && op.at(key).is_array()) {
-        for (const auto& id : op.at(key)) out.push_back(id.get<std::string>());
-    }
-    return out;
-}
-
-/// 天赋/词条/体质注册表通道：id 列表 → 效果聚合对拍
-nlohmann::json execTraitEffectsOp(const nlohmann::json& op,
-                                  const std::string& opName) {
-    namespace stats = gamecore::stats;
-    nlohmann::json result;
-    if (opName == "talentEffects") {
-        result["effects"] = stats::talentEffectsFor(
-            stringListFromJson(op, "talentIds"));
-    } else if (opName == "affixEffects") {
-        result["effects"] = stats::affixEffectsFor(
-            stringListFromJson(op, "affixIds"));
-    } else if (opName == "physiqueEffects") {
-        const auto p = stats::physiqueEffectsFor(
-            stringListFromJson(op, "physiqueIds"));
-        result = {
-            {"cultivationSpeedBonus", p.cultivationSpeedBonus},
-            {"damageAmplification", p.damageAmplification},
-            {"damageReduction", p.damageReduction},
-            {"critDamageBonus", p.critDamageBonus},
-            {"defenseBonus", p.defenseBonus},
-        };
-    } else if (opName == "mergedTraitEffects") {
-        result["effects"] = stats::mergeEffects(
-            stats::talentEffectsFor(stringListFromJson(op, "talentIds")),
-            stats::affixEffectsFor(stringListFromJson(op, "affixIds")));
-    } else if (opName == "baseComprehension") {
-        gamecore::state::Disciple d;
-        d.comprehension = op.value("comprehension", 0);
-        d.talentIds = stringListFromJson(op, "talentIds");
-        d.affixIds = stringListFromJson(op, "affixIds");
-        result["value"] = stats::baseComprehension(d);
-    } else if (opName == "baseHpMpFromTraits") {
-        const auto effects = stats::mergeEffects(
-            stats::talentEffectsFor(stringListFromJson(op, "talentIds")),
-            stats::affixEffectsFor(stringListFromJson(op, "affixIds")));
-        int32_t maxHp = 0, maxMp = 0;
-        stats::computeBaseHpMp(
-            op.value("realm", 9), op.value("realmLayer", 1),
-            op.value("hpVariance", 0), op.value("mpVariance", 0),
-            effects, nullptr, maxHp, maxMp);
-        result = {{"maxHp", maxHp}, {"maxMp", maxMp}};
-    } else if (opName == "cultivationRateFromTraits") {
-        // 无外部加成段（建筑/社交/政策/丹药恒零/默认）的纯特质修炼速率，
-        // 对拍 Kotlin calculateCultivationPerPhaseColumn 默认参数路径
-        gamecore::state::GameData gd;          // 政策全关 → 状态乘区政策分量 0
-        gamecore::state::Disciple d;
-        d.realm = op.value("realm", 9);
-        const int32_t rootCount = op.value("rootCount", 1);
-        for (int32_t i = 0; i < rootCount; ++i) {
-            if (i > 0) d.spiritRootType += ",";
-            d.spiritRootType += "metal";
-        }
-        d.aptitude = op.value("aptitude", 50);
-        d.talentIds = stringListFromJson(op, "talentIds");
-        d.physiqueIds = stringListFromJson(op, "physiqueIds");
-        d.affixIds = stringListFromJson(op, "affixIds");
-        // R1.3 第二步：实例查找走 owner 行索引桶——本通道无功法实例
-        // （manualIds 空，find 恒不触达），空桶视图防御性指向静态空向量
-        static const std::vector<gamecore::state::ManualInstance> kNoManuals;
-        gamecore::system::instance_bucket::ManualInstanceBuckets mnBuckets;
-        mnBuckets.instances = &kNoManuals;
-        result["value"] = stats::calculateCultivationPerPhaseColumn(
-            d, 0, gd, mnBuckets, {}, stats::CultivationRateInput{});
-    }
-    return result;
-}
-
 /// 执行弟子属性计算操作（返回结果 JSON 片段）
 nlohmann::json execDiscipleOp(const nlohmann::json& op) {
     const std::string opName = op.at("op").get<std::string>();
-    // 注册表通道先行分派（未命中返回空 → 落入既有公式通道）
-    nlohmann::json traitResult = execTraitEffectsOp(op, opName);
-    if (!traitResult.empty()) return traitResult;
     nlohmann::json result;
     if (opName == "baseStats") {
         BaseStatsInput in;
@@ -754,20 +641,12 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
         in.intelligence = op.value("intelligence", 0);
         in.charm = op.value("charm", 0);
         in.comprehension = op.value("comprehension", 0);
-        in.aptitude = op.value("aptitude", 50);
         in.teaching = op.value("teaching", 0);
         in.morality = op.value("morality", 0);
         in.mining = op.value("mining", 0);
         in.spiritPlanting = op.value("spiritPlanting", 0);
         in.artifactRefining = op.value("artifactRefining", 0);
         in.pillRefining = op.value("pillRefining", 0);
-        if (op.contains("effects")) in.talentEffects = effectsFromJson(op.at("effects"));
-        in.bloodHpBonusPct = op.value("bloodHpBonusPct", 0.0);
-        in.bloodPhysicalAttackBonusPct = op.value("bloodPhysicalAttackBonusPct", 0.0);
-        in.bloodMagicAttackBonusPct = op.value("bloodMagicAttackBonusPct", 0.0);
-        in.bloodPhysicalDefenseBonusPct = op.value("bloodPhysicalDefenseBonusPct", 0.0);
-        in.bloodMagicDefenseBonusPct = op.value("bloodMagicDefenseBonusPct", 0.0);
-        in.bloodSpeedBonusPct = op.value("bloodSpeedBonusPct", 0.0);
         const auto s = gamecore::disciple::computeBaseStats(in);
         result = {
             {"maxHp", s.maxHp}, {"maxMp", s.maxMp},
@@ -776,14 +655,13 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
             {"speed", s.speed}, {"critRate", s.critRate},
             {"intelligence", s.intelligence}, {"charm", s.charm},
             {"comprehension", s.comprehension},
-            {"aptitude", s.aptitude}, {"teaching", s.teaching},
+            {"teaching", s.teaching},
             {"morality", s.morality}, {"mining", s.mining},
             {"spiritPlanting", s.spiritPlanting}, {"artifactRefining", s.artifactRefining},
             {"pillRefining", s.pillRefining},
         };
     } else if (opName == "cultivationPerPhase") {
         CultivationSpeedZones zones;
-        zones.aptitudeBonus = op.value("aptitudeBonus", 0.0);
         zones.resourceBonus = op.value("resourceBonus", 0.0);
         zones.socialBonus = op.value("socialBonus", 0.0);
         zones.statusBonus = op.value("statusBonus", 0.0);
@@ -817,9 +695,10 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
             op.value("discipleRealm", 9), op.value("masterRealm", 9));
         result["breakthroughBonus"] = gamecore::disciple::getMasterDiscipleBreakthroughBonus(
             op.value("discipleRealm", 9), op.value("masterRealm", 9));
-    } else if (opName == "aptitudeCultivationBonus") {
-        result["value"] = gamecore::disciple::aptitudeCultivationBonus(
-            op.value("aptitude", 80));
+    } else if (opName == "baseComprehension") {
+        gamecore::state::Disciple d;
+        d.comprehension = op.value("comprehension", 0);
+        result["value"] = gamecore::stats::baseComprehension(d);
     } else {
         result["error"] = "unknown op: " + opName;
     }
@@ -1150,7 +1029,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExecute(
 
 namespace {
 
-using gamecore::battle::AffixCombatEffects;
 using gamecore::battle::buffFromJson;
 using gamecore::battle::buffToJson;
 using gamecore::battle::combatantFromJson;
@@ -1158,7 +1036,6 @@ using gamecore::battle::combatantToJson;
 using gamecore::battle::CombatBuff;
 using gamecore::battle::CombatSkill;
 using gamecore::battle::Combatant;
-using gamecore::battle::PhysiqueCombatFactors;
 using gamecore::battle::skillFromJson;
 using gamecore::battle::skillToJson;
 
@@ -1183,14 +1060,6 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
             zones.magicAttackBuffs = z.value("magicAttackBuffs", 0.0);
             zones.damageAmplification = z.value("damageAmplification", 0.0);
             zones.damageReduction = z.value("damageReduction", 0.0);
-            zones.physiqueDamageAmplification = z.value("physiqueDamageAmplification", 0.0);
-            zones.physiqueCritDamageBonus = z.value("physiqueCritDamageBonus", 0.0);
-            zones.physiqueDamageReduction = z.value("physiqueDamageReduction", 0.0);
-            zones.physiqueDefenseBonus = z.value("physiqueDefenseBonus", 0.0);
-            zones.affixDamageAmplification = z.value("affixDamageAmplification", 0.0);
-            zones.affixCritDamageBonus = z.value("affixCritDamageBonus", 0.0);
-            zones.affixDamageReduction = z.value("affixDamageReduction", 0.0);
-            zones.affixDefenseBonus = z.value("affixDefenseBonus", 0.0);
             zones.realmGapDamageAmplification = z.value("realmGapDamageAmplification", 0.0);
             zones.realmGapDamageReduction = z.value("realmGapDamageReduction", 0.0);
             zones.majorRealmDamageAmplification = z.value("majorRealmDamageAmplification", 0.0);
@@ -1241,14 +1110,6 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
             z.magicAttackBuffs = zj.value("magicAttackBuffs", 0.0);
             z.damageAmplification = zj.value("damageAmplification", 0.0);
             z.damageReduction = zj.value("damageReduction", 0.0);
-            z.physiqueDamageAmplification = zj.value("physiqueDamageAmplification", 0.0);
-            z.physiqueCritDamageBonus = zj.value("physiqueCritDamageBonus", 0.0);
-            z.physiqueDamageReduction = zj.value("physiqueDamageReduction", 0.0);
-            z.physiqueDefenseBonus = zj.value("physiqueDefenseBonus", 0.0);
-            z.affixDamageAmplification = zj.value("affixDamageAmplification", 0.0);
-            z.affixCritDamageBonus = zj.value("affixCritDamageBonus", 0.0);
-            z.affixDamageReduction = zj.value("affixDamageReduction", 0.0);
-            z.affixDefenseBonus = zj.value("affixDefenseBonus", 0.0);
             z.realmGapDamageAmplification = zj.value("realmGapDamageAmplification", 0.0);
             z.realmGapDamageReduction = zj.value("realmGapDamageReduction", 0.0);
             z.majorRealmDamageAmplification = zj.value("majorRealmDamageAmplification", 0.0);

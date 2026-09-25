@@ -43,9 +43,6 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.cultivationSpeedDuration = cultivationSpeedDurations[row];
 
     d.manualIds = manualIds[row];
-    d.talentIds = talentIds[row];
-    d.physiqueIds = physiqueIds[row];
-    d.affixIds = affixIds[row];
     d.manualMasteries = manualMasteries[row];
     d.status = statuses[row];
     d.statusData = statusData[row];
@@ -121,7 +118,6 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.mining = minings[row];
     d.teaching = teachings[row];
     d.morality = moralities[row];
-    d.aptitude = aptitudes[row];
     d.salaryPaidCount = salaryPaidCounts[row];
     d.salaryMissedCount = salaryMissedCounts[row];
     d.alchemyLevel = alchemyLevels[row];
@@ -170,9 +166,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     cultivationSpeedDurations.push_back(d.cultivationSpeedDuration);
 
     manualIds.push_back(d.manualIds);
-    talentIds.push_back(d.talentIds);
-    physiqueIds.push_back(d.physiqueIds);
-    affixIds.push_back(d.affixIds);
     manualMasteries.push_back(d.manualMasteries);
     statuses.push_back(d.status);
     statusData.push_back(d.statusData);
@@ -243,7 +236,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     minings.push_back(d.mining);
     teachings.push_back(d.teaching);
     moralities.push_back(d.morality);
-    aptitudes.push_back(d.aptitude);
     salaryPaidCounts.push_back(d.salaryPaidCount);
     salaryMissedCounts.push_back(d.salaryMissedCount);
     alchemyLevels.push_back(d.alchemyLevel);
@@ -289,9 +281,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     cultivationSpeedBonuses.reserve(n);
     cultivationSpeedDurations.reserve(n);
     manualIds.reserve(n);
-    talentIds.reserve(n);
-    physiqueIds.reserve(n);
-    affixIds.reserve(n);
     manualMasteries.reserve(n);
     statuses.reserve(n);
     statusData.reserve(n);
@@ -356,7 +345,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     minings.reserve(n);
     teachings.reserve(n);
     moralities.reserve(n);
-    aptitudes.reserve(n);
     salaryPaidCounts.reserve(n);
     salaryMissedCounts.reserve(n);
     alchemyLevels.reserve(n);
@@ -439,9 +427,6 @@ void DiscipleStore::clear() {
     cultivationSpeedBonuses.clear();
     cultivationSpeedDurations.clear();
     manualIds.clear();
-    talentIds.clear();
-    physiqueIds.clear();
-    affixIds.clear();
     manualMasteries.clear();
     statuses.clear();
     statusData.clear();
@@ -506,7 +491,6 @@ void DiscipleStore::clear() {
     minings.clear();
     teachings.clear();
     moralities.clear();
-    aptitudes.clear();
     salaryPaidCounts.clear();
     salaryMissedCounts.clear();
     alchemyLevels.clear();
@@ -544,9 +528,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     cultivationSpeedBonuses.erase(cultivationSpeedBonuses.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationSpeedDurations.erase(cultivationSpeedDurations.begin() + static_cast<std::ptrdiff_t>(row));
     manualIds.erase(manualIds.begin() + static_cast<std::ptrdiff_t>(row));
-    talentIds.erase(talentIds.begin() + static_cast<std::ptrdiff_t>(row));
-    physiqueIds.erase(physiqueIds.begin() + static_cast<std::ptrdiff_t>(row));
-    affixIds.erase(affixIds.begin() + static_cast<std::ptrdiff_t>(row));
     manualMasteries.erase(manualMasteries.begin() + static_cast<std::ptrdiff_t>(row));
     statuses.erase(statuses.begin() + static_cast<std::ptrdiff_t>(row));
     statusData.erase(statusData.begin() + static_cast<std::ptrdiff_t>(row));
@@ -611,7 +592,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     minings.erase(minings.begin() + static_cast<std::ptrdiff_t>(row));
     teachings.erase(teachings.begin() + static_cast<std::ptrdiff_t>(row));
     moralities.erase(moralities.begin() + static_cast<std::ptrdiff_t>(row));
-    aptitudes.erase(aptitudes.begin() + static_cast<std::ptrdiff_t>(row));
     salaryPaidCounts.erase(salaryPaidCounts.begin() + static_cast<std::ptrdiff_t>(row));
     salaryMissedCounts.erase(salaryMissedCounts.begin() + static_cast<std::ptrdiff_t>(row));
     alchemyLevels.erase(alchemyLevels.begin() + static_cast<std::ptrdiff_t>(row));
@@ -667,9 +647,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(cultivationSpeedBonuses[a], cultivationSpeedBonuses[b]);
     swap(cultivationSpeedDurations[a], cultivationSpeedDurations[b]);
     swap(manualIds[a], manualIds[b]);
-    swap(talentIds[a], talentIds[b]);
-    swap(physiqueIds[a], physiqueIds[b]);
-    swap(affixIds[a], affixIds[b]);
     swap(manualMasteries[a], manualMasteries[b]);
     swap(statuses[a], statuses[b]);
     swap(statusData[a], statusData[b]);
@@ -734,7 +711,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(minings[a], minings[b]);
     swap(teachings[a], teachings[b]);
     swap(moralities[a], moralities[b]);
-    swap(aptitudes[a], aptitudes[b]);
     swap(salaryPaidCounts[a], salaryPaidCounts[b]);
     swap(salaryMissedCounts[a], salaryMissedCounts[b]);
     swap(alchemyLevels[a], alchemyLevels[b]);

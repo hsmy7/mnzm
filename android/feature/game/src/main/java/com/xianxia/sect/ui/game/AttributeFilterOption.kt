@@ -19,7 +19,6 @@ internal val SPIRIT_ROOT_FILTER_OPTIONS = listOf(
 )
 
 internal val ATTRIBUTE_FILTER_OPTIONS = listOf(
-    AttributeFilterOption("aptitude", "资质"),
     AttributeFilterOption("comprehension", "悟性"),
     AttributeFilterOption("intelligence", "智力"),
     AttributeFilterOption("charm", "魅力"),
@@ -35,7 +34,6 @@ internal val REALM_FILTER_OPTIONS: List<Pair<Int, String>> =
     (0..9).map { it to GameConfig.Realm.getName(it) }
 
 internal fun DiscipleAggregate.getAttributeValue(key: String): Int = when (key) {
-    "aptitude" -> aptitude
     "comprehension" -> comprehension
     "intelligence" -> intelligence
     "charm" -> charm
@@ -111,12 +109,12 @@ internal fun List<DiscipleAggregate>.eligibleElderCandidates(): List<DiscipleAgg
 /**
  * 根据"显示所有可用弟子"开关过滤弟子列表：
  * - 勾选时：排除 [ON_MISSION]（任务中）、[IN_TEAM]（队伍中）、[SECRET_REALM]（远古秘境中）
- *   及 [battleAndExplorationIds] 中的弟子（探索/战斗中），其余状态均显示（含血炼中、思过中等）
+ *   及 [battleAndExplorationIds] 中的弟子（探索/战斗中），其余状态均显示（含思过中等）
  * - 不勾选时：仅显示 [IDLE]（空闲中），同时排除 [battleAndExplorationIds] 中的弟子
  * [additionalCheck] 用于叠加其他过滤条件（如 realmLayer、弟子类型等）
  *
- * 当 showAllEnabled=true 时血炼中（REFINING）和思过中（REFLECTING）弟子可见，
- * 选择后触发对应的特殊行为（血炼失败/释放思过），见 DisciplesTab 的 onClick 逻辑。
+ * 当 showAllEnabled=true 时思过中（REFLECTING）弟子可见，
+ * 选择后触发对应的特殊行为（释放思过），见 DisciplesTab 的 onClick 逻辑。
  *
  * SECRET_REALM 单独排除：秘境成员由推导系统标记为 SECRET_REALM（不再并入 IN_TEAM），
  * 若漏排除则会在"显示所有"弹窗中变成可选中（可被其他系统误分配，回归）。

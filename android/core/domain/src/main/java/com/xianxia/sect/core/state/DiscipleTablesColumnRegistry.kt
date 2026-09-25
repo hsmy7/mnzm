@@ -56,7 +56,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     IntTableRef(minings, DiscipleTables::minings, "minings"),
     IntTableRef(teachings, DiscipleTables::teachings, "teachings"),
     IntTableRef(moralities, DiscipleTables::moralities, "moralities"),
-    IntTableRef(aptitudes, DiscipleTables::aptitudes, "aptitudes"),
     IntTableRef(salaryPaidCounts, DiscipleTables::salaryPaidCounts, "salaryPaidCounts"),
     IntTableRef(salaryMissedCounts, DiscipleTables::salaryMissedCounts, "salaryMissedCounts"),
     IntTableRef(alchemyLevels, DiscipleTables::alchemyLevels, "alchemyLevels"),
@@ -105,9 +104,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
 
     // ── List 表（需深拷贝 toList） ──
     MutableTableRef(manualIds, DiscipleTables::manualIds, "manualIds") { it.toList() },
-    MutableTableRef(talentIds, DiscipleTables::talentIds, "talentIds") { it.toList() },
-    MutableTableRef(physiqueIds, DiscipleTables::physiqueIds, "physiqueIds") { it.toList() },
-    MutableTableRef(affixIds, DiscipleTables::affixIds, "affixIds") { it.toList() },
     MutableTableRef(lifeEvents, DiscipleTables::lifeEvents, "lifeEvents") { it.toList() },
     MutableTableRef(storageBagItems, DiscipleTables::storageBagItems, "storageBagItems") { it.toList() },
     MutableTableRef(usedFunctionalPillTypes, DiscipleTables::usedFunctionalPillTypes,

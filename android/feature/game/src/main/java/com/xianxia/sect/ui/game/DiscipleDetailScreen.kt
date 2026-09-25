@@ -19,9 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.registry.PhysiqueDatabase
-import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -45,11 +42,7 @@ import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.storageBagSpiritStones
 import com.xianxia.sect.core.model.weaponId
-import com.xianxia.sect.core.model.Talent
-import com.xianxia.sect.core.model.Physique
-import com.xianxia.sect.core.model.Affix
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.GameConfig.TraitWashType
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.JadePurchaseFlow
 import com.xianxia.sect.ui.game.components.JadePurchaseOutcome
@@ -57,13 +50,9 @@ import com.xianxia.sect.ui.game.components.LearnedManualDetailDialog
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.components.TalentDetailDialog
-import com.xianxia.sect.ui.components.PhysiqueDetailDialog
-import com.xianxia.sect.ui.components.AffixDetailDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.ui.game.components.detail.AffixesSection
 import com.xianxia.sect.ui.game.components.detail.DiscipleTypeEditInteraction
 import com.xianxia.sect.ui.game.components.detail.AttributesSection
 import com.xianxia.sect.ui.game.components.detail.BasicInfoSection
@@ -78,19 +67,13 @@ import com.xianxia.sect.ui.game.components.detail.ManualSelectionDialog
 import com.xianxia.sect.ui.game.components.detail.ManualSelectionParams
 import com.xianxia.sect.ui.game.components.detail.ManualsSection
 import com.xianxia.sect.ui.game.components.detail.MasterApprenticeSelectDialog
-import com.xianxia.sect.ui.game.components.detail.PhysiquesSection
 import com.xianxia.sect.ui.game.components.detail.RelationsDialog
 import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionActions
 import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionConfig
 import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionScreen
 import com.xianxia.sect.ui.game.components.detail.StorageBagDialog
-import com.xianxia.sect.ui.game.components.detail.TalentsSection
 import com.xianxia.sect.ui.game.components.detail.buildManualReplaceItems
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
-import com.xianxia.sect.ui.game.dialogs.SpiritRootWashDialog
-import com.xianxia.sect.ui.game.dialogs.TraitAddDialog
-import com.xianxia.sect.ui.game.dialogs.TraitWashDialog
-import com.xianxia.sect.ui.game.dialogs.WashSessionControl
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.delegate.equipItem
 import com.xianxia.sect.ui.game.delegate.forgetManual
@@ -103,7 +86,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getMaxManualSlots
 
 val LocalDismissDropdown = compositionLocalOf { {} }
 
-/** 弟子详情对话框 UI 状态：跨区共享的弹窗开关/选中项 + 洗炼互斥入口 */
+/** 弟子详情对话框 UI 状态：跨区共享的弹窗开关/选中项 */
 private class DiscipleDetailDialogState {
     var showEquipmentSelection by mutableStateOf<String?>(null)
     var showManualSelection by mutableStateOf(false)
@@ -114,39 +97,12 @@ private class DiscipleDetailDialogState {
     var showApprenticeSelectDialog by mutableStateOf(false)
     var showLifeLogDialog by mutableStateOf(false)
     var showChatDialog by mutableStateOf(false)
-    var showWashDialog by mutableStateOf(false)
-    var showTalentWashDialog by mutableStateOf(false)
-    var showPhysiqueWashDialog by mutableStateOf(false)
-    var showAffixWashDialog by mutableStateOf(false)
     var showResignConfirmDialog by mutableStateOf(false)
     var resignConfirmMessage by mutableStateOf("")
     var showResignBlockedDialog by mutableStateOf(false)
     var resignBlockedMessage by mutableStateOf("")
-    var selectedTalent by mutableStateOf<Talent?>(null)
-    var selectedPhysique by mutableStateOf<Physique?>(null)
-    var selectedAffix by mutableStateOf<Affix?>(null)
     var showBreakthroughJadeDialog by mutableStateOf(false)
-    var showTraitAddType by mutableStateOf<TraitWashType?>(null)
     var showDiscipleTypeDropdown by mutableStateOf(false)
-
-    // 洗炼弹窗互斥入口：四个洗炼入口若只置位自己的 bool，快速连点可在同帧
-    // 叠加两个内联覆盖层，下层弹窗的洗炼按钮仍可被点到造成双扣玉符
-    fun openSpiritRootWash() {
-        showWashDialog = true; showTalentWashDialog = false
-        showPhysiqueWashDialog = false; showAffixWashDialog = false
-    }
-    fun openTalentWash() {
-        showTalentWashDialog = true; showWashDialog = false
-        showPhysiqueWashDialog = false; showAffixWashDialog = false
-    }
-    fun openPhysiqueWash() {
-        showPhysiqueWashDialog = true; showWashDialog = false
-        showTalentWashDialog = false; showAffixWashDialog = false
-    }
-    fun openAffixWash() {
-        showAffixWashDialog = true; showWashDialog = false
-        showTalentWashDialog = false; showPhysiqueWashDialog = false
-    }
 
     /** 右侧面板动作回调集合：与 [DetailActionCallbacks] 一一对应 */
     fun actionCallbacks(
@@ -285,13 +241,13 @@ private fun DiscipleDetailBody(
                             manualProficiencies = manualProficiencies, elderSlots = elderSlots,
                             sectPolicies = sectPolicies, vmResidenceSlots = vmResidenceSlots,
                             vmPlacedBuildings = vmPlacedBuildings,
-                            gameData = gameData, localDiscipleType = localDiscipleType,
+                            localDiscipleType = localDiscipleType,
                             onLocalDiscipleTypeChange = { localDiscipleType = it },
                             onNavigateToDisciple = onNavigateToDisciple, state = state
                         )
                         // Close button at top-right
                         CloseButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
-                        // 洗炼弹窗（内联覆盖层）必须渲染在根 Box 内、CloseButton 之后——渲染在
+                        // 突破率玉符弹窗（内联覆盖层）必须渲染在根 Box 内、CloseButton 之后——渲染在
                         // UnifiedGameDialog 内容 lambda 之外会被平台 Dialog 窗口遮挡而不可见（4.00.92 事故同源）
                         DiscipleDetailInlineOverlays(disciple = disciple, viewModel = viewModel,
                             gameData = gameData, state = state)
@@ -316,7 +272,6 @@ private fun DiscipleDetailTabLayout(
     sectPolicies: SectPolicies?,
     vmResidenceSlots: List<ResidenceSlot>,
     vmPlacedBuildings: List<GridBuildingData>,
-    gameData: GameData?,
     localDiscipleType: String,
     onLocalDiscipleTypeChange: (String) -> Unit,
     onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
@@ -358,7 +313,7 @@ private fun DiscipleDetailTabLayout(
                     manualProficiencies = manualProficiencies, elderSlots = elderSlots,
                     sectPolicies = sectPolicies, vmResidenceSlots = vmResidenceSlots,
                     vmPlacedBuildings = vmPlacedBuildings,
-                    gameData = gameData, state = state
+                    state = state
                 )
             }
         }
@@ -395,7 +350,6 @@ private fun DiscipleDetailTabContent(
     sectPolicies: SectPolicies?,
     vmResidenceSlots: List<ResidenceSlot>,
     vmPlacedBuildings: List<GridBuildingData>,
-    gameData: GameData?,
     state: DiscipleDetailDialogState
 ) {
     val weapon = remember(disciple.weaponId, allEquipment) {
@@ -411,7 +365,7 @@ private fun DiscipleDetailTabContent(
         disciple.accessoryId?.let { id -> allEquipment.find { it.id == id } }
     }
     val learnedManuals = remember(disciple.manualIds, allManuals) { allManuals.filter { it.id in disciple.manualIds } }
-    val maxManualSlots = remember(disciple.talentIds) { DiscipleStatCalculator.getMaxManualSlots(disciple) }
+    val maxManualSlots = remember(disciple.id) { DiscipleStatCalculator.getMaxManualSlots(disciple) }
 
     when (selectedTab) {
         0 -> DiscipleDetailInfoTab(
@@ -419,7 +373,7 @@ private fun DiscipleDetailTabContent(
             allManuals = allManuals, manualProficiencies = manualProficiencies,
             elderSlots = elderSlots, sectPolicies = sectPolicies,
             residenceSlots = vmResidenceSlots, placedBuildings = vmPlacedBuildings,
-            gameData = gameData, state = state
+            state = state
         )
         1 -> {
             AttributesSection(disciple)
@@ -429,8 +383,7 @@ private fun DiscipleDetailTabContent(
             CombatStatsSection(
                 disciple = disciple, weapon = weapon, armor = armor, boots = boots,
                 accessory = accessory, learnedManuals = learnedManuals,
-                manualProficiencies = manualProficiencies,
-                bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id)
+                manualProficiencies = manualProficiencies
             )
         }
         2 -> EquipmentSection(
@@ -447,7 +400,7 @@ private fun DiscipleDetailTabContent(
     }
 }
 
-/** 信息 Tab：基本信息 + 天赋/体质/词条分区 */
+/** 信息 Tab：基本信息分区 */
 @Suppress("LongParameterList")
 @Composable
 private fun DiscipleDetailInfoTab(
@@ -460,12 +413,8 @@ private fun DiscipleDetailInfoTab(
     sectPolicies: SectPolicies?,
     residenceSlots: List<ResidenceSlot>,
     placedBuildings: List<GridBuildingData>,
-    gameData: GameData?,
     state: DiscipleDetailDialogState
 ) {
-    val talents = remember(disciple.talentIds) { TalentDatabase.getTalentsByIds(disciple.talentIds) }
-    val physiques = remember(disciple.physiqueIds) { PhysiqueDatabase.getPhysiquesByIds(disciple.physiqueIds) }
-    val affixes = remember(disciple.affixIds) { AffixDatabase.getAffixesByIds(disciple.affixIds) }
     BasicInfoSection(
         disciple = disciple,
         allEquipment = allEquipment,
@@ -477,32 +426,11 @@ private fun DiscipleDetailInfoTab(
         residenceSlots = residenceSlots,
         placedBuildings = placedBuildings,
         gameSpeed = 1,
-        bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id),
-        onWashSpiritRootClick = state::openSpiritRootWash,
         onBreakthroughJadeClick = { state.showBreakthroughJadeDialog = true }
-    )
-    Spacer(modifier = Modifier.height(12.dp))
-    TalentsSection(
-        talents,
-        disciple.statusData,
-        onTalentClick = { state.selectedTalent = it },
-        onAddClick = { state.showTraitAddType = TraitWashType.TALENT }
-    )
-    Spacer(modifier = Modifier.height(12.dp))
-    PhysiquesSection(
-        physiques,
-        onPhysiqueClick = { state.selectedPhysique = it },
-        onAddClick = { state.showTraitAddType = TraitWashType.PHYSIQUE }
-    )
-    Spacer(modifier = Modifier.height(12.dp))
-    AffixesSection(
-        affixes,
-        onAffixClick = { state.selectedAffix = it },
-        onAddClick = { state.showTraitAddType = TraitWashType.AFFIX }
     )
 }
 
-/** 内联覆盖层：洗炼/突破率玉符/新增特质（渲染在根 Box 最末，z 序最高） */
+/** 内联覆盖层：突破率玉符弹窗（渲染在根 Box 最末，z 序最高） */
 @Composable
 private fun DiscipleDetailInlineOverlays(
     disciple: DiscipleAggregate,
@@ -510,21 +438,8 @@ private fun DiscipleDetailInlineOverlays(
     gameData: GameData?,
     state: DiscipleDetailDialogState
 ) {
-    // 洗炼保底计数（连续未出单灵根次数）：详情层常驻——弹窗关闭再打开不重置，
-    // 保证"连续 3 次保底"语义跨洗炼会话成立（弹窗会话持有的计数在关闭时丢失）
-    var washPityCount by remember { mutableIntStateOf(0) }
-    if (state.showWashDialog) {
-        SpiritRootWashDialog(
-            disciple = disciple,
-            jadeSymbols = gameData?.jadeSymbols ?: 0,
-            viewModel = viewModel,
-            initialPityCount = washPityCount,
-            onPityCountChanged = { washPityCount = it },
-            onDismiss = { state.showWashDialog = false }
-        )
-    }
-    // 突破率玉符加成弹窗（同洗炼弹窗：渲染在根 Box 最末，z 序最高，
-    // 在滚动内容流内直接渲染会被后续内容覆盖/随滚动错位）
+    // 突破率玉符加成弹窗：渲染在根 Box 最末，z 序最高，
+    // 在滚动内容流内直接渲染会被后续内容覆盖/随滚动错位
     if (state.showBreakthroughJadeDialog) {
         JadePurchaseFlow(
             title = "提高突破率",
@@ -543,23 +458,9 @@ private fun DiscipleDetailInlineOverlays(
             onDismiss = { state.showBreakthroughJadeDialog = false }
         )
     }
-    // 新增天赋/体质/词条弹窗（同洗炼弹窗：内联覆盖层渲染在根 Box 最末，z 序最高；
-    // 刷新结果由引擎持久化到 GameData.pendingTraitAdds——关闭再打开仍显示，可直接确认新增）
-    state.showTraitAddType?.let { type ->
-        TraitAddDialog(
-            disciple = disciple,
-            type = type,
-            jadeSymbols = gameData?.jadeSymbols ?: 0,
-            pendingTraitId = gameData?.pendingTraitAdds
-                ?.firstOrNull { it.discipleId == disciple.id && it.type == type.name }
-                ?.traitId,
-            viewModel = viewModel,
-            onDismiss = { state.showTraitAddType = null }
-        )
-    }
 }
 
-/** 次级对话框集合：关系/日志/储物袋/聊天 + 确认/选择/洗炼/详情类对话框 */
+/** 次级对话框集合：关系/日志/储物袋/聊天 + 确认/选择/详情类对话框 */
 @Suppress("LongParameterList")
 @Composable
 private fun DiscipleDetailSecondaryDialogs(
@@ -604,7 +505,6 @@ private fun DiscipleDetailSecondaryDialogs(
         equipmentStacks = equipmentStacks, manualStacks = manualStacks,
         allManuals = allManuals, state = state
     )
-    DiscipleDetailTraitWashDialogs(disciple = disciple, viewModel = viewModel, state = state)
     DiscipleDetailTailDialogs(
         disciple = disciple, viewModel = viewModel, allEquipment = allEquipment, state = state
     )
@@ -683,7 +583,7 @@ private fun DiscipleDetailSelectionDialogs(
 ) {
     var selectedEquipmentId by remember { mutableStateOf<String?>(null) }
     var selectedManualId by remember { mutableStateOf<String?>(null) }
-    val maxManualSlots = remember(disciple.talentIds) { DiscipleStatCalculator.getMaxManualSlots(disciple) }
+    val maxManualSlots = remember(disciple.id) { DiscipleStatCalculator.getMaxManualSlots(disciple) }
 
     state.showEquipmentSelection?.let { slotType ->
         EquipmentSelectionDialog(
@@ -741,70 +641,7 @@ private fun DiscipleDetailSelectionDialogs(
     }
 }
 
-/** 天赋/体质洗炼详情：详情弹窗 + 洗炼覆盖层（保底计数常驻） */
-@Composable
-private fun DiscipleDetailTraitWashDialogs(
-    disciple: DiscipleAggregate,
-    viewModel: GameViewModel?,
-    state: DiscipleDetailDialogState
-) {
-    val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
-    // 洗炼天赋/体质保底计数（同洗炼灵根：详情层常驻，弹窗关闭再打开不重置）
-    var talentWashPityCount by remember { mutableIntStateOf(0) }
-    var physiqueWashPityCount by remember { mutableIntStateOf(0) }
-
-    state.selectedTalent?.let { talent ->
-        TalentDetailDialog(
-            talent = talent,
-            onDismiss = {
-                state.selectedTalent = null
-                state.showTalentWashDialog = false
-            },
-            onWashClick = state::openTalentWash,
-            washOverlay = {
-                if (state.showTalentWashDialog) {
-                    TraitWashOverlay(
-                        type = TraitWashType.TALENT,
-                        targetId = talent.id,
-                        disciple = disciple,
-                        jadeSymbols = gameData?.jadeSymbols ?: 0,
-                        viewModel = viewModel,
-                        session = WashSessionControl(initialPityCount = talentWashPityCount,
-                            onPityCountChanged = { talentWashPityCount = it }, washing = false, onWashingChange = {}),
-                        onDismiss = { state.showTalentWashDialog = false }
-                    )
-                }
-            }
-        )
-    }
-
-    state.selectedPhysique?.let { physique ->
-        PhysiqueDetailDialog(
-            physique = physique,
-            onDismiss = {
-                state.selectedPhysique = null
-                state.showPhysiqueWashDialog = false
-            },
-            onWashClick = state::openPhysiqueWash,
-            washOverlay = {
-                if (state.showPhysiqueWashDialog) {
-                    TraitWashOverlay(
-                        type = TraitWashType.PHYSIQUE,
-                        targetId = physique.id,
-                        disciple = disciple,
-                        jadeSymbols = gameData?.jadeSymbols ?: 0,
-                        viewModel = viewModel,
-                        session = WashSessionControl(initialPityCount = physiqueWashPityCount,
-                            onPityCountChanged = { physiqueWashPityCount = it }, washing = false, onWashingChange = {}),
-                        onDismiss = { state.showPhysiqueWashDialog = false }
-                    )
-                }
-            }
-        )
-    }
-}
-
-/** 词条洗炼/装备详情：Affix 详情弹窗 + 装备详情弹窗 */
+/** 装备详情弹窗（卸下/更换） */
 @Composable
 private fun DiscipleDetailTailDialogs(
     disciple: DiscipleAggregate,
@@ -812,35 +649,6 @@ private fun DiscipleDetailTailDialogs(
     allEquipment: List<EquipmentInstance>,
     state: DiscipleDetailDialogState
 ) {
-    val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
-    // 洗炼词条保底计数（详情层常驻，弹窗关闭再打开不重置）
-    var affixWashPityCount by remember { mutableIntStateOf(0) }
-
-    state.selectedAffix?.let { affix ->
-        AffixDetailDialog(
-            affix = affix,
-            onDismiss = {
-                state.selectedAffix = null
-                state.showAffixWashDialog = false
-            },
-            onWashClick = state::openAffixWash,
-            washOverlay = {
-                if (state.showAffixWashDialog) {
-                    TraitWashOverlay(
-                        type = TraitWashType.AFFIX,
-                        targetId = affix.id,
-                        disciple = disciple,
-                        jadeSymbols = gameData?.jadeSymbols ?: 0,
-                        viewModel = viewModel,
-                        session = WashSessionControl(initialPityCount = affixWashPityCount,
-                            onPityCountChanged = { affixWashPityCount = it }, washing = false, onWashingChange = {}),
-                        onDismiss = { state.showAffixWashDialog = false }
-                    )
-                }
-            }
-        )
-    }
-
     state.showEquipmentDetailDialog?.let { equipment ->
         val liveEquipment = allEquipment.find { it.id == equipment.id } ?: equipment
         ItemDetailDialog(
@@ -1005,35 +813,5 @@ fun DiscipleDetailDialog(
         onDismiss = onDismiss,
         onNavigateToDisciple = onNavigateToDisciple,
         scrimEnabled = scrimEnabled
-    )
-}
-
-/**
- * 特质洗炼覆盖层（天赋/体质/词条详情 Dialog 的 overlay 槽位内容）。
- *
- * 洗炼弹窗 [TraitWashDialog] 是内联 Box 覆盖层（非平台 Dialog 窗口），必须与详情
- * 同窗口渲染（经 [SmallScreenDialog] overlay 槽位）——渲染在下层弟子详情窗口内
- * 会被上层详情窗口整体遮挡而不可见不可点（4.00.92 兑换码事故同源教训）。
- * 洗炼状态（弹窗开关/保底计数/互斥闭包）由 DiscipleDetailDialog 持有，此处仅透传。
- * 单槽语义：targetId 为详情界面点入的目标特质——从哪个详情进入，就洗炼哪一个。
- */
-@Composable
-private fun TraitWashOverlay(
-    type: TraitWashType,
-    targetId: String,
-    disciple: DiscipleAggregate,
-    jadeSymbols: Int,
-    viewModel: GameViewModel?,
-    session: WashSessionControl,
-    onDismiss: () -> Unit
-) {
-    TraitWashDialog(
-        disciple = disciple,
-        type = type,
-        targetId = targetId,
-        jadeSymbols = jadeSymbols,
-        viewModel = viewModel,
-        washSession = session,
-        onDismiss = onDismiss
     )
 }

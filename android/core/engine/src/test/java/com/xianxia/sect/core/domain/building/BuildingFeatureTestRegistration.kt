@@ -94,7 +94,4 @@ private fun miscFeatures(): List<BuildingFeature> = listOf(
         cost = 35000, gridWidth = 4, gridHeight = 3),
     BuildingFeature("reflection_cliff", "监牢", BuildingType.REFLECTION_CLIFF,
         emptyList(), cost = 5000, gridWidth = 4, gridHeight = 4),
-    BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
-        listOf(SlotGroup.BloodRefining()), unlimitedBuild = true,
-        cost = 40000, gridWidth = 4, gridHeight = 4),
 )

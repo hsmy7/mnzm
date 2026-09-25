@@ -111,14 +111,7 @@ inline std::set<int32_t> secretRealmMemberIds(const GameData& gd) {
     return ids;
 }
 
-/// 血炼累计查找（bloodRefinementPctTotals[id]）
-inline const state::BloodRefinementPctTotal* findBloodRefinementPct(
-        const GameData& gd, const std::string& discipleId) {
-    const auto it = gd.bloodRefinementPctTotals.find(discipleId);
-    return (it != gd.bloodRefinementPctTotals.end()) ? &it->second : nullptr;
-}
-
-/// 含血炼口径最终 maxHp/maxMp（DiscipleStore SoA 版，热路径用；
+/// 最终 maxHp/maxMp（DiscipleStore SoA 版，热路径用；
 /// battleWritebackMaxHpMp 数学等价：getFinalStats 的 maxHp/maxMp 与
 /// getMaxHpMpColumn 共用同一基础公式）
 inline void finalMaxHpMp(const DiscipleStore& ds, std::size_t row,
@@ -126,9 +119,8 @@ inline void finalMaxHpMp(const DiscipleStore& ds, std::size_t row,
                          const EquipmentInstanceBuckets& eqBuckets,
                          const ManualInstanceBuckets& mnBuckets,
                          int32_t& outMaxHp, int32_t& outMaxMp) {
-    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]),
-                      eqBuckets, mnBuckets, gd.manualProficiencies, outMaxHp,
-                      outMaxMp);
+    stats::getMaxHpMp(ds, row, eqBuckets, mnBuckets, gd.manualProficiencies,
+                      outMaxHp, outMaxMp);
 }
 
 /// HP/MP 是否均已满（isDiscipleFullHpMp；负值视为满）。
@@ -143,8 +135,8 @@ inline bool isFullHpMp(const Disciple& d, std::size_t ownerRow,
                        const EquipmentInstanceBuckets& eqBuckets,
                        const ManualInstanceBuckets& mnBuckets) {
     int32_t maxHp = 0, maxMp = 0;
-    stats::getMaxHpMp(d, ownerRow, findBloodRefinementPct(gd, d.id), eqBuckets,
-                      mnBuckets, gd.manualProficiencies, maxHp, maxMp);
+    stats::getMaxHpMp(d, ownerRow, eqBuckets, mnBuckets, gd.manualProficiencies,
+                      maxHp, maxMp);
     const int32_t hp = d.currentHp < 0 ? maxHp : d.currentHp;
     const int32_t mp = d.currentMp < 0 ? maxMp : d.currentMp;
     return hp >= maxHp && mp >= maxMp;
@@ -156,9 +148,8 @@ inline bool isFullHpMp(const DiscipleStore& ds, std::size_t row,
                        const EquipmentInstanceBuckets& eqBuckets,
                        const ManualInstanceBuckets& mnBuckets) {
     int32_t maxHp = 0, maxMp = 0;
-    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]),
-                      eqBuckets, mnBuckets, gd.manualProficiencies, maxHp,
-                      maxMp);
+    stats::getMaxHpMp(ds, row, eqBuckets, mnBuckets, gd.manualProficiencies,
+                      maxHp, maxMp);
     const int32_t hp = ds.currentHps[row] < 0 ? maxHp : ds.currentHps[row];
     const int32_t mp = ds.currentMps[row] < 0 ? maxMp : ds.currentMps[row];
     return hp >= maxHp && mp >= maxMp;
@@ -203,19 +194,14 @@ inline void recoverHpMp(DiscipleStore& ds, std::size_t row, const GameData& gd,
 
 // ── 步骤 2：修炼累积（accumulateCultivationPerPhase） ───────────────
 
-/// 有效教学值 = 基础教学 + teachingFlat 天赋加成截断（getEffectiveTeaching；
-/// teachingFlat 经 stats::talentEffectsFor 查 talent_db 聚合）
+/// 有效教学值（getEffectiveTeaching）
 inline int32_t effectiveTeaching(const Disciple& elder) {
-    const auto effects = stats::talentEffectsFor(elder.talentIds);
-    return elder.teaching +
-           static_cast<int32_t>(stats::effectValue(effects, "teachingFlat"));
+    return elder.teaching;
 }
 
 /// 有效教学值（DiscipleStore 行版，列访问）
 inline int32_t effectiveTeaching(const DiscipleStore& ds, std::size_t row) {
-    const auto effects = stats::talentEffectsFor(ds.talentIds[row]);
-    return ds.teachings[row] +
-           static_cast<int32_t>(stats::effectValue(effects, "teachingFlat"));
+    return ds.teachings[row];
 }
 
 /// 住所建筑修炼系数（数值 id 版：R1.3 dense 索引——调用方从数值 id 列
@@ -703,7 +689,7 @@ inline void processAutoPills(GameState& state,
 /// 与原全量快照逐位一致：
 /// - 键命中 = 该数值 id 在**结算入口**已存在（同数值 id 多行保留首行，
 ///   与原 emplace 首写语义一致）；
-/// - 值 = 入口时点 comprehensions/talentIds/affixIds 列的 baseComprehension
+/// - 值 = 入口时点 comprehensions 列的 baseComprehension
 ///   （与物化快照同列同序计算，逐位一致）；
 /// - 结算步骤间 elderSlots 无重指派（任命属 UI 事务不入结算），
 ///   步骤 7 读到的非空长老 id 与入口一致；
@@ -745,9 +731,8 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
     const auto& slots = gd.elderSlots;
 
     // 内/外门长老悟性（仅对应弟子类型生效）：存活与境界门槛按 live 列判定，
-    // 悟性数值/职务加成取**结算入口已提交视图**的长老对象（getBaseStats()
-    // .comprehension 口径）；职务加成 PositionBonus 此处恒返回 0（未乘入），
-    // 聚合口径见 stats::positionEffectBonus
+    // 悟性数值取**结算入口已提交视图**的长老对象（getBaseStats().comprehension
+    // 口径）；职务加成 PositionBonus 数据源已随天赋/词条表下线，恒传 0
     const auto elderEntry = [&](const std::string& elderId,
                                 const char* requiredType)
             -> std::pair<int32_t, double> {   // (comprehension, positionBonus)
@@ -854,11 +839,9 @@ inline void applyBreakthroughSuccess(Disciple& d) {
 /// 突破失败应用（applyBreakthroughFailure：修为清零 + HP/MP × 10% 至少 1；
 /// curHp/currentMp 负数取基础口径 maxHp/maxMp = getBaseStats()，无装备段）
 inline void applyBreakthroughFailure(Disciple& d) {
-    const auto effects = stats::mergeEffects(stats::talentEffectsFor(d.talentIds),
-                                             stats::affixEffectsFor(d.affixIds));
     int32_t maxHp = 0, maxMp = 0;
     stats::computeBaseHpMp(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
-                           effects, nullptr, maxHp, maxMp);
+                           maxHp, maxMp);
     const int32_t curHp = d.currentHp < 0 ? maxHp : d.currentHp;
     const int32_t curMp = d.currentMp < 0 ? maxMp : d.currentMp;
     d.cultivation = 0.0;

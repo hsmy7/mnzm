@@ -90,12 +90,12 @@ class DiscipleSlotManager @Inject constructor(
         clearProductionSlotsForReset(protectedIds = protectedIds)
     }
 
-    /** 收集需保护的弟子 id：反省/炼器中不重置 */
+    /** 收集需保护的弟子 id：反省中不重置 */
     private fun MutableGameState.collectProtectedIds(): Set<String> {
         val ids = mutableSetOf<String>()
         for (id in discipleTables.ids) {
             val status = discipleTables.statuses[id]
-            if (status == DiscipleStatus.REFLECTING || status == DiscipleStatus.REFINING) {
+            if (status == DiscipleStatus.REFLECTING) {
                 ids.add(id.toString())
             }
         }

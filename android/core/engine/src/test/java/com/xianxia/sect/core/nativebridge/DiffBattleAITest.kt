@@ -15,7 +15,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -98,18 +97,6 @@ class DiffBattleAITest {
         put("realm", c.realm)
         put("realmLayer", c.realmLayer)
         put("element", c.element)
-        putJsonObject("physique") {
-            put("damageAmplification", c.physique.damageAmplification)
-            put("critDamageBonus", c.physique.critDamageBonus)
-            put("damageReduction", c.physique.damageReduction)
-            put("defenseBonus", c.physique.defenseBonus)
-        }
-        putJsonObject("affix") {
-            put("damageAmplification", c.affix.damageAmplification)
-            put("critDamageBonus", c.affix.critDamageBonus)
-            put("damageReduction", c.affix.damageReduction)
-            put("defenseBonus", c.affix.defenseBonus)
-        }
     }
 
     /**

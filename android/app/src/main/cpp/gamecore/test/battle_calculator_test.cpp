@@ -20,13 +20,11 @@
 
 namespace {
 
-using gamecore::battle::AffixCombatEffects;
 using gamecore::battle::BuffType;
 using gamecore::battle::CombatBuff;
 using gamecore::battle::CombatSkill;
 using gamecore::battle::Combatant;
 using gamecore::battle::DamageType;
-using gamecore::battle::PhysiqueCombatFactors;
 using gamecore::battle::SkillType;
 using gamecore::rng::DeterministicRng;
 
@@ -99,30 +97,6 @@ TEST(BattleCalculator, GoldenSequenceSkillSeed7) {
     EXPECT_TRUE(r.isPhysical);
     EXPECT_FALSE(r.isDodged);
     EXPECT_EQ(2, r.hits);
-}
-
-TEST(BattleCalculator, GoldenSequenceBuffPhysiqueSeed99) {
-    auto rng = DeterministicRng::fromSeed(99);
-    auto attacker = baseCombatant("a1", "攻一");
-    attacker.buffs = {
-        {BuffType::kPhysicalAttackBoost, 0.3, 3},
-        {BuffType::kCritRateBoost, 0.4, 3},
-    };
-    attacker.physique.damageAmplification = 0.2;
-    attacker.physique.critDamageBonus = 0.5;
-    auto defender = baseCombatant("d1", "守一");
-    defender.buffs = {
-        {BuffType::kDamageReduction, 0.1, 3},
-        {BuffType::kPhysicalDefenseBoost, 0.2, 3},
-    };
-    defender.affix.damageReduction = 0.05;
-    defender.affix.defenseBonus = 0.1;
-    const auto r = gamecore::battle::calculateCombatantDamage(rng, attacker, defender);
-    EXPECT_EQ(274, r.damage);
-    EXPECT_TRUE(r.isCrit);
-    EXPECT_TRUE(r.isPhysical);
-    EXPECT_FALSE(r.isDodged);
-    EXPECT_EQ(1, r.hits);
 }
 
 TEST(BattleCalculator, GoldenSequenceInstantKill) {

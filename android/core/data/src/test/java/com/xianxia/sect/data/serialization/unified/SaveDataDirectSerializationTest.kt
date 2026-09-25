@@ -83,34 +83,6 @@ class SaveDataDirectSerializationTest {
     }
 
     @Test
-    fun `disciple round-trip preserves physique and affix ids`() {
-        // 守卫：DiscipleSerializer 必须序列化体质/词条（弟子读档后丢失
-        // 体质/词条会破坏养成数据完整性）
-        val original = SaveData(
-            gameData = com.xianxia.sect.core.model.GameData(),
-            disciples = listOf(
-                com.xianxia.sect.core.model.Disciple(
-                    id = "d-1",
-                    name = "张三",
-                    physiqueIds = listOf("physique_a", "physique_b"),
-                    affixIds = listOf("affix_c")
-                )
-            ),
-            pills = emptyList(),
-            materials = emptyList(),
-            herbs = emptyList(),
-            seeds = emptyList(),
-                    )
-
-        val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
-        val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
-
-        val disciple = restored.disciples.first()
-        assertEquals(listOf("physique_a", "physique_b"), disciple.physiqueIds)
-        assertEquals(listOf("affix_c"), disciple.affixIds)
-    }
-
-    @Test
     fun `battle team fields round-trip preserves teams and initialized flag`() {
         // battleTeams/usedTeamNumbers/battleTeamsInitialized
         // 持久化后必须进入 proto——读档不再清空玩家出战队伍

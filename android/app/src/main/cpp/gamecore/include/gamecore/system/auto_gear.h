@@ -632,21 +632,16 @@ inline bool forgetManualToBag(Disciple& d, GameState& state,
     return true;
 }
 
-/// 功法槽位上限（Kotlin DiscipleStatCalculator.getMaxManualSlots）
-inline int32_t maxManualSlotsFor(const Disciple& d) {
-    const auto merged = gamecore::stats::mergeEffects(
-        gamecore::stats::talentEffectsFor(d.talentIds),
-        gamecore::stats::affixEffectsFor(d.affixIds));
-    const auto it = merged.find("manualSlot");
-    return gamecore::disciple::kBaseManualSlots +
-           (it != merged.end() ? static_cast<int32_t>(it->second) : 0);
+/// 功法槽位上限（Kotlin DiscipleStatCalculator.getMaxManualSlots；恒为基础槽位数）
+inline int32_t maxManualSlotsFor() {
+    return gamecore::disciple::kBaseManualSlots;
 }
 
 /// 单个弟子的自动学习/替换（返回是否发生变更；
 /// @param warehouseStacks 仓库功法堆叠快照副本（就地扣减，主流程末尾统一写回））
 inline bool autoLearnForDisciple(Disciple& d, GameState& state,
                                  std::vector<ManualStack>& warehouseStacks) {
-    const int32_t maxSlots = maxManualSlotsFor(d);
+    const int32_t maxSlots = maxManualSlotsFor();
     if (maxSlots <= 0) return false;
 
     // 已学信息（名称去重 + 心法唯一）

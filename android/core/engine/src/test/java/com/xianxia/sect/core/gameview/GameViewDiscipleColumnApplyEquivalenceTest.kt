@@ -76,7 +76,6 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
             cultivationSpeedDuration = 12
             realm = 4
             realmLayer = 2
-            aptitude = 88
         }
     }
 
@@ -84,7 +83,6 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
     fun `repeated 与映射列整列替换直写等价`() {
         assertEquivalence("repeated/映射列") {
             addAllManualIds(listOf("m9", "m8", "m7"))
-            addAllTalentIds(emptyList())  // 零条目 = 列未携带 ⇒ 基线保留
             addManualMasteries(StringIntEntry.newBuilder().setKey("m9").setValue(5))
             addStatusData(StringStringEntry.newBuilder().setKey("k").setValue("v"))
             addAllActivePillTypes(listOf("attack", "speed"))

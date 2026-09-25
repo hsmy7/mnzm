@@ -71,8 +71,7 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
         val playerCombatants = combatDisciples.map { d ->
             battleSystem.convertDiscipleToCombatant(
                 d, equipmentMap, manualMap, allProficiencies,
-                CombatantSide.DEFENDER,
-                bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
+                CombatantSide.DEFENDER
             )
         }
         val aiCombatants = aiDefenders.map { d -> AISectAttackManager.convertToCombatant(d, CombatantSide.ATTACKER) }

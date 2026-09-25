@@ -7,9 +7,6 @@ import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.AttackWarning
 import com.xianxia.sect.core.model.AutoBuyEntry
 import com.xianxia.sect.core.model.BattleTeam
-import com.xianxia.sect.core.model.BloodRefinementBonusTotal
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.Disciple
@@ -27,7 +24,6 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Mission
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.PatrolSlot
-import com.xianxia.sect.core.model.PendingTraitAdd
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.RoadData
@@ -66,7 +62,7 @@ internal typealias GameDataFieldWriter = (GameData, JsonElement, Json) -> Unit
  * ## 退场的形状
  * 第一波（B06/B07）及之前，每旬镜像对 gameData 的应用是
  * `encodeToJsonElement(整份 GameData) → 覆盖变更键 → decodeFromJsonElement(整份)`
- * ——只为改 3~5 个标量，却要按 134 个序列化字段（含 gameEventRecords /
+ * ——只为改 3~5 个标量，却要按 GameData 全部序列化字段（含 gameEventRecords /
  * recruitList / worldMapSects 等巨型容器）整树序列化 + 反序列化各一次，
  * 即"每旬级全量重建"。本对象把该形状换成**一次浅拷贝 + 变更字段逐个解码**：
  * 成本与"本封变了什么"成比例，与"状态有多大"无关。
@@ -125,7 +121,8 @@ internal object GameDataFieldPatch {
         return null
     }
 
-    // 表体 = GameData 构造器序列化字段全集（134 项，@Transient 除外）。
+    // 表体 = GameData 构造器序列化字段全集（@Transient 除外；autoSaveIntervalMonths
+    // 为存档侧独占字段，镜像补丁恒保留其现值、不登记写入器）。
     // 逐字段用与整份解码同一个 Json 实例 + 同一 serializer ⇒ 逐值等价。
     @Suppress("LargeClass")
     private val WRITERS: Map<String, GameDataFieldWriter> = mapOf(
@@ -276,18 +273,6 @@ internal object GameDataFieldPatch {
             gd.autoLearnFromWarehouseRootCounts = j.decodeFromJsonElement<Set<Int>>(el)
         }),
         f("isGameOver", { gd, el, j -> gd.isGameOver = j.decodeFromJsonElement<Boolean>(el) }),
-        f("bloodRefinements", { gd, el, j ->
-            gd.bloodRefinements = j.decodeFromJsonElement<Map<String, List<String>>>(el)
-        }),
-        f("activeBloodRefinements", { gd, el, j ->
-            gd.activeBloodRefinements = j.decodeFromJsonElement<Map<String, BloodRefinementProgress>>(el)
-        }),
-        f("bloodRefinementBonusTotals", { gd, el, j ->
-            gd.bloodRefinementBonusTotals = j.decodeFromJsonElement<Map<String, BloodRefinementBonusTotal>>(el)
-        }),
-        f("bloodRefinementPctTotals", { gd, el, j ->
-            gd.bloodRefinementPctTotals = j.decodeFromJsonElement<Map<String, BloodRefinementPctTotal>>(el)
-        }),
         f("heavenlyTrialState", { gd, el, j ->
             gd.heavenlyTrialState = j.decodeFromJsonElement<HeavenlyTrialSaveData>(el)
         }),
@@ -337,9 +322,6 @@ internal object GameDataFieldPatch {
         f("yearlyReports", { gd, el, j -> gd.yearlyReports = j.decodeFromJsonElement<List<YearlyReport>>(el) }),
         f("soundEnabled", { gd, el, j -> gd.soundEnabled = j.decodeFromJsonElement<Boolean>(el) }),
         f("musicEnabled", { gd, el, j -> gd.musicEnabled = j.decodeFromJsonElement<Boolean>(el) }),
-        f("pendingTraitAdds", { gd, el, j ->
-            gd.pendingTraitAdds = j.decodeFromJsonElement<List<PendingTraitAdd>>(el)
-        }),
         f("mapGenVersion", { gd, el, j -> gd.mapGenVersion = j.decodeFromJsonElement<Int>(el) }),
         f("terrainTiles", { gd, el, j -> gd.terrainTiles = j.decodeFromJsonElement<List<Int>>(el) }),
         f("gachaFragmentCounts", { gd, el, j ->

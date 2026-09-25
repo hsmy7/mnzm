@@ -174,7 +174,6 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance> = emptyMap(),
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
         battleSystem: BattleSystem? = null,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
         // W4-C 随机源收敛：MISSION 分区由本函数经 rngOf 自取、ENEMY_GEN 分区
         // （人形敌人生成）经 rngManager 透传至 EnemyGenerator——顶层可变
         // enemyGenRngManager 已摘除，调用方只透传自己持有的 GameRngManager
@@ -185,11 +184,11 @@ object MissionSystem {
             MissionType.NO_COMBAT -> processNoCombatMission(activeMission, rng)
             MissionType.COMBAT_REQUIRED -> processCombatRequiredMission(
                 activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-                battleSystem, bloodRefinementMap, rngManager
+                battleSystem, rngManager
             )
             MissionType.COMBAT_RANDOM -> processCombatRandomMission(
                 activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-                battleSystem, bloodRefinementMap, rngManager
+                battleSystem, rngManager
             )
         }
     }
@@ -215,13 +214,12 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
         rngManager: GameRngManager
     ): MissionResult {
         val rng = rngOf(rngManager)
         val battleResult = executeMissionBattle(
             activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-            battleSystem, bloodRefinementMap, rngManager
+            battleSystem, rngManager
         ) ?: return MissionResult(victory = false)
 
         if (!battleResult.victory) {
@@ -258,7 +256,6 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
         rngManager: GameRngManager
     ): MissionResult {
         val rng = rngOf(rngManager)
@@ -279,7 +276,7 @@ object MissionSystem {
 
         val battleResult = executeMissionBattle(
             activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
-            battleSystem, bloodRefinementMap, rngManager
+            battleSystem, rngManager
         ) ?: return MissionResult(combatTriggered = true, victory = false)
 
         if (!battleResult.victory) {
@@ -316,7 +313,6 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
         rngManager: GameRngManager
     ): BattleSystemResult? {
         if (battleSystem == null) return null
@@ -337,8 +333,7 @@ object MissionSystem {
                     manualMap = manualMap,
                     beastLevel = beastRealm,
                     beastCount = beastCount,
-                    manualProficiencies = manualProficiencies,
-                    bloodRefinementMap = bloodRefinementMap
+                    manualProficiencies = manualProficiencies
                 )
                 // AUTHORITATIVE 下经 C++ 战斗引擎执行（降级回退 Kotlin）
                 BattleExecutionRouter.tryExecuteNative(battle)
@@ -352,8 +347,7 @@ object MissionSystem {
                 val team = disciples.map { disciple ->
                     battleSystem.convertDiscipleToCombatant(
                         disciple, equipmentMap, manualMap, manualProficiencies,
-                        com.xianxia.sect.core.CombatantSide.DEFENDER,
-                        bloodRefinementPct = bloodRefinementMap[disciple.id]
+                        com.xianxia.sect.core.CombatantSide.DEFENDER
                     )
                 }
                 val battle = Battle(

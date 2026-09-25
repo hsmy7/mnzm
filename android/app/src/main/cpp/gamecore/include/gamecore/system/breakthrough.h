@@ -43,17 +43,14 @@ struct BreakthroughOutcome {
 
 /// 是否满足突破前置（修为满 + HP/MP 满）。
 /// 负值 currentHp/currentMp 视为满（Kotlin -1=满语义）；上限按**基础口径**
-/// computeBaseHpMp（天赋+词条+层数/方差乘区）计算——影子路径无 GameState，
+/// computeBaseHpMp（层数/方差乘区）计算——影子路径无 GameState，
 /// 不含装备/功法加成；旬结算生产路径的等价判定见 phase_settlement::isFullHpMp
 /// （含装备/功法映射重建）。
 inline bool isDiscipleFullHpMp(const state::Disciple& disciple) {
-    const auto effects = stats::mergeEffects(
-        stats::talentEffectsFor(disciple.talentIds),
-        stats::affixEffectsFor(disciple.affixIds));
     int32_t maxHp = 0;
     int32_t maxMp = 0;
     stats::computeBaseHpMp(disciple.realm, disciple.realmLayer, disciple.hpVariance,
-                           disciple.mpVariance, effects, nullptr, maxHp, maxMp);
+                           disciple.mpVariance, maxHp, maxMp);
     const int32_t hp = disciple.currentHp < 0 ? maxHp : disciple.currentHp;
     const int32_t mp = disciple.currentMp < 0 ? maxMp : disciple.currentMp;
     return hp >= maxHp && mp >= maxMp;
@@ -82,13 +79,10 @@ inline state::Disciple applyBreakthroughSuccess(state::Disciple d) {
 /// curHp/currentMp 负数取基础口径上限（computeBaseHpMp），与
 /// phase_settlement::applyBreakthroughFailure 同式（HP/MP × 0.1 至少 1）。
 inline state::Disciple applyBreakthroughFailure(state::Disciple d) {
-    const auto effects = stats::mergeEffects(
-        stats::talentEffectsFor(d.talentIds),
-        stats::affixEffectsFor(d.affixIds));
     int32_t maxHp = 0;
     int32_t maxMp = 0;
     stats::computeBaseHpMp(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
-                           effects, nullptr, maxHp, maxMp);
+                           maxHp, maxMp);
     const int32_t curHp = d.currentHp < 0 ? maxHp : d.currentHp;
     const int32_t curMp = d.currentMp < 0 ? maxMp : d.currentMp;
     d.cultivation = 0.0;

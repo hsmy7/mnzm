@@ -105,8 +105,7 @@ class GameDataFieldPatchGuardTest {
                 change("gameMonth", 11),
                 change("spiritStones", 4242L),
                 change("watchedItemIds", listOf("pill:聚气丹")),
-                change("mailRecords", listOf(MailClaimRecord(mailId = "mail-1", source = "builtin"))),
-                change("bloodRefinements", mapOf("501" to listOf("mat-1", "mat-2")))
+                change("mailRecords", listOf(MailClaimRecord(mailId = "mail-1", source = "builtin")))
             ),
             "空变更集" to emptyList()
         )
@@ -269,7 +268,7 @@ class GameDataFieldPatchGuardTest {
         private const val RICH_GAME_YEAR = 3
         private const val FIXED_EVENT_TS = 1_700_000_000_000L
 
-        /** 未被任何用例覆盖的字段可在此登记（当前守卫覆盖 24 个字段 / 全部 wire 类别） */
+        /** 未被任何用例覆盖的字段可在此登记（当前守卫覆盖 20 个字段 / 全部 wire 类别） */
         @Suppress("unused")
         private val UNCOVERED_NOTE: JsonObject = JsonObject(emptyMap())
     }

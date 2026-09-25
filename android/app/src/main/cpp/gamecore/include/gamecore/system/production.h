@@ -50,7 +50,7 @@
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/profession.h"
 #include "gamecore/system/settlement_detail.h"   // recordGameEvent/indexById/minRealmForRarity
-#include "gamecore/system/disciple_stats.h"      // talentEffectsFor/baseStats
+#include "gamecore/system/disciple_stats.h"      // baseStats
 #include "gamecore/system/slot_cleanup.h"        // batch-17 任命事务全槽位清理
 
 namespace gamecore::system::production {
@@ -109,31 +109,7 @@ inline double realmSuccessRateBonus(int32_t realm) {
     }
 }
 
-/// 建筑工艺固定加成键（Kotlin getBuildingCraftFlatBonus）
-inline const char* craftFlatKey(const std::string& buildingId) {
-    if (buildingId == "alchemy") return "pillRefiningFlat";
-    if (buildingId == "forge") return "artifactRefiningFlat";
-    if (buildingId == "herbGarden") return "spiritPlantingFlat";
-    return "";
-}
-
-/// 成功率天赋加成（Kotlin getSuccessRateTalentBonus——仅天赋表，无词条）
-inline double successRateTalentBonus(const DiscipleStore& ds, std::size_t row,
-                                     const std::string& buildingId) {
-    const auto effects = stats::talentEffectsFor(ds.talentIds[row]);
-    double breakthrough = 0.0;
-    double craftFlat = 0.0;
-    const auto it = effects.find("breakthroughChance");
-    if (it != effects.end()) breakthrough = it->second;
-    const char* key = craftFlatKey(buildingId);
-    if (key[0] != '\0') {
-        const auto it2 = effects.find(key);
-        if (it2 != effects.end()) craftFlat = it2->second;
-    }
-    return breakthrough * 0.80 + craftFlat * 0.006;
-}
-
-/// 长老职位乘算因子作用下的技能差加成（Kotlin getElderPositionBonus 的
+/// 长老技能差加成（Kotlin getElderPositionBonus 的
 /// ALCHEMY/FORGE 分支；herbGarden 不参与炼丹/锻造成功率）。
 /// 建筑无对应长老 → 0。
 inline double elderPositionSkillBonus(const GameState& state,
@@ -156,13 +132,11 @@ inline double elderPositionSkillBonus(const GameState& state,
                              ? (stats.artifactRefining - baseline)
                              : (stats.pillRefining - baseline);
     const int32_t diffPos = diff > 0 ? diff : 0;
-    const char* slotType = buildingId == "forge" ? "FORGE" : "ALCHEMY";
-    const double posBonus = stats::positionEffectBonus(ds, row, slotType);
-    return static_cast<double>(diffPos) * 0.01 * (1.0 + posBonus);
+    return static_cast<double>(diffPos) * 0.01;
 }
 
 /// 长老+亲传弟子综合速度加成（Kotlin calculateElderAndDisciplesBonus 的
-/// ALCHEMY/FORGE 分支——亲传弟子无职务乘算因子）。
+/// ALCHEMY/FORGE 分支）。
 inline double elderAndDisciplesSpeedBonus(const GameState& state,
                                           const std::string& buildingId) {
     const auto& elderSlots = state.gameData.elderSlots;
@@ -188,11 +162,7 @@ inline double elderAndDisciplesSpeedBonus(const GameState& state,
         if (auto row = findById(elderId)) {
             const Disciple elder = ds.materialize(*row);
             const int32_t diff = skillOf(elder) - kElderSkillBaseline;
-            const char* slotType = buildingId == "forge" ? "FORGE" : "ALCHEMY";
-            const double posBonus =
-                stats::positionEffectBonus(ds, *row, slotType);
-            speedBonus += static_cast<double>(diff > 0 ? diff : 0) * 0.01 *
-                          (1.0 + posBonus);
+            speedBonus += static_cast<double>(diff > 0 ? diff : 0) * 0.01;
         }
     }
     for (const auto& slot : discipleSlots) {
@@ -234,7 +204,7 @@ inline int32_t calculateWorkDuration(const GameState& state, int32_t baseDuratio
 
 /// 公式化成功率（Kotlin buildSuccessRateZones().calculate() 合成——
 /// baseProb = clamp01(baseRate(恒0) + skillZone + professionZone)；
-/// final = clamp01(baseProb × (1 + realm+talent+policy+elder))）
+/// final = clamp01(baseProb × (1 + realm+policy+elder))）
 inline double formulaSuccessRate(const GameState& state, std::size_t workerRow,
                                  const std::string& buildingId, int32_t recipeTier,
                                  double policyBonus) {
@@ -257,8 +227,7 @@ inline double formulaSuccessRate(const GameState& state, std::size_t workerRow,
     const double baseProb = 0.0 + skillZoneClamped + professionZone;
     const double baseClamped = baseProb < 0.0 ? 0.0 : baseProb > 1.0 ? 1.0 : baseProb;
     const double positiveSum =
-        realmSuccessRateBonus(ds.realms[workerRow]) +
-        successRateTalentBonus(ds, workerRow, buildingId) + policyBonus +
+        realmSuccessRateBonus(ds.realms[workerRow]) + policyBonus +
         elderPositionSkillBonus(state, buildingId);
     const double result = baseClamped * (1.0 + positiveSum);
     return result < 0.0 ? 0.0 : result > 1.0 ? 1.0 : result;
@@ -1071,7 +1040,7 @@ using detail::resetProductionSlotTransaction;
 // 口径要点（S7 同族——"C++ 真相先行 + Room 持久化后置"）：
 //   ① 全部事务只写 gameData.productionSlots 镜像（C++ 唯一视图）；Room 单槽/
 //      整槽回放由 Kotlin 残差承担（productionNativeStart 先例）。任命事务另经
-//      slot_cleanup.h 全 11 类槽位清理（includeResidence=false——工作分配保留
+//      slot_cleanup.h 全 10 类槽位清理（includeResidence=false——工作分配保留
 //      住所，与 Kotlin clearAllSlotsDataOnly 同参）。
 //   ② 判定序逐位对齐 Kotlin：先读目标槽（缺失 → 失败零写入，Kotlin 回退原路径
 //      重执行校验链），再捕获旧 occupant，最后才变更。
@@ -1160,7 +1129,6 @@ inline ProductionUiOutcome assignProductionSlotTx(
     in.librarySlots = gd.librarySlots;
     in.elderSlots = gd.elderSlots;
     in.residenceSlots = gd.residenceSlots;
-    in.activeBloodRefinements = gd.activeBloodRefinements;
     in.patrolSlots = gd.patrolSlots;
     in.battleTeams = gd.battleTeams;
     in.worldMapSects = gd.worldMapSects;
@@ -1173,7 +1141,6 @@ inline ProductionUiOutcome assignProductionSlotTx(
     gd.librarySlots = cleaned.librarySlots;
     gd.elderSlots = cleaned.elderSlots;
     gd.residenceSlots = cleaned.residenceSlots;
-    gd.activeBloodRefinements = cleaned.activeBloodRefinements;
     gd.patrolSlots = cleaned.patrolSlots;
     gd.battleTeams = cleaned.battleTeams;
     gd.worldMapSects = cleaned.worldMapSects;

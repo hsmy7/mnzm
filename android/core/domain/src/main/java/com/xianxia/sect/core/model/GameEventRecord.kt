@@ -57,7 +57,6 @@ object GameEventType {
     const val DEATH = "death"
     const val BREAKTHROUGH = "breakthrough"
     const val MARRIAGE = "marriage"
-    const val BLOOD_REFINEMENT = "blood_refinement"
     const val ALLIANCE = "alliance"
     const val ALLIANCE_BREAK = "alliance_break"
     const val VASSAL_BREAKAWAY = "vassal_breakaway"

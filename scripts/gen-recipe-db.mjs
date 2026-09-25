@@ -2,7 +2,7 @@
 /**
  * gen-recipe-db.mjs — 锻造/炼丹配方快照生成器
  *
- * 与 gen-templates.mjs / gen-trait-db.mjs 同模式：在 Node 侧**等价复刻 Kotlin
+ * 与 gen-templates.mjs 同模式：在 Node 侧**等价复刻 Kotlin
  * 的生成逻辑**，产出 JSON 快照锚点：
  *   android/core/engine/src/test/resources/templates/recipe_db_sample.json
  *

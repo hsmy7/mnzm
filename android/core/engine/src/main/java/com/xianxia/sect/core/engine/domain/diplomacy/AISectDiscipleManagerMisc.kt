@@ -1,11 +1,8 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.registry.PhysiqueDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
@@ -24,47 +21,10 @@ import com.xianxia.sect.core.model.weaponNurture
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
-import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 
-/**
- * 为缺失的体质/词条/天赋分类生成随机标签（0-3 个），并写入已尝试标记。
- *
- * 标记保证后续读档不再对空分类重复 roll——空是合法状态（0-3 随机可能为 0），
- * 若不标记，每次读档都会重新 roll 并消耗 AI 分区 RNG，导致同档演化序列漂移。
- */
 // ── AISectDiscipleManager 拆分域（行为零变更） ──
-internal fun AISectDiscipleManager.rollMissingCategories(disciple: Disciple): Disciple {
-    var working = disciple
-    var rolled = false
-    if (working.physiqueIds.isEmpty()) {
-        working = working.copy(
-            physiqueIds = PhysiqueDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
-        )
-        rolled = true
-    }
-    if (working.affixIds.isEmpty()) {
-        working = working.copy(
-            affixIds = AffixDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
-        )
-        rolled = true
-    }
-    if (working.talentIds.isEmpty()) {
-        working = working.copy(
-            talentIds = TalentDatabase.generateTalentsForDisciple(rng.asKotlinRandom()).map { it.id }
-        )
-        rolled = true
-    }
-    // 仅实际 roll 过才写标记（已齐备弟子保持原状，无状态变更）
-    return if (rolled) {
-        working.copy(
-            statusData = (working.statusData ?: emptyMap()) + (GEAR_ROLL_MARKER to "1")
-        )
-    } else {
-        working
-    }
-}
 
 /** 按境界上限品阶从槽位模板池选取装备（无该品阶时取槽位最高品阶兜底）。 */
 

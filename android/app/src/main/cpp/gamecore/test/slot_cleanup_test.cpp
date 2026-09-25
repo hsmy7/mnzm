@@ -55,10 +55,6 @@ SlotCleanupInput sampleInput() {
     residence.discipleId = "1";
     residence.discipleName = "张三";
     in.residenceSlots = {residence};
-    // 血炼
-    gamecore::state::BloodRefinementProgress progress;
-    progress.discipleId = "1";
-    in.activeBloodRefinements["br-1"] = progress;
     // 战斗队伍
     BattleTeam team;
     gamecore::state::BattleTeamSlot slot;
@@ -127,9 +123,8 @@ TEST(SlotCleanupTest, ResidenceRespectsIncludeFlag) {
     EXPECT_TRUE(with.residenceSlots[0].discipleId.empty());  // includeResidence=true 清住所
 }
 
-TEST(SlotCleanupTest, ClearsBloodRefinementsAndBattleTeams) {
+TEST(SlotCleanupTest, ClearsBattleTeams) {
     const auto out = clearAllSlotsDataOnly(sampleInput(), "1", false);
-    EXPECT_TRUE(out.activeBloodRefinements.empty());
     ASSERT_EQ(out.battleTeams.size(), 1);
     EXPECT_TRUE(out.battleTeams[0].slots[0].discipleId.empty());
     EXPECT_TRUE(out.battleTeams[0].slots[0].isAlive);

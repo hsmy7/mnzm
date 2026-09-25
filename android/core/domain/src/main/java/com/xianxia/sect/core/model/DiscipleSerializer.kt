@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.model
 
-import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -13,7 +12,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
  *
  * ## 为什么需要自定义序列化器
  * Disciple 域类型使用 Room @Embedded 将字段分散在 6 个子类中，但 Protobuf 要求
- * 所有 96 个字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
+ * 所有 92 个字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
  * @Embedded 子类上加 @ProtoNumber 会导致 Protobuf 产生嵌套消息，破坏向后兼容。
  *
  * ## 实现方式
@@ -54,9 +53,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             portraitRes = value.portraitRes,
             templateId = value.templateId,
             manualIds = value.manualIds,
-            talentIds = value.talentIds,
-            physiqueIds = value.physiqueIds,
-            affixIds = value.affixIds,
             manualMasteries = value.manualMasteries,
             status = value.status.name,
             statusData = value.statusData,
@@ -158,7 +154,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             mining = value.skills.mining,
             teaching = value.skills.teaching,
             morality = value.skills.morality,
-            aptitude = value.skills.aptitude,
             salaryPaidCount = value.skills.salaryPaidCount,
             salaryMissedCount = value.skills.salaryMissedCount,
             alchemyLevel = value.skills.alchemyLevel,
@@ -191,9 +186,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             portraitRes = surrogate.portraitRes,
             templateId = surrogate.templateId,
             manualIds = surrogate.manualIds,
-            talentIds = surrogate.talentIds,
-            physiqueIds = surrogate.physiqueIds,
-            affixIds = surrogate.affixIds,
             manualMasteries = surrogate.manualMasteries,
             status = safeDiscipleStatus(surrogate.status),
             statusData = surrogate.statusData,
@@ -297,7 +289,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 mining = surrogate.mining,
                 teaching = surrogate.teaching,
                 morality = surrogate.morality,
-                aptitude = surrogate.aptitude,
                 salaryPaidCount = surrogate.salaryPaidCount,
                 salaryMissedCount = surrogate.salaryMissedCount,
                 alchemyLevel = surrogate.alchemyLevel,
@@ -336,9 +327,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(90) val portraitRes: String = "",
         @ProtoNumber(111) val templateId: String = "",
         @ProtoNumber(21) val manualIds: List<String> = emptyList(),
-        @ProtoNumber(22) val talentIds: List<String> = emptyList(),
-        @ProtoNumber(104) val physiqueIds: List<String> = emptyList(),
-        @ProtoNumber(105) val affixIds: List<String> = emptyList(),
+        // reserved 22,104,105;（talentIds/physiqueIds/affixIds 字段号已退役，禁止复用）
         @ProtoNumber(23) val manualMasteries: Map<String, Int> = emptyMap(),
         @ProtoNumber(32) val status: String = "IDLE",
         @ProtoNumber(33) val statusData: Map<String, String> = emptyMap(),
@@ -424,9 +413,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(107) val alchemyPromotionCount: Int = 0,
         @ProtoNumber(108) val forgeLevel: Int = 0,
         @ProtoNumber(109) val forgePromotionCount: Int = 0,
-        // 资质（@EncodeDefault ALWAYS：旧档无此字段时反序列化得默认值 50，
-        // 读档自愈（DiscipleTables.healDefaultAptitudes）会按灵根数补算）
-        @ProtoNumber(110) @EncodeDefault(EncodeDefault.Mode.ALWAYS) val aptitude: Int = 50,
+        // reserved 110;（aptitude 字段号已退役，禁止复用）
 
         // ===== UsageTracking @Embedded =====
         @ProtoNumber(75) val usedFunctionalPillTypes: List<String> = emptyList(),

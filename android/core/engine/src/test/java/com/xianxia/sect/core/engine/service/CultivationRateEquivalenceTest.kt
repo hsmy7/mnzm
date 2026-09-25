@@ -74,9 +74,6 @@ class CultivationRateEquivalenceTest {
         cultivationSpeedDuration: Int = 0,
         pillEffects: PillEffects = PillEffects(),
         manualIds: List<String> = emptyList(),
-        talentIds: List<String> = emptyList(),
-        physiqueIds: List<String> = emptyList(),
-        affixIds: List<String> = emptyList(),
         cultivation: Double = 100.0,
         skills: SkillStats = SkillStats()
     ): Disciple = Disciple(
@@ -85,7 +82,6 @@ class CultivationRateEquivalenceTest {
         social = social, cultivationSpeedBonus = cultivationSpeedBonus,
         cultivationSpeedDuration = cultivationSpeedDuration,
         pillEffects = pillEffects, manualIds = manualIds,
-        talentIds = talentIds, physiqueIds = physiqueIds, affixIds = affixIds,
         skills = skills
     )
 
@@ -217,7 +213,7 @@ class CultivationRateEquivalenceTest {
         )
     }
 
-    /** 讲道长老加成：elderSlots 配置 + 长老 teaching，含 teachingFlat 跨阈值回归 */
+    /** 讲道长老加成：elderSlots 配置 + 长老 teaching */
     private fun preachingElderFixtures(base: GameData): List<Fixture> = buildList {
         val preachingElder = makeDisciple(
             id = "300", name = "讲道长老", realm = 2,
@@ -233,24 +229,6 @@ class CultivationRateEquivalenceTest {
                 makeDisciple(realm = 3, discipleType = "outer"),
                 base.copy(elderSlots = elderSlots),
                 listOf(preachingElder)
-            )
-        )
-
-        // 11. teachingFlat 跨阈值：基础 79 + 夫子(teachingFlat) = 有效 ≥80
-        val teachingFlatElder = makeDisciple(
-            id = "400", name = "夫子长老", realm = 2,
-            discipleType = "elder", skills = SkillStats(teaching = 79),
-            talentIds = listOf("r1_base_teach")
-        )
-        add(
-            Fixture(
-                "preaching elder with teachingFlat crossing threshold",
-                makeDisciple(realm = 3, discipleType = "outer"),
-                base.copy(elderSlots = ElderSlots(
-                    preachingElder = "400", preachingMasters = emptyList(),
-                    qingyunPreachingElder = "", qingyunPreachingMasters = emptyList()
-                )),
-                listOf(teachingFlatElder)
             )
         )
     }
@@ -275,69 +253,6 @@ class CultivationRateEquivalenceTest {
                 objectRate, columnRate, 1e-9
             )
         }
-    }
-
-    @Test
-    fun `teachingFlat talent contributes to preaching bonus`() {
-        // F1 回归：结算侧有效教学必须含 teachingFlat（对齐 getBaseStats().teaching），
-        // 基础 79 + 夫子(teachingFlat) 跨过 80 阈值应产生讲道加成
-        val tables = DiscipleTables()
-        tables.insert(makeDisciple(
-            id = "400", realm = 2, discipleType = "elder",
-            skills = SkillStats(teaching = 79), talentIds = listOf("r1_base_teach")
-        ))
-        tables.insert(makeDisciple(id = "1", realm = 3, discipleType = "outer"))
-        val data = GameData(gameYear = 5, gameMonth = 3, elderSlots = ElderSlots(
-            preachingElder = "400", preachingMasters = emptyList(),
-            qingyunPreachingElder = "", qingyunPreachingMasters = emptyList()
-        ))
-
-        val withTalent = calculator.calculateCultivationPerPhaseById(1, data, tables)
-
-        // 移除天赋后：基础 79 < 80，无讲道加成
-        tables.talentIds[400] = emptyList()
-        val withoutTalent = calculator.calculateCultivationPerPhaseById(1, data, tables)
-
-        assertTrue(
-            "teachingFlat 应贡献讲道加成（有天赋 $withTalent > 无天赋 $withoutTalent）",
-            withTalent > withoutTalent
-        )
-    }
-
-    @Test
-    fun `aptitude 120 disciple stays equivalent across both paths`() {
-        // 资质乘区（80 基准每点+1% 最多+40%）：两入口必须一致
-        val tables = DiscipleTables()
-        val d = makeDisciple(id = "1", skills = SkillStats(aptitude = 120))
-        tables.insert(d)
-        val data = GameData(gameYear = 5, gameMonth = 3)
-
-        val objectRate = calculator.calculateDiscipleCultivationPerPhase(d, data, tables)
-        val columnRate = calculator.calculateCultivationPerPhaseById(1, data, tables)
-        assertEquals("资质120：object=$objectRate column=$columnRate", objectRate, columnRate, 1e-9)
-        // 资质120 → +40% 封顶：与默认资质 50 相比差 1.40 倍
-        val baseTables = DiscipleTables()
-        baseTables.insert(makeDisciple(id = "2", skills = SkillStats(aptitude = 50)))
-        val baseRate = calculator.calculateCultivationPerPhaseById(2, data, baseTables)
-        assertEquals("资质120 应比 50 快 40%", baseRate * 1.40, objectRate, 1e-9)
-    }
-
-    @Test
-    fun `missing aptitude column defaults to 50 across both paths`() {
-        // 守护统一默认值：列缺失（旧档自愈前）时 assemble 与列直读均回退
-        // DEFAULT_APTITUDE=50，资质加成 0——两入口不得因默认值分叉
-        val tables = DiscipleTables()
-        tables.insert(makeDisciple(id = "1")) // insert 写入 skills.aptitude=50
-        // 模拟旧档：清空 aptitudes 列（自愈前的读档窗口）
-        tables.aptitudes[1] = DiscipleTables.DEFAULT_APTITUDE
-        val data = GameData(gameYear = 5, gameMonth = 3)
-
-        val objectRate = calculator.calculateDiscipleCultivationPerPhase(
-            makeDisciple(id = "1", skills = SkillStats(aptitude = DiscipleTables.DEFAULT_APTITUDE)),
-            data, tables
-        )
-        val columnRate = calculator.calculateCultivationPerPhaseById(1, data, tables)
-        assertEquals("列缺失默认50：object=$objectRate column=$columnRate", objectRate, columnRate, 1e-9)
     }
 
     @Test

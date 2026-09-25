@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.domain.building
 
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.PatrolConfig
@@ -12,7 +11,6 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.BuildingNames
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
@@ -73,8 +71,6 @@ class BuildingRemovalSlotCleanupTest {
                         "multi_residence", "初级多人住所", BuildingType.MULTI_RESIDENCE,
                         listOf(SlotGroup.Residence(4))
                     ),
-                    BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
-                        listOf(SlotGroup.BloodRefining())),
                     BuildingFeature("library", "藏经阁", BuildingType.LIBRARY, listOf(SlotGroup.Library())),
                     BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
                         listOf(SlotGroup.ElderPositions.WEN_DAO_PEAK)),
@@ -289,40 +285,6 @@ class BuildingRemovalSlotCleanupTest {
         )
 
         assertEquals(setOf("50", "51", "52", "53"), ids)
-    }
-
-    // ── collectDiscipleIdsForBuildingRemoval：血炼池 ────────────────────
-
-    @Test
-    fun `collectDiscipleIdsForBuildingRemoval - 血炼池按 buildingInstanceId 精确收集弟子ID`() {
-        val targetInstanceId = "blood-A"
-        val gameData = GameData().copy(
-            activeBloodRefinements = mapOf(
-                targetInstanceId to BloodRefinementProgress(discipleId = "70", discipleName = "弟子A"),
-                "blood-B" to BloodRefinementProgress(discipleId = "71", discipleName = "弟子B")
-            )
-        )
-
-        val ids = collectDiscipleIdsForTest(
-            displayName = "血炼池", instanceId = targetInstanceId, gameData = gameData
-        )
-
-        assertEquals(setOf("70"), ids)
-    }
-
-    @Test
-    fun `collectDiscipleIdsForBuildingRemoval - 血炼池不存在该实例时返回空集合`() {
-        val gameData = GameData().copy(
-            activeBloodRefinements = mapOf(
-                "blood-A" to BloodRefinementProgress(discipleId = "70")
-            )
-        )
-
-        val ids = collectDiscipleIdsForTest(
-            displayName = "血炼池", instanceId = "blood-nonexistent", gameData = gameData
-        )
-
-        assertTrue("不存在的实例应返回空集合", ids.isEmpty())
     }
 
     // ── collectDiscipleIdsForBuildingRemoval：边界情况 ────────────────────
@@ -658,27 +620,6 @@ class BuildingRemovalSlotCleanupTest {
         // 这是预期行为：一个 instanceId 只对应一种建筑类型（炼丹炉或锻造坊），不会出现共享情况
         // 此测试文档化该行为：调用方需确保 displayName 与实际建筑类型一致
         assertEquals("炼丹炉分支会移除所有同 instanceId 的 productionSlots", 0, result.productionSlots.size)
-    }
-
-    // ── filterBuildingSlots：血炼池 ────────────────────
-
-    @Test
-    fun `filterBuildingSlots - 血炼池按 buildingInstanceId 精确过滤`() {
-        val targetInstanceId = "blood-A"
-        val gameData = GameData().copy(
-            activeBloodRefinements = mapOf(
-                targetInstanceId to BloodRefinementProgress(discipleId = "1"),
-                "blood-B" to BloodRefinementProgress(discipleId = "2")
-            )
-        )
-
-        val result = filterBuildingSlotsForTest(
-            displayName = "血炼池", instanceId = targetInstanceId, gameData = gameData
-        )
-
-        assertEquals(1, result.activeBloodRefinements.size)
-        assertFalse("blood-A 应被移除", result.activeBloodRefinements.containsKey(targetInstanceId))
-        assertTrue("blood-B 应保留", result.activeBloodRefinements.containsKey("blood-B"))
     }
 
     // ── filterBuildingSlots：边界情况 ────────────────────

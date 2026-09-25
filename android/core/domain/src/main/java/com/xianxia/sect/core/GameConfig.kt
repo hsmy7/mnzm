@@ -126,7 +126,7 @@ object GameConfig {
         const val MIN_AGE = 5
         const val MAX_AGE = 100
         const val PROTECTION_MONTHS = 12
-        /** 基础技能属性上限（资质/悟性/智力等 10 项） */
+        /** 基础技能属性上限（悟性/智力等 9 项） */
         const val SKILL_MAX = 200
         /**
          * 重伤恒定气血（Q20/Q41）：玩家侧弟子败北不死亡，只把气血钳到该值，
@@ -435,26 +435,6 @@ object GameConfig {
             5 to 0.40   // 40% 五灵根
         )
 
-        // ── 洗炼灵根（玉符消耗玩法）──
-
-        /** 单次洗炼消耗玉符数。 */
-        const val WASH_JADE_COST = 1
-
-        /**
-         * 保底阈值：连续未出单灵根次数达到该值后本次必出单灵根
-         * （即连续洗炼第 3 次必出单灵根，出单后计数归零）。
-         */
-        const val WASH_PITY_THRESHOLD = 2
-
-        /** 洗炼结果为双灵根的权重（单灵根概率 = 1 - 该值）。 */
-        const val WASH_DOUBLE_WEIGHT = 0.60
-
-        /**
-         * 洗炼元素候选 key（与 SpiritRootGenerator.ELEMENTS 保持同序，改动需同步两边）。
-         * 洗炼仅产出 1~2 个元素（单灵根/双灵根）。
-         */
-        val WASH_ELEMENT_KEYS = listOf("metal", "wood", "water", "fire", "earth")
-
         fun get(type: String): SpiritRootConfig = TYPES[type] ?: TYPES.getValue("metal")
         
         fun getAll(): List<SpiritRootConfig> = TYPES.values.toList()
@@ -481,53 +461,7 @@ object GameConfig {
 
     }
 
-    /** 天赋/体质/词条洗炼类型（三分类共用同构流程，displayName 用于 UI 标题与按钮文案）。 */
-    enum class TraitWashType(val displayName: String) {
-        TALENT("天赋"), PHYSIQUE("体质"), AFFIX("词条")
-    }
-
-    /** 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根）。 */
-    object TraitWash {
-
-        /** 单次洗炼消耗玉符数。 */
-        const val WASH_JADE_COST = 1
-
-        /**
-         * 保底阈值：连续洗炼结果中无任何上品（3 阶）的次数达到该值后，
-         * 下一次洗炼必出至少 1 个上品（出上品后计数归零）。
-         */
-        const val WASH_PITY_THRESHOLD = 2
-
-        /** 上品品阶（保底目标：Talent/Physique/Affix 的 rarity 达到该值即视为上品）。 */
-        const val TOP_RARITY = 3
-
-        /**
-         * 单次洗炼产物数量上限（与 WeightedRoll.DISCIPLE_TRAIT_COUNT_DISTRIBUTION
-         * 数量分布上限一致，改动需同步守卫测试 TraitWashRollTest）。
-         */
-        const val MAX_TRAIT_COUNT = 5
-    }
-
-    /**
-     * 新增天赋/体质/词条（玉符消耗玩法，界面复用洗炼）。
-     *
-     * 流程：消耗 1 玉符刷新出随机特质（下品40%/中品30%/上品30%，无负面，与洗炼共用
-     * [WeightedRoll.WASH_TRAIT_QUALITY_DISTRIBUTION]）→ 确认新增把特质追加到弟子
-     * （确认不消耗玉符）；刷新结果持久化到 GameData.pendingTraitAdds，关闭界面再打开
-     * 仍可继续确认。
-     */
-    object TraitAdd {
-
-        /** 单次刷新消耗玉符数。 */
-        const val JADE_COST = 1
-
-        /** 弟子单类特质上限（天赋/体质/词条各自独立；达到上限后隐藏新增入口并拒绝引擎操作）。 */
-        const val MAX_TRAITS_PER_CATEGORY = 5
-    }
-
-    /**
-     * 玉符购买玩法（与洗炼灵根共用 1 玉符消耗）。
-     */
+    /** 玉符购买玩法。 */
     object JadePurchase {
 
         /** 玉符购买类玩法单次消耗数量。 */

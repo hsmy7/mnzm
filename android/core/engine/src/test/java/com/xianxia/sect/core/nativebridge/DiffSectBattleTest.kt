@@ -18,7 +18,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -102,18 +101,6 @@ class DiffSectBattleTest {
         put("realmLayer", c.realmLayer)
         put("element", c.element)
         put("isBeast", c.isBeast)
-        putJsonObject("physique") {
-            put("damageAmplification", c.physique.damageAmplification)
-            put("critDamageBonus", c.physique.critDamageBonus)
-            put("damageReduction", c.physique.damageReduction)
-            put("defenseBonus", c.physique.defenseBonus)
-        }
-        putJsonObject("affix") {
-            put("damageAmplification", c.affix.damageAmplification)
-            put("critDamageBonus", c.affix.critDamageBonus)
-            put("damageReduction", c.affix.damageReduction)
-            put("defenseBonus", c.affix.defenseBonus)
-        }
     }
 
     /** 单个 Combatant 终态对比（id/hp/mp/buffs/skills.currentCooldown）。 */

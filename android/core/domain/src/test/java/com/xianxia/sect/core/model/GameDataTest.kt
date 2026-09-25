@@ -436,18 +436,6 @@ class GameDataTest {
         assertTrue(slot.isAlive)
     }
 
-    // ==================== BloodRefinementProgress ====================
-
-    @Test
-    fun bloodRefinementProgress_defaultConstruction() {
-        val progress = BloodRefinementProgress()
-        assertEquals("", progress.discipleId)
-        assertEquals("", progress.materialId)
-        assertEquals(0, progress.startYear)
-        assertEquals(0, progress.durationMonths)
-        assertEquals(0.0, progress.bonusPercent, 0.001)
-    }
-
     // ==================== SpiritFieldPlant ====================
 
     @Test

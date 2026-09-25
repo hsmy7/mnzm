@@ -127,8 +127,7 @@ class HpMpRecoveryService @Inject constructor() {
         val allProficiencies = state.gameData.manualProficiencies
         val proficiencyMap = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
         val finalStats = DiscipleStatCalculator.getFinalStats(
-            disciple, eqMap, mMap, proficiencyMap,
-            state.gameData.bloodRefinementPctTotals[disciple.id]
+            disciple, eqMap, mMap, proficiencyMap
         )
         val maxHp = finalStats.maxHp
         val maxMp = finalStats.maxMp
@@ -147,8 +146,8 @@ class HpMpRecoveryService @Inject constructor() {
      * 单弟子旬级 HP/MP 恢复（列直读版，每旬热点专用）。
      *
      * 与 [recoverHpMpSingle] 数学等价（共用 [DiscipleStatCalculator.computeBaseHpMp]
-     * 公式），但不 assemble 弟子对象——只直读 17 列（境界/层/方差/天赋/词条/四槽装备/
-     * 功法/丹药），省去 ~90 列读取 + 嵌套对象分配。
+     * 公式），但不 assemble 弟子对象——只直读列组（境界/层/方差/四槽装备/
+     * 功法/丹药），省去全列读取 + 嵌套对象分配。
      * 满血弟子提前退出（无需计算 maxHp 也能判断：curHp 达上限与否——注意
      * maxHp 由列版廉价算出后比较）。
      *
@@ -176,7 +175,7 @@ class HpMpRecoveryService @Inject constructor() {
         val curMp = tables.currentMps[id]
         if (curHp < 0 && curMp < 0) return false
 
-        val input = buildHpMpColumnInput(state, tables, id)
+        val input = buildHpMpColumnInput(tables, id)
         val maps = resolveRecoveryMaps(state, id, equipmentMap, manualMap, manualProficiencies)
         val (maxHp, maxMp) = DiscipleStatCalculator.getMaxHpMpColumn(input, maps.eqMap, maps.manualMap, maps.profMap)
 
@@ -211,9 +210,8 @@ class HpMpRecoveryService @Inject constructor() {
         return RecoveryMaps(eqMap, mMap, profMap)
     }
 
-    /** 列直读版恢复输入构建：直读 17 列，无 Disciple 组装 */
+    /** 列直读版恢复输入构建：直读列组，无 Disciple 组装 */
     private fun buildHpMpColumnInput(
-        state: MutableGameState,
         tables: DiscipleTables,
         id: Int
     ): DiscipleStatCalculator.HpMpColumnInput {
@@ -222,8 +220,6 @@ class HpMpRecoveryService @Inject constructor() {
             realmLayer = tables.realmLayers[id],
             hpVariance = tables.hpVariances[id],
             mpVariance = tables.mpVariances[id],
-            talentIds = tables.talentIds.getOrNull(id) ?: emptyList(),
-            affixIds = tables.affixIds.getOrNull(id) ?: emptyList(),
             weaponId = tables.weaponIds.getOrNull(id),
             armorId = tables.armorIds.getOrNull(id),
             bootsId = tables.bootsIds.getOrNull(id),
@@ -231,8 +227,7 @@ class HpMpRecoveryService @Inject constructor() {
             manualIds = tables.manualIds.getOrNull(id) ?: emptyList(),
             pillEffectDuration = tables.pillEffectDurations[id],
             pillHpBonus = tables.pillHpBonuses[id],
-            pillMpBonus = tables.pillMpBonuses[id],
-            bloodRefinementPct = state.gameData.bloodRefinementPctTotals[id.toString()]
+            pillMpBonus = tables.pillMpBonuses[id]
         )
     }
 

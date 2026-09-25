@@ -1,17 +1,6 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.Disciple
 
-
-/**
- * 计算生产成功率加成
- *
- * @param弟子 执行生产的弟子（可为空）
- * @param buildingId 建筑ID
- * @return 总成功率加成（0.0-1.0）
- */
-fun GameEngine.calculateSuccessRateBonus(disciple: Disciple?,
-    buildingId: String): Double = formulaService.calculateSuccessRateBonus(disciple, buildingId)
 /**
  * 计算所有弟子的工作持续时间加成
  *

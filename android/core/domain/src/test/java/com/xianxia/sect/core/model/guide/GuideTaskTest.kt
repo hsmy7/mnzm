@@ -41,14 +41,16 @@ class GuideTaskTest {
     // ==================== GuideTaskRegistry ====================
 
     @Test
-    fun `GuideTaskRegistry - 包含 25 个引导任务`() {
-        assertEquals("任务数量应为 25", 25, GuideTaskRegistry.ALL_TASKS.size)
+    fun `GuideTaskRegistry - 包含 24 个引导任务`() {
+        assertEquals("任务数量应为 24", 24, GuideTaskRegistry.ALL_TASKS.size)
     }
 
     @Test
-    fun `GuideTaskRegistry - 任务 ID 从 1 到 25 连续`() {
+    fun `GuideTaskRegistry - 任务 ID 为 1 到 23 连续加 25`() {
+        // 任务 24（血炼）已随血炼玩法下线删除；id 25 保留原编号，
+        // 避免重编号导致旧档已完成任务进度错位
         val ids = GuideTaskRegistry.ALL_TASKS.map { it.id }.sorted()
-        assertEquals("任务 ID 应连续无缺", (1..25).toList(), ids)
+        assertEquals("任务 ID 应为 1..23 连续加保留的 25", (1..23).toList() + 25, ids)
     }
 
     @Test
@@ -299,17 +301,6 @@ class GuideTaskTest {
     fun `PlantCropOnce - 未种植时未完成`() {
         val gd = GameData()
         assertFalse("未种植", GuideCondition.PlantCropOnce.isMet(gd))
-    }
-
-    // ==================== GuideCondition.BloodRefinementCompleted ====================
-
-    @Test
-    fun `BloodRefinementCompleted - 初始为 0`() {
-        val gd = GameData()
-        val cond = GuideCondition.BloodRefinementCompleted()
-        assertEquals("label", "完成1次血炼", cond.label)
-        assertEquals("当前值应为 0", 0L, cond.currentValue(gd))
-        assertFalse("isMet", cond.isMet(gd))
     }
 
     // ==================== GuideCondition.PatrolBeastDefeated ====================

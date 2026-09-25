@@ -14,11 +14,13 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * 迁移 46→47 测试（game_data 新增"新增天赋/体质/词条"待确认产物列 pending_trait_adds）。
+ * 迁移 46→47 测试（game_data 曾新增"新增天赋/体质/词条"待确认产物列 pending_trait_adds）。
  *
- * 背景（玉符消耗玩法）：新增天赋/体质/词条的刷新产物必须持久化——
- * 刷新（消耗 1 玉符）后不确认直接关闭界面，下次打开仍显示该产物并可直接确认新增。
- * 产物为 List[PendingTraitAdd]，经 ProtobufConverters 序列化为 Base64 存 TEXT 列。
+ * 历史（玉符消耗玩法）：该列在 v47 为特质刷新产物持久化而加入
+ * （List[PendingTraitAdd] 经 ProtobufConverters 序列化为 Base64 存 TEXT 列）。
+ * 该玩法链已随 G04 洗炼/特质下线整删：列在 v58 迁移删除，proto 号 1002 登记 reserved。
+ * 本类仅锁定 v46→v47 的历史迁移行为（MIGRATION_46_47 本体冻结）；v58 删除面
+ * 与链尾校验由 RoomMigrationV57To58Test 承载。
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])

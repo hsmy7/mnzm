@@ -589,8 +589,7 @@ class SecretRealmService @Inject constructor(
                 manualMap = manualMap,
                 manualProficiencies = allProficiencies,
                 side = CombatantSide.DEFENDER,
-                fullHeal = false,
-                bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
+                fullHeal = false
             )
         }
         val beasts = aiPrepared.disciples.map { d ->
@@ -894,8 +893,7 @@ class SecretRealmService @Inject constructor(
             beastCount = beastCount,
             beastType = eventParams.beastTypeName,
             manualProficiencies = allProficiencies,
-            beastPreGenStats = beastPreGenStats,
-            bloodRefinementMap = data.bloodRefinementPctTotals
+            beastPreGenStats = beastPreGenStats
         )
         return executeRouted(battle)
     }

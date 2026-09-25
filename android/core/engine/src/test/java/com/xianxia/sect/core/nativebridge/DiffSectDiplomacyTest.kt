@@ -3,7 +3,6 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngine
 import com.xianxia.sect.core.model.AISectPersonality
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -17,8 +16,6 @@ import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.add
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -182,41 +179,20 @@ class DiffSectDiplomacyTest {
         freshCore(42)
         val disciple = Disciple(
             id = "1", name = "张三", realm = 5, realmLayer = 3,
-            talentIds = listOf("t1", "t2"),
             combat = CombatAttributes(
                 hpVariance = 1, physicalAttackVariance = 2, magicAttackVariance = 3,
                 physicalDefenseVariance = 4, magicDefenseVariance = 5, speedVariance = 6,
             ),
         )
         val aggregate = DiscipleAggregate.fromDisciple(disciple)
-        val blood = BloodRefinementPctTotal(
-            discipleId = "1", hpBonusPct = 0.1, physicalAttackBonusPct = 0.2,
-            magicAttackBonusPct = 0.3, physicalDefenseBonusPct = 0.4,
-            magicDefenseBonusPct = 0.5, speedBonusPct = 0.6)
-        val kotlinFp = SectCombatPowerCalculator.computeFingerprint(aggregate, blood)
+        val kotlinFp = SectCombatPowerCalculator.computeFingerprint(aggregate)
         val r = cppExec(ActionIds.SECT_POWER_FINGERPRINT, buildJsonObject {
             put("realm", 5); put("realmLayer", 3)
             put("hpVariance", 1); put("physicalAttackVariance", 2); put("magicAttackVariance", 3)
             put("physicalDefenseVariance", 4); put("magicDefenseVariance", 5); put("speedVariance", 6)
-            put("talentIds", buildJsonArray { add("t1"); add("t2") })
-            put("bloodPct", buildJsonObject {
-                put("hpBonusPct", 0.1); put("physicalAttackBonusPct", 0.2)
-                put("magicAttackBonusPct", 0.3); put("physicalDefenseBonusPct", 0.4)
-                put("magicDefenseBonusPct", 0.5); put("speedBonusPct", 0.6)
-            })
         })
         assertSuccess(r)
         assertEquals(kotlinFp, int(r["data"]!!.jsonObject.getValue("fingerprint")))
-        // 无血炼
-        val kotlinNoBlood = SectCombatPowerCalculator.computeFingerprint(aggregate, null)
-        val r2 = cppExec(ActionIds.SECT_POWER_FINGERPRINT, buildJsonObject {
-            put("realm", 5); put("realmLayer", 3)
-            put("hpVariance", 1); put("physicalAttackVariance", 2); put("magicAttackVariance", 3)
-            put("physicalDefenseVariance", 4); put("magicDefenseVariance", 5); put("speedVariance", 6)
-            put("talentIds", buildJsonArray { add("t1"); add("t2") })
-        })
-        assertSuccess(r2)
-        assertEquals(kotlinNoBlood, int(r2["data"]!!.jsonObject.getValue("fingerprint")))
     }
 
     @Test

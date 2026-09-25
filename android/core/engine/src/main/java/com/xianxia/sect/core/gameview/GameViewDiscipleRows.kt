@@ -143,7 +143,6 @@ internal object GameViewDiscipleRows {
         "mining" to DiscipleRow::hasMining,
         "teaching" to DiscipleRow::hasTeaching,
         "morality" to DiscipleRow::hasMorality,
-        "aptitude" to DiscipleRow::hasAptitude,
         "salaryPaidCount" to DiscipleRow::hasSalaryPaidCount,
         "salaryMissedCount" to DiscipleRow::hasSalaryMissedCount,
         "alchemyLevel" to DiscipleRow::hasAlchemyLevel,
@@ -187,9 +186,6 @@ internal object GameViewDiscipleRows {
             portraitRes = row.portraitRes,
             templateId = row.templateId,
             manualIds = row.manualIdsList,
-            talentIds = row.talentIdsList,
-            physiqueIds = row.physiqueIdsList,
-            affixIds = row.affixIdsList,
             manualMasteries = row.manualMasteriesList.associate { it.key to it.value },
             status = safeStatus(row.status),
             statusData = row.statusDataList.associate { it.key to it.value },
@@ -285,7 +281,6 @@ internal object GameViewDiscipleRows {
                 mining = row.mining,
                 teaching = row.teaching,
                 morality = row.morality,
-                aptitude = row.aptitude,
                 salaryPaidCount = row.salaryPaidCount,
                 salaryMissedCount = row.salaryMissedCount,
                 alchemyLevel = row.alchemyLevel,
@@ -396,9 +391,6 @@ internal object GameViewDiscipleRows {
 
     private val REPEATED_FIELD_CLEARERS: List<RepeatedClearer> = listOf(
         RepeatedClearer("manualIds", { it.manualIdsCount > 0 }) { it.clearManualIds() },
-        RepeatedClearer("talentIds", { it.talentIdsCount > 0 }) { it.clearTalentIds() },
-        RepeatedClearer("physiqueIds", { it.physiqueIdsCount > 0 }) { it.clearPhysiqueIds() },
-        RepeatedClearer("affixIds", { it.affixIdsCount > 0 }) { it.clearAffixIds() },
         RepeatedClearer("manualMasteries", { it.manualMasteriesCount > 0 }) { it.clearManualMasteries() },
         RepeatedClearer("statusData", { it.statusDataCount > 0 }) { it.clearStatusData() },
         RepeatedClearer("activePillTypes", { it.activePillTypesCount > 0 }) { it.clearActivePillTypes() },
@@ -497,9 +489,6 @@ internal object GameViewDiscipleRows {
         if (row.hasPortraitRes()) portraitRes[id] = row.portraitRes
         if (row.hasTemplateId()) templateIds[id] = row.templateId
         if (row.manualIdsCount > 0) manualIds[id] = row.manualIdsList
-        if (row.talentIdsCount > 0) talentIds[id] = row.talentIdsList
-        if (row.physiqueIdsCount > 0) physiqueIds[id] = row.physiqueIdsList
-        if (row.affixIdsCount > 0) affixIds[id] = row.affixIdsList
         if (row.manualMasteriesCount > 0) {
             manualMasteries[id] = row.manualMasteriesList.associate { it.key to it.value }
         }
@@ -647,7 +636,6 @@ internal object GameViewDiscipleRows {
         if (row.hasMining()) minings[id] = row.mining
         if (row.hasTeaching()) teachings[id] = row.teaching
         if (row.hasMorality()) moralities[id] = row.morality
-        if (row.hasAptitude()) aptitudes[id] = row.aptitude
         if (row.hasSalaryPaidCount()) salaryPaidCounts[id] = row.salaryPaidCount
         if (row.hasSalaryMissedCount()) salaryMissedCounts[id] = row.salaryMissedCount
         if (row.hasAlchemyLevel()) alchemyLevels[id] = row.alchemyLevel
@@ -716,9 +704,6 @@ internal object GameViewDiscipleRows {
         b.portraitRes = d.portraitRes
         b.templateId = d.templateId
         b.addAllManualIds(d.manualIds)
-        b.addAllTalentIds(d.talentIds)
-        b.addAllPhysiqueIds(d.physiqueIds)
-        b.addAllAffixIds(d.affixIds)
         b.addAllManualMasteries(
             d.manualMasteries.map { StringIntEntry.newBuilder().setKey(it.key).setValue(it.value).build() }
         )
@@ -812,7 +797,6 @@ internal object GameViewDiscipleRows {
         b.mining = d.skills.mining
         b.teaching = d.skills.teaching
         b.morality = d.skills.morality
-        b.aptitude = d.skills.aptitude
         b.salaryPaidCount = d.skills.salaryPaidCount
         b.salaryMissedCount = d.skills.salaryMissedCount
         b.alchemyLevel = d.skills.alchemyLevel

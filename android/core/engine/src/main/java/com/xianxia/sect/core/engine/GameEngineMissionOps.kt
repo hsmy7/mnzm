@@ -105,7 +105,7 @@ private suspend fun GameEngine.applyCompletedMissionResult(
     val proficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
     val result = MissionSystem.processMissionCompletion(
         activeMission, aliveDisciples, equipMap, manualMap,
-        proficiencies, battleSystem, data.bloodRefinementPctTotals,
+        proficiencies, battleSystem,
         rngManager = gameRngManager
     )
     applyMissionResult(result, activeMission, data.gameYear, data.gameMonth, aliveDisciples)

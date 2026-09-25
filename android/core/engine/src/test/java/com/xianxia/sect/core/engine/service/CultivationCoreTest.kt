@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.mockSmart
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -32,7 +31,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
-import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
  * CultivationCore 直接单元测试。
@@ -68,10 +66,6 @@ class CultivationCoreTest {
                 DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) =
                 DiscipleStatCalculator.getBaseStats(aggregate)
-            override fun getTalentEffects(disciple: Disciple) =
-                DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) =
-                DiscipleStatCalculator.getTalentEffects(aggregate)
             override fun getStatsWithEquipment(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>
             ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
@@ -81,18 +75,16 @@ class CultivationCoreTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStatCalculator.getFinalStats(
-                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+                disciple, equipments, manuals, manualProficiencies
             )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStatCalculator.getFinalStats(
-                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+                aggregate, equipments, manuals, manualProficiencies
             )
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,
@@ -261,7 +253,7 @@ class CultivationCoreTest {
 
     @Test
     fun `isDiscipleFullHpMp tables - HP等于maxHp返回true`() {
-        // 含血炼口径下无血炼弟子上限 = getFinalStats maxHp（境界基础值，非 combat.baseHp 快照）；
+        // 弟子上限 = getFinalStats maxHp（境界基础值，非 combat.baseHp 快照）；
         // currentHp 达真实上限判满
         val disciple = createDisciple(id = "1")
         val stats = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())

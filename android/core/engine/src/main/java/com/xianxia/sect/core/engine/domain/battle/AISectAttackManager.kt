@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.AISectPersonality
@@ -23,7 +22,6 @@ import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.putJsonArray
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngine
 import com.xianxia.sect.core.model.SectBattleType
@@ -33,8 +31,6 @@ import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.domain.diplomacy.buildEquipmentMapForDisciple
 import com.xianxia.sect.core.engine.domain.diplomacy.buildManualDataForDisciple
-import com.xianxia.sect.core.engine.domain.disciple.getPhysiqueEffects
-import com.xianxia.sect.core.engine.domain.disciple.getAffixCombatEffects
 // top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
 
 // W4-C 随机源收敛：顶层可变 `aisRngManager` + `internal val aisRng` 已摘除，
@@ -66,11 +62,10 @@ object AISectAttackManager {
         defenderSect: WorldSect,
         defenderDisciples: List<Disciple>,
         allSectDisciples: List<Disciple> = defenderDisciples,
-        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap(),
         rngManager: GameRngManager
     ): AIBattleResult {
         val combatAttackers = attackers.map {
-            convertToCombatant(it, CombatantSide.ATTACKER, bloodRefinementMap[it.id])
+            convertToCombatant(it, CombatantSide.ATTACKER)
         }
         return executeSectBattleCore(
             combatAttackers = combatAttackers,
@@ -337,8 +332,7 @@ object AISectAttackManager {
 
     internal fun convertToCombatant(
         disciple: Disciple,
-        side: CombatantSide,
-        bloodRefinementPct: BloodRefinementPctTotal? = null
+        side: CombatantSide
     ): Combatant {
         // 读取持久化的装备/功法字段（模板 id → 临时实例映射），不再战前随机生成。
         // registry 未初始化时降级为裸装战斗（与 AISectDiscipleManager 各路径的降级语义一致）
@@ -353,7 +347,7 @@ object AISectAttackManager {
             emptyMap<String, ManualInstance>() to emptyMap<String, ManualProficiencyData>()
         }
 
-        val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies, bloodRefinementPct)
+        val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
 
         val skills = buildCombatSkills(manualMap, manualProficiencies)
 
@@ -362,11 +356,6 @@ object AISectAttackManager {
         val weaponName = disciple.equipment.weaponId
             .takeIf { it.isNotEmpty() }
             ?.let { equipmentMap[it]?.name }
-
-        // 体质独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
-        val physiqueEffects = DiscipleStatCalculator.getPhysiqueEffects(disciple)
-        // 词条独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
-        val affixCombat = DiscipleStatCalculator.getAffixCombatEffects(disciple)
 
         return Combatant(
             id = disciple.id,
@@ -389,14 +378,7 @@ object AISectAttackManager {
             buffs = emptyList(),
             element = primaryElement,
             weaponName = weaponName,
-            portraitRes = disciple.portraitRes,
-            physique = PhysiqueCombatFactors(
-                damageAmplification = physiqueEffects.damageAmplification,
-                critDamageBonus = physiqueEffects.critDamageBonus,
-                damageReduction = physiqueEffects.damageReduction,
-                defenseBonus = physiqueEffects.defenseBonus
-            ),
-            affix = affixCombat
+            portraitRes = disciple.portraitRes
         )
     }
 

@@ -69,18 +69,6 @@ inline nlohmann::json combatantToJson(const Combatant& c) {
     nlohmann::json buffs = nlohmann::json::array();
     for (const auto& b : c.buffs) buffs.push_back(buffToJson(b));
     j["buffs"] = buffs;
-    j["physique"] = {
-        {"damageAmplification", c.physique.damageAmplification},
-        {"critDamageBonus", c.physique.critDamageBonus},
-        {"damageReduction", c.physique.damageReduction},
-        {"defenseBonus", c.physique.defenseBonus},
-    };
-    j["affix"] = {
-        {"damageAmplification", c.affix.damageAmplification},
-        {"critDamageBonus", c.affix.critDamageBonus},
-        {"damageReduction", c.affix.damageReduction},
-        {"defenseBonus", c.affix.defenseBonus},
-    };
     return j;
 }
 
@@ -157,20 +145,6 @@ inline Combatant combatantFromJson(const nlohmann::json& j) {    Combatant c;
     c.realmLayer = j.value("realmLayer", 0);
     c.element = j.value("element", "");
     c.isBeast = j.value("isBeast", false);
-    if (j.contains("physique")) {
-        const auto& p = j.at("physique");
-        c.physique.damageAmplification = p.value("damageAmplification", 0.0);
-        c.physique.critDamageBonus = p.value("critDamageBonus", 0.0);
-        c.physique.damageReduction = p.value("damageReduction", 0.0);
-        c.physique.defenseBonus = p.value("defenseBonus", 0.0);
-    }
-    if (j.contains("affix")) {
-        const auto& a = j.at("affix");
-        c.affix.damageAmplification = a.value("damageAmplification", 0.0);
-        c.affix.critDamageBonus = a.value("critDamageBonus", 0.0);
-        c.affix.damageReduction = a.value("damageReduction", 0.0);
-        c.affix.defenseBonus = a.value("defenseBonus", 0.0);
-    }
     return c;
 }
 

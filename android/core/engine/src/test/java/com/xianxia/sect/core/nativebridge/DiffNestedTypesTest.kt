@@ -1,8 +1,5 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.xianxia.sect.core.model.BloodRefinementBonusTotal
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.Pill
@@ -15,7 +12,7 @@ import org.junit.Test
 /**
  * DiffNestedTypesTest — 低频嵌套类型快照往返对拍。
  *
- * 守护目标：C++ models.h 新增嵌套类型（血炼三件套/功法精通/矿脉槽位）与
+ * 守护目标：C++ models.h 嵌套类型（功法精通/矿脉槽位）与
  * Kotlin @Serializable 模型 JSON 快照**逐字段一致**（导出/导入往返）。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
@@ -29,41 +26,6 @@ class DiffNestedTypesTest {
         assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(encoded.encodeToByteArray()))
         val exported = DiffRngBridge.nativeCoreExportState()
         return json.decodeFromString(NativeGameState.serializer(), exported.decodeToString())
-    }
-
-    @Test
-    fun `blood refinement nested types round trip`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-        val gd = GameData().apply {
-            bloodRefinementBonusTotals = mapOf(
-                "d-1" to BloodRefinementBonusTotal(
-                    discipleId = "d-1", hpBonus = 100, physicalAttackBonus = 50,
-                    magicAttackBonus = 30, speedBonus = 10
-                )
-            )
-            bloodRefinementPctTotals = mapOf(
-                "d-1" to BloodRefinementPctTotal(
-                    discipleId = "d-1", hpBonusPct = 0.25,
-                    physicalAttackBonusPct = 0.15, speedBonusPct = 0.05
-                )
-            )
-            activeBloodRefinements = mapOf(
-                "b-1" to BloodRefinementProgress(
-                    discipleId = "d-2", discipleName = "李四", materialId = "mat-1",
-                    materialName = "妖兽精血", startYear = 2, startMonth = 3,
-                    durationMonths = 6, selectedStat = "hp", bonusPercent = 0.1
-                )
-            )
-        }
-        val decoded = roundTrip(NativeGameState(gameData = gd))
-        val d = decoded.gameData
-        assertEquals(1, d.bloodRefinementBonusTotals.size)
-        assertEquals(100, d.bloodRefinementBonusTotals["d-1"]?.hpBonus)
-        assertEquals(0.25, d.bloodRefinementPctTotals["d-1"]?.hpBonusPct ?: 0.0, 1e-12)
-        assertEquals(1, d.activeBloodRefinements.size)
-        assertEquals("妖兽精血", d.activeBloodRefinements["b-1"]?.materialName)
-        assertEquals("hp", d.activeBloodRefinements["b-1"]?.selectedStat)
     }
 
     @Test
@@ -101,7 +63,6 @@ class DiffNestedTypesTest {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
         val decoded = roundTrip(NativeGameState(gameData = GameData()))
-        assertTrue(decoded.gameData.bloodRefinementPctTotals.isEmpty())
         assertTrue(decoded.gameData.manualProficiencies.isEmpty())
         assertTrue(decoded.gameData.spiritMineSlots.isEmpty())
     }

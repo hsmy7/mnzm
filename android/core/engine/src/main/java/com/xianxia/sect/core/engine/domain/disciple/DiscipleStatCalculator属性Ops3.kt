@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleAttributes
@@ -22,30 +21,10 @@ internal fun DiscipleStatCalculator.computeBaseStats(
     realm: Int,
     realmLayer: Int,
     variances: VarianceInputs,
-    talentEffects: Map<String, Double>,
-    bloodRefinementPct: BloodRefinementPctTotal? = null,
     skills: SkillInputs
 ): DiscipleStats {
     val realmConfig = GameConfig.Realm.get(realm)
     val layerMult = safeLayerMult(realmLayer)
-
-    // 血炼百分比乘区与天赋同乘区加算
-    val br = bloodRefinementPct
-    val attackBonus = talentBonus(talentEffects, "physicalAttack") + brPct(br) { it.physicalAttackBonusPct }
-    val magicAttackBonus = talentBonus(talentEffects, "magicAttack") + brPct(br) { it.magicAttackBonusPct }
-    val defenseBonus = talentBonus(talentEffects, "physicalDefense") + brPct(br) { it.physicalDefenseBonusPct }
-    val magicDefenseBonus = talentBonus(talentEffects, "magicDefense") + brPct(br) { it.magicDefenseBonusPct }
-    val speedBonus = talentBonus(talentEffects, "speed") + brPct(br) { it.speedBonusPct }
-    val critBonus = talentBonus(talentEffects, "critRate")
-    val intelligenceFlat = talentFlat(talentEffects, "intelligenceFlat")
-    val charmFlat = talentFlat(talentEffects, "charmFlat")
-    val comprehensionFlat = talentFlat(talentEffects, "comprehensionFlat")
-    val teachingFlat = talentFlat(talentEffects, "teachingFlat")
-    val moralityFlat = talentFlat(talentEffects, "moralityFlat")
-    val miningFlat = talentFlat(talentEffects, "miningFlat")
-    val spiritPlantingFlat = talentFlat(talentEffects, "spiritPlantingFlat")
-    val artifactRefiningFlat = talentFlat(talentEffects, "artifactRefiningFlat")
-    val pillRefiningFlat = talentFlat(talentEffects, "pillRefiningFlat")
 
     val paVar = safeVarianceMultiplier(variances.physicalAttackVariance)
     val maVar = safeVarianceMultiplier(variances.magicAttackVariance)
@@ -55,7 +34,7 @@ internal fun DiscipleStatCalculator.computeBaseStats(
 
     // maxHp/maxMp 共用实现（computeBaseHpMp），与列直读版公式单一来源
     val (maxHp, maxMp) = computeBaseHpMp(
-        realm, realmLayer, variances.hpVariance, variances.mpVariance, talentEffects, bloodRefinementPct
+        realm, realmLayer, variances.hpVariance, variances.mpVariance
     )
 
     return DiscipleStats(
@@ -63,28 +42,26 @@ internal fun DiscipleStatCalculator.computeBaseStats(
         maxHp = maxHp,
         mp = maxMp,
         maxMp = maxMp,
-        physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult * (1.0 + attackBonus)).roundToInt(),
-        magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult * (1.0 + magicAttackBonus)).roundToInt(),
-        physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult * (1.0 + defenseBonus)).roundToInt(),
-        magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult * (1.0 + magicDefenseBonus)).roundToInt(),
-        speed = (realmConfig.baseSpeed * spdVar * layerMult * (1.0 + speedBonus)).roundToInt(),
-        critRate = BASE_CRIT_RATE + critBonus,
-        intelligence = skills.intelligence + intelligenceFlat,
-        charm = skills.charm + charmFlat,
-        comprehension = skills.comprehension + comprehensionFlat,
-        aptitude = skills.aptitude,
-        teaching = skills.teaching + teachingFlat,
-        morality = skills.morality + moralityFlat,
-        mining = skills.mining + miningFlat,
-        spiritPlanting = skills.spiritPlanting + spiritPlantingFlat,
-        artifactRefining = skills.artifactRefining + artifactRefiningFlat,
-        pillRefining = skills.pillRefining + pillRefiningFlat
+        physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult).roundToInt(),
+        magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult).roundToInt(),
+        physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult).roundToInt(),
+        magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult).roundToInt(),
+        speed = (realmConfig.baseSpeed * spdVar * layerMult).roundToInt(),
+        critRate = BASE_CRIT_RATE,
+        intelligence = skills.intelligence,
+        charm = skills.charm,
+        comprehension = skills.comprehension,
+        teaching = skills.teaching,
+        morality = skills.morality,
+        mining = skills.mining,
+        spiritPlanting = skills.spiritPlanting,
+        artifactRefining = skills.artifactRefining,
+        pillRefining = skills.pillRefining
     )
 }
 
 fun DiscipleStatCalculator.getBaseStats(
-    disciple: Disciple,
-    bloodRefinementPct: BloodRefinementPctTotal? = null
+    disciple: Disciple
 ): DiscipleStats {
     val c = disciple.combat
     val s = disciple.skills
@@ -100,13 +77,10 @@ fun DiscipleStatCalculator.getBaseStats(
             magicDefenseVariance = c.magicDefenseVariance,
             speedVariance = c.speedVariance
         ),
-        talentEffects = getMergedEffects(disciple),
-        bloodRefinementPct = bloodRefinementPct,
         skills = SkillInputs(
             intelligence = s.intelligence,
             charm = s.charm,
             comprehension = s.comprehension,
-            aptitude = s.aptitude,
             teaching = s.teaching,
             morality = s.morality,
             mining = s.mining,
@@ -135,7 +109,6 @@ internal fun DiscipleStatCalculator.skillInputsOf(attr: DiscipleAttributes?): Sk
     intelligence = attr?.intelligence ?: 50,
     charm = attr?.charm ?: 50,
     comprehension = attr?.comprehension ?: 50,
-    aptitude = attr?.aptitude ?: 50,
     teaching = attr?.teaching ?: 50,
     morality = attr?.morality ?: 50,
     mining = attr?.mining ?: 50,
@@ -145,39 +118,31 @@ internal fun DiscipleStatCalculator.skillInputsOf(attr: DiscipleAttributes?): Sk
 )
 
 fun DiscipleStatCalculator.getBaseStats(
-    aggregate: DiscipleAggregate,
-    bloodRefinementPct: BloodRefinementPctTotal? = null
+    aggregate: DiscipleAggregate
 ): DiscipleStats {
     return computeBaseStats(
         realm = aggregate.realm,
         realmLayer = aggregate.realmLayer,
         variances = varianceInputsOf(aggregate.combatStats),
-        talentEffects = getMergedEffects(aggregate),
-        bloodRefinementPct = bloodRefinementPct,
         skills = skillInputsOf(aggregate.attributes)
     )
 }
 
 /**
- * 计算弟子的永久基础属性（含境界基础 + 天赋 + 血炼百分比乘区）。
+ * 计算弟子的永久基础属性（境界基础 × 方差 × 层数）。
  *
- * 用于战力计算：属性 = 境界基础 × 方差 × 层数 × (1 + 天赋% + 血炼%)。
- * 不包含装备、功法、临时丹药等临时加成。
+ * 用于战力计算。不包含装备、功法、临时丹药等临时加成。
  *
  * @param aggregate 弟子聚合数据
- * @param bloodRefinementPct 血炼百分比累计记录，若无则为 null
  */
 
 fun DiscipleStatCalculator.getPermanentBaseStats(
-    aggregate: DiscipleAggregate,
-    bloodRefinementPct: BloodRefinementPctTotal? = null
+    aggregate: DiscipleAggregate
 ): DiscipleStats {
     return computeBaseStats(
         realm = aggregate.realm,
         realmLayer = aggregate.realmLayer,
         variances = varianceInputsOf(aggregate.combatStats),
-        talentEffects = getMergedEffects(aggregate),
-        bloodRefinementPct = bloodRefinementPct,
         skills = skillInputsOf(aggregate.attributes)
     )
 }

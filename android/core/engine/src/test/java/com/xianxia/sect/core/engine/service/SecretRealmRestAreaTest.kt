@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -80,8 +79,6 @@ class SecretRealmRestAreaTest {
                 DiscipleStats(hp = 1000, maxHp = 1000, mp = 200, maxMp = 200)
             override fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats =
                 DiscipleStats(hp = 1000, maxHp = 1000, mp = 200, maxMp = 200)
-            override fun getTalentEffects(disciple: Disciple): Map<String, Double> = emptyMap()
-            override fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double> = emptyMap()
             override fun getStatsWithEquipment(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>
             ): DiscipleStats = DiscipleStats()
@@ -91,14 +88,12 @@ class SecretRealmRestAreaTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ): DiscipleStats = DiscipleStats()
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ): DiscipleStats = DiscipleStats()
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,

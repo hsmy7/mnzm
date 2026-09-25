@@ -5,10 +5,8 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.NameService
-import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
@@ -21,12 +19,11 @@ import org.junit.Test
  * 守护目标：Kotlin `DiscipleFactory.create`（core/engine/domain/disciple/
  * DiscipleFactory.kt）与 C++ `gamecore::system::createDisciple`
  * （disciple_factory.h）在相同种子下产出**逐字段位级一致**的弟子：
- * 六维方差 / 悟性 / 资质（含哨兵 50 规避）/ 三分类特质（天赋/体质/词条，
- * 含 DEPRECATED 过滤与 template 去重）/ 肖像 / 技能 / 基础属性 / 寿命。
+ * 六维方差 / 悟性 / 肖像 / 技能 / 基础属性 / 寿命。
  *
- * 确定性基础：Kotlin 侧 `seed.nextInt` 与 `seed.random`（asKotlinRandom）
- * 是同一 `DeterministicRng` 的两个适配器；C++ 侧 `nativeFromSeed(seed)`
- * 独立同种子实例按相同消费序驱动（14 次方差 + 2 次阶梯 + 三分类 +
+ * 确定性基础：Kotlin 侧 `seed.nextInt` 是 `DeterministicRng` 的适配器；
+ * C++ 侧 `nativeFromSeed(seed)`
+ * 独立同种子实例按相同消费序驱动（14 次方差 + 2 次阶梯 +
  * 1 次肖像 + 18 次技能）。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
@@ -41,10 +38,6 @@ class DiffDiscipleFactoryTest {
 
     private fun assertStr(tag: String, key: String, expected: String, c: JsonObject) {
         assertEquals("$tag $key", expected, c[key]!!.jsonPrimitive.content)
-    }
-
-    private fun assertList(tag: String, key: String, expected: List<String>, c: JsonObject) {
-        assertEquals("$tag $key", expected, c[key]!!.jsonArray.map { it.jsonPrimitive.content })
     }
 
     private fun assertCombat(tag: String, d: Disciple, c: JsonObject) {
@@ -68,7 +61,6 @@ class DiffDiscipleFactoryTest {
 
     private fun assertSkills(tag: String, d: Disciple, c: JsonObject) {
         assertInt(tag, "comprehension", d.skills.comprehension, c)
-        assertInt(tag, "aptitude", d.skills.aptitude, c)
         assertInt(tag, "intelligence", d.skills.intelligence, c)
         assertInt(tag, "charm", d.skills.charm, c)
         assertInt(tag, "morality", d.skills.morality, c)
@@ -77,12 +69,6 @@ class DiffDiscipleFactoryTest {
         assertInt(tag, "spiritPlanting", d.skills.spiritPlanting, c)
         assertInt(tag, "mining", d.skills.mining, c)
         assertInt(tag, "teaching", d.skills.teaching, c)
-    }
-
-    private fun assertTraits(tag: String, d: Disciple, c: JsonObject) {
-        assertList(tag, "talentIds", d.talentIds, c)
-        assertList(tag, "physiqueIds", d.physiqueIds, c)
-        assertList(tag, "affixIds", d.affixIds, c)
     }
 
     private fun runDiff(
@@ -107,8 +93,7 @@ class DiffDiscipleFactoryTest {
                 realm = realm,
                 realmLayer = realmLayer,
                 social = SocialData(),
-                nextInt = { from, until -> from + kRng.nextInt(until - from) },
-                random = kRng.asKotlinRandom()
+                nextInt = { from, until -> from + kRng.nextInt(until - from) }
             )
         )
 
@@ -124,7 +109,6 @@ class DiffDiscipleFactoryTest {
         val tag = "seed=$seed id=$id spiritRoot=$spiritRootType"
         assertCombat(tag, kDisciple, c)
         assertSkills(tag, kDisciple, c)
-        assertTraits(tag, kDisciple, c)
     }
 
     @Test

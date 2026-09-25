@@ -37,7 +37,6 @@ import com.xianxia.sect.core.engine.parseMonthSettlementEnvelope
 import com.xianxia.sect.core.engine.parseYearSettlementEnvelope
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -77,7 +76,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
-import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
  * DiffAuthoritativeTickTest — AUTHORITATIVE 过渡期 tick 全管线跨语言对拍
@@ -261,10 +259,6 @@ class DiffAuthoritativeTickTest {
                 DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) =
                 DiscipleStatCalculator.getBaseStats(aggregate)
-            override fun getTalentEffects(disciple: Disciple) =
-                DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) =
-                DiscipleStatCalculator.getTalentEffects(aggregate)
             override fun getStatsWithEquipment(
                 d: Disciple, e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>
             ) = DiscipleStatCalculator.getStatsWithEquipment(d, e)
@@ -275,16 +269,14 @@ class DiffAuthoritativeTickTest {
                 d: Disciple,
                 e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
                 m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-                p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-                b: BloodRefinementPctTotal?
-            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p, b)
+                p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>
+            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p)
             override fun getFinalStats(
                 a: DiscipleAggregate,
                 e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
                 m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-                p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-                b: BloodRefinementPctTotal?
-            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, b)
+                p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>
+            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p)
             override fun calculateCultivationSpeed(
                 d: Disciple,
                 manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,

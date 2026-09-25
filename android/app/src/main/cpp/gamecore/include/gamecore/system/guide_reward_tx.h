@@ -25,7 +25,7 @@
  *
  * ## 注册表双维护纪律
  * `registry()` 为 Kotlin `GuideTaskRegistry.ALL_TASKS`（core/domain/model/guide/
- * GuideTask.kt）的逐条复刻（25 任务；条件仅登记面实际使用的 9 类——
+ * GuideTask.kt）的逐条复刻（24 任务；条件仅登记面实际使用的 8 类——
  * `DiscipleReachRealm` 未被任何任务引用，不复刻）。**Kotlin 注册表增删任务/条件
  * 时必须同批改本表**；跨语言一致性由 GTest `guide_reward_tx_test.cpp` 的
  * "注册表形状锚点"用例与 Kotlin `GuideRewardNativeTxGateTest` 共同守护。
@@ -60,7 +60,6 @@ enum class ConditionKind {
     kSlotFilledCount,          /// 集合槽位填充数（field = 槽位列表字段名）
     kCumulativeCounter,        /// guideCounters 累计计数（field = 计数器键）
     kPlantCropOnce,            /// 种植过灵植（spiritFieldPlants 非空）
-    kBloodRefinementCompleted, /// 血炼完成（bloodRefinements 键数）
     kPatrolBeastDefeated,      /// 巡逻击败妖兽累计计数
     kMissionCompleted,         /// 宗门任务完成累计计数
 };
@@ -74,10 +73,10 @@ struct Condition {
 struct Task {
     int32_t id;
     std::vector<Condition> conditions;
-    int32_t rewardQuantity;  /// Kotlin GuideTask.rewardItemQuantity（25 任务中 23 个为默认 2，任务 23/25 为 1）
+    int32_t rewardQuantity;  /// Kotlin GuideTask.rewardItemQuantity（24 任务中 22 个为默认 2，任务 23/25 为 1）
 };
 
-/// 任务注册表（Kotlin GuideTaskRegistry.ALL_TASKS 逐条复刻——25 任务）。
+/// 任务注册表（Kotlin GuideTaskRegistry.ALL_TASKS 逐条复刻——24 任务）。
 inline const std::vector<Task>& registry() {
     static const std::vector<Task> kRegistry = {
         {1, {{ConditionKind::kBuildingCount, "灵矿场", 10},
@@ -125,8 +124,6 @@ inline const std::vector<Task>& registry() {
         {22, {{ConditionKind::kBuildingCount, "初级多人住所", 3},
               {ConditionKind::kSlotFilledCount, "residenceSlots", 12}}, 2},
         {23, {{ConditionKind::kBuildingCount, "仓库", 3}}, 1},
-        {24, {{ConditionKind::kBuildingCount, "血炼池", 1},
-              {ConditionKind::kBloodRefinementCompleted, "", 1}}, 2},
         {25, {{ConditionKind::kBuildingCount, "监牢", 1}}, 1},
     };
     return kRegistry;
@@ -228,8 +225,6 @@ inline int64_t currentValue(const state::GameState& state, const Condition& c) {
         }
         case ConditionKind::kPlantCropOnce:
             return gd.spiritFieldPlants.empty() ? 0 : 1;
-        case ConditionKind::kBloodRefinementCompleted:
-            return static_cast<int64_t>(gd.bloodRefinements.size());
         case ConditionKind::kPatrolBeastDefeated: {
             const auto it = gd.guideCounters.find("patrolBeastDefeated");
             return (it != gd.guideCounters.end()) ? it->second : 0;

@@ -8,7 +8,6 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.BattleTeam
 import com.xianxia.sect.core.model.BattleTeamSlot
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -65,7 +64,7 @@ import com.xianxia.sect.core.repository.getSlotsByType
  * 4. **全槽位互斥化**：processAutoAssign 候选过滤走
  *    [buildOccupiedSlotDiscipleIds]（status==IDLE 第一层 + 全槽位占用集合
  *    第二层防御）——逐槽位验证各工作槽位（纳徒长老/巡逻/藏经阁/仓库驻守/
- *    宗门驻守/战斗队伍/活跃任务/秘境/洞穴/探索队伍/血炼）占用的弟子即使
+ *    宗门驻守/战斗队伍/活跃任务/秘境/洞穴/探索队伍）占用的弟子即使
  *    存储 status=IDLE（未同步窗口）也不被捕获制造双槽位；对照组验证健康
  *    空闲弟子仍可被正常分配。
  *
@@ -292,17 +291,6 @@ class ProductionSlotDualWriteGuardTest {
             )
         }
         assertNull("洞穴探索占用弟子不得被重复分配到灵田槽", herbSlot?.assignedDiscipleId)
-    }
-
-    @Test
-    fun `processAutoAssign - 血炼占用的 IDLE 弟子不被排班`() = runTest {
-        val processor = newProcessorWithHerbSlot()
-        val herbSlot = runOccupiedScenario(processor) { data ->
-            data.copy(
-                activeBloodRefinements = mapOf("br1" to BloodRefinementProgress(discipleId = DISCIPLE_A))
-            )
-        }
-        assertNull("血炼占用弟子不得被重复分配到灵田槽", herbSlot?.assignedDiscipleId)
     }
 
     @Test

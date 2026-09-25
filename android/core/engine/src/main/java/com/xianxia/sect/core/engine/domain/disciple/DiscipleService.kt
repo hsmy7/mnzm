@@ -143,8 +143,7 @@ class DiscipleService @Inject constructor(
                 realm = realm,
                 realmLayer = 1,
                 social = com.xianxia.sect.core.model.SocialData(),
-                nextInt = { from, until -> from + rng.nextInt(until - from) },
-                random = rng.asKotlinRandom()
+                nextInt = { from, until -> from + rng.nextInt(until - from) }
             )
         )
 

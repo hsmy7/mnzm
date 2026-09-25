@@ -11,7 +11,6 @@ import com.xianxia.sect.ui.game.dialogs.AlchemyDialogInputs
 import com.xianxia.sect.ui.game.dialogs.ForgeDialogInputs
 import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.dialogs.AlchemyDialog
-import com.xianxia.sect.ui.game.dialogs.BloodRefiningPoolDialog
 import com.xianxia.sect.ui.game.dialogs.ForgeDialog
 import com.xianxia.sect.ui.game.dialogs.HerbGardenDialog
 import com.xianxia.sect.ui.game.dialogs.PatrolTowerDialog
@@ -21,7 +20,7 @@ import com.xianxia.sect.ui.game.dialogs.WarehouseDialog
 
 /**
  * 生产类建筑对话框路由（E1 拆分：SpiritMine/HerbGarden/Alchemy/Forge/PatrolTower/
- * BloodRefiningPool/Residence/WarehouseBuilding）。分支体行为与拆分前逐字节一致。
+ * Residence/WarehouseBuilding）。分支体行为与拆分前逐字节一致。
  */
 @Composable
 internal fun DialogType.renderProductionRoutes(
@@ -36,7 +35,6 @@ internal fun DialogType.renderProductionRoutes(
         is DialogType.Alchemy -> renderAlchemy(this, viewModel, gameData, vms, onDismiss)
         is DialogType.Forge -> renderForge(this, viewModel, gameData, vms, onDismiss)
         is DialogType.PatrolTower -> renderPatrolTower(this, viewModel, gameData, vms, onDismiss)
-        is DialogType.BloodRefiningPool -> renderBloodRefiningPool(this, viewModel, gameData, vms, onDismiss)
         is DialogType.Residence -> renderResidence(this, viewModel, gameData, onDismiss)
         is DialogType.WarehouseBuilding -> renderWarehouseBuilding(this, viewModel, gameData, vms, onDismiss)
         else -> Unit
@@ -150,29 +148,6 @@ private fun renderPatrolTower(
         disciples = disciples,
         onDismiss = onDismiss
     )
-}
-
-@Composable
-private fun renderBloodRefiningPool(
-    type: DialogType.BloodRefiningPool,
-    viewModel: GameViewModel,
-    gameData: GameData,
-    vms: OverlayViewModels,
-    onDismiss: () -> Unit
-) {
-    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
-    val materials by viewModel.materials.collectAsStateWithLifecycle()
-    DeferredContent {
-        BloodRefiningPoolDialog(
-            buildingInstanceId = type.buildingInstanceId,
-            viewModel = viewModel,
-            bloodRefiningViewModel = vms.bloodRefining,
-            gameData = gameData,
-            disciples = disciples,
-            materials = materials,
-            onDismiss = onDismiss
-        )
-    }
 }
 
 @Composable

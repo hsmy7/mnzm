@@ -42,7 +42,6 @@ class DialogTypeRenderCoverageTest {
         DialogType.Alchemy(""),
         DialogType.Forge(""),
         DialogType.PatrolTower(""),
-        DialogType.BloodRefiningPool(""),
         DialogType.Residence(""),
         DialogType.WarehouseBuilding(""),
         DialogType.Library,

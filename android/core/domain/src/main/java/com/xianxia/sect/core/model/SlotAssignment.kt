@@ -29,9 +29,6 @@ enum class SlotCategory {
     /** 驻军（玩家宗门据点） */
     GARRISON_SLOT,
 
-    /** 血炼 */
-    BLOOD_REFINEMENT,
-
     /** 探索队伍 */
     EXPLORATION_TEAM;
 }

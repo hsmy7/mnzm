@@ -139,7 +139,7 @@ internal fun shouldResetSlotForCompletion(
  * 扫描全部工作槽位：长老全槽位（含纳徒长老 recruitingElder）、生产镜像槽、
  * 灵矿/藏经阁/巡视/玩家宗门驻守、战斗队伍、活跃任务、远古秘境
  * 探索成员（secretRealmState.exists 时）、洞穴探索队伍（仅活跃状态，
- * 与 [DiscipleStatusService.buildInTeamIds] 同状态条件）、血炼进度。
+ * 与 [DiscipleStatusService.buildInTeamIds] 同状态条件）。
  *
  * 调用方 [ProductionProcessor.processAutoAssign] 以 status==IDLE 为第一层
  * 过滤（存储权威），本函数为第二层防御——覆盖同一事务内"分配后尚未
@@ -163,7 +163,6 @@ internal fun buildOccupiedSlotDiscipleIds(data: GameData): Set<String> = buildSe
     }
     data.caveExplorationTeams.filter { it.status in DiscipleStatusService.caveExplorationStatuses }
         .forEach { addAll(it.memberIds) }
-    data.activeBloodRefinements.values.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
     data.productionSlots
         .mapNotNull { it.assignedDiscipleId?.takeIf { id -> id.isNotEmpty() } }
         .forEach { add(it) }

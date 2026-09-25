@@ -2,12 +2,11 @@
 // building_residual_tx_test — w3-09 建筑槽位残差事务守护（W4-A 第三子批）
 //
 // 守护目标：building_residual_tx.h 两事务与 Kotlin 源语义逐位一致——
-//   - 1810 清扫（十类槽位按槽组清除 / 长老殿"最后一座"判定 / 监牢全量
+//   - 1810 清扫（实例键控五集合按槽组清除 / 长老殿"最后一座"判定 / 监牢全量
 //     释放 REFLECTING / 任务阁清 activeMissions + 存活 ON_MISSION 回 IDLE /
-//     REFINING 破除含 statusData 定向移除 buildingId / patrolConfigs 不清
-//     ——两臂 towerIdx=-1 bug-for-bug 兼容）
-//   - 1811 放置（八集合建槽基数 / 每塔一份 PatrolConfig / 生产槽 createIdle
-//     等价 / 血炼·长老组建零槽 / 未知组失败零写入）
+//     patrolConfigs 不清——两臂 towerIdx=-1 bug-for-bug 兼容）
+//   - 1811 放置（五组建槽基数 / 每塔一份 PatrolConfig / 生产·长老组留
+//     Kotlin 零行 / 未知组失败零写入）
 //   - 失败臂零写入（放置臂校验先行）
 //   - RNG 零消费审计（两事务全程 rngStates 不动——对拍命门）
 // ============================================================
@@ -106,9 +105,6 @@ protected:
         lib.buildingInstanceId = instanceId;
         lib.discipleId = discipleId;
         gd.librarySlots.push_back(lib);
-        gamecore::state::BloodRefinementProgress refine;
-        refine.discipleId = discipleId;
-        gd.activeBloodRefinements[instanceId] = refine;
         gd.patrolConfigs.push_back(gamecore::state::PatrolConfig{});
     }
 
@@ -124,7 +120,7 @@ protected:
 
 // ── 1810 清扫 ────────────────────────────────────────────────
 
-TEST_F(BuildingResidualTxFixture, ClearResidual_槽位逐组清除与状态破除) {
+TEST_F(BuildingResidualTxFixture, ClearResidual_槽位逐组清除) {
     addDisciple("1");
     addDisciple("2");  // 对照弟子：不涉清扫
     seedSlotsFor("inst-1", "1");
@@ -137,9 +133,7 @@ TEST_F(BuildingResidualTxFixture, ClearResidual_槽位逐组清除与状态破�
         residual_tx::SlotGroupKind::SpiritMine,   residual_tx::SlotGroupKind::PatrolTower,
         residual_tx::SlotGroupKind::Residence,    residual_tx::SlotGroupKind::SpiritField,
         residual_tx::SlotGroupKind::Library,
-        residual_tx::SlotGroupKind::BloodRefining,
     };
-    target.discipleIds = {"1"};
     const auto r = residual_tx::clearResidualTransaction(core_->state(), {target});
     ASSERT_TRUE(r.ok);
     EXPECT_EQ(r.clearedTargets, 1);
@@ -152,25 +146,8 @@ TEST_F(BuildingResidualTxFixture, ClearResidual_槽位逐组清除与状态破�
     EXPECT_TRUE(gd.residenceSlots.empty());
     EXPECT_TRUE(gd.spiritFieldPlants.empty());
     EXPECT_TRUE(gd.librarySlots.empty());
-    EXPECT_TRUE(gd.activeBloodRefinements.empty());
     // patrolConfigs 不清（两臂 towerIdx=-1 bug-for-bug 兼容）
     EXPECT_EQ(gd.patrolConfigs.size(), 1u);
-
-    // REFINING 破除：statuses=IDLE + statusData 定向移除 buildingId（保留其余 key）
-    auto& ds = core_->state().disciples;
-    ds.statuses[*ds.rowOf("1")] = "REFINING";
-    ds.statusData[*ds.rowOf("1")] = {{"buildingId", "inst-1"}, {"followed", "true"}};
-    target.groups = {};
-    const auto r2 = residual_tx::clearResidualTransaction(core_->state(), {target});
-    ASSERT_TRUE(r2.ok);
-    const auto row1 = *ds.rowOf("1");
-    EXPECT_EQ(ds.statuses[row1], "IDLE");
-    EXPECT_EQ(ds.statusData[row1].count("buildingId"), 0u);
-    EXPECT_EQ(ds.statusData[row1].at("followed"), "true");
-    // 幽灵 id：不在表内的 discipleId 静默跳过
-    target.discipleIds = {"999"};
-    const auto r3 = residual_tx::clearResidualTransaction(core_->state(), {target});
-    ASSERT_TRUE(r3.ok);
 
     EXPECT_EQ(rngSnapshot(), before);
 }
@@ -213,7 +190,7 @@ TEST_F(BuildingResidualTxFixture, ClearResidual_长老殿末座判定与监牢�
 
 // ── 1811 放置 ────────────────────────────────────────────────
 
-TEST_F(BuildingResidualTxFixture, PlaceSlots_六组建槽基数逐位对齐) {
+TEST_F(BuildingResidualTxFixture, PlaceSlots_五组建槽基数逐位对齐) {
     auto& gd = core_->state().gameData;
     const auto before = rngSnapshot();
 
@@ -226,7 +203,6 @@ TEST_F(BuildingResidualTxFixture, PlaceSlots_六组建槽基数逐位对齐) {
         {residual_tx::SlotGroupKind::Residence, 2},
         {residual_tx::SlotGroupKind::SpiritField, 1},
         {residual_tx::SlotGroupKind::Library, 3},
-        {residual_tx::SlotGroupKind::BloodRefining, 0},  // 建造不产槽
     };
     const auto r = residual_tx::placeSlotsTransaction(core_->state(), p);
     ASSERT_TRUE(r.ok);
@@ -252,7 +228,6 @@ TEST_F(BuildingResidualTxFixture, PlaceSlots_六组建槽基数逐位对齐) {
     EXPECT_EQ(gd.librarySlots[2].index, 2);
     // 生产/长老组留 Kotlin（偏差登记）——C++ 侧零行
     EXPECT_TRUE(gd.productionSlots.empty());
-    EXPECT_TRUE(gd.activeBloodRefinements.empty());
 
     EXPECT_EQ(rngSnapshot(), before);
 }
@@ -277,9 +252,8 @@ TEST_F(BuildingResidualTxFixture, Dispatch1810_端到端与未知组静默跳过
 
     const std::string paramsJson = R"({"targets":[{"instanceId":"inst-1",
         "displayName":"灵矿场",
-        "groups":["SPIRIT_MINE","RESIDENCE","UNKNOWN_GROUP","BLOOD_REFINING"],
-        "isMissionHall":false,"isReflectionCliff":false,
-        "discipleIds":["1"]}]})";
+        "groups":["SPIRIT_MINE","RESIDENCE","UNKNOWN_GROUP"],
+        "isMissionHall":false,"isReflectionCliff":false}]})";
     const std::string result =
         core_->execute(action::BUILDING_RESIDUAL_CLEAR, paramsJson, 1000);
     const auto j = nlohmann::json::parse(result);
@@ -287,7 +261,6 @@ TEST_F(BuildingResidualTxFixture, Dispatch1810_端到端与未知组静默跳过
     EXPECT_EQ(j["data"]["cleared"], 1);
     EXPECT_TRUE(core_->state().gameData.spiritMineSlots.empty());
     EXPECT_TRUE(core_->state().gameData.residenceSlots.empty());
-    EXPECT_TRUE(core_->state().gameData.activeBloodRefinements.empty());
     // 未列入的集合原样（未知组静默 + 未列组不清）
     EXPECT_EQ(core_->state().gameData.librarySlots.size(), 1u);
     EXPECT_EQ(rngSnapshot(), before);

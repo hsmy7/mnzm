@@ -280,19 +280,6 @@ internal fun BuildingConfigService.createPeakStageBuildings(): Map<String, Build
         spriteWidth = 4,
         spriteHeight = 10,
         description = "驻守弟子自动巡视地图攻击妖兽"
-    ),
-    "blood_refining_pool" to BuildingConfigModel(
-        id = "blood_refining_pool",
-        displayName = "血炼池",
-        buildingType = "BLOOD_REFINING_POOL",
-        slotCount = 1,
-        baseSuccessRate = 1.0,
-        cost = 40000,
-        gridWidth = 4,
-        gridHeight = 3,
-        spriteWidth = 4,
-        spriteHeight = 3,
-        description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
     )
 )
 
@@ -377,7 +364,5 @@ internal fun BuildingConfigService.createDefaultBuildingAliasesAdministration():
     "multi_residence_upgraded" to "multi_residence_upgraded",
     "warehouse" to "warehouse",
     "patrol_tower" to "patrol_tower",
-    "patroltower" to "patrol_tower",
-    "bloodrefiningpool" to "blood_refining_pool",
-    "blood_refining_pool" to "blood_refining_pool"
+    "patroltower" to "patrol_tower"
 )

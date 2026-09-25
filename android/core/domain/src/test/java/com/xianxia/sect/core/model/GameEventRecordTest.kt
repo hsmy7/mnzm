@@ -93,7 +93,6 @@ class GameEventRecordTest {
             GameEventType.DEATH,
             GameEventType.BREAKTHROUGH,
             GameEventType.MARRIAGE,
-            GameEventType.BLOOD_REFINEMENT,
             GameEventType.ALLIANCE,
             GameEventType.ALLIANCE_BREAK,
             GameEventType.VASSAL_BREAKAWAY,

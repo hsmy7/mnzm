@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -42,19 +41,15 @@ class HpMpRecoveryEquivalenceTest {
     private fun buildState(
         realm: Int = 5, realmLayer: Int = 1,
         hpVariance: Int = 0, mpVariance: Int = 0,
-        talentIds: List<String> = emptyList(),
-        affixIds: List<String> = emptyList(),
         equipment: List<EquipmentInstance> = emptyList(),
         manuals: List<ManualInstance> = emptyList(),
         proficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
         pillDuration: Int = 0, pillHp: Int = 0, pillMp: Int = 0,
-        curHp: Int = 500, curMp: Int = 500,
-        bloodRefinement: Map<String, BloodRefinementPctTotal> = emptyMap()
+        curHp: Int = 500, curMp: Int = 500
     ): MutableGameState {
         val base = Disciple(
             id = "1", name = "测试弟子",
             realm = realm, realmLayer = realmLayer,
-            talentIds = talentIds, affixIds = affixIds,
             pillEffects = PillEffects(
                 pillHpBonus = pillHp, pillMpBonus = pillMp,
                 pillEffectDuration = pillDuration
@@ -79,8 +74,7 @@ class HpMpRecoveryEquivalenceTest {
         // 保持 writeAllowed=true：恢复函数会写 currentHps/currentMps（测试直调不走 stateStore.update）
         tables.changedIdTracker.consumeChangedIds()
         val gameData = GameData(
-            manualProficiencies = proficiencies,
-            bloodRefinementPctTotals = bloodRefinement
+            manualProficiencies = proficiencies
         )
         return MutableGameState(
             gameData = gameData,
@@ -106,20 +100,17 @@ class HpMpRecoveryEquivalenceTest {
     private fun assertEquivalence(
         realm: Int = 5, realmLayer: Int = 1,
         hpVariance: Int = 0, mpVariance: Int = 0,
-        talentIds: List<String> = emptyList(),
-        affixIds: List<String> = emptyList(),
         equipment: List<EquipmentInstance> = emptyList(),
         manuals: List<ManualInstance> = emptyList(),
         proficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
         pillDuration: Int = 0, pillHp: Int = 0, pillMp: Int = 0,
         curHp: Int = 500, curMp: Int = 500,
-        phasesToSettle: Int = 1,
-        bloodRefinement: Map<String, BloodRefinementPctTotal> = emptyMap()
+        phasesToSettle: Int = 1
     ) {
-        val stateA = buildState(realm, realmLayer, hpVariance, mpVariance, talentIds, affixIds,
-            equipment, manuals, proficiencies, pillDuration, pillHp, pillMp, curHp, curMp, bloodRefinement)
-        val stateB = buildState(realm, realmLayer, hpVariance, mpVariance, talentIds, affixIds,
-            equipment, manuals, proficiencies, pillDuration, pillHp, pillMp, curHp, curMp, bloodRefinement)
+        val stateA = buildState(realm, realmLayer, hpVariance, mpVariance,
+            equipment, manuals, proficiencies, pillDuration, pillHp, pillMp, curHp, curMp)
+        val stateB = buildState(realm, realmLayer, hpVariance, mpVariance,
+            equipment, manuals, proficiencies, pillDuration, pillHp, pillMp, curHp, curMp)
 
         val eqMap = stateA.equipmentInstances.items.associateBy { it.id }
         val mMap = stateA.manualInstances.items.associateBy { it.id }
@@ -127,7 +118,7 @@ class HpMpRecoveryEquivalenceTest {
         service.recoverHpMpSingle(stateA, 1, phasesToSettle, equipmentMap = eqMap, manualMap = mMap)
         service.recoverHpMpSingleColumn(stateB, 1, phasesToSettle, equipmentMap = eqMap, manualMap = mMap)
 
-        val msg = "realm=$realm/$realmLayer var=$hpVariance/$mpVariance talents=$talentIds " +
+        val msg = "realm=$realm/$realmLayer var=$hpVariance/$mpVariance " +
             "eq=${equipment.size} manual=${manuals.size} pill=$pillDuration phases=$phasesToSettle"
         assertEquals("HP 不一致: $msg", stateA.discipleTables.currentHps[1], stateB.discipleTables.currentHps[1])
         assertEquals("MP 不一致: $msg", stateA.discipleTables.currentMps[1], stateB.discipleTables.currentMps[1])
@@ -206,21 +197,6 @@ class HpMpRecoveryEquivalenceTest {
     @Test
     fun `等价性 - 多旬结算`() {
         assertEquivalence(curHp = 50, curMp = 50, phasesToSettle = 3)
-    }
-
-    @Test
-    fun `等价性 - 血炼加成`() {
-        // 血炼百分比进入恢复上限后，列直读与对象版仍须精确相等
-        val bloodRefinement = mapOf(
-            "1" to BloodRefinementPctTotal(
-                discipleId = "1",
-                hpBonusPct = 0.30,
-                physicalAttackBonusPct = 0.50,
-                speedBonusPct = 0.20
-            )
-        )
-        assertEquivalence(bloodRefinement = bloodRefinement, curHp = 100, curMp = 100)
-        assertEquivalence(bloodRefinement = bloodRefinement, curHp = 100, curMp = 100, phasesToSettle = 3)
     }
 
     @Test

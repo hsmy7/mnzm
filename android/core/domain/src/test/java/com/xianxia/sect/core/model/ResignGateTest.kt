@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [evaluateResignGate] 全部分支测试：17 状态 + 死亡/空闲分支。
+ * [evaluateResignGate] 全部分支测试：16 状态 + 死亡/空闲分支。
  */
 class ResignGateTest {
 
@@ -27,21 +27,10 @@ class ResignGateTest {
     @Test
     fun `dead disciple returns Disabled regardless of status`() {
         assertEquals(ResignGateResult.Disabled, gate(DiscipleStatus.MINING, isAlive = false))
-        assertEquals(ResignGateResult.Disabled, gate(DiscipleStatus.REFINING, isAlive = false))
         assertEquals(ResignGateResult.Disabled, gate(DiscipleStatus.SECRET_REALM, isAlive = false))
     }
 
     // ==================== ConfirmRequired（二次确认） ====================
-
-    @Test
-    fun `REFINING returns ConfirmRequired with blood refinement message`() {
-        val result = gate(DiscipleStatus.REFINING)
-        assertTrue(
-            "血炼应触发二次确认且文案必须明确告知卸任视为血炼失败",
-            result is ResignGateResult.ConfirmRequired &&
-                result.message.contains("血炼") && result.message.contains("失败")
-        )
-    }
 
     @Test
     fun `REFLECTING returns ConfirmRequired with release message`() {
@@ -125,7 +114,7 @@ class ResignGateTest {
         // 编译期守卫：when 穷尽 sealed interface 说明四态齐全
         val results = listOf(
             gate(DiscipleStatus.IDLE),
-            gate(DiscipleStatus.REFINING),
+            gate(DiscipleStatus.REFLECTING),
             gate(DiscipleStatus.ON_MISSION),
             gate(DiscipleStatus.MINING)
         )

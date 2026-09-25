@@ -44,7 +44,6 @@ class BuildingSpriteFootprintGuardTest {
         "中级单人住所" to intArrayOf(6, 6, 6, 8),
         "初级多人住所" to intArrayOf(6, 4, 6, 7),
         "中级多人住所" to intArrayOf(6, 5, 6, 8),
-        "血炼池" to intArrayOf(4, 3, 4, 3),
     )
 
     @Test

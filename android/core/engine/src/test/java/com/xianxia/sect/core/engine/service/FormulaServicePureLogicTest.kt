@@ -96,14 +96,13 @@ class FormulaServicePureLogicTest {
     }
 
     @Test fun successRateZones_multiplicativeAmplification() {
-        // baseProb 0.5 × (1 + 境界 0.13 + 天赋 0.1 + 政策 0.1) = 0.5 × 1.33 = 0.665
+        // baseProb 0.5 × (1 + 境界 0.13 + 政策 0.1) = 0.5 × 1.23 = 0.615
         val zones = FormulaService.SuccessRateZones(
             skillZone = 0.5,
             realmZone = 0.13,
-            talentZone = 0.1,
             policyZone = 0.1
         )
-        assertEquals(0.665, zones.calculate(), 0.001)
+        assertEquals(0.615, zones.calculate(), 0.001)
     }
 
     @Test fun successRateZones_clampedTo1() {
@@ -204,47 +203,25 @@ class FormulaServicePureLogicTest {
         assertEquals(0.50, zones.calculate(), 0.001)
     }
 
-    // ==================== 长老加成读含 Flat 天赋属性 ====================
+    // ==================== 长老加成读基础属性 ====================
     // getElderPositionBonus/calculateElderAndDisciplesBonus 经 getBaseStats 读属性，
-    // "天丹(炼丹+18)"等 Flat 天赋计入长老加成。
+    // 长老属性低于基准线（80）时不产生加成。
 
-    /** 带炼丹长老（78 + 天丹 r3 18 = 96）的 store */
-    private fun storeWithAlchemyElder(
-        pillRefining: Int = 78,
-        talentIds: List<String> = emptyList()
-    ): FakeAtomicStateStore {
+    /** 带炼丹长老的 store */
+    private fun storeWithAlchemyElder(pillRefining: Int = 78): FakeAtomicStateStore {
         val store = FakeAtomicStateStore()
         store.disciples.value = listOf(
-            Disciple(id = "e1", name = "炼丹长老", realm = 9, skills = SkillStats(pillRefining = pillRefining),
-                talentIds = talentIds)
+            Disciple(id = "e1", name = "炼丹长老", realm = 9, skills = SkillStats(pillRefining = pillRefining))
         )
         store.setGameData(GameData(elderSlots = ElderSlots(alchemyElder = "e1")))
         return store
-    }
-
-    @Test fun calculateElderAndDisciplesBonus_flatTalentElder_bonusUsesMergedSkill() {
-        val service = FormulaService(storeWithAlchemyElder(talentIds = listOf("r3_base_pill")),
-            com.xianxia.sect.core.engine.testProductionSlotRepository())
-        val bonus = service.calculateElderAndDisciplesBonus(BuildingNames.ALCHEMY)
-        // 天丹 +18 → 有效炼丹 = 78+18 = 96 → (96-80)×0.01 = 0.16
-        assertEquals("带天丹天赋长老成功率加成应含 flat", 0.16, bonus.successBonus, 0.001)
     }
 
     @Test fun calculateElderAndDisciplesBonus_plainElder_belowBaselineZero() {
         val service = FormulaService(storeWithAlchemyElder(pillRefining = 78),
             com.xianxia.sect.core.engine.testProductionSlotRepository())
         val bonus = service.calculateElderAndDisciplesBonus(BuildingNames.ALCHEMY)
-        // 无天赋 78 < 80 → 0.0
+        // 78 < 80 → 0.0
         assertEquals(0.0, bonus.successBonus, 0.001)
-    }
-
-    @Test fun buildSuccessRateZones_flatTalentElder_elderZoneApplied() {
-        val service = FormulaService(storeWithAlchemyElder(talentIds = listOf("r3_base_pill")),
-            com.xianxia.sect.core.engine.testProductionSlotRepository())
-        val zones = service.buildSuccessRateZones(
-            disciple(pillRefining = 50), BuildingNames.ALCHEMY, recipeTier = 1
-        )
-        // elderZone = (96-80)×0.01×(1+0) = 0.16
-        assertEquals("炼丹长老带天丹天赋的 elderZone 应含 flat", 0.16, zones.elderZone, 0.001)
     }
 }

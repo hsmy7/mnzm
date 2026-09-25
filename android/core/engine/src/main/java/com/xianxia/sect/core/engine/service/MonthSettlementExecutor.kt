@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.engine.processBloodRefinementCompletions
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.state.MutableGameState
@@ -13,17 +12,16 @@ import com.xianxia.sect.core.state.MutableGameState
  * 分支原样提取的编排逻辑：生产 tick 与跨语言对拍测试共用同一入口
  * （God Method 拆分 + 对拍基准双重需要）。
  *
- * 八步事务顺序（与 C++ `gamecore::system::runMonthSettlement` 逐位对应；
+ * 七步事务顺序（与 C++ `gamecore::system::runMonthSettlement` 逐位对应；
  * 语义权威 = 各被调方法源码，RNG 分区调用点表见 .superpowers/sdd/t2-2-semantics.md）：
  * 1. 政策月度灵石扣除（不足自动关闭政策，结果返回给调用方做事务外决策）
  * 2. 政策月度道德效果
  * 3. AI 兽袭进攻目标预计算（写入 aiSectBeastDirectTargets，EXPLORATION 分区）
  * 4. systemManager 六系统月变扇出（@SystemPriority 升序：
  *    Time→Inventory→Alchemy→Forge→Planting→Exploration）
- * 5. 血炼完成检测（到期逐条结算，零 RNG）
- * 6. 月度自动排班（P0.2 合入同一事务）
- * 7. 丹药持续效果全量月衰减（每月 3 旬口径）
- * 8. processMonthlyEventsOnState 十六子事件（★ 单原子提交 policy + 月变）
+ * 5. 月度自动排班（P0.2 合入同一事务）
+ * 6. 丹药持续效果全量月衰减（每月 3 旬口径）
+ * 7. processMonthlyEventsOnState 十六子事件（★ 单原子提交 policy + 月变）
  *
  * 行为契约：与提取前的 monthChanged 分支逐行等价，生产行为零变化。
  * 事务外三件（SomeDisabled → checkpointAllProduction / missionCheck 回调 /
@@ -56,13 +54,11 @@ internal class MonthSettlementExecutor(
         )
         // 4) 系统月变扇出
         systemManager.onMonthlyEvent(state)
-        // 5) 血炼完成检测
-        state.processBloodRefinementCompletions()
-        // 6) P0.2: 自动排班合入同一事务，减少月度独立事务数量
+        // 5) P0.2: 自动排班合入同一事务，减少月度独立事务数量
         cultivationService.processMonthlyAutoAssignments(state)
-        // 7) 月结丹药持续效果衰减（duration 按每月 3 旬衰减）
+        // 6) 月结丹药持续效果衰减（duration 按每月 3 旬衰减）
         cultivationService.applyMonthlyDurationDecayAll(state)
-        // 8) ★ 月度事件合并到同一事务（单原子提交 policy + 月变 + 重算 checkpoints）
+        // 7) ★ 月度事件合并到同一事务（单原子提交 policy + 月变 + 重算 checkpoints）
         cultivationService.processMonthlyEventsOnState(state)
         return policyResult
     }

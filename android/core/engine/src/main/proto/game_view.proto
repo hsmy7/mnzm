@@ -109,6 +109,9 @@ message DiscipleRow {
   /// 82(lastChildYear)/83(childBirthMonth)/84(griefEndYear) 字段号已退役，
   /// 禁止复用
   reserved 78, 79, 80, 81, 82, 83, 84;
+  /// 17(talentIds)/18(physiqueIds)/19(affixIds)/96(aptitude) 字段号已退役
+  /// （G04 下架，字段号禁复用）
+  reserved 17, 18, 19, 96;
   // ── 直接字段（Disciple 顶层）────────────────────────────
   optional string id = 1;
   optional string name = 2;
@@ -129,9 +132,6 @@ message DiscipleRow {
 
   // ── 列表/映射（repeated；映射走条目消息，仓库规约禁 proto map）──
   repeated string manualIds = 16;
-  repeated string talentIds = 17;
-  repeated string physiqueIds = 18;
-  repeated string affixIds = 19;
   repeated StringIntEntry manualMasteries = 20;
   optional string status = 21;
   repeated StringStringEntry statusData = 22;
@@ -216,7 +216,6 @@ message DiscipleRow {
   optional int32 mining = 93;
   optional int32 teaching = 94;
   optional int32 morality = 95;
-  optional int32 aptitude = 96;
   optional int32 salaryPaidCount = 97;
   optional int32 salaryMissedCount = 98;
   optional int32 alchemyLevel = 99;

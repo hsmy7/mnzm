@@ -1,8 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
-import com.xianxia.sect.core.engine.cancelBloodRefinement
 import com.xianxia.sect.core.engine.getDiscipleAggregate
-import com.xianxia.sect.core.engine.releaseDiscipleAssignment
 import com.xianxia.sect.core.engine.releaseDiscipleFromAllSlotsAtomic
 
 // ── 弟子生命周期操作族扩展（自 DiscipleDelegate/GameViewModel 拆出，行为零变更）──
@@ -16,7 +14,6 @@ fun DiscipleDelegate.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
 /**
  * 释放弟子为其分配新任务。根据当前状态决定释放方式：
  * - REFLECTING（思过中）→ 释放思过（调用 releaseReflectionDisciple）
- * - REFINING（血炼中）→ 中止血炼（不返还材料）
  * - 其他状态 → releaseDiscipleFromAllSlotsAtomic
  */
 fun DiscipleDelegate.releaseDiscipleForReassignment(discipleId: String) {
@@ -24,23 +21,6 @@ fun DiscipleDelegate.releaseDiscipleForReassignment(discipleId: String) {
     when (status) {
         com.xianxia.sect.core.model.DiscipleStatus.REFLECTING -> {
             releaseReflectionDisciple(discipleId)
-        }
-        com.xianxia.sect.core.model.DiscipleStatus.REFINING -> {
-            // 找到该弟子对应的血炼建筑实例 → 中止血炼（不返还材料）
-            val gd = gameEngine.gameDataSnapshot
-            val buildingInstanceId = gd?.activeBloodRefinements?.entries
-                ?.firstOrNull { it.value.discipleId == discipleId }
-                ?.key
-            if (buildingInstanceId != null) {
-                gameEngine.launchOnEngine {
-                    gameEngine.cancelBloodRefinement(buildingInstanceId, discipleId)
-                    // 同步释放 gate 注册（cancelBloodRefinement 不清 gate，
-                    // 与 BloodRefiningViewModel.cancelRefine 的释放语义对齐）
-                    gameEngine.releaseDiscipleAssignment(discipleId)
-                }
-            } else {
-                releaseDiscipleFromAllSlotsAtomic(discipleId)
-            }
         }
         else -> releaseDiscipleFromAllSlotsAtomic(discipleId)
     }

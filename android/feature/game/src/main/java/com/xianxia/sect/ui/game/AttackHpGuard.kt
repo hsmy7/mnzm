@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
@@ -9,9 +8,9 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 
 /**
- * 计算弟子当前血量比例（含血炼 finalStats 口径）。
+ * 计算弟子当前血量比例（finalStats 口径）。
  *
- * 与引擎恢复/满血判定（battleWritebackMaxHpMp）同口径：maxHp 含血炼提升，
+ * 与引擎恢复/满血判定（battleWritebackMaxHpMp）同口径：
  * currentHp 为负数（满血哨兵，combatStats 缺失时亦然）视为满血。
  * maxHp <= 0 时返回 1f（与 HpMpBars 语义对齐）。
  *
@@ -22,11 +21,10 @@ internal fun discipleHpFraction(
     disciple: DiscipleAggregate,
     equipmentMap: Map<String, EquipmentInstance>,
     manualMap: Map<String, ManualInstance>,
-    manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-    bloodRefinementPct: BloodRefinementPctTotal? = null
+    manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
 ): Float {
     val finalStats = DiscipleStatCalculator.getFinalStats(
-        disciple.toDisciple(), equipmentMap, manualMap, manualProficiencies, bloodRefinementPct
+        disciple.toDisciple(), equipmentMap, manualMap, manualProficiencies
     )
     val maxHp = finalStats.maxHp
     if (maxHp <= 0) return 1f
@@ -36,7 +34,7 @@ internal fun discipleHpFraction(
 }
 
 /**
- * 判断战斗队伍中是否存在血量未满的弟子（含血炼口径，任一弟子比例 < 100% 即 true）。
+ * 判断战斗队伍中是否存在血量未满的弟子（任一弟子比例 < 100% 即 true）。
  *
  * 用于手动进攻妖兽/宗门/洞府前的二次确认弹窗。
  *
@@ -44,15 +42,13 @@ internal fun discipleHpFraction(
  * @param equipmentMap 装备实例映射
  * @param manualMap 功法实例映射
  * @param manualProficiencies 功法熟练度映射（按弟子 ID → 熟练度列表，即 gameData.manualProficiencies）
- * @param bloodRefinementPctTotals 血炼比例（按弟子 ID 索引）
  * @return true 表示队伍中存在血量未满弟子
  */
 internal fun hasLowHpDisciple(
     disciples: List<DiscipleAggregate>,
     equipmentMap: Map<String, EquipmentInstance>,
     manualMap: Map<String, ManualInstance>,
-    manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
-    bloodRefinementPctTotals: Map<String, BloodRefinementPctTotal> = emptyMap()
+    manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap()
 ): Boolean = disciples.any { disciple ->
     val discipleProficiencies =
         manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
@@ -60,7 +56,6 @@ internal fun hasLowHpDisciple(
         disciple,
         equipmentMap,
         manualMap,
-        discipleProficiencies,
-        bloodRefinementPctTotals[disciple.id]
+        discipleProficiencies
     ) < 1f
 }

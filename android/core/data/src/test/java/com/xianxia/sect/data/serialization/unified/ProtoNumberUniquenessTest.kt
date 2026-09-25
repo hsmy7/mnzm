@@ -14,8 +14,11 @@ import java.io.File
  * ⇒ 云档与 `.sav`/`.bak` 恢复路径上"现在不爆、将来必爆"，且难归因。
  *
  * 本守卫按**类作用域**扫描模型源码（proto 号是 per-message 语义，跨类重复合法）：
- * 同一个类内出现重复字段号 ⇒ 变红。已在 `GameData.pendingTraitAdds` 上按此修正
- * （162 → 1002，让号给更老的 `prisonerSpiritRootFilter`）。
+ * 同一个类内出现重复字段号 ⇒ 变红。历史首例即 `GameData.pendingTraitAdds` 与
+ * `prisonerSpiritRootFilter` 同用 162（当时修正：pendingTraitAdds → 1002 让号）；
+ * 该字段已随 G04 洗炼/特质链下线删除，号 1002（连同血炼四号 115/150/151/152）
+ * 在 `GameData.kt` 登记 reserved 禁复用，Disciple 侧 22/104/105/110 同理——
+ * 退役号不得再被 `@ProtoNumber` 重新标注（见 reserved 守卫用例）。
  */
 class ProtoNumberUniquenessTest {
 
@@ -82,26 +85,45 @@ class ProtoNumberUniquenessTest {
 
     @Test
     fun `GameData keeps the historical 162 for prisonerSpiritRootFilter`() {
-        // 修正方向锁：让号的是 v47 新加的 pendingTraitAdds（→1002），不是更老的
-        // prisonerSpiritRootFilter（保留 162 以兼容旧档）。防后人"改回去"。
+        // 修正方向锁：162 的归属一直是更老的 prisonerSpiritRootFilter（老档兼容）。
+        // 历史上的让号方 pendingTraitAdds 已随 G04 删除，其半边断言随之退役，
+        // 退役号禁复用由下方 reserved 守卫用例承接。防后人"改回去"。
         val gameData = MODEL_ROOTS.map { File(it, "GameData.kt") }.firstOrNull { it.isFile }
             ?: error("GameData.kt 未找到（cwd=${File(".").absolutePath}）")
         val text = gameData.readText()
 
         val prisonerAnnotations = text.substringBefore("var prisonerSpiritRootFilter").takeLast(200)
-        val pendingAnnotations = text.substringBefore("var pendingTraitAdds").takeLast(400)
 
         assertTrue(
             "prisonerSpiritRootFilter 应仍保留 @ProtoNumber(162)（老档兼容）",
             prisonerAnnotations.contains("@ProtoNumber(162)")
         )
+    }
+
+    @Test
+    fun `G04 retired proto numbers stay reserved instead of reused`() {
+        // G04 删除字段的号已登记 reserved（GameData.kt / DiscipleSerializer.kt 的
+        // reserved 注释），禁止复用——复用会让旧档字节按新语义解码（wire 漂移）。
+        // 号是 per-message 语义：GameData.kt 内其他消息合法占用的 104/105/110 不在
+        // 本断言面（Disciple 侧保留号只对 SerializableDisciple 生效，该文件单一消息）。
+        val modelRoot = MODEL_ROOTS.map(::File).firstOrNull { it.isDirectory }
+            ?: error("模型源码目录未找到（cwd=${File(".").absolutePath}）")
+        val gameDataText = File(modelRoot, "GameData.kt").readText()
+        val discipleSerializerText = File(modelRoot, "DiscipleSerializer.kt").readText()
+
+        val gameDataRetired = listOf(115, 150, 151, 152, 1002)
+        val discipleRetired = listOf(22, 104, 105, 110)
+        val gameDataReused = gameDataRetired.filter { gameDataText.contains("@ProtoNumber($it)") }
+        val discipleReused = discipleRetired.filter { discipleSerializerText.contains("@ProtoNumber($it)") }
         assertTrue(
-            "pendingTraitAdds 不得再使用 162（已让号）",
-            !pendingAnnotations.contains("@ProtoNumber(162)")
+            "GameData 退役号 $gameDataReused 不得再标注 @ProtoNumber" +
+                "（reserved 禁复用，登记见 GameData.kt 注释）",
+            gameDataReused.isEmpty()
         )
         assertTrue(
-            "pendingTraitAdds 应使用 @ProtoNumber(1002)",
-            pendingAnnotations.contains("@ProtoNumber(1002)")
+            "Disciple 退役号 $discipleReused 不得再标注 @ProtoNumber" +
+                "（reserved 禁复用，登记见 DiscipleSerializer.kt 注释）",
+            discipleReused.isEmpty()
         )
     }
 

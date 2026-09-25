@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStats
@@ -11,7 +10,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getPermanentBaseStats
  * 宗门战力计算器。
  *
  * 统一玩家和 AI 宗门的战力计算：
- * - 基于永久基础属性（境界基础 × 方差 × 层数 × (1 + 天赋% + 血炼%)）
+ * - 基于永久基础属性（境界基础 × 方差 × 层数）
  * - 不包含装备、功法、临时丹药等临时加成
  * - 玩家与 AI 使用完全相同的公式
  *
@@ -23,7 +22,7 @@ object SectCombatPowerCalculator {
     /**
      * 根据 [DiscipleStats] 计算单个弟子的战力值。
      *
-     * @param stats 弟子的永久基础属性（含天赋 + 血炼乘区）
+     * @param stats 弟子的永久基础属性
      * @return 战力值
      */
     fun calculateDiscipleCombatPower(stats: DiscipleStats): Long {
@@ -74,43 +73,34 @@ object SectCombatPowerCalculator {
      * 玩家和 AI 弟子都使用完全相同的公式和输入数据。
      *
      * @param aggregate 弟子聚合数据
-     * @param bloodRefinementPct 血炼百分比累计记录，若该弟子无血炼则为 null
      * @return 战力值
      */
-    fun calculateDisciplePower(
-        aggregate: DiscipleAggregate,
-        bloodRefinementPct: BloodRefinementPctTotal? = null
-    ): Long {
-        val stats = DiscipleStatCalculator.getPermanentBaseStats(aggregate, bloodRefinementPct)
+    fun calculateDisciplePower(aggregate: DiscipleAggregate): Long {
+        val stats = DiscipleStatCalculator.getPermanentBaseStats(aggregate)
         return calculateDiscipleCombatPower(stats)
     }
 
     /**
      * 宗门总战力 = 存活弟子永久基础属性战力之和（玩家/AI 同一公式）。
      *
-     * 不包含装备、功法、临时丹药等临时加成；AI 弟子无血炼 → bloodRefinementPct 传 null。
+     * 不包含装备、功法、临时丹药等临时加成。
      *
      * @param disciples 弟子列表
      * @return 宗门总战力
      */
     fun calculateSectPower(disciples: List<Disciple>): Long =
-        disciples.filter { it.isAlive }.sumOf { calculateDisciplePower(it.toAggregate(), null) }
+        disciples.filter { it.isAlive }.sumOf { calculateDisciplePower(it.toAggregate()) }
 
     /**
      * 为弟子的战力值计算缓存指纹。
      *
      * 仅包含影响永久基础属性的字段：
      * - 境界和层数
-     * - 方差
-     * - 天赋 ID
-     * - 血炼百分比
+     * - 六维方差
      *
      * 不包含：装备、功法、丹药（这些不影响战力计算）。
      */
-    fun computeFingerprint(
-        aggregate: DiscipleAggregate,
-        bloodRefinementPct: BloodRefinementPctTotal? = null
-    ): Int {
+    fun computeFingerprint(aggregate: DiscipleAggregate): Int {
         var result = 1
         result = 31 * result + aggregate.realm
         result = 31 * result + aggregate.realmLayer
@@ -120,15 +110,6 @@ object SectCombatPowerCalculator {
         result = 31 * result + aggregate.physicalDefenseVariance
         result = 31 * result + aggregate.magicDefenseVariance
         result = 31 * result + aggregate.speedVariance
-        result = 31 * result + aggregate.talentIds.hashCode()
-        if (bloodRefinementPct != null) {
-            result = 31 * result + bloodRefinementPct.hpBonusPct.hashCode()
-            result = 31 * result + bloodRefinementPct.physicalAttackBonusPct.hashCode()
-            result = 31 * result + bloodRefinementPct.magicAttackBonusPct.hashCode()
-            result = 31 * result + bloodRefinementPct.physicalDefenseBonusPct.hashCode()
-            result = 31 * result + bloodRefinementPct.magicDefenseBonusPct.hashCode()
-            result = 31 * result + bloodRefinementPct.speedBonusPct.hashCode()
-        }
         return result
     }
 }

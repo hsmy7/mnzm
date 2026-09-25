@@ -12,7 +12,6 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.BattleLog
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
@@ -104,7 +103,6 @@ class EncounterBattleService @Inject constructor(
 
         val sideA = preparedSides.getValue(attackerA.sectId)
         val sideB = preparedSides.getValue(attackerB.sectId)
-        val bloodRefinementMap = state.gameData.bloodRefinementPctTotals
         val teamACombatants = sideA.disciples.map { disciple ->
             battleSystem.convertDiscipleToCombatant(
                 disciple = disciple,
@@ -112,8 +110,7 @@ class EncounterBattleService @Inject constructor(
                 manualMap = sideA.manualMap,
                 manualProficiencies = sideA.proficiencies,
                 side = CombatantSide.DEFENDER,
-                fullHeal = true,
-                bloodRefinementPct = bloodRefinementMap[disciple.id]
+                fullHeal = true
             )
         }
         val teamBCombatants = sideB.disciples.map { disciple ->
@@ -123,8 +120,7 @@ class EncounterBattleService @Inject constructor(
                 manualMap = sideB.manualMap,
                 manualProficiencies = sideB.proficiencies,
                 side = CombatantSide.ATTACKER,
-                fullHeal = true,
-                bloodRefinementPct = bloodRefinementMap[disciple.id]
+                fullHeal = true
             )
         }
 
@@ -290,7 +286,7 @@ class EncounterBattleService @Inject constructor(
         month: Int
     ) {
         val pveBattle = buildPhase2Battle(
-            winnerSurvivors, winnerSide, beast, state.gameData.bloodRefinementPctTotals
+            winnerSurvivors, winnerSide, beast
         )
         val pveResult = executeRouted(pveBattle)
 
@@ -322,8 +318,7 @@ class EncounterBattleService @Inject constructor(
     private fun buildPhase2Battle(
         winnerSurvivors: List<Disciple>,
         winnerSide: PreparedSide,
-        beast: WorldLevel,
-        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
+        beast: WorldLevel
     ): Battle {
         // 构建妖兽预计算属性
         val beastPreGenStats = if (beast.beastMaxHp > 0) {
@@ -353,8 +348,7 @@ class EncounterBattleService @Inject constructor(
             beastCount = beast.count,
             beastType = beastTypeName,
             manualProficiencies = winnerSide.proficiencies,
-            beastPreGenStats = beastPreGenStats,
-            bloodRefinementMap = bloodRefinementMap
+            beastPreGenStats = beastPreGenStats
         )
     }
 
@@ -417,7 +411,7 @@ class EncounterBattleService @Inject constructor(
      * 根据宗门类型准备战斗数据。
      *
      * 玩家方使用真实装备/功法实例；AI 方调用 [AISectDiscipleManager.prepareDisciplesForBattle]
-     * 按境界范围随机生成模拟装备/功法（不含丹药/血炼）。
+     * 按境界范围随机生成模拟装备/功法（不含丹药）。
      *
      * @param attacker 攻击方宗门
      * @param state    当前可变游戏状态

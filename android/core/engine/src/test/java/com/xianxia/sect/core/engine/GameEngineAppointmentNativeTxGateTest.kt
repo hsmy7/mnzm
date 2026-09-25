@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
@@ -8,18 +7,13 @@ import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
-import com.xianxia.sect.core.engine.service.JadeSymbolService
-import com.xianxia.sect.core.engine.system.WallClock
-import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleCore
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.WriteGuardRule
-import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,15 +34,14 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 任命/驻守/洗炼消耗族 native 事务门控单测（batch-15——GameEnginePatrolNative
+ * 任命/卸任 native 事务门控单测（batch-15——GameEnginePatrolNative
  * TxGateTest 同族三级降级契约守护）。
  *
  * JVM 单测环境 GameCoreBridge 恒未加载：断言 AUTHORITATIVE 稳态与 flag OFF 两
- * 模式下七 native 臂均降级（null/false）、七入口走 Kotlin 回退臂且事务外残差
- * （Gate/Room/状态同步/玉符运行时同步）语义不变；既有 GameEngineSpiritRootWash
- * Test / GameEngineTraitAddTest / GameEngineTraitWashTest 零改动通过。native
- * 事务本身的校验链/抽取序/玉符承扣语义由桌面 C++ appointment_tx_test.cpp 黄金
- * 用例守护，真机转发臂由真机验证批覆盖。
+ * 模式下任命/卸任两 native 臂均降级（null）、两入口走 Kotlin 回退臂且事务外
+ * 残差（Gate 登记/释放、长老槽位写入）语义不变。native 事务本身的校验链/
+ * 玉符承扣语义由桌面 C++ appointment_tx_test.cpp 黄金用例守护，真机转发臂由
+ * 真机验证批覆盖。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -56,17 +49,10 @@ class GameEngineAppointmentNativeTxGateTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
 
-    /** 单调时钟 fake（玉符服务构造要求）。 */
-    private class FakeTimeSource(var nowMs: Long) : TimeSource {
-        override fun elapsedRealtime(): Long = nowMs
-    }
-
     private lateinit var store: FakeAtomicStateStore
     private lateinit var gate: DiscipleAssignmentGate
-    private lateinit var jadeService: JadeSymbolService
     private lateinit var engine: GameEngine
     private lateinit var useCase: ElderManagementUseCase
-    private lateinit var systemRng: DeterministicRng
 
     private val discipleA = "1"
     private val discipleB = "2"
@@ -75,11 +61,6 @@ class GameEngineAppointmentNativeTxGateTest {
     fun setUp() {
         gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
         store = FakeAtomicStateStore()
-        jadeService = JadeSymbolService(
-            timeSource = FakeTimeSource(1_000_000L),
-            stateStore = store,
-            wallClock = WallClock { 1_700_000_000_000L }
-        )
         seedDisciples()
         // 聚合流填充（UseCase 弟子存在性校验读 discipleAggregatesSnapshot——
         // FakeAtomicStateStore 无自动 assemble，测试手动播种最小聚合）
@@ -89,7 +70,6 @@ class GameEngineAppointmentNativeTxGateTest {
         )
 
         val mockCore = mock<GameEngineCore>()
-        whenever(mockCore.jadeSymbolServiceRef).thenReturn(jadeService)
         // launchInScope 同步执行（仓库驻守非 suspend 入口依赖）；返回 mock Job
         whenever(mockCore.launchInScope(any())).thenAnswer { invocation ->
             val block = invocation.getArgument<suspend CoroutineScope.() -> Unit>(0)
@@ -97,9 +77,6 @@ class GameEngineAppointmentNativeTxGateTest {
             mock<kotlinx.coroutines.Job>()
         }
         whenever(mockCore.scopeForStateIn()).thenReturn(CoroutineScope(Dispatchers.Unconfined))
-        systemRng = DeterministicRng.fromSeed(20260912L)
-        val mockRng = mock<GameRngManager>()
-        whenever(mockRng.getRng(RngPartition.SYSTEM)).thenReturn(systemRng)
 
         // GameEngine.assignmentGate 委托 battleFacade——槽位清理/登记残差用
         val mockBattleFacade = mock<com.xianxia.sect.core.engine.domain.battle.BattleFacade>()
@@ -115,7 +92,7 @@ class GameEngineAppointmentNativeTxGateTest {
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mockRng,
+            gameRngManager = GameRngManager(),
             explorationFacade = mock(),
             cultivationFacade = mockCultivationFacade(mockDiscipleFacade),
             economyFacade = mockEconomyFacade(),
@@ -189,24 +166,16 @@ class GameEngineAppointmentNativeTxGateTest {
     // ── native 臂门控（桥未加载恒降级） ──────────────────────────
 
     @Test
-    fun `native 臂 - AUTHORITATIVE 且桥未加载六臂均降级`() {
+    fun `native 臂 - AUTHORITATIVE 且桥未加载两臂均降级`() {
         assertNull(engine.tryAppointElderNative("VICE_SECT_MASTER", discipleA))
         assertNull(engine.tryDismissElderNative("VICE_SECT_MASTER"))
-        assertNull(engine.tryWashSpiritRootNative(discipleA, 0, 1))
-        assertNull(engine.tryRollTraitAddNative(discipleA, "TALENT", 1))
-        assertFalse(engine.tryConfirmTraitAddNative(discipleA, "TALENT", "t1"))
-        assertNull(engine.tryWashTraitSlotNative(discipleA, "TALENT", "t1", 0, 1))
     }
 
     @Test
-    fun `native 臂 - flag OFF 六臂均降级`() {
+    fun `native 臂 - flag OFF 两臂均降级`() {
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             assertNull(engine.tryAppointElderNative("VICE_SECT_MASTER", discipleA))
             assertNull(engine.tryDismissElderNative("VICE_SECT_MASTER"))
-            assertNull(engine.tryWashSpiritRootNative(discipleA, 0, 1))
-            assertNull(engine.tryRollTraitAddNative(discipleA, "TALENT", 1))
-            assertFalse(engine.tryConfirmTraitAddNative(discipleA, "TALENT", "t1"))
-            assertNull(engine.tryWashTraitSlotNative(discipleA, "TALENT", "t1", 0, 1))
         }
     }
 
@@ -236,80 +205,5 @@ class GameEngineAppointmentNativeTxGateTest {
         assertTrue("应为 Success", result is ElderManagementUseCase.ElderResult.Success)
         assertEquals("", store.latestGameData.elderSlots.viceSectMaster)
         assertFalse("被卸任者 gate 释放", gate.isAssigned(discipleA))
-    }
-
-    // ── 洗炼族回退臂（降级下原有扣减/三态语义不变） ──────────────
-
-    @Test
-    fun `washSpiritRoot - 桥未加载走回退臂扣减且运行时同步`() = runTest {
-        store.update { gameData = gameData.copy(jadeSymbols = 3) }
-        jadeService.onLoopStart()
-
-        val result = engine.washSpiritRoot(discipleA, 0)
-
-        assertTrue("应为 Success", result is SpiritRootWashResult.Success)
-        assertEquals("扣减后余额", 2, store.latestGameData.jadeSymbols)
-        assertEquals("运行时同步", 2, jadeService.runtimeState.value.total)
-        // 最高风险回归：扣减后 checkpoint 不回涨（13.3）
-        jadeService.checkpointNow()
-        assertEquals("checkpoint 不回涨", 2, store.latestGameData.jadeSymbols)
-    }
-
-    @Test
-    fun `washSpiritRoot - 玉符不足三态且不消耗随机序列`() = runTest {
-        store.update { gameData = gameData.copy(jadeSymbols = 0) }
-        jadeService.onLoopStart()
-        val rngBefore = systemRng.snapshot()
-
-        val result = engine.washSpiritRoot(discipleA, 0)
-
-        assertTrue(result is SpiritRootWashResult.InsufficientJadeSymbols)
-        assertEquals(0, (result as SpiritRootWashResult.InsufficientJadeSymbols).current)
-        assertEquals(0, store.latestGameData.jadeSymbols)
-        assertEquals("回退臂不足臂零抽取", rngBefore, systemRng.snapshot())
-    }
-
-    @Test
-    fun `rollTraitAdd - 桥未加载玉符不足走回退臂三态`() = runTest {
-        store.update { gameData = gameData.copy(jadeSymbols = 0) }
-        jadeService.onLoopStart()
-
-        val result = engine.rollTraitAdd(discipleA, com.xianxia.sect.core.GameConfig.TraitWashType.TALENT)
-
-        assertTrue(result is TraitAddResult.InsufficientJadeSymbols)
-        assertEquals(0, store.latestGameData.jadeSymbols)
-    }
-
-    @Test
-    fun `washTraitSlot - 桥未加载弟子缺失走回退臂错误文案`() = runTest {
-        val result = engine.washTraitSlot("404", com.xianxia.sect.core.GameConfig.TraitWashType.AFFIX, "x", 0)
-        assertTrue(result is TraitWashResult.Error)
-    }
-
-    // ── 玉符运行时同步残差（native 臂 13.3 收口路径） ────────────
-
-    @Test
-    fun `syncJadeRuntimeAfterNative - 递减运行时并幂等覆写镜像`() = runTest {
-        store.update { gameData = gameData.copy(jadeSymbols = 5) }
-        jadeService.onLoopStart()
-
-        engine.syncJadeRuntimeAfterNative(1)
-
-        // deduct 不主动 publish——运行时 StateFlow 经 publishJadeSymbolStateNow
-        // 刷新（native 洗炼臂在同步后调用，与 Kotlin 原路径发布时序一致）
-        jadeService.publishJadeSymbolStateNow()
-        assertEquals("运行时递减", 4, jadeService.runtimeState.value.total)
-        assertEquals("绝对值覆写 = 运行时（与 native 镜像值一致的幂等写）", 4, store.latestGameData.jadeSymbols)
-        jadeService.checkpointNow()
-        assertEquals("checkpoint 不回涨", 4, store.latestGameData.jadeSymbols)
-    }
-
-    @Test
-    fun `syncJadeRuntimeAfterNative - total 低于 cost 未锚定守卫跳过`() = runTest {
-        store.update { gameData = gameData.copy(jadeSymbols = 5) }
-        // 未 onLoopStart：runtimeState 恒初始 total=0 → 守卫跳过同步
-        engine.syncJadeRuntimeAfterNative(1)
-        assertEquals("镜像不被未锚定运行时污染", 5, store.latestGameData.jadeSymbols)
-        assertEquals(0, jadeService.runtimeState.value.total)
     }
 }

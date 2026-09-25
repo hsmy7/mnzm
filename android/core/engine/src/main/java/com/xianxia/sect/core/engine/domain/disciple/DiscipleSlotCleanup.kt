@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.ActiveMission
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.DirectDiscipleSlot
@@ -69,10 +68,6 @@ class DiscipleSlotCleanup @Inject constructor(
             data.residenceSlots, discipleId, includeResidence
         )
 
-        val updatedActiveBloodRefinements = clearActiveBloodRefinements(
-            data.activeBloodRefinements, discipleId
-        )
-
         val updatedPatrolSlots = data.patrolSlots.map {
             if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
         }
@@ -110,7 +105,6 @@ class DiscipleSlotCleanup @Inject constructor(
             librarySlots = updatedLibrarySlots,
             elderSlots = updatedElderSlots,
             residenceSlots = updatedResidenceSlots,
-            activeBloodRefinements = updatedActiveBloodRefinements,
             patrolSlots = updatedPatrolSlots,
             battleTeams = updatedBattleTeams,
             worldMapSects = updatedWorldMapSects,
@@ -155,18 +149,6 @@ class DiscipleSlotCleanup @Inject constructor(
         }
     } else {
         slots
-    }
-
-    /**
-     * 血炼进度清理：移除指定弟子的进行中血炼记录（原地修改语义保留）。
-     */
-    private fun clearActiveBloodRefinements(
-        refinements: Map<String, BloodRefinementProgress>,
-        discipleId: String
-    ): Map<String, BloodRefinementProgress> {
-        val updated = refinements.toMutableMap()
-        updated.entries.removeAll { it.value.discipleId == discipleId }
-        return updated
     }
 
     /**

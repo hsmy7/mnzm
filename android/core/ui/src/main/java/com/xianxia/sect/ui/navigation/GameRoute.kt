@@ -23,9 +23,6 @@ sealed class GameRoute(val route: String) {
     object PatrolTower : GameRoute("patrol_tower/{buildingInstanceId}") {
         fun createRoute(buildingInstanceId: String) = "patrol_tower/$buildingInstanceId"
     }
-    object BloodRefiningPool : GameRoute("blood_refining_pool/{buildingInstanceId}") {
-        fun createRoute(buildingInstanceId: String) = "blood_refining_pool/$buildingInstanceId"
-    }
 
     // Residence
     object Residence : GameRoute("residence/{buildingInstanceId}") {
@@ -86,7 +83,6 @@ fun GameRoute.toDialogType(buildingInstanceId: String = ""): DialogType = when (
     GameRoute.Alchemy -> DialogType.Alchemy(buildingInstanceId)
     GameRoute.Forge -> DialogType.Forge(buildingInstanceId)
     GameRoute.PatrolTower -> DialogType.PatrolTower(buildingInstanceId)
-    GameRoute.BloodRefiningPool -> DialogType.BloodRefiningPool(buildingInstanceId)
     GameRoute.Residence -> DialogType.Residence(buildingInstanceId)
     GameRoute.WarehouseBuilding -> DialogType.WarehouseBuilding(buildingInstanceId)
     GameRoute.BattleResult -> DialogType.None

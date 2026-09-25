@@ -200,17 +200,6 @@ sealed interface SlotGroup {
             emptySet<String>()
     }
 
-    /** 血炼池：炼化进度槽位 */
-    data class BloodRefining(override val slotsPerInstance: Int = 1) : SlotGroup {
-        override fun filterFromGameData(data: GameData, instanceId: String, feature: BuildingFeature?) =
-            data.copy(activeBloodRefinements = data.activeBloodRefinements - instanceId)
-
-        override fun collectDiscipleIds(data: GameData, instanceId: String, feature: BuildingFeature?): Set<String> {
-            val progress = data.activeBloodRefinements[instanceId] ?: return emptySet()
-            return if (progress.discipleId.isNotEmpty()) setOf(progress.discipleId) else emptySet()
-        }
-    }
-
     /** 藏经阁：研读槽位 */
     data class Library(override val slotsPerInstance: Int = 3) : SlotGroup {
         override fun filterFromGameData(data: GameData, instanceId: String, feature: BuildingFeature?) =

@@ -328,16 +328,14 @@ class DiscipleFilterUtilsTest {
         // 候选必须包含在岗（非任务/非队伍）弟子，状态过滤由对话框 filterByDiscipleStatus 负责
         val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
         val patrolling = createAggregate(id = "patrolling", status = DiscipleStatus.PATROLLING)
-        val refining = createAggregate(id = "refining", status = DiscipleStatus.REFINING)
         val onMission = createAggregate(id = "mission", status = DiscipleStatus.ON_MISSION)
         val inTeam = createAggregate(id = "team", status = DiscipleStatus.IN_TEAM)
 
-        val result = listOf(idle, patrolling, refining, onMission, inTeam).eligibleElderCandidates()
+        val result = listOf(idle, patrolling, onMission, inTeam).eligibleElderCandidates()
 
         val ids = result.map { it.id }.toSet()
         assertTrue("空闲中弟子应包含", "idle" in ids)
         assertTrue("巡视中在岗弟子应包含（showAll 可选中）", "patrolling" in ids)
-        assertTrue("血炼中在岗弟子应包含（showAll 可选中）", "refining" in ids)
         assertTrue("任务中弟子应包含（状态过滤由 filterByDiscipleStatus 排除）", "mission" in ids)
         assertTrue("队伍中弟子应包含（状态过滤由 filterByDiscipleStatus 排除）", "team" in ids)
     }
@@ -366,14 +364,12 @@ class DiscipleFilterUtilsTest {
         val secretRealm = createAggregate(id = "secret", status = DiscipleStatus.SECRET_REALM)
         val inTeam = createAggregate(id = "team", status = DiscipleStatus.IN_TEAM)
         val onMission = createAggregate(id = "mission", status = DiscipleStatus.ON_MISSION)
-        val refining = createAggregate(id = "refining", status = DiscipleStatus.REFINING)
 
-        val result = listOf(idle, secretRealm, inTeam, onMission, refining)
+        val result = listOf(idle, secretRealm, inTeam, onMission)
             .filterByDiscipleStatus(showAllEnabled = true)
 
         val ids = result.map { it.id }.toSet()
         assertTrue("空闲中弟子应显示", "idle" in ids)
-        assertTrue("血炼中弟子应显示（showAll 可见，选中触发血炼失败）", "refining" in ids)
         assertTrue("远古秘境中弟子必须排除", "secret" !in ids)
         assertTrue("队伍中弟子必须排除", "team" !in ids)
         assertTrue("任务中弟子必须排除", "mission" !in ids)

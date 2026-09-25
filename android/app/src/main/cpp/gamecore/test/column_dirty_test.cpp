@@ -47,7 +47,6 @@ Disciple makeDisciple(const std::string& id, const std::string& name) {
     d.cultivation = 10.0;
     d.isAlive = true;
     d.spiritRootType = "metal";
-    d.talentIds = {"t1"};
     return d;
 }
 

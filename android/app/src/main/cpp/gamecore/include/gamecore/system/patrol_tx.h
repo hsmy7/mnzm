@@ -156,7 +156,7 @@ inline SlotDisplayFields displayFieldsOf(const gamecore::state::DiscipleStore& d
     return out;
 }
 
-/// 11 类槽位清理（clearAllSlotsDataOnly 的 GameState 打包/回写壳；
+/// 10 类槽位清理（clearAllSlotsDataOnly 的 GameState 打包/回写壳；
 /// includeResidence=false——工作分配保留住所语义，与 Kotlin
 /// DiscipleSlotCleanup.clearAllSlotsDataOnly 默认参一致）
 inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleId) {
@@ -165,7 +165,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     in.librarySlots = state.gameData.librarySlots;
     in.elderSlots = state.gameData.elderSlots;
     in.residenceSlots = state.gameData.residenceSlots;
-    in.activeBloodRefinements = state.gameData.activeBloodRefinements;
     in.patrolSlots = state.gameData.patrolSlots;
     in.battleTeams = state.gameData.battleTeams;
     in.worldMapSects = state.gameData.worldMapSects;
@@ -178,7 +177,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     state.gameData.librarySlots = out.librarySlots;
     state.gameData.elderSlots = out.elderSlots;
     state.gameData.residenceSlots = out.residenceSlots;
-    state.gameData.activeBloodRefinements = out.activeBloodRefinements;
     state.gameData.patrolSlots = out.patrolSlots;
     state.gameData.battleTeams = out.battleTeams;
     state.gameData.worldMapSects = out.worldMapSects;

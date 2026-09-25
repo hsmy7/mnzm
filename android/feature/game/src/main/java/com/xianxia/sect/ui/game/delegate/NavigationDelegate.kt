@@ -68,11 +68,6 @@ class NavigationDelegate(
         onNavigate(GameRoute.PatrolTower)
     }
 
-    @Suppress("UnusedParameter") // buildingInstanceId: 导航门面语义形参：路由当前不区分实例，保留调用点语义
-    fun openBloodRefiningPoolDialog(buildingInstanceId: String = "") {
-        onNavigate(GameRoute.BloodRefiningPool)
-    }
-
     fun openWorldMapDialog() {
         onNavigate(GameRoute.WorldMap)
     }

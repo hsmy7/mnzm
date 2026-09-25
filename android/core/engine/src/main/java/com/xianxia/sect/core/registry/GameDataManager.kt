@@ -59,12 +59,6 @@ object GameDataManager {
         private set
 
     /**
-     * 天赋数据注册表
-     */
-    lateinit var talents: TalentRegistry
-        private set
-
-    /**
      * 草药注册表
      */
     lateinit var herbs: HerbRegistry
@@ -121,7 +115,6 @@ object GameDataManager {
 
                 // 1. 创建无依赖的硬编码注册表
                 equipment = EquipmentRegistry().also { it.autoInitialize() }
-                talents = TalentRegistry().also { it.autoInitialize() }
                 herbs = HerbRegistry().also { it.autoInitialize() }
                 beastMaterials = BeastMaterialRegistry().also { it.autoInitialize() }
 
@@ -166,7 +159,7 @@ object GameDataManager {
 
         return listOf(
             ::equipment, ::pills, ::pillRecipes, ::manuals,
-            ::talents, ::herbs, ::forgeRecipes, ::beastMaterials, ::materials
+            ::herbs, ::forgeRecipes, ::beastMaterials, ::materials
         ).all { registry ->
             try {
                 registry.get().isInitialized()
@@ -192,7 +185,6 @@ object GameDataManager {
             pills.allTemplates,
             pillRecipes.allTemplates,
             manuals.allTemplates,
-            talents.allTemplates,
             herbs.allHerbTemplates,
             herbs.allSeedTemplates,
             forgeRecipes.allTemplates,
@@ -223,7 +215,6 @@ object GameDataManager {
             sb.appendLine("  - Pills: ${pills.getCount()} items [${pills.isInitialized()}]")
             sb.appendLine("  - Pill Recipes: ${pillRecipes.getCount()} items [${pillRecipes.isInitialized()}]")
             sb.appendLine("  - Manuals: ${manuals.getCount()} items [${manuals.isInitialized()}]")
-            sb.appendLine("  - Talents: ${talents.getCount()} items [${talents.isInitialized()}]")
             sb.appendLine("  - Herbs: ${herbs.getHerbCount()} herbs, ${herbs.getSeedCount()} seeds " +
                 "[${herbs.isInitialized()}]")
             sb.appendLine("  - Forge Recipes: ${forgeRecipes.getCount()} items [${forgeRecipes.isInitialized()}]")

@@ -11,9 +11,8 @@
 // rngStates 分区）。消费序逐位对齐 Kotlin generateRandomDisciple：
 //   gender 1×nextInt → 名字（姓氏 1×nextInt + 给定名 1×nextDouble +
 //   1×nextInt，冲突循环）→ 灵根（1×nextDouble + Fisher-Yates 4×nextInt）
-//   → 悟性 1×nextInt → 资质 1×nextInt → 7×nextGaussian（14×nextDouble）
-//   → 三分类（WeightedRoll：数量 1×nextDouble + 每非空轮品阶 1×nextDouble
-//   + 选池 1×nextInt）→ 肖像 1×nextInt → 年龄 1×nextInt → 技能
+//   → 悟性 1×nextInt → 7×nextGaussian（14×nextDouble）
+//   → 肖像 1×nextInt → 年龄 1×nextInt → 技能
 //   9×nextGaussian（18×nextDouble）→ 基础属性/寿命（纯计算）
 // 装备/功法（applyGearToAiDisciple）：槽位洗牌与攻防池洗牌用
 // java.util.Random 种子（1×nextInt 播种，48 位 LCG 序列由
@@ -35,7 +34,6 @@
 #include "gamecore/data/equipment_db.h"
 #include "gamecore/system/inventory.h"  // nextItemIdCounter（id 注册表）
 #include "gamecore/data/manual_db.h"
-#include "gamecore/data/trait_db.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple_factory.h"
@@ -89,8 +87,8 @@ inline int32_t aiGaussianInt(rng::DeterministicRng& rng, double mean, double sig
     return static_cast<int32_t>(clamped);
 }
 
-/// 灵根数 → 悟性/资质阶梯（Kotlin when(spiritRootCount)：1根 80+nextInt(21) …
-/// 5根 1+nextInt(20)——与玩家 createDisciple 同构；资质另经 avoidSentinel50）
+/// 灵根数 → 悟性阶梯（Kotlin when(spiritRootCount)：1根 80+nextInt(21) …
+/// 5根 1+nextInt(20)——与玩家 createDisciple 同构）
 inline int32_t aiRollByRootCount(rng::DeterministicRng& rng, int32_t spiritRootCount) {
     switch (spiritRootCount) {
         case 1: return 80 + rng.nextInt(21);
@@ -118,9 +116,8 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
     d.spiritRootType = gamecore::system::spiritRootGenerate(rng);
     const int32_t rootCount = 1 + static_cast<int32_t>(
         std::count(d.spiritRootType.begin(), d.spiritRootType.end(), ','));
-    // 3. 悟性/资质（各 1×nextInt；资质避开哨兵 50——自愈判定收敛）
+    // 3. 悟性（1×nextInt）
     const int32_t comprehension = aiRollByRootCount(rng, rootCount);
-    const int32_t aptitude = avoidSentinel50(aiRollByRootCount(rng, rootCount));
     // 4. 六维方差（7×nextGaussian = 14×nextDouble——AI 版非 gaussianInt）
     const double kVarianceSigma = 16.667;
     d.hpVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
@@ -130,25 +127,12 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
     d.physicalDefenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     d.magicDefenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     d.speedVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    // 5. 天赋/体质/词条三分类（与玩家 createDisciple 同构——WeightedRoll；
-    // generateTraitsForDiscipleT 定义于 disciple_factory.h 的
-    // gamecore::system::detail——与本源文件同命名空间直接调用）
-    d.talentIds = generateTraitsForDiscipleT(
-        data::talentTemplates(), rng, [](const data::TalentTemplate& t) {
-            return kDeprecatedTalentTypes().count(t.type) > 0;
-        });
-    d.physiqueIds = generateTraitsForDiscipleT(
-        data::physiqueTemplates(), rng,
-        [](const data::PhysiqueTemplate&) { return false; });
-    d.affixIds = generateTraitsForDiscipleT(
-        data::affixTemplates(), rng,
-        [](const data::AffixTemplate&) { return false; });
-    // 6. 肖像（1×nextInt——male 20 / female 17 池）
+    // 5. 肖像（1×nextInt——male 20 / female 17 池）
     const auto& portraits =
         (d.gender == "male") ? malePortraits() : femalePortraits();
     d.portraitRes = portraits[static_cast<std::size_t>(
         rng.nextInt(static_cast<int32_t>(portraits.size())))];
-    // 7. 技能（8×nextGaussian = 16×nextDouble + 悟性/资质直填）
+    // 6. 技能（8×nextGaussian = 16×nextDouble + 悟性直填）
     constexpr double kSkillMean = 50.5;
     constexpr double kSkillSigma = 16.5;
     d.intelligence = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
@@ -160,8 +144,7 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
     d.spiritPlanting = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
     d.mining = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
     d.teaching = aiGaussianInt(rng, kSkillMean, kSkillSigma, 1, kAiSkillMax);
-    d.aptitude = aptitude;
-    // 9. 基础属性（创建期基准，无 realm 乘区——calculateBaseStatsWithVariance）
+    // 7. 基础属性（创建期基准，无 realm 乘区——calculateBaseStatsWithVariance）
     {
         DiscipleRolls rolls;  // 复用聚合结构（值来自 AI 版 variance）
         rolls.hpVariance = d.hpVariance;

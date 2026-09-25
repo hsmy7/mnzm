@@ -13,7 +13,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 
 /**
  * 战斗 JSON 编解码（生产通道协议，与 C++ battle_json.h 字段逐键对应）。
@@ -44,18 +43,6 @@ internal object BattleJsonCodec {
         put("realmLayer", c.realmLayer)
         put("element", c.element)
         put("isBeast", c.isBeast)
-        putJsonObject("physique") {
-            put("damageAmplification", c.physique.damageAmplification)
-            put("critDamageBonus", c.physique.critDamageBonus)
-            put("damageReduction", c.physique.damageReduction)
-            put("defenseBonus", c.physique.defenseBonus)
-        }
-        putJsonObject("affix") {
-            put("damageAmplification", c.affix.damageAmplification)
-            put("critDamageBonus", c.affix.critDamageBonus)
-            put("damageReduction", c.affix.damageReduction)
-            put("defenseBonus", c.affix.defenseBonus)
-        }
     }
 
     fun skillJson(skill: CombatSkill) = buildJsonObject {
@@ -101,8 +88,6 @@ internal object BattleJsonCodec {
             ?.mapNotNull { buffFromJson(it.jsonObject) } ?: emptyList()
         val skills = (j["skills"] as? JsonArray)
             ?.mapNotNull { skillFromJson(it.jsonObject) } ?: emptyList()
-        val physique = j["physique"]?.jsonObject
-        val affix = j["affix"]?.jsonObject
         return Combatant(
             id = j.str("id"),
             name = j.str("name"),
@@ -123,19 +108,7 @@ internal object BattleJsonCodec {
             realm = j.int("realm", 9),
             realmLayer = j.int("realmLayer"),
             element = j.str("element"),
-            isBeast = j["isBeast"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false,
-            physique = PhysiqueCombatFactors(
-                damageAmplification = physique?.dbl("damageAmplification") ?: 0.0,
-                critDamageBonus = physique?.dbl("critDamageBonus") ?: 0.0,
-                damageReduction = physique?.dbl("damageReduction") ?: 0.0,
-                defenseBonus = physique?.dbl("defenseBonus") ?: 0.0
-            ),
-            affix = com.xianxia.sect.core.registry.AffixCombatEffects(
-                damageAmplification = affix?.dbl("damageAmplification") ?: 0.0,
-                critDamageBonus = affix?.dbl("critDamageBonus") ?: 0.0,
-                damageReduction = affix?.dbl("damageReduction") ?: 0.0,
-                defenseBonus = affix?.dbl("defenseBonus") ?: 0.0
-            )
+            isBeast = j["isBeast"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
         )
     }
 

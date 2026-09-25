@@ -17,9 +17,8 @@
 //  ① secretRealmStartReleaseTx（1800 SECRET_REALM_START_RELEASE_TX）
 //     = GameEngineAtomicAssign.releaseDiscipleToIdleInside 的 GameData 写段
 //     （startSecretRealmExploration native 臂的换岗清理残差）：
-//     11 类槽位清理（clearAllSlotsDataOnly，includeResidence=false——住所与
-//     工作共存语义）+ 状态重置（REFLECTING → 清思过标记 / REFINING →
-//     清 buildingId（视为放弃血炼不返还材料）/ 其余 → IDLE）。
+//     10 类槽位清理（clearAllSlotsDataOnly，includeResidence=false——住所与
+//     工作共存语义）+ 状态重置（REFLECTING → 清思过标记 / 其余 → IDLE）。
 //     DiscipleAssignmentGate.release 与 Room 生产槽清槽为 Kotlin 平台域
 //     （finalizeSecretRealmTeam 既有收尾，不纳入本事务）。
 //
@@ -51,12 +50,10 @@ using gamecore::state::GameState;
 /// DiscipleStatus.name 字面量（statuses 列存 .name 字符串）
 inline constexpr const char* kIdleStatusName = "IDLE";
 inline constexpr const char* kReflectingStatusName = "REFLECTING";
-inline constexpr const char* kRefiningStatusName = "REFINING";
 
-/// 思过/血炼 statusData key（DiscipleStatusData 单一来源同名键）
+/// 思过 statusData key（DiscipleStatusData 单一来源同名键）
 inline constexpr const char* kReflectionStartYearKey = "reflectionStartYear";
 inline constexpr const char* kReflectionEndYearKey = "reflectionEndYear";
-inline constexpr const char* kRefiningBuildingIdKey = "buildingId";
 
 // ── ① 出发换岗（releaseDiscipleToIdleInside 的 GameData 段）──────────
 
@@ -76,14 +73,13 @@ inline SecretRealmStartReleaseOutcome secretRealmStartReleaseTx(
         const auto rowOpt = ds.rowOf(memberId);
         if (!rowOpt.has_value()) continue;
 
-        // 11 类槽位清理（DiscipleSlotCleanup.clearAllSlotsDataOnly——
+        // 10 类槽位清理（DiscipleSlotCleanup.clearAllSlotsDataOnly——
         // includeResidence=false：住所与工作共存是有意设计）
         gamecore::system::SlotCleanupInput in;
         in.spiritMineSlots = gd.spiritMineSlots;
         in.librarySlots = gd.librarySlots;
         in.elderSlots = gd.elderSlots;
         in.residenceSlots = gd.residenceSlots;
-        in.activeBloodRefinements = gd.activeBloodRefinements;
         in.patrolSlots = gd.patrolSlots;
         in.battleTeams = gd.battleTeams;
         in.worldMapSects = gd.worldMapSects;
@@ -96,7 +92,6 @@ inline SecretRealmStartReleaseOutcome secretRealmStartReleaseTx(
         gd.librarySlots = std::move(cleaned.librarySlots);
         gd.elderSlots = cleaned.elderSlots;
         gd.residenceSlots = std::move(cleaned.residenceSlots);
-        gd.activeBloodRefinements = std::move(cleaned.activeBloodRefinements);
         gd.patrolSlots = std::move(cleaned.patrolSlots);
         gd.battleTeams = std::move(cleaned.battleTeams);
         gd.productionSlots = std::move(cleaned.productionSlots);
@@ -110,9 +105,6 @@ inline SecretRealmStartReleaseOutcome secretRealmStartReleaseTx(
         if (ds.statuses[row] == kReflectingStatusName) {
             ds.statusData[row].erase(kReflectionStartYearKey);
             ds.statusData[row].erase(kReflectionEndYearKey);
-            ds.statuses[row] = kIdleStatusName;
-        } else if (ds.statuses[row] == kRefiningStatusName) {
-            ds.statusData[row].erase(kRefiningBuildingIdKey);
             ds.statuses[row] = kIdleStatusName;
         } else {
             ds.statuses[row] = kIdleStatusName;

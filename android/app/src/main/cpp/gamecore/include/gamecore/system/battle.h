@@ -73,14 +73,6 @@ struct DamageZones {
     double magicAttackBuffs = 0.0;           // 魔法攻击 Buff 分桶
     double damageAmplification = 0.0;        // 增伤乘区
     double damageReduction = 0.0;            // 减伤乘区
-    double physiqueDamageAmplification = 0.0;  // 体质增伤（独立乘算）
-    double physiqueCritDamageBonus = 0.0;      // 体质暴伤（独立乘算，仅暴击）
-    double physiqueDamageReduction = 0.0;      // 体质减伤（独立乘算）
-    double physiqueDefenseBonus = 0.0;         // 体质防御加成（独立乘算）
-    double affixDamageAmplification = 0.0;     // 词条增伤（独立乘算）
-    double affixCritDamageBonus = 0.0;         // 词条暴伤（独立乘算，仅暴击）
-    double affixDamageReduction = 0.0;         // 词条减伤（独立乘算）
-    double affixDefenseBonus = 0.0;            // 词条防御加成（独立乘算）
     double realmGapDamageAmplification = 0.0;  // 境界压制增伤（独立乘算）
     double realmGapDamageReduction = 0.0;      // 境界压制减伤（独立乘算）
     double majorRealmDamageAmplification = 0.0; // 大境界增伤（独立乘算）
@@ -180,27 +172,17 @@ inline int32_t calculateFinalDamage(int32_t rawAttack, int32_t defense,
                                     const DamageZones& zones,
                                     bool isCrit, double variance) {
     const double effectiveAttack = rawAttack * (1.0 + zones.attackBuffs);
-    // 防御乘区：(1 - 体质防御) × (1 - 词条防御)，独立乘算
-    const double effectiveDefense = defense *
-        std::max(1.0 - zones.physiqueDefenseBonus, 0.0) *
-        std::max(1.0 - zones.affixDefenseBonus, 0.0);
     const double reduction =
-        effectiveDefense / (effectiveDefense + kDefenseConstant);
+        defense / (defense + kDefenseConstant);
     const double preCritDamage =
         effectiveAttack * skillMultiplier * (1.0 - reduction);
     const double critMult = isCrit ? (1.0 + kCritBaseMultiplier) : 1.0;
-    const double physiqueCritMult = isCrit ? (1.0 + zones.physiqueCritDamageBonus) : 1.0;
-    const double affixCritMult = isCrit ? (1.0 + zones.affixCritDamageBonus) : 1.0;
     const double result =
-        preCritDamage * critMult * physiqueCritMult * affixCritMult
+        preCritDamage * critMult
         * (1.0 + zones.damageAmplification)
-        * (1.0 + zones.physiqueDamageAmplification)
-        * (1.0 + zones.affixDamageAmplification)
         * (1.0 + zones.realmGapDamageAmplification)
         * (1.0 + zones.majorRealmDamageAmplification)
         * (1.0 - zones.damageReduction)
-        * (1.0 - zones.physiqueDamageReduction)
-        * (1.0 - zones.affixDamageReduction)
         * (1.0 - zones.realmGapDamageReduction)
         * variance;
     return std::max(static_cast<int32_t>(result), kMinDamage);

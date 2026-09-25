@@ -196,23 +196,7 @@ class AISectDiscipleManagerTest {
         }
     }
 
-    // ── AI 弟子完整化：体质/词条/装备/功法 ──
-
-    @Test
-    fun `generateRandomDisciple - 生成体质与词条`() {
-        AISectDiscipleManager.initForSlot(42L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        val disciple = AISectDiscipleManager.generateRandomDisciple("测试宗")
-        assertNotNull("应生成体质列表", disciple.physiqueIds)
-        assertNotNull("应生成词条列表", disciple.affixIds)
-        // 0-5 个随机生成（可能为 0），但生成器必须可从数据库解析（不产生悬空 id）
-        disciple.physiqueIds.forEach { id ->
-            assertNotNull(
-                "体质 id=$id 应存在于 PhysiqueDatabase",
-                com.xianxia.sect.core.registry.PhysiqueDatabase.getById(id)
-            )
-        }
-    }
+    // ── AI 弟子完整化：装备/功法 ──
 
     @Test
     fun `applyGearToDisciple - 装备功法数量按宗门等级`() {
@@ -330,21 +314,6 @@ class AISectDiscipleManagerTest {
     }
 
     @Test
-    fun `processMonthlyCultivation - 修炼吃体质加成`() {
-        AISectDiscipleManager.initForSlot(42L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        val base = makeGearDisciple(realm = 7, cultivation = 0.0)
-        val noPhysique = base.copy(physiqueIds = emptyList())
-        // r3_phys_cult_speed：3 阶修炼速度体质（+28%）
-        val withPhysique = base.copy(physiqueIds = listOf("r3_phys_cult_speed"))
-        val gainNo = AISectDiscipleManager.processMonthlyCultivation(listOf(noPhysique), 1, SectLevel.SMALL)
-            .first().cultivation
-        val gainWith = AISectDiscipleManager.processMonthlyCultivation(listOf(withPhysique), 1, SectLevel.SMALL)
-            .first().cultivation
-        assertTrue("带修炼速度体质的修炼增量应更大: $gainNo vs $gainWith", gainWith > gainNo)
-    }
-
-    @Test
     fun `processMonthlyCultivation - 突破大境界刷新装备`() {
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
@@ -404,25 +373,6 @@ class AISectDiscipleManagerTest {
     }
 
     @Test
-    fun `ensureDiscipleGear - 空分类补全写入roll标记防止重复消耗RNG`() {
-        // 体质/词条/天赋为 0-5 随机，roll 出 0 时若每次读档重 roll
-        // 会消耗 AI 分区 RNG 导致同档两次读档演化序列漂移——补全后须持久化标记收敛
-        AISectDiscipleManager.initForSlot(42L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        val old = makeGearDisciple(realm = 5).copy(
-            physiqueIds = emptyList(), affixIds = emptyList(), talentIds = emptyList()
-        )
-
-        val first = AISectDiscipleManager.ensureDiscipleGear(old, SectLevel.MEDIUM)
-        val rolled = first.statusData?.get(AISectDiscipleManager.GEAR_ROLL_MARKER) == "1"
-        assertTrue("补全后应写入 roll 标记", rolled)
-
-        // 带标记弟子再次调用：不再 roll（physique/affix/talent 即使为空也不再生成）
-        val second = AISectDiscipleManager.ensureDiscipleGear(first, SectLevel.MEDIUM)
-        assertEquals("二次调用应保持与首次结果一致（无重复 roll）", first, second)
-    }
-
-    @Test
     fun `isGearCompleteForLevel - 数量达标判定`() {
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
@@ -458,13 +408,10 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `fillDisciplesToTarget - 老档弟子补全装备`() {
-        // 种子 43：资质生成消耗分区 RNG 后序列偏移，
-        // 42 下老档弟子体质/词条 roll 恰为 0（0-3 随机合法空）会削弱断言强度
         AISectDiscipleManager.initForSlot(43L)
         ManualDatabase.initializeWithManuals(testManuals())
-        // 老档弟子：无体质/词条/装备/功法（generateRandomDisciple 旧版产物）
+        // 老档弟子：无装备/功法（generateRandomDisciple 旧版产物）
         val old = makeGearDisciple(realm = 5).copy(
-            physiqueIds = emptyList(), affixIds = emptyList(),
             equipment = com.xianxia.sect.core.model.EquipmentSet(),
             manualIds = emptyList(), manualMasteries = emptyMap()
         )
@@ -476,7 +423,6 @@ class AISectDiscipleManagerTest {
         val oldResult = requireNotNull(result.find { it.id == old.id })
         assertTrue("存量老档弟子应补全装备", oldResult.equipment.hasEquippedItems)
         assertTrue("存量老档弟子应补全功法", oldResult.manualIds.isNotEmpty())
-        assertTrue("存量老档弟子应补全体质/词条", oldResult.physiqueIds.isNotEmpty() || oldResult.affixIds.isNotEmpty())
         val newbie = result.first { it.id != old.id }
         assertTrue("新补弟子应带装备", newbie.equipment.hasEquippedItems)
         assertTrue("新补弟子应带功法", newbie.manualIds.isNotEmpty())
@@ -662,10 +608,6 @@ class AISectDiscipleManagerTest {
         realmLayer = realmLayer,
         cultivation = cultivation,
         isAlive = true,
-        // 占位标签：ensureDiscipleGear 只查空补全，非空即视为已具备
-        talentIds = listOf("t1"),
-        physiqueIds = listOf("p1"),
-        affixIds = listOf("a1"),
         skills = com.xianxia.sect.core.model.SkillStats(comprehension = comprehension),
         combat = CombatAttributes(
             basePhysicalAttack = 50,

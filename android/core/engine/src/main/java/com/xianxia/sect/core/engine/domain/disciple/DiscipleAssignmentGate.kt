@@ -144,9 +144,6 @@ class DiscipleAssignmentGate @Inject constructor(
         (gameData.patrolSlots).forEach { slot ->
             registerIfNotEmpty(slot.discipleId, SlotCategory.PATROL_SLOT, "patrol")
         }
-        gameData.activeBloodRefinements.values.forEach { refinement ->
-            registerIfNotEmpty(refinement.discipleId, SlotCategory.BLOOD_REFINEMENT, "blood")
-        }
         gameData.worldMapSects.filter { it.isPlayerSect }.forEach { sect ->
             sect.garrisonSlots.forEach { slot ->
                 registerIfNotEmpty(slot.discipleId, SlotCategory.GARRISON_SLOT, "garrison")

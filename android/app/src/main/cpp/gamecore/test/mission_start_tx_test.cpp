@@ -6,7 +6,7 @@
 //   - 成功路径：availableMissions 模板快照 → ActiveMission 全字段
 //     （含队员 id/name/realm 快照与 startYear/Month）
 //   - 全槽位清理（保留住所——includeResidence=false）+ 状态重置 IDLE
-//     （REFLECTING 剥离 reflection 键 / REFINING 剥离 buildingId）
+//     （REFLECTING 剥离 reflection 键 / 其余 → IDLE）
 //   - 模板不存在 = MISSION_NOT_FOUND 失败信封（零写入）
 //   - 缺行队员静默跳过清理但保留 ActiveMission 成员位（Kotlin 同语义）
 //   - 抽取序零扰动（红线 1：事务零 RNG，rngStates 快照差分恒零）
@@ -66,8 +66,6 @@ protected:
         if (status == "REFLECTING") {
             d.statusData["reflectionStartYear"] = "3";
             d.statusData["reflectionEndYear"] = "3";
-        } else if (status == "REFINING") {
-            d.statusData["buildingId"] = "bld-1";
         }
         core_->state().disciples.appendDisciple(d);
         return *core_->state().disciples.rowOf(id);
@@ -134,10 +132,10 @@ TEST_F(MissionStartTxFixture, SnapshotsTemplateAndMembersIntoActiveMissions) {
 
 TEST_F(MissionStartTxFixture, ClearsWorkSlotsKeepsResidenceAndResetsStatus) {
     addTemplate("gc-mission-2");
-    addDisciple("21", /*status*/ "REFINING");
+    addDisciple("21", /*status*/ "STUDYING");
     addDisciple("22", /*status*/ "REFLECTING");
     auto& gd = core_->state().gameData;
-    // 21：巡逻槽占用 + 住所占用（住所保留）；22：思过（键剥离）
+    // 21：巡逻槽占用 + 住所占用（住所保留，其余状态 → IDLE）；22：思过（键剥离）
     gd.patrolSlots.push_back(state::PatrolSlot{0, "21", "弟子21", "炼气", "", ""});
     gd.residenceSlots.push_back(state::ResidenceSlot{"res-1", 0, "21", "弟子21"});
 
@@ -148,9 +146,8 @@ TEST_F(MissionStartTxFixture, ClearsWorkSlotsKeepsResidenceAndResetsStatus) {
     // 巡逻槽清理 / 住所保留
     EXPECT_TRUE(gd.patrolSlots[0].discipleId.empty());
     EXPECT_EQ(gd.residenceSlots[0].discipleId, "21");
-    // 状态重置 + 键剥离
+    // 状态重置 + 键剥离（仅 REFLECTING 剥 reflection 键）
     EXPECT_EQ(store.statuses[*store.rowOf("21")], "IDLE");
-    EXPECT_EQ(store.statusData[*store.rowOf("21")].count("buildingId"), 0u);
     EXPECT_EQ(store.statuses[*store.rowOf("22")], "IDLE");
     EXPECT_EQ(store.statusData[*store.rowOf("22")].count("reflectionStartYear"), 0u);
     EXPECT_EQ(store.statusData[*store.rowOf("22")].count("reflectionEndYear"), 0u);

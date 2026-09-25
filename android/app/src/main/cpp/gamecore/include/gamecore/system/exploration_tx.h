@@ -268,10 +268,8 @@ inline ExplorationBattleOutcome attackWorldLevelTx(
     gamecore::battle::BattleState battle;
     battle.maxTurns = gamecore::battle::kMaxTurns;
     for (const auto& d : combatDisciples) {
-        const auto brIt = gd.bloodRefinementPctTotals.find(d.id);
         battle.team.push_back(mission_settle::detail::discipleToCombatant(
-            d, equipmentMap, manualMap, proficiencies,
-            brIt == gd.bloodRefinementPctTotals.end() ? nullptr : &brIt->second));
+            d, equipmentMap, manualMap, proficiencies));
     }
     // 妖兽阵营：BEAST 关 + 预生成属性 → pregen 分支（零抽取）；BEAST 关无
     // pregen → 基础值公式（resolveBeastStats 向后兼容，rl=5，零抽取）；
@@ -365,10 +363,8 @@ inline ExplorationBattleOutcome scoutSectTx(
     gamecore::battle::BattleState battle;
     battle.maxTurns = std::numeric_limits<int32_t>::max();   // Kotlin Int.MAX_VALUE
     for (const auto& d : combatDisciples) {
-        const auto brIt = gd.bloodRefinementPctTotals.find(d.id);
         battle.team.push_back(mission_settle::detail::discipleToCombatant(
-            d, equipmentMap, manualMap, proficiencies,
-            brIt == gd.bloodRefinementPctTotals.end() ? nullptr : &brIt->second));
+            d, equipmentMap, manualMap, proficiencies));
     }
     const auto prepared = ai_ops::aiPrepareDisciplesForBattle(aiDefenders);
     for (const auto& d : prepared.disciples) {
@@ -377,7 +373,7 @@ inline ExplorationBattleOutcome scoutSectTx(
         const std::map<std::string, gamecore::state::EquipmentInstance>& eq =
             eqIt != prepared.equipmentMapByDisciple.end() ? eqIt->second : kEmpty;
         gamecore::battle::Combatant c = mission_settle::detail::discipleToCombatant(
-            d, eq, prepared.manualMap, prepared.proficiencies, nullptr);
+            d, eq, prepared.manualMap, prepared.proficiencies);
         c.hp = c.maxHp;
         c.mp = c.maxMp;
         c.side = gamecore::battle::CombatantSide::kAttacker;
@@ -476,14 +472,13 @@ inline GarrisonAssignOutcome assignGarrisonTx(GameState& state,
         }
     }
 
-    // 11 类槽位清理（Kotlin DiscipleSlotCleanup.clearAllSlotsDataOnly——
+    // 10 类槽位清理（Kotlin DiscipleSlotCleanup.clearAllSlotsDataOnly——
     // includeResidence=false 默认；纯数据变换，gate 释放留 Kotlin）
     gamecore::system::SlotCleanupInput in;
     in.spiritMineSlots = gd.spiritMineSlots;
     in.librarySlots = gd.librarySlots;
     in.elderSlots = gd.elderSlots;
     in.residenceSlots = gd.residenceSlots;
-    in.activeBloodRefinements = gd.activeBloodRefinements;
     in.patrolSlots = gd.patrolSlots;
     in.battleTeams = gd.battleTeams;
     in.worldMapSects = gd.worldMapSects;
@@ -496,7 +491,6 @@ inline GarrisonAssignOutcome assignGarrisonTx(GameState& state,
     gd.librarySlots = std::move(cleaned.librarySlots);
     gd.elderSlots = cleaned.elderSlots;
     gd.residenceSlots = std::move(cleaned.residenceSlots);
-    gd.activeBloodRefinements = std::move(cleaned.activeBloodRefinements);
     gd.patrolSlots = std::move(cleaned.patrolSlots);
     gd.battleTeams = std::move(cleaned.battleTeams);
     gd.productionSlots = std::move(cleaned.productionSlots);

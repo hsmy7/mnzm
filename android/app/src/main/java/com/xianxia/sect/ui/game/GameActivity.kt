@@ -132,7 +132,6 @@ class GameActivity : ComponentActivity() {
     private val herbGardenViewModel: HerbGardenViewModel by viewModels()
     private val spiritMineViewModel: SpiritMineViewModel by viewModels()
     private val patrolTowerViewModel: PatrolTowerViewModel by viewModels()
-    private val bloodRefiningViewModel: BloodRefiningViewModel by viewModels()
     private val worldMapInteractionViewModel: WorldMapInteractionViewModel by viewModels()
     private val worldMapGarrisonViewModel: WorldMapGarrisonViewModel by viewModels()
     private val battleViewModel: BattleViewModel by viewModels()
@@ -490,7 +489,6 @@ class GameActivity : ComponentActivity() {
                                 herbGardenViewModel = herbGardenViewModel,
                                 spiritMineViewModel = spiritMineViewModel,
                                 patrolTowerViewModel = patrolTowerViewModel,
-                                bloodRefiningViewModel = bloodRefiningViewModel,
                                 worldMapInteractionViewModel = worldMapInteractionViewModel,
                                 worldMapGarrisonViewModel = worldMapGarrisonViewModel,
                                 battleViewModel = battleViewModel,

@@ -91,8 +91,7 @@ internal fun DiscipleTables.writeBasicFields(id: Int, disciple: Disciple) {
     cultivationSpeedDurations[id] = disciple.cultivationSpeedDuration
 
     // 列表/映射
-    manualIds[id] = disciple.manualIds; talentIds[id] = disciple.talentIds
-    physiqueIds[id] = disciple.physiqueIds; affixIds[id] = disciple.affixIds
+    manualIds[id] = disciple.manualIds
     lifeEvents[id] = disciple.lifeEvents; manualMasteries[id] = disciple.manualMasteries
 
     // 状态
@@ -166,7 +165,6 @@ internal fun DiscipleTables.writeSkillFields(id: Int, disciple: Disciple) {
     artifactRefinings[id] = sk.artifactRefining; pillRefinings[id] = sk.pillRefining
     spiritPlantings[id] = sk.spiritPlanting; minings[id] = sk.mining
     teachings[id] = sk.teaching; moralities[id] = sk.morality
-    aptitudes[id] = sk.aptitude
     salaryPaidCounts[id] = sk.salaryPaidCount; salaryMissedCounts[id] = sk.salaryMissedCount
     alchemyLevels[id] = sk.alchemyLevel; alchemyPromotionCounts[id] = sk.alchemyPromotionCount
     forgeLevels[id] = sk.forgeLevel; forgePromotionCounts[id] = sk.forgePromotionCount

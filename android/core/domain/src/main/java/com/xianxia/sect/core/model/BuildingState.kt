@@ -18,6 +18,5 @@ data class BuildingState(
     val librarySlots: List<LibrarySlot> = emptyList(),
     val residenceSlots: List<ResidenceSlot> = emptyList(),
     val patrolSlots: List<PatrolSlot> = emptyList(),
-    val spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
-    val activeBloodRefinements: Map<String, BloodRefinementProgress> = emptyMap()
+    val spiritFieldPlants: List<SpiritFieldPlant> = emptyList()
 )

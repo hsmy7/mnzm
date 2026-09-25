@@ -7,13 +7,9 @@ import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.engine.ManualProficiencySystem
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.domain.disciple.getAffixCombatEffects
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
-import com.xianxia.sect.core.engine.domain.disciple.getPhysiqueEffects
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
@@ -126,7 +122,7 @@ class BattleSystem @Inject constructor(
     )
 
 
-    @Suppress("LongParameterList") // 战斗组装入参聚合（10 参数，纯组装无逻辑，含血炼映射）
+    @Suppress("LongParameterList") // 战斗组装入参聚合（9 参数，纯组装无逻辑）
     fun createBattle(
         disciples: List<Disciple>,
         equipmentMap: Map<String, EquipmentInstance>,
@@ -136,14 +132,13 @@ class BattleSystem @Inject constructor(
         beastType: String? = null,
         manualProficiencies: Map<String, Map<String, ManualProficiencyData>> = emptyMap(),
         beastPreGenStats: BeastPreGenStats? = null,
-        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap(),
         equipmentMapByDisciple: Map<String, Map<String, EquipmentInstance>> = emptyMap()
     ): Battle {
         val combatants = disciples.map { disciple ->
             val discipleEquipmentMap = equipmentMapByDisciple[disciple.id] ?: equipmentMap
             convertDiscipleToCombatant(
                 disciple, discipleEquipmentMap, manualMap, manualProficiencies,
-                CombatantSide.DEFENDER, bloodRefinementPct = bloodRefinementMap[disciple.id]
+                CombatantSide.DEFENDER
             )
         }
 
@@ -248,11 +243,10 @@ class BattleSystem @Inject constructor(
         manualMap: Map<String, ManualInstance>,
         manualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         side: CombatantSide = CombatantSide.DEFENDER,
-        fullHeal: Boolean = false,
-        bloodRefinementPct: BloodRefinementPctTotal? = null
+        fullHeal: Boolean = false
     ): Combatant {
         val discipleProficiencies = manualProficiencies[disciple.id] ?: emptyMap()
-        val stats = disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct)
+        val stats = disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
         val skills = disciple.manualIds.mapNotNull { manualId ->
             val manual = manualMap[manualId] ?: return@mapNotNull null
             val proficiencyData = discipleProficiencies[manualId]
@@ -281,11 +275,6 @@ class BattleSystem @Inject constructor(
             .takeIf { it.isNotEmpty() }
             ?.let { equipmentMap[it]?.name }
 
-        // 体质独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
-        val physiqueEffects = DiscipleStatCalculator.getPhysiqueEffects(disciple)
-        // 词条独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
-        val affixCombat = DiscipleStatCalculator.getAffixCombatEffects(disciple)
-
         return Combatant(
             id = disciple.id,
             name = disciple.name,
@@ -306,14 +295,7 @@ class BattleSystem @Inject constructor(
             realmLayer = disciple.realmLayer,
             element = primaryElement,
             weaponName = weaponName,
-            portraitRes = disciple.portraitRes,
-            physique = PhysiqueCombatFactors(
-                damageAmplification = physiqueEffects.damageAmplification,
-                critDamageBonus = physiqueEffects.critDamageBonus,
-                damageReduction = physiqueEffects.damageReduction,
-                defenseBonus = physiqueEffects.defenseBonus
-            ),
-            affix = affixCombat
+            portraitRes = disciple.portraitRes
         )
     }
 

@@ -11,11 +11,9 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.service.SecretRealmService
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GarrisonSlot
-import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Mission
 import com.xianxia.sect.core.model.MissionDifficulty
 import com.xianxia.sect.core.model.MissionRewardConfig
@@ -103,7 +101,7 @@ class GameEngineDualSlotGuardTest {
             discipleTables.writeAllowed = false
         }
 
-        // 创建测试槽位：巡逻 2 槽 + 玩家宗门驻守 1 槽 + 秘境存在 + 灵石/材料种子
+        // 创建测试槽位：巡逻 2 槽 + 玩家宗门驻守 1 槽 + 秘境存在 + 灵石种子
         store.update {
             gameData = gameData.copy(
                 patrolSlots = listOf(PatrolSlot(index = 0), PatrolSlot(index = 1)),
@@ -116,7 +114,6 @@ class GameEngineDualSlotGuardTest {
                 secretRealmState = SecretRealmState(id = "sr1"),
                 spiritStones = 1000L
             )
-            materials.add(Material(id = "m1", name = "兽血", rarity = 2, quantity = 5))
         }
 
         setupEngine()
@@ -287,129 +284,6 @@ class GameEngineDualSlotGuardTest {
         assertTrue("秘境已消失应返回 Failure", result.isFailure)
         assertEquals("失败路径不得清理巡逻槽位", DISCIPLE_A, patrolDiscipleAt(0))
         assertTrue("失败路径 gate 应保留", gate.isAssigned(DISCIPLE_A))
-    }
-
-    // ── 血炼 ──
-
-    private fun bloodProgressFor(discipleId: String) = BloodRefinementProgress(
-        discipleId = discipleId,
-        discipleName = "弟子$discipleId",
-        materialId = "m1",
-        materialName = "兽血",
-        durationMonths = 3,
-        selectedStat = "hp",
-        bonusPercent = 5.0
-    )
-
-    @Test
-    fun `已在巡逻槽位的弟子启动血炼后旧槽位被清空且血炼池唯一`() = runTest {
-        placeInPatrol(DISCIPLE_A)
-
-        val result = engine.startBloodRefinementAtomic(
-            materialName = "兽血", materialRarity = 2, materialCount = 1,
-            buildingInstanceId = "blood_b1", requiredSpiritStones = 100L,
-            progress = bloodProgressFor(DISCIPLE_A)
-        )
-
-        assertTrue("血炼应成功", result is BloodRefinementStartResult.Success)
-        assertEquals("巡逻槽位应清空", "", patrolDiscipleAt(0))
-        val refinements = store.latestGameData.activeBloodRefinements
-        assertEquals("血炼池应只有 A 的 1 条", 1, refinements.size)
-        assertEquals("血炼池应为 blood_b1", DISCIPLE_A, refinements["blood_b1"]?.discipleId)
-    }
-
-    @Test
-    fun `血炼事务失败时旧槽位不被清理`() = runTest {
-        placeInPatrol(DISCIPLE_A)
-        // 灵石不足 → checkStones 抛错 → 事务整体回滚
-        store.update { gameData = gameData.copy(spiritStones = 0L) }
-
-        val result = engine.startBloodRefinementAtomic(
-            materialName = "兽血", materialRarity = 2, materialCount = 1,
-            buildingInstanceId = "blood_b1", requiredSpiritStones = 100L,
-            progress = bloodProgressFor(DISCIPLE_A)
-        )
-
-        assertTrue("灵石不足应返回 Error", result is BloodRefinementStartResult.Error)
-        assertEquals("失败回滚后巡逻槽位应保留 A", DISCIPLE_A, patrolDiscipleAt(0))
-        assertTrue("失败回滚后血炼池应为空", store.latestGameData.activeBloodRefinements.isEmpty())
-    }
-
-    // ── 血炼状态解除（根因修复：REFINING 受保护状态须显式重置为 IDLE）──
-
-    private suspend fun startBloodRefinementForA() {
-        val result = engine.startBloodRefinementAtomic(
-            materialName = "兽血", materialRarity = 2, materialCount = 1,
-            buildingInstanceId = "blood_b1", requiredSpiritStones = 100L,
-            progress = bloodProgressFor(DISCIPLE_A)
-        )
-        assertTrue("血炼应成功", result is BloodRefinementStartResult.Success)
-    }
-
-    @Test
-    fun `取消血炼后弟子状态回 IDLE`() = runTest {
-        startBloodRefinementForA()
-        assertEquals("启动后弟子状态应为 REFINING", DiscipleStatus.REFINING, store.discipleTables.statuses[1])
-
-        engine.cancelBloodRefinement("blood_b1", DISCIPLE_A)
-
-        assertTrue("取消后血炼池应为空", store.latestGameData.activeBloodRefinements.isEmpty())
-        assertEquals("取消后弟子状态应回 IDLE（受保护状态显式打破）",
-            DiscipleStatus.IDLE, store.discipleTables.statuses[1])
-        assertFalse("取消后 statusData 应无 buildingId",
-            store.discipleTables.statusData.getOrDefault(1, emptyMap()).containsKey("buildingId"))
-    }
-
-    @Test
-    fun `血炼完成后弟子状态回 IDLE`() = runTest {
-        startBloodRefinementForA()
-        // duration=3 从 1/1 开始，推进到 1/4（elapsed=3）到期
-        store.update { gameData = gameData.copy(gameMonth = 4) }
-
-        // W4-A·A6：GameEngine 层死包装已删除（零生产调用方）；本测试改走
-        // 与 MonthSettlementExecutor 相同的 MutableGameState 事务扩展
-        engine.stateStore.update { processBloodRefinementCompletions() }
-
-        assertTrue("完成后血炼池应为空", store.latestGameData.activeBloodRefinements.isEmpty())
-        assertEquals("完成后弟子状态应回 IDLE", DiscipleStatus.IDLE, store.discipleTables.statuses[1])
-    }
-
-    @Test
-    fun `releaseDiscipleFromAllSlotsAtomic 释放血炼中弟子后状态回 IDLE 且 gate 释放`() = runTest {
-        startBloodRefinementForA()
-        engine.confirmAssignDisciple(
-            DISCIPLE_A, SlotRef(SlotCategory.BLOOD_REFINEMENT, "blood_b1", "blood_blood_b1")
-        )
-        assertEquals("释放前弟子状态应为 REFINING", DiscipleStatus.REFINING, store.discipleTables.statuses[1])
-
-        engine.releaseDiscipleFromAllSlotsAtomic(DISCIPLE_A)
-
-        assertTrue("释放后血炼池应为空", store.latestGameData.activeBloodRefinements.isEmpty())
-        assertEquals("释放后弟子状态应回 IDLE", DiscipleStatus.IDLE, store.discipleTables.statuses[1])
-        assertFalse("释放后 gate 应释放", gate.isAssigned(DISCIPLE_A))
-    }
-
-    @Test
-    fun `自愈清理非血炼赢家后弟子状态回 IDLE`() = runTest {
-        // 构造双槽位脏数据：弟子 A 同时占巡逻槽（扫描优先级高于血炼 → 赢家）+ 血炼中
-        store.update {
-            gameData = gameData.copy(
-                patrolSlots = listOf(
-                    PatrolSlot(index = 0, discipleId = DISCIPLE_A, discipleName = "弟子A")
-                ),
-                activeBloodRefinements = mapOf("blood_b1" to bloodProgressFor(DISCIPLE_A))
-            )
-            discipleTables.statuses[1] = DiscipleStatus.REFINING
-            discipleTables.statusData[1] = mapOf("buildingId" to "blood_b1")
-        }
-
-        engine.healDuplicateSlotAssignments()
-
-        assertTrue("自愈后血炼池应为空（血炼非赢家被放弃）",
-            store.latestGameData.activeBloodRefinements.isEmpty())
-        assertEquals("自愈后弟子状态应回 IDLE（进度已删不得卡 REFINING）",
-            DiscipleStatus.IDLE, store.discipleTables.statuses[1])
-        assertEquals("自愈后巡逻槽应保留赢家 A", DISCIPLE_A, patrolDiscipleAt(0))
     }
 
     // ── 读档自愈 ──

@@ -98,7 +98,7 @@ data class SerializableGameData(
     @ProtoNumber(112) val autoLearnFromWarehouseFocused: Boolean = false,
     @ProtoPacked @ProtoNumber(113) val autoLearnFromWarehouseRootCounts: List<Int> = emptyList(),
     @ProtoNumber(114) val isGameOver: Boolean = false,
-    @ProtoNumber(115) val bloodRefinements: Map<String, List<String>> = emptyMap(),
+    // reserved 115, 150, 151, 152;（血炼四字段字段号已退役，禁止复用）
     @ProtoNumber(116) val suzerainSectId: String = "",
     @ProtoNumber(117) val lastYearSpiritStoneIncome: Long = 0L,
     @ProtoNumber(118) val shownWarningStageIds: List<String> = emptyList(),
@@ -132,9 +132,6 @@ data class SerializableGameData(
     @ProtoNumber(147) val vassalContracts: List<SerializableVassalContract> = emptyList(),
     @ProtoNumber(148) val mailRecords: List<SerializableMailClaimRecord> = emptyList(),
     @ProtoNumber(149) val sectLevelClaimRecords: List<SerializableSectLevelClaimRecord> = emptyList(),
-    @ProtoNumber(150) val activeBloodRefinements: Map<String, SerializableBloodRefinementProgress> = emptyMap(),
-    @ProtoNumber(151) val bloodRefinementBonusTotals: Map<String, SerializableBloodRefinementBonusTotal> = emptyMap(),
-    @ProtoNumber(152) val bloodRefinementPctTotals: Map<String, SerializableBloodRefinementPctTotal> = emptyMap(),
     @ProtoNumber(153) val heavenlyTrialState: SerializableHeavenlyTrialSaveData? = null,
     @ProtoNumber(154) val signInState: SerializableSignInState? = null,
     @ProtoNumber(155) val aiSectPersonalities: Map<String, String> = emptyMap(),
@@ -184,7 +181,7 @@ data class SerializableDisciple(
     @ProtoNumber(19) val bootsId: String = "",
     @ProtoNumber(20) val accessoryId: String = "",
     @ProtoNumber(21) val manualIds: List<String> = emptyList(),
-    @ProtoNumber(22) val talentIds: List<String> = emptyList(),
+    // reserved 22;（talentIds 字段号已退役，禁止复用）
     @ProtoNumber(23) val manualMasteries: Map<String, Int> = emptyMap(),
     @ProtoNumber(24) val weaponNurture: SerializableEquipmentNurtureData =
         SerializableEquipmentNurtureData(equipmentId="", rarity=0),
@@ -1196,41 +1193,6 @@ data class SerializableMailClaimRecord(
 data class SerializableSectLevelClaimRecord(
     @ProtoNumber(1) val level: Int = 0,
     @ProtoNumber(2) val claimedAtEpochMs: Long = 0L
-)
-
-@Serializable
-data class SerializableBloodRefinementProgress(
-    @ProtoNumber(1) val discipleId: String = "",
-    @ProtoNumber(2) val discipleName: String = "",
-    @ProtoNumber(3) val materialId: String = "",
-    @ProtoNumber(4) val materialName: String = "",
-    @ProtoNumber(5) val startYear: Int = 0,
-    @ProtoNumber(6) val startMonth: Int = 0,
-    @ProtoNumber(7) val durationMonths: Int = 0,
-    @ProtoNumber(8) val selectedStat: String = "",
-    @ProtoNumber(9) val bonusPercent: Double = 0.0
-)
-
-@Serializable
-data class SerializableBloodRefinementBonusTotal(
-    @ProtoNumber(1) val discipleId: String = "",
-    @ProtoNumber(2) val hpBonus: Int = 0,
-    @ProtoNumber(3) val physicalAttackBonus: Int = 0,
-    @ProtoNumber(4) val magicAttackBonus: Int = 0,
-    @ProtoNumber(5) val physicalDefenseBonus: Int = 0,
-    @ProtoNumber(6) val magicDefenseBonus: Int = 0,
-    @ProtoNumber(7) val speedBonus: Int = 0
-)
-
-@Serializable
-data class SerializableBloodRefinementPctTotal(
-    @ProtoNumber(1) val discipleId: String = "",
-    @ProtoNumber(2) val hpBonusPct: Double = 0.0,
-    @ProtoNumber(3) val physicalAttackBonusPct: Double = 0.0,
-    @ProtoNumber(4) val magicAttackBonusPct: Double = 0.0,
-    @ProtoNumber(5) val physicalDefenseBonusPct: Double = 0.0,
-    @ProtoNumber(6) val magicDefenseBonusPct: Double = 0.0,
-    @ProtoNumber(7) val speedBonusPct: Double = 0.0
 )
 
 @Serializable

@@ -1,16 +1,15 @@
 // ============================================================
 // disciple_ops_tx_test — w3-01 弟子操作面事务守护（W4-A 第一子批）
 //
-// 守护目标：disciple_tx.h W4-A 段八事务与 Kotlin 源语义逐位一致——
+// 守护目标：disciple_tx.h W4-A 弟子操作面事务与 Kotlin 源语义逐位一致——
 //   - 类型直改 / 关注切换（statusData["followed"] 翻转）
 //   - 赏赐（pill facade 丹药链生效/入袋分流 + material/herb/seed 扣仓入袋；
 //     先校验弟子存在再扣仓库——无效 id 物品不消失）
 //   - 服药（canUsePill 资格链 + 扣仓库 + facade 丹药链 + 日志草稿）
 //   - 功法替换（七链校验 + manualIds 换血 + 旧实例入袋防双持有）
-//   - 血炼启动（灵石/材料/排他校验链 + 槽位清理 + REFINING + 进度写入）
 //   - 状态派生（14 flag 优先级序 + positionName 定向写删 + 灵矿自愈）
 //   - 失败臂零写入（校验链先行，任一臂失败不触碰状态）
-//   - RNG 零消费审计（八事务全程 rngStates 不动——对拍命门）
+//   - RNG 零消费审计（各事务全程 rngStates 不动——对拍命门）
 // ============================================================
 
 #include "gtest/gtest.h"
@@ -312,81 +311,6 @@ TEST_F(DiscipleOpsTxFixture, ReplaceManualMindConflictFailsWithoutWrite) {
     // 失败臂零写入：manualIds / 实例表 / 堆叠全不动
     EXPECT_EQ(core_->state().disciples.manualIds[row].size(), 2u);
     EXPECT_EQ(core_->state().manualStacks.size(), 1u);
-}
-
-// ── 血炼启动 ────────────────────────────────────────────────────────
-
-TEST_F(DiscipleOpsTxFixture, StartBloodRefinementWritesProgressAndStatus) {
-    const std::size_t row = addDisciple("1");
-    core_->state().materials.push_back(makeMaterial("m1", /*quantity=*/5));
-    core_->state().gameData.spiritStones = 1000;
-    // 预置一个旧槽位引用（清理面验证）
-    core_->state().gameData.librarySlots.push_back([] {
-        gamecore::state::LibrarySlot s;
-        s.index = 0;
-        s.discipleId = "1";
-        s.discipleName = "弟子1";
-        return s;
-    }());
-
-    const auto r = exec(action::DISCIPLE_OP_START_BLOOD_REFINEMENT,
-                        {{"buildingInstanceId", "pool-1"},
-                         {"requiredSpiritStones", 100},
-                         {"materialName", "妖兽血"}, {"materialRarity", 2},
-                         {"materialCount", 3},
-                         {"discipleId", "1"}, {"discipleName", "弟子1"},
-                         {"materialId", "m1"}, {"selectedStat", "hp"},
-                         {"bonusPercent", 0.05}, {"durationMonths", 3}});
-    ASSERT_EQ(r["status"], "success");
-    // 灵石扣除 + 材料消耗
-    EXPECT_EQ(core_->state().gameData.spiritStones, 900);
-    EXPECT_EQ(core_->state().materials[0].quantity, 2);
-    // 槽位清理（藏经阁引用被清）
-    EXPECT_TRUE(core_->state().gameData.librarySlots[0].discipleId.empty());
-    // 进度写入 + REFINING 状态 + statusData 覆写
-    EXPECT_EQ(core_->state().gameData.activeBloodRefinements.size(), 1u);
-    EXPECT_EQ(core_->state().disciples.statuses[row], "REFINING");
-    EXPECT_EQ(core_->state().disciples.statusData[row]["buildingId"], "pool-1");
-}
-
-TEST_F(DiscipleOpsTxFixture, StartBloodRefinementStonesInsufficientZeroWrite) {
-    addDisciple("1");
-    core_->state().materials.push_back(makeMaterial("m1", 5));
-    core_->state().gameData.spiritStones = 50;  // 不足
-
-    const auto r = exec(action::DISCIPLE_OP_START_BLOOD_REFINEMENT,
-                        {{"buildingInstanceId", "pool-1"},
-                         {"requiredSpiritStones", 100},
-                         {"materialName", "妖兽血"}, {"materialRarity", 2},
-                         {"materialCount", 3},
-                         {"discipleId", "1"}, {"discipleName", "弟子1"},
-                         {"materialId", "m1"}, {"selectedStat", "hp"},
-                         {"bonusPercent", 0.05}, {"durationMonths", 3}});
-    EXPECT_EQ(r["status"], "failure");
-    // 失败臂零写入：灵石/材料/进度/状态全不动
-    EXPECT_EQ(core_->state().gameData.spiritStones, 50);
-    EXPECT_EQ(core_->state().materials[0].quantity, 5);
-    EXPECT_TRUE(core_->state().gameData.activeBloodRefinements.empty());
-    EXPECT_EQ(core_->state().disciples.statuses[0], "IDLE");
-}
-
-TEST_F(DiscipleOpsTxFixture, StartBloodRefinementPoolOccupiedFails) {
-    addDisciple("1");
-    core_->state().materials.push_back(makeMaterial("m1", 5));
-    core_->state().gameData.spiritStones = 1000;
-    core_->state().gameData.activeBloodRefinements["pool-1"] =
-        gamecore::state::BloodRefinementProgress{};
-
-    const auto r = exec(action::DISCIPLE_OP_START_BLOOD_REFINEMENT,
-                        {{"buildingInstanceId", "pool-1"},
-                         {"requiredSpiritStones", 100},
-                         {"materialName", "妖兽血"}, {"materialRarity", 2},
-                         {"materialCount", 3},
-                         {"discipleId", "1"}, {"discipleName", "弟子1"},
-                         {"materialId", "m1"}, {"selectedStat", "hp"},
-                         {"bonusPercent", 0.05}, {"durationMonths", 3}});
-    EXPECT_EQ(r["status"], "failure");
-    EXPECT_TRUE(core_->state().materials[0].quantity == 5);
 }
 
 // ── 状态派生 ────────────────────────────────────────────────────────

@@ -25,9 +25,9 @@
   ],
   "mipFile": "atlas-rgba-mips.bin",
   "mipBytes": 22369616,
-  "spriteCount": 41,
-  "transparentSpriteCount": 37,
-  "frameSha256": "00d74ed537e0018b3034df460ac9c53f5572966924ce69edbd83e88405d59e07",
+  "spriteCount": 40,
+  "transparentSpriteCount": 36,
+  "frameSha256": "5d2aaa174561eb3d2b1f8e495e3a48f9dccf89d802dbdec0401763fc4814dbbe",
   "sprites": [
     {
       "name": "GROUND",
@@ -180,11 +180,6 @@
       "bytes": 262144
     },
     {
-      "name": "血炼池",
-      "sha256": "34a1a8c9f649c406bfcde8a9dd91cc0a2f724a09c79611449529c98285a1a3e3",
-      "bytes": 262144
-    },
-    {
       "name": "中级多人住所",
       "sha256": "cfd4cb318544f45209a5e253835674fedf0f9ad432c5acfde09f85425d4fa741",
       "bytes": 262144
@@ -235,5 +230,5 @@
       "bytes": 3072
     }
   ],
-  "generatedAt": "2026-09-23T17:55:21.538Z"
+  "generatedAt": "2026-09-25T04:14:40.325Z"
 }

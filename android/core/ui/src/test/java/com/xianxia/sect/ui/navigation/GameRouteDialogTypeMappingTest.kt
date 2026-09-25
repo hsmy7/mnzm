@@ -15,7 +15,7 @@ class GameRouteDialogTypeMappingTest {
     fun `every sealed subclass maps to a dialog type`() {
         val routes = GameRoute::class.sealedSubclasses.map { it.objectInstance }
             .filterNotNull()
-        assertEquals("路由总数漂移请同步本测试语义", 27, routes.size)
+        assertEquals("路由总数漂移请同步本测试语义", 26, routes.size)
         routes.forEach { route ->
             val dialogType = route.toDialogType("building-1")
             // DialogType 与路由同类同名（唯一例外：BattleResult 归 None）
@@ -30,7 +30,6 @@ class GameRouteDialogTypeMappingTest {
         assertEquals("building-1", GameRoute.Alchemy.toDialogType("building-1").buildingIdOrNull())
         assertEquals("building-1", GameRoute.Forge.toDialogType("building-1").buildingIdOrNull())
         assertEquals("building-1", GameRoute.PatrolTower.toDialogType("building-1").buildingIdOrNull())
-        assertEquals("building-1", GameRoute.BloodRefiningPool.toDialogType("building-1").buildingIdOrNull())
         assertEquals("building-1", GameRoute.Residence.toDialogType("building-1").buildingIdOrNull())
         assertEquals("building-1", GameRoute.WarehouseBuilding.toDialogType("building-1").buildingIdOrNull())
     }
@@ -43,7 +42,6 @@ class GameRouteDialogTypeMappingTest {
             ?: (this as? DialogType.Alchemy)?.buildingInstanceId
             ?: (this as? DialogType.Forge)?.buildingInstanceId
             ?: (this as? DialogType.PatrolTower)?.buildingInstanceId
-            ?: (this as? DialogType.BloodRefiningPool)?.buildingInstanceId
             ?: (this as? DialogType.Residence)?.buildingInstanceId
             ?: (this as? DialogType.WarehouseBuilding)?.buildingInstanceId
 }

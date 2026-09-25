@@ -44,7 +44,6 @@
 #include "gamecore/state/models.h"
 #include "gamecore/state/disciple_store.h"      // DiscipleStore 列式存储
 #include "gamecore/system/disciple.h"            // kBaseManualSlots
-#include "gamecore/system/disciple_stats.h"      // talent/affix effects（名额公式）
 #include "gamecore/system/inventory.h"           // 库存原语同源（bag 语义参照）
 #include "gamecore/system/pill_system.h"         // classify/canUsePill/buildUsedKeys
 #include "gamecore/system/inventory.h"           // nextInstanceId（确定性实例 id）
@@ -65,8 +64,7 @@ using gamecore::state::ManualStack;
 using gamecore::state::StorageBagItem;
 namespace settle_util = gamecore::system::settle_util;
 
-// ── W4-A w3-01 事务族新增类型（仓库四表 + 血炼进度 + 效果面）──
-using gamecore::state::BloodRefinementProgress;
+// ── W4-A w3-01 事务族新增类型（仓库四表 + 效果面）──
 using gamecore::state::Herb;
 using gamecore::state::ItemEffect;
 using gamecore::state::Material;
@@ -211,17 +209,6 @@ inline ManualInstance manualInstanceFromStack(const ManualStack& s,
     return inst;
 }
 
-/// 功法槽位上限（auto_gear.h detail::maxManualSlotsFor 同源；
-/// Kotlin DiscipleStatCalculator.getMaxManualSlots = 6 + manualSlot 效果和）
-inline int32_t maxManualSlotsFor(const Disciple& d) {
-    const auto merged = gamecore::stats::mergeEffects(
-        gamecore::stats::talentEffectsFor(d.talentIds),
-        gamecore::stats::affixEffectsFor(d.affixIds));
-    const auto it = merged.find("manualSlot");
-    return gamecore::disciple::kBaseManualSlots +
-           (it != merged.end() ? static_cast<int32_t>(it->second) : 0);
-}
-
 /// 仓库堆叠扣减一本（quantity>1 → -1，否则整条移除；consumeManualStackForLearn
 /// 等价——learnManual 与 autoLearnForDisciple 共用语义。
 /// id 先拷贝自保：调用方可能传堆叠元素成员的引用，erase 会使别名悬垂）
@@ -307,7 +294,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     in.librarySlots = state.gameData.librarySlots;
     in.elderSlots = state.gameData.elderSlots;
     in.residenceSlots = state.gameData.residenceSlots;
-    in.activeBloodRefinements = state.gameData.activeBloodRefinements;
     in.patrolSlots = state.gameData.patrolSlots;
     in.battleTeams = state.gameData.battleTeams;
     in.worldMapSects = state.gameData.worldMapSects;
@@ -322,7 +308,6 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
     state.gameData.librarySlots = out.librarySlots;
     state.gameData.elderSlots = out.elderSlots;
     state.gameData.residenceSlots = out.residenceSlots;
-    state.gameData.activeBloodRefinements = out.activeBloodRefinements;
     state.gameData.patrolSlots = out.patrolSlots;
     state.gameData.battleTeams = out.battleTeams;
     state.gameData.worldMapSects = out.worldMapSects;
@@ -364,8 +349,7 @@ using gamecore::state::ManualStack;
 using gamecore::state::StorageBagItem;
 namespace settle_util = gamecore::system::settle_util;
 
-// ── W4-A w3-01 事务函数作用域补全（同上款口径：仓库四表 + 血炼进度）──
-using gamecore::state::BloodRefinementProgress;
+// ── W4-A w3-01 事务函数作用域补全（同上款口径：仓库四表）──
 using gamecore::state::Herb;
 using gamecore::state::Material;
 using gamecore::state::Pill;
@@ -576,7 +560,7 @@ inline DiscipleTxResult learnManualTransaction(GameState& state,
         out.message = "境界不足";
         return out;
     }
-    const int32_t maxSlots = detail::maxManualSlotsFor(d);
+    const int32_t maxSlots = gamecore::disciple::kBaseManualSlots;
     if (static_cast<int32_t>(ds.manualIds[row].size()) >= maxSlots) {
         out.errorType = "SlotsFull";
         out.message = "功法名额已满";
@@ -810,7 +794,6 @@ inline UnassignSlotResult unassignSlotTransaction(GameState& state, SlotFamily f
 //      ③ 战斗/速率生效时清零旧 cultivationSpeedBonus 组件列 + checkpoint；
 //      ④ 道德终值经信封回传 moralityAfter（Kotlin 侧读取））
 //  - GameEngineManualOps.replaceManual（2026-09-15 核查新增稳态写者）
-//  - GameEngineBloodRefinementOps.startBloodRefinementAtomic（血炼启动）
 //  - DiscipleStatusService.syncAll/syncSingle（派生列唯一计算方 = C++）
 //
 // 零 RNG：全部事务无随机抽取（canUsePill/derive 为纯判定）。
@@ -1066,10 +1049,9 @@ constexpr const char* kStatusIdle = "IDLE";
 constexpr const char* kStatusDead = "DEAD";
 constexpr const char* kStatusOnMission = "ON_MISSION";
 constexpr const char* kStatusReflecting = "REFLECTING";
-constexpr const char* kStatusRefining = "REFINING";
 
 /// deriveDiscipleStatus（优先级序与 Kotlin 表逐项一致——状态推导契约，
-/// 顺序不可变）：死亡 → 活跃任务 → 受保护（REFLECTING/REFINING）→
+/// 顺序不可变）：死亡 → 活跃任务 → 受保护（REFLECTING）→
 /// 秘境 → 据点驻守 → 队伍 → 执法 → 传道 → 执事 → 管理 →
 /// 学习 → 采矿 → 巡视 → 炼丹 → 锻造 → 灵植 → 空闲
 inline const char* deriveDiscipleStatus(bool isAlive, const std::string& currentStatus,
@@ -1077,7 +1059,6 @@ inline const char* deriveDiscipleStatus(bool isAlive, const std::string& current
     if (!isAlive) return kStatusDead;
     if (hasActiveMission) return kStatusOnMission;
     if (currentStatus == kStatusReflecting) return kStatusReflecting;
-    if (currentStatus == kStatusRefining) return kStatusRefining;
     if (f.inSecretRealm) return "SECRET_REALM";
     if (f.inGarrison) return "GARRISONING";
     if (f.inTeam) return "IN_TEAM";
@@ -1206,7 +1187,7 @@ constexpr const char* kPositionNameKey = "positionName";
 
 /// 单弟子状态派生 + 写入（syncStatusFromIndex 循环体等价）：状态变更才写
 /// statuses 列；positionName 仅 MANAGING 写入（无职位以"管理中"兜底）/
-/// 非 MANAGING 定向删除 key（保留血炼 buildingId 等他域 key——禁止整体覆写）
+/// 非 MANAGING 定向删除 key（保留他域 statusData key——禁止整体覆写）
 inline void deriveAndWriteDiscipleStatus(GameState& state, std::size_t row) {
     DiscipleStore& ds = state.disciples;
     if (ds.isAlive[row] != 1) return;
@@ -1560,136 +1541,7 @@ inline ReplaceManualResult replaceManualTx(GameState& state,
     return out;
 }
 
-// ── 事务 13：血炼启动（GameEngineBloodRefinementOps.startBloodRefinementAtomic
-//    等价，1746）────────────────────────────────────────────────────────
-//
-// 校验链（Kotlin 同序；事务内 throw ⇒ C++ 校验先行，失败零写入等价）：
-// 灵石>0 → 材料>0 → 配置>0 → 弟子 id 合法 → 灵石足 → 材料足（跨堆叠、未锁定）
-// → 血炼池排他 → 弟子排他。写段：材料消耗 + 11 类槽位清理（includeResidence=
-// false 默认参）+ 灵石扣除 + 进度写入 + REFINING 状态 + statusData 覆写。
-// Gate 释放 + Room 生产槽清理为 Kotlin 运行态残差（native 成功后原序）。
-struct BloodRefinementStartParams {
-    std::string materialName;
-    int32_t materialRarity = 0;
-    int32_t materialCount = 0;
-    std::string buildingInstanceId;
-    int64_t requiredSpiritStones = 0;
-    std::string discipleId;
-    std::string discipleName;
-    std::string materialId;
-    std::string selectedStat;
-    double bonusPercent = 0.0;
-    int32_t durationMonths = 0;
-};
-inline DiscipleTxResult startBloodRefinementTx(GameState& state,
-                                               const BloodRefinementStartParams& in) {
-    DiscipleTxResult out;
-    // 1. 参数域校验（Kotlin withEngineContext 前置四连）
-    if (in.requiredSpiritStones <= 0) {
-        out.errorType = "InvalidStones";
-        out.message = "灵石消耗必须为正数";
-        return out;
-    }
-    if (in.materialCount <= 0) {
-        out.errorType = "InvalidMaterial";
-        out.message = "材料消耗必须为正数";
-        return out;
-    }
-    if (in.durationMonths <= 0 || in.bonusPercent <= 0.0) {
-        out.errorType = "InvalidConfig";
-        out.message = "血炼配置异常（duration/bonus）";
-        return out;
-    }
-    if (!settle_util::toIntOrNull(in.discipleId).has_value()) {
-        out.errorType = "InvalidDiscipleId";
-        out.message = "非法弟子ID";
-        return out;
-    }
-    DiscipleStore& ds = state.disciples;
-    // 2. 灵石足额
-    if (state.gameData.spiritStones < in.requiredSpiritStones) {
-        out.errorType = "StonesInsufficient";
-        out.message = "灵石不足: 需要 " + std::to_string(in.requiredSpiritStones) +
-                      ", 当前 " + std::to_string(state.gameData.spiritStones);
-        return out;
-    }
-    // 3. 材料足额（name+rarity 匹配、未锁定、跨堆叠；不足 → 失败）
-    {
-        int32_t remaining = in.materialCount;
-        for (const auto& mat : state.materials) {
-            if (remaining <= 0) break;
-            if (mat.name != in.materialName || mat.rarity != in.materialRarity ||
-                mat.isLocked) {
-                continue;
-            }
-            remaining -= std::min(remaining, mat.quantity);
-        }
-        if (remaining > 0) {
-            out.errorType = "MaterialInsufficient";
-            out.message = "兽血材料不足: 缺少 " + std::to_string(remaining) + " 份 " +
-                          in.materialName;
-            return out;
-        }
-    }
-    // 4. 排他性（血炼池内 + 弟子在其它池）
-    if (state.gameData.activeBloodRefinements.count(in.buildingInstanceId) != 0) {
-        out.errorType = "BuildingOccupied";
-        out.message = "该血炼池已有进行中的血炼";
-        return out;
-    }
-    for (const auto& kv : state.gameData.activeBloodRefinements) {
-        if (kv.second.discipleId == in.discipleId) {
-            out.errorType = "DiscipleOccupied";
-            out.message = "该弟子已在其他血炼池中";
-            return out;
-        }
-    }
-    // ── 写段（校验链全部通过后才落写）──
-    // 材料消耗（跨堆叠）
-    {
-        int32_t remaining = in.materialCount;
-        for (auto& mat : state.materials) {
-            if (remaining <= 0) break;
-            if (mat.name != in.materialName || mat.rarity != in.materialRarity ||
-                mat.isLocked) {
-                continue;
-            }
-            const int32_t take = std::min(remaining, mat.quantity);
-            mat.quantity -= take;
-            remaining -= take;
-        }
-        state.materials.erase(
-            std::remove_if(state.materials.begin(), state.materials.end(),
-                           [](const Material& m) { return m.quantity <= 0; }),
-            state.materials.end());
-    }
-    // 槽位清理（clearAllSlotsDataOnly 默认参 includeResidence=false）
-    detail::clearAllDiscipleSlots(state, in.discipleId);
-    // 灵石扣除 + 进度写入
-    gamecore::state::BloodRefinementProgress progress;
-    progress.discipleId = in.discipleId;
-    progress.discipleName = in.discipleName;
-    progress.materialId = in.materialId;
-    progress.selectedStat = in.selectedStat;
-    progress.bonusPercent = in.bonusPercent;
-    progress.durationMonths = in.durationMonths;
-    progress.startYear = state.gameData.gameYear;
-    progress.startMonth = state.gameData.gameMonth;
-    state.gameData.spiritStones -= in.requiredSpiritStones;
-    state.gameData.activeBloodRefinements[in.buildingInstanceId] = progress;
-    // REFINING 状态 + statusData 整体覆写（Kotlin 同款：mapOf("buildingId" to …)）
-    const auto intId = settle_util::toIntOrNull(in.discipleId);
-    if (intId.has_value() && ds.contains(in.discipleId)) {
-        const std::size_t row = *ds.rowOf(in.discipleId);
-        ds.statuses[row] = detail::kStatusRefining;
-        ds.statusData[row] = std::map<std::string, std::string>{
-            {"buildingId", in.buildingInstanceId}};
-    }
-    out.ok = true;
-    return out;
-}
-
-// ── 事务 14：弟子状态派生同步（DiscipleStatusService，1747/1748）──────────
+// ── 事务 13：弟子状态派生同步（DiscipleStatusService，1747/1748）──────────
 //
 // 1747 单弟子 / 1748 全量（含 fixInvalidMiningSlots 前置自愈）。派生列唯一
 // 计算方 = C++（ADR 盲区 2：槽位/派生列双算会漂移）；Kotlin 侧降级回退臂

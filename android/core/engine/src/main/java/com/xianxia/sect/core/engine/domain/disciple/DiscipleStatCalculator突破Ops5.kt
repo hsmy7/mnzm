@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.BreakthroughBonusDetail
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator.BreakthroughZones
 
@@ -36,6 +35,9 @@ internal fun DiscipleStatCalculator.comprehensionBreakthroughBonus(comprehension
  * 计算突破概率（Disciple 版本便捷入口）。
  */
 
+// innerElderPositionBonus/outerElderPositionBonus 恒 0：职位特质数值源已随三表下线，
+// 形参保留以维持重载签名对称与 C++ BreakthroughChanceInput 字段面一致
+@Suppress("UnusedParameter")
 fun DiscipleStatCalculator.getBreakthroughChance(
     disciple: Disciple,
     innerElderComprehension: Int = 0,
@@ -49,8 +51,7 @@ fun DiscipleStatCalculator.getBreakthroughChance(
     if (disciple.realm < 0) return 0.0
     val zones = buildBreakthroughZones(
         disciple, innerElderComprehension, outerElderComprehension,
-        pillBonus, adBonus, masterDiscipleBonus,
-        innerElderPositionBonus, outerElderPositionBonus
+        pillBonus, adBonus, masterDiscipleBonus
     )
     return calculateBreakthroughChance(zones)
 }
@@ -59,6 +60,9 @@ fun DiscipleStatCalculator.getBreakthroughChance(
  * 计算突破概率（DiscipleAggregate 版本便捷入口）。
  */
 
+// innerElderPositionBonus/outerElderPositionBonus 恒 0：职位特质数值源已随三表下线，
+// 形参保留以维持重载签名对称与 C++ BreakthroughChanceInput 字段面一致
+@Suppress("UnusedParameter")
 fun DiscipleStatCalculator.getBreakthroughChance(
     aggregate: DiscipleAggregate,
     innerElderComprehension: Int = 0,
@@ -72,8 +76,7 @@ fun DiscipleStatCalculator.getBreakthroughChance(
     if (aggregate.realm < 0) return 0.0
     val zones = buildBreakthroughZones(
         aggregate, innerElderComprehension, outerElderComprehension,
-        pillBonus, adBonus, masterDiscipleBonus,
-        innerElderPositionBonus, outerElderPositionBonus
+        pillBonus, adBonus, masterDiscipleBonus
     )
     return calculateBreakthroughChance(zones)
 }
@@ -87,7 +90,7 @@ fun DiscipleStatCalculator.getBreakthroughBonusDetail(
     masterDiscipleBonus: Double = 0.0
 ): BreakthroughBonusDetail {
     if (aggregate.realm < 0) return BreakthroughBonusDetail(
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0,
         0.0, 0.0, 0.0
     )
     val zones = buildBreakthroughZones(
@@ -99,8 +102,6 @@ fun DiscipleStatCalculator.getBreakthroughBonusDetail(
         baseChance = zones.baseZone,
         innerElderBonus = comprehensionBreakthroughBonus(innerElderComprehension),
         outerElderBonus = comprehensionBreakthroughBonus(outerElderComprehension),
-        // 旧存档弟子可能有 breakthroughChance 天赋，仅供显示，不参与 total 计算
-        talentBonus = getTalentEffects(aggregate)["breakthroughChance"] ?: 0.0,
         pillBonus = pillBonus,
         adBonus = adBonus,
         masterDiscipleBonus = masterDiscipleBonus,
@@ -111,16 +112,15 @@ fun DiscipleStatCalculator.getBreakthroughBonusDetail(
 
 // ==================== 功法/灵根槽位 ====================
 
-internal fun DiscipleStatCalculator.computeMaxManualSlots(mergedEffects: Map<String, Double>): Int {
-    val manualSlotBonus = mergedEffects["manualSlot"]?.toInt() ?: 0
-    return BASE_MANUAL_SLOTS + manualSlotBonus
-}
+/** 功法槽位上限为固定值（槽位加成随特质系统下线） */
 
+@Suppress("UnusedParameter") // disciple/aggregate: 重载签名对称：与姊妹重载保持一致形参面
 fun DiscipleStatCalculator.getMaxManualSlots(disciple: Disciple): Int =
-    computeMaxManualSlots(getMergedEffects(disciple))
+    BASE_MANUAL_SLOTS
 
+@Suppress("UnusedParameter") // aggregate: 重载签名对称：与姊妹重载保持一致形参面
 fun DiscipleStatCalculator.getMaxManualSlots(aggregate: DiscipleAggregate): Int =
-    computeMaxManualSlots(getMergedEffects(aggregate))
+    BASE_MANUAL_SLOTS
 
 // ==================== 传道加成 ====================
 
@@ -139,14 +139,8 @@ internal fun DiscipleStatCalculator.computePreachingBonus(
     if (preachingElder != null && preachingElder.isAlive) {
         val elderTeaching = getBaseStats(preachingElder).teaching
         if (realm >= preachingElder.realm && elderTeaching >= ELDER_TEACHING_BASELINE) {
-            val base = ((elderTeaching - ELDER_TEACHING_BASELINE) * ELDER_TEACHING_RATE)
+            elderBonus = ((elderTeaching - ELDER_TEACHING_BASELINE) * ELDER_TEACHING_RATE)
                 .coerceAtMost(ELDER_TEACHING_MAX_BONUS)
-            // 长老职务加成（PositionBonus）：作为乘算因子作用于长老职能效果
-            // 外门传道→PREACHING，内门青云传道→CLOUD_PREACHING
-            val slotType = if (targetDiscipleType == TYPE_OUTER) ElderSlotType.PREACHING
-                else ElderSlotType.CLOUD_PREACHING
-            val posBonus = getPositionEffectBonus(preachingElder, slotType)
-            elderBonus = base * (1.0 + posBonus)
         }
     }
 

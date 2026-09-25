@@ -12,12 +12,11 @@
  *       └─ 头文件内联默认值兜底（防双真相源由 C++ 守卫锁定：
  *          equipment/herb = gen-templates.mjs、manual = gen-manual-db.mjs、
  *          beast_material = gen-beast-material-db.mjs 的既有生成物；
- *          recipe/trait = C++ 手写等价复刻——数值变更须人工同步头文件兜底，
+ *          recipe = C++ 手写等价复刻——数值变更须人工同步头文件兜底，
  *          漂移时 `DataStoreGuardTest` 兜底变红；自动再生成工具属后续批次）
  *
  * 设计要点（对齐批次的 6 项任务与红线）：
- *   ① 单文件聚合 JSON：7 个 DB 一张文件，天然满足 trait→equipment/herb 的
- *      加载顺序约束（无需拓扑排序）。
+ *   ① 单文件聚合 JSON：6 个 DB 一张文件（无需拓扑排序）。
  *   ② 数值真相源在资产侧（Kotlin/JSON），C++ 只「解析 + 兜底」——沿
  *      game_config.json / nativeSetGameConfig 先例。
  *   ③ 与 Kotlin 侧同源可校验：本脚本只读 scripts/data/*.json（即 Kotlin
@@ -110,15 +109,6 @@ function loadRecipe() {
   return { forge, pills };
 }
 
-function loadTrait() {
-  const j = readJson('trait_db_sample.json');
-  return {
-    talents: dedupe(requireArray(j, 'talents', 'trait_db_sample.json'), 'talent'),
-    physiques: dedupe(requireArray(j, 'physiques', 'trait_db_sample.json'), 'physique'),
-    affixes: dedupe(requireArray(j, 'affixes', 'trait_db_sample.json'), 'affix'),
-  };
-}
-
 function loadBeastMaterial() {
   const j = readJson('beast_material_db_sample.json');
   return dedupe(requireArray(j, 'entries', 'beast_material_db_sample.json'),
@@ -147,7 +137,6 @@ const equipment = loadEquipment();
 const herb = loadHerb();
 const manual = loadManual();
 const recipe = loadRecipe();
-const trait = loadTrait();
 const beastMaterial = loadBeastMaterial();
 const gacha = loadGacha();
 
@@ -162,9 +151,6 @@ const doc = {
     manuals: manual,
     forgeRecipes: recipe.forge,
     pillRecipes: recipe.pills,
-    talents: trait.talents,
-    physiques: trait.physiques,
-    affixes: trait.affixes,
     beastMaterials: beastMaterial,
     gachaPools: gacha.gachaPools,
     characterTemplates: gacha.characterTemplates,
@@ -182,9 +168,6 @@ function counts() {
     ['manuals', d.manuals.length],
     ['forgeRecipes', d.forgeRecipes.length],
     ['pillRecipes', d.pillRecipes.length],
-    ['talents', d.talents.length],
-    ['physiques', d.physiques.length],
-    ['affixes', d.affixes.length],
     ['beastMaterials', d.beastMaterials.length],
     ['gachaPools', d.gachaPools.length],
     ['characterTemplates', d.characterTemplates.length],

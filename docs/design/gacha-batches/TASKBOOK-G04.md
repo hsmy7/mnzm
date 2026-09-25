@@ -141,3 +141,66 @@ G03 实测两处「侦察落点表按维度切分导致的漏项」：
 | 下一批 | **G04**（本文件） |
 | 其后 | **G15（师徒下线）→ G16（素材批）→ G08 → G09 → G11 → G10**（顺序与依赖见 `HANDOVER-m1-remaining-3.md` §1.2） |
 | 遗留待拍板 | ~~三项已全部关闭~~（2026-09-24）：① 师徒 → **整体下线**，拆给 **G15**（`HANDOVER-m1-remaining-3.md` §10）；② `comprehensionAdd` → 实测**活字段，保留**（§1.1 #19）；③ 素材 → 单独开 **G16**（§11），且两个素材目录**只登记不入库**（`rules/media-source-assets.md`）。本批新增范围：**血炼池连建筑拆掉**（§1.0） |
+
+---
+
+## 6. 🔴 主线程开工前置扫描结论（2026-09-24 实测，派工前必读）
+
+> 按 `HANDOVER-m1-remaining-3.md` §3.4 两项侦察缺口回查执行；以下结论全部来自本轮 grep 实测（HEAD `af3550152`）。
+
+### 6.1 实测推翻 / 修正侦察的项
+
+| # | 结论 | 证据 |
+|---|---|---|
+| 1 | **C++ 侧战斗随机成长残留已被 G02 清掉**：`battle_residual_tx.h`/`dispatch_w4c.cpp`/`exploration_tx.h:43` 对 `applyDeterministicWinAttr`/`winAttr`/`soulPower` **零命中** → §6.5 只剩 Kotlin 面 | `grep -n` 实测 |
+| 2 | **`computeLifespan`/`loyaltyFlat` 已随 G02 消失**，C++ include/src 零命中 → §10 交叉点表这两行失效 | 同上 |
+| 3 | **`lock_beast_tx.h` 对血炼字段零命中** → SETTINGS_PATCH 三处清单**本批不需要改**（比 G03 的 daoCompanion 少一环） | 同上 |
+| 4 | 🔴 **血炼 C++ 生产面实为 ~35 文件**（recon §4.2 只列 ~9），三类形态：① 8 个事务头文件的 `in.activeBloodRefinements = state.gameData.activeBloodRefinements;` + 写回复制对（`appointment_tx.h:157/171`、`disciple_lifecycle_tx.h:61/76`、`disciple_tx.h:310/325`、`exploration_tx.h:486/499`、`mission_start_tx.h:103/129`、`production.h:1163/1176`、`patrol_tx.h:168/181`、`secret_realm_residual_tx.h:86/99`）；② `brPct` 统计透传（`exploration_tx.h:271/368`、`mission_completion.h:518-950`、`sect_conquest.h:126-128`、`phase_settlement.h:114-146`、`sect_power.h:50-82`、`secret_realm_session.h:749/905`）；③ 零散（`guide_reward_tx.h` `kBloodRefinementCompleted` 条件枚举、`building_residual_tx.h:179` 建筑拆除清血炼、`disciple_tx.h` `startBloodRefinementTx` 事务13+`BloodRefinementStartParams`、`dispatch_w4a.cpp:102-115` 血炼启动端口、`year_settlement.h:15` include） | 逐文件 grep |
+| 5 | 🔴 **三表消费方 13 文件**（recon §2 只铺 stats/factory）：`ai_sect_ops.h`(16 命中)、`ai_sect_recruit.h`(8)、`phase_settlement.h`(7)、`pill_system.h`(6)、`breakthrough.h`(6)、`data_json.h`(6)、`production.h`(4)、`sect_power.h`(3)、`disciple_tx.h`(3)、`auto_gear.h`(3)、`mission_completion.h`(2)、`index_snapshot.h`(2)、`data_store.h`(1) | 逐文件计数 |
+| 6 | 🔴 **`GameData.pendingTraitAdds`（@ProtoNumber(1002)、Room 列 `pending_trait_adds`、`Strategy.PRESERVE_OLD`）+ `PendingTraitAdd` data class（`GameData.kt:40`）整条链在 recon 字段链表无行** —— trait add 链的 GameData 级字段，随三表下线一并删 | `GameData.kt:827-832` |
+| 7 | **引导任务 #24「血炼强化」= `BuildingCount("血炼池",1)` + `BloodRefinementCompleted(1)` 两条件**（`GuideTask.kt:444-450`）→ 整任务删除 + `GuideCondition.BloodRefinementCompleted`（:165-174）删 + C++ `ConditionKind::kBloodRefinementCompleted`（`guide_reward_tx.h:63/129/231-232`）删 | 实测 |
+| 8 | **`BloodRefinementRefRule`（order=17）整删**（其被检字段随批消失）；`ManualTalentRefRule`（order=22，talentIds 悬空清理）整删或收窄；`ItemRefConsistencyRule`（order=18）talentIds 段收窄；**新增血炼池建筑+`BLOOD_REFINEMENT` 槽位恒清空规则**（照 `RecruitListCleanupRule` 先例）并注册进 `SaveValidationRuleDefaults` | `SaveValidationRuleDefaults.kt` |
+| 9 | **`GameDatabaseMigrationSupport.kt:151-154` 的 game_data CREATE TABLE 含血炼四列** → Room 四件套连带（fresh-install schema 必须与 v58 实体一致） | 实测 |
+| 10 | **dispatch_guard_test 退役集现有 13 条** → 本批 +7（1613/1614/1615/1616/1732/1733/1746）= 20 条 | `dispatch_guard_test.cpp:105` |
+| 11 | **`SlotAssignment.kt:33 BLOOD_REFINEMENT`、`GameEventRecord.kt:60 BLOOD_REFINEMENT`**（行号较 recon 漂移） | 实测 |
+| 12 | **悟性保留导致的反向修正**：recon §6.2 中 `DiscipleUtils.kt` comprehension 排序键、`AttributeFilterOption:23` 悟性项、`DetailCombatSection:37` 悟性行、`AutoManagementDialog` 悟性阈值、`DiscipleComponents:310` 悟性行**全部保留不动**（侦察写于口径 15 之前） | 口径 15 |
+
+### 6.2 悟性面收窄细则（口径 15 的实施级展开，各片必读）
+
+1. `comprehension` 列、`SkillStats.comprehension`、`comprehensionBreakthroughBonus`、`ELDER_SKILL_BASELINE/ELDER_BONUS_DIVISOR/ELDER_BREAKTHROUGH_MAX_STEPS/ELDER_BONUS_PER_STEP`、突破率三乘区**全部保留**。
+2. `BreakthroughChanceInput`（C++）/`BreakthroughZoneBonusInput`（Kotlin）的 `innerElderPositionBonus/outerElderPositionBonus` 字段**保留**（三表删除后恒 0，组装点传 0）；`positionEffectBonus` 函数本体**删除**。
+3. `baseComprehension` 保留，但其 `comprehensionFlat`（三表特效键）贡献项**删除** → 收窄为悟性本体读取；C++ JNI 对拍 op `baseComprehension` 的 `talentIds/affixIds` 参数同步收窄（`DiffDiscipleTest` 对应 op 断言两侧同改）。
+4. `BaseStatsInput.talentEffects`/`baseStats(WithBr)` 的特质聚合填充**删除**（数据源消失；口径 15 只保突破率乘区结构，不含特质数值通道）。
+5. `intel ligenceAdd` 被标「悟性」的 5 处预存文案 bug **不动**（recon §12#7）。
+
+## 7. 修订切片表（按实测文件面重切，替代 §3；每片 ≤10 文件）
+
+| 片 | 文件面 |
+|---|---|
+| **T-a** | `system/appointment_tx.h`、`src/execute_dispatch.cpp`、`src/dispatch_w4a.cpp`（wash/trait 6 tx + 7 case 退役 + 血炼启动 case + in/out 复制对 + SpiritRootWashOutcome/TraitWashOutcome + GameConfig 常量段洗炼部分） |
+| **T-b** | `data/trait_db.h` 整删、`data/data_inject.h`、`data/data_json.h`、`data/data_store.h`、`data/index_snapshot.h`、`system/disciple_factory.h`（步2 只删资质 roll、悟性 roll 保留；步3 特质 roll 整删）、`test/CMakeLists.txt` |
+| **T-c** | 列双射核心 8 文件：`state/models.h`、`state/disciple_store.h`、`src/disciple_store.cpp`、`state/column_dirty.h`、`src/json_codec.cpp`（弟子 4 列 + GameData 血炼四字段 + pendingTraitAdds）、`src/gameview_encode.cpp`、`proto/game_view.proto`、`jni/GameCoreJni.cpp` |
+| **T-d** | `system/disciple.h`、`system/disciple_stats.h`、`system/blood_refinement.h`（`eraseDiscipleDerivedMaps` 收窄为 manualProficiencies 或随调用方迁移）、`system/battle_residual_tx.h`、`system/sect_defense_battle.h`、`system/month_settlement.h` |
+| **T-e** | `system/disciple_tx.h`、`system/building_residual_tx.h`、`system/exploration_tx.h`、`system/mission_start_tx.h`、`system/production.h`、`system/patrol_tx.h`、`system/secret_realm_residual_tx.h`、`system/secret_realm_session.h`、`system/slot_cleanup.h` |
+| **T-f** | `system/guide_reward_tx.h`、`system/mission_completion.h`、`system/phase_settlement.h`、`system/sect_conquest.h`、`system/sect_power.h`、`system/disciple_lifecycle_tx.h` |
+| **T-g** | `system/ai_sect_ops.h`、`system/ai_sect_recruit.h`、`system/auto_gear.h`、`system/breakthrough.h`、`system/pill_system.h`、`system/year_settlement.h`（include 摘除 + `eraseDiscipleDerivedMaps` 收口配合 T-d） |
+| **A-a** | `GameEngineSpiritRootOps.kt` 整删、`GameEngineTraitAddOps.kt` 整删、`GameEngineTraitWashOps.kt` 整删、`GameEngineTraitWashRoll.kt` 整删、`GameEngineAppointmentNativeOps.kt`、`GameEngineResidualNativeOps.kt`、`GameEngineJadePurchaseOps.kt`、`service/JadeSymbolService.kt` |
+| **A-b** | `gameview/GameDataFieldPatch.kt`、`gameview/GameViewDiscipleRows.kt`、`nativebridge/GameViewMirrorCodec.kt`、`registry/GameDataManager.kt`、`usecase/SectPolicyToggleUseCase.kt`、`service/CultivationRateCalculator.kt`、`service/FormulaService.kt`、`service/DiscipleBreakthroughHandler.kt`、`BootSequenceController.kt` |
+| **A-c** | `DiscipleStatCalculator.kt`、`修炼Ops1/属性Ops3/属性Ops4/战斗Ops2/突破Ops5/修炼Ops6`、`SectCombatPowerCalculator.kt`、`DiscipleStatsProvider.kt`、`domain/disciple/DiscipleFactory.kt` |
+| **A-d** | `GameEngineWorldBattleOps.kt`（winAttr 整段）、`GameEngineBattleOps.kt`、`GameEngineMissionOps.kt`、`GameEngineScoutOps.kt`、`GameEngineServiceOps.kt`、`GameEngineDiscipleSlotOps.kt`、`GameEngineSelfHealOps.kt`、`SlotWinner.kt`、`domain/battle/BattleSystem.kt`、`domain/battle/AISectAttackManager.kt` |
+| **A-e** | `EncounterBattleService.kt`、`ExplorationService.kt`、`MissionSystem.kt`、`CaveExplorationSystem.kt`、`PatrolBattleSystem.kt`、`BattleDescriptionGenerator.kt`、`HpMpRecoveryService.kt`、`CultivationEventMissionOps.kt`、`MonthSettlementExecutor.kt`、`SecretRealmService.kt` |
+| **A-f** | `Disciple.kt`、`DiscipleSerializer.kt`、`DiscipleComponents.kt`、`DiscipleExtended.kt`、`DiscipleAggregate.kt`、`DiscipleAttributes.kt` |
+| **A-g** | `DiscipleTables.kt`、`DiscipleTablesAssemblers.kt`、`DiscipleTablesColumnRegistry.kt`、`DiscipleTablesWrite.kt`、`DiscipleTablesAptitude.kt` 整删、`AssembleGroup.kt` |
+| **A-h** | `GameData.kt`（血炼四字段 + pendingTraitAdds + reserved 登记）、`GameDataBloodRefinement.kt` 整删、`guide/GuideTask.kt`（#24 删）、`TalentDatabase/PhysiqueDatabase/AffixDatabase/TalentRegistry` 四整删、`registry/WeightedRoll.kt`（特质分布删） |
+| **A-i** | `DiscipleAssignmentGate.kt`、`DiscipleDerivedMapsCleanup.kt`、`DiscipleSlotCleanup.kt`、`BuildingFeature.kt`、`BuildingNativeTx.kt`、`util/BuildingNames.kt`、`AISectDiscipleManager.kt`、`AISectDiscipleManagerMisc.kt`、`config/Defaults.kt`（blood_refining_pool 条目+别名） |
+| **A-j** | data 模块：`OldSerializableSaveData.kt`（血炼四字段 + pendingTraitAdds + SerializableBloodRefinement* 类删 + reserved）、`CollectionConverters.kt`、`EnumConverters.kt`、`BloodRefinementRefRule.kt` 整删、`ManualTalentRefRule.kt`、`ItemRefConsistencyRule.kt`、`SaveValidationRuleDefaults.kt`、**新增** `BloodPoolBuildingCleanupRule.kt` |
+| **A-k** | `SpiritRootWashDialog.kt` 整删、`TraitWashDialog.kt` 整删、`TraitAddDialog.kt` 整删、`WashSessionControl.kt` 整删、`BloodRefiningPoolDialog.kt` 整删、`BloodRefiningViewModel.kt` 整删、`DiscipleDetailDialogs.kt`、`DiscipleDetailScreen.kt`、`DetailActionButtons.kt`、`DetailBasicInfoSection.kt` |
+| **A-l** | `DetailCultivationSection.kt`、`DetailCombatSection.kt`、`AttributeFilterOption.kt`、`DiscipleDelegate.kt`、`DiscipleDelegateWashOps.kt` 整删、`DiscipleDelegateTraitAddOps.kt` 整删、`DiscipleDelegateLifecycleOps.kt`、`NavigationDelegate.kt`、`BuildingFeatureBoot.kt`、`SpiritMineViewModel.kt` |
+| **A-m** | `MainGameScreen.kt`、`GameOverlayHost.kt`、`OverlayDialogRouter.kt`、`BuildingSelection.kt`、`AttackHpGuard.kt`、`MissionHallDialog.kt`、`AttackDiscipleDialog.kt`、`LevelDetailDialog.kt`、`HeavenlyTrialViewModel.kt`、`SettingsDelegate.kt` |
+| **A-n** | `core/ui/navigation/GameRoute.kt`、`DialogProductionRoutes.kt`、`core/ui/DiscipleComponents.kt`、`core/domain/dialog/DialogType.kt`、`SlotAssignment.kt`、`GameEventRecord.kt`、`app/XianxiaApplication.kt`（statsProvider 形参）、`app/GameActivity.kt`、`app/GameStateStoreImpl.kt` |
+| **A-o** | 配置源：`core/domain/GameConfig.kt`（wash/trait 段）、`assets/config/buildings.json`（条目+别名）、`scripts/data/trait_db_sample.json` 整删、`scripts/gen-trait-db.mjs` 整删、`scripts/gen-game-data.mjs`（三表段）、`core/engine/src/test/resources/templates/trait_db_sample.json` 整删 |
+| **主线程** | Room v58 四件套（`MIGRATION_57_58` + `DATABASE_VERSION` + 注册 + `58.json`）+ `GameDatabase.kt` + `GameDatabaseMigrationSupport.kt`（:151-154 血炼四列）+ 迁移测试本体 + `game-data.json` 重生成 + hash + ActionId regen + 全门禁 + 双 changelog + report + 提交 |
+
+测试面（Wave 3，派工时按当轮 grep 现值再切）：C++ 测试 ~22 文件切 2 片；Kotlin 测试 ~97 文件按模块切 8~9 片。
+
+> **派工提示**：侦察 §1.1（wash/trait 三端字段链）、§2（公式乘区）、§4（C++ 行号）、§6（Kotlin UI 行号）是各片的落点细节来源——**行号系 G02/G03 前快照，施工前必须逐处 grep 复核**；本表只定文件面边界与互斥性。

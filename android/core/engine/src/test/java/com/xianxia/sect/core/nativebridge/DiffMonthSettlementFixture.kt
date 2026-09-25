@@ -32,7 +32,6 @@ import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.exploration.WorldLevelManager
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
@@ -48,7 +47,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
-import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /**
  * DiffMonthSettlementFixture — DiffMonthSettlementTest / DiffWorldLevelRefreshTest
@@ -222,10 +220,6 @@ internal fun buildMonthDiffHarness(
             DiscipleStatCalculator.getBaseStats(disciple)
         override fun getBaseStats(aggregate: DiscipleAggregate) =
             DiscipleStatCalculator.getBaseStats(aggregate)
-        override fun getTalentEffects(disciple: Disciple) =
-            DiscipleStatCalculator.getTalentEffects(disciple)
-        override fun getTalentEffects(aggregate: DiscipleAggregate) =
-            DiscipleStatCalculator.getTalentEffects(aggregate)
         override fun getStatsWithEquipment(
             d: Disciple, e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>
         ) = DiscipleStatCalculator.getStatsWithEquipment(d, e)
@@ -236,16 +230,14 @@ internal fun buildMonthDiffHarness(
             d: Disciple,
             e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
             m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-            p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-            bloodRefinementPct: BloodRefinementPctTotal?
-        ) = DiscipleStatCalculator.getFinalStats(d, e, m, p, bloodRefinementPct)
+            p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>
+        ) = DiscipleStatCalculator.getFinalStats(d, e, m, p)
         override fun getFinalStats(
             a: DiscipleAggregate,
             e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
             m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-            p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-            bloodRefinementPct: BloodRefinementPctTotal?
-        ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, bloodRefinementPct)
+            p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>
+        ) = DiscipleStatCalculator.getFinalStats(a, e, m, p)
         override fun calculateCultivationSpeed(
             d: Disciple,
             manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,

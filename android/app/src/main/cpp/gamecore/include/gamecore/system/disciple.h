@@ -11,8 +11,8 @@
 // 弟子属性计算
 //
 // 等价移植 Kotlin DiscipleStatCalculator 的**纯公式**部分：
-//   - 基础属性乘区法（computeBaseStats：境界基值 × 方差乘区 × 层数乘区 × (1+天赋%+血炼%)）
-//   - 修炼速度乘区（calculateCultivationPerPhase：5 乘区连乘 + 下限 1.0）
+//   - 基础属性乘区法（computeBaseStats：境界基值 × 方差乘区 × 层数乘区）
+//   - 修炼速度乘区（calculateCultivationPerPhase：4 乘区连乘 + 下限 1.0）
 //   - 突破概率乘区（calculateBreakthroughChance：baseZone × (1+指导+自身) + adFlat）
 //   - 寿命将尽惩罚、魂力加成、师徒加成
 //
@@ -31,14 +31,8 @@ constexpr double kBaseCritRate = 0.05;           // BASE_CRIT_RATE
 constexpr double kMinCultivationPerPhase = 1.0;  // MIN_CULTIVATION_PER_PHASE
 constexpr int32_t kBaseManualSlots = 6;          // BASE_MANUAL_SLOTS
 
-constexpr double kAptitudeBaseline = 80.0;       // APTITUDE_BASELINE
-constexpr double kAptitudeBonusPerPoint = 0.01;  // APTITUDE_BONUS_PER_POINT
-constexpr double kAptitudeMaxBonus = 0.40;       // APTITUDE_MAX_BONUS
-
 constexpr double kMasterCultBonusPerGap = 0.05;      // MASTER_DISCIPLE_CULTIVATION_BONUS_PER_GAP
 constexpr double kMasterBreakBonusPerGap = 0.03;     // MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP
-
-constexpr double kMaxBloodRefinementPct = 10.0;  // MAX_BLOOD_REFINEMENT_PCT
 
 /// 境界配置（Kotlin GameConfig.Realm.CONFIGS）
 struct RealmConfig {
@@ -134,19 +128,6 @@ inline double safeVarianceMultiplier(int32_t variance) {
     return coerceAtLeast(1.0 + variance / 100.0, 0.0);
 }
 
-/// 血炼百分比乘区防御（负数/NaN/Infinity 归零，上界 10.0）
-inline double safeBrPct(double pct) {
-    if (!std::isfinite(pct)) return 0.0;
-    return coerceIn(pct, 0.0, kMaxBloodRefinementPct);
-}
-
-/// 资质修炼速度加成（80 基准每点 +1%，最多 +40%；低于基准归零）
-inline double aptitudeCultivationBonus(int32_t aptitude) {
-    return coerceAtMost(
-        static_cast<double>(std::max(aptitude - 80, 0)) * kAptitudeBonusPerPoint,
-        kAptitudeMaxBonus);
-}
-
 /// 属性计算输入（对应 Kotlin VarianceInputs/SkillInputs 收拢）
 struct BaseStatsInput {
     int32_t realm = 9;
@@ -162,22 +143,12 @@ struct BaseStatsInput {
     int32_t intelligence = 0;
     int32_t charm = 0;
     int32_t comprehension = 0;
-    int32_t aptitude = 50;
     int32_t teaching = 0;
     int32_t morality = 0;
     int32_t mining = 0;
     int32_t spiritPlanting = 0;
     int32_t artifactRefining = 0;
     int32_t pillRefining = 0;
-    // 天赋/词条效果（key → 百分比或扁平值）
-    std::map<std::string, double> talentEffects;
-    // 血炼百分比累计（nullopt = 无血炼）
-    double bloodHpBonusPct = 0.0;
-    double bloodPhysicalAttackBonusPct = 0.0;
-    double bloodMagicAttackBonusPct = 0.0;
-    double bloodPhysicalDefenseBonusPct = 0.0;
-    double bloodMagicDefenseBonusPct = 0.0;
-    double bloodSpeedBonusPct = 0.0;
 };
 
 /// 最终属性（对应 Kotlin DiscipleStats）
@@ -195,7 +166,6 @@ struct DiscipleStats {
     int32_t intelligence = 0;
     int32_t charm = 0;
     int32_t comprehension = 0;
-    int32_t aptitude = 0;
     int32_t teaching = 0;
     int32_t morality = 0;
     int32_t mining = 0;
@@ -204,66 +174,43 @@ struct DiscipleStats {
     int32_t pillRefining = 0;
 };
 
-/// 从 effects map 取值（缺失返回 0）
-inline double effectValue(const std::map<std::string, double>& effects,
-                          const std::string& key) {
-    const auto it = effects.find(key);
-    return (it != effects.end()) ? it->second : 0.0;
-}
-
 /// 基础属性乘区法计算（Kotlin computeBaseStats 等价）
 inline DiscipleStats computeBaseStats(const BaseStatsInput& in) {
     const auto& rc = realmConfig(in.realm);
     const double layerMult = safeLayerMult(in.realmLayer);
 
-    const double hpBonus = effectValue(in.talentEffects, "maxHp") +
-                           safeBrPct(in.bloodHpBonusPct);
-    const double mpBonus = effectValue(in.talentEffects, "maxMp");
-    const double attackBonus = effectValue(in.talentEffects, "physicalAttack") +
-                               safeBrPct(in.bloodPhysicalAttackBonusPct);
-    const double magicAttackBonus = effectValue(in.talentEffects, "magicAttack") +
-                                    safeBrPct(in.bloodMagicAttackBonusPct);
-    const double defenseBonus = effectValue(in.talentEffects, "physicalDefense") +
-                                safeBrPct(in.bloodPhysicalDefenseBonusPct);
-    const double magicDefenseBonus = effectValue(in.talentEffects, "magicDefense") +
-                                     safeBrPct(in.bloodMagicDefenseBonusPct);
-    const double speedBonus = effectValue(in.talentEffects, "speed") +
-                              safeBrPct(in.bloodSpeedBonusPct);
-    const double critBonus = effectValue(in.talentEffects, "critRate");
-
     DiscipleStats s;
-    const double hpVar = safeVarianceMultiplier(in.hpVariance);
-    const double mpVar = safeVarianceMultiplier(in.mpVariance);
-    s.maxHp = roundToInt(rc.baseHp * hpVar * layerMult * (1.0 + hpBonus));
-    s.maxMp = roundToInt(rc.baseMp * mpVar * layerMult * (1.0 + mpBonus));
+    s.maxHp = roundToInt(
+        rc.baseHp * safeVarianceMultiplier(in.hpVariance) * layerMult);
+    s.maxMp = roundToInt(
+        rc.baseMp * safeVarianceMultiplier(in.mpVariance) * layerMult);
     s.hp = s.maxHp;
     s.mp = s.maxMp;
     s.physicalAttack = roundToInt(
         rc.basePhysicalAttack * safeVarianceMultiplier(in.physicalAttackVariance) *
-        layerMult * (1.0 + attackBonus));
+        layerMult);
     s.magicAttack = roundToInt(
         rc.baseMagicAttack * safeVarianceMultiplier(in.magicAttackVariance) *
-        layerMult * (1.0 + magicAttackBonus));
+        layerMult);
     s.physicalDefense = roundToInt(
         rc.basePhysicalDefense * safeVarianceMultiplier(in.physicalDefenseVariance) *
-        layerMult * (1.0 + defenseBonus));
+        layerMult);
     s.magicDefense = roundToInt(
         rc.baseMagicDefense * safeVarianceMultiplier(in.magicDefenseVariance) *
-        layerMult * (1.0 + magicDefenseBonus));
+        layerMult);
     s.speed = roundToInt(
         rc.baseSpeed * safeVarianceMultiplier(in.speedVariance) *
-        layerMult * (1.0 + speedBonus));
-    s.critRate = kBaseCritRate + critBonus;
-    s.intelligence = in.intelligence + static_cast<int32_t>(effectValue(in.talentEffects, "intelligenceFlat"));
-    s.charm = in.charm + static_cast<int32_t>(effectValue(in.talentEffects, "charmFlat"));
-    s.comprehension = in.comprehension + static_cast<int32_t>(effectValue(in.talentEffects, "comprehensionFlat"));
-    s.aptitude = in.aptitude;
-    s.teaching = in.teaching + static_cast<int32_t>(effectValue(in.talentEffects, "teachingFlat"));
-    s.morality = in.morality + static_cast<int32_t>(effectValue(in.talentEffects, "moralityFlat"));
-    s.mining = in.mining + static_cast<int32_t>(effectValue(in.talentEffects, "miningFlat"));
-    s.spiritPlanting = in.spiritPlanting + static_cast<int32_t>(effectValue(in.talentEffects, "spiritPlantingFlat"));
-    s.artifactRefining = in.artifactRefining + static_cast<int32_t>(effectValue(in.talentEffects, "artifactRefiningFlat"));
-    s.pillRefining = in.pillRefining + static_cast<int32_t>(effectValue(in.talentEffects, "pillRefiningFlat"));
+        layerMult);
+    s.critRate = kBaseCritRate;
+    s.intelligence = in.intelligence;
+    s.charm = in.charm;
+    s.comprehension = in.comprehension;
+    s.teaching = in.teaching;
+    s.morality = in.morality;
+    s.mining = in.mining;
+    s.spiritPlanting = in.spiritPlanting;
+    s.artifactRefining = in.artifactRefining;
+    s.pillRefining = in.pillRefining;
     return s;
 }
 
@@ -271,7 +218,6 @@ inline DiscipleStats computeBaseStats(const BaseStatsInput& in) {
 
 /// 修炼乘区输入（对应 Kotlin CultivationSpeedZones）
 struct CultivationSpeedZones {
-    double aptitudeBonus = 0.0;
     double resourceBonus = 0.0;
     double socialBonus = 0.0;
     double statusBonus = 0.0;
@@ -284,7 +230,6 @@ inline double calculateCultivationPerPhase(int32_t realm, int32_t spiritRootCoun
     const int32_t rootCount = std::max(spiritRootCount, 1);
     const double base = realmSpeedPerPhase(realm) / static_cast<double>(rootCount);
     return coerceAtLeast(base
-                             * (1.0 + zones.aptitudeBonus)
                              * (1.0 + zones.resourceBonus)
                              * (1.0 + zones.socialBonus)
                              * (1.0 + zones.statusBonus)

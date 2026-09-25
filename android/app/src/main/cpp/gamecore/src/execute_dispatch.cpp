@@ -78,17 +78,6 @@ nlohmann::json fail(const std::string& code, const std::string& message) {
     return {{"status", "failure"}, {"code", code}, {"message", message}};
 }
 
-/// 从 JSON 构造效果 map（{"key": value}）
-std::map<std::string, double> effectsFromJson(const nlohmann::json& j) {
-    std::map<std::string, double> out;
-    if (j.is_object()) {
-        for (auto it = j.begin(); it != j.end(); ++it) {
-            out[it.key()] = it.value().get<double>();
-        }
-    }
-    return out;
-}
-
 /// 钱包操作（ActionIds.WALLET_*）
 nlohmann::json handleWallet(GameCore* core, int32_t actionId,
                             const nlohmann::json& params) {
@@ -391,20 +380,12 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             in.intelligence = params.value("intelligence", 0);
             in.charm = params.value("charm", 0);
             in.comprehension = params.value("comprehension", 0);
-            in.aptitude = params.value("aptitude", 50);
             in.teaching = params.value("teaching", 0);
             in.morality = params.value("morality", 0);
             in.mining = params.value("mining", 0);
             in.spiritPlanting = params.value("spiritPlanting", 0);
             in.artifactRefining = params.value("artifactRefining", 0);
             in.pillRefining = params.value("pillRefining", 0);
-            if (params.contains("effects")) in.talentEffects = effectsFromJson(params.at("effects"));
-            in.bloodHpBonusPct = params.value("bloodHpBonusPct", 0.0);
-            in.bloodPhysicalAttackBonusPct = params.value("bloodPhysicalAttackBonusPct", 0.0);
-            in.bloodMagicAttackBonusPct = params.value("bloodMagicAttackBonusPct", 0.0);
-            in.bloodPhysicalDefenseBonusPct = params.value("bloodPhysicalDefenseBonusPct", 0.0);
-            in.bloodMagicDefenseBonusPct = params.value("bloodMagicDefenseBonusPct", 0.0);
-            in.bloodSpeedBonusPct = params.value("bloodSpeedBonusPct", 0.0);
             const auto s = gamecore::disciple::computeBaseStats(in);
             return ok({{"maxHp", s.maxHp}, {"maxMp", s.maxMp},
                        {"physicalAttack", s.physicalAttack}, {"magicAttack", s.magicAttack},
@@ -413,7 +394,6 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
         }
         case action::DISCIPLE_CULTIVATION_PER_PHASE: {
             CultivationSpeedZones zones;
-            zones.aptitudeBonus = params.value("aptitudeBonus", 0.0);
             zones.resourceBonus = params.value("resourceBonus", 0.0);
             zones.socialBonus = params.value("socialBonus", 0.0);
             zones.statusBonus = params.value("statusBonus", 0.0);
@@ -503,14 +483,6 @@ nlohmann::json handleBattle(int32_t actionId, const nlohmann::json& params) {
                 zones.attackBuffs = z.value("attackBuffs", 0.0);
                 zones.damageAmplification = z.value("damageAmplification", 0.0);
                 zones.damageReduction = z.value("damageReduction", 0.0);
-                zones.physiqueDamageAmplification = z.value("physiqueDamageAmplification", 0.0);
-                zones.physiqueCritDamageBonus = z.value("physiqueCritDamageBonus", 0.0);
-                zones.physiqueDamageReduction = z.value("physiqueDamageReduction", 0.0);
-                zones.physiqueDefenseBonus = z.value("physiqueDefenseBonus", 0.0);
-                zones.affixDamageAmplification = z.value("affixDamageAmplification", 0.0);
-                zones.affixCritDamageBonus = z.value("affixCritDamageBonus", 0.0);
-                zones.affixDamageReduction = z.value("affixDamageReduction", 0.0);
-                zones.affixDefenseBonus = z.value("affixDefenseBonus", 0.0);
                 zones.realmGapDamageAmplification = z.value("realmGapDamageAmplification", 0.0);
                 zones.realmGapDamageReduction = z.value("realmGapDamageReduction", 0.0);
                 zones.majorRealmDamageAmplification = z.value("majorRealmDamageAmplification", 0.0);
@@ -760,12 +732,6 @@ nlohmann::json handleRedeemCode(GameCore* core, int32_t actionId,
                 params.at("maxAge").get<int32_t>(), params.at("realm").get<int32_t>());
             return ok({{"age", r.first}, {"lifespan", r.second}});
         }
-        case action::REDEEM_ROLL_SKILLS: {
-            const int32_t roll = gamecore::system::rollBySpiritRootCount(
-                sr, params.at("spiritRootCount").get<int32_t>());
-            return ok({{"roll", roll},
-                       {"aptitude", gamecore::system::avoidSentinel50(roll)}});
-        }
         case action::REDEEM_GENERATE_VARIANCE: {
             return ok({{"variance", gamecore::system::generateVariance(sr)}});
         }
@@ -826,13 +792,6 @@ nlohmann::json handleSlotCleanup(GameCore* core, const nlohmann::json& params) {
             in.residenceSlots.push_back(e.get<gamecore::state::ResidenceSlot>());
         }
     }
-    if (p.contains("activeBloodRefinements")) {
-        for (auto it = p.at("activeBloodRefinements").begin();
-             it != p.at("activeBloodRefinements").end(); ++it) {
-            in.activeBloodRefinements[it.key()] =
-                it.value().get<gamecore::state::BloodRefinementProgress>();
-        }
-    }
     if (p.contains("patrolSlots")) {
         for (const auto& e : p.at("patrolSlots")) {
             in.patrolSlots.push_back(e.get<gamecore::state::PatrolSlot>());
@@ -871,7 +830,6 @@ nlohmann::json handleSlotCleanup(GameCore* core, const nlohmann::json& params) {
         {"librarySlots", out.librarySlots},
         {"elderSlots", out.elderSlots},
         {"residenceSlots", out.residenceSlots},
-        {"activeBloodRefinements", out.activeBloodRefinements},
         {"patrolSlots", out.patrolSlots},
         {"battleTeams", out.battleTeams},
         {"worldMapSects", out.worldMapSects},
@@ -930,30 +888,11 @@ nlohmann::json handleSectDiplomacy(GameCore* core, int32_t actionId,
                                      params.at("speed").get<int32_t>())}});
         }
         case action::SECT_POWER_FINGERPRINT: {
-            std::vector<std::string> talentIds;
-            if (params.contains("talentIds")) {
-                for (const auto& t : params.at("talentIds")) {
-                    talentIds.push_back(t.get<std::string>());
-                }
-            }
-            gamecore::system::BloodRefinementPctTotalCpp blood;
-            const gamecore::system::BloodRefinementPctTotalCpp* bloodPtr = nullptr;
-            if (params.contains("bloodPct") && !params.at("bloodPct").is_null()) {
-                const auto& b = params.at("bloodPct");
-                blood.hpBonusPct = b.value("hpBonusPct", 0.0);
-                blood.physicalAttackBonusPct = b.value("physicalAttackBonusPct", 0.0);
-                blood.magicAttackBonusPct = b.value("magicAttackBonusPct", 0.0);
-                blood.physicalDefenseBonusPct = b.value("physicalDefenseBonusPct", 0.0);
-                blood.magicDefenseBonusPct = b.value("magicDefenseBonusPct", 0.0);
-                blood.speedBonusPct = b.value("speedBonusPct", 0.0);
-                bloodPtr = &blood;
-            }
             const int32_t fp = gamecore::system::sectPowerFingerprint(
                 params.at("realm").get<int32_t>(), params.at("realmLayer").get<int32_t>(),
                 params.value("hpVariance", 0), params.value("physicalAttackVariance", 0),
                 params.value("magicAttackVariance", 0), params.value("physicalDefenseVariance", 0),
-                params.value("magicDefenseVariance", 0), params.value("speedVariance", 0),
-                talentIds, bloodPtr);
+                params.value("magicDefenseVariance", 0), params.value("speedVariance", 0));
             return ok({{"fingerprint", fp}});
         }
         case action::SECT_RARITY_ROLL: {
@@ -2153,18 +2092,13 @@ nlohmann::json handleInventoryTx(GameCore* core, int32_t actionId,
     }
 }
 
-/// 弟子管理三事务（ActionIds.ELDER_APPOINT_TX / ELDER_DISMISS_TX /
-/// SPIRIT_ROOT_WASH_TX / TRAIT_ADD_ROLL_TX /
-/// TRAIT_ADD_CONFIRM_TX / TRAIT_WASH_SLOT_TX——batch-15 任命/驻守/洗炼
-/// 消耗族写者下沉；任命/驻守/特质确认零 RNG 纯事务，洗炼三族含玉符消耗
-/// （C++ 承扣，余额检查+扣减与抽取同事务原子）与 SYSTEM 分区抽取。校验
-/// 失败零写入，失败信封 → Kotlin 回退原路径重执行校验链；洗炼成功信封
-/// 附 jadeAfter（Kotlin 运行时 totalCount 同步残差用））
+/// 弟子管理事务（ActionIds.ELDER_APPOINT_TX / ELDER_DISMISS_TX——batch-15
+/// 长老单值槽写者下沉；零 RNG 纯事务。校验失败零写入，失败信封 → Kotlin
+/// 回退原路径重执行校验链）
 nlohmann::json handleAppointmentTx(GameCore* core, int32_t actionId,
                                    const nlohmann::json& params) {
     namespace appointment_tx = gamecore::system::appointment_tx;
     auto& state = core->state();
-    auto& systemRng = core->rng().getRng(gamecore::rng::RngPartition::kSystem);
     switch (actionId) {
         case action::ELDER_APPOINT_TX: {
             const auto r = appointment_tx::elderAppointTx(
@@ -2180,61 +2114,6 @@ nlohmann::json handleAppointmentTx(GameCore* core, int32_t actionId,
                 state, params.at("slotType").get<std::string>());
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"dismissed", true}, {"removedId", r.removedId}});
-        }
-        case action::SPIRIT_ROOT_WASH_TX: {
-            const auto r = appointment_tx::spiritRootWashTx(
-                state, systemRng, params.at("discipleId").get<std::string>(),
-                params.at("pityCount").get<int32_t>(),
-                params.at("cost").get<int32_t>());
-            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"newRootType", r.newRootType},
-                       {"newPityCount", r.newPityCount},
-                       {"jadeAfter", r.jadeAfter}});
-        }
-        case action::TRAIT_ADD_ROLL_TX: {
-            const auto r = appointment_tx::traitAddRollTx(
-                state, systemRng, params.at("discipleId").get<std::string>(),
-                params.at("type").get<std::string>(),
-                params.at("cost").get<int32_t>());
-            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"newId", r.newId}, {"jadeAfter", r.jadeAfter}});
-        }
-        case action::TRAIT_ADD_CONFIRM_TX: {
-            const auto r = appointment_tx::traitAddConfirmTx(
-                state, params.at("discipleId").get<std::string>(),
-                params.at("type").get<std::string>(),
-                params.at("newId").get<std::string>());
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"confirmed", true}});
-        }
-        case action::TRAIT_WASH_SLOT_TX: {
-            const auto r = appointment_tx::traitWashSlotTx(
-                state, systemRng, params.at("discipleId").get<std::string>(),
-                params.at("type").get<std::string>(),
-                params.at("targetId").get<std::string>(),
-                params.at("pityCount").get<int32_t>(),
-                params.at("cost").get<int32_t>());
-            if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"newId", r.newId},
-                       {"newPityCount", r.newPityCount},
-                       {"jadeAfter", r.jadeAfter}});
-        }
-        // ── batch-24：confirm 两入口（纯数据写残差，零 RNG / 零玉符）──
-        case action::SPIRIT_ROOT_WASH_CONFIRM_TX: {
-            const auto r = appointment_tx::spiritRootWashConfirmTx(
-                state, params.at("discipleId").get<std::string>(),
-                params.at("newRootType").get<std::string>());
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"replaced", true}});
-        }
-        case action::TRAIT_WASH_CONFIRM_TX: {
-            const auto r = appointment_tx::traitWashConfirmTx(
-                state, params.at("discipleId").get<std::string>(),
-                params.at("type").get<std::string>(),
-                params.at("targetId").get<std::string>(),
-                params.at("newId").get<std::string>());
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"replaced", true}});
         }
         default:
             return fail("UNKNOWN_ACTION",
@@ -2629,10 +2508,7 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
                    actionId <= action::EXPLORE_TX_REMOVE_GARRISON) {
             result = handleExplorationTx(this, actionId, params);
         } else if (actionId >= action::ELDER_APPOINT_TX &&
-                   actionId <= action::TRAIT_WASH_SLOT_TX) {
-            result = handleAppointmentTx(this, actionId, params);
-        } else if (actionId >= action::SPIRIT_ROOT_WASH_CONFIRM_TX &&
-                   actionId <= action::TRAIT_WASH_CONFIRM_TX) {
+                   actionId <= action::ELDER_DISMISS_TX) {
             result = handleAppointmentTx(this, actionId, params);
         } else if (actionId >= action::BOUNDARY_GUIDE_COUNTER_INCREMENT_TX &&
                    actionId <= action::BOUNDARY_BUILDING_GUIDE_BACKFILL_TX) {

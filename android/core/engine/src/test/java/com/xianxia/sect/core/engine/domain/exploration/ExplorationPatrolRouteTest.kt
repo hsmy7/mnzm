@@ -128,7 +128,7 @@ class ExplorationPatrolRouteTest {
             beasts = listOf(beastCombatant("beast_0", hp = 0))
         )
         whenever(
-            battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any())
         ).thenReturn(finalBattle)
         whenever(battleSystem.executeBattle(any(), any())).thenReturn(
             BattleSystemResult(
@@ -285,7 +285,7 @@ class ExplorationPatrolRouteTest {
 
     private fun stubPatrolVictoryBattles(battleSystem: BattleSystem) {
         whenever(
-            battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any())
         ).thenReturn(
             Battle(
                 team = listOf(teamCombatant("1", hp = 50)),
@@ -382,14 +382,14 @@ class ExplorationPatrolRouteTest {
             val patrolCombatant = teamCombatant("1", hp = 90)
             val aiCombatant = beastCombatant("ai1", hp = 0)
             whenever(
-                battleSystem.convertDiscipleToCombatant(any(), any(), any(), any(), any(), any(), any())
+                battleSystem.convertDiscipleToCombatant(any(), any(), any(), any(), any(), any())
             ).thenAnswer { inv ->
                 if (inv.getArgument<CombatantSide>(4) == CombatantSide.ATTACKER) aiCombatant
                 else patrolCombatant
             }
             // Phase 2 PvE 战斗构建（巡逻队胜 → 真实 createBattle 组装）
             whenever(
-                battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+                battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any())
             ).thenReturn(
                 Battle(
                     team = listOf(teamCombatant("1", hp = 90)),

@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
-#include <map>
 
 #include "gamecore/system/disciple.h"
 
@@ -75,41 +74,14 @@ TEST(BaseStatsTest, VarianceMultiplier) {
     EXPECT_EQ(s.speed, static_cast<int32_t>(std::round(15 * 0.5)));
 }
 
-TEST(BaseStatsTest, TalentEffectsAddPercent) {
-    BaseStatsInput in;
-    in.realm = 9;
-    in.realmLayer = 1;
-    in.talentEffects["maxHp"] = 0.50;   // +50%
-    in.talentEffects["physicalAttack"] = 1.0;
-    in.talentEffects["critRate"] = 0.10;
-    const auto s = computeBaseStats(in);
-    EXPECT_EQ(s.maxHp, static_cast<int32_t>(std::round(203 * 1.5)));
-    EXPECT_EQ(s.physicalAttack, static_cast<int32_t>(std::round(16 * 2.0)));
-    EXPECT_DOUBLE_EQ(s.critRate, 0.15);
-}
-
-TEST(BaseStatsTest, BloodRefinementPctClamped) {
-    BaseStatsInput in;
-    in.realm = 9;
-    in.realmLayer = 1;
-    in.bloodHpBonusPct = 0.30;  // +30%
-    const auto s = computeBaseStats(in);
-    EXPECT_EQ(s.maxHp, static_cast<int32_t>(std::round(203 * 1.3)));
-
-    // 篡改巨大值 → 钳制 10.0
-    BaseStatsInput in2 = in;
-    in2.bloodHpBonusPct = 1000.0;
-    const auto s2 = computeBaseStats(in2);
-    EXPECT_EQ(s2.maxHp, static_cast<int32_t>(std::round(203 * 11.0)));
-}
-
-TEST(BaseStatsTest, SkillFlatAdds) {
+TEST(BaseStatsTest, SkillPassthrough) {
     BaseStatsInput in;
     in.realm = 9;
     in.intelligence = 50;
-    in.talentEffects["intelligenceFlat"] = 10;
+    in.comprehension = 70;
     const auto s = computeBaseStats(in);
-    EXPECT_EQ(s.intelligence, 60);
+    EXPECT_EQ(s.intelligence, 50);
+    EXPECT_EQ(s.comprehension, 70);
 }
 
 // ── 修炼速度乘区 ────────────────────────────────────────────────
@@ -130,28 +102,19 @@ TEST(CultivationSpeedTest, RootCountDividesBase) {
 
 TEST(CultivationSpeedTest, ZonesMultiply) {
     CultivationSpeedZones zones;
-    zones.aptitudeBonus = 0.2;
     zones.resourceBonus = 0.5;
     zones.socialBonus = 0.1;
     zones.statusBonus = -0.1;
     zones.temporaryBonus = 0.3;
-    // 19 * 1.2 * 1.5 * 1.1 * 0.9 * 1.3
+    // 19 * 1.5 * 1.1 * 0.9 * 1.3
     EXPECT_DOUBLE_EQ(calculateCultivationPerPhase(9, 1, zones),
-                     19.0 * 1.2 * 1.5 * 1.1 * 0.9 * 1.3);
+                     19.0 * 1.5 * 1.1 * 0.9 * 1.3);
 }
 
 TEST(CultivationSpeedTest, MinClampTo1) {
     CultivationSpeedZones zones;
     zones.resourceBonus = -0.99;  // 压到 0.01 倍
     EXPECT_DOUBLE_EQ(calculateCultivationPerPhase(9, 1, zones), 1.0);
-}
-
-TEST(AptitudeBonusTest, BaselineAndCap) {
-    EXPECT_DOUBLE_EQ(aptitudeCultivationBonus(80), 0.0);
-    EXPECT_DOUBLE_EQ(aptitudeCultivationBonus(90), 0.10);
-    EXPECT_DOUBLE_EQ(aptitudeCultivationBonus(120), 0.40);  // 上限
-    EXPECT_DOUBLE_EQ(aptitudeCultivationBonus(10000), 0.40);  // 篡改钳制
-    EXPECT_DOUBLE_EQ(aptitudeCultivationBonus(50), 0.0);  // 低于基准归零
 }
 
 // ── 突破概率 ────────────────────────────────────────────────────

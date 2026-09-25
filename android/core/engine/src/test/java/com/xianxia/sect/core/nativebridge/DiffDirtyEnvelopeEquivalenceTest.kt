@@ -53,7 +53,7 @@ class DiffDirtyEnvelopeEquivalenceTest {
                  "id":"12","name":"玄真","surname":"李","realm":5,"realmLayer":3,
                  "cultivation":128.5,"cultivationCheckpoint":99,
                  "isAlive":true,"deathYear":0,"gender":"male","portraitRes":"d12",
-                 "manualIds":["m1","m2"],"talentIds":["t1"],"physiqueIds":[],"affixIds":["af1"],
+                 "manualIds":["m1","m2"],
                  "manualMasteries":{"m1":3,"m2":7},"status":"CULTIVATING",
                  "statusData":{"task":"alchemy","slot":"42"},
                  "cultivationSpeedBonus":1.25,
@@ -151,7 +151,7 @@ class DiffDirtyEnvelopeEquivalenceTest {
     //
     // protobuf repeated/map 字段的"空集合"与"缺省键"线路上不可区分（无长度前缀），
     // C++ 编码器对空数组恒不产出、解码侧 hasXxx()=false → 不重建。但域层面
-    // Disciple.physiqueIds 缺省即 emptyList——与 JSON 路径 "[]" 解码结果逐值相同。
+    // Disciple.manualIds 缺省即 emptyList——与 JSON 路径 "[]" 解码结果逐值相同。
     // 故比较前递归剥离两侧"空容器"（空数组/空对象），只对照非缺省语义，
     // 数字按数值比较（int/double 表示无关），键集比较顺序无关。
 

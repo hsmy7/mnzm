@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -43,15 +42,13 @@ object CaveExplorationSystem {
         playerEquipmentMap: Map<String, EquipmentInstance>,
         playerManualMap: Map<String, ManualInstance>,
         playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-        cave: CultivatorCave,
-        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
+        cave: CultivatorCave
     ): Battle {
         val playerCombatants = buildPlayerCombatants(
             playerDisciples = playerDisciples,
             playerEquipmentMap = playerEquipmentMap,
             playerManualMap = playerManualMap,
-            playerManualProficiencies = playerManualProficiencies,
-            bloodRefinementMap = bloodRefinementMap
+            playerManualProficiencies = playerManualProficiencies
         )
 
         val guardianRealm = (cave.ownerRealm - 1).coerceIn(0, 9)
@@ -82,8 +79,7 @@ object CaveExplorationSystem {
         playerDisciples: List<Disciple>,
         playerEquipmentMap: Map<String, EquipmentInstance>,
         playerManualMap: Map<String, ManualInstance>,
-        playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-        bloodRefinementMap: Map<String, BloodRefinementPctTotal>
+        playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>
     ): List<Combatant> = playerDisciples.map { disciple ->
         val discipleEquipment = buildMap {
             disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
@@ -94,8 +90,7 @@ object CaveExplorationSystem {
         val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
         val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
         val stats = disciple.getFinalStats(
-            discipleEquipment, discipleManuals, discipleProficiencies,
-            bloodRefinementMap[disciple.id]
+            discipleEquipment, discipleManuals, discipleProficiencies
         )
         val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp
             .coerceAtMost(stats.maxHp)

@@ -44,7 +44,6 @@ class SlotCategoryCoverageTest {
             SlotCategory.SPIRIT_MINE,         // scanListSlots()
             SlotCategory.LIBRARY_SLOT,        // scanListSlots()
             SlotCategory.PATROL_SLOT,         // scanListSlots()
-            SlotCategory.BLOOD_REFINEMENT,    // scanListSlots()
             SlotCategory.GARRISON_SLOT,       // scanListSlots()
             SlotCategory.BATTLE_TEAM,         // scanListSlots()
         )
@@ -86,7 +85,6 @@ class SlotCategoryCoverageTest {
             SlotCategory.PATROL_SLOT,         // patrolSlots.map
             SlotCategory.BATTLE_TEAM,         // battleTeams.map
             SlotCategory.GARRISON_SLOT,       // worldMapSects.map
-            SlotCategory.BLOOD_REFINEMENT,    // activeBloodRefinements
             SlotCategory.PRODUCTION_SLOT,     // productionSlots.map（clearAllSlotsDataOnly 直接清理）
         )
 
@@ -148,7 +146,6 @@ class SlotCategoryCoverageTest {
             // 巡逻 3 入口 + 住所 2 入口（batch-12 native 臂后回退臂仍持清理）
             "com/xianxia/sect/core/engine/GameEngineAtomicAssign.kt",
             "com/xianxia/sect/core/engine/GameEngineMissionOps.kt",             // 任务（M3 第九批自 Coordination 拆出）
-            "com/xianxia/sect/core/engine/GameEngineBloodRefinementOps.kt",     // 血炼（M3 第九批自 Coordination 拆出）
             "com/xianxia/sect/core/engine/GameEngineSecretRealmOps.kt",  // 秘境出发
             "com/xianxia/sect/core/engine/GameEngineGarrisonOps.kt",              // 世界驻守（M3 第九批自 BattleOps 拆出）
             "com/xianxia/sect/core/engine/domain/disciple/DiscipleFacadeImpl.kt", // 亲传/藏经阁

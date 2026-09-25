@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
@@ -17,8 +16,7 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 
 @Composable
 fun AttributesSection(disciple: DiscipleAggregate) {
-    // 属性区只显示最终值（含天赋 Flat 加成，如洗炼"青帝 灵植+18"），
-    // 不显示基础值与括号加成——洗出加灵植的天赋后面板应立即体现
+    // 属性区只显示最终值，不显示基础值与括号加成
     val baseStats = remember(disciple) { disciple.getBaseStats() }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -33,7 +31,6 @@ fun AttributesSection(disciple: DiscipleAggregate) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            DiscipleAttrText("资质", baseStats.aptitude, Modifier.weight(1f))
             DiscipleAttrText("悟性", baseStats.comprehension, Modifier.weight(1f))
             DiscipleAttrText("智力", baseStats.intelligence, Modifier.weight(1f))
         }
@@ -74,8 +71,7 @@ fun CombatStatsSection(
     boots: EquipmentInstance?,
     accessory: EquipmentInstance?,
     learnedManuals: List<ManualInstance>,
-    manualProficiencies: Map<String, List<ManualProficiencyData>>,
-    bloodRefinementPct: BloodRefinementPctTotal? = null
+    manualProficiencies: Map<String, List<ManualProficiencyData>>
 ) {
     val equipmentMap = remember(weapon, armor, boots, accessory) {
         mutableMapOf<String, EquipmentInstance>().apply {
@@ -94,8 +90,8 @@ fun CombatStatsSection(
         manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
     }
 
-    val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct) {
-        disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct)
+    val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies) {
+        disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

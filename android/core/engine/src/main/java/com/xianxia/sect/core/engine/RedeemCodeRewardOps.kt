@@ -30,7 +30,6 @@ import com.xianxia.sect.core.model.magicAttackVariance
 import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
-import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.model.mpVariance
 import com.xianxia.sect.core.model.physicalAttackVariance
 import com.xianxia.sect.core.model.physicalDefenseVariance
@@ -236,9 +235,6 @@ internal fun RedeemCodeManager.buildRedeemDisciple(
         gender = context.gender,
         portraitRes = PortraitPool.getRandomPortrait(context.gender) { random.nextInt(it) },
         discipleType = "outer",
-        talentIds = context.idBundle.talentIds,
-        physiqueIds = context.idBundle.physiqueIds,
-        affixIds = context.idBundle.affixIds,
         combat = CombatAttributes(
             hpVariance = context.variance.hpVariance,
             mpVariance = context.variance.mpVariance,
@@ -286,14 +282,7 @@ internal fun RedeemCodeManager.buildRedeemSkills(
         spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
         mining = cfg.mining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
         teaching = cfg.teaching ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        morality = cfg.morality ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-        // 资质：按灵根阶梯生成（固定属性，配置不覆盖，最小改动；避开哨兵 50 防自愈误判）
-        aptitude = avoidSentinel50(
-            rollBySpiritRootCount(
-                spiritRootCount = spiritRootCount,
-                random = random
-            )
-        )
+        morality = cfg.morality ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX)
     )
 }
 
@@ -359,24 +348,6 @@ internal fun RedeemCodeManager.resolveAgeAndLifespan(
     return age to lifespan
 }
 
-/** 天赋 ID 解析（配置指定或随机生成）。 */
-
-internal fun RedeemCodeManager.resolveTalentIds(
-    cfg: DiscipleRewardConfig,
-    random: kotlin.random.Random
-): List<String> = if (cfg.talentIds.isNotEmpty()) {
-    cfg.talentIds
-} else {
-    generateRandomTalents(random = random)
-}
-
 /** 属性方差生成（-50..50，替代原逐行重复的 nextInt 表达式）。 */
 
 internal fun RedeemCodeManager.generateVariance(random: kotlin.random.Random): Int = -50 + random.nextInt(101)
-
-/** 资质生成避开哨兵值 50（==50 强制 +1）：与 [DiscipleTables.healDefaultAptitudes] 收敛逻辑一致，防自愈误判 */
-
-internal fun RedeemCodeManager.avoidSentinel50(roll: Int): Int =
-    if (roll == DiscipleTables.DEFAULT_APTITUDE) DiscipleTables.DEFAULT_APTITUDE + 1 else roll
-
-/** 生成随机天赋（internal 供测试验证；统一走 TalentDatabase 的弟子分布，与玩家招募一致） */

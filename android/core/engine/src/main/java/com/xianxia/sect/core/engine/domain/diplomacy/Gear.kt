@@ -26,13 +26,6 @@ fun AISectDiscipleManager.isGearCompleteForLevel(disciple: Disciple, sectLevel: 
     disciple.equipment.equippedItemIds.size >= (EQUIPMENT_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1) &&
         disciple.manualIds.size >= (MANUAL_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1)
 
-/**
- * 为缺失的体质/词条/天赋分类生成随机标签（0-3 个），并写入已尝试标记。
- *
- * 标记保证后续读档不再对空分类重复 roll——空是合法状态（0-3 随机可能为 0），
- * 若不标记，每次读档都会重新 roll 并消耗 AI 分区 RNG，导致同档演化序列漂移。
- */
-
 fun AISectDiscipleManager.applyGearToDisciple(disciple: Disciple, sectLevel: Int): Disciple {
     if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized) return disciple
     val maxRarity = GameConfig.Realm.getMaxRarity(disciple.realm)
@@ -55,12 +48,9 @@ fun AISectDiscipleManager.applyGearToDisciple(disciple: Disciple, sectLevel: Int
 }
 
 /**
- * 只补缺不覆盖：体质/词条/天赋为空则生成，装备/功法不足则补至宗门等级数量。
+ * 只补缺不覆盖：装备/功法不足则补至宗门等级数量。
  *
  * 用于旧档补全与宗门等级升级后的数量补齐，绝不重生成或删除已有项。
- * 体质/词条/天赋为 0-3 随机生成（可能 roll 出 0 个），补全后写入
- * [GEAR_ROLL_MARKER] 标记——防止下次读档对空分类重复 roll 造成
- * AI 分区 RNG 序列漂移（同档两次读档演化结果不一致）。
  *
  * @param disciple 目标弟子
  * @param sectLevel 宗门等级（0-3）
@@ -68,16 +58,13 @@ fun AISectDiscipleManager.applyGearToDisciple(disciple: Disciple, sectLevel: Int
  */
 
 fun AISectDiscipleManager.ensureDiscipleGear(disciple: Disciple, sectLevel: Int): Disciple {
-    var working = disciple
-    if (working.statusData?.get(GEAR_ROLL_MARKER) != "1") {
-        working = rollMissingCategories(working)
-    }
-    if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized) return working
+    if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized) return disciple
 
-    val maxRarity = GameConfig.Realm.getMaxRarity(working.realm)
+    val maxRarity = GameConfig.Realm.getMaxRarity(disciple.realm)
     val expectedEquip = EQUIPMENT_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1
     val expectedManuals = MANUAL_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1
 
+    var working = disciple
     var equipment = working.equipment
     val currentEquip = equipment.equippedItemIds.size
     if (currentEquip < expectedEquip) {

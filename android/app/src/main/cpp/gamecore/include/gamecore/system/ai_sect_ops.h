@@ -7,15 +7,15 @@
 //   - AISectBattleProcessor.processAISectOperations(year, month, state)
 //     （子事件 6：仓库清场 + AI 弟子热控分批修炼 + 宗门等级同步 + 成员过滤）
 //   - AISectDiscipleManager.processMonthlyCultivation（修炼/突破/熟练度/孕养）
-//   - AISectDiscipleManager.ensureDiscipleGear / rollMissingCategories
-//     （等级升级补全——体质/词条/天赋生成器走 disciple_factory.h 既有端口）
+//   - AISectDiscipleManager.ensureDiscipleGear
+//     （等级升级补全——装备/功法补至宗门等级数量）
 //   - AISectBeastAttackProcessor.processRemainingTargets（子事件 9：
 //     兽战余量——单 AI 攻妖 / 双 AI 遭遇战 PvP→胜者攻妖）
 //   - AISectDiscipleManager.prepareDisciplesForBattle（战前持久化字段组装）
 //
 // RNG 契约：
 //   - AI 独立 RNG（aiRng——systemSeed + 6×31337 播种，独立于
-//     RngManager 分区）：突破 roll / 装备槽洗牌种子 / 模板抽取 / 补全生成
+//     RngManager 分区）：突破 roll / 装备槽洗牌种子 / 模板抽取
 //   - BATTLE 分区：battle::executeBattle（与 Kotlin BattleExecutionRouter
 //     →nativeBattleExecute 同分区）
 //
@@ -46,7 +46,6 @@
                                                  // aiGenerateManuals/applyGearToAiDisciple/
                                                  // aiRealmMaxRarity/JavaRandomCompat）
 #include "gamecore/system/battle_execution.h"
-#include "gamecore/system/disciple_factory.h"    // generateTraitsForDiscipleT（补全生成）
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/mission_completion.h"  // manualStackFromTemplate/JavaRandom
 #include "gamecore/system/settlement.h"         // kMsPerPhase1x（phase_settlement 依赖）
@@ -81,7 +80,6 @@ constexpr int32_t kAiThermalEmergencyBatch = 12;     // THERMAL_EMERGENCY_BATCH
 constexpr int32_t kAiThermalReduceBatch = 6;         // THERMAL_REDUCE_BATCH
 constexpr int32_t kAiThermalNormalBatch = 3;         // L2 降频：季度批量（默认）
 constexpr int32_t kAiMaxProficiency = 30000;         // MAX_PROFICIENCY
-const char* const kAiGearRollMarker = "aiGearRolled";  // GEAR_ROLL_MARKER
 
 /// 装备模板按 id 查找（线性扫——equipment_db.h 无 byId 原语）
 inline const gamecore::data::EquipmentTemplate* aiEquipmentTemplateById(
@@ -169,14 +167,6 @@ inline double aiCultivationRate(
         if (c == ',') ++rootCount;
     }
 
-    // 资质乘区：天赋 + 体质 + 资质属性
-    const auto effects = gamecore::stats::mergeEffects(
-        gamecore::stats::talentEffectsFor(d.talentIds),
-        gamecore::stats::affixEffectsFor(d.affixIds));
-    const double aptitudeBonus = gamecore::stats::effectValue(effects, "cultivationSpeed") +
-        gamecore::stats::physiqueCultivationBonusFor(d.physiqueIds) +
-        gamecore::disciple::aptitudeCultivationBonus(d.aptitude);
-
     // 资源乘区：manuals 空映射 → Kotlin 兜底分支（ManualDatabase 静态查询）
     double resourceBonus = 0.0;   // buildingBonus(1.0) - 1.0
     for (const std::string& manualId : d.manualIds) {
@@ -203,7 +193,7 @@ inline double aiCultivationRate(
     const int32_t clampedRoots = std::max(rootCount, 1);
     const double base =
         gamecore::disciple::realmSpeedPerPhase(d.realm) / static_cast<double>(clampedRoots);
-    return std::max(base * (1.0 + aptitudeBonus) * (1.0 + resourceBonus) *
+    return std::max(base * (1.0 + resourceBonus) *
                         (1.0 + 0.0) * (1.0 + statusBonus) * (1.0 + temporaryBonus),
                     gamecore::disciple::kMinCultivationPerPhase);
 }
@@ -228,7 +218,7 @@ inline void aiApplyBreakthroughFailure(Disciple& d) {
         d.cultivation = 0.0;
         return;
     }
-    const auto fs = gamecore::stats::finalStats(d, {}, {}, {}, nullptr);
+    const auto fs = gamecore::stats::finalStats(d, {}, {}, {});
     const int32_t curHp = d.currentHp < 0 ? fs.maxHp : d.currentHp;
     const int32_t curMp = d.currentMp < 0 ? fs.maxMp : d.currentMp;
     d.cultivation = 0.0;
@@ -349,36 +339,6 @@ inline Disciple aiApplyMonthlyNurtureGain(Disciple disciple) {
     return disciple;
 }
 
-/// 缺失体质/词条/天赋补全（rollMissingCategories：空分类 0-3 随机生成，
-/// 实际 roll 过才写 GEAR_ROLL_MARKER——防重复 roll 造成 AI 分区序列漂移）
-inline Disciple aiRollMissingCategories(Disciple d, rng::DeterministicRng& aiRng) {
-    bool rolled = false;
-    if (d.physiqueIds.empty()) {
-        d.physiqueIds = gamecore::system::detail::generateTraitsForDiscipleT(
-            gamecore::data::physiqueTemplates(), aiRng,
-            [](const gamecore::data::PhysiqueTemplate&) { return false; });
-        rolled = true;
-    }
-    if (d.affixIds.empty()) {
-        d.affixIds = gamecore::system::detail::generateTraitsForDiscipleT(
-            gamecore::data::affixTemplates(), aiRng,
-            [](const gamecore::data::AffixTemplate&) { return false; });
-        rolled = true;
-    }
-    if (d.talentIds.empty()) {
-        d.talentIds = gamecore::system::detail::generateTraitsForDiscipleT(
-            gamecore::data::talentTemplates(), aiRng,
-            [](const gamecore::data::TalentTemplate& t) {
-                return gamecore::system::kDeprecatedTalentTypes().count(t.type) > 0;
-            });
-        rolled = true;
-    }
-    if (rolled) {
-        d.statusData[kAiGearRollMarker] = "1";
-    }
-    return d;
-}
-
 /// 初始装备孕养数据（generateInitialNurture：0 级 0 进度；模板缺失空记录）
 inline EquipmentNurtureData aiGenerateInitialNurture(const std::string& equipmentId) {
     EquipmentNurtureData n;
@@ -391,15 +351,10 @@ inline EquipmentNurtureData aiGenerateInitialNurture(const std::string& equipmen
     return n;
 }
 
-/// 只补缺不覆盖（ensureDiscipleGear：体质/词条/天赋空则生成（写标记）；
-/// 装备/功法不足则补至宗门等级数量——装备空槽洗牌补齐、功法按含心法口径补全）
+/// 只补缺不覆盖（ensureDiscipleGear：装备/功法不足则补至宗门等级数量——
+/// 装备空槽洗牌补齐、功法按含心法口径补全）
 inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
                                      rng::DeterministicRng& aiRng) {
-    if (d.statusData.count(kAiGearRollMarker) == 0 ||
-        d.statusData[kAiGearRollMarker] != "1") {
-        d = aiRollMissingCategories(std::move(d), aiRng);
-    }
-
     const int32_t maxRarity = aiRealmMaxRarity(d.realm);
     const int32_t expectedEquip = aiEquipmentCountByLevel(sectLevel);
     const int32_t expectedManuals = aiManualCountByLevel(sectLevel);
@@ -486,7 +441,7 @@ inline std::vector<Disciple> aiProcessMonthlyCultivation(
 // ── 兽战余量（processRemainingTargets 链） ──────────────────────────
 
 /// 战前准备（prepareDisciplesForBattle：持久化装备/功法字段 → 临时实例映射；
-/// 装备按弟子独立 map（孕养覆盖），功法模板 id 即实例 id；丹药/血炼不计入）
+/// 装备按弟子独立 map（孕养覆盖），功法模板 id 即实例 id；丹药不计入）
 struct AiPreparedBattle {
     std::vector<Disciple> disciples;
     std::map<std::string, std::map<std::string, EquipmentInstance>> equipmentMapByDisciple;
@@ -563,7 +518,7 @@ inline gamecore::battle::BattleState aiCreateBattle(
     for (const auto& d : prepared.disciples) {
         const auto& eqMap = prepared.equipmentMapByDisciple.at(d.id);
         state.team.push_back(mission_settle::detail::discipleToCombatant(
-            d, eqMap, prepared.manualMap, prepared.proficiencies, nullptr));
+            d, eqMap, prepared.manualMap, prepared.proficiencies));
     }
     // 妖兽（resolveBeastStats preGenStats 分支：钳制后直用）
     const auto& type = gamecore::data::beastTypes().front();   // getType(0) 虎妖
@@ -723,7 +678,7 @@ inline void aiExecuteEncounterBattle(GameState& state, const WorldSect& sectA,
     for (const auto& d : preparedA.disciples) {
         const auto& eq = preparedA.equipmentMapByDisciple.at(d.id);
         gamecore::battle::Combatant c = mission_settle::detail::discipleToCombatant(
-            d, eq, preparedA.manualMap, preparedA.proficiencies, nullptr);
+            d, eq, preparedA.manualMap, preparedA.proficiencies);
         c.hp = c.maxHp;
         c.mp = c.maxMp;
         pvp.team.push_back(std::move(c));
@@ -731,7 +686,7 @@ inline void aiExecuteEncounterBattle(GameState& state, const WorldSect& sectA,
     for (const auto& d : preparedB.disciples) {
         const auto& eq = preparedB.equipmentMapByDisciple.at(d.id);
         gamecore::battle::Combatant c = mission_settle::detail::discipleToCombatant(
-            d, eq, preparedB.manualMap, preparedB.proficiencies, nullptr);
+            d, eq, preparedB.manualMap, preparedB.proficiencies);
         c.hp = c.maxHp;
         c.mp = c.maxMp;
         c.side = gamecore::battle::CombatantSide::kAttacker;

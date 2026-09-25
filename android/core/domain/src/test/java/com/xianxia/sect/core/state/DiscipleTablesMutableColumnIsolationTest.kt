@@ -32,8 +32,7 @@ class DiscipleTablesMutableColumnIsolationTest {
     private fun insertWithMutable(id: Int): Disciple {
         val d = Disciple(
             id = id.toString(), name = "弟子$id",
-            manualIds = listOf("m$id"),
-            talentIds = listOf("t$id")
+            manualIds = listOf("m$id")
         )
         // lifeEvents 是 class body 属性（非构造参数），需显式赋值
         d.lifeEvents = mutableListOf("事件$id")
@@ -97,7 +96,6 @@ class DiscipleTablesMutableColumnIsolationTest {
             val fullCopy = tables.deepCopy()
             assertEquals(cowCopy.lifeEvents[4], fullCopy.lifeEvents[4])
             assertEquals(cowCopy.manualIds[4], fullCopy.manualIds[4])
-            assertEquals(cowCopy.talentIds[4], fullCopy.talentIds[4])
         } finally {
             DiscipleTables.forceFullCopy = false
         }

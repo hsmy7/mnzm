@@ -716,19 +716,10 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     /**
-     * 释放建筑关联弟子：Gate 注册 + 血炼 REFINING 状态。
-     * 血炼受保护状态须在事务内显式打破，否则事务外重推拉不回 IDLE。
+     * 释放建筑关联弟子的 Gate 注册表记录。
      */
     internal fun MutableGameState.releaseBuildingDiscipleIds(discipleIds: Set<String>) {
         discipleIds.forEach { assignmentGate.release(it) }
-        discipleIds.mapNotNull { it.toIntOrNull() }
-            .filter { it in discipleTables.ids }
-            .filter { discipleTables.statuses[it] == DiscipleStatus.REFINING }
-            .forEach { dId ->
-                discipleTables.statuses[dId] = DiscipleStatus.IDLE
-                discipleTables.statusData[dId] =
-                    (discipleTables.statusData[dId] ?: emptyMap()) - setOf("buildingId")
-            }
     }
 
     /** 监牢拆除：释放所有思过弟子（监牢限建 1 座，无实例归属记录，全量释放）。 */

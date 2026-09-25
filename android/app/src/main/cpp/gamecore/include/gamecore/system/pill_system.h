@@ -133,12 +133,9 @@ inline bool healGatingBlocked(const Disciple& d, const ItemEffect& e) {
     if (e.healMaxHpPercent <= 0.0 && e.mpRecoverMaxMpPercent <= 0.0) {
         return false;
     }
-    const auto fx = gamecore::stats::mergeEffects(
-        gamecore::stats::talentEffectsFor(d.talentIds),
-        gamecore::stats::affixEffectsFor(d.affixIds));
     int32_t maxHp = 0, maxMp = 0;
     gamecore::stats::computeBaseHpMp(d.realm, d.realmLayer, d.hpVariance,
-                                     d.mpVariance, fx, nullptr, maxHp, maxMp);
+                                     d.mpVariance, maxHp, maxMp);
     if (e.healMaxHpPercent > 0.0) {
         const int32_t cur = d.currentHp < 0 ? maxHp : d.currentHp;
         if (cur >= maxHp) return true;
@@ -264,15 +261,12 @@ inline void applyBattleAttrAndTemp(Disciple& d, const ItemEffect& e, PillRule ru
 }  // namespace detail
 
 /// 治疗 HP / 恢复 MP（applyHealAndRecover；maxHp/maxMp 为 getBaseStats 口径：
-/// 基础 × 方差 × 层数 × (1+天赋%)，不含装备段与血炼累计）
+/// 基础 × 方差 × 层数，不含装备段）
 inline void applyHealAndRecover(Disciple& d, const ItemEffect& e) {
-    const auto effects = gamecore::stats::mergeEffects(
-        gamecore::stats::talentEffectsFor(d.talentIds),
-        gamecore::stats::affixEffectsFor(d.affixIds));
     if (e.healMaxHpPercent > 0.0) {
         int32_t maxHp = 0, maxMp = 0;
         gamecore::stats::computeBaseHpMp(d.realm, d.realmLayer, d.hpVariance,
-                                         d.mpVariance, effects, nullptr, maxHp, maxMp);
+                                         d.mpVariance, maxHp, maxMp);
         const int32_t currentHp = d.currentHp < 0 ? maxHp : d.currentHp;
         const int32_t healAmount = std::max(
             static_cast<int32_t>(static_cast<double>(maxHp) * e.healMaxHpPercent), 1);
@@ -281,7 +275,7 @@ inline void applyHealAndRecover(Disciple& d, const ItemEffect& e) {
     if (e.mpRecoverMaxMpPercent > 0.0) {
         int32_t maxHp = 0, maxMp = 0;
         gamecore::stats::computeBaseHpMp(d.realm, d.realmLayer, d.hpVariance,
-                                         d.mpVariance, effects, nullptr, maxHp, maxMp);
+                                         d.mpVariance, maxHp, maxMp);
         const int32_t currentMp = d.currentMp < 0 ? maxMp : d.currentMp;
         const int32_t recoverAmount = std::max(
             static_cast<int32_t>(static_cast<double>(maxMp) * e.mpRecoverMaxMpPercent), 1);

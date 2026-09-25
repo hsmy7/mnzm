@@ -16,7 +16,6 @@
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/recipe_db.h"
-#include "gamecore/data/trait_db.h"
 
 namespace gamecore::data {
 namespace {
@@ -126,10 +125,6 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
         }
     }
     EXPECT_EQ(pillExpected, pillRecipes());
-    EXPECT_EQ(db["talents"].get<std::vector<TalentTemplate>>(), talentTemplates());
-    EXPECT_EQ(db["physiques"].get<std::vector<PhysiqueTemplate>>(),
-              physiqueTemplates());
-    EXPECT_EQ(db["affixes"].get<std::vector<AffixTemplate>>(), affixTemplates());
 
     // 行数断言（消费面枚举清单的权威口径）
     EXPECT_EQ(72u, equipmentTemplates().size());
@@ -139,9 +134,6 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
     EXPECT_EQ(192u, beastMaterialTemplates().size());
     EXPECT_EQ(72u, forgeRecipes().size());
     EXPECT_EQ(660u, pillRecipes().size());
-    EXPECT_EQ(94u, talentTemplates().size());
-    EXPECT_EQ(24u, physiqueTemplates().size());
-    EXPECT_EQ(61u, affixTemplates().size());
 
     // price 回填抽样：注入后 pillRecipes 的 price 必须等于 C++ 同一构建器的
     // 派生值（派生逻辑保持 C++ 侧的红线实证；全量等价由上面的逐字段比对锁定）
@@ -162,9 +154,6 @@ TEST_F(DataStoreGuardTest, 注入后内联兜底与数据文件默认值一致) 
     const auto manualBefore = manualTemplates();
     const auto forgeBefore = forgeRecipes();
     const auto pillBefore = pillRecipes();
-    const auto talentBefore = talentTemplates();
-    const auto physiqueBefore = physiqueTemplates();
-    const auto affixBefore = affixTemplates();
 
     const std::string payload = loadPayload();
     if (payload.empty()) return;
@@ -175,18 +164,15 @@ TEST_F(DataStoreGuardTest, 注入后内联兜底与数据文件默认值一致) 
     EXPECT_EQ(manualBefore, manualTemplates());
     EXPECT_EQ(forgeBefore, forgeRecipes());
     EXPECT_EQ(pillBefore, pillRecipes());
-    EXPECT_EQ(talentBefore, talentTemplates());
-    EXPECT_EQ(physiqueBefore, physiqueTemplates());
-    EXPECT_EQ(affixBefore, affixTemplates());
 }
 
-TEST_F(DataStoreGuardTest, 全部十表均可注入且消费入口非空) {
+TEST_F(DataStoreGuardTest, 全部七表均可注入且消费入口非空) {
     const std::string payload = loadPayload();
     if (payload.empty()) return;
     ASSERT_TRUE(inject::injectFromJson(payload));
 
-    // 十张注入表（5 简单表 + forge/pill 配方 + talent/physique/affix）
-    // 的消费入口均非空；beast_config 的结构性表（C++ 侧真相源，残余登记）同验
+    // 七张注入表（5 简单表 + forge/pill 配方）的消费入口均非空；
+    // beast_config 的结构性表（C++ 侧真相源，残余登记）同验
     EXPECT_FALSE(equipmentTemplates().empty());
     EXPECT_FALSE(herbTemplates().empty());
     EXPECT_FALSE(seedTemplates().empty());
@@ -194,9 +180,6 @@ TEST_F(DataStoreGuardTest, 全部十表均可注入且消费入口非空) {
     EXPECT_FALSE(beastMaterialTemplates().empty());
     EXPECT_FALSE(forgeRecipes().empty());
     EXPECT_FALSE(pillRecipes().empty());
-    EXPECT_FALSE(talentTemplates().empty());
-    EXPECT_FALSE(physiqueTemplates().empty());
-    EXPECT_FALSE(affixTemplates().empty());
     EXPECT_FALSE(beastTypes().empty());
     EXPECT_GT(detail::beastRealmStats(0).hp, 0);
 
@@ -320,10 +303,6 @@ TEST_F(DataStoreGuardTest, 指针型查询入口在注入后稳定) {
     ASSERT_TRUE(pill.has_value());
     EXPECT_EQ(pillRecipes().front(), *pill);
     EXPECT_GT(pill->price, 0);
-
-    const auto talent = talentById(talentTemplates().front().id);
-    ASSERT_TRUE(talent.has_value());
-    EXPECT_EQ(talentTemplates().front(), *talent);
 }
 
 }  // namespace

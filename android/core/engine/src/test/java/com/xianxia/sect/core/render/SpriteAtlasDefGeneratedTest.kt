@@ -209,12 +209,12 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     @Test
-    fun `BUILDING_NAMES 19 个名称与期望全等`() {
+    fun `BUILDING_NAMES 18 个名称与期望全等`() {
         val expected = listOf(
             "灵矿场", "灵植阁", "灵田", "炼丹炉", "锻造坊",
             "仓库", "藏经阁", "问道塔", "青云塔", "天枢殿",
             "执法堂", "任务阁", "巡视楼", "监牢",
-            "单人住所", "中级单人住所", "多人住所", "血炼池", "中级多人住所",
+            "单人住所", "中级单人住所", "多人住所", "中级多人住所",
         )
         val actual = parseBuildingNames(source())
         assertEquals(
@@ -225,14 +225,14 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     @Test
-    fun `FOOTPRINT_BY_NAME_INDEX 19 对占地尺寸与期望全等`() {
+    fun `FOOTPRINT_BY_NAME_INDEX 18 对占地尺寸与期望全等`() {
         // 占地 = 建筑底座：宽 = 精灵宽（左右不压盖）、深 = 底座进深
-        //（塔/亭 2 格、池 3 格、院落/山丘/殿保持现状）
+        //（塔/亭 2 格、院落/山丘/殿保持现状）
         val expected = listOf(
             intArrayOf(4, 4), intArrayOf(4, 3), intArrayOf(1, 1), intArrayOf(4, 2), intArrayOf(5, 3),
             intArrayOf(6, 4), intArrayOf(6, 3), intArrayOf(4, 2), intArrayOf(4, 2), intArrayOf(18, 13),
             intArrayOf(6, 3), intArrayOf(4, 3), intArrayOf(4, 2), intArrayOf(4, 4), intArrayOf(4, 4),
-            intArrayOf(6, 6), intArrayOf(6, 4), intArrayOf(4, 3), intArrayOf(6, 5),
+            intArrayOf(6, 6), intArrayOf(6, 4), intArrayOf(6, 5),
         )
         val actual = parseFootprints(source())
         assertEquals(

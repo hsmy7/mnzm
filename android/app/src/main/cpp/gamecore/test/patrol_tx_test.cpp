@@ -118,10 +118,6 @@ protected:
         res.discipleName = "住户";
         gd.residenceSlots.push_back(res);
 
-        gamecore::state::BloodRefinementProgress blood;
-        blood.discipleId = discipleId;
-        gd.activeBloodRefinements[discipleId] = blood;
-
         PatrolSlot patrol;
         patrol.index = 0;
         patrol.discipleId = discipleId;
@@ -406,14 +402,13 @@ TEST_F(PatrolTxFixture, AssignPatrolClearsDiscipleOtherSlotsExhaustively) {
     EXPECT_TRUE(r.base.ok);
     const auto& gd = core_->state().gameData;
 
-    // 11 类槽位穷尽性：除目标巡逻槽 slot 1 外，该弟子全部槽位引用清空
+    // 10 类槽位穷尽性：除目标巡逻槽 slot 1 外，该弟子全部槽位引用清空
     EXPECT_TRUE(gd.spiritMineSlots[0].discipleId.empty());
     EXPECT_TRUE(gd.librarySlots[0].discipleId.empty());
     EXPECT_TRUE(gd.elderSlots.herbGardenDisciples[0].discipleId.empty());
     EXPECT_TRUE(gd.elderSlots.alchemyDisciples[0].discipleId.empty());
     // 住所与工作共存（includeResidence=false）——住所槽位**保留**
     EXPECT_EQ(gd.residenceSlots[0].discipleId, "1");
-    EXPECT_TRUE(gd.activeBloodRefinements.empty());
     EXPECT_TRUE(gd.battleTeams[0].slots[0].discipleId.empty());
     EXPECT_TRUE(gd.worldMapSects[0].garrisonSlots[0].discipleId.empty());
     EXPECT_FALSE(gd.productionSlots[0].assignedDiscipleId.has_value());

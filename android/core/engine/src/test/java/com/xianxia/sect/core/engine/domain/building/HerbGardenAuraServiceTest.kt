@@ -37,31 +37,25 @@ class HerbGardenAuraServiceTest {
         assertTrue("Bonus should be non-negative", result >= 0.0)
     }
 
-    // ---- 灵植 Flat 天赋跨门槛（光环读 getBaseStats） ----
-    // "青帝(灵植+10)"等 Flat 天赋经 getBaseStats 计入灵植，可跨过成熟度光环门槛
+    // ---- 成熟度门槛边界 ----
+    // 灵植低于门槛时不产生成熟度加成
 
     @Test
-    fun calculateElderMaturityBonus_flatTalentCrossesThreshold_yieldsBonus() {
+    fun calculateElderMaturityBonus_spiritPlantingBelowThreshold_returnsZero() {
         val elderSlots = ElderSlots(herbGardenElder = "elder1")
         val plain = Disciple(id = "elder1", name = "长老", skills = SkillStats(spiritPlanting = 75))
         // 75 < 80 门槛 → 无加成
         assertEquals(0.0, HerbGardenAuraService.calculateElderMaturityBonus(elderSlots, listOf(plain)), 0.001)
-        // 青帝 r2（+10）→ 75+10 = 85 → (85-80)/4 = 1（Int 除法截断）→ 0.01
-        val withTalent = plain.copy(talentIds = listOf("r2_base_plant"))
-        assertEquals(0.01, HerbGardenAuraService.calculateElderMaturityBonus(elderSlots, listOf(withTalent)), 0.001)
     }
 
     @Test
-    fun calculateAuraMaturityBonus_flatTalentCrossesThreshold_yieldsBonus() {
+    fun calculateAuraMaturityBonus_spiritPlantingBelowThreshold_returnsZero() {
         val elderSlots = ElderSlots(
             herbGardenDisciples = listOf(DirectDiscipleSlot(index = 0, discipleId = "d1"))
         )
         val plain = Disciple(id = "d1", name = "弟子", skills = SkillStats(spiritPlanting = 45))
         // 45 ≤ 50 门槛 → 无加成
         assertEquals(0.0, HerbGardenAuraService.calculateAuraMaturityBonus(elderSlots, listOf(plain)), 0.001)
-        // 青帝 r2（+10）→ 45+10 = 55 → (55-50)/5 × 0.01 = 0.01
-        val withTalent = plain.copy(talentIds = listOf("r2_base_plant"))
-        assertEquals(0.01, HerbGardenAuraService.calculateAuraMaturityBonus(elderSlots, listOf(withTalent)), 0.001)
     }
 
     // ---- calculateAuraMaturityBonus ----

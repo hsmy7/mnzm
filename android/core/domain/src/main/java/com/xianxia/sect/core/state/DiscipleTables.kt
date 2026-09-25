@@ -126,9 +126,6 @@ class DiscipleTables {
 
     // === 列表类型（ComponentTable<List<T>>） ===
     val manualIds = ComponentTable<List<String>>()        // id → [manualId1, ...]
-    val talentIds = ComponentTable<List<String>>()        // id → [talentId1, ...]
-    val physiqueIds = ComponentTable<List<String>>()      // id → [physiqueId1, ...]
-    val affixIds = ComponentTable<List<String>>()         // id → [affixId1, ...]
     val lifeEvents = ComponentTable<List<String>>()       // id → ["加入宗门", ...]
     val manualMasteries = ComponentTable<Map<String, Int>>()
 
@@ -206,7 +203,6 @@ class DiscipleTables {
     val minings = IntComponentTable()
     val teachings = IntComponentTable()
     val moralities = IntComponentTable()
-    val aptitudes = IntComponentTable()                  // 资质（固定属性；默认 50 为"未生成"哨兵，读档自愈按灵根补算）
     val salaryPaidCounts = IntComponentTable()
     val salaryMissedCounts = IntComponentTable()
     val alchemyLevels = IntComponentTable()              // id → 炼丹师职业等级（0=无职业）
@@ -231,9 +227,6 @@ class DiscipleTables {
     /** 所有组件表的统一引用列表，用于 [remove]/[clear]/[bindAllOnWrite]/[deepCopy] 的迭代操作 */
     companion object {
         private const val TAG = "DiscipleTables"
-
-        /** 资质默认值：=50 表示"未生成"（旧档 Migration/序列化默认），读档自愈 [healDefaultAptitudes] 按灵根补算 */
-        const val DEFAULT_APTITUDE = 50
 
         /** 合法的死亡原因集合 */
         private val VALID_DEATH_CAUSES = setOf("age", "battle", "scout", "exploration", "cave", "unknown")
@@ -466,17 +459,7 @@ class DiscipleTables {
         val idStr = id.toString()
         _ids.add(id)
         // copy() 不复制 class body 属性（如 lifeEvents），手动保留
-        val d = if (disciple.skills.aptitude == DEFAULT_APTITUDE) {
-            // 旧档 recruitList/俘虏资质未生成（哨兵 50）→ 入宗时按灵根阶梯补算，
-            // 避免本局内资质保持 50、下次读档才自愈的"招募后资质跳变"窗口
-            val rootCount = disciple.spiritRootType.takeIf { it.isNotBlank() }?.split(",")?.size ?: 5
-            disciple.copy(
-                id = idStr,
-                skills = disciple.skills.copy(aptitude = rollHealedAptitude(id, rootCount))
-            )
-        } else {
-            disciple.copy(id = idStr)
-        }
+        val d = disciple.copy(id = idStr)
         d.lifeEvents = disciple.lifeEvents
         writeAllFields(d)
         recordChangedId(id)
@@ -633,31 +616,6 @@ class DiscipleTables {
      * 不应在 tick 热路径中调用。
      */
     fun assemble(id: Int): Disciple = assembleCoreFields(id, prev = null, dirtyGroups = 0)
-
-    /**
-     * 旧档资质自愈：资质 == [DEFAULT_APTITUDE]（未生成哨兵）的弟子按灵根数阶梯
-     * 确定性重算资质（id 散列，幂等——同一 id 每次重算结果稳定）。
-     *
-     * 阶梯与生成站点（DiscipleFactory/AISectDiscipleManager/RedeemCodeManager）一致：
-     * 1根[80,200] 2根[60,200] 3根[40,200] 4根[20,200] 5根[1,200]。
-     * 生成站点与自愈均避开哨兵值（重算命中 [DEFAULT_APTITUDE] 时强制 +1 收敛），
-     * 保证"资质==50 ⇔ 未生成"判定在两次读档之间稳定，不会重复重算。
-     *
-     * @return 被补算的弟子数量（0 = 无修改，调用方据此决定是否需要持久化/重锚）
-     */
-    fun healDefaultAptitudes(): Int {
-        var count = 0
-        for (id in ids) {
-            if (aptitudes.getOrDefault(id, DEFAULT_APTITUDE) != DEFAULT_APTITUDE) continue
-            // 空串/空灵根兜底按 5 根（最宽区间），避免空数据误判 1 根生成低档资质
-            val rootCount = spiritRootTypes.getOrNull(id)
-                ?.takeIf { it.isNotBlank() }
-                ?.split(",")?.size ?: 5
-            aptitudes[id] = rollHealedAptitude(id, rootCount)
-            count++
-        }
-        return count
-    }
 
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。
      *  含幽灵弟子防御性跳过：ID 在 ids 中但组件表数据缺失 → 跳过并打 Log。

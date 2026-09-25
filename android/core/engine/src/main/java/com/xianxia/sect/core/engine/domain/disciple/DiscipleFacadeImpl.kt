@@ -151,7 +151,7 @@ class DiscipleFacadeImpl @Inject constructor(
         // 受保护状态（ON_MISSION）必须直接写入，syncAllDiscipleStatuses 不会覆盖它们
         // 但不会主动设置。非受保护状态（IDLE）委托给 syncAllDiscipleStatuses 推导。
         val protectedStatuses = setOf(
-            DiscipleStatus.ON_MISSION, DiscipleStatus.REFLECTING, DiscipleStatus.REFINING
+            DiscipleStatus.ON_MISSION, DiscipleStatus.REFLECTING
         )
         if (status in protectedStatuses) {
             val id = discipleId.toIntOrNull()

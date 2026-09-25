@@ -150,7 +150,6 @@ fun MainGameScreen(
     herbGardenViewModel: HerbGardenViewModel,
     spiritMineViewModel: SpiritMineViewModel,
     patrolTowerViewModel: PatrolTowerViewModel,
-    bloodRefiningViewModel: BloodRefiningViewModel,
     worldMapInteractionViewModel: WorldMapInteractionViewModel,
     worldMapGarrisonViewModel: WorldMapGarrisonViewModel,
     battleViewModel: BattleViewModel,
@@ -207,7 +206,6 @@ fun MainGameScreen(
                 forge = forgeViewModel, herbGarden = herbGardenViewModel,
                 spiritMine = spiritMineViewModel,
                 patrolTower = patrolTowerViewModel,
-                bloodRefining = bloodRefiningViewModel,
                 worldMapInteraction = worldMapInteractionViewModel,
                 worldMapGarrison = worldMapGarrisonViewModel,
                 battle = battleViewModel
@@ -420,8 +418,6 @@ private fun buildMainGameScreenBuildingList(
             "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
             "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType
                 .PatrolTower(it)) }; Unit }
-            "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType
-                .BloodRefiningPool(it)) }; Unit }
             "single_residence", "multi_residence",
             "single_residence_upgraded", "multi_residence_upgraded" -> { b -> b?.instanceId?.let { viewModel
                 .navigateToDialog(DialogType.Residence(it)) }; Unit }

@@ -21,7 +21,6 @@ import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
-import com.xianxia.sect.ui.game.BloodRefiningViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.GameViewModel
@@ -55,7 +54,6 @@ data class OverlayViewModels(
     val herbGarden: HerbGardenViewModel,
     val spiritMine: SpiritMineViewModel,
     val patrolTower: PatrolTowerViewModel,
-    val bloodRefining: BloodRefiningViewModel,
     val worldMapInteraction: WorldMapInteractionViewModel,
     val worldMapGarrison: WorldMapGarrisonViewModel,
     val battle: BattleViewModel

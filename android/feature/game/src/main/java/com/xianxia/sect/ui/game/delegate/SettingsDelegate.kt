@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.audio.AudioConfig
 import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.consumeMaterialByName
 import com.xianxia.sect.core.engine.setActiveTab
 import com.xianxia.sect.core.engine.setAutoSellHighGradeForPurchase
 import com.xianxia.sect.core.engine.setAutoSellMidGradeForPurchase
@@ -52,10 +51,6 @@ class SettingsDelegate(
         }
 
     fun setActiveTab(tab: String) { gameEngine.setActiveTab(tab) }
-
-    fun consumeBloodRefiningMaterial(name: String, rarity: Int, quantity: Int) {
-        gameEngine.launchOnEngine { gameEngine.consumeMaterialByName(name, rarity, quantity) }
-    }
 
     fun setYearlySalary(realm: Int, amount: Int) {
         gameEngine.launchOnEngine {

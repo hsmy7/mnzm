@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "gamecore/data/trait_db.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/instance_buckets.h"
@@ -18,7 +17,7 @@
 //
 // 等价移植 Kotlin DiscipleStatCalculator 的每旬结算路径**纯公式**部分：
 //   - computeBaseHpMp / getMaxHpMpColumn（HP/MP 恢复上限）
-//   - calculateCultivationPerPhaseColumn（修炼速率 5 乘区）
+//   - calculateCultivationPerPhaseColumn（修炼速率 4 乘区）
 //   - getBreakthroughChance（突破概率乘区，含长老悟性/丹药/师徒）
 //   - EquipmentInstance.getFinalStats（孕养乘区后的装备面板）
 //
@@ -27,17 +26,10 @@
 //     负数场景 Kotlin roundToInt(-0.5)=0，std::round(-0.5)=-1 → 差异由
 //     上游保证非负输入（所有属性乘区 ≥0），见 safeLayerMult/safeVarianceMultiplier）
 //   - toInt() 截断 = static_cast<int32_t>（向零截断）
-//   - 天赋/词条/体质效果聚合（talentEffectsFor/affixEffectsFor/
-//     physiqueCultivationBonusFor）从 data/trait_db.h（204 条，
-//     双端守卫已证与 Kotlin Registry 一致）逐字段读取，语义权威 =
-//     Kotlin TalentDatabase.calculateTalentEffects /
-//     AffixDatabase.calculateAffixEffects / PhysiqueDatabase.
-//     aggregatePhysiqueEffects（DiscipleStatCalculator 委托的同一实现）
 //   - 无 std::unordered_map 参与业务迭代（确定性铁律）
 // ============================================================
 namespace gamecore::stats {
 
-using gamecore::state::BloodRefinementPctTotal;
 using gamecore::state::Disciple;
 using gamecore::state::EquipmentInstance;
 using gamecore::state::ManualInstance;
@@ -49,7 +41,6 @@ namespace instance_bucket = gamecore::system::instance_bucket;
 // ── 常量（Kotlin GameConfig / DiscipleStatCalculator） ────────────────
 
 constexpr double kPhaseHpMpRecoveryRate = 0.2;       // Cultivation.PHASE_HP_MP_RECOVERY_RATE
-constexpr double kMaxBloodRefinementPct = 10.0;      // MAX_BLOOD_REFINEMENT_PCT
 constexpr int32_t kElderSkillBaseline = 80;          // PolicyConfig.ELDER_SKILL_BASELINE
 constexpr int32_t kElderBonusDivisor = 4;            // PolicyConfig.ELDER_BONUS_DIVISOR
 constexpr int32_t kElderBreakthroughMaxSteps = 10;   // PolicyConfig.ELDER_BREAKTHROUGH_MAX_STEPS
@@ -86,161 +77,34 @@ inline int32_t roundToInt(double v) {
     return static_cast<int32_t>(std::round(v));
 }
 
-inline double safeBrPct(double pct) {
-    // Kotlin: pct.coerceIn(0, MAX).takeIf { isFinite } ?: 0 —— NaN/Inf 归零，
-    // coerceIn(NaN) 结果为 NaN（coerceAtMost(10.0).coerceAtLeast(0.0) 对 NaN
-    // 返回上界比较实现相关）；Kotlin coerceIn 用 minOf/maxOf：maxOf(NaN,0)=NaN、
-    // minOf(NaN,10)=NaN → takeIf{isFinite} 过滤为 null → 0。
-    if (!std::isfinite(pct)) return 0.0;
-    if (pct < 0.0) return 0.0;
-    return (pct > kMaxBloodRefinementPct) ? kMaxBloodRefinementPct : pct;
+// ── 基础 HP/MP（computeBaseHpMp） ───────────────────────────────────
+
+/// maxHp/maxMp 基础值核心（map 版 computeBaseHpMp 委托本函数）：
+/// 基础 × 方差乘区 × 层数乘区
+inline void computeBaseHpMpResolved(
+        int32_t realm, int32_t realmLayer, int32_t hpVariance,
+        int32_t mpVariance, int32_t& outMaxHp, int32_t& outMaxMp) {
+    const auto& rc = gamecore::disciple::realmConfig(realm);
+    const double layerMult =
+        gamecore::disciple::safeLayerMult(realmLayer);
+    const double hpVar = gamecore::disciple::safeVarianceMultiplier(hpVariance);
+    const double mpVar = gamecore::disciple::safeVarianceMultiplier(mpVariance);
+    outMaxHp = roundToInt(rc.baseHp * hpVar * layerMult);
+    outMaxMp = roundToInt(rc.baseMp * mpVar * layerMult);
 }
 
-// ── 天赋/词条/体质效果聚合（data/trait_db.h → 效果集） ────
-
-/// 累加单条模板 effects 到聚合表（同 key 相加；与 Kotlin
-/// `effects[key] = (effects[key] ?: 0.0) + value` 逐位一致）
-inline void accumulateEffects(std::map<std::string, double>& effects,
-                              const std::map<std::string, double>& tplEffects) {
-    for (const auto& [key, value] : tplEffects) {
-        effects[key] += value;
-    }
-}
-
-/// 天赋效果聚合（TalentDatabase.calculateTalentEffects 等价实现）：
-/// 按 id 列表逐条查 talent_db 表累加 effects；未知 id 跳过（与 Kotlin
-/// `talents[id] ?: return@forEach` 一致），重复 id 各计一次。
-inline std::map<std::string, double> talentEffectsFor(
-        const std::vector<std::string>& talentIds) {
-    std::map<std::string, double> effects;
-    for (const std::string& id : talentIds) {
-        const auto tpl = gamecore::data::talentById(id);
-        if (!tpl.has_value()) continue;
-        accumulateEffects(effects, tpl->effects);
-    }
-    return effects;
-}
-
-/// 词条效果聚合（AffixDatabase.calculateAffixEffects 等价实现）：
-/// 按 id 列表逐条查 affix_db 表累加 effects；未知 id 跳过。
-inline std::map<std::string, double> affixEffectsFor(
-        const std::vector<std::string>& affixIds) {
-    std::map<std::string, double> effects;
-    for (const std::string& id : affixIds) {
-        const auto tpl = gamecore::data::affixById(id);
-        if (!tpl.has_value()) continue;
-        accumulateEffects(effects, tpl->effects);
-    }
-    return effects;
-}
-
-/// 体质效果聚合全量（PhysiqueDatabase.aggregatePhysiqueEffects 等价签名：
-/// 五个独立乘算因子分量各自求和）
-struct PhysiqueEffectsAggregate {
-    double cultivationSpeedBonus = 0.0;
-    double damageAmplification = 0.0;
-    double damageReduction = 0.0;
-    double critDamageBonus = 0.0;
-    double defenseBonus = 0.0;
-};
-
-/// 体质效果聚合（按 id 列表查 physique_db 表五分量求和；未知 id 跳过）
-inline PhysiqueEffectsAggregate physiqueEffectsFor(
-        const std::vector<std::string>& physiqueIds) {
-    PhysiqueEffectsAggregate out;
-    for (const std::string& id : physiqueIds) {
-        const auto tpl = gamecore::data::physiqueById(id);
-        if (!tpl.has_value()) continue;
-        out.cultivationSpeedBonus += tpl->cultivationSpeedBonus;
-        out.damageAmplification += tpl->damageAmplification;
-        out.damageReduction += tpl->damageReduction;
-        out.critDamageBonus += tpl->critDamageBonus;
-        out.defenseBonus += tpl->defenseBonus;
-    }
-    return out;
-}
-
-/// 体质修炼速度加成聚合（aggregatePhysiqueEffects 的 cultivationSpeedBonus
-/// 分量等价签名，修炼速率资质乘区专用）
-inline double physiqueCultivationBonusFor(
-        const std::vector<std::string>& physiqueIds) {
-    return physiqueEffectsFor(physiqueIds).cultivationSpeedBonus;
-}
-
-/// 合并天赋+词条效果 map（mergeEffects：同 key 相加）
-inline std::map<std::string, double> mergeEffects(
-        const std::map<std::string, double>& talents,
-        const std::map<std::string, double>& affixes) {
-    std::map<std::string, double> merged = talents;
-    for (const auto& [k, v] : affixes) merged[k] += v;
-    return merged;
+/// maxHp/maxMp 基础值：基础 × 方差乘区 × 层数乘区
+inline void computeBaseHpMp(int32_t realm, int32_t realmLayer,
+                            int32_t hpVariance, int32_t mpVariance,
+                            int32_t& outMaxHp, int32_t& outMaxMp) {
+    computeBaseHpMpResolved(realm, realmLayer, hpVariance, mpVariance,
+                            outMaxHp, outMaxMp);
 }
 
 inline double effectValue(const std::map<std::string, double>& effects,
                           const char* key) {
     const auto it = effects.find(key);
     return (it != effects.end()) ? it->second : 0.0;
-}
-
-/// 天赋+词条 maxHp/maxMp 两键效果和直算（getMaxHpMp 热路径专用——免
-/// talentEffectsFor/affixEffectsFor/mergeEffects 三次中间 map 物化）。
-/// 与 map 版逐位一致：单键加法序 = 天赋 id 序 → 词条 id 序，每模板单键
-/// 至多累加一次（与 accumulateEffects 同序），初值同为 0.0。
-inline void hpMpEffectsFor(const std::vector<std::string>& talentIds,
-                           const std::vector<std::string>& affixIds,
-                           double& outMaxHpEffect, double& outMaxMpEffect) {
-    outMaxHpEffect = 0.0;
-    outMaxMpEffect = 0.0;
-    for (const std::string& id : talentIds) {
-        const auto tpl = gamecore::data::talentById(id);
-        if (!tpl.has_value()) continue;
-        const auto hp = tpl->effects.find("maxHp");
-        if (hp != tpl->effects.end()) outMaxHpEffect += hp->second;
-        const auto mp = tpl->effects.find("maxMp");
-        if (mp != tpl->effects.end()) outMaxMpEffect += mp->second;
-    }
-    for (const std::string& id : affixIds) {
-        const auto tpl = gamecore::data::affixById(id);
-        if (!tpl.has_value()) continue;
-        const auto hp = tpl->effects.find("maxHp");
-        if (hp != tpl->effects.end()) outMaxHpEffect += hp->second;
-        const auto mp = tpl->effects.find("maxMp");
-        if (mp != tpl->effects.end()) outMaxMpEffect += mp->second;
-    }
-}
-
-// ── 基础 HP/MP（computeBaseHpMp） ───────────────────────────────────
-
-/// maxHp/maxMp 基础值核心（效果和已解析为两键标量——getMaxHpMp 热路径
-/// 免 effects map 物化；map 版 computeBaseHpMp 委托本函数）：
-/// 基础 × 方差乘区 × 层数乘区 × (1 + 天赋% + 血炼%)
-inline void computeBaseHpMpResolved(
-        int32_t realm, int32_t realmLayer, int32_t hpVariance,
-        int32_t mpVariance, double maxHpEffect, double maxMpEffect,
-        const BloodRefinementPctTotal* bloodRefinementPct,
-        int32_t& outMaxHp, int32_t& outMaxMp) {
-    const auto& rc = gamecore::disciple::realmConfig(realm);
-    const double layerMult =
-        gamecore::disciple::safeLayerMult(realmLayer);
-    const double hpBonus = maxHpEffect +
-        safeBrPct(bloodRefinementPct ? bloodRefinementPct->hpBonusPct : 0.0);
-    const double mpBonus = maxMpEffect;
-    const double hpVar = gamecore::disciple::safeVarianceMultiplier(hpVariance);
-    const double mpVar = gamecore::disciple::safeVarianceMultiplier(mpVariance);
-    outMaxHp = roundToInt(rc.baseHp * hpVar * layerMult * (1.0 + hpBonus));
-    outMaxMp = roundToInt(rc.baseMp * mpVar * layerMult * (1.0 + mpBonus));
-}
-
-/// maxHp/maxMp 基础值：基础 × 方差乘区 × 层数乘区 × (1 + 天赋% + 血炼%)
-inline void computeBaseHpMp(int32_t realm, int32_t realmLayer,
-                            int32_t hpVariance, int32_t mpVariance,
-                            const std::map<std::string, double>& talentEffects,
-                            const BloodRefinementPctTotal* bloodRefinementPct,
-                            int32_t& outMaxHp, int32_t& outMaxMp) {
-    computeBaseHpMpResolved(realm, realmLayer, hpVariance, mpVariance,
-                            effectValue(talentEffects, "maxHp"),
-                            effectValue(talentEffects, "maxMp"),
-                            bloodRefinementPct, outMaxHp, outMaxMp);
 }
 
 // ── 装备最终属性（EquipmentInstance.getFinalStats） ─────────────────
@@ -366,21 +230,16 @@ inline void accumulateManualHpMp(
 
 /// 列直读 maxHp/maxMp（DiscipleStatCalculator.getMaxHpMpColumn 数学等价）。
 /// 输入直接取自 C++ Disciple 平铺字段（对应 Kotlin DiscipleTables 列直读）；
-/// 血炼累计（bloodRefinementPctTotals[id]）由调用方查表传入。
 /// 装备/功法段经 owner 行索引桶查找（R1.3 第二步——ownerRow = 弟子在
 /// DiscipleStore 的行号，工作副本场景由调用方传入原行号，其四槽/已学
 /// 功法 id 与桶键一致）。
 inline void getMaxHpMp(
         const Disciple& d, std::size_t ownerRow,
-        const BloodRefinementPctTotal* bloodRefinementPct,
         const instance_bucket::EquipmentInstanceBuckets& equipmentBuckets,
         const instance_bucket::ManualInstanceBuckets& manualBuckets,
         const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
         int32_t& outMaxHp, int32_t& outMaxMp) {
-    double maxHpEffect = 0.0, maxMpEffect = 0.0;
-    hpMpEffectsFor(d.talentIds, d.affixIds, maxHpEffect, maxMpEffect);
     computeBaseHpMpResolved(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
-                            maxHpEffect, maxMpEffect, bloodRefinementPct,
                             outMaxHp, outMaxMp);
     accumulateEquipmentHpMp(equipmentBuckets, ownerRow, d.weaponId, d.armorId,
                             d.bootsId, d.accessoryId, outMaxHp, outMaxMp);
@@ -396,17 +255,12 @@ inline void getMaxHpMp(
 /// 每旬恢复/候选筛选取代逐弟子物化；语义与 Disciple& 版逐位一致）
 inline void getMaxHpMp(
         const state::DiscipleStore& ds, std::size_t row,
-        const BloodRefinementPctTotal* bloodRefinementPct,
         const instance_bucket::EquipmentInstanceBuckets& equipmentBuckets,
         const instance_bucket::ManualInstanceBuckets& manualBuckets,
         const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
         int32_t& outMaxHp, int32_t& outMaxMp) {
-    double maxHpEffect = 0.0, maxMpEffect = 0.0;
-    hpMpEffectsFor(ds.talentIds[row], ds.affixIds[row], maxHpEffect,
-                   maxMpEffect);
     computeBaseHpMpResolved(ds.realms[row], ds.realmLayers[row],
                             ds.hpVariances[row], ds.mpVariances[row],
-                            maxHpEffect, maxMpEffect, bloodRefinementPct,
                             outMaxHp, outMaxMp);
     accumulateEquipmentHpMp(equipmentBuckets, row, ds.weaponIds[row],
                             ds.armorIds[row], ds.bootsIds[row],
@@ -421,50 +275,31 @@ inline void getMaxHpMp(
 
 // ── 基础悟性（getBaseStats().comprehension，突破概率用） ─────────────
 
-/// 基础悟性 = skills.comprehension + 合并（天赋+词条）comprehensionFlat 截断。
-/// Kotlin 权威口径：getBaseStats().comprehension 经 getMergedEffects
-/// （天赋+词条同 key 相加后取 "comprehensionFlat" toInt()）——词条表含
-/// comprehensionFlat 键（负面悟性词条 / neg_aff_base），必须并入；
-/// 修复 t2-1-review:77 潜伏分叉（原 C++ 只聚合天赋 flat）。
+/// 基础悟性 = comprehension 本体。
 inline int32_t baseComprehension(const Disciple& d) {
-    const auto effects = mergeEffects(
-        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
-    return d.comprehension +
-           static_cast<int32_t>(effectValue(effects, "comprehensionFlat"));
+    return d.comprehension;
 }
 
 /// 基础悟性（DiscipleStore 行版，突破概率长老读取用）
 inline int32_t baseComprehension(const state::DiscipleStore& ds,
                                  std::size_t row) {
-    const auto effects = mergeEffects(
-        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
-    return ds.comprehensions[row] +
-           static_cast<int32_t>(effectValue(effects, "comprehensionFlat"));
+    return ds.comprehensions[row];
 }
 
 // ── 基础智力（getBaseStats().intelligence，执法堂捕获率用）──
 
-/// 基础智力 = skills.intelligence + 合并（天赋+词条）intelligenceFlat 截断。
-/// Kotlin 权威口径与 baseComprehension 同构（getMergedEffects 同 key 相加后
-/// 取 "intelligenceFlat" toInt()）。
+/// 基础智力 = intelligence 本体。
 inline int32_t baseIntelligence(const Disciple& d) {
-    const auto effects = mergeEffects(
-        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
-    return d.intelligence +
-           static_cast<int32_t>(effectValue(effects, "intelligenceFlat"));
+    return d.intelligence;
 }
 
 /// 基础智力（DiscipleStore 行版）
 inline int32_t baseIntelligence(const state::DiscipleStore& ds,
                                 std::size_t row) {
-    const auto effects = mergeEffects(
-        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
-    return ds.intelligences[row] +
-           static_cast<int32_t>(effectValue(effects, "intelligenceFlat"));
+    return ds.intelligences[row];
 }
 
-/// 完整基础属性（Kotlin DiscipleStatCalculator.getBaseStats(disciple)——
-/// 血炼百分比参数缺省 null，乘区全零）。
+/// 完整基础属性（Kotlin DiscipleStatCalculator.getBaseStats(disciple)）。
 inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
     ::gamecore::disciple::BaseStatsInput in;
     in.realm = d.realm;
@@ -479,56 +314,16 @@ inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
     in.intelligence = d.intelligence;
     in.charm = d.charm;
     in.comprehension = d.comprehension;
-    in.aptitude = d.aptitude;
     in.teaching = d.teaching;
     in.morality = d.morality;
     in.mining = d.mining;
     in.spiritPlanting = d.spiritPlanting;
     in.artifactRefining = d.artifactRefining;
     in.pillRefining = d.pillRefining;
-    in.talentEffects = mergeEffects(
-        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
     return ::gamecore::disciple::computeBaseStats(in);
 }
 
 // ── S5：战斗装配属性（Kotlin getFinalStats 域） ─────────────────────
-
-/// 血炼百分比感知基础属性（Kotlin getBaseStats(disciple, bloodRefinementPct)
-/// 等价——血炼乘区与天赋同乘区加算，safeBrPct 防护在 computeBaseStats 内）。
-inline ::gamecore::disciple::DiscipleStats baseStatsWithBr(
-        const Disciple& d, const BloodRefinementPctTotal* bloodRefinementPct) {
-    ::gamecore::disciple::BaseStatsInput in;
-    in.realm = d.realm;
-    in.realmLayer = d.realmLayer;
-    in.hpVariance = d.hpVariance;
-    in.mpVariance = d.mpVariance;
-    in.physicalAttackVariance = d.physicalAttackVariance;
-    in.magicAttackVariance = d.magicAttackVariance;
-    in.physicalDefenseVariance = d.physicalDefenseVariance;
-    in.magicDefenseVariance = d.magicDefenseVariance;
-    in.speedVariance = d.speedVariance;
-    in.intelligence = d.intelligence;
-    in.charm = d.charm;
-    in.comprehension = d.comprehension;
-    in.aptitude = d.aptitude;
-    in.teaching = d.teaching;
-    in.morality = d.morality;
-    in.mining = d.mining;
-    in.spiritPlanting = d.spiritPlanting;
-    in.artifactRefining = d.artifactRefining;
-    in.pillRefining = d.pillRefining;
-    in.talentEffects = mergeEffects(
-        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
-    if (bloodRefinementPct != nullptr) {
-        in.bloodHpBonusPct = bloodRefinementPct->hpBonusPct;
-        in.bloodPhysicalAttackBonusPct = bloodRefinementPct->physicalAttackBonusPct;
-        in.bloodMagicAttackBonusPct = bloodRefinementPct->magicAttackBonusPct;
-        in.bloodPhysicalDefenseBonusPct = bloodRefinementPct->physicalDefenseBonusPct;
-        in.bloodMagicDefenseBonusPct = bloodRefinementPct->magicDefenseBonusPct;
-        in.bloodSpeedBonusPct = bloodRefinementPct->speedBonusPct;
-    }
-    return ::gamecore::disciple::computeBaseStats(in);
-}
 
 /// 熟练度等级加成（Kotlin ManualProficiencySystem.MasteryLevel.fromLevel(level).bonus；
 /// 未知等级回退 NOVICE 1.5——与 fromLevel 的 find{it.level==level} ?: NOVICE 一致）
@@ -548,10 +343,8 @@ inline ::gamecore::disciple::DiscipleStats finalStats(
         const Disciple& d,
         const std::map<std::string, EquipmentInstance>& equipmentMap,
         const std::map<std::string, ManualInstance>& manualMap,
-        const std::map<std::string, ManualProficiencyData>& discipleProficiencies,
-        const BloodRefinementPctTotal* bloodRefinementPct) {
-    ::gamecore::disciple::DiscipleStats total =
-        baseStatsWithBr(d, bloodRefinementPct);
+        const std::map<std::string, ManualProficiencyData>& discipleProficiencies) {
+    ::gamecore::disciple::DiscipleStats total = baseStats(d);
     double totalCritRate = total.critRate;
 
     // 装备（equipId 顺序 = Kotlin listOfNotNull(weapon,armor,boots,accessory)）
@@ -628,39 +421,6 @@ inline ::gamecore::disciple::DiscipleStats finalStats(
     return total;
 }
 
-// ── 职务加成（getPositionEffectBonus，执法堂捕获率用）──────
-
-/// 统计弟子（天赋+词条）中指定 slotType 的 PositionBonus 总和。
-/// Kotlin 权威口径：天赋取非负面且 positionBonus.slotType 匹配者求和 +
-/// 词条（AffixDatabase.aggregatePositionBonus）同口径求和。
-inline double positionEffectBonus(const std::vector<std::string>& talentIds,
-                                  const std::vector<std::string>& affixIds,
-                                  const std::string& slotType) {
-    double bonus = 0.0;
-    for (const auto& id : talentIds) {
-        if (auto t = data::talentById(id)) {
-            if (!t->isNegative && t->positionBonus &&
-                t->positionBonus->slotType == slotType) {
-                bonus += t->positionBonus->effectBonus;
-            }
-        }
-    }
-    for (const auto& id : affixIds) {
-        if (auto a = data::affixById(id)) {
-            if (a->positionBonus && a->positionBonus->slotType == slotType) {
-                bonus += a->positionBonus->effectBonus;
-            }
-        }
-    }
-    return bonus;
-}
-
-inline double positionEffectBonus(const state::DiscipleStore& ds,
-                                  std::size_t row,
-                                  const std::string& slotType) {
-    return positionEffectBonus(ds.talentIds[row], ds.affixIds[row], slotType);
-}
-
 // ── 修炼速率乘区（calculateCultivationPerPhaseColumn） ───────────────
 
 /// 每旬修炼速率输入（调用方预计算的社交/建筑/政策分量）
@@ -700,7 +460,7 @@ inline double accumulateManualCultivationSpeed(
     return resourceBonus;
 }
 
-/// 每旬修炼速率（5 乘区连乘，下限 1.0；与 Kotlin 列直读版数学等价）。
+/// 每旬修炼速率（4 乘区连乘，下限 1.0；与 Kotlin 列直读版数学等价）。
 /// ownerRow = 弟子在 DiscipleStore 的行号（工作副本场景——突破后境界
 /// 已推进而商店行未写回——桶寻址用，数值面全部取自工作副本 d）
 inline double calculateCultivationPerPhaseColumn(
@@ -715,13 +475,6 @@ inline double calculateCultivationPerPhaseColumn(
     for (char c : d.spiritRootType) {
         if (c == ',') ++rootCount;
     }
-
-    // ── 资质乘区：天赋 + 体质 + 资质属性 ──
-    const auto effects = mergeEffects(
-        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
-    double aptitudeBonus = effectValue(effects, "cultivationSpeed") +
-        physiqueCultivationBonusFor(d.physiqueIds) +
-        gamecore::disciple::aptitudeCultivationBonus(d.aptitude);
 
     // ── 资源乘区：建筑 + 功法（熟练度加成） ──
     double resourceBonus = extra.buildingBonus - 1.0;
@@ -747,7 +500,7 @@ inline double calculateCultivationPerPhaseColumn(
         gamecore::disciple::realmSpeedPerPhase(d.realm) /
         static_cast<double>(clampedRoots);
     return gamecore::disciple::coerceAtLeast(
-        base * (1.0 + aptitudeBonus) * (1.0 + resourceBonus) *
+        base * (1.0 + resourceBonus) *
                (1.0 + socialBonus) * (1.0 + statusBonus) *
                (1.0 + temporaryBonus),
         gamecore::disciple::kMinCultivationPerPhase);
@@ -767,13 +520,6 @@ inline double calculateCultivationPerPhaseColumn(
     for (char c : ds.spiritRootTypes[row]) {
         if (c == ',') ++rootCount;
     }
-
-    // ── 资质乘区：天赋 + 体质 + 资质属性 ──
-    const auto effects = mergeEffects(
-        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
-    double aptitudeBonus = effectValue(effects, "cultivationSpeed") +
-        physiqueCultivationBonusFor(ds.physiqueIds[row]) +
-        gamecore::disciple::aptitudeCultivationBonus(ds.aptitudes[row]);
 
     // ── 资源乘区：建筑 + 功法（熟练度加成） ──
     double resourceBonus = extra.buildingBonus - 1.0;
@@ -799,7 +545,7 @@ inline double calculateCultivationPerPhaseColumn(
         gamecore::disciple::realmSpeedPerPhase(ds.realms[row]) /
         static_cast<double>(clampedRoots);
     return gamecore::disciple::coerceAtLeast(
-        base * (1.0 + aptitudeBonus) * (1.0 + resourceBonus) *
+        base * (1.0 + resourceBonus) *
                (1.0 + socialBonus) * (1.0 + statusBonus) *
                (1.0 + temporaryBonus),
         gamecore::disciple::kMinCultivationPerPhase);

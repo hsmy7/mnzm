@@ -52,7 +52,6 @@ class BuildingTypeCoverageTest {
         BuildingType.MULTI_RESIDENCE,
         BuildingType.WAREHOUSE,
         BuildingType.PATROL,
-        BuildingType.BLOOD_REFINING_POOL,
     )
 
     @Test

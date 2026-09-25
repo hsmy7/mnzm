@@ -12,7 +12,6 @@ import com.xianxia.sect.core.engine.domain.battle.BattleWinner
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -33,7 +32,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
-import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 class BattleSystemTest {
 
@@ -49,10 +47,6 @@ class BattleSystemTest {
                 DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) =
                 DiscipleStatCalculator.getBaseStats(aggregate)
-            override fun getTalentEffects(disciple: Disciple) =
-                DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) =
-                DiscipleStatCalculator.getTalentEffects(aggregate)
             override fun getStatsWithEquipment(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>
             ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
@@ -62,18 +56,16 @@ class BattleSystemTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStatCalculator.getFinalStats(
-                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+                disciple, equipments, manuals, manualProficiencies
             )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStatCalculator.getFinalStats(
-                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+                aggregate, equipments, manuals, manualProficiencies
             )
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,

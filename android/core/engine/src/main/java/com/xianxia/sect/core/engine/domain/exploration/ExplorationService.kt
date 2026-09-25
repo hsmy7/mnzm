@@ -29,24 +29,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.model.artifactRefining
-import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.baseMagicDefense
-import com.xianxia.sect.core.model.baseMp
-import com.xianxia.sect.core.model.basePhysicalAttack
-import com.xianxia.sect.core.model.basePhysicalDefense
-import com.xianxia.sect.core.model.baseSpeed
-import com.xianxia.sect.core.model.charm
-import com.xianxia.sect.core.model.comprehension
-import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.mining
-import com.xianxia.sect.core.model.morality
-import com.xianxia.sect.core.model.pillRefining
-import com.xianxia.sect.core.model.spiritPlanting
-import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -192,14 +175,13 @@ class ExplorationService @Inject constructor(
         } ?: return
 
         // 自动选择防守弟子：优先巡视塔已分配弟子，其次宗门内其他弟子
-        // 排除任务中/思过中/血炼中的弟子，其余均可参战
+        // 排除任务中/编队中/思过中/驻守中的弟子，其余均可参战
         var disciples = discipleTables.assembleAll()
         val excludeStatuses = setOf(
             DiscipleStatus.ON_MISSION,
             DiscipleStatus.IN_TEAM,
             DiscipleStatus.REFLECTING,
-            DiscipleStatus.GARRISONING,
-            DiscipleStatus.REFINING
+            DiscipleStatus.GARRISONING
         )
         val allAvailable = disciples.filter {
             it.isAlive && it.status !in excludeStatuses
@@ -234,7 +216,6 @@ class ExplorationService @Inject constructor(
 
         val allRewards = mutableListOf<BattleRewardItem>()
         if (result.victory) {
-            disciples = applyBeastVictoryBonuses(disciples)
             allRewards += collectBeastFightRewards(level, result)
         } else {
             applyBeastDefeatLoot()
@@ -313,8 +294,7 @@ class ExplorationService @Inject constructor(
             level.realm, level.count,
             GameConfig.Beast.getType(level.beastType ?: 0).name,
             profMap,
-            beastPreGenStats = beastPreGenStats,
-            bloodRefinementMap = gameData.bloodRefinementPctTotals
+            beastPreGenStats = beastPreGenStats
         )
         // 妖兽防守生产经 BattleExecutionRouter 路由（R4.3）：AUTHORITATIVE 生产走
         // C++ 战斗引擎（BATTLE 分区同区同序，与兽战/遭遇战/秘境同一路由契约）；
@@ -322,28 +302,6 @@ class ExplorationService @Inject constructor(
         // → null 回退 Kotlin —— B18 判归：**非灰度回滚臂，不删**（正确性机制）
         return BattleExecutionRouter.tryExecuteNative(battle)
             ?: battleSystem.executeBattle(battle)
-    }
-
-    // ── 战后伤亡处理 ───────────────────────────────────────────────────────
-
-    internal fun MutableGameState.applyBeastVictoryBonuses(
-        disciples: List<Disciple>
-    ): List<Disciple> {
-        return disciples.map { d ->
-            if (d.isAlive) {
-                val m = d
-                if (m.talentIds.any { id ->
-                    TalentDatabase.getById(id)?.effects
-                        ?.containsKey("winBattleRandomAttrPlus") == true
-                }) {
-                    val r = rngManager.getRng(RngPartition.BATTLE)
-                        .nextInt(17)
-                    // 技能属性（0-9）clamp 到基础属性上限；战斗属性（10-16）不 clamp
-                    if (r <= 9) applyWinSkillAttrGrowth(m, r) else applyWinCombatAttrGrowth(m, r)
-                }
-                m
-            } else d
-        }
     }
 
     // ── 胜利奖励：妖兽材料+灵石 ──────────────────────────────────────────
@@ -533,39 +491,3 @@ class ExplorationSubSystems @Inject constructor(
     val encounterBattleService: EncounterBattleService,
     val deathHandler: DiscipleDeathHandler
 )
-
-/** 胜战技能属性 +1：clamp 到基础属性上限 */
-private fun applyWinSkillAttrGrowth(disciple: Disciple, r: Int) {
-    val sk = disciple.skills
-    when (r) {
-        0 -> sk.intelligence =
-            minOf(sk.intelligence + 1, GameConfig.Disciple.SKILL_MAX)
-        1 -> sk.comprehension =
-            minOf(sk.comprehension + 1, GameConfig.Disciple.SKILL_MAX)
-        2 -> sk.charm = minOf(sk.charm + 1, GameConfig.Disciple.SKILL_MAX)
-        4 -> sk.artifactRefining =
-            minOf(sk.artifactRefining + 1, GameConfig.Disciple.SKILL_MAX)
-        5 -> sk.pillRefining =
-            minOf(sk.pillRefining + 1, GameConfig.Disciple.SKILL_MAX)
-        6 -> sk.spiritPlanting =
-            minOf(sk.spiritPlanting + 1, GameConfig.Disciple.SKILL_MAX)
-        7 -> sk.mining = minOf(sk.mining + 1, GameConfig.Disciple.SKILL_MAX)
-        8 -> sk.teaching =
-            minOf(sk.teaching + 1, GameConfig.Disciple.SKILL_MAX)
-        9 -> sk.morality =
-            minOf(sk.morality + 1, GameConfig.Disciple.SKILL_MAX)
-    }
-}
-
-/** 胜战战斗属性 +1：基础战斗属性不 clamp */
-private fun applyWinCombatAttrGrowth(disciple: Disciple, r: Int) {
-    val cb = disciple.combat
-    when (r) {
-        10 -> cb.baseHp++; 11 -> cb.baseMp++
-        12 -> cb.basePhysicalAttack++
-        13 -> cb.baseMagicAttack++
-        14 -> cb.basePhysicalDefense++
-        15 -> cb.baseMagicDefense++
-        16 -> cb.baseSpeed++
-    }
-}

@@ -9,7 +9,7 @@ import org.junit.Test
  *
  * 覆盖：
  * - 死亡 → DEAD
- * - 三种受保护状态（REFLECTING / ON_MISSION / REFINING）不被覆盖
+ * - 两种受保护状态（REFLECTING / ON_MISSION）不被覆盖
  * - 所有 13 种槽位类型按优先级推导
  * - 无分配 → IDLE
  * - 多槽位同时占用时按优先级取第一个
@@ -102,30 +102,6 @@ class DiscipleStatusServiceTest {
                 currentStatus = DiscipleStatus.ON_MISSION,
                 slotFlags = DiscipleStatusService.SlotFlags(studying = true, patrolling = true),
                 hasActiveMission = true
-            )
-        )
-    }
-
-    @Test
-    fun `deriveDiscipleStatus - REFINING is preserved`() {
-        assertEquals(
-            DiscipleStatus.REFINING,
-            DiscipleStatusService.deriveDiscipleStatus(
-                isAlive = true,
-                currentStatus = DiscipleStatus.REFINING,
-                slotFlags = DiscipleStatusService.SlotFlags()
-            )
-        )
-    }
-
-    @Test
-    fun `deriveDiscipleStatus - REFINING preserved even with slot assignments`() {
-        assertEquals(
-            DiscipleStatus.REFINING,
-            DiscipleStatusService.deriveDiscipleStatus(
-                isAlive = true,
-                currentStatus = DiscipleStatus.REFINING,
-                slotFlags = DiscipleStatusService.SlotFlags(managing = true)
             )
         )
     }

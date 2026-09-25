@@ -251,7 +251,7 @@ object ActionIds {
     /** 年龄区间 + 境界寿元 ±10% 波动 */
     const val REDEEM_RESOLVE_AGE_LIFESPAN: Int = 1436
 
-    /** 灵根阶梯属性掷点 + 避开哨兵 50 */
+    /** 【已退役，编号禁复用（G04 下架资质哨兵生成 op）】灵根阶梯属性掷点 + 避开哨兵 50 */
     const val REDEEM_ROLL_SKILLS: Int = 1437
 
     /** 属性方差生成（-50..50） */
@@ -383,16 +383,16 @@ object ActionIds {
     /** 【已退役，编号禁复用】仓库驻守分配 */
     const val WAREHOUSE_GARRISON_TX: Int = 1612
 
-    /** 洗炼灵根（先扣玉符后抽取：保底/双灵根判定+元素洗牌，SYSTEM 分区） */
+    /** 【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】洗炼灵根（先扣玉符后抽取：保底/双灵根判定+元素洗牌，SYSTEM 分区） */
     const val SPIRIT_ROOT_WASH_TX: Int = 1613
 
-    /** 新增特质刷新（上限/候选预检+扣玉符+品阶抽取+pending 落盘，SYSTEM 分区） */
+    /** 【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】新增特质刷新（上限/候选预检+扣玉符+品阶抽取+pending 落盘，SYSTEM 分区） */
     const val TRAIT_ADD_ROLL_TX: Int = 1614
 
-    /** 新增特质确认（上限/合法性校验+追加+checkpoint+清 pending，零 RNG） */
+    /** 【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】新增特质确认（上限/合法性校验+追加+checkpoint+清 pending，零 RNG） */
     const val TRAIT_ADD_CONFIRM_TX: Int = 1615
 
-    /** 特质单槽洗炼（目标校验+排除集+扣玉符+保底/品阶抽取，SYSTEM 分区） */
+    /** 【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】特质单槽洗炼（目标校验+排除集+扣玉符+保底/品阶抽取，SYSTEM 分区） */
     const val TRAIT_WASH_SLOT_TX: Int = 1616
 
     /** 【已退役，编号禁复用】招募列表移除条目（按 id 过滤幂等，零 RNG） */
@@ -503,10 +503,10 @@ object ActionIds {
     /** 设置项字段补丁（17 字段通用：bool 开关 + Int 集，未知字段失败零写入，零 RNG） */
     const val SETTINGS_PATCH_TX: Int = 1731
 
-    /** 洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符） */
+    /** 【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符） */
     const val SPIRIT_ROOT_WASH_CONFIRM_TX: Int = 1732
 
-    /** 特质单槽确认替换（三态判定 → 替换 + checkpoint，零 RNG/零玉符） */
+    /** 【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】特质单槽确认替换（三态判定 → 替换 + checkpoint，零 RNG/零玉符） */
     const val TRAIT_WASH_CONFIRM_TX: Int = 1733
 
     /** 开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin） */
@@ -530,7 +530,7 @@ object ActionIds {
     /** 功法替换事务（七链校验+堆叠扣减+实例铸造+熟练度清理+旧实例入袋+替换日志草稿） */
     const val DISCIPLE_OP_REPLACE_MANUAL: Int = 1745
 
-    /** 血炼启动原子事务（灵石/材料/排他校验链+11类槽位清理+进度写入+REFINING状态） */
+    /** 【已退役，编号禁复用（G04 下架血炼玩法）】血炼启动原子事务（灵石/材料/排他校验链+11类槽位清理+进度写入+REFINING状态） */
     const val DISCIPLE_OP_START_BLOOD_REFINEMENT: Int = 1746
 
     /** 单弟子状态派生同步事务（14 flag推导+positionName定向写删——派生列唯一计算方） */
@@ -542,7 +542,7 @@ object ActionIds {
     /** 【已退役，编号禁复用】婚姻拒绝事务（道侣配对链下线） */
     const val DISCIPLE_LIFECYCLE_MARRY_REJECT: Int = 1750
 
-    /** 建筑拆除/没收槽位清扫事务（十类槽位按槽组清除+长老殿末座判定+监牢/任务阁特例+REFINING破除；槽组知识由Kotlin组装传入） */
+    /** 建筑拆除/没收槽位清扫事务（十类槽位按槽组清除+长老殿末座判定+监牢/任务阁特例；槽组知识由Kotlin组装传入） */
     const val BUILDING_RESIDUAL_CLEAR: Int = 1810
 
     /** 建筑放置槽位派生事务（SlotGroup.createSlots写段等价：八集合建槽+每塔一份PatrolConfig；生产槽id由Kotlin UUID生成传入） */

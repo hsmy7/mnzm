@@ -514,8 +514,7 @@ inline gamecore::battle::Combatant discipleToCombatant(
         const Disciple& d,
         const std::map<std::string, EquipmentInstance>& equipmentMap,
         const std::map<std::string, ManualInstance>& manualMap,
-        const std::map<std::string, std::map<std::string, ManualProficiencyData>>& proficiencies,
-        const gamecore::state::BloodRefinementPctTotal* bloodRefinementPct) {
+        const std::map<std::string, std::map<std::string, ManualProficiencyData>>& proficiencies) {
     // Kotlin：manualProficiencies[disciple.id] ?: emptyMap()（嵌套 map 按弟子 id 索引）
     static const std::map<std::string, ManualProficiencyData> kEmpty;
     const auto profIt = proficiencies.find(d.id);
@@ -523,7 +522,7 @@ inline gamecore::battle::Combatant discipleToCombatant(
         profIt == proficiencies.end() ? kEmpty : profIt->second;
 
     const auto stats = gamecore::stats::finalStats(
-        d, equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct);
+        d, equipmentMap, manualMap, discipleProficiencies);
 
     // 技能：manualIds.mapNotNull { manual → manual.skill + 熟练度倍率 }
     std::vector<gamecore::battle::CombatSkill> skills;
@@ -576,22 +575,6 @@ inline gamecore::battle::Combatant discipleToCombatant(
     c.realmLayer = d.realmLayer;
     c.element = element;
 
-    // 体质/词条独立乘算因子（Kotlin getPhysiqueEffects / getAffixCombatEffects）
-    const auto physique = gamecore::stats::physiqueEffectsFor(d.physiqueIds);
-    c.physique.damageAmplification = physique.damageAmplification;
-    c.physique.critDamageBonus = physique.critDamageBonus;
-    c.physique.damageReduction = physique.damageReduction;
-    c.physique.defenseBonus = physique.defenseBonus;
-    const auto affixEffects =
-        gamecore::stats::affixEffectsFor(d.affixIds);
-    c.affix.damageAmplification =
-        gamecore::stats::effectValue(affixEffects, "damageAmplification");
-    c.affix.critDamageBonus =
-        gamecore::stats::effectValue(affixEffects, "critDamageBonus");
-    c.affix.damageReduction =
-        gamecore::stats::effectValue(affixEffects, "damageReduction");
-    c.affix.defenseBonus =
-        gamecore::stats::effectValue(affixEffects, "defenseBonus");
     return c;
 }
 
@@ -602,14 +585,11 @@ inline gamecore::battle::BattleState createBeastBattle(
         const std::map<std::string, EquipmentInstance>& equipmentMap,
         const std::map<std::string, ManualInstance>& manualMap,
         const std::map<std::string, std::map<std::string, ManualProficiencyData>>& proficiencies,
-        const std::map<std::string, gamecore::state::BloodRefinementPctTotal>& bloodRefinementMap,
         int32_t beastLevel, int32_t beastCount) {
     gamecore::battle::BattleState state;
     for (const auto& d : disciples) {
-        const auto br = bloodRefinementMap.find(d.id);
         state.team.push_back(discipleToCombatant(
-            d, equipmentMap, manualMap, proficiencies,
-            br == bloodRefinementMap.end() ? nullptr : &br->second));
+            d, equipmentMap, manualMap, proficiencies));
     }
     const int32_t beastRealm = std::min(std::max(beastLevel, 0), 9);
     const int32_t actualCount = std::max(beastCount, 1);
@@ -947,7 +927,6 @@ inline MissionBattleOutcome executeMissionBattle(
         const std::map<std::string, EquipmentInstance>& equipmentMap,
         const std::map<std::string, ManualInstance>& manualMap,
         const std::map<std::string, std::map<std::string, ManualProficiencyData>>& proficiencies,
-        const std::map<std::string, gamecore::state::BloodRefinementPctTotal>& bloodRefinementMap,
         rng::DeterministicRng& missionRng,
         rng::DeterministicRng& battleRng,
         rng::DeterministicRng& enemyRng) {
@@ -960,7 +939,7 @@ inline MissionBattleOutcome executeMissionBattle(
         const int32_t beastCount = (4 + 10) / 2;
         const int32_t beastRealm = (realmMin + realmMax) / 2;
         battle = detail::createBeastBattle(
-            disciples, equipmentMap, manualMap, proficiencies, bloodRefinementMap,
+            disciples, equipmentMap, manualMap, proficiencies,
             beastRealm, beastCount);
     } else {
         // humanCount = range.first + MISSION nextInt(range 尺寸)——注意该抽取
@@ -970,10 +949,8 @@ inline MissionBattleOutcome executeMissionBattle(
         auto enemies = detail::generateHumanEnemies(realmMin, realmMax, humanCount, enemyRng);
         battle.maxTurns = gamecore::battle::kMaxTurns;
         for (const auto& d : disciples) {
-            const auto br = bloodRefinementMap.find(d.id);
             battle.team.push_back(detail::discipleToCombatant(
-                d, equipmentMap, manualMap, proficiencies,
-                br == bloodRefinementMap.end() ? nullptr : &br->second));
+                d, equipmentMap, manualMap, proficiencies));
         }
         battle.beasts = std::move(enemies);
     }
@@ -1013,7 +990,6 @@ inline MissionCompletionOutcome completeSingleMission(
         const std::map<std::string, EquipmentInstance>& equipmentMap,
         const std::map<std::string, ManualInstance>& manualMap,
         const std::map<std::string, std::map<std::string, ManualProficiencyData>>& proficiencies,
-        const std::map<std::string, gamecore::state::BloodRefinementPctTotal>& bloodRefinementMap,
         rng::DeterministicRng& missionRng,
         rng::DeterministicRng& battleRng,
         rng::DeterministicRng& enemyRng) {
@@ -1031,7 +1007,7 @@ inline MissionCompletionOutcome completeSingleMission(
     if (mission.missionType == "COMBAT_REQUIRED") {
         const auto battle = executeMissionBattle(
             mission, aliveDisciples, equipmentMap, manualMap, proficiencies,
-            bloodRefinementMap, missionRng, battleRng, enemyRng);
+            missionRng, battleRng, enemyRng);
         if (!battle.victory) {
             // 失败臂：空奖励（Kotlin 失败臂 MissionResult(victory=false)
             // 也进 rewards 收集——任务消费、无幸存者、无物品/灵石）
@@ -1057,7 +1033,7 @@ inline MissionCompletionOutcome completeSingleMission(
     }
     const auto battle = executeMissionBattle(
         mission, aliveDisciples, equipmentMap, manualMap, proficiencies,
-        bloodRefinementMap, missionRng, battleRng, enemyRng);
+        missionRng, battleRng, enemyRng);
     if (!battle.victory) {
         out.consumed = true;   // 失败臂消费（同 COMBAT_REQUIRED）
         return out;
@@ -1146,9 +1122,6 @@ inline void processCompletedMissions(GameState& state, rng::RngManager& rng) {
         }
         proficiencies.emplace(discipleId, std::move(byManualId));
     }
-    // 血炼百分比 map（Kotlin bloodRefinementPctTotals）
-    const std::map<std::string, gamecore::state::BloodRefinementPctTotal>&
-        bloodRefinementMap = state.gameData.bloodRefinementPctTotals;
 
     auto& ds = state.disciples;
     std::vector<ActiveMission> remainingActive;
@@ -1169,7 +1142,7 @@ inline void processCompletedMissions(GameState& state, rng::RngManager& rng) {
         try {
             auto outcome = detail::completeSingleMission(
                 activeMission, aliveDisciples, equipmentMap, manualMap,
-                proficiencies, bloodRefinementMap, missionRng, battleRng, enemyRng);
+                proficiencies, missionRng, battleRng, enemyRng);
             if (outcome.consumed) {
                 outcome.discipleIdsConsumed = activeMission.discipleIds;
                 rewardsToApply.push_back(std::move(outcome));

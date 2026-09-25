@@ -44,7 +44,7 @@ import org.junit.Test
  * + ai-3 有存活弟子 → 子事件 16 派遣 1 队。
  * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/
  * worldLevels 空（precomputeTargets 纯早退）/ spiritFieldPlants 空 /
- * activeBloodRefinements 空 / 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
+ * 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */

@@ -129,7 +129,7 @@ export const CATALOG = [
   { id: 1434, name: 'REDEEM_VALIDATE_INPUT', desc: '兑换码格式校验（trim/长度/字符集）' },
   { id: 1435, name: 'REDEEM_ROLL_SPIRIT_ROOT', desc: '灵根类型解析（配置/数量随机/权重生成 + java.util.Random 洗牌）' },
   { id: 1436, name: 'REDEEM_RESOLVE_AGE_LIFESPAN', desc: '年龄区间 + 境界寿元 ±10% 波动' },
-  { id: 1437, name: 'REDEEM_ROLL_SKILLS', desc: '灵根阶梯属性掷点 + 避开哨兵 50' },
+  { id: 1437, name: 'REDEEM_ROLL_SKILLS', desc: '【已退役，编号禁复用（G04 下架资质哨兵生成 op）】灵根阶梯属性掷点 + 避开哨兵 50' },
   { id: 1438, name: 'REDEEM_GENERATE_VARIANCE', desc: '属性方差生成（-50..50）' },
   { id: 1439, name: 'MAIL_ATTACHMENT_ENCODE', desc: '邮件附件列表 → JSON 字符串（kotlinx 对齐）' },
 
@@ -210,16 +210,16 @@ export const CATALOG = [
   { id: 1593, name: 'DISCIPLE_LIFECYCLE_RELEASE_REFLECTION', desc: '【已退役，编号禁复用】释放思过事务' },
   { id: 1594, name: 'DISCIPLE_LIFECYCLE_SALARY_TOGGLE', desc: '境界年俸开关事务（yearlySalaryEnabled[realm]覆写，无校验）' },
 
-  // ── 弟子管理三：任命/洗炼消耗族（batch-15——appointment_tx.h；
-  //    长老单值槽零 RNG 纯事务，洗炼三族含玉符消耗（C++ 承扣）
-  //    与 SYSTEM 分区抽取，失败臂零写入零抽取，Kotlin 回退原路径）──
+  // ── 弟子管理三：任命/卸任族（batch-15——appointment_tx.h；
+  //    长老单值槽零 RNG 纯事务，失败臂零写入，Kotlin 回退原路径；
+  //    1613–1616 洗炼/特质族已退役，编号保留在册禁复用）──
   { id: 1610, name: 'ELDER_APPOINT_TX', desc: '长老单值槽任命（存在/存活校验+全槽清理+槽位字段写+亲传列表清空，回传被顶替者）' },
   { id: 1611, name: 'ELDER_DISMISS_TX', desc: '长老单值槽卸任（槽位字段清空+亲传列表清空，回传被卸任者）' },
   { id: 1612, name: 'WAREHOUSE_GARRISON_TX', desc: '【已退役，编号禁复用】仓库驻守分配' },
-  { id: 1613, name: 'SPIRIT_ROOT_WASH_TX', desc: '洗炼灵根（先扣玉符后抽取：保底/双灵根判定+元素洗牌，SYSTEM 分区）' },
-  { id: 1614, name: 'TRAIT_ADD_ROLL_TX', desc: '新增特质刷新（上限/候选预检+扣玉符+品阶抽取+pending 落盘，SYSTEM 分区）' },
-  { id: 1615, name: 'TRAIT_ADD_CONFIRM_TX', desc: '新增特质确认（上限/合法性校验+追加+checkpoint+清 pending，零 RNG）' },
-  { id: 1616, name: 'TRAIT_WASH_SLOT_TX', desc: '特质单槽洗炼（目标校验+排除集+扣玉符+保底/品阶抽取，SYSTEM 分区）' },
+  { id: 1613, name: 'SPIRIT_ROOT_WASH_TX', desc: '【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】洗炼灵根（先扣玉符后抽取：保底/双灵根判定+元素洗牌，SYSTEM 分区）' },
+  { id: 1614, name: 'TRAIT_ADD_ROLL_TX', desc: '【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】新增特质刷新（上限/候选预检+扣玉符+品阶抽取+pending 落盘，SYSTEM 分区）' },
+  { id: 1615, name: 'TRAIT_ADD_CONFIRM_TX', desc: '【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】新增特质确认（上限/合法性校验+追加+checkpoint+清 pending，零 RNG）' },
+  { id: 1616, name: 'TRAIT_WASH_SLOT_TX', desc: '【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】特质单槽洗炼（目标校验+排除集+扣玉符+保底/品阶抽取，SYSTEM 分区）' },
 
   // ── 招募/派遣/俘虏残余族（batch-16——recruit_tx.h；招募列表 UI 直调点
   //    入 C++：移除/老化净化零 RNG 纯事务，刷新复用 year_settlement 候选
@@ -335,14 +335,9 @@ export const CATALOG = [
   { id: 1731, name: 'SETTINGS_PATCH_TX', desc: '设置项字段补丁（17 字段通用：bool 开关 + Int 集，未知字段失败零写入，零 RNG）' },
 
   // ── 弟子管理残差 confirm 两入口（batch-24——appointment_tx.h 追加事务；
-  //    ui-read-surface §4.1「弟子管理」残余最后一项。两入口为**纯数据写**：
-  //    灵根替换（校验串合法性 → 覆盖写 → checkpoint）与特质单槽替换
-  //    （三态判定 → 替换 + lifespan 同步 → checkpoint）——**零玉符、零 RNG**
-  //    （与 batch-15 已下沉的 roll 族分离：roll 扣玉符+抽取在 1613/1615/1616，
-  //    confirm 只做数据落地）。失败零写入 → Kotlin 回退臂重执行校验链
-  //    （用户可见文案由 Kotlin 臂产出：弟子不存在/已死亡/该特质已不存在））──
-  { id: 1732, name: 'SPIRIT_ROOT_WASH_CONFIRM_TX', desc: '洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符）' },
-  { id: 1733, name: 'TRAIT_WASH_CONFIRM_TX', desc: '特质单槽确认替换（三态判定 → 替换 + checkpoint，零 RNG/零玉符）' },
+  //    1732/1733 已退役（G04 下架灵根洗炼/特质事务），编号保留在册禁复用）──
+  { id: 1732, name: 'SPIRIT_ROOT_WASH_CONFIRM_TX', desc: '【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符）' },
+  { id: 1733, name: 'TRAIT_WASH_CONFIRM_TX', desc: '【已退役，编号禁复用（G04 下架灵根洗炼/特质事务）】特质单槽确认替换（三态判定 → 替换 + checkpoint，零 RNG/零玉符）' },
 
   // ── 开袋抽签事务（ADR rng-determinism-remediation 阶段 1①——
   //    ui-read-surface §4.3 残余域「库存开袋」收口）──

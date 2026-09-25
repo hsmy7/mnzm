@@ -11,13 +11,12 @@
 // 弟子槽位清理
 //
 // 等价移植 Kotlin DiscipleSlotCleanup.clearAllSlotsDataOnly 的**纯数据变换**
-// （11 类槽位统一清理，无 RNG、无状态）：
+// （10 类槽位统一清理，无 RNG、无状态）：
 //   - spiritMineSlots / librarySlots / patrolSlots：
 //     匹配弟子 → 清空 discipleId/discipleName
 //   - elderSlots：10 个长老单值字段 + 7 个 DirectDiscipleSlot 列表
 //     （匹配槽位降级为 DirectDiscipleSlot(index)，保留槽位索引）
 //   - residenceSlots：includeResidence 时清空（工作分配保留住所语义）
-//   - activeBloodRefinements：移除该弟子的进行中血炼记录
 //   - battleTeams：槽位清空 + isAlive=true
 //   - worldMapSects：玩家宗门 garrisonSlots 清空（GarrisonSlot(index) 保留索引）
 //   - productionSlots：assignedDiscipleId → null + 名称清空
@@ -30,13 +29,12 @@
 // ============================================================
 namespace gamecore::system {
 
-/// 槽位清理输入（对应 GameData 11 类槽位集合）
+/// 槽位清理输入（对应 GameData 10 类槽位集合）
 struct SlotCleanupInput {
     std::vector<state::SpiritMineSlot> spiritMineSlots;
     std::vector<state::LibrarySlot> librarySlots;
     state::ElderSlots elderSlots;
     std::vector<state::ResidenceSlot> residenceSlots;
-    std::map<std::string, state::BloodRefinementProgress> activeBloodRefinements;
     std::vector<state::PatrolSlot> patrolSlots;
     std::vector<state::BattleTeam> battleTeams;
     std::vector<state::WorldSect> worldMapSects;
@@ -51,7 +49,6 @@ struct SlotCleanupResult {
     std::vector<state::LibrarySlot> librarySlots;
     state::ElderSlots elderSlots;
     std::vector<state::ResidenceSlot> residenceSlots;
-    std::map<std::string, state::BloodRefinementProgress> activeBloodRefinements;
     std::vector<state::PatrolSlot> patrolSlots;
     std::vector<state::BattleTeam> battleTeams;
     std::vector<state::WorldSect> worldMapSects;
@@ -238,13 +235,7 @@ inline SlotCleanupResult clearAllSlotsDataOnly(const SlotCleanupInput& in,
     } else {
         out.residenceSlots = in.residenceSlots;
     }
-    // 4. 血炼进度（移除该弟子条目；原地修改语义保留）
-    for (const auto& [key, progress] : in.activeBloodRefinements) {
-        if (progress.discipleId != discipleId) {
-            out.activeBloodRefinements[key] = progress;
-        }
-    }
-    // 5. 战斗队伍槽位（清空 + isAlive=true）
+    // 4. 战斗队伍槽位（清空 + isAlive=true）
     for (const auto& t : in.battleTeams) {
         state::BattleTeam team = t;
         for (auto& slot : team.slots) {
@@ -256,7 +247,7 @@ inline SlotCleanupResult clearAllSlotsDataOnly(const SlotCleanupInput& in,
         }
         out.battleTeams.push_back(std::move(team));
     }
-    // 6. 世界地图宗门驻防（仅玩家宗门；清空 → GarrisonSlot(index) 保留索引）
+    // 5. 世界地图宗门驻防（仅玩家宗门；清空 → GarrisonSlot(index) 保留索引）
     for (const auto& s : in.worldMapSects) {
         state::WorldSect sect = s;
         if (sect.isPlayerSect) {
@@ -274,7 +265,7 @@ inline SlotCleanupResult clearAllSlotsDataOnly(const SlotCleanupInput& in,
         }
         out.worldMapSects.push_back(std::move(sect));
     }
-    // 7. 生产槽位（assignedDiscipleId → null + 名称清空）
+    // 6. 生产槽位（assignedDiscipleId → null + 名称清空）
     for (const auto& s : in.productionSlots) {
         state::ProductionSlot slot = s;
         if (slot.assignedDiscipleId.has_value() &&
@@ -284,11 +275,11 @@ inline SlotCleanupResult clearAllSlotsDataOnly(const SlotCleanupInput& in,
         }
         out.productionSlots.push_back(std::move(slot));
     }
-    // 8. 洞府探索队
+    // 7. 洞府探索队
     for (const auto& t : in.caveExplorationTeams) {
         out.caveExplorationTeams.push_back(clearCaveExplorationTeam(t, discipleId));
     }
-    // 9. 悬赏任务（成员过滤）
+    // 8. 悬赏任务（成员过滤）
     for (const auto& m : in.activeMissions) {
         out.activeMissions.push_back(clearActiveMission(m, discipleId));
     }

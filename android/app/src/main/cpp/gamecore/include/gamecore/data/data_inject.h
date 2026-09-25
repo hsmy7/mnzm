@@ -12,7 +12,6 @@
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/recipe_db.h"
-#include "gamecore/data/trait_db.h"
 
 // ============================================================
 // 数据文件 → C++ DB 容器 注入映射（B16 / R6.2）
@@ -43,9 +42,6 @@ struct AppliedCounts {
     int32_t beastMaterials = 0;
     int32_t forgeRecipes = 0;
     int32_t pillRecipes = 0;
-    int32_t talents = 0;
-    int32_t physiques = 0;
-    int32_t affixes = 0;
 };
 
 /// 逐段应用；返回 false 表示注入失败（调用方落兜底，容器保持默认）
@@ -115,25 +111,6 @@ inline bool applyGameData(const nlohmann::json& doc) {
         pillRecipesMutable() = std::move(rows);
     }
 
-    // ── 天赋 / 体质 / 词条 ──────────────────────────────────
-    // 依赖顺序：中性源为单文件聚合 JSON（trait 段的展开依赖已由 C++ build*
-    // 兜底承担，注入为整表替换，无跨段读取）⇒ 顺序仅按文件段落排布。
-    if (db.contains("talents")) {
-        if (!db["talents"].is_array() || db["talents"].empty()) return false;
-        auto rows = db["talents"].get<std::vector<TalentTemplate>>();
-        talentTemplatesMutable() = std::move(rows);
-    }
-    if (db.contains("physiques")) {
-        if (!db["physiques"].is_array() || db["physiques"].empty()) return false;
-        auto rows = db["physiques"].get<std::vector<PhysiqueTemplate>>();
-        physiqueTemplatesMutable() = std::move(rows);
-    }
-    if (db.contains("affixes")) {
-        if (!db["affixes"].is_array() || db["affixes"].empty()) return false;
-        auto rows = db["affixes"].get<std::vector<AffixTemplate>>();
-        affixTemplatesMutable() = std::move(rows);
-    }
-
     return true;
 }
 
@@ -148,9 +125,6 @@ inline AppliedCounts applyAndCount(const nlohmann::json& doc) {
     c.beastMaterials = static_cast<int32_t>(beastMaterialTemplates().size());
     c.forgeRecipes = static_cast<int32_t>(forgeRecipes().size());
     c.pillRecipes = static_cast<int32_t>(pillRecipes().size());
-    c.talents = static_cast<int32_t>(talentTemplates().size());
-    c.physiques = static_cast<int32_t>(physiqueTemplates().size());
-    c.affixes = static_cast<int32_t>(affixTemplates().size());
     return c;
 }
 

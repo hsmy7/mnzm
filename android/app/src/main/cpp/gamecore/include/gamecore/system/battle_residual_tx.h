@@ -41,7 +41,7 @@
 //     = CultivationService.forceSettleDisciplesBeforeBattle →
 //     DiscipleBreakthroughHandler.processRealtimeBreakthroughs：
 //     候选 = **传入队伍 id 集**内（存活 ∧ realm>0 ∧ 修为满 ∧ 满血蓝——
-//     phase_settlement::isFullHpMp 含装备/功法/血炼口径，映射由事务入口
+//     phase_settlement::isFullHpMp 含装备/功法口径，映射由事务入口
 //     一次构建传入）→ 逐候选
 //     performBreakthrough（自动嗑丹/引导计数/检查点/完成预估/精准写回——
 //     phase_settlement 已验证移植）→ 亲属赠送（SYSTEM 分区）→
@@ -109,7 +109,7 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
     if (deadSet.empty()) return out;
 
     // 幸存者回写预计算（Kotlin computeSurvivorUpdates——**先于**重伤写读列：
-    // 钳制上限经 assemble/stats::getMaxHpMp 含血炼口径；⚠ Kotlin 计算出的
+    // 钳制上限经 assemble/stats::getMaxHpMp 口径；⚠ Kotlin 计算出的
     // updatedStatus（IN_TEAM/GARRISONING→IDLE）从未写回（applySurvivorHpMp
     // Updates 只写 HP/MP）——本事务同口径不写状态列）。R1.3 第二步：实例
     // 映射 = owner 行索引桶视图（免 id 键全量深拷贝）。
@@ -129,10 +129,8 @@ inline BattleCasualtyOutcome settleBattleCasualtiesTx(
         int32_t finalMaxHp = 0;
         int32_t finalMaxMp = 0;
         gamecore::stats::getMaxHpMp(
-            d, *rowOpt,
-            gamecore::system::detail::findBloodRefinementPct(gd, memberId),
-            eqBuckets, mnBuckets, gd.manualProficiencies, finalMaxHp,
-            finalMaxMp);
+            d, *rowOpt, eqBuckets, mnBuckets, gd.manualProficiencies,
+            finalMaxHp, finalMaxMp);
         const auto mpIt = survivorMpMap.find(memberId);
         const int32_t mp = mpIt != survivorMpMap.end()
                                ? mpIt->second

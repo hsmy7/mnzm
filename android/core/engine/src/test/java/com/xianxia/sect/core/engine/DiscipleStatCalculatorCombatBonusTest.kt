@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
@@ -25,7 +24,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroug
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleRealmGap
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
-import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
 
 /** DiscipleStatCalculatorTest 拆分（LC>800 行）：60 个用例随 fixture 迁出，行为零变更。 */
 class DiscipleStatCalculatorCombatBonusTest {
@@ -41,10 +39,6 @@ class DiscipleStatCalculatorCombatBonusTest {
                 DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) =
                 DiscipleStatCalculator.getBaseStats(aggregate)
-            override fun getTalentEffects(disciple: Disciple) =
-                DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) =
-                DiscipleStatCalculator.getTalentEffects(aggregate)
             override fun getStatsWithEquipment(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>
             ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
@@ -55,19 +49,17 @@ class DiscipleStatCalculatorCombatBonusTest {
                 disciple: Disciple,
                 equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStatCalculator.getFinalStats(
-                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+                disciple, equipments, manuals, manualProficiencies
             )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate,
                 equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStatCalculator.getFinalStats(
-                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+                aggregate, equipments, manuals, manualProficiencies
             )
             override fun calculateCultivationSpeed(
                 disciple: Disciple,
@@ -142,10 +134,8 @@ class DiscipleStatCalculatorCombatBonusTest {
         intelligence: Int = 50,
         charm: Int = 50,
         comprehension: Int = 50,
-        aptitude: Int = 50,
         teaching: Int = 50,
         morality: Int = 50,
-        talentIds: List<String> = emptyList(),
         manualIds: List<String> = emptyList(),
         weaponId: String = "",
         armorId: String = "",
@@ -166,7 +156,6 @@ class DiscipleStatCalculatorCombatBonusTest {
         return Disciple(
             realm = realm,
             realmLayer = realmLayer,
-            talentIds = talentIds,
             manualIds = manualIds,
             spiritRootType = spiritRootType,
             combat = CombatAttributes(
@@ -194,7 +183,6 @@ class DiscipleStatCalculatorCombatBonusTest {
                 intelligence = intelligence,
                 charm = charm,
                 comprehension = comprehension,
-                aptitude = aptitude,
                 teaching = teaching,
                 morality = morality
             ),
@@ -251,12 +239,6 @@ class DiscipleStatCalculatorCombatBonusTest {
             qingyunPreachingMasters = listOf(master)
         )
         assertEquals(0.0, bonus, 0.001)
-    }
-    @Test
-    fun `getTalentEffects - 无天赋返回空map`() {
-        val disciple = createDisciple(talentIds = emptyList())
-        val effects = DiscipleStatCalculator.getTalentEffects(disciple)
-        assertNotNull(effects)
     }
     @Test
     fun `getStatsWithEquipment - 无装备时与基础属性一致`() {
@@ -507,108 +489,6 @@ class DiscipleStatCalculatorCombatBonusTest {
         assertEquals(0.03, bothDetail.outerElderBonus, 0.001)
     }
 
-    // ── 血炼加成进入战斗属性 ──
-    // 血炼百分比经 getFinalStats→getBaseStats 的 bloodRefinementPct 参数计入战斗属性。
-    @Test
-    fun `getFinalStats - 血炼加成计入战斗属性`() {
-        val disciple = createDisciple()
-        val bloodRefinement = BloodRefinementPctTotal(
-            discipleId = "1",
-            hpBonusPct = 0.30,
-            physicalAttackBonusPct = 0.50,
-            physicalDefenseBonusPct = 0.40,
-            speedBonusPct = 0.20
-        )
-        val base = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
-        val withBr = DiscipleStatCalculator.getFinalStats(
-            disciple, emptyMap(), emptyMap(), bloodRefinementPct = bloodRefinement
-        )
-        // realm 9 基础（无天赋/方差/层数加成）：物攻 16、物防 13、速度 15、气血 203
-        assertEquals(16, base.physicalAttack)
-        assertEquals(24, withBr.physicalAttack) // 16 × (1 + 0.50)
-        assertEquals(13, base.physicalDefense)
-        assertEquals(18, withBr.physicalDefense) // 13 × 1.4 = 18.2 → 18
-        assertEquals(15, base.speed)
-        assertEquals(18, withBr.speed) // 15 × 1.2
-        assertEquals(203, base.maxHp)
-        assertEquals(264, withBr.maxHp) // 203 × 1.3 = 263.9 → 264
-    }
-    @Test
-    fun `getFinalStats - 血炼加成与天赋同乘区加算`() {
-        val disciple = createDisciple(talentIds = listOf("r1_bat_hp"))
-        // r1_bat_hp 天赋（体健）提供 maxHp +10%（与血炼 hpBonusPct 同乘区加算）
-        val bloodRefinement = BloodRefinementPctTotal(discipleId = "1", hpBonusPct = 0.30)
-        val withTalent = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
-        val withTalentAndBr = DiscipleStatCalculator.getFinalStats(
-            disciple, emptyMap(), emptyMap(), bloodRefinementPct = bloodRefinement
-        )
-        // 203 × (1 + 0.10) = 223.3 → 223（仅天赋）
-        assertEquals(223, withTalent.maxHp)
-        // 203 × (1 + 0.10 + 0.30) = 284.2 → 284（天赋+血炼同乘区加算，而非乘算 203×1.1×1.3=290）
-        assertEquals(284, withTalentAndBr.maxHp)
-    }
-    @Test
-    fun `getFinalStats - 无血炼时行为不变`() {
-        val disciple = createDisciple(realm = 7, realmLayer = 3)
-        val withNull = DiscipleStatCalculator.getFinalStats(
-            disciple, emptyMap(), emptyMap(), bloodRefinementPct = null
-        )
-        val withDefault = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
-        assertEquals("null 与默认参数应完全一致", withDefault, withNull)
-    }
-
-    // ==================== 生产 Flat 天赋加成（3 个生产 key 接线） ====================
-    // computeBaseStats 消费 spiritPlantingFlat/artifactRefiningFlat/pillRefiningFlat，
-    // 洗出"青帝(灵植+18)"等生产 Flat 天赋后面板对应属性立即生效。
-    @Test
-    fun `getBaseStats - 青帝灵植flat加18`() {
-        val raw = DiscipleStatCalculator.getBaseStats(createDisciple()).spiritPlanting
-        val stats = DiscipleStatCalculator.getBaseStats(
-            createDisciple(talentIds = listOf("r3_base_plant"))
-        )
-        assertEquals("青帝(灵植+18)应计入基础属性", raw + 18, stats.spiritPlanting)
-    }
-    @Test
-    fun `getBaseStats - 天工炼器flat加18`() {
-        val raw = DiscipleStatCalculator.getBaseStats(createDisciple()).artifactRefining
-        val stats = DiscipleStatCalculator.getBaseStats(
-            createDisciple(talentIds = listOf("r3_base_arti"))
-        )
-        assertEquals("天工(炼器+18)应计入基础属性", raw + 18, stats.artifactRefining)
-    }
-    @Test
-    fun `getBaseStats - 天丹炼丹flat加18`() {
-        val raw = DiscipleStatCalculator.getBaseStats(createDisciple()).pillRefining
-        val stats = DiscipleStatCalculator.getBaseStats(
-            createDisciple(talentIds = listOf("r3_base_pill"))
-        )
-        assertEquals("天丹(炼丹+18)应计入基础属性", raw + 18, stats.pillRefining)
-    }
-    @Test
-    fun `getBaseStats - 负面flat减6`() {
-        val rawSp = DiscipleStatCalculator.getBaseStats(createDisciple()).spiritPlanting
-        val rawAr = DiscipleStatCalculator.getBaseStats(createDisciple()).artifactRefining
-        val rawPi = DiscipleStatCalculator.getBaseStats(createDisciple()).pillRefining
-        val stats = DiscipleStatCalculator.getBaseStats(
-            createDisciple(talentIds = listOf("neg_base_craft"))
-        )
-        assertEquals("百艺生疏(炼器/炼丹/种植-6)应计入基础属性",
-            rawAr - 6, stats.artifactRefining)
-        assertEquals("百艺生疏(炼器/炼丹/种植-6)应计入基础属性",
-            rawPi - 6, stats.pillRefining)
-        assertEquals("百艺生疏(炼器/炼丹/种植-6)应计入基础属性",
-            rawSp - 6, stats.spiritPlanting)
-    }
-    @Test
-    fun `getBaseStats - 三生产flat同生效互不覆盖`() {
-        val raw = DiscipleStatCalculator.getBaseStats(createDisciple())
-        val stats = DiscipleStatCalculator.getBaseStats(
-            createDisciple(talentIds = listOf("r2_base_arti", "r2_base_pill", "r2_base_plant"))
-        )
-        assertEquals(raw.spiritPlanting + 10, stats.spiritPlanting)
-        assertEquals(raw.artifactRefining + 10, stats.artifactRefining)
-        assertEquals(raw.pillRefining + 10, stats.pillRefining)
-    }
     @Test
     fun `DiscipleStats plus - 生产字段叠加不清零`() {
         // 装备/功法/丹药叠加走 plus（total + it）；漏加新字段会把对应值清零（回归守卫）
@@ -619,50 +499,6 @@ class DiscipleStatCalculatorCombatBonusTest {
         assertEquals("plus 漏加 artifactRefining 会清零", 9, sum.artifactRefining)
         assertEquals("plus 漏加 pillRefining 会清零", 7, sum.pillRefining)
         assertEquals("既有字段不受影响", 50, sum.intelligence)
-    }
-
-    // ── 资质 → 修炼速度乘区（80 基准每点+1% 最多+40%）──
-    @Test
-    fun `calculateCultivationPerPhase - 资质80无加成`() {
-        val disciple = createDisciple(aptitude = 80)
-        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
-        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
-        assertEquals(base, speed, 0.001)
-    }
-    @Test
-    fun `calculateCultivationPerPhase - 资质81加成1percent`() {
-        val disciple = createDisciple(aptitude = 81)
-        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
-        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
-        assertEquals(base * 1.01, speed, 0.001)
-    }
-    @Test
-    fun `calculateCultivationPerPhase - 资质120加成40percent封顶`() {
-        val disciple = createDisciple(aptitude = 120)
-        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
-        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
-        assertEquals(base * 1.40, speed, 0.001)
-    }
-    @Test
-    fun `calculateCultivationPerPhase - 资质200与10000均封顶40percent`() {
-        val speed200 = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 200))
-        val speed10000 = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 10000))
-        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
-        assertEquals(base * 1.40, speed200, 0.001)
-        assertEquals("篡改防御：超大值钳 0.40", base * 1.40, speed10000, 0.001)
-    }
-    @Test
-    fun `calculateCultivationPerPhase - 资质低于80与负值无加成`() {
-        val low = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 79))
-        val negative = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = -100))
-        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
-        assertEquals("资质79无加成", base, low, 0.001)
-        assertEquals("篡改防御：负值归零", base, negative, 0.001)
-    }
-    @Test
-    fun `getBaseStats - 资质进入DiscipleStats`() {
-        val stats = DiscipleStatCalculator.getBaseStats(createDisciple(aptitude = 120))
-        assertEquals(120, stats.aptitude)
     }
 
     // ── 自身悟性 → 突破率 selfBonus（与长老同一公式，乘区内加算）──
@@ -731,12 +567,5 @@ class DiscipleStatCalculatorCombatBonusTest {
                 0.001
             )
         }
-    }
-    @Test
-    fun `DiscipleStats plus - 资质字段叠加不清零`() {
-        val base = DiscipleStats(aptitude = 120)
-        val bonus = DiscipleStats(intelligence = 10)
-        val sum = base + bonus
-        assertEquals("plus 漏加 aptitude 会清零", 120, sum.aptitude)
     }
 }

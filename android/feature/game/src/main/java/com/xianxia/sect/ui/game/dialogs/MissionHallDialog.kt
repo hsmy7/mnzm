@@ -61,7 +61,7 @@ fun MissionHallDialog(
     val activeMissions = gameData?.activeMissions ?: emptyList()
     val currentYear = gameData?.gameYear ?: 1
     val currentMonth = gameData?.gameMonth ?: 1
-    // 执行弟子血条真实血量（含血炼口径，与详情页/引擎一致）：装备/功法实例走 viewModel 订阅
+    // 执行弟子血条真实血量（与详情页/引擎一致）：装备/功法实例走 viewModel 订阅
     val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manualInstances by viewModel.manualInstances.collectAsStateWithLifecycle()
     val equipmentMap = remember(equipmentInstances) { equipmentInstances.associateBy { it.id } }
@@ -72,8 +72,7 @@ fun MissionHallDialog(
                 gameData?.manualProficiencies?.get(d.id)?.associateBy { it.manualId } ?: emptyMap()
             d.id to discipleHpFraction(
                 d, equipmentMap, manualMap,
-                discipleProficiencies,
-                gameData?.bloodRefinementPctTotals?.get(d.id)
+                discipleProficiencies
             )
         }
     }

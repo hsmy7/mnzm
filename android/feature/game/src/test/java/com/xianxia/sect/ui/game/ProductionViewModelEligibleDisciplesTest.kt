@@ -77,7 +77,6 @@ class ProductionViewModelEligibleDisciplesTest {
         val disciples = listOf(
             createAggregate("idle", status = DiscipleStatus.IDLE),
             createAggregate("patrolling", status = DiscipleStatus.PATROLLING),
-            createAggregate("refining", status = DiscipleStatus.REFINING),
             createAggregate("mission", status = DiscipleStatus.ON_MISSION),
             createAggregate("team", status = DiscipleStatus.IN_TEAM)
         )
@@ -89,10 +88,6 @@ class ProductionViewModelEligibleDisciplesTest {
             assertTrue(
                 "方法[$index] 应包含巡视中在岗弟子（showAll 勾选后可选，预过滤 IDLE 为回归）",
                 "patrolling" in ids
-            )
-            assertTrue(
-                "方法[$index] 应包含血炼中在岗弟子（showAll 勾选后可选，预过滤 IDLE 为回归）",
-                "refining" in ids
             )
             // ON_MISSION / IN_TEAM 由对话框 filterByDiscipleStatus 的 showAll 模式排除，
             // 数据源不在此过滤（与 filterByDiscipleStatus 职责分离）

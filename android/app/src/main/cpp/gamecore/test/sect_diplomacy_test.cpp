@@ -110,18 +110,12 @@ TEST(SectDiplomacyTest, BeastCombatPowerClampsNegative) {
 }
 
 TEST(SectDiplomacyTest, FingerprintDeterministic) {
-    const std::vector<std::string> talents = {"t1", "t2"};
-    const BloodRefinementPctTotalCpp blood = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6};
-    const int32_t a = sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6, talents, &blood);
-    const int32_t b = sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6, talents, &blood);
+    const int32_t a = sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6);
+    const int32_t b = sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6);
     EXPECT_EQ(a, b);
     // 任一字段变化 → 指纹变化
-    EXPECT_NE(a, sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 7, talents, &blood));
-    EXPECT_NE(a, sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6, {"t1"}, &blood));
-    EXPECT_NE(a, sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6, talents, nullptr));
-    // 无血炼与有血炼（全 0）不同（data class 含 6 个 0.0 字段的哈希）
-    const BloodRefinementPctTotalCpp zeroBlood = {};
-    EXPECT_NE(a, sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6, talents, &zeroBlood));
+    EXPECT_NE(a, sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 7));
+    EXPECT_NE(a, sectPowerFingerprint(6, 3, 1, 2, 3, 4, 5, 6));
 }
 
 // ── 品阶时间曲线 ──────────────────────────────────────────────

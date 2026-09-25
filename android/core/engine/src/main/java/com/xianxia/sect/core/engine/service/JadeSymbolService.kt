@@ -277,7 +277,7 @@ class JadeSymbolService @Inject constructor(
     }
 
     /**
-     * 在已有事务内扣除玉符（洗炼灵根等消耗路径）。必须在引擎线程、
+     * 在已有事务内扣除玉符（玉符购买等消耗路径）。必须在引擎线程、
      * 调用方 `stateStore.update` 事务闭包内调用（仿灵石 Wallet 的 deduct 模式）。
      *
      * 必须同步递减运行时 [totalCount]——否则后续 [checkpointNow]/[settleGrants]
@@ -287,8 +287,8 @@ class JadeSymbolService @Inject constructor(
      * 若同事务内 deduct 之后的代码抛出异常导致 update 回滚（GameData 恢复），
      * totalCount 不会自动回滚，余额将与 GameData 不一致（少扣的部分会在
      * checkpoint 时被绝对值覆盖，玩家实际损失该枚玉符）。
-     * 调用方必须保证 deduct 之后的事务代码无异常路径（洗炼在 deduct 后仅执行
-     * 纯函数抽卡 rollSpiritRootWash，不抛异常，满足契约）。
+     * 调用方必须保证 deduct 之后的事务代码无异常路径（玉符购买在 deduct 后
+     * 仅执行纯 copy 写回，不抛异常，满足契约）。
      *
      * @return 是否成功（余额不足或金额非正返回 false，状态不变）
      */

@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
@@ -30,7 +29,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
-import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
 
 
 
@@ -303,18 +301,15 @@ class DiscipleBreakthroughHandler @Inject constructor(
         val isInner = disciple.discipleType == TYPE_INNER
         val isOuter = disciple.discipleType == TYPE_OUTER
 
-        // 长老职务加成（PositionBonus）：从长老弟子的天赋/词条中提取，作为乘算因子作用于长老职能效果
-        // 长老有效悟性 = 基础悟性 + 天赋 Flat（顿悟等加成生效），与 UI 显示口径一致
+        // 长老有效悟性：结算入口已提交视图优先（getBaseStats 口径），live 列兜底；
+        // 职务加成 PositionBonus 数据源已随天赋/词条表下线，恒传 0
+        // （BreakthroughZoneBonusInput 的两个 positionBonus 字段保留，公式形态不变）
         val allDisciples = stateStore.disciples.value.associateBy { it.id }
 
         val innerElderComprehension =
             elderComprehensionFor(disciple, tables, allDisciples, innerElderId, isInner)
         val outerElderComprehension =
             elderComprehensionFor(disciple, tables, allDisciples, outerElderId, isOuter)
-        val innerElderPositionBonus =
-            elderPositionBonusFor(allDisciples, innerElderId, ElderSlotType.INNER_ELDER, isInner)
-        val outerElderPositionBonus =
-            elderPositionBonusFor(allDisciples, outerElderId, ElderSlotType.OUTER_ELDER, isOuter)
 
         val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
 
@@ -334,14 +329,14 @@ class DiscipleBreakthroughHandler @Inject constructor(
             pillBonus = pillBonus,
             adBonus = adBonus,
             masterDiscipleBonus = masterDiscipleBonus,
-            innerElderPositionBonus = innerElderPositionBonus,
-            outerElderPositionBonus = outerElderPositionBonus
+            innerElderPositionBonus = 0.0,
+            outerElderPositionBonus = 0.0
         )
         return rngManager.getRng(RngPartition.BREAKTHROUGH).nextDouble() < chance
     }
 
     /**
-     * 长老有效悟性 = 基础悟性 + 天赋 Flat（顿悟等加成生效），与 UI 显示口径一致；
+     * 长老有效悟性（悟性本体口径），与 UI 显示口径一致；
      * 长老 id 非法/不存活/境界低于突破弟子时无效，取 0。
      */
     private fun elderEffectiveComprehension(
@@ -366,16 +361,4 @@ class DiscipleBreakthroughHandler @Inject constructor(
     ): Int = if (applies && elderId.isNotEmpty()) {
         elderEffectiveComprehension(disciple, tables, allDisciples, elderId)
     } else 0
-
-    /** 长老职务加成输入：弟子类型匹配且长老已任命时取 PositionBonus，否则 0 */
-    private fun elderPositionBonusFor(
-        allDisciples: Map<String, Disciple>,
-        elderId: String,
-        slotType: ElderSlotType,
-        applies: Boolean
-    ): Double = if (applies && elderId.isNotEmpty()) {
-        allDisciples[elderId]?.let { elder ->
-            DiscipleStatCalculator.getPositionEffectBonus(elder, slotType)
-        } ?: 0.0
-    } else 0.0
 }

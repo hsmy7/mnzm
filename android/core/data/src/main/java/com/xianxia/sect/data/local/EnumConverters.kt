@@ -3,7 +3,6 @@ package com.xianxia.sect.data.local
 import androidx.room.TypeConverter
 import com.xianxia.sect.core.model.BattleLogResult
 import com.xianxia.sect.core.model.BattleTeam
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.PatrolConfig
@@ -93,14 +92,4 @@ object EnumConverters {
     @JvmStatic
     fun toPatrolConfig(value: String): PatrolConfig =
         ProtobufConverters.decodeFromBase64(PatrolConfig.serializer(), value) { PatrolConfig() }
-
-    @TypeConverter
-    @JvmStatic
-    fun fromBloodRefinementProgress(value: BloodRefinementProgress): String =
-        ProtobufConverters.encodeToBase64(BloodRefinementProgress.serializer(), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toBloodRefinementProgress(value: String): BloodRefinementProgress =
-        ProtobufConverters.decodeFromBase64(BloodRefinementProgress.serializer(), value) { BloodRefinementProgress() }
 }

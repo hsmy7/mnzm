@@ -2,9 +2,9 @@
 // secret_realm_residual_tx_test — 秘境域残差事务守护（W4-C · w3-08 下沉）
 //
 // 守护目标：secret_realm_residual_tx.h 两事务与 Kotlin 源语义逐位一致——
-//   - secretRealmStartReleaseTx（1800）：11 类槽位清理（含生产槽/长老单值）
-//     + 状态重置（REFLECTING 清思过标记 / REFINING 清 buildingId /
-//     其余 → IDLE）+ 不存在 id 静默跳过 + 零 RNG
+//   - secretRealmStartReleaseTx（1800）：10 类槽位清理（含生产槽/长老单值）
+//     + 状态重置（REFLECTING 清思过标记 / 其余 → IDLE）+ 不存在 id 静默跳过
+//     + 零 RNG
 //   - secretRealmExpiryGuardTx（1801）：未到期成功零写入（expired=false）+
 //     到期关闭状态段（秘境/会话清场 + 冷却年）+ 关闭草稿（成员 + 背包快照
 //     + slotId）+ 零 RNG
@@ -89,13 +89,12 @@ TEST_F(SecretRealmResidualTxFixture, StartReleaseClearsSlotsAndResetsStatus) {
     auto& ds = core_->state().disciples;
     auto& gd = core_->state().gameData;
     const std::size_t reflecting = addDisciple("401");
-    const std::size_t refining = addDisciple("402");
+    const std::size_t studying = addDisciple("402");  // 生产槽占用者（其余状态臂）
     const std::size_t idle = addDisciple("403");
     ds.statuses[reflecting] = "REFLECTING";
     ds.statusData[reflecting]["reflectionStartYear"] = "3";
     ds.statusData[reflecting]["reflectionEndYear"] = "6";
-    ds.statuses[refining] = "REFINING";
-    ds.statusData[refining]["buildingId"] = "forge-1";
+    ds.statuses[studying] = "STUDYING";
     // 槽位面：长老单值 + 灵矿 + 生产
     gd.elderSlots.preachingElder = "401";
     gd.spiritMineSlots.push_back({2, "401", "弟子401"});
@@ -117,9 +116,8 @@ TEST_F(SecretRealmResidualTxFixture, StartReleaseClearsSlotsAndResetsStatus) {
     EXPECT_EQ(ds.statuses[reflecting], "IDLE");
     EXPECT_EQ(ds.statusData[reflecting].count("reflectionStartYear"), 0u);
     EXPECT_EQ(ds.statusData[reflecting].count("reflectionEndYear"), 0u);
-    // 血炼 → 清 buildingId + IDLE
-    EXPECT_EQ(ds.statuses[refining], "IDLE");
-    EXPECT_EQ(ds.statusData[refining].count("buildingId"), 0u);
+    // 其余状态 → IDLE（非 REFLECTING 不触碰 statusData）
+    EXPECT_EQ(ds.statuses[studying], "IDLE");
     // IDLE 保持 IDLE
     EXPECT_EQ(ds.statuses[idle], "IDLE");
     // 槽位清理

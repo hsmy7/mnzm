@@ -7,7 +7,6 @@
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/recipe_db.h"
-#include "gamecore/data/trait_db.h"
 
 // ============================================================
 // 数据文件 ↔ C++ DB 结构体 的 nlohmann 序列化适配（B16 / R6.2）
@@ -303,111 +302,6 @@ inline void to_json(nlohmann::json& j, const PillRecipeTemplate& v) {
                        {"teachingAdd", v.teachingAdd},
                        {"moralityAdd", v.moralityAdd},
                        {"miningAdd", v.miningAdd}};
-}
-
-// ── PositionBonus / Talent / Physique / Affix ────────────────
-// 注：vendored nlohmann 3.11.3 单头不含 std::optional 适配器（全文件零
-// "std::optional" 字样）⇒ positionBonus 手工解析（对象→值，缺失/null→nullopt）。
-inline void from_json(const nlohmann::json& j, PositionBonus& v) {
-    jread(j, "slotType", v.slotType);
-    jread(j, "effectBonus", v.effectBonus);
-}
-inline void to_json(nlohmann::json& j, const PositionBonus& v) {
-    j = nlohmann::json{{"slotType", v.slotType}, {"effectBonus", v.effectBonus}};
-}
-
-namespace detail {
-
-/// `positionBonus` 键的手工解析（std::optional 无 nlohmann 适配器的替代）
-inline void readPositionBonus(const nlohmann::json& j, const char* key,
-                              std::optional<PositionBonus>& out) {
-    if (!j.contains(key) || j.at(key).is_null()) {
-        out = std::nullopt;
-        return;
-    }
-    out = j.at(key).get<PositionBonus>();
-}
-
-inline void writePositionBonus(nlohmann::json& j, const char* key,
-                               const std::optional<PositionBonus>& v) {
-    j[key] = v.has_value() ? nlohmann::json(*v) : nlohmann::json(nullptr);
-}
-
-}  // namespace detail
-
-inline void from_json(const nlohmann::json& j, TalentTemplate& v) {
-    jread(j, "id", v.id);
-    jread(j, "name", v.name);
-    jread(j, "description", v.description);
-    jread(j, "rarity", v.rarity);
-    jread(j, "effects", v.effects);
-    jread(j, "isNegative", v.isNegative);
-    jread(j, "type", v.type);
-    jread(j, "template", v.tmpl);  // Kotlin 字段名 template；C++ 改名 tmpl
-    detail::readPositionBonus(j, "positionBonus", v.positionBonus);
-}
-inline void to_json(nlohmann::json& j, const TalentTemplate& v) {
-    j = nlohmann::json{{"id", v.id},
-                       {"name", v.name},
-                       {"description", v.description},
-                       {"rarity", v.rarity},
-                       {"effects", v.effects},
-                       {"isNegative", v.isNegative},
-                       {"type", v.type},
-                       {"template", v.tmpl}};
-    detail::writePositionBonus(j, "positionBonus", v.positionBonus);
-}
-
-inline void from_json(const nlohmann::json& j, PhysiqueTemplate& v) {
-    jread(j, "id", v.id);
-    jread(j, "name", v.name);
-    jread(j, "description", v.description);
-    jread(j, "rarity", v.rarity);
-    jread(j, "cultivationSpeedBonus", v.cultivationSpeedBonus);
-    jread(j, "damageAmplification", v.damageAmplification);
-    jread(j, "damageReduction", v.damageReduction);
-    jread(j, "critDamageBonus", v.critDamageBonus);
-    jread(j, "defenseBonus", v.defenseBonus);
-    jread(j, "isNegative", v.isNegative);
-    jread(j, "type", v.type);
-    jread(j, "template", v.tmpl);
-}
-inline void to_json(nlohmann::json& j, const PhysiqueTemplate& v) {
-    j = nlohmann::json{{"id", v.id},
-                       {"name", v.name},
-                       {"description", v.description},
-                       {"rarity", v.rarity},
-                       {"cultivationSpeedBonus", v.cultivationSpeedBonus},
-                       {"damageAmplification", v.damageAmplification},
-                       {"damageReduction", v.damageReduction},
-                       {"critDamageBonus", v.critDamageBonus},
-                       {"defenseBonus", v.defenseBonus},
-                       {"isNegative", v.isNegative},
-                       {"type", v.type},
-                       {"template", v.tmpl}};
-}
-
-inline void from_json(const nlohmann::json& j, AffixTemplate& v) {
-    jread(j, "id", v.id);
-    jread(j, "name", v.name);
-    jread(j, "description", v.description);
-    jread(j, "rarity", v.rarity);
-    jread(j, "effects", v.effects);
-    jread(j, "isNegative", v.isNegative);
-    jread(j, "type", v.type);
-    jread(j, "template", v.tmpl);
-    detail::readPositionBonus(j, "positionBonus", v.positionBonus);
-}
-inline void to_json(nlohmann::json& j, const AffixTemplate& v) {
-    j = nlohmann::json{{"id", v.id},
-                       {"name", v.name},
-                       {"description", v.description},
-                       {"rarity", v.rarity},
-                       {"effects", v.effects},
-                       {"isNegative", v.isNegative},
-                       {"type", v.type},
-                       {"template", v.tmpl}};
-    detail::writePositionBonus(j, "positionBonus", v.positionBonus);
 }
 
 }  // namespace gamecore::data

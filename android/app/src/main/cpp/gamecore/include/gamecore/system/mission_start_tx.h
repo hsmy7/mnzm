@@ -9,8 +9,7 @@
  * RECRUIT 域 `activeMissions` 在册保留字段 + 弟子通道关闭的协议列阻断写者）：
  *   ① 逐队员 `releaseDiscipleToIdleInside`——全槽位清理（保留住所，
  *      clearAllSlotsDataOnly includeResidence=false）+ 状态重置
- *      （REFLECTING → 剥离 reflectionStart/EndYear → IDLE；
- *      REFINING → 剥离 buildingId → IDLE；其余 → IDLE）；
+ *      （REFLECTING → 剥离 reflectionStart/EndYear → IDLE；其余 → IDLE）；
  *   ② `MissionSystem.createActiveMission`——模板字段拷贝 +
  *      队员 id/name/realmNameOnly 快照（纯函数零 RNG）；
  *   ③ `activeMissions` 追加。
@@ -55,15 +54,13 @@ struct MissionStartResult {
     const char* errorCode;
 };
 
-/// 单队员状态重置（Kotlin releaseDiscipleToIdleInside 的 REFLECTING/REFINING 分支）。
+/// 单队员状态重置（Kotlin releaseDiscipleToIdleInside 的 REFLECTING 分支）。
 inline void resetDiscipleStatusForDispatch(state::DiscipleStore& store, std::size_t row) {
     std::string& status = store.statuses[row];
     std::map<std::string, std::string>& statusData = store.statusData[row];
     if (status == "REFLECTING") {
         statusData.erase("reflectionStartYear");
         statusData.erase("reflectionEndYear");
-    } else if (status == "REFINING") {
-        statusData.erase("buildingId");
     }
     status = "IDLE";
 }
@@ -100,7 +97,6 @@ inline MissionStartResult startMissionTx(state::GameState& state,
     in.librarySlots = gd.librarySlots;
     in.elderSlots = gd.elderSlots;
     in.residenceSlots = gd.residenceSlots;
-    in.activeBloodRefinements = gd.activeBloodRefinements;
     in.patrolSlots = gd.patrolSlots;
     in.battleTeams = gd.battleTeams;
     in.worldMapSects = gd.worldMapSects;
@@ -115,7 +111,7 @@ inline MissionStartResult startMissionTx(state::GameState& state,
         const auto out = clearAllSlotsDataOnly(in, did, /*includeResidence=*/false);
         in = SlotCleanupInput{
             out.spiritMineSlots, out.librarySlots, out.elderSlots, out.residenceSlots,
-            out.activeBloodRefinements, out.patrolSlots,
+            out.patrolSlots,
             out.battleTeams, out.worldMapSects, out.productionSlots,
             out.caveExplorationTeams, out.activeMissions};
         resetDiscipleStatusForDispatch(store, *row);
@@ -126,7 +122,6 @@ inline MissionStartResult startMissionTx(state::GameState& state,
     gd.librarySlots = in.librarySlots;
     gd.elderSlots = in.elderSlots;
     gd.residenceSlots = in.residenceSlots;
-    gd.activeBloodRefinements = in.activeBloodRefinements;
     gd.patrolSlots = in.patrolSlots;
     gd.battleTeams = in.battleTeams;
     gd.worldMapSects = in.worldMapSects;

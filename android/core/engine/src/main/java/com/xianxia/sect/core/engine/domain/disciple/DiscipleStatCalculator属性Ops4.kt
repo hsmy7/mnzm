@@ -1,10 +1,7 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.registry.PhysiqueDatabase
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStats
@@ -25,12 +22,11 @@ fun DiscipleStatCalculator.getFinalStats(
     disciple: Disciple,
     equipments: Map<String, EquipmentInstance>,
     manuals: Map<String, ManualInstance>,
-    manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-    bloodRefinementPct: BloodRefinementPctTotal? = null
+    manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
 ): DiscipleStats {
     val pe = disciple.pillEffects
     return computeFinalStats(
-        baseStats = getBaseStats(disciple, bloodRefinementPct),
+        baseStats = getBaseStats(disciple),
         equipmentIds = listOfNotNull(
             disciple.equipment.weaponId,
             disciple.equipment.armorId,
@@ -66,13 +62,8 @@ fun DiscipleStatCalculator.getMaxHpMpColumn(
     manuals: Map<String, ManualInstance>,
     manualProficiencies: Map<String, ManualProficiencyData>
 ): Pair<Int, Int> {
-    val talentEffects = mergeEffects(
-        computeTalentEffects(input.talentIds),
-        AffixDatabase.calculateAffixEffects(input.affixIds)
-    )
     val (baseHp, baseMp) = computeBaseHpMp(
-        input.realm, input.realmLayer, input.hpVariance, input.mpVariance, talentEffects,
-        input.bloodRefinementPct
+        input.realm, input.realmLayer, input.hpVariance, input.mpVariance
     )
     var hp = baseHp
     var mp = baseMp
@@ -112,13 +103,12 @@ fun DiscipleStatCalculator.getFinalStats(
     aggregate: DiscipleAggregate,
     equipments: Map<String, EquipmentInstance>,
     manuals: Map<String, ManualInstance>,
-    manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-    bloodRefinementPct: BloodRefinementPctTotal? = null
+    manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
 ): DiscipleStats {
     val eq = aggregate.equipment
     val cs = aggregate.combatStats
     return computeFinalStats(
-        baseStats = getBaseStats(aggregate, bloodRefinementPct),
+        baseStats = getBaseStats(aggregate),
         equipmentIds = listOfNotNull(
             eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
         ).filter { it.isNotEmpty() },
@@ -163,7 +153,6 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
     val rootCount = spiritRootCount.coerceAtLeast(1)
     val base = GameConfig.Cultivation.getRealmPerPhase(realm) / rootCount.toDouble()
     return (base
-        * (1.0 + zones.aptitudeBonus)
         * (1.0 + zones.resourceBonus)
         * (1.0 + zones.socialBonus)
         * (1.0 + zones.statusBonus)
@@ -175,11 +164,6 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
 internal fun DiscipleStatCalculator.computeCultivationZones(
     input: CultivationZoneInput
 ): CultivationSpeedZones {
-    // ── 资质乘区：天赋(旧存档可能有) + 体质 + 词条 + 资质属性 ──
-    val aptitudeBonus = (input.mergedEffects["cultivationSpeed"] ?: 0.0) +
-        input.physiqueEffects.cultivationSpeedBonus +
-        aptitudeCultivationBonus(input.aptitude)
-
     // ── 资源乘区：功法 + 建筑 ──
     var resourceBonus = (input.buildingBonus - 1.0)
     if (input.manuals.isNotEmpty()) {
@@ -207,7 +191,6 @@ internal fun DiscipleStatCalculator.computeCultivationZones(
     val statusBonus = input.cultivationSubsidyBonus
 
     return CultivationSpeedZones(
-        aptitudeBonus = aptitudeBonus,
         resourceBonus = resourceBonus,
         socialBonus = socialBonus,
         statusBonus = statusBonus,
@@ -237,8 +220,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
     }
     return computeCultivationZones(
         CultivationZoneInput(
-            mergedEffects = getMergedEffects(disciple),
-            physiqueEffects = getPhysiqueEffects(disciple),
             manualIds = disciple.manualIds,
             manuals = manuals,
             manualProficiencies = manualProficiencies,
@@ -247,8 +228,7 @@ fun DiscipleStatCalculator.buildCultivationZones(
             preachingMastersBonus = preachingMastersBonus,
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            temporaryBonus = temporaryBonus,
-            aptitude = disciple.skills.aptitude
+            temporaryBonus = temporaryBonus
         )
     )
 }
@@ -276,8 +256,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
     }
     return computeCultivationZones(
         CultivationZoneInput(
-            mergedEffects = getMergedEffects(aggregate),
-            physiqueEffects = getPhysiqueEffects(aggregate),
             manualIds = aggregate.manualIds,
             manuals = manuals,
             manualProficiencies = manualProficiencies,
@@ -286,8 +264,7 @@ fun DiscipleStatCalculator.buildCultivationZones(
             preachingMastersBonus = preachingMastersBonus,
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            temporaryBonus = temporaryBonus,
-            aptitude = aggregate.aptitude
+            temporaryBonus = temporaryBonus
         )
     )
 }
@@ -320,11 +297,6 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
     }
     val zones = computeCultivationZones(
         CultivationZoneInput(
-            mergedEffects = mergeEffects(
-                computeTalentEffects(input.talentIds),
-                AffixDatabase.calculateAffixEffects(input.affixIds)
-            ),
-            physiqueEffects = PhysiqueDatabase.aggregatePhysiqueEffects(input.physiqueIds),
             manualIds = input.manualIds,
             manuals = manuals,
             manualProficiencies = manualProficiencies,
@@ -333,8 +305,7 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
             preachingMastersBonus = preachingMastersBonus,
             masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            temporaryBonus = temporaryBonus,
-            aptitude = input.aptitude
+            temporaryBonus = temporaryBonus
         )
     )
     return calculateCultivationPerPhase(input.realm, input.spiritRootCount, zones)
@@ -394,13 +365,12 @@ internal fun DiscipleStatCalculator.computeBreakthroughZones(
     bonuses: BreakthroughZoneBonusInput
 ): BreakthroughZones {
     val baseZone = GameConfig.Realm.getBreakthroughChance(realm, spiritRootCount, realmLayer)
-    // 长老职能效果 × (1 + PositionBonus)：PositionBonus 来自长老弟子（非突破弟子）的天赋/词条
+    // 长老职能效果 × (1 + 职务乘算因子)：因子由组装点传入（当前恒 0）
     val innerElderBonus = comprehensionBreakthroughBonus(bonuses.innerElderComprehension) *
         (1.0 + bonuses.innerElderPositionBonus)
     val outerElderBonus = comprehensionBreakthroughBonus(bonuses.outerElderComprehension) *
         (1.0 + bonuses.outerElderPositionBonus)
 
-    // 突破加成已从天赋系统中移除：selfBonus 不再包含 talentBreakthroughBonus
     return BreakthroughZones(
         baseZone = baseZone,
         elderGuidance = innerElderBonus + outerElderBonus,
@@ -420,9 +390,7 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
     adBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0,
-    innerElderPositionBonus: Double = 0.0,
-    outerElderPositionBonus: Double = 0.0
+    masterDiscipleBonus: Double = 0.0
 ): BreakthroughZones = computeBreakthroughZones(
     realm = disciple.realm,
     realmLayer = disciple.realmLayer,
@@ -434,8 +402,9 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
         pillBonus = pillBonus,
         adBonus = adBonus,
         masterDiscipleBonus = masterDiscipleBonus,
-        innerElderPositionBonus = innerElderPositionBonus,
-        outerElderPositionBonus = outerElderPositionBonus
+        // 职务乘算因子：特质（天赋/词条）数值源已下线，恒为 0
+        innerElderPositionBonus = 0.0,
+        outerElderPositionBonus = 0.0
     )
 )
 
@@ -449,9 +418,7 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
     adBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0,
-    innerElderPositionBonus: Double = 0.0,
-    outerElderPositionBonus: Double = 0.0
+    masterDiscipleBonus: Double = 0.0
 ): BreakthroughZones = computeBreakthroughZones(
     realm = aggregate.realm,
     realmLayer = aggregate.realmLayer,
@@ -463,8 +430,9 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
         pillBonus = pillBonus,
         adBonus = adBonus,
         masterDiscipleBonus = masterDiscipleBonus,
-        innerElderPositionBonus = innerElderPositionBonus,
-        outerElderPositionBonus = outerElderPositionBonus
+        // 职务乘算因子：特质（天赋/词条）数值源已下线，恒为 0
+        innerElderPositionBonus = 0.0,
+        outerElderPositionBonus = 0.0
     )
 )
 

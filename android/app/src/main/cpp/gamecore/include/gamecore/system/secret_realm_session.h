@@ -715,7 +715,6 @@ inline SecretRealmBattleOutcome runBeastBattle(
 
     // 组装：存活成员（濒死 1 血）+ preGen 妖兽 ×count
     DiscipleStore& ds = state.disciples;
-    const auto& gd = state.gameData;
     std::vector<Disciple> combatDisciples;
     std::map<std::string, gamecore::state::EquipmentInstance> equipmentMap;
     for (const auto& inst : state.equipmentInstances) equipmentMap[inst.id] = inst;
@@ -746,10 +745,8 @@ inline SecretRealmBattleOutcome runBeastBattle(
     battle.maxTurns = gamecore::battle::kMaxTurns;
     const auto proficiencies = proficienciesByDisciple(state);
     for (const auto& d : combatDisciples) {
-        const auto brIt = gd.bloodRefinementPctTotals.find(d.id);
         battle.team.push_back(mission_settle::detail::discipleToCombatant(
-            d, equipmentMap, manualMap, proficiencies,
-            brIt == gd.bloodRefinementPctTotals.end() ? nullptr : &brIt->second));
+            d, equipmentMap, manualMap, proficiencies));
     }
     for (int32_t i = 1; i <= safeParams.beastCount; ++i) {
         battle.beasts.push_back(
@@ -874,7 +871,6 @@ inline SecretRealmBattleOutcome runAISectBattle(
 
     // 我方战力组装
     DiscipleStore& ds = state.disciples;
-    const auto& gd = state.gameData;
     std::vector<Disciple> combatDisciples;
     std::map<std::string, gamecore::state::EquipmentInstance> equipmentMap;
     for (const auto& inst : state.equipmentInstances) equipmentMap[inst.id] = inst;
@@ -902,15 +898,13 @@ inline SecretRealmBattleOutcome runAISectBattle(
     battle.maxTurns = gamecore::battle::kMaxTurns;
     const auto proficiencies = proficienciesByDisciple(state);
     for (const auto& d : combatDisciples) {
-        const auto brIt = gd.bloodRefinementPctTotals.find(d.id);
         battle.team.push_back(mission_settle::detail::discipleToCombatant(
-            d, equipmentMap, manualMap, proficiencies,
-            brIt == gd.bloodRefinementPctTotals.end() ? nullptr : &brIt->second));
+            d, equipmentMap, manualMap, proficiencies));
     }
     for (const auto& d : prepared.disciples) {
         const auto& eq = prepared.equipmentMapByDisciple.at(d.id);
         gamecore::battle::Combatant c = mission_settle::detail::discipleToCombatant(
-            d, eq, prepared.manualMap, prepared.proficiencies, nullptr);
+            d, eq, prepared.manualMap, prepared.proficiencies);
         c.hp = c.maxHp;
         c.mp = c.maxMp;
         c.side = gamecore::battle::CombatantSide::kAttacker;

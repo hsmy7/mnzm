@@ -5,9 +5,7 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.engine.domain.battle.Combatant
-import com.xianxia.sect.core.engine.domain.battle.PhysiqueCombatFactors
 import com.xianxia.sect.core.model.CombatSkill
-import com.xianxia.sect.core.registry.AffixCombatEffects
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.DeterministicRng
 import kotlinx.serialization.json.Json
@@ -16,7 +14,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -99,18 +96,6 @@ class DiffBattleCalculatorTest {
         put("realm", c.realm)
         put("realmLayer", c.realmLayer)
         put("element", c.element)
-        putJsonObject("physique") {
-            put("damageAmplification", c.physique.damageAmplification)
-            put("critDamageBonus", c.physique.critDamageBonus)
-            put("damageReduction", c.physique.damageReduction)
-            put("defenseBonus", c.physique.defenseBonus)
-        }
-        putJsonObject("affix") {
-            put("damageAmplification", c.affix.damageAmplification)
-            put("critDamageBonus", c.affix.critDamageBonus)
-            put("damageReduction", c.affix.damageReduction)
-            put("defenseBonus", c.affix.defenseBonus)
-        }
     }
 
     private fun runCombatantDamageDiff(
@@ -204,21 +189,19 @@ class DiffBattleCalculatorTest {
     }
 
     @Test
-    fun `combatantDamage with buffs and physique matches Kotlin`() {
+    fun `combatantDamage with buffs matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())
         val attacker = baseCombatant("a1", "攻一").copy(
             buffs = listOf(
                 CombatBuff(BuffType.PHYSICAL_ATTACK_BOOST, 0.3, 3),
                 CombatBuff(BuffType.CRIT_RATE_BOOST, 0.4, 3)
-            ),
-            physique = PhysiqueCombatFactors(damageAmplification = 0.2, critDamageBonus = 0.5)
+            )
         )
         val defender = baseCombatant("d1", "守一").copy(
             buffs = listOf(
                 CombatBuff(BuffType.DAMAGE_REDUCTION, 0.1, 3),
                 CombatBuff(BuffType.PHYSICAL_DEFENSE_BOOST, 0.2, 3)
-            ),
-            affix = AffixCombatEffects(damageReduction = 0.05, defenseBonus = 0.1)
+            )
         )
         for (seed in longArrayOf(99, 2024)) {
             runCombatantDamageDiff(seed, attacker, defender)

@@ -21,7 +21,6 @@ import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.CancellationException
 import com.xianxia.sect.core.util.DomainResult
@@ -43,7 +42,7 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
         // 门判源 aiBeastEncounterTargets 全仓零插入者 ⇒ 恒空 ⇒ 恒 false）
         // ── Native 臂（AUTHORITATIVE）：关卡校验链/战斗执行（BATTLE 分区同序）/
         // 伤亡写回经 C++；奖励生成（Random.Default 非镜像随机域）/胜利事务
-        // （winAttr/defeated TOCTOU 原子块）/战报留 Kotlin（S5/S6 口径）。
+        // （defeated TOCTOU 原子块）/战报留 Kotlin（S5/S6 口径）。
         // flag 关/镜像不可用/失败信封 → false 回退 Kotlin 原路径（双实现并行契约）
         if (attackWorldLevelNative(level, validIds)) {
             // w3-13 通道关闭配套（§2.80）：胜利奖励写面（钱包/年度账/集合/worldLevels
@@ -73,7 +72,7 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
         if (setup.result.victory) {
             // TOCTOU 防护：合并魂魄/属性更新+defeated标记为单次原子事务，
             // 入口重新检查 defeated，防止并发线程（巡视塔等）重复发放奖励
-            applyWorldLevelVictoryTransaction(levelId, survivorIds, updatedLogs)
+            applyWorldLevelVictoryTransaction(levelId, updatedLogs)
             applyVictoryRewards(level, setup.result.rewards["spiritStones"] ?: 0, log, teamMembers)
         } else {
             applyWorldLevelDefeat(log, teamMembers, updatedLogs)
@@ -121,8 +120,7 @@ private fun GameEngine.buildWorldLevelBattle(
     val battle = battleSystem.createBattle(
         disciples = combatDisciples, equipmentMap = equipmentMap, manualMap = manualMap,
         beastLevel = level.realm, beastCount = level.count, beastType = beastTypeName,
-        manualProficiencies = allProficiencies, beastPreGenStats = beastPreGenStats,
-        bloodRefinementMap = data.bloodRefinementPctTotals
+        manualProficiencies = allProficiencies, beastPreGenStats = beastPreGenStats
     )
     // 严苛训练政策：玩家弟子伤害+5%（参数透传，替代原 @Volatile 单例字段）
     val playerDamageModifier = if (data.sectPolicies.strictTraining) {
@@ -186,76 +184,26 @@ private fun GameEngine.buildWorldLevelBattleLog(
     return log to teamMembers
 }
 
-/** 胜利原子事务（attackWorldLevel 提取）：入口重复 defeated 检查 + 属性增长 + defeated 标记。
+/** 胜利原子事务（attackWorldLevel 提取）：入口重复 defeated 检查 + defeated 标记 + 战报落库。
  *
- * [skipNativeDomainWrites]：native 臂（1781 WORLD_VICTORY_REWARDS_TX）已由 C++
- * 授予 winAttr（battle_residual_tx.h ②，含 TOCTOU 重查）时传
- * true——本函数只执行残差段（重查 + defeated 标记 + 战报落库）。Kotlin 回退臂
- * 传 false 保持原全量行为。🔴 defeated 两臂均由 Kotlin 写（batch-13 TOCTOU
- * 口径：C++ 不写 defeated）。
+ * [skipNativeDomainWrites]：native 臂（1781 WORLD_VICTORY_REWARDS_TX）回执
+ * applied 时传 true，Kotlin 回退臂传 false；两臂在 Kotlin 侧执行相同的残差段
+ * （重查 + defeated 标记 + 战报落库）。🔴 defeated 两臂均由 Kotlin 写
+ * （batch-13 TOCTOU 口径：C++ 不写 defeated）。
  */
 internal fun GameEngine.applyWorldLevelVictoryTransaction(
     levelId: String,
-    survivorIds: Set<String>,
-    updatedLogs: List<BattleLog>,
-    skipNativeDomainWrites: Boolean = false
+    updatedLogs: List<BattleLog>
 ) {
     stateStore.update {
         val currentLevel = gameData.worldLevels.find { it.id == levelId }
         if (currentLevel == null || currentLevel.defeated) return@update
-
-        if (!skipNativeDomainWrites) {
-            for (id in discipleTables.ids) {
-                val idStr = id.toString()
-                if (idStr in survivorIds && discipleTables.isAlive[id] == 1) {
-                    if (discipleTables.talentIds[id].any { tid -> TalentDatabase
-                        .getById(tid)?.effects?.containsKey("winBattleRandomAttrPlus") == true }) {
-                        applyDeterministicWinAttr(id)
-                    }
-                }
-            }
-        }
         gameData = gameData.copy(
             worldLevels = gameData.worldLevels.map { l ->
                 if (l.id == levelId) l.copy(defeated = true) else l
             }
         )
         battleLogs = updatedLogs
-    }
-}
-
-/** 确定性随机属性增长（applyWorldLevelVictoryTransaction 提取；须在 update 事务内调用） */
-@Suppress("CyclomaticComplexMethod") // 17 分支确定性分发表（0-16 可穷举，数据驱动会引入反射/映射样板）
-private fun GameEngine.applyDeterministicWinAttr(id: Int) {
-    // 确定性随机：用弟子 ID 散列代替 kotlin.random.Random 确保读档一致性
-    val r = ((id * 527 + 31) % 17).let { if (it < 0) -it else it }
-    // 技能属性（0-9）clamp 到基础属性上限；战斗属性（10-16）不 clamp
-    when (r) {
-        0 -> discipleTables.intelligences[id] =
-            minOf(discipleTables.intelligences[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        1 -> discipleTables.comprehensions[id] =
-            minOf(discipleTables.comprehensions[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        2 -> discipleTables.charms[id] =
-            minOf(discipleTables.charms[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        4 -> discipleTables.artifactRefinings[id] =
-            minOf(discipleTables.artifactRefinings[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        5 -> discipleTables.pillRefinings[id] =
-            minOf(discipleTables.pillRefinings[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        6 -> discipleTables.spiritPlantings[id] =
-            minOf(discipleTables.spiritPlantings[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        7 -> discipleTables.minings[id] =
-            minOf(discipleTables.minings[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        8 -> discipleTables.teachings[id] =
-            minOf(discipleTables.teachings[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        9 -> discipleTables.moralities[id] =
-            minOf(discipleTables.moralities[id] + 1, GameConfig.Disciple.SKILL_MAX)
-        10 -> discipleTables.baseHps[id] = discipleTables.baseHps[id] + 1
-        11 -> discipleTables.baseMps[id] = discipleTables.baseMps[id] + 1
-        12 -> discipleTables.basePhysicalAttacks[id] = discipleTables.basePhysicalAttacks[id] + 1
-        13 -> discipleTables.baseMagicAttacks[id] = discipleTables.baseMagicAttacks[id] + 1
-        14 -> discipleTables.basePhysicalDefenses[id] = discipleTables.basePhysicalDefenses[id] + 1
-        15 -> discipleTables.baseMagicDefenses[id] = discipleTables.baseMagicDefenses[id] + 1
-        16 -> discipleTables.baseSpeeds[id] = discipleTables.baseSpeeds[id] + 1
     }
 }
 

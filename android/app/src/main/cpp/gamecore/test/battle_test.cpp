@@ -42,12 +42,10 @@ TEST(FinalDamageTest, AmplificationAndReduction) {
 
 TEST(FinalDamageTest, IndependentMultipliers) {
     DamageZones zones;
-    zones.physiqueDamageAmplification = 0.1;
-    zones.affixDamageAmplification = 0.2;
     zones.realmGapDamageAmplification = 0.3;
     zones.majorRealmDamageAmplification = 0.4;
-    // 100 × 1.1 × 1.2 × 1.3 × 1.4 = 240.24 → 240
-    EXPECT_EQ(calculateFinalDamage(100, 0, 1.0, zones, false, 1.0), 240);
+    // 100 × 1.3 × 1.4 = 182
+    EXPECT_EQ(calculateFinalDamage(100, 0, 1.0, zones, false, 1.0), 182);
 }
 
 TEST(FinalDamageTest, VarianceScales) {
@@ -59,17 +57,8 @@ TEST(FinalDamageTest, VarianceScales) {
 TEST(FinalDamageTest, MinDamageClamp) {
     DamageZones zones;
     zones.damageReduction = 0.99;
-    zones.physiqueDamageReduction = 0.99;
     // 极低伤害 → clamp 到 1
     EXPECT_EQ(calculateFinalDamage(100, 100000, 1.0, zones, false, 1.0), 1);
-}
-
-TEST(FinalDamageTest, DefenseBonusIndependent) {
-    DamageZones zones;
-    zones.physiqueDefenseBonus = 0.5;  // 防御减半
-    zones.affixDefenseBonus = 0.5;     // 再减半
-    // 防御 500 → ×0.5×0.5 = 125 → reduction = 125/625 = 0.2 → 100×0.8 = 80
-    EXPECT_EQ(calculateFinalDamage(100, 500, 1.0, zones, false, 1.0), 80);
 }
 
 // ── calculateDamageVariance ────────────────────────────────────

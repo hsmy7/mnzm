@@ -364,26 +364,6 @@ object BeastMaterialDatabase {
         else -> 0
     }
 
-    /** 血种→属性映射规则 */
-    data class BloodRefineRule(
-        val bloodType: String,
-        val statA: String,
-        val statB: String,
-        val statADisplayName: String,
-        val statBDisplayName: String
-    )
-
-    val BLOOD_RULES = mapOf(
-        "snake" to BloodRefineRule("snake", "speed", "hp", "速度", "气血"),
-        "tiger" to BloodRefineRule("tiger", "physicalAttack", "magicAttack", "物攻", "法攻"),
-        "turtle" to BloodRefineRule("turtle", "physicalDefense", "magicDefense", "物防", "法防")
-    )
-
-    /** 从材料ID提取血种（如 tigerBlood3 → tiger） */
-    fun getBloodTypeFromMaterialId(materialId: String): String? {
-        return BLOOD_RULES.keys.find { materialId.startsWith(it) }
-    }
-
     /** 品阶前缀 */
     fun getTierPrefix(tier: Int): String = when (tier) {
         1 -> "凡"; 2 -> "灵"; 3 -> "宝"

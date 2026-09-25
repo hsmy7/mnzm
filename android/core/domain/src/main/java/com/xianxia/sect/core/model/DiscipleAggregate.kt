@@ -92,9 +92,6 @@ data class DiscipleAggregate(
     val spiritStones: Int get() = equipment?.spiritStones ?: 0
 
     val manualIds: List<String> get() = extended?.manualIds ?: emptyList()
-    val talentIds: List<String> get() = extended?.talentIds ?: emptyList()
-    val physiqueIds: List<String> get() = extended?.physiqueIds ?: emptyList()
-    val affixIds: List<String> get() = extended?.affixIds ?: emptyList()
     val manualMasteries: Map<String, Int> get() = extended?.manualMasteries ?: emptyMap()
     val statusData: Map<String, String> get() = extended?.statusData ?: emptyMap()
     /**
@@ -121,7 +118,6 @@ data class DiscipleAggregate(
     val intelligence: Int get() = attributes?.intelligence ?: DEFAULT_SKILL
     val charm: Int get() = attributes?.charm ?: DEFAULT_SKILL
     val comprehension: Int get() = attributes?.comprehension ?: DEFAULT_SKILL
-    val aptitude: Int get() = attributes?.aptitude ?: DEFAULT_SKILL
     val artifactRefining: Int get() = attributes?.artifactRefining ?: DEFAULT_SKILL
     val pillRefining: Int get() = attributes?.pillRefining ?: DEFAULT_SKILL
     val spiritPlanting: Int get() = attributes?.spiritPlanting ?: DEFAULT_SKILL
@@ -174,18 +170,15 @@ data class DiscipleAggregate(
 
     fun getBaseStats(): DiscipleStats = statsProvider.getBaseStats(this)
 
-    fun getTalentEffects(): Map<String, Double> = statsProvider.getTalentEffects(this)
-
     fun getStatsWithEquipment(equipments: Map<String,
         EquipmentInstance>): DiscipleStats = statsProvider.getStatsWithEquipment(this, equipments)
 
     fun getFinalStats(
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        bloodRefinementPct: BloodRefinementPctTotal? = null
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats =
-        statsProvider.getFinalStats(this, equipments, manuals, manualProficiencies, bloodRefinementPct)
+        statsProvider.getFinalStats(this, equipments, manuals, manualProficiencies)
 
     fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String,
         ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0,
@@ -218,9 +211,6 @@ data class DiscipleAggregate(
             gender = gender,
             portraitRes = portraitRes,
             manualIds = manualIds,
-            talentIds = talentIds,
-            physiqueIds = physiqueIds,
-            affixIds = affixIds,
             manualMasteries = manualMasteries,
             status = status,
             statusData = statusData,
@@ -318,7 +308,6 @@ data class DiscipleAggregate(
         mining = mining,
         teaching = teaching,
         morality = morality,
-        aptitude = aptitude,
         salaryPaidCount = salaryPaidCount,
         salaryMissedCount = salaryMissedCount,
         alchemyLevel = alchemyLevel,
@@ -342,12 +331,10 @@ data class DiscipleAggregate(
         private const val DEFAULT_SKILL = 50
 
         var statsProvider: DiscipleStatsProvider = @Suppress("TooManyFunctions") object : DiscipleStatsProvider {
-            // TooManyFunctions：12 个 override = DiscipleStatsProvider 接口全量成员（契约下界），no-op 缺省实现必须实现全部成员
+            // TooManyFunctions：10 个 override = DiscipleStatsProvider 接口全量成员（契约下界），no-op 缺省实现必须实现全部成员
             // Default no-op implementation - will be replaced by engine module
             override fun getBaseStats(disciple: Disciple) = DiscipleStats()
             override fun getBaseStats(aggregate: DiscipleAggregate) = DiscipleStats()
-            override fun getTalentEffects(disciple: Disciple): Map<String, Double> = emptyMap()
-            override fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double> = emptyMap()
             override fun getStatsWithEquipment(disciple: Disciple, equipments: Map<String,
                 EquipmentInstance>) = DiscipleStats()
             override fun getStatsWithEquipment(aggregate: DiscipleAggregate, equipments: Map<String,
@@ -355,14 +342,12 @@ data class DiscipleAggregate(
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStats()
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
+                manualProficiencies: Map<String, ManualProficiencyData>
             ) = DiscipleStats()
             override fun calculateCultivationSpeed(disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double,

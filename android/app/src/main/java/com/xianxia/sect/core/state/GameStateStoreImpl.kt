@@ -11,7 +11,6 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.BattleLog
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -454,9 +453,7 @@ class GameStateStoreImpl @Inject constructor(
                     return cachedAggregates
                 }
                 // 战力与聚合同步（先算后写，避免中间状态窗口）
-                val power = computeCombatPower(
-                    fresh, _gameDataFlow.value.bloodRefinementPctTotals
-                )
+                val power = computeCombatPower(fresh)
                 cachedAggregates = fresh
                 _aggregatesFlow.value = fresh
                 _combatPowerFlow.value = power
@@ -472,16 +469,6 @@ class GameStateStoreImpl @Inject constructor(
 
     private val disciplePowerCache = ConcurrentHashMap<String, CachedPower>()
     private val aiDisciplePowerCache = ConcurrentHashMap<String, CachedPower>()
-
-    // 中间流：直接从独立 MutableStateFlow 派生
-    // 这些独立流只在对应字段实际变化时才发射，所以 combine 的频率大幅降低
-    private val bloodRefinementPctFlow = _gameDataFlow
-        .map { it.bloodRefinementPctTotals }
-        .distinctUntilChanged { old, new -> old === new }
-
-        .distinctUntilChanged { old, new -> old === new }
-
-        .distinctUntilChanged { old, new -> old === new }
 
     /**
      * 聚合计算写回点（由 assemble 协程在写回 [disciplesFlow] 后同步调用）。
@@ -504,9 +491,7 @@ class GameStateStoreImpl @Inject constructor(
         // 先计算后写入：战力计算可能耗时（首次 JIT/冷路径），若先写 aggregates 再算
         // 战力，观察者会在两流写入之间看到"聚合新、战力旧"的中间状态窗口。
         // 两值算完再连续写入（纳秒级窗口，观察者不可能命中）。
-        val power = computeCombatPower(
-            aggregates, _gameDataFlow.value.bloodRefinementPctTotals
-        )
+        val power = computeCombatPower(aggregates)
         cachedAggregates = aggregates
         _aggregatesFlow.value = aggregates
         _combatPowerFlow.value = power
@@ -514,28 +499,24 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 宗门战力汇总（仅存活弟子累计；指纹缓存保留——血炼百分比变化时仅重算
-     * 血炼弟子，其余缓存命中）。
+     * 宗门战力汇总（仅存活弟子累计；指纹缓存命中避免重复计算）。
      *
      * @param aggregates 弟子聚合列表
-     * @param bloodRefinementPctTotals 血炼百分比总计映射
      * @return 宗门总战力
      */
     private fun computeCombatPower(
-        aggregates: List<DiscipleAggregate>,
-        bloodRefinementPctTotals: Map<String, BloodRefinementPctTotal>
+        aggregates: List<DiscipleAggregate>
     ): Long {
         var total = 0L
         for (aggregate in aggregates) {
             if (!aggregate.isAlive) continue
             val discipleId = aggregate.id
-            val brPct = bloodRefinementPctTotals[discipleId]
-            val fp = SectCombatPowerCalculator.computeFingerprint(aggregate, brPct)
+            val fp = SectCombatPowerCalculator.computeFingerprint(aggregate)
             val cached = disciplePowerCache[discipleId]
             if (cached != null && cached.fingerprint == fp) {
                 total += cached.power
             } else {
-                val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate, brPct)
+                val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate)
                 disciplePowerCache[discipleId] = CachedPower(fp, power)
                 total += power
             }
@@ -611,46 +592,44 @@ class GameStateStoreImpl @Inject constructor(
     override val discipleAggregates: StateFlow<List<DiscipleAggregate>> =
         _aggregatesFlow.asStateFlow()
 
-    /** 宗门战力：与聚合同步（[updateAggregates] 写回点 + update 提交处血炼重算） */
+    /** 宗门战力：与聚合同步（[updateAggregates] 写回点统一重算） */
     override val sectCombatPower: StateFlow<Long> = _combatPowerFlow.asStateFlow()
 
     private val aiSectDisciplesFlow = _gameDataFlow
         .map { it.aiSectDisciples }
         .distinctUntilChanged { old, new -> old === new }
 
-    override val aiSectCombatPowers: StateFlow<Map<String, Long>> = combine(
-        aiSectDisciplesFlow,
-        bloodRefinementPctFlow
-    ) { aiDisciplesMap, bloodRefinementPctTotals ->
-        val currentDiscipleIds = aiDisciplesMap.values.flatten().map { it.id }.toSet()
-        aiDisciplePowerCache.keys.retainAll(currentDiscipleIds)
+    override val aiSectCombatPowers: StateFlow<Map<String, Long>> = aiSectDisciplesFlow
+        .map { aiDisciplesMap ->
+            val currentDiscipleIds = aiDisciplesMap.values.flatten().map { it.id }.toSet()
+            aiDisciplePowerCache.keys.retainAll(currentDiscipleIds)
 
-        val result = mutableMapOf<String, Long>()
-        for ((sectId, disciples) in aiDisciplesMap) {
-            val aliveDisciples = disciples.filter { it.isAlive }
-            if (aliveDisciples.isEmpty()) {
-                result[sectId] = 0L
-                continue
-            }
-
-            var total = 0L
-            for (disciple in aliveDisciples) {
-                val aggregate = disciple.toAggregate()
-                val brPct = bloodRefinementPctTotals[disciple.id]
-                val fp = SectCombatPowerCalculator.computeFingerprint(aggregate, brPct)
-                val cached = aiDisciplePowerCache[disciple.id]
-                if (cached != null && cached.fingerprint == fp) {
-                    total += cached.power
-                } else {
-                    val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate, brPct)
-                    aiDisciplePowerCache[disciple.id] = CachedPower(fp, power)
-                    total += power
+            val result = mutableMapOf<String, Long>()
+            for ((sectId, disciples) in aiDisciplesMap) {
+                val aliveDisciples = disciples.filter { it.isAlive }
+                if (aliveDisciples.isEmpty()) {
+                    result[sectId] = 0L
+                    continue
                 }
+
+                var total = 0L
+                for (disciple in aliveDisciples) {
+                    val aggregate = disciple.toAggregate()
+                    val fp = SectCombatPowerCalculator.computeFingerprint(aggregate)
+                    val cached = aiDisciplePowerCache[disciple.id]
+                    if (cached != null && cached.fingerprint == fp) {
+                        total += cached.power
+                    } else {
+                        val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate)
+                        aiDisciplePowerCache[disciple.id] = CachedPower(fp, power)
+                        total += power
+                    }
+                }
+                result[sectId] = total
             }
-            result[sectId] = total
+            result.toMap()
         }
-        result.toMap()
-    }.distinctUntilChanged { old, new -> old === new || old == new }
+        .distinctUntilChanged { old, new -> old === new || old == new }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     override fun modifyState(block: MutableGameState.() -> Unit) {
@@ -947,20 +926,7 @@ class GameStateStoreImpl @Inject constructor(
         if (detectFieldChanges(baseline, disciplesNeedReassemble, flags)) {
             _updateVersion.value++
         }
-        // 血炼百分比变化（不触发弟子组装）时同步重算战力——
-        // 指纹缓存使仅血炼弟子重算、其余命中（O(D) 引用比较 + 缓存查找，微秒级）；
-        // 弟子同时变化时由锁外 assemble 写回点（updateAggregates）统一重算。
-        // cachedAggregates 为空（load/reset 窗口）时跳过——
-        // 空缓存重算战力=0 会闪 0，且此时全量冷算在锁内（load 已清指纹缓存）；
-        // 由随后的 assemble 写回点用最新血炼补算。
-        if (reusableMutableState.gameData.bloodRefinementPctTotals
-            !== baseline.gameData.bloodRefinementPctTotals &&
-            !disciplesNeedReassemble && cachedAggregates.isNotEmpty()
-        ) {
-            _combatPowerFlow.value = computeCombatPower(
-                cachedAggregates, reusableMutableState.gameData.bloodRefinementPctTotals
-            )
-        }
+        // 战力仅随弟子数据变化——由锁外 assemble 写回点（updateAggregates）统一重算。
         _discipleTables = reusableMutableState.discipleTables
         _discipleTables.writeAllowed = false  // 出厂后锁定，防止绕过 update{} 直接写
         // 捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
@@ -1326,7 +1292,7 @@ class GameStateStoreImpl @Inject constructor(
         )
     }
 
-    /** loadFromSnapshot 拆分：游戏数据 + 弟子表应用（含血炼旧绝对值→百分比迁移） */
+    /** loadFromSnapshot 拆分：游戏数据 + 弟子表应用 */
     private fun applyLoadedCore(gameData: GameData, disciples: List<Disciple>) {
         // 旧档事件 sequenceId 一次性回填（旧档全 0 → 按列表序分配，
         // 保证消息列表稳定 key；新档无 0 序号时零成本跳过）
@@ -1334,9 +1300,6 @@ class GameStateStoreImpl @Inject constructor(
         _disciplesFlow.value = disciples
         _discipleTables.apply { writeAllowed = true }.clear()
         disciples.forEach { _discipleTables.insert(it) }
-
-        // 血炼旧绝对值 → 新百分比乘区 一次性迁移
-        migrateBloodRefinementFromAbsoluteToPct()
     }
 
     /** loadFromSnapshot 拆分：10 个仓库实体流应用（实体数据经 [LoadedEntities] 聚合，避免超长参数列表） */
@@ -1480,9 +1443,7 @@ class GameStateStoreImpl @Inject constructor(
         // 回滚路径同步恢复聚合（load 开头已清空缓存）
         cachedAggregates = baseline.disciples.map { it.toAggregate() }
         _aggregatesFlow.value = cachedAggregates
-        _combatPowerFlow.value = computeCombatPower(
-            cachedAggregates, baseline.gameData.bloodRefinementPctTotals
-        )
+        _combatPowerFlow.value = computeCombatPower(cachedAggregates)
         aggregatesGen = discipleVersion.get()
         _discipleTables.apply { writeAllowed = true }.clear()
         baseline.disciples.forEach { _discipleTables.insert(it) }
@@ -1571,61 +1532,6 @@ class GameStateStoreImpl @Inject constructor(
     override suspend fun resetForSlot(slotId: Int) {
         reset()
         repository.setActiveSlot(slotId)
-    }
-
-    /**
-     * 血炼旧绝对值 → 新百分比乘区 一次性迁移。
-     *
-     * 将旧 [BloodRefinementBonusTotal] 的绝对值转换为 [BloodRefinementPctTotal] 的百分比。
-     * 同时从 [DiscipleTables] 的 base* 列回退历史血炼绝对值（防止计算时双算）。
-     *
-     * 迁移条件：oldTotals 非空且 newTotals 为空。
-     */
-    private fun migrateBloodRefinementFromAbsoluteToPct() {
-        val gd = _gameDataFlow.value
-        val oldTotals = gd.bloodRefinementBonusTotals
-        if (oldTotals.isEmpty()) return
-        if (gd.bloodRefinementPctTotals.isNotEmpty()) return // 已迁移
-
-        val migrated = mutableMapOf<String, BloodRefinementPctTotal>()
-        for ((discipleId, old) in oldTotals) {
-            val dId = discipleId.toIntOrNull() ?: continue
-            val hpOrig = _discipleTables.baseHps[dId] - old.hpBonus
-            val paOrig = _discipleTables.basePhysicalAttacks[dId] - old.physicalAttackBonus
-            val maOrig = _discipleTables.baseMagicAttacks[dId] - old.magicAttackBonus
-            val pdOrig = _discipleTables.basePhysicalDefenses[dId] - old.physicalDefenseBonus
-            val mdOrig = _discipleTables.baseMagicDefenses[dId] - old.magicDefenseBonus
-            val spdOrig = _discipleTables.baseSpeeds[dId] - old.speedBonus
-
-            // 跳过数据损坏的条目：原始 base <= 0 意味着数据不一致
-            val hasCorruptedBase = listOf(
-                hpOrig, paOrig, maOrig, pdOrig, mdOrig, spdOrig
-            ).any { it <= 0 }
-            if (!hasCorruptedBase) {
-                migrated[discipleId] = BloodRefinementPctTotal(
-                    discipleId = discipleId,
-                    hpBonusPct = old.hpBonus.toDouble() / hpOrig,
-                    physicalAttackBonusPct = old.physicalAttackBonus.toDouble() / paOrig,
-                    magicAttackBonusPct = old.magicAttackBonus.toDouble() / maOrig,
-                    physicalDefenseBonusPct = old.physicalDefenseBonus.toDouble() / pdOrig,
-                    magicDefenseBonusPct = old.magicDefenseBonus.toDouble() / mdOrig,
-                    speedBonusPct = old.speedBonus.toDouble() / spdOrig
-                )
-
-                // 从 base* 列回退历史血炼绝对值（防止计算时双算）
-                _discipleTables.baseHps[dId] = hpOrig
-                _discipleTables.basePhysicalAttacks[dId] = paOrig
-                _discipleTables.baseMagicAttacks[dId] = maOrig
-                _discipleTables.basePhysicalDefenses[dId] = pdOrig
-                _discipleTables.baseMagicDefenses[dId] = mdOrig
-                _discipleTables.baseSpeeds[dId] = spdOrig
-            }
-        }
-
-        _gameDataFlow.value = gd.copy(
-            bloodRefinementBonusTotals = emptyMap(),
-            bloodRefinementPctTotals = migrated
-        )
     }
 
     // ==================== GameData 策略表驱动合并 ====================

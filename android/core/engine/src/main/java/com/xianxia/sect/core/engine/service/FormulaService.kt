@@ -6,12 +6,10 @@ import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.spiritPlanting
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.BuildingNames
@@ -21,7 +19,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.repository.getSlotsByBuildingId
 import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
-import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
 
 
 
@@ -41,7 +38,7 @@ class FormulaService @Inject constructor(
      *
      * ```
      * baseProb = clamp01( baseRate + skillZone + professionZone )
-     * final    = clamp01( baseProb × (1 + realmZone + talentZone + policyZone + elderZone) )
+     * final    = clamp01( baseProb × (1 + realmZone + policyZone + elderZone) )
      * ```
      *
      * - [baseRate]：外部传入的基础率（当前恒为 0，保留字段兼容调用方）
@@ -53,7 +50,6 @@ class FormulaService @Inject constructor(
         val skillZone: Double = 0.0,       // 工作弟子炼丹/锻造属性加成（基础率组成）
         val professionZone: Double = 0.0,  // 职业等级加成（基础率组成，每低一阶 +0.20）
         val realmZone: Double = 0.0,       // 境界乘区
-        val talentZone: Double = 0.0,      // 天赋乘区
         val policyZone: Double = 0.0,      // 政策乘区
         val elderZone: Double = 0.0,       // 长老职位乘区
     ) {
@@ -62,7 +58,7 @@ class FormulaService @Inject constructor(
             val baseProb = (baseRate + skillZone + professionZone).coerceIn(0.0, 1.0)
             return ZoneCalculator.calculateProbability(
                 baseProb = baseProb,
-                positiveSum = realmZone + talentZone + policyZone + elderZone
+                positiveSum = realmZone + policyZone + elderZone
             )
         }
     }
@@ -137,30 +133,9 @@ class FormulaService @Inject constructor(
             skillZone = skillZone,
             professionZone = professionZone,
             realmZone = getRealmSuccessRateBonus(disciple.realm),
-            talentZone = getSuccessRateTalentBonus(disciple, buildingId),
             policyZone = policyBonus,
             elderZone = getElderPositionBonus(buildingId)
         )
-    }
-
-    /**
-     * 计算生产成功率加成
-     *
-     * @param弟子 执行生产的弟子（可为空）
-     * @param buildingId 建筑ID
-     * @return 总成功率加成（0.0-1.0）
-     */
-    fun calculateSuccessRateBonus(disciple: Disciple?, buildingId: String): Double {
-        if (disciple == null) return 0.0
-
-        var bonus = 0.0
-
-        bonus += getRealmSuccessRateBonus(disciple.realm)
-
-        bonus += getSuccessRateTalentBonus(disciple, buildingId)
-
-        // 功法成功率加成预留项：现恒为 0（与 C++ production 公式一致，无该项），占位函数已删
-        return bonus
     }
 
     /**
@@ -181,37 +156,6 @@ class FormulaService @Inject constructor(
             7 -> 0.07  // 金丹 +7%
             8 -> 0.04  // 筑基 +4%
             else -> 0.0 // 炼气 0%
-        }
-    }
-
-    /**
-     * 获取成功率相关天赋加成
-     *
-     * @param disciple 弟子对象
-     * @param buildingId 建筑ID
-     * @return 天赋加成
-     */
-    private fun getSuccessRateTalentBonus(disciple: Disciple, buildingId: String): Double {
-        val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-        val breakthroughBonus = (talentEffects["breakthroughChance"] ?: 0.0) * 0.80
-        val craftFlatBonus = getBuildingCraftFlatBonus(talentEffects, buildingId) * 0.006
-        return breakthroughBonus + craftFlatBonus
-    }
-
-    /**
-     * 获取建筑工艺固定加成
-     *
-     * @param talentEffects 天赋效果映射
-     * @param buildingId 建筑ID
-     * @return 固定加成值
-     */
-    @Suppress("UnusedParameter") // disciple: 语义形参：签名表达 API 决策域（调用点可读性与协议完整性优先），当前策略不消费
-    private fun getBuildingCraftFlatBonus(talentEffects: Map<String, Double>, buildingId: String): Double {
-        return when (buildingId) {
-            BuildingNames.ALCHEMY -> talentEffects["pillRefiningFlat"] ?: 0.0
-            BuildingNames.FORGE -> talentEffects["artifactRefiningFlat"] ?: 0.0
-            "herbGarden" -> talentEffects["spiritPlantingFlat"] ?: 0.0
-            else -> 0.0
         }
     }
 
@@ -294,29 +238,23 @@ class FormulaService @Inject constructor(
 
         val elderDisciple = stateStore.disciples.value.find { it.id == resolvedElderDiscipleId } ?: return 0.0
 
-        // 读含天赋 Flat 加成的属性（getBaseStats），否则
-        // "灵植/炼器/炼丹+18"天赋只对成功率生效，长老产量加成恒为 0
         val stats = DiscipleStatCalculator.getBaseStats(elderDisciple)
 
         return when (buildingId) {
             BuildingNames.FORGE -> {
                 val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (stats.artifactRefining - baseline).coerceAtLeast(0)
-                // 体质/词条的职务加成：作为乘算因子作用于长老职能效果
-                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.FORGE)
-                diff * 0.01 * (1.0 + posBonus)
+                diff * 0.01
             }
             BuildingNames.ALCHEMY -> {
                 val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (stats.pillRefining - baseline).coerceAtLeast(0)
-                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.ALCHEMY)
-                diff * 0.01 * (1.0 + posBonus)
+                diff * 0.01
             }
             "herbGarden" -> {
                 val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (stats.spiritPlanting - baseline).coerceAtLeast(0)
-                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.HERB_GARDEN)
-                diff * 0.01 * (1.0 + posBonus)
+                diff * 0.01
             }
             else -> 0.0
         }
@@ -349,7 +287,7 @@ class FormulaService @Inject constructor(
                 val (speed, success) = accumulateElderAndDiscipleBonus(
                     elder, disciples,
                     { DiscipleStatCalculator.getBaseStats(it).spiritPlanting },
-                    ElderSlotType.HERB_GARDEN, elderBonusGoesToSpeed = true
+                    elderBonusGoesToSpeed = true
                 )
                 speedBonus += speed; successBonus += success
             }
@@ -357,7 +295,7 @@ class FormulaService @Inject constructor(
                 val (speed, success) = accumulateElderAndDiscipleBonus(
                     elder, disciples,
                     { DiscipleStatCalculator.getBaseStats(it).pillRefining },
-                    ElderSlotType.ALCHEMY, elderBonusGoesToSpeed = false
+                    elderBonusGoesToSpeed = false
                 )
                 speedBonus += speed; successBonus += success
             }
@@ -365,7 +303,7 @@ class FormulaService @Inject constructor(
                 val (speed, success) = accumulateElderAndDiscipleBonus(
                     elder, disciples,
                     { DiscipleStatCalculator.getBaseStats(it).artifactRefining },
-                    ElderSlotType.FORGE, elderBonusGoesToSpeed = false
+                    elderBonusGoesToSpeed = false
                 )
                 speedBonus += speed; successBonus += success
             }
@@ -392,7 +330,6 @@ private fun accumulateElderAndDiscipleBonus(
     elder: Disciple?,
     disciples: List<Disciple>,
     statSelector: (Disciple) -> Int,
-    slotType: ElderSlotType,
     elderBonusGoesToSpeed: Boolean
 ): Pair<Double, Double> {
     val elderBaseline = 80
@@ -403,8 +340,7 @@ private fun accumulateElderAndDiscipleBonus(
 
     elder?.let { e ->
         val base = statSelector(e)
-        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(e, slotType)
-        val bonus = (base - elderBaseline).coerceAtLeast(0) * 0.01 * (1.0 + posBonus)
+        val bonus = (base - elderBaseline).coerceAtLeast(0) * 0.01
         if (elderBonusGoesToSpeed) speed += bonus else success += bonus
     }
     disciples.forEach { d ->

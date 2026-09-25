@@ -14,7 +14,7 @@
 // （2026-09-20 收尾批根治：函数级静态指针索引的悬挂 UAF）
 //
 // ## 缺陷背景（桌面全量单进程直跑段错误的根因）
-// talentById / physiqueById / affixById / forgeRecipeById / pillRecipeById
+// forgeRecipeById / pillRecipeById
 // 原为函数级 `static const std::map<std::string, const T*> kIndex` 一次性
 // 构建，缓存指向数据向量元素的**裸指针**。数据注入（data_inject 对向量整体
 // move 替换）或测试复位（resetGameDataStoreForTest + 重注入）后旧索引全部
@@ -33,7 +33,7 @@
 // 持有列表保管——替换在生产上至多发生一次（初始化期数据注入），测试每
 // 用例重注入也仅累积 KB 级（map + 指针），以不释放换"读者永不见悬垂"，
 // 免去 hazard pointer/引用计数的复杂度。JobSystem worker 并行核心批次
-// （hpMpEffectsFor → talentEffectsFor → talentById）会并发查询：多个
+// （生产结算的配方查询 forgeRecipeById / pillRecipeById）会并发查询：多个
 // 读者并发 load 同一快照安全；并发检测到失效时互斥保证单次重建、后到
 // 者复用先到者成果。
 //

@@ -60,7 +60,7 @@ class DiscipleStatusService @Inject constructor(
          *
          * 优先级顺序（匹配 syncAllDiscipleStatuses 的 when 链）：
          * 死亡 → 活跃任务（ON_MISSION 从 activeMissions 推导，非无条件保护）
-         * → 受保护状态（REFLECTING/REFINING）→ 远古秘境 → 据点驻守 →
+         * → 受保护状态（REFLECTING）→ 远古秘境 → 据点驻守 →
          * 队伍 → 执法 → 传道 → 执事 → 管理 → 学习 → 采矿 → 巡视 → 炼丹 → 锻造 →
          * 灵植 → 空闲
          *
@@ -68,7 +68,7 @@ class DiscipleStatusService @Inject constructor(
          * 从实际数据推导（防止任务已移除后弟子卡在 ON_MISSION）。
          *
          * @param isAlive 是否存活（死亡直接返回 DEAD）
-         * @param currentStatus 当前状态（仅 REFLECTING/REFINING 受保护）
+         * @param currentStatus 当前状态（仅 REFLECTING 受保护）
          * @param slotFlags 槽位归属标志，见 [SlotFlags]
          * @param hasActiveMission 弟子是否有活跃任务（来自 gameData.activeMissions）
          * @return 推导出的正确状态
@@ -82,7 +82,6 @@ class DiscipleStatusService @Inject constructor(
             if (!isAlive) return DiscipleStatus.DEAD
             if (hasActiveMission) return DiscipleStatus.ON_MISSION
             if (currentStatus == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
-            if (currentStatus == DiscipleStatus.REFINING) return DiscipleStatus.REFINING
             return SLOT_FLAG_STATUS_RULES.firstOrNull { (matches, _) -> matches(slotFlags) }
                 ?.second ?: DiscipleStatus.IDLE
         }
@@ -272,7 +271,7 @@ class DiscipleStatusService @Inject constructor(
 
     /**
      * 根据所有槽位分配同步所有存活弟子的状态。
-     * 保留 REFLECTING / ON_MISSION / REFINING 不覆盖。
+     * 保留 REFLECTING / ON_MISSION 不覆盖。
      *
      * 所有读取在 [stateStore.update] 事务内完成：
      * - 正常调用时：从 deepCopy 读取当前状态
@@ -457,7 +456,7 @@ class DiscipleStatusService @Inject constructor(
 
     /**
      * 重置所有弟子为 IDLE 状态。
-     * 保留 REFLECTING / REFINING 不受影响。
+     * 保留 REFLECTING 不受影响。
      * 清除所有槽位分配（灵脉矿/藏经阁/长老/驻守/洞府探索队伍/任务/秘境会话）。
      */
     suspend fun resetAllDisciplesStatus() {
@@ -475,7 +474,7 @@ class DiscipleStatusService @Inject constructor(
 
     /**
      * 重置槽位：清除所有非受保护弟子的槽位分配，重置状态为 IDLE。
-     * 返回值：受保护弟子的 ID 集合（REFLECTING/REFINING，跳过清除）。
+     * 返回值：受保护弟子的 ID 集合（REFLECTING，跳过清除）。
      */
     private fun MutableGameState.clearSlotsForReset(): Set<String> {
         val ids = collectProtectedIds()
@@ -502,12 +501,12 @@ class DiscipleStatusService @Inject constructor(
         return ids
     }
 
-    /** 收集受保护弟子 id：反省/炼器中不重置 */
+    /** 收集受保护弟子 id：反省中不重置 */
     private fun MutableGameState.collectProtectedIds(): Set<String> {
         val ids = mutableSetOf<String>()
         for (id in discipleTables.ids) {
             val status = discipleTables.statuses[id]
-            if (status == DiscipleStatus.REFLECTING || status == DiscipleStatus.REFINING) {
+            if (status == DiscipleStatus.REFLECTING) {
                 ids.add(id.toString())
             }
         }
@@ -712,5 +711,4 @@ private fun clearElderTitleIfUnprotected(title: String, protectedIds: Set<String
  * 死亡、思过中、闭关中、已空闲的弟子不参与状态重置。
  */
 internal fun isProtectedFromStatusReset(isAlive: Boolean, status: DiscipleStatus?): Boolean =
-    !isAlive || status == DiscipleStatus.REFLECTING ||
-        status == DiscipleStatus.REFINING || status == DiscipleStatus.IDLE
+    !isAlive || status == DiscipleStatus.REFLECTING || status == DiscipleStatus.IDLE

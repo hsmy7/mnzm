@@ -5,9 +5,9 @@
   "height": 4096,
   "mipLevels": 11,
   "mipMode": "per-sprite",
-  "layoutHash": "3eae9b488c7c3bdc",
-  "generatedAt": "2026-09-12T09:48:44.801Z",
-  "spriteCount": 42,
+  "layoutHash": "6a122ed22d66bee5",
+  "generatedAt": "2026-09-24T23:27:43.797Z",
+  "spriteCount": 41,
   "sprites": [
     {
       "name": "GROUND",
@@ -290,18 +290,8 @@
       "srcH": 337
     },
     {
-      "name": "血炼池",
-      "x": 1040,
-      "y": 2072,
-      "w": 512,
-      "h": 512,
-      "drawable": "blood_refining_pool",
-      "srcW": 1384,
-      "srcH": 768
-    },
-    {
       "name": "中级多人住所",
-      "x": 1560,
+      "x": 1040,
       "y": 2072,
       "w": 512,
       "h": 512,

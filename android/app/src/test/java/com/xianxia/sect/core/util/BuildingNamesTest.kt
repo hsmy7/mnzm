@@ -76,11 +76,6 @@ class BuildingNamesTest {
     }
 
     @Test
-    fun getDisplayName_bloodRefiningPool_returns血炼池() {
-        assertEquals("血炼池", BuildingNames.getDisplayName("bloodRefiningPool"))
-    }
-
-    @Test
     fun getDisplayName_unknown_returns建筑() {
         assertEquals("建筑", BuildingNames.getDisplayName("unknown_building"))
     }

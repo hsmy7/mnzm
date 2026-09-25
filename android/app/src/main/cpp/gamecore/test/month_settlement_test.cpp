@@ -5,8 +5,7 @@
 // （runMonthSettlement）跨月推进 → 断言八步事务各域字段值逐位符合手算期望。
 //
 // 覆盖：政策月度扣除（含不足自动关闭 / 广纳门徒 36 月冷却）/ 政策月度忠诚·
-// 道德效果 / 住所忠诚 / 血炼到期结算与未到期保留（含 NaN 防御）/ 丹药持续
-// 效果月衰减 / 灵田收获种子 roll
+// 道德效果 / 住所忠诚 / 丹药持续效果月衰减 / 灵田收获种子 roll
 // （SYSTEM RNG 审计 + 续种匹配）/ 世界关卡清理与妖兽移动（EXPLORATION
 // RNG 审计 + 边界钳制）/ 灵矿月产差分结算与矿工忠诚衰减 / 游戏结束判定 /
 // 招募计数归零 + SYSTEM 分区抽取顺序锁（收获 roll 抽取次数与序）。
@@ -33,7 +32,6 @@
 namespace {
 
 using namespace gamecore;
-using gamecore::state::BloodRefinementProgress;
 using gamecore::state::Disciple;
 using gamecore::state::GameData;
 using gamecore::state::GameState;
@@ -139,81 +137,6 @@ TEST(MonthSettlementTest, PolicyMonthlyEffectsMoralityGolden) {
 
     EXPECT_EQ(69, st.disciples.materialize(0).morality);                 // 68 + 1
     EXPECT_EQ(kMoralEducationMax, st.disciples.materialize(1).morality); // 上限不再增长
-}
-
-// ── 步骤 5：血炼完成检测 ───────────────────────────────────────────
-
-TEST(MonthSettlementTest, BloodRefinementDueSettlesWithEvent) {
-    // 到期（elapsed >= duration）：百分比累加 + 材料记录 + 清 statusData +
-    // 事件记录；status 重置为 IDLE（血炼中 REFINING 受保护状态须显式打破——
-    // 根因修复：血炼完成后弟子不再卡"血炼池中"）；条目从 active 移除
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple d = baseDisciple("1");
-    d.status = "REFINING";           // 血炼中状态（真实场景）
-    d.statusData["buildingId"] = "pool-1";
-    st.disciples.appendDisciple(d);
-
-    BloodRefinementProgress progress;
-    progress.discipleId = "1";
-    progress.discipleName = "弟子1";
-    progress.materialId = "mat-1";
-    progress.startYear = 1;
-    progress.startMonth = 1;
-    progress.durationMonths = 2;
-    progress.selectedStat = "hp";
-    progress.bonusPercent = 5.0;
-    st.gameData.activeBloodRefinements["pool-1"] = progress;
-    st.gameData.gameMonth = 3;   // elapsed = 2 >= 2 到期
-
-    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
-
-    EXPECT_TRUE(st.gameData.activeBloodRefinements.empty());
-    EXPECT_DOUBLE_EQ(5.0, st.gameData.bloodRefinementPctTotals["1"].hpBonusPct);
-    ASSERT_EQ(1u, st.gameData.bloodRefinements["1"].size());
-    EXPECT_STREQ("mat-1", st.gameData.bloodRefinements["1"][0].c_str());
-    EXPECT_EQ(0, st.disciples.materialize(0).statusData.count("buildingId"));
-    EXPECT_EQ("IDLE", st.disciples.statuses[0]);
-    ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
-    EXPECT_STREQ("blood_refinement",
-                 st.gameData.gameEventRecords[0].eventType.c_str());
-    EXPECT_NE(std::string::npos,
-              st.gameData.gameEventRecords[0].summary.find("血练已完成"));
-    EXPECT_NE(std::string::npos,
-              st.gameData.gameEventRecords[0].summary.find("生命"));
-}
-
-TEST(MonthSettlementTest, BloodRefinementNotDueRetainedAndNaNDefended) {
-    // 未到期保留；到期但 bonusPercent 为 NaN → 归零防御（NaN 无法被
-    // coerceAtLeast 拦下，先 isFinite 归零）
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.disciples.appendDisciple(baseDisciple("1"));
-
-    BloodRefinementProgress pending;
-    pending.discipleId = "1";
-    pending.startYear = 1;
-    pending.startMonth = 1;
-    pending.durationMonths = 6;
-    pending.selectedStat = "speed";
-    pending.bonusPercent = 3.0;
-    st.gameData.activeBloodRefinements["pool-a"] = pending;
-
-    BloodRefinementProgress nanCase = pending;
-    nanCase.durationMonths = 1;
-    nanCase.selectedStat = "magicAttack";
-    nanCase.bonusPercent = std::nan("");
-    st.gameData.activeBloodRefinements["pool-b"] = nanCase;
-    st.gameData.gameMonth = 2;   // elapsed = 1：pool-b 到期结算、pool-a(需6月)保留
-
-    system::runMonthSettlement(st, core->rng(), core->aiRng(), core->aiMonthBatch(), core->ecsWorld());
-
-    // pool-a 未到期保留；pool-b 到期结算且 NaN → 0
-    EXPECT_EQ(1u, st.gameData.activeBloodRefinements.count("pool-a"));
-    EXPECT_EQ(0u, st.gameData.activeBloodRefinements.count("pool-b"));
-    EXPECT_DOUBLE_EQ(0.0,
-                     st.gameData.bloodRefinementPctTotals["1"].magicAttackBonusPct);
-    EXPECT_DOUBLE_EQ(0.0, st.gameData.bloodRefinementPctTotals["1"].speedBonusPct);
 }
 
 // ── 步骤 7：丹药持续效果月衰减 ─────────────────────────────────────

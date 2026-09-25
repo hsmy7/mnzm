@@ -84,7 +84,7 @@ class ScheduledBeastAttackTest {
         // playerAvgRealm 为可空 Int，需 anyOrNull() 匹配 null（any() 的 InstanceOf 不匹配 null）
         `when`(worldLevelManager.processMonthly(any(), anyOrNull()))
             .thenAnswer { invocation -> invocation.getArgument(0) as GameData }
-        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
         `when`(battleSystem.executeBattle(any(), any())).thenReturn(
             BattleSystemResult(battle = Battle(team = emptyList(), beasts = emptyList()),

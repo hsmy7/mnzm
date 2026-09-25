@@ -11,23 +11,19 @@ package com.xianxia.sect.core.model
 interface DiscipleStatsProvider {
     fun getBaseStats(disciple: Disciple): DiscipleStats
     fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats
-    fun getTalentEffects(disciple: Disciple): Map<String, Double>
-    fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double>
     fun getStatsWithEquipment(disciple: Disciple, equipments: Map<String, EquipmentInstance>): DiscipleStats
     fun getStatsWithEquipment(aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>): DiscipleStats
     fun getFinalStats(
         disciple: Disciple,
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        bloodRefinementPct: BloodRefinementPctTotal? = null
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats
     fun getFinalStats(
         aggregate: DiscipleAggregate,
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        bloodRefinementPct: BloodRefinementPctTotal? = null
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats
     fun calculateCultivationSpeed(
         disciple: Disciple,

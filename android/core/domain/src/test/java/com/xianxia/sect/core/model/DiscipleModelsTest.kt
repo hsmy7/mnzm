@@ -26,19 +26,6 @@ class DiscipleModelsTest {
     }
 
     @Test
-    fun discipleAttributes_aptitude_default50() {
-        val attrs = DiscipleAttributes()
-        // 资质默认 50 为旧档自愈哨兵值
-        assertEquals(50, attrs.aptitude)
-    }
-
-    @Test
-    fun discipleAttributes_aptitude_customValue() {
-        val attrs = DiscipleAttributes(discipleId = "d1", aptitude = 120)
-        assertEquals(120, attrs.aptitude)
-    }
-
-    @Test
     fun discipleAttributes_customConstruction() {
         val attrs = DiscipleAttributes(
             discipleId = "d1",
@@ -253,18 +240,6 @@ class DiscipleModelsTest {
         assertEquals(0, stats.salaryMissedCount)
     }
 
-    @Test
-    fun skillStats_aptitude_default50() {
-        val stats = SkillStats()
-        assertEquals(50, stats.aptitude)
-    }
-
-    @Test
-    fun skillStats_aptitude_customValue() {
-        val stats = SkillStats(aptitude = 160)
-        assertEquals(160, stats.aptitude)
-    }
-
     // ---- UsageTracking ----
 
     @Test
@@ -389,7 +364,6 @@ class DiscipleModelsTest {
         assertEquals("", ext.discipleId)
         assertEquals(0, ext.slotId)
         assertEquals(emptyList<String>(), ext.manualIds)
-        assertEquals(emptyList<String>(), ext.talentIds)
         assertEquals(emptyMap<String, Int>(), ext.manualMasteries)
         assertEquals(emptyMap<String, String>(), ext.statusData)
         assertEquals(0.0, ext.cultivationSpeedBonus, 0.001)

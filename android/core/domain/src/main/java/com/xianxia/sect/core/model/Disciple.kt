@@ -43,7 +43,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * - getStatsWithEquipment → DiscipleStatsProvider.getStatsWithEquipment
  * - calculateCultivationSpeed → DiscipleStatsProvider.calculateCultivationSpeed
  * - getBreakthroughChance → DiscipleStatsProvider.getBreakthroughChance
- * - getTalentEffects → DiscipleStatsProvider.getTalentEffects
  */
 @Keep
 @Serializable(with = DiscipleSerializer::class)
@@ -88,9 +87,6 @@ data class Disciple(
     var templateId: String = "",
 
     var manualIds: List<String> = emptyList(),
-    var talentIds: List<String> = emptyList(),
-    var physiqueIds: List<String> = emptyList(),
-    var affixIds: List<String> = emptyList(),
 
     var manualMasteries: Map<String, Int> = emptyMap(),
 
@@ -188,8 +184,6 @@ data class Disciple(
     val genderName: String get() = if (gender == "male") "男" else "女"
     val genderSymbol: String get() = if (gender == "male") "\u2642" else "\u2640"
 
-    val aptitude: Int get() = skills.aptitude
-
     // 所有字段更新通过 DiscipleTables 直接操作；如需构造新 Disciple 对象，
     // 请使用 Disciple(...) 构造函数或 DiscipleTables.assemble()。
 
@@ -214,18 +208,15 @@ data class Disciple(
 
     fun getBaseStats(): DiscipleStats = DiscipleAggregate.statsProvider.getBaseStats(this)
 
-    fun getTalentEffects(): Map<String, Double> = DiscipleAggregate.statsProvider.getTalentEffects(this)
-
     fun getStatsWithEquipment(equipments: Map<String,
         EquipmentInstance>): DiscipleStats = DiscipleAggregate.statsProvider.getStatsWithEquipment(this, equipments)
 
     fun getFinalStats(
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        bloodRefinementPct: BloodRefinementPctTotal? = null
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats = DiscipleAggregate.statsProvider.getFinalStats(
-        this, equipments, manuals, manualProficiencies, bloodRefinementPct
+        this, equipments, manuals, manualProficiencies
     )
 
     fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String,
@@ -261,7 +252,7 @@ data class Disciple(
 @Serializable
 enum class DiscipleStatus {
     IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM,
-        PATROLLING, REFINING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD,
+        PATROLLING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD,
     SECRET_REALM,
     /** 旧档兼容保留：仓库驻守玩法已下线，存量存档可能仍写入该状态 */
     WAREHOUSE_GARRISON;
@@ -279,7 +270,6 @@ enum class DiscipleStatus {
         GARRISONING -> "驻守中"
         IN_TEAM -> "队伍中"
         PATROLLING -> "巡视塔中"
-        REFINING -> "血炼池中"
         ALCHEMY -> "炼丹弟子"
         FORGE -> "锻造弟子"
         SPIRIT_PLANTING -> "灵植弟子"
@@ -322,100 +312,6 @@ data class SpiritRoot(
 
 @Keep
 @Serializable
-data class Talent(
-    val id: String,
-    val name: String,
-    val description: String,
-    val rarity: Int,
-    val effects: Map<String, Double>,
-    val isNegative: Boolean = false,
-    val positionBonus: PositionBonus? = null
-) {
-    val color: String get() = when {
-        isNegative -> "#9E9E9E"
-        rarity == 1 -> "#4CAF50"
-        rarity == 2 -> "#2196F3"
-        rarity == 3 -> "#E74C3C"
-        else -> "#4CAF50"
-    }
-    val rarityName: String get() = when {
-        isNegative -> "负面"
-        rarity == 1 -> "下品"
-        rarity == 2 -> "中品"
-        rarity == 3 -> "上品"
-        else -> "下品"
-    }
-}
-
-/** 职务职能效果加成：拥有对应天赋/词条的弟子担任职务时，该职务职能效果获得额外百分比加成（乘算） */
-@Keep
-@Serializable
-data class PositionBonus(
-    val slotType: ElderSlotType,
-    val effectBonus: Double
-)
-
-/** 体质：修炼速度加成 + 战斗伤害特殊加成（独立乘算） */
-@Keep
-@Serializable
-data class Physique(
-    val id: String,
-    val name: String,
-    val description: String,
-    val rarity: Int,
-    val cultivationSpeedBonus: Double,
-    val damageAmplification: Double,
-    val damageReduction: Double,
-    val critDamageBonus: Double,
-    val defenseBonus: Double,
-    val isNegative: Boolean = false
-) {
-    val color: String get() = when {
-        isNegative -> "#9E9E9E"
-        rarity == 1 -> "#4CAF50"
-        rarity == 2 -> "#2196F3"
-        rarity == 3 -> "#E74C3C"
-        else -> "#4CAF50"
-    }
-    val rarityName: String get() = when {
-        isNegative -> "负面"
-        rarity == 1 -> "下品"
-        rarity == 2 -> "中品"
-        rarity == 3 -> "上品"
-        else -> "下品"
-    }
-}
-
-/** 词条：通用加成，覆盖基础属性/战斗属性/职务/战斗伤害特殊/修炼速度所有加成类型 */
-@Keep
-@Serializable
-data class Affix(
-    val id: String,
-    val name: String,
-    val description: String,
-    val rarity: Int,
-    val effects: Map<String, Double>,
-    val isNegative: Boolean = false,
-    val positionBonus: PositionBonus? = null
-) {
-    val color: String get() = when {
-        isNegative -> "#9E9E9E"
-        rarity == 1 -> "#4CAF50"
-        rarity == 2 -> "#2196F3"
-        rarity == 3 -> "#E74C3C"
-        else -> "#4CAF50"
-    }
-    val rarityName: String get() = when {
-        isNegative -> "负面"
-        rarity == 1 -> "下品"
-        rarity == 2 -> "中品"
-        rarity == 3 -> "上品"
-        else -> "下品"
-    }
-}
-
-@Keep
-@Serializable
 data class DiscipleStats(
     val hp: Int = 0,
     val maxHp: Int = 0,
@@ -435,8 +331,7 @@ data class DiscipleStats(
     val mining: Int = 0,
     val spiritPlanting: Int = 0,
     val artifactRefining: Int = 0,
-    val pillRefining: Int = 0,
-    val aptitude: Int = 0
+    val pillRefining: Int = 0
 ) {
     operator fun plus(other: DiscipleStats): DiscipleStats {
         return DiscipleStats(
@@ -458,8 +353,7 @@ data class DiscipleStats(
             mining = mining + other.mining,
             spiritPlanting = spiritPlanting + other.spiritPlanting,
             artifactRefining = artifactRefining + other.artifactRefining,
-            pillRefining = pillRefining + other.pillRefining,
-            aptitude = aptitude + other.aptitude
+            pillRefining = pillRefining + other.pillRefining
         )
     }
 }

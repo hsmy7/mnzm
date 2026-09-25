@@ -851,7 +851,7 @@ internal fun GameEngine.clearDiscipleFromProductionRepository(discipleId: String
  * 事务内"释放弟子至 IDLE"：清理 GameData 全部槽位引用 + 状态重置。
  *
  * 语义与 [com.xianxia.sect.core.engine.GameEngineDiscipleOps.releaseDiscipleFromAllSlotsAtomic] 一致
- * （REFINING 视为放弃血炼不返还材料；REFLECTING 视为手动释放思过），但**仅操作 GameData**，
+ * （REFLECTING 视为手动释放思过），但**仅操作 GameData**，
  * gate 操作由调用方在事务成功后执行（pendingReleases 模式），事务失败时整体回滚、gate 不被触碰。
  * 住所与工作共存是有意设计，不清理住所槽位（clearAllSlotsDataOnly 默认 includeResidence=false）。
  * 供 `stateStore.update { releaseDiscipleToIdleInside(this, it) }` 使用。
@@ -867,10 +867,6 @@ internal fun GameEngine.releaseDiscipleToIdleInside(
         DiscipleStatus.REFLECTING -> {
             val existingData = state.discipleTables.statusData[id]
             state.discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
-            state.discipleTables.statuses[id] = DiscipleStatus.IDLE
-        }
-        DiscipleStatus.REFINING -> {
-            state.discipleTables.statusData[id] = state.discipleTables.statusData[id] - "buildingId"
             state.discipleTables.statuses[id] = DiscipleStatus.IDLE
         }
         else -> state.discipleTables.statuses[id] = DiscipleStatus.IDLE

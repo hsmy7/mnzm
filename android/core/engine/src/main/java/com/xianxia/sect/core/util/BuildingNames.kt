@@ -27,10 +27,7 @@ object BuildingNames {
         "missionhall" to "任务阁",
         "missionHall" to "任务阁",
         "reflectioncliff" to "监牢",
-        "reflectionCliff" to "监牢",
-        "blood_refining_pool" to "血炼池",
-        "bloodRefiningPool" to "血炼池",
-        "bloodrefiningpool" to "血炼池"
+        "reflectionCliff" to "监牢"
     )
 
     fun getDisplayName(buildingId: String): String =

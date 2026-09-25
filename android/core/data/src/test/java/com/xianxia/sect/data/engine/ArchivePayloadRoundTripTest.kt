@@ -59,9 +59,6 @@ class ArchivePayloadRoundTripTest {
         gender = "female",
         portraitRes = "portrait_42",
         manualIds = listOf("manual_qingfeng"),
-        talentIds = listOf("talent_sword"),
-        physiqueIds = listOf("physique_ice"),
-        affixIds = listOf("affix_a1"),
         manualMasteries = mapOf("manual_qingfeng" to 7),
         status = DiscipleStatus.DEAD,
         statusData = mapOf("cause" to "battle", "killer" to "enemy_9"),
@@ -85,7 +82,6 @@ class ArchivePayloadRoundTripTest {
             intelligence = 66,
             charm = 55,
             comprehension = 71,
-            aptitude = 92,
             alchemyLevel = 4,
             alchemyPromotionCount = 9,
             forgeLevel = 2
@@ -161,7 +157,6 @@ class ArchivePayloadRoundTripTest {
         assertEquals("weapon_1", decoded.equipment.weaponId)
         assertEquals(5, decoded.equipment.weaponNurture.nurtureLevel)
         assertEquals(listOf("manual_qingfeng"), decoded.manualIds)
-        assertEquals(92, decoded.skills.aptitude)
         assertEquals(5000, decoded.combat.baseHp)
     }
 

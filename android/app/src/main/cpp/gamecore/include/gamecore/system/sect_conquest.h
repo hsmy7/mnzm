@@ -119,17 +119,8 @@ inline std::map<std::string, PlayerGarrisonDefense> buildPlayerGarrisonDefenses(
             proficiencies.emplace(discipleId, std::move(byManualId));
         }
         for (const auto& d : defense.disciples) {
-            const auto profIt = proficiencies.find(d.id);
-            static const std::map<std::string, state::ManualProficiencyData> kEmpty;
-            const std::map<std::string, state::ManualProficiencyData>& prof =
-                profIt == proficiencies.end() ? kEmpty : profIt->second;
-            state::BloodRefinementPctTotal blood;
-            const auto brIt = gd.bloodRefinementPctTotals.find(d.id);
-            const bool hasBlood = brIt != gd.bloodRefinementPctTotals.end();
-            if (hasBlood) blood = brIt->second;
             gamecore::battle::Combatant c = mission_settle::detail::discipleToCombatant(
-                d, equipmentMap, manualMap, proficiencies,
-                hasBlood ? &blood : nullptr);
+                d, equipmentMap, manualMap, proficiencies);
             c.side = gamecore::battle::CombatantSide::kDefender;
             defense.combatants.push_back(std::move(c));
         }
@@ -243,7 +234,7 @@ inline gamecore::battle::Combatant aiDiscipleToCombatant(
         gamecore::battle::CombatantSide side) {
     gamecore::battle::Combatant c = mission_settle::detail::discipleToCombatant(
         d, prepared.equipmentMapByDisciple.at(d.id), prepared.manualMap,
-        prepared.proficiencies, nullptr);
+        prepared.proficiencies);
     c.hp = c.maxHp;
     c.mp = c.maxMp;
     c.side = side;

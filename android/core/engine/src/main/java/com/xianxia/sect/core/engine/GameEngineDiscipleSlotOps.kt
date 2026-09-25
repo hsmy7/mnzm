@@ -148,8 +148,6 @@ fun GameEngine.removeDiscipleFromLibrarySlot(slotIndex: Int) {
  *
  * 状态特殊处理：
  * - REFLECTING（思过中）：清除 reflection 字段，不加道德加成（视为手动释放）
- * - REFINING（血炼中）：clearAllSlots 会清除 activeBloodRefinements，
- *   额外清理 statusData 中的 buildingId（视为血炼失败，不返还材料）
  */
 suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
     engineContextDispatcher.withEngineContext {
@@ -168,15 +166,6 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
                         "reflectionStartYear", "reflectionEndYear"
                     )
                     // 清除受保护状态标记，后续 syncSingleDiscipleStatus 会重新推导正确状态
-                    discipleTables.statuses[id] = DiscipleStatus.IDLE
-                }
-                DiscipleStatus.REFINING -> {
-                    gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
-                    val current = discipleTables.statusData.getOrDefault(id, emptyMap())
-                    discipleTables.statusData[id] = current - "buildingId"
-                    // 血炼 REFINING 是受保护状态，须显式重置为 IDLE（与上方
-                    // REFLECTING 分支一致），否则事务外 syncSingleDiscipleStatus
-                    // 推导仍锁定 REFINING，弟子永远无法被释放/重新分配
                     discipleTables.statuses[id] = DiscipleStatus.IDLE
                 }
                 else -> {

@@ -171,8 +171,7 @@ private fun GameEngine.buildSectAttackCombatants(
     return attackers.map { d ->
         battleSystem.convertDiscipleToCombatant(
             d, equipmentMap, manualMap, allProficiencies,
-            CombatantSide.ATTACKER,
-            bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
+            CombatantSide.ATTACKER
         )
     }
 }

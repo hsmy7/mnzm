@@ -6,16 +6,12 @@
 // （JNI 对拍，同种子逐字段位级一致）确认后固化——本文件防 C++ 侧
 // 回归漂移，正确性锚定在 Kotlin 对拍测试。
 //
-// 另含分布统计断言：数量 0-5 / 品阶四档 / 资质哨兵 50 规避 / 技能上限。
+// 另含分布统计断言：悟性阶梯 / 方差区间 / 技能上限。
 // ============================================================
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cstdint>
-#include <iostream>
-#include <set>
 #include <string>
-#include <vector>
 
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/system/disciple_factory.h"
@@ -52,7 +48,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed42) {
     EXPECT_EQ(6, d.magicDefenseVariance);
     EXPECT_EQ(8, d.speedVariance);
     EXPECT_EQ(82, d.comprehension);
-    EXPECT_EQ(95, d.aptitude);
     EXPECT_EQ(45, d.intelligence);
     EXPECT_EQ(32, d.charm);
     EXPECT_EQ(48, d.morality);
@@ -68,10 +63,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed42) {
     EXPECT_EQ(10, d.basePhysicalDefense);
     EXPECT_EQ(8, d.baseMagicDefense);
     EXPECT_EQ(16, d.baseSpeed);
-    EXPECT_TRUE(d.talentIds.empty());
-    EXPECT_EQ(std::vector<std::string>({"neg_phys_defense", "r1_phys_cult_speed"}),
-              d.physiqueIds);
-    EXPECT_TRUE(d.affixIds.empty());
 }
 
 TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
@@ -84,8 +75,7 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     s.spiritRootType = "火,水,木,金,土";
     const auto d = createDisciple(s, rng);
     // 黄金值（Kotlin DiscipleFactory.create 同种子输出，DiffDiscipleFactoryTest
-    // 对拍逐字段确认后固化——seed=987654321/female/五灵根，覆盖负面体质抽取
-    // 与三分类多特质路径）
+    // 对拍逐字段确认后固化——seed=987654321/female/五灵根）
     EXPECT_EQ("female_disciple_8", d.portraitRes);
     EXPECT_EQ(-18, d.hpVariance);
     EXPECT_EQ(3, d.mpVariance);
@@ -95,7 +85,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     EXPECT_EQ(-9, d.magicDefenseVariance);
     EXPECT_EQ(4, d.speedVariance);
     EXPECT_EQ(17, d.comprehension);
-    EXPECT_EQ(5, d.aptitude);
     EXPECT_EQ(36, d.intelligence);
     EXPECT_EQ(58, d.charm);
     EXPECT_EQ(59, d.morality);
@@ -111,13 +100,6 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     EXPECT_EQ(7, d.basePhysicalDefense);
     EXPECT_EQ(7, d.baseMagicDefense);
     EXPECT_EQ(15, d.baseSpeed);
-    EXPECT_TRUE(d.talentIds.empty());
-    EXPECT_EQ(std::vector<std::string>({"r2_phys_defense", "neg_phys_cult"}),
-              d.physiqueIds);
-    EXPECT_EQ(std::vector<std::string>({"r1_aff_pos_vice_sect_master",
-                                        "r1_aff_pos_inner_elder",
-                                        "r1_aff_cult_speed"}),
-              d.affixIds);
 }
 
 TEST(DiscipleFactory, DeterministicAcrossInstances) {
@@ -130,31 +112,20 @@ TEST(DiscipleFactory, DeterministicAcrossInstances) {
     EXPECT_EQ(a.hpVariance, b.hpVariance);
     EXPECT_EQ(a.speedVariance, b.speedVariance);
     EXPECT_EQ(a.comprehension, b.comprehension);
-    EXPECT_EQ(a.aptitude, b.aptitude);
     EXPECT_EQ(a.intelligence, b.intelligence);
     EXPECT_EQ(a.teaching, b.teaching);
     EXPECT_EQ(a.baseHp, b.baseHp);
     EXPECT_EQ(a.baseSpeed, b.baseSpeed);
-    EXPECT_EQ(a.talentIds, b.talentIds);
-    EXPECT_EQ(a.physiqueIds, b.physiqueIds);
-    EXPECT_EQ(a.affixIds, b.affixIds);
 }
 
 TEST(DiscipleFactory, DistributionInvariants) {
-    // 统计不变式：数量 0-5、技能 1-200、方差 -50..50、
-    // 资质避开哨兵 50、悟性/资质 1-200
-    std::set<int32_t> counts;
-    std::set<int32_t> aptitudes;
-    std::set<int32_t> comprehensions;
+    // 统计不变式：技能 1-200、方差 -50..50、悟性阶梯 1-20/80-100
     for (int32_t i = 0; i < 500; ++i) {
         auto rng = DeterministicRng::fromSeed(9000 + i);
         DiscipleCreationSeed s = kSeed();
         s.id = "invariant-" + std::to_string(i);
         s.spiritRootType = (i % 5 == 0) ? "火" : "火,水,木,金,土";
         const auto d = createDisciple(s, rng);
-        counts.insert(static_cast<int32_t>(d.talentIds.size()));
-        aptitudes.insert(d.aptitude);
-        comprehensions.insert(d.comprehension);
         EXPECT_GE(d.intelligence, 1);
         EXPECT_LE(d.intelligence, 200);
         EXPECT_GE(d.charm, 1);
@@ -164,12 +135,7 @@ TEST(DiscipleFactory, DistributionInvariants) {
         EXPECT_GE(d.speedVariance, -50);
         EXPECT_LE(d.speedVariance, 50);
     }
-    // 数量全档可达（0-5）
-    EXPECT_EQ(std::vector<int32_t>({0, 1, 2, 3, 4, 5}),
-              std::vector<int32_t>(counts.begin(), counts.end()));
-    // 资质永不等于哨兵 50
-    EXPECT_EQ(0, aptitudes.count(50));
-    // 五灵根悟性/资质 ∈ [1, 20]
+    // 五灵根悟性 ∈ [1, 20]
     for (int32_t i = 0; i < 100; ++i) {
         auto rng = DeterministicRng::fromSeed(555 + i);
         DiscipleCreationSeed s = kSeed();
@@ -178,9 +144,6 @@ TEST(DiscipleFactory, DistributionInvariants) {
         const auto d = createDisciple(s, rng);
         EXPECT_GE(d.comprehension, 1);
         EXPECT_LE(d.comprehension, 20);
-        EXPECT_GE(d.aptitude, 1);
-        EXPECT_LE(d.aptitude, 20);
-        EXPECT_NE(d.aptitude, 50);
     }
     // 单灵根悟性 ∈ [80, 100]
     for (int32_t i = 0; i < 100; ++i) {

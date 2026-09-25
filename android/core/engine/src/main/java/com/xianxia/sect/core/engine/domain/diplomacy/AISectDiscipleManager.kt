@@ -2,11 +2,8 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
-import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.registry.PhysiqueDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -171,9 +168,6 @@ object AISectDiscipleManager {
      */
     internal const val PHASES_PER_MONTH = 3
 
-    /** statusData 中"已尝试补全体质/词条/天赋"标记（防重复 roll 导致 RNG 漂移） */
-    const val GEAR_ROLL_MARKER = "aiGearRolled"
-
     /** AI 宗门装备数量按宗门等级：小型 1 / 中型 2 / 大型 4 / 顶级 4 */
     internal val EQUIPMENT_COUNT_BY_SECT_LEVEL = mapOf(
         SectLevel.SMALL to 1,
@@ -226,8 +220,6 @@ object AISectDiscipleManager {
             4 -> 20 + rng.nextInt(21)
             else -> 1 + rng.nextInt(20)
         }
-        // 资质：与悟性一致的按灵根阶梯生成（上界统一 200，防 AI 对抗不对称；避开哨兵 50）
-        val aptitude = rollAptitudeByRootCount(spiritRootCount)
         val hpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val mpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val physicalAttackVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
@@ -235,10 +227,6 @@ object AISectDiscipleManager {
         val physicalDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val magicDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val speedVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
-        // 天赋/体质/词条三类标签（与 DiscipleFactory.create 同构，走 AI 分区 RNG 保证确定性）
-        val talents = TalentDatabase.generateTalentsForDisciple(rng.asKotlinRandom()).map { it.id }
-        val physiqueIds = PhysiqueDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
-        val affixIds = AffixDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
 
         return Disciple(
             id = java.util.UUID.randomUUID().toString(),
@@ -252,9 +240,6 @@ object AISectDiscipleManager {
             spiritRootType = spiritRoot,
             isAlive = true,
             discipleType = "outer",
-            talentIds = talents,
-            physiqueIds = physiqueIds,
-            affixIds = affixIds,
             manualIds = emptyList(),
             manualMasteries = emptyMap(),
             combat = CombatAttributes(
@@ -276,8 +261,7 @@ object AISectDiscipleManager {
                 pillRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
                 spiritPlanting = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
                 mining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
-                teaching = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
-                aptitude = aptitude
+                teaching = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX)
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -299,7 +283,7 @@ object AISectDiscipleManager {
      *
      * AI 弟子装备/功法已在生成与突破刷新时持久化（模板 id + 熟练度），
      * 本函数仅按模板构建临时实例映射供战斗使用，不修改原弟子。
-     * 丹药/血炼不计入。
+     * 丹药不计入。
      *
      * @param disciples AI 弟子列表
      * @return 包含原弟子列表和装备/功法实例映射的 [AIPreparedBattle]

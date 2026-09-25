@@ -32,7 +32,7 @@ using scene::SceneStore;
 //
 // 覆盖（六要素 × 相机三档位）：
 //   地形（含草/石/树装饰 + 建筑占位格）/ 石板道路（掩码 1/2/3/5/7/15 形态）/
-//   建筑（含固定结构 nameIdx=19 与阴影）/ 作物（三阶段 + 帧间平滑第二帧）/
+//   建筑（含固定结构 nameIdx=18 与阴影）/ 作物（三阶段 + 帧间平滑第二帧）/
 //   云实例 / 崖壁布局（双纹理 + 镜像条目）；相机 = 近景 2.0 / 中景 1.0 /
 //   远景 0.3（整岛可见，含可见性剔除差异面）。
 //
@@ -141,7 +141,7 @@ std::vector<float> kotlinTileUv() {
     });
 }
 
-// 建筑 rect 表（19 栋行公式槽位 + 尾部固定结构 sect_gate，同 Kotlin BUILDING_UV_MAP）
+// 建筑 rect 表（18 栋行公式槽位 + 尾部固定结构 sect_gate，同 Kotlin BUILDING_UV_MAP）
 std::vector<float> kotlinBuildingUv() {
     return uvOf({
         {0, 512, 512, 512},      // 灵矿场
@@ -161,8 +161,7 @@ std::vector<float> kotlinBuildingUv() {
         {2080, 1552, 512, 512},  // 单人住所
         {0, 2072, 512, 512},     // 中级单人住所
         {520, 2072, 512, 512},   // 多人住所
-        {1040, 2072, 512, 512},  // 血炼池
-        {1560, 2072, 512, 512},  // 中级多人住所
+        {1040, 2072, 512, 512},  // 中级多人住所
         {3072, 512, 768, 256},   // sect_gate（固定结构尾部）
     });
 }
@@ -240,10 +239,10 @@ SceneFixture fullFixture() {
     fx.roads[static_cast<size_t>(13) * kCols + 3] = 2;        // 端点（东邻）
     fx.roads[static_cast<size_t>(13) * kCols + 4] = 3;
 
-    // 建筑：灵矿场（占地 4×4，精灵 4×4）+ 固定结构门楼（nameIdx = 19 = kStructureNameBase）
+    // 建筑：灵矿场（占地 4×4，精灵 4×4）+ 固定结构门楼（nameIdx = 18 = kStructureNameBase）
     const float buildingData[] = {
         3.0f, 2.0f, 4.0f, 4.0f, 0.0f,    // 灵矿场（精灵尺寸 = 占地）
-        3.0f, 0.0f, 6.0f, 2.0f, 19.0f,   // 宗门门楼（固定结构，不投影阴影）
+        3.0f, 0.0f, 6.0f, 2.0f, 18.0f,   // 宗门门楼（固定结构，不投影阴影）
         9.0f, 9.0f, 1.0f, 1.0f, 2.0f,    // 灵田（1×1）
     };
     fx.buildings.assign(buildingData, buildingData + 15);

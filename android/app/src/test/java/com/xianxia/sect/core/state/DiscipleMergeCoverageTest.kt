@@ -59,7 +59,6 @@ class DiscipleMergeCoverageTest {
         "cultivationCheckpointGameMonth",
         "portraitRes",
         "templateId",
-        "talentIds", "physiqueIds", "affixIds",
         "manualMasteries",
         "cultivationCompletionMonth", "cultivationCompletionPhase",
         "manualCompletionMonth", "manualCompletionPhase",

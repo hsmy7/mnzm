@@ -139,8 +139,8 @@ internal class BuildingNativeTx(
      *
      * W4-A·w3-09 残差清扫下沉：BUILDING_REMOVE 成功后关联弟子收集
      * （清扫前行删除会丢 id；生产 repo 侧来源同现状——平台存储 C++ 不可见），
-     * 随槽组知识组装传入 1810（C++ 扫实例键控七集合 + 血炼 + 监牢/任务阁
-     * 特例 + REFINING 破除）；**生产/长老组留 Kotlin**（偏差登记：
+     * 随槽组知识组装传入 1810（C++ 扫实例键控五集合 + 监牢/任务阁特例）；
+     * **生产/长老组留 Kotlin**（偏差登记：
      * C++ ProductionSlot 行无 buildingInstanceId、ElderPositions clearSpec
      * 为注册表 lambda 单一事实源）——清扫成功后 Kotlin 在同一 update 内
      * 补扫两类 + Gate 释放（运行态域）。降级/失败信封回退 Kotlin 原路径
@@ -174,7 +174,7 @@ internal class BuildingNativeTx(
             }.map { (building, _) -> building.instanceId }
         // 关联弟子收集（清扫前——收集读槽位行 + 生产 repo 运行态）
         val allDiscipleIds = collectRemovedDiscipleIds(targets, productionIds)
-        val clearedNative = tryNativeResidualClear(targets, allDiscipleIds)
+        val clearedNative = tryNativeResidualClear(targets)
         if (clearedNative) {
             stateStore.update {
                 // 生产 + 长老组补扫（偏差登记——C++ 清扫范围外；过滤幂等）
@@ -182,7 +182,7 @@ internal class BuildingNativeTx(
                     gameData = cleanupProductionAndElderSlotsOnly(gameData, feature, building)
                 }
             }
-            // Gate 释放（Kotlin 运行态域）；REFINING 破除已由 C++ 承担
+            // Gate 释放（Kotlin 运行态域）
             allDiscipleIds.forEach { assignmentGate.release(it) }
         } else {
             stateStore.update {
@@ -261,8 +261,7 @@ internal class BuildingNativeTx(
      * @return true=已清扫；false=降级/失败信封（调用方回退 Kotlin 原路径）
      */
     private fun tryNativeResidualClear(
-        targets: List<Pair<GridBuildingData, BuildingFeature>>,
-        discipleIds: Set<String>
+        targets: List<Pair<GridBuildingData, BuildingFeature>>
     ): Boolean {
         val data = tx(ActionIds.BUILDING_RESIDUAL_CLEAR) {
             put("targets", JsonArray(targets.map { (building, feature) ->
@@ -272,7 +271,6 @@ internal class BuildingNativeTx(
                         .map { JsonPrimitive(it) }))
                     put("isMissionHall", feature.buildingType == BuildingType.MISSION_HALL)
                     put("isReflectionCliff", feature.buildingType == BuildingType.REFLECTION_CLIFF)
-                    put("discipleIds", JsonArray(discipleIds.map { JsonPrimitive(it) }))
                 }
             }))
         } ?: return false
@@ -308,7 +306,6 @@ internal class BuildingNativeTx(
         is SlotGroup.Residence -> "RESIDENCE"
         is SlotGroup.SpiritField -> "SPIRIT_FIELD"
         is SlotGroup.Warehouse -> "WAREHOUSE"
-        is SlotGroup.BloodRefining -> "BLOOD_REFINING"
         is SlotGroup.Library -> "LIBRARY"
         is SlotGroup.ProductionSlotGroup -> null
         is SlotGroup.ElderPositions -> null
@@ -388,21 +385,12 @@ internal class BuildingNativeTx(
 }
 
 /**
- * 释放建筑关联弟子：Gate 注册 + 血炼 REFINING 状态（Kotlin 回退臂
- * cleanupBuildingSlots 与 native 残差臂 cleanupBuildingSlotsResidual 共用）。
- * 血炼受保护状态须在事务内显式打破，否则事务外重推拉不回 IDLE。
+ * 释放建筑关联弟子的 Gate 注册表记录（Kotlin 回退臂 cleanupBuildingSlots
+ * 与 native 残差臂 cleanupBuildingSlotsResidual 共用）。
  */
 internal fun MutableGameState.releaseBuildingDiscipleIds(
     gate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
     discipleIds: Set<String>
 ) {
     discipleIds.forEach { gate.release(it) }
-    discipleIds.mapNotNull { it.toIntOrNull() }
-        .filter { it in discipleTables.ids }
-        .filter { discipleTables.statuses[it] == DiscipleStatus.REFINING }
-        .forEach { dId ->
-            discipleTables.statuses[dId] = DiscipleStatus.IDLE
-            discipleTables.statusData[dId] =
-                (discipleTables.statusData[dId] ?: emptyMap()) - setOf("buildingId")
-        }
 }

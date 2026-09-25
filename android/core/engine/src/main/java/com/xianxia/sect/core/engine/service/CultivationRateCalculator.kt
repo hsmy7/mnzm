@@ -4,8 +4,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
@@ -17,7 +15,6 @@ import javax.inject.Singleton
 import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhaseColumn
-import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
 
 /**
  * 修炼速率计算器。
@@ -161,38 +158,16 @@ class CultivationRateCalculator @Inject constructor(
         return DiscipleStatCalculator.CultivationRateColumnInput(
             realm = realm,
             spiritRootCount = tables.spiritRootTypes.getOrNull(id)?.split(",")?.size ?: 1,
-            talentIds = tables.talentIds.getOrDefault(id, emptyList()),
-            physiqueIds = tables.physiqueIds.getOrDefault(id, emptyList()),
-            affixIds = tables.affixIds.getOrDefault(id, emptyList()),
             manualIds = tables.manualIds.getOrDefault(id, emptyList()),
             // 丹药修炼速度加成统一收敛于 pillEffects 体系（旧
             // 旧 cultivationSpeedBonus 组件列不再读取，防双写双倍生效）
             pillEffectDuration = tables.pillEffectDurations.getOrDefault(id, 0),
-            pillCultivationSpeedBonus = tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
-            // 默认值与 assemble 路径统一（资质=50 为自愈哨兵），防两入口分歧
-            aptitude = tables.aptitudes.getOrDefault(id, DiscipleTables.DEFAULT_APTITUDE)
+            pillCultivationSpeedBonus = tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0)
         )
     }
 
-    /**
-     * 有效教学值 = 基础教学 + teachingFlat 天赋加成。
-     *
-     * 对齐 [DiscipleStatCalculator.getBaseStats].teaching 的语义
-     * （基础值 + effects["teachingFlat"].toInt() 截断），
-     * 修复"UI 用 getBaseStats 显示讲道加成、结算用列基础值"的不一致——
-     * teachingFlat 天赋（如教学+10）跨过 80/60 阈值线时 UI 显示满加成而实际 0 加成。
-     *
-     * @param id 长老/师兄弟子 ID
-     * @param tables 弟子数据表
-     * @return 含 teachingFlat 天赋加成的有效教学值
-     */
-    private fun getEffectiveTeaching(id: Int, tables: DiscipleTables): Int {
-        val flat = tables.talentIds.getOrDefault(id, emptyList())
-            .mapNotNull { TalentDatabase.getById(it) }
-            .sumOf { it.effects["teachingFlat"] ?: 0.0 }
-            .toInt()
-        return tables.teachings[id] + flat
-    }
+    /** 有效教学值（列直读）：长老/师兄弟子的教学基础值。 */
+    private fun getEffectiveTeaching(id: Int, tables: DiscipleTables): Int = tables.teachings[id]
 
     /**
      * 政策修炼加成汇总（修行津贴/苦修令/松弛管理，送入同一个乘区）。
@@ -244,14 +219,14 @@ class CultivationRateCalculator @Inject constructor(
 
         return when (targetDiscipleType) {
             "outer" -> preachingElderBonusColumn(
-                discipleRealm, elderSlots.preachingElder, ElderSlotType.PREACHING, tables,
+                discipleRealm, elderSlots.preachingElder, tables,
                 ::getEffectiveTeaching
             ) to preachingMastersBonusColumn(
                 discipleRealm, elderSlots.preachingMasters.map { it.discipleId }, tables,
                 ::getEffectiveTeaching
             )
             "inner" -> preachingElderBonusColumn(
-                discipleRealm, elderSlots.qingyunPreachingElder, ElderSlotType.CLOUD_PREACHING, tables,
+                discipleRealm, elderSlots.qingyunPreachingElder, tables,
                 ::getEffectiveTeaching
             ) to preachingMastersBonusColumn(
                 discipleRealm, elderSlots.qingyunPreachingMasters.map { it.discipleId }, tables,
@@ -322,26 +297,15 @@ class CultivationRateCalculator @Inject constructor(
 private fun preachingElderBonusColumn(
     discipleRealm: Int,
     elderId: String?,
-    slotType: ElderSlotType,
     tables: DiscipleTables,
     effectiveTeaching: (Int, DiscipleTables) -> Int
 ): Double {
     val id = elderId?.toIntOrNull() ?: return 0.0
     if (!tables.names.contains(id) || tables.isAlive[id] != 1) return 0.0
-    // 有效教学 = 基础教学 + teachingFlat 天赋加成（对齐 getBaseStats().teaching 语义，
-    // 修复"UI 显示讲道加成但实际不生效"的不一致）
     val teaching = effectiveTeaching(id, tables)
     val realm = tables.realms[id]
     if (discipleRealm >= realm && teaching >= 80) {
-        val base = ((teaching - 80) * 0.0025).coerceAtMost(0.10)
-        // 长老职务加成（PositionBonus）：作为乘算因子作用于长老职能效果
-        // 列直读版：从列提取 talentIds/affixIds 计算，无 Disciple 组装
-        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(
-            tables.talentIds.getOrDefault(id, emptyList()),
-            tables.affixIds.getOrDefault(id, emptyList()),
-            slotType
-        )
-        return base * (1.0 + posBonus)
+        return ((teaching - 80) * 0.0025).coerceAtMost(0.10)
     }
     return 0.0
 }

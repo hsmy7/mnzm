@@ -69,9 +69,6 @@ internal fun MutableGameState.collectSlotWinners(
     data.patrolSlots.forEachIndexed { i, slot ->
         register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.PATROL_SLOT, "patrol", i))
     }
-    data.activeBloodRefinements.forEach { (buildingId, refinement) ->
-        register(refinement.discipleId, SlotWinner(refinement.discipleId, SlotCategory.BLOOD_REFINEMENT, buildingId))
-    }
     data.worldMapSects.filter { it.isPlayerSect }.forEach { sect ->
         sect.garrisonSlots.forEach { slot ->
             register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.GARRISON_SLOT, sect.id, slot.index))

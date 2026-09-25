@@ -30,6 +30,7 @@ import java.io.File
  *    G02 v55 的 `game_data` 三列（`V55_GAME_DATA_DROPPED_COLUMNS` 同源），
  *    以及 G05 v56 的 `game_data` 五列（`V56_GAME_DATA_DROPPED_COLUMNS` 同源），
  *    以及 G03 v57 的 `game_data` 两列（`V57_GAME_DATA_DROPPED_COLUMNS` 同源），
+ *    以及 G04 v58 的 `game_data` 五列（`V58_GAME_DATA_DROPPED_COLUMNS` 同源），
  *    其余交集列逐字段全等；
  * 4. **结构守卫（防回流）**：`52.json` 的 `game_data` 不含两死列、`51.json` 含
  *    （对照面非空转）+ 列数恰少 2。
@@ -300,10 +301,11 @@ class RoomMigrationV51To52Test {
         val expectedRegistered = setOf("autoSaveIntervalMonths", DROPPED_BY_V52, DROPPED_AI_BY_V52) +
             V55_GAME_DATA_DROPPED_COLUMNS.toSet() +
             V56_GAME_DATA_DROPPED_COLUMNS.toSet() +
-            V57_GAME_DATA_DROPPED_COLUMNS.toSet()
+            V57_GAME_DATA_DROPPED_COLUMNS.toSet() +
+            V58_GAME_DATA_DROPPED_COLUMNS.toSet()
         assertEquals(
             "全链被删列集必须精确等于注册删列集（{autoSaveIntervalMonths, battleTeam, aiBattleTeams}" +
-                " ∪ G02 v55 三列 ∪ G05 v56 五列 ∪ G03 v57 两列）∩ v39 起点既有列",
+                " ∪ G02 v55 三列 ∪ G05 v56 五列 ∪ G03 v57 两列 ∪ G04 v58 五列）∩ v39 起点既有列",
             expectedRegistered.intersect(before.first().keys),
             dropped
         )

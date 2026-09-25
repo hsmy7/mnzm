@@ -3,14 +3,12 @@ package com.xianxia.sect.core.engine.domain.building
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GridBuildingData
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.sqrt
 import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
-import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
 
 
 
@@ -50,9 +48,7 @@ object HerbGardenAuraService {
 
         val bonus = ((sp - GameConfig.PolicyConfig.HERB_GARDEN_ELDER_SPIRIT_BASE) /
                 GameConfig.PolicyConfig.HERB_GARDEN_ELDER_SPIRIT_STEP) * 0.01
-        // 体质/词条的职务加成：作为乘算因子作用于长老职能效果
-        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elder, ElderSlotType.HERB_GARDEN)
-        return min(bonus * (1.0 + posBonus), GameConfig.PolicyConfig.HERB_GARDEN_ELDER_MAX)
+        return min(bonus, GameConfig.PolicyConfig.HERB_GARDEN_ELDER_MAX)
     }
 
     fun calculateAuraMaturityBonus(elderSlots: ElderSlots, allDisciples: List<Disciple>): Double {

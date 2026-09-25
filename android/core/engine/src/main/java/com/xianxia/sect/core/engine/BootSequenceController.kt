@@ -244,14 +244,7 @@ class BootSequenceController @Inject constructor(
                 DomainLog.e(TAG, "双槽位自愈失败（不阻断启动）", e)
             }
 
-            // ── Step 6.4: 旧档资质自愈（资质=50 未生成哨兵 → 按灵根数重算）──
-            // 资质为固定基础属性；旧档（Migration/云存档）
-            // aptitude 为默认 50。healDefaultAptitudes 在写作用域内按灵根阶梯 + id
-            // 散列确定性补算（幂等，同一 id 结果稳定），结果随下一次存档持久化。
-            // 尽力而为：自愈失败不阻断启动（隔离方式同 Step 6.3）。
-            healDefaultAptitudesSafely()
-
-            // ── Step 6.5: 仓库堆叠整理（旧档散落堆叠归并）──
+            // ── Step 6.4: 仓库堆叠整理（旧档散落堆叠归并）──
             gameEngine.consolidateStacks()
 
             // ── Step 7: 启动游戏循环 ──
@@ -328,35 +321,6 @@ class BootSequenceController @Inject constructor(
     private fun stopGameLoop() {
         gameEngineCore.stopGameLoop()
         DomainLog.d(TAG, "Game loop stopped")
-    }
-
-    /**
-     * 旧档资质自愈（隔离 try/catch，避免 boot() 抛语句超限）。
-     * 尽力而为：失败仅记录日志，不阻断启动。
-     *
-     * 自愈补算资质后同步重锚全量修炼检查点（资质影响修炼速率，
-     * 不重锚则旧档首次加载的修炼进度投影按旧速率虚高）。
-     */
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    private suspend fun healDefaultAptitudesSafely() {
-        try {
-            gameEngine.updateGameData { data ->
-                val healedCount = gameEngine.discipleTables.healDefaultAptitudes()
-                if (healedCount > 0) {
-                    val currentMonth = data.gameYear * 12 + data.gameMonth
-                    gameEngine.discipleTables.checkpointAllDisciples(currentMonth)
-                    DomainLog.i(
-                        TAG,
-                        "资质自愈：$healedCount 名弟子按灵根数补算资质，修炼检查点已重锚"
-                    )
-                }
-                data
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "资质自愈失败（不阻断启动）", e)
-        }
     }
 
     /**

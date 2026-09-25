@@ -31,8 +31,7 @@ import org.junit.Test
  *
  * 已知边界（private 方法 + 注册表依赖）：resolveSpiritRoot 配置分支 /
  * generateVariance / rollBySpiritRootCount / resolveAgeAndLifespan 由 C++ GTest
- * 独立覆盖；名字/体质/词条/天赋生成（NameService/PhysiqueDatabase 等注册表）
- * 与服务器验证保留 Kotlin。
+ * 独立覆盖；名字生成（NameService）与服务器验证保留 Kotlin。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */

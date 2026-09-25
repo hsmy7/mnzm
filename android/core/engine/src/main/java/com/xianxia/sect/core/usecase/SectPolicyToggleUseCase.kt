@@ -4,10 +4,8 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.checkpointAllDisciples
 import com.xianxia.sect.core.engine.checkpointAllProduction
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.SpiritStoneGrade
@@ -23,7 +21,6 @@ import com.xianxia.sect.core.wallet.DeductResult
 import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.xianxia.sect.core.engine.domain.disciple.getPositionEffectBonus
 
 /**
  * 生产类政策字段集（影响炼丹/锻造/灵田速率与成功率）。
@@ -293,21 +290,15 @@ class SectPolicyToggleUseCase @Inject constructor(
     }
 
     /**
-     * 副宗主智力加成（含 PositionBonus 乘算因子）。
+     * 副宗主智力加成。
      *
-     * @param viceSectMaster 副宗主弟子（含天赋/词条中的职务加成）
-     * @return 加成值 = 基础智力加成 × (1 + PositionBonus)
+     * @param viceSectMaster 副宗主弟子
+     * @return 智力加成值
      */
-    fun getViceSectMasterIntelligenceBonus(viceSectMaster: Disciple): Double {
-        val baseBonus = getViceSectMasterIntelligenceBonus(viceSectMaster.skills.intelligence)
-        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(viceSectMaster, ElderSlotType.VICE_SECT_MASTER)
-        return baseBonus * (1.0 + posBonus)
-    }
+    fun getViceSectMasterIntelligenceBonus(viceSectMaster: Disciple): Double =
+        getViceSectMasterIntelligenceBonus(viceSectMaster.skills.intelligence)
 
-    /** 副宗主智力加成（DiscipleAggregate 重载，含 PositionBonus） */
-    fun getViceSectMasterIntelligenceBonus(viceSectMaster: DiscipleAggregate): Double {
-        val baseBonus = getViceSectMasterIntelligenceBonus(viceSectMaster.intelligence)
-        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(viceSectMaster, ElderSlotType.VICE_SECT_MASTER)
-        return baseBonus * (1.0 + posBonus)
-    }
+    /** 副宗主智力加成（DiscipleAggregate 重载） */
+    fun getViceSectMasterIntelligenceBonus(viceSectMaster: DiscipleAggregate): Double =
+        getViceSectMasterIntelligenceBonus(viceSectMaster.intelligence)
 }

@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.BattleTeam
 import com.xianxia.sect.core.model.BattleTeamSlot
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GameData
@@ -68,11 +67,6 @@ class DiscipleSlotCleanupTest {
             spiritMineDeaconDisciples = listOf(discipleSlot)
         )
 
-        val bloodRefinement = BloodRefinementProgress(
-            discipleId = discipleId,
-            discipleName = "Test"
-        )
-
         val battleTeam = BattleTeam(
             id = "team1",
             slots = listOf(battleTeamSlot)
@@ -89,7 +83,6 @@ class DiscipleSlotCleanupTest {
             librarySlots = listOf(librarySlot),
             elderSlots = elderSlots,
             residenceSlots = listOf(residenceSlot),
-            activeBloodRefinements = mapOf("br1" to bloodRefinement),
             patrolSlots = listOf(patrolSlot),
             battleTeams = listOf(battleTeam),
             worldMapSects = listOf(playerSect)
@@ -173,15 +166,6 @@ class DiscipleSlotCleanupTest {
         }
         for (slot in result.elderSlots.forgeDisciples) {
             assertNotEquals(testDiscipleId, slot.discipleId)
-        }
-    }
-
-    @Test
-    fun clearAllSlots_clearsBloodRefinements() {
-        val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = cleanup.clearAllSlots(data, testDiscipleId)
-        for ((_, progress) in result.activeBloodRefinements) {
-            assertNotEquals(testDiscipleId, progress.discipleId)
         }
     }
 

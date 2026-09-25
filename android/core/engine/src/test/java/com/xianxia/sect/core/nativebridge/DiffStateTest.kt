@@ -187,7 +187,7 @@ class DiffStateTest {
         )
     }
 
-    /** 嵌套字段（第 2 组）：alliances → bloodRefinements。 */
+    /** 嵌套字段（第 2 组）：alliances → mailRecords。 */
     private fun GameData.applyGameDataNestedPart2(): GameData = apply {
         alliances = listOf(
             com.xianxia.sect.core.model.Alliance(
@@ -215,7 +215,6 @@ class DiffStateTest {
                 mailId = "mail-1", claimedAt = 1700000000000L, source = "builtin"
             )
         )
-        bloodRefinements = mapOf("d-1" to listOf("mat-1", "mat-2"))
     }
 
     /** 受控样本：弟子 + 物品全列表（与 assertRoundTrip 逐字段对拍）。 */
@@ -286,9 +285,6 @@ class DiffStateTest {
             gender = "male"
             portraitRes = "portrait_1"
             manualIds = listOf("m-1")
-            talentIds = listOf("t-1", "t-2")
-            physiqueIds = listOf("p-1")
-            affixIds = listOf("a-1")
             manualMasteries = mapOf("m-1" to 50)
             status = DiscipleStatus.IN_TEAM
             statusData = mapOf("key" to "value")

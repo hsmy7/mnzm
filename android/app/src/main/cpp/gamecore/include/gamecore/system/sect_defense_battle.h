@@ -74,8 +74,7 @@ constexpr const char* kWarDeclarationStage = "WAR_DECLARATION";
 inline bool isBattleBusyStatus(const std::string& status) {
     return status == "ON_MISSION" || status == "IN_TEAM" ||
            status == "SECRET_REALM" || status == "WAREHOUSE_GARRISON" ||
-           status == "REFLECTING" || status == "GARRISONING" ||
-           status == "REFINING";
+           status == "REFLECTING" || status == "GARRISONING";
 }
 
 /// 防守选人排序（Kotlin sortedByRealmForDefense：realm 升序、
@@ -345,8 +344,7 @@ inline void applyDefenseBattleResult(GameState& state,
     markAllDead(ds, outcome.deadDefenderIds, gd.gameYear,
                 gd.annualDeceasedDisciples);
 
-    // 5. 幸存守军 HP/MP 回写（clamp 上限含血炼口径——Kotlin
-    //    battleWritebackMaxHpMp = getFinalStats().maxHp/Mp）
+    // 5. 幸存守军 HP/MP 回写（clamp 上限经 getFinalStats().maxHp/Mp 口径）
     for (const auto& c : defenderSurvivors) {
         const auto rowOpt = ds.rowOf(c.id);
         if (!rowOpt.has_value()) continue;
@@ -356,13 +354,8 @@ inline void applyDefenseBattleResult(GameState& state,
         static const std::map<std::string, state::ManualProficiencyData> kEmpty;
         const std::map<std::string, state::ManualProficiencyData>& prof =
             profIt == loadout.proficiencies.end() ? kEmpty : profIt->second;
-        state::BloodRefinementPctTotal blood;
-        const auto brIt = gd.bloodRefinementPctTotals.find(c.id);
-        const bool hasBlood = brIt != gd.bloodRefinementPctTotals.end();
-        if (hasBlood) blood = brIt->second;
         const auto stats = gamecore::stats::finalStats(
-            snapshot, loadout.equipmentMap, loadout.manualMap, prof,
-            hasBlood ? &blood : nullptr);
+            snapshot, loadout.equipmentMap, loadout.manualMap, prof);
         ds.currentHps[row] = std::min(std::max(c.hp, 0), stats.maxHp);
         ds.currentMps[row] = std::min(std::max(c.mp, 0), stats.maxMp);
     }
@@ -476,7 +469,7 @@ inline bool executePlayerDefenseBattle(GameState& state,
         gamecore::battle::Combatant c =
             mission_settle::detail::discipleToCombatant(
                 d, prepared.equipmentMapByDisciple.at(d.id),
-                prepared.manualMap, prepared.proficiencies, nullptr);
+                prepared.manualMap, prepared.proficiencies);
         c.hp = c.maxHp;
         c.mp = c.maxMp;
         c.side = gamecore::battle::CombatantSide::kAttacker;
@@ -489,8 +482,7 @@ inline bool executePlayerDefenseBattle(GameState& state,
         if (!rowOpt.has_value()) continue;
         const Disciple d = state.disciples.materialize(*rowOpt);
         defendCombatants.push_back(mission_settle::detail::discipleToCombatant(
-            d, loadout.equipmentMap, loadout.manualMap, loadout.proficiencies,
-            nullptr));
+            d, loadout.equipmentMap, loadout.manualMap, loadout.proficiencies));
     }
     if (defendCombatants.empty()) return false;
 

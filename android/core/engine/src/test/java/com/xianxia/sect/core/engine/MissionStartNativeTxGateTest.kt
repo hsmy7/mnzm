@@ -103,12 +103,12 @@ class MissionStartNativeTxGateTest {
             whenever(it.assignmentGate).thenReturn(mock())
         }
 
-    /** 播种：301（巡逻槽 + 住所占用 + 血炼中）+ 302～306（IDLE）——模板 requiredMemberCount=6。 */
+    /** 播种：301（巡逻槽 + 住所占用 + 巡视塔中）+ 302～306（IDLE）——模板 requiredMemberCount=6。 */
     private fun seed(): List<Disciple> {
         val team: List<Disciple>
         store.update {
             discipleTables.insert(
-                Disciple(id = "301", name = "队员甲", status = DiscipleStatus.REFINING)
+                Disciple(id = "301", name = "队员甲", status = DiscipleStatus.PATROLLING)
             )
             for (id in 302..306) {
                 discipleTables.insert(Disciple(id = id.toString(), name = "队员$id", status = DiscipleStatus.IDLE))
@@ -142,10 +142,9 @@ class MissionStartNativeTxGateTest {
         // 巡逻槽清理 / 住所保留
         assertEquals("巡逻槽已清理", "", gd.patrolSlots.single().discipleId)
         assertEquals("住所保留", "301", gd.residenceSlots.single().discipleId)
-        // 状态重置 IDLE（血炼中 → 派遣换岗重置，buildingId 键剥离）
+        // 状态重置 IDLE（巡视塔中 → 派遣换岗重置）
         val d301 = store.discipleTables.assemble(301)
         assertEquals(DiscipleStatus.IDLE, d301.status)
-        assertEquals(false, d301.statusData.containsKey("buildingId"))
     }
 
     @Test

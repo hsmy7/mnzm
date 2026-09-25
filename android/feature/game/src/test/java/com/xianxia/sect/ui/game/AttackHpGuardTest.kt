@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -14,7 +13,7 @@ import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 /**
  * AttackHpGuard（进攻前低血量二次确认判定）纯函数测试。
  *
- * 口径与引擎/详情页一致：用含血炼 finalStats 判定；currentHp<0 为满血哨兵；
+ * 口径与引擎/详情页一致：用 finalStats 判定；currentHp<0 为满血哨兵；
  * maxHp<=0 视为满血（与 HpMpBars 语义对齐）。
  */
 class AttackHpGuardTest {
@@ -35,7 +34,7 @@ class AttackHpGuardTest {
         )
     )
 
-    /** 基础（无血炼、无装备功法）maxHp */
+    /** 基础（无装备功法）maxHp */
     private fun baseMaxHp(realm: Int = 9, realmLayer: Int = 1): Int =
         DiscipleStatCalculator.getFinalStats(
             Disciple(id = "probe", name = "探测", realm = realm, realmLayer = realmLayer),
@@ -71,21 +70,6 @@ class AttackHpGuardTest {
         assertEquals(1f, discipleHpFraction(d, emptyMap(), emptyMap()), 0.0001f)
     }
 
-    @Test
-    fun `discipleHpFraction - 血炼提升 maxHp 后按提升后口径判定`() {
-        val d = makeDisciple("1", currentHp = baseMaxHp())
-        val br = BloodRefinementPctTotal(discipleId = "1", hpBonusPct = 0.5)
-        val brMaxHp = DiscipleStatCalculator.getFinalStats(
-            Disciple(id = "1", name = "弟子1", realm = 9, realmLayer = 1),
-            emptyMap(),
-            emptyMap(),
-            bloodRefinementPct = br
-        ).maxHp
-        val fraction = discipleHpFraction(d, emptyMap(), emptyMap(), bloodRefinementPct = br)
-        assertTrue("血炼 +50% maxHp 后基础满血应小于 1f，实际 $fraction", fraction < 1f)
-        assertEquals(baseMaxHp().toFloat() / brMaxHp, fraction, 0.001f)
-    }
-
     // ==================== hasLowHpDisciple ====================
 
     @Test
@@ -106,17 +90,5 @@ class AttackHpGuardTest {
         val full = makeDisciple("1", currentHp = maxHp)
         val hurt = makeDisciple("2", currentHp = maxHp / 2)
         assertTrue(hasLowHpDisciple(listOf(full, hurt), emptyMap(), emptyMap()))
-    }
-
-    @Test
-    fun `hasLowHpDisciple - 血炼提升 maxHp 后原血量算未满`() {
-        val d = makeDisciple("1", currentHp = baseMaxHp())
-        val br = BloodRefinementPctTotal(discipleId = "1", hpBonusPct = 0.5)
-        assertTrue(
-            hasLowHpDisciple(
-                listOf(d), emptyMap(), emptyMap(),
-                bloodRefinementPctTotals = mapOf("1" to br)
-            )
-        )
     }
 }
