@@ -179,7 +179,7 @@ lint `0 errors / 36 warnings` 与本批文件零命中、ActionId regen 幂等�
 |---|---|---|
 | 开工 | `acf745398` | 2 行（仅 `docs/research/`×2，非本批、不提交） |
 | 全部门禁跑完 + 临时诊断清理 + 副产物还原后 | `acf745398` | **42 行 = 14 修改 + 28 新增**（本批全部）+ 2 行 `docs/research/`；非未跟踪残留 = 0 |
-| 提交后 | 见 §十（G15 先例：本文件与 HANDOVER 回写走第二次 `docs(gacha)` 提交，届时补 hash） | 待补 |
+| 提交后 | `4ba6c1bdd`（实施单次提交） | 42 行全部入库；残留 = 2 行 `docs/research/`（非本批、不提交） |
 
 本批文件清单：**修改 14 个跟踪文件** = 2 份 rules 文档 + `CHANGELOG.md` + 2 脚本
 （`scaffold-source-mapping.mjs` / `import-art-assets.mjs`）+ 4 数据/台账
@@ -190,8 +190,16 @@ lint `0 errors / 36 warnings` 与本批文件零命中、ActionId regen 幂等�
 `atlas-rgba-manifest.json` 被 lint 改脏后已还原；`scene_uv_tables.h` 重跑零差异未进列表。
 临时诊断文件（映射对拍副本、JUnit 汇总脚本、两枚门禁日志、档位取样目录）**已全部删除，不入库**。
 
+**提交规模实测**：`42 files changed, 1195 insertions(+), 62 deletions(-)`
+（24 份二进制 WebP 不计行；CRLF 翻转按 `git diff --cached --numstat` 逐文件核对为零——单文件最大增量
+`source-mapping.json +142/−2`，无「双侧 ≈ 全文件行数」形态）。
+
 ---
 
 ## 十、提交状态
 
-_待提交后回填（提交 hash、`git show --stat` 规模、提交后 `git status` 残留行数）。_
+- ✅ 实施单次提交 = **`4ba6c1bdd`**（`feat(gacha): G16 角色素材批……`），含素材、管线、守卫、双 changelog、
+  本任务书与本报告；**未推送远端**（本仓多会话共用一棵工作树，推送由用户指令决定）。
+- ⏭ 本文件 §九/§十 的提交后信息与 `HANDOVER-m1-remaining-3.md` 的收官回写走紧随其后的
+  `docs(gacha)` 提交——**沿用 G15 先例**（`325da9d5a` 实施 + `acf745398` 回写），
+  因回写内容需要引用实施提交自身的 hash，无法与实施同批完成。

@@ -7,9 +7,11 @@
 > - [`TASKBOOK-G04.md`](TASKBOOK-G04.md) —— G04 派工细则（切片表、每片文件面、grep 口径纠正、前置扫描）。本文件不重复，只给指针。
 > - [`TASKBOOK-G15.md`](TASKBOOK-G15.md) —— **G15 派工细则的唯一真源**。🔴 **本文件 §10.2 的实测文件面已被其 §2 取代**
 >   （回查出 13 处漏项 + 2 处假阳性；§10 其余判据仍有效，两处冲突以 TASKBOOK-G15 为准）。
+> - [`TASKBOOK-G16.md`](TASKBOOK-G16.md) —— **G16 派工细则的唯一真源**。🔴 **本文件 §11 的内联任务书已被其取代**
+>   （§11 只有 6 行、无文件面无决策依据；实测差异与本批抓出的三处管线缺陷见该 TASKBOOK §2 与 `report-G16.md` §三）。
 > - **本文件** —— 收官基线 + 修订后的作业规程 + 剩余指针。
-> **更新时点**：**G15 收官（提交 `325da9d5a`）后**；§1/§2.2/§6.2/§6.3/§7/§8/§9 已是 G15 值
-> （初版与 G04 版基线均被取代——G04 值在 §2.2 以括注保留）。
+> **更新时点**：**G16 收官（提交 `4ba6c1bdd`）后**；§1/§2.2/§2.3/§6.2/§6.3/§7/§8/§9/§11 已是 G16 值
+> （初版与 G04/G15 版基线均被取代——G04 值在 §2.2 以括注保留，G15 值为 §2.2 的上一列）。
 
 ---
 
@@ -18,11 +20,11 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/gacha-m0-m1` |
-| HEAD | **`325da9d5a`（G15 收官单次提交）**，其下 `a055bf9fe` = 活文档收口、`4078f12c9` = G04 收官 |
+| HEAD | **`4ba6c1bdd`（G16 收官单次提交）**，其下 `acf745398` = G15 回写、`325da9d5a` = G15 收官、`4078f12c9` = G04 收官 |
 | 工作树 | **干净**（非未跟踪残留 = 0；提交后 `git status --porcelain` 只剩 `docs/research/`×2） |
-| 未跟踪 | 仅 `docs/research/`×2（与本批无关，**不提交**）。🔴 `模拟宗门美术素材/`（572 MB）与 `模拟宗门音乐音效/`（1.6 MB）**已写入 `.gitignore`** —— 2026-09-24 拍板：作为项目指定素材/音频源目录，**只登记不入库**；位置与边界见 `rules/media-source-assets.md`。**旧表述「未跟踪 4 组永不提交」自本文件起作废** |
-| 已完成 | **6 / 11 批**（G02、G05、G06、G03、G04、**G15**；分母 11 = 原 9 批 + 拍板新增 G15、G16） |
-| 下一批 | **G16**（角色素材批；任务书内联本文件 §11 + 图集批必读的 §2.3 坑 9） |
+| 未跟踪 | 仅 `docs/research/`×2（与本批无关，**不提交**）。🔴 `模拟宗门美术素材/`（572 MB）与 `模拟宗门音乐音效/`（1.6 MB）**已写入 `.gitignore`** —— 2026-09-24 拍板：作为项目指定素材/音频源目录，**只登记不入库**；位置与边界见 `rules/media-source-assets.md`。**旧表述「未跟踪 4 组永不提交」自本文件起作废**。⚠️ **G16 起该目录是素材管线的硬依赖**：`scaffold-source-mapping.mjs` / `import-art-assets.mjs` 经 `android/scripts/art-source.mjs` 解析到它，**缺失即抛错**（不再静默产出全 null 映射），换机器后须先同步素材或用 `MNZM_ART_SOURCE` 指向 |
+| 已完成 | **7 / 11 批**（G02、G05、G06、G03、G04、G15、**G16**；分母 11 = 原 9 批 + 拍板新增 G15、G16） |
+| 下一批 | **G08**（角色模板层 + `templateId` 实例化 + 开局周明/5 万 + 兑换码改道；侦察 `recon-G05-G06-G08-G09.md` `G08`，口径 `HANDOVER-1` §4#9~#12）。🔴 **开工前先写 `TASKBOOK-G08.md`**（§8.C-1 规程），并把 `report-G16.md` §七-1 的 PortraitPool 解析链缺口纳入文件面 |
 | 远端 | **未推送**（本仓多会话共用一棵工作树，推送由用户指令决定） |
 
 ### 1.1 已收官批次（门禁值以各批报告实测为准）
@@ -35,27 +37,37 @@
 | **G03** | `cc66d7918` | [report-G03.md](report-G03.md) | **171 文件 +6084/−5186** | **1470/1467/3** | **7662/0** | ActionId 1592/1750 退役；**Room v56→v57（3 表 11 列）**；lintRelease 绿 |
 | **G04** | `4078f12c9` | [report-G04.md](report-G04.md) | **364 文件 +6448/−24737**（整删 48） | **1413/1410/3** | **7397/0/0/18 skip** | ActionId 1613/1614/1615/1616/1732/1733/1746（+1437 顺延）退役，retired 集 13→**21**；**Room v57→v58（2 表 9 列）**；game-data 三键整个消失 sha256 `035066cb…94ef`；detekt/lint/图集门全绿 |
 | **G15** | `325da9d5a` | [report-G15.md](report-G15.md) | **122 文件（117 跟改 + 5 新增）+426/−3850 跟改侧**（整删 9） | **1394/1391/3** | **7336/0/0/18 skip** | 师徒整体下线；ActionId **1591** 退役，retired 集 **21→22**（catalog↔guard 双向零差集已实测）；**Room v58→v59（disciples 1 列，91→90）**；`DiscipleColumn` 枚举 92→91；proto 双侧 `reserved 93` + 镜像 `reserved 85`；赠礼三文件整删（消费方 **2** 个）；JNI 86/86、game-data sha256 **不变**、lint 36 警告全预存、两 baseline 零改动 |
+| **G16** | `4ba6c1bdd` | [report-G16.md](report-G16.md) | **42 文件（14 改 + 28 新增）+1195/−62**（24 份 WebP 为二进制不计行） | **1394/1391/3**（**与 G15 逐条同名 ⇒ 零新增 B 类**） | **7343/0/0/18 skip**（对 G15 **+7 = 新守卫 5 例 + 映射守卫 +2 例**，逐模块账闭合） | 寻访 12 键四方齐备（registry 分类 **14→15**、`SpriteCategory.CHARACTER(2)`、UID **493–504** 既有零漂移、双模块 24 份无损 WebP 单模块 4.08 MB）；🔴 **素材管线三处结构性缺陷根治**（`SOURCE_DIR` 失效路径 / 脚手架静默丢映射 / preserve 承载高清素材）；图集 **41 精灵 / layoutHash `6a122ed2…` 不变**、`SceneEquivalenceTest 13/13`、Room 仍 **v59**、game-data sha256 **逐字符不变**、JNI 86/86、ActionId 198/1861 幂等、lint 36 警告全预存、两 baseline 零改动 |
 
 > ✅ **G15 提交前由同一会话以复核身份同轮重跑了全部门禁**（ctest / 全量 JUnit / detekt / lint / 四个 node 门），
 > 数值与本表一致；`report-G15.md` §十 诚实标注了两处降级（lint 与编译的复核轮是 UP-TO-DATE 增量）
 > 与一处未做的抽验（`GameViewDiscipleProjectionTest` 双射守卫的判别力自证）。
-> 六批已提交者均为：全门禁实测绿 + 双 changelog + `report-Gxx.md` + **单次提交**。
+> ✅ **G16 是「实施 + 复核合一」的会话**：每个数字都取自本会话同轮命令输出（ctest 三度跑含 `-R` 定性与
+> 判别、JUnit 全量按 678 个 XML 逐模块汇总、detekt/lint/五个 node 门全部实跑），
+> 并对**自己新写的两处守卫做了「退回旧状态判红」的判别力自证**（做法与结果见 `report-G16.md` §五）；
+> 未做项只有 APK 构建与真机验证，明写在 `report-G16.md` §八。
+> **七批已提交者均为：全门禁实测绿 + 双 changelog + `report-Gxx.md` + 单次提交。**
 
 > ⚠️ **G04 的提交由「复核会话」完成**：实施会话留下未提交工作树 + 一份把 ctest/detekt/JUnit 误记为绿的报告；
 > 复核会话在同一棵树逐门重跑，实测出 **4 处失实**（3 条 `SceneEquivalenceTest` A 类红、6 条 detekt 红、2 个陈旧图集守卫、规模数字失真）并当场修复。
 > 教训已回写 report-G04 §二·补 与本文件 §2.3 坑 9 —— **「报告声称绿」不构成门禁证据，必须同轮复跑**。
 
-### 1.2 剩余顺序（**2026-09-25 G15 收官后**）
+### 1.2 剩余顺序（**2026-09-25 G16 收官后**）
 
-**G16（角色素材批）→ G08 → G09 → G11 → G10**
+**G08 → G09 → G11 → G10**
 
+- ✅ **G16 已单次提交（`4ba6c1bdd`）⇒ G11 的「12 个角色精灵键未注册」硬阻塞解除**：
+  注册表 / 映射 / 双模块 WebP / UID 四环齐备，运行时入口 `SpriteResRegistry.resolve("avatar_zhouming")` 等
+  12 键可解析，且新增 `GachaCharacterSpriteGuardTest` 锁住四方一致（详见 `report-G16.md` §一）。
 - ✅ G15 已单次提交（`325da9d5a`），共享面（`models.h` / `disciple_store.h` / `column_dirty.h` /
   `DiscipleTables*.kt` / `Disciple.kt` / `game_view.proto` / `ActionIds.kt`）已落定 ⇒ 后续删列批可在此基线上串行。
-- **G16 素材批**按用户指令插在 G04 之后、G09 之前，用于解除 G11 硬阻塞；
-  与 G15 的唯一共享文件 `XianxiaApplication.kt` 已随 G15 提交，不冲突。
-  🔴 G16 开工前 `git status` 必须只剩 `docs/research/`×2；且必须把 §2.3 **坑 9 的三处手工复刻表**列入文件面。
-- G08 → G09 → G11 是依赖链（G09 解锁依赖 G08 模板读取层；G11 依赖 G09 + G16）。
-- G10 最后（唯一一次 RNG 重录窗口）。**G15 未新增 B 类**（§6.2），且首次正面实证
+- ✅ G16 与后续批次的共享面只有 `android/scripts/*`（数据与脚本），**零 Kotlin 业务符号改动**；
+  `SpriteCategory` 加了一枚 `CHARACTER`、`resource-registry.json` 分类 14→15 ⇒
+  **G11 若新增分类需同步 `SpriteSourceMappingGuardTest` 的档位策略表与 `SpriteCodegenSyncTest` 的分类清单**（这两处已改成「漏登记即红」）。
+- **G08 → G09 → G11 是依赖链**（G09 解锁依赖 G08 模板读取层；G11 依赖 G09 + G16）。
+  🔴 G08 必读 `report-G16.md` §七-1：`PortraitPool.getResourceId` 不查注册表，`portraitRes` 置为
+  `portrait_<角色id>` 后弟子卡/详情页会回落通用像——该缺口属 G08 的解析链，不在素材批内。
+- G10 最后（唯一一次 RNG 重录窗口）。**G15/G16 均零新增 B 类**（§6.2），且 G15 首次正面实证
   「两侧同步删除时 `Diff*` 继续绿」⇒ §3.3 那条 G10 排期推论已由实测替代。
 - **M1 完成判据**：G10 全绿 + G11 最简 UI 真机通。
 
@@ -71,10 +83,11 @@
 
 ---
 
-## 2. 门禁基线与运行方式（**G15 实施终树实测，取代本文件初版的 G04 值**）
+## 2. 门禁基线与运行方式（**G16 终树实测，取代本文件初版的 G04 值与 G15 列**）
 
-> 🔴 G15 列的值由**实施会话同轮**跑出的原始输出；G04 列的值由**复核会话**跑出的。
-> G15 提交前仍须复核会话同轮重跑（§8.5 规程），下表可作复核的对照基准。
+> 🔴 G16 列的值由**实施会话同轮**跑出的原始输出（G16 未另派复核会话，但做了 §8.C-4 要求的
+> 「同轮重跑 + 读每条命令自己的日志 + 验产物」，并对新守卫做了判别力自证，见 `report-G16.md` §五）。
+> G15 值由实施会话同轮跑出、提交前另经复核会话同轮重跑；G04 值由复核会话跑出。下表可作下一批复核的对照基准。
 
 ### 2.1 环境前置
 
@@ -84,31 +97,40 @@ $env:PATH = "C:\Users\cp050\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\bin;" +
             "C:\Users\cp050\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\x86_64-w64-mingw32\bin;" +
             "$env:LOCALAPPDATA\Android\Sdk\cmake\3.22.1\bin;" + $env:PATH
 # 桌面构建目录：android/app/src/main/cpp/gamecore/build/desktop-test （不是同级 build/，那是旧套件）
+# 素材管线（G16 起为硬依赖）：仓库根的 模拟宗门美术素材/ 必须存在，或用 MNZM_ART_SOURCE 指向
 ```
 
 ### 2.2 门禁表
 
-| 门 | 命令 | G15 实施终树实测值（G04 值括注） |
+| 门 | 命令 | G16 终树实测值（G15 / G04 值沿革） |
 |---|---|---|
-| 桌面 C++ 编译 | `cmake --build .`（desktop-test 目录） | EXIT=0，`[5/5] Linking game-core-tests.exe` |
-| 桌面 ctest | `ctest`（同目录） | **1394 总 / 1391 过 / 3 败**（G04：1413/1410/3）。−19 = `relative_gift_test.cpp` 整删 + `MasterDiscipleTest` 2 + 拜师 tx 3。3 败 = §6.2 同名三条 B 类，**零新增**。⚠️ 图集/生成物变更批仍须先确认 `SceneEquivalenceTest` 三条不红（坑 9） |
-| Kotlin 编译 | `./gradlew.bat compileReleaseKotlin` | `BUILD SUCCESSFUL in 1m 57s` |
-| 测试源编译 | 五模块 + `:app` `compileReleaseUnitTestKotlin --max-workers=1 --continue` | **0 错误** |
-| detekt | 六模块 | `BUILD SUCCESSFUL`；`detekt-baseline.xml` 与 `lint-baseline.xml` **零改动**（只缩不增） |
-| JUnit 全量 | `./gradlew.bat testReleaseUnitTest --max-workers=1 --rerun-tasks --continue "-Dgamecore.jni.path=<绝对 .so>"` | **7336 / 0 / 0 / 18 skip**（app 995 / domain 1575 / data 806 / engine 2866 / ui 146 / feature:game 948）（G04：7397）。−61 = 整删拜师 12 + 赠礼 27 + 乘区/明细/解绑 19 散例 + 新增迁移测试 3。**仍必须带 `--continue` 并按 XML 逐模块汇总**（坑见 §2.3-8/G04 教训） |
-| lint | `./gradlew.bat lintRelease` | `BUILD SUCCESSFUL in 6m 3s`（G04：约 17m——本次配置缓存 reused + 增量，非口径变化）；`Lint found 36 warnings`，本批文件按符号过滤**零命中** ⇒ 36 条全预存。⚠️ 跑完仍要查 `atlas-rgba-manifest.json` 是否被改脏（坑 2） |
-| 跨语言对拍库 | `pwsh -File scripts/build-desktop-jni.ps1` → `android/core/engine/build/desktop-jni/libgamecorejni.so` | EXIT=0；**改任何 C++ 后必须重建**再跑 JUnit。🔴 必须验 `.so` 体积/时间戳真的变了（坑 11：`powershell` 而非 `pwsh` 会解析失败却仍报 exit 0） |
-| JNI 计数 | `node scripts/check-jni-count.mjs` | **86 / 86**（G15 删的是既有 `external fun` 体内的 op 分支，计数不变） |
-| ActionId | `node scripts/gen-action-ids.mjs` | **198 动作 / maxId=1861**（不变）。⚠️ 零漂移自证的正确基准是**regen 前后工作树自比**（`cp` 后 diff），不是 `git diff` 对 HEAD——desc 本批有意改了，对 HEAD 必差（坑 10） |
-| catalog↔guard 退役集 | 脚本扫 `scripts/action-catalog/*.mjs` 六文件 + `dispatch_guard_test.cpp` | catalog 解析 198 == 生成器 198；标退役 **22** == guard **22**，两方向差集均空。⚠️ 只扫 `core.mjs` 会漏 3 条（1740/1746/1750 在其他分文件） |
-| 游戏数据 | `node scripts/gen-game-data.mjs --check` | sha256 `035066cbcb891aa124397667e58879d51d4dd4124177ae38b550e1b2c22094ef`——**与 G04 逐字符相同**（G15 未触碰配置源） |
-| 规范门禁 | `node scripts/check-agent-instructions.mjs` | `✓ 全部通过`；预存告警 2 条（规则③ `rules/static-resources.md:277` basename 不精确 1 处、规则⑤ 最坏链路 37890 字节）属正常 |
-| Room | `DATABASE_VERSION` = **59**；`schemas/…/59.json` 已入库；`disciples` **90 列**、`game_data` 128 列（索引 5+5 全保留） | 禁 `DROP COLUMN`；历史 schema JSON 只增不改；下一批删列则 → **v60**（G16 素材批不删列） |
+| 桌面 C++ 编译 | `cmake --build .`（desktop-test 目录） | **本批未重编**：零 C++ 改动，沿用 G15 的 `[5/5] Linking game-core-tests.exe` 产物；ctest 直接跑该产物 |
+| 桌面 ctest | `ctest`（同目录） | **1394 总 / 1391 过 / 3 败**（同 G15；G04 为 1413/1410/3）。`Total Test time (real) = 59.29 sec`。3 败与 G15 **逐条同名** ⇒ 零新增 B 类；断言原文实测为金序列常量（`Which is: "male_disciple_15"` / `56 / 73 / 80 …`）⇒ 按 §3.3 判据属 B 类 |
+| 🔴 `SceneEquivalenceTest`（坑 9） | `ctest -R SceneEquivalence` | **13/13 全绿**（G16 未动图集；图集/生成物变更批必查项） |
+| Kotlin 编译 | `./gradlew.bat compileReleaseKotlin` | `BUILD SUCCESSFUL in 54s`（112 tasks: 25 executed, 87 up-to-date） |
+| 测试源编译 | 六模块 `compileReleaseUnitTestKotlin` | 0 错误（隐含在全量 JUnit 轮，`--continue` 下无任何 `FAILED` 任务） |
+| detekt | 六模块 `./gradlew.bat detekt` | `BUILD SUCCESSFUL`；`detekt-baseline.xml` 与 `lint-baseline.xml` **零改动**（只缩不增）。⚠️ **新坑 13：`detekt` 不覆盖 `src/test`**——实测 `app/build/reports/detekt/detekt.xml` 内 `src/test` 命中 0；带类型解析的 `:app:detektReleaseUnitTest` 暴露 39 条**既存**测试源码违规（登记 G10） |
+| JUnit 全量 | `./gradlew.bat testReleaseUnitTest --max-workers=1 --rerun-tasks --continue "-Dgamecore.jni.path=<绝对 .so>"` | **7343 / 0 / 0 / 18 skip**（app **1002** / domain 1575 / data 806 / engine 2866 / ui 146 / feature:game 948；678 个 XML 汇总）。G15 为 7336（app 995），**+7 全部是本批新增守卫用例**，逐模块对账闭合。`BUILD SUCCESSFUL in 11m 42s` |
+| lint | `./gradlew.bat lintRelease` | `BUILD SUCCESSFUL in 3m 38s`；`0 errors, 36 warnings (and 3 warnings filtered by baseline)` —— **36 与 G15 同值**，按本批符号过滤**零命中** ⇒ 全预存。⚠️ 跑完仍要查 `atlas-rgba-manifest.json`（本轮实测又被改脏一行 `generatedAt`，坑 2） |
+| 跨语言对拍库 | `pwsh -File scripts/build-desktop-jni.ps1` → `…/desktop-jni/libgamecorejni.so` | **本批未重建**：零 C++ 改动，`.so` 实测 8526336 字节 / mtime 2026-09-25 15:48（= G15 重建值）⇒ 合法复用（坑 11 的「验产物 mtime/体积」在此用作**无需重建**的正面证据） |
+| JNI 计数 | `node scripts/check-jni-count.mjs` | **86 / 86**（不变） |
+| ActionId | `node scripts/gen-action-ids.mjs` | **198 动作 / maxId=1861**（不变）；regen 前后工作树自比 **零差异**，且两生成物未进 M 列表（本批不改 desc，与 HEAD 也一致） |
+| catalog↔guard 退役集 | 脚本扫 `scripts/action-catalog/*.mjs` 六文件 + `dispatch_guard_test.cpp` | **本批未重跑**（G15 值为 catalog 198 == 生成器 198、退役 **22** == guard **22** 双向零差集）。ActionId 面本批零改动，由上一行的 regen 幂等间接证明；下一批若动 catalog 须重跑 |
+| 游戏数据 | `node scripts/gen-game-data.mjs --check` | sha256 `035066cbcb891aa124397667e58879d51d4dd4124177ae38b550e1b2c22094ef`——**与 G04/G15 逐字符相同**（G16 未触碰配置源） |
+| **素材管线（G16 新增门）** | `node scripts/scaffold-source-mapping.mjs`（跑两次验幂等）→ `node scripts/import-art-assets.mjs`（先 `--dry-run`）→ `node scripts/resource-manifest.mjs` → `node scripts/build-atlas.mjs --codegen` | scaffold 第二次运行**幂等**；import `306 跳过 / 12 生成`；manifest `718 条资源`（694+24）；codegen 打印 `显示尺寸保真校验通过：18 栋建筑 + 9 个装饰`，`scene_uv_tables.h` 与 HEAD **零差异**；`sprite-uid-map.json` 仅 +12 行、**既有 UID 零漂移** |
+| 规范门禁 | `node scripts/check-agent-instructions.mjs` | `✓ 全部通过`（EXIT=0）；预存告警 2 条（规则③ 1 处、规则⑤ 最坏链路 37890 字节）。🔴 **坑 14：写 rules 文档时裸文件名会把规则③ 从 1 处顶到 3 处**——判据是「几处」而非「有没有红」，新增引用必须写全路径（本批已自查并改回 1 处） |
+| Room | `DATABASE_VERSION` = **59**；`schemas/…/59.json` 已入库；`disciples` **90 列**、`game_data` 128 列（索引 5+5 全保留） | 禁 `DROP COLUMN`；历史 schema JSON 只增不改；G16 未删列 ⇒ **下一批删列则 → v60** |
+| 图集不变量 | `android/app/src/main/assets/atlas/atlas-manifest.json` | `sprites=41 / format=ASTC_4x4_LDR / layoutHash=6a122ed22d66bee5`（与 G04 记录一致 ⇒ 图集零变化）。🔴 G16 新分类**不进图集**，`LAYOUT.mapSprites` 未动 |
+| 精灵注册面 | `SpriteCodegenSyncTest` / `SpriteSourceMappingGuardTest` / `ResourceManifestCompletenessTest` / `GachaCharacterSpriteGuardTest`（新） | 全绿。⚠️ 分类清单 **14→15**（`CHARACTER` 追加在 `PORTRAIT` 之后，顺序敏感）；新增「每个注册分类必须已登记烘焙档位」断言 ⇒ **今后加分类不同步守卫即红**（不再静默放行） |
 
-### 2.3 十二条实操坑（前三条承自 HANDOVER-2，4-8 条 G03 新增，第 9 条 G04 新增，10-12 条 G15 新增）
+### 2.3 十五条实操坑（前三条承自 HANDOVER-2，4-8 条 G03 新增，第 9 条 G04 新增，10-12 条 G15 新增，**13-15 条 G16 新增**）
 
 1. **KSP 会就地改写历史 schema JSON**：bump 版本后若 KSP 把 `56.json` 等历史快照改小，立即 `git checkout -- <该 json>`；只允许新增当前版本 JSON。（G03 实测：仅 `57.json` 新增，历史零改写。）
-2. **构建副产物必须还原**：`sprite-uid-map.json`、`atlas-rgba-manifest.json` 每次构建都改时间戳 → 提交前 `git checkout --`。⚠️ **`lintRelease` 也会改**（本轮实测：提交前它又变脏了一次）。
+2. **构建副产物必须还原**：`sprite-uid-map.json`、`atlas-rgba-manifest.json` 每次构建都改时间戳 → 提交前 `git checkout --`。⚠️ **`lintRelease` 也会改**（G16 再证实：`atlas-rgba-manifest.json` 的 `generatedAt` 一行又被写脏一次）。
+   🔴 **但素材批（G16 修正）必须先分辨「时间戳脏」与「真新增」**：新增/删除 drawable 时
+   `sprite-uid-map.json`（+UID）、`sources-imported.json`（+源 MD5/尺寸）、`source-mapping.json`（+映射）
+   三份是**必须随批提交的真源数据**，无脑 `git checkout --` 会丢 UID 稳定引用契约、并让下次 import 误判重烘焙。
+   判据 = `git diff --numstat` 看该文件是不是只有时间戳那一行变化；细则已写进 `rules/media-source-assets.md` §5。
 3. **文本编辑用文件编辑工具，不要用脚本拼接**：JSON 追加后必须 `node -e "JSON.parse(...)"` 校验。⚠️ **G04 实证代价**：用脚本给 `assets/changelog_entries.json` 追加条目把**整个文件重排**（2,474 行全文件改写，语义没错但审查不可读），提交前不得不用 `git checkout HEAD -- <file>` + 编辑工具重做成 +7/−1 的最小追加，并逐条与 HEAD 比对确认零丢失。**双 changelog 一律用编辑工具改。**
 4. 🔴 **Bash 工具的 `cd` 绝对路径不可靠**：`cd "C:/..." && ./gradlew.bat` 会 **EXIT=127**（命令找不到）。正确做法是**不写 `cd`，用 Bash 的 `dir_path` 参数**定位到 `C:\Mnzm\XianxiaSectNative\android`。子代理反复踩到过。
 5. 🔴 **`grep -c` 无命中返回 exit 1**，会把"实际成功"的后台命令包装成 failed（本轮 `lintRelease` BUILD SUCCESSFUL 却被通知为 exit 1）。⇒ **判定后台命令成败必须读它自己的日志**（`BUILD SUCCESSFUL|FAILED` 行），不能信复合命令的退出码。
@@ -141,6 +163,27 @@ $env:PATH = "C:\Users\cp050\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\bin;" +
     再单独说明"对 HEAD 的差异是本批有意改 desc"。
     同形状：`check-agent-instructions.mjs` 的预存告警**是 2 条不是 0 条**（规则③ 1 处 + 规则⑤ 最坏链路），
     判据是「全部通过」那一行，不是"无告警"。
+13. 🔴 **G16 新坑：`detekt` 门禁不覆盖测试源码**。`:app` 的 `app/build/reports/detekt/detekt.xml` 里
+    `src/test` 命中数 = **0**（实测），即 AGENTS.md §2 的 `./gradlew.bat detekt` 对测试文件是空跑；
+    改用带类型解析的 `:app:detektReleaseUnitTest` 立刻暴露 **39 条 weighted issues**（全为既存）。
+    ⇒ 写测试时不能以「detekt 绿」自证质量；需要时用 `:<模块>:detekt<Variant>UnitTest` 自查并按文件过滤
+    （是否把它纳入门禁属工程口径，已登记 G10）。
+14. 🔴 **G16 新坑：写 rules/docs 时裸文件名会把规范门禁的「规则③ 不精确」计数顶高**。
+    本批新写两行引用（`source-mapping.json`、`game-data.json`）把该计数从 **1 处顶到 3 处**，
+    而门禁本身仍是 `✓ 全部通过`（**告警不是红，极易漏看**）。判据是**「几处」这个数目不得因本批增长**；
+    修法见 `docs/AGENTS.md` 引用路径规范第 1 条（写可解析的全路径）。
+15. 🔴 **G16 新坑：素材管线的三个静默失败面**（任一处都会被"编译 + 既有守卫全绿"放过）——
+    ① **源目录路径**：两脚本曾硬编码 `D:/模拟宗门美术素材`，该路径本机不存在 ⇒ 管线自 2026-09-24 拍板
+    「源目录=仓库根」起实际不可跑，`scaffold` 的 `if (fs.existsSync(SOURCE_DIR))` 让缺失**静默**变成
+    「全部 source = null」，`import` 对 null 又直接 `continue` ⇒ 一直到下次重烘焙才暴露。
+    ② **脚手架整体重写会冲掉人工映射**：`map_rock_base` 整条丢弃、`map_grass_1` 因表内目录记错退化为 null。
+    ⇒ 现统一走 `android/scripts/art-source.mjs`（缺失抛错 + `MNZM_ART_SOURCE` 覆盖），
+    `MAP_KNOWN` 补真源并支持可选 `modules`，`scaffold` 加 `assertNoMappingLoss()`；
+    **要改映射只能改脚手架的表，不能手补生成物**（已写进 `rules/static-resources.md` §2.2 步骤 4）。
+    ③ **分类默认 preserve**：`scaffold` 未登记分类的 bake 兜底是 `preserve`，
+    而角色源图实测最大 `5016×5016` / `4096×6144` ⇒ `MAX_BAKE_DIM=4096` 夹完后单张解码 ARGB ≈ 67 MB。
+    现 `SpriteSourceMappingGuardTest` 要求**每个分类必须显式登记档位**（漏登记即红），
+    `import-art-assets.mjs` 对 >3 MB 或顶到 4096 的产物高声告警。
 
 ---
 
@@ -188,6 +231,10 @@ G03 实测两处「侦察落点表按维度切分导致漏项」，代价分别�
 - [ ] ActionId 退役：保号 + desc【已退役，编号禁复用】+ dispatch case 删 + `dispatch_guard_test` retired 登记 + regen **198/1861**
 - [ ] `@ProtoNumber` 空缺号 `reserved` 登记（两处 proto 定义 + proto 文件）
 - [ ] 配置源：改中性源 → 跑生成器 → 记录新 sha256 → `--check` 复验；**删静态表时键整个消失，不得留空数组**（见 §5）
+- [ ] **素材批专用（G16 起）**：`scaffold-source-mapping.mjs` 跑两次验幂等 + 用脚本比对「重生成后对 HEAD 的净差异」
+  确认既有条目零丢失零改写；`import-art-assets.mjs` 先 `--dry-run` 再看「将生成」清单是否只含本批目标；
+  `sprite-uid-map.json` / `sources-imported.json` / `source-mapping.json` 属**真新增须提交**（坑 2 修正），
+  `atlas-rgba-manifest.json` 等时间戳脏须还原；产物逐张验 `VP8L` 无损
 - [ ] 双 changelog（外部 `CHANGELOG.md` + 游戏内 `assets/changelog_entries.json`，后者改完必须 JSON 可解析校验）+ `report-Gxx.md`
 - [ ] `check-agent-instructions` EXIT=0
 - [ ] 暂存危险扫描（排除 `docs/research/` + 构建副产物；素材两目录已被 `.gitignore` 兜住）→ 单次提交 → 验证「非未跟踪残留 = 0」
@@ -241,7 +288,7 @@ G04 的具体切片（T-a…T-e / A-a…A-d / c340×N，各片文件清单）见
 2. 门禁绿判定 = 编译 EXIT=0 **且** 失败集 ⊆ B 类登记集 **且** 零 A 类（A/B 判据见 §3.3）。
 3. 每批报告必须产出「本批新增 B 类清单」，G10 汇总消化。
 
-### 6.2 当前 B 类登记（C++，**G15 实施终树实测：仍是 3 条，逐条同名 ⇒ 零新增**）
+### 6.2 当前 B 类登记（C++，**G16 终树实测：仍是 3 条，逐条同名 ⇒ 零新增**）
 
 ```
 DiscipleFactory.GoldenSequenceSeed42
@@ -256,8 +303,15 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 > 加上乘区只删恒 0 项、剩余项相加顺序未动（`x + 0.0 == x`）⇒ ctest 三条红与 G04 逐条同名、Kotlin 零红。
 > 第四项 `ChildBirth.GoldenSequenceSingleBirth` 已随 G03 的 `child_birth_test.cpp` 整删而消失（登记为「随文件删除」）。
 > Kotlin 侧 **0 条**。
-> ⚠️ `DeterminismProbe` 的 golden 摘要自 G02 起未再变（G15 实测 `actual=0xb4f3c6912207f597`）
+> ⚠️ `DeterminismProbe` 的 golden 摘要自 G02 起未再变（G15 实测 `actual=0xb4f3c6912207f597`；
+> **G16 同轮复测 `FP determinism transcript diverged from golden baseline. actual=0xb4f3c6912207f597 golden=0x490e8dc522e12921`——actual 与 G15 同值**）
 > ⇒ 该指纹对师徒面删除不敏感，G10 重录一次到位即可。
+> 🔴 **G16 零新增 B 类（比 G15 更强的"零"，因果链极简）**：本批**零 C++ 改动**（`git status` 的 M 列表内
+> `gamecore/**` 命中 0）、**零配置源改动**（`gen-game-data --check` sha256 逐字符不变）、
+> Kotlin 侧只加了一枚 `SpriteCategory.CHARACTER` 枚举值 + 一处 KDoc，**RNG 消费点集合完全未动**
+> ⇒ ctest 三条红与 G15 逐条同名，且 `ctest -R` 复核到断言原文为金序列常量
+> （`Which is: "male_disciple_15"` / `56 / 73 / 80 / 57 / 35 / 28 / 48 / 43`）⇒ 按 §3.3 判据是 B 类，
+> Kotlin 侧 0 条。**素材/文档类批次的"零新增"应当这样证：先证改动面不含 RNG 消费点，再证三条同名同因。**
 
 ### 6.2·补 §3.3 判据推论已被 G15 实证取代
 
@@ -277,6 +331,7 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 | **G03** | **「G10 登记」9 条** | [report-G03.md](report-G03.md) §八。**最要紧的两条**：① 🔴 侦察文档结构性缺陷（§9.x 归属结论与落点表不双向校验 + 字段链表漏非弟子表的 C++ 环）→ 已转为 §3.4 的前置扫描规程；② `Diff*` 不等于 B 类的判据方法（§二·补） |
 | **G04** | **「G10 登记」10 条** | [report-G04.md](report-G04.md) §八。**最要紧的三条**：① 图集 manifest 契约两条路线不得并存（管线级）；② 活文档仍描述已删玩法（`cpp-engine`/`architecture`/`knowledge-base`/`CODE_WIKI`/`ui-read-surface`）；③ 三处「手工复刻静态期望表」列入图集批文件面（§2.3 坑 9） |
 | **G15** | **「G10 / 后续登记」14 条** | [report-G15.md](report-G15.md) §八。**最要紧的四条**：① 🔴 **接口形参删除批必须按「实现处枚举」定测试面**（6 个假实现用 `mdb` 缩写绕过字面量 grep）→ 已固化为 §2.3 坑 10；② 🔴 `pwsh` ≠ `powershell`，且 exit 0 会盖住脚本自己的解析错 → 必须验产物 mtime/体积（§2.3 坑 11）；③ `docs/rng-source-inventory.md` 的 `SYSTEM(3)`（35 处）整行**自 G02 起就是 stale**，本批只按因果摘掉 `RelativeGiftHandler` 一项，**整行须 G10 按 `grep -rn "RngPartition\."` 重跑盘点**，别做局部修补；④ 三组零消费者死代码归 G10 的「死代码 grep 清零」：`NullSafeProtoBuf.relationIdToProto/FromProto`（实测 **G15 之前就已零调用**，不是本批造成）、`NullableStringSerializer`/`NullableLongSerializer`、`DiffMonthSettlementFixture` 的两个死 helper |
+| **G16** | **「G10 / 后续登记」7 条** | [report-G16.md](report-G16.md) §七。**最要紧的三条**：① 🔴 **`PortraitPool.getResourceId` 不查 `SpriteResRegistry`**（只枚举 `male/female_disciple_*`）⇒ G08 把 `portraitRes` 置为 `portrait_zhouming` 后，弟子卡/详情页会回落**通用像**——该缺口属 **G08 的解析链**，不在素材批内，G08 任务书必须列一行；② 🔴 **全仓没有「双模块放置」硬守卫**（`ResourceManifestCompletenessTest` 实为并集 + `count >= 1`），37 张通用肖像等 **61 个单模块资源**靠「没断言」放行，是否收债待拍板；③ 🔴 **`背景图/普通招募背景图.png` 源图已被美术换成 6144×3456** 而该条目仍是 `preserve` ⇒ 重烘焙静默产出 4096×2304 / 6.8 MB（ARGB 37.7 MB）。本批**未夹带**该美术升级（产物与台账已还原），只加了超预算告警；**档位重定属产品口径待拍板**。另：④ 🟡 `detekt` 门禁不覆盖 `src/test`（更严档实测 39 条既存违规，见坑 13）；⑤ 第 7 角色 `月城雪/` 缺头像属 M3 |
 
 **G03 登记摘要（逐条见 report-G03 §八）**：侦察结构性缺陷两处；B 类定性澄清（G10 工作量重估）；`ai_sect_ops.h`/`disciple_stats.h` 各一行 `rootCount = 1` 自赋值无效语句；`applyCombatInjury` 仍调 `markDead`（名=死亡/行为=重伤）+ 测试注释失实 + 测试弟子命名「阵亡者」；两处裸 `mock(GameRngManager)` 违反 `mockSmart`；`FakeAtomicStateStore` 未登记进 `rules/testing.md` 共享工厂表；「关系」对话框只剩师徒、改名待拍板；`prisonerSpiritRootFilter` UI 写入面残留；子代理 150 轮上限的工程事实。
 
@@ -290,37 +345,45 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 |---|---|---|---|
 | ~~G04~~ | ~~删洗炼/资质/三表/血炼/职位特质/战斗随机成长~~ | ✅ **已收官**（report-G04.md） | — |
 | **G15** | 师徒系统整体下线（赠礼三文件整删、`masterId` 列链、ActionId 1591 退役、Room v59、双乘区形参链、关系面板） | ✅ **已收官 `325da9d5a`**（[`TASKBOOK-G15.md`](TASKBOOK-G15.md) 派工 + [`report-G15.md`](report-G15.md)）——本文件 §10.2 的实测文件面**已被 TASKBOOK §2 取代**（13 处漏项 + 2 处假阳性） | — |
-| **G16** | 12 个角色精灵键注册（6 角色 × 头像/全身像） | **本文件 §11 内联任务书** | 源图在 `模拟宗门美术素材/`（不入库）；七步流程见 `rules/static-resources.md`；解除 G11 硬阻塞。🔴 图集批必须把 §2.3 坑 9 的三处手工复刻表列入文件面 |
-| **G08** | 角色模板层 + `templateId` 实例化 + 开局周明/5 万 + 兑换码改道 | `recon-G05-G06-G08-G09.md` `G08`；口径 `HANDOVER-1` §4#9~#12 | 兑换码改道牵动 4 处测试 + 6 个死 helper（`HANDOVER-1` §5#6）；AI 宗弟子构造保持旁路 `templateId=""` |
+| **G16** | 12 个角色精灵键注册（6 角色 × 头像/全身像） | ✅ **已收官 `4ba6c1bdd`**（[`TASKBOOK-G16.md`](TASKBOOK-G16.md) 派工 + [`report-G16.md`](report-G16.md)）——本文件 §11 的内联任务书**已被 TASKBOOK-G16 取代**（§11 无文件面无决策依据；实测差异与三处管线缺陷见 report §三） | — |
+| **G08** | 角色模板层 + `templateId` 实例化 + 开局周明/5 万 + 兑换码改道 | `recon-G05-G06-G08-G09.md` `G08`；口径 `HANDOVER-1` §4#9~#12 | 兑换码改道牵动 4 处测试 + 6 个死 helper（`HANDOVER-1` §5#6）；AI 宗弟子构造保持旁路 `templateId=""`；🔴 **须一并处理 `report-G16.md` §七-1 的 PortraitPool 解析链缺口**（否则 `portraitRes` 置为角色键后显示成通用像） |
 | **G09** | 抽卡核心 `gacha_tx`（roll/保底/碎片/升星/解锁/入库） | 同上 `G09` | 硬依赖 G08 模板读取层（`characterTemplates` 当前零生产读取方）；C++ AUTHORITATIVE；入库来源名须同批登记 `OverflowMailSender.SOURCE_DISPLAY_NAMES` |
-| **G11** | 最简寻访 UI：主界面 + 结果页 Q30/Q31 + 图鉴最小 + `GachaDelegate` | 同上 `§G11` | 🔴 **素材注册硬阻塞**：12 个角色精灵键全未注册，源图在 `模拟宗门美术素材/<角色名>/{头像,全身像}.png`（该目录**永不提交**），七步流程见 `rules/static-resources.md`；色表强制 Q31（`GameConfig.Gacha` 单源），禁用 `ItemCard.getRarityColor` 旧色表 |
-| **G10** | RNG 对拍基线重录 + 全量回归 + 死代码 grep 清零 + 文档收口 | `EXECUTION-PROTOCOL.md` §2 | 必须 G02–G07 全合入后**唯一一次**重录；G08/G09 建议同窗。**§6.3 已累积 G02/G03/G04/G05/G06/G15 六份登记**；Kotlin `Diff*` 预计无需重录（G15 已实证一次，仍待终树再证） |
+| **G11** | 最简寻访 UI：主界面 + 结果页 Q30/Q31 + 图鉴最小 + `GachaDelegate` | 同上 `§G11` | ✅ **素材注册硬阻塞已由 G16 解除**：12 个键（`avatar_*`/`portrait_*`）注册表/映射/双模块 WebP/UID 四环齐备，UI 直接用 `SpriteImage("avatar_zhouming")` 或 `SpriteResRegistry.resolve(键)`；档位头像 512 / 立绘 1024 且**大图类不进预加载**（`ResourcePreloader` 现有决策）。⚠️ 若 G11 要新增 `SpriteCategory`，必须同步 `SpriteSourceMappingGuardTest` 的档位策略表 + `SpriteCodegenSyncTest` 的分类清单（漏一处即红）。剩余口径：色表强制 Q31（`GameConfig.Gacha` 单源），禁用 `ItemCard.getRarityColor` 旧色表 |
+| **G10** | RNG 对拍基线重录 + 全量回归 + 死代码 grep 清零 + 文档收口 | `EXECUTION-PROTOCOL.md` §2 | 必须 G02–G07 全合入后**唯一一次**重录；G08/G09 建议同窗。**§6.3 已累积 G02/G03/G04/G05/G06/G15/G16 七份登记**；Kotlin `Diff*` 预计无需重录（G15 已实证一次，仍待终树再证）；G15/G16 两轮**零新增 B 类** ⇒ 三条集自 G04 起未变 |
 
 ---
 
 ## 8. 下次开工 checklist
 
-> ✅ **G15 的复核与提交已完成（`325da9d5a`）**——原 §8.A 的七条复核清单已逐条走完，
-> 过程与两处降级（lint/编译的复核轮是 UP-TO-DATE 增量）记在 `report-G15.md` §十。
-> **下一会话直接走 §8.B（G16）。**
+> ✅ **G16 的复核与提交已完成（`4ba6c1bdd`）**——原 §8.B 的 G16 五条清单已逐条走完
+> （含坑 9 的三处手工复刻表：`SceneEquivalenceTest 13/13`、`SpriteAtlasDefGeneratedTest`、
+> `BuildingSpriteFootprintGuardTest` 全绿；构建副产物按新判据分辨「时间戳脏 vs 真新增」）。
+> 过程、两处上位交接偏差与三处管线缺陷记在 `report-G16.md` §三/§八。
+> **下一会话直接走 §8.D（G08）。**
 
-### 8.B G16（角色素材批）——下一批
+### 8.D G08（角色模板层批）——下一批
 
-1. 读 §11 任务书 + `rules/static-resources.md` 七步 + `rules/media-source-assets.md`（素材源目录边界）。
-2. 🔴 图集/生成物变更批必做：把 §2.3 **坑 9 的三处「手工复刻静态期望表」**
-   （`scene_equivalence_test.cpp` rect 夹具、`SpriteAtlasDefGeneratedTest` 解析期望表、
-   `BuildingSpriteFootprintGuardTest` 兜底尺寸表）**列入分片文件面**——它们只在 ctest/全量 JUnit 才暴露，
-   编译与生成器都抓不到。
-3. 开工前 `git status` 必须只剩 `docs/research/`×2；构建副产物若被改（含 `lintRelease` 造成的）→ `git checkout --`。
-4. `sprite-uid-map.json` / `atlas-rgba-manifest.json` 是构建副产物（坑 2），提交前 `git checkout --`；
-   本批要提交的是**转换后的 WebP 与注册代码**。
-5. 🔴 G16 会新增精灵键 ⇒ 图集重打包后 `SceneEquivalenceTest` 三条必须仍绿（G04 就是在这里翻过车）。
+1. 🔴 **先写 `TASKBOOK-G08.md` 再切片**（§8.C-1 规程）：`recon-G05-G06-G08-G09.md` 的 `G08` 段落
+   是**按维度切分**的落点表，必须做 §3.4 两项回查（交叉归属 + 非弟子表三端环）后才能派工。
+2. 口径来源：`HANDOVER-m1-remaining.md` §4 口径 #9~#12（模板实例化 / `templateId=""` 旁路 / 开局周明 /
+   兑换码改道）；兑换码改道牵动 **4 处测试 + 6 个死 helper**（`HANDOVER-1` §5#6）。
+3. 🔴 **必列 `report-G16.md` §七-1**：`PortraitPool.getResourceId` 只认 37 张通用肖像、不查注册表 ⇒
+   `portraitRes` 一旦置为 `portrait_<角色id>`，`DiscipleComponents.kt:175-179` 与
+   `DiscipleSlotComponents.kt:57-70` / `DetailRightPanel.kt:110` 三处消费点会**回落通用像**。
+   修法属本批解析链（建议 `SpriteResRegistry.resolve` 优先、`PortraitPool` 退为性能缓存）。
+4. 素材面已就绪，无需再跑 `import-art-assets.mjs`；若改角色键名须同步
+   `resource-registry.json` + 跑 scaffold + `GachaCharacterSpriteGuardTest` 会红着提醒你。
+5. 本批动到 `Disciple` 列（`templateId`）⇒ **Room v59 → v60 四件套 + 迁移测试**（§2.2 Room 行），
+   `DiscipleColumn` 枚举、proto `@ProtoNumber` reserved、`lock_beast_tx.h` SETTINGS_PATCH 三处清单
+   等**非弟子表三端环**逐字段过 §3.4-2。
 
-### 8.C 通用（每批都走，G04/G15 两轮已验证有效）
+### 8.C 通用（每批都走，G04/G15/G16 三轮已验证有效）
 
 1. **派工前必做 §3.4 两项侦察缺口回查，并把结果写成独立 `TASKBOOK-Gxx.md` 再切片**——
    G15 靠这一步抓出上位交接的 13 处漏项（含 `battle_residual_tx.h` 这个第二赠礼消费方，
-   照上位清单派工直接 C++ 编译失败）与 2 处假阳性。
+   照上位清单派工直接 C++ 编译失败）与 2 处假阳性；
+   **G16 靠这一步抓出上位 §11 内联任务书的三处结构性缺陷**（失效的 `SOURCE_DIR`、脚手架静默丢映射、
+   `PORTRAIT` 分类强制 preserve 会产出 4096 级巨型纹理）——三者都不会被编译或既有守卫发现。
 2. **≤10 文件/片**；接口形参删除类批次**按「实现处枚举」定测试面**，不要按符号名字面量 grep（坑 10）。
 3. 分片并行期整树不可编译 ⇒ **明确禁止子代理跑 gradle/cmake**，只做精确编辑 + grep 自检；
    全部门禁由主线程终树复跑（G15 切 9+4 片，无一撞 150 轮上限）。
@@ -332,9 +395,32 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 
 ## 9. 诚实状态声明
 
-- **M1 完成度：6 / 11 批已提交**（G02 / G05 / G06 / G03 / G04 / **G15** = `325da9d5a`，
+- **M1 完成度：7 / 11 批已提交**（G02 / G05 / G06 / G03 / G04 / G15 / **G16** = `4ba6c1bdd`，
   每批都是全门禁实测绿 + 双 changelog + 报告 + 单次提交）；
-  G16 / G08 / G09 / G11 / G10 **尚未开始实施**（分母 11 = 原 9 批 + 拍板新增的 G15、G16）。
+  G08 / G09 / G11 / G10 **尚未开始实施**（分母 11 = 原 9 批 + 拍板新增的 G15、G16）。
+- 🔴 **G16 的诚实账（三点要如实说）**：
+  ① **本批是「实施 + 复核合一」的会话**，没有另派复核会话。缓解措施是实测纪律：每个数字取自同轮命令原文
+  （ctest 三度跑，含 `-R SceneEquivalence` 与 `-R Determinism…` 两次定性复核；JUnit 按 678 个 XML 逐模块汇总
+  并与 G15 基线做 **+7 的逐项对账**；detekt/lint/五个 node 门全部实跑），
+  且**对自己新写的两处守卫做了「退回旧状态判红」的判别力自证**（藏副本 → 双模块断言 FAILED；
+  删档位分支 → 策略断言 FAILED），当场还原并复跑判绿——这是 G15 留下的「未做抽验」项，本批补做了。
+  ② **两处主动不做，不是遗漏**：`assembleRelease` 未跑（⇒ 包体 +4.08 MB 是按单模块产物字节求和算的，
+  非 APK 实测）；真机未验（与全停摆的 `pending-device` 批同批做）。「十连结果页真显示头像」这一条
+  只有静态证据链（编译期 `R.drawable.<key>` 引用 + 注册表 + codegen 生成物），**没有视觉证据**。
+  ③ **一处越界改动的处置值得记**：`import-art-assets.mjs` 实跑时连带把 `bg_recruit_normal.webp`
+  重烘焙成 4096×2304 / 6.8 MB（因美术已在 2026-09-20 把源图换成 6144×3456，而该条目仍是 `preserve`）。
+  这不在 G16 范围内，**已把产物与台账记录还原为在库版**（`git status` 里它不再是 M），
+  只留下超预算告警与 `report-G16.md` §七-3 的待拍板项。**是否采用新美术 = 产品口径，不由素材批代拍**。
+- ✅ **已核实（G16，全部本会话同轮实测）**：12 键四方逐项命中（registry 12 行 / 映射 12 条 source 非 null /
+  双模块各 12 份 / UID 12 条 493–504）；24 份产物逐张 `VP8L` 无损；烘焙尺寸与字节逐张实测；
+  `sprite-uid-map.json` 既有 UID 变化条数 = 0；重生成映射对 HEAD 净差异 = +12 条（既有 309 条零变化、零丢失）；
+  ctest 1394/1391/3 且三条为金序列断言、`SceneEquivalenceTest` 13/13、`DeterminismProbe` actual 仍 `0xb4f3c6912207f597`；
+  JUnit 7343/0/0/18 逐模块；detekt/lint 两 baseline 零改动、lint 36 警告全预存且本批符号零命中；
+  game-data sha256 与 G04/G15 逐字符相同；JNI 86/86；ActionId 198/1861 且 regen 幂等；
+  图集 41 精灵 / `layoutHash 6a122ed22d66bee5` 不变；Room 仍 v59；规范门禁 EXIT=0 且规则③ 回到 1 处。
+- ⚠️ **G16 未重跑的两门（如实登记，非「应该没事」）**：`catalog↔guard` 退役集扫描、`cmake --build`（桌面重编）。
+  判据是本批零 ActionId 改动 + 零 C++ 改动（`git status` M 列表内 `gamecore/**` 命中 0）+
+  `.so` 与生成物 mtime/内容均为 G15 值。**下一批若动 catalog 或 C++ 必须重跑这两门**。
 - 🔴 **G15 的诚实账（与 G04 的区别要说清）**：本批的**每个数字都是同轮命令的输出原文**（ctest 三度跑、
   JUnit 两度全量并按 XML 逐模块汇总、lint/detekt/node 门全部实跑），不含「应该通过」类自述；
   提交前另以复核身份把 §2.2 全表重跑了一轮，数值一致才落提交。期间抓到并纠正了 **3 处自身错误**：
@@ -440,6 +526,15 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 ---
 
 ## 11. G16 任务书 · 角色素材批（P-3 拍板产物）
+
+> 🔴 **本 §11 已被 [`TASKBOOK-G16.md`](TASKBOOK-G16.md) 取代为派工真源，G16 亦已收官（`4ba6c1bdd`）**。
+> 保留本节是为了留下「上位交接的任务书为何不可直接派工」的对照证据：§11 只有 6 行目标/流程描述，
+> **无文件面、无档位口径、且把注册代码落点写成「`XianxiaApplication.kt` 经 `SpriteResRegistry.register(...)`」
+> ——实测注册代码由 codegen 生成，该文件本批零改动**。
+> 照 §11 字面派工会直接踩三处结构性缺陷（失效的 `SOURCE_DIR` / 脚手架静默丢映射 / `PORTRAIT` 强制 preserve
+> 承载 5016² 源图），三处的证据与根治见 `TASKBOOK-G16.md` §2 与 `report-G16.md` §三。
+> **收官结果**：12 键四方齐备、G11 硬阻塞解除、`SpriteCategory.CHARACTER` 新增、图集与 Room 零变化、
+> 零新增 B 类、登记 7 条（`report-G16.md` §七）。
 
 | 项 | 内容 |
 |---|---|
