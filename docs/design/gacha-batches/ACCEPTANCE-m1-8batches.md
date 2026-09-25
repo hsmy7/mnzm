@@ -56,7 +56,14 @@
 | `game-data.json` | sha256 `035066cb…94ef` | `校验通过：… sha256 035066cbcb891aa124397667e58879d51d4dd4124177ae38b550e1b2c22094ef` | ✅ 逐字符一致 |
 | JNI 面计数 | 86 / 86 | `✓ JNI 面计数在基线内：total=86/86，双桥无扩散` | ✅ |
 | 规范分发门禁 | EXIT=0；预存告警 2 条（规则③ 1 处、规则⑤ 37890 字节） | `✓ 规范分发架构门禁全部通过`；规则③ **1 处**（`rules/static-resources.md:293` 裸文件名）；规则⑤ 最坏链路 **37890 字节** | ✅ 数量未增长 |
-| Room | `DATABASE_VERSION = 59`；`disciples` 90 列、`game_data` 128 列；索引 5+5 | `59`；`59.json`：`disciples` **90 列 / 5 索引**、`game_data` **128 列 / 5 索引**；schema JSON 54–59 存在（无历史改写） | ✅ |
+
+> **时点说明（诚实标注）**：上表「规范分发门禁」一行是**验收时点（HEAD `6c5e0daa1`）**的实测值。
+> 验收之后，本仓库被**另一个并发会话**追加了两笔**纯文档**提交（`a626bc42e` + `b052eeac5`：
+> 根 `AGENTS.md` 压回 32768 字节预算、细节下沉 `rules/build-quality.md` / `rules/code-quality.md`、
+> 并修掉 `rules/static-resources.md:293` 的裸文件名引用）。因此**现在**再跑该门禁会看到
+> `444 条内部引用全部可解析`、**0 条告警**、最坏链路 **32180 字节**——这是那次文档重构的结果，不是本批改动。
+> **对验收结论的影响：无。** `git diff --name-only 6c5e0daa1..b052eeac5 -- android/ scripts/` = **空** ⇒
+> 两笔提交**零代码/零配置/零生成物**改动，本报告 §3 的代码面复跑值对当前 HEAD 依然成立。| Room | `DATABASE_VERSION = 59`；`disciples` 90 列、`game_data` 128 列；索引 5+5 | `59`；`59.json`：`disciples` **90 列 / 5 索引**、`game_data` **128 列 / 5 索引**；schema JSON 54–59 存在（无历史改写） | ✅ |
 | 图集不变量 | `sprites=41 / ASTC_4x4_LDR / layoutHash=6a122ed22d66bee5` | `sprites=41 format=ASTC_4x4_LDR layoutHash=6a122ed22d66bee5` | ✅ |
 | 精灵分类数 | 15（含 `CHARACTER`） | **15** 类，含 `CHARACTER` | ✅ |
 | G16 十二键四方齐备 | registry / 映射 / 双模块 WebP / UID 493–504 | 12 键在 `resource-registry.json` ✓、`sprite-uid-map.json` ✓、`:app/src/main/res/drawable-nodpi` **6+6** ✓、`:feature/game/…/drawable-nodpi` **6+6** ✓；UID **493–504** 逐键对上 | ✅（🔴 修正：这里的「双模块」是 `:app` + `:feature:game`，**不是** `:core:ui`） |
