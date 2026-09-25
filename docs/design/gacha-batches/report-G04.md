@@ -32,8 +32,8 @@
 
 ### 4. 改动规模
 
-**终树规模（复核会话修正与文档回写后实测）：359 个已跟踪文件改动（311 改 + 48 删）+ 5 个新增文件（4 源文件 + 本报告），+2482 / −25,970。**
-原报「354 文件 +1660/−24,740」系中间态统计，已由 §二·补 表行 4 更正。整删 48 文件：C++ 生产 2 + C++ 测试 2 + Kotlin 生产 17 + Kotlin 测试 21 + 资源/脚本 6。增行主体：`58.json`、`GameDatabaseMigrationsV58.kt`、`RoomMigrationV57To58Test.kt`、`BloodPoolBuildingCleanupRule.kt`；删行主体：三静态表（`trait_db.h` 748 + 三 Registry 1,634 + trait_db_sample.json ×2 4,868）、血炼 Ops/UI（`GameEngineBloodRefinementOps` 301 + `BloodRefiningPoolDialog` 604）、洗炼/特质测试族（约 2,000）。
+**提交时终树规模（实测 `git diff --cached --shortstat`）：364 文件 +6448 / −24737（359 已跟踪改动 + 5 新增，整删 48）。**
+原报「354 文件 +1660/−24,740」系中间态统计，已由 §二·补 表行 4 更正。⚠️ 其中游戏内 `changelog_entries.json` 曾被脚本**整体重排**（全文件 2,474 行改写），已按 HEAD 原格式重做为**最小追加**（+7/−1 = 6 条玩家条目），逐条语义与 HEAD 比对确认零丢失、零误改其他版本条目。整删 48 文件：C++ 生产 2 + C++ 测试 2 + Kotlin 生产 17 + Kotlin 测试 21 + 资源/脚本 6。增行主体：`58.json`、`GameDatabaseMigrationsV58.kt`、`RoomMigrationV57To58Test.kt`、`BloodPoolBuildingCleanupRule.kt`；删行主体：三静态表（`trait_db.h` 748 + 三 Registry 1,634 + trait_db_sample.json ×2 4,868）、血炼 Ops/UI（`GameEngineBloodRefinementOps` 301 + `BloodRefiningPoolDialog` 604）、洗炼/特质测试族（约 2,000）。
 
 ## 二、主线程前置扫描与裁决记录（TASKBOOK §6 的产出）
 
@@ -159,6 +159,6 @@
 
 - **已核实**：ctest 3 败与 B 类集逐条同名；Kotlin 六模块测试源编译 0 错误 + 全量测试绿；图集三重断层的根因链（buildings.json↔LAYOUT 同步、footprints 索引对齐、tier 混入 manifest）均有生成器源码与守卫输出直接证据。
 - ✅ **第二会话独立复跑并追加核实**（不采信上表自证，逐门重跑）：桌面编译 EXIT=0、ctest 1413/1410/3、`compileReleaseKotlin` EXIT=0、六模块测试源编译 EXIT=0、detekt `--continue` EXIT=0、JUnit 六模块 7397 全绿（678 份 XML 零陈旧）、`check-jni-count` 86/86、`gen-action-ids` 重跑 198/1861 且**生成物零额外漂移**（两文件对 HEAD 的 diff 恰为 9 行/文件 = 8 条退役 desc + 1810 desc 修正，与 catalog 闭合）、`gen-game-data --check` sha256 一致且 `talents`/`physique`/`affixes` **三键整个消失**、`check-agent-instructions` EXIT=0、Room `DATABASE_VERSION=58` + `MIGRATION_57_58` 已注册 + `58.json` 逐列核对（91/128 列、5+5 索引、9 删列零残留、`comprehension`/`social_masterId` 存续、历史快照仅新增）、`BloodPoolBuildingCleanupRule` order=17 唯一且已进 `registerDefaults`、ActionId 退役集 dispatch_guard 与 catalog 双向计数一致（21 条）。
-- ⚠️ **本批「一次性提交」尚未发生**：上一会话实施完成并写完本报告后停在工作树未提交状态（354 改 + 4 新增 + 本报告），提交动作由第二会话复核后执行。
+- ✅ **本批已由复核会话单次提交 = `4078f12c9`**（364 文件 +6448/−24737，非未跟踪残留 0；`docs/research/`×2 按惯例不提交）。实施会话原本停在未提交状态，其报告的三项「绿」由复核会话重跑取代后才提交。
 - **推测 / 未核实**：「Kotlin Diff 家族 G10 无需重录」延续 G03 推论（本批实测全绿进一步支持）；`DiscipleStatus`/`BuildingType` 枚举删值的旧档安全性依据四路解析面代码证据（`safeDiscipleStatus`→IDLE、`BuildingTypeAsStringSerializer`→ALCHEMY、`BloodPoolBuildingCleanupRule` 持久化前清理），未做真机旧档实测。
 - **未完成 / 遗留**：§八 1-10 项登记 G10/G12；真机验证批与 G15/G16/G08/G09/G11/G10 未开始（M1 进度 **5/9**）。

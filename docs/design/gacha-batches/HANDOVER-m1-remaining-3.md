@@ -15,7 +15,7 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/gacha-m0-m1` |
-| HEAD | **G04 收官提交**（其下 `af3550152` = 本文件入库） |
+| HEAD | **`4078f12c9`（G04 收官）**，其下 `af3550152` = 本文件初版入库 |
 | 工作树 | **干净**（非未跟踪残留 = 0） |
 | 未跟踪 | 仅 `docs/research/`×2（与本批无关，**不提交**）。🔴 `模拟宗门美术素材/`（572 MB）与 `模拟宗门音乐音效/`（1.6 MB）**已写入 `.gitignore`** —— 2026-09-24 拍板：作为项目指定素材/音频源目录，**只登记不入库**；位置与边界见 `rules/media-source-assets.md`。**旧表述「未跟踪 4 组永不提交」自本文件起作废** |
 | 已完成 | **5 / 9 批**（G02、G05、G06、G03、**G04**） |
@@ -30,7 +30,7 @@
 | G05 | `8e593a71b` | [report-G05.md](report-G05.md) | 143 文件 +5624/−8401 | 1487/1483/4 | 7720/0 | JNI 89→86；v55→v56 |
 | G06 | `e1a69d8e9` | [report-G06.md](report-G06.md) | 42 文件 +179/−1309 | 1483/1479/4 | 7709/0 | ActionId 1590/1740 退役 |
 | **G03** | `cc66d7918` | [report-G03.md](report-G03.md) | **171 文件 +6084/−5186** | **1470/1467/3** | **7662/0** | ActionId 1592/1750 退役；**Room v56→v57（3 表 11 列）**；lintRelease 绿 |
-| **G04** | 本批提交 | [report-G04.md](report-G04.md) | **358 跟改 + 4 新增 +2433/−25938**（整删 48 文件） | **1413/1410/3** | **7397/0/0/18 skip** | ActionId 1613/1614/1615/1616/1732/1733/1746（+1437 顺延）退役，retired 集 13→**21**；**Room v57→v58（2 表 9 列）**；game-data 三键整个消失 sha256 `035066cb…94ef`；detekt/lint/图集门全绿 |
+| **G04** | `4078f12c9` | [report-G04.md](report-G04.md) | **364 文件 +6448/−24737**（整删 48） | **1413/1410/3** | **7397/0/0/18 skip** | ActionId 1613/1614/1615/1616/1732/1733/1746（+1437 顺延）退役，retired 集 13→**21**；**Room v57→v58（2 表 9 列）**；game-data 三键整个消失 sha256 `035066cb…94ef`；detekt/lint/图集门全绿 |
 
 五批均为：全门禁实测绿 + 双 changelog + `report-Gxx.md` + **单次提交**。
 
@@ -94,7 +94,7 @@ $env:PATH = "C:\Users\cp050\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\bin;" +
 
 1. **KSP 会就地改写历史 schema JSON**：bump 版本后若 KSP 把 `56.json` 等历史快照改小，立即 `git checkout -- <该 json>`；只允许新增当前版本 JSON。（G03 实测：仅 `57.json` 新增，历史零改写。）
 2. **构建副产物必须还原**：`sprite-uid-map.json`、`atlas-rgba-manifest.json` 每次构建都改时间戳 → 提交前 `git checkout --`。⚠️ **`lintRelease` 也会改**（本轮实测：提交前它又变脏了一次）。
-3. **文本编辑用文件编辑工具，不要用脚本拼接**：JSON 追加后必须 `node -e "JSON.parse(...)"` 校验。
+3. **文本编辑用文件编辑工具，不要用脚本拼接**：JSON 追加后必须 `node -e "JSON.parse(...)"` 校验。⚠️ **G04 实证代价**：用脚本给 `assets/changelog_entries.json` 追加条目把**整个文件重排**（2,474 行全文件改写，语义没错但审查不可读），提交前不得不用 `git checkout HEAD -- <file>` + 编辑工具重做成 +7/−1 的最小追加，并逐条与 HEAD 比对确认零丢失。**双 changelog 一律用编辑工具改。**
 4. 🔴 **Bash 工具的 `cd` 绝对路径不可靠**：`cd "C:/..." && ./gradlew.bat` 会 **EXIT=127**（命令找不到）。正确做法是**不写 `cd`，用 Bash 的 `dir_path` 参数**定位到 `C:\Mnzm\XianxiaSectNative\android`。子代理反复踩到过。
 5. 🔴 **`grep -c` 无命中返回 exit 1**，会把"实际成功"的后台命令包装成 failed（本轮 `lintRelease` BUILD SUCCESSFUL 却被通知为 exit 1）。⇒ **判定后台命令成败必须读它自己的日志**（`BUILD SUCCESSFUL|FAILED` 行），不能信复合命令的退出码。
 6. **CRLF 警告 ≠ 行尾污染**：Git 报 "in the working copy of X, LF will be replaced by CRLF" 时，`git show :file | grep -c $'\r'` 的输出不可信（autocrlf 会在输出路径上做转换）。**判据是 `git diff --cached --numstat`**：若某文件出现"增删双侧 ≈ 全文件行数"才是真翻转；G03 实测 171 文件无此类。
