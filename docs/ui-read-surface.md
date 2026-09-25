@@ -6,6 +6,7 @@
 | 依据 | docs/cpp-migration-implementation-plan.md WS-1 第 4 条（2026-09-04）+ 审计 P0-2 |
 | 实施日期 | 2026-09-05（随 WS-1 同步通道降本批）；**§4 于 2026-09-08 按 S4-S8+WS-5 清偿后逐域写者审计重写**（当时结论：无域可关，关闭前置 = UI 操作面逐域下沉）；**§4.1 表于 2026-09-13 按 W2-a/W2-b 交付实测滚动更新**——已下沉域逐行标 ✅（建筑/道路/外交/弟子管理三子批/招募残余/生产 UI 面/月年边界编排/玉符宗门/秘境平台段/库存出售与商人购买/巡逻住所/攻宗确定性写段），**剩余未下沉项在同表内显式标注** |
 | 维护纪律 | 新增 UI 读取字段必须先确认在 §2 镜像合法面内；不在则先扩 C++ 协议（编码+对拍），禁止从 UI 侧直接加镜像字段 |
+| **现况时效（2026-09-25）** | 本文件多处按日期记的是**取证时点快照**。M1「角色卡池重构」批次（G02/G03/G05/G06/G04）已整体下线若干玩法，其写者随之消失：血炼（`GameEngineBloodRefinementOps` + 动作号 1746）、灵根/特质洗炼与新增（`GameEngineSpiritRootOps`/`GameEngineTraitAddOps`/`GameEngineTraitWashOps`，1613–1616/1732/1733）、婚姻审批与拒绝（1592/1750）、弟子改名（1740）、弟子逐出（1590）、手动与自动招募（1630–1632）、广纳门徒政策（1681）、道侣生育亲缘、忠诚与年龄寿元。**带日期的段落保留原样作为历史证据，不再逐条改写**；判断某写者当前是否存在，一律以代码、`scripts/action-catalog/` 与 `docs/threading-contract.md` 为准（各批实测数字见 `docs/design/gacha-batches/report-G*.md`）。 |
 
 ---
 
@@ -269,13 +270,10 @@ C++）。
 
 | 域 | 原稳态写者站点 | 集成后形态（证据） | 来源 |
 |---|---|---|---|
-| 弟子管理 | `GameEngineCoordination.kt:99/:120/:138` | 现为 native 臂：`:123` RENAME / `:149` CHANGE_TYPE / `:173` TOGGLE_FOLLOW（`ActionIds.DISCIPLE_OP_*`） | §2.62 |
+| 弟子管理 | `GameEngineCoordination.kt:99/:120/:138` | 现为 native 臂：`:149` CHANGE_TYPE / `:173` TOGGLE_FOLLOW（`ActionIds.DISCIPLE_OP_*`；RENAME 已随弟子改名下线） | §2.62 |
 | 弟子管理 | `DiscipleFacadeImpl战斗Ops2.kt:93/:119`（赏赐/服药） | 现为 native 臂：`:99` REWARD_ITEM / `:296` USE_PILL | §2.62 |
 | 弟子管理 | `GameEngineManualOps.kt:137` 功法替换（无 native 臂、从未登记） | 现为 native 臂：`:141` `tryDiscipleTxNative(DISCIPLE_OP_REPLACE_MANUAL)` | §2.62 |
 | 弟子管理 | `DiscipleStatusService.kt:225/:279/:373`（状态派生） | 现为 native 臂：`:296` SYNC_ALL_STATUSES / `:409` SYNC_STATUS | §2.62 |
-| 弟子管理 | （血炼完成链） | `GameEngineBloodRefinementOps.kt:66` `DISCIPLE_OP_START_BLOOD_REFINEMENT` native 臂 | §2.62 |
-| 弟子生命周期 | `GameEngine.kt:276` 婚姻审批（**声明有 native 臂但实测未接线**） | 已接线：`:288` `tryDiscipleOpNative(DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592)` | §2.62.2 |
-| 弟子生命周期 | `GameEngine.kt:277/:306` 婚姻提议审批/拒绝 | 拒绝侧下沉：`:339` `tryDiscipleOpNative(DISCIPLE_LIFECYCLE_MARRY_REJECT=1750)` | §2.62.2 |
 | 巡逻/住所/矿场 | `SpiritMineViewModel.kt:89/:147/:183/:252`（灵矿槽位 UI 直改） | 槽位整表覆写改走统一 native 面 `PATROL_UPDATE_SPIRIT_MINE_SLOTS`（`:142/:179/:250` 三处调用点）；同批删 2 个死 API | §2.63.B1 |
 | 秘境 | `cultivatorCaves`（洞府整族死链） | 死链入口已删（`CaveExplorationRewardOps.kt` 整文件删除 + `CultivationService` 死委托移除）；`processSectDisciplesAging` / `processAISectOperations` 等**活路保留** | §2.63.B4 |
 | 战斗 | `CombatService.kt:78`（伤亡残差） | 现为 native 臂：`GameEngineNativeOps.tryExecuteNative(BATTLE_CASUALTY_SETTLE_TX=1780)`；标记/装备/槽位/HP 残差留 Kotlin | §2.64.4 |

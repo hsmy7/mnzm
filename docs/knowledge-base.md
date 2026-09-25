@@ -93,7 +93,7 @@
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
 - **`GameData`** — Room @Entity，主键 (id, slot_id)
 - **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()`（v4.0.82+ 列直读，无 Disciple 组装）/ `checkpointAllProduction()`
-- **`CultivationRateCalculator`** — 修炼速率计算器（乘区法）。v4.0.82+ 新增列直读入口 `calculateCultivationPerPhaseById`（每旬热点用），`calculatePreachingBonusesColumn` 含 teachingFlat 天赋加成（对齐 `getBaseStats().teaching` 语义）
+- **`CultivationRateCalculator`** — 修炼速率计算器（乘区法）。列直读入口 `calculateCultivationPerPhaseById`（每旬热点用），`calculatePreachingBonusesColumn` 返回「讲道长老 + 导师」两项传道（`teaching`）加成（对齐 `getEffectiveTeaching` 语义，计入社交乘区）
 - **`GameStateStoreImpl`** — v4.0.82+：`discipleAggregates` + `sectCombatPower` 合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器）；锁外弟子组装走 `assembleDispatcher` 单线程（防并发交错丢弟子）；`lastAssembledMutationVersion` 已删除
 - **`GameLoopDelegate`** — 主线程健康检查（检测游戏循环卡死自动重启）。v4.0.82+ 加静态开关 `healthCheckEnabled`（测试环境禁用——mock 环境下每秒访问 relaxed mock 属性触发反射类加载风暴卡死）
 - **`ComplianceCallbackHost`** — 防沉迷合规回调进程级宿主（D-42 根治，app/taptap）：WindowPort 接口 + 登录/游戏双窗口弱引用转发，限制类回调优先游戏窗口
@@ -236,7 +236,7 @@ Disciple entities are stored in `DiscipleTables` — ~95 narrow `ComponentTable`
 
 **v4.0.82+ 变更：** Checkpoint **不再每旬同步**——每旬累积只改变修为、从不改变速率，每旬同步会让检查点恒等于修为、投影退化为恒等函数。现在只在**速率变化点**更新：政策切换（`SectPolicyToggleUseCase` 三个修炼政策已补 `checkpointAllDisciples`）、长老变更（`ElderManagementUseCase`）、丹药（`AutoPillService`）、突破（`DiscipleBreakthroughHandler`）。
 
-**运行时投影：** `getEffectiveCultivation()` 实时投影——**源码级生产调用点存在**（`CultivationService.accumulateCultivationPerPhase` 投影块，活代码），但批 9-2（Kotlin 旬结算路径退役）后 **Kotlin 运行时无执行驱动**（唯一驱动 `PhaseSettlementExecutor.execute` 完整版仅对拍/回归基准），生产修炼累积/投影由 C++ `cultivation.h` 承担；Kotlin 链作为 checkpoint 投影契约 + 跨语言对拍基准保留（S-21 勘误，2026-09-02）。修炼速率计算走列直读 `CultivationRateCalculator.calculateCultivationPerPhaseById`（无 Disciple 组装，与对象式入口数学等价——`CultivationRateEquivalenceTest` 30+ fixtures 守卫，含 teachingFlat 天赋/哀悼哨兵/父母/师徒/政策组合）。
+**运行时投影：** `getEffectiveCultivation()` 实时投影——**源码级生产调用点存在**（`CultivationService.accumulateCultivationPerPhase` 投影块，活代码），但批 9-2（Kotlin 旬结算路径退役）后 **Kotlin 运行时无执行驱动**（唯一驱动 `PhaseSettlementExecutor.execute` 完整版仅对拍/回归基准），生产修炼累积/投影由 C++ `cultivation.h` 承担；Kotlin 链作为 checkpoint 投影契约 + 跨语言对拍基准保留（S-21 勘误，2026-09-02）。修炼速率计算走列直读 `CultivationRateCalculator.calculateCultivationPerPhaseById`（无 Disciple 组装，与对象式入口数学等价——`CultivationRateEquivalenceTest` 30+ fixtures 守卫，含讲道长老/导师/师徒/政策津贴与跨阈值组合）。
 
 ---
 
@@ -714,7 +714,7 @@ fun watchAdForNewFeature() {
 | 产（源） | 市场反馈 | 年度报告（`YearlyReport` 按来源拆分） | `BattleLogDialogs.kt` 的 `YearlyReportList` |
 | **耗（汇）** | 建造/拆除 | 建造扣灵石、一键拆除返还 50% | `PlaceBuildingUseCase.kt`、`GameEngineBuildingOps.kt` |
 | 耗（汇） | 住所升级 | 初级住所→中级住所差价（单人 30000/多人 50000，目标造价-源造价动态计算，要求中型宗门） | `BuildingFacadeImpl.upgradeBuildings`、`BuildingUpgradeRegistry` |
-| 耗（汇） | 生产投入 | 炼丹/锻造/种植/血炼材料 | `ProductionProcessor`、`AlchemySystem` |
+| 耗（汇） | 生产投入 | 炼丹/锻造/种植材料 | `ProductionProcessor`、`AlchemySystem` |
 | 耗（汇） | 突破/功法 | 突破消耗、藏经阁 | `DiscipleBreakthroughHandler`、`ManualDatabase` |
 | 耗（汇） | 外交送礼 | 灵石档位 + 年份限制 | `GameEngineDiplomacyOps.kt`、`FavorConfig` |
 | 耗（汇） | 月薪发放 | `SalaryConfig` 可配置 | `SalaryConfigDialog`、`CultivationEventProcessor` |
@@ -727,13 +727,11 @@ fun watchAdForNewFeature() {
 | 方向 | 入口 | 说明 | 代码位置 |
 |------|------|------|---------|
 | 产（源） | 在线时长 | 真实前台运行每满 10 分钟 1 枚（挂机/暂停累计、后台不累计），单日上限 20，墙钟次日 0 点重置（今日计数与周期累计时长均清零） | `JadeSymbolService.kt`、`GameConfig.Jade` |
-| 耗（汇） | 洗炼灵根 | 每次 1 枚（`GameConfig.SpiritRoot.WASH_JADE_COST`），事务内 `deduct` 扣减，3 连保底 | `GameEngineSpiritRootOps.kt`、`GameConfig.SpiritRoot` |
-| 耗（汇） | 洗炼天赋/体质/词条 | 每次 1 枚（`GameConfig.TraitWash.WASH_JADE_COST`），事务内 `deduct` 扣减，3 连保底上品；单槽替换 | `GameEngineTraitWashOps.kt`、`GameConfig.TraitWash` |
-| 耗（汇） | 新增天赋/体质/词条 | **每次刷新 1 枚**（`GameConfig.TraitAdd.JADE_COST`），刷新即扣并**持久化 pending**（未确认关闭界面再打开仍可确认），确认新增免费；每类上限 5 | `GameEngineTraitAddOps.kt`、`GameConfig.TraitAdd` |
+| 耗（汇） | 玉符购买类玩法 | 见 `GameConfig.JadePurchase`（消耗即扣、事务内 `deduct`） | `GameEngineJadePurchaseOps.kt`、`JadeSymbolService.deduct` |
 
-**玉符消耗统一通道（2026-08-08 洗炼灵根建立，未来新增消耗/发放玩法必须走此通道）**：
+**玉符消耗统一通道（新增消耗/发放玩法必须走此通道）**：
 1. **唯一写入入口 = `JadeSymbolService`**——玉符是**绝对值覆盖写模型**（运行时 `@Volatile totalCount` 以绝对值覆盖写 `GameData.jadeSymbols`，`checkpointNow`/`settleGrants` 内部写）。消耗必须事务内调 `jadeSymbolService.deduct(state, cost)`（同步递减 totalCount，否则 checkpoint 把余额写回扣减前值——**玉符回涨**）；禁止在任何 Service/GameEngine 直接 `copy(jadeSymbols = ...)`，守卫测试 `JadeSymbolConsumptionGuardTest`（扫描 engine 主源码 copy/赋值反模式 + 白名单 `JadeSymbolService.kt`）自动拦截
-2. **消耗模式**（参照 `GameEngineSpiritRootOps.washSpiritRoot`）：`stateStore.updateAndReturn { 校验目标 → deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
+2. **消耗模式**（现存活参照：`GameEngineJadePurchaseOps` 商人刷新/购买系列）：`stateStore.updateAndReturn { 校验目标（先于扣费，达上限不扣玉符）→ deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
 3. **存档自愈例外**：`core/data` 的 `JadeSymbolNonNegativeRule`（启动时越界修正）不经过服务——语义为数据修复而非玩家可触发的消耗/发放，不在守卫范围
 
 **墙钟豁免论证（`rules/expansion-playbook.md` L22"禁止以现实时间为准"）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 10 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。

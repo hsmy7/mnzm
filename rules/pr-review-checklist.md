@@ -43,7 +43,7 @@
 | 🔴 | 新增渲染特性有对应的 `SoftwareCanvasBackend` 单元测试（`SoftwareCanvasBackendTest.kt`） |
 | 🔴 | HW 加速决策已检查所有 Activity 入口（`MainActivity` 和 `GameActivity` 均需在 `super.onCreate()` 前检查 `isAccelerationDisabled()` 并切换主题） |
 | 🔴 | 使用 `Build.SOC_MANUFACTURER`（API 31+）、`Build.SOC_MODEL`（API 31+）等新增 API 字段已添加 `Build.VERSION.SDK_INT` 守卫 |
-| 🔴 | 新增/修改涉及 AI 弟子参战的战斗路径必须调用 `AISectDiscipleManager.prepareDisciplesForBattle()` 生成模拟装备/功法，禁止传 `emptyMap()` 或自行构建装备映射；AI 弟子不吃丹药、无血炼 |
+| 🔴 | 新增/修改涉及 AI 弟子参战的战斗路径必须调用 `AISectDiscipleManager.prepareDisciplesForBattle()` 生成模拟装备/功法，禁止传 `emptyMap()` 或自行构建装备映射；AI 弟子不吃丹药 |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |
@@ -54,7 +54,7 @@
 | 🔴 | 新增广告类型（`AdPurpose` 枚举值）已在 ViewModel 中通过 `adService.watchAd()` 统一入口调用，白名单守卫由 `AdServiceImpl` 自动继承。详见 `docs/knowledge-base.md#免广告特权白名单` |
 | 🔴 | 新增物品发放路径须判定**溢出语义类别**：**凭据类**（玩家可重试的领取/获得——兑换码、宗门等级奖励、新手引导、邮件领取、没收、卸装）必须包裹 `withOverflowMailSuppressed`（溢出不转邮件，失败保留凭据重试补齐）；**发放类**（自动入库——战斗掉落、探索所得、灵田收获、生产产出、商人购买、AutoBuy、储物袋开启）不包裹（溢出自动转邮件）。选错类别会导致物品重复发放或丢失——这是对抗性审查实测出的 C 类缺陷（详见 `rules/economy-design.md` 与 `rules/database-migration.md`） |
 | 🔴 | 登录/主流程**关键路径上的非必要初始化必须解耦**：与登录无因果关系的初始化（广告 SDK/统计/回调注册）不得与关键步骤（防沉迷验证/界面跳转）串行绑定在同一调用链——初始化调用必须幂等、**永不抛出**，且经 `safeRunAfterSdkInit` 编排（语义由 `SafeRunAfterSdkInitTest` 守护）；登出路径必须完整清理 TapTap SDK 会话（防静默登录导致防沉迷验证不触发）。详见 `rules/sdk-init-lifecycle.md` |
-| 🔴 | 新增玉符（`jadeSymbols`）消耗/发放路径**必须收敛于 `JadeSymbolService`**（消耗走事务内 `deduct(state, cost)` 同步运行时 totalCount，发放走服务内部结算），禁止在 Service/GameEngine 直接 `copy(jadeSymbols = ...)`——玉符是绝对值覆盖写模型，绕过 totalCount 同步则 `checkpointNow` 把余额写回覆盖前值（玉符回涨）；守卫测试 `JadeSymbolConsumptionGuardTest` 会拦截。模式参照：洗炼灵根 `GameEngineSpiritRootOps.washSpiritRoot`（先扣后抽 + sealed 三态 + 事务外 `publishJadeSymbolStateNow`） |
+| 🔴 | 新增玉符（`jadeSymbols`）消耗/发放路径**必须收敛于 `JadeSymbolService`**（消耗走事务内 `deduct(state, cost)` 同步运行时 totalCount，发放走服务内部结算），禁止在 Service/GameEngine 直接 `copy(jadeSymbols = ...)`——玉符是绝对值覆盖写模型，绕过 totalCount 同步则 `checkpointNow` 把余额写回覆盖前值（玉符回涨）；守卫测试 `JadeSymbolConsumptionGuardTest` 会拦截。模式参照：玉符购买类玩法 `GameEngineJadePurchaseOps`（先扣后抽 + sealed 三态 + 事务外 `publishJadeSymbolStateNow`） |
 
 ## 二、扩展方向（新增功能时的规范遵循）
 

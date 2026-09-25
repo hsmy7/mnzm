@@ -176,7 +176,7 @@ android/app/src/main/cpp/
 │   │   ├── core/    types.h / result.h / clock.h / logger.h / platform.h（阶段 5：Clock/Telemetry/热控/电量端口）
 │   │   ├── rng/     pcg_xsh_rr.h（DeterministicRng 复刻）/ rng_manager.h（8 分区）
 │   │   ├── state/   models.h / json_codec.h（状态模型 + 快照编解码）
-│   │   ├── data/    equipment_db / herb_db / trait_db / recipe_db / beast_material_db / manual_db
+│   │   ├── data/    equipment_db / herb_db / recipe_db / beast_material_db / manual_db
 │   │   ├── map/     road_system.h（道路求解器单一权威）
 │   │   ├── system/  economy / inventory / spirit_field / disciple / cultivation /
 │   │   │            breakthrough / lifecycle / battle / government / exploration /
@@ -202,7 +202,7 @@ android/app/src/main/cpp/
 ## 4. 已完成批次（归档一览）
 
 > 各批次详细验收记录（产物/对拍清单/验证数字）已随推进写入 git 历史（commit 2bb319d9 / 7269ab6c 及更早）。
-> 当前基线：**桌面 GTest 289/289 · engine JUnit 2818/2818 · NDK externalNativeBuildRelease 通过 · engine detekt 全绿**。
+> 当前基线（G04 收官实测）：**桌面 C++ 套件 1413 用例（1410 过 / 3 条 B 类 RNG 待重录，见 `docs/design/gacha-batches/report-G04.md` §六）· 六模块 JUnit 7397 全绿（engine 2927）· detekt 六模块 EXIT=0 · `lintRelease` BUILD SUCCESSFUL**。NDK `externalNativeBuildRelease` 未在本批复跑（随 `assembleRelease` 验证）。
 
 | 批次 | 内容 | 关键产物 | 验证 |
 |---|---|---|---|
@@ -219,6 +219,12 @@ android/app/src/main/cpp/
 | 9 核心 | ActionId **46 动作** + execute 分发表（7 handler 统一信封） | `action_ids.h`、`execute_dispatch.cpp` | DiffExecuteTest 6 + GTest 268 |
 | 9 剩余·基础设施 | feature flag / StateSyncService（字段级宽松合并）/ tick 桥（shadow 对拍）/ 转发辅助 / 性能基准 | `NativeEngineFlag`、`StateSyncService`、`GameEngineNativeOps` | DiffStateSyncTest 7 + DiffNativeForwardTest 4 + NativeBenchmarkTest 2 |
 | R 求解器权威 | 位掩码→形态/描边/邻接计算单一权威（Kotlin RoadTiling ↔ C++ road_system.h 双端对拍）；Vulkan 端位掩码判定收敛 | `map/road_system.h`、`NativeBridge.cpp` 收敛 | DiffRoadTest 3 + road_system_test 16 |
+
+> 📌 上表是**下沉时点**的归档台账（历史记录，不回改）。此后 M1「角色卡池重构」批次（G02/G03/G05/G06/G04）
+> 已把部分**已下沉**的玩法整体下线：血炼三件套与 `blood_refinement.h`、天赋/体质/词条三静态表与
+> `data/trait_db.h`（748 行）、资质 `aptitude`、职位特质数值源、洗炼六事务、仓库驻守、招募链、
+> 忠诚与年龄寿元链、道侣生育亲缘链、弟子逐出与改名等——对应表内行的产物**今已不存在**，
+> 实时在册文件以 `include/gamecore/` 目录与 `scripts/action-catalog/` 为准。
 
 ## 5. 未完成项（活跃待办）
 

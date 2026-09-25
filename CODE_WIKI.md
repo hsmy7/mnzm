@@ -27,15 +27,14 @@
 4. [状态管理 — GameStateStore](#状态管理--gamestatestore)
 5. [游戏时间系统 — GameTimeClock](#游戏时间系统--gametimeclock)
 6. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
-7. [血炼池 — Blood Refining Pool](#血炼池--blood-refining-pool)
-8. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
-9. [Canvas 渲染管线](#canvas-渲染管线)
-10. [性能基础设施](#性能基础设施)
-11. [世界地图重构](#世界地图重构)
-12. [GPU 分级渲染系统](#gpu-分级渲染系统)
-13. [活动系统](#活动系统)
-14. [构建与 Profile](#构建与-profile)
-15. [事件驱动惰性求值](#事件驱动惰性求值)
+7. [结算管线 — 三层真相源](#结算管线--三层真相源)
+8. [Canvas 渲染管线](#canvas-渲染管线)
+9. [性能基础设施](#性能基础设施)
+10. [世界地图重构](#世界地图重构)
+11. [GPU 分级渲染系统](#gpu-分级渲染系统)
+12. [活动系统](#活动系统)
+13. [构建与 Profile](#构建与-profile)
+14. [事件驱动惰性求值](#事件驱动惰性求值)
 
 ---
 
@@ -99,6 +98,12 @@
 | 1670–1672 / 1680–1682 | 月年边界 guide 计数面（batch-18，`system/boundary_tx.h`）/ 政策开关（`system/government.h` 追加） |
 | 1690–1693 | 玉符 / 宗门升级 / 玉符购买落账（batch-19，`system/jade_tx.h`） |
 | 1710 / 1711–1712 | 秘境平台段读档恢复（batch-20a，`system/secret_realm_platform_tx.h`）/ 攻宗确定性写回（**batch-20b**，`system/sect_attack_tx.h`） |
+
+> 📌 本表是**下沉时点**的迁移台账（历史记录，不回改）。此后 M1「角色卡池重构」批次（G02/G03/G05/G06/G04）
+> 已下线若干玩法，相关动作号按「只增不复用」保留在册并标注【已退役，编号禁复用】——
+> **在册 / 退役的实时清单以 `scripts/action-catalog/` 及其生成物 `gamecore/include/gamecore/action_ids.h` +
+> `core/engine/.../nativebridge/ActionIds.kt` 为准**（当前 198 动作 / maxId=1861，退役 21 条，
+> 退役集与 `test/dispatch_guard_test.cpp` 双向闭合）。
 
 **UI 操作面事务的通用形态**（06/07/08/09 四批 + W2-a + batch-11~20b 同构）：Kotlin 门面/协作类在
 AUTHORITATIVE 门控下经 `GameEngineNativeOps.tryExecuteNative` 转发 → C++ 纯头事务
@@ -587,170 +592,24 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 
 ---
 
-## 血炼池 — Blood Refining Pool
+## 结算管线 — 三层真相源
 
-### 架构
+**生产真相源是 C++ `game-core`**，Kotlin 侧只保留编排、未下沉扇出与平台效应。三个执行器由 `GameEngineCore` 懒初始化持有：
 
-```
-点击血炼池 → BloodRefiningPoolDialog (半屏)
-  ├── 材料槽位（复用 UnifiedDiscipleSlot 同款容器 52×88dp）
-  │     ├── 空态: "材料" 灰色文字
-  │     └── 已选: 精灵图 + 名称 + 库存/需求
-  ├── 弟子槽位（DiscipleSlotWithActions）
-  │     ├── 空态: "+" → 打开 DiscipleSelectorDialog
-  │     └── 已选: 弟子肖像 + "卸任"/"更换"
-  ├── 红色小字 "消耗 100 万灵石"（11sp）
-  ├── "XX月" 时间显示
-  └── 洗炼按钮 → BloodRefiningViewModel.startRefine()
-        ├── 验证灵石/材料/弟子
-        ├── 扣除灵石 + 材料
-        ├── 随机选择属性（50/50）
-        └── 记录 activeBloodRefinements[buildingId] = BloodRefinementProgress
+| 层 | 生产真相源 | Kotlin 侧角色 |
+|------|---------|--------------|
+| **每旬** | C++ `runPhaseSettlementCore` 完整结算 | `PhaseSettlementExecutor.execute` 完整版**不参与生产驱动**，仅作为跨语言对拍的 Kotlin 基准（`DiffAuthoritativeTickTest` 侧 B）；`phaseSettlementExecutor` 属性即为此保留 |
+| **月变** | C++ `nativeSettleMonth` | `MonthSettlementExecutor`（Kotlin 侧编排入口）+ `MonthSettlementResidualExecutor`（未下沉扇出：购买日志、秘境关闭邮件等） |
+| **年变** | C++ `nativeSettleYear` | `YearSettlementResidualExecutor`（死亡链物化、死亡档案等残留） |
 
-每月结算 → SettlementCoordinator.processBloodRefinementProgress()
-  ├── 检查到期 → 计算加成 → applyStatBonus()
-  ├── 记录 bloodRefinements[discipleId] += materialId
-  └── 清除 activeBloodRefinements 条目
-```
+**归属判定口径**：会产生**状态变更**的结算/战斗逻辑入 C++；**通知与日志**留 Kotlin。
 
-### 数据模型
+**不变量**（详见仓库根 `AGENTS.md` §3 与 `docs/threading-contract.md`）：
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `GameData.bloodRefinements` | `Map<String, List<String>>` | discipleId → 已完成的材料ID列表 |
-| `GameData.activeBloodRefinements` | `Map<String, BloodRefinementProgress>` | buildingId → 进行中的洗炼 |
-| `BloodRefinementProgress` | data class | discipleId, materialId, startYear/Month, durationMonths, selectedStat, bonusPercent |
-
-### 血种→属性映射
-
-| 血种 | 属性A | 属性B |
-|------|-------|-------|
-| tigerBlood (虎) | basePhysicalAttack | baseMagicAttack |
-| snakeBlood (蛇) | baseSpeed | baseHp |
-| turtleBlood (龟) | basePhysicalDefense | baseMagicDefense |
-
-### DB Migration
-
-- v28→v29: `ALTER TABLE game_data ADD COLUMN bloodRefinements TEXT NOT NULL DEFAULT '{}'`
-- v28→v29: `ALTER TABLE game_data ADD COLUMN activeBloodRefinements TEXT NOT NULL DEFAULT '{}'`
-
-## 结算管线 — SettlementCoordinator
-
-### 双轨制（实时轨 + 批量轨）
-
-游戏引擎在每次旬推进时按双轨制调度系统：
-
-```
-tickInternal()
-  → 暂停/加载/保存检查
-  → gameClock.tick() → TickResult(phasesToAdvance)
-  → for each phase:
-      → 并行 pre-compute（只读快照，ParallelDispatcher N路并行）
-      → stateStore.update {
-            apply(parallelResults)  // 写入并行计算结果
-            systemManager.onPhaseTickWithDomainFilter(activeDomains)
-              → 实时轨: 焦点域系统 + 进度≥80%槽位, phasesToSettle=1
-              → 批量轨: 非焦点域系统 + 进度<80%槽位, phasesToSettle=N
-        }
-  → 月变事件 / 年变事件
-  → 结算待处理? → forceCompleteSettlement()
-  → accumulateBatch(batchIntervalMs)  // 指纹检测（动态5-15s）
-  → 年变? → scheduleYearly(shadow) + executeStep()
-```
-
-**双轨制**：
-
-| 轨道 | 频率 | 判定条件 |
-|------|------|---------|
-| **实时轨** | 每旬推进时执行（1x≈2000ms/旬） | 焦点域系统 + 进度≥80%槽位，phasesToSettle=1 |
-| **批量轨** | 动态5-15s（R12节律） | 非焦点域系统 + 进度<80%槽位，phasesToSettle=N（追赶跳过旬数） |
-
-**实时轨准入条件（`classifySlotsProgress`，9 类系统）**：
-
-| 系统 | 槽位标识 | ≥80% 判定 |
-|------|---------|----------|
-| 弟子修炼 | `cultivation:<id>` | cultivation / maxCultivation ≥ 0.8 |
-| 装备温养 | `nurture:<eqId>` | nurtureLevel ≥ 5 |
-| 功法熟练度 | `proficiency:<dId>:<manualId>` | proficiency / maxProficiency ≥ 0.8 |
-| 血炼 | `bloodRefinement:<buildingId>` | 已过月数 / durationMonths ≥ 0.8 |
-| 灵田种植 | `spiritField:<instanceId>` | 已过月数 / growTime ≥ 0.8 |
-| 任务 | `mission:<id>` | 已过月数 / duration ≥ 0.8 |
-| 炼丹/炼器 | `production:<slotId>` | getProgressPercent ≥ 80 |
-| 思过 | `reflection:<id>` | 已过年数 / totalDuration ≥ 0.8 |
-| 灵矿采矿 | （不入实时轨） | 持续收入型，无"完成"概念 |
-
-> ⚠️ **已废弃** — 双指纹检测（`CultivationRateFingerprint`/`ProductionRateFingerprint`/`SettlementCoordinator`）已随惰性结算重构移除（2026-07-27）。
-> 现行机制：生产系统使用 `checkpointAllProduction()` 在政策/长老变化时重算所有活跃槽位的 duration 与 completionMonth（见 CLAUDE.md 6.4）。
-
-### 月度结算阶段（`scheduleMonthly`/`scheduleYearly`）
-
-| 阶段 | 职责 |
-|------|------|
-| `Phase_BuildCache` | 构建 SettlementCache（脏标记、修炼速率）。指纹命中时跳过 |
-| `Phase_FocusedDisciple` | 处理关注弟子（立即结算） |
-| `Phase_CleanDiscipleBatch` | 并行处理无变化弟子的被动增长（100 弟子/片，`Dispatchers.Default`） |
-| `Phase_DirtyDiscipleBatch` | 并行计算 + 串行合并（突破消耗丹药需串行，每帧 100 弟子） |
-| `Phase_Production` | 生产系统月结算（炼丹/锻造并行，其余串行） |
-| `Phase_WorldEvents` | 世界事件（探索、外交、生育等） |
-
-### 批量轨微结算（`accumulateBatch` 路径）
-
-| 方法 | 职责 |
-|------|------|
-| `cultivationMicroSettle` | 用旧缓存速率结算 N 旬修炼值 + HP/MP 恢复 + 持续效果衰减 + 突破检查，直接操作 DiscipleTables |
-| `productionMicroSettle` | 逐月推进 `productionSubsystem.onMonthTick` + 经济/血炼/探索/邮件/生育/道侣 |
-
-### 异常恢复
-
-- `executeStep()` 包裹 try-catch，异常时调用 `resetOnError()` 清空 `shadowState`/`currentCache`/`scheduler`
-- `shadowState` / `currentCache` 标记 `@Volatile` 防止 UI 线程 `cancelPendingWork()` 并发问题
-- 结算异常 → 状态重置 → 下个 tick 正常继续 → 下个月重新结算（不丢数据，只推迟）
-
----
-
-### 待执行：统一批量结算模式（ADR）
-
-> ADR 待撰写 —— 本节的方案描述即当前唯一记录地。
-
-**目标**：移除活跃/空闲双模式，统一为"实时轨（随游戏时钟推进，phasesToSettle=1）+ 批量轨（动态5-15s R12节律，phasesToSettle=N）"的单一模式。
-
-**核心变更**：
-
-```
-统一后的 tickInternal()
-  → 暂停/加载/保存检查（不变）
-  → gameClock.tick(isSettlementPending = false)  // 始终 false
-  → for each phase:
-      → systemManager.onPhaseTickWithDomainFilter(activeDomains)
-      → HP/MP 恢复（焦点域）
-  → 月变/年变事件（不变，直接触发不通过结算）
-  → accumulateBatch(phasesToAdd, monthChanged, yearChanged, ...)  // 始终调用
-      → FullSettled? → 重建批量窗口
-  → 巡逻结果（不变）
-```
-
-**删除项**：
-
-| 删除 | 所在文件 |
-|------|---------|
-| `BatchMode` 枚举 | `SettlementCoordinator.kt` |
-| `resolveThermalBatchSize()` | `SettlementCoordinator.kt` |
-| `fullIdleSettle()` | `SettlementCoordinator.kt` |
-| `doIdleFullSettle()` | `GameEngineCore.kt` |
-| `isInIdleState` | `GameEngineCore.kt` |
-| `lastUserInteractionTime` | `GameEngineCore.kt` |
-| `pendingReturnFromIdleSettle` | `GameEngineCore.kt` |
-| `enterIdleMode()` | `GameEngineCore.kt` |
-| `cleanupIdleState()` | `GameEngineCore.kt` |
-| `forceCompleteSettlement()` | `GameEngineCore.kt` |
-| `IDLE_DETECTION_MS` | `GameEngineCore.kt` |
-
-**保留项**：
-
-| 保留 | 原因 |
-|------|------|
-| `scheduleMonthly` / `scheduleYearly` | 公开 API 保留，SettlementScheduler 及阶段类不变 |
-| `onUserInteraction` 回调链路 | UI 层用它重置批量时钟 |
+- 惰性结算四层（L0 时间推进 / L1 每旬检查 / L2 惰性生产 / L3 月变 / L4 年变）不得另起结算循环或新线程 tick；年变分帧推进。
+- 唯一合法状态写入口是 GameEngine-Thread；多实体变更必须在**单次** `stateStore.update {}` 事务内原子完成。
+- `GameStateStore` 是 C++ 的**只读镜像**，稳态下 Kotlin 对 C++ 只读，唯一合法写入是 `StateSyncService.importToNative` 全量导入。
+- 生产槽位在政策/长老变化时经 `checkpointAllProduction()` 重算 duration 与 completionMonth（不再使用历史的双指纹检测）。
 
 ---
 
