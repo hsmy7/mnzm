@@ -231,3 +231,66 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 - Google Kotlin 风格指南（Android 官方）：https://developer.android.com/kotlin/style-guide
 - Android Developers《Kotlin 指南变更记录》（2024-07）：https://developer.android.com/kotlin/guides-changelog
 - 其余依据见各扩展规则文件（rules/expansion-playbook.md 等）的行业依据章节
+
+---
+
+## 1.7 应遵守 / 建议级条目（自根 `AGENTS.md` §5 下沉）
+
+> 根 `AGENTS.md` §5 只保留 🔴 硬约束（每次必读）；下列 🟡 应遵守 / 🟢 建议级条目按其原编号与原文**逐字**保留在此，写代码与评审时按需阅读。
+
+### 1. Kotlin 语言规范
+
+**1.2 🟡 优先 `val`** — 默认 `val`；`var` 仅在不可变 copy-on-write 不可行时使用并注释理由。
+**1.5 🟢 扩展函数放专用文件** — 某类型的大量扩展函数放入 `{TypeName}Ext.kt`，不堆积在 ViewModel/Service。
+
+### 2. 模块架构规范
+
+**2.3 🟡 `internal` 默认可见性** — 非模块公开 API 的类/函数一律 `internal`。
+**2.5 🟢 新建模块需 ADR** — 新增 Gradle 模块需在 `docs/adr/` 记录决策，且至少包含 3 个内聚领域类。
+
+### 3. 文件与代码行规范
+
+**3.3 🟡 单函数体最大 60 行** — 超限拆分为私有辅助函数。
+
+### 4. ViewModel 规范
+
+**4.5 🟡 UserAction/ActionResult 模式** — ViewModel 公开方法用 sealed `UserAction` 统一入口，便于错误处理与日志。
+**4.6 🟡 ViewModel 与 Screen 一对一** — 一个 ViewModel 只驱动一个 Screen。
+
+### 5. 引擎服务规范
+
+**5.2 🟡 方法签名：`suspend` 或返回 Result** — 执行 I/O 或领域逻辑的服务方法必须为 `suspend`，或返回 `Result<T>`/sealed class。
+**5.3 🟡 服务间禁止共享可变状态** — 通过 EventBus 事件或协调器对象通信，不用共享 `MutableStateFlow` 或 `ConcurrentHashMap`。
+
+### 6. 状态管理规范
+
+**6.2 🟡 多实体变更必须用单次 `stateStore.update`** — 所有状态修改在同一 `stateStore.update {}` 事务内原子完成，禁止多次孤立的 `update` 调用（示例见 `rules/code-quality.md` §1.6）。
+**6.3 🟡 Flow 派生规则** — 高频 StateFlow 派生必须用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
+
+### 7. 数据库规范
+
+**7.3 🟡 ProtoBuf 仅 `List`，禁止 `Set`/`Map`** — 需要去重语义在业务层 `.toSet()` 转换。忽略会导致序列化静默失败、**存档变空**。
+
+### 8. 错误处理规范
+
+**8.3 🟡 UI 错误统一走 `BaseViewModel.showError()`** — ViewModel 不直接处理错误展示。
+**8.4 🟡 引擎错误记录上下文** — `Log.e(TAG, "操作名 failed: id=$id, ctx=$ctx", e)`，信息要足够定位问题。
+
+### 9. 测试规范
+
+**9.3 🟡 测试命名：`方法名_状态_预期行为`** — Given-When-Then 模式，如 `addEquipmentStack - empty name returns INVALID_NAME`。
+**9.4 🟢 优先 Fake 而非 Mock** — 手写 Fake 优于 Mockito mock，可复用、可读、可调试。mock 风格硬约束见 `rules/testing.md`。
+
+### 10. 性能规范
+
+**10.1 🟡 Compose 稳定性注解** — 所有出现在 Compose State 中的数据类标注 `@Immutable`，或加入 `stability_config.conf`。
+**10.2 🟡 禁止 Composition 内读 State** — 用 `derivedStateOf` 计算派生值，避免不必要的 recomposition（示例见 `rules/code-quality.md` §1.6）。
+**10.3 🟡 `LazyColumn`/`LazyRow` 必须用稳定 key** — `key = { it.id }`，不可用 index（会导致排序/过滤时的错误 recomposition）。
+**10.4 🟡 Canvas 用 `drawBehind{}`** — 静态绘制用 `Modifier.drawBehind {}` 跳过 Composition/Layout 阶段；动画用 `Animatable` + `LaunchedEffect`。
+
+### 12. 文档规范
+
+**12.1 🟡 公开 API 必须有 KDoc** — `:core:domain` 与 `:core:engine` 中所有 public 函数/类/属性必须有 KDoc（描述 + `@param` + `@return`）。
+**12.2 🟢 架构决策记录到 `docs/adr/`** — 新模块、重要模式变更、大重构写入 ADR（Context / Decision / Consequences）。
+**12.3 🟢 同步 `CODE_WIKI.md` 与 `docs/architecture.md`** — 新增模块/模式后更新架构文档。
+

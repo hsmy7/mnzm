@@ -290,7 +290,7 @@ build-atlas.mjs --atlas-def-only ──→ SpriteAtlasDef.kt（core/engine 编�
 | `SpriteAtlasDef.kt` | `core/engine/build/generated/sprite/` | LAYOUT 常量 | `node scripts/build-atlas.mjs --atlas-def-only` |
 | `SpriteRegistryData.kt` | `app/build/generated/sprite/` | resource-registry.json + manifest | `node scripts/build-atlas.mjs --codegen` |
 | `TextureAtlas.h` | `app/build/generated/sprite/` | LAYOUT 常量 | 同上 |
-| `atlas-manifest.json` | `app/build/generated/sprite/` | drawable-nodpi 目录 | `node scripts/resource-manifest.mjs` |
+| atlas-manifest.json（入库副本 `android/app/src/main/assets/atlas/atlas-manifest.json`） | `app/build/generated/sprite/` | drawable-nodpi 目录 | `node scripts/resource-manifest.mjs` |
 | `footprint_table.h` | `app/src/main/cpp/`（**入库**） | 生成版 SpriteAtlasDef.kt | `./gradlew generateFootprintHeader` |
 
 Gradle 接线：`preBuild` 依赖 `:core:engine:generateSpriteAtlasDef` → `generateFootprintHeader` → `generateResourceManifest` → `generateSpriteCode`，构建自动触发；守卫测试（`SpriteAtlasDefGeneratedTest` / `SpriteCodegenSyncTest` / `ResourceManifestUidTest` / `ResourceManifestCompletenessTest`）锁住生成物与期望一致、UID 稳定、清单完整。

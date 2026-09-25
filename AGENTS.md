@@ -14,7 +14,7 @@
 
 | 你要做的事 | 必读（按顺序） |
 |---|---|
-| **任何代码改动之前** | §1 用户公约 + §5 编码规范 |
+| **任何代码改动之前** | §1 用户公约 + §5 编码规范（🔴）；细则、BAD/GOOD 示例与 🟡/🟢 级条目见 `rules/code-quality.md` |
 | **桌面自动化 / computer use**（点击、输入、读界面、截图） | 本机用户级 `~/.dsh/AGENTS.md`（唯一真源，Windows-MCP 工具面与操作纪律；仅本机有效） |
 | **提交之前** | `rules/build-quality.md` → `rules/pr-review-checklist.md`（逐条过）→ `rules/version-release.md` |
 | 改任何 `@Entity`、表结构、Entity 字段 | `rules/database-migration.md`（**存档损坏头号根因，最高优先**） |
@@ -82,51 +82,23 @@
 14. **任务完成后才提交** — 禁止在任务中途提交代码。所有改动（修复代码、测试、临时诊断日志等）在任务全部完成、清理完一次性代码后，一次性提交
 15. **根因修复** — 修复 bug 必须做根因修复：从症状沿因果链追溯到根因，用正确的逻辑覆盖错误，禁止打补丁式绕过（特判分支、屏蔽症状、掩盖错误的 workaround 等均属打补丁）。修复后必须验证根因路径已被正确逻辑替代、症状不再复现，并在提交说明中写明根因
 16. **C++ 优先** — 项目整体技术方向为 C++（总方案见 `docs/adr/cpp-engine-migration.md`）：所有新增/修改的引擎、战斗、结算、生产、探索、内政等核心逻辑代码，以及涉及这些逻辑的设计方案，一律优先采用 C++ 实现（经 JNI 与 Kotlin 对接；UI 层 Compose 只能用 Kotlin，保持不变）。禁止新增与 C++ 迁移方向相悖的纯 Kotlin 引擎逻辑；确因紧急无法立即 C++ 化的，必须登记并尽快下沉。详见 `rules/cpp-priority.md`
-17. **桌面操作优先级铁律** — 桌面自动化能力由 **Windows-MCP** 提供（工具名 `mcp__windows__*`）：① **语义调用**（首选）——先 `Snapshot` 取当轮快照，用其中列出的控件坐标或数字 `label` 定位，再传给 `Click`/`Type`/`Scroll`/`Move`；② **键盘**（次选）——加速键用 `Shortcut`、纯文本用 `Type`；③ **像素坐标**（最后手段）——仅用于 canvas/WebGL/视频等无语义节点的自绘表面，坐标必须从当轮快照直读。**`label` 是当轮快照的下标，界面一变即失效**（沿用旧值不报错，而是静默点到别的控件）；报错 `Desktop state is empty`、`Failed to find element with label N` 时必须重新 `Snapshot` 重试，禁止降级为盲点坐标；操作后必须重新快照验证、文字输入必须回读核对；Windows-MCP 走真实输入栈**会抢占焦点**（无后台投递）。完整工具面、参数要点与操作纪律以本机用户级 `~/.dsh/AGENTS.md` 为**唯一真源**（桌面自动化属本机能力，本仓库不再维护第二份）
+17. **桌面操作铁律** — 桌面自动化由本机 **Windows-MCP**（工具名 `mcp__windows__*`）提供。操作优先级（语义快照 → 键盘 → 像素）、`label` 时效性、错误处理与回读验证纪律**以本机用户级 `~/.dsh/AGENTS.md` 为唯一真源**（桌面自动化属本机能力，本仓库不维护第二份）
 
 ---
 
 ## 2. 工程速查（Build / Test / Lint）
 
-所有命令在 `android/` 目录下用 Gradle wrapper 执行：
+命令在 `android/` 下用 Gradle wrapper 执行；**测试一律加 `--max-workers=1`**（并行会因共享静态状态跨类污染）：
 
 ```bash
-# 编译检查（最快的反馈，每次改动后都跑）
-cd android && ./gradlew.bat compileReleaseKotlin
-
-# 构建 release / debug APK
-cd android && ./gradlew.bat assembleRelease
-cd android && ./gradlew.bat assembleDebug
-
-# 全量单元测试（Robolectric + JUnit）— 必须串行（--max-workers=1），并行会因共享静态状态跨类污染出错
-cd android && ./gradlew.bat testReleaseUnitTest --max-workers=1
-
-# 跑单个测试类 — 同样串行，且必须模块限定写法（裸 `test --tests` 会报 Unknown command-line option；
-# 未模块限定时过滤会波及 core:data 等模块触发 No tests found）
-cd android && ./gradlew.bat :app:testReleaseUnitTest --tests "com.xianxia.sect.core.engine.BattleSystemTest" --max-workers=1
-
-# Lint
-cd android && ./gradlew.bat lintRelease
-
-# 静态分析
-cd android && ./gradlew.bat detekt
-
-# 清理（KSP 增量缓存炸出 NoSuchFileException *_Impl.java 时用）
-cd android && ./gradlew.bat clean
+cd android && ./gradlew.bat compileReleaseKotlin                    # 编译检查（每次改动后都跑）
+cd android && ./gradlew.bat testReleaseUnitTest --max-workers=1     # 全量单元测试
+cd android && ./gradlew.bat lintRelease detekt                      # Lint + 静态分析
 ```
 
-测试位于 `android/app/src/test/` 与各模块 `src/test/`。用 JUnit 4、Mockito、Robolectric、`kotlinx-coroutines-test`；
-Robolectric 测试需要 `includeAndroidResources = true`。mock/stub 约定见 `rules/testing.md`。
-
-```bash
-# 覆盖率（Kover）— 本地默认关闭（消除插桩开销），必须显式开开关，否则覆盖率为 0
-cd android && ./gradlew.bat koverHtmlReport --max-workers=1 -Pkover.enabled=true
-
-# 完整 CI 检查（编译 + 测试 + detekt + 覆盖率 + RNG 守卫）— 测试必须串行
-# RNG 红线是守卫测试而非 grep（`.random()` 是 stdlib 扩展、自建 RNG 是 object，都不带
-# `import kotlin.random.Random`，grep 匹配不到）——见 docs/adr/rng-determinism-remediation.md §1
-cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-workers=1 -Pkover.enabled=true detekt koverHtmlReport -Pkover.enabled=true && ./gradlew.bat :core:engine:testReleaseUnitTest --tests "com.xianxia.sect.core.architecture.RngSourceGuardTest" --tests "com.xianxia.sect.core.architecture.RngEngineIsolationGuardTest" --max-workers=1
-```
+单类测试的模块限定写法、APK 构建、Kover 覆盖率、完整 CI 一行流、clean 等**全部命令与检查清单见 `rules/build-quality.md`**。
+测试位于 `android/app/src/test/` 与各模块 `src/test/`（JUnit 4 / Mockito / Robolectric / `kotlinx-coroutines-test`，
+Robolectric 需 `includeAndroidResources = true`）；mock/stub 约定见 `rules/testing.md`。
 
 **规范分发架构门禁**（改本文件、`rules/`、`docs/` 或任何 `AGENTS.md` 之后必跑）：
 
@@ -182,7 +154,7 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 ## 5. 编码规范 (Coding Standards)
 
 > 严重度：🔴 必须遵守（违反导致构建/审查失败）、🟡 应遵守（违反需在审查中说明理由）、🟢 建议（推荐遵循）。
-> 提交前审查清单见 `rules/pr-review-checklist.md`；质量细则与**全部 BAD/GOOD 代码示例**见 `rules/code-quality.md`（§1.6）。
+> 提交前审查清单见 `rules/pr-review-checklist.md`；质量细则、**BAD/GOOD 示例**与 **🟡/🟢 级条目（§1.7）**见 `rules/code-quality.md`。**本节编号保留原样，缺号即已下沉到该文件，不是删除。**
 
 ### 0. 代码质量铁律
 
@@ -198,13 +170,9 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **1.1 🔴 禁止 `!!` 操作符** — 除非有编译时证明（如 `lateinit var` 初始化后访问）。用 `?.` / `?:` / `checkNotNull()` 安全访问。
 
-**1.2 🟡 优先 `val`** — 默认 `val`；`var` 仅在不可变 copy-on-write 不可行时使用并注释理由。
-
 **1.3 🔴 领域结果用 sealed class** — 可预期的业务失败（找不到、校验失败）用 sealed class，不抛异常；异常仅用于程序错误和基础设施故障。禁止裸 `Boolean` 代表成功/失败。
 
 **1.4 🔴 协程规范** — 禁止 `runBlocking`（测试用 `runTest`）；Dispatcher 通过 Hilt `@Dispatcher(IO)` 注入，禁止硬编码 `Dispatchers.IO`。
-
-**1.5 🟢 扩展函数放专用文件** — 某类型的大量扩展函数放入 `{TypeName}Ext.kt`，不堆积在 ViewModel/Service。
 
 ### 2. 模块架构规范
 
@@ -220,19 +188,13 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 | `:core:ui` | 共享 Compose 组件、Theme、导航工具 | ViewModel、Room DAO、游戏逻辑 |
 | `:feature:game` | ViewModel、Screen 级 Compose、对话框 | Room DAO、直接写 GameStateStore |
 
-**2.3 🟡 `internal` 默认可见性** — 非模块公开 API 的类/函数一律 `internal`。
-
 **2.4 🔴 禁止循环依赖** — 模块间必须形成 DAG，CI 中通过 Konsist 检查。
-
-**2.5 🟢 新建模块需 ADR** — 新增 Gradle 模块需在 `docs/adr/` 记录决策，且至少包含 3 个内聚领域类。
 
 ### 3. 文件与代码行规范
 
 **3.1 🔴 单文件最大 2000 行**（Room `_Impl`、ProtoBuf 等生成代码除外）。
 
 **3.2 🔴 单行最大 120 字符** — 以 `android/config/detekt/detekt.yml` 的 `MaxLineLength: maxLineLength: 120` 为准（Compose 链式调用需要；import 语句、KDoc 标签、URL 除外）。
-
-**3.3 🟡 单函数体最大 60 行** — 超限拆分为私有辅助函数。
 
 **3.4 🔴 最大构造参数：类 7 个，Composable 函数 6 个** — 超限须分组为配置数据类或拆分类（示例见 `rules/code-quality.md` §1.6）。
 
@@ -248,17 +210,9 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **4.4 🔴 禁止直接访问 `GameStateStore`** — ViewModel 与 UI 层的所有状态变更走 `GameEngine` 方法，不直接调 `stateStore.update()` 或 `gameEngine.updateGameData {}`。数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。
 
-**4.5 🟡 UserAction/ActionResult 模式** — ViewModel 公开方法用 sealed `UserAction` 统一入口，便于错误处理与日志。
-
-**4.6 🟡 ViewModel 与 Screen 一对一** — 一个 ViewModel 只驱动一个 Screen。
-
 ### 5. 引擎服务规范
 
 **5.1 🔴 通过快照访问状态** — Service 不直接订阅 `StateFlow`，通过传入参数或构造注入的 snapshot 访问状态。
-
-**5.2 🟡 方法签名：`suspend` 或返回 Result** — 执行 I/O 或领域逻辑的服务方法必须为 `suspend`，或返回 `Result<T>`/sealed class。
-
-**5.3 🟡 服务间禁止共享可变状态** — 通过 EventBus 事件或协调器对象通信，不用共享 `MutableStateFlow` 或 `ConcurrentHashMap`。
 
 **5.4 🔴 错误必须传播** — 禁止静默吞异常。`log-and-continue` 仅允许在非关键后台操作中使用。
 
@@ -267,10 +221,6 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 ### 6. 状态管理规范
 
 **6.1 🔴 `GameStateStore` 是唯一真相源** — 禁止在 ViewModel/Service 缓存 `GameData` 或实体列表的本地副本。
-
-**6.2 🟡 多实体变更必须用单次 `stateStore.update`** — 所有状态修改在同一 `stateStore.update {}` 事务内原子完成，禁止多次孤立的 `update` 调用（示例见 `rules/code-quality.md` §1.6）。
-
-**6.3 🟡 Flow 派生规则** — 高频 StateFlow 派生必须用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
 
 **6.4 🔴 新增影响生产系统的字段需同步更新 checkpoint** — 生产系统用 `checkpointAllProduction()` 在政策/长老变化时重算活跃槽位的 duration 与 completionMonth（无需指纹数据类）。新增以下内容时必须同步（同步点清单见 `rules/pr-review-checklist.md`）：
 
@@ -289,8 +239,6 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **7.2 🔴 禁止 `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0 才支持。用 `db.safeDropColumns()` 或保留旧列 + `@Ignore`。
 
-**7.3 🟡 ProtoBuf 仅 `List`，禁止 `Set`/`Map`** — 需要去重语义在业务层 `.toSet()` 转换。忽略会导致序列化静默失败、**存档变空**。
-
 **7.4 🔴 Migration 必须有测试** — 旧版本插入种子数据 → 运行迁移 → 验证数据完整性。
 
 ### 8. 错误处理规范
@@ -299,19 +247,11 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **8.2 🔴 禁止空 catch 块** — 每个 `catch` 至少包含 `Log.w(TAG, "...", e)`。
 
-**8.3 🟡 UI 错误统一走 `BaseViewModel.showError()`** — ViewModel 不直接处理错误展示。
-
-**8.4 🟡 引擎错误记录上下文** — `Log.e(TAG, "操作名 failed: id=$id, ctx=$ctx", e)`，信息要足够定位问题。
-
 ### 9. 测试规范
 
 **9.1 🔴 引擎服务 80%+ 行覆盖率** — `:core:engine` 模块目标 80% 行覆盖（Kover/JaCoCo 检测）。
 
 **9.2 🔴 Migration 必须有集成测试** — 每条 Migration 验证旧数据能完整迁移。
-
-**9.3 🟡 测试命名：`方法名_状态_预期行为`** — Given-When-Then 模式，如 `addEquipmentStack - empty name returns INVALID_NAME`。
-
-**9.4 🟢 优先 Fake 而非 Mock** — 手写 Fake 优于 Mockito mock，可复用、可读、可调试。mock 风格硬约束见 `rules/testing.md`。
 
 **9.5 🔴 跨域变更必须写测试守卫** — 当新增枚举/接口/配置项涉及多处分头实现时，必须写**测试守卫（Guard Test）**，在枚举值变更时自动失败并提示需要同步更新哪些地方。
 
@@ -319,27 +259,11 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **适用场景：** 任何"加一个枚举值需要同步改 N 处"的跨域变更（新增槽位系统 / 事件类型 / 对话框类型 / 建筑类型等）。
 
-### 10. 性能规范
-
-**10.1 🟡 Compose 稳定性注解** — 所有出现在 Compose State 中的数据类标注 `@Immutable`，或加入 `stability_config.conf`。
-
-**10.2 🟡 禁止 Composition 内读 State** — 用 `derivedStateOf` 计算派生值，避免不必要的 recomposition（示例见 `rules/code-quality.md` §1.6）。
-
-**10.3 🟡 `LazyColumn`/`LazyRow` 必须用稳定 key** — `key = { it.id }`，不可用 index（会导致排序/过滤时的错误 recomposition）。
-
-**10.4 🟡 Canvas 用 `drawBehind{}`** — 静态绘制用 `Modifier.drawBehind {}` 跳过 Composition/Layout 阶段；动画用 `Animatable` + `LaunchedEffect`。
-
 ### 11. UI 样式规范
 
 **11.1 🔴 按钮尺寸标准化** — 所有按钮使用 `ButtonSizes.StandardWidth` (72dp) × `ButtonSizes.StandardHeight` (38dp)。
 
 ### 12. 文档规范
-
-**12.1 🟡 公开 API 必须有 KDoc** — `:core:domain` 与 `:core:engine` 中所有 public 函数/类/属性必须有 KDoc（描述 + `@param` + `@return`）。
-
-**12.2 🟢 架构决策记录到 `docs/adr/`** — 新模块、重要模式变更、大重构写入 ADR（Context / Decision / Consequences）。
-
-**12.3 🟢 同步 `CODE_WIKI.md` 与 `docs/architecture.md`** — 新增模块/模式后更新架构文档。
 
 **12.4 🔴 功能变更必须更新 Changelog** — 功能完成后**两个更新日志必须一起更新**（漏一个视为任务未完成）：
 
@@ -381,11 +305,5 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 ## 8. 版本发布
 
-发布时更新 `version.properties`（项目根，单一事实源）：
-
-- `versionCode` — 递增 1
-- `versionName` — 格式 `X.XX.XX`（主版本 1 位 + 次版本 2 位 + 构建 2 位，不足前补零）。例：`4.00.86` → `4.00.87`、`4.00.99` → `4.01.00`、`4.99.99` → `5.00.00`。**禁止写成 `4.0.86`**（次版本段缺前补零）
-
-测试必须串行：`./gradlew.bat testReleaseUnitTest --max-workers=1`（并行会因共享静态状态跨类污染）。
-
-完整发布检查清单见 [`rules/version-release.md`](rules/version-release.md)。
+发布时更新 `version.properties`（项目根，单一事实源）：`versionCode` 递增 1；`versionName` 为 `X.XX.XX`
+（禁止写成 `4.0.86`）。**禁止擅自更新版本号**，由用户判断和指令。完整发布流程、**双更新日志**要求与检查清单见 [`rules/version-release.md`](rules/version-release.md)。
