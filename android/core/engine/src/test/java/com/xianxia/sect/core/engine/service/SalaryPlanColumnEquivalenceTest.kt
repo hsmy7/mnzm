@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.WriteGuardRule
@@ -89,8 +88,7 @@ class SalaryPlanColumnEquivalenceTest {
             name = name,
             realm = realm,
             realmLayer = 3,
-            status = DiscipleStatus.IDLE,
-            social = SocialData()
+            status = DiscipleStatus.IDLE
         )
         tables.insert(disciple)
         tables.isAlive[id] = 1

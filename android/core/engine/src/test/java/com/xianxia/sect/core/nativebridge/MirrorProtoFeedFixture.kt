@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.UsageTracking
 import kotlinx.serialization.json.Json
@@ -23,8 +22,8 @@ import kotlinx.serialization.json.Json
  * 的拆法）。
  *
  * 线路口径与 C++ `to_json` / [com.xianxia.sect.core.model.DiscipleSerializer]
- * 一致：`cultivationCheckpoint` 按 Long 承载（截断）、可空社交字段以 ""/0/-1
- * 哨兵承载、`Set` 域按 `toList()` 序承载、`storageBagItems` 走 JSON 原文过渡编码。
+ * 一致：`cultivationCheckpoint` 按 Long 承载（截断）、`Set` 域按 `toList()`
+ * 序承载、`storageBagItems` 走 JSON 原文过渡编码。
  */
 internal object MirrorProtoFeedFixture {
 
@@ -93,7 +92,6 @@ internal object MirrorProtoFeedFixture {
         combat = richCombat()
         pillEffects = richPillEffects()
         equipment = richEquipment()
-        social = richSocial()
         skills = richSkills()
         usage = richUsage()
     }
@@ -131,10 +129,6 @@ internal object MirrorProtoFeedFixture {
             ),
         ),
         storageBagSpiritStones = 55L, spiritStones = 88,
-    )
-
-    private fun richSocial(): SocialData = SocialData(
-        masterId = "ms1",
     )
 
     private fun richSkills(): SkillStats = SkillStats(

@@ -17,7 +17,6 @@ import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
 import com.xianxia.sect.core.engine.mockSmart
-import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.advancePhaseBaseline
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
@@ -78,7 +77,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
  *
  * 场景边界（未随本批下沉的跨系统钩子不触发，见 t2-1-report.md）：
  * - 自动仓库装备/学习开关全关（processAutoFromWarehouse 纯早退）；
- * - 弟子无任何亲属关系（亲属赠送零 SYSTEM RNG）；
  * - 丹药不含道德减益（场景聚焦修为丹写回）。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
@@ -223,30 +221,30 @@ class DiffPhaseSettlementTest {
                 manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, mdb: Double
+                csb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                d, manuals, mps, bb, peb, pmb, csb, mdb
+                d, manuals, mps, bb, peb, pmb, csb
             )
             override fun calculateCultivationSpeed(
                 a: DiscipleAggregate,
                 manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, mdb: Double
+                csb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                a, manuals, mps, bb, peb, pmb, csb, mdb
+                a, manuals, mps, bb, peb, pmb, csb
             )
             override fun getBreakthroughChance(
                 d: Disciple, iec: Int, oec: Int, pb: Double,
-                ab: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
+                ab: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab)
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                ab: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
+                ab: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab)
         }
         // RNG 与 C++ 同源：restore 到导入快照的分区状态（C++ importStateJson
-        // 的等价步骤）；突破/亲属赠送共用同一管理器（生产装配同构）
+        // 的等价步骤）；突破与月/年结算消费共用同一管理器（生产装配同构）
         val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
@@ -261,7 +259,6 @@ class DiffPhaseSettlementTest {
             stateStore = store,
             cultivationCore = core,
             scopeProvider = mockSmart(),
-            relativeGiftHandler = RelativeGiftHandler(gameRng),
             rngManager = gameRng,
             analyticsTracker = mockSmart()
         )
@@ -549,21 +546,8 @@ class DiffPhaseSettlementTest {
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
     )
 
-    // ── 自动装备/亲属赠送场景 ─────────────────────────
-    // 覆盖上文场景边界规避的两条路径：自动装备开启 / 突破后亲属赠送
-    // （SYSTEM RNG）。
-
-    /** 探测指定分区在 3 次预热抽取后的首个 nextDouble 值 */
-    private fun probeFirstDouble(seed: Long, partition: RngPartition): Double {
-        val probe = DeterministicRng.fromSeed(seed + partition.id)
-        repeat(3) { probe.nextInt() }
-        return probe.nextDouble()
-    }
-
-    private fun herb(itemId: String, rarity: Int, quantity: Int) = StorageBagItem(
-        itemId = itemId, itemType = "herb", name = "灵草$itemId",
-        rarity = rarity, quantity = quantity, obtainedYear = 1, obtainedMonth = 1
-    )
+    // ── 自动装备场景 ─────────────────────────
+    // 覆盖上文场景边界规避的路径：自动仓库装备开关开启。
 
     /** 双端同构推进：Kotlin 基准（advancePhaseBaseline + execute + 月变）vs C++ advancePhases */
     private fun runDiffPhases(
@@ -659,54 +643,6 @@ class DiffPhaseSettlementTest {
             )
         )
         val (expected, actual) = runDiffPhases(snapshot)
-        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
-                                json.encodeToJsonElement(actual))
-    }
-
-    /**
-     * 亲属赠送（S1）：突破成功（层变即可）触发师父赠送（SYSTEM RNG，
-     * 概率 0.40）。种子双探测：BREAKTHROUGH 首抽 < 0.90（突破成功）+
-     * SYSTEM 首抽 < 0.40（赠送触发）。
-     */
-    @Test
-    fun `relative gifts after breakthrough matches bit-for-bit`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-
-        // 种子双探测：BREAKTHROUGH 首抽 < 0.90（炼气一层突破成功）+
-        // SYSTEM 首抽 < 0.40（师父赠送概率 0.40）
-        val jointSeed = generateSequence(1L) { it + 1 }
-            .first { s ->
-                probeFirstDouble(s, RngPartition.BREAKTHROUGH) < 0.90 &&
-                    probeFirstDouble(s, RngPartition.SYSTEM) < 0.40
-            }
-
-        val gameData = GameData(
-            gameYear = 1, gameMonth = 1, gamePhase = 0,
-            spiritStones = 10000
-        ).apply { rngStates = initialRngStates(jointSeed) }
-        val snapshot = NativeGameState(
-            gameData = gameData,
-            disciples = listOf(
-                Disciple(   // 突破候选：炼气一层修为满、满血
-                    id = "1", name = "青一", realm = 9, realmLayer = 1,
-                    cultivation = 490.0, spiritRootType = "metal",
-                    combat = CombatAttributes(currentHp = -1, currentMp = -1),
-                    social = com.xianxia.sect.core.model.SocialData(masterId = "2")
-                ),
-                Disciple(   // 师父：袋内 ≥2 条目（Kotlin MIN_BAG_ITEMS_TO_KEEP=1 按条目数守卫）
-                    id = "2", name = "青二", realm = 9, realmLayer = 1,
-                    cultivation = 0.0, spiritRootType = "metal",
-                    combat = CombatAttributes(currentHp = -1, currentMp = -1),
-                    equipment = EquipmentSet(storageBagItems = listOf(
-                        herb("h-1", 4, 2), herb("h-2", 1, 1)
-                    ))
-                )
-            )
-        )
-        val (expected, actual) = runDiffPhases(snapshot)
-        // 场景有效性前置：突破确实发生（层数 1→2）
-        assertEquals(2, expected.disciples.first().realmLayer)
         assertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
     }

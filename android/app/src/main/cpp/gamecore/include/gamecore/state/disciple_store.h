@@ -109,8 +109,6 @@ enum class DiscipleColumn : uint16_t {
     StorageBagItems,
     StorageBagSpiritStones,
     SpiritStones,
-    // SocialData
-    MasterId,
     // SkillStats
     Intelligence,
     Charm,
@@ -232,9 +230,6 @@ public:
     std::vector<int64_t> storageBagSpiritStones;
     std::vector<int32_t> spiritStones;
 
-    // ── SocialData 列（""=null 哨兵，与序列化协议一致） ──
-    std::vector<std::string> masterIds;
-
     // ── SkillStats 列 ──
     std::vector<int32_t> intelligences;
     std::vector<int32_t> charms;
@@ -341,7 +336,7 @@ public:
     /// 边界变更原语（append/upsert 旋转/eraseAt 行位移/swapRows/clear）
     /// 向追踪器标记脏行/列 + tombstone，供列级增量导出消费。
     /// **范围口径（B09 起）**：结算热路径写点经 [markCol] 逐点标脏（修炼/
-    /// 恢复/丹药写回/突破/自动装备/亲属赠送），行结构变更路径由
+    /// 恢复/丹药写回/突破/自动装备），行结构变更路径由
     /// 变更原语整行标脏；生产 exportDirtyProto 列级模式消费本层导出，
     /// 全量模式开关保留（对拍零漂移）。
     void attachColumnDirtyTracker(ColumnDirtyTracker* tracker) {

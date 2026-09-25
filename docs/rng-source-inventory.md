@@ -283,7 +283,7 @@
 
 | 分区 | 主要消费点 |
 |---|---|
-| `SYSTEM(3)`（35 处） | `LawEnforcement*`（9）/ `ProductionProcessor*`（4）/ `BuildingService`（3）/ `GiftService` / `DiplomacyService` / `VassalService` / `DiscipleService` / `MerchantAndRecruitService` / `RecruitService` / `ChildBirthSystem` / `PartnerSystem` / `RelativeGiftHandler` / `DisciplePurchaseService` / `ProductionTransactionManager` / `GameEngineGuideOps` / `GameEngineSpiritRootOps` / `GameEngineTraitAddOps` / `GameEngineTraitWashOps` |
+| `SYSTEM(3)`（35 处） | `LawEnforcement*`（9）/ `ProductionProcessor*`（4）/ `BuildingService`（3）/ `GiftService` / `DiplomacyService` / `VassalService` / `DiscipleService` / `MerchantAndRecruitService` / `RecruitService` / `ChildBirthSystem` / `PartnerSystem` / `DisciplePurchaseService` / `ProductionTransactionManager` / `GameEngineGuideOps` / `GameEngineSpiritRootOps` / `GameEngineTraitAddOps` / `GameEngineTraitWashOps` |
 | `EXPLORATION(2)`（8） | `LevelGenerator` / `AISectBeastAttackProcessor` / `BeastAttackDetector` / `LootCalculator` / `PatrolBattleSystem` / `WorldLevelManager` / `InventoryFacadeImpl` |
 | `BATTLE(0)`（8） | `BattleSystem` / `AISectAttackDecisionOps` / `AISectAttackManager`(2) / `ExplorationService`(2) / `GameEngineBattleOps`(2) |
 | `AI_SECT(6)`（7，含 KDoc 与注册点） | `AISectDiscipleManager:116/:150/:154` |

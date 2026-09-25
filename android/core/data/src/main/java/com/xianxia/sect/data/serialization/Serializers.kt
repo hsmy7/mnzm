@@ -9,7 +9,7 @@ import kotlinx.serialization.encoding.Encoder
 /**
  * 可为空 String 的自定义序列化器（Protobuf 不支持 null，使用空字符串作为哨兵值）。
  *
- * 适用字段：masterId
+ * 适用形状：任意「可空引用 id」字段（ProtoBuf 侧以 "" 承载 null）。
  */
 object NullableStringSerializer : KSerializer<String?> {
     override val descriptor = PrimitiveSerialDescriptor("NullableString", PrimitiveKind.STRING)

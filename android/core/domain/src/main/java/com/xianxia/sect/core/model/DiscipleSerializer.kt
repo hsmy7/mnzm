@@ -11,8 +11,8 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * Disciple 的自定义序列化器。
  *
  * ## 为什么需要自定义序列化器
- * Disciple 域类型使用 Room @Embedded 将字段分散在 6 个子类中，但 Protobuf 要求
- * 所有 92 个字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
+ * Disciple 域类型使用 Room @Embedded 将字段分散在 5 个子类中，但 Protobuf 要求
+ * 所有 91 个字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
  * @Embedded 子类上加 @ProtoNumber 会导致 Protobuf 产生嵌套消息，破坏向后兼容。
  *
  * ## 实现方式
@@ -67,7 +67,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             equipmentNurturingCompletionPhase = value.equipmentNurturingCompletionPhase
         )
         surrogate = withCombatPillFields(surrogate = surrogate, value = value)
-        surrogate = withEquipmentSocialUsageFields(surrogate = surrogate, value = value)
+        surrogate = withEquipmentUsageFields(surrogate = surrogate, value = value)
         surrogate = withSkillFields(surrogate = surrogate, value = value)
         return surrogate
     }
@@ -114,8 +114,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
             activePillTypes = value.pillEffects.activePillTypes.toList()
         )
 
-    /** 装备 + 社交 + 使用追踪段 */
-    private fun withEquipmentSocialUsageFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
+    /** 装备 + 使用追踪段 */
+    private fun withEquipmentUsageFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
         surrogate.copy(
             // ===== EquipmentSet @Embedded =====
             weaponId = value.equipment.weaponId,
@@ -129,9 +129,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             storageBagItems = value.equipment.storageBagItems,
             storageBagSpiritStones = value.equipment.storageBagSpiritStones,
             spiritStones = value.equipment.spiritStones,
-
-            // ===== SocialData @Embedded =====
-            masterId = value.social.masterId ?: "",
 
             // ===== UsageTracking @Embedded =====
             usedFunctionalPillTypes = value.usage.usedFunctionalPillTypes,
@@ -200,7 +197,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             equipmentNurturingCompletionPhase = surrogate.equipmentNurturingCompletionPhase
         )
         disciple = withCombatPillValues(disciple = disciple, surrogate = surrogate)
-        disciple = withEquipmentSocialUsageValues(disciple = disciple, surrogate = surrogate)
+        disciple = withEquipmentUsageValues(disciple = disciple, surrogate = surrogate)
         disciple = withSkillsValues(disciple = disciple, surrogate = surrogate)
         return disciple
     }
@@ -248,8 +245,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
             )
         )
 
-    /** 装备 + 社交 + 使用追踪段 */
-    private fun withEquipmentSocialUsageValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
+    /** 装备 + 使用追踪段 */
+    private fun withEquipmentUsageValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
         disciple.copy(
             equipment = EquipmentSet(
                 weaponId = surrogate.weaponId,
@@ -263,9 +260,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 storageBagItems = surrogate.storageBagItems,
                 storageBagSpiritStones = surrogate.storageBagSpiritStones,
                 spiritStones = surrogate.spiritStones
-            ),
-            social = SocialData(
-                masterId = surrogate.masterId.ifEmpty { null }
             ),
             usage = UsageTracking(
                 usedFunctionalPillTypes = surrogate.usedFunctionalPillTypes,
@@ -392,10 +386,9 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(31) val storageBagSpiritStones: Long = 0,
         @ProtoNumber(28) val spiritStones: Int = 0,
 
-        // ===== SocialData @Embedded =====
         // reserved 11,12,13,14,15,16,102;（partnerId/partnerSectId/parentId1/parentId2/
         // lastChildYear/griefEndYear/childBirthMonth 字段号已退役，禁止复用）
-        @ProtoNumber(93) val masterId: String = "",
+        // reserved 93;（masterId 字段号已退役，禁止复用）
 
         // ===== SkillStats @Embedded =====
         @ProtoNumber(84) val intelligence: Int = 50,

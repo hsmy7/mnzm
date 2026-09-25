@@ -19,8 +19,8 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 验证 [DiscipleLifecycleManager.initializeLifeEvents] 的合成历史事件生成逻辑。
  *
- * 该功能为旧存档首次查看弟子详情时生成加入宗门/拜师的合成日志，
- * 仅当尚无日志时写入。使用 delegate mock 模式（同 DiscipleServiceCrudTest）注入 GameStateStore。
+ * 该功能为旧存档首次查看弟子详情时生成加入宗门的合成日志，
+ * 仅当尚无日志时写入。使用 [FakeAtomicStateStore] 注入 GameStateStore（同 DiscipleServiceCrudTest）。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -67,11 +67,11 @@ class DiscipleLifecycleEventsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 无招募时间/无师父 — 不写入任何事件
+    // 无招募时间 — 不写入任何事件
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `initializeLifeEvents - no recruit and no master writes nothing`() {
+    fun `initializeLifeEvents - no recruit month writes nothing`() {
         insertDisciple(1)
 
         lifecycleManager.initializeLifeEvents("1")
@@ -110,23 +110,6 @@ class DiscipleLifecycleEventsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 拜师事件 — 师父名从名字表解析
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    fun `initializeLifeEvents - generates master event with master name`() {
-        insertDisciple(1)
-        insertDisciple(2, name = "玄机真人")
-        tables.masterIds[1] = "2"
-
-        lifecycleManager.initializeLifeEvents("1")
-
-        val events = tables.lifeEvents.getOrNull(1)
-        assertNotNull("events should be generated", events)
-        assertTrue("master event missing: $events", events!!.contains("拜玄机真人为师"))
-    }
-
-    // ═══════════════════════════════════════════════════════════════
     // 幂等 — 已有日志时不覆盖、不重复生成
     // ═══════════════════════════════════════════════════════════════
 
@@ -157,22 +140,20 @@ class DiscipleLifecycleEventsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 综合 — 全部事件按序生成（加入宗门 → 拜师）
+    // 综合 — 招募时间满足条件时日志恰为「加入宗门」一条，不夹带其他事件
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `initializeLifeEvents - generates join and master events in order`() {
+    fun `initializeLifeEvents - generates exactly the joined event and nothing else`() {
         insertDisciple(1)
-        insertDisciple(2, name = "玄机真人")
         setGameTime(year = 2, month = 1)
         tables.recruitedMonths[1] = 13
-        tables.masterIds[1] = "2"
 
         lifecycleManager.initializeLifeEvents("1")
 
         val events = tables.lifeEvents.getOrNull(1)
         assertEquals(
-            listOf("加入宗门", "拜玄机真人为师"),
+            listOf("加入宗门"),
             events
         )
     }

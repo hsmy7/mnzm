@@ -121,18 +121,6 @@ data class EquipmentSet(
 }
 
 /**
- * 社交关系组件
- * 仅承载师徒关系
- */
-@Serializable
-data class SocialData(
-    /** 师父弟子ID（师徒关系永久绑定，仅一方死亡方可解绑；弟子最多1名师父） */
-    var masterId: String? = null
-) {
-    val hasMaster: Boolean get() = masterId != null
-}
-
-/**
  * 技能属性组件
  * 包含各项技能值和俸禄统计，共15个字段
  */

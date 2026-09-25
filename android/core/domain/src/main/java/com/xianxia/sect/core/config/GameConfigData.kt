@@ -34,7 +34,6 @@ data class GameConfigData(
     val sectMap: SectMapSection = SectMapSection(),
     val worldMap: WorldMapSection = WorldMapSection(),
     val diplomacy: DiplomacySection = DiplomacySection(),
-    val relativeGift: RelativeGiftSection = RelativeGiftSection(),
     val vulkan: VulkanSection = VulkanSection()
 ) {
     @Serializable
@@ -301,14 +300,4 @@ data class GameConfigData(
             val description: String = ""
         )
     }
-
-    /**
-     * 师徒智能赠送概率配置。
-     * 当弟子突破境界时，师父与徒弟各自独立掷骰决定是否赠送贺礼。
-     */
-    @Serializable
-    data class RelativeGiftSection(
-        val masterGiftProb: Double = 0.40,
-        val apprenticeGiftProb: Double = 0.30
-    )
 }

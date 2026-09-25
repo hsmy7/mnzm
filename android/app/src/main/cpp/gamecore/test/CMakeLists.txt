@@ -119,7 +119,6 @@ add_executable(game-core-tests
     month_settlement_test.cpp
     year_settlement_test.cpp
     breakthrough_test.cpp
-    relative_gift_test.cpp
     production_test.cpp
     production_ui_tx_test.cpp
     mission_completion_test.cpp

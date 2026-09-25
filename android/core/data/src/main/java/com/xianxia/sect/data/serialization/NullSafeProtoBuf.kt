@@ -27,11 +27,11 @@ import kotlinx.serialization.protobuf.ProtoBuf
  * ```kotlin
  * // 序列化方向：nullable -> non-null (用于写入 ProtoBuf)
  * val serializableId = NullSafeProtoBuf.stringToProto(disciple.id)
- * val serializableMasterId = NullSafeProtoBuf.relationIdToProto(disciple.social.masterId)
+ * val serializableRefId = NullSafeProtoBuf.relationIdToProto(entity.refId)
  *
  * // 反序列化方向：non-null -> nullable (用于从 ProtoBuf 读取)
  * val discipleId = NullSafeProtoBuf.stringFromProto(serializableId)
- * val masterId = NullSafeProtoBuf.relationIdFromProto(serializableMasterId)
+ * val refId = NullSafeProtoBuf.relationIdFromProto(serializableRefId)
  * ```
  */
 @OptIn(ExperimentalSerializationApi::class)
@@ -371,7 +371,7 @@ object NullSafeProtoBuf {
     /**
      * 转换关系 ID 字段（String?，空字符串表示 null）
      *
-     * 适用字段：masterId
+     * 适用形状：可空关系 / 引用 id 字段（"" = null 线路哨兵）
      */
     fun relationIdToProto(value: String?): String = stringToProto(value)
 

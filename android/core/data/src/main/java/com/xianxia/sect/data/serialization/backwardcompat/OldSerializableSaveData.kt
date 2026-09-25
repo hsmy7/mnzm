@@ -174,6 +174,7 @@ data class SerializableDisciple(
     // usedExtendLifePillTypes 字段号已退役，禁止复用）
     // reserved 11,12,13,14,15,16,102;（partnerId/partnerSectId/parentId1/parentId2/
     // lastChildYear/griefEndYear/childBirthMonth 字段号已退役，禁止复用）
+    // reserved 93;（masterId 字段号已退役，禁止复用）
     @ProtoNumber(9) val isAlive: Boolean,
     @ProtoNumber(10) val gender: String,
     @ProtoNumber(17) val weaponId: String = "",
@@ -254,7 +255,6 @@ data class SerializableDisciple(
     @ProtoNumber(101) val cultivationCheckpoint: Long = 0L,
     @ProtoNumber(91) val cultivationCheckpointGameMonth: Int = 0,
     @ProtoNumber(92) val autoLearnFromWarehouse: Boolean = false,
-    @ProtoNumber(93) val masterId: String = "",
     @ProtoNumber(94) val cultivationCompletionMonth: Int = 0,
     @ProtoNumber(95) val cultivationCompletionPhase: Int = 0,
     @ProtoNumber(96) val manualCompletionMonth: Int = 0,

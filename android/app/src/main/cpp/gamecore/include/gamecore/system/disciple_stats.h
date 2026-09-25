@@ -18,7 +18,7 @@
 // 等价移植 Kotlin DiscipleStatCalculator 的每旬结算路径**纯公式**部分：
 //   - computeBaseHpMp / getMaxHpMpColumn（HP/MP 恢复上限）
 //   - calculateCultivationPerPhaseColumn（修炼速率 4 乘区）
-//   - getBreakthroughChance（突破概率乘区，含长老悟性/丹药/师徒）
+//   - getBreakthroughChance（突破概率乘区，含长老悟性/丹药）
 //   - EquipmentInstance.getFinalStats（孕养乘区后的装备面板）
 //
 // 与 Kotlin 语义对齐要点：
@@ -428,7 +428,6 @@ struct CultivationRateInput {
     double buildingBonus = 1.0;              // 住所建筑系数（1.0=无）
     double preachingElderBonus = 0.0;        // 讲道长老加成（外+内合计）
     double preachingMastersBonus = 0.0;      // 讲道师兄加成（外+内合计）
-    double masterDiscipleBonus = 0.0;        // 师徒加成
 };
 
 /// 功法段速率加成（桶查找版共享段——R1.3 第二步；加法序 = manualIds 序、
@@ -481,9 +480,9 @@ inline double calculateCultivationPerPhaseColumn(
     resourceBonus += accumulateManualCultivationSpeed(
         manualBuckets, ownerRow, d.manualIds, proficiencies, d.id);
 
-    // ── 社交乘区：讲道 + 师徒 ──
-    const double socialBonus = extra.preachingElderBonus +
-        extra.preachingMastersBonus + extra.masterDiscipleBonus;
+    // ── 社交乘区：讲道长老 + 讲道师兄 ──
+    const double socialBonus =
+        extra.preachingElderBonus + extra.preachingMastersBonus;
 
     // ── 状态乘区：政策 ──
     const double statusBonus =
@@ -526,9 +525,9 @@ inline double calculateCultivationPerPhaseColumn(
     resourceBonus += accumulateManualCultivationSpeed(
         manualBuckets, row, ds.manualIds[row], proficiencies, ds.ids[row]);
 
-    // ── 社交乘区：讲道 + 师徒 ──
-    const double socialBonus = extra.preachingElderBonus +
-        extra.preachingMastersBonus + extra.masterDiscipleBonus;
+    // ── 社交乘区：讲道长老 + 讲道师兄 ──
+    const double socialBonus =
+        extra.preachingElderBonus + extra.preachingMastersBonus;
 
     // ── 状态乘区：政策 ──
     const double statusBonus =
@@ -568,7 +567,6 @@ struct BreakthroughChanceInput {
     int32_t outerElderComprehension = 0;
     double pillBonus = 0.0;                  // 突破丹加成
     double adBonus = 0.0;                    // 广告扁平加成
-    double masterDiscipleBonus = 0.0;        // 师徒加成
     double innerElderPositionBonus = 0.0;    // 内门长老职务乘算因子
     double outerElderPositionBonus = 0.0;    // 外门长老职务乘算因子
 };
@@ -589,7 +587,6 @@ inline double calculateBreakthroughChance(const Disciple& d,
         (1.0 + in.outerElderPositionBonus);
     const double elderGuidance = innerBonus + outerBonus;
     const double selfBonus = in.pillBonus +
-        in.masterDiscipleBonus +
         comprehensionBreakthroughBonus(baseComprehension(d));
     const double positiveMult = 1.0 + elderGuidance + selfBonus;
     const double base = baseZone * positiveMult;

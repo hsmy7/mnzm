@@ -22,7 +22,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * **战斗属性** → `disciple.combat.baseHp`, `disciple.combat.basePhysicalAttack` 等
  * **丹药效果** → `disciple.pillEffects.pillHpBonus`, `disciple.pillEffects.pillEffectDuration` 等
  * **装备数据** → `disciple.equipment.weaponId`, `disciple.equipment.spiritStones` 等
- * **社交关系** → `disciple.social.masterId`
  * **技能属性** → `disciple.skills.intelligence`, `disciple.skills.comprehension` 等
  * **使用追踪** → `disciple.usage.usedFunctionalPillTypes`, `disciple.usage.recruitedMonth` 等
  *
@@ -121,9 +120,6 @@ data class Disciple(
 
     @Embedded
     var equipment: EquipmentSet = EquipmentSet(),
-
-    @Embedded(prefix = "social_")
-    var social: SocialData = SocialData(),
 
     @Embedded
     var skills: SkillStats = SkillStats(),
@@ -230,9 +226,9 @@ data class Disciple(
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation
 
     fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0, pillBonus: Double =
-        0.0, adBonus: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double =
+        0.0, adBonus: Double = 0.0): Double =
         DiscipleAggregate.statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehension,
-            pillBonus, adBonus, masterDiscipleBonus)
+            pillBonus, adBonus)
 
     // ==================== 转换方法（Disciple → DiscipleAggregate）====================
 

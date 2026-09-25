@@ -17,7 +17,7 @@ import com.xianxia.sect.core.engine.system.materializeBagItemsToWarehouse
  * 与月变残留执行器同模式：C++ `runYearSettlement` 执行年变已下沉面
  * （T1 全面子面 + 年报快照 + 年俸 + T2 部分子面），
  * 本执行器承接：
- * - **死亡链平台效应**（C++ 状态面已完成——11 槽镜像/师徒解绑/血炼/
+ * - **死亡链平台效应**（C++ 状态面已完成——11 槽镜像/血炼/
  *   装备清/死亡记录/事件/计数；本处补 Kotlin 侧：袋物品物化回仓库（含溢出
  *   邮件）——事务内 + DAO 清理/DeathEvent——事务外）
  * - **招募列表刷新**（✅ 已下沉 C++——本执行器不再调用）

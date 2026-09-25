@@ -22,7 +22,6 @@
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/pill_system.h"
 #include "gamecore/system/nurture_constants.h"  // 熟练度/孕养常量（detail 域）
-#include "gamecore/system/relative_gift.h"     // 师徒智能赠送（S1 突破下沉批）
 #include "gamecore/system/settlement.h"        // kMsPerPhase1x（熟练度/孕养时间换算）
 #include "gamecore/system/settlement_detail.h"
 
@@ -49,10 +48,9 @@
 //
 // 已知范围边界：
 //   - 循环首步 processAutoFromWarehouseRealtime（自动装备/学习）：
-//     仓库 + 储物袋候选 + 更高品阶替换（auto_gear.h）；
-//   - 突破后的师徒赠送（SYSTEM RNG）：relative_gift.h（Kotlin
-//     RelativeGiftHandler 等价移植；lifeEvents 日志为 Kotlin 运行态字段，
-//     C++ 显式丢弃）。
+//     仓库 + 储物袋候选 + 更高品阶替换（auto_gear.h）。
+//   - 突破大境界的消息栏日志（recordGameEvent）为 C++ 侧直接落库；
+//     lifeEvents 是 Kotlin 运行态字段，C++ 显式丢弃。
 // ============================================================
 namespace gamecore::system {
 
@@ -280,22 +278,6 @@ inline void preachingBonuses(
     }
 }
 
-/// 师徒修炼加成（calculateMasterDiscipleBonusColumn：师父存活按大境界差加成；
-/// DiscipleStore 列直读版——masterId 与弟子境界由调用方列直读传入）
-inline double masterBonusFor(const GameState& state,
-                             const std::map<int32_t, std::size_t>& idx,
-                             const std::string& masterId,
-                             int32_t discipleRealm) {
-    const auto mid = toIntOrNull(masterId);
-    if (!mid.has_value()) return 0.0;
-    const auto it = idx.find(*mid);
-    if (it == idx.end()) return 0.0;
-    const DiscipleStore& ds = state.disciples;
-    if (ds.isAlive[it->second] == 0) return 0.0;
-    return gamecore::disciple::getMasterDiscipleCultivationBonus(
-        discipleRealm, ds.realms[it->second]);
-}
-
 /// 步骤 2：单弟子每旬修炼累积（速率计算 + 上限钳制；不更新检查点——
 /// checkpoint 只在速率变化点同步）。DiscipleStore SoA 版（热路径）：
 /// 全链路列直读直写，零对象物化。
@@ -323,8 +305,6 @@ inline void accumulateCultivation(
                      qingyunElder, qingyunMasters);
     extra.preachingElderBonus = wenDaoElder + qingyunElder;
     extra.preachingMastersBonus = wenDaoMasters + qingyunMasters;
-    extra.masterDiscipleBonus =
-        masterBonusFor(state, idx, ds.masterIds[row], realm);
 
     const double rate = stats::calculateCultivationPerPhaseColumn(
         ds, row, gd, mnBuckets, gd.manualProficiencies, extra);
@@ -714,7 +694,7 @@ inline std::map<int32_t, int32_t> committedElderComprehensionOf(
     return out;
 }
 
-/// 突破概率输入组装（tryBreakthrough 的长老悟性/职务/广告/师徒提取）。
+/// 突破概率输入组装（tryBreakthrough 的长老悟性/职务/广告提取）。
 /// @param committedElderComprehension 结算入口长老悟性 committed 视图
 ///        （id → 入口时点基础悟性——对齐 Kotlin tryBreakthrough:282 经
 ///        stateStore.disciples.value（事务前已提交视图，按 id 关联）读取
@@ -770,18 +750,6 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
             const double v = std::stod(adIt->second, &parsed);
             if (parsed == adIt->second.size()) in.adBonus = v;
         } catch (...) {}
-    }
-
-    // 师徒加成（师父存活按大境界差）
-    const auto mid = toIntOrNull(d.masterId);
-    if (mid.has_value()) {
-        const auto it = idx.find(*mid);
-        const DiscipleStore& ds = state.disciples;
-        if (it != idx.end() && ds.isAlive[it->second] != 0) {
-            in.masterDiscipleBonus =
-                gamecore::disciple::getMasterDiscipleBreakthroughBonus(
-                    d.realm, ds.realms[it->second]);
-        }
     }
     return in;
 }
@@ -942,8 +910,6 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
     preachingBonuses(state, idx, d.realm, d.discipleType, true, qe, qm);
     extra.preachingElderBonus = we + qe;
     extra.preachingMastersBonus = wm + qm;
-    extra.masterDiscipleBonus =
-        masterBonusFor(state, idx, d.masterId, d.realm);
 
     const double rate = stats::calculateCultivationPerPhaseColumn(
         d, ownerRow, gd, mnBuckets, gd.manualProficiencies, extra);
@@ -1035,8 +1001,8 @@ inline void performBreakthrough(
     live.cultivationCompletionPhase = d.cultivationCompletionPhase;
 }
 
-/// 步骤 7 主流程：候选筛选 → 按 ids 顺序逐弟子执行突破 → 师徒赠送钩子 +
-/// 大境界日志（候选级前后比对，与 Kotlin processRealtimeBreakthroughs 同构）。
+/// 步骤 7 主流程：候选筛选 → 按 ids 顺序逐弟子执行突破 → 大境界日志
+/// （候选级前后比对，与 Kotlin processRealtimeBreakthroughs 同构）。
 /// DiscipleStore SoA 版：候选为行索引，逐候选物化工作副本 →
 /// performBreakthrough（原地改 live）→ upsert 原位写回；RNG 抽取序 = 行序。
 /// @param committedElderComprehension 结算入口长老悟性 committed 视图
@@ -1084,10 +1050,10 @@ inline void processBreakthroughs(
     }
     if (candidates.empty()) return;
 
-    // 记录候选突破前境界/层数（师徒赠送与日志的比对基准）
-    std::map<std::size_t, std::pair<int32_t, int32_t>> before;
+    // 记录候选突破前境界（大境界日志的比对基准）
+    std::map<std::size_t, int32_t> beforeRealm;
     for (std::size_t row : candidates) {
-        before[row] = {ds.realms[row], ds.realmLayers[row]};
+        beforeRealm[row] = ds.realms[row];
     }
 
     // 2. 仅候选弟子按需处理（顺序 == ids 顺序 → RNG 抽取序列逐位一致）
@@ -1098,22 +1064,9 @@ inline void processBreakthroughs(
         ds.upsertDisciple(live);               // 原位写回（保序）
     }
 
-    // 3. 师徒智能赠送（社交系统，SYSTEM RNG——relative_gift.h；
-    //    触发条件 = 境界或层数变化，先于日志） +
-    //    4. 大境界变化日志：仅大境界（realm）变化记录一条消息栏事件
-    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
+    // 3. 大境界变化日志：仅大境界（realm）变化记录一条消息栏事件
     for (std::size_t row : candidates) {
-        const auto& oldVals = before[row];
-        const bool realmChanged = oldVals.first != ds.realms[row];
-        const bool layerChanged = oldVals.second != ds.realmLayers[row];
-        if (realmChanged || layerChanged) {
-            const auto id = ds.numericIdAt(row);
-            if (id.has_value()) {
-                relative_gift::processGiftsForBreakthrough(state, *id,
-                                                           rngSystem);
-            }
-        }
-        if (!realmChanged) continue;
+        if (beforeRealm[row] == ds.realms[row]) continue;
         Disciple after = ds.materialize(row);
         recordGameEvent(state, after,
                         gamecore::disciple::realmConfig(after.realm).name);
@@ -1198,7 +1151,7 @@ inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
 //   2. 逐弟子写入仅限**本人行**（currentHp/currentMp/cultivation 列），
 //      跨线程不同 index 写不同元素 → 无数据竞争。
 //   3. 读取面 = 本人行列 + 其他弟子**静态列**（realm/teaching/talent/
-//      isAlive/spiritRoot/masterId/type）+ gameData（elderSlots/
+//      isAlive/spiritRoot/type）+ gameData（elderSlots/
 //      residenceSlots/placedBuildings/manualProficiencies）——这些列在本批次
 //      循环内**从不被写**（仅 currentHp/currentMp/cultivation 被写），并发读安全。
 //      DiscipleRef 存储（行地址解析）在批次内只读，并发 find 安全。
@@ -1319,7 +1272,7 @@ inline void runPhaseSettlement(state::GameState& state,
     // 6) 自动丹药补服（零 RNG）
     detail::processAutoPills(state, secretIds, world);
 
-    // 7) 突破检测（唯一 RNG 消耗点：BREAKTHROUGH 分区）+ 师徒赠送（SYSTEM）
+    // 7) 突破检测（唯一 RNG 消耗点：BREAKTHROUGH 分区）
     //    数值 id 索引直用 store 的免重建缓存（同 runPhaseCoreBatch——R1.3
     //    dense 索引收尾，免每旬 O(D) map 重建）；步骤 6/7 内无行结构变更
     //    ⇒ 引用 == 快照。
@@ -1332,11 +1285,11 @@ inline void runPhaseSettlement(state::GameState& state,
 /// AUTHORITATIVE core 模式每旬结算（生产每旬不再需要 Kotlin
 /// executeResidual 回写）。
 /// 步骤序与完整版 [runPhaseSettlement] **完全一致**（0 自动装备 → 1-5 核心
-/// 批次 → 6 丹药 → 7 突破(+师徒赠送)），唯一差异 = 核心批次由
+/// 批次 → 6 丹药 → 7 突破），唯一差异 = 核心批次由
 /// 调用方注入的并行实现（ECS PhaseCoreBatchSystem + JobSystem）驱动——
 /// 串行/并行逐位一致由 PhaseSettlementTest.CoreBatchParallelMatchesSerial
 /// 守护。保留核心批次外的步骤为串行：丹药/突破携带 RNG 与跨弟子状态依赖
-/// （师徒赠送读全店关系列），不可分块并行。
+/// （讲道与长老加成读全店弟子列），不可分块并行。
 /// @param runCoreBatch 核心批次实现（game_core.cpp 注入 ecsScheduler_.runAll）
 inline void runPhaseSettlementCore(state::GameState& state,
                                    rng::RngManager& rng,
@@ -1357,7 +1310,7 @@ inline void runPhaseSettlementCore(state::GameState& state,
     // 6) 自动丹药补服（零 RNG）
     detail::processAutoPills(state, secretIds, world);
 
-    // 7) 突破检测（BREAKTHROUGH 分区）+ 师徒赠送（SYSTEM 分区）
+    // 7) 突破检测（BREAKTHROUGH 分区）
     //    数值 id 索引直用 store 的免重建缓存（同 runPhaseSettlement——
     //    R1.3 dense 索引收尾，免每旬 O(D) map 重建）
     const std::map<int32_t, std::size_t>& idx =

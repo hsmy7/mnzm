@@ -206,22 +206,6 @@ class DiscipleModelsTest {
         assertEquals(EquipmentNurtureData("", 0), set.accessoryNurture)
     }
 
-    // ---- SocialData（仅承载师徒关系）----
-
-    @Test
-    fun socialData_defaultConstruction() {
-        val social = SocialData()
-        assertNull(social.masterId)
-        assertFalse(social.hasMaster)
-    }
-
-    @Test
-    fun socialData_hasMaster_whenSet() {
-        val social = SocialData(masterId = "m1")
-        assertEquals("m1", social.masterId)
-        assertTrue(social.hasMaster)
-    }
-
     // ---- SkillStats ----
 
     @Test
@@ -368,16 +352,9 @@ class DiscipleModelsTest {
         assertEquals(emptyMap<String, String>(), ext.statusData)
         assertEquals(0.0, ext.cultivationSpeedBonus, 0.001)
         assertEquals(0, ext.cultivationSpeedDuration)
-        assertNull(ext.masterId)
         assertEquals(emptyList<String>(), ext.usedFunctionalPillTypes)
         assertFalse(ext.hasReviveEffect)
         assertFalse(ext.hasClearAllEffect)
-    }
-
-    @Test
-    fun discipleExtended_masterId_whenSet() {
-        val ext = DiscipleExtended(masterId = "m1")
-        assertEquals("m1", ext.masterId)
     }
 
     @Test

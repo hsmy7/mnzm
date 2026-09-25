@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.state.DiscipleTables
@@ -60,7 +59,7 @@ import kotlinx.serialization.json.longOrNull
  * 不会污染镜像。repeated 字段（列表/映射）与嵌套消息按 proto3
  * "absent = empty"语义取值，不属于"缺失"。
  *
- * 逐段构造函数（combat/pillEffects/equipment/social/skills/usage）是域模型
+ * 逐段构造函数（combat/pillEffects/equipment/skills/usage）是域模型
  * 分段形状的样板拆分，函数数即协议段数。
  */
 @Suppress("TooManyFunctions")
@@ -133,7 +132,6 @@ internal object GameViewDiscipleRows {
         "accessoryId" to DiscipleRow::hasAccessoryId,
         "storageBagSpiritStones" to DiscipleRow::hasStorageBagSpiritStones,
         "spiritStones" to DiscipleRow::hasSpiritStones,
-        "masterId" to DiscipleRow::hasMasterId,
         "intelligence" to DiscipleRow::hasIntelligence,
         "charm" to DiscipleRow::hasCharm,
         "comprehension" to DiscipleRow::hasComprehension,
@@ -208,7 +206,6 @@ internal object GameViewDiscipleRows {
             combat = combatOf(row),
             pillEffects = pillEffectsOf(row),
             equipment = equipmentOf(row, json),
-            social = socialOf(row),
             skills = skillsOf(row),
             usage = usageOf(row)
         )
@@ -265,10 +262,6 @@ internal object GameViewDiscipleRows {
                 storageBagItems = row.storageBagItems(bagItemSerializer, json),
                 storageBagSpiritStones = row.storageBagSpiritStones,
                 spiritStones = row.spiritStones
-        )
-
-    private fun socialOf(row: DiscipleRow) = SocialData(
-                masterId = row.masterId.ifEmpty { null }
         )
 
     private fun skillsOf(row: DiscipleRow) = SkillStats(
@@ -430,8 +423,8 @@ internal object GameViewDiscipleRows {
      * 全行臂，守卫 = `GameViewDiscipleColumnApplyEquivalenceTest` +
      * `MirrorSegmentProjectionBenchTest` 两臂落库全等断言）
      * - presence 标量列 → 映射列直写（协议 ↔ 域的既有口径原样保留：
-     *   `cultivationCheckpoint` Long→Double、社交空串/0/-1 线路哨兵 → null、
-     *   `status` 宽松枚举回退、usage 布尔 → 0/1）；
+     *   `cultivationCheckpoint` Long→Double、`status` 宽松枚举回退、
+     *   usage 布尔 → 0/1）；
      * - presence repeated 列 → 整列替换（[REPEATED_FIELD_CLEARERS] 同清单：
      *   列级协议携带整列新值，先清后并 == 直写整列）；
      * - presence 嵌套消息列（装备孕养）→ **整值替换**（全行臂 clearer 对消息列
@@ -460,7 +453,6 @@ internal object GameViewDiscipleRows {
             applyCombatPatchColumns(id, row)
             applyPillPatchColumns(id, row)
             applyEquipmentPatchColumns(id, row, json)
-            applySocialPatchColumns(id, row)
             applySkillPatchColumns(id, row)
             applyUsagePatchColumns(id, row)
         }
@@ -617,11 +609,6 @@ internal object GameViewDiscipleRows {
         if (row.hasSpiritStones()) discipleSpiritStones[id] = row.spiritStones
     }
 
-    /** 社交段 presence 列直写（映射表 = [socialOf] ↔ `writeAllFields` 社交面，线路哨兵同口径）。 */
-    private fun DiscipleTables.applySocialPatchColumns(id: Int, row: DiscipleRow) {
-        if (row.hasMasterId()) masterIds[id] = row.masterId.ifEmpty { null }
-    }
-
     /** 技能段 presence 列直写（映射表 = [skillsOf] ↔ `writeAllFields` 技能面）。 */
     // 列级补丁 presence 直写映射表：函数数=协议列数，每行一列 presence 位测试
     // + 直写（与 C++ serializeDiscipleColumn switch 同形样板），拆分即机械切半
@@ -681,7 +668,7 @@ internal object GameViewDiscipleRows {
         val b = DiscipleRow.newBuilder()
         fillDirectRowFields(b, d)
         fillCombatPillRowFields(b, d)
-        fillEquipmentSocialRowFields(b, d, json)
+        fillEquipmentRowFields(b, d, json)
         fillSkillUsageRowFields(b, d)
         return b.build()
     }
@@ -759,7 +746,7 @@ internal object GameViewDiscipleRows {
         b.activePillCategory = d.pillEffects.activePillCategory
     }
 
-    private fun fillEquipmentSocialRowFields(
+    private fun fillEquipmentRowFields(
         b: DiscipleRow.Builder,
         d: Disciple,
         json: Json,
@@ -783,8 +770,6 @@ internal object GameViewDiscipleRows {
         b.storageBagItemsPresent = true
         b.storageBagSpiritStones = d.equipment.storageBagSpiritStones
         b.spiritStones = d.equipment.spiritStones
-        // 社交可空字段的线路哨兵（"" = null）与 DiscipleSerializer 同口径
-        b.masterId = d.social.masterId ?: ""
     }
 
     private fun fillSkillUsageRowFields(b: DiscipleRow.Builder, d: Disciple) {

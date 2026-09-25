@@ -4,13 +4,13 @@ package com.xianxia.sect.core.state
  * 子对象组装组——[DiscipleTables.assembleAllPatched] 的复用粒度。
  * 每组对应一个 assembleXxx 子对象（lifeEvents 单独一组）。
  */
-internal enum class AssembleGroup { COMBAT, PILL, EQUIPMENT, SOCIAL, SKILLS, USAGE, LIFEEVENTS }
+internal enum class AssembleGroup { COMBAT, PILL, EQUIPMENT, SKILLS, USAGE, LIFEEVENTS }
 
 /**
  * 列名 → 子对象组映射（原 DiscipleTables 内联表下放；由 lazy 首次访问时单次构建）。
  * 列名从 DiscipleTables 的 buildCopyableRefs 注册表按名解析为索引；未知列（新列未注册映射）
  * 值为 -1 → DiscipleTables.assembleAllPatched 整体退化全量（正确性优先，绝不复用旧数据）。
- * 映射表从 assembleCombat/assemblePillEffects/assembleEquipment/assembleSocial/
+ * 映射表从 assembleCombat/assemblePillEffects/assembleEquipment/
  * assembleSkills/assembleUsage 的读取点逐行推导，新增列必须同步更新。
  */
 // P3-20（审计）：纯静态映射按需单次构建——deepCopy/回滚基线等纯写副本
@@ -65,8 +65,6 @@ internal fun discipleColumnGroupByName(): Map<String, AssembleGroup> = mapOf(
             "storageBagItems" to AssembleGroup.EQUIPMENT,
             "storageBagSpiritStones" to AssembleGroup.EQUIPMENT,
             "discipleSpiritStones" to AssembleGroup.EQUIPMENT,
-            // assembleSocial 读取列
-            "masterIds" to AssembleGroup.SOCIAL,
             // assembleSkills 读取列
             "intelligences" to AssembleGroup.SKILLS,
             "charms" to AssembleGroup.SKILLS,

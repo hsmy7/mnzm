@@ -19,7 +19,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 验证 DiscipleService 的 CRUD 操作。
  *
- * 使用 delegate mock 模式（同 DiscipleServiceApprenticeTest）注入 GameStateStore。
+ * 使用 [FakeAtomicStateStore] 注入 GameStateStore（同 DiscipleLibrarySlotSwapTest）。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -54,9 +54,6 @@ class DiscipleServiceCrudTest {
         val equipmentService = DiscipleEquipmentService(
             stateStore = store
         )
-        val masterService = DiscipleMasterApprenticeService(
-            stateStore = store
-        )
         val lifecycleManager = DiscipleLifecycleManager(
             stateStore = store,
             slotManager = slotManager,
@@ -68,7 +65,6 @@ class DiscipleServiceCrudTest {
             rngManager = mockSmart(),
             discipleEquipmentService = equipmentService,
             discipleLifecycleManager = lifecycleManager,
-            discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
             discipleStatusService = mockSmart(),
             inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java)

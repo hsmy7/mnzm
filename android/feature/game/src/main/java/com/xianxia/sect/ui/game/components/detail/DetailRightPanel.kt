@@ -77,7 +77,7 @@ fun DetailRightPanel(
         Text(disciple.realmName, fontSize = 14.sp, color = Color.Black)
         Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
         Spacer(modifier = Modifier.height(8.dp))
-        // 六个操作按钮：FlowRow 根据屏幕宽度自动换行
+        // 五个操作按钮：FlowRow 根据屏幕宽度自动换行
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
@@ -210,7 +210,7 @@ private fun DetailTypeDropdown(
     }
 }
 
-/** 弟子操作按钮区：关系/储物袋/关注/交谈/日志/拜师/卸任 */
+/** 弟子操作按钮区：储物袋/关注/交谈/日志/卸任 */
 @Composable
 private fun DetailActionButtonsRow(
     disciple: DiscipleAggregate,
@@ -218,11 +218,6 @@ private fun DetailActionButtonsRow(
     viewModel: GameViewModel?,
     actions: DetailActionCallbacks
 ) {
-    DetailActionButton(
-        text = "关系",
-        color = GameColors.Success,
-        onClick = { dismissDropdown(); actions.onShowRelations() }
-    )
     DetailActionButton(
         text = "储物袋",
         color = GameColors.Info,
@@ -242,14 +237,6 @@ private fun DetailActionButtonsRow(
         text = "日志",
         color = Color(0xFF00BCD4),
         onClick = { dismissDropdown(); actions.onShowLifeLog() }
-    )
-    // 拜师按钮：已有师父时灰色禁用显示"已拜师"；师徒关系永久，仅一方死亡解绑
-    val hasMaster = disciple.masterId != null
-    DetailActionButton(
-        text = if (hasMaster) "已拜师" else "拜师",
-        color = if (hasMaster) Color(0xFF9E9E9E) else Color(0xFF8D6E63),
-        enabled = !hasMaster,
-        onClick = { dismissDropdown(); actions.onShowApprentice() }
     )
     // 卸任按钮：空闲/死亡置灰；其余状态点击后由 DiscipleDetailScreen 按状态分流
     val resignDisabled = evaluateResignGate(disciple.status, disciple.isAlive) is ResignGateResult.Disabled
@@ -283,10 +270,8 @@ private fun DetailActionButton(
  * 将回调分组为数据类，控制 Composable 参数数量在规范上限内。
  */
 data class DetailActionCallbacks(
-    val onShowRelations: () -> Unit,
     val onShowStorageBag: () -> Unit,
     val onShowLifeLog: () -> Unit,
-    val onShowApprentice: () -> Unit,
     val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
     val onShowChat: () -> Unit = {},  // 交谈
     val onShowResignConfirm: () -> Unit = {},  // 卸任（分流逻辑在 DiscipleDetailScreen）

@@ -262,12 +262,10 @@ class XianxiaApplication : Application() {
                 additionalBonus: Double,
                 preachingElderBonus: Double,
                 preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double,
-                masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 disciple, manuals, manualProficiencies, buildingBonus,
-                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                masterDiscipleBonus
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus
             )
             override fun calculateCultivationSpeed(
                 aggregate: DiscipleAggregate,
@@ -277,34 +275,30 @@ class XianxiaApplication : Application() {
                 additionalBonus: Double,
                 preachingElderBonus: Double,
                 preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double,
-                masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 aggregate, manuals, manualProficiencies, buildingBonus,
-                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                masterDiscipleBonus
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus
             )
             override fun getBreakthroughChance(
                 disciple: com.xianxia.sect.core.model.Disciple,
                 innerElderComprehension: Int,
                 outerElderComprehension: Int,
                 pillBonus: Double,
-                adBonus: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 disciple, innerElderComprehension, outerElderComprehension,
-                pillBonus, adBonus, masterDiscipleBonus
+                pillBonus, adBonus
             )
             override fun getBreakthroughChance(
                 aggregate: DiscipleAggregate,
                 innerElderComprehension: Int,
                 outerElderComprehension: Int,
                 pillBonus: Double,
-                adBonus: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 aggregate, innerElderComprehension, outerElderComprehension,
-                pillBonus, adBonus, masterDiscipleBonus
+                pillBonus, adBonus
             )
         }
     }

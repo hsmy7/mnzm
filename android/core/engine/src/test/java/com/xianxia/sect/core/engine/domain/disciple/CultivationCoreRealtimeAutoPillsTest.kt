@@ -94,27 +94,27 @@ class CultivationCoreRealtimeAutoPillsTest {
                     manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                     mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                     bb: Double, ab: Double, peb: Double, pmb: Double,
-                    csb: Double, mdb: Double
+                    csb: Double
                 ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                    d, manuals, mps, bb, peb, pmb, csb, mdb
+                    d, manuals, mps, bb, peb, pmb, csb
                 )
                 override fun calculateCultivationSpeed(
                     a: com.xianxia.sect.core.model.DiscipleAggregate,
                     manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                     mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                     bb: Double, ab: Double, peb: Double, pmb: Double,
-                    csb: Double, mdb: Double
+                    csb: Double
                 ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                    a, manuals, mps, bb, peb, pmb, csb, mdb
+                    a, manuals, mps, bb, peb, pmb, csb
                 )
                 override fun getBreakthroughChance(
                     d: com.xianxia.sect.core.model.Disciple, iec: Int, oec: Int, pb: Double,
-                    ab: Double, mdb: Double
-                ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
+                    ab: Double
+                ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab)
                 override fun getBreakthroughChance(
                     a: com.xianxia.sect.core.model.DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                    ab: Double, mdb: Double
-                ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
+                    ab: Double
+                ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab)
             }
     }
 

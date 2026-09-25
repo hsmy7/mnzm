@@ -28,7 +28,6 @@ interface DiscipleFacade {
     fun syncSingleDiscipleStatus(discipleId: String)
     suspend fun resetAllDisciplesStatus()
     fun recruitDisciple(): Disciple
-    fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit>
     fun releaseReflectionDisciple(discipleId: String)
     fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>

@@ -2382,25 +2382,14 @@ nlohmann::json handlePolicyTx(GameCore* core, int32_t actionId,
     }
 }
 
-/// 弟子生命周期 UI 操作事务（ActionIds.DISCIPLE_LIFECYCLE_APPRENTICE /
-/// SALARY_TOGGLE
-/// ——batch-14 生命周期族写者下沉；全族零 RNG 纯确定性事务，校验链
-/// 先行失败零写入，失败信封 → Kotlin 回退原路径重执行校验链。
-/// 拜师信封附双侧 lifeEvents 日志草稿（Kotlin 瞬态列回写））
+/// 弟子生命周期 UI 操作事务（ActionIds.DISCIPLE_LIFECYCLE_SALARY_TOGGLE
+/// ——batch-14 生命周期族写者下沉；零 RNG 纯确定性事务，
+/// 境界年俸开关为覆写语义、无校验，失败信封 → Kotlin 回退原路径）
 nlohmann::json handleDiscipleLifecycleTx(GameCore* core, int32_t actionId,
                                          const nlohmann::json& params) {
     namespace lifecycle_tx = gamecore::system::disciple_lifecycle_tx;
     auto& state = core->state();
     switch (actionId) {
-        case action::DISCIPLE_LIFECYCLE_APPRENTICE: {
-            const auto r = lifecycle_tx::apprenticeTransaction(
-                state, params.at("discipleId").get<std::string>(),
-                params.at("masterId").get<std::string>());
-            if (!r.ok) return fail(r.errorType, r.message);
-            return ok({{"apprenticed", true},
-                       {"apprenticeLogLine", r.apprenticeLogLine},
-                       {"masterLogLine", r.masterLogLine}});
-        }
         case action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE: {
             const auto r = lifecycle_tx::salaryToggleTransaction(
                 state, params.at("realm").get<int32_t>(),
@@ -2501,7 +2490,7 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::BEAST_VIEW_LOCK_TX &&
                    actionId <= action::SETTINGS_PATCH_TX) {
             result = handleLockBeastTx(this, actionId, params);
-        } else if (actionId >= action::DISCIPLE_LIFECYCLE_APPRENTICE &&
+        } else if (actionId >= action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE &&
                    actionId <= action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE) {
             result = handleDiscipleLifecycleTx(this, actionId, params);
         } else if (actionId >= action::EXPLORE_TX_ATTACK_WORLD_LEVEL &&

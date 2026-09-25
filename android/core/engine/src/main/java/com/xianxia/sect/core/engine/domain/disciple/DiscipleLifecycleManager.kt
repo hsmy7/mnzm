@@ -130,14 +130,6 @@ class DiscipleLifecycleManager @Inject constructor(
                 events.add("加入宗门")
             }
 
-            // 拜师
-            val masterId = discipleTables.masterIds.getOrNull(id)
-            if (masterId != null) {
-                val masterIdInt = masterId.toIntOrNull()
-                val masterName = if (masterIdInt != null) discipleTables.names.getOrNull(masterIdInt) ?: "未知" else "未知"
-                events.add("拜${masterName}为师")
-            }
-
             if (events.isNotEmpty()) {
                 discipleTables.lifeEvents[id] = events
             }

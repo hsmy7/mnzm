@@ -107,7 +107,6 @@ data class DiscipleAggregate(
         }
     val cultivationSpeedBonus: Double get() = extended?.cultivationSpeedBonus ?: 0.0
     val cultivationSpeedDuration: Int get() = extended?.cultivationSpeedDuration ?: 0
-    val masterId: String? get() = extended?.masterId
     val usedFunctionalPillTypes: List<String> get() = extended?.usedFunctionalPillTypes ?: emptyList()
     // usedPermanentPillKeys 为 @Ignore 字段，
     // 不在 DiscipleExtended Room 实体中。需要时请通过 Disciple StateFlow 获取。
@@ -194,9 +193,8 @@ data class DiscipleAggregate(
      * 计算突破成功率
      */
     fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0,
-        pillBonus: Double = 0.0, adBonus: Double = 0.0,
-            masterDiscipleBonus: Double = 0.0): Double = statsProvider.getBreakthroughChance(this,
-                innerElderComprehension, outerElderComprehension, pillBonus, adBonus, masterDiscipleBonus)
+        pillBonus: Double = 0.0, adBonus: Double = 0.0): Double = statsProvider.getBreakthroughChance(this,
+                innerElderComprehension, outerElderComprehension, pillBonus, adBonus)
     
     fun toDisciple(): Disciple {
         return Disciple(
@@ -221,7 +219,6 @@ data class DiscipleAggregate(
             pillEffects = toPillEffects(),
             usage = toUsageTracking(),
             equipment = toEquipmentSet(),
-            social = toSocialData(),
             skills = toSkillStats()
         )
     }
@@ -292,11 +289,6 @@ data class DiscipleAggregate(
         spiritStones = spiritStones
     )
 
-    /** 社交数据构建 */
-    private fun toSocialData(): SocialData = SocialData(
-        masterId = masterId
-    )
-
     /** 技能属性构建 */
     private fun toSkillStats(): SkillStats = SkillStats(
         intelligence = intelligence,
@@ -352,17 +344,15 @@ data class DiscipleAggregate(
             override fun calculateCultivationSpeed(disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double,
                     preachingElderBonus: Double, preachingMastersBonus: Double,
-                        cultivationSubsidyBonus: Double, masterDiscipleBonus: Double) = 0.0
+                        cultivationSubsidyBonus: Double) = 0.0
             override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double,
                     preachingElderBonus: Double, preachingMastersBonus: Double,
-                        cultivationSubsidyBonus: Double, masterDiscipleBonus: Double) = 0.0
+                        cultivationSubsidyBonus: Double) = 0.0
             override fun getBreakthroughChance(disciple: Disciple, innerElderComprehension: Int,
-                outerElderComprehension: Int, pillBonus: Double, adBonus: Double,
-                    masterDiscipleBonus: Double) = 0.0
+                outerElderComprehension: Int, pillBonus: Double, adBonus: Double) = 0.0
             override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int,
-                outerElderComprehension: Int, pillBonus: Double, adBonus: Double,
-                    masterDiscipleBonus: Double) = 0.0
+                outerElderComprehension: Int, pillBonus: Double, adBonus: Double) = 0.0
         }
 
         fun fromDisciple(disciple: Disciple): DiscipleAggregate {

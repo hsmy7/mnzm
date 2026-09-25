@@ -18,7 +18,7 @@
 //   - GameData：标量 + 集合 + 嵌套对象字段（worldMapSects/
 //     productionSlots/elderSlots 等，协议外字段除外）
 //   - Disciple：标量 + 集合 + 嵌套段字段（combat/pillEffects/equipment/
-//     social/skills/usage 六个 Kotlin @Embedded 段在 C++ 侧平铺）
+//     skills/usage 五个 Kotlin @Embedded 段在 C++ 侧平铺）
 //   - 物品类：EquipmentStack/Instance、ManualStack/Instance、Pill、
 //     Material、Herb、Seed、StorageBag 核心字段（字段扁平，与 Kotlin
 //     data class 顶层字段一致，不使用嵌套 base 结构）
@@ -378,9 +378,6 @@ struct Disciple {
     std::vector<StorageBagItem> storageBagItems;
     int64_t storageBagSpiritStones = 0;
     int32_t spiritStones = 0;             // 弟子随身灵石
-
-    // ── SocialData（@Embedded 平铺；""=null） ──
-    std::string masterId;
 
     // ── SkillStats（@Embedded 平铺） ──
     int32_t intelligence = 50;

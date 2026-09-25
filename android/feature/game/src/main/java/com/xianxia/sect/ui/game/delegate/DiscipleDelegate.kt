@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.delegate
 import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.BreakthroughBonusResult
-import com.xianxia.sect.core.engine.apprenticeToMaster
 import com.xianxia.sect.core.engine.applyConversationEffectAtomic
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
 import com.xianxia.sect.core.engine.changeDiscipleTypeAtomic
@@ -26,11 +25,6 @@ class DiscipleDelegate(
     internal val gameEngine: GameEngine,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    /** 拜师：将 discipleId 设为 masterId 的徒弟 */
-    fun apprenticeToMaster(discipleId: String, masterId: String) {
-        gameEngine.launchOnEngine { gameEngine.apprenticeToMaster(discipleId, masterId) }
-    }
-
     fun toggleFollowDisciple(discipleId: String) {
         // W4-A·w3-01：关注切换事务化（C++ 真相先行 + Kotlin 回退臂，
         // 原 updateDisciple lambda 直改面收口至引擎入口）

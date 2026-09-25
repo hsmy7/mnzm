@@ -81,7 +81,7 @@ object DiscipleStatCalculator {
      */
     data class CultivationSpeedZones(
         val resourceBonus: Double = 0.0,    // 资源乘区：功法+丹药+建筑
-        val socialBonus: Double = 0.0,      // 社交乘区：师徒+传道
+        val socialBonus: Double = 0.0,      // 社交乘区：传道长老/师兄
         val statusBonus: Double = 0.0,      // 状态乘区：政策
         val temporaryBonus: Double = 0.0,   // 临时乘区：丹药临时加速
     )
@@ -89,7 +89,7 @@ object DiscipleStatCalculator {
     /**
      * 修炼乘区计算的输入字段。
      *
-     * 9 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
+     * 8 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
      * 由 [buildCultivationZones] / [calculateCultivationPerPhaseColumn] 提取组装。
      */
     data class CultivationZoneInput(
@@ -99,7 +99,6 @@ object DiscipleStatCalculator {
         val buildingBonus: Double,
         val preachingElderBonus: Double,
         val preachingMastersBonus: Double,
-        val masterDiscipleBonus: Double,
         val cultivationSubsidyBonus: Double,
         val temporaryBonus: Double
     )
@@ -129,7 +128,7 @@ object DiscipleStatCalculator {
     data class BreakthroughZones(
         val baseZone: Double = 0.0,        // 基础概率（境界+灵根+层数）
         val elderGuidance: Double = 0.0,   // 长老指导乘区：内门+外门
-        val selfBonus: Double = 0.0,       // 自身加成乘区：丹药+师徒+悟性
+        val selfBonus: Double = 0.0,       // 自身加成乘区：丹药+悟性
         val adFlatBonus: Double = 0.0,     // 广告扁平加成（不经过乘区缩放，直接加在最终值上）
     )
 
@@ -140,7 +139,6 @@ object DiscipleStatCalculator {
         val selfComprehension: Int = 0,
         val pillBonus: Double = 0.0,
         val adBonus: Double = 0.0,
-        val masterDiscipleBonus: Double = 0.0,
         val innerElderPositionBonus: Double = 0.0,
         val outerElderPositionBonus: Double = 0.0
     )
@@ -151,20 +149,8 @@ object DiscipleStatCalculator {
         val outerElderBonus: Double,
         val pillBonus: Double,
         val adBonus: Double,
-        val masterDiscipleBonus: Double,
         /** 弟子自身悟性突破率加成（悟性80基准每4点+1%，最多+10%） */
         val selfComprehensionBonus: Double,
         val total: Double
     )
-
-    // ==================== 师徒加成 ====================
-
-    /** 每位师父最多可收徒弟数 */
-    const val MAX_APPRENTICES_PER_MASTER = 5
-
-    /** 师徒大境界差每级提供的修炼速度加成：5% */
-    const val MASTER_DISCIPLE_CULTIVATION_BONUS_PER_GAP = 0.05
-
-    /** 师徒大境界差每级提供的突破率加成：3% */
-    const val MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP = 0.03
 }

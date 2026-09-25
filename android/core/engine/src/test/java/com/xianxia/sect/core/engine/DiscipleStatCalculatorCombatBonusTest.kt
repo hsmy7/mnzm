@@ -20,12 +20,9 @@ import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughBonusDetail
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleRealmGap
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
 
-/** DiscipleStatCalculatorTest 拆分（LC>800 行）：60 个用例随 fixture 迁出，行为零变更。 */
+/** DiscipleStatCalculatorTest 拆分（LC>800 行）：传道/装备/突破乘区加成用例。 */
 class DiscipleStatCalculatorCombatBonusTest {
 
     /**
@@ -69,12 +66,10 @@ class DiscipleStatCalculatorCombatBonusTest {
                 additionalBonus: Double,
                 preachingElderBonus: Double,
                 preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double,
-                masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 disciple, manuals, manualProficiencies, buildingBonus,
-                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                masterDiscipleBonus
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus
             )
             override fun calculateCultivationSpeed(
                 aggregate: DiscipleAggregate,
@@ -84,34 +79,30 @@ class DiscipleStatCalculatorCombatBonusTest {
                 additionalBonus: Double,
                 preachingElderBonus: Double,
                 preachingMastersBonus: Double,
-                cultivationSubsidyBonus: Double,
-                masterDiscipleBonus: Double
+                cultivationSubsidyBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
                 aggregate, manuals, manualProficiencies, buildingBonus,
-                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                masterDiscipleBonus
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus
             )
             override fun getBreakthroughChance(
                 disciple: Disciple,
                 innerElderComprehension: Int,
                 outerElderComprehension: Int,
                 pillBonus: Double,
-                adBonus: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 disciple, innerElderComprehension, outerElderComprehension, pillBonus,
-                adBonus, masterDiscipleBonus
+                adBonus
             )
             override fun getBreakthroughChance(
                 aggregate: DiscipleAggregate,
                 innerElderComprehension: Int,
                 outerElderComprehension: Int,
                 pillBonus: Double,
-                adBonus: Double,
-                masterDiscipleBonus: Double
+                adBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 aggregate, innerElderComprehension, outerElderComprehension, pillBonus,
-                adBonus, masterDiscipleBonus
+                adBonus
             )
         }
         try {
@@ -247,144 +238,6 @@ class DiscipleStatCalculatorCombatBonusTest {
         val equippedStats = DiscipleStatCalculator.getStatsWithEquipment(disciple, emptyMap())
         assertEquals(baseStats.physicalAttack, equippedStats.physicalAttack)
         assertEquals(baseStats.physicalDefense, equippedStats.physicalDefense)
-    }
-
-    // ==================== 师徒加成测试 ====================
-    @Test
-    fun `getMasterDiscipleRealmGap - 金丹师父加练气徒弟返回1`() {
-        // 金丹=7, 练气=9, gap = max(0, 9-7-1) = 1
-        val gap = DiscipleStatCalculator.getMasterDiscipleRealmGap(
-            discipleRealm = 9, masterRealm = 7
-        )
-        assertEquals(1, gap)
-    }
-    @Test
-    fun `getMasterDiscipleRealmGap - 金丹师父加筑基徒弟返回0`() {
-        // 筑基=8, 金丹=7, gap = max(0, 8-7-1) = 0
-        val gap = DiscipleStatCalculator.getMasterDiscipleRealmGap(
-            discipleRealm = 8, masterRealm = 7
-        )
-        assertEquals(0, gap)
-    }
-    @Test
-    fun `getMasterDiscipleRealmGap - 同境界返回0`() {
-        val gap = DiscipleStatCalculator.getMasterDiscipleRealmGap(
-            discipleRealm = 7, masterRealm = 7
-        )
-        assertEquals(0, gap)
-    }
-    @Test
-    fun `getMasterDiscipleRealmGap - 徒弟境界高于师父返回0`() {
-        // 元婴(6)徒弟 + 金丹(7)师父 → 6-7-1=-2 → 0
-        val gap = DiscipleStatCalculator.getMasterDiscipleRealmGap(
-            discipleRealm = 6, masterRealm = 7
-        )
-        assertEquals(0, gap)
-    }
-    @Test
-    fun `getMasterDiscipleRealmGap - 元婴师父加练气徒弟返回2`() {
-        // 元婴=6, 练气=9, gap = max(0, 9-6-1) = 2
-        val gap = DiscipleStatCalculator.getMasterDiscipleRealmGap(
-            discipleRealm = 9, masterRealm = 6
-        )
-        assertEquals(2, gap)
-    }
-    @Test
-    fun `getMasterDiscipleRealmGap - 化神师父加练气徒弟返回3`() {
-        // 化神=5, 练气=9, gap = max(0, 9-5-1) = 3
-        val gap = DiscipleStatCalculator.getMasterDiscipleRealmGap(
-            discipleRealm = 9, masterRealm = 5
-        )
-        assertEquals(3, gap)
-    }
-    @Test
-    fun `getMasterDiscipleCultivationBonus - gap为1返回0点05`() {
-        val bonus = DiscipleStatCalculator.getMasterDiscipleCultivationBonus(
-            discipleRealm = 9, masterRealm = 7
-        )
-        assertEquals(0.05, bonus, 0.0001)
-    }
-    @Test
-    fun `getMasterDiscipleCultivationBonus - gap为0返回0`() {
-        val bonus = DiscipleStatCalculator.getMasterDiscipleCultivationBonus(
-            discipleRealm = 8, masterRealm = 7
-        )
-        assertEquals(0.0, bonus, 0.0001)
-    }
-    @Test
-    fun `getMasterDiscipleCultivationBonus - gap为2返回0点10`() {
-        val bonus = DiscipleStatCalculator.getMasterDiscipleCultivationBonus(
-            discipleRealm = 9, masterRealm = 6
-        )
-        assertEquals(0.10, bonus, 0.0001)
-    }
-    @Test
-    fun `getMasterDiscipleBreakthroughBonus - gap为1返回0点03`() {
-        val bonus = DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(
-            discipleRealm = 9, masterRealm = 7
-        )
-        assertEquals(0.03, bonus, 0.0001)
-    }
-    @Test
-    fun `getMasterDiscipleBreakthroughBonus - gap为0返回0`() {
-        val bonus = DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(
-            discipleRealm = 8, masterRealm = 7
-        )
-        assertEquals(0.0, bonus, 0.0001)
-    }
-    @Test
-    fun `getMasterDiscipleBreakthroughBonus - gap为3返回0点09`() {
-        val bonus = DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(
-            discipleRealm = 9, masterRealm = 5
-        )
-        assertEquals(0.09, bonus, 0.0001)
-    }
-    @Test
-    fun `calculateCultivationPerPhase - 师徒加成生效`() {
-        val disciple = createDisciple()
-        val noBonus = DiscipleStatCalculator.calculateCultivationPerPhase(
-            disciple, masterDiscipleBonus = 0.0
-        )
-        val withBonus = DiscipleStatCalculator.calculateCultivationPerPhase(
-            disciple, masterDiscipleBonus = 0.05
-        )
-        assertTrue("师徒加成应提高修炼速度", withBonus > noBonus)
-    }
-    @Test
-    fun `calculateCultivationPerPhase - 师徒加成为0不影响基础值`() {
-        val disciple = createDisciple()
-        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(
-            disciple, masterDiscipleBonus = 0.0
-        )
-        // 默认参数即0，验证与不传参一致
-        assertEquals(
-            speed,
-            DiscipleStatCalculator.calculateCultivationPerPhase(disciple),
-            0.001
-        )
-    }
-    @Test
-    fun `getBreakthroughChance - 师徒加成增加突破率`() {
-        val disciple = createDisciple(
-            realm = 9, realmLayer = 1, spiritRootType = "metal"
-        )
-        val baseChance = DiscipleStatCalculator.getBreakthroughChance(
-            disciple, masterDiscipleBonus = 0.0
-        )
-        val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
-            disciple, masterDiscipleBonus = 0.03
-        )
-        assertTrue("师徒加成应增加突破率", bonusChance > baseChance)
-    }
-    @Test
-    fun `getBreakthroughChance - 师徒加成不超过1`() {
-        val disciple = createDisciple(
-            realm = 9, realmLayer = 1, spiritRootType = "metal"
-        )
-        val chance = DiscipleStatCalculator.getBreakthroughChance(
-            disciple, masterDiscipleBonus = 1.0
-        )
-        assertTrue("突破率不应超过1, actual=$chance", chance <= 1.0)
     }
 
     // ── 内门/外门长老加成计算验证 ──

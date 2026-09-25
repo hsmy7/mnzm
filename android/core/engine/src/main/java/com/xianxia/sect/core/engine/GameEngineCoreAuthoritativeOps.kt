@@ -23,7 +23,7 @@ private const val TAG = "GameEngineCore"
  * 语义切分（correctness-first，与 Kotlin 全量引擎逐位等价）：
  * - C++ 真相源：每旬时间推进 + 核心结算（步骤 1-5 零 RNG 批量，
  *   即实测的每旬热点路径）
- * - Kotlin 残留：自动装备/丹药/突破（亲属赠送/埋点副作用面）
+ * - Kotlin 残留：自动装备/丹药/突破（埋点副作用面）
  *   + 完整月变/年变编排——RNG 经 NativeBackedRng 委托 native 单一真相源
  *
  * 反向增量回导已随 w3-13 删除（handover §2.82）：tick 管线对 C++ 状态只读，
@@ -34,7 +34,7 @@ private const val TAG = "GameEngineCore"
  * AUTHORITATIVE 过渡期 tick：每旬互插。
  *
      * ① nativeSettlePhase——C++ 单旬推进（时间 + 完整七步结算：自动装备/
-     *    核心批次/丹药/突破+亲属赠送；月/年边界只记标志），
+     *    核心批次/丹药/突破；月/年边界只记标志），
      *    C++ 每旬即完整结算，Kotlin 侧无残留结算路径。
      * ② applyDirtyFromNative——增量镜像（失败先试全量兜底，仍失败走异常回退）
      *    镜像写入经 updateMirror（C++ 真相源投影语义）

@@ -184,8 +184,8 @@ internal fun DiscipleStatCalculator.computeCultivationZones(
         }
     }
 
-    // ── 社交乘区：师徒 + 传道长老/师兄 ──
-    val socialBonus = input.preachingElderBonus + input.preachingMastersBonus + input.masterDiscipleBonus
+    // ── 社交乘区：传道长老/师兄 ──
+    val socialBonus = input.preachingElderBonus + input.preachingMastersBonus
 
     // ── 状态乘区：政策 ──
     val statusBonus = input.cultivationSubsidyBonus
@@ -209,8 +209,7 @@ fun DiscipleStatCalculator.buildCultivationZones(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0
 ): CultivationSpeedZones {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（旧
     // cultivationSpeedBonus 顶层字段不再参与累加，防止同颗丹药双字段双倍生效）
@@ -226,7 +225,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
             buildingBonus = buildingBonus,
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
-            masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             temporaryBonus = temporaryBonus
         )
@@ -244,8 +242,7 @@ fun DiscipleStatCalculator.buildCultivationZones(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0
 ): CultivationSpeedZones {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
     // 旧 cultivationSpeedBonus 顶层字段不再参与累加，防双倍生效）
@@ -262,7 +259,6 @@ fun DiscipleStatCalculator.buildCultivationZones(
             buildingBonus = buildingBonus,
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
-            masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             temporaryBonus = temporaryBonus
         )
@@ -286,8 +282,7 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0
 ): Double {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
     // 旧 cultivationSpeedBonus 顶层字段不再参与累加，防双倍生效）
@@ -303,7 +298,6 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
             buildingBonus = buildingBonus,
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
-            masterDiscipleBonus = masterDiscipleBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             temporaryBonus = temporaryBonus
         )
@@ -322,13 +316,12 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0
 ): Double {
     val zones = buildCultivationZones(
         disciple, manuals, manualProficiencies,
         buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus, masterDiscipleBonus
+        cultivationSubsidyBonus
     )
     return calculateCultivationPerPhase(disciple.realm, disciple.spiritRoot.types.size, zones)
 }
@@ -344,13 +337,12 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0
 ): Double {
     val zones = buildCultivationZones(
         aggregate, manuals, manualProficiencies,
         buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus, masterDiscipleBonus
+        cultivationSubsidyBonus
     )
     return calculateCultivationPerPhase(aggregate.realm, aggregate.spiritRoot.types.size, zones)
 }
@@ -374,7 +366,7 @@ internal fun DiscipleStatCalculator.computeBreakthroughZones(
     return BreakthroughZones(
         baseZone = baseZone,
         elderGuidance = innerElderBonus + outerElderBonus,
-        selfBonus = bonuses.pillBonus + bonuses.masterDiscipleBonus +
+        selfBonus = bonuses.pillBonus +
             comprehensionBreakthroughBonus(bonuses.selfComprehension),
         adFlatBonus = bonuses.adBonus
     )
@@ -389,8 +381,7 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     innerElderComprehension: Int = 0,
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
-    adBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    adBonus: Double = 0.0
 ): BreakthroughZones = computeBreakthroughZones(
     realm = disciple.realm,
     realmLayer = disciple.realmLayer,
@@ -401,7 +392,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
         selfComprehension = disciple.getBaseStats().comprehension,
         pillBonus = pillBonus,
         adBonus = adBonus,
-        masterDiscipleBonus = masterDiscipleBonus,
         // 职务乘算因子：特质（天赋/词条）数值源已下线，恒为 0
         innerElderPositionBonus = 0.0,
         outerElderPositionBonus = 0.0
@@ -417,8 +407,7 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
     innerElderComprehension: Int = 0,
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
-    adBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    adBonus: Double = 0.0
 ): BreakthroughZones = computeBreakthroughZones(
     realm = aggregate.realm,
     realmLayer = aggregate.realmLayer,
@@ -429,7 +418,6 @@ fun DiscipleStatCalculator.buildBreakthroughZones(
         selfComprehension = aggregate.getBaseStats().comprehension,
         pillBonus = pillBonus,
         adBonus = adBonus,
-        masterDiscipleBonus = masterDiscipleBonus,
         // 职务乘算因子：特质（天赋/词条）数值源已下线，恒为 0
         innerElderPositionBonus = 0.0,
         outerElderPositionBonus = 0.0

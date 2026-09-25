@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import javax.inject.Inject
@@ -60,7 +59,7 @@ private fun gaussianInt(
  * baseStats。
  *
  * 调用方只需提供差异化的 [DiscipleSeed]（id / gender / name / spiritRoot /
- * realmLayer / social / nextInt），其余由 [create] 统一完成。
+ * realmLayer / nextInt），其余由 [create] 统一完成。
  *
  * [nextInt] 为 `(from, until) -> value` 函数，同时兼容
  * [kotlin.random.Random.nextInt] 与 [GameRandom.nextInt]。
@@ -82,7 +81,6 @@ class DiscipleFactory @Inject constructor() {
         val realm: Int = 9,
         /** 小层境界（1~9），默认 0 表示未知（按初层 1 回退）；Combatant 版实现为 realmLayer */
         val realmLayer: Int,
-        val social: SocialData,
         val nextInt: (Int, Int) -> Int
     )
 
@@ -119,7 +117,6 @@ class DiscipleFactory @Inject constructor() {
                 magicDefenseVariance = variances.magicDefenseVariance,
                 speedVariance = variances.speedVariance
             ),
-            social = seed.social,
             skills = rollSkills(r = r, comprehension = comprehension)
         ).apply {
             // 3. 基础属性

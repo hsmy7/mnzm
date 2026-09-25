@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.model
 
 /**
- * 弟子功法/关系等扩展字段的**内存侧**投影（v53/SR-7 起不再有 `disciples_extended`
+ * 弟子功法等扩展字段的**内存侧**投影（v53/SR-7 起不再有 `disciples_extended`
  * 表，真相恒在 `disciples`）。
  */
 data class DiscipleExtended(
@@ -16,7 +16,6 @@ data class DiscipleExtended(
     var cultivationSpeedDuration: Int = 0,
     var pillCultivationSpeedBonus: Double = 0.0,
     var pillEffectDuration: Int = 0,
-    var masterId: String? = null,
     var usedFunctionalPillTypes: List<String> = emptyList(),
     var hasReviveEffect: Boolean = false,
     var hasClearAllEffect: Boolean = false
@@ -33,7 +32,6 @@ data class DiscipleExtended(
                 cultivationSpeedDuration = disciple.cultivationSpeedDuration,
                 pillCultivationSpeedBonus = disciple.pillEffects.pillCultivationSpeedBonus,
                 pillEffectDuration = disciple.pillEffects.pillEffectDuration,
-                masterId = disciple.social.masterId,
                 usedFunctionalPillTypes = disciple.usage.usedFunctionalPillTypes,
                 hasReviveEffect = disciple.usage.hasReviveEffect,
                 hasClearAllEffect = disciple.usage.hasClearAllEffect

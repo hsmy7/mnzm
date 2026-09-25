@@ -66,7 +66,6 @@ internal fun DiscipleTables.writeAllFields(disciple: Disciple) {
     writeCombatFields(id = id, disciple = disciple)
     writePillFields(id = id, disciple = disciple)
     writeEquipmentFields(id = id, disciple = disciple)
-    writeSocialFields(id = id, disciple = disciple)
     writeSkillFields(id = id, disciple = disciple)
     writeUsageFields(id = id, disciple = disciple)
 }
@@ -149,12 +148,6 @@ internal fun DiscipleTables.writeEquipmentFields(id: Int, disciple: Disciple) {
     manualCompletionPhases[id] = disciple.manualCompletionPhase
     equipmentNurturingCompletionMonths[id] = disciple.equipmentNurturingCompletionMonth
     equipmentNurturingCompletionPhases[id] = disciple.equipmentNurturingCompletionPhase
-}
-
-internal fun DiscipleTables.writeSocialFields(id: Int, disciple: Disciple) {
-    // 社交
-    val s = disciple.social
-    masterIds[id] = s.masterId
 }
 
 internal fun DiscipleTables.writeSkillFields(id: Int, disciple: Disciple) {

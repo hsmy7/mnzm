@@ -30,13 +30,13 @@
 // gameData 顶层域，免去每次导出的全量序列化与树比较。
 //
 // ## 范围（B09 R2 生产接线：写屏障挂载 + 混合导出）
-//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，92 列——与
+//   - 追踪对象 = DiscipleStore SoA 协议列（[DiscipleColumn]，91 列——与
 //     Disciple to_json 字段一一对应；非协议派生列 numericIds/hasNumericIds/
 //     deathYears 不在册，协议字段 deathYear 无列支撑亦不在册）+ 集合 tombstone（通用实体集合名）+ gameData
 //     顶层域名集合。
 //   - 写屏障挂点（B09 起）= DiscipleStore 协议边界变更原语（append/upsert
 //     旋转/eraseAt 行位移/swapRows/clear）+ **结算热路径写点**（phase 路径
-//     修炼/恢复/丹药写回/突破/自动装备/亲属赠送，逐写点 markColumn
+//     修炼/恢复/丹药写回/突破/自动装备，逐写点 markColumn
 //     精确标脏；月/年路径为 GameCore 边界按审计列集粗粒度标脏）。生产
 //     exportDirtyProto 在列级模式开启时走本层整树导出（[exportDirtyTree]），
 //     gameData/集合域与全量 diff 共享同一比对段（构造等价）；对拍显式依赖
@@ -150,7 +150,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::StorageBagItems: return "storageBagItems";
         case DiscipleColumn::StorageBagSpiritStones: return "storageBagSpiritStones";
         case DiscipleColumn::SpiritStones: return "spiritStones";
-        case DiscipleColumn::MasterId: return "masterId";
         case DiscipleColumn::Intelligence: return "intelligence";
         case DiscipleColumn::Charm: return "charm";
         case DiscipleColumn::Comprehension: return "comprehension";
@@ -324,7 +323,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             row["storageBagSpiritStones"] = ds.storageBagSpiritStones[r];
             break;
         case DiscipleColumn::SpiritStones: row["spiritStones"] = ds.spiritStones[r]; break;
-        case DiscipleColumn::MasterId: row["masterId"] = ds.masterIds[r]; break;
         case DiscipleColumn::Intelligence: row["intelligence"] = ds.intelligences[r]; break;
         case DiscipleColumn::Charm: row["charm"] = ds.charms[r]; break;
         case DiscipleColumn::Comprehension: row["comprehension"] = ds.comprehensions[r]; break;

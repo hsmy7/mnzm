@@ -6,9 +6,7 @@ import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.str
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.util.DomainResult
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.put
@@ -23,9 +21,6 @@ private val TAG = DiscipleFacadeImpl.TAG
  * 先行失败零写入）经 nativeExecute 转发；tryExecuteNative 成功内含
  * applyDirtyFromNative 镜像回读；失败信封/降级返回 null（调用方回退 Kotlin
  * 原路径重执行校验链——双实现并行契约，用户可见文案由 Kotlin 臂产出）。
- *
- * 残差边界（disciple_lifecycle_tx.h 头注释同口径）：
- * - lifeEvents 瞬态列：拜师双侧日志草稿 → Kotlin 回写
  */
 // ── 内部转发 helper ─────────────────────────────────────────────
 
@@ -50,42 +45,6 @@ private fun DiscipleFacadeImpl.lifecycleTx(
             )
         }
     }
-
-// ── 事务 2：拜师（1591） ────────────────────────────────────────
-
-/**
- * 拜师 native 臂。
- *
- * C++ 事务：三相校验 + masterIds 落表；信封附徒/师双侧日志草稿，
- * Kotlin 回写 lifeEvents 瞬态列（与 Kotlin bindApprenticeToMaster 同生命周期）。
- *
- * @return native 已处理时返回 Success；未转发/失败信封返回 null
- */
-internal fun DiscipleFacadeImpl.tryNativeApprenticeToMaster(
-    discipleId: String,
-    masterId: String
-): DomainResult<Unit>? {
-    val data = lifecycleTx(ActionIds.DISCIPLE_LIFECYCLE_APPRENTICE) {
-        put("discipleId", discipleId)
-        put("masterId", masterId)
-    } ?: return null
-
-    stateStore.update {
-        appendLifeEventDraft(discipleId, data.str("apprenticeLogLine"))
-        appendLifeEventDraft(masterId, data.str("masterLogLine"))
-    }
-    DomainLog.i(TAG, "apprenticeToMaster: native bound $discipleId -> $masterId")
-    return DomainResult.Success(Unit)
-}
-
-/** lifeEvents 草稿回写（镜像滞后窗口/空草稿跳过——mirrorAppendJoinSectLifeEvent 同款防御）。 */
-private fun MutableGameState.appendLifeEventDraft(discipleId: String, logLine: String?) {
-    if (logLine.isNullOrEmpty()) return
-    val intId = discipleId.toIntOrNull() ?: return
-    if (intId !in discipleTables.ids) return
-    val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-    discipleTables.lifeEvents[intId] = events + logLine
-}
 
 // ── 事务 4：释放思过（1593 已退役，编号禁复用）────────────────────
 // C++ 侧实现与派发已随思过系统下线删除；调用方（DiscipleFacadeImpl.releaseReflectionDisciple）

@@ -16,7 +16,6 @@
 #include "gamecore/system/inventory.h"            // OverflowDraft / OverflowMailCollector
 #include "gamecore/system/phase_settlement.h"     // performBreakthrough / isFullHpMp / indexById /
                                                   // computeMaxCultivation / recordGameEvent
-#include "gamecore/system/relative_gift.h"        // processGiftsForBreakthrough（突破亲属赠送主入口）
 
 // ============================================================
 // battle_residual_tx.h — 战斗域残差事务（W4-C · w3-06 战斗/探索残差下沉）
@@ -44,11 +43,10 @@
 //     phase_settlement::isFullHpMp 含装备/功法口径，映射由事务入口
 //     一次构建传入）→ 逐候选
 //     performBreakthrough（自动嗑丹/引导计数/检查点/完成预估/精准写回——
-//     phase_settlement 已验证移植）→ 亲属赠送（SYSTEM 分区）→
-//     大境界 lifeEvents 草稿 + 消息栏事件。
+//     phase_settlement 已验证移植）→ 大境界 lifeEvents 草稿 + 消息栏事件。
 //     🔴 **抽取集不变红线**：候选迭代 = DiscipleStore 行序 ==
 //     Kotlin discipleTables.ids 追加序（_ids 为 append 列表）；非队伍弟子
-//     不进入候选 ⇒ 不产生任何 BREAKTHROUGH/SYSTEM 抽取（GTest 以全分区
+//     不进入候选 ⇒ 不产生任何 BREAKTHROUGH 抽取（GTest 以全分区
 //     rngStates 快照差分守护）。
 //
 // lifeEvents 契约（disciple_lifecycle_tx.h 同口径）：lifeEvents 为 Kotlin
@@ -56,7 +54,7 @@
 // （LifeEventDraft{id, line}），由 Kotlin native 分支回写瞬态列。
 //
 // RNG 契约（对拍命门）：① 恒零抽取；② 恒零抽取；③ 的分区消费恰为
-// {kBreakthrough, kSystem}（仅候选触发）。
+// {kBreakthrough}（仅候选触发）。
 // GTest 以全分区 rngStates 快照差分 + 双运行全状态 JSON 逐位一致守护。
 //
 // 失败臂零写入：①③ 无业务失败臂（尽力结算，Kotlin 同）；② 的"关卡不存在/
@@ -196,7 +194,7 @@ struct BattlePresettleOutcome {
 /// phase_settlement::processBreakthroughs 的**队伍限定**变体：
 /// 🔴 差异点 = 候选域为传入 id 集（月结为全量排除秘境成员）——非队伍弟子
 /// 不产生任何抽取（RNG 抽取集不变红线）；其余（行序迭代/performBreakthrough
-/// 管线/亲属赠送/日志）与已对拍锁定版本逐位一致。
+/// 管线/日志）与已对拍锁定版本逐位一致。
 inline BattlePresettleOutcome battlePresettleTx(
     GameState& state, rng::RngManager& rng,
     const std::vector<std::string>& discipleIds) {
@@ -241,10 +239,10 @@ inline BattlePresettleOutcome battlePresettleTx(
     }
     if (candidates.empty()) return out;
 
-    // 候选突破前境界/层数（亲属赠送与日志的比对基准）
-    std::map<std::size_t, std::pair<int32_t, int32_t>> before;
+    // 候选突破前境界（大境界日志的比对基准）
+    std::map<std::size_t, int32_t> beforeRealm;
     for (std::size_t row : candidates) {
-        before[row] = {ds.realms[row], ds.realmLayers[row]};
+        beforeRealm[row] = ds.realms[row];
     }
 
     // 逐候选突破（顺序 == 行序 → BREAKTHROUGH 抽取序逐位一致）
@@ -257,29 +255,19 @@ inline BattlePresettleOutcome battlePresettleTx(
         ++out.candidateCount;
     }
 
-    // 亲属智能赠送（SYSTEM 分区——境界或层数变化触发，先于日志）+ 大境界
-    // 日志草稿 + 消息栏事件（Kotlin notifyBreakthroughChanges 同序）
-    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
+    // 大境界日志草稿 + 消息栏事件（Kotlin notifyBreakthroughChanges 同序）
     for (std::size_t row : candidates) {
-        const auto& oldVals = before[row];
-        const bool realmChanged = oldVals.first != ds.realms[row];
-        const bool layerChanged = oldVals.second != ds.realmLayers[row];
+        if (beforeRealm[row] == ds.realms[row]) continue;
         const auto idOpt = ds.numericIdAt(row);
-        if ((realmChanged || layerChanged) && idOpt.has_value()) {
-            gamecore::system::relative_gift::processGiftsForBreakthrough(
-                state, *idOpt, rngSystem);
-        }
-        if (!realmChanged) continue;
-        if (idOpt.has_value()) {
-            const Disciple after = ds.materialize(row);
-            LifeEventDraft d;
-            d.discipleId = *idOpt;
-            d.line = std::string("突破至") +
-                     gamecore::disciple::realmConfig(after.realm).name;
-            out.lifeEvents.push_back(std::move(d));
-            gamecore::system::detail::recordGameEvent(state, after,
-                gamecore::disciple::realmConfig(after.realm).name);
-        }
+        if (!idOpt.has_value()) continue;
+        const Disciple after = ds.materialize(row);
+        LifeEventDraft d;
+        d.discipleId = *idOpt;
+        d.line = std::string("突破至") +
+                 gamecore::disciple::realmConfig(after.realm).name;
+        out.lifeEvents.push_back(std::move(d));
+        gamecore::system::detail::recordGameEvent(state, after,
+            gamecore::disciple::realmConfig(after.realm).name);
     }
     (void)gd;
     return out;

@@ -4,7 +4,6 @@ import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.GameStateStore
@@ -28,7 +27,6 @@ class DiscipleService @Inject constructor(
     // 子服务（已提取的职责模块，用于未来深度重构）
     private val discipleEquipmentService: DiscipleEquipmentService,
     internal val discipleLifecycleManager: DiscipleLifecycleManager,
-    private val discipleMasterApprenticeService: DiscipleMasterApprenticeService,
     private val discipleSlotManager: DiscipleSlotManager,
     private val discipleStatusService: DiscipleStatusService,
     // 放宽为 internal 供同域扩展按需读取（stateStore 同款三重防护惯例）
@@ -142,7 +140,6 @@ class DiscipleService @Inject constructor(
                 spiritRootType = SpiritRootGenerator.generate(rng.asKotlinRandom()),
                 realm = realm,
                 realmLayer = 1,
-                social = com.xianxia.sect.core.model.SocialData(),
                 nextInt = { from, until -> from + rng.nextInt(until - from) }
             )
         )
@@ -171,15 +168,6 @@ class DiscipleService @Inject constructor(
 
         return rawDisciple.copy(id = realId)
     }
-
-    /**
-     * 拜师：徒弟 [discipleId] 向师父 [masterId] 拜师，建立永久师徒关系。
-     * 仅一方死亡方可解绑（见 DiscipleLifecycleProcessor.handleDiscipleDeath）。
-     * - 师父最多 5 名徒弟
-     * - 弟子最多 1 名师父
-     */
-    fun apprenticeToMaster(discipleId: String,
-        masterId: String): DomainResult<Unit> = discipleMasterApprenticeService.apprenticeToMaster(discipleId, masterId)
 
     // ==================== 装备管理 ====================
 

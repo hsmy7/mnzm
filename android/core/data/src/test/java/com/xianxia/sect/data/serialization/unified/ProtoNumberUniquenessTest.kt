@@ -17,7 +17,7 @@ import java.io.File
  * 同一个类内出现重复字段号 ⇒ 变红。历史首例即 `GameData.pendingTraitAdds` 与
  * `prisonerSpiritRootFilter` 同用 162（当时修正：pendingTraitAdds → 1002 让号）；
  * 该字段已随 G04 洗炼/特质链下线删除，号 1002（连同血炼四号 115/150/151/152）
- * 在 `GameData.kt` 登记 reserved 禁复用，Disciple 侧 22/104/105/110 同理——
+ * 在 `GameData.kt` 登记 reserved 禁复用，Disciple 侧 22/93/104/105/110 同理——
  * 退役号不得再被 `@ProtoNumber` 重新标注（见 reserved 守卫用例）。
  */
 class ProtoNumberUniquenessTest {
@@ -101,18 +101,19 @@ class ProtoNumberUniquenessTest {
     }
 
     @Test
-    fun `G04 retired proto numbers stay reserved instead of reused`() {
-        // G04 删除字段的号已登记 reserved（GameData.kt / DiscipleSerializer.kt 的
-        // reserved 注释），禁止复用——复用会让旧档字节按新语义解码（wire 漂移）。
-        // 号是 per-message 语义：GameData.kt 内其他消息合法占用的 104/105/110 不在
-        // 本断言面（Disciple 侧保留号只对 SerializableDisciple 生效，该文件单一消息）。
+    fun `G04 G15 retired proto numbers stay reserved instead of reused`() {
+        // G04（洗炼/特质链下线）与 G15（关系列下线，Disciple 退役号 93）删除字段的号
+        // 已登记 reserved（GameData.kt / DiscipleSerializer.kt 的 reserved 注释），
+        // 禁止复用——复用会让旧档字节按新语义解码（wire 漂移）。
+        // 号是 per-message 语义：GameData.kt 内其他消息合法占用的 104/105/110
+        // 不在本断言面（Disciple 侧保留号只对 SerializableDisciple 生效，该文件单一消息）。
         val modelRoot = MODEL_ROOTS.map(::File).firstOrNull { it.isDirectory }
             ?: error("模型源码目录未找到（cwd=${File(".").absolutePath}）")
         val gameDataText = File(modelRoot, "GameData.kt").readText()
         val discipleSerializerText = File(modelRoot, "DiscipleSerializer.kt").readText()
 
         val gameDataRetired = listOf(115, 150, 151, 152, 1002)
-        val discipleRetired = listOf(22, 104, 105, 110)
+        val discipleRetired = listOf(22, 93, 104, 105, 110)
         val gameDataReused = gameDataRetired.filter { gameDataText.contains("@ProtoNumber($it)") }
         val discipleReused = discipleRetired.filter { discipleSerializerText.contains("@ProtoNumber($it)") }
         assertTrue(

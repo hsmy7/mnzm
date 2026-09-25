@@ -192,7 +192,6 @@ class MirrorProtoFeedEquivalenceTest {
         assertEquals(1, actual.equipment.storageBagItems.size)
         assertEquals("s1", actual.equipment.storageBagItems.first().itemId)
         assertEquals(55L, actual.equipment.storageBagSpiritStones)
-        assertEquals("ms1", actual.social.masterId)
         assertEquals(setOf("3#hpAdd"), actual.usage.usedPermanentPillKeys)
         assertTrue(actual.usage.hasClearAllEffect)
     }

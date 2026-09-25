@@ -517,7 +517,6 @@ internal object GameViewMirrorCodec {
         ),
         i64("storageBagSpiritStones", { it.hasStorageBagSpiritStones() }, { it.storageBagSpiritStones }),
         i32("spiritStones", { it.hasSpiritStones() }, { it.spiritStones }),
-        str("masterId", { it.hasMasterId() }, { it.masterId }),
         i32("intelligence", { it.hasIntelligence() }, { it.intelligence }),
         i32("charm", { it.hasCharm() }, { it.charm }),
         i32("comprehension", { it.hasComprehension() }, { it.comprehension }),

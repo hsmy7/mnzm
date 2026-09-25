@@ -227,8 +227,8 @@ void from_json(const nlohmann::json& j, StorageBag& v) {
 
 // ── Disciple ─────────────────────────────────────────────────────────
 // 字段名与 Kotlin DiscipleSerializer.DiscipleSurrogate 的 JSON 键一致（平铺）：
-// combat/pillEffects/equipment/social/skills/usage 六个 @Embedded 段在
-// JSON 层均为顶层字段。""=null（社交字符串），-1/0=null 哨兵见 models.h 注释。
+// combat/pillEffects/equipment/skills/usage 五个 @Embedded 段在
+// JSON 层均为顶层字段。-1/0=null 哨兵见 models.h 注释。
 
 void to_json(nlohmann::json& j, const Disciple& v) {
     j = nlohmann::json::object();
@@ -278,8 +278,6 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, bootsNurture); GC_TO(v, j, accessoryNurture);
     GC_TO(v, j, storageBagItems); GC_TO(v, j, storageBagSpiritStones);
     GC_TO(v, j, spiritStones);
-    // SocialData
-    GC_TO(v, j, masterId);
     // SkillStats
     GC_TO(v, j, intelligence); GC_TO(v, j, charm);
     GC_TO(v, j, comprehension); GC_TO(v, j, artifactRefining);
@@ -337,8 +335,6 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, bootsNurture); GC_FROM(j, v, accessoryNurture);
     GC_FROM(j, v, storageBagItems); GC_FROM(j, v, storageBagSpiritStones);
     GC_FROM(j, v, spiritStones);
-    // SocialData
-    GC_FROM(j, v, masterId);
     // SkillStats
     GC_FROM(j, v, intelligence); GC_FROM(j, v, charm);
     GC_FROM(j, v, comprehension); GC_FROM(j, v, artifactRefining);

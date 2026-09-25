@@ -190,7 +190,6 @@ constexpr RowField kDiscipleRowFields[] = {
     {"storageBagItems", 110, RowKind::kTypedRows},
     {"storageBagSpiritStones", 76, RowKind::kInt64},
     {"spiritStones", 77, RowKind::kInt32},
-    {"masterId", 85, RowKind::kString},
     {"intelligence", 86, RowKind::kInt32},
     {"charm", 87, RowKind::kInt32},
     {"comprehension", 89, RowKind::kInt32},

@@ -38,7 +38,6 @@ class AssemblePatchEquivalenceTest {
             tables.currentHps[i] = 500
             tables.weaponIds[i] = "w$i"
             tables.weaponNurtures[i] = EquipmentNurtureData(equipmentId = "w$i", rarity = 3)
-            tables.masterIds[i] = "m$i"
             tables.usedPermanentPillKeys[i] = setOf("pk$i")
             tables.storageBagItems[i] = listOf(
                 StorageBagItem(itemId = "bag$i", itemType = "pill", name = "丹", rarity = 2)
@@ -85,11 +84,10 @@ class AssemblePatchEquivalenceTest {
     fun `混合组写列 - patch 与全量等价`() {
         val prev = tables.assembleAll()
 
-        // 六个子对象组各写一列 + 本体列
+        // 五个子对象组各写一列 + 本体列
         tables.intelligences[1] = 88
         tables.pillHpBonuses[2] = 100
         tables.armorNurtures[3] = EquipmentNurtureData(equipmentId = "a3", rarity = 5)
-        tables.masterIds[4] = "4"
         tables.salaryMissedCounts[5] = 3
         tables.hasReviveEffects[6] = 1
         tables.lifeEvents[7] = listOf("事件")
@@ -97,7 +95,7 @@ class AssemblePatchEquivalenceTest {
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
-            "intelligences", "pillHpBonuses", "armorNurtures", "masterIds",
+            "intelligences", "pillHpBonuses", "armorNurtures",
             "salaryMissedCounts", "hasReviveEffects", "lifeEvents", "names"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)
@@ -109,12 +107,11 @@ class AssemblePatchEquivalenceTest {
     fun `全组脏 - patch 与全量等价`() {
         val prev = tables.assembleAll()
 
-        // 全部 7 组都写（含本体）
+        // 全部 6 组都写（含本体）
         for (i in 1..3) {
             tables.currentHps[i] = 1
             tables.pillHpBonuses[i] = 2
             tables.weaponNurtures[i] = EquipmentNurtureData(equipmentId = "w$i", rarity = 4)
-            tables.masterIds[i] = "x$i"
             tables.moralities[i] = 60
             tables.recruitedMonths[i] = 3
             tables.lifeEvents[i] = listOf("e$i")
@@ -123,7 +120,7 @@ class AssemblePatchEquivalenceTest {
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
-            "currentHps", "pillHpBonuses", "weaponNurtures", "masterIds",
+            "currentHps", "pillHpBonuses", "weaponNurtures",
             "moralities", "recruitedMonths", "lifeEvents", "cultivations"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)
@@ -189,7 +186,6 @@ class AssemblePatchEquivalenceTest {
             assertTrue("id=$pid combat 未脏应复用引用", patchD.combat === prevD.combat)
             assertTrue("id=$pid pillEffects 未脏应复用引用", patchD.pillEffects === prevD.pillEffects)
             assertTrue("id=$pid equipment 未脏应复用引用", patchD.equipment === prevD.equipment)
-            assertTrue("id=$pid social 未脏应复用引用", patchD.social === prevD.social)
             assertTrue("id=$pid skills 未脏应复用引用", patchD.skills === prevD.skills)
             assertTrue("id=$pid usage 未脏应复用引用", patchD.usage === prevD.usage)
             assertTrue("id=$pid lifeEvents 未脏应复用引用", patchD.lifeEvents === prevD.lifeEvents)

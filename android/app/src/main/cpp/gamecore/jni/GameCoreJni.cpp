@@ -612,7 +612,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
 //   {"op":"breakthroughChance", "realm":9, "rootCount":1, "realmLayer":1}
 //   {"op":"breakthroughChanceZones", "baseZone":0.5, "elderGuidance":0.1,
 //    "selfBonus":0.05, "statusPenalty":0.1, "adFlatBonus":0.0}
-//   {"op":"masterDiscipleBonus", "discipleRealm":9, "masterRealm":7}
 //   {"op":"baseComprehension", "comprehension":50}
 //       → {"value":N}（基础悟性 = comprehension 本体）
 // ============================================================
@@ -688,13 +687,6 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
         result["error"] = "retired op: lifespanCultivationPenalty";
     } else if (opName == "lifespanBreakthroughPenalty") {
         result["error"] = "retired op: lifespanBreakthroughPenalty";
-    } else if (opName == "masterDiscipleBonus") {
-        result["gap"] = gamecore::disciple::getMasterDiscipleRealmGap(
-            op.value("discipleRealm", 9), op.value("masterRealm", 9));
-        result["cultivationBonus"] = gamecore::disciple::getMasterDiscipleCultivationBonus(
-            op.value("discipleRealm", 9), op.value("masterRealm", 9));
-        result["breakthroughBonus"] = gamecore::disciple::getMasterDiscipleBreakthroughBonus(
-            op.value("discipleRealm", 9), op.value("masterRealm", 9));
     } else if (opName == "baseComprehension") {
         gamecore::state::Disciple d;
         d.comprehension = op.value("comprehension", 0);

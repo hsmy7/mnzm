@@ -26,7 +26,6 @@ import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
 import com.xianxia.sect.core.engine.service.MonthSettlementResidualExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.service.PolicyCostResult
-import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.YearSettlementExecutor
 import com.xianxia.sect.core.engine.service.YearSettlementResidualExecutor
 import com.xianxia.sect.core.model.ManualType
@@ -282,23 +281,23 @@ class DiffAuthoritativeTickTest {
                 manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                 mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, mdb: Double
-            ) = DiscipleStatCalculator.calculateCultivationPerPhase(d, manuals, mps, bb, peb, pmb, csb, mdb)
+                csb: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(d, manuals, mps, bb, peb, pmb, csb)
             override fun calculateCultivationSpeed(
                 a: DiscipleAggregate,
                 manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
                 mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, mdb: Double
-            ) = DiscipleStatCalculator.calculateCultivationPerPhase(a, manuals, mps, bb, peb, pmb, csb, mdb)
+                csb: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(a, manuals, mps, bb, peb, pmb, csb)
             override fun getBreakthroughChance(
                 d: Disciple, iec: Int, oec: Int, pb: Double,
-                ab: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
+                ab: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab)
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                ab: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
+                ab: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab)
         }
     }
 
@@ -339,7 +338,7 @@ class DiffAuthoritativeTickTest {
         )
         val handler = DiscipleBreakthroughHandler(
             stateStore = store, cultivationCore = core,
-            scopeProvider = mockSmart(), relativeGiftHandler = RelativeGiftHandler(gameRng),
+            scopeProvider = mockSmart(),
             rngManager = gameRng, analyticsTracker = mockSmart()
         )
         val scopeProvider = UnconfinedScopeProvider()

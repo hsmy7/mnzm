@@ -27,7 +27,6 @@ import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.StorageBagUtils
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 
 
@@ -41,7 +40,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
     private val stateStore: GameStateStore,
     private val cultivationCore: CultivationCore,
     private val scopeProvider: CoroutineScopeProvider,
-    private val relativeGiftHandler: RelativeGiftHandler,
     private val rngManager: GameRngManager,
     private val analyticsTracker: AnalyticsTracker
 ) {
@@ -237,7 +235,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
         // 精准字段写回，不再全量 clear+insert
         writeBackBreakthroughFields(tables, updatedDisciples)
 
-        // 师徒智能赠送：突破（realm 或 realmLayer 变化）后触发
+        // 突破日志：大境界变化后记录事件
         notifyBreakthroughChanges(candidates, tables, state)
     }
 
@@ -260,7 +258,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
         }
     }
 
-    /** 突破后师徒赠送与突破日志：大境界变化记录事件 */
+    /** 突破后日志：大境界变化记录事件 */
     private fun notifyBreakthroughChanges(
         candidates: List<Disciple>,
         tables: DiscipleTables,
@@ -269,11 +267,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
         for (candidate in candidates) {
             val id = candidate.id.toIntOrNull() ?: continue
             val newRealm = tables.realms[id]
-            val newLayer = tables.realmLayers[id]
-            if (candidate.realm != newRealm || candidate.realmLayer != newLayer) {
-                relativeGiftHandler.processGiftsForBreakthrough(id, tables, state)
-            }
-
             // 记录突破日志（仅大境界变化）
             if (candidate.realm != newRealm) {
                 val newRealmName = GameConfig.Realm.getName(newRealm)
@@ -313,22 +306,12 @@ class DiscipleBreakthroughHandler @Inject constructor(
 
         val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
 
-        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供突破率加成
-        val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
-            val midInt = mid.toIntOrNull() ?: return@let 0.0
-            if (tables.ids.contains(midInt) && tables.isAlive[midInt] == 1) {
-                val masterRealm = tables.realms[midInt]
-                DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(disciple.realm, masterRealm)
-            } else 0.0
-        } ?: 0.0
-
         val chance = DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
             outerElderComprehension = outerElderComprehension,
             pillBonus = pillBonus,
             adBonus = adBonus,
-            masterDiscipleBonus = masterDiscipleBonus,
             innerElderPositionBonus = 0.0,
             outerElderPositionBonus = 0.0
         )

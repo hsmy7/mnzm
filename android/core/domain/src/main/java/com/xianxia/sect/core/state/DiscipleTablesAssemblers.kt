@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.UsageTracking
 
 /**
@@ -40,9 +39,9 @@ internal fun DiscipleTables.isCompleteId(id: Int): Boolean =
  *
  * 每旬 changedIds ≈ 全量（cultivation 列几乎全部弟子写入）时，原全量
  * [assembleAll] 每弟子 ~100 列读 + 10 个嵌套对象分配。patch 后本体字段
- * （~33 列，含 cultivation）始终重读，6 个子对象 + lifeEvents 仅在对应组
+ * （~33 列，含 cultivation）始终重读，5 个子对象 + lifeEvents 仅在对应组
  * 脏时重装——每旬典型（仅 cultivation + HP/MP 变化）可复用全部子对象引用，
- * 消除 ~67 列读与 6 个对象分配/弟子。
+ * 消除 ~67 列读与 5 个对象分配/弟子。
  *
  * @param id 弟子 ID
  * @param prev 上一快照中的同 ID 弟子（未脏组复用的引用来源）
@@ -55,7 +54,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         resolveGroupPart(prev, dirtyGroups, AssembleGroup.PILL, { it.pillEffects }) { assemblePillEffects(id) }
     val equipment =
         resolveGroupPart(prev, dirtyGroups, AssembleGroup.EQUIPMENT, { it.equipment }) { assembleEquipment(id) }
-    val social = resolveGroupPart(prev, dirtyGroups, AssembleGroup.SOCIAL, { it.social }) { assembleSocial(id) }
     val skills = resolveGroupPart(prev, dirtyGroups, AssembleGroup.SKILLS, { it.skills }) { assembleSkills(id) }
     val usage = resolveGroupPart(prev, dirtyGroups, AssembleGroup.USAGE, { it.usage }) { assembleUsage(id) }
     val disciple = Disciple(
@@ -89,7 +87,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         combat = combat,
         pillEffects = pillEffects,
         equipment = equipment,
-        social = social,
         skills = skills,
         usage = usage
     )
@@ -149,10 +146,6 @@ internal fun DiscipleTables.assembleEquipment(id: Int) = EquipmentSet(
     storageBagItems = storageBagItems.getOrNull(id) ?: emptyList(),
     storageBagSpiritStones = storageBagSpiritStones.getOrNull(id) ?: 0L,
     spiritStones = discipleSpiritStones.getOrDefault(id, 0)
-)
-
-internal fun DiscipleTables.assembleSocial(id: Int) = SocialData(
-    masterId = masterIds.getOrNull(id)
 )
 
 internal fun DiscipleTables.assembleSkills(id: Int) = SkillStats(

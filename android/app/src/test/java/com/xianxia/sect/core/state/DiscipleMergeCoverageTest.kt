@@ -63,7 +63,6 @@ class DiscipleMergeCoverageTest {
         "cultivationCompletionMonth", "cultivationCompletionPhase",
         "manualCompletionMonth", "manualCompletionPhase",
         "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
-        "social",
         "usage"
     )
 

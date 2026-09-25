@@ -118,8 +118,5 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     RefTableRef(weaponNurtures, DiscipleTables::weaponNurtures, "weaponNurtures"),
     RefTableRef(armorNurtures, DiscipleTables::armorNurtures, "armorNurtures"),
     RefTableRef(bootsNurtures, DiscipleTables::bootsNurtures, "bootsNurtures"),
-    RefTableRef(accessoryNurtures, DiscipleTables::accessoryNurtures, "accessoryNurtures"),
-
-    // ── Nullable 值表（值不可变，浅拷贝安全） ──
-    RefTableRef(masterIds, DiscipleTables::masterIds, "masterIds")
+    RefTableRef(accessoryNurtures, DiscipleTables::accessoryNurtures, "accessoryNurtures")
 )

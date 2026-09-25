@@ -13,7 +13,6 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
@@ -86,7 +85,6 @@ class DiscipleLifecycleProcessorTest {
         realmLayer: Int = 3,
         status: DiscipleStatus = DiscipleStatus.IDLE,
         statusData: Map<String, String> = emptyMap(),
-        social: SocialData = SocialData(),
         skills: SkillStats = SkillStats(),
         skipTablesIsAlive: Boolean = false
     ) {
@@ -97,7 +95,6 @@ class DiscipleLifecycleProcessorTest {
             realmLayer = realmLayer,
             status = status,
             statusData = statusData,
-            social = social,
             skills = skills
         )
         tables.insert(disciple)
@@ -237,18 +234,5 @@ class DiscipleLifecycleProcessorTest {
         assertEquals("实例表已移除防双持有", 0, mockStore.equipmentInstances.value.count { it.id == "i1" })
         // 袋清空（幂等）
         assertTrue("袋条目已清空", tables.storageBagItems[1].isNullOrEmpty())
-    }
-
-    @Test
-    fun `handleDiscipleDeath - master relationship unbound for apprentice`() = runTest {
-        insertDisciple(1)
-        insertDisciple(2)
-        tables.masterIds[2] = "1"
-        val deadDisciple = tables.assemble(1)
-
-        processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
-
-        assertNull("apprentice's masterId should be null",
-            tables.masterIds.getOrNull(2))
     }
 }

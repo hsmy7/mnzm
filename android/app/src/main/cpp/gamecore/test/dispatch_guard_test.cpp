@@ -107,6 +107,7 @@ TEST_F(DispatchGuardFixture, EveryRegisteredActionIdReachesItsOwnDomainHandler) 
         action::DISCIPLE_AGE,              //1106 老化链删除
         action::REDEEM_ROLL_SKILLS,        //1437 资质哨兵生成下线（G04）
         action::DISCIPLE_LIFECYCLE_EXPEL,  //1590 逐出事务下线（G06）
+        action::DISCIPLE_LIFECYCLE_APPRENTICE,  //1591 师徒玩法下线（G15）
         action::DISCIPLE_LIFECYCLE_MARRY_APPROVE,  //1592 婚姻批准下线（G03）
         action::DISCIPLE_LIFECYCLE_RELEASE_REFLECTION,  //1593 思过释放无实现
         action::WAREHOUSE_GARRISON_TX,     //1612 仓库驻守无实现

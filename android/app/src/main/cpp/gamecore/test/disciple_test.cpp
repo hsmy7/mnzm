@@ -154,19 +154,5 @@ TEST(BreakthroughTest, ChanceAdFlatAddsAfterClamp) {
     EXPECT_DOUBLE_EQ(calculateBreakthroughChance(zones), 1.0);  // clamp 上限
 }
 
-// ── 师徒 ─────────────────────────────────────────────────
-
-TEST(MasterDiscipleTest, RealmGap) {
-    EXPECT_EQ(getMasterDiscipleRealmGap(9, 7), 1);   // 炼气徒 + 金丹师
-    EXPECT_EQ(getMasterDiscipleRealmGap(9, 9), 0);   // 同境界
-    EXPECT_EQ(getMasterDiscipleRealmGap(9, 0), 8);   // 仙人师
-    EXPECT_EQ(getMasterDiscipleRealmGap(7, 9), 0);   // 徒比师高 → 0
-}
-
-TEST(MasterDiscipleTest, CultivationBonus) {
-    EXPECT_DOUBLE_EQ(getMasterDiscipleCultivationBonus(9, 7), 0.05);
-    EXPECT_DOUBLE_EQ(getMasterDiscipleCultivationBonus(9, 0), 0.40);
-}
-
 }  // namespace
 }  // namespace gamecore::disciple

@@ -190,9 +190,6 @@ class DiscipleTables {
     val equipmentNurturingCompletionMonths = IntComponentTable()
     val equipmentNurturingCompletionPhases = IntComponentTable()
 
-    // === 社交 ===
-    val masterIds = ComponentTable<String?>()        // 师父弟子ID（师徒关系）
-
     // === 技能属性 ===
     val intelligences = IntComponentTable()
     val charms = IntComponentTable()
@@ -418,7 +415,7 @@ class DiscipleTables {
      *
      * 列名从 [buildCopyableRefs] 注册表按名解析为索引；未知列（新列未注册映射）
      * 值为 -1 → [assembleAllPatched] 整体退化全量（正确性优先，绝不复用旧数据）。
-     * 映射表从 assembleCombat/assemblePillEffects/assembleEquipment/assembleSocial/
+     * 映射表从 assembleCombat/assemblePillEffects/assembleEquipment/
      * assembleSkills/assembleUsage 的读取点逐行推导，新增列必须同步更新。
      */
     // P3-20（审计）：纯静态映射按需单次构建——deepCopy/回滚基线等纯写副本

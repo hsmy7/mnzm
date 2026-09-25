@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.util.NameService
 import org.junit.Assert.*
 import org.junit.Test
@@ -28,7 +27,6 @@ class DiscipleFactoryTest {
             nameResult = NameService.NameResult("测试", "弟子"),
             spiritRootType = spiritRootType,
             realmLayer = realmLayer,
-            social = SocialData(),
             nextInt = { from, _ -> from } // 确定性：总是取最小值
         )
     }
@@ -175,7 +173,6 @@ class DiscipleFactoryTest {
                 nameResult = NameService.NameResult("测试", "弟子"),
                 spiritRootType = "火",
                 realmLayer = 1,
-                social = SocialData(),
                 nextInt = { from, until -> from + kotlinRng.nextInt(until - from) }
             )
             values.add(factory.create(seed).combat.hpVariance)

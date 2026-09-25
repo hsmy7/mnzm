@@ -68,7 +68,7 @@ enum class RngPartition(val id: Int, val inSnapshot: Boolean = true) {
      * ## 存在理由：消除 per-roll JNI
      * R4.4 之前，AUTHORITATIVE 下 `GameRngManager.rebuildPartitions()` 把
      * **全部** `inSnapshot` 分区实例化为 [NativeBackedRng]——于是残留执行器
-     * （月/年变编排、亲属赠送/突破…）的每一次 `nextInt()` 都要跨 JNI 回到
+     * （月/年变编排、突破…）的每一次 `nextInt()` 都要跨 JNI 回到
      * C++ 取一个标量。委托对"结算与大世界推演同源"是必要的，但对**只花在
      * Kotlin 平台效应面上的随机**是纯开销（B14 实测：月/年结界点单批
      * 数百次 cross-line，见 `ResidualRngLocalityGuardTest` 计数替身实证）。

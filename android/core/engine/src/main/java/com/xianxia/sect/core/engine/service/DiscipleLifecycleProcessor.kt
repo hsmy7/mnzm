@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
@@ -111,8 +110,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
             // 幂等清袋：无条件执行（袋空无害）
             discipleTables.storageBagItems[id] = emptyList()
 
-            // 师徒解绑（列直写）
-            unbindMasterColumns(disciple.id)
             // 非战斗死亡写入死亡三元组（存活标记 / DEAD 状态 / 死亡年份——同步原子，
             // 派生推导（deriveDiscipleStatus）与列投影在下一次 sync 前即可见死）
             discipleTables.markDead(id, currentYear)
@@ -154,17 +151,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
         return deleteEquipIds to disciple.manualIds.toSet()
     }
 
-    // ── 列直写辅助 ──
-
-    /** 师徒解绑（列直写）：扫描 masterIds 列清空指向死者的徒弟行（O(D) 列读，替代列表遍历） */
-    private fun MutableGameState.unbindMasterColumns(deadId: String) {
-        for (discipleId in discipleTables.ids) {
-            if (discipleTables.masterIds.getOrNull(discipleId) == deadId) {
-                discipleTables.masterIds[discipleId] = null
-            }
-        }
-    }
-
     fun processYearlyAging(currentYear: Int) {
         val cullThreshold = currentYear - CULL_DEAD_AFTER_YEARS
         stateStore.update { discipleTables.cullDeadDisciples(cullThreshold) }
@@ -173,7 +159,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
     /**
      * 年变死亡链：事务外平台效应——Room 生产槽 Repository
      * 清理（DAO 主源同步，防读档重建残留死亡弟子）+ DeathEvent 事件分发。
-     * C++ 侧已完成状态面（11 槽镜像/师徒解绑/血炼/装备清/死亡记录/事件/计数），
+     * C++ 侧已完成状态面（11 槽镜像/血炼/装备清/死亡记录/事件/计数），
      * 本方法仅补 Kotlin 平台效应（与 [processDiscipleAging] 的事务外段语义一致——
      * DAO 批量清理毫秒级、DeathEvent 无消费方，实害为零）。
      *

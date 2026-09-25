@@ -112,6 +112,74 @@
 - **复核会话修正（诚实披露，本批由第二会话提交）**：实施会话遗留未提交工作树，且其报告把 ctest/detekt/JUnit 记为绿——同轮重跑实测出 4 处失实并当场修复：① `gamecore/test/scene_equivalence_test.cpp` 手抄的建筑 rect 夹具未随图集重打包同步，`SceneEquivalenceTest` 三条 **A 类红**（ctest 实为 6 败非 3 败）；② detekt 实为 **6 条红**（3 孤儿 import + 2 处本批新写注释破 120 字符 + `FormulaService.calculateSuccessRateBonus` 的 `buildingId` 已成未消费参数，该死链与其零调用方桥接整删）；③ 两处陈旧图集守卫期望表（`SpriteAtlasDefGeneratedTest` 19→18、`BuildingSpriteFootprintGuardTest` 删血炼池行）；④ 规模与 JUnit 计数失真——终树真值 **358 跟改 + 4 新增 +2433/−25938**、JUnit **7397/0/0/18skip**（原报 7647 系首轮无 `--continue` + 已删测试类陈旧 XML 虚高 250 例）。教训已回写 report-G04 §二·补 与 HANDOVER-3 §2.3 坑 9。
 
 
+### 角色卡池重构 G15 批（2026-09-25）——师徒系统整体下线（P-1 拍板）：关系列 / 拜师事务 / 师徒双乘区 / 赠礼系统 / 关系面板 — `feat(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G15.md`（本批派工细则唯一真源，含 §2 侦察缺口回查结论）
+> + `report-G15.md`（本批完整报告）；上位交接 `HANDOVER-m1-remaining-3.md` §10；执行协议 `EXECUTION-PROTOCOL.md`。
+
+- **关系列三端下线（铁律 6 全环，15 环逐一核对）**：`Disciple.social.masterId` ——
+  `models.h::Disciple::masterId` → `DiscipleStore::masterIds` + `DiscipleColumn::MasterId`（枚举 **92→91**，
+  后续项索引整体平移，`kDiscipleColumnCount` 由 `kCount` 推导自动收窄）→ `disciple_store.cpp` 六面
+  （materialize/append/reserve/clear/eraseAt/swapRows）→ `column_dirty.h` 双 switch（`discipleColumnName` +
+  `serializeDiscipleColumn`）→ `json_codec.cpp` `GC_TO`/`GC_FROM` → `gameview_encode.cpp` 字段表（删 `85`）→
+  `game_core.cpp::kBoundaryColumns`（37→36）→ `game_view.proto`（`reserved 78…85` + **首例字段名 reserved
+  `reserved "masterId"`**）→ `GameViewMirrorCodec` ROW_SPECS → `GameViewDiscipleRows`（`requiredScalarFields`
+  presence 表 82→81、`socialOf`/`applySocialPatchColumns` 整删、`fillEquipmentSocialRowFields` 改名
+  `fillEquipmentRowFields`）→ Kotlin `Disciple/Components/Serializer(双侧 reserved 93)/Tables/ColumnRegistry/
+  Assemblers/Write/Extended/Aggregate` → Room v59。实测**全 gamecore 零处按裸数字索引 `DiscipleColumn`**，
+  脏列通道按名传输 ⇒ 平移无跨语言序号耦合。
+- **`SocialData` 组件整类拆除（不留空数据类）**：该类唯一字段就是 `masterId` ⇒ `@Embedded(prefix="social_")`
+  随列下线；连带 `AssembleGroup.SOCIAL` 枚举项（组装位图按 `ordinal`，纯进程内不落盘，删除安全）、
+  `assembleSocial`、`writeSocialFields` 及其唯一调用点、`DiscipleFactory.SeedData.social`、
+  `DiscipleService`/`GameViewDiscipleRows` 的 `SocialData()` 构造点全部归零。
+- **拜师事务 1591 退役（保号路线）**：catalog `desc` 标【已退役，编号禁复用】+ `case` 删 +
+  `dispatch_guard_test` retired 集 **21→22**；`disciple_lifecycle_tx.h` **207→51 行**（`apprenticeTransaction`
+  /`ApprenticeResult`/`countAliveApprentices`/`kMaxApprenticesPerMaster` 全删，只剩境界年俸开关单事务）；
+  分派区间起点 `1591` → `1594`（单值区间）。🔴 **`clearAllDiscipleSlotsForRemoval` 归零删除**——
+  report-G06 登记的「零调用方」在本批实测确认（源码树唯一命中即其定义处）。regen **198 动作 / maxId=1861 不变**。
+  ⚠️ 本批顺带修正任务书初版对该迁移的错误理由（`isDispatchGap` 同时接受 `UNKNOWN_ACTION`，
+  区间起点不动守卫也不会红；迁移的真实理由是语义正确性）——详见 TASKBOOK §3.2-3。
+- **师徒双乘区与形参链拆除**：`DiscipleStatsProvider` 4 方法（`calculateCultivationSpeed`×2 /
+  `getBreakthroughChance`×2）去末位 `masterDiscipleBonus` 形参；`CultivationZoneInput` 9→8、
+  `BreakthroughZoneBonusInput` 8→7、`BreakthroughBonusDetail` 8→7；`DiscipleStatCalculator`
+  的 `MAX_APPRENTICES_PER_MASTER` / `MASTER_DISCIPLE_{CULTIVATION,BREAKTHROUGH}_BONUS_PER_GAP` 三常数与
+  `getMasterDisciple*` 三扩展函数删；C++ `disciple.h` 三函数 + 两常数、`disciple_stats.h` 两 input struct
+  字段与两处乘区聚合式同批删。🔴 **确定性红线**：两处聚合式**只删恒 0 项、剩余项相加顺序一字不动**
+  （`socialBonus = preachingElder + preachingMasters`；`selfBonus = pillBonus + comprehension`），
+  `x + 0.0 == x` 保证逐位不变——实测 `Diff*` 家族与 C++ GTest 结算面零新增红自证。
+  `GameCoreJni.cpp` 对拍端口 `op="masterDiscipleBonus"` 删（`external fun` 计数不变，**86/86**）。
+- **赠礼系统整体消失（P-1 的直接后果，非遗漏）**：`relative_gift.h`（384 行）+ `RelativeGiftHandler.kt`
+  （309 行）+ `GiftRelationshipType.kt` **三文件整删** + `relative_gift_test.cpp`（393 行）整删。
+  🔴 **消费方有两个**（TASKBOOK §2.1 回查抓出的 HANDOVER-3 §10.2 漏项）：`phase_settlement.h`
+  （include + `processGiftsForBreakthrough` + `masterBonusFor`）与 `battle_residual_tx.h`
+  （include + 调用）——后者的赠礼段摘除把 `before` 境界/层数对收敛为 `beforeRealm`，
+  大境界日志草稿与 `recordGameEvent` 逐字保留。`GameSystemRegistryDefaults` 注册行同批删
+  （`GameSystemRegistryCoverageTest` 与 `@GameService` 一一对应）。
+- **UI 面**：`MasterApprenticeSelectDialog.kt`（154 行）+ `DetailActionButtons.kt`（127 行）**整删**——
+  后者全部内容就是 `RelationsDialog`/`RelationCategory`/`RelationItem`，而 `RelationsDialog` 只展示师父与
+  徒弟（G03 已把关系收到只剩师徒 2 类），师徒下线后它只剩永久「无关系」空态 ⇒ 随玩法整线拆。
+  「关系」「拜师」两个操作按钮、`DetailActions` 的 `onShowRelations`/`onShowApprentice`、
+  `DiscipleDetailScreen` 的两处对话框态与确认弹窗、`DetailBasicInfoSection.discipleMasterBonus()`、
+  `DetailCultivationSection` 的「师徒加成」明细行、`DiscipleDelegate.apprenticeToMaster` 全删。
+  实测**无 `DialogType` 注册面**（两对话框均为 Screen 内联 `if (state.show…)` 形态）。
+- **死配置与死代码**：`GameConfigData.RelativeGiftSection`（`masterGiftProb 0.40`/`apprenticeGiftProb 0.30`）
+  整段删——实测全仓零消费者、`assets/config/game_config.json` 亦无 `relativeGift` 键，属预存死配置。
+  `CultivationRateCalculator.preachingMastersBonusColumn` 的形参 `masterIds` 改名 `preachingMasterIds`
+  （它是讲道师父槽位、与师徒无关，同名易误读）。
+- **Room v58→v59**：新建 `MIGRATION_58_59`（`rebuildTableDroppingColumns` create-copy-drop-rename，幂等）——
+  `disciples` 删 1 列 `social_masterId`；`DATABASE_VERSION` 59 + 注册 + `schemas/59.json` 入库
+  （**`disciples` 91→90 列**，`game_data` 128 列不变，历史快照零改写）；5 个索引原样带回、被删列不在任何索引内；
+  `RoomMigrationV58To59Test` 新增（真实 Room `onValidateSchema` 校验 + 逐格快照 + 幂等 + `comprehension`
+  等相邻保留列逐行核对）。ProtoBuf 双侧 `reserved 93`、镜像 proto `reserved 85`，旧档字节按 wire 静默跳过。
+- **侦察缺口前置扫描（抓出上位交接的 13 处漏项 + 2 处假阳性）**：`battle_residual_tx.h` 第二赠礼消费方、
+  `models.h`/`json_codec.cpp`/`gameview_encode.cpp`/`game_view.proto` 三端环、`GameCoreJni.cpp` 对拍端口、
+  `disciple_stats.h` 两 input struct、`game_core.cpp::kBoundaryColumns`、`SocialData` 整类清空面、
+  `DiscipleStatsProvider` 四签名、`GameSystemRegistryDefaults` 注册、`RelativeGiftSection` 死配置、
+  `NullSafeProtoBuf`/`Serializers` KDoc 示例、**测试面 provider 假实现用缩写形参名 `mdb` 绕过字面量 grep**
+  （6 文件漏计，按「实现处枚举」二次定面补齐，全量 18 个实现点自证无漏）、`DiscipleMergeCoverageTest`
+  反射清单 `"social"` 判据、`ProtoNumberUniquenessTest.discipleRetired` +93；
+  假阳性剔除：`SectViewModel`/`ProductionViewModelElderOps` 命中项实为 `viceSectMaster`（副宗主），不改。
+
 ### 内存管理根治 Phase 4：状态基线 + GLES + 可观测（2026-09-23，MR4 批）— `feat(memory)`/`perf(memory)`
 - **P4.1 状态基线去全量 DOM（D5）**：`StateBaseline` 块级形态（gameData 字段 + 实体 id 块），`DirtyTracker`/`ColumnDirtyTracker` 不再持嵌套全量业务树；`importStateInternal` 峰值顺序=解析临时态→reseed→释放 JSON→切换 state_（失败回滚）→归一化。验收：`BaselineMemoryTest` + `BaselineFieldCoverageGuardTest` + 对拍绿。
 - **P4.2 rest 导出减载**：块级基线比对，信封仍只携带 changed/（与 `dirtyColumnExport` 正交）；Diff tick 绿。

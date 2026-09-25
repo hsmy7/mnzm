@@ -2,7 +2,6 @@ package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.NameService
 import kotlinx.serialization.json.Json
@@ -92,7 +91,6 @@ class DiffDiscipleFactoryTest {
                 spiritRootType = spiritRootType,
                 realm = realm,
                 realmLayer = realmLayer,
-                social = SocialData(),
                 nextInt = { from, until -> from + kRng.nextInt(until - from) }
             )
         )

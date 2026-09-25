@@ -44,14 +44,13 @@ fun DiscipleStatCalculator.getBreakthroughChance(
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
     adBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0,
     innerElderPositionBonus: Double = 0.0,
     outerElderPositionBonus: Double = 0.0
 ): Double {
     if (disciple.realm < 0) return 0.0
     val zones = buildBreakthroughZones(
         disciple, innerElderComprehension, outerElderComprehension,
-        pillBonus, adBonus, masterDiscipleBonus
+        pillBonus, adBonus
     )
     return calculateBreakthroughChance(zones)
 }
@@ -69,14 +68,13 @@ fun DiscipleStatCalculator.getBreakthroughChance(
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
     adBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0,
     innerElderPositionBonus: Double = 0.0,
     outerElderPositionBonus: Double = 0.0
 ): Double {
     if (aggregate.realm < 0) return 0.0
     val zones = buildBreakthroughZones(
         aggregate, innerElderComprehension, outerElderComprehension,
-        pillBonus, adBonus, masterDiscipleBonus
+        pillBonus, adBonus
     )
     return calculateBreakthroughChance(zones)
 }
@@ -86,16 +84,14 @@ fun DiscipleStatCalculator.getBreakthroughBonusDetail(
     innerElderComprehension: Int = 0,
     outerElderComprehension: Int = 0,
     pillBonus: Double = 0.0,
-    adBonus: Double = 0.0,
-    masterDiscipleBonus: Double = 0.0
+    adBonus: Double = 0.0
 ): BreakthroughBonusDetail {
     if (aggregate.realm < 0) return BreakthroughBonusDetail(
-        0.0, 0.0, 0.0, 0.0, 0.0,
-        0.0, 0.0, 0.0
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     )
     val zones = buildBreakthroughZones(
         aggregate, innerElderComprehension, outerElderComprehension,
-        pillBonus, adBonus, masterDiscipleBonus
+        pillBonus, adBonus
     )
     val total = calculateBreakthroughChance(zones)
     return BreakthroughBonusDetail(
@@ -104,7 +100,6 @@ fun DiscipleStatCalculator.getBreakthroughBonusDetail(
         outerElderBonus = comprehensionBreakthroughBonus(outerElderComprehension),
         pillBonus = pillBonus,
         adBonus = adBonus,
-        masterDiscipleBonus = masterDiscipleBonus,
         selfComprehensionBonus = comprehensionBreakthroughBonus(aggregate.getBaseStats().comprehension),
         total = total
     )

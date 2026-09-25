@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.pillCultivationSpeedBonus
 import com.xianxia.sect.core.model.pillEffectDuration
 import com.xianxia.sect.core.model.teaching
@@ -31,7 +30,7 @@ import org.robolectric.RobolectricTestRunner
  * 与对象式版 [CultivationRateCalculator.calculateDiscipleCultivationPerPhase] 在全部
  * 乘区组合下必须输出一致（1e-9 精度）。
  *
- * 覆盖维度：境界/弟子类型/灵根数量/政策津贴/师徒/丹药临时加速/功法熟练度。
+ * 覆盖维度：境界/弟子类型/灵根数量/政策津贴/丹药临时加速/功法熟练度/讲道长老。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -69,7 +68,6 @@ class CultivationRateEquivalenceTest {
         realm: Int = 9,
         discipleType: String = "outer",
         spiritRootType: String = "metal",
-        social: SocialData = SocialData(),
         cultivationSpeedBonus: Double = 0.0,
         cultivationSpeedDuration: Int = 0,
         pillEffects: PillEffects = PillEffects(),
@@ -79,7 +77,7 @@ class CultivationRateEquivalenceTest {
     ): Disciple = Disciple(
         id = id, name = name, realm = realm, cultivation = cultivation,
         discipleType = discipleType, spiritRootType = spiritRootType,
-        social = social, cultivationSpeedBonus = cultivationSpeedBonus,
+        cultivationSpeedBonus = cultivationSpeedBonus,
         cultivationSpeedDuration = cultivationSpeedDuration,
         pillEffects = pillEffects, manualIds = manualIds,
         skills = skills
@@ -94,13 +92,11 @@ class CultivationRateEquivalenceTest {
         result.addAll(basicComboFixtures(base = base))
         // 2. 政策津贴：cultivationSubsidy 仅 realm>5 生效
         result.addAll(policySubsidyFixtures(base = base))
-        // 3. 师徒加成：师父低境界（弟子 realm >= 师父 realm 且有 teaching）
-        result.addAll(masterFixtures(base = base))
-        // 4. 丹药临时加速
+        // 3. 丹药临时加速
         result.addAll(pillFixtures(base = base))
-        // 6. 功法熟练度（走 ManualDatabase 兜底路径）
+        // 4. 功法熟练度（走 ManualDatabase 兜底路径）
         result.addAll(manualProficiencyFixtures(base = base))
-        // 7-8. 讲道长老加成（含 teachingFlat 跨阈值回归）
+        // 5. 讲道长老加成（含 teachingFlat 跨阈值回归）
         result.addAll(preachingElderFixtures(base = base))
 
         return result
@@ -146,30 +142,6 @@ class CultivationRateEquivalenceTest {
                 base.copy(sectPolicies = SectPolicies(
                     asceticTraining = true, relaxedMgmt = true
                 ))
-            )
-        )
-    }
-
-    /** 师徒加成：师父存活 / 已死 */
-    private fun masterFixtures(base: GameData): List<Fixture> = buildList {
-        val master = makeDisciple(
-            id = "200", name = "师父", realm = 3,
-            skills = SkillStats(teaching = 90)
-        )
-        add(
-            Fixture(
-                "with living master teaching=90",
-                makeDisciple(realm = 3, social = SocialData(masterId = "200")),
-                base,
-                listOf(master)
-            )
-        )
-        add(
-            Fixture(
-                "with dead master",
-                makeDisciple(social = SocialData(masterId = "200")),
-                base,
-                listOf(master.copy(isAlive = false))
             )
         )
     }

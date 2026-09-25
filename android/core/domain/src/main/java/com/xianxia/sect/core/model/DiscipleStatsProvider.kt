@@ -33,8 +33,7 @@ interface DiscipleStatsProvider {
         additionalBonus: Double = 0.0,
         preachingElderBonus: Double = 0.0,
         preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        cultivationSubsidyBonus: Double = 0.0
     ): Double
     fun calculateCultivationSpeed(
         aggregate: DiscipleAggregate,
@@ -44,23 +43,20 @@ interface DiscipleStatsProvider {
         additionalBonus: Double = 0.0,
         preachingElderBonus: Double = 0.0,
         preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        cultivationSubsidyBonus: Double = 0.0
     ): Double
     fun getBreakthroughChance(
         disciple: Disciple,
         innerElderComprehension: Int = 0,
         outerElderComprehension: Int = 0,
         pillBonus: Double = 0.0,
-        adBonus: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        adBonus: Double = 0.0
     ): Double
     fun getBreakthroughChance(
         aggregate: DiscipleAggregate,
         innerElderComprehension: Int = 0,
         outerElderComprehension: Int = 0,
         pillBonus: Double = 0.0,
-        adBonus: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        adBonus: Double = 0.0
     ): Double
 }

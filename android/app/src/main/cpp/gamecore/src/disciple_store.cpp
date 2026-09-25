@@ -105,9 +105,6 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.storageBagSpiritStones = storageBagSpiritStones[row];
     d.spiritStones = spiritStones[row];
 
-    // SocialData
-    d.masterId = masterIds[row];
-
     // SkillStats
     d.intelligence = intelligences[row];
     d.charm = charms[row];
@@ -225,8 +222,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     storageBagSpiritStones.push_back(d.storageBagSpiritStones);
     spiritStones.push_back(d.spiritStones);
 
-    masterIds.push_back(d.masterId);
-
     intelligences.push_back(d.intelligence);
     charms.push_back(d.charm);
     comprehensions.push_back(d.comprehension);
@@ -335,7 +330,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     storageBagItems.reserve(n);
     storageBagSpiritStones.reserve(n);
     spiritStones.reserve(n);
-    masterIds.reserve(n);
     intelligences.reserve(n);
     charms.reserve(n);
     comprehensions.reserve(n);
@@ -481,7 +475,6 @@ void DiscipleStore::clear() {
     storageBagItems.clear();
     storageBagSpiritStones.clear();
     spiritStones.clear();
-    masterIds.clear();
     intelligences.clear();
     charms.clear();
     comprehensions.clear();
@@ -582,7 +575,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     storageBagItems.erase(storageBagItems.begin() + static_cast<std::ptrdiff_t>(row));
     storageBagSpiritStones.erase(storageBagSpiritStones.begin() + static_cast<std::ptrdiff_t>(row));
     spiritStones.erase(spiritStones.begin() + static_cast<std::ptrdiff_t>(row));
-    masterIds.erase(masterIds.begin() + static_cast<std::ptrdiff_t>(row));
     intelligences.erase(intelligences.begin() + static_cast<std::ptrdiff_t>(row));
     charms.erase(charms.begin() + static_cast<std::ptrdiff_t>(row));
     comprehensions.erase(comprehensions.begin() + static_cast<std::ptrdiff_t>(row));
@@ -701,7 +693,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(storageBagItems[a], storageBagItems[b]);
     swap(storageBagSpiritStones[a], storageBagSpiritStones[b]);
     swap(spiritStones[a], spiritStones[b]);
-    swap(masterIds[a], masterIds[b]);
     swap(intelligences[a], intelligences[b]);
     swap(charms[a], charms[b]);
     swap(comprehensions[a], comprehensions[b]);

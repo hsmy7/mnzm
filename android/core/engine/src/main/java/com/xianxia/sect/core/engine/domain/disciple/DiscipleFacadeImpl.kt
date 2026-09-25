@@ -98,14 +98,6 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
 
-    override fun apprenticeToMaster(discipleId: String,
-        masterId: String): DomainResult<Unit> {
-        // AUTHORITATIVE：拜师下沉 C++（batch-14）——三相校验 + masterIds 落表，
-        // 双侧 lifeEvents 草稿经信封回写；失败回退 Kotlin 原实现
-        tryNativeApprenticeToMaster(discipleId, masterId)?.let { return it }
-        return discipleService.apprenticeToMaster(discipleId, masterId)
-    }
-
     override fun releaseReflectionDisciple(discipleId: String) {
         // 旧档 REFLECTING 归一化（思过系统已下线、1593 留洞不复用）：
         // 清 statusData 思过双键 → 状态回 IDLE，交 syncSingleDiscipleStatus 重推导

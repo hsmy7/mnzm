@@ -61,27 +61,27 @@ class DisciplePillManagerAutoUseEnhancementTest {
                 manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, mdb: Double
+                csb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                d, manuals, mps, bb, peb, pmb, csb, mdb
+                d, manuals, mps, bb, peb, pmb, csb
             )
             override fun calculateCultivationSpeed(
                 a: DiscipleAggregate,
                 manuals: Map<String, ManualInstance>,
                 mps: Map<String, ManualProficiencyData>,
                 bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, mdb: Double
+                csb: Double
             ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                a, manuals, mps, bb, peb, pmb, csb, mdb
+                a, manuals, mps, bb, peb, pmb, csb
             )
             override fun getBreakthroughChance(
                 d: Disciple, iec: Int, oec: Int, pb: Double,
-                ab: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
+                ab: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab)
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                ab: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
+                ab: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab)
         }
     }
 

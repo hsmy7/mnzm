@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -27,7 +26,7 @@ import org.robolectric.RobolectricTestRunner
  * 同族三级降级契约守护）。
  *
  * JVM 单测环境 GameCoreBridge 恒未加载：断言 AUTHORITATIVE 稳态与 flag OFF 两
- * 模式下四入口均走 Kotlin 回退臂且状态变更语义不变（native 臂零激活、零异常
+ * 模式下年俸开关入口均走 Kotlin 回退臂且状态变更语义不变（native 臂零激活、零异常
  * 泄漏）；native 事务本身的校验链/槽位清理语义由桌面 C++
  * disciple_lifecycle_tx_test.cpp 黄金用例守护，真机转发臂由真机验证批覆盖。
  */
@@ -82,7 +81,6 @@ class DiscipleLifecycleNativeTxGateTest {
             rngManager = mockSmart(),
             discipleEquipmentService = DiscipleEquipmentService(stateStore = mockStore),
             discipleLifecycleManager = lifecycleManager,
-            discipleMasterApprenticeService = DiscipleMasterApprenticeService(stateStore = mockStore),
             discipleSlotManager = slotManager,
             discipleStatusService = statusService,
             inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java),
@@ -118,34 +116,20 @@ class DiscipleLifecycleNativeTxGateTest {
     // ── 转发臂门控（桥未加载恒降级 null） ───────────────────────
 
     @Test
-    fun `native 转发 - AUTHORITATIVE 且桥未加载两入口均返回 null`() {
+    fun `native 转发 - AUTHORITATIVE 且桥未加载年俸入口返回 null`() {
         seedDisciples()
-        assertNull(facade.tryNativeApprenticeToMaster("1", "2"))
         assertNull(facade.tryNativeSalaryToggle(3, true))
     }
 
     @Test
-    fun `native 转发 - flag OFF 两入口均返回 null`() {
+    fun `native 转发 - flag OFF 年俸入口返回 null`() {
         seedDisciples()
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            assertNull(facade.tryNativeApprenticeToMaster("1", "2"))
             assertNull(facade.tryNativeSalaryToggle(3, true))
         }
     }
 
     // ── 回退臂语义不变（桥未加载 = Kotlin 原路径全量生效） ──────
-
-    @Test
-    fun `回退臂 - 拜师 masterIds 落表与双侧 lifeEvents`() {
-        seedDisciples()
-
-        val result = facade.apprenticeToMaster("1", "2")
-
-        assertTrue(result is com.xianxia.sect.core.util.DomainResult.Success)
-        assertEquals("2", tables.masterIds[1])
-        assertTrue(tables.lifeEvents[1]!!.last().endsWith("拜弟子2为师"))
-        assertTrue(tables.lifeEvents[2]!!.last().endsWith("收弟子1为徒"))
-    }
 
     @Test
     fun `回退臂 - 年俸开关走 Kotlin 原路径写映射`() {

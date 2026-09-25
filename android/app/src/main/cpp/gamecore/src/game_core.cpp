@@ -189,7 +189,7 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     if (config.authoritativeTickMode) {
         // AUTHORITATIVE 模式——core 模式每旬
         // 走完整七步结算（runPhaseSettlementCore：0 自动装备 → 1-5 核心
-        // 批次 → 6 丹药 → 7 突破+亲属赠送；Kotlin executeResidual
+        // 批次 → 6 丹药 → 7 突破；Kotlin executeResidual
         // 生产路径已删除）。
         // 月/年边界仍由 Kotlin 按 settleOnePhase 标志编排（未下沉扇出）。
         // 核心批次经 ECS System 调度（PhaseCoreBatchSystem）+
@@ -263,7 +263,6 @@ void GameCore::markMonthYearBoundaryColumns() {
     // 任务/政策/防守战/死亡链——宁多标不漏标；行序 = 店行序）
     static constexpr state::DiscipleColumn kBoundaryColumns[] = {
         state::DiscipleColumn::Morality,
-        state::DiscipleColumn::MasterId,
         state::DiscipleColumn::Status,
         state::DiscipleColumn::StatusData,
         state::DiscipleColumn::RealmLayer,

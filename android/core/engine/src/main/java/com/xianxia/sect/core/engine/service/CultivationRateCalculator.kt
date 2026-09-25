@@ -12,7 +12,6 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhaseColumn
 
@@ -21,7 +20,7 @@ import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
  *
  * 职责：
  * - 计算弟子每旬修炼速度（乘区法）
- * - 修炼相关加成计算（住所、讲道、师徒、政策）
+ * - 修炼相关加成计算（住所、讲道、政策）
  *
  * 缓存说明：
  * `manualInstanceMap` 和 `disciplesMap` 在同一个 stateStore.update {} 事务内
@@ -65,15 +64,6 @@ class CultivationRateCalculator @Inject constructor(
         val discipleProficiencies = data.manualProficiencies[disciple.id]
             ?.associateBy { it.manualId } ?: emptyMap()
 
-        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
-        val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
-            val midInt = mid.toIntOrNull() ?: return@let 0.0
-            if (tables.names.contains(midInt) && tables.isAlive[midInt] == 1) {
-                val masterRealm = tables.realms[midInt]
-                DiscipleStatCalculator.getMasterDiscipleCultivationBonus(disciple.realm, masterRealm)
-            } else 0.0
-        } ?: 0.0
-
         val perPhase = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple = disciple,
             manuals = manualInstanceMap,
@@ -81,8 +71,7 @@ class CultivationRateCalculator @Inject constructor(
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
-            cultivationSubsidyBonus = calculatePolicyCultivationBonus(disciple.realm, data),
-            masterDiscipleBonus = masterDiscipleBonus
+            cultivationSubsidyBonus = calculatePolicyCultivationBonus(disciple.realm, data)
         ).coerceAtLeast(1.0)
         return perPhase
     }
@@ -117,10 +106,6 @@ class CultivationRateCalculator @Inject constructor(
         val discipleProficiencies = data.manualProficiencies[id.toString()]
             ?.associateBy { it.manualId } ?: emptyMap()
 
-        val masterDiscipleBonus = calculateMasterDiscipleBonusColumn(
-            realm = realm, id = id, tables = tables
-        )
-
         return DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
             input = buildColumnRateInput(id = id, tables = tables, realm = realm),
             manuals = manualInstanceMap,
@@ -128,25 +113,8 @@ class CultivationRateCalculator @Inject constructor(
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
-            cultivationSubsidyBonus = calculatePolicyCultivationBonus(realm, data),
-            masterDiscipleBonus = masterDiscipleBonus
+            cultivationSubsidyBonus = calculatePolicyCultivationBonus(realm, data)
         ).coerceAtLeast(1.0)
-    }
-
-    /** 列直读版师徒加成：师父存活时按大境界差提供修炼速度加成 */
-    private fun calculateMasterDiscipleBonusColumn(
-        realm: Int,
-        id: Int,
-        tables: DiscipleTables
-    ): Double {
-        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
-        return tables.masterIds.getOrNull(id)?.let { mid ->
-            val midInt = mid.toIntOrNull() ?: return@let 0.0
-            if (tables.names.contains(midInt) && tables.isAlive[midInt] == 1) {
-                val masterRealm = tables.realms[midInt]
-                DiscipleStatCalculator.getMasterDiscipleCultivationBonus(realm, masterRealm)
-            } else 0.0
-        } ?: 0.0
     }
 
     /** 列直读版乘区输入构建：默认值与 assemble 路径一致，防半幽灵数据两入口分歧 */
@@ -313,12 +281,12 @@ private fun preachingElderBonusColumn(
 /** 列直读版师兄弟讲道加成：有效教学 ≥60 且境界达标时累计教学差加成 */
 private fun preachingMastersBonusColumn(
     discipleRealm: Int,
-    masterIds: List<String?>,
+    preachingMasterIds: List<String?>,
     tables: DiscipleTables,
     effectiveTeaching: (Int, DiscipleTables) -> Int
 ): Double {
     var total = 0.0
-    for (mId in masterIds) {
+    for (mId in preachingMasterIds) {
         val id = mId?.toIntOrNull()
         // id 非法/不存在/已死亡的师尊跳过
         if (id == null || !tables.names.contains(id) || tables.isAlive[id] != 1) continue

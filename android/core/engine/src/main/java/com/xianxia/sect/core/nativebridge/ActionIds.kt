@@ -362,7 +362,7 @@ object ActionIds {
     /** 【已退役，编号禁复用】逐出事务（存在/存活/非血炼校验+12类槽位清理含住所+实例销毁+派生map收口+行删除；袋物品信封回传Kotlin物化） */
     const val DISCIPLE_LIFECYCLE_EXPEL: Int = 1590
 
-    /** 拜师事务（三相校验+masterIds落表；双侧日志草稿回写lifeEvents） */
+    /** 【已退役，编号禁复用】拜师事务（师徒玩法整体下线） */
     const val DISCIPLE_LIFECYCLE_APPRENTICE: Int = 1591
 
     /** 【已退役，编号禁复用】婚姻批准事务（道侣配对链下线） */

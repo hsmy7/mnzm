@@ -66,8 +66,6 @@ import com.xianxia.sect.ui.game.components.detail.LifeLogDialog
 import com.xianxia.sect.ui.game.components.detail.ManualSelectionDialog
 import com.xianxia.sect.ui.game.components.detail.ManualSelectionParams
 import com.xianxia.sect.ui.game.components.detail.ManualsSection
-import com.xianxia.sect.ui.game.components.detail.MasterApprenticeSelectDialog
-import com.xianxia.sect.ui.game.components.detail.RelationsDialog
 import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionActions
 import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionConfig
 import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionScreen
@@ -92,9 +90,7 @@ private class DiscipleDetailDialogState {
     var showManualSelection by mutableStateOf(false)
     var showManualDetailDialog by mutableStateOf<ManualInstance?>(null)
     var showEquipmentDetailDialog by mutableStateOf<EquipmentInstance?>(null)
-    var showRelationsDialog by mutableStateOf(false)
     var showStorageBagDialog by mutableStateOf(false)
-    var showApprenticeSelectDialog by mutableStateOf(false)
     var showLifeLogDialog by mutableStateOf(false)
     var showChatDialog by mutableStateOf(false)
     var showResignConfirmDialog by mutableStateOf(false)
@@ -110,10 +106,8 @@ private class DiscipleDetailDialogState {
         viewModel: GameViewModel?,
         onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?
     ): DetailActionCallbacks = DetailActionCallbacks(
-        onShowRelations = { showRelationsDialog = true },
         onShowStorageBag = { showStorageBagDialog = true },
         onShowLifeLog = { showLifeLogDialog = true },
-        onShowApprentice = { showApprenticeSelectDialog = true },
         onShowChat = { showChatDialog = true },
         onShowResignConfirm = {
             when (val result = evaluateResignGate(disciple.status, disciple.isAlive)) {
@@ -176,7 +170,7 @@ fun DiscipleDetailDialog(
         state = state, onDismiss = onDismiss, onNavigateToDisciple = onNavigateToDisciple
     )
     DiscipleDetailSecondaryDialogs(
-        disciple = disciple, allDisciples = allDisciples, viewModel = viewModel,
+        disciple = disciple, viewModel = viewModel,
         allEquipment = allEquipment, allManuals = allManuals,
         manualStacks = manualStacks, equipmentStacks = equipmentStacks,
         manualProficiencies = manualProficiencies, state = state
@@ -460,12 +454,11 @@ private fun DiscipleDetailInlineOverlays(
     }
 }
 
-/** 次级对话框集合：关系/日志/储物袋/聊天 + 确认/选择/详情类对话框 */
+/** 次级对话框集合：日志/储物袋/聊天 + 确认/选择/详情类对话框 */
 @Suppress("LongParameterList")
 @Composable
 private fun DiscipleDetailSecondaryDialogs(
     disciple: DiscipleAggregate,
-    allDisciples: List<DiscipleAggregate>,
     viewModel: GameViewModel?,
     allEquipment: List<EquipmentInstance>,
     allManuals: List<ManualInstance>,
@@ -477,10 +470,6 @@ private fun DiscipleDetailSecondaryDialogs(
     val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
     val gameYear = gameData?.gameYear ?: 1
 
-    if (state.showRelationsDialog) {
-        RelationsDialog(disciple = disciple, allDisciples = allDisciples,
-            onDismiss = { state.showRelationsDialog = false })
-    }
     if (state.showLifeLogDialog) {
         LifeLogDialog(discipleName = disciple.name,
             events = viewModel?.lifeEvents?.getLifeEvents(disciple.id) ?: emptyList(),
@@ -498,7 +487,7 @@ private fun DiscipleDetailSecondaryDialogs(
     }
 
     DiscipleDetailStandardDialogs(
-        disciple = disciple, allDisciples = allDisciples, viewModel = viewModel, state = state
+        disciple = disciple, viewModel = viewModel, state = state
     )
     DiscipleDetailSelectionDialogs(
         disciple = disciple, viewModel = viewModel, allEquipment = allEquipment,
@@ -514,11 +503,10 @@ private fun DiscipleDetailSecondaryDialogs(
     )
 }
 
-/** 确认/拜师类对话框：卸任确认/阻塞提示 + 拜师选择/确认 */
+/** 确认类对话框：卸任确认/阻塞提示 */
 @Composable
 private fun DiscipleDetailStandardDialogs(
     disciple: DiscipleAggregate,
-    allDisciples: List<DiscipleAggregate>,
     viewModel: GameViewModel?,
     state: DiscipleDetailDialogState
 ) {
@@ -541,32 +529,6 @@ private fun DiscipleDetailStandardDialogs(
             confirmLabel = "确定",
             onConfirm = { state.showResignBlockedDialog = false },
             onDismiss = { state.showResignBlockedDialog = false })
-    }
-
-    var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
-    var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
-    if (state.showApprenticeSelectDialog) {
-        MasterApprenticeSelectDialog(
-            currentDisciple = disciple,
-            allDisciples = allDisciples,
-            onDismiss = { state.showApprenticeSelectDialog = false },
-            onMasterSelected = { master -> selectedMaster = master; showApprenticeConfirmDialog = true }
-        )
-    }
-
-    selectedMaster?.let { master ->
-        if (showApprenticeConfirmDialog) {
-            StandardPromptDialog(onDismissRequest = { showApprenticeConfirmDialog = false },
-                title = "拜师确认",
-                text = "确认让 ${disciple.name}（${disciple.realmName}）拜 ${master.name}（${master.realmName}）为师？",
-                confirmLabel = "确认",
-                onConfirm = {
-                    viewModel?.disciple?.apprenticeToMaster(disciple.id, master.id)
-                    showApprenticeConfirmDialog = false
-                    selectedMaster = null
-                },
-                dismissLabel = "取消", onDismiss = { showApprenticeConfirmDialog = false })
-        }
     }
 }
 

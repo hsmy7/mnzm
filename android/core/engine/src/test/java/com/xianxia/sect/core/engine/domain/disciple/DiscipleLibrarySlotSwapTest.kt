@@ -126,9 +126,6 @@ class DiscipleLibrarySlotSwapTest {
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore
         )
-        val masterService = DiscipleMasterApprenticeService(
-            stateStore = mockStore
-        )
         val lifecycleManager = DiscipleLifecycleManager(
             stateStore = mockStore,
             slotManager = slotManager,
@@ -146,7 +143,6 @@ class DiscipleLibrarySlotSwapTest {
             rngManager = mockSmart(),
             discipleEquipmentService = equipmentService,
             discipleLifecycleManager = lifecycleManager,
-            discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
             discipleStatusService = statusService,
             inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java),

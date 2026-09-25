@@ -78,7 +78,6 @@ class DiscipleBreakthroughHandlerTest {
             stateStore = stateStore,
             cultivationCore = cultivationCore,
             scopeProvider = mockSmart(),
-            relativeGiftHandler = mockSmart(),
             rngManager = rngManager,
             analyticsTracker = analyticsTracker
         )
@@ -509,7 +508,6 @@ class DiscipleBreakthroughHandlerTest {
             stateStore = stateStore,
             cultivationCore = cultivationCore,
             scopeProvider = mockSmart(),
-            relativeGiftHandler = mockSmart(),
             rngManager = rngManager,
             analyticsTracker = analyticsTracker
         )

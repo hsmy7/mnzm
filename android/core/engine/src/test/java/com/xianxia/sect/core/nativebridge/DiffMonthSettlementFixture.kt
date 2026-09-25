@@ -22,7 +22,6 @@ import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.service.ProductionProcessor
 import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
-import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmAIProcessor
 import com.xianxia.sect.core.engine.service.DisciplePurchaseService
@@ -243,27 +242,27 @@ internal fun buildMonthDiffHarness(
             manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
             mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
             bb: Double, ab: Double, peb: Double, pmb: Double,
-            csb: Double, mdb: Double
+            csb: Double
         ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-            d, manuals, mps, bb, peb, pmb, csb, mdb
+            d, manuals, mps, bb, peb, pmb, csb
         )
         override fun calculateCultivationSpeed(
             a: DiscipleAggregate,
             manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
             mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
             bb: Double, ab: Double, peb: Double, pmb: Double,
-            csb: Double, mdb: Double
+            csb: Double
         ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-            a, manuals, mps, bb, peb, pmb, csb, mdb
+            a, manuals, mps, bb, peb, pmb, csb
         )
         override fun getBreakthroughChance(
             d: Disciple, iec: Int, oec: Int, pb: Double,
-            ab: Double, mdb: Double
-        ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, mdb)
+            ab: Double
+        ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab)
         override fun getBreakthroughChance(
             a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-            ab: Double, mdb: Double
-        ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, mdb)
+            ab: Double
+        ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab)
     }
     val core = CultivationCore(
         hpMpRecoveryService = HpMpRecoveryService(),
@@ -287,7 +286,6 @@ internal fun buildMonthDiffHarness(
         stateStore = store,
         cultivationCore = core,
         scopeProvider = mockSmart(),
-        relativeGiftHandler = RelativeGiftHandler(gameRng),
         rngManager = gameRng,
         analyticsTracker = mockSmart()
     )

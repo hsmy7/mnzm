@@ -296,7 +296,6 @@ private fun breakthroughDetailItems(
     if (detail.outerElderBonus > 0) add("外门长老加成" to detail.outerElderBonus)
     if (detail.pillBonus > 0) add("丹药加成" to detail.pillBonus)
     if (detail.adBonus > 0) add("玉符加成" to detail.adBonus)
-    if (detail.masterDiscipleBonus > 0) add("师徒加成" to detail.masterDiscipleBonus)
     if (detail.selfComprehensionBonus > 0) add("悟性加成" to detail.selfComprehensionBonus)
 }
 
@@ -367,7 +366,7 @@ private fun BreakthroughSummary(detail: DiscipleStatCalculator.BreakthroughBonus
     )
     // 公式行：说明乘区乘法计算结果
     val positiveSum = detail.innerElderBonus + detail.outerElderBonus +
-        detail.pillBonus + detail.masterDiscipleBonus
+        detail.pillBonus
     val basePct = GameUtils.formatPercent(detail.baseChance)
     val posPct = GameUtils.formatPercent(positiveSum)
     val adPct = GameUtils.formatPercent(detail.adBonus)

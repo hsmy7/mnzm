@@ -42,7 +42,6 @@ import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughBonusDetail
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
 
 /**
  * 弟子详情"基本信息"区块：内聚 BasicInfoSection 全部子组件与纯计算辅助。
@@ -62,7 +61,6 @@ fun BasicInfoSection(
     onBreakthroughJadeClick: (() -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
-    val masterDiscipleBonus = discipleMasterBonus(disciple, discipleMap)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "基本信息",
@@ -77,7 +75,6 @@ fun BasicInfoSection(
             disciple = disciple,
             discipleMap = discipleMap,
             elderSlots = elderSlots,
-            masterDiscipleBonus = masterDiscipleBonus,
             onBreakthroughJadeClick = onBreakthroughJadeClick
         )
 
@@ -154,7 +151,6 @@ private fun BasicInfoBreakthroughRow(
     disciple: DiscipleAggregate,
     discipleMap: Map<String, DiscipleAggregate>,
     elderSlots: ElderSlots?,
-    masterDiscipleBonus: Double,
     onBreakthroughJadeClick: (() -> Unit)?
 ) {
     val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
@@ -165,8 +161,7 @@ private fun BasicInfoBreakthroughRow(
         outerElderComprehension = elderBreakthroughComprehension(
             disciple, "outer", elderSlots?.outerElder, discipleMap
         ),
-        adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0,
-        masterDiscipleBonus = masterDiscipleBonus
+        adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
     )
     val adBonusValue = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
     Row(
@@ -362,18 +357,6 @@ private fun CultivationProgressRow(
 }
 
 // ── BasicInfoSection 纯计算辅助 ──
-
-private fun discipleMasterBonus(
-    disciple: DiscipleAggregate,
-    discipleMap: Map<String, DiscipleAggregate>
-): Double = disciple.masterId?.let { mid ->
-    val master = discipleMap[mid]
-    if (master != null && master.isAlive) {
-        DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(disciple.realm, master.realm)
-    } else {
-        0.0
-    }
-} ?: 0.0
 
 private fun discipleEquipmentMap(
     disciple: DiscipleAggregate,

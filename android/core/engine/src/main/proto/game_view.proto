@@ -106,9 +106,11 @@ message DiscipleRow {
   /// 字段号已退役，禁止复用
   reserved 10, 11, 26, 88, 104, 106;
   /// 78(partnerId)/79(partnerSectId)/80(parentId1)/81(parentId2)/
-  /// 82(lastChildYear)/83(childBirthMonth)/84(griefEndYear) 字段号已退役，
-  /// 禁止复用
-  reserved 78, 79, 80, 81, 82, 83, 84;
+  /// 82(lastChildYear)/83(childBirthMonth)/84(griefEndYear)/85(masterId)
+  /// 字段号已退役，禁止复用
+  reserved 78, 79, 80, 81, 82, 83, 84, 85;
+  /// masterId 字段名已退役，禁止复用
+  reserved "masterId";
   /// 17(talentIds)/18(physiqueIds)/19(affixIds)/96(aptitude) 字段号已退役
   /// （G04 下架，字段号禁复用）
   reserved 17, 18, 19, 96;
@@ -201,10 +203,6 @@ message DiscipleRow {
   optional int64 storageBagSpiritStones = 76;
   /// 弟子随身灵石（int32；注意与宗门灵石 gameData.spiritStones int64 区分）
   optional int32 spiritStones = 77;
-
-  // ── SocialData（C++/JSON 协议为扁平标量；"" 为 null 哨兵，与 JSON 路径
-  //    DiscipleSerializer 重建语义一致）─────────────────────────────────
-  optional string masterId = 85;
 
   // ── SkillStats ─────────────────────────────────────────
   optional int32 intelligence = 86;

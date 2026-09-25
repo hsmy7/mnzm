@@ -14,7 +14,7 @@
 //   - 基础属性乘区法（computeBaseStats：境界基值 × 方差乘区 × 层数乘区）
 //   - 修炼速度乘区（calculateCultivationPerPhase：4 乘区连乘 + 下限 1.0）
 //   - 突破概率乘区（calculateBreakthroughChance：baseZone × (1+指导+自身) + adFlat）
-//   - 寿命将尽惩罚、魂力加成、师徒加成
+//   - 寿命将尽惩罚、魂力加成
 //
 // 与 Kotlin 语义对齐要点：
 //   - roundToInt = std::round 后转 int（Kotlin roundToInt 四舍五入）
@@ -30,9 +30,6 @@ constexpr double kLayerMultiplier = 0.1;         // LAYER_MULTIPLIER
 constexpr double kBaseCritRate = 0.05;           // BASE_CRIT_RATE
 constexpr double kMinCultivationPerPhase = 1.0;  // MIN_CULTIVATION_PER_PHASE
 constexpr int32_t kBaseManualSlots = 6;          // BASE_MANUAL_SLOTS
-
-constexpr double kMasterCultBonusPerGap = 0.05;      // MASTER_DISCIPLE_CULTIVATION_BONUS_PER_GAP
-constexpr double kMasterBreakBonusPerGap = 0.03;     // MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP
 
 /// 境界配置（Kotlin GameConfig.Realm.CONFIGS）
 struct RealmConfig {
@@ -270,26 +267,5 @@ inline double getBreakthroughChance(int32_t realm, int32_t rootCount,
                             static_cast<double>(maxLayers - 1);
     const double rawProb = currentProb + (nextRealmProb - currentProb) * progress;
     return std::round(rawProb * 100.0) / 100.0;
-}
-
-// ── 师徒 ────────────────────────────────────────────────────────
-
-/// 师徒大境界差（"隔整境界才算"：gap = disciple - master - 1，下限 0）
-inline int32_t getMasterDiscipleRealmGap(int32_t discipleRealm, int32_t masterRealm) {
-    return std::max(discipleRealm - masterRealm - 1, 0);
-}
-
-/// 师徒修炼速度加成
-inline double getMasterDiscipleCultivationBonus(int32_t discipleRealm,
-                                                int32_t masterRealm) {
-    return getMasterDiscipleRealmGap(discipleRealm, masterRealm) *
-           kMasterCultBonusPerGap;
-}
-
-/// 师徒突破率加成
-inline double getMasterDiscipleBreakthroughBonus(int32_t discipleRealm,
-                                                 int32_t masterRealm) {
-    return getMasterDiscipleRealmGap(discipleRealm, masterRealm) *
-           kMasterBreakBonusPerGap;
 }
 }  // namespace gamecore::disciple

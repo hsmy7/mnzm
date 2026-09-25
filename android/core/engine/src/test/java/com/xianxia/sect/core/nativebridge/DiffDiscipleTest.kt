@@ -12,15 +12,12 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import com.xianxia.sect.core.engine.domain.disciple.calculateBreakthroughChance
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleBreakthroughBonus
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleCultivationBonus
-import com.xianxia.sect.core.engine.domain.disciple.getMasterDiscipleRealmGap
 
 /**
  * DiffDiscipleTest — 弟子属性计算跨语言差分对拍。
  *
- * 守护目标：C++ gamecore::disciple（基础属性乘区法/修炼乘区/突破乘区/
- * 师徒加成）与 Kotlin DiscipleStatCalculator 公式**逐位一致**。
+ * 守护目标：C++ gamecore::disciple（基础属性乘区法/修炼乘区/突破乘区）
+ * 与 Kotlin DiscipleStatCalculator 公式**逐位一致**。
  *
  * Kotlin 基准：真实 DiscipleStatCalculator（生产代码同一实现）。
  * 流程：同一参数 JSON 分别在 Kotlin 真实计算与 C++（JNI discipleOp）上执行，
@@ -179,32 +176,5 @@ class DiffDiscipleTest {
             DiscipleStatCalculator.calculateBreakthroughChance(zones),
             cpp["value"]!!.toString().toDouble(), 1e-12
         )
-    }
-
-    // ── 师徒 ─────────────────────────────────────────────────────
-
-    @Test
-    fun `master disciple bonuses match Kotlin`() {
-        assumeTrue(DiffRngBridge.isAvailable())
-        DiffRngBridge.nativeCoreInit()
-        for (pair in listOf(9 to 7, 9 to 0, 9 to 9, 7 to 9)) {
-            val op = buildJsonObject {
-                put("op", "masterDiscipleBonus")
-                put("discipleRealm", pair.first); put("masterRealm", pair.second)
-            }
-            val cpp = cppOp(op)
-            assertEquals(
-                DiscipleStatCalculator.getMasterDiscipleRealmGap(pair.first, pair.second),
-                cpp["gap"]!!.toString().toInt()
-            )
-            assertEquals(
-                DiscipleStatCalculator.getMasterDiscipleCultivationBonus(pair.first, pair.second),
-                cpp["cultivationBonus"]!!.toString().toDouble(), 1e-12
-            )
-            assertEquals(
-                DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(pair.first, pair.second),
-                cpp["breakthroughBonus"]!!.toString().toDouble(), 1e-12
-            )
-        }
     }
 }

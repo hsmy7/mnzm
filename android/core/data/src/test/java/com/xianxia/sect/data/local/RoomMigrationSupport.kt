@@ -257,6 +257,8 @@ internal object RoomMigrationSupport {
         // usage_lastTheftMonth 已在 v31 删除（偷盗系统年上限重构）——v36 不应存在
         assertFalse("usage_lastTheftMonth should be removed after v31 migration",
             columnExists(db, "disciples", "usage_lastTheftMonth"))
+        // social_masterId 自 v10 建立，在本助手的链尾判据点（v40）在场；
+        // 它随 G15 的 v59 才下线，v59 端点判据见 RoomMigrationV58To59Test
         assertTrue("disciples should have social_masterId",
             columnExists(db, "disciples", "social_masterId"))
         // v14: 修炼 Checkpoint 列（修炼 VoidForge Checkpoint 快照法）
