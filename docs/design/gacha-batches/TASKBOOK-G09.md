@@ -4,7 +4,7 @@
 > `HANDOVER-m1-remaining-3.md` §8.F 的 G09 清单。本轮实测原始记录见 [`recon-G09.md`](recon-G09.md)。
 > 上位失真条目逐条列在 §2，**执行者只认本文件**。
 > **更新时点：2026-09-26（用户六项拍板后）**——`§7.1` 记录拍板结果，`§3.6.1` 是来源文案整改细则，
-> `§3.8` 已改为**口径 A**，`D-3` 改为**独立抽卡分区**（🔴 尚待用户最后点头，未点头前不开工 `T-09e`）。
+> `§3.8` 已改为**口径 A**，`D-3` 已拍板为**独立抽卡分区** `GACHA = 12`（六项拍板全部落地，无待决阻塞项）。
 > 开工时点：HEAD `6c5e0daa1`，工作树 = `docs/research/`×2（未跟踪，不提交）
 > ＋ 构建副产物 `android/app/src/main/assets/atlas/atlas-rgba-manifest.json`（提交前 `git checkout --` 还原）。
 > 侦察方式：主线程直读关键文件 ＋ 4 个只读子代理穷举（需求口径 / C++ 现状面 / Kotlin·Room·守卫面 / 8 批删除面复核）
@@ -45,7 +45,7 @@
 | 验收⑤·补 | 🔴 **来源文案整改达标**（用户 2026-09-26 拍板）：`SOURCE_DISPLAY_NAMES` 全表显示名均为**玩家可明确得知的游戏内出处**；4 条死条目删除；邮件标题/正文模板不再对「归还」型来源使用「奖励」二字；`OverflowMailSenderTest` 同步 ＋ 新增「map 无死 key」反向断言（细则 §3.6.1） |
 | 验收⑥ | `gachaHistory` 环缓冲生效：新在前、条数 ≤ `HISTORY_RING_SIZE`(50)、保底条 `isPity=true` |
 | 验收⑦ | 星级乘区双端同名同参（**口径 A**：`×(1 + (star-1) × pct)`，1★ 基线 ×1.00，5★ 战斗 +32%/修炼 +20%）：C++ `disciple_stats.h`/`sect_power.h` 与 Kotlin `DiscipleStatCalculator`/`SectCombatPowerCalculator` 同式；`star=0`（未解锁/存量旧弟子）恒 ×1.00；Equivalence/Diff 测试锁死 |
-| 验收⑧ | **零新增 A 类**；B 类若扩大逐条登记（`actual` 指纹写进报告）；本批**不重录**任何金黄/对拍基线 |
+| 验收⑧ | **零新增 A 类**；独立分区落地后须实测证明既有三条 B 类红（`DiscipleFactory.GoldenSequence*`×2、`DeterminismProbeTest.DigestMatchesGoldenBaseline`）**逐条同名且 `actual` 指纹不变**，并把指纹原文写进报告；本批**不重录**任何金黄/对拍基线 |
 | 验收⑨ | `GachaConfigGuardTest` 三向常量守卫扩到星级百分比（C++ 常量 ↔ `GameConfig.Gacha` ↔ `gachaDefaults`）；新增「运行期账本 key ⊆ 模板表」「`pity` key ⊆ `gachaPools`」守卫 |
 | 验收⑩ | 双 changelog ＋ `report-G09.md` ＋ 单次提交（共享五件套同 commit） |
 | **不做** | 不做寻访 UI / 结果页 / 图鉴 / `GameViewModel` 接线（G11）；不新增 Room 列、**不做迁移**（D-12）；不给 `GachaHistoryEntry` 加「格序」字段（D-13）；不重录金序列/对拍基线（G10）；不改 `execute_dispatch.cpp` 的端口认领形态；不改版本号；**不做突破补偿**（P-6）；**不做保底自选**（P-5）；**不改 RNG 种子派生方案**（D-3 已否决哈希派生）；**不做防回档加固**（§7.2#4，单机不根除） |
@@ -124,6 +124,7 @@ pullOnce(poolId):
 ```
 
 **硬约束**
+- 🔴 **随机源 = 独立抽卡分区 `RngPartition::kGacha`(12) / Kotlin `RngPartition.GACHA`**（D-3 已拍板）：**禁止**取 `kSystem`；一次抽卡内部的所有抽取**全部**从该分区取序。
 - `weightedPick` 口径必须两端逐位一致：`r = rng.nextInt(100)`；按**声明顺序**累加 `weightPct`，取第一个 `r < 累计和` 的项。权重和必须恰为 100（配置守卫已断言）。
 - 品阶内候选必须 **`filter(rarity) → sortBy(id) 升序**（**禁止依赖数组/注册表迭代序**）——C++ `herbTemplates()` 的序是 JSON 数组序、Kotlin Registry 的序可能不同，不钉死就会两头抽到不同物品而 `Diff*` 判红。
 - **失败路径零 RNG 消费**（校验全在 ②/③ 之前）：这是双臂等价与「SL 回档可复现」的前提。
@@ -241,7 +242,7 @@ pullOnce(poolId):
 |---|---|---|
 | **D-1** | 🔴 **扩 `data_inject.h` 注入 `db.gachaPools` 与 `db.characterTemplates`**（新增 `gamecore/data/gacha_pool_db.h` 模板结构 ＋ `GachaPoolTemplate`/`CharacterTemplate` 存取器 ＋ `AppliedCounts.gachaPools/characterTemplates` ＋ `data_store_test` 三层守卫）。**不走「Kotlin 在 params 里传池快照」** | ① C++ AUTHORITATIVE ＋ `architecture.md` T-CPP-2「静态数据 codegen ＋ RegistryGuard，禁双端各抄」；② 传快照会让「概率由 Kotlin 决定」并制造第二真源；③ 与既有 7 张表同形制（`data_inject.h:55-112`）；④ 桌面/iOS 腿独立可跑。<br>⚠️ **陷阱**：该注入器语义是「段缺失⇒跳过、**段在而非数组/空 ⇒ 整体 `return false`**」（`data_inject.h:19-21,56`）⇒ 落空数组会让 **10 张表全部静默落内联兜底**（G04 实测红线）。必须：配置恒非空（现 1 池/6 模板）＋ `data_store_test` 断言「有段即非空且 `AppliedCounts` 与段长一致」 |
 | **D-2** | **物品两级 roll 与 item id 全在 C++ 完成**；C++ 直接 `inventory.h::addXxx` 入库并产出溢出草稿。**不采用 `storage_bag_tx.h` 的「C++ 只 roll kind、Kotlin 物化」半程方案** | C++ 侧**已有** herbs/seeds/beastMaterials 三表（`data_inject.h:62-83`）与含溢出邮件的入库臂（`inventory.h:938-994`），生产先例 `spirit_field.h:91-188`；半程方案会让 Kotlin 再消费一次 RNG（`storage_bag_tx.h:11-14` 正是在修这个缺陷），并制造临界契约。<br>代价：Kotlin 回退臂须**逐字同式**复刻（含 `sortBy(id)`），由 `DiffGachaPullTest` 双腿对拍锁死 |
-| **D-3** | 🔴 **抽卡走独立分区 `RngPartition::kGacha = 12`**（用户 2026-09-26 提问「主流厂商怎么做」→ 对标结论见 [`BENCHMARK-gacha-rng-partition.md`](BENCHMARK-gacha-rng-partition.md)；**待用户最终点头，未点头前不开工该片**） | ① 行业一致：Unity 官方明文「让一个随机源的种子与另一个不同、可有任意多实例」，Godot 把分流绑在实例 API 上，Unreal `RandomStream` 是每实例持种子的变量；② 抽卡由**玩家点击**驱动、次数无上限，结算由 L0–L4 固定节奏驱动 ⇒ 混流后「玩家抽了多少次」会平移旬/月/年结序列（CK3 OOS、Epic「同种子仍失步」、Factorio 线程确定性三例同因）；③ 与「每分区一条流 + 全入快照 + 逐位对拍」的既有架构一致。<br>🔴 **实测修正（推翻本任务书初版表述）**：`DeterminismProbe`（`determinism_probe.h:152-227`）哈希的是**行为 transcript**，**不含 `rngStates` 映射**；现有金黄夹具**不做抽卡** ⇒ **两个方案在现有套件下都不扰动既有金黄**，本决策**不是**由红点数量驱动，而是结构性的（耦合 / 可解释性 / 公平性 / 并行前提）。<br>🔴 **不采纳**「改用哈希派生种子」的建议：STS2 的泄漏根因是 C# `System.Random` 对种子近似线性，本项目是 PCG-XSH-RR ⇒ `seed + id` 不产生可互推流；改派生会作废全部 12 个既有分区的随机值，收益为零。<br>改动面：`rng_manager.h`（新增 `kGacha = 12`，`kMaxPartitionId` 由 `kResidual` 上移——**不上移会被 JNI 合法分区守卫静默拒绝**，`MISSION(8)` 曾因此恒返回 0）、`RngPartition.kt`、`RngSourceGuardTest` 登记、缺键按 `seed + id` 确定性重种。**零迁移、零新字段**（`rngStates` 本就是 map）。<br>守卫：① 一次抽卡随机消费次数 == 常量；② 抽卡前后 `rngStates` 差分只含 12 号键；③ 分区状态存取往返一致；④ 双端同分区同序（`DiffGachaPullTest`）。<br>备选（**若用户要求严格照方案原文**）：走 SYSTEM，并把「玩家抽卡次数会平移其它系统序列」作为**已知代价**写进报告，而非「无副作用」 |
+| **D-3** | ✅ **已拍板（用户 2026-09-26）：抽卡走独立分区 `RngPartition::kGacha = 12`**（对标结论见 [`BENCHMARK-gacha-rng-partition.md`](BENCHMARK-gacha-rng-partition.md)） | ① 🔴 **本仓已有完全同形的先例**：`RngPartition.kt:56-63` 的 `CHAT(10)` 明文写「用户时序驱动的独立流——**不与既有分区共用**：抽取的插入时机由玩家行为决定，混入任何结算分区都会扰动该分区的既有抽取序（红线 1）」；`RESIDUAL(11)` 追加时走的也是同一套「追加 id + C++ 播种 + 守卫登记 + 老档缺失键重播」流程 ⇒ 抽卡（玩家点击驱动、次数无上限）与 CHAT 同类。② 外部对标一致：Unity 官方明文「让一个随机源的种子与另一个不同、可有任意多实例」，Godot 把分流绑在实例 API 上，Unreal `RandomStream` 每实例持种子；CK3 跨平台 OOS / Epic「同种子仍失步」/ Factorio 线程确定性三例同因（消费次数成隐式全局契约）。③ 头部抽卡产品是「逐卡池类型独立、跨设备持久化的保底状态」（HoYoverse 官方帮助页）⇒ 官方只承诺概率与保底语义，从不承诺共用一条流。<br>🔴 **实测修正（推翻本任务书初版表述）**：`DeterminismProbe`（`determinism_probe.h:152-227`）哈希的是**行为 transcript**，**不含 `rngStates` 映射**；现有金黄夹具**不做抽卡** ⇒ **两个方案在现有套件下都不扰动既有金黄**，本决策**不是**由红点数量驱动，而是结构性的（耦合 / 可解释性 / 公平性 / 并行前提）。<br>🔴 **不采纳**「改用哈希派生种子」的建议：STS2 的泄漏根因是 C# `System.Random` 对种子近似线性，本项目是 PCG-XSH-RR ⇒ `seed + id` 不产生可互推流；改派生会作废全部既有分区的随机值，收益为零。<br>**改动面（本会话已直读核实）**：<br>① `include/gamecore/rng/rng_manager.h:49-62` 枚举追加 `kGacha = 12`；`:69` 的 `kMaxPartitionId` 由 `kResidual` 上移到 `kGacha`（**该常量上方 `:66-68` 的注释已写明「新增分区时写死的守卫会静默拒绝新 id，MISSION(8) 曾因此在 AUTHORITATIVE 下恒返回 0」**）；`:75-94` 的 `initSystemSeed` 追加 `partitions_[kGacha] = DeterministicRng::fromSeed(seed + 12)`（与既有 12 条逐一同式）。<br>② `android/core/engine/src/main/java/com/xianxia/sect/core/util/RngPartition.kt` 枚举追加 `GACHA(12)`（`inSnapshot` 默认 `true`、`isLocal` 默认 `false` ⇒ AUTHORITATIVE 下实例化为 `NativeBackedRng` 逐 roll 委托 C++，与抽卡「C++ AUTHORITATIVE」一致）；文件头 `:8-12` 已写明「新增分区只能追加新 id，且必须同步 C++ 枚举 + 播种 + 登记」。<br>③ `RngSourceGuardTest` 的 `registeredPartitionIds` 登记（不登记即判红）。<br>**老档兼容**：无 12 号键 ⇒ 按 `systemSeed + 12` 确定性重种（与 MISSION(8)/CHAT(10)/RESIDUAL(11) 同款恢复语义，`RngPartition.kt:87-90` 有明文范式）。**零迁移、零新字段**（`rngStates` 本就是 `map<id, state>`）。<br>🔴 **必须同批排查的连带面**：新增分区会让 `syncRngStates` 导出的 `rngStates` **多一个键** ⇒ 检查所有对 `rngStates` **键集/条数**做断言或两侧比对的测试与守卫（`RngSourceGuardTest`、`BaselineFieldCoverageGuardTest`、`Diff*` 族、`SaveDataDirectSerializationTest`），避免 A 类红。<br>**守卫**：① 一次抽卡的随机消费次数 == 常量；② 抽卡前后 `rngStates` 快照差分**只含 12 号键**；③ 分区状态存取往返一致；④ 双端同分区同序（`DiffGachaPullTest`）；⑤ `kMaxPartitionId` 上移后 `rngNextInt(12)` 不再被 JNI 守卫静默拒绝（回归 MISSION(8) 教训） |
 | **D-4** | **两段式入账：`gacha_tx` 只做「校验→扣费→roll→碎片/星/历史/物品」；不得重写碎片账本与升星** | 复用 `gacha_fragment.h`（G08 单点）；验收③ |
 | **D-5** | **解锁描述符化**：C++ 回执出 `unlockedTemplateIds`，Kotlin 物化 | C++ 无 `DiscipleTables`，也**不应**有（Kotlin 侧模板库/弟子表是权威）；与 §2.2#2 的实际边界一致 |
 | **D-6** | 🔴 **作废 `TASKBOOK-G08.md` D-16**：`annualNewDisciples` / `guideCounters["disciplesRecruited"]` 的**唯一计数点 = Kotlin `insertTemplateDisciple`**（`DiscipleService.kt:192-196`），C++ 不接、不预留 | 实测该函数已在同一 `updateAndReturn` 事务内自增两处；C++ 再计 = 双计（G08 D-16 的前提「C++ 解锁分支」不成立） |
@@ -274,7 +275,7 @@ pullOnce(poolId):
 | **A-09a** DTO 与转发 | `domain/gacha/GachaFacade.kt`、`domain/gacha/GachaFacadeImpl.kt`、`nativebridge/GachaNativeTx.kt`、生成物 `nativebridge/ActionIds.kt` | C++、`GachaFragmentLedger` | `GachaPullResult.Success` 分支穷尽；`pullOnce/pullTen` 双臂；`tryPullOnce/tryPullTen` 复用私有 `tx()`（零新增 `external fun`） |
 | **A-09b** Kotlin 回退臂 | `domain/gacha/GachaPullLedger.kt`（**新**，逐字同式 roll）、`domain/gacha/GachaService.kt` | C++、`GachaFragmentLedger.kt`（复用不改） | `updateAndReturn` 单事务；`sortBy(id)`；**抽卡分区**（D-3）；失败零消费 |
 | **A-09c** 入库来源 ＋ 解锁 | `service/OverflowMailSender.kt`（**整表重写 ＋ 标题/正文模板**，§3.6.1）、`core/domain/.../overflow/OverflowMail.kt`（KDoc 举例）、`feature/game/.../dialogs/BattleLogDialogs.kt`（日志来源表对齐）、解锁调用点（`GachaFacadeImpl` 或 `GameEngine{LoadData,Gacha}Ops`）、读档补齐点 | C++ | `SOURCE_DISPLAY_NAMES` 键与字面量逐字一致；新显示名全部为玩家可读出处；4 条死条目删除；`instantiateTemplate` 唯一入册口 |
-| **T-09e** 抽卡 RNG 分区（🔴 **等 §7.2#1 点头后才动**） | `include/gamecore/rng/rng_manager.h`、`core/engine/.../util/RngPartition.kt`、`core/engine/src/test/.../architecture/RngSourceGuardTest.kt` | 既有分区 id 语义、`kSystem` | `kMaxPartitionId` 上移到 `kGacha`（不上移会被 JNI 守卫静默拒绝，`MISSION(8)` 先例）；老档缺键按 `seed+id` 重种；分区状态往返一致 |
+| **T-09e** 抽卡 RNG 分区 | `include/gamecore/rng/rng_manager.h`、`core/engine/.../util/RngPartition.kt`、`core/engine/src/test/.../architecture/RngSourceGuardTest.kt` | 既有分区 id 语义、`kSystem` 的消费点 | 枚举 `kGacha = 12` / `GACHA(12)` 双侧同名同 id；`initSystemSeed` 补 `seed + 12`；`kMaxPartitionId` 上移到 `kGacha`（不上移会被 JNI 守卫静默拒绝，`rng_manager.h:66-68` 有 MISSION(8) 先例注释）；老档缺键按 `seed+12` 重种；`rngStates` 键集变化引发的连带测试（见 D-3） |
 | **A-09d** 星级乘区（Kotlin） | `domain/disciple/DiscipleStatCalculator.kt`、`domain/disciple/DiscipleStatCalculator属性Ops4.kt`、`SectCombatPowerCalculator.kt`（⚠️ 路径待 grep）、`GameConfig.kt`（**只读**，如需常量） | C++ 之外 | 命名乘区；`star=0 ⇒ ×1.00`；与 C++ 同名同参 |
 | **A-09e** 运行期守卫 | `GachaConfigGuardTest.kt`（扩三向 ＋ key 域）、`CharacterTemplateGuardTest.kt`（补 C++ 腿） | 生产源 | 断言消息带操作指引；不做 `assumeTrue` |
 | **c909-a/b** Kotlin 测试 | `DiffGachaPullTest.kt`（**新**，照 `DiffGachaFragmentTest.kt` 骨架）、`GachaPullGuardTest.kt`（**新**）、`RedeemCodeServiceTest.kt`（`RecordingGachaFacade` 适配 `Success` 分支） | 生产源、C++ | 双臂对拍同一 golden 向量；无 JNI 时跳过语义与既有 Diff 族一致 |
@@ -332,20 +333,20 @@ node scripts/check-agent-instructions.mjs   # EXIT=0；预存告警 2 条（规�
 | P-1 | 星级乘区口径 | **口径 A**：`1★` 基线 ×1.00，`×(1 + (star-1) × pct)` ⇒ 5★ 战斗 **+32%** / 修炼 **+20%**；**不采用**产品 §4.2 字面的 +40%/+25%（那是口径 B） | §2.2#4、§3.8 |
 | P-2 | 入库来源文案 | **ASCII 内部键 + 中文玩家显示名**；且**既有 25 项显示名一并修订为「玩家明确可知的出处」**，邮件标题/正文模板同步去掉对「归还」型来源不适用的「奖励」二字 | §3.6.1、D-9 |
 | P-3 | 历史条目「格序」字段 | **不加**（豁免产品 §15.3 字面）——历史按抽记条，格序由结果页 DTO 数组下标承担 | D-13 |
-| P-4 | 抽卡随机源 | **走独立分区**（对标结论见 [`BENCHMARK-gacha-rng-partition.md`](BENCHMARK-gacha-rng-partition.md)）——🔴 **用户提问后给出的方向，尚待最后点头**，见 §7.2#1 | D-3 |
+| P-4 | 抽卡随机源 | ✅ **已拍板：走独立分区**（`RngPartition::kGacha = 12`）——理由与改动面见 D-3；本仓 `CHAT(10)` 就是「用户时序驱动必须独立分区」的现成先例 | D-3、T-09e |
 | P-5 | 保底归属 | **六个角色全随机**（与 Q38 一致） | §3.3 |
 | P-6 | 突破补偿 `breakthroughCompBonus` | **不补**（白皮书 §3 杠杆 ⑨ 记为「不采纳」，本批不做） | §2.2#6 |
 
-### 7.2 剩余待决（不阻塞前 4 片开工）
+### 7.2 剩余待决（不阻塞开工）
 
-1. 🔴 **P-4 的最终确认**：抽卡是否独立分区（`GACHA = 12`）还是严格照产品方案原文走 SYSTEM。对标报告已给结论与代价；**未点头前不得动 `rng_manager.h` / `RngPartition.kt` / `RngSourceGuardTest`（D-3 的那一片）**，其余片可照本任务书开工。
-2. 🟠 **历史条目是否要「格序」**：本批已按 P-3 豁免；若后续产品要求按 §15.3 字面落，需 `@ProtoNumber(9)` ＋ 三端 ＋ 迁移纪律（G11 图鉴/历史页会用到）。
-3. 🟠 **保底自选（`pickMode != "random"`）**：白皮书 §3③ 列为 G13 备选；本批对非 `random` 取值按 `PoolMalformed` 拒绝并登记。
-4. 🟠 **防回档是否要加「存档外不可回退量」**：对标结论是**单机不根除**（无可信第三方），保留「保底计数随存档回退」即可；如需彻底封堵，代价是放弃这部分对拍确定性（D-3 备注）。
+1. 🟠 **历史条目是否要「格序」**：本批已按 P-3 豁免；若后续产品要求按 §15.3 字面落，需 `@ProtoNumber(9)` ＋ 三端 ＋ 迁移纪律（G11 图鉴/历史页会用到）。
+2. 🟠 **保底自选（`pickMode != "random"`）**：白皮书 §3③ 列为 G13 备选；本批对非 `random` 取值按 `PoolMalformed` 拒绝并登记。
+3. 🟠 **防回档是否要加「存档外不可回退量」**：对标结论是**单机不根除**（无可信第三方），保留「保底计数随存档回退」即可；如需彻底封堵，代价是放弃这部分对拍确定性（D-3 备注）。
+4. 🟠 **来源文案的中文措辞定稿**：§3.6.1 的逐条新显示名已按实测调用点给出，实施时按游戏内界面名逐条核对；如有与当前 UI 用词不一致的，以 UI 为准并回写本表。
 
 ### 7.3 跨批登记（G10 承接）
 
-5. 🔴 **B 类清单与 `DeterminismProbe.actual`**：若走独立分区，须实测证明三条既有 B 类红**逐条同名且 `actual` 不变**（本会话已给理论判据：probe 不哈希 `rngStates`）；若走 SYSTEM，须列明被平移的既有消费点与 `actual` 指纹。**一律不重录**（唯一窗口 G10）。
+5. 🔴 **B 类清单与 `DeterminismProbe.actual`**：独立分区落地后须实测证明三条既有 B 类红**逐条同名且 `actual` 不变**（本会话已给判据：probe 不哈希 `rngStates`，且现有夹具不做抽卡）；**一律不重录**（唯一窗口 G10）。
 6. 🔴 `RngSourceGuardTest` 的登记表需同步（新调用点/分区使用计数漂移）；`docs/rng-source-inventory.md` 的整行盘点仍归 G10。
 7. 🔴 `docs/ui-read-surface.md` §2.1 补登 `gachaFragmentCounts`/`gachaStarMap`/`gachaPityCounters`/`gachaHistory` 四行（事实已在协议面可传，文档未登记）。
 8. 🔴 **文档债**：`m0-economic-whitepaper.md:143-144` 正文写「采纳口径 B」与已拍板的 A 矛盾 ⇒ G12 文档收口批改正（本批只登记）。
@@ -358,8 +359,9 @@ node scripts/check-agent-instructions.mjs   # EXIT=0；预存告警 2 条（规�
 
 ## 8. 一句话给执行者
 
-**G09 的新增面只有三件：把 `db.gachaPools` 注入 C++（D-1）、写 `gacha_tx.h` 的 roll/保底/历史/物品两级 roll 与 `dispatch_gacha.cpp` 两个 case（D-2/D-3）、
-把星级乘区双端同名同参落地（§3.8，**口径 A**）；外加一件用户新加的收尾：**来源文案整体修订**（§3.6.1，既有 25 项显示名一并改成玩家明确的出处，含邮件标题模板）；
+**G09 的新增面只有三件：把 `db.gachaPools` 注入 C++（D-1）、写 `gacha_tx.h` 的 roll/保底/历史/物品两级 roll 与 `dispatch_gacha.cpp` 两个 case（D-2）、
+新增独立抽卡随机分区 `GACHA = 12`（D-3）并接上抽卡消费；再加星级乘区双端同名同参（§3.8，**口径 A**）；
+外加一件用户新加的收尾：**来源文案整体修订**（§3.6.1，既有 25 项显示名一并改成玩家明确的出处，含邮件标题模板）；
 碎片与升星（`gacha_fragment.h`）、解锁入册（`DiscipleService.instantiateTemplate`）、弟子计数（`insertTemplateDisciple`）、
 入库溢出（`inventory.h::addXxx`）、镜像通道（泛化脏段）**全部已存在，一律复用，禁止另开第二写者**；
 本批零 Room 迁移、零 proto 变更、零新增 JNI 导出，金黄一律不重录。**

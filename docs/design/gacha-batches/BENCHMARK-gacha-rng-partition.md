@@ -115,9 +115,11 @@
 | 守卫 | ① 一次抽卡的随机消费次数 == 常量；② 抽卡前后 `rngStates` 快照差分只含 12 号键；③ 抽卡分区状态可存取往返一致；④ 双端同分区同序（`DiffGachaPullTest`） |
 | 防回档（纯单机） | **不试图根除**（无可信第三方）。保留「保底计数随存档回退」——回档同时回退 pity，刷保底占不到便宜（`docs/character-gacha-redesign-2026-09-23.md:111` 已拍板接受） |
 
-### 6.5 若产品坚持按方案原文走 SYSTEM（备选）
+### 6.5 ✅ 决策结果（用户 2026-09-26 拍板）
 
-则必须在 G09 报告里把「**玩家抽卡次数会平移其它系统的随机序列**」写成**已知代价**（而不是「无副作用」），并登记 G10 的重录范围扩到「所有含抽卡的对拍夹具」；同时保留 §6.4 的守卫③④。
+**采用 §6.1/§6.4 的独立分区方案**：新增 `RngPartition::kGacha = 12` / Kotlin `RngPartition.GACHA`（`inSnapshot = true`），
+`kMaxPartitionId` 由 `kResidual` 上移到 `kGacha`，老档缺键按 `systemSeed + 12` 确定性重种。§6.5 原「备选（走 SYSTEM）」作废。
+落地细则、守卫与连带面已写入 [`TASKBOOK-G09.md`](TASKBOOK-G09.md) 的 D-3 / T-09e。
 
 ---
 
