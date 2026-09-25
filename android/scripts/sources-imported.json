@@ -2354,6 +2354,102 @@
       "height": 200
     },
     {
+      "drawable": "avatar_zhouming",
+      "source": "周明（男）/头像.png",
+      "hash": "97e90165d22d5f9231d238d2d77d2026",
+      "bakeKey": "{\"bake\":{\"maxDim\":512},\"target\":{\"width\":512,\"height\":512}}",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "drawable": "portrait_zhouming",
+      "source": "周明（男）/全身像.png",
+      "hash": "f7686f7d2e0638d0c93f71aaff50cdfc",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":576,\"height\":1024}}",
+      "width": 576,
+      "height": 1024
+    },
+    {
+      "drawable": "avatar_suqing",
+      "source": "苏晴（女）/头像.png",
+      "hash": "fe0f1e4c69498ed2eeb3b276cc05d988",
+      "bakeKey": "{\"bake\":{\"maxDim\":512},\"target\":{\"width\":512,\"height\":512}}",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "drawable": "portrait_suqing",
+      "source": "苏晴（女）/全身像.png",
+      "hash": "3842d0268673adda04eb23e5af5ff889",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":683,\"height\":1024}}",
+      "width": 683,
+      "height": 1024
+    },
+    {
+      "drawable": "avatar_linxuetang",
+      "source": "林雪棠（女)/头像.png",
+      "hash": "36b97b0e32c9ba7217542be2ee518c69",
+      "bakeKey": "{\"bake\":{\"maxDim\":512},\"target\":{\"width\":512,\"height\":512}}",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "drawable": "portrait_linxuetang",
+      "source": "林雪棠（女)/全身像.png",
+      "hash": "21a4c9750ab323ff92a04f78f22e9e29",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":683,\"height\":1024}}",
+      "width": 683,
+      "height": 1024
+    },
+    {
+      "drawable": "avatar_xuhe",
+      "source": "许荷（女）/头像.png",
+      "hash": "b0740992d9e791bd543cd87b74cfbce0",
+      "bakeKey": "{\"bake\":{\"maxDim\":512},\"target\":{\"width\":512,\"height\":512}}",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "drawable": "portrait_xuhe",
+      "source": "许荷（女）/全身像.png",
+      "hash": "b79f85772cf6a5542246c8e0ec076c08",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":683,\"height\":1024}}",
+      "width": 683,
+      "height": 1024
+    },
+    {
+      "drawable": "avatar_xieche",
+      "source": "谢澈(男）/头像.png",
+      "hash": "08923620ded13182a173a16b879ef808",
+      "bakeKey": "{\"bake\":{\"maxDim\":512},\"target\":{\"width\":512,\"height\":512}}",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "drawable": "portrait_xieche",
+      "source": "谢澈(男）/全身像.png",
+      "hash": "6ea50f51c9fa2b586ab3b9ea4cec7978",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":683,\"height\":1024}}",
+      "width": 683,
+      "height": 1024
+    },
+    {
+      "drawable": "avatar_zhaoyan",
+      "source": "赵言(男）/头像.png",
+      "hash": "2bae7798f9bafc182ca8a9e18b617cc8",
+      "bakeKey": "{\"bake\":{\"maxDim\":512},\"target\":{\"width\":512,\"height\":512}}",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "drawable": "portrait_zhaoyan",
+      "source": "赵言(男）/全身像.png",
+      "hash": "d5bc8d5a6cf4fb14eed5741f06ae35da",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":683,\"height\":1024}}",
+      "width": 683,
+      "height": 1024
+    },
+    {
       "drawable": "building_tianshu_hall",
       "source": "建筑/天枢殿.png",
       "hash": "060d54c88096271369620ce1e641cd1f",

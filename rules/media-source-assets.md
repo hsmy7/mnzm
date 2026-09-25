@@ -46,22 +46,43 @@ Canvas `drawSprite(name, cache, ...)` / `SpriteResRegistry.resolve("名称")` �
 
 ## 4. 角色寻访（卡池重构）与素材键的关系
 
-G01 已在 `android/app/src/main/assets/data/game-data.json` 登记 12 个角色精灵键
-（`avatar_*` / `portrait_*`，如 `avatar_zhouming` / `portrait_zhouming`），但这 12 个键
-**尚未注册进 `SpriteResRegistry`** —— `android/scripts/resource-registry.json` 无、
-`android/scripts/sprite-uid-map.json` 无、双模块 `drawable-nodpi` 无文件。该缺口是 **G11 最简寻访 UI 的硬阻塞**，由 **G16 素材批**处理：
+**G16（2026-09-25）已解除该阻塞**：6 位寻访角色的 12 个精灵键（`avatar_<角色id>` / `portrait_<角色id>`，
+如 `avatar_zhouming` / `portrait_zhouming`）现已四方齐备——
 
-```
-G16：从 模拟宗门美术素材/<角色名>/ 取源图 → 无损 WebP → 双模块放置 →
-      XianxiaApplication.kt 经 SpriteResRegistry.register(...) →
-      ResourcePreloader 同步点 → 图集 codegen → 守卫测试
-```
+| 环节 | 落点 |
+|---|---|
+| 配置源 | `android/app/src/main/assets/data/game-data.json` 的 `db.characterTemplates[*].avatarKey/portraitKey`（G01 登记） |
+| 注册表 | `android/scripts/resource-registry.json` 的 `CHARACTER` 分类 12 行（`name == res == 键名`） |
+| 映射 | `android/scripts/source-mapping.json` 的 CHARACTER 12 条，`source` 指向 `<角色目录>/头像.png`、`<角色目录>/全身像.png`，档位头像 `maxDim 512` / 立绘 `maxDim 1024` |
+| 产物 | 双模块 `drawable-nodpi/{avatar,portrait}_*.webp` 各 12 份（无损，单模块合计 4.08 MB） |
+
+运行时入口是 `SpriteResRegistry.resolve(键名)`（注册代码由 codegen 生成，见 `rules/static-resources.md` §5）。
+四方一致性由 `android/app/src/test/java/com/xianxia/sect/GachaCharacterSpriteGuardTest.kt` 锁死：
+新增角色模板若漏走素材流程，该守卫即红。
+
+🔴 **源目录路径已在本文件与 `rules/static-resources.md` 统一**：`scaffold-source-mapping.mjs` 与
+`import-art-assets.mjs` 经 `android/scripts/art-source.mjs` 解析到仓库根的 `模拟宗门美术素材/`
+（可用 `MNZM_ART_SOURCE` 覆盖）；历史上两处硬编码的 `D:\模拟宗门美术素材` 已作废，
+`docs/design/gacha-batches/recon-G05-G06-G08-G09.md` §G11-4 与 `docs/design/art-asset-pipeline-improvement.md` §1.1
+里的该路径按「一次性产出文档不回改」原则保留，以本文件为准。
+
+未处理项：第 7 角色 `月城雪/` 只有 `全身像.png` + `轮换池背景图.png`（属 M3 轮换池，见
+`docs/character-gacha-redesign-2026-09-23.md` §12-Q10 与里程碑表），本批不注册；`未归名大立绘` 同理。
 
 ## 5. 构建副产物提示
 
 改动素材会连带刷新 `android/app/src/main/assets/atlas/atlas-rgba-manifest.json`、
-`android/scripts/sprite-uid-map.json`、`android/app/src/main/cpp/scene/scene_uv_tables.h` 等**构建副产物** —— 这些是每次构建都会变时间戳的产物，
+`android/app/src/main/cpp/scene/scene_uv_tables.h` 等**构建副产物** —— 这些是每次构建都会变时间戳的产物，
 **提交前 `git checkout --` 还原**（例外：本批确实改了图集定义时，生成物须与源改动同批提交）。
+
+🔴 **但素材批要区分「时间戳脏」与「真新增」**：新增/删除 drawable 时下面三份是**必须随批提交的真源数据**，
+还原它们等于破坏契约——
+
+| 文件 | 为什么必须提交 |
+|---|---|
+| `android/scripts/sprite-uid-map.json` | UID 稳定引用真源（新资源按字典序追加 `max+1`、既有 UID 永不漂移）。还原后下次构建会给同一资源重新分配 UID，破坏 `.import` sidecar 式的稳定引用契约 |
+| `android/scripts/sources-imported.json` | 记录每个 drawable 的**源图 MD5 + 烘焙后尺寸**，是 import 增量跳过的依据；还原会让下次导入误判并重烘焙 |
+| `android/scripts/source-mapping.json` | 映射真源（由脚手架生成，随素材登记一并提交） |
 
 ## 6. ⚠️ 非素材文件登记
 

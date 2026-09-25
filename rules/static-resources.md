@@ -15,14 +15,21 @@
 
 ### 1.2 素材源目录与转换工具
 
-**素材源目录（唯一权威源）：`D:\模拟宗门美术素材`**
+**素材源目录（唯一权威源）：仓库根的 `模拟宗门美术素材/`**（2026-09-24 拍板，登记见 `rules/media-source-assets.md` §1）
 
-所有游戏美术的 PNG 源文件一律放在该目录，仓库内只存 WebP 产物（PNG 不提交）。
+所有游戏美术的 PNG 源文件一律放在该目录，仓库内只存 WebP 产物（PNG 不提交——该目录本身已在
+`.gitignore` 内，属**只登记不入库**的本机资产，换机器后需从项目外渠道同步）。
+源目录不在仓库里时可用环境变量 `MNZM_ART_SOURCE=<绝对路径>` 覆盖；**目录缺失时脚手架与导入脚本直接抛错退出**，
+不会静默把 `android/scripts/source-mapping.json` 的 source 改写成 null（G16 实测的旧版静默丢映射缺陷已按根因修掉）。
 今后任何素材改动流程：**新素材/改素材放入源目录 → 在 `android/scripts/source-mapping.json` 登记映射 → 运行导入脚本 → 构建验证**。
 
 source↔drawable 的**权威映射**在 `android/scripts/source-mapping.json`（由 `scripts/scaffold-source-mapping.mjs` 扫描 `android/scripts/resource-registry.json` + 源目录生成/维护）。每条含：`drawable`（产物名）、`source`（相对源目录路径）、`modules`、`bake`（`preserve` 保留源分辨率 / `maxDim:N` 等比缩放到最长边 / `canvas:{w,h}` contain 画布）。
 
-新增素材只需在该文件登记一行（或运行时脚手架自动盖上），随后运行导入脚本重烘焙。**禁止手改生成物**（`android/scripts/source-mapping.json` 由脚手架生成，改动应改脚手架规则或直接编辑后由守卫校验）。
+新增素材只需在该文件登记一行（或运行时脚手架自动盖上），随后运行导入脚本重烘焙。**禁止手改生成物**
+（`android/scripts/source-mapping.json` 每次跑脚手架都整体重写，手改的条目会被静默冲掉——
+G16 实测 `map_rock_base` 整条丢失、`map_grass_1` 退化为 null 且编译与守卫均不报警）。
+**要新增或修正映射，一律改 `scaffold-source-mapping.mjs` 里的表**（`MANUAL_OVERRIDES` / `MAP_KNOWN` / `CHARACTERS`）；
+脚本已加防丢失校验：旧映射里有 source 而新映射丢失该条目时直接抛错。
 
 有现成的 Node.js 脚本：
 
@@ -72,6 +79,7 @@ androidResources {
 |----------|---------|-------------|------|
 | **UI 按钮/控件** | `SpriteCategory.UI` | L0 (priority=0) | 底部按钮栏、关闭按钮、加载背景等首屏可见 UI |
 | **弟子头像** | `SpriteCategory.PORTRAIT` + `PortraitPool` | L0 (priority=0) | 动态命名头像 + `disciple_portrait` 兜底 |
+| **寻访角色头像/立绘** | `SpriteCategory.CHARACTER` | L2 (priority=2，不进预载) | 键名即 `android/app/src/main/assets/data/game-data.json` 的 `characterTemplates[*].avatarKey/portraitKey`（`avatar_<角色id>` / `portrait_<角色id>`），UI 经 `SpriteResRegistry.resolve(键名)` 取图；源图逐角色一目录，档位头像 512 / 立绘 1024 |
 | **装备精灵图** | `SpriteCategory.EQUIPMENT`（中文名 → res） | L1 + L2 | `equipmentSpriteRes("精铁剑")` 查询 |
 | **功法精灵图** | `SpriteCategory.MANUAL`（`manual_$稀有度` 键） | L1 + L2 | `manualSpriteRes(rarity)` 查询 |
 | **丹药精灵图** | `SpriteCategory.PILL`（`pill_$稀有度` 键） | L1 + L2 | `pillSpriteRes(rarity)` 查询 |
@@ -89,14 +97,14 @@ androidResources {
 
 ### 2.2 新增精灵图全流程（source-mapping + import 权威管线，2026-09-02）
 
-> 权威源：美术源图（`D:\模拟宗门美术素材`）→ `android/scripts/source-mapping.json`（source↔drawable 映射）→ `scripts/import-art-assets.mjs`（烘焙 WebP 到双模块）。仓库内 WebP 是**映射产物**，PNG 源不提交。
+> 权威源：美术源图（仓库根 `模拟宗门美术素材/`）→ `android/scripts/source-mapping.json`（source↔drawable 映射）→ `scripts/import-art-assets.mjs`（烘焙 WebP 到双模块）。仓库内 WebP 是**映射产物**，PNG 源不提交。
 
 **通用 UI/物品精灵图：**
 
 ```
 新增静态图片资源
   │
-  ├─ 1. 源图放入 D:\模拟宗门美术素材\<分类>\<中文名>.png
+  ├─ 1. 源图放入 模拟宗门美术素材/<分类>/<中文名>.png（仓库根）
   │      比如 装备/玄铁重剑.png（新增分类需先在 SpriteCategory 枚举定义）
   │
   ├─ 2. scripts/resource-registry.json 对应分类登记
@@ -107,9 +115,13 @@ androidResources {
   │      （常见分类自动盖上：EQUIPMENT/MATERIAL 按中文名、PILL/储物袋按品级、
   │      功法按 res、草药/种子按后缀、SPIRIT_STONE/SECT_ICON 按品级、BEAST 按
   │      动物名、ITEM growing_ 由 herb_ 中文名推导、CAVE/HEAVENLY_TRIAL/BACKGROUND/
-  │      UI 按固定表、特殊条目走 MANUAL_OVERRIDES；覆盖类目的 drawable 归入带 source 的条目）
+  │      UI 按固定表、CHARACTER（寻访角色）按 scaffold 的 CHARACTERS 登记表、
+  │      特殊条目走 MANUAL_OVERRIDES；覆盖类目的 drawable 归入带 source 的条目）
   │
-  ├─ 4. 若生成为待补(source=null)或命名不规则 → 手补 source-mapping.json 该条目
+  ├─ 4. 若生成为待补(source=null)或命名不规则 → **改 scaffold-source-mapping.mjs 的表**
+  │      （MANUAL_OVERRIDES / MAP_KNOWN / CHARACTERS + 必要时 DRAWABLE 级 bake），再跑步骤 3。
+  │      🔴 禁止直接手补 source-mapping.json：该文件每次脚手架运行都整体重写，手改条目会被
+  │      静默冲掉（G16 实测 map_rock_base 整条丢失）。表内容形如：
   │      { "drawable": "xuan_tie_zhong_jian", "source": "装备/玄铁重剑.png",
   │        "modules": ["feature/game","app"], "bake": {"maxDim":1024} }
   │      大图用 { "bake": {"preserve": true} }
@@ -117,20 +129,24 @@ androidResources {
   ├─ 5. 运行 node scripts/import-art-assets.mjs  （可先 --dry-run 预览）
   │      按 bake 规则：无损 WebP → 写入 feature/game 与 app 双模块
   │      内容 hash 增量（未变跳过）+ fail-fast（源缺失即报错）
+  │      ⚠ 单张产物超 3 MB 或长边顶到图集上限 4096 时高声告警——通常是美术把源图换成了
+  │      超清版而该条目仍是 preserve，需为该 drawable 改 maxDim 档位（见 G16 bg_recruit_normal 案例）
   │
   ├─ 6. 界面用统一入口显示
   │      SpriteImage(name = "玄铁重剑")  或  SpriteResRegistry.resolve("玄铁重剑")
   │
   └─ 7. 守卫自动兜底（缺失步骤会被拦）：
         - SpriteSourceMappingGuardTest：每个注册 res 必须在 source-mapping 有映射条目；
-          结构/烘焙规则合法
+          结构/烘焙规则合法；每个分类都已登记档位策略（新增分类不得静默漏检）、
+          分类名必须在 SpriteCategory 枚举内
         - ResourceManifestCompletenessTest：WebP 双模块都进清单
-        - SpriteCodegenSyncTest：注册代码与 registry 一致
+        - SpriteCodegenSyncTest：注册代码与 registry 一致（分类清单含 CHARACTER）
+        - GachaCharacterSpriteGuardTest：寻访角色键的 配置↔注册表↔映射↔双模块 四方一致
       编译：./gradlew compileReleaseKotlin
 ```
 
 **地图图集精灵（瓦片/建筑/装饰/云层/道路/岛边缘）：** 走同一权威管线 + 图集构建两步 ——
-源图放入 `D:\模拟宗门美术素材`（装饰在 `装饰物/`、建筑在 `建筑/`）→ `android/scripts/source-mapping.json`
+源图放入仓库根 `模拟宗门美术素材/`（装饰在 `装饰物/`、建筑在 `建筑/`）→ `android/scripts/source-mapping.json`
 的 `MAP`/`BUILDING`/`BACKGROUND` 分类登记（脚手架 `MAP_KNOWN` 表维护）→
 `node scripts/import-art-assets.mjs` 烘焙无损 WebP 到双模块 → `node scripts/build-atlas.mjs`
 重建图集。**新增装饰变体（草/石/树）= LAYOUT.tiles 加一行 + TILE_DRAWABLE 加映射 +
@@ -200,16 +216,16 @@ backgroundRes("bg_horizontal")  // → Int?
 
 新增静态资源时，确认以下全部完成：
 
-- [ ] 源 PNG 已放入 `D:\模拟宗门美术素材\<分类>\<中文名>.png`
+- [ ] 源 PNG 已放入仓库根 `模拟宗门美术素材/<分类>/<中文名>.png`
 - [ ] 已在 `android/scripts/resource-registry.json` 对应分类登记（新增分类时补充 `SpriteCategory` 枚举定义）；
       地图装饰/地面等**不经注册表**的精灵在 `scaffold-source-mapping.mjs` 的 `MAP_KNOWN` 表登记
-- [ ] 已运行 `node scripts/scaffold-source-mapping.mjs` 生成/更新 `android/scripts/source-mapping.json`（未自动命中的待补条目已手填 source + bake）
+- [ ] 已运行 `node scripts/scaffold-source-mapping.mjs` 生成/更新 `android/scripts/source-mapping.json`（未自动命中的条目已在脚手架的 `MANUAL_OVERRIDES` / `MAP_KNOWN` / `CHARACTERS` 表登记后重跑，**不手补生成物**）
 - [ ] 已运行 `node scripts/import-art-assets.mjs` 烘焙无损 WebP 到 feature/game 与 app 双模块（含 hash 增量 + fail-fast）
 - [ ] 地图图集类资源已运行 `node scripts/build-atlas.mjs` 重建 KTX 与图集清单（新增瓦片还需 LAYOUT.tiles/TILE_DRAWABLE 登记）
-- [ ] 图片为**无损 WebP**（`lossless: true, effort: 6`），源 PNG 已删除（不提交到仓库）
+- [ ] 图片为**无损 WebP**（`lossless: true, effort: 6`），源 PNG 留在源目录（该目录已 `.gitignore`，不入库）
 - [ ] 使用了正确的 `SpriteCategory`（首屏可见 → priority 0/1，其余 → priority 2）
 - [ ] 界面中使用 `SpriteImage("名称")` 或 `SpriteResRegistry.resolve("名称")` 显示，不使用直接 `R.drawable.xxx`
-- [ ] 守卫测试通过（`SpriteSourceMappingGuardTest` / `ResourceManifestCompletenessTest` / `SpriteCodegenSyncTest`）
+- [ ] 守卫测试通过（`SpriteSourceMappingGuardTest` / `ResourceManifestCompletenessTest` / `SpriteCodegenSyncTest`；寻访角色素材另需 `GachaCharacterSpriteGuardTest`）
 - [ ] 编译通过：`cd android && ./gradlew.bat compileReleaseKotlin`
 
 **活动/排行/社交扩展资源（2026-08-04 起）：** 活动卡片、排行榜、社交界面新增的静态资源同样强制走上述全部流程（WebP + 双模块 + 注册 + SpriteImage）。动态生成内容（排行榜头像占位、玩家生成分享图）**优先代码绘制**（Compose Canvas/形状），确需图片时走 `PORTRAIT` 分类或新增 `SpriteCategory`（需评估预加载优先级：首屏可见 → priority ≤ 1）。

@@ -20,7 +20,15 @@ enum class SpriteCategory(val priority: Int) {
     MATERIAL(2),
     STORAGE_BAG(2),
     SPIRIT_STONE(2),
-    SECT_ICON(2)
+    SECT_ICON(2),
+
+    /**
+     * 寻访角色素材：`avatar_<角色id>`（结果页方格用头像）与 `portrait_<角色id>`（图鉴用全身立绘）。
+     * 键名即 `game-data.json` 的 `characterTemplates[*].avatarKey/portraitKey`，
+     * UI 侧经 `SpriteResRegistry.resolve(key)` 取图。
+     * priority=2：寻访/图鉴是对话框而非首屏，与其余大图类一样不进预加载列表。
+     */
+    CHARACTER(2)
 }
 
 /**

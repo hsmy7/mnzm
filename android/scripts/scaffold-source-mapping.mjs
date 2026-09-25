@@ -3,7 +3,7 @@
  *
  * 数据源（只读）：
  * - scripts/resource-registry.json — 精灵注册源（name → res，按 SpriteCategory 分类）
- * - D:\模拟宗门美术素材 — 美术素材源目录（子目录 = 分类）
+ * - 仓库根的 模拟宗门美术素材/ — 美术素材源目录（子目录 = 分类；解析见 art-source.mjs）
  * - scripts/import-art-assets.mjs IMPORT 表 — 既有 6 条（天枢殿 + 云层）
  *
  * 关联规则（按分类，能可靠推导的自动盖上；不可靠的置 pending 并列入报告）：
@@ -18,6 +18,8 @@
  *  - BACKGROUND / UI：固定 drawable→源 映射表
  *  - ITEM：(herb_/seed_) 沿用中文名→草药/种子文件；growing_ 用对应 herb_ 的中文名
  *    → 草药生长期/<中文名>成长期图片.png（不存在则回退 <中文名>成长期.png）
+ *  - CHARACTER：寻访角色素材逐角色一目录（<角色名>/头像.png、<角色名>/全身像.png），
+ *    源与烘焙档位均在 CHARACTERS 登记表显式登记（目录名全/半角括号混用，不做推导）
  *  - MANUAL_OVERRIDES（优先级最高）：无法或不适合自动推导的条目（装备名与源名不一致、
  *    种子用「种」而非「核」、CAVE 四件、待核验确认的 UI/背景 等）
  *
@@ -32,12 +34,18 @@ import path from 'path';
 import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 import { ensureManifest } from './resource-manifest.mjs';
+import { ART_SOURCE_REL, resolveArtSourceDir } from './art-source.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ANDROID_DIR = path.resolve(__dirname, '..');
 const REGISTRY_FILE = path.resolve(__dirname, 'resource-registry.json');
 const OUT_FILE = path.resolve(__dirname, 'source-mapping.json');
-const SOURCE_DIR = 'D:/模拟宗门美术素材';
+
+/**
+ * 美术素材源目录 = 仓库根的 `模拟宗门美术素材/`（rules/media-source-assets.md §1 指定的唯一原始素材来源）。
+ * 解析与 fail-fast 规则集中在 art-source.mjs，与 import-art-assets.mjs 共用同一真源。
+ */
+const SOURCE_DIR = resolveArtSourceDir();
 
 /** 分类 → 源目录（中文子目录名） */
 const CAT_SRC_DIR = {
@@ -51,6 +59,40 @@ const CAT_BAKE = {
   PILL: { maxDim: 1024 }, MATERIAL: { maxDim: 1024 }, EQUIPMENT: { maxDim: 1024 },
   STORAGE_BAG: { maxDim: 1024 }, MANUAL: { maxDim: 1024 }, SEED: { maxDim: 1024 },
 };
+
+/**
+ * 寻访角色素材登记表（G16）：`id` 与 `game-data.json` 的 `characterTemplates[*].id` 逐字符相同，
+ * `srcDir` 是源目录里的角色目录名（全/半角括号混用是美术侧现状，见 rules/media-source-assets.md §1，
+ * 故逐条显式登记而非按目录名推导）。
+ */
+const CHARACTERS = [
+  { id: 'zhouming', srcDir: '周明（男）' },
+  { id: 'suqing', srcDir: '苏晴（女）' },
+  { id: 'linxuetang', srcDir: '林雪棠（女)' },
+  { id: 'xuhe', srcDir: '许荷（女）' },
+  { id: 'xieche', srcDir: '谢澈(男）' },
+  { id: 'zhaoyan', srcDir: '赵言(男）' },
+];
+
+/**
+ * 头像走寻访结果页 2×5 正方形框（横屏高 1080px ⇒ 格子约 170px），立绘走图鉴 6 格
+ * （约 120dp 宽 ≈ 360px@3x）——两者显示尺寸差一个量级，故按 drawable 而非按分类定档。
+ * 调档只需改这两个常数 + 重跑 import-art-assets.mjs（映射是幂等的）。
+ */
+const CHARACTER_AVATAR_MAX_DIM = 512;
+const CHARACTER_PORTRAIT_MAX_DIM = 1024;
+
+/** drawable → 源相对路径 */
+const CHARACTER_SOURCE = new Map();
+/** drawable → bake（分类级 CAT_BAKE 表达不了同分类内的档位差） */
+const DRAWABLE_BAKE = new Map();
+for (const c of CHARACTERS) {
+  CHARACTER_SOURCE.set(`avatar_${c.id}`, `${c.srcDir}/头像.png`);
+  CHARACTER_SOURCE.set(`portrait_${c.id}`, `${c.srcDir}/全身像.png`);
+  DRAWABLE_BAKE.set(`avatar_${c.id}`, { maxDim: CHARACTER_AVATAR_MAX_DIM });
+  DRAWABLE_BAKE.set(`portrait_${c.id}`, { maxDim: CHARACTER_PORTRAIT_MAX_DIM });
+}
+
 
 /** 品级字 → 源文件名片段（PILL/STORAGE_BAG 共用） */
 const GRADE_SRC = { fan: '凡品', ling: '灵品', bao: '宝品', xuan: '玄品', di: '地品', tian: '天品' };
@@ -114,7 +156,8 @@ async function scanUnusableSources() {
       }
     }
   };
-  if (fs.existsSync(SOURCE_DIR)) await walk(SOURCE_DIR);
+  // 源目录必然存在——resolveArtSourceDir() 缺失即抛错，此处直接全量预扫描
+  await walk(SOURCE_DIR);
 }
 
 function fileExists(rel) {
@@ -126,6 +169,11 @@ let herbNameByRes = new Map();
 
 /** 按分类给单个 registry entry 推导 source（相对路径）；null = 待补 */
 function deriveSource(category, res, name) {
+  // 角色素材：逐角色一目录，走显式登记表（CHARACTERS）
+  if (category === 'CHARACTER') {
+    const s = CHARACTER_SOURCE.get(res);
+    return s && fileExists(s) ? s : null;
+  }
   // 手动覆盖优先（不可可靠推导/名称不一致的条目）
   if (MANUAL_OVERRIDES[res] !== undefined) return MANUAL_OVERRIDES[res];
 
@@ -346,10 +394,12 @@ for (const cat of registry.categories) {
     if (byDrawable.has(e.res)) continue; // 首次出现优先，后续跨分类重复跳过
     const source = deriveSource(cat.category, e.res, e.name);
     if (!source) pending.push({ category: cat.category, drawable: e.res, name: e.name });
-    // 烘焙：小物件 maxDim 1024 / 大图 preserve；ITEM 内草药+种子是 maxDim，growing 是 preserve
-    const bake = cat.category === 'ITEM'
-      ? (/^(herb_|seed_)/.test(e.res) ? { maxDim: 1024 } : { preserve: true })
-      : (CAT_BAKE[cat.category] ?? { preserve: true });
+    // 烘焙：小物件 maxDim 1024 / 大图 preserve；ITEM 内草药+种子是 maxDim，growing 是 preserve；
+    // 角色素材按 drawable 定档（头像与立绘显示尺寸差一个量级，分类级默认表达不了）
+    const bake = DRAWABLE_BAKE.get(e.res)
+      ?? (cat.category === 'ITEM'
+        ? (/^(herb_|seed_)/.test(e.res) ? { maxDim: 1024 } : { preserve: true })
+        : (CAT_BAKE[cat.category] ?? { preserve: true }));
     byDrawable.set(e.res, { drawable: e.res, source, category: cat.category, bake });
   }
 }
@@ -378,10 +428,18 @@ for (let i = 1; i <= 5; i++) {
 // 地图精灵（MAP）：宗门地图图集直取的装饰/地面精灵——不经 resource-registry.json
 // （图集槽位与瓦片索引在 build-atlas.mjs LAYOUT.tiles 登记），但**必须**经本映射
 // 才能从源图重烘焙（草皮无缝平铺 / 装饰变体 / 门楼均在此表登记烘焙规则）。
-// bake 约定：装饰 preserve（槽位由图集按显示尺寸收敛）；草皮 64² 无缝平铺（seamless）。
+// bake 约定：装饰 preserve（槽位由图集按显示尺寸收敛）；草皮 64² 无缝平铺（seamless）；
+// REPEAT 地面底色 square（须 2 的幂，GLES POT 守卫 / Vulkan REPEAT 采样器）。
+// modules 缺省双模块；仅图集使用、不进 Compose 的纹理可只放 feature/game。
 //
 const MAP_KNOWN = [
-  { drawable: 'map_grass_1', source: '装饰物/草皮.png', bake: { maxDim: 64, seamless: true } },
+  { drawable: 'map_grass_1', source: '宗门地图/草皮.png', bake: { maxDim: 64, seamless: true } },
+  {
+    drawable: 'map_rock_base',
+    source: '宗门地图/底部.png',
+    modules: ['feature/game'],
+    bake: { square: 1024, seamless: true },
+  },
   { drawable: 'sect_gate', source: '建筑/宗门门楼.png', bake: { preserve: true } },
   { drawable: 'decoration_grass1', source: '装饰物/花草1.png', bake: { preserve: true } },
   { drawable: 'decoration_grass2', source: '装饰物/花草2.png', bake: { preserve: true } },
@@ -396,19 +454,24 @@ const MAP_KNOWN = [
 for (const m of MAP_KNOWN) {
   const source = fileExists(m.source) ? m.source : null;
   if (!source) pending.push({ category: 'MAP', drawable: m.drawable, name: m.drawable });
-  KNOWN.push({ category: 'MAP', drawable: m.drawable, source, modules: ['feature/game', 'app'], bake: m.bake });
+  KNOWN.push({
+    category: 'MAP', drawable: m.drawable, source,
+    modules: m.modules ?? ['feature/game', 'app'], bake: m.bake,
+  });
 }
 
 const mapping = {
   version: 1,
-  description: '美术素材 source↔drawable 权威映射（由 scaffold-source-mapping.mjs 生成）。source 相对 D:\\模拟宗门美术素材；bake.preserve=true 保留源分辨率，bake.maxDim 等比缩放最长边，bake.roundUp4=true 宽高向上取整到 4 的倍数（ASTC 压缩纹理尺寸要求），bake.seamless=true 做无缝平铺处理（草皮）。',
-  sourceDir: SOURCE_DIR,
+  description: '美术素材 source↔drawable 权威映射（由 scaffold-source-mapping.mjs 生成）。source 相对仓库根的 模拟宗门美术素材/（可用 MNZM_ART_SOURCE 覆盖）；bake.preserve=true 保留源分辨率，bake.maxDim 等比缩放最长边，bake.roundUp4=true 宽高向上取整到 4 的倍数（ASTC 压缩纹理尺寸要求），bake.seamless=true 做无缝平铺处理（草皮）。',
+  sourceDir: ART_SOURCE_REL,
   bakeDefaults: {
     PILL: { maxDim: 1024 }, MATERIAL: { maxDim: 1024 }, EQUIPMENT: { maxDim: 1024 },
     STORAGE_BAG: { maxDim: 1024 }, MANUAL: { maxDim: 1024 }, SEED: { maxDim: 1024 },
     PORTRAIT: { preserve: true }, BUILDING: { preserve: true }, UI: { preserve: true },
     BACKGROUND: { preserve: true }, BEAST: { preserve: true }, CAVE: { preserve: true },
     HEAVENLY_TRIAL: { preserve: true }, MAP: { preserve: true },
+    // 角色素材两档并存：立绘 1024 / 头像 512，实际值逐 drawable 落在 entries.bake
+    CHARACTER: { maxDim: CHARACTER_PORTRAIT_MAX_DIM },
   },
   categories,
 };
@@ -420,6 +483,57 @@ for (const k of KNOWN) {
   c.entries.push({ drawable: k.drawable, source: k.source, modules: k.modules, bake: k.bake });
 }
 
+/**
+ * 防「脚手架静默冲掉人工映射」——本脚本无条件整体重写 source-mapping.json，
+ * 而映射里存在只能人工确认的条目（源图不在分类默认目录、单模块放置等）。
+ * 旧映射有 source、新映射却丢了该条目或把它退化为 null，而该 drawable 的产物仍在
+ * drawable-nodpi（= 资源还活着）⇒ 判定为真源丢失，抛错要求把该条登记进本脚本的表。
+ * 确属删除素材时产物 WebP 会先被移除，本检查自动放行。
+ *
+ * 实测动因（G16 侦察）：`map_rock_base`（宗门地图/底部.png，仅 feature/game）整条被旧版
+ * 脚手架丢弃、`map_grass_1` 因 MAP_KNOWN 记错目录（装饰物/ 而非 宗门地图/）退化为 null，
+ * 两处都发生在重生成那一刻且编译与守卫均不报警。
+ */
+function assertNoMappingLoss(nextMapping) {
+  if (!fs.existsSync(OUT_FILE)) return;
+  let prev;
+  try {
+    prev = JSON.parse(fs.readFileSync(OUT_FILE, 'utf8'));
+  } catch {
+    return; // 损坏的旧文件不构成真源
+  }
+  const liveProducts = new Set();
+  for (const dir of [
+    path.resolve(ANDROID_DIR, 'feature/game/src/main/res/drawable-nodpi'),
+    path.resolve(ANDROID_DIR, 'app/src/main/res/drawable-nodpi'),
+  ]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+      if (/\.(webp|png|jpe?g)$/i.test(f)) liveProducts.add(f.replace(/\.[^.]+$/i, ''));
+    }
+  }
+  const next = new Map();
+  for (const cat of nextMapping.categories) {
+    for (const e of cat.entries) next.set(e.drawable, e.source);
+  }
+  const lost = [];
+  for (const cat of prev.categories ?? []) {
+    for (const e of cat.entries ?? []) {
+      if (!e.source || !liveProducts.has(e.drawable)) continue;
+      if (next.get(e.drawable)) continue;
+      lost.push(`${e.drawable}: ${next.has(e.drawable) ? 'source 退化为 null' : '条目被丢弃'}（原 source = ${e.source}）`);
+    }
+  }
+  if (lost.length > 0) {
+    throw new Error(
+      `拒绝重写 source-mapping.json：以下人工映射会丢失\n  ${lost.join('\n  ')}\n` +
+      '修复：把该条目登记进 scaffold-source-mapping.mjs 的表（MANUAL_OVERRIDES / MAP_KNOWN / CHARACTERS），' +
+      '或确认素材已删除并先移除其 drawable-nodpi 产物。'
+    );
+  }
+}
+
+assertNoMappingLoss(mapping);
 fs.writeFileSync(OUT_FILE, JSON.stringify(mapping, null, 2) + '\n');
 
 const mappedCount = mapping.categories.reduce((n, c) => n + c.entries.filter((e) => e.source).length, 0);

@@ -51,10 +51,11 @@ class SpriteCodegenSyncTest {
     }
 
     @Test
-    fun `SpriteRegistryData 结构 - 14 个分类全部注册且名称配对`() {
+    fun `SpriteRegistryData 结构 - 15 个分类全部注册且名称配对`() {
         val expectedCategories = listOf(
             "EQUIPMENT", "MANUAL", "PILL", "SPIRIT_STONE", "MATERIAL", "STORAGE_BAG",
             "SECT_ICON", "ITEM", "UI", "BEAST", "CAVE", "HEAVENLY_TRIAL", "BACKGROUND", "PORTRAIT",
+            "CHARACTER",
         )
         val src = registrySource()
         for (category in expectedCategories) {

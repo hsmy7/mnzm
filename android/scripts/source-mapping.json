@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "description": "美术素材 source↔drawable 权威映射（由 scaffold-source-mapping.mjs 生成）。source 相对 D:\\模拟宗门美术素材；bake.preserve=true 保留源分辨率，bake.maxDim 等比缩放最长边，bake.roundUp4=true 宽高向上取整到 4 的倍数（ASTC 压缩纹理尺寸要求），bake.seamless=true 做无缝平铺处理（草皮）。",
-  "sourceDir": "D:/模拟宗门美术素材",
+  "description": "美术素材 source↔drawable 权威映射（由 scaffold-source-mapping.mjs 生成）。source 相对仓库根的 模拟宗门美术素材/（可用 MNZM_ART_SOURCE 覆盖）；bake.preserve=true 保留源分辨率，bake.maxDim 等比缩放最长边，bake.roundUp4=true 宽高向上取整到 4 的倍数（ASTC 压缩纹理尺寸要求），bake.seamless=true 做无缝平铺处理（草皮）。",
+  "sourceDir": "模拟宗门美术素材",
   "bakeDefaults": {
     "PILL": {
       "maxDim": 1024
@@ -44,6 +44,9 @@
     },
     "MAP": {
       "preserve": true
+    },
+    "CHARACTER": {
+      "maxDim": 1024
     }
   },
   "categories": [
@@ -3369,6 +3372,143 @@
           ],
           "bake": {
             "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "CHARACTER",
+      "entries": [
+        {
+          "drawable": "avatar_zhouming",
+          "source": "周明（男）/头像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 512
+          }
+        },
+        {
+          "drawable": "portrait_zhouming",
+          "source": "周明（男）/全身像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "avatar_suqing",
+          "source": "苏晴（女）/头像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 512
+          }
+        },
+        {
+          "drawable": "portrait_suqing",
+          "source": "苏晴（女）/全身像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "avatar_linxuetang",
+          "source": "林雪棠（女)/头像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 512
+          }
+        },
+        {
+          "drawable": "portrait_linxuetang",
+          "source": "林雪棠（女)/全身像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "avatar_xuhe",
+          "source": "许荷（女）/头像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 512
+          }
+        },
+        {
+          "drawable": "portrait_xuhe",
+          "source": "许荷（女）/全身像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "avatar_xieche",
+          "source": "谢澈(男）/头像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 512
+          }
+        },
+        {
+          "drawable": "portrait_xieche",
+          "source": "谢澈(男）/全身像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "avatar_zhaoyan",
+          "source": "赵言(男）/头像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 512
+          }
+        },
+        {
+          "drawable": "portrait_zhaoyan",
+          "source": "赵言(男）/全身像.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
           }
         }
       ]

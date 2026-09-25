@@ -3,7 +3,7 @@
  *
  * 数据源：
  * - scripts/source-mapping.json — 权威 source↔drawable 映射（由 scaffold-source-mapping.mjs 生成/维护）
- * - D:\模拟宗门美术素材 — 美术素材源目录
+ * - 仓库根的 模拟宗门美术素材/ — 美术素材源目录（解析与覆盖入口见 art-source.mjs）
  *
  * 烘焙规则（mapping 每条 bake）：
  * - { preserve: true }           保留源分辨率（大图：立绘/建筑/UI/背景/妖兽等）
@@ -29,11 +29,15 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { REPO_ROOT, resolveArtSourceDir } from './art-source.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ANDROID_DIR = path.resolve(__dirname, '..');
 const MAPPING_FILE = path.resolve(__dirname, 'source-mapping.json');
 const OUT_SUMMARY = path.resolve(__dirname, 'sources-imported.json');
+
+/** 素材源目录（缺失即抛错，禁止静默产出缺素材的 WebP） */
+const ART_SOURCE_DIR = resolveArtSourceDir();
 
 const MODULE_DIRS = {
   'feature/game': path.resolve(ANDROID_DIR, 'feature/game/src/main/res/drawable-nodpi'),
@@ -44,6 +48,18 @@ const WEBP_OPTIONS = { lossless: true, effort: 6 };
 
 /** 单素材硬上限（GPU 纹理上限，防个别超高清源撑爆） */
 const MAX_BAKE_DIM = 4096;
+
+/**
+ * 产物预算告警线：长边达到图集上限、或单张无损 WebP 超过此字节数时高声提示。
+ *
+ * 动因（G16 实测）：`BACKGROUND` 等分类是 `preserve`（保留源分辨率）档位，源图一旦被美术
+ * 换成超清版（`背景图/普通招募背景图.png` 由 1672×941 变 6144×3456），重烘焙会静默产出
+ * 4096×2304 / 6.8 MB 的单张背景（解码后 ARGB 约 37 MB），包体与内存同时失控，
+ * 而脚本原本一声不响。preserve 语义没错，错在没人被告知档位该重定了。
+ *
+ * @type {number} 单张无损 WebP 的告警阈值（字节）
+ */
+const BAKE_BUDGET_BYTES = 3 * 1024 * 1024;
 
 /** 无缝平铺处理的工作分辨率倍率（4× 后降采样，低通平滑周期环绕过渡） */
 const SEAMLESS_WORK_SCALE = 4;
@@ -159,6 +175,22 @@ async function computeTarget(meta, bake) {
   return { width: w, height: h, fit };
 }
 
+/** 目标尺寸是否已顶到图集上限（源图比上限还大 ⇒ preserve 已不等同于「保留显示尺寸级分辨率」） */
+function targetHitAtlasCeiling(target) {
+  return Math.max(target.width, target.height) >= MAX_BAKE_DIM;
+}
+
+/** 高声提示「该条目的 bake 档位需要重定」——不阻断导入（档位是产品口径，不由脚本单方面决定） */
+function warnBakeBudget(drawable, target, bytes, bake) {
+  const size = bytes === null ? '尺寸' : `${(bytes / 1048576).toFixed(1)} MB`;
+  const argb = (target.width * target.height * 4 / 1048576).toFixed(1);
+  console.warn(
+    `⚠ 产物超预算: ${drawable} → ${target.width}×${target.height}（${size}，解码后 ARGB 约 ${argb} MB）\n` +
+    `  该条目 bake=${JSON.stringify(bake)}，源图长边已达图集上限 ${MAX_BAKE_DIM}。\n` +
+    '  若源图被美术换成超清版本，请为该 drawable 改 maxDim 档位（分类默认 preserve 此时不再等效）后重跑本脚本。'
+  );
+}
+
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const mapping = loadMapping();
@@ -173,7 +205,7 @@ async function main() {
 
   for (const [drawable, entry] of mapping) {
     if (!entry.source) continue; // 待补（source null）不处理，保持既有产物不动
-    const srcFile = path.join(entry.sourceDir ?? 'D:/模拟宗门美术素材', entry.source);
+    const srcFile = path.resolve(REPO_ROOT, entry.sourceDir ?? ART_SOURCE_DIR, entry.source);
     if (!fs.existsSync(srcFile)) {
       summary.failed.push(drawable);
       throw new Error(`资源缺失: ${entry.source} (${drawable})——检查 source-mapping.json 或源目录`);
@@ -217,6 +249,7 @@ async function main() {
 
     if (dryRun) {
       summary.generated.push(drawable);
+      if (targetHitAtlasCeiling(target)) warnBakeBudget(drawable, target, null, entry.bake);
       outManifest.push({ drawable, source: entry.source, hash: srcMd5, bakeKey, width: target.width, height: target.height, dryRun: true });
       continue;
     }
@@ -225,6 +258,9 @@ async function main() {
       if (!dir) throw new Error(`未知模块: ${mod}`);
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, drawable + '.webp'), buf);
+    }
+    if (buf.length > BAKE_BUDGET_BYTES || targetHitAtlasCeiling(target)) {
+      warnBakeBudget(drawable, target, buf.length, entry.bake);
     }
     summary.generated.push(drawable);
     outManifest.push({ drawable, source: entry.source, hash: srcMd5, bakeKey, width: target.width, height: target.height });

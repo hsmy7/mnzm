@@ -369,6 +369,23 @@
       "entries": [
         { "name": "disciple_portrait", "res": "disciple_portrait" }
       ]
+    },
+    {
+      "category": "CHARACTER",
+      "entries": [
+        { "name": "avatar_zhouming", "res": "avatar_zhouming" },
+        { "name": "portrait_zhouming", "res": "portrait_zhouming" },
+        { "name": "avatar_suqing", "res": "avatar_suqing" },
+        { "name": "portrait_suqing", "res": "portrait_suqing" },
+        { "name": "avatar_linxuetang", "res": "avatar_linxuetang" },
+        { "name": "portrait_linxuetang", "res": "portrait_linxuetang" },
+        { "name": "avatar_xuhe", "res": "avatar_xuhe" },
+        { "name": "portrait_xuhe", "res": "portrait_xuhe" },
+        { "name": "avatar_xieche", "res": "avatar_xieche" },
+        { "name": "portrait_xieche", "res": "portrait_xieche" },
+        { "name": "avatar_zhaoyan", "res": "avatar_zhaoyan" },
+        { "name": "portrait_zhaoyan", "res": "portrait_zhaoyan" }
+      ]
     }
   ]
 }

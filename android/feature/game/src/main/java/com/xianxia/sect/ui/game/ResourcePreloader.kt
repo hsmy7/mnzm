@@ -263,7 +263,7 @@ class ResourcePreloader @Inject constructor(
     /**
      * L2 后台预载：与 L1 同规格（300px 上限）的小图标类。
      *
-     * 只预载小图标类；大图类 BEAST/CAVE/HEAVENLY_TRIAL/BACKGROUND/PORTRAIT
+     * 只预载小图标类；大图类 BEAST/CAVE/HEAVENLY_TRIAL/BACKGROUND/PORTRAIT/CHARACTER
      * 不预载——大图类即使解码接入也会肉眼可见降质（ItemCard/SpriteImage 实际
      * 显示尺寸 ≤192px），300px 缓存无视觉收益且纯占内存
      *（每张 300²≈350KB × 数十张）。

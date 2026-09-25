@@ -180,6 +180,59 @@
   反射清单 `"social"` 判据、`ProtoNumberUniquenessTest.discipleRetired` +93；
   假阳性剔除：`SectViewModel`/`ProductionViewModelElderOps` 命中项实为 `viceSectMaster`（副宗主），不改。
 
+### 角色卡池重构 G16 批（2026-09-25）——寻访角色素材入库（P-3 拍板）：12 键注册 + 源目录路径根因修复 + 映射防丢失守卫 — `feat(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G16.md`（本批派工细则唯一真源，含实测决策与文件面）
+> + `report-G16.md`（本批完整报告）；上位交接 `HANDOVER-m1-remaining-3.md` §11 的内联任务书已被该 TASKBOOK 取代；
+> 执行协议 `EXECUTION-PROTOCOL.md`。**G11 的素材硬阻塞自此解除。**
+
+- **12 个角色精灵键四方齐备**：`avatar_<角色id>` / `portrait_<角色id>`（6 角色 × 头像 + 全身像）——
+  `scripts/resource-registry.json` 新增 `CHARACTER` 分类 12 行（`name == res == 键名`，因运行时按
+  `game-data.json` 的 `characterTemplates[*].avatarKey/portraitKey` **字符串键** `SpriteResRegistry.resolve`）、
+  `scripts/source-mapping.json` 12 条映射全部带非 null source、双模块 `drawable-nodpi` 各 12 份产物、
+  注册代码由 `build-atlas.mjs --codegen` 生成（`SPRITES_CHARACTER` + `register(SpriteCategory.CHARACTER, …)`，
+  因 app 有副本故走 app `R`，未引入 `FeatureGameR` 分支）。
+- **🔴 新增 `SpriteCategory.CHARACTER(2)` 而非复用 `PORTRAIT` 的因果链**：`SpriteSourceMappingGuardTest`
+  把 `PORTRAIT` 列入 `preserveCats` 强制 `bake.preserve`，而 12 张源图实测为
+  `1254²/2508²/4096²/5016² ×3`（头像）与 `941×1672 … 4096×6144 ×3`（立绘），`import-art-assets.mjs` 的
+  `MAX_BAKE_DIM=4096` 只会把 preserve 夹到 4096 级 ⇒ 单张头像解码后 ARGB 约 67 MB。新分类同时摆脱
+  `scaffold-source-mapping.mjs` 的「未登记分类默认 preserve」兜底。
+- **烘焙档位实测选型**：头像 `maxDim 512`（234–265 KB/张）、立绘 `maxDim 1024`（352–542 KB/张），
+  12 张单模块合计 **4.08 MB**、全部 `VP8L` 无损（`lossless:true, effort:6`）；
+  档位依据 = 结果页 2×5 方格（横屏约 170px）与图鉴 6 格（约 120dp 宽 ≈ 360px@3x）的显示尺寸余量。
+  调档只需改 scaffold 的两个常数 + 重跑 import，不留技术债。
+- **🔴 素材源目录路径根因修复**：`scaffold-source-mapping.mjs:40` 与 `import-art-assets.mjs:176` 硬编码
+  `D:/模拟宗门美术素材`，而该路径本机不存在——`rules/media-source-assets.md` §1 已于 2026-09-24 拍板
+  权威源为**仓库根** `模拟宗门美术素材/`（只登记不入库）。⇒ 自该拍板日起管线实际不可跑。
+  现新增 `android/scripts/art-source.mjs` 作唯一解析入口（仓库根 + `MNZM_ART_SOURCE` 覆盖 + **缺失即抛错**），
+  两个脚本共用；`source-mapping.json` 的 `sourceDir` 由机器绝对路径改为仓库根相对写法（跨机器零 diff 噪声）。
+- **🔴 脚手架静默丢映射缺陷根治**（首次真实运行即暴露）：旧版会把 `map_rock_base`
+  （`宗门地图/底部.png`，仅 `feature/game`）**整条丢弃**，并因 `MAP_KNOWN` 把草皮源记成
+  `装饰物/草皮.png`（实为 `宗门地图/草皮.png`）而把 `map_grass_1` 退化为 null——两处都发生在重生成那一刻，
+  编译与守卫均不报警，且坏要到下次重烘焙才暴露。修法：两条真源写进 `MAP_KNOWN`（新增可选 `modules` 字段），
+  并加 `assertNoMappingLoss()`：旧映射带 source 的条目若在新映射里丢失或退化且其产物仍在 `drawable-nodpi`，
+  直接抛错要求登记进表。重生成对 HEAD 的**净差异实测 = +12 条 CHARACTER + `sourceDir` 一行**，
+  既有 309 条 source 零变化、零丢失。
+- **守卫面**：`SpriteSourceMappingGuardTest` 的白名单 `if/else` 改为「分类 → 档位策略」表驱动，
+  并新增两条断言（每个注册分类必须已登记档位 / 分类名必须在 `SpriteCategory` 枚举内）——
+  旧版新分类不在任一白名单时整段校验静默放行；新增 `GachaCharacterSpriteGuardTest` 以
+  `characterTemplates` 为锚点做 配置↔注册表↔映射↔双模块 四方一致断言（新增角色漏走素材流程即红）；
+  `SpriteCodegenSyncTest` 分类期望 14→15。**两处判别力自证实测**：藏掉 `feature/game` 一份副本 →
+  双模块断言红（`5 tests completed, 1 failed`）；删掉 CHARACTER 档位分支 → 策略登记断言红。
+- **契约与不变量**：`sprite-uid-map.json` +12（新资源按字典序追加 `max+1`、**既有 UID 零漂移**，
+  `sources-imported.json` +12 条源 MD5/尺寸记录）；本批**零 C++ / 零配置源改动** ⇒ Room 版本保持 59、
+  `gen-game-data --check` sha256 不变、JNI 计数不变、ActionId 198/maxId 1861 不变、图集定义未动
+  （`scene_uv_tables.h` 重跑后零差异、`显示尺寸保真校验通过：18 栋建筑 + 9 个装饰`）。
+- **登记 G10 / 待拍板（详见 `report-G16.md` §六）**：① 🔴 `PortraitPool.getResourceId` 只认
+  `male/female_disciple_*`、**不查 `SpriteResRegistry`** ⇒ G08 把 `portraitRes` 置为 `portrait_zhouming` 后
+  弟子卡与详情页会回落通用像（属 G08 显示链，非素材批范围）；② `ResourceManifestCompletenessTest`
+  名为「双模块完整性」实为 `toSet()` 并集 + `count >= 1`，全仓**无双模块硬守卫**（37 张通用肖像等
+  61 个单模块资源靠「没断言」放行）；③ 🔴 `背景图/普通招募背景图.png` 已被美术换成 **6144×3456**
+  （在库记录为 1672×941 源），该条目仍是 `preserve` ⇒ 重烘焙会静默产出 4096×2304 / **6.8 MB**
+  （解码 ARGB 37.7 MB）——本批**已把该产物还原为在库版、不夹带未拍板的美术升级**，
+  并在 `import-art-assets.mjs` 加「单张 >3 MB 或长边顶到 4096 即高声告警」，档位重定属产品口径待拍板；
+  ④ 第 7 角色 `月城雪/`（只有 `全身像.png` + `轮换池背景图.png`，无头像）属 M3 轮换池，本批不注册。
+
 ### 内存管理根治 Phase 4：状态基线 + GLES + 可观测（2026-09-23，MR4 批）— `feat(memory)`/`perf(memory)`
 - **P4.1 状态基线去全量 DOM（D5）**：`StateBaseline` 块级形态（gameData 字段 + 实体 id 块），`DirtyTracker`/`ColumnDirtyTracker` 不再持嵌套全量业务树；`importStateInternal` 峰值顺序=解析临时态→reseed→释放 JSON→切换 state_（失败回滚）→归一化。验收：`BaselineMemoryTest` + `BaselineFieldCoverageGuardTest` + 对拍绿。
 - **P4.2 rest 导出减载**：块级基线比对，信封仍只携带 changed/（与 `dirtyColumnExport` 正交）；Diff tick 绿。
