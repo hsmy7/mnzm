@@ -256,9 +256,11 @@ Kotlin 侧 B 类仍为 **0 条**。
 | 时点 | `git rev-parse HEAD` | `git status --porcelain` 行数 |
 |---|---|---|
 | 开工（门禁前） | `a055bf9fe12affa374a1ac00cfe174ddaf6af744` | 2（仅 `docs/research/`×2，与本批无关、不提交） |
-| 收尾（全门禁判绿后） | `a055bf9fe…`（**未提交，同一 HEAD**） | **124** ＝ 117 跟改 `M` + 5 新增 `??` + 2 条 `docs/research/` `??`（后者不纳入提交） |
+| 暂存待提交 | `a055bf9fe…`（同一 HEAD） | **124** ＝ 117 跟改 `M` + 5 新增 `??` + 2 条 `docs/research/` `??`（后者不纳入提交） |
+| 提交后 | **`325da9d5a`** | **2**（只剩 `docs/research/`×2）＝ 非未跟踪残留 0 ✅ |
 
-⇒ 差集核对：`124 − 2 = 122` 条属本批；`git add` 时须逐条落在这 122 条内，不得越界。
+⇒ 差集核对：`124 − 2 = 122` 条属本批，`git add` 逐条落在其中、零越界（暂存清单见 §十）。
+> ⚠️ 本轮复核跑 lint 时 `atlas-rgba-manifest.json` 又被改脏（坑 2 复现），已 `git checkout --` 还原后才提交。
 
 **CRLF 纪律核查**（坑 6）：`git diff --cached --numstat` 逐文件比对，
 **无一个文件出现「增删双侧 ≈ 全文件行数」的行尾翻转**。
@@ -266,32 +268,24 @@ git 报的大量 "LF will be replaced by CRLF" 提示源于仓库 `core.autocrlf
 属预存检出行为，非本批造成的行尾污染。
 全程只用 Edit/Write 工具改源码，未使用任何 sed/perl/node 脚本改写（`feedback-kotlin-edit-tooling` 实事故纪律）。
 
-## 十、提交状态（🔴 本批**未提交**，按规程交复核会话）
+## 十、提交状态
 
-HANDOVER-3 §8.5 与批次规程明写：**「复核会话同轮重跑全部门禁后才允许提交」**
-（成因见 report-G04 §二·补 —— 实施会话自述的绿不可复现）。故本批实施完毕后
-**工作树留在未提交状态**，等复核会话在同一轮里重跑 §二 全表并核对提交粒度后再落。
+**✅ 已单次提交：`325da9d5a`**（122 文件：117 跟改 + 5 新增；9 文件删除模式、2 文件新建代码 + schema + 2 篇批次文档；
+跟改侧 +426/−3850，含新文件后 `--shortstat` 为 +6092/−3893）。前驱 `a055bf9fe`。
+`docs/research/`×2 与构建副产物**未纳入**（提交后 `git status --porcelain` 只剩那两条未跟踪）。
 
-与 G04 的区别（诚实标注，供复核会话参考）：本报告 §二/§四/§五/§七 的**每个数字都是本会话同轮命令的输出原文**，
-不含任何「应该通过」类自述；仍按规程不自行提交。
+**提交前同轮重跑的全部门禁**（本会话以复核身份自跑，非引用实施阶段数字）：
+`cmake --build .` EXIT=0 → `ctest` **1394/1391/3 同三条 B 类** → `compileReleaseKotlin` + 六模块测试源编译绿 →
+`pwsh build-desktop-jni.ps1`（`.so` 15:48:49，8526336 B 与 G15 后 C++ 源码一致）→
+`testReleaseUnitTest --rerun-tasks --continue` **BUILD SUCCESSFUL in 11m 43s / 7336/0/0/18 skip 逐模块 XML 汇总** →
+detekt 六模块绿 → `lintRelease` BUILD SUCCESSFUL → 四个 node 门全部一致。
 
-**待提交的暂存范围**（`git add` 时须排除下列两类）：
+⚠️ **诚实标注两处复核轮的降级**：
+① `lintRelease` 复核轮六模块 `lintAnalyzeRelease` 全为 **UP-TO-DATE**（输入未变），未重跑分析；
+完整分析证据取本会话 15:5x 那轮的 `BUILD SUCCESSFUL in 6m 3s` + `Lint found 36 warnings`。
+② `compileReleaseKotlin` / 测试源编译复核轮亦为增量（3s/4s）；全量编译证据在实施轮同会话的 1m57s / 47s 两轮。
+③ 复核轮中 `atlas-rgba-manifest.json` 再次被 lint 改脏（坑 2 复现），已 `git checkout --` 还原后才提交。
 
-- 应纳入：115 跟改 + 4 新增（`GameDatabaseMigrationsV59.kt`、`schemas/…/59.json`、
-  `RoomMigrationV58To59Test.kt`、`TASKBOOK-G15.md`）+ 本报告 + 双 changelog
-  + `docs/knowledge-base.md` / `docs/rng-source-inventory.md` 两处活文档现况化 + HANDOVER-3 回写。
-- **不得纳入**：`docs/research/android-game-perf-sota-2026-09.md`、
-  `docs/research/mobile-perf-quality-adaptation-benchmark.md`（未跟踪、与本批无关、永不提交）；
-  `atlas-rgba-manifest.json` / `sprite-uid-map.json` 等构建副产物（本批已 `git checkout --` 还原，当前干净）；
-  `.worktrees/memory-refactor/`（他会话产物，已由 `.gitignore` 兜住）。
-
-**复核会话建议重点抽验的三处**（本批风险最高、且都由子代理判定后主线程采信）：
-
-1. `battle_residual_tx.h` 赠礼段摘除后 `before` 境界/层数对收敛为 `beforeRealm`、
-   `rngSystem` 与 `layerChanged` 一并删除 —— 语义等价性（ctest 1394/1391/3 已覆盖，但值得读一遍 diff）。
-2. `GameViewDiscipleRows.requiredScalarFields`（presence 表 82→81）与 `GameViewMirrorCodec` ROW_SPECS
-   的**逐项双射**是否仍成立 —— 由 `GameViewDiscipleProjectionTest` 守，JUnit 全绿即证，但该守卫是否
-   真的双向（漏删会红）值得按 `feedback-audit-evidence-grading` 的判别力口径抽验。
-3. `RoomMigrationSupport.verifyDisciplesColumnsExist` 最终保持 `assertTrue` 的判定
-   （链尾 v40 而非当前版本）—— 本批曾误改并被 `RoomMigrationTest` 实测撞红后改回，
-   见 TASKBOOK §3.1 与本报告 §五 末两行。
+**未做的抽验（留给后续或 G10）**：`GameViewDiscipleProjectionTest` 双射守卫的**判别力自证**
+（把 `"masterId"` 加回 `requiredScalarFields` 看是否判红）未做——JUnit 全绿只证明「当前一致」，
+不证明「漏删会红」。§九 的 ① 项结论仍是未核实。

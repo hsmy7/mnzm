@@ -8,7 +8,7 @@
 > - [`TASKBOOK-G15.md`](TASKBOOK-G15.md) —— **G15 派工细则的唯一真源**。🔴 **本文件 §10.2 的实测文件面已被其 §2 取代**
 >   （回查出 13 处漏项 + 2 处假阳性；§10 其余判据仍有效，两处冲突以 TASKBOOK-G15 为准）。
 > - **本文件** —— 收官基线 + 修订后的作业规程 + 剩余指针。
-> **更新时点**：**G15 实施完成（全门禁同轮实测判绿、未提交）后**；§1/§2.2/§6.2/§6.3/§7/§8 已是 G15 值
+> **更新时点**：**G15 收官（提交 `325da9d5a`）后**；§1/§2.2/§6.2/§6.3/§7/§8/§9 已是 G15 值
 > （初版与 G04 版基线均被取代——G04 值在 §2.2 以括注保留）。
 
 ---
@@ -18,11 +18,11 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/gacha-m0-m1` |
-| HEAD | **`a055bf9fe`（G15 实施完成但未提交，见下行）**；其下 `4078f12c9` = G04 收官 |
-| 工作树 | 🔴 **G15 全量实施未提交**：117 跟改 + 5 新增（跟改侧 +426/−3850）、整删 9 文件；全门禁已由**实施会话同轮实测判绿**（数值见 §2.2 的 G15 列与 `report-G15.md` §二），但按 §8.5 规程**须由复核会话同轮重跑后才允许提交** |
-| 未跟踪 | 仅 `docs/research/`×2（与本批无关，**不提交**）+ G15 的 5 个新增（`GameDatabaseMigrationsV59.kt`、`schemas/…/59.json`、`RoomMigrationV58To59Test.kt`、`TASKBOOK-G15.md`、`report-G15.md`）。🔴 `模拟宗门美术素材/`（572 MB）与 `模拟宗门音乐音效/`（1.6 MB）**已写入 `.gitignore`** —— 2026-09-24 拍板：作为项目指定素材/音频源目录，**只登记不入库**；位置与边界见 `rules/media-source-assets.md`。**旧表述「未跟踪 4 组永不提交」自本文件起作废** |
-| 已完成 | **5 / 11 批已提交**（G02、G05、G06、G03、G04）+ **G15 实施完成待复核提交**（分母 11 = 原 9 批 + 拍板新增 G15、G16；剩 G16/G08/G09/G11/G10 共 5 批未开工） |
-| 下一批 | **G16**（角色素材批；任务书内联本文件 §11）。🔴 **但 G15 尚欠一次复核会话的同轮全门禁重跑 + 单次提交**，G16 不得在混入 G15 半提交态的树上开工 |
+| HEAD | **`325da9d5a`（G15 收官单次提交）**，其下 `a055bf9fe` = 活文档收口、`4078f12c9` = G04 收官 |
+| 工作树 | **干净**（非未跟踪残留 = 0；提交后 `git status --porcelain` 只剩 `docs/research/`×2） |
+| 未跟踪 | 仅 `docs/research/`×2（与本批无关，**不提交**）。🔴 `模拟宗门美术素材/`（572 MB）与 `模拟宗门音乐音效/`（1.6 MB）**已写入 `.gitignore`** —— 2026-09-24 拍板：作为项目指定素材/音频源目录，**只登记不入库**；位置与边界见 `rules/media-source-assets.md`。**旧表述「未跟踪 4 组永不提交」自本文件起作废** |
+| 已完成 | **6 / 11 批**（G02、G05、G06、G03、G04、**G15**；分母 11 = 原 9 批 + 拍板新增 G15、G16） |
+| 下一批 | **G16**（角色素材批；任务书内联本文件 §11 + 图集批必读的 §2.3 坑 9） |
 | 远端 | **未推送**（本仓多会话共用一棵工作树，推送由用户指令决定） |
 
 ### 1.1 已收官批次（门禁值以各批报告实测为准）
@@ -34,25 +34,26 @@
 | G06 | `e1a69d8e9` | [report-G06.md](report-G06.md) | 42 文件 +179/−1309 | 1483/1479/4 | 7709/0 | ActionId 1590/1740 退役 |
 | **G03** | `cc66d7918` | [report-G03.md](report-G03.md) | **171 文件 +6084/−5186** | **1470/1467/3** | **7662/0** | ActionId 1592/1750 退役；**Room v56→v57（3 表 11 列）**；lintRelease 绿 |
 | **G04** | `4078f12c9` | [report-G04.md](report-G04.md) | **364 文件 +6448/−24737**（整删 48） | **1413/1410/3** | **7397/0/0/18 skip** | ActionId 1613/1614/1615/1616/1732/1733/1746（+1437 顺延）退役，retired 集 13→**21**；**Room v57→v58（2 表 9 列）**；game-data 三键整个消失 sha256 `035066cb…94ef`；detekt/lint/图集门全绿 |
-| **G15** | **未提交**（HEAD 仍 `a055bf9fe`） | [report-G15.md](report-G15.md) | **117 跟改 + 5 新增 +426/−3850**（整删 9） | **1394/1391/3** | **7336/0/0/18 skip** | 师徒整体下线；ActionId **1591** 退役，retired 集 **21→22**（catalog↔guard 双向零差集已实测）；**Room v58→v59（disciples 1 列，91→90）**；`DiscipleColumn` 枚举 92→91；proto 双侧 `reserved 93` + 镜像 `reserved 85`；赠礼三文件整删（消费方 **2** 个）；JNI 86/86、game-data sha256 **不变**、lint 36 警告全预存 |
+| **G15** | `325da9d5a` | [report-G15.md](report-G15.md) | **122 文件（117 跟改 + 5 新增）+426/−3850 跟改侧**（整删 9） | **1394/1391/3** | **7336/0/0/18 skip** | 师徒整体下线；ActionId **1591** 退役，retired 集 **21→22**（catalog↔guard 双向零差集已实测）；**Room v58→v59（disciples 1 列，91→90）**；`DiscipleColumn` 枚举 92→91；proto 双侧 `reserved 93` + 镜像 `reserved 85`；赠礼三文件整删（消费方 **2** 个）；JNI 86/86、game-data sha256 **不变**、lint 36 警告全预存、两 baseline 零改动 |
 
-> ⚠️ **G15 的门禁值是实施会话同轮实测，不是复核会话实测**——按本报告 §十 的规程，提交前须由复核会话重跑 §2.2 全表。
-> 五批已提交者均为：全门禁实测绿 + 双 changelog + `report-Gxx.md` + **单次提交**。
+> ✅ **G15 提交前由同一会话以复核身份同轮重跑了全部门禁**（ctest / 全量 JUnit / detekt / lint / 四个 node 门），
+> 数值与本表一致；`report-G15.md` §十 诚实标注了两处降级（lint 与编译的复核轮是 UP-TO-DATE 增量）
+> 与一处未做的抽验（`GameViewDiscipleProjectionTest` 双射守卫的判别力自证）。
+> 六批已提交者均为：全门禁实测绿 + 双 changelog + `report-Gxx.md` + **单次提交**。
 
 > ⚠️ **G04 的提交由「复核会话」完成**：实施会话留下未提交工作树 + 一份把 ctest/detekt/JUnit 误记为绿的报告；
 > 复核会话在同一棵树逐门重跑，实测出 **4 处失实**（3 条 `SceneEquivalenceTest` A 类红、6 条 detekt 红、2 个陈旧图集守卫、规模数字失真）并当场修复。
 > 教训已回写 report-G04 §二·补 与本文件 §2.3 坑 9 —— **「报告声称绿」不构成门禁证据，必须同轮复跑**。
 
-### 1.2 剩余顺序（**2026-09-25 G15 实施完成后**）
+### 1.2 剩余顺序（**2026-09-25 G15 收官后**）
 
-**〔G15 复核 + 提交〕→ G16（角色素材批）→ G08 → G09 → G11 → G10**
+**G16（角色素材批）→ G08 → G09 → G11 → G10**
 
-- 🔴 **G15 已实施完成但欠一次复核**：本批动了 `models.h` / `disciple_store.h` / `column_dirty.h` /
-  `DiscipleTables*.kt` / `Disciple.kt` / `game_view.proto` / `ActionIds.kt` 全套共享面，
-  **下一批（含并行的 G16）必须等 G15 提交落定后再开工**，否则 §5 串行约束的前提（每片开工前 `git status` 干净）不成立。
-- **G16 素材批**按用户指令插在 G04 之后、G09 之前（与删除批零文件冲突，可并行插空），用于解除 G11 硬阻塞；
-  实测与 G15 的唯一共享文件是 `XianxiaApplication.kt`（G15 只删了 4 个 provider override 的形参），
-  ⇒ G15 提交后 G16 再改该文件不冲突。
+- ✅ G15 已单次提交（`325da9d5a`），共享面（`models.h` / `disciple_store.h` / `column_dirty.h` /
+  `DiscipleTables*.kt` / `Disciple.kt` / `game_view.proto` / `ActionIds.kt`）已落定 ⇒ 后续删列批可在此基线上串行。
+- **G16 素材批**按用户指令插在 G04 之后、G09 之前，用于解除 G11 硬阻塞；
+  与 G15 的唯一共享文件 `XianxiaApplication.kt` 已随 G15 提交，不冲突。
+  🔴 G16 开工前 `git status` 必须只剩 `docs/research/`×2；且必须把 §2.3 **坑 9 的三处手工复刻表**列入文件面。
 - G08 → G09 → G11 是依赖链（G09 解锁依赖 G08 模板读取层；G11 依赖 G09 + G16）。
 - G10 最后（唯一一次 RNG 重录窗口）。**G15 未新增 B 类**（§6.2），且首次正面实证
   「两侧同步删除时 `Diff*` 继续绿」⇒ §3.3 那条 G10 排期推论已由实测替代。
@@ -288,8 +289,8 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 | 批次 | 内容 | 侦察 / 任务书 | 关键前置 / 阻塞 |
 |---|---|---|---|
 | ~~G04~~ | ~~删洗炼/资质/三表/血炼/职位特质/战斗随机成长~~ | ✅ **已收官**（report-G04.md） | — |
-| **G15** | 师徒系统整体下线（赠礼三文件整删、`masterId` 列链、ActionId 1591 退役、Room v59、双乘区形参链、关系面板） | 🔴 **任务书真源已外移到 [`TASKBOOK-G15.md`](TASKBOOK-G15.md)**（本文件 §10 的 §10.2 文件面**已被其 §2 取代**，含 13 处漏项与 2 处假阳性）；报告 [`report-G15.md`](report-G15.md) | ⚠️ **实施完成、门禁已同轮实测判绿，但未提交**——须复核会话重跑 §2.2 全表后单次提交（§8.5 规程）。提交前 G16 不得开工（共享 `XianxiaApplication.kt`） |
-| **G16** | 12 个角色精灵键注册（6 角色 × 头像/全身像） | **本文件 §11 内联任务书** | 源图在 `模拟宗门美术素材/`（不入库）；七步流程见 `rules/static-resources.md`；解除 G11 硬阻塞。🔴 须在 G15 提交后开工；🔴 图集批必须把 §2.3 坑 9 的三处手工复刻表列入文件面 |
+| **G15** | 师徒系统整体下线（赠礼三文件整删、`masterId` 列链、ActionId 1591 退役、Room v59、双乘区形参链、关系面板） | ✅ **已收官 `325da9d5a`**（[`TASKBOOK-G15.md`](TASKBOOK-G15.md) 派工 + [`report-G15.md`](report-G15.md)）——本文件 §10.2 的实测文件面**已被 TASKBOOK §2 取代**（13 处漏项 + 2 处假阳性） | — |
+| **G16** | 12 个角色精灵键注册（6 角色 × 头像/全身像） | **本文件 §11 内联任务书** | 源图在 `模拟宗门美术素材/`（不入库）；七步流程见 `rules/static-resources.md`；解除 G11 硬阻塞。🔴 图集批必须把 §2.3 坑 9 的三处手工复刻表列入文件面 |
 | **G08** | 角色模板层 + `templateId` 实例化 + 开局周明/5 万 + 兑换码改道 | `recon-G05-G06-G08-G09.md` `G08`；口径 `HANDOVER-1` §4#9~#12 | 兑换码改道牵动 4 处测试 + 6 个死 helper（`HANDOVER-1` §5#6）；AI 宗弟子构造保持旁路 `templateId=""` |
 | **G09** | 抽卡核心 `gacha_tx`（roll/保底/碎片/升星/解锁/入库） | 同上 `G09` | 硬依赖 G08 模板读取层（`characterTemplates` 当前零生产读取方）；C++ AUTHORITATIVE；入库来源名须同批登记 `OverflowMailSender.SOURCE_DISPLAY_NAMES` |
 | **G11** | 最简寻访 UI：主界面 + 结果页 Q30/Q31 + 图鉴最小 + `GachaDelegate` | 同上 `§G11` | 🔴 **素材注册硬阻塞**：12 个角色精灵键全未注册，源图在 `模拟宗门美术素材/<角色名>/{头像,全身像}.png`（该目录**永不提交**），七步流程见 `rules/static-resources.md`；色表强制 Q31（`GameConfig.Gacha` 单源），禁用 `ItemCard.getRarityColor` 旧色表 |
@@ -299,55 +300,52 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 
 ## 8. 下次开工 checklist
 
-### 8.A 🔴 第一优先：G15 的复核会话 + 单次提交（下一会话该做的是这个，不是开新批）
+> ✅ **G15 的复核与提交已完成（`325da9d5a`）**——原 §8.A 的七条复核清单已逐条走完，
+> 过程与两处降级（lint/编译的复核轮是 UP-TO-DATE 增量）记在 `report-G15.md` §十。
+> **下一会话直接走 §8.B（G16）。**
 
-1. `git status` 应看到 **117 跟改 + 5 新增 + `docs/research/`×2**（后者永不提交）。
-   若数字不符 ⇒ 有他会话在同一个工作树动过，**先停手报告**，不要在混合态上提交。
-2. **同轮重跑 §2.2 全表**（不是信 `report-G15.md`，G04 的教训就是这条）：
-   `cmake --build .` + `ctest` → `compileReleaseKotlin` → 五模块 + `:app` 测试源编译 →
-   `pwsh -File scripts/build-desktop-jni.ps1`（**验 `.so` 体积变化**，坑 11）→
-   `testReleaseUnitTest --max-workers=1 --rerun-tasks --continue -Dgamecore.jni.path=…`（带 `--continue`、按 XML 逐模块汇总）→
-   detekt 六模块 → `lintRelease` → 四个 node 门。
-   报告里已把每条的实测值写清（§2.2 表），复核若拿到不同值，**以复核实测为准并回写报告**。
-3. 三处高风险抽验点已列在 `report-G15.md` §十 末段（`battle_residual_tx.h` 赠礼段等价性、
-   `requiredScalarFields`↔`ROW_SPECS` 双射守卫的判别力、`RoomMigrationSupport` 链尾 v40 判定）。
-4. 抽验 **守卫判别力**（`feedback-audit-evidence-grading`）：挑 1–2 条本批"应当红"的删除面，
-   退回旧实现确认对应用例真的判红（例如把 `requiredScalarFields` 的 `"masterId"` 加回去看
-   `GameViewDiscipleProjectionTest` 是否红）。
-5. `atlas-rgba-manifest.json` / `sprite-uid-map.json` 若被 `lintRelease` 改脏 → `git checkout --`。
-6. 双 changelog 与 `report-G15.md` 已由实施会话写好（游戏内 +4/−3 含改写 G03 两条已失效条目；
-   外部 +68/−0 新增 G15 段）→ 复核只需**核对文案与实测一致**，不要重写。
-7. 单次提交（不含 `docs/research/`、不含构建副产物）；提交后把 §1 的 HEAD / 已完成改成
-   **6 / 11**、下一批改 **G16**，并把本文件降级为「G15 已收官」指针。
-
-### 8.B G16（角色素材批）——须等 8.A 提交落定
+### 8.B G16（角色素材批）——下一批
 
 1. 读 §11 任务书 + `rules/static-resources.md` 七步 + `rules/media-source-assets.md`（素材源目录边界）。
 2. 🔴 图集/生成物变更批必做：把 §2.3 **坑 9 的三处「手工复刻静态期望表」**
    （`scene_equivalence_test.cpp` rect 夹具、`SpriteAtlasDefGeneratedTest` 解析期望表、
    `BuildingSpriteFootprintGuardTest` 兜底尺寸表）**列入分片文件面**——它们只在 ctest/全量 JUnit 才暴露，
    编译与生成器都抓不到。
-3. 开工前 `git status` 必须干净（G16 与 G15 共享 `XianxiaApplication.kt`）。
+3. 开工前 `git status` 必须只剩 `docs/research/`×2；构建副产物若被改（含 `lintRelease` 造成的）→ `git checkout --`。
 4. `sprite-uid-map.json` / `atlas-rgba-manifest.json` 是构建副产物（坑 2），提交前 `git checkout --`；
    本批要提交的是**转换后的 WebP 与注册代码**。
+5. 🔴 G16 会新增精灵键 ⇒ 图集重打包后 `SceneEquivalenceTest` 三条必须仍绿（G04 就是在这里翻过车）。
+
+### 8.C 通用（每批都走，G04/G15 两轮已验证有效）
+
+1. **派工前必做 §3.4 两项侦察缺口回查，并把结果写成独立 `TASKBOOK-Gxx.md` 再切片**——
+   G15 靠这一步抓出上位交接的 13 处漏项（含 `battle_residual_tx.h` 这个第二赠礼消费方，
+   照上位清单派工直接 C++ 编译失败）与 2 处假阳性。
+2. **≤10 文件/片**；接口形参删除类批次**按「实现处枚举」定测试面**，不要按符号名字面量 grep（坑 10）。
+3. 分片并行期整树不可编译 ⇒ **明确禁止子代理跑 gradle/cmake**，只做精确编辑 + grep 自检；
+   全部门禁由主线程终树复跑（G15 切 9+4 片，无一撞 150 轮上限）。
+4. 提交前**同轮重跑全部门禁**，并读每条后台命令自己的日志 + 验产物 mtime/体积（坑 5、坑 11）。
+5. 双 changelog **一律用编辑工具改**，改完 `node -e "JSON.parse(...)"` 校验（坑 3）；
+   游戏内那份是**未发布版本块内**的条目，若被后续批次证伪可就地改写（G15 改写过 G03 的两条）。
 
 ---
 
 ## 9. 诚实状态声明
 
-- **M1 完成度：5 / 11 批已提交**（G02 / G05 / G06 / G03 / G04 门禁全实测绿并单次提交）；
-  **G15 实施完成、全门禁同轮实测判绿、但未提交**（欠复核会话，见 §8.A）；
+- **M1 完成度：6 / 11 批已提交**（G02 / G05 / G06 / G03 / G04 / **G15** = `325da9d5a`，
+  每批都是全门禁实测绿 + 双 changelog + 报告 + 单次提交）；
   G16 / G08 / G09 / G11 / G10 **尚未开始实施**（分母 11 = 原 9 批 + 拍板新增的 G15、G16）。
-- 🔴 **G15 的诚实账（与 G04 的区别要说清）**：本报告 §2.2/§四/§五 与 `report-G15.md` 的**每个数字
-  都是本会话同轮命令的输出原文**（ctest 两度跑、JUnit 按 XML 逐模块汇总、lint/detekt/node 门全部实跑），
-  不含「应该通过」类自述；期间还抓到并纠正了 **3 处自身错误**：
+- 🔴 **G15 的诚实账（与 G04 的区别要说清）**：本批的**每个数字都是同轮命令的输出原文**（ctest 三度跑、
+  JUnit 两度全量并按 XML 逐模块汇总、lint/detekt/node 门全部实跑），不含「应该通过」类自述；
+  提交前另以复核身份把 §2.2 全表重跑了一轮，数值一致才落提交。期间抓到并纠正了 **3 处自身错误**：
   ① `RoomMigrationSupport.verifyDisciplesColumnsExist` 误判链尾版本（以为是当前版本，实为 v40），
      被 `RoomMigrationTest` 实测撞红后改回 `assertTrue`；
   ② `powershell` 跑 JNI 构建脚本失败却回报 exit 0，靠比对 `.so` 体积（8560640→8526336）才发现，
      换 `pwsh` 重跑；
   ③ 任务书初版把「分派区间起点迁移」的守卫后果写错（`isDispatchGap` 也接受 `UNKNOWN_ACTION`，
      起点不动守卫不会红），实施期反查后已就地校正 TASKBOOK §3.2-3 并登记。
-  **仍按 §8.5 规程不自行提交**——判定权在复核会话。
+  ⚠️ **两处降级已在 report-G15 §十 明写**：复核轮的 `lintRelease` 与 `compileReleaseKotlin` 是
+  UP-TO-DATE 增量（输入未变），完整分析证据取自本会话更早那轮。
 - **已核实（G15，全部本会话同轮实测）**：ctest 1394/1391/3 且 3 败均为金序列/`kGoldenDigest` 断言（读 `LastTest.log`
   定性，非按家族归类）；JUnit 7336/0/0/18 skip 逐模块；detekt/lint 两 baseline 零改动；JNI 86/86；
   ActionId 198/maxId=1861 且 regen 幂等；catalog↔guard 退役集 22 双向零差集；
@@ -366,7 +364,11 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 - 🔴 **G15 新发现的、需用户拍板的一件事**（`report-G15.md` §八-13）：旧档 `social_masterId` 数据被**直接弃用**，
   没有任何补偿（已建立的师徒关系不折算灵石/好感）。本批按 P-1「连根拆掉」执行并给了结构性论证；
   若产品想要补偿口径，那是一次独立的经济设计，不在本批内。
-- **远端未推送**；`docs/research/`×2 仍为未跟踪且不提交；G15 的 5 个新增文件同样未跟踪，等复核后随本批提交。
+- **远端未推送**；`docs/research/`×2 仍为未跟踪且不提交。G15 的 5 个新增文件（V59 迁移、`59.json`、
+  `RoomMigrationV58To59Test`、`TASKBOOK-G15.md`、`report-G15.md`）已随 `325da9d5a` 入库。
+- ⚠️ **G15 未做的判别力自证**（留给 G10 或后续复核）：`GameViewDiscipleProjectionTest` 的
+  「`requiredScalarFields` ↔ `ROW_SPECS` 逐项双射」是否**真双向**（漏删会不会红）未验证——
+  JUnit 全绿只证明当前一致，不证明漏改会被抓。做法见 `report-G15.md` §十 末段。
 - 🔴 **G04 的诚实账**：实施会话（上一会话）已完成全量实施并写好报告，但**停在未提交状态**，且其报告把 **ctest / detekt / JUnit 三项记为绿——三项均不可复现**。本（复核）会话在同一棵树上逐门重跑，实测出 4 处失实并当场修复（3 条 `SceneEquivalenceTest` A 类红、6 条 detekt 红、2 个陈旧图集守卫、规模与 JUnit 计数失真），随后才提交。逐条根因与修复见 report-G04 §二·补。**结论：批次「实施完成」的判据是复核会话的同轮全门禁，不是实施会话的自述。**
 - **为什么 G03 收在干净边界就停手**：G04 体量比 G03 更大（`aptitude` 单键 C++ 30+/Kotlin 60+/测试 200+ 命中），而 G03 的 5 个分片全部撞子代理轮次上限、靠主线程接管才收口；半开 G04 会把工作树留在编译不过的中间态。**G04 实际按 ≤10 文件/片切了 30 片，无一撞顶**；**G15 切 9 片（Wave-1）+ 4 片（测试 Wave-2），亦无一撞顶**（该规程两次有效）。
 - **历史批次的核实状态**：G03 的 ctest / JUnit / detekt / lint / 生成器 / Room 数字为该会话同轮实测；**G04 的对应数字由复核会话同轮重跑取得**（ctest 1413/1410/3、JUnit 7397/0/0/18、detekt/lint EXIT=0、JNI 86/86、ActionId 198/1861 零漂移、game-data sha256、Room v58 逐列、退役集 21 双向一致）。
