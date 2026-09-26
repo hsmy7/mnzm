@@ -86,6 +86,7 @@ import com.xianxia.sect.ui.game.delegate.RoadDelegate
 import com.xianxia.sect.ui.game.delegate.DiscipleDelegate
 import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
 import com.xianxia.sect.ui.game.delegate.GuideDelegate
+import com.xianxia.sect.ui.game.delegate.GachaDelegate
 import com.xianxia.sect.ui.game.delegate.InventoryDelegate
 import com.xianxia.sect.ui.game.delegate.MailDelegate
 import com.xianxia.sect.ui.game.delegate.NavigationDelegate
@@ -181,6 +182,7 @@ class GameViewModel @Inject constructor(
     val battleRewards = BattleRewardDelegate(gameEngine)
     val mission = MissionDelegate(gameEngine, onError = ::showError)
     val lifeEvents = LifeEventsDelegate(gameEngine, delegateServices.discipleFacade)
+    val gacha = GachaDelegate(gameEngine, delegateServices.gachaFacade)
 
     // 引导任务已领取奖励的ID集合
     val guideClaimedRewardIds: StateFlow<Set<Int>> = gameData

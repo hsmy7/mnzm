@@ -68,8 +68,9 @@ namespace gamecore::system::exploration_tx {
 using gamecore::state::Disciple;
 using gamecore::state::GameState;
 
-/// 灵根数 → 颜色（Kotlin SpiritRoot.countColor：1..5 固定色，其余兜底灰；
-/// year_settlement.h spiritRootCountColor 同式，本地副本避免引入年结域依赖）
+/// 灵根数 → 颜色（Kotlin SpiritRoot.countColor 同式，Q31 灵根数色：
+/// 1金 2红 3紫 4蓝 5灰，其余兜底灰；year_settlement.h spiritRootCountColor 同口径，
+/// 本地副本避免引入年结域依赖；四份同表的判据由 GachaColorSingleSourceGuardTest 钉住）
 inline std::string spiritRootCountColor(const std::string& spiritRootType) {
     int32_t count = 1;
     if (!spiritRootType.empty()) {
@@ -77,11 +78,11 @@ inline std::string spiritRootCountColor(const std::string& spiritRootType) {
             spiritRootType.begin(), spiritRootType.end(), ','));
     }
     switch (count) {
-        case 1: return "#E74C3C";
-        case 2: return "#F39C12";
-        case 3: return "#9B59B6";
-        case 4: return "#27AE60";
-        default: return "#95A5A6";
+        case 1: return "#ffd700";
+        case 2: return "#f44336";
+        case 3: return "#9c27b0";
+        case 4: return "#2196f3";
+        default: return "#b8b8b8";
     }
 }
 

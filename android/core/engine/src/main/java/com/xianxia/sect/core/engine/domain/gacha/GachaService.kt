@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.GachaHistoryEntry
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
@@ -67,6 +68,12 @@ class GachaService @Inject constructor(
      * 单次 `updateAndReturn` 事务内原子完成「读两张账本 → 账本累加升星 → 写回」，
      * 禁止拆成多次孤立 update。入参无效（空白模板 id / 非正数量）时账本零改动。
      *
+     * 写回必须**换 GameData 实例**（`copy`）：状态存储的提交判据是引用比较
+     * （`GameStateStoreImpl.emitStateFlows` 的 `gameData !== baseline.gameData`，
+     * `MutableStateFlow` 亦按 `equals` 去重），原地改字段不产生发射 ⇒
+     * [starMap] / [fragmentCounts] 的订阅方（结果页、图鉴）看不到入账。
+     * 本仓事务内改 `GameData` 的既有范式同此（`SpiritStoneWallet.updateGrade`）。
+     *
      * @param templateId 角色模板 id
      * @param count 本次入账的碎片数
      * @return 入账结果（含入账前后星级与入账后星内进度）；入参无效时为 null
@@ -82,8 +89,10 @@ class GachaService @Inject constructor(
             count = count,
         )
         if (outcome != null) {
-            gameData.gachaFragmentCounts = outcome.fragmentCounts
-            gameData.gachaStarMap = outcome.starMap
+            gameData = gameData.copy(
+                gachaFragmentCounts = outcome.fragmentCounts,
+                gachaStarMap = outcome.starMap,
+            )
         }
         outcome
     }
@@ -126,47 +135,84 @@ class GachaService @Inject constructor(
             if (deduct !is DeductResult.Success) {
                 return@updateAndReturn null
             }
-            val rng = gameRngManager.getRng(RngPartition.GACHA)
-            val monthIndex = data.gameYear * MONTHS_PER_YEAR + data.gameMonth
-            var pity = data.gachaPityCounters[poolId] ?: 0
-            var fragmentCounts = data.gachaFragmentCounts
-            var starMap = data.gachaStarMap
-            val drawn = ArrayList<GachaHistoryEntry>(count)
-            val unlocked = ArrayList<String>()
-            val grants = ArrayList<GachaItemGrant>()
-            repeat(count) {
-                val step = GachaPullLedger.pullOnce(
-                    rng = rng,
-                    pool = pool,
-                    poolId = poolId,
-                    pityBefore = pity,
-                    fragmentCounts = fragmentCounts,
-                    starMap = starMap,
-                    monthIndex = monthIndex,
-                )
-                pity = step.pityAfter
-                fragmentCounts = step.fragmentCounts
-                starMap = step.starMap
-                unlocked += step.unlockedTemplateIds
-                step.itemGrant?.let { grants += it }
-                // 抽取序（结果页格序 = 数组下标，D-10/D-13）；历史环另按「新在前」写入
-                drawn += step.row
-            }
-            grants.forEach { grant -> grantItemToWarehouse(grant) }
-            gameData.gachaFragmentCounts = fragmentCounts
-            gameData.gachaStarMap = starMap
-            gameData.gachaPityCounters = data.gachaPityCounters + (poolId to pity)
-            gameData.gachaHistory =
-                (drawn.asReversed() + data.gachaHistory).take(GameConfig.Gacha.HISTORY_RING_SIZE)
+            val rolls = rollRepeated(pool = pool, poolId = poolId, count = count, data = data)
+            rolls.grants.forEach { grant -> grantItemToWarehouse(grant) }
+            // 四本账一次换实例写回（判据同 grantFragmentsLocally：原地改字段不发射；
+            // 这一臂原本只被上面的扣费 copy 顺带提交，不依赖那个偶发引用）
+            gameData = gameData.copy(
+                gachaFragmentCounts = rolls.fragmentCounts,
+                gachaStarMap = rolls.starMap,
+                gachaPityCounters = data.gachaPityCounters + (poolId to rolls.pity),
+                gachaHistory = (rolls.rows.asReversed() + data.gachaHistory)
+                    .take(GameConfig.Gacha.HISTORY_RING_SIZE),
+            )
             LocalPull(
-                rows = drawn,
-                unlockedTemplateIds = unlocked,
-                pityAfter = pity,
+                rows = rolls.rows,
+                unlockedTemplateIds = rolls.unlocked,
+                pityAfter = rolls.pity,
                 pricePaid = totalCost,
                 spiritStonesAfter = deduct.balanceAfter,
             )
         }
     }
+
+    /**
+     * 逐抽 roll（[count] 次单抽语义，消费 [RngPartition.GACHA] 的同一条流）。
+     *
+     * 只做掷点与账本推演，不写状态存储——写回由 [pullLocally] 在一次事务里完成，
+     * 拆清楚「算」与「写」两条责任，也让抽取序在这里一次性定型。
+     */
+    private fun rollRepeated(
+        pool: GachaPoolSpec,
+        poolId: String,
+        count: Int,
+        data: GameData,
+    ): RollOutcome {
+        val rng = gameRngManager.getRng(RngPartition.GACHA)
+        val monthIndex = data.gameYear * MONTHS_PER_YEAR + data.gameMonth
+        var pity = data.gachaPityCounters[poolId] ?: 0
+        var fragmentCounts = data.gachaFragmentCounts
+        var starMap = data.gachaStarMap
+        val rows = ArrayList<GachaHistoryEntry>(count)
+        val unlocked = ArrayList<String>()
+        val grants = ArrayList<GachaItemGrant>()
+        repeat(count) {
+            val step = GachaPullLedger.pullOnce(
+                rng = rng,
+                pool = pool,
+                poolId = poolId,
+                pityBefore = pity,
+                fragmentCounts = fragmentCounts,
+                starMap = starMap,
+                monthIndex = monthIndex,
+            )
+            pity = step.pityAfter
+            fragmentCounts = step.fragmentCounts
+            starMap = step.starMap
+            unlocked += step.unlockedTemplateIds
+            step.itemGrant?.let { grants += it }
+            // 抽取序（结果页格序 = 数组下标，D-10/D-13）；历史环另按「新在前」写入
+            rows += step.row
+        }
+        return RollOutcome(
+            fragmentCounts = fragmentCounts,
+            starMap = starMap,
+            pity = pity,
+            rows = rows,
+            unlocked = unlocked,
+            grants = grants,
+        )
+    }
+
+    /** 逐抽推演的产物：三本账终值 + 抽取序 + 解锁模板 + 待入库物品 */
+    private class RollOutcome(
+        val fragmentCounts: Map<String, Int>,
+        val starMap: Map<String, Int>,
+        val pity: Int,
+        val rows: List<GachaHistoryEntry>,
+        val unlocked: List<String>,
+        val grants: List<GachaItemGrant>,
+    )
 
     /**
      * 回退臂的一次寻访产出。

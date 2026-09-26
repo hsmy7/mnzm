@@ -8,6 +8,7 @@ import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
+import com.xianxia.sect.core.engine.domain.gacha.GachaFacade
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -43,6 +44,7 @@ class GameVmDelegateServices @Inject constructor(
     val buildingConfigService: BuildingConfigService,
     val buildingFacade: BuildingFacade,
     val discipleFacade: DiscipleFacade,
+    val gachaFacade: GachaFacade,
     val ioDispatcher: IoDispatcher,
     val sessionManager: SessionManager,
     val gpuTierDetector: GpuTierDetector

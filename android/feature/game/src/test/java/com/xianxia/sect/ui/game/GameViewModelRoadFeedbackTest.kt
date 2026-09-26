@@ -9,6 +9,7 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
+import com.xianxia.sect.core.engine.domain.gacha.GachaFacade
 import com.xianxia.sect.core.engine.notifyUserInteraction
 import com.xianxia.sect.core.engine.placeRoad
 import com.xianxia.sect.core.engine.removeRoad
@@ -71,6 +72,7 @@ class GameViewModelRoadFeedbackTest {
     private val buildingConfigService: BuildingConfigService = mockk(relaxed = true)
     private val mailService: MailService = mockk(relaxed = true)
     private val discipleFacade: DiscipleFacade = mockk(relaxed = true)
+    private val gachaFacade: GachaFacade = mockk(relaxed = true)
     private val buildingFacade: BuildingFacade = mockk(relaxed = true)
     private val thermalMonitor: ThermalMonitor = mockk(relaxed = true)
     private val dialogManager: DialogManager = mockk(relaxed = true)
@@ -133,6 +135,8 @@ class GameViewModelRoadFeedbackTest {
             GameVmDelegateServices(
                 mailService, buildingConfigService,
                 buildingFacade, discipleFacade,
+                // 寻访门面（本测试不触达寻访路径，只补构造点）
+                gachaFacade,
                 com.xianxia.sect.core.engine.di.IoDispatcher(testDispatcher),
                 sessionManager,
                 GpuTierDetector()

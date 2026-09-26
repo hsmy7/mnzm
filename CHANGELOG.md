@@ -1,5 +1,67 @@
 ## [4.01.16] - 2026-09-22
 
+### 角色卡池重构 G11 批（2026-09-26）——最简寻访 UI（主界面 / 结果页 Q30+Q31 / 图鉴 / 公示 / 历史 + `GachaDelegate` 接线）— `feat(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G11.md`（派工真源，含上位失真清单与 D-1…D-12 决策）
+> + `docs/design/gacha-batches/report-G11.md`（本批报告，含真机未做项与守卫判别力自证）。
+
+- **入口改道**：左栏按钮文案 `招募`→`寻访`（`GameActionButtons.kt`），`DialogFeatureRoutes.kt` 的占位体
+  （「寻访功能尚未开放」）整段替换为真界面并删掉 `@Suppress("UnusedParameter")`；`DialogType.kt` 的
+  `Recruit` KDoc 改为「寻访」。**零新增 `DialogType`**（D-1）：`DialogType.kt` / `OverlayDialogRouter.kt` /
+  `DialogTypeRenderCoverageTest.kt` / `GameRoute.kt` 四处零改，`GameRoute.Recruit` 映射守卫不受影响。
+- **接线**：`GameVmDelegateServices` 新增 `gachaFacade`、`GameViewModel` 暴露 `val gacha`；
+  `GachaDelegate` 改为**引擎线程派发**（`gameEngine.launchOnEngine { }` 内调 `GachaFacade.pullOnce/pullTen`，
+  结果回调回 VM）——门面三个 suspend 方法的线程要求由委托集中满足，UI 层不再自行 `launch`。
+  同批补齐 4 个 `GameVmDelegateServices` 测试构造点（`GameViewModelTest` / `…RoadFeedbackTest` /
+  `…MovingBuildingBusTest` / `…SectMapTest`）。
+- **新增寻访域界面（7 文件）**：`GachaViewModel`（只持 `GachaFacade` + `GachaPoolConfig`，价格与概率的
+  资产解析放 IO 线程，首帧不堵）＋ `GachaRecruitDialog`（单窗口承载主界面/图鉴/公示/历史四面 +
+  分层 `BackHandler`）＋ `GachaResultLayer`（Q30 规格：金色标题、上下横线、2×5 网格、单抽居中、
+  底部双按钮叠下一轮、点框外只关本层）＋ `GachaRewardCell`（正方形框、右下角 `×n` 白字角标、保底标记）
+  ＋ `GachaShimmer`（描边流光）＋ `GachaCodexPanel` / `GachaOddsPanel` / `GachaHistoryPanel`。
+- **D-2 实测拍定容器形态**：`UnifiedGameDialog` 的关闭点击挂在 `DialogScrim` 那层 sibling 上，框内
+  `clickable` 拦不住它——新增 `UnifiedGameDialogOverlayLayerTest`（`:core:ui`，Robolectric + Compose 5 例）
+  实测「容器 `dismissOnClickOutside=false` ＋ 结果层渲染在窗口级 `overlay` 槽位并自吃框外点击」成立
+  （含正向对照：开关打开时同一条点击路径确实能关窗），故取同窗叠层方案而非另开一扇窗。
+- **D-6 流光的实测失真与落地**：任务书让照 `LizhanDialog`/`RewardCardHost` 的「`Animatable` + `sweepGradient`
+  旋转」范式，实测本仓 `sweepGradient` / `rotate` / `InfiniteTransition` **全仓零命中**，且本 Compose 版本的
+  `Brush.sweepGradient` **没有 `start/end` 角度入参**（编译期报错原文见报告）。改为
+  `Animatable` 推相位 + `Brush.linearGradient(start/end 逐帧平移)` 的**描边扫光**（Q30 允许的两个措辞之一），
+  相位只在 `drawWithContent` 的绘制阶段读取 ⇒ 每帧重绘不重组；`GpuTier.LOW` 走静态同色描边（不起协程）。
+  **不动 native 渲染链**，并在任务书/报告显式声明 `android/docs/renderer-feature-checklist.md` 不适用。
+- **D-5 色表单源**：`:core:ui` 新增 `GachaColors`（`#rrggbb`→Compose `Color` 的唯一换算口，纯 JVM 实现，
+  替掉此前 11 处各写各的 `android.graphics.Color.parseColor` 与互不一致的兜底色）；
+  `Disciple.spiritRoot.countColor` 改为委托 `GameConfig.Gacha.spiritRootCountColor` ⇒ 11 处直接消费点
+  （含长老槽/亲传槽边框、弟子卡、详情页）自动跟随 Q31；`GameConfig.Rarity` 等四份旧品阶表本批不动（G12 债）。
+- 🔴 **上位漏项补齐（C++ 三份同口径副本）**：任务书 §2.2 只点了一张 Kotlin 表，实测灵根数色在
+  `exploration_tx.h` / `year_settlement.h` / `sect_defense_battle.h` 还有**三份 C++ 字面量副本**，它们写进
+  持久化的 `discipleSpiritRootColor`，被灵矿执事槽、巅峰驻守槽、世界地图驻守槽边框消费——只改 Kotlin 会让
+  同一屏出现两套颜色。四份一起对齐 Q31（`#E74C3C/#F39C12/#9B59B6/#27AE60/#95A5A6` →
+  `#ffd700/#f44336/#9c27b0/#2196f3/#b8b8b8`），`exploration_tx_test.cpp` 的驻守色断言同批改；
+  金黄摘要 `actual=0xb4f3c6912207f597` **逐字符不变**（纯显示串，不碰掷点）。
+- 🔴 **G08/G09 遗留生产缺陷根治（D-7）**：`GachaService` 的两条 Kotlin 臂原本在 `updateAndReturn` 事务里
+  **对同一个 `GameData` 实例原地写字段**，而状态存储的提交判据是引用比较
+  （`GameStateStoreImpl.emitStateFlows` 的 `gameData !== baseline.gameData`，`MutableStateFlow` 亦按 `equals`
+  去重）⇒ 派生的 `starMap`/`fragmentCounts`/`pityCounters`/`history` 四个流**不发射**，UI 接上就是陈旧页面。
+  先以 `GachaSubscribeEmissionTest`（`:core:engine`）最小复现证伪（`expected:<2> but was:<1>`），
+  再按本仓既有范式改为事务内 `gameData = gameData.copy(...)` 换实例；出货臂顺带拆出 `rollRepeated`
+  （「算」与「写」分离，并消 `LongMethod`）。
+- **渲染模型纯函数化（D-8）**：`:feature:game` 新增 `GachaRenderModel`（抽取序→结果格、两本账→图鉴六格、
+  抽前/抽后→跨星清单、池规格→公示读面、历史环→历史行），Composable 只展示 ⇒ 未解锁/星级/满星/格序/
+  配色分界全部可单测钉死；`GachaRenderModelTest` 18 例。
+- **新增守卫**：`GachaColorSingleSourceGuardTest`（Q31 全表逐档值 + 四份灵根数色副本同值的源码扫描 +
+  寻访域零引用旧表/零复用 `UnifiedItemCard`）、`GachaViewModelTest`（结果层换代、失败码文案、
+  余额与连点禁用判据、抽前星级锚点）。四轮**判别力自证**（退回旧实现逐条判红，含一条
+  「`--rerun-tasks` 才有效」的 UP-TO-DATE 假绿实捕，见报告 §五）。
+- **零 Room 迁移 / 零 `@ProtoNumber` / 零新增 `SpriteCategory` / 零预载清单变更 / 零生产 JNI 面变更**：
+  取键一律 `CharacterTemplateDb.byId(tid)`（结果格读 512 档 `avatarKey`、图鉴读 1024 档 `portraitKey`，
+  禁写死键名）；大图类按需 decode（`ResourcePreloader` 明文排除 `CHARACTER`，本批未动）。
+- **埋点**：事件名 `gacha_pull` / `gacha_unlock` 仅登记（产品 §15.6），本批不上报（§7 跨批登记）。
+- **双更新日志**：游戏内 `changelog_entries.json` 追加 8 条玩家视角文案并把 G02 遗留的
+  「点击后提示寻访功能尚未开放」改写为当前实况；外部 `CHANGELOG.md` 本节。
+
+
+
 ### 角色卡池重构 G09 批（2026-09-26）——寻访抽卡核心（roll / 保底 / 历史 / 入库 / 解锁 / 星级乘区 / 独立随机分区）— `feat(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G09.md`（派工真源，含上位失真清单与 D-1…D-18 决策、

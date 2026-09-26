@@ -28,7 +28,7 @@ sealed interface DialogType {
 
     // ==================== 功能性对话框 ====================
 
-    /** 招募 */
+    /** 寻访（角色卡池；类型名沿用 Recruit 是历史标识符，G05 已下线旧招募链） */
     data object Recruit : DialogType
 
     /** 外交 */

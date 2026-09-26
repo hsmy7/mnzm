@@ -296,14 +296,15 @@ data class SpiritRoot(
 
     val elementColor: String get() = GameConfig.SpiritRoot.get(types.first().trim()).color
 
-    val countColor: String get() = when (types.size) {
-        1 -> "#E74C3C"
-        2 -> "#F39C12"
-        3 -> "#9B59B6"
-        4 -> "#27AE60"
-        5 -> "#95A5A6"
-        else -> "#95A5A6"
-    }
+    /**
+     * 灵根**数量**徽章色（单金双红三紫四蓝五灰）。
+     *
+     * 取值委托 [GameConfig.Gacha.spiritRootCountColor]——Q31 是本仓灵根数色的唯一真源，
+     * 与寻访结果页的角色碎片框同表（[elementColor] 是另一维度：灵根**元素**色，不在此表内）。
+     * C++ 侧三份同口径副本（`exploration_tx.h` / `year_settlement.h` /
+     * `sect_defense_battle.h`）由 `GachaColorSingleSourceGuardTest` 钉住，改表必须四处同改。
+     */
+    val countColor: String get() = GameConfig.Gacha.spiritRootCountColor(types.size)
 }
 
 @Keep

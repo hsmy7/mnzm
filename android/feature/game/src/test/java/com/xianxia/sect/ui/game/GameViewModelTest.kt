@@ -24,6 +24,7 @@ import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
+import com.xianxia.sect.core.engine.domain.gacha.GachaFacade
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -111,6 +112,7 @@ class GameViewModelTest {
     private val buildingConfigService: BuildingConfigService = mockk(relaxed = true)
     private val mailService: MailService = mockk(relaxed = true)
     private val discipleFacade: DiscipleFacade = mockk(relaxed = true)
+    private val gachaFacade: GachaFacade = mockk(relaxed = true)
     private val buildingFacade: BuildingFacade = mockk(relaxed = true)
     private val thermalMonitor: ThermalMonitor = mockk(relaxed = true)
     private val dialogManager: com.xianxia.sect.core.domain.dialog.DialogManager = mockk(relaxed = true)
@@ -216,6 +218,8 @@ class GameViewModelTest {
             GameVmDelegateServices(
                 mailService, buildingConfigService,
                 buildingFacade, discipleFacade,
+                // 寻访门面（本测试不触达寻访路径，只补构造点）
+                gachaFacade,
                 // 注入 TestDispatcher 替代真实 Dispatchers.IO
                 //（真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
                 IoDispatcher(testDispatcher),

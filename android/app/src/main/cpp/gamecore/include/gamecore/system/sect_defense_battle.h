@@ -85,8 +85,9 @@ inline bool defenseOrderLess(const Disciple& a, const Disciple& b) {
     return a.realmLayer > b.realmLayer;
 }
 
-/// 灵根数 → 颜色（与 year_settlement.h spiritRootCountColor 同式——
-/// 互包不可共享，本地同口径副本）
+/// 灵根数 → 颜色（与 year_settlement.h spiritRootCountColor 同口径——互包不可共享，
+/// 本地同口径副本；Q31 灵根数色：1金 2红 3紫 4蓝 5灰，其余兜底灰。
+/// 四份同表的判据由 GachaColorSingleSourceGuardTest 钉住）
 inline std::string spiritRootColorFor(const std::string& spiritRootType) {
     int32_t count = 1;
     if (!spiritRootType.empty()) {
@@ -94,11 +95,11 @@ inline std::string spiritRootColorFor(const std::string& spiritRootType) {
                      std::count(spiritRootType.begin(), spiritRootType.end(), ',')));
     }
     switch (count) {
-        case 1: return "#E74C3C";
-        case 2: return "#F39C12";
-        case 3: return "#9B59B6";
-        case 4: return "#27AE60";
-        default: return "#95A5A6";
+        case 1: return "#ffd700";
+        case 2: return "#f44336";
+        case 3: return "#9c27b0";
+        case 4: return "#2196f3";
+        default: return "#b8b8b8";
     }
 }
 

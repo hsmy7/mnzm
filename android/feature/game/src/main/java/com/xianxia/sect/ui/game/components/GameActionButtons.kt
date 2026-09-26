@@ -100,7 +100,7 @@ fun LeftSideButtons(
             spriteName = "ui_settings_button"
         ) { viewModel.navigateToDialog(DialogType.Settings) }
         FloatingActionButton(
-            text = "招募",
+            text = "寻访",
             spriteName = "ui_recruit_button"
         ) { viewModel.navigateToDialog(DialogType.Recruit) }
         FloatingActionButton(

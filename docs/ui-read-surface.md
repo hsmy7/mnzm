@@ -51,7 +51,11 @@ UI 操作事务）。本清单回答两个问题：
   协议面：`android/app/src/main/cpp/gamecore/src/json_codec.cpp:1248`（导出）/ `:1334`（导入）
   与 `android/core/engine/src/main/java/com/xianxia/sect/core/gameview/GameDataFieldPatch.kt:327-337`
   （解码臂）四字段齐备；零 proto 变更、零 Room 迁移（`GameData.kt:807-829` 四字段，列自 DB v54 在库）。
-  UI 消费面（结果页 / 历史页 / 图鉴）尚未接入，接入时按本节判据读取，不得另立镜像字段。
+  UI 消费面（G11 已接入）：寻访主界面读 `gachaPityCounters`（保底进度 x/threshold），
+  结果页读 `GachaPullResult.Success.rows`（抽取序即格序）＋ `gachaStarMap`（星级跳变做差），
+  图鉴读 `gachaStarMap` ＋ `gachaFragmentCounts`（未解锁判据 = 星级账本无键），
+  历史页读 `gachaHistory`（下标 0 最新）。四个字段一律经 `GachaFacade` 的只读流进入
+  `GachaViewModel`，UI 不直写状态存储、不另立镜像字段。
 - **明确不在 gameData 序列化面**（@Transient 运行态，Kotlin 侧权威）：`aiSectDisciples、
   aiSectBeastDirectTargets、aiSectBeastSkipCooldowns、lockedBeastIds、rngStates`
   （rngStates 是 C++ live RNG 的导出镜像，反向回导永久剔除）。
@@ -92,6 +96,7 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 | playerSectLevel | `worldMapSects[isPlayerSect].level` |
 | sectLevelRewardClaimable | `sectLevelClaimRecords` + playerSectLevel |
 | recruitListAggregates | `recruitList` |
+| GachaViewModel.pityCounters / starMap / fragmentCounts / history（经 `GachaFacade` 只读流，G11） | `gachaPityCounters` / `gachaStarMap` / `gachaFragmentCounts` / `gachaHistory` |
 | playerSectId/activeSectId、sectName、currentSlot/slotId、mapSeed（存档链路） | 同名字段 |
 | prisonerSpiritRootFilter、autoRecruit/autoRejectSpiritRootFilter | 同名字段 |
 | disciples / aliveDisciples / discipleAggregates / sectCombatPower / aiSectCombatPowers | `disciples` 表 + 镜像 `aiSectDisciples` |

@@ -1,34 +1,26 @@
 package com.xianxia.sect.ui.game.components.dialog
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
+import com.xianxia.sect.core.perf.GpuTier
+import com.xianxia.sect.ui.game.GachaViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialogInputs
 import com.xianxia.sect.ui.game.components.OverlayViewModels
-import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
 import com.xianxia.sect.ui.game.dialogs.BuildingUpgradeDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
+import com.xianxia.sect.ui.game.dialogs.GachaRecruitDialog
 import com.xianxia.sect.ui.game.dialogs.GuideDialog
 import com.xianxia.sect.ui.game.dialogs.LeaderboardDialog
 import com.xianxia.sect.ui.game.dialogs.LizhanDialog
@@ -65,30 +57,18 @@ internal fun DialogType.renderFeatureRoutes(
     }
 }
 
-/** 寻访（DialogType.Recruit）占位对话框：招募链下线，G11 再以寻访主界面替换分支体 */
-@Suppress("UnusedParameter") // viewModel/gameData: 分发签名占位——G11 替换分支体时恢复消费
+/** 寻访（DialogType.Recruit）：主界面 + 结果层 + 图鉴 / 公示 / 历史，全在同一个窗口内 */
 @Composable
 private fun renderRecruit(viewModel: GameViewModel, gameData: GameData, onDismiss: () -> Unit) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "寻访",
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "寻访功能尚未开放",
-                fontSize = 16.sp,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            GameButton(text = "关闭", onClick = onDismiss)
-        }
-    }
+    val gachaViewModel = hiltViewModel<GachaViewModel>()
+    GachaRecruitDialog(
+        gacha = viewModel.gacha,
+        gachaVm = gachaViewModel,
+        spiritStones = gameData.spiritStones,
+        // 流光走 Compose 层；低端机（GpuTier.LOW）降为静态描边：不建协程、不进帧循环（D-6）
+        shimmer = viewModel.getGpuTier() != GpuTier.LOW,
+        onDismiss = onDismiss
+    )
 }
 
 @Composable

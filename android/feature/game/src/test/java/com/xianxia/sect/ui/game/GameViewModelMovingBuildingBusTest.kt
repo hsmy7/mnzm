@@ -9,6 +9,7 @@ import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
+import com.xianxia.sect.core.engine.domain.gacha.GachaFacade
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.notifyUserInteraction
@@ -67,6 +68,7 @@ class GameViewModelMovingBuildingBusTest {
     private val buildingConfigService: com.xianxia.sect.core.config.BuildingConfigService = mockk(relaxed = true)
     private val mailService: MailService = mockk(relaxed = true)
     private val discipleFacade: DiscipleFacade = mockk(relaxed = true)
+    private val gachaFacade: GachaFacade = mockk(relaxed = true)
     private val buildingFacade: BuildingFacade = mockk(relaxed = true)
     private val thermalMonitor: ThermalMonitor = mockk(relaxed = true)
     private val dialogManager: com.xianxia.sect.core.domain.dialog.DialogManager = mockk(relaxed = true)
@@ -136,6 +138,8 @@ class GameViewModelMovingBuildingBusTest {
             GameVmDelegateServices(
                 mailService, buildingConfigService,
                 buildingFacade, discipleFacade,
+                // 寻访门面（本测试不触达寻访路径，只补构造点）
+                gachaFacade,
                 IoDispatcher(testDispatcher),
                 sessionManager,
                 // GPU 档位检测（本测试不触达渲染路径，detect 不调用）

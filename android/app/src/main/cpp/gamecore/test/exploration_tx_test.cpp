@@ -405,7 +405,7 @@ TEST(ExplorationTxTest, GarrisonAssignClearsAllSlotsAndWritesTarget) {
     // 玩家宗门槽 0 已有旧 occupant
     st.gameData.worldMapSects[0].garrisonSlots[0].discipleId = "2";
     st.gameData.worldMapSects[0].garrisonSlots[0].discipleName = "弟子2";
-    // 双灵根 → 颜色档 #F39C12
+    // 双灵根 → 颜色档 #f44336（Q31 灵根数色，单源见 SpiritRoot.countColor）
     const auto row = *st.disciples.rowOf("1");
     st.disciples.spiritRootTypes[row] = "metal,wood";
 
@@ -420,7 +420,7 @@ TEST(ExplorationTxTest, GarrisonAssignClearsAllSlotsAndWritesTarget) {
     const auto& slot = st.gameData.worldMapSects[0].garrisonSlots[0];
     EXPECT_EQ("1", slot.discipleId);
     EXPECT_EQ("弟子1", slot.discipleName);
-    EXPECT_EQ("#F39C12", slot.discipleSpiritRootColor);
+    EXPECT_EQ("#f44336", slot.discipleSpiritRootColor);
     EXPECT_EQ("p1", slot.portraitRes);
     EXPECT_FALSE(slot.discipleRealm.empty());
     // 全槽清理（与 Kotlin 同口径：garrison 仅清玩家宗门）：巡逻槽清空，

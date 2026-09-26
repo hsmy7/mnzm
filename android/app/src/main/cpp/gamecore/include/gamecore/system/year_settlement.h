@@ -1019,7 +1019,8 @@ constexpr int32_t kGarrisonSlotCount = 10;
 /// 驻军留守名额（AISectGarrisonManager：占领者最强 10 名留守宗门）
 constexpr int32_t kGarrisonStayCount = 10;
 
-/// 灵根数 → 颜色（Kotlin SpiritRoot.countColor：1..5 固定色，其余兜底灰）
+/// 灵根数 → 颜色（Kotlin SpiritRoot.countColor 同式，Q31 灵根数色：
+/// 1金 2红 3紫 4蓝 5灰，其余兜底灰；四份同表的判据由 GachaColorSingleSourceGuardTest 钉住）
 inline std::string spiritRootCountColor(const std::string& spiritRootType) {
     int32_t count = 1;
     if (!spiritRootType.empty()) {
@@ -1027,11 +1028,11 @@ inline std::string spiritRootCountColor(const std::string& spiritRootType) {
             spiritRootType.begin(), spiritRootType.end(), ','));
     }
     switch (count) {
-        case 1: return "#E74C3C";
-        case 2: return "#F39C12";
-        case 3: return "#9B59B6";
-        case 4: return "#27AE60";
-        default: return "#95A5A6";
+        case 1: return "#ffd700";
+        case 2: return "#f44336";
+        case 3: return "#9c27b0";
+        case 4: return "#2196f3";
+        default: return "#b8b8b8";
     }
 }
 
