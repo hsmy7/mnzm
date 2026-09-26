@@ -54,6 +54,8 @@ import kotlin.reflect.full.memberProperties
  * | 同上 | 把 C++ 常量改名或挪进别的头文件（三向臂取不到值） | `解析不到 \`inline constexpr double kStarCultPctPerStar\`` |
  * | 同上（int 版臂） | 把 `kHistoryRingSize` 改名、或去掉行末分号 | `解析不到 \`inline constexpr int32_t kHistoryRingSize\`` |
  * | [卡池经济常量与配置同值] | 把 `GameConfig.Gacha.PRICE_PER_PULL` 改 5001 | `配置 ↔ Kotlin` |
+ * | [星级乘区实现面源码扫描 - StarZone 禁写乘区字面量必须引用 GameConfig] | 把 battleMult 改写为含 `0.08` 字面量 | `出现乘区字面量` |
+ * | [历史环截断源码扫描 - GachaService take 引用环容量常量非字面量] | 把 `take(...)` 的实参改字面量 `50` | `字面量截断` |
  * | [灵根取值域合法] | 把某条 `spiritRoots` 扩到 3 个元素，或写成 `"thunder"` | `模板灵根域校验失败` |
  *
  * 反例都是「改一处 → 判红 → 当场还原 → 判绿」的一轮实验。本文件只读仓库内文本，
@@ -338,10 +340,6 @@ class CharacterTemplateGuardTest {
         val pity = pool["pity"]?.jsonObject
             ?: unreachable("db.gachaPools[0] 缺 pity 段（保底阈值与碎片数的载体）。$REPAIR_NEUTRAL")
         val rows = listOf(
-            "gachaDefaults.injuryHealPctPerPhase ↔ INJURY_HEAL_PCT_PER_PHASE" to
-                listOf(num(defaults, "injuryHealPctPerPhase"), GameConfig.Gacha.INJURY_HEAL_PCT_PER_PHASE),
-            "gachaDefaults.breakthroughCompBonus ↔ BREAKTHROUGH_COMP_BONUS" to
-                listOf(num(defaults, "breakthroughCompBonus"), GameConfig.Gacha.BREAKTHROUGH_COMP_BONUS),
             "gachaDefaults.startSpiritStones ↔ START_SPIRIT_STONES（开局灵石唯一取值点）" to
                 listOf(num(defaults, "startSpiritStones"), GameConfig.Gacha.START_SPIRIT_STONES.toDouble()),
             "db.gachaPools[0].pricePerPull ↔ PRICE_PER_PULL" to
@@ -411,6 +409,53 @@ class CharacterTemplateGuardTest {
         )
     }
 
+    // ── ⑥c 星级乘区实现面源码扫描（G13 D-3：三向守卫只认常量，实现面写字面量会静默分叉）──
+
+    /**
+     * 三向守卫（[星级乘区与历史环常量三向一致 - 三向臂逐值]）钉得住「配置 ↔ GameConfig ↔ C++
+     * 常量」三个值，钉不住 Kotlin 实现面：[StarZone][com.xianxia.sect.core.model.StarZone] 若把
+     * 每星加成抄成字面量 `0.08` / `0.05`，三向比对依旧全绿而实现已与配置分叉。本用例补第四臂：
+     * 实现必须引用 [GameConfig.Gacha.STAR_BATTLE_PCT_PER_STAR] / [GameConfig.Gacha.STAR_CULT_PCT_PER_STAR]，
+     * 且源码内不得出现乘区字面量（注释同理——乘区数值在 StarZone.kt 里只允许写百分比形式）。
+     */
+    @Test
+    fun `星级乘区实现面源码扫描 - StarZone 禁写乘区字面量必须引用 GameConfig`() {
+        val source = locate(STAR_ZONE_KT_RELATIVE, STAR_ZONE_KT_LABEL, REPAIR_STAR_ZONE_SOURCE).readText()
+        listOf(
+            "GameConfig.Gacha.STAR_BATTLE_PCT_PER_STAR" to "战斗乘区",
+            "GameConfig.Gacha.STAR_CULT_PCT_PER_STAR" to "修炼乘区",
+        ).forEach { (reference, label) ->
+            assertTrue(
+                "StarZone.kt 未引用 $reference——$label 的每星加成必须经 GameConfig 单源取值，" +
+                    "实现面自写数值会让三向守卫失去意义。$REPAIR_STAR_ZONE_SOURCE",
+                source.contains(reference),
+            )
+        }
+        val literalHits = Regex("""(?<![\d.])0\.0[58](?!\d)""").findAll(source).map { it.value }.toList()
+        assertTrue(
+            "StarZone.kt 出现乘区字面量 $literalHits——每星加成只允许经 GameConfig.Gacha.STAR_* 引用" +
+                "（直接写 0.08/0.05 会在改配置时静默分叉，注释同理只写百分比形式）。$REPAIR_STAR_ZONE_SOURCE",
+            literalHits.isEmpty(),
+        )
+    }
+
+    // ── ⑥d 历史环截断源码扫描（G13 D-3 同族：take 实参必须是环容量常量）────────────
+
+    @Test
+    fun `历史环截断源码扫描 - GachaService take 引用环容量常量非字面量`() {
+        val source = locate(GACHA_SERVICE_KT_RELATIVE, GACHA_SERVICE_KT_LABEL, REPAIR_RING_SOURCE).readText()
+        assertTrue(
+            "GachaService.kt 未引用 GameConfig.Gacha.HISTORY_RING_SIZE——历史环截断必须经环容量常量取值" +
+                "（三向守卫钉的正是该常量）。$REPAIR_RING_SOURCE",
+            source.contains("GameConfig.Gacha.HISTORY_RING_SIZE"),
+        )
+        assertTrue(
+            "GachaService.kt 出现 .take(50) 字面量截断——环容量与配置 historyRingSize、C++ " +
+                "kHistoryRingSize 三向同值，写字面量会在改容量时静默分叉。$REPAIR_RING_SOURCE",
+            Regex("""\.take\(\s*50\s*\)""").containsMatchIn(source).not(),
+        )
+    }
+
     // ── ⑦ 灵根取值域（模板 6 项之一的合法域） ─────────────────────────
 
     @Test
@@ -459,6 +504,22 @@ class CharacterTemplateGuardTest {
         const val GACHA_TX_HEADER_RELATIVE =
             "app/src/main/cpp/gamecore/include/gamecore/system/gacha_tx.h"
         const val GACHA_TX_HEADER_LABEL = "C++ 寻访事务头 gacha_tx.h"
+
+        /** 星级乘区与历史环常量三向（G09 D-14：配置 ↔ Kotlin ↔ C++ 头文件）的常量本体之外，
+         * Kotlin 实现面与截断调用点的源码扫描对象（G13 D-3 第四臂） */
+        const val STAR_ZONE_KT_RELATIVE = "core/domain/src/main/java/com/xianxia/sect/core/model/StarZone.kt"
+        const val STAR_ZONE_KT_LABEL = "星级乘区 Kotlin 实现 StarZone.kt"
+        const val REPAIR_STAR_ZONE_SOURCE =
+            "修复：乘区取值唯一写法 = GameConfig.Gacha.STAR_BATTLE_PCT_PER_STAR / STAR_CULT_PCT_PER_STAR" +
+                "（三向同值由本类「星级乘区与历史环常量三向一致」看护，实现面不得留数值副本）"
+
+        /** 历史环截断调用点（源码扫描对象） */
+        const val GACHA_SERVICE_KT_RELATIVE =
+            "core/engine/src/main/java/com/xianxia/sect/core/engine/domain/gacha/GachaService.kt"
+        const val GACHA_SERVICE_KT_LABEL = "寻访历史环截断 GachaService.kt"
+        const val REPAIR_RING_SOURCE =
+            "修复：环容量唯一写法 = GameConfig.Gacha.HISTORY_RING_SIZE（配置 historyRingSize ↔ 本常量 ↔ " +
+                "C++ kHistoryRingSize 三向同值由本类「星级乘区与历史环常量三向一致」看护）"
 
         /** 中性源侧修复指引（产物比对的落点） */
         const val REPAIR_NEUTRAL =

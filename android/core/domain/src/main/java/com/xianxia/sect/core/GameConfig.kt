@@ -236,8 +236,6 @@ object GameConfig {
         const val START_SPIRIT_STONES = 50000
         const val STAR_BATTLE_PCT_PER_STAR = 0.08
         const val STAR_CULT_PCT_PER_STAR = 0.05
-        const val INJURY_HEAL_PCT_PER_PHASE = 0.2
-        const val BREAKTHROUGH_COMP_BONUS = 0.02
 
         /** 物品品阶色（六金五红四紫三蓝二绿一灰）— Q31 */
         val RARITY_COLORS: Map<Int, String> = mapOf(

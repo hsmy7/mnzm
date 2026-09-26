@@ -106,9 +106,7 @@
     "startupTemplateId": "zhouming",
     "starBattlePctPerStar": 0.08,
     "starCultPctPerStar": 0.05,
-    "historyRingSize": 50,
-    "injuryHealPctPerPhase": 0.2,
-    "breakthroughCompBonus": 0.02
+    "historyRingSize": 50
   },
   "gachaColors": {
     "rarity": {

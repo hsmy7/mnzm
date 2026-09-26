@@ -46,6 +46,36 @@
   对齐 Q31；双 changelog 同批更新；版本号未动（G14 拍板项）；真机 12 项 pending-device
   未消、照常登记。
 
+### 角色卡池重构 G13 批（2026-09-27）——数值落地（M0 杠杆终局 · 星级乘区实现面守卫 · 经济复测 · 白皮书口径修正）— `refactor(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G13.md`（派工真源，D-1…D-5 决策）
+> + `docs/design/gacha-batches/report-G13.md`（本批报告）。
+
+- **⑨ 突破补偿终局=不补（D-1，G09 P-6 拍板兑现）**：删除悬空键
+  `gachaDefaults.breakthroughCompBonus`（`scripts/data/gacha_config_sample.json`）与
+  `GameConfig.Gacha.BREAKTHROUGH_COMP_BONUS`（删前全仓 grep 零消费点，仅守卫同值断言自指）；
+  `CharacterTemplateGuardTest` 同步删两行守卫（⑨⑩ 各一）。
+- **⑩ 重伤回血终局=重复键认定（D-2）**：删除 `gachaDefaults.injuryHealPctPerPhase` +
+  `INJURY_HEAL_PCT_PER_PHASE`；回血单源留在既有机制
+  `GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE=0.2`（Kotlin `HpMpRecoveryService` /
+  C++ `kPhaseHpMpRecoveryRate` 双端原样，零行为改动）。
+- **星级乘区实现面守卫（D-3，任务书 §4 缺口）**：`CharacterTemplateGuardTest` 新增两条源码扫描——
+  `StarZone.kt` 必须引用 `GameConfig.Gacha.STAR_*` 且禁止 `0.08/0.05` 字面量（三向守卫钉不到
+  Kotlin 实现面的第四臂）、`GachaService.take(...)` 必须引用 `HISTORY_RING_SIZE` 禁止 `.take(50)`；
+  判别力红证：双反例注入 → 恰两条新用例红（10 completed 2 failed）→ 还原 → 全类绿。
+- **经济复测进白皮书（D-4）**：`m0-economic-whitepaper.md` 新增 §11（蒙特卡洛 20 万局，逐抽模拟
+  `gacha_tx.h` 语义）——第二角色期望 **683 抽 / ≈341 万灵石**（p10 580 / p90 778；月入 5k 档
+  ≈673 月），旧表「145 抽 / 13–15 个月」系不稀释口径且自相矛盾（低估 ≈4.7×）；六人全 5★ 期望
+  ≈4,834 抽（4,200 为理论下限，满星废片期望 421 枚）；寻访 sink 闭环判定成立（单抽价 ≈ 早期
+  0.6–1.7 个月收入）；五条已删 sink 影响列 + 物品池材料注入期望（每抽 0.711 件、4★ ≈0.085 件）。
+- **白皮书口径修正（任务 E）**：§4.1「采纳口径 B」改为终局**口径 A**（1★ 基线，5★ 战斗 +32% /
+  修炼 +20%，与 `star_zone.h` / `StarZone.kt` / G09 拍板一致）；§3 杠杆表 ⑨⑩ 补勾（十项全部有勾）；
+  §4.1 公式笔误与 A/B 标签互换修正；§1.2/§2.2/§5/§6.2/§7/§9 加 G13 复测注/终局注防误读。
+- **生成产物**：改中性源后 `node scripts/gen-game-data.mjs` 重跑，`game-data.json` sha256
+  `035066cb…94ef` → `809375f4…8619`（**改中性源导致，非漂移**；`--check` 通过）。
+- **零行为改动声明**：本批删的是零消费配置键，C++ / 判定行为 / RNG 基线 / 金黄 digest 全部未动，
+  ctest 与 JNI 重建不适用（`.so` 三件套 = G10 交付值逐字一致）。
+
 ### 角色卡池重构 G10 批（2026-09-26）——RNG 对拍基线重录（唯一窗口）+ 全量回归收口 + 死代码 grep 清零 + 活文档收口 — `chore(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G10.md`（派工真源，含上位失真 10 条与 D-1…D-6 决策）
