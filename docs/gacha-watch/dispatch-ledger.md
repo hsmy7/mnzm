@@ -20,6 +20,7 @@
 
 （最新在上）
 
+- **2026-09-26 20:10 G10 派发尝试失败 ⇒ 派发通道故障，记 blocked（待用户处置）**：在途=无（实施进程启动即退 `turn.failed`，零代码改动）；新提交=无；交付核验=不适用；动作=记 blocked（通道层，非任务书层）；备注=独立无头 CLI（`node …\resources\glm\zcode.cjs --prompt`）对最小 prompt 亦复现 `ClientRequestSigningV4Error: Client signing credential must contain one separator`（providerId=bigmodel-api，kind=invalid-config，fail closed；traceId `709c644f` / `6be132e4`）——与 G10 派发文本无关；今天 16:07–19:48 跑通的 G11 会话（sess_59503805）入口是 `zcode_protocol`（桌面 app 运行时）而非本命令 ⇒ **独立 CLI 通道从未被验证且当前不可用**；`~/.zcode/v2/credentials.json` 全为 `enc:v1:` 加密凭据块（含 2 个点 ⇒ 恰好触发「必须恰有一个分隔符」解析失败）、`v2/setting.json` bigmodel=oauth（mtime 19:48）、`~/.zcode/cli/config.json` 的 apiKey（49 字符恰 1 点，`{id}.{secret}` 合法）未被该路径采用。**处置建议交用户**：① 终端跑一次 `zcode login`（OAuth 浏览器授权，CLI `--help` 自述「Sign in with Z.AI OAuth for model access」）后重试派发；或 ② 用户明确指示改派发渠道（app 内派发 = G11 实际通道）。派发件已就绪未消费（`_dispatch-G10.md` 26,721 字节 = 纪律前言 + 任务书全文逐字 + G11 交付事实附录；`.gitignore` 已覆盖，重试时直接喂 CLI）。
 - **2026-09-26 · 四份批任务书与看护件就绪（可开始派发）**：
   - 派发顺序 **G10 → G12 → G13 → G14**；任务书 = `../design/gacha-batches/TASKBOOK-{G10,G12,G13,G14}.md`（**均已入库**）；
   - 看护件 = 本目录 `WATCHDOG-PROMPT.md`（提示词真源）＋ `fire.ps1`（fire 文本装配器，**只装配不启动**）；
@@ -44,7 +45,7 @@
 
 | # | 批次 | 依赖 | 状态 | 派发时间 | 收官笔 | 报告 | 备注 |
 |---|---|---|---|---|---|---|---|
-| 1 | **G10** RNG 基线重录 + 全量回归收口 + 死代码 grep 清零 + 文档收口（M1 末批） | G02–G09/G11 已合入 | `pending` | — | — | — | 任务书已就绪；**唯一重录窗口** |
+| 1 | **G10** RNG 基线重录 + 全量回归收口 + 死代码 grep 清零 + 文档收口（M1 末批） | G02–G09/G11 已合入 | `blocked(派发通道)` | 2026-09-26 19:57（尝试） | — | — | 任务书已就绪；**唯一重录窗口**；无头 CLI 认证故障待用户处置（见当前状态 20:10 条） |
 | 2 | **G12** 体验完成（历史 50 条 / 概率公示 / 图鉴完整 / 流光降级 / 引导 / 死文案清零） | G11 | `pending` | — | — | — | 任务书已就绪 |
 | 3 | **G13** 数值落地（M0 杠杆回填 / 突破补偿 / 回血参数 / 经济复测 / 星级乘区终值） | G00、G09、G10 | `pending` | — | — | — | 任务书已就绪；**需产品在 M0 勾选表上拍板** |
 | 4 | **G14** 文档与发布收口（双 changelog / CODE_WIKI / architecture / 验收报告 / 死文案清单） | G11–G13 | `pending` | — | — | — | 任务书已就绪 |
@@ -61,7 +62,7 @@
 |---|---|
 | 看护启用时点 | 2026-09-26（本文件首笔） |
 | 定时任务 | **看护不自行安装**；由用户在 WATCHDOG-PROMPT §3 的方案 A/B 中择一安装 |
-| 锁时间戳 | `2026-09-26 · 看护建立`（每轮 fire 有实质动作时更新；15 分钟内视为活跃） |
+| 锁时间戳 | `2026-09-26 20:10 · G10 派发尝试→通道故障记 blocked`（每轮 fire 有实质动作时更新；15 分钟内视为活跃） |
 | 自动化 id | （用户安装后回填；keep-alive 记录） |
 
 ---
