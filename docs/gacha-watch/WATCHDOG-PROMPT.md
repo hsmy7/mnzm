@@ -6,6 +6,9 @@
 > 实施器：**ZCode CLI 无头模式**（`resources/glm/zcode.cjs --prompt`），**默认模型**，**每批一个新会话**。
 > 与既有 `docs/memory-refactor-watch/` 的分工：那套是另一条工作线（`.worktrees/memory-refactor`），
 > **本套只动主树 `C:\Mnzm\XianxiaSectNative`**，两套互不引用台账。
+> 📦 **总包（交接 / 审计用）**：[`BATCH-PLAN-ALL.md`](BATCH-PLAN-ALL.md) = 本提示词 ＋ 台账 ＋ 四份任务书的**派生合集**，
+> 由 `scripts/gacha-watch-bundle.ps1` 生成（带源文件 sha256 指纹表）。🔴 **派发仍以 `TASKBOOK-Gxx.md` 真源为准**；
+> 总包是否过期用 `pwsh -NoProfile -File scripts/gacha-watch-bundle.ps1 -Check`（退出码 1 = 已过期，重新生成即可，**不影响派发**）。
 
 ---
 
@@ -27,6 +30,8 @@
 ## §1 每轮 fire 的七步状态机（严格按序）
 
 **第 0 步｜读全文**：读本轮 fire 的完整文本（用户可能把追加指令缀在末尾，**追加指令优先级最高**）。然后读 [`dispatch-ledger.md`](dispatch-ledger.md) 的《当前状态》最新条与《批次总表》。
+> 顺手可跑一次总包自检（不阻塞任何动作）：`pwsh -NoProfile -File scripts/gacha-watch-bundle.ps1 -Check`
+> —— 退出码 1 表示交接件 `BATCH-PLAN-ALL.md` 已过期，重新生成一次即可（它只是人读/交接件，**派发永远以 TASKBOOK 真源为准**）。
 
 **第 1 步｜防重入**：
 - 台账最新条的「看护锁时间戳」在 **15 分钟**以内 ⇒ 看护活跃 ⇒ 本轮**只观察不动作**（记一行或直接退出）。
