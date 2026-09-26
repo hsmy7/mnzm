@@ -1,6 +1,8 @@
 package com.xianxia.sect.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.ui.components.GachaColors
 
 object GameColors {
     val Primary = Color(0xFF4A90E2)
@@ -37,19 +39,14 @@ object GameColors {
     val CardBackground = Color(0xFFE9E4DF)
     val CardBackgroundSelected = Color(0xFFE9E4DF)
 
-    val RarityCommon = Color(0xFFB8B8B8)
-    val RaritySpirit = Color(0xFFAFCB8A)
-    val RarityTreasure = Color(0xFF9FC2EE)
-    val RarityMystic = Color(0xFFC0A2DD)
-    val RarityEarth = Color(0xFFE7C67D)
-    val RarityHeaven = Color(0xFFE3A0A0)
-
-    val RarityTextCommon = Color(0xFF666666)
-    val RarityTextSpirit = Color(0xFF5B8C2A)
-    val RarityTextTreasure = Color(0xFF3B7DD8)
-    val RarityTextMystic = Color(0xFF7B4FAA)
-    val RarityTextEarth = Color(0xFFC8960C)
-    val RarityTextHeaven = Color(0xFFCC4444)
+    // 品阶色六常量是旧引用面的别名，值全部解析自 Q31 单源（GameConfig.Gacha.RARITY_COLORS，
+    // 仓储/奖励弹窗/详情页与寻访结果页因此同一套）；新代码请直接走 GachaColors.rarityColor
+    val RarityCommon = GachaColors.parse(GameConfig.Gacha.rarityColor(1))
+    val RaritySpirit = GachaColors.parse(GameConfig.Gacha.rarityColor(2))
+    val RarityTreasure = GachaColors.parse(GameConfig.Gacha.rarityColor(3))
+    val RarityMystic = GachaColors.parse(GameConfig.Gacha.rarityColor(4))
+    val RarityEarth = GachaColors.parse(GameConfig.Gacha.rarityColor(5))
+    val RarityHeaven = GachaColors.parse(GameConfig.Gacha.rarityColor(6))
 
     val RealmLianQi = Color(0xFF95A5A6)
     val RealmZhuJi = Color(0xFF27AE60)

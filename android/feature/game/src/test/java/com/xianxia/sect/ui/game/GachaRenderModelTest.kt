@@ -208,6 +208,29 @@ class GachaRenderModelTest {
         assertEquals("全身立绘读 portraitKey（1024 档，与结果页的 512 档互不替换）", "portrait_" + TEMPLATE_ID, cell.portraitKey)
     }
 
+    @Test
+    fun `图鉴收益预览与升星层同一条派生链 - 口径 A 逐星值`() {
+        fun cellAt(star: Int) = GachaRenderModel.codexCells(
+            starMap = mapOf(TEMPLATE_ID to star),
+            fragmentCounts = emptyMap(),
+        ).first { it.templateId == TEMPLATE_ID }
+
+        val baseline = cellAt(1)
+        assertEquals("1 星是基线：战斗 ×1.00", "战斗威力 ×1.00", baseline.battleBonusText)
+        assertEquals("1 星是基线：修炼 ×1.00", "修炼效率 ×1.00", baseline.cultivationBonusText)
+
+        val twoStar = cellAt(2)
+        assertEquals("2 星战斗 = 1 + 1 × 0.08", "战斗威力 ×1.08", twoStar.battleBonusText)
+        assertEquals("2 星修炼 = 1 + 1 × 0.05", "修炼效率 ×1.05", twoStar.cultivationBonusText)
+
+        val maxStar = cellAt(GameConfig.Gacha.MAX_STAR)
+        assertEquals("满星战斗 = 1 + 4 × 0.08（与升星层同式）", "战斗威力 ×1.32", maxStar.battleBonusText)
+        assertEquals("满星修炼 = 1 + 4 × 0.05", "修炼效率 ×1.20", maxStar.cultivationBonusText)
+
+        val locked = cellAt(0)
+        assertEquals("未解锁格 star=0，倍率按基线计算（面板侧置灰不展示）", "战斗威力 ×1.00", locked.battleBonusText)
+    }
+
     // ── ⑤ 跨星队列 ─────────────────────────────────────────────────
 
     @Test
@@ -294,6 +317,11 @@ class GachaRenderModelTest {
             spec.itemRarityWeights.map { it.rarity to it.weightPct },
             readModel.rarityWeights,
         )
+        assertEquals(
+            "物品类别的品阶上限逐项来自池配置（角色类是碎片/星级制，不进上限表）",
+            mapOf("herb" to 4),
+            readModel.maxRarityPerKind,
+        )
         assertEquals("已登记类别有可读名", "单灵根弟子", GachaRenderModel.categoryLabel("character_single"))
         assertEquals(
             "未登记类别原样显示（折叠成「其他」会让新加的 kind 静默消失）",
@@ -330,6 +358,34 @@ class GachaRenderModelTest {
             "物品行配色用品阶表、角色行用灵根数表（与结果页同一判据）",
             GameConfig.Gacha.RARITY_COLORS.getValue(4),
             rows[1].colorHex,
+        )
+        assertFalse("非保底抽不带保底标注", rows.first().isPity)
+    }
+
+    @Test
+    fun `历史行带保底标注 - 保底行 isPity 为真`() {
+        val rows = GachaRenderModel.historyRows(
+            listOf(
+                GachaHistoryEntry(
+                    category = "pity",
+                    templateId = TEMPLATE_ID,
+                    count = GameConfig.Gacha.PITY_FRAGMENT_COUNT,
+                    isPity = true,
+                    gameMonthIndex = 13,
+                )
+            )
+        )
+
+        assertTrue(
+            "保底抽的历史行必须带 isPity 标注（Q40「保底附着标注」），历史页据此挂「保底」角标",
+            rows.first().isPity,
+        )
+        assertEquals(
+            "保底行也是角色碎片，配色走灵根数色",
+            GameConfig.Gacha.spiritRootCountColor(
+                requireNotNull(CharacterTemplateDb.byId(TEMPLATE_ID)).spiritRoots.size
+            ),
+            rows.first().colorHex,
         )
     }
 

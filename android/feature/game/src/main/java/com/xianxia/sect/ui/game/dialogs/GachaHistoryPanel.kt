@@ -28,6 +28,8 @@ import com.xianxia.sect.ui.theme.GameColors
  *
  * 顺序即环序：下标 0 是最新一条（🔴 与结果页的**抽取序**是两个口径，
  * `GachaRenderModel.historyRows` 的注释里钉着，不许互相拿来当输入）。
+ * 保底抽带「保底」标注（与结果页格的 `isPity` 同源）；页首的保底进度行与
+ * 主界面读同一个 `gachaPityCounters` 流（禁自算第二份计数）。
  *
  * 用 `Column + verticalScroll` 而不是 `LazyColumn`：历史条目没有唯一键
  * （同一个月抽到同一种灵草会重复），`items(key = …)` 撞键会直接崩
@@ -36,6 +38,8 @@ import com.xianxia.sect.ui.theme.GameColors
 @Composable
 fun GachaHistoryPanel(
     rows: List<GachaHistoryRow>,
+    pityCount: Int,
+    pityThreshold: Int?,
     onBack: () -> Unit,
 ) {
     Column(
@@ -44,6 +48,14 @@ fun GachaHistoryPanel(
             .padding(horizontal = HISTORY_H_PADDING_DP.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        if (pityThreshold != null) {
+            Text(
+                text = gachaPityProgressText(pityCount, pityThreshold),
+                fontSize = 12.sp,
+                color = GameColors.TextPrimary,
+                modifier = Modifier.padding(bottom = PITY_LINE_GAP_DP.dp),
+            )
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -60,7 +72,7 @@ fun GachaHistoryPanel(
     }
 }
 
-/** 一行：出货 Q31 色点 + 年月 + 「名称 ×数量」 */
+/** 一行：出货 Q31 色点 + 年月 + 「名称 ×数量」（保底抽附金色的「保底」标注） */
 @Composable
 private fun HistoryLine(row: GachaHistoryRow) {
     Row(
@@ -79,11 +91,23 @@ private fun HistoryLine(row: GachaHistoryRow) {
             )
             Text(text = row.monthLabel, fontSize = 11.sp, color = GameColors.TextSecondary)
         }
-        Text(
-            text = "${row.displayName} ×${row.quantity}",
-            fontSize = 11.sp,
-            color = GameColors.TextPrimary,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(PITY_MARK_GAP_DP.dp)
+        ) {
+            Text(
+                text = "${row.displayName} ×${row.quantity}",
+                fontSize = 11.sp,
+                color = GameColors.TextPrimary,
+            )
+            if (row.isPity) {
+                Text(
+                    text = PITY_MARK_TEXT,
+                    fontSize = PITY_MARK_FONT_SP.sp,
+                    color = GameColors.Gold,
+                )
+            }
+        }
     }
 }
 
@@ -91,5 +115,9 @@ private const val HISTORY_H_PADDING_DP = 16
 private const val ROW_GAP_DP = 4
 private const val SWATCH_DP = 8
 private const val SWATCH_GAP_DP = 4
+private const val PITY_LINE_GAP_DP = 8
+private const val PITY_MARK_GAP_DP = 4
+private const val PITY_MARK_FONT_SP = 9
+private const val PITY_MARK_TEXT = "保底"
 private const val BACK_TEXT = "返回"
 private const val EMPTY_TEXT = "还没有寻访记录"

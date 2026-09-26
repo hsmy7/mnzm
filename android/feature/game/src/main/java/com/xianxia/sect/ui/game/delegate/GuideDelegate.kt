@@ -2,7 +2,9 @@ package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.claimGuideReward
+import com.xianxia.sect.core.engine.incrementGuideCounter
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.guide.GuideTask
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
 import com.xianxia.sect.core.state.DiscipleTables
@@ -11,7 +13,7 @@ import com.xianxia.sect.core.state.DiscipleTables
  * 新手引导任务委托 — 数据提供与状态检测。
  *
  * 职责：提供任务定义、检查任务完成状态。
- * 奖励领取操作通过 [GameEngineGuideOps] 扩展函数执行。
+ * 奖励领取与计数器更新通过 [GameEngineGuideOps] 扩展函数执行。
  */
 class GuideDelegate(
     private val gameEngine: GameEngine
@@ -21,6 +23,13 @@ class GuideDelegate(
     fun claimGuideReward(taskId: Int) {
         gameEngine.launchOnEngine {
             gameEngine.claimGuideReward(taskId)
+        }
+    }
+
+    /** 打开寻访界面即计数（寻访引导任务的判据写点；引擎线程执行，累计语义） */
+    fun notifyGachaOpened() {
+        gameEngine.launchOnEngine {
+            gameEngine.incrementGuideCounter(GuideCounterKeys.GACHA_OPENED)
         }
     }
 

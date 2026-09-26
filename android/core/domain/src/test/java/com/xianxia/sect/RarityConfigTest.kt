@@ -137,27 +137,38 @@ class RarityConfigTest {
 
     @Test
     fun `getColor传入2应返回绿色`() {
-        assertEquals("#afcb8a", GameConfig.Rarity.getColor(2))
+        assertEquals("#4caf50", GameConfig.Rarity.getColor(2))
     }
 
     @Test
     fun `getColor传入3应返回蓝色`() {
-        assertEquals("#9fc2ee", GameConfig.Rarity.getColor(3))
+        assertEquals("#2196f3", GameConfig.Rarity.getColor(3))
     }
 
     @Test
     fun `getColor传入4应返回紫色`() {
-        assertEquals("#c0a2dd", GameConfig.Rarity.getColor(4))
+        assertEquals("#9c27b0", GameConfig.Rarity.getColor(4))
     }
 
     @Test
-    fun `getColor传入5应返回橙色`() {
-        assertEquals("#e7c67d", GameConfig.Rarity.getColor(5))
+    fun `getColor传入5应返回红色`() {
+        assertEquals("#f44336", GameConfig.Rarity.getColor(5))
     }
 
     @Test
-    fun `getColor传入6应返回红色`() {
-        assertEquals("#e3a0a0", GameConfig.Rarity.getColor(6))
+    fun `getColor传入6应返回金色`() {
+        assertEquals("#ffd700", GameConfig.Rarity.getColor(6))
+    }
+
+    @Test
+    fun `getColor全部委托Q31色表 - 与Gacha单源同值`() {
+        for (rarity in 1..6) {
+            assertEquals(
+                "Rarity.getColor($rarity) 必须等于 GameConfig.Gacha.rarityColor($rarity)（Q31 单源）",
+                GameConfig.Gacha.rarityColor(rarity),
+                GameConfig.Rarity.getColor(rarity),
+            )
+        }
     }
 
     // ============================================================

@@ -51,10 +51,12 @@ UI 操作事务）。本清单回答两个问题：
   协议面：`android/app/src/main/cpp/gamecore/src/json_codec.cpp:1248`（导出）/ `:1334`（导入）
   与 `android/core/engine/src/main/java/com/xianxia/sect/core/gameview/GameDataFieldPatch.kt:327-337`
   （解码臂）四字段齐备；零 proto 变更、零 Room 迁移（`GameData.kt:807-829` 四字段，列自 DB v54 在库）。
-  UI 消费面（G11 已接入）：寻访主界面读 `gachaPityCounters`（保底进度 x/threshold），
+  UI 消费面（G11 已接入；G12 扩历史页保底进度行）：寻访主界面读 `gachaPityCounters`
+  （保底进度 x/threshold），
   结果页读 `GachaPullResult.Success.rows`（抽取序即格序）＋ `gachaStarMap`（星级跳变做差），
   图鉴读 `gachaStarMap` ＋ `gachaFragmentCounts`（未解锁判据 = 星级账本无键），
-  历史页读 `gachaHistory`（下标 0 最新）。四个字段一律经 `GachaFacade` 的只读流进入
+  历史页读 `gachaHistory`（下标 0 最新）＋ `gachaPityCounters`（页首 x/threshold 进度行，
+  与主界面同一流，禁自算第二份计数）。四个字段一律经 `GachaFacade` 的只读流进入
   `GachaViewModel`，UI 不直写状态存储、不另立镜像字段。
 - **明确不在 gameData 序列化面**（@Transient 运行态，Kotlin 侧权威）：`aiSectDisciples、
   aiSectBeastDirectTargets、aiSectBeastSkipCooldowns、lockedBeastIds、rngStates`

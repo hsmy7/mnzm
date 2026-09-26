@@ -1,5 +1,51 @@
 ## [4.01.16] - 2026-09-22
 
+### 角色卡池重构 G12 批（2026-09-27）——体验完成（历史·公示·图鉴完整态·引导·死文案清零·连抽打磨·Q31 色板对齐）— `feat(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G12.md`（派工真源，含上位失真 6 条与 D-1…D-7 决策）
+> + `docs/design/gacha-batches/report-G12.md`（本批报告）。
+
+- **历史页完整态（任务 A）**：`GachaHistoryRow` 增加 `isPity`（与出货格同源派生链），
+  历史行对保底抽挂金色「保底」标注；页首新增本期保底进度行
+  （`gachaPityProgressText` 单句共享，主界面与历史页读同一 `gachaPityCounters` 流，禁自算第二份）。
+- **公示页池口径依据（任务 B）**：`GachaPoolReadModel` 增加 `maxRarityPerKind`
+  （逐物品类别，源 = `GachaPoolConfig.GachaCategorySpec.maxRarity`）；公示页类别行追加
+  「（最高 N 阶）」，角色类（碎片/星级制）不进上限表。
+- **图鉴完整态（任务 C）**：`GachaCodexCellModel` 增加 `battleBonusText/cultivationBonusText`
+  （与升星层共用 `starBattleBonusText/starCultivationBonusText` 口径 A 派生链），已解锁格
+  展示战斗/修炼收益预览；面板底部「全部角色均通过寻访获得」来源说明。
+  立绘大图（1024 档 `portraitKey` 按需解码）经复核 G11 已交付，不重做；
+  `finalStats` 属性预览按 D-4 未拍板不做（登记 §8-1）。
+- **引导「打开寻访」（任务 D，id=26）**：`GuideCounterKeys.GACHA_OPENED` 新键 +
+  `GuideTaskRegistry` 追加 id=26「初次寻访」（不复用空号 24，防旧档残留进度开局即完成）；
+  写点 = `GuideDelegate.notifyGachaOpened()`（引擎线程派发 `incrementGuideCounter`），
+  `DialogFeatureRoutes.renderRecruit` 以 `LaunchedEffect(Unit)` 触发——零新增 `GameData`
+  字段、零迁移、零 C++ 变更（`BOUNDARY_GUIDE_COUNTER_INCREMENT_TX` 按 key 泛化）。
+- **死文案清零（任务 E，D-5 口径）**：寻访主界面按钮「招募一次/十次」→「寻访一次/十次」
+  （产品 `:461` 主界面口径；结果页保留「招募一次/十次」= 产品 `:187`，两处口径不同不统一）；
+  `ElderBonusInfoProvider.recruitingElderInfo` 改为当前真实效果（占槽位/在岗状态语义，
+  不再描述已随 G05 下线的「刷新数量上限」加成）；`GameOverlayHost` 的「招募失败」分支
+  已随 G10 死码清零（本批 grep 零命中，仅交叉引用）；历史迁移注释/退役 desc/历史 changelog
+  显式豁免（误删破坏迁移链与 ActionId 只增不复用红线）。
+- **连抽打磨（任务 F）**：保底格「更亮一档」落地（`gachaCellFillColor` 底色提亮一档 +
+  `gachaShimmerBorder(emphasized)` 描边加重一档 + 扫光渐隐端提亮，产品 §4.4 `:185`）；
+  数量角标在半透明底之上补细描边（0.5dp 深色低透明，亮底可读）；
+  新增渲染测试「叠轮时升星层只显示本轮条目」（钉死 `key(resultToken)` 重建清游标假设），
+  Q39「点框不关」用例补「不触发新抽」断言。
+- **Q31 色板对齐（任务 G，验收⑦）**：`Color.kt` 品阶六常量改为 Q31 别名
+  （`GachaColors.parse(GameConfig.Gacha.rarityColor(n))`）、`GameColors.getRarityColor`
+  委托 `GachaColors.rarityColor`；`GameConfig.Rarity.CONFIGS[].color` 六值全部改引
+  `Gacha.rarityColor(n)`；丹药品质三档色（下/中/上品）改引 Q31 一/三/五阶（灰蓝红）；
+  零消费的 `RarityText*` 六常量删除（删前全仓 grep 零命中贴证）。视觉影响面 =
+  仓储/商人/详情/奖励弹窗与寻访同色（六阶金、五阶红，产品 `:216-218` 明确要求）。
+  `GachaColorSingleSourceGuardTest` 扩两条：全仓生产面（六模块 `src/main` Kotlin +
+  gamecore C++）零旧品阶色字面量、品阶/丹药品质色委托 Q31——判别力红证实测
+  （临时回填 `#e3a0a0` 字面量 ⇒ 两条新用例同轮点名变红，复原后绿）；
+  新增 `:core:ui` 行为面 `ItemCardColorSourceTest`（消费点逐档拿到的就是 Q31）。
+- **登记**：`docs/ui-read-surface.md` 历史页保底进度行读面回写；`RarityConfigTest` 六色断言
+  对齐 Q31；双 changelog 同批更新；版本号未动（G14 拍板项）；真机 12 项 pending-device
+  未消、照常登记。
+
 ### 角色卡池重构 G10 批（2026-09-26）——RNG 对拍基线重录（唯一窗口）+ 全量回归收口 + 死代码 grep 清零 + 活文档收口 — `chore(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G10.md`（派工真源，含上位失真 10 条与 D-1…D-6 决策）

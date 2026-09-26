@@ -43,8 +43,8 @@ import kotlin.math.sqrt
 fun Modifier.gachaShimmerBorder(
     color: Color,
     animated: Boolean,
+    emphasized: Boolean = false,
     cornerRadius: Dp = CORNER_DP.dp,
-    strokeWidth: Dp = STROKE_DP.dp,
 ): Modifier {
     val phase = remember { Animatable(0f) }
     if (animated) {
@@ -55,6 +55,7 @@ fun Modifier.gachaShimmerBorder(
             }
         }
     }
+    val strokeWidth = (if (emphasized) EMPHASIZED_STROKE_DP else STROKE_DP).dp
     return drawWithContent {
         drawContent()
         val stroke = strokeWidth.toPx()
@@ -69,7 +70,7 @@ fun Modifier.gachaShimmerBorder(
             val head = phase.value * (diagonalOf(rectSize.width, rectSize.height) + band * 2f) - band
             drawRoundRect(
                 brush = Brush.linearGradient(
-                    colors = listOf(colorDim(color), SHIMMER_CORE, colorDim(color)),
+                    colors = listOf(colorDim(color, emphasized), SHIMMER_CORE, colorDim(color, emphasized)),
                     start = Offset(head, head),
                     end = Offset(head + band, head + band),
                 ),
@@ -85,17 +86,22 @@ fun Modifier.gachaShimmerBorder(
 /** 框面对角线长度：高光带的行程按它算，横竖屏与不同窗宽都自动适配 */
 private fun diagonalOf(width: Float, height: Float): Float = sqrt(width * width + height * height)
 
-/** 扫光带两侧渐隐用的同色低透明度版 */
-private fun colorDim(color: Color): Color = color.copy(alpha = DIM_ALPHA)
+/** 扫光带两侧渐隐用的同色低透明度版（保底格亮一档：渐隐端更实，扫光整圈更亮） */
+private fun colorDim(color: Color, emphasized: Boolean): Color =
+    color.copy(alpha = if (emphasized) EMPHASIZED_DIM_ALPHA else DIM_ALPHA)
 
-/** 框内半透明底色（Q30：底色与描边同色，压到能容住白字读数） */
-fun gachaCellFillColor(color: Color): Color = color.copy(alpha = FILL_ALPHA)
+/** 框内半透明底色（Q30：底色与描边同色，压到能容住白字读数）；保底格更亮一档 */
+fun gachaCellFillColor(color: Color, isPity: Boolean): Color =
+    color.copy(alpha = if (isPity) PITY_FILL_ALPHA else FILL_ALPHA)
 
 /** 圆角形状与流光描边共用同一个半径口径 */
 internal val gachaCellShape = RoundedCornerShape(CORNER_DP.dp)
 
 private const val CORNER_DP = 6
 private const val STROKE_DP = 2
+
+/** 保底格的描边档位（产品 §4.4「更亮一档」：描边加重 + 底色提亮同批生效） */
+private const val EMPHASIZED_STROKE_DP = 3
 
 /** 一趟扫完的时长 */
 private const val CYCLE_MS = 1600
@@ -105,6 +111,10 @@ private const val BAND_FRACTION = 0.35f
 
 private const val DIM_ALPHA = 0.35f
 private const val FILL_ALPHA = 0.18f
+
+/** 保底格「更亮一档」的三个档位值（底色 / 渐隐端），描边档位见 [EMPHASIZED_STROKE_DP] */
+private const val PITY_FILL_ALPHA = 0.32f
+private const val EMPHASIZED_DIM_ALPHA = 0.6f
 
 /** 扫过时的最亮点（近白的同色系高光，不用纯白以免盖住品阶色本意） */
 private val SHIMMER_CORE = Color(0xFFFFF6D5)

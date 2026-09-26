@@ -193,6 +193,8 @@ private fun GachaPanelContent(
 
         GachaPanel.HISTORY -> GachaHistoryPanel(
             rows = GachaRenderModel.historyRows(history),
+            pityCount = mainInputs.pityCount,
+            pityThreshold = mainInputs.pool?.pity?.pullThreshold,
             onBack = actions.onBack,
         )
     }
@@ -217,8 +219,8 @@ fun GachaMainPanel(
         } else {
             PriceLines(inputs)
             Text(
-                text = "本期已寻访 ${inputs.pityCount}/${inputs.pool.pity.pullThreshold} 次，" +
-                    "满次必得角色碎片",
+                text = gachaPityProgressText(inputs.pityCount, inputs.pool.pity.pullThreshold) +
+                    PITY_PROMISE_SUFFIX,
                 fontSize = 12.sp,
                 color = GameColors.TextPrimary,
             )
@@ -316,8 +318,9 @@ data class GachaPanelActions(
 
 private const val POOL_DISPLAY_NAME = "常驻寻访"
 private const val POOL_UNAVAILABLE_TEXT = "这个去处暂时寻访不了"
-private const val PULL_ONCE_TEXT = "招募一次"
-private const val PULL_TEN_TEXT = "招募十次"
+private const val PULL_ONCE_TEXT = "寻访一次"
+private const val PULL_TEN_TEXT = "寻访十次"
+private const val PITY_PROMISE_SUFFIX = "，满次必得角色碎片"
 private const val ODDS_ENTRY_TEXT = "概率公示"
 private const val HISTORY_ENTRY_TEXT = "寻访记录"
 private const val CODEX_ENTRY_TEXT = "图鉴"
@@ -329,6 +332,10 @@ private const val ROW_GAP_DP = 8
 private const val ENTRY_GAP_DP = 8
 private const val BUTTON_GAP_DP = 8
 private const val HEADER_BALANCE_END_DP = 8
+
+/** 保底进度的玩家可读文案（主界面与历史页同一句、同一份计数流，禁各写一份） */
+internal fun gachaPityProgressText(pityCount: Int, pityThreshold: Int): String =
+    "本期已寻访 $pityCount/$pityThreshold 次"
 
 /** 窗口标题随面切换（结果层不需要标题——它自己带「恭喜获得」，容器标题保持寻访） */
 private fun panelTitle(panel: GachaPanel): String = when (panel) {

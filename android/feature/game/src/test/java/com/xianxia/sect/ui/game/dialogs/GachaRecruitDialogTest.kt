@@ -164,13 +164,54 @@ class GachaRecruitDialogTest {
     @Test
     fun `点奖励框不关结果层 - Q39 防误关`() {
         openDialog(spiritStones = PULL_PRICE * 20)
-        composeRule.onNodeWithText(PULL_TEN_TEXT).performClick()
+        composeRule.onNodeWithText(PULL_ONCE_TEXT).performClick()
         composeRule.waitForIdle()
 
         composeRule.onAllNodesWithTag(CELL_TAG, useUnmergedTree = true).onFirst().performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(LAYER_TAG).assertIsDisplayed()
+        assertEquals(
+            "点奖励框只防误关：不得触发新抽（也不弹详情——本容器里详情会换掉主面板节点）",
+            listOf("pullOnce"),
+            facade.pullCalls,
+        )
+    }
+
+    @Test
+    fun `叠轮时升星层只显示本轮条目 - resultToken 重建清游标`() {
+        val firstTemplate = CharacterTemplateDb.ALL[0]
+        val secondTemplate = CharacterTemplateDb.ALL[1]
+        facade.starMap.value = mapOf(firstTemplate.id to 1)
+        openDialog(spiritStones = PULL_PRICE * 30)
+
+        // 第一轮：单抽，抽后星级账本推进 ⇒ 升星层出现「A 1→2」
+        composeRule.onNodeWithText(PULL_ONCE_TEXT).performClick()
+        composeRule.waitForIdle()
+        facade.starMap.value = mapOf(firstTemplate.id to 2)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(firstTemplate.name).assertIsDisplayed()
+
+        // 确认升星层回结果页（点升星层任意处 = 确认）
+        composeRule.onNodeWithTag(LAYER_TAG).performTouchInput { click(center) }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag(CELL_TAG, useUnmergedTree = true).assertCountEquals(1)
+
+        // 第二轮：叠十连。锚点在请求发出那一刻更新 = {A:2}；请求后再把账本推到 {A:2, B:3}
+        // ⇒ 本轮升星层只该有「B 0→3」（锚点差值口径，与抽卡结果同帧成对下发）
+        composeRule.onNodeWithTag(LAYER_PULL_TEN_TAG).performClick()
+        composeRule.waitForIdle()
+        facade.starMap.value = mapOf(firstTemplate.id to 2, secondTemplate.id to 3)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(secondTemplate.name).assertIsDisplayed()
+        composeRule.onNodeWithText(firstTemplate.name).assertDoesNotExist()
+
+        // 确认本轮唯一的升星条目后，十连网格正常铺开（后到条目没有被游标吞掉）
+        composeRule.onNodeWithTag(LAYER_TAG).performTouchInput { click(center) }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag(CELL_TAG, useUnmergedTree = true).assertCountEquals(TEN_CELLS)
+        assertEquals("两轮抽卡都走门面", listOf("pullOnce", "pullTen"), facade.pullCalls)
     }
 
     @Test
@@ -204,6 +245,7 @@ class GachaRecruitDialogTest {
         composeRule.onNodeWithText(MAX_STAR_TEXT).assertIsDisplayed()
         composeRule.onNodeWithText("下一星 $FRAGMENT_PROGRESS/${GameConfig.Gacha.FRAGMENTS_PER_STAR}", substring = true)
             .assertIsDisplayed()
+        composeRule.onNodeWithText(SOURCE_NOTE_TEXT).assertIsDisplayed()
     }
 
     @Test
@@ -216,6 +258,7 @@ class GachaRecruitDialogTest {
         composeRule.onNodeWithText(CATEGORY_SECTION_TITLE).assertIsDisplayed()
         composeRule.onNodeWithText(SINGLE_ROOT_CATEGORY_LABEL).assertIsDisplayed()
         composeRule.onNodeWithText("$SINGLE_ROOT_WEIGHT%", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText(HERB_CATEGORY_VALUE_TEXT).assertIsDisplayed()
         composeRule.onNodeWithText("每 $PULL_THRESHOLD 次寻访", substring = true).assertIsDisplayed()
     }
 
@@ -225,6 +268,7 @@ class GachaRecruitDialogTest {
         composeRule.onNodeWithText(HISTORY_ENTRY_TEXT).performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText(EMPTY_HISTORY_TEXT).assertIsDisplayed()
+        composeRule.onNodeWithText(PITY_PROGRESS_TEXT, substring = true).assertIsDisplayed()
 
         // 账本流推进后同一面直接刷新（不重开窗口），验的是订阅面而不是初值
         facade.history.value = listOf(
@@ -239,6 +283,20 @@ class GachaRecruitDialogTest {
 
         composeRule.onNodeWithText(CharacterTemplateDb.ALL.first().name, substring = true).assertIsDisplayed()
         composeRule.onNodeWithText(FIRST_MONTH_LABEL, substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText(PITY_MARK_TEXT).assertDoesNotExist()
+
+        // 保底抽的历史行带「保底」标注（与结果页格的 isPity 同源）
+        facade.history.value = listOf(
+            GachaHistoryEntry(
+                category = "pity",
+                templateId = CharacterTemplateDb.ALL.first().id,
+                count = 5,
+                isPity = true,
+                gameMonthIndex = FIRST_MONTH_INDEX,
+            )
+        )
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(PITY_MARK_TEXT).assertIsDisplayed()
     }
 
     /** 以手工依赖打开寻访对话框（不经 Hilt，也不搬 GameViewModel 全套替身） */
@@ -267,8 +325,10 @@ class GachaRecruitDialogTest {
         const val FIRST_MONTH_INDEX = 13
 
         const val POOL_NAME_TEXT = "常驻寻访"
-        const val PULL_ONCE_TEXT = "招募一次"
-        const val PULL_TEN_TEXT = "招募十次"
+
+        /** 主界面按钮文案（G12 产品口径：主界面「寻访」；结果层按钮保留「招募」） */
+        const val PULL_ONCE_TEXT = "寻访一次"
+        const val PULL_TEN_TEXT = "寻访十次"
         const val ODDS_ENTRY_TEXT = "概率公示"
         const val HISTORY_ENTRY_TEXT = "寻访记录"
         const val CODEX_ENTRY_TEXT = "图鉴"
@@ -283,6 +343,10 @@ class GachaRecruitDialogTest {
         const val MAX_STAR_TEXT = "MAX"
         const val CATEGORY_SECTION_TITLE = "出货类别权重"
         const val SINGLE_ROOT_CATEGORY_LABEL = "单灵根弟子"
+        const val HERB_CATEGORY_VALUE_TEXT = "26%（最高 4 阶）"
+        const val PITY_PROGRESS_TEXT = "本期已寻访 0/10 次"
+        const val PITY_MARK_TEXT = "保底"
+        const val SOURCE_NOTE_TEXT = "全部角色均通过寻访获得"
         const val EMPTY_HISTORY_TEXT = "还没有寻访记录"
         const val FIRST_MONTH_LABEL = "第1年1月"
     }

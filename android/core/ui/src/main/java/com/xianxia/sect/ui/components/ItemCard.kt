@@ -355,7 +355,7 @@ fun getRarityName(rarity: Int): String = when (rarity) {
 }
 
 /**
- * 根据丹药品质名称返回颜色。
+ * 根据丹药品质名称返回颜色（下/中/上品 → Q31 的一/三/五阶灰蓝红，色值单源 GameConfig.Gacha）。
  * 内部委托 [getQualityColor] 的 [PillGrade] 重载保持一致性。
  */
 fun getQualityColor(quality: String?): Color {
@@ -363,7 +363,7 @@ fun getQualityColor(quality: String?): Color {
         "下品" -> PillGrade.LOW
         "中品" -> PillGrade.MEDIUM
         "上品" -> PillGrade.HIGH
-        else -> return Color(0xFF95A5A6) // 默认灰色，防止异常值导致不可见文字
+        else -> return GachaColors.rarityColor(QUALITY_UNKNOWN_TIER) // 异常值回落一阶灰，保证文字可见
     }
     return grade.getQualityColor()
 }
@@ -373,7 +373,13 @@ fun getQualityColor(quality: String?): Color {
  * 新增 [PillGrade] 枚举值时编译器强制同步更新此映射。
  */
 fun PillGrade.getQualityColor(): Color = when (this) {
-    PillGrade.LOW -> Color(0xFF95A5A6)
-    PillGrade.MEDIUM -> Color(0xFF3498DB)
-    PillGrade.HIGH -> Color(0xFFE74C3C)
+    PillGrade.LOW -> GachaColors.rarityColor(QUALITY_TIER_LOW)
+    PillGrade.MEDIUM -> GachaColors.rarityColor(QUALITY_TIER_MEDIUM)
+    PillGrade.HIGH -> GachaColors.rarityColor(QUALITY_TIER_HIGH)
 }
+
+/** 丹药品质三档对应 Q31 品阶表的档位：下品灰、中品蓝、上品红 */
+private const val QUALITY_TIER_LOW = 1
+private const val QUALITY_TIER_MEDIUM = 3
+private const val QUALITY_TIER_HIGH = 5
+private const val QUALITY_UNKNOWN_TIER = 1

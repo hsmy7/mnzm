@@ -41,16 +41,18 @@ class GuideTaskTest {
     // ==================== GuideTaskRegistry ====================
 
     @Test
-    fun `GuideTaskRegistry - 包含 24 个引导任务`() {
-        assertEquals("任务数量应为 24", 24, GuideTaskRegistry.ALL_TASKS.size)
+    fun `GuideTaskRegistry - 包含 25 个引导任务`() {
+        assertEquals("任务数量应为 25", 25, GuideTaskRegistry.ALL_TASKS.size)
     }
 
     @Test
-    fun `GuideTaskRegistry - 任务 ID 为 1 到 23 连续加 25`() {
+    fun `GuideTaskRegistry - 任务 ID 为 1 到 23 连续加 25 与 26`() {
         // 任务 24（血炼）已随血炼玩法下线删除；id 25 保留原编号，
-        // 避免重编号导致旧档已完成任务进度错位
+        // 避免重编号导致旧档已完成任务进度错位。
+        // 26 = 寻访引导（G12）：不复用空号 24——旧档若残留 id 24 的领取记录，
+        // 复用会让新步骤开局即完成（静默失效）。
         val ids = GuideTaskRegistry.ALL_TASKS.map { it.id }.sorted()
-        assertEquals("任务 ID 应为 1..23 连续加保留的 25", (1..23).toList() + 25, ids)
+        assertEquals("任务 ID 应为 1..23 连续加保留的 25 与新增的 26", (1..23).toList() + 25 + 26, ids)
     }
 
     @Test
@@ -71,7 +73,24 @@ class GuideTaskTest {
     fun `GuideTaskRegistry - getTask 不存在时返回 null`() {
         assertNull("getTask(999) 应为 null", GuideTaskRegistry.getTask(999))
         assertNull("getTask(0) 应为 null", GuideTaskRegistry.getTask(0))
-        assertNull("getTask(26) 应为 null", GuideTaskRegistry.getTask(26))
+        assertNull("空号 24 不得复活（血炼已下线，旧档进度不能沾新任务）", GuideTaskRegistry.getTask(24))
+    }
+
+    @Test
+    fun `GuideTaskRegistry - 寻访任务 26 打开即计数`() {
+        val task = GuideTaskRegistry.getTask(26)
+        assertNotNull("寻访引导任务（id=26）应存在", task)
+        assertEquals("初次寻访", task!!.name)
+
+        val counter = task.conditions.filterIsInstance<GuideCondition.CumulativeCounter>().single()
+        assertEquals("判据走累计计数器（零新增 GameData 字段）", GuideCounterKeys.GACHA_OPENED, counter.counterKey)
+        assertEquals("打开一次即完成", 1L, counter.targetValue)
+
+        val untouched = GameData()
+        assertFalse("未打开寻访时未完成", task.conditions.all { it.isMet(untouched) })
+
+        val opened = untouched.copy(guideCounters = mapOf(GuideCounterKeys.GACHA_OPENED to 1L))
+        assertTrue("打开寻访一次后完成（且不阻塞后续步骤）", task.conditions.all { it.isMet(opened) })
     }
 
     @Test
@@ -378,6 +397,7 @@ class GuideTaskTest {
         assertEquals("autoPlantActivated", GuideCounterKeys.AUTO_PLANT_ACTIVATED)
         assertEquals("autoProductionActivated", GuideCounterKeys.AUTO_PRODUCTION_ACTIVATED)
         assertEquals("breakthroughs", GuideCounterKeys.BREAKTHROUGHS)
+        assertEquals("gachaOpened", GuideCounterKeys.GACHA_OPENED)
     }
 
     // ==================== GuideCondition.DiscipleReachRealm ====================

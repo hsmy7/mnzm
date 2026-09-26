@@ -13,11 +13,10 @@ import com.xianxia.sect.core.GameConfig
  * 浅灰 / 紫）。寻访结果页与图鉴要按品阶色与灵根数色上色，再接一份内联解析就是第 12 份真源，
  * 故收敛到这里。
  *
- * ## 与旧色表的关系
- * 物品品阶在本仓还有三份旧表（`GameColors.getRarityColor`、`ItemCard.getRarityColor`、
- * `GameConfig.Rarity.CONFIGS[].color`），
- * 六阶是粉红而非金——**寻访域一律不得引用它们**，判据见 `GachaColorSingleSourceGuardTest`。
- * 旧表的收口属色板对齐债（G12）。
+ * ## 单源边界
+ * 全仓品阶色只有 [GameConfig.Gacha.RARITY_COLORS] 一张值表：`theme/Color.kt` 的
+ * `Rarity*` 六常量、`ItemCard.getRarityColor`、丹药品质色（下/中/上品）与
+ * `GameConfig.Rarity.CONFIGS[].color` 全部委托本表；判据见 `GachaColorSingleSourceGuardTest`。
  */
 object GachaColors {
 

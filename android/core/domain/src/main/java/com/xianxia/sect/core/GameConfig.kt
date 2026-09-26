@@ -286,23 +286,25 @@ object GameConfig {
     }
 
     object Rarity {
+        // 色值单源 = Gacha.RARITY_COLORS（Q31）；本表只补名称/倍率/价格维度，颜色一律委托，
+        // 保证「凡品灰/灵品绿/宝品蓝/玄品紫/地品红/天品金」在仓储、商人、详情与寻访同色
         val CONFIGS = mapOf(
-            1 to RarityConfig(1, "凡品", "#b8b8b8", 1.0,
+            1 to RarityConfig(1, "凡品", Gacha.rarityColor(1), 1.0,
                 basePrice = 4000, pillBasePrice = 4000, materialBasePrice = 400,
                 herbPrice = 400, seedPrice = 80),
-            2 to RarityConfig(2, "灵品", "#afcb8a", 1.3,
+            2 to RarityConfig(2, "灵品", Gacha.rarityColor(2), 1.3,
                 basePrice = 16000, pillBasePrice = 16000, materialBasePrice = 1600,
                 herbPrice = 1600, seedPrice = 320),
-            3 to RarityConfig(3, "宝品", "#9fc2ee", 1.6,
+            3 to RarityConfig(3, "宝品", Gacha.rarityColor(3), 1.6,
                 basePrice = 80000, pillBasePrice = 80000, materialBasePrice = 8000,
                 herbPrice = 8000, seedPrice = 1600),
-            4 to RarityConfig(4, "玄品", "#c0a2dd", 2.0,
+            4 to RarityConfig(4, "玄品", Gacha.rarityColor(4), 2.0,
                 basePrice = 480000, pillBasePrice = 480000, materialBasePrice = 48000,
                 herbPrice = 48000, seedPrice = 9600),
-            5 to RarityConfig(5, "地品", "#e7c67d", 2.5,
+            5 to RarityConfig(5, "地品", Gacha.rarityColor(5), 2.5,
                 basePrice = 3360000, pillBasePrice = 3360000, materialBasePrice = 336000,
                 herbPrice = 336000, seedPrice = 67200),
-            6 to RarityConfig(6, "天品", "#e3a0a0", 3.2,
+            6 to RarityConfig(6, "天品", Gacha.rarityColor(6), 3.2,
                 basePrice = 26880000, pillBasePrice = 26880000, materialBasePrice = 2688000,
                 herbPrice = 2688000, seedPrice = 537600)
         )

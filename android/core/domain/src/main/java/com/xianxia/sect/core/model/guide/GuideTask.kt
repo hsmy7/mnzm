@@ -436,6 +436,14 @@ object GuideTaskRegistry {
             conditions = listOf(
                 GuideCondition.BuildingCount("监牢", 1)
             )
+        ),
+        GuideTask(
+            id = 26, name = "初次寻访",
+            description = "寻访：通过主界面左栏的「寻访」按钮进入，消耗灵石可招募弟子与物资，" +
+                "每 10 次寻访必得角色碎片。",
+            conditions = listOf(
+                GuideCondition.CumulativeCounter(GuideCounterKeys.GACHA_OPENED, 1, "打开寻访")
+            )
         )
     )
 

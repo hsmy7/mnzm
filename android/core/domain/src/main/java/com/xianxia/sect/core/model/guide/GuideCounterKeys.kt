@@ -20,6 +20,9 @@ object GuideCounterKeys {
     const val BREAKTHROUGHS = "breakthroughs"
     const val CULTIVATION_YEARS = "cultivationYears"
 
+    /** 打开寻访界面（寻访引导任务的判据写点：打开即计数，累计语义） */
+    const val GACHA_OPENED = "gachaOpened"
+
     /**
      * 建筑建造累计计数 key（按建筑显示名）。
      *

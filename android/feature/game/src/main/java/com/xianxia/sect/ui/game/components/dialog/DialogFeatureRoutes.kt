@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.components.dialog
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +62,8 @@ internal fun DialogType.renderFeatureRoutes(
 @Composable
 private fun renderRecruit(viewModel: GameViewModel, gameData: GameData, onDismiss: () -> Unit) {
     val gachaViewModel = hiltViewModel<GachaViewModel>()
+    // 打开寻访即计数（引导任务 26 的判据写点）：每次组合只记一次，经引擎线程写 guideCounters
+    LaunchedEffect(Unit) { viewModel.guide.notifyGachaOpened() }
     GachaRecruitDialog(
         gacha = viewModel.gacha,
         gachaVm = gachaViewModel,

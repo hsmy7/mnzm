@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -35,12 +36,13 @@ import com.xianxia.sect.ui.game.GachaRewardCellModel
 /**
  * 寻访结果页的**一个奖励框**（Q30 正方形格）。
  *
- * 不复用 `UnifiedItemCard`：它把品阶色硬编码进 `ItemCard.getRarityColor`（旧表六阶粉红），
- * 且品阶色只进背景、边框恒为 `GameColors.Border`——与 Q31「流光与底色同品阶色」直接冲突。
- * 图标解析仍走本仓统一入口（`herbSpriteRes` 一类 helper 内部经 `SpriteResRegistry`），
- * 只有**配色**另起寻访域单源 [GachaColors]。
+ * 不复用 `UnifiedItemCard`：它的品阶色只进背景、边框恒为 `GameColors.Border`——
+ * 与 Q31「流光与底色同品阶色」直接冲突。图标解析仍走本仓统一入口
+ * （`herbSpriteRes` 一类 helper 内部经 `SpriteResRegistry`），
+ * 配色走寻访域单源 [GachaColors]。
  *
  * 角色格读 512 档 `avatarKey`（不是 1024 档 `portraitKey`，档位口径见 `GachaPullRow` KDoc）。
+ * 保底格「更亮一档」：底色提亮 + 描边加重（产品 §4.4，与历史页「保底」标注同口径）。
  * 点击整个格子只为「防误关」（Q39：点框不弹详情），关闭手势由结果层自己判定。
  */
 @Composable
@@ -55,8 +57,8 @@ fun GachaRewardCell(
         modifier = modifier
             .testTag(GACHA_CELL_TAG)
             .clip(gachaCellShape)
-            .background(gachaCellFillColor(color))
-            .gachaShimmerBorder(color = color, animated = shimmer)
+            .background(gachaCellFillColor(color, cell.isPity))
+            .gachaShimmerBorder(color = color, animated = shimmer, emphasized = cell.isPity)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -106,7 +108,7 @@ private fun CellIcon(cell: GachaRewardCellModel) {
     }
 }
 
-/** 右下角白字 `×n`（半透明深色底保证压在彩色底上也读得清） */
+/** 右下角白字 `×n`（半透明深色底 + 细描边，保证压在彩色底上也读得清） */
 @Composable
 private fun BoxScope.QuantityBadge(quantity: Int) {
     if (quantity <= 0) return
@@ -119,6 +121,7 @@ private fun BoxScope.QuantityBadge(quantity: Int) {
             .align(Alignment.BottomEnd)
             .padding(end = 3.dp, bottom = 2.dp)
             .background(QUANTITY_BACKING, CircleShape)
+            .border(BADGE_BORDER_WIDTH_DP.dp, BADGE_BORDER_COLOR, CircleShape)
             .padding(horizontal = 2.dp)
     )
 }
@@ -192,3 +195,7 @@ const val GACHA_CELL_TAG = "gacha_reward_cell"
 /** 保底角标用一阶金（与 Q31 六阶金同值），不再另立色 */
 private const val PITY_MARK_RARITY = 6
 private val QUANTITY_BACKING = Color(0x66000000)
+
+/** 数量角标的细描边（深色低透明，保证白字在金/红一类的亮底上也有轮廓） */
+private const val BADGE_BORDER_WIDTH_DP = 0.5
+private val BADGE_BORDER_COLOR = Color(0x33000000)

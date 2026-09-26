@@ -28,12 +28,13 @@ import com.xianxia.sect.ui.game.GachaCodexCellModel
 import com.xianxia.sect.ui.theme.GameColors
 
 /**
- * 寻访图鉴（G11 最简版，Q30/§4.4 六格）。
+ * 寻访图鉴（Q30/§4.4 六格）。
  *
  * 六格 = [com.xianxia.sect.core.model.CharacterTemplateDb] 的全部模板，状态由
  * `GachaRenderModel.codexCells` 纯函数产出：未解锁判据是**星级账本里没有这个键**
  * （账本稀疏，0 星不落键），立绘置灰；已解锁显示全身立绘（1024 档 `portraitKey`，
- * 按需解码，不进预加载）+ 星级 + 「下一星 x/100」，满星显示 MAX。
+ * 按需解码，不进预加载）+ 星级 + 「下一星 x/100」+ 战斗/修炼收益预览，满星显示 MAX。
+ * 底部一句来源说明（模板表无来源字段，六格角色均出自寻访）。
  */
 @Composable
 fun GachaCodexPanel(
@@ -73,11 +74,17 @@ fun GachaCodexPanel(
                 )
             }
         }
+        Text(
+            text = SOURCE_NOTE_TEXT,
+            fontSize = 10.sp,
+            color = GameColors.TextSecondary,
+            modifier = Modifier.padding(bottom = SOURCE_NOTE_GAP_DP.dp),
+        )
         GameButton(text = BACK_TEXT, onClick = onBack)
     }
 }
 
-/** 一格图鉴：立绘 + 姓名 + 星级 + 下一星进度（未解锁整体压暗并标「未解锁」） */
+/** 一格图鉴：立绘 + 姓名 + 星级 + 下一星进度 + 收益预览（未解锁整体压暗并标「未解锁」） */
 @Composable
 private fun CodexCell(
     cell: GachaCodexCellModel,
@@ -109,6 +116,10 @@ private fun CodexCell(
         )
         StarLine(cell)
         ProgressLine(cell)
+        if (cell.unlocked) {
+            BonusLine(cell.battleBonusText)
+            BonusLine(cell.cultivationBonusText)
+        }
     }
 }
 
@@ -146,15 +157,28 @@ private fun ProgressLine(cell: GachaCodexCellModel) {
     )
 }
 
+/** 收益预览行：与升星层同一份倍率文案（口径 A），字号取进度行同档 */
+@Composable
+private fun BonusLine(text: String) {
+    Text(
+        text = text,
+        fontSize = 10.sp,
+        color = GameColors.TextSecondary,
+        modifier = Modifier.width(INDEX_TEXT_MAX_WIDTH_DP.dp),
+    )
+}
+
 private const val CODEX_COLUMNS = 6
 private const val CODEX_ROW_LINES = 1
 
-/** 姓名 + 星级 + 进度三行的预留高度（立绘只能在剩下的可用区里取方边长） */
-private const val TEXT_STACK_DP = 48
+/** 姓名 + 星级 + 进度 + 收益预览五行文本的预留高度（立绘只能在剩下的可用区里取方边长） */
+private const val TEXT_STACK_DP = 76
 private const val CODEX_H_PADDING_DP = 12
 private const val CODEX_GAP_DP = 4
 private const val STAR_GAP_DP = 1
 private const val INDEX_TEXT_MAX_WIDTH_DP = 96
+private const val SOURCE_NOTE_GAP_DP = 4
+private const val SOURCE_NOTE_TEXT = "全部角色均通过寻访获得"
 private const val BACK_TEXT = "返回"
 private const val STAR_GLYPH = "★"
 private const val MAX_STAR_LABEL = "MAX"

@@ -322,7 +322,8 @@ object ElderBonusInfoProvider {
     val recruitingElderInfo: ElderBonusInfo = ElderBonusInfo(
         title = "纳徒长老",
         requiredAttribute = "魅力",
-        effectDescription = "提升每年待招募弟子的刷新数量上限",
-        bonusFormula = "魅力以80为基准，每高4点增加1名弟子刷新上限。\n魅力低于80时无加成效果。\n增加的是刷新上限，不直接增加弟子数量。"
+        effectDescription = "宗门长老职位之一（当前无额外数值加成）",
+        bonusFormula = "在位弟子占用该长老槽位，状态记为在岗，不会被自动排班当作空闲调往其他工作。\n" +
+            "任命与撤换在天枢殿进行，推荐人选按魅力排序。"
     )
 }

@@ -13,7 +13,7 @@ import java.io.File
  * ## 为什么必须扫源码而不是只测一个函数
  * 本仓「品阶色 / 灵根数色」一共散落着 8 张表（清单见
  * `docs/design/gacha-batches/TASKBOOK-G11.md` §2.2），而 Q31 只认一张。产品 §4.4 要求
- * 「角色碎片框 + 弟子卡/列表灵根徽章同一套」，于是本守卫钉四件事：
+ * 「角色碎片框 + 弟子卡/列表灵根徽章同一套」，于是本守卫钉五件事：
  * 1. **Q31 两张表的逐档值**（与任务书 §1 验收④ 的字面量一一对应）；
  * 2. **灵根数色四份副本同值**：Kotlin `SpiritRoot.countColor`（委托 Q31）+ C++ 三份同口径
  *    副本（`exploration_tx.h` / `year_settlement.h` / `sect_defense_battle.h`——它们写进
@@ -22,12 +22,16 @@ import java.io.File
  * 3. **寻访域零引用旧品阶色表**（`getRarityColor` / `getQualityColor` / `Rarity` 色 /
  *    `XianxiaColorScheme` / `UnifiedItemCard`——后者把品阶色只涂背景、边框恒灰，与 Q31
  *    「流光与底色同品阶色」直接冲突）；
- * 4. **`countColor` 的逐档行为值**（消费面拿到的就是 Q31）。
+ * 4. **`countColor` 的逐档行为值**（消费面拿到的就是 Q31）；
+ * 5. **全仓生产面零旧品阶色字面量 + 品阶/丹药品质色委托 Q31**（G12 色板对齐）：
+ *    `theme/Color.kt` 六常量、`GameColors.getRarityColor`、`ItemCard.getRarityColor`、
+ *    丹药品质三档色与 `GameConfig.Rarity.CONFIGS[].color` 全部解析自 Q31——
+ *    仓储、商人、详情、奖励弹窗与寻访同色。
  *
- * 故意不覆盖的面：`theme/Color.kt` 与 `GameConfig.Rarity` 里的旧品阶色**定义**、
- * 以及同一批十六进制字面量在**境界色 / 灵根元素色**上的合法用途（Q31 不覆盖那两个维度）——
- * 所以本守卫扫的是「寻访域引用了谁」与「四份灵根数色副本是否同值」，不做全仓字面量清除；
- * 仓储/奖励弹窗的色板对齐属 G12 债。
+ * 故意不覆盖的面：同一批十六进制字面量在**境界色 / 灵根元素色**维度的合法用途
+ * （`#95A5A6` / `#3498DB` / `#E74C3C` 在 `Realm*` / `SpiritRoot*` 上与品阶无关，
+ * Q31 不覆盖那两个维度）——对丹药品质色的禁令因此按「文件 + 字面量」点扫
+ * `ItemCard.kt`，不做全仓清除。
  *
  * ## 判别力自证（把实现改回旧口径 ⇒ 哪条红）
  * | 构造反例（只改一处） | 变红的用例 |
@@ -37,6 +41,8 @@ import java.io.File
  * | `GachaRewardCell` 改用 `getRarityColor(...)` | `寻访域零引用旧品阶色表` |
  * | 寻访框改成复用 `UnifiedItemCard` | `寻访域零引用旧品阶色表` |
  * | 把 `GameConfig.Gacha.RARITY_COLORS[6]` 改成粉红 | `Q31 全表逐档值` |
+ * | `Rarity.CONFIGS[6].color` 改回粉红字面量 / 生产文件出现旧表十六进制 | `全仓生产面零旧品阶色字面量` |
+ * | 丹药品质色改回自写 `Color(0xFF95A5A6/3498DB/E74C3C)` | `品阶色与丹药品质色全部委托 Q31` |
  */
 class GachaColorSingleSourceGuardTest {
 
@@ -134,6 +140,54 @@ class GachaColorSingleSourceGuardTest {
         )
     }
 
+    @Test
+    fun `全仓生产面零旧品阶色字面量 - 定义点收口后不得回流`() {
+        val hits = mutableListOf<String>()
+        productionSources().forEach { file ->
+            file.useLines { lines ->
+                lines.forEachIndexed { index, line ->
+                    val normalized = line.lowercase()
+                    if (line.isCodeLine() && LEGACY_RARITY_HEXES.any { normalized.contains(it) }) {
+                        hits += "${file.relativeTo(androidRoot())} 第 ${index + 1} 行 | ${line.trim()}"
+                    }
+                }
+            }
+        }
+        assertTrue(
+            "生产面不得再出现 Q31 之前的物品品阶色/其文字变体字面量（六阶粉红一代目已收口，" +
+                "品阶色一律解析自 GameConfig.Gacha.RARITY_COLORS）。\n" +
+                hits.joinToString("\n") +
+                "\n落点：配色一律走 GameConfig.Gacha + GachaColors；境界色/灵根元素色的" +
+                "#95A5A6/#3498DB/#E74C3C 是另一维度，不在本禁令内。",
+            hits.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `品阶色与丹药品质色全部委托 Q31 - 消费点拿不到旧口径`() {
+        (1..6).forEach { rarity ->
+            assertEquals(
+                "Rarity.getColor($rarity) 必须等于 Q31 同档值（仓储/商人/详情与寻访同色）",
+                GameConfig.Gacha.rarityColor(rarity),
+                GameConfig.Rarity.getColor(rarity),
+            )
+        }
+
+        val itemCard = readSource(ITEM_CARD_SOURCE)
+        assertTrue(
+            "ItemCard 的品阶取色必须委托 Q31 单源（GachaColors.rarityColor）。落点：android/$ITEM_CARD_SOURCE",
+            itemCard.contains(ITEM_CARD_DELEGATION),
+        )
+        val staleQualityLiterals = ITEM_CARD_STALE_QUALITY_REGEX.findAll(itemCard)
+            .map { it.value }
+            .toList()
+        assertTrue(
+            "丹药品质三档色不得自写字面量（下/中/上品 = Q31 一/三/五阶灰蓝红），" +
+                "命中：$staleQualityLiterals。\n落点：android/$ITEM_CARD_SOURCE 的 getQualityColor",
+            staleQualityLiterals.isEmpty(),
+        )
+    }
+
     // ── 夹具 ────────────────────────────────────────────────────────
 
     /** Gradle 测试工作目录 = `android/core/engine`，故仓库内路径要上溯两级 */
@@ -151,6 +205,20 @@ class GachaColorSingleSourceGuardTest {
             .filter { it.isFile && it.extension == "kt" && it.name.startsWith("Gacha") }
             .toList()
     }
+
+    /**
+     * 全仓生产面源文件：六模块 `src/main` 的 Kotlin + gamecore 的 C++（含头）。
+     * 字面量禁令是全仓的，任何一处回流都会造成同屏两套品阶色。
+     */
+    private fun productionSources(): List<File> = androidRoot().walkTopDown()
+        .filter { it.isFile }
+        .filter { file ->
+            val path = file.invariantSeparatorsPath
+            !path.contains("/build/") &&
+                ((path.contains("/src/main/") && file.extension == "kt") ||
+                    (path.contains("/src/main/cpp/") && file.extension in CPP_EXTENSIONS))
+        }
+        .toList()
 
     /** 注释行不参与扫描：文档必须能点名旧表，才解释得了这条禁令 */
     private fun String.isCodeLine(): Boolean {
@@ -177,5 +245,23 @@ class GachaColorSingleSourceGuardTest {
             "getRarityColor|getQualityColor|getSpiritRootCountColor|XianxiaColorScheme|" +
                 "Rarity\\.CONFIGS|Rarity\\.getColor|UnifiedItemCard"
         )
+
+        const val ITEM_CARD_SOURCE = "core/ui/src/main/java/com/xianxia/sect/ui/components/ItemCard.kt"
+        const val ITEM_CARD_DELEGATION = "GachaColors.rarityColor"
+
+        /** 丹药品质三档的旧自写字面量（下品灰/中品蓝/上品红的一代目），出现在 ItemCard 即判红 */
+        val ITEM_CARD_STALE_QUALITY_REGEX = Regex(
+            "Color\\(0xFF(95A5A6|3498DB|E74C3C)\\)",
+            RegexOption.IGNORE_CASE,
+        )
+
+        /** Q31 之前的物品品阶色六值 + 其文字变体（六常量已随收口删除，出现即回流） */
+        val LEGACY_RARITY_HEXES = listOf(
+            "afcb8a", "9fc2ee", "c0a2dd", "e7c67d", "e3a0a0",
+            "5b8c2a", "3b7dd8", "7b4faa", "c8960c", "cc4444",
+        )
+
+        /** 全仓扫描时的 C++ 源扩展名 */
+        val CPP_EXTENSIONS = setOf("h", "hpp", "cpp", "cc")
     }
 }

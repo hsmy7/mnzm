@@ -85,6 +85,14 @@ data class GachaCodexCellModel(
     /** 角色徽章色与弟子卡/长老槽灵根徽章同表（Q31 灵根数色） */
     val colorHex: String
         get() = GameConfig.Gacha.spiritRootCountColor(rootCount)
+
+    /** 养成收益预览：当前星级的战斗威力倍率文案（与升星层同一条派生链） */
+    val battleBonusText: String
+        get() = starBattleBonusText(star)
+
+    /** 养成收益预览：当前星级的修炼效率倍率文案（与升星层同一条派生链） */
+    val cultivationBonusText: String
+        get() = starCultivationBonusText(star)
 }
 
 object GachaRenderModel {
@@ -129,14 +137,17 @@ object GachaRenderModel {
     }
 
     /**
-     * 池规格 → 公示读面（类别权重表带玩家可读的类别名）。
+     * 池规格 → 公示读面（类别权重表带玩家可读的类别名 + 逐类别品阶上限）。
      *
-     * 概率、阈值、价格全部来自 [GachaPoolSpec]（`db.gachaPools` 单源），UI 侧零字面量；
-     * 只有「类别怎么称呼」是本文件里的文案表（UI 归属，不是数值真源）。
+     * 概率、阈值、价格、品阶上限全部来自 [GachaPoolSpec]（`db.gachaPools` 单源），
+     * UI 侧零字面量；只有「类别怎么称呼」是本文件里的文案表（UI 归属，不是数值真源）。
      */
     fun poolReadModel(spec: GachaPoolSpec): GachaPoolReadModel = GachaPoolReadModel(
         categoryWeights = spec.categories.map { it.kind to it.weightPct },
         rarityWeights = spec.itemRarityWeights.map { it.rarity to it.weightPct },
+        maxRarityPerKind = spec.categories
+            .filter { !it.isCharacter && it.maxRarity > 0 }
+            .associate { it.kind to it.maxRarity },
     )
 
     /** 类别内部名 → 公示页显示名（未知类别原样显示，不折叠成「其他」以免掩盖配置漂移） */
@@ -172,6 +183,7 @@ object GachaRenderModel {
                 displayName = cell.displayName,
                 quantity = entry.count,
                 colorHex = cell.colorHex,
+                isPity = cell.isPity,
             )
         }
 
@@ -262,17 +274,22 @@ data class GachaHistoryRow(
     val displayName: String,
     val quantity: Int,
     val colorHex: String,
+    /** 保底抽标注（Q40「保底附着标注」；与结果页格的 `isPity` 同源） */
+    val isPity: Boolean,
 )
 
 /**
- * 概率公示的读面输入（把池规格压成 UI 友好的两张表，避免 Composable 里做映射）。
+ * 概率公示的读面输入（把池规格压成 UI 友好的表，避免 Composable 里做映射）。
  *
  * @property categoryWeights `类别内部名 → 权重百分比`
  * @property rarityWeights `品阶 → 权重百分比`
+ * @property maxRarityPerKind 物品类别的品阶上限（`类别内部名 → maxRarity`，配置单源；
+ *   公示页据此展示「该类别出货最高几阶」）
  */
 data class GachaPoolReadModel(
     val categoryWeights: List<Pair<String, Int>>,
     val rarityWeights: List<Pair<Int, Int>>,
+    val maxRarityPerKind: Map<String, Int>,
 )
 
 /**
@@ -288,21 +305,28 @@ data class GachaStarUpModel(
     val starAfter: Int,
 ) {
     val battleBonusText: String
-        get() = bonusText(GameConfig.Gacha.STAR_BATTLE_PCT_PER_STAR, BATTLE_LABEL)
+        get() = starBattleBonusText(starAfter)
 
     val cultivationBonusText: String
-        get() = bonusText(GameConfig.Gacha.STAR_CULT_PCT_PER_STAR, CULTIVATION_LABEL)
-
-    private fun bonusText(pctPerStar: Double, label: String): String {
-        val multiplier = 1.0 + (starAfter - STAR_ZONE_BASELINE).coerceAtLeast(0) * pctPerStar
-        return "$label ×" + String.format(Locale.US, BONUS_FORMAT, multiplier)
-    }
-
-    private companion object {
-        /** 口径 A 的基线星级：1 星不加成 */
-        const val STAR_ZONE_BASELINE = 1
-        const val BATTLE_LABEL = "战斗威力"
-        const val CULTIVATION_LABEL = "修炼效率"
-        const val BONUS_FORMAT = "%.2f"
-    }
+        get() = starCultivationBonusText(starAfter)
 }
+
+/** [star] 星的战斗威力倍率文案（口径 A，升星层与图鉴收益预览共用一条派生链） */
+internal fun starBattleBonusText(star: Int): String =
+    starBonusText(star, GameConfig.Gacha.STAR_BATTLE_PCT_PER_STAR, BATTLE_LABEL)
+
+/** [star] 星的修炼效率倍率文案（口径 A，升星层与图鉴收益预览共用一条派生链） */
+internal fun starCultivationBonusText(star: Int): String =
+    starBonusText(star, GameConfig.Gacha.STAR_CULT_PCT_PER_STAR, CULTIVATION_LABEL)
+
+/** 口径 A 的单个倍率文案：1 星是基线（×1.00），每多一星乘 [pctPerStar] */
+private fun starBonusText(star: Int, pctPerStar: Double, label: String): String {
+    val multiplier = 1.0 + (star - STAR_ZONE_BASELINE).coerceAtLeast(0) * pctPerStar
+    return "$label ×" + String.format(Locale.US, BONUS_FORMAT, multiplier)
+}
+
+/** 口径 A 的基线星级：1 星不加成 */
+private const val STAR_ZONE_BASELINE = 1
+private const val BATTLE_LABEL = "战斗威力"
+private const val CULTIVATION_LABEL = "修炼效率"
+private const val BONUS_FORMAT = "%.2f"

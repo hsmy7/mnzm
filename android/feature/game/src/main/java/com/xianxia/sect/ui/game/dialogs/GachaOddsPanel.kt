@@ -25,6 +25,7 @@ import com.xianxia.sect.core.engine.domain.gacha.GachaPoolSpec
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.GachaColors
+import com.xianxia.sect.ui.game.GachaPoolReadModel
 import com.xianxia.sect.ui.game.GachaRenderModel
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -66,7 +67,7 @@ fun GachaOddsPanel(
                 readModel.categoryWeights.forEach { (kind, weightPct) ->
                     OddsRow(
                         label = GachaRenderModel.categoryLabel(kind),
-                        valueText = percentText(weightPct),
+                        valueText = categoryValueText(readModel, kind, weightPct),
                         swatch = null,
                     )
                 }
@@ -137,6 +138,16 @@ private fun OddsRow(label: String, valueText: String, swatch: Color?) {
  * 所以公示页可以直接把它当百分比展示，不做二次归一化——归一化会把配置漂移藏起来。
  */
 private fun percentText(weightPct: Int): String = "$weightPct%"
+
+/**
+ * 类别行的数值文案：物品类附带该类别的品阶上限（配置 `maxRarity` 单源，
+ * 与 C++ `clampedRarity` 的截断同源）——玩家据此能看出「为什么出货最高只到几阶」；
+ * 角色类出货是碎片（星级制），没有品阶上限可言，只显示权重。
+ */
+private fun categoryValueText(readModel: GachaPoolReadModel, kind: String, weightPct: Int): String {
+    val maxRarity = readModel.maxRarityPerKind[kind] ?: return percentText(weightPct)
+    return "${percentText(weightPct)}（最高 $maxRarity 阶）"
+}
 
 /** 选取方式的可读称呼（当前配置只有随机；未知值原样显示，便于发现配置漂移） */
 private fun pickModeLabel(mode: String): String =
