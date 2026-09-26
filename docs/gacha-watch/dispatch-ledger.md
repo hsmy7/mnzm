@@ -20,6 +20,7 @@
 
 （最新在上）
 
+- **2026-09-27 00:09 G10 交付核验通过＝accepted ＋ G12 已派发（桌面渠道）**：在途=G12@app「【G12 · 派发文本（由 fire.ps1 装配）】」（GLM-5.3-Flash / bigmodel 计划 / feat/gacha-m0-m1；00:09 起跑正在思考，已观测到核对附录 G10 色表事实）；G10 收官笔=`e966d7148 chore(gacha): G10 唯一重录窗口…`（41 文件 +529/−528，双 changelog + 报告 220 行在内）；**交付核验=通过**——三要素 ✓（🔴 要素①字面偏差：前缀 `chore` 非手册字面 `feat`，实质满足＝提交含全部交付物且信息含「唯一重录窗口」与根因，显式登记不判失败）＋ 特别核验点 ✓（金黄两处同值 `0xb4f3c6912207f597`、`kProbeVersion=1`/`advancePhaseBaseline`/`gacha_tx.h`/`seed+12` 提交树实测未动、`RngSourceGuardTest` 上限下调附判别力红证、`GachaColors.kt` 有 KDoc 连带说明）＋ 看护只读抽验 ✓（gen-action-ids 201/1872 零漂移、gen-game-data sha 035066cb…94ef 不变、check-jni-count 86/86、check-agent-instructions 五规则全过 444 引用不精确计数持平）；树净=仅 docs/research/×2 ✓（副产物已还原）；JUnit 基线 7471→7462＝纯删 9 例逐模块账闭合（data −5 / engine −2 / domain −2）；.so 新三件套 9015808 / 23:32 / b1eb1bec…；报告诚实残余 8 项（🔴 通知通道后端管线退役 vs 绑定新事件源 **待用户拍板**、SpiritRootGenerator 零调用、真机 12 项不变等）；动作=派发 G12；备注=G12 派发件=fire.ps1 装配+G10 交付事实附录 8 条（14,222 字符，粘贴全文发送）。
 - **2026-09-26 22:10 G10 已派发（渠道=桌面 app 会话，用户拍板改渠道；原误记 20:32 系未核钟，22:22 勘误）**：在途=G10@app「Untitled session」（GLM-5.3-Flash / bigmodel 计划 / 项目 XianxiaSectNative / 分支 feat/gacha-m0-m1；sessionId 待回填）；新提交=无；交付核验=不适用；动作=派发 G10；备注=粘贴 `_dispatch-G10.md` 全文（「粘贴文本 · 238 行」芯片）发送成功，22:10 起跑即观测到按必读序读 AGENTS.md / EXECUTION-PROTOCOL.md / 前批报告，22:15 复核仍在按纪律推进（复述四任务 + 开工基线核对 + 读模块规范）；**渠道变更记录：用户拍板改用桌面控制派发/看护 ⇒ WATCHDOG-PROMPT §0 红线 1（禁 GUI）对「派发动作」由用户指令豁免；核验与记账仍纯 CLI+git**；无头 CLI 通道的结论存档见 20:10 / 20:30 两条（签名已修好、zai 计划未订阅是最终阻断）。后续轮次按 §4 三要素核验（`feat(gacha): G10` 收官笔 + `report-G10.md` + 树净）。22:22 已建 ZCode 自动化 automation-2578e36b-000d-4499-aabe-5a41f61028c7（每 10 分钟看护轮，提示词含两处用户修订）。
 - **2026-09-26 20:30 通道修复进行到一半：签名已通、卡在计划订阅（blocked 持续，待用户二次决断）**：用户拍板走 `zcode login` ⇒ OAuth 登录成功（旅行者3309，凭据写入 `v2/credentials.json`）⇒ **最初的 ClientRequestSigningV4 报错已消除**（请求能打到服务商）；但 CLI 无头路径写死使用登录账号的 zai 计划默认模型（`account:zai-individual-coding-plan/GLM-5.3`），服务端拒 `[1113] Insufficient balance or no resource package`（type=rate_limit_error）；`v2/coding-plan-cache.json` 实证该身份 **zai-coding-plan = coding_plan_not_entitled**、**bigmodel-coding-plan = available**（与 app 侧 `setting.json providerFamilyConnectionSelections.bigmodel.kind=individual-coding-plan` 一致 = 用户实际订阅在 BigModel 侧）。已试并无效的本地开关：`v2/provider_config.json` 的 `defaultModelSelection` 改 `account:bigmodel-individual-coding-plan/GLM-5.3-Flash` 与 `builtin:bigmodel-coding-plan/GLM-5.3-Flash` 两形态均被无视（每次新进程仍解析到 zai）；CLI 无 `--model` 参数、`login` 无计划/账号参数。⚠️ 附带变更披露：login 把共享凭据文件 2215→3574 字节（app 当前不受影响，本会话即跑在 bigmodel 计划上）；`defaultModelSelection` 现遗留在 `builtin:bigmodel-coding-plan/GLM-5.3-Flash`。**候选项**：① 用户若有持 zai 计划的 Z.AI 账号 ⇒ 换号重跑 `zcode login`；② 走 API key 路线（需确认余额 + 处理 490f5e 无分隔符过不了签名的问题 + `zcode logout` 风险）；③ **改派发渠道 = app 内派发（G11 同款，唯一现在就能跑的路径）**。
 - **2026-09-26 20:10 G10 派发尝试失败 ⇒ 派发通道故障，记 blocked（待用户处置）**：在途=无（实施进程启动即退 `turn.failed`，零代码改动）；新提交=无；交付核验=不适用；动作=记 blocked（通道层，非任务书层）；备注=独立无头 CLI（`node …\resources\glm\zcode.cjs --prompt`）对最小 prompt 亦复现 `ClientRequestSigningV4Error: Client signing credential must contain one separator`（providerId=bigmodel-api，kind=invalid-config，fail closed；traceId `709c644f` / `6be132e4`）——与 G10 派发文本无关；今天 16:07–19:48 跑通的 G11 会话（sess_59503805）入口是 `zcode_protocol`（桌面 app 运行时）而非本命令 ⇒ **独立 CLI 通道从未被验证且当前不可用**；`~/.zcode/v2/credentials.json` 全为 `enc:v1:` 加密凭据块（含 2 个点 ⇒ 恰好触发「必须恰有一个分隔符」解析失败）、`v2/setting.json` bigmodel=oauth（mtime 19:48）、`~/.zcode/cli/config.json` 的 apiKey（49 字符恰 1 点，`{id}.{secret}` 合法）未被该路径采用。**处置建议交用户**：① 终端跑一次 `zcode login`（OAuth 浏览器授权，CLI `--help` 自述「Sign in with Z.AI OAuth for model access」）后重试派发；或 ② 用户明确指示改派发渠道（app 内派发 = G11 实际通道）。派发件已就绪未消费（`_dispatch-G10.md` 26,721 字节 = 纪律前言 + 任务书全文逐字 + G11 交付事实附录；`.gitignore` 已覆盖，重试时直接喂 CLI）。
@@ -47,8 +48,8 @@
 
 | # | 批次 | 依赖 | 状态 | 派发时间 | 收官笔 | 报告 | 备注 |
 |---|---|---|---|---|---|---|---|
-| 1 | **G10** RNG 基线重录 + 全量回归收口 + 死代码 grep 清零 + 文档收口（M1 末批） | G02–G09/G11 已合入 | `dispatched` | 2026-09-26 22:10（桌面 app 渠道） | — | — | 任务书已就绪；**唯一重录窗口**；GLM-5.3-Flash / bigmodel 计划；会话标题 Untitled session（sessionId 待回填）；无头 CLI 通道故障档案见当前状态 20:10 / 20:30 两条 |
-| 2 | **G12** 体验完成（历史 50 条 / 概率公示 / 图鉴完整 / 流光降级 / 引导 / 死文案清零） | G11 | `pending` | — | — | — | 任务书已就绪 |
+| 1 | **G10** RNG 基线重录 + 全量回归收口 + 死代码 grep 清零 + 文档收口（M1 末批） | G02–G09/G11 已合入 | `accepted`（看护 00:09；用户终审留档） | 2026-09-26 22:10（桌面 app 渠道） | `e966d7148`（chore 前缀偏差已登记） | `report-G10.md` ✓ | 金黄两处同值 `0xb4f3c6912207f597`；ctest 1437 全绿；JUnit 7462；残余 8 项含通知管线拍板 |
+| 2 | **G12** 体验完成（历史 50 条 / 概率公示 / 图鉴完整 / 流光降级 / 引导 / 死文案清零） | G11 | `dispatched` | 2026-09-27 00:09（桌面 app 渠道） | — | — | 任务书已就绪；GLM-5.3-Flash；会话名【G12 · 派发文本（由 fire.ps1 装配）】；派发件=装配+G10 事实附录 8 条 |
 | 3 | **G13** 数值落地（M0 杠杆回填 / 突破补偿 / 回血参数 / 经济复测 / 星级乘区终值） | G00、G09、G10 | `pending` | — | — | — | 任务书已就绪；**需产品在 M0 勾选表上拍板** |
 | 4 | **G14** 文档与发布收口（双 changelog / CODE_WIKI / architecture / 验收报告 / 死文案清单） | G11–G13 | `pending` | — | — | — | 任务书已就绪 |
 | 5 | **G11-真机** 设备验证（M1 完成判据） | G11、用户提供设备 | `blocked(需设备)` | — | — | — | **不阻塞前 4 批派发**；清单 = `report-G11.md` §7 的 D-1…D-12 |
@@ -64,7 +65,7 @@
 |---|---|
 | 看护启用时点 | 2026-09-26（本文件首笔） |
 | 定时任务 | **看护不自行安装**；由用户在 WATCHDOG-PROMPT §3 的方案 A/B 中择一安装 |
-| 锁时间戳 | `2026-09-26 22:22 · 勘误 G10 派发时间=22:10 + 建每 10 分钟自动化`（每轮 fire 有实质动作时更新；15 分钟内视为活跃） |
+| 锁时间戳 | `2026-09-27 00:10 · G10 accepted + G12 派发`（每轮 fire 有实质动作时更新；15 分钟内视为活跃） |
 | 自动化 id | `automation-2578e36b-000d-4499-aabe-5a41f61028c7`（2026-09-26 22:22 建，*/10，看护轮提示词含两处用户修订；总收官后由用户决定停用） |
 
 ---
