@@ -196,6 +196,8 @@ interface GameSystem {
 
 `onMonthlyEvent`/`onYearlyEvent` 均非挂起（全链路同步化），在 `stateStore.update {}` 事务内调用。异步操作（网络/DB I/O）使用 `runBlocking` 在事务外执行。不再有 `onPhaseTick`（逐旬回调）、`computePhaseTick`（并行计算）、`supportsParallelTick`。
 
+寻访（抽卡/保底/碎片/升星）**不在本结算体系内**：不注册 `GameSystem` 月/年回调，结算由独立 native 事务（`gacha_tx.h`）在请求点同步完成；保底计数不进年变 T1/T2 队列（`docs/character-gacha-redesign-2026-09-23.md` §15.4）。
+
 ---
 
 ## Formula Architecture: Zone Multiplier System
@@ -210,9 +212,10 @@ interface GameSystem {
 
 | 系统 | 乘区结构 | 所在文件 |
 |------|---------|---------|
-| 修炼速度 | `CultivationSpeedZones`（4 乘区：资源/社交/状态/临时） | `DiscipleStatCalculator.kt` |
+| 修炼速度 | `CultivationSpeedZones`（5 乘区：资源/社交/状态/临时/星级 `starBonus`；星级走口径 A——1★ 基线 ×1.00、每星 +5%，单源 `GameConfig.Gacha.STAR_CULT_PCT_PER_STAR`） | `DiscipleStatCalculator.kt` |
 | 战斗伤害 | `DamageZones`（攻击Buff/防御穿透/暴伤/增伤/减伤）+ 境界压制独立因子（每小层 ±30%，不并入任何乘区，独立乘算） | `BattleCalculator.kt` |
-| 突破概率 | `BreakthroughZones`（长老指导/自身加成/状态惩罚） | `DiscipleStatCalculator.kt` |
+| 突破概率 | `BreakthroughZones`（`baseZone` 基础概率/`elderGuidance` 长老指导/`selfBonus` 自身加成/`adFlatBonus` 广告扁平加成——扁平项不经乘区缩放，直接加在最终值） | `DiscipleStatCalculator.kt` |
+| 宗门战力（星级进战力） | 六维加权和整体 × `StarZone.battleMult`（口径 A，1★ 基线）后向零截断；Kotlin 与 C++ `sect_power.h` 的 `discipleCombatPowerWithStar` 同式，乘区单点 `gamecore/system/star_zone.h` 的 `starMultiplier`，纳入 Diff 对拍 | `SectCombatPowerCalculator.kt` + `sect_power.h` |
 | 灵矿产出 | `SpiritMineZones`（采矿技能/执事道德/政策） | `CultivationSettlement.kt` |
 | 生产成功率 | `SuccessRateZones`（基础率/技能/职业/境界/政策/长老） | `FormulaService.kt` |
 | 生产速度 | `DurationZones`（技能/政策/长老） | `FormulaService.kt` |
@@ -355,6 +358,13 @@ RunState（运行时状态 — 可循环回退）
 
 **迁移前置原则**（约束新代码）：core 层禁 Android 独占 API、平台能力接口抽象（`RemoteConfigProvider`/`AdService` 模式）、新平台依赖方案中给 iOS 对等实现——详见 `rules/code-quality.md` 第 1.5 节。
 **2026-08-25 注记**：C++ 引擎迁移降低了 iOS 迁移风险（game-core 纯 C++ 直接复用 + 桌面 GTest 跨平台验证）；**2026-08-25 二次决策（彻底单引擎）进一步降低**——C++ 唯一真相源下 iOS 只需 Swift 平台层 + Metal，Kotlin 侧 KMP 面收窄为 UI/平台层。
+
+### 7. 寻访域运营钩子
+
+- **现状基线**：常驻混池单池（`GachaPoolConfig`，5,000 灵石/抽 + 碎片星级制），池结构/保底/概率由 C++ `gacha_tx.h` 单源结算；寻访不注册月/年结算回调（见「GameSystem 生命周期」节声明）
+- 轮换池/UP：`gachaPools[]` + `poolId` 级 pity + 池开关 + 图鉴分池页签位；UP 概率逻辑本次不做（`docs/character-gacha-redesign-2026-09-23.md` §15.6）
+- 埋点：预留事件名 `gacha_pull` / `gacha_unlock`，未来走 `AnalyticsService` 独立通道（见 §3 埋点接入点），不复用 GameEventBus
+- 付费抽/券：只留「灵石 or 未来货币」入口参数位；广告免费抽走 `watchAd()` 统一入口（见 §2 商业化接入点）
 
 ---
 

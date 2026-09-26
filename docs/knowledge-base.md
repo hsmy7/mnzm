@@ -447,7 +447,7 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 - **GameData 字段**：`guideClaimedRewardIds: Set<Int>` + `guideCounters: Map<String, Long>`
 
 ### 计数器接入点
-计数器在对应子系统的事件完成处递增：`CultivationSettlement`（灵矿）、`ProductionProcessor`（炼药/锻造）、`DiscipleBreakthroughHandler`（突破）、`PatrolBattleSystem`（巡逻击败妖兽）、`LawEnforcementProcessor`（监禁）等 12 处。
+计数器在对应子系统的事件完成处递增：`CultivationSettlement`（灵矿）、`ProductionProcessor`（炼药/锻造）、`DiscipleBreakthroughHandler`（突破）、`PatrolBattleSystem`（巡逻击败妖兽）、`GuideDelegate`（打开寻访）等。
 
 ### 奖励发放
 - **入口**：`GameEngineGuideOps.claimGuideReward(taskId)`
@@ -704,6 +704,7 @@ fun watchAdForNewFeature() {
 | 耗（汇） | 突破/功法 | 突破消耗、藏经阁 | `DiscipleBreakthroughHandler`、`ManualDatabase` |
 | 耗（汇） | 外交送礼 | 灵石档位 + 年份限制 | `GameEngineDiplomacyOps.kt`、`FavorConfig` |
 | 耗（汇） | 月薪发放 | `SalaryConfig` 可配置 | `SalaryConfigDialog`、`CultivationEventProcessor` |
+| 耗（汇） | 仙缘寻访 | 单抽/十连扣灵石（`GameConfig.Gacha.PRICE_PER_PULL`=5000/抽；保底 `PITY_PULL_THRESHOLD`=10 抽内必出角色碎片 `PITY_FRAGMENT_COUNT`=5），结算在 C++ `gacha_tx.h` | `GachaFacade`、`GachaService`、`GameConfig.Gacha` |
 
 ### 玉符（氪金货币）经济登记与墙钟豁免论证（2026-08-07）
 

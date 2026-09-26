@@ -72,11 +72,10 @@
 + JNI 桥 `android/app/src/main/cpp/GameCoreBridge.cpp` / Kotlin 侧
 `core/engine/.../nativebridge/GameCoreBridge.kt`。
 
-**ActionId 协议（当前 166 动作 / maxId=1712 / 31 handler，`scripts/gen-action-ids.mjs` 为单一事实源，
+**ActionId 协议（当前 201 动作 / maxId=1872，`scripts/gen-action-ids.mjs` 为单一事实源，
 改动后必须重新生成 `action_ids.h` + `ActionIds.kt`）**：
 
-> ⚠️ 计数随每批下沉递增；**权威值以 `node scripts/gen-action-ids.mjs` 实跑输出为准**（原写"114 动作 / 20 handler"
-> 为 W2-a 时点值，已随 W2-a + batch-11~20b 交付过期）。
+> ⚠️ 计数随每批增删变化；**权威值以 `node scripts/gen-action-ids.mjs` 实跑输出为准**，正文数字仅为快照。
 
 | 段 | 用途 |
 |---|---|
@@ -98,11 +97,12 @@
 | 1670–1672 / 1680–1682 | 月年边界 guide 计数面（batch-18，`system/boundary_tx.h`）/ 政策开关（`system/government.h` 追加） |
 | 1690–1693 | 玉符 / 宗门升级 / 玉符购买落账（batch-19，`system/jade_tx.h`） |
 | 1710 / 1711–1712 | 秘境平台段读档恢复（batch-20a，`system/secret_realm_platform_tx.h`）/ 攻宗确定性写回（**batch-20b**，`system/sect_attack_tx.h`） |
+| 1870–1872 | 寻访事务三入口（**G 批**，`system/gacha_tx.h`）：碎片入账 1870 `GACHA_FRAGMENT_GRANT_TX` / 单抽 1871 `GACHA_PULL_ONCE` / 十连 1872 `GACHA_PULL_TEN` |
 
 > 📌 本表是**下沉时点**的迁移台账（历史记录，不回改）。此后 M1「角色卡池重构」批次（G02/G03/G05/G06/G04）
 > 已下线若干玩法，相关动作号按「只增不复用」保留在册并标注【已退役，编号禁复用】——
 > **在册 / 退役的实时清单以 `scripts/action-catalog/` 及其生成物 `gamecore/include/gamecore/action_ids.h` +
-> `core/engine/.../nativebridge/ActionIds.kt` 为准**（当前 198 动作 / maxId=1861，退役 21 条，
+> `core/engine/.../nativebridge/ActionIds.kt` 为准**（当前 201 动作 / maxId=1872，退役 24 条，
 > 退役集与 `test/dispatch_guard_test.cpp` 双向闭合）。
 
 **UI 操作面事务的通用形态**（06/07/08/09 四批 + W2-a + batch-11~20b 同构）：Kotlin 门面/协作类在
@@ -301,19 +301,23 @@ annotation class AutoTickSystem(val name: String)
 - Detekt 违规零增长（baseline 只缩不增）
 
 **GameViewModel Delegate 模式**：
-GameViewModel 通过 **9 个 Delegate** 拆分领域逻辑：
+GameViewModel 按域拆分 Delegate（现 27 个 `.kt`；**清单以 `ui/game/delegate/` 实际文件为准**，新增域直接补行）：
 
 ```
-delegate/
-├── DiscipleDelegate.kt        弟子管理（关注/类型/奖励/建筑分派/交谈）
-├── InventoryDelegate.kt       物品管理（购买/出售/自动购买）
-├── NavigationDelegate.kt      导航/对话框
-├── PlantingDelegate.kt        种植
-├── BuildingDelegate.kt        建筑（建造/拆除/搬迁/住宅）
-├── BeastAttackDelegate.kt     凶兽袭击
-├── WarningDelegate.kt         进攻预警
-├── SectDelegate.kt            宗门等级/改名/奖励
-└── AutoAssignDelegate.kt      自动委派策略
+delegate/  （按域分组）
+├── 弟子域        DiscipleDelegate.kt（关注/类型/奖励/建筑分派/交谈）
+│                 + DiscipleDelegateGearOps.kt / DiscipleDelegateLifecycleOps.kt（装备/生命周期分册）
+├── 寻访域        GachaDelegate.kt（把抽卡请求转发 GachaFacade，引擎线程派发）
+├── 物品与商人    InventoryDelegate.kt（购买/出售/自动购买）、BagDelegate.kt、MerchantOpsDelegate.kt
+├── 建筑与种植    BuildingDelegate.kt（建造/拆除/搬迁/住宅）、BuildingUpgradeDelegate.kt、
+│                 PlantingDelegate.kt、RoadDelegate.kt（石板道路）
+├── 战斗与防务    BeastAttackDelegate.kt（凶兽袭击）、WarningDelegate.kt（AI 宗门进攻预警）、
+│                 BattleRewardDelegate.kt（战斗奖励卡片）、NavigationDelegateBattleOps.kt（导航战斗分册）
+├── 宗门与经营    SectDelegate.kt（宗门等级/改名/奖励）、AutoAssignDelegate.kt（自动分配/委派策略）、
+│                 MissionDelegate.kt（任务派遣）、LifeEventsDelegate.kt（弟子生平事件）
+├── 导航与弹窗    NavigationDelegate.kt（导航/对话框）、OverlayDelegate.kt（弹窗宿主）
+└── 系统与运营    GameLoopDelegate.kt（循环健康检查）、GuideDelegate.kt（新手引导）、
+                  SettingsDelegate.kt、MailDelegate.kt、AdsDelegate.kt、RedeemCodeDelegate.kt
 ```
 
 **Dao 拆分**：
