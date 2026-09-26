@@ -369,3 +369,19 @@
 `CaveExplorationSystem.kt:39`——⚠️ 其证据行所引 `CaveExplorationRewardOps.kt:29` 已随 §2.63.B4
 洞府死链删除**整文件移除**，`CaveExplorationSystem` 本体与挂钟播种仍在，登记行证据需换）+
 ⑤ 默认值陷阱清零（上限 27，未动）。
+
+---
+
+## 9. G09 新增分区 `GACHA`（id=12）——寻访抽卡独立随机域（2026-09-26）
+
+| 项 | 内容 |
+|---|---|
+| 分区 | `RngPartition.GACHA`（id=**12**，`inSnapshot=true`，`isLocal=false`）/ C++ `RngPartition::kGacha = 12` |
+| 消费点 | **C++ 权威臂**：`gamecore/system/gacha_tx.h`（单抽/十连的类别权重、角色候选、品阶权重、物品候选四类掷点）。**Kotlin 回退臂**：`core/engine/domain/gacha/GachaPullLedger.kt`（非 AUTHORITATIVE 下逐字同式复刻，取同一分区）。两臂取的是同一条流的同一位置 ⇒ 双臂对拍可锁 |
+| 播种公式 | `DeterministicRng.fromSeed(systemSeed + 12)`（Kotlin `rebuildPartitions` / `reseedMissingPartitions` 与 C++ `RngManager::initSystemSeed` 三处同式） |
+| 持久化 | `rngStates` **12 号键**（schema 零变更，只多一键）；旧档缺该键 ⇒ 按 `systemSeed + 12` 确定性重种（MISSION(8)/CHAT(10)/RESIDUAL(11) 同款恢复语义） |
+| C++ 同步 | `rng_manager.h`：枚举 `kGacha = 12` + `initSystemSeed` 播种 `seed + 12` + **`kMaxPartitionId` 由 `kResidual` 上移到 `kGacha`**（不上移则 JNI 合法分区守卫会静默拒绝抽卡掷点，MISSION(8) 前例） |
+| 为什么独立分区 | 与 §6.1 `CHAT` 同因：抽卡的插入时机与次数完全由玩家点击决定（次数无上限），共用任何结算分区都会让玩家行为挪动该分区的既有抽取序（红线 1）。与 RESIDUAL 不同，本分区在 C++ 侧**有真实生产消费点**，因此 §`rng_test.cpp` 除登记/播种外另证「抽卡 50 次不外溢到 BATTLE/SYSTEM/CHAT/MAIL」 |
+| 守卫面 | `RngSourceGuardTest`：`registeredPartitionIds`/`snapshotPartitionIds` +12、`expectedNames` 追加 `GACHA`、新增 `G09 抽卡分区必须是 12 号委托分区且参与快照` 用例；`rng_test.cpp`：快照分区数 11→12、`kMaxPartitionId` 11→12 + 五条 GACHA 用例；`ResidualRngLocalityGuardTest`：最大快照键 11→12 |
+| 不扰动既有金黄的实证口径 | `DeterminismProbe` 哈希的是行为 transcript，**不含 `rngStates` 映射**，且既有金黄夹具不做抽卡 ⇒ 本分区追加不改变任何既有掷点序（详见 `docs/design/gacha-batches/BENCHMARK-gacha-rng-partition.md` 与 `report-G09.md`） |
+| 本行未覆盖 | §2/§3 的**整行盘点仍属 G10**（本文件多处行号自 2026-09-14 起已随 G02–G08 的删除面失真，按 `grep -rn "RngPartition\."` 重跑，不做局部修补） |

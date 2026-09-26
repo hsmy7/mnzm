@@ -273,6 +273,7 @@ class ResidualRngLocalityGuardTest {
             RngPartition.entries.filter { it.inSnapshot }.map { it.id }.toSet(),
             exported.keys
         )
-        assertEquals("RESIDUAL 唯一新键 = 11", 11, exported.keys.max())
+        // 最大键随分区追加而上移：R4.4 的 RESIDUAL=11 → G09 的 GACHA=12
+        assertEquals("最大快照分区键 = 12（GACHA），RESIDUAL=11 之后只允许追加", 12, exported.keys.max())
     }
 }

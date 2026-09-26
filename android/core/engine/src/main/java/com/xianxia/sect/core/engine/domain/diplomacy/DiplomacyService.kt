@@ -175,9 +175,10 @@ class DiplomacyService @Inject constructor(
         playerSectId: String
     ): Double? {
         // 计算双方战力（统一永久基础属性公式，无装备/功法估算项）
-        val playerPower = calculatePlayerTotalPower()
+        val playerPower = calculatePlayerTotalPower(data.gachaStarMap)
+        // AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
         val aiSectDisciples = data.aiSectDisciples[sect.id] ?: emptyList()
-        val aiPower = SectCombatPowerCalculator.calculateSectPower(aiSectDisciples)
+        val aiPower = SectCombatPowerCalculator.calculateSectPower(aiSectDisciples, emptyMap())
         if (aiPower <= 0) return null
         val powerRatio = playerPower.toDouble() / aiPower.toDouble()
 
@@ -243,10 +244,14 @@ class DiplomacyService @Inject constructor(
         )
     }
 
-    /** 计算玩家宗门总战力（与 AI 同一公式：永久基础属性，无装备/功法） */
-    private fun calculatePlayerTotalPower(): Long {
+    /**
+     * 计算玩家宗门总战力（与 AI 同一公式：永久基础属性，无装备/功法）。
+     *
+     * @param gachaStarMap 星级账本（玩家弟子按 templateId 反查星级）
+     */
+    private fun calculatePlayerTotalPower(gachaStarMap: Map<String, Int>): Long {
         val disciples = discipleTables.assembleAll()
-        return SectCombatPowerCalculator.calculateSectPower(disciples)
+        return SectCombatPowerCalculator.calculateSectPower(disciples, gachaStarMap)
     }
 
     /**

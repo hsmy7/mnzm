@@ -29,12 +29,26 @@ interface GachaFacade {
     val history: StateFlow<List<GachaHistoryEntry>>
 
     /**
-     * 单抽占位。G09 前返回 [GachaPullResult.NotReady]；
-     * G09 起经 ActionId `GACHA_PULL_ONCE` 走 C++ 事务。
+     * 单抽（一次寻访）。
+     *
+     * 权威臂经 ActionId `GACHA_PULL_ONCE` 落 C++ `gacha_tx.h`；native 未转发时回退到
+     * 逐字同式的 Kotlin 臂（[GachaPullLedger]），两条臂消费**同一抽卡分区**
+     * （`RngPartition.GACHA`）的同一条流。
+     *
+     * 线程要求：必须在引擎线程上下文内调用（同 [grantFragments]）。
+     *
+     * @param poolId 卡池 id（当前只有一张常驻池 `standard`）
+     * @return [GachaPullResult.Success] 出货（带每格结果与解锁角色）；
+     *         [GachaPullResult.Failure] 校验未过或两条臂均未落账——账本与灵石零改动
      */
     suspend fun pullOnce(poolId: String = "standard"): GachaPullResult
 
-    /** 十连占位（一笔事务内原子 10 次单抽语义）。 */
+    /**
+     * 十连（一笔事务内顺序执行 10 次单抽语义）。
+     *
+     * 与 10 次 [pullOnce] 的区别在于**原子性**：余额一次性校验、一次性扣费，
+     * 中途不存在失败分支（不做差额部分抽取），保底计数跨十连连续。
+     */
     suspend fun pullTen(poolId: String = "standard"): GachaPullResult
 
     /**
@@ -62,11 +76,58 @@ interface GachaFacade {
     suspend fun grantFragments(templateId: String, count: Int): GachaGrantResult
 }
 
-/** 寻访历史条目（按抽；保底格 [isPity]=true）。 */
+/**
+ * 寻访结果（按抽记条；[GachaPullRow] 的数组下标即结果页格序）。
+ *
+ * 失败以类型承载，不抛异常：灵石不足 / 池未开放 / 池配置不自洽都是可预期的业务失败，
+ * 且**账本与灵石零改动**（校验全部先于扣费与掷点）。
+ */
 sealed interface GachaPullResult {
-    data object NotReady : GachaPullResult
+    /**
+     * 出货成功。
+     *
+     * @property pricePaid 本次实际扣减的下品灵石（十连为 10 × 单抽价）
+     * @property spiritStonesAfter 扣费后的下品灵石余额
+     * @property pityAfter 保底计数（触发保底后为归零值）
+     * @property rows 每格结果（顺序即抽取序，十连第 10 格在末位）
+     * @property unlockedTemplateIds 本次首次解锁（0 星 → 1 星）的角色模板 id；
+     *   对应弟子已入册（入册唯一口 `DiscipleService.instantiateTemplate`，
+     *   已持有实例时按幂等处理，不重复入册）
+     */
+    data class Success(
+        val poolId: String,
+        val pricePaid: Long,
+        val spiritStonesAfter: Long,
+        val pityAfter: Int,
+        val rows: List<GachaPullRow>,
+        val unlockedTemplateIds: List<String>,
+    ) : GachaPullResult
+
+    /** 未出货（[reason] 为结果码，玩家可见文案由 UI 侧按码拼装） */
     data class Failure(val reason: String) : GachaPullResult
 }
+
+/**
+ * 寻访结果的一格。
+ *
+ * 只带 id 不带资源键：头像/立绘键由 UI 经 `CharacterTemplateDb.byId(templateId)` 查，
+ * 结果 DTO 携带资源键会造成第二真源。**档位口径**：小头像位读 `avatarKey`
+ * （512 档 `avatar_<id>`），**不读** `portraitKey`（1024 档全身像）。
+ *
+ * @property category `character` / `item` / `pity`（保底抽本身即角色碎片）
+ * @property templateId 角色类与保底格非空；物品格为空
+ * @property itemId 物品格的模板 id；角色/保底格为空
+ * @property rarity 物品品阶；角色/保底格为 0（星级由 `starMap` 呈现，不混用本字段）
+ * @property count 本次入账数量（碎片数或物品件数）
+ */
+data class GachaPullRow(
+    val category: String,
+    val templateId: String,
+    val itemId: String,
+    val rarity: Int,
+    val count: Int,
+    val isPity: Boolean,
+)
 
 /** 碎片入账结果（业务失败以类型承载，不抛异常）。 */
 sealed interface GachaGrantResult {

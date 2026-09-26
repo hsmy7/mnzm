@@ -6,7 +6,7 @@ package com.xianxia.sect.core.overflow
  * 描述"仓库容量不足未入仓"的物品，供实现方组装为邮件通知玩家。
  *
  * @param slotId 存档槽位
- * @param source 物品来源（withTrackingSource 的 source 值，如 "battle"/"cave"）
+ * @param source 物品来源（withTrackingSource 的 source 值，如 "battle"/"spirit_field"）
  * @param itemType 物品类型（与 MailAttachment.type 对齐：equipment/manual/pill/
  *   material/herb/seed/storageBag）
  * @param itemName 物品名称

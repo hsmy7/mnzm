@@ -159,18 +159,24 @@ class DiffSectDiplomacyTest {
     @Test
     fun `disciple power matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())
-        freshCore(42)
         val stats = DiscipleStats(
             maxHp = 1200, physicalAttack = 150, magicAttack = 90,
             physicalDefense = 80, magicDefense = 60, speed = 45)
-        val kotlinPower = SectCombatPowerCalculator.calculateDiscipleCombatPower(stats)
-        val r = cppExec(ActionIds.SECT_POWER_DISCIPLE, buildJsonObject {
-            put("physicalAttack", 150); put("magicAttack", 90)
-            put("maxHp", 1200); put("physicalDefense", 80)
-            put("magicDefense", 60); put("speed", 45)
-        })
-        assertSuccess(r)
-        assertEquals(kotlinPower, r["data"]!!.jsonObject.getValue("power").jsonPrimitive.content.toLong())
+        // 星级逐档同参对拍（口径 A）：0 = 未解锁/存量旧弟子、1 = 基线、2、5 = 上限
+        for (star in listOf(0, 1, 2, 5)) {
+            freshCore(42)
+            val kotlinPower = SectCombatPowerCalculator.calculateDiscipleCombatPowerWithStar(
+                stats, star)
+            val r = cppExec(ActionIds.SECT_POWER_DISCIPLE, buildJsonObject {
+                put("physicalAttack", 150); put("magicAttack", 90)
+                put("maxHp", 1200); put("physicalDefense", 80)
+                put("magicDefense", 60); put("speed", 45)
+                put("star", star)
+            })
+            assertSuccess(r)
+            assertEquals("star=$star", kotlinPower,
+                r["data"]!!.jsonObject.getValue("power").jsonPrimitive.content.toLong())
+        }
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
+import com.xianxia.sect.core.engine.domain.gacha.syncGachaUnlockedRoster
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.CharacterTemplateDb
@@ -114,6 +115,8 @@ suspend fun GameEngine.loadData(
         // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
         // 检测到 0 且游戏已有进度时，初始化为当前月份
         initSpiritMineLastSettledMonth()
+        // 寻访解锁名册补齐（幂等）：星级账本已有、名册却无该模板弟子时补入册
+        syncGachaUnlockedRoster(disciples)
         // 邮件永久保留：resetAndInitSlot 不删除任何邮件，未领取的溢出/直发邮件跨读档保留
         try {
             mailService.resetAndInitSlot(gameData.slotId)

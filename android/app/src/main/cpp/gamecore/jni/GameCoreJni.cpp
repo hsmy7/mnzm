@@ -20,6 +20,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "gamecore/data/data_inject.h"
 #include "gamecore/game_core.h"
 #include "gamecore/state/json_codec.h"
 #include "gamecore/state/gameview_encode.h"
@@ -322,6 +323,27 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreImportState(
     JNIEnv* env, jobject /*thiz*/, jbyteArray stateJson) {
     if (!g_core) return JNI_FALSE;
     return g_core->importStateJson(jbytesToString(env, stateJson)) ? JNI_TRUE : JNI_FALSE;
+}
+
+// ============================================================
+// 静态数值外置数据注入（桌面侧对等通道，与生产 GameCoreBridge.nativeSetGameData 同语义）
+//
+// 生产的注入点在 `android/app/src/main/cpp/GameCoreBridge.cpp`（由
+// `GameDataNativeBridge.injectFrom` 在初始化期喂 assets/data/game-data.json），
+// 而桌面 .so 不编该文件 ⇒ `db.gachaPools` / `db.characterTemplates` 这类
+// **按 D-1 刻意不做内联兜底**的表在桌面恒为空表，native 臂对真实池一律 PoolNotFound。
+// 本端口让 Diff 族能喂与生产同一份数据文件，逐位复现生产注入序。
+//
+// 语义同生产：`data_store` 状态机保证「仅初始化期一次」，重复注入返回 false（幂等），
+// 解析失败不抛异常。零新增生产桥端口（只在测试桥 DiffRngBridge 上，
+// `check-jni-count` 的 86/86 面不含测试源集）。
+// ============================================================
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreSetGameData(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray dataJson) {
+    return gamecore::data::inject::injectFromJson(jbytesToString(env, dataJson))
+               ? JNI_TRUE
+               : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

@@ -8,6 +8,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.StarZone
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
@@ -71,7 +72,8 @@ class CultivationRateCalculator @Inject constructor(
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
-            cultivationSubsidyBonus = calculatePolicyCultivationBonus(disciple.realm, data)
+            cultivationSubsidyBonus = calculatePolicyCultivationBonus(disciple.realm, data),
+            starBonus = StarZone.cultivationBonus(data.gachaStarMap, disciple.templateId)
         ).coerceAtLeast(1.0)
         return perPhase
     }
@@ -113,7 +115,8 @@ class CultivationRateCalculator @Inject constructor(
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
-            cultivationSubsidyBonus = calculatePolicyCultivationBonus(realm, data)
+            cultivationSubsidyBonus = calculatePolicyCultivationBonus(realm, data),
+            starBonus = StarZone.cultivationBonus(data.gachaStarMap, tables.templateIds.getOrNull(id))
         ).coerceAtLeast(1.0)
     }
 

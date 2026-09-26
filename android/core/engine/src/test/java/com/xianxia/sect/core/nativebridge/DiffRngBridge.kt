@@ -55,6 +55,19 @@ object DiffRngBridge {
     external fun nativeCoreImportState(stateJson: ByteArray): Boolean
     external fun nativeCoreExportState(): ByteArray
 
+    /**
+     * 静态数值外置数据注入（`db.*` 模板表），语义与生产
+     * `GameCoreBridge.nativeSetGameData` 逐位相同——同一份
+     * `android/app/src/main/assets/data/game-data.json`、同一个
+     * `gamecore::data::inject::injectFromJson`、「仅初始化期一次」幂等。
+     *
+     * 生产注入点在 `app/src/main/cpp/GameCoreBridge.cpp`，桌面 .so 不编该文件，
+     * 而无内联兜底的表（`db.gachaPools` / `db.characterTemplates`，见
+     * `docs/design/gacha-batches/TASKBOOK-G09.md` D-1）在桌面恒为空表 ⇒ native 臂
+     * 对真实池一律 `PoolNotFound`。需要静态表的 Diff 族必须先调本端口。
+     */
+    external fun nativeCoreSetGameData(dataJson: ByteArray): Boolean
+
     /** 导入但不恢复 RNG 分区（AUTHORITATIVE 每旬回导对拍用） */
     external fun nativeCoreImportStateNoRng(stateJson: ByteArray): Boolean
 

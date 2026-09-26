@@ -4,6 +4,7 @@
 
 #include "gamecore/data/beast_material_db.h"
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/data/gacha_pool_db.h"
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/recipe_db.h"
@@ -302,6 +303,79 @@ inline void to_json(nlohmann::json& j, const PillRecipeTemplate& v) {
                        {"teachingAdd", v.teachingAdd},
                        {"moralityAdd", v.moralityAdd},
                        {"miningAdd", v.miningAdd}};
+}
+
+// ── 卡池 / 角色模板（G09 数据面；嵌套段先声明，外层依赖内层重载）──
+inline void from_json(const nlohmann::json& j, GachaPityConfig& v) {
+    jread(j, "pullThreshold", v.pullThreshold);
+    jread(j, "fragmentCount", v.fragmentCount);
+    jread(j, "pickMode", v.pickMode);
+}
+inline void to_json(nlohmann::json& j, const GachaPityConfig& v) {
+    j = nlohmann::json{{"pullThreshold", v.pullThreshold},
+                       {"fragmentCount", v.fragmentCount},
+                       {"pickMode", v.pickMode}};
+}
+
+inline void from_json(const nlohmann::json& j, GachaRarityWeight& v) {
+    jread(j, "rarity", v.rarity);
+    jread(j, "weightPct", v.weightPct);
+}
+inline void to_json(nlohmann::json& j, const GachaRarityWeight& v) {
+    j = nlohmann::json{{"rarity", v.rarity}, {"weightPct", v.weightPct}};
+}
+
+inline void from_json(const nlohmann::json& j, GachaCategory& v) {
+    jread(j, "kind", v.kind);
+    jread(j, "weightPct", v.weightPct);
+    jread(j, "templateIds", v.templateIds);
+    jread(j, "itemSource", v.itemSource);
+    jread(j, "maxRarity", v.maxRarity);
+}
+inline void to_json(nlohmann::json& j, const GachaCategory& v) {
+    j = nlohmann::json{{"kind", v.kind},
+                       {"weightPct", v.weightPct},
+                       {"templateIds", v.templateIds},
+                       {"itemSource", v.itemSource},
+                       {"maxRarity", v.maxRarity}};
+}
+
+inline void from_json(const nlohmann::json& j, GachaPoolTemplate& v) {
+    jread(j, "poolId", v.poolId);
+    jread(j, "enabled", v.enabled);
+    jread(j, "pricePerPull", v.pricePerPull);
+    jread(j, "categories", v.categories);
+    jread(j, "itemRarityWeights", v.itemRarityWeights);
+    jread(j, "pity", v.pity);
+    jread(j, "fragmentsPerStar", v.fragmentsPerStar);
+    jread(j, "maxStar", v.maxStar);
+}
+inline void to_json(nlohmann::json& j, const GachaPoolTemplate& v) {
+    j = nlohmann::json{{"poolId", v.poolId},
+                       {"enabled", v.enabled},
+                       {"pricePerPull", v.pricePerPull},
+                       {"categories", v.categories},
+                       {"itemRarityWeights", v.itemRarityWeights},
+                       {"pity", v.pity},
+                       {"fragmentsPerStar", v.fragmentsPerStar},
+                       {"maxStar", v.maxStar}};
+}
+
+inline void from_json(const nlohmann::json& j, CharacterTemplate& v) {
+    jread(j, "id", v.id);
+    jread(j, "name", v.name);
+    jread(j, "gender", v.gender);
+    jread(j, "avatarKey", v.avatarKey);
+    jread(j, "portraitKey", v.portraitKey);
+    jread(j, "spiritRoots", v.spiritRoots);
+}
+inline void to_json(nlohmann::json& j, const CharacterTemplate& v) {
+    j = nlohmann::json{{"id", v.id},
+                       {"name", v.name},
+                       {"gender", v.gender},
+                       {"avatarKey", v.avatarKey},
+                       {"portraitKey", v.portraitKey},
+                       {"spiritRoots", v.spiritRoots}};
 }
 
 }  // namespace gamecore::data

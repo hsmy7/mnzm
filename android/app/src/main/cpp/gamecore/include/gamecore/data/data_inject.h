@@ -9,6 +9,7 @@
 #include "gamecore/data/data_json.h"
 #include "gamecore/data/data_store.h"
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/data/gacha_pool_db.h"
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/recipe_db.h"
@@ -42,6 +43,8 @@ struct AppliedCounts {
     int32_t beastMaterials = 0;
     int32_t forgeRecipes = 0;
     int32_t pillRecipes = 0;
+    int32_t gachaPools = 0;
+    int32_t characterTemplates = 0;
 };
 
 /// 逐段应用；返回 false 表示注入失败（调用方落兜底，容器保持默认）
@@ -111,6 +114,23 @@ inline bool applyGameData(const nlohmann::json& doc) {
         pillRecipesMutable() = std::move(rows);
     }
 
+    // ── 寻访卡池 / 角色模板（G09 抽卡数据面）─────────────────────
+    // 与其它六段同形制（段缺失=跳过、段在而非数组/空=整体失败）。唯一差别：
+    // 这两段**没有内联兜底**——概率表若在 C++ 再抄一份字面量就构成第二真源
+    // （`gen-game-data.mjs --check` 管不住 C++ 侧）。未注入即空表，抽卡以
+    // PoolNotFound 显式拒绝，不存在"按另一套数值静默出货"的中间态。
+    // 口径与理由见 `gamecore/data/gacha_pool_db.h` 头注释。
+    if (db.contains("gachaPools")) {
+        if (!db["gachaPools"].is_array() || db["gachaPools"].empty()) return false;
+        auto rows = db["gachaPools"].get<std::vector<GachaPoolTemplate>>();
+        gachaPoolsMutable() = std::move(rows);
+    }
+    if (db.contains("characterTemplates")) {
+        if (!db["characterTemplates"].is_array() || db["characterTemplates"].empty()) return false;
+        auto rows = db["characterTemplates"].get<std::vector<CharacterTemplate>>();
+        characterTemplatesMutable() = std::move(rows);
+    }
+
     return true;
 }
 
@@ -125,6 +145,8 @@ inline AppliedCounts applyAndCount(const nlohmann::json& doc) {
     c.beastMaterials = static_cast<int32_t>(beastMaterialTemplates().size());
     c.forgeRecipes = static_cast<int32_t>(forgeRecipes().size());
     c.pillRecipes = static_cast<int32_t>(pillRecipes().size());
+    c.gachaPools = static_cast<int32_t>(gachaPools().size());
+    c.characterTemplates = static_cast<int32_t>(characterTemplates().size());
     return c;
 }
 

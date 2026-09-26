@@ -176,9 +176,9 @@ TEST(RngManagerTest, ExportRestoreRoundTrip) {
     for (int i = 0; i < 5; ++i) mgr.getRng(RngPartition::kSystem).nextInt(100);
 
     const auto states = mgr.exportStates();
-    // 11 个快照分区（含 MISSION=8 + W4-A·A5 CHAT=10 + R4.4/B14 RESIDUAL=11；
-    // AI_SECT_MIRROR=9 为通道型不进快照——新增快照分区时本断言同步 +1）
-    EXPECT_EQ(states.size(), 11u);
+    // 12 个快照分区（含 MISSION=8 + W4-A·A5 CHAT=10 + R4.4/B14 RESIDUAL=11 +
+    // G09 GACHA=12；AI_SECT_MIRROR=9 为通道型不进快照——新增快照分区时本断言同步 +1）
+    EXPECT_EQ(states.size(), 12u);
 
     const auto valBefore = mgr.getRng(RngPartition::kSystem).nextInt(100);
     mgr.restoreStates(states);
@@ -210,7 +210,9 @@ TEST(RngManagerTest, ResidualPartitionIdIsRegisteredAndWithinMaxId) {
     // 新分区 id 必须落在 kMaxPartitionId 上界内——上界是 JNI 入口的
     // 合法性守卫唯一权威（曾因写死成员导致 MISSION(8) 恒返回 0）
     EXPECT_EQ(static_cast<int32_t>(RngPartition::kResidual), 11);
-    EXPECT_EQ(RngManager::kMaxPartitionId, 11);
+    // 上界随**最新**分区上移：G09 追加 kGacha=12 后上界必须是 12，
+    // 停在 11 会让 JNI 合法分区守卫静默拒绝抽卡的 rngNextInt(12)（MISSION(8) 教训）
+    EXPECT_EQ(RngManager::kMaxPartitionId, 12);
     EXPECT_LE(static_cast<int32_t>(RngPartition::kResidual), RngManager::kMaxPartitionId);
     // 既有 id 逐位不变（红线 1：本批只追加新分区，不改旧分区）
     EXPECT_EQ(static_cast<int32_t>(RngPartition::kBattle), 0);
@@ -258,6 +260,85 @@ TEST(RngManagerTest, ResidualPartitionDoesNotDisturbOthers) {
                   b.getRng(RngPartition::kSystem).nextInt());
         EXPECT_EQ(a.getRng(RngPartition::kChat).nextInt(),
                   b.getRng(RngPartition::kChat).nextInt());
+    }
+}
+
+// ============================================================
+// G09 — 寻访抽卡随机域（GACHA=12）登记、播种与隔离
+//
+// 与 CHAT(10) 同因：抽取的插入时机/次数由玩家点击决定，因此必须是独立分区
+// 而非借用 SYSTEM。且与 RESIDUAL 不同——本分区在 C++ 侧**有真实生产消费点**
+// （`gacha_tx.h` 逐 roll 取序），故除登记/播种外还必须实证"抽卡消费不外溢"。
+// ============================================================
+
+TEST(RngManagerTest, GachaPartitionIdIsRegisteredAndWithinMaxId) {
+    // Kotlin `RngPartition.GACHA(12)` 同名同 id；上界必须是 12，否则
+    // JNI 的合法分区守卫会静默把 rngNextInt(12) 判成非法分区（MISSION(8) 教训）
+    EXPECT_EQ(static_cast<int32_t>(RngPartition::kGacha), 12);
+    EXPECT_EQ(RngManager::kMaxPartitionId, static_cast<int32_t>(RngPartition::kGacha));
+    // 既有 id 逐位不变（红线 1：G09 只追加，不改动任何既有分区）
+    EXPECT_EQ(static_cast<int32_t>(RngPartition::kSystem), 3);
+    EXPECT_EQ(static_cast<int32_t>(RngPartition::kResidual), 11);
+}
+
+TEST(RngManagerTest, GachaPartitionSeededBySystemSeedPlusId) {
+    // 与 Kotlin `DeterministicRng.fromSeed(systemSeed + partition.id)` 逐位同式，
+    // 也让老档缺 12 号键时的重播口径（seed + 12）与新建档一致
+    constexpr int64_t kSeed = 20260926LL;
+    RngManager mgr;
+    mgr.initSystemSeed(kSeed);
+    auto expected = DeterministicRng::fromSeed(kSeed + 12);
+    auto& actual = mgr.getRng(RngPartition::kGacha);
+    for (int i = 0; i < 16; ++i) {
+        EXPECT_EQ(expected.nextInt(), actual.nextInt());
+    }
+}
+
+TEST(RngManagerTest, GachaPartitionIsIndependentFromSystem) {
+    // 决策依据（TASKBOOK-G09 D-3）：抽卡**不得**借用 SYSTEM。两条流必须从播种
+    // 起就不同序列——若有人把 kGacha 改成 kSystem 的别名，本用例即红。
+    RngManager mgr;
+    mgr.initSystemSeed(4242);
+    bool anyEqual = false;
+    for (int i = 0; i < 8; ++i) {
+        if (mgr.getRng(RngPartition::kGacha).nextInt(1000000) ==
+            mgr.getRng(RngPartition::kSystem).nextInt(1000000)) {
+            anyEqual = true;
+        }
+    }
+    EXPECT_FALSE(anyEqual) << "GACHA 与 SYSTEM 抽出同值——两分区疑似同源";
+}
+
+TEST(RngManagerTest, GachaPartitionInSnapshotAndRestorable) {
+    EXPECT_TRUE(RngManager::inSnapshot(RngPartition::kGacha));
+    RngManager mgr;
+    mgr.initSystemSeed(4242);
+    for (int i = 0; i < 7; ++i) mgr.getRng(RngPartition::kGacha).nextInt(100);
+
+    const auto states = mgr.exportStates();
+    EXPECT_TRUE(states.count(12) == 1u);  // 12 号键在导出面内
+
+    const auto before = mgr.getRng(RngPartition::kGacha).nextInt(100);
+    mgr.restoreStates(states);
+    EXPECT_EQ(before, mgr.getRng(RngPartition::kGacha).nextInt(100));
+}
+
+TEST(RngManagerTest, GachaConsumptionDoesNotDisturbOtherPartitions) {
+    // 红线 1 的直接证明：玩家抽多少次卡，战斗/系统/交谈分区的序列都不许挪动
+    RngManager a;
+    RngManager b;
+    a.initSystemSeed(2026);
+    b.initSystemSeed(2026);
+    for (int i = 0; i < 50; ++i) b.getRng(RngPartition::kGacha).nextInt(100);
+    for (int i = 0; i < 12; ++i) {
+        EXPECT_EQ(a.getRng(RngPartition::kBattle).nextInt(),
+                  b.getRng(RngPartition::kBattle).nextInt());
+        EXPECT_EQ(a.getRng(RngPartition::kSystem).nextInt(),
+                  b.getRng(RngPartition::kSystem).nextInt());
+        EXPECT_EQ(a.getRng(RngPartition::kChat).nextInt(),
+                  b.getRng(RngPartition::kChat).nextInt());
+        EXPECT_EQ(a.getRng(RngPartition::kMail).nextInt(),
+                  b.getRng(RngPartition::kMail).nextInt());
     }
 }
 

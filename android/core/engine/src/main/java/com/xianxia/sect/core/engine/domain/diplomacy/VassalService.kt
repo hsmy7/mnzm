@@ -181,7 +181,7 @@ class VassalService @Inject constructor(
         if (failsVassalContractEligibility(data, sectId)) return false
 
         // 计算双方战力
-        val playerPower = computePlayerTotalPower()
+        val playerPower = computePlayerTotalPower(data.gachaStarMap)
         val aiPower = computeAITotalPower(sectId)
 
         // 计算好感度
@@ -329,7 +329,7 @@ class VassalService @Inject constructor(
         val contracts = data.vassalContracts
         if (contracts.isEmpty()) return
 
-        val playerPower = computePlayerTotalPower(state.discipleTables)
+        val playerPower = computePlayerTotalPower(state.discipleTables, data.gachaStarMap)
         val playerSect = data.worldMapSects.find {
             it.isPlayerSect
         } ?: return
@@ -379,8 +379,9 @@ class VassalService @Inject constructor(
         } ?: return true // 宗门已不存在 → 移除
 
         // 使用传入的 data 快照计算 AI 战力，保持与快照一致
+        // AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
         val aiDisciples = data.aiSectDisciples[contract.vassalSectId] ?: emptyList()
-        val aiPower = SectCombatPowerCalculator.calculateSectPower(aiDisciples)
+        val aiPower = SectCombatPowerCalculator.calculateSectPower(aiDisciples, emptyMap())
         if (aiPower <= 0) return false
 
         val powerRatio = playerPower / aiPower.toDouble()
@@ -420,16 +421,27 @@ class VassalService @Inject constructor(
     // 私有辅助方法
     // ═══════════════════════════
 
-    /** 计算玩家宗门总战力（统一永久基础属性公式，无装备/功法估算项） */
-    private fun computePlayerTotalPower(): Long {
+    /**
+     * 计算玩家宗门总战力（统一永久基础属性公式，无装备/功法估算项）。
+     *
+     * @param gachaStarMap 星级账本（玩家弟子按 templateId 反查星级）
+     */
+    private fun computePlayerTotalPower(gachaStarMap: Map<String, Int>): Long {
         val disciples = stateStore.discipleTables.assembleAll()
-        return SectCombatPowerCalculator.calculateSectPower(disciples)
+        return SectCombatPowerCalculator.calculateSectPower(disciples, gachaStarMap)
     }
 
-    /** 计算玩家宗门总战力（MutableGameState 重载，使用事务内数据） */
-    private fun computePlayerTotalPower(tables: DiscipleTables): Long {
+    /**
+     * 计算玩家宗门总战力（MutableGameState 重载，使用事务内数据）。
+     *
+     * @param gachaStarMap 星级账本（玩家弟子按 templateId 反查星级）
+     */
+    private fun computePlayerTotalPower(
+        tables: DiscipleTables,
+        gachaStarMap: Map<String, Int>
+    ): Long {
         val disciples = tables.assembleAll()
-        return SectCombatPowerCalculator.calculateSectPower(disciples)
+        return SectCombatPowerCalculator.calculateSectPower(disciples, gachaStarMap)
     }
 
     /** 计算AI宗门总战力 */
@@ -437,7 +449,8 @@ class VassalService @Inject constructor(
         val data = stateStore.gameData.value
         val aiDisciples = data.aiSectDisciples[sectId]
             ?: emptyList()
-        return SectCombatPowerCalculator.calculateSectPower(aiDisciples)
+        // AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
+        return SectCombatPowerCalculator.calculateSectPower(aiDisciples, emptyMap())
     }
 
 }

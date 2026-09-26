@@ -1,5 +1,46 @@
 ## [4.01.16] - 2026-09-22
 
+### 角色卡池重构 G09 批（2026-09-26）——寻访抽卡核心（roll / 保底 / 历史 / 入库 / 解锁 / 星级乘区 / 独立随机分区）— `feat(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G09.md`（派工真源，含上位失真清单与 D-1…D-18 决策、
+> 六项产品拍板）+ `docs/design/gacha-batches/report-G09.md`（本批报告，含未完项）。
+
+- **抽卡核心下沉 C++**：新建 `gamecore/system/gacha_tx.h`（校验→扣费→逐抽 roll→碎片入账/物品入库→
+  历史环→保底回写）+ `dispatch_gacha.cpp` 加 1871 `GACHA_PULL_ONCE` / 1872 `GACHA_PULL_TEN`
+  （ActionId 199→201、maxId 1870→1872，`execute_dispatch.cpp` 零改动）；Kotlin 逐字同式回退臂
+  `GachaPullLedger.kt` + 池配置单源读面 `GachaPoolConfig.kt`（解析与 C++ 注入同一份 `game-data.json`）
+- **卡池数据面**：新建 `gamecore/data/gacha_pool_db.h` + `data_inject.h` 注入 `db.gachaPools` /
+  `db.characterTemplates`（`AppliedCounts` 两项）+ `data_store_test` 三层守卫。🔴 概率表**无 C++ 内联兜底**
+  （禁双端各抄），未注入即 `PoolNotFound` 显式拒绝，不会按另一套数值静默出货
+- **保底语义**：第 10 抽**本身**= 随机角色碎片 ×5（六选一、含已解锁/满星），该抽不 roll 类别，计数归零；
+  十连一笔事务顺序 10 次单抽语义、一次性扣费、不做差额抽取
+- **RNG 独立分区**：`RngPartition::kGacha = 12` / `RngPartition.GACHA`（与 `CHAT(10)` 同因：玩家点击驱动的
+  流不得混入结算分区）；`kMaxPartitionId` 上移、`seed + 12` 播种、老档缺键重播、`RngSourceGuardTest` 登记；
+  新增 `rng_test.cpp` 五条 GACHA 用例证明「抽卡 50 次不外溢到 BATTLE/SYSTEM/CHAT/MAIL」
+- **星级乘区（口径 A）**：新建 `star_zone.h` + `core/domain/.../model/StarZone.kt`（1★ 基线 ×1.00，
+  每多一星战斗 +8% / 修炼 +5%，5★ +32%/+20%）；修炼侧作为第 5 个命名乘区进
+  `CultivationSpeedZones`（C++ 两版列直读 + Kotlin 三版组装同序连乘），战力侧「先加权和、后乘、
+  再向零截断」，`GameStateStoreImpl` 战力缓存改为星级敏感（升星即时刷新显示）
+- **入库与解锁**：物品走 `inventory.h::addMaterial/addHerb/addSeed`（C++）/
+  `InventorySystem.withTrackingSource("gacha_pull")`（Kotlin），满仓转溢出草稿经信封回传由
+  `InventoryNativeForward` 落邮件（抽卡不因满仓失败）；解锁只出 `unlockedTemplateIds` 描述符，
+  入册唯一口 `DiscipleService.instantiateTemplate`，读档后幂等补齐（`syncGachaUnlockedRoster`）
+- **来源文案整改（玩家可见）**：`OverflowMailSender.SOURCE_DISPLAY_NAMES` 25→22 项，全部改为
+  「玩家能明确得知出处」的措辞（丹房/锻造台/储物袋开启/弟子遗物归还…）并新增 `gacha_pull → 仙缘寻访`；
+  满仓邮件标题/正文不再对「归还」型来源使用「奖励」二字；`BattleLogDialogs` / `OverflowMail` KDoc 同批对齐；
+  新增「map 无死 key」反向守卫
+- **桌面 JNI 对拍基座补口**：桌面 `.so` 不编生产桥 `GameCoreBridge.cpp` ⇒ 无内联兜底的
+  `db.gachaPools`/`db.characterTemplates` 在桌面对拍侧恒为空表（native 臂一律 `PoolNotFound`）。
+  新增**测试桥**同语义端口 `DiffRngBridge.nativeCoreSetGameData`（`jni/GameCoreJni.cpp` 调
+  `inject::injectFromJson`，与生产 `nativeSetGameData` 同一入口与「仅初始化期一次」状态机；
+  生产 JNI 面仍 86/86）；`scripts/build-desktop-jni.ps1` 与 `-linux.sh` 各补登
+  `src/data_store.cpp`（手写源清单长期漏登，一引用注入器即 `ld.lld: undefined symbol`）
+- **回退臂结果格序修正**：`GachaService.pullLocally` 曾用同一个「新在前」列表同时充当历史环与
+  结果格 DTO ⇒ 十连格序整体倒置；现按「DTO = 抽取序（第 10 格在末位）/ 历史环 = 新在前」两口径分离
+- **零 Room 迁移 / 零 proto 变更 / 零新增 JNI 导出**：四本抽卡账本与 `templateId` 列自 v54 在库，
+  镜像走既有泛化脏段；金黄与对拍基线**一律不重录**（唯一窗口 G10）
+
+
 ### 角色卡池重构 G02 批（2026-09-23）——删寿命/年龄/忠诚/叛逃/偷盗/神魂 + 仓库驻守下线 — `feat(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/recon-G02-G03.md`（G02 落点）+ `report-G02.md`（本批完整报告）；

@@ -602,4 +602,10 @@ object ActionIds {
     /** 角色碎片入账事务（零 RNG；碎片累加+满 100 升星；抽卡/兑换码/邮件/活动共用） */
     const val GACHA_FRAGMENT_GRANT_TX: Int = 1870
 
+    /** 寻访单抽事务（校验→扣灵石→roll 类别/角色/品阶→碎片与入库→历史→保底计数；消费 GACHA 分区） */
+    const val GACHA_PULL_ONCE: Int = 1871
+
+    /** 寻访十连事务（一笔事务内顺序 10 次单抽语义，共享同一抽卡流与保底计数；一次性扣费） */
+    const val GACHA_PULL_TEN: Int = 1872
+
 }

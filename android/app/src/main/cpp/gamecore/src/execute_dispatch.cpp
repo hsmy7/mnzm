@@ -867,13 +867,16 @@ nlohmann::json handleSectDiplomacy(GameCore* core, int32_t actionId,
             return ok({{"chance", chance}});
         }
         case action::SECT_POWER_DISCIPLE: {
-            return ok({{"power", gamecore::system::discipleCombatPower(
+            // star 缺省 0 ⇒ 恒 ×1.00：与 Kotlin calculateDisciplePower(aggregate, star)
+            // 同参同式（属性加权和先算、星级乘数后乘、最后向零截断）
+            return ok({{"power", gamecore::system::discipleCombatPowerWithStar(
                                      params.at("physicalAttack").get<int32_t>(),
                                      params.at("magicAttack").get<int32_t>(),
                                      params.at("maxHp").get<int32_t>(),
                                      params.at("physicalDefense").get<int32_t>(),
                                      params.at("magicDefense").get<int32_t>(),
-                                     params.at("speed").get<int32_t>())}});
+                                     params.at("speed").get<int32_t>(),
+                                     params.value("star", 0))}});
         }
         case action::SECT_POWER_BEAST: {
             return ok({{"power", gamecore::system::beastCombatPower(

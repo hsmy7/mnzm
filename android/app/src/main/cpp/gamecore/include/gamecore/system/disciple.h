@@ -219,9 +219,12 @@ struct CultivationSpeedZones {
     double socialBonus = 0.0;
     double statusBonus = 0.0;
     double temporaryBonus = 0.0;
+    /// 星级乘区（口径 A：`star<=1` 恒 0.0；见 star_zone.h）
+    double starBonus = 0.0;
 };
 
 /// 每旬修炼值（Kotlin calculateCultivationPerPhase 等价）
+/// 乘区序固定为 资源→社交→状态→临时→星级，双端逐位一致（浮点不可交换）
 inline double calculateCultivationPerPhase(int32_t realm, int32_t spiritRootCount,
                                            const CultivationSpeedZones& zones) {
     const int32_t rootCount = std::max(spiritRootCount, 1);
@@ -230,7 +233,8 @@ inline double calculateCultivationPerPhase(int32_t realm, int32_t spiritRootCoun
                              * (1.0 + zones.resourceBonus)
                              * (1.0 + zones.socialBonus)
                              * (1.0 + zones.statusBonus)
-                             * (1.0 + zones.temporaryBonus),
+                             * (1.0 + zones.temporaryBonus)
+                             * (1.0 + zones.starBonus),
                          kMinCultivationPerPhase);
 }
 

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.state
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
@@ -8,6 +9,7 @@ import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.StarZone
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
@@ -165,11 +168,13 @@ class DerivedAggregationTest {
         }
         awaitAggregation(expectedDisciples = 3)
 
-        // 手算：存活弟子战力之和（血炼加成空 map 时）
+        // 手算：存活弟子战力之和（血炼加成空 map 时；星级按账本反查）
         val expectedPower = stateStore.disciples.value
             .filter { it.isAlive }
             .sumOf {
-                SectCombatPowerCalculator.calculateDisciplePower(it.toAggregate())
+                SectCombatPowerCalculator.calculateDisciplePower(
+                    it.toAggregate(), starOf(it)
+                )
             }
         assertEquals("战力应仅累计存活弟子", expectedPower, stateStore.sectCombatPower.value)
     }
@@ -215,8 +220,62 @@ class DerivedAggregationTest {
             "最终战力应为 50 名存活弟子之和",
             stateStore.disciples.value
                 .filter { it.isAlive }
-                .sumOf { SectCombatPowerCalculator.calculateDisciplePower(it.toAggregate()) },
+                .sumOf {
+                    SectCombatPowerCalculator.calculateDisciplePower(
+                        it.toAggregate(), starOf(it)
+                    )
+                },
             stateStore.sectCombatPower.value
         )
     }
+
+    /**
+     * 升星刷新战力：星级不在战力指纹内（指纹与 C++ sectPowerFingerprint 逐位对拍），
+     * 缓存命中判据必须并列比对 star，否则弟子境界不变时战力停留在旧星级。
+     */
+    @Test
+    fun `star up refreshes cached combat power`() = runTest {
+        backgroundScope.keepAggregationSubscribed()
+        val template = "zhouming"
+        stateStore.update {
+            gameData = gameData.copy(gachaStarMap = mapOf(template to StarZone.BASE_STAR))
+            discipleTables.insert(makeStarredDisciple(1, template, cultivation = 100.0))
+        }
+        awaitAggregation(expectedDisciples = 1)
+
+        val basePower = SectCombatPowerCalculator.calculateDisciplePower(
+            stateStore.disciples.value.first().toAggregate(), StarZone.BASE_STAR
+        )
+        TestPolling.awaitCondition(
+            description = "1★ 战力基线未就位",
+            stateSnapshot = { "power=${stateStore.sectCombatPower.value} 期望=$basePower" }
+        ) { stateStore.sectCombatPower.value == basePower }
+
+        // 升星 + 弟子写入（境界/层数/方差全不变 ⇒ 战力指纹不变）
+        stateStore.update {
+            gameData = gameData.copy(
+                gachaStarMap = mapOf(template to GameConfig.Gacha.MAX_STAR)
+            )
+            discipleTables.insert(makeStarredDisciple(1, template, cultivation = 880.0))
+        }
+        val starredPower = (basePower * StarZone(GameConfig.Gacha.MAX_STAR).battleMult).toLong()
+        assertTrue("升星后的期望战力必须高于基线", starredPower > basePower)
+        TestPolling.awaitCondition(
+            description = "升星未刷新缓存战力（指纹相同则星级须作命中判据）",
+            stateSnapshot = { "power=${stateStore.sectCombatPower.value} 期望=$starredPower" }
+        ) { stateStore.sectCombatPower.value == starredPower }
+    }
+
+    /** 带角色模板 id 的弟子（其余口径同 makeDisciple，战力只由境界/层数/方差决定） */
+    private fun makeStarredDisciple(id: Int, template: String, cultivation: Double): Disciple =
+        Disciple(
+            id = id.toString(),
+            name = "弟子$id",
+            realm = 9,
+            cultivation = cultivation
+        ).copy(templateId = template)
+
+    /** 与战力汇总同判据的星级解析（账本取当前 gameData 快照） */
+    private fun starOf(disciple: Disciple): Int =
+        StarZone.starOf(stateStore.gameDataSnapshot.gachaStarMap, disciple.templateId)
 }

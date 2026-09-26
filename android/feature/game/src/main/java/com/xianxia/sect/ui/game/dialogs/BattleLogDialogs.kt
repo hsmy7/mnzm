@@ -281,39 +281,37 @@ internal val SPIRIT_STONE_REASON_NAMES: Map<String, String> = mapOf(
     "Gift" to "赠礼", "Diplomacy" to "外交", "VassalTribute" to "附属上贡",
     "Purchase" to "购买", "AutoSell" to "自动售卖", "Exchange" to "兑换",
     "Theft" to "盗窃", "ExplorationLoot" to "探索战利品", "BeastTribute" to "妖兽上贡",
-    "Internal" to "内部"
+    "Gacha" to "仙缘寻访", "Internal" to "内部"
 )
 
 internal val EQUIP_SOURCE_NAMES: Map<String, String> = mapOf(
-    "forge" to "锻造", "battle" to "战斗", "exploration" to "探索",
-    "quest" to "任务", "mail" to "邮件", "cave" to "洞府",
-    "trial" to "天道试炼", "merchant" to "商人",
-    "sect_level" to "宗门等级", "storage_bag" to "储物袋",
-    "building" to "建筑", "unknown" to "未知",
-    "redeem" to "兑换码", "disciple_death" to "弟子死亡",
-    "cave_world" to "洞府世界", "secret_realm" to "秘境",
-    "sect_trade" to "宗门交易", "confiscate" to "没收",
-    "disciple_expel" to "逐出弟子"
+    "forge" to "锻造台", "battle" to "宗门战", "exploration" to "探索",
+    "quest" to "任务奖励", "mail" to "邮件附件",
+    "trial" to "天道试炼", "merchant" to "商人交易",
+    "sect_level" to "宗门升级", "storage_bag" to "储物袋开启",
+    "building" to "建筑产出", "unknown" to "未知",
+    "redeem" to "兑换码", "disciple_death" to "弟子遗物归还",
+    "cave_world" to "洞穴战场", "secret_realm" to "远古秘境",
+    "sect_trade" to "宗门贸易", "confiscate" to "没收弟子物品"
 )
 
 internal val PILL_SOURCE_NAMES: Map<String, String> = mapOf(
-    "alchemy" to "炼丹", "battle" to "战斗", "exploration" to "探索",
-    "quest" to "任务", "mail" to "邮件", "cave" to "洞府",
-    "trial" to "天道试炼", "merchant" to "商人",
-    "sect_level" to "宗门等级", "storage_bag" to "储物袋",
-    "building" to "建筑", "unknown" to "未知",
-    "redeem" to "兑换码", "disciple_death" to "弟子死亡",
-    "cave_world" to "洞府世界", "secret_realm" to "秘境",
-    "sect_trade" to "宗门交易", "confiscate" to "没收",
-    "disciple_expel" to "逐出弟子"
+    "alchemy" to "丹房", "battle" to "宗门战", "exploration" to "探索",
+    "quest" to "任务奖励", "mail" to "邮件附件",
+    "trial" to "天道试炼", "merchant" to "商人交易",
+    "sect_level" to "宗门升级", "storage_bag" to "储物袋开启",
+    "building" to "建筑产出", "unknown" to "未知",
+    "redeem" to "兑换码", "disciple_death" to "弟子遗物归还",
+    "cave_world" to "洞穴战场", "secret_realm" to "远古秘境",
+    "sect_trade" to "宗门贸易", "confiscate" to "没收弟子物品"
 )
 
 internal val HERB_SOURCE_NAMES: Map<String, String> = mapOf(
-    "spirit_field" to "灵田", "exploration" to "探索", "battle" to "战斗",
-    "quest" to "任务", "mail" to "邮件", "storage_bag" to "储物袋",
-    "cave" to "洞府", "trial" to "天道试炼", "merchant" to "商人",
-    "unknown" to "未知",
-    "redeem" to "兑换码", "disciple_death" to "弟子死亡",
-    "secret_realm" to "秘境", "sect_trade" to "宗门交易",
-    "confiscate" to "没收", "disciple_expel" to "逐出弟子"
+    "spirit_field" to "灵田", "exploration" to "探索", "battle" to "宗门战",
+    "quest" to "任务奖励", "mail" to "邮件附件", "storage_bag" to "储物袋开启",
+    "trial" to "天道试炼", "merchant" to "商人交易",
+    "unknown" to "未知", "gacha_pull" to "仙缘寻访",
+    "redeem" to "兑换码", "disciple_death" to "弟子遗物归还",
+    "secret_realm" to "远古秘境", "sect_trade" to "宗门贸易",
+    "confiscate" to "没收弟子物品"
 )

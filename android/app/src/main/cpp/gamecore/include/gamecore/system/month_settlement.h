@@ -809,25 +809,29 @@ inline void applyScoutInfoExpiry(GameState& state, int32_t year, int32_t month) 
 // 战力口径：SectCombatPowerCalculator.calculateSectPower = 存活弟子
 // getPermanentBaseStats 战力之和——玩家与 AI 同一公式。
 
-/// 弟子战力（Kotlin calculateDisciplePower(aggregate, null)——永久基础属性）
-inline int64_t sectPowerOfDisciple(const state::Disciple& d) {
+/// 弟子战力（Kotlin calculateDisciplePower——永久基础属性 + 星级乘区）
+/// gd 用于反查 `gachaStarMap[templateId]`：AI 弟子与存量旧弟子 templateId 为空
+/// ⇒ 0 星 ⇒ 恒 ×1.00（口径 A，无需为它们特判）
+inline int64_t sectPowerOfDisciple(const state::Disciple& d, const state::GameData& gd) {
     const auto st = stats::baseStats(d);
-    return discipleCombatPower(st.physicalAttack, st.magicAttack, st.maxHp,
-                               st.physicalDefense, st.magicDefense, st.speed);
+    return discipleCombatPowerWithStar(st.physicalAttack, st.magicAttack, st.maxHp,
+                                       st.physicalDefense, st.magicDefense, st.speed,
+                                       resolveStar(gd, d.templateId));
 }
 
 /// 宗门总战力（Kotlin calculateSectPower：filter isAlive + sumOf Long）。
 /// 迭代域经 sync + View<DiscipleRef> 行序
 ///（战力和归约与序无关，切换收益 = 复用同一不变量校验）。
 inline int64_t calculateSectPower(const state::DiscipleStore& ds,
-                                  ecs::World& world) {
+                                  ecs::World& world,
+                                  const state::GameData& gd) {
     int64_t power = 0;
     ecs::syncDiscipleEntities(world, ds.size());
     ecs::View<ecs::DiscipleRef> view(world.registry());
     view.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
         const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
         if (ds.isAlive[row] != 1) return;
-        power += sectPowerOfDisciple(ds.materialize(row));
+        power += sectPowerOfDisciple(ds.materialize(row), gd);
     });
     return power;
 }
@@ -835,13 +839,13 @@ inline int64_t calculateSectPower(const state::DiscipleStore& ds,
 /// AI 宗门总战力（同一公式，作用于 aiSectDisciples 弟子列表）
 inline int64_t calculateAiSectPower(
     const std::map<std::string, std::vector<state::Disciple>>& aiSectDisciples,
-    const std::string& sectId) {
+    const std::string& sectId, const state::GameData& gd) {
     const auto it = aiSectDisciples.find(sectId);
     if (it == aiSectDisciples.end()) return 0;
     int64_t power = 0;
     for (const auto& d : it->second) {
         if (!d.isAlive) continue;
-        power += sectPowerOfDisciple(d);
+        power += sectPowerOfDisciple(d, gd);
     }
     return power;
 }
@@ -881,7 +885,7 @@ inline bool checkSingleVassalBreakaway(
     }
     if (!sectExists) return true;
     const int64_t aiPower =
-        calculateAiSectPower(state.aiSectDisciples, contract.vassalSectId);
+        calculateAiSectPower(state.aiSectDisciples, contract.vassalSectId, state.gameData);
     if (aiPower <= 0) return false;
     // Kotlin powerRatio = playerPower(Long) / aiPower.toDouble()
     const double powerRatio = static_cast<double>(playerPower) /
@@ -914,7 +918,7 @@ inline void processVassalBreakaway(GameState& state, rng::RngManager& rng,
         else if (r.type == "BATTLE_WIN") ++battleWins;
         else if (r.type == "BATTLE_LOSS") ++battleLosses;
     }
-    const int64_t playerPower = calculateSectPower(state.disciples, world);
+    const int64_t playerPower = calculateSectPower(state.disciples, world, state.gameData);
     auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
     std::vector<std::string> removedIds;
     for (const auto& contract : contracts) {
@@ -1141,7 +1145,7 @@ inline std::vector<std::string> collectQualifiedAiForBeast(
         for (const auto& d : disciplesIt->second) {
             if (!d.isAlive) continue;
             ++aliveCount;
-            aiPower += sectPowerOfDisciple(d);
+            aiPower += sectPowerOfDisciple(d, state.gameData);
         }
         if (aliveCount < kAiMinDisciplesForAttack) continue;
 

@@ -56,6 +56,9 @@ sealed class SpiritStoneSource {
     object StorageBag : SpiritStoneSource()
     object SecretRealm : SpiritStoneSource()
 
+    /** 寻访抽卡消费（与 [SpiritStoneReason.Gacha] 同名，C++ `kWalletReason` 同字面量） */
+    object Gacha : SpiritStoneSource()
+
     /** 内部使用（从 InventorySystem 委托时的默认值） */
     object Internal : SpiritStoneSource()
 }
@@ -82,6 +85,14 @@ sealed class SpiritStoneReason {
     object Theft : SpiritStoneReason()
     object ExplorationLoot : SpiritStoneReason()
     object BeastTribute : SpiritStoneReason()
+
+    /**
+     * 寻访抽卡消费（G09）。
+     *
+     * `key` 是年报 `annualExpenditureByReason` 的持久化键，必须与 C++
+     * `gacha_tx.h::kWalletReason` 同字面量——两条臂写进同一键，年报才不会分裂。
+     */
+    object Gacha : SpiritStoneReason()
 
     /** 内部使用（从 InventorySystem 委托时的默认值） */
     object Internal : SpiritStoneReason()

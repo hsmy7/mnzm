@@ -54,7 +54,9 @@ fun AISectAttackManager.decidePlayerAttack(gameData: GameData, rngManager: GameR
 
     for (attacker in gameData.worldMapSects.filter { !it.isPlayerSect }) {
         val aliveAttackers = passesAttackerGates(gameData, attacker, nowMonth, aiDisciplesMap)
-        val powerRatio = aliveAttackers?.let { computePowerRatio(it, aiDisciplesMap, playerSectId) }
+        val powerRatio = aliveAttackers?.let {
+            computePowerRatio(it, aiDisciplesMap, playerSectId, gameData.gachaStarMap)
+        }
         if (aliveAttackers == null || powerRatio == null) continue
         val attackChance = computeAttackChance(gameData, attacker, playerSectId, powerRatio)
 
@@ -120,13 +122,16 @@ internal fun AISectAttackManager.passesAttackerGates(
 internal fun AISectAttackManager.computePowerRatio(
     aliveAttackers: List<Disciple>,
     aiDisciplesMap: Map<String, List<Disciple>>,
-    playerSectId: String
+    playerSectId: String,
+    gachaStarMap: Map<String, Int>
 ): Double? {
     // ---- 战力计算 ----
-    val attackerPower = SectCombatPowerCalculator.calculateSectPower(aliveAttackers)
+    // 攻击方为 AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
+    val attackerPower = SectCombatPowerCalculator.calculateSectPower(aliveAttackers, emptyMap())
+    // 守军名册可含玩家弟子（按玩家宗门 id 取驻军），须用真实星级账本
     val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
     val defenderPower = SectCombatPowerCalculator.calculateSectPower(
-        defenderDisciples.filter { it.isAlive }
+        defenderDisciples.filter { it.isAlive }, gachaStarMap
     )
     if (defenderPower <= 0) return null
     return attackerPower.toDouble() / defenderPower.toDouble()

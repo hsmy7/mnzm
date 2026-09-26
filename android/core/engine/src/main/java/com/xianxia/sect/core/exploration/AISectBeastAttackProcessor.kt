@@ -128,7 +128,8 @@ class AISectBeastAttackProcessor @Inject constructor(
         absoluteMonth: Int,
         aliveDisciples: List<Disciple>
     ): Boolean {
-        val aiPower = SectCombatPowerCalculator.calculateSectPower(aliveDisciples)
+        // AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
+        val aiPower = SectCombatPowerCalculator.calculateSectPower(aliveDisciples, emptyMap())
         val beastPower = SectCombatPowerCalculator.calculateBeastCombatPower(
             maxHp = beast.beastMaxHp, physicalAttack = beast.beastPhysicalAttack,
             magicAttack = beast.beastMagicAttack, physicalDefense = beast.beastPhysicalDefense,

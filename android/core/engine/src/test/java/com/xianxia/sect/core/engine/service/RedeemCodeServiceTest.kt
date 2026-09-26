@@ -186,6 +186,10 @@ class RedeemCodeServiceTest {
             gachaFacade.usedCodesAtFirstGrant?.contains("FRAGM001") == true
         )
         assertTrue("碎片码不得直造弟子", store.discipleTables.assembleAll().isEmpty())
+        assertEquals(
+            "兑换码链路不得触发寻访出货（出货会扣灵石并按卡池概率掷点，与碎片入账是两条通道）",
+            emptyList<String>(), gachaFacade.pullCalls
+        )
     }
 
     // ── ③ 同一碎片码重复领取：不双增 ──────────────────────────────────────────
@@ -294,10 +298,19 @@ class RedeemCodeServiceTest {
      * 手写 Fake [GachaFacade]：记录每次入账调用，并用**真实账本** [GachaFragmentLedger]
      * 把结果写进 [FakeAtomicStateStore]，使碎片/星级断言落在生产换算口径上
      * （门槛与升星由账本单源给出，本测试不写死黄金值）。
+     *
+     * 出货面（[pullOnce] / [pullTen]）在本链路是**禁止调用面**：调用即记入
+     * [pullCalls] 并当场判红。判据是契约而非占位——G09 之后 `pullOnce` 已会真扣灵石、
+     * 真掷概率，兑换码若误走它，玩家会以 5000 灵石/次的代价「兑」到一次寻访。
      */
     private class RecordingGachaFacade(private val store: FakeAtomicStateStore) : GachaFacade {
         private val _grants = mutableListOf<Pair<String, Int>>()
         val grants: List<Pair<String, Int>> get() = _grants
+
+        private val _pullCalls = mutableListOf<String>()
+
+        /** 寻访出货调用记录（正常路径恒为空——发放与寻访是两条互不相犯的通道） */
+        val pullCalls: List<String> get() = _pullCalls
 
         /** 首次入账时账本里已有的已用码清单——用于钉「码已核销才入账」的次序 */
         var usedCodesAtFirstGrant: List<String>? = null
@@ -308,9 +321,19 @@ class RedeemCodeServiceTest {
         override val starMap = MutableStateFlow<Map<String, Int>>(emptyMap())
         override val history = MutableStateFlow<List<GachaHistoryEntry>>(emptyList())
 
-        override suspend fun pullOnce(poolId: String): GachaPullResult = GachaPullResult.NotReady
+        override suspend fun pullOnce(poolId: String): GachaPullResult = rejectPull("pullOnce", poolId)
 
-        override suspend fun pullTen(poolId: String): GachaPullResult = GachaPullResult.NotReady
+        override suspend fun pullTen(poolId: String): GachaPullResult = rejectPull("pullTen", poolId)
+
+        /** 出货被调用 = 兑换码越界走到寻访域，直接判红并留下调用痕迹供断言 */
+        private fun rejectPull(op: String, poolId: String): GachaPullResult {
+            _pullCalls += "$op($poolId)"
+            throw AssertionError(
+                "兑换码链路触发了寻访出货 $op(poolId=\"$poolId\")——角色类奖励的唯一通道是 " +
+                    "grantFragments 入账（G08 D-9/D-16），寻访出货会扣灵石并按卡池概率掷点。" +
+                    "落点：RedeemCodeService 的奖励发放分支（改回 grantFragments）"
+            )
+        }
 
         override suspend fun grantFragments(templateId: String, count: Int): GachaGrantResult {
             if (_grants.isEmpty()) usedCodesAtFirstGrant = store.gameDataSnapshot.usedRedeemCodes

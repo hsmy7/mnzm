@@ -92,32 +92,36 @@ class OverflowMailSender @Inject constructor(
 
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
-        /** 来源名映射表——新增 withTrackingSource 来源时必须同步添加（守卫测试强制） */
+        /**
+         * 来源内部键 → 玩家可见显示名映射表（溢出邮件标题/正文取此处的文案）。
+         *
+         * 键域 = 引擎 `withTrackingSource` / `sendOverflowMail` 与 C++ 引擎 `draft.source`
+         * 用到的来源字面量；表内未登记的键在 [sourceDisplayName] 处统一降级为"未知"。
+         * 表与来源点双向核对：新使用的来源键必须在此登记，此处的每个键也必须有来源点
+         * 使用（守卫测试 OverflowMailSenderTest 强制，`unknown` 作为降级口径豁免）。
+         */
         val SOURCE_DISPLAY_NAMES: Map<String, String> = mapOf(
             "battle" to "宗门战",
-            "beast_world" to "妖兽战",
-            "cave_world" to "洞穴战",
-            "cave" to "洞府探索",
+            "beast_world" to "妖兽战场",
+            "cave_world" to "洞穴战场",
             "beast_raid" to "妖兽侵袭",
             "patrol" to "巡视塔",
-            "forge" to "锻造",
-            "alchemy" to "炼丹",
+            "forge" to "锻造台",
+            "alchemy" to "丹房",
             "spirit_field" to "灵田",
-            "storage_bag" to "储物袋",
-            "merchant" to "商人",
+            "storage_bag" to "储物袋开启",
+            "merchant" to "商人交易",
             "redeem" to "兑换码",
-            "mail" to "邮件",
-            "disciple_reward" to "弟子奖励",
-            "disciple_unequip" to "弟子卸装",
+            "mail" to "邮件附件",
             "trial" to "天道试炼",
-            "sect_level" to "宗门等级",
+            "sect_level" to "宗门升级",
             "sect_trade" to "宗门贸易",
-            "quest" to "任务",
-            "building" to "建筑",
-            "confiscate" to "储物袋回收",
+            "quest" to "任务奖励",
+            "building" to "建筑产出",
+            "confiscate" to "没收弟子物品",
             "secret_realm" to "远古秘境",
-            "disciple_death" to "弟子陨落归还",
-            "disciple_expel" to "弟子逐出归还",
+            "disciple_death" to "弟子遗物归还",
+            "gacha_pull" to "仙缘寻访",
             "unknown" to "未知"
         )
 
@@ -404,7 +408,7 @@ class OverflowMailSender @Inject constructor(
         }
         val content = buildString {
             append("尊敬的修士：\n\n")
-            append("因仓库容量不足，以下${sourceName}奖励未能存入仓库，已转入本邮件附件，请及时领取：\n\n")
+            append("以下物品来自「$sourceName」，因仓库已满改为邮件送达。请及时领取：\n\n")
             append(itemLines)
             append("\n\n（邮件自发送起 $MAIL_EXPIRE_DAYS 天内有效，逾期删除）\n——天道意志")
         }
@@ -413,7 +417,7 @@ class OverflowMailSender @Inject constructor(
             slotId = slotId,
             source = "overflow",
             mailType = "overflow",
-            title = "【仓库已满】${sourceName}奖励转入邮件",
+            title = "【仓库已满】来自「$sourceName」的物品已转入邮件",
             content = content,
             senderName = "天道意志",
             sendTime = now,

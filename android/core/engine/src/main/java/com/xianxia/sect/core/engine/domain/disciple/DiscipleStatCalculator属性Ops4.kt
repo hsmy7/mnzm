@@ -136,6 +136,7 @@ fun DiscipleStatCalculator.getFinalStats(
  * 计算每旬修炼值（乘区制核心公式）。
  *
  * 公式：基础速度 × Π(1 + 各乘区加算和)
+ * 乘区相乘顺序固定为 资源→社交→状态→临时→星级（C++ `disciple.h` 同序）。
  *
  * @param realm 弟子境界（0=仙人 … 9=炼气）
  * @param spiritRootCount 灵根数量（1-5）
@@ -157,6 +158,7 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
         * (1.0 + zones.socialBonus)
         * (1.0 + zones.statusBonus)
         * (1.0 + zones.temporaryBonus)
+        * (1.0 + zones.starBonus)
     ).coerceAtLeast(MIN_CULTIVATION_PER_PHASE)
 }
 
@@ -194,7 +196,8 @@ internal fun DiscipleStatCalculator.computeCultivationZones(
         resourceBonus = resourceBonus,
         socialBonus = socialBonus,
         statusBonus = statusBonus,
-        temporaryBonus = input.temporaryBonus
+        temporaryBonus = input.temporaryBonus,
+        starBonus = input.starBonus
     )
 }
 
@@ -209,7 +212,8 @@ fun DiscipleStatCalculator.buildCultivationZones(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0,
+    starBonus: Double = 0.0
 ): CultivationSpeedZones {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（旧
     // cultivationSpeedBonus 顶层字段不再参与累加，防止同颗丹药双字段双倍生效）
@@ -226,7 +230,8 @@ fun DiscipleStatCalculator.buildCultivationZones(
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            temporaryBonus = temporaryBonus
+            temporaryBonus = temporaryBonus,
+            starBonus = starBonus
         )
     )
 }
@@ -242,7 +247,8 @@ fun DiscipleStatCalculator.buildCultivationZones(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0,
+    starBonus: Double = 0.0
 ): CultivationSpeedZones {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
     // 旧 cultivationSpeedBonus 顶层字段不再参与累加，防双倍生效）
@@ -260,7 +266,8 @@ fun DiscipleStatCalculator.buildCultivationZones(
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            temporaryBonus = temporaryBonus
+            temporaryBonus = temporaryBonus,
+            starBonus = starBonus
         )
     )
 }
@@ -282,7 +289,8 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0,
+    starBonus: Double = 0.0
 ): Double {
     // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
     // 旧 cultivationSpeedBonus 顶层字段不再参与累加，防双倍生效）
@@ -299,7 +307,8 @@ fun DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
-            temporaryBonus = temporaryBonus
+            temporaryBonus = temporaryBonus,
+            starBonus = starBonus
         )
     )
     return calculateCultivationPerPhase(input.realm, input.spiritRootCount, zones)
@@ -316,12 +325,13 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0,
+    starBonus: Double = 0.0
 ): Double {
     val zones = buildCultivationZones(
         disciple, manuals, manualProficiencies,
         buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus
+        cultivationSubsidyBonus, starBonus
     )
     return calculateCultivationPerPhase(disciple.realm, disciple.spiritRoot.types.size, zones)
 }
@@ -337,12 +347,13 @@ fun DiscipleStatCalculator.calculateCultivationPerPhase(
     buildingBonus: Double = 1.0,
     preachingElderBonus: Double = 0.0,
     preachingMastersBonus: Double = 0.0,
-    cultivationSubsidyBonus: Double = 0.0
+    cultivationSubsidyBonus: Double = 0.0,
+    starBonus: Double = 0.0
 ): Double {
     val zones = buildCultivationZones(
         aggregate, manuals, manualProficiencies,
         buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus
+        cultivationSubsidyBonus, starBonus
     )
     return calculateCultivationPerPhase(aggregate.realm, aggregate.spiritRoot.types.size, zones)
 }

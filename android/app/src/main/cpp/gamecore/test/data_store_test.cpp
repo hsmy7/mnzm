@@ -13,9 +13,12 @@
 #include "gamecore/data/data_inject.h"
 #include "gamecore/data/data_store.h"
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/data/gacha_pool_db.h"
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/recipe_db.h"
+
+#include "game_data_json.h"
 
 namespace gamecore::data {
 namespace {
@@ -35,34 +38,8 @@ namespace {
 // 兜底惯例），可用 `--data_json=<path>` 覆盖（桌面注入工具用）。
 // ============================================================
 
-/// 定位 `assets/data/game-data.json`
-///
-/// ctest 工作目录由 test/CMakeLists.txt 的 `gtest_discover_tests(... WORKING_DIRECTORY
-/// ${CMAKE_CURRENT_SOURCE_DIR}/..)` 钉死为 **gamecore 源码根** ⇒ 首个候选即命中。
-/// 其余候选仅为直接从构建目录手工运行时兜底（不是主要路径）。
-std::string locateGameDataJson() {
-    const std::vector<std::string> candidates = {
-        // 权威候选（ctest 工作目录 = gamecore/）
-        "android/app/src/main/assets/data/game-data.json",
-        // 手工运行兜底
-        "../../../../../android/app/src/main/assets/data/game-data.json",
-        "../../../../../../android/app/src/main/assets/data/game-data.json",
-        "../../../../../../app/src/main/assets/data/game-data.json",
-        "app/src/main/assets/data/game-data.json",
-    };
-    for (const auto& c : candidates) {
-        std::ifstream f(c);
-        if (f.good()) return c;
-    }
-    return {};
-}
-
-std::string readFile(const std::string& path) {
-    std::ifstream f(path, std::ios::binary);
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
-}
+/// 定位 `assets/data/game-data.json` —— 收敛到 `test/game_data_json.h`
+/// （多候选兜底与"定位不到即 fail-fast"的口径与抽卡守护共用一份）
 
 /// 测试夹具：进程内全局 store 只能注入一次 ⇒ 每个用例前复位（仅测试可用）
 class DataStoreGuardTest : public ::testing::Test {
@@ -72,12 +49,12 @@ protected:
 
     /// 加载数据文件全文（缺失即 fail-fast——不允许静默跳过守卫）
     static std::string loadPayload() {
-        const std::string p = locateGameDataJson();
-        if (p.empty()) {
+        const std::string payload = testsupport::readGameDataJson();
+        if (payload.empty()) {
             ADD_FAILURE() << "game-data.json 不存在——请先运行 node scripts/gen-game-data.mjs";
             return {};
         }
-        return readFile(p);
+        return payload;
     }
 
     static nlohmann::json parsePayload(const std::string& payload) {
@@ -143,6 +120,89 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
         ASSERT_EQ(built[i].id, pillRecipes()[i].id);
         EXPECT_EQ(built[i].price, pillRecipes()[i].price);
     }
+
+    // 卡池 / 角色模板（G09）：同样逐行逐字段比对，且容器长度必须等于段长
+    // （"注入器读到几条就是几条"——漏读/半注入在这里显形）
+    EXPECT_EQ(db["gachaPools"].get<std::vector<GachaPoolTemplate>>(), gachaPools());
+    EXPECT_EQ(db["characterTemplates"].get<std::vector<CharacterTemplate>>(),
+              characterTemplates());
+    EXPECT_EQ(db["gachaPools"].size(), gachaPools().size());
+    EXPECT_EQ(db["characterTemplates"].size(), characterTemplates().size());
+}
+
+// ── 卡池两表专项（G09 数据面：C++ 抽卡 roll 的唯一配置来源）──────────
+
+TEST_F(DataStoreGuardTest, 卡池两表注入计数与段长一致且关键字段可读) {
+    const std::string payload = loadPayload();
+    if (payload.empty()) return;
+    const auto doc = parsePayload(payload);
+    ASSERT_TRUE(doc["db"]["gachaPools"].is_array());
+    ASSERT_TRUE(doc["db"]["characterTemplates"].is_array());
+
+    const auto counts = inject::applyAndCount(doc);
+    // AppliedCounts 与段长逐一对齐（多算/漏算都在这里显形）
+    EXPECT_EQ(static_cast<int32_t>(doc["db"]["gachaPools"].size()), counts.gachaPools);
+    EXPECT_EQ(static_cast<int32_t>(doc["db"]["characterTemplates"].size()),
+              counts.characterTemplates);
+    // 现况锚点：一张常驻池 + 六个具名角色（增减条目须同步本断言与产品口径）
+    EXPECT_EQ(1, counts.gachaPools);
+    EXPECT_EQ(6, counts.characterTemplates);
+    // 其余八段计数非零（一次注入喂满九张表，零段被静默跳过）
+    EXPECT_GT(counts.equipment, 0);
+    EXPECT_GT(counts.gachaPools, 0);
+
+    // 按 id 查询入口命中注入值；池关键字段可读（抽卡前置校验的输入面）。
+    // 数值一律取自数据文件，本用例**不抄字面量**——手工复刻的期望表是
+    // 编译与生成器都抓不到的孤儿面（HANDOVER-3 §2.3 坑 9）。
+    const auto& poolJson = doc["db"]["gachaPools"][0];
+    const auto* pool = gachaPoolById(poolJson["poolId"].get<std::string>());
+    ASSERT_NE(nullptr, pool);
+    EXPECT_TRUE(pool->enabled);
+    EXPECT_GT(pool->pricePerPull, 0);
+    EXPECT_GT(pool->pity.pullThreshold, 0);
+    EXPECT_GT(pool->pity.fragmentCount, 0);
+    EXPECT_EQ(poolJson["pity"]["pickMode"].get<std::string>(), pool->pity.pickMode);
+    EXPECT_GT(pool->fragmentsPerStar, 0);
+    EXPECT_GT(pool->maxStar, 0);
+    EXPECT_FALSE(pool->categories.empty());
+    EXPECT_EQ(poolJson["categories"].size(), pool->categories.size());
+    EXPECT_EQ(poolJson["itemRarityWeights"].size(), pool->itemRarityWeights.size());
+    EXPECT_EQ(nullptr, gachaPoolById("no_such_pool"));
+
+    const auto& tplJson = doc["db"]["characterTemplates"][0];
+    const auto* tpl = characterTemplateById(tplJson["id"].get<std::string>());
+    ASSERT_NE(nullptr, tpl);
+    EXPECT_EQ(tplJson["name"].get<std::string>(), tpl->name);
+    EXPECT_EQ(tplJson["avatarKey"].get<std::string>(), tpl->avatarKey);
+    EXPECT_EQ(tplJson["portraitKey"].get<std::string>(), tpl->portraitKey);
+    EXPECT_EQ(nullptr, characterTemplateById("no_such_template"));
+
+    // 保底候选（全部角色类别的 templateIds 并集，按声明序）必须覆盖六名：
+    // 抽卡侧按此序取随机下标，序与集都由本表钉死，双臂不可能各抽各的
+    std::vector<std::string> characterIds;
+    for (const auto& cat : pool->categories) {
+        if (!cat.isCharacter()) continue;
+        ASSERT_FALSE(cat.templateIds.empty()) << "角色类别候选为空: " << cat.kind;
+        for (const auto& id : cat.templateIds) characterIds.push_back(id);
+    }
+    EXPECT_EQ(6u, characterIds.size());
+    for (const auto& id : characterIds) {
+        EXPECT_NE(nullptr, characterTemplateById(id)) << "池引用表外角色: " << id;
+    }
+}
+
+TEST_F(DataStoreGuardTest, 卡池段存在但为空即整体注入失败) {
+    // 段在而非数组 / 段在为空数组 ⇒ return false ⇒ 落 kFallbackDefault，
+    // 禁止"半注入"（其余段成功、卡池段静默为空）
+    EXPECT_FALSE(inject::injectFromJson(
+        R"({"schemaVersion":1,"db":{"gachaPools":[]}})"));
+    EXPECT_EQ(GameDataState::kFallbackDefault, gameDataStoreState().state);
+    EXPECT_EQ(1, gameDataStoreState().stats.failedParse);
+
+    resetGameDataStoreForTest();
+    EXPECT_FALSE(inject::injectFromJson(
+        R"({"schemaVersion":1,"db":{"characterTemplates":"oops"}})"));
+    EXPECT_EQ(GameDataState::kFallbackDefault, gameDataStoreState().state);
 }
 
 TEST_F(DataStoreGuardTest, 注入后内联兜底与数据文件默认值一致) {
@@ -166,13 +226,13 @@ TEST_F(DataStoreGuardTest, 注入后内联兜底与数据文件默认值一致) 
     EXPECT_EQ(pillBefore, pillRecipes());
 }
 
-TEST_F(DataStoreGuardTest, 全部七表均可注入且消费入口非空) {
+TEST_F(DataStoreGuardTest, 全部九表均可注入且消费入口非空) {
     const std::string payload = loadPayload();
     if (payload.empty()) return;
     ASSERT_TRUE(inject::injectFromJson(payload));
 
-    // 七张注入表（5 简单表 + forge/pill 配方）的消费入口均非空；
-    // beast_config 的结构性表（C++ 侧真相源，残余登记）同验
+    // 九张注入表（5 简单表 + forge/pill 配方 + G09 卡池/角色模板）的消费入口
+    // 均非空；beast_config 的结构性表（C++ 侧真相源，残余登记）同验
     EXPECT_FALSE(equipmentTemplates().empty());
     EXPECT_FALSE(herbTemplates().empty());
     EXPECT_FALSE(seedTemplates().empty());
@@ -180,8 +240,26 @@ TEST_F(DataStoreGuardTest, 全部七表均可注入且消费入口非空) {
     EXPECT_FALSE(beastMaterialTemplates().empty());
     EXPECT_FALSE(forgeRecipes().empty());
     EXPECT_FALSE(pillRecipes().empty());
+    EXPECT_FALSE(gachaPools().empty());
+    EXPECT_FALSE(characterTemplates().empty());
     EXPECT_FALSE(beastTypes().empty());
     EXPECT_GT(detail::beastRealmStats(0).hp, 0);
+
+    // 卡池类别的品阶口径：物品类别必须给出 itemSource 与 maxRarity，
+    // 角色类别必须给出候选（抽卡前置校验的输入完整性，缺即配置漂移）
+    for (const auto& pool : gachaPools()) {
+        ASSERT_FALSE(pool.categories.empty()) << "池无类别: " << pool.poolId;
+        for (const auto& cat : pool.categories) {
+            if (cat.isCharacter()) {
+                ASSERT_FALSE(cat.templateIds.empty()) << "角色类别无候选: " << cat.kind;
+                EXPECT_TRUE(cat.itemSource.empty()) << "角色类别带 itemSource: " << cat.kind;
+            } else {
+                ASSERT_FALSE(cat.itemSource.empty()) << "物品类别无 itemSource: " << cat.kind;
+                EXPECT_GT(cat.maxRarity, 0) << "物品类别缺 maxRarity: " << cat.kind;
+                EXPECT_TRUE(cat.templateIds.empty()) << "物品类别带 templateIds: " << cat.kind;
+            }
+        }
+    }
 
     // 注入后派生回填的 price 必须为正（Kotlin PillTemplate.price ≥ 4000 档）
     EXPECT_GT(pillRecipes().front().price, 0);

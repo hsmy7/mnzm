@@ -23,6 +23,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StarZone
 import com.xianxia.sect.core.model.mergeRewardCards
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.spiritStones
@@ -462,8 +463,16 @@ class GameStateStoreImpl @Inject constructor(
             return cachedAggregates
         }
 
+    /**
+     * 弟子战力缓存项。
+     *
+     * [star] 与 [fingerprint] 并列作命中判据：星级不在指纹内（指纹与 C++
+     * `sectPowerFingerprint` 逐位对拍，加项会整体位移既有指纹值），升星因此
+     * 必须靠本字段失效重算。
+     */
     private data class CachedPower(
         val fingerprint: Int,
+        val star: Int,
         val power: Long
     )
 
@@ -499,7 +508,10 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /**
-     * 宗门战力汇总（仅存活弟子累计；指纹缓存命中避免重复计算）。
+     * 宗门战力汇总（仅存活弟子累计；指纹 + 星级双判据缓存命中避免重复计算）。
+     *
+     * 星级账本取 `gameDataSnapshot` 当前值（星级入账写在该 GameData 实例上，
+     * 读当前值即得已落账星级），按弟子 `templateId` 反查。
      *
      * @param aggregates 弟子聚合列表
      * @return 宗门总战力
@@ -507,17 +519,20 @@ class GameStateStoreImpl @Inject constructor(
     private fun computeCombatPower(
         aggregates: List<DiscipleAggregate>
     ): Long {
+        val gachaStarMap = gameDataSnapshot.gachaStarMap
         var total = 0L
         for (aggregate in aggregates) {
             if (!aggregate.isAlive) continue
             val discipleId = aggregate.id
+            // 聚合的 sourceRef 即组装时的弟子实例，templateId 由此读取
+            val star = StarZone.starOf(gachaStarMap, aggregate.sourceRef?.templateId)
             val fp = SectCombatPowerCalculator.computeFingerprint(aggregate)
             val cached = disciplePowerCache[discipleId]
-            if (cached != null && cached.fingerprint == fp) {
+            if (cached != null && cached.fingerprint == fp && cached.star == star) {
                 total += cached.power
             } else {
-                val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate)
-                disciplePowerCache[discipleId] = CachedPower(fp, power)
+                val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate, star)
+                disciplePowerCache[discipleId] = CachedPower(fp, star, power)
                 total += power
             }
         }
@@ -592,7 +607,12 @@ class GameStateStoreImpl @Inject constructor(
     override val discipleAggregates: StateFlow<List<DiscipleAggregate>> =
         _aggregatesFlow.asStateFlow()
 
-    /** 宗门战力：与聚合同步（[updateAggregates] 写回点统一重算） */
+    /**
+     * 宗门战力：与聚合同步（[updateAggregates] 写回点统一重算）。
+     *
+     * 星级乘区在每次汇总时按当前星级账本解析，故账本变化随下一次弟子聚合
+     * 重算生效（[computeCombatPower] 的 star 判据保证届时必然刷新）。
+     */
     override val sectCombatPower: StateFlow<Long> = _combatPowerFlow.asStateFlow()
 
     private val aiSectDisciplesFlow = _gameDataFlow
@@ -615,13 +635,16 @@ class GameStateStoreImpl @Inject constructor(
                 var total = 0L
                 for (disciple in aliveDisciples) {
                     val aggregate = disciple.toAggregate()
+                    // AI 宗门弟子由世界生成、无角色模板 id，星级恒 0（×1.00）；
+                    // 仍与玩家侧同一判据解析，缓存亦按星级失效（结构对称）
+                    val star = StarZone.starOf(emptyMap(), disciple.templateId)
                     val fp = SectCombatPowerCalculator.computeFingerprint(aggregate)
                     val cached = aiDisciplePowerCache[disciple.id]
-                    if (cached != null && cached.fingerprint == fp) {
+                    if (cached != null && cached.fingerprint == fp && cached.star == star) {
                         total += cached.power
                     } else {
-                        val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate)
-                        aiDisciplePowerCache[disciple.id] = CachedPower(fp, power)
+                        val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate, star)
+                        aiDisciplePowerCache[disciple.id] = CachedPower(fp, star, power)
                         total += power
                     }
                 }

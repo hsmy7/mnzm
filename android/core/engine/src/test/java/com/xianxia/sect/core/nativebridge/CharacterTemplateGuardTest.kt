@@ -48,6 +48,11 @@ import kotlin.reflect.full.memberProperties
  * | [镜像表自洽] | 把 `ALL` 里两条的 id 改成同名 | `id 必须唯一` |
  * | [开局模板与配置一致且不送碎片] | 把中性源 `gachaDefaults.startBonusFragments` 改 5 后重跑生成器 | `开局送碎片` |
  * | [碎片升星常量三向一致] | 把 `gacha_fragment.h` 的 `kFragmentsPerStar` 改 99；或把产物 `db.gachaPools[0].maxStar` 改 6 | `三向不同值` |
+ * | [星级乘区与历史环常量三向一致 - 三向臂逐值] | 把 `star_zone.h` 的 `kStarBattlePctPerStar` 改 0.10 | `三向不同值`（0.08/0.08/0.1） |
+ * | 同上 | 把 `gacha_tx.h` 的 `kHistoryRingSize` 改 30（历史环少留 20 抽） | `三向不同值`（historyRingSize 那一行） |
+ * | 同上 | 只改中性源 `gachaDefaults.starCultPctPerStar` 并 `node scripts/gen-game-data.mjs` 重生成 | `三向不同值`（配置臂先分叉） |
+ * | 同上 | 把 C++ 常量改名或挪进别的头文件（三向臂取不到值） | `解析不到 \`inline constexpr double kStarCultPctPerStar\`` |
+ * | 同上（int 版臂） | 把 `kHistoryRingSize` 改名、或去掉行末分号 | `解析不到 \`inline constexpr int32_t kHistoryRingSize\`` |
  * | [卡池经济常量与配置同值] | 把 `GameConfig.Gacha.PRICE_PER_PULL` 改 5001 | `配置 ↔ Kotlin` |
  * | [灵根取值域合法] | 把某条 `spiritRoots` 扩到 3 个元素，或写成 `"thunder"` | `模板灵根域校验失败` |
  *
@@ -103,16 +108,45 @@ class CharacterTemplateGuardTest {
         error("unreachable：上面的判红已抛出 AssertionError")
     }
 
-    /** 解析 C++ `inline constexpr int32_t <name> = <值>;`（解析不到即判红）。 */
-    private fun cppIntConstant(name: String): Int {
-        val header = locate(
-            GACHA_FRAGMENT_HEADER_RELATIVE, "C++ 碎片入账头 gacha_fragment.h", REPAIR_CPP
-        ).readText()
+    /**
+     * 解析 C++ `inline constexpr int32_t <name> = <值>;`（解析不到即判红）。
+     *
+     * 默认读碎片入账头；卡池侧常量按所在头文件显式取（见 [GACHA_TX_HEADER_RELATIVE]），
+     * 三向比对的第三臂**必须**指向常量真正所在的那个文件——读错文件等于没看护。
+     */
+    private fun cppIntConstant(name: String): Int =
+        cppIntConstant(GACHA_FRAGMENT_HEADER_RELATIVE, "C++ 碎片入账头 gacha_fragment.h", name)
+
+    /** 指定头文件里的 `inline constexpr int32_t`（int 版三向比对第三臂）。 */
+    private fun cppIntConstant(headerRelative: String, headerLabel: String, name: String): Int {
+        val header = locate(headerRelative, headerLabel, REPAIR_CPP).readText()
         val value = Regex("""inline constexpr int32_t\s+$name\s*=\s*(-?\d+)\s*;""")
             .find(header)?.groupValues?.get(1)?.toIntOrNull()
         return value ?: unreachable(
-            "gacha_fragment.h 里解析不到 `inline constexpr int32_t $name`——常量被改名或改成" +
-                "非常量表达式都会让三向比对失去意义。$REPAIR_CPP"
+            "$headerLabel 里解析不到 `inline constexpr int32_t $name`——常量被改名、挪到别的头文件" +
+                "或改成非常量表达式，都会让三向比对失去意义（此时必须同步改本守卫的取值落点）。" +
+                "$REPAIR_CPP"
+        )
+    }
+
+    /**
+     * 指定头文件里的 `inline constexpr double`（星级乘区这类百分比常量的第三臂）。
+     *
+     * 与 int 版分开写而非共用正则：`0.08` 走 `toIntOrNull()` 会直接解析失败，
+     * 而把 int 常量按 double 读会把 `50` 这类环容量悄悄变成浮点比对。
+     */
+    private fun cppDoubleConstant(
+        headerRelative: String,
+        headerLabel: String,
+        name: String,
+    ): Double {
+        val header = locate(headerRelative, headerLabel, REPAIR_CPP).readText()
+        val value = Regex("""inline constexpr double\s+$name\s*=\s*(-?\d+(?:\.\d+)?)\s*;""")
+            .find(header)?.groupValues?.get(1)?.toDoubleOrNull()
+        return value ?: unreachable(
+            "$headerLabel 里解析不到 `inline constexpr double $name`——若把它改写成 " +
+                "`1 + star * 0.08` 之类的复合表达式，三向比对就取不到值了（口径 A 的每星加成" +
+                "必须是可直接比对的常量）。$REPAIR_CPP"
         )
     }
 
@@ -301,14 +335,9 @@ class CharacterTemplateGuardTest {
     @Test
     fun `卡池经济常量与配置同值 - gachaDefaults 与 standard 池`() {
         val (_, defaults, pool) = gachaConfig()
-        val pity = pool.getValue("pity").jsonObject
+        val pity = pool["pity"]?.jsonObject
+            ?: unreachable("db.gachaPools[0] 缺 pity 段（保底阈值与碎片数的载体）。$REPAIR_NEUTRAL")
         val rows = listOf(
-            "gachaDefaults.historyRingSize ↔ GameConfig.Gacha.HISTORY_RING_SIZE" to
-                listOf(num(defaults, "historyRingSize"), GameConfig.Gacha.HISTORY_RING_SIZE.toDouble()),
-            "gachaDefaults.starBattlePctPerStar ↔ STAR_BATTLE_PCT_PER_STAR" to
-                listOf(num(defaults, "starBattlePctPerStar"), GameConfig.Gacha.STAR_BATTLE_PCT_PER_STAR),
-            "gachaDefaults.starCultPctPerStar ↔ STAR_CULT_PCT_PER_STAR" to
-                listOf(num(defaults, "starCultPctPerStar"), GameConfig.Gacha.STAR_CULT_PCT_PER_STAR),
             "gachaDefaults.injuryHealPctPerPhase ↔ INJURY_HEAL_PCT_PER_PHASE" to
                 listOf(num(defaults, "injuryHealPctPerPhase"), GameConfig.Gacha.INJURY_HEAL_PCT_PER_PHASE),
             "gachaDefaults.breakthroughCompBonus ↔ BREAKTHROUGH_COMP_BONUS" to
@@ -329,6 +358,55 @@ class CharacterTemplateGuardTest {
                 "\n改口径的唯一入口是中性源 scripts/data/gacha_config_sample.json + " +
                 "node scripts/gen-game-data.mjs；确需改 Kotlin 时落点为 android/core/domain/" +
                 "src/main/java/com/xianxia/sect/core/GameConfig.kt 的 object Gacha。",
+            drift.isEmpty(),
+        )
+    }
+
+    // ── ⑥b 星级乘区与历史环常量三向（G09 D-14：配置 ↔ Kotlin ↔ C++ 头文件）─────
+
+    /**
+     * G09 把这三项从「配置 ↔ Kotlin」两向升级为**三向**。
+     *
+     * 为什么必须是三向：星级乘区（口径 A）与寻访历史环都是**两条臂各自实现一遍**的口径
+     * ——C++ 在 `star_zone.h` / `gacha_tx.h` 里写死，Kotlin 在 `StarZone` /
+     * `GameConfig.Gacha` 里写死，配置在 `gachaDefaults` 里再写一份。只比两向时，改 C++
+     * 一侧（例如把 8% 改成 10%）编译、生成器与既有两向守卫全部沉默，后果是「同一份存档、
+     * 两条臂算出两套战力」——AUTHORITATIVE 与回退臂的分叉恰好是最难复现的那类缺陷。
+     * D-14 已拍板「C++ 用 inline constexpr、不注入 gachaDefaults」⇒ 本用例是这条决定
+     * 唯一的机器看护点。
+     */
+    @Test
+    fun `星级乘区与历史环常量三向一致 - 三向臂逐值`() {
+        val (_, defaults, _) = gachaConfig()
+        val rows = listOf(
+            "starBattlePctPerStar（战斗侧每星加成，口径 A：1★ 基线 ×1.00）" to listOf(
+                num(defaults, "starBattlePctPerStar"),
+                GameConfig.Gacha.STAR_BATTLE_PCT_PER_STAR,
+                cppDoubleConstant(STAR_ZONE_HEADER_RELATIVE, STAR_ZONE_HEADER_LABEL, "kStarBattlePctPerStar"),
+            ),
+            "starCultPctPerStar（修炼侧每星加成）" to listOf(
+                num(defaults, "starCultPctPerStar"),
+                GameConfig.Gacha.STAR_CULT_PCT_PER_STAR,
+                cppDoubleConstant(STAR_ZONE_HEADER_RELATIVE, STAR_ZONE_HEADER_LABEL, "kStarCultPctPerStar"),
+            ),
+            "historyRingSize（寻访历史环容量）" to listOf(
+                num(defaults, "historyRingSize"),
+                GameConfig.Gacha.HISTORY_RING_SIZE.toDouble(),
+                cppIntConstant(GACHA_TX_HEADER_RELATIVE, GACHA_TX_HEADER_LABEL, "kHistoryRingSize").toDouble(),
+            ),
+        )
+        val drift = rows.filter { it.second.distinct().size > 1 }
+        assertTrue(
+            "星级乘区 / 历史环常量三向不同值：\n" +
+                drift.joinToString(separator = "\n") { (label, values) -> "$label：配置/Kotlin/C++ = $values" } +
+                "\n三向落点：① 中性源 scripts/data/gacha_config_sample.json 的 gachaDefaults → 产物 " +
+                "android/app/src/main/assets/data/game-data.json（跑 node scripts/gen-game-data.mjs）" +
+                "② android/core/domain/src/main/java/com/xianxia/sect/core/GameConfig.kt 的 object Gacha" +
+                "（战斗/修炼乘区的 Kotlin 实现是 core/domain/…/model/StarZone.kt）③ C++ 常量本体：" +
+                "system/star_zone.h 的 kStarBattlePctPerStar / kStarCultPctPerStar、" +
+                "system/gacha_tx.h 的 kHistoryRingSize。" +
+                "\n改 C++ 侧任一常量都必须同步 Kotlin 与配置，并复查 star_zone_test.cpp 与 " +
+                "gacha_pull_test.cpp 的期望值（口径 A 的 1★ ⇒ ×1.00 判据另见 StarZone 的用例）。",
             drift.isEmpty(),
         )
     }
@@ -372,15 +450,28 @@ class CharacterTemplateGuardTest {
         const val GACHA_FRAGMENT_HEADER_RELATIVE =
             "app/src/main/cpp/gamecore/include/gamecore/system/gacha_fragment.h"
 
+        /** 星级乘区（口径 A）的 C++ 常量所在头文件（三向比对的第三臂） */
+        const val STAR_ZONE_HEADER_RELATIVE =
+            "app/src/main/cpp/gamecore/include/gamecore/system/star_zone.h"
+        const val STAR_ZONE_HEADER_LABEL = "C++ 星级乘区头 star_zone.h"
+
+        /** 寻访抽卡事务的 C++ 常量所在头文件（历史环容量三向比对的第三臂） */
+        const val GACHA_TX_HEADER_RELATIVE =
+            "app/src/main/cpp/gamecore/include/gamecore/system/gacha_tx.h"
+        const val GACHA_TX_HEADER_LABEL = "C++ 寻访事务头 gacha_tx.h"
+
         /** 中性源侧修复指引（产物比对的落点） */
         const val REPAIR_NEUTRAL =
             "修复：改 scripts/data/gacha_config_sample.json 后在仓库根跑 node scripts/gen-game-data.mjs，" +
                 "再同步 android/core/domain/src/main/java/com/xianxia/sect/core/model/CharacterTemplate.kt"
 
-        /** C++ 侧修复指引（三向比对的第三臂） */
+        /** C++ 侧修复指引（三向比对的第三臂；常量按所在头文件逐个点名） */
         const val REPAIR_CPP =
-            "修复：android/app/src/main/cpp/gamecore/include/gamecore/system/gacha_fragment.h" +
-                "（改常量须同步 test/gacha_fragment_test.cpp 与 core/engine 侧 DiffGachaFragmentTest）"
+            "修复：C++ 常量落在 gamecore/include/gamecore/system/ 下的 gacha_fragment.h" +
+                "（kFragmentsPerStar / kMaxStar）、star_zone.h（每星加成百分比）、" +
+                "gacha_tx.h（kHistoryRingSize / kWeightTotal）；改任一常量必须同步 " +
+                "GameConfig.Gacha 与配置 gachaDefaults（改配置走中性源 + " +
+                "node scripts/gen-game-data.mjs），并复查同名 GTest 与 Diff* 期望值"
 
         /** 比对域的 6 个键名（D-5：模板口径钉死为这 6 项，产物键与镜像属性同名） */
         const val FIELD_ID = "id"

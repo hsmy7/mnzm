@@ -439,10 +439,10 @@ inline AllianceOutcome requestAllianceTransaction(state::GameState& state,
 
     // Kotlin computeAllianceSuccessChance（aiPower<=0 → null 早退，零抽取）
     const int64_t playerPower = ::gamecore::system::detail::calculateSectPower(
-        state.disciples, world);
+        state.disciples, world, state.gameData);
     const int64_t aiPower =
         ::gamecore::system::detail::calculateAiSectPower(state.aiSectDisciples,
-                                                         sectId);
+                                                         sectId, state.gameData);
     if (aiPower <= 0) {
         rejection = {"ai_power_invalid"};
         return {};
@@ -589,10 +589,10 @@ inline AllianceOutcome requestVassalTransaction(state::GameState& state,
 
     // Kotlin 计算链（资格通过后恒抽取）：战力/好感/近 3 年战绩 → VASSAL 概率
     const int64_t playerPower = ::gamecore::system::detail::calculateSectPower(
-        state.disciples, world);
+        state.disciples, world, state.gameData);
     const int64_t aiPower =
         ::gamecore::system::detail::calculateAiSectPower(state.aiSectDisciples,
-                                                         sectId);
+                                                         sectId, state.gameData);
     const state::WorldSect* playerSect = findPlayerSect(gd);
     if (playerSect == nullptr) {
         // Kotlin `?: return false`（掷骰前早退，零抽取）

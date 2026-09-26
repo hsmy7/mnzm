@@ -11,13 +11,14 @@
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/instance_buckets.h"
+#include "gamecore/system/star_zone.h"
 
 // ============================================================
 // 弟子列直读属性计算（每旬结算）
 //
 // 等价移植 Kotlin DiscipleStatCalculator 的每旬结算路径**纯公式**部分：
 //   - computeBaseHpMp / getMaxHpMpColumn（HP/MP 恢复上限）
-//   - calculateCultivationPerPhaseColumn（修炼速率 4 乘区）
+//   - calculateCultivationPerPhaseColumn（修炼速率 5 乘区：资源/社交/状态/临时/星级）
 //   - getBreakthroughChance（突破概率乘区，含长老悟性/丹药）
 //   - EquipmentInstance.getFinalStats（孕养乘区后的装备面板）
 //
@@ -459,7 +460,8 @@ inline double accumulateManualCultivationSpeed(
     return resourceBonus;
 }
 
-/// 每旬修炼速率（4 乘区连乘，下限 1.0；与 Kotlin 列直读版数学等价）。
+/// 每旬修炼速率（5 乘区连乘，下限 1.0；与 Kotlin 列直读版数学等价）。
+/// 乘区序固定为 资源→社交→状态→临时→星级（浮点乘法不可交换，双端必须同序）。
 /// ownerRow = 弟子在 DiscipleStore 的行号（工作副本场景——突破后境界
 /// 已推进而商店行未写回——桶寻址用，数值面全部取自工作副本 d）
 inline double calculateCultivationPerPhaseColumn(
@@ -494,6 +496,10 @@ inline double calculateCultivationPerPhaseColumn(
         temporaryBonus += d.pillCultivationSpeedBonus;
     }
 
+    // ── 星级乘区：抽卡解锁角色的星级加成（口径 A，1★ 基线 ⇒ 存量旧弟子恒 0） ──
+    const double starBonus =
+        gamecore::system::cultivationStarBonus(gd, d.templateId);
+
     const int32_t clampedRoots = std::max(rootCount, 1);
     const double base =
         gamecore::disciple::realmSpeedPerPhase(d.realm) /
@@ -501,7 +507,7 @@ inline double calculateCultivationPerPhaseColumn(
     return gamecore::disciple::coerceAtLeast(
         base * (1.0 + resourceBonus) *
                (1.0 + socialBonus) * (1.0 + statusBonus) *
-               (1.0 + temporaryBonus),
+               (1.0 + temporaryBonus) * (1.0 + starBonus),
         gamecore::disciple::kMinCultivationPerPhase);
 }
 
@@ -539,6 +545,10 @@ inline double calculateCultivationPerPhaseColumn(
         temporaryBonus += ds.pillCultivationSpeedBonuses[row];
     }
 
+    // ── 星级乘区：抽卡解锁角色的星级加成（口径 A，1★ 基线 ⇒ 存量旧弟子恒 0） ──
+    const double starBonus =
+        gamecore::system::cultivationStarBonus(gd, ds.templateIds[row]);
+
     const int32_t clampedRoots = std::max(rootCount, 1);
     const double base =
         gamecore::disciple::realmSpeedPerPhase(ds.realms[row]) /
@@ -546,7 +556,7 @@ inline double calculateCultivationPerPhaseColumn(
     return gamecore::disciple::coerceAtLeast(
         base * (1.0 + resourceBonus) *
                (1.0 + socialBonus) * (1.0 + statusBonus) *
-               (1.0 + temporaryBonus),
+               (1.0 + temporaryBonus) * (1.0 + starBonus),
         gamecore::disciple::kMinCultivationPerPhase);
 }
 

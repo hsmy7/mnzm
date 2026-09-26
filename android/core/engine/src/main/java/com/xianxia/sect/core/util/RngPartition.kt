@@ -95,7 +95,27 @@ enum class RngPartition(val id: Int, val inSnapshot: Boolean = true) {
      * `CHANGELOG.md` 4.01.15 段与 `docs/native-engine-refactor-plan-2026-09-17.md`
      * §7.2 B14 段。
      */
-    RESIDUAL(11);
+    RESIDUAL(11),
+
+    /**
+     * 寻访抽卡（G09 新增）：单抽 / 十连的类别、品阶、角色与物品候选抽取。
+     *
+     * ## 存在理由：与 [CHAT] 同因的用户时序独立流
+     * 抽卡的**插入时机与次数完全由玩家点击决定**（一天抽 0 次还是 500 次不可
+     * 预测），因此它不能与任何结算分区共用一条流——共用会让玩家行为挪动
+     * 战斗/修炼/月年变的既有抽取序（红线 1，[CHAT] 的 KDoc 是本盘子的现成先例）。
+     * 独立成区后，抽卡消费只推进本分区，既有分区的序列逐位不变。
+     *
+     * ## 消费方
+     * AUTHORITATIVE 下真实消费在 C++（`gamecore/system/gacha_tx.h` 取 `kGacha`），
+     * 本枚举项 `isLocal = false` ⇒ 委托模式实例化为 [NativeBackedRng]，Kotlin
+     * 回退臂（非 AUTHORITATIVE）与权威臂取的是同一条流的同一位置。
+     *
+     * ## 老档兼容
+     * `rngStates` 无 12 号键时按 `systemSeed + 12` 确定性重种（MISSION(8) /
+     * CHAT(10) / RESIDUAL(11) 同款恢复语义，见 [GameRngManager] 的缺失键重播路径）。
+     */
+    GACHA(12);
 
     /**
      * 是否**本地 PCG 分区**（不参与 native 委托）。

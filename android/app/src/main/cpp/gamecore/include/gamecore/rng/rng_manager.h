@@ -16,7 +16,15 @@
 // 不得改动——存档 rngStates 的键）：
 //   BATTLE=0 / BREAKTHROUGH=1 / EXPLORATION=2 / SYSTEM=3 /
 //   ENEMY_GEN=4 / MAIL=5 / AI_SECT=6 / SECRET_REALM=7 / MISSION=8 /
-//   AI_SECT_MIRROR=9（保留）/ CHAT=10 / RESIDUAL=11
+//   AI_SECT_MIRROR=9（保留）/ CHAT=10 / RESIDUAL=11 / GACHA=12
+//
+// GACHA(12) 语义（G09 新增）：寻访抽卡的独立流，与 CHAT(10) 同因——
+//   抽取的**插入时机与次数由玩家点击决定**（单抽/十连、每日次数无上限），
+//   混入任何结算分区都会扰动该分区的既有抽取序（红线 1）。独立成区后，
+//   玩家抽多少卡都不会挪动战斗/修炼/结算等分区的序列，SL 回档复现与
+//   双臂对拍（Diff*GachaPull）的边界也收敛在本分区内。
+//   本分区在 AUTHORITATIVE 下由 C++ 真实消费（`gacha_tx.h` 逐 roll 取序），
+//   播种沿用同一公式 `seed + 12`。
 //
 // RESIDUAL(11) 语义（R4.4/B14 新增）：
 //   Kotlin 残留执行器**本地随机域**。B14 起该域改为 Kotlin 侧持有本地 PCG
@@ -59,6 +67,7 @@ enum class RngPartition : int32_t {
     kAiSectMirror = 9,  // AI 流镜像态（GameCore::aiRng_ 的归档通道；保留 id 永不改义）
     kChat = 10,     // 弟子交谈（W4-A·A5：DiscipleChatDialog 决策类抽取——用户时序独立流，不与结算分区共用）
     kResidual = 11, // 残留执行器本地随机域（R4.4/B14：Kotlin 侧本地 PCG，零 per-roll JNI；C++ 仅登记 + 播种对齐）
+    kGacha = 12,    // 寻访抽卡（G09：玩家点击驱动的独立流，次数无上限，不与任何结算分区共用；见头注释）
 };
 
 class RngManager {
@@ -66,7 +75,7 @@ public:
     /// 分区 id 上界（**唯一权威**：JNI 入口的合法性守卫必须引用本常量，
     /// 不得写死枚举成员——新增分区时写死的守卫会静默拒绝新 id，
     /// MISSION(8) 曾因此在 AUTHORITATIVE 下恒返回 0）
-    static constexpr int32_t kMaxPartitionId = static_cast<int32_t>(RngPartition::kResidual);
+    static constexpr int32_t kMaxPartitionId = static_cast<int32_t>(RngPartition::kGacha);
 
     RngManager() = default;
 
@@ -88,6 +97,9 @@ public:
         // 残留执行器本地随机域（R4.4/B14）：与 Kotlin `systemSeed + id` 逐位同式。
         // C++ 侧无生产消费点——播种只为读档面/对拍面两侧枚举与初值对齐。
         partitions_[RngPartition::kResidual] = DeterministicRng::fromSeed(seed + 11);
+        // 寻访抽卡（G09）：与 Kotlin `systemSeed + id` 逐位同式；本分区由 C++
+        // 生产真实消费（`gacha_tx.h`），播种公式与其余快照分区完全一致。
+        partitions_[RngPartition::kGacha] = DeterministicRng::fromSeed(seed + 12);
         // 镜像分区按同一公式播种（= aiRng_ 的播种式 seed + 6×31337 的等价初值；
         // GameCore::initialize 播种 aiRng_ 后经 mirrorAiRng 覆盖为权威态）
         partitions_[RngPartition::kAiSectMirror] = DeterministicRng::fromSeed(seed + 9);

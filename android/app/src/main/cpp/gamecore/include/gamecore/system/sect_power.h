@@ -7,6 +7,7 @@
 
 #include "gamecore/state/models.h"
 #include "gamecore/system/java_hash.h"
+#include "gamecore/system/star_zone.h"
 
 // ============================================================
 // 宗门战力计算器
@@ -15,6 +16,10 @@
 //   - calculateDiscipleCombatPower：战力 = (物攻+法攻)×5 + 气血×4 + (物防+法防)×3 + 速度×2
 //   - calculateBeastCombatPower：同公式（各字段 coerceAtLeast(0) 防篡改负值）
 //   - computeFingerprint：永久基础属性缓存指纹（Java hashCode 语义，见 java_hash.h）
+//
+// 星级乘区（G09 §3.8 口径 A）：六维加权和**之后**整体乘 `battleMult` 再向零截断，
+// 与 Kotlin `calculateDisciplePower` 逐位同式。[discipleCombatPower] 保持纯公式
+// 不变（既有金标用例与妖兽共用），带星级的入口是 [discipleCombatPowerWithStar]。
 //
 // 说明：calculateDisciplePower / calculateSectPower 依赖 DiscipleStatCalculator
 // 的永久基础属性乘区计算（C++ disciple_stats.h 已有对应列直读函数），本文件
@@ -30,6 +35,16 @@ inline int64_t discipleCombatPower(int32_t physicalAttack, int32_t magicAttack,
            static_cast<int64_t>(maxHp) * 4 +
            (static_cast<int64_t>(physicalDefense) + static_cast<int64_t>(magicDefense)) * 3 +
            static_cast<int64_t>(speed) * 2;
+}
+
+/// 弟子战力（含星级乘区；先求加权和再乘、最后向零截断——Kotlin 同式）
+inline int64_t discipleCombatPowerWithStar(int32_t physicalAttack, int32_t magicAttack,
+                                           int32_t maxHp, int32_t physicalDefense,
+                                           int32_t magicDefense, int32_t speed,
+                                           int32_t star) {
+    const int64_t base = discipleCombatPower(physicalAttack, magicAttack, maxHp,
+                                             physicalDefense, magicDefense, speed);
+    return static_cast<int64_t>(static_cast<double>(base) * starZoneOf(star).battleMult);
 }
 
 /// 妖兽战力（Kotlin calculateBeastCombatPower；含 coerceAtLeast(0) 防篡改）

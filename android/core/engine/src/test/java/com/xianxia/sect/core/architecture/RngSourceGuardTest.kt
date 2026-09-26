@@ -141,10 +141,10 @@ class RngSourceGuardTest {
      * 分区 id 是**存档 `rngStates` 的持久化键，不得改动**（见 [RngPartition] KDoc）；
      * 新增分区 = 必须同时在 `docs/rng-source-inventory.md` 登记消费点。
      */
-    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 
     /** 参与 `rngStates` 序列化的分区 id（= id 全集 − 通道型分区） */
-    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11)
+    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12)
 
     /** 随机源类别（与 `docs/rng-source-inventory.md` §1 的五类入口一一对应） */
     private enum class RandomSourceCategory(val label: String, val pattern: Regex) {
@@ -270,12 +270,38 @@ class RngSourceGuardTest {
         val expectedNames = listOf(
             "BATTLE", "BREAKTHROUGH", "EXPLORATION", "SYSTEM", "ENEMY_GEN",
             "MAIL", "AI_SECT", "SECRET_REALM", "MISSION", "AI_SECT_MIRROR", "CHAT",
-            "RESIDUAL"
+            "RESIDUAL", "GACHA"
         )
         assertTrue(
             "RngPartition 名字/顺序偏移：实测 ${names.take(10)}——" +
                 "名字是存档语义的一部分（rngStates 日志/诊断面），增删须同步 inventory 文档与本断言",
             names.size >= expectedNames.size && names.take(expectedNames.size) == expectedNames
+        )
+    }
+
+    @Test
+    fun `G09 抽卡分区必须是 12 号委托分区且参与快照`() {
+        // 玩家点击驱动的独立流（与 CHAT(10) 同因）：id 是存档 rngStates 的键、
+        // 追加只能是 12；inSnapshot=true 保证抽卡续接读档可复现；isLocal=false
+        // 保证 AUTHORITATIVE 下逐 roll 委托 C++——抽卡真相源在 `gacha_tx.h`，
+        // Kotlin 若改成本地实例就会与权威臂各取一条流（双臂对拍恒红）。
+        val gacha = RngPartition.entries.firstOrNull { it.name == "GACHA" }
+        assertTrue(
+            "RngPartition.GACHA 缺失（G09：抽卡随机源须独立为 12 号分区，" +
+                "与 C++ rng_manager.h 的 kGacha = 12 同名同 id）",
+            gacha != null && gacha.id == 12
+        )
+        // 前置条件成立后取非空局部量，后续断言逐条独立可读
+        val partition = checkNotNull(gacha) { "RngPartition.GACHA 缺失" }
+        assertTrue(
+            "RngPartition.GACHA(12) 必须参与 rngStates 序列化（inSnapshot=true）——" +
+                "否则抽卡后续接不可复现，且 exportStates 键集与 C++ 侧漂移",
+            partition.inSnapshot
+        )
+        assertTrue(
+            "RngPartition.GACHA(12) 必须是委托分区（isLocal=false）：抽卡 roll 的" +
+                "真相源在 C++ gacha_tx.h，本地实例会造成双臂各取一条流",
+            !partition.isLocal
         )
     }
 

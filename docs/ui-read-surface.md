@@ -41,6 +41,17 @@ UI 操作事务）。本清单回答两个问题：
   spiritFieldPlants, residenceSlots, patrolConfig(+s), alliances, vassalContracts, sectRelations,
   sectBattleRecords, sectPolicies, sectDetails, scoutInfo, mailRecords, bloodRefinements(+Totals),
   yearlyReports, availableMissions, secretRealm*, librarySlots, gameEventRecords, …`
+- 寻访抽卡账本（AUTHORITATIVE 写者 = C++ `system/gacha_tx.h` 与 `system/gacha_fragment.h`，
+  经泛化脏段镜像进 Kotlin；`GameCore` 不可用时的 Kotlin 回退臂 `domain/gacha/GachaService.kt`
+  走 UI 操作事务通道写同一批字段，两臂由 `DiffGachaPullTest` 同种子对拍）：
+  `gachaFragmentCounts`（角色碎片进度，入账即落键，满 `kFragmentsPerStar`=100 进 1 星后归零余数）、
+  `gachaStarMap`（星级，**稀疏**：0 星等价于无键，是星级乘区 `star_zone.h` / `StarZone.kt` 的唯一反查源）、
+  `gachaPityCounters`（逐池保底计数，值域 0..`pullThreshold-1`）、
+  `gachaHistory`（抽卡历史环，下标 0 最新、条数 ≤ `HISTORY_RING_SIZE`=50）。
+  协议面：`android/app/src/main/cpp/gamecore/src/json_codec.cpp:1248`（导出）/ `:1334`（导入）
+  与 `android/core/engine/src/main/java/com/xianxia/sect/core/gameview/GameDataFieldPatch.kt:327-337`
+  （解码臂）四字段齐备；零 proto 变更、零 Room 迁移（`GameData.kt:807-829` 四字段，列自 DB v54 在库）。
+  UI 消费面（结果页 / 历史页 / 图鉴）尚未接入，接入时按本节判据读取，不得另立镜像字段。
 - **明确不在 gameData 序列化面**（@Transient 运行态，Kotlin 侧权威）：`aiSectDisciples、
   aiSectBeastDirectTargets、aiSectBeastSkipCooldowns、lockedBeastIds、rngStates`
   （rngStates 是 C++ live RNG 的导出镜像，反向回导永久剔除）。

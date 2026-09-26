@@ -3,8 +3,13 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.long
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.str
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
@@ -18,6 +23,22 @@ internal data class GachaNativeGrant(
     val starBefore: Int,
     val starAfter: Int,
     val fragmentsAfter: Int,
+)
+
+/**
+ * 寻访 native 回执（`GACHA_PULL_ONCE` / `GACHA_PULL_TEN` 成功信封的 data 段）。
+ *
+ * @property overflowDrafts 满仓溢出草稿原始节点——邮件不在快照协议面内，
+ *   必须由 Kotlin 侧投递（`InventoryNativeForward.deliverDraft`），不回读即丢件
+ */
+internal data class GachaNativePull(
+    val poolId: String,
+    val pricePaid: Long,
+    val spiritStonesAfter: Long,
+    val pityAfter: Int,
+    val rows: List<JsonObject>,
+    val unlockedTemplateIds: List<String>,
+    val overflowDrafts: List<JsonObject>,
 )
 
 /**
@@ -54,6 +75,45 @@ internal class GachaNativeTx(
             fragmentsAfter = (data.long("fragmentsAfter") ?: 0L).toInt(),
         )
     }
+
+    /**
+     * 寻访单抽事务（ActionId `GACHA_PULL_ONCE`）。
+     *
+     * @param poolId 卡池 id（C++ 侧缺失/未知 ⇒ 失败信封，本函数返回 null 走回退臂）
+     * @return native 已出货的回执；未转发/降级返回 null
+     */
+    fun tryPullOnce(poolId: String): GachaNativePull? =
+        tryPull(ActionIds.GACHA_PULL_ONCE, poolId)
+
+    /** 寻访十连事务（ActionId `GACHA_PULL_TEN`；一笔事务内 10 次单抽语义）。 */
+    fun tryPullTen(poolId: String): GachaNativePull? =
+        tryPull(ActionIds.GACHA_PULL_TEN, poolId)
+
+    /**
+     * 抽卡事务共用转发：信封 `data` 段 → 回执。
+     *
+     * 成功内含 `applyDirtyFromNative` 脏段回读（灵石、两张碎片账本、保底计数、
+     * 寻访历史、仓库物品随之镜像）；本函数只读回执字段，不二次改状态。
+     */
+    private fun tryPull(actionId: Int, poolId: String): GachaNativePull? {
+        val data = tx(actionId) {
+            put("poolId", poolId)
+        } as? JsonObject ?: return null
+        return GachaNativePull(
+            poolId = data.str("poolId") ?: poolId,
+            pricePaid = data.long("pricePaid") ?: 0L,
+            spiritStonesAfter = data.long("spiritStonesAfter") ?: 0L,
+            pityAfter = (data.long("pityAfter") ?: 0L).toInt(),
+            rows = data.array("rows"),
+            unlockedTemplateIds = data.array("unlockedTemplateIds")
+                .mapNotNull { it?.jsonPrimitive?.contentOrNull },
+            overflowDrafts = data.array("overflowDrafts"),
+        )
+    }
+
+    /** 数组字段读取（缺失/类型不符按空数组处理——回执缺字段不改变已落账的状态） */
+    private fun JsonObject.array(key: String): List<JsonObject> =
+        (this[key] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
 
     /** native 事务转发：AUTHORITATIVE 门控 + tryExecuteNative；失败信封/降级返回 null。 */
     private fun tx(actionId: Int, build: JsonObjectBuilder.() -> Unit): JsonElement? =

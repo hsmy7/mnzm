@@ -76,20 +76,27 @@ object DiscipleStatCalculator {
     /**
      * 修炼速度乘区分组。
      *
-     * 遵循"同类加算、异类乘算"原则，将各来源加成归入 4 个独立乘区。
-     * 每个乘区内部为加算，乘区之间为乘算。
+     * 遵循"同类加算、异类乘算"原则，将各来源加成归入 5 个独立乘区。
+     * 每个乘区内部为加算，乘区之间为乘算，**相乘顺序固定为
+     * 资源→社交→状态→临时→星级**（浮点乘法不可交换，C++
+     * `disciple.h::calculateCultivationPerPhase` 与列直读两版同序）。
+     *
+     * @property starBonus 星级乘区加成量（口径 A：`1★` 基线 ⇒ 0.0；每多一星 +5%）。
+     *   由调用方按 `StarZone.cultivationBonus(gachaStarMap, templateId)` 传入，
+     *   存量旧弟子与未解锁角色恒 0.0（不改任何既有速率期望）。
      */
     data class CultivationSpeedZones(
         val resourceBonus: Double = 0.0,    // 资源乘区：功法+丹药+建筑
         val socialBonus: Double = 0.0,      // 社交乘区：传道长老/师兄
         val statusBonus: Double = 0.0,      // 状态乘区：政策
         val temporaryBonus: Double = 0.0,   // 临时乘区：丹药临时加速
+        val starBonus: Double = 0.0,        // 星级乘区：抽卡升星（1★ 基线 ⇒ 0）
     )
 
     /**
      * 修炼乘区计算的输入字段。
      *
-     * 8 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
+     * 9 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
      * 由 [buildCultivationZones] / [calculateCultivationPerPhaseColumn] 提取组装。
      */
     data class CultivationZoneInput(
@@ -100,7 +107,8 @@ object DiscipleStatCalculator {
         val preachingElderBonus: Double,
         val preachingMastersBonus: Double,
         val cultivationSubsidyBonus: Double,
-        val temporaryBonus: Double
+        val temporaryBonus: Double,
+        val starBonus: Double = 0.0
     )
 
     /**

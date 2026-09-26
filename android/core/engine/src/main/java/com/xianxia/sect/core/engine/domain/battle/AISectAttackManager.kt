@@ -193,13 +193,17 @@ object AISectAttackManager {
         if (failsAttackHardConstraints(attacker, defender, attackerDisciples)) return false
 
         // 计算战力比（永久基础属性统一公式，无装备/功法估算项）
-        val attackerPower = SectCombatPowerCalculator.calculateSectPower(attackerDisciples)
+        // 攻击方为 AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
+        val attackerPower = SectCombatPowerCalculator.calculateSectPower(attackerDisciples, emptyMap())
         val defenderDisciples = if (defender.isPlayerOccupied) {
             playerGarrisonMap[defender.id] ?: emptyList()
         } else {
             (aiDisciplesMap[defender.id] ?: emptyList()).filter { it.isAlive }
         }
-        val defenderPower = SectCombatPowerCalculator.calculateSectPower(defenderDisciples)
+        // 守方可能是玩家驻军名册（可含玩家弟子），须用真实星级账本
+        val defenderPower = SectCombatPowerCalculator.calculateSectPower(
+            defenderDisciples, gameData.gachaStarMap
+        )
         if (defenderPower <= 0) return false
         val powerRatio = attackerPower.toDouble() / defenderPower.toDouble()
 
@@ -315,7 +319,8 @@ object AISectAttackManager {
                 continue
             }
 
-            val sectPower = SectCombatPowerCalculator.calculateSectPower(aliveSectDisciples)
+            // AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
+            val sectPower = SectCombatPowerCalculator.calculateSectPower(aliveSectDisciples, emptyMap())
             val personality = gameData.aiSectPersonalities[sect.id] ?: AISectPersonality.BALANCED
 
             val hasTarget = gameData.worldMapSects.any { target ->
@@ -518,7 +523,9 @@ private fun hasViableAttackTarget(
     }
     if (targetDisciples.isEmpty() && !target.isPlayerSect && !target.isPlayerOccupied) return false
 
-    val targetPower = SectCombatPowerCalculator.calculateSectPower(targetDisciples)
+    // 目标名册取自 AI 弟子表（玩家占领宗门按空名册处理）：弟子无角色模板 id，
+    // 星级恒 0，故显式传空账本
+    val targetPower = SectCombatPowerCalculator.calculateSectPower(targetDisciples, emptyMap())
     if (targetPower <= 0) return false
     val powerRatio = sectPower.toDouble() / targetPower.toDouble()
 

@@ -46,11 +46,13 @@ inline int32_t findFavor(const std::vector<state::SectRelation>& relations,
 }
 
 /// 弟子列表总战力（Kotlin calculateSectPower over List<Disciple>：filter isAlive + sumOf Long）
-inline int64_t sectPowerFromList(const std::vector<state::Disciple>& disciples) {
+/// gd 用于星级反查——玩家守军（`playerDefenders`）带 templateId，会真的吃到星级乘区
+inline int64_t sectPowerFromList(const std::vector<state::Disciple>& disciples,
+                                 const state::GameData& gd) {
     int64_t power = 0;
     for (const auto& d : disciples) {
         if (!d.isAlive) continue;
-        power += sectPowerOfDisciple(d);
+        power += sectPowerOfDisciple(d, gd);
     }
     return power;
 }
@@ -108,7 +110,7 @@ inline bool checkAttackConditions(
     // 同联盟不攻击（硬约束；allianceId 空则放行）
     if (!attacker.allianceId.empty() && attacker.allianceId == defender.allianceId) return false;
 
-    const int64_t attackerPower = sectPowerFromList(attackerDisciples);
+    const int64_t attackerPower = sectPowerFromList(attackerDisciples, gameData);
 
     const std::vector<state::Disciple> defenderDisciples = defender.isPlayerOccupied
         ? [&]() {
@@ -116,7 +118,7 @@ inline bool checkAttackConditions(
               return it == playerGarrison.end() ? std::vector<state::Disciple>{} : it->second;
           }()
         : aliveDisciplesOf(state.aiSectDisciples, defender.id);
-    const int64_t defenderPower = sectPowerFromList(defenderDisciples);
+    const int64_t defenderPower = sectPowerFromList(defenderDisciples, gameData);
     if (defenderPower <= 0) return false;
 
     const double powerRatio = static_cast<double>(attackerPower) / static_cast<double>(defenderPower);
@@ -214,10 +216,10 @@ inline PlayerAttackDecision decidePlayerAttack(GameState& state, rng::RngManager
             passesAttackerGates(state, attacker, nowMonth);
         if (aliveAttackers.empty()) continue;
 
-        const int64_t attackerPower = sectPowerFromList(aliveAttackers);
+        const int64_t attackerPower = sectPowerFromList(aliveAttackers, gameData);
         const std::vector<state::Disciple> defense =
             playerDefenders(state.disciples);
-        const int64_t defenderPower = sectPowerFromList(defense);
+        const int64_t defenderPower = sectPowerFromList(defense, gameData);
         if (defenderPower <= 0) continue;
         const double powerRatio = static_cast<double>(attackerPower) / static_cast<double>(defenderPower);
 

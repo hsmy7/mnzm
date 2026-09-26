@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -37,7 +38,7 @@ import java.io.File
  * OverflowMailSender 单元测试：
  *
  * - 邮件构建（标题/内容/附件/来源映射/有效期）——不变行为
- * - 来源名映射表覆盖守卫（withTrackingSource 字面量全注册）
+ * - 来源名映射表**双向**覆盖守卫（withTrackingSource 字面量全注册 + 表内键全有来源点）
  * - **事务世代号**：gen>0 入 staging、提交钩子恰一次落盘、回滚钩子丢弃；
  *   gen==0（事务外）立即落盘
  * - 落盘失败 → unpublished 队列 → drain 补落盘（宁可延迟不丢资产）
@@ -116,8 +117,8 @@ class OverflowMailSenderTest {
             ),
             now = now
         )
-        assertEquals("【仓库已满】宗门战奖励转入邮件", mail.title)
-        assertTrue(mail.content.contains("宗门战奖励"))
+        assertEquals("【仓库已满】来自「宗门战」的物品已转入邮件", mail.title)
+        assertTrue(mail.content.contains("以下物品来自「宗门战」，因仓库已满改为邮件送达"))
         assertTrue(mail.content.contains("玄铁精 ×3"))
         assertTrue(mail.content.contains("下品培元丹 ×2"))
         assertTrue(mail.attachments.contains("玄铁精"))
@@ -136,24 +137,37 @@ class OverflowMailSenderTest {
             attachments = listOf(MailAttachment(type = "material", name = "玄铁精", quantity = 1, rarity = 2)),
             now = 1_000_000L
         )
-        assertEquals("【仓库已满】未知奖励转入邮件", mail.title)
+        assertEquals("【仓库已满】来自「未知」的物品已转入邮件", mail.title)
+    }
+
+    @Test
+    fun `overflow mail wording avoids reward framing`() {
+        // 归还/没收类来源不是"奖励"：邮件文案统一用"来自「来源」的物品"口径
+        val mail = sender.buildOverflowMail(
+            slotId = 1, source = "disciple_death",
+            attachments = listOf(MailAttachment(type = "equipment", name = "青莲剑", quantity = 1, rarity = 3)),
+            now = 1_000_000L
+        )
+        assertEquals("【仓库已满】来自「弟子遗物归还」的物品已转入邮件", mail.title)
+        assertFalse("标题不得出现\"奖励\"", mail.title.contains("奖励"))
+        assertFalse("正文不得出现\"奖励\"", mail.content.contains("奖励"))
     }
 
     @Test
     fun `sourceDisplayName - known and unknown sources`() {
         assertEquals("宗门战", OverflowMailSender.sourceDisplayName("battle"))
         assertEquals("灵田", OverflowMailSender.sourceDisplayName("spirit_field"))
+        assertEquals("储物袋开启", OverflowMailSender.sourceDisplayName("storage_bag"))
+        assertEquals("没收弟子物品", OverflowMailSender.sourceDisplayName("confiscate"))
+        assertEquals("仙缘寻访", OverflowMailSender.sourceDisplayName("gacha_pull"))
         assertEquals("未知", OverflowMailSender.sourceDisplayName("no_such_source"))
     }
 
     @Test
     fun `SOURCE_DISPLAY_NAMES covers all withTrackingSource literals in engine source`() {
-        val engineSrc = File("src/main/java")
-        val sourceLiterals = engineSrc.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .flatMap { file ->
-                Regex("withTrackingSource\\(\"([^\"]+)\"\\)").findAll(file.readText()).map { it.groupValues[1] }
-            }
+        val sourceLiterals = Regex("withTrackingSource\\(\"([^\"]+)\"\\)")
+            .findAll(productionSourceCode(engineMainSourceRoots))
+            .map { it.groupValues[1] }
             .toSet()
         val missing = sourceLiterals - OverflowMailSender.SOURCE_DISPLAY_NAMES.keys
         assertEquals(
@@ -162,6 +176,51 @@ class OverflowMailSenderTest {
             emptySet<String>(), missing
         )
     }
+
+    /**
+     * 来源显示名的**反向**守卫（与正向守卫合起来构成双向覆盖）：表内每个键都必须在
+     * 生产来源点有字面量使用，否则该来源不再向仓库投递物品、显示名是死文案。
+     * 三要素：① 以 [OverflowMailSender.SOURCE_DISPLAY_NAMES] 键集为锚点遍历全部值；
+     * ② [intentionallyExcludedKeys] 显式声明豁免键与理由；③ 失败信息直接给出修改位置。
+     */
+    @Test
+    fun `every SOURCE_DISPLAY_NAMES key has production usage`() {
+        val used = productionSourceLiterals()
+        val unused = OverflowMailSender.SOURCE_DISPLAY_NAMES.keys - used - intentionallyExcludedKeys
+        assertEquals(
+            "以下来源键在 ${productionSourceRoots.joinToString { it.path }} 内无任何来源字面量使用：$unused\n" +
+                "该来源已不再向仓库投递物品：仍在使用则在来源点沿用同名键；已停用则从 " +
+                "OverflowMailSender.SOURCE_DISPLAY_NAMES 移除该键；确需长期保留的键登记到 " +
+                "OverflowMailSenderTest.intentionallyExcludedKeys 并写明理由",
+            emptySet<String>(), unused
+        )
+    }
+
+    /** 生产来源点出现过的全部来源字面量（Kotlin 投递口 + C++ 草稿来源键） */
+    private fun productionSourceLiterals(): Set<String> {
+        val code = productionSourceCode(productionSourceRoots)
+        return sourceLiteralPatterns
+            .flatMap { pattern -> pattern.findAll(code).map { it.groupValues[1] }.toList() }
+            .toSet()
+    }
+
+    /**
+     * 汇总根目录下的生产源码文本：仅取 Kotlin/C++ 源文件，剔除 `test/` 目录与注释行
+     * ——守卫核对的是**代码里的来源点**，注释提及不算使用。
+     */
+    private fun productionSourceCode(roots: List<File>): String = roots
+        .flatMap { root ->
+            root.walkTopDown()
+                .filter { it.isFile && it.extension in sourceFileExtensions }
+                .filterNot { it.toRelativeString(root).replace('\\', '/').startsWith("test/") }
+                .toList()
+        }
+        .joinToString("\n") { file ->
+            file.readLines().filterNot { line ->
+                val trimmed = line.trimStart()
+                trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*")
+            }.joinToString("\n")
+        }
 
     @Test
     fun `OverflowMailDraft carries overflow fields`() {
@@ -387,9 +446,45 @@ class OverflowMailSenderTest {
         verify(mailRepo, never()).insertWithEnforceLimitAndDeleteDrafts(any(), any(), any(), any())
     }
 
-    /** 重放轮询上限：复位窗口最长等待（原 sleep 600ms ×2 的语义上限） */
+    /** 来源覆盖守卫与 drain 重放所用的常量/根目录 */
     private companion object {
+        /** 重放轮询上限：复位窗口最长等待（原 sleep 600ms ×2 的语义上限） */
         const val REPLAY_WAIT_NANOS = 2_000_000_000L
+
+        /** `android` 工程目录：自工作目录逐级上溯，取首个含引擎源根的目录 */
+        fun androidRoot(): File {
+            var dir: File? = File("").absoluteFile
+            while (dir != null) {
+                if (File(dir, "core/engine/src/main/java").isDirectory) return dir
+                dir = dir.parentFile
+            }
+            error("未能从工作目录定位 android 工程根（需含 core/engine/src/main/java）")
+        }
+
+        /** 引擎生产源根：来源字面量的 Kotlin 侧登记点 */
+        val engineMainSourceRoots: List<File> = listOf(File(androidRoot(), "core/engine/src/main/java"))
+
+        /** 反向守卫的扫描根：引擎 Kotlin + C++ gamecore 生产源 */
+        val productionSourceRoots: List<File> =
+            engineMainSourceRoots + File(androidRoot(), "app/src/main/cpp/gamecore")
+
+        /** 参与扫描的源文件扩展名 */
+        val sourceFileExtensions: Set<String> = setOf("kt", "cpp", "h", "hpp")
+
+        /** 来源字面量的全部写法（Kotlin 投递口 + C++ 草稿来源键常量） */
+        val sourceLiteralPatterns: List<Regex> = listOf(
+            Regex("withTrackingSource\\(\"([^\"]+)\"\\)"),
+            Regex("sendOverflowMail\\(\\s*\"([^\"]+)\""),
+            Regex("source\\s*=\\s*\"([^\"]+)\""),
+            Regex("[Tt]rackingSource\\s*=\\s*\"([^\"]+)\""),
+            Regex("kTrackingSource\\s*=\\s*\"([^\"]+)\"")
+        )
+
+        /** 反向覆盖的豁免键（②要素：显式声明 + 理由） */
+        val intentionallyExcludedKeys: Set<String> = setOf(
+            // 降级口径：只被 sourceDisplayName 的 fallback 分支读取，来源点不会写这个字面量
+            "unknown"
+        )
     }
 
     /** insert 已发生调用数（Mockito 调用记录计数，供轮询"第二次 drain 周期已启动"） */
