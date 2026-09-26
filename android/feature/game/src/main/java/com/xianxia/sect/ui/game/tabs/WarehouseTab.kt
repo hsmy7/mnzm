@@ -889,5 +889,3 @@ internal fun EmptyWarehouseMessage() {
         )
     }
 }
-
-internal fun getRarityColor(rarity: Int): Color = com.xianxia.sect.ui.theme.getRarityColor(rarity)

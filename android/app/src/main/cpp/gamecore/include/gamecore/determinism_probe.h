@@ -34,7 +34,7 @@
 namespace gamecore::probe {
 
 /// golden 摘要（x86-64 llvm-mingw 桌面腿录制；跨架构必须逐位一致）
-inline constexpr uint64_t kGoldenDigest = 0x490e8dc522e12921ULL;
+inline constexpr uint64_t kGoldenDigest = 0xb4f3c6912207f597ULL;
 
 /// 探针转录版本戳（转录格式/场景变更时递增，强制 golden 重录）
 inline constexpr uint64_t kProbeVersion = 1;

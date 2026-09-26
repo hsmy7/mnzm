@@ -92,33 +92,6 @@ class DiscipleServiceCrudTest {
 
 
     // ═══════════════════════════════════════════════════════════════
-    // addDisciple — 成功插入
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    fun `addDisciple - inserts disciple into tables`() {
-        val disciple = Disciple(
-            id = "1", name = "新增弟子", realm = 9, realmLayer = 1
-        )
-        service.addDisciple(disciple)
-
-        assertTrue("tables should contain disciple 1", tables.ids.contains(1))
-        assertEquals("inserted disciple name should match", "新增弟子", tables.names[1])
-    }
-
-    @Test
-    fun `addDisciple - multiple disciples can be inserted`() {
-        for (i in 1..5) {
-            val d = Disciple(
-                id = i.toString(), name = "弟子$i", realm = 9, realmLayer = 1
-            )
-            service.addDisciple(d)
-        }
-
-        assertEquals("5 disciples should be inserted", 5, tables.ids.size)
-    }
-
-    // ═══════════════════════════════════════════════════════════════
     // removeDisciple — 移除
     // ═══════════════════════════════════════════════════════════════
 

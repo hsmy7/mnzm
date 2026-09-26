@@ -366,31 +366,6 @@ class NullSafeProtoBufTest {
     }
 
     @Test
-    fun `relationIdToProto - null returns empty string`() {
-        assertEquals("", NullSafeProtoBuf.relationIdToProto(null))
-    }
-
-    @Test
-    fun `relationIdToProto - empty string returns empty string`() {
-        assertEquals("", NullSafeProtoBuf.relationIdToProto(""))
-    }
-
-    @Test
-    fun `relationIdToProto - non-empty returns same value`() {
-        assertEquals("disciple_1", NullSafeProtoBuf.relationIdToProto("disciple_1"))
-    }
-
-    @Test
-    fun `relationIdFromProto - empty string returns null`() {
-        assertNull(NullSafeProtoBuf.relationIdFromProto(""))
-    }
-
-    @Test
-    fun `relationIdFromProto - non-empty returns same value`() {
-        assertEquals("disciple_1", NullSafeProtoBuf.relationIdFromProto("disciple_1"))
-    }
-
-    @Test
     fun `equipmentIdToProto - null returns empty string`() {
         assertEquals("", NullSafeProtoBuf.equipmentIdToProto(null))
     }

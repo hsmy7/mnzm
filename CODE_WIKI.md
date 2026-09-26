@@ -91,9 +91,9 @@
 | 1530–1531 | 库存收官：商人购买 / 充公（batch-11，`system/inventory_tx.h` 追加；**开袋不下沉**——双重 RNG 路线 B） |
 | 1550–1559 | 巡逻/住所/矿场/年俸（**batch-12**，`system/patrol_tx.h`；九入口 + `updatePatrolSlots` 死 API 不下沉） |
 | 1570–1573 | 探索：世界关卡/侦察/分舵驻守（batch-13，`system/exploration_tx.h`） |
-| 1590–1594 | 弟子生命周期：逐出/拜师/婚姻批准/释放思过/年俸开关（batch-14，`system/disciple_lifecycle_tx.h`） |
-| 1610–1616 | 弟子任命/仓库驻守/洗炼消耗（batch-15，`system/appointment_tx.h`） |
-| 1630–1632 | 招募列表残余三直调点（batch-16，`system/recruit_tx.h`） |
+| 1590–1594 | 弟子生命周期：逐出/拜师/婚姻批准（均已删）/释放思过/年俸开关（batch-14，`system/disciple_lifecycle_tx.h`） |
+| 1610–1616 | 弟子任命/仓库驻守/洗炼消耗（洗炼已删）（batch-15，`system/appointment_tx.h`） |
+| 1630–1632 | 招募列表残余三直调点（招募列表已删）（batch-16，`system/recruit_tx.h`） |
 | 1650–1657 | 生产 UI 面 + 灵田种植族（batch-17，`system/production.h` ui_tx / `system/spirit_field.h`） |
 | 1670–1672 / 1680–1682 | 月年边界 guide 计数面（batch-18，`system/boundary_tx.h`）/ 政策开关（`system/government.h` 追加） |
 | 1690–1693 | 玉符 / 宗门升级 / 玉符购买落账（batch-19，`system/jade_tx.h`） |
@@ -225,7 +225,7 @@ object BridgeBindingsModule {
 
 ### 架构
 
-GameEngine（精简协调器）→ 9 个按域拆分的扩展文件 + 7 个领域 Facade 接口：
+GameEngine（精简协调器）→ 9 个按域拆分的扩展文件 + 12 个领域 Facade 接口：
 
 ```
 GameEngine.kt (精简协调器)
@@ -233,14 +233,19 @@ GameEngine.kt (精简协调器)
   │     GameEngineBattleOps.kt / BuildingOps.kt / Coordination.kt
   │     DiplomacyOps.kt / DiscipleOps.kt / Extensions.kt
   │     InventoryOps.kt / ProductionOps.kt / SaveOps.kt
-  └── 7 个领域 Facade：
+  └── 12 个领域 Facade：
         ├── DiscipleFacade   → DiscipleService, DiscipleEquipmentManager, ...
         ├── BattleFacade     → CombatService, BattleSystem, AISectAttackManager, ...
         ├── BuildingFacade   → BuildingService, HerbGardenSystem, ...
         ├── InventoryFacade  → OptimizedWarehouseManager, ...
         ├── ProductionFacade → ProductionCoordinator, ProductionSubsystem, ...
         ├── DiplomacyFacade  → DiplomacyService, AISectDiscipleManager, ...
-        └── SaveFacade       → SaveService, SaveLoadCoordinator, SavePipeline
+        ├── SaveFacade       → SaveService, SaveLoadCoordinator, SavePipeline
+        ├── CultivationFacade → CultivationFacadeImpl（修炼域门面）
+        ├── EconomyFacade     → EconomyFacadeImpl（经济域门面）
+        ├── ExplorationFacade → ExplorationFacadeImpl（探索/任务/洞府域门面）
+        ├── GachaFacade       → GachaService, GachaPullLedger, GachaFragmentLedger, ...
+        └── RoadFacade        → RoadFacadeImpl（道路域门面）
 ```
 
 ### 目录结构
@@ -249,11 +254,15 @@ GameEngine.kt (精简协调器)
 core/engine/domain/
 ├── battle/       (BattleFacade, BattleFacadeImpl, CombatService, BattleSystem, ...)
 ├── building/     (BuildingFacade, BuildingFacadeImpl, BuildingService, ...)
+├── cultivation/  (CultivationFacade, CultivationFacadeImpl, ...)
 ├── diplomacy/    (DiplomacyFacade, DiplomacyFacadeImpl, DiplomacyService, ...)
 ├── disciple/     (DiscipleFacade, DiscipleFacadeImpl, DiscipleService, ...)
-├── exploration/  (ExplorationService, MissionSystem, CaveExplorationSystem, ...)
+├── economy/      (EconomyFacade, EconomyFacadeImpl, ...)
+├── exploration/  (ExplorationFacade, ExplorationService, MissionSystem, CaveExplorationSystem, ...)
+├── gacha/        (GachaFacade, GachaFacadeImpl, GachaService, GachaPullLedger, GachaFragmentLedger, ...)
 ├── inventory/    (InventoryFacade, InventoryFacadeImpl, ...)
 ├── production/   (ProductionFacade, ProductionFacadeImpl, ProductionCoordinator, ...)
+├── road/         (RoadFacade, RoadFacadeImpl, ...)
 ├── save/         (SaveFacade, SaveFacadeImpl, SaveService, SaveLoadCoordinator, ...)
 └── settlement/   (SettlementCoordinator, SettlementCache, SettlementScheduler, ...)
 ```
@@ -296,7 +305,7 @@ GameViewModel 通过 **9 个 Delegate** 拆分领域逻辑：
 
 ```
 delegate/
-├── DiscipleDelegate.kt        弟子管理（招募/驱逐/装备/道侣）
+├── DiscipleDelegate.kt        弟子管理（关注/类型/奖励/建筑分派/交谈）
 ├── InventoryDelegate.kt       物品管理（购买/出售/自动购买）
 ├── NavigationDelegate.kt      导航/对话框
 ├── PlantingDelegate.kt        种植
@@ -315,22 +324,6 @@ delegate/
 - **CI 管道**：`.github/workflows/ci.yml`（compile + test + detekt + kover）
 
 **构建检查**：`./gradlew compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport`
-
-### DiscipleCompact 轻量表
-
-ECS 风格内存优化：`disciple_compact` Room 表（14 字段 vs 原 Disciple 50+），高频查询场景使用精简模型。
-
-| 字段 | 说明 |
-|------|------|
-| id, slotId, name | 基础标识 |
-| cultivation, realm, realmLayer | 修炼核心数据 |
-| lifespan, maxLifespan, isAlive, age | 寿命状态 |
-| spiritRoot, combatPower | 灵根/战力 |
-| cultivationSpeed, cultivationSpeedBonus, cultivationSpeedDuration, status | 修炼速率/状态 |
-
-`DiscipleCompact.fromDisciple()` / `toDisciple()` 工厂方法双向转换。独立 DAO `DiscipleCompactDao` + 2 个索引（slot_id, slot_id+isAlive）。
-
-DB v27 迁移：`MIGRATION_26_27` 创建 disciple_compact 表 + `MIGRATION_1_26` 合并 v1→v26 顺序迁移链。
 
 ### EventBus (25 种事件)
 

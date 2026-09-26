@@ -472,7 +472,6 @@ inline double calculateCultivationPerPhaseColumn(
         const CultivationRateInput& extra) {
     // 灵根数量（spiritRootTypes 按 "," 切分；空串按 1 兜底，与列版 ?: 1 一致）
     int32_t rootCount = 1;
-    if (!d.spiritRootType.empty()) rootCount = 1;
     for (char c : d.spiritRootType) {
         if (c == ',') ++rootCount;
     }
@@ -521,7 +520,6 @@ inline double calculateCultivationPerPhaseColumn(
         const CultivationRateInput& extra) {
     // 灵根数量（spiritRootTypes 按 "," 切分；空串按 1 兜底）
     int32_t rootCount = 1;
-    if (!ds.spiritRootTypes[row].empty()) rootCount = 1;
     for (char c : ds.spiritRootTypes[row]) {
         if (c == ',') ++rootCount;
     }

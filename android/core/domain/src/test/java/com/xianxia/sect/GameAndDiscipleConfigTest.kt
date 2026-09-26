@@ -31,11 +31,6 @@ class GameAndDiscipleConfigTest {
     // ============================================================
 
     @Test
-    fun `年龄最小值应为5`() {
-        assertEquals(5, GameConfig.Disciple.MIN_AGE)
-    }
-
-    @Test
     fun `年龄最大值应为100`() {
         assertEquals(100, GameConfig.Disciple.MAX_AGE)
     }

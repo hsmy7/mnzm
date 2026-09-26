@@ -18,7 +18,6 @@ interface DiscipleFacade {
     val discipleAggregates: StateFlow<List<DiscipleAggregate>>
     val highFrequencyData: StateFlow<HighFrequencyData>
 
-    fun addDisciple(disciple: Disciple)
     fun removeDisciple(discipleId: String): DomainResult<Unit>
     fun getDiscipleById(discipleId: String): Disciple?
     fun updateDisciple(disciple: Disciple)

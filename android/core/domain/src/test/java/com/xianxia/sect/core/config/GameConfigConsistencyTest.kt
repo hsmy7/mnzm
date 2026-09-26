@@ -98,12 +98,6 @@ class GameConfigConsistencyTest {
 
     // ── Disciple ──
     @Test
-    fun `年龄最小值两源一致`() {
-        val data = GameConfigData().disciple
-        assertEquals(GameConfig.Disciple.MIN_AGE, data.minAge)
-    }
-
-    @Test
     fun `年龄最大值两源一致`() {
         val data = GameConfigData().disciple
         assertEquals(GameConfig.Disciple.MAX_AGE, data.maxAge)

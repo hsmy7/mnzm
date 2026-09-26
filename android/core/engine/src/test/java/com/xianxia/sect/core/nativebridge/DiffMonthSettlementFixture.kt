@@ -79,23 +79,6 @@ internal fun buildBeastAttackProcessor(
     rngManager = gameRng,
 )
 
-/** 真实 ProductionProcessor（月变步骤 6 自动排班对拍主体） */
-internal fun buildProductionProcessor(
-    store: FakeGameStateStore,
-    gameRng: GameRngManager,
-    scopeProvider: CoroutineScopeProvider
-): ProductionProcessor = ProductionProcessor(
-    stateStore = store,
-    inventorySystem = mockSmart(),
-    productionCoordinator = mockSmart(),
-    productionSlotRepository = mockSmart(),
-    formulaService = mockSmart(),
-    rngManager = gameRng,
-    scopeProvider = scopeProvider,
-    ioDispatcher = mockSmart(),
-    inventoryConfig = com.xianxia.sect.core.config.InventoryConfig()
-)
-
 /** S4 内存 ProductionSlotDataPort（fake repo 后端——月结生产结算对拍用）。
  *  单线程 Unconfined 语义（无并发）；update 未命中为 no-op（DAO update-where-id 语义）。 */
 internal class InMemoryProductionSlotDataPort : com.xianxia.sect.core.repository.ProductionSlotDataPort {

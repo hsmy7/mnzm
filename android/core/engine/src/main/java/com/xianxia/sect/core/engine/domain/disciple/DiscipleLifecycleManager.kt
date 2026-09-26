@@ -44,13 +44,6 @@ class DiscipleLifecycleManager @Inject constructor(
     // ==================== 弟子 CRUD ====================
 
     /**
-     * Add new disciple
-     */
-    fun addDisciple(disciple: Disciple) {
-        stateStore.update { discipleTables.insert(disciple) }
-    }
-
-    /**
      * Remove disciple by ID
      */
     fun removeDisciple(discipleId: String): DomainResult<Unit> {

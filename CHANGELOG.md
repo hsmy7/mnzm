@@ -1,5 +1,42 @@
 ## [4.01.16] - 2026-09-22
 
+### 角色卡池重构 G10 批（2026-09-26）——RNG 对拍基线重录（唯一窗口）+ 全量回归收口 + 死代码 grep 清零 + 活文档收口 — `chore(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G10.md`（派工真源，含上位失真 10 条与 D-1…D-6 决策）
+> + `docs/design/gacha-batches/report-G10.md`（本批报告）。
+
+- 🔴 **金黄基线重录（全项目唯一窗口，根因 = G02–G09 删除面平移 RNG 消费序）**：
+  探针摘要两处同批改 `0x490e8dc522e12921` → `0xb4f3c6912207f597`
+  （`gamecore/include/gamecore/determinism_probe.h` 的 `kGoldenDigest` +
+  `androidTest/.../NativeFpDeterminismTest.kt` 字符串常量）；金序列两条
+  （`DiscipleFactory.GoldenSequenceSeed42` / `…Seed987654321Female`）18 个期望值按实测定值——
+  失配面 = `portraitRes` + 八项资质，方差与基础属性零平移。`kProbeVersion`、
+  `advancePhaseBaseline`、`gacha_tx.h`、`seed + 12` 播种式全部未动。
+- **死代码/死符号清零**（删前逐一按名 grep 零命中贴证）：C++ `rootCount = 1;` 自赋值 3 处；
+  `NullSafeProtoBuf.relationIdToProto/FromProto`、`Serializers.kt` 整文件（两 Nullable 序列化器）、
+  `BeastMaterialDatabase` 血炼四方法、`DiscipleFacade.addDisciple` 全链五文件 +
+  `LEGACY_CRUD` 守卫类别、`GameNotification.RecruitFailed` 变体 + `GameOverlayHost` 通知节、
+  `MIN_AGE`、`recruitListAggregates`、`Color.kt` 灵根数色旧表（`getSpiritRootCountColor` +
+  `SingleRoot…PentaRoot` + `XianxiaColorScheme.rarityColors`）、`WarehouseTab`/`MerchantDialog`
+  两个 `getRarityColor` 转发壳、`AutoAssignDelegate` 俘虏过滤两死 UI 入口、
+  `DiffMonthSettlementFixture.buildProductionProcessor`。
+- **通知通道收缩登记**：`GameNotification` 变体清零后 UI/VM 面（`GameNotificationSection`、
+  `GameViewModel.pendingNotification/notifications/clearNotification`）删除；后端管线
+  （GameStateStore 队列五成员 + GameEngine/Facade 转发）为休眠扩展预留，整体退役待拍板。
+- **守卫升级**：`RngSourceGuardTest` 上限型登记值对齐实测（core/domain ⑤ 19→12、
+  core/engine ② 14→1、feature/game ②/⑤ 锁死 0；判别力红证实测）——此前 G02–G09 只删不增
+  守卫恒假绿；`docs/rng-source-inventory.md` §2/§3/§8.2 全表重盘（SYSTEM 分区消费 35→16）。
+- **活文档收口**：`docs/cpp-engine.md` / `docs/architecture.md`（存档校验链图重画至 23 规则 +
+  L3/L4 树同步）/ `docs/knowledge-base.md`（偷盗节删除、技能 9→8、规则表重盘 23 条）/
+  `CODE_WIKI.md`（Facade 清单 7→12 含 `GachaFacade`、DiscipleCompact 死节删除、
+  Delegate 职责同步）/ `docs/rng-source-inventory.md`。
+- **测试基建债登记**（G11 §8-4 收口）：`FakeGameStateStore`（断线桩）与 `FakeAtomicStateStore`
+  （缺 `!==` 提交守卫）加显式语义差警告，`rules/testing.md` §5 登记替身选择纪律。
+- **门禁**：ctest 1437/1437 全绿（Determinism 2/2、SceneEquivalence 13/13）；JUnit 全量绿；
+  detekt 六模块 0；lint 36 警告全预存 0 error；ActionId 201/maxId 1872 零漂移；
+  JNI 86/86；game-data sha256 `035066cb…94ef` 不变；`.so` 9015808 字节 /
+  sha256 `b1eb1bec32d6c1bc…`（重建）。
+
 ### 角色卡池重构 G11 批（2026-09-26）——最简寻访 UI（主界面 / 结果页 Q30+Q31 / 图鉴 / 公示 / 历史 + `GachaDelegate` 接线）— `feat(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G11.md`（派工真源，含上位失真清单与 D-1…D-12 决策）

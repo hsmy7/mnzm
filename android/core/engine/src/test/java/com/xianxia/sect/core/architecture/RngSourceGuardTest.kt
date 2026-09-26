@@ -89,27 +89,48 @@ class RngSourceGuardTest {
      * `service/MerchantAndRecruitService.kt:332`（createMerchantItem）。
      * ⇒ 上限按实测锁为 5；`docs/rng-source-inventory.md` §3.5 的「⑤（7 处）」清单需同步
      * 核减（文档改动归主线程终树）。
+     *
+     * ### G10 死码清零后的全表下调（2026-09-26，上限型登记值对齐实测）
+     * G02–G09 的删除面只删不增，而登记上限从未随之下调 ⇒ 守卫恒假绿（TASKBOOK-G10 §2-5）。
+     * 本批按守卫同口径（剔注释后四类正则逐模块实跑）重测并把上限对齐实值：
+     * | 模块 | 类别 | 旧登记 | 实测 | 差额去向 |
+     * |---|---|---|---|---|
+     * | core/domain | ② BARE_DRAW | 6 | 6（持平） | — |
+     * | core/domain | ⑤ DEFAULT_PARAM_TRAP | 19 | **12** | Affix/Physique/Talent 三库默认陷阱随天赋/体质/词条系统下线（G02/G04） |
+     * | core/engine | ② BARE_DRAW | 14 | **1** | BattleDescriptionGenerator 14 处已治理 + InventoryFacade 开袋奖励族随删除面下线 |
+     * | core/engine | ④/⑤ | 2/5 | 2/5（持平） | — |
+     * | core/data | ② | 1 | 1（持平，白名单） | — |
+     * | feature/game | ②/⑤ | 1/1 | **0/0（锁死）** | 末两处命中随删除面下线 |
+     * 每条实值来源见 `docs/rng-source-inventory.md` §2/§3（G10 重盘版）。
      */
     private val registeredLimits: Map<String, Map<RandomSourceCategory, Int>> = mapOf(
         "core/domain" to mapOf(
-            // W4-D/D5 清偿下调：13 → 6（A5 显形的 8 处存量死链已删 7——AISectPersonality×2 /
-            // Items PillGrade.random() 无参重载 / BaseTemplateRegistry 三保护函数（唯一生产调用方
-            // BeastMaterialRegistry 两随机函数同批删除）/ BeastMaterialDatabase.getRandomMaterialByRealm。
-            // 余 1 处 = getRandomMaterialByBeastType 裸抽取（活代码，3 生产调用方）→ RNG 阶段 3 分区化）
+            // G10 实测 6（2026-09-26）：BaseTemplateRegistry.getRandom:69 / EquipmentRegistry
+            // .generateRandomBySlot:313 / EntityStore.random:83 / NameService:92/:129（②⑤同行）
+            // 均 ⚪ 死代码或默认分支死；BeastMaterialDatabase.getRandomMaterialByBeastType:336
+            // 🔴 活（3 生产调用方）→ RNG 阶段 3 分区化
             RandomSourceCategory.BARE_DRAW to 6,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 0,
-            RandomSourceCategory.DEFAULT_PARAM_TRAP to 19
+            // G10 实测 12（2026-09-26，19 → 12）：明细见 inventory §3.2——
+            // EquipmentDatabase:224/:236/:261、HerbDatabase:235/:245、ItemDatabase:729/:736、
+            // GameUtils:70/:77、NameService:92/:129、SpiritRootGenerator:10
+            RandomSourceCategory.DEFAULT_PARAM_TRAP to 12
         ),
         "core/engine" to mapOf(
-            RandomSourceCategory.BARE_DRAW to 14,
+            // G10 实测 1（2026-09-26，14 → 1）：唯一存量 = MerchantAndRecruitService:332
+            // （createMerchantItem 默认实参，②⑤ 同行；生产调用全显式传 rng.asKotlinRandom()）
+            RandomSourceCategory.BARE_DRAW to 1,
             RandomSourceCategory.GAME_RANDOM to 0,
+            // G10 实测 2（持平）：WorldMapGenerator:15 / CaveExplorationSystem:38（挂钟种子，阶段 3）
             RandomSourceCategory.SELF_HELD_RNG to 2,
-            // G08 兑换码改道：删 generateDisciple 默认实参（−1）+ 补记 G04 漏删的
-            // generateRandomTalents（−1，登记值此前虚高）⇒ 7 → 5（详见上方 KDoc）
+            // G08 下调 7 → 5（见上）；G10 实测仍 5（持平）：ManualDatabase:655/:674、
+            // RedeemCodeManager:343、RedeemCodeRewardOps:116、MerchantAndRecruitService:332
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 5
         ),
         "core/data" to mapOf(
+            // G10 实测 1（持平）：DataArchiver.generateBatchId 的 Math.random（归档批次 ID，
+            // 基础设施白名单，与游戏状态无关）
             RandomSourceCategory.BARE_DRAW to 1,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 0,
@@ -122,10 +143,12 @@ class RngSourceGuardTest {
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 0
         ),
         "feature/game" to mapOf(
-            RandomSourceCategory.BARE_DRAW to 1,
+            // G10 实测 0（2026-09-26，1 → 0，锁死）：末处命中随删除面下线
+            RandomSourceCategory.BARE_DRAW to 0,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 0,
-            RandomSourceCategory.DEFAULT_PARAM_TRAP to 1
+            // G10 实测 0（2026-09-26，1 → 0，锁死）
+            RandomSourceCategory.DEFAULT_PARAM_TRAP to 0
         ),
         "app" to mapOf(
             RandomSourceCategory.BARE_DRAW to 0,

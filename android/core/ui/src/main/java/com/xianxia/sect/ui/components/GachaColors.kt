@@ -14,8 +14,8 @@ import com.xianxia.sect.core.GameConfig
  * 故收敛到这里。
  *
  * ## 与旧色表的关系
- * 物品品阶在本仓还有四份旧表（`GameColors.getRarityColor`、`ItemCard.getRarityColor`、
- * `GameConfig.Rarity.CONFIGS[].color`、`XianxiaColorScheme.rarityColors`），
+ * 物品品阶在本仓还有三份旧表（`GameColors.getRarityColor`、`ItemCard.getRarityColor`、
+ * `GameConfig.Rarity.CONFIGS[].color`），
  * 六阶是粉红而非金——**寻访域一律不得引用它们**，判据见 `GachaColorSingleSourceGuardTest`。
  * 旧表的收口属色板对齐债（G12）。
  */

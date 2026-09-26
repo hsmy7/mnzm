@@ -94,12 +94,12 @@ tickInternal():
     └─ 灵田/灵植: 动态重算 growTime → 成熟检查
 
   Level 3 — 月变事件 (月变时)       ← 定时事件模式
-    ├─ 外交/盗窃/执法/任务/叛逃
+    ├─ 外交/任务（盗窃/执法/叛逃已删）
     ├─ 月度系统事件 (Alchemy/Forge/HerbGarden/Planting)
-    └─ 伴侣配对 + 忠诚度衰减
+    └─ 丹药衰减/灵矿产出/游戏结束检查（伴侣配对/忠诚度衰减已删）
 
   Level 4 — 年变事件 (年变时)
-    ├─ T1 立即组 (11 项, 单事务)    ← 年龄不变量/招募三件套/驻军报告
+    ├─ T1 立即组 (11 项, 单事务)    ← 年龄不变量/驻军报告（招募三件套已删）
     └─ T2 延迟组 (11 项, 入队)      ← YearlyOpsQueue 逐 tick 预算 drain (30ms)
 ```
 
@@ -111,7 +111,7 @@ tickInternal():
 **拆分策略**（`CultivationEventMonthlyOps.processYearlyEvents`）：
 
 - **T1 立即组（11 项，单事务保原相对序）** — 必须当月立即：玩家老化+死亡（年龄不变量）、
-  招募三件套（刷新年新弟子被当年 recruitAging +1）、garrisonAndReport（与纳贡同事务，
+  招募三件套（已删）、garrisonAndReport（与纳贡同事务，
   annual* 字段必须计入年报）
 - **T2 延迟组（11 项，入队延迟执行）** — 全部有自愈语义：差值判据（lastRecruitYear/
   lastAiSectRecruitYear/lastTradeYear ≥ N，跳过次年自动补跑）或延迟无感（AI 老化晚 1 tick、
@@ -404,24 +404,34 @@ SaveValidator.validate(SaveData)
   ├─ RuleContext 预计算 (equipmentIds, buildingIds, removedDiscipleIds)
   │
   ├─ 遍历 SaveValidationRuleRegistry.all (按 order 排序)
-  │   ├─ [order=1]  DiscipleIdBoundsRule  弟子 ID 越界（>200K/负值）判损坏（C3-b，防大 id 扩容 OOM）
-  ├─ [order=1]  SectNameRule           sectName 非空
-  │   ├─ [order=2]  GameDateRule           year/month 范围
-  │   ├─ [order=3]  DiscipleAgePositiveRule age >= 0
-  │   ├─ [order=4]  GamePhaseRangeRule     phase 范围 [0,2]
-  │   ├─ [order=5]  CultivationCapRule     修为上限
-  │   ├─ [order=6]  EquipmentRefRule       装备引用存在性
-  │   ├─ [order=7]  AgeLifespanRule        年龄 vs 寿命
-  │   ├─ [order=8]  BuildingRefRule        建筑引用存在性
-  │   ├─ [order=9]  DuplicateDiscipleIdRule 重复弟子 ID
-  │   ├─ [order=10] GhostDiscipleCleanupRule 幽灵弟子清理
-  │   ├─ [order=11] GhostRefCleanupRule     幽灵引用清理
-  │   ├─ [order=12] SpiritStoneNonNegativeRule 灵石非负
+  │   ├─ [order=0]  NumericSanitizeRule          NaN/负值消毒（防穿透 cap 规则）
+  │   ├─ [order=1]  DiscipleIdBoundsRule         弟子 ID 越界（>200K/负值）判损坏（C3-b，防大 id 扩容 OOM）
+  │   ├─ [order=1]  SectNameRule                 sectName 非空
+  │   ├─ [order=2]  GameDateRule                 year/month 范围
+  │   ├─ [order=4]  GamePhaseRangeRule           phase 范围 [0,2]
+  │   ├─ [order=5]  CultivationCapRule           修为上限
+  │   ├─ [order=6]  EquipmentRefRule             装备引用存在性
+  │   ├─ [order=8]  BuildingRefRule              建筑引用存在性
+  │   ├─ [order=9]  DuplicateDiscipleIdRule      重复弟子 ID
+  │   ├─ [order=10] GhostDiscipleCleanupRule     幽灵弟子清理
+  │   ├─ [order=11] GhostRefCleanupRule          幽灵引用清理
+  │   ├─ [order=12] SpiritStoneNonNegativeRule   灵石非负
   │   ├─ [order=13] DiscipleRealmConsistencyRule realm/layer 合法性
-  │   └─ [order=14] DiscipleDeadStatusRule   死亡装备清理
+  │   ├─ [order=14] DiscipleDeadStatusRule       死亡装备清理
+  │   ├─ [order=15] EquipmentDedupeRule          装备去重
+  │   ├─ [order=16] SlotRefRule                  槽位引用存在性
+  │   ├─ [order=17] BloodPoolBuildingCleanupRule 血炼池建筑残留清理
+  │   ├─ [order=18] ItemRefConsistencyRule       物品引用一致性
+  │   ├─ [order=19] EntityCountBoundsRule        实体数量上界
+  │   ├─ [order=20] RecruitListCleanupRule       招募链残留恒空清表
+  │   ├─ [order=21] BattleLogRefRule             battleLogs 条目结构校验
+  │   ├─ [order=22] MailDiscipleAttachmentCleanupRule 邮件弟子附件残留摘除
+  │   └─ [order=23] JadeSymbolNonNegativeRule    玉符字段负值/超限钳制
   │
   └─ 聚合所有 RuleOutcome → IntegrityResult
 ```
+
+> order=3/7 为空洞：对应规则（年龄非负/年龄 vs 寿命）已随寿元玩法下线，编号退役不复用。
 
 ### 核心接口
 

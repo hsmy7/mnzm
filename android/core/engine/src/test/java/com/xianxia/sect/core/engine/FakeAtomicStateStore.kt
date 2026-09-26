@@ -290,6 +290,10 @@ internal class FakeAtomicStateStore : GameStateStore {
      * InventorySystem 等物品仓库路径的修改必须对后续事务可见）。
      */
     private fun syncFlows(m: MutableGameState) {
+        // 🔴 语义差（G11 §8-4 登记）：生产 GameStateStoreImpl 的提交闸门是
+        // `gameData !== baseline` 引用判据——原地改字段时引用不变 ⇒ 订阅流不发射；
+        // 此处无条件赋值，仅靠 MutableStateFlow 的 equals 去重。「引用不变 ⇒ 不提交」
+        // 的契约未被本替身复制，需要该判据的测试不能以本替身绿当作生产绿。
         _gameData.value = m.gameData
         latestGameData = m.gameData
         equipmentStacks.value = m.equipmentStacks.all()

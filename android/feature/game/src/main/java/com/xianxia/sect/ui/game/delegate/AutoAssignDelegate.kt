@@ -5,14 +5,13 @@ import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
 import com.xianxia.sect.core.engine.setAutoEquipSettings
 import com.xianxia.sect.core.engine.setAutoLearnSettings
 import com.xianxia.sect.core.engine.setBreakthroughAutoPillSettings
-import com.xianxia.sect.core.engine.setPrisonerSpiritRootFilter
 
 /**
  * 自动分配/委派策略设置委托。
  *
  * 职责：弟子自动分配策略、自动装备/学习/丹药等设置。
  *
- * 设置项字段（自动装备/学习/突破丹药/俘虏过滤）经
+ * 设置项字段（自动装备/学习/突破丹药）经
  * `GameEngineSettingsOps` 域入口写入——AUTHORITATIVE 稳态写者为 C++
  * `settings_patch` 事务，Kotlin 原路径为降级回退臂（batch-23 残余域下沉）。
  * 自动分配策略族（sectPolicies）走独立入口 `batchUpdateAutoAssignAndGuide`
@@ -82,20 +81,6 @@ class AutoAssignDelegate(
     /** 设置自动从仓库学习的策略。 */
     fun setAutoLearnSettings(focused: Boolean, rootCounts: Set<Int>) {
         gameEngine.launchOnEngine { gameEngine.setAutoLearnSettings(focused, rootCounts) }
-    }
-
-    /** 设置俘虏灵根过滤（勾选/取消即保存）。 */
-    fun setPrisonerSpiritRootFilter(filter: Set<Int>) {
-        gameEngine.launchOnEngine { gameEngine.setPrisonerSpiritRootFilter(filter) }
-    }
-
-    /** 切换单个灵根数过滤状态（勾选即保存）。 */
-    fun togglePrisonerFilter(rootCount: Int) {
-        gameEngine.launchOnEngine {
-            val current = gameEngine.gameData.value.prisonerSpiritRootFilter
-            val updated = if (rootCount in current) current - rootCount else current + rootCount
-            gameEngine.setPrisonerSpiritRootFilter(updated)
-        }
     }
 }
 

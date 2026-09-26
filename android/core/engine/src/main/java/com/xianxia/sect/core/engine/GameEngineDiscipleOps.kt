@@ -9,7 +9,6 @@ import com.xianxia.sect.core.engine.domain.building.updateDiscipleStatus
 
 
 
-fun GameEngine.addDisciple(disciple: Disciple) = discipleFacade.addDisciple(disciple)
 fun GameEngine.removeDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.removeDisciple(discipleId)
 fun GameEngine.getDiscipleById(discipleId: String): Disciple? = discipleFacade.getDiscipleById(discipleId)
 fun GameEngine.updateDisciple(disciple: Disciple) = discipleFacade.updateDisciple(disciple)

@@ -53,11 +53,6 @@ class DiscipleService @Inject constructor(
     // ==================== 弟子 CRUD ====================
 
     /**
-     * Add new disciple
-     */
-    fun addDisciple(disciple: Disciple) = discipleLifecycleManager.addDisciple(disciple)
-
-    /**
      * Remove disciple by ID
      */
     fun removeDisciple(discipleId: String): DomainResult<Unit> = discipleLifecycleManager.removeDisciple(discipleId)

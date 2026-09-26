@@ -162,7 +162,6 @@ inline double aiCultivationRate(
         const Disciple& d,
         const std::map<std::string, ManualProficiencyData>& proficiencies) {
     int32_t rootCount = 1;
-    if (!d.spiritRootType.empty()) rootCount = 1;
     for (char c : d.spiritRootType) {
         if (c == ',') ++rootCount;
     }

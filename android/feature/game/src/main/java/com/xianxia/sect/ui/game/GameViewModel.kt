@@ -15,7 +15,6 @@ import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.PerformanceMode
-import com.xianxia.sect.core.engine.clearPendingNotification
 import com.xianxia.sect.core.engine.enterSect
 import com.xianxia.sect.core.engine.notifyUserInteraction
 import com.xianxia.sect.core.engine.popSubDialogDomain
@@ -68,7 +67,6 @@ import com.xianxia.sect.core.render.ClarityMode
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.ui.game.delegate.AdsDelegate
@@ -498,8 +496,6 @@ class GameViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),
             GameScreenAggState(GameData(), GameStateStore.HighFreqState(), GameStateStore.ConfigState(), true))
 
-    val pendingNotification: StateFlow<GameNotification?> get() = gameEngine.pendingNotification
-    val notifications: StateFlow<List<GameNotification>> get() = gameEngine.notifications
     val rewardCardQueue: StateFlow<List<RewardCardItem>> get() = gameEngine.rewardCardQueue
     val warehouseFullEvent get() = gameEngine.warehouseFullEvent
     // 按 id 去重兜底（引擎已保证不变量：读档归一化 + 运行时守卫），
@@ -529,11 +525,6 @@ class GameViewModel @Inject constructor(
         )
     }.distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, false)
-
-    val recruitListAggregates: StateFlow<List<DiscipleAggregate>> = gameData
-        // 按 id 去重兜底（引擎/数据层已保证不变量，防 LazyVerticalGrid 重复 key 异常）
-        .map { data -> data.recruitList.distinctBy { it.id }.map { it.toAggregate() } }
-        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     // 袋物品独立存储：物理不在仓库堆叠中，直接透传无需过滤
     val equipmentStacks: StateFlow<List<EquipmentStack>> get() = gameEngine.equipmentStacks
@@ -630,11 +621,6 @@ class GameViewModel @Inject constructor(
     // ── 建筑/弟子详情 ──
 
     fun openBuildingDetailDialog(buildingId: String) { _selectedBuildingId.value = buildingId }
-
-    fun clearNotification() {
-        gameEngine.consumeNotification()
-        delegateServices.discipleFacade.clearPendingNotification()
-    }
 
     fun enterSect(sectId: String) {
         // 进入宗门转场：开启（目标宗门地图就绪且至少播放 1 秒后自动关闭），

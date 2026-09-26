@@ -16,7 +16,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.state.BattleResultUIData
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.game.AlchemyViewModel
@@ -124,7 +123,6 @@ private class GameOverlayDialogState {
 /** GameOverlayHost 派生弹窗数据：StateFlow 收集 + 可见性推导 */
 private data class GameOverlayDialogData(
     val currentDialogType: DialogType,
-    val pendingNotification: GameNotification?,
     val dialogRenderable: Boolean,
     val currentAttack: PendingBeastAttack?,
     val beastStillAlive: Boolean,
@@ -197,7 +195,6 @@ private fun rememberGameOverlayDialogData(
     state: GameOverlayDialogState
 ): GameOverlayDialogData {
     val currentDialogType by viewModel.currentDialogType.collectAsStateWithLifecycle()
-    val pendingNotification by viewModel.pendingNotification.collectAsStateWithLifecycle()
     // 引擎事件弹窗生命周期门控（Bugly #3098）：Activity 销毁窗口期禁止新 Dialog 进入组合，
     // 只门控渲染不早退（收集器保持运行，返回前台仅显示最新一条）；用户主动打开的对话框不门控
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
@@ -234,13 +231,12 @@ private fun rememberGameOverlayDialogData(
         currentDialogType = currentDialogType,
         tipDialogMessage = state.tipDialogMessage,
         capacityWarningMessage = state.capacityWarningMessage,
-        pendingNotification = pendingNotification,
         currentAttack = currentAttack,
         attackWarningVisible = attackWarningVisible,
         overlayOrderNonEmpty = viewModel.overlayOrder.isNotEmpty()
     )
     return GameOverlayDialogData(
-        currentDialogType = currentDialogType, pendingNotification = pendingNotification,
+        currentDialogType = currentDialogType,
         dialogRenderable = dialogRenderable, currentAttack = currentAttack,
         beastStillAlive = beastStillAlive, attackWarnings = attackWarnings,
         shownWarningStageIds = shownWarningStageIds, anyDialogVisible = anyDialogVisible
@@ -255,19 +251,16 @@ private fun isBeastStillAlive(
 } ?: false
 
 /** 任意弹窗可见判断：单例遮罩层条件 */
-@Suppress("LongParameterList")
 private fun anyGameOverlayVisible(
     currentDialogType: DialogType,
     tipDialogMessage: String?,
     capacityWarningMessage: String?,
-    pendingNotification: GameNotification?,
     currentAttack: PendingBeastAttack?,
     attackWarningVisible: Boolean,
     overlayOrderNonEmpty: Boolean
 ): Boolean = currentDialogType != DialogType.None ||
     tipDialogMessage != null ||
     capacityWarningMessage != null ||
-    pendingNotification != null ||
     currentAttack != null ||
     attackWarningVisible ||
     overlayOrderNonEmpty
@@ -348,10 +341,6 @@ private fun GameOverlayDialogs(
         dialogRenderable = data.dialogRenderable,
         message = state.capacityWarningMessage,
         onDismiss = { state.capacityWarningMessage = null }
-    )
-    GameNotificationSection(
-        dialogRenderable = data.dialogRenderable,
-        pendingNotification = data.pendingNotification, viewModel = viewModel
     )
     GameOverlayStackSection(
         viewModel = viewModel, dialogRenderable = data.dialogRenderable,
@@ -450,30 +439,6 @@ private fun GameCapacityWarningSection(
             // 支持点击屏幕外关闭（dismissOnClickOutside 默认 true）
             scrimEnabled = false
         )
-    }
-}
-
-/** 引擎事件通知弹窗 */
-@Composable
-private fun GameNotificationSection(
-    dialogRenderable: Boolean,
-    pendingNotification: GameNotification?,
-    viewModel: GameViewModel
-) {
-    if (dialogRenderable && pendingNotification != null) {
-        pendingNotification.let { notification ->
-            when (notification) {
-                is GameNotification.RecruitFailed -> {
-                    StandardPromptDialog(
-                        onDismissRequest = { viewModel.clearNotification() },
-                        title = "招募失败",
-                        text = notification.reason,
-                        confirmLabel = "知道了",
-                        scrimEnabled = false
-                    )
-                }
-            }
-        }
     }
 }
 

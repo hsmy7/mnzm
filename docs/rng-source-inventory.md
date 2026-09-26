@@ -6,7 +6,7 @@
 | 依据 | [ADR rng-determinism-remediation.md](adr/rng-determinism-remediation.md) §4 阶段 0 / §11 盲区 1；[cpp-migration-handover-m0.md](cpp-migration-handover-m0.md) §6 |
 | 扫描口径 | 生产主源：`android/{core/domain,core/engine,core/data,core/ui,feature/game,app}/src/main`（**`src/test` 显式排除**——测试裸用 `Random` 是常规做法，ADR §11 盲区 9） |
 | 治理目标 | `GameRngManager.getRng(RngPartition.XXX)`（唯一合法随机源） |
-| 生成日期 | 2026-09-14（阶段 0 实跑生成） |
+| 生成日期 | 2026-09-14（阶段 0 实跑生成）；**最近全表重盘：2026-09-26（G10，守卫同口径实跑）** |
 
 ---
 
@@ -24,21 +24,24 @@
 
 ---
 
-## 2. 汇总计数（**阶段 2 收口后实测**，注释剔除口径；2026-09-14）
+## 2. 汇总计数（**G10 全表重盘实测**，注释剔除口径；2026-09-26）
 
 > **口径纪律（重要，曾踩坑）**：计数**必须剔除注释**（行注释 + 块注释/KDoc）。否则 KDoc 里对被禁字面量的**引用**（如"原默认实参回落 `Random.Default` 已消除"）会被计入债务，导致：① 登记值被注释噪音撑大、真实债务被淹没；② "改注释即改守卫"。
-> 另一条纪律：**同一行可命中多类**（如 `CloudLayerAnimator.kt:30` 的 `private val random: Random = Random.Default` 同时命中 ②④⑤），故"逐规则命中合计" > "涉及代码行数"。
+> 另一条纪律：**同一行可命中多类**（如 `NameService.kt:92` 的 `rng: kotlin.random.Random = Random.Default` 同时命中 ②⑤），故"逐规则命中合计" > "涉及代码行数"。
 > 本表数值 = `RngSourceGuardTest` 的登记上限（守卫自己报数，为**唯一权威**）。
+>
+> **G10 重盘（2026-09-26）**：G02–G09 删除面只删不增而登记上限未随之下调，守卫一度恒假绿
+> （TASKBOOK-G10 §2-5）。本批按守卫同口径实跑全表并把上限对齐实值；差额去向逐条见 §3 处置列。
 
 | 模块 | ② `.random()`/`Random.Default`/`Math.random` | ③ `GameRandom` | ④ 自持 RNG | ⑤ 默认值陷阱 | 逐规则合计 |
 |---|---|---|---|---|---|
-| `core/domain` | **5**（阶段 0 为 7） | **0** | 0 | 19 | 24 |
-| `core/engine` | 14 | **0** | 2 | 7 | 23 |
+| `core/domain` | 6 | **0** | 0 | **12**（G10 前登记 19） | 18 |
+| `core/engine` | **1**（G10 前登记 14） | **0** | 2 | 5 | 8 |
 | `core/data` | 1 | 0 | 0 | 0 | 1 |
 | `core/ui` | 0 | 0 | 0 | 0 | 0 |
-| `feature/game` | **1**（阶段 0 为 2） | **0** | **0**（阶段 0 为 1） | 1 | 2 |
+| `feature/game` | **0**（锁死） | **0** | **0** | **0**（锁死） | 0 |
 | `app` | 0 | 0 | 0 | 0 | 0 |
-| **合计** | **21** | **0** | **2** | **27** | **50** |
+| **合计** | **8** | **0** | **2** | **17** | **27** |
 
 > **③ 归零**：`GameRandom` 已物理删除，残留调用为编译期报错（**编译即守卫**）。
 > **④ 由 3 → 2**（阶段 2，2026-09-14）：`CloudLayerAnimator.kt` 的 `private val random: Random = Random.Default` **默认值摘除**（`NativeSurfaceView` 传 `Random(cloudLayerSeed(宽,高))` 固定种子）。余 2 处 = `WorldMapGenerator.kt:15`、`CaveExplorationSystem.kt:39`（均 `fromSeed(System.nanoTime())` 挂钟种子，**阶段 3**）。
@@ -46,124 +49,86 @@
 > **与旧口径「114 处」的差异**：旧数字**含注释**、且只统计 ②③ 两类字面量（漏 ④⑤）。剔除注释后 ② 类现值 21 处；⑤ 的 27 处中有相当比例是**死默认分支**（默认值从不被触发，如 `TalentRegistry` 无调用方），真实"生产省略实参"的活点约 19 处（明细见 §3 各表的处置列）。
 > **阶段 2 收口批新增守卫两道**：`RngEngineIsolationGuardTest`（禁止 `object`/单例持有可变 `GameRngManager` 字段——`MissionSystem` 事故）+ `DiffAiRngSeedingTest`（AI 分区播种态跨语言等价性——`initForSlot` 裸种子事故）。
 
-### 判定汇总（按 ADR §8 "是否写入 GameData / 实体表 / 影响数值"口径）
+### 判定汇总（按 ADR §8 "是否写入 GameData / 实体表 / 影响数值"口径；G10 重盘版）
 
-| 判定 | 条数 | 说明 |
+| 判定 | 条数（按规则命中计） | 明细 |
 |---|---|---|
-| `DECISION`（影响状态） | **38** | 其中**数值型 25**（真实玩法风险）+ **文本持久化 12**（`BattleDescriptionGenerator` 写 Room `battle_logs` 实体）+ **持久标识 1**（归档批次 ID） |
-| `PRESENTATION`（纯表现） | **13** | 文案/提示/立绘/装饰；**不写任何持久字段** |
-| `IRRELEVANT`（无关） | **43** | 死代码或默认分支无生产调用方（20 条连测试都不调用） |
+| 🔴 `DECISION`（影响状态） | **9** | `BeastMaterialDatabase.getRandomMaterialByBeastType:336`（妖兽材料掉落）＋ ⑤ 注册表家族 5 处（`EquipmentDatabase:224` / `HerbDatabase:235/:245` / `ItemDatabase:729/:736`，含 `GameEngineWorldBattleOps:315/329/343` 位置实参缺陷）＋ `ManualDatabase:655` ＋ ④ 挂钟播种 2 处（`WorldMapGenerator:15` / `CaveExplorationSystem:38`） |
+| 🟡 `PRESENTATION`（纯表现） | **0** | 阶段 1③/2 已全部迁入表现流（`scene(key)` 派生，§7） |
+| ⚪ `IRRELEVANT`（无关） | **18** | 死代码或默认分支无生产调用方（明细见 §3 处置列） |
 
 ---
 
-## 3. 逐处分类明细
+## 3. 逐处分类明细（G10 重盘版，2026-09-26 实跑；G02–G09 时代的明细表随删除面废止，历史处置线索见 git 历史与 §4/§6/§8 的 dated 登记）
 
 判定图例：🔴 `DECISION` ｜ 🟡 `PRESENTATION` ｜ ⚪ `IRRELEVANT`
 
-### 3.1 `core:domain` — ②（12 行命中）
+### 3.1 `core:domain` — ②（6 处）
 
 | 文件:行 | 封闭函数 | 用途 | 判定 | 处置 |
 |---|---|---|---|---|
-| `registry/BaseTemplateRegistry.kt:70` | `getRandom` | 按稀有度区间抽模板 | ⚪ | 死代码（唯一调用方 `GameDataManager.getRandomSetByRarity` 无调用方） |
-| `registry/BaseTemplateRegistry.kt:143` | `pickWeightedRandom` | 权重抽样 | ⚪ | 死代码（调用方 `BeastMaterialRegistry` 无生产调用方） |
-| `registry/BaseTemplateRegistry.kt:165` | `generateWeightedRarity` | 稀有度分布 | ⚪ | 死代码（仅测试） |
-| `registry/BaseTemplateRegistry.kt:189` | `generateTieredRarity` | 阶梯稀有度 | ⚪ | 死代码（仅测试） |
-| `registry/BeastMaterialDatabase.kt:336` | `getRandomMaterialByRealm` | 按境界加权掉落 | ⚪ | 死代码（仅测试） |
-| `registry/BeastMaterialDatabase.kt:351` | `getRandomMaterialByBeastType` | 按妖兽类型加权掉落 | 🔴 | **阶段 3**（生产三直调：`ExplorationService:357` / `PatrolBattleSystem:595` / `GameEngineWorldBattleOps:299`；材料入仓库） |
-| `registry/EquipmentRegistry.kt:313` | `generateRandomBySlot` | 槽位内模板抽取 | ⚪ | 死代码 |
-| `config/SectResponseTexts.kt:104` | `getAcceptResponse` | 接受送礼文案 | 🟡 | **阶段 2**（`GiftService:150/366` → `GiftResult.message` → 仅聊天展示） |
-| `config/SectResponseTexts.kt:123` | `getRejectResponse` | 拒绝送礼文案 | 🟡 | **阶段 2**（`GiftService:109/376`） |
-| `model/AISectPersonality.kt:65` | `AISectPersonality.random` | 按权重抽 AI 个性 | ⚪ | 死代码（仅测试；生产只读 `aiSectPersonalities`） |
-| `model/AISectPersonality.kt:72` | `randomDenounceInterval` | 谴责间隔月数 | ⚪ | 死代码（仅测试） |
-| `state/EntityStore.kt:83` | `random` | 抽实体 | ⚪ | 死代码（全仓无调用方） |
+| `registry/BaseTemplateRegistry.kt:69` | `getRandom` | 按稀有度区间抽模板 | ⚪ | 死代码（`getRandomSetByRarity`/`generateRandomBySlot` 主源零调用方，G10 复核） |
+| `registry/BeastMaterialDatabase.kt:336` | `getRandomMaterialByBeastType` | 按妖兽类型加权掉落 | 🔴 | **阶段 3**（生产三直调：`GameEngineWorldBattleOps:322` / `ExplorationService:364` / `PatrolBattleSystem:595`；材料入仓库，§8 已核） |
+| `registry/EquipmentRegistry.kt:313` | `generateRandomBySlot` | 槽位内模板抽取 | ⚪ | 死代码（主源零调用方，G10 复核） |
+| `state/EntityStore.kt:83` | `random` | 抽实体 | ⚪ | 死代码（主源零调用方，G10 复核） |
+| `util/NameService.kt:92` | `generateName`（`rng = Random.Default`） | 弟子命名 | ⚪ | ②⑤ 同行；生产零调用（`RedeemCodeManager.generateDisciple` 已随 G08 删除，唯一生产省略实参方消失） |
+| `util/NameService.kt:129` | `inheritName`（`rng = Random.Default`） | 继承命名 | ⚪ | ②⑤ 同行；生产零调用（原显式调用方 `ChildBirthSystem` 已删除） |
 
-### 3.2 `core:domain` — ⑤（17 处默认值陷阱）
+### 3.2 `core:domain` — ⑤（12 处）
 
 | 文件:行 | 签名（节选） | 判定 | 处置 |
 |---|---|---|---|
-| `registry/AffixDatabase.kt:440` | `rollSingleAffix(random = Random, excludedTemplates = emptySet())` | ⚪ | 默认分支死（唯一调用方显式传 rng） |
-| `registry/AffixDatabase.kt:449` | `generateForDisciple(random = Random)` | ⚪ | 默认分支死（4 处生产调用全显式） |
-| `registry/EquipmentDatabase.kt:224` | `generateRandom(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（≥6 处生产省略实参） |
-| `registry/EquipmentDatabase.kt:236` | `generateRandomBySlot(slot, rarity, random = Random)` | ⚪ | 默认分支死（`EnemyGenerator:101` 显式） |
-| `registry/EquipmentDatabase.kt:261` | `generateRarity(min, max, random = Random)`（private） | ⚪ | 仅 `:228` 内部显式传递 |
-| `registry/HerbDatabase.kt:235` | `generateRandomHerb(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（`AISectTeamComposer:194` / `MerchantItemConverter:200` / `HerbRegistry:133` 省略） |
-| `registry/HerbDatabase.kt:245` | `generateRandomSeed(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（`AISectTeamComposer:208` / `MerchantItemConverter:224` / `HerbRegistry:144`） |
-| `registry/ItemDatabase.kt:771` | `generateRandomPill(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（5 处省略） |
-| `registry/ItemDatabase.kt:778` | `generateRandomMaterial(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（3 处省略） |
-| `registry/PhysiqueDatabase.kt:327` | `rollSinglePhysique(random = Random, ...)` | ⚪ | 默认分支死 |
-| `registry/PhysiqueDatabase.kt:336` | `generateForDisciple(random = Random)` | ⚪ | 默认分支死 |
-| `registry/TalentDatabase.kt:570` | `generateRandomTalents(count, maxRarity = 3, random = Random)` | ⚪ | 死代码（省略方 `TalentRegistry:55` 无调用方） |
-| `registry/TalentDatabase.kt:606` | `rollSingleTalent(random = Random, ...)` | ⚪ | 默认分支死 |
-| `registry/TalentDatabase.kt:615` | `generateTalentsForDisciple(random = Random)` | ⚪ | 死代码（`TalentRegistry:64` 无调用方） |
-| `util/NameService.kt:92` | `generateName(gender, style, existingNames, rng = Random.Default)` | 🔴 | **阶段 3**（`RedeemCodeManager:423` 生产省略 → 姓名消费非确定性流） |
-| `util/NameService.kt:129` | `inheritName(parentSurname, gender, existingNames, rng = Random.Default)` | ⚪ | 默认分支死（`ChildBirthSystem:147` 显式） |
-| `util/GameUtils.kt:70/77` | `applyPriceFluctuation(basePrice, random = Random)` | ⚪ | 默认分支死（生产调用全显式） |
+| `registry/EquipmentDatabase.kt:224` | `generateRandom(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（`GameEngineWorldBattleOps:329` 位置实参省略 ⇒ maxRarity 吃默认 6，§3.10 缺陷行） |
+| `registry/EquipmentDatabase.kt:236` | `generateRandomBySlot(slot, rarity, random = Random)` | ⚪ | 默认分支死（函数本体零生产调用方） |
+| `registry/EquipmentDatabase.kt:261` | `generateRarity(min, max, random = Random)`（private） | ⚪ | 仅内部显式传递 |
+| `registry/HerbDatabase.kt:235` | `generateRandomHerb(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（注册表随机家族，生产省略实参） |
+| `registry/HerbDatabase.kt:245` | `generateRandomSeed(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（注册表随机家族，生产省略实参） |
+| `registry/ItemDatabase.kt:729` | `generateRandomPill(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（`GameEngineWorldBattleOps:343` 位置实参省略 ⇒ maxRarity 吃默认 6） |
+| `registry/ItemDatabase.kt:736` | `generateRandomMaterial(minRarity = 1, maxRarity = 6, random = Random)` | 🔴 | **阶段 3**（注册表随机家族，生产省略实参） |
+| `util/GameUtils.kt:70` | `applyPriceFluctuation(basePrice, random = Random)`（Int） | ⚪ | 默认分支死（生产调用全显式） |
+| `util/GameUtils.kt:77` | `applyPriceFluctuation(basePrice, random = Random)`（Long） | ⚪ | 默认分支死（生产调用全显式） |
+| `util/NameService.kt:92` | `generateName(..., rng = Random.Default)` | ⚪ | ②⑤ 同行（见 §3.1） |
+| `util/NameService.kt:129` | `inheritName(..., rng = Random.Default)` | ⚪ | ②⑤ 同行（见 §3.1） |
+| `util/SpiritRootGenerator.kt:10` | `generate(random = Random)` | ⚪ | 生产零调用（仅测试 18 处引用；G10 复核）——本体删除与否归死码清零批复盘 |
 
-### 3.3 `core:engine` — ②（27 行命中）
+> G10 前登记 19 → 实测 12：Affix/Physique/Talent 三库的 7 处默认陷阱随天赋/体质/词条系统下线（G02/G04 删除面）。
+
+### 3.3 `core:engine` — ②（1 处）＋ ③（0 处）
 
 | 文件:行 | 封闭函数 | 用途 | 判定 | 处置 |
 |---|---|---|---|---|
-| `domain/inventory/InventoryFacadeImpl.kt:693` | `generatePillReward` | 开袋抽丹药 | 🔴 | **阶段 1①** |
-| `domain/inventory/InventoryFacadeImpl.kt:703` | `generateHerbReward` | 开袋抽灵草模板 | 🔴 | **阶段 1①** |
-| `domain/inventory/InventoryFacadeImpl.kt:716` | `generateSeedReward` | 开袋抽种子模板 | 🔴 | **阶段 1①** |
-| `domain/inventory/InventoryFacadeImplApplOps.kt:200` | `generateEquipmentReward` | 开袋抽装备 | 🔴 | **阶段 1①**（默认值陷阱调用点） |
-| `domain/inventory/InventoryFacadeImplApplOps.kt:212` | `generateManualReward` | 开袋抽功法模板 | 🔴 | **阶段 1①** |
-| `domain/inventory/InventoryFacadeImpl.kt:727` | `generateMaterialReward` | 开袋抽材料 | 🔴 | **阶段 1①** |
-| `GameEngineSectLevelOps.kt:210` | `buildSectLevelRewardCards` | 抽兽血材料入库存 | 🔴 | **阶段 3**（`claimSectLevelReward:80` ← `SectDelegate:52`） |
-| `domain/battle/BattleDescriptionGenerator.kt:95/103/105/113/123` | `generateAttackDescription` | 闪避/动词/暴击/击杀措辞（5） | 🔴 | **阶段 2**（文本持久化，见 §3.6 口径说明） |
-| `domain/battle/BattleDescriptionGenerator.kt:140/144/158/173` | `generateSkillDescription` | 闪避/施法/暴击/击杀措辞（4） | 🔴 | **阶段 2** |
-| `domain/battle/BattleDescriptionGenerator.kt:189` | `generateSupportSkillDescription` | 施法措辞 | 🔴 | **阶段 2** |
-| `domain/battle/BattleDescriptionGenerator.kt:227/261` | `generateAoeSkillDescription` | 施法/击杀措辞（2） | 🔴 | **阶段 2** |
-| `RedeemCodeManager.kt:423` | `generateDisciple` | 调 `NameService.generateName` **省略 rng** | 🔴 | **阶段 3**（同函数其余抽取均走 MAIL 分区，仅此一处漏出） |
+| `service/MerchantAndRecruitService.kt:332` | `createMerchantItem`（`random: kotlin.random.Random = Random.Default`） | 商人品阶/条目抽取 | ⚪ | ②⑤ 同行；默认分支死（生产 4 调用方全显式传 `rng.asKotlinRandom()`，G10 复核 `:168/:204/:408/:510`） |
 
-### 3.4 `core:engine` — ③（4 行命中）
+> ② 类 G10 前登记 14 → 实测 1：`BattleDescriptionGenerator` 14 处措辞抽取已随 W4-C/C7 改 ID 散列确定性选词归零；`InventoryFacadeImpl` 开袋奖励族随删除面下线；`GameEngineSectLevelOps:210` / `RedeemCodeManager:423` 已治理/删除。
+> ③ 类保持归零（`GameRandom` 物理删除，编译即守卫）。
 
-| 文件:行 | 封闭函数 | 用途 | 判定 | 处置 |
-|---|---|---|---|---|
-| `GameEngineLoadDataOps.kt:262` | `createNewGame` | `mapSeed` 生成（并播种 AI 分区 + 9 个 `GameRngManager` 分区） | 🔴 | **阶段 1③**（改显式熵源 `EngineEntropy`；理由见 ADR 登记） |
-| `GameEngineLoadDataOps.kt:332` | `restartGameInternal` | 同上（重开档） | 🔴 | **阶段 1③** |
-| `domain/disciple/DiscipleFactory.kt:90`、`DiscipleService.kt:132` 等 | — | **KDoc/注释提及**（历史溯源说明） | ⚪ | 注释文本，非调用点 |
-
-### 3.5 `core:engine` — ④（3 行命中）与 ⑤（7 处）
+### 3.4 `core:engine` — ④（2 处）与 ⑤（5 处）
 
 | 文件:行 | 载体 | 用途 | 判定 | 处置 |
 |---|---|---|---|---|
-| `domain/diplomacy/AISectDiscipleManager.kt:64` | `object` 字段 `private var _rng: DeterministicRng?`（`:66` getter、`:84` `initForSlot`，种子 `systemSeed + AI_SECT.id*31337`） | AI 弟子全域随机 | 🔴 | **阶段 1②**（影子摘除 + 归一分区 9 镜像） |
-| `WorldMapGenerator.kt:15` | `private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }` | 世界宗门生成/关系/命名 → `worldMapSects` | 🔴 | **阶段 3 登记**（挂钟种子、不入档、不可复现；在 `SaveFacadeImpl:53/54` / `GameEngineLoadDataOps:401/402` / `GameEngineLifecycleOps:104/105` 生产可达） |
-| `domain/exploration/CaveExplorationSystem.kt:39` | 同款 `nanoTime` 播种 | 守卫战构成 + 洞府奖励 | 🔴 | **阶段 3 登记**（`CaveExplorationProcessor:193` / `CaveExplorationRewardOps:29`；读档后奖励不可复现） |
+| `WorldMapGenerator.kt:15` | `private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }` | 世界宗门生成/关系/命名 → `worldMapSects` | 🔴 | **阶段 3 登记**（挂钟种子、不入档、不可复现；在 `SaveFacadeImpl` / `GameEngineLoadDataOps` / `GameEngineLifecycleOps` 生产可达） |
+| `domain/exploration/CaveExplorationSystem.kt:38` | 同款 `nanoTime` 播种 | 守卫战构成 + 洞府奖励 | 🔴 | **阶段 3 登记**（`CaveExplorationProcessor:193`；读档后奖励不可复现） |
 
 | ⑤ 位置 | 签名（节选） | 判定 | 处置 |
 |---|---|---|---|
-| `registry/ManualDatabase.kt:655` | `generateRandom(minRarity = 1, maxRarity = 6, type = null, random = Random)` | 🔴 | **阶段 3**（4 处生产省略实参） |
-| `registry/ManualDatabase.kt:674` | `generateRarity(minRarity, maxRarity, random = Random)`（private） | ⚪ | 仅 `:658` 内部显式 |
-| `RedeemCodeManager.kt:349` | `generateReward(..., random = Random)` | ⚪ | 默认分支死（`RedeemCodeService:394` 显式 MAIL） |
-| `RedeemCodeManager.kt:414` | `generateDisciple(config, existingNames, random = Random)` | ⚪ | 默认分支死 |
-| `RedeemCodeManager.kt:493` | `generateRandomTalents(random = Random)`（internal 供测试） | ⚪ | 默认分支死 |
-| `RedeemCodeRewardOps.kt:186` | `generateRandomEquipment(rarity, random = Random)` | ⚪ | 默认分支死（`:202` 显式） |
-| `service/MerchantAndRecruitService.kt:224` | `createMerchantItem(..., random = Random.Default)` | ⚪ | 默认分支死（`:88/:300/:371` 生产全传 `rng.asKotlinRandom()`） |
+| `registry/ManualDatabase.kt:655` | `generateRandom(minRarity = 1, maxRarity = 6, type = null, random = Random)` | 🔴 | **阶段 3**（生产省略实参，含 `GameEngineWorldBattleOps:315` 位置实参缺陷） |
+| `registry/ManualDatabase.kt:674` | `generateRarity(minRarity, maxRarity, random = Random)`（private） | ⚪ | 仅内部显式 |
+| `RedeemCodeManager.kt:343` | `generateReward(..., random = Random)` | ⚪ | 默认分支死（`RedeemCodeService` 显式 MAIL） |
+| `RedeemCodeRewardOps.kt:116` | `generateRandomEquipment(rarity, random = Random)` | ⚪ | 默认分支死（调用方显式） |
+| `service/MerchantAndRecruitService.kt:332` | `createMerchantItem(..., random = Random.Default)` | ⚪ | ②⑤ 同行（见 §3.3） |
 
-### 3.6 `core:data`（1 行命中）
+> ⑤ 类 G08 曾下调 7 → 5（删 `generateDisciple` 默认实参 + 补记 G04 漏删的 `generateRandomTalents`）；G10 实测仍 5（持平）。
+
+### 3.5 `core:data`（1 处）
 
 | 文件:行 | 封闭函数 | 用途 | 判定 | 处置 |
 |---|---|---|---|---|
 | `archive/DataArchiver.kt:572` | `generateBatchId` | `Math.random()` 生成归档批次 4 位随机序（文件名 + 完整性索引键） | 🔴 | **白名单保留**（基础设施，与游戏状态无关；非玩法数值，不参与存档确定性） |
 
-### 3.7 `core:ui` / `app`（0 命中）
+### 3.6 `core:ui` / `app` / `feature/game`（0 命中，G10 起锁死为 0）
 
-两模块主源零命中。`app` 仅 `RequestSigner.kt:311` `UUID.randomUUID()`——不属五类入口（UUID 亦广泛用于物品实例 ID，属另一维度议题）。
-
-### 3.8 `feature/game` — ②（11 行）+ ③（3 行）+ ④⑤（各 1）
-
-| 文件:行 | 封闭函数 | 用途 | 判定 | 处置 |
-|---|---|---|---|---|
-| `ui/game/LoadingTips.kt:29` | `randomTip` | 加载提示轮播 | 🟡 | **阶段 2**（`LoadingScreen:161/165`） |
-| `ui/game/dialogs/DiplomacyGiftTexts.kt:86/94/102/110` | 送礼/AI 接受/AI 拒绝/玩家回应文案（4） | 聊天文案 | 🟡 | **阶段 2**（`DiplomacyFlows:24/27/29/31`） |
-| `ui/game/dialogs/DiplomacyVassalTexts.kt:22/62/68/80/91` | 附属请求/回应成功/回应失败/解散/AI 告别文案（5） | 聊天文案 | 🟡 | **阶段 2**（`DiplomacyFlows:120/122/137/138`） |
-| `ui/game/dialogs/heavenlytrial/HeavenlyTrialComponents.kt:188/189` | `CombatantPortrait` | 天劫对手性别/立绘抽取 | 🟡 | **阶段 1③ + 阶段 2**（**UI 层调随机属架构违规**；结果仅用于立绘选择，不写状态） |
-| `ui/game/dialogs/DiscipleChatDialog.kt:200` | `List<T>.randomOne` | 抽会话树/结局分支/回复/结束语 | 🔴 | **阶段 2**（`:289/298` 分支经 `randomizeEffect` → `DiscipleDelegate.applyConversationEffects` **写弟子 skills/cultivation**——须走决策源，不得计入表现白名单） |
-| `ui/game/dialogs/DiscipleChatDialog.kt:204/209/210` | `randomizeEffect` | 忠诚/道德/智力增量幅值 + 修为增量 | 🔴 | **阶段 2**（`DiscipleDelegate:245-253` 写 `disciple.skills.*` / `disciple.cultivation`） |
-| `ui/game/sect/CloudLayerAnimator.kt:30` | 构造形参/字段 `private val random: Random = Random.Default` | 云层类型/方向/Y/缩放/间隔 | 🟡 | **阶段 2**（`NativeSurfaceView:507` 生产实例化未传 seed → 实际走 Default；云朵纯装饰，类注释明示不进存档） |
-| `ui/game/saveLoad/SaveLoadViewModelLoadOps.kt:190`、`CloudLoadOps.kt:168` | `applyLoadedSaveToEngine` / `applyCloudSaveToEngine` | `AISectDiscipleManager.initForSlot(...)` | 🔴 | **阶段 1②**（语义由"重播影子"改为"回灌分区 9 镜像"；`RngConsumptionGuardTest` 白名单登记） |
+三模块主源四类正则零命中。`app` 仅 `RequestSigner.kt:311` `UUID.randomUUID()`——不属五类入口（UUID 亦广泛用于物品实例 ID，属另一维度议题）。
+`feature/game` 的 ②/⑤ 末两处命中随删除面下线，守卫登记**锁死为 0**——新增即红。
 
 ### 3.9 已核对为"受治理"的边界项（**不计入**上表）
 
@@ -279,21 +244,29 @@
 | 其余 11 个既有分区消费面（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL / AI_SECT / SECRET_REALM / MISSION / CHAT） | 各自分区 | 见下表逐条 | 各分区持久化键 | **逐一不迁移**：红线 1 要求既有分区的委托关系与抽取序**逐位不变** |
 
 **既有分区消费点逐条清单**（`grep -rn "RngPartition\." android/{core,feature,app}/src/main`，
-共 76 命中，按分区归并）：
+G10 重盘 2026-09-26：共 **72** 命中，按分区归并；G02–G09 删除面使 `SYSTEM` 由 35 → 16、
+`BREAKTHROUGH` 由 2 → 1、`BATTLE` 由 8 → 7）：
 
-| 分区 | 主要消费点 |
+| 分区 | 主要消费点（G10 实测） |
 |---|---|
-| `SYSTEM(3)`（35 处） | `LawEnforcement*`（9）/ `ProductionProcessor*`（4）/ `BuildingService`（3）/ `GiftService` / `DiplomacyService` / `VassalService` / `DiscipleService` / `MerchantAndRecruitService` / `RecruitService` / `ChildBirthSystem` / `PartnerSystem` / `DisciplePurchaseService` / `ProductionTransactionManager` / `GameEngineGuideOps` / `GameEngineSpiritRootOps` / `GameEngineTraitAddOps` / `GameEngineTraitWashOps` |
-| `EXPLORATION(2)`（8） | `LevelGenerator` / `AISectBeastAttackProcessor` / `BeastAttackDetector` / `LootCalculator` / `PatrolBattleSystem` / `WorldLevelManager` / `InventoryFacadeImpl` |
-| `BATTLE(0)`（8） | `BattleSystem` / `AISectAttackDecisionOps` / `AISectAttackManager`(2) / `ExplorationService`(2) / `GameEngineBattleOps`(2) |
-| `AI_SECT(6)`（7，含 KDoc 与注册点） | `AISectDiscipleManager:116/:150/:154` |
-| `CHAT(10)`（6） | `GameEngineConversationDraw`(3) / `GameEngineCoordination`(KDoc) |
-| `MAIL(5)`（5） | `GameEngineSectLevelOps` / `MailAttachmentDistributeOps` / `RedeemCodeService`(2) |
-| `AI_SECT_MIRROR(9)`（4） | `AISectDiscipleManager:115` + KDoc |
+| `SYSTEM(3)`（16 处） | `ProductionProcessor处理Ops1`（4，含 1 KDoc）/ `BuildingService`（3）/ `GiftService` / `VassalService` / `DiplomacyService` / `DiscipleService` / `DisciplePurchaseService` / `MerchantAndRecruitService` / `ProductionProcessorBatcOps4` / `ProductionTransactionManager` / `GameEngineGuideOps` |
+| `EXPLORATION(2)`（8） | `LevelGenerator` / `AISectBeastAttackProcessor` / `BeastAttackDetector` / `LootCalculator` / `PatrolBattleSystem` / `WorldLevelManager`(2) / `InventoryFacadeImpl` |
+| `BATTLE(0)`（7） | `BattleSystem` / `AISectAttackDecisionOps` / `AISectAttackManager`(2) / `ExplorationService` / `GameEngineBattleOps`(2) |
+| `AI_SECT(6)`（7，含 KDoc 与注册点） | `AISectDiscipleManager`(6) / `GameRngManager`(注册点) |
+| `GACHA(12)`（6） | `GachaPullLedger`(2) / `GachaFacade` / `GachaService`(3)（§9） |
+| `CHAT(10)`（6） | `GameEngineConversationDraw`(5) / `GameEngineCoordination`(KDoc) |
+| `MAIL(5)`（5） | `GameEngineSectLevelOps`(2) / `MailAttachmentDistributeOps` / `RedeemCodeService`(2) |
+| `AI_SECT_MIRROR(9)`（4） | `AISectDiscipleManager`(3) / `GameRngManager`(注册点) |
 | `SECRET_REALM(7)`（3） | `SecretRealmService`(3) |
-| `MISSION(8)`（2） | `MissionSystem:41` |
-| `BREAKTHROUGH(1)`（2） | `DiscipleBreakthroughHandler:359` / `DiscipleStatCalculator修炼Ops6:38` |
-| `ENEMY_GEN(4)`（1） | `EnemyGenerator:39` |
+| `MISSION(8)`（2） | `MissionSystem`(2) |
+| `RESIDUAL(11)`（1） | `GameRngManager`(注册/恢复语义点) |
+| `BREAKTHROUGH(1)`（1） | `DiscipleBreakthroughHandler` |
+| `ENEMY_GEN(4)`（1） | `EnemyGenerator` |
+| 枚举基建裸引用（6） | `RngPartition.entries`/守卫/恢复语义等非具体分区行 |
+
+> G10 重盘核减说明：`LawEnforcement*`（9）/ `RecruitService` / `ChildBirthSystem` / `PartnerSystem` /
+> `GameEngineSpiritRootOps` / `GameEngineTraitAddOps` / `GameEngineTraitWashOps` 消费方已随 G02–G09
+> 删除面下线。
 
 ### 8.3 实测结论（B14 迁移面为零的诚实登记）
 

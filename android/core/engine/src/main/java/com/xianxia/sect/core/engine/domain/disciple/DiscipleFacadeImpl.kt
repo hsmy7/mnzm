@@ -64,8 +64,6 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
 
-    override fun addDisciple(disciple: Disciple) = discipleService.addDisciple(disciple)
-
     override fun removeDisciple(discipleId: String): DomainResult<Unit> = discipleService.removeDisciple(discipleId)
 
     override fun getDiscipleById(discipleId: String): Disciple? = discipleService.getDiscipleById(discipleId)

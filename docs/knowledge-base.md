@@ -14,7 +14,6 @@
 - [探索系统](#探索系统)
 - [确定性 RNG 系统](#确定性-rng-系统)
 - [弟子属性生成](#弟子属性生成)
-- [偷盗系统年上限](#偷盗系统年上限-2026-07-24)
 - [Component Table 架构](#component-table-architecture)
 - [修炼 Checkpoint 模式](#修炼-checkpoint)
 - [EntityStore 增量更新](#entitystore-增量更新)
@@ -179,7 +178,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 ### 入口 1：`DiscipleFactory.create()`
 - 路径：`domain/disciple/DiscipleFactory.kt`
 - 使用 `DiscipleSeed.nextInt` Lambda（由 `GameRngManager.getRng(分区)` 提供；旧的 `GameRandom` 兼容路径已随对象删除而消失）
-- 用于玩家招募、招募列表刷新、子嗣出生（3 站点统一）
+- 生产弟子构造唯一端口 = C++ `createDisciple`（开局名册与寻访解锁入册经 `instantiateTemplate` 走 native 事务）；本类为跨语言对拍孪生实现（`DiffDiscipleFactoryTest` 逐字段锁守），生产零调用
 
 ### 入口 2：`AISectDiscipleManager.generateRandomDisciple()`
 - 路径：`domain/diplomacy/AISectDiscipleManager.kt`
@@ -191,32 +190,10 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | 属性类别 | 属性 | 分布 | 参数 |
 |---------|------|------|------|
 | 悟性 | `comprehension` | 灵根驱动均匀 | 1根[80,100] / 2根[60,100] / 3根[40,100] / 4根[20,100] / 5根[1,100] |
-| 技能(9) | intelligence, charm, loyalty, morality, artifactRefining, pillRefining, spiritPlanting, mining, teaching | **正态分布** | N(50.5, 16.5²)，截断[1,100] |
+| 技能(8) | intelligence, charm, morality, artifactRefining, pillRefining, spiritPlanting, mining, teaching | **正态分布** | N(50.5, 16.5²)，截断[1,100] |
 | 方差(7) | hpVariance ~ speedVariance | **正态分布** | N(0, 16.667²)，截断[-50,50] |
 
 悟性保持不变（灵根数量决定范围），其余所有技能和方差属性使用 `gaussianInt()`（Box-Muller 变换生成的 int 值，越接近中间概率越高）。
-
----
-
-## 偷盗系统年上限（2026-07-24）
-
-宗门级偷盗三层控制：
-
-| 维度 | 控制方式 | 配置 | 跟踪字段 |
-|------|----------|------|----------|
-| **弟子年判定上限** | 每弟子每年最多判定1次 | — | `DiscipleTables.lastTheftJudgementYears`（IntComponentTable） |
-| **月度判定上限** | 每月最多判定3名弟子 | `MAX_THEFT_JUDGEMENTS_PER_MONTH = 3` | `GameData.theftJudgementsThisMonth` |
-| **年度成功上限** | 年成功偷盗3次后全年停止 | `MAX_THEFT_PER_YEAR = 3` | `GameData.annualTheftCount`（Room 持久化，MIGRATION_29_30） |
-
-**判定计数**：`processSingleDiscipleTheft` 入口处（通过 `canDiscipleAttemptTheft` 前置检查后）立即递增弟子年判定标记 + 月度判定计数。即使概率判定未通过也计入（"判定"指系统执行检查，不要求实际偷盗成功）。
-
-**月度重置**：`processTheftIfNeeded()` 每月初将 `theftJudgementsThisMonth` 归零。
-
-**年成功偷盗递增**：`executeSuccessfulTheft` 两版本（事务/非事务）偷盗成功后 +1。
-
-**年上限归零**：`CultivationEventProcessor` 年变重置块。
-
-**已移除**：原单弟子 12 月冷却检查（`THEFT_COOLDOWN_MONTHS`）、`UsageTracking.lastTheftMonth` 字段、`DiscipleTables.lastTheftMonths` 组件表
 
 ---
 
@@ -297,24 +274,35 @@ interface SaveValidationRule {
 
 `RuleContext` 在遍历规则前一次性预计算：`allEquipmentIds`（equipmentStacks + instances 的 ID 并集）、`buildingInstanceIds`（placedBuildings 非空 instanceId）。中间状态 `removedDiscipleIds` 由 GhostDiscipleCleanupRule 写入、GhostRefCleanupRule 消费。
 
-### 当前已注册规则（20 条，2026-08-01 实测核对）
+### 当前已注册规则（23 条，G10 重盘 2026-09-26，与 `SaveValidationRuleDefaults.kt` 对齐）
 
-| 规则 | 现有/新增 | 功能 |
-|------|-----------|------|
-| SectNameRule | 现有 | sectName 空→默认名 |
-| GameDateRule | 现有 | year/month 范围 |
-| DiscipleAgePositiveRule | **新增** | age >= 0 |
-| GamePhaseRangeRule | **新增** | phase 范围 [0,2] |
-| CultivationCapRule | 现有 | 修为上限截断 |
-| EquipmentRefRule | 现有 | 装备引用存在性 |
-| AgeLifespanRule | 现有 | 年龄 vs 寿命 |
-| BuildingRefRule | 现有 | 建筑引用存在性 |
-| DuplicateDiscipleIdRule | **新增** | 重复弟子 ID 去重 |
-| GhostDiscipleCleanupRule | 现有 | 幽灵弟子清理 |
-| GhostRefCleanupRule | 现有 | 幽灵引用清理 |
-| SpiritStoneNonNegativeRule | **新增** | 灵石负值截断 |
-| DiscipleRealmConsistencyRule | **新增** | realm/layer 合法性 |
-| DiscipleDeadStatusRule | **新增** | 死亡弟子装备清理 |
+| 规则 | order | 功能 |
+|------|-------|------|
+| NumericSanitizeRule | 0 | NaN/负值消毒（防穿透 cap 规则） |
+| DiscipleIdBoundsRule | 1 | 弟子 ID 越界判损坏（防大 id 扩容 OOM） |
+| SectNameRule | 1 | sectName 空→默认名 |
+| GameDateRule | 2 | year/month 范围 |
+| GamePhaseRangeRule | 4 | phase 范围 [0,2] |
+| CultivationCapRule | 5 | 修为上限截断 |
+| EquipmentRefRule | 6 | 装备引用存在性 |
+| BuildingRefRule | 8 | 建筑引用存在性 |
+| DuplicateDiscipleIdRule | 9 | 重复弟子 ID 去重 |
+| GhostDiscipleCleanupRule | 10 | 幽灵弟子清理 |
+| GhostRefCleanupRule | 11 | 幽灵引用清理 |
+| SpiritStoneNonNegativeRule | 12 | 灵石负值截断 |
+| DiscipleRealmConsistencyRule | 13 | realm/layer 合法性 |
+| DiscipleDeadStatusRule | 14 | 死亡弟子装备清理 |
+| EquipmentDedupeRule | 15 | 装备去重 |
+| SlotRefRule | 16 | 槽位引用存在性 |
+| BloodPoolBuildingCleanupRule | 17 | 血炼池建筑残留清理 |
+| ItemRefConsistencyRule | 18 | 物品引用一致性 |
+| EntityCountBoundsRule | 19 | 实体数量上界 |
+| RecruitListCleanupRule | 20 | 招募链残留恒空清表 |
+| BattleLogRefRule | 21 | battleLogs 条目结构校验 |
+| MailDiscipleAttachmentCleanupRule | 22 | 邮件弟子附件残留摘除 |
+| JadeSymbolNonNegativeRule | 23 | 玉符字段负值/超限钳制 |
+
+> order=3/7 空洞 = 已下线的年龄/寿命规则的退役编号，不复用。
 
 ### 规则文件位置
 
@@ -472,8 +460,6 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 - ✅ 月度事件管线多事务问题已修复（2026-07-27）：所有子服务移入单次 `stateStore.update`，利用重入缓冲机制，月度循环 4→1 次 update
 - ✅ 年变事件管线多事务问题已修复（2026-07-27）：18 个子服务全部移入单次 `stateStore.update`，年变循环 ~20→1 次 update
 - ✅ `shuffled()` 迁移至分区 PRNG（2026-07-27）：`DisciplePurchaseService`(5处)+`LootCalculator`(1处) 改为 `GameRngManager` 分区 PRNG，新增 `RngExt.shuffled(rng)` 扩展函数
-- ✅ 出生/地图种子确定性化（2026-07-31）：`ChildBirthSystem` 迁移 SYSTEM 分区（见"确定性 RNG 系统"章节）；`mapSeed` 改用 `GameRandom` 并修复重启种子恒 0 缺陷
-- ✅ `GameEngine.renameDisciple` 原子改名（2026-07-31）：单 `stateStore.update` 事务内改名 + 按改名前的旧身份 `RecruitIntegrity.isSamePerson` 签名净化 `recruitList` 同人残留，杜绝改名破坏 5 字段签名后残留双胞胎永久逃脱三层净化、可被重复招募
 
 ---
 
@@ -640,7 +626,7 @@ fun watchAdForNewFeature() {
 | 维度 | 现状 | 代码位置 |
 |------|------|---------|
 | 玩家社交 | **无好友/聊天/排行/分享** | 无代码 |
-| 世界外交 | 纯 AI 模拟：宗门好感度/送礼/结盟/附庸契约/交易/进攻警告/AI 宗门间结盟/跨宗道侣配对 | `engine/domain/diplomacy/`、`GameEngineDiplomacyOps.kt` |
+| 世界外交 | 纯 AI 模拟：宗门好感度/送礼/结盟/附庸契约/交易/进攻警告/AI 宗门间结盟 | `engine/domain/diplomacy/`、`GameEngineDiplomacyOps.kt` |
 | 玩家反馈渠道 | 无（无服务器通道） | — |
 
 ### 数据现状
@@ -718,7 +704,6 @@ fun watchAdForNewFeature() {
 | 耗（汇） | 突破/功法 | 突破消耗、藏经阁 | `DiscipleBreakthroughHandler`、`ManualDatabase` |
 | 耗（汇） | 外交送礼 | 灵石档位 + 年份限制 | `GameEngineDiplomacyOps.kt`、`FavorConfig` |
 | 耗（汇） | 月薪发放 | `SalaryConfig` 可配置 | `SalaryConfigDialog`、`CultivationEventProcessor` |
-| 耗（汇） | 偷盗损失 | 道德<30 弟子偷盗（≤宗门 10%、年上限 3 次） | `GameEngineBattleOps.kt`、`GameConfig.THEFT_*` |
 
 ### 玉符（氪金货币）经济登记与墙钟豁免论证（2026-08-07）
 

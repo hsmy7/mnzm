@@ -123,7 +123,6 @@ object GameConfig {
     }
     
     object Disciple {
-        const val MIN_AGE = 5
         const val MAX_AGE = 100
         const val PROTECTION_MONTHS = 12
         /** 基础技能属性上限（悟性/智力等 9 项） */

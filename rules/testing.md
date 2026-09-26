@@ -52,7 +52,25 @@
 `com.xianxia.sect.core.engine.testProductionSlotRepository()`（真实实例 + mockSmart 端口 +
 `loadSlots` 预填充），禁止自行 `ProductionSlotRepository(dao = mock(), ...)` 内联构造。
 
-## 5. 编译器选项约定（提醒）
+## 5. GameStateStore 测试替身的两条语义边界（🔴，2026-09-26 登记）
+
+引擎测试共用两个 GameStateStore 替身，能力不同，选错必出假绿：
+
+| 替身 | 位置 | 语义 | 禁止用途 |
+|------|------|------|---------|
+| `FakeAtomicStateStore` | `core/engine/src/test/.../FakeAtomicStateStore.kt` | 持久化 `_gameData` 后端，update 后 StateFlow **会**发射 | —— |
+| `FakeGameStateStore` | `core/engine/src/test/.../nativebridge/FakeGameStateStore.kt` | 只读流为**断线桩**：每次属性访问新建一次性 `MutableStateFlow`，后续变更不在同一订阅上发射 | 测「派生流刷新 / 订阅发射」 |
+
+另有两条与生产 `GameStateStoreImpl` 的已知语义差，需要对应判据的测试不得以替身绿当作生产绿：
+
+- 生产提交闸门是 `gameData !== baseline` **引用判据**（原地改字段 ⇒ 引用不变 ⇒ 不提交不发射）；
+  `FakeAtomicStateStore` 无条件赋值，仅靠 `MutableStateFlow` equals 去重，未复制该契约
+- 生产四类订阅流的发射以该闸门驱动；涉及「原地写必须不发射」的用例须在生产语义替身上验证
+
+两个替身的类内注释与 `syncFlows`/只读流段各自标注了这两条边界（G11 报告 §8-4 发现）。
+收敛为生产语义共享替身属独立工程，不在替身使用方测试批内顺手做。
+
+## 6. 编译器选项约定（提醒）
 
 - Robolectric 测试保持 `@RunWith(RobolectricTestRunner::class)` + `@Config(sdk = [34])`
   （Robolectric 4.13 卡死，SDK 35 需 4.14+，见 docs/build-perf/robolectric-4.16-evaluation.md）

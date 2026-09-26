@@ -268,6 +268,10 @@ open class FakeGameStateStore : GameStateStore {
     )
 
     // ── 只读流（最小桩）──
+    // 🔴 断线桩警告（G11 §8-4 登记）：下列只读流每次属性访问都新建一次性
+    // MutableStateFlow——订阅者拿到的是当次快照，后续 update 的变更不会在同一
+    // 订阅上发射。用它测「派生流刷新 / 订阅发射」必然假绿；那类测试须用
+    // FakeAtomicStateStore（持久化 _gameData 后端）。
     override val gameData: StateFlow<GameData> get() = MutableStateFlow(gameDataValue)
     override val disciples: StateFlow<List<Disciple>> get() = MutableStateFlow(disciplesValue)
     // 对齐生产 GameStateStoreImpl 共享语义——生产 discipleTables 为

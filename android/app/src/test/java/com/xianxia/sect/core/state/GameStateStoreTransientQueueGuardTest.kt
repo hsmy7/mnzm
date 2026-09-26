@@ -59,9 +59,21 @@ class GameStateStoreTransientQueueGuardTest {
                 else -> prop.setter.call(stateStore, GUARD_MARKER)
             }
         }
-        // notificationQueue 同属瞬态（ConcurrentLinkedQueue），经公开入口灌入
-        stateStore.enqueueNotification(GUARD_NOTIFICATION)
+        // notificationQueue 同属瞬态（ConcurrentLinkedQueue，非 `_pending*` 命名），
+        // 与 violationsAfterReset 同一反射口径灌入（事件类型当前无变体，无法经公开入口灌实例）
+        notificationQueue()?.add(GUARD_MARKER)
     }
+
+    /** 反射取 notificationQueue（非 `_pending*` 命名，不在通用枚举内）；字段不存在返回 null */
+    @Suppress("UNCHECKED_CAST")
+    private fun notificationQueue(): ConcurrentLinkedQueue<Any?>? =
+        GameStateStoreImpl::class.declaredMemberProperties
+            .firstOrNull { it.name == "notificationQueue" }
+            ?.let { prop ->
+                prop.isAccessible = true
+                (prop as KProperty1<GameStateStoreImpl, *>).getter.call(stateStore)
+                    as? ConcurrentLinkedQueue<Any?>
+            }
 
     private fun violationsAfterReset(): List<String> {
         val violations = mutableListOf<String>()
@@ -75,13 +87,7 @@ class GameStateStoreTransientQueueGuardTest {
             }
             if (nonEmpty) violations += prop.name
         }
-        val queueProp = GameStateStoreImpl::class.declaredMemberProperties
-            .firstOrNull { it.name == "notificationQueue" }
-        if (queueProp != null) {
-            queueProp.isAccessible = true
-            val queue = queueProp.getter.call(stateStore) as? ConcurrentLinkedQueue<*>
-            if (queue?.isNotEmpty() == true) violations += "notificationQueue"
-        }
+        if (notificationQueue()?.isNotEmpty() == true) violations += "notificationQueue"
         return violations
     }
 
@@ -124,6 +130,5 @@ class GameStateStoreTransientQueueGuardTest {
 
     private companion object {
         const val GUARD_MARKER = "transient-queue-guard-marker"
-        val GUARD_NOTIFICATION: GameNotification = GameNotification.RecruitFailed(GUARD_MARKER)
     }
 }

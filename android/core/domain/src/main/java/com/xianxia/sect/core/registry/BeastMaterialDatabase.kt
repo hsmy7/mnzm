@@ -344,30 +344,4 @@ object BeastMaterialDatabase {
     }
     
     fun getMaterialByName(name: String): BeastMaterial? = allMaterials.find { it.name == name }
-
-    // ==================== 血炼系统辅助方法 ====================
-
-    /** 获取所有血类材料（category=blood） */
-    fun getBloodMaterials(): List<BeastMaterial> = allMaterials.filter { it.category == "blood" }
-
-    /** 品阶→提升百分比 */
-    fun getTierPercentage(tier: Int): Double = when (tier) {
-        1 -> 0.01; 2 -> 0.03; 3 -> 0.06
-        4 -> 0.12; 5 -> 0.20; 6 -> 0.30
-        else -> 0.0
-    }
-
-    /** 品阶→洗炼时间（月） */
-    fun getTierDuration(tier: Int): Int = when (tier) {
-        1 -> 1; 2 -> 3; 3 -> 6
-        4 -> 12; 5 -> 20; 6 -> 30
-        else -> 0
-    }
-
-    /** 品阶前缀 */
-    fun getTierPrefix(tier: Int): String = when (tier) {
-        1 -> "凡"; 2 -> "灵"; 3 -> "宝"
-        4 -> "玄"; 5 -> "地"; 6 -> "天"
-        else -> ""
-    }
 }

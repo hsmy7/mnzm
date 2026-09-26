@@ -676,5 +676,3 @@ private fun AcquisitionSellConfirmDialog(
     }
 }
 
-private fun getRarityColor(rarity: Int): Color = com.xianxia.sect.ui.theme.getRarityColor(rarity)
-

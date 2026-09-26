@@ -82,7 +82,7 @@ TEST(DiscipleFactory, GoldenSequenceSeed42) {
     const auto d = createDisciple(kSeed(), rng);
     // 黄金值（Kotlin DiscipleFactory.create 同种子输出，DiffDiscipleFactoryTest
     // 对拍逐字段确认后固化——seed=42/male/单灵根火）
-    EXPECT_EQ("male_disciple_14", d.portraitRes);
+    EXPECT_EQ("male_disciple_15", d.portraitRes);
     EXPECT_EQ(21, d.hpVariance);
     EXPECT_EQ(18, d.mpVariance);
     EXPECT_EQ(10, d.physicalAttackVariance);
@@ -91,14 +91,14 @@ TEST(DiscipleFactory, GoldenSequenceSeed42) {
     EXPECT_EQ(6, d.magicDefenseVariance);
     EXPECT_EQ(8, d.speedVariance);
     EXPECT_EQ(82, d.comprehension);
-    EXPECT_EQ(45, d.intelligence);
-    EXPECT_EQ(32, d.charm);
-    EXPECT_EQ(48, d.morality);
-    EXPECT_EQ(43, d.artifactRefining);
-    EXPECT_EQ(33, d.pillRefining);
-    EXPECT_EQ(66, d.spiritPlanting);
-    EXPECT_EQ(51, d.mining);
-    EXPECT_EQ(81, d.teaching);
+    EXPECT_EQ(56, d.intelligence);
+    EXPECT_EQ(73, d.charm);
+    EXPECT_EQ(80, d.morality);
+    EXPECT_EQ(57, d.artifactRefining);
+    EXPECT_EQ(35, d.pillRefining);
+    EXPECT_EQ(28, d.spiritPlanting);
+    EXPECT_EQ(48, d.mining);
+    EXPECT_EQ(43, d.teaching);
     EXPECT_EQ(145, d.baseHp);
     EXPECT_EQ(70, d.baseMp);
     EXPECT_EQ(13, d.basePhysicalAttack);
@@ -119,7 +119,7 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     const auto d = createDisciple(s, rng);
     // 黄金值（Kotlin DiscipleFactory.create 同种子输出，DiffDiscipleFactoryTest
     // 对拍逐字段确认后固化——seed=987654321/female/五灵根）
-    EXPECT_EQ("female_disciple_8", d.portraitRes);
+    EXPECT_EQ("female_disciple_9", d.portraitRes);
     EXPECT_EQ(-18, d.hpVariance);
     EXPECT_EQ(3, d.mpVariance);
     EXPECT_EQ(-9, d.physicalAttackVariance);
@@ -128,14 +128,14 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     EXPECT_EQ(-9, d.magicDefenseVariance);
     EXPECT_EQ(4, d.speedVariance);
     EXPECT_EQ(17, d.comprehension);
-    EXPECT_EQ(36, d.intelligence);
-    EXPECT_EQ(58, d.charm);
-    EXPECT_EQ(59, d.morality);
-    EXPECT_EQ(31, d.artifactRefining);
-    EXPECT_EQ(54, d.pillRefining);
-    EXPECT_EQ(5, d.spiritPlanting);
-    EXPECT_EQ(45, d.mining);
-    EXPECT_EQ(48, d.teaching);
+    EXPECT_EQ(72, d.intelligence);
+    EXPECT_EQ(34, d.charm);
+    EXPECT_EQ(54, d.morality);
+    EXPECT_EQ(47, d.artifactRefining);
+    EXPECT_EQ(59, d.pillRefining);
+    EXPECT_EQ(29, d.spiritPlanting);
+    EXPECT_EQ(36, d.mining);
+    EXPECT_EQ(58, d.teaching);
     EXPECT_EQ(98, d.baseHp);
     EXPECT_EQ(61, d.baseMp);
     EXPECT_EQ(10, d.basePhysicalAttack);

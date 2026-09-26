@@ -78,9 +78,6 @@ class DiscipleCreationPathGuardTest {
         /** 原子分配新 ID 落表：真·入册 */
         REGISTRATION("模板实例化入册（生产唯一构造口）"),
 
-        /** 通用 CRUD 出口：入册语义，但生产零调用 */
-        LEGACY_CRUD("通用 CRUD 出口（生产零调用，登记待清理）"),
-
         /** 读档/回滚重建：对象来自存档，不是构造 */
         LOAD("读档/回滚整表重建"),
 
@@ -104,11 +101,6 @@ class DiscipleCreationPathGuardTest {
         RegisteredSite(
             "$engineDiscipleDir/DiscipleService.kt", "insertTemplateDisciple", SiteKind.REGISTRATION,
             "instantiateTemplate 的事务内落库：查 CharacterTemplateDb → 限持判定 → 工厂 → 入册"
-        ),
-        RegisteredSite(
-            "$engineDiscipleDir/DiscipleLifecycleManager.kt", "addDisciple", SiteKind.LEGACY_CRUD,
-            "DiscipleFacade.addDisciple 转发口；生产零调用（GameEngine.addDisciple 仅测试触达），" +
-                "登记为待清理死面，禁止新增调用方"
         ),
         RegisteredSite(
             "$appStateDir/GameStateStoreImpl.kt", "applyLoadedCore", SiteKind.LOAD,
@@ -214,7 +206,6 @@ class DiscipleCreationPathGuardTest {
             SiteKind.WRITE_BACK -> requirePattern(site, REMOVE_BEFORE, WRITE_BACK_WINDOW)
             SiteKind.LOAD -> requirePattern(site, CLEAR_BEFORE, LOAD_WINDOW)
             SiteKind.REGISTRATION -> requirePattern(site, TEMPLATE_LOOKUP, null)
-            SiteKind.LEGACY_CRUD -> null
         }
         return failure?.let { "$site —— 语义前置缺失：$it（登记理由：${registered.reason}）" }
     }

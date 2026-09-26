@@ -68,12 +68,6 @@ object GameColors {
     val SpiritRootFire = Color(0xFFE74C3C)
     val SpiritRootEarth = Color(0xFF95A5A6)
 
-    val SingleRoot = Color(0xFFE74C3C)
-    val DoubleRoot = Color(0xFFF39C12)
-    val TripleRoot = Color(0xFF9B59B6)
-    val QuadRoot = Color(0xFF27AE60)
-    val PentaRoot = Color(0xFF95A5A6)
-
     // 天赋品级颜色
     val TalentGradeLow = Color(0xFF4CAF50)     // 下品 绿色
     val TalentGradeMid = Color(0xFF2196F3)     // 中品 蓝色
@@ -139,15 +133,6 @@ object GameColors {
         "earth", "土" -> SpiritRootEarth
         else -> SpiritRootMetal
     }
-
-    fun getSpiritRootCountColor(count: Int): Color = when (count) {
-        1 -> SingleRoot
-        2 -> DoubleRoot
-        3 -> TripleRoot
-        4 -> QuadRoot
-        5 -> PentaRoot
-        else -> PentaRoot
-    }
 }
 
 val Purple80 = Color(0xFFD0BCFF)
@@ -174,13 +159,5 @@ data class XianxiaColorScheme(
     val textDark: Color = Color(0xFF000000),
     val jade: Color = Color(0xFF00A86B),
     val spiritBlue: Color = Color(0xFF4A90E2),
-    val bloodRed: Color = Color(0xFFE74C3C),
-    val rarityColors: Map<Int, Color> = mapOf(
-        1 to Color(0xFFB8B8B8),
-        2 to Color(0xFFAFCB8A),
-        3 to Color(0xFF9FC2EE),
-        4 to Color(0xFFC0A2DD),
-        5 to Color(0xFFE7C67D),
-        6 to Color(0xFFE3A0A0)
-    )
+    val bloodRed: Color = Color(0xFFE74C3C)
 )

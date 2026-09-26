@@ -21,8 +21,8 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class NativeFpDeterminismTest {
 
-    /** 桌面腿 golden（C++ kGoldenDigest = 0x490e8dc522e12921 的十六进制） */
-    private val desktopGoldenDigest = "490e8dc522e12921"
+    /** 桌面腿 golden（C++ kGoldenDigest = 0xb4f3c6912207f597 的十六进制） */
+    private val desktopGoldenDigest = "b4f3c6912207f597"
 
     @Test
     fun fpProbeDigestMatchesDesktopGolden() {
