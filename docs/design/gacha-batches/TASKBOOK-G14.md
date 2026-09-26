@@ -24,7 +24,7 @@
 | 项 | 内容 |
 |---|---|
 | 目标 | 让「文档 = 代码现状」在**结构、计数、版本、列表**四个维度成立，并给出可审计的批次收官报告 |
-| 验收① | 🔴 **版本号三方归一**：`version.properties`（现 `4.01.14`/`4114`）、`CHANGELOG.md` 顶部段（现 `4.01.16`）、`android/app/src/main/assets/changelog_entries.json`（现首条 `4.01.14` 且**重复 4 条**）三者指向**同一个版本号**；🔴 **目标版本号必须由用户确认**（§3.1） |
+| 验收① | 🔴 **版本号三方归一为 `4.01.16`**（✅ 用户 2026-09-26 已拍板，§3.1）：`version.properties`（现 `4.01.14`/`4114` → `4.01.16`/`4116`）、`CHANGELOG.md` 段头（现已是 `4.01.16`，不动）、`android/app/src/main/assets/changelog_entries.json`（现重复 4 条 `4.01.14` → 合并为唯一 `4.01.16` 条）三者一致 |
 | 验收② | 双 changelog **终稿齐备且同版本**：玩家向条目符合「无专业术语/不泄露数值/只粗略描述」，技术向条目覆盖 G12/G13；**禁止按日期拆多个同版本条目** |
 | 验收③ | `CODE_WIKI.md` 六处计数/列表修正（§4）逐条完成：Facade **7 → 12**、Delegate **9 → 27**、ActionId **166/1712 → 201/1872**、退役 **21 → 24**、目录树补 `gacha/` 等、`DiscipleDelegate` 的已删玩法说明 |
 | 验收④ | `docs/architecture.md` 五处修正（§5）逐条完成：`CultivationSpeedZones` **4 → 5 乘区**、`BreakthroughZones` 字段名对齐代码、补「星级进战力」一行、扩展点补寻访钩子、结算列表声明「寻访不属于第五层结算」 |
@@ -50,14 +50,18 @@
 
 ## 3. 任务 A：双 changelog 与版本号归一
 
-### 3.1 🔴 先问用户（**唯一必须先问的一件事**）
-目标版本号取哪一个？三个候选：
-- **(a) 归一为 `4.01.16`**（对齐 `CHANGELOG.md` 顶部）——但 `version.properties` 与 `changelog_entries.json` 都要跳到 16；
-- **(b) 归一为 `4.01.14`**（对齐 `version.properties` 与游戏内条目）——但 `CHANGELOG.md` 需回退；
-- **(c) 由用户指定新版本号**（如 M2 收官新版本）。
+### 3.1 ✅ 目标版本号（**用户 2026-09-26 已拍板 = `4.01.16`**）
 
-> 看护/实施会话**不得自选**：`rules/version-release.md:8` 明写「禁止擅自更新版本号，由用户判断和指令」。
-> 在用户答复前，本批**只做**§3.2 的条目合并与内容补齐，**不动任何版本号字段**。
+三方归一目标 = **`4.01.16`**（对齐 `CHANGELOG.md` 顶部段头）：
+
+| 文件 | 改前 | 改后 |
+|---|---|---|
+| `CHANGELOG.md:1` | `## [4.01.16] - 2026-09-22` | **不动**（G12/G13 的小节并入该段内） |
+| `version.properties` | `versionName=4.01.14` / `versionCode=4114` | `versionName=4.01.16` / `versionCode=4116` |
+| `android/app/src/main/assets/changelog_entries.json` | 首条 `"version":"4.01.14"`（**重复 4 条**） | 合并为**唯一条** `"version":"4.01.16"`，`date` 保持首次发布日 `2026-09-23` |
+
+🔴 判据：三者版本号**完全相同**且 `versionName` 形如 `X.XX.XX`（禁 `4.0.16`）；
+`rules/version-release.md:8` 的「禁止擅自更新版本号」已由本次用户拍板满足 ⇒ 本批按上表执行即可。
 
 ### 3.2 条目合并（不依赖 §3.1）
 1. `android/app/src/main/assets/changelog_entries.json`：把 **4 条同版本 `4.01.14` 条目合并为 1 条**，
@@ -129,7 +133,7 @@
 
 | # | 决策 | 依据 |
 |---|---|---|
-| **D-1** | 🔴 **版本号目标由用户拍板**；未拍板前只合并条目、不动版本字段 | `rules/version-release.md:8` |
+| **D-1** | ✅ **版本号目标 = `4.01.16`**（用户 2026-09-26 拍板）⇒ 三个文件按 §3.1 表归一 | `rules/version-release.md:8` 的"由用户判断指令"已满足 |
 | **D-2** | `changelog_entries.json` 的 4 条同版本**合并为 1 条**，内容只增不减 | 同上 `:53` |
 | **D-3** | `CODE_WIKI.md` 的 Delegate 计数改为**按域分组 + 以实际文件为准**的表述（避免"27"这类易腐计数） | 计数型表述注定漂移 |
 | **D-4** | 与 G10 的边界按 §0 判据执行；G10 已改的段本批**不重复改**，只在报告里交叉确认 | 避免双改冲突 |
@@ -168,7 +172,7 @@ Get-ChildItem android/core/engine/src/main/java/com/xianxia/sect/core/engine/dom
 
 ## 11. 登记 / 待拍板
 
-1. 🔴 **版本号目标**（§3.1 三选一）——**本批唯一的用户阻塞项**。
+1. ✅ **版本号目标已拍板 = `4.01.16`**（用户 2026-09-26）——本批**已无用户阻塞项**。
 2. 🟠 M1 的「G11 真机通」与 M2 的「全链真机走通」**同一台设备同一轮**（见 `report-G11.md` §7 的 D-1…D-12）。
 3. 🟠 若 `docs/design/character-gacha-implementation.md` 的批次表需要标注「15 批全部完成」，由本批在 Report 节回填（但不改历史批次描述）。
 
@@ -176,7 +180,7 @@ Get-ChildItem android/core/engine/src/main/java/com/xianxia/sect/core/engine/dom
 
 ## 12. 一句话给执行者
 
-**G14 是文档硬门，只做四件事：把双 changelog 合并成"同版本唯一条目"（玩家向/技术向各一，版本号必须等用户拍板）、
+**G14 是文档硬门，只做四件事：把版本号三方归一为 `4.01.16` 并把双 changelog 合并成"同版本唯一条目"（玩家向/技术向各一）、
 把 `CODE_WIKI.md` 的 Facade 7→12 / Delegate 9→27 / ActionId 166·1712·198·1861·退役21 → 201·1872·退役24 六处数字改成现状、
 把 `architecture.md` 的乘区表（4→5 乘区、`BreakthroughZones` 字段名、补星级进战力行、补寻访扩展钩子、声明寻访不属第五层结算）改准、
 产出 `report-G14-completion.md` 并把死代码/死文案清零表收成终稿；
