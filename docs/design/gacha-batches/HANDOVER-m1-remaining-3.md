@@ -11,9 +11,14 @@
 >   （§11 只有 6 行、无文件面无决策依据；实测差异与本批抓出的三处管线缺陷见该 TASKBOOK §2 与 `report-G16.md` §三）。
 > - [`TASKBOOK-G08.md`](TASKBOOK-G08.md) —— **G08 派工细则的唯一真源**（13 片文件面 + 20 项决策 +
 >   🔴 **上位交接 16 处失真清单**）。本文件 §8.D 已改为 G08 收官纪要；§8.D-5 原「Room → v60」那条**被实测作废**。
+> - [`TASKBOOK-G09.md`](TASKBOOK-G09.md) —— **G09 派工细则的唯一真源**（D-1…D-18 + 六项产品拍板 +
+>   §2 上位失真 12 条 + §3.6.1 来源文案整改细则）。本文件 §8.F 已改为 G09 收官纪要，
+>   §2.2 门禁表已换成 G09 终树值，§2.3 新增坑 19-22（桌面静态表面 / `data_store.cpp` 漏登 /
+>   密封接口 mock / 历史序 vs 抽取序）。
+> - `TASKBOOK-G11.md`（**尚未创建**）—— G11 派工细则；§8.G 是它的开工前置锚点。
 > - **本文件** —— 收官基线 + 修订后的作业规程 + 剩余指针。
-> **更新时点**：**G08 收官（提交 `8b3c10578`）后**；§1/§2.2/§2.3/§6.2/§6.3/§7/§8/§9 已是 G08 值
-> （§2.2 的上一列是 G16 值，G04/G15 值以括注保留；§11 的 G16 内联任务书与 §10 的 G15 内联任务书均已作废）。
+> **更新时点**：**G09 收官（提交 `15eef2b2d`）后**；§1/§1.1/§1.2/§2.2/§2.3/§6.2/§7/§8.F-§8.G/§9 已是 G09 值
+> （§2.2 的上一列是 G08 值，G04/G15/G16 值以括注保留；§11 的 G16 内联任务书与 §10 的 G15 内联任务书均已作废）。
 
 ---
 
@@ -22,11 +27,11 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/gacha-m0-m1` |
-| HEAD | **`8b3c10578`（G08 收官单次提交）**，其下 `fa853b541` = G16 回写、`4ba6c1bdd` = G16 收官、`acf745398` = G15 回写 |
-| 工作树 | **干净**（非未跟踪残留 = 0；提交后 `git status --porcelain` 只剩 `docs/research/`×2） |
+| HEAD | **`15eef2b2d`（G09 收官单次提交，68 文件 +5394/−249）**，其下 `c4df53253` = P-4 拍板回写、`8b3c10578` = G08 收官、`fa853b541` = G16 回写 |
+| 工作树 | **干净**（提交后 `git status --porcelain` 只剩 `docs/research/`×2） |
 | 未跟踪 | 仅 `docs/research/`×2（与本批无关，**不提交**）。🔴 `模拟宗门美术素材/`（572 MB）与 `模拟宗门音乐音效/`（1.6 MB）**已写入 `.gitignore`** —— 2026-09-24 拍板：作为项目指定素材/音频源目录，**只登记不入库**；位置与边界见 `rules/media-source-assets.md`。**旧表述「未跟踪 4 组永不提交」自本文件起作废**。⚠️ **G16 起该目录是素材管线的硬依赖**：`scaffold-source-mapping.mjs` / `import-art-assets.mjs` 经 `android/scripts/art-source.mjs` 解析到它，**缺失即抛错**（不再静默产出全 null 映射），换机器后须先同步素材或用 `MNZM_ART_SOURCE` 指向 |
-| 已完成 | **8 / 11 批**（G02、G05、G06、G03、G04、G15、G16、**G08**；分母 11 = 原 9 批 + 拍板新增 G15、G16） |
-| 下一批 | **G09**（抽卡核心 `gacha_tx`：roll / 保底 / 碎片 / 升星 / 解锁 / 入库）。硬前置已由 G08 解除——`CharacterTemplateDb` 现在有生产读取方（`instantiateTemplate` 与开局链），碎片入账口 `GachaFacade.grantFragments` 与 C++ `addFragment` 已单点收敛（§8.E）。🔴 **开工前先写 `TASKBOOK-G09.md`**（§8.C-1 规程） |
+| 已完成 | **9 / 11 批**（G02、G05、G06、G03、G04、G15、G16、G08、**G09**；分母 11 = 原 9 批 + 拍板新增 G15、G16） |
+| 下一批 | **G11**（最简寻访 UI：主界面 + 结果页 Q30/Q31 + 图鉴最小 + `GachaDelegate` 接线），其后 **G10**（唯一一次 RNG 金黄重录 + 全量回归 + 死代码清零 + 文档收口）。🔴 **开工前先写 `TASKBOOK-G11.md`**（§8.C-1 规程：上位交接的「必做项/修法/活路径」三类一律实测后才进任务书）。G09 已给出的 G11 硬前置与必办项见 §8.F 末段 |
 | 远端 | **未推送**（本仓多会话共用一棵工作树，推送由用户指令决定） |
 
 ### 1.1 已收官批次（门禁值以各批报告实测为准）
@@ -42,6 +47,8 @@
 | **G16** | `4ba6c1bdd` | [report-G16.md](report-G16.md) | **42 文件（14 改 + 28 新增）+1195/−62**（24 份 WebP 为二进制不计行） | **1394/1391/3**（**与 G15 逐条同名 ⇒ 零新增 B 类**） | **7343/0/0/18 skip**（对 G15 **+7 = 新守卫 5 例 + 映射守卫 +2 例**，逐模块账闭合） | 寻访 12 键四方齐备（registry 分类 **14→15**、`SpriteCategory.CHARACTER(2)`、UID **493–504** 既有零漂移、双模块 24 份无损 WebP 单模块 4.08 MB）；🔴 **素材管线三处结构性缺陷根治**（`SOURCE_DIR` 失效路径 / 脚手架静默丢映射 / preserve 承载高清素材）；图集 **41 精灵 / layoutHash `6a122ed2…` 不变**、`SceneEquivalenceTest 13/13`、Room 仍 **v59**、game-data sha256 **逐字符不变**、JNI 86/86、ActionId 198/1861 幂等、lint 36 警告全预存、两 baseline 零改动 |
 | **G08** | `8b3c10578` | [report-G08.md](report-G08.md) | **89 文件（72 改 + 17 新增）+5386/−1038**（实测分类：`src/main` Kotlin 43 / `src/test` 19 / C++·cmake 17 / 脚本·数据·文档 10） | **1401/1398/3**（**与 G16 逐条同名 ⇒ 零新增 B 类**；`DeterminismProbe actual=0xb4f3c6912207f597` 不变） | **7391/0/0/18 skip**（683 XML；对 G16 **+48** = 5 新测试类 + 改道新增，逐模块账闭合） | 模板层 `CharacterTemplateDb` 六行镜像；`recruitDisciple` → `instantiateTemplate`；兑换码/邮件**不再直造弟子**、改经 `GachaFacade.grantFragments`；开局=周明+5 万灵石+1 星账本；ActionId **198→199 / maxId 1861→1870**，retired **22→24** 双向零差；🔴 **PortraitPool 解析链缺口根治**（`PortraitResolver` 两跳，10 处读点/7 文件）；**四轮守卫判别力自证实跑**；Room 仍 **v59**（`templateId` 自 v54 在库，上位「→v60」是失真）；图集 41/`6a122ed2…` 不变、game-data sha256 不变、JNI 86/86、两 baseline 零改动、detekt 六模块 0 error |
 
+| **G09** | `15eef2b2d` | [report-G09.md](report-G09.md) | **68 文件 +5394/−249**（17 新增：C++ 6 / Kotlin 4 / 测试 2 / 报告 1 …） | **1437/1434/3**（**与 G08/G16/G15 逐条同名 ⇒ 零新增 B 类**；`actual=0xb4f3c6912207f597` 逐字符不变；+36 逐文件归因） | **7419/0/0/18 skip**（对 G08 **+28**，engine +27 / app +1，逐模块账闭合） | 抽卡核心下沉 C++（`gacha_tx.h` + 1871/1872 + `data_inject` 注入两张卡池表）；🔴 **独立随机分区 `GACHA(12)`**（D-3 已拍板，与 `CHAT(10)` 同因）；星级乘区**口径 A** 双端同名同参；保底=第 10 抽本身、碎片单点复用、解锁走 `instantiateTemplate` 唯一口 + 读档幂等补齐；物品统一入库 + 满仓转邮件；`SOURCE_DISPLAY_NAMES` 25→22 文案整改。ActionId **199→201 / maxId 1870→1872**，retired **24==24**；Room 仍 **v59**、proto 零改、JNI **86/86**（新增端口只在测试桥）、game-data sha256 不变、图集 41/`6a122ed2…` 不变、detekt 六模块 **0 error 0 warning**、lint 36 警告全预存。🔴 **首轮实跑抓出 5 条真缺陷并全部根因修复**（桌面注入通道 / 回退臂格序倒置 / 密封接口 mock / detekt 6 条 / 报告数字失真），见 §5.2 与 §2.3 坑 19-22 |
+
 > ✅ **G15 提交前由同一会话以复核身份同轮重跑了全部门禁**（ctest / 全量 JUnit / detekt / lint / 四个 node 门），
 > 数值与本表一致；`report-G15.md` §十 诚实标注了两处降级（lint 与编译的复核轮是 UP-TO-DATE 增量）
 > 与一处未做的抽验（`GameViewDiscipleProjectionTest` 双射守卫的判别力自证）。
@@ -53,21 +60,30 @@
 > 才发现「拆分后类内残留同名私有成员 = 静默死码」（§2.3 坑 16），删成员版后整条组合门重跑，
 > 表内三项数字取自第二次（终树）；守卫判别力**四轮实跑**（藏模板行 / 只改 C++ 常量 / 撤白名单一条 /
 > 删解析第二跳），判红消息原文见 `report-G08.md` §五。
-> **八批已提交者均为：全门禁实测绿 + 双 changelog + `report-Gxx.md` + 单次提交。**
+> ✅ **G09 是「实施会话中断 + 收官会话复核合一」**：实施会话（2026-09-26 凌晨）落地代码面并写了
+> 一份把 Kotlin 门禁标为「尚未执行」的报告；收官会话以复核身份同轮重跑 §2.2 全表，
+> **首轮实测 5 条 JUnit 红 + 6 条 detekt 红**（报告初稿写「代码面全部落地」，而新测试从未跑过一次），
+> 五条全部按根因修复后第二轮 `BUILD SUCCESSFUL in 23m17s` 全绿。**首轮即判别力自证**——
+> 守卫抓的是真缺陷（回退臂十连格序倒置、桌面静态表面缺注入通道），不是跟着实现改断言。
+> **九批已提交者均为：全门禁实测绿 + 双 changelog + `report-Gxx.md` + 单次提交。**
 
 > ⚠️ **G04 的提交由「复核会话」完成**：实施会话留下未提交工作树 + 一份把 ctest/detekt/JUnit 误记为绿的报告；
 > 复核会话在同一棵树逐门重跑，实测出 **4 处失实**（3 条 `SceneEquivalenceTest` A 类红、6 条 detekt 红、2 个陈旧图集守卫、规模数字失真）并当场修复。
 > 教训已回写 report-G04 §二·补 与本文件 §2.3 坑 9 —— **「报告声称绿」不构成门禁证据，必须同轮复跑**。
 
-### 1.2 剩余顺序（**2026-09-25 G08 收官后**）
+### 1.2 剩余顺序（**2026-09-26 G09 收官后**）
 
-**G09 → G11 → G10**
+**G11 → G10**
 
-- ✅ **G08 已单次提交（`8b3c10578`）⇒ G09 的两条硬前置解除**：① `characterTemplates` 不再是「零生产读取方」
-  （`DiscipleService.instantiateTemplate` + 开局链读 `CharacterTemplateDb`）；② 碎片入账口已单点收敛
-  （C++ `gacha_fragment.h::addFragment` + Kotlin 回退臂 `GachaFragmentLedger` + 门面 `GachaFacade.grantFragments`），
-  G09 的 roll/保底/升星直接在此之上写，**不得再开第二个碎片写者**。
-  🔴 另：`report-G16.md` §七-1 的 PortraitPool 解析链缺口已由 G08 的 `PortraitResolver` 根治（§7 指针表已更新）。
+- ✅ **G09 已单次提交（`15eef2b2d`）⇒ G11 的三条硬前置解除**：① 抽卡结果 DTO 已冻结
+  （`GachaPullResult.Success(rows[], unlockedTemplateIds[], pityAfter, …)`，`rows` = **抽取序**、
+  格序即下标、只带 id 不带资源键）；② `NotReady` 占位已删除 ⇒ `GachaDelegate.pullOnce/pullTen`
+  直接可用（仍零实例化，接线归 G11）；③ 星级乘区双端同名同参 + 战力缓存星级敏感 ⇒
+  结果页/详情页读镜像字段不会拿到旧口径。
+  🔴 **G09 移交给 G11 的三条实测项**（详见 `report-G09.md` §六）：`GachaPullRow` KDoc 的
+  512 档 `avatarKey` 口径、`GachaService` 就地改 map 不 `copy()` 可能使 `starMap`/`fragmentCounts`
+  订阅不发射（接 UI 前必须核）、`DialogFeatureRoutes` 的寻访占位对话框。
+- ✅ **G08 已单次提交（`8b3c10578`）**：模板实例化、碎片入账单点、开局周明 + 5 万灵石口径已落。
 - ✅ **G16 已单次提交（`4ba6c1bdd`）⇒ G11 的「12 个角色精灵键未注册」硬阻塞解除**：
   注册表 / 映射 / 双模块 WebP / UID 四环齐备，运行时入口 `SpriteResRegistry.resolve("avatar_zhouming")` 等
   12 键可解析，且新增 `GachaCharacterSpriteGuardTest` 锁住四方一致（详见 `report-G16.md` §一）。
@@ -75,13 +91,16 @@
   小头像位改读 `avatarKey` 属 G11 显示尺寸口径（`report-G08.md` §七-7）。
 - ✅ G15 已单次提交（`325da9d5a`），共享面（`models.h` / `disciple_store.h` / `column_dirty.h` /
   `DiscipleTables*.kt` / `Disciple.kt` / `game_view.proto` / `ActionIds.kt`）已落定 ⇒ 后续删列批可在此基线上串行。
-- **G08 之后新增的共享面**（G09 必须串行编辑，禁并行分片触碰）：
-  `gamecore/system/gacha_fragment.h`、`src/dispatch_gacha.cpp`（G 批独占端口 1870 段）、
-  `ActionIds.kt`/`action_ids.h`（生成物）、`scripts/action-catalog/gacha.mjs`、`GachaFacade(-Impl).kt`、
-  `GameEngineLoadDataOps.kt`（三臂）、`test/gacha_tests.cmake` 与两份**手写**桌面 JNI 源清单。
-- **G09 → G11 是依赖链**（G11 依赖 G09 的抽卡结果 DTO + G16 的素材 + G08 的模板层）。
-- G10 最后（唯一一次 RNG 重录窗口）。**G15/G16/G08 三轮均零新增 B 类**（§6.2），且 G15 首次正面实证
-  「两侧同步删除时 `Diff*` 继续绿」⇒ §3.3 那条 G10 排期推论已由实测替代。
+- **G09 之后新增/变更的共享面**（G11、G10 必须串行编辑，禁并行分片触碰）：
+  `gamecore/system/gacha_tx.h`、`system/star_zone.h`、`data/gacha_pool_db.h`、`src/dispatch_gacha.cpp`
+  （1870–1872 段）、`include/gamecore/rng/rng_manager.h`（分区枚举 + `kMaxPartitionId` + 播种三处同体）、
+  `core/engine/.../util/RngPartition.kt`、`nativebridge/DiffRngBridge.kt`（测试桥端口）、
+  `scripts/build-desktop-jni.{ps1,linux.sh}`（**手写源清单，新增 gamecore 源必须两改**）、
+  `GachaFacade(-Impl)/GachaService/GachaPullLedger/GachaPoolConfig.kt`、`test/gacha_tests.cmake`、
+  `ActionIds.kt`/`action_ids.h`（生成物）、`scripts/action-catalog/gacha.mjs`。
+- **G11 → G10 是依赖链**（G10 的 RNG 重录范围取决于 G11 是否引入新掷点；G11 依赖 G09 的 DTO + G16 素材 + G08 模板层）。
+- G10 最后（唯一一次 RNG 重录窗口）。**G15/G16/G08/G09 四轮均零新增 B 类**（§6.2），
+  G09 更是「新增 36 条 C++ 用例 + 引入新分区」而 `actual` 逐字符不变的正例。
 - **M1 完成判据**：G10 全绿 + G11 最简 UI 真机通。
 
 ### 1.3 本轮新增的三条产品拍板（2026-09-24）
@@ -96,12 +115,13 @@
 
 ---
 
-## 2. 门禁基线与运行方式（**G08 终树实测，取代本文件初版的 G04 值与 G15/G16 列**）
+## 2. 门禁基线与运行方式（**G09 终树实测，取代本文件初版的 G04 值与 G15/G16/G08 列**）
 
-> 🔴 G08 列的值由**实施会话同轮**跑出的原始输出（G08 未另派复核会话，但按 §8.C-4 做了
-> 「终树同轮重跑 + 读每条命令自己的日志 + 验产物 mtime/体积」，并做了**四轮**守卫判别力自证，见 `report-G08.md` §五；
-> 组合门因 §2.3 坑 16 跑了两轮，表内数字是**第二轮（终树）**）。
-> G16/G15 值由各自实施会话同轮跑出（G15 提交前另经复核会话同轮重跑）；G04 值由复核会话跑出。下表可作下一批复核的对照基准。
+> 🔴 G09 列的值由**收官会话同轮**跑出的原始输出：组合门跑了**两轮**——首轮实测出 5 条 JUnit 红 +
+> 6 条 detekt 红（都是真缺陷，逐条根因见 `report-G09.md` §5.2），修复后第二轮全绿，
+> **表内数字取第二轮（终树）**；第一轮数字保留在 `report-G09.md` §3.1 作为「守卫有判别力」的实证。
+> G08 列由实施会话同轮跑出（组合门两轮，取第二轮）；G16/G15 值由各自实施会话同轮跑出
+> （G15 提交前另经复核会话同轮重跑）；G04 值由复核会话跑出。下表可作下一批复核的对照基准。
 
 ### 2.1 环境前置
 
@@ -118,27 +138,28 @@ $env:PATH = "C:\Users\cp050\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\bin;" +
 
 | 门 | 命令 | G08 终树实测值（G16 / G15 / G04 值沿革） |
 |---|---|---|
-| 桌面 C++ 编译 | `cmake --build .`（desktop-test 目录） | `[9/9] Linking CXX executable test\game-core-tests.exe`（**本批必跑**：G16/G15 有零 C++ 改动的先例，G08 新增 `gacha_fragment.h`/`dispatch_gacha.cpp` 进构建图）。🔴 判别力旁证：注入常量并还原后**仍触发重链接**且 ctest 同值 ⇒ 还原是行为等价 |
-| 桌面 ctest | `ctest`（同目录） | **1401 总 / 1398 过 / 3 败**，`Total Test time (real) = 58.64 sec`（G16 为 1394/1391/3、G04 1413/1410/3）。**+7 = 新增碎片 9 例 + 工厂 2 例 − 兑换码 4 例**。3 败与 G16 **逐条同名** ⇒ 零新增 B 类；断言原文实测为金序列常量 ⇒ 按 §3.3 属 B 类 |
+| 桌面 C++ 编译 | `cmake --build .`（desktop-test 目录） | `[36/36] Linking CXX executable test\game-core-tests.exe`，**0 error**（48 条预存 warning）。G09 新增 `gacha_tx.h`/`gacha_pool_db.h`/`star_zone.h` + 两份 GTest 源进构建图（头文件形态，`test/gacha_tests.cmake` 是唯一追加点） |
+| 桌面 ctest | `ctest`（同目录） | **1437 总 / 1434 过 / 3 败**，`Total Test time (real) = 55.07 sec`（G08 为 1401/1398/3）。**+36 = `gacha_pull_test.cpp` 19 + `star_zone_test.cpp` 10 + `rng_test.cpp` GACHA 5 + `data_store_test.cpp` 卡池专项 2**（逐文件归因，`ctest -N` 实测）。3 败与 G08/G16/G15 **逐条同名** ⇒ 零新增 B 类。🔴 `GAMECORE_BUILD_BENCH=ON`（本仓现状）⇒ 计数含 10 条 bench 用例，报数须注明 |
 | 🔴 `SceneEquivalenceTest`（坑 9） | `ctest -R SceneEquivalence` | **13/13 全绿**（本批不动图集；图集/生成物变更批必查项） |
-| 🔴 `DeterminismProbe` | `ctest -R Determinism` | `actual=0xb4f3c6912207f597 golden=0x490e8dc522e12921`——**与 G15/G16 逐字符相同**；`DigestIsStableAcrossRepeatedRuns` **Passed** ⇒ 确定性未坏，坏的只是金常量 |
-| Kotlin 编译 | `./gradlew.bat compileReleaseKotlin` | 含在下一条的组合门内，`BUILD SUCCESSFUL in 26m 39s` |
-| 测试源编译 | 六模块 `compileReleaseUnitTestKotlin` | 0 错误（隐含在组合门；🔴 本批在此**真红过一次**：`:app` 测试源 `fold` 的类型推断失败——编译错误只在日志 `^e:` 行，后台任务退出码仍 0，坑 5 复现） |
-| detekt | 六模块 `./gradlew.bat detekt` | `BUILD SUCCESSFUL`；六份 `detekt.xml` 的 `<error>` 计数**全 0**；`detekt-baseline.xml` 与 `lint-baseline.xml` **零改动**（只缩不增）。🔴 **坑 13 修正**：`detekt` **确实覆盖 `src/test`**（本批两条测试源码违规就是它报的），只是**免类型解析**——需要类型解析的规则仍要另跑 `:<模块>:detekt<Variant>UnitTest` |
-| JUnit 全量 | `./gradlew.bat testReleaseUnitTest --max-workers=1 --rerun-tasks --continue "-Dgamecore.jni.path=<绝对 .so>"` | **7391 / 0 / 0 / 18 skip**（app **1010** / domain **1571** / data **814** / engine **2903** / ui 146 / feature:game **947**；**683** 个 XML 汇总）。G16 为 7343（app 1002），**+48 逐模块对账闭合**。组合门整体 `BUILD SUCCESSFUL in 26m 39s` |
-| lint | `./gradlew.bat lintRelease` | `Lint found 36 warnings (and 3 warnings filtered by baseline lint-baseline.xml)`、**0 errors**——**36 与 G15/G16 同值** ⇒ 全预存。⚠️ 跑完仍要查 `atlas-rgba-manifest.json`（本批两轮各脏一次，坑 2） |
-| 跨语言对拍库 | `pwsh -File scripts/build-desktop-jni.ps1` → `…/desktop-jni/libgamecorejni.so` | **本批必重建**：`.so` **8526336 → 8542208 字节 / mtime 20:57**（坑 11 用作正面证据）。🔴 两份 `scripts/build-desktop-jni.{ps1,linux.sh}` 是**手写源文件清单**，漏 `src/dispatch_gacha.cpp` 会让桌面对拍 `.so` undefined symbol、**全部 `Diff*Test` 红**（G08 同批补，并补预存遗漏的 `src/data_store.cpp`） |
-| JNI 计数 | `node scripts/check-jni-count.mjs` | **86 / 86**（不变；新事务复用 `tryExecuteNative`，零新增 `external fun`） |
-| ActionId | `node scripts/gen-action-ids.mjs` | **199 动作 / maxId=1870**（G16 为 198/1861）；新增 1870 = G 批独占空段的有意递增，1436/1438 为退役标注改 desc。零漂移判据 = regen 前 `cp` 两份、regen 后**与工作树自比**（坑 12）→ `REGEN_IDEMPOTENT=yes` |
-| catalog↔guard 退役集 | 脚本扫 `scripts/action-catalog/*.mjs` + `dispatch_guard_test.cpp` 的 `std::set<int32_t> retired` | catalog **199 条、唯一 199**；退役标注 **24** == guard **24**，双向零差集（G15 为 22）。🔴 **坑 17**：guard 侧退役集是 `action::NAME` 形态，按 `"NAME"` 带引号 grep 会得到「命中 0」的假红 |
-| 游戏数据 | `node scripts/gen-game-data.mjs --check` | sha256 `035066cbcb891aa124397667e58879d51d4dd4124177ae38b550e1b2c22094ef`——**与 G04/G15/G16 逐字符相同**（G08 未触碰配置中性源） |
+| 🔴 `DeterminismProbe` | `ctest -R Determinism` | `actual=0xb4f3c6912207f597 golden=0x490e8dc522e12921`——**与 G08/G16/G15 逐字符相同**；`DigestIsStableAcrossRepeatedRuns` **Passed** ⇒ 独立分区 `GACHA(12)` + 星级乘区**未平移任何既有掷点**（`DeterminismProbe` 哈希行为 transcript、不含 `rngStates`，且金黄夹具不做抽卡） |
+| Kotlin 编译 | `./gradlew.bat compileReleaseKotlin` | 含在组合门内，第二轮 `BUILD SUCCESSFUL in 23m 17s`（实施会话首轮报 8 个编译错，已修，见 `report-G09.md` §四） |
+| 测试源编译 | 六模块 `compileReleaseUnitTestKotlin` | 0 错误。🔴 G09 教训：**新增测试文件必须至少跑过一次**才算落地——本批 5 条 JUnit 红全部来自「文件在树上但从未执行」 |
+| detekt | 六模块 `./gradlew.bat detekt` | `BUILD SUCCESSFUL`；六份 `detekt.xml` 的 `severity="Error"` 与 `"Warning"` 计数**全 0**；两份 baseline **零改动**（只缩不增）。首轮 `:core:engine` 6 条违规逐条真修（`report-G09.md` §5.2-D）：`poolError` 圈复杂度 24 / 16 return、`historyEntry` 8 参、`GameEngineLoadDataOps.kt` 文件级 15 函数、测试面 `UseCheckOrError` + `MaxLineLength`。🔴 **新量化口径**：`LongParameterList functionThreshold: 8` 是「**≥8 即红**」，但 `ignoreDefaultParameters: true` ⇒ 给参数加默认值即不计数；`TooManyFunctions` 文件 ≥15 / 类 ≥20 / **object ≥12** 即红 |
+| JUnit 全量 | `./gradlew.bat testReleaseUnitTest --max-workers=1 --rerun-tasks --continue "-Dgamecore.jni.path=<绝对 .so>"` | **7419 / 0 / 0 / 18 skip**（app **1011** / domain **1571** / data **814** / engine **2930** / ui 146 / feature:game **947**）。对 G08 **+28** = engine +27（`DiffGachaPullTest` 6 + `GachaPullGuardTest` 9 + 两守卫扩例）+ app +1，逐模块账闭合 |
+| lint | `./gradlew.bat lintRelease` | `Lint found 36 warnings (and 3 warnings filtered by baseline lint-baseline.xml)`、**0 errors**——**36 与 G15/G16/G08 同值** ⇒ 全预存。⚠️ 跑完仍要查 `atlas-rgba-manifest.json`（本批被改脏一次，实测只有 `generatedAt` 一键 ⇒ 提交前 `git checkout --`） |
+| 跨语言对拍库 | `pwsh -File scripts/build-desktop-jni.ps1` → `…/desktop-jni/libgamecorejni.so` | `.so` **8542208 → 9015808 字节 / mtime 13:41:23**。🔴🔴 **两条实测硬教训**：① 该脚本是「先删产物后链接」，失败时 `.so` **直接消失** ⇒ 判据必须是 mtime + 体积 + sha256 三件套，脚本打印「成功」不可信（本批另实测到一次 rc=0 但零输出、产物未更新）；② 手写源清单**两腿都漏 `src/data_store.cpp`** ⇒ 桌面桥一引用 `inject::injectFromJson` 就 `ld.lld: undefined symbol: data::loadFromJson`（G08 补的 `dispatch_gacha.cpp` 是同形制的另一例） |
+| 🔴 桌面静态表面 | `DiffRngBridge.nativeCoreSetGameData`（本批新增**测试桥**端口） | 生产注入走 `GameCoreBridge.nativeSetGameData`（`app/src/main/cpp/GameCoreBridge.cpp`），**桌面 .so 不编该文件** ⇒ 无内联兜底的 `db.gachaPools`/`db.characterTemplates` 在桌面对拍恒为 `PoolNotFound`。需要静态表的 Diff 族必须先注一次（同 `data_store` 的「仅初始化期一次」状态机）。`check-jni-count` 只扫 `src/main` 两个生产桥 ⇒ 测试桥端口不入面 |
+| JNI 计数 | `node scripts/check-jni-count.mjs` | **86 / 86**（不变；抽卡双臂复用 `tryExecuteNative`，零新增生产 `external fun`） |
+| ActionId | `node scripts/gen-action-ids.mjs` | **201 动作 / maxId=1872**（G08 为 199/1870）；新增 1871 `GACHA_PULL_ONCE` / 1872 `GACHA_PULL_TEN` 落在 1870–1889 独占段内。零漂移判据同前（regen 前后自比，本批**两次**自证） |
+| catalog↔guard 退役集 | 脚本扫 `scripts/action-catalog/*.mjs` + `dispatch_guard_test.cpp` 的 `std::set<int32_t> retired` | catalog **201 条**；退役标注 **24 == guard 24**，双向零差集且 24 个 id 的名称两侧逐条相同（G09 只增号，退役集不变）。坑 17 仍有效：guard 侧是 `action::NAME` 形态，带引号 grep 必得假红 |
+| 游戏数据 | `node scripts/gen-game-data.mjs --check` | sha256 `035066cbcb891aa124397667e58879d51d4dd4124177ae38b550e1b2c22094ef`——**与 G04/G15/G16/G08 逐字符相同**（G09 只**读**该产物：C++ 注入 `db.gachaPools`/`db.characterTemplates`、Kotlin `GachaPoolConfig` 解析同一份，中性源未动） |
 | 素材管线 | `node scripts/scaffold-source-mapping.mjs` → `import-art-assets.mjs` → `resource-manifest.mjs` → `build-atlas.mjs --codegen` | 本批**零 drawable 变更** ⇒ 仅跑 `--codegen`：`显示尺寸保真校验通过：18 栋建筑 + 9 个装饰`、`SpriteRegistryData.kt / TextureAtlas.h 内容未变化，跳过生成`；`sprite-uid-map.json` / `sources-imported.json` 零变化（G16 的 UID 契约未被触碰）。⚠️ 该脚本 cwd = `android/`，`gen-action-ids.mjs` cwd = 仓库根，串在一条复合命令里会让前者 `ENOENT`（坑 4 变体） |
-| 规范门禁 | `node scripts/check-agent-instructions.mjs` | `✓ 规范分发架构门禁全部通过`（EXIT=0）；预存告警 **2 条**（规则③ 1 处、规则⑤ 最坏链路 37890 字节）——与 G16 同值（坑 14） |
-| Room | `DATABASE_VERSION` = **59**；`disciples` **90 列**、`game_data` 128 列 | **G08 零迁移**（🔴 上位 §8.D-5「动 `templateId` ⇒ v60」是失真：该列自 **v54** 在库，`GameDatabaseMigrationsV54.kt:21`）；`schemas/59.json` 零改写。**下一批删列则 → v60** |
+| 规范门禁 | `node scripts/check-agent-instructions.mjs` | `✓ 规范分发架构门禁全部通过`（EXIT=0），规则①–⑤ 全 ✓：① 根文件 26763 / 32768 字节、③ 42 篇文档 444 条内部引用零死链、⑤ 最坏链路 32180 / 32768。**G09 改动了 `docs/ui-read-surface.md` 与本文件 ⇒ 改后复跑**（`b052eeac5` 规范压缩后已无「预存告警 2 条」，G08 那列值作废） |
+| Room | `DATABASE_VERSION` = **59**；`disciples` **90 列**、`game_data` 128 列 | **G09 零迁移**（四本抽卡账本与 `templateId` 列自 **v54** 在库；D-12/D-13 豁免历史「格序」字段 ⇒ 零 `@ProtoNumber` 新增）。G08 那条上位失真「动 `templateId` ⇒ v60」依旧有效。**下一批删列则 → v60** |
 | 图集不变量 | `android/app/src/main/assets/atlas/atlas-manifest.json` | `sprites=41 / format=ASTC_4x4_LDR / layoutHash=6a122ed22d66bee5`（与 G04/G15/G16 一致 ⇒ 图集零变化） |
 | 精灵注册面 | `SpriteCodegenSyncTest` / `SpriteSourceMappingGuardTest` / `ResourceManifestCompletenessTest` / `GachaCharacterSpriteGuardTest` / `PortraitResolverTest`（新） | 全绿。分类仍 **15**；G08 给 `GachaCharacterSpriteGuardTest` 加第 6 例（12 键经**生产注册入口 + 运行时 resolver**可解析），并新增 `PortraitResolverTest` 的**消费点台账**（读点必须经 `resolvePortraitResId`；直引 `PortraitPool` 的白名单只剩 resolver 本体 + `ResourcePreloader`） |
 
-### 2.3 十八条实操坑（前三条承自 HANDOVER-2，4-8 条 G03 新增，第 9 条 G04 新增，10-12 条 G15 新增，13-15 条 G16 新增，**16-18 条 G08 新增**；第 13 条结论已由 G08 修正）
+### 2.3 二十二条实操坑（前三条承自 HANDOVER-2，4-8 条 G03 新增，第 9 条 G04 新增，10-12 条 G15 新增，13-15 条 G16 新增，16-18 条 G08 新增，**19-22 条 G09 新增**；第 13 条结论已由 G08 修正）
 
 1. **KSP 会就地改写历史 schema JSON**：bump 版本后若 KSP 把 `56.json` 等历史快照改小，立即 `git checkout -- <该 json>`；只允许新增当前版本 JSON。（G03 实测：仅 `57.json` 新增，历史零改写。）
 2. **构建副产物必须还原**：`sprite-uid-map.json`、`atlas-rgba-manifest.json` 每次构建都改时间戳 → 提交前 `git checkout --`。⚠️ **`lintRelease` 也会改**（G16 再证实：`atlas-rgba-manifest.json` 的 `generatedAt` 一行又被写脏一次）。
@@ -221,6 +242,28 @@ $env:PATH = "C:\Users\cp050\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\bin;" +
     读报告的人会误判为「有悬挂引用」。改 `emptyList<String>()` 即绿。
     ⇒ 通用口径：写守卫断言前**先确认被测表达式的实际类型**（`List` / `Set` / `Map` / 数值宽度），
     期望值按同一类型构造；跨类型比较要显式转换（`.toLong()` / `.toSet()`），不要依赖 JUnit 重载。
+19. 🔴 **G09 新坑：`mockSmart`（`RETURNS_SMART_NULLS`）遇到返回 `sealed interface` 的方法即抛
+    `MockitoException: cannot mock this class`，且报错点看起来在别处**。
+    触发链是间接的：`withTrackingSource` 的 doAnswer 把 block **真实执行**，block 里的
+    `addHerb/addSeed/addMaterial` 未被 stub ⇒ Mockito 要为返回类型 `DomainResult` 造 SmartNull
+    ⇒ ByteBuddy 无法代理密封接口。⇒ 凡 mock 的对象上有返回 `DomainResult`/`DeductResult` 等密封类型的方法，
+    必须显式 `Mockito.doAnswer { DomainResult.Success(it.getArgument(0)) }` 或 `doReturn`
+    （仓库既有注释先例：`ExplorationPatrolRouteTest:98`）。
+20. 🔴 **G09 新坑：桌面 JNI 的 `.so` 里静态模板表是空的**——生产的注入端口
+    `GameCoreBridge.nativeSetGameData` 在 `app/src/main/cpp/GameCoreBridge.cpp`，而
+    `scripts/build-desktop-jni.ps1` **只列 `jni/GameCoreJni.cpp`** ⇒ 凡「刻意不做内联兜底」的新表
+    （G09 的 `db.gachaPools`/`db.characterTemplates`）在桌面对拍里恒 `PoolNotFound`，
+    症状与「双臂逻辑分叉」长得一模一样。⇒ 走 `DiffRngBridge.nativeCoreSetGameData`（测试桥同语义端口）；
+    连带第 21 条。
+21. 🔴 **G09 新坑：`build-desktop-jni.ps1` 会「先删产物、后链接」，失败时 `.so` 直接消失，
+    而后台会话调用可以 rc=0 且零输出**。实测两次：① 分离会话跑完 rc=0，`.so` mtime/体积均未变；
+    ② 源清单缺 `src/data_store.cpp` 时 `ld.lld: undefined symbol: gamecore::data::loadFromJson`
+    且 `libgamecorejni.so` 不存在（后续 JUnit 会以 `UnsatisfiedLinkError`/全 `Diff*` 红的形式二次误导）。
+    ⇒ 判据只认 **mtime + 体积 + sha256** 三件套；`.ps1`/`.sh` 两份手写清单**每次新增 gamecore 源都要同批两改**。
+22. 🟠 **G09 新坑：「历史环序」与「结果格序」是两个口径，用一个列表兼两职会静默倒置十连格序**。
+    历史环是**新在前**（`rows.add(0, …)`），结果 DTO 是**抽取序**（第 10 格在末位，格序即下标，D-10/D-13）。
+    G09 回退臂把前者直接当后者 ⇒ 十连 10 格整体反序，而单抽看不出问题、C++ 臂也正常，
+    只有双臂对拍能抓。⇒ 两条序必须分别构造，并在 DTO 的 KDoc 上钉死（本批已钉）。
 
 ---
 
@@ -325,13 +368,28 @@ G04 的具体切片（T-a…T-e / A-a…A-d / c340×N，各片文件清单）见
 2. 门禁绿判定 = 编译 EXIT=0 **且** 失败集 ⊆ B 类登记集 **且** 零 A 类（A/B 判据见 §3.3）。
 3. 每批报告必须产出「本批新增 B 类清单」，G10 汇总消化。
 
-### 6.2 当前 B 类登记（C++，**G08 终树实测：仍是 3 条，逐条同名 ⇒ 零新增**）
+### 6.2 当前 B 类登记（C++，**G09 终树实测：仍是 3 条，逐条同名 ⇒ 零新增**）
 
 ```
 DiscipleFactory.GoldenSequenceSeed42
 DiscipleFactory.GoldenSequenceSeed987654321Female
 DeterminismProbeTest.DigestMatchesGoldenBaseline
 ```
+
+> 🔴 **G09 零新增 B 类的因果链**（report-G09 §三；本批风险等级高于前四轮，因为它是 M1 里第一次
+> **新增** RNG 消费 + 第一次追加随机分区）：
+> ① 抽卡掷点全部取**新分区** `RngPartition::kGacha = 12`（`rng_manager.h` 枚举 + `kMaxPartitionId`
+> 上移 + `seed + 12` 播种，Kotlin `RngPartition.GACHA(12)` 同 id），既有 12 个分区的实例与序列**一字节未动**；
+> ② 星级乘区取 `gachaStarMap`（稀疏），`star ≤ 1` 一律 ×1.00 ⇒ 既有名册（含开局周明 1★）与
+> `templateId=""` 的存量旧弟子全部走恒 1 分支 ⇒ 不平移任何属性/战力期望；
+> ③ `DeterminismProbe` 哈希的是**行为 transcript**、**不含 `rngStates` 映射**，且现有金黄夹具不做抽卡
+> ⇒ 两条新面都不进 transcript（这条实测同时作废了本任务书初版「独立分区是为了少几条红」的表述——
+> 两个方案在现有套件下都不扰动既有金黄，选独立分区是**结构性**理由：耦合 / 可解释性 / 公平性 / 并行前提）。
+> 三条旁证同轮实测：`actual=0xb4f3c6912207f597` 逐字符不变、`DigestIsStableAcrossRepeatedRuns` Passed、
+> ctest 1437 的 +36 全部可归因到本批新用例。**派工期间无任何"顺手重录"的口子被使用**（§6.1 红线）。
+> ⚠️ 连带面已核：新增分区使 `syncRngStates` 导出的 `rngStates` **多一个键**，对键集/条数做断言的
+> `RngSourceGuardTest`（登记 + 快照 12）、`ResidualRngLocalityGuardTest`（最大快照键 11→12）、
+> `rng_test.cpp`（快照分区 11→12）同批改齐 ⇒ 零 A 类。
 
 > 🔴 **G15 零新增 B 类的因果链**（report-G15 §三，值得 G10 引用）：删赠礼 = 删一处 SYSTEM 每亲属一次
 > `nextDouble`，但该消费是**门控**的（`findRelatives` 空 ⇒ 直接 return），而**五套 Diff 对拍夹具里
@@ -393,9 +451,9 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 | **G15** | 师徒系统整体下线（赠礼三文件整删、`masterId` 列链、ActionId 1591 退役、Room v59、双乘区形参链、关系面板） | ✅ **已收官 `325da9d5a`**（[`TASKBOOK-G15.md`](TASKBOOK-G15.md) 派工 + [`report-G15.md`](report-G15.md)）——本文件 §10.2 的实测文件面**已被 TASKBOOK §2 取代**（13 处漏项 + 2 处假阳性） | — |
 | **G16** | 12 个角色精灵键注册（6 角色 × 头像/全身像） | ✅ **已收官 `4ba6c1bdd`**（[`TASKBOOK-G16.md`](TASKBOOK-G16.md) 派工 + [`report-G16.md`](report-G16.md)）——本文件 §11 的内联任务书**已被 TASKBOOK-G16 取代**（§11 无文件面无决策依据；实测差异与三处管线缺陷见 report §三） | — |
 | **G08** | 角色模板层 + `templateId` 实例化 + 开局周明/5 万 + 兑换码改道 | ✅ **已收官 `8b3c10578`**（[`TASKBOOK-G08.md`](TASKBOOK-G08.md) 派工 + [`report-G08.md`](report-G08.md)）——`recon-G05-G06-G08-G09.md` 的 `G08` 段落与 `HANDOVER-1` §4#9~#12 口径**已被 TASKBOOK §2/§3 取代**（上位 16 处失真，含「Room v59→v60」实为**零迁移**）；🔴 §七-1 的 PortraitPool 解析链缺口**已根治**（`PortraitResolver` 两跳） | — |
-| **G09** | 抽卡核心 `gacha_tx`（roll/保底/碎片/升星/解锁/入库） | `recon-G05-G06-G08-G09.md` `G09` | ✅ **G08 已交付模板读取层与碎片入账单点**（`CharacterTemplateDb` 有生产读取方；`gacha_fragment.h::addFragment` + `GachaFragmentLedger` + `GachaFacade.grantFragments`，**G09 不得开第二个碎片写者**）；C++ AUTHORITATIVE；入库来源名须同批登记 `OverflowMailSender.SOURCE_DISPLAY_NAMES`；端口段：G08 已占 **1870**（`dispatch_gacha.cpp`），G09 新事务续增 |
+| **G09** | 抽卡核心 `gacha_tx`（roll/保底/碎片/升星/解锁/入库/历史/星级乘区/独立分区） | ✅ **已收官 `15eef2b2d`**（[`TASKBOOK-G09.md`](TASKBOOK-G09.md) 派工 + [`report-G09.md`](report-G09.md)）——`recon-G05-G06-G08-G09.md` §G09 落点表**已被 TASKBOOK §2 的 12 条失真清单取代**；🔴 本批首轮实跑抓出 5 条真缺陷（§5.2），教训回写 §2.3 坑 19-22 | — |
 | **G11** | 最简寻访 UI：主界面 + 结果页 Q30/Q31 + 图鉴最小 + `GachaDelegate` | 同上 `§G11` | ✅ **素材注册硬阻塞已由 G16 解除**：12 个键（`avatar_*`/`portrait_*`）注册表/映射/双模块 WebP/UID 四环齐备，UI 直接用 `SpriteImage("avatar_zhouming")` 或 `SpriteResRegistry.resolve(键)`；档位头像 512 / 立绘 1024 且**大图类不进预加载**（`ResourcePreloader` 现有决策）。⚠️ 若 G11 要新增 `SpriteCategory`，必须同步 `SpriteSourceMappingGuardTest` 的档位策略表 + `SpriteCodegenSyncTest` 的分类清单（漏一处即红）。🔴 **G08 追加一条必办**：40~56dp 的小头像位应改读 `avatarKey`（512 档）——现 `portraitRes` 单字段承载 1024 档全身像、`avatar_<id>` 零消费方（`report-G08.md` §七-7）。剩余口径：色表强制 Q31（`GameConfig.Gacha` 单源），禁用 `ItemCard.getRarityColor` 旧色表 |
-| **G10** | RNG 对拍基线重录 + 全量回归 + 死代码 grep 清零 + 文档收口 | `EXECUTION-PROTOCOL.md` §2 | 必须 G02–G07 全合入后**唯一一次**重录；G09/G11 建议同窗。**§6.3 已累积 G02/G03/G04/G05/G06/G15/G16/G08 八份登记**；Kotlin `Diff*` 预计无需重录（G15 已实证一次，仍待终树再证）；G15/G16/G08 三轮**零新增 B 类** ⇒ 三条集自 G04 起未变 |
+| **G10** | RNG 对拍基线重录 + 全量回归 + 死代码 grep 清零 + 文档收口 | `EXECUTION-PROTOCOL.md` §2 | 必须 G02–G07 全合入后**唯一一次**重录；**§6.3 已累积 G02/G03/G04/G05/G06/G15/G16/G08/G09 九份登记**；Kotlin `Diff*` 预计无需重录（G15 已实证一次，G09 再次实证「新增面只在新输入上生效」）；G15/G16/G08/G09 四轮**零新增 B 类** ⇒ 三条集自 G04 起未变；🔴 G09 追加两条必核面：`rngStates` 键集含 12 号后的条数断言、`RngSourceGuardTest` 抽卡分区使用计数 |
 
 ---
 
@@ -404,7 +462,10 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 > ✅ **G08 的复核与提交已完成（`8b3c10578`）**——原 §8.D 的 G08 五条清单已逐条走完，其中**第 5 条按实测作废**
 > （`templateId` 列自 v54 在库 ⇒ 本批零迁移，见 `report-G08.md` §三 Room 行），第 3 条（PortraitPool 解析链）
 > 已用 `PortraitResolver` 根治并配 E-3 判别力自证。过程与上位 16 处失真记在 `TASKBOOK-G08.md` §2 / `report-G08.md` §三·§五。
-> **下一会话直接走 §8.F（G09）。**
+> ✅ **G09 的复核与提交已完成（`15eef2b2d`）**——`TASKBOOK-G09.md` §1 的十条验收判据全部实测达成
+> （明细与同轮数字见 `report-G09.md` §二/§三/§四），其中首轮实跑暴露的五条真缺陷已按根因修复
+> （`report-G09.md` §5.2）。**下一会话直接走 §8.G（G11 开工前置）**，
+> 并且必须先按 §8.C-1 写 `TASKBOOK-G11.md`。
 
 ### 8.D G08 收官纪要（细则看 `TASKBOOK-G08.md` 与 `report-G08.md`，本文件不重复）
 
@@ -416,27 +477,42 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 | 显示链 | `resolvePortraitResId` 两跳（通用像域 → 注册表域）；10 处读点/7 文件统一；直引 `PortraitPool` 只剩 resolver 本体 + 预载清单 |
 | 移交 | G09 无遗留前置；G11 领一条必办（头像位改读 `avatarKey`）；G10 领 8 条登记（§6.3） |
 
-### 8.F G09（抽卡核心批）——下一批
+### 8.F G09（抽卡核心批）——已收官（提交 `15eef2b2d`），下一批 G11
 
-1. 🔴 **先写 `TASKBOOK-G09.md` 再切片**（§8.C-1）：`recon-G05-G06-G08-G09.md` 的 `G09` 段落同样是
-   按维度切分的落点表，须做 §3.4 两项回查（交叉归属 + 非弟子表三端环）后才能派工；
-   ⚠️ **G08 刚改过这块的三处活路径**（`dispatch_gacha.cpp` 端口段、`GachaFacade(-Impl)`、
-   `gacha_fragment.h`），recon 里凡指「抽卡面在 `execute_dispatch.cpp` 内」的行号**按 recon 初版对待即失真**。
-2. 需求口径：`docs/character-gacha-redesign-2026-09-23.md` §15.3（池/保底/历史的数据结构，
-   `map<templateId,…>` 与 `map<poolId,pity>` 的写法与「仅 List 禁 Set/Map」的 Room 侧边界）、
-   §15.5（星级乘区 `StarZone` 三端同名同参）、§15.6（碎片入账单函数——G08 已交付，G09 复用不得另开写者）。
-3. 🔴 **抽卡必走确定性 RNG 分区 `SYSTEM`**（`GameRngManager.getRng`），禁 `kotlin.random.Random`；
-   新增随机逻辑要同步 `RngSourceGuardTest` 登记表（**注意坑 16 与 G08 §七-4：登记计数会随删除漂移，
-   盘点整行留 G10，批内只做同步**）。
-4. 🔴 **金黄仍不重录**（§6.1 唯一窗口是 G10）：G09 若改既有消费序，三条 B 类红允许变化但必须
-   逐条登记 + `actual` 指纹写进报告；G08 的实证是「两侧同步删除 ⇒ `Diff*` 继续绿」，G09 属**新增**消费，
-   风险等级更高，切片时把「是否触碰既有掷点序」列为必答项。
-5. 入库（碎片→弟子解锁 / 物品）一律 `InventorySystem.withTrackingSource("<来源>")` 且来源名同批登记
-   `OverflowMailSender.SOURCE_DISPLAY_NAMES`；新增 `gachaPools[]` 配置走中性源 + 生成器（禁手改产物）。
-6. UI 读取面：结果页要读的每个新字段先过 `docs/ui-read-surface.md` §2（镜像合法面）；
-   碎片/星级/保底经 GameData 镜像回读，**禁止**为 UI 开第二条同步通道。
-7. 素材与模板面已就绪：无需再跑 `import-art-assets.mjs`；`CharacterTemplateDb` 加行即自动进
-   `CharacterTemplateGuardTest` 的逐字段比对（漏同步即红）。
+1. ✅ **`TASKBOOK-G09.md` 已是该批唯一派工真源**（18 项决策 D-1…D-18 + 六项产品拍板 + 上位失真清单，
+   含 12 条 `recon-G05-G06-G08-G09.md` §G09 的实测作废项）。开工前写的这份任务书把
+   「1870 已实裁、`dispatch_gacha.cpp`/端口/`gacha_tests.cmake` 均已由 G08 建好、碎片与升星已单点」
+   三处 recon 失真提前挡掉，实施期未复现 G16/G08 式的返工。
+2. 🔴 **D-3 的最终形态是独立分区 `GACHA(12)`，不是任务书初版的「取 `SYSTEM`」**（用户 2026-09-26 拍板，
+   本仓 `CHAT(10)` 为同形先例）。⇒ G11 之后任何新玩法若由**玩家点击时序**驱动，一律照此追加新分区，
+   并同步三处：`rng_manager.h` 枚举 + `kMaxPartitionId` + `initSystemSeed` 播种、
+   `RngPartition.kt` 枚举、`RngSourceGuardTest` 登记表 + `rngStates` 键集断言面（见 §6.2 连带面）。
+3. 🔴 **上位交接的「复用钱包扣减语义」这类一句话会漏掉 sealed-class 键分裂**：`SpiritStoneReason`/
+   `SpiritStoneSource` 的键 = 类名 ⇒ 新消费场景必须新增 `object Gacha`，否则两条臂写进两套
+   `annualExpenditureByReason` 键（年报分裂）。同类连带面已在 `report-G09.md` §五 逐条登记。
+4. 🔴 **C++ 建不了邮件**（`state::GameState` 无邮件字段，`month_settlement.h`/`merchant_settlement.h`
+   两处注释明写「草稿丢弃」）⇒ 满仓溢出只有「信封回传 + Kotlin `InventoryNativeForward` 投递」一条路，
+   任何新增发放类事务都必须接这一路，否则静默丢件。
+5. ⚠️ **本批最大的工程教训（已回写 §2.2 / §2.3 坑 19-22）**：实施会话把「代码写完」当成「批次完成」，
+   新测试从未执行 ⇒ 五条真缺陷全部漏到收官轮。⇒ §8.C 的「主线程终树同轮重跑」必须包含
+   **新增测试至少跑一次**，且 `report-Gxx.md` 的验证节只允许抄同轮命令输出。
+6. 📌 **移交 G11 的三条实测项**：结果格 `rows` = 抽取序（格序即下标）；`avatarKey` 512 档口径写在
+   `GachaPullRow` KDoc；`GachaService` 就地改 map 不 `copy()` ⇒ UI 订阅可能不发射（接 UI 前必核）。
+   另：`DialogFeatureRoutes.kt:68` 的寻访占位对话框由 G11 替换；星级乘区是否进弟子详情属性面板
+   属**产品口径，仍待拍板**（`report-G09.md` §六-1）。
+
+### 8.G G11 开工前置（下一批，写 `TASKBOOK-G11.md` 时的锚点）
+
+1. 🔴 **先实测再写任务书**（§3.4 两项回查）：G09 的 DTO 已是 `Success(rows[], unlockedTemplateIds[],
+   pityAfter, pricePaid, spiritStonesAfter, poolId)`——**只带 id 不带资源键**（D-10），
+   资源键必须经 `CharacterTemplateDb.byId(tid)` 查（G08 的 `PortraitResolver` 链），
+   禁止在 DTO 上再挂一份 `avatarKey`（第二真源）。
+2. 硬门：UI 不驱动 tick（§6.5 焦点域已移除）；不新增第二通知总线；`GachaDelegate` 全仓零实例化
+   是本批**故意**留的（G09 不接 UI），G11 必须补 `GameViewModel` 侧接线与 ViewModel 一个（继承 `BaseViewModel`）。
+3. 流光/特效须 Vulkan + Canvas 双路径可过并更新 `android/docs/renderer-feature-checklist.md`；
+   对话框按 `rules/new-dialog-checklist.md` 注册 `DialogType` + `GameOverlayHost` 穷举分支。
+4. 验收含**真机通**（M1 完成判据之一）：`report-G11.md` 必须写清真机验证做到哪一步，未做项显式列出。
+
 
 ### 8.C 通用（每批都走，G04/G15/G16/G08 四轮已验证有效）
 
@@ -456,10 +532,26 @@ DeterminismProbeTest.DigestMatchesGoldenBaseline
 
 ## 9. 诚实状态声明
 
-- **M1 完成度：8 / 11 批已提交**（G02 / G05 / G06 / G03 / G04 / G15 / G16 / **G08** = `8b3c10578`，
+- **M1 完成度：9 / 11 批已提交**（G02 / G05 / G06 / G03 / G04 / G15 / G16 / G08 / **G09** = `15eef2b2d`，
   每批都是全门禁实测绿 + 双 changelog + 报告 + 单次提交）；
-  G09 / G11 / G10 **尚未开始实施**（分母 11 = 原 9 批 + 拍板新增的 G15、G16）。
+  G11 / G10 **尚未开始实施**（分母 11 = 原 9 批 + 拍板新增的 G15、G16）。
+- 🔴 **G09 的诚实账（五点要如实说）**：
+  ① **本批是分两个会话完成的**：实施会话（2026-09-26 凌晨）落代码 + 写了一份**把 Kotlin 门禁显式标为
+  「尚未执行」**的报告；收官会话以复核身份同轮重跑 §2.2 全表。⇒ 「报告自称落地」在本批**第一次**
+  被实测证伪得如此彻底：首轮 5 条 JUnit 红 + 6 条 detekt 红，全部来自「新测试从未跑过一次」。
+  ② **首轮红点里有两条是生产侧真缺陷**，不是测试写法问题：回退臂把历史序当结果格序（十连 10 格整体倒置）、
+  桌面静态表注入通道缺失（连带 `data_store.cpp` 两腿漏登）。两条都按根因修复并复跑，
+  **没有放宽任何断言、没有动 baseline**（只缩不增）。
+  ③ **首轮数字同时修正了报告初稿的两处失实**：ctest 1427→**1437**、`star_zone_test.cpp` 9 例→**10 例**
+  （初稿自身加法 `1401+19+9+5+2=1436` 已不自洽）。⇒ 教训：抄来的计数必须与 `ctest -N` 对账。
+  ④ **`check-jni-count` 86/86 是靠「端口只加在测试桥」维持的**：`DiffRngBridge.nativeCoreSetGameData`
+  不入生产面（该门禁只扫 `src/main` 两个在册桥）。这是**有意的绕行**，理由与代价已在
+  `report-G09.md` §5.2-A 与 §2.2「桌面静态表面」行显式登记，不留隐性豁免。
+  ⑤ **主动未做**：`assembleRelease` 未跑（本批零素材变更）；**真机未验**——「寻访点击后真出货」
+  只有 C++ GTest + 跨语言双臂对拍的静态证据链，且 `GachaDelegate` 仍零实例化 ⇒ **无生产入口**（属 G11）；
+  星级乘区是否进弟子详情属性面板**待产品拍板**（`report-G09.md` §六-1）。
 - 🔴 **G08 的诚实账（四点要如实说）**：
+
   ① **同样是「实施 + 复核合一」**，但实测纪律升级了一档：**终树组合门跑了两次**——第一轮 `BUILD SUCCESSFUL`
   之后才发现一处**三道门都抓不到的静默死码**（拆分后类内残留同名私有成员，坑 16），删除成员版后
   **整条 `compileReleaseKotlin + testReleaseUnitTest + detekt + lintRelease` 重跑**，表内数字是第二轮的。
