@@ -27,7 +27,6 @@ import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
@@ -355,7 +354,6 @@ private class TrialTestStore : GameStateStore {
     override val storageBagsSnapshot: List<StorageBag> get() = stBags.all()
     override val battleLogsSnapshot: List<BattleLog> get() = emptyList()
     override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = emptyList()
-    override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
     override val warehouseFullEvent = MutableSharedFlow<String>()
     override var activeTab: String = ""
     override var activeDialog: String? = null
@@ -363,10 +361,6 @@ private class TrialTestStore : GameStateStore {
     override fun getCurrentSeeds(): List<Seed> = sds.all()
     override fun getCurrentHerbs(): List<Herb> = hrbs.all()
     override fun getCurrentMaterials(): List<Material> = mats.all()
-    override fun enqueueNotification(notification: GameNotification) = Unit
-    override fun consumeNotification(): GameNotification? = null
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun clearPendingNotification() = Unit
     override fun setPendingBattleResult(result: BattleResultUIData) = Unit
     override fun clearPendingBattleResult() = Unit
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit
@@ -377,7 +371,6 @@ private class TrialTestStore : GameStateStore {
     override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
     override fun clearRewardCardQueue(count: Int) = Unit
     override val pendingBattleResult = MutableStateFlow<BattleResultUIData?>(null)
-    override val pendingNotification = MutableStateFlow<GameNotification?>(null)
     override val rewardCardQueue = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
     override val pendingBattleRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())

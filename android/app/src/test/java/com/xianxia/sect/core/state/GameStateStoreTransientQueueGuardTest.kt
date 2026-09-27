@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.di.ApplicationScopeProvider
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
@@ -9,8 +10,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.jvm.isAccessible
@@ -25,6 +24,13 @@ import kotlin.reflect.jvm.isAccessible
  * 两路径共用同一清空函数，故本守卫同时锁定两路径的清空语义。
  *
  * 锁定的不变量：换档后无任何跨档幽灵弹窗/队列残留。
+ *
+ * 枚举面仅限 `_pending*` 前缀 StateFlow 字段；非该命名的瞬态容器不在
+ * 反射口径内（新增瞬态容器按 `_pending*` 命名即自动纳入守卫）。
+ *
+ * 灌值口径：经 getter 取出的 flow 引用强转 `MutableStateFlow` 后直写
+ * `.value`（类型擦除下的非空占位）——全部瞬态 flow 均为 `val` 声明，
+ * 属性层面无 setter，禁止按 `KMutableProperty1` 过滤（会得到空集使守卫空转）。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -45,36 +51,20 @@ class GameStateStoreTransientQueueGuardTest {
             .filter { it.name.startsWith("_pending") }
             .onEach { it.isAccessible = true }
 
+    /** 反射对全部 `_pending*` StateFlow 灌入类型擦除下的非空占位（经 flow.value 写入） */
     @Suppress("UNCHECKED_CAST")
-    private fun pendingMutableProps(): List<KMutableProperty1<GameStateStoreImpl, Any?>> =
-        pendingProps().filterIsInstance<KMutableProperty1<GameStateStoreImpl, Any?>>()
-
-    /** 反射对全部 `_pending*` MutableStateFlow 灌入类型擦除下的非空占位 */
     private fun fillAllPendingFlows() {
-        for (prop in pendingMutableProps()) {
-            val flow = prop.getter.call(stateStore) as? StateFlow<Any?> ?: continue
+        for (prop in pendingProps()) {
+            val flow = prop.getter.call(stateStore) as? MutableStateFlow<Any?> ?: continue
             when (flow.value) {
-                is List<*> -> prop.setter.call(stateStore, listOf(GUARD_MARKER))
-                is Map<*, *> -> prop.setter.call(stateStore, mapOf(GUARD_MARKER to GUARD_MARKER))
-                else -> prop.setter.call(stateStore, GUARD_MARKER)
+                is List<*> -> flow.value = listOf(GUARD_MARKER)
+                is Map<*, *> -> flow.value = mapOf(GUARD_MARKER to GUARD_MARKER)
+                else -> flow.value = GUARD_MARKER
             }
         }
-        // notificationQueue 同属瞬态（ConcurrentLinkedQueue，非 `_pending*` 命名），
-        // 与 violationsAfterReset 同一反射口径灌入（事件类型当前无变体，无法经公开入口灌实例）
-        notificationQueue()?.add(GUARD_MARKER)
     }
 
-    /** 反射取 notificationQueue（非 `_pending*` 命名，不在通用枚举内）；字段不存在返回 null */
     @Suppress("UNCHECKED_CAST")
-    private fun notificationQueue(): ConcurrentLinkedQueue<Any?>? =
-        GameStateStoreImpl::class.declaredMemberProperties
-            .firstOrNull { it.name == "notificationQueue" }
-            ?.let { prop ->
-                prop.isAccessible = true
-                (prop as KProperty1<GameStateStoreImpl, *>).getter.call(stateStore)
-                    as? ConcurrentLinkedQueue<Any?>
-            }
-
     private fun violationsAfterReset(): List<String> {
         val violations = mutableListOf<String>()
         for (prop in pendingProps()) {
@@ -87,7 +77,6 @@ class GameStateStoreTransientQueueGuardTest {
             }
             if (nonEmpty) violations += prop.name
         }
-        if (notificationQueue()?.isNotEmpty() == true) violations += "notificationQueue"
         return violations
     }
 
@@ -106,7 +95,7 @@ class GameStateStoreTransientQueueGuardTest {
         // Act
         stateStore.reset()
 
-        // Assert: 任何 _pending* / notificationQueue 残留即失败（漏登记 clearTransientQueues）
+        // Assert: 任何 _pending* 残留即失败（漏登记 clearTransientQueues）
         val violations = violationsAfterReset()
         assertTrue(
             "reset 后仍残留瞬态字段: $violations —— 新增瞬态队列必须登记 " +

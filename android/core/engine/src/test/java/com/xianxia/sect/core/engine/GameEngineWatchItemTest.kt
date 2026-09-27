@@ -24,7 +24,6 @@ import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
@@ -203,7 +202,6 @@ private class WatchSimpleStore : GameStateStore {
     override val isPaused = MutableStateFlow(false)
     override val isLoading = MutableStateFlow(false)
     override val isSaving = MutableStateFlow(false)
-    override val pendingNotification = MutableStateFlow<GameNotification?>(null)
     override val pendingBattleResult = MutableStateFlow<BattleResultUIData?>(null)
     override val rewardCardQueue = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
@@ -225,7 +223,6 @@ private class WatchSimpleStore : GameStateStore {
     override val storageBagsSnapshot: List<StorageBag> get() = emptyList()
     override val battleLogsSnapshot: List<BattleLog> get() = emptyList()
     override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = emptyList()
-    override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
     override val warehouseFullEvent = MutableSharedFlow<String>()
     override var activeTab: String = ""
     override var activeDialog: String? = null
@@ -233,9 +230,6 @@ private class WatchSimpleStore : GameStateStore {
     override fun getCurrentSeeds(): List<Seed> = emptyList()
     override fun getCurrentHerbs(): List<Herb> = emptyList()
     override fun getCurrentMaterials(): List<Material> = emptyList()
-    override fun enqueueNotification(notification: GameNotification) = Unit
-    override fun consumeNotification(): GameNotification? = null
-    override fun clearPendingNotification() = Unit
     override fun setPendingBattleResult(result: BattleResultUIData) = Unit
     override fun clearPendingBattleResult() = Unit
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit

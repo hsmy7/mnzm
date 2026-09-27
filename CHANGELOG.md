@@ -692,6 +692,37 @@
 - **门禁**：桌面 gtest 1554/1554（golden 按新层序重生成）；:core:engine/:feature:game/:app
   JVM 全量绿；六模块 detekt 双触碰模块零违规；JNI 计数 82/82 在册。
 
+### 通知通道后端管线整链退役（2026-09-27）— `refactor(state)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-NOTIFY-RETIRE.md`（派工真源）
+> + `docs/design/gacha-batches/report-NOTIFY-RETIRE.md`（本批报告）。
+> 前置事实：G10 已删唯一变体 `RecruitFailed` 与全部 UI 消费，通道自此零生产者零消费者；
+> 用户 2026-09-27 拍板「整链退役」。
+
+- **接口面**：`GameStateStore` 五成员删除——`pendingNotification` / `notifications` /
+  `enqueueNotification` / `consumeNotification` / `clearPendingNotification`（含 `@Deprecated` 尾巴）。
+- **实现面**：`GameStateStoreImpl` 的两个 MutableStateFlow + `ConcurrentLinkedQueue`（上限 200 丢最旧）
+  + 三方法 + `clearTransientQueues` 两行清空与 drain；事务提交链同步简化——`UpdateBaseline` /
+  `MutableGameState` / `ReusableMutableState` 的 `pendingNotification` 字段、`CommitFlags.notificationChanged`
+  判据、`resolveCommitFlags`/`emitStateFlows`/`detectFieldChanges` 参数与分支（判据删除后其余字段
+  语义不变）；`emitStateFlows` 的 `flags` 参数随之摘除（唯一消费者即通知分支）。
+- **转发链**：`GameEngine` 三转发、`GameEngineDiscipleSlotOps` 扩展、`DiscipleFacade`/`DiscipleFacadeImpl`
+  两成员、`GameNotification.kt` 空 sealed 接口整文件删除；`MutableGameState`/`UnifiedGameState`
+  数据字段删除（两类均纯 Kotlin data class 无序列化注解，零存档影响）。
+- **同名异物零触碰**：`core/util/GameNotificationHelper*` / `GameForegroundService`（Android 系统状态栏
+  通知，前台服务保活）一字未动。
+- **测试面**：6 个替身（`FakeGameStateStore`/`FakeAtomicStateStore`/Boot/Coordination/WatchItem/HeavenlyTrial
+  内嵌实现）各删 5 成员 override；`GameStateStoreTransientQueueGuardTest` 改造保留——判红实验实证
+  批前守卫已失牙（`_pending*` flow 均为 `val`，按 `KMutableProperty1` 过滤灌值为空集），修复为经
+  `MutableStateFlow.value` 类型擦除灌值后判红→转绿双向验证，守卫对存活瞬态队列
+  （妖兽预警/战斗结算/奖励卡片）恢复真实判别力。
+- **文档**：`docs/ui-read-surface.md` §3.4 通道清单同步改写（顺带摘除 G03 已退役而残留登记的
+  `pendingMarriageProposals`）；历史审计/报告按「不回改」纪律零触碰。
+- **存活引用面补齐**（验收轮）：`android/stability_config.conf` 摘除已删类的稳定性声明行、
+  `CODE_WIKI.md` 摘除 `pendingNotification` 读取清单行（同文件稳定性配置计数 26 → 29）。
+- **门禁**：删前删后全仓 kt 五符号 + `GameNotification` grep 双向贴证（0 命中）；零 C++ 面、零存档
+  序列化面（ctest/JNI 重建不适用）；组合门数字见 `docs/design/gacha-batches/report-NOTIFY-RETIRE.md`。
+
 ## [4.01.15] - 2026-09-17
 
 ### SR-7 批（2026-09-22）——存档 schema 第二刀 + 文件层退役代码就位（⚠️ 未切换：全量设备仍 LEGACY，玩家零可见变化）

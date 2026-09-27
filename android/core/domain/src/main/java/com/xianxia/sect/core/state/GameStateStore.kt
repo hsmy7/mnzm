@@ -51,7 +51,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     val isLoading: StateFlow<Boolean>
     val isSaving: StateFlow<Boolean>
     val pendingBattleResult: StateFlow<BattleResultUIData?>
-    val pendingNotification: StateFlow<GameNotification?>
     val rewardCardQueue: StateFlow<List<RewardCardItem>>
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>>
 
@@ -110,15 +109,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun getCurrentHerbs(): List<Herb>
     fun getCurrentMaterials(): List<Material>
 
-    // === 通知 API ===
-    /** 通知队列 */
-    val notifications: StateFlow<List<GameNotification>>
-    fun enqueueNotification(notification: GameNotification)
-    fun consumeNotification(): GameNotification?
-
-    /** @deprecated 通知系统已改为队列，UI 侧通过 [consumeNotification] 消费 */
-    @Deprecated("Notifications are now queued. Use consumeNotification() instead.")
-    fun clearPendingNotification()
     fun setPendingBattleResult(result: BattleResultUIData)
     fun clearPendingBattleResult()
 

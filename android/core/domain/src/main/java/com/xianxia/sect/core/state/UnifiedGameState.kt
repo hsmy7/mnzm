@@ -38,7 +38,6 @@ data class UnifiedGameState(
     val isSaving: Boolean = false,
     val gameSpeed: Int = 1,
     val pendingBattleResult: BattleResultUIData? = null,
-    val pendingNotification: GameNotification? = null,
     val lastUpdateTime: Long = System.currentTimeMillis(),
     val version: Int = 1
 ) {

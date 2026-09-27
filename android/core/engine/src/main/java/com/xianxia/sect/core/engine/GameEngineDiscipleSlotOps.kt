@@ -16,7 +16,6 @@ import com.xianxia.sect.core.engine.domain.disciple.getIdleDisciples
 import com.xianxia.sect.core.engine.domain.disciple.updateYearlySalaryEnabled
 
 
-fun GameEngine.clearPendingNotification() = discipleFacade.clearPendingNotification()
 fun GameEngine.isDiscipleAssignedToSpiritMine(discipleId: String): Boolean = discipleFacade
     .isDiscipleAssignedToSpiritMine(discipleId)
 suspend fun GameEngine.updateYearlySalaryEnabled(realm: Int,
