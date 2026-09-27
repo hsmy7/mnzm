@@ -20,6 +20,7 @@
 
 （最新在上）
 
+- **2026-09-27 04:5x status: completed ✅ M2 总收官**：**四批全部 accepted**——G10 `e966d7148`（chore 偏差登记）/ G12 `616f50912` / G13 `ddfa14fca`（refactor 偏差登记）/ G14 `8306ec715`（docs 偏差登记，三次前缀偏差均语义准确、显式登记不判失败）；**门禁终值**：ctest 1437 全绿（金黄 `0xb4f3c6912207f597` 唯一窗口重录后零平移）、JUnit **7476/0/0/18**（694 XML；G9 基线 7419 → G11 7471 → G12 7474 → G13 7476 逐批账闭合）、detekt 六模块 0/0、lint 36w/0e、ActionId 201/maxId 1872、JNI 86/86、Room v59、game-data sha `809375f4…8619`（G13 改中性源非漂移，看护亲跑一致）、规范门禁五规则 ✓（446 引用零死链、不精确计数 0）；**总收官只读总门复跑（本时刻同轮）**：node 四门全绿——gen-action-ids `201 actions (maxId=1872)` 两产物零漂移 ✓；gen-game-data --check `sha256 809375f4…8619` 与中性源一致 ✓；check-jni-count `86/86 双桥无扩散` ✓；check-agent-instructions `五规则全过` ✓；⚠️ **分支注记**：G10–G13 各笔在 `feat/gacha-m0-m1`，G14 收官笔 + 五笔看护登记原落 `refactor/remove-2x-speed`（他线切支所致，用户拍板「任其落错事后手术」）——看护已用 commit-tree 管道把全序列**无别名重放**至 feat（逐树一致、零工作树触碰），refactor 分支重置待他线完全静止（命令备档：`git branch -f refactor/remove-2x-speed 432c22537 && git reset 432c22537`，或他线合并 feat 时自然吸收，二者等效）；**pending-device 18 项**（G11 D-1…D-12 + G12 新增 6 项，同台设备同轮验证）交用户；**用户拍板累积三项**：①通知通道后端管线退役 vs 绑定新事件源（G10 §8-1）②星级乘区是否进 finalStats 展示链（G12）③经济复测解锁节奏「数百月级」是否拉数值杠杆（G13 §8-2）；**可停用看护**：四批验收毕、总收官毕 ⇒ 用户可删除自动化 `automation-2578e36b-000d-4499-aabe-5a41f61028c7`（侧栏「自动化」删除，或说一声看护代删）；台账与自动化记录保留不删（审计痕迹）。G11-真机（blocked 需设备）维持待用户接设备另起一轮。
 - **2026-09-27 04:4x G14 交付核验通过＝accepted（末批）⇒ 待分支手术后 M2 总收官**：G14 收官笔=`8306ec715 docs(gacha): G14 文档与发布收口…`（9 文件 +469/−122：文档五件 + 双 changelog + version.properties + 双报告；🔴 前缀偏差 #3：`docs` 非手册字面 `feat`，纯文档批语义准确，同 G10/G13 判例显式登记）；**交付核验=通过**——三要素 ✓（报告七节齐全、八判据逐条 ✅：版本三方归一 4.01.16/4116、双 changelog 四合一 99 条升序只增不减含他线 4 条执法堂公告逐条等价比对、CODE_WIKI 六处（三处 G10 已交付交叉确认）、architecture 五处、清零表终稿无待定、门禁实证、单次提交；看护抽验三条全过：check-agent-instructions 五规则 ✓、changelog JSON **62 条/4.01.16/2026-09-23/99 条** 与报告期望一致、gen-action-ids 201/1872 零漂移）；树净按文件面区分 ✓（G14 footprint 全入库；树上余他线在途产物不计违规）；🔴 前缀偏差 #3 登记 + **诚实残余 8 项**（他线 hunk 随本笔入库待手术区分、changelog date 口径差异按任务书执行、ResignGateResult.kt:36 思过残余文案留代码批、Gradle 门未跑按干扰归因规则豁免等）；动作=**分支手术待用户确认他线空闲**（cherry-pick `8306ec715` 至 feat + 他线分支重置回原点）⇒ 手术完成即 M2 总收官（§6：status: completed + 总账 + pending-device 18 项 + 可停用看护指令）。
 - **2026-09-27 03:5x 用户拍板「任其落错，事后手术」**：G14 在当前分支 `refactor/remove-2x-speed` 上交付与验收照常（核验按文件面区分 footprint）；**G14 accepted 后看护执行分支手术**——①`cherry-pick` G14 收官笔（及其报告/变更）至 `feat/gacha-m0-m1` ②把 `refactor/remove-2x-speed` 重置回 G14 落笔前的原点（含清理误落的两笔看护台账登记，其中台账内容已快进在 feat 线无损失）③手术前置条件 = **用户确认他线会话已空闲**（重置他线分支需他线不在途），届时看护会先问再动。当前树 = `refactor/remove-2x-speed`（含 03:33 登记 `175bf2ff1` + 本笔 `0639ee586` 两笔看护登记 + 他线 5 代码文件未提交改动）。
 - **2026-09-27 03:43 树况升级：多线并行实施（125 项在树），G14 尚未落盘**：remove-law-enforcement-and-prison 线已进入大规模实施（C++ 系统/结算/守卫面 ~25 文件 + `LawEnforcementPrisonCleanupRule` 等 Kotlin + config + 图集产物重建），remove-2x-speed 线存档面 5 文件维持，另现第 4 份方案文档 `equipment-set-system-refactor-plan.md`；G14 文档面（CODE_WIKI/architecture/version.properties/双 changelog/报告）**零出现**。看护判定：多线并行属用户编排，不干预；G14 核验时树净按文件面区分（他线全部产物 + 4 份方案文档 + 图集副产物不计违规），G14 footprint = 文档五件 + 双 changelog + version.properties + `docs/report-G14-completion.md`；若 G14 门禁因他线半成品红（如 check-agent-instructions 扫到其文档），归因登记为「他线干扰」，不判 G14 needs-fix。用户已知情并行事实（03:5x 拍板任其落错）。
@@ -58,9 +59,9 @@
 | 1 | **G10** RNG 基线重录 + 全量回归收口 + 死代码 grep 清零 + 文档收口（M1 末批） | G02–G09/G11 已合入 | `accepted`（看护 00:09；用户终审留档） | 2026-09-26 22:10（桌面 app 渠道） | `e966d7148`（chore 前缀偏差已登记） | `report-G10.md` ✓ | 金黄两处同值 `0xb4f3c6912207f597`；ctest 1437 全绿；JUnit 7462；残余 8 项含通知管线拍板 |
 | 2 | **G12** 体验完成（历史 50 条 / 概率公示 / 图鉴完整 / 流光降级 / 引导 / 死文案清零） | G11 | `accepted`（看护 01:57；用户终审留档） | 2026-09-27 00:09（桌面 app 渠道） | `616f50912` | `report-G12.md` ✓ | JUnit 7474（+12 账闭合）；D-1 两处口径陷阱正确处理；新增真机 pending-device 6 项（累计 18）；finalStats 星级乘区拍板项延续 |
 | 3 | **G13** 数值落地（M0 杠杆回填 / 突破补偿 / 回血参数 / 经济复测 / 星级乘区终值） | G00、G09、G10 | `accepted`（看护 03:22；用户终审留档） | 2026-09-27 01:57（桌面 app 渠道） | `ddfa14fca`（refactor 前缀偏差已登记） | `report-G13.md` ✓ | game-data 新 sha256 `809375f4…`（改中性源非漂移）；十杠杆全勾、悬空键清零；经济复测解锁节奏风险留用户拍板 |
-| 4 | **G14** 文档与发布收口（双 changelog / CODE_WIKI / architecture / 验收报告 / 死文案清单） | G11–G13 | `dispatched` | 2026-09-27 03:22（桌面 app 渠道） | — | — | 任务书已就绪（版本号 4.01.16 已拍板无阻塞）；会话名【G14 · 派发文本（由 fire.ps1 装配）】；派发件=装配+G13 事实附录 8 条 |
-| 5 | **G11-真机** 设备验证（M1 完成判据） | G11、用户提供设备 | `blocked(需设备)` | — | — | — | **不阻塞前 4 批派发**；清单 = `report-G11.md` §7 的 D-1…D-12 |
-| 6 | **M2 总收官** | G14 | `pending` | — | — | — | 见 WATCHDOG-PROMPT §6 |
+| 4 | **G14** 文档与发布收口（双 changelog / CODE_WIKI / architecture / 验收报告 / 死文案清单） | G11–G13 | `accepted`（看护 04:4x；用户终审留档） | 2026-09-27 03:22（桌面 app 渠道；落点 refactor/remove-2x-speed，用户拍板） | `8306ec715`（docs 前缀偏差已登记） | `report-G14-completion.md` ✓ | 版本三方归一 4.01.16/4116；双 changelog 四合一 99 条；CODE_WIKI/architecture/白皮书表体全收口 |
+| 5 | **G11-真机** 设备验证（M1 完成判据） | G11、用户提供设备 | `blocked(需设备)` | — | — | — | **不阻塞前 4 批派发**；清单 = `report-G11.md` §7 的 D-1…D-12 + G12 六项，累计 18 项同台设备同轮 |
+| 6 | **M2 总收官** | G14 | `completed`（04:5x；分支手术残留项见当前状态 04:5x 条） | — | — | — | status: completed；node 四门总门复跑全绿；可停用看护（自动化 `automation-2578e36b`）；refactor 分支重置备档待他线静止 |
 
 **状态取值**：`pending`（未派）／`dispatched`（已派在途）／`accepted`（三要素通过）／`needs-fix`（门禁失败待修复轮）／`stalled`（超时无进展）／`blocked`（停派待用户）。
 
@@ -72,8 +73,8 @@
 |---|---|
 | 看护启用时点 | 2026-09-26（本文件首笔） |
 | 定时任务 | **看护不自行安装**；由用户在 WATCHDOG-PROMPT §3 的方案 A/B 中择一安装 |
-| 锁时间戳 | `2026-09-27 03:22 · G13 accepted + G14（末批）派发`（每轮 fire 有实质动作时更新；15 分钟内视为活跃） |
-| 自动化 id | `automation-2578e36b-000d-4499-aabe-5a41f61028c7`（2026-09-26 22:22 建，*/10，看护轮提示词含两处用户修订；总收官后由用户决定停用） |
+| 锁时间戳 | `2026-09-27 04:5x · status: completed（M2 总收官）`（看护使命完成；后续仅余分支手术残留项，见当前状态） |
+| 自动化 id | `automation-2578e36b-000d-4499-aabe-5a41f61028c7`（2026-09-26 22:22 建，*/10；**可停用**——用户在侧栏「自动化」删除，或说一声看护代删；删除前最后确认分支手术残留项是否需要看护代办） |
 
 ---
 
