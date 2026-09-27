@@ -20,6 +20,7 @@
 
 （最新在上）
 
+- **2026-09-27 05:0x 通知管线退役批任务书已出（待派发；派发前置未满足）**：`docs/design/gacha-batches/TASKBOOK-NOTIFY-RETIRE.md` 落盘（看护只读侦察逐 file:line 实测：接口五成员 GameStateStore.kt:54/115-121、Impl 14 处含 **G10 §3.4 未记载的 ReusableMutableState 字段+提交判据 4 处（:794/:899/:905/:1031/:1055）** 与 MutableGameState:43 / UnifiedGameState:41 数据字段、转发链 4 文件含 GameEngineDiscipleSlotOps:19、测试面 6 文件、TransientQueueGuardTest 处置判据、util 同名异物红线、C++/序列化零镜像实证）。⚠️ **派发前置未满足**：①主树仍在 `refactor/remove-2x-speed` 且他线多线实施在树（125+ 项）——退役批必须等分支归位（feat 回主用 + 他线静止）②实施会话开工纪律「树净」在当前树不成立。前置满足后派发走桌面粘贴流程（模板 A + 本任务书全文 + G14 交付事实附录）。任务书本体暂不入库（D-5，随批收官笔入库）。
 - **2026-09-27 04:5x ✅ 三项拍板落定（用户 AskUserQuestion 逐项选择）**：
   1. 🔴 **通知通道后端管线 = 整链退役**（选退役而非休眠）：删 GameStateStore 五成员（pendingNotification/notifications/enqueueNotification/consumeNotification/clearPendingNotification）+ GameStateStoreImpl 队列 + GameEngine/DiscipleFacade 转发 + 8 个测试替身实现，约 20+ 文件——**待排后续清理批**（需先出任务书：文件面 = core:domain 契约 + :app/:core:engine/:feature:game + 测试替身；门禁 = 全量组合门 + ctest；前置 = 主树回到 feat 且他线空闲）。任务书未出前**本看护不动**。
   2. ✅ **星级乘区不进 finalStats 展示链（维持现状）**：CachedPower 指纹不动、图鉴「属性预览」继续搁置——G12 报告 §9 拍板项**关闭**。
