@@ -151,6 +151,71 @@ object GameConfig {
         const val MAX_EXPLORE_TIME = 12
         const val HIGH_FREQUENCY_UPDATE_INTERVAL = 1000L
         const val LOW_FREQUENCY_UPDATE_INTERVAL = 2000L
+
+        // ── 时间单位常量栈（结算改造方案 2026-09-27 §2.2 —— 全仓唯一口径）──
+        // C++ 同源锚点：gamecore/system/time_units.h（同名常量同值同公式，
+        // GameTimeUnitsParityTest / time_units_test.cpp 双端各自锁定，改值须双端同步）。
+        // B1 批次为纯加性：以下成员当前零生产消费者（仅测试锁定）。
+
+        /** 游戏秒定义：1 游戏秒 = 1000 游戏毫秒 */
+        const val MS_PER_GAME_SECOND = 1000
+
+        /** 1 旬 = 2 游戏秒（1x 下 2000 现实毫秒） */
+        const val GAME_SECONDS_PER_PHASE = 2.0
+
+        /** 1 月 = 3 旬 = 6 游戏秒 */
+        const val GAME_SECONDS_PER_MONTH = 6.0
+
+        /** 1 年 = 12 月 = 72 游戏秒 */
+        const val GAME_SECONDS_PER_YEAR = 72.0
+
+        /**
+         * 1 旬的游戏毫秒数（日历投影 ↔ 游戏毫秒互换的整数换算基数）。
+         * 与 GameTimeClock.MS_PER_PHASE_1X 同值：1x 速度下游戏毫秒与现实毫秒恒等；
+         * 常量栈内由 GAME_SECONDS_PER_PHASE × MS_PER_GAME_SECOND 换算而来（守卫锁定）。
+         */
+        const val GAME_MS_PER_PHASE = 2000L
+
+        /** 每旬量 → 每游戏秒量（÷2.0） */
+        fun perPhaseToPerGameSecond(perPhase: Double): Double =
+            perPhase / GAME_SECONDS_PER_PHASE
+
+        /** 每月量 → 每游戏秒量（÷6.0） */
+        fun perMonthToPerGameSecond(perMonth: Double): Double =
+            perMonth / GAME_SECONDS_PER_MONTH
+
+        /** 每年量 → 每游戏秒量（÷72.0） */
+        fun perYearToPerGameSecond(perYear: Double): Double =
+            perYear / GAME_SECONDS_PER_YEAR
+
+        /** 日历三元组（年/月/旬；月 1-based，旬 0..2）——投影纯函数返回载体 */
+        data class GameCalendar(val year: Int, val month: Int, val phase: Int)
+
+        /**
+         * 绝对游戏毫秒 → 日历投影（INV-1：日历是权威时间轴 elapsedGameMs 的
+         * 派生投影；负输入按 0 处理）。C++ 同源：time_system.h projectCalendar。
+         */
+        fun projectCalendar(gameMs: Long): GameCalendar {
+            val safeMs = if (gameMs < 0) 0L else gameMs
+            val totalPhaseCount = safeMs / GAME_MS_PER_PHASE
+            val phasesPerYear = PHASES_PER_MONTH.toLong() * MONTHS_PER_YEAR
+            val year = (totalPhaseCount / phasesPerYear).toInt() + 1
+            val withinYear = (totalPhaseCount % phasesPerYear).toInt()
+            return GameCalendar(
+                year = year,
+                month = withinYear / PHASES_PER_MONTH + 1,
+                phase = withinYear % PHASES_PER_MONTH
+            )
+        }
+
+        /**
+         * 日历 → 绝对游戏毫秒（读档归一化换算：旧档只有日历字段时回填
+         * elapsedGameMs 的唯一口径；与 [projectCalendar] 精确互逆）。
+         * C++ 同源：time_system.h calendarToGameMs。
+         */
+        fun calendarToGameMs(year: Int, month: Int, phase: Int): Long =
+            ((year - 1).toLong() * MONTHS_PER_YEAR * PHASES_PER_MONTH +
+                (month - 1).toLong() * PHASES_PER_MONTH + phase) * GAME_MS_PER_PHASE
     }
 
     /**

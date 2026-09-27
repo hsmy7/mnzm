@@ -97,6 +97,8 @@ add_executable(game-core-tests
     # ③注入纪律（仅初始化期一次 + 重复注入被拒 + 指针稳定性）
     data_store_test.cpp
     time_system_test.cpp
+    # 结算改造 2026-09-27 B1：时间单位常量栈 + 日历投影纯函数（双端守卫的 C++ 腿）
+    time_units_test.cpp
     settle_phase_test.cpp
     # R0.2 FP 确定性对拍探针（桌面腿：x86-64 golden 位锁定；真机腿走 JNI）
     determinism_probe_test.cpp

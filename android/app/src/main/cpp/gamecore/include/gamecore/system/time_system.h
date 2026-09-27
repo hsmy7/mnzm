@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "gamecore/state/models.h"
+#include "gamecore/system/time_units.h"
 
 // ============================================================
 // 游戏时间系统
@@ -59,5 +60,38 @@ inline bool isEndOfYear(const state::GameData& gd) {
 inline int64_t phasesBetween(const state::GameData& from, const state::GameData& to) {
     return totalPhases(to) - totalPhases(from);
 }
+
+// ── 日历投影（INV-1：日历是权威时间轴的派生投影，不是推进源）────────
+// 结算改造方案 2026-09-27 §2.1/§2.4：唯一权威时间轴是单调时钟累计的
+// 游戏毫秒（elapsedGameMs）；年/月/旬由其纯函数派生，供展示与叙事。
+// 换算基数 kGameMsPerPhase=2000（1 旬 = 2 游戏秒，1x 下与现实毫秒恒等）。
+
+/// 绝对游戏毫秒 → 日历投影（gameYear/gameMonth/gamePhase 写出参）。
+/// 负输入按 0 处理（单调时钟不回拨；防御性钳制）。
+inline void projectCalendar(int64_t gameMs, int32_t& outYear,
+                            int32_t& outMonth, int32_t& outPhase) {
+    if (gameMs < 0) gameMs = 0;
+    const int64_t totalPhaseCount = gameMs / kGameMsPerPhase;
+    outYear = static_cast<int32_t>(totalPhaseCount /
+                                   (static_cast<int64_t>(kMonthsPerYear) * kPhasesPerMonth)) + 1;
+    const int64_t withinYear = totalPhaseCount %
+                               (static_cast<int64_t>(kMonthsPerYear) * kPhasesPerMonth);
+    outMonth = static_cast<int32_t>(withinYear / kPhasesPerMonth) + 1;
+    outPhase = static_cast<int32_t>(withinYear % kPhasesPerMonth);
+}
+
+/// 日历 → 绝对游戏毫秒（读档归一化换算：旧档只有日历字段时回填
+/// elapsedGameMs 的唯一口径；与 projectCalendar 精确互逆）。
+inline int64_t calendarToGameMs(int32_t year, int32_t month, int32_t phase) {
+    const int64_t totalPhaseCount =
+        static_cast<int64_t>(year - 1) * kMonthsPerYear * kPhasesPerMonth +
+        static_cast<int64_t>(month - 1) * kPhasesPerMonth + phase;
+    return totalPhaseCount * kGameMsPerPhase;
+}
+
+// 编译期一致性：整数换算基数与秒族常量逐位一致（防双处漂移）
+static_assert(kGameMsPerPhase ==
+                  static_cast<int64_t>(kGameSecondsPerPhase * kMsPerGameSecond),
+              "kGameMsPerPhase must equal kGameSecondsPerPhase * kMsPerGameSecond");
 
 }  // namespace gamecore::system
