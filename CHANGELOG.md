@@ -1,5 +1,81 @@
 ## [4.01.16] - 2026-09-22
 
+### 角色卡池重构 G14 批（2026-09-27）——文档与发布收口（版本号三方归一 · 双 changelog 合并 · 结构计数终稿）— `docs(gacha)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-G14.md`（派工真源，D-1…D-5 决策）
+> + `docs/design/gacha-batches/report-G14.md`（本批报告）。
+
+- **版本号三方归一（D-1，用户 2026-09-26 拍板 4.01.16）**：`version.properties` 4.01.14/4114 →
+  4.01.16/4116；`changelog_entries.json` 的 4 条同版本 4.01.14 条目合并为**唯一** 4.01.16 条目
+  （`date` 保持首次发布日 2026-09-23；`changes` 99 条只增不减、按时间升序拼接；同版本条目不再重复）。
+- **`CODE_WIKI.md` 计数收口**：ActionId `166/1712` 与 `198/1861/退役 21` → **201 / maxId 1872 / 退役 24**；
+  迁移台账补 1870–1872 寻访段（`GACHA_FRAGMENT_GRANT_TX` / `GACHA_PULL_ONCE` / `GACHA_PULL_TEN`）；
+  Delegate 节由「9 个」改为按域分组、以 `ui/game/delegate/` 实际文件为准（现 27 个 `.kt`）。
+  Facade 7→12、目录树补四域、`DiscipleDelegate` 说明三项由 G10 批先行交付，本批交叉确认零残留。
+- **`docs/architecture.md` 乘区表收口**：`CultivationSpeedZones` 4→**5 乘区**（补星级 `starBonus`，
+  口径 A：1★ 基线 ×1.00，单源 `GameConfig.Gacha.STAR_CULT_PCT_PER_STAR`）；`BreakthroughZones`
+  字段名对齐代码（`baseZone`/`elderGuidance`/`selfBonus`/`adFlatBonus`）；补「宗门战力（星级进战力）」行
+  （`SectCombatPowerCalculator` 与 C++ `sect_power.h` 同式、`star_zone.h` 单点、纳入对拍）；
+  GameSystem 节声明**寻访不注册月/年结算回调、保底不进年变 T1/T2**；扩展点新增 §7 寻访域运营钩子
+  （轮换池/UP、`gacha_pull`/`gacha_unlock` 埋点、付费抽入口位）。
+- **白皮书表体统一（G13 §8-3 移交本批）**：`docs/design/gacha-batches/m0-economic-whitepaper.md`
+  §5 星级战力表 strawman 口径 B → 终局口径 A 全表重写；§6.1/§6.2 按终局改写（突破补偿=不补、
+  回血=既有机制单源 `PHASE_HP_MP_RECOVERY_RATE=0.2`）；§7 JSONC 示例与键表删除两悬空键
+  （`breakthroughCompBonus`/`injuryHealPctPerPhase`）及 G13 防误读注；§9 勾选表回填十项终值；
+  §8 的经济基线表移交行改「已增补」。
+- **`docs/knowledge-base.md` 经济基线表增补「仙缘寻访」耗行**（G13 §8-4 移交本批）。
+- **`docs/report-G14-completion.md` 落盘**：G 批文档硬门收官报告（八条验收判据逐条证据 +
+  死代码/死文案清零表终稿 + pending-device 汇总）。
+
+### 执法堂 / 执法长老 / 执法弟子 / 监牢 删除 + 「赏善罚恶」政策下线（2026-09-27）— `refactor(sect)`
+
+> 方案真源：`docs/design/remove-law-enforcement-and-prison-implementation-plan.md`（调查明细 + 影响范围清单 + 兼容性分析 + 盲区自查）。
+> 前置事实：G02（`docs/design/gacha-batches/report-G02.md` §保留项 #2/#3/#14）已删除执法域全部结算（捕获率/叛逃捕获/偷盗捕获）
+> 并登记"建筑与槽位留后续收口"；本批即该收口 + 用户拍板的三项决策（下架「赏善罚恶」/ 删除建筑素材 / 版本号不动）。
+
+- **执法长老 / 执法亲传槽位退役**：`ElderSlots.lawEnforcementElder` / `lawEnforcementDisciples` 双端（Kotlin `GameDataSectModels`
+  + C++ `state/models.h`）删除并登记 `reserved 9,10`（禁复用）；`ElderSlotType.LAW_ENFORCEMENT` 枚举值删除，同步 9 处同步点
+  （`ElderManagementUseCase` 7 处 / `DiscipleAssignmentGate` / `DiscipleSlotCleanup` / `DiscipleSlotManager` / `DiscipleStatusService`
+  槽段 / `DiscipleConstants` / `DiscipleFacadeImpl`×2 / `SlotWinner` / `GameEngineSelfHealOps` / `ProductionProcessor` /
+  `appointment_tx.h` / `slot_cleanup.h` / `month_settlement.h` / `disciple_tx.h`）；`SectViewModel` 与 `ProductionViewModelElderOps`
+  两个**零调用方**查询 API 一并删除；`OldSerializableSaveData.SerializableElderSlots` 同号退役。
+- **执法堂与监牢建筑整建制拆除**：`BuildingType.LAW_ENFORCEMENT_HALL` / `REFLECTION_CLIFF` 枚举值 + `BuildingFeatureBoot` 两条特征 +
+  `BuildingFeature.ElderPositions.LAW_ENFORCEMENT` + `Defaults.kt`/`buildings.json` 配置与别名 + `BuildingNames` 映射 +
+  `ProductionSlotRepository.BUILDING_ID_MAP` 两行 + `BuildingsTab`/`MainGameScreen`/`BuildingSelection` 三处 UI 分支（执法堂本就无对话框）+
+  `ReflectionCliffDialog.kt` 整文件删 + `DialogType.ReflectionCliff`/`GameRoute.ReflectionCliff`/`NavigationDelegate.openReflectionCliffDialog`/
+  两条路由渲染分支（`OverlayDialogRouter` + `DialogFunctionalBuildingRoutes`）全清。
+- **状态机收窄（枚举值保留）**：`SlotFlags.lawEnforcing` 与 `LAW_ENFORCING` 推导规则双端删除；`DiscipleStatus.LAW_ENFORCING`
+  与 `REFLECTING` **枚举值与 displayName 保留**（旧档 String 持久化兼容，与 `WAREHOUSE_GARRISON` 同口径），
+  `StatusDerivationCoverageTest.nonDerivedStatuses` 相应收纳。
+- **旧档归一化（本批最高价值修复）**：新增 `LawEnforcementPrisonCleanupRule`（`SaveValidator`，order=24）——
+  ① 清理旧档 `placedBuildings` 中两栋建筑实例 + 挂靠实例的六类实例键控槽位；② 把残留 `REFLECTING`/`LAW_ENFORCING`
+  弟子状态归一化为 `IDLE` 并剥离 `reflectionStartYear`/`reflectionEndYear`/`positionName`。
+  **根因**：`REFLECTING` 是受保护状态（推导永不回退），而其全部写入方与唯一解除入口（监牢「释放」）均已下线——
+  不归一化即等于把存量弟子**永久卡死**。规则挂在 `SaveValidator` 上，经实测覆盖本地 Room（`StorageEngine.load`）、
+  云档/`.sav`（`StorageEngineLoadOps.load`）与损坏恢复（`CorruptedResultHandler`）三条读档路径。
+- **「赏善罚恶」政策下线**（用户拍板 P-1）：其唯一效果（抓捕率 +30%）的消费方已随 G02 删除，实为**纯支出零效果**——
+  `SectPolicies.rewardPunish`（`reserved 32`）、`GameConfig.PolicyConfig` 三常量、`SectPolicyToggleGovernanceOps` 开关、
+  `SectViewModel`/`ProductionViewModel` 两个扩展、`TianshuHallDialog` 治安类政策整块、`CultivationSettlement` 月扣费、
+  C++ `models.h`/`json_codec`/`government.h`（月扣费 + 字段补丁）全清；`OldSerializableSaveData.SerializableSectPolicies` 同号退役。
+- **死配置收口**（`report-G02.md` §保留项 #11 兑现）：`GameConfig.LawEnforcementConfig`（`THEFT_*` ×14）+
+  `Elder.REALM_LAW_ENFORCEMENT` + `GameConfigData.realmLawEnforcement` + `game_config.json` 对应键全部删除。
+- **引导链双端收口**：任务 13「宗门律法」/ 14「执法亲传」/ 25「监牢惩戒」双端删除（Kotlin 25→22、C++ 24→22），
+  `ElderAppointed`/`DirectDiscipleActive` 条件分派中的执法字段分支删除；13/14/25 与既有空号 24 一并登记**空号禁复用**
+  （旧档 `guideClaimedRewardIds` 残留会使复用 id 的新步骤"开局即完成"），双端测试断言锁死。
+- **顺手清偿两处双端一致性缺陷**（途中发现，用户要求一并解决）：① C++ 引导注册表**缺 id=26**（Kotlin 有、C++ 无，
+  且旧 GTest 反向锁定 `findTask(26)==nullptr`）⇒ 补齐 C++ 注册表条目（`kCumulativeCounter "gachaOpened"`）并改写断言，
+  双实现并行契约恢复；② 引导任务 23「仓库管理」奖励数量双端分歧（C++ 1 / Kotlin 2）⇒ 以 Kotlin 玩家可见值为权威对齐为 2。
+- **图集与静态资源**：`build-atlas.mjs` 的 `buildingNames`/`footprints`/`BUILDING_DRAWABLE`/`buildingColsPerRow`（`[5,5,5,1]`）与
+  `lib/atlas-offline-rgba-lib.mjs` 同步删两栋（18→16 栋）；`building_law_enforcement.webp`/`building_reflection_cliff.webp` 删除；
+  四件产物（`SpriteAtlasDef.kt`、`SpriteRegistryData.kt`/`TextureAtlas.h`/`scene_uv_tables.h`、`atlas_astc.ktx`+`atlas-manifest.json`、
+  `atlas-rgba-*`）全部重生成；**3 张手工快照期望表**同步（`scene_equivalence_test.cpp` 的 rect 夹具与 `kStructureNameBase` 18→16、
+  `SpriteAtlasDefGeneratedTest` 18→16、`BuildingSpriteFootprintGuardTest` 删两行）；`sprite-uid-map.json` 的 uid 28/35 **保留不复用**。
+- **测试面**：新增 `LawEnforcementPrisonCleanupRuleTest`（7 例）与 `ElderSlotsRetiredFieldCompatTest`（2 例，锁 ProtoBuf
+  「未知 tag 跳过」行为，防「解码异常 → 兜底空 ElderSlots → 长老任命静默清零」）；`ProtoNumberUniquenessTest` 补
+  `ElderSlots`/`SectPolicies` 退役号禁复用守卫；同步收窄 16 个既有测试文件（枚举守卫 6 / 手工快照 2 / 行为用例 8）。
+- **登记**：`docs/design/gacha-batches/report-G02.md` §保留项 #2 中「引导任务 17/18」为失真（实测受影响的为 13/14），
+  已在该文件就地加勘误注记；版本号未动（用户拍板 P-3）。
+
 ### 角色卡池重构 G12 批（2026-09-27）——体验完成（历史·公示·图鉴完整态·引导·死文案清零·连抽打磨·Q31 色板对齐）— `feat(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G12.md`（派工真源，含上位失真 6 条与 D-1…D-7 决策）
