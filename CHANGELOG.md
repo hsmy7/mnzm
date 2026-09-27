@@ -746,6 +746,31 @@
 - **门禁**：删前删后全仓 kt 五符号 + `GameNotification` grep 双向贴证（0 命中）；零 C++ 面、零存档
   序列化面（ctest/JNI 重建不适用）；组合门数字见 `docs/design/gacha-batches/report-NOTIFY-RETIRE.md`。
 
+### 桌面对拍桥同源校验（2026-09-28）— `fix(tooling)`
+
+> 来源：通知管线退役批验收轮实测——21 例 `DiffWatchdogTest`「双端判定不一致」的根因是注入的桌面对拍桥
+> `.so` 与合并树 C++ 不同源（`a96fbd221` 改过 `nativeCoreMonitorEvaluate` 形参，而 JNI 导出名不带签名
+> ⇒ 按名解析成功但实参错位、native 臂恒 `FakeRunDetected`）；该批本身零 C++ 改动。
+
+- **指纹旁挂产物**：新增 `android/scripts/desktop-jni-fingerprint.mjs`（枚举/哈希唯一实现，ps1 与 sh 共用），
+  两个构建脚本构建后写出 `<so>.fingerprint`——根目录 `include`/`jni-include`/`third_party`/`src`/`jni`，
+  扩展名 `.h .hpp .hh .hxx .inc .c .cc .cpp .cxx`，相对路径序数升序 + 逐文件 SHA-256（本树实测 252 个源文件）。
+- **守卫**：新增 `DiffBridgeSourceSyncGuardTest`（`:core:engine`）——指纹文件缺失/文件头不符/文件内容不一致/
+  文件集不齐即判红，错误消息直接给出重编命令；未注入 `-Dgamecore.jni.path` 时跳过（与 `Diff*Test` 同口径）。
+- **源清单去漂移**：两个脚本的源清单由逐文件硬编码改为 glob（`gamecore/src/*.cpp` + `gamecore/jni/GameCoreJni.cpp`），
+  新增 `.cpp` 自动入编；同时补齐 `scripts/build-desktop-jni-linux.sh` 漏编的 `gameview_encode.cpp`
+  （该脚本此前另漏过 `dispatch_w4d.cpp`）。
+- **测试任务输入**：`:core:engine` 的 Test 任务把 `app/src/main/cpp/gamecore` 声明为输入——改 C++ 后测试必重跑，
+  守卫才能在本地/CI 暴露「桥落后于源码」；同块注释里写错的 CI job 名一并修正（`cpp-engine-test` → `cpp-diff-jni-test`）。
+- **文档**：`rules/build-quality.md` 新增「桌面对拍桥」一节（重编命令 + 注入实跑 + 守卫纪律）；
+  `docs/cpp-engine.md` §7.2「对拍框架长期化」条目补同源校验口径。
+- **验证（实测原文）**：ps1 重编 → 守卫 2 例全绿；改 `include/gamecore/state/models.h` 且不重编、**不加**
+  `--rerun-tasks` → 测试任务因新输入重跑，守卫判红「内容不一致 1 个: include/gamecore/state/models.h + 重建指令」；
+  移除 `<so>.fingerprint` → 判红「缺少同源指纹文件」并给出重建指令（姊妹例按设计跳过）。
+- **游戏内更新日志**：本批为工具/测试件，零玩家可感知面，不新增游戏内条目；同轮把通知管线退役批的游戏内条目
+  由「进一步精简了游戏内部结构，整体运行更稳定流畅」改为「完成一轮内部代码清理，玩法、数值与体验均无变化」
+  （与既有「进一步整理了游戏内部结构…」条目去重）。
+
 ## [4.01.15] - 2026-09-17
 
 ### SR-7 批（2026-09-22）——存档 schema 第二刀 + 文件层退役代码就位（⚠️ 未切换：全量设备仍 LEGACY，玩家零可见变化）
