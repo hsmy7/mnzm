@@ -296,7 +296,7 @@ object GameCoreBridge {
      *
      * @param pausedOrLoading isPaused || isLoading（暂停分支：死区消费 + 累积清零）
      * @param isSaving 保存中（tick 级跳过：不推进计数、消费死区）
-     * @return 17 槽 LongArray（[NativeLoopPlan.unpack]；引擎未初始化返回空数组）
+     * @return 18 槽 LongArray（[NativeLoopPlan.unpack]；引擎未初始化返回空数组）
      */
     external fun nativeLoopFrame(pausedOrLoading: Boolean, isSaving: Boolean): LongArray
 
@@ -458,11 +458,12 @@ object GameCoreBridge {
 }
 
 /**
- * nativeLoopFrame 帧计划（C++ `system::LoopFramePlan` 17 槽 LongArray 解包；
+ * nativeLoopFrame 帧计划（C++ `system::LoopFramePlan` 18 槽 LongArray 解包；
  * 槽位协议与 engine_loop.h 注释同源）：
  * [0] paused · [1] tickCount · [2..6] tickKind(1=active/0=isSaving 跳过) ·
  * [7..11] tickPhases · [12] alpha 位模式 · [13] frameDeltaNs ·
- * [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs
+ * [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs ·
+ * [17] elapsedGameMs（未截断权威游戏时间轴，结算改造 2026-09-27 B2）
  */
 class NativeLoopPlan(
     val paused: Boolean,
@@ -480,12 +481,14 @@ class NativeLoopPlan(
     /** 累计逻辑 tick 计数（Kotlin _tickCount 镜像真相源） */
     val tickTotal: Long,
     /** 当前旬内累积游戏毫秒（GameTimeClock 镜像推送源） */
-    val accumulatedGameMs: Long
+    val accumulatedGameMs: Long,
+    /** 未截断权威游戏时间轴毫秒（INV-2；B2 起随帧计划镜像，消费面随 B4 接入） */
+    val elapsedGameMs: Long
 ) {
     companion object {
-        /** 解包 17 槽 LongArray；长度不符（引擎未初始化等）返回 null */
+        /** 解包 18 槽 LongArray；长度不符（引擎未初始化等）返回 null */
         fun unpack(raw: LongArray): NativeLoopPlan? {
-            if (raw.size != 17) return null
+            if (raw.size != 18) return null
             return NativeLoopPlan(
                 paused = raw[0] != 0L,
                 tickCount = raw[1].toInt(),
@@ -495,7 +498,8 @@ class NativeLoopPlan(
                 frameDeltaNs = raw[13],
                 idleNs = raw[14],
                 tickTotal = raw[15],
-                accumulatedGameMs = raw[16]
+                accumulatedGameMs = raw[16],
+                elapsedGameMs = raw[17]
             )
         }
     }

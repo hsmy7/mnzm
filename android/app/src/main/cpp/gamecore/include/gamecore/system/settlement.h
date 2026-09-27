@@ -46,6 +46,18 @@ struct TickResult {
     bool yearChanged = false;
 };
 
+/// advanceByGameMs 的结果（结算改造 2026-09-27 §2.4：未截断 Δt + 判定次数单独计算）
+struct AccrualResult {
+    /// 未截断游戏毫秒增量（INV-2：不受追补上限影响；speed=0 时恒 0）
+    int64_t deltaGameMs = 0;
+    /// 本段应执行的判定窗口数（INV-3：权威时间轴整数差，帧率无关）
+    int windowsTotal = 0;
+    /// 追补上限后实际执行的窗口数（phaseCap 只作用于判定轨）
+    int windowsExecuted = 0;
+    bool monthChanged = false;
+    bool yearChanged = false;
+};
+
 /// settleOnePhase 返回的边界标志位（AUTHORITATIVE tick 标量通道）
 constexpr int kSettleFlagNone = 0;
 constexpr int kSettleFlagMonthChanged = 1;
@@ -99,6 +111,37 @@ public:
         return result;
     }
 
+    /// 按墙钟增量做未截断推进（结算改造 2026-09-27 §2.4；shadow/对拍臂 +
+    /// B4 连续结算的语义基准）：
+    /// - 权威游戏毫秒按 rawWallDeltaMs × speed 累积，**不截断不丢弃**（INV-2）；
+    /// - 判定窗口数 = phaseWindowCount 的整数差（INV-3，与分帧方式无关）；
+    /// - phaseCap（maxPhasesPerTick）只作用于判定执行次数，超限不丢时间。
+    /// 与生产臂（PhaseClock.elapsedGameNs + EngineLoop.iterate）同一语义，
+    /// 双向由 ContinuousAccrual 系列测试锁定。
+    AccrualResult advanceByGameMs(state::GameState& state, int64_t rawWallDeltaMs) {
+        AccrualResult result;
+        if (rawWallDeltaMs < 0) rawWallDeltaMs = 0;   // 单调时钟不回拨；防御钳制
+        const int64_t prevElapsed = elapsedGameMs_;
+        if (speed_ > 0) {
+            elapsedGameMs_ += rawWallDeltaMs * speed_;
+        }
+        result.deltaGameMs = elapsedGameMs_ - prevElapsed;
+        const int64_t windows =
+            PhaseWindow::count(elapsedGameMs_) - PhaseWindow::count(prevElapsed);
+        result.windowsTotal = static_cast<int>(windows);
+        int executed = result.windowsTotal;
+        const int cap = maxPhasesPerTick(speed_);
+        if (executed > cap) executed = cap;
+        result.windowsExecuted = executed;
+        const TickResult tr = advancePhases(state, executed);
+        result.monthChanged = tr.monthChanged;
+        result.yearChanged = tr.yearChanged;
+        return result;
+    }
+
+    /// 权威游戏毫秒（advanceByGameMs 累积；shadow 臂观测用）
+    int64_t elapsedGameMs() const { return elapsedGameMs_; }
+
     /// 单旬推进（AUTHORITATIVE tick 标量通道）：恰好一次
     /// advanceOnePhase，返回本旬边界标志位（kSettleFlag* 位组合）。
     int settleOnePhase(state::GameState& state) {
@@ -119,11 +162,20 @@ public:
     /// tick 多推进；GameCore.importStateJson 成功后必须调用）
     void reset() {
         accumulatedGameMs_ = 0;
+        elapsedGameMs_ = 0;
         monthChanged_ = false;
         yearChanged_ = false;
     }
 
 private:
+    /// 判定窗口计数域（INV-3 唯一口径；PhaseClock::phaseWindowCount 同式）
+    struct PhaseWindow {
+        static int64_t count(int64_t elapsedGameMsValue) {
+            return elapsedGameMsValue < 0 ? 0
+                                          : elapsedGameMsValue / kGameMsPerPhase;
+        }
+    };
+
     void advanceOnePhase(state::GameState& state) {
         auto& gd = state.gameData;
         const int prevMonth = gd.gameMonth;
@@ -150,6 +202,8 @@ private:
     }
 
     int64_t accumulatedGameMs_ = 0;
+    /// 未截断权威游戏毫秒（advanceByGameMs 累积；INV-2）
+    int64_t elapsedGameMs_ = 0;
     int speed_ = 1;
     bool monthChanged_ = false;
     bool yearChanged_ = false;

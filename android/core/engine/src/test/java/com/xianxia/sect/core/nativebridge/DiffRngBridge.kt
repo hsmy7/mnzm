@@ -174,10 +174,11 @@ object DiffRngBridge {
     /** 累计逻辑 tick 计数查询 */
     external fun nativeCoreLoopTickTotal(): Long
     /**
-     * 单帧迭代计划（17 槽 LongArray，协议与 NativeLoopPlan.unpack 同源：
+     * 单帧迭代计划（18 槽 LongArray，协议与 NativeLoopPlan.unpack 同源：
      * [0]paused · [1]tickCount · [2..6]tickKind · [7..11]tickPhases ·
      * [12]alpha 位模式 · [13]frameDeltaNs · [14]idleNs · [15]tickTotal ·
-     * [16]accumulatedGameMs；引擎未初始化返回空数组）
+     * [16]accumulatedGameMs · [17]elapsedGameMs（B2 未截断权威轴）；
+     * 引擎未初始化返回空数组）
      */
     external fun nativeCoreLoopFrame(pausedOrLoading: Boolean, isSaving: Boolean): LongArray
     /**

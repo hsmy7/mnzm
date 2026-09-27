@@ -412,5 +412,90 @@ TEST(PlatformPortTest, SettableProvidersRoundTrip) {
     EXPECT_NEAR(-2.f, s.thermalThresholdOffsetC, 1e-3f);
 }
 
+// ============================================================
+// 未截断权威时间轴（结算改造 2026-09-27 B2，INV-2/INV-3）
+//
+// 对抗性审查要点（方案 §5.4-1/2）：同一段现实时间，在 30fps/60fps/120fps/
+// 卡顿（单帧钳 5 步）下，权威轴累积量与判定窗口数必须一致（遥缴求和，
+// 与分帧方式无关）；phaseCap 丢弃余量行为不得施加于权威轴。
+// ============================================================
+
+/// 按 [chunkMs] 分帧推进 totalMs 现实时间（首帧 delta=0 哨兵帧已含）
+static int64_t runWallTime(EngineLoop& loop, FixedMonotonicClock& fakeTime,
+                           int64_t totalMs, int64_t chunkMs) {
+    int64_t fed = 0;
+    int64_t lastElapsed = 0;
+    loop.iterate(false, false);   // 哨兵帧
+    while (fed < totalMs) {
+        const int64_t step = std::min(chunkMs, totalMs - fed);
+        fakeTime.advanceMs(step);
+        fed += step;
+        lastElapsed = loop.iterate(false, false).elapsedGameMs;
+    }
+    return lastElapsed;
+}
+
+TEST_F(EngineLoopTest, ElapsedGameMsFrameRateInvariance) {
+    const int64_t total = 5000;
+    // 120fps≈8ms / 60fps≈16ms / 30fps≈33ms / 常规 100ms / 卡顿 600ms（>500ms 钳制）
+    // start() 重置权威轴与帧状态（时钟基准随当前 fakeTime 重锚）——各档位独立测量
+    loop.start();
+    const int64_t elapsed100 = runWallTime(loop, fakeTime, total, 100);
+    loop.start();
+    const int64_t elapsed16 = runWallTime(loop, fakeTime, total, 16);
+    loop.start();
+    const int64_t elapsed33 = runWallTime(loop, fakeTime, total, 33);
+    loop.start();
+    const int64_t elapsed600 = runWallTime(loop, fakeTime, total, 600);
+    EXPECT_EQ(total, elapsed100);
+    EXPECT_EQ(total, elapsed16);
+    EXPECT_EQ(total, elapsed33);
+    EXPECT_EQ(total, elapsed600);   // INV-2：500ms 帧钳制不截断权威轴
+}
+
+TEST_F(EngineLoopTest, ElapsedGameMsScalesWithSpeed) {
+    loop.iterate(false, false);
+    loop.time().setSpeed(2);
+    fakeTime.advanceMs(1000);
+    EXPECT_EQ(2000, loop.iterate(false, false).elapsedGameMs);
+    loop.time().setSpeed(0);        // 暂停不累积（死区）
+    fakeTime.advanceMs(5000);
+    EXPECT_EQ(2000, loop.iterate(false, false).elapsedGameMs);
+}
+
+TEST_F(EngineLoopTest, ElapsedDeadZoneSkipsAccrual) {
+    loop.iterate(false, false);
+    // 暂停分支：不累积
+    fakeTime.advanceMs(3000);
+    const LoopFramePlan paused = loop.iterate(true, false);
+    EXPECT_EQ(0, paused.elapsedGameMs);
+    // isSaving 帧：死区不累积
+    fakeTime.advanceMs(2000);
+    const LoopFramePlan saving = loop.iterate(false, true);
+    EXPECT_EQ(0, saving.elapsedGameMs);
+    // 恢复 awake：正常累积
+    fakeTime.advanceMs(2000);
+    EXPECT_EQ(2000, loop.iterate(false, false).elapsedGameMs);
+}
+
+TEST_F(EngineLoopTest, ElapsedGameMsNotCappedByPhaseCap) {
+    // 单帧 60s：旬推进被 cap 丢弃，但权威轴必须全额累积（INV-2 反证）
+    loop.iterate(false, false);
+    fakeTime.advanceMs(60'000);
+    const LoopFramePlan plan = loop.iterate(false, false);
+    EXPECT_EQ(system::maxPhasesPerTick(loop.time().speed()), plan.tickPhases[0]);
+    EXPECT_EQ(60'000, plan.elapsedGameMs);
+}
+
+TEST(PhaseWindowCountTest, IntegerFloorOfElapsedOverPhaseLength) {
+    using system::PhaseClock;
+    EXPECT_EQ(0, PhaseClock::phaseWindowCount(0));
+    EXPECT_EQ(0, PhaseClock::phaseWindowCount(1999));
+    EXPECT_EQ(1, PhaseClock::phaseWindowCount(2000));
+    EXPECT_EQ(1, PhaseClock::phaseWindowCount(3999));
+    EXPECT_EQ(36, PhaseClock::phaseWindowCount(72'000));   // 1 年
+    EXPECT_EQ(0, PhaseClock::phaseWindowCount(-1));        // 防御：负输入按 0
+}
+
 }  // namespace
 }  // namespace gamecore

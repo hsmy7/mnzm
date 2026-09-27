@@ -129,5 +129,111 @@ TEST_F(SettlePhaseTest, RngInitSeedReseedsAllPartitions) {
     EXPECT_EQ(fresh.getRng(RngPartition::kSystem).nextInt(), core_->rngNextInt(pid));
 }
 
+// ============================================================
+// 未截断推进 advanceByGameMs（结算改造 2026-09-27 B2，INV-2/INV-3）
+// ============================================================
+
+// 分帧不变：同一段现实时间以不同 chunk 推进，权威轴与判定执行数一致，
+// 日历推进数一致（判定窗口整数差的遥缴性质）
+TEST_F(SettlePhaseTest, AdvanceByGameMsChunkingInvariance) {
+    auto& engine = core_->settlement();
+    engine.setCoreMode(true);   // 隔离钩子副作用，只看时间推进
+
+    {
+        auto& gd = core_->state().gameData;
+        gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
+        engine.reset();
+        int64_t fed = 0;
+        while (fed < 20'000) {   // 20s = 10 旬
+            engine.advanceByGameMs(core_->state(), 100);
+            fed += 100;
+        }
+        EXPECT_EQ(20'000, engine.elapsedGameMs());
+        // 10 旬 = 3 整月 + 1 旬 ⇒ 第 4 月中旬
+        EXPECT_EQ(1, gd.gameYear); EXPECT_EQ(4, gd.gameMonth); EXPECT_EQ(1, gd.gamePhase);
+    }
+    {
+        auto& gd = core_->state().gameData;
+        gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
+        engine.reset();
+        int64_t fed = 0;
+        while (fed < 20'000) {   // 同段时间 700ms 大 chunk（尾块截齐）
+            const int64_t step = std::min<int64_t>(700, 20'000 - fed);
+            engine.advanceByGameMs(core_->state(), step);
+            fed += step;
+        }
+        EXPECT_EQ(20'000, engine.elapsedGameMs());
+        EXPECT_EQ(1, gd.gameYear); EXPECT_EQ(4, gd.gameMonth); EXPECT_EQ(1, gd.gamePhase);
+    }
+}
+
+// INV-2 反证：单次超长增量（> 追补上限）不丢时间——deltaGameMs 全额返回，
+// 判定执行被 cap、应执行数如实记录
+TEST_F(SettlePhaseTest, AdvanceByGameMsDoesNotDropTime) {
+    auto& engine = core_->settlement();
+    engine.setCoreMode(true);
+    auto& gd = core_->state().gameData;
+    gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
+    engine.reset();
+
+    const system::AccrualResult r = engine.advanceByGameMs(core_->state(), 60'000);
+    EXPECT_EQ(60'000, r.deltaGameMs);                       // 权威轴全额（INV-2）
+    EXPECT_EQ(30, r.windowsTotal);                          // 60s / 2s = 30 窗口
+    EXPECT_EQ(system::maxPhasesPerTick(engine.speed()), r.windowsExecuted);
+    EXPECT_EQ(60'000, engine.elapsedGameMs());
+}
+
+// INV-3：窗口 = 整数差；不足一旬的余量不产生判定，余量跨段保留
+TEST_F(SettlePhaseTest, AdvanceByGameMsWindowIntegerDifference) {
+    auto& engine = core_->settlement();
+    engine.setCoreMode(true);
+    engine.reset();
+    auto& gd = core_->state().gameData;
+    gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
+
+    system::AccrualResult r = engine.advanceByGameMs(core_->state(), 1999);
+    EXPECT_EQ(1999, r.deltaGameMs);
+    EXPECT_EQ(0, r.windowsTotal);
+    EXPECT_EQ(0, r.windowsExecuted);
+    EXPECT_EQ(0, gd.gamePhase);   // 不足一旬：日历不动
+
+    r = engine.advanceByGameMs(core_->state(), 1);   // 凑满 2000ms
+    EXPECT_EQ(2000, engine.elapsedGameMs());
+    EXPECT_EQ(1, r.windowsTotal);
+    EXPECT_EQ(1, r.windowsExecuted);
+    EXPECT_EQ(1, gd.gamePhase);
+}
+
+// 速度缩放与暂停：2x 翻倍；speed=0 零增量零判定
+TEST_F(SettlePhaseTest, AdvanceByGameMsSpeedScalingAndPause) {
+    auto& engine = core_->settlement();
+    engine.setCoreMode(true);
+    engine.reset();
+
+    engine.setSpeed(2);
+    const system::AccrualResult r = engine.advanceByGameMs(core_->state(), 1000);
+    EXPECT_EQ(2000, r.deltaGameMs);
+    EXPECT_EQ(1, r.windowsExecuted);
+
+    engine.setSpeed(0);
+    const system::AccrualResult paused = engine.advanceByGameMs(core_->state(), 5000);
+    EXPECT_EQ(0, paused.deltaGameMs);
+    EXPECT_EQ(0, paused.windowsTotal);
+    EXPECT_EQ(0, paused.windowsExecuted);
+}
+
+// 边界标志：跨月/跨年在执行窗口内如实上报（年变先于月变的钩子序不变）
+TEST_F(SettlePhaseTest, AdvanceByGameMsBoundaryFlags) {
+    auto& engine = core_->settlement();
+    engine.setCoreMode(true);   // core 模式：只看标志（月/年结算由 Kotlin 编排）
+    engine.reset();
+    auto& gd = core_->state().gameData;
+    gd.gameYear = 1; gd.gameMonth = 5; gd.gamePhase = 2;   // 下旬 → 跨月
+
+    const system::AccrualResult r = engine.advanceByGameMs(core_->state(), 2000);
+    EXPECT_NE(0, r.monthChanged);
+    EXPECT_EQ(6, gd.gameMonth);
+}
+
 }  // namespace
 }  // namespace gamecore::stats

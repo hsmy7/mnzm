@@ -219,9 +219,9 @@ AndroidTelemetrySink g_androidTelemetry;
 gamecore::SettableThermalStatusProvider g_thermalProvider;
 gamecore::SettableBatteryStatusProvider g_batteryProvider;
 
-/// LoopFramePlan → jlongArray（17 槽标量协议；见 engine_loop.h 注释）
+/// LoopFramePlan → jlongArray（18 槽标量协议；见 engine_loop.h 注释）
 jlongArray packLoopFramePlan(JNIEnv* env, const gamecore::system::LoopFramePlan& p) {
-    constexpr int kLen = 17;
+    constexpr int kLen = 18;
     jlong buf[kLen] = {0};
     buf[0] = p.paused ? 1 : 0;
     buf[1] = p.tickCount;
@@ -235,6 +235,7 @@ jlongArray packLoopFramePlan(JNIEnv* env, const gamecore::system::LoopFramePlan&
     buf[14] = p.idleNs;
     buf[15] = p.tickTotal;
     buf[16] = p.accumulatedGameMs;
+    buf[17] = p.elapsedGameMs;   // B2：未截断权威游戏时间轴（INV-2）
     jlongArray out = env->NewLongArray(kLen);
     if (out) env->SetLongArrayRegion(out, 0, kLen, buf);
     return out;
