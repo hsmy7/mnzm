@@ -117,6 +117,17 @@ object GameCoreBridge {
     external fun nativeSettlePhase(): Int
 
     /**
+     * 连续积分 + 判定窗口一步（结算改造 2026-09-27 B4；[NativeEngineFlag.realtimeAccrual]
+     * 开启时的每 tick 标量通道——单 tick 单事务，方案 §2.4）。
+     *
+     * @param deltaGameMs 本段未截断游戏毫秒（帧计划 [NativeLoopPlan.elapsedGameMs]
+     *        差分；INV-2 权威轴全额积分，cap 只作用于判定窗口数）
+     * @param accrualEnabled 旗标镜像（C++ 侧据此分流 accrual 模式）
+     * @return settle 标志位（[FLAG_MONTH_CHANGED] / [FLAG_YEAR_CHANGED]）；引擎未初始化返回 0
+     */
+    external fun nativeAccrue(deltaGameMs: Long, accrualEnabled: Boolean): Int
+
+    /**
      * 单月推进（月变真相源切换）：C++ 完整月变结算（八步事务编排 +
      * 十六子事件已下沉面），返回 JSON 信封字节——`policyCosts.disabledPolicies`
      * （事务外 checkpointAllProduction 决策）+ `secretRealmClose`（秘境

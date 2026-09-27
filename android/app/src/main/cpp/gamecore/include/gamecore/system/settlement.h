@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <map>
 
 #include "gamecore/state/models.h"
 #include "gamecore/system/time_system.h"
@@ -46,6 +47,9 @@ struct TickResult {
     bool yearChanged = false;
 };
 
+/// HP/MP 恢复小数进位（B4 连续积分轨；键 = 弟子数值 id，运行态不入档）
+using RecoveryCarry = std::map<int32_t, std::pair<double, double>>;
+
 /// advanceByGameMs 的结果（结算改造 2026-09-27 §2.4：未截断 Δt + 判定次数单独计算）
 struct AccrualResult {
     /// 未截断游戏毫秒增量（INV-2：不受追补上限影响；speed=0 时恒 0）
@@ -78,6 +82,12 @@ public:
     /// 常规模式（shadow 对拍/diff 测试）行为与 Kotlin 逐位一致。
     void setCoreMode(bool on) { coreMode_ = on; }
     bool coreMode() const { return coreMode_; }
+
+    /// accrual 模式（结算改造 2026-09-27 B4 连续积分轨）：advanceOnePhase
+    /// 只推进日历、不触发任何钩子（积分项由 accrueContinuous 连续承担，
+    /// 判定轨 0/6/7 由 GameCore::accrue 的窗口循环显式驱动）。
+    void setAccrualMode(bool on) { accrualMode_ = on; }
+    bool accrualMode() const { return accrualMode_; }
 
     /// 推进墙钟增量（等价 GameTimeClock.tick + processTickPhases 时间部分）
     /// wallDeltaMs：自上次 tick 的墙钟毫秒增量（由桥层传入，保证对拍可控）
@@ -154,6 +164,34 @@ public:
         return flags;
     }
 
+    // ── 连续积分轨支撑（结算改造 2026-09-27 B4）──────────────────────
+
+    /// 折叠墙钟增量进权威时间轴并返回本段判定窗口总数
+    ///（INV-3 整数差，未 cap；speed 缩放在此施加，INV-2 不截断）。
+    int64_t foldAndWindows(int64_t rawWallDeltaMs) {
+        if (rawWallDeltaMs < 0) rawWallDeltaMs = 0;
+        const int64_t prev = elapsedGameMs_;
+        if (speed_ > 0) elapsedGameMs_ += rawWallDeltaMs * speed_;
+        return PhaseWindow::count(elapsedGameMs_) - PhaseWindow::count(prev);
+    }
+
+    /// accrual 模式窗口推进：单旬日历推进（零钩子）+ 边界标志位。
+    /// 仅在 accrualMode_ 下合法（普通模式的窗口推进走 advancePhases）。
+    int advanceOnePhaseAccrual(state::GameState& state) {
+        monthChanged_ = false;
+        yearChanged_ = false;
+        auto& gd = state.gameData;
+        const int prevMonth = gd.gameMonth;
+        const int prevYear = gd.gameYear;
+        advancePhase(gd);
+        if (gd.gameYear != prevYear) yearChanged_ = true;
+        if (gd.gameMonth != prevMonth) monthChanged_ = true;
+        int flags = kSettleFlagNone;
+        if (monthChanged_) flags |= kSettleFlagMonthChanged;
+        if (yearChanged_) flags |= kSettleFlagYearChanged;
+        return flags;
+    }
+
     /// 设置游戏速度（0=暂停 1=正常 2=双倍；等价 GameTimeClock.setSpeed）
     void setSpeed(int speed) { speed_ = speed < 0 ? 0 : (speed > 2 ? 2 : speed); }
     int speed() const { return speed_; }
@@ -208,6 +246,7 @@ private:
     bool monthChanged_ = false;
     bool yearChanged_ = false;
     bool coreMode_ = false;
+    bool accrualMode_ = false;
 };
 
 }  // namespace gamecore::system

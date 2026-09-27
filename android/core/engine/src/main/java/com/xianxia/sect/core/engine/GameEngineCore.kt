@@ -191,6 +191,14 @@ class GameEngineCore @Inject constructor(
     internal var nativeLoopPipelineActive: Boolean = false
 
     /**
+     * 连续臂（结算改造 B4）已积分到的权威轴毫秒——帧计划 elapsedGameMs 的
+     * 差分基准（每帧 nativeAccrue 消费差分后同步更新；负差分（时钟重锚）
+     * 钳 0 不倒积分）。
+     */
+    @Volatile
+    internal var accruedElapsedGameMs: Long = 0L
+
+    /**
      * 任务完成检测回调，由 GameEngine 在构造后注入。
      * 每月结算时被调用，确保空闲期间任务完成也能被及时检测。
      */

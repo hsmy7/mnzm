@@ -116,6 +116,12 @@ public:
     /// （core 模式 = onCoreSettle），返回 kSettleFlag* 边界标志位组合；
     /// 月/年结算由 Kotlin 残留执行器按标志处理。未初始化返回 0。
     int settleOnePhase();
+    /// 连续积分 + 判定窗口一步（结算改造 2026-09-27 B4；灰度旗标
+    /// realtimeAccrual 开启时由 Kotlin 每 tick 调用，单 tick 单事务）：
+    /// ① accrueContinuous（积分项 × Δt，INV-2 未截断）；② 判定窗口 =
+    /// 权威轴整数差（INV-3，cap 防风暴），逐窗推进日历 + 判定轨（0/6/7，
+    /// RNG 契约与离散轨逐位一致）。@return settle 标志位（kSettleFlag*）。
+    int accrue(int64_t deltaGameMs, bool accrualEnabled);
 
     /// 单月推进（月变真相源切换新增）：直接执行完整月变结算
     /// （runMonthSettlement——八步事务编排 + 十六子事件已下沉面），返回
@@ -325,6 +331,9 @@ private:
     /// 列级写屏障追踪器（R1.4 能力 + B09 挂载：与 dirtyTracker_ 同点
     /// resetBaseline、同点全量导出清位图）
     state::ColumnDirtyTracker columnTracker_;
+    /// HP/MP 恢复小数进位（B4 连续积分轨，INV-6 小数累积；键 = 弟子数值 id，
+    /// 运行态不入档——导入/读档清零，崩溃丢失 ≤1 tick 的亚 1 点恢复量）
+    system::RecoveryCarry recoveryCarry_;
     /// proto eventFeed 待发队列（R2.4：月/年结算信封 + 突破事件入流；
     /// proto 传输开启时入队、exportDirtyProto 编码成功后清空——导出即消费；
     /// JSON 回滚臂不入队（信封 JSON 面零变更红线））

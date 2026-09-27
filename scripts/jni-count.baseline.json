@@ -1,9 +1,9 @@
 {
   "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。MR4-P4.4：+1 nativeGetMemoryStats。",
   "perFile": {
-    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 38,
+    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 39,
     "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\NativeBridge.kt": 48
   },
-  "total": 86,
-  "updatedAt": "2026-09-24"
+  "total": 87,
+  "updatedAt": "2026-09-27"
 }

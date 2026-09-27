@@ -396,6 +396,20 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSettlePhase(
     return static_cast<jint>(g_gameCore->settleOnePhase());
 }
 
+// 连续积分 + 判定窗口一步（结算改造 2026-09-27 B4；灰度旗标 realtimeAccrual
+// 开启时的唯一每 tick 通道——单 tick 单事务，方案 §2.4。kEngineOnly 同
+// nativeSettlePhase：引擎线程串行调用）
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAccrue(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong deltaGameMs,
+    jboolean accrualEnabled) {
+    jniRequireEngineThread("nativeAccrue");
+    if (!g_gameCore) return 0;
+    return static_cast<jint>(
+        g_gameCore->accrue(static_cast<int64_t>(deltaGameMs),
+                           accrualEnabled == JNI_TRUE));
+}
+
 // AI 热控批量上界推送（Kotlin ThermalMonitor 平台决策——12/6/3；
 // kEngineOnly——月结前引擎线程调用）
 extern "C" JNIEXPORT void JNICALL

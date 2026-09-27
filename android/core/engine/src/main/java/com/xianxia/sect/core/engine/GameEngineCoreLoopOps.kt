@@ -138,16 +138,41 @@ internal suspend fun GameEngineCore.authoritativeLoopIteration(): LoopIterationS
 
         // 固定步长执行（native 已完成累积/步进/时间消费；tick 计数镜像回推）
         publishNativeTickTotal(plan.tickTotal)
-        for (step in 0 until plan.tickCount) {
-            if (plan.tickKind[step] == 0) {
-                // isSaving 跳过 tick（skipTickIfNeeded 语义；死区已在 native 消费）
-                checkAndResetStuckStates(
-                    isSaving = stateStore.isSaving.value,
-                    isLoading = stateStore.isLoading.value
-                )
-                continue
+        if (NativeEngineFlag.realtimeAccrual) {
+            // ── 连续臂（结算改造 2026-09-27 B4，方案 §2.4 单 tick 单事务）──
+            // 每帧一次：积分 Δt = 权威轴差分（INV-2 全额，不随分帧方式漂移）
+            // → 单次增量镜像 → 边界派发（月/年叙事与执行器，非资源结算入口）。
+            // 判定窗口（自动装备/丹药/突破）在 native 内按权威轴整数差执行
+            //（INV-3，RNG 序列与离散臂逐位一致）。
+            sampleProgressSnapshot()
+            tickThermalControl()
+            val deltaGameMs = (plan.elapsedGameMs - accruedElapsedGameMs)
+                .coerceAtLeast(0L)
+            accruedElapsedGameMs = plan.elapsedGameMs
+            val settleFlags = GameCoreBridge.nativeAccrue(deltaGameMs, true)
+            val applied = stateSyncServiceRef.applyDirtyFromNative()
+            if (applied == null && !stateSyncServiceRef.syncFromNative()) {
+                error("AUTHORITATIVE 连续臂镜像失败（增量+全量均不可用）")
             }
-            tickAuthoritativeStep(plan.tickPhases[step])
+            if (settleFlags != 0) {
+                processMonthYearChange(
+                    monthChanged = (settleFlags and GameCoreBridge.FLAG_MONTH_CHANGED) != 0,
+                    yearChanged = (settleFlags and GameCoreBridge.FLAG_YEAR_CHANGED) != 0
+                )
+            }
+            postTickResidualDuties()
+        } else {
+            for (step in 0 until plan.tickCount) {
+                if (plan.tickKind[step] == 0) {
+                    // isSaving 跳过 tick（skipTickIfNeeded 语义；死区已在 native 消费）
+                    checkAndResetStuckStates(
+                        isSaving = stateStore.isSaving.value,
+                        isLoading = stateStore.isLoading.value
+                    )
+                    continue
+                }
+                tickAuthoritativeStep(plan.tickPhases[step])
+            }
         }
 
         // 插值因子（JitterSmoother 一阶滤波留渲染侧）+ 时钟镜像推送

@@ -68,6 +68,22 @@ object NativeEngineFlag {
     @Volatile
     var memorySubsystem: Boolean = BuildConfig.MEMORY_SUBSYSTEM_DEFAULT
 
+    /**
+     * 连续积分轨灰度旗标（结算改造 2026-09-27 B4，方案 §4.4 回滚路径）。
+     *
+     * - **false（默认 = 旧行为臂）**：每旬离散结算（nativeSettlePhase 标量
+     *   通道 + 逐旬事务），任何时点可回退。
+     * - true（连续臂）：每 tick 单事务 [GameCoreBridge.nativeAccrue]——
+     *   积分项（HP/MP 恢复/修炼/熟练度/孕养）按未截断 Δt 连续累积（INV-2），
+     *   判定轨（自动装备/丹药/突破）由权威轴窗口整数差按旬触发（INV-3，
+     *   RNG 序列与离散臂逐位一致）。
+     *
+     * 与 [mode] 正交：仅 AUTHORITATIVE 帧计划管线消费（帧级一次 accrue +
+     * 一次镜像 + 边界派发）；存档双向可读（轴字段缺省 0 = 未归一化）。
+     */
+    @Volatile
+    var realtimeAccrual: Boolean = false
+
 
     /**
      * 在 [block] 执行期间临时设置模式（对拍/转发测试用，自动恢复）。

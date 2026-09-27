@@ -162,5 +162,52 @@ TEST_F(GameCoreTest, ImportKeepsExistingTimeAxis) {
     EXPECT_NE(std::string::npos, exported.find("\"lastSettleGameMs\":72000"));
 }
 
+// ── 连续积分通道（结算改造 2026-09-27 B4）────────────────────────────
+
+// accrue 通道机制：窗口整数差推进日历 + 边界标志 + 权威轴折叠；
+// 旗标关 = 零操作（旧行为臂防御）；RNG 零消耗（无弟子 ⇒ 判定轨空转）
+TEST_F(GameCoreTest, AccrueAdvancesWindowsAndBoundaryFlags) {
+    GameCore core(&clock_, &logger_);
+    GameCoreConfig config;
+    config.seedInitialized = true;
+    ASSERT_TRUE(core.initialize(config));
+    auto& gd = core.state().gameData;
+    gd.gameYear = 1; gd.gameMonth = 5; gd.gamePhase = 2;   // 下旬 → 首窗跨月
+
+    // 旗标关：零操作（旧行为臂）
+    EXPECT_EQ(system::kSettleFlagNone, core.accrue(2000, false));
+    EXPECT_EQ(0, core.settlement().elapsedGameMs());
+
+    // 旗标开：1 窗（2000ms）→ 跨月标志 + 日历推进 + 权威轴折叠
+    EXPECT_NE(system::kSettleFlagNone, core.accrue(2000, true));
+    EXPECT_EQ(6, gd.gameMonth);
+    EXPECT_EQ(2000, core.settlement().elapsedGameMs());
+
+    // 分帧不变性：3000ms 一次 vs 3×1000ms——窗口数与权威轴逐位一致
+    //（accrue 返回值 = 边界标志位；1 窗自 (1,1,0) 起 = phase 0→1 无月界）
+    {
+        GameCore a(&clock_, &logger_);
+        GameCoreConfig c2; c2.seedInitialized = true;
+        ASSERT_TRUE(a.initialize(c2));
+        a.state().gameData.gameYear = 1;
+        a.state().gameData.gameMonth = 1;
+        EXPECT_EQ(system::kSettleFlagNone, a.accrue(3000, true));
+        EXPECT_EQ(3000, a.settlement().elapsedGameMs());
+        EXPECT_EQ(1, a.state().gameData.gamePhase);   // 1 窗推进，半窗余量不动
+    }
+    {
+        GameCore b(&clock_, &logger_);
+        GameCoreConfig c3; c3.seedInitialized = true;
+        ASSERT_TRUE(b.initialize(c3));
+        b.state().gameData.gameYear = 1;
+        b.state().gameData.gameMonth = 1;
+        b.accrue(1000, true);
+        b.accrue(1000, true);
+        b.accrue(1000, true);
+        EXPECT_EQ(3000, b.settlement().elapsedGameMs());
+        EXPECT_EQ(1, b.state().gameData.gamePhase);
+    }
+}
+
 }  // namespace
 }  // namespace gamecore

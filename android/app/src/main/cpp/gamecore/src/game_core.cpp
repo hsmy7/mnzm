@@ -330,6 +330,31 @@ int GameCore::settleOnePhase() {
     return flags;
 }
 
+// ── 连续积分 + 判定窗口（结算改造 2026-09-27 B4）────────────────────
+// 灰度旗标 realtimeAccrual（默认 false=旧行为臂；开启时 Kotlin 每 tick 调用）。
+// ① 积分项 × 未截断 Δt（INV-2）；② 判定窗口 = 权威轴整数差（INV-3，
+// cap 只防判定风暴不丢时间），逐窗「日历推进（零钩子）→ 判定轨 0/6/7」
+// ——与离散轨「advanceOnePhase → onPhaseSettle」的序逐位对应，突破
+// BREAKTHROUGH 分区消耗序不变（RealtimeRng 序列守卫锁定）。
+int GameCore::accrue(int64_t deltaGameMs, bool accrualEnabled) {
+    if (!initialized_ || !accrualEnabled || deltaGameMs <= 0) {
+        return system::kSettleFlagNone;
+    }
+    system::accrueContinuous(state_, ecsWorld_, deltaGameMs, recoveryCarry_);
+    const int64_t windows = settlement_.foldAndWindows(deltaGameMs);
+    const int cap = system::maxPhasesPerTick(settlement_.speed());
+    const int executed = static_cast<int>(
+        windows > static_cast<int64_t>(cap) ? static_cast<int64_t>(cap)
+                                            : windows);
+    int flags = system::kSettleFlagNone;
+    for (int i = 0; i < executed; ++i) {
+        flags |= settlement_.advanceOnePhaseAccrual(state_);
+        system::runPhaseJudgementTrack(state_, rng_, ecsWorld_);
+    }
+    consumePendingMemoryTrim();
+    return flags;
+}
+
 std::string GameCore::settleMonth() {
     if (!initialized_) return "{}";
     const system::MonthSettlementResult result =
@@ -622,6 +647,8 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
             // 读档后必须复位结算引擎累积——
             // 否则旧会话残留的墙钟累积会在下一 tick 多推进旬数
             settlement_.reset();
+            // B4：恢复进位小数随档清零（运行态不入档，见成员注释）
+            recoveryCarry_.clear();
             // 读档后从 GameData.rngStates 恢复 RNG 分区
             // 状态——C++ 真相源语义下，"存档→读档→推进"必须与不中断逐位一致。
             // AUTHORITATIVE 每旬回导走 restoreRng=false
