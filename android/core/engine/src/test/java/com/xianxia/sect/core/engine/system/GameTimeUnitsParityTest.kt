@@ -101,6 +101,17 @@ class GameTimeUnitsParityTest {
     }
 
     @Test
+    fun `month length in game ms matches documented value`() {
+        // B5：1 月 = 6 游戏秒 = 6000 游戏毫秒（槽位毫秒判据/回填时长基数；
+        // C++ 同源锚点 time_units_test.cpp ConstantsMatchDocumentedValues）
+        assertEquals(6_000L, GameConfig.Time.GAME_MS_PER_MONTH)
+        assertEquals(
+            (GameConfig.Time.GAME_SECONDS_PER_MONTH * GameConfig.Time.MS_PER_GAME_SECOND).toLong(),
+            GameConfig.Time.GAME_MS_PER_MONTH
+        )
+    }
+
+    @Test
     fun `negative input is clamped to calendar origin`() {
         val projected = GameConfig.Time.projectCalendar(-12345L)
         assertEquals(1, projected.year)

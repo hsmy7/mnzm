@@ -56,14 +56,8 @@ interface ProductionSlotDao {
         WHERE status = 'IDLE'
     """)
     fun getIdleSlots(): Flow<List<ProductionSlot>>
-    
-    @Query("""
-        SELECT * FROM production_slots 
-        WHERE status = 'WORKING' 
-          AND (startYear * 12 + startMonth + duration) <= :currentYear * 12 + :currentMonth
-    """)
-    fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot>
-    
+
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(slot: ProductionSlot)
 

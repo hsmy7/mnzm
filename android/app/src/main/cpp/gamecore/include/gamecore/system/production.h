@@ -49,6 +49,7 @@
 #include "gamecore/state/models.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/profession.h"
+#include "gamecore/system/time_system.h"        // calendarToGameMs（B5 槽位毫秒孪生回填口径）
 #include "gamecore/system/settlement_detail.h"   // recordGameEvent/indexById/minRealmForRarity
 #include "gamecore/system/disciple_stats.h"      // baseStats
 #include "gamecore/system/slot_cleanup.h"        // batch-17 任命事务全槽位清理
@@ -238,6 +239,13 @@ inline double formulaSuccessRate(const GameState& state, std::size_t workerRow,
 /// 槽位完成判定（Kotlin isSlotCompleteDynamic——Checkpoint 快照法：
 /// baseDuration > 0 时按当前政策/长老重算有效 duration；isWorking 由
 /// 调用方先行判定）
+///
+/// B5 毫秒判据优先：完工毫秒孪生有值（槽位启动/卸任归一/读档回填三处
+/// 均同步维护；WORKING 槽位恒 ≥ 1 月长，开局 (1,1,0) 锚点的 startedAt=0
+/// 不构成哨兵歧义）⇒ 按权威轴差分 × 有效 duration 折算毫秒判定；孪生
+/// 零值（IDLE/测试直构/异常档）⇒ 回退旧年月整数判据。两判据在月界收割
+/// 点同刻等价（startedAt 取月初 phase=0、判定窗口对齐 kGameMsPerPhase
+/// 网格），毫秒面仅为月内精度补齐（方案 §3.4.4 A5），不改变收割时点。
 inline bool isSlotCompleteDynamic(const GameState& state, const ProductionSlot& slot,
                                   int32_t year, int32_t month) {
     if (slot.duration <= 0) return true;  // 保护：duration=0 → 立即完成
@@ -245,6 +253,10 @@ inline bool isSlotCompleteDynamic(const GameState& state, const ProductionSlot& 
         slot.baseDuration > 0
             ? calculateWorkDuration(state, slot.baseDuration, slot.buildingId)
             : slot.duration;  // 旧数据回退
+    if (slot.completeAtGameMs > 0) {
+        return state.gameData.elapsedGameMs - slot.startedAtGameMs >=
+            static_cast<int64_t>(effectiveDuration) * kGameMsPerMonth;
+    }
     // Kotlin TimeProgressUtil.isTimeElapsed：elapsed >= duration
     const int32_t elapsed = (year - slot.startYear) * 12 + (month - slot.startMonth);
     return elapsed >= effectiveDuration;
@@ -679,6 +691,14 @@ inline void startSlotWorking(GameState& state, ProductionSlot& slot,
     slot.outputItemRarity = outputItemRarity;
     slot.completionMonth = absMonth + (actualDuration < 1 ? 1 : actualDuration);
     slot.completionPhase = 2;
+    // B5 毫秒孪生双写：开工取月初 phase=0（与 ensureBaselineTimeAxis 回填
+    // 口径一致），完工 = startedAt + 有效时长 × 月长毫秒（completionMonth
+    // 同一 coerce 语义）；毫秒判据见 isSlotCompleteDynamic
+    const int32_t effectiveMonths = actualDuration < 1 ? 1 : actualDuration;
+    slot.startedAtGameMs = system::calendarToGameMs(
+        state.gameData.gameYear, state.gameData.gameMonth, 0);
+    slot.completeAtGameMs =
+        slot.startedAtGameMs + static_cast<int64_t>(effectiveMonths) * kGameMsPerMonth;
 }
 
 /// 自动炼丹（autoRestart 续炼启动；Kotlin processAutoAlchemy 事务段等价——
@@ -1194,6 +1214,11 @@ inline ProductionUiOutcome removeProductionSlotDiscipleTx(
         slot->startYear = gd.gameYear;
         slot->startMonth = gd.gameMonth;
         slot->duration = remaining > 1 ? remaining : 1;
+        // B5：开工基准重置 → 毫秒孪生同步重写（与 startSlotWorking/回填同口径；
+        // 剩余月数沿用整数 coerce 下限 1，completeAt 以新开工月初为锚）
+        slot->startedAtGameMs = system::calendarToGameMs(gd.gameYear, gd.gameMonth, 0);
+        slot->completeAtGameMs = slot->startedAtGameMs +
+            static_cast<int64_t>(slot->duration) * kGameMsPerMonth;
     } else {
         slot->assignedDiscipleId = std::nullopt;
         slot->assignedDiscipleName.clear();

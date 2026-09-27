@@ -23,6 +23,13 @@ constexpr int kMonthsPerYear = 12;
 
 /// 推进一个旬（等价 TimeSystem.onPhaseTick(state, 1)）
 /// 返回是否发生了月变（调用方可用 monthBefore/yearBefore 对比，或直接用返回值）
+///
+/// B5 起同步推进 GameData 权威轴：elapsedGameMs += kGameMsPerPhase（旬网格
+/// 整数累积）。本函数是**全部旬推进的汇聚点**（生产 settleOnePhase / B4
+/// accrual advanceOnePhaseAccrual / 对拍 advancePhases / shadow tick 均经此），
+/// 权威轴在此单点保持与日历投影同步（INV-1）；未截断 ns 轴（PhaseClock）仍是
+/// INV-2 完整轴，GameData 轴为其旬粒度投影——槽位毫秒判据
+///（production.h isSlotCompleteDynamic）与存档/镜像面消费此字段。
 inline void advancePhase(state::GameData& gd) {
     int newPhase = gd.gamePhase + 1;
     int newMonth = gd.gameMonth;
@@ -38,6 +45,7 @@ inline void advancePhase(state::GameData& gd) {
     gd.gamePhase = newPhase;
     gd.gameMonth = newMonth;
     gd.gameYear = newYear;
+    gd.elapsedGameMs += kGameMsPerPhase;
 }
 
 /// 基于旬的总时间单位（等价 TimeSystem.getTotalPhases）

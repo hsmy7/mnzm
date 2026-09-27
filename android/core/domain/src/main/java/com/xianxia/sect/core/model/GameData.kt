@@ -122,13 +122,13 @@ data class GameData(
     // ensureBaselineTimeAxis + Kotlin TimeAxisRule 双保险，同一换算公式）。
 
     /** 权威游戏时间轴（单调累计游戏毫秒；不受追补上限影响，INV-2） */
-    @ProtoNumber(1000)
+    @ProtoNumber(1003)
     @ColumnInfo(name = "elapsedGameMs", defaultValue = "0")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var elapsedGameMs: Long = 0L,
 
     /** 连续积分差分基准（上次积分落点的绝对游戏毫秒；与权威轴同刻初始化） */
-    @ProtoNumber(1001)
+    @ProtoNumber(1004)
     @ColumnInfo(name = "lastSettleGameMs", defaultValue = "0")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var lastSettleGameMs: Long = 0L,
@@ -138,7 +138,7 @@ data class GameData(
      * B3 仅落存储与协议；差分判据切换（÷6 连续积分）随 B6，切换前旧字段
      * 仍为唯一判据，本字段恒 0 不消费。
      */
-    @ProtoNumber(1002)
+    @ProtoNumber(1005)
     @ColumnInfo(name = "spiritMineLastSettledGameMs", defaultValue = "0")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var spiritMineLastSettledGameMs: Long = 0L,

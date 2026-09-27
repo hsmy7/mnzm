@@ -40,11 +40,21 @@ class SaveValidatorIntegrationTest {
             seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
-        // 恒空契约：默认注册表下合法存档也恒 Repaired，且仅此一条修复
+        // 恒空契约：默认注册表下合法存档也恒 Repaired，修复项 = 招募清空 +
+        // TimeAxisRule 旧档归一化回填（B3：elapsedGameMs==0 且日历非初值 →
+        // calendarToGameMs 换算回填，行为见该规则测试）
         assertTrue("预期仅恒空修复的 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val r = result as IntegrityResult.Repaired
-        assertEquals(listOf("招募链已下线，招募列表清空"), r.details)
+        assertEquals(
+            listOf(
+                "招募链已下线，招募列表清空",
+                "旧档归一化：elapsedGameMs 按日历回填为 318000"
+            ),
+            r.details
+        )
         assertTrue(r.data.gameData.recruitList.isEmpty())
+        // 回填值与日历投影一致：(5,6) 月初 = 4 年 5 月 × 36 旬 × 2000ms
+        assertEquals(318000L, r.data.gameData.elapsedGameMs)
     }
 
     @Test

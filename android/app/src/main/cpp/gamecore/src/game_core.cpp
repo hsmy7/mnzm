@@ -774,8 +774,7 @@ void GameCore::ensureBaselineTimeAxis() {
             slot.startedAtGameMs = system::calendarToGameMs(
                 slot.startYear, slot.startMonth, 0);
             slot.completeAtGameMs = slot.startedAtGameMs +
-                static_cast<int64_t>(slot.duration) *
-                static_cast<int64_t>(system::kGameSecondsPerMonth * 1000.0);
+                static_cast<int64_t>(slot.duration) * system::kGameMsPerMonth;
         }
     }
 }

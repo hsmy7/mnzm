@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.MutableGameState
 
 /**
@@ -31,5 +32,13 @@ internal fun MutableGameState.advancePhaseBaseline(phasesToSettle: Int = 1) {
         }
     }
 
-    gameData = gd.copy(gamePhase = newPhase, gameMonth = newMonth, gameYear = newYear)
+    // B5（结算改造 2026-09-27）：权威轴随旬同步推进——对齐 C++ advancePhase
+    //（time_system.h）同批升级，两臂 GameData.elapsedGameMs 保持全量对拍一致；
+    // 这是方案内**有意语义变更**，非对基准的无意"优化"。
+    gameData = gd.copy(
+        gamePhase = newPhase,
+        gameMonth = newMonth,
+        gameYear = newYear,
+        elapsedGameMs = gd.elapsedGameMs + GameConfig.Time.GAME_MS_PER_PHASE
+    )
 }

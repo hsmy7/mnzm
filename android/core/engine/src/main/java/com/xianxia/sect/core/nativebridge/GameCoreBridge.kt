@@ -476,6 +476,9 @@ object GameCoreBridge {
  * [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs ·
  * [17] elapsedGameMs（未截断权威游戏时间轴，结算改造 2026-09-27 B2）
  */
+// C++ LoopFramePlan 的 18 槽 LongArray 协议展开面——参数数 = 协议槽数，
+// 分组会撕裂与 C++ 槽位的逐槽对应关系（B2 18 槽协议）
+@Suppress("LongParameterList")
 class NativeLoopPlan(
     val paused: Boolean,
     val tickCount: Int,

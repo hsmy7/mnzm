@@ -157,6 +157,10 @@ class SaveLoadViewModelLoadTest {
             GameData(sectName = "青云宗", saveVersion = 2)
         )
 
+        // 单测不启动节拍循环（§2.6 现实时间节拍与虚拟调度器互锁）；
+        // 本类不消费自动存档推进点，直接关循环
+        realtimeAutoSaveTickLoopEnabled = false
+
         viewModel = SaveLoadViewModel(
             gameEngine = gameEngine,
             gameEngineCore = gameEngineCore,
@@ -170,6 +174,7 @@ class SaveLoadViewModelLoadTest {
 
     @After
     fun tearDown() {
+        realtimeAutoSaveTickLoopEnabled = true
         Dispatchers.resetMain()
         unmockkAll()
     }

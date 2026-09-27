@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.model.production
 
+import com.xianxia.sect.core.GameConfig
+
 sealed class ProductionOutcome {
     data class Success(
         val outputItemId: String,
@@ -51,6 +53,11 @@ object SlotStateMachine {
                 BuildingType.HERB_GARDEN, BuildingType.MINING -> 3  // 种植/灵矿下旬
                 else -> 1
             }
+            // B5 毫秒孪生双写：开工取月初 phase=0（与 C++ startSlotWorking/
+            // ensureBaselineTimeAxis 回填同口径），完工 = startedAt + 时长 × 月长
+            val startedAtGameMs = GameConfig.Time.calendarToGameMs(
+                spec.currentYear, spec.currentMonth, 0
+            )
             slot.copy(
                 status = ProductionSlotStatus.WORKING,
                 recipeId = spec.recipeId,
@@ -66,7 +73,10 @@ object SlotStateMachine {
                 outputItemName = spec.outputItemName,
                 outputItemRarity = spec.outputItemRarity,
                 completionMonth = absoluteMonth + spec.duration.coerceAtLeast(1),
-                completionPhase = completionPhase
+                completionPhase = completionPhase,
+                startedAtGameMs = startedAtGameMs,
+                completeAtGameMs = startedAtGameMs +
+                    spec.duration.coerceAtLeast(1) * GameConfig.Time.GAME_MS_PER_MONTH
             )
         }
     }
@@ -91,7 +101,11 @@ object SlotStateMachine {
                 outputItemName = "",
                 outputItemRarity = 1,
                 outputItemSlot = "",
-                expectedYield = 0
+                expectedYield = 0,
+                // B5：开工基准随 startYear/startMonth 一并清零（无开工时间语义
+                // 同步；completionMonth 旧字段维持现状不清）
+                startedAtGameMs = 0L,
+                completeAtGameMs = 0L
             )
         }
     }

@@ -176,6 +176,13 @@ object GameConfig {
          */
         const val GAME_MS_PER_PHASE = 2000L
 
+        /**
+         * 1 月的游戏毫秒数（B5 槽位毫秒判据/回填的时长换算基数：
+         * startedAt/completeAt 孪生、checkpoint 重算共用；整数形态防浮点漂移）。
+         * C++ 同源锚点：time_units.h kGameMsPerMonth（双端守卫锁定，改值须双端同步）。
+         */
+        const val GAME_MS_PER_MONTH = 6000L
+
         /** 每旬量 → 每游戏秒量（÷2.0） */
         fun perPhaseToPerGameSecond(perPhase: Double): Double =
             perPhase / GAME_SECONDS_PER_PHASE

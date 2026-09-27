@@ -173,8 +173,7 @@ class ProductionTransactionManager @Inject constructor(
     suspend fun executeCompleteProduction(
         buildingType: BuildingType,
         slotIndex: Int,
-        currentYear: Int,
-        currentMonth: Int
+        nowGameMs: Long
     ): ProductionTransactionResult {
         DomainLog.d(TAG, "Completing production: ${buildingType.name}[$slotIndex]")
 
@@ -199,14 +198,7 @@ class ProductionTransactionManager @Inject constructor(
             )
         }
 
-        val remaining = slot.remainingTime(currentYear, currentMonth)
-        if (remaining > 0) {
-            DomainLog.w(TAG, "Production not ready: $remaining months remaining")
-            return ProductionTransactionResult(
-                success = false,
-                error = AppError.Domain.Production.InvalidStateTransition("生产尚未完成，剩余时间: ${remaining}月")
-            )
-        }
+        notReadyOrNull(slot, nowGameMs)?.let { return it }
 
         val previousState = slot
 
@@ -244,8 +236,7 @@ class ProductionTransactionManager @Inject constructor(
     suspend fun executeCompleteProductionByBuildingId(
         buildingId: String,
         slotIndex: Int,
-        currentYear: Int,
-        currentMonth: Int
+        nowGameMs: Long
     ): ProductionTransactionResult {
         DomainLog.d(TAG, "Completing production by buildingId: $buildingId[$slotIndex]")
 
@@ -270,14 +261,7 @@ class ProductionTransactionManager @Inject constructor(
             )
         }
 
-        val remaining = slot.remainingTime(currentYear, currentMonth)
-        if (remaining > 0) {
-            DomainLog.w(TAG, "Production not ready: $remaining months remaining")
-            return ProductionTransactionResult(
-                success = false,
-                error = AppError.Domain.Production.InvalidStateTransition("生产尚未完成，剩余时间: ${remaining}月")
-            )
-        }
+        notReadyOrNull(slot, nowGameMs)?.let { return it }
 
         val previousState = slot
 
@@ -448,6 +432,22 @@ class ProductionTransactionManager @Inject constructor(
                 previousSlot
             }
         } ?: Result.success(null)
+    }
+
+    /**
+     * B5 毫秒孪生未到期守卫（与 C++ isSlotCompleteDynamic 毫秒臂/自动结算同刻）：
+     * 未到期返回失败结果（含剩余秒数文案），已到期返回 null。
+     */
+    private fun notReadyOrNull(slot: ProductionSlot, nowGameMs: Long): ProductionTransactionResult? {
+        val remainingMs = slot.remainingTimeMs(nowGameMs)
+        if (remainingMs <= 0L) return null
+        DomainLog.w(TAG, "Production not ready: ${remainingMs}ms remaining")
+        return ProductionTransactionResult(
+            success = false,
+            error = AppError.Domain.Production.InvalidStateTransition(
+                "生产尚未完成，剩余时间: ${remainingMs / 1000}秒"
+            )
+        )
     }
 
     private fun determineOutcome(slot: ProductionSlot): ProductionOutcome {

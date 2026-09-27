@@ -13,6 +13,7 @@
 namespace {
 
 using gamecore::system::calendarToGameMs;
+using gamecore::system::kGameMsPerMonth;
 using gamecore::system::kGameMsPerPhase;
 using gamecore::system::kGameSecondsPerMonth;
 using gamecore::system::kGameSecondsPerPhase;
@@ -33,6 +34,9 @@ TEST(TimeUnitsTest, ConstantsMatchDocumentedValues) {
     // 派生一致性：1 旬 = 2 游戏秒 = 2000 游戏毫秒
     EXPECT_EQ(2000, kGameMsPerPhase);
     EXPECT_EQ(static_cast<int64_t>(kGameSecondsPerPhase * kMsPerGameSecond), kGameMsPerPhase);
+    // B5：1 月 = 6 游戏秒 = 6000 游戏毫秒（槽位毫秒判据/回填时长基数）
+    EXPECT_EQ(6000, kGameMsPerMonth);
+    EXPECT_EQ(static_cast<int64_t>(kGameSecondsPerMonth * kMsPerGameSecond), kGameMsPerMonth);
     // 旬/月/年秒数与旬/月、月/年整除关系一致（time_system.h 日历常量锚）
     EXPECT_DOUBLE_EQ(kPhasesPerMonth * kGameSecondsPerPhase, kGameSecondsPerMonth);
     EXPECT_DOUBLE_EQ(kMonthsPerYear * kGameSecondsPerMonth, kGameSecondsPerYear);

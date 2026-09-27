@@ -387,6 +387,8 @@ internal fun ProductionProcessor.autoAlchemyRestartSlot(
     // 消耗材料
     consumeHerbsForRecipeLocal(recipeToStart.materials, currentHerbs, state)
     val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
+    // B5 毫秒孪生双写（月初锚点，与 C++ startSlotWorking/回填同口径）
+    val startedAtGameMs = GameConfig.Time.calendarToGameMs(gd.gameYear, gd.gameMonth, 0)
 
     // 公式化成功率（属性+职业合成基础率 × 乘区），不再用配方 successRate
     val effectiveSuccessRate = formulaService.buildSuccessRateZones(
@@ -406,6 +408,9 @@ internal fun ProductionProcessor.autoAlchemyRestartSlot(
         successRate = effectiveSuccessRate,
         completionMonth = absoluteMonth + recipeToStart.duration.coerceAtLeast(1),
         completionPhase = 3,
+        startedAtGameMs = startedAtGameMs,
+        completeAtGameMs = startedAtGameMs +
+            recipeToStart.duration.coerceAtLeast(1) * GameConfig.Time.GAME_MS_PER_MONTH,
         outputItemId = recipeToStart.id,
         outputItemName = recipeToStart.name,
         outputItemRarity = recipeToStart.rarity

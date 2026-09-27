@@ -321,7 +321,8 @@ private:
     /// 双轨时间权威轴回填（结算改造 2026-09-27 B3）：旧档 elapsedGameMs==0
     /// 且日历非初值 ⇒ 按日历换算回填权威轴（lastSettleGameMs 同刻）；
     /// 生产槽位 startedAtGameMs==0 且 startYear>0 ⇒ 按 startYear/startMonth
-    /// 回填（completeAtGameMs 按 duration 折算）。幂等（有值不覆盖）；
+    /// 回填（completeAtGameMs 按 duration 折算；B5 起该孪生为毫秒判据
+    /// 消费面，启动/卸任/checkpoint 同点维护）。幂等（有值不覆盖）；
     /// 调用点位于 resetBaseline 之前 ⇒ 回填计入导入基线，镜像零载荷。
     void ensureBaselineTimeAxis();
     /// initialize(config) 的配置留存（ensureTerrainGenerated 消费地形参数）

@@ -14,7 +14,7 @@ private const val TAG_V60 = "GameDatabase"
  *
  * | 表 | 列 | 语义 | 回填口径 |
  * |---|---|---|---|
- * | game_data | elapsedGameMs | 权威游戏时间轴（INV-1：日历为其派生投影） | C++ ensureBaselineTimeAxis / Kotlin TimeAxisRule：calendarToGameMs(year,month,phase) |
+ * | game_data | elapsedGameMs | 权威游戏时间轴（INV-1：日历为其派生投影） |
  * | game_data | lastSettleGameMs | 连续积分差分基准 | 与 elapsedGameMs 同刻初始化 |
  * | game_data | spiritMineLastSettledGameMs | 灵矿月度产出的毫秒孪生 | 旧绝对月字段换算（B6 切换判据前不消费） |
  * | production_slots | startedAtGameMs | 开工绝对游戏毫秒 | startYear/startMonth 月初换算 |

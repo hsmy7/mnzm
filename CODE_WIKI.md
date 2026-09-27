@@ -980,11 +980,17 @@ cd android && ./gradlew.bat testDebugUnitTest --max-workers=1 \
 
 ### 核心思想
 
-每种耗时操作存储 `completionMonth` + `completionPhase`，仅在 `currentMonth >= completionMonth && currentPhase >= completionPhase` 时才结算。**焦点域强制立即结算**，保证玩家体验。
+> ⚠️ **B5 收敛（结算改造 2026-09-27）**：本节描述的"惰性调度器"机制已退役——
+> `LazyEvaluationDispatcher` 原实例方法 `shouldSettle()`/`shouldSettleWithThermal()`
+> 全仓零调用（实例从未注入），已删除；现存仅两个静态助手
+> `toAbsoluteMonth`/`estimateMonthsToNextBreakthrough`。
+> 生产结算驱动 = 旬 tick（C++ 真相源，`production.h` 月结完成结算段）；
+> `isInFocusDomain()` 从未存在。`ProductionSlot` 完成判据已切毫秒孪生
+> `startedAtGameMs/completeAtGameMs`（B5）。
 
-### 关键文件
+### 关键文件（历史记录）
 
-- `LazyEvaluationDispatcher` — 统一调度器：`shouldSettle()` / `shouldSettleWithThermal()` / `isInFocusDomain()`
+- ~~`LazyEvaluationDispatcher` — 统一调度器~~ — 已收敛为静态助手（见上）
 - `GameSystem.settlementPhase` — 每个系统声明自己属于哪个结算旬（1=上旬/2=中旬/3=下旬/0=每旬）
 - `SystemManager.onPhaseTickWithDomainFilter()` — 分旬过滤 + 热状态联动
 

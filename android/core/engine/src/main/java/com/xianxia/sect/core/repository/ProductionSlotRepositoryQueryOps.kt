@@ -16,10 +16,6 @@ fun ProductionSlotRepository.getSlotsByBuildingId(buildingId: String): List<Prod
     return cache.getByBuildingId(buildingId)
 }
 
-fun ProductionSlotRepository.getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot> {
-    return cache.getFinishedSlots(currentYear, currentMonth)
-}
-
 fun ProductionSlotRepository.getSlotById(slotId: String): ProductionSlot? {
     return cache.getById(slotId)
 }

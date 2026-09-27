@@ -34,6 +34,15 @@ constexpr double kGameSecondsPerYear = 72.0;
 /// 1x 速度下与现实毫秒恒等——GameTimeClock.MS_PER_PHASE_1X 同值）
 constexpr int64_t kGameMsPerPhase = 2000;
 
+/// 1 月的游戏毫秒数（B5 槽位毫秒判据/回填的时长换算基数：
+/// startedAt/completeAt 孪生、checkpoint 重算共用；整数形态防浮点漂移）
+constexpr int64_t kGameMsPerMonth = 6000;
+
+// 编译期一致性：整数换算基数与秒族常量逐位一致（防双处漂移）
+static_assert(kGameMsPerMonth ==
+                  static_cast<int64_t>(kGameSecondsPerMonth * kMsPerGameSecond),
+              "kGameMsPerMonth must equal kGameSecondsPerMonth * kMsPerGameSecond");
+
 // ── 换算公式（全仓唯一口径，方案 §2.2）─────────────────────────────
 
 /// 每旬量 → 每游戏秒量（÷2.0）

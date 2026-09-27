@@ -114,4 +114,39 @@ class TimeProgressUtilTest {
     fun isTimeElapsed_zeroDuration_returnsTrue() {
         assertTrue(TimeProgressUtil.isTimeElapsed(1, 1, 0, 1, 1))
     }
+
+    // ---- 游戏毫秒族（结算改造 2026-09-27 B5）----
+
+    @Test
+    fun elapsedGameMs_clampsNegativeToZero() {
+        assertEquals(5000L, TimeProgressUtil.calculateElapsedGameMs(10_000L, 15_000L))
+        assertEquals(0L, TimeProgressUtil.calculateElapsedGameMs(15_000L, 10_000L))
+    }
+
+    @Test
+    fun remainingGameMs_clampsNegativeToZero() {
+        assertEquals(1000L, TimeProgressUtil.calculateRemainingGameMs(12_000L, 11_000L))
+        assertEquals(0L, TimeProgressUtil.calculateRemainingGameMs(11_000L, 12_000L))
+    }
+
+    @Test
+    fun progressFractionByGameMs_linearAndClamped() {
+        assertEquals(0.5f, TimeProgressUtil.calculateProgressFractionByGameMs(
+            0L, 12_000L, 6_000L), 1e-6f)
+        assertEquals(1f, TimeProgressUtil.calculateProgressFractionByGameMs(
+            0L, 12_000L, 20_000L), 1e-6f)
+        assertEquals(0f, TimeProgressUtil.calculateProgressFractionByGameMs(
+            0L, 12_000L, -5_000L), 1e-6f)
+        // 区间非法（completeAt <= startedAt）→ 0
+        assertEquals(0f, TimeProgressUtil.calculateProgressFractionByGameMs(
+            6_000L, 6_000L, 7_000L), 1e-6f)
+    }
+
+    @Test
+    fun isElapsedByGameMs_requiresPositiveCompleteAtAndPassedNow() {
+        assertTrue(TimeProgressUtil.isElapsedByGameMs(6_000L, 6_000L))
+        assertFalse(TimeProgressUtil.isElapsedByGameMs(6_000L, 5_999L))
+        // completeAt 零值（未回填）不算完成
+        assertFalse(TimeProgressUtil.isElapsedByGameMs(0L, 100_000L))
+    }
 }
