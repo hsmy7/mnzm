@@ -186,16 +186,15 @@ class GameEngineCoreResumeTest {
     }
 
     @Test
-    fun `handleWatchdogVerdict - fake run with speed zero restores speed`() {
-        core.pauseForSecretRealm()
-        core.resumeFromSecretRealm()
-        core.renewSecretRealmPauseLease()
-        // 构造 speed=0（UI 已封死，仅测试内部语义）
-        gameClock.setSpeed(0)
+    fun `handleWatchdogVerdict - fake run recovery preserves user pause`() {
+        // 速度维度删除后暂停唯一载体是 isPaused——FakeRunDetected
+        // 自愈（换线程恢复）不得解除用户暂停
+        stateStore.setPausedDirect(true)
+        assertTrue("precondition: pause active", stateStore.isPaused.value)
 
         core.handleWatchdogVerdict(StallVerdict.FakeRunDetected)
 
-        assertEquals(1, gameClock.speed)
+        assertTrue("user pause must survive fake-run recovery", stateStore.isPaused.value)
     }
 
     // ── 秘境正常进出（对称性回归）──

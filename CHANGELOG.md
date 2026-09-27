@@ -1,5 +1,27 @@
 ## [4.01.16] - 2026-09-22
 
+### 删二倍速批（2026-09-27）——「速度」维度整维删除（单一时速 · 看门狗判据收敛 · 死字段清偿）— `refactor(engine)`
+
+> 批次依据：`docs/design/remove-2x-speed-implementation-plan.md`（v1.0）。
+
+- **移除二倍速（整维删除）**：删除「速度」这一时间倍率维度，时间推进回到「墙钟差值直接累加」
+  单一时速模型（1 旬 = 2000ms 墙钟，1 游戏月 = 6s，1 游戏年 = 72s）。删除面：Kotlin
+  `GameTimeClock` 的 `speed/speedFlow/setSpeed/onSpeedChanged/maxPhasesPerTick(speed)`、
+  `GameEngineCore` 速度钩子、`GameCoreBridge.nativeLoopSetSpeed`（JNI 面 86 → 85）、
+  C++ `PhaseClock.speed_/setSpeed` 与 `SettlementEngine.setSpeed/speed_`（第二份速度状态机，
+  生产零调用者）、看门狗 `ProgressSnapshot.speed` 与 `speed==0` 判定（生产路径从无
+  `setSpeed(0)`，属不可达分支）、崩溃归因 `speed` 键、设置页 1x/2x 两键与
+  `SaveLoadViewModel.setTimeSpeed`（含闲置构造依赖 `gameClock`）。追补上限由
+  `3 × max(speed,1)` 收敛为常量 3 旬（1x 原子行为逐位一致），双端对拍三门禁改锚
+  （常量锁定 + GTest 8000ms→3 + `DiffEngineLoopTest` 3000/8000/60000ms 同输入同输出）。
+  顺带根治：`ConfigState.gameSpeed` 死字段导致的弟子详情进度条暂停门控恒失效
+  （`gameSpeed == 0` 恒 false）；`rememberChasingProgress` 的零消费者 `paused` 参数；
+  `FormulaService`/`HeavenlyTrialBuildOps` 两处错位注释。新增双端防复发守卫
+  （`SpeedDimensionRemovedGuardTest` + `speed_dimension_removed_guard_test.cpp`，符号面
+  归零 + 常量钉死，同名角色属性 `speed`（身法）显式豁免）。零 Room 迁移、零 ProtoBuf
+  变更、零存档格式变更、零渲染面变更；存档审计 D1「倍速不持久化」随载体删除闭合
+  （`save-system-audit-2026-09-21.md` #2 已标注）。
+
 ### 角色卡池重构 G14 批（2026-09-27）——文档与发布收口（版本号三方归一 · 双 changelog 合并 · 结构计数终稿）— `docs(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G14.md`（派工真源，D-1…D-5 决策）
@@ -75,6 +97,7 @@
   `ElderSlots`/`SectPolicies` 退役号禁复用守卫；同步收窄 16 个既有测试文件（枚举守卫 6 / 手工快照 2 / 行为用例 8）。
 - **登记**：`docs/design/gacha-batches/report-G02.md` §保留项 #2 中「引导任务 17/18」为失真（实测受影响的为 13/14），
   已在该文件就地加勘误注记；版本号未动（用户拍板 P-3）。
+
 
 ### 角色卡池重构 G12 批（2026-09-27）——体验完成（历史·公示·图鉴完整态·引导·死文案清零·连抽打磨·Q31 色板对齐）— `feat(gacha)`
 
@@ -691,6 +714,62 @@
   新素材 `map_rock_base.png`（128² 确定性程序化无缝岩石，`build-rock-texture.mjs` 生成）。
 - **门禁**：桌面 gtest 1554/1554（golden 按新层序重生成）；:core:engine/:feature:game/:app
   JVM 全量绿；六模块 detekt 双触碰模块零违规；JNI 计数 82/82 在册。
+
+### 通知通道后端管线整链退役（2026-09-27）— `refactor(state)`
+
+> 批次依据：`docs/design/gacha-batches/TASKBOOK-NOTIFY-RETIRE.md`（派工真源）
+> + `docs/design/gacha-batches/report-NOTIFY-RETIRE.md`（本批报告）。
+> 前置事实：G10 已删唯一变体 `RecruitFailed` 与全部 UI 消费，通道自此零生产者零消费者；
+> 用户 2026-09-27 拍板「整链退役」。
+
+- **接口面**：`GameStateStore` 五成员删除——`pendingNotification` / `notifications` /
+  `enqueueNotification` / `consumeNotification` / `clearPendingNotification`（含 `@Deprecated` 尾巴）。
+- **实现面**：`GameStateStoreImpl` 的两个 MutableStateFlow + `ConcurrentLinkedQueue`（上限 200 丢最旧）
+  + 三方法 + `clearTransientQueues` 两行清空与 drain；事务提交链同步简化——`UpdateBaseline` /
+  `MutableGameState` / `ReusableMutableState` 的 `pendingNotification` 字段、`CommitFlags.notificationChanged`
+  判据、`resolveCommitFlags`/`emitStateFlows`/`detectFieldChanges` 参数与分支（判据删除后其余字段
+  语义不变）；`emitStateFlows` 的 `flags` 参数随之摘除（唯一消费者即通知分支）。
+- **转发链**：`GameEngine` 三转发、`GameEngineDiscipleSlotOps` 扩展、`DiscipleFacade`/`DiscipleFacadeImpl`
+  两成员、`GameNotification.kt` 空 sealed 接口整文件删除；`MutableGameState`/`UnifiedGameState`
+  数据字段删除（两类均纯 Kotlin data class 无序列化注解，零存档影响）。
+- **同名异物零触碰**：`core/util/GameNotificationHelper*` / `GameForegroundService`（Android 系统状态栏
+  通知，前台服务保活）一字未动。
+- **测试面**：6 个替身（`FakeGameStateStore`/`FakeAtomicStateStore`/Boot/Coordination/WatchItem/HeavenlyTrial
+  内嵌实现）各删 5 成员 override；`GameStateStoreTransientQueueGuardTest` 改造保留——判红实验实证
+  批前守卫已失牙（`_pending*` flow 均为 `val`，按 `KMutableProperty1` 过滤灌值为空集），修复为经
+  `MutableStateFlow.value` 类型擦除灌值后判红→转绿双向验证，守卫对存活瞬态队列
+  （妖兽预警/战斗结算/奖励卡片）恢复真实判别力。
+- **文档**：`docs/ui-read-surface.md` §3.4 通道清单同步改写（顺带摘除 G03 已退役而残留登记的
+  `pendingMarriageProposals`）；历史审计/报告按「不回改」纪律零触碰。
+- **存活引用面补齐**（验收轮）：`android/stability_config.conf` 摘除已删类的稳定性声明行、
+  `CODE_WIKI.md` 摘除 `pendingNotification` 读取清单行（同文件稳定性配置计数 26 → 29）。
+- **门禁**：删前删后全仓 kt 五符号 + `GameNotification` grep 双向贴证（0 命中）；零 C++ 面、零存档
+  序列化面（ctest/JNI 重建不适用）；组合门数字见 `docs/design/gacha-batches/report-NOTIFY-RETIRE.md`。
+
+### 桌面对拍桥同源校验（2026-09-28）— `fix(tooling)`
+
+> 来源：通知管线退役批验收轮实测——21 例 `DiffWatchdogTest`「双端判定不一致」的根因是注入的桌面对拍桥
+> `.so` 与合并树 C++ 不同源（`a96fbd221` 改过 `nativeCoreMonitorEvaluate` 形参，而 JNI 导出名不带签名
+> ⇒ 按名解析成功但实参错位、native 臂恒 `FakeRunDetected`）；该批本身零 C++ 改动。
+
+- **指纹旁挂产物**：新增 `android/scripts/desktop-jni-fingerprint.mjs`（枚举/哈希唯一实现，ps1 与 sh 共用），
+  两个构建脚本构建后写出 `<so>.fingerprint`——根目录 `include`/`jni-include`/`third_party`/`src`/`jni`，
+  扩展名 `.h .hpp .hh .hxx .inc .c .cc .cpp .cxx`，相对路径序数升序 + 逐文件 SHA-256（本树实测 252 个源文件）。
+- **守卫**：新增 `DiffBridgeSourceSyncGuardTest`（`:core:engine`）——指纹文件缺失/文件头不符/文件内容不一致/
+  文件集不齐即判红，错误消息直接给出重编命令；未注入 `-Dgamecore.jni.path` 时跳过（与 `Diff*Test` 同口径）。
+- **源清单去漂移**：两个脚本的源清单由逐文件硬编码改为 glob（`gamecore/src/*.cpp` + `gamecore/jni/GameCoreJni.cpp`），
+  新增 `.cpp` 自动入编；同时补齐 `scripts/build-desktop-jni-linux.sh` 漏编的 `gameview_encode.cpp`
+  （该脚本此前另漏过 `dispatch_w4d.cpp`）。
+- **测试任务输入**：`:core:engine` 的 Test 任务把 `app/src/main/cpp/gamecore` 声明为输入——改 C++ 后测试必重跑，
+  守卫才能在本地/CI 暴露「桥落后于源码」；同块注释里写错的 CI job 名一并修正（`cpp-engine-test` → `cpp-diff-jni-test`）。
+- **文档**：`rules/build-quality.md` 新增「桌面对拍桥」一节（重编命令 + 注入实跑 + 守卫纪律）；
+  `docs/cpp-engine.md` §7.2「对拍框架长期化」条目补同源校验口径。
+- **验证（实测原文）**：ps1 重编 → 守卫 2 例全绿；改 `include/gamecore/state/models.h` 且不重编、**不加**
+  `--rerun-tasks` → 测试任务因新输入重跑，守卫判红「内容不一致 1 个: include/gamecore/state/models.h + 重建指令」；
+  移除 `<so>.fingerprint` → 判红「缺少同源指纹文件」并给出重建指令（姊妹例按设计跳过）。
+- **游戏内更新日志**：本批为工具/测试件，零玩家可感知面，不新增游戏内条目；同轮把通知管线退役批的游戏内条目
+  由「进一步精简了游戏内部结构，整体运行更稳定流畅」改为「完成一轮内部代码清理，玩法、数值与体验均无变化」
+  （与既有「进一步整理了游戏内部结构…」条目去重）。
 
 ## [4.01.15] - 2026-09-17
 

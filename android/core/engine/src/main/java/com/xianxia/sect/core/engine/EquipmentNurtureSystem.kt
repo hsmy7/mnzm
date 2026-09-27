@@ -11,7 +11,7 @@ object EquipmentNurtureSystem {
 
     /** 每旬装备孕养经验增长值。与 [com.xianxia.sect.core.engine.service.HpMpRecoveryService] 的每旬结算口径一致。 */
     const val NURTURE_GAIN_PER_PHASE: Double =
-        5.0 * GameTimeClock.MS_PER_PHASE_1X / 1000.0
+        5.0 * GameTimeClock.MS_PER_PHASE / 1000.0
 
     const val NURTURE_BONUS_PER_LEVEL = 0.05
 

@@ -48,7 +48,7 @@
 #include "gamecore/system/battle_execution.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/mission_completion.h"  // manualStackFromTemplate/JavaRandom
-#include "gamecore/system/settlement.h"         // kMsPerPhase1x（phase_settlement 依赖）
+#include "gamecore/system/settlement.h"         // kMsPerPhase（phase_settlement 依赖）
 #include "gamecore/system/nurture_constants.h"  // 孕养曲线/熟练度常量（S8 上移）
 #include "gamecore/system/settlement_detail.h"   // recordGameEvent
 

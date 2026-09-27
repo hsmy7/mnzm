@@ -23,7 +23,6 @@ data class GameStateSnapshot(
     val gameMonth: Int = 1,
     val gamePhase: Int = 0,
     val isGameStarted: Boolean = false,
-    val gameSpeed: Int = 1,
     val sectName: String = "",
     val spiritStones: Long = 0,
     val sectCultivation: Double = 0.0,
@@ -63,7 +62,6 @@ class SaveService @Inject constructor(
             gamePhase = data.gamePhase,
             // isGameStarted 已迁移到 GameLifecycle 运行时状态，存档快照中始终为 true
             isGameStarted = true,
-            gameSpeed = 1,
             sectName = data.sectName,
             spiritStones = data.spiritStones,
             sectCultivation = data.sectCultivation,

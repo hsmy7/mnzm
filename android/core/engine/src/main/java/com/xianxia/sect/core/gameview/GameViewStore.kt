@@ -23,7 +23,7 @@ data class ResourcesHeaderView(
     val gamePhase: Int
 )
 
-/** 块②：配置回声（三层 StateFlow 架构的 ConfigState 消费面；gameSpeed 属运行态不在镜像面） */
+/** 块②：配置回声（三层 StateFlow 架构的 ConfigState 消费面） */
 data class ConfigEchoView(
     val sectPolicies: SectPolicies,
     val yearlySalary: Map<Int, Int>,

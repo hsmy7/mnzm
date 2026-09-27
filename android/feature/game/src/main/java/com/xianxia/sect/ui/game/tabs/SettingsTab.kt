@@ -160,7 +160,6 @@ internal fun SettingsTab(
     onLogout: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val timeSpeed by saveLoadViewModel.timeSpeed.collectAsStateWithLifecycle()
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
 
     var showSaveSlotDialog by remember { mutableStateOf(false) }
@@ -172,7 +171,7 @@ internal fun SettingsTab(
     var showSalaryConfigDialog by remember { mutableStateOf(false) }
 
     SettingsTabContent(
-        timeSpeed = timeSpeed, gameData = gameData,
+        gameData = gameData,
         viewModel = viewModel, saveLoadViewModel = saveLoadViewModel,
         actions = SettingsTabActions(
             onSalaryClick = { showSalaryConfigDialog = true }, onSaveSlotClick = { showSaveSlotDialog = true },
@@ -227,10 +226,9 @@ private data class SettingsTabActions(
     val onExitClick: () -> Unit = {}
 )
 
-/** 设置页主体列表：时间流速/性能模式/音频/触发按钮/操作行 */
+/** 设置页主体列表：暂停/性能模式/音频/触发按钮/操作行 */
 @Composable
 private fun SettingsTabContent(
-    timeSpeed: Int,
     gameData: GameData,
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel,
@@ -247,7 +245,7 @@ private fun SettingsTabContent(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item { TimeSpeedControlItem(saveLoadViewModel = saveLoadViewModel, timeSpeed = timeSpeed) }
+                item { PauseControlItem(saveLoadViewModel = saveLoadViewModel) }
 
                 item {
                     val performanceMode by viewModel.performanceMode.collectAsStateWithLifecycle()
@@ -813,14 +811,13 @@ private fun ClarityModeItem(
     )
 }
 
-/** 时间流速控制（暂停/继续 + 1/2 倍速切换），从 SettingsTab 主体抽出的独立 item */
+/** 暂停/继续控制（游戏以单一时速推进），从 SettingsTab 主体抽出的独立 item */
 @Composable
-private fun TimeSpeedControlItem(
-    saveLoadViewModel: SaveLoadViewModel,
-    timeSpeed: Int
+private fun PauseControlItem(
+    saveLoadViewModel: SaveLoadViewModel
 ) {
     Text(
-        text = "时间流速",
+        text = "暂停",
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
         color = Color.Black
@@ -841,15 +838,6 @@ private fun TimeSpeedControlItem(
             btnSize = btnSize,
             onClick = { saveLoadViewModel.togglePause() }
         )
-
-        listOf(1, 2).forEach { speed ->
-            val speedAlpha = if (timeSpeed == speed && !isPaused) 1f else 0.5f
-            SpeedToggleButton(
-                speed = speed,
-                speedAlpha = speedAlpha,
-                onClick = { saveLoadViewModel.setTimeSpeed(speed) }
-            )
-        }
     }
 }
 
@@ -884,36 +872,6 @@ private fun PauseToggleButton(
                 contentScale = ContentScale.FillBounds
             )
         }
-    }
-}
-
-/** 倍速切换按钮 */
-@Composable
-private fun SpeedToggleButton(
-    speed: Int,
-    speedAlpha: Float,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .width(ButtonSizes.StandardWidth)
-            .height(ButtonSizes.StandardHeight)
-            .alpha(speedAlpha)
-            .clip(RoundedCornerShape(4.dp))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.ui_button),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Text(
-            text = "${speed}倍速",
-            fontSize = 12.sp,
-            color = Color.Black
-        )
     }
 }
 

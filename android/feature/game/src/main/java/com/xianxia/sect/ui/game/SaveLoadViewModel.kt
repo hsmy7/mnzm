@@ -36,7 +36,6 @@ class SaveLoadViewModel @Inject constructor(
     internal val gameEngine: GameEngine,
     internal val gameEngineCore: GameEngineCore,
     internal val stateStore: GameStateStore,
-    private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
     internal val resourcePreloader: ResourcePreloader,
     internal val persistenceFacade: PersistenceFacade,
     internal val ioDispatcher: IoDispatcher
@@ -591,27 +590,8 @@ class SaveLoadViewModel @Inject constructor(
         }
     }
 
-    private val _timeScale = MutableStateFlow(1)
-    val timeScale: StateFlow<Int> = _timeScale.asStateFlow()
-
-    val timeSpeed: StateFlow<Int> = gameClock.speedFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 1)
-
     // 使用 isPaused 窄流（零采样延迟）
     val isPaused: StateFlow<Boolean> = gameEngineCore.isPaused
-
-    fun setTimeSpeed(speed: Int) {
-        // UI 只有 1x/2x：封死 0（speed=0 会产生"tick 在跑但时间不动"的假运行，
-        // 所有看门狗失明）。GameTimeClock 保留 0 内部语义（旧档/测试兼容），
-        // 任何残留 0 由看门狗 FakeRunDetected 兜底自愈。
-        val clamped = speed.coerceIn(1, 2)
-        _timeScale.value = clamped  // UI 即时反馈
-        gameClock.setSpeed(clamped)
-        // 暂停中调速度不自动恢复。用户处于暂停态时调整倍速，
-        // 期望的是"暂停不变，仅调整恢复后的速度"——自动 resume 会违背意图，
-        // 导致"暂停却仍被解除"的观感（暂停按钮无效）。
-        // 恢复时机由玩家显式点击"继续"控制。
-    }
 
     fun resetAllDisciplesStatus() {
         gameEngine.launchOnEngine {

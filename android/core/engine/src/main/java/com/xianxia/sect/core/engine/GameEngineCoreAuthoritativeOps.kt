@@ -51,9 +51,8 @@ private const val TAG = "GameEngineCore"
  */
 @Suppress("TooGenericExceptionCaught")  // 降级契约：native 链路失败统一 refund+重抛
 internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: Int) {
-    // 追补上限按当前速度缩放（ 单一来源）：旧固定 3 在
-    // 2x 下挂起 ≥6s 计划 6 旬只执行 3 旬且不 refund——游戏时间相对墙钟持续变慢
-    val capped = phasesToAdvance.coerceAtMost(GameTimeClock.maxPhasesPerTick(gameClock.speed))
+    // 单 tick 追补上限（常量 3 旬）：防 OEM 挂起/看门狗重启的爆炸式跳变
+    val capped = phasesToAdvance.coerceAtMost(GameTimeClock.MAX_PHASES_PER_TICK)
     try {
         repeat(capped) {
             // 分段计时（batch-22a debug 埋点；release 恒 null = 零实例化零开销）

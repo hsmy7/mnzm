@@ -10,8 +10,6 @@ import com.xianxia.sect.core.engine.service.YearSettlementExecutor
 import com.xianxia.sect.core.engine.service.YearSettlementResidualExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
-import com.xianxia.sect.core.nativebridge.GameCoreBridge
-import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -171,16 +169,6 @@ class GameEngineCore @Inject constructor(
     internal val wallClock: com.xianxia.sect.core.engine.system.WallClock =
         com.xianxia.sect.core.engine.system.SystemWallClock
 ) : EngineContextDispatcher {
-
-    init {
-        // AUTHORITATIVE 下速度真相源在 native 引擎循环——
-        // UI/看门狗经 gameClock.setSpeed 的变更由钩子推送（OFF 模式无消费者）
-        gameClock.onSpeedChanged = { speed ->
-            if (NativeEngineFlag.authoritative && GameCoreBridge.isLoaded) {
-                runCatching { GameCoreBridge.nativeLoopSetSpeed(speed) }
-            }
-        }
-    }
 
     /**
      * AUTHORITATIVE 帧计划管线活跃标志：refund 语义按真相源分流——
@@ -412,7 +400,7 @@ class GameEngineCore @Inject constructor(
     internal var gameDispatcher: CoroutineDispatcher = GAME_DISPATCHER
 
     /** 紧急重启中标志 — AtomicBoolean CAS 防重入（S2/F3：check-then-act 必须原子，
-     *  否则三个看门狗线程并发通过检查 → 双循环双倍速） */
+     *  否则三个看门狗线程并发通过检查 → 双循环双倍推进） */
     internal val isEmergencyRestarting = AtomicBoolean(false)
 
     /**
@@ -782,7 +770,7 @@ class GameEngineCore @Inject constructor(
     @Suppress("TooGenericExceptionCaught")
     fun emergencyRestartGameLoop(): Boolean {
         // S2：CAS 原子防重入——三个看门狗线程可能并发触发，非原子 check-then-act
-        // 会让两个线程同时进入 → 双循环双倍速
+        // 会让两个线程同时进入 → 双循环双倍推进
         if (!isEmergencyRestarting.compareAndSet(false, true)) {
             DomainLog.w(TAG, "EMERGENCY restart already in progress, skipping")
             return false

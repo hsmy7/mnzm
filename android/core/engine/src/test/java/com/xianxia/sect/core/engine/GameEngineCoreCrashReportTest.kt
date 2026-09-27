@@ -155,7 +155,7 @@ class GameEngineCoreCrashReportTest {
     private companion object {
         val EXPECTED_CONTEXT_KEYS = setOf(
             "year", "month", "phase", "tickCount", "scene",
-            "isPaused", "isSaving", "isLoading", "speed",
+            "isPaused", "isSaving", "isLoading",
             "lastTickMs", "watchdogAttempts", "oem"
         )
     }

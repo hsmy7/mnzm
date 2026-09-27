@@ -187,7 +187,6 @@ internal fun HeavenlyTrialService.sumManualStatBonuses(selected: List<ManualData
     var hp = 0; var mp = 0
     var physAtk = 0; var magAtk = 0
     var physDef = 0; var magDef = 0
-    /** 当前速度：0=暂停, 1=1x, 2=2x */
     var speed = 0; var critChance = 0.0
     val masteryBonus = com.xianxia.sect.core.engine.ManualProficiencySystem.MasteryLevel.fromLevel(0).bonus
     // 功法属性加成

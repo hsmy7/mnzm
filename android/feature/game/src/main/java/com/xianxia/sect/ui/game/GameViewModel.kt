@@ -466,8 +466,7 @@ class GameViewModel @Inject constructor(
     /**
      * 配置块（R2.3 第二波逐块迁移·块②「配置回声」）：来源换成
      * [GameEngine.configEcho] 投影后按 UI 既有类型形状还原
-     * [GameStateStore.ConfigState]——字段集与取值逐字段等价
-     * （gameSpeed 属运行态，两臂都不由镜像供给）。
+     * [GameStateStore.ConfigState]——字段集与取值逐字段等价。
      */
     val configState: StateFlow<GameStateStore.ConfigState> = gameEngine.configEcho
         .map {

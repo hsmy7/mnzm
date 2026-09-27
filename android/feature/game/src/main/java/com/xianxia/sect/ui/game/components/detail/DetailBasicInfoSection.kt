@@ -57,7 +57,6 @@ fun BasicInfoSection(
     sectPolicies: SectPolicies? = null,
     residenceSlots: List<ResidenceSlot> = emptyList(),
     placedBuildings: List<GridBuildingData> = emptyList(),
-    gameSpeed: Int = 1,
     onBreakthroughJadeClick: (() -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
@@ -82,7 +81,7 @@ fun BasicInfoSection(
             disciple = disciple,
             data = RealmRowData(
                 allManuals, manualProficiencies, elderSlots, allDisciples,
-                sectPolicies, residenceSlots, placedBuildings, gameSpeed
+                sectPolicies, residenceSlots, placedBuildings
             )
         )
 
@@ -102,7 +101,7 @@ fun BasicInfoSection(
             disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
         }
 
-        HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp, gameSpeed = gameSpeed)
+        HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp)
     }
 }
 
@@ -256,7 +255,6 @@ private fun BasicInfoRealmRow(
     val sectPolicies = data.sectPolicies
     val residenceSlots = data.residenceSlots
     val placedBuildings = data.placedBuildings
-    val gameSpeed = data.gameSpeed
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (disciple.realm != 0) {
             val manualsMap = remember(allManuals) {
@@ -292,7 +290,7 @@ private fun BasicInfoRealmRow(
                 ).coerceAtLeast(1.0)
             }
 
-            CultivationProgressRow(disciple, cultivationSpeed, gameSpeed)
+            CultivationProgressRow(disciple, cultivationSpeed)
         } else {
             Text(
                 text = disciple.realmName,
@@ -307,8 +305,7 @@ private fun BasicInfoRealmRow(
 @Composable
 private fun CultivationProgressRow(
     disciple: DiscipleAggregate,
-    cultivationSpeed: Double,
-    gameSpeed: Int
+    cultivationSpeed: Double
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -323,8 +320,7 @@ private fun CultivationProgressRow(
         )
         // 修为进度条 — 100ms lerp 追赶动画
         val animatedCultivationProgress by rememberChasingProgress(
-            target = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f),
-            paused = gameSpeed == 0
+            target = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f)
         )
 
         Canvas(
@@ -369,7 +365,7 @@ private fun discipleEquipmentMap(
     return map
 }
 
-/** BasicInfoRealmRow 参数打包（9 参数 → 1 data class，LongParameterList 修复） */
+/** BasicInfoRealmRow 参数打包（8 参数 → 1 data class，LongParameterList 修复） */
 private data class RealmRowData(
     val allManuals: List<ManualInstance>,
     val manualProficiencies: Map<String, List<ManualProficiencyData>>,
@@ -377,6 +373,5 @@ private data class RealmRowData(
     val allDisciples: List<DiscipleAggregate>,
     val sectPolicies: SectPolicies?,
     val residenceSlots: List<ResidenceSlot>,
-    val placedBuildings: List<GridBuildingData>,
-    val gameSpeed: Int
+    val placedBuildings: List<GridBuildingData>
 )

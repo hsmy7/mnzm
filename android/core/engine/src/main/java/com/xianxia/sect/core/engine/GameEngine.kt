@@ -24,7 +24,6 @@ import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
@@ -254,9 +253,6 @@ class GameEngine @Inject constructor(
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = stateStore.pendingBattleRewardCards
     fun clearPendingBattleRewardCards() { stateStore.clearPendingBattleRewardCards() }
-    val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
-    val notifications: StateFlow<List<GameNotification>> get() = stateStore.notifications
-    fun consumeNotification(): GameNotification? = stateStore.consumeNotification()
     val rewardCardQueue: StateFlow<List<RewardCardItem>> get() = stateStore.rewardCardQueue
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { stateStore.clearRewardCardQueue(count) }
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = stateStore.pendingBeastAttacks

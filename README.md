@@ -76,6 +76,8 @@ cd app/src/main/cpp/gamecore/build/desktop-test && cmake --build . && ctest
 pwsh -File ../scripts/build-desktop-jni.ps1
 ./gradlew.bat :core:engine:testReleaseUnitTest --rerun-tasks --max-workers=1 \
   "-Dgamecore.jni.path=<仓库绝对路径>/android/core/engine/build/desktop-jni/libgamecorejni.so"
+# ⚠️ 脚本同时写出同源指纹 <so>.fingerprint；守卫 DiffBridgeSourceSyncGuardTest 逐文件校验——
+#    桥落后于 C++ 源码或跨树复制旧产物即判红（禁止复用不同源的桥，重编即可）
 
 # 静态检查与提交门
 ./gradlew.bat detekt

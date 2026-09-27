@@ -40,7 +40,6 @@ data class MutableGameState(
     var isPaused: Boolean,
     var isLoading: Boolean,
     var isSaving: Boolean,
-    var pendingNotification: GameNotification? = null,
     var productionSlots: List<ProductionSlot> = emptyList()
 )
 

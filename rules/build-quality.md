@@ -54,3 +54,22 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 Robolectric 测试需要 `includeAndroidResources = true`；mock/stub 约定见 `rules/testing.md`。
 
 **规范分发架构门禁**（改根 `AGENTS.md`、`rules/`、`docs/` 或任何 `AGENTS.md` 之后必跑）：`node scripts/check-agent-instructions.mjs`
+
+## 桌面对拍桥（Diff*Test 的 C++ 回归基线）
+
+跨 C++ 线批次验收（或任何 `:core:engine` 对拍测试）之前**必须重编桥**，让注入产物与 `gamecore` 源码同源：
+
+```bash
+# Windows（本地）
+pwsh -File scripts/build-desktop-jni.ps1
+# CI / Linux
+bash scripts/build-desktop-jni-linux.sh
+
+# 注入实跑（引擎全量含 Diff*Test 0 skip）
+cd android && ./gradlew.bat :core:engine:testReleaseUnitTest --max-workers=1 \
+  "-Dgamecore.jni.path=<repo>/android/core/engine/build/desktop-jni/libgamecorejni.so"
+```
+
+- 源清单为 glob（`gamecore/src/*.cpp` + `gamecore/jni/GameCoreJni.cpp`）——新增 `.cpp` 自动入编，ps1 与 sh 同规则。
+- 构建脚本在产物旁写出同源指纹 `<so>.fingerprint`（由 `android/scripts/desktop-jni-fingerprint.mjs` 生成）。
+- 守卫 `DiffBridgeSourceSyncGuardTest` 逐文件校验桥与源码：桥落后于源码、或产物跨树复制（指纹缺失/不符）即判红并给出重建指令——**禁止把不同源的桥当作等价性证据**。

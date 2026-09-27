@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.RewardSelectedItem
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.flow.StateFlow
 
@@ -59,6 +58,4 @@ interface DiscipleFacade {
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int)
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String)
     fun removeDiscipleFromLibrarySlot(slotIndex: Int)
-    fun clearPendingNotification()
-    val pendingNotification: StateFlow<GameNotification?>
 }

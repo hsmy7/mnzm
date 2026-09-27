@@ -130,35 +130,6 @@ TEST(SettlementEngineTest, AdvanceAccumulatorConsumes) {
     EXPECT_EQ(0, st.gameData.gamePhase);
 }
 
-TEST(SettlementEngineTest, AdvanceSpeedScaling) {
-    GameData gd;
-    gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
-    state::GameState st;
-    st.gameData = gd;
-    SettlementEngine eng;
-    eng.setSpeed(2);                       // 2x：10s = 10 旬，cap=6
-    const auto r = eng.advance(st, 10'000);
-    EXPECT_EQ(6, r.phasesAdvanced);
-    // 6 旬：1年1月上旬 → 1年3月上旬（2 月进位）
-    EXPECT_EQ(1, st.gameData.gameYear);
-    EXPECT_EQ(3, st.gameData.gameMonth);
-    EXPECT_EQ(0, st.gameData.gamePhase);
-}
-
-TEST(SettlementEngineTest, AdvancePaused) {
-    GameData gd;
-    gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
-    state::GameState st;
-    st.gameData = gd;
-    SettlementEngine eng;
-    eng.setSpeed(0);                       // 暂停
-    const auto r = eng.advance(st, 10'000);
-    EXPECT_EQ(0, r.phasesAdvanced);
-    EXPECT_EQ(1, st.gameData.gameYear);
-    EXPECT_EQ(1, st.gameData.gameMonth);
-    EXPECT_EQ(0, st.gameData.gamePhase);
-}
-
 TEST(SettlementEngineTest, AdvancePartialPhase) {
     // 不足 2000ms 不推进（累积留存）
     GameData gd;

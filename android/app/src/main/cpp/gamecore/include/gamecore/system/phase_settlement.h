@@ -22,7 +22,7 @@
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/pill_system.h"
 #include "gamecore/system/nurture_constants.h"  // 熟练度/孕养常量（detail 域）
-#include "gamecore/system/settlement.h"        // kMsPerPhase1x（熟练度/孕养时间换算）
+#include "gamecore/system/settlement.h"        // kMsPerPhase（熟练度/孕养时间换算）
 #include "gamecore/system/settlement_detail.h"
 
 // ============================================================
@@ -360,7 +360,7 @@ inline void processManualProficiency(
     const double libraryBonus =
         inLibrary ? kLibraryProficiencyBonusRate : 0.0;
     const double profGain = kBaseProficiencyRate * (1.0 + libraryBonus) *
-                            kMsPerPhase1x / 1000.0;
+                            kMsPerPhase / 1000.0;
     if (profGain <= 0.0) return;
 
     std::vector<ManualProficiencyData> profList;

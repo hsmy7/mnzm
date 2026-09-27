@@ -20,7 +20,6 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.SlotCategory
 import com.xianxia.sect.core.model.SlotRef
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainResult
@@ -61,8 +60,6 @@ class DiscipleFacadeImpl @Inject constructor(
     override val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
     /** 高频修炼数据（Q-2：对外只读，写入经 [updateHighFrequencyData]） */
     override val highFrequencyData: StateFlow<HighFrequencyData> = cultivationService.getHighFrequencyData()
-
-    override val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
 
     override fun removeDisciple(discipleId: String): DomainResult<Unit> = discipleService.removeDisciple(discipleId)
 
@@ -397,10 +394,6 @@ class DiscipleFacadeImpl @Inject constructor(
             }
             discipleService.syncSingleDiscipleStatus(discipleId)
         }
-    }
-
-    override fun clearPendingNotification() {
-        stateStore.clearPendingNotification()
     }
 
 }

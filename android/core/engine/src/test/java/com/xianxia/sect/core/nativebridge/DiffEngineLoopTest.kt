@@ -13,9 +13,9 @@ import org.junit.Test
  * DiffEngineLoopTest — 引擎循环跨语言差分对拍（验收核心）。
  *
  * 守护目标：
- * - **场景 A（时钟状态机）**：C++ PhaseClock（墙钟消费/速度/追补上限/refund）
+ * - **场景 A（时钟状态机）**：C++ PhaseClock（墙钟消费/追补上限/refund）
  *   与 Kotlin [GameTimeClock] 同时间脚本逐位一致——GameTimeClock 语义的
- *   双端锚定（对齐 GameTimeClockTest 23 条语义的代表性场景）
+ *   双端锚定（对齐 GameTimeClockTest 语义的代表性场景）
  * - **场景 B（帧计划）**：C++ EngineLoop 帧迭代判据（累积钳制 5 步/暂停
  *   分支/isSaving 跳过/alpha/idleNs/tickTotal）符合 gameLoopIteration 语义
  *
@@ -41,7 +41,7 @@ class DiffEngineLoopTest {
     /**
      * C++ 引擎就绪（幂等 init + 循环状态完全重置 + 时钟归零 + 循环基准重置 +
      * 首帧点火——对齐 Kotlin gameClock.start() 在 t=0 的基准语义）。
-     * nativeCoreInit 幂等复用单例（既有设计），tick 计数/速度/累积
+     * nativeCoreInit 幂等复用单例（既有设计），tick 计数/累积
      * 跨用例残留——须经 nativeCoreLoopReset 重建基准，否则与 Kotlin 侧
      * 每用例 new GameTimeClock 的干净状态不对称。
      */
@@ -98,45 +98,26 @@ class DiffEngineLoopTest {
     }
 
     @Test
-    fun `speed2x doubles accumulation both ends`() {
-        gameClock.setSpeed(2)
-        DiffRngBridge.nativeCoreLoopSetSpeed(2)
-        // 2x 下每旬 1000ms 游戏时间（每帧 100ms 墙钟 → 200ms 游戏时间）：
-        // 帧 5 首次凑满 1000ms → 1 旬；帧 10 第二次凑满 → 1 旬（共 2 旬）。
-        // 注意首旬在第 5 帧消费——第 10 帧只剩 1 旬，不能断言 2。
-        repeat(4) { assertFramePhases() }
-        val (firstKotlin, firstCpp) = advanceFrame100ms()
-        assertEquals("帧 5 双端应各 1 旬", 1, firstKotlin)
-        assertEquals(firstKotlin, firstCpp)
-        repeat(4) { assertFramePhases() }
-        val (secondKotlin, secondCpp) = advanceFrame100ms()
-        assertEquals("帧 10 双端应各 1 旬", 1, secondKotlin)
-        assertEquals(secondKotlin, secondCpp)
-    }
-
-    @Test
-    fun `speed switch preserves accumulation both ends`() {
-        // 1x 累积 1500ms（15 帧）
+    fun `accumulation parity across frames both ends`() {
+        // 单一时速（常量 1x）下双端逐帧累积一致
         repeat(15) { assertFramePhases() }
         assertEquals(1500L, gameClock.accumulatedGameMs)
-        // 切 2x（双端各自按旧速度结算）
-        gameClock.setSpeed(2)
-        DiffRngBridge.nativeCoreLoopSetSpeed(2)
-        // 2x 再 5 帧（500ms → 1000ms 游戏时间）：累积 2500，消费 2000，余 500
         repeat(5) { assertFramePhases() }
         assertEquals("双端累积应一致", gameClock.accumulatedGameMs,
             DiffRngBridge.nativeCoreLoopAccumulatedGameMs())
     }
 
     @Test
-    fun `pause speed0 freezes accumulation both ends`() {
-        repeat(5) { assertFramePhases() }
-        val accBefore = gameClock.accumulatedGameMs
-        gameClock.setSpeed(0)
-        DiffRngBridge.nativeCoreLoopSetSpeed(0)
-        repeat(10) { assertFramePhases() }
-        assertEquals("Kotlin speed=0 不累积", accBefore, gameClock.accumulatedGameMs)
-        assertEquals("C++ speed=0 不累积", accBefore,
+    fun `long freeze 60s capped identically both ends`() {
+        // 长冻结 60000ms 一帧：双端单 tick 均被追补上限截断为 3 旬、余量丢弃
+        fakeTime.advanceBy(60_000L)
+        val kotlinPhases = gameClock.tick(isSettlementPending = false).phasesToAdvance
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, kotlinPhases)
+
+        DiffRngBridge.nativeCoreLoopSetMonoMs(fakeTime.now)
+        val plan = DiffRngBridge.nativeCoreLoopFrame(false, false)
+        assertEquals("C++ 长冻结截断应一致", kotlinPhases, (7..11).sumOf { plan[it].toInt() })
+        assertEquals("余量丢弃：双端累积归零一致", gameClock.accumulatedGameMs,
             DiffRngBridge.nativeCoreLoopAccumulatedGameMs())
     }
 

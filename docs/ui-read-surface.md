@@ -85,7 +85,7 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 |---|---|---|
 | HighFreqState | lowGrade/mid/highGradeSpiritStones、gameYear/Month/Phase、isPaused | gameData 时间/灵石 + 引擎运行态 |
 | EntityState | 10 实体集合 + battleLogs* | 镜像集合（*battleLogs 为 Kotlin 战斗域运行态，见 §3.4） |
-| ConfigState | sectPolicies、yearlySalary(+Enabled)、elderSlots、placedBuildings、autoRecruitSpiritRootFilter、gameSpeed | gameData 配置字段 + 引擎速度 |
+| ConfigState | sectPolicies、yearlySalary(+Enabled)、elderSlots、placedBuildings、autoRecruitSpiritRootFilter | gameData 配置字段 |
 
 ### 3.2 派生 UI 流（GameViewModel，逐条注明消费的 gameData 字段）
 | UI 流 | 消费字段 |
@@ -108,10 +108,11 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 pills、materials、herbs、seeds、storageBags`（全部在 §2.2 集合面内）
 
 ### 3.4 非镜像运行态通道（Kotlin 域事件，与镜像无关，不受本清单上限约束）
-`pendingBattleResult、pendingBattleRewardCards、rewardCardQueue、pendingNotification、
-notifications、pendingBeastAttacks、pendingMarriageProposals、battleLogs、warehouseFullEvent、
+`pendingBattleResult、pendingBattleRewardCards、rewardCardQueue、
+pendingBeastAttacks、battleLogs、warehouseFullEvent、
 lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产者是 Kotlin 域服务，
-不进 C++ 协议。
+不进 C++ 协议。（通知通道 `pendingNotification/notifications` 已整链退役，
+见 `docs/design/gacha-batches/report-NOTIFY-RETIRE.md`。）
 
 ---
 

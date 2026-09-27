@@ -508,7 +508,6 @@ int GameCore::watchdogVerdict(const WatchdogFlags& flags) {
     snapshot.isPaused = flags.isPaused;
     snapshot.isSaving = flags.isSaving;
     snapshot.isLoading = flags.isLoading;
-    snapshot.speed = loop_.time().speed();
     snapshot.secretRealmPauseLock = flags.secretRealmPauseLock;
     snapshot.secretRealmPauseRenewedAtMs = flags.secretRealmPauseRenewedAtMs;
     snapshot.loopActiveAtMs = loop_.lastLoopActivityMs();

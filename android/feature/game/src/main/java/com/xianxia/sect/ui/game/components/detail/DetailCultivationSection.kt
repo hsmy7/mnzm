@@ -133,8 +133,7 @@ private fun teachingBonus(
 fun HpMpBars(
     disciple: DiscipleAggregate,
     maxHpOverride: Int? = null,
-    maxMpOverride: Int? = null,
-    gameSpeed: Int = 1
+    maxMpOverride: Int? = null
 ) {
     val maxHp = maxHpOverride ?: disciple.maxHp
     val maxMp = maxMpOverride ?: disciple.maxMp
@@ -148,14 +147,8 @@ fun HpMpBars(
     val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
 
     // 动画状态 — 统一 100ms lerp 追赶，下降时自动 snap
-    val animatedHpProgress by rememberChasingProgress(
-        target = hpFraction,
-        paused = gameSpeed == 0
-    )
-    val animatedMpProgress by rememberChasingProgress(
-        target = mpFraction,
-        paused = gameSpeed == 0
-    )
+    val animatedHpProgress by rememberChasingProgress(target = hpFraction)
+    val animatedMpProgress by rememberChasingProgress(target = mpFraction)
 
     Row(
         modifier = Modifier.fillMaxWidth(),

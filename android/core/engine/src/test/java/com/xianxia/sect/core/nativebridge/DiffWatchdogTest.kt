@@ -14,8 +14,8 @@ import org.junit.Test
  *
  * 守护目标：C++ ProgressMonitor（GameTimeProgressMonitor 逐位移植）与
  * Kotlin [GameTimeProgressMonitor] 对**同一快照序列**的判定逐位一致——
- * 场景矩阵覆盖 Kotlin GameTimeProgressMonitorTest 全部 24 条
- * （正常推进/tick 停滞/循环死亡/假运行/速度归零/暂停豁免/秘境租约/
+ * 场景矩阵覆盖 Kotlin GameTimeProgressMonitorTest 全部场景
+ * （正常推进/tick 停滞/循环死亡/假运行/暂停豁免/秘境租约/
  * 保存加载豁免/窗口边界/冻结振荡等异常判据回归）。
  *
  * 双端同序列驱动：每条快照先喂 Kotlin monitor 再喂 C++
@@ -35,7 +35,7 @@ class DiffWatchdogTest {
         kotlinMonitor = GameTimeProgressMonitor()
     }
 
-    @Suppress("LongParameterList") // 测试快照构造器：12 个字段与快照一一对应
+    @Suppress("LongParameterList") // 测试快照构造器：11 个字段与快照一一对应
     private fun snapshot(
         tickCount: Long = 10L,
         totalPhases: Long = 100L,
@@ -44,7 +44,6 @@ class DiffWatchdogTest {
         isPaused: Boolean = false,
         isSaving: Boolean = false,
         isLoading: Boolean = false,
-        speed: Int = 1,
         secretRealmPauseLock: Boolean = false,
         secretRealmPauseRenewedAtMs: Long = 0L,
         loopActiveAtMs: Long = 0L,
@@ -57,7 +56,6 @@ class DiffWatchdogTest {
         isPaused = isPaused,
         isSaving = isSaving,
         isLoading = isLoading,
-        speed = speed,
         secretRealmPauseLock = secretRealmPauseLock,
         secretRealmPauseRenewedAtMs = secretRealmPauseRenewedAtMs,
         loopActiveAtMs = loopActiveAtMs,
@@ -75,7 +73,6 @@ class DiffWatchdogTest {
             isPaused = s.isPaused,
             isSaving = s.isSaving,
             isLoading = s.isLoading,
-            speed = s.speed,
             secretRealmPauseLock = s.secretRealmPauseLock,
             secretRealmPauseRenewedAtMs = s.secretRealmPauseRenewedAtMs,
             loopActiveAtMs = s.loopActiveAtMs,
@@ -142,13 +139,6 @@ class DiffWatchdogTest {
             assertVerdictBothEnds(snapshot(tickCount = 200, recordedAtMs = 51_000L)))
         assertEquals(StallVerdict.FakeRunDetected,
             assertVerdictBothEnds(snapshot(tickCount = 300, recordedAtMs = 200_000L)))
-    }
-
-    @Test
-    fun `speed zero not paused returns FakeRunDetected immediately`() {
-        assertVerdictBothEnds(snapshot(speed = 0, recordedAtMs = 1_000L))
-        assertEquals(StallVerdict.FakeRunDetected,
-            assertVerdictBothEnds(snapshot(tickCount = 11, speed = 0, recordedAtMs = 2_000L)))
     }
 
     @Test
@@ -273,12 +263,6 @@ class DiffWatchdogTest {
         assertEquals(StallVerdict.Healthy,
             assertVerdictBothEnds(snapshot(tickCount = 11, isSaving = true, loopActive = false,
                 isPaused = true, loopActiveAtMs = 1_000L, recordedAtMs = 30_000L)))
-    }
-
-    @Test
-    fun `V6 speed zero detected on first evaluation`() {
-        assertEquals(StallVerdict.FakeRunDetected,
-            assertVerdictBothEnds(snapshot(speed = 0, recordedAtMs = 1_000L)))
     }
 
     @Test

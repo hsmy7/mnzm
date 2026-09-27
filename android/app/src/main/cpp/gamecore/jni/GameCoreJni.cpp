@@ -493,16 +493,10 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopStart(
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopReset(
     JNIEnv* /*env*/, jobject /*thiz*/) {
-    // 测试隔离：JUnit 用例间重建循环基准（tick 计数/速度/累积/帧状态清零）。
+    // 测试隔离：JUnit 用例间重建循环基准（tick 计数/累积/帧状态清零）。
     // nativeCoreInit 幂等复用单例（既有设计），EngineLoop 生命周期
     // 跨用例残留——Kotlin 侧每用例 new GameTimeClock 是干净的，对拍须对齐。
     if (g_core) g_core->loop().resetForTest();
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopSetSpeed(
-    JNIEnv* /*env*/, jobject /*thiz*/, jint speed) {
-    if (g_core) g_core->loop().time().setSpeed(static_cast<int>(speed));
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -602,7 +596,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
     JNIEnv* /*env*/, jobject /*thiz*/,
     jlong tickCount, jlong totalPhases, jlong accumulatedGameMs,
     jboolean loopActive, jboolean isPaused, jboolean isSaving, jboolean isLoading,
-    jint speed, jboolean secretRealmPauseLock, jlong secretRealmPauseRenewedAtMs,
+    jboolean secretRealmPauseLock, jlong secretRealmPauseRenewedAtMs,
     jlong loopActiveAtMs, jlong recordedAtMs) {
     if (!g_monitor) g_monitor = new gamecore::system::ProgressMonitor();
     gamecore::system::ProgressSnapshot s;
@@ -613,7 +607,6 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
     s.isPaused = (isPaused == JNI_TRUE);
     s.isSaving = (isSaving == JNI_TRUE);
     s.isLoading = (isLoading == JNI_TRUE);
-    s.speed = static_cast<int>(speed);
     s.secretRealmPauseLock = (secretRealmPauseLock == JNI_TRUE);
     s.secretRealmPauseRenewedAtMs = static_cast<int64_t>(secretRealmPauseRenewedAtMs);
     s.loopActiveAtMs = static_cast<int64_t>(loopActiveAtMs);

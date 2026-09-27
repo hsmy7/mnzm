@@ -53,8 +53,7 @@ namespace {
 //   · 引擎线程（GameDispatcher 单线程）——正常入口
 //   · 看门狗线程 / 主线程（GameEngineCore.progressVerdict ← GameLoopDelegate
 //     健康检查 + AlarmWatchdogReceiver）→ nativeWatchdogVerdict
-//   · 主线程（onUserActivity / gameClock.onSpeedChanged）→ nativeLoopNotifyUserActivity
-//     / nativeLoopSetSpeed
+//   · 主线程（onUserActivity）→ nativeLoopNotifyUserActivity
 // 第三类入口是**设计上的跨线程端口**（C++ 侧对应字段为 atomic / 输入端口），
 // 前两类之外的一切调用都属"静默数据竞争"——既不崩也不报错，只会在若干旬后
 // 表现为状态错乱，无法归因。
@@ -794,14 +793,6 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopStart(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     if (g_gameCore) g_gameCore->loop().start();
-}
-
-// kAnyThread——跨线程输入端口（UI 速度按钮经 gameClock.onSpeedChanged
-// 钩子推送，主线程进入；EngineLoop.speed_/accumulatedGameMs_ 为 atomic）
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopSetSpeed(
-    JNIEnv* /*env*/, jobject /*thiz*/, jint speed) {
-    if (g_gameCore) g_gameCore->loop().time().setSpeed(static_cast<int>(speed));
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL

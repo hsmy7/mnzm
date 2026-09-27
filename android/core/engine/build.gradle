@@ -59,10 +59,18 @@ android {
         // 桌面 JNI 对拍库路径转发：
         // 命令行 `./gradlew -Dgamecore.jni.path=...` 传入 Gradle daemon JVM，
         // 此处转发到测试 JVM；未传时 DiffRngTest 自动跳过（Assume）。
-        // 构建方式见 scripts/build-desktop-jni.ps1（本地）/ ci.yml cpp-engine-test（CI）
+        // 构建方式见 scripts/build-desktop-jni.ps1（本地）/ ci.yml cpp-diff-jni-test（CI）
         if (System.getProperty('gamecore.jni.path')) {
             systemProperty 'gamecore.jni.path', System.getProperty('gamecore.jni.path')
         }
+
+        // gamecore C++ 源纳入测试任务输入：改 C++ 后测试必须重跑，
+        // 守卫 DiffBridgeSourceSyncGuardTest 才能暴露「桥落后于源码」
+        // （否则任务 UP-TO-DATE，陈旧桥的对拍结果会被当成通过）
+        inputs.dir(rootProject.file('app/src/main/cpp/gamecore'))
+            .withPropertyName('gamecoreCppSources')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .optional()
     }
 
     defaultConfig {

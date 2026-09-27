@@ -284,13 +284,6 @@ object GameCoreBridge {
     external fun nativeLoopStart()
 
     /**
-     * 速度切换（真相源同步）：C++ PhaseClock 按旧速度结算累积（切换零丢失）。
-     * 经 [com.xianxia.sect.core.engine.system.GameTimeClock.onSpeedChanged] 钩子
-     * 自动推送，UI 直接调 gameClock.setSpeed 不感知本通道。
-     */
-    external fun nativeLoopSetSpeed(speed: Int)
-
-    /**
      * 单帧迭代计划（AUTHORITATIVE 帧驱动入口）：C++ EngineLoop 消费墙钟 →
      * 帧累积/逻辑步进/时间消费/心跳全部在 native 真相源完成，返回本帧执行指令。
      *

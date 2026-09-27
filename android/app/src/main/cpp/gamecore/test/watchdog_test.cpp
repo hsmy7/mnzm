@@ -15,14 +15,14 @@ using system::StallVerdict;
 //（双端锚定判定语义；历史防御机制自身失效 3 次的教训——全分支覆盖）。
 //
 // snapshot 参数序：tickCount, totalPhases, accumulatedGameMs, loopActive,
-// isPaused, isSaving, isLoading, speed, secretRealmPauseLock,
+// isPaused, isSaving, isLoading, secretRealmPauseLock,
 // secretRealmPauseRenewedAtMs, loopActiveAtMs, recordedAtMs
 // ============================================================
 
 ProgressSnapshot snapshot(
     int64_t tickCount = 10, int64_t totalPhases = 100, int64_t accumulatedGameMs = 100,
     bool loopActive = true, bool isPaused = false, bool isSaving = false, bool isLoading = false,
-    int speed = 1, bool secretRealmPauseLock = false,
+    bool secretRealmPauseLock = false,
     int64_t secretRealmPauseRenewedAtMs = 0, int64_t loopActiveAtMs = 0,
     int64_t recordedAtMs = 0) {
     ProgressSnapshot s;
@@ -33,7 +33,6 @@ ProgressSnapshot snapshot(
     s.isPaused = isPaused;
     s.isSaving = isSaving;
     s.isLoading = isLoading;
-    s.speed = speed;
     s.secretRealmPauseLock = secretRealmPauseLock;
     s.secretRealmPauseRenewedAtMs = secretRealmPauseRenewedAtMs;
     s.loopActiveAtMs = loopActiveAtMs;
@@ -43,7 +42,7 @@ ProgressSnapshot snapshot(
 
 /// 基准快照便捷构造（tickCount/totalPhases/accumulatedGameMs + recordedAtMs）
 ProgressSnapshot base(int64_t tick, int64_t total, int64_t acc, int64_t recordedAtMs) {
-    return snapshot(tick, total, acc, true, false, false, false, 1, false, 0, 0, recordedAtMs);
+    return snapshot(tick, total, acc, true, false, false, false, false, 0, 0, recordedAtMs);
 }
 
 // ── 正常推进 ──
@@ -71,16 +70,16 @@ TEST(WatchdogTest, TickCountStalledReturnsLoopStalled) {
     ProgressMonitor monitor;
     monitor.evaluate(base(10, 100, 100, 1'000));
     EXPECT_EQ(StallVerdict::kLoopStalled,
-              monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0,
-                                        0, 30'000)));
+              monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false,
+                                        0, 0, 30'000)));
 }
 
 TEST(WatchdogTest, LoopDeadAndNotPausedReturnsLoopStalled) {
     ProgressMonitor monitor;
     monitor.evaluate(base(10, 100, 100, 1'000));
     EXPECT_EQ(StallVerdict::kLoopStalled,
-              monitor.evaluate(snapshot(10, 100, 100, false, false, false, false, 1, false, 0,
-                                        0, 2'000)));
+              monitor.evaluate(snapshot(10, 100, 100, false, false, false, false, false,
+                                        0, 0, 2'000)));
 }
 
 // ── 假运行 ──
@@ -91,14 +90,6 @@ TEST(WatchdogTest, FakeRunWithinWindowHealthyThenBeyondWindowDetected) {
     EXPECT_EQ(StallVerdict::kHealthy, monitor.evaluate(base(200, 100, 100, 51'000)));
     EXPECT_EQ(StallVerdict::kFakeRunDetected,
               monitor.evaluate(base(300, 100, 100, 200'000)));
-}
-
-TEST(WatchdogTest, SpeedZeroNotPausedFakeRunImmediately) {
-    ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 0, false, 0, 0, 1'000));
-    EXPECT_EQ(StallVerdict::kFakeRunDetected,
-              monitor.evaluate(snapshot(11, 100, 100, true, false, false, false, 0, false, 0,
-                                        0, 2'000)));
 }
 
 TEST(WatchdogTest, FreezeRecoveryRefreshesBaseline) {
@@ -114,8 +105,8 @@ TEST(WatchdogTest, UserPausedWithoutSecretRealmLockReturnsPausedByOwner) {
     ProgressMonitor monitor;
     monitor.evaluate(base(10, 100, 100, 1'000));
     EXPECT_EQ(StallVerdict::kPausedByOwner,
-              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, 1, false, 0,
-                                        0, 30'000)));
+              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, false,
+                                        0, 0, 30'000)));
 }
 
 // ── 秘境暂停租约 ──
@@ -124,7 +115,7 @@ TEST(WatchdogTest, SecretRealmPausedWithValidLeaseReturnsPausedByOwner) {
     ProgressMonitor monitor;
     monitor.evaluate(base(10, 100, 100, 5'000));
     EXPECT_EQ(StallVerdict::kPausedByOwner,
-              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, 1, true,
+              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, true,
                                         10'000, 30'000, 30'000)));
 }
 
@@ -132,7 +123,7 @@ TEST(WatchdogTest, SecretRealmLeaseExpiredReturnsStalePauseDetected) {
     ProgressMonitor monitor;
     monitor.evaluate(base(10, 100, 100, 5'000));
     EXPECT_EQ(StallVerdict::kStalePauseDetected,
-              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, 1, true,
+              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, true,
                                         10'000, 70'000, 70'000)));
 }
 
@@ -140,7 +131,7 @@ TEST(WatchdogTest, SecretRealmLockNeverRenewedReturnsStalePauseDetected) {
     ProgressMonitor monitor;
     monitor.evaluate(base(10, 100, 100, 5'000));
     EXPECT_EQ(StallVerdict::kStalePauseDetected,
-              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, 1, true,
+              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, true,
                                         0, 50'000, 50'000)));
 }
 
@@ -148,28 +139,28 @@ TEST(WatchdogTest, SecretRealmLockNeverRenewedReturnsStalePauseDetected) {
 
 TEST(WatchdogTest, SavingWithActiveLoopReturnsHealthy) {
     ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0, 5'000,
-                              5'000));
+    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false, 0,
+                              5'000, 5'000));
     EXPECT_EQ(StallVerdict::kHealthy,
-              monitor.evaluate(snapshot(11, 100, 100, true, false, true, false, 1, false, 0,
+              monitor.evaluate(snapshot(11, 100, 100, true, false, true, false, false, 0,
                                         19'000, 20'000)));
 }
 
 TEST(WatchdogTest, SavingButLoopAlsoStalledReturnsLoopStalled) {
     ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0, 5'000,
-                              5'000));
+    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false, 0,
+                              5'000, 5'000));
     EXPECT_EQ(StallVerdict::kLoopStalled,
-              monitor.evaluate(snapshot(11, 100, 100, true, false, true, false, 1, false, 0,
+              monitor.evaluate(snapshot(11, 100, 100, true, false, true, false, false, 0,
                                         5'000, 40'000)));
 }
 
 TEST(WatchdogTest, LoadingWithActiveLoopReturnsHealthy) {
     ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0, 5'000,
-                              5'000));
+    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false, 0,
+                              5'000, 5'000));
     EXPECT_EQ(StallVerdict::kHealthy,
-              monitor.evaluate(snapshot(12, 100, 100, true, false, false, true, 1, false, 0,
+              monitor.evaluate(snapshot(12, 100, 100, true, false, false, true, false, 0,
                                         19'000, 20'000)));
 }
 
@@ -187,7 +178,7 @@ TEST(WatchdogTest, PauseLeaseExactlyAtTtlBoundaryStillValid) {
     ProgressMonitor monitor;
     monitor.evaluate(base(10, 100, 100, 5'000));
     EXPECT_EQ(StallVerdict::kPausedByOwner,
-              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, 1, true,
+              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, true,
                                         10'000, 0, 55'000)));
 }
 
@@ -212,44 +203,37 @@ TEST(WatchdogTest, S5FrozenWorldWithOscillatingAccumulatedStillDetected) {
 
 TEST(WatchdogTest, S4TickStalledButHeartbeatFreshReturnsHealthy) {
     ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0, 1'000,
-                              1'000));
+    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false, 0,
+                              1'000, 1'000));
     EXPECT_EQ(StallVerdict::kHealthy,
-              monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0,
-                                        4'000, 5'000)));
+              monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false,
+                                        0, 4'000, 5'000)));
 }
 
 TEST(WatchdogTest, V1TickStalledAndHeartbeatStaleReturnsLoopStalled) {
     ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0, 1'000,
-                              1'000));
+    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false, 0,
+                              1'000, 1'000));
     EXPECT_EQ(StallVerdict::kLoopStalled,
-              monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0,
-                                        1'000, 30'000)));
+              monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false,
+                                        0, 1'000, 30'000)));
 }
 
 TEST(WatchdogTest, S1SavingWithLoopStoppedAndPausedReturnsHealthy) {
     ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0, 1'000,
-                              1'000));
+    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false, 0,
+                              1'000, 1'000));
     EXPECT_EQ(StallVerdict::kHealthy,
-              monitor.evaluate(snapshot(11, 100, 100, false, true, true, false, 1, false, 0,
+              monitor.evaluate(snapshot(11, 100, 100, false, true, true, false, false, 0,
                                         1'000, 30'000)));
-}
-
-TEST(WatchdogTest, V6SpeedZeroDetectedOnFirstEvaluation) {
-    ProgressMonitor monitor;
-    EXPECT_EQ(StallVerdict::kFakeRunDetected,
-              monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 0, false, 0,
-                                        0, 1'000)));
 }
 
 TEST(WatchdogTest, F2LeaseExpiredWithStalledLoopReturnsLoopStalled) {
     ProgressMonitor monitor;
-    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, 1, false, 0, 1'000,
-                              1'000));
+    monitor.evaluate(snapshot(10, 100, 100, true, false, false, false, false, 0,
+                              1'000, 1'000));
     EXPECT_EQ(StallVerdict::kLoopStalled,
-              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, 1, true,
+              monitor.evaluate(snapshot(10, 100, 100, true, true, false, false, true,
                                         1'000, 1'000, 60'000)));
 }
 
