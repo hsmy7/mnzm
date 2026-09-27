@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.GameStateSnapshot
 import com.xianxia.sect.core.engine.di.IoDispatcher
-import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
@@ -50,7 +49,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import com.xianxia.sect.core.engine.restartGameSuspend
-import com.xianxia.sect.core.engine.resume
 
 /**
  * SaveLoadViewModel 云读档路径单元测试。
@@ -67,11 +65,10 @@ class SaveLoadViewModelLoadTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    // ── SaveLoadViewModel 8 个注入依赖（MockK relaxed）──
+    // ── SaveLoadViewModel 7 个注入依赖（MockK relaxed）──
     private val gameEngine: GameEngine = mockk(relaxed = true)
     private val gameEngineCore: GameEngineCore = mockk(relaxed = true)
     private val stateStore: GameStateStore = mockk(relaxed = true)
-    private val gameClock: GameTimeClock = mockk(relaxed = true)
     private val resourcePreloader: ResourcePreloader = mockk(relaxed = true)
     private val persistenceFacade: PersistenceFacade = mockk(relaxed = true)
     private val ioDispatcher = IoDispatcher(testDispatcher)
@@ -161,7 +158,6 @@ class SaveLoadViewModelLoadTest {
             gameEngine = gameEngine,
             gameEngineCore = gameEngineCore,
             stateStore = stateStore,
-            gameClock = gameClock,
             resourcePreloader = resourcePreloader,
             persistenceFacade = persistenceFacade,
             ioDispatcher = ioDispatcher
@@ -599,7 +595,6 @@ class SaveLoadViewModelLoadTest {
             gameEngine = gameEngine,
             gameEngineCore = gameEngineCore,
             stateStore = stateStore,
-            gameClock = gameClock,
             resourcePreloader = resourcePreloader,
             persistenceFacade = persistenceFacade,
             ioDispatcher = IoDispatcher(Dispatchers.Unconfined)
@@ -918,20 +913,6 @@ class SaveLoadViewModelLoadTest {
             "boot 失败后应返回 Error 状态",
             viewModel.cloudSaveOperationState.value is CloudSaveOperationState.Error
         )
-    }
-
-    @Test
-    fun `setTimeSpeed - paused state does not auto resume (fix)`() = runTest(testDispatcher) {
-        // 暂停中调倍速不自动恢复（暂停态下 setTimeSpeed 若强制
-        // gameEngineCore.resume()，会违背玩家意图，表现即"暂停却仍被解除"）。
-        every { stateStore.isPaused } returns MutableStateFlow(true)
-        every { gameEngineCore.isPausedDirect } returns true
-
-        viewModel.setTimeSpeed(2)
-        advanceUntilIdle()
-
-        coVerify(exactly = 0) { gameEngineCore.resume() }
-        assertEquals("仅反馈 UI 倍速，不触发恢复", 2, viewModel.timeScale.value)
     }
 
     // ──────────────────────────────────────────────────────────────────

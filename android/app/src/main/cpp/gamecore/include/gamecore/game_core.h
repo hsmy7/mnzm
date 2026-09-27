@@ -106,7 +106,7 @@ public:
     // ── 逻辑 tick ─────────────────────────────────────────
     /// 推进墙钟增量（对应 Kotlin 帧循环 tickInternal → GameTimeClock.tick）：
     /// wallDeltaMs 为自上次 tick 的墙钟毫秒增量（由 Kotlin 桥传入，保证对拍可控），
-    /// 内部按 msPerPhase=2000ms@1x × speed 换算旬数，单 tick 上限 3×speed 旬
+    /// 内部按 msPerPhase=2000ms 换算旬数，单 tick 上限 3 旬
     bool advance(int64_t wallDeltaMs, int64_t nowMs);
 
     /// 直接推进 N 旬（绕过 accumulator；对拍/测试用）
@@ -175,11 +175,11 @@ public:
     // ── 引擎循环 + 看门狗（游戏循环入 C++） ────────
     /// 平台能力注入（nativeInit 后由桥层调用；幂等可重设）
     void setPlatformProviders(const PlatformProviders& providers);
-    /// AUTHORITATIVE 引擎循环（墙钟消费/速度/暂停/refund 状态机 + 帧迭代计划）
+    /// AUTHORITATIVE 引擎循环（墙钟消费/暂停/refund 状态机 + 帧迭代计划）
     system::EngineLoop& loop() { return loop_; }
     const system::EngineLoop& loop() const { return loop_; }
     /// 看门狗统一判据：引擎侧状态（tickCount/totalPhases/accumulatedGameMs/
-    /// speed/loopActiveAtMs）由 GameCore 组合，平台侧 flags 由调用方传入。
+    /// loopActiveAtMs）由 GameCore 组合，平台侧 flags 由调用方传入。
     /// 返回 system::StallVerdict 数值码（0=Healthy/1=LoopStalled/
     /// 2=FakeRunDetected/3=PausedByOwner/4=StalePauseDetected）。
     int watchdogVerdict(const WatchdogFlags& flags);

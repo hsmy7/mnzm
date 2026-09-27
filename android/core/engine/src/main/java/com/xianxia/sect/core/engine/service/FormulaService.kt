@@ -334,7 +334,6 @@ private fun accumulateElderAndDiscipleBonus(
 ): Pair<Double, Double> {
     val elderBaseline = 80
     val discipleBaseline = 80
-    /** 当前速度：0=暂停, 1=1x, 2=2x */
     var speed = 0.0
     var success = 0.0
 

@@ -9,7 +9,7 @@
 #include "gamecore/ecs/world.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
-#include "gamecore/system/settlement.h"      // kMsPerPhase1x（phase_settlement 依赖）
+#include "gamecore/system/settlement.h"      // kMsPerPhase（phase_settlement 依赖）
 #include "gamecore/system/phase_settlement.h"
 
 // ============================================================

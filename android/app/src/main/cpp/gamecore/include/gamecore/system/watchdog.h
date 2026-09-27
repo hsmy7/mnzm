@@ -9,7 +9,7 @@
 //
 // Kotlin core/engine/monitor/GameTimeProgressMonitor 逐位移植：
 //   - 判据 = tickCount + totalPhases + accumulatedGameMs 三元组 + flags
-//     （loopActive/isPaused/isSaving/isLoading/speed/秘境租约/循环心跳）
+//     （loopActive/isPaused/isSaving/isLoading/秘境租约/循环心跳）
 //   - 五种判定（StallVerdict）：Healthy / LoopStalled / FakeRunDetected /
 //     PausedByOwner / StalePauseDetected
 //   - 三阈值：STALE_PAUSE_TTL_MS=45s / FAKE_RUN_WINDOW_MS=90s /
@@ -34,8 +34,6 @@ struct ProgressSnapshot {
     bool isPaused = false;
     bool isSaving = false;
     bool isLoading = false;
-    /// 游戏速度（0 = 时钟暂停）
-    int speed = 1;
     /// 秘境暂停锁（secretRealmPauseLock）
     bool secretRealmPauseLock = false;
     /// 秘境暂停租约最后续约墙钟（elapsedRealtime）
@@ -70,8 +68,8 @@ public:
         : stalePauseTtlMs_(stalePauseTtlMs), fakeRunWindowMs_(fakeRunWindowMs) {}
 
     /// 判定当前引擎状态。每次调用更新内部基准（恢复判定后基准随之刷新）。
-    /// 首次调用（无基准）也能给出不依赖 prev 的判定：暂停类判定与
-    /// speed=0 假运行——仅"循环停滞/世界时间冻结"类需要基准的判定首次豁免。
+    /// 首次调用（无基准）也能给出不依赖 prev 的判定：暂停类判定——
+    /// 仅"循环停滞/世界时间冻结"类需要基准的判定首次豁免。
     StallVerdict evaluate(const ProgressSnapshot& current) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!prev_.has_value()) {
@@ -79,11 +77,6 @@ public:
             if (flagVerdict.has_value()) {
                 prev_ = current;
                 return *flagVerdict;
-            }
-            // V6：speed=0 假运行无需基准，首调即判（不延迟一个评估周期）
-            if (current.speed == 0) {
-                prev_ = current;
-                return StallVerdict::kFakeRunDetected;
             }
             prev_ = current;
             return StallVerdict::kHealthy;
@@ -124,10 +117,6 @@ private:
         // 5. 假运行检测：tick 在跑但世界时间（totalPhases）在窗口内未推进。
         //    以"最近推进时间"为窗（S5）——不依赖 accumulatedGameMs 逐采样
         //    增量比较（持续抛异常的世界冻结下它 0→2000→0 振荡绕过累积判据）
-        if (current.speed == 0) {
-            // speed=0 等价假运行（UI 已封死 0，出现即异常，立即自愈不等窗口）
-            return StallVerdict::kFakeRunDetected;
-        }
         if (current.totalPhases != last.totalPhases) {
             lastPhaseProgressedAtMs_ = current.recordedAtMs;
             return StallVerdict::kHealthy;

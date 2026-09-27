@@ -5,7 +5,7 @@ package com.xianxia.sect.core.engine.monitor
  *
  * 历史教训（git log）：27 次"游戏时间停止"修复中，三层看门狗（引擎内
  * Watchdog / 主线程 HealthCheck / Alarm 兜底）全部只判 tickCount 停滞，
- * 且全部豁免 isPaused——导致 `isPaused` 卡死、`speed=0` 假运行两类冻结
+ * 且全部豁免 isPaused——导致 `isPaused` 卡死、世界时间假运行两类冻结
  * 形态完全失明。本组件把判据升级为"游戏时间推进"（tickCount + totalPhases
  * + 循环活动心跳），并统一三层的判定出口。
  *
@@ -19,7 +19,6 @@ package com.xianxia.sect.core.engine.monitor
  *   （accumulatedGameMs 振荡）也能检出
  * - isSaving 时"设计性停循环"（restartGame/后台）豁免，交给 60s 兜底
  * - 租约过期时若循环本身也停滞（引擎被挂起）优先判 LoopStalled 走换线程
- * - 首调即判 speed=0 假运行（不延迟一个评估周期）
  */
 data class GameTimeProgressSnapshot(
     /** 循环 tick 计数（假运行时也递增，不能单独作为推进判据） */
@@ -33,8 +32,6 @@ data class GameTimeProgressSnapshot(
     val isPaused: Boolean,
     val isSaving: Boolean,
     val isLoading: Boolean,
-    /** GameTimeClock.speed（0 = 时钟暂停） */
-    val speed: Int,
     /** 秘境暂停锁（secretRealmPauseLock） */
     val secretRealmPauseLock: Boolean,
     /** 秘境暂停租约最后续约墙钟（elapsedRealtime） */
@@ -53,7 +50,7 @@ sealed interface StallVerdict {
     /** 循环无活动（线程被 OEM 挂起 / 循环死亡 / 保存死锁等锁） */
     data object LoopStalled : StallVerdict
 
-    /** tick 在跑但世界时间不动（speed=0 / 世界时间冻结） */
+    /** tick 在跑但世界时间冻结 */
     data object FakeRunDetected : StallVerdict
 
     /** 暂停有主（用户主动暂停 / 秘境界面打开且租约有效）→ 豁免 */
@@ -87,7 +84,7 @@ class GameTimeProgressMonitor(
      * 判定当前引擎状态。每次调用更新内部基准（恢复判定后基准随之刷新）。
      *
      * 首次调用（无基准）也能给出不依赖 prev 的判定：暂停类判定
-     * （PausedByOwner/StalePauseDetected）与 speed=0 假运行——
+     * （PausedByOwner/StalePauseDetected）——
      * 仅"循环停滞/世界时间冻结"类需要基准的判定首次豁免。
      *
      * @param current 引擎循环最新采样快照
@@ -102,11 +99,6 @@ class GameTimeProgressMonitor(
                 if (flagVerdict != null) {
                     prev = current
                     return flagVerdict
-                }
-                // V6：speed=0 假运行无需基准，首调即判（不延迟一个评估周期）
-                if (current.speed == 0) {
-                    prev = current
-                    return StallVerdict.FakeRunDetected
                 }
                 prev = current
                 return StallVerdict.Healthy
@@ -156,10 +148,6 @@ class GameTimeProgressMonitor(
         // 5. 假运行检测：tick 在跑但世界时间（totalPhases）在窗口内未推进。
         //    以"最近推进时间"为窗（S5）——不依赖 accumulatedGameMs 的逐采样
         //    增量比较（它在持续抛异常的世界冻结下会 0→2000→0 振荡绕过累积判据）
-        if (current.speed == 0) {
-            // speed=0 等价假运行（UI 已封死 0，出现即异常，立即自愈不等窗口）
-            return StallVerdict.FakeRunDetected
-        }
         if (current.totalPhases != last.totalPhases) {
             lastPhaseProgressedAtMs = current.recordedAtMs
             return StallVerdict.Healthy

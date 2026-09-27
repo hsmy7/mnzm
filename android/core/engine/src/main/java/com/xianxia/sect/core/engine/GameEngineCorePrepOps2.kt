@@ -133,7 +133,6 @@ internal fun GameEngineCore.handleTickCrash(e: Exception) {
             "isPaused" to stateStore.isPaused.value.toString(),
             "isSaving" to stateStore.isSaving.value.toString(),
             "isLoading" to stateStore.isLoading.value.toString(),
-            "speed" to gameClock.speed.toString(),
             "lastTickMs" to lastTickDurationMs.toString(),
             "watchdogAttempts" to watchdogRecoveryAttempts.toString(),
             "oem" to OemPowerProfileProvider.currentManufacturer.name
@@ -349,7 +348,7 @@ internal fun GameEngineCore.startWatchdog() {
  *
  * 判据为"tickCount + totalPhases + accumulatedGameMs"三元组（由
  * [GameTimeProgressMonitor] 纯函数判定），覆盖历史失明的两类冻结形态：
- * isPaused 卡死（StalePauseDetected）与 speed=0 假运行（FakeRunDetected）。
+ * isPaused 卡死（StalePauseDetected）与世界时间冻结（FakeRunDetected）。
  */
 
 fun GameEngineCore.progressVerdict(): StallVerdict {
@@ -412,7 +411,6 @@ internal fun GameEngineCore.sampleProgressSnapshot(): GameTimeProgressSnapshot {
         isPaused = stateStore.isPaused.value,
         isSaving = stateStore.isSaving.value,
         isLoading = stateStore.isLoading.value,
-        speed = gameClock.speed,
         secretRealmPauseLock = secretRealmPauseLock,
         secretRealmPauseRenewedAtMs = secretRealmPauseRenewedAtMs,
         loopActiveAtMs = lastLoopActivityMs,

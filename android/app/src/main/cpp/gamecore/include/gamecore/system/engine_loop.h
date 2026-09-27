@@ -13,12 +13,12 @@
 // 引擎循环（游戏循环入 C++）
 //
 // PhaseClock —— Kotlin core/engine/system/GameTimeClock 逐位移植：
-// 墙钟消费/速度/暂停/refundPhases 状态机。语义锚点（GameTimeClock.kt）：
-//   - accumulatedGameMs += wallDeltaMs * speed（speed: 0/1/2）
-//   - phases = accumulatedGameMs / msPerPhase（msPerPhase = 2000ms @1x / 1000 @2x）
-//   - phaseCap = MAX_PHASES_PER_TICK(3) × speed：单 tick 追补上限，
+// 墙钟消费/暂停/refundPhases 状态机（单一时速，无倍率）。
+// 语义锚点（GameTimeClock.kt）：
+//   - accumulatedGameMs += wallDeltaMs（墙钟差值直接累加）
+//   - phases = accumulatedGameMs / msPerPhase（msPerPhase = 2000ms）
+//   - phaseCap = kMaxPhasesPerTick(3)：单 tick 追补上限，
 //     超限**丢弃余量**（防 OEM 挂起/看门狗重启的爆炸式跳变）
-//   - setSpeed 先按旧速度结算累积（切换零丢失）
 //   - consumeDeadTime/forceConsumeOnePhase/refundPhases 原语义保留
 //
 // EngineLoop —— Kotlin GameEngineCore.gameLoopIteration 的帧迭代判据移植：
@@ -28,8 +28,8 @@
 //   - isSaving 跳过 tick（对应 skipTickIfNeeded：不推进 tick 计数、消费死区）
 //   - alpha 插值因子原始值（JitterSmoother 滤波留渲染侧）
 //
-// 线程契约：iterate/setSpeed/consumeDeadTime 等由引擎线程串行调用；
-// setSpeed/accumulatedGameMs/tickCount/lastLoopActivityMs 为 atomic（看门狗
+// 线程契约：iterate/consumeDeadTime 等由引擎线程串行调用；
+// accumulatedGameMs/tickCount/lastLoopActivityMs 为 atomic（看门狗
 // 线程跨线程读——镜像 Kotlin @Volatile 语义）。帧等待（delay/antiFreeze
 // 忙等）为平台线程机制，保留 Kotlin 驱动侧。
 // ============================================================
@@ -83,33 +83,11 @@ public:
         accumulatedGameMs_.store(0, std::memory_order_relaxed);
     }
 
-    /// 切换速度：先按旧速度结算累积（切换零丢失）；0/1/2 钳制
-    void setSpeed(int newSpeed) {
-        const int64_t now = mono()->nowMs();
-        const int old = speed_.load(std::memory_order_relaxed);
-        if (old > 0) {
-            accumulatedGameMs_.fetch_add((now - lastWallMs_) * old, std::memory_order_relaxed);
-        }
-        lastWallMs_ = now;
-        const int clamped = newSpeed < 0 ? 0 : (newSpeed > 2 ? 2 : newSpeed);
-        speed_.store(clamped, std::memory_order_relaxed);
-    }
-
-    int speed() const { return speed_.load(std::memory_order_relaxed); }
-
-    /// 当前旬游戏时间毫秒（speed=0 → MAX；UI 进度显示）
-    int64_t msPerPhase() const {
-        switch (speed_.load(std::memory_order_relaxed)) {
-            case 0: return INT64_MAX;
-            case 2: return kMsPerPhase1x / 2;
-            default: return kMsPerPhase1x;
-        }
-    }
+    /// 当前旬游戏时间毫秒（单一时速常量；UI 进度显示）
+    int64_t msPerPhase() const { return kMsPerPhase; }
 
     /// 当前旬进度 0.0~1.0
     float phaseProgress() const {
-        const int s = speed();
-        if (s == 0) return 0.f;
         const float denom = static_cast<float>(msPerPhase());
         if (denom <= 0.f) return 0.f;
         const float acc = static_cast<float>(accumulatedGameMs_.load(std::memory_order_relaxed));
@@ -121,7 +99,7 @@ public:
         return std::max<int64_t>(0, msPerPhase() - accumulatedGameMs_.load(std::memory_order_relaxed));
     }
 
-    /// 当旬已累积游戏毫秒（进度监控快照输入；speed>0 时单调增长）
+    /// 当旬已累积游戏毫秒（进度监控快照输入，单调增长至追补上限清零）
     int64_t accumulatedGameMs() const {
         return accumulatedGameMs_.load(std::memory_order_relaxed);
     }
@@ -130,18 +108,15 @@ public:
     int64_t nowMs() const { return mono()->nowMs(); }
 
     /// 每 tick 消费墙钟 → 旬数（delta 不做单次裁剪；防爆炸跳变由
-    /// phaseCap 按速度缩放承担，超限丢弃余量）
+    /// phaseCap 承担，超限丢弃余量）
     int tick() {
         const int64_t now = mono()->nowMs();
         const int64_t rawDelta = now - lastWallMs_;
         lastWallMs_ = now;
-        const int s = speed_.load(std::memory_order_relaxed);
-        if (s > 0) {
-            accumulatedGameMs_.fetch_add(rawDelta * s, std::memory_order_relaxed);
-        }
+        accumulatedGameMs_.fetch_add(rawDelta, std::memory_order_relaxed);
         const int64_t perPhase = msPerPhase();
         int phases = static_cast<int>(accumulatedGameMs_.load(std::memory_order_relaxed) / perPhase);
-        const int phaseCap = maxPhasesPerTick(s);  // 单一来源
+        const int phaseCap = kMaxPhasesPerTick;  // 单一来源（常量即真相源）
         if (phases > phaseCap) {
             if (logger_) {
                 logger_->log(LogLevel::kWarn, "EngineLoop",
@@ -174,13 +149,12 @@ public:
                                      std::memory_order_relaxed);
     }
 
-    /// 测试隔离专用：完全重置时钟状态（速度/累积/墙钟基准）。
-    /// 生产路径不调用——引擎实例生命周期内 speed/累积不重置（与 Kotlin
+    /// 测试隔离专用：完全重置时钟状态（累积/墙钟基准）。
+    /// 生产路径不调用——引擎实例生命周期内累积不重置（与 Kotlin
     /// GameTimeClock 单例一致）；仅桌面对拍桥跨用例重建基准用。
     void resetForTest() {
         lastWallMs_ = 0;
         accumulatedGameMs_.store(0, std::memory_order_relaxed);
-        speed_.store(1, std::memory_order_relaxed);
     }
 
 private:
@@ -193,7 +167,6 @@ private:
     MonotonicClock* mono_ = nullptr;   // 注入（不持有）
     Logger* logger_ = nullptr;         // 注入（不持有；cap 丢弃告警）
     std::atomic<int64_t> accumulatedGameMs_{0};
-    std::atomic<int> speed_{1};
     int64_t lastWallMs_ = 0;           // 引擎线程独占（Kotlin 同——非 volatile）
 };
 
@@ -208,7 +181,7 @@ public:
     void setTelemetry(TelemetrySink* telemetry) { telemetry_ = telemetry; }
     void setThermalProvider(ThermalStatusProvider* thermal) { thermal_ = thermal; }
 
-    /// 游戏时间状态机（setSpeed/refundPhases/镜像读取）
+    /// 游戏时间状态机（refundPhases/镜像读取）
     PhaseClock& time() { return phaseClock_; }
     const PhaseClock& time() const { return phaseClock_; }
 
@@ -297,8 +270,8 @@ public:
         return ownerRebasePending_.exchange(false, std::memory_order_relaxed);
     }
 
-    /// 测试隔离专用：完全重置循环状态（tick 计数/速度/累积/帧状态/活跃基准）。
-    /// 生产路径不调用（引擎实例生命周期内 tickCount/speed 不重置——与 Kotlin
+    /// 测试隔离专用：完全重置循环状态（tick 计数/累积/帧状态/活跃基准）。
+    /// 生产路径不调用（引擎实例生命周期内 tickCount 不重置——与 Kotlin
     /// 单例语义一致，见 [start] 注释）；仅桌面对拍桥跨 JUnit 用例重建基准用。
     void resetForTest() {
         tickCount_.store(0, std::memory_order_relaxed);

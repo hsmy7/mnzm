@@ -50,24 +50,20 @@ fun nextChasingProgressTick(
  *
  * @param target 真实数据值 [0, 1]，进度条的唯一真相源
  * @param lerpFactor 每 tick 收敛速率，默认 0.3（~1 秒到 97%）
- * @param paused 暂停动画（冻结当前值，恢复后继续追赶）
  */
 @Composable
 fun rememberChasingProgress(
     target: Float,
-    lerpFactor: Float = CHASE_LERP_FACTOR_DEFAULT,
-    paused: Boolean = false
+    lerpFactor: Float = CHASE_LERP_FACTOR_DEFAULT
 ): State<Float> {
     val clamped = target.coerceIn(0f, 1f)
     val animated = remember { mutableFloatStateOf(clamped) }
     val targetState by rememberUpdatedState(clamped)
     val factorState by rememberUpdatedState(lerpFactor.coerceIn(0f, 1f))
-    val pausedState by rememberUpdatedState(paused)
 
     LaunchedEffect(Unit) {
         while (isActive) {
             delay(PROGRESS_TICK_MS)
-            if (pausedState) continue
             animated.floatValue = nextChasingProgressTick(
                 current = animated.floatValue,
                 target = targetState,

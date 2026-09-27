@@ -198,17 +198,23 @@ class GameEngineCoreLifecycleInterleavingTest {
         core.startGameLoop()
         assertTrue(core.isGameLoopRunning)
 
-        // emergency 锁内阻塞
+        // 先起 emergency 并确认进入锁内 snapshot 阻塞点（与「start during
+        // emergency」变体同序）——若与 shutdown 同时 start，shutdown 的
+        // CAS（RUNNING→STOPPED）可能抢先拒绝 emergency，用例意图（shutdown
+        // 打断"进行中"的 emergency）根本未构成
+        var shutdownThread: Thread? = null
         emergencyThread = Thread { core.emergencyRestartGameLoop() }.apply { start() }
-        val shutdownThread = Thread { core.shutdown() }.apply { start() }
         try {
             assertTrue("emergency 必须进入 snapshot 阻塞点",
                 stateStore.snapshotEnteredLatch.await(5, TimeUnit.SECONDS))
+            // emergency 进行中注入 shutdown：CAS（→STOPPED，接受 RESTARTING）
+            // 锁外立即抢占；emergency abort 不复活
+            shutdownThread = Thread { core.shutdown() }.apply { start() }
             Thread.sleep(200)
         } finally {
             stateStore.snapshotReleaseLatch.countDown()
             emergencyThread?.join(5_000)
-            shutdownThread.join(5_000)
+            shutdownThread?.join(5_000)
         }
 
         // shutdown CAS（→STOPPED，接受 RESTARTING）锁外立即抢占；emergency abort

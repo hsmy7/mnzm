@@ -88,8 +88,7 @@ interface GameStateStore : GameStateSnapshotProvider {
         val yearlySalary: Map<Int, Int> = emptyMap(),
         val yearlySalaryEnabled: Map<Int, Boolean> = emptyMap(),
         val elderSlots: ElderSlots? = null,
-        val placedBuildings: List<GridBuildingData> = emptyList(),
-        val gameSpeed: Int = 1
+        val placedBuildings: List<GridBuildingData> = emptyList()
     )
 
     val highFreqState: StateFlow<HighFreqState>

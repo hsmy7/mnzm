@@ -85,7 +85,7 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 |---|---|---|
 | HighFreqState | lowGrade/mid/highGradeSpiritStones、gameYear/Month/Phase、isPaused | gameData 时间/灵石 + 引擎运行态 |
 | EntityState | 10 实体集合 + battleLogs* | 镜像集合（*battleLogs 为 Kotlin 战斗域运行态，见 §3.4） |
-| ConfigState | sectPolicies、yearlySalary(+Enabled)、elderSlots、placedBuildings、autoRecruitSpiritRootFilter、gameSpeed | gameData 配置字段 + 引擎速度 |
+| ConfigState | sectPolicies、yearlySalary(+Enabled)、elderSlots、placedBuildings、autoRecruitSpiritRootFilter | gameData 配置字段 |
 
 ### 3.2 派生 UI 流（GameViewModel，逐条注明消费的 gameData 字段）
 | UI 流 | 消费字段 |

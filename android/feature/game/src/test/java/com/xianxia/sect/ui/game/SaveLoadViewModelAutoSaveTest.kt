@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.GameStateSnapshot
 import com.xianxia.sect.core.engine.di.IoDispatcher
-import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
@@ -64,7 +63,6 @@ class SaveLoadViewModelAutoSaveTest {
     private val gameEngine: GameEngine = mockk(relaxed = true)
     private val gameEngineCore: GameEngineCore = mockk(relaxed = true)
     private val stateStore: GameStateStore = mockk(relaxed = true)
-    private val gameClock: GameTimeClock = mockk(relaxed = true)
     private val resourcePreloader: ResourcePreloader = mockk(relaxed = true)
     private val persistenceFacade: PersistenceFacade = mockk(relaxed = true)
     private val ioDispatcher = IoDispatcher(testDispatcher)
@@ -123,7 +121,6 @@ class SaveLoadViewModelAutoSaveTest {
             gameEngine = gameEngine,
             gameEngineCore = gameEngineCore,
             stateStore = stateStore,
-            gameClock = gameClock,
             resourcePreloader = resourcePreloader,
             persistenceFacade = persistenceFacade,
             ioDispatcher = ioDispatcher

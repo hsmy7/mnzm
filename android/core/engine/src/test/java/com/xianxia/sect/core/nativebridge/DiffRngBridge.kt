@@ -156,11 +156,9 @@ object DiffRngBridge {
     // ── 引擎循环 + 看门狗通道（对拍用） ──────
     /** 循环启动/重启：帧累积清零 + 时钟基准重置 */
     external fun nativeCoreLoopStart()
-    /** 循环状态完全重置（测试隔离：tick 计数/速度/累积/帧状态清零；
+    /** 循环状态完全重置（测试隔离：tick 计数/累积/帧状态清零；
      *  JUnit 用例间对齐 Kotlin 侧 new GameTimeClock 的干净基准） */
     external fun nativeCoreLoopReset()
-    /** 速度切换（C++ PhaseClock 旧速度结算语义） */
-    external fun nativeCoreLoopSetSpeed(speed: Int)
     /** 固定单调时钟推进（对拍脚本驱动 FixedMonotonicClock） */
     external fun nativeCoreLoopSetMonoMs(nowMs: Long)
     /** 死区时间消费（刷新基准不累积） */
@@ -198,7 +196,7 @@ object DiffRngBridge {
      * 独立判据通道：直接喂快照判定（12 字段与 GameTimeProgressSnapshot 一一对应），
      * 与 Kotlin GameTimeProgressMonitor 同序列对拍。返回 0-4 判定码。
      */
-    @Suppress("LongParameterList")  // JNI 快照对拍：12 参数与 ProgressSnapshot 字段一一对应
+    @Suppress("LongParameterList")  // JNI 快照对拍：11 参数与 ProgressSnapshot 字段一一对应
     external fun nativeCoreMonitorEvaluate(
         tickCount: Long,
         totalPhases: Long,
@@ -207,7 +205,6 @@ object DiffRngBridge {
         isPaused: Boolean,
         isSaving: Boolean,
         isLoading: Boolean,
-        speed: Int,
         secretRealmPauseLock: Boolean,
         secretRealmPauseRenewedAtMs: Long,
         loopActiveAtMs: Long,

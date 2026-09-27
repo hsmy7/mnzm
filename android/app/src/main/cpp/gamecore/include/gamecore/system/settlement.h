@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cstdint>
 #include <functional>
 
@@ -15,9 +14,9 @@
 //
 //   - 时间源 = 墙钟毫秒（GameTimeClock 用 elapsedRealtime；C++ 侧由桥层传入
 //     nowMs 差值，对拍可控）
-//   - accumulatedGameMs += wallDeltaMs * speed（speed: 0/1/2）
-//   - phases = accumulatedGameMs / msPerPhase（msPerPhase = 2000ms @1x）
-//   - phaseCap = MAX_PHASES_PER_TICK(3) * speed：单 tick 追补上限，超限**丢弃余量**
+//   - accumulatedGameMs += wallDeltaMs（墙钟差值直接累加，单一时速无倍率）
+//   - phases = accumulatedGameMs / msPerPhase（msPerPhase = 2000ms）
+//   - phaseCap = kMaxPhasesPerTick(3)：单 tick 追补上限，超限**丢弃余量**
 //     （防 OEM 挂起/看门狗重启的爆炸式跳变；与 Kotlin 语义一致）
 //   - 每旬：advancePhase（时间推进）+ onPhaseSettle 钩子
 //   - 月变/年变：边界检测 + 结算钩子
@@ -28,16 +27,8 @@
 // ============================================================
 namespace gamecore::system {
 
-constexpr int64_t kMsPerPhase1x = 2000;      // GameTimeClock.MS_PER_PHASE_1X
+constexpr int64_t kMsPerPhase = 2000;        // GameTimeClock.MS_PER_PHASE
 constexpr int kMaxPhasesPerTick = 3;         // GameTimeClock.MAX_PHASES_PER_TICK
-
-/// 单 tick 追补上限公式（双端单一来源）：
-/// maxPhasesPerTick(speed) = kMaxPhasesPerTick × max(speed, 1)。
-/// Kotlin 同源锚点：GameTimeClock.maxPhasesPerTick(speed)（同公式同常量，
-/// PhaseCapParityTest 双端各自锁定；改值须双端同步）。
-constexpr int maxPhasesPerTick(int speed) {
-    return kMaxPhasesPerTick * std::max(speed, 1);
-}
 
 /// 单次 advance 的结果
 struct TickResult {
@@ -70,17 +61,15 @@ public:
     /// 推进墙钟增量（等价 GameTimeClock.tick + processTickPhases 时间部分）
     /// wallDeltaMs：自上次 tick 的墙钟毫秒增量（由桥层传入，保证对拍可控）
     TickResult advance(state::GameState& state, int64_t wallDeltaMs) {
-        if (speed_ > 0) {
-            accumulatedGameMs_ += wallDeltaMs * speed_;
-        }
-        int phases = static_cast<int>(accumulatedGameMs_ / kMsPerPhase1x);
-        const int phaseCap = maxPhasesPerTick(speed_);  // 单一来源
+        accumulatedGameMs_ += wallDeltaMs;
+        int phases = static_cast<int>(accumulatedGameMs_ / kMsPerPhase);
+        const int phaseCap = kMaxPhasesPerTick;  // 单一来源（常量即真相源）
         if (phases > phaseCap) {
             // 超限丢弃余量（Kotlin: accumulatedGameMsInternal = 0）
             phases = phaseCap;
             accumulatedGameMs_ = 0;
         } else if (phases > 0) {
-            accumulatedGameMs_ -= static_cast<int64_t>(phases) * kMsPerPhase1x;
+            accumulatedGameMs_ -= static_cast<int64_t>(phases) * kMsPerPhase;
         }
         return advancePhases(state, phases);
     }
@@ -110,10 +99,6 @@ public:
         if (yearChanged_) flags |= kSettleFlagYearChanged;
         return flags;
     }
-
-    /// 设置游戏速度（0=暂停 1=正常 2=双倍；等价 GameTimeClock.setSpeed）
-    void setSpeed(int speed) { speed_ = speed < 0 ? 0 : (speed > 2 ? 2 : speed); }
-    int speed() const { return speed_; }
 
     /// 复位（新档/读档时清除累积——读档后残留累积会导致下一
     /// tick 多推进；GameCore.importStateJson 成功后必须调用）
@@ -150,7 +135,6 @@ private:
     }
 
     int64_t accumulatedGameMs_ = 0;
-    int speed_ = 1;
     bool monthChanged_ = false;
     bool yearChanged_ = false;
     bool coreMode_ = false;

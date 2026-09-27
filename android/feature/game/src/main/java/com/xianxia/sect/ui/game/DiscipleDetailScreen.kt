@@ -419,7 +419,6 @@ private fun DiscipleDetailInfoTab(
         sectPolicies = sectPolicies,
         residenceSlots = residenceSlots,
         placedBuildings = placedBuildings,
-        gameSpeed = 1,
         onBreakthroughJadeClick = { state.showBreakthroughJadeDialog = true }
     )
 }

@@ -44,7 +44,14 @@ TEST_F(GameCoreTest, AdvanceWorksWhenInitialized) {
     GameCoreConfig config;
     config.seedInitialized = true;
     ASSERT_TRUE(core.initialize(config));
+    // 单一时速语义：2000ms 墙钟 → 恰好 1 旬（msPerPhase=2000ms）
+    EXPECT_TRUE(core.advance(2000L, clock_.nowMs()));
+    EXPECT_EQ(1, core.state().gameData.gamePhase);
+    // 超大 delta 被单 tick 上限 3 旬截断（100s 原计划 50 旬 → 恰 3 旬，
+    // 中旬起步跨月进位一次：1年1月中旬 → 1年2月中旬）
     EXPECT_TRUE(core.advance(100'000'000L, clock_.nowMs()));
+    EXPECT_EQ(2, core.state().gameData.gameMonth);
+    EXPECT_EQ(1, core.state().gameData.gamePhase);
 }
 
 TEST_F(GameCoreTest, ExecuteBeforeInitReturnsFailure) {

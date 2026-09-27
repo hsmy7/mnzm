@@ -1,5 +1,27 @@
 ## [4.01.16] - 2026-09-22
 
+### 删二倍速批（2026-09-27）——「速度」维度整维删除（单一时速 · 看门狗判据收敛 · 死字段清偿）— `refactor(engine)`
+
+> 批次依据：`docs/design/remove-2x-speed-implementation-plan.md`（v1.0）。
+
+- **移除二倍速（整维删除）**：删除「速度」这一时间倍率维度，时间推进回到「墙钟差值直接累加」
+  单一时速模型（1 旬 = 2000ms 墙钟，1 游戏月 = 6s，1 游戏年 = 72s）。删除面：Kotlin
+  `GameTimeClock` 的 `speed/speedFlow/setSpeed/onSpeedChanged/maxPhasesPerTick(speed)`、
+  `GameEngineCore` 速度钩子、`GameCoreBridge.nativeLoopSetSpeed`（JNI 面 86 → 85）、
+  C++ `PhaseClock.speed_/setSpeed` 与 `SettlementEngine.setSpeed/speed_`（第二份速度状态机，
+  生产零调用者）、看门狗 `ProgressSnapshot.speed` 与 `speed==0` 判定（生产路径从无
+  `setSpeed(0)`，属不可达分支）、崩溃归因 `speed` 键、设置页 1x/2x 两键与
+  `SaveLoadViewModel.setTimeSpeed`（含闲置构造依赖 `gameClock`）。追补上限由
+  `3 × max(speed,1)` 收敛为常量 3 旬（1x 原子行为逐位一致），双端对拍三门禁改锚
+  （常量锁定 + GTest 8000ms→3 + `DiffEngineLoopTest` 3000/8000/60000ms 同输入同输出）。
+  顺带根治：`ConfigState.gameSpeed` 死字段导致的弟子详情进度条暂停门控恒失效
+  （`gameSpeed == 0` 恒 false）；`rememberChasingProgress` 的零消费者 `paused` 参数；
+  `FormulaService`/`HeavenlyTrialBuildOps` 两处错位注释。新增双端防复发守卫
+  （`SpeedDimensionRemovedGuardTest` + `speed_dimension_removed_guard_test.cpp`，符号面
+  归零 + 常量钉死，同名角色属性 `speed`（身法）显式豁免）。零 Room 迁移、零 ProtoBuf
+  变更、零存档格式变更、零渲染面变更；存档审计 D1「倍速不持久化」随载体删除闭合
+  （`save-system-audit-2026-09-21.md` #2 已标注）。
+
 ### 角色卡池重构 G14 批（2026-09-27）——文档与发布收口（版本号三方归一 · 双 changelog 合并 · 结构计数终稿）— `docs(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G14.md`（派工真源，D-1…D-5 决策）
@@ -75,6 +97,7 @@
   `ElderSlots`/`SectPolicies` 退役号禁复用守卫；同步收窄 16 个既有测试文件（枚举守卫 6 / 手工快照 2 / 行为用例 8）。
 - **登记**：`docs/design/gacha-batches/report-G02.md` §保留项 #2 中「引导任务 17/18」为失真（实测受影响的为 13/14），
   已在该文件就地加勘误注记；版本号未动（用户拍板 P-3）。
+
 
 ### 角色卡池重构 G12 批（2026-09-27）——体验完成（历史·公示·图鉴完整态·引导·死文案清零·连抽打磨·Q31 色板对齐）— `feat(gacha)`
 

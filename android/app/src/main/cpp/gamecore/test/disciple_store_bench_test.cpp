@@ -4,7 +4,7 @@
 #include <cstdio>
 
 #include "gamecore/state/models.h"
-#include "gamecore/system/settlement.h"      // kMsPerPhase1x 常量
+#include "gamecore/system/settlement.h"      // kMsPerPhase 常量
 #include "gamecore/system/phase_settlement.h"
 
 namespace gamecore {

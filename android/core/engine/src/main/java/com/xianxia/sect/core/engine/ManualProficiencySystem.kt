@@ -95,7 +95,7 @@ object ManualProficiencySystem {
     ): Double {
         val perSecond = BASE_PROFICIENCY_RATE * (1.0 + libraryBonus)
         // 转为每旬
-        return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
+        return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE / 1000.0
     }
 
     fun calculateSkillDamageMultiplier(

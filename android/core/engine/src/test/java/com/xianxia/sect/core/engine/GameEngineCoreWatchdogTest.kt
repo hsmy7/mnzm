@@ -79,16 +79,6 @@ class GameEngineCoreWatchdogTest {
     // ── 自愈判据动作 ──
 
     @Test
-    fun `handleWatchdogVerdict - fake run with speed zero restores 1x without touching loop`() {
-        gameClock.setSpeed(0)
-
-        core.handleWatchdogVerdict(StallVerdict.FakeRunDetected)
-
-        assertEquals("speed must restore to 1x", 1, gameClock.speed)
-        verify(core, never()).emergencyRestartGameLoop()
-    }
-
-    @Test
     fun `handleWatchdogVerdict - fake run with frozen time triggers new-thread recovery`() {
         core.handleWatchdogVerdict(StallVerdict.FakeRunDetected)
 

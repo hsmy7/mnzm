@@ -309,7 +309,6 @@ internal fun GameEngineCore.prepareLoopStart(resetWatchdogAttempts: Boolean) {
 
     val gd = stateStore.gameDataSnapshot
     DomainLog.i(TAG, "startGameLoop: lifecycle=${stateStore.bootPhase.value}/${stateStore.runState.value}, " +
-        "speed=${gameClock.speed}, " +
         "year=${gd.gameYear}, month=${gd.gameMonth}, " +
         "sectName=${gd.sectName}")
 

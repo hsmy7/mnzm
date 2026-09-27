@@ -14,7 +14,7 @@ annotation class SettlementStrategy(val value: Strategy)
 enum class Strategy {
     /**
      * 始终保留 oldState —— 结算不修改此字段，玩家可能修改。
-     * 适用场景：游戏设置（gameSpeed、autoSaveInterval）、兑换码记录、宗门切换等。
+     * 适用场景：游戏设置（autoSaveInterval）、兑换码记录、宗门切换等。
      */
     PRESERVE_OLD,
 

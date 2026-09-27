@@ -10,17 +10,6 @@ using system::EngineLoop;
 using system::LoopFramePlan;
 using system::PhaseClock;
 
-// 追补公式双端对拍：本用例锁定 C++ 侧公式
-// maxPhasesPerTick(speed)=3×max(speed,1)（settlement.h 单一来源）；
-// Kotlin 侧对应 GameTimeClockPhaseCapParityTest（Kotlin core/engine tests）
-// 以同公式同常量锁定——两测互为锚点，改值须双端同步。
-TEST(PhaseCapParityTest, FormulaMatchesDocumentedConstant) {
-    EXPECT_EQ(system::maxPhasesPerTick(0), 3);
-    EXPECT_EQ(system::maxPhasesPerTick(1), 3);
-    EXPECT_EQ(system::maxPhasesPerTick(2), 6);
-    EXPECT_EQ(system::maxPhasesPerTick(-1), 3);  // 负速度消毒为 1x 档
-}
-
 // ============================================================
 // 引擎循环测试
 // PhaseClock 用例与 Kotlin GameTimeClockTest 逐条对齐（双端锚定
@@ -55,38 +44,11 @@ TEST_F(PhaseClockTest, Speed1x6000msAdvances3Phases) {
     EXPECT_EQ(3, simulateTick(6000));
 }
 
-// 3. 2x 速度下 1000ms 真实时间 = 2000ms 游戏时间 → 2 旬
-TEST_F(PhaseClockTest, Speed2x1000msAdvances2Phases) {
-    clock.setSpeed(2);
-    clock.start();
-    EXPECT_EQ(2, simulateTick(1000));
-}
-
-// 4. 2x 速度下 3000ms → 6 旬 = 缩放后上限（3×2）→ 恰好不截断
-TEST_F(PhaseClockTest, Speed2x3000msAtScaledCap) {
-    clock.setSpeed(2);
-    clock.start();
-    EXPECT_EQ(system::kMaxPhasesPerTick * 2, simulateTick(3000));
-}
-
-// 5. 暂停(speed=0) → 不推进任何旬
-TEST_F(PhaseClockTest, Speed0DoesNotAdvance) {
-    clock.setSpeed(0);
-    EXPECT_EQ(0, simulateTick(5000));
-}
-
-// 6. 速度切换中保存累积量（setSpeed 旧速度结算语义）
-TEST_F(PhaseClockTest, SpeedSwitchPreservesAccumulation) {
-    EXPECT_EQ(0, simulateTick(1500));
-    clock.setSpeed(2);
-    EXPECT_EQ(2, simulateTick(500));
-}
-
 // 7/8. phaseProgress / remainingPhaseMs
 TEST_F(PhaseClockTest, PhaseProgressBoundsAndRemaining) {
     clock.start();
     EXPECT_NEAR(0.f, clock.phaseProgress(), 0.01f);
-    EXPECT_EQ(system::kMsPerPhase1x, clock.remainingPhaseMs());
+    EXPECT_EQ(system::kMsPerPhase, clock.remainingPhaseMs());
 
     simulateTick(1000);
     EXPECT_GE(clock.phaseProgress(), 0.f);
@@ -99,35 +61,13 @@ TEST_F(PhaseClockTest, MultiPhaseInOneTickCappedAt3) {
     EXPECT_EQ(system::kMaxPhasesPerTick, simulateTick(8000));
 }
 
-// 12. 超大 delta 由缩放上限约束
-TEST_F(PhaseClockTest, LargeDeltaCappedByScaledCap) {
-    clock.setSpeed(2);
-    EXPECT_EQ(system::kMaxPhasesPerTick * 2, simulateTick(100'000));
-}
-
-// 13. 暂停后恢复：累积量不丢
-TEST_F(PhaseClockTest, PauseResumePreservesState) {
-    simulateTick(1000);
-    clock.setSpeed(0);
-    simulateTick(5000);
-    clock.setSpeed(1);
-    EXPECT_EQ(1, simulateTick(1000));
-}
-
 // 14/17/18. 冻结恢复截断 + 余量丢弃
-TEST_F(PhaseClockTest, Freeze20sCappedAtScaledMaxPhases) {
-    clock.setSpeed(2);
-    clock.start();
-    EXPECT_EQ(system::kMaxPhasesPerTick * 2, simulateTick(20'000));
-}
-
 TEST_F(PhaseClockTest, Freeze60sCappedTo3) {
     EXPECT_EQ(system::kMaxPhasesPerTick, simulateTick(60'000));
 }
 
 TEST_F(PhaseClockTest, CatchUpCapDiscardsRemainder) {
-    clock.setSpeed(2);
-    EXPECT_EQ(system::kMaxPhasesPerTick * 2, simulateTick(10'000));
+    EXPECT_EQ(system::kMaxPhasesPerTick, simulateTick(10'000));
     EXPECT_EQ(0, simulateTick(100));
 }
 
@@ -144,7 +84,7 @@ TEST_F(PhaseClockTest, ForceConsumeOnePhaseDeducts) {
     EXPECT_EQ(1500, clock.remainingPhaseMs());
 
     clock.forceConsumeOnePhase();
-    EXPECT_EQ(system::kMsPerPhase1x, clock.remainingPhaseMs());
+    EXPECT_EQ(system::kMsPerPhase, clock.remainingPhaseMs());
 }
 
 // 20/21/22. accumulatedGameMs 暴露语义
@@ -155,13 +95,6 @@ TEST_F(PhaseClockTest, AccumulatedGameMsGrowsWhileRunning) {
     EXPECT_EQ(500, clock.accumulatedGameMs());
     simulateTick(500);
     EXPECT_EQ(1000, clock.accumulatedGameMs());
-}
-
-TEST_F(PhaseClockTest, AccumulatedGameMsFrozenAtSpeedZero) {
-    clock.setSpeed(0);
-    clock.start();
-    simulateTick(5000);
-    EXPECT_EQ(0, clock.accumulatedGameMs());
 }
 
 TEST_F(PhaseClockTest, AccumulatedGameMsWrapsAfterPhaseConsumption) {
@@ -185,7 +118,7 @@ TEST_F(PhaseClockTest, RefundPhasesRestoresAccumulation) {
     EXPECT_EQ(1, simulateTick(2000));
     EXPECT_EQ(0, clock.accumulatedGameMs());
     clock.refundPhases(1);
-    EXPECT_EQ(system::kMsPerPhase1x, clock.accumulatedGameMs());
+    EXPECT_EQ(system::kMsPerPhase, clock.accumulatedGameMs());
     // 下个 tick 重新推进（累积消费模式无自动追补 → 归还后自然推进）
     EXPECT_EQ(1, simulateTick(100));
 }
@@ -200,14 +133,12 @@ TEST_F(PhaseClockTest, ConsumeDeadTimeSkipsAccumulation) {
     EXPECT_EQ(0, clock.tick());  // 3000ms 已作死区消费，仅 100ms 累积
 }
 
-// resetForTest（测试隔离专用）：速度/累积/墙钟基准全部回到初始
+// resetForTest（测试隔离专用）：累积/墙钟基准全部回到初始
 TEST_F(PhaseClockTest, ResetForTestRestoresInitialState) {
     simulateTick(1000);          // 累积 1000ms
-    clock.setSpeed(2);           // 速度 2
     clock.resetForTest();
-    EXPECT_EQ(1, clock.speed());            // 速度回 1
     EXPECT_EQ(0, clock.accumulatedGameMs());  // 累积清零
-    EXPECT_EQ(system::kMsPerPhase1x, clock.msPerPhase());
+    EXPECT_EQ(system::kMsPerPhase, clock.msPerPhase());
     // 墙钟基准归零：推进 2000ms → 恰好 1 旬（不补旧基准）
     fakeTime.setNowMs(2000);
     EXPECT_EQ(1, clock.tick());
@@ -359,10 +290,9 @@ TEST_F(EngineLoopTest, ResetForTestClearsOwnerRebase) {
     EXPECT_FALSE(loop.consumeOwnerRebasePending());
 }
 
-// resetForTest（测试隔离专用）：tick 计数/速度/累积/帧状态/活跃基准全部归零。
+// resetForTest（测试隔离专用）：tick 计数/累积/帧状态/活跃基准全部归零。
 // start() 保留 tickCount（生产语义：跨循环重启保留），resetForTest 才全清
 TEST_F(EngineLoopTest, ResetForTestClearsEveryState) {
-    loop.time().setSpeed(2);
     loop.iterate(false, false);
     fakeTime.advanceMs(500);
     loop.iterate(false, false);          // 5 tick，tickTotal=5
@@ -371,7 +301,6 @@ TEST_F(EngineLoopTest, ResetForTestClearsEveryState) {
 
     loop.resetForTest();
     EXPECT_EQ(0, loop.tickCount());
-    EXPECT_EQ(1, loop.time().speed());          // 速度回 1
     EXPECT_EQ(0, loop.time().accumulatedGameMs());
     // 重置后首帧：delta=0、idleNs=-1（活跃基准已清）
     const LoopFramePlan plan = loop.iterate(false, false);
@@ -380,13 +309,11 @@ TEST_F(EngineLoopTest, ResetForTestClearsEveryState) {
     EXPECT_EQ(-1, plan.idleNs);
 }
 
-// 时间状态机经 EngineLoop::time() 通道（setSpeed/refund；refund 按当前速度
-// 的 msPerPhase 归还——Kotlin refundPhases 同语义）
+// 时间状态机经 EngineLoop::time() 通道（refund 按 msPerPhase 归还——
+// Kotlin refundPhases 同语义）
 TEST_F(EngineLoopTest, TimeStateMachineAccessible) {
-    loop.time().setSpeed(2);
-    EXPECT_EQ(2, loop.time().speed());
     loop.time().refundPhases(1);
-    EXPECT_EQ(system::kMsPerPhase1x / 2, loop.time().accumulatedGameMs());
+    EXPECT_EQ(system::kMsPerPhase, loop.time().accumulatedGameMs());
 }
 
 // 平台端口默认实现：SteadyMonotonicClock 单调可用

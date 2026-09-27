@@ -1,9 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.util.DomainLog
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,15 +23,11 @@ fun interface TimeSource {
  *   使用 elapsedRealtime() 而非 currentTimeMillis() 的原因：
  *   currentTimeMillis() 会因 NTP 同步/用户调整时间而跳动（甚至回退），
  *   elapsedRealtime() 是单调递增的，不受墙上时钟变化影响。
- * - 游戏时间 (game time)：单调时钟 × speed，受暂停/倍速影响
- * - 旬推进 (phase tick)：固定 2s/tick（1x 下），由累积器消费游戏时间产出
+ * - 游戏时间 (game time)：单调时钟差值直接累加（单一时速，无倍率）
+ * - 旬推进 (phase tick)：固定 2s/tick，由累积器消费游戏时间产出
  *
- * ## 速度映射
- * | speed | 旬间隔 | 月间隔 |
- * |-------|--------|--------|
- * |   0   |   ∞    |   ∞    |  (暂停)
- * |   1   |  2.0s  |  6.0s  |
- * |   2   |  1.0s  |  3.0s  |
+ * 暂停语义唯一载体是 GameStateStore.isPaused（引擎循环暂停分支消费死区，
+ * 本时钟不承载暂停状态）。
  */
 @Singleton
 class GameTimeClock @Inject constructor(
@@ -43,27 +36,13 @@ class GameTimeClock @Inject constructor(
 
     // ── 公开状态 ──
 
-    /** 当前速度：0=暂停, 1=1x, 2=2x */
-    @Volatile
-    var speed: Int = 1
-        private set
-
-    private val _speedFlow = MutableStateFlow(1)
-    val speedFlow: StateFlow<Int> = _speedFlow.asStateFlow()
-
-    /** 当前旬的游戏时间毫秒数（随速度变化） */
+    /** 每旬对应的真实时间毫秒数（单一时速） */
     val msPerPhase: Long
-        get() = when (speed) {
-            0 -> Long.MAX_VALUE
-            1 -> MS_PER_PHASE_1X
-            2 -> MS_PER_PHASE_1X / 2
-            else -> MS_PER_PHASE_1X
-        }
+        get() = MS_PER_PHASE
 
     /** 当前旬进度 0.0~1.0（UI 进度条用） */
     val phaseProgress: Float
         get() {
-            if (speed == 0) return 0f
             val denom = msPerPhase.toFloat()
             if (denom <= 0f) return 0f
             return (accumulatedGameMsInternal.toFloat() / denom).coerceIn(0f, 1f)
@@ -75,13 +54,13 @@ class GameTimeClock @Inject constructor(
 
     // ── 内部状态 ──
 
-    /** @Volatile（S3）：引擎线程 tick()/setSpeed() 与看门狗自愈 setSpeed(1) 跨线程 +=，
+    /** @Volatile（S3）：引擎线程 tick()/镜像推送 mirrorFromNative 与看门狗采样跨线程 +=，
      *  非 volatile 在 32 位设备上 Long 撕裂读 + 丢失更新（±一旬级） */
     @Volatile
     private var accumulatedGameMsInternal: Long = 0L
     private var lastWallMs: Long = 0L
 
-    /** 当旬已累积的游戏时间毫秒数（进度监控快照输入，speed>0 时单调增长） */
+    /** 当旬已累积的游戏时间毫秒数（进度监控快照输入，单调增长至追补上限清零） */
     val accumulatedGameMs: Long
         get() = accumulatedGameMsInternal
 
@@ -94,34 +73,8 @@ class GameTimeClock @Inject constructor(
     }
 
     /**
-     * 切换速度。保留已累积的游戏时间，防止切换时丢失进度。
-     * @param newSpeed 0=暂停, 1=1x, 2=2x
-     */
-    fun setSpeed(newSpeed: Int) {
-        val now = timeSource.elapsedRealtime()
-        // 先结算从上次取样到此刻的累积量（用旧速度）
-        if (speed > 0) {
-            accumulatedGameMsInternal += (now - lastWallMs) * speed
-        }
-        lastWallMs = now
-        speed = newSpeed.coerceIn(0, 2)
-        _speedFlow.value = speed
-        // AUTHORITATIVE 下速度真相源在 native 引擎循环——
-        // 经钩子同步推送（GameEngineCore init 注册；OFF 模式无消费者）
-        onSpeedChanged?.invoke(speed)
-    }
-
-    /**
-     * 速度变更监听：AUTHORITATIVE 模式下由 GameEngineCore
-     * 注册，推送 native PhaseClock 真相源（旧速度结算语义在两端各自保证）。
-     * UI 直接调 [setSpeed] 不感知本钩子。
-     */
-    @Volatile
-    var onSpeedChanged: ((Int) -> Unit)? = null
-
-    /**
      * AUTHORITATIVE 镜像推送：native 引擎循环为时间真相源，
-     * 本时钟降级为 UI 展示镜像（phaseProgress/remainingPhaseMs/speedFlow 消费方
+     * 本时钟降级为 UI 展示镜像（phaseProgress/remainingPhaseMs 消费方
      * 不变）。镜像同时刷新墙钟基准——回退 OFF 模式时无缝接管。
      */
     fun mirrorFromNative(newAccumulatedGameMs: Long) {
@@ -146,23 +99,19 @@ class GameTimeClock @Inject constructor(
         lastWallMs = now
 
         // rawDelta 不做单次上限裁剪——防爆炸式跳变由下方 MAX_PHASES_PER_TICK
-        // 追补上限（按速度缩放）承担，此处保留原始增量供 accumulatedGameMs 累积
+        // 追补上限承担，此处保留原始增量供 accumulatedGameMs 累积
         // 理论负值边界防御（单调时钟不该回拨——负值会反向扣减累积）
         val realDelta = rawDelta.coerceAtLeast(0)
 
-        if (speed > 0) {
-            accumulatedGameMsInternal += realDelta * speed
-        }
+        accumulatedGameMsInternal += realDelta
 
         var phases = (accumulatedGameMsInternal / msPerPhase).toInt()
 
-        // 单 tick 追补上限（1x=3 旬、2x=6 旬）——OEM 挂起/
+        // 单 tick 追补上限（常量 3 旬）——OEM 挂起/
         // 看门狗重启时单帧连续执行数十个完整事务、看门狗与业务互搏。
         // 追补源是异常挂起（非正常离线），玩家应尽快回到实时——
         // 触发上限时丢弃余量并记录，而非留存分摊。
-        // 上限按速度缩放：旧固定阈值 3 在 2x 下引擎阻塞 1.5s 即触发丢弃（正常玩法误伤），
-        // 缩放后按真实时间对称（两种速度下均约 6s 阻塞触发）。
-        val phaseCap = maxPhasesPerTick(speed)  // D6 单一来源
+        val phaseCap = MAX_PHASES_PER_TICK
         if (phases > phaseCap) {
             DomainLog.w(TAG, "tick catch-up capped at $phaseCap phases, dropped ${phases - phaseCap}")
             phases = phaseCap
@@ -220,23 +169,16 @@ class GameTimeClock @Inject constructor(
     companion object {
         private const val TAG = "GameTimeClock"
 
-        /** 1x 速度下每旬对应的真实时间毫秒数 */
-        const val MS_PER_PHASE_1X: Long = 2000L
+        /** 每旬对应的真实时间毫秒数（单一时速） */
+        const val MS_PER_PHASE: Long = 2000L
 
         /**
          * 单 tick 最大追补旬数。
          * 超过即丢弃余量并记录日志——追补源是 OEM 挂起/看门狗重启，玩家应尽快回到实时。
-         * 防爆炸式跳变的唯一上限（按速度缩放）。
+         * 防爆炸式跳变的唯一上限。
+         * C++ 同源锚点：settlement.h kMaxPhasesPerTick（同常量，
+         * PhaseCapParityTest + DiffEngineLoopTest 双端锁定；改值须双端同步）。
          */
         const val MAX_PHASES_PER_TICK: Int = 3
-
-        /**
-         * 单 tick 追补上限公式（——双端单一来源）：
-         * maxPhasesPerTick(speed) = MAX_PHASES_PER_TICK × max(speed, 1)。
-         * C++ 同源锚点：settlement.h maxPhasesPerTick(speed)（同公式同常量，
-         * PhaseCapParityTest 双端各自锁定；改值须双端同步）。
-         * 2x 挂起 ≥6s 时计划 6 旬全部执行——不再被无缩放 cap 静默丢旬。
-         */
-        fun maxPhasesPerTick(speed: Int): Int = MAX_PHASES_PER_TICK * speed.coerceAtLeast(1)
     }
 }

@@ -4,28 +4,26 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 追补公式双端对拍（ / 方案第六部分护栏 PhaseCapParityTest）：
- * 锁定 Kotlin 侧公式 maxPhasesPerTick(speed)=MAX_PHASES_PER_TICK×max(speed,1)
- * （GameTimeClock companion 单一来源）；C++ 侧对应 engine_loop_test.cpp 的
- * PhaseCapParityTest（settlement.h maxPhasesPerTick 同公式同常量）——
- * 两测互为锚点，改值须双端同步。
- *
- * 语义：2x 速度下挂起 ≥6s 计划 6 旬全部执行——不再被无缩放 cap(3) 静默丢旬
- * 且不 refund（游戏时间相对墙钟持续变慢的根因）。
+ * 追补上限/旬时常量锚（单一时速，无速度维度）：
+ * 锁定 MAX_PHASES_PER_TICK == 3 与 MS_PER_PHASE == 2000ms
+ * （GameTimeClock companion 单一来源）。符号面已无 maxPhasesPerTick(speed)
+ * 参数化公式——速度维度整体删除后，追补上限与速度解耦为常量。
+ * 双端行为等价由 DiffEngineLoopTest 对拍承接（3000/8000/60000ms 同输入同输出）；
+ * C++ 侧常量锚：settlement.h kMaxPhasesPerTick / kMsPerPhase +
+ * engine_loop_test.cpp MultiPhaseInOneTickCappedAt3（8000ms → 3 旬）。
+ * 改值须双端同步。
  */
 class GameTimeClockPhaseCapParityTest {
-
-    @Test
-    fun `formula scales with speed`() {
-        assertEquals(3, GameTimeClock.maxPhasesPerTick(0))
-        assertEquals(3, GameTimeClock.maxPhasesPerTick(1))
-        assertEquals(6, GameTimeClock.maxPhasesPerTick(2))
-        assertEquals(3, GameTimeClock.maxPhasesPerTick(-1))  // 负速度消毒为 1x 档
-    }
 
     @Test
     fun `base constant is the documented 3`() {
         // 双端锚定常量：C++ settlement.h kMaxPhasesPerTick = 3
         assertEquals(3, GameTimeClock.MAX_PHASES_PER_TICK)
+    }
+
+    @Test
+    fun `msPerPhase is the documented single-speed 2000ms`() {
+        // 双端锚定常量：C++ settlement.h kMsPerPhase = 2000（单一时速）
+        assertEquals(2000L, GameTimeClock.MS_PER_PHASE)
     }
 }

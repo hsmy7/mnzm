@@ -162,6 +162,10 @@ add_executable(game-core-tests
     # W4-00 新增：分派覆盖守卫（防「区间写法吞掉动作号」缺陷复发；
     # 见 test/dispatch_guard_test.cpp 与本文件末尾的 _w4 batch 段说明）
     dispatch_guard_test.cpp
+    # 删二倍速批：速度维度 C++ 侧结构守卫（PhaseClock/SettlementEngine/
+    # watchdog 符号面归零 + JNI 速度端口清零 + 双端常量钉死；
+    # 与 Kotlin SpeedDimensionRemovedGuardTest 对称）
+    speed_dimension_removed_guard_test.cpp
     # ── W4 三批次并行的测试源清单（W4-00 并行前置批切分）──────────────────
     # 三个并行批次各写自己的 w4X_tests.cmake（本文件此后冻结，见
     # docs/parallel-batches-w4/README.md §3.1 项 4 与 §5.3）。

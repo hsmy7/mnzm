@@ -328,7 +328,7 @@ MainActivity 隐私同意 → :379 proceedAfterPrivacyConsent
 | # | 状态 | 持有者 | 重启后行为 | 影响 | 证据 |
 |---|---|---|---|---|---|
 | 1 | **上次所在页签** | `GameStateStoreImpl.kt:123 activeTab = "OVERVIEW"` | **恒回首页**，每次重开要重新导航。`activeDialog:126`、`activeSubDialogs:129`（引擎用它解析 `FocusDomain`，影响 LOD/暂停域）同丢 | 高 | A |
-| 2 | **游戏倍速** | `GameTimeClock.kt:48`；**`SaveService.kt:66` 直接硬编码 `gameSpeed = 1`**（已亲自验到） | 2× 玩家每次回到 1× | 中高 | A |
+| 2 | **游戏倍速** | `GameTimeClock.kt:48`；**`SaveService.kt:66` 直接硬编码 `gameSpeed = 1`**（已亲自验到） | 2× 玩家每次回到 1× —— **✅ 已随二倍速整维删除闭合（2026-09-27，docs/design/remove-2x-speed-implementation-plan.md：速度选择载体不复存在，1x 为唯一时速）** | 中高 | A |
 | 3 | **筛选/排序/选中** | `DisciplesTab.kt:43-48`、`WarehouseTab.kt:153-155`、`MessageBarHost.kt:33-35` | 全清 | 中高 | A |
 | 4 | **当前游玩槽位** | `StorageFacade.kt:139` / `StorageEngine.kt:117` 纯内存 `MutableStateFlow(1)`；进程存活期靠 Bundle（`GameActivity.kt:794`→`:726`） | 无"继续上次槽位"概念，兜底回 slot 1（`SaveOps.kt:27 ?: 1`） | 中 | A |
 | 5 | **5 个瞬态队列** | `GameStateStoreImpl.kt:231-240`：`pendingBattleResult`、`pendingNotification`/`notifications`、`pendingBattleRewardCards`/`rewardCardQueue`、`pendingBeastAttacks`、`pendingMarriageProposals` | 清空，且 `:1413 clearTransientQueues()` **主动清**（防换档幽灵弹窗），且不重算 | 中——**后果已在结算中发生，丢的是玩家响应入口**（妖兽来袭选择窗、战斗结算窗） | A |

@@ -13,7 +13,7 @@ import org.junit.Test
  */
 class GameTimeProgressMonitorTest {
 
-    @Suppress("LongParameterList") // 测试快照构造器：12 个字段与快照一一对应
+    @Suppress("LongParameterList") // 测试快照构造器：11 个字段与快照一一对应
     private fun snapshot(
         tickCount: Long = 10L,
         totalPhases: Long = 100L,
@@ -22,7 +22,6 @@ class GameTimeProgressMonitorTest {
         isPaused: Boolean = false,
         isSaving: Boolean = false,
         isLoading: Boolean = false,
-        speed: Int = 1,
         secretRealmPauseLock: Boolean = false,
         secretRealmPauseRenewedAtMs: Long = 0L,
         loopActiveAtMs: Long = 0L,
@@ -35,7 +34,6 @@ class GameTimeProgressMonitorTest {
         isPaused = isPaused,
         isSaving = isSaving,
         isLoading = isLoading,
-        speed = speed,
         secretRealmPauseLock = secretRealmPauseLock,
         secretRealmPauseRenewedAtMs = secretRealmPauseRenewedAtMs,
         loopActiveAtMs = loopActiveAtMs,
@@ -111,14 +109,6 @@ class GameTimeProgressMonitorTest {
             snapshot(tickCount = 300, totalPhases = 100, accumulatedGameMs = 100, recordedAtMs = 200_000L)
         )
         assertEquals(StallVerdict.FakeRunDetected, beyondWindow)
-    }
-
-    @Test
-    fun `evaluate - speed zero and not paused returns FakeRunDetected immediately`() {
-        val monitor = GameTimeProgressMonitor()
-        monitor.evaluate(snapshot(speed = 0, recordedAtMs = 1_000L))
-        val verdict = monitor.evaluate(snapshot(tickCount = 11, speed = 0, recordedAtMs = 2_000L))
-        assertEquals(StallVerdict.FakeRunDetected, verdict)
     }
 
     @Test
@@ -314,14 +304,6 @@ class GameTimeProgressMonitorTest {
                 loopActiveAtMs = 1_000L, recordedAtMs = 30_000L)
         )
         assertEquals(StallVerdict.Healthy, verdict)
-    }
-
-    @Test
-    fun `evaluate - V6 speed zero detected on first evaluation`() {
-        // 首调即判 speed=0（不延迟一个评估周期）
-        val monitor = GameTimeProgressMonitor()
-        val verdict = monitor.evaluate(snapshot(speed = 0, recordedAtMs = 1_000L))
-        assertEquals(StallVerdict.FakeRunDetected, verdict)
     }
 
     @Test

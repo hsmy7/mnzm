@@ -41,19 +41,10 @@ fun GameEngineCore.handleWatchdogVerdict(verdict: StallVerdict) {
     when (verdict) {
         StallVerdict.Healthy, StallVerdict.PausedByOwner -> Unit
         StallVerdict.FakeRunDetected -> {
-            if (gameClock.speed == 0) {
-                // speed=0 假运行：时钟暂停但循环健康，直接恢复 1x（不动线程）
-                DomainLog.w(TAG,
-                    "Watchdog: fake run detected (speed=0), restoring speed to 1x")
-                gameClock.setSpeed(1)
-                gameClock.consumeDeadTime()
-            } else {
-                // speed>0 但世界时间冻结：时钟异常，走换线程恢复
-                DomainLog.w(TAG,
-                    "Watchdog: fake run detected (time frozen at speed=${gameClock.speed}), " +
-                    "recovering with new thread")
-                performWatchdogRecovery()
-            }
+            // tick 在跑但世界时间冻结：时钟异常，走换线程恢复
+            DomainLog.w(TAG,
+                "Watchdog: fake run detected (world time frozen), recovering with new thread")
+            performWatchdogRecovery()
         }
         StallVerdict.StalePauseDetected -> {
             // 秘境暂停锁残留（界面已销毁但 exitExploration 丢失）→ 自愈
