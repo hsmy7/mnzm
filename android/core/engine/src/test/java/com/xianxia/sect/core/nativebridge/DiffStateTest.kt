@@ -72,7 +72,39 @@ class DiffStateTest {
             .applyGameDataScalarsPart2()
             .applyGameDataNestedPart1()
             .applyGameDataNestedPart2()
+            .normalizedForRoundTrip()
     )
+
+    /**
+     * 结算改造 B3 归一化预置：C++ `ensureBaselineTimeAxis` 会在导入时把
+     * "权威轴零值 + 日历非初值"状态回填为已归一化形态（方案 §4.1 读档归一化）。
+     * 受控样本按同一公式（GameConfig.Time，与 C++ 双端守卫锁定）预置换算结果，
+     * 保持"已归一化状态导入逐字段忠实"的被测契约。
+     */
+    private fun GameData.normalizedForRoundTrip(): GameData = apply {
+        elapsedGameMs = com.xianxia.sect.core.GameConfig.Time
+            .calendarToGameMs(gameYear, gameMonth, gamePhase)
+        lastSettleGameMs = elapsedGameMs
+        if (spiritMineLastSettledMonth > 0 && spiritMineLastSettledGameMs == 0L) {
+            val abs = spiritMineLastSettledMonth
+            spiritMineLastSettledGameMs = com.xianxia.sect.core.GameConfig.Time
+                .calendarToGameMs((abs - 1) / 12 + 1, (abs - 1) % 12 + 1, 0)
+        }
+        productionSlots = productionSlots.map { s ->
+            if (s.startedAtGameMs == 0L && s.startYear >= 1) {
+                val startedAt = com.xianxia.sect.core.GameConfig.Time
+                    .calendarToGameMs(s.startYear, s.startMonth, 0)
+                s.copy(
+                    startedAtGameMs = startedAt,
+                    completeAtGameMs = startedAt + s.duration *
+                        com.xianxia.sect.core.GameConfig.Time.GAME_SECONDS_PER_MONTH
+                            .toLong() * 1000L
+                )
+            } else {
+                s
+            }
+        }
+    }
 
     /** 标量字段（第 1 组）：id → playerHasAttackedAI。 */
     private fun GameData.applyGameDataScalarsPart1(): GameData = apply {
@@ -219,7 +251,7 @@ class DiffStateTest {
 
     /** 受控样本：弟子 + 物品全列表（与 assertRoundTrip 逐字段对拍）。 */
     private fun disciplesAndItemsRoundTripSample(): NativeGameState = NativeGameState(
-        gameData = GameData().apply { gameYear = 3 },
+        gameData = GameData().apply { gameYear = 3 }.normalizedForRoundTrip(),
         disciples = sampleDisciples(),
         equipmentStacks = listOf(
             EquipmentStack(

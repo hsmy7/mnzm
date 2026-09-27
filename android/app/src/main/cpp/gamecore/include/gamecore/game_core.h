@@ -312,6 +312,12 @@ private:
     /// 生成零 RNG（seed+坐标纯函数），调用点位于 resetBaseline 之前 ⇒
     /// 生成段计入导入基线，前向/反向镜像零载荷。
     void ensureTerrainGenerated();
+    /// 双轨时间权威轴回填（结算改造 2026-09-27 B3）：旧档 elapsedGameMs==0
+    /// 且日历非初值 ⇒ 按日历换算回填权威轴（lastSettleGameMs 同刻）；
+    /// 生产槽位 startedAtGameMs==0 且 startYear>0 ⇒ 按 startYear/startMonth
+    /// 回填（completeAtGameMs 按 duration 折算）。幂等（有值不覆盖）；
+    /// 调用点位于 resetBaseline 之前 ⇒ 回填计入导入基线，镜像零载荷。
+    void ensureBaselineTimeAxis();
     /// initialize(config) 的配置留存（ensureTerrainGenerated 消费地形参数）
     GameCoreConfig config_;
     /// 异构写入锁存（[noteNonSettlementMutation]；导出后消费清零）

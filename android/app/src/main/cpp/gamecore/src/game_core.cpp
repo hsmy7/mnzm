@@ -656,6 +656,9 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
             // （跨版本冻结，不重算）。先于 resetBaseline ⇒ 生成段计入导入基线，
             // 前向/反向镜像零载荷（稳态每旬零增量）。
             ensureTerrainGenerated();
+            // 双轨时间权威轴回填（B3）：旧档权威轴零值按日历换算——
+            // 先于 resetBaseline ⇒ 回填计入导入基线，前向/反向镜像零载荷
+            ensureBaselineTimeAxis();
             dirtyTracker_.resetBaseline(state_);
             // R2.4/B09：导入整体替换 state_ ⇒ 新 DiscipleStore 的写屏障指针随
             // 对象归零，必须重挂；列级基线（位图/非弟子域块）同点重置，
@@ -705,6 +708,49 @@ void GameCore::ensureTerrainGenerated() {
         config_.terrainDecorationDensity, gd.mapSeed,
         config_.terrainBorderTreeRing, gate);
     gd.mapGenVersion = config_.terrainMapGenVersion;
+}
+
+// ── 双轨时间权威轴回填（结算改造 2026-09-27 B3）─────────────────────
+// 旧档只有日历字段（elapsedGameMs==0）⇒ 按 INV-1 派生关系反推权威轴：
+// elapsed = calendarToGameMs(year, month, phase)（time_system.h 唯一口径，
+// 与 Kotlin GameConfig.Time.calendarToGameMs / TimeAxisRule 同公式同值）。
+// 生产槽位同理按 startYear/startMonth（月初 phase=0）回填 startedAt，
+// completeAt = startedAt + duration × 月长毫秒。幂等（有值不覆盖）；
+// 读档不追补墙钟（方案 §4.1 盲区口径：一律以档内权威轴为准）。
+void GameCore::ensureBaselineTimeAxis() {
+    auto& gd = state_.gameData;
+    const bool calendarAtOrigin =
+        gd.gameYear <= 1 && gd.gameMonth <= 1 && gd.gamePhase <= 0;
+    if (gd.elapsedGameMs <= 0) {
+        if (calendarAtOrigin) {
+            gd.elapsedGameMs = 0;   // 新档初值态：权威轴与日历同在原点
+        } else {
+            gd.elapsedGameMs = system::calendarToGameMs(
+                gd.gameYear, gd.gameMonth, gd.gamePhase);
+        }
+        gd.lastSettleGameMs = gd.elapsedGameMs;
+    }
+    if (gd.lastSettleGameMs < 0) gd.lastSettleGameMs = 0;
+    if (gd.lastSettleGameMs > gd.elapsedGameMs) gd.lastSettleGameMs = gd.elapsedGameMs;
+    // 灵矿毫秒孪生：旧字段为绝对月（year*12+month 口径）⇒ 换算落 twin；
+    // B6 切换差分判据前不消费，仅保持双端可见面一致
+    if (gd.spiritMineLastSettledGameMs <= 0 && gd.spiritMineLastSettledMonth > 0) {
+        const int64_t absMonth = gd.spiritMineLastSettledMonth;
+        const int32_t y = static_cast<int32_t>((absMonth - 1) / 12);
+        const int32_t m = static_cast<int32_t>((absMonth - 1) % 12) + 1;
+        if (y >= 1 && m >= 1 && m <= 12) {
+            gd.spiritMineLastSettledGameMs = system::calendarToGameMs(y, m, 0);
+        }
+    }
+    for (auto& slot : gd.productionSlots) {
+        if (slot.startedAtGameMs <= 0 && slot.startYear >= 1 && slot.startMonth >= 1) {
+            slot.startedAtGameMs = system::calendarToGameMs(
+                slot.startYear, slot.startMonth, 0);
+            slot.completeAtGameMs = slot.startedAtGameMs +
+                static_cast<int64_t>(slot.duration) *
+                static_cast<int64_t>(system::kGameSecondsPerMonth * 1000.0);
+        }
+    }
 }
 
 std::string GameCore::exportDirtyJson() {

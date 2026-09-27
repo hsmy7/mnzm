@@ -198,6 +198,10 @@ class DiffAuthoritativeTickTest {
                 // 年俸配置（realm9）
                 yearlySalary = mapOf(9 to SALARY_REALM9.toInt())
                 yearlySalaryEnabled = mapOf(9 to true)
+                // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+                // "轴零值+日历非初值"的导入回填；期望侧与实际侧取同一换算值）
+                elapsedGameMs = GameConfig.Time.calendarToGameMs(1, 10, 0)
+                lastSettleGameMs = elapsedGameMs
             }
         )
         return NativeGameState(

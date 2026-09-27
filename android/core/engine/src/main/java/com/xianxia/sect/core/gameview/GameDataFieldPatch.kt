@@ -132,6 +132,11 @@ internal object GameDataFieldPatch {
         f("gameYear", { gd, el, j -> gd.gameYear = j.decodeFromJsonElement<Int>(el) }),
         f("gameMonth", { gd, el, j -> gd.gameMonth = j.decodeFromJsonElement<Int>(el) }),
         f("gamePhase", { gd, el, j -> gd.gamePhase = j.decodeFromJsonElement<Int>(el) }),
+        f("elapsedGameMs", { gd, el, j -> gd.elapsedGameMs = j.decodeFromJsonElement<Long>(el) }),
+        f("lastSettleGameMs", { gd, el, j -> gd.lastSettleGameMs = j.decodeFromJsonElement<Long>(el) }),
+        f("spiritMineLastSettledGameMs", { gd, el, j ->
+            gd.spiritMineLastSettledGameMs = j.decodeFromJsonElement<Long>(el)
+        }),
         f("spiritStones", { gd, el, j -> gd.spiritStones = j.decodeFromJsonElement<Long>(el) }),
         f("midGradeSpiritStones", { gd, el, j -> gd.midGradeSpiritStones = j.decodeFromJsonElement<Long>(el) }),
         f("highGradeSpiritStones", { gd, el, j -> gd.highGradeSpiritStones = j.decodeFromJsonElement<Long>(el) }),

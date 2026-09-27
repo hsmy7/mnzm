@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -176,7 +177,11 @@ class DiffYearSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 场景②：年俸配置（realm9 启用 500；字段为只读 Map 接口，整体替换赋值）
+            // 场景②：年俸配置（realm9 启用 500；字段为只读 Map 接口，整体替换赋值）            // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+            // "轴零值+日历非初值"的导入回填；期望侧与实际侧取同一换算值）
+            elapsedGameMs = GameConfig.Time.calendarToGameMs(1, 12, 2)
+            lastSettleGameMs = elapsedGameMs
+
             yearlySalary = mapOf(9 to SALARY_REALM9.toInt())
             yearlySalaryEnabled = mapOf(9 to true)
             // 场景规避：商人刷新机会首次授予（Kotlin 臂 mock 的
@@ -462,7 +467,11 @@ class DiffYearSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            merchantLastRefreshChanceGrantYear = 6
+            merchantLastRefreshChanceGrantYear = 6            // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+            // "轴零值+日历非初值"的导入回填；期望侧与实际侧取同一换算值）
+            elapsedGameMs = GameConfig.Time.calendarToGameMs(6, 12, 2)
+            lastSettleGameMs = elapsedGameMs
+
             // 月变步骤 4e（关卡刷新生成）规避：玩家宗门在场会触发 C++ 侧
             // 关卡生成（Kotlin 臂 SystemManager 未装 WorldLevelSystem 零生成
             // 失配）——lastRefreshMonth 置远未来哨兵使 shouldRefresh 恒 false

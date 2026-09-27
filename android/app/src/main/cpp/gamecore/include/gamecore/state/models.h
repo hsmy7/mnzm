@@ -589,6 +589,10 @@ struct ProductionSlot {
     bool autoRestartEnabled = false;
     int32_t completionMonth = 0;
     int32_t completionPhase = 1;  // Kotlin ProductionSlot 默认 1（S4 对拍对齐）
+    // 连续时长模型（结算改造 2026-09-27 B3/B5）：毫秒孪生，0=旧档未回填；
+    // B5 切换差分判据前不消费
+    int64_t startedAtGameMs = 0;
+    int64_t completeAtGameMs = 0;
 };
 
 /// GridBuildingData（已放置建筑）
@@ -1203,6 +1207,12 @@ struct GameData {
     int32_t gameYear = 1;
     int32_t gameMonth = 1;
     int32_t gamePhase = 0;
+    // ── 双轨时间权威轴（结算改造 2026-09-27 B3；协议键 = Kotlin 字段名）──
+    // INV-1：日历是 elapsedGameMs 的派生投影。旧档 0 值由 importStateInternal
+    // 的 ensureBaselineTimeAxis 按日历换算回填（与 Kotlin TimeAxisRule 同公式）。
+    int64_t elapsedGameMs = 0;
+    int64_t lastSettleGameMs = 0;
+    int64_t spiritMineLastSettledGameMs = 0;   // B6 切换判据前恒 0 不消费
     // 资源
     int64_t spiritStones = 1000;
     int64_t midGradeSpiritStones = 0;

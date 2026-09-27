@@ -433,6 +433,7 @@ void to_json(nlohmann::json& j, const ProductionSlot& v) {
     GC_TO(v, j, outputItemRarity); GC_TO(v, j, outputItemSlot);
     GC_TO(v, j, expectedYield); GC_TO(v, j, autoRestartEnabled);
     GC_TO(v, j, completionMonth); GC_TO(v, j, completionPhase);
+    GC_TO(v, j, startedAtGameMs); GC_TO(v, j, completeAtGameMs);
 }
 void from_json(const nlohmann::json& j, ProductionSlot& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, slotIndex);
@@ -446,6 +447,8 @@ void from_json(const nlohmann::json& j, ProductionSlot& v) {
     GC_FROM(j, v, outputItemRarity); GC_FROM(j, v, outputItemSlot);
     GC_FROM(j, v, expectedYield); GC_FROM(j, v, autoRestartEnabled);
     GC_FROM(j, v, completionMonth); GC_FROM(j, v, completionPhase);
+    // 连续时长模型（B3；缺键宽松=旧档默认 0，读档归一化按旧字段换算）
+    GC_FROM(j, v, startedAtGameMs); GC_FROM(j, v, completeAtGameMs);
 }
 
 void to_json(nlohmann::json& j, const GridBuildingData& v) {
@@ -1172,6 +1175,9 @@ void to_json(nlohmann::json& j, const GameData& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, id); GC_TO(v, j, sectName); GC_TO(v, j, currentSlot);
     GC_TO(v, j, gameYear); GC_TO(v, j, gameMonth); GC_TO(v, j, gamePhase);
+    // 双轨时间权威轴（B3；导出键 = Kotlin 字段名）
+    GC_TO(v, j, elapsedGameMs); GC_TO(v, j, lastSettleGameMs);
+    GC_TO(v, j, spiritMineLastSettledGameMs);
     GC_TO(v, j, spiritStones); GC_TO(v, j, midGradeSpiritStones);
     GC_TO(v, j, highGradeSpiritStones); GC_TO(v, j, spiritHerbs);
     GC_TO(v, j, sectCultivation);
@@ -1263,6 +1269,9 @@ void to_json(nlohmann::json& j, const GameData& v) {
 void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
     GC_FROM(j, v, gameYear); GC_FROM(j, v, gameMonth); GC_FROM(j, v, gamePhase);
+    // 双轨时间权威轴（B3；缺键宽松=旧档默认 0，读档归一化按日历回填）
+    GC_FROM(j, v, elapsedGameMs); GC_FROM(j, v, lastSettleGameMs);
+    GC_FROM(j, v, spiritMineLastSettledGameMs);
     GC_FROM(j, v, spiritStones); GC_FROM(j, v, midGradeSpiritStones);
     GC_FROM(j, v, highGradeSpiritStones); GC_FROM(j, v, spiritHerbs);
     GC_FROM(j, v, sectCultivation);

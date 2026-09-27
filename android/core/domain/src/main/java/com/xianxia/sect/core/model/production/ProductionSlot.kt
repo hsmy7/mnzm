@@ -101,7 +101,24 @@ data class ProductionSlot(
      */
     @ProtoNumber(21)
     @ColumnInfo(defaultValue = "")
-    val buildingInstanceId: String = ""
+    val buildingInstanceId: String = "",
+
+    /**
+     * 开工绝对游戏毫秒（结算改造 2026-09-27 B3/B5 连续时长模型；方案 §2.3/§4.1）。
+     * 0 = 旧档未回填——读档归一化按 startYear/startMonth 换算（月初 phase=0）；
+     * B5 切换差分判据前恒 0 不消费，startYear/startMonth 保持唯一判据。
+     */
+    @ProtoNumber(23)
+    @ColumnInfo(defaultValue = "0")
+    val startedAtGameMs: Long = 0,
+
+    /**
+     * 预期完工绝对游戏毫秒（毫秒精度替代 completionMonth/completionPhase
+     * 月+旬双编码；B5 切换判据前恒 0 不消费）。
+     */
+    @ProtoNumber(25)
+    @ColumnInfo(defaultValue = "0")
+    val completeAtGameMs: Long = 0
 ) {
     val isIdle: Boolean get() = status == ProductionSlotStatus.IDLE
     val isWorking: Boolean get() = status == ProductionSlotStatus.WORKING

@@ -34,6 +34,7 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             // 链外首个读取点是邮件领取流程，其数据源正是本规则产出的修复后快照
             MailDiscipleAttachmentCleanupRule,
             JadeSymbolNonNegativeRule, // order=23（玉符字段负值/超限钳制）
+            TimeAxisRule,              // order=25（双轨时间权威轴：旧档回填 + 投影一致性，结算改造 B3）
         )
     )
 }
