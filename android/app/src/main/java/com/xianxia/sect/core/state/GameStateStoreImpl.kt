@@ -229,10 +229,6 @@ class GameStateStoreImpl @Inject constructor(
     internal val _storageBagsFlow = MutableStateFlow<List<StorageBag>>(emptyList())
     internal val _battleLogsFlow = MutableStateFlow<List<BattleLog>>(emptyList())
     internal val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
-    internal val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
-    /** 通知队列 */
-    internal val _notificationsFlow = MutableStateFlow<List<GameNotification>>(emptyList())
-    private val notificationQueue = java.util.concurrent.ConcurrentLinkedQueue<GameNotification>()
     internal val _pendingBattleRewardCardsFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _rewardCardQueueFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _pendingBeastAttacksFlow = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
@@ -352,8 +348,6 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
-    override val pendingNotification: StateFlow<GameNotification?> = _pendingNotificationFlow.asStateFlow()
-    override val notifications: StateFlow<List<GameNotification>> = _notificationsFlow.asStateFlow()
     override val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> = _pendingBattleRewardCardsFlow.asStateFlow()
     override val rewardCardQueue: StateFlow<List<RewardCardItem>> = _rewardCardQueueFlow.asStateFlow()
     override val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> = _pendingBeastAttacksFlow.asStateFlow()
@@ -678,8 +672,7 @@ class GameStateStoreImpl @Inject constructor(
         battleLogs = emptyList(),
         isPaused = true,
         isLoading = false,
-        isSaving = false,
-        pendingNotification = null
+        isSaving = false
     )
 
     override fun setPausedDirect(paused: Boolean) {
@@ -701,28 +694,6 @@ class GameStateStoreImpl @Inject constructor(
     override fun getCurrentSeeds(): List<Seed> = _seedsFlow.value
     override fun getCurrentHerbs(): List<Herb> = _herbsFlow.value
     override fun getCurrentMaterials(): List<Material> = _materialsFlow.value
-
-    // === 通知 API ===
-    override fun clearPendingNotification() {
-        _pendingNotificationFlow.value = null
-        _updateVersion.value++
-    }
-
-    /** 通知队列（v3+） */
-    override fun enqueueNotification(notification: GameNotification) {
-        notificationQueue.offer(notification)
-        if (notificationQueue.size > 200) notificationQueue.poll() // 上限 200，丢弃最旧
-        _notificationsFlow.value = notificationQueue.toList()
-        // bump 版本号：unifiedState 依赖 _updateVersion 发射，
-        // 不 bump 则依赖统一快照的 UI 看不到通知变更
-        _updateVersion.value++
-    }
-
-    override fun consumeNotification(): GameNotification? {
-        val item = notificationQueue.poll()
-        if (item != null) _notificationsFlow.value = notificationQueue.toList()
-        return item
-    }
 
     override fun setPendingBattleResult(result: BattleResultUIData) {
         _pendingBattleResultFlow.value = result
@@ -790,16 +761,14 @@ class GameStateStoreImpl @Inject constructor(
         val battleLogs: List<BattleLog>,
         val isPaused: Boolean,
         val isLoading: Boolean,
-        val isSaving: Boolean,
-        val pendingNotification: GameNotification?
+        val isSaving: Boolean
     )
 
-    /** 提交阶段标志：final 状态三连 + block 内通知变更检测结果 */
+    /** 提交阶段标志：final 状态三连 */
     private data class CommitFlags(
         val finalPaused: Boolean,
         val finalLoading: Boolean,
-        val finalSaving: Boolean,
-        val notificationChanged: Boolean
+        val finalSaving: Boolean
     )
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
@@ -896,16 +865,12 @@ class GameStateStoreImpl @Inject constructor(
                     reentrantBuffer.set(reusableMutableState)
                     val baseline = captureBaseline()
                     initReusableState(baseline)
-                    val notificationBeforeBlock = reusableMutableState.pendingNotification
                     executeBlockWithRngGuard(block)
                     // 冻结 EntityStore 快照，确保 items 引用正确反映变化
                     freezeStores()
-                    val flags = resolveCommitFlags(
-                        baseline = baseline,
-                        notificationChanged = reusableMutableState.pendingNotification !== notificationBeforeBlock
-                    )
+                    val flags = resolveCommitFlags(baseline = baseline)
                     // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
-                    emitStateFlows(baseline = baseline, flags = flags)
+                    emitStateFlows(baseline = baseline)
                     disciplesNeedReassemble = commitUpdateState(baseline = baseline, flags = flags)
                     logSlowLockTime(lockStartNs = lockStartNs)
                 } finally {
@@ -1027,8 +992,7 @@ class GameStateStoreImpl @Inject constructor(
         battleLogs = _battleLogsFlow.value,
         isPaused = _isPaused.value,
         isLoading = _isLoading.value,
-        isSaving = _isSaving.value,
-        pendingNotification = _pendingNotificationFlow.value
+        isSaving = _isSaving.value
     )
 
     /** 用基线快照初始化 reusableMutableState（COW deepCopy 每列 O(1) 共享存储）。 */
@@ -1052,7 +1016,6 @@ class GameStateStoreImpl @Inject constructor(
             isPaused = baseline.isPaused
             isLoading = baseline.isLoading
             isSaving = baseline.isSaving
-            pendingNotification = baseline.pendingNotification
         }
     }
 
@@ -1070,10 +1033,7 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     /** 计算 final 状态三连 + 提交标志（isSaving/isLoading 以锁外最新值为准）。 */
-    private fun resolveCommitFlags(
-        baseline: UpdateBaseline,
-        notificationChanged: Boolean
-    ): CommitFlags {
+    private fun resolveCommitFlags(baseline: UpdateBaseline): CommitFlags {
         val finalPaused = if (_isPaused.value != baseline.isPaused)
             _isPaused.value else reusableMutableState.isPaused
         val finalLoading = if (_isLoading.value != baseline.isLoading)
@@ -1083,12 +1043,12 @@ class GameStateStoreImpl @Inject constructor(
         _isPaused.value = finalPaused
         _isLoading.value = finalLoading
         _isSaving.value = finalSaving
-        return CommitFlags(finalPaused, finalLoading, finalSaving, notificationChanged)
+        return CommitFlags(finalPaused, finalLoading, finalSaving)
     }
 
     /** 个体 StateFlow 发射（引用比较防止无意义发射）。 */
-    @Suppress("CyclomaticComplexMethod")  // 13 路引用比较分发，逻辑不可简化（原 update 内联时同复杂度）
-    private fun emitStateFlows(baseline: UpdateBaseline, flags: CommitFlags) {
+    @Suppress("CyclomaticComplexMethod")  // 12 路引用比较分发，逻辑不可简化（原 update 内联时同复杂度）
+    private fun emitStateFlows(baseline: UpdateBaseline) {
         if (reusableMutableState.gameData !== baseline.gameData)
             _gameDataFlow.value = reusableMutableState.gameData
         if (reusableMutableState.equipmentStacks.items !== baseline.equipmentStacks)
@@ -1111,12 +1071,10 @@ class GameStateStoreImpl @Inject constructor(
             _storageBagsFlow.value = reusableMutableState.storageBags.items
         if (reusableMutableState.battleLogs !== baseline.battleLogs)
             _battleLogsFlow.value = reusableMutableState.battleLogs
-        if (flags.notificationChanged)
-            _pendingNotificationFlow.value = reusableMutableState.pendingNotification
     }
 
     /** 事务内是否有字段变化（决定是否递增版本号触发 unifiedState 重建）。 */
-    @Suppress("CyclomaticComplexMethod")  // 16 路字段比较，逻辑不可简化（原 update 内联时同复杂度）
+    @Suppress("CyclomaticComplexMethod")  // 15 路字段比较，逻辑不可简化（原 update 内联时同复杂度）
     private fun detectFieldChanges(
         baseline: UpdateBaseline,
         disciplesNeedReassemble: Boolean,
@@ -1136,7 +1094,6 @@ class GameStateStoreImpl @Inject constructor(
         || flags.finalPaused != baseline.isPaused
         || flags.finalLoading != baseline.isLoading
         || flags.finalSaving != baseline.isSaving
-        || flags.notificationChanged
 
     /**
      * 锁外增量组装（减少 transactionMutex 持有时间）。
@@ -1383,8 +1340,8 @@ class GameStateStoreImpl @Inject constructor(
      * 瞬态队列统一清空（ 派生）：reset 与 loadFromSnapshot
      * 两条换档路径统一调用。瞬态本就不持久化，跨档残留即「换档幽灵弹窗」。
      * 调用契约：状态锁内执行。
-     * 守卫测试 [GameStateStoreTransientQueueGuardTest] 反射枚举 _pending* /
-     * notification 字段断言 reset 后全空——新增 Pending* flow 漏登记即失败
+     * 守卫测试 [GameStateStoreTransientQueueGuardTest] 反射枚举 _pending*
+     * 字段断言 reset 后全空——新增 Pending* flow 漏登记即失败
      * （错误消息带操作指引）。
      */
     private fun clearTransientQueues() {
@@ -1392,9 +1349,6 @@ class GameStateStoreImpl @Inject constructor(
         _pendingBattleResultFlow.value = null
         _pendingBattleRewardCardsFlow.value = emptyList()
         _rewardCardQueueFlow.value = emptyList()
-        _pendingNotificationFlow.value = null
-        _notificationsFlow.value = emptyList()
-        while (notificationQueue.poll() != null) { /* drain queue */ }
     }
 
     /**

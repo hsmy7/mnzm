@@ -13,7 +13,6 @@ import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
@@ -303,8 +302,6 @@ open class FakeGameStateStore : GameStateStore {
     override val isSaving: StateFlow<Boolean> get() = MutableStateFlow(false)
     override val pendingBattleResult: StateFlow<BattleResultUIData?>
         get() = MutableStateFlow(null)
-    override val pendingNotification: StateFlow<GameNotification?>
-        get() = MutableStateFlow(null)
     override val rewardCardQueue: StateFlow<List<RewardCardItem>>
         get() = MutableStateFlow(emptyList())
     override val pendingBattleRewardCards: StateFlow<List<RewardCardItem>>
@@ -324,8 +321,6 @@ open class FakeGameStateStore : GameStateStore {
     override val discipleAggregatesSnapshot: List<com.xianxia.sect.core.model.DiscipleAggregate> get() = emptyList()
     override val warehouseFullEvent: MutableSharedFlow<String>
         get() = MutableSharedFlow()
-    override val notifications: StateFlow<List<GameNotification>>
-        get() = MutableStateFlow(emptyList())
 
     // ── GameStateSnapshotProvider 快照属性 ──
     override val gameDataSnapshot: GameData get() = gameDataValue
@@ -343,9 +338,6 @@ open class FakeGameStateStore : GameStateStore {
     override val storageBagsSnapshot: List<com.xianxia.sect.core.model.StorageBag> get() = storageBagsValue
     override val battleLogsSnapshot: List<BattleLog> get() = emptyList()
 
-    override fun enqueueNotification(notification: GameNotification) {}
-    override fun consumeNotification(): GameNotification? = null
-    override fun clearPendingNotification() {}
     override fun setPendingBattleResult(result: BattleResultUIData) {}
     override fun clearPendingBattleResult() {}
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {}

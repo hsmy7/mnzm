@@ -371,7 +371,6 @@ EventBus 通过 `EventBusPort` 接口暴露，支持测试替换。
 | `teams` | 同上 | 队伍变化时 | 探索 |
 | `battleLogs` | 同上 | 战斗结算时 | 战斗结果 |
 | `pendingBattleResult` | `StateFlow<BattleResultUIData?>` | 战斗触发时 | BattleResultDialog |
-| `pendingNotification` | `StateFlow<GameNotification?>` | 通知触发时 | GameOverlayHost |
 | `discipleAggregates` | `StateFlow<List<DiscipleAggregate>>` | 弟子变化时 | UI 消费（带指纹缓存） |
 | `sectCombatPower` | `StateFlow<Long>` | 战力变化时 | SectInfoCard |
 | `aiSectCombatPowers` | `StateFlow<Map<String, Long>>` | AI 弟子变化时 | 外交 |
@@ -962,7 +961,7 @@ cd android && ./gradlew.bat testDebugUnitTest --max-workers=1 \
 - **插件**：`org.jetbrains.kotlin.plugin.compose`（Kotlin 2.0 原生）
 - **Compose 编译器插件**：`org.jetbrains.kotlin.plugin.compose`（Kotlin 2.0 原生），无需 `composeOptions` 配置
 - **默认启用**：Strong Skipping Mode
-- **稳定性配置**：`stability_config.conf` — 26 个类的显式稳定性声明
+- **稳定性配置**：`stability_config.conf` — 29 个类的显式稳定性声明
 - **指标**：`composeCompiler { reportsDestination / metricsDestination }` → `build/compose_metrics/`
 
 ### Baseline Profile
