@@ -1264,6 +1264,12 @@ private fun MainGameScreenUiOverlay(
 ) {
     // SR-4：自动存档常驻一行（纯 UI 态，不进存档事件流）——消息栏首行渲染
     val autoSaveNotice by saveLoadViewModel.autoSaveNotice.collectAsStateWithLifecycle()
+
+    // 现实墙钟自动存档节拍由 UI 显式启动（构造自启会让测试虚拟时间永不清空，
+    // 见 SaveLoadViewModel.startRealtimeAutoSaveTicker KDoc）
+    LaunchedEffect(Unit) {
+        saveLoadViewModel.startRealtimeAutoSaveTicker()
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         MainGameScreenTopBar(
             state = state,

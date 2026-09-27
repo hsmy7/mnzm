@@ -258,10 +258,23 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        // 现实墙钟自动存档节拍（用户 2026-09-27 拍板：每 10 现实秒一存）。
-        // 时间基 = 现实时间，与游戏速度/暂停/游戏日历解耦；月变触发已停用
-        // （结算改现实时间连续化后月界不再是进度完整点）。
-        viewModelScope.launch {
+    }
+
+    // ── 现实墙钟自动存档节拍（用户 2026-09-27 拍板：每 10 现实秒一存；时间基 = 现实时间，
+    // 与游戏速度/暂停/游戏日历解耦；月变触发已停用——结算现实时间化后月界不再是进度完整点）──
+
+    private var realtimeAutoSaveTickerJob: Job? = null
+
+    /**
+     * 启动现实墙钟节拍循环（幂等；生产入口 = `MainGameScreen` 组合期，测试禁止调用）。
+     *
+     * 不放 [init]：循环是永续自续协程（delay→tick→再 delay），构造即启动会让单元测试的
+     * 虚拟时间调度（`advanceUntilIdle`）永不清空（2026-09-28 `:feature:game` 全模块挂死根因）。
+     * 测试按 [onRealtimeAutoSaveTick] KDoc 的契约直调推进点，与循环调度时序解耦。
+     */
+    internal fun startRealtimeAutoSaveTicker() {
+        if (realtimeAutoSaveTickerJob?.isActive == true) return
+        realtimeAutoSaveTickerJob = viewModelScope.launch {
             while (isActive) {
                 delay(REALTIME_AUTO_SAVE_POLL_MS)
                 onRealtimeAutoSaveTick()

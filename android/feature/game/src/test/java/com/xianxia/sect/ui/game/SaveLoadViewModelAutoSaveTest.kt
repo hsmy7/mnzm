@@ -145,6 +145,18 @@ class SaveLoadViewModelAutoSaveTest {
     }
 
     @Test
+    fun `constructing the view model never starts the realtime ticker`() = runTest(testDispatcher) {
+        // 防复发守卫（2026-09-28 挂死事故）：节拍循环若随构造自启，任何 advanceUntilIdle
+        // 都会无限推进（delay→tick→提交→开窗→再 delay 永续自续），整个 :feature:game
+        // 测试任务挂死。守卫 = 构造后有限推进 60 虚拟秒，节拍累计量必须恒为 0、
+        // 编排窗必须为空——循环若回归 init 即红。
+        testScheduler.advanceTimeBy(60_000)
+        testScheduler.runCurrent()
+        assertEquals(0L, viewModel.realtimeAutoSaveElapsedMsFlow.value)
+        assertEquals(emptySet<AutoSaveTrigger>(), viewModel.saveOrchestrator.pendingTriggers())
+    }
+
+    @Test
     fun `realtime tick persists once through the merge window and writes the message bar line`() =
         runTest(testDispatcher) {
             SaveTriggerFlag.realtimeTick = true
