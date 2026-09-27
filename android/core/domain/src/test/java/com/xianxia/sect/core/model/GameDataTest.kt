@@ -337,8 +337,6 @@ class GameDataTest {
         assertEquals("", slots.outerElder)
         assertEquals("", slots.preachingElder)
         assertTrue(slots.preachingMasters.isEmpty())
-        assertEquals("", slots.lawEnforcementElder)
-        assertTrue(slots.lawEnforcementDisciples.isEmpty())
         assertEquals("", slots.innerElder)
         assertEquals("", slots.recruitingElder)
     }

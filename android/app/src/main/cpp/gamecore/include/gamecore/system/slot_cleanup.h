@@ -68,7 +68,6 @@ inline state::ElderSlots clearElderSlotsCpp(const state::ElderSlots& slots,
     if (out.forgeElder == discipleId) out.forgeElder.clear();
     if (out.outerElder == discipleId) out.outerElder.clear();
     if (out.preachingElder == discipleId) out.preachingElder.clear();
-    if (out.lawEnforcementElder == discipleId) out.lawEnforcementElder.clear();
     if (out.innerElder == discipleId) out.innerElder.clear();
     if (out.recruitingElder == discipleId) out.recruitingElder.clear();
     if (out.qingyunPreachingElder == discipleId) out.qingyunPreachingElder.clear();
@@ -87,7 +86,6 @@ inline state::ElderSlots clearElderSlotsCpp(const state::ElderSlots& slots,
         return outList;
     };
     out.preachingMasters = clearList(out.preachingMasters);
-    out.lawEnforcementDisciples = clearList(out.lawEnforcementDisciples);
     out.qingyunPreachingMasters = clearList(out.qingyunPreachingMasters);
     out.herbGardenDisciples = clearList(out.herbGardenDisciples);
     out.alchemyDisciples = clearList(out.alchemyDisciples);

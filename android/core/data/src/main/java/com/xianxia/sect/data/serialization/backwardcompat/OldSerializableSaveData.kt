@@ -809,8 +809,7 @@ data class SerializableElderSlots(
     @ProtoNumber(6) val outerElder: String = "",
     @ProtoNumber(7) val preachingElder: String = "",
     @ProtoNumber(8) val preachingMasters: List<SerializableDirectDiscipleSlot> = emptyList(),
-    @ProtoNumber(9) val lawEnforcementElder: String = "",
-    @ProtoNumber(10) val lawEnforcementDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),
+    // reserved 9,10;（lawEnforcementElder/lawEnforcementDisciples 字段号已退役，禁止复用）
     @ProtoNumber(12) val innerElder: String = "",
     @ProtoNumber(23) val recruitingElder: String = "",
     @ProtoNumber(13) val qingyunPreachingElder: String = "",
@@ -963,10 +962,9 @@ data class SerializableSectPolicies(
     @ProtoPacked
     @ProtoNumber(27) val autoMultiResidenceRootCounts: List<Int> = emptyList(),
     @ProtoNumber(28) val autoMultiResidenceThreshold: Int = 1,
-    // 政策开关（v4.0.66+；reserved 29——广纳门徒字段号已退役，禁止复用）
+    // 政策开关（v4.0.66+；reserved 29,32——广纳门徒/赏善罚恶字段号已退役，禁止复用）
     @ProtoNumber(30) val asceticTraining: Boolean = false,
     @ProtoNumber(31) val curfew: Boolean = false,
-    @ProtoNumber(32) val rewardPunish: Boolean = false,
     @ProtoNumber(33) val strictTraining: Boolean = false,
     @ProtoNumber(34) val relaxedMgmt: Boolean = false,
     @ProtoNumber(35) val spiritSpring: Boolean = false,

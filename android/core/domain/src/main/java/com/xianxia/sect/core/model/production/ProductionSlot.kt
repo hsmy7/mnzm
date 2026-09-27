@@ -261,9 +261,7 @@ enum class BuildingType {
     LIBRARY,
     WEN_DAO_PEAK,
     QINGYUN_PEAK,
-    LAW_ENFORCEMENT_HALL,
     MISSION_HALL,
-    REFLECTION_CLIFF,
     SINGLE_RESIDENCE,
     MULTI_RESIDENCE,
     WAREHOUSE,
@@ -279,9 +277,7 @@ enum class BuildingType {
         LIBRARY -> "藏经阁"
         WEN_DAO_PEAK -> "问道塔"
         QINGYUN_PEAK -> "青云塔"
-        LAW_ENFORCEMENT_HALL -> "执法堂"
         MISSION_HALL -> "任务阁"
-        REFLECTION_CLIFF -> "监牢"
         SINGLE_RESIDENCE -> "初级单人住所"
         MULTI_RESIDENCE -> "初级多人住所"
         WAREHOUSE -> "仓库"

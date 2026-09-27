@@ -289,25 +289,6 @@ class BuildingBatchRemovalTest {
         assertFalse(gate.isAssigned("2"))
     }
 
-    // ── 监牢 REFLECTING 释放 ──────────────────────────────────
-
-    @Test
-    fun `批量拆除 - 监牢拆除释放思过弟子`() = runTest {
-        stubLaunchInScope(this)
-        insertDisciple(
-            7, DiscipleStatus.REFLECTING,
-            mapOf("reflectionStartYear" to "1", "reflectionEndYear" to "2")
-        )
-        state.gameData = GameData(
-            placedBuildings = listOf(building("reflection_cliff", "监牢", "rc1"))
-        )
-        facade.removeBuildings(mapOf("rc1" to 1L))
-        advanceUntilIdle()
-
-        assertEquals(DiscipleStatus.IDLE, tables.statuses[7])
-        assertTrue(tables.statusData[7]?.containsKey("reflectionStartYear") != true)
-    }
-
     // ── 任务阁 ────────────────────────────────────────────────
 
     @Test

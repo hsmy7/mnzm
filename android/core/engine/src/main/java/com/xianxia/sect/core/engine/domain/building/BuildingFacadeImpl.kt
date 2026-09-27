@@ -698,9 +698,6 @@ class BuildingFacadeImpl @Inject constructor(
             gd = group.filterFromGameData(gd, instanceId, feature)
         }
         releaseBuildingDiscipleIds(discipleIds)
-        if (feature.buildingType == BuildingType.REFLECTION_CLIFF) {
-            releaseReflectingDisciples()
-        }
         // 任务阁拆除：清理所有活跃任务并释放卡在 ON_MISSION 的弟子
         if (feature.buildingType == BuildingType.MISSION_HALL) {
             gd = gd.copy(activeMissions = emptyList())
@@ -721,8 +718,6 @@ class BuildingFacadeImpl @Inject constructor(
     internal fun MutableGameState.releaseBuildingDiscipleIds(discipleIds: Set<String>) {
         discipleIds.forEach { assignmentGate.release(it) }
     }
-
-    /** 监牢拆除：释放所有思过弟子（监牢限建 1 座，无实例归属记录，全量释放）。 */
 }
 
 // ===== 批量升级辅助（upgradeBuildings 拆分，保持主流程 ≤60 行 / 圈复杂度 ≤15） =====

@@ -305,20 +305,6 @@ sealed interface SlotGroup {
                 }
             )
 
-            /** 执法堂：执法长老 + 执法弟子 */
-            val LAW_ENFORCEMENT = ElderPositions(
-                clearSpec = { e ->
-                    e.copy(
-                        lawEnforcementElder = "",
-                        lawEnforcementDisciples = e.lawEnforcementDisciples.map { DirectDiscipleSlot(index = it.index) }
-                    )
-                },
-                collectSpec = { e ->
-                    (listOf(e.lawEnforcementElder) + e.lawEnforcementDisciples.map { it.discipleId })
-                        .filter { it.isNotEmpty() }.toSet()
-                }
-            )
-
             /** 问道塔：外门长老 + 传道长老 + 传道大师 */
             val WEN_DAO_PEAK = ElderPositions(
                 clearSpec = { e ->

@@ -49,7 +49,6 @@ class DialogTypeRenderCoverageTest {
         DialogType.QingyunPeak,
         DialogType.TianshuHall,
         DialogType.MissionHall,
-        DialogType.ReflectionCliff,
         DialogType.Guide,
         DialogType.GameOver,
         DialogType.RenameSect,

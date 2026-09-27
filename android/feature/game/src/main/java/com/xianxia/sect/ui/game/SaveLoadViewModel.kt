@@ -161,13 +161,21 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     /**
-     * 消息栏"已自动存档"一行（SR-4 用户可见面）。
+     * 消息栏"已自动存档"一行（用户可见面）。
      *
-     * **纯 UI 态，不落盘**：月变每 6 秒一次，写进 `gameEventRecords` 等于每 6 秒
+     * **纯 UI 态，不落盘**：现实节拍每 10 秒一次，写进 `gameEventRecords` 等于每 10 秒
      * 往存档里塞一条事件（撑大云档 payload，违 IN5 精神），故走常驻状态流而非事件流。
      */
     internal val autoSaveNoticeFlow = MutableStateFlow<String?>(null)
     val autoSaveNotice: StateFlow<String?> = autoSaveNoticeFlow.asStateFlow()
+
+    /**
+     * 现实节拍累计量（毫秒）——当前会话已累计的现实时间，达
+     * `REALTIME_AUTO_SAVE_INTERVAL_MS` 即落盘并归零。
+     *
+     * 供 UI/诊断观测（不参与存档，不进协议）；节拍推进见 [onRealtimeAutoSaveTick]。
+     */
+    internal val realtimeAutoSaveElapsedMsFlow = MutableStateFlow(0L)
 
     val saveLoadState: StateFlow<SaveLoadState> = combine(
         stateStore.isSaving,
@@ -251,11 +259,13 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        // SR-4：月变完整结算 → 自动存档触发（引擎在 finalizeMonthBoundary 末句发布，
-        // 故此处收到时月副作用已全部落地）。旗标/槽位/加载三前置与合并窗见 requestAutoSave。
+        // 现实墙钟自动存档节拍（用户 2026-09-27 拍板：每 10 现实秒一存）。
+        // 时间基 = 现实时间，与游戏速度/暂停/游戏日历解耦；月变触发已停用
+        // （结算改现实时间连续化后月界不再是进度完整点）。
         viewModelScope.launch {
-            gameEngineCore.monthSettledEvents.collect {
-                requestAutoSave(com.xianxia.sect.ui.game.saveload.AutoSaveTrigger.MONTHLY)
+            while (isActive) {
+                delay(REALTIME_AUTO_SAVE_POLL_MS)
+                onRealtimeAutoSaveTick()
             }
         }
     }

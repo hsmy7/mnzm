@@ -137,7 +137,6 @@ object GameConfig {
 
     object Elder {
         const val REALM_VICE_SECT_MASTER = 4
-        const val REALM_LAW_ENFORCEMENT = 5
         const val REALM_ELDER = 6
         const val REALM_PREACHING_MASTER = 7
     }
@@ -769,7 +768,6 @@ object GameConfig {
         const val HERB_CULTIVATION_MONTHLY = 3000L
         const val MANUAL_RESEARCH_MONTHLY = 4000L
         const val CURFEW_MONTHLY = 1000L
-        const val REWARD_PUNISH_MONTHLY = 3000L
         const val STRICT_TRAINING_MONTHLY = 20000L
         const val RELAXED_MGMT_MONTHLY = 3000L
         const val SPIRIT_SPRING_MONTHLY = 2000L
@@ -792,7 +790,6 @@ object GameConfig {
         const val MANUAL_RESEARCH_NAME = "功法研习"
         const val ASCETIC_TRAINING_NAME = "苦修令"
         const val CURFEW_NAME = "宵禁"
-        const val REWARD_PUNISH_NAME = "赏善罚恶"
         const val STRICT_TRAINING_NAME = "严苛训练"
         const val RELAXED_MGMT_NAME = "松弛管理"
         const val SPIRIT_SPRING_NAME = "灵泉灌溉"
@@ -815,7 +812,6 @@ object GameConfig {
         const val ASCETIC_TRAINING_EFFECT = 0.25             // 修炼速度+25%
         const val CURFEW_EVENT_REDUCTION = 0.30              // 治安事件-30%
         const val CURFEW_DESERTION_REDUCTION = 0.20          // 叛逃-20%
-        const val REWARD_PUNISH_EFFECT = 0.30                // 执法效率+30%
         const val STRICT_TRAINING_DAMAGE = 0.05              // 战斗伤害+5%
         const val RELAXED_MGMT_CULTIVATION_PENALTY = 0.10    // 修炼速度-10%
         const val SPIRIT_SPRING_YIELD = 0.15                 // 灵草生长速度+15%（与灵药培育同属加速乘区，非产量）
@@ -852,34 +848,6 @@ object GameConfig {
         const val HERB_GARDEN_DISCIPLE_SPIRIT_BASE = 50
         const val HERB_GARDEN_DISCIPLE_SPIRIT_STEP = 5
         const val HERB_GARDEN_DISCIPLE_MAX = 0.20
-    }
-
-    object LawEnforcementConfig {
-        // ── 境界基准偷盗量（等比数列 ×4，1=炼气 … 9=渡劫） ──
-        val THEFT_REALM_BASE_AMOUNTS: Map<Int, Long> = mapOf(
-            1 to 500L,
-            2 to 2_000L,
-            3 to 8_000L,
-            4 to 32_000L,
-            5 to 128_000L,
-            6 to 512_000L,
-            7 to 2_000_000L,
-            8 to 8_000_000L,
-            9 to 32_000_000L
-        )
-        const val THEFT_SPEED_BONUS_PER_POINT = 0.005   // 每点身法（超基准）加成
-        const val THEFT_SPEED_BASE = 50                  // 身法基准值
-        const val THEFT_INTELLIGENCE_BONUS_PER_POINT = 0.003
-        const val THEFT_INTELLIGENCE_BASE = 50
-        const val THEFT_MAX_RATIO_OF_TOTAL = 0.10       // 单次偷盗不超过宗门灵石 10%
-        const val THEFT_MIN_AMOUNT = 100L               // 最少偷 100 灵石
-        const val THEFT_ITEM_BASE_DIVISOR = 20_000L     // 境界基准/此值=可偷物品单位数
-        const val THEFT_ITEM_GUARD_REDUCTION = 2        // 每个守卫减少物品单位
-        const val THEFT_ITEM_UNIT_SPEED_FACTOR = 3      // 身法→可偷物品单位的转换系数
-        const val THEFT_ITEM_UNIT_INTEL_FACTOR = 3      // 智力→可偷物品单位的转换系数
-        const val MAX_THEFT_PER_YEAR = 3                  // 宗门每年最多被偷盗次数
-        const val MAX_THEFT_JUDGEMENTS_PER_MONTH = 3      // 每月最多判定3名弟子
-        const val THEFT_MORAL_EDUCATION_THRESHOLD = 30  // 教化之道下道德仍低于此值需检查偷盗
     }
 
     data class RarityConfig(

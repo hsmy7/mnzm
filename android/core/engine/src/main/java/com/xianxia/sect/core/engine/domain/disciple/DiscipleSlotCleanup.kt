@@ -200,7 +200,6 @@ class DiscipleSlotCleanup @Inject constructor(
 
         updated = updated.copy(
             preachingMasters = clearDirectDiscipleSlots(updated.preachingMasters, discipleId),
-            lawEnforcementDisciples = clearDirectDiscipleSlots(updated.lawEnforcementDisciples, discipleId),
             qingyunPreachingMasters = clearDirectDiscipleSlots(updated.qingyunPreachingMasters, discipleId),
             herbGardenDisciples = clearDirectDiscipleSlots(updated.herbGardenDisciples, discipleId),
             alchemyDisciples = clearDirectDiscipleSlots(updated.alchemyDisciples, discipleId),
@@ -221,7 +220,6 @@ class DiscipleSlotCleanup @Inject constructor(
         if (updated.forgeElder == discipleId) updated = updated.copy(forgeElder = "")
         if (updated.outerElder == discipleId) updated = updated.copy(outerElder = "")
         if (updated.preachingElder == discipleId) updated = updated.copy(preachingElder = "")
-        if (updated.lawEnforcementElder == discipleId) updated = updated.copy(lawEnforcementElder = "")
         if (updated.innerElder == discipleId) updated = updated.copy(innerElder = "")
 
         return updated

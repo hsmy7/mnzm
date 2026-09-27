@@ -78,8 +78,6 @@ class BuildingRemovalSlotCleanupTest {
                         listOf(SlotGroup.ElderPositions.QINGYUN_PEAK)),
                     BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
                         listOf(SlotGroup.ElderPositions.TIANSHU_HALL)),
-                    BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
-                        listOf(SlotGroup.ElderPositions.LAW_ENFORCEMENT)),
                 )
                 features.forEach { BuildingFeatureRegistry.register(it) }
             }

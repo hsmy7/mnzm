@@ -94,7 +94,6 @@ class DiscipleStatusService @Inject constructor(
             { flags: SlotFlags -> flags.inSecretRealm } to DiscipleStatus.SECRET_REALM,
             { flags: SlotFlags -> flags.inGarrison } to DiscipleStatus.GARRISONING,
             { flags: SlotFlags -> flags.inTeam } to DiscipleStatus.IN_TEAM,
-            { flags: SlotFlags -> flags.lawEnforcing } to DiscipleStatus.LAW_ENFORCING,
             { flags: SlotFlags -> flags.preaching } to DiscipleStatus.PREACHING,
             { flags: SlotFlags -> flags.deaconing } to DiscipleStatus.DEACONING,
             { flags: SlotFlags -> flags.managing } to DiscipleStatus.MANAGING,
@@ -124,7 +123,6 @@ class DiscipleStatusService @Inject constructor(
                 inGarrison = team.inGarrison,
                 inTeam = team.inTeam,
                 inSecretRealm = team.inSecretRealm,
-                lawEnforcing = officer.lawEnforcing,
                 preaching = officer.preaching,
                 deaconing = officer.deaconing,
                 managing = buildManagingFlag(data.elderSlots, discipleId),
@@ -142,7 +140,6 @@ class DiscipleStatusService @Inject constructor(
          * 与 [buildSlotFlagsFor]（单弟子 O(n)）互补——全量同步不走纯函数避免 O(n²)。
          */
         private data class SyncIndex(
-            val lawEnforcerIds: Set<String>,
             val preachingIds: Set<String>,
             val deaconingIds: Set<String>,
             val managingIds: Set<String>,
@@ -167,7 +164,6 @@ class DiscipleStatusService @Inject constructor(
         val inGarrison: Boolean = false,
         val inTeam: Boolean = false,
         val inSecretRealm: Boolean = false,
-        val lawEnforcing: Boolean = false,
         val preaching: Boolean = false,
         val deaconing: Boolean = false,
         val managing: Boolean = false,
@@ -181,13 +177,6 @@ class DiscipleStatusService @Inject constructor(
 
 
     // ── 槽位收集函数 ──────────────────────────────────
-
-    private fun buildLawEnforcerIds(elderSlots: ElderSlots): Set<String> {
-        val ids = mutableSetOf<String>()
-        elderSlots.lawEnforcementElder?.let { ids.add(it) }
-        elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId }.forEach { ids.add(it) }
-        return ids
-    }
 
     private fun buildPreachingIds(elderSlots: ElderSlots): Set<String> {
         val ids = mutableSetOf<String>()
@@ -324,7 +313,6 @@ class DiscipleStatusService @Inject constructor(
             .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "herbGarden" }
             .mapNotNull { it.assignedDiscipleId }.toSet()
         return SyncIndex(
-            lawEnforcerIds = buildLawEnforcerIds(data.elderSlots),
             preachingIds = buildPreachingIds(data.elderSlots),
             deaconingIds = data.elderSlots.spiritMineDeaconDisciples
                 .mapNotNull { it.discipleId }.toSet(),
@@ -361,7 +349,6 @@ class DiscipleStatusService @Inject constructor(
                 inGarrison = index.garrisonIds.contains(discipleId),
                 inTeam = index.inTeamIds.contains(discipleId),
                 inSecretRealm = index.secretRealmIds.contains(discipleId),
-                lawEnforcing = index.lawEnforcerIds.contains(discipleId),
                 preaching = index.preachingIds.contains(discipleId),
                 deaconing = index.deaconingIds.contains(discipleId),
                 managing = index.managingIds.contains(discipleId),
@@ -594,7 +581,6 @@ class DiscipleStatusService @Inject constructor(
             forgeElder = clearElderTitleIfUnprotected(slots.forgeElder, protectedIds),
             outerElder = clearElderTitleIfUnprotected(slots.outerElder, protectedIds),
             preachingElder = clearElderTitleIfUnprotected(slots.preachingElder, protectedIds),
-            lawEnforcementElder = clearElderTitleIfUnprotected(slots.lawEnforcementElder, protectedIds),
             innerElder = clearElderTitleIfUnprotected(slots.innerElder, protectedIds),
             // 纳徒长老一并清理（与 DiscipleSlotCleanup.clearElderSlots 对齐）
             recruitingElder = clearElderTitleIfUnprotected(slots.recruitingElder, protectedIds),
@@ -603,7 +589,6 @@ class DiscipleStatusService @Inject constructor(
 
         return clearedTitles.copy(
             preachingMasters = clearedTitles.preachingMasters.filter { it.discipleId in protectedIds },
-            lawEnforcementDisciples = clearedTitles.lawEnforcementDisciples.filter { it.discipleId in protectedIds },
             qingyunPreachingMasters = clearedTitles.qingyunPreachingMasters.filter { it.discipleId in protectedIds },
             herbGardenDisciples = clearedTitles.herbGardenDisciples.filter { it.discipleId in protectedIds },
             alchemyDisciples = clearedTitles.alchemyDisciples.filter { it.discipleId in protectedIds },
@@ -622,9 +607,8 @@ private data class TeamFlags(
     val inSecretRealm: Boolean
 )
 
-/** 执法/传道/执事 flag 中间载体 */
+/** 传道/执事 flag 中间载体 */
 private data class OfficerFlags(
-    val lawEnforcing: Boolean,
     val preaching: Boolean,
     val deaconing: Boolean
 )
@@ -657,9 +641,6 @@ private fun buildTeamFlags(data: GameData, discipleId: String): TeamFlags {
 }
 
 private fun buildOfficerFlags(elderSlots: ElderSlots, discipleId: String): OfficerFlags {
-    val lawEnforcing = elderSlots.lawEnforcementElder == discipleId
-        || elderSlots.lawEnforcementDisciples
-            .any { it.discipleId == discipleId }
     val preaching = elderSlots.preachingElder == discipleId
         || elderSlots.preachingMasters.any { it.discipleId == discipleId }
         || elderSlots.qingyunPreachingElder == discipleId
@@ -667,7 +648,7 @@ private fun buildOfficerFlags(elderSlots: ElderSlots, discipleId: String): Offic
             .any { it.discipleId == discipleId }
     val deaconing = elderSlots.spiritMineDeaconDisciples
         .any { it.discipleId == discipleId }
-    return OfficerFlags(lawEnforcing, preaching, deaconing)
+    return OfficerFlags(preaching, deaconing)
 }
 
 /** 管理职位 flag（副宗主/各长老/直属弟子）——9 条件独立成函数防超限 */

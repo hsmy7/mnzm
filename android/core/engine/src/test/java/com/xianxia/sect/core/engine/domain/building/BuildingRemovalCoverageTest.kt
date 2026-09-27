@@ -21,7 +21,7 @@ class BuildingRemovalCoverageTest {
 
     companion object {
         /** 故意豁免：清理逻辑在 BuildingFacadeImpl.cleanupBuildingSlots 特判分支 */
-        private val intentionallyExcluded = setOf("reflection_cliff", "mission_hall")
+        private val intentionallyExcluded = setOf("mission_hall")
 
         @BeforeClass
         @JvmStatic

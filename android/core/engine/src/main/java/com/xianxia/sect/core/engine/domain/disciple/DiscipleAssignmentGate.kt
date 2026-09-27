@@ -120,7 +120,6 @@ class DiscipleAssignmentGate @Inject constructor(
         registerIfNotEmpty(elderSlots.forgeElder, SlotCategory.ELDER_POSITION, "forgeElder")
         registerIfNotEmpty(elderSlots.outerElder, SlotCategory.ELDER_POSITION, "outerElder")
         registerIfNotEmpty(elderSlots.preachingElder, SlotCategory.ELDER_POSITION, "preachingElder")
-        registerIfNotEmpty(elderSlots.lawEnforcementElder, SlotCategory.ELDER_POSITION, "lawEnforcementElder")
         registerIfNotEmpty(elderSlots.innerElder, SlotCategory.ELDER_POSITION, "innerElder")
         registerIfNotEmpty(elderSlots.recruitingElder, SlotCategory.ELDER_POSITION, "recruitingElder")
         registerIfNotEmpty(elderSlots.qingyunPreachingElder, SlotCategory.ELDER_POSITION, "qingyunPreachingElder")
@@ -129,7 +128,6 @@ class DiscipleAssignmentGate @Inject constructor(
         registerIfNotEmpty(elderSlots.alchemyDisciples, SlotCategory.ELDER_POSITION, "alchemyDisciple")
         registerIfNotEmpty(elderSlots.forgeDisciples, SlotCategory.ELDER_POSITION, "forgeDisciple")
         registerIfNotEmpty(elderSlots.preachingMasters, SlotCategory.ELDER_POSITION, "preachingMaster")
-        registerIfNotEmpty(elderSlots.lawEnforcementDisciples, SlotCategory.ELDER_POSITION, "lawEnforcementDisciple")
         registerIfNotEmpty(elderSlots.qingyunPreachingMasters, SlotCategory.ELDER_POSITION, "qingyunPreachingMaster")
         registerIfNotEmpty(elderSlots.spiritMineDeaconDisciples, SlotCategory.ELDER_POSITION, "spiritMineDeacon")
     }

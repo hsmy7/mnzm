@@ -215,21 +215,25 @@ TEST_F(GuideRewardTxFixture, ElderAndSlotConditionsGateClaim) {
 
 TEST_F(GuideRewardTxFixture, RegistryShapeAnchor) {
     const auto& reg = gamecore::system::guide_tx::registry();
-    ASSERT_EQ(reg.size(), std::size_t{24});
-    for (int32_t id = 1; id <= 25; ++id) {
-        if (id == 24) {
-            // 任务 24 编号空缺不在册（23/25 仍在册，编号不回收）
-            EXPECT_EQ(gamecore::system::guide_tx::findTask(24), nullptr) << "task 24";
+    ASSERT_EQ(reg.size(), std::size_t{22});
+    for (int32_t id = 1; id <= 23; ++id) {
+        // 空号禁复用：13/14（执法堂）/24（血炼）不在册，编号不回收
+        if (id == 13 || id == 14 || id == 24) {
+            EXPECT_EQ(gamecore::system::guide_tx::findTask(id), nullptr) << "task " << id;
             continue;
         }
         const auto* task = gamecore::system::guide_tx::findTask(id);
         ASSERT_NE(task, nullptr) << "task " << id << " missing";
         EXPECT_FALSE(task->conditions.empty());
-        // 单条件任务（23 仓库 /25 监牢）奖励数量1，双条件任务2
-        EXPECT_EQ(task->rewardQuantity, (id == 23 || id == 25) ? 1 : 2)
-            << "task " << id;
+        EXPECT_EQ(task->rewardQuantity, 2) << "task " << id;
     }
-    EXPECT_EQ(gamecore::system::guide_tx::findTask(26), nullptr);
+    // 25（监牢）退役空号；26（寻访）在册且为累计计数器判据
+    EXPECT_EQ(gamecore::system::guide_tx::findTask(25), nullptr);
+    const auto* task26 = gamecore::system::guide_tx::findTask(26);
+    ASSERT_NE(task26, nullptr) << "task 26 missing";
+    EXPECT_EQ(task26->rewardQuantity, 2);
+    EXPECT_EQ(task26->conditions.size(), std::size_t{1});
+    EXPECT_EQ(task26->conditions[0].field, "gachaOpened");
 }
 
 TEST_F(GuideRewardTxFixture, UuidFormatMatchesJavaUuidToString) {

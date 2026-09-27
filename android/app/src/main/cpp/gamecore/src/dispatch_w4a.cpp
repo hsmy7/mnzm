@@ -121,7 +121,6 @@ std::optional<nlohmann::json> dispatchW4A(GameCore& core, int32_t actionId,
                 target.instanceId = t.at("instanceId").get<std::string>();
                 target.displayName = t.value("displayName", "");
                 target.isMissionHall = t.value("isMissionHall", false);
-                target.isReflectionCliff = t.value("isReflectionCliff", false);
                 for (const auto& g : t.at("groups")) {
                     residual_tx::SlotGroupKind kind;
                     if (residual_tx::parseSlotGroupKind(g.get<std::string>(), kind)) {

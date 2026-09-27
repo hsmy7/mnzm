@@ -638,8 +638,6 @@ class ItemsTest {
         assertEquals("", slots.outerElder)
         assertEquals("", slots.preachingElder)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.preachingMasters)
-        assertEquals("", slots.lawEnforcementElder)
-        assertEquals(emptyList<DirectDiscipleSlot>(), slots.lawEnforcementDisciples)
         assertEquals("", slots.innerElder)
         assertEquals("", slots.qingyunPreachingElder)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.qingyunPreachingMasters)

@@ -54,12 +54,3 @@ fun ProductionViewModel.getPreachingElder(): DiscipleAggregate? {
 fun ProductionViewModel.getPreachingMasters(): List<DirectDiscipleSlot> {
     return gameEngine.gameDataSnapshot?.elderSlots?.preachingMasters ?: emptyList()
 }
-
-fun ProductionViewModel.getLawEnforcementElder(): DiscipleAggregate? {
-    val elderId = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementElder
-    return getElderDisciple(elderId)
-}
-
-fun ProductionViewModel.getLawEnforcementDisciples(): List<DirectDiscipleSlot> {
-    return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementDisciples ?: emptyList()
-}

@@ -173,7 +173,7 @@ class SpriteCodegenSyncTest {
     }
 
     @Test
-    fun `TextureAtlas 头 - MAP_SPRITES 40 条与期望全等`() {
+    fun `TextureAtlas 头 - MAP_SPRITES 38 条与期望全等`() {
         val src = headerSource()
         val spriteRegex = Regex("""\{ "([^"]+)",\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\s*\},\s*""")
         val sprites = spriteRegex.findAll(src).map { m ->
@@ -184,8 +184,8 @@ class SpriteCodegenSyncTest {
             )
         }.toList()
         assertEquals(
-            "MAP_SPRITES 条目数与期望不一致（10 瓦片 + 3 作物 + 18 建筑 + 1 结构 + 5 云层 + 3 道路 = 40）",
-            40, sprites.size
+            "MAP_SPRITES 条目数与期望不一致（10 瓦片 + 3 作物 + 16 建筑 + 1 结构 + 5 云层 + 3 道路 = 38）",
+            38, sprites.size
         )
         // 抽查关键条目（数据与 Kotlin LAYOUT 同源，见 build-atlas.mjs；gutter 版布局）
         assertContains(sprites, SpriteEntry("ground_tile", 0, 0, 128, 128))
@@ -196,7 +196,7 @@ class SpriteCodegenSyncTest {
         assertContains(sprites, SpriteEntry("tree1", 800, 0, 256, 256))
         assertContains(sprites, SpriteEntry("crop_mature", 1656, 0, 128, 128))
         assertContains(sprites, SpriteEntry("灵矿场", 0, 512, 512, 512))
-        assertContains(sprites, SpriteEntry("中级多人住所", 1040, 2072, 512, 512))
+        assertContains(sprites, SpriteEntry("中级多人住所", 0, 2072, 512, 512))
         assertContains(sprites, SpriteEntry("天枢殿", 3008, 1032, 1024, 1024))  // 专属 1024×1024 高清槽位
         assertContains(sprites, SpriteEntry("sect_gate", 3072, 512, 768, 256))
         assertContains(sprites, SpriteEntry("cloud_1", 0, 2816, 968, 240))

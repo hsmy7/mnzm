@@ -6,7 +6,7 @@ package com.xianxia.sect.core.model
  * 分流语义（与 UI 按钮状态一一对应）：
  * - [Disabled]：按钮置灰（空闲/死亡）
  * - [CanResign]：直接卸任（普通职务槽位）
- * - [ConfirmRequired]：弹二次确认框后卸任（监牢=是否释放）
+ * - [ConfirmRequired]：弹二次确认框后卸任（思过中=是否解除）
  * - [Blocked]：弹提示框告知无法卸任（任务中/秘境中/队伍中）
  */
 sealed interface ResignGateResult {
@@ -33,7 +33,7 @@ fun evaluateResignGate(status: DiscipleStatus, isAlive: Boolean): ResignGateResu
     !isAlive || status == DiscipleStatus.IDLE || status == DiscipleStatus.DEAD ->
         ResignGateResult.Disabled
     status == DiscipleStatus.REFLECTING ->
-        ResignGateResult.ConfirmRequired("该弟子处于监牢中，是否释放？")
+        ResignGateResult.ConfirmRequired("该弟子处于思过中，是否解除？")
     status == DiscipleStatus.ON_MISSION ->
         ResignGateResult.Blocked("弟子正在执行任务中，无法卸任")
     status == DiscipleStatus.SECRET_REALM ->

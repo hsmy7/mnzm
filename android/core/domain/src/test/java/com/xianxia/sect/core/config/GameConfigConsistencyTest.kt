@@ -117,12 +117,6 @@ class GameConfigConsistencyTest {
     }
 
     @Test
-    fun `执法长老境界两源一致`() {
-        val data = GameConfigData().elder
-        assertEquals(GameConfig.Elder.REALM_LAW_ENFORCEMENT, data.realmLawEnforcement)
-    }
-
-    @Test
     fun `长老境界两源一致`() {
         val data = GameConfigData().elder
         assertEquals(GameConfig.Elder.REALM_ELDER, data.realmElder)

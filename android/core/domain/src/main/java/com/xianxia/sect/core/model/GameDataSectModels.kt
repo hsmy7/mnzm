@@ -54,7 +54,7 @@ data class SectPolicies(
     // 政策开关
     @ProtoNumber(30) val asceticTraining: Boolean = false,            // 苦修令
     @ProtoNumber(31) val curfew: Boolean = false,                     // 宵禁
-    @ProtoNumber(32) val rewardPunish: Boolean = false,               // 赏善罚恶
+    // 政策开关（reserved 29,32——广纳门徒/赏善罚恶字段号已退役，禁止复用）
     @ProtoNumber(33) val strictTraining: Boolean = false,             // 严苛训练
     @ProtoNumber(34) val relaxedMgmt: Boolean = false,                // 松弛管理
     @ProtoNumber(35) val spiritSpring: Boolean = false,               // 灵泉灌溉
@@ -74,8 +74,7 @@ data class ElderSlots(
     @ProtoNumber(6) val outerElder: String = "",
     @ProtoNumber(7) val preachingElder: String = "",
     @ProtoNumber(8) val preachingMasters: List<DirectDiscipleSlot> = emptyList(),
-    @ProtoNumber(9) val lawEnforcementElder: String = "",
-    @ProtoNumber(10) val lawEnforcementDisciples: List<DirectDiscipleSlot> = emptyList(),
+    // reserved 9,10;（lawEnforcementElder/lawEnforcementDisciples 字段号已退役，禁止复用）
     @ProtoNumber(12) val innerElder: String = "",
     @ProtoNumber(13) val qingyunPreachingElder: String = "",
     @ProtoNumber(14) val qingyunPreachingMasters: List<DirectDiscipleSlot> = emptyList(),
@@ -90,14 +89,14 @@ data class ElderSlots(
 
         val allElderIds = listOf(
             herbGardenElder, alchemyElder, forgeElder,
-            outerElder, preachingElder, lawEnforcementElder,
+            outerElder, preachingElder,
             innerElder, recruitingElder, qingyunPreachingElder
         )
         if (allElderIds.contains(discipleId)) return true
 
         val allDirectDiscipleIds = listOf(
             herbGardenDisciples, alchemyDisciples, forgeDisciples,
-            preachingMasters, lawEnforcementDisciples,
+            preachingMasters,
             qingyunPreachingMasters, spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId.ifEmpty { null } }
 
@@ -119,7 +118,7 @@ data class ElderSlots(
         }
     }
 
-    /** 长老职位名解析（10 槽位 when 独立成函数，控制 [resolvePositionName] 圈复杂度） */
+    /** 长老职位名解析（9 槽位 when 独立成函数，控制 [resolvePositionName] 圈复杂度） */
     private fun resolveElderPositionName(discipleId: String): String? = when (discipleId) {
         viceSectMaster -> formatSlotTypeName(ElderSlotType.VICE_SECT_MASTER)
         herbGardenElder -> formatSlotTypeName(ElderSlotType.HERB_GARDEN)
@@ -130,7 +129,6 @@ data class ElderSlots(
         recruitingElder -> formatSlotTypeName(ElderSlotType.RECRUITING)
         preachingElder -> formatSlotTypeName(ElderSlotType.PREACHING)
         qingyunPreachingElder -> formatSlotTypeName(ElderSlotType.CLOUD_PREACHING)
-        lawEnforcementElder -> formatSlotTypeName(ElderSlotType.LAW_ENFORCEMENT)
         else -> null
     }
 }

@@ -477,8 +477,6 @@ private fun clearDirectDiscipleSlot(slots: ElderSlots, elderSlotType: String, sl
             slots.copy(forgeDisciples = resetDirectSlotAt(slots.forgeDisciples, slotIndex))
         SLOT_TYPE_PREACHING ->
             slots.copy(preachingMasters = resetDirectSlotAt(slots.preachingMasters, slotIndex))
-        SLOT_TYPE_LAW_ENFORCEMENT ->
-            slots.copy(lawEnforcementDisciples = resetDirectSlotAt(slots.lawEnforcementDisciples, slotIndex))
         SLOT_TYPE_QINGYUN ->
             slots.copy(qingyunPreachingMasters = resetDirectSlotAt(slots.qingyunPreachingMasters, slotIndex))
         SLOT_TYPE_SPIRIT_MINE_DEACON ->

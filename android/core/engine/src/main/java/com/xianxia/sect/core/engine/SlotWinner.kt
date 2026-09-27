@@ -48,7 +48,6 @@ internal fun MutableGameState.collectSlotWinners(
     registerElderField(slots.forgeElder, "forgeElder", ::register)
     registerElderField(slots.outerElder, "outerElder", ::register)
     registerElderField(slots.preachingElder, "preachingElder", ::register)
-    registerElderField(slots.lawEnforcementElder, "lawEnforcementElder", ::register)
     registerElderField(slots.innerElder, "innerElder", ::register)
     registerElderField(slots.recruitingElder, "recruitingElder", ::register)
     registerElderField(slots.qingyunPreachingElder, "qingyunPreachingElder", ::register)
@@ -56,7 +55,6 @@ internal fun MutableGameState.collectSlotWinners(
     registerDirectList(slots.alchemyDisciples, "alchemyDisciple", ::register)
     registerDirectList(slots.forgeDisciples, "forgeDisciple", ::register)
     registerDirectList(slots.preachingMasters, "preachingMaster", ::register)
-    registerDirectList(slots.lawEnforcementDisciples, "lawEnforcementDisciple", ::register)
     registerDirectList(slots.qingyunPreachingMasters, "qingyunPreachingMaster", ::register)
     registerDirectList(slots.spiritMineDeaconDisciples, "spiritMineDeacon", ::register)
 

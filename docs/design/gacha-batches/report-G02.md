@@ -69,7 +69,7 @@
 | # | 保留项 | 理由 |
 |---|---|---|
 | 1 | `annualDesertedDisciples` / `YearlyReport.desertedDisciples`（C++ 4 写点 + 年报 2 读点） | handover §5#3：与 G06 玩家逐出共用字段，**保留**；G02 已删其叛逃写入方，剩余写点=逐出（G06 删） |
-| 2 | `lawEnforcementElder` / `lawEnforcementDisciples` 长老槽位 + `LAW_ENFORCING` 状态 + 执法堂建筑 | 槽位链不在 G02-7 grep 目标（pattern 为大写 `LawEnforcement` 文件族，已随 3 文件删除归零）；**职责（捕获率）已失** → 登记为后续收口项（含 guide 任务 17/18、UI 任命入口是否退役待产品确认） |
+| 2 | `lawEnforcementElder` / `lawEnforcementDisciples` 长老槽位 + `LAW_ENFORCING` 状态 + 执法堂建筑 | 槽位链不在 G02-7 grep 目标（pattern 为大写 `LawEnforcement` 文件族，已随 3 文件删除归零）；**职责（捕获率）已失** → 登记为后续收口项（含 guide 任务 17/18、UI 任命入口是否退役待产品确认）。⚠️ **勘误（2026-09-27）**：本行「guide 任务 17/18」为**失真**——17/18 是问道塔/青云塔任务，实测受执法堂影响的是**任务 13/14**；该收口项已由 `docs/design/remove-law-enforcement-and-prison-implementation-plan.md` 实施完成（双端删 13/14/25 + 空号登记） |
 | 3 | `DiscipleStatus.REFLECTING` / `WAREHOUSE_GARRISON` 枚举值 + `deriveDiscipleStatus` 的 REFLECTING 保持分支 + 监牢拆除/秘境换岗/任务派遣的思过键清理 | **旧档反序列化兼容**（删枚举值会炸档）；生产写入方已全部下线，仅存量归一化 |
 | 4 | `REDEEM_RESOLVE_AGE_LIFESPAN`(1436) + `resolveAgeAndLifespan` + `RealmConfig.maxAge` | 口径 #3「留洞（§6.10 另批）」：兑换码改道归 **G08**，届时一并清零 |
 | 5 | `ItemEffect.extendLife` / `PillEffect.extendLife` 协议字段 + `pill_system` 的 `kPermanentLife` 分类 | 旧存档袋内丹药条目兼容；生产者（延寿丹配方）已下线，施效点已摘除，字段恒 0 |

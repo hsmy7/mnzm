@@ -185,14 +185,12 @@ class DiscipleSlotManager @Inject constructor(
             forgeElder = clearElderTitleIfUnprotected(slots.forgeElder, protectedIds),
             outerElder = clearElderTitleIfUnprotected(slots.outerElder, protectedIds),
             preachingElder = clearElderTitleIfUnprotected(slots.preachingElder, protectedIds),
-            lawEnforcementElder = clearElderTitleIfUnprotected(slots.lawEnforcementElder, protectedIds),
             innerElder = clearElderTitleIfUnprotected(slots.innerElder, protectedIds),
             qingyunPreachingElder = clearElderTitleIfUnprotected(slots.qingyunPreachingElder, protectedIds)
         )
 
         return clearedTitles.copy(
             preachingMasters = clearedTitles.preachingMasters.filter { it.discipleId in protectedIds },
-            lawEnforcementDisciples = clearedTitles.lawEnforcementDisciples.filter { it.discipleId in protectedIds },
             qingyunPreachingMasters = clearedTitles.qingyunPreachingMasters.filter { it.discipleId in protectedIds },
             herbGardenDisciples = clearedTitles.herbGardenDisciples.filter { it.discipleId in protectedIds },
             alchemyDisciples = clearedTitles.alchemyDisciples.filter { it.discipleId in protectedIds },

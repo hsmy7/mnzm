@@ -5,9 +5,9 @@
   "height": 4096,
   "mipLevels": 11,
   "mipMode": "per-sprite",
-  "layoutHash": "6a122ed22d66bee5",
-  "generatedAt": "2026-09-24T23:27:43.797Z",
-  "spriteCount": 41,
+  "layoutHash": "08275e94a419e726",
+  "generatedAt": "2026-09-26T19:40:26.904Z",
+  "spriteCount": 39,
   "sprites": [
     {
       "name": "GROUND",
@@ -220,18 +220,8 @@
       "srcH": 1091
     },
     {
-      "name": "执法堂",
-      "x": 0,
-      "y": 1552,
-      "w": 512,
-      "h": 512,
-      "drawable": "building_law_enforcement",
-      "srcW": 600,
-      "srcH": 400
-    },
-    {
       "name": "任务阁",
-      "x": 520,
+      "x": 0,
       "y": 1552,
       "w": 512,
       "h": 512,
@@ -241,7 +231,7 @@
     },
     {
       "name": "巡视楼",
-      "x": 1040,
+      "x": 520,
       "y": 1552,
       "w": 512,
       "h": 512,
@@ -250,18 +240,8 @@
       "srcH": 1024
     },
     {
-      "name": "监牢",
-      "x": 1560,
-      "y": 1552,
-      "w": 512,
-      "h": 512,
-      "drawable": "building_reflection_cliff",
-      "srcW": 404,
-      "srcH": 404
-    },
-    {
       "name": "单人住所",
-      "x": 2080,
+      "x": 1040,
       "y": 1552,
       "w": 512,
       "h": 512,
@@ -271,8 +251,8 @@
     },
     {
       "name": "中级单人住所",
-      "x": 0,
-      "y": 2072,
+      "x": 1560,
+      "y": 1552,
       "w": 512,
       "h": 512,
       "drawable": "building_single_residence_upgraded",
@@ -281,8 +261,8 @@
     },
     {
       "name": "多人住所",
-      "x": 520,
-      "y": 2072,
+      "x": 2080,
+      "y": 1552,
       "w": 512,
       "h": 512,
       "drawable": "building_multi_residence",
@@ -291,7 +271,7 @@
     },
     {
       "name": "中级多人住所",
-      "x": 1040,
+      "x": 0,
       "y": 2072,
       "w": 512,
       "h": 512,

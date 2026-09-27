@@ -327,7 +327,6 @@ inline std::vector<gamecore::state::DirectDiscipleSlot>* directSlotList(
     if (elderSlotType == "alchemy") return &slots.alchemyDisciples;
     if (elderSlotType == "forge") return &slots.forgeDisciples;
     if (elderSlotType == "preaching") return &slots.preachingMasters;
-    if (elderSlotType == "lawEnforcement") return &slots.lawEnforcementDisciples;
     if (elderSlotType == "qingyunPreaching") return &slots.qingyunPreachingMasters;
     if (elderSlotType == "spiritMineDeacon") return &slots.spiritMineDeaconDisciples;
     return nullptr;
@@ -1032,7 +1031,6 @@ struct SlotFlags {
     bool inGarrison = false;
     bool inTeam = false;
     bool inSecretRealm = false;
-    bool lawEnforcing = false;
     bool preaching = false;
     bool deaconing = false;
     bool managing = false;
@@ -1052,7 +1050,7 @@ constexpr const char* kStatusReflecting = "REFLECTING";
 
 /// deriveDiscipleStatus（优先级序与 Kotlin 表逐项一致——状态推导契约，
 /// 顺序不可变）：死亡 → 活跃任务 → 受保护（REFLECTING）→
-/// 秘境 → 据点驻守 → 队伍 → 执法 → 传道 → 执事 → 管理 →
+/// 秘境 → 据点驻守 → 队伍 → 传道 → 执事 → 管理 →
 /// 学习 → 采矿 → 巡视 → 炼丹 → 锻造 → 灵植 → 空闲
 inline const char* deriveDiscipleStatus(bool isAlive, const std::string& currentStatus,
                                         const SlotFlags& f, bool hasActiveMission) {
@@ -1062,7 +1060,6 @@ inline const char* deriveDiscipleStatus(bool isAlive, const std::string& current
     if (f.inSecretRealm) return "SECRET_REALM";
     if (f.inGarrison) return "GARRISONING";
     if (f.inTeam) return "IN_TEAM";
-    if (f.lawEnforcing) return "LAW_ENFORCING";
     if (f.preaching) return "PREACHING";
     if (f.deaconing) return "DEACONING";
     if (f.managing) return "MANAGING";
@@ -1100,12 +1097,8 @@ inline SlotFlags buildSlotFlags(const gamecore::state::GameData& gd,
             if (s.discipleId == discipleId) f.inTeam = true;
         }
     }
-    // 执法/传道/执事/管理（buildOfficerFlags + buildManagingFlag）
+    // 传道/执事/管理（buildOfficerFlags + buildManagingFlag）
     const auto& es = gd.elderSlots;
-    if (es.lawEnforcementElder == discipleId) f.lawEnforcing = true;
-    for (const auto& s : es.lawEnforcementDisciples) {
-        if (s.discipleId == discipleId) f.lawEnforcing = true;
-    }
     if (es.preachingElder == discipleId || es.qingyunPreachingElder == discipleId) {
         f.preaching = true;
     }
@@ -1159,7 +1152,7 @@ inline SlotFlags buildSlotFlags(const gamecore::state::GameData& gd,
 inline std::string resolvePositionName(const gamecore::state::ElderSlots& es,
                                        const std::string& discipleId) {
     if (discipleId.empty()) return "";
-    // formatSlotTypeName（10 长老槽 when 序——优先级即此序）
+    // formatSlotTypeName（9 长老槽 when 序——优先级即此序）
     if (es.viceSectMaster == discipleId) return "副宗主";
     if (es.herbGardenElder == discipleId) return "灵田长老";
     if (es.alchemyElder == discipleId) return "炼丹长老";
@@ -1169,7 +1162,6 @@ inline std::string resolvePositionName(const gamecore::state::ElderSlots& es,
     if (es.recruitingElder == discipleId) return "纳徒长老";
     if (es.preachingElder == discipleId) return "传道长老";
     if (es.qingyunPreachingElder == discipleId) return "青云传道长老";
-    if (es.lawEnforcementElder == discipleId) return "执法长老";
     for (const auto& s : es.herbGardenDisciples) {
         if (s.discipleId == discipleId) return "灵植弟子";
     }

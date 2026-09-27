@@ -139,7 +139,7 @@ internal class BuildingNativeTx(
      *
      * W4-A·w3-09 残差清扫下沉：BUILDING_REMOVE 成功后关联弟子收集
      * （清扫前行删除会丢 id；生产 repo 侧来源同现状——平台存储 C++ 不可见），
-     * 随槽组知识组装传入 1810（C++ 扫实例键控五集合 + 监牢/任务阁特例）；
+     * 随槽组知识组装传入 1810（C++ 扫实例键控五集合 + 任务阁特例）；
      * **生产/长老组留 Kotlin**（偏差登记：
      * C++ ProductionSlot 行无 buildingInstanceId、ElderPositions clearSpec
      * 为注册表 lambda 单一事实源）——清扫成功后 Kotlin 在同一 update 内
@@ -270,7 +270,6 @@ internal class BuildingNativeTx(
                     put("groups", JsonArray(feature.slotGroups.mapNotNull { it.kindName() }
                         .map { JsonPrimitive(it) }))
                     put("isMissionHall", feature.buildingType == BuildingType.MISSION_HALL)
-                    put("isReflectionCliff", feature.buildingType == BuildingType.REFLECTION_CLIFF)
                 }
             }))
         } ?: return false
@@ -346,7 +345,7 @@ internal class BuildingNativeTx(
 
     /**
      * 拆除残差清理：与 Kotlin 回退臂 cleanupBuildingSlots 同构（槽位过滤/
-     * 弟子释放/监牢·任务阁特例），仅缺建筑移除与灵石返还两段——已由 C++
+     * 弟子释放/任务阁特例），仅缺建筑移除与灵石返还两段——已由 C++
      * 事务承担（building_tx.h removeBuildingsTx）。
      */
     private fun MutableGameState.cleanupBuildingSlotsResidual(
@@ -366,9 +365,6 @@ internal class BuildingNativeTx(
             gd = group.filterFromGameData(gd, instanceId, feature)
         }
         releaseBuildingDiscipleIds(assignmentGate, discipleIds)
-        if (feature.buildingType == BuildingType.REFLECTION_CLIFF) {
-            releaseReflectingDisciples()
-        }
         // 任务阁拆除：清理所有活跃任务并释放卡在 ON_MISSION 的弟子
         if (feature.buildingType == BuildingType.MISSION_HALL) {
             gd = gd.copy(activeMissions = emptyList())

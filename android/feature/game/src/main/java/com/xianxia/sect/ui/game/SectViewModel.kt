@@ -78,15 +78,6 @@ class SectViewModel @Inject constructor(
         return gameEngine.gameData.value?.elderSlots?.preachingMasters ?: emptyList()
     }
 
-    fun getLawEnforcementElder(): DiscipleAggregate? {
-        val elderId = gameEngine.gameData.value?.elderSlots?.lawEnforcementElder
-        return getElderDisciple(elderId)
-    }
-
-    fun getLawEnforcementDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value?.elderSlots?.lawEnforcementDisciples ?: emptyList()
-    }
-
     fun getViceSectMasterIntelligenceBonus(): Double {
         val viceSectMaster = getViceSectMaster() ?: return 0.0
         return sectPolicyToggle.getViceSectMasterIntelligenceBonus(viceSectMaster)

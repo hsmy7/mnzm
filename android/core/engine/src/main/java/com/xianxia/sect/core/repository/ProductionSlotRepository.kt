@@ -41,9 +41,7 @@ class ProductionSlotRepository @Inject constructor(
             BuildingType.LIBRARY to "library",
             BuildingType.WEN_DAO_PEAK to "wen_dao_peak",
             BuildingType.QINGYUN_PEAK to "qingyun_peak",
-            BuildingType.LAW_ENFORCEMENT_HALL to "law_enforcement_hall",
-            BuildingType.MISSION_HALL to "mission_hall",
-            BuildingType.REFLECTION_CLIFF to "reflection_cliff"
+            BuildingType.MISSION_HALL to "mission_hall"
         )
 
         fun getBuildingIdForType(buildingType: BuildingType): String {

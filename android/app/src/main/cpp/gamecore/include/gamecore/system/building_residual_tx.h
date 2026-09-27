@@ -18,7 +18,7 @@
 // 特征知识分界（w2 §3.3 "Kotlin 组装参数传入"）：BuildingFeatureRegistry/
 // SlotGroup 单一事实源留 Kotlin——槽组种类（groups）、slotsPerInstance、
 // displayName（长老殿"最后一座"判定）、featureKey（生产槽 buildingId）、
-// 监牢/任务阁特例标志、生产槽 id（UUID 平台生成）与 slotIndex（同类型
+// 任务阁特例标志、生产槽 id（UUID 平台生成）与 slotIndex（同类型
 // 建筑计数，pre-place 基数）均由 Kotlin 门面组装随请求传入；C++ 只做
 // 纯数据变换，不复制注册表。
 //
@@ -30,8 +30,7 @@
 //  - 长老殿（ElderPositions）按 displayName 检查"是否还有同名气建筑"
 //    （不含自身——拆除后传入即全表检查），最后一座才清空对应职务字段
 //    （Elder="" + 弟子列保留 index 清 discipleId）。
-//  - 监牢（REFLECTION_CLIFF）无实例归属记录 ⇒ 全量释放 REFLECTING；
-//    任务阁（MISSION_HALL）清空 activeMissions 并释放存活 ON_MISSION。
+//  - 任务阁（MISSION_HALL）清空 activeMissions 并释放存活 ON_MISSION。
 //
 // 🔴 偏差登记（本事务的清扫范围边界）——两类槽组**留 Kotlin 清扫**：
 //  ① productionSlots：C++ ProductionSlot 结构**无 buildingInstanceId 字段**
@@ -62,13 +61,8 @@ namespace gamecore::system::building_residual_tx {
 
 using gamecore::state::GameState;
 
-inline constexpr const char* kReflectingStatusName = "REFLECTING";
 inline constexpr const char* kOnMissionStatusName = "ON_MISSION";
 inline constexpr const char* kIdleStatusName = "IDLE";
-
-/// statusData 键（DiscipleStatusData 单一来源同名键）
-inline constexpr const char* kReflectionStartYearKey = "reflectionStartYear";
-inline constexpr const char* kReflectionEndYearKey = "reflectionEndYear";
 
 /// 槽组种类（本事务清扫范围 = 实例键控五集合；生产/长老组
 /// 留 Kotlin——头注释偏差登记；枚举仅列 C++ 可清扫的组）
@@ -105,12 +99,11 @@ struct ResidualTarget {
     std::string displayName;
     std::vector<SlotGroupKind> groups;
     bool isMissionHall = false;
-    bool isReflectionCliff = false;
 };
 
 /// 事务 1810：拆除/没收槽位清扫（cleanupBuildingSlotsResidual 的协议写段等价）
 ///
-/// 执行序对齐 Kotlin 原路径：槽位过滤（按组）→ 长老殿判定 → 监牢/任务阁
+/// 执行序对齐 Kotlin 原路径：槽位过滤（按组）→ 长老殿判定 → 任务阁
 /// 特例。零 RNG；未知组静默跳过（与 Kotlin "无该槽组即无行可清"同义）。
 inline ClearResidualResult clearResidualTransaction(GameState& state,
                                                     const std::vector<ResidualTarget>& targets) {
@@ -166,17 +159,7 @@ inline ClearResidualResult clearResidualTransaction(GameState& state,
             }
         }
 
-        // 2) 监牢特例：全量释放 REFLECTING（无实例归属记录——Kotlin 同语义）
-        if (target.isReflectionCliff) {
-            for (std::size_t row = 0; row < state.disciples.ids.size(); ++row) {
-                if (state.disciples.statuses[row] != kReflectingStatusName) continue;
-                state.disciples.statuses[row] = kIdleStatusName;
-                state.disciples.statusData[row].erase(kReflectionStartYearKey);
-                state.disciples.statusData[row].erase(kReflectionEndYearKey);
-            }
-        }
-
-        // 3) 任务阁特例：清空 activeMissions + 存活 ON_MISSION 回 IDLE
+        // 2) 任务阁特例：清空 activeMissions + 存活 ON_MISSION 回 IDLE
         if (target.isMissionHall) {
             gd.activeMissions.clear();
             for (std::size_t row = 0; row < state.disciples.ids.size(); ++row) {

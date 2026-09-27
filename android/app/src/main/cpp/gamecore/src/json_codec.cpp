@@ -367,7 +367,6 @@ void to_json(nlohmann::json& j, const ElderSlots& v) {
     GC_TO(v, j, viceSectMaster); GC_TO(v, j, herbGardenElder);
     GC_TO(v, j, alchemyElder); GC_TO(v, j, forgeElder); GC_TO(v, j, outerElder);
     GC_TO(v, j, preachingElder); GC_TO(v, j, preachingMasters);
-    GC_TO(v, j, lawEnforcementElder); GC_TO(v, j, lawEnforcementDisciples);
     GC_TO(v, j, innerElder); GC_TO(v, j, qingyunPreachingElder);
     GC_TO(v, j, qingyunPreachingMasters); GC_TO(v, j, herbGardenDisciples);
     GC_TO(v, j, alchemyDisciples); GC_TO(v, j, forgeDisciples);
@@ -377,7 +376,6 @@ void from_json(const nlohmann::json& j, ElderSlots& v) {
     GC_FROM(j, v, viceSectMaster); GC_FROM(j, v, herbGardenElder);
     GC_FROM(j, v, alchemyElder); GC_FROM(j, v, forgeElder); GC_FROM(j, v, outerElder);
     GC_FROM(j, v, preachingElder); GC_FROM(j, v, preachingMasters);
-    GC_FROM(j, v, lawEnforcementElder); GC_FROM(j, v, lawEnforcementDisciples);
     GC_FROM(j, v, innerElder); GC_FROM(j, v, qingyunPreachingElder);
     GC_FROM(j, v, qingyunPreachingMasters); GC_FROM(j, v, herbGardenDisciples);
     GC_FROM(j, v, alchemyDisciples); GC_FROM(j, v, forgeDisciples);
@@ -398,7 +396,7 @@ void to_json(nlohmann::json& j, const SectPolicies& v) {
     GC_TO(v, j, autoSingleResidenceFocused); GC_TO(v, j, autoSingleResidenceRootCounts); GC_TO(v, j, autoSingleResidenceThreshold);
     GC_TO(v, j, autoMultiResidenceFocused); GC_TO(v, j, autoMultiResidenceRootCounts); GC_TO(v, j, autoMultiResidenceThreshold);
     GC_TO(v, j, asceticTraining); GC_TO(v, j, curfew);
-    GC_TO(v, j, rewardPunish); GC_TO(v, j, strictTraining); GC_TO(v, j, relaxedMgmt);
+    GC_TO(v, j, strictTraining); GC_TO(v, j, relaxedMgmt);
     GC_TO(v, j, spiritSpring); GC_TO(v, j, frugality); GC_TO(v, j, moralEducation);
     GC_TO(v, j, benevolentGovernance);
 }
@@ -415,7 +413,7 @@ void from_json(const nlohmann::json& j, SectPolicies& v) {
     GC_FROM(j, v, autoSingleResidenceFocused); GC_FROM(j, v, autoSingleResidenceRootCounts); GC_FROM(j, v, autoSingleResidenceThreshold);
     GC_FROM(j, v, autoMultiResidenceFocused); GC_FROM(j, v, autoMultiResidenceRootCounts); GC_FROM(j, v, autoMultiResidenceThreshold);
     GC_FROM(j, v, asceticTraining); GC_FROM(j, v, curfew);
-    GC_FROM(j, v, rewardPunish); GC_FROM(j, v, strictTraining); GC_FROM(j, v, relaxedMgmt);
+    GC_FROM(j, v, strictTraining); GC_FROM(j, v, relaxedMgmt);
     GC_FROM(j, v, spiritSpring); GC_FROM(j, v, frugality); GC_FROM(j, v, moralEducation);
     GC_FROM(j, v, benevolentGovernance);
 }

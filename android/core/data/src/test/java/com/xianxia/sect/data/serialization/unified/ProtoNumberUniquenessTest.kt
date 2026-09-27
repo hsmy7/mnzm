@@ -129,6 +129,49 @@ class ProtoNumberUniquenessTest {
     }
 
     @Test
+    fun `ElderSlots and SectPolicies retired proto numbers stay reserved instead of reused`() {
+        // 执法堂/监牢下线批：ElderSlots 退役 tag 9（lawEnforcementElder）/10（lawEnforcementDisciples），
+        // 赏善罚恶下线批：SectPolicies 退役 tag 32（rewardPunish）。
+        // 复用退役号会让旧档字节按新语义解码（wire 漂移）——reserved 登记见
+        // GameDataSectModels.kt 注释；本用例锁住「不得重新标注 @ProtoNumber」。
+        // 号是 per-message 语义 ⇒ 必须按**类作用域**抽取后判定（同文件其他消息
+        // 合法占用 9/10 等号，全局 contains 会假阳性）。
+        val modelRoot = MODEL_ROOTS.map(::File).firstOrNull { it.isDirectory }
+            ?: error("模型源码目录未找到（cwd=${File(".").absolutePath}）")
+        val sectModelsText = File(modelRoot, "GameDataSectModels.kt").readText()
+
+        val elderSlotsBody = classBody(sectModelsText, "ElderSlots")
+        val sectPoliciesBody = classBody(sectModelsText, "SectPolicies")
+
+        val elderSlotsReused = listOf(9, 10).filter { elderSlotsBody.contains("@ProtoNumber($it)") }
+        val sectPoliciesReused = listOf(32).filter { sectPoliciesBody.contains("@ProtoNumber($it)") }
+        assertTrue(
+            "ElderSlots 退役号 $elderSlotsReused 不得再标注 @ProtoNumber（reserved 禁复用）",
+            elderSlotsReused.isEmpty()
+        )
+        assertTrue(
+            "SectPolicies 退役号 $sectPoliciesReused 不得再标注 @ProtoNumber（reserved 禁复用）",
+            sectPoliciesReused.isEmpty()
+        )
+        assertTrue(
+            "ElderSlots 应保留 reserved 9,10 登记注释",
+            elderSlotsBody.contains("reserved 9,10")
+        )
+        assertTrue(
+            "SectPolicies 应保留 reserved 29,32 登记注释",
+            sectPoliciesBody.contains("reserved 29,32")
+        )
+    }
+
+    /** 抽取 `data class <name>(` 到其闭合括号的类体文本（同文件按最内层消息作用域判定）。 */
+    private fun classBody(text: String, className: String): String {
+        val start = text.indexOf("class $className(")
+        if (start < 0) error("未找到类 $className")
+        val end = text.indexOf("\n)", start)
+        return if (end < 0) text.substring(start) else text.substring(start, end)
+    }
+
+    @Test
     fun `SaveData mails keeps proto tag 56`() {
         // SR-1 方向锁：SaveData.mails 用 56（本类现有最大 55+1，升序口径）。
         // 防后人改号——改号 = 云档/.sav wire 破裂（旧档按旧号解码）。

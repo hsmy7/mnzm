@@ -36,9 +36,9 @@ class ResignGateTest {
     fun `REFLECTING returns ConfirmRequired with release message`() {
         val result = gate(DiscipleStatus.REFLECTING)
         assertTrue(
-            "监牢应触发二次确认且文案必须问是否释放",
+            "思过中应触发二次确认且文案必须问是否解除",
             result is ResignGateResult.ConfirmRequired &&
-                result.message.contains("监牢") && result.message.contains("释放")
+                result.message.contains("思过") && result.message.contains("解除")
         )
     }
 

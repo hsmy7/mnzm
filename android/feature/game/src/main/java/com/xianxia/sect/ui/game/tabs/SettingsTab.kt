@@ -330,7 +330,7 @@ private fun ResetDisciplesConfirmDialog(
         StandardPromptDialog(
             onDismissRequest = onDismiss,
             title = "确认重置弟子状态",
-            text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空，监牢弟子不受影响。",
+            text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空。",
             confirmLabel = "确认",
             onConfirm = onConfirm,
             dismissLabel = "取消",

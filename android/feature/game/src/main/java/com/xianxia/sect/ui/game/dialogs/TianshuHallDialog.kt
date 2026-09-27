@@ -51,7 +51,6 @@ import com.xianxia.sect.ui.game.toggleFrugality
 import com.xianxia.sect.ui.game.toggleHerbCultivation
 import com.xianxia.sect.ui.game.toggleManualResearch
 import com.xianxia.sect.ui.game.toggleMoralEducation
-import com.xianxia.sect.ui.game.toggleRewardPunish
 import com.xianxia.sect.ui.game.toggleSpiritMineBoost
 import com.xianxia.sect.ui.game.toggleSpiritSpring
 import com.xianxia.sect.core.usecase.toggleAlchemyIncentive
@@ -59,7 +58,6 @@ import com.xianxia.sect.core.usecase.toggleForgeIncentive
 import com.xianxia.sect.core.usecase.toggleFrugality
 import com.xianxia.sect.core.usecase.toggleHerbCultivation
 import com.xianxia.sect.core.usecase.toggleManualResearch
-import com.xianxia.sect.core.usecase.toggleRewardPunish
 import com.xianxia.sect.core.usecase.toggleSpiritSpring
 
 @Composable
@@ -626,10 +624,6 @@ private fun ColumnScope.SectPoliciesContent(
             viceBonusText = viceBonusText,
             productionViewModel = productionViewModel
         )
-        SectPoliciesSecurityList(
-            sectPolicies = sectPolicies,
-            productionViewModel = productionViewModel
-        )
         SectPoliciesManagementList(
             sectPolicies = sectPolicies,
             viceBonusText = viceBonusText,
@@ -725,22 +719,6 @@ private fun SectPoliciesCultivationList(
         cost = "800灵石/弟子/月",
         checked = sectPolicies?.asceticTraining ?: false,
         onCheckedChange = { productionViewModel.toggleAsceticTraining() }
-    )
-}
-
-/** 治安类政策列表 */
-@Composable
-private fun SectPoliciesSecurityList(
-    sectPolicies: SectPolicies?,
-    productionViewModel: ProductionViewModel
-) {
-    // ═══ 治安类 ═══
-    PolicyItem(
-        title = "赏善罚恶",
-        effect = "执法效率+30%",
-        cost = "月耗3000灵石",
-        checked = sectPolicies?.rewardPunish ?: false,
-        onCheckedChange = { productionViewModel.toggleRewardPunish() }
     )
 }
 

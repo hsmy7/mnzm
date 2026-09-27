@@ -52,7 +52,6 @@ data class GameConfigData(
     @Serializable
     data class ElderSection(
         val realmViceSectMaster: Int = 4,
-        val realmLawEnforcement: Int = 5,
         val realmElder: Int = 6,
         val realmPreachingMaster: Int = 7
     )

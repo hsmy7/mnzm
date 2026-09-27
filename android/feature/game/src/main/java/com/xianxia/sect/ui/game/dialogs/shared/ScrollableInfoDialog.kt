@@ -15,8 +15,8 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 /**
  * 共享信息弹窗容器：垂直滚动 + 横向 12dp 内边距。
  *
- * 收敛各对话框手写的私有 CommonDialog 同构包装（ReflectionCliffDialog/
- * LibraryDialog/MissionHallDialog 等）。
+ * 收敛各对话框手写的私有 CommonDialog 同构包装（LibraryDialog/
+ * MissionHallDialog 等）。
  * 业务特殊的变体（如 SpiritMineDialog 带产量统计 headerActions）不收敛。
  */
 @Composable

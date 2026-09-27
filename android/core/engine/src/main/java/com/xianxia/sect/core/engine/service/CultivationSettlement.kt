@@ -207,8 +207,6 @@ class CultivationSettlement @Inject constructor(
         tryDeduct(GameConfig.PolicyConfig.ENHANCED_SECURITY_MONTHLY, "增强治安",
             data.sectPolicies.enhancedSecurity) { it.copy(enhancedSecurity = false) }
         tryDeduct(GameConfig.PolicyConfig.CURFEW_MONTHLY, "宵禁", data.sectPolicies.curfew) { it.copy(curfew = false) }
-        tryDeduct(GameConfig.PolicyConfig.REWARD_PUNISH_MONTHLY, "赏善罚恶",
-            data.sectPolicies.rewardPunish) { it.copy(rewardPunish = false) }
         tryDeduct(GameConfig.PolicyConfig.STRICT_TRAINING_MONTHLY, "严苛训练",
             data.sectPolicies.strictTraining) { it.copy(strictTraining = false) }
         tryDeduct(GameConfig.PolicyConfig.RELAXED_MGMT_MONTHLY, "松弛管理",

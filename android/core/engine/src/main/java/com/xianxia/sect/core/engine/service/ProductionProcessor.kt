@@ -169,7 +169,7 @@ internal fun buildOccupiedSlotDiscipleIds(data: GameData): Set<String> = buildSe
 }
 
 /**
- * 长老槽位全部占用弟子 ID 收集（10 个单槽字段 + 7 个亲传弟子列表字段）。
+ * 长老槽位全部占用弟子 ID 收集（9 个单槽字段 + 6 个亲传弟子列表字段）。
  * 显式清单 + 守卫测试（ElderSlotsStatusCoverageTest 反射双向校验）保证新增
  * 字段不遗漏——遗漏会导致该槽位弟子被自动排班当作空闲调动（双槽位根因）。
  */
@@ -177,11 +177,11 @@ internal fun collectElderSlotDiscipleIds(elderSlots: ElderSlots): Set<String> = 
     listOf(
         elderSlots.viceSectMaster, elderSlots.herbGardenElder, elderSlots.alchemyElder,
         elderSlots.forgeElder, elderSlots.outerElder, elderSlots.preachingElder,
-        elderSlots.lawEnforcementElder, elderSlots.innerElder,
+        elderSlots.innerElder,
         elderSlots.qingyunPreachingElder, elderSlots.recruitingElder
     ).filter { it.isNotEmpty() }.forEach { add(it) }
     listOf(
-        elderSlots.preachingMasters, elderSlots.lawEnforcementDisciples,
+        elderSlots.preachingMasters,
         elderSlots.qingyunPreachingMasters, elderSlots.herbGardenDisciples,
         elderSlots.alchemyDisciples, elderSlots.forgeDisciples,
         elderSlots.spiritMineDeaconDisciples

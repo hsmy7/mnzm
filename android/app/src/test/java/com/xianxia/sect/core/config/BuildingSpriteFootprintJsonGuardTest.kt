@@ -30,7 +30,7 @@ class BuildingSpriteFootprintJsonGuardTest {
         val buildingsElement = root["buildings"] ?: error("buildings 字段缺失")
         val buildings = buildingsElement as? JsonObject ?: error("buildings 字段结构异常")
 
-        assertEquals("建筑数量", 18, buildings.size)
+        assertEquals("建筑数量", 16, buildings.size)
 
         BuildingFeatureRegistry.registerDefaults()
         val offenders = buildings.entries.mapNotNull { (id, element) ->

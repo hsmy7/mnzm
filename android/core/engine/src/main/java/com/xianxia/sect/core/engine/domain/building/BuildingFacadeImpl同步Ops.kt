@@ -12,7 +12,6 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
-import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.put
 import com.xianxia.sect.core.nativebridge.ActionIds
@@ -306,18 +305,6 @@ internal fun BuildingFacadeImpl.removeProductionSlotsFromRepository(instanceIds:
         productionCoordinator.repository.getSlots()
             .filter { it.buildingInstanceId in instanceIds }
             .forEach { slot -> productionCoordinator.repository.removeSlot(slot.id) }
-    }
-}
-
-/** 监牢拆除：释放所有思过弟子（监牢限建 1 座，无实例归属记录，全量释放）。 */
-internal fun MutableGameState.releaseReflectingDisciples() {
-    for (id in discipleTables.ids) {
-        if (discipleTables.statuses[id] == DiscipleStatus.REFLECTING) {
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
-            discipleTables.statusData[id] =
-                (discipleTables.statusData[id] ?: emptyMap()) -
-                setOf("reflectionStartYear", "reflectionEndYear")
-        }
     }
 }
 

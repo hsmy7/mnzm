@@ -79,7 +79,6 @@ sealed interface GuideCondition {
             "outerElder" -> slots.outerElder
             "innerElder" -> slots.innerElder
             "preachingElder" -> slots.preachingElder
-            "lawEnforcementElder" -> slots.lawEnforcementElder
             "recruitingElder" -> slots.recruitingElder
             "qingyunPreachingElder" -> slots.qingyunPreachingElder
             else -> ""
@@ -102,7 +101,6 @@ sealed interface GuideCondition {
             val list: List<DirectDiscipleSlot> = when (slotListField) {
                 "spiritMineDeacon" -> slots.spiritMineDeaconDisciples
                 "preachingMasters" -> slots.preachingMasters
-                "lawEnforcementDisciples" -> slots.lawEnforcementDisciples
                 "qingyunPreachingMasters" -> slots.qingyunPreachingMasters
                 else -> emptyList()
             }
@@ -245,6 +243,21 @@ data class GuideTask(
 
 // ==================== 任务注册表 ====================
 
+/**
+ * 引导任务注册表。
+ *
+ * **空号禁复用**：以下 id 已随对应玩法下线退役，**禁止**被新任务复用——
+ * 旧档 `guideClaimedRewardIds` 可能残留这些 id 的领取记录，复用会让新步骤"开局即完成"（静默失效）。
+ * `GuideTaskTest` 与 C++ `guide_reward_tx_test.cpp` 双向锁定本清单。
+ *
+ * | 空号 | 原任务 | 退役原因 |
+ * |---|---|---|
+ * | 13 | 宗门律法 | 执法堂建筑与执法长老槽位下线 |
+ * | 14 | 执法亲传 | 执法堂建筑与执法亲传弟子槽位下线 |
+ * | 24 | 血炼强化 | 血炼玩法下线 |
+ * | 25 | 监牢惩戒 | 监牢建筑下线 |
+ */
+
 object GuideTaskRegistry {
     val ALL_TASKS: List<GuideTask> = listOf(
         GuideTask(
@@ -344,22 +357,6 @@ object GuideTaskRegistry {
             )
         ),
         GuideTask(
-            id = 13, name = "宗门律法",
-            description = "执法堂：宗门律法与秩序的执掌之所。",
-            conditions = listOf(
-                GuideCondition.BuildingCount("执法堂", 1),
-                GuideCondition.ElderAppointed("lawEnforcementElder", "执法长老")
-            )
-        ),
-        GuideTask(
-            id = 14, name = "执法亲传",
-            description = "执法亲传弟子：协助执法长老处理宗门事务。",
-            conditions = listOf(
-                GuideCondition.BuildingCount("执法堂", 1),
-                GuideCondition.DirectDiscipleActive("lawEnforcementDisciples", "执法亲传弟子")
-            )
-        ),
-        GuideTask(
             id = 15, name = "宗门任务",
             description = "任务阁：发布探索/押运/镇压等宗门任务，派遣弟子完成后获得灵石、材料等奖励。",
             conditions = listOf(
@@ -428,13 +425,6 @@ object GuideTaskRegistry {
             description = "仓库：每座+75格容量。",
             conditions = listOf(
                 GuideCondition.BuildingCount("仓库", 3)
-            )
-        ),
-        GuideTask(
-            id = 25, name = "监牢惩戒",
-            description = "监牢：宗门拘押之所。",
-            conditions = listOf(
-                GuideCondition.BuildingCount("监牢", 1)
             )
         ),
         GuideTask(

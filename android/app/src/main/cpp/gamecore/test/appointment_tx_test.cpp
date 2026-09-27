@@ -93,12 +93,12 @@ protected:
     std::unique_ptr<GameCore> core_;
 };
 
-// ── 长老单值槽任命（10 字段逐类覆盖） ─────────────────────────────────
+// ── 长老单值槽任命（9 字段逐类覆盖） ─────────────────────────────────
 
 TEST_F(AppointmentTxFixture, AppointEachElderTypeWritesField) {
-    const std::string kTypes[10] = {
+    const std::string kTypes[9] = {
         "VICE_SECT_MASTER", "HERB_GARDEN", "ALCHEMY", "FORGE", "OUTER_ELDER",
-        "PREACHING", "LAW_ENFORCEMENT", "INNER_ELDER", "RECRUITING",
+        "PREACHING", "INNER_ELDER", "RECRUITING",
         "CLOUD_PREACHING",
     };
     for (const std::string& type : kTypes) {
@@ -106,7 +106,7 @@ TEST_F(AppointmentTxFixture, AppointEachElderTypeWritesField) {
         addDisciple("1");
         const auto r = appointment_tx::elderAppointTx(core_->state(), type, "1");
         ASSERT_TRUE(r.base.ok) << type << ": " << r.base.message;
-        // 字段写入（10 字段穷举分派）
+        // 字段写入（9 字段穷举分派）
         const auto& slots = core_->state().gameData.elderSlots;
         if (type == "VICE_SECT_MASTER") EXPECT_EQ(slots.viceSectMaster, "1");
         else if (type == "HERB_GARDEN") EXPECT_EQ(slots.herbGardenElder, "1");
@@ -114,18 +114,17 @@ TEST_F(AppointmentTxFixture, AppointEachElderTypeWritesField) {
         else if (type == "FORGE") EXPECT_EQ(slots.forgeElder, "1");
         else if (type == "OUTER_ELDER") EXPECT_EQ(slots.outerElder, "1");
         else if (type == "PREACHING") EXPECT_EQ(slots.preachingElder, "1");
-        else if (type == "LAW_ENFORCEMENT") EXPECT_EQ(slots.lawEnforcementElder, "1");
         else if (type == "INNER_ELDER") EXPECT_EQ(slots.innerElder, "1");
         else if (type == "RECRUITING") EXPECT_EQ(slots.recruitingElder, "1");
         else if (type == "CLOUD_PREACHING") EXPECT_EQ(slots.qingyunPreachingElder, "1");
     }
 }
 
-TEST_F(AppointmentTxFixture, AppointClearsDirectListForSixTypes) {
-    // 六类任命清空对应亲传列表（SLOT_TYPES_CLEARING_DIRECT_DISCIPLES）；
-    // spiritMineDeaconDisciples（第 7 列表）不在任命清空族——仅全槽清理触达
+TEST_F(AppointmentTxFixture, AppointClearsDirectListForFiveTypes) {
+    // 五类任命清空对应亲传列表（SLOT_TYPES_CLEARING_DIRECT_DISCIPLES）；
+    // spiritMineDeaconDisciples（第 6 列表）不在任命清空族——仅全槽清理触达
     const char* kClearing[] = {"HERB_GARDEN", "ALCHEMY", "FORGE",
-                               "PREACHING", "LAW_ENFORCEMENT", "CLOUD_PREACHING"};
+                               "PREACHING", "CLOUD_PREACHING"};
     for (const std::string& type : kClearing) {
         SetUp();
         addDisciple("1");
@@ -134,7 +133,6 @@ TEST_F(AppointmentTxFixture, AppointClearsDirectListForSixTypes) {
         else if (type == "ALCHEMY") slots.alchemyDisciples = {directSlot(0, "7")};
         else if (type == "FORGE") slots.forgeDisciples = {directSlot(0, "7")};
         else if (type == "PREACHING") slots.preachingMasters = {directSlot(0, "7")};
-        else if (type == "LAW_ENFORCEMENT") slots.lawEnforcementDisciples = {directSlot(0, "7")};
         else slots.qingyunPreachingMasters = {directSlot(0, "7")};
         slots.spiritMineDeaconDisciples = {directSlot(0, "7")};
 
@@ -144,7 +142,6 @@ TEST_F(AppointmentTxFixture, AppointClearsDirectListForSixTypes) {
         else if (type == "ALCHEMY") EXPECT_TRUE(slots.alchemyDisciples.empty());
         else if (type == "FORGE") EXPECT_TRUE(slots.forgeDisciples.empty());
         else if (type == "PREACHING") EXPECT_TRUE(slots.preachingMasters.empty());
-        else if (type == "LAW_ENFORCEMENT") EXPECT_TRUE(slots.lawEnforcementDisciples.empty());
         else EXPECT_TRUE(slots.qingyunPreachingMasters.empty());
         EXPECT_EQ(slots.spiritMineDeaconDisciples.size(), 1u);
     }

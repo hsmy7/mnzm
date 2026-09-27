@@ -44,10 +44,10 @@ internal fun OverlayDialogRoute(
         is DialogType.Residence, is DialogType.WarehouseBuilding -> {
             type.renderProductionRoutes(vms, gameData, onDismiss)
         }
-        // 功能性建筑（Library/WenDaoPeak/QingyunPeak/TianshuHall/MissionHall/ReflectionCliff）
+        // 功能性建筑（Library/WenDaoPeak/QingyunPeak/TianshuHall/MissionHall）
         is DialogType.Library, is DialogType.WenDaoPeak, is DialogType.QingyunPeak,
         is DialogType.TianshuHall,
-        is DialogType.MissionHall, is DialogType.ReflectionCliff -> {
+        is DialogType.MissionHall -> {
             type.renderFunctionalBuildingRoutes(vms, gameData, onDismiss)
         }
         // 系统级（SectLevelDetail/RenameSect/GameOver/BuildingSectLevelRequirement/CloudSave/JadeSymbol/JadeSymbolAd）

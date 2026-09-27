@@ -98,7 +98,7 @@ TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsAndSlots) {
     ds.currentHps[survivor] = 100;
     ds.currentMps[survivor] = 100;
     // 槽位与熟练度（G07 重伤路径不清槽/不清熟练度）
-    gd.elderSlots.lawEnforcementElder = "101";
+    gd.elderSlots.preachingElder = "101";
     gd.manualProficiencies["101"] = {};
     gd.spiritMineSlots.push_back({1, "101", "弟子101"});
     const int32_t yearBefore = gd.gameYear;
@@ -121,7 +121,7 @@ TEST_F(BattleResidualTxFixture, CasualtySettleWritesDeathColumnsAndSlots) {
     // 幸存者 HP/MP 回写
     EXPECT_EQ(ds.currentHps[survivor], 50);
     // G07 重伤保留槽位与熟练度
-    EXPECT_EQ(gd.elderSlots.lawEnforcementElder, "101");
+    EXPECT_EQ(gd.elderSlots.preachingElder, "101");
     EXPECT_EQ(gd.spiritMineSlots[0].discipleId, "101");
     EXPECT_EQ(gd.manualProficiencies.count("101"), 1u);
     EXPECT_TRUE(data["overflowDrafts"].empty());

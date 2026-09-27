@@ -61,18 +61,8 @@ class BuildingNamesTest {
     }
 
     @Test
-    fun getDisplayName_lawEnforcementHall_returns执法堂() {
-        assertEquals("执法堂", BuildingNames.getDisplayName("lawEnforcementHall"))
-    }
-
-    @Test
     fun getDisplayName_missionHall_returns任务阁() {
         assertEquals("任务阁", BuildingNames.getDisplayName("missionHall"))
-    }
-
-    @Test
-    fun getDisplayName_reflectionCliff_returns监牢() {
-        assertEquals("监牢", BuildingNames.getDisplayName("reflectionCliff"))
     }
 
     @Test

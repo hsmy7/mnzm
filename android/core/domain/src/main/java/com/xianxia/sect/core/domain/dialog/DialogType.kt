@@ -83,8 +83,6 @@ sealed interface DialogType {
 
     data object MissionHall : DialogType
 
-    data object ReflectionCliff : DialogType
-
     // ==================== 引导系统 ====================
 
     /** 新手引导任务界面 */

@@ -51,12 +51,6 @@ class ElderSlotsPositionNameTest {
     }
 
     @Test
-    fun `lawEnforcementElder returns 执法长老`() {
-        val slots = noSlots.copy(lawEnforcementElder = "d7")
-        assertEquals("执法长老", slots.resolvePositionName("d7"))
-    }
-
-    @Test
     fun `innerElder returns 内门长老`() {
         val slots = noSlots.copy(innerElder = "d8")
         assertEquals("内门长老", slots.resolvePositionName("d8"))
@@ -115,12 +109,10 @@ class ElderSlotsPositionNameTest {
     fun `non-managing slots do not resolve position`() {
         val slots = noSlots.copy(
             preachingMasters = listOf(slot("d16")),
-            lawEnforcementDisciples = listOf(slot("d17")),
             qingyunPreachingMasters = listOf(slot("d18")),
             spiritMineDeaconDisciples = listOf(slot("d19"))
         )
         assertNull("传道弟子应走 PREACHING 状态而非 MANAGING 职位名", slots.resolvePositionName("d16"))
-        assertNull("执法弟子应走 LAW_ENFORCING 状态而非 MANAGING 职位名", slots.resolvePositionName("d17"))
         assertNull("青云传道弟子应走 PREACHING 状态而非 MANAGING 职位名", slots.resolvePositionName("d18"))
         assertNull("灵矿执事应走 DEACONING 状态而非 MANAGING 职位名", slots.resolvePositionName("d19"))
     }

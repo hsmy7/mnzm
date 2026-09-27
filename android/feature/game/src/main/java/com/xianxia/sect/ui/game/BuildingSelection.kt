@@ -51,7 +51,6 @@ private fun simpleBuildingDialogType(key: String): DialogType? = when (key) {
     "qingyun_peak" -> DialogType.QingyunPeak
     "tianshu_hall" -> DialogType.TianshuHall
     "mission_hall" -> DialogType.MissionHall
-    "reflection_cliff" -> DialogType.ReflectionCliff
     else -> null
 }
 

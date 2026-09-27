@@ -33,15 +33,6 @@ suspend fun SectPolicyToggleUseCase.toggleCurfew() = toggle(
 fun SectPolicyToggleUseCase.isCurfewEnabled(): Boolean =
     gameEngine.gameData.value?.sectPolicies?.curfew ?: false
 
-suspend fun SectPolicyToggleUseCase.toggleRewardPunish() = toggle(
-    field = "rewardPunish",
-    getter = { it.rewardPunish }, setter = { p, v -> p.copy(rewardPunish = v) },
-    monthlyCost = { GameConfig.PolicyConfig.REWARD_PUNISH_MONTHLY }
-)
-
-fun SectPolicyToggleUseCase.isRewardPunishEnabled(): Boolean =
-    gameEngine.gameData.value?.sectPolicies?.rewardPunish ?: false
-
 suspend fun SectPolicyToggleUseCase.toggleSpiritSpring() = toggle(
     field = "spiritSpring",
     getter = { it.spiritSpring }, setter = { p, v -> p.copy(spiritSpring = v) },

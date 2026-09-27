@@ -25,9 +25,9 @@
   ],
   "mipFile": "atlas-rgba-mips.bin",
   "mipBytes": 22369616,
-  "spriteCount": 40,
-  "transparentSpriteCount": 36,
-  "frameSha256": "5d2aaa174561eb3d2b1f8e495e3a48f9dccf89d802dbdec0401763fc4814dbbe",
+  "spriteCount": 38,
+  "transparentSpriteCount": 34,
+  "frameSha256": "e1d40cded3b08f0e8fb415497b6fe39e99e18dc032bedca8eed4ce28e259647c",
   "sprites": [
     {
       "name": "GROUND",
@@ -145,11 +145,6 @@
       "bytes": 1048576
     },
     {
-      "name": "执法堂",
-      "sha256": "36af9e6146aefe208da1141ad1c6fc95944515d2692519d6d6f9520e46182780",
-      "bytes": 262144
-    },
-    {
       "name": "任务阁",
       "sha256": "3b4d1cde4909f31a8d06ce318fdf4aaccd7be9e1459c8556fd42bb77d52047b1",
       "bytes": 262144
@@ -157,11 +152,6 @@
     {
       "name": "巡视楼",
       "sha256": "7f18b8fc24b8ff1d6483a86c3c453a3659c0bbd6f96b6fe854f538713997da32",
-      "bytes": 262144
-    },
-    {
-      "name": "监牢",
-      "sha256": "253172565738df36b10f852bb2ccaf22f45f34c864e87af3055a64fd878b0964",
       "bytes": 262144
     },
     {
@@ -230,5 +220,5 @@
       "bytes": 3072
     }
   ],
-  "generatedAt": "2026-09-25T04:14:40.325Z"
+  "generatedAt": "2026-09-26T19:41:56.671Z"
 }

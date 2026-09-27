@@ -213,7 +213,7 @@ TEST_F(PolicyTxFixture, ProductionClassFlagMatrix) {
         EXPECT_TRUE(r.productionCheckpointNeeded)
             << field << " 属生产类政策（影响炼丹/锻造/灵田速率）";
     }
-    for (const char* field : {"enhancedSecurity", "curfew", "rewardPunish",
+    for (const char* field : {"enhancedSecurity", "curfew",
                               "manualResearch", "frugality", "moralEducation",
                               "benevolentGovernance", "cultivationSubsidy",
                               "asceticTraining", "strictTraining", "relaxedMgmt"}) {

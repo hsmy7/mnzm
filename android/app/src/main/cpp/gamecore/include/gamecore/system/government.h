@@ -40,7 +40,6 @@ constexpr int64_t kForgeIncentiveMonthly = 3000;
 constexpr int64_t kHerbCultivationMonthly = 3000;
 constexpr int64_t kManualResearchMonthly = 4000;
 constexpr int64_t kCurfewMonthly = 1000;
-constexpr int64_t kRewardPunishMonthly = 3000;
 constexpr int64_t kStrictTrainingMonthly = 20000;
 constexpr int64_t kRelaxedMgmtMonthly = 3000;
 constexpr int64_t kSpiritSpringMonthly = 2000;
@@ -146,8 +145,6 @@ inline PolicyCostResult processPolicyCosts(
               [](state::SectPolicies& p) { p.enhancedSecurity = false; });
     tryDeduct(kCurfewMonthly, "宵禁", policies.curfew,
               [](state::SectPolicies& p) { p.curfew = false; });
-    tryDeduct(kRewardPunishMonthly, "赏善罚恶", policies.rewardPunish,
-              [](state::SectPolicies& p) { p.rewardPunish = false; });
     tryDeduct(kStrictTrainingMonthly, "严苛训练", policies.strictTraining,
               [](state::SectPolicies& p) { p.strictTraining = false; });
     tryDeduct(kRelaxedMgmtMonthly, "松弛管理", policies.relaxedMgmt,
@@ -375,7 +372,6 @@ inline bool* sectPolicyField(state::SectPolicies& p, const std::string& field) {
     if (field == "manualResearch") return &p.manualResearch;
     if (field == "asceticTraining") return &p.asceticTraining;
     if (field == "curfew") return &p.curfew;
-    if (field == "rewardPunish") return &p.rewardPunish;
     if (field == "strictTraining") return &p.strictTraining;
     if (field == "relaxedMgmt") return &p.relaxedMgmt;
     if (field == "spiritSpring") return &p.spiritSpring;

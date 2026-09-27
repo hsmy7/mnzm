@@ -11,13 +11,12 @@ import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.dialogs.LibraryDialog
 import com.xianxia.sect.ui.game.dialogs.MissionHallDialog
 import com.xianxia.sect.ui.game.dialogs.QingyunPeakDialog
-import com.xianxia.sect.ui.game.dialogs.ReflectionCliffDialog
 import com.xianxia.sect.ui.game.dialogs.TianshuHallDialog
 import com.xianxia.sect.ui.game.dialogs.WenDaoPeakDialog
 
 /**
  * 功能性建筑对话框路由（E1 拆分：Library/WenDaoPeak/QingyunPeak/TianshuHall/
- * MissionHall/ReflectionCliff）。分支体行为与拆分前逐字节一致。
+ * MissionHall）。分支体行为与拆分前逐字节一致。
  */
 @Composable
 internal fun DialogType.renderFunctionalBuildingRoutes(
@@ -32,7 +31,6 @@ internal fun DialogType.renderFunctionalBuildingRoutes(
         DialogType.QingyunPeak -> renderQingyunPeak(viewModel, gameData, vms, onDismiss)
         DialogType.TianshuHall -> renderTianshuHall(viewModel, gameData, vms, onDismiss)
         DialogType.MissionHall -> renderMissionHall(viewModel, gameData, onDismiss)
-        DialogType.ReflectionCliff -> renderReflectionCliff(viewModel, gameData, onDismiss)
         else -> Unit
     }
 }
@@ -128,23 +126,6 @@ private fun renderMissionHall(
             disciples = aliveDisciples,
             viewModel = viewModel,
             onDismiss = onDismiss
-        )
-    }
-}
-
-@Composable
-private fun renderReflectionCliff(
-    viewModel: GameViewModel,
-    gameData: GameData,
-    onDismiss: () -> Unit
-) {
-    val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
-    DeferredContent {
-        ReflectionCliffDialog(
-            disciples = aliveDisciples,
-            gameData = gameData,
-            onDismiss = onDismiss,
-            onReleaseDisciple = { discipleId -> viewModel.disciple.releaseReflectionDisciple(discipleId) }
         )
     }
 }

@@ -204,8 +204,6 @@ internal fun DiscipleFacadeImpl.getElderSlotOccupant(
         slots.forgeDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
     SLOT_TYPE_PREACHING ->
         slots.preachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
-    SLOT_TYPE_LAW_ENFORCEMENT ->
-        slots.lawEnforcementDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
     SLOT_TYPE_QINGYUN ->
         slots.qingyunPreachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
     SLOT_TYPE_SPIRIT_MINE_DEACON ->
@@ -241,11 +239,6 @@ internal fun DiscipleFacadeImpl.replaceElderSlot(
         list[slotIndex] = newSlot
         slots.copy(preachingMasters = list)
     }
-    SLOT_TYPE_LAW_ENFORCEMENT -> {
-        val list = growElderSlotList(list = slots.lawEnforcementDisciples.toMutableList(), index = slotIndex)
-        list[slotIndex] = newSlot
-        slots.copy(lawEnforcementDisciples = list)
-    }
     SLOT_TYPE_QINGYUN -> {
         val list = growElderSlotList(list = slots.qingyunPreachingMasters.toMutableList(), index = slotIndex)
         list[slotIndex] = newSlot
@@ -276,7 +269,6 @@ internal fun DiscipleFacadeImpl.getDirectDiscipleId(elderSlotType: String, slotI
         SLOT_TYPE_ALCHEMY -> slots.alchemyDisciples
         SLOT_TYPE_FORGE -> slots.forgeDisciples
         SLOT_TYPE_PREACHING -> slots.preachingMasters
-        SLOT_TYPE_LAW_ENFORCEMENT -> slots.lawEnforcementDisciples
         SLOT_TYPE_QINGYUN -> slots.qingyunPreachingMasters
         SLOT_TYPE_SPIRIT_MINE_DEACON -> slots.spiritMineDeaconDisciples
         else -> emptyList()

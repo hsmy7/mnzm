@@ -22,12 +22,8 @@ object BuildingNames {
         "wenDaoPeak" to "问道塔",
         "qingyunpeak" to "青云塔",
         "qingyunPeak" to "青云塔",
-        "lawenforcementhall" to "执法堂",
-        "lawEnforcementHall" to "执法堂",
         "missionhall" to "任务阁",
-        "missionHall" to "任务阁",
-        "reflectioncliff" to "监牢",
-        "reflectionCliff" to "监牢"
+        "missionHall" to "任务阁"
     )
 
     fun getDisplayName(buildingId: String): String =

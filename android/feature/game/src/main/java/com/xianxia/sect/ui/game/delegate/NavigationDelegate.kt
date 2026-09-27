@@ -59,11 +59,6 @@ class NavigationDelegate(
     }
 
     @Suppress("UnusedParameter") // buildingInstanceId: 导航门面语义形参：路由当前不区分实例，保留调用点语义
-    fun openReflectionCliffDialog() {
-        onNavigate(GameRoute.ReflectionCliff)
-    }
-
-    @Suppress("UnusedParameter") // buildingInstanceId: 导航门面语义形参：路由当前不区分实例，保留调用点语义
     fun openPatrolTowerDialog(buildingInstanceId: String = "") {
         onNavigate(GameRoute.PatrolTower)
     }

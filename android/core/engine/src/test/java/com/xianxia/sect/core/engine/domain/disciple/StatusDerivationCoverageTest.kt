@@ -29,12 +29,14 @@ class StatusDerivationCoverageTest {
      * - REFLECTING：受保护状态，直接写入
      * - ON_MISSION：受保护状态，直接写入
      * - WAREHOUSE_GARRISON：旧档兼容保留值，无生产写入方（仓库驻守玩法已下线）
+     * - LAW_ENFORCING：旧档兼容保留值，无生产写入方（执法堂玩法已下线）
      */
     private val nonDerivedStatuses = setOf(
         DiscipleStatus.DEAD,
         DiscipleStatus.REFLECTING,
         DiscipleStatus.ON_MISSION,
-        DiscipleStatus.WAREHOUSE_GARRISON
+        DiscipleStatus.WAREHOUSE_GARRISON,
+        DiscipleStatus.LAW_ENFORCING
     )
 
     /**
@@ -46,7 +48,6 @@ class StatusDerivationCoverageTest {
         DiscipleStatus.GARRISONING to "inGarrison",
         DiscipleStatus.IN_TEAM to "inTeam",
         DiscipleStatus.SECRET_REALM to "inSecretRealm",
-        DiscipleStatus.LAW_ENFORCING to "lawEnforcing",
         DiscipleStatus.PREACHING to "preaching",
         DiscipleStatus.DEACONING to "deaconing",
         DiscipleStatus.MANAGING to "managing",

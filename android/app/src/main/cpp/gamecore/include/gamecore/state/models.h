@@ -511,8 +511,6 @@ struct ElderSlots {
     std::string outerElder;
     std::string preachingElder;
     std::vector<DirectDiscipleSlot> preachingMasters;
-    std::string lawEnforcementElder;
-    std::vector<DirectDiscipleSlot> lawEnforcementDisciples;
     std::string innerElder;
     std::string qingyunPreachingElder;
     std::vector<DirectDiscipleSlot> qingyunPreachingMasters;
@@ -555,7 +553,6 @@ struct SectPolicies {
     int32_t autoMultiResidenceThreshold = 1;
     bool asceticTraining = false;
     bool curfew = false;
-    bool rewardPunish = false;
     bool strictTraining = false;
     bool relaxedMgmt = false;
     bool spiritSpring = false;

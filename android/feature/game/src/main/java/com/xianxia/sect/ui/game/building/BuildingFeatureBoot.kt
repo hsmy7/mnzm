@@ -82,18 +82,13 @@ private fun peakBuildingFeatures(): List<BuildingFeature> = listOf(
         description = "管理内门弟子与精英培养")
 )
 
-/** 厅堂/职能型建筑：天枢殿 / 执法堂 / 任务阁 / 巡视楼 / 监牢 */
+/** 厅堂/职能型建筑：天枢殿 / 任务阁 / 巡视楼 */
 private fun hallBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
         listOf(SlotGroup.ElderPositions.TIANSHU_HALL),
         drawableRes = R.drawable.building_tianshu_hall, color = 0xFFFFF176,
         cost = 15000, gridWidth = 18, gridHeight = 13,
         description = "处理宗门事务的核心建筑", isGloballyUnique = true),
-    BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
-        listOf(SlotGroup.ElderPositions.LAW_ENFORCEMENT),
-        drawableRes = R.drawable.building_law_enforcement, color = 0xFFCE93D8,
-        cost = 6000, gridWidth = 6, gridHeight = 3,
-        description = "维护宗门纪律，执行奖惩"),
     BuildingFeature("mission_hall", "任务阁", BuildingType.MISSION_HALL,
         emptyList(),
         drawableRes = R.drawable.building_mission_hall, color = 0xFF90CAF9,
@@ -103,11 +98,7 @@ private fun hallBuildingFeatures(): List<BuildingFeature> = listOf(
         listOf(SlotGroup.PatrolTower()), unlimitedBuild = true,
         drawableRes = R.drawable.building_patrol_tower, color = 0xFF795548,
         cost = 35000, gridWidth = 4, gridHeight = 2,
-        description = "驻守弟子自动巡视地图攻击妖兽"),
-    BuildingFeature("reflection_cliff", "监牢", BuildingType.REFLECTION_CLIFF,
-        emptyList(),
-        drawableRes = R.drawable.building_reflection_cliff, color = 0xFFBDBDBD,
-        cost = 20000, gridWidth = 4, gridHeight = 4, description = "悔过自新之地，关押违规弟子")
+        description = "驻守弟子自动巡视地图攻击妖兽")
 )
 
 /** 住所型建筑：初级/中级单人+多人住所（显示名带分级前缀，精灵名保持图集历史名称） */

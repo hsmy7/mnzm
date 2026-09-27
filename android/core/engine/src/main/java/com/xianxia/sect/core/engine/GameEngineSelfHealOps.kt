@@ -200,7 +200,6 @@ private fun rewriteElderWinner(data: GameData, winner: SlotWinner, name: String)
         "forgeElder" -> slots.copy(forgeElder = winner.discipleId)
         "outerElder" -> slots.copy(outerElder = winner.discipleId)
         "preachingElder" -> slots.copy(preachingElder = winner.discipleId)
-        "lawEnforcementElder" -> slots.copy(lawEnforcementElder = winner.discipleId)
         "innerElder" -> slots.copy(innerElder = winner.discipleId)
         "recruitingElder" -> slots.copy(recruitingElder = winner.discipleId)
         "qingyunPreachingElder" -> slots.copy(qingyunPreachingElder = winner.discipleId)
@@ -209,7 +208,7 @@ private fun rewriteElderWinner(data: GameData, winner: SlotWinner, name: String)
     return data.copy(elderSlots = updated)
 }
 
-/** 重写亲传弟子列表（slotType 前缀区分七类）。 */
+/** 重写亲传弟子列表（slotType 前缀区分六类）。 */
 private fun rewriteDirectElderList(slots: ElderSlots, winner: SlotWinner, name: String): ElderSlots {
     val newSlot = DirectDiscipleSlot(
         index = winner.slotIndex,
@@ -228,7 +227,6 @@ private fun rewriteDirectElderList(slots: ElderSlots, winner: SlotWinner, name: 
         "alchemyDisciple" -> slots.copy(alchemyDisciples = setSlot(slots.alchemyDisciples))
         "forgeDisciple" -> slots.copy(forgeDisciples = setSlot(slots.forgeDisciples))
         "preachingMaster" -> slots.copy(preachingMasters = setSlot(slots.preachingMasters))
-        "lawEnforcementDisciple" -> slots.copy(lawEnforcementDisciples = setSlot(slots.lawEnforcementDisciples))
         "qingyunPreachingMaster" -> slots.copy(qingyunPreachingMasters = setSlot(slots.qingyunPreachingMasters))
         "spiritMineDeacon" -> slots.copy(spiritMineDeaconDisciples = setSlot(slots.spiritMineDeaconDisciples))
         else -> slots

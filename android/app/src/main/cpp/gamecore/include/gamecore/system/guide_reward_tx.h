@@ -73,10 +73,12 @@ struct Condition {
 struct Task {
     int32_t id;
     std::vector<Condition> conditions;
-    int32_t rewardQuantity;  /// Kotlin GuideTask.rewardItemQuantity（24 任务中 22 个为默认 2，任务 23/25 为 1）
+    int32_t rewardQuantity;  /// Kotlin GuideTask.rewardItemQuantity（22 任务全部为默认值 2）
 };
 
-/// 任务注册表（Kotlin GuideTaskRegistry.ALL_TASKS 逐条复刻——24 任务）。
+/// 任务注册表（Kotlin GuideTaskRegistry.ALL_TASKS 逐条复刻——22 任务）。
+/// **空号禁复用**：13/14（执法堂）、24（血炼）、25（监牢）已随对应玩法下线退役，
+/// 旧档 guideClaimedRewardIds 可能残留其领取记录，复用会让新步骤开局即完成。
 inline const std::vector<Task>& registry() {
     static const std::vector<Task> kRegistry = {
         {1, {{ConditionKind::kBuildingCount, "灵矿场", 10},
@@ -103,10 +105,6 @@ inline const std::vector<Task>& registry() {
               {ConditionKind::kCumulativeCounter, "policyActivated", 1}}, 2},
         {12, {{ConditionKind::kBuildingCount, "藏经阁", 1},
               {ConditionKind::kSlotFilledCount, "librarySlots", 3}}, 2},
-        {13, {{ConditionKind::kBuildingCount, "执法堂", 1},
-              {ConditionKind::kElderAppointed, "lawEnforcementElder", 1}}, 2},
-        {14, {{ConditionKind::kBuildingCount, "执法堂", 1},
-              {ConditionKind::kDirectDiscipleActive, "lawEnforcementDisciples", 1}}, 2},
         {15, {{ConditionKind::kBuildingCount, "任务阁", 1},
               {ConditionKind::kMissionCompleted, "", 3}}, 2},
         {16, {{ConditionKind::kBuildingCount, "问道塔", 1},
@@ -123,8 +121,8 @@ inline const std::vector<Task>& registry() {
               {ConditionKind::kSlotFilledCount, "residenceSlots", 5}}, 2},
         {22, {{ConditionKind::kBuildingCount, "初级多人住所", 3},
               {ConditionKind::kSlotFilledCount, "residenceSlots", 12}}, 2},
-        {23, {{ConditionKind::kBuildingCount, "仓库", 3}}, 1},
-        {25, {{ConditionKind::kBuildingCount, "监牢", 1}}, 1},
+        {23, {{ConditionKind::kBuildingCount, "仓库", 3}}, 2},
+        {26, {{ConditionKind::kCumulativeCounter, "gachaOpened", 1}}, 2},
     };
     return kRegistry;
 }
@@ -146,7 +144,6 @@ inline const std::string& elderSlotOccupant(const state::ElderSlots& slots,
     if (field == "outerElder") return slots.outerElder;
     if (field == "innerElder") return slots.innerElder;
     if (field == "preachingElder") return slots.preachingElder;
-    if (field == "lawEnforcementElder") return slots.lawEnforcementElder;
     if (field == "recruitingElder") return slots.recruitingElder;
     if (field == "qingyunPreachingElder") return slots.qingyunPreachingElder;
     return kEmpty;
@@ -159,7 +156,6 @@ inline int64_t directDiscipleActiveCount(const state::ElderSlots& slots,
     const std::vector<state::DirectDiscipleSlot>* list = nullptr;
     if (field == "spiritMineDeacon") list = &slots.spiritMineDeaconDisciples;
     else if (field == "preachingMasters") list = &slots.preachingMasters;
-    else if (field == "lawEnforcementDisciples") list = &slots.lawEnforcementDisciples;
     else if (field == "qingyunPreachingMasters") list = &slots.qingyunPreachingMasters;
     if (list == nullptr) return 0;
     int64_t n = 0;

@@ -177,20 +177,20 @@ inline bool isResidenceMulti(const std::string& name) {
     return false;
 }
 
-/// 长老槽位占用弟子（Kotlin collectElderSlotDiscipleIds：10 单槽 + 7 列表）
+/// 长老槽位占用弟子（Kotlin collectElderSlotDiscipleIds：9 单槽 + 6 列表）
 inline void collectElderSlotDiscipleIds(const state::ElderSlots& es,
                                         std::set<std::string>& out) {
     const std::string* singles[] = {
         &es.viceSectMaster, &es.herbGardenElder, &es.alchemyElder,
         &es.forgeElder, &es.outerElder, &es.preachingElder,
-        &es.lawEnforcementElder, &es.innerElder, &es.qingyunPreachingElder,
+        &es.innerElder, &es.qingyunPreachingElder,
         &es.recruitingElder,
     };
     for (const auto* s : singles) {
         if (!s->empty()) out.insert(*s);
     }
     const std::vector<state::DirectDiscipleSlot>* lists[] = {
-        &es.preachingMasters, &es.lawEnforcementDisciples,
+        &es.preachingMasters,
         &es.qingyunPreachingMasters, &es.herbGardenDisciples,
         &es.alchemyDisciples, &es.forgeDisciples,
         &es.spiritMineDeaconDisciples,

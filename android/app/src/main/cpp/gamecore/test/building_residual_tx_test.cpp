@@ -152,31 +152,21 @@ TEST_F(BuildingResidualTxFixture, ClearResidual_槽位逐组清除) {
     EXPECT_EQ(rngSnapshot(), before);
 }
 
-TEST_F(BuildingResidualTxFixture, ClearResidual_长老殿末座判定与监牢任务阁特例) {
-    addDisciple("1", "REFLECTING");
+TEST_F(BuildingResidualTxFixture, ClearResidual_长老殿末座判定与任务阁特例) {
     addDisciple("2", "ON_MISSION");
     setAlive("2", 1);
     addDisciple("3", "ON_MISSION");
     setAlive("3", 0);  // 已亡 ON_MISSION：不清（Kotlin isAlive 过滤）
     auto& gd = core_->state().gameData;
     gd.activeMissions.push_back(gamecore::state::ActiveMission{});
-    // 思过双键播种（监牢释放断言基准——须在事务前播种）
-    const auto row1 = *core_->state().disciples.rowOf("1");
-    core_->state().disciples.statusData[row1] = {
-        {"reflectionStartYear", "3"}, {"reflectionEndYear", "4"}};
     const auto before = rngSnapshot();
 
-    // 监牢/任务阁特例（长老殿/生产留 Kotlin——偏差登记，不发线）
+    // 任务阁特例（长老殿/生产留 Kotlin——偏差登记，不发线）
     residual_tx::ResidualTarget target;
     target.instanceId = "keep-1";
     target.isMissionHall = true;
-    target.isReflectionCliff = true;
     const auto r = residual_tx::clearResidualTransaction(core_->state(), {target});
     ASSERT_TRUE(r.ok);
-
-    // 监牢：全量 REFLECTING 释放 + 思过双键移除
-    EXPECT_EQ(core_->state().disciples.statuses[row1], "IDLE");
-    EXPECT_TRUE(core_->state().disciples.statusData[row1].empty());
 
     // 任务阁：activeMissions 清空 + 存活 ON_MISSION 回 IDLE、已亡不动
     EXPECT_TRUE(gd.activeMissions.empty());
@@ -253,7 +243,7 @@ TEST_F(BuildingResidualTxFixture, Dispatch1810_端到端与未知组静默跳过
     const std::string paramsJson = R"({"targets":[{"instanceId":"inst-1",
         "displayName":"灵矿场",
         "groups":["SPIRIT_MINE","RESIDENCE","UNKNOWN_GROUP"],
-        "isMissionHall":false,"isReflectionCliff":false}]})";
+        "isMissionHall":false}]})";
     const std::string result =
         core_->execute(action::BUILDING_RESIDUAL_CLEAR, paramsJson, 1000);
     const auto j = nlohmann::json::parse(result);

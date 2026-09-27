@@ -112,32 +112,6 @@ internal fun BuildingConfigService.createGrowthStageBuildings(): Map<String, Bui
 /** 管理期建筑-纪律/任务（6~12月，5,000~10,000 灵石） */
 
 internal fun BuildingConfigService.createManagementStageBuildings(): Map<String, BuildingConfigModel> = mapOf(
-    "reflection_cliff" to BuildingConfigModel(
-        id = "reflection_cliff",
-        displayName = "监牢",
-        buildingType = "REFLECTION_CLIFF",
-        slotCount = 6,
-        baseSuccessRate = 1.0,
-        cost = 20000,
-        gridWidth = 4,
-        gridHeight = 4,
-        spriteWidth = 4,
-        spriteHeight = 5,
-        description = "悔过自新之地，关押违规弟子"
-    ),
-    "law_enforcement_hall" to BuildingConfigModel(
-        id = "law_enforcement_hall",
-        displayName = "执法堂",
-        buildingType = "LAW_ENFORCEMENT_HALL",
-        slotCount = 3,
-        baseSuccessRate = 1.0,
-        cost = 6000,
-        gridWidth = 6,
-        gridHeight = 3,
-        spriteWidth = 6,
-        spriteHeight = 5,
-        description = "维护宗门纪律，执行奖惩"
-    ),
     "mission_hall" to BuildingConfigModel(
         id = "mission_hall",
         displayName = "任务阁",
@@ -334,24 +308,11 @@ internal fun BuildingConfigService.createDefaultBuildingAliasesProduction(): Map
 /** 管理/住所/后勤建筑别名 */
 
 internal fun BuildingConfigService.createDefaultBuildingAliasesAdministration(): Map<String, String> = mapOf(
-    // 执法堂 (law_enforcement_hall)
-    "lawenforcementhall" to "law_enforcement_hall",
-    "lawenforcement" to "law_enforcement_hall",
-    "zhifatang" to "law_enforcement_hall",
-    "law_enforcement_hall" to "law_enforcement_hall",
-    "执法堂" to "law_enforcement_hall",
-
     // 任务阁 (mission_hall)
     "missionhall" to "mission_hall",
     "renwuge" to "mission_hall",
     "mission_hall" to "mission_hall",
     "任务阁" to "mission_hall",
-
-    // 监牢 (reflection_cliff)
-    "reflectioncliff" to "reflection_cliff",
-    "siguoya" to "reflection_cliff",
-    "reflection_cliff" to "reflection_cliff",
-    "监牢" to "reflection_cliff",
 
     // 住所 (residence)
     "singleresidence" to "single_residence",

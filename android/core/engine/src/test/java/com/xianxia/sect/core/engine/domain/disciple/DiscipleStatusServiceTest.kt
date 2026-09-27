@@ -186,18 +186,6 @@ class DiscipleStatusServiceTest {
     }
 
     @Test
-    fun `deriveDiscipleStatus - lawEnforcing returns LAW_ENFORCING`() {
-        assertEquals(
-            DiscipleStatus.LAW_ENFORCING,
-            DiscipleStatusService.deriveDiscipleStatus(
-                isAlive = true,
-                currentStatus = DiscipleStatus.IDLE,
-                slotFlags = DiscipleStatusService.SlotFlags(lawEnforcing = true)
-            )
-        )
-    }
-
-    @Test
     fun `deriveDiscipleStatus - preaching returns PREACHING`() {
         assertEquals(
             DiscipleStatus.PREACHING,
@@ -341,7 +329,7 @@ class DiscipleStatusServiceTest {
                 isAlive = true,
                 currentStatus = DiscipleStatus.IDLE,
                 slotFlags = DiscipleStatusService.SlotFlags(
-                    inTeam = true, lawEnforcing = true, studying = true
+                    inTeam = true, studying = true
                 )
             )
         )
@@ -448,7 +436,7 @@ class DiscipleStatusServiceTest {
         val allTrue = DiscipleStatusService.SlotFlags(
             inGarrison = true,
             inTeam = true, inSecretRealm = true,
-            lawEnforcing = true, preaching = true, deaconing = true,
+            preaching = true, deaconing = true,
             managing = true, studying = true, mining = true,
             patrolling = true, alchemy = true, forge = true,
             spiritPlanting = true

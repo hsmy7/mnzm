@@ -53,7 +53,6 @@ class ElderSlotTypeCoverageTest {
         ElderSlotType.VICE_SECT_MASTER,        // 副宗主，无生产职能
         ElderSlotType.OUTER_ELDER,              // 外门长老，无生产职能
         ElderSlotType.PREACHING,                // 讲道长老，影响修炼而非生产
-        ElderSlotType.LAW_ENFORCEMENT,          // 执法长老，无生产职能
         ElderSlotType.INNER_ELDER,              // 内门长老，影响修炼而非生产
         ElderSlotType.RECRUITING,               // 招募长老，无生产职能
         ElderSlotType.CLOUD_PREACHING,          // 云游讲道长老，影响修炼而非生产
@@ -102,7 +101,6 @@ class ElderSlotTypeCoverageTest {
         ElderSlotType.ALCHEMY,            // 炼丹长老，影响生产而非修炼
         ElderSlotType.FORGE,              // 锻造长老，影响生产而非修炼
         ElderSlotType.HERB_GARDEN,        // 灵植长老，影响生产而非修炼
-        ElderSlotType.LAW_ENFORCEMENT,    // 执法长老，无修炼加成
         ElderSlotType.RECRUITING,         // 招募长老，无修炼加成
     )
 
@@ -140,7 +138,6 @@ class ElderSlotTypeCoverageTest {
         ElderSlotType.FORGE,
         ElderSlotType.OUTER_ELDER,
         ElderSlotType.PREACHING,
-        ElderSlotType.LAW_ENFORCEMENT,
         ElderSlotType.INNER_ELDER,
         ElderSlotType.RECRUITING,
         ElderSlotType.CLOUD_PREACHING,

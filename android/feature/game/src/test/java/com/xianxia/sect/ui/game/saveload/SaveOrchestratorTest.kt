@@ -35,16 +35,16 @@ class SaveOrchestratorTest {
         val rec = Recorder()
         val orchestrator = SaveOrchestrator(scope = this, config = CONFIG, onFire = rec::onFire)
 
-        orchestrator.submit(AutoSaveTrigger.MONTHLY)
+        orchestrator.submit(AutoSaveTrigger.REALTIME)
         runCurrent()
         assertEquals("合并窗未到期不得落盘", emptyList<Pair<Set<AutoSaveTrigger>, SaveFeedback>>(), rec.fired)
-        assertEquals(setOf(AutoSaveTrigger.MONTHLY), orchestrator.pendingTriggers())
+        assertEquals(setOf(AutoSaveTrigger.REALTIME), orchestrator.pendingTriggers())
 
         advanceTimeBy(WINDOW_MS + 1)
         runCurrent()
 
         assertEquals(
-            listOf(setOf(AutoSaveTrigger.MONTHLY) to SaveFeedback.AutoNotice),
+            listOf(setOf(AutoSaveTrigger.REALTIME) to SaveFeedback.AutoNotice),
             rec.fired
         )
     }
@@ -54,7 +54,7 @@ class SaveOrchestratorTest {
         val rec = Recorder()
         val orchestrator = SaveOrchestrator(scope = this, config = CONFIG, onFire = rec::onFire)
 
-        orchestrator.submit(AutoSaveTrigger.MONTHLY)
+        orchestrator.submit(AutoSaveTrigger.REALTIME)
         advanceTimeBy(WINDOW_MS / 2)
         runCurrent()
         orchestrator.submit(AutoSaveTrigger.BACKGROUND)
@@ -63,7 +63,7 @@ class SaveOrchestratorTest {
         assertEquals("退后台须立即落盘（不等窗）", 1, rec.fired.size)
         assertEquals(
             "窗内月变与 onStop 合并为同一次快照",
-            setOf(AutoSaveTrigger.MONTHLY, AutoSaveTrigger.BACKGROUND),
+            setOf(AutoSaveTrigger.REALTIME, AutoSaveTrigger.BACKGROUND),
             rec.fired.first().first
         )
         assertEquals(SaveFeedback.Silent, rec.fired.first().second)
@@ -79,7 +79,7 @@ class SaveOrchestratorTest {
         val rec = Recorder()
         val orchestrator = SaveOrchestrator(scope = this, config = CONFIG, onFire = rec::onFire)
 
-        orchestrator.submit(AutoSaveTrigger.MONTHLY)
+        orchestrator.submit(AutoSaveTrigger.REALTIME)
         runCurrent()
         orchestrator.invalidate()
         runCurrent()
@@ -97,7 +97,7 @@ class SaveOrchestratorTest {
 
         // 游戏月 = 6 秒真实时间（GameTimeClock 2000ms/旬 ×3 旬）远大于合并窗 ⇒ 月月必存
         repeat(2) {
-            orchestrator.submit(AutoSaveTrigger.MONTHLY)
+            orchestrator.submit(AutoSaveTrigger.REALTIME)
             advanceTimeBy(MONTH_INTERVAL_MS)
             runCurrent()
         }
@@ -111,12 +111,12 @@ class SaveOrchestratorTest {
 
     @Test
     fun `feedback mapping covers every trigger combination`() {
-        assertEquals(SaveFeedback.AutoNotice, saveFeedbackFor(setOf(AutoSaveTrigger.MONTHLY)))
+        assertEquals(SaveFeedback.AutoNotice, saveFeedbackFor(setOf(AutoSaveTrigger.REALTIME)))
         assertEquals(SaveFeedback.Silent, saveFeedbackFor(setOf(AutoSaveTrigger.BACKGROUND)))
         assertEquals(
             "含 onStop 的合并集按静默口径（玩家已离场）",
             SaveFeedback.Silent,
-            saveFeedbackFor(setOf(AutoSaveTrigger.MONTHLY, AutoSaveTrigger.BACKGROUND))
+            saveFeedbackFor(setOf(AutoSaveTrigger.REALTIME, AutoSaveTrigger.BACKGROUND))
         )
     }
 

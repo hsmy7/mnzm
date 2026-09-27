@@ -34,6 +34,8 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             // 链外首个读取点是邮件领取流程，其数据源正是本规则产出的修复后快照
             MailDiscipleAttachmentCleanupRule,
             JadeSymbolNonNegativeRule, // order=23（玉符字段负值/超限钳制）
+            // order=24（执法堂/监牢下线：残留建筑与关联槽位清理 + 思过/执法弟子状态归一化）
+            LawEnforcementPrisonCleanupRule,
         )
     )
 }

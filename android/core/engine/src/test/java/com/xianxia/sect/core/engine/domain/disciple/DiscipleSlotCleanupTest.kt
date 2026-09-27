@@ -55,11 +55,9 @@ class DiscipleSlotCleanupTest {
             forgeElder = discipleId,
             outerElder = discipleId,
             preachingElder = discipleId,
-            lawEnforcementElder = discipleId,
             innerElder = discipleId,
             qingyunPreachingElder = discipleId,
             preachingMasters = listOf(discipleSlot),
-            lawEnforcementDisciples = listOf(discipleSlot),
             qingyunPreachingMasters = listOf(discipleSlot),
             herbGardenDisciples = listOf(discipleSlot),
             alchemyDisciples = listOf(discipleSlot),
@@ -146,7 +144,6 @@ class DiscipleSlotCleanupTest {
         assertEquals("", result.elderSlots.forgeElder)
         assertEquals("", result.elderSlots.outerElder)
         assertEquals("", result.elderSlots.preachingElder)
-        assertEquals("", result.elderSlots.lawEnforcementElder)
         assertEquals("", result.elderSlots.innerElder)
         assertEquals("", result.elderSlots.qingyunPreachingElder)
     }

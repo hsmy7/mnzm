@@ -41,18 +41,16 @@ class GuideTaskTest {
     // ==================== GuideTaskRegistry ====================
 
     @Test
-    fun `GuideTaskRegistry - 包含 25 个引导任务`() {
-        assertEquals("任务数量应为 25", 25, GuideTaskRegistry.ALL_TASKS.size)
+    fun `GuideTaskRegistry - 包含 22 个引导任务`() {
+        assertEquals("任务数量应为 22", 22, GuideTaskRegistry.ALL_TASKS.size)
     }
 
     @Test
-    fun `GuideTaskRegistry - 任务 ID 为 1 到 23 连续加 25 与 26`() {
-        // 任务 24（血炼）已随血炼玩法下线删除；id 25 保留原编号，
-        // 避免重编号导致旧档已完成任务进度错位。
-        // 26 = 寻访引导（G12）：不复用空号 24——旧档若残留 id 24 的领取记录，
-        // 复用会让新步骤开局即完成（静默失效）。
+    fun `GuideTaskRegistry - 任务 ID 为 1-12 与 15-23 连续加 26`() {
+        // 空号禁复用（清单见 GuideTaskRegistry KDoc）：13/14 随执法堂下线、24 随血炼下线、25 随监牢下线。
+        // 复用空号会让残留该 id 领取记录的旧档"开局即完成"（静默失效）。
         val ids = GuideTaskRegistry.ALL_TASKS.map { it.id }.sorted()
-        assertEquals("任务 ID 应为 1..23 连续加保留的 25 与新增的 26", (1..23).toList() + 25 + 26, ids)
+        assertEquals("任务 ID 应为 1..12 + 15..23 + 26", (1..12).toList() + (15..23).toList() + 26, ids)
     }
 
     @Test
@@ -73,7 +71,10 @@ class GuideTaskTest {
     fun `GuideTaskRegistry - getTask 不存在时返回 null`() {
         assertNull("getTask(999) 应为 null", GuideTaskRegistry.getTask(999))
         assertNull("getTask(0) 应为 null", GuideTaskRegistry.getTask(0))
+        assertNull("空号 13 不得复活（执法堂已下线，旧档进度不能沾新任务）", GuideTaskRegistry.getTask(13))
+        assertNull("空号 14 不得复活（执法堂已下线，旧档进度不能沾新任务）", GuideTaskRegistry.getTask(14))
         assertNull("空号 24 不得复活（血炼已下线，旧档进度不能沾新任务）", GuideTaskRegistry.getTask(24))
+        assertNull("空号 25 不得复活（监牢已下线，旧档进度不能沾新任务）", GuideTaskRegistry.getTask(25))
     }
 
     @Test

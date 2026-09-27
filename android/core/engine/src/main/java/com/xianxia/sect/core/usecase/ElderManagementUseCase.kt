@@ -34,15 +34,13 @@ class ElderManagementUseCase @Inject constructor(
 ) {
     companion object {
         const val REALM_VICE_SECT_MASTER = GameConfig.Elder.REALM_VICE_SECT_MASTER
-        const val REALM_LAW_ENFORCEMENT = GameConfig.Elder.REALM_LAW_ENFORCEMENT
         const val REALM_ELDER = GameConfig.Elder.REALM_ELDER
         const val REALM_PREACHING_MASTER = GameConfig.Elder.REALM_PREACHING_MASTER
 
         /** 任命长老时同步清空亲传弟子列表的长老类型（写后需释放被清空者的 gate） */
         private val SLOT_TYPES_CLEARING_DIRECT_DISCIPLES = setOf(
             ElderSlotType.HERB_GARDEN, ElderSlotType.ALCHEMY, ElderSlotType.FORGE,
-            ElderSlotType.PREACHING, ElderSlotType.LAW_ENFORCEMENT,
-            ElderSlotType.CLOUD_PREACHING
+            ElderSlotType.PREACHING, ElderSlotType.CLOUD_PREACHING
         )
     }
 
@@ -73,7 +71,6 @@ class ElderManagementUseCase @Inject constructor(
             forgeElder,
             outerElder,
             preachingElder,
-            lawEnforcementElder,
             innerElder,
             recruitingElder,
             qingyunPreachingElder
@@ -86,7 +83,6 @@ class ElderManagementUseCase @Inject constructor(
             alchemyDisciples,
             forgeDisciples,
             preachingMasters,
-            lawEnforcementDisciples,
             qingyunPreachingMasters,
             spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId.ifEmpty { null } }
@@ -99,7 +95,6 @@ class ElderManagementUseCase @Inject constructor(
             ElderSlotType.ALCHEMY -> slots.alchemyDisciples
             ElderSlotType.FORGE -> slots.forgeDisciples
             ElderSlotType.PREACHING -> slots.preachingMasters
-            ElderSlotType.LAW_ENFORCEMENT -> slots.lawEnforcementDisciples
             ElderSlotType.CLOUD_PREACHING -> slots.qingyunPreachingMasters
             else -> emptyList()
         }
@@ -211,10 +206,6 @@ class ElderManagementUseCase @Inject constructor(
             preachingElder = discipleId,
             preachingMasters = emptyList()
         )
-        ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
-            lawEnforcementElder = discipleId,
-            lawEnforcementDisciples = emptyList()
-        )
         ElderSlotType.INNER_ELDER -> elderSlots.copy(
             innerElder = discipleId
         )
@@ -290,10 +281,6 @@ class ElderManagementUseCase @Inject constructor(
             preachingElder = "",
             preachingMasters = emptyList()
         )
-        ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
-            lawEnforcementElder = "",
-            lawEnforcementDisciples = emptyList()
-        )
         ElderSlotType.INNER_ELDER -> elderSlots.copy(
             innerElder = ""
         )
@@ -355,7 +342,6 @@ class ElderManagementUseCase @Inject constructor(
             ElderSlotType.FORGE -> slots.forgeElder
             ElderSlotType.OUTER_ELDER -> slots.outerElder
             ElderSlotType.PREACHING -> slots.preachingElder
-            ElderSlotType.LAW_ENFORCEMENT -> slots.lawEnforcementElder
             ElderSlotType.INNER_ELDER -> slots.innerElder
             ElderSlotType.RECRUITING -> slots.recruitingElder
             ElderSlotType.CLOUD_PREACHING -> slots.qingyunPreachingElder

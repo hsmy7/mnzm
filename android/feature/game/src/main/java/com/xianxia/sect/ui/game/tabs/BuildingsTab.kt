@@ -59,9 +59,7 @@ internal fun BuildingsTab(
         "wen_dao_peak" to "管理外门弟子",
         "qingyun_peak" to "管理内门弟子",
         "tianshu_hall" to "处理宗门事务",
-        "law_enforcement_hall" to "维护宗门纪律",
         "mission_hall" to "派遣弟子执行任务",
-        "reflection_cliff" to "悔过自新之地",
         "patrol_tower" to "驻守弟子自动巡视攻击妖兽",
         "warehouse" to "储存宗门物资，每座+75格容量",
     )
@@ -92,7 +90,6 @@ private fun buildingOpenAction(viewModel: GameViewModel, key: String): () -> Uni
         "qingyun_peak" -> viewModel.navigation.openQingyunPeakDialog()
         "tianshu_hall" -> viewModel.navigation.openTianshuHallDialog()
         "mission_hall" -> viewModel.navigation.openMissionHallDialog()
-        "reflection_cliff" -> viewModel.navigation.openReflectionCliffDialog()
         "patrol_tower" -> viewModel.navigation.openPatrolTowerDialog()
     }
 }

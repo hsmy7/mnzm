@@ -121,11 +121,11 @@ const LAYOUT = {
   buildingNames: [
     '灵矿场', '灵植阁', '灵田', '炼丹炉', '锻造坊',
     '仓库', '藏经阁', '问道塔', '青云塔', '天枢殿',
-    '执法堂', '任务阁', '巡视楼', '监牢',
+    '任务阁', '巡视楼',
     '单人住所', '中级单人住所', '多人住所',
     '中级多人住所',
   ],
-  buildingColsPerRow: [5, 5, 5, 3],
+  buildingColsPerRow: [5, 5, 5, 1],
   // 建筑专属槽位覆盖（图集名 → 自定义 rect）：天枢殿 18×15 格 ≈ 576×480 世界像素，
   // 3x 放大下 512 槽位上采样比过高，用 1024×1024 高清槽位
   // （gutter 版布局 (3008,1032)：与门楼 y 间距 8px，右缘 4032 留 64px 边距）。
@@ -141,7 +141,7 @@ const LAYOUT = {
   //   占地只减不增：缩小不会让旧存档建筑越界/重叠，读档 fixup 自动改尺寸且不触发拆除退款。
   footprints: [
     [4, 4], [4, 3], [1, 1], [4, 2], [5, 3], [6, 4], [6, 3], [4, 2], [4, 2], [18, 13],
-    [6, 3], [4, 3], [4, 2], [4, 4], [4, 4], [6, 6], [6, 4], [6, 5],
+    [4, 3], [4, 2], [4, 4], [6, 6], [6, 4], [6, 5],
   ],
   // 俯视贴地类建筑（世界纵横比 = 素材纵横比，与地格平铺对齐；其余建筑按"屏上不变形"公式）。
   // 灵田是方形田垄地块，必须与地格对齐铺展，不按立绘口径换算。
@@ -358,10 +358,8 @@ const BUILDING_DRAWABLE = {
   '问道塔': 'building_wen_dao_peak',
   '青云塔': 'building_qingyun_peak',
   '天枢殿': 'building_tianshu_hall',
-  '执法堂': 'building_law_enforcement',
   '任务阁': 'building_mission_hall',
   '巡视楼': 'building_patrol_tower',
-  '监牢': 'building_reflection_cliff',
   '单人住所': 'building_single_residence',
   '中级单人住所': 'building_single_residence_upgraded',
   '多人住所': 'building_multi_residence',

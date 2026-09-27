@@ -415,7 +415,6 @@ private fun buildMainGameScreenBuildingList(
             "qingyun_peak" -> { _ -> viewModel.navigateToDialog(DialogType.QingyunPeak) }
             "tianshu_hall" -> { _ -> viewModel.navigateToDialog(DialogType.TianshuHall) }
             "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogType.MissionHall) }
-            "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
             "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType
                 .PatrolTower(it)) }; Unit }
             "single_residence", "multi_residence",

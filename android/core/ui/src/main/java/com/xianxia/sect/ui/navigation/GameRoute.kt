@@ -19,7 +19,6 @@ sealed class GameRoute(val route: String) {
     object QingyunPeak : GameRoute("qingyun_peak")
     object TianshuHall : GameRoute("tianshu_hall")
     object MissionHall : GameRoute("mission_hall")
-    object ReflectionCliff : GameRoute("reflection_cliff")
     object PatrolTower : GameRoute("patrol_tower/{buildingInstanceId}") {
         fun createRoute(buildingInstanceId: String) = "patrol_tower/$buildingInstanceId"
     }
@@ -69,7 +68,6 @@ private val simpleDialogTypes: Map<GameRoute, DialogType> = mapOf(
     GameRoute.QingyunPeak to DialogType.QingyunPeak,
     GameRoute.TianshuHall to DialogType.TianshuHall,
     GameRoute.MissionHall to DialogType.MissionHall,
-    GameRoute.ReflectionCliff to DialogType.ReflectionCliff,
     GameRoute.GameOver to DialogType.GameOver,
 )
 

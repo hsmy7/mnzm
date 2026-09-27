@@ -68,7 +68,7 @@ inline void clearAllDiscipleSlots(GameState& state, const std::string& discipleI
                                                out.activeMissions);
 }
 
-// ── 长老单值槽族（ElderManagementUseCase 的 10 字段穷举）────────────────
+// ── 长老单值槽族（ElderManagementUseCase 的 9 字段穷举）────────────────
 
 /// ElderSlotType.name → 槽位字段指针（未知类型 nullptr——协议违规防御臂）
 inline std::string* elderFieldOf(ElderSlots& slots, const std::string& slotType) {
@@ -78,7 +78,6 @@ inline std::string* elderFieldOf(ElderSlots& slots, const std::string& slotType)
     if (slotType == "FORGE") return &slots.forgeElder;
     if (slotType == "OUTER_ELDER") return &slots.outerElder;
     if (slotType == "PREACHING") return &slots.preachingElder;
-    if (slotType == "LAW_ENFORCEMENT") return &slots.lawEnforcementElder;
     if (slotType == "INNER_ELDER") return &slots.innerElder;
     if (slotType == "RECRUITING") return &slots.recruitingElder;
     if (slotType == "CLOUD_PREACHING") return &slots.qingyunPreachingElder;
@@ -86,15 +85,14 @@ inline std::string* elderFieldOf(ElderSlots& slots, const std::string& slotType)
 }
 
 /// 任命时被清空的亲传列表（ElderManagementUseCase
-/// SLOT_TYPES_CLEARING_DIRECT_DISCIPLES 六类；其余类型 nullptr = 不清列表）。
-/// spiritMineDeaconDisciples（第 7 列表）不在任命清空族——仅全槽清理触达。
+/// SLOT_TYPES_CLEARING_DIRECT_DISCIPLES 五类；其余类型 nullptr = 不清列表）。
+/// spiritMineDeaconDisciples（第 6 列表）不在任命清空族——仅全槽清理触达。
 inline std::vector<DirectDiscipleSlot>* elderClearedListOf(
     ElderSlots& slots, const std::string& slotType) {
     if (slotType == "HERB_GARDEN") return &slots.herbGardenDisciples;
     if (slotType == "ALCHEMY") return &slots.alchemyDisciples;
     if (slotType == "FORGE") return &slots.forgeDisciples;
     if (slotType == "PREACHING") return &slots.preachingMasters;
-    if (slotType == "LAW_ENFORCEMENT") return &slots.lawEnforcementDisciples;
     if (slotType == "CLOUD_PREACHING") return &slots.qingyunPreachingMasters;
     return nullptr;
 }
