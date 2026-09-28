@@ -6,6 +6,7 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-29 01:2x 看护轮#15（用户指令轮：解决切 10 分钟轮 + B10 交付核验）**：① **节拍切换成功**——CronUpdate 郑重单发即过（01:26 返回报文实证 title「每10分钟一轮」+`* * * * *`+interval=10），轮#14 五连误发定性为**间歇性发射层故障**非工具损坏；对策固化 §6（误发 ≥2 次收手下轮必重试；连续两轮失败改「先 CronCreate 后 CronDelete」重建路径，CronCreate 实证可靠）。② **B10 交付核验通过 → ✅ accepted（看护亲验）**：收官笔 `efb8fc990`（17 文件 +196/−71 **纯文档面**——非 .md/.json 文件 grep 为零、version.properties 未动、atlas 未混入、树净）；报告 §一/§三原数字齐（§3.6 十项+§4.6 规范侧八处落地对照表、ctest 1494 首跑即绿、JVM 7550/0/18 **诚实登记五模块 UP-TO-DATE 复用**、Diff 家族 52 类 271 用例对 22:51 .so 实跑、agent-instructions 两起途中自愈）；看护亲跑 jni-count **88/88**+agent-instructions **全绿**（32744/32768 与报告逐位一致）；ctest/JVM 不复跑依据充分（零代码改动+Diff 实跑+B9 基线看护一小时前亲验）。③ §9 留言处置：**合并手术预警**采纳（根 AGENTS.md §3 四行/knowledge-base/architecture 三件若主树有并改按 §4.6 语义合流；SaveLoad 三件本批未触碰 §7 预期不变）；途中发现三项维持移交。**§7 合并手术随即启动（看护亲自操刀）。**
 - **2026-09-29 01:19 看护轮#14**：**B10 进入收尾期**——footprint 全部落盘 **16 项**（根+core/data+core/engine 三份 AGENTS.md、rules 四件 playbook/economy/ad-cooldown/pr-checklist、docs 六件 architecture/knowledge-base/cpp-engine/platform-abilities/threading-contract/ui-read-surface、CODE_WIKI、**双 changelog 在改**），无报告，**近 12 分钟 409 构建产物 = 全量门在跑**（B10 未触 C++，应为 compile+JVM+lint/detekt 链）。按 §7 本应切 10 分钟轮，🔴 **CronUpdate 连续 5 次误发为 CronList**（通道故障第四起/本轮第二形态，同轮#1 Snapshot×7、轮#3 CronUpdate×4；按「停止重试不硬闯」收手）——**节拍维持 30 分钟轮**，故障与待执行切换已登记，下轮 fire 首件事重试 CronUpdate（id=automation-9496ab85，interval=10，title 每10分钟一轮）。验收质量不受影响（报告落盘到收官本有 25–30 分钟窗口）。下轮：报告落盘/收官笔 ⇒ §5 核验（B10 盯点：规范与代码零冲突的 12 处锚定面、agent-instructions 死链门、双 changelog 收口）。
 - **2026-09-29 00:50 看护轮#13（主树键自动化首轮 fire）**：B10 健康转入实施期——派发后 18 分钟勘察即完成（快于 B7/B8 代码批先例，文档批必读面小），任务面板 **3/9**：冲突面扫描完成并锚定 **12 处文件**（grep elapsedGameMs/advanceByGameMs 等死值与口径残留），开始改 rules 四件（playbook/economy/ad-cooldown/pr-checklist，`expansion-playbook.md` 编辑已落盘），后续两份 AGENTS.md（根+engine）+ docs 五件（architecture/knowledge-base/cpp-engine 等）。GUI 判活实证活跃（编辑+思考接连），GLM-5.3-Flash ✓，树面零星落盘属实施起步。无异常不干预，**保持 30 分钟轮**。下轮：预期 rules/AGENTS/docs 面铺开+双 changelog；报告落盘 ⇒ 切 10 分钟轮（主树键下 CronUpdate 已可执行）。
 - **2026-09-29 00:2x 看护轮#12（用户指令轮：看护必须可替换 + B9 核验）**：① **看护自动化迁主树键重建**（用户指令「重新调整，我要求必须可替换看护轮」）——新自动化 `automation-9496ab85-0f9e-48d6-bb09-bbf114f5ed3a`（30 分钟/轮，**主树项目键下 CronList 实证可见可改可删**，间隔动态调整规则从此可执行；fire 提示词已刷新：进度锚点重写+装备 Room v62 起+可替换声明）；旧键自动化本侧不可见（疑已被用户删除——轮#11 23:07 由其 fire 而主树侧 CronList 即为空；若自动化页见重复看护请用户手删，或由其 fire 的轮次 CronDelete 自清，勿双跑）。② **B9 交付核验通过 → ✅ accepted（看护亲验）**。三要素全过：收官笔 `17161f5fc`（64 文件 +5917/−245，双 changelog+报告 144 行+61.json+GameDatabaseMigrationsV61+RoomMigrationV60To61Test 在笔内，atlas 未混入）；报告原数字齐无占位符、假红/返工五项诚实归因（bench A/B 对照实验、JVM 七轮迭代、detekt 5 处自修、stash pop 事故 11 文件重建复验）；树净。**看护亲跑四门**：ctest **1494/1494**（49.2s，bench 旗标 ON；首跑 SegmentUnderBudgetAt5000 红→复跑即绿，亲历坐实报告噪声归因）；jni-count **88/88**；agent-instructions 全绿；`DiffAuthoritativeTickTest` 单类亲跑绿（-Dgamecore.jni.path 打 22:51 .so——.so 新鲜度硬证据，stash 重建内容一致性经此验证成立）。③ **stash@{0} 裁决：已 drop**（B9 会话 §9 请示项；取证=创建于 23:08:29 系本会话 bench A/B 实验、含 processReflectionRelease 与 #10 除名、同一交付工作较早 WIP 快照无独有内容；核验通过后按其请求清理，短期可从 2c09ecd3b 找回）。④ **§9 留言处置**：装备 v62 知会与 §8 一致 ✓；途中发现三项（processAutoAlchemy 死代码/overBudgetCount 断言噪声脆弱/discipleAging 口径）已提炼入 B10 附录移交裁决。**B10 已派发成功（00:3x，GUI 六步全过）**：新会话「# 派发件 · B10 文档与规范（实时结算线末批）」挂 XianxiaSectNative·main、GLM-5.3-Flash ✓；派发文本 = batch-B10.md 全文 + B9 附录 8 条（剪贴板回读头尾一致，发送后「工作中」确认、已开始读题思考）。**B10 派发回实施期 ⇒ 30 分钟轮不变**（automation-9496ab85 现节拍即 30 分钟，无翻转）。下轮预期：B10 深读勘察期（方案 §3.6 + 台账必读），零落盘属正常；报告落盘 ⇒ 切 10 分钟轮（主树键下 CronUpdate 现已可执行）。
@@ -64,7 +65,7 @@
 | B7 | 离线语义 | ✅ accepted（19:13 看护亲验） | 568c01921 | docs/report-B7.md | 通过：ctest 1473/1473+jni-count 88/88+agent-instructions 亲跑全绿；atlas 未混入；豁免理由在 §1.4 |
 | B8 | UI 与遥测 | ✅ accepted（21:21 看护亲验） | 2f3bef8d0 | docs/report-B8.md | 通过：ctest 1483/1483（bench 翻开）+jni-count 88/88+agent-instructions 亲跑全绿；孕养 O(I) 缺陷修复 28×；D1 债桌面数据点落地 |
 | B9 | 测试基准重建+遗留清理 | ✅ accepted（00:2x 看护亲验） | 17161f5fc | docs/report-B9.md | 通过：ctest 1494/1494 亲跑（首跑 bench 噪声红复跑绿）+jni-count 88/88+agent-instructions 绿+DiffAuthoritativeTickTest 单类打 .so 绿；stash@{0} 裁决 drop |
-| B10 | 文档与规范 | 🔄 在途（00:3x 看护派发） | — | — | 待交付 |
+| B10 | 文档与规范 | ✅ accepted（01:2x 看护亲验） | efb8fc990 | docs/report-B10.md | 通过：纯文档面实证+jni-count 88/88+agent-instructions 全绿亲跑；Diff 271 实跑；零代码改动故 ctest/JVM 不复跑（B9 基线亲验在册） |
 
 > B1–B6 交付于自动化建立之前，门禁数字见 git log 各笔提交说明；本表只回溯登记。
 
@@ -110,6 +111,7 @@
 - 进入**收尾期**（跑测试/门禁/报告落盘未收官/收官组装）→ 切 **10 分钟/轮**：CronUpdate 本自动化 `intervalUnit=minute, interval=10, cron='* * * * *'`，title 同步改「…每10分钟一轮」。
 - 新批派发回到**实施期** → 调回 30 分钟（同法，title「…每30分钟一轮」）。
 - 只在状态翻转时调整一次，不每轮重复调用。
+- **🔴 误发故障对策（2026-09-29 轮#14/#15 实证定型）**：CronUpdate 偶发被误发为 CronList（发射层间歇故障，历史第四形态）——①误发 ≥2 次即收手本轮，**下轮 fire 必重试**（间歇性，郑重单发即过，01:26 实证）；②连续两轮 fire 均失败 ⇒ 改重建路径：**先 CronCreate 目标节拍新件（实证可靠）→ 后 CronDelete 旧件**（先建后删，双跑几分钟无害）；③勿硬闯连续重试。
 
 ## 7. 合并手术计划（B10 accepted 后，看护亲自操刀）
 
