@@ -31,7 +31,7 @@
 在 worktree 的 `android/` 下执行；测试一律 `--max-workers=1`：
 
 1. `./gradlew.bat compileReleaseKotlin`
-2. `./gradlew.bat testReleaseUnitTest --max-workers=1`（六模块全量，**必须含 feature:game**）
+2. `./gradlew.bat testReleaseUnitTest --max-workers=1 -Dgamecore.jni.path=C:/Mnzm/XianxiaSectNative-realtime/android/core/engine/build/desktop-jni/libgamecorejni.so`（六模块全量，**必须含 feature:game**；**必须带该参数**——IN8 出厂门要求全量跑也带参，防 45 个 Diff*Test 静默 skip，B7 实证不带必红）
 3. engine Diff 门（`-Dgamecore.jni.path=C:/Mnzm/XianxiaSectNative-realtime/android/core/engine/build/desktop-jni/libgamecorejni.so`；若本批未触 C++ 复用既有 .so 即可）
 4. `./gradlew.bat lintRelease detekt`
 5. 桌面 ctest 全量（基线以附录为准）：llvm-mingw PATH 必带

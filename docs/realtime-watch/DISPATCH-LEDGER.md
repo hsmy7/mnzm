@@ -6,6 +6,7 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-28 19:13 看护轮#4：B7 交付核验通过 → ✅ accepted（看护亲验）**。三要素全过：①收官笔 `568c01921 feat(engine): B7 离线语义——12h 全额+50% 至 24h 硬顶折算 + GameCore::injectOfflineGameMs 注入路径 + 云游归来 UI 提示`（29 文件 +1270/−7，单笔含双 changelog+报告 175 行+threading-contract 登记+jni-count 基线同步）；②报告 `docs/report-B7.md` 门禁原数字齐、无占位符、假红诚实归因（IN8 跑法/detekt 4 自引违规/C++ 测试 2 断言自纠）；③树净——atlas 副产物未混入收官笔。**看护亲跑抽验三门全绿**：ctest **1473/1473**（=1465+8，47.6s）、check-jni-count **88/88**、check-agent-instructions 全绿；.so mtime 17:59 实证 build-desktop-jni.ps1 已重跑。预载盯点双销：jni-count 豁免理由在报告 §1.4；边界决定遵守（未顺手实施未采纳项、schema 零变更、旗标未翻、版本号未动）。§9 留言建议已采纳：batch-B8/9/10 门禁第 2 条补 `-Dgamecore.jni.path` 参数（本轮改）。遗留移交：D8 真机项 pending-device。**B8 随后派发（回实施期，保持 30 分钟轮）。**
 - **2026-09-28 18:21 看护轮#3**：**B7 进入收尾组装期**——树 23→28 项：**双 changelog 同轮在改**（CHANGELOG.md + changelog_entries.json，G/MR 线实证的收官材料准备期信号）+ 测试面铺齐（新增 engine 侧 `GameEngineCoreOfflineOpsTest`/`GameTimeClockOfflineInjectTest` + UI 件 `OfflineReturnFormatter.kt`）+ `docs/threading-contract.md` 跨线程登记义务履行 + `models.h`/`GameData.kt` 加入。无报告无收官笔，构建 28 产物/12min 在跑；agent 流走低（18:1x=7/18:2x=5）与门禁执行期吻合。⇒ 判收尾期，**应切 10 分钟轮但未成**：CronUpdate 连续 4 次误发为 CronList（🔴 工具通道故障第二起，轮#1 曾 Snapshot×7 误发；处置同轮#1=停止重试不硬闯），本轮保持 30 分钟轮，下轮 fire（~18:51）仍处收尾期则重试切换。下轮预期：收官笔落 ⇒ 直接走 §5 核验（盯点：jni-count baseline 豁免理由 + atlas 副产物还原 + 报告原数字）；若报告落盘未收官 ⇒ 重试切 10 分钟轮。
 
 - **2026-09-28 17:52 看护轮#2**：**B7 实施期健康铺开**——树 23 项与批次任务面精确对应：C++ 离线注入面（`GameCoreBridge.cpp`/`game_core.h`/`engine_loop.h`/`settlement.h`/`game_core.cpp` + 新 `test/offline_injection_test.cpp`）+ Kotlin 面（`GameTimeClock.kt`/新 `GameEngineCoreOfflineOps.kt`/`GameEngineCoreAuthoritativeOps.kt`/`GameConfig.kt`/GameEngine 双件 + UI 面 GameViewModel/MainGameScreen + 新 `OfflineProgressPolicyTest.kt`）。**核验盯点预载**：①`scripts/jni-count.baseline.json` 已被改——核验时必须见报告豁免理由；②`atlas-rgba-manifest.json` 在树——收官前必须还原。构建在跑（近 12 分钟 48 产物）、agent 流 17:2x–17:5x 持续（46/34/37 次）。无报告无收官笔 → 实施期，不干预，保持 30 分钟轮。下轮：报告落盘 ⇒ 切 10 分钟轮准备核验。
@@ -39,7 +40,7 @@
 | B4 | L1 连续积分轨 | ✅ 已交付 | 9a00b2ded | — | 随线自证 |
 | B5 | L2 差分轨 | ✅ 已交付 | 3762b14ab | — | 随线自证 |
 | B6 | L3+L4 边界层拆分 | ✅ 已交付 | d01fdfb91 | — | 随线自证（ctest 1465 全绿） |
-| B7 | 离线语义 | 🔄 在途（看护派发 16:50） | — | — | 待交付 |
+| B7 | 离线语义 | ✅ accepted（19:13 看护亲验） | 568c01921 | docs/report-B7.md | 通过：ctest 1473/1473+jni-count 88/88+agent-instructions 亲跑全绿；atlas 未混入；豁免理由在 §1.4 |
 | B8 | UI 与遥测 | ⏳ 待派 | | | |
 | B9 | 测试基准重建+遗留清理 | ⏳ 待派 | | | |
 | B10 | 文档与规范 | ⏳ 待派 | | | |
