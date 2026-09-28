@@ -91,20 +91,13 @@
 命令在 `android/` 下用 Gradle wrapper 执行；**测试一律加 `--max-workers=1`**（并行会因共享静态状态跨类污染）：
 
 ```bash
-cd android && ./gradlew.bat compileReleaseKotlin                    # 编译检查（每次改动后都跑）
-cd android && ./gradlew.bat testReleaseUnitTest --max-workers=1     # 全量单元测试
-cd android && ./gradlew.bat lintRelease detekt                      # Lint + 静态分析
+cd android && ./gradlew.bat compileReleaseKotlin              # 编译检查（每次改动后）
+cd android && ./gradlew.bat testReleaseUnitTest --max-workers=1
+cd android && ./gradlew.bat lintRelease detekt
 ```
 
-单类测试的模块限定写法、APK 构建、Kover 覆盖率、完整 CI 一行流、clean 等**全部命令与检查清单见 `rules/build-quality.md`**。
-测试位于 `android/app/src/test/` 与各模块 `src/test/`（JUnit 4 / Mockito / Robolectric / `kotlinx-coroutines-test`，
-Robolectric 需 `includeAndroidResources = true`）；mock/stub 约定见 `rules/testing.md`。
-
-**规范分发架构门禁**（改本文件、`rules/`、`docs/` 或任何 `AGENTS.md` 之后必跑）：
-
-```bash
-node scripts/check-agent-instructions.mjs
-```
+单类测试写法、APK、Kover、CI 一行流、clean 见 `rules/build-quality.md`；测试与 mock/stub 约定见 `rules/testing.md`。
+**规范分发门禁**（改本文件 / `rules/` / `docs/` / 任何 `AGENTS.md` 后必跑）：`node scripts/check-agent-instructions.mjs`
 
 ---
 
@@ -113,14 +106,13 @@ node scripts/check-agent-instructions.mjs
 **项目**：修仙宗门模拟经营手游（Android，包名 `com.xianxia.sect`）。技术栈：Kotlin 2.2.20（UI/平台层）
 + **C++20 引擎核心 `game-core`**（零 Android 依赖、桌面可编译）+ JNI / nlohmann::json；Compose、Hilt、Room、MMKV、kotlinx.serialization ProtoBuf。
 
-架构设计见 [`docs/architecture.md`](docs/architecture.md)，代码级 Wiki 见 [`CODE_WIKI.md`](CODE_WIKI.md)，
-子系统实现与关键类见 [`docs/knowledge-base.md`](docs/knowledge-base.md)。**动这些子系统之前先读对应文档**：
+架构见 [`docs/architecture.md`](docs/architecture.md)、代码级 Wiki 见 [`CODE_WIKI.md`](CODE_WIKI.md)、子系统实现见 [`docs/knowledge-base.md`](docs/knowledge-base.md)。**动这些子系统之前先读对应文档**；以下五条是硬不变式：
 
-- **C++ 是 AUTHORITATIVE 真相源** — `game-core` 承载模拟逻辑，Kotlin `GameStateStore` 是**只读镜像**；**反向同步通道已删除**：稳态下 Kotlin 对 C++ 只读，唯一合法写入是 `StateSyncService.importToNative` 全量导入。防复发守卫：`MirrorReadOnlyGuardTest`（符号面）+ `DiffAuthoritativeTickTest`（行为面）。**未完成**：真机验证批、WS-4 NPC 移动、WS-1 阶段 3 数据导向存储。总方案 `docs/adr/cpp-engine-migration.md`，进度 `docs/cpp-engine.md`，镜像合法面 `docs/ui-read-surface.md` §2
-- **实时结算四层** — L0 时间推进（权威毫秒轴 `elapsedGameMs` 未截断 + 日历投影）/ L1 连续积分 + 判定窗口（`phaseCap` 只限判定执行、时间零丢失）/ L2 惰性差分 / L3+L4 月年边界事件派发（年变分帧，对标 Supercell + RimWorld）；新逻辑必须落既有层级，禁另起结算循环或新线程 tick；现实时长换算一律走 `GameConfig.Time` 常量栈
+- **C++ 是 AUTHORITATIVE 真相源** — `game-core` 承载模拟逻辑，Kotlin `GameStateStore` 是**只读镜像**；稳态下 Kotlin 对 C++ 只读，唯一合法写入是 `StateSyncService.importToNative` 全量导入。防复发守卫：`MirrorReadOnlyGuardTest`（符号面）+ `DiffAuthoritativeTickTest`（行为面）。总方案 `docs/adr/cpp-engine-migration.md`；进度与镜像合法面见 `docs/cpp-engine.md` / `docs/ui-read-surface.md` §2
+- **实时结算四层** — L0 时间推进 / L1 连续积分 + 判定窗口 / L2 惰性差分 / L3+L4 月年边界事件派发；**新逻辑必须落既有层级，禁另起结算循环或新线程 tick**；现实时长换算一律走 `GameConfig.Time` 常量栈
 - **线程契约** — 唯一合法状态写入口是 GameEngine-Thread；白名单与禁止区见 [`docs/threading-contract.md`](docs/threading-contract.md)（新增跨线程交互须先登记再实现）
-- **存档入口纪律** — 手动存档（5 槽位）+ 云存档 + **现实墙钟节拍自动存档**（每 10 现实秒至多一次、三前置门控：旗标/有效槽位/引擎已加载；§2.6 裁决，命名统一 `realtimeAutoSave*`）；禁止复活旧月变触发式 `AutoSaveTrigger` 体系；`SaveValidator` 规则引擎按 `order` 排序，`registerDefaults()` 加一行即注册
-- **扩展性预留与待办** — RemoteConfig 未绑定状态与激活前置、商业化接入点、社交隔离层、iOS 迁移预留；离线收益已落地（口径 `rules/economy-design.md` §4）；R 系列待办与偿还触发档案见 `docs/architecture.md`
+- **存档入口纪律** — 手动存档（5 槽位）+ 云存档 + **现实墙钟节拍自动存档**（每 10 现实秒至多一次、三前置门控：旗标/有效槽位/引擎已加载；命名统一 `realtimeAutoSave*`）；**禁止复活旧月变触发式 `AutoSaveTrigger`**；`SaveValidator` 规则按 `order` 排序，`registerDefaults()` 加一行即注册
+- **扩展性预留与 R 系列债** — 见 `docs/architecture.md`；离线收益口径见 `rules/economy-design.md` §4
 
 模块源码路径：`:app`（应用壳 + JNI 桥）、`:core:domain`（数据类/接口/sealed/Registry）、`:core:data`（Room/序列化/Repository）、
 `:core:engine`（GameEngine/Service/System/游戏循环）、`:core:ui`（共享 Compose 组件）、`:feature:game`（ViewModel/Screen/对话框）。
@@ -222,14 +214,9 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **6.1 🔴 `GameStateStore` 是唯一真相源** — 禁止在 ViewModel/Service 缓存 `GameData` 或实体列表的本地副本。
 
-**6.4 🔴 新增影响生产系统的字段需同步更新 checkpoint** — 生产系统用 `checkpointAllProduction()` 在政策/长老变化时重算活跃槽位的 duration 与 completionMonth（无需指纹数据类）。新增以下内容时必须同步（同步点清单见 `rules/pr-review-checklist.md`）：
+**6.4 🔴 新增影响生产系统的字段需同步更新 checkpoint** — 生产系统用 `checkpointAllProduction()` 在政策/长老变化时重算活跃槽位的 duration 与 completionMonth。需同步的四类变更（生产类政策 / 长老类型 / 生产速率因子 / 丹药类型）及各自同步点见 `rules/pr-review-checklist.md`。
 
-- 新增生产类政策 → `SectPolicyToggleUseCase` 触发 `checkpointAllProduction()`
-- 新增长老类型 → `ElderManagementUseCase.productionElderTypes` 注册
-- 新增生产速率因子 → `calculateWorkDurationWithAllDisciples` / `calculateSpiritFieldMaturityBonus`
-- 新增丹药类型 → `CultivationCore.processRealtimeAutoPills` + `DisciplePillManager.classify`
-
-**6.5 🔴 界面实时性：UI 不驱动系统 tick** — `FocusDomain` / `InterfaceDomainMap` / `DomainMappingTest` 均不存在，**禁止按旧规则注册焦点域**。界面需要随时间变化的数据（进度条 / 倒计时 / 数量增减）时，直接订阅对应 `GameEngine` StateFlow 派生（参照 `HeavenlyTrialViewModel.trialState` / `SecretRealmViewModel.session` 的 `map + stateIn` 模式）。
+**6.5 🔴 界面实时性：UI 不驱动系统 tick** — 旧焦点域体系（`FocusDomain` / `InterfaceDomainMap` / `DomainMappingTest`）已删除，**禁止复活**。界面需要随时间变化的数据（进度条 / 倒计时 / 数量增减）时，直接订阅对应 `GameEngine` StateFlow 派生（参照 `HeavenlyTrialViewModel.trialState` / `SecretRealmViewModel.session` 的 `map + stateIn` 模式）。
 
 **6.6 🔴 精灵图必须统一注册并使用统一入口** — 所有静态图片资源必须无损 WebP、双模块放置、在 `XianxiaApplication.kt` 经 `SpriteResRegistry.register(...)` 注册、经 `SpriteImage("名称")` / Canvas `drawSprite(name, cache, ...)` / `SpriteResRegistry.resolve("名称")` 使用。禁止直引 `painterResource(R.drawable.xxx)`（注册代码除外），禁止提交 PNG/JPG 游戏图片（唯一例外 `ic_launcher-playstore.png`）。**新增精灵全流程 7 步、显示尺寸口径与图集 codegen 管线见 `rules/static-resources.md`。**
 
@@ -265,13 +252,7 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 ### 12. 文档规范
 
-**12.4 🔴 功能变更必须更新 Changelog** — 功能完成后**两个更新日志必须一起更新**（漏一个视为任务未完成）：
-
-- **游戏内**（`android/app/src/main/assets/changelog_entries.json`）— 在当前版本条目的 `changes` 数组**末尾追加**一行；**给玩家看**，须通俗易懂无专业术语、不泄露数值细节、只能粗略描述
-- **外部**（`CHANGELOG.md`，项目根目录）— 追加到**当前版本**段落内，不强制递增版本号；给开发者看，可写技术细节
-
-禁止按日期拆成多个同版本条目（同日同版本一律并入同一条目，`date` 取首次发布日）；**禁止擅自更新版本号**，由用户判断和指令。
-完整的玩家视角文案规范、条目合并规则、发布检查清单与关键文件索引见 `rules/version-release.md`。
+**12.4 🔴 功能变更必须更新 Changelog** — 功能完成后**两个更新日志必须一起更新**（漏一个视为任务未完成）：游戏内 `android/app/src/main/assets/changelog_entries.json`（给玩家看：通俗、无术语、不泄数值）+ 外部 `CHANGELOG.md`（给开发者看，可写技术细节）。同日同版本并入同一条目；**禁止擅自更新版本号**。文案规范、合并规则与发布清单见 `rules/version-release.md`。
 
 ---
 
@@ -281,7 +262,7 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **6.2 🔴 detekt baseline 只缩不增** — `detekt-baseline.xml` 只能减少条目，不能新增。新违规必须修复而非加入 baseline。
 
-**6.3 🔴 PR 审查清单** — 提交前必须逐条过 [`rules/pr-review-checklist.md`](rules/pr-review-checklist.md)（代码级红线 + 扩展方向 + 提交前最低动作）。该文件原为 CLAUDE.md 13.3 节，2026-09 整表迁移。
+**6.3 🔴 PR 审查清单** — 提交前必须逐条过 [`rules/pr-review-checklist.md`](rules/pr-review-checklist.md)（代码级红线 + 扩展方向 + 提交前最低动作）。
 
 **6.4 🔴 detekt 配置** — 以 `android/config/detekt/detekt.yml` 实值为准（行宽 120；`MagicNumber` 关闭；`TooManyFunctions` 文件 15/类 20/对象 12；`LargeClass` 800；`LongParameterList` 函数 8/构造 10；`EmptyCatchBlock` 启用）。
 
@@ -289,17 +270,12 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 ## 7. 设计方案规范
 
-写任何设计方案（新功能 / 重构 / 技术选型）之前读 [`rules/design-plan-review.md`](rules/design-plan-review.md)：
-第零节是**设计方案 6 条原则**（编写规范结构 / 功能模块化 / 全局视角与影响范围清单格式 / 低高端设备兼容 / 隐私合规双入口 / 扩展方向对标），
-第一~七节是**方案自检清单**（未来场景推演 / 技术债显性化 / YAGNI 反向检查 / 测试成本核算 / 全局影响交叉核对 / 决策分级 / 盲区自查），
-第八节是提交用户前的逐项勾选表。
-
-两条不可协商的硬要求：
+写任何设计方案（新功能 / 重构 / 技术选型）之前读 [`rules/design-plan-review.md`](rules/design-plan-review.md)（第零节 6 条原则 + 第一~七节自检清单 + 第八节提交前勾选表）。**两条不可协商的硬要求**：
 
 - 🔴 **方案必须是可长期维护的成熟方案，禁止分阶段/渐进式交付** — 一次覆盖所有影响点（UI、存储、测试、旧数据兼容），不留"后续优化"。边界（与批次化工程实施的分工）见该文件第零节
 - 🔴 **最优方案不计成本且需跨 iOS 平台** — 全量采纳头部产品先进设计；无法采纳的逐条说明原因与替代方案；所有方案必须 Android 与 iOS 均可落地，依赖平台独占能力时给出 iOS 对等实现
 
-行业对标的硬性指标（≥20 条来源、本年前两年窗口、S/A/B/C 来源等级表、≥12 条 S/A 配额）与 6 步对标流程见 `rules/industry-benchmark.md`。
+行业对标硬性指标（≥20 条来源、S/A 配额、6 步流程）见 `rules/industry-benchmark.md`。
 
 ---
 
