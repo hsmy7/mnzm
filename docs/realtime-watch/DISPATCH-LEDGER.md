@@ -6,6 +6,7 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-29 00:2x 看护轮#12（用户指令轮：看护必须可替换 + B9 核验）**：① **看护自动化迁主树键重建**（用户指令「重新调整，我要求必须可替换看护轮」）——新自动化 `automation-9496ab85-0f9e-48d6-bb09-bbf114f5ed3a`（30 分钟/轮，**主树项目键下 CronList 实证可见可改可删**，间隔动态调整规则从此可执行；fire 提示词已刷新：进度锚点重写+装备 Room v62 起+可替换声明）；旧键自动化本侧不可见（疑已被用户删除——轮#11 23:07 由其 fire 而主树侧 CronList 即为空；若自动化页见重复看护请用户手删，或由其 fire 的轮次 CronDelete 自清，勿双跑）。② **B9 交付核验通过 → ✅ accepted（看护亲验）**。三要素全过：收官笔 `17161f5fc`（64 文件 +5917/−245，双 changelog+报告 144 行+61.json+GameDatabaseMigrationsV61+RoomMigrationV60To61Test 在笔内，atlas 未混入）；报告原数字齐无占位符、假红/返工五项诚实归因（bench A/B 对照实验、JVM 七轮迭代、detekt 5 处自修、stash pop 事故 11 文件重建复验）；树净。**看护亲跑四门**：ctest **1494/1494**（49.2s，bench 旗标 ON；首跑 SegmentUnderBudgetAt5000 红→复跑即绿，亲历坐实报告噪声归因）；jni-count **88/88**；agent-instructions 全绿；`DiffAuthoritativeTickTest` 单类亲跑绿（-Dgamecore.jni.path 打 22:51 .so——.so 新鲜度硬证据，stash 重建内容一致性经此验证成立）。③ **stash@{0} 裁决：已 drop**（B9 会话 §9 请示项；取证=创建于 23:08:29 系本会话 bench A/B 实验、含 processReflectionRelease 与 #10 除名、同一交付工作较早 WIP 快照无独有内容；核验通过后按其请求清理，短期可从 2c09ecd3b 找回）。④ **§9 留言处置**：装备 v62 知会与 §8 一致 ✓；途中发现三项（processAutoAlchemy 死代码/overBudgetCount 断言噪声脆弱/discipleAging 口径）已提炼入 B10 附录移交裁决。**B10 派发随后进行（本轮内）。**
 - **2026-09-28 23:1x 看护轮#11（新看护首轮）**：**B9 中断已自愈，无需干预**——GUI 判活实证 B9 会话活跃运行中（终端命令执行中+思考块接连，模型 chip=GLM-5.3-Flash ✓，未发「继续」）。树 57 项深落盘，footprint 与 B9 对应：A 类缺陷 #10 `cultivationCompletionPhase` 死值退役⇒**Room v60→v61 迁移合法连锁**（rebuild-table create-copy-drop-rename+`.pre_migrate_backup.v60` 备份+C++/Proto/Room/镜像全链除名，`DATABASE_VERSION=61`，读 migration KDoc 确认合规）；**双 changelog 在改**；任务面板 **5/10**（compileReleaseKotlin+build-desktop-jni 已过，余六模块全量/lint+detekt 待跑）。**bench 假红深勘中**：安静环境仍 5/6 红→排除负载归因，正做决定性 A/B 实验（stash 暂回 C++ 主源码改动跑 B8 原版 bench 同环境对照）——方法论正确，不干预。🔴 **装备阶段 Room 版本顺延修正：实时线 B9 已合法占 v61 ⇒ 装备 B1 起 v62/v63/v64 顺延**（§8 已同步改）。**切 10 分钟轮未成**（双 changelog+门禁期信号本应切换，但 CronList 在本会话工作区键=主树 `XianxiaSectNative` 下返回空——本自动化登记在 realtime worktree 项目键下，主树侧不可见不可改；按「停止重试不硬闯」纪律维持原节拍，登记待以 worktree 为工作区的会话或用户调整）。下轮：报告落盘/收官笔 ⇒ 直接走 §5 核验（盯点：bench 假红归因链、v61 迁移测试 RoomMigrationV60To61Test、migration schema 61.json 与 Entity 一致性）。
 - **2026-09-28 22:1x** **看护交接**：原看护会话与自动化 `automation-3800a2a7` 已退役（用户指令：移除切换套餐要求、新开会话重建看护）。**B9 现状：约 22:0x 因「exceed quota limit」中断（TraceID: hydrate-trace），中断时树净零落盘（尚处深勘察期，A 类缺陷 #12/#15 已定案、#17 勘察中）**——新看护首轮应：定位 B9 会话（「# 派发件 · B9 测试基准重建 + 遗留清理」）→ 确认模型为 GLM-5.3-Flash → 输入「继续」令其续跑（模型切换动作已按用户指令移除出看护职责）。
 - **2026-09-28 21:52 看护轮#10**：**模型锁死规则首次核验通过**——B9 会话右下角 chip = GLM-5.3-Flash ✓（无需切换）。B9 深勘察活跃实证：A 类缺陷清单逐条定案中（#12 后台纯暂停口径定案、#15 补 C++ 侧 GTest 校验面、#17 死值勘察），终端与思考接连执行；树 0 项属勘察期正常（B7 32min/B8 63min 首盘先例）。无异常不干预，保持 30 分钟轮。
@@ -45,7 +46,7 @@
 | 报告路径约定 | `docs/report-B7.md` … `docs/report-B10.md`（实施会话写，随收官笔入库） |
 | 派发件 | 本目录 `batch-B7.md` … `batch-B10.md`；派发时若附录为占位，则由看护从前批报告提取 6–8 条《前批交付事实附录》追加于文末后全文粘贴 |
 | 桌面渠道 | ZCode 桌面 app；**模型锁死 BigModel GLM-5.3-Flash（用户 2026-09-28 指示，禁用其余套餐/模型，判活时核对 chip）**；无头 `--prompt` 不可用（选路写死，勿走） |
-| 门禁基线（B6 后） | ctest **1465**/1465；jni-count **87/87**；六模块 JVM 全量含 feature:game（**B 批门禁必须含 feature:game**——B5 教训）；detekt 六模块 0/0；lintRelease 绿；engine Diff 门必带 `-Dgamecore.jni.path=C:/Mnzm/XianxiaSectNative-realtime/android/core/engine/build/desktop-jni/libgamecorejni.so` |
+| 门禁基线（B9 后） | ctest **1494**/1494；jni-count **88/88**；六模块 JVM 全量含 feature:game（**B 批门禁必须含 feature:game**——B5 教训）；detekt 六模块 0/0；lintRelease 绿；engine Diff 门必带 `-Dgamecore.jni.path=C:/Mnzm/XianxiaSectNative-realtime/android/core/engine/build/desktop-jni/libgamecorejni.so` |
 
 ## 2. 批次状态表
 
@@ -60,7 +61,7 @@
 | B6 | L3+L4 边界层拆分 | ✅ 已交付 | d01fdfb91 | — | 随线自证（ctest 1465 全绿） |
 | B7 | 离线语义 | ✅ accepted（19:13 看护亲验） | 568c01921 | docs/report-B7.md | 通过：ctest 1473/1473+jni-count 88/88+agent-instructions 亲跑全绿；atlas 未混入；豁免理由在 §1.4 |
 | B8 | UI 与遥测 | ✅ accepted（21:21 看护亲验） | 2f3bef8d0 | docs/report-B8.md | 通过：ctest 1483/1483（bench 翻开）+jni-count 88/88+agent-instructions 亲跑全绿；孕养 O(I) 缺陷修复 28×；D1 债桌面数据点落地 |
-| B9 | 测试基准重建+遗留清理 | 🔄 在途（23:1x 活跃：门禁 5/10，bench 假红 A/B 勘察中） | — | — | 待交付 |
+| B9 | 测试基准重建+遗留清理 | ✅ accepted（00:2x 看护亲验） | 17161f5fc | docs/report-B9.md | 通过：ctest 1494/1494 亲跑（首跑 bench 噪声红复跑绿）+jni-count 88/88+agent-instructions 绿+DiffAuthoritativeTickTest 单类打 .so 绿；stash@{0} 裁决 drop |
 | B10 | 文档与规范 | ⏳ 待派 | | | |
 
 > B1–B6 交付于自动化建立之前，门禁数字见 git log 各笔提交说明；本表只回溯登记。
