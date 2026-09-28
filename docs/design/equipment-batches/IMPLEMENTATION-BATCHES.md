@@ -105,13 +105,14 @@ B0 存档编号规划与冻结 ──► B1 属性机制重构 ──► B2 孕�
 | 批 | 名称 | 规模 | 是否碰 C++ | Room 迁移 | 可独立绿灯 | 报告路径 |
 |---|---|---|---|---|---|---|
 | **B0** | 存档编号规划与冻结守卫 | 小（~5 文件） | 否 | 无 | ✅ | `reports/report-B0.md` |
-| **B1** | 属性机制重构（单列 + 类型通道 + 固有伤害属性） | **大（~120 文件）** | 是 | v59→**v60** | ✅ | `reports/report-B1.md` |
-| **B2** | 孕养类加成丹药退役（R11）+ 补偿 | 中（~45 文件） | 是 | v60→**v61** | ✅ | `reports/report-B2.md` |
-| **B3** | 装备体系原子替换（六部位/套装/升级/词条/删堆叠/删旧装备/D1/D9/D10/UI/迁移/补偿） | **最大（~500 文件）** | 是 | v61→**v62** | ✅（**原子，合并且仅合一次**） | `reports/report-B3.md` |
+| **B1** | 属性机制重构（单列 + 类型通道 + 固有伤害属性） | **大（~120 文件）** | 是 | 是（属性 4 列 → 3 列） | ✅ | `reports/report-B1.md` |
+| **B2** | 孕养类加成丹药退役（R11）+ 补偿 | 中（~45 文件） | 是 | 是（删 `pillNurtureSpeedBonus` 列） | ✅ | `reports/report-B2.md` |
+| **B3** | 装备体系原子替换（六部位/套装/升级/词条/删堆叠/删旧装备/D1/D9/D10/UI/迁移/补偿） | **最大（~500 文件）** | 是 | 是（装备表重建 + 弟子 9 列删/5 列增） | ✅（**原子，合并且仅合一次**） | `reports/report-B3.md` |
 | **B4** | 数值对齐与验收（40% 占比 / 1 个月满级 / 池权重 / 速度灵力对比） | 中（~20 文件，多为测试） | 是（对拍基线） | 无 | ✅ | `reports/report-B4.md` |
 | **B5** | 文档、ADR、双更新日志、债登记、跨版本提示 | 小（~12 文件） | 否 | 无 | ✅ | `reports/report-B5.md` |
 
-> **迁移版本号规则**：上表是**计划映射**；实际执行时**每一批以合入时刻的 `GameDatabaseConfig.DATABASE_VERSION` 为基准 +1**（单一真源），若某批被跳过/延后，后续批顺延取号，**不得预占**。
+> **🔴 迁移版本号规则（唯一口径）**：**不使用绝对版本号**。每一批以**合入时刻的 `GameDatabaseConfig.DATABASE_VERSION` 为基准 +1**，类名/文件名/测试名随之取名（`GameDatabaseMigrationsV<N>.kt` / `RoomMigrationV<N-1>To<N>Test`）。若某批被跳过或延后，后续批**顺延取号，不得预占**。
+> **当前实测值**：`DATABASE_VERSION = 61`（实时结算线 B9 已合法占用 v60/v61）⇒ **B1 = v62、B2 = v63、B3 = v64**；开工时必须以 `GameDatabaseConfig.DATABASE_VERSION` 的**实际值**复核一次再取号（本行仅为快照）。
 
 ### 3.3 为什么批次之间基本串行（诚实说明）
 
@@ -184,13 +185,13 @@ B0 存档编号规划与冻结 ──► B1 属性机制重构 ──► B2 孕�
 
 | 项 | 内容 |
 |---|---|
-| **目标** | 一次完成：六部位（头/身/手/脚/腿/饰）+ 套装（物理套/法术套，2/4/6 件套）+ 升级 1–30（替换孕养，装卸不改等级）+ 主词条部位池随机 + 3 副词条（7 项池，权重 13/13/14/15/15/15/15）+ **删除全部旧装备** + **移除堆叠** + 产出链/镜像/C++/UI 全量适配 + Room v62 迁移 + 旧装备与旧档折算补偿 + 同批清偿 **D1/D9/D10**。 |
+| **目标** | 一次完成：六部位（头/身/手/脚/武器/腿部）+ 套装（物理套/法术套，2/4/6 件套）+ 升级 1–30（替换孕养，装卸不改等级）+ 主词条部位池随机 + 3 副词条（7 项池，权重 13/13/14/15/15/15/15）+ **删除全部旧装备** + **移除堆叠** + 产出链/镜像/C++/UI 全量适配 + Room v62 迁移 + 旧装备与旧档折算补偿 + 同批清偿 **D1/D9/D10**。 |
 | **前置** | B2 完成（`ItemEffect`/`PillEffects`/`DiscipleSurrogate`/`models.h` 均已稳定）。 |
 | **为什么不可拆** | "删除 `EquipmentStack`"与"旧 72 模板作废"会让 **~497 个文件（280 生产 + 217 测试）** 的引用面同时断裂；按层拆（先领域后引擎再 UI）会留下**不可编译**的中间态，违反"每批合入后主干可编译"。因此 B3 按**写面**并行、按**合并**原子。 |
 | **6 个并行写面（互不重叠）** | **A 领域+静态数据**（方案 WP1 + WP0 的 `EquipmentInstance` `reserved`：`EquipStat.kt`/`EquipAffix.kt`/`Items.kt`/`DiscipleComponents.kt`/`EquipmentDatabase.kt`/`EquipmentSetDatabase.kt`/`EquipMainStatPool.kt`/`EquipAffixPool.kt`/`EquipmentRegistry.kt`(降级转发)/`ForgeRecipeDatabase.kt`/`EquipmentFactory.kt`/`scripts/data/equipment_db_sample.json`/`scripts/gen-templates.mjs`(补全输出 + 删死代码 → D9/D10)）<br>**B 存档与迁移**（WP2：`GameDatabaseMigrationsV62.kt`/`EquipmentDaos.kt`/`SaveDataReconciler.kt`/`OldSaveFormatDeserializer.kt`/`EquipmentRefRule`/`EquipmentDedupeRule`/`EquipmentValueSanitizeRule`(新)/`EntityCountBoundsRule`/`JsonConverters.kt`/schema `62.json`）<br>**C Kotlin 引擎**（WP3：`EquipmentLevelSystem`/`EquipmentUpgradeService`/`EquipStatResolver`/`DiscipleEquipmentService`/`DiscipleEquipmentManager`/`DiscipleStatCalculator*`/`CaptiveGearUtils`/产出链 10 处/`RngPartition.EQUIPMENT(13)`/镜像 `StateSyncService`/`GameViewMirrorCodec`/`GameViewDiscipleRows`）<br>**D C++**（WP4：`equip_affix.h`/`equip_set_bonus.h`/`equip_main_stat.h`/`equipment_tx.h`(新)/`disciple_tx.h`/`auto_gear.h`/`disciple_stats.h`/`inventory.h`/`ai_sect_ops.h`/`ai_sect_recruit.h`/`rng_manager.h` + 静态表/编解码/分发 + GTest）<br>**E UI**（WP5 + WP7 的 0.2-1/0.2-12/0.2-13：六宫格/套装面板/升级与分解对话框/仓库去角标+筛选排序批量分解/锻造 12 配方/商店/邮件/精灵图 12 张 + `ItemSortUtils` 关注键改实例 id + `Combatant` 装备展示字段六部位化）<br>**F 测试与文档**（217 个装备测试文件对齐 + `Equipment*GuardTest` 新增 + 双更新日志 + ADR） |
-| **影响面** | 存储：删 `equipment_stacks` 表 + 重建 `equipment_instances`（v62）+ `disciples` 8 列删/5 列增；静态数据：72 旧模板 → 12 部件 × 6 品阶；C++：装备子系统重写；UI：装备相关 5 类界面；经济：分解回收（新汇）+ 升级消耗（新汇）+ 旧装备折算补偿（新增源）。 |
+| **影响面** | 存储：删 `equipment_stacks` 表 + 重建 `equipment_instances` + `disciples` 9 列删/5 列增（版本号按 §3.2 规则取）；静态数据：72 旧模板 → 12 部件 × 6 品阶；C++：装备子系统重写；UI：装备相关 5 类界面；经济：分解回收（新汇）+ 升级消耗（新汇）+ 旧装备折算补偿（新增源）。 |
 | **兼容性** | ① 迁移：`DROP TABLE equipment_stacks`、`DROP+CREATE equipment_instances`、`safeDropColumns` 9 列 + `ADD` 5 列、**清空**全部旧装备行与六个部位列（`WEAPON` 新旧同名、`ACCESSORY` 在新枚举中已不存在，不清行会复活幽灵件或静默回退成 `HEAD` → 方案 §6.5 A1）；② ProtoBuf：`SaveData(53)` + `DiscipleSurrogate` 18/19/20+24..27 `reserved`、复用 `weaponId(17)`、新增 112–117；③ 旧资产：100% `basePrice` 折算补偿，单档 1 亿上限，幂等标记同事务；④ 云存档：读档三步中"堆叠重建"仅剩功法；⑤ 镜像协议：`docs/ui-read-surface.md` §2 **先登记再实现**。 |
-| **验收判据** | ① 方案 **S1–S8 / S12 / S14 / S17 / S18** 全部达标；② `RoomMigrationV61ToV62Test` + `RoomMigrationTest` 全链 v2→v62 绿；③ `DiffEquipmentGenerationTest`/`DiffEquipmentUpgradeTest`/`DiffEquipmentSetBonusTest` 逐位一致；④ `ctest` 含 `equipment_tx_test`/`equip_affix_test`/`equip_main_stat_test`/`equip_set_bonus_test` 全绿；⑤ `EquipmentSingleSourceGuardTest`（D1）+ `TemplateCodegenIntegrityGuardTest`（D9/D10）+ 门禁 G0；⑥ `EquipmentLevelPersistGuardTest` + `EquipmentSetBonusTest`（0–6 件）+ `EquipmentValueSanitizeRuleTest`；⑦ 217 个装备测试文件全绿；⑧ `lintRelease detekt`（baseline 只缩不增）。 |
+| **验收判据** | ① 方案 **S1–S8 / S12 / S14 / S17 / S18** 全部达标；② 本批迁移测试（`RoomMigrationV<N-1>To<N>Test`）+ `RoomMigrationTest` 全链绿；③ `DiffEquipmentGenerationTest`/`DiffEquipmentUpgradeTest`/`DiffEquipmentSetBonusTest` 逐位一致；④ `ctest` 含 `equipment_tx_test`/`equip_affix_test`/`equip_main_stat_test`/`equip_set_bonus_test` 全绿；⑤ `EquipmentSingleSourceGuardTest`（D1）+ `TemplateCodegenIntegrityGuardTest`（D9/D10）+ 门禁 G0；⑥ `EquipmentLevelPersistGuardTest` + `EquipmentSetBonusTest`（0–6 件）+ `EquipmentValueSanitizeRuleTest`；⑦ 217 个装备测试文件全绿；⑧ `lintRelease detekt`（baseline 只缩不增）。 |
 | **旧用例处置** | 必须给"旧用例处置表"：按 `EquipmentStack` 删除 / 孕养→升级 / 四槽→六部位 三类分组，逐文件标注"删除 / 改断言 / 保留 + 理由"。 |
 | **回滚** | **无运行时开关可关**（方案 §9 I1）；兜底 = 迁移前备份 + 云存档 + 强制更新；**必须在更新日志与登录流程写明"不可回退"**。 |
 | **规模** | 最大（~500 文件；其中 ~217 为测试）。 |
@@ -217,7 +218,7 @@ B0 存档编号规划与冻结 ──► B1 属性机制重构 ──► B2 孕�
 | **前置** | B4 完成。 |
 | **写入面** | ① `CHANGELOG.md` + `android/app/src/main/assets/changelog_entries.json`（**两个一起更新**，玩家版文案通俗无术语、不泄数值）；② `docs/knowledge-base.md`（经济基线表：升级/分解/两笔补偿；子系统索引）；③ `docs/architecture.md`（属性与装备体系描述 + 债 D/I 登记）；④ `docs/cpp-engine.md`；⑤ **新增** `docs/adr/equipment-set-system.md`（含"单列属性"与"删堆叠"两项决策）；⑥ `CODE_WIKI.md`；⑦ `docs/ui-read-surface.md` §2（最终镜像面）；⑧ `docs/threading-contract.md`（若新增跨线程交互则登记，否则声明不涉及） |
 | **影响面** | 纯文档 + 玩家可见文案。 |
-| **兼容性** | 必须写明"**存档版本不可回退**"（>v59）与补偿公告。 |
+| **兼容性** | 必须写明"**存档版本不可回退**"（高于旧客户端）与补偿公告。 |
 | **验收判据** | ① `node scripts/check-agent-instructions.mjs` 全绿（引用无死链）；② 两个更新日志同批更新（漏一个即未完成）；③ ADR 落 `docs/adr/`；④ 债表 I1–I10 全景登记；⑤ `git status` 只含本批改动。 |
 | **旧用例处置** | 无。 |
 | **回滚** | 文档 revert。 |
@@ -271,7 +272,7 @@ commit：<sha> <标题>
 | 方案条目 | 落在 | 门禁/判据 |
 |---|---|---|
 | R1 六部位（顺序头/身/手/脚/**武器**/**腿**，移除饰品位） | B3-A/E | `EquipmentSlotOrderGuardTest` |
-| R2 删除全部旧装备 + 补偿 | B3-A/B/F | `RoomMigrationV61ToV62Test` + `EquipmentLegacyCompensationTest` |
+| R2 删除全部旧装备 + 补偿 | B3-A/B/F | 本批迁移测试 + `EquipmentLegacyCompensationTest` |
 | R3 套装 2/4/6 | B3-A/C/D | `EquipmentSetBonusTest` + `equip_set_bonus_test.cpp` + 对拍 |
 | R4 升级 1–30 替换孕养 | B3-A/C/D | `EquipmentLevelSystemTest` + `equipment_tx_test.cpp` |
 | R5 装卸不改等级 | B3-C/D | `EquipmentLevelPersistGuardTest` + 对拍 |

@@ -108,7 +108,7 @@
 | S4 | 等级上限恰为 30，1 级为初始态，30 级后不再获得经验 | 边界用例（0/1/29/30/31/负值/极大 EXP） |
 | S5 | 每件恒有 1 主词条 + 3 副词条；主词条**落在该部位池内**，副词条互不重复且**落在 7 项池内** | `EquipMainStatPoolTest` + `EquipAffixPoolTest`（1 万次抽样断言去重与权重分布） |
 | S6 | 仓库/储物袋/邮件/结算中**不存在**装备数量>1 的条目 | `EquipmentStackRemovalGuardTest`（符号面 + 序列化面） |
-| S7 | 旧档升级后：装备区清空、补偿到账、其余数据零丢失 | `RoomMigrationV61ToV62Test` + `RoomMigrationTest` 全链 v2→v62 |
+| S7 | 旧档升级后：装备区清空、补偿到账、其余数据零丢失 | 本批迁移测试 + `RoomMigrationTest` 全链 |
 | S8 | 装备相关存档 Proto 编号冻结：`DiscipleSurrogate` 装备段 / `EquipmentInstance` / `StorageBagItem` / `SaveData` 的属性→编号映射与冻结表逐条一致 | `EquipmentProtoNumberFrozenTest` |
 | S9 | 数值不回退且占比达标：装备（含套装）贡献 ∈ 总战力 **[35%,45%]**，且**按维度拆分**（速度/灵力单列） | `EquipmentPowerParityTest` |
 | S10 | 双端确定性：装备生成/升级/词条强化的 Kotlin 与 C++ 结果逐位一致 | GTest 黄金序列 + `DiffEquipmentGenerationTest` |
@@ -234,7 +234,7 @@ scripts/data/equipment_db_sample.json（中性源，权威，72 条）
 
 | 面 | 现状 |
 |---|---|
-| Room 版本 | `GameDatabaseConfig.DATABASE_VERSION = 59`（`GameDatabase.kt:95`）；迁移文件已到 `GameDatabaseMigrationsV59.kt` |
+| Room 版本 | `GameDatabaseConfig.DATABASE_VERSION = 61`（`GameDatabase.kt:95`，**实测**）；迁移文件已到 `GameDatabaseMigrationsV61.kt`（实时结算线已合法占用 v60/v61） |
 | 装备表 | `equipment_stacks`、`equipment_instances`；DAO 见 `EquipmentDaos.kt` |
 | 弟子列 | `Disciple` 用 `@Embedded var equipment: EquipmentSet`（`Disciple.kt:121-122`）⇒ `disciples` 表内联 4 个 id + 4 个 nurture + 储物袋三字段 |
 | 枚举列编码 | `JsonConverters.fromEquipmentSlot = value.name`，**回退 `?: EquipmentSlot.WEAPON`**（`JsonConverters.kt:31-36`） |
@@ -870,7 +870,7 @@ data class EquipmentInstance(
 | 文件 | 变更 | 说明 |
 |---|---|---|
 | `local/GameDatabase.kt` | 改 | `DATABASE_VERSION` 递增（B1→60 / B2→61 / B3→62，按批取号）；实体表删除/重建；迁移注册 |
-| `local/GameDatabaseMigrationsV60/61/62.kt` | **新增** | v60：属性单列化（4 列→3 列）；v61：孕养丹列删除；v62：`DROP equipment_stacks` + `DROP+CREATE equipment_instances` + `disciples` 8 列删/5 列增 + 清空旧行 |
+| `local/GameDatabaseMigrationsV<N>.kt`（**N 按 §5.1 规则取**） | **新增** | 依次为：属性单列化（4 列→3 列）；孕养丹列删除；`DROP equipment_stacks` + `DROP+CREATE equipment_instances` + `disciples` 8 列删/5 列增 + 清空旧行 |
 | `local/EquipmentDaos.kt` | 改 | 删 `EquipmentStackDao`；`EquipmentInstanceDao` 索引/列更新 |
 | `local/JsonConverters.kt` | 改 | `toEquipmentSlot` 回退改 `HEAD` + `Log.w`（D6）；新增 `EquipGrowth`/`EquipInstanceMeta`/`EquipAffixSet`/`EquipStatValue` 转换器 |
 | `serialization/unified/SaveDataReconciler.kt` | 改 | 删堆叠重建分支，只保留功法 |
@@ -990,7 +990,7 @@ data class EquipmentInstance(
 | `core/model/DiscipleComponents.kt` / `Disciple.kt` | 改 | `CombatAttributes`：4 个 `base*` → `baseAttack/baseDefense`；4 variance → 2；`DiscipleStats` 四列 → 两列；`ItemEffect` 丹药 4 个 Add → `attackAdd/defenseAdd` | `Kotlin` `存档` |
 | `core/model/CharacterTemplate.kt` + `scripts/gen-*.mjs` | 改 | 角色模板新增 `innateDamageType`（Q1） | `Kotlin` `C++` `静态数据` |
 | `DiscipleSerializer.kt` | 改 | 60–73 段退役 4 个/新增 3 个（含 `innateDamageType(117)`） | `Kotlin` `存档` |
-| `GameDatabase.kt` + `GameDatabaseMigrationsV60.kt` | 改/新增 | `disciples` 4 列删 + 3 列增；**迁移按 Q7 取和 × k 回填** | `Kotlin` `存档` |
+| `GameDatabase.kt` + 新迁移文件（`GameDatabaseMigrationsV<N>.kt`） | 改/新增 | `disciples` 4 列删 + 3 列增；**迁移按 Q7 取和 × k 回填** | `Kotlin` `存档` |
 | `DiscipleStatCalculator*.kt` | 改 | 基础生成、装备/功法/丹药结算改单列；**功法/丹药双列在结算层相加**（Q2） | `Kotlin` |
 | `BattleCalculator*.kt` + `DamageZones` | 改 | 单列攻防；`isPhysical` 改固有属性/技能；类型增伤/减伤分桶；`DamageZones.damageReduction` 拆两桶 | `Kotlin` |
 | `SectCombatPowerCalculator.kt` | 改 | 战力权重表按单列重标 | `Kotlin` |
@@ -1007,7 +1007,7 @@ data class EquipmentInstance(
 ### 5.1 Room 迁移（三批各自递增；映射为计划值）
 
 ```sql
--- MIGRATION_59_60（B1 属性单列化；DDL 逐字抄 60.json）
+-- MIGRATION_<N-1>_<N>（B1 属性单列化；DDL 逐字抄对应版本 schema JSON）
 ALTER TABLE `disciples` ADD COLUMN `baseAttack` INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE `disciples` ADD COLUMN `baseDefense` INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE `disciples` ADD COLUMN `innateDamageType` TEXT NOT NULL DEFAULT 'PHYSICAL';
@@ -1018,10 +1018,10 @@ db.safeDropColumns("disciples", "basePhysicalAttack","baseMagicAttack",
                    "physicalAttackVariance","magicAttackVariance",
                    "physicalDefenseVariance","magicDefenseVariance");
 
--- MIGRATION_60_61（B2 孕养丹退役）
+-- MIGRATION_<N>_<N+1>（B2 孕养丹退役）
 db.safeDropColumns("disciples", "pillNurtureSpeedBonus");
 
--- MIGRATION_61_62（B3 装备体系）
+-- MIGRATION_<N+1>_<N+2>（B3 装备体系）
 DROP TABLE IF EXISTS `equipment_stacks`;
 DROP TABLE IF EXISTS `equipment_instances`;   -- 重建为空表（旧装备全部作废）
 CREATE TABLE IF NOT EXISTS `equipment_instances` (
@@ -1048,7 +1048,7 @@ db.safeDropColumns("disciples",
 
 - 遵守 `rules/database-migration.md`：**禁 `ALTER TABLE DROP COLUMN`**，统一 `db.safeDropColumns`；新列带 `DEFAULT`；schema JSON 提交；每批迁移都有集成测试。
 - `DROP TABLE + CREATE TABLE` 属 schema 重建（先例：`GameDatabaseMigrationsV39.kt`、`V21ToV30.kt`）。**旧装备数据作废是 R2 的既定结果**，不是迁移缺陷。
-- **迁移取号规则**：上表是计划映射；实际以合入时刻的 `GameDatabaseConfig.DATABASE_VERSION` +1 为准，**禁预占**。
+- **🔴 迁移取号规则（唯一口径）**：**不使用绝对版本号**——每批以合入时刻的 `GameDatabaseConfig.DATABASE_VERSION` **实际值 +1** 取号，类名/测试名随之（`GameDatabaseMigrationsV<N>.kt` / `RoomMigrationV<N-1>To<N>Test`）；跳过或延后的批顺延，**禁预占**。**当前实测 61** ⇒ 计划 `B1 = v62 / B2 = v63 / B3 = v64`（开工时须再复核一次实际值）。
 
 ### 5.2 迁移前后的旧数据处置
 
@@ -1160,10 +1160,10 @@ db.safeDropColumns("disciples",
 
 | 测试 | 内容 |
 |---|---|
-| `RoomMigrationV59ToV60Test` | 属性 4 列 → 3 列；断言 `baseAttack = 旧物攻+旧法攻`、`innateDamageType` 按模板回填、其余数据零丢失 |
-| `RoomMigrationV60ToV61Test` | 孕养丹列删除；断言列不存在 + 其它数据零丢失 |
-| `RoomMigrationV61ToV62Test` | v61 建库插种子（装备堆叠 3 / 实例 2（含孕养）/ 弟子 4 槽位 + 4 孕养 + 2 checkpoint / 储物袋装备条目 2）→ 跑迁移 → 断言 `equipment_stacks` 不存在、`equipment_instances` 空且结构正确、`disciples` 六槽位全空且旧列消失、其余表零丢失 |
-| `RoomMigrationTest`（全链） | v2 → v62 + 迁移注册守卫 |
+| `RoomMigrationV<N-1>To<N>Test` | 属性 4 列 → 3 列；断言 `baseAttack = 旧物攻+旧法攻`、`innateDamageType` 按模板回填、其余数据零丢失 |
+| `RoomMigrationV<N>To<N+1>Test` | 孕养丹列删除；断言列不存在 + 其它数据零丢失 |
+| `RoomMigrationV<N+1>To<N+2>Test` | 上一版建库插种子（装备堆叠 3 / 实例 2（含孕养）/ 弟子 4 槽位 + 4 孕养 + 2 checkpoint / 储物袋装备条目 2）→ 跑迁移 → 断言 `equipment_stacks` 不存在、`equipment_instances` 空且结构正确、`disciples` 六槽位全空且旧列消失、其余表零丢失 |
+| `RoomMigrationTest`（全链） | v2 → 最新版 + 迁移注册守卫 |
 | `ArchivePayloadRoundTripTest` / `CloudPayloadSizeBenchTest` | 新实例字段往返与包体（词条列表放大体积，须复核 I10 阈值） |
 | `SaveDataReconcilerTest` | 堆叠重建只剩功法 |
 | `OldSaveFormatDeserializerTest` | 旧 `equipment` 字段丢弃不炸 |
@@ -1374,7 +1374,7 @@ WP8 属性机制重构（与装备同批交付）─────┤ ├─► WP
 |---|---|---|
 | G0 | `node scripts/gen-templates.mjs` 后 `git diff` **只含有意变更**（不得出现注入基础设施被删） | WP1/B3 后 |
 | G1 | `cd android && ./gradlew.bat compileReleaseKotlin` | 每批后 |
-| G2 | 三批迁移测试（`RoomMigrationV59ToV60` / `V60ToV61` / `V61ToV62`） | WP2/B1/B2/B3 后 |
+| G2 | 三批迁移测试（每批 `RoomMigrationV<N-1>To<N>Test`） | WP2/B1/B2/B3 后 |
 | G3 | `:core:engine:testReleaseUnitTest --tests "*Diff*" --max-workers=1` | WP3/WP4 后 |
 | G4 | `./gradlew.bat testReleaseUnitTest --max-workers=1` | WP6 |
 | G5 | `./gradlew.bat lintRelease detekt` | WP6（baseline 只缩不增） |
@@ -1440,7 +1440,7 @@ WP8 属性机制重构（与装备同批交付）─────┤ ├─► WP
 **13-10 枚举 name 在新旧体系间重合（随部位集反复调整）**
 - *盲点*：当前新枚举 = `HEAD/BODY/HANDS/FEET/WEAPON/LEGS`，与旧枚举的**同名项只有 `WEAPON`**（旧 0 / 新 14）。旧行里的 `"WEAPON"` 能被新代码**成功解码**，只是含义已变且数值字段全部退役。已退役的 `ARMOR/BOOTS/ACCESSORY` 在旧行里也存在，其中 `ACCESSORY` **在新枚举中已不存在** ⇒ 解码走 `JsonConverters` 回退分支（`?: HEAD` + `Log.w`）。
 - *影响*：迁移若只改列不清行，旧装备行会以"数值全 0 的幽灵武器"形态复活；`ACCESSORY` 行则被静默回退成 `HEAD`。
-- *建议（已回写）*：迁移**必须清空两张装备表与六个部位列**（不是仅改列）；`RoomMigrationV61ToV62Test` 断言旧行不存在；§6.5 A1 列为对抗点；`EquipmentProtoNumberFrozenTest` 同时冻结**枚举 name → 编号**映射，禁止把 `WEAPON` 的编号"回收"成 0。
+- *建议（已回写）*：迁移**必须清空两张装备表与六个部位列**（不是仅改列）；本批迁移测试断言旧行不存在；§6.5 A1 列为对抗点；`EquipmentProtoNumberFrozenTest` 同时冻结**枚举 name → 编号**映射，禁止把 `WEAPON` 的编号"回收"成 0。
 - *决策轨迹（留档，避免后来者误读）*：部位集在本轮之间经历了「头身手脚腿饰（无武器）→ 头身手脚武饰（腿部→武器）→ **头身手脚武腿（移除饰品、腿部回归）**」三次调整。冲突面也随之变化：一处（`ACCESSORY`）→ 两处（`WEAPON`+`ACCESSORY`）→ **一处（`WEAPON`）**。无论取哪一版，**兜底手段都不变**：迁移清空旧行 + 枚举 name→编号冻结。
 
 **13-11 主词条"逻辑词条"的固化口径** —— **❌ 已作废**
