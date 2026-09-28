@@ -1,14 +1,13 @@
 # AGENTS.md — 模拟宗门（mnzm）项目规范
 
-> **本文件是本仓库唯一的规范真源（single source of truth）。**
-> 仓库**只保留这一份**规范入口——历史上并存的 CLAUDE.md 已删除，避免双份维护与双份指令预算占用。
+> **本文件是唯一的规范入口，也是本仓库唯一的规范真源。**
 > 专题规则在 `rules/`，架构文档在 `docs/`——**这两处不会被任何 agent 自动加载**，
 > 必须按 §0 路由表在对应任务开始时主动读取。
 >
-> **为什么拆这么多文件**：Codex CLI 的合并项目指令上限是 `project_doc_max_bytes`（默认 **32768 字节**），
-> 超限即被静默截断——本文件单靠自身承载不了全部规范。DSH 侧另有 65536 字节预算。
-> 因此策略是：**根文件只放「每次都用得到的硬约束 + 路由表」，深度规范下沉到 `rules/` 按需加载。**
+> **本文件只放「每次都用得到的硬约束 + 路由表」，深度规范一律下沉到 `rules/`**：Codex CLI 的合并项目指令
+> 上限是 `project_doc_max_bytes`（默认 **32768 字节**），超限即被静默截断；DSH 侧另有 65536 字节预算。
 > `scripts/check-agent-instructions.mjs` 是这套架构的门禁（预算闸 / 单一真源 / 引用无死链 / 路由表完整），进 CI。
+> 改动任何 `AGENTS.md` 后必跑该门禁，并遵守 `docs/AGENTS.md` 的引用路径规范。
 
 ## 0. 任务路由表（动任何东西之前先看这里）
 
@@ -146,7 +145,7 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 ## 5. 编码规范 (Coding Standards)
 
 > 严重度：🔴 必须遵守（违反导致构建/审查失败）、🟡 应遵守（违反需在审查中说明理由）、🟢 建议（推荐遵循）。
-> 提交前审查清单见 `rules/pr-review-checklist.md`；质量细则、**BAD/GOOD 示例**与 **🟡/🟢 级条目（§1.7）**见 `rules/code-quality.md`。**本节编号保留原样，缺号即已下沉到该文件，不是删除。**
+> 提交前审查清单见 `rules/pr-review-checklist.md`；质量细则、**BAD/GOOD 示例**与 **🟡/🟢 级条目（§1.7）**见 `rules/code-quality.md`。**编号缺号 = 该条细则在 `rules/code-quality.md`。**
 
 ### 0. 代码质量铁律
 
@@ -216,7 +215,7 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 **6.4 🔴 新增影响生产系统的字段需同步更新 checkpoint** — 生产系统用 `checkpointAllProduction()` 在政策/长老变化时重算活跃槽位的 duration 与 completionMonth。需同步的四类变更（生产类政策 / 长老类型 / 生产速率因子 / 丹药类型）及各自同步点见 `rules/pr-review-checklist.md`。
 
-**6.5 🔴 界面实时性：UI 不驱动系统 tick** — 旧焦点域体系（`FocusDomain` / `InterfaceDomainMap` / `DomainMappingTest`）已删除，**禁止复活**。界面需要随时间变化的数据（进度条 / 倒计时 / 数量增减）时，直接订阅对应 `GameEngine` StateFlow 派生（参照 `HeavenlyTrialViewModel.trialState` / `SecretRealmViewModel.session` 的 `map + stateIn` 模式）。
+**6.5 🔴 界面实时性：UI 不驱动系统 tick** — **禁止复活旧焦点域体系**（`FocusDomain` / `InterfaceDomainMap` / `DomainMappingTest`）。界面需要随时间变化的数据（进度条 / 倒计时 / 数量增减）时，直接订阅对应 `GameEngine` StateFlow 派生（参照 `HeavenlyTrialViewModel.trialState` / `SecretRealmViewModel.session` 的 `map + stateIn` 模式）。
 
 **6.6 🔴 精灵图必须统一注册并使用统一入口** — 所有静态图片资源必须无损 WebP、双模块放置、在 `XianxiaApplication.kt` 经 `SpriteResRegistry.register(...)` 注册、经 `SpriteImage("名称")` / Canvas `drawSprite(name, cache, ...)` / `SpriteResRegistry.resolve("名称")` 使用。禁止直引 `painterResource(R.drawable.xxx)`（注册代码除外），禁止提交 PNG/JPG 游戏图片（唯一例外 `ic_launcher-playstore.png`）。**新增精灵全流程 7 步、显示尺寸口径与图集 codegen 管线见 `rules/static-resources.md`。**
 

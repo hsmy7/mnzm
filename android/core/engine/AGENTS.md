@@ -36,7 +36,7 @@ UI / Compose 只能用 Kotlin。语言选择判定表、边界规则与审查清
 ## 与 C++ 的边界
 
 `game-core` 是 AUTHORITATIVE 真相源，Kotlin `GameStateStore` 是**只读镜像**。
-**反向同步通道已删除**：AUTHORITATIVE 稳态下 Kotlin 对 C++ 只读，唯一合法写入是
+**禁止复活 C++→Kotlin 反向同步通道**：Kotlin 对 C++ 只读，唯一合法写入是
 `StateSyncService.importToNative` 全量导入（读档/新档基线与 `rebaselineNativeMirror` 后重建）。
 防复发守卫：`MirrorReadOnlyGuardTest`（符号面）+ `DiffAuthoritativeTickTest`（行为面）。
 镜像合法内容上限与「UI 要新状态必须先扩 C++ 协议」的纪律见 `docs/ui-read-surface.md` §2。

@@ -28,8 +28,7 @@
   `ImeAwareContainer` + `freezeSystemBars=true` + `rememberImeAwareAutoFocusRequester` + `InputSessionStateMachine`）
 
 🔴 含游戏渲染 Surface 的 Activity 窗口内**禁止内联文本输入**。
-🔴 **禁止新增任何机型 / 渲染模式特判分支** —— 该问题 2026-09 已根治，历史五轮补丁式机制（多避让路径、
-固定延时主路径、机型特判）全部作废，回退即为缺陷。
+🔴 **禁止新增任何机型 / 渲染模式特判分支**（多避让路径、固定延时主路径、机型特判一律禁止，回退即为缺陷）。
 
 ## 精灵图与渲染
 
