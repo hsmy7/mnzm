@@ -1376,15 +1376,18 @@ private fun MainGameScreenSectInfoSection(
         val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
         val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
         val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
+        // B8：HUD 时间行改读块①「资源头部」窄流（R2.3 第二波迁移，
+        // spiritStoneTotals 同族；年/月/旬保留为镜像投影显示）
+        val sectClock by viewModel.sectClock.collectAsStateWithLifecycle()
         // 卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
         // 显示该宗门名与等级，而不是恒显示主宗门名——避免「进入被占宗门地图却显示主宗门」误导）
         val activeSect = data.derived.gameData.worldMapSects
             .find { it.id == data.derived.gameData.activeSectId }
         SectInfoCard(
             sectName = activeSect?.name ?: data.derived.gameData.sectName,
-            gameYear = data.derived.gameData.gameYear,
-            gameMonth = data.derived.gameData.gameMonth,
-            gamePhase = data.derived.gameData.gamePhase,
+            gameYear = sectClock.year,
+            gameMonth = sectClock.month,
+            gamePhase = sectClock.phase,
             stones = SectStoneBalance(
                 low = data.derived.gameData.spiritStones,
                 mid = data.derived.gameData.midGradeSpiritStones,

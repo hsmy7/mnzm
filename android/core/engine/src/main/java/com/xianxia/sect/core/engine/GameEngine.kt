@@ -328,6 +328,16 @@ class GameEngine @Inject constructor(
         gameViewStore.resourcesHeader
     }
 
+    /**
+     * 旬内连续进度流 [0,1]（B8 时间进度投影源；结算改造 2026-09-27）——
+     * [GameTimeClock.phaseProgressFlow] 的公开面（gameClock 为 engine 模块
+     * internal，feature 层经此消费）。AUTHORITATIVE 下每帧随 native 帧计划
+     * 推送（INV-2 轴的旬内分量），OFF 回退臂随 tick 刷新；暂停恒 0。
+     * 月进度投影（(旬 + 旬内进度)/3）在 ViewModel 层与本类 [resourcesHeader]
+     * 的日历投影合成（§6.5 map+stateIn，UI 不驱动 tick）。
+     */
+    val phaseProgressFlow: StateFlow<Float> get() = gameEngineCore.gameClock.phaseProgressFlow
+
     val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = stateStore.highFreqState
     val entityState: StateFlow<GameStateStore.EntityState> get() = stateStore.entityState
     /**

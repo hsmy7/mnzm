@@ -36,24 +36,41 @@ namespace instance_bucket {
 
 template <typename InstanceT>
 struct InstanceBuckets {
-    const std::vector<InstanceT>* instances = nullptr;
+    std::vector<InstanceT>* instances = nullptr;
     std::map<std::size_t, std::vector<std::size_t>> byOwnerRow;
 
     /// owner 行 ownerRow 名下 id 实例；未命中回退全量末次扫描（见文件头）
     const InstanceT* find(std::size_t ownerRow, const std::string& id) const {
+        const auto hit = locate(ownerRow, id);
+        return hit.has_value() ? &(*instances)[*hit] : nullptr;
+    }
+
+    /// [find] 的可变访问（B8 连续积分孕养步）：同一查找语义（桶内末次 →
+    /// 全量末次回退），返回可变引用供原地列写——生命周期契约明文允许
+    /// "实例向量内容允许原地列写（孕养等）"；禁 push_back/erase 不变。
+    /// B8 前连续轨此处是"桶命中仅作空判、再全量 O(I) 线性扫拿可变引用"
+    /// 的缺陷形（100ms tick 下 O(D×4×I) 全量扫 = 积分段 167ms@5000 的
+    /// 根因，bench 实测）；本方法让桶下标直达写点，O(D×4)。
+    InstanceT* findMutable(std::size_t ownerRow, const std::string& id) {
+        const auto hit = locate(ownerRow, id);
+        return hit.has_value() ? &(*instances)[*hit] : nullptr;
+    }
+
+private:
+    /// 命中实例的全局向量下标（find/findMutable 单一查找实现，语义逐位同源）
+    std::optional<std::size_t> locate(std::size_t ownerRow,
+                                      const std::string& id) const {
         const auto bit = byOwnerRow.find(ownerRow);
         if (bit != byOwnerRow.end()) {
             const std::vector<std::size_t>& bucket = bit->second;
             for (std::size_t k = bucket.size(); k-- > 0;) {
-                const InstanceT& inst = (*instances)[bucket[k]];
-                if (inst.id == id) return &inst;
+                if ((*instances)[bucket[k]].id == id) return bucket[k];
             }
         }
         for (std::size_t i = instances->size(); i-- > 0;) {
-            const InstanceT& inst = (*instances)[i];
-            if (inst.id == id) return &inst;
+            if ((*instances)[i].id == id) return i;
         }
-        return nullptr;
+        return std::nullopt;
     }
 };
 
@@ -65,7 +82,7 @@ using ManualInstanceBuckets = InstanceBuckets<state::ManualInstance>;
 /// 全量扫描兜底，与原全局 id 键 map 同覆盖面）
 template <typename InstanceT>
 InstanceBuckets<InstanceT> makeInstanceBuckets(
-        const state::DiscipleStore& ds, const std::vector<InstanceT>& list) {
+        const state::DiscipleStore& ds, std::vector<InstanceT>& list) {
     InstanceBuckets<InstanceT> view;
     view.instances = &list;
     for (std::size_t i = 0; i < list.size(); ++i) {

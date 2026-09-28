@@ -1,6 +1,7 @@
 #include "gamecore/game_core.h"
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -346,21 +347,78 @@ int GameCore::accrue(int64_t deltaGameMs, bool accrualEnabled) {
     }
     // B6 臂甄别：连续臂活跃 → 月/年结算走 runMonthEvents（判定入口）
     settlement_.setAccrualMode(true);
+    // B8 积分段遥测：两段积分分别计时（判定窗口循环不属积分段），耗时求和
+    const auto seg0 = std::chrono::steady_clock::now();
     system::accrueContinuous(state_, ecsWorld_, deltaGameMs, recoveryCarry_);
+    const auto seg1 = std::chrono::steady_clock::now();
     const int64_t windows = settlement_.foldAndWindows(deltaGameMs);
     const int cap = system::maxPhasesPerTick(settlement_.speed());
     const int executed = static_cast<int>(
         windows > static_cast<int64_t>(cap) ? static_cast<int64_t>(cap)
                                             : windows);
+    // B8 Dev 不变量（方案 §9 监控盲区「不变量断言」）：权威轴与日历投影逐窗
+    // 锁步——轴增量 = 执行窗口数×旬长，日历增量 = 同窗数（INV-1 投影漂移
+    // 在此暴露；release 编译零成本消失）
+    const int64_t axisBefore = state_.gameData.elapsedGameMs;
+    const int64_t phasesBefore = system::totalPhases(state_.gameData);
     int flags = system::kSettleFlagNone;
     for (int i = 0; i < executed; ++i) {
         flags |= settlement_.advanceOnePhaseAccrual(state_);
         system::runPhaseJudgementTrack(state_, rng_, ecsWorld_);
     }
+    const auto seg2 = std::chrono::steady_clock::now();
     // L3 积分项（窗口循环后：权威轴旬投影已含本段推进——灵矿毫秒差分基准）
     system::accrueMonthlyContinuous(state_, deltaGameMs, monthlyCarry_);
+    const auto seg3 = std::chrono::steady_clock::now();
+    {
+        const int64_t axisDelta = state_.gameData.elapsedGameMs - axisBefore;
+        const int64_t phasesDelta =
+            system::totalPhases(state_.gameData) - phasesBefore;
+        const bool lockstep = axisDelta == static_cast<int64_t>(executed) *
+                                                    system::kGameMsPerPhase &&
+                              phasesDelta == executed;
+        if (!lockstep) {
+            logger_->log(LogLevel::kError, "GameCore",
+                         "accrual invariant broken: axisDelta=" +
+                             std::to_string(axisDelta) + " phasesDelta=" +
+                             std::to_string(phasesDelta) + " executed=" +
+                             std::to_string(executed));
+        }
+        assert(lockstep);
+    }
+    const int64_t segmentUs =
+        std::chrono::duration_cast<std::chrono::microseconds>(seg1 - seg0)
+            .count() +
+        std::chrono::duration_cast<std::chrono::microseconds>(seg3 - seg2)
+            .count();
+    recordAccrualSegmentUs(segmentUs, deltaGameMs);
     consumePendingMemoryTrim();
     return flags;
+}
+
+// ── 积分段遥测入账（结算改造 2026-09-27 B8，方案 §9 监控盲区）──────────
+// 预算判据与 D1 债（方案 §7「真机 bench 积分段 > 1ms @5000 弟子」）同源；
+// 桌面硬门禁在 accrual_segment_bench_test，运行期此处只观测 + 超预算上报。
+void GameCore::recordAccrualSegmentUs(int64_t segmentUs, int64_t deltaGameMs) {
+    auto& t = accrualTelemetry_;
+    t.lastSegmentUs = segmentUs;
+    if (segmentUs > t.maxSegmentUs) t.maxSegmentUs = segmentUs;
+    ++t.samples;
+    if (segmentUs <= kAccrualSegmentBudgetUs) return;
+    ++t.overBudgetCount;
+    if (!telemetrySink_) return;
+    // 节流：首次必报，其后每 stride 次报一次（防 tick 级事件风暴；
+    // 峰值与计数全量随 props 携带，节流不丢观测面）
+    if (t.overBudgetCount != 1 && t.overBudgetCount % kAccrualOverBudgetEmitStride != 0) {
+        return;
+    }
+    telemetrySink_->event(
+        "engine_accrual_over_budget",
+        "{\"us\":" + std::to_string(segmentUs) +
+            ",\"maxUs\":" + std::to_string(t.maxSegmentUs) +
+            ",\"samples\":" + std::to_string(t.samples) +
+            ",\"overBudget\":" + std::to_string(t.overBudgetCount) +
+            ",\"deltaGameMs\":" + std::to_string(deltaGameMs) + "}");
 }
 
 // ── 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3 离线行）──────────
@@ -580,7 +638,10 @@ void GameCore::consumePendingMemoryTrim() {
 
 void GameCore::setPlatformProviders(const PlatformProviders& providers) {
     if (providers.monotonicClock) loop_.setMonotonicClock(providers.monotonicClock);
-    if (providers.telemetry) loop_.setTelemetry(providers.telemetry);
+    if (providers.telemetry) {
+        loop_.setTelemetry(providers.telemetry);
+        telemetrySink_ = providers.telemetry;  // B8 积分段超预算上报消费
+    }
     if (providers.thermal) loop_.setThermalProvider(providers.thermal);
     loop_.setLogger(logger_);
     batteryProvider_ = providers.battery;

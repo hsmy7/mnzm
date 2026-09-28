@@ -1345,7 +1345,9 @@ inline void accrueContinuous(state::GameState& state, ecs::World& world,
     if (deltaGameMs <= 0) return;
     const double deltaSeconds = static_cast<double>(deltaGameMs) / 1000.0;
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
-    const auto eqBuckets = detail::inst_bucket::makeInstanceBuckets(
+    // 非 const（孕养步 findMutable 原地列写；B8 前 eq 桶此处仅作空判后
+    // 转全量 O(I) 线性扫——167ms@5000 根因，见 instance_buckets.h findMutable 注）
+    auto eqBuckets = detail::inst_bucket::makeInstanceBuckets(
         state.disciples, state.equipmentInstances);
     const auto mnBuckets = detail::inst_bucket::makeInstanceBuckets(
         state.disciples, state.manualInstances);
@@ -1466,21 +1468,18 @@ inline void accrueContinuous(state::GameState& state, ecs::World& world,
             }
         }
 
-        // 4) 装备孕养（连续：5.0/秒 × Δ秒 直写实例）
+        // 4) 装备孕养（连续：5.0/秒 × Δ秒 直写实例；写点走桶可变访问
+        //    O(1)——B8 前此处桶命中后再全量 O(I) 线性扫，100ms tick 下
+        //    O(D×4×I) 是积分段 167ms@5000 的根因，bench 实测）
         for (const std::string& eqId :
              {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row],
               ds.accessoryIds[row]}) {
             if (eqId.empty()) continue;
-            const state::EquipmentInstance* shared =
-                eqBuckets.find(row, eqId);
-            if (shared == nullptr) continue;
-            for (state::EquipmentInstance& eq : state.equipmentInstances) {
-                if (eq.id != eqId) continue;
-                detail::applyNurtureExp(
-                    eq, (kNurtureGainPerPhase / kGameSecondsPerPhase) *
-                            deltaSeconds);
-                break;
-            }
+            state::EquipmentInstance* eq = eqBuckets.findMutable(row, eqId);
+            if (eq == nullptr) continue;
+            detail::applyNurtureExp(
+                *eq, (kNurtureGainPerPhase / kGameSecondsPerPhase) *
+                         deltaSeconds);
         }
     }
 }

@@ -124,6 +124,27 @@ public:
     /// RNG 契约与离散轨逐位一致）。@return settle 标志位（kSettleFlag*）。
     int accrue(int64_t deltaGameMs, bool accrualEnabled);
 
+    // ── 积分段遥测（结算改造 2026-09-27 B8，方案 §9 监控盲区）──────────
+    /// 积分段 = accrueContinuous（L1）+ accrueMonthlyContinuous（L3），不含
+    /// 判定窗口循环（判定轨非积分段）。耗时在 [accrue] 内以 steady_clock
+    /// 采样，超预算（D1 债触发判据同源 1ms）时经 TelemetrySink 上报
+    /// `engine_accrual_over_budget`（节流防 tick 级事件风暴）。
+    struct AccrualTelemetry {
+        int64_t lastSegmentUs = 0;    // 最近一次积分段耗时（微秒）
+        int64_t maxSegmentUs = 0;     // 进程内峰值
+        int64_t samples = 0;          // 有效采样数（accrue 实际结算次数）
+        int64_t overBudgetCount = 0;  // 超预算次数（> kAccrualSegmentBudgetUs）
+    };
+
+    /// 积分段遥测只读观测（测试/诊断；引擎线程单写，读面 tolerable 撕裂——
+    /// 全 int64 标量、无指针，最坏读到旧值不读到坏值）
+    const AccrualTelemetry& accrualTelemetry() const { return accrualTelemetry_; }
+
+    /// 积分段耗时预算（微秒）——与方案 §7 D1 债触发判据（积分段 > 1ms
+    /// @5000 弟子）同源同值；桌面 bench 硬门禁（accrual_segment_bench_test）
+    /// 与运行期超预算遥测共用本判据。
+    static constexpr int64_t kAccrualSegmentBudgetUs = 1000;
+
     /// 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3「离线时段 ∩ 上限
     /// 注入连续积分轨；日历投影同步跳变」）：冷启动读档后一次性调用。
     /// 上限/速率口径（12h 全额 + 50% 至 24h 硬顶，§1.4）由 Kotlin 折算施加，
@@ -321,6 +342,14 @@ private:
     system::EngineLoop loop_;              // 引擎循环（AUTHORITATIVE 真相源）
     system::ProgressMonitor progressMonitor_;  // 看门狗统一判据
     BatteryStatusProvider* batteryProvider_ = nullptr;  // 注入（不持有；访问器暴露）
+    TelemetrySink* telemetrySink_ = nullptr;  // 注入（不持有；setPlatformProviders 存）
+    AccrualTelemetry accrualTelemetry_;    // 积分段遥测（B8；引擎线程单写）
+
+    /// 积分段耗时采样入账 + 超预算遥测（节流：首次必报，其后每
+    /// kAccrualOverBudgetEmitStride 次报一次——防 tick 级事件风暴）
+    void recordAccrualSegmentUs(int64_t segmentUs, int64_t deltaGameMs);
+    /// 超预算遥测节流步长（≈60s @100ms tick 连续超预算）
+    static constexpr int64_t kAccrualOverBudgetEmitStride = 600;
     state::DirtyTracker dirtyTracker_;     // 变更集追踪
 
     /// 把 RNG 分区当前状态回写进 gameData.rngStates（导出/变更集前调用，

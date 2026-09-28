@@ -51,6 +51,19 @@ class GameTimeClock @Inject constructor(
     private val _speedFlow = MutableStateFlow(1)
     val speedFlow: StateFlow<Int> = _speedFlow.asStateFlow()
 
+    // ── 旬内连续进度（B8 时间进度投影源；结算改造 2026-09-27 方案 §10 B8）──
+
+    /**
+     * 旬内进度流 [0,1]——UI 进度条的连续时间真源。
+     *
+     * AUTHORITATIVE 下由 [mirrorFromNative] 每帧推送（native 帧计划
+     * accumulatedGameMs，INV-2 未截断轴的旬内分量）；OFF 回退臂由 [tick]
+     * 累积器刷新。暂停（speed=0）恒 0。消费面经 GameEngine 暴露给
+     * GameViewModel 的月进度投影（§6.5 map+stateIn 模式），UI 不驱动 tick。
+     */
+    private val _phaseProgressFlow = MutableStateFlow(0f)
+    val phaseProgressFlow: StateFlow<Float> = _phaseProgressFlow.asStateFlow()
+
     /** 当前旬的游戏时间毫秒数（随速度变化） */
     val msPerPhase: Long
         get() = when (speed) {
@@ -60,14 +73,9 @@ class GameTimeClock @Inject constructor(
             else -> MS_PER_PHASE_1X
         }
 
-    /** 当前旬进度 0.0~1.0（UI 进度条用） */
+    /** 当前旬进度 0.0~1.0（UI 进度条用；与 [phaseProgressFlow] 同一真源） */
     val phaseProgress: Float
-        get() {
-            if (speed == 0) return 0f
-            val denom = msPerPhase.toFloat()
-            if (denom <= 0f) return 0f
-            return (accumulatedGameMsInternal.toFloat() / denom).coerceIn(0f, 1f)
-        }
+        get() = _phaseProgressFlow.value
 
     /** 当前旬剩余毫秒数（UI 倒计时用） */
     val remainingPhaseMs: Long
@@ -91,6 +99,7 @@ class GameTimeClock @Inject constructor(
     fun start() {
         lastWallMs = timeSource.elapsedRealtime()
         accumulatedGameMsInternal = 0L
+        refreshPhaseProgress()
     }
 
     /**
@@ -106,6 +115,7 @@ class GameTimeClock @Inject constructor(
         lastWallMs = now
         speed = newSpeed.coerceIn(0, 2)
         _speedFlow.value = speed
+        refreshPhaseProgress()
         // AUTHORITATIVE 下速度真相源在 native 引擎循环——
         // 经钩子同步推送（GameEngineCore init 注册；OFF 模式无消费者）
         onSpeedChanged?.invoke(speed)
@@ -127,6 +137,7 @@ class GameTimeClock @Inject constructor(
     fun mirrorFromNative(newAccumulatedGameMs: Long) {
         accumulatedGameMsInternal = newAccumulatedGameMs
         lastWallMs = timeSource.elapsedRealtime()
+        refreshPhaseProgress()
     }
 
     /**
@@ -145,6 +156,7 @@ class GameTimeClock @Inject constructor(
     fun addOfflineGameMs(gameMs: Long) {
         if (gameMs <= 0) return
         accumulatedGameMsInternal += gameMs
+        refreshPhaseProgress()
     }
 
     /**
@@ -188,6 +200,7 @@ class GameTimeClock @Inject constructor(
         } else if (phases > 0) {
             accumulatedGameMsInternal -= phases.toLong() * msPerPhase
         }
+        refreshPhaseProgress()
         return TickResult(phases, isSettlementPending)
     }
 
@@ -208,6 +221,7 @@ class GameTimeClock @Inject constructor(
      */
     fun forceConsumeOnePhase() {
         accumulatedGameMsInternal = maxOf(0L, accumulatedGameMsInternal - msPerPhase)
+        refreshPhaseProgress()
     }
 
     /**
@@ -224,6 +238,18 @@ class GameTimeClock @Inject constructor(
     fun refundPhases(count: Int) {
         if (count <= 0) return
         accumulatedGameMsInternal += count.toLong() * msPerPhase
+        refreshPhaseProgress()
+    }
+
+    /** 刷新旬内进度流（累积器每个变更点调用——单一真源，禁止旁路写） */
+    private fun refreshPhaseProgress() {
+        _phaseProgressFlow.value = if (speed == 0) {
+            0f
+        } else {
+            val denom = msPerPhase.toFloat()
+            if (denom <= 0f) 0f
+            else (accumulatedGameMsInternal.toFloat() / denom).coerceIn(0f, 1f)
+        }
     }
 
     // ── 类型 ──

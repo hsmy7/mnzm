@@ -112,6 +112,8 @@ fun ForgeDialog(
         buildingInstanceId = buildingInstanceId, forgeSlots = forgeSlots, gameData = gameData,
         disciples = disciples, viewModel = viewModel
     )
+    // B8 时间进度投影：月内连续进度（§6.5 订阅派生，UI 不驱动 tick）
+    val monthProgressFraction by viewModel.monthProgressFraction.collectAsStateWithLifecycle()
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -122,6 +124,7 @@ fun ForgeDialog(
         Column(modifier = Modifier.fillMaxSize()) {
             ForgeDialogBody(
                 state = forgeState, viewModel = viewModel, disciples = disciples, forgeViewModel = forgeViewModel,
+                monthProgressFraction = monthProgressFraction,
                 actions = ForgeDialogActions(
                     onWorkerSlotEmptyClick = { showWorkerSelection = true },
                     onWorkerDismiss = { forgeViewModel.removeWorker(forgeState.buildingIndex) },
@@ -212,6 +215,7 @@ private fun ColumnScope.ForgeDialogBody(
     viewModel: GameViewModel,
     disciples: List<DiscipleAggregate>,
     forgeViewModel: ForgeViewModel,
+    monthProgressFraction: Float,
     actions: ForgeDialogActions
 ) {
     Column(
@@ -264,6 +268,7 @@ private fun ColumnScope.ForgeDialogBody(
             gameData = state.gameData,
             slotIndex = state.slotIndex,
             forgeViewModel = forgeViewModel,
+            monthProgressFraction = monthProgressFraction,
             onReplace = actions.onReplace,
             onIdleClick = actions.onIdleClick
         )
@@ -317,6 +322,7 @@ private fun ForgeSlotItem(
     gameData: GameData?,
     slotIndex: Int,
     forgeViewModel: ForgeViewModel,
+    monthProgressFraction: Float,
     onReplace: () -> Unit,
     onIdleClick: () -> Unit
 ) {
@@ -335,7 +341,7 @@ private fun ForgeSlotItem(
         productRarity = mySlot?.equipmentRarity ?: 1,
         totalDuration = mySlot?.duration ?: 1,
         successRate = mySlot?.successRate ?: 0.0,
-        gamePhase = gameData?.gamePhase ?: 0,
+        monthProgressFraction = monthProgressFraction,
         onCancel = if (isWorking) { { forgeViewModel.cancelForge(slotIndex) } } else null,
         onReplace = if (isWorking) { onReplace } else null,
         onClick = { if (isIdle) onIdleClick() }

@@ -31,6 +31,11 @@ import com.xianxia.sect.ui.components.sectIconRes
 
 /**
  * 宗门信息卡片 — 显示宗门名、年月、弟子数、灵石、战力。
+ *
+ * 时间行（年/月/旬）为日历投影显示（INV-1：由权威轴派生，C++ projectCalendar
+ * 维护；B8 起 UI 侧经 GameViewModel.sectClock 读块①「资源头部」投影流——
+ * 年/月/旬保留不删，方案「时间进度投影」口径；进度类读数不走本卡片，
+ * 走 GameViewModel.monthProgressFraction 连续投影）。
  */
 @Composable
 internal fun SectInfoCard(

@@ -209,5 +209,56 @@ TEST_F(GameCoreTest, AccrueAdvancesWindowsAndBoundaryFlags) {
     }
 }
 
+// ── B8 积分段遥测 + INV-1 锁步不变量（方案 §9 监控盲区）────────────────
+// accrue 内轴与日历投影逐窗锁步（轴增量 = 执行窗口×旬长，日历增量 = 同窗
+// 数）；本测试在 Release 门（assert 消音）下从外部复断同一不变量，并验证
+// 遥测计数面（采样/峰值/超预算计数）。totalPhases 为差分语义（年份项不
+// 减 1，初值 = 36），断言一律用增量。
+TEST_F(GameCoreTest, AccrualTelemetryAndAxisCalendarLockstep) {
+    GameCore core(&clock_, &logger_);
+    GameCoreConfig config;
+    config.seedInitialized = true;
+    ASSERT_TRUE(core.initialize(config));
+
+    // 初态 INV-1 恒等：轴 = calendarToGameMs(日历)（投影互逆）
+    auto& gd = core.state().gameData;
+    EXPECT_EQ(system::calendarToGameMs(gd.gameYear, gd.gameMonth, gd.gamePhase),
+              gd.elapsedGameMs);
+
+    // 2.5 窗增量 → 执行 2 窗（cap 3 内；余量留判定轴不丢）——锁步按执行数计
+    const int64_t axisBefore = gd.elapsedGameMs;
+    const int64_t phasesBefore = system::totalPhases(gd);
+    core.accrue(5000, true);
+    EXPECT_EQ(2 * system::kGameMsPerPhase, gd.elapsedGameMs - axisBefore);
+    EXPECT_EQ(2, system::totalPhases(gd) - phasesBefore);
+
+    // 再 2 窗（4000ms，cap 内）→ 累计 4 窗，投影互逆保持（(1,1,0) 起 → (1,2,1)）
+    core.accrue(4000, true);
+    EXPECT_EQ(system::calendarToGameMs(gd.gameYear, gd.gameMonth, gd.gamePhase),
+              gd.elapsedGameMs);
+    EXPECT_EQ(2, gd.gameMonth);
+    EXPECT_EQ(1, gd.gamePhase);
+
+    // cap 分支：14000ms = 7 窗 > cap 3 → 恰执行 3 窗，锁步仍按执行数计
+    //（INV-2：时间不丢——余量在判定轴，未截断面在 PhaseClock）
+    const int64_t axisBefore2 = gd.elapsedGameMs;
+    const int64_t phasesBefore2 = system::totalPhases(gd);
+    core.accrue(14000, true);
+    EXPECT_EQ(3 * system::kGameMsPerPhase, gd.elapsedGameMs - axisBefore2);
+    EXPECT_EQ(3, system::totalPhases(gd) - phasesBefore2);
+    EXPECT_EQ(system::calendarToGameMs(gd.gameYear, gd.gameMonth, gd.gamePhase),
+              gd.elapsedGameMs);
+
+    // 遥测计数面：3 次有效结算恰 3 采样；小状态积分段不超预算
+    const auto& tel = core.accrualTelemetry();
+    EXPECT_EQ(3, tel.samples);
+    EXPECT_GE(tel.lastSegmentUs, 0);
+    EXPECT_EQ(0, tel.overBudgetCount);
+
+    // 旗标关零采样（旧行为臂不进积分段）
+    EXPECT_EQ(system::kSettleFlagNone, core.accrue(1000, false));
+    EXPECT_EQ(3, core.accrualTelemetry().samples);
+}
+
 }  // namespace
 }  // namespace gamecore

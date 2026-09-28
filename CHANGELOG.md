@@ -666,6 +666,63 @@
 - **门禁**：桌面 gtest 1554/1554（golden 按新层序重生成）；:core:engine/:feature:game/:app
   JVM 全量绿；六模块 detekt 双触碰模块零违规；JNI 计数 82/82 在册。
 
+### 实时结算线 B8 批（2026-09-28）——UI 时间进度投影 + 积分段遥测与 bench 门禁 — `feat(ui)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B8 行
+> + `docs/realtime-watch/batch-B8.md`（派发件）+ `docs/report-B8.md`（本批报告）。
+
+- **旬进度→时间进度（INV-1 派生投影）**：`TimeProgressUtil.monthProgressFraction`
+  （(日历旬序 + 旬内连续进度)/3，钳 [0,1]）与 `slotProgressFraction`（(已完成整月 +
+  月内进度)/总月数）纯函数族（core/domain）；`ProductionSlotItem` 参数
+  `gamePhase: Int` → `monthProgressFraction: Float`——旧 `gamePhase/3f` 三档量化
+  退役（旧口径月内进度一旬走一步，进度条长期停在 1/3、2/3 刻度读作「差一点不结算」）；
+  炼丹/锻造对话框经 `GameViewModel.monthProgressFraction`（combine 块① gamePhase +
+  `GameTimeClock.phaseProgressFlow`，§6.5 map+stateIn 订阅派生）驱动；**月界收获判据
+  不变**（B5 口径，进度只是投影）。
+- **GameTimeClock.phaseProgressFlow**：旬内连续进度流（AUTHORITATIVE=每帧
+  `mirrorFromNative` 推 native 帧计划 `accumulatedGameMs`——INV-2 未截断轴的旬内分量；
+  OFF 回退臂= tick 累积器刷新；暂停恒 0；setSpeed/start/forceConsume/refund/offline 注入
+  全部变更点同步刷新）；`phaseProgress` getter 改读同流（单一真源）；`GameEngine`
+  公开暴露（gameClock 为 engine 模块 internal，feature 层经此消费）。
+- **GameViewStore 块①消费迁移（HUD）**：`GameViewModel.sectClock`（块①「资源头部」
+  窄流 map，spiritStoneTotals 同族先例）+ 主界面 `SectInfoCard` 时间行改读块①投影
+  （MainGameScreen 不再直读整份快照的时间字段）；**年/月/旬显示保留不删**（方案
+  「旬概念保留」口径）；`GameData.displayTime`（方案时点 :831 锚点）零改动——日历
+  投影 getter 本就 INV-1 合规，无新镜像读面（ui-read-surface §2 零扩面）。
+- **积分段遥测（方案 §9 监控盲区闭合项）**：`GameCore::AccrualTelemetry`
+  （lastSegmentUs/maxSegmentUs/samples/overBudgetCount 只读观测面）+
+  `recordAccrualSegmentUs`（L1 `accrueContinuous` + L3 `accrueMonthlyContinuous`
+  两段 steady_clock 计时求和，判定窗口循环不属积分段；flag 关零采样零开销）+
+  超预算 TelemetrySink 事件 `engine_accrual_over_budget`（预算 1ms 与 D1 债触发判据
+  同源；节流：首次必报 + stride 600 防 tick 级事件风暴）；Dev 构建锁步不变量
+  （accrue 内 axis/calendar 逐窗锁步 assert + kError 日志，Release 消音）+
+  `GameCoreTest.AccrualTelemetryAndAxisCalendarLockstep` 在 Release 门（assert 消音态）
+  从外部复断不变量。引擎线程单写单读，无新跨线程面（threading-contract 零登记需求）。
+- **bench 门禁（§10 B8 验收项）**：新增 `test/bench/accrual_segment_bench_test.cpp`
+  入 `game-core-bench` 目标——**G1 同族 core 形态（5000 弟子无实例清单）积分段
+  < 1ms 硬断言**（生产同入口 accrue(100ms) 形态 = 0 判定窗口；3 预热 + min-of-15
+  采样抗抖）；全实例形态（每弟子 1 功法 + 2 装备）信息观测（打印无断言，沿
+  TimingPerPhase 先例）+ 小宗门（100 弟子）对照。`GAMECORE_BUILD_BENCH` 本地构建
+  翻开与 CI 对齐（本地默认 OFF→ON，本树 CMakeCache 变更）。
+- **🔴 途中缺陷修复（本批门禁实证的根因修复，非打补丁）**：`accrueContinuous`
+  孕养步「桶命中仅作空判 → 全量 O(I) 线性扫拿可变引用」——O(D×4×I)≈2 亿次字符串
+  比较，bench 实测积分段 **167ms@5000**（超预算 167×，若旗标翻开必触顶掉帧）。
+  修复 = `InstanceBuckets.findMutable`（桶本就存向量下标，生命周期契约明文允许
+  原地列写；find/findMutable 共用单一 locate 实现，末次匹配语义逐位一致）→
+  全实例形态 167ms→**5.91ms**（28×），core 形态 **667.5µs@5000** 门禁绿。
+  残余 >1ms 部分 = 桶视图按 tick 重建 + 逐弟子全速率链重算（方案 §7.2/D1 登记
+  形状；D1 触发判据自此有桌面数据点，真机项仍 pending-device）。
+- **测试**：C++ AccrualSegmentBench 3 例 + AccrualTelemetryAndAxisCalendarLockstep
+  1 例；Kotlin TimeProgressUtilTest +4（月进度连续爬升/越界钳制/槽位合成/边界）、
+  GameTimeClockTest +5（进度流连续爬升与回绕/暂停归零/2x 折算/镜像直设/getter
+  同源）。
+- **门禁实测**：ctest **1483/1483**（基线 1473 + bench 目标 10 项随 GAMECORE_BUILD_BENCH
+  翻开入库；首轮全量曾一次性假红——构建余载下 min-of-7 采样不足，加深为 3 预热 +
+  min-of-15 后两轮全量绿）+ 六模块 JVM 全量带 jni.path（含 feature:game）+
+  build-desktop-jni.ps1 重跑（.so 新鲜）+ detekt/lintRelease + jni-count 88/88 +
+  check-agent-instructions 绿。版本号不自增；realtimeAccrual 旗标未翻（默认 false）；
+  存档 schema 零变更。
+
 ## [4.01.15] - 2026-09-17
 
 ### SR-7 批（2026-09-22）——存档 schema 第二刀 + 文件层退役代码就位（⚠️ 未切换：全量设备仍 LEGACY，玩家零可见变化）

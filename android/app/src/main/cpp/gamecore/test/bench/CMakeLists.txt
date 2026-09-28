@@ -6,6 +6,7 @@
 # 见上层 CMakeLists.txt 与 .github/workflows/ci.yml）。
 
 add_executable(game-core-bench
+    accrual_segment_bench_test.cpp
     phase_settlement_bench_test.cpp
     rest_domain_diff_bench_test.cpp
 )

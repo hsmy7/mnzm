@@ -149,4 +149,40 @@ class TimeProgressUtilTest {
         // completeAt 零值（未回填）不算完成
         assertFalse(TimeProgressUtil.isElapsedByGameMs(0L, 100_000L))
     }
+    // ---- B8 时间进度投影族（旬进度→时间进度，方案 §10 B8）----
+
+    @Test
+    fun monthProgressFraction_climbsContinuouslyAcrossPhases() {
+        // 旬序 0 + 旬内 0/3 段：月初 0
+        assertEquals(0f, TimeProgressUtil.monthProgressFraction(0, 0f), 1e-6f)
+        // 上旬中段：0 + 0.5 → 1/6
+        assertEquals(1f / 6f, TimeProgressUtil.monthProgressFraction(0, 0.5f), 1e-6f)
+        // 中旬始：1/3；下旬末逼近 1：2 + 0.99 → 0.9967
+        assertEquals(1f / 3f, TimeProgressUtil.monthProgressFraction(1, 0f), 1e-6f)
+        assertEquals(0.9967f, TimeProgressUtil.monthProgressFraction(2, 0.99f), 1e-3f)
+    }
+
+    @Test
+    fun monthProgressFraction_clampsOutOfRangeInputs() {
+        // 旬序越界与旬内进度越界都收敛到 [0,1]
+        assertEquals(0f, TimeProgressUtil.monthProgressFraction(-1, 0f), 1e-6f)
+        assertEquals(1f, TimeProgressUtil.monthProgressFraction(9, 2f), 1e-6f)
+        assertEquals(0f, TimeProgressUtil.monthProgressFraction(0, -3f), 1e-6f)
+    }
+
+    @Test
+    fun slotProgressFraction_combinesWholeMonthsAndMonthProgress() {
+        // 3 月任务完成 1 整月 + 月内 0.5 → 1.5/3
+        assertEquals(0.5f, TimeProgressUtil.slotProgressFraction(1, 0.5f, 3), 1e-6f)
+        // 收获前终值逼近 1：最后一月 + 月内 0.99
+        assertEquals(0.9967f, TimeProgressUtil.slotProgressFraction(2, 0.99f, 3), 1e-3f)
+    }
+
+    @Test
+    fun slotProgressFraction_edgeDurationsAndClamp() {
+        assertEquals(0f, TimeProgressUtil.slotProgressFraction(0, 0f, 0), 1e-6f)
+        assertEquals(0f, TimeProgressUtil.slotProgressFraction(0, 0f, -2), 1e-6f)
+        // 超额完成月数收敛 1（月界收割前 UI 不越界）
+        assertEquals(1f, TimeProgressUtil.slotProgressFraction(5, 0.5f, 3), 1e-6f)
+    }
 }

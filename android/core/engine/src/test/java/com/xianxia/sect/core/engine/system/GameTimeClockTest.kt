@@ -262,4 +262,66 @@ class GameTimeClockTest {
         fakeTime.advanceBy(1234L)
         assertEquals(before + 1234L, clock.nowMs())
     }
+    // ── B8 旬内连续进度流（时间进度投影源）──
+
+    // 24. phaseProgressFlow：旬内随时间连续爬升（0 → 0.5），旬消费后回绕归零
+    @Test
+    fun phaseProgressFlow_advancesContinuouslyAndWrapsAtPhaseBoundary() {
+        clock.start()
+        assertEquals(0f, clock.phaseProgressFlow.value, 1e-6f)
+
+        simulateTick(1000L)  // 1x：旬内 1000/2000 = 0.5
+        assertEquals(0.5f, clock.phaseProgressFlow.value, 1e-4f)
+
+        simulateTick(1000L)  // 恰满 1 旬：消费回绕 → 0
+        assertEquals(0f, clock.phaseProgressFlow.value, 1e-6f)
+
+        simulateTick(500L)
+        assertEquals(0.25f, clock.phaseProgressFlow.value, 1e-4f)
+    }
+
+    // 25. phaseProgressFlow：暂停恒 0，恢复后继续爬升
+    @Test
+    fun phaseProgressFlow_zeroWhilePaused() {
+        clock.start()
+        simulateTick(1000L)
+        assertEquals(0.5f, clock.phaseProgressFlow.value, 1e-4f)
+
+        clock.setSpeed(0)  // 暂停
+        assertEquals(0f, clock.phaseProgressFlow.value, 1e-6f)
+
+        simulateTick(1000L)  // 暂停期间不累积
+        assertEquals(0f, clock.phaseProgressFlow.value, 1e-6f)
+
+        clock.setSpeed(1)
+        assertEquals(0.5f, clock.phaseProgressFlow.value, 1e-4f)  // 保留累积
+    }
+
+    // 26. phaseProgressFlow：2x 下按游戏毫秒折算（1000ms 真实 = 2000 游戏毫秒 = 满旬回绕）
+    @Test
+    fun phaseProgressFlow_scalesWithSpeed() {
+        clock.start()
+        clock.setSpeed(2)
+        simulateTick(1000L)  // 2000 游戏毫秒 → 恰 1 旬（2x 旬长 1000ms），回绕 0
+        assertEquals(0f, clock.phaseProgressFlow.value, 1e-6f)
+        simulateTick(250L)   // 500 游戏毫秒 = 2x 半旬 → 0.5
+        assertEquals(0.5f, clock.phaseProgressFlow.value, 1e-4f)
+    }
+
+    // 27. phaseProgressFlow：AUTHORITATIVE 镜像推送直设旬内值
+    @Test
+    fun phaseProgressFlow_mirrorFromNativeOverrides() {
+        clock.start()
+        simulateTick(1500L)
+        clock.mirrorFromNative(400L)  // native 帧计划旬内 400/2000
+        assertEquals(0.2f, clock.phaseProgressFlow.value, 1e-4f)
+        assertEquals(400L, clock.accumulatedGameMs)
+    }
+
+    // 28. phaseProgress 与 flow 同一真源（getter 直读流值）
+    @Test
+    fun phaseProgress_getterReadsSameSourceAsFlow() {
+        simulateTick(1300L)
+        assertEquals(clock.phaseProgressFlow.value, clock.phaseProgress, 1e-9f)
+    }
 }

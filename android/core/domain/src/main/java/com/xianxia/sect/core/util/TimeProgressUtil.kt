@@ -64,4 +64,40 @@ object TimeProgressUtil {
     /** 完成判定：completeAt ≤ now（与 C++ isSlotCompleteDynamic 毫秒臂同式） */
     fun isElapsedByGameMs(completeAtGameMs: Long, nowGameMs: Long): Boolean =
         completeAtGameMs in 1..nowGameMs
+
+    // ── 时间进度投影族（结算改造 2026-09-27 B8，方案 §10 B8「旬进度→时间进度」）──
+    // INV-1 派生投影：进度条不再按旬三档量化（旧 gamePhase/3f），改为由
+    // 权威轴旬内连续进度（GameTimeClock.phaseProgressFlow，INV-2 帧计划的
+    // 旬内分量）与日历旬序合成的连续值。纯函数，可单元测试。
+
+    /**
+     * 月内时间进度 [0,1]：(已完成旬序 + 旬内连续进度)/3。
+     *
+     * 替代旧 `gamePhase/3f` 三档量化：旧口径月内进度一旬才走一步（2s@1x），
+     * 进度条长期停在 1/3、2/3 刻度，读作「差一点不结算」；本投影随旬内
+     * 时间连续逼近月界，收获判据（月界收割，B5 口径）不变。
+     *
+     * @param gamePhase 日历旬序 0..2（镜像投影）
+     * @param phaseProgress 旬内连续进度 [0,1]（phaseProgressFlow 现值）
+     */
+    fun monthProgressFraction(gamePhase: Int, phaseProgress: Float): Float =
+        ((gamePhase.coerceIn(0, 2) + phaseProgress.coerceIn(0f, 1f)) / 3f)
+            .coerceIn(0f, 1f)
+
+    /**
+     * 月计时长工作进度 [0,1]：(已完成整月 + 月内时间进度)/总月数。
+     *
+     * 槽位类（炼丹/锻造等月计模型）进度条目标值唯一口径：整月部分来自
+     * remainingMonths 差值（月界收割判据），月内小数部分来自
+     * [monthProgressFraction] 连续投影。
+     */
+    fun slotProgressFraction(
+        completedMonths: Int,
+        monthProgressFraction: Float,
+        totalDuration: Int
+    ): Float {
+        if (totalDuration <= 0) return 0f
+        val elapsed = completedMonths + monthProgressFraction
+        return (elapsed / totalDuration).coerceIn(0f, 1f)
+    }
 }
